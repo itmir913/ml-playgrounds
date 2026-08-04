@@ -71,12 +71,28 @@ VERIFIED, MISMATCH, UNSIGNED
 
 ## 프런트엔드 전용 코드 (로케일 `client.*`)
 
-서버가 꺼져 있을 때는 서버가 코드를 줄 수 없다. 프런트엔드에서만 판정되는 조건은
-`frontend/src/ml/backend.ts`가 선언한다.
+서버가 꺼져 있을 때는 서버가 코드를 줄 수 없다. 프로젝트 파일을 여는 것도 브라우저에서
+끝나는 일이다. 이런 코드의 단일 출처는 `frontend/src/errors.ts`의 `CLIENT_ERROR_CODES`이고,
+로케일의 `client.*`와 양방향으로 일치해야 한다(`tests/locales.spec.ts`가 강제).
 
+**실행 위치**
 ```
 SERVER_UNAVAILABLE, ALGORITHM_NOT_AVAILABLE_HERE, DATASET_TOO_LARGE_FOR_BROWSER
 ```
+
+**프로젝트 파일 열기**
+```
+PROJECT_FILE_NOT_ZIP, PROJECT_FILE_ENTRY_MISSING, PROJECT_FILE_INVALID,
+PROJECT_FILE_VERSION_TOO_NEW, PROJECT_FILE_VERSION_UNSUPPORTED
+```
+
+**모델 실행 / 저장소**
+```
+MODEL_FORMAT_UNSUPPORTED, STORAGE_QUOTA_EXCEEDED
+```
+
+`MODEL_FORMAT_UNSUPPORTED`는 파일 열기 실패와 성격이 다르다. **파일은 멀쩡히 열리고
+그 모델로 예측만 못 한다.** → `mlpx-spec.md`
 
 **`errors.*`에 섞지 마라.** CI가 `errors.*`와 `ErrorCode`의 양방향 일치를 강제하므로
 백엔드에 없는 코드를 `errors.*`에 넣으면 실패한다.
