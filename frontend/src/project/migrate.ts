@@ -76,17 +76,16 @@ export function applyMigrations(
 }
 
 /**
- * 파일에서 읽은 문서를 현재 버전으로 올리고 검증해서 돌려준다.
+ * manifest 하나만 보고 이 앱이 열 수 있는 버전인지 판정한다. 열 수 있으면 그 버전을 준다.
  *
- * 입력을 변형하지 않는다 - 호출자가 넘긴 객체는 그대로 남는다.
+ * **manifest만 받는 이유가 검사 순서다** (mlpx-spec.md 9). 부르는 쪽이 나머지 엔트리를
+ * 요구하기 **전에** 이걸 통과시켜야 한다. 순서를 뒤집으면 엔트리 구성이 바뀐 미래의 파일이
+ * PROJECT_FILE_VERSION_TOO_NEW가 아니라 PROJECT_FILE_ENTRY_MISSING으로 거부되고,
+ * 학생과 교사는 "앱을 업데이트하세요" 대신 "manifest.json이 없습니다"를 보게 된다.
+ * 둘은 파일이 손상됐다고 결론 낸다 - 상위 버전을 명확히 거부하기로 한 결정이 거기서 샌다.
  */
-export function migrateProjectDocument(document: unknown): ProjectDocument {
-  const raw = asRecord(document)
-  if (!raw) {
-    throw new ClientError('PROJECT_FILE_INVALID', { path: '', issues: 1 })
-  }
-
-  const version = readFormatVersion(raw)
+export function requireSupportedVersion(manifest: unknown): number {
+  const version = readFormatVersion({ manifest })
   if (version === null) {
     // 버전을 못 읽으면 어떤 규칙으로 해석해야 할지 알 수 없다.
     throw new ClientError('PROJECT_FILE_VERSION_UNSUPPORTED', { fileVersion: 0 })
@@ -98,6 +97,25 @@ export function migrateProjectDocument(document: unknown): ProjectDocument {
       appVersion: FORMAT_VERSION,
     })
   }
+
+  return version
+}
+
+/**
+ * 파일에서 읽은 문서를 현재 버전으로 올리고 검증해서 돌려준다.
+ *
+ * 입력을 변형하지 않는다 - 호출자가 넘긴 객체는 그대로 남는다.
+ *
+ * 버전 확인을 다시 한다. 부르는 쪽이 이미 requireSupportedVersion을 통과시켰더라도
+ * 이 함수 하나만 부르는 경로가 안전해야 한다 - 검사를 부르는 쪽의 성실함에 맡기지 않는다.
+ */
+export function migrateProjectDocument(document: unknown): ProjectDocument {
+  const raw = asRecord(document)
+  if (!raw) {
+    throw new ClientError('PROJECT_FILE_INVALID', { path: '', issues: 1 })
+  }
+
+  const version = requireSupportedVersion(raw.manifest)
 
   return parseProjectDocument(applyMigrations(structuredClone(raw), version, FORMAT_VERSION))
 }

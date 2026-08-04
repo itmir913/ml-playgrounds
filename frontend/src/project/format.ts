@@ -26,7 +26,7 @@ import {
   type HashCheck,
   type ProjectHashes,
 } from './integrity'
-import { migrateProjectDocument } from './migrate'
+import { migrateProjectDocument, requireSupportedVersion } from './migrate'
 import type { Manifest, ProjectDocument } from './schema'
 
 /** 프로젝트 파일의 확장자. 코드 안에서 '.mlpx'를 직접 쓰지 마라. */
@@ -292,6 +292,49 @@ function hashableEntries(
 }
 
 /**
+ * 문서가 적어 둔 zip 경로가 제 디렉터리 안에 있는지 확인한다.
+ *
+ * **스키마는 이 경로들을 z.string()으로 둔다.** 컬럼명처럼 사용자 데이터가 아니라 우리가
+ * 쓴 값인데도 그런 이유는, 검증할 것이 문자열 모양이 아니라 **다른 엔트리와의 관계**여서
+ * zod가 볼 수 없는 자리이기 때문이다.
+ *
+ * 확인하지 않으면 고정 엔트리를 덮어쓴다. writeProject는 manifest/settings/runs/portfolio를
+ * 먼저 넣고 그 뒤에 데이터셋과 모델을 넣으므로, dataset.path가 'manifest.json'이면
+ * **저장한 파일이 다시 안 열리고** preprocessor.path가 'settings.json'이면 방금 만든 설정이
+ * 파일에서 읽어 온 옛 바이트로 덮인다 - 뒤엣것은 터지지도 않아서 더 나쁘다.
+ *
+ * **읽을 때만 확인한다.** 우리 코드는 경로를 상수에서 만들므로 여기만 막으면 되고,
+ * 쓸 때 던지면 "저장은 항상 성공한다"(mlpx-spec.md 4.2)와 부딪힌다.
+ *
+ * '..'을 막는 것은 우리를 위해서가 아니다 - 우리는 경로를 Map 키로만 쓴다. 학생이 압축을
+ * 풀 때 바깥으로 새는 것을 막는다.
+ */
+function requirePathUnder(path: string, directory: string, field: string): void {
+  const inside = path.startsWith(directory) && path.length > directory.length
+  const escapes = path.split('/').includes('..') || path.includes('\\')
+  if (!inside || escapes) {
+    throw new ClientError('PROJECT_FILE_INVALID', { path: field, issues: 1 })
+  }
+}
+
+/** 문서가 가리키는 모든 zip 경로를 검사한다. 하나라도 어긋나면 파일을 열지 않는다. */
+function requireSanePaths(document: ProjectDocument): void {
+  requirePathUnder(document.settings.dataset.path, DIR.dataset, 'settings.dataset.path')
+
+  document.runs.batches.forEach((batch, batchIndex) => {
+    const at = `runs.batches.${batchIndex}`
+    if (batch.preprocessor) {
+      requirePathUnder(batch.preprocessor.path, DIR.model, `${at}.preprocessor.path`)
+    }
+    batch.runs.forEach((run, runIndex) => {
+      if (run.model) {
+        requirePathUnder(run.model.path, DIR.model, `${at}.runs.${runIndex}.model.path`)
+      }
+    })
+  })
+}
+
+/**
  * hashes.json을 읽는다. 없거나 깨졌으면 null.
  *
  * **여기서 던지지 않는다.** 다른 엔트리의 JSON이 깨지면 PROJECT_FILE_INVALID지만
@@ -322,13 +365,20 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
     return content
   }
 
+  // **manifest가 먼저다.** 나머지 엔트리를 요구하기 전에 버전을 확정한다 - 엔트리 구성이
+  // 바뀐 미래의 파일에 "파일이 깨졌습니다"가 아니라 "앱을 업데이트하세요"를 주기 위해서다
+  // (mlpx-spec.md 9).
+  const manifest = decodeJson(required(ENTRY.manifest), ENTRY.manifest)
+  requireSupportedVersion(manifest)
+
   const raw = {
-    manifest: decodeJson(required(ENTRY.manifest), ENTRY.manifest),
+    manifest,
     settings: decodeJson(required(ENTRY.settings), ENTRY.settings),
     runs: decodeJson(required(ENTRY.runs), ENTRY.runs),
     portfolio: decodeJson(required(ENTRY.portfolio), ENTRY.portfolio),
   }
   const document = migrateProjectDocument(raw)
+  requireSanePaths(document)
 
   // 데이터셋이 없으면 재학습도, 참조형 모델의 예측도, 해시 재계산도 전부 불가능하다.
   const datasetPath = document.settings.dataset.path

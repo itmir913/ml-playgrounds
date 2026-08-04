@@ -262,6 +262,131 @@ describe('열 수 없는 파일', () => {
       (error: unknown) => isClientError(error) && error.code === 'PROJECT_FILE_VERSION_TOO_NEW',
     )
   })
+
+  it('상위 버전이면 엔트리가 없어도 버전을 먼저 말한다', async () => {
+    // 미래의 v2가 엔트리 구성을 바꾸면(예: portfolio를 manifest에 합침) 이 빌드에는
+    // 없는 엔트리가 생긴다. 그때 "manifest.json이 없습니다"를 주면 학생과 교사는 파일이
+    // 손상됐다고 결론 내린다. 줘야 할 답은 "앱을 업데이트하세요"다 (mlpx-spec.md 9).
+    const project = projectFile()
+    project.document = {
+      ...project.document,
+      manifest: { ...manifest, formatVersion: FORMAT_VERSION + 1 },
+    }
+    const { bytes } = await writeProject(project, markdown)
+    const entries = unzipSync(bytes)
+    delete entries[ENTRY.portfolio]
+
+    await expect(readProject(zipSync(entries))).rejects.toSatisfy(
+      (error: unknown) => isClientError(error) && error.code === 'PROJECT_FILE_VERSION_TOO_NEW',
+    )
+  })
+})
+
+describe('경로가 어긋난 파일', () => {
+  /** settings.json을 손으로 고친 파일을 만든다. */
+  async function withSettings(mutate: (settings: { dataset: { path: string } }) => void) {
+    const { bytes } = await writeProject(projectFile(), markdown)
+    const entries = unzipSync(bytes)
+    const settings = JSON.parse(new TextDecoder().decode(entries[ENTRY.settings])) as {
+      dataset: { path: string }
+    }
+    mutate(settings)
+    entries[ENTRY.settings] = new TextEncoder().encode(JSON.stringify(settings, null, 2))
+    return zipSync(entries)
+  }
+
+  /** runs.json을 손으로 고친 파일을 만든다. */
+  async function withRuns(
+    mutate: (runs: {
+      batches: { preprocessor?: { path: string }; runs: { model?: { path: string } }[] }[]
+    }) => void,
+  ) {
+    const { bytes } = await writeProject(projectFile(), markdown)
+    const entries = unzipSync(bytes)
+    const runs = JSON.parse(new TextDecoder().decode(entries[ENTRY.runs])) as {
+      batches: { preprocessor?: { path: string }; runs: { model?: { path: string } }[] }[]
+    }
+    mutate(runs)
+    entries[ENTRY.runs] = new TextEncoder().encode(JSON.stringify(runs, null, 2))
+    return zipSync(entries)
+  }
+
+  const rejectsAt = async (bytes: Uint8Array, field: string) =>
+    expect(readProject(bytes)).rejects.toSatisfy(
+      (error: unknown) =>
+        isClientError(error) &&
+        error.code === 'PROJECT_FILE_INVALID' &&
+        error.params.path === field,
+    )
+
+  it('데이터셋이 고정 엔트리를 가리키면 거부한다', async () => {
+    // 열리기는 한다 - manifest 바이트가 "데이터셋"으로 읽힐 뿐이다. 그런데 그 프로젝트를
+    // 저장하면 데이터셋이 manifest를 덮어써서 **다시 못 여는 파일**이 나간다.
+    await rejectsAt(
+      await withSettings((settings) => {
+        settings.dataset.path = ENTRY.manifest
+      }),
+      'settings.dataset.path',
+    )
+  })
+
+  it('데이터셋이 hashes.json을 가리켜도 거부한다', async () => {
+    await rejectsAt(
+      await withSettings((settings) => {
+        settings.dataset.path = ENTRY.hashes
+      }),
+      'settings.dataset.path',
+    )
+  })
+
+  it('데이터셋 경로가 dataset/ 밖이면 거부한다', async () => {
+    await rejectsAt(
+      await withSettings((settings) => {
+        settings.dataset.path = 'data.csv'
+      }),
+      'settings.dataset.path',
+    )
+  })
+
+  it('전처리기가 고정 엔트리를 가리키면 거부한다', async () => {
+    // 이쪽이 더 나쁘다. 저장할 때 방금 만든 설정이 파일에서 읽어 온 옛 바이트로 덮이는데
+    // 파일은 멀쩡히 열려서 아무도 못 알아챈다.
+    await rejectsAt(
+      await withRuns((runs) => {
+        const batch = runs.batches[0]
+        if (batch?.preprocessor) batch.preprocessor.path = ENTRY.settings
+      }),
+      'runs.batches.0.preprocessor.path',
+    )
+  })
+
+  it('모델이 model/ 밖을 가리키면 거부한다', async () => {
+    await rejectsAt(
+      await withRuns((runs) => {
+        const model = runs.batches[0]?.runs[0]?.model
+        if (model) model.path = ENTRY.portfolioMarkdown
+      }),
+      'runs.batches.0.runs.0.model.path',
+    )
+  })
+
+  it('상위 디렉터리로 새는 경로를 거부한다 - 학생이 압축을 풀 때 밖으로 나간다', async () => {
+    await rejectsAt(
+      await withSettings((settings) => {
+        settings.dataset.path = 'dataset/../../evil.csv'
+      }),
+      'settings.dataset.path',
+    )
+  })
+
+  it('디렉터리 이름 자체는 파일이 아니다', async () => {
+    await rejectsAt(
+      await withSettings((settings) => {
+        settings.dataset.path = 'dataset/'
+      }),
+      'settings.dataset.path',
+    )
+  })
 })
 
 describe('projectFileName', () => {
