@@ -22,7 +22,7 @@
  *   만들어 봐야 전부 같은 사유로 실패하고, 학생은 같은 문장을 모델 수만큼 보게 된다.
  */
 
-import { ClientError, isClientError, type ClientErrorParams } from '../errors'
+import { ClientError, failureDetail, isClientError, type ClientErrorParams } from '../errors'
 import { BROWSER_ROW_LIMIT } from '../limits'
 import type { Batch, DataType, Run, RunsFile, Settings, TaskType } from '../project/schema'
 import { algorithmOptions, type AlgorithmOption } from './algorithms'
@@ -215,6 +215,8 @@ type RunBase = Pick<Run, 'id' | 'algorithm' | 'hyperparameters' | 'trainedAt'>
  *
  * ml.js가 내부에서 던지는 것은 우리 어휘가 아니다. 그대로 흘리면 화면이 남의 라이브러리
  * 영어 문장을 보여주게 되므로(CLAUDE.md 1.4와 같은 이유다) JOB_FAILED로 덮는다.
+ * **다만 원문을 버리지는 않는다** - failureDetail이 params.detail에 실어 보낸다.
+ * 코드를 라이브러리 결함 수만큼 늘리지 않으면서도 "실패"만 뜨는 상태를 피하는 방법이다.
  */
 function trainOne(
   base: RunBase,
@@ -250,7 +252,7 @@ function trainOne(
       status: 'failed',
       failure: isClientError(error)
         ? { code: error.code, params: error.params }
-        : { code: 'JOB_FAILED' },
+        : { code: 'JOB_FAILED', params: failureDetail(error) },
     }
   }
 }

@@ -6,7 +6,7 @@
  * (ml/worker/train.worker.ts) 판단은 전부 여기 둔다 - 여기는 순수 함수라 테스트로 덮인다.
  */
 
-import { isClientError } from '../../errors'
+import { failureDetail, isClientError } from '../../errors'
 import { runBatch } from '../batch'
 import type { TrainRequest, WorkerMessage } from './protocol'
 
@@ -27,7 +27,7 @@ export function handleTrain(request: TrainRequest, emit: (message: WorkerMessage
     emit(
       isClientError(error)
         ? { type: 'failed', code: error.code, params: error.params }
-        : { type: 'failed', code: 'JOB_FAILED', params: {} },
+        : { type: 'failed', code: 'JOB_FAILED', params: failureDetail(error) },
     )
   }
 }

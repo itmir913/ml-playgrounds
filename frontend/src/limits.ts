@@ -85,6 +85,14 @@ export const STORAGE_SAFETY_FACTOR = 1.5
 /** 저장 파일명의 최대 길이(확장자 제외). 긴 이름을 거부하지 않고 잘라 쓴다. */
 export const MAX_FILE_NAME_LENGTH = 100
 
+/**
+ * 실패 run에 함께 남기는 기술 정보의 최대 길이.
+ *
+ * 남의 라이브러리가 던진 원문이라 길이도 내용도 우리 통제 밖이다. 자르지 않으면
+ * 스택 전체가 `.mlpx` 안으로 들어가고, 그건 학생 파일에 우리 코드 구조를 흘리는 것이다.
+ */
+export const MAX_FAILURE_DETAIL_LENGTH = 200
+
 /** 학번 입력 상한. 자유 문자열이다 - 1-2-03 같은 체계가 실재한다 (mlpx-spec.md 7). */
 export const MAX_STUDENT_ID_LENGTH = 20
 

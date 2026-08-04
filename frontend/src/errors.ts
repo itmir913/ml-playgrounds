@@ -15,6 +15,8 @@
  * 그대로 쓴다 - 단일 출처는 여전히 backend/app/errors.py다.
  */
 
+import { MAX_FAILURE_DETAIL_LENGTH } from './limits'
+
 export const CLIENT_ERROR_CODES = [
   // 모델을 고를 수 없는 이유 - ml/algorithms.ts, ml/backend.ts
   // 우선순위가 곧 순서다: 데이터 타입 > 과제 유형 > 실행 위치 (mlpx-spec.md 0.1)
@@ -158,6 +160,26 @@ export class ClientError extends Error {
 
 export function isClientError(error: unknown): error is ClientError {
   return error instanceof ClientError
+}
+
+/**
+ * 우리 어휘가 아닌 실패에 붙이는 기술 정보.
+ *
+ * **에러 코드를 라이브러리 결함 수만큼 늘리지 않기 위한 것이다.** 결함마다 코드를 새로
+ * 만들면 로케일 파일 둘과 errors.py까지 그 수만큼 끌려다닌다. 대신 코드는 JOB_FAILED로
+ * 두고 원문을 여기 실어 보낸다.
+ *
+ * **이 값은 주 메시지가 아니다.** 남의 라이브러리가 던진 영어 문장이라 번역되지 않고,
+ * 화면은 t()로 만든 문장을 먼저 보여준 뒤 이것을 기술 정보로 따로 붙여야 한다
+ * (CLAUDE.md 1.4). 사람이 읽는 문장을 코드 대신 쓰는 것이 아니라, 코드로는 담을 수 없는
+ * 것을 버리지 않고 남기는 것이다.
+ *
+ * 스택은 담지 않는다. 학생 파일에 우리 코드 구조를 흘릴 이유가 없다.
+ */
+export function failureDetail(error: unknown): ClientErrorParams {
+  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
+  const trimmed = message.trim().slice(0, MAX_FAILURE_DETAIL_LENGTH)
+  return trimmed === '' ? {} : { detail: trimmed }
 }
 
 const KNOWN_CODES: ReadonlySet<string> = new Set<string>([

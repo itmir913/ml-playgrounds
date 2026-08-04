@@ -201,6 +201,38 @@ describe('일부만 실패한다', () => {
     expect(batch.runs[0]?.failure?.code).toBe('ENGINE_NOT_READY')
   })
 
+  it('엔진 내부에서 터진 것도 사유와 원문을 남긴다', () => {
+    /**
+     * **ml-random-forest는 나무가 적으면 터진다.** 어떤 학습 샘플이 모든 나무에서
+     * in-bag이면 OOB 예측이 하나도 없는데 그 경우를 검사하지 않는다. 붓꽃 30행에서
+     * nEstimators 5 이하는 시드를 바꿔도 전부 실패했고, 15부터 안정적이다.
+     * 데이터가 클수록 더 잘 터진다 - 그런 샘플이 하나라도 나올 확률이 올라간다.
+     *
+     * "나무 개수"는 학생이 가장 먼저 줄여 볼 손잡이다. 그래서 이 실패는 이론이 아니라
+     * 교실에서 일어난다. 어휘를 늘리는 대신 JOB_FAILED에 원문을 실어 보낸다 -
+     * 학생은 못 읽어도 **옆에 있는 교사는 읽고 대처할 수 있고**, 이 값은 runs.json에
+     * 그대로 들어가 .mlpx를 여는 교사에게까지 따라간다.
+     *
+     * **여기가 통과로 뒤집히면 ml-random-forest가 고쳐진 것이다.** 그때 이 테스트를
+     * 지우고 위 설명도 함께 지워라.
+     */
+    const { batch } = runBatch(
+      inputFor({
+        settings: settingsFor({
+          selectedAlgorithms: ['random_forest'],
+          hyperparameters: { random_forest: { nEstimators: 3 } },
+        }),
+      }),
+      frozen,
+    )
+
+    const [run] = batch.runs
+    expect(run?.status).toBe('failed')
+    expect(run?.failure?.code).toBe('JOB_FAILED')
+    expect(typeof run?.failure?.params?.detail).toBe('string')
+    expect(() => batchSchema.parse(batch)).not.toThrow()
+  })
+
   it('실패한 run도 스키마를 통과한다 - 사유가 반드시 있다', () => {
     const { batch } = runBatch(
       inputFor({ settings: settingsFor({ selectedAlgorithms: ['svm', '없는알고리즘'] }) }),
