@@ -127,6 +127,13 @@ function chooseRuntime(
   preferred: string,
   explicit: boolean,
 ): RuntimeSpec | undefined {
+  // **축이 셋인데 여기서 보이는 것은 하나뿐이다** (mlpx-spec.md 0.1). runtimes[].enabled는
+  // 실행 위치만 본다 - 데이터 타입과 과제 유형의 판정은 option.enabled에 들어 있고,
+  // 그것을 안 보면 회귀 전용 모델이 분류 과제에서 **그대로 학습돼 done으로 끝난다.**
+  // 화면은 못 고르게 막지만 selectedAlgorithms는 파일에 남는다 - 학생이 과제 유형만
+  // 바꾸고 다시 학습하면 체크된 채로 여기 도착한다.
+  if (!option.enabled) return undefined
+
   const usable = option.runtimes.filter(
     (candidate) => candidate.enabled && engineFor(candidate.runtime.id) !== undefined,
   )

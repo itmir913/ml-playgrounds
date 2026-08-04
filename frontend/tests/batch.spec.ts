@@ -682,3 +682,76 @@ describe('회귀 + 범주형 타깃', () => {
     }
   })
 })
+
+describe('데이터 타입·과제 유형에 안 맞는 모델', () => {
+  /**
+   * **세 축이 전부 판정에 들어가야 한다** (mlpx-spec.md 0.1). 실행 위치만 보면 회귀
+   * 전용 모델이 분류 과제에서 그대로 학습되고, run은 done으로 끝나며 지표 칸에는
+   * 아무 뜻 없는 숫자가 뜬다. 화면이 못 고르게 막아도 selectedAlgorithms는 파일에
+   * 남으므로, 학생이 과제 유형만 바꿔 다시 학습하면 체크된 채로 도착한다.
+   */
+  const line: Dataset = {
+    columns: ['x', 'y'],
+    rows: [...Array(10).keys()].map((x) => [String(x), String(2 * x + 1)]),
+  }
+
+  function runLine(overrides: Partial<BatchInput>) {
+    return runBatch(
+      {
+        dataset: line,
+        taskType: 'regression',
+        dataType: 'tabular',
+        settings: settingsFor({
+          features: ['x'],
+          target: 'y',
+          split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+          selectedAlgorithms: models('decision_tree'),
+        }),
+        context: { serverStatus: 'unavailable', rowCount: line.rows.length },
+        ...overrides,
+      },
+      frozen,
+    ).batch
+  }
+
+  it('분류 전용 모델을 회귀에 고르면 학습하지 않는다', () => {
+    const batch = runLine({})
+    expect(batch.runs[0]?.status).toBe('failed')
+    expect(batch.runs[0]?.failure?.code).toBe('ALGORITHM_NOT_FOR_TASK_TYPE')
+    expect(batch.runs[0]?.metrics).toBeUndefined()
+  })
+
+  it('데이터 타입이 안 맞으면 그쪽 사유가 이긴다 - 더 근본적인 것이 먼저다', () => {
+    const batch = runLine({ dataType: 'image' })
+    expect(batch.runs[0]?.status).toBe('failed')
+    expect(batch.runs[0]?.failure?.code).toBe('ALGORITHM_NOT_FOR_DATA_TYPE')
+  })
+
+  it('실패해도 무엇을 시도했는지는 남는다', () => {
+    const batch = runLine({})
+    // 엔진이 정해지지 않았으므로 확정할 주체가 없다 - 준 값 그대로다 (mlpx-spec.md 3).
+    expect(batch.runs[0]?.hyperparameters).toEqual({})
+    expect(batch.runs[0]?.algorithm).toBe('decision_tree')
+    expect(batch.runs[0]?.computedBy).toBe('browser')
+  })
+
+  it('맞는 조합은 그대로 학습된다', () => {
+    const batch = runLine({ settings: settingsFor({
+      features: ['x'],
+      target: 'y',
+      split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+      selectedAlgorithms: models('linear_regression'),
+    }) })
+    expect(batch.runs[0]?.status).toBe('done')
+  })
+
+  it('묶음 안에서 맞는 것만 돈다 - 하나가 안 맞아도 나머지는 나온다', () => {
+    const batch = runLine({ settings: settingsFor({
+      features: ['x'],
+      target: 'y',
+      split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+      selectedAlgorithms: models('decision_tree', 'linear_regression'),
+    }) })
+    expect(batch.runs.map((run) => run.status)).toEqual(['failed', 'done'])
+  })
+})
