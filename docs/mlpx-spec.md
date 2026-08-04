@@ -163,16 +163,39 @@ UTF-8 CSV다"). 정규화는 정본이 되기 **전에** 끝나므로 아래 §7
     "path": "dataset/data.csv",
     "originalFileName": "iris_data_final(1).csv",
     "hasHeader": true,
-    "encoding": "utf-8"
+    "encoding": "utf-8",         // 정본. 언제나 utf-8이다
+    "sourceEncoding": "cp949"    // 올라온 파일이 무엇이었는지. 화면 표시용. 엑셀에는 없다
   },
   "features": ["sepal_length", "sepal_width", "petal_length", "petal_width"],
   "target": "species",          // 군집화에는 없다. 과제 유형에 따라 선택 항목
   "preprocessing": { "missing": "drop", "scaling": "standard", "categoricalEncoding": "onehot" },
   "split": { "method": "holdout", "testSize": 0.2, "stratify": true, "randomState": 42 },
-  "selectedAlgorithms": ["decision_tree", "svm", "logistic_regression"],
-  "hyperparameters": { "decision_tree": { "max_depth": null }, "svm": { "C": 1.0 } }
+
+  "runtime": "mljs",            // 묶음 기본 실행 방법
+  "selectedAlgorithms": [
+    { "algorithm": "decision_tree" },                     // 기본을 따른다
+    { "algorithm": "svm", "runtime": "server-sklearn" }   // 이 모델만 학교 서버로
+  ],
+  "hyperparameters": {          // 알고리즘 -> 실행 방법 -> 값
+    "decision_tree": { "mljs": { "maxDepth": 5 }, "server-sklearn": { "max_depth": null } },
+    "svm": { "server-sklearn": { "C": 1.0 } }
+  }
 }
 ```
+
+**실행 방법은 묶음 기본을 두고 모델마다 덮어쓴다.** 학생 대부분은 위에서 한 번 고르고
+끝이지만, 축을 열어 두는 이유가 있다 — 그 방법으로 못 도는 알고리즘은 어차피 자동으로
+넘어가므로(§0.1) **엔진은 원래부터 섞였다.** 도구가 말없이 섞는 것을 허용하면서 학생이
+일부러 섞는 것만 막을 근거가 없다. 묶음이 보장하는 것은 **같은 데이터·전처리·분할**이고,
+엔진은 그 목록에 없었다. 그래서 `run.engine`을 기록하고 비교표가 그것을 표시한다.
+
+배열이라 **같은 알고리즘이 두 번 들어갈 수 있다.** "같은 결정트리인데 엔진이 다르면 왜
+숫자가 다른가"는 이 도구가 줄 수 있는 가장 좋은 수업 장면이다.
+
+**하이퍼파라미터의 키는 (알고리즘, 실행 방법)이다.** ml.js는 `maxDepth`, sklearn은
+`max_depth`로 어휘가 다르고, 같은 sklearn 둘은 어휘가 같은데 숫자가 갈린다. 알고리즘
+하나로만 키를 잡으면 학생이 실행 방법을 바꿨을 때 맞춰 둔 값이 **조용히 무시된다** —
+화면에는 여전히 그 값이 떠 있는 채로.
 
 하이퍼파라미터는 **기본값으로 일괄 학습**하고, 고급 설정은 접어 둔다.
 학생이 안 건드려도 **실제 쓰인 값은 전부 기록**한다. 그래야 재현된다.
@@ -196,6 +219,11 @@ UTF-8 CSV다"). 정규화는 정본이 되기 **전에** 끝나므로 아래 §7
 
       "settings": {                              // 학습 시점 스냅샷
         "taskType": "classification",            // manifest가 아니라 여기를 믿는다
+        "runtime": "mljs",                       // 이 묶음의 기본
+        "selectedAlgorithms": [                  // **요청**한 것. runtime이 항상 채워진다
+          { "algorithm": "logistic_regression", "runtime": "mljs" },
+          { "algorithm": "svm", "runtime": "server-sklearn" }
+        ],
         "features": ["sepal_length", "…"],
         "target": "species",
         "preprocessing": { … },
@@ -249,6 +277,11 @@ SVM이 시간 초과로 죽어도 나머지 두 개의 결과는 나와야 한�
 
 실패한 run은 지표도 모델도 없고 **사유는 반드시 있다**(스키마가 강제).
 학생이 무엇이 왜 안 됐는지 알아야 다음 선택을 할 수 있다.
+
+**스냅샷의 `selectedAlgorithms`는 "요청"이고 각 run의 `computedBy`·`engine`은 "결과"다.**
+**둘이 다를 수 있다** — 요청한 방법으로 못 도는 알고리즘은 자동으로 넘어가기 때문이고,
+그 차이 자체가 화면이 "이건 왜 딴 데서 돌았나"를 설명할 근거다. 그래서 스냅샷에는
+`runtime`이 항상 채워져 있다 — 기록을 읽는 쪽이 기본값 규칙을 알아야 한다면 그건 스냅샷이 아니다.
 
 **"최종 모델"을 하나 고르는 개념은 두지 않는다.** 모델들을 나란히 보는 것 자체가 결과물이고,
 하나를 고르라고 하면 "정확도 높은 게 정답"이라는 인상을 준다.

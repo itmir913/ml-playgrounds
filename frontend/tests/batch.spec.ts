@@ -26,6 +26,12 @@ import {
   IRIS_FEATURES,
 } from './fixtures/iris'
 
+/**
+ * 모델 목록을 짧게 쓴다. 실행 방법을 안 적으면 묶음 기본(settings.runtime)을 따른다 -
+ * 학생 대부분이 그렇게 쓴다.
+ */
+const models = (...names: string[]) => names.map((algorithm) => ({ algorithm }))
+
 /** 서버도 무거운 엔진도 없는 상태. 공식 배포(GitHub Pages)가 정확히 이렇다. */
 const BROWSER_ONLY: RuntimeContext = { serverStatus: 'unavailable', rowCount: 30 }
 
@@ -41,7 +47,8 @@ function settingsFor(overrides: Partial<Settings> = {}): Settings {
     target: IRIS_TARGET_COLUMN,
     preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
     split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: 42 },
-    selectedAlgorithms: ['decision_tree', 'knn'],
+    runtime: 'mljs',
+    selectedAlgorithms: models('decision_tree', 'knn'),
     hyperparameters: {},
     ...overrides,
   }
@@ -53,7 +60,6 @@ function inputFor(overrides: Partial<BatchInput> = {}): BatchInput {
     taskType: 'classification',
     dataType: 'tabular',
     settings: settingsFor(),
-    runtime: 'mljs',
     context: BROWSER_ONLY,
     ...overrides,
   }
@@ -78,7 +84,7 @@ describe('묶음이 실제로 학습한다', () => {
   }
 
   const { batch } = runBatch(
-    inputFor({ settings: settingsFor({ selectedAlgorithms: Object.keys(PINNED) }) }),
+    inputFor({ settings: settingsFor({ selectedAlgorithms: models(...Object.keys(PINNED)) }) }),
     frozen,
   )
 
@@ -177,7 +183,9 @@ describe('일부만 실패한다', () => {
   it('모르는 알고리즘이 섞여도 나머지 결과는 나온다', () => {
     const { batch } = runBatch(
       inputFor({
-        settings: settingsFor({ selectedAlgorithms: ['decision_tree', '없는알고리즘', 'knn'] }),
+        settings: settingsFor({
+          selectedAlgorithms: models('decision_tree', '없는알고리즘', 'knn'),
+        }),
       }),
       frozen,
     )
@@ -196,7 +204,7 @@ describe('일부만 실패한다', () => {
     const { batch } = runBatch(
       inputFor({
         settings: settingsFor({
-          selectedAlgorithms: ['decision_tree'],
+          selectedAlgorithms: models('decision_tree'),
           hyperparameters: {
             decision_tree: { mljs: { maxDepth: 1 }, 'server-sklearn': { max_depth: 100 } },
           },
@@ -215,12 +223,39 @@ describe('일부만 실패한다', () => {
   it('svm은 순수 JS 구현이 없어 실패하고 사유가 남는다', () => {
     // 자동으로 넘어갈 곳이 없다 - pyodide는 안 켜져 있고 서버도 없다.
     const { batch } = runBatch(
-      inputFor({ settings: settingsFor({ selectedAlgorithms: ['svm'] }) }),
+      inputFor({ settings: settingsFor({ selectedAlgorithms: models('svm') }) }),
       frozen,
     )
 
     expect(batch.runs[0]?.status).toBe('failed')
     expect(batch.runs[0]?.failure?.code).toBe('ENGINE_NOT_READY')
+  })
+
+  it('모델별로 고른 실행 방법이 사유를 바꾼다 - 덮어쓰기가 실제로 먹는다', () => {
+    // 학생이 SVM만 학교 서버로 지정했다. 묶음 기본은 순수 JS 그대로다.
+    const { batch } = runBatch(
+      inputFor({
+        settings: settingsFor({
+          selectedAlgorithms: [
+            { algorithm: 'decision_tree' },
+            { algorithm: 'svm', runtime: 'server-sklearn' },
+          ],
+        }),
+      }),
+      frozen,
+    )
+
+    expect(batch.runs.map((run) => run.status)).toEqual(['done', 'failed'])
+    // 기본을 따랐다면 pyodide가 먼저 걸려 ENGINE_NOT_READY였다. 서버를 콕 집었으므로
+    // 서버가 없다는 사유가 나와야 한다 - 학생이 고른 것에 대해 답해야 한다.
+    expect(batch.runs[1]?.failure?.code).toBe('SERVER_UNAVAILABLE')
+
+    // 스냅샷에는 기본값이 채워진 채로 남는다. 읽는 쪽이 규칙을 몰라도 된다.
+    expect(batch.settings.runtime).toBe('mljs')
+    expect(batch.settings.selectedAlgorithms).toEqual([
+      { algorithm: 'decision_tree', runtime: 'mljs' },
+      { algorithm: 'svm', runtime: 'server-sklearn' },
+    ])
   })
 
   it('엔진 내부에서 터진 것도 사유와 원문을 남긴다', () => {
@@ -241,7 +276,7 @@ describe('일부만 실패한다', () => {
     const { batch } = runBatch(
       inputFor({
         settings: settingsFor({
-          selectedAlgorithms: ['random_forest'],
+          selectedAlgorithms: models('random_forest'),
           hyperparameters: { random_forest: { mljs: { nEstimators: 3 } } },
         }),
       }),
@@ -257,7 +292,7 @@ describe('일부만 실패한다', () => {
 
   it('실패한 run도 스키마를 통과한다 - 사유가 반드시 있다', () => {
     const { batch } = runBatch(
-      inputFor({ settings: settingsFor({ selectedAlgorithms: ['svm', '없는알고리즘'] }) }),
+      inputFor({ settings: settingsFor({ selectedAlgorithms: models('svm', '없는알고리즘') }) }),
       frozen,
     )
     expect(() => batchSchema.parse(batch)).not.toThrow()
@@ -292,7 +327,9 @@ describe('진행 보고', () => {
     const seen: { algorithm: string; completed: number; total: number }[] = []
     const { batch } = runBatch(
       inputFor({
-        settings: settingsFor({ selectedAlgorithms: ['decision_tree', 'knn', 'naive_bayes'] }),
+        settings: settingsFor({
+          selectedAlgorithms: models('decision_tree', 'knn', 'naive_bayes'),
+        }),
       }),
       {
         ...frozen,
@@ -311,7 +348,7 @@ describe('진행 보고', () => {
 
   it('실패한 모델도 보고한다 - 진행률이 거기서 멈추면 안 된다', () => {
     let calls = 0
-    runBatch(inputFor({ settings: settingsFor({ selectedAlgorithms: ['svm', 'knn'] }) }), {
+    runBatch(inputFor({ settings: settingsFor({ selectedAlgorithms: models('svm', 'knn') }) }), {
       ...frozen,
       onRun: () => {
         calls += 1
@@ -360,20 +397,20 @@ describe('id와 changed', () => {
     const second = runBatch(
       inputFor({
         settings: settingsFor({
-          selectedAlgorithms: ['decision_tree', 'knn'],
+          selectedAlgorithms: models('decision_tree', 'knn'),
           hyperparameters: { knn: { mljs: { k: 3 } } },
         }),
       }),
       { ...frozen, history },
     ).batch
-    // 'hyperparameters.knn'이 아니라 여기까지 온다. 학생이 실제로 돌린 손잡이가 k이고,
-    // 비교표 옆에 "KNN의 k를 바꿨다"로 그대로 쓸 수 있다.
-    expect(second.changed).toEqual(['hyperparameters.knn.k'])
+    // 알고리즘만이 아니라 실행 방법까지 키에 들어간다. 같은 KNN이라도 순수 JS의 k와
+    // sklearn의 n_neighbors는 다른 손잡이라 한 칸에 담으면 안 된다.
+    expect(second.changed).toEqual(['hyperparameters.knn:mljs.k'])
   })
 
   it('고른 알고리즘이 바뀌면 잡는다', () => {
     const second = runBatch(
-      inputFor({ settings: settingsFor({ selectedAlgorithms: ['decision_tree'] }) }),
+      inputFor({ settings: settingsFor({ selectedAlgorithms: models('decision_tree') }) }),
       { ...frozen, history },
     ).batch
     expect(second.changed).toEqual(['algorithms'])
@@ -397,9 +434,8 @@ describe('id와 changed', () => {
           features: ['x'],
           target: 'y',
           split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
-          selectedAlgorithms: ['linear_regression'],
+          selectedAlgorithms: models('linear_regression'),
         }),
-        runtime: 'mljs',
         context: { serverStatus: 'unavailable', rowCount: 10 },
       },
       { ...frozen, history },
@@ -438,9 +474,8 @@ describe('회귀', () => {
         features: ['x'],
         target: 'y',
         split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
-        selectedAlgorithms: ['linear_regression'],
+        selectedAlgorithms: models('linear_regression'),
       }),
-      runtime: 'mljs',
       context: { serverStatus: 'unavailable', rowCount: 10 },
     },
     frozen,

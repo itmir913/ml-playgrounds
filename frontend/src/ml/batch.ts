@@ -46,10 +46,12 @@ export interface BatchInput {
   taskType: TaskType
   /** 업로드한 파일에서 판정된다. */
   dataType: DataType
-  /** 학습 시점의 설정. 그대로 묶음에 스냅샷으로 남는다. */
+  /**
+   * 학습 시점의 설정. 그대로 묶음에 스냅샷으로 남는다.
+   *
+   * 실행 방법도 여기 있다 - `settings.runtime`이 묶음 기본이고 모델마다 덮어쓸 수 있다.
+   */
   settings: Settings
-  /** 학생이 고른 실행 방법 id. 그것으로 못 도는 알고리즘은 자동으로 넘어간다. */
-  runtime: string
   /** 서버 유무·엔진 준비 상태·행 수. 실행 방법 판정에 쓴다. */
   context: RuntimeContext
 }
@@ -106,12 +108,21 @@ function chooseRuntime(option: AlgorithmOption, preferred: string): RuntimeSpec 
  * 라고 답하면 안 된다 (ml/algorithms.ts와 같은 순서다).
  */
 function unavailableReason(option: AlgorithmOption, preferred: string): UnavailableReason {
-  if (option.reason) return option.reason
+  // option.reason은 "이 데이터·과제에 안 맞다"와 "어디서도 못 돈다"를 한 값에 담는다.
+  // 앞의 둘만 먼저 가로챈다 - 뒤엣것까지 가로채면 학생이 콕 집은 실행 방법의 사유를
+  // 덮어써서, 서버를 고른 학생에게 "엔진이 준비되지 않았습니다"라고 답하게 된다.
+  if (option.reason === 'ALGORITHM_NOT_FOR_DATA_TYPE') return option.reason
+  if (option.reason === 'ALGORITHM_NOT_FOR_TASK_TYPE') return option.reason
 
+  // 학생이 고른 실행 방법의 사유를 먼저 준다. 단 "여기선 실행할 수 없습니다"는
+  // 막다른 답이라 건너뛴다 - 학생이 할 수 있는 일을 하나도 알려주지 않는다.
   const requested = option.runtimes.find((candidate) => candidate.runtime.id === preferred)
-  if (requested?.reason) return requested.reason
+  if (requested?.reason && requested.reason !== 'ALGORITHM_NOT_AVAILABLE_HERE') {
+    return requested.reason
+  }
 
-  // 지원하지도 않는 실행 방법의 "여기서 실행할 수 없습니다"는 아무 도움이 안 된다.
+  // 그러면 이 알고리즘이 **실제로 지원하는** 실행 방법의 사유를 준다.
+  // "엔진을 준비하세요"는 할 일이 있고 "여기선 안 됩니다"는 없다.
   const relevant = option.runtimes.find(
     (candidate) => candidate.reason && candidate.reason !== 'ALGORITHM_NOT_AVAILABLE_HERE',
   )
@@ -152,39 +163,53 @@ function comparable(
   runs: readonly Run[],
   shared: ReadonlySet<string>,
 ): Record<string, unknown> {
+  const hyperparameters: Record<string, Record<string, unknown>> = {}
+  // runs는 selectedAlgorithms와 같은 순서로 만들어진다. 그래서 index로 짝지을 수 있고,
+  // 같은 알고리즘이 두 실행 방법으로 두 번 들어와도 서로 덮어쓰지 않는다.
+  settings.selectedAlgorithms.forEach((selection, index) => {
+    const key = `${selection.algorithm}:${selection.runtime}`
+    if (!shared.has(key)) return
+    const values = runs[index]?.hyperparameters
+    if (values) hyperparameters[key] = values
+  })
+
   return {
     // 과제 유형이 바뀌면 지표 집합이 통째로 바뀐다. 가장 크게 바뀐 것이 목록에
     // 안 뜨면 학생은 비교표가 왜 딴판인지 알 수 없다.
     taskType: settings.taskType,
+    runtime: settings.runtime,
     features: settings.features,
     target: settings.target ?? null,
     preprocessing: settings.preprocessing,
     split: settings.split,
-    algorithms: runs.map((run) => run.algorithm),
-    hyperparameters: Object.fromEntries(
-      runs
-        .filter((run) => shared.has(run.algorithm))
-        .map((run) => [run.algorithm, run.hyperparameters]),
+    // 모델과 그 실행 방법을 함께 본다. 알고리즘은 그대로인데 엔진만 바꾼 것도
+    // 학생이 한 변경이고, 숫자가 움직이는 가장 흔한 이유다.
+    algorithms: settings.selectedAlgorithms.map(
+      (selection) => `${selection.algorithm}:${selection.runtime}`,
     ),
+    hyperparameters,
   }
 }
 
 /**
  * 직전 묶음 대비 바뀐 설정 경로.
  *
- * 하이퍼파라미터는 **양쪽에 다 있는 알고리즘만** 본다. KNN을 목록에서 빼면 그 하이퍼
- * 파라미터도 같이 사라지는데, 둘 다 적으면 학생은 하나를 바꾸고 두 줄을 보게 된다.
- * 알고리즘이 바뀐 것은 `algorithms` 한 줄로 이미 드러난다.
+ * 하이퍼파라미터는 **양쪽에 다 있는 (알고리즘, 실행 방법)만** 본다. KNN을 목록에서 빼면
+ * 그 하이퍼파라미터도 같이 사라지는데, 둘 다 적으면 학생은 하나를 바꾸고 두 줄을 보게
+ * 된다. 목록이 바뀐 것은 `algorithms` 한 줄로 이미 드러난다.
  */
 function changedSince(
   previous: Batch,
   settings: Batch['settings'],
   runs: readonly Run[],
 ): string[] {
-  const after = new Set(runs.map((run) => run.algorithm))
+  const key = (selection: { algorithm: string; runtime: string }): string =>
+    `${selection.algorithm}:${selection.runtime}`
+  const after = new Set(settings.selectedAlgorithms.map(key))
   const shared = new Set(
-    previous.runs.map((run) => run.algorithm).filter((algorithm) => after.has(algorithm)),
+    previous.settings.selectedAlgorithms.map(key).filter((id) => after.has(id)),
   )
+
   return changedPaths(
     comparable(previous.settings, previous.runs, shared),
     comparable(settings, runs, shared),
@@ -312,10 +337,18 @@ export function runBatch(input: BatchInput, options: BatchOptions = {}): BatchRe
     batches.flatMap((batch) => batch.runs.map((run) => run.id)),
   )
 
+  // **요청을 먼저 확정한다.** 모델마다 덮어쓴 것이 없으면 묶음 기본을 따르고, 스냅샷에는
+  // 언제나 채워진 값이 들어간다 - 기록을 읽는 쪽이 기본값 규칙을 알아야 한다면
+  // 그건 스냅샷이 아니다.
+  const requested = settings.selectedAlgorithms.map((selection) => ({
+    algorithm: selection.algorithm,
+    runtime: selection.runtime ?? settings.runtime,
+  }))
+
   const runs: Run[] = []
-  for (const algorithm of settings.selectedAlgorithms) {
+  for (const { algorithm, runtime: wanted } of requested) {
     const option = available.get(algorithm)
-    const runtime = option ? chooseRuntime(option, input.runtime) : undefined
+    const runtime = option ? chooseRuntime(option, wanted) : undefined
     const engine = runtime ? engineFor(runtime.id) : undefined
 
     // **실행 방법이 정해진 뒤에 하이퍼파라미터를 읽는다.** 어휘가 실행 방법마다 다르므로
@@ -325,7 +358,7 @@ export function runBatch(input: BatchInput, options: BatchOptions = {}): BatchRe
     const base: RunBase = {
       id: `run-${sequence}`,
       algorithm,
-      hyperparameters: settings.hyperparameters[algorithm]?.[runtime?.id ?? input.runtime] ?? {},
+      hyperparameters: settings.hyperparameters[algorithm]?.[runtime?.id ?? wanted] ?? {},
       trainedAt: now(),
     }
     sequence += 1
@@ -341,7 +374,7 @@ export function runBatch(input: BatchInput, options: BatchOptions = {}): BatchRe
         failure: { code: 'ALGORITHM_UNSUPPORTED', params: { algorithm } },
       })
     } else if (!runtime || !engine) {
-      const reason = unavailableReason(option, input.runtime)
+      const reason = unavailableReason(option, wanted)
       runs.push({
         ...base,
         computedBy: 'browser',
@@ -358,6 +391,8 @@ export function runBatch(input: BatchInput, options: BatchOptions = {}): BatchRe
 
   const batchSettings: Batch['settings'] = {
     taskType,
+    runtime: settings.runtime,
+    selectedAlgorithms: requested,
     features: settings.features,
     target,
     preprocessing: settings.preprocessing,

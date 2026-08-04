@@ -35,7 +35,13 @@ export const settings = {
   target: '품종',
   preprocessing: { missing: 'drop', scaling: 'standard', categoricalEncoding: 'onehot' } as const,
   split: { method: 'holdout', testSize: 0.2, stratify: true, randomState: 42 } as const,
-  selectedAlgorithms: ['decision_tree', 'svm'],
+  runtime: 'mljs',
+  // SVM은 순수 JS 구현이 없어 학생이 개별로 서버를 골랐다. 묶음 안에 엔진이 섞이는
+  // 정상적인 모양이다 - 같은 데이터·전처리·분할을 쓰므로 비교는 그대로 성립한다.
+  selectedAlgorithms: [
+    { algorithm: 'decision_tree' },
+    { algorithm: 'svm', runtime: 'server-sklearn' },
+  ],
   // 알고리즘 -> 실행 방법 -> 값. 같은 결정트리라도 어휘가 갈린다 (maxDepth / max_depth).
   hyperparameters: {
     decision_tree: { mljs: { maxDepth: 5 }, 'server-sklearn': { max_depth: null } },
@@ -70,6 +76,11 @@ export function batch(id: string, runs: Run[]): Batch {
       // manifest에 있는 것을 다시 적는 것이 아니다 - 학생이 과제 유형을 바꾸면
       // manifest는 따라가고 옛 묶음은 안 따라간다.
       taskType: manifest.taskType,
+      runtime: 'mljs',
+      selectedAlgorithms: [
+        { algorithm: 'decision_tree', runtime: 'mljs' },
+        { algorithm: 'svm', runtime: 'server-sklearn' },
+      ],
       features: settings.features,
       target: settings.target,
       preprocessing: settings.preprocessing,

@@ -50,7 +50,8 @@ const settings = {
   target: 'species',
   preprocessing: { missing: 'drop', scaling: 'standard', categoricalEncoding: 'onehot' },
   split: { method: 'holdout', testSize: 0.2, stratify: true, randomState: 42 },
-  selectedAlgorithms: ['decision_tree'],
+  runtime: 'mljs',
+  selectedAlgorithms: [{ algorithm: 'decision_tree' }],
   hyperparameters: {
     decision_tree: { mljs: { maxDepth: 5 }, 'server-sklearn': { max_depth: null } },
   },

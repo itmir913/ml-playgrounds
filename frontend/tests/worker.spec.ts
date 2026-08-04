@@ -20,6 +20,8 @@ import type { TrainRequest, WorkerMessage } from '../src/ml/worker/protocol'
 import type { RunsFile, Settings } from '../src/project/schema'
 import { IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN, irisDataset } from './fixtures/iris'
 
+const models = (...names: string[]) => names.map((algorithm) => ({ algorithm }))
+
 function settingsFor(overrides: Partial<Settings> = {}): Settings {
   return {
     dataset: {
@@ -32,7 +34,8 @@ function settingsFor(overrides: Partial<Settings> = {}): Settings {
     target: IRIS_TARGET_COLUMN,
     preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
     split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: 42 },
-    selectedAlgorithms: ['decision_tree', 'knn'],
+    runtime: 'mljs',
+    selectedAlgorithms: models('decision_tree', 'knn'),
     hyperparameters: {},
     ...overrides,
   }
@@ -44,7 +47,6 @@ function inputFor(settings: Settings = settingsFor()): BatchInput {
     taskType: 'classification',
     dataType: 'tabular',
     settings,
-    runtime: 'mljs',
     context: { serverStatus: 'unavailable', rowCount: 30 },
   }
 }
@@ -127,7 +129,7 @@ describe('워커 안의 처리', () => {
   })
 
   it('알고리즘 하나가 실패해도 묶음은 성공이다', () => {
-    const messages = collect(requestFor(settingsFor({ selectedAlgorithms: ['svm', 'knn'] })))
+    const messages = collect(requestFor(settingsFor({ selectedAlgorithms: models('svm', 'knn') })))
     expect(messages[messages.length - 1]?.type).toBe('done')
   })
 
@@ -166,7 +168,7 @@ describe('메인 스레드 쪽', () => {
     const worker = new HandlerWorker()
     const seen: [string, number, number][] = []
     const { result } = train(
-      { type: 'train', input: inputFor(settingsFor({ selectedAlgorithms: ['knn', 'svm'] })) },
+      { type: 'train', input: inputFor(settingsFor({ selectedAlgorithms: models('knn', 'svm') })) },
       {
         createWorker: () => worker,
         onProgress: (run, completed, total) => seen.push([run.algorithm, completed, total]),

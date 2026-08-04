@@ -158,7 +158,32 @@ export const settingsSchema = z.looseObject({
   target: userString.optional(),
   preprocessing: preprocessingSchema,
   split: splitSchema,
-  selectedAlgorithms: z.array(userString),
+  /**
+   * 묶음 전체의 기본 실행 방법 id (ml/backend.ts의 RUNTIMES).
+   *
+   * 학생이 화면 위에서 한 번 고르는 값이다. 저장되지 않으면 프로젝트를 닫았다 열 때
+   * 그 선택이 사라진다.
+   */
+  runtime: z.string(),
+  /**
+   * 학습할 모델들. **모델마다 실행 방법을 따로 고를 수 있다.**
+   *
+   * runtime이 없으면 위 기본을 따른다 - 학생 대부분은 안 건드린다. 그래도 축을 열어
+   * 두는 이유는 셋이다.
+   *
+   * 1. **엔진은 원래부터 섞였다.** 그 방법으로 못 도는 알고리즘은 자동으로 넘어가고
+   *    (open-decisions.md "실행 방법은 하나의 목록이다") 그래서 run.engine을 기록한다.
+   *    도구가 말없이 섞는 것을 허용하면서 학생이 일부러 섞는 것만 막을 근거가 없다.
+   * 2. **묶음이 보장하는 것은 같은 데이터·전처리·분할이다.** 엔진은 그 목록에 없었다.
+   * 3. **배열이라 같은 알고리즘이 두 번 들어갈 수 있다.** "같은 결정트리인데 엔진이
+   *    다르면 숫자가 왜 다른가"는 이 도구가 줄 수 있는 가장 좋은 수업 장면이다.
+   */
+  selectedAlgorithms: z.array(
+    z.looseObject({
+      algorithm: userString,
+      runtime: z.string().optional(),
+    }),
+  ),
   /**
    * 알고리즘 id -> **실행 방법 id** -> 하이퍼파라미터.
    *
@@ -279,6 +304,22 @@ export const batchSettingsSchema = z.looseObject({
    * accuracy와 r2가 같은 열에 뜬다. 지표 키를 보고 역추론할 수도 있지만 그건 추측이다.
    */
   taskType: z.enum(TASK_TYPES),
+  /** 이 묶음의 기본 실행 방법. 모델별로 덮어쓴 것은 아래 selectedAlgorithms에 있다. */
+  runtime: z.string(),
+  /**
+   * 학습을 **요청한** 모델과 실행 방법. 스냅샷이므로 runtime이 항상 채워져 있다 -
+   * 기록을 읽는 쪽이 기본값 규칙을 알아야 한다면 그건 스냅샷이 아니다.
+   *
+   * 실제로 무엇이 돌았는지는 각 run의 computedBy와 engine에 있다. **둘이 다를 수
+   * 있다** - 요청한 방법으로 못 도는 알고리즘은 자동으로 넘어가기 때문이고,
+   * 그 차이 자체가 화면이 "이건 왜 딴 데서 돌았나"를 설명할 근거다.
+   */
+  selectedAlgorithms: z.array(
+    z.looseObject({
+      algorithm: userString,
+      runtime: z.string(),
+    }),
+  ),
   features: z.array(userString),
   target: userString.optional(),
   preprocessing: preprocessingSchema,
