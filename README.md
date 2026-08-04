@@ -69,8 +69,9 @@ npm run lint && npm run typecheck && npm run build
 
 ### IDE 실행 구성
 
-`.idea/runConfigurations/`에 `dev` / `build` / `test` 세 개가 있습니다.
-`dev`는 백엔드를 별도 창에서 띄우고 프런트엔드 개발 서버를 현재 창에서 실행합니다.
+`.idea/runConfigurations/`에 `dev` / `build` / `test`가 있습니다.
+`dev`는 `dev-backend`(uvicorn)와 `dev-frontend`(vite)를 묶은 Compound 구성으로,
+RUN 탭 안에서 두 서버가 각각 탭으로 동시에 실행됩니다.
 
 ---
 
