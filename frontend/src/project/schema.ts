@@ -340,6 +340,9 @@ export const studentIdInputSchema = z.string().trim().min(1).max(MAX_STUDENT_ID_
 
 export const studentNameInputSchema = z.string().trim().min(1).max(MAX_STUDENT_NAME_LENGTH)
 
+export type PerClass = z.infer<typeof perClassSchema>
+export type ConfusionMatrix = z.infer<typeof confusionMatrixSchema>
+export type FeatureImportance = z.infer<typeof featureImportanceSchema>
 export type Student = z.infer<typeof studentSchema>
 export type Manifest = z.infer<typeof manifestSchema>
 export type DatasetRef = z.infer<typeof datasetRefSchema>

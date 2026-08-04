@@ -68,6 +68,9 @@ export const SHARED_ERROR_CODES = [
   'COLUMN_NOT_FOUND',
   'FEATURE_NOT_SELECTED',
   'FEATURE_ALL_MISSING',
+
+  // 학습 자체의 실패 - ml/metrics.ts, ml/engines/
+  'JOB_FAILED',
 ] as const
 
 /**
