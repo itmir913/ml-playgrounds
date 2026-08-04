@@ -161,13 +161,18 @@ export const featureImportanceSchema = z.looseObject({
   importance: z.number(),
 })
 
-/** 서버가 학습했을 때만 있다. 브라우저 학습은 서명이 없고 "미검증"으로 표시된다. */
-export const integritySchema = z.looseObject({
-  algorithm: z.string(),
-  datasetHash: z.string(),
-  settingsHash: z.string(),
-  resultHash: z.string(),
-  signature: z.string(),
+/**
+ * 이 run을 만든 학습 엔진.
+ *
+ * **재실행 대조는 엔진을 넘지 않는다** (architecture.md 3.2). 배포 경로가 둘이라
+ * 학생이 Pages에서 학습하고 교사가 도커 설치본에서 대조하는 일이 생기는데, 엔진이 다르면
+ * 숫자가 갈려 무고한 학생이 위조를 의심받는다. 그래서 무엇으로 만들었는지를 남긴다.
+ *
+ * kind는 등록부에 속하므로 z.enum으로 막지 않는다 - 엔진 추가는 포맷 변경이 아니다.
+ */
+export const engineSchema = z.looseObject({
+  kind: z.string(),
+  version: z.string(),
 })
 
 /**
@@ -212,7 +217,7 @@ export const runSchema = z
     perClass: z.array(perClassSchema).optional(),
     confusionMatrix: confusionMatrixSchema.optional(),
     featureImportance: z.array(featureImportanceSchema).optional(),
-    integrity: integritySchema.optional(),
+    engine: engineSchema.optional(),
     failure: failureSchema.optional(),
     model: modelRefSchema.optional(),
   })
@@ -341,7 +346,7 @@ export type DatasetRef = z.infer<typeof datasetRefSchema>
 export type Preprocessing = z.infer<typeof preprocessingSchema>
 export type Split = z.infer<typeof splitSchema>
 export type Settings = z.infer<typeof settingsSchema>
-export type Integrity = z.infer<typeof integritySchema>
+export type Engine = z.infer<typeof engineSchema>
 export type Failure = z.infer<typeof failureSchema>
 export type ModelRef = z.infer<typeof modelRefSchema>
 export type Run = z.infer<typeof runSchema>

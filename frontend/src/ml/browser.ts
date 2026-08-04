@@ -1,4 +1,6 @@
 /**
- * 브라우저 학습 구현 (V1.5). 엔진은 미정 - docs/open-decisions.md #3.
- * 결과에는 서명이 없다. computedBy: "browser" -> UI는 "미검증"으로 표시한다.
+ * 브라우저 학습 구현. **V1의 기본 실행 위치다** - 공식 배포에는 서버가 없다.
+ * 엔진은 미정이고 이것이 다음 블로킹 결정이다 - docs/open-decisions.md #3.
+ * 서명은 만들지 않는다. 무결성은 해시와 재실행 대조로 확인하며, 대조는 이 엔진으로만 한다
+ * (각 run에 engine을 기록한다 - docs/architecture.md 3.2).
  */

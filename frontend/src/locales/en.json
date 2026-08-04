@@ -51,10 +51,16 @@
     "DONE": "Done",
     "FAILED": "Failed"
   },
-  "integrity": {
-    "VERIFIED": "Verified",
-    "MISMATCH": "Possibly altered",
-    "UNSIGNED": "Not verified"
+  "fileHash": {
+    "UNCHANGED": "No sign of editing",
+    "MODIFIED": "Edited after saving",
+    "UNKNOWN": "Cannot tell"
+  },
+  "reproduction": {
+    "NOT_CHECKED": "Not checked yet",
+    "REPRODUCED": "Results reproduced",
+    "NOT_REPRODUCED": "Results did not reproduce",
+    "ENGINE_UNAVAILABLE": "Cannot check here"
   },
   "execution": {
     "browser": "Train on my computer",

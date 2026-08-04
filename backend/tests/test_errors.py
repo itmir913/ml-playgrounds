@@ -12,22 +12,21 @@ from app.errors import (
     HTTP_STATUS,
     AppError,
     ErrorCode,
-    IntegrityStatus,
     Stage,
 )
 
 CODE_PATTERN = re.compile(r"^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$")
 
 
-@pytest.mark.parametrize("enum_type", [ErrorCode, Stage, IntegrityStatus])
-def test_member_name_equals_value(enum_type: type[ErrorCode | Stage | IntegrityStatus]) -> None:
+@pytest.mark.parametrize("enum_type", [ErrorCode, Stage])
+def test_member_name_equals_value(enum_type: type[ErrorCode | Stage]) -> None:
     for member in enum_type:
         assert member.value == member.name
 
 
-@pytest.mark.parametrize("enum_type", [ErrorCode, Stage, IntegrityStatus])
+@pytest.mark.parametrize("enum_type", [ErrorCode, Stage])
 def test_member_names_are_upper_snake_case(
-    enum_type: type[ErrorCode | Stage | IntegrityStatus],
+    enum_type: type[ErrorCode | Stage],
 ) -> None:
     for member in enum_type:
         assert CODE_PATTERN.match(member.name), member.name
@@ -82,9 +81,3 @@ def test_stage_covers_the_documented_flow() -> None:
         "FAILED",
     }
     assert {stage.name for stage in Stage} == expected
-
-
-def test_integrity_status_is_separate_from_error_codes() -> None:
-    """검증 결과는 에러가 아니라 상태다. 두 열거형의 이름이 섞이면 안 된다."""
-    assert {status.name for status in IntegrityStatus} == {"VERIFIED", "MISMATCH", "UNSIGNED"}
-    assert not {status.name for status in IntegrityStatus} & {code.name for code in ErrorCode}

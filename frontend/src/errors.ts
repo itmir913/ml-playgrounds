@@ -54,6 +54,30 @@ export const SHARED_ERROR_CODES = [
   'DATASET_TOO_MANY_COLUMNS',
 ] as const
 
+/**
+ * 무결성 확인 결과. **에러가 아니라 상태다** - 확인 자체는 성공했고 결과가 그중 하나다.
+ *
+ * 축이 둘이라 열거형도 둘이다. 하나로 합치면 화면에 if 분기가 생긴다.
+ * 확인이 전부 브라우저에서 끝나므로(open-decisions.md "무결성은 해시와 재실행 대조로 한다")
+ * 백엔드 errors.py에는 이 어휘가 없다.
+ *
+ * **VERIFIED처럼 보증으로 읽히는 낱말을 쓰지 마라.** 도구가 보증할 수 있는 것보다 강한
+ * 말이고, 교사가 그 말을 믿기 시작하면 허술한 탐지기가 판단을 대신하게 된다
+ * (mlpx-spec.md 7.3).
+ */
+export const FILE_HASH_STATUSES = ['UNCHANGED', 'MODIFIED', 'UNKNOWN'] as const
+
+/** 재실행 대조 결과. 대조는 run을 만든 엔진으로만 한다 (architecture.md 3.2). */
+export const REPRODUCTION_STATUSES = [
+  'NOT_CHECKED',
+  'REPRODUCED',
+  'NOT_REPRODUCED',
+  'ENGINE_UNAVAILABLE',
+] as const
+
+export type FileHashStatus = (typeof FILE_HASH_STATUSES)[number]
+export type ReproductionStatus = (typeof REPRODUCTION_STATUSES)[number]
+
 export type ClientOnlyErrorCode = (typeof CLIENT_ERROR_CODES)[number]
 export type SharedErrorCode = (typeof SHARED_ERROR_CODES)[number]
 export type ClientErrorCode = ClientOnlyErrorCode | SharedErrorCode

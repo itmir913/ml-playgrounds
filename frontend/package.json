@@ -17,6 +17,7 @@
     "typecheck": "vue-tsc --build --force"
   },
   "dependencies": {
+    "@noble/hashes": "^2.2.0",
     "exceljs": "^4.4.0",
     "fflate": "^0.8.3",
     "idb": "^8.0.0",

@@ -101,16 +101,12 @@ class Stage(_NameValueEnum):
     FAILED = auto()
 
 
-class IntegrityStatus(_NameValueEnum):
-    """무결성 검증 결과.
-
-    이것은 에러가 아니라 상태다. 검증 요청 자체는 성공했고 결과가 셋 중 하나일 뿐이다.
-    그래서 ErrorCode가 아니라 별도 열거형이고, 로케일 네임스페이스도 integrity.* 다.
-    """
-
-    VERIFIED = auto()
-    MISMATCH = auto()
-    UNSIGNED = auto()
+# 무결성 확인 어휘는 여기 없다.
+#
+# 서명을 만들지 않기로 하면서(open-decisions.md "무결성은 해시와 재실행 대조로 한다")
+# 확인이 전부 브라우저에서 끝나게 됐다. 백엔드는 관여하지 않으므로 어휘도 백엔드에 두지
+# 않는다. 단일 출처는 frontend/src/errors.ts 이고 로케일 네임스페이스는
+# fileHash.* / reproduction.* 다.
 
 
 HTTP_STATUS: dict[ErrorCode, int] = {

@@ -8,7 +8,13 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { CLIENT_ERROR_CODES, SHARED_ERROR_CODES, errorMessageKey } from '../src/errors'
+import {
+  CLIENT_ERROR_CODES,
+  FILE_HASH_STATUSES,
+  REPRODUCTION_STATUSES,
+  SHARED_ERROR_CODES,
+  errorMessageKey,
+} from '../src/errors'
 import en from '../src/locales/en.json'
 import ko from '../src/locales/ko.json'
 import { TRAINING_LOCATIONS, UNAVAILABLE_REASONS } from '../src/ml/backend'
@@ -55,7 +61,15 @@ describe('로케일 파일', () => {
   })
 
   it('필요한 네임스페이스가 모두 있다', () => {
-    for (const namespace of ['errors', 'stages', 'integrity', 'portfolio', 'language', 'client']) {
+    for (const namespace of [
+      'errors',
+      'stages',
+      'fileHash',
+      'reproduction',
+      'portfolio',
+      'language',
+      'client',
+    ]) {
       expect([...english.keys()].some((key) => key.startsWith(`${namespace}.`))).toBe(true)
     }
   })
@@ -99,6 +113,35 @@ describe('프런트엔드 전용 코드', () => {
   it('클라이언트 전용 코드는 client.* 에서 찾는다', () => {
     for (const code of CLIENT_ERROR_CODES) {
       expect(errorMessageKey(code), code).toBe(`client.${code}`)
+    }
+  })
+
+  it('무결성 어휘가 로케일과 양방향으로 일치한다', () => {
+    // 확인이 전부 브라우저에서 끝나므로 백엔드 errors.py에 이 어휘가 없다.
+    // check_locales.py가 못 보는 자리라 여기서 강제한다.
+    const pairs = [
+      ['fileHash', FILE_HASH_STATUSES],
+      ['reproduction', REPRODUCTION_STATUSES],
+    ] as const
+
+    for (const [namespace, codes] of pairs) {
+      for (const code of codes) {
+        expect(english.has(`${namespace}.${code}`), code).toBe(true)
+        expect(korean.has(`${namespace}.${code}`), code).toBe(true)
+      }
+      const declared = new Set<string>(codes)
+      const used = [...english.keys()]
+        .filter((key) => key.startsWith(`${namespace}.`))
+        .map((key) => key.slice(namespace.length + 1))
+      expect(used.filter((key) => !declared.has(key))).toEqual([])
+    }
+  })
+
+  it('무결성 문구에 보증으로 읽히는 낱말을 쓰지 않는다', () => {
+    // mlpx-spec.md 7.3. 도구가 보증할 수 있는 것보다 강한 말을 쓰면
+    // 교사가 허술한 탐지기를 신뢰하게 된다.
+    for (const key of [...english.keys()].filter((k) => k.startsWith('fileHash.'))) {
+      expect(english.get(key)?.toLowerCase(), key).not.toContain('verified')
     }
   })
 

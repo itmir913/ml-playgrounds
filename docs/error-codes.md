@@ -60,12 +60,23 @@ QUEUED → VALIDATING → PREPROCESSING → TRAINING → EVALUATING → DONE
                                                             ↘ FAILED
 ```
 
-**IntegrityStatus — 무결성 검증 결과** (로케일 `integrity.*`)
+**무결성 확인 결과** (로케일 `fileHash.*` / `reproduction.*`)
+
 ```
-VERIFIED, MISMATCH, UNSIGNED
+파일 해시   UNCHANGED, MODIFIED, UNKNOWN
+재실행      NOT_CHECKED, REPRODUCED, NOT_REPRODUCED, ENGINE_UNAVAILABLE
 ```
 
-검증 요청 자체는 성공했고 결과가 셋 중 하나일 뿐이므로 에러가 아니다.
+축이 둘이므로 열거형도 둘이다. 하나에 섞으면 화면에 `if` 분기가 생긴다.
+확인 요청 자체는 성공했고 결과가 그중 하나일 뿐이므로 에러가 아니다.
+
+**단일 출처는 `frontend/src/errors.ts`다** — `errors.py`에 없다. 서명을 만들지 않기로
+하면서 확인이 전부 브라우저에서 끝나 백엔드가 관여하지 않기 때문이다
+(`open-decisions.md` "무결성은 해시와 재실행 대조로 한다"). `check_locales.py`가 못 보는
+자리라 `tests/locales.spec.ts`가 양방향 일치를 강제한다.
+
+**`VERIFIED`처럼 보증으로 읽히는 낱말을 쓰지 마라** (`mlpx-spec.md` §7.3).
+테스트가 이것도 검사한다.
 
 ---
 

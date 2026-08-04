@@ -51,10 +51,16 @@
     "DONE": "완료",
     "FAILED": "실패"
   },
-  "integrity": {
-    "VERIFIED": "검증됨",
-    "MISMATCH": "위조 의심",
-    "UNSIGNED": "미검증"
+  "fileHash": {
+    "UNCHANGED": "고쳐진 흔적 없음",
+    "MODIFIED": "저장 후 고쳐졌음",
+    "UNKNOWN": "확인할 수 없음"
+  },
+  "reproduction": {
+    "NOT_CHECKED": "아직 확인하지 않음",
+    "REPRODUCED": "결과가 재현됨",
+    "NOT_REPRODUCED": "결과가 재현되지 않음",
+    "ENGINE_UNAVAILABLE": "여기서는 확인할 수 없음"
   },
   "execution": {
     "browser": "내 컴퓨터에서 학습",

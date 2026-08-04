@@ -6,7 +6,7 @@ CLAUDE.md 3의 "CI로 강제한다"에 해당하는 검사다. 사람이 규칙�
 검사 항목
 1. en.json과 ko.json의 키 집합이 완전히 같은가
 2. 같은 키의 보간 변수({limitMb} 등)가 두 파일에서 같은가
-3. errors.py의 ErrorCode / Stage / IntegrityStatus가 로케일 파일에 빠짐없이 있는가
+3. errors.py의 ErrorCode / Stage가 로케일 파일에 빠짐없이 있는가
 4. 반대로, 로케일 파일에 백엔드에 없는 코드가 남아 있지 않은가
 
 의존성 없이 표준 라이브러리만 쓴다. errors.py는 import하지 않고 ast로 읽는다.
@@ -28,10 +28,13 @@ ERRORS_PY = ROOT / "backend" / "app" / "errors.py"
 LOCALES_DIR = ROOT / "frontend" / "src" / "locales"
 
 #: 백엔드 열거형 이름 -> 로케일 네임스페이스
+#:
+#: 무결성 확인 어휘(fileHash.* / reproduction.*)는 여기 없다. 확인이 전부 브라우저에서
+#: 끝나므로 단일 출처가 frontend/src/errors.ts 이고, 그쪽 일치는 tests/locales.spec.ts가
+#: 강제한다. 백엔드에 없는 것을 백엔드 기준으로 검사하면 항상 실패한다.
 NAMESPACES = {
     "ErrorCode": "errors",
     "Stage": "stages",
-    "IntegrityStatus": "integrity",
 }
 
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
