@@ -1,5 +1,6 @@
 import { fileURLToPath, URL } from 'node:url'
-import { defineConfig } from 'vite'
+// vitest 설정을 같은 파일에 두기 위해 vite가 아니라 vitest/config에서 가져온다.
+import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -12,5 +13,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['tests/**/*.spec.ts', 'src/**/*.spec.ts'],
+    // 첫 실제 테스트가 들어오면 이 줄을 지운다.
+    passWithNoTests: true,
   },
 })

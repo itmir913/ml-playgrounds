@@ -1,0 +1,21 @@
+# 저장소 안에서는 LF로 고정한다.
+# 개발은 Windows에서 하지만 배포는 리눅스 도커이고, scripts/의 CI 검사는 셸에서 돈다.
+* text=auto eol=lf
+
+# 줄바꿈 변환을 하면 안 되는 것들
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.wav  binary
+*.mp3  binary
+*.woff  binary
+*.woff2 binary
+*.wasm binary
+*.zip  binary
+*.mlproj binary
+
+# 락파일은 diff 노이즈를 줄인다
+uv.lock           -diff
+package-lock.json -diff
