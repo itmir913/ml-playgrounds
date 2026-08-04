@@ -16,59 +16,16 @@ import { MLJS_ALGORITHMS, MLJS_ENGINE, fit } from '../src/ml/engines/mljs'
 import { evaluate } from '../src/ml/metrics'
 import { holdoutSplit } from '../src/ml/split'
 import packageJson from '../package.json'
-
-/**
- * 붓꽃 축소판. 품종마다 10개씩, 실제 붓꽃 값에서 고르게 뽑았다.
- * 전체 150개를 테스트에 박으면 읽을 수 없는 파일이 된다.
- */
-const IRIS: { features: number[][]; labels: string[] } = {
-  features: [
-    [5.1, 3.5, 1.4, 0.2],
-    [4.9, 3.0, 1.4, 0.2],
-    [4.7, 3.2, 1.3, 0.2],
-    [4.6, 3.1, 1.5, 0.2],
-    [5.0, 3.6, 1.4, 0.2],
-    [5.4, 3.9, 1.7, 0.4],
-    [4.6, 3.4, 1.4, 0.3],
-    [5.0, 3.4, 1.5, 0.2],
-    [4.4, 2.9, 1.4, 0.2],
-    [4.9, 3.1, 1.5, 0.1],
-    [7.0, 3.2, 4.7, 1.4],
-    [6.4, 3.2, 4.5, 1.5],
-    [6.9, 3.1, 4.9, 1.5],
-    [5.5, 2.3, 4.0, 1.3],
-    [6.5, 2.8, 4.6, 1.5],
-    [5.7, 2.8, 4.5, 1.3],
-    [6.3, 3.3, 4.7, 1.6],
-    [4.9, 2.4, 3.3, 1.0],
-    [6.6, 2.9, 4.6, 1.3],
-    [5.2, 2.7, 3.9, 1.4],
-    [6.3, 3.3, 6.0, 2.5],
-    [5.8, 2.7, 5.1, 1.9],
-    [7.1, 3.0, 5.9, 2.1],
-    [6.3, 2.9, 5.6, 1.8],
-    [6.5, 3.0, 5.8, 2.2],
-    [7.6, 3.0, 6.6, 2.1],
-    [4.9, 2.5, 4.5, 1.7],
-    [7.3, 2.9, 6.3, 1.8],
-    [6.7, 2.5, 5.8, 1.8],
-    [7.2, 3.6, 6.1, 2.5],
-  ],
-  labels: [
-    ...Array(10).fill('setosa'),
-    ...Array(10).fill('versicolor'),
-    ...Array(10).fill('virginica'),
-  ] as string[],
-}
+import { IRIS_FEATURES, IRIS_LABELS } from './fixtures/iris'
 
 const split = holdoutSplit(
-  { rows: [...IRIS.features.keys()], labels: IRIS.labels },
+  { rows: [...IRIS_FEATURES.keys()], labels: IRIS_LABELS },
   { method: 'holdout', testSize: 0.3, stratify: true, randomState: 42 },
 )
 
 function run(algorithm: string, hyperparameters: Record<string, unknown> = {}) {
-  const pick = (indices: readonly number[]) => indices.map((i) => IRIS.features[i] as number[])
-  const labelsOf = (indices: readonly number[]) => indices.map((i) => IRIS.labels[i] as string)
+  const pick = (indices: readonly number[]) => indices.map((i) => IRIS_FEATURES[i] as number[])
+  const labelsOf = (indices: readonly number[]) => indices.map((i) => IRIS_LABELS[i] as string)
 
   const predict = fit(algorithm, {
     features: pick(split.trainIndices),
@@ -176,7 +133,7 @@ describe('붓꽃을 실제로 학습한다', () => {
   }
 
   it('예측 결과가 학습에서 본 라벨 안에서만 나온다', () => {
-    const known = new Set(IRIS.labels)
+    const known = new Set(IRIS_LABELS)
     const { confusionMatrix } = run('decision_tree')
     for (const label of confusionMatrix?.labels ?? []) {
       expect(known.has(label), label).toBe(true)

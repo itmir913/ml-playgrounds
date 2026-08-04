@@ -1,0 +1,375 @@
+/**
+ * 묶음 실행 - 조각들을 엮어 `runs.json`의 묶음 하나를 만든다.
+ *
+ * [학습]을 한 번 누르면 묶음 하나가 생기고, 고른 모델 수만큼 run이 들어간다.
+ * **같은 묶음은 같은 데이터·전처리·분할을 쓰므로 공정한 비교가 구조적으로 보장된다**
+ * (mlpx-spec.md 4). 그래서 전처리기는 묶음당 한 번만 학습하고 전체가 공유한다.
+ *
+ * ```
+ * usableRows -> holdoutSplit -> fitPreprocessor -> transform -> fit -> predict -> evaluate
+ * ```
+ *
+ * **동기 함수다.** 이 함수는 Web Worker 안에서 돌므로 메인 스레드는 얼지 않고
+ * (open-decisions.md "학습은 언제나 백그라운드다"), 취소는 워커 terminate가 한다.
+ * async로 만들면 중간에 끊을 수 있는 것처럼 보이는 신호를 넣고 싶어지는데, 동기 루프
+ * 안에서 그건 거짓말이다. 대신 모델 하나가 끝날 때마다 onRun을 부른다 -
+ * **진행 표시는 모델 단위이고 묶음 전체 진행률은 부르는 쪽이 센다** (mlpx-spec.md 0.3).
+ *
+ * **실패의 경계가 둘이다.**
+ *
+ * - 알고리즘 하나가 죽는 것은 run 하나의 실패다. 나머지 결과는 나온다 (mlpx-spec.md 4.1).
+ * - 분할·전처리가 죽는 것은 묶음 자체가 성립하지 않는 것이라 던진다. 여기서 run을
+ *   만들어 봐야 전부 같은 사유로 실패하고, 학생은 같은 문장을 모델 수만큼 보게 된다.
+ */
+
+import { ClientError, isClientError, type ClientErrorParams } from '../errors'
+import { BROWSER_ROW_LIMIT } from '../limits'
+import type { Batch, DataType, Run, RunsFile, Settings, TaskType } from '../project/schema'
+import { algorithmOptions, type AlgorithmOption } from './algorithms'
+import type { RuntimeContext, RuntimeSpec, UnavailableReason } from './backend'
+import { engineFor, type TrainingEngine } from './engines'
+import { evaluate } from './metrics'
+import {
+  fitPreprocessor,
+  targetValues,
+  transform,
+  usableRows,
+  type Dataset,
+  type Preprocessor,
+} from './preprocess'
+import { holdoutSplit } from './split'
+
+export interface BatchInput {
+  /** 정본 CSV를 읽은 표. 헤더는 rows에 없다 - 행 번호가 곧 분할 인덱스다. */
+  dataset: Dataset
+  /** 학생이 고른다. 자동 판정하지 않는다 (mlpx-spec.md 0.1). */
+  taskType: TaskType
+  /** 업로드한 파일에서 판정된다. */
+  dataType: DataType
+  /** 학습 시점의 설정. 그대로 묶음에 스냅샷으로 남는다. */
+  settings: Settings
+  /** 학생이 고른 실행 방법 id. 그것으로 못 도는 알고리즘은 자동으로 넘어간다. */
+  runtime: string
+  /** 서버 유무·엔진 준비 상태·행 수. 실행 방법 판정에 쓴다. */
+  context: RuntimeContext
+}
+
+export interface BatchOptions {
+  /**
+   * 지금까지의 runs.json. id 일련번호와 changed 계산이 여기서 나온다.
+   * 없으면 첫 묶음이다.
+   */
+  history?: RunsFile
+  /** 시각. 테스트가 결정적이려면 주입할 수 있어야 한다. */
+  now?: () => string
+  /** 모델 하나가 끝날 때마다. 워커 껍데기가 이걸 postMessage로 바꾼다. */
+  onRun?: (run: Run, completed: number, total: number) => void
+}
+
+export interface BatchResult {
+  batch: Batch
+  /**
+   * 학습된 전처리기. **묶음에 넣지 않고 따로 돌려준다** - batch.preprocessor는
+   * zip 안의 경로를 가리키는 참조이고, 그 파일을 쓰는 것은 저장 계층의 일이다.
+   * 여기서 있지도 않은 경로를 적어 두면 파일이 자기 자신에 대해 거짓말을 하게 된다.
+   */
+  preprocessor: Preprocessor
+}
+
+/** 사유별로 로케일 문장이 요구하는 값. 나머지는 빈 파라미터다. */
+function reasonParams(reason: UnavailableReason): ClientErrorParams {
+  return reason === 'DATASET_TOO_LARGE_FOR_BROWSER' ? { limitRows: BROWSER_ROW_LIMIT } : {}
+}
+
+/**
+ * 이 알고리즘을 지금 어디서 돌릴지 고른다.
+ *
+ * **고른 실행 방법으로 못 도는 알고리즘은 자동으로 넘어간다**
+ * (open-decisions.md "실행 방법은 하나의 목록이다"). 그러면 묶음 안에 엔진이 섞이는데,
+ * 각 run의 engine이 무엇으로 만들었는지 남기므로 비교표가 그것을 표시할 수 있다.
+ *
+ * 후보는 **엔진이 등록된 실행 방법뿐이다.** 서버 학습은 모양은 같지만 구현이 다르고
+ * (ml/server.ts), 여기서 그쪽을 고르면 돌지도 않을 것을 골라 두는 셈이다.
+ */
+function chooseRuntime(option: AlgorithmOption, preferred: string): RuntimeSpec | undefined {
+  const usable = option.runtimes.filter(
+    (candidate) => candidate.enabled && engineFor(candidate.runtime.id) !== undefined,
+  )
+  return (usable.find((candidate) => candidate.runtime.id === preferred) ?? usable[0])?.runtime
+}
+
+/**
+ * 어디서도 못 도는 이유. **가장 근본적인 것을 준다.**
+ *
+ * 알고리즘 자체가 이 데이터·과제 유형에서 안 되는 것이 먼저고, 그다음이 학생이 고른
+ * 실행 방법의 사유다. 이미지 데이터에 회귀를 고른 학생에게 "엔진이 준비되지 않았습니다"
+ * 라고 답하면 안 된다 (ml/algorithms.ts와 같은 순서다).
+ */
+function unavailableReason(option: AlgorithmOption, preferred: string): UnavailableReason {
+  if (option.reason) return option.reason
+
+  const requested = option.runtimes.find((candidate) => candidate.runtime.id === preferred)
+  if (requested?.reason) return requested.reason
+
+  // 지원하지도 않는 실행 방법의 "여기서 실행할 수 없습니다"는 아무 도움이 안 된다.
+  const relevant = option.runtimes.find(
+    (candidate) => candidate.reason && candidate.reason !== 'ALGORITHM_NOT_AVAILABLE_HERE',
+  )
+  return relevant?.reason ?? 'ALGORITHM_NOT_AVAILABLE_HERE'
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * 두 설정 사이에서 바뀐 경로. `preprocessing.scaling` 같은 점 표기다.
+ *
+ * 객체는 파고들고 배열은 통째로 하나로 본다 - `features.2`는 학생에게 아무 뜻이 없고
+ * "특성 목록이 바뀌었다"가 알고 싶은 전부다.
+ */
+function changedPaths(before: unknown, after: unknown, prefix = ''): string[] {
+  if (isPlainObject(before) && isPlainObject(after)) {
+    const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])].sort()
+    return keys.flatMap((key) =>
+      changedPaths(before[key], after[key], prefix ? `${prefix}.${key}` : key),
+    )
+  }
+  return JSON.stringify(before ?? null) === JSON.stringify(after ?? null) ? [] : [prefix]
+}
+
+/**
+ * 비교 대상으로 삼는 설정.
+ *
+ * **분할 인덱스는 뺀다.** split 설정에서 파생된 값이라 중복이고, `settings.trainIndices`가
+ * 목록에 뜨면 학생은 자기가 무엇을 바꿨는지 알 수 없다.
+ *
+ * 알고리즘과 하이퍼파라미터는 넣는다 - 묶음 사이에서 학생이 실제로 가장 자주 바꾸는 것이
+ * 그것인데, 그게 안 잡히면 changed가 대부분 빈 배열이 되어 쓸모가 없어진다.
+ */
+function comparable(
+  settings: Batch['settings'],
+  runs: readonly Run[],
+  shared: ReadonlySet<string>,
+): Record<string, unknown> {
+  return {
+    features: settings.features,
+    target: settings.target ?? null,
+    preprocessing: settings.preprocessing,
+    split: settings.split,
+    algorithms: runs.map((run) => run.algorithm),
+    hyperparameters: Object.fromEntries(
+      runs
+        .filter((run) => shared.has(run.algorithm))
+        .map((run) => [run.algorithm, run.hyperparameters]),
+    ),
+  }
+}
+
+/**
+ * 직전 묶음 대비 바뀐 설정 경로.
+ *
+ * 하이퍼파라미터는 **양쪽에 다 있는 알고리즘만** 본다. KNN을 목록에서 빼면 그 하이퍼
+ * 파라미터도 같이 사라지는데, 둘 다 적으면 학생은 하나를 바꾸고 두 줄을 보게 된다.
+ * 알고리즘이 바뀐 것은 `algorithms` 한 줄로 이미 드러난다.
+ */
+function changedSince(
+  previous: Batch,
+  settings: Batch['settings'],
+  runs: readonly Run[],
+): string[] {
+  const after = new Set(runs.map((run) => run.algorithm))
+  const shared = new Set(
+    previous.runs.map((run) => run.algorithm).filter((algorithm) => after.has(algorithm)),
+  )
+  return changedPaths(
+    comparable(previous.settings, previous.runs, shared),
+    comparable(settings, runs, shared),
+  )
+}
+
+/** `batch-3` 같은 id에서 다음 번호. 번호는 프로젝트 전역이다 (mlpx-spec.md 4). */
+function nextSequence(prefix: string, ids: Iterable<string>): number {
+  let highest = 0
+  for (const id of ids) {
+    if (!id.startsWith(`${prefix}-`)) continue
+    const value = Number.parseInt(id.slice(prefix.length + 1), 10)
+    if (Number.isSafeInteger(value) && value > highest) highest = value
+  }
+  return highest + 1
+}
+
+interface TrainContext {
+  taskType: TaskType
+  trainFeatures: number[][]
+  testFeatures: number[][]
+  trainTarget: string[]
+  testTarget: string[]
+  randomState: number
+}
+
+type RunBase = Pick<Run, 'id' | 'algorithm' | 'hyperparameters' | 'trainedAt'>
+
+/**
+ * 모델 하나를 학습하고 채점한다. **여기서 던지지 않는다** - 무엇이 터지든 failed run이다.
+ *
+ * ml.js가 내부에서 던지는 것은 우리 어휘가 아니다. 그대로 흘리면 화면이 남의 라이브러리
+ * 영어 문장을 보여주게 되므로(CLAUDE.md 1.4와 같은 이유다) JOB_FAILED로 덮는다.
+ */
+function trainOne(
+  base: RunBase,
+  runtime: RuntimeSpec,
+  engine: TrainingEngine,
+  context: TrainContext,
+): Run {
+  const stamp = {
+    ...base,
+    computedBy: runtime.location,
+    engine: { kind: engine.engine.kind, version: engine.engine.version },
+  }
+
+  try {
+    const predict = engine.fit(base.algorithm, {
+      features: context.trainFeatures,
+      target: context.trainTarget,
+      hyperparameters: base.hyperparameters,
+      randomState: context.randomState,
+    })
+    const evaluation = evaluate(context.taskType, context.testTarget, predict(context.testFeatures))
+
+    return {
+      ...stamp,
+      status: 'done',
+      metrics: evaluation.metrics,
+      ...(evaluation.perClass ? { perClass: evaluation.perClass } : {}),
+      ...(evaluation.confusionMatrix ? { confusionMatrix: evaluation.confusionMatrix } : {}),
+    }
+  } catch (error) {
+    return {
+      ...stamp,
+      status: 'failed',
+      failure: isClientError(error)
+        ? { code: error.code, params: error.params }
+        : { code: 'JOB_FAILED' },
+    }
+  }
+}
+
+/**
+ * 묶음 하나를 실행한다.
+ *
+ * 분할·전처리가 실패하면 던진다. 개별 알고리즘의 실패는 failed run으로 남고 나머지는
+ * 계속 돈다 - **묶음 하나가 통째로 실패하는 일은 없다** (mlpx-spec.md 4.1).
+ */
+export function runBatch(input: BatchInput, options: BatchOptions = {}): BatchResult {
+  const { dataset, settings, taskType, dataType, context } = input
+  const now = options.now ?? (() => new Date().toISOString())
+  const batches = options.history?.batches ?? []
+  const { target } = settings
+
+  // 군집화에는 타깃이 없지만 군집 알고리즘도 아직 없다. 여기 오는 것은 분류·회귀뿐이고
+  // 둘 다 정답 열이 있어야 학습도 채점도 된다.
+  if (target === undefined || target === '') throw new ClientError('TARGET_NOT_SELECTED')
+
+  const rows = usableRows(dataset, settings.features, target, settings.preprocessing.missing)
+  // 층화하지 않으면 라벨은 쓰이지 않는다. 회귀에 층화를 켠 설정은 여기서 시끄럽게
+  // 실패한다 - 조용히 층화를 끄지 않는다는 ml/split.ts의 규칙과 같다.
+  const split = holdoutSplit({ rows, labels: targetValues(dataset, rows, target) }, settings.split)
+
+  const preprocessor = fitPreprocessor(
+    dataset,
+    split.trainIndices,
+    settings.features,
+    settings.preprocessing,
+  )
+
+  const { categoricalEncoding } = settings.preprocessing
+  const trainContext: TrainContext = {
+    taskType,
+    trainFeatures: transform(preprocessor, dataset, split.trainIndices, categoricalEncoding),
+    testFeatures: transform(preprocessor, dataset, split.testIndices, categoricalEncoding),
+    trainTarget: targetValues(dataset, split.trainIndices, target),
+    testTarget: targetValues(dataset, split.testIndices, target),
+    randomState: settings.split.randomState,
+  }
+
+  const available = new Map(
+    algorithmOptions({ dataType, taskType }, context).map((option) => [
+      option.algorithm.id,
+      option,
+    ]),
+  )
+
+  const startedAt = now()
+  const total = settings.selectedAlgorithms.length
+  let sequence = nextSequence(
+    'run',
+    batches.flatMap((batch) => batch.runs.map((run) => run.id)),
+  )
+
+  const runs: Run[] = []
+  for (const algorithm of settings.selectedAlgorithms) {
+    const base: RunBase = {
+      id: `run-${sequence}`,
+      algorithm,
+      hyperparameters: settings.hyperparameters[algorithm] ?? {},
+      trainedAt: now(),
+    }
+    sequence += 1
+
+    const option = available.get(algorithm)
+    const runtime = option ? chooseRuntime(option, input.runtime) : undefined
+    const engine = runtime ? engineFor(runtime.id) : undefined
+
+    // 아무것도 안 돌았으면 computedBy는 여전히 browser다. 우리가 브라우저이기 때문이고,
+    // 이 자리에 server를 적으면 서버가 거절한 것처럼 읽힌다.
+    if (!option) {
+      // 등록부에 없는 알고리즘이다. 남의 파일에 든 것을 다시 돌리려 할 때 나온다.
+      runs.push({
+        ...base,
+        computedBy: 'browser',
+        status: 'failed',
+        failure: { code: 'ALGORITHM_UNSUPPORTED', params: { algorithm } },
+      })
+    } else if (!runtime || !engine) {
+      const reason = unavailableReason(option, input.runtime)
+      runs.push({
+        ...base,
+        computedBy: 'browser',
+        status: 'failed',
+        failure: { code: reason, params: reasonParams(reason) },
+      })
+    } else {
+      runs.push(trainOne(base, runtime, engine, trainContext))
+    }
+
+    const finished = runs[runs.length - 1]
+    if (finished) options.onRun?.(finished, runs.length, total)
+  }
+
+  const batchSettings: Batch['settings'] = {
+    features: settings.features,
+    target,
+    preprocessing: settings.preprocessing,
+    split: settings.split,
+    trainIndices: split.trainIndices,
+    testIndices: split.testIndices,
+  }
+
+  const previous = batches[batches.length - 1]
+
+  return {
+    batch: {
+      id: `batch-${nextSequence(
+        'batch',
+        batches.map((batch) => batch.id),
+      )}`,
+      startedAt,
+      // 첫 묶음에는 직전이 없다. 빈 배열은 "아무것도 안 바꿨다"라는 다른 뜻이 된다.
+      ...(previous ? { changed: changedSince(previous, batchSettings, runs) } : {}),
+      settings: batchSettings,
+      runs,
+    },
+    preprocessor,
+  }
+}
