@@ -10,7 +10,7 @@
  * 있어야 한다. 그때 서버 실행 옵션은 선택 불가로 두되, **왜 못 쓰는지 이유를 함께 준다.**
  * 이유 없이 비활성화된 버튼은 학생에게 고장으로 보인다.
  *
- * 실제 학습 실행(TrainingBackend.train)은 .mlproj 스키마가 정해진 뒤에 붙인다.
+ * 실제 학습 실행(TrainingBackend.train)은 .mlpx 스키마가 정해진 뒤에 붙인다.
  */
 
 export const TRAINING_LOCATIONS = ['browser', 'server'] as const

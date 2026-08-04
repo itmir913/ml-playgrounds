@@ -2,7 +2,7 @@
  * IndexedDB - 브라우저가 저장소다 (CLAUDE.md 1.2).
  *
  * 지금 다루는 것은 사용자 설정뿐이다.
- * 프로젝트 자동 저장/불러오기/목록은 .mlproj 포맷 작업에서 이 파일에 붙인다.
+ * 프로젝트 자동 저장/불러오기/목록은 .mlpx 포맷 작업에서 이 파일에 붙인다.
  */
 
 import { openDB, type IDBPDatabase } from 'idb'

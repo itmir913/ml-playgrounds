@@ -52,7 +52,7 @@
 
 ### 1.3 하나의 프로젝트 = 하나의 파일
 
-- `.mlproj` 파일 하나가 프로젝트이자 수행평가 제출물이자 포트폴리오다. 실체는 zip이다.
+- `.mlpx` 파일 하나가 프로젝트이자 수행평가 제출물이자 포트폴리오다. 실체는 zip이다.
 - 교사는 이 파일 하나만 열면 **재학습 없이** 모든 것을 볼 수 있어야 한다.
 - 확장자 문자열은 **상수 하나로 관리**한다. 코드에 흩뿌리지 마라.
 
@@ -73,8 +73,8 @@
 ## 2. 스택과 설계 원칙
 
 **프런트엔드** Vue 3 (`<script setup>`) · TypeScript strict · Tailwind · Pinia · vue-i18n · IndexedDB · Vite
-**백엔드** Python 3.11+ · FastAPI · Pydantic v2 · scikit-learn / pandas / numpy
-**배포** Docker Compose (단일 호스트에서 시작)
+**백엔드** Python 3.12+ · FastAPI · Pydantic v2 · scikit-learn / pandas / numpy
+**배포** 리눅스 단일 호스트. 패키징은 배포 단계에서 결정한다 (`docs/open-decisions.md` #10)
 
 교체가 예정된 세 지점은 **처음부터 인터페이스 뒤에 둔다.** 구현 교체가 코드 전체에 파급되면 안 된다.
 
@@ -160,7 +160,7 @@
 
 **테스트에서 반드시 다뤄야 할 것**
 
-- `.mlproj` 저장 → 열기 왕복 무손실 / `formatVersion` 마이그레이션
+- `.mlpx` 저장 → 열기 왕복 무손실 / `formatVersion` 마이그레이션
 - 무결성 서명 생성 → 검증 → 변조 탐지
 - 상한 초과 시 올바른 에러 코드 반환 / 디스크 부족 시 업로드 거부
 - 작업 완료·실패·취소·타임아웃 **모든 경로**에서 임시 파일이 삭제되는지
@@ -175,7 +175,7 @@
 | 문서 | 언제 읽는가 |
 |---|---|
 | `docs/architecture.md` | 큐·워커·자원 관리·디렉터리 구조를 건드릴 때 |
-| `docs/mlproj-spec.md` | 프로젝트 파일 포맷·무결성 서명을 건드릴 때 |
+| `docs/mlpx-spec.md` | 프로젝트 파일 포맷·무결성 서명을 건드릴 때 |
 | `docs/roadmap.md` | 이 기능이 지금 범위인지 확인할 때 |
 | `docs/open-decisions.md` | **구현 전 반드시 확인.** 아직 결정되지 않은 항목 |
 | `docs/error-codes.md` | 에러 코드 레퍼런스 (출처는 `errors.py`) |

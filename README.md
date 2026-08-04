@@ -6,7 +6,7 @@
 중·고등학교 정보/인공지능 수업의 교사와 학생을 위해 만듭니다.
 
 - 서버는 계산만 합니다. 계정도, 프로젝트도, 학생의 인적사항도 저장하지 않습니다.
-- 프로젝트는 브라우저(IndexedDB)에 보관되고 `.mlproj` 파일 하나로 내보내집니다.
+- 프로젝트는 브라우저(IndexedDB)에 보관되고 `.mlpx` 파일 하나로 내보내집니다.
 - 교사는 그 파일 하나만 열면 재학습 없이 결과를 확인하고 무결성을 검증할 수 있습니다.
 
 ---
@@ -16,7 +16,7 @@
 | 도구 | 버전 | 확인 |
 |---|---|---|
 | Node.js | 20 이상 | `node --version` |
-| Python | 3.11 이상 | `python --version` |
+| Python | 3.12 이상 | `python --version` |
 | [uv](https://docs.astral.sh/uv/) | 최신 | `uv --version` |
 
 uv가 없다면:
@@ -93,7 +93,7 @@ scripts/    CI 검사 스크립트
 |---|---|
 | [CLAUDE.md](CLAUDE.md) | 설계 원칙과 개발 규약 |
 | [docs/architecture.md](docs/architecture.md) | 큐, 세션 수명주기, 자원 관리, 로컬 개발 |
-| [docs/mlproj-spec.md](docs/mlproj-spec.md) | `.mlproj` 포맷과 무결성 검증 |
+| [docs/mlpx-spec.md](docs/mlpx-spec.md) | `.mlpx` 포맷과 무결성 검증 |
 | [docs/roadmap.md](docs/roadmap.md) | 범위와 구현 순서 |
 | [docs/open-decisions.md](docs/open-decisions.md) | 아직 결정되지 않은 항목 |
 | [docs/error-codes.md](docs/error-codes.md) | 에러 코드 레퍼런스 |

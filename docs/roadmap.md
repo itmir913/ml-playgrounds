@@ -6,14 +6,14 @@
 
 | 영역 | 내용 |
 |---|---|
-| 프로젝트 | 새 프로젝트 / 저장(`.mlproj`) / 열기 / IndexedDB 자동 저장 |
+| 프로젝트 | 새 프로젝트 / 저장(`.mlpx`) / 열기 / IndexedDB 자동 저장 |
 | 데이터 | CSV 업로드, 미리보기, 컬럼 타입 추론, 결측치 표시 |
 | 전처리 | 결측치 처리, 스케일링, 범주형 인코딩 |
 | 알고리즘 | Decision Tree, Random Forest, Logistic Regression, KNN, SVM, Naive Bayes |
 | 평가 | 정확도, Precision, Recall, F1, 혼동 행렬 |
-| 예측 | 새 값을 입력해 예측 (모델은 `.mlproj`에 담긴다 → `mlproj-spec.md` §5) |
+| 예측 | 새 값을 입력해 예측 (모델은 `.mlpx`에 담긴다 → `mlpx-spec.md` §5) |
 | 포트폴리오 | 프로젝트 내 마크다운 편집 |
-| 교사 | `.mlproj` 열어 결과 확인, 무결성 검증, 다시 학습 |
+| 교사 | `.mlpx` 열어 결과 확인, 무결성 검증, 다시 학습 |
 
 ## V1.5 — 브라우저 내 학습
 
@@ -47,7 +47,7 @@ V5(이미지) 착수 시점에 `CeleryQueue`로 전환한다.
 
 1. **저장소 골격** — 디렉터리, `pyproject.toml`, `package.json`, `.gitignore`, `docker-compose.yml`
 2. **i18n 기반** — `errors.py`(StrEnum + `AppError` + 핸들러), 로케일 파일, `i18n.ts`, CI 검사
-3. **`.mlproj` 포맷** — `schema.ts` / `format.ts` / `migrate.ts` / `storage.ts` + 왕복 테스트
+3. **`.mlpx` 포맷** — `schema.ts` / `format.ts` / `migrate.ts` / `storage.ts` + 왕복 테스트
 4. **백엔드 학습 파이프라인** — `config` / `diskguard` / `lifecycle` / `quota` / `jobs` / `ml` / `ws` / `signing`
 5. **프런트엔드 UI** — 아래 순서로, 화면 하나씩
 
