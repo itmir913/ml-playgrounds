@@ -314,17 +314,21 @@ export function runBatch(input: BatchInput, options: BatchOptions = {}): BatchRe
 
   const runs: Run[] = []
   for (const algorithm of settings.selectedAlgorithms) {
-    const base: RunBase = {
-      id: `run-${sequence}`,
-      algorithm,
-      hyperparameters: settings.hyperparameters[algorithm] ?? {},
-      trainedAt: now(),
-    }
-    sequence += 1
-
     const option = available.get(algorithm)
     const runtime = option ? chooseRuntime(option, input.runtime) : undefined
     const engine = runtime ? engineFor(runtime.id) : undefined
+
+    // **실행 방법이 정해진 뒤에 하이퍼파라미터를 읽는다.** 어휘가 실행 방법마다 다르므로
+    // (ml.js maxDepth / sklearn max_depth) 어느 것으로 돌지 모르면 무엇을 먹일지도 모른다.
+    // 자동으로 넘어갔으면 넘어간 쪽의 값을 쓰고, 아예 못 돌면 학생이 고른 쪽의 값을
+    // 기록한다 - 실패한 run에도 "무엇을 시도했는지"는 남아야 한다.
+    const base: RunBase = {
+      id: `run-${sequence}`,
+      algorithm,
+      hyperparameters: settings.hyperparameters[algorithm]?.[runtime?.id ?? input.runtime] ?? {},
+      trainedAt: now(),
+    }
+    sequence += 1
 
     // 아무것도 안 돌았으면 computedBy는 여전히 browser다. 우리가 브라우저이기 때문이고,
     // 이 자리에 server를 적으면 서버가 거절한 것처럼 읽힌다.

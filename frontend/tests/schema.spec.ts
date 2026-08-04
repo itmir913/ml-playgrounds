@@ -51,7 +51,9 @@ const settings = {
   preprocessing: { missing: 'drop', scaling: 'standard', categoricalEncoding: 'onehot' },
   split: { method: 'holdout', testSize: 0.2, stratify: true, randomState: 42 },
   selectedAlgorithms: ['decision_tree'],
-  hyperparameters: { decision_tree: { max_depth: null } },
+  hyperparameters: {
+    decision_tree: { mljs: { maxDepth: 5 }, 'server-sklearn': { max_depth: null } },
+  },
 }
 
 const run = {
@@ -132,6 +134,15 @@ describe('모르는 어휘', () => {
 
   it('실행 위치가 목록에 없으면 거부한다', () => {
     expect(runSchema.safeParse({ ...run, computedBy: 'cloud' }).success).toBe(false)
+  })
+
+  it('업로드 인코딩이 목록에 없으면 거부한다', () => {
+    const withSource = (sourceEncoding: string) => ({
+      ...settings,
+      dataset: { ...settings.dataset, sourceEncoding },
+    })
+    expect(settingsSchema.safeParse(withSource('cp949')).success).toBe(true)
+    expect(settingsSchema.safeParse(withSource('euc-kr')).success).toBe(false)
   })
 
   it('모델이 빠진 사유가 목록에 없으면 거부한다', () => {

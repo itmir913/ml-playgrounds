@@ -26,14 +26,21 @@ export const settings = {
     path: 'dataset/data.csv',
     originalFileName: 'iris_data_final(1).csv',
     hasHeader: true,
+    // 정본은 언제나 utf-8이고, 올라온 파일이 무엇이었는지는 따로 남는다.
+    // 한국 윈도우 엑셀의 "CSV로 저장"이 정확히 이 조합이다.
     encoding: 'utf-8',
+    sourceEncoding: 'cp949' as const,
   },
   features: ['꽃받침 길이', 'petal_length'],
   target: '품종',
   preprocessing: { missing: 'drop', scaling: 'standard', categoricalEncoding: 'onehot' } as const,
   split: { method: 'holdout', testSize: 0.2, stratify: true, randomState: 42 } as const,
   selectedAlgorithms: ['decision_tree', 'svm'],
-  hyperparameters: { decision_tree: { max_depth: null }, svm: { C: 1.0 } },
+  // 알고리즘 -> 실행 방법 -> 값. 같은 결정트리라도 어휘가 갈린다 (maxDepth / max_depth).
+  hyperparameters: {
+    decision_tree: { mljs: { maxDepth: 5 }, 'server-sklearn': { max_depth: null } },
+    svm: { 'server-sklearn': { C: 1.0 } },
+  },
 }
 
 export function run(id: string, overrides: Partial<Run> = {}): Run {

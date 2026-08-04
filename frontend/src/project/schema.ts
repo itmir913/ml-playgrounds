@@ -20,6 +20,7 @@
 
 import { z } from 'zod'
 
+import { SOURCE_ENCODINGS } from '../data/encoding'
 import { ClientError } from '../errors'
 import { MAX_STUDENT_ID_LENGTH, MAX_STUDENT_NAME_LENGTH } from '../limits'
 import { TRAINING_LOCATIONS } from '../ml/backend'
@@ -125,7 +126,15 @@ export const datasetRefSchema = z.looseObject({
   path: z.string(),
   originalFileName: userString,
   hasHeader: z.boolean(),
+  /** 정본의 인코딩. **언제나 'utf-8'이다** - 가져오기 시점에 정규화된다. */
   encoding: z.string(),
+  /**
+   * 업로드된 파일이 무엇이었는지. **화면 표시용이고 정본과 무관하다.**
+   *
+   * 엑셀에는 없다. 이 값이 없으면 한글이 깨져 보일 때 학생도 교사도 판정이 틀린 건지
+   * 원본이 깨진 건지 구분할 수 없다 - "CP949로 읽었습니다"는 교실에서 값을 하는 정보다.
+   */
+  sourceEncoding: z.enum(SOURCE_ENCODINGS).optional(),
 })
 
 export const preprocessingSchema = z.looseObject({
@@ -150,8 +159,19 @@ export const settingsSchema = z.looseObject({
   preprocessing: preprocessingSchema,
   split: splitSchema,
   selectedAlgorithms: z.array(userString),
-  /** 알고리즘 id -> 하이퍼파라미터. 학생이 안 건드려도 실제 쓰인 값을 전부 기록한다. */
-  hyperparameters: z.record(z.string(), opaqueRecord),
+  /**
+   * 알고리즘 id -> **실행 방법 id** -> 하이퍼파라미터.
+   *
+   * **실행 방법 축이 반드시 있어야 한다.** ml.js는 `maxDepth`, sklearn은 `max_depth`로
+   * 어휘가 다르고, 같은 sklearn 둘은 어휘가 같은데 숫자가 갈린다
+   * (open-decisions.md "실행 방법은 하나의 목록이다"). 알고리즘 하나로만 키를 잡으면
+   * 학생이 실행 방법을 바꿨을 때 맞춰 둔 값이 **조용히 무시되고** 기본값으로 돈다 -
+   * 화면에는 여전히 그 값이 떠 있는 채로.
+   *
+   * 자가호스팅 서버가 자기 알고리즘 목록을 알려주게 되면(로드맵 8단계) 파라미터 어휘가
+   * 서버마다 달라지므로 이 축이 더 크게 값을 한다.
+   */
+  hyperparameters: z.record(z.string(), z.record(z.string(), opaqueRecord)),
 })
 
 // -------------------------------------------------------------------- runs

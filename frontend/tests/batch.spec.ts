@@ -190,6 +190,28 @@ describe('일부만 실패한다', () => {
     expect(batch.runs[1]?.metrics).toBeUndefined()
   })
 
+  it('실행 방법에 맞는 하이퍼파라미터만 먹인다', () => {
+    // ml.js는 maxDepth, sklearn은 max_depth다. 한 자리에 섞어 두면 학생이 실행 방법을
+    // 바꿨을 때 맞춰 둔 값이 조용히 무시되고 화면에는 그 값이 그대로 떠 있다.
+    const { batch } = runBatch(
+      inputFor({
+        settings: settingsFor({
+          selectedAlgorithms: ['decision_tree'],
+          hyperparameters: {
+            decision_tree: { mljs: { maxDepth: 1 }, 'server-sklearn': { max_depth: 100 } },
+          },
+        }),
+      }),
+      frozen,
+    )
+
+    expect(batch.runs[0]?.hyperparameters).toEqual({ maxDepth: 1 })
+
+    // 실제로 먹혔는지까지 본다. 깊이 1이면 붓꽃 세 품종을 가를 수 없다.
+    const deep = runBatch(inputFor(), frozen).batch.runs[0]
+    expect(batch.runs[0]?.metrics?.accuracy).toBeLessThan(deep?.metrics?.accuracy ?? 0)
+  })
+
   it('svm은 순수 JS 구현이 없어 실패하고 사유가 남는다', () => {
     // 자동으로 넘어갈 곳이 없다 - pyodide는 안 켜져 있고 서버도 없다.
     const { batch } = runBatch(
@@ -220,7 +242,7 @@ describe('일부만 실패한다', () => {
       inputFor({
         settings: settingsFor({
           selectedAlgorithms: ['random_forest'],
-          hyperparameters: { random_forest: { nEstimators: 3 } },
+          hyperparameters: { random_forest: { mljs: { nEstimators: 3 } } },
         }),
       }),
       frozen,
@@ -339,7 +361,7 @@ describe('id와 changed', () => {
       inputFor({
         settings: settingsFor({
           selectedAlgorithms: ['decision_tree', 'knn'],
-          hyperparameters: { knn: { k: 3 } },
+          hyperparameters: { knn: { mljs: { k: 3 } } },
         }),
       }),
       { ...frozen, history },

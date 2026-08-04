@@ -42,7 +42,7 @@ const document = {
     preprocessing: { missing: 'drop', scaling: 'standard', categoricalEncoding: 'onehot' },
     split: { method: 'holdout', testSize: 0.2, stratify: true, randomState: 42 },
     selectedAlgorithms: ['decision_tree'],
-    hyperparameters: { decision_tree: { max_depth: null } },
+    hyperparameters: { decision_tree: { mljs: { maxDepth: 5 } } },
   },
   runs: { batches: [] },
   portfolio: { template: { id: 'default-v1' }, answers: {} },
