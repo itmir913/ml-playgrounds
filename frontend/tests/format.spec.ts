@@ -204,6 +204,58 @@ describe('크기 예산', () => {
   })
 })
 
+describe('모델을 왜 뺐는지 파일에 남는다', () => {
+  it('개별 상한을 넘었으면 tooLarge다 - 다시 학습해도 소용없다', async () => {
+    const project = projectFile()
+    project.models.set('model/run-1.json', filler(MAX_MODEL_BYTES + 1))
+
+    const reopened = await open((await writeProject(project, markdown)).bytes)
+    expect(reopened.document.runs.batches[0]?.runs[0]?.modelOmitted).toBe('tooLarge')
+  })
+
+  it('합계 예산에서 밀렸으면 overBudget이다 - 다시 학습하면 되살아난다', async () => {
+    const project = projectFile()
+    project.document.runs.batches = [
+      batch('batch-1', [run('run-1')]),
+      batch('batch-2', [run('run-2')]),
+    ]
+    project.models = new Map([
+      ['model/run-1.json', filler(60)],
+      ['model/preprocessor-batch-1.json', filler(10)],
+      ['model/run-2.json', filler(60)],
+      ['model/preprocessor-batch-2.json', filler(10)],
+    ])
+
+    // selectModels의 판정을 그대로 문서에 옮기는지를 본다. 예산은 인자로 줄 수 없으므로
+    // 사유 표를 직접 확인하고, 왕복은 위 tooLarge 테스트가 덮는다.
+    const { dropped } = selectModels(project.document, project.models, 100, 60)
+    expect(dropped.map((model) => model.reason)).toEqual(['overBudget'])
+  })
+
+  it('모델이 담기면 옛 사유가 지워진다 - 담긴 모델 옆에 "담지 못했습니다"가 뜨면 안 된다', async () => {
+    const project = projectFile()
+    const first = project.document.runs.batches[0]?.runs[0]
+    // 지난번 저장에서 밀렸다가, 이번에는 예산에 여유가 생겨 담기는 상황이다.
+    if (first) first.modelOmitted = 'overBudget'
+
+    const reopened = await open((await writeProject(project, markdown)).bytes)
+    expect(reopened.document.runs.batches[0]?.runs[0]?.model).toBeDefined()
+    expect(reopened.document.runs.batches[0]?.runs[0]?.modelOmitted).toBeUndefined()
+  })
+
+  it('파일에 모델이 없어서 뗀 것에는 사유를 지어내지 않는다', async () => {
+    // 읽을 때는 왜 없는지 모른다. 파일에 적혀 있던 것이 그 답이고, 없으면 없는 것이다.
+    const { bytes } = await writeProject(projectFile(), markdown)
+    const entries = unzipSync(bytes)
+    delete entries['model/run-1.json']
+
+    const { project } = await readProject(zipSync(entries))
+    const first = project.document.runs.batches[0]?.runs[0]
+    expect(first?.model).toBeUndefined()
+    expect(first?.modelOmitted).toBeUndefined()
+  })
+})
+
 describe('열 수 없는 파일', () => {
   it('zip이 아니면 거부한다', async () => {
     await expect(readProject(new TextEncoder().encode('not a zip at all'))).rejects.toSatisfy(

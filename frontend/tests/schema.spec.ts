@@ -107,7 +107,7 @@ describe('어휘 고정', () => {
       CATEGORICAL_ENCODINGS: ['none', 'onehot', 'ordinal'],
       SPLIT_METHODS: ['holdout'],
       RUN_STATUSES: ['done', 'failed'],
-      MODEL_OMISSION_REASONS: ['sizeBudget', 'engineUnsupported'],
+      MODEL_OMISSION_REASONS: ['overBudget', 'tooLarge', 'engineUnsupported'],
       SOURCE_ENCODINGS: ['utf-8', 'cp949', 'utf-16le', 'utf-16be'],
       TRAINING_LOCATIONS: ['browser', 'server'],
     })
@@ -157,8 +157,11 @@ describe('모르는 어휘', () => {
   })
 
   it('모델이 빠진 사유가 목록에 없으면 거부한다', () => {
-    expect(runSchema.safeParse({ ...run, modelOmitted: 'sizeBudget' }).success).toBe(true)
+    expect(runSchema.safeParse({ ...run, modelOmitted: 'overBudget' }).success).toBe(true)
+    expect(runSchema.safeParse({ ...run, modelOmitted: 'tooLarge' }).success).toBe(true)
     expect(runSchema.safeParse({ ...run, modelOmitted: '몰라' }).success).toBe(false)
+    // 합계 예산과 개별 상한을 하나로 뭉치던 옛 어휘다. 처방이 서로 달라서 갈랐다.
+    expect(runSchema.safeParse({ ...run, modelOmitted: 'sizeBudget' }).success).toBe(false)
   })
 })
 

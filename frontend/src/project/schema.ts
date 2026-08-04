@@ -57,14 +57,26 @@ export const RUN_STATUSES = ['done', 'failed'] as const
 /**
  * 학습은 성공했는데 모델이 파일에 없는 이유.
  *
- * **없는 것과 왜 없는지는 다른 질문이다.** 학생에게는 셋 다 "예측할 수 없습니다"로
- * 보이지만 할 일이 다르다 - 예산에서 밀린 것은 다른 프로젝트를 지우면 되살아나고,
- * 엔진이 직렬화를 지원하지 않는 것은 지금 할 수 있는 일이 없다. 실패 사유를 남기는
- * 것과 같은 이유다 (mlpx-spec.md 4.2).
+ * **없는 것과 왜 없는지는 다른 질문이다.** 학생에게는 전부 "예측할 수 없습니다"로
+ * 보이지만 할 일이 다르다 (mlpx-spec.md 4.2).
+ *
+ * - `overBudget` - 파일 합계 예산에서 밀렸다. **다시 학습하면 되살아난다** (최신 묶음부터
+ *   채우므로). 이 프로젝트의 옛 묶음을 지워도 된다.
+ * - `tooLarge` - 모델 하나가 개별 상한을 넘었다. **다시 학습해도 소용없다** - 나무 개수를
+ *   줄이는 식으로 모델 자체를 작게 만들어야 한다.
+ * - `engineUnsupported` - 그 실행 방법에 아직 직렬화기가 없다. 지금 할 수 있는 일이 없다.
+ *
+ * 앞의 둘을 하나로 뭉치면 랜덤포레스트를 크게 돌린 학생에게 "다시 학습하세요"라고 답하고,
+ * 학생은 같은 실패를 반복한다. **어휘를 나누는 이유는 구분이 가능해서가 아니라 화면이
+ * 서로 다른 지시를 해야 하기 때문이다.**
+ *
+ * 전처리기가 없어 묶음째 빠지는 경우는 여기 없다. 그건 "모델을 왜 안 담았나"가 아니라
+ * "이 파일이 어긋나 있다"는 다른 축이고, 정상 경로로는 나오지 않는다 (format.ts의
+ * selectModels가 모델을 담을 때 전처리기를 항상 함께 담는다).
  *
  * status가 'done'이고 model이 없을 때만 의미가 있다.
  */
-export const MODEL_OMISSION_REASONS = ['sizeBudget', 'engineUnsupported'] as const
+export const MODEL_OMISSION_REASONS = ['overBudget', 'tooLarge', 'engineUnsupported'] as const
 
 export type TaskType = (typeof TASK_TYPES)[number]
 export type DataType = (typeof DATA_TYPES)[number]

@@ -27,7 +27,7 @@ import {
   type ProjectHashes,
 } from './integrity'
 import { migrateProjectDocument, requireSupportedVersion } from './migrate'
-import type { Manifest, ProjectDocument } from './schema'
+import type { Manifest, ModelOmissionReason, ProjectDocument } from './schema'
 
 /** 프로젝트 파일의 확장자. 코드 안에서 '.mlpx'를 직접 쓰지 마라. */
 export const MLPX_EXTENSION = '.mlpx'
@@ -162,19 +162,49 @@ function referencedModelPaths(document: ProjectDocument): Set<string> {
 }
 
 /**
- * 파일에 없는 모델 참조를 문서에서 떼어낸다.
+ * 드롭 사유를 파일에 남길 어휘로 바꾼다. 남길 말이 없으면 undefined다.
+ *
+ * `preprocessorMissing`은 어휘에 없다. 그건 "모델을 왜 안 담았나"가 아니라 "이 파일이
+ * 어긋나 있다"는 다른 축이고, 정상 경로로는 나오지 않는다 - selectModels가 모델을 담을
+ * 때 전처리기를 항상 함께 담기 때문이다. 손으로 고친 파일에서만 나오고, 그때 할 말은
+ * 무결성 층이 한다 (mlpx-spec.md 4.2).
+ */
+function omissionReason(reason: DropReason): ModelOmissionReason | undefined {
+  if (reason === 'overBudget') return 'overBudget'
+  if (reason === 'tooLarge') return 'tooLarge'
+  return undefined
+}
+
+/**
+ * 파일에 없는 모델 참조를 문서에서 떼어내고, **왜 없는지를 적는다.**
  *
  * 예산에서 밀려 빠진 모델과 같은 상태로 만든다 - 지표는 남고 예측만 못 한다.
  * 참조를 그대로 두면 메모리의 문서와 파일 내용이 어긋난 채로 돌아다닌다.
+ *
+ * `reasonFor`가 없으면 사유를 적지 않는다. **읽을 때가 그 경우다** - 파일에 모델이 없는
+ * 것을 발견했을 뿐 왜 없는지는 모르고, 파일에 이미 적혀 있던 modelOmitted가 그 답이다.
+ * 추측해서 덮어쓰면 "예산에서 밀렸다"가 "파일이 깨졌다"를 가린다.
  */
-function detachMissingModels(document: ProjectDocument, present: Set<string>): ProjectDocument {
+function detachMissingModels(
+  document: ProjectDocument,
+  present: Set<string>,
+  reasonFor?: (path: string) => ModelOmissionReason | undefined,
+): ProjectDocument {
   const batches = document.runs.batches.map((batch) => {
     const hasPreprocessor = batch.preprocessor ? present.has(batch.preprocessor.path) : false
     const runs = batch.runs.map((run) => {
       // 전처리기가 없으면 모델만 있어도 예측할 수 없다 (mlpx-spec.md 6).
-      if (run.model && hasPreprocessor && present.has(run.model.path)) return run
+      if (run.model && hasPreprocessor && present.has(run.model.path)) {
+        if (run.modelOmitted === undefined) return run
+        // 모델이 돌아왔다. 옛 사유를 남겨 두면 담긴 모델 옆에 "담지 못했습니다"가 뜬다.
+        const restored = { ...run }
+        delete restored.modelOmitted
+        return restored
+      }
       const detached = { ...run }
+      const reason = run.model ? reasonFor?.(run.model.path) : undefined
       delete detached.model
+      if (reason) detached.modelOmitted = reason
       return detached
     })
     const next = { ...batch, runs }
@@ -424,7 +454,10 @@ export async function writeProject(
 ): Promise<WriteResult> {
   const { kept, dropped } = selectModels(project.document, project.models)
   // 담지 못한 모델의 참조는 문서에서도 뗀다. 파일과 문서가 어긋나면 안 된다.
-  const document = detachMissingModels(project.document, kept)
+  // **여기서는 왜 뺐는지를 안다.** 그 사유가 파일에 남아야 화면이 학생에게 무엇을 할 수
+  // 있는지 말한다 - "다시 학습하세요"와 "다시 학습해도 소용없습니다"는 다른 답이다.
+  const reasons = new Map(dropped.map((model) => [model.path, omissionReason(model.reason)]))
+  const document = detachMissingModels(project.document, kept, (path) => reasons.get(path))
 
   const entries: Record<string, Uint8Array> = {
     [ENTRY.manifest]: encodeJson(document.manifest),

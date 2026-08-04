@@ -71,7 +71,8 @@
     "ready": "Ready"
   },
   "modelOmission": {
-    "sizeBudget": "The model was left out to keep the project file small. Train again to use it for predictions.",
+    "overBudget": "The model was left out to keep the project file small. Train again to use it for predictions.",
+    "tooLarge": "The model was too big to fit in the file. Training again will not help — try lowering a setting that makes the model bigger, such as the number of trees.",
     "engineUnsupported": "This way of training cannot save a model yet, so only the scores were kept."
   },
   "execution": {
