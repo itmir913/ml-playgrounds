@@ -207,6 +207,23 @@ describe('범주 인코딩', () => {
   })
 })
 
+describe('범위 밖 행 번호', () => {
+  it('없는 행을 가리키면 시끄럽게 실패한다', () => {
+    // 조용히 빈 행으로 채우면 결측 대체값이 들어가 **그럴듯한 가짜 행**이 되고,
+    // 학습도 예측도 에러 없이 진행된다. 학생은 그 숫자로 포트폴리오를 쓴다.
+    // 참조형 모델의 예측과 재실행 대조가 파일에 적힌 번호로 이 함수를 부른다.
+    const fitted = fitPreprocessor(dataset, [0, 1, 2, 3], features, preprocessing())
+    const code = codeOf(() => transform(fitted, dataset, [0, 999], 'onehot'))
+    expect(code).toBe('SPLIT_INDEX_OUT_OF_RANGE')
+  })
+
+  it('경계값은 통과한다 - 마지막 행은 정상이다', () => {
+    const fitted = fitPreprocessor(dataset, [0, 1, 2, 3], features, preprocessing())
+    const last = dataset.rows.length - 1
+    expect(transform(fitted, dataset, [last], 'onehot')).toHaveLength(1)
+  })
+})
+
 describe('전처리기는 데이터다', () => {
   it('JSON으로 나갔다 돌아와도 같은 행렬을 만든다 - .mlpx에 이대로 담긴다', () => {
     const fitted = fitPreprocessor(dataset, [0, 1, 2, 3], features, preprocessing())

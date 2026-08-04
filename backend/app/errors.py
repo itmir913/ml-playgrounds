@@ -66,6 +66,10 @@ class ErrorCode(_NameValueEnum):
     ALGORITHM_UNSUPPORTED = auto()
     HYPERPARAM_OUT_OF_RANGE = auto()
     SPLIT_INVALID = auto()
+    # 분할 인덱스는 클라이언트가 계산해 함께 보낸다 (mlpx-spec.md 0.3).
+    # 받은 번호가 데이터셋 범위를 벗어나면 거부한다 - 조용히 넘기면 없는 행을
+    # 채워 넣고 학습이 그대로 진행되어 "조용히 틀린 결과"가 된다.
+    SPLIT_INDEX_OUT_OF_RANGE = auto()
 
     # 작업
     JOB_NOT_FOUND = auto()
@@ -128,6 +132,7 @@ HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.ALGORITHM_UNSUPPORTED: HTTPStatus.BAD_REQUEST,
     ErrorCode.HYPERPARAM_OUT_OF_RANGE: HTTPStatus.BAD_REQUEST,
     ErrorCode.SPLIT_INVALID: HTTPStatus.BAD_REQUEST,
+    ErrorCode.SPLIT_INDEX_OUT_OF_RANGE: HTTPStatus.BAD_REQUEST,
     ErrorCode.JOB_NOT_FOUND: HTTPStatus.NOT_FOUND,
     ErrorCode.JOB_TIMEOUT: HTTPStatus.GATEWAY_TIMEOUT,
     ErrorCode.JOB_MEMORY_EXCEEDED: HTTPStatus.INTERNAL_SERVER_ERROR,

@@ -25,6 +25,7 @@
     "ALGORITHM_UNSUPPORTED": "That algorithm is not supported. ({algorithm})",
     "HYPERPARAM_OUT_OF_RANGE": "{name} is outside the allowed range. ({min}-{max}, yours {actual})",
     "SPLIT_INVALID": "The train/test split setting is not valid.",
+    "SPLIT_INDEX_OUT_OF_RANGE": "A row number used for training is outside the data. The data may have changed. (row {index}, data has {actualRows} rows)",
     "JOB_NOT_FOUND": "That job could not be found.",
     "JOB_TIMEOUT": "Training took longer than allowed. ({limitSeconds}s)",
     "JOB_MEMORY_EXCEEDED": "Training needed more memory than allowed. ({limitMb}MB)",

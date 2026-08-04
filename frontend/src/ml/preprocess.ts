@@ -259,6 +259,14 @@ export function fitPreprocessor(
  *
  * 학습셋에 없던 범주를 만나면 onehot은 전부 0, ordinal은 -1이다. 예측 한 번을
  * 통째로 실패시키는 것보다 낫다 - 교실에서 새 값은 흔하고, 학생이 할 수 있는 일이 없다.
+ *
+ * **범위 밖 행 번호는 반대다. 시끄럽게 실패한다.** 없는 행을 빈 행으로 채우면 결측 대체값이
+ * 들어가 **그럴듯한 가짜 행**이 되고, 학습도 예측도 에러 없이 진행되어 학생은 그 숫자로
+ * 포트폴리오를 쓴다. 이 프로젝트가 규정한 최악이 "조용히 틀린 결과"다.
+ *
+ * 지금은 인덱스가 holdoutSplit에서만 오므로 정상 경로에서는 나지 않는다. 그런데 이 함수는
+ * 곧 **파일에 적힌 번호**로도 불린다 - 참조형 모델의 예측과 재실행 대조가 그렇다. 손으로
+ * 고친 파일과 부분 손상 zip이 그때 여기로 온다.
  */
 export function transform(
   preprocessor: Preprocessor,
@@ -271,7 +279,13 @@ export function transform(
   )
 
   return indices.map((rowIndex) => {
-    const row = dataset.rows[rowIndex] ?? []
+    const row = dataset.rows[rowIndex]
+    if (row === undefined) {
+      throw new ClientError('SPLIT_INDEX_OUT_OF_RANGE', {
+        index: rowIndex,
+        actualRows: dataset.rows.length,
+      })
+    }
     const values: number[] = []
 
     for (const column of preprocessor.columns) {
