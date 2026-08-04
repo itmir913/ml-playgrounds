@@ -138,3 +138,61 @@ describe('회귀', () => {
     expect(fromCsv.metrics).toEqual(evaluate('regression', actual, predicted).metrics)
   })
 })
+
+describe('조용히 흡수하지 않는다', () => {
+  /**
+   * 이 두 검사가 없으면 지표는 **에러 없이 그럴듯한 숫자**를 낸다. 그게 이 저장소가
+   * 규정한 최악이다 (open-decisions.md "범위 밖 클래스 번호는 던진다").
+   */
+  function codeOf(run: () => unknown): string {
+    try {
+      run()
+      return 'threw nothing'
+    } catch (error) {
+      return isClientError(error) ? error.code : 'not a ClientError'
+    }
+  }
+
+  it('예측이 정답보다 짧으면 던진다 - 분류', () => {
+    // 막지 않으면 accuracy 1/3에 혼동 행렬은 두 행이 비어 그럴듯하게 나온다.
+    expect(codeOf(() => evaluate('classification', ['a', 'b', 'c'], ['a']))).toBe('JOB_FAILED')
+  })
+
+  it('예측이 정답보다 짧으면 던진다 - 회귀', () => {
+    // 막지 않으면 없는 예측을 0으로 간주해 mae 16.67, r2 -5.5가 나온다.
+    expect(codeOf(() => evaluate('regression', [10, 20, 30], [10]))).toBe('JOB_FAILED')
+  })
+
+  it('예측이 정답보다 길어도 던진다', () => {
+    expect(codeOf(() => evaluate('classification', ['a'], ['a', 'b']))).toBe('JOB_FAILED')
+  })
+
+  it('길이 불일치를 params에 남긴다 - 화면이 아니라 개발자가 읽는다', () => {
+    try {
+      evaluate('regression', [1, 2, 3], [1])
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error) && error.params).toEqual({ actualCount: 3, predictedCount: 1 })
+    }
+  })
+
+  it('회귀에 범주형 타깃이 오면 NaN 지표를 내보내지 않는다', () => {
+    // Number('상')이 NaN이다. 막지 않으면 status done + metrics 전부 NaN이 되고,
+    // 저장할 때 JSON이 null로 바꿔 다시 열리지 않는 .mlpx가 된다.
+    expect(codeOf(() => evaluate('regression', ['상', '중', '하'], [1, 2, 3]))).toBe('JOB_FAILED')
+  })
+
+  it('예측이 NaN이어도 막는다 - 원인이 정답 쪽만은 아니다', () => {
+    expect(codeOf(() => evaluate('regression', [1, 2, 3], [Number.NaN, 2, 3]))).toBe('JOB_FAILED')
+  })
+
+  it('Infinity도 수치가 아니다', () => {
+    expect(codeOf(() => evaluate('regression', [1, 2, 3], [Number.POSITIVE_INFINITY, 2, 3]))).toBe(
+      'JOB_FAILED',
+    )
+  })
+
+  it('멀쩡한 값은 그대로 통과한다', () => {
+    expect(evaluate('regression', [1, 2, 3], [1, 2, 3]).metrics.r2).toBe(1)
+  })
+})

@@ -18,6 +18,7 @@
     "DATASET_TOO_MANY_COLUMNS": "열이 너무 많습니다. (최대 {limitColumns}열, 현재 {actualColumns}열)",
     "COLUMN_NOT_FOUND": "데이터에 없는 열입니다. ({column})",
     "TARGET_NOT_SELECTED": "예측할 대상 열을 선택해 주세요.",
+    "TARGET_NOT_NUMERIC": "회귀는 숫자를 예측하는데 이 열에는 숫자가 아닌 값이 있습니다. 분류를 고르거나 다른 열을 예측해 주세요. ({target})",
     "TARGET_SINGLE_CLASS": "대상 열의 값이 한 종류뿐이라 분류할 수 없습니다. ({target})",
     "TARGET_TOO_MANY_CLASSES": "분류할 종류가 너무 많습니다. (최대 {limitClasses}개, 현재 {actualClasses}개)",
     "FEATURE_NOT_SELECTED": "학습에 사용할 특성을 하나 이상 선택해 주세요.",

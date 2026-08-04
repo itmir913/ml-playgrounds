@@ -59,6 +59,10 @@ class ErrorCode(_NameValueEnum):
     # 설정
     COLUMN_NOT_FOUND = auto()
     TARGET_NOT_SELECTED = auto()
+    # 회귀인데 대상 열이 수치가 아니다. 과제 유형을 대신 판정하는 것이 아니라
+    # (mlpx-spec.md 0.1) 성립하지 않는 조합을 거부하는 것이다 - 조용히 넘기면
+    # 지표가 통째로 NaN인 채 학습이 "성공"하고, 그 파일은 다시 열리지 않는다.
+    TARGET_NOT_NUMERIC = auto()
     TARGET_SINGLE_CLASS = auto()
     TARGET_TOO_MANY_CLASSES = auto()
     FEATURE_NOT_SELECTED = auto()
@@ -125,6 +129,7 @@ HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.DATASET_TOO_MANY_COLUMNS: HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
     ErrorCode.COLUMN_NOT_FOUND: HTTPStatus.BAD_REQUEST,
     ErrorCode.TARGET_NOT_SELECTED: HTTPStatus.BAD_REQUEST,
+    ErrorCode.TARGET_NOT_NUMERIC: HTTPStatus.BAD_REQUEST,
     ErrorCode.TARGET_SINGLE_CLASS: HTTPStatus.BAD_REQUEST,
     ErrorCode.TARGET_TOO_MANY_CLASSES: HTTPStatus.BAD_REQUEST,
     ErrorCode.FEATURE_NOT_SELECTED: HTTPStatus.BAD_REQUEST,

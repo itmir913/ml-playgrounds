@@ -18,6 +18,7 @@
     "DATASET_TOO_MANY_COLUMNS": "Too many columns. (limit {limitColumns}, yours {actualColumns})",
     "COLUMN_NOT_FOUND": "That column is not in the data. ({column})",
     "TARGET_NOT_SELECTED": "Choose the column you want to predict.",
+    "TARGET_NOT_NUMERIC": "Regression predicts numbers, but that column has values that are not numbers. Choose classification, or predict a different column. ({target})",
     "TARGET_SINGLE_CLASS": "The target column has only one value, so it cannot be classified. ({target})",
     "TARGET_TOO_MANY_CLASSES": "Too many classes to predict. (limit {limitClasses}, yours {actualClasses})",
     "FEATURE_NOT_SELECTED": "Choose at least one feature to learn from.",

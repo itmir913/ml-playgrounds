@@ -65,8 +65,14 @@ function toNumber(cell: string): number | null {
   return Number.isFinite(value) ? value : null
 }
 
-/** 결측이 아닌 값이 전부 숫자로 읽히면 수치 열이다. */
-function detectKind(values: readonly string[]): ColumnKind {
+/**
+ * 결측이 아닌 값이 전부 숫자로 읽히면 수치 열이다.
+ *
+ * **특성 열에도 타깃 열에도 같은 규칙을 쓴다.** 회귀가 타깃을 거부할 때
+ * (ml/batch.ts) 여기를 부르는 이유가 그것이다 - 판정 규칙이 두 개면 특성으로는
+ * 수치인데 타깃으로는 아닌 열이 생긴다.
+ */
+export function detectKind(values: readonly string[]): ColumnKind {
   let seen = 0
   for (const value of values) {
     if (isMissing(value)) continue

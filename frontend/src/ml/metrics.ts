@@ -142,13 +142,47 @@ export const EVALUATORS: Partial<Record<TaskType, Evaluator>> = {
   regression: evaluateRegression,
 }
 
-/** 과제 유형에 맞는 지표를 계산한다. 부르는 쪽에 분기가 없다. */
+/**
+ * 과제 유형에 맞는 지표를 계산한다. 부르는 쪽에 분기가 없다.
+ *
+ * **양쪽 끝에서 막는다.** 들어오는 것의 길이가 다르면 던지고, 나가는 값이 수치가 아니면
+ * 던진다. 둘 다 "조용히 그럴듯한 숫자"로 끝나는 경로라 여기서 끊지 않으면 아무 데서도
+ * 안 끊긴다.
+ *
+ * 던지는 코드는 `JOB_FAILED`다. 둘 다 **학생이 할 수 있는 일이 없는 도구의 고장**이고,
+ * 새 코드를 만들면 로케일에 "내부 오류입니다"가 하나 더 생기는데 이미 그 문장이다.
+ * 무엇이 어긋났는지는 params로 run.failure에 남아 개발자가 읽는다
+ * (open-decisions.md "범위 밖 클래스 번호는 던진다").
+ */
 export function evaluate(
   taskType: TaskType,
   actual: readonly Prediction[],
   predicted: readonly Prediction[],
 ): Evaluation {
   const evaluator = EVALUATORS[taskType]
-  if (!evaluator) throw new ClientError('JOB_FAILED')
-  return evaluator(actual, predicted)
+  if (!evaluator) throw new ClientError('JOB_FAILED', { taskType })
+
+  // 지금 등록된 엔진은 전부 입력 행 수만큼 예측을 돌려주므로 도달하지 않는다. 그러나 이
+  // 함수는 곧 서버 학습과 pyodide의 결과도 받는다 - 비동기 경계를 넘어온 잘린 응답이
+  // 들어오면 분류는 그 행을 혼동 행렬에서 빠뜨린 채 정확도 분모에는 넣고, 회귀는 없는
+  // 예측을 0으로 간주해 오차를 잰다. 에러 없이 그럴듯한 지표가 나온다.
+  if (actual.length !== predicted.length) {
+    throw new ClientError('JOB_FAILED', {
+      actualCount: actual.length,
+      predictedCount: predicted.length,
+    })
+  }
+
+  const evaluation = evaluator(actual, predicted)
+
+  // **NaN을 run에 싣지 않는다.** 위 머리말이 경고한 경로가 실제로 열려 있었다 - 회귀에
+  // 범주형 타깃을 고르면 Number('상')이 NaN이 되어 지표 전부가 NaN인 채 status가 done이
+  // 되고, 저장할 때 JSON이 그것을 null로 바꿔 **다시 열리지 않는 .mlpx**가 나왔다.
+  // ml/batch.ts가 그 조합을 앞에서 거부하지만 여기가 마지막 방어선이다 - 지표가 수치로
+  // 안 나오는 이유는 앞으로도 더 생긴다.
+  for (const [metric, value] of Object.entries(evaluation.metrics)) {
+    if (!Number.isFinite(value)) throw new ClientError('JOB_FAILED', { metric })
+  }
+
+  return evaluation
 }

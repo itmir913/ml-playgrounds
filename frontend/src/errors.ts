@@ -71,6 +71,8 @@ export const SHARED_ERROR_CODES = [
   'FEATURE_NOT_SELECTED',
   'FEATURE_ALL_MISSING',
   'TARGET_NOT_SELECTED',
+  // 회귀인데 대상 열이 수치가 아니다. 브라우저가 학습하든 서버로 보내든 같은 판정이다.
+  'TARGET_NOT_NUMERIC',
   // 분할 인덱스가 데이터셋 범위를 벗어났다. 클라이언트가 계산해 서버로 보내는 값이라
   // (mlpx-spec.md 0.3) 받는 쪽도 같은 판정을 한다.
   'SPLIT_INDEX_OUT_OF_RANGE',

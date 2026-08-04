@@ -572,3 +572,113 @@ describe('회귀', () => {
     expect(() => batchSchema.parse(batch)).not.toThrow()
   })
 })
+
+describe('회귀 + 범주형 타깃', () => {
+  /** 성적 등급을 타깃으로 회귀를 고른 학생. 교실에서 아주 자연스러운 실수다. */
+  const grades: Dataset = {
+    columns: ['study_hours', 'grade'],
+    rows: [
+      ['1', '하'],
+      ['2', '하'],
+      ['3', '중'],
+      ['4', '중'],
+      ['5', '상'],
+      ['6', '상'],
+      ['7', '상'],
+      ['8', '중'],
+      ['9', '하'],
+      ['10', '상'],
+    ],
+  }
+
+  function runGrades(taskType: BatchInput['taskType'], algorithm: string) {
+    return runBatch(
+      {
+        dataset: grades,
+        taskType,
+        dataType: 'tabular',
+        settings: settingsFor({
+          features: ['study_hours'],
+          target: 'grade',
+          split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+          selectedAlgorithms: models(algorithm),
+        }),
+        context: { serverStatus: 'unavailable', rowCount: grades.rows.length },
+      },
+      frozen,
+    )
+  }
+
+  it('TARGET_NOT_NUMERIC으로 묶음이 시작조차 하지 않는다', () => {
+    // 넘기면 metrics가 전부 NaN인 채 status가 done이 되고, 저장할 때 JSON이 그것을
+    // null로 바꿔 **다시 열리지 않는 .mlpx**가 된다.
+    try {
+      runGrades('regression', 'linear_regression')
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error)).toBe(true)
+      if (isClientError(error)) {
+        expect(error.code).toBe('TARGET_NOT_NUMERIC')
+        expect(error.params.target).toBe('grade')
+      }
+    }
+  })
+
+  it('같은 데이터라도 분류를 고르면 그대로 돈다 - 과제 유형을 판정하는 것이 아니다', () => {
+    // 거부하는 것은 타깃의 자료형이 아니라 **성립하지 않는 조합**이다. 학생이 고른
+    // 과제 유형은 그대로 존중된다 (mlpx-spec.md 0.1).
+    const { batch } = runGrades('classification', 'decision_tree')
+    expect(batch.runs[0]?.status).toBe('done')
+    expect(batch.runs[0]?.metrics?.accuracy).toBeGreaterThanOrEqual(0)
+  })
+
+  it('빈 칸이 섞인 수치 타깃은 거부하지 않는다 - 결측은 이미 걸러졌다', () => {
+    const withGap: Dataset = {
+      columns: ['x', 'y'],
+      rows: [...Array(10).keys()].map((x) => [String(x), x === 3 ? '' : String(2 * x + 1)]),
+    }
+    const { batch } = runBatch(
+      {
+        dataset: withGap,
+        taskType: 'regression',
+        dataType: 'tabular',
+        settings: settingsFor({
+          features: ['x'],
+          target: 'y',
+          split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+          selectedAlgorithms: models('linear_regression'),
+        }),
+        context: { serverStatus: 'unavailable', rowCount: withGap.rows.length },
+      },
+      frozen,
+    )
+    expect(batch.runs[0]?.status).toBe('done')
+  })
+
+  it("'N/A'가 섞인 타깃은 거부한다 - 빈 칸이 아니라 값이다", () => {
+    const withText: Dataset = {
+      columns: ['x', 'y'],
+      rows: [...Array(10).keys()].map((x) => [String(x), x === 3 ? 'N/A' : String(2 * x + 1)]),
+    }
+    try {
+      runBatch(
+        {
+          dataset: withText,
+          taskType: 'regression',
+          dataType: 'tabular',
+          settings: settingsFor({
+            features: ['x'],
+            target: 'y',
+            split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+            selectedAlgorithms: models('linear_regression'),
+          }),
+          context: { serverStatus: 'unavailable', rowCount: withText.rows.length },
+        },
+        frozen,
+      )
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error) && error.code).toBe('TARGET_NOT_NUMERIC')
+    }
+  })
+})
