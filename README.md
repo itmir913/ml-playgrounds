@@ -13,11 +13,11 @@
 
 ## 요구 사항
 
-| 도구 | 버전 | 확인 |
-|---|---|---|
-| Node.js | 20 이상 | `node --version` |
-| Python | 3.12 이상 | `python --version` |
-| [uv](https://docs.astral.sh/uv/) | 최신 | `uv --version` |
+| 도구 | 버전          | 확인 |
+|---|-------------|---|
+| Node.js | 20 이상       | `node --version` |
+| Python | 3.12 이상     | `python --version` |
+| [uv](https://docs.astral.sh/uv/) | 최신(0.11.32) | `uv --version` |
 
 uv가 없다면:
 
