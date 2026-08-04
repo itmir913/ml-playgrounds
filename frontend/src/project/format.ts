@@ -27,7 +27,7 @@ import {
   type ProjectHashes,
 } from './integrity'
 import { migrateProjectDocument, requireSupportedVersion } from './migrate'
-import type { Manifest, ModelOmissionReason, ProjectDocument } from './schema'
+import type { Manifest, ModelOmissionReason, ModelRef, ProjectDocument } from './schema'
 
 /** 프로젝트 파일의 확장자. 코드 안에서 '.mlpx'를 직접 쓰지 마라. */
 export const MLPX_EXTENSION = '.mlpx'
@@ -193,8 +193,11 @@ function detachMissingModels(
   const batches = document.runs.batches.map((batch) => {
     const hasPreprocessor = batch.preprocessor ? present.has(batch.preprocessor.path) : false
     const runs = batch.runs.map((run) => {
-      // 전처리기가 없으면 모델만 있어도 예측할 수 없다 (mlpx-spec.md 6).
-      if (run.model && hasPreprocessor && present.has(run.model.path)) {
+      // **전처리기가 필요한지는 모델이 말한다** (mlpx-spec.md 5). 자체 JSON은 전처리가
+      // 밖에 있어서 전처리기 없이는 예측할 수 없지만, 전처리를 그래프에 담는 형식은
+      // 혼자 선다. 형식 이름을 보고 가르면 표 윗줄이 금지한 분기를 여기로 옮기는 것이다.
+      const needsPreprocessor = run.model ? !run.model.includesPreprocessing : false
+      if (run.model && (hasPreprocessor || !needsPreprocessor) && present.has(run.model.path)) {
         if (run.modelOmitted === undefined) return run
         // 모델이 돌아왔다. 옛 사유를 남겨 두면 담긴 모델 옆에 "담지 못했습니다"가 뜬다.
         const restored = { ...run }
@@ -244,36 +247,40 @@ export function selectModels(
 
   // 최신 묶음이 먼저다.
   for (const batch of [...document.runs.batches].reverse()) {
-    const modelPaths = batch.runs
-      .map((run) => run.model?.path)
-      .filter((path): path is string => path !== undefined && models.has(path))
-    if (modelPaths.length === 0) continue
+    const candidates = batch.runs
+      .map((run) => run.model)
+      .filter((model): model is ModelRef => model !== undefined && models.has(model.path))
+    if (candidates.length === 0) continue
 
     const preprocessorPath = batch.preprocessor?.path
-    let reserved = 0
-    if (preprocessorPath !== undefined) {
-      if (!models.has(preprocessorPath)) {
-        // 전처리기 파일이 아예 없다. 이 묶음의 모델은 실행할 수 없다.
-        for (const path of modelPaths) drop(path, 'preprocessorMissing')
-        continue
-      }
-      reserved = sizeOf(preprocessorPath)
-      if (reserved > remaining) {
-        for (const path of modelPaths) drop(path, 'overBudget')
-        continue
-      }
-    }
+    const preprocessorFound = preprocessorPath !== undefined && models.has(preprocessorPath)
+    const preprocessorSize = preprocessorFound ? sizeOf(preprocessorPath) : 0
+    const preprocessorUsable = preprocessorFound && preprocessorSize <= remaining
+
+    // **전처리기가 필요한지는 모델이 말한다** (mlpx-spec.md 5). 쓸 수 없는데 그것을
+    // 전제로 하는 모델은 담아 봐야 예측에 못 쓴다. 전처리를 자기 안에 담은 형식은
+    // 혼자 서므로 남긴다 - 형식 이름으로 가르지 않고 모델이 든 불리언만 본다.
+    const runnable = candidates.filter((model) => {
+      if (model.includesPreprocessing || preprocessorUsable) return true
+      drop(model.path, preprocessorFound ? 'overBudget' : 'preprocessorMissing')
+      return false
+    })
+    if (runnable.length === 0) continue
+
+    // 아무도 안 쓰는 전처리기는 자리를 잡지 않는다.
+    const reservePreprocessor =
+      preprocessorUsable && runnable.some((model) => !model.includesPreprocessing)
 
     const accepted: string[] = []
-    let used = reserved
-    for (const path of modelPaths) {
-      const size = sizeOf(path)
+    let used = reservePreprocessor ? preprocessorSize : 0
+    for (const model of runnable) {
+      const size = sizeOf(model.path)
       if (size > maxModelBytes) {
-        drop(path, 'tooLarge')
+        drop(model.path, 'tooLarge')
       } else if (used + size > remaining) {
-        drop(path, 'overBudget')
+        drop(model.path, 'overBudget')
       } else {
-        accepted.push(path)
+        accepted.push(model.path)
         used += size
       }
     }
@@ -282,7 +289,7 @@ export function selectModels(
       // 전처리기만 남으면 아무도 쓰지 않는 짐이다.
       continue
     }
-    if (preprocessorPath !== undefined) kept.add(preprocessorPath)
+    if (reservePreprocessor && preprocessorPath !== undefined) kept.add(preprocessorPath)
     for (const path of accepted) kept.add(path)
     remaining -= used
   }

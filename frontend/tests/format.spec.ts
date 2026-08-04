@@ -140,6 +140,38 @@ describe('모델 참조가 어긋난 파일', () => {
     expect(reopened.document.runs.batches[0]?.preprocessor).toBeUndefined()
     expect(reopened.document.runs.batches[0]?.runs[0]?.model).toBeUndefined()
   })
+
+  it('전처리를 자기 안에 담은 모델은 전처리기가 없어도 남는다', async () => {
+    // 지금 형식은 전부 includesPreprocessing: false라 이 경로가 안 돌지만, mlpx-spec.md 5의
+    // onnx-v1은 "전처리 그래프에 포함"이다. 규칙이 없으면 V5에서 멀쩡한 모델이 조용히
+    // 떨어지고 아무도 이유를 모른다. 형식 이름이 아니라 모델이 든 불리언이 정한다.
+    const project = projectFile()
+    const target = project.document.runs.batches[0]?.runs[0]
+    if (target?.model) target.model = { ...target.model, includesPreprocessing: true }
+
+    const { bytes } = await writeProject(project, markdown)
+    const entries = unzipSync(bytes)
+    delete entries['model/preprocessor-batch-1.json']
+
+    const reopened = await open(zipSync(entries))
+    expect(reopened.document.runs.batches[0]?.preprocessor).toBeUndefined()
+    expect(reopened.document.runs.batches[0]?.runs[0]?.model).toBeDefined()
+  })
+
+  it('전처리기가 예산에 못 들어가도 혼자 서는 모델은 남는다', () => {
+    const project = projectFile()
+    const target = project.document.runs.batches[0]?.runs[0]
+    if (target?.model) target.model = { ...target.model, includesPreprocessing: true }
+    project.models = new Map([
+      ['model/run-1.json', filler(10)],
+      ['model/preprocessor-batch-1.json', filler(90)],
+    ])
+
+    // 예산 20바이트에는 전처리기(90)가 못 들어간다. 그래도 모델(10)은 쓸 수 있다.
+    const { kept, dropped } = selectModels(project.document, project.models, 20, 60)
+    expect([...kept]).toEqual(['model/run-1.json'])
+    expect(dropped).toEqual([])
+  })
 })
 
 describe('크기 예산', () => {
