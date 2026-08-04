@@ -101,7 +101,7 @@
 | 지점 | 인터페이스 | V1 구현 | 이후 |
 |---|---|---|---|
 | 작업 큐 | `JobQueue` | `InProcessQueue` | `CeleryQueue` (Redis) |
-| 학습 실행 | `TrainingBackend` | **브라우저 학습** (엔진 미정 → #3) | 서버 학습 (자가호스팅) |
+| 학습 실행 | `TrainingBackend` | **브라우저 학습** (엔진은 등록부에) | 서버 학습 (자가호스팅) |
 | 알고리즘 | `registry` 등록 | — | 등록만 추가 |
 
 - 알고리즘 선택에 `if/elif` 분기 금지. 반드시 registry 등록 방식으로.
