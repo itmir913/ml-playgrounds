@@ -73,6 +73,9 @@ export const SHARED_ERROR_CODES = [
   // 학습 자체의 실패 - ml/metrics.ts, ml/engines/
   'ALGORITHM_UNSUPPORTED',
   'JOB_FAILED',
+  // 학생이 학습을 멈춘 것. 브라우저에서는 워커 terminate가, 서버에서는 취소 요청이
+  // 같은 뜻이므로 코드가 하나다 (ml/worker/client.ts).
+  'JOB_CANCELLED',
 ] as const
 
 /**
@@ -155,4 +158,20 @@ export class ClientError extends Error {
 
 export function isClientError(error: unknown): error is ClientError {
   return error instanceof ClientError
+}
+
+const KNOWN_CODES: ReadonlySet<string> = new Set<string>([
+  ...CLIENT_ERROR_CODES,
+  ...SHARED_ERROR_CODES,
+])
+
+/**
+ * 경계를 넘어온 문자열을 코드로 바꾼다. 모르는 것은 JOB_FAILED다.
+ *
+ * Web Worker의 postMessage도 서버의 JSON도 **타입을 넘기지 못한다.** 그쪽에서
+ * ClientError로 던진 것이 이쪽에는 그냥 string으로 도착하므로, 캐스팅으로 넘기면
+ * 로케일에 없는 키가 화면에 그대로 노출된다. 여기서 한 번 좁힌다.
+ */
+export function toClientErrorCode(value: string): ClientErrorCode {
+  return KNOWN_CODES.has(value) ? (value as ClientErrorCode) : 'JOB_FAILED'
 }
