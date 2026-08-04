@@ -7,7 +7,13 @@
 
 import { hashBytes } from '../../src/hash'
 import type { ProjectFile } from '../../src/project/format'
-import { FORMAT_VERSION, type Batch, type Manifest, type Run } from '../../src/project/schema'
+import {
+  FORMAT_VERSION,
+  PROJECT_KIND_ML,
+  type Batch,
+  type Manifest,
+  type Run,
+} from '../../src/project/schema'
 
 export const manifest: Manifest = {
   formatVersion: FORMAT_VERSION,
@@ -16,6 +22,7 @@ export const manifest: Manifest = {
   name: '붓꽃 품종 분류',
   createdAt: '2026-08-04T09:00:00Z',
   updatedAt: '2026-08-04T10:30:00Z',
+  kind: PROJECT_KIND_ML,
   taskType: 'classification',
   dataType: 'tabular',
   locale: 'ko',

@@ -17,6 +17,7 @@ import {
   FORMAT_VERSION,
   MISSING_STRATEGIES,
   MODEL_OMISSION_REASONS,
+  PROJECT_KIND_ML,
   RUN_STATUSES,
   SCALING_METHODS,
   SPLIT_METHODS,
@@ -213,6 +214,31 @@ describe('사용자 데이터', () => {
       },
     })
     expect(parsed.model?.format).toBe('onnx-v1')
+  })
+})
+
+describe('프로젝트 종류', () => {
+  it('없으면 machineLearning으로 채워진다 - 이 필드가 없던 파일은 전부 그것이다', () => {
+    const older: Record<string, unknown> = { ...manifest }
+    delete older.kind
+    expect(manifestSchema.parse(older).kind).toBe(PROJECT_KIND_ML)
+  })
+
+  it('읽은 문서에는 항상 값이 있다 - 그래서 저장할 때도 항상 적힌다', () => {
+    expect(parseProjectDocument(document).manifest.kind).toBe(PROJECT_KIND_ML)
+  })
+
+  it('적혀 있으면 그 값을 쓴다', () => {
+    const parsed = manifestSchema.parse({ ...manifest, kind: PROJECT_KIND_ML })
+    expect(parsed.kind).toBe(PROJECT_KIND_ML)
+  })
+
+  it('모르는 종류도 통과시킨다 - 어휘가 아니라 등록부 축이다', () => {
+    // 판정은 종류 등록부의 일이고 그때 할 말은 "파일이 깨졌습니다"가 아니라
+    // "이 종류를 이 앱은 모릅니다"다 (open-decisions.md #20). 스키마가 여기서
+    // 거부하면 그 구분이 영영 불가능해진다.
+    const parsed = manifestSchema.parse({ ...manifest, kind: 'programming' })
+    expect(parsed.kind).toBe('programming')
   })
 })
 

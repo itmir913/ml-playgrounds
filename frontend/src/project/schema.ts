@@ -28,6 +28,14 @@ import { TRAINING_LOCATIONS } from '../ml/backend'
 /** 이 앱이 읽고 쓰는 포맷 버전. 마이그레이션 체인의 종착점이다. */
 export const FORMAT_VERSION = 1
 
+/**
+ * 이 앱이 만드는 프로젝트의 종류. **manifest.kind의 값이고 지금은 이것 하나뿐이다.**
+ *
+ * 값에 제품명을 넣지 않는다 - 제품명은 아직 미결이고(open-decisions.md #20) 파일에 박힌
+ * 값은 나중에 못 바꾼다. 가리키는 것은 앱이 아니라 활동의 종류다.
+ */
+export const PROJECT_KIND_ML = 'machineLearning'
+
 /** 과제 유형. 자동 판정하지 않는다 - 학생이 고른다 (mlpx-spec.md 1.1). */
 export const TASK_TYPES = ['classification', 'regression', 'clustering'] as const
 
@@ -126,6 +134,22 @@ export const manifestSchema = z.looseObject({
   updatedAt: timestamp,
   student: studentSchema.optional(),
   derivedFrom: derivedFromSchema.optional(),
+  /**
+   * 이 프로젝트가 어떤 종류의 포트폴리오인가. **taskType·dataType보다 위의 축이다** -
+   * 그 둘은 kind가 machineLearning일 때만 뜻을 갖는다 (mlpx-spec.md 2).
+   *
+   * **z.enum이 아니다.** 어휘가 아니라 등록부 축이므로 종류를 더하는 것은 포맷 변경이
+   * 아니고, algorithm 이름·model.format과 같은 예외에 속한다 (mlpx-spec.md 10).
+   * 그래서 모르는 값도 스키마는 통과시킨다 - 판정은 종류 등록부의 일이다.
+   *
+   * **값이 하나뿐인데도 적는 이유는 파일이 자기가 무엇인지 말해야 하기 때문이다.**
+   * 확장자는 파일 밖에 있어 학생이 바꾸고 LMS가 바꾸면 사라진다. 어긋나면 이쪽이 이긴다.
+   *
+   * 없으면 machineLearning이다 - 이 필드가 없던 시절의 파일은 실제로 전부 그것이라
+   * 마이그레이션 함수가 필요 없다. 종류가 둘 이상이 될 때 따라오는 것(검사 순서,
+   * 모르는 종류의 에러 코드, 종류별 체인)은 open-decisions.md #20에 있다.
+   */
+  kind: z.string().default(PROJECT_KIND_ML),
   taskType: z.enum(TASK_TYPES),
   dataType: z.enum(DATA_TYPES),
   locale: z.string(),
