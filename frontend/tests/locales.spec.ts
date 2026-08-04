@@ -18,7 +18,7 @@ import {
 } from '../src/errors'
 import en from '../src/locales/en.json'
 import ko from '../src/locales/ko.json'
-import { TRAINING_LOCATIONS, UNAVAILABLE_REASONS } from '../src/ml/backend'
+import { ENGINE_STATES, TRAINING_LOCATIONS, UNAVAILABLE_REASONS } from '../src/ml/backend'
 
 type Tree = { [key: string]: string | Tree }
 
@@ -68,6 +68,7 @@ describe('로케일 파일', () => {
       'fileHash',
       'entryHash',
       'reproduction',
+      'engineState',
       'portfolio',
       'language',
       'client',
@@ -125,6 +126,7 @@ describe('프런트엔드 전용 코드', () => {
       ['fileHash', FILE_HASH_STATUSES],
       ['entryHash', ENTRY_HASH_STATUSES],
       ['reproduction', REPRODUCTION_STATUSES],
+      ['engineState', ENGINE_STATES],
     ] as const
 
     for (const [namespace, codes] of pairs) {

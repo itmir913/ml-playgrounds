@@ -16,10 +16,11 @@
  */
 
 export const CLIENT_ERROR_CODES = [
-  // 학습 실행 위치 - ml/backend.ts
+  // 학습 실행 방법 - ml/backend.ts
   'SERVER_UNAVAILABLE',
   'ALGORITHM_NOT_AVAILABLE_HERE',
   'DATASET_TOO_LARGE_FOR_BROWSER',
+  'ENGINE_NOT_READY',
 
   // 프로젝트 파일 열기 - project/format.ts, project/migrate.ts
   'PROJECT_FILE_NOT_ZIP',

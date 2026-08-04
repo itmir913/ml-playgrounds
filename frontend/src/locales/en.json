@@ -68,6 +68,12 @@
     "NOT_REPRODUCED": "Results did not reproduce",
     "ENGINE_UNAVAILABLE": "Cannot check here"
   },
+  "engineState": {
+    "absent": "Not set up yet",
+    "downloading": "Downloading",
+    "downloaded": "Downloaded, needs setup",
+    "ready": "Ready"
+  },
   "execution": {
     "browser": "Train on my computer",
     "server": "Train on the server"
@@ -76,6 +82,7 @@
     "SERVER_UNAVAILABLE": "The training server cannot be reached. For now you can train on your computer.",
     "ALGORITHM_NOT_AVAILABLE_HERE": "This algorithm cannot run here.",
     "DATASET_TOO_LARGE_FOR_BROWSER": "The data is too large to train on your computer. (limit {limitRows} rows)",
+    "ENGINE_NOT_READY": "This way of training is not ready yet. Set it up first under training setup.",
 
     "PROJECT_FILE_NOT_ZIP": "This file is not a project file.",
     "PROJECT_FILE_ENTRY_MISSING": "The project file is missing something it needs. ({entry})",
