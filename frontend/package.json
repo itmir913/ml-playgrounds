@@ -16,6 +16,12 @@
     "format": "prettier --write src/",
     "typecheck": "vue-tsc --build --force"
   },
+  "comment:overrides": "exceljs 4.4.0이 uuid 8.3.2를 물고 있고 거기 경고가 붙어 있다. exceljs는 v4()를 인자 없이만 쓰므로 실제 노출은 없지만, 경고를 남겨두면 진짜 경고가 묻힌다. npm audit fix --force는 exceljs를 3.4.0으로 되돌리는 다운그레이드라 쓰지 않는다.",
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
+  },
   "dependencies": {
     "@noble/hashes": "^2.2.0",
     "exceljs": "^4.4.0",
