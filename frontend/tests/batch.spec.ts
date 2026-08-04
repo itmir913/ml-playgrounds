@@ -736,22 +736,26 @@ describe('데이터 타입·과제 유형에 안 맞는 모델', () => {
   })
 
   it('맞는 조합은 그대로 학습된다', () => {
-    const batch = runLine({ settings: settingsFor({
-      features: ['x'],
-      target: 'y',
-      split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
-      selectedAlgorithms: models('linear_regression'),
-    }) })
+    const batch = runLine({
+      settings: settingsFor({
+        features: ['x'],
+        target: 'y',
+        split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+        selectedAlgorithms: models('linear_regression'),
+      }),
+    })
     expect(batch.runs[0]?.status).toBe('done')
   })
 
   it('묶음 안에서 맞는 것만 돈다 - 하나가 안 맞아도 나머지는 나온다', () => {
-    const batch = runLine({ settings: settingsFor({
-      features: ['x'],
-      target: 'y',
-      split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
-      selectedAlgorithms: models('decision_tree', 'linear_regression'),
-    }) })
+    const batch = runLine({
+      settings: settingsFor({
+        features: ['x'],
+        target: 'y',
+        split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+        selectedAlgorithms: models('decision_tree', 'linear_regression'),
+      }),
+    })
     expect(batch.runs.map((run) => run.status)).toEqual(['failed', 'done'])
   })
 })

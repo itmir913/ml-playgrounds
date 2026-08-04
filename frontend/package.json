@@ -13,7 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint . --fix",
-    "format": "prettier --write src/",
+    "format": "prettier --write src/ tests/",
     "typecheck": "vue-tsc --build --force"
   },
   "comment:typescript": "TypeScript는 6.0에 묶여 있다. 7.0은 Go 재작성판이라 컴파일러 API가 다르고, typescript-eslint가 아직 못 읽는다(peer: typescript >=4.8.4 <6.1.0). 그러면 eslint가 시작조차 못 한다. 올라갈 상위 버전도 없다 - @vue/eslint-config-typescript 14.9.0이 최신이고 그게 typescript-eslint ^8.60.0을 문다. .github/dependabot.yml이 major 제안을 막아 두었으니 지원이 나오면 거기 ignore부터 지운다.",
