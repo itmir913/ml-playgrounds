@@ -42,6 +42,13 @@ export const MODEL_BUDGET_BYTES = 20 * MB
 export const PROJECT_FILE_WARN_BYTES = 50 * MB
 
 /**
+ * 표 파일(CSV/엑셀) 훑어보기 단계에서 보여줄 행 수.
+ *
+ * 시트 전체를 파싱하지 않고 이 수만큼만 보여준다 (docs/open-decisions.md #14).
+ */
+export const PREVIEW_ROW_COUNT = 20
+
+/**
  * 저장 전 여유 공간 검사의 안전 계수.
  *
  * 브라우저가 보고하는 여유 공간은 근사값이고, 압축·인덱스 때문에 실제 점유는 더 크다.

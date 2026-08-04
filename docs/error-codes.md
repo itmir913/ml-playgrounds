@@ -91,6 +91,11 @@ PROJECT_FILE_VERSION_TOO_NEW, PROJECT_FILE_VERSION_UNSUPPORTED
 MODEL_FORMAT_UNSUPPORTED, STORAGE_QUOTA_EXCEEDED
 ```
 
+**표 파일(CSV/엑셀) 파싱** (`data/csv.ts`, `data/xlsx.ts`, `data/table.ts`)
+```
+DATASET_FILE_TYPE_UNSUPPORTED, DATASET_FILE_UNREADABLE, DATASET_SHEET_NOT_FOUND
+```
+
 `MODEL_FORMAT_UNSUPPORTED`는 파일 열기 실패와 성격이 다르다. **파일은 멀쩡히 열리고
 그 모델로 예측만 못 한다.** → `mlpx-spec.md`
 

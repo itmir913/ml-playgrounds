@@ -73,6 +73,10 @@
 
     "MODEL_FORMAT_UNSUPPORTED": "이 버전에서는 이 모델을 실행할 수 없습니다. ({format})",
 
+    "DATASET_FILE_TYPE_UNSUPPORTED": "지원하지 않는 파일 형식입니다. ({fileName})",
+    "DATASET_FILE_UNREADABLE": "이 파일을 읽을 수 없습니다. 손상되었거나 지원하지 않는 형식일 수 있습니다.",
+    "DATASET_SHEET_NOT_FOUND": "그 시트를 찾을 수 없습니다. ({sheetName})",
+
     "STORAGE_QUOTA_EXCEEDED": "브라우저에 저장할 공간이 부족합니다. (필요 {requiredMb}MB, 남은 공간 {availableMb}MB)"
   },
   "portfolio": {

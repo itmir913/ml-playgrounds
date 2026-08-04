@@ -24,6 +24,11 @@ export const CLIENT_ERROR_CODES = [
   // 모델 실행 - 파일은 멀쩡히 열리고 그 모델로 예측만 못 한다 (mlpx-spec.md 6)
   'MODEL_FORMAT_UNSUPPORTED',
 
+  // 표 파일(CSV/엑셀) 파싱 - data/csv.ts, data/xlsx.ts, data/table.ts
+  'DATASET_FILE_TYPE_UNSUPPORTED',
+  'DATASET_FILE_UNREADABLE',
+  'DATASET_SHEET_NOT_FOUND',
+
   // 브라우저 저장소 - project/storage.ts
   'STORAGE_QUOTA_EXCEEDED',
 ] as const

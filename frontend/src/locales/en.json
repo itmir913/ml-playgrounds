@@ -73,6 +73,10 @@
 
     "MODEL_FORMAT_UNSUPPORTED": "This version cannot run that model. ({format})",
 
+    "DATASET_FILE_TYPE_UNSUPPORTED": "This file type is not supported. ({fileName})",
+    "DATASET_FILE_UNREADABLE": "This file could not be read. It may be damaged or in an unsupported format.",
+    "DATASET_SHEET_NOT_FOUND": "That sheet could not be found. ({sheetName})",
+
     "STORAGE_QUOTA_EXCEEDED": "There is not enough room left in this browser. (needs {requiredMb}MB, {availableMb}MB free)"
   },
   "portfolio": {
