@@ -13,6 +13,7 @@
 import type { ClientErrorParams } from '../../errors'
 import type { Batch, Run, RunsFile } from '../../project/schema'
 import type { BatchInput } from '../batch'
+import type { ModelFile } from '../models'
 import type { Preprocessor } from '../preprocess'
 
 /** 메인 -> 워커. 묶음 하나를 돌려 달라는 것. */
@@ -31,5 +32,6 @@ export interface TrainRequest {
  */
 export type WorkerMessage =
   | { type: 'progress'; run: Run; completed: number; total: number }
-  | { type: 'done'; batch: Batch; preprocessor: Preprocessor }
+  // 모델은 Map으로 간다. 구조화 복제가 Map을 그대로 넘기므로 평평하게 펼 이유가 없다.
+  | { type: 'done'; batch: Batch; preprocessor: Preprocessor; models: Map<string, ModelFile> }
   | { type: 'failed'; code: string; params: ClientErrorParams }

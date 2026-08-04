@@ -19,12 +19,19 @@ export { TREE_FORMAT } from './tree'
 export type { TreeModel, TreeNode } from './tree'
 export type { ModelFile, ModelInterpreter, Predict } from './types'
 
-const INTERPRETERS: readonly ModelInterpreter[] = [{ format: TREE_FORMAT, load: loadTreeModel }]
+const INTERPRETERS: readonly ModelInterpreter[] = [
+  { format: TREE_FORMAT, includesPreprocessing: false, load: loadTreeModel },
+]
 
 /** 이 빌드가 읽을 수 있는 형식. 화면이 "예측 가능"을 판정할 때 쓴다. */
 export const SUPPORTED_MODEL_FORMATS: readonly string[] = INTERPRETERS.map(
   (interpreter) => interpreter.format,
 )
+
+/** 형식에 붙은 해석기. 이 빌드가 모르는 형식이면 없다. */
+export function interpreterFor(format: string): ModelInterpreter | undefined {
+  return INTERPRETERS.find((entry) => entry.format === format)
+}
 
 const formatSchema = z.looseObject({ format: z.string() })
 
@@ -42,7 +49,7 @@ export function loadModel(file: unknown): Predict {
   if (!parsed.success) throw new ClientError('MODEL_FILE_INVALID', { field: 'format' })
 
   const { format } = parsed.data
-  const interpreter = INTERPRETERS.find((entry) => entry.format === format)
+  const interpreter = interpreterFor(format)
   if (!interpreter) throw new ClientError('MODEL_FORMAT_UNSUPPORTED', { format })
   return interpreter.load(file)
 }

@@ -79,7 +79,13 @@ export function train(request: TrainRequest, options: TrainOptions): TrainHandle
       return
     }
     if (message.type === 'done') {
-      settle(() => resolve({ batch: message.batch, preprocessor: message.preprocessor }))
+      settle(() =>
+        resolve({
+          batch: message.batch,
+          preprocessor: message.preprocessor,
+          models: message.models,
+        }),
+      )
       return
     }
     settle(() => reject(new ClientError(toClientErrorCode(message.code), message.params)))

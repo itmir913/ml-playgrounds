@@ -27,6 +27,14 @@ export interface ModelFile {
 /** 형식 하나를 읽는 해석기. 등록부의 항목이다. */
 export interface ModelInterpreter {
   readonly format: string
+  /**
+   * 이 모델을 쓰는 데 전처리기가 필요한가 (mlpx-spec.md 5).
+   *
+   * **형식마다 정해지는 값이라 등록부에 있다.** run.model에 그대로 복사되고, 그다음부터
+   * 포맷 계층은 그 불리언만 본다 - 형식 이름을 보고 가르지 않기 위해서다.
+   * 자체 JSON은 전부 false이고, 전처리를 그래프에 담는 onnx-v1이 첫 true가 된다.
+   */
+  readonly includesPreprocessing: boolean
   /** 파일 내용을 예측 함수로. 내용이 형식과 안 맞으면 던진다. */
   load(file: unknown): Predict
 }

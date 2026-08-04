@@ -29,6 +29,7 @@ import { algorithmOptions, type AlgorithmOption } from './algorithms'
 import type { RuntimeContext, RuntimeSpec, UnavailableReason } from './backend'
 import { engineFor, type TrainingEngine } from './engines'
 import { evaluate } from './metrics'
+import type { ModelFile } from './models'
 import {
   detectKind,
   fitPreprocessor,
@@ -78,6 +79,13 @@ export interface BatchResult {
    * 여기서 있지도 않은 경로를 적어 두면 파일이 자기 자신에 대해 거짓말을 하게 된다.
    */
   preprocessor: Preprocessor
+  /**
+   * run id -> 우리 형식으로 담은 모델. **전처리기와 같은 이유로 따로 돌려준다.**
+   *
+   * 여기 없는 run이 있는 것이 정상이다 - 직렬화기가 없는 알고리즘은 지표만 남고,
+   * 그 사유는 run.modelOmitted에 적혀 있다 (mlpx-spec.md 4.2).
+   */
+  models: Map<string, ModelFile>
 }
 
 /**
@@ -292,7 +300,7 @@ function trainOne(
   runtime: RuntimeSpec,
   engine: TrainingEngine,
   context: TrainContext,
-): Run {
+): { run: Run; model?: ModelFile } {
   const stamp = {
     ...base,
     computedBy: runtime.location,
@@ -300,7 +308,7 @@ function trainOne(
   }
 
   try {
-    const { predict } = engine.fit(base.algorithm, {
+    const { predict, model } = engine.fit(base.algorithm, {
       features: context.trainFeatures,
       target: context.trainTarget,
       hyperparameters: base.hyperparameters,
@@ -308,20 +316,27 @@ function trainOne(
     })
     const evaluation = evaluate(context.taskType, context.testTarget, predict(context.testFeatures))
 
-    return {
+    const run: Run = {
       ...stamp,
       status: 'done',
       metrics: evaluation.metrics,
       ...(evaluation.perClass ? { perClass: evaluation.perClass } : {}),
       ...(evaluation.confusionMatrix ? { confusionMatrix: evaluation.confusionMatrix } : {}),
+      // **모델이 없는 이유를 여기서 적는다.** 저장까지 가야 알 수 있는 사유(예산, 개별
+      // 상한)와 달리 이건 학습이 끝난 순간 확정되고, 그래서 저장 전에도 화면이 학생에게
+      // 무엇을 할 수 있는지 말할 수 있다 (mlpx-spec.md 4.2).
+      ...(model ? {} : { modelOmitted: 'engineUnsupported' as const }),
     }
+    return model ? { run, model } : { run }
   } catch (error) {
     return {
-      ...stamp,
-      status: 'failed',
-      failure: isClientError(error)
-        ? { code: error.code, params: error.params }
-        : { code: 'JOB_FAILED', params: failureDetail(error) },
+      run: {
+        ...stamp,
+        status: 'failed',
+        failure: isClientError(error)
+          ? { code: error.code, params: error.params }
+          : { code: 'JOB_FAILED', params: failureDetail(error) },
+      },
     }
   }
 }
@@ -398,6 +413,7 @@ export function runBatch(input: BatchInput, options: BatchOptions = {}): BatchRe
   }))
 
   const runs: Run[] = []
+  const models = new Map<string, ModelFile>()
   for (const { algorithm, runtime: wanted, explicit } of requested) {
     const option = available.get(algorithm)
     const runtime = option ? chooseRuntime(option, wanted, explicit) : undefined
@@ -440,7 +456,9 @@ export function runBatch(input: BatchInput, options: BatchOptions = {}): BatchRe
         failure: { code: reason, params: reasonParams(reason) },
       })
     } else {
-      runs.push(trainOne(base, runtime, engine, trainContext))
+      const trained = trainOne(base, runtime, engine, trainContext)
+      runs.push(trained.run)
+      if (trained.model) models.set(trained.run.id, trained.model)
     }
 
     const finished = runs[runs.length - 1]
@@ -476,5 +494,6 @@ export function runBatch(input: BatchInput, options: BatchOptions = {}): BatchRe
       runs,
     },
     preprocessor,
+    models,
   }
 }

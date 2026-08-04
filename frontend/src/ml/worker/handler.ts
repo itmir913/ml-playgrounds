@@ -18,11 +18,11 @@ import type { TrainRequest, WorkerMessage } from './protocol'
  */
 export function handleTrain(request: TrainRequest, emit: (message: WorkerMessage) => void): void {
   try {
-    const { batch, preprocessor } = runBatch(request.input, {
+    const { batch, preprocessor, models } = runBatch(request.input, {
       ...(request.history ? { history: request.history } : {}),
       onRun: (run, completed, total) => emit({ type: 'progress', run, completed, total }),
     })
-    emit({ type: 'done', batch, preprocessor })
+    emit({ type: 'done', batch, preprocessor, models })
   } catch (error) {
     emit(
       isClientError(error)
