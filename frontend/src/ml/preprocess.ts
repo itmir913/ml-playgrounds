@@ -86,7 +86,7 @@ function mean(values: readonly number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length
 }
 
-/** 선형 보간 없이 아래쪽 값을 쓴다. numpy의 기본과 다르지만 여기서는 대체값일 뿐이다. */
+/** 두 값 사이는 선형 보간한다. numpy·pandas의 기본과 같은 규칙이다. */
 function quantile(sorted: readonly number[], fraction: number): number {
   const position = (sorted.length - 1) * fraction
   const lower = sorted[Math.floor(position)] as number

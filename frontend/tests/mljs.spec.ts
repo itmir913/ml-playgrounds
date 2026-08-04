@@ -65,7 +65,6 @@ describe('엔진 버전이 의존성에 묶여 있다', () => {
       'ml-cart': packageJson.dependencies['ml-cart'],
       'ml-knn': packageJson.dependencies['ml-knn'],
       'ml-logistic-regression': packageJson.dependencies['ml-logistic-regression'],
-      'ml-naivebayes': packageJson.dependencies['ml-naivebayes'],
       'ml-random-forest': packageJson.dependencies['ml-random-forest'],
       'ml-regression-multivariate-linear':
         packageJson.dependencies['ml-regression-multivariate-linear'],
@@ -73,7 +72,6 @@ describe('엔진 버전이 의존성에 묶여 있다', () => {
       'ml-cart': '^2.1.1',
       'ml-knn': '^3.0.0',
       'ml-logistic-regression': '^2.0.0',
-      'ml-naivebayes': '^4.0.0',
       'ml-random-forest': '^2.1.0',
       'ml-regression-multivariate-linear': '^2.0.4',
     })
@@ -110,17 +108,22 @@ describe('붓꽃을 실제로 학습한다', () => {
    * 여기가 깨졌다는 것은 **학생의 결과가 바뀌었다**는 뜻이다. 값을 고쳐 통과시키기 전에
    * MLJS_ENGINE.version을 올릴지부터 정하라.
    *
-   * **naive_bayes가 낮은 것은 알고 있는 사실이다.** 이 표본은 21행이라 유난히 낮게
-   * 나오고, 붓꽃 전체에서도 0.70이다(sklearn은 같은 분할에서 0.9667).
-   * 그래도 빼지 않는다 - 어디까지가 "구현 차이"이고 어디부터가 "빼야 할 것"인지
-   * 그을 선이 없다. 대신 run.engine에 무엇으로 만들었는지 남긴다.
+   * **naive_bayes의 3/9는 라이브러리 결함의 숫자였다.** `ml-naivebayes`가 예측할 때
+   * 특성을 앞 2개만 읽어서, 판별력 없는 꽃받침 둘만 쓴 모델의 값이 여기 고정돼 있었다.
+   * 그리고 그 값이 "폭이 제일 크다"의 근거로 문서 두 곳에 올라가 있었다. 자체 구현으로
+   * 바꾼 뒤 8/9다 (open-decisions.md "가우시안 나이브 베이즈는 의존성을 빼고 우리가
+   * 구현한다").
+   *
+   * **고정 테스트가 결함을 못 잡는 자리가 여기다.** 값을 못 박는 것은 옳지만, 못 박은
+   * 값이 처음부터 틀렸으면 고정은 그것을 지켜 줄 뿐이다. 낮은 숫자를 "구현 차이"로
+   * 설명하고 넘어가기 전에 입력이 실제로 다 쓰이는지부터 본다.
    */
   const PINNED: Record<string, number> = {
     decision_tree: 7 / 9,
     knn: 8 / 9,
     random_forest: 8 / 9,
     logistic_regression: 1,
-    naive_bayes: 3 / 9,
+    naive_bayes: 8 / 9,
   }
 
   for (const [algorithm, accuracy] of Object.entries(PINNED)) {

@@ -80,7 +80,7 @@ describe('묶음이 실제로 학습한다', () => {
     knn: 8 / 9,
     random_forest: 8 / 9,
     logistic_regression: 1,
-    naive_bayes: 3 / 9,
+    naive_bayes: 8 / 9,
   }
 
   const { batch } = runBatch(
@@ -112,7 +112,7 @@ describe('묶음이 실제로 학습한다', () => {
 
   it('무엇으로 만들었는지 남는다 - 재실행 대조가 엔진을 넘지 않는다', () => {
     for (const run of batch.runs) {
-      expect(run.engine, run.algorithm).toEqual({ kind: 'mljs', version: '1' })
+      expect(run.engine, run.algorithm).toEqual({ kind: 'mljs', version: '2' })
       expect(run.computedBy, run.algorithm).toBe('browser')
     }
   })
@@ -327,7 +327,7 @@ describe('일부만 실패한다', () => {
 
     // 기본이 학교 서버인데 없다 -> 순수 JS로 넘어가 실제로 돈다.
     expect(batch.runs[0]?.status).toBe('done')
-    expect(batch.runs[0]?.engine).toEqual({ kind: 'mljs', version: '1' })
+    expect(batch.runs[0]?.engine).toEqual({ kind: 'mljs', version: '2' })
     // 요청은 그대로 남는다. 요청과 결과가 다른 것이 화면이 설명할 근거다.
     expect(batch.settings.selectedAlgorithms).toEqual([
       { algorithm: 'decision_tree', runtime: 'server-sklearn' },
