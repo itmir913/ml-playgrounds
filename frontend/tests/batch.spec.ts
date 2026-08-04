@@ -236,20 +236,20 @@ describe('일부만 실패한다', () => {
   })
 
   it('학습이 터져도 무엇을 먹였는지가 남는다', () => {
-    // ml-random-forest는 나무가 적으면 터진다. 확정이 fit 뒤였다면 실패한 run에는 아무
-    // 값도 안 남고, 같은 필드가 성공과 실패에서 두 가지 뜻을 갖게 된다.
+    // 나무 0그루는 라이브러리가 던진다. 확정이 fit 뒤였다면 실패한 run에는 아무 값도
+    // 안 남고, 같은 필드가 성공과 실패에서 두 가지 뜻을 갖게 된다.
     const { batch } = runBatch(
       inputFor({
         settings: settingsFor({
           selectedAlgorithms: models('random_forest'),
-          hyperparameters: { random_forest: { mljs: { nEstimators: 1 } } },
+          hyperparameters: { random_forest: { mljs: { nEstimators: 0 } } },
         }),
       }),
       frozen,
     )
 
     expect(batch.runs[0]?.status).toBe('failed')
-    expect(batch.runs[0]?.hyperparameters).toEqual({ nEstimators: 1 })
+    expect(batch.runs[0]?.hyperparameters).toEqual({ nEstimators: 0 })
   })
 
   it('학생이 안 건드려도 실제로 먹인 값이 남는다', () => {
@@ -336,24 +336,28 @@ describe('일부만 실패한다', () => {
 
   it('엔진 내부에서 터진 것도 사유와 원문을 남긴다', () => {
     /**
-     * **ml-random-forest는 나무가 적으면 터진다.** 어떤 학습 샘플이 모든 나무에서
-     * in-bag이면 OOB 예측이 하나도 없는데 그 경우를 검사하지 않는다. 붓꽃 30행에서
-     * nEstimators 5 이하는 시드를 바꿔도 전부 실패했고, 15부터 안정적이다.
-     * 데이터가 클수록 더 잘 터진다 - 그런 샘플이 하나라도 나올 확률이 올라간다.
+     * **남의 라이브러리는 우리 어휘로 실패하지 않는다.** 여기서는 나무 0그루로 만든다 -
+     * ml.js가 영어 TypeError를 던지고, 그것이 화면에 그대로 나가면 안 된다(CLAUDE.md 1.4).
      *
-     * "나무 개수"는 학생이 가장 먼저 줄여 볼 손잡이다. 그래서 이 실패는 이론이 아니라
-     * 교실에서 일어난다. 어휘를 늘리는 대신 JOB_FAILED에 원문을 실어 보낸다 -
-     * 학생은 못 읽어도 **옆에 있는 교사는 읽고 대처할 수 있고**, 이 값은 runs.json에
-     * 그대로 들어가 .mlpx를 여는 교사에게까지 따라간다.
+     * 어휘를 결함 수만큼 늘리는 대신 JOB_FAILED에 원문을 실어 보낸다. 학생은 못 읽어도
+     * **옆에 있는 교사는 읽고 대처할 수 있고**, 이 값은 runs.json에 그대로 들어가
+     * .mlpx를 여는 교사에게까지 따라간다.
      *
-     * **여기가 통과로 뒤집히면 ml-random-forest가 고쳐진 것이다.** 그때 이 테스트를
-     * 지우고 위 설명도 함께 지워라.
+     * 예전에는 이 자리를 `nEstimators: 3`이 채우고 있었다. **그건 ml-random-forest의
+     * 실제 결함이었다** - 어떤 학습 샘플이 모든 나무에서 in-bag이면 OOB 예측이 비는데
+     * 그 경우를 검사하지 않아서, 나무를 적게 잡으면 학습이 통째로 실패했다. "나무 개수"는
+     * 학생이 가장 먼저 줄여 볼 손잡이라 교실에서 실제로 일어나는 실패였다.
+     *
+     * **지금은 안 터진다 - 우리가 OOB 계산을 껐다**(ml/engines/mljs.ts의 noOOB). 쓰지도
+     * 않는 값을 계산하다 죽고 있었다. 그래서 이 테스트의 픽스처만 바꿨다. 여기서 보는
+     * 것은 랜덤포레스트가 아니라 **남의 예외가 우리 형식으로 번역되는가**이므로 테스트
+     * 자체는 그대로 남는다.
      */
     const { batch } = runBatch(
       inputFor({
         settings: settingsFor({
           selectedAlgorithms: models('random_forest'),
-          hyperparameters: { random_forest: { mljs: { nEstimators: 3 } } },
+          hyperparameters: { random_forest: { mljs: { nEstimators: 0 } } },
         }),
       }),
       frozen,

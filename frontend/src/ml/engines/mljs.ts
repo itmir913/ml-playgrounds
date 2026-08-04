@@ -342,6 +342,19 @@ const TRAINERS: Record<string, Trainer> = {
       // 시드를 반드시 넘긴다. 안 넘기면 같은 설정으로 두 번 돌려도 결과가 다르다.
       seed: input.randomState,
       useSampleBagging: true,
+      // **OOB 계산을 끈다. 안 끄면 나무를 적게 잡은 학습이 통째로 실패한다.**
+      //
+      // ml.js는 학습 끝에 out-of-bag 예측을 모으는데, 어떤 행이 모든 나무의 학습 표본에
+      // 들어가면 그 행의 표가 빈 배열이 되고 거기서 던진다(ml-array-mode: "input must not
+      // be empty"). 한 행이 그렇게 될 확률이 나무 하나당 약 0.632이므로 나무가 10그루면
+      // 행마다 1%, 즉 수백 행짜리 데이터에서는 사실상 반드시 터진다. 100그루(기본값)에서는
+      // 확률이 0에 수렴해서 안 보였다 - 나무 개수를 줄여 본 학생만 만나는 실패다.
+      //
+      // 우리는 OOB 결과를 쓰지 않는다(predictOOB도 getConfusionMatrix도 안 부른다).
+      // 끄는 것이 기능을 빼는 것이 아니고, 이 블록은 난수를 소모하지 않으므로
+      // **학습된 모델은 한 비트도 달라지지 않는다** - tests/mljs.spec.ts의 고정된 숫자가
+      // 그것을 지킨다. 덤으로 학습이 빨라진다.
+      noOOB: true,
     })
     return {
       predictor: model as TrainablePredictor,

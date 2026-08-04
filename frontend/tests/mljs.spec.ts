@@ -95,6 +95,23 @@ describe('재현 가능성', () => {
     const second = run('random_forest')
     expect(second.metrics).toEqual(first.metrics)
   })
+
+  /**
+   * **나무를 적게 잡아도 학습된다.**
+   *
+   * ml.js는 학습 끝에 out-of-bag 예측을 모으는데, 어떤 행이 모든 나무의 학습 표본에
+   * 들어가면 그 행의 표가 빈 배열이 되고 거기서 던진다. 한 행이 그럴 확률이 나무 하나당
+   * 약 0.632이므로 **나무가 적을수록 반드시 터진다** - 기본값 100그루에서는 확률이 0에
+   * 수렴해서 안 보이고, 나무 개수를 줄여 본 학생만 만난다.
+   *
+   * 우리는 OOB를 안 쓰므로 꺼서 막았다(mljs.ts의 noOOB). 위의 고정된 숫자들이 그 변경으로
+   * 모델이 안 달라졌음을 지킨다.
+   */
+  for (const nEstimators of [1, 3, 10]) {
+    it(`랜덤포레스트를 ${nEstimators}그루로 잡아도 학습된다`, () => {
+      expect(run('random_forest', { nEstimators }).metrics.accuracy).toBeGreaterThan(0)
+    })
+  }
 })
 
 describe('붓꽃을 실제로 학습한다', () => {
