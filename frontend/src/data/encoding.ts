@@ -18,6 +18,11 @@ import { ClientError } from '../errors'
  *
  * 배열이 유일한 출처다. 여기 없는 것은 지원하지 않는 인코딩이다.
  * TextDecoder가 처리할 수 있는 라벨만 넣는다.
+ *
+ * **이 배열은 .mlpx의 어휘이기도 하다** - settings.dataset.sourceEncoding이 z.enum으로
+ * 이걸 쓴다. 값을 늘리면 파일 포맷이 바뀌는 것이므로 formatVersion을 올려야 한다.
+ * 인코딩 판정만 고치는 줄 알고 파일 어휘를 늘리는 일이 없도록 tests/schema.spec.ts가
+ * 이 배열을 고정해 두었다 (ml/backend.ts의 TRAINING_LOCATIONS도 같다).
  */
 export const SOURCE_ENCODINGS = ['utf-8', 'cp949', 'utf-16le', 'utf-16be'] as const
 

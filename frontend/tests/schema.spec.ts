@@ -8,7 +8,9 @@
 
 import { describe, expect, it } from 'vitest'
 
+import { SOURCE_ENCODINGS } from '../src/data/encoding'
 import { isClientError } from '../src/errors'
+import { TRAINING_LOCATIONS } from '../src/ml/backend'
 import {
   CATEGORICAL_ENCODINGS,
   DATA_TYPES,
@@ -80,6 +82,10 @@ describe('어휘 고정', () => {
     // 1. FORMAT_VERSION을 올렸는가
     // 2. project/migrate.ts에 마이그레이션 함수를 추가했는가
     // 어휘가 늘어나면 구버전 앱이 못 여는 파일이 생긴다. 그게 의도한 동작이다.
+    //
+    // **스키마가 z.enum으로 쓰는 배열이 전부 여기 있어야 한다.** 아래 둘은 schema.ts가
+    // 아니라 data/encoding.ts와 ml/backend.ts에 산다 - 그 모듈을 고치는 사람에게는
+    // 파일 어휘를 늘리고 있다는 신호가 없으므로, 오히려 여기 있는 것이 더 중요하다.
     expect({
       FORMAT_VERSION,
       TASK_TYPES,
@@ -90,6 +96,8 @@ describe('어휘 고정', () => {
       SPLIT_METHODS,
       RUN_STATUSES,
       MODEL_OMISSION_REASONS,
+      SOURCE_ENCODINGS,
+      TRAINING_LOCATIONS,
     }).toEqual({
       FORMAT_VERSION: 1,
       TASK_TYPES: ['classification', 'regression', 'clustering'],
@@ -100,6 +108,8 @@ describe('어휘 고정', () => {
       SPLIT_METHODS: ['holdout'],
       RUN_STATUSES: ['done', 'failed'],
       MODEL_OMISSION_REASONS: ['sizeBudget', 'engineUnsupported'],
+      SOURCE_ENCODINGS: ['utf-8', 'cp949', 'utf-16le', 'utf-16be'],
+      TRAINING_LOCATIONS: ['browser', 'server'],
     })
   })
 })
