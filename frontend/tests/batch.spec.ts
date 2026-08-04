@@ -258,6 +258,55 @@ describe('일부만 실패한다', () => {
     ])
   })
 
+  it('같은 알고리즘을 여러 실행 방법으로 나란히 고를 수 있다', () => {
+    // "같은 SVM인데 엔진이 다르면 왜 숫자가 다른가"를 한 묶음 안에서 볼 수 있어야 한다.
+    const { batch } = runBatch(
+      inputFor({
+        settings: settingsFor({
+          selectedAlgorithms: [
+            { algorithm: 'svm', runtime: 'mljs' },
+            { algorithm: 'svm', runtime: 'pyodide-sklearn' },
+            { algorithm: 'svm', runtime: 'server-sklearn' },
+          ],
+        }),
+      }),
+      frozen,
+    )
+
+    expect(batch.runs).toHaveLength(3)
+    expect(batch.runs.map((run) => run.id)).toEqual(['run-1', 'run-2', 'run-3'])
+
+    // **콕 집어 고른 것은 자동으로 안 옮긴다.** 옮기면 셋이 같은 곳으로 몰려 똑같은
+    // 줄 세 개가 나오고, 비교하려던 것이 사라진다. 대신 사유가 각각 다르다.
+    expect(batch.runs.map((run) => run.failure?.code)).toEqual([
+      'ENGINE_NOT_READY', // 순수 JS에는 svm 구현이 없다 - 막다른 답 대신 준비 가능한 쪽을 준다
+      'ENGINE_NOT_READY', // pyodide를 아직 안 켰다
+      'SERVER_UNAVAILABLE', // 학교 서버가 없다
+    ])
+  })
+
+  it('물려받은 것만 자동으로 옮긴다', () => {
+    // 기본을 따른 SVM은 되는 곳을 찾아 나서고(여기서는 없어서 실패), 콕 집은 것은
+    // 고른 자리에서 판정된다. 둘의 사유가 다른 것이 그 차이의 증거다.
+    const { batch } = runBatch(
+      inputFor({
+        settings: settingsFor({
+          runtime: 'server-sklearn',
+          selectedAlgorithms: [{ algorithm: 'decision_tree' }],
+        }),
+      }),
+      frozen,
+    )
+
+    // 기본이 학교 서버인데 없다 -> 순수 JS로 넘어가 실제로 돈다.
+    expect(batch.runs[0]?.status).toBe('done')
+    expect(batch.runs[0]?.engine).toEqual({ kind: 'mljs', version: '1' })
+    // 요청은 그대로 남는다. 요청과 결과가 다른 것이 화면이 설명할 근거다.
+    expect(batch.settings.selectedAlgorithms).toEqual([
+      { algorithm: 'decision_tree', runtime: 'server-sklearn' },
+    ])
+  })
+
   it('엔진 내부에서 터진 것도 사유와 원문을 남긴다', () => {
     /**
      * **ml-random-forest는 나무가 적으면 터진다.** 어떤 학습 샘플이 모든 나무에서

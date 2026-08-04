@@ -86,18 +86,29 @@ function reasonParams(reason: UnavailableReason): ClientErrorParams {
 /**
  * 이 알고리즘을 지금 어디서 돌릴지 고른다.
  *
- * **고른 실행 방법으로 못 도는 알고리즘은 자동으로 넘어간다**
- * (open-decisions.md "실행 방법은 하나의 목록이다"). 그러면 묶음 안에 엔진이 섞이는데,
- * 각 run의 engine이 무엇으로 만들었는지 남기므로 비교표가 그것을 표시할 수 있다.
+ * **자동 이동은 학생이 안 고른 칸만 채운다.** 묶음 기본을 물려받은 모델은 그 방법으로
+ * 못 돌면 되는 곳으로 넘어가지만(open-decisions.md "실행 방법은 하나의 목록이다"),
+ * 모델별로 **콕 집어 고른 것은 옮기지 않는다.** 두 가지 이유가 있다.
+ *
+ * 1. 고른 것과 다른 데서 돌리는 것은 조용히 다른 일을 하는 것이다. 못 돌면 사유를
+ *    주는 편이 낫다 - "엔진을 준비하세요"에는 학생이 할 일이 있다.
+ * 2. **같은 알고리즘을 여러 실행 방법으로 나란히 돌릴 수 있기 때문이다.** SVM을 순수
+ *    JS·sklearn·학교 서버로 셋 다 고른 학생에게 자동 이동이 걸리면 셋이 같은 곳으로
+ *    몰려 **똑같은 줄 세 개**가 나온다. 비교하려던 것이 사라진다.
  *
  * 후보는 **엔진이 등록된 실행 방법뿐이다.** 서버 학습은 모양은 같지만 구현이 다르고
  * (ml/server.ts), 여기서 그쪽을 고르면 돌지도 않을 것을 골라 두는 셈이다.
  */
-function chooseRuntime(option: AlgorithmOption, preferred: string): RuntimeSpec | undefined {
+function chooseRuntime(
+  option: AlgorithmOption,
+  preferred: string,
+  explicit: boolean,
+): RuntimeSpec | undefined {
   const usable = option.runtimes.filter(
     (candidate) => candidate.enabled && engineFor(candidate.runtime.id) !== undefined,
   )
-  return (usable.find((candidate) => candidate.runtime.id === preferred) ?? usable[0])?.runtime
+  const wanted = usable.find((candidate) => candidate.runtime.id === preferred)
+  return (explicit ? wanted : (wanted ?? usable[0]))?.runtime
 }
 
 /**
@@ -343,12 +354,14 @@ export function runBatch(input: BatchInput, options: BatchOptions = {}): BatchRe
   const requested = settings.selectedAlgorithms.map((selection) => ({
     algorithm: selection.algorithm,
     runtime: selection.runtime ?? settings.runtime,
+    // 학생이 이 모델에 대해 직접 고른 것인가. 자동 이동 여부가 여기서 갈린다.
+    explicit: selection.runtime !== undefined,
   }))
 
   const runs: Run[] = []
-  for (const { algorithm, runtime: wanted } of requested) {
+  for (const { algorithm, runtime: wanted, explicit } of requested) {
     const option = available.get(algorithm)
-    const runtime = option ? chooseRuntime(option, wanted) : undefined
+    const runtime = option ? chooseRuntime(option, wanted, explicit) : undefined
     const engine = runtime ? engineFor(runtime.id) : undefined
 
     // **실행 방법이 정해진 뒤에 하이퍼파라미터를 읽는다.** 어휘가 실행 방법마다 다르므로
@@ -392,7 +405,9 @@ export function runBatch(input: BatchInput, options: BatchOptions = {}): BatchRe
   const batchSettings: Batch['settings'] = {
     taskType,
     runtime: settings.runtime,
-    selectedAlgorithms: requested,
+    // explicit은 요청을 만드는 동안만 쓰는 값이라 파일에 남기지 않는다.
+    // 스냅샷에는 결과적으로 무엇을 요청했는지만 있으면 된다.
+    selectedAlgorithms: requested.map(({ algorithm, runtime }) => ({ algorithm, runtime })),
     features: settings.features,
     target,
     preprocessing: settings.preprocessing,
