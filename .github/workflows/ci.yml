@@ -11,18 +11,18 @@ concurrency:
 
 jobs:
   contracts:
-    name: 계약 검사 (로케일 <-> 백엔드 코드)
+    name: Contract check (locale <-> backend code)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      # 표준 라이브러리만 쓰므로 의존성 설치가 필요 없다.
+      # Only standard library is used, so no dependency installation is needed.
       - run: python scripts/check_locales.py
 
   backend:
-    name: 백엔드
+    name: Backend
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -34,9 +34,9 @@ jobs:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
       - run: uv sync --frozen
-      - name: ruff (린트)
+      - name: ruff (lint)
         run: uv run ruff check .
-      - name: ruff (포맷)
+      - name: ruff (format)
         run: uv run ruff format --check .
       - name: mypy
         run: uv run mypy .
@@ -44,7 +44,7 @@ jobs:
         run: uv run pytest
 
   frontend:
-    name: 프런트엔드
+    name: Frontend
     runs-on: ubuntu-latest
     defaults:
       run:
