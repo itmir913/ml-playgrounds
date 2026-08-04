@@ -7,7 +7,7 @@
 | 영역 | 내용 |
 |---|---|
 | 프로젝트 | 새 프로젝트 / 저장(`.mlpx`) / 열기 / IndexedDB 자동 저장 |
-| 데이터 | CSV 업로드, 미리보기, 컬럼 타입 추론, 결측치 표시 |
+| 데이터 | CSV·엑셀 업로드, 시트 선택, 미리보기, 컬럼 타입 추론, 결측치 표시 |
 | 전처리 | 결측치 처리, 스케일링, 범주형 인코딩 |
 | 알고리즘 | Decision Tree, Random Forest, Logistic Regression, KNN, SVM, Naive Bayes |
 | 평가 | 정확도, Precision, Recall, F1, 혼동 행렬 |
@@ -47,9 +47,11 @@ V5(이미지) 착수 시점에 `CeleryQueue`로 전환한다.
 
 1. **저장소 골격** — 디렉터리, `pyproject.toml`, `package.json`, `.gitignore`, `docker-compose.yml`
 2. **i18n 기반** — `errors.py`(StrEnum + `AppError` + 핸들러), 로케일 파일, `i18n.ts`, CI 검사
-3. **`.mlpx` 포맷** — `schema.ts` / `format.ts` / `migrate.ts` / `storage.ts` + 왕복 테스트
-4. **백엔드 학습 파이프라인** — `config` / `diskguard` / `lifecycle` / `quota` / `jobs` / `ml` / `ws` / `signing`
-5. **프런트엔드 UI** — 아래 순서로, 화면 하나씩
+3. **`.mlpx` 포맷** — `schema.ts` / `format.ts` / `migrate.ts` / `storage.ts` + 왕복 테스트 ✅
+4. **표 파일 파싱** — CSV·엑셀 읽기, 시트 선택, 인코딩 판정 (`open-decisions.md` #14, #15)
+   화면보다 먼저 만든다. 파싱은 순수 로직이라 UX가 정해지기 전에 테스트로 덮을 수 있다.
+5. **백엔드 학습 파이프라인** — `config` / `diskguard` / `lifecycle` / `quota` / `jobs` / `ml` / `ws` / `signing`
+6. **프런트엔드 UI** — 아래 순서로, 화면 하나씩
 
 ```
 프로젝트 목록·열기 → 데이터 업로드·미리보기 → 전처리·모델 설정 → 학습(WS 진행)
