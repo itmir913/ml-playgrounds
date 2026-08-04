@@ -1,0 +1,52 @@
+# Dependabot 설정.
+#
+# 이 파일은 **버전 업데이트 PR**만 담당한다. 보안 경고(Dependabot alerts)는 저장소 설정이라
+# 여기서 못 켠다 - Settings > Code security 에서 한 번 켜야 한다.
+#
+# **PR을 묶는다.** 관리자가 한 명이고 수업 준비 중에 PR 열 개가 쏟아지면 아무것도 안 보게
+# 된다. 주 1회, 생태계마다 PR 하나가 목표다.
+#
+# 실제로 조심해야 하는 것은 **학생이 올린 파일을 파싱하는 의존성**이다 -
+# exceljs, SheetJS, papaparse, fflate. 남이 만든 파일을 여는 코드라 여기 취약점은
+# 우리 신뢰 경계 안에 있다. 그래서 patch 업데이트도 묶어서 받는다.
+
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      # 파일을 파싱하는 것들. 따로 보고 싶은 묶음이라 먼저 잡는다.
+      parsers:
+        patterns:
+          - exceljs
+          - xlsx
+          - papaparse
+          - fflate
+      # 나머지는 통째로 하나.
+      frontend:
+        patterns:
+          - '*'
+
+  - package-ecosystem: uv
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    groups:
+      backend:
+        patterns:
+          - '*'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      actions:
+        patterns:
+          - '*'
