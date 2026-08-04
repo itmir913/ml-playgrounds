@@ -267,12 +267,12 @@ export function selectModels(
     })
     if (runnable.length === 0) continue
 
-    // 아무도 안 쓰는 전처리기는 자리를 잡지 않는다.
-    const reservePreprocessor =
-      preprocessorUsable && runnable.some((model) => !model.includesPreprocessing)
+    // 전처리기가 필요한 모델이 하나라도 있으면 자리를 먼저 잡는다. 그 모델이 크기 때문에
+    // 나중에 다 빠질 수도 있는데, 그때는 아래에서 자리를 돌려준다.
+    const reserved = preprocessorUsable && runnable.some((model) => !model.includesPreprocessing)
 
-    const accepted: string[] = []
-    let used = reservePreprocessor ? preprocessorSize : 0
+    const accepted: ModelRef[] = []
+    let used = reserved ? preprocessorSize : 0
     for (const model of runnable) {
       const size = sizeOf(model.path)
       if (size > maxModelBytes) {
@@ -280,7 +280,7 @@ export function selectModels(
       } else if (used + size > remaining) {
         drop(model.path, 'overBudget')
       } else {
-        accepted.push(model.path)
+        accepted.push(model)
         used += size
       }
     }
@@ -289,9 +289,15 @@ export function selectModels(
       // 전처리기만 남으면 아무도 쓰지 않는 짐이다.
       continue
     }
-    if (reservePreprocessor && preprocessorPath !== undefined) kept.add(preprocessorPath)
-    for (const path of accepted) kept.add(path)
-    remaining -= used
+
+    // **담긴 모델이 아무도 안 쓰면 전처리기도 짐이다.** 필요로 하던 모델이 크기에서
+    // 전부 빠졌을 때가 그렇다 - 자리를 잡아 뒀으므로 예산도 함께 돌려준다.
+    // (그 자리 때문에 다른 모델이 밀렸을 수는 있다. 한 번 더 돌면 되찾지만, 형식이 섞이는
+    //  것은 V5부터라 지금은 그 복잡도를 지지 않는다.)
+    const keepPreprocessor = reserved && accepted.some((model) => !model.includesPreprocessing)
+    if (keepPreprocessor && preprocessorPath !== undefined) kept.add(preprocessorPath)
+    for (const model of accepted) kept.add(model.path)
+    remaining -= keepPreprocessor ? used : used - (reserved ? preprocessorSize : 0)
   }
 
   return { kept, dropped }

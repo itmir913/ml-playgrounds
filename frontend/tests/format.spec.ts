@@ -158,6 +158,28 @@ describe('모델 참조가 어긋난 파일', () => {
     expect(reopened.document.runs.batches[0]?.runs[0]?.model).toBeDefined()
   })
 
+  it('담긴 모델이 아무도 안 쓰면 전처리기도 담지 않는다', () => {
+    // 전처리기가 필요한 모델이 크기에서 빠지면, 남는 것은 혼자 서는 모델뿐이다.
+    // 그때 전처리기를 담으면 아무도 안 쓰는 짐이 된다 - 바로 위 규칙과 같은 상황인데
+    // 자리를 미리 잡아 둔 탓에 놓치기 쉬운 경로다.
+    const project = projectFile()
+    const standalone = run('run-1')
+    if (standalone.model) {
+      standalone.model = { ...standalone.model, includesPreprocessing: true }
+    }
+    project.document.runs.batches = [batch('batch-1', [standalone, run('run-2')])]
+    project.models = new Map([
+      ['model/run-1.json', filler(10)],
+      ['model/run-2.json', filler(100)],
+      ['model/preprocessor-batch-1.json', filler(10)],
+    ])
+
+    // run-2는 개별 상한(60)을 넘어 빠진다. 남는 run-1은 전처리기가 필요 없다.
+    const { kept, dropped } = selectModels(project.document, project.models, 30, 60)
+    expect([...kept]).toEqual(['model/run-1.json'])
+    expect(dropped.map((model) => model.reason)).toEqual(['tooLarge'])
+  })
+
   it('전처리기가 예산에 못 들어가도 혼자 서는 모델은 남는다', () => {
     const project = projectFile()
     const target = project.document.runs.batches[0]?.runs[0]

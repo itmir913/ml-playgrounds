@@ -34,6 +34,13 @@ export interface TrainingEngine {
    *
    * 기본값의 출처는 엔진 하나뿐이다. 밖에 표를 하나 더 두면 같은 숫자가 두 군데 살고,
    * 한쪽만 고쳤을 때 파일이 조용히 거짓말을 한다.
+   *
+   * **반드시 멱등이어야 한다 - `resolve(a, resolve(a, x))`가 `resolve(a, x)`와 같아야 한다.**
+   * `fit`이 안에서 한 번 더 부르기 때문이다(부르는 쪽이 거쳤는지에 기대지 않으려고 그렇게
+   * 해 뒀다). 값을 누적하거나 배율을 먹이는 resolve를 쓰면 **두 번 적용되고, 그 원인은
+   * fit 안에서 안 보인다.** 채우기와 변환까지가 여기서 할 수 있는 전부다.
+   *
+   * 엔진이 하나뿐인 지금은 안 터진다. 두 번째 엔진에서 터지는 종류라 계약으로 적어 둔다.
    */
   resolve(algorithm: string, given: Record<string, unknown>): Record<string, unknown>
   fit(algorithm: string, input: FitInput): Predict
