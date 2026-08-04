@@ -181,6 +181,17 @@ describe('무결성 정보가 없거나 깨진 파일', () => {
     expect(project.document.manifest.name).toBe('붓꽃 품종 분류')
   })
 
+  it('대조 기준이 없으면 엔트리를 "그대로"라고 말하지 않는다', async () => {
+    // hashes.json을 통째로 지우는 것은 변조를 감추는 가장 쉬운 수법이다. 그때 엔트리
+    // 목록이 온통 "그대로"로 보이면 상단의 "확인할 수 없음"보다 그 초록색이 눈에 먼저
+    // 들어온다. 비교한 적 없는 것을 그대로라고 말하지 않는다 (mlpx-spec.md 7.3).
+    const entries = await written()
+    delete entries[ENTRY.hashes]
+
+    const { integrity } = await readProject(zipSync(entries))
+    expect(integrity.entries).toEqual([])
+  })
+
   it('hashes.json이 깨져 있어도 파일은 열린다', async () => {
     const entries = await written()
     entries[ENTRY.hashes] = new TextEncoder().encode('{ broken')
@@ -222,10 +233,14 @@ describe('parseHashes', () => {
 })
 
 describe('checkHashes', () => {
-  it('대조할 것이 없으면 확인할 수 없음이다', () => {
+  it('대조할 것이 없으면 확인할 수 없음이고, 엔트리에 대해서는 아무 말도 하지 않는다', () => {
+    // 이 테스트는 한 번 반대로 적혀 있었다 - 엔트리를 전부 'UNCHANGED'로 채우고 그것을
+    // 고정했다. 대조한 적이 없는데 "그대로"라고 말하는 것이라 mlpx-spec.md 7.3이 금지한
+    // 과신 어휘다. 계산한 내용 해시는 여전히 준다 - 교사가 적어둘 수 있어야 한다.
     const result = checkHashes(new Map([['a.json', 'aa']]), null)
     expect(result.status).toBe('UNKNOWN')
-    expect(result.entries).toEqual([{ path: 'a.json', state: 'UNCHANGED' }])
+    expect(result.entries).toEqual([])
+    expect(result.computedContentHash).toHaveLength(64)
   })
 
   it('엔트리 결과가 경로 순으로 정렬돼 나온다', () => {

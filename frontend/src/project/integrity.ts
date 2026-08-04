@@ -42,7 +42,11 @@ export interface HashCheck {
   contentHash: string | null
   /** 지금 실제로 계산한 값. 항상 있다. */
   computedContentHash: string
-  /** 대조한 엔트리 전부. UNCHANGED도 들어간다 - 화면이 "그대로"를 보여줘야 한다. */
+  /**
+   * 대조한 엔트리 전부. UNCHANGED도 들어간다 - 화면이 "그대로"를 보여줘야 한다.
+   *
+   * **status가 UNKNOWN이면 비어 있다.** 대조한 적이 없으므로 할 말이 없다.
+   */
   entries: EntryHashResult[]
 }
 
@@ -116,12 +120,12 @@ export function checkHashes(
   const computedContentHash = contentHashOf(computed)
 
   if (!recorded) {
-    return {
-      status: 'UNKNOWN',
-      contentHash: null,
-      computedContentHash,
-      entries: [...present.keys()].sort().map((path) => ({ path, state: 'UNCHANGED' as const })),
-    }
+    // **엔트리 목록을 주지 않는다.** 대조 기준이 없는데 'UNCHANGED'로 채우면 화면이
+    // "그대로"를 줄줄이 그리게 되고, hashes.json을 통째로 지운 파일 - 변조를 감추는
+    // 가장 쉬운 수법이다 - 이 온통 초록으로 보인다. 상단의 "확인할 수 없음"보다 목록의
+    // 초록색이 눈에 먼저 들어온다. 비교한 적 없는 것을 "그대로"라고 말하는 것은
+    // 7.3이 금지한 과신 어휘의 축소판이다.
+    return { status: 'UNKNOWN', contentHash: null, computedContentHash, entries: [] }
   }
 
   const paths = [...new Set([...present.keys(), ...Object.keys(recorded.entries)])].sort()
