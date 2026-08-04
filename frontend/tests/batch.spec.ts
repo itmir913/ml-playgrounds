@@ -213,7 +213,9 @@ describe('일부만 실패한다', () => {
       frozen,
     )
 
-    expect(batch.runs[0]?.hyperparameters).toEqual({ maxDepth: 1 })
+    // 학생 값이 이기고, 안 건드린 자리는 엔진 기본값으로 채워진다. max_depth는 저쪽
+    // 실행 방법의 어휘라 여기 오지 않는다.
+    expect(batch.runs[0]?.hyperparameters).toEqual({ maxDepth: 1, minNumSamples: 3 })
 
     // 실제로 먹혔는지까지 본다. 깊이 1이면 붓꽃 세 품종을 가를 수 없다.
     const deep = runBatch(inputFor(), frozen).batch.runs[0]
@@ -229,6 +231,31 @@ describe('일부만 실패한다', () => {
 
     expect(batch.runs[0]?.status).toBe('failed')
     expect(batch.runs[0]?.failure?.code).toBe('ENGINE_NOT_READY')
+    // 아무 엔진도 안 돌았으므로 확정할 주체가 없다. 학생이 준 것 그대로다.
+    expect(batch.runs[0]?.hyperparameters).toEqual({})
+  })
+
+  it('학습이 터져도 무엇을 먹였는지가 남는다', () => {
+    // ml-random-forest는 나무가 적으면 터진다. 확정이 fit 뒤였다면 실패한 run에는 아무
+    // 값도 안 남고, 같은 필드가 성공과 실패에서 두 가지 뜻을 갖게 된다.
+    const { batch } = runBatch(
+      inputFor({
+        settings: settingsFor({
+          selectedAlgorithms: models('random_forest'),
+          hyperparameters: { random_forest: { mljs: { nEstimators: 1 } } },
+        }),
+      }),
+      frozen,
+    )
+
+    expect(batch.runs[0]?.status).toBe('failed')
+    expect(batch.runs[0]?.hyperparameters).toEqual({ nEstimators: 1 })
+  })
+
+  it('학생이 안 건드려도 실제로 먹인 값이 남는다', () => {
+    // 빈 객체가 남으면 교사가 파일을 열고 "이 결정트리는 깊이 몇이었나"에 답할 수 없다.
+    const { batch } = runBatch(inputFor(), frozen)
+    expect(batch.runs[0]?.hyperparameters).toEqual({ maxDepth: 100, minNumSamples: 3 })
   })
 
   it('모델별로 고른 실행 방법이 사유를 바꾼다 - 덮어쓰기가 실제로 먹는다', () => {

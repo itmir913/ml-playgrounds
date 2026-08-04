@@ -15,7 +15,7 @@
  */
 
 import type { FitInput, Predict } from './mljs'
-import { MLJS_ALGORITHMS, MLJS_ENGINE, fit as mljsFit } from './mljs'
+import { MLJS_ALGORITHMS, MLJS_ENGINE, fit as mljsFit, resolve as mljsResolve } from './mljs'
 
 export type { FitInput, Predict } from './mljs'
 
@@ -26,6 +26,16 @@ export interface TrainingEngine {
   readonly engine: { readonly kind: string; readonly version: string }
   /** 이 엔진이 돌릴 수 있는 알고리즘. */
   readonly algorithms: readonly string[]
+  /**
+   * 학생이 준 값에 기본값을 얹어 **이 엔진이 실제로 먹을 값**을 확정한다.
+   *
+   * **fit보다 먼저 부른다** (mlpx-spec.md 3). 확정을 fit 안에 두면 fit이 던졌을 때
+   * 돌려줄 것이 없어 실패한 run에 아무 값도 안 남는다.
+   *
+   * 기본값의 출처는 엔진 하나뿐이다. 밖에 표를 하나 더 두면 같은 숫자가 두 군데 살고,
+   * 한쪽만 고쳤을 때 파일이 조용히 거짓말을 한다.
+   */
+  resolve(algorithm: string, given: Record<string, unknown>): Record<string, unknown>
   fit(algorithm: string, input: FitInput): Predict
 }
 
@@ -34,6 +44,7 @@ export const ENGINES: readonly TrainingEngine[] = [
     runtimeId: 'mljs',
     engine: MLJS_ENGINE,
     algorithms: MLJS_ALGORITHMS,
+    resolve: mljsResolve,
     fit: mljsFit,
   },
 ]

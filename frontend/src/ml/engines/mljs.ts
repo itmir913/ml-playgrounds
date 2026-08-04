@@ -65,9 +65,43 @@ type Trainer = (input: FitInput) => Predict
 const toRows = (features: readonly (readonly number[])[]): number[][] =>
   features.map((row) => [...row])
 
-function numberOption(source: Record<string, unknown>, name: string, fallback: number): number {
+/**
+ * 알고리즘별 기본 하이퍼파라미터. **이 엔진에서 이 값들의 유일한 출처다.**
+ *
+ * 트레이너 안에 폴백으로 두면 같은 숫자가 두 군데 살고, 한쪽만 고쳤을 때 파일이 조용히
+ * 거짓말을 한다 - run.hyperparameters에는 100이라 적혀 있는데 50으로 돈 상태다.
+ * 그래서 resolve()가 여기서 값을 확정하고 트레이너는 확정된 값을 그냥 읽는다.
+ *
+ * **실측한 값 그대로다** - 이 값에서 파일 머리말의 붓꽃 숫자가 나왔고 tests/mljs.spec.ts가
+ * 그것을 고정한다. 바꾸면 학생의 결과가 바뀐다.
+ *
+ * 여기 없는 생성자 인자가 둘 있다 - 결정트리의 gainFunction('gini')과 랜덤포레스트의
+ * useSampleBagging(true). **구멍이 아니라 범위다.** 둘 다 진짜 손잡이지만(sklearn의
+ * criterion, bootstrap) 표에 넣는 순간 학생이 바꿀 수 있는 값이 되고, 그건 하이퍼파라미터
+ * 화면을 만들 때 입력 범위와 함께 볼 일이다(open-decisions.md "학습 실패는 교사가 읽을 수
+ * 있게 전달한다"의 마지막 줄). 그때 여기로 옮긴다.
+ *
+ * randomState도 없다. 출처가 settings.split 하나이고 파일 두 곳에 같은 값이 있으면
+ * 어긋났을 때 어느 쪽이 진짜인지 판정할 근거가 없다 (mlpx-spec.md 3).
+ */
+const DEFAULTS: Record<string, Record<string, unknown>> = {
+  decision_tree: { maxDepth: 100, minNumSamples: 3 },
+  random_forest: { nEstimators: 100 },
+  naive_bayes: {},
+  knn: { k: 5 },
+  logistic_regression: { numSteps: 1000, learningRate: 5e-3 },
+  linear_regression: {},
+}
+
+/**
+ * 확정된 값에서 수치를 읽는다. **폴백 인자가 없다** - resolve()가 이미 채웠다.
+ *
+ * 그래도 0을 준비해 두는 이유는 타입 때문이지 기본값이 아니다. 여기까지 오는 값은
+ * resolve()가 숫자로 만들어 둔 것이고, 그렇지 않다면 그건 등록부에 없는 키다.
+ */
+function numberOption(source: Record<string, unknown>, name: string): number {
   const value = source[name]
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
 /**
@@ -106,8 +140,8 @@ function classifier(build: (input: FitInput) => TrainablePredictor): Trainer {
 }
 
 /**
- * 알고리즘 등록부. **기본값은 실측한 값 그대로다** - 이 값에서 붓꽃 숫자가 나왔고
- * tests/mljs.spec.ts가 그것을 고정한다. 바꾸면 학생의 결과가 바뀐다.
+ * 알고리즘 등록부. **기본값은 여기 없다** - DEFAULTS가 출처이고 트레이너는 resolve()가
+ * 확정한 값을 읽기만 한다.
  *
  * 하이퍼파라미터 이름이 sklearn과 다르다(`maxDepth` / `max_depth`). 그래서 등록부 키가
  * (알고리즘, 실행 방법)이어야 한다 - 같은 이름으로 두 엔진을 먹이면 조용히 무시된다.
@@ -117,15 +151,15 @@ const TRAINERS: Record<string, Trainer> = {
     (input) =>
       new DecisionTreeClassifier({
         gainFunction: 'gini',
-        maxDepth: numberOption(input.hyperparameters, 'maxDepth', 100),
-        minNumSamples: numberOption(input.hyperparameters, 'minNumSamples', 3),
+        maxDepth: numberOption(input.hyperparameters, 'maxDepth'),
+        minNumSamples: numberOption(input.hyperparameters, 'minNumSamples'),
       }),
   ),
 
   random_forest: classifier(
     (input) =>
       new RandomForestClassifier({
-        nEstimators: numberOption(input.hyperparameters, 'nEstimators', 100),
+        nEstimators: numberOption(input.hyperparameters, 'nEstimators'),
         // 시드를 반드시 넘긴다. 안 넘기면 같은 설정으로 두 번 돌려도 결과가 다르다.
         seed: input.randomState,
         useSampleBagging: true,
@@ -138,7 +172,7 @@ const TRAINERS: Record<string, Trainer> = {
     const { encoded, decode } = labelCodec(input.target)
     // KNN은 생성자에서 학습한다 - 사실상 학습 데이터 전체가 모델이다 (mlpx-spec.md 5.1).
     const model = new KNN(toRows(input.features), encoded, {
-      k: numberOption(input.hyperparameters, 'k', 5),
+      k: numberOption(input.hyperparameters, 'k'),
     })
     return (features) =>
       [...model.predict(toRows(features))].map((value) => decode(Math.round(value)))
@@ -147,8 +181,8 @@ const TRAINERS: Record<string, Trainer> = {
   logistic_regression: (input) => {
     const { encoded, decode } = labelCodec(input.target)
     const model = new LogisticRegression({
-      numSteps: numberOption(input.hyperparameters, 'numSteps', 1000),
-      learningRate: numberOption(input.hyperparameters, 'learningRate', 5e-3),
+      numSteps: numberOption(input.hyperparameters, 'numSteps'),
+      learningRate: numberOption(input.hyperparameters, 'learningRate'),
     })
     model.train(new Matrix(toRows(input.features)), Matrix.columnVector(encoded))
     return (features) =>
@@ -169,6 +203,40 @@ const TRAINERS: Record<string, Trainer> = {
 export const MLJS_ALGORITHMS = Object.keys(TRAINERS)
 
 /**
+ * 이 엔진이 실제로 먹을 값을 확정한다. **학습보다 앞이다** (mlpx-spec.md 3).
+ *
+ * 확정을 fit 안으로 넣으면 fit이 던졌을 때 돌려줄 것이 없어서 **실패한 run에 아무 값도
+ * 안 남는다.** 그러면 같은 필드가 성공과 실패에서 두 가지 뜻을 갖고, "실패한 run에도
+ * 무엇을 시도했는지는 남아야 한다"(ml/batch.ts)가 깨진다.
+ *
+ * 규칙 셋.
+ *
+ * 1. **학생이 준 값이 이긴다.** 기본값은 안 준 자리만 채운다.
+ * 2. **기본값이 있는 키는 여기서 숫자로 만든다.** 못 쓰는 값이면 기본값으로 돌아간다 -
+ *    파일에 적힌 값과 엔진이 쓴 값이 갈리면 안 되므로 확정이 곧 기록이다.
+ * 3. **모르는 키는 손대지 않고 통과시킨다.** 엔진이 받고 무시한 것까지가 "먹인 것"의
+ *    사실이고, 버리면 실패한 run에서 학생이 무엇을 시도했는지가 지워진다. 재실행 때
+ *    같은 것을 먹이면 같은 결과가 나오므로 재현도 깨지지 않는다.
+ *
+ * 모르는 알고리즘이면 채울 기본값이 없다. 던지지 않는다 - 판정은 fit의 일이고,
+ * 여기서 던지면 실패 run을 만들기도 전에 묶음이 죽는다.
+ */
+export function resolve(
+  algorithm: string,
+  given: Record<string, unknown>,
+): Record<string, unknown> {
+  const defaults = DEFAULTS[algorithm]
+  if (!defaults) return { ...given }
+
+  const resolved: Record<string, unknown> = { ...defaults, ...given }
+  for (const [name, fallback] of Object.entries(defaults)) {
+    const value = resolved[name]
+    if (typeof value !== 'number' || !Number.isFinite(value)) resolved[name] = fallback
+  }
+  return resolved
+}
+
+/**
  * 학습하고 예측 함수를 돌려준다.
  *
  * 모르는 알고리즘이면 실패한다. 화면이 고르게 하는 목록은 등록부에서 나오므로 여기
@@ -177,5 +245,8 @@ export const MLJS_ALGORITHMS = Object.keys(TRAINERS)
 export function fit(algorithm: string, input: FitInput): Predict {
   const trainer = TRAINERS[algorithm]
   if (!trainer) throw new ClientError('ALGORITHM_UNSUPPORTED', { algorithm })
-  return trainer(input)
+  // **여기서도 확정한다.** 부르는 쪽이 resolve를 거쳤는지에 기대지 않는다 - 안 거친
+  // 호출은 k가 0인 KNN처럼 조용히 망가지고, 그 원인은 여기서 멀리 떨어진 곳에서 터진다.
+  // resolve는 병합이라 두 번 걸어도 결과가 같다.
+  return trainer({ ...input, hyperparameters: resolve(algorithm, input.hyperparameters) })
 }

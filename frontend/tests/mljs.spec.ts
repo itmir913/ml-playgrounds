@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
 import { ALGORITHMS } from '../src/ml/algorithms'
-import { MLJS_ALGORITHMS, MLJS_ENGINE, fit } from '../src/ml/engines/mljs'
+import { MLJS_ALGORITHMS, MLJS_ENGINE, fit, resolve } from '../src/ml/engines/mljs'
 import { evaluate } from '../src/ml/metrics'
 import { holdoutSplit } from '../src/ml/split'
 import packageJson from '../package.json'
@@ -154,6 +154,52 @@ describe('하이퍼파라미터', () => {
 
   it('숫자가 아닌 값이 와도 기본값으로 떨어진다', () => {
     expect(run('knn', { k: null }).metrics).toEqual(run('knn', { k: 5 }).metrics)
+  })
+})
+
+describe('resolve - 무엇을 먹였는지 확정한다', () => {
+  it('학생이 안 건드린 자리를 기본값으로 채운다', () => {
+    // 이게 없으면 run.hyperparameters가 빈 객체로 남아, 교사가 파일을 열고 "이 결정트리는
+    // 깊이 몇이었나"에 답할 수 없다 (mlpx-spec.md 3).
+    expect(resolve('decision_tree', {})).toEqual({ maxDepth: 100, minNumSamples: 3 })
+    expect(resolve('knn', {})).toEqual({ k: 5 })
+  })
+
+  it('학생이 준 값이 이긴다', () => {
+    expect(resolve('decision_tree', { maxDepth: 3 })).toEqual({ maxDepth: 3, minNumSamples: 3 })
+  })
+
+  it('못 쓰는 값은 기본값으로 확정한다 - 파일과 엔진이 갈리면 안 된다', () => {
+    // 파일에 k: null이라 적어 놓고 5로 도는 상태를 만들지 않는다. 확정이 곧 기록이다.
+    expect(resolve('knn', { k: null })).toEqual({ k: 5 })
+    expect(resolve('knn', { k: '다섯' })).toEqual({ k: 5 })
+    expect(resolve('knn', { k: Number.NaN })).toEqual({ k: 5 })
+  })
+
+  it('모르는 키는 손대지 않고 통과시킨다', () => {
+    // 엔진이 받고 무시한 것까지가 "먹인 것"의 사실이다. 버리면 실패한 run에서
+    // 학생이 무엇을 시도했는지가 지워진다.
+    expect(resolve('knn', { max_depth: 3 })).toEqual({ k: 5, max_depth: 3 })
+  })
+
+  it('손잡이가 없는 알고리즘은 빈 객체가 정답이다', () => {
+    expect(resolve('naive_bayes', {})).toEqual({})
+    expect(resolve('linear_regression', {})).toEqual({})
+  })
+
+  it('모르는 알고리즘이면 던지지 않고 준 값을 돌려준다', () => {
+    // 판정은 fit의 일이다. 여기서 던지면 실패 run을 만들기도 전에 묶음이 죽는다.
+    expect(resolve('없는알고리즘', { k: 3 })).toEqual({ k: 3 })
+  })
+
+  it('두 번 걸어도 결과가 같다 - fit이 안에서 한 번 더 부른다', () => {
+    const once = resolve('decision_tree', { maxDepth: 3 })
+    expect(resolve('decision_tree', once)).toEqual(once)
+  })
+
+  it('fit은 resolve를 안 거친 호출에도 견딘다', () => {
+    // 안 그러면 k가 0인 KNN처럼 조용히 망가지고, 원인은 여기서 멀리 떨어진 곳에서 터진다.
+    expect(run('knn', {}).metrics.accuracy).toBeGreaterThan(0.5)
   })
 })
 
