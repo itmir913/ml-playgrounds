@@ -58,6 +58,12 @@ export const SHARED_ERROR_CODES = [
   'DATASET_ENCODING_UNSUPPORTED',
   'DATASET_TOO_MANY_ROWS',
   'DATASET_TOO_MANY_COLUMNS',
+
+  // 전처리 - ml/preprocess.ts
+  // 브라우저에서 학습하든 서버로 보내든 같은 판정이 양쪽에서 난다.
+  'COLUMN_NOT_FOUND',
+  'FEATURE_NOT_SELECTED',
+  'FEATURE_ALL_MISSING',
 ] as const
 
 /**
