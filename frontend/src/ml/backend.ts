@@ -53,6 +53,8 @@ export type EngineState = (typeof ENGINE_STATES)[number]
  * 없으므로 backend/app/errors.py 와는 별개 목록이다.
  */
 export const UNAVAILABLE_REASONS = [
+  'ALGORITHM_NOT_FOR_DATA_TYPE',
+  'ALGORITHM_NOT_FOR_TASK_TYPE',
   'SERVER_UNAVAILABLE',
   'ALGORITHM_NOT_AVAILABLE_HERE',
   'DATASET_TOO_LARGE_FOR_BROWSER',

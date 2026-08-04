@@ -79,6 +79,8 @@
     "server": "Train on the server"
   },
   "client": {
+    "ALGORITHM_NOT_FOR_DATA_TYPE": "This model cannot be used with the data you uploaded.",
+    "ALGORITHM_NOT_FOR_TASK_TYPE": "This model cannot be used for the task type you chose.",
     "SERVER_UNAVAILABLE": "The training server cannot be reached. For now you can train on your computer.",
     "ALGORITHM_NOT_AVAILABLE_HERE": "This algorithm cannot run here.",
     "DATASET_TOO_LARGE_FOR_BROWSER": "The data is too large to train on your computer. (limit {limitRows} rows)",

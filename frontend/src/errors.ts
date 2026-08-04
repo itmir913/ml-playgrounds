@@ -16,7 +16,10 @@
  */
 
 export const CLIENT_ERROR_CODES = [
-  // 학습 실행 방법 - ml/backend.ts
+  // 모델을 고를 수 없는 이유 - ml/algorithms.ts, ml/backend.ts
+  // 우선순위가 곧 순서다: 데이터 타입 > 과제 유형 > 실행 위치 (mlpx-spec.md 0.1)
+  'ALGORITHM_NOT_FOR_DATA_TYPE',
+  'ALGORITHM_NOT_FOR_TASK_TYPE',
   'SERVER_UNAVAILABLE',
   'ALGORITHM_NOT_AVAILABLE_HERE',
   'DATASET_TOO_LARGE_FOR_BROWSER',
