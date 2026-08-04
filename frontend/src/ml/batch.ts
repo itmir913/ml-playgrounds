@@ -153,6 +153,9 @@ function comparable(
   shared: ReadonlySet<string>,
 ): Record<string, unknown> {
   return {
+    // 과제 유형이 바뀌면 지표 집합이 통째로 바뀐다. 가장 크게 바뀐 것이 목록에
+    // 안 뜨면 학생은 비교표가 왜 딴판인지 알 수 없다.
+    taskType: settings.taskType,
     features: settings.features,
     target: settings.target ?? null,
     preprocessing: settings.preprocessing,
@@ -350,6 +353,7 @@ export function runBatch(input: BatchInput, options: BatchOptions = {}): BatchRe
   }
 
   const batchSettings: Batch['settings'] = {
+    taskType,
     features: settings.features,
     target,
     preprocessing: settings.preprocessing,

@@ -14,6 +14,7 @@ import {
   DATA_TYPES,
   FORMAT_VERSION,
   MISSING_STRATEGIES,
+  MODEL_OMISSION_REASONS,
   RUN_STATUSES,
   SCALING_METHODS,
   SPLIT_METHODS,
@@ -85,6 +86,7 @@ describe('어휘 고정', () => {
       CATEGORICAL_ENCODINGS,
       SPLIT_METHODS,
       RUN_STATUSES,
+      MODEL_OMISSION_REASONS,
     }).toEqual({
       FORMAT_VERSION: 1,
       TASK_TYPES: ['classification', 'regression', 'clustering'],
@@ -94,6 +96,7 @@ describe('어휘 고정', () => {
       CATEGORICAL_ENCODINGS: ['none', 'onehot', 'ordinal'],
       SPLIT_METHODS: ['holdout'],
       RUN_STATUSES: ['done', 'failed'],
+      MODEL_OMISSION_REASONS: ['sizeBudget', 'engineUnsupported'],
     })
   })
 })
@@ -129,6 +132,33 @@ describe('모르는 어휘', () => {
 
   it('실행 위치가 목록에 없으면 거부한다', () => {
     expect(runSchema.safeParse({ ...run, computedBy: 'cloud' }).success).toBe(false)
+  })
+
+  it('모델이 빠진 사유가 목록에 없으면 거부한다', () => {
+    expect(runSchema.safeParse({ ...run, modelOmitted: 'sizeBudget' }).success).toBe(true)
+    expect(runSchema.safeParse({ ...run, modelOmitted: '몰라' }).success).toBe(false)
+  })
+})
+
+describe('끝난 run은 결과를 들고 있다', () => {
+  const without = (value: object, key: string): Record<string, unknown> => {
+    const copy: Record<string, unknown> = { ...value }
+    delete copy[key]
+    return copy
+  }
+
+  it('성공했는데 지표가 없으면 거부한다', () => {
+    // 위 규칙과 대칭이다. 비교표에 빈 줄이 생기는 것을 스키마에서 막는다.
+    expect(runSchema.safeParse(without(run, 'metrics')).success).toBe(false)
+  })
+
+  it('실패한 run에는 지표가 없어도 된다', () => {
+    const failed = {
+      ...without(run, 'metrics'),
+      status: 'failed',
+      failure: { code: 'JOB_FAILED' },
+    }
+    expect(runSchema.safeParse(failed).success).toBe(true)
   })
 })
 

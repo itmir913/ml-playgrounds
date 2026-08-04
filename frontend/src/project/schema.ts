@@ -53,9 +53,22 @@ export const SPLIT_METHODS = ['holdout'] as const
 /** 개별 학습의 결과. 실패한 것도 비교표에 남는다 (mlpx-spec.md 5). */
 export const RUN_STATUSES = ['done', 'failed'] as const
 
+/**
+ * 학습은 성공했는데 모델이 파일에 없는 이유.
+ *
+ * **없는 것과 왜 없는지는 다른 질문이다.** 학생에게는 셋 다 "예측할 수 없습니다"로
+ * 보이지만 할 일이 다르다 - 예산에서 밀린 것은 다른 프로젝트를 지우면 되살아나고,
+ * 엔진이 직렬화를 지원하지 않는 것은 지금 할 수 있는 일이 없다. 실패 사유를 남기는
+ * 것과 같은 이유다 (mlpx-spec.md 4.2).
+ *
+ * status가 'done'이고 model이 없을 때만 의미가 있다.
+ */
+export const MODEL_OMISSION_REASONS = ['sizeBudget', 'engineUnsupported'] as const
+
 export type TaskType = (typeof TASK_TYPES)[number]
 export type DataType = (typeof DATA_TYPES)[number]
 export type RunStatus = (typeof RUN_STATUSES)[number]
+export type ModelOmissionReason = (typeof MODEL_OMISSION_REASONS)[number]
 
 /**
  * 앱이 만들어 넣는 시각. 오프셋을 허용해 +09:00 형태도 받는다.
@@ -220,6 +233,8 @@ export const runSchema = z
     engine: engineSchema.optional(),
     failure: failureSchema.optional(),
     model: modelRefSchema.optional(),
+    /** model이 없는 이유. 있으면 화면이 학생에게 무엇을 할 수 있는지 말할 수 있다. */
+    modelOmitted: z.enum(MODEL_OMISSION_REASONS).optional(),
   })
   .refine((run) => run.status !== 'failed' || run.failure !== undefined, {
     // 실패한 run은 사유가 있어야 한다. 학생이 무엇이 왜 안 됐는지 알아야
@@ -227,9 +242,23 @@ export const runSchema = z
     path: ['failure'],
     error: 'required',
   })
+  .refine((run) => run.status !== 'done' || run.metrics !== undefined, {
+    // 성공했는데 지표가 없으면 비교표에 빈 줄이 생긴다. 위 규칙과 대칭이다 -
+    // 끝난 run은 성공이든 실패든 무엇 때문에 그렇게 됐는지를 반드시 들고 있다.
+    path: ['metrics'],
+    error: 'required',
+  })
 
 /** 학습 시점의 설정 스냅샷. 묶음 전체가 공유한다. */
 export const batchSettingsSchema = z.looseObject({
+  /**
+   * 이 묶음을 돌린 과제 유형. **manifest에 있는 것을 믿으면 안 된다.**
+   *
+   * taskType은 학생이 언제든 바꿀 수 있는데(mlpx-spec.md 0.1) manifest에는 현재 값만
+   * 남는다. 그러면 분류로 돌린 옛 묶음과 회귀로 돌린 새 묶음이 비교표에 나란히 서고,
+   * accuracy와 r2가 같은 열에 뜬다. 지표 키를 보고 역추론할 수도 있지만 그건 추측이다.
+   */
+  taskType: z.enum(TASK_TYPES),
   features: z.array(userString),
   target: userString.optional(),
   preprocessing: preprocessingSchema,

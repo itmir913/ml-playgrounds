@@ -19,6 +19,7 @@ import {
 import en from '../src/locales/en.json'
 import ko from '../src/locales/ko.json'
 import { ENGINE_STATES, TRAINING_LOCATIONS, UNAVAILABLE_REASONS } from '../src/ml/backend'
+import { MODEL_OMISSION_REASONS } from '../src/project/schema'
 
 type Tree = { [key: string]: string | Tree }
 
@@ -69,6 +70,7 @@ describe('로케일 파일', () => {
       'entryHash',
       'reproduction',
       'engineState',
+      'modelOmission',
       'portfolio',
       'language',
       'client',
@@ -127,6 +129,7 @@ describe('프런트엔드 전용 코드', () => {
       ['entryHash', ENTRY_HASH_STATUSES],
       ['reproduction', REPRODUCTION_STATUSES],
       ['engineState', ENGINE_STATES],
+      ['modelOmission', MODEL_OMISSION_REASONS],
     ] as const
 
     for (const [namespace, codes] of pairs) {

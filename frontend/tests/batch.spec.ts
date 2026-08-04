@@ -357,6 +357,36 @@ describe('id와 changed', () => {
     expect(second.changed).toEqual(['algorithms'])
   })
 
+  it('묶음이 과제 유형을 스냅샷하고 changed가 그것을 잡는다', () => {
+    // manifest의 taskType은 현재 값만 남는다. 학생이 분류에서 회귀로 바꾸면 옛 묶음의
+    // accuracy와 새 묶음의 r2가 비교표에서 같은 열에 서는데, 묶음 자신이 무엇으로
+    // 돌았는지 들고 있지 않으면 화면이 그걸 구분할 근거가 없다.
+    expect(first.settings.taskType).toBe('classification')
+
+    const regression = runBatch(
+      {
+        dataset: {
+          columns: ['x', 'y'],
+          rows: [...Array(10).keys()].map((x) => [`${x}`, `${2 * x + 1}`]),
+        },
+        taskType: 'regression',
+        dataType: 'tabular',
+        settings: settingsFor({
+          features: ['x'],
+          target: 'y',
+          split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+          selectedAlgorithms: ['linear_regression'],
+        }),
+        runtime: 'mljs',
+        context: { serverStatus: 'unavailable', rowCount: 10 },
+      },
+      { ...frozen, history },
+    ).batch
+
+    expect(regression.settings.taskType).toBe('regression')
+    expect(regression.changed).toContain('taskType')
+  })
+
   it('분할 인덱스는 changed에 안 나온다 - 학생에게 아무 뜻이 없다', () => {
     const second = runBatch(
       inputFor({

@@ -195,6 +195,7 @@ UTF-8 CSV다"). 정규화는 정본이 되기 **전에** 끝나므로 아래 §7
       "changed": ["preprocessing.scaling"],      // 직전 묶음 대비
 
       "settings": {                              // 학습 시점 스냅샷
+        "taskType": "classification",            // manifest가 아니라 여기를 믿는다
         "features": ["sepal_length", "…"],
         "target": "species",
         "preprocessing": { … },
@@ -223,7 +224,7 @@ UTF-8 CSV다"). 정규화는 정본이 되기 **전에** 끝나므로 아래 §7
           "featureImportance": [ … ],
           "engine": { "kind": "…", "version": "…" },  // 재실행 대조는 엔진을 넘지 않는다
 
-          "model": {                             // 없으면 지표만 남은 것
+          "model": {                             // 없으면 modelOmitted가 이유를 말한다
             "format": "mlpx-linear-v1",
             "path": "model/run-3.json",
             "includesPreprocessing": false,
@@ -277,6 +278,12 @@ SVM이 시간 초과로 죽어도 나머지 두 개의 결과는 나와야 한�
 
 **저장은 항상 성공한다.** 예산을 넘으면 모델을 빼지, 저장을 실패시키지 않는다.
 
+**뺐으면 뺐다고 적는다 — `run.modelOmitted`.** 어휘는 `schema.ts`가 출처다.
+`model`이 그냥 없으면 셋을 구분할 수 없다: 예산에서 밀린 것, 그 실행 방법에 아직
+직렬화기가 없는 것, 애초에 실패한 run. **학생에게는 셋 다 "예측할 수 없습니다"로
+보이지만 할 일이 다르다** — 예산에서 밀린 것은 다른 프로젝트를 지우고 다시 학습하면
+되살아나고, 나머지는 지금 할 수 있는 일이 없다. 실패 사유를 남기는 것과 같은 이유다(§4.1).
+
 ### 4.3 데이터셋을 바꾸면 기존 묶음을 지운다
 
 참조형 모델(KNN·SVM)은 `dataset/data.csv`의 **행 번호**를 가리킨다.
@@ -296,11 +303,21 @@ IndexedDB 저장은 이 교체를 **한 트랜잭션에서** 처리한다. 중�
 | `format` | 대상 | 전처리 | 예측에 필요한 것 |
 |---|---|---|---|
 | `mlpx-tree-v1` | Decision Tree, Random Forest | 밖 | 모델 + preprocessor |
-| `mlpx-linear-v1` | Logistic Regression, Naive Bayes | 밖 | 모델 + preprocessor |
+| `mlpx-linear-v1` | Logistic Regression | 밖 | 모델 + preprocessor |
+| `mlpx-naive-bayes-v1` | Naive Bayes | 밖 | 모델 + preprocessor |
 | `mlpx-reference-v1` | **KNN, SVM** | 밖 | 모델 + preprocessor + **`dataset/`** |
 | `onnx-v1` | V5 이후 딥러닝 | **그래프에 포함** | 모델 하나 |
 
 해석기는 알고리즘 등록부와 같은 방식으로 등록한다. `if format === 'onnx'` 분기를 만들지 않는다.
+
+**`format` 하나가 payload 스키마 하나를 결정해야 한다.** 로지스틱 회귀와 나이브 베이즈를
+한 이름에 묶었다가 나눴다 — 전자는 클래스별 가중치 행렬이고 후자는 클래스별 평균·분산·
+사전확률이라 같은 해석기가 읽을 수 없다. 묶어 두면 그 해석기가 `algorithm`을 보고
+갈라져야 하는데, 그건 바로 윗줄에서 금지한 분기를 형식 **안쪽**으로 옮긴 것에 불과하다.
+
+반대로 `mlpx-tree-v1`이 Decision Tree와 Random Forest를 함께 담는 것은 문제가 없다 —
+랜덤포레스트는 같은 노드 구조의 트리가 여러 개일 뿐이라 해석기가 하나로 선다.
+**기준은 알고리즘 개수가 아니라 payload 스키마가 하나인가다.**
 
 ### 5.1 참조형 — 데이터를 중복 저장하지 않는다
 

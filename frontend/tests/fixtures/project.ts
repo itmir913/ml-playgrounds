@@ -60,6 +60,9 @@ export function batch(id: string, runs: Run[]): Batch {
     id,
     startedAt: '2026-08-04T10:30:00Z',
     settings: {
+      // manifest에 있는 것을 다시 적는 것이 아니다 - 학생이 과제 유형을 바꾸면
+      // manifest는 따라가고 옛 묶음은 안 따라간다.
+      taskType: manifest.taskType,
       features: settings.features,
       target: settings.target,
       preprocessing: settings.preprocessing,
