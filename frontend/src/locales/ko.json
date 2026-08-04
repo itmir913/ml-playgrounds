@@ -1,1 +1,79 @@
-{}
+{
+  "app": {
+    "name": "ML Playgrounds"
+  },
+  "language": {
+    "en": "English",
+    "ko": "한국어"
+  },
+  "errors": {
+    "REQUEST_INVALID": "요청 형식이 올바르지 않습니다. 확인이 필요한 항목: {fields}",
+    "ROUTE_NOT_FOUND": "요청한 주소를 찾을 수 없습니다.",
+    "METHOD_NOT_ALLOWED": "허용되지 않은 요청 방식입니다.",
+
+    "DATASET_TOO_LARGE": "데이터 파일이 너무 큽니다. (최대 {limitMb}MB, 현재 {actualMb}MB)",
+    "DATASET_EMPTY": "데이터가 비어 있습니다.",
+    "DATASET_PARSE_FAILED": "데이터를 읽지 못했습니다. 파일 형식을 확인해 주세요.",
+    "DATASET_ENCODING_UNSUPPORTED": "지원하지 않는 문자 인코딩입니다. ({encoding})",
+    "DATASET_TOO_MANY_ROWS": "행이 너무 많습니다. (최대 {limitRows}행, 현재 {actualRows}행)",
+    "DATASET_TOO_MANY_COLUMNS": "열이 너무 많습니다. (최대 {limitColumns}열, 현재 {actualColumns}열)",
+
+    "COLUMN_NOT_FOUND": "데이터에 없는 열입니다. ({column})",
+    "TARGET_NOT_SELECTED": "예측할 대상 열을 선택해 주세요.",
+    "TARGET_SINGLE_CLASS": "대상 열의 값이 한 종류뿐이라 분류할 수 없습니다. ({target})",
+    "TARGET_TOO_MANY_CLASSES": "분류할 종류가 너무 많습니다. (최대 {limitClasses}개, 현재 {actualClasses}개)",
+    "FEATURE_NOT_SELECTED": "학습에 사용할 특성을 하나 이상 선택해 주세요.",
+    "FEATURE_ALL_MISSING": "값이 모두 비어 있는 특성입니다. ({feature})",
+    "ALGORITHM_UNSUPPORTED": "지원하지 않는 알고리즘입니다. ({algorithm})",
+    "HYPERPARAM_OUT_OF_RANGE": "{name} 값이 허용 범위를 벗어났습니다. ({min}~{max}, 현재 {actual})",
+    "SPLIT_INVALID": "학습/평가 데이터 분할 설정이 올바르지 않습니다.",
+
+    "JOB_NOT_FOUND": "해당 작업을 찾을 수 없습니다.",
+    "JOB_TIMEOUT": "학습 시간이 제한을 넘었습니다. ({limitSeconds}초)",
+    "JOB_MEMORY_EXCEEDED": "학습에 필요한 메모리가 제한을 넘었습니다. ({limitMb}MB)",
+    "JOB_CANCELLED": "작업이 취소되었습니다.",
+    "JOB_FAILED": "학습에 실패했습니다.",
+
+    "SERVER_DISK_INSUFFICIENT": "서버 저장 공간이 부족합니다. 잠시 후 다시 시도해 주세요.",
+    "SERVER_BUSY": "서버가 혼잡합니다. 잠시 후 다시 시도해 주세요.",
+    "SERVER_INTERNAL_ERROR": "서버에서 문제가 발생했습니다.",
+
+    "SESSION_NOT_FOUND": "작업 세션을 찾을 수 없습니다. 데이터를 다시 올려 주세요.",
+    "SESSION_EXPIRED": "{idleMinutes}분 동안 사용하지 않아 세션이 종료되었습니다. 데이터를 다시 올려 주세요.",
+    "SESSION_LIMIT_REACHED": "지금은 동시에 접속할 수 있는 인원을 넘었습니다. 잠시 후 다시 시도해 주세요."
+  },
+  "stages": {
+    "QUEUED": "대기 중",
+    "VALIDATING": "데이터 확인 중",
+    "PREPROCESSING": "전처리 중",
+    "TRAINING": "학습 중",
+    "EVALUATING": "평가 중",
+    "DONE": "완료",
+    "FAILED": "실패"
+  },
+  "integrity": {
+    "VERIFIED": "검증됨",
+    "MISMATCH": "위조 의심",
+    "UNSIGNED": "미검증"
+  },
+  "execution": {
+    "browser": "내 컴퓨터에서 학습",
+    "server": "서버에서 학습"
+  },
+  "client": {
+    "SERVER_UNAVAILABLE": "학습 서버에 연결할 수 없습니다. 지금은 내 컴퓨터에서만 학습할 수 있습니다.",
+    "ALGORITHM_NOT_AVAILABLE_HERE": "이 알고리즘은 여기서 실행할 수 없습니다.",
+    "DATASET_TOO_LARGE_FOR_BROWSER": "데이터가 커서 내 컴퓨터에서는 학습할 수 없습니다. (최대 {limitRows}행)"
+  },
+  "portfolio": {
+    "template": {
+      "topic": "프로젝트 주제",
+      "motivation": "이 주제를 선택한 이유",
+      "data": "사용한 데이터 설명",
+      "preprocessing": "데이터를 어떻게 다듬었는가",
+      "model": "이 모델을 고른 이유",
+      "result": "결과 분석",
+      "reflection": "느낀 점"
+    }
+  }
+}

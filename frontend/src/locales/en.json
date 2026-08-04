@@ -1,1 +1,79 @@
-{}
+{
+  "app": {
+    "name": "ML Playgrounds"
+  },
+  "language": {
+    "en": "English",
+    "ko": "한국어"
+  },
+  "errors": {
+    "REQUEST_INVALID": "The request is not in the expected format. Check: {fields}",
+    "ROUTE_NOT_FOUND": "That address does not exist.",
+    "METHOD_NOT_ALLOWED": "That request method is not allowed here.",
+
+    "DATASET_TOO_LARGE": "The data file is too large. (limit {limitMb}MB, yours {actualMb}MB)",
+    "DATASET_EMPTY": "The data is empty.",
+    "DATASET_PARSE_FAILED": "The data could not be read. Please check the file format.",
+    "DATASET_ENCODING_UNSUPPORTED": "That text encoding is not supported. ({encoding})",
+    "DATASET_TOO_MANY_ROWS": "Too many rows. (limit {limitRows}, yours {actualRows})",
+    "DATASET_TOO_MANY_COLUMNS": "Too many columns. (limit {limitColumns}, yours {actualColumns})",
+
+    "COLUMN_NOT_FOUND": "That column is not in the data. ({column})",
+    "TARGET_NOT_SELECTED": "Choose the column you want to predict.",
+    "TARGET_SINGLE_CLASS": "The target column has only one value, so it cannot be classified. ({target})",
+    "TARGET_TOO_MANY_CLASSES": "Too many classes to predict. (limit {limitClasses}, yours {actualClasses})",
+    "FEATURE_NOT_SELECTED": "Choose at least one feature to learn from.",
+    "FEATURE_ALL_MISSING": "That feature has no values at all. ({feature})",
+    "ALGORITHM_UNSUPPORTED": "That algorithm is not supported. ({algorithm})",
+    "HYPERPARAM_OUT_OF_RANGE": "{name} is outside the allowed range. ({min}-{max}, yours {actual})",
+    "SPLIT_INVALID": "The train/test split setting is not valid.",
+
+    "JOB_NOT_FOUND": "That job could not be found.",
+    "JOB_TIMEOUT": "Training took longer than allowed. ({limitSeconds}s)",
+    "JOB_MEMORY_EXCEEDED": "Training needed more memory than allowed. ({limitMb}MB)",
+    "JOB_CANCELLED": "The job was cancelled.",
+    "JOB_FAILED": "Training failed.",
+
+    "SERVER_DISK_INSUFFICIENT": "The server is out of storage space. Please try again shortly.",
+    "SERVER_BUSY": "The server is busy. Please try again shortly.",
+    "SERVER_INTERNAL_ERROR": "Something went wrong on the server.",
+
+    "SESSION_NOT_FOUND": "That working session no longer exists. Please upload your data again.",
+    "SESSION_EXPIRED": "The session ended after {idleMinutes} minutes of inactivity. Please upload your data again.",
+    "SESSION_LIMIT_REACHED": "Too many people are connected right now. Please try again shortly."
+  },
+  "stages": {
+    "QUEUED": "Waiting",
+    "VALIDATING": "Checking data",
+    "PREPROCESSING": "Preparing data",
+    "TRAINING": "Training",
+    "EVALUATING": "Evaluating",
+    "DONE": "Done",
+    "FAILED": "Failed"
+  },
+  "integrity": {
+    "VERIFIED": "Verified",
+    "MISMATCH": "Possibly altered",
+    "UNSIGNED": "Not verified"
+  },
+  "execution": {
+    "browser": "Train on my computer",
+    "server": "Train on the server"
+  },
+  "client": {
+    "SERVER_UNAVAILABLE": "The training server cannot be reached. For now you can train on your computer.",
+    "ALGORITHM_NOT_AVAILABLE_HERE": "This algorithm cannot run here.",
+    "DATASET_TOO_LARGE_FOR_BROWSER": "The data is too large to train on your computer. (limit {limitRows} rows)"
+  },
+  "portfolio": {
+    "template": {
+      "topic": "Project topic",
+      "motivation": "Why I chose this topic",
+      "data": "About the data I used",
+      "preprocessing": "How I prepared the data",
+      "model": "Why I chose this model",
+      "result": "What the results show",
+      "reflection": "What I learned"
+    }
+  }
+}

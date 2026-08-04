@@ -1,16 +1,21 @@
-# 에러 코드 레퍼런스
+# 코드 레퍼런스
 
-> **단일 출처는 `backend/app/errors.py`의 `StrEnum`이다.** 이 문서는 사람이 읽기 위한 사본이다.
-> 어긋나면 코드를 믿어라. 장기적으로는 `errors.py`에서 자동 생성하는 것을 목표로 한다.
+> **단일 출처는 `backend/app/errors.py`다.** 이 문서는 사람이 읽기 위한 사본이다.
+> 어긋나면 코드를 믿어라.
 >
-> 새 코드를 추가하면 **같은 커밋에서** `errors.py`, `frontend/src/locales/en.json`,
-> `ko.json`, 이 문서를 함께 갱신한다.
+> `scripts/check_locales.py`가 `errors.py`와 로케일 파일의 **양방향 일치**를 강제한다.
+> 코드를 추가하거나 지우면 **같은 커밋에서** `en.json`, `ko.json`, 이 문서를 함께 갱신한다.
 
-명명 규칙: `{도메인}_{문제}` 대문자 스네이크.
+명명 규칙: `{도메인}_{문제}` 대문자 스네이크. 이름과 값은 항상 같다(백엔드 테스트가 강제).
 
 ---
 
-## 초기 코드 목록 (`errors.py` 구현 시 그대로 옮긴다)
+## ErrorCode — 실패 (로케일 `errors.*`)
+
+**요청**
+```
+REQUEST_INVALID, ROUTE_NOT_FOUND, METHOD_NOT_ALLOWED
+```
 
 **데이터셋**
 ```
@@ -35,10 +40,46 @@ JOB_NOT_FOUND, JOB_TIMEOUT, JOB_MEMORY_EXCEEDED, JOB_CANCELLED, JOB_FAILED
 SERVER_DISK_INSUFFICIENT, SERVER_BUSY, SERVER_INTERNAL_ERROR
 ```
 
-**무결성**
+**세션** (수명 = WebSocket 연결 수명, `architecture.md` §2.2)
 ```
-INTEGRITY_VERIFIED, INTEGRITY_MISMATCH, INTEGRITY_UNSIGNED
+SESSION_NOT_FOUND, SESSION_EXPIRED, SESSION_LIMIT_REACHED
 ```
+
+모든 `ErrorCode`에는 HTTP 상태가 하나씩 대응한다(`errors.py`의 `HTTP_STATUS`).
+누락되면 테스트가 실패한다.
+
+---
+
+## 에러가 아닌 코드
+
+같은 규칙(코드만 반환하고 번역은 프런트엔드)을 따르지만 실패가 아니므로 `ErrorCode`가 아니다.
+
+**Stage — 진행 단계** (로케일 `stages.*`)
+```
+QUEUED → VALIDATING → PREPROCESSING → TRAINING → EVALUATING → DONE
+                                                            ↘ FAILED
+```
+
+**IntegrityStatus — 무결성 검증 결과** (로케일 `integrity.*`)
+```
+VERIFIED, MISMATCH, UNSIGNED
+```
+
+검증 요청 자체는 성공했고 결과가 셋 중 하나일 뿐이므로 에러가 아니다.
+
+---
+
+## 프런트엔드 전용 코드 (로케일 `client.*`)
+
+서버가 꺼져 있을 때는 서버가 코드를 줄 수 없다. 프런트엔드에서만 판정되는 조건은
+`frontend/src/ml/backend.ts`가 선언한다.
+
+```
+SERVER_UNAVAILABLE, ALGORITHM_NOT_AVAILABLE_HERE, DATASET_TOO_LARGE_FOR_BROWSER
+```
+
+**`errors.*`에 섞지 마라.** CI가 `errors.*`와 `ErrorCode`의 양방향 일치를 강제하므로
+백엔드에 없는 코드를 `errors.*`에 넣으면 실패한다.
 
 ---
 
@@ -53,17 +94,18 @@ INTEGRITY_VERIFIED, INTEGRITY_MISMATCH, INTEGRITY_UNSIGNED
 }
 ```
 
-`params`의 키는 로케일 파일의 보간 변수와 1:1로 맞춘다.
+- `params`의 키는 로케일 파일의 보간 변수와 1:1로 맞춘다.
+  두 로케일의 보간 변수가 다르면 CI가 잡는다.
+- `params`에 담기는 것은 숫자와 **사용자 데이터**(컬럼명, 클래스 라벨)뿐이다.
+  번역 대상 문장을 담지 마라.
+- 실패든 성공이든 응답 모양은 항상 같다. `params`가 없어도 빈 객체로 나간다.
 
 ```
 errors.DATASET_TOO_LARGE = "데이터 파일이 너무 큽니다. (최대 {limitMb}MB, 현재 {actualMb}MB)"
 ```
 
-## WebSocket 단계 코드
+WebSocket 진행 이벤트도 같은 원칙을 따른다.
 
+```json
+{ "jobId": "87fd39", "stage": "TRAINING", "progress": 0.42 }
 ```
-QUEUED → VALIDATING → PREPROCESSING → TRAINING → EVALUATING → DONE
-                                                            ↘ FAILED
-```
-
-로케일 키는 `stages.*`.

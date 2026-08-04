@@ -2,7 +2,7 @@
 name = "ml-playgrounds-backend"
 version = "0.1.0"
 description = "ML Playgrounds backend - computes only, stores nothing"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 
 dependencies = [
@@ -35,14 +35,16 @@ packages = ["app"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF", "ANN"]
 ignore = ["ANN401"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
+# scripts/ 의 CI 검사 스크립트를 테스트에서 import한다. conftest.py가 sys.path에 넣는다.
+mypy_path = "../scripts"
 strict = true
 warn_unreachable = true
 plugins = ["pydantic.mypy"]

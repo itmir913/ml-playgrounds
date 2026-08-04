@@ -13,7 +13,5 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['tests/**/*.spec.ts', 'src/**/*.spec.ts'],
-    // 첫 실제 테스트가 들어오면 이 줄을 지운다.
-    passWithNoTests: true,
   },
 })
