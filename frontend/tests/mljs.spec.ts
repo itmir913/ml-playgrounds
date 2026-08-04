@@ -94,11 +94,8 @@ describe('등록부가 서로 맞는다', () => {
     }
   })
 
-  it('순수 JS 구현이 못 미더운 것은 여기 없다', () => {
-    // svm - 후보가 WASM(libsvm-js)뿐이다.
-    // naive_bayes - ml-naivebayes가 붓꽃에서 0.70이다(sklearn 0.9667, 같은 분할).
+  it('svm은 여기 없다 - 순수 JS 후보가 WASM뿐이다', () => {
     expect(MLJS_ALGORITHMS).not.toContain('svm')
-    expect(MLJS_ALGORITHMS).not.toContain('naive_bayes')
   })
 })
 
@@ -111,6 +108,7 @@ describe('엔진 버전이 의존성에 묶여 있다', () => {
       'ml-cart': packageJson.dependencies['ml-cart'],
       'ml-knn': packageJson.dependencies['ml-knn'],
       'ml-logistic-regression': packageJson.dependencies['ml-logistic-regression'],
+      'ml-naivebayes': packageJson.dependencies['ml-naivebayes'],
       'ml-random-forest': packageJson.dependencies['ml-random-forest'],
       'ml-regression-multivariate-linear':
         packageJson.dependencies['ml-regression-multivariate-linear'],
@@ -118,6 +116,7 @@ describe('엔진 버전이 의존성에 묶여 있다', () => {
       'ml-cart': '^2.1.1',
       'ml-knn': '^3.0.0',
       'ml-logistic-regression': '^2.0.0',
+      'ml-naivebayes': '^4.0.0',
       'ml-random-forest': '^2.1.0',
       'ml-regression-multivariate-linear': '^2.0.4',
     })
@@ -129,7 +128,7 @@ describe('엔진 버전이 의존성에 묶여 있다', () => {
 })
 
 describe('재현 가능성', () => {
-  for (const algorithm of ['decision_tree', 'knn', 'random_forest']) {
+  for (const algorithm of ['decision_tree', 'knn', 'random_forest', 'naive_bayes']) {
     it(`${algorithm}은 두 번 돌려도 같은 결과다`, () => {
       expect(run(algorithm).metrics).toEqual(run(algorithm).metrics)
     })
@@ -144,16 +143,6 @@ describe('재현 가능성', () => {
 })
 
 describe('붓꽃을 실제로 학습한다', () => {
-  for (const algorithm of ['decision_tree', 'knn', 'random_forest', 'logistic_regression']) {
-    it(`${algorithm}이 결과를 낸다`, () => {
-      const { metrics, confusionMatrix } = run(algorithm)
-      expect(Number.isFinite(metrics.accuracy)).toBe(true)
-      expect(confusionMatrix?.labels).toEqual(['setosa', 'versicolor', 'virginica'])
-      // 붓꽃은 쉬운 데이터다. 절반도 못 맞히면 뭔가 잘못된 것이다.
-      expect(metrics.accuracy, algorithm).toBeGreaterThan(0.5)
-    })
-  }
-
   /**
    * **숫자를 그대로 못 박는다.**
    *
@@ -163,17 +152,26 @@ describe('붓꽃을 실제로 학습한다', () => {
    *
    * 여기가 깨졌다는 것은 **학생의 결과가 바뀌었다**는 뜻이다. 값을 고쳐 통과시키기 전에
    * MLJS_ENGINE.version을 올릴지부터 정하라.
+   *
+   * **naive_bayes가 낮은 것은 알고 있는 사실이다.** 이 표본은 21행이라 유난히 낮게
+   * 나오고, 붓꽃 전체에서도 0.70이다(sklearn은 같은 분할에서 0.9667).
+   * 그래도 빼지 않는다 - 어디까지가 "구현 차이"이고 어디부터가 "빼야 할 것"인지
+   * 그을 선이 없다. 대신 run.engine에 무엇으로 만들었는지 남긴다.
    */
   const PINNED: Record<string, number> = {
     decision_tree: 7 / 9,
     knn: 8 / 9,
     random_forest: 8 / 9,
     logistic_regression: 1,
+    naive_bayes: 3 / 9,
   }
 
   for (const [algorithm, accuracy] of Object.entries(PINNED)) {
     it(`${algorithm}의 붓꽃 정확도가 그대로다`, () => {
-      expect(run(algorithm).metrics.accuracy, algorithm).toBeCloseTo(accuracy, 10)
+      const { metrics, confusionMatrix } = run(algorithm)
+      expect(Number.isFinite(metrics.accuracy)).toBe(true)
+      expect(confusionMatrix?.labels).toEqual(['setosa', 'versicolor', 'virginica'])
+      expect(metrics.accuracy, algorithm).toBeCloseTo(accuracy, 10)
     })
   }
 

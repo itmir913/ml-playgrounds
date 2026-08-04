@@ -4,10 +4,20 @@
  * gzip 25KB에 시동이 없다. scikit-learn은 26.3MB에 시동만 15.4초라 기본값이 될 수 없다
  * (open-decisions.md "브라우저 학습 엔진은 둘 다 간다").
  *
- * **sklearn과 숫자가 다를 수 있다.** 실측 - 결정트리와 KNN은 정확히 일치하고,
- * 로지스틱 회귀는 0.9667 대 0.8667로 갈린다(여기는 정규화 없는 경사하강이다).
- * 그래서 각 run에 engine을 기록하고 **재실행 대조는 엔진을 넘지 않는다**
- * (architecture.md 3.2). 이 파일이 그 규칙이 실재하는 이유다.
+ * **sklearn과 숫자가 다를 수 있고, 폭이 알고리즘마다 크게 다르다.**
+ * 붓꽃 전체를 같은 분할로 돌린 실측:
+ *
+ *   결정트리        0.9333  =  0.9333   같다
+ *   KNN             1.0000  =  1.0000   같다
+ *   로지스틱 회귀    0.9667 -> 0.8667   여기는 정규화 없는 경사하강이다
+ *   랜덤포레스트     0.9000 -> 0.9667   배깅 난수가 다르다 (여기가 더 높다)
+ *   나이브 베이즈    0.9667 -> 0.7000   폭이 제일 크다
+ *
+ * **폭이 크다는 이유로 알고리즘을 빼지 않는다.** 어디까지가 "구현 차이"이고 어디부터가
+ * "빼야 할 것"인지 그을 선이 없고, 그 선을 임의로 그으면 학생은 어떤 모델이 왜
+ * 사라졌는지 알 수 없다. 대신 **무엇으로 만들었는지 기록하고**(run.engine)
+ * **재실행 대조는 엔진을 넘지 않는다**(architecture.md 3.2).
+ * 이 표가 그 규칙이 왜 필요한지 보여준다.
  *
  * 알고리즘 분기는 표로 한다. `if (algorithm === 'knn')` 을 만들지 마라 -
  * TRAINERS에 등록하면 늘어난다 (ml/algorithms.ts와 같은 방식).
@@ -21,6 +31,7 @@ import { DecisionTreeClassifier } from 'ml-cart'
 import KNN from 'ml-knn'
 import LogisticRegression from 'ml-logistic-regression'
 import { Matrix } from 'ml-matrix'
+import { GaussianNB } from 'ml-naivebayes'
 import { RandomForestClassifier } from 'ml-random-forest'
 import MultivariateLinearRegression from 'ml-regression-multivariate-linear'
 
@@ -120,6 +131,8 @@ const TRAINERS: Record<string, Trainer> = {
         useSampleBagging: true,
       }) as TrainablePredictor,
   ),
+
+  naive_bayes: classifier(() => new GaussianNB() as TrainablePredictor),
 
   knn: (input) => {
     const { encoded, decode } = labelCodec(input.target)

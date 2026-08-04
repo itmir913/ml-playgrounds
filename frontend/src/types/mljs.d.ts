@@ -36,6 +36,19 @@ declare module 'ml-knn' {
   }
 }
 
+declare module 'ml-naivebayes' {
+  /** 라벨은 0부터 n-1까지의 정수여야 한다 (라이브러리 문서). */
+  export class GaussianNB {
+    train(features: number[][], target: number[]): void
+    predict(features: number[][]): number[]
+  }
+
+  export class MultinomialNB {
+    train(features: number[][], target: number[]): void
+    predict(features: number[][]): number[]
+  }
+}
+
 declare module 'ml-logistic-regression' {
   import type { Matrix } from 'ml-matrix'
 
