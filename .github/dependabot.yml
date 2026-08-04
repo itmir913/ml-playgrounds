@@ -18,6 +18,17 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
+    # TypeScript 7은 받지 않는다. 7.0은 Go 재작성판이라 컴파일러 API가 다르고,
+    # typescript-eslint가 아직 그걸 못 읽는다(peer: typescript >=4.8.4 <6.1.0).
+    # 그러면 eslint가 규칙을 돌리기도 전에 죽는다. 우회할 상위 버전도 없다 -
+    # @vue/eslint-config-typescript 14.9.0이 최신이고 그게 typescript-eslint ^8.60.0을 문다.
+    #
+    # **이걸 안 막으면 매주 같은 PR이 와서 매주 같은 자리에서 CI가 깨진다.**
+    # typescript-eslint가 지원을 내놓으면(추적: typescript-eslint#10940) 이 항목을 지운다.
+    # minor/patch는 계속 받으므로 6.0.x 안에서는 정상적으로 올라간다.
+    ignore:
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
     groups:
       # 파일을 파싱하는 것들. 따로 보고 싶은 묶음이라 먼저 잡는다.
       parsers:

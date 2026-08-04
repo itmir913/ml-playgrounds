@@ -56,7 +56,10 @@ const parseWithExcelJs: XlsxParser = async (bytes) => {
   const { Workbook } = await import('exceljs')
   const workbook = new Workbook()
   // 타입 선언은 Buffer만 받지만 내부의 JSZip이 Uint8Array를 그대로 읽는다.
-  await workbook.xlsx.load(bytes as unknown as Buffer)
+  // Buffer로 직접 캐스팅하지 않는다 - @types/node가 Buffer를 제네릭으로 바꾸면서
+  // exceljs가 선언한 Buffer와 우리가 쓴 Buffer가 다른 타입이 됐다. 받는 쪽의
+  // 파라미터 타입을 그대로 집어오면 그 어긋남에 다시 걸리지 않는다.
+  await workbook.xlsx.load(bytes as unknown as Parameters<typeof workbook.xlsx.load>[0])
 
   if (workbook.worksheets.length === 0) {
     // 예외 없이 빈 워크북이 나오는 것도 못 읽은 것이다. 폴백으로 넘긴다.
