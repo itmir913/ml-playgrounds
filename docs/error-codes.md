@@ -91,16 +91,38 @@ PROJECT_FILE_VERSION_TOO_NEW, PROJECT_FILE_VERSION_UNSUPPORTED
 MODEL_FORMAT_UNSUPPORTED, STORAGE_QUOTA_EXCEEDED
 ```
 
-**표 파일(CSV/엑셀) 파싱** (`data/csv.ts`, `data/xlsx.ts`, `data/table.ts`)
+**표 파일 가져오기** (`data/table.ts`, `data/xlsx.ts`)
 ```
-DATASET_FILE_TYPE_UNSUPPORTED, DATASET_FILE_UNREADABLE, DATASET_SHEET_NOT_FOUND
+DATASET_FILE_TYPE_UNSUPPORTED, DATASET_SHEET_NOT_FOUND
 ```
+
+이 둘이 `client.*`인 이유는 **서버가 이것들을 볼 일이 없기 때문**이다. 프런트엔드가
+업로드 파일을 UTF-8 CSV로 정규화해서 보내므로 서버는 확장자도 시트도 모른다.
+
+---
+
+## 프런트엔드가 함께 쓰는 백엔드 코드 (로케일 `errors.*`)
+
+같은 검증을 양쪽이 한다. 파일을 여는 것은 브라우저지만(CLAUDE.md §1.1) 서버도 받은
+데이터를 다시 검증해야 하므로 **같은 실패가 두 곳에서 난다.**
+
+```
+DATASET_PARSE_FAILED, DATASET_EMPTY, DATASET_ENCODING_UNSUPPORTED,
+DATASET_TOO_MANY_ROWS, DATASET_TOO_MANY_COLUMNS
+```
+
+이때 **코드를 새로 만들지 않는다.** `client.*`에 같은 이름을 복제하면 같은 문장이 두
+네임스페이스에 생기고 번역이 갈라진다. 단일 출처는 여전히 `errors.py`이며, 프런트엔드
+쪽 목록은 `frontend/src/errors.ts`의 `SHARED_ERROR_CODES`다.
+
+화면은 네임스페이스를 직접 조립하지 말고 `errorMessageKey(code)`를 쓴다.
 
 `MODEL_FORMAT_UNSUPPORTED`는 파일 열기 실패와 성격이 다르다. **파일은 멀쩡히 열리고
 그 모델로 예측만 못 한다.** → `mlpx-spec.md`
 
 **`errors.*`에 섞지 마라.** CI가 `errors.*`와 `ErrorCode`의 양방향 일치를 강제하므로
-백엔드에 없는 코드를 `errors.*`에 넣으면 실패한다.
+백엔드에 없는 코드를 `errors.*`에 넣으면 실패한다. 반대로 백엔드에 **있는** 코드를
+프런트엔드가 던져야 한다면 `client.*`에 복제하지 말고 아래를 따른다.
 
 ---
 

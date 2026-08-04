@@ -1,8 +1,24 @@
 import ExcelJS from 'exceljs'
 import { describe, expect, it } from 'vitest'
 
+import { parseCsvText } from '../src/data/csv'
+import { decodeText, detectEncoding } from '../src/data/encoding'
+import { importTable, openTable, previewTable, sourceFromFileName } from '../src/data/table'
 import { isClientError } from '../src/errors'
-import { parseTable, previewTable, sourceFromFileName } from '../src/data/table'
+import { MAX_DATASET_COLUMNS } from '../src/limits'
+
+/** '이름,나이\n가나다,10'을 CP949로 인코딩한 바이트. */
+const CP949_CSV = new Uint8Array([
+  192, 204, 184, 167, 44, 179, 170, 192, 204, 10, 176, 161, 179, 170, 180, 217, 44, 49, 48,
+])
+
+async function xlsxBytes(sheets: Record<string, (string | number)[][]>): Promise<Uint8Array> {
+  const workbook = new ExcelJS.Workbook()
+  for (const [name, rows] of Object.entries(sheets)) {
+    workbook.addWorksheet(name).addRows(rows)
+  }
+  return new Uint8Array(await workbook.xlsx.writeBuffer())
+}
 
 describe('sourceFromFileName', () => {
   it('.csv와 .xlsx를 대소문자 무관하게 구분한다', () => {
@@ -22,63 +38,134 @@ describe('sourceFromFileName', () => {
   })
 })
 
-describe('previewTable / parseTable - csv', () => {
-  it('csv는 시트 개념 없이 바로 격자를 낸다', async () => {
-    const bytes = new TextEncoder().encode('a,b\n1,2\n')
+describe('openTable - csv', () => {
+  it('시트 개념이 없다', async () => {
+    const document = await openTable(new TextEncoder().encode('a,b\n1,2\n'), 'data.csv')
+    expect(document.source).toBe('csv')
+    expect(document.sheetNames).toEqual([])
+  })
 
-    const preview = await previewTable(bytes, 'data.csv', 10)
-    expect(preview.source).toBe('csv')
-    if (preview.source === 'csv')
-      expect(preview.rows).toEqual([
-        ['a', 'b'],
-        ['1', '2'],
-      ])
-
-    const parsed = await parseTable(bytes, 'data.csv')
-    expect(parsed.source).toBe('csv')
-    if (parsed.source === 'csv')
-      expect(parsed.grid).toEqual([
-        ['a', 'b'],
-        ['1', '2'],
-      ])
+  it('CP949 파일의 인코딩을 판정해서 들고 있는다', async () => {
+    const document = await openTable(CP949_CSV, 'data.csv')
+    expect(document.sourceEncoding).toBe('cp949')
+    expect(document.read()).toEqual([
+      ['이름', '나이'],
+      ['가나다', '10'],
+    ])
   })
 })
 
-describe('previewTable / parseTable - xlsx', () => {
-  it('시트 목록을 훑어본 뒤 고른 시트를 파싱한다', async () => {
-    const workbook = new ExcelJS.Workbook()
-    workbook.addWorksheet('데이터').addRows([
-      ['a', 'b'],
-      [1, 2],
-    ])
-    workbook.addWorksheet('메모').addRows([['x']])
-    const bytes = new Uint8Array(await workbook.xlsx.writeBuffer())
-
-    const preview = await previewTable(bytes, 'data.xlsx', 10)
-    expect(preview.source).toBe('xlsx')
-    if (preview.source === 'xlsx') {
-      expect(preview.sheets.map((sheet) => sheet.name)).toEqual(['데이터', '메모'])
-    }
-
-    const parsed = await parseTable(bytes, 'data.xlsx', '데이터')
-    expect(parsed.source).toBe('xlsx')
-    if (parsed.source === 'xlsx')
-      expect(parsed.grid).toEqual([
-        ['a', 'b'],
-        ['1', '2'],
-      ])
+describe('openTable - xlsx', () => {
+  it('시트 이름을 준다', async () => {
+    const document = await openTable(await xlsxBytes({ 데이터: [['a']], 메모: [['x']] }), 'd.xlsx')
+    expect(document.sheetNames).toEqual(['데이터', '메모'])
+    expect(document.sourceEncoding).toBeNull()
   })
 
-  it('시트를 고르지 않고 파싱을 시도하면 실패한다', async () => {
-    const workbook = new ExcelJS.Workbook()
-    workbook.addWorksheet('Sheet1').addRows([['a']])
-    const bytes = new Uint8Array(await workbook.xlsx.writeBuffer())
+  it('시트를 고르지 않으면 첫 시트를 읽는다', async () => {
+    const document = await openTable(await xlsxBytes({ 데이터: [['a', 'b']] }), 'd.xlsx')
+    expect(document.read()).toEqual([['a', 'b']])
+  })
+})
 
+describe('previewTable', () => {
+  it('csv는 항목 하나를 낸다', async () => {
+    const document = await openTable(new TextEncoder().encode('a,b\n1,2\n'), 'data.csv')
+    const preview = previewTable(document, 10)
+    expect(preview).toHaveLength(1)
+    expect(preview[0]?.sheetName).toBeUndefined()
+    expect(preview[0]?.rows).toEqual([
+      ['a', 'b'],
+      ['1', '2'],
+    ])
+  })
+
+  it('엑셀은 시트마다 하나씩 낸다', async () => {
+    const document = await openTable(
+      await xlsxBytes({
+        데이터: [
+          ['a', 'b'],
+          [1, 2],
+        ],
+        메모: [['x']],
+      }),
+      'd.xlsx',
+    )
+    const preview = previewTable(document, 10)
+    expect(preview.map((sheet) => sheet.sheetName)).toEqual(['데이터', '메모'])
+    expect(preview[0]?.rows).toEqual([
+      ['a', 'b'],
+      ['1', '2'],
+    ])
+  })
+})
+
+describe('importTable - 정규화', () => {
+  it('CP949 CSV를 UTF-8 정본으로 바꾼다', async () => {
+    const document = await openTable(CP949_CSV, 'data.csv')
+    const imported = importTable(document)
+
+    // 업로드 파일이 무엇이었는지는 기록으로 남고,
+    expect(imported.sourceEncoding).toBe('cp949')
+    // 정본 바이트는 UTF-8이다.
+    expect(detectEncoding(imported.bytes)).toBe('utf-8')
+    expect(parseCsvText(decodeText(imported.bytes, 'utf-8'))).toEqual(imported.grid)
+  })
+
+  it('엑셀도 같은 정본 모양이 된다 - 아래로는 CSV 하나만 안다', async () => {
+    const document = await openTable(
+      await xlsxBytes({
+        데이터: [
+          ['이름', '나이'],
+          ['가나다', 10],
+        ],
+      }),
+      'd.xlsx',
+    )
+    const imported = importTable(document, '데이터')
+
+    expect(imported.source).toBe('xlsx')
+    expect(imported.sheetName).toBe('데이터')
+    expect(detectEncoding(imported.bytes)).toBe('utf-8')
+    expect(parseCsvText(decodeText(imported.bytes, 'utf-8'))).toEqual([
+      ['이름', '나이'],
+      ['가나다', '10'],
+    ])
+  })
+
+  it('정본 바이트를 다시 열면 같은 격자가 나온다', async () => {
+    const document = await openTable(CP949_CSV, 'data.csv')
+    const imported = importTable(document)
+
+    const reopened = await openTable(imported.bytes, 'data.csv')
+    expect(reopened.read()).toEqual(imported.grid)
+  })
+})
+
+describe('importTable - 상한', () => {
+  it('빈 표는 DATASET_EMPTY로 거부한다', async () => {
+    const document = await openTable(new TextEncoder().encode(''), 'data.csv')
     try {
-      await parseTable(bytes, 'data.xlsx')
+      importTable(document)
       expect.unreachable()
     } catch (error) {
       expect(isClientError(error)).toBe(true)
+      if (isClientError(error)) expect(error.code).toBe('DATASET_EMPTY')
+    }
+  })
+
+  it('컬럼이 상한을 넘으면 DATASET_TOO_MANY_COLUMNS로 거부한다', async () => {
+    const header = Array.from({ length: MAX_DATASET_COLUMNS + 1 }, (_, i) => `c${i}`).join(',')
+    const document = await openTable(new TextEncoder().encode(header), 'data.csv')
+    try {
+      importTable(document)
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error)).toBe(true)
+      if (isClientError(error)) {
+        expect(error.code).toBe('DATASET_TOO_MANY_COLUMNS')
+        expect(error.params.limitColumns).toBe(MAX_DATASET_COLUMNS)
+      }
     }
   })
 })

@@ -49,6 +49,25 @@ export const PROJECT_FILE_WARN_BYTES = 50 * MB
 export const PREVIEW_ROW_COUNT = 20
 
 /**
+ * 데이터셋으로 받아들일 수 있는 최대 행 수(헤더 포함).
+ *
+ * 브라우저 학습 상한(BROWSER_ROW_LIMIT)과는 다른 값이다. 이건 "이 앱이 다루는
+ * 표의 크기"이고 저건 "브라우저에서 학습할 수 있는 크기"다. 이 상한을 넘으면
+ * 서버로 보낼 수도 없다.
+ *
+ * 잠정값이다. 서버의 MAX_ROWS가 정해지면 함께 맞춘다 (open-decisions.md #13).
+ */
+export const MAX_DATASET_ROWS = 100_000
+
+/**
+ * 데이터셋의 최대 컬럼 수.
+ *
+ * 교실 데이터가 여기 닿는 일은 없다. 병적으로 넓은 파일에서 화면과 메모리를
+ * 지키기 위한 방어선이다.
+ */
+export const MAX_DATASET_COLUMNS = 1_000
+
+/**
  * 저장 전 여유 공간 검사의 안전 계수.
  *
  * 브라우저가 보고하는 여유 공간은 근사값이고, 압축·인덱스 때문에 실제 점유는 더 크다.

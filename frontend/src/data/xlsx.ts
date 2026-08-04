@@ -1,84 +1,169 @@
 /**
- * 엑셀(.xlsx) 파싱. exceljs에 맡긴다 - 셀 타입·공유 문자열·병합 셀을 우리가
- * 직접 다루지 않는다. 유일하게 우리가 하는 일은 셀 값을 문자열 격자로 펴는 것뿐이다.
+ * 엑셀(.xlsx) 읽기. 파서를 직접 구현하지 않는다.
  *
- * exceljs는 동적 import로 불러온다. CSV만 쓰는 학생은 이 번들을 내려받지 않는다.
+ * **두 파서를 순서대로 시도한다.**
  *
- * 날짜 셀은 이번 범위 밖이다 - 시리얼/서식 변환 없이 ISO 문자열로만 낸다
- * (docs/open-decisions.md #14, 구현 시 논의로 범위를 좁힘).
+ *   1. ExcelJS      기본. npm에 있고 유지보수된다
+ *   2. SheetJS      폴백. 한셀 등 비표준 xlsx가 1에서 깨질 때만 쓴다
+ *   3. 둘 다 실패   DATASET_PARSE_FAILED
+ *
+ * 폴백이 필요한 이유는 추측이 아니라 경험이다 - 한셀로 저장한 xlsx가 ExcelJS에서
+ * 열리지 않는 사례가 실제로 있었다. 교실에서 한컴오피스는 드물지 않고, 파일이
+ * 안 열리면 그 학생의 45분은 거기서 끝난다.
+ *
+ * 파서는 PARSERS 배열에 등록만 하면 늘어난다. if/else 분기를 만들지 마라.
+ *
+ * 시트 하나를 고르기 위해 파일을 두 번 읽지 않는다. openXlsx()가 한 번 읽어
+ * 핸들을 주고, 미리보기와 본 읽기가 같은 핸들을 쓴다.
+ *
+ * 날짜 셀은 이번 범위 밖이다(open-decisions.md #14). ExcelJS 경로는 ISO 문자열을,
+ * SheetJS 경로는 엑셀 표시 문자열을 준다 - 폴백이 도는 드문 경우에만 갈린다.
  */
-
-import type { CellValue, Workbook, Worksheet } from 'exceljs'
 
 import { ClientError } from '../errors'
 import { PREVIEW_ROW_COUNT } from '../limits'
-import type { SheetPreview, TableGrid } from './table'
+import { isEmptyRow, padGrid, type TableGrid } from './grid'
 
-async function loadWorkbook(bytes: Uint8Array): Promise<Workbook> {
-  const { Workbook: WorkbookClass } = await import('exceljs')
-  const workbook = new WorkbookClass()
-  try {
-    // exceljs의 타입 선언은 Buffer만 받지만, 내부적으로 JSZip을 거쳐 어떤
-    // 바이트 배열이든(Uint8Array 포함) 읽는다. 런타임은 문제없고 타입만 맞춰준다.
-    await workbook.xlsx.load(bytes as unknown as Buffer)
-  } catch {
-    // 손상된 파일, 혹은 일부 외부 프로그램(예: 한셀)이 만든 xlsx의 호환성 문제.
-    // 원인을 구분하지 않는다 - 어느 쪽이든 학생이 할 수 있는 일은 같다(다시 저장해서 올리기).
-    throw new ClientError('DATASET_FILE_UNREADABLE')
-  }
-  return workbook
+/** 열린 워크북. 파서가 무엇이었는지는 이 뒤로 드러나지 않는다. */
+export interface XlsxDocument {
+  sheetNames: string[]
+  /** maxRows를 주면 그만큼만 읽는다. 미리보기가 큰 시트를 다 훑지 않게 한다. */
+  readSheet(sheetName: string, maxRows?: number): TableGrid
 }
 
-function cellToString(value: CellValue): string {
+type XlsxParser = (bytes: Uint8Array) => Promise<XlsxDocument>
+
+function cellToString(value: unknown): string {
   if (value === null || value === undefined) return ''
   if (value instanceof Date) return value.toISOString()
   if (typeof value === 'object') {
-    if ('richText' in value) return value.richText.map((part) => part.text).join('')
-    if ('text' in value) return value.text
-    if ('result' in value) return cellToString(value.result ?? null)
-    if ('error' in value) return value.error
+    const cell = value as Record<string, unknown>
+    if (Array.isArray(cell.richText)) {
+      return (cell.richText as { text?: string }[]).map((part) => part.text ?? '').join('')
+    }
+    // 수식 셀은 캐시된 결과를 쓴다. 결과가 없으면(엑셀이 아닌 도구가 쓴 파일에서
+    // 종종 그렇다) 우리가 수식을 계산해 줄 수는 없으므로 빈 값이다.
+    if ('result' in cell) return cellToString(cell.result)
+    if (typeof cell.text === 'string') return cell.text
+    if (typeof cell.error === 'string') return cell.error
     return ''
   }
   return String(value)
 }
 
-function sheetToGrid(sheet: Worksheet, maxRows?: number): TableGrid {
-  const grid: TableGrid = []
-  sheet.eachRow({ includeEmpty: true }, (row) => {
-    if (maxRows !== undefined && grid.length >= maxRows) return
-    const cells: string[] = []
-    row.eachCell({ includeEmpty: true }, (cell) => {
-      cells.push(cellToString(cell.value))
-    })
-    grid.push(cells)
-  })
-  return grid
-}
+/** 파서 1 - ExcelJS. */
+const parseWithExcelJs: XlsxParser = async (bytes) => {
+  const { Workbook } = await import('exceljs')
+  const workbook = new Workbook()
+  // 타입 선언은 Buffer만 받지만 내부의 JSZip이 Uint8Array를 그대로 읽는다.
+  await workbook.xlsx.load(bytes as unknown as Buffer)
 
-/**
- * ① 훑어보기. 워크북을 한 번 읽어 **모든 시트**의 이름과 앞 몇 행을 함께 낸다.
- *
- * exceljs는 워크북을 부분적으로 읽는 API를 두지 않는다 - load()가 항상 전체를 읽는다.
- * 그래서 시트 하나만 미리 보려고 다시 읽을 이유가 없다. 업로드 크기 자체가 이미
- * 상한 안에 있으므로(limits.ts) 이 비용은 감당할 만하다.
- */
-export async function previewXlsx(
-  bytes: Uint8Array,
-  maxRows: number = PREVIEW_ROW_COUNT,
-): Promise<{ sheets: SheetPreview[] }> {
-  const workbook = await loadWorkbook(bytes)
+  if (workbook.worksheets.length === 0) {
+    // 예외 없이 빈 워크북이 나오는 것도 못 읽은 것이다. 폴백으로 넘긴다.
+    throw new Error('no worksheets')
+  }
+
   return {
-    sheets: workbook.worksheets.map((sheet) => ({
-      name: sheet.name,
-      rows: sheetToGrid(sheet, maxRows),
-    })),
+    sheetNames: workbook.worksheets.map((sheet) => sheet.name),
+    readSheet(sheetName, maxRows) {
+      const sheet = workbook.getWorksheet(sheetName)
+      if (!sheet) throw new ClientError('DATASET_SHEET_NOT_FOUND', { sheetName })
+
+      // columnCount는 시트 전체에서 가장 넓은 행의 폭이다. 이걸 폭으로 고정하면
+      // 엑셀이 저장하지 않은 후행 빈 셀이 처음부터 자리를 갖는다.
+      const width = sheet.columnCount
+      const lastRow = maxRows === undefined ? sheet.rowCount : Math.min(maxRows, sheet.rowCount)
+
+      const grid: TableGrid = []
+      for (let rowNumber = 1; rowNumber <= lastRow; rowNumber += 1) {
+        const row = sheet.getRow(rowNumber)
+        const cells: string[] = []
+        for (let column = 1; column <= width; column += 1) {
+          cells.push(cellToString(row.getCell(column).value))
+        }
+        if (!isEmptyRow(cells)) grid.push(cells)
+      }
+      return padGrid(grid)
+    },
   }
 }
 
-/** ② 고른 시트를 전부 파싱한다. */
-export async function parseXlsxSheet(bytes: Uint8Array, sheetName: string): Promise<TableGrid> {
-  const workbook = await loadWorkbook(bytes)
-  const sheet = workbook.getWorksheet(sheetName)
-  if (!sheet) throw new ClientError('DATASET_SHEET_NOT_FOUND', { sheetName })
-  return sheetToGrid(sheet)
+/** 파서 2 - SheetJS. 한셀 등 비표준 xlsx를 위한 폴백이다. */
+const parseWithSheetJs: XlsxParser = async (bytes) => {
+  const XLSX = await import('xlsx')
+  const workbook = XLSX.read(bytes, { type: 'array' })
+
+  if (workbook.SheetNames.length === 0) throw new Error('no worksheets')
+
+  return {
+    sheetNames: [...workbook.SheetNames],
+    readSheet(sheetName, maxRows) {
+      const sheet = workbook.Sheets[sheetName]
+      if (!sheet) throw new ClientError('DATASET_SHEET_NOT_FOUND', { sheetName })
+
+      const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+        header: 1,
+        // 빈 셀도 자리를 지킨다. 없으면 컬럼 인덱스가 행마다 밀린다.
+        defval: '',
+        // 셀 서식이 적용된 표시 문자열을 받는다.
+        raw: false,
+      })
+
+      const grid: TableGrid = []
+      for (const row of rows) {
+        if (maxRows !== undefined && grid.length >= maxRows) break
+        const cells = row.map(cellToString)
+        if (!isEmptyRow(cells)) grid.push(cells)
+      }
+      return padGrid(grid)
+    },
+  }
+}
+
+/** 시도 순서. 새 파서는 여기 등록만 하면 된다. */
+const PARSERS: XlsxParser[] = [parseWithExcelJs, parseWithSheetJs]
+
+/**
+ * xlsx는 zip이므로 반드시 로컬 파일 헤더로 시작한다.
+ *
+ * **이 검사가 없으면 폴백이 위험해진다.** SheetJS는 형식을 스스로 추정해서 아무
+ * 바이트나 한 칸짜리 시트로 "성공"시킨다 - 손상된 xlsx가 실패 대신 엉뚱한 표가 되고,
+ * 학생은 자기 데이터가 사라진 줄도 모른 채 그걸로 학습을 돌린다.
+ */
+const ZIP_SIGNATURE = [0x50, 0x4b, 0x03, 0x04]
+
+function looksLikeZip(bytes: Uint8Array): boolean {
+  return ZIP_SIGNATURE.every((byte, index) => bytes[index] === byte)
+}
+
+/**
+ * xlsx 바이트를 열어 핸들을 준다. 파일당 한 번만 부르면 된다.
+ *
+ * 등록된 파서를 순서대로 시도하고 전부 실패하면 DATASET_PARSE_FAILED이다.
+ * 어느 파서가 왜 실패했는지는 학생에게 알리지 않는다 - 어느 쪽이든 학생이 할 수
+ * 있는 일은 같다(다른 이름으로 저장해서 다시 올리기).
+ */
+export async function openXlsx(bytes: Uint8Array): Promise<XlsxDocument> {
+  if (!looksLikeZip(bytes)) throw new ClientError('DATASET_PARSE_FAILED')
+
+  for (const parse of PARSERS) {
+    try {
+      return await parse(bytes)
+    } catch (error) {
+      // 시트를 못 찾은 것은 파일 문제가 아니다. 다음 파서로 넘기지 않는다.
+      if (error instanceof ClientError) throw error
+    }
+  }
+  throw new ClientError('DATASET_PARSE_FAILED')
+}
+
+/** 모든 시트의 이름과 앞 몇 행. 고르기 전에 보여주는 것이다. */
+export function previewSheets(
+  document: XlsxDocument,
+  maxRows: number = PREVIEW_ROW_COUNT,
+): { name: string; rows: TableGrid }[] {
+  return document.sheetNames.map((name) => ({
+    name,
+    rows: document.readSheet(name, maxRows),
+  }))
 }

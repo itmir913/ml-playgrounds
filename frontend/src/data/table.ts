@@ -1,41 +1,63 @@
 /**
- * 표 파일(CSV / 엑셀) 파싱의 공통 타입과 진입점 (docs/open-decisions.md #14).
+ * 표 파일(CSV / 엑셀) 가져오기의 진입점 (docs/open-decisions.md #14).
  *
- * 파싱은 라이브러리(papaparse / exceljs)에 맡긴다. 우리가 직접 구현하지 않는다 -
- * 셀 타입, 인코딩, 파일 호환성 엣지 케이스를 손으로 맞추는 비용이 이 프로젝트가
- * 감당할 시간보다 크다.
+ * **두 단계다.**
  *
- * CSV와 엑셀은 결과 타입이 같다. 화면이 형식별로 갈라지면 안 된다.
- * 헤더 추출은 여기서 하지 않는다 - hasHeader는 settings.dataset의 몫이고,
- * 파서는 있는 그대로의 격자만 돌려준다.
+ *   ① openTable()   파일을 한 번 열어 시트 목록과 미리보기를 얻는다
+ *   ② importTable() 고른 시트를 정본 바이트로 확정한다
+ *
+ * 파일을 두 번 읽지 않는다. ①이 준 핸들을 ②에 그대로 넘긴다.
+ *
+ * **정본은 언제나 UTF-8 CSV다.** xlsx로 올렸든 CP949 CSV로 올렸든 ②를 지나면
+ * 같은 모양이 된다(serialize.ts). 그래서 이 아래로는 아무도 형식과 인코딩을
+ * 신경 쓰지 않는다 - IndexedDB도, .mlpx도, 서버도 UTF-8 CSV 하나만 안다.
+ *
+ * 화면이 형식별로 갈라지지 않게 하는 것이 이 모듈의 목적이다. 시트가 있느냐 없느냐는
+ * sheetNames의 길이로만 드러난다.
  */
 
 import { ClientError } from '../errors'
-import { PREVIEW_ROW_COUNT } from '../limits'
-import { parseCsv, previewCsv } from './csv'
-import type { DatasetEncoding } from './encoding'
-import { parseXlsxSheet, previewXlsx } from './xlsx'
+import { MAX_DATASET_COLUMNS, MAX_DATASET_ROWS, PREVIEW_ROW_COUNT } from '../limits'
+import { parseCsvText } from './csv'
+import { decodeText, detectEncoding, type SourceEncoding } from './encoding'
+import type { TableGrid } from './grid'
+import { toCanonicalCsv } from './serialize'
+import { openXlsx } from './xlsx'
 
-/** 셀 값은 전부 문자열이다. 자료형 판정은 다운스트림(전처리)의 일이다. */
-export type TableGrid = string[][]
+export type { TableGrid } from './grid'
 
 export type TableSource = 'csv' | 'xlsx'
 
-export interface SheetPreview {
-  name: string
-  /** 앞 몇 행만 담는다. limits.ts의 PREVIEW_ROW_COUNT. */
-  rows: TableGrid
+/** 열려 있는 표 파일. 아직 정본이 아니다 - 학생이 시트를 고르는 중일 수 있다. */
+export interface TableDocument {
+  source: TableSource
+  /**
+   * CSV는 빈 배열이다. 엑셀은 시트 이름들이고, 둘 이상이면 학생이 골라야 한다 -
+   * 이름만으로는 어느 것이 데이터인지 알 수 없다(Sheet1, 데이터, 원본).
+   */
+  sheetNames: string[]
+  /** 업로드된 파일의 인코딩. 엑셀은 null이다. 정본은 이것과 무관하게 UTF-8이다. */
+  sourceEncoding: SourceEncoding | null
+  /** sheetNames가 비어 있으면 sheetName은 무시된다. */
+  read(sheetName?: string, maxRows?: number): TableGrid
 }
 
-/** ① 훑어보기 결과. 엑셀은 시트가 여럿일 수 있고, 고르기 전에 이걸로 미리 보여준다. */
-export type TablePreview =
-  | { source: 'csv'; encoding: DatasetEncoding; rows: TableGrid }
-  | { source: 'xlsx'; sheets: SheetPreview[] }
-
-/** ② 고른 뒤 본 파싱 결과. */
-export type ParsedTable =
-  | { source: 'csv'; encoding: DatasetEncoding; grid: TableGrid }
-  | { source: 'xlsx'; sheetName: string; grid: TableGrid }
+/** 정본으로 확정된 데이터셋. */
+export interface ImportedTable {
+  /**
+   * 정본 바이트. 항상 UTF-8 CSV다.
+   *
+   * 이 값이 IndexedDB에 들어가고, .mlpx의 dataset/이 되고, datasetHash의 대상이 되고,
+   * 서버로 간다. **여기서부터는 누구도 손대지 않는다** (mlpx-spec.md 7).
+   */
+  bytes: Uint8Array
+  /** 정본을 파싱한 격자. 파생물이라 저장할 필요가 없다 - bytes에서 다시 만든다. */
+  grid: TableGrid
+  source: TableSource
+  /** 업로드 파일이 무엇이었는지에 대한 기록. 정본 인코딩이 아니다. */
+  sourceEncoding: SourceEncoding | null
+  sheetName?: string
+}
 
 const CSV_EXTENSIONS = ['.csv']
 const XLSX_EXTENSIONS = ['.xlsx']
@@ -47,38 +69,86 @@ export function sourceFromFileName(fileName: string): TableSource {
   throw new ClientError('DATASET_FILE_TYPE_UNSUPPORTED', { fileName })
 }
 
-/** ① 훑어보기. CSV는 시트가 없으니 그 결과를 시트 하나짜리 모양으로 감싸지 않는다. */
-export async function previewTable(
-  bytes: Uint8Array,
-  fileName: string,
-  maxRows: number = PREVIEW_ROW_COUNT,
-): Promise<TablePreview> {
+/**
+ * 파일을 열어 핸들을 만든다. 파일당 한 번만 부른다.
+ *
+ * CSV는 여기서 인코딩을 판정하고 한 번만 디코딩한다. 엑셀은 워크북을 한 번만 읽는다.
+ */
+export async function openTable(bytes: Uint8Array, fileName: string): Promise<TableDocument> {
   const source = sourceFromFileName(fileName)
+
   if (source === 'csv') {
-    const { encoding, grid } = previewCsv(bytes, maxRows)
-    return { source, encoding, rows: grid }
+    const sourceEncoding = detectEncoding(bytes)
+    const text = decodeText(bytes, sourceEncoding)
+    return {
+      source,
+      sheetNames: [],
+      sourceEncoding,
+      read: (_sheetName, maxRows) => parseCsvText(text, maxRows),
+    }
   }
-  const { sheets } = await previewXlsx(bytes, maxRows)
-  return { source, sheets }
+
+  const workbook = await openXlsx(bytes)
+  return {
+    source,
+    sheetNames: workbook.sheetNames,
+    sourceEncoding: null,
+    read: (sheetName, maxRows) => {
+      const name = sheetName ?? workbook.sheetNames[0]
+      if (name === undefined) throw new ClientError('DATASET_PARSE_FAILED')
+      return workbook.readSheet(name, maxRows)
+    },
+  }
+}
+
+/** 고르기 전에 보여줄 것. CSV는 항목 하나, 엑셀은 시트마다 하나다. */
+export function previewTable(
+  document: TableDocument,
+  maxRows: number = PREVIEW_ROW_COUNT,
+): { sheetName?: string; rows: TableGrid }[] {
+  if (document.sheetNames.length === 0) {
+    return [{ rows: document.read(undefined, maxRows) }]
+  }
+  return document.sheetNames.map((sheetName) => ({
+    sheetName,
+    rows: document.read(sheetName, maxRows),
+  }))
+}
+
+function checkLimits(grid: TableGrid): void {
+  if (grid.length > MAX_DATASET_ROWS) {
+    throw new ClientError('DATASET_TOO_MANY_ROWS', {
+      limitRows: MAX_DATASET_ROWS,
+      actualRows: grid.length,
+    })
+  }
+  const columns = grid[0]?.length ?? 0
+  if (columns > MAX_DATASET_COLUMNS) {
+    throw new ClientError('DATASET_TOO_MANY_COLUMNS', {
+      limitColumns: MAX_DATASET_COLUMNS,
+      actualColumns: columns,
+    })
+  }
+  if (grid.length === 0 || columns === 0) {
+    throw new ClientError('DATASET_EMPTY')
+  }
 }
 
 /**
- * ② 고른 뒤 본 파싱. 엑셀은 시트를 반드시 골라야 한다 - 시트가 여럿이면
- * 어느 것이 데이터인지 이름만으로 알 수 없다(mlpx-spec.md 0).
+ * 고른 시트를 정본으로 확정한다. **정규화가 일어나는 유일한 지점이다.**
+ *
+ * 여기를 지나면 업로드 형식과 인코딩은 잊어도 된다.
  */
-export async function parseTable(
-  bytes: Uint8Array,
-  fileName: string,
-  sheetName?: string,
-): Promise<ParsedTable> {
-  const source = sourceFromFileName(fileName)
-  if (source === 'csv') {
-    const { encoding, grid } = parseCsv(bytes)
-    return { source, encoding, grid }
+export function importTable(document: TableDocument, sheetName?: string): ImportedTable {
+  const grid = document.read(sheetName)
+  checkLimits(grid)
+
+  const imported: ImportedTable = {
+    bytes: toCanonicalCsv(grid),
+    grid,
+    source: document.source,
+    sourceEncoding: document.sourceEncoding,
   }
-  if (sheetName === undefined) {
-    throw new ClientError('DATASET_SHEET_NOT_FOUND', { sheetName: '' })
-  }
-  const grid = await parseXlsxSheet(bytes, sheetName)
-  return { source, sheetName, grid }
+  if (sheetName !== undefined) imported.sheetName = sheetName
+  return imported
 }

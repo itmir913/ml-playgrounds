@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { CLIENT_ERROR_CODES } from '../src/errors'
+import { CLIENT_ERROR_CODES, SHARED_ERROR_CODES, errorMessageKey } from '../src/errors'
 import en from '../src/locales/en.json'
 import ko from '../src/locales/ko.json'
 import { TRAINING_LOCATIONS, UNAVAILABLE_REASONS } from '../src/ml/backend'
@@ -82,6 +82,23 @@ describe('프런트엔드 전용 코드', () => {
     const declared = new Set<string>(CLIENT_ERROR_CODES)
     for (const reason of UNAVAILABLE_REASONS) {
       expect(declared.has(reason), reason).toBe(true)
+    }
+  })
+
+  it('공유 코드는 errors.* 에서 찾는다', () => {
+    // 백엔드가 정의한 코드다. client.* 에 복제하면 같은 문장이 두 곳에 생기고
+    // 번역이 갈라진다. 단일 출처는 backend/app/errors.py다.
+    for (const code of SHARED_ERROR_CODES) {
+      expect(errorMessageKey(code), code).toBe(`errors.${code}`)
+      expect(english.has(`errors.${code}`), code).toBe(true)
+      expect(korean.has(`errors.${code}`), code).toBe(true)
+      expect(english.has(`client.${code}`), code).toBe(false)
+    }
+  })
+
+  it('클라이언트 전용 코드는 client.* 에서 찾는다', () => {
+    for (const code of CLIENT_ERROR_CODES) {
+      expect(errorMessageKey(code), code).toBe(`client.${code}`)
     }
   })
 
