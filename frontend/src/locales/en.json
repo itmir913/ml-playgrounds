@@ -63,7 +63,17 @@
   "client": {
     "SERVER_UNAVAILABLE": "The training server cannot be reached. For now you can train on your computer.",
     "ALGORITHM_NOT_AVAILABLE_HERE": "This algorithm cannot run here.",
-    "DATASET_TOO_LARGE_FOR_BROWSER": "The data is too large to train on your computer. (limit {limitRows} rows)"
+    "DATASET_TOO_LARGE_FOR_BROWSER": "The data is too large to train on your computer. (limit {limitRows} rows)",
+
+    "PROJECT_FILE_NOT_ZIP": "This file is not a project file.",
+    "PROJECT_FILE_ENTRY_MISSING": "The project file is missing something it needs. ({entry})",
+    "PROJECT_FILE_INVALID": "The project file could not be read. ({path})",
+    "PROJECT_FILE_VERSION_TOO_NEW": "This file was made with a newer version. Update the app and open it again. (file {fileVersion}, this app {appVersion})",
+    "PROJECT_FILE_VERSION_UNSUPPORTED": "The format version of this file is not recognized. ({fileVersion})",
+
+    "MODEL_FORMAT_UNSUPPORTED": "This version cannot run that model. ({format})",
+
+    "STORAGE_QUOTA_EXCEEDED": "There is not enough room left in this browser. (needs {requiredMb}MB, {availableMb}MB free)"
   },
   "portfolio": {
     "template": {

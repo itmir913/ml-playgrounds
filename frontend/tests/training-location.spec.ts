@@ -6,12 +6,8 @@
 
 import { describe, expect, it } from 'vitest'
 
-import {
-  type AlgorithmSpec,
-  BROWSER_ROW_LIMIT,
-  locationOptions,
-  preferredLocation,
-} from '../src/ml/backend'
+import { BROWSER_ROW_LIMIT } from '../src/limits'
+import { type AlgorithmSpec, locationOptions, preferredLocation } from '../src/ml/backend'
 
 const both: AlgorithmSpec = { id: 'decision_tree', locations: ['browser', 'server'] }
 const serverOnly: AlgorithmSpec = { id: 'gradient_boosting', locations: ['server'] }

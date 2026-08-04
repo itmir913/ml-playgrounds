@@ -13,20 +13,20 @@
  * 실제 학습 실행(TrainingBackend.train)은 .mlpx 스키마가 정해진 뒤에 붙인다.
  */
 
+import { BROWSER_ROW_LIMIT } from '../limits'
+
+/**
+ * 학습 실행 위치.
+ *
+ * .mlpx의 run.computedBy가 이 어휘를 그대로 쓴다 (project/schema.ts).
+ * 값을 바꾸면 파일 포맷이 바뀌는 것이므로 formatVersion을 올려야 한다.
+ */
 export const TRAINING_LOCATIONS = ['browser', 'server'] as const
 
 export type TrainingLocation = (typeof TRAINING_LOCATIONS)[number]
 
 /** 서버 상태. 'unknown'은 아직 확인 전이며 서버 옵션을 켜 주지 않는다. */
 export type ServerStatus = 'unknown' | 'available' | 'unavailable'
-
-/**
- * 브라우저에서 학습할 수 있는 행 수의 상한.
- *
- * 이 값은 WASM 런타임의 메모리와 체감 대기 시간에서 온다. 서버 상한과는 무관하다.
- * 실제 값은 브라우저 학습 엔진을 정한 뒤 측정해서 조정한다.
- */
-export const BROWSER_ROW_LIMIT = 5000
 
 /**
  * 선택할 수 없는 이유. 로케일 키 client.* 와 1:1로 대응한다.

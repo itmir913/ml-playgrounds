@@ -8,6 +8,7 @@
 
 import { describe, expect, it } from 'vitest'
 
+import { CLIENT_ERROR_CODES } from '../src/errors'
 import en from '../src/locales/en.json'
 import ko from '../src/locales/ko.json'
 import { TRAINING_LOCATIONS, UNAVAILABLE_REASONS } from '../src/ml/backend'
@@ -61,19 +62,27 @@ describe('로케일 파일', () => {
 })
 
 describe('프런트엔드 전용 코드', () => {
-  it('선택 불가 이유마다 문장이 있다', () => {
-    for (const reason of UNAVAILABLE_REASONS) {
-      expect(english.has(`client.${reason}`), reason).toBe(true)
-      expect(korean.has(`client.${reason}`), reason).toBe(true)
+  it('코드마다 문장이 있다', () => {
+    for (const code of CLIENT_ERROR_CODES) {
+      expect(english.has(`client.${code}`), code).toBe(true)
+      expect(korean.has(`client.${code}`), code).toBe(true)
     }
   })
 
   it('client.* 에 쓰이지 않는 키가 없다', () => {
-    const declared = new Set<string>(UNAVAILABLE_REASONS)
+    const declared = new Set<string>(CLIENT_ERROR_CODES)
     const used = [...english.keys()]
       .filter((key) => key.startsWith('client.'))
       .map((key) => key.slice('client.'.length))
     expect(used.filter((key) => !declared.has(key))).toEqual([])
+  })
+
+  it('선택 불가 이유가 전부 코드 목록 안에 있다', () => {
+    // errors.ts가 클라이언트 코드의 단일 출처다. ml/backend.ts가 따로 늘어나면 안 된다.
+    const declared = new Set<string>(CLIENT_ERROR_CODES)
+    for (const reason of UNAVAILABLE_REASONS) {
+      expect(declared.has(reason), reason).toBe(true)
+    }
   })
 
   it('실행 위치마다 이름이 있다', () => {
