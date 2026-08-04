@@ -300,7 +300,7 @@ function trainOne(
   }
 
   try {
-    const predict = engine.fit(base.algorithm, {
+    const { predict } = engine.fit(base.algorithm, {
       features: context.trainFeatures,
       target: context.trainTarget,
       hyperparameters: base.hyperparameters,

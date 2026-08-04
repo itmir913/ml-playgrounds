@@ -103,7 +103,7 @@ PROJECT_FILE_VERSION_TOO_NEW, PROJECT_FILE_VERSION_UNSUPPORTED
 
 **모델 실행 / 저장소**
 ```
-MODEL_FORMAT_UNSUPPORTED, STORAGE_QUOTA_EXCEEDED
+MODEL_FORMAT_UNSUPPORTED, MODEL_FILE_INVALID, STORAGE_QUOTA_EXCEEDED
 ```
 
 **표 파일 가져오기** (`data/table.ts`, `data/xlsx.ts`)
@@ -134,6 +134,10 @@ DATASET_TOO_MANY_ROWS, DATASET_TOO_MANY_COLUMNS
 
 `MODEL_FORMAT_UNSUPPORTED`는 파일 열기 실패와 성격이 다르다. **파일은 멀쩡히 열리고
 그 모델로 예측만 못 한다.** → `mlpx-spec.md`
+
+`MODEL_FILE_INVALID`는 그것과 또 다르다. 형식은 아는데 내용이 그 형식이 아닌 것이고,
+**학생이 할 일이 갈리기 때문에 코드를 나눈다** — 앞엣것은 앱을 최신으로 바꾸면 되고
+이건 다시 학습해야 한다. 전처리기가 바뀌어 특성 개수가 안 맞는 경우도 여기다.
 
 **`errors.*`에 섞지 마라.** CI가 `errors.*`와 `ErrorCode`의 양방향 일치를 강제하므로
 백엔드에 없는 코드를 `errors.*`에 넣으면 실패한다. 반대로 백엔드에 **있는** 코드를

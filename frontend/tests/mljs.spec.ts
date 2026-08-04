@@ -27,7 +27,7 @@ function run(algorithm: string, hyperparameters: Record<string, unknown> = {}) {
   const pick = (indices: readonly number[]) => indices.map((i) => IRIS_FEATURES[i] as number[])
   const labelsOf = (indices: readonly number[]) => indices.map((i) => IRIS_LABELS[i] as string)
 
-  const predict = fit(algorithm, {
+  const { predict } = fit(algorithm, {
     features: pick(split.trainIndices),
     target: labelsOf(split.trainIndices),
     hyperparameters,
@@ -210,7 +210,7 @@ describe('회귀', () => {
   it('선형 회귀가 직선을 찾는다', () => {
     // y = 2x + 1
     const features = [[0], [1], [2], [3], [4]]
-    const predict = fit('linear_regression', {
+    const { predict } = fit('linear_regression', {
       features,
       target: [1, 3, 5, 7, 9],
       hyperparameters: {},

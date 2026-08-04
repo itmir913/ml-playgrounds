@@ -20,6 +20,12 @@ declare module 'ml-cart' {
     constructor(options?: DecisionTreeOptions)
     train(features: number[][], target: number[]): void
     predict(features: number[][]): number[]
+    /**
+     * **unknown이다.** 이 라이브러리가 내주는 노드 구조에 타입을 주장하면 그 사본이 먼저
+     * 낡고, 낡은 사본은 확인을 건너뛰게 만든다. 읽는 쪽이 런타임에 확인한다
+     * (ml/engines/mljs-serialize.ts).
+     */
+    toJSON(): unknown
   }
 }
 

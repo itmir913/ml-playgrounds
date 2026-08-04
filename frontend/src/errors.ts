@@ -36,6 +36,9 @@ export const CLIENT_ERROR_CODES = [
 
   // 모델 실행 - 파일은 멀쩡히 열리고 그 모델로 예측만 못 한다 (mlpx-spec.md 6)
   'MODEL_FORMAT_UNSUPPORTED',
+  // 형식은 아는데 내용이 그 형식이 아니다. 위와 나누는 이유는 학생이 할 일이 다르기
+  // 때문이다 - 위는 앱을 최신으로 바꾸면 되고, 이건 다시 학습해야 한다 (mlpx-spec.md 5.3).
+  'MODEL_FILE_INVALID',
 
   // 표 파일 가져오기 - 서버는 정규화된 CSV만 보므로 이 둘은 서버에 없다 (data/table.ts)
   'DATASET_FILE_TYPE_UNSUPPORTED',

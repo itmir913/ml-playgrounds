@@ -14,10 +14,10 @@
  * 메시지 인터페이스를 갖지만 구현이 다르다 (ml/server.ts, architecture.md 3.4).
  */
 
-import type { FitInput, Predict } from './mljs'
+import type { FitInput, FitResult } from './mljs'
 import { MLJS_ALGORITHMS, MLJS_ENGINE, fit as mljsFit, resolve as mljsResolve } from './mljs'
 
-export type { FitInput, Predict } from './mljs'
+export type { FitInput, FitResult, Predict } from './mljs'
 
 export interface TrainingEngine {
   /** ml/backend.ts의 RUNTIMES에 있는 id. 판정과 등록부가 같은 이름을 본다. */
@@ -43,7 +43,13 @@ export interface TrainingEngine {
    * 엔진이 하나뿐인 지금은 안 터진다. 두 번째 엔진에서 터지는 종류라 계약으로 적어 둔다.
    */
   resolve(algorithm: string, given: Record<string, unknown>): Record<string, unknown>
-  fit(algorithm: string, input: FitInput): Predict
+  /**
+   * 학습하고 예측 함수를 돌려준다. **우리 형식으로 담을 수 있으면 모델도 함께 준다.**
+   *
+   * 모델이 없는 것은 정상이다 - 그 엔진에 그 알고리즘의 직렬화기가 아직 없다는 뜻이고,
+   * 파일에는 사유가 남는다 (mlpx-spec.md 4.2).
+   */
+  fit(algorithm: string, input: FitInput): FitResult
 }
 
 export const ENGINES: readonly TrainingEngine[] = [

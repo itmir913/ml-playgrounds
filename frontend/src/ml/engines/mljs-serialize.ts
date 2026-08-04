@@ -1,0 +1,195 @@
+/**
+ * ml.js가 학습한 트리를 **우리 형식**으로 옮긴다 (mlpx-spec.md 5.3).
+ *
+ * **`toJSON()`을 그대로 담지 않는다.** 그 안에는 예측에 안 쓰이는 것(gain, 표본 수,
+ * 생성자 옵션)이 들어 있고, 무엇보다 **모양의 주인이 우리가 아니게 된다.** 라이브러리가
+ * 구조를 바꾸면 학생이 지난 학기에 낸 파일이 안 열린다. 나이브 베이즈에서 방금 겪었다.
+ *
+ * 그래서 방향은 한쪽이다 - 여기(직렬화기)는 ml.js를 알아도 되고,
+ * ml/models/(해석기)는 몰라야 한다.
+ *
+ * **읽는 값은 전부 런타임에 확인하고, 어긋나면 던진다.** ml-cart는 타입을 담고 있지 않고
+ * ml-random-forest가 담은 타입은 그 안의 estimator를 타입 없는 ml-cart로 넘긴다. 확인
+ * 없이 읽으면 라이브러리가 바뀐 날 조용히 이상한 모델이 나온다.
+ */
+
+import type { DecisionTreeClassifier } from 'ml-cart'
+import { Matrix } from 'ml-matrix'
+import type { RandomForestClassifier } from 'ml-random-forest'
+import { z } from 'zod'
+
+import { LEAF, TREE_FORMAT, type TreeModel, type TreeNode } from '../models/tree'
+
+/**
+ * ml.js 내부 구조가 우리가 아는 모양이 아니다. **버그이지 학생의 문제가 아니다.**
+ *
+ * ClientError가 아닌 이유가 그것이다 - 이 예외는 화면에 닿지 않는다. ml/engines/mljs.ts가
+ * 받아서 모델만 빼고 run은 살린다(지표는 멀쩡하다). 여기 오는 유일한 경로는 ml.js 버전이
+ * 움직인 것이고, 그건 tests/mljs.spec.ts가 버전을 고정해 CI에서 먼저 걸린다.
+ */
+function drift(what: string): never {
+  throw new Error(`mljs model shape changed: ${what}`)
+}
+
+/**
+ * 우리가 읽는 노드 필드. **값은 전부 unknown이다** - 여기서 타입을 주장하면 확인을
+ * 건너뛰게 되고, 그게 바로 이 파일이 막으려는 것이다.
+ */
+interface RawNode {
+  readonly splitColumn?: unknown
+  readonly splitValue?: unknown
+  readonly left?: unknown
+  readonly right?: unknown
+  readonly distribution?: unknown
+}
+
+/** object인지만 확인하고 좁힌다. 필드는 전부 unknown이라 여기서 새어 나가는 것이 없다. */
+function nodeOf(value: unknown): RawNode {
+  if (typeof value !== 'object' || value === null) drift('node')
+  return value as RawNode
+}
+
+function numberOf(value: unknown, what: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) drift(what)
+  return value
+}
+
+const rootedSchema = z.looseObject({ root: z.unknown() })
+
+/** 분류기 하나에서 뿌리 노드를 꺼낸다. `toJSON()`은 공개 API라 입구로 쓴다. */
+function rootOf(value: unknown, what: string): unknown {
+  const parsed = rootedSchema.safeParse(value)
+  if (!parsed.success || parsed.data.root === undefined) drift(what)
+  return parsed.data.root
+}
+
+const forestSchema = z.looseObject({
+  baseModel: z.looseObject({
+    /** 나무마다 어떤 열을 썼는가. 특성 배깅이 열을 섞으므로 나무마다 다르다. */
+    indexes: z.array(z.array(z.number())),
+    estimators: z.array(z.unknown()),
+  }),
+})
+
+/**
+ * 잎이 고르는 클래스 번호.
+ *
+ * ml.js는 분포에 `maxRowIndex`를 걸어 고르고, 그건 `>` 비교라 **동점이면 번호가 작은 쪽이
+ * 이긴다.** 여기서 같은 규칙으로 미리 접어 둔다 - 분포를 통째로 담아 봐야 예측에 쓰이는
+ * 것은 이 번호 하나뿐이다(mlpx-spec.md 5.3).
+ *
+ * 분포의 폭이 전체 클래스 수보다 좁을 수 있다. 잎에 등장한 가장 큰 번호까지만 세기
+ * 때문인데, 번호 자체는 전역이라 그대로 쓰면 된다.
+ */
+function leafClass(distribution: unknown): number {
+  if (!(distribution instanceof Matrix)) drift('distribution')
+  const counts = Float64Array.from(distribution.getRow(0))
+  const first = counts[0]
+  if (first === undefined) drift('distribution')
+
+  let best = 0
+  let bestCount = first
+  for (let index = 1; index < counts.length; index += 1) {
+    const count = counts[index]
+    if (count === undefined) drift('distribution')
+    if (count > bestCount) {
+      bestCount = count
+      best = index
+    }
+  }
+  return best
+}
+
+/** 자리를 잡아 두는 값. 자식을 다 적은 뒤 곧바로 덮어쓴다. */
+const PLACEHOLDER: TreeNode = [LEAF, 0, LEAF, LEAF]
+
+/**
+ * 노드 하나를 적고 그 인덱스를 돌려준다. **전위 순서로 쌓인다.**
+ *
+ * 자기 자리를 먼저 잡고 자식을 적으므로 **자식 인덱스는 언제나 자기보다 크다.** 해석기는
+ * 그 성질에 기대어 순환 없이 걷는다 (ml/models/tree.ts).
+ *
+ * 잎 판정은 **자식이 있는가**로 한다. ml-cart의 classify()가 그렇게 하고, 실제로 분포와
+ * splitColumn을 **둘 다** 가진 잎이 나온다 - 나눌 자리를 찾아 놓고 이득이 모자라 안 나눈
+ * 노드가 그렇다. 분포의 유무로 갈랐다면 그 노드를 내부 노드로 적고 없는 자식을 찾으러 간다.
+ */
+function emit(raw: unknown, columns: readonly number[], nodes: TreeNode[]): number {
+  const node = nodeOf(raw)
+  const index = nodes.length
+
+  if (node.left === undefined || node.right === undefined) {
+    nodes.push([LEAF, leafClass(node.distribution), LEAF, LEAF])
+    return index
+  }
+
+  nodes.push(PLACEHOLDER)
+  const left = emit(node.left, columns, nodes)
+  const right = emit(node.right, columns, nodes)
+
+  // **배깅이 섞어 놓은 열 번호를 여기서 푼다.** 나무는 자기가 받은 행렬의 위치를 들고
+  // 있고, 그 위치가 원래 몇 번 열이었는지는 columns가 안다. 풀어서 담으면 해석기는
+  // 그런 것이 있었다는 사실조차 몰라도 된다.
+  const column = columns[numberOf(node.splitColumn, 'splitColumn')]
+  if (column === undefined) drift('splitColumn')
+
+  nodes[index] = [column, numberOf(node.splitValue, 'splitValue'), left, right]
+  return index
+}
+
+function treeOf(root: unknown, columns: readonly number[]): { nodes: TreeNode[] } {
+  const nodes: TreeNode[] = []
+  emit(root, columns, nodes)
+  return { nodes }
+}
+
+function model(
+  classes: readonly string[],
+  featureCount: number,
+  trees: readonly { nodes: TreeNode[] }[],
+): TreeModel {
+  return { format: TREE_FORMAT, classes: [...classes], featureCount, trees }
+}
+
+/** 열을 섞지 않은 나무가 쓰는 항등 사상. */
+function identity(featureCount: number): number[] {
+  return Array.from({ length: featureCount }, (_, index) => index)
+}
+
+/**
+ * 결정트리. **나무 한 그루짜리 포레스트로 담는다.**
+ *
+ * 항등 사상을 넘겨 포레스트와 같은 길로 보낸다. 여기서 갈라 두면 길이 둘이 되고,
+ * 나중에 한쪽만 고치게 된다.
+ */
+export function serializeTree(
+  classifier: DecisionTreeClassifier,
+  classes: readonly string[],
+  featureCount: number,
+): TreeModel {
+  const root = rootOf(classifier.toJSON(), 'tree')
+  return model(classes, featureCount, [treeOf(root, identity(featureCount))])
+}
+
+/** 랜덤포레스트. 나무마다 자기가 쓴 열 목록이 따로 있다. */
+export function serializeForest(
+  forest: RandomForestClassifier,
+  classes: readonly string[],
+  featureCount: number,
+): TreeModel {
+  const parsed = forestSchema.safeParse(forest.toJSON())
+  if (!parsed.success) drift('forest')
+
+  const { indexes, estimators } = parsed.data.baseModel
+  if (estimators.length === 0 || indexes.length !== estimators.length) drift('estimators')
+
+  const trees = estimators.map((estimator, position) => {
+    const columns = indexes[position]
+    if (columns === undefined) drift('indexes')
+    for (const column of columns) {
+      if (!Number.isInteger(column) || column < 0 || column >= featureCount) drift('indexes')
+    }
+    return treeOf(rootOf(estimator, 'estimator'), columns)
+  })
+
+  return model(classes, featureCount, trees)
+}

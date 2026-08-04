@@ -42,6 +42,8 @@ import MultivariateLinearRegression from 'ml-regression-multivariate-linear'
 
 import { ClientError } from '../../errors'
 import type { Prediction } from '../metrics'
+import type { ModelFile, Predict } from '../models/types'
+import { serializeForest, serializeTree } from './mljs-serialize'
 
 /**
  * 이 엔진의 이름과 버전. run.engine에 그대로 들어간다.
@@ -52,8 +54,23 @@ import type { Prediction } from '../metrics'
  */
 export const MLJS_ENGINE = { kind: 'mljs', version: '2' } as const
 
-/** 학습된 모델. 예측만 할 수 있으면 된다 - 포맷 계층은 모델 안을 안 들여다본다. */
-export type Predict = (features: readonly (readonly number[])[]) => Prediction[]
+export type { Predict } from '../models/types'
+
+/**
+ * 학습 한 번의 결과.
+ *
+ * **모델이 없는 것이 정상 경로다.** 이 엔진이 돌리는 알고리즘 여섯 중 우리 형식으로 담을
+ * 수 있는 것은 아직 트리 둘뿐이고, 나머지는 지표만 남는다 - 파일에는 그 사유가
+ * `modelOmitted: 'engineUnsupported'`로 적힌다 (mlpx-spec.md 4.2).
+ *
+ * **경로도 크기도 여기서 정하지 않는다.** zip 안의 자리를 아는 것은 저장 계층이고,
+ * 여기서 없는 경로를 적으면 파일이 자기 자신에 대해 거짓말을 하게 된다 (ml/batch.ts의
+ * preprocessor와 같은 이유다).
+ */
+export interface FitResult {
+  predict: Predict
+  model?: ModelFile
+}
 
 export interface FitInput {
   /** 전처리를 마친 숫자 행렬 (ml/preprocess.ts). */
@@ -65,7 +82,7 @@ export interface FitInput {
   randomState: number
 }
 
-type Trainer = (input: FitInput) => Predict
+type Trainer = (input: FitInput) => FitResult
 
 const toRows = (features: readonly (readonly number[])[]): number[][] =>
   features.map((row) => [...row])
@@ -117,12 +134,15 @@ function numberOption(source: Record<string, unknown>, name: string): number {
  */
 function labelCodec(target: readonly Prediction[]): {
   encoded: number[]
+  /** 정렬된 라벨 그대로. 직렬화한 모델의 classes가 이것이다 (mlpx-spec.md 5.3). */
+  labels: string[]
   decode: (position: number) => string
 } {
   const labels = [...new Set(target.map(String))].sort()
   const index = new Map(labels.map((label, position) => [label, position]))
   return {
     encoded: target.map((value) => index.get(String(value)) ?? 0),
+    labels,
     // **범위를 벗어난 번호는 던진다.** 예전에는 첫 라벨로 조용히 떨어뜨렸는데, 그게
     // "예측 불능"을 확신에 찬 오답으로 위장했다 - 붓꽃 모델에 cm 대신 mm를 넣으면
     // 원시 번호가 -1이고 화면에는 setosa가 떴다 (open-decisions.md "범위 밖 클래스
@@ -248,13 +268,51 @@ interface TrainablePredictor {
   predict(features: number[][]): number[]
 }
 
-function classifier(build: (input: FitInput) => TrainablePredictor): Trainer {
+/**
+ * 만들어진 분류기와, 그것을 우리 형식으로 담는 방법.
+ *
+ * **직렬화기를 클로저로 받는다.** 만든 자리에서 구체 타입을 잡고 있으므로 여기서 다시
+ * 좁힐 일이 없다 - 공통 껍데기(TrainablePredictor)로는 랜덤포레스트의 toJSON()에 닿지
+ * 못하고, 닿으려고 타입을 넓히면 그 넓힘이 다른 알고리즘에까지 번진다.
+ */
+interface Trained {
+  readonly predictor: TrainablePredictor
+  /** 우리 형식으로 담는다. 없으면 이 알고리즘에는 아직 직렬화기가 없다는 뜻이다. */
+  readonly serialize?: (classes: readonly string[], featureCount: number) => ModelFile
+}
+
+/**
+ * 직렬화가 실패해도 run은 살린다. **지표는 멀쩡하기 때문이다.**
+ *
+ * 여기서 던지면 학습이 성공한 run이 실패로 뒤집힌다. 여기 오는 경로는 하나뿐이고
+ * (ml.js 내부 구조가 움직였다) 그건 tests/mljs.spec.ts가 버전을 고정해 CI에서 먼저 걸린다.
+ *
+ * **조용히 삼키는 것이 아니다.** 모델이 없으면 파일에 사유가 남고(modelOmitted) 화면은
+ * "예측할 수 없습니다"를 말한다. 학생이 할 일은 직렬화기가 아예 없을 때와 같다.
+ */
+function serializeOrOmit(serialize: () => ModelFile): ModelFile | undefined {
+  try {
+    return serialize()
+  } catch {
+    return undefined
+  }
+}
+
+function classifier(build: (input: FitInput) => Trained): Trainer {
   return (input) => {
-    const { encoded, decode } = labelCodec(input.target)
-    const model = build(input)
-    model.train(toRows(input.features), encoded)
-    return (features) =>
-      [...model.predict(toRows(features))].map((value) => decode(Math.round(value)))
+    const { encoded, labels, decode } = labelCodec(input.target)
+    const { predictor, serialize } = build(input)
+    predictor.train(toRows(input.features), encoded)
+
+    const predict: Predict = (features) =>
+      [...predictor.predict(toRows(features))].map((value) => decode(Math.round(value)))
+    if (!serialize) return { predict }
+
+    // 전처리를 마친 행렬의 열 수. 모델이 이 값을 들고 있어야 다른 전처리기로 예측하는
+    // 것을 막을 수 있다 (mlpx-spec.md 5.3).
+    const featureCount = input.features[0]?.length ?? 0
+    const model = serializeOrOmit(() => serialize(labels, featureCount))
+    return model ? { predict, model } : { predict }
   }
 }
 
@@ -266,26 +324,32 @@ function classifier(build: (input: FitInput) => TrainablePredictor): Trainer {
  * (알고리즘, 실행 방법)이어야 한다 - 같은 이름으로 두 엔진을 먹이면 조용히 무시된다.
  */
 const TRAINERS: Record<string, Trainer> = {
-  decision_tree: classifier(
-    (input) =>
-      new DecisionTreeClassifier({
-        gainFunction: 'gini',
-        maxDepth: numberOption(input.hyperparameters, 'maxDepth'),
-        minNumSamples: numberOption(input.hyperparameters, 'minNumSamples'),
-      }),
-  ),
+  decision_tree: classifier((input) => {
+    const model = new DecisionTreeClassifier({
+      gainFunction: 'gini',
+      maxDepth: numberOption(input.hyperparameters, 'maxDepth'),
+      minNumSamples: numberOption(input.hyperparameters, 'minNumSamples'),
+    })
+    return {
+      predictor: model,
+      serialize: (classes, featureCount) => serializeTree(model, classes, featureCount),
+    }
+  }),
 
-  random_forest: classifier(
-    (input) =>
-      new RandomForestClassifier({
-        nEstimators: numberOption(input.hyperparameters, 'nEstimators'),
-        // 시드를 반드시 넘긴다. 안 넘기면 같은 설정으로 두 번 돌려도 결과가 다르다.
-        seed: input.randomState,
-        useSampleBagging: true,
-      }) as TrainablePredictor,
-  ),
+  random_forest: classifier((input) => {
+    const model = new RandomForestClassifier({
+      nEstimators: numberOption(input.hyperparameters, 'nEstimators'),
+      // 시드를 반드시 넘긴다. 안 넘기면 같은 설정으로 두 번 돌려도 결과가 다르다.
+      seed: input.randomState,
+      useSampleBagging: true,
+    })
+    return {
+      predictor: model as TrainablePredictor,
+      serialize: (classes, featureCount) => serializeForest(model, classes, featureCount),
+    }
+  }),
 
-  naive_bayes: classifier(() => gaussianNaiveBayes()),
+  naive_bayes: classifier(() => ({ predictor: gaussianNaiveBayes() })),
 
   knn: (input) => {
     const { encoded, decode } = labelCodec(input.target)
@@ -293,8 +357,10 @@ const TRAINERS: Record<string, Trainer> = {
     const model = new KNN(toRows(input.features), encoded, {
       k: numberOption(input.hyperparameters, 'k'),
     })
-    return (features) =>
-      [...model.predict(toRows(features))].map((value) => decode(Math.round(value)))
+    return {
+      predict: (features) =>
+        [...model.predict(toRows(features))].map((value) => decode(Math.round(value))),
+    }
   },
 
   logistic_regression: (input) => {
@@ -304,8 +370,10 @@ const TRAINERS: Record<string, Trainer> = {
       learningRate: numberOption(input.hyperparameters, 'learningRate'),
     })
     model.train(new Matrix(toRows(input.features)), Matrix.columnVector(encoded))
-    return (features) =>
-      [...model.predict(new Matrix(toRows(features)))].map((value) => decode(Math.round(value)))
+    return {
+      predict: (features) =>
+        [...model.predict(new Matrix(toRows(features)))].map((value) => decode(Math.round(value))),
+    }
   },
 
   linear_regression: (input) => {
@@ -314,7 +382,9 @@ const TRAINERS: Record<string, Trainer> = {
       toRows(input.features),
       input.target.map((value) => [Number(value)]),
     )
-    return (features) => toRows(features).map((row) => Number(model.predict(row)[0] ?? 0))
+    return {
+      predict: (features) => toRows(features).map((row) => Number(model.predict(row)[0] ?? 0)),
+    }
   },
 }
 
@@ -361,7 +431,7 @@ export function resolve(
  * 모르는 알고리즘이면 실패한다. 화면이 고르게 하는 목록은 등록부에서 나오므로 여기
  * 도달하는 것은 버그이거나 남의 파일에 든 모르는 알고리즘이다 (mlpx-spec.md 5.2).
  */
-export function fit(algorithm: string, input: FitInput): Predict {
+export function fit(algorithm: string, input: FitInput): FitResult {
   const trainer = TRAINERS[algorithm]
   if (!trainer) throw new ClientError('ALGORITHM_UNSUPPORTED', { algorithm })
   // **여기서도 확정한다.** 부르는 쪽이 resolve를 거쳤는지에 기대지 않는다 - 안 거친
