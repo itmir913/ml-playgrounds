@@ -70,6 +70,7 @@ export const SHARED_ERROR_CODES = [
   'FEATURE_ALL_MISSING',
 
   // 학습 자체의 실패 - ml/metrics.ts, ml/engines/
+  'ALGORITHM_UNSUPPORTED',
   'JOB_FAILED',
 ] as const
 

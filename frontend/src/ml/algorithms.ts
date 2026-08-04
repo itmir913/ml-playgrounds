@@ -41,8 +41,13 @@ const SKLEARN_ONLY = ['pyodide-sklearn', 'server-sklearn'] as const
  * V1 알고리즘. **여기 추가하는 것은 포맷 변경이 아니다** (mlpx-spec.md 5.2).
  * 그래서 formatVersion이 오르지 않고, 모르는 알고리즘이 든 파일도 열린다.
  *
- * svm이 순수 JS에 없는 것은 후보가 WASM(libsvm-js)뿐이기 때문이다. 숨기지 않고
- * 등록해 둔다 - 화면에 "여기서는 실행할 수 없습니다"로 정확히 나오는 편이 낫다.
+ * 순수 JS에 없는 것이 둘이다. 숨기지 않고 등록해 둔다 - 목록에서 빠지면 학생은
+ * 그런 모델이 있다는 것조차 모른다.
+ *
+ * - svm: 후보가 WASM(libsvm-js)뿐이다
+ * - naive_bayes: ml-naivebayes가 붓꽃에서 0.70이다(sklearn은 같은 분할에서 0.9667).
+ *   27%p 차이는 "엔진 차이"가 아니라 틀린 답에 가깝고, 교과서 알고리즘이라
+ *   학생이 "나이브 베이즈는 원래 나쁘구나"를 잘못 배운다
  */
 export const ALGORITHMS: readonly Algorithm[] = [
   {
@@ -68,7 +73,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
     id: 'naive_bayes',
     dataTypes: ['tabular'],
     taskTypes: ['classification'],
-    runtimes: EVERYWHERE,
+    runtimes: SKLEARN_ONLY,
   },
   { id: 'svm', dataTypes: ['tabular'], taskTypes: ['classification'], runtimes: SKLEARN_ONLY },
   {

@@ -175,12 +175,7 @@ describe('enabledAlgorithms', () => {
   it('고를 수 있는 것만 남긴다', () => {
     const options = algorithmOptions(tabularClassification, context())
     const ids = enabledAlgorithms(options).map((a) => a.id)
-    expect(ids).toEqual([
-      'decision_tree',
-      'knn',
-      'logistic_regression',
-      'random_forest',
-      'naive_bayes',
-    ])
+    // naive_bayes와 svm은 sklearn 전용이라 엔진을 준비하기 전에는 안 열린다.
+    expect(ids).toEqual(['decision_tree', 'knn', 'logistic_regression', 'random_forest'])
   })
 })
