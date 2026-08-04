@@ -15,6 +15,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 
 import { ClientError } from '../errors'
+import { hashBytes } from '../hash'
 import { BYTES_PER_MB, STORAGE_SAFETY_FACTOR } from '../limits'
 import type { ProjectFile } from './format'
 import type { ProjectDocument, TaskType } from './schema'
@@ -41,6 +42,13 @@ interface ProjectRecord {
 interface DatasetRecord {
   projectId: string
   bytes: Uint8Array
+  /**
+   * 가져오기 시점에 계산한 해시를 함께 들고 있는다.
+   *
+   * 안 두면 프로젝트를 열 때마다 데이터셋을 다시 해싱하게 된다 - 목록에서 프로젝트를
+   * 고를 때마다 저사양 PC가 수백 ms씩 멈춘다.
+   */
+  hash?: string
 }
 
 interface ModelRecord {
@@ -181,7 +189,11 @@ export async function saveProject(project: ProjectFile): Promise<void> {
       updatedAt: project.document.manifest.updatedAt,
       sizeBytes: size,
     })
-    await transaction.objectStore(DATASETS_STORE).put({ projectId, bytes: project.dataset })
+    await transaction.objectStore(DATASETS_STORE).put({
+      projectId,
+      bytes: project.dataset,
+      hash: project.datasetHash,
+    })
 
     const models = transaction.objectStore(MODELS_STORE)
     await models.delete(modelKeyRange(projectId))
@@ -210,7 +222,13 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
     models.set(model.path, model.bytes)
   }
 
-  return { document: record.document, dataset: dataset.bytes, models }
+  return {
+    document: record.document,
+    dataset: dataset.bytes,
+    // hash가 없는 것은 이 필드가 생기기 전에 저장된 레코드다. 그때만 계산한다.
+    datasetHash: dataset.hash ?? hashBytes(dataset.bytes),
+    models,
+  }
 }
 
 /** 최근에 손댄 것부터 나열한다. */

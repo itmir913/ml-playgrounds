@@ -17,7 +17,15 @@
 import { unzip, zip, type Unzipped } from 'fflate'
 
 import { ClientError } from '../errors'
+import { hashBytes } from '../hash'
 import { MAX_FILE_NAME_LENGTH, MAX_MODEL_BYTES, MODEL_BUDGET_BYTES } from '../limits'
+import {
+  buildHashes,
+  checkHashes,
+  parseHashes,
+  type HashCheck,
+  type ProjectHashes,
+} from './integrity'
 import { migrateProjectDocument } from './migrate'
 import type { Manifest, ProjectDocument } from './schema'
 
@@ -31,6 +39,7 @@ export const ENTRY = {
   runs: 'runs.json',
   portfolio: 'portfolio.json',
   portfolioMarkdown: 'portfolio.md',
+  hashes: 'hashes.json',
 } as const
 
 /** 내용이 가변인 디렉터리. */
@@ -45,6 +54,7 @@ export const DIR = {
  *
  * portfolio.md는 필수가 아니다 - portfolio.json이 원본이고 .md는 파생물이다.
  * model/ 아래도 아니다 - 모델이 빠진 파일은 지표만 남은 정상적인 파일이다.
+ * hashes.json도 아니다 - 옛 파일에는 아예 없고, 없으면 "확인할 수 없음"일 뿐이다.
  */
 
 /**
@@ -58,6 +68,15 @@ export interface ProjectFile {
   document: ProjectDocument
   /** 업로드된 원본 그대로. 절대 가공하지 않는다. */
   dataset: Uint8Array
+  /**
+   * dataset의 해시. **가져오기 시점에 한 번 계산한 값을 계속 들고 다닌다**
+   * (data/table.ts의 ImportedTable.hash).
+   *
+   * 저장할 때마다 다시 계산하지 않기 위해 타입에 박아 둔다. 50MB 데이터셋이면
+   * 자동 저장 한 번에 265ms이고, 정본은 확정된 뒤로 바뀌지 않으므로 다시 계산할
+   * 이유가 없다 (mlpx-spec.md 7.2).
+   */
+  datasetHash: string
   /** zip 경로 -> 내용. 모델과 전처리기가 들어온다. */
   models: Map<string, Uint8Array>
 }
@@ -74,6 +93,19 @@ export interface WriteResult {
   bytes: Uint8Array
   /** 예산 때문에 담지 못한 모델. 화면은 이걸 경고로 보여준다. */
   dropped: DroppedModel[]
+  /** 방금 쓴 파일의 내용 해시. 저장 화면이 학생에게 보여주고 교사가 수거 시점에 적어둔다. */
+  contentHash: string
+}
+
+export interface ReadResult {
+  project: ProjectFile
+  /**
+   * 여는 김에 함께 한 해시 대조.
+   *
+   * ProjectFile 안에 두지 않는다 - 새로 만드는 프로젝트에는 대조할 대상이 없다.
+   * 필드를 선택 항목으로 두면 "없음"과 "확인할 수 없음"이 섞인다.
+   */
+  integrity: HashCheck
 }
 
 function toRecord(value: unknown): Record<string, unknown> {
@@ -229,11 +261,58 @@ export function selectModels(
 }
 
 /**
+ * 무결성 대조에 넣을 엔트리를 고른다.
+ *
+ * **아는 것만 넣는다.** zip에 있는 모든 엔트리를 세면 맥에서 압축을 풀었다 다시 압축한
+ * 파일이 __MACOSX/ 때문에 전부 "고쳐졌음"이 된다. 반대로 model/ 아래를 통째로 넣는
+ * 이유는, 아무도 가리키지 않는 모델이 끼어든 것도 드러나야 하기 때문이다.
+ *
+ * hashes.json 자신은 대상이 아니다 - 자기 해시를 자기 안에 담을 수 없다.
+ */
+function hashableEntries(
+  entries: Map<string, Uint8Array>,
+  datasetPath: string,
+): Map<string, string> {
+  const known = new Set<string>([
+    ENTRY.manifest,
+    ENTRY.settings,
+    ENTRY.runs,
+    ENTRY.portfolio,
+    ENTRY.portfolioMarkdown,
+    datasetPath,
+  ])
+
+  const present = new Map<string, string>()
+  for (const [path, content] of entries) {
+    if (known.has(path) || path.startsWith(DIR.model)) {
+      present.set(path, hashBytes(content))
+    }
+  }
+  return present
+}
+
+/**
+ * hashes.json을 읽는다. 없거나 깨졌으면 null.
+ *
+ * **여기서 던지지 않는다.** 다른 엔트리의 JSON이 깨지면 PROJECT_FILE_INVALID지만
+ * 이건 다르다 - 무결성 정보가 망가진 것은 "확인할 수 없음"이지 파일이 잘못된 것이 아니고,
+ * 그것 때문에 학생의 작업물이 안 열려서는 안 된다.
+ */
+function recordedHashes(bytes: Uint8Array | undefined): ProjectHashes | null {
+  if (!bytes) return null
+  try {
+    return parseHashes(JSON.parse(new TextDecoder().decode(bytes)))
+  } catch {
+    return null
+  }
+}
+
+/**
  * .mlpx 바이트를 읽어 프로젝트로 만든다.
  *
  * 순서를 지켜야 한다 - 압축 해제 -> JSON 파싱 -> **버전 확인과 마이그레이션** -> 검증.
  */
-export async function readProject(bytes: Uint8Array): Promise<ProjectFile> {
+export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
   const unzipped = await unzipAsync(bytes)
   const entries = new Map<string, Uint8Array>(Object.entries(unzipped))
 
@@ -258,6 +337,10 @@ export async function readProject(bytes: Uint8Array): Promise<ProjectFile> {
     throw new ClientError('PROJECT_FILE_ENTRY_MISSING', { entry: datasetPath })
   }
 
+  // 대조는 엔트리를 버리기 **전에** 한다. 끼어든 고아 모델도 신호이기 때문이다.
+  const present = hashableEntries(entries, datasetPath)
+  const integrity = checkHashes(present, recordedHashes(entries.get(ENTRY.hashes)))
+
   // 문서가 가리키는 것만 가져온다. 고아와 쓰레기는 여기서 사라진다.
   const referenced = referencedModelPaths(document)
   const models = new Map<string, Uint8Array>()
@@ -266,7 +349,15 @@ export async function readProject(bytes: Uint8Array): Promise<ProjectFile> {
     if (content) models.set(path, content)
   }
 
-  return { document: detachMissingModels(document, new Set(models.keys())), dataset, models }
+  return {
+    project: {
+      document: detachMissingModels(document, new Set(models.keys())),
+      dataset,
+      datasetHash: present.get(datasetPath) ?? hashBytes(dataset),
+      models,
+    },
+    integrity,
+  }
 }
 
 /**
@@ -298,7 +389,11 @@ export async function writeProject(
     if (content) entries[path] = content
   }
 
-  return { bytes: await zipAsync(entries), dropped }
+  // 마지막에 만든다. 자기 자신은 대상이 아니므로 다른 엔트리가 전부 정해진 뒤여야 한다.
+  const hashes = buildHashes(entries, document.settings.dataset.path, project.datasetHash)
+  entries[ENTRY.hashes] = encodeJson(hashes)
+
+  return { bytes: await zipAsync(entries), dropped, contentHash: hashes.contentHash }
 }
 
 function sanitizeSegment(value: string): string {

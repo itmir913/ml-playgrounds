@@ -92,6 +92,13 @@ describe('프로젝트 저장', () => {
     await expect(loadProject('없는-프로젝트')).resolves.toBeNull()
   })
 
+  it('데이터셋 해시가 함께 남는다 - 목록에서 고를 때마다 다시 해싱하지 않는다', async () => {
+    // 저장된 값을 그대로 돌려주는지 보려고 일부러 틀린 값을 넣는다.
+    await saveProject(projectFile({ datasetHash: 'not-a-real-hash' }))
+    const loaded = await loadProject(manifest.projectId)
+    expect(loaded?.datasetHash).toBe('not-a-real-hash')
+  })
+
   it('연결을 닫았다 열어도 남아 있다', async () => {
     await saveProject(projectFile())
     closeStorage()

@@ -5,6 +5,7 @@
  * 깨끗한 표본만 쓰면 깨끗한 입력에서만 도는 코드가 나온다.
  */
 
+import { hashBytes } from '../../src/hash'
 import type { ProjectFile } from '../../src/project/format'
 import { FORMAT_VERSION, type Batch, type Manifest, type Run } from '../../src/project/schema'
 
@@ -83,6 +84,7 @@ export function projectFile(overrides: Partial<ProjectFile> = {}): ProjectFile {
       portfolio: { template: { id: 'default-v1' }, answers: { motivation: '꽃이 좋아서' } },
     },
     dataset: datasetBytes,
+    datasetHash: hashBytes(datasetBytes),
     models: new Map([
       ['model/run-1.json', new TextEncoder().encode('{"tree":[]}')],
       ['model/preprocessor-batch-1.json', new TextEncoder().encode('{"columns":[]}')],

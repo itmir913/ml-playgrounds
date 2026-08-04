@@ -56,6 +56,12 @@
     "MODIFIED": "저장 후 고쳐졌음",
     "UNKNOWN": "확인할 수 없음"
   },
+  "entryHash": {
+    "UNCHANGED": "저장했을 때 그대로",
+    "MODIFIED": "내용이 달라졌음",
+    "ADDED": "저장한 파일에 없던 것",
+    "REMOVED": "파일에서 빠졌음"
+  },
   "reproduction": {
     "NOT_CHECKED": "아직 확인하지 않음",
     "REPRODUCED": "결과가 재현됨",

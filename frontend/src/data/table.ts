@@ -17,6 +17,7 @@
  */
 
 import { ClientError } from '../errors'
+import { hashBytes } from '../hash'
 import { MAX_DATASET_COLUMNS, MAX_DATASET_ROWS, PREVIEW_ROW_COUNT } from '../limits'
 import { parseCsvText } from './csv'
 import { decodeText, detectEncoding, type SourceEncoding } from './encoding'
@@ -51,6 +52,13 @@ export interface ImportedTable {
    * 서버로 간다. **여기서부터는 누구도 손대지 않는다** (mlpx-spec.md 7).
    */
   bytes: Uint8Array
+  /**
+   * bytes의 해시. **데이터셋을 해싱하는 유일한 지점이다.**
+   *
+   * 정본은 여기서 확정된 뒤로 바뀌지 않으므로 다시 계산할 이유가 없다. 저장할 때마다
+   * 계산하면 50MB 데이터셋에서 자동 저장이 265ms씩 화면을 붙든다 (mlpx-spec.md 7.2).
+   */
+  hash: string
   /** 정본을 파싱한 격자. 파생물이라 저장할 필요가 없다 - bytes에서 다시 만든다. */
   grid: TableGrid
   source: TableSource
@@ -143,8 +151,10 @@ export function importTable(document: TableDocument, sheetName?: string): Import
   const grid = document.read(sheetName)
   checkLimits(grid)
 
+  const bytes = toCanonicalCsv(grid)
   const imported: ImportedTable = {
-    bytes: toCanonicalCsv(grid),
+    bytes,
+    hash: hashBytes(bytes),
     grid,
     source: document.source,
     sourceEncoding: document.sourceEncoding,

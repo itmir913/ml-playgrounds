@@ -27,7 +27,12 @@ const markdown = '# 나의 AI 모델 정리\n'
 
 async function roundTrip(project: ProjectFile): Promise<ProjectFile> {
   const { bytes } = await writeProject(project, markdown)
-  return readProject(bytes)
+  return (await readProject(bytes)).project
+}
+
+/** 무결성 대조가 아니라 내용만 볼 때 쓴다. */
+async function open(bytes: Uint8Array): Promise<ProjectFile> {
+  return (await readProject(bytes)).project
 }
 
 function filler(size: number): Uint8Array {
@@ -98,7 +103,7 @@ describe('모르는 엔트리', () => {
     entries['__MACOSX/._manifest.json'] = new Uint8Array([1, 2, 3])
     entries['.DS_Store'] = new Uint8Array([4, 5])
 
-    const reopened = await readProject(zipSync(entries))
+    const reopened = await open(zipSync(entries))
     const written = unzipSync((await writeProject(reopened, markdown)).bytes)
     expect(Object.keys(written)).not.toContain('__MACOSX/._manifest.json')
     expect(Object.keys(written)).not.toContain('.DS_Store')
@@ -109,7 +114,7 @@ describe('모르는 엔트리', () => {
     const entries = unzipSync(bytes)
     entries['model/run-9.json'] = new TextEncoder().encode('{"orphan":true}')
 
-    const reopened = await readProject(zipSync(entries))
+    const reopened = await open(zipSync(entries))
     expect(reopened.models.has('model/run-9.json')).toBe(false)
   })
 })
@@ -120,7 +125,7 @@ describe('모델 참조가 어긋난 파일', () => {
     const entries = unzipSync(bytes)
     delete entries['model/run-1.json']
 
-    const reopened = await readProject(zipSync(entries))
+    const reopened = await open(zipSync(entries))
     const reopenedRun = reopened.document.runs.batches[0]?.runs[0]
     expect(reopenedRun?.model).toBeUndefined()
     expect(reopenedRun?.metrics?.accuracy).toBe(0.9333)
@@ -131,7 +136,7 @@ describe('모델 참조가 어긋난 파일', () => {
     const entries = unzipSync(bytes)
     delete entries['model/preprocessor-batch-1.json']
 
-    const reopened = await readProject(zipSync(entries))
+    const reopened = await open(zipSync(entries))
     expect(reopened.document.runs.batches[0]?.preprocessor).toBeUndefined()
     expect(reopened.document.runs.batches[0]?.runs[0]?.model).toBeUndefined()
   })
@@ -147,7 +152,7 @@ describe('크기 예산', () => {
     expect(result.dropped[0]?.reason).toBe('tooLarge')
     expect(result.bytes.length).toBeGreaterThan(0)
 
-    const reopened = await readProject(result.bytes)
+    const reopened = await open(result.bytes)
     expect(reopened.document.runs.batches[0]?.runs[0]?.model).toBeUndefined()
     expect(reopened.document.runs.batches[0]?.runs[0]?.metrics?.accuracy).toBe(0.9333)
   })

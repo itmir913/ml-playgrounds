@@ -5,6 +5,7 @@ import { parseCsvText } from '../src/data/csv'
 import { decodeText, detectEncoding } from '../src/data/encoding'
 import { importTable, openTable, previewTable, sourceFromFileName } from '../src/data/table'
 import { isClientError } from '../src/errors'
+import { hashBytes } from '../src/hash'
 import { MAX_DATASET_COLUMNS } from '../src/limits'
 
 /** '이름,나이\n가나다,10'을 CP949로 인코딩한 바이트. */
@@ -139,6 +140,29 @@ describe('importTable - 정규화', () => {
 
     const reopened = await openTable(imported.bytes, 'data.csv')
     expect(reopened.read()).toEqual(imported.grid)
+  })
+
+  it('정본을 확정하면서 해시도 함께 나온다 - 데이터셋을 해싱하는 유일한 지점이다', async () => {
+    const document = await openTable(CP949_CSV, 'data.csv')
+    const imported = importTable(document)
+
+    expect(imported.hash).toBe(hashBytes(imported.bytes))
+  })
+
+  it('업로드 형식이 달라도 정본이 같으면 해시가 같다', async () => {
+    const rows = [
+      ['이름', '나이'],
+      ['가나다', '10'],
+    ]
+    const fromCsv = importTable(
+      await openTable(new TextEncoder().encode('이름,나이\n가나다,10\n'), 'd.csv'),
+    )
+    const fromXlsx = importTable(
+      await openTable(await xlsxBytes({ 데이터: rows }), 'd.xlsx'),
+      '데이터',
+    )
+
+    expect(fromXlsx.hash).toBe(fromCsv.hash)
   })
 })
 

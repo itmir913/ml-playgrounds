@@ -67,6 +67,15 @@ export const SHARED_ERROR_CODES = [
  */
 export const FILE_HASH_STATUSES = ['UNCHANGED', 'MODIFIED', 'UNKNOWN'] as const
 
+/**
+ * 엔트리 하나하나의 대조 결과. 파일 전체 상태(FILE_HASH_STATUSES)와 축이 다르다.
+ *
+ * 해시가 실제로 값을 하는 자리가 여기다 - "runs.json은 바뀌었고 dataset/은 그대로"는
+ * 교사에게 넘길 신호로서 쓸모가 있다 (mlpx-spec.md 7.2). 파일 전체가 MODIFIED라는
+ * 말만으로는 학생에게도 교사에게도 할 수 있는 일이 없다.
+ */
+export const ENTRY_HASH_STATUSES = ['UNCHANGED', 'MODIFIED', 'ADDED', 'REMOVED'] as const
+
 /** 재실행 대조 결과. 대조는 run을 만든 엔진으로만 한다 (architecture.md 3.2). */
 export const REPRODUCTION_STATUSES = [
   'NOT_CHECKED',
@@ -76,6 +85,7 @@ export const REPRODUCTION_STATUSES = [
 ] as const
 
 export type FileHashStatus = (typeof FILE_HASH_STATUSES)[number]
+export type EntryHashStatus = (typeof ENTRY_HASH_STATUSES)[number]
 export type ReproductionStatus = (typeof REPRODUCTION_STATUSES)[number]
 
 export type ClientOnlyErrorCode = (typeof CLIENT_ERROR_CODES)[number]

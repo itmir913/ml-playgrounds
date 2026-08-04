@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   CLIENT_ERROR_CODES,
+  ENTRY_HASH_STATUSES,
   FILE_HASH_STATUSES,
   REPRODUCTION_STATUSES,
   SHARED_ERROR_CODES,
@@ -65,6 +66,7 @@ describe('로케일 파일', () => {
       'errors',
       'stages',
       'fileHash',
+      'entryHash',
       'reproduction',
       'portfolio',
       'language',
@@ -121,6 +123,7 @@ describe('프런트엔드 전용 코드', () => {
     // check_locales.py가 못 보는 자리라 여기서 강제한다.
     const pairs = [
       ['fileHash', FILE_HASH_STATUSES],
+      ['entryHash', ENTRY_HASH_STATUSES],
       ['reproduction', REPRODUCTION_STATUSES],
     ] as const
 
@@ -140,7 +143,10 @@ describe('프런트엔드 전용 코드', () => {
   it('무결성 문구에 보증으로 읽히는 낱말을 쓰지 않는다', () => {
     // mlpx-spec.md 7.3. 도구가 보증할 수 있는 것보다 강한 말을 쓰면
     // 교사가 허술한 탐지기를 신뢰하게 된다.
-    for (const key of [...english.keys()].filter((k) => k.startsWith('fileHash.'))) {
+    const integrityKeys = [...english.keys()].filter(
+      (key) => key.startsWith('fileHash.') || key.startsWith('entryHash.'),
+    )
+    for (const key of integrityKeys) {
       expect(english.get(key)?.toLowerCase(), key).not.toContain('verified')
     }
   })

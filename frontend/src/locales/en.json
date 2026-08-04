@@ -56,6 +56,12 @@
     "MODIFIED": "Edited after saving",
     "UNKNOWN": "Cannot tell"
   },
+  "entryHash": {
+    "UNCHANGED": "Same as saved",
+    "MODIFIED": "Contents differ",
+    "ADDED": "Not in the saved file",
+    "REMOVED": "Missing from the file"
+  },
   "reproduction": {
     "NOT_CHECKED": "Not checked yet",
     "REPRODUCED": "Results reproduced",
