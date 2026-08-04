@@ -37,6 +37,12 @@ export const CLIENT_ERROR_CODES = [
 
   // 브라우저 저장소 - project/storage.ts
   'STORAGE_QUOTA_EXCEEDED',
+
+  // 학습셋/평가셋 분할 - ml/split.ts
+  // 분할은 클라이언트만 계산한다(mlpx-spec.md 0.3). 서버는 인덱스를 받기만 하므로
+  // 이 둘은 backend/app/errors.py 에 없다.
+  'SPLIT_TOO_FEW_ROWS',
+  'SPLIT_STRATIFY_IMPOSSIBLE',
 ] as const
 
 /**

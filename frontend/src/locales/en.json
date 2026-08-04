@@ -88,7 +88,9 @@
     "DATASET_FILE_TYPE_UNSUPPORTED": "This file type is not supported. ({fileName})",
     "DATASET_SHEET_NOT_FOUND": "That sheet could not be found. ({sheetName})",
 
-    "STORAGE_QUOTA_EXCEEDED": "There is not enough room left in this browser. (needs {requiredMb}MB, {availableMb}MB free)"
+    "STORAGE_QUOTA_EXCEEDED": "There is not enough room left in this browser. (needs {requiredMb}MB, {availableMb}MB free)",
+    "SPLIT_TOO_FEW_ROWS": "Only {actualRows} rows can be used, which is too few to split into training and test sets. (needs at least {minRows})",
+    "SPLIT_STRATIFY_IMPOSSIBLE": "'{label}' appears only {count} time(s), so the split cannot keep the same proportions. Turn off proportional splitting, or collect at least {minRows} rows with this value."
   },
   "portfolio": {
     "template": {

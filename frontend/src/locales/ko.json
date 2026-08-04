@@ -88,7 +88,9 @@
     "DATASET_FILE_TYPE_UNSUPPORTED": "지원하지 않는 파일 형식입니다. ({fileName})",
     "DATASET_SHEET_NOT_FOUND": "그 시트를 찾을 수 없습니다. ({sheetName})",
 
-    "STORAGE_QUOTA_EXCEEDED": "브라우저에 저장할 공간이 부족합니다. (필요 {requiredMb}MB, 남은 공간 {availableMb}MB)"
+    "STORAGE_QUOTA_EXCEEDED": "브라우저에 저장할 공간이 부족합니다. (필요 {requiredMb}MB, 남은 공간 {availableMb}MB)",
+    "SPLIT_TOO_FEW_ROWS": "학습에 쓸 수 있는 데이터가 {actualRows}줄뿐이라 학습용과 평가용으로 나눌 수 없습니다. (최소 {minRows}줄)",
+    "SPLIT_STRATIFY_IMPOSSIBLE": "'{label}' 값이 {count}개뿐이라 비율을 맞춰 나눌 수 없습니다. 비율 맞추기를 끄거나 이 값의 데이터를 {minRows}개 이상 모아 주세요."
   },
   "portfolio": {
     "template": {
