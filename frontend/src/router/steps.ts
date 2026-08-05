@@ -12,6 +12,8 @@
  * 단계 순서는 **학생이 프로젝트를 만들어 가는 워크플로**다. 수행평가 진행 순서가 아니다.
  */
 
+import type { TaskType } from '@/project/schema'
+
 /** 화면에 나오는 순서 그대로다. 이 배열이 레일의 순서이자 되돌아갈 순서다. */
 export const STEP_IDS = ['data', 'preprocess', 'train', 'results', 'predict', 'portfolio'] as const
 
@@ -118,15 +120,47 @@ export function stepRequires(step: StepId): readonly FactKey[] {
  */
 export const DERIVED_FACTS: readonly FactKey[] = ['modelReady']
 
+/**
+ * **과제 유형마다 해당하지 않는 사실이 있다** (architecture.md §8.10).
+ *
+ * 군집화에는 타깃이 없다. 그러니 "타깃 정하기"는 문구를 바꿀 항목이 아니라
+ * **애초에 항목이 아니다.** 잠금 조건이 이미 그렇게 되어 있다 — `train`이
+ * `targetChosen`을 요구하지 않는 이유가 이것이고, 목록만 안 따라오고 있었다.
+ *
+ * **여기 빠뜨리면 컴파일이 깨진다.** `Record<TaskType, …>`이므로 과제 유형을
+ * 더하는 사람은 자기 칸을 채워야 한다. 비어 있는 칸은 실수가 아니라 선언이다.
+ *
+ * **문구를 미리 쓰지 마라.** 군집화는 V3이고(`roadmap.md`) 등록부에 알고리즘이
+ * 없다. 쓸 대상이 없는 문장을 로케일에 넣으면 아무도 화면에서 못 보고 검사도
+ * 못 잡는 것이 두 언어에 생긴다. 알고리즘을 넣는 사람이 문구도 함께 넣는다.
+ */
+const FACTS_NOT_IN_TASK: Readonly<Record<TaskType, readonly FactKey[]>> = {
+  classification: [],
+  regression: [],
+  clustering: ['targetChosen'],
+}
+
+/** 이 과제 유형에 해당하는 사실인가. 해당하지 않으면 할 일 목록에 안 뜬다. */
+export function factAppliesTo(fact: FactKey, taskType: TaskType): boolean {
+  return !FACTS_NOT_IN_TASK[taskType].includes(fact)
+}
+
 /** 체크리스트 한 줄. 문구는 `tasks.{key}` 로케일 키에서 온다. */
 export interface StepTask {
   readonly key: FactKey
   readonly done: boolean
 }
 
-/** 이 단계의 할 일. 없으면 빈 배열이고, 화면은 그때 목록을 아예 그리지 않는다. */
-export function stepTasks(step: StepId, facts: ProjectFacts): StepTask[] {
-  return STEPS[step].tasks.map((key) => ({ key, done: facts[key] }))
+/**
+ * 이 단계의 할 일. 없으면 빈 배열이고, 화면은 그때 목록을 아예 그리지 않는다.
+ *
+ * **과제 유형에 해당하지 않는 사실은 빠진다** (§8.10). 군집화에서 "타깃 정하기"가
+ * 사라지는 것이 여기다.
+ */
+export function stepTasks(step: StepId, facts: ProjectFacts, taskType: TaskType): StepTask[] {
+  return STEPS[step].tasks
+    .filter((key) => factAppliesTo(key, taskType))
+    .map((key) => ({ key, done: facts[key] }))
 }
 
 /**
@@ -135,10 +169,13 @@ export function stepTasks(step: StepId, facts: ProjectFacts): StepTask[] {
  * 앞 단계부터 훑어 열려 있는 단계의 첫 미완료 항목을 고른다. 상태 팝오버가
  * "지금 할 일 / 다음"을 보여주는 데 쓴다 (architecture.md §8.6).
  */
-export function currentTask(facts: ProjectFacts): { step: StepId; key: FactKey } | null {
+export function currentTask(
+  facts: ProjectFacts,
+  taskType: TaskType,
+): { step: StepId; key: FactKey } | null {
   for (const step of STEP_IDS) {
     if (!isStepUnlocked(step, facts)) continue
-    const pending = STEPS[step].tasks.find((key) => !facts[key])
+    const pending = STEPS[step].tasks.find((key) => factAppliesTo(key, taskType) && !facts[key])
     if (pending !== undefined) return { step, key: pending }
   }
   return null

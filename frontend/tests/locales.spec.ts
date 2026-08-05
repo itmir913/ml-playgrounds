@@ -214,12 +214,18 @@ describe('프런트엔드 전용 코드', () => {
     }
   })
 
-  it('체크리스트 항목마다 문구가 있다', () => {
+  it('체크리스트 항목마다 문구가 있다 - 어느 기계학습 유형에서든', () => {
     // 여기가 비면 화면에 로케일 키가 그대로 뜬다.
-    for (const step of STEP_IDS) {
-      for (const task of stepTasks(step, NO_FACTS)) {
-        expect(english.has(`tasks.${task.key}`), task.key).toBe(true)
-        expect(korean.has(`tasks.${task.key}`), task.key).toBe(true)
+    //
+    // **유형을 전부 돈다.** 항목의 집합이 유형마다 다르므로(steps.ts의
+    // FACTS_NOT_IN_TASK) 하나만 보면 다른 유형에서만 뜨는 항목을 놓친다. 지금은
+    // 군집화가 빼기만 하지만 더하는 유형이 생기면 그때 이 검사가 잡는다.
+    for (const taskType of TASK_TYPES) {
+      for (const step of STEP_IDS) {
+        for (const task of stepTasks(step, NO_FACTS, taskType)) {
+          expect(english.has(`tasks.${task.key}`), `${taskType}.${task.key}`).toBe(true)
+          expect(korean.has(`tasks.${task.key}`), `${taskType}.${task.key}`).toBe(true)
+        }
       }
     }
   })

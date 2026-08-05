@@ -17,6 +17,7 @@ import {
   type DroppedModel,
   type ProjectFile,
 } from '@/project/format'
+import type { TaskType } from '@/project/schema'
 import { loadProject, markExported, readExportedAt, saveProject } from '@/project/storage'
 import { NO_FACTS, type ProjectFacts } from '@/router/steps'
 import { useToastStore } from './toasts'
@@ -68,6 +69,16 @@ export const useProjectStore = defineStore('project', () => {
   const projectId = computed(() => file.value?.document.manifest.projectId ?? null)
   const name = computed(() => file.value?.document.manifest.name ?? '')
   const facts = computed(() => factsOf(file.value))
+
+  /**
+   * 지금 프로젝트의 기계학습 유형. 할 일 목록이 이것으로 걸러진다 (steps.ts).
+   *
+   * 프로젝트가 없을 때 분류로 떨어지는 것은 화면이 아무것도 안 그리는 상태라
+   * 무엇을 돌려주든 보이지 않기 때문이다. 그래도 값은 있어야 타입이 성립한다.
+   */
+  const taskType = computed<TaskType>(
+    () => file.value?.document.manifest.taskType ?? 'classification',
+  )
 
   /**
    * 프로젝트를 연다. 이미 그 프로젝트가 열려 있으면 아무것도 하지 않는다.
@@ -195,6 +206,7 @@ export const useProjectStore = defineStore('project', () => {
     projectId,
     name,
     facts,
+    taskType,
     open,
     save,
     update,

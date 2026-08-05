@@ -23,11 +23,11 @@ const { t } = useI18n()
 const router = useRouter()
 const project = useProjectStore()
 
-const now = computed(() => currentTask(project.facts))
+const now = computed(() => currentTask(project.facts, project.taskType))
 
 const steps = computed(() =>
   STEP_IDS.map((step) => {
-    const tasks = stepTasks(step, project.facts)
+    const tasks = stepTasks(step, project.facts, project.taskType)
     return {
       step,
       unlocked: isStepUnlocked(step, project.facts),

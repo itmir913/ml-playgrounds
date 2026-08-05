@@ -20,7 +20,7 @@ const props = defineProps<{ step: StepId }>()
 const { t } = useI18n()
 const project = useProjectStore()
 
-const tasks = computed(() => stepTasks(props.step, project.facts))
+const tasks = computed(() => stepTasks(props.step, project.facts, project.taskType))
 const done = computed(() => tasks.value.every((task) => task.done))
 </script>
 

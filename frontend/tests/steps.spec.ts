@@ -24,6 +24,7 @@ import {
   type FactKey,
   type ProjectFacts,
 } from '../src/router/steps'
+import { TASK_TYPES } from '../src/project/schema'
 import { factsOf } from '../src/stores/project'
 import { experiment, emptyProjectFile, projectFile, run } from './fixtures/project'
 
@@ -37,9 +38,16 @@ const FLAGS: readonly FactKey[] = [
   'portfolioWritten',
 ]
 
+/**
+ * 검사의 기본 과제 유형. **분류는 모든 사실이 해당하는 유일한 유형이라** 여기서
+ * 고른다 - 이 파일의 표들이 "빠지는 것 없는 상태"를 못 박는 것이 목적이기 때문이다.
+ * 빠지는 쪽은 아래 "과제 유형마다 할 일이 다르다"가 따로 본다.
+ */
+const TASK = 'classification' as const
+
 /** 어느 단계에서든 학생이 직접 체크할 수 있는 사실들. */
 function asTaskKeys(): FactKey[] {
-  return STEP_IDS.flatMap((step) => stepTasks(step, NO_FACTS)).map((task) => task.key)
+  return STEP_IDS.flatMap((step) => stepTasks(step, NO_FACTS, TASK)).map((task) => task.key)
 }
 
 function facts(overrides: Partial<ProjectFacts> = {}): ProjectFacts {
@@ -134,7 +142,7 @@ describe('체크리스트', () => {
     // **이게 이 설계의 요점이다.** 잠금 조건이 어느 단계의 할 일도 아니고 결과로
     // 선언되지도 않았다면, 학생은 열리지 않는 단계를 보면서 무엇을 해야 할지 알 수 없다.
     // 새 조건을 넣는 사람이 둘 중 하나를 고르게 강제한다.
-    const asTask = new Set(STEP_IDS.flatMap((step) => stepTasks(step, NO_FACTS)).map((t) => t.key))
+    const asTask = new Set(STEP_IDS.flatMap((step) => stepTasks(step, NO_FACTS, TASK)).map((t) => t.key))
     for (const step of STEP_IDS) {
       for (const fact of stepRequires(step)) {
         expect(asTask.has(fact) || DERIVED_FACTS.includes(fact), `${step} <- ${fact}`).toBe(true)
@@ -151,48 +159,87 @@ describe('체크리스트', () => {
   })
 
   it('데이터 단계의 할 일은 표를 올리는 것 하나다', () => {
-    expect(stepTasks('data', NO_FACTS)).toEqual([{ key: 'datasetReady', done: false }])
-    expect(stepTasks('data', ALL)).toEqual([{ key: 'datasetReady', done: true }])
+    expect(stepTasks('data', NO_FACTS, TASK)).toEqual([{ key: 'datasetReady', done: false }])
+    expect(stepTasks('data', ALL, TASK)).toEqual([{ key: 'datasetReady', done: true }])
   })
 
   it('보는 화면에는 할 일이 없다 - 빈 목록은 그리지 않는다', () => {
-    expect(stepTasks('results', ALL)).toEqual([])
-    expect(stepTasks('predict', ALL)).toEqual([])
+    expect(stepTasks('results', ALL, TASK)).toEqual([])
+    expect(stepTasks('predict', ALL, TASK)).toEqual([])
   })
 
   it('할 일에 쓰는 사실은 전부 ProjectFacts 안에 있다', () => {
     for (const step of STEP_IDS) {
-      for (const task of stepTasks(step, NO_FACTS)) {
+      for (const task of stepTasks(step, NO_FACTS, TASK)) {
         expect(FLAGS, `${step}.${task.key}`).toContain(task.key)
       }
     }
   })
 })
 
+describe('기계학습 유형마다 할 일이 다르다', () => {
+  // architecture.md §8.10. 문구를 바꾸는 것이 아니라 **항목 자체가 없다.**
+
+  it('군집화에는 타깃 정하기가 없다', () => {
+    const keys = stepTasks('preprocess', NO_FACTS, 'clustering').map((task) => task.key)
+    expect(keys).not.toContain('targetChosen')
+    // 나머지는 그대로다. 군집화도 무엇으로 묶을지는 골라야 한다.
+    expect(keys).toContain('featuresChosen')
+  })
+
+  it('분류와 회귀에는 타깃 정하기가 있다', () => {
+    for (const taskType of ['classification', 'regression'] as const) {
+      const keys = stepTasks('preprocess', NO_FACTS, taskType).map((task) => task.key)
+      expect(keys, taskType).toContain('targetChosen')
+    }
+  })
+
+  it('빠진 항목은 지금 할 일로도 안 나온다', () => {
+    // 목록에서만 빼고 여기서 안 빼면, 화면에 없는 일을 하라고 시키게 된다.
+    const uploaded = facts({ datasetReady: true })
+    expect(currentTask(uploaded, 'clustering')?.key).not.toBe('targetChosen')
+  })
+
+  it('빠진 항목은 잠금 조건이 아니다 - 뺐는데 잠기면 학생이 갇힌다', () => {
+    // **이게 이 설계가 무너지는 유일한 경로다.** 항목에서 뺀 사실이 어딘가의 잠금
+    // 조건으로 남아 있으면, 학생은 할 일을 다 했는데 못 가는 단계를 보게 되고
+    // 화면에는 무엇을 더 해야 하는지가 없다.
+    for (const taskType of TASK_TYPES) {
+      const shown = new Set(
+        STEP_IDS.flatMap((step) => stepTasks(step, NO_FACTS, taskType)).map((task) => task.key),
+      )
+      const done = facts(Object.fromEntries([...shown].map((key) => [key, true])))
+      const locked = STEP_IDS.filter((step) => !isStepUnlocked(step, done))
+      // 예측만 남아야 한다. 모델이 예산에서 밀렸을 때이고 학생이 할 수 있는 일이 없다.
+      expect(locked, taskType).toEqual(['predict'])
+    }
+  })
+})
+
 describe('지금 할 일', () => {
   it('아무것도 없으면 표를 올리는 것부터다', () => {
-    expect(currentTask(NO_FACTS)).toEqual({ step: 'data', key: 'datasetReady' })
+    expect(currentTask(NO_FACTS, TASK)).toEqual({ step: 'data', key: 'datasetReady' })
   })
 
   it('앞 단계가 끝나면 다음 열린 단계로 넘어간다', () => {
     const uploaded = facts({ datasetReady: true })
-    expect(currentTask(uploaded)).toEqual({ step: 'preprocess', key: 'targetChosen' })
+    expect(currentTask(uploaded, TASK)).toEqual({ step: 'preprocess', key: 'targetChosen' })
   })
 
   it('잠긴 단계의 할 일은 고르지 않는다', () => {
     // 아직 못 가는 곳을 하라고 하면 학생은 그 화면을 찾다가 멈춘다.
-    const found = currentTask(facts({ datasetReady: true }))
+    const found = currentTask(facts({ datasetReady: true }), TASK)
     expect(found).not.toBeNull()
     if (found) expect(isStepUnlocked(found.step, facts({ datasetReady: true }))).toBe(true)
   })
 
   it('다 하면 null이다', () => {
-    expect(currentTask(ALL)).toBeNull()
+    expect(currentTask(ALL, TASK)).toBeNull()
   })
 
   it('어떤 상태에서도 돌려준 것은 열린 단계의 안 끝난 일이다', () => {
     for (const state of everyCombination()) {
-      const found = currentTask(state)
+      const found = currentTask(state, TASK)
       if (found === null) continue
       expect(isStepUnlocked(found.step, state)).toBe(true)
       expect(state[found.key]).toBe(false)
