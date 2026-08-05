@@ -159,11 +159,11 @@ function onSplitting(event: Event): void {
       <template #context>
         <div class="flex gap-1.5">
           <dt>{{ t('data.rows') }}</dt>
-          <dd class="tabular-nums">{{ dataset?.rows.length ?? 0 }}</dd>
+          <dd class="font-bold tabular-nums text-ink">{{ dataset?.rows.length ?? 0 }}</dd>
         </div>
         <div class="flex gap-1.5">
           <dt>{{ t('data.columns') }}</dt>
-          <dd class="tabular-nums">{{ columns.length }}</dd>
+          <dd class="font-bold tabular-nums text-ink">{{ columns.length }}</dd>
         </div>
       </template>
     </StepHeader>

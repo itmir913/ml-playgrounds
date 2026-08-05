@@ -77,10 +77,10 @@ function onFeature(name: string, event: Event): void {
 <template>
   <div class="flex flex-col gap-3">
     <div class="flex flex-wrap items-center gap-2">
-      <AppButton variant="subtle" @click="emit('setAllFeatures', true)">
+      <AppButton variant="secondary" @click="emit('setAllFeatures', true)">
         {{ t('preprocess.selectAll') }}
       </AppButton>
-      <AppButton variant="ghost" @click="emit('setAllFeatures', false)">
+      <AppButton variant="secondary" @click="emit('setAllFeatures', false)">
         {{ t('preprocess.clearAll') }}
       </AppButton>
     </div>
