@@ -390,6 +390,7 @@ function leave(): void {
           <AppButton
             v-if="hasResults && !training.running.value"
             variant="secondary"
+            size="lg"
             @click="goResults"
           >
             {{ t('train.seeResults') }}

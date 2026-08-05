@@ -25,7 +25,7 @@ const project = useProjectStore()
   <header class="flex h-toolbar shrink-0 items-center gap-3 border-b border-line bg-surface px-3">
     <RouterLink
       :to="{ name: ROUTE_PROJECTS }"
-      class="flex shrink-0 items-center gap-2 rounded-control px-1.5 py-1 font-black tracking-tight transition-colors hover:bg-surface-sunken"
+      class="flex shrink-0 items-center gap-2 rounded-control px-1.5 py-1 text-lg font-black tracking-tight transition-colors hover:bg-surface-sunken"
     >
       <component :is="BRAND_ICON" :size="24" class="text-brand" aria-hidden="true" />
       <span class="max-lg:hidden">{{ t('app.name') }}</span>

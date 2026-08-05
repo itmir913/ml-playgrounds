@@ -121,7 +121,7 @@ const nextTheme = computed(() => otherTheme(theme.value))
         <button
           type="button"
           :aria-expanded="open"
-          class="block w-full truncate rounded-control text-left hover:text-ink"
+          class="block w-full truncate rounded-control px-1.5 py-0.5 text-left transition-colors hover:bg-surface-sunken"
         >
           <span :class="exportTone">
             <span class="mr-2 inline-block size-2 rounded-pill bg-current" aria-hidden="true" />
