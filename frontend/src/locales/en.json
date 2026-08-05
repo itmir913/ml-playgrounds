@@ -16,7 +16,7 @@
     "datasetReady": "Load your data",
     "targetChosen": "Choose the target",
     "featuresChosen": "Choose the features",
-    "algorithmsChosen": "Choose the algorithms",
+    "algorithmsChosen": "Choose the models",
     "trainingDone": "Train the models",
     "modelReady": "Build a model",
     "portfolioWritten": "Write the portfolio",
@@ -55,8 +55,8 @@
     },
     "train": {
       "label": "Train­ing",
-      "locked": "Choose the features and the algorithms first.",
-      "purpose": "Train every algorithm you picked in one go."
+      "locked": "Choose the features and the models first.",
+      "purpose": "Train every model you picked in one go."
     },
     "results": {
       "label": "Results",
@@ -155,7 +155,7 @@
     "TARGET_TOO_MANY_CLASSES": "Too many classes to predict. (limit {limitClasses}, yours {actualClasses})",
     "FEATURE_NOT_SELECTED": "Choose at least one feature to learn from.",
     "FEATURE_ALL_MISSING": "That feature has no values at all. ({feature})",
-    "ALGORITHM_UNSUPPORTED": "That algorithm is not supported. ({algorithm})",
+    "ALGORITHM_UNSUPPORTED": "That model is not supported. ({algorithm})",
     "HYPERPARAM_OUT_OF_RANGE": "{name} is outside the allowed range. ({min}-{max}, yours {actual})",
     "SPLIT_INVALID": "The train/test split setting is not valid.",
     "SPLIT_INDEX_OUT_OF_RANGE": "A row number used for training is outside the data. The data may have changed. (row {index}, data has {actualRows})",
@@ -216,7 +216,7 @@
     "ALGORITHM_NOT_FOR_DATA_TYPE": "This model cannot be used with the data you loaded.",
     "ALGORITHM_NOT_FOR_TASK_TYPE": "This model cannot be used for the task type you chose.",
     "SERVER_UNAVAILABLE": "The training server cannot be reached. For now you can train on your computer.",
-    "ALGORITHM_NOT_AVAILABLE_HERE": "This algorithm cannot run here.",
+    "ALGORITHM_NOT_AVAILABLE_HERE": "This model cannot run here.",
     "DATASET_TOO_LARGE_FOR_BROWSER": "The data is too large to train on your computer. (limit {limitRows} rows)",
     "ENGINE_NOT_READY": "This way of training can only be used once it is ready.",
     "PROJECT_FILE_NOT_ZIP": "This file is not a project file.",
@@ -281,7 +281,7 @@
     "taskType": "Task type",
     "target": "Target",
     "features": "Features",
-    "algorithms": "Algorithms",
+    "algorithms": "Models",
     "runs": "Trained models",
     "none": "None",
     "countUnit": "{count}"

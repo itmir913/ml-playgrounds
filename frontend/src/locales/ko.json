@@ -16,7 +16,7 @@
     "datasetReady": "데이터 불러오기",
     "targetChosen": "타깃(Target) 정하기",
     "featuresChosen": "특성(Feature) 정하기",
-    "algorithmsChosen": "알고리즘 정하기",
+    "algorithmsChosen": "모델 선정하기",
     "trainingDone": "모델 학습하기",
     "modelReady": "모델 만들기",
     "portfolioWritten": "포트폴리오 작성하기",
@@ -55,8 +55,8 @@
     },
     "train": {
       "label": "학습",
-      "locked": "특성(Feature)과 알고리즘을 먼저 정해 주세요.",
-      "purpose": "고른 알고리즘을 한 번에 학습시킵니다."
+      "locked": "특성(Feature)과 모델을 먼저 정해 주세요.",
+      "purpose": "선정한 모델을 한 번에 학습시킵니다."
     },
     "results": {
       "label": "결과",
@@ -155,7 +155,7 @@
     "TARGET_TOO_MANY_CLASSES": "분류할 종류가 너무 많습니다. (최대 {limitClasses}개, 현재 {actualClasses}개)",
     "FEATURE_NOT_SELECTED": "학습에 사용할 특성(Feature)을 하나 이상 선택해 주세요.",
     "FEATURE_ALL_MISSING": "값이 모두 비어 있는 특성입니다. ({feature})",
-    "ALGORITHM_UNSUPPORTED": "지원하지 않는 알고리즘입니다. ({algorithm})",
+    "ALGORITHM_UNSUPPORTED": "지원하지 않는 모델입니다. ({algorithm})",
     "HYPERPARAM_OUT_OF_RANGE": "{name} 값이 허용 범위를 벗어났습니다. ({min}~{max}, 현재 {actual})",
     "SPLIT_INVALID": "학습/평가 데이터 분할 설정이 올바르지 않습니다.",
     "SPLIT_INDEX_OUT_OF_RANGE": "학습에 쓸 행 번호가 데이터 범위를 벗어났습니다. 데이터가 바뀌었을 수 있습니다. ({index}번째 행, 데이터는 {actualRows}행)",
@@ -216,7 +216,7 @@
     "ALGORITHM_NOT_FOR_DATA_TYPE": "이 모델은 지금 불러온 데이터에는 쓸 수 없습니다.",
     "ALGORITHM_NOT_FOR_TASK_TYPE": "이 모델은 지금 고른 기계학습 유형(Task Type)에는 쓸 수 없습니다.",
     "SERVER_UNAVAILABLE": "학습 서버에 연결할 수 없습니다. 지금은 내 컴퓨터에서만 학습할 수 있습니다.",
-    "ALGORITHM_NOT_AVAILABLE_HERE": "이 알고리즘은 여기서 실행할 수 없습니다.",
+    "ALGORITHM_NOT_AVAILABLE_HERE": "이 모델은 여기서 실행할 수 없습니다.",
     "DATASET_TOO_LARGE_FOR_BROWSER": "데이터가 커서 내 컴퓨터에서는 학습할 수 없습니다. (최대 {limitRows}행)",
     "ENGINE_NOT_READY": "이 실행 방법은 준비가 끝나야 쓸 수 있습니다.",
     "PROJECT_FILE_NOT_ZIP": "이 파일은 프로젝트 파일이 아닙니다.",
@@ -281,7 +281,7 @@
     "taskType": "기계학습 유형(Task Type)",
     "target": "타깃(Target)",
     "features": "특성(Feature)",
-    "algorithms": "고른 알고리즘",
+    "algorithms": "선정한 모델",
     "runs": "학습한 모델",
     "none": "없음",
     "countUnit": "{count}개"

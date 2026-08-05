@@ -4,6 +4,10 @@
 *.swp
 *.swo
 
+# .claude/launch.json은 커밋한다 - .idea/runConfigurations와 같은 성격의
+# 실행 구성이다 (CLAUDE.md §4). 개인 설정만 뺀다.
+.claude/settings.local.json
+
 # ── OS ────────────────────────────────────────────────
 .DS_Store
 .DS_Store?
@@ -73,7 +77,7 @@ frontend/dist-ssr/
 .turbo/
 
 # ── 환경 변수 / 비밀 ───────────────────────────────────
-# SIGNING_SECRET 등이 절대 커밋되면 안 된다 (docs/mlproj-spec.md §7)
+# SIGNING_SECRET 등이 절대 커밋되면 안 된다 (docs/mlpx-spec.md §7)
 .env
 .env.*
 !.env.example
@@ -85,4 +89,4 @@ tmp/
 *.log
 
 # 학생 프로젝트 파일이 실수로 커밋되는 것을 막는다
-*.mlproj
+*.mlpx
