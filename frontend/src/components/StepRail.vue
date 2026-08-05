@@ -18,8 +18,9 @@
  * 더 깎는다.
  */
 
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { type RouteLocationRaw, useRoute } from 'vue-router'
 
 import { STEP_ICONS } from '@/icons'
 import { isStepUnlocked, STEP_IDS, type StepId } from '@/router/steps'
@@ -28,6 +29,22 @@ import { useProjectStore } from '@/stores/project'
 const { t } = useI18n()
 const route = useRoute()
 const project = useProjectStore()
+
+/**
+ * 링크가 가리킬 곳. **`route.params`가 아니라 스토어를 본다.**
+ *
+ * 라우터 가드가 프로젝트를 여는 시점에는 **아직 주소가 옛것이다.** 목록에서 프로젝트로
+ * 넘어가는 그 순간, 스토어에는 프로젝트가 있어 칸이 열리는데 `route.params`는 비어
+ * 있고, 그러면 RouterLink가 setup에서 `Missing required param`으로 던진다. 한 칸이
+ * 던지면 레일 전체의 렌더가 깨지고 그 뒤로 화면이 아무것도 갱신하지 못한다.
+ *
+ * 지금 어떤 프로젝트가 열려 있는지의 유일한 출처는 스토어다.
+ */
+function linkTo(step: StepId): RouteLocationRaw {
+  return { name: step, params: { projectId: openId.value } }
+}
+
+const openId = computed(() => project.projectId ?? '')
 
 function unlocked(step: StepId): boolean {
   return project.projectId !== null && isStepUnlocked(step, project.facts)
@@ -65,7 +82,7 @@ const LABEL = 'w-full text-center break-words hyphens-auto'
     <template v-for="step in STEP_IDS" :key="step">
       <RouterLink
         v-if="unlocked(step)"
-        :to="{ name: step, params: route.params }"
+        :to="linkTo(step)"
         :title="label(step)"
         :aria-current="route.name === step ? 'page' : undefined"
         :class="[

@@ -60,6 +60,23 @@ describe('단계 레일', () => {
     expect(links.some((link) => link.attributes('href')?.endsWith('/data'))).toBe(true)
   })
 
+  it('주소가 아직 목록인데 프로젝트가 열려 있어도 던지지 않는다', async () => {
+    // 라우터 가드가 프로젝트를 여는 그 순간이 정확히 이 상태다 - 스토어에는 있고
+    // 주소는 아직 옛것이다. 링크를 route.params로 만들면 여기서 RouterLink가
+    // "Missing required param"으로 던지고, 레일이 깨지면 화면 전체가 갱신을 멈춘다.
+    useProjectStore().file = projectFile()
+
+    const router = stubRouter()
+    await router.push('/')
+    await router.isReady()
+
+    const rail = mount(StepRail, { global: { plugins: [router, i18n] } })
+    const links = rail.findAll('a')
+    expect(links).toHaveLength(STEP_IDS.length)
+    // 링크는 스토어가 아는 프로젝트를 가리킨다.
+    expect(links[0]?.attributes('href')).toContain(projectFile().document.manifest.projectId)
+  })
+
   it('프로젝트가 없으면 어디로도 못 간다', async () => {
     const rail = await mountRail()
     expect(rail.findAll('a')).toHaveLength(0)
