@@ -272,6 +272,7 @@
   },
   "meta": {
     "title": "프로젝트 요약",
+    "titleShort": "요약",
     "created": "만든 날",
     "updated": "마지막 수정",
     "size": "용량",

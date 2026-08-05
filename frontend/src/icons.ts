@@ -19,6 +19,7 @@ import {
   FileText,
   FlaskConical,
   FolderOpen,
+  Info,
   LayoutDashboard,
   Library,
   Plus,
@@ -54,6 +55,7 @@ export const ACTION_ICONS = {
   openFile: FolderOpen,
   savedProjects: Library,
   exportFile: Download,
+  showSummary: Info,
   remove: Trash2,
   dismiss: X,
 } as const satisfies Record<string, LucideIcon>
