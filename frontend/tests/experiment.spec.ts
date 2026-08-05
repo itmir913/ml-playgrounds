@@ -428,12 +428,15 @@ describe('진행 보고', () => {
 
   it('실패한 모델도 보고한다 - 진행률이 거기서 멈추면 안 된다', () => {
     let calls = 0
-    runExperiment(inputFor({ settings: settingsFor({ selectedAlgorithms: models('svm', 'knn') }) }), {
-      ...frozen,
-      onRun: () => {
-        calls += 1
+    runExperiment(
+      inputFor({ settings: settingsFor({ selectedAlgorithms: models('svm', 'knn') }) }),
+      {
+        ...frozen,
+        onRun: () => {
+          calls += 1
+        },
       },
-    })
+    )
     expect(calls).toBe(2)
   })
 })

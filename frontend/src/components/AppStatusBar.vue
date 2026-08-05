@@ -140,7 +140,11 @@ const nextTheme = computed(() => otherTheme(theme.value))
 
       <p class="mt-3 border-t border-line pt-3">{{ browserState }}</p>
       <dl v-if="details.length > 0" class="mt-1 text-ink-soft">
-        <div v-for="row in details" :key="row.label" class="flex items-baseline justify-between gap-3">
+        <div
+          v-for="row in details"
+          :key="row.label"
+          class="flex items-baseline justify-between gap-3"
+        >
           <dt>{{ row.label }}</dt>
           <dd class="tabular-nums">{{ row.value }}</dd>
         </div>

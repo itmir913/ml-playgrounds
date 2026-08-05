@@ -347,7 +347,10 @@ function trainOne(
  * 분할·전처리가 실패하면 던진다. 개별 알고리즘의 실패는 failed run으로 남고 나머지는
  * 계속 돈다 - **실험 하나가 통째로 실패하는 일은 없다** (mlpx-spec.md 4.1).
  */
-export function runExperiment(input: ExperimentInput, options: ExperimentOptions = {}): ExperimentResult {
+export function runExperiment(
+  input: ExperimentInput,
+  options: ExperimentOptions = {},
+): ExperimentResult {
   const { dataset, settings, taskType, dataType, context } = input
   const now = options.now ?? (() => new Date().toISOString())
   const experiments = options.history?.experiments ?? []

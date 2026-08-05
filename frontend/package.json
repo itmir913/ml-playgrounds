@@ -11,9 +11,9 @@
     "build": "vue-tsc --build && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "ci": "npm run lint -- --no-fix && npx prettier --check src/ tests/ && npm run typecheck && npm run test && npm run build",
+    "ci": "eslint . && prettier --check src/ tests/ && npm run typecheck && npm run test && npm run build",
     "test:watch": "vitest",
-    "lint": "eslint . --fix",
+    "lint": "eslint . --fix && prettier --write src/ tests/",
     "format": "prettier --write src/ tests/",
     "typecheck": "vue-tsc --build --force"
   },

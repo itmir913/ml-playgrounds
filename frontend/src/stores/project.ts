@@ -42,7 +42,9 @@ export function factsOf(file: ProjectFile | null): ProjectFacts {
     featuresChosen: settings.features.length > 0,
     algorithmsChosen: settings.selectedAlgorithms.length > 0,
     trainingDone: experiments.some((experiment) => experiment.runs.length > 0),
-    modelReady: experiments.some((experiment) => experiment.runs.some((run) => run.model !== undefined)),
+    modelReady: experiments.some((experiment) =>
+      experiment.runs.some((run) => run.model !== undefined),
+    ),
     portfolioWritten: Object.values(portfolio.answers).some((answer) => answer.trim() !== ''),
   }
 }

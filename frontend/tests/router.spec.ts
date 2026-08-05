@@ -83,7 +83,10 @@ describe('라우터', () => {
     const omitted = run('run-1', { model: undefined, modelOmitted: 'overBudget' })
     await saveProject({
       ...base,
-      document: { ...base.document, runs: { experiments: [experiment('experiment-1', [omitted])] } },
+      document: {
+        ...base.document,
+        runs: { experiments: [experiment('experiment-1', [omitted])] },
+      },
     })
 
     await router.push(`/project/${manifest.projectId}/predict`)

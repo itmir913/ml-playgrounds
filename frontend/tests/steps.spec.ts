@@ -142,7 +142,9 @@ describe('체크리스트', () => {
     // **이게 이 설계의 요점이다.** 잠금 조건이 어느 단계의 할 일도 아니고 결과로
     // 선언되지도 않았다면, 학생은 열리지 않는 단계를 보면서 무엇을 해야 할지 알 수 없다.
     // 새 조건을 넣는 사람이 둘 중 하나를 고르게 강제한다.
-    const asTask = new Set(STEP_IDS.flatMap((step) => stepTasks(step, NO_FACTS, TASK)).map((t) => t.key))
+    const asTask = new Set(
+      STEP_IDS.flatMap((step) => stepTasks(step, NO_FACTS, TASK)).map((t) => t.key),
+    )
     for (const step of STEP_IDS) {
       for (const fact of stepRequires(step)) {
         expect(asTask.has(fact) || DERIVED_FACTS.includes(fact), `${step} <- ${fact}`).toBe(true)

@@ -119,7 +119,9 @@ describe('경로와 크기는 이 층이 정한다', () => {
   it('전처리기는 실험마다 하나이고 경로가 실험 id를 따른다', () => {
     const attached = attachExperimentFiles(bareExperiment([]), PREPROCESSOR, new Map())
     expect(attached.experiment.preprocessor?.path).toBe('model/preprocessor-experiment-7.json')
-    expect(decode(attached.entries.get('model/preprocessor-experiment-7.json'))).toEqual(PREPROCESSOR)
+    expect(decode(attached.entries.get('model/preprocessor-experiment-7.json'))).toEqual(
+      PREPROCESSOR,
+    )
   })
 
   it('모델 경로는 run id를 따르고 크기는 실제 바이트다', () => {
@@ -156,7 +158,11 @@ describe('경로와 크기는 이 층이 정한다', () => {
 
 describe('모델이 없는 이유를 적는다', () => {
   it('done인데 모델이 없으면 engineUnsupported다', () => {
-    const attached = attachExperimentFiles(bareExperiment([doneRun('run-1')]), PREPROCESSOR, new Map())
+    const attached = attachExperimentFiles(
+      bareExperiment([doneRun('run-1')]),
+      PREPROCESSOR,
+      new Map(),
+    )
     expect(attached.experiment.runs[0]?.modelOmitted).toBe('engineUnsupported')
   })
 

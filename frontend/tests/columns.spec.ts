@@ -203,7 +203,12 @@ describe('프로젝트에 붙이기', () => {
     const before = projectFile()
     before.document = {
       ...before.document,
-      runs: { experiments: [experiment('experiment-1', [run('run-1')]), experiment('experiment-2', [run('run-2')])] },
+      runs: {
+        experiments: [
+          experiment('experiment-1', [run('run-1')]),
+          experiment('experiment-2', [run('run-2')]),
+        ],
+      },
     }
     expect(applyDataset(before, imported(), options).droppedExperiments).toBe(2)
   })

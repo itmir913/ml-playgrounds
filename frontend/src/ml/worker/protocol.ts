@@ -33,5 +33,10 @@ export interface TrainRequest {
 export type WorkerMessage =
   | { type: 'progress'; run: Run; completed: number; total: number }
   // 모델은 Map으로 간다. 구조화 복제가 Map을 그대로 넘기므로 평평하게 펼 이유가 없다.
-  | { type: 'done'; experiment: Experiment; preprocessor: Preprocessor; models: Map<string, ModelFile> }
+  | {
+      type: 'done'
+      experiment: Experiment
+      preprocessor: Preprocessor
+      models: Map<string, ModelFile>
+    }
   | { type: 'failed'; code: string; params: ClientErrorParams }

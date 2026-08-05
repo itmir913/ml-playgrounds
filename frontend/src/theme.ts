@@ -39,10 +39,7 @@ export const theme = ref<Theme>(FALLBACK_THEME)
  * @param stored 사람이 고른 값. 있으면 언제나 이긴다.
  * @param prefersDark 기기가 어두운 화면을 선호하는가.
  */
-export function resolveTheme(
-  stored: string | null | undefined,
-  prefersDark: boolean,
-): Theme {
+export function resolveTheme(stored: string | null | undefined, prefersDark: boolean): Theme {
   if (isTheme(stored)) return stored
   return prefersDark ? 'dark' : FALLBACK_THEME
 }

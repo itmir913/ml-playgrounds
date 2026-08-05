@@ -215,7 +215,9 @@ function detachMissingModels(
   reasonFor?: (path: string) => ModelOmissionReason | undefined,
 ): ProjectDocument {
   const experiments = document.runs.experiments.map((experiment) => {
-    const hasPreprocessor = experiment.preprocessor ? present.has(experiment.preprocessor.path) : false
+    const hasPreprocessor = experiment.preprocessor
+      ? present.has(experiment.preprocessor.path)
+      : false
     const runs = experiment.runs.map((run) => {
       // **전처리기가 필요한지는 모델이 말한다** (mlpx-spec.md 5). 자체 JSON은 전처리가
       // 밖에 있어서 전처리기 없이는 예측할 수 없지만, 전처리를 그래프에 담는 형식은
