@@ -289,7 +289,13 @@ function onSplitting(event: Event): void {
             <p v-if="!splitting" class="text-caution">{{ t('preprocess.splitOffNote') }}</p>
 
             <div v-if="splitting">
-              <div class="flex flex-wrap items-center justify-between gap-x-4">
+              <!--
+                **이름과 값은 기준선으로 맞춘다.** items-center는 글자가 아니라 상자를
+                맞추므로, 값이 길어져 이름이 두 줄로 접히면 한 줄짜리 값이 두 줄 높이의
+                가운데로 떠서 첫 줄보다 위에 놓인다. 영어는 같은 이름이 30% 정도 길어
+                한국어에서 안 접히는 폭에서도 접힌다.
+              -->
+              <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <h3 class="font-bold text-ink-soft">{{ t('preprocess.testSize') }}</h3>
                 <output class="font-bold tabular-nums">
                   {{ format.percent(settings.split.testSize) }}
@@ -319,7 +325,7 @@ function onSplitting(event: Event): void {
             </label>
 
             <div>
-              <div class="flex flex-wrap items-center justify-between gap-x-4">
+              <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <h3 class="font-bold text-ink-soft">{{ t('preprocess.randomState') }}</h3>
                 <span class="tabular-nums">{{ settings.split.randomState }}</span>
               </div>
