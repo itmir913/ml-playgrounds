@@ -6,7 +6,7 @@ import vue from '@vitejs/plugin-vue'
 import pkg from './package.json' with { type: 'json' }
 import tailwindcss from '@tailwindcss/vite'
 
-// Tailwind v4는 설정 파일이 없다. 테마는 src/style.css 안에서 정의한다.
+// Tailwind v4는 설정 파일이 없다. 테마는 src/styles/theme.css 안에서 정의한다.
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
   // manifest.appVersion의 출처. package.json 하나만 고치면 파일에 적히는 값이 따라온다 -

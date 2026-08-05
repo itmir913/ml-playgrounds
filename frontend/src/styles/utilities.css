@@ -1,0 +1,58 @@
+/*
+ * 표의 칸 모양.
+ *
+ * **화면 코드는 Tailwind 기본 클래스만 쓴다.** `[&_th]` 같은 임의 변형을 템플릿에
+ * 흩뿌리면 읽을 수도 고칠 수도 없어진다. 여기 한 번만 적고 AppTable이 가져다 쓴다.
+ */
+/**
+ * 스크롤은 되지만 막대는 안 보이는 상자.
+ *
+ * 레일과 상태 표시줄처럼 **좁고 늘 보이는 자리**에 쓴다. 거기서는 막대가 내용보다
+ * 자리를 많이 먹고, 무엇보다 **막대가 보인다는 것 자체가 무언가 잘못됐다는 신호로
+ * 읽힌다.** 스크롤 자체를 막지는 않는다 - 휴대폰에서 단계가 여섯이면 넘칠 수 있다.
+ */
+@utility scrollbar-none {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/**
+ * 팝오버 패널의 크기. **어떤 화면에서도 밖으로 나가지 않는다.**
+ *
+ * 팝오버는 도구 막대와 상태 표시줄에 붙는데 그 둘은 휴대폰에도 있다. 폭을 고정값으로
+ * 두면 좁은 화면에서 잘리고, 하필 그 자리들은 스크롤 막대를 숨겨 둔 곳이라
+ * **잘렸다는 것조차 보이지 않는다.**
+ *
+ * 높이도 같다. 내보내기 팝오버는 입력칸이 있는 폼이라 세로로 길고, 가로로 누운
+ * 휴대폰에서는 화면보다 높아진다. 넘치면 잘리는 대신 그 안에서 스크롤한다.
+ *
+ * `dvh`인 이유는 휴대폰 브라우저의 주소창이 접혔다 펴지며 화면 높이가 바뀌기 때문이다.
+ *
+ * **Tailwind 기본 눈금으로는 "화면 크기에서 여백을 뺀 값"을 쓸 수 없다.** 그래서 여기
+ * 한 번만 두고 이름으로 쓴다 (CLAUDE.md §4).
+ */
+@utility popover-panel {
+  width: 22rem;
+  max-width: calc(100vw - 1.5rem);
+  max-height: calc(100dvh - 7rem);
+  overflow-y: auto;
+}
+
+@utility data-table {
+  & th {
+    background-color: var(--color-surface-sunken);
+    color: var(--color-ink-soft);
+    font-weight: 700;
+    padding: 0.625rem 1rem;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  & td {
+    border-top: 1px solid var(--color-line);
+    padding: 0.625rem 1rem;
+  }
+}

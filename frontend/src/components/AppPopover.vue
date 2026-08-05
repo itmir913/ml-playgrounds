@@ -17,7 +17,7 @@
  * 바깥 클릭과 Esc는 여기서 한 번만 처리한다. 쓰는 쪽마다 다시 짜면 어딘가는 빠진다.
  *
  * **모든 팝오버가 휴대폰에서도 열린다고 전제한다.** 크기는 `popover-panel`이 화면에
- * 매어 두므로(style.css) 폭도 높이도 화면을 넘지 않는다.
+ * 매어 두므로(styles/utilities.css) 폭도 높이도 화면을 넘지 않는다.
  *
  * **크기만으로는 부족하다.** 트리거가 화면 가장자리에 없으면 정렬만으로 밀려난다 —
  * 요약 버튼은 내보내기 버튼 왼쪽에 있어서, 320px에서 오른쪽 끝을 맞추면 패널 왼쪽이
@@ -47,7 +47,7 @@ const open = ref(false)
 const root = ref<HTMLElement | null>(null)
 const panel = ref<HTMLElement | null>(null)
 
-/** 화면 가장자리에서 띄울 간격. `style.css`의 `popover-panel` 여백과 같은 값이다. */
+/** 화면 가장자리에서 띄울 간격. `styles/utilities.css`의 `popover-panel` 여백과 같다. */
 const EDGE = 12
 
 /** 화면 밖으로 나간 만큼만 되민 거리(px). 0이면 정렬 그대로다. */

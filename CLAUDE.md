@@ -226,7 +226,7 @@ mixed content(Pages는 https, 교실 서버는 대개 http), 교사가 고쳐야
 - 백엔드: 타입 힌트 필수, `ruff`(린트+포맷), `mypy` strict, `pytest`. 모든 API 응답은 Pydantic 모델.
 - 프런트엔드: ESLint + Prettier, `vitest`. `any` 금지 — 불가피하면 이유를 주석으로 남긴다.
 - **화면 코드는 Tailwind 기본 클래스만 쓴다.** 임의 값(`w-[327px]`, `text-[0.625rem]`,
-  `[&_th]:px-4`)을 템플릿에 두지 마라. 꼭 필요하면 `style.css`에 `@utility`로 **한 번만**
+  `[&_th]:px-4`)을 템플릿에 두지 마라. 꼭 필요하면 `styles/utilities.css`에 `@utility`로 **한 번만**
   정의하고 이름으로 쓴다. 눈금이 사라지면 디자인 교체가 전수 조사가 된다.
 - **가장 작은 글자가 `text-base`다.** `text-sm`·`text-xs`를 쓰지 마라. 이 도구를 쓰는
   사람은 중고등학생이고 교실 모니터는 좋지 않다. 촘촘함은 글자를 줄여서가 아니라

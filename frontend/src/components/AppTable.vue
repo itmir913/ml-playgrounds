@@ -12,7 +12,7 @@
  * 숫자는 `tabular-nums`로 자릿수를 맞춘다. 지표가 세로로 늘어서는 화면에서
  * 자릿수가 흔들리면 비교가 안 된다.
  *
- * 칸의 모양은 `data-table` 유틸리티에 있다(style.css). **템플릿에는 Tailwind 기본
+ * 칸의 모양은 `data-table` 유틸리티에 있다(styles/utilities.css). **템플릿에는 Tailwind 기본
  * 클래스만 둔다** - `[&_th]` 같은 임의 변형을 흩뿌리면 읽을 수도 고칠 수도 없어진다.
  */
 </script>

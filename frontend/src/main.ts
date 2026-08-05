@@ -9,7 +9,7 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import { i18n, initLocale } from './i18n'
 import { router } from './router'
-import './style.css'
+import './styles/index.css'
 
 const app = createApp(App)
 // Pinia가 먼저다. 라우터 가드가 스토어를 부르므로 첫 이동 전에 활성 인스턴스가 있어야 한다.

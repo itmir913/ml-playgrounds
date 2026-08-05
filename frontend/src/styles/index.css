@@ -1,0 +1,35 @@
+/*
+ * 겉모습의 진입점. **여기는 순서만 정하고 규칙은 담지 않는다.**
+ *
+ * 한 파일이던 것을 역할로 나눴다. 컴포넌트로 나누지 않은 이유가 있다 -
+ * `@utility`는 이름 그대로 전역이고 실제로 여럿이 나눠 쓴다(`scrollbar-none`은
+ * 레일과 상태 표시줄 둘 다). 컴포넌트 이름을 붙이면 "여기서만 쓴다"는 거짓말이 된다.
+ *
+ * 컴포넌트 전용 CSS는 애초에 두지 않는다. 화면은 Tailwind 기본 클래스만 쓰고
+ * (CLAUDE.md §4) 예외는 `utilities.css`에 이름을 붙여 한 번만 적는다. SFC의
+ * `<style scoped>`로 흩어지면 검사가 못 잡고 디자인 교체가 다시 전수 조사가 된다.
+ *
+ * **순서가 뜻을 갖는다.** tailwind가 먼저여야 하고, 어두운 배색은 토큰 뒤여야
+ * 값을 덮을 수 있다.
+ */
+/* Tailwind v4는 CSS에서 직접 설정한다. tailwind.config.js가 없다. */
+@import 'tailwindcss';
+
+/*
+ * Pretendard Variable 동적 서브셋. **CDN을 쓰지 않는다** — 학교망이 CDN을 막는 경우가
+ * 실재하고, 그러면 글꼴만 깨지는 게 아니라 화면 폭이 통째로 달라진다
+ * (architecture.md §8.5).
+ *
+ * 유니코드 범위별로 잘린 92개 파일이고 브라우저는 **화면에 실제로 뜬 글자의 범위만**
+ * 받는다. 영어 화면은 두어 개, 한국어 화면도 열 개 남짓이다. 통짜로 받으면 1MB가 넘는다.
+ * `font-display: swap`은 이 파일이 이미 갖고 있다.
+ *
+ * Vite가 각 url()을 자산으로 내보내므로 배포 base 경로가 자동으로 붙는다.
+ * public/에 두면 그 처리를 우리가 해야 한다.
+ */
+@import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
+
+@import './theme.css';
+@import './dark.css';
+@import './utilities.css';
+@import './base.css';

@@ -1,0 +1,50 @@
+@layer base {
+  html {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    -webkit-text-size-adjust: 100%;
+    /*
+     * **기준 글자 크기를 건드리지 않는다.** 한때 15px로 낮춰 밀도를 얻으려 했지만,
+     * 이 도구를 쓰는 사람은 중고등학생이고 교실 모니터는 좋지 않다. 촘촘함은 글자를
+     * 줄여서가 아니라 여백으로 얻는다.
+     *
+     * 그래서 화면 코드에 `text-sm`과 `text-xs`가 없다 — 가장 작은 것이 `text-base`다.
+     */
+  }
+
+  /* 셸이 화면을 정확히 채운다. 바깥은 절대 스크롤되지 않는다. */
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+
+  body {
+    /* 자간을 조금 좁힌다. Pretendard는 기본 자간이 넓은 편이다. */
+    letter-spacing: -0.01em;
+  }
+
+  /*
+   * 키보드 이동이 보이지 않으면 학생이 화면에서 길을 잃는다.
+   * 마우스 클릭에는 나타나지 않게 :focus-visible을 쓴다.
+   */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+
+  /*
+   * 교실 저사양 PC 기준으로 모션을 절제한다. 여기서는 사용자가 줄이길 원할 때
+   * 실제로 멈추는 것만 보장한다.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
