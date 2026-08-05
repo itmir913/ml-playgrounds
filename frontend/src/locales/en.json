@@ -32,7 +32,9 @@
     "finished": "Everything is done.",
     "noProject": "No project is open yet.",
     "openMenu": "Open menu",
-    "language": "Language"
+    "language": "Language",
+    "toLight": "Switch to the light theme",
+    "toDark": "Switch to the dark theme"
   },
   "save": {
     "browserOnly": "In this browser only",

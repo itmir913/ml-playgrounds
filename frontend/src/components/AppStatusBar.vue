@@ -26,8 +26,10 @@ import { useI18n } from 'vue-i18n'
 
 import AppPopover from '@/components/AppPopover.vue'
 import { useFormat } from '@/composables/useFormat'
+import { ACTION_ICONS } from '@/icons'
 import { setLocale, SUPPORTED_LOCALES, type Locale } from '@/i18n'
 import { useProjectStore } from '@/stores/project'
+import { otherTheme, setTheme, theme } from '@/theme'
 
 const { t, locale } = useI18n()
 const format = useFormat()
@@ -96,6 +98,9 @@ const exportTone = computed(() =>
 function onLocale(event: Event): void {
   void setLocale((event.target as HTMLSelectElement).value as Locale)
 }
+
+/** 스위치가 가리키는 곳. 아이콘도 설명도 **바뀔 쪽**을 말한다. */
+const nextTheme = computed(() => otherTheme(theme.value))
 </script>
 
 <template>
@@ -154,5 +159,23 @@ function onLocale(event: Event): void {
         {{ t(`language.${tag}`) }}
       </option>
     </select>
+
+    <!--
+      배색 스위치. **글자 없이 아이콘 하나다** - 상태 표시줄은 좁고, 여기서 폭을 먹으면
+      왼쪽 줄이 그만큼 일찍 잘린다. 무엇인지는 설명과 아이콘이 말한다.
+    -->
+    <button
+      type="button"
+      class="shrink-0 rounded-control p-1 transition-colors hover:bg-surface-sunken hover:text-ink"
+      :title="t(`shell.${nextTheme === 'dark' ? 'toDark' : 'toLight'}`)"
+      :aria-label="t(`shell.${nextTheme === 'dark' ? 'toDark' : 'toLight'}`)"
+      @click="setTheme(nextTheme)"
+    >
+      <component
+        :is="nextTheme === 'dark' ? ACTION_ICONS.toDark : ACTION_ICONS.toLight"
+        :size="18"
+        aria-hidden="true"
+      />
+    </button>
   </footer>
 </template>

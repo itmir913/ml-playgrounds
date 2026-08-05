@@ -9,6 +9,7 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import { i18n, initLocale } from './i18n'
 import { router } from './router'
+import { initTheme } from './theme'
 import './styles/index.css'
 
 const app = createApp(App)
@@ -20,5 +21,9 @@ app.use(router)
 // 저장된 언어 선택을 읽는 동안 화면을 막지 않는다.
 // 시작은 대체 언어이고, 결정되는 즉시 교체된다.
 void initLocale()
+
+// 배색은 기기 설정만 보므로 기다릴 것이 없다. **마운트보다 먼저** 정해야 첫 그림이
+// 밝게 떴다가 어두워지지 않는다.
+initTheme()
 
 app.mount('#app')

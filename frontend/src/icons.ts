@@ -22,9 +22,11 @@ import {
   Info,
   LayoutDashboard,
   Library,
+  Moon,
   Plus,
   SlidersHorizontal,
   Sparkles,
+  Sun,
   Table2,
   Trash2,
   X,
@@ -56,6 +58,9 @@ export const ACTION_ICONS = {
   savedProjects: Library,
   exportFile: Download,
   showSummary: Info,
+  // 스위치는 **바뀔 쪽**을 그린다. 지금 어두우면 해를 보여 준다 - 누르면 밝아진다는 뜻이다.
+  toLight: Sun,
+  toDark: Moon,
   remove: Trash2,
   dismiss: X,
 } as const satisfies Record<string, LucideIcon>

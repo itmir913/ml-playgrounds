@@ -32,7 +32,9 @@
     "finished": "할 일을 모두 마쳤습니다.",
     "noProject": "아직 프로젝트를 열지 않았습니다.",
     "openMenu": "메뉴 열기",
-    "language": "언어"
+    "language": "언어",
+    "toLight": "밝은 화면으로 바꾸기",
+    "toDark": "어두운 화면으로 바꾸기"
   },
   "save": {
     "browserOnly": "이 브라우저에만 있음",
