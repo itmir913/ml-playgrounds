@@ -77,10 +77,18 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
 </script>
 
 <template>
-  <div class="flex min-w-0 flex-col gap-3">
+  <!--
+    **왼쪽 축과 같은 리듬으로 선다.** 축은 `제목 + mt-1.5`인데 여기만 간격이 달라서
+    두 열의 머리가 어긋나 보였다. 안쪽 여백도 위아래·좌우가 같아야 한다 — 한쪽만
+    좁으면 칸이 기울어 보인다.
+  -->
+  <div class="min-w-0">
     <h3 class="font-bold text-ink-soft">{{ t('train.chosenTitle') }}</h3>
 
-    <ul v-if="props.chosen.length > 0" class="flex flex-col rounded-panel border border-line">
+    <ul
+      v-if="props.chosen.length > 0"
+      class="mt-1.5 flex flex-col rounded-panel border border-line"
+    >
       <li
         v-for="(row, index) in props.chosen"
         :key="`${row.algorithm}:${row.runtime}:${index}`"
@@ -95,7 +103,7 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
           </AppButton>
         </div>
 
-        <details v-if="specsOf(row).length > 0" class="mt-2 rounded-panel border border-line">
+        <details v-if="specsOf(row).length > 0" class="mt-3 rounded-panel border border-line">
           <summary class="cursor-pointer px-3 py-2 font-bold text-ink-soft">
             {{ t('train.tuning') }}
           </summary>
@@ -126,7 +134,7 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
       </li>
     </ul>
 
-    <p class="text-ink-soft">
+    <p class="mt-1.5 text-ink-soft">
       {{
         props.chosen.length === 0
           ? t('train.noModelChosen')
