@@ -37,13 +37,14 @@
     "toDark": "Switch to the dark theme"
   },
   "save": {
-    "browserOnly": "On this computer only",
-    "saving": "Storing on this computer",
-    "unsaved": "Not on this computer yet",
+    "browserOnly": "Temporary copy only",
+    "saving": "Making a temporary copy",
+    "unsaved": "No temporary copy yet",
     "notExported": "Not saved to a file yet",
     "exported": "Saved to a file",
     "stale": "Changed since the last file save",
-    "exportWarning": "What is here disappears when this computer shuts down. Save it to a file."
+    "exportWarning": "The temporary copy disappears when this computer shuts down. Only a saved file lasts.",
+    "keepFile": "A saved file can disappear too if it stays on this computer. Move it off — to a USB drive or cloud storage — or hand it in."
   },
   "steps": {
     "data": {
@@ -127,7 +128,7 @@
     "updatedAt": "Last worked on",
     "size": "Size",
     "loading": "Loading.",
-    "storageNote": "Projects live on this computer only. To take one to another computer, save it to a file.",
+    "storageNote": "Projects are only kept temporarily on this computer. Save one to a file to keep it, and to carry on from another computer.",
     "saved": "Projects on this computer",
     "savedCount": "{count} project on this computer | {count} projects on this computer"
   },
@@ -248,7 +249,7 @@
   },
   "project": {
     "export": "Save to a file",
-    "exportDone": "Saved to a file. You need it to carry on from another computer.",
+    "exportDone": "Saved to a file. Move it off this computer, to a USB drive or cloud storage.",
     "exportDropped": "Some models were too large to include. Their scores are still there. ({count})",
     "open": "Open a file",
     "openDone": "The file is open.",
