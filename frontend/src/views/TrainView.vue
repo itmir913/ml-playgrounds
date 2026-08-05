@@ -430,23 +430,26 @@ function leave(): void {
         <div class="h-full rounded-pill bg-brand transition-all" :style="{ width: donePercent }" />
       </div>
     </section>
+
+    <!--
+      **학습 중에 나가면 결과가 없다.** 워커는 terminate되고 남는 것이 없으므로, 조용히
+      보내면 학생은 돌아와서 "결과가 왜 없지"를 만난다.
+
+      **이 화면 안에 있어야 한다.** 밖에 두면 루트가 둘이 되고, 그러면 라우트 전환의
+      `<Transition>`이 받을 수 없어 작업 공간이 통째로 비어 버린다 (App.vue).
+    -->
+    <AppDialog
+      :open="leavingTo !== null"
+      :title="t('train.leaveTitle')"
+      :description="t('train.leaveBody')"
+      @close="stay"
+    >
+      <template #actions>
+        <AppButton variant="secondary" @click="stay">{{ t('train.leaveStay') }}</AppButton>
+        <AppButton variant="danger" @click="leave">{{ t('train.leaveGo') }}</AppButton>
+      </template>
+    </AppDialog>
   </div>
 
   <AppEmpty v-else :reason="t('train.emptyReason')" :next="t('train.emptyNext')" />
-
-  <!--
-    **학습 중에 나가면 결과가 없다.** 워커는 terminate되고 남는 것이 없으므로, 조용히
-    보내면 학생은 돌아와서 "결과가 왜 없지"를 만난다.
-  -->
-  <AppDialog
-    :open="leavingTo !== null"
-    :title="t('train.leaveTitle')"
-    :description="t('train.leaveBody')"
-    @close="stay"
-  >
-    <template #actions>
-      <AppButton variant="secondary" @click="stay">{{ t('train.leaveStay') }}</AppButton>
-      <AppButton variant="danger" @click="leave">{{ t('train.leaveGo') }}</AppButton>
-    </template>
-  </AppDialog>
 </template>

@@ -182,6 +182,64 @@ describe('버튼의 상자가 변종마다 같다', () => {
   })
 })
 
+/**
+ * **라우트가 그리는 화면은 루트가 하나여야 한다.**
+ *
+ * `App.vue`가 라우트 전환에 `<Transition>`을 쓰는데, 트랜지션은 자식이 **하나**여야 한다.
+ * 루트가 둘 이상이면 작업 공간이 통째로 비고 DOM에는 `<!---->`만 남는다 — 그런데
+ * **새로고침하면 정상으로 보여서** 원인을 짚기가 아주 어렵다. 실제로 그렇게 겪었다.
+ *
+ * `v-if` / `v-else` 짝은 한 노드로 컴파일되므로 루트 하나다. 세는 것은 **동시에 그려질 수
+ * 있는 것**의 수다.
+ */
+describe('화면의 루트가 하나다', () => {
+  const VIEWS = join(SRC, 'views')
+
+  interface Root {
+    readonly tag: string
+    readonly attrs: string
+  }
+
+  /** 최상위 여는 태그들. `.vue`의 최상위는 두 칸 들여쓰기다(Prettier가 맞춰 준다). */
+  function roots(source: string): Root[] {
+    const start = source.indexOf('<template>') + '<template>'.length
+    const block = source
+      .slice(start, source.lastIndexOf('</template>'))
+      .replace(/<!--[\s\S]*?-->/g, '')
+    return [...block.matchAll(/^ {2}<([A-Za-z][\w-]*)([^>]*)>/gm)].map((match) => ({
+      tag: match[1] ?? '',
+      attrs: match[2] ?? '',
+    }))
+  }
+
+  /** 동시에 그려질 수 있는 루트. v-else 가지는 앞의 것과 같은 자리를 나눠 쓴다. */
+  function drawnAtOnce(source: string): string[] {
+    return roots(source)
+      .filter((root) => !/\bv-else\b|\bv-else-if=/.test(root.attrs))
+      .map((root) => root.tag)
+  }
+
+  it('검사기가 v-else 짝을 하나로 센다', () => {
+    const source = '<template>\n  <div v-if="x">a</div>\n\n  <AppEmpty v-else />\n</template>'
+    expect(drawnAtOnce(source)).toEqual(['div'])
+  })
+
+  it('검사기가 여분의 루트를 잡는다', () => {
+    const source =
+      '<template>\n  <div v-if="x">a</div>\n\n  <AppEmpty v-else />\n\n  <AppDialog\n    :open="y"\n  >\n  </AppDialog>\n</template>'
+    expect(drawnAtOnce(source)).toEqual(['div', 'AppDialog'])
+  })
+
+  it('지금 모든 화면의 루트가 하나다', () => {
+    const found = readdirSync(VIEWS)
+      .filter((entry) => entry.endsWith('.vue'))
+      .map((entry) => ({ entry, tags: drawnAtOnce(readFileSync(join(VIEWS, entry), 'utf-8')) }))
+      .filter(({ tags }) => tags.length !== 1)
+      .map(({ entry, tags }) => `${entry}  ${tags.join(', ')}`)
+    expect(found).toEqual([])
+  })
+})
+
 describe('버튼이 두 번 눌리지 않는다', () => {
   const NEWLINE = String.fromCharCode(10)
 
