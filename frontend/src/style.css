@@ -102,6 +102,63 @@
 }
 
 /*
+ * 어두운 배색.
+ *
+ * **값만 바꾼다.** 화면 코드는 `--color-surface`처럼 쓰임새로 된 이름만 쓰므로(§8.4)
+ * 여기서 값을 갈아 끼우면 전부 따라온다. 토큰 층이 없었다면 다크 모드는 화면을 전수
+ * 조사하는 일이 됐을 것이고, 화면이 늘어난 뒤에는 실제로 그렇게 된다. 지금이 가장 싸다.
+ *
+ * **밝기 순서를 뒤집지 않는다.** 밝은 배색에서 surface > canvas > sunken 순으로 밝고,
+ * 여기서도 같다. 어두운 화면에서는 위로 올라온 면이 더 밝기 때문이다. 순서를 뒤집으면
+ * 도구 막대가 작업 공간보다 꺼져 보인다.
+ *
+ * **브랜드와 상태색은 명도만 올린다.** 어두운 바탕에서 #4f46e5는 글자로 읽기에 너무
+ * 어둡다. 색상은 그대로 두어 같은 제품으로 읽히게 한다.
+ *
+ * **`color-scheme`을 빠뜨리지 마라.** 브라우저가 직접 그리는 것들(선택 상자, 스크롤
+ * 막대, 자동 완성)이 이 값을 본다. 없으면 상태 표시줄의 언어 선택기만 하얗게 남는다.
+ *
+ * 지금은 **시스템 설정을 따라가기만 한다.** 화면에서 직접 고르는 것은 언어와 같은
+ * 방식으로(IndexedDB) 나중에 붙인다 — 값 층이 여기 있으므로 그때는 스위치만 만들면 된다.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --color-canvas: #172033;
+    --color-surface: #1e293b;
+    --color-surface-sunken: #0f172a;
+
+    --color-line: #334155;
+    --color-line-strong: #475569;
+
+    --color-ink: #e2e8f0;
+    --color-ink-soft: #94a3b8;
+    --color-ink-faint: #64748b;
+    --color-ink-invert: #0f172a;
+
+    --color-brand: #818cf8;
+    --color-brand-strong: #a5b4fc;
+    --color-brand-line: #3730a3;
+    --color-brand-soft: #1e1b4b;
+
+    --color-positive: #34d399;
+    --color-positive-soft: #052e26;
+    --color-caution: #fbbf24;
+    --color-caution-soft: #3a2606;
+    --color-danger: #fb7185;
+    --color-danger-soft: #4c0519;
+    --color-info: #60a5fa;
+    --color-info-soft: #172554;
+
+    /* 어두운 바탕에서 옅은 그림자는 아무것도 하지 않는다. 더 깊고 더 검게. */
+    --shadow-card: 0 1px 2px oklch(0 0 0 / 0.3), 0 1px 3px oklch(0 0 0 / 0.4);
+    --shadow-float: 0 1px 2px oklch(0 0 0 / 0.4);
+    --shadow-pop: 0 10px 30px -6px oklch(0 0 0 / 0.55), 0 4px 8px -4px oklch(0 0 0 / 0.4);
+  }
+}
+
+/*
  * 표의 칸 모양.
  *
  * **화면 코드는 Tailwind 기본 클래스만 쓴다.** `[&_th]` 같은 임의 변형을 템플릿에
