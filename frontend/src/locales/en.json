@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "Machine Learning Playgrounds",
-    "tagline": "Build a model from your own data. The whole process becomes your portfolio.",
+    "tagline": "Play freely with AI. With just your own data, anyone can build a machine learning model.",
     "short": "ML"
   },
   "nav": {

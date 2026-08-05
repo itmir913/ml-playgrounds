@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "Machine Learning Playgrounds",
-    "tagline": "데이터로 직접 모델을 만듭니다. 그 과정이 그대로 포트폴리오가 됩니다.",
+    "tagline": "인공지능을 자유롭게 즐겨 보세요. 데이터만 있으면 누구나 기계학습 모델을 만들 수 있습니다.",
     "short": "ML"
   },
   "nav": {
