@@ -107,6 +107,21 @@
  * **화면 코드는 Tailwind 기본 클래스만 쓴다.** `[&_th]` 같은 임의 변형을 템플릿에
  * 흩뿌리면 읽을 수도 고칠 수도 없어진다. 여기 한 번만 적고 AppTable이 가져다 쓴다.
  */
+/**
+ * 스크롤은 되지만 막대는 안 보이는 상자.
+ *
+ * 레일과 상태 표시줄처럼 **좁고 늘 보이는 자리**에 쓴다. 거기서는 막대가 내용보다
+ * 자리를 많이 먹고, 무엇보다 **막대가 보인다는 것 자체가 무언가 잘못됐다는 신호로
+ * 읽힌다.** 스크롤 자체를 막지는 않는다 - 휴대폰에서 단계가 여섯이면 넘칠 수 있다.
+ */
+@utility scrollbar-none {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @utility data-table {
   & th {
     background-color: var(--color-surface-sunken);

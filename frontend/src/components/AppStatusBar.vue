@@ -63,7 +63,7 @@ function onLocale(event: Event): void {
 
 <template>
   <footer
-    class="flex h-statusbar shrink-0 items-center gap-2 overflow-x-auto border-t border-line bg-surface px-3 text-ink-soft"
+    class="scrollbar-none flex h-statusbar shrink-0 items-center gap-2 overflow-x-auto border-t border-line bg-surface px-3 text-ink-soft"
   >
     <template v-if="project.projectId !== null">
       <!--

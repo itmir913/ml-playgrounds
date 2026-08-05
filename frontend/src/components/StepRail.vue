@@ -42,20 +42,25 @@ function reason(step: StepId): string {
   return project.projectId === null ? t('shell.noProject') : t(`steps.${step}.locked`)
 }
 
-/**
- * 칸 하나의 공통 모양. 아이콘 위, 글자 아래.
- *
- * `min-w-0`과 `break-words`가 짝이다 — 앞의 것이 없으면 flex 항목이 내용만큼
- * 늘어나서 뒤의 것이 일을 하지 못한다. 그게 글자가 삐져나오던 이유였다.
- */
+/** 칸 하나의 공통 모양. 아이콘 위, 글자 아래. */
 const CELL =
-  'flex w-full min-w-0 flex-col items-center gap-1 rounded-control px-1 py-2 text-center leading-tight break-words hyphens-auto'
+  'flex w-full min-w-0 flex-col items-center gap-1 rounded-control px-1 py-2 leading-tight'
+
+/**
+ * 글자 상자.
+ *
+ * **`w-full`이 핵심이다.** `items-center` 아래에서는 자식의 가로 크기가 내용을 따라가서,
+ * `break-words`만 있으면 상자가 레일보다 넓어지고 글자는 그냥 넘친다. 폭을 부모에
+ * 매어 놓아야 비로소 줄바꿈이 일한다 — 영어에서 레일에 가로 스크롤이 생기던 이유가
+ * 이 한 클래스였다.
+ */
+const LABEL = 'w-full text-center break-words hyphens-auto'
 </script>
 
 <template>
   <nav
     :aria-label="t('shell.steps')"
-    class="flex shrink-0 gap-1 overflow-x-auto border-line bg-surface-sunken p-1 max-sm:order-last max-sm:justify-center max-sm:border-t sm:w-rail sm:flex-col sm:overflow-x-visible sm:overflow-y-auto sm:border-r"
+    class="scrollbar-none flex shrink-0 gap-1 overflow-x-auto border-line bg-surface-sunken p-1 max-sm:order-last max-sm:justify-center max-sm:border-t sm:w-rail sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto sm:border-r"
   >
     <template v-for="step in STEP_IDS" :key="step">
       <RouterLink
@@ -72,7 +77,7 @@ const CELL =
         ]"
       >
         <component :is="STEP_ICONS[step]" :size="20" aria-hidden="true" />
-        <span class="max-sm:hidden">{{ label(step) }}</span>
+        <span :class="[LABEL, 'max-sm:hidden']">{{ label(step) }}</span>
       </RouterLink>
 
       <span
@@ -82,7 +87,7 @@ const CELL =
         :class="[CELL, 'shrink-0 cursor-not-allowed font-medium text-ink-faint']"
       >
         <component :is="STEP_ICONS[step]" :size="20" aria-hidden="true" />
-        <span class="max-sm:hidden">{{ label(step) }}</span>
+        <span :class="[LABEL, 'max-sm:hidden']">{{ label(step) }}</span>
       </span>
     </template>
   </nav>

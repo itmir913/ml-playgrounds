@@ -49,7 +49,7 @@
       "purpose": "Upload a table and see what columns it has."
     },
     "preprocess": {
-      "label": "Preprocessing",
+      "label": "Setup",
       "locked": "Upload your data first.",
       "purpose": "Decide what to predict from what, and tidy the data."
     },
@@ -64,7 +64,7 @@
       "purpose": "Compare the numbers and see what changed them."
     },
     "predict": {
-      "label": "Prediction",
+      "label": "Predict",
       "locked": "No model is available to predict with yet.",
       "purpose": "Put in new values and see what the model says."
     },
