@@ -64,7 +64,7 @@ export type { Predict } from '../models/types'
  * `modelOmitted: 'engineUnsupported'`로 적힌다 (mlpx-spec.md 4.2).
  *
  * **경로도 크기도 여기서 정하지 않는다.** zip 안의 자리를 아는 것은 저장 계층이고,
- * 여기서 없는 경로를 적으면 파일이 자기 자신에 대해 거짓말을 하게 된다 (ml/batch.ts의
+ * 여기서 없는 경로를 적으면 파일이 자기 자신에 대해 거짓말을 하게 된다 (ml/experiment.ts의
  * preprocessor와 같은 이유다).
  */
 export interface FitResult {
@@ -409,7 +409,7 @@ export const MLJS_ALGORITHMS = Object.keys(TRAINERS)
  *
  * 확정을 fit 안으로 넣으면 fit이 던졌을 때 돌려줄 것이 없어서 **실패한 run에 아무 값도
  * 안 남는다.** 그러면 같은 필드가 성공과 실패에서 두 가지 뜻을 갖고, "실패한 run에도
- * 무엇을 시도했는지는 남아야 한다"(ml/batch.ts)가 깨진다.
+ * 무엇을 시도했는지는 남아야 한다"(ml/experiment.ts)가 깨진다.
  *
  * 규칙 셋.
  *
@@ -421,7 +421,7 @@ export const MLJS_ALGORITHMS = Object.keys(TRAINERS)
  *    같은 것을 먹이면 같은 결과가 나오므로 재현도 깨지지 않는다.
  *
  * 모르는 알고리즘이면 채울 기본값이 없다. 던지지 않는다 - 판정은 fit의 일이고,
- * 여기서 던지면 실패 run을 만들기도 전에 묶음이 죽는다.
+ * 여기서 던지면 실패 run을 만들기도 전에 실험이 죽는다.
  */
 export function resolve(
   algorithm: string,

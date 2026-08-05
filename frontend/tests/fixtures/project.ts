@@ -10,7 +10,7 @@ import type { Dataset, ProjectFile } from '../../src/project/format'
 import {
   FORMAT_VERSION,
   PROJECT_KIND_ML,
-  type Batch,
+  type Experiment,
   type Manifest,
   type Run,
 } from '../../src/project/schema'
@@ -43,7 +43,7 @@ export const settings = {
   preprocessing: { missing: 'drop', scaling: 'standard', categoricalEncoding: 'onehot' } as const,
   split: { method: 'holdout', testSize: 0.2, stratify: true, randomState: 42 } as const,
   runtime: 'mljs',
-  // SVM은 순수 JS 구현이 없어 학생이 개별로 서버를 골랐다. 묶음 안에 엔진이 섞이는
+  // SVM은 순수 JS 구현이 없어 학생이 개별로 서버를 골랐다. 실험 안에 엔진이 섞이는
   // 정상적인 모양이다 - 같은 데이터·전처리·분할을 쓰므로 비교는 그대로 성립한다.
   selectedAlgorithms: [
     { algorithm: 'decision_tree' },
@@ -75,13 +75,13 @@ export function run(id: string, overrides: Partial<Run> = {}): Run {
   }
 }
 
-export function batch(id: string, runs: Run[]): Batch {
+export function experiment(id: string, runs: Run[]): Experiment {
   return {
     id,
     startedAt: '2026-08-04T10:30:00Z',
     settings: {
       // manifest에 있는 것을 다시 적는 것이 아니다 - 학생이 과제 유형을 바꾸면
-      // manifest는 따라가고 옛 묶음은 안 따라간다.
+      // manifest는 따라가고 옛 실험은 안 따라간다.
       taskType: manifest.taskType,
       runtime: 'mljs',
       selectedAlgorithms: [
@@ -124,7 +124,7 @@ export function emptyProjectFile(): ProjectFile {
         target: undefined,
         selectedAlgorithms: [],
       },
-      runs: { batches: [] },
+      runs: { experiments: [] },
       portfolio: { template: { id: 'default-v1' }, answers: {} },
     },
     models: new Map(),
@@ -136,13 +136,13 @@ export function projectFile(overrides: Partial<ProjectFile> = {}): ProjectFile {
     document: {
       manifest,
       settings,
-      runs: { batches: [batch('batch-1', [run('run-1')])] },
+      runs: { experiments: [experiment('experiment-1', [run('run-1')])] },
       portfolio: { template: { id: 'default-v1' }, answers: { motivation: '꽃이 좋아서' } },
     },
     dataset,
     models: new Map([
       ['model/run-1.json', new TextEncoder().encode('{"tree":[]}')],
-      ['model/preprocessor-batch-1.json', new TextEncoder().encode('{"columns":[]}')],
+      ['model/preprocessor-experiment-1.json', new TextEncoder().encode('{"columns":[]}')],
     ]),
     ...overrides,
   }

@@ -45,7 +45,7 @@ const document = {
     selectedAlgorithms: [{ algorithm: 'decision_tree' }],
     hyperparameters: { decision_tree: { mljs: { maxDepth: 5 } } },
   },
-  runs: { batches: [] },
+  runs: { experiments: [] },
   portfolio: { template: { id: 'default-v1' }, answers: {} },
 }
 

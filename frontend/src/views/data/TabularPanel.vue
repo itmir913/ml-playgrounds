@@ -52,7 +52,7 @@ const confirming = ref(false)
 /** 열 검사기에서 펼쳐 놓은 열. 보조 영역이라 기본은 닫혀 있다. */
 const inspecting = ref(false)
 
-const batchCount = computed(() => project.file?.document.runs.batches.length ?? 0)
+const experimentCount = computed(() => project.file?.document.runs.experiments.length ?? 0)
 
 const previewRows = computed(() => {
   const document = opened.value?.document
@@ -118,9 +118,9 @@ function onDrop(event: DragEvent): void {
   if (file) void readFile(file)
 }
 
-/** 확정 요청. 지울 묶음이 있으면 먼저 물어본다 (mlpx-spec.md §4.3). */
+/** 확정 요청. 지울 실험이 있으면 먼저 물어본다 (mlpx-spec.md §4.3). */
 function requestApply(): void {
-  if (batchCount.value > 0) {
+  if (experimentCount.value > 0) {
     confirming.value = true
     return
   }
@@ -303,7 +303,7 @@ function kindOf(column: ColumnSummary): string {
     <AppDialog
       :open="confirming"
       :title="t('data.replaceTitle')"
-      :description="t('data.replaceDescription', batchCount)"
+      :description="t('data.replaceDescription', experimentCount)"
       @close="confirming = false"
     >
       <template #actions>

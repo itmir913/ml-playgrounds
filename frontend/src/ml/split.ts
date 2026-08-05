@@ -1,9 +1,9 @@
 /**
  * 학습셋/평가셋 분할. **엔진보다 앞에 있고 엔진과 무관하다.**
  *
- * 여기서 나온 인덱스가 .mlpx의 batch.settings.trainIndices / testIndices가 되고,
+ * 여기서 나온 인덱스가 .mlpx의 experiment.settings.trainIndices / testIndices가 되고,
  * 서버로 학습을 보낼 때도 함께 간다. **양쪽이 각자 분할을 계산하면 라이브러리 버전 차이로
- * 테스트셋이 갈리고, 그러면 같은 묶음인데 비교가 성립하지 않는다** (mlpx-spec.md 0.3).
+ * 테스트셋이 갈리고, 그러면 같은 실험인데 비교가 성립하지 않는다** (mlpx-spec.md 0.3).
  * 계산하는 곳은 여기 하나다.
  *
  * 인덱스는 **정본 CSV의 행 번호**다(헤더 제외, 0부터). 참조형 모델(KNN·SVM)이 이 번호로

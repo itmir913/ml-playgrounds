@@ -178,7 +178,7 @@ export function evaluate(
   // **NaN을 run에 싣지 않는다.** 위 머리말이 경고한 경로가 실제로 열려 있었다 - 회귀에
   // 범주형 타깃을 고르면 Number('상')이 NaN이 되어 지표 전부가 NaN인 채 status가 done이
   // 되고, 저장할 때 JSON이 그것을 null로 바꿔 **다시 열리지 않는 .mlpx**가 나왔다.
-  // ml/batch.ts가 그 조합을 앞에서 거부하지만 여기가 마지막 방어선이다 - 지표가 수치로
+  // ml/experiment.ts가 그 조합을 앞에서 거부하지만 여기가 마지막 방어선이다 - 지표가 수치로
   // 안 나오는 이유는 앞으로도 더 생긴다.
   for (const [metric, value] of Object.entries(evaluation.metrics)) {
     if (!Number.isFinite(value)) throw new ClientError('JOB_FAILED', { metric })

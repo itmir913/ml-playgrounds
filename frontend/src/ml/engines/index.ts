@@ -1,7 +1,7 @@
 /**
  * 학습 엔진 등록부.
  *
- * **`if (runtime === 'mljs')` 를 만들지 마라.** 여기 배열에 한 줄 추가하면 묶음 실행이
+ * **`if (runtime === 'mljs')` 를 만들지 마라.** 여기 배열에 한 줄 추가하면 실험 실행이
  * 따라온다 (ml/algorithms.ts, ml/metrics.ts와 같은 방식). scikit-learn(Pyodide)이
  * 붙는 자리가 정확히 여기이고, 그때 바뀌는 것은 이 배열 하나여야 한다.
  *

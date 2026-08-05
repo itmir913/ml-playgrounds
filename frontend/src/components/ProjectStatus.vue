@@ -49,7 +49,7 @@ const info = computed(() => {
   let bytes = file.dataset?.bytes.length ?? 0
   for (const model of file.models.values()) bytes += model.length
 
-  const allRuns = runs.batches.flatMap((batch) => batch.runs)
+  const allRuns = runs.experiments.flatMap((experiment) => experiment.runs)
   return {
     manifest,
     dataset,

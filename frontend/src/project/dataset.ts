@@ -4,7 +4,7 @@
  * **순수 함수다.** 저장은 부르는 쪽이 한다 — 여기서 IndexedDB를 만지면 "붙였을 때
  * 무엇이 지워지는가"를 화면 없이 확인할 수 없다.
  *
- * 여기가 지키는 것은 하나다 — **데이터가 바뀌면 기존 묶음을 전부 지운다**
+ * 여기가 지키는 것은 하나다 — **데이터가 바뀌면 기존 실험을 전부 지운다**
  * (mlpx-spec.md §4.3). 참조형 모델(KNN·SVM)은 `dataset/data.csv`의 **행 번호**를
  * 가리키므로, 표가 바뀌면 그 번호가 다른 것을 가리켜 **조용히 틀린 예측**을 한다.
  * 지표도 다른 데이터 기준이라 비교 자체가 성립하지 않는다.
@@ -17,8 +17,8 @@ import type { DatasetRef } from './schema'
 
 export interface AppliedDataset {
   readonly project: ProjectFile
-  /** 지워진 묶음 수. 0이 아니면 화면이 붙이기 전에 학생에게 알려야 한다. */
-  readonly droppedBatches: number
+  /** 지워진 실험 수. 0이 아니면 화면이 붙이기 전에 학생에게 알려야 한다. */
+  readonly droppedExperiments: number
   /** 새 표에 없어서 선택에서 빠진 열 이름들. 조용히 사라지면 안 된다. */
   readonly droppedColumns: readonly string[]
 }
@@ -72,12 +72,12 @@ export function applyDataset(
         manifest: { ...document.manifest, updatedAt: options.now },
         settings: { ...document.settings, dataset, features, target },
         // mlpx-spec.md §4.3. 모델도 함께 버린다 - 남으면 고아가 된다.
-        runs: { ...document.runs, batches: [] },
+        runs: { ...document.runs, experiments: [] },
       },
       dataset: { bytes: imported.bytes, hash: imported.hash },
       models: new Map(),
     },
-    droppedBatches: document.runs.batches.length,
+    droppedExperiments: document.runs.experiments.length,
     droppedColumns,
   }
 }

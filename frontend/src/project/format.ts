@@ -176,9 +176,9 @@ async function zipAsync(entries: Record<string, Uint8Array>): Promise<Uint8Array
  */
 function referencedModelPaths(document: ProjectDocument): Set<string> {
   const paths = new Set<string>()
-  for (const batch of document.runs.batches) {
-    if (batch.preprocessor) paths.add(batch.preprocessor.path)
-    for (const run of batch.runs) {
+  for (const experiment of document.runs.experiments) {
+    if (experiment.preprocessor) paths.add(experiment.preprocessor.path)
+    for (const run of experiment.runs) {
       if (run.model) paths.add(run.model.path)
     }
   }
@@ -214,9 +214,9 @@ function detachMissingModels(
   present: Set<string>,
   reasonFor?: (path: string) => ModelOmissionReason | undefined,
 ): ProjectDocument {
-  const batches = document.runs.batches.map((batch) => {
-    const hasPreprocessor = batch.preprocessor ? present.has(batch.preprocessor.path) : false
-    const runs = batch.runs.map((run) => {
+  const experiments = document.runs.experiments.map((experiment) => {
+    const hasPreprocessor = experiment.preprocessor ? present.has(experiment.preprocessor.path) : false
+    const runs = experiment.runs.map((run) => {
       // **전처리기가 필요한지는 모델이 말한다** (mlpx-spec.md 5). 자체 JSON은 전처리가
       // 밖에 있어서 전처리기 없이는 예측할 수 없지만, 전처리를 그래프에 담는 형식은
       // 혼자 선다. 형식 이름을 보고 가르면 표 윗줄이 금지한 분기를 여기로 옮기는 것이다.
@@ -234,21 +234,21 @@ function detachMissingModels(
       if (reason) detached.modelOmitted = reason
       return detached
     })
-    const next = { ...batch, runs }
+    const next = { ...experiment, runs }
     if (!hasPreprocessor) delete next.preprocessor
     return next
   })
-  return { ...document, runs: { ...document.runs, batches } }
+  return { ...document, runs: { ...document.runs, experiments } }
 }
 
 /**
  * 크기 예산에 맞춰 담을 모델을 고른다 (mlpx-spec.md 5.1).
  *
- * 최신 묶음부터 채운다. 계수 몇 개짜리 모델은 여러 회차가 남고, 랜덤 포레스트는
+ * 최신 실험부터 채운다. 계수 몇 개짜리 모델은 여러 회차가 남고, 랜덤 포레스트는
  * 최근 것만 남는다. 그래서 학생은 과거 버전으로도 예측을 시험할 수 있다.
  *
- * 전처리기는 그 묶음 모델 전체의 전제다. 전처리기가 예산에 못 들어가면
- * 그 묶음의 모델은 담아 봐야 쓸 수 없으므로 통째로 뺀다.
+ * 전처리기는 그 실험 모델 전체의 전제다. 전처리기가 예산에 못 들어가면
+ * 그 실험의 모델은 담아 봐야 쓸 수 없으므로 통째로 뺀다.
  *
  * 상한을 인자로 받는 이유는 테스트다. 실제 예산은 수십 MB라서 그걸 그대로 채우는
  * 테스트는 느리고, 상한이 바뀌면 테스트 의도까지 흔들린다.
@@ -269,14 +269,14 @@ export function selectModels(
     dropped.push({ path, sizeBytes: sizeOf(path), reason })
   }
 
-  // 최신 묶음이 먼저다.
-  for (const batch of [...document.runs.batches].reverse()) {
-    const candidates = batch.runs
+  // 최신 실험이 먼저다.
+  for (const experiment of [...document.runs.experiments].reverse()) {
+    const candidates = experiment.runs
       .map((run) => run.model)
       .filter((model): model is ModelRef => model !== undefined && models.has(model.path))
     if (candidates.length === 0) continue
 
-    const preprocessorPath = batch.preprocessor?.path
+    const preprocessorPath = experiment.preprocessor?.path
     const preprocessorFound = preprocessorPath !== undefined && models.has(preprocessorPath)
     const preprocessorSize = preprocessorFound ? sizeOf(preprocessorPath) : 0
     const preprocessorUsable = preprocessorFound && preprocessorSize <= remaining
@@ -413,12 +413,12 @@ function requireSanePaths(document: ProjectDocument): void {
     requirePathUnder(dataset.path, DIR.dataset, 'settings.dataset.path')
   }
 
-  document.runs.batches.forEach((batch, batchIndex) => {
-    const at = `runs.batches.${batchIndex}`
-    if (batch.preprocessor) {
-      requirePathUnder(batch.preprocessor.path, DIR.model, `${at}.preprocessor.path`)
+  document.runs.experiments.forEach((experiment, experimentIndex) => {
+    const at = `runs.experiments.${experimentIndex}`
+    if (experiment.preprocessor) {
+      requirePathUnder(experiment.preprocessor.path, DIR.model, `${at}.preprocessor.path`)
     }
-    batch.runs.forEach((run, runIndex) => {
+    experiment.runs.forEach((run, runIndex) => {
       if (run.model) {
         requirePathUnder(run.model.path, DIR.model, `${at}.runs.${runIndex}.model.path`)
       }

@@ -92,7 +92,7 @@ export function newProjectDocument(input: NewProject, seed: ProjectSeed): Projec
       selectedAlgorithms: [],
       hyperparameters: {},
     },
-    runs: { batches: [] },
+    runs: { experiments: [] },
     portfolio: { template: { id: DEFAULT_PORTFOLIO_TEMPLATE_ID }, answers: {} },
   }
 }

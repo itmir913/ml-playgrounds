@@ -1,9 +1,9 @@
 /**
- * 묶음 실행 - 조각들을 엮어 `runs.json`의 묶음 하나를 만든다.
+ * 실험 실행 - 조각들을 엮어 `runs.json`의 실험 하나를 만든다.
  *
- * [학습]을 한 번 누르면 묶음 하나가 생기고, 고른 모델 수만큼 run이 들어간다.
- * **같은 묶음은 같은 데이터·전처리·분할을 쓰므로 공정한 비교가 구조적으로 보장된다**
- * (mlpx-spec.md 4). 그래서 전처리기는 묶음당 한 번만 학습하고 전체가 공유한다.
+ * [학습]을 한 번 누르면 실험 하나가 생기고, 고른 모델 수만큼 run이 들어간다.
+ * **같은 실험은 같은 데이터·전처리·분할을 쓰므로 공정한 비교가 구조적으로 보장된다**
+ * (mlpx-spec.md 4). 그래서 전처리기는 실험당 한 번만 학습하고 전체가 공유한다.
  *
  * ```
  * usableRows -> holdoutSplit -> fitPreprocessor -> transform -> fit -> predict -> evaluate
@@ -13,18 +13,18 @@
  * (open-decisions.md "학습은 언제나 백그라운드다"), 취소는 워커 terminate가 한다.
  * async로 만들면 중간에 끊을 수 있는 것처럼 보이는 신호를 넣고 싶어지는데, 동기 루프
  * 안에서 그건 거짓말이다. 대신 모델 하나가 끝날 때마다 onRun을 부른다 -
- * **진행 표시는 모델 단위이고 묶음 전체 진행률은 부르는 쪽이 센다** (mlpx-spec.md 0.3).
+ * **진행 표시는 모델 단위이고 실험 전체 진행률은 부르는 쪽이 센다** (mlpx-spec.md 0.3).
  *
  * **실패의 경계가 둘이다.**
  *
  * - 알고리즘 하나가 죽는 것은 run 하나의 실패다. 나머지 결과는 나온다 (mlpx-spec.md 4.1).
- * - 분할·전처리가 죽는 것은 묶음 자체가 성립하지 않는 것이라 던진다. 여기서 run을
+ * - 분할·전처리가 죽는 것은 실험 자체가 성립하지 않는 것이라 던진다. 여기서 run을
  *   만들어 봐야 전부 같은 사유로 실패하고, 학생은 같은 문장을 모델 수만큼 보게 된다.
  */
 
 import { ClientError, failureDetail, isClientError, type ClientErrorParams } from '../errors'
 import { BROWSER_ROW_LIMIT } from '../limits'
-import type { Batch, DataType, Run, RunsFile, Settings, TaskType } from '../project/schema'
+import type { Experiment, DataType, Run, RunsFile, Settings, TaskType } from '../project/schema'
 import { algorithmOptions, type AlgorithmOption } from './algorithms'
 import type { RuntimeContext, RuntimeSpec, UnavailableReason } from './backend'
 import { engineFor, type TrainingEngine } from './engines'
@@ -42,7 +42,7 @@ import {
 } from './preprocess'
 import { holdoutSplit } from './split'
 
-export interface BatchInput {
+export interface ExperimentInput {
   /** 정본 CSV를 읽은 표. 헤더는 rows에 없다 - 행 번호가 곧 분할 인덱스다. */
   dataset: Dataset
   /** 학생이 고른다. 자동 판정하지 않는다 (mlpx-spec.md 0.1). */
@@ -50,19 +50,19 @@ export interface BatchInput {
   /** 업로드한 파일에서 판정된다. */
   dataType: DataType
   /**
-   * 학습 시점의 설정. 그대로 묶음에 스냅샷으로 남는다.
+   * 학습 시점의 설정. 그대로 실험에 스냅샷으로 남는다.
    *
-   * 실행 방법도 여기 있다 - `settings.runtime`이 묶음 기본이고 모델마다 덮어쓸 수 있다.
+   * 실행 방법도 여기 있다 - `settings.runtime`이 실험 기본이고 모델마다 덮어쓸 수 있다.
    */
   settings: Settings
   /** 서버 유무·엔진 준비 상태·행 수. 실행 방법 판정에 쓴다. */
   context: RuntimeContext
 }
 
-export interface BatchOptions {
+export interface ExperimentOptions {
   /**
    * 지금까지의 runs.json. id 일련번호와 changed 계산이 여기서 나온다.
-   * 없으면 첫 묶음이다.
+   * 없으면 첫 실험이다.
    */
   history?: RunsFile
   /** 시각. 테스트가 결정적이려면 주입할 수 있어야 한다. */
@@ -71,10 +71,10 @@ export interface BatchOptions {
   onRun?: (run: Run, completed: number, total: number) => void
 }
 
-export interface BatchResult {
-  batch: Batch
+export interface ExperimentResult {
+  experiment: Experiment
   /**
-   * 학습된 전처리기. **묶음에 넣지 않고 따로 돌려준다** - batch.preprocessor는
+   * 학습된 전처리기. **실험에 넣지 않고 따로 돌려준다** - experiment.preprocessor는
    * zip 안의 경로를 가리키는 참조이고, 그 파일을 쓰는 것은 저장 계층의 일이다.
    * 여기서 있지도 않은 경로를 적어 두면 파일이 자기 자신에 대해 거짓말을 하게 된다.
    */
@@ -117,7 +117,7 @@ function reasonParams(reason: UnavailableReason): ClientErrorParams {
 /**
  * 이 알고리즘을 지금 어디서 돌릴지 고른다.
  *
- * **자동 이동은 학생이 안 고른 칸만 채운다.** 묶음 기본을 물려받은 모델은 그 방법으로
+ * **자동 이동은 학생이 안 고른 칸만 채운다.** 실험 기본을 물려받은 모델은 그 방법으로
  * 못 돌면 되는 곳으로 넘어가지만(open-decisions.md "실행 방법은 하나의 목록이다"),
  * 모델별로 **콕 집어 고른 것은 옮기지 않는다.** 두 가지 이유가 있다.
  *
@@ -204,11 +204,11 @@ function changedPaths(before: unknown, after: unknown, prefix = ''): string[] {
  * **분할 인덱스는 뺀다.** split 설정에서 파생된 값이라 중복이고, `settings.trainIndices`가
  * 목록에 뜨면 학생은 자기가 무엇을 바꿨는지 알 수 없다.
  *
- * 알고리즘과 하이퍼파라미터는 넣는다 - 묶음 사이에서 학생이 실제로 가장 자주 바꾸는 것이
+ * 알고리즘과 하이퍼파라미터는 넣는다 - 실험 사이에서 학생이 실제로 가장 자주 바꾸는 것이
  * 그것인데, 그게 안 잡히면 changed가 대부분 빈 배열이 되어 쓸모가 없어진다.
  */
 function comparable(
-  settings: Batch['settings'],
+  settings: Experiment['settings'],
   runs: readonly Run[],
   shared: ReadonlySet<string>,
 ): Record<string, unknown> {
@@ -241,15 +241,15 @@ function comparable(
 }
 
 /**
- * 직전 묶음 대비 바뀐 설정 경로.
+ * 직전 실험 대비 바뀐 설정 경로.
  *
  * 하이퍼파라미터는 **양쪽에 다 있는 (알고리즘, 실행 방법)만** 본다. KNN을 목록에서 빼면
  * 그 하이퍼파라미터도 같이 사라지는데, 둘 다 적으면 학생은 하나를 바꾸고 두 줄을 보게
  * 된다. 목록이 바뀐 것은 `algorithms` 한 줄로 이미 드러난다.
  */
 function changedSince(
-  previous: Batch,
-  settings: Batch['settings'],
+  previous: Experiment,
+  settings: Experiment['settings'],
   runs: readonly Run[],
 ): string[] {
   const key = (selection: { algorithm: string; runtime: string }): string =>
@@ -265,7 +265,7 @@ function changedSince(
   )
 }
 
-/** `batch-3` 같은 id에서 다음 번호. 번호는 프로젝트 전역이다 (mlpx-spec.md 4). */
+/** `experiment-3` 같은 id에서 다음 번호. 번호는 프로젝트 전역이다 (mlpx-spec.md 4). */
 function nextSequence(prefix: string, ids: Iterable<string>): number {
   let highest = 0
   for (const id of ids) {
@@ -342,15 +342,15 @@ function trainOne(
 }
 
 /**
- * 묶음 하나를 실행한다.
+ * 실험 하나를 실행한다.
  *
  * 분할·전처리가 실패하면 던진다. 개별 알고리즘의 실패는 failed run으로 남고 나머지는
- * 계속 돈다 - **묶음 하나가 통째로 실패하는 일은 없다** (mlpx-spec.md 4.1).
+ * 계속 돈다 - **실험 하나가 통째로 실패하는 일은 없다** (mlpx-spec.md 4.1).
  */
-export function runBatch(input: BatchInput, options: BatchOptions = {}): BatchResult {
+export function runExperiment(input: ExperimentInput, options: ExperimentOptions = {}): ExperimentResult {
   const { dataset, settings, taskType, dataType, context } = input
   const now = options.now ?? (() => new Date().toISOString())
-  const batches = options.history?.batches ?? []
+  const experiments = options.history?.experiments ?? []
   const { target } = settings
 
   // 군집화에는 타깃이 없지만 군집 알고리즘도 아직 없다. 여기 오는 것은 분류·회귀뿐이고
@@ -399,10 +399,10 @@ export function runBatch(input: BatchInput, options: BatchOptions = {}): BatchRe
   const total = settings.selectedAlgorithms.length
   let sequence = nextSequence(
     'run',
-    batches.flatMap((batch) => batch.runs.map((run) => run.id)),
+    experiments.flatMap((experiment) => experiment.runs.map((run) => run.id)),
   )
 
-  // **요청을 먼저 확정한다.** 모델마다 덮어쓴 것이 없으면 묶음 기본을 따르고, 스냅샷에는
+  // **요청을 먼저 확정한다.** 모델마다 덮어쓴 것이 없으면 실험 기본을 따르고, 스냅샷에는
   // 언제나 채워진 값이 들어간다 - 기록을 읽는 쪽이 기본값 규칙을 알아야 한다면
   // 그건 스냅샷이 아니다.
   const requested = settings.selectedAlgorithms.map((selection) => ({
@@ -465,7 +465,7 @@ export function runBatch(input: BatchInput, options: BatchOptions = {}): BatchRe
     if (finished) options.onRun?.(finished, runs.length, total)
   }
 
-  const batchSettings: Batch['settings'] = {
+  const experimentSettings: Experiment['settings'] = {
     taskType,
     runtime: settings.runtime,
     // explicit은 요청을 만드는 동안만 쓰는 값이라 파일에 남기지 않는다.
@@ -479,18 +479,18 @@ export function runBatch(input: BatchInput, options: BatchOptions = {}): BatchRe
     testIndices: split.testIndices,
   }
 
-  const previous = batches[batches.length - 1]
+  const previous = experiments[experiments.length - 1]
 
   return {
-    batch: {
-      id: `batch-${nextSequence(
-        'batch',
-        batches.map((batch) => batch.id),
+    experiment: {
+      id: `experiment-${nextSequence(
+        'experiment',
+        experiments.map((experiment) => experiment.id),
       )}`,
       startedAt,
-      // 첫 묶음에는 직전이 없다. 빈 배열은 "아무것도 안 바꿨다"라는 다른 뜻이 된다.
-      ...(previous ? { changed: changedSince(previous, batchSettings, runs) } : {}),
-      settings: batchSettings,
+      // 첫 실험에는 직전이 없다. 빈 배열은 "아무것도 안 바꿨다"라는 다른 뜻이 된다.
+      ...(previous ? { changed: changedSince(previous, experimentSettings, runs) } : {}),
+      settings: experimentSettings,
       runs,
     },
     preprocessor,

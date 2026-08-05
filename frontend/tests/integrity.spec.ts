@@ -44,7 +44,7 @@ describe('저장할 때 남기는 것', () => {
       [
         DATASET_PATH,
         ENTRY.manifest,
-        'model/preprocessor-batch-1.json',
+        'model/preprocessor-experiment-1.json',
         'model/run-1.json',
         ENTRY.portfolioMarkdown,
         ENTRY.portfolio,
@@ -92,9 +92,9 @@ describe('열 때 하는 대조', () => {
   it('풀어서 지표를 고치고 다시 압축하면 어디가 바뀌었는지 짚어준다', async () => {
     const entries = await written()
     const runs = JSON.parse(new TextDecoder().decode(entries[ENTRY.runs])) as {
-      batches: { runs: { metrics: Record<string, number> }[] }[]
+      experiments: { runs: { metrics: Record<string, number> }[] }[]
     }
-    const target = runs.batches[0]?.runs[0]
+    const target = runs.experiments[0]?.runs[0]
     if (target) target.metrics = { accuracy: 0.99 }
     entries[ENTRY.runs] = new TextEncoder().encode(JSON.stringify(runs, null, 2))
 

@@ -22,7 +22,7 @@ import {
 } from '../src/project/format'
 import { FORMAT_VERSION } from '../src/project/schema'
 import {
-  batch,
+  experiment,
   datasetBytes,
   emptyProjectFile,
   manifest,
@@ -110,18 +110,18 @@ describe('왕복', () => {
       failure: { code: 'JOB_TIMEOUT', params: { limitSeconds: 120 } },
     })
     const project = projectFile()
-    project.document.runs.batches = [batch('batch-1', [run('run-1'), failed])]
+    project.document.runs.experiments = [experiment('experiment-1', [run('run-1'), failed])]
     const reopened = await roundTrip(project)
-    const reopenedRun = reopened.document.runs.batches[0]?.runs[1]
+    const reopenedRun = reopened.document.runs.experiments[0]?.runs[1]
     expect(reopenedRun?.status).toBe('failed')
     expect(reopenedRun?.failure?.code).toBe('JOB_TIMEOUT')
   })
 
-  it('묶음이 없는 새 프로젝트도 왕복한다', async () => {
+  it('실험이 없는 새 프로젝트도 왕복한다', async () => {
     const project = projectFile({ models: new Map() })
-    project.document.runs.batches = []
+    project.document.runs.experiments = []
     const reopened = await roundTrip(project)
-    expect(reopened.document.runs.batches).toEqual([])
+    expect(reopened.document.runs.experiments).toEqual([])
   })
 
   it('모르는 필드가 살아남는다', async () => {
@@ -169,19 +169,19 @@ describe('모델 참조가 어긋난 파일', () => {
     delete entries['model/run-1.json']
 
     const reopened = await open(zipSync(entries))
-    const reopenedRun = reopened.document.runs.batches[0]?.runs[0]
+    const reopenedRun = reopened.document.runs.experiments[0]?.runs[0]
     expect(reopenedRun?.model).toBeUndefined()
     expect(reopenedRun?.metrics?.accuracy).toBe(0.9333)
   })
 
-  it('전처리기가 없으면 그 묶음의 모델도 쓸 수 없다', async () => {
+  it('전처리기가 없으면 그 실험의 모델도 쓸 수 없다', async () => {
     const { bytes } = await writeProject(projectFile(), markdown)
     const entries = unzipSync(bytes)
-    delete entries['model/preprocessor-batch-1.json']
+    delete entries['model/preprocessor-experiment-1.json']
 
     const reopened = await open(zipSync(entries))
-    expect(reopened.document.runs.batches[0]?.preprocessor).toBeUndefined()
-    expect(reopened.document.runs.batches[0]?.runs[0]?.model).toBeUndefined()
+    expect(reopened.document.runs.experiments[0]?.preprocessor).toBeUndefined()
+    expect(reopened.document.runs.experiments[0]?.runs[0]?.model).toBeUndefined()
   })
 
   it('전처리를 자기 안에 담은 모델은 전처리기가 없어도 남는다', async () => {
@@ -189,16 +189,16 @@ describe('모델 참조가 어긋난 파일', () => {
     // onnx-v1은 "전처리 그래프에 포함"이다. 규칙이 없으면 V5에서 멀쩡한 모델이 조용히
     // 떨어지고 아무도 이유를 모른다. 형식 이름이 아니라 모델이 든 불리언이 정한다.
     const project = projectFile()
-    const target = project.document.runs.batches[0]?.runs[0]
+    const target = project.document.runs.experiments[0]?.runs[0]
     if (target?.model) target.model = { ...target.model, includesPreprocessing: true }
 
     const { bytes } = await writeProject(project, markdown)
     const entries = unzipSync(bytes)
-    delete entries['model/preprocessor-batch-1.json']
+    delete entries['model/preprocessor-experiment-1.json']
 
     const reopened = await open(zipSync(entries))
-    expect(reopened.document.runs.batches[0]?.preprocessor).toBeUndefined()
-    expect(reopened.document.runs.batches[0]?.runs[0]?.model).toBeDefined()
+    expect(reopened.document.runs.experiments[0]?.preprocessor).toBeUndefined()
+    expect(reopened.document.runs.experiments[0]?.runs[0]?.model).toBeDefined()
   })
 
   it('담긴 모델이 아무도 안 쓰면 전처리기도 담지 않는다', () => {
@@ -210,11 +210,11 @@ describe('모델 참조가 어긋난 파일', () => {
     if (standalone.model) {
       standalone.model = { ...standalone.model, includesPreprocessing: true }
     }
-    project.document.runs.batches = [batch('batch-1', [standalone, run('run-2')])]
+    project.document.runs.experiments = [experiment('experiment-1', [standalone, run('run-2')])]
     project.models = new Map([
       ['model/run-1.json', filler(10)],
       ['model/run-2.json', filler(100)],
-      ['model/preprocessor-batch-1.json', filler(10)],
+      ['model/preprocessor-experiment-1.json', filler(10)],
     ])
 
     // run-2는 개별 상한(60)을 넘어 빠진다. 남는 run-1은 전처리기가 필요 없다.
@@ -225,11 +225,11 @@ describe('모델 참조가 어긋난 파일', () => {
 
   it('전처리기가 예산에 못 들어가도 혼자 서는 모델은 남는다', () => {
     const project = projectFile()
-    const target = project.document.runs.batches[0]?.runs[0]
+    const target = project.document.runs.experiments[0]?.runs[0]
     if (target?.model) target.model = { ...target.model, includesPreprocessing: true }
     project.models = new Map([
       ['model/run-1.json', filler(10)],
-      ['model/preprocessor-batch-1.json', filler(90)],
+      ['model/preprocessor-experiment-1.json', filler(90)],
     ])
 
     // 예산 20바이트에는 전처리기(90)가 못 들어간다. 그래도 모델(10)은 쓸 수 있다.
@@ -250,41 +250,41 @@ describe('크기 예산', () => {
     expect(result.bytes.length).toBeGreaterThan(0)
 
     const reopened = await open(result.bytes)
-    expect(reopened.document.runs.batches[0]?.runs[0]?.model).toBeUndefined()
-    expect(reopened.document.runs.batches[0]?.runs[0]?.metrics?.accuracy).toBe(0.9333)
+    expect(reopened.document.runs.experiments[0]?.runs[0]?.model).toBeUndefined()
+    expect(reopened.document.runs.experiments[0]?.runs[0]?.metrics?.accuracy).toBe(0.9333)
   })
 
-  it('예산이 차면 오래된 묶음부터 빠진다', () => {
+  it('예산이 차면 오래된 실험부터 빠진다', () => {
     const project = projectFile()
-    project.document.runs.batches = [
-      batch('batch-1', [run('run-1')]),
-      batch('batch-2', [run('run-2')]),
+    project.document.runs.experiments = [
+      experiment('experiment-1', [run('run-1')]),
+      experiment('experiment-2', [run('run-2')]),
     ]
     project.models = new Map([
       ['model/run-1.json', filler(60)],
-      ['model/preprocessor-batch-1.json', filler(10)],
+      ['model/preprocessor-experiment-1.json', filler(10)],
       ['model/run-2.json', filler(60)],
-      ['model/preprocessor-batch-2.json', filler(10)],
+      ['model/preprocessor-experiment-2.json', filler(10)],
     ])
 
-    // 예산 100바이트에는 최신 묶음(전처리기 10 + 모델 60)만 들어간다.
+    // 예산 100바이트에는 최신 실험(전처리기 10 + 모델 60)만 들어간다.
     const { kept, dropped } = selectModels(project.document, project.models, 100, 60)
-    expect([...kept]).toEqual(['model/preprocessor-batch-2.json', 'model/run-2.json'])
+    expect([...kept]).toEqual(['model/preprocessor-experiment-2.json', 'model/run-2.json'])
     expect(dropped.map((model) => model.path)).toEqual(['model/run-1.json'])
     expect(dropped[0]?.reason).toBe('overBudget')
   })
 
   it('작은 모델은 여러 회차가 남는다 - 계수 몇 개짜리를 버릴 이유가 없다', () => {
     const project = projectFile()
-    project.document.runs.batches = [
-      batch('batch-1', [run('run-1')]),
-      batch('batch-2', [run('run-2')]),
+    project.document.runs.experiments = [
+      experiment('experiment-1', [run('run-1')]),
+      experiment('experiment-2', [run('run-2')]),
     ]
     project.models = new Map([
       ['model/run-1.json', filler(10)],
-      ['model/preprocessor-batch-1.json', filler(10)],
+      ['model/preprocessor-experiment-1.json', filler(10)],
       ['model/run-2.json', filler(10)],
-      ['model/preprocessor-batch-2.json', filler(10)],
+      ['model/preprocessor-experiment-2.json', filler(10)],
     ])
 
     const { kept, dropped } = selectModels(project.document, project.models, 100, 60)
@@ -297,7 +297,7 @@ describe('크기 예산', () => {
     project.models.set('model/run-1.json', filler(MAX_MODEL_BYTES + 1))
 
     const written = unzipSync((await writeProject(project, markdown)).bytes)
-    expect(Object.keys(written)).not.toContain('model/preprocessor-batch-1.json')
+    expect(Object.keys(written)).not.toContain('model/preprocessor-experiment-1.json')
   })
 })
 
@@ -307,20 +307,20 @@ describe('모델을 왜 뺐는지 파일에 남는다', () => {
     project.models.set('model/run-1.json', filler(MAX_MODEL_BYTES + 1))
 
     const reopened = await open((await writeProject(project, markdown)).bytes)
-    expect(reopened.document.runs.batches[0]?.runs[0]?.modelOmitted).toBe('tooLarge')
+    expect(reopened.document.runs.experiments[0]?.runs[0]?.modelOmitted).toBe('tooLarge')
   })
 
   it('합계 예산에서 밀렸으면 overBudget이다 - 다시 학습하면 되살아난다', async () => {
     const project = projectFile()
-    project.document.runs.batches = [
-      batch('batch-1', [run('run-1')]),
-      batch('batch-2', [run('run-2')]),
+    project.document.runs.experiments = [
+      experiment('experiment-1', [run('run-1')]),
+      experiment('experiment-2', [run('run-2')]),
     ]
     project.models = new Map([
       ['model/run-1.json', filler(60)],
-      ['model/preprocessor-batch-1.json', filler(10)],
+      ['model/preprocessor-experiment-1.json', filler(10)],
       ['model/run-2.json', filler(60)],
-      ['model/preprocessor-batch-2.json', filler(10)],
+      ['model/preprocessor-experiment-2.json', filler(10)],
     ])
 
     // selectModels의 판정을 그대로 문서에 옮기는지를 본다. 예산은 인자로 줄 수 없으므로
@@ -331,13 +331,13 @@ describe('모델을 왜 뺐는지 파일에 남는다', () => {
 
   it('모델이 담기면 옛 사유가 지워진다 - 담긴 모델 옆에 "담지 못했습니다"가 뜨면 안 된다', async () => {
     const project = projectFile()
-    const first = project.document.runs.batches[0]?.runs[0]
+    const first = project.document.runs.experiments[0]?.runs[0]
     // 지난번 저장에서 밀렸다가, 이번에는 예산에 여유가 생겨 담기는 상황이다.
     if (first) first.modelOmitted = 'overBudget'
 
     const reopened = await open((await writeProject(project, markdown)).bytes)
-    expect(reopened.document.runs.batches[0]?.runs[0]?.model).toBeDefined()
-    expect(reopened.document.runs.batches[0]?.runs[0]?.modelOmitted).toBeUndefined()
+    expect(reopened.document.runs.experiments[0]?.runs[0]?.model).toBeDefined()
+    expect(reopened.document.runs.experiments[0]?.runs[0]?.modelOmitted).toBeUndefined()
   })
 
   it('파일에 모델이 없어서 뗀 것에는 사유를 지어내지 않는다', async () => {
@@ -347,7 +347,7 @@ describe('모델을 왜 뺐는지 파일에 남는다', () => {
     delete entries['model/run-1.json']
 
     const { project } = await readProject(zipSync(entries))
-    const first = project.document.runs.batches[0]?.runs[0]
+    const first = project.document.runs.experiments[0]?.runs[0]
     expect(first?.model).toBeUndefined()
     expect(first?.modelOmitted).toBeUndefined()
   })
@@ -447,13 +447,13 @@ describe('경로가 어긋난 파일', () => {
   /** runs.json을 손으로 고친 파일을 만든다. */
   async function withRuns(
     mutate: (runs: {
-      batches: { preprocessor?: { path: string }; runs: { model?: { path: string } }[] }[]
+      experiments: { preprocessor?: { path: string }; runs: { model?: { path: string } }[] }[]
     }) => void,
   ) {
     const { bytes } = await writeProject(projectFile(), markdown)
     const entries = unzipSync(bytes)
     const runs = JSON.parse(new TextDecoder().decode(entries[ENTRY.runs])) as {
-      batches: { preprocessor?: { path: string }; runs: { model?: { path: string } }[] }[]
+      experiments: { preprocessor?: { path: string }; runs: { model?: { path: string } }[] }[]
     }
     mutate(runs)
     entries[ENTRY.runs] = new TextEncoder().encode(JSON.stringify(runs, null, 2))
@@ -502,20 +502,20 @@ describe('경로가 어긋난 파일', () => {
     // 파일은 멀쩡히 열려서 아무도 못 알아챈다.
     await rejectsAt(
       await withRuns((runs) => {
-        const batch = runs.batches[0]
-        if (batch?.preprocessor) batch.preprocessor.path = ENTRY.settings
+        const experiment = runs.experiments[0]
+        if (experiment?.preprocessor) experiment.preprocessor.path = ENTRY.settings
       }),
-      'runs.batches.0.preprocessor.path',
+      'runs.experiments.0.preprocessor.path',
     )
   })
 
   it('모델이 model/ 밖을 가리키면 거부한다', async () => {
     await rejectsAt(
       await withRuns((runs) => {
-        const model = runs.batches[0]?.runs[0]?.model
+        const model = runs.experiments[0]?.runs[0]?.model
         if (model) model.path = ENTRY.portfolioMarkdown
       }),
-      'runs.batches.0.runs.0.model.path',
+      'runs.experiments.0.runs.0.model.path',
     )
   })
 

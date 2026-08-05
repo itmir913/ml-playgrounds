@@ -11,15 +11,15 @@
  */
 
 import type { ClientErrorParams } from '../../errors'
-import type { Batch, Run, RunsFile } from '../../project/schema'
-import type { BatchInput } from '../batch'
+import type { Experiment, Run, RunsFile } from '../../project/schema'
+import type { ExperimentInput } from '../experiment'
 import type { ModelFile } from '../models'
 import type { Preprocessor } from '../preprocess'
 
-/** 메인 -> 워커. 묶음 하나를 돌려 달라는 것. */
+/** 메인 -> 워커. 실험 하나를 돌려 달라는 것. */
 export interface TrainRequest {
   type: 'train'
-  input: BatchInput
+  input: ExperimentInput
   /** 지금까지의 runs.json. id 일련번호와 changed가 여기서 나온다. */
   history?: RunsFile
 }
@@ -27,11 +27,11 @@ export interface TrainRequest {
 /**
  * 워커 -> 메인.
  *
- * **진행은 모델 단위다** (mlpx-spec.md 0.3). 묶음 전체 진행률은 받는 쪽이 센다 -
+ * **진행은 모델 단위다** (mlpx-spec.md 0.3). 실험 전체 진행률은 받는 쪽이 센다 -
  * 여기서 백분율을 만들면 서버 학습과 계산이 두 벌이 되고 반드시 어긋난다.
  */
 export type WorkerMessage =
   | { type: 'progress'; run: Run; completed: number; total: number }
   // 모델은 Map으로 간다. 구조화 복제가 Map을 그대로 넘기므로 평평하게 펼 이유가 없다.
-  | { type: 'done'; batch: Batch; preprocessor: Preprocessor; models: Map<string, ModelFile> }
+  | { type: 'done'; experiment: Experiment; preprocessor: Preprocessor; models: Map<string, ModelFile> }
   | { type: 'failed'; code: string; params: ClientErrorParams }

@@ -32,7 +32,7 @@ export function factsOf(file: ProjectFile | null): ProjectFacts {
     return NO_FACTS
   }
   const { settings, runs, portfolio } = file.document
-  const batches = runs.batches
+  const experiments = runs.experiments
   return {
     // 참조와 본체는 함께 있고 함께 없다 (mlpx-spec.md §1). 어느 쪽을 봐도 같지만
     // 본체를 본다 - 화면이 알고 싶은 것은 "보여줄 표가 있는가"다.
@@ -40,8 +40,8 @@ export function factsOf(file: ProjectFile | null): ProjectFacts {
     targetChosen: settings.target !== undefined,
     featuresChosen: settings.features.length > 0,
     algorithmsChosen: settings.selectedAlgorithms.length > 0,
-    trainingDone: batches.some((batch) => batch.runs.length > 0),
-    modelReady: batches.some((batch) => batch.runs.some((run) => run.model !== undefined)),
+    trainingDone: experiments.some((experiment) => experiment.runs.length > 0),
+    modelReady: experiments.some((experiment) => experiment.runs.some((run) => run.model !== undefined)),
     portfolioWritten: Object.values(portfolio.answers).some((answer) => answer.trim() !== ''),
   }
 }

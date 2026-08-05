@@ -13,7 +13,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
-import type { BatchInput } from '../src/ml/batch'
+import type { ExperimentInput } from '../src/ml/experiment'
 import { train, type TrainWorker } from '../src/ml/worker/client'
 import { handleTrain } from '../src/ml/worker/handler'
 import type { TrainRequest, WorkerMessage } from '../src/ml/worker/protocol'
@@ -41,7 +41,7 @@ function settingsFor(overrides: Partial<Settings> = {}): Settings {
   }
 }
 
-function inputFor(settings: Settings = settingsFor()): BatchInput {
+function inputFor(settings: Settings = settingsFor()): ExperimentInput {
   return {
     dataset: irisDataset(),
     taskType: 'classification',
@@ -128,7 +128,7 @@ describe('워커 안의 처리', () => {
     expect(messages).toEqual([{ type: 'failed', code: 'TARGET_NOT_SELECTED', params: {} }])
   })
 
-  it('알고리즘 하나가 실패해도 묶음은 성공이다', () => {
+  it('알고리즘 하나가 실패해도 실험은 성공이다', () => {
     const messages = collect(requestFor(settingsFor({ selectedAlgorithms: models('svm', 'knn') })))
     expect(messages[messages.length - 1]?.type).toBe('done')
   })
@@ -137,12 +137,12 @@ describe('워커 안의 처리', () => {
     const first = collect(requestFor()).at(-1)
     if (first?.type !== 'done') return expect.unreachable()
 
-    const history: RunsFile = { batches: [first.batch] }
+    const history: RunsFile = { experiments: [first.experiment] }
     const messages: WorkerMessage[] = []
     handleTrain({ ...requestFor(), history }, (message) => messages.push(message))
 
     const second = messages.at(-1)
-    expect(second?.type === 'done' && second.batch.id).toBe('batch-2')
+    expect(second?.type === 'done' && second.experiment.id).toBe('experiment-2')
   })
 })
 
@@ -158,8 +158,8 @@ describe('메인 스레드 쪽', () => {
     const worker = new HandlerWorker()
     const { result } = train(requestFor(), { createWorker: () => worker })
 
-    const { batch, preprocessor } = await result
-    expect(batch.runs.map((run) => run.status)).toEqual(['done', 'done'])
+    const { experiment, preprocessor } = await result
+    expect(experiment.runs.map((run) => run.status)).toEqual(['done', 'done'])
     expect(preprocessor.format).toBe('mlpx-preprocess-v1')
     expect(worker.terminated).toBe(1)
   })

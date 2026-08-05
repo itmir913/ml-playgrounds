@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ROUTE_PROJECT_HOME, ROUTE_PROJECTS, router } from '../src/router'
 import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
-import { batch, emptyProjectFile, manifest, projectFile, run } from './fixtures/project'
+import { experiment, emptyProjectFile, manifest, projectFile, run } from './fixtures/project'
 
 async function deleteDatabase(): Promise<void> {
   await new Promise<void>((resolve) => {
@@ -83,7 +83,7 @@ describe('라우터', () => {
     const omitted = run('run-1', { model: undefined, modelOmitted: 'overBudget' })
     await saveProject({
       ...base,
-      document: { ...base.document, runs: { batches: [batch('batch-1', [omitted])] } },
+      document: { ...base.document, runs: { experiments: [experiment('experiment-1', [omitted])] } },
     })
 
     await router.push(`/project/${manifest.projectId}/predict`)

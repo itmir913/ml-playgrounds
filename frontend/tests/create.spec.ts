@@ -39,7 +39,7 @@ describe('새 프로젝트', () => {
     expect(document.settings.features).toEqual([])
     expect(document.settings.target).toBeUndefined()
     expect(document.settings.selectedAlgorithms).toEqual([])
-    expect(document.runs.batches).toEqual([])
+    expect(document.runs.experiments).toEqual([])
   })
 
   it('같은 씨앗이면 같은 문서가 나온다', () => {

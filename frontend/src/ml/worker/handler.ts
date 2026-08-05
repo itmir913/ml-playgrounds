@@ -7,22 +7,22 @@
  */
 
 import { failureDetail, isClientError } from '../../errors'
-import { runBatch } from '../batch'
+import { runExperiment } from '../experiment'
 import type { TrainRequest, WorkerMessage } from './protocol'
 
 /**
- * 묶음을 돌리고 메시지를 내보낸다. **던지지 않는다.**
+ * 실험을 돌리고 메시지를 내보낸다. **던지지 않는다.**
  *
  * 워커 안에서 예외가 새면 메인 스레드는 `error` 이벤트 하나만 받고 무엇이 왜 실패했는지
  * 알 수 없다. 사유를 코드로 바꿔 보내야 화면이 로케일 문장을 고를 수 있다 (CLAUDE.md 1.4).
  */
 export function handleTrain(request: TrainRequest, emit: (message: WorkerMessage) => void): void {
   try {
-    const { batch, preprocessor, models } = runBatch(request.input, {
+    const { experiment, preprocessor, models } = runExperiment(request.input, {
       ...(request.history ? { history: request.history } : {}),
       onRun: (run, completed, total) => emit({ type: 'progress', run, completed, total }),
     })
-    emit({ type: 'done', batch, preprocessor, models })
+    emit({ type: 'done', experiment, preprocessor, models })
   } catch (error) {
     emit(
       isClientError(error)

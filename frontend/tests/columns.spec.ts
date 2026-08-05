@@ -6,7 +6,7 @@
  * 1. **이름이 서로 달라야 한다.** 아래 계층이 `columns.indexOf(name)`으로 열을 찾으므로
  *    같은 이름이 둘이면 두 번째 열은 영영 닿지 않고, 학생이 그 열을 골라도 말없이
  *    첫 번째 열로 학습한다.
- * 2. **데이터를 바꾸면 묶음이 전부 사라져야 한다** (mlpx-spec.md §4.3). 남으면 참조형
+ * 2. **데이터를 바꾸면 실험이 전부 사라져야 한다** (mlpx-spec.md §4.3). 남으면 참조형
  *    모델이 다른 줄을 보고 예측한다.
  */
 
@@ -16,7 +16,7 @@ import { columnNames, spreadsheetName, summarizeColumns, toDataset } from '../sr
 import { hashBytes } from '../src/hash'
 import { applyDataset } from '../src/project/dataset'
 import { TABULAR_DATASET_PATH } from '../src/project/format'
-import { batch, projectFile, run } from './fixtures/project'
+import { experiment, projectFile, run } from './fixtures/project'
 
 const grid = [
   ['이름', '점수', '반'],
@@ -118,19 +118,19 @@ describe('프로젝트에 붙이기', () => {
   const now = '2026-08-06T01:00:00Z'
   const options = { fileName: '성적.csv', hasHeader: true, now }
 
-  it('묶음을 전부 지운다 - 남으면 참조형 모델이 다른 줄을 본다', () => {
+  it('실험을 전부 지운다 - 남으면 참조형 모델이 다른 줄을 본다', () => {
     const before = projectFile()
     const applied = applyDataset(before, imported(), options)
 
-    expect(applied.droppedBatches).toBe(1)
-    expect(applied.project.document.runs.batches).toEqual([])
+    expect(applied.droppedExperiments).toBe(1)
+    expect(applied.project.document.runs.experiments).toEqual([])
     expect(applied.project.models.size).toBe(0)
   })
 
   it('원래 프로젝트를 건드리지 않는다 - 확정 전에는 되돌릴 것이 없어야 한다', () => {
     const before = projectFile()
     applyDataset(before, imported(), options)
-    expect(before.document.runs.batches).toHaveLength(1)
+    expect(before.document.runs.experiments).toHaveLength(1)
   })
 
   it('정본 경로와 인코딩 기록을 남긴다', () => {
@@ -193,18 +193,18 @@ describe('프로젝트에 붙이기', () => {
     expect(applied.project.document.manifest.updatedAt).toBe(now)
   })
 
-  it('묶음이 없던 프로젝트는 지울 것도 없다', () => {
+  it('실험이 없던 프로젝트는 지울 것도 없다', () => {
     const before = projectFile()
-    before.document = { ...before.document, runs: { batches: [] } }
-    expect(applyDataset(before, imported(), options).droppedBatches).toBe(0)
+    before.document = { ...before.document, runs: { experiments: [] } }
+    expect(applyDataset(before, imported(), options).droppedExperiments).toBe(0)
   })
 
-  it('묶음이 여럿이면 여럿을 지운다', () => {
+  it('실험이 여럿이면 여럿을 지운다', () => {
     const before = projectFile()
     before.document = {
       ...before.document,
-      runs: { batches: [batch('batch-1', [run('run-1')]), batch('batch-2', [run('run-2')])] },
+      runs: { experiments: [experiment('experiment-1', [run('run-1')]), experiment('experiment-2', [run('run-2')])] },
     }
-    expect(applyDataset(before, imported(), options).droppedBatches).toBe(2)
+    expect(applyDataset(before, imported(), options).droppedExperiments).toBe(2)
   })
 })

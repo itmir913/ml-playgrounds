@@ -15,7 +15,7 @@
 
 import { ClientError, toClientErrorCode } from '../../errors'
 import type { Run } from '../../project/schema'
-import type { BatchResult } from '../batch'
+import type { ExperimentResult } from '../experiment'
 import type { TrainRequest, WorkerMessage } from './protocol'
 
 /**
@@ -32,19 +32,19 @@ export interface TrainWorker {
 export interface TrainOptions {
   /** 워커를 만든다. 앱은 spawnTrainingWorker를, 테스트는 가짜를 넣는다. */
   createWorker: () => TrainWorker
-  /** 모델 하나가 끝날 때마다. 묶음 전체 진행률은 여기서 센다 (mlpx-spec.md 0.3). */
+  /** 모델 하나가 끝날 때마다. 실험 전체 진행률은 여기서 센다 (mlpx-spec.md 0.3). */
   onProgress?: (run: Run, completed: number, total: number) => void
 }
 
 export interface TrainHandle {
-  /** 성공하면 묶음, 실패·취소면 ClientError로 거절된다. */
-  result: Promise<BatchResult>
+  /** 성공하면 실험, 실패·취소면 ClientError로 거절된다. */
+  result: Promise<ExperimentResult>
   /** 학습을 멈춘다. 이미 끝났으면 아무 일도 일어나지 않는다. */
   cancel: () => void
 }
 
 /**
- * 워커에서 묶음을 돌린다.
+ * 워커에서 실험을 돌린다.
  *
  * 어떤 경로로 끝나든 워커는 반드시 종료된다 - 성공·실패·취소·워커 자체의 오류.
  * 남겨 두면 학생이 설정을 바꿔가며 열 번 돌리는 사이에 워커가 열 개 쌓인다.
@@ -54,9 +54,9 @@ export function train(request: TrainRequest, options: TrainOptions): TrainHandle
 
   // Promise 생성자는 동기로 실행되므로 아래 두 개는 반드시 채워진다.
   // Promise.withResolvers는 ES2024라 여기서는 못 쓴다.
-  let resolve!: (value: BatchResult) => void
+  let resolve!: (value: ExperimentResult) => void
   let reject!: (reason: ClientError) => void
-  const result = new Promise<BatchResult>((onResolve, onReject) => {
+  const result = new Promise<ExperimentResult>((onResolve, onReject) => {
     resolve = onResolve
     reject = onReject
   })
@@ -81,7 +81,7 @@ export function train(request: TrainRequest, options: TrainOptions): TrainHandle
     if (message.type === 'done') {
       settle(() =>
         resolve({
-          batch: message.batch,
+          experiment: message.experiment,
           preprocessor: message.preprocessor,
           models: message.models,
         }),

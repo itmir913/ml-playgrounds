@@ -73,7 +73,7 @@ const run = {
 const document = {
   manifest,
   settings,
-  runs: { batches: [] },
+  runs: { experiments: [] },
   portfolio: { template: { id: 'default-v1' }, answers: {} },
 }
 
@@ -257,8 +257,8 @@ describe('없어도 되는 것', () => {
     expect(runSchema.safeParse(run).success).toBe(true)
   })
 
-  it('새 프로젝트는 묶음이 없다', () => {
-    expect(runsFileSchema.parse({}).batches).toEqual([])
+  it('새 프로젝트는 실험이 없다', () => {
+    expect(runsFileSchema.parse({}).experiments).toEqual([])
   })
 })
 

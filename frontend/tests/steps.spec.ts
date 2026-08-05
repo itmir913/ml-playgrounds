@@ -25,7 +25,7 @@ import {
   type ProjectFacts,
 } from '../src/router/steps'
 import { factsOf } from '../src/stores/project'
-import { batch, emptyProjectFile, projectFile, run } from './fixtures/project'
+import { experiment, emptyProjectFile, projectFile, run } from './fixtures/project'
 
 const FLAGS: readonly FactKey[] = [
   'datasetReady',
@@ -266,9 +266,9 @@ describe('프로젝트에서 사실을 뽑는다', () => {
     expect(changed.algorithmsChosen).toBe(true)
   })
 
-  it('묶음만 있고 run이 없으면 결과가 아니다', () => {
+  it('실험만 있고 run이 없으면 결과가 아니다', () => {
     const base = projectFile()
-    const runs = { batches: [batch('batch-1', [])] }
+    const runs = { experiments: [experiment('experiment-1', [])] }
     expect(factsOf({ ...base, document: { ...base.document, runs } })).toMatchObject({
       trainingDone: false,
       modelReady: false,
@@ -278,7 +278,7 @@ describe('프로젝트에서 사실을 뽑는다', () => {
   it('모델이 빠진 run은 결과이지 예측 대상이 아니다', () => {
     const base = projectFile()
     const omitted = run('run-1', { model: undefined, modelOmitted: 'overBudget' })
-    const runs = { batches: [batch('batch-1', [omitted])] }
+    const runs = { experiments: [experiment('experiment-1', [omitted])] }
     expect(factsOf({ ...base, document: { ...base.document, runs } })).toMatchObject({
       trainingDone: true,
       modelReady: false,

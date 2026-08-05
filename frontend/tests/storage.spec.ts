@@ -24,7 +24,7 @@ import {
 } from '../src/project/storage'
 import { hashBytes } from '../src/hash'
 import {
-  batch,
+  experiment,
   datasetBytes,
   emptyProjectFile,
   manifest,
@@ -134,7 +134,7 @@ describe('프로젝트 저장', () => {
   it('덮어쓰면 옛 모델이 남지 않는다 - 데이터셋 교체가 이 경로다', async () => {
     await saveProject(projectFile())
 
-    // 데이터셋을 갈아끼우고 묶음을 전부 지운 상태 (mlpx-spec.md 5.2).
+    // 데이터셋을 갈아끼우고 실험을 전부 지운 상태 (mlpx-spec.md 5.2).
     const swapped = new TextEncoder().encode('키,몸무게\n170,60\n')
     const replaced = projectFile({
       dataset: { bytes: swapped, hash: hashBytes(swapped) },
@@ -142,7 +142,7 @@ describe('프로젝트 저장', () => {
     })
     replaced.document = {
       ...replaced.document,
-      runs: { ...replaced.document.runs, batches: [] },
+      runs: { ...replaced.document.runs, experiments: [] },
     }
     await saveProject(replaced)
 
@@ -153,13 +153,13 @@ describe('프로젝트 저장', () => {
 
   it('모델이 줄면 줄어든 만큼만 남는다', async () => {
     const project = projectFile()
-    project.document.runs.batches = [batch('batch-1', [run('run-1'), run('run-2')])]
+    project.document.runs.experiments = [experiment('experiment-1', [run('run-1'), run('run-2')])]
     project.models.set('model/run-2.json', new TextEncoder().encode('{"tree":[1]}'))
     await saveProject(project)
     expect((await loadProject(manifest.projectId))?.models.size).toBe(3)
 
     project.models.delete('model/run-2.json')
-    project.document.runs.batches = [batch('batch-1', [run('run-1')])]
+    project.document.runs.experiments = [experiment('experiment-1', [run('run-1')])]
     await saveProject(project)
 
     const loaded = await loadProject(manifest.projectId)

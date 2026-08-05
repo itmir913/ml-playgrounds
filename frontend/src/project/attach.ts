@@ -1,7 +1,7 @@
 /**
- * 학습 결과를 **파일 안의 자리에 앉힌다.** 묶음과 파일 계층이 만나는 유일한 자리다.
+ * 학습 결과를 **파일 안의 자리에 앉힌다.** 실험과 파일 계층이 만나는 유일한 자리다.
  *
- * ml/batch.ts는 모델을 만들되 어디에 놓일지 모르고, project/format.ts는 자리를 알되
+ * ml/experiment.ts는 모델을 만들되 어디에 놓일지 모르고, project/format.ts는 자리를 알되
  * 모델이 어디서 왔는지 모른다. 둘을 서로 알게 하면 의존이 양방향이 되므로 여기서 잇는다.
  *
  * **경로를 정하는 것이 이 파일이다.** 학습 쪽에서 경로를 적어 두면 아직 없는 파일을
@@ -14,11 +14,11 @@
 
 import { interpreterFor, type ModelFile } from '../ml/models'
 import { DIR } from './format'
-import type { Batch, Run } from './schema'
+import type { Experiment, Run } from './schema'
 
-export interface AttachedBatch {
-  /** 경로와 크기가 채워진 묶음. runs.json에 그대로 들어간다. */
-  batch: Batch
+export interface AttachedExperiment {
+  /** 경로와 크기가 채워진 실험. runs.json에 그대로 들어간다. */
+  experiment: Experiment
   /** zip 경로 -> 내용. ProjectFile.models에 합친다. */
   entries: Map<string, Uint8Array>
 }
@@ -35,26 +35,26 @@ function encodeCompact(value: unknown): Uint8Array {
 }
 
 /**
- * 묶음 하나가 만든 것들을 zip 엔트리로 만들고, 문서에 참조를 붙인다.
+ * 실험 하나가 만든 것들을 zip 엔트리로 만들고, 문서에 참조를 붙인다.
  *
  * 전처리기는 항상 담는다 - 자체 JSON 모델은 그것 없이는 예측할 수 없으므로
- * 그 묶음 모델 전체의 전제다 (mlpx-spec.md 5).
+ * 그 실험 모델 전체의 전제다 (mlpx-spec.md 5).
  */
-export function attachBatchFiles(
-  batch: Batch,
+export function attachExperimentFiles(
+  experiment: Experiment,
   preprocessor: { readonly format: string },
   models: ReadonlyMap<string, ModelFile>,
-): AttachedBatch {
+): AttachedExperiment {
   const entries = new Map<string, Uint8Array>()
 
-  const preprocessorPath = `${DIR.model}preprocessor-${batch.id}.json`
+  const preprocessorPath = `${DIR.model}preprocessor-${experiment.id}.json`
   entries.set(preprocessorPath, encodeCompact(preprocessor))
 
-  const runs = batch.runs.map((run) => attach(run, models.get(run.id), entries))
+  const runs = experiment.runs.map((run) => attach(run, models.get(run.id), entries))
 
   return {
-    batch: {
-      ...batch,
+    experiment: {
+      ...experiment,
       preprocessor: { format: preprocessor.format, path: preprocessorPath },
       runs,
     },

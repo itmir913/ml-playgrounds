@@ -6,7 +6,7 @@
  * 1. **파라미터는 학습셋에서만 구한다.** 평균·최솟값·범주 목록을 전체 데이터에서 구하면
  *    평가셋 정보가 학습으로 새어 지표가 부풀고, 학생은 자기 모델이 실제보다 좋다고 믿는다.
  *    fit은 trainIndices만 보고, transform은 양쪽에 같은 파라미터를 쓴다.
- * 2. **결과는 JSON으로 남는다.** .mlpx의 model/preprocessor-batch-N.json이 이것이고,
+ * 2. **결과는 JSON으로 남는다.** .mlpx의 model/preprocessor-experiment-N.json이 이것이고,
  *    예측할 때 다시 읽어 같은 변환을 한다 (mlpx-spec.md 5). 그래서 함수나 클래스가 아니라
  *    데이터여야 한다.
  * 3. **조용히 버리지 않는다.** 학습에서 빠진 열은 excludedColumns에 남는다. 화면이
@@ -19,7 +19,7 @@
 import { ClientError } from '../errors'
 import type { Preprocessing } from '../project/schema'
 
-/** 전처리기 형식. .mlpx의 batch.preprocessor.format에 그대로 들어간다. */
+/** 전처리기 형식. .mlpx의 experiment.preprocessor.format에 그대로 들어간다. */
 export const PREPROCESSOR_FORMAT = 'mlpx-preprocess-v1'
 
 /**
@@ -69,7 +69,7 @@ function toNumber(cell: string): number | null {
  * 결측이 아닌 값이 전부 숫자로 읽히면 수치 열이다.
  *
  * **특성 열에도 타깃 열에도 같은 규칙을 쓴다.** 회귀가 타깃을 거부할 때
- * (ml/batch.ts) 여기를 부르는 이유가 그것이다 - 판정 규칙이 두 개면 특성으로는
+ * (ml/experiment.ts) 여기를 부르는 이유가 그것이다 - 판정 규칙이 두 개면 특성으로는
  * 수치인데 타깃으로는 아닌 열이 생긴다.
  */
 export function detectKind(values: readonly string[]): ColumnKind {
