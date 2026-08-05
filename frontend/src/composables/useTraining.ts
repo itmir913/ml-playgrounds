@@ -15,7 +15,7 @@
  * 번들러가 워커 청크를 만들려 든다 (ml/worker/spawn.ts와 같은 이유다).
  */
 
-import { computed, readonly, ref } from 'vue'
+import { computed, readonly, ref, toRaw } from 'vue'
 
 import { isClientError } from '../errors'
 import type { ExperimentResult } from '../ml/experiment'
@@ -27,6 +27,34 @@ export interface TrainingProgress {
   readonly completed: number
   /** 이 실험에서 돌릴 모델 수. */
   readonly total: number
+}
+
+/**
+ * 워커로 넘어갈 수 있는 모양으로 되돌린다. **이 파일이 있는 이유의 절반이 이것이다.**
+ *
+ * 요청은 스토어에서 온다. 스토어의 `ref` 아래는 전부 Vue의 반응형 **프록시**이고,
+ * **프록시는 구조화 복제가 안 된다** — `postMessage`가 그 자리에서 `DataCloneError`를
+ * 던진다. 화면이 무심코 `project.file.document.settings`를 넘기면 그렇게 된다.
+ *
+ * 한 겹만 벗기면 안 된다. 프록시에서 꺼낸 값은 다시 프록시라(중첩 접근마다 새로 씌운다)
+ * 요청이 손으로 조립된 객체면 안쪽 조각들이 여전히 프록시다. 반대로 `toRaw`가 돌려준
+ * 원본의 **안쪽은 원본 그대로**이므로, 조각마다 한 번씩 벗기면 거기서 끝난다.
+ *
+ * `ml/worker/client.ts`에 두지 않는다 - 그 층은 Vue를 몰라야 워커와 서버 학습 양쪽에
+ * 그대로 쓰인다. 프레임워크를 아는 이음매가 여기다.
+ */
+function plain(request: TrainRequest): TrainRequest {
+  const input = toRaw(request.input)
+  return {
+    type: 'train',
+    input: {
+      ...input,
+      dataset: toRaw(input.dataset),
+      settings: toRaw(input.settings),
+      context: toRaw(input.context),
+    },
+    ...(request.history ? { history: toRaw(request.history) } : {}),
+  }
 }
 
 export function useTraining(createWorker: () => TrainWorker) {
@@ -49,15 +77,17 @@ export function useTraining(createWorker: () => TrainWorker) {
 
     progress.value = { completed: 0, total: request.input.settings.selectedAlgorithms.length }
 
-    const started = train(request, {
-      createWorker,
-      onProgress: (_run, completed, total) => {
-        progress.value = { completed, total }
-      },
-    })
-    handle = started
-
+    // **train은 반드시 try 안에 있어야 한다.** postMessage는 동기로 던질 수 있고
+    // (아래 plain 참조), 밖에 두면 그때 finally가 안 돌아 progress가 남는다.
+    // 그러면 화면이 "학습 중"에 영구히 갇히고 [학습] 버튼은 그 가지에 없다.
     try {
+      const started = train(plain(request), {
+        createWorker,
+        onProgress: (_run, completed, total) => {
+          progress.value = { completed, total }
+        },
+      })
+      handle = started
       return await started.result
     } catch (error) {
       if (isClientError(error) && error.code === 'JOB_CANCELLED') return null

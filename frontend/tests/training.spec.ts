@@ -1,15 +1,19 @@
 /**
  * [학습] 한 번의 수명 (src/composables/useTraining.ts).
  *
- * **화면 없이 테스트한다.** 여기서 지키는 것은 넷이다 — 진행이 모델 단위로 세어지는가,
- * 취소가 실패가 아닌가, 나머지 실패는 그대로 올라가는가, 두 번 눌러도 하나만 도는가.
- * 마지막 것이 이 파일에서 제일 중요하다: **학생은 느리다고 생각하면 한 번 더 누르고**,
- * 그러면 같은 설정의 실험이 둘 생긴다.
+ * **화면 없이 테스트한다.** 여기서 지키는 것은 다섯이다 — 진행이 모델 단위로 세어지는가,
+ * 취소가 실패가 아닌가, 나머지 실패는 그대로 올라가는가, 두 번 눌러도 하나만 도는가,
+ * 그리고 **스토어에서 온 값이 실제로 워커에 넘어가는가.**
+ *
+ * 넷째는 학생이 만드는 고장이다 — **느리다고 생각하면 한 번 더 누르고**, 그러면 같은
+ * 설정의 실험이 둘 생긴다. 다섯째는 우리가 만든 고장이다 — Vue의 반응형 프록시는 구조화
+ * 복제가 안 되고, 그걸 모르는 가짜 워커를 두면 **테스트만 초록인 상태**가 된다.
  *
  * 진짜 Worker는 안 띄운다 (tests/worker.spec.ts와 같은 이유다).
  */
 
 import { describe, expect, it } from 'vitest'
+import { ref } from 'vue'
 
 import { useTraining } from '../src/composables/useTraining'
 import { ClientError } from '../src/errors'
@@ -17,13 +21,21 @@ import type { TrainWorker } from '../src/ml/worker/client'
 import type { TrainRequest, WorkerMessage } from '../src/ml/worker/protocol'
 import type { Run } from '../src/project/schema'
 
-/** 메시지를 손으로 밀어 넣는 가짜 워커. */
+/**
+ * 메시지를 손으로 밀어 넣는 가짜 워커.
+ *
+ * **postMessage가 진짜처럼 구조화 복제를 한다.** 이게 이 파일에서 제일 중요한 한 줄이다 -
+ * 스토어에서 온 Vue 프록시는 복제가 안 되고(DataCloneError), 그걸 안 하는 가짜를 두면
+ * 테스트는 초록인데 실제 브라우저에서만 [학습]이 죽는다.
+ */
 class FakeWorker implements TrainWorker {
   onmessage: ((event: MessageEvent<WorkerMessage>) => void) | null = null
   onerror: ((event: ErrorEvent) => void) | null = null
   terminated = 0
 
-  postMessage(): void {}
+  postMessage(message: TrainRequest): void {
+    structuredClone(message)
+  }
 
   terminate(): void {
     this.terminated += 1
@@ -93,6 +105,48 @@ describe('학습이 도는 동안', () => {
 
     latest()?.emit(DONE)
     await first
+  })
+})
+
+describe('스토어에서 온 값을 워커에 넘긴다', () => {
+  /**
+   * **Vue의 반응형 프록시는 구조화 복제가 안 된다.** 스토어의 `ref` 아래는 전부 프록시라
+   * 화면이 `project.file.document.settings`를 그대로 넘기면 postMessage가 그 자리에서
+   * DataCloneError를 던진다. 겪은 고장이라 테스트로 박아 둔다.
+   */
+  it('반응형 상태로 만든 요청도 넘어간다', async () => {
+    const store = ref({
+      settings: { selectedAlgorithms: [{ algorithm: 'decision_tree' }], features: ['a'] },
+      runs: { experiments: [] },
+    })
+    const { training, latest } = harness()
+
+    const done = training.run({
+      type: 'train',
+      input: {
+        settings: store.value.settings,
+        dataset: { columns: ['a'], rows: [['1']] },
+        context: { serverStatus: 'unavailable', rowCount: 1 },
+      },
+      history: store.value.runs,
+    } as unknown as TrainRequest)
+
+    latest()?.emit(DONE)
+    await expect(done).resolves.not.toBeNull()
+  })
+
+  it('postMessage가 던져도 갇히지 않는다 - 다시 누를 수 있어야 한다', async () => {
+    const training = useTraining(() => {
+      const worker = new FakeWorker()
+      worker.postMessage = () => {
+        throw new Error('DataCloneError')
+      }
+      return worker
+    })
+
+    await expect(training.run(requestFor(1))).rejects.toThrow()
+    expect(training.running.value).toBe(false)
+    expect(training.progress.value).toBeNull()
   })
 })
 
