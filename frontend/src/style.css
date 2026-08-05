@@ -1,2 +1,130 @@
 /* Tailwind v4는 CSS에서 직접 설정한다. tailwind.config.js가 없다. */
 @import 'tailwindcss';
+
+/*
+ * Pretendard Variable 동적 서브셋. **CDN을 쓰지 않는다** — 학교망이 CDN을 막는 경우가
+ * 실재하고, 그러면 글꼴만 깨지는 게 아니라 화면 폭이 통째로 달라진다
+ * (architecture.md §8.5).
+ *
+ * 유니코드 범위별로 잘린 92개 파일이고 브라우저는 **화면에 실제로 뜬 글자의 범위만**
+ * 받는다. 영어 화면은 두어 개, 한국어 화면도 열 개 남짓이다. 통짜로 받으면 1MB가 넘는다.
+ * `font-display: swap`은 이 파일이 이미 갖고 있다.
+ *
+ * Vite가 각 url()을 자산으로 내보내므로 배포 base 경로가 자동으로 붙는다.
+ * public/에 두면 그 처리를 우리가 해야 한다.
+ */
+@import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
+
+/*
+ * 디자인 토큰. **컴포넌트에 색·모서리·그림자를 직접 쓰지 마라** (architecture.md §8.4).
+ *
+ * 이름은 쓰임새로 짓는다 — `--color-surface`이지 `--color-white`가 아니다.
+ * 디자인 교체는 예정된 일이고, 이름이 쓰임새면 교체가 **값을 바꾸는 일**이 된다.
+ *
+ * Tailwind 기본 팔레트(slate-200 등)는 그대로 남겨 둔다. 여기 있는 것은 그 위에
+ * 얹는 의미 층이고, 화면 코드가 집어야 할 것은 이쪽이다.
+ */
+@theme {
+  /*
+   * 일본어 대체를 처음부터 넣는다. ja를 추가할 때 글꼴 스택을 고치는 일이 없어야 한다
+   * (CLAUDE.md §3). Pretendard는 가나를 덮지 않으므로 OS 글꼴로 떨어진다.
+   */
+  --font-sans:
+    'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI',
+    Roboto, 'Helvetica Neue', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo,
+    'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+
+  /* 면 */
+  --color-canvas: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f1f5f9;
+  --color-line: #e2e8f0;
+  --color-line-strong: #cbd5e1;
+
+  /* 글자 */
+  --color-ink: #1e293b;
+  --color-ink-soft: #475569;
+  --color-ink-faint: #94a3b8;
+  --color-ink-invert: #ffffff;
+
+  /* 주 강조. 히어로 그라데이션의 가운데 색이다. */
+  --color-brand: #4f46e5;
+  --color-brand-strong: #4338ca;
+  --color-brand-line: #c7d2fe;
+  --color-brand-soft: #eef2ff;
+
+  /* 상태. soft는 배경, 나머지는 글자와 테두리에 쓴다. */
+  --color-positive: #059669;
+  --color-positive-soft: #ecfdf5;
+  --color-caution: #b45309;
+  --color-caution-soft: #fffbeb;
+  --color-danger: #e11d48;
+  --color-danger-soft: #fff1f2;
+  --color-info: #2563eb;
+  --color-info-soft: #eff6ff;
+
+  /*
+   * 모서리. 바깥이 크고 안으로 갈수록 작다 — 카드 > 패널 > 버튼 > 입력.
+   * 이 순서가 깨지면 중첩된 모서리가 어긋나 보인다.
+   */
+  --radius-card: 1.5rem;
+  --radius-panel: 1rem;
+  --radius-control: 0.75rem;
+  --radius-field: 0.5rem;
+  --radius-pill: 9999px;
+
+  /* 그림자. 회색이 아니라 slate로 물들여 배경에서 뜨지 않게 한다. */
+  --shadow-card:
+    0 10px 15px -3px oklch(0.55 0.03 257 / 0.12), 0 4px 6px -4px oklch(0.55 0.03 257 / 0.12);
+  --shadow-float: 0 1px 3px oklch(0.55 0.03 257 / 0.14);
+  --shadow-pop:
+    0 20px 25px -5px oklch(0.55 0.03 257 / 0.18), 0 8px 10px -6px oklch(0.55 0.03 257 / 0.14);
+
+  /* 본문 최대 폭. 화면마다 다르게 잡지 마라. */
+  --container-shell: 80rem;
+}
+
+/*
+ * 히어로 배경. 그라데이션 색을 화면 코드에 흩뿌리지 않으려고 유틸리티 하나로 둔다.
+ * 시뮬레이터들은 주제마다 색이 달랐지만 앱은 정체성이 하나여야 한다.
+ */
+@utility hero-surface {
+  background-image: linear-gradient(135deg, #2563eb 0%, #3b82f6 35%, #6366f1 65%, #8b5cf6 100%);
+}
+
+@layer base {
+  html {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    /* 자간을 조금 좁힌다. Pretendard는 기본 자간이 넓은 편이다. */
+    letter-spacing: -0.01em;
+  }
+
+  /*
+   * 키보드 이동이 보이지 않으면 학생이 화면에서 길을 잃는다.
+   * 마우스 클릭에는 나타나지 않게 :focus-visible을 쓴다.
+   */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+
+  /*
+   * 교실 저사양 PC 기준으로 모션을 절제한다. 여기서는 사용자가 줄이길 원할 때
+   * 실제로 멈추는 것만 보장한다.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
