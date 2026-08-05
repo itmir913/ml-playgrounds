@@ -39,8 +39,8 @@
   "save": {
     "browserOnly": "Temporary copy only",
     "saving": "Making a temporary copy",
-    "unsaved": "No temporary copy yet",
-    "notExported": "Not saved to a file yet",
+    "unsaved": "Temporary copy pending",
+    "notExported": "Not saved to a file",
     "exported": "Saved to a file",
     "stale": "Changed since the last file save",
     "exportWarning": "A temporary copy can disappear. Only a saved file lasts.",
@@ -128,7 +128,7 @@
     "updatedAt": "Last worked on",
     "size": "Size",
     "loading": "Loading.",
-    "storageNote": "Projects are only kept temporarily on this computer. Save one to a file to keep it, and to carry on from another computer.",
+    "storageNote": "Projects are kept temporarily on this computer. Save one to a file and it lasts, and you can carry on from another computer.",
     "saved": "Projects on this computer",
     "savedCount": "{count} project on this computer | {count} projects on this computer"
   },
