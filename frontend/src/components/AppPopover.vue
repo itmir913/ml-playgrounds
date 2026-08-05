@@ -74,7 +74,7 @@ defineExpose({ close })
 
     <div
       v-if="open"
-      class="absolute z-50 w-80 rounded-panel border border-line bg-surface p-4 text-ink shadow-pop"
+      class="absolute z-50 w-88 rounded-panel border border-line bg-surface p-4 text-ink shadow-pop"
       :class="[
         props.align === 'right' ? 'right-0' : 'left-0',
         props.side === 'top' ? 'bottom-full mb-1' : 'top-full mt-1',

@@ -17,10 +17,17 @@
  * 하이픈 없이 끊으면 두 낱말로 읽힌다. 자리 지정이 없는 긴 낱말이 들어왔을
  * 때만 `break-words`가 마지막 수단으로 일한다.
  *
- * **활성 칸을 굵게 하지 않는다.** 안쪽 폭이 64px이고 한글 한 자가 약 15.8px이라
- * 보통 굵기로는 네 자가 아슬아슬하게 들어가고 굵으면 안 들어간다. 그러면 칸을
- * 누를 때마다 줄 수가 바뀌어 레일이 튄다. 활성 표시는 흰 면과 브랜드 색과
- * 경계선이 이미 하고 있다.
+ * **칸의 안쪽 폭이 상태에 따라 달라지면 안 된다.** 글자가 한 줄이냐 두 줄이냐가
+ * 1px에 걸려 있어서, 폭이 조금만 달라져도 칸 높이가 20px씩 뛰고 레일 전체가 흔들린다.
+ * 그래서 둘을 지킨다.
+ *
+ * 1. **활성 칸을 굵게 하지 않는다.** 활성 표시는 흰 면과 브랜드 색과 경계선이 이미 한다.
+ * 2. **오른쪽 테두리를 모든 칸이 늘 갖고 색만 바꾼다.** 활성일 때만 `border-r`을 주면
+ *    그 칸의 안쪽만 1px 좁아진다. "대시보드"가 정확히 그 1px 안쪽에 걸쳐 있어서
+ *    누르는 순간 두 줄이 됐다. 잠긴 칸에는 테두리가 아예 없어 폭이 셋이었다.
+ *
+ * **이건 한국어만의 문제가 아니다.** 어느 언어든 한 줄에 아슬아슬하게 들어가는 낱말이
+ * 하나는 있고(영어는 `Training`이 그렇다), 그것이 상태에 따라 갈린다.
  *
  * 못 가는 단계도 **지우지 않고** 왜 못 가는지와 함께 남긴다 — 목록에서 사라지면
  * 학생은 그런 단계가 있다는 것조차 모른다. 다만 **흐리게만 하고 지우듯 하지 않는다.**
@@ -81,7 +88,7 @@ function reason(step: StepId): string {
  * 없던 이유가 이것이다. 가로에서는 내용만큼만 차지한다.
  */
 const CELL =
-  'flex min-w-0 flex-col items-center gap-1 rounded-control px-1 py-2 leading-tight md:w-full'
+  'flex min-w-0 flex-col items-center gap-1 rounded-control border-transparent px-1 py-2 leading-tight md:w-full md:border-r'
 
 /**
  * 글자 상자.
@@ -119,7 +126,7 @@ const LABEL = 'w-full text-center break-keep break-words hyphens-auto'
         CELL,
         'shrink-0 transition-colors',
         route.name === ROUTE_PROJECT_HOME
-          ? 'z-10 bg-surface font-medium text-brand md:-mr-px md:rounded-r-none md:border-r md:border-surface'
+          ? 'z-10 bg-surface font-medium text-brand md:-mr-px md:rounded-r-none md:border-surface'
           : 'font-medium text-ink-soft hover:bg-surface/60 hover:text-ink',
       ]"
     >
@@ -154,7 +161,7 @@ const LABEL = 'w-full text-center break-keep break-words hyphens-auto'
           // 지금 있는 칸은 작업 공간과 같은 흰 면이고 경계선을 1px 덮어 둘이
           // 이어져 보인다 - 레일에서 그 탭이 열린 것처럼.
           route.name === step
-            ? 'z-10 bg-surface font-medium text-brand md:-mr-px md:rounded-r-none md:border-r md:border-surface'
+            ? 'z-10 bg-surface font-medium text-brand md:-mr-px md:rounded-r-none md:border-surface'
             : 'font-medium text-ink-soft hover:bg-surface/60 hover:text-ink',
         ]"
       >
