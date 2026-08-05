@@ -35,6 +35,38 @@
       "label": "Portfolio"
     }
   },
+  "data": {
+    "dropHint": "Drop a CSV or Excel file here.",
+    "accepted": "CSV (.csv) and Excel (.xlsx) files can be read.",
+    "choose": "Choose a file",
+    "reading": "Reading the file.",
+    "sheet": "Choose a sheet",
+    "hasHeader": "The first row holds the column names",
+    "noHeaderNote": "There are no column names, so they are called A, B, C and so on.",
+    "preview": "Preview",
+    "previewNote": "Showing the first {count} row. | Showing the first {count} rows.",
+    "use": "Use this data",
+    "change": "Replace with another file",
+    "current": "Data in use",
+    "fileName": "File",
+    "rows": "Rows",
+    "columns": "Columns",
+    "encoding": "Read as",
+    "columnName": "Column",
+    "kind": "Type",
+    "missing": "Empty",
+    "unique": "Distinct values",
+    "samples": "Examples",
+    "applied": "The data has been saved.",
+    "droppedColumns": "Some chosen columns are not in the new data, so they were dropped. ({names})",
+    "replaceTitle": "Replacing the data deletes your training results",
+    "replaceDescription": "The {count} training batch you have so far goes with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows. | The {count} training batches you have so far go with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows.",
+    "replaceConfirm": "Delete and replace"
+  },
+  "columnKind": {
+    "numeric": "Number",
+    "categorical": "Category"
+  },
   "projects": {
     "title": "My projects",
     "new": "New project",

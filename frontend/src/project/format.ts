@@ -48,6 +48,14 @@ export const DIR = {
   dataset: 'dataset/',
 } as const
 
+/**
+ * 표 데이터의 정본 경로 (mlpx-spec.md §1.1).
+ *
+ * **언제나 UTF-8 CSV다.** 업로드가 xlsx였든 CP949 CSV였든 가져오기 시점에 한 번
+ * 정규화된다. 이미지·음성이 들어오는 V5에서는 다른 레이아웃이 붙지만, 표는 이 하나다.
+ */
+export const TABULAR_DATASET_PATH = `${DIR.dataset}data.csv`
+
 /*
  * 없으면 파일을 열 수 없는 엔트리는 manifest / settings / runs / portfolio 넷이다.
  * readProject의 required()가 그 자리에서 확인한다.

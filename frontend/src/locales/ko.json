@@ -35,6 +35,38 @@
       "label": "포트폴리오"
     }
   },
+  "data": {
+    "dropHint": "CSV 또는 엑셀 파일을 여기에 놓으세요.",
+    "accepted": "CSV(.csv)와 엑셀(.xlsx)을 읽을 수 있습니다.",
+    "choose": "파일 고르기",
+    "reading": "파일을 읽는 중입니다.",
+    "sheet": "시트 고르기",
+    "hasHeader": "첫 줄이 열 이름입니다",
+    "noHeaderNote": "열 이름이 없어서 A, B, C… 로 부릅니다.",
+    "preview": "미리보기",
+    "previewNote": "앞 {count}줄만 보여줍니다.",
+    "use": "이 데이터 사용하기",
+    "change": "다른 파일로 바꾸기",
+    "current": "지금 쓰는 데이터",
+    "fileName": "파일",
+    "rows": "행",
+    "columns": "열",
+    "encoding": "읽은 인코딩",
+    "columnName": "열 이름",
+    "kind": "자료형",
+    "missing": "빈 칸",
+    "unique": "값 종류",
+    "samples": "예시",
+    "applied": "데이터를 저장했습니다.",
+    "droppedColumns": "새 데이터에 없어서 선택에서 빠진 열이 있습니다. ({names})",
+    "replaceTitle": "데이터를 바꾸면 학습 결과가 지워집니다",
+    "replaceDescription": "지금까지 학습한 묶음 {count}개가 함께 사라집니다. 모델은 데이터의 행 번호를 가리키기 때문에, 남겨 두면 다른 줄을 보고 예측하게 됩니다.",
+    "replaceConfirm": "지우고 바꾸기"
+  },
+  "columnKind": {
+    "numeric": "숫자",
+    "categorical": "범주"
+  },
   "projects": {
     "title": "내 프로젝트",
     "new": "새 프로젝트",

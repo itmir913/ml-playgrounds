@@ -67,9 +67,19 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
+  /**
+   * 열려 있는 프로젝트를 통째로 바꿔 끼운다. **저장에 성공한 뒤에 부른다.**
+   *
+   * 화면이 문서를 조금씩 고치지 않고 새 값을 통째로 넘기게 해 둔 것이다 —
+   * shallowRef라 안쪽을 고치면 화면이 따라오지 않고, 그건 조용히 어긋나는 종류다.
+   */
+  function replace(next: ProjectFile): void {
+    file.value = next
+  }
+
   function close(): void {
     file.value = null
   }
 
-  return { file, opening, projectId, name, progress, open, close }
+  return { file, opening, projectId, name, progress, open, replace, close }
 })
