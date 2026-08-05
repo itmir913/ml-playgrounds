@@ -98,6 +98,14 @@ export const MAX_FILE_NAME_LENGTH = 100
  */
 export const MAX_FAILURE_DETAIL_LENGTH = 200
 
+/**
+ * 알림이 저절로 사라지기까지의 시간.
+ *
+ * 실패 알림은 여기 해당하지 않는다 - 학생이 읽고 닫는다 (stores/toasts.ts).
+ * 한 문장을 읽을 시간이 기준이고, 한국어보다 30% 정도 긴 영어 문장에 맞춘다.
+ */
+export const TOAST_DURATION_MS = 6000
+
 /** 학번 입력 상한. 자유 문자열이다 - 1-2-03 같은 체계가 실재한다 (mlpx-spec.md 7). */
 export const MAX_STUDENT_ID_LENGTH = 20
 

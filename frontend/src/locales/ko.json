@@ -1,6 +1,43 @@
 {
   "app": {
-    "name": "ML Playgrounds"
+    "name": "ML Playgrounds",
+    "tagline": "데이터를 올려 모델을 만들고, 그 과정을 포트폴리오로 남깁니다."
+  },
+  "nav": {
+    "projects": "프로젝트 목록"
+  },
+  "taskTypes": {
+    "classification": "분류",
+    "regression": "회귀",
+    "clustering": "군집화"
+  },
+  "steps": {
+    "data": {
+      "label": "데이터"
+    },
+    "preprocess": {
+      "label": "전처리",
+      "locked": "데이터를 먼저 올려 주세요."
+    },
+    "train": {
+      "label": "학습",
+      "locked": "무엇을 예측할지와 어떤 알고리즘을 쓸지 먼저 골라 주세요."
+    },
+    "results": {
+      "label": "결과",
+      "locked": "학습을 한 번 끝내면 열립니다."
+    },
+    "predict": {
+      "label": "예측",
+      "locked": "예측에 쓸 수 있는 모델이 아직 없습니다."
+    },
+    "portfolio": {
+      "label": "포트폴리오"
+    }
+  },
+  "common": {
+    "underConstruction": "이 화면은 아직 만드는 중입니다.",
+    "dismiss": "닫기"
   },
   "language": {
     "en": "English",

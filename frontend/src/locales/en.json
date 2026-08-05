@@ -1,6 +1,43 @@
 {
   "app": {
-    "name": "ML Playgrounds"
+    "name": "ML Playgrounds",
+    "tagline": "Upload data, build a model, and keep the whole process as a portfolio."
+  },
+  "nav": {
+    "projects": "Projects"
+  },
+  "taskTypes": {
+    "classification": "Classification",
+    "regression": "Regression",
+    "clustering": "Clustering"
+  },
+  "steps": {
+    "data": {
+      "label": "Data"
+    },
+    "preprocess": {
+      "label": "Preprocessing",
+      "locked": "Upload your data first."
+    },
+    "train": {
+      "label": "Training",
+      "locked": "Choose what to predict and which algorithms to use first."
+    },
+    "results": {
+      "label": "Results",
+      "locked": "This opens once a training run has finished."
+    },
+    "predict": {
+      "label": "Prediction",
+      "locked": "No model is available to predict with yet."
+    },
+    "portfolio": {
+      "label": "Portfolio"
+    }
+  },
+  "common": {
+    "underConstruction": "This screen is still being built.",
+    "dismiss": "Dismiss"
   },
   "language": {
     "en": "English",

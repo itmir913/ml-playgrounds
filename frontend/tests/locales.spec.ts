@@ -19,7 +19,8 @@ import {
 import en from '../src/locales/en.json'
 import ko from '../src/locales/ko.json'
 import { ENGINE_STATES, TRAINING_LOCATIONS, UNAVAILABLE_REASONS } from '../src/ml/backend'
-import { MODEL_OMISSION_REASONS } from '../src/project/schema'
+import { MODEL_OMISSION_REASONS, TASK_TYPES } from '../src/project/schema'
+import { isStepUnlocked, NO_PROGRESS, STEP_IDS } from '../src/router/steps'
 
 type Tree = { [key: string]: string | Tree }
 
@@ -74,6 +75,10 @@ describe('로케일 파일', () => {
       'portfolio',
       'language',
       'client',
+      'steps',
+      'taskTypes',
+      'nav',
+      'common',
     ]) {
       expect([...english.keys()].some((key) => key.startsWith(`${namespace}.`))).toBe(true)
     }
@@ -161,5 +166,43 @@ describe('프런트엔드 전용 코드', () => {
       expect(english.has(`execution.${location}`), location).toBe(true)
       expect(korean.has(`execution.${location}`), location).toBe(true)
     }
+  })
+
+  it('과제 유형마다 이름이 있고 남는 것이 없다', () => {
+    for (const taskType of TASK_TYPES) {
+      expect(english.has(`taskTypes.${taskType}`), taskType).toBe(true)
+      expect(korean.has(`taskTypes.${taskType}`), taskType).toBe(true)
+    }
+    const declared = new Set<string>(TASK_TYPES)
+    const used = [...english.keys()]
+      .filter((key) => key.startsWith('taskTypes.'))
+      .map((key) => key.slice('taskTypes.'.length))
+    expect(used.filter((key) => !declared.has(key))).toEqual([])
+  })
+
+  it('단계마다 탭에 쓸 이름이 있다', () => {
+    // 탭바가 STEP_IDS를 그대로 돈다. 여기가 비면 화면에 키가 그대로 뜬다.
+    for (const step of STEP_IDS) {
+      expect(english.has(`steps.${step}.label`), step).toBe(true)
+      expect(korean.has(`steps.${step}.label`), step).toBe(true)
+    }
+  })
+
+  it('잠기는 단계에는 왜 못 가는지가 있다', () => {
+    // 이유 없이 회색으로 죽어 있는 것은 학생에게 고장으로 보인다 (architecture.md §7.3).
+    // data와 portfolio는 잠기지 않으므로 이유가 없는 것이 맞다.
+    for (const step of STEP_IDS) {
+      const locks = !isStepUnlocked(step, NO_PROGRESS)
+      expect(english.has(`steps.${step}.locked`), step).toBe(locks)
+      expect(korean.has(`steps.${step}.locked`), step).toBe(locks)
+    }
+  })
+
+  it('steps에 단계가 아닌 키가 없다', () => {
+    const declared = new Set<string>(STEP_IDS)
+    const used = [...english.keys()]
+      .filter((key) => key.startsWith('steps.'))
+      .map((key) => key.slice('steps.'.length).split('.')[0] ?? '')
+    expect([...new Set(used)].filter((key) => !declared.has(key))).toEqual([])
   })
 })
