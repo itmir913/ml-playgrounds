@@ -86,6 +86,18 @@ const shown = computed(() => {
   return null
 })
 
+/**
+ * 표를 잘라서 보여주고 있으면 그린 줄 수. 안 잘랐으면 0이다.
+ *
+ * **상수를 그대로 문구에 넘기면 안 된다.** 10줄짜리 파일에도 "처음 20줄만 보여 줍니다"가
+ * 떠서 도구가 거짓말을 한다.
+ */
+const truncated = computed(() => {
+  const rows = shown.value?.dataset.rows.length ?? 0
+  const total = opened.value ? previewRows.value.length : (saved.value?.dataset.rows.length ?? 0)
+  return total > rows ? rows : 0
+})
+
 async function readFile(file: File): Promise<void> {
   busy.value = true
   try {
@@ -258,8 +270,9 @@ function kindOf(column: ColumnSummary): string {
       </div>
     </div>
 
-    <p v-if="shown" class="shrink-0 text-base text-ink-faint">
-      {{ t('data.previewNote', PREVIEW_ROW_COUNT) }}
+    <!-- **자른 경우에만 말한다.** 20줄짜리 파일에 "처음 20줄만"은 거짓말이다. -->
+    <p v-if="truncated" class="shrink-0 text-base text-ink-faint">
+      {{ t('data.previewNote', truncated) }}
     </p>
 
     <!-- 열 검사기. 보조 영역이라 접혀 있다. -->
@@ -271,7 +284,7 @@ function kindOf(column: ColumnSummary): string {
       <summary class="cursor-pointer px-4 py-2.5 text-base font-bold text-ink-soft">
         {{ t('data.inspector') }}
       </summary>
-      <div class="border-t border-line p-3">
+      <div class="max-h-72 overflow-y-auto border-t border-line p-3">
         <AppTable>
           <thead>
             <tr>

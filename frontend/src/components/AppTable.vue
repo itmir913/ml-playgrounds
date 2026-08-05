@@ -18,7 +18,7 @@
 </script>
 
 <template>
-  <div class="overflow-x-auto rounded-panel border border-line">
+  <div class="overflow-auto rounded-panel border border-line">
     <table class="data-table w-full border-collapse text-left tabular-nums">
       <slot />
     </table>
