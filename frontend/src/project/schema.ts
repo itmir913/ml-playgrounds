@@ -43,6 +43,23 @@ export const PROJECT_KIND_ML = 'machineLearning'
  */
 export const DEFAULT_PORTFOLIO_TEMPLATE_ID = 'default-v1'
 
+/**
+ * 내장 템플릿의 문항과 **그 순서.**
+ *
+ * 순서가 여기 있는 이유는 로케일 파일이 순서를 보장하지 않기 때문이다. 학생이 쓴
+ * 글은 문항 id로 저장되므로(`portfolio.answers`) 이 배열을 고쳐도 글은 안 사라지지만,
+ * **id를 바꾸면 사라진다.** 이름을 바꾸고 싶으면 로케일 문구만 고쳐라.
+ */
+export const DEFAULT_PORTFOLIO_SECTIONS = [
+  'topic',
+  'motivation',
+  'data',
+  'preprocessing',
+  'model',
+  'result',
+  'reflection',
+] as const
+
 export const TASK_TYPES = ['classification', 'regression', 'clustering'] as const
 
 /** 데이터 타입. 업로드한 파일에서 자동 판정된다. */

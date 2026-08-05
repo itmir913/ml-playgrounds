@@ -30,9 +30,9 @@ const done = computed(() => tasks.value.every((task) => task.done))
     class="rounded-panel border border-line bg-surface px-4 py-3"
     :aria-label="t('tasks.title')"
   >
-    <p class="text-xs font-bold text-ink-soft">{{ t('tasks.title') }}</p>
+    <p class="text-base font-bold text-ink-soft">{{ t('tasks.title') }}</p>
 
-    <ul class="mt-2 flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+    <ul class="mt-2 flex flex-wrap gap-x-5 gap-y-1.5 text-base">
       <li
         v-for="task in tasks"
         :key="task.key"
@@ -44,6 +44,6 @@ const done = computed(() => tasks.value.every((task) => task.done))
       </li>
     </ul>
 
-    <p v-if="done" class="mt-2 text-xs text-positive">{{ t('tasks.allDone') }}</p>
+    <p v-if="done" class="mt-2 text-base text-positive">{{ t('tasks.allDone') }}</p>
   </section>
 </template>

@@ -62,12 +62,15 @@ export const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  const project = useProjectStore()
+  // 미뤄 둔 자동 저장을 끝내고 나간다. 화면을 옮기는 사이에 잃는 것이 없어야 한다.
+  await project.flush()
+
   const { projectId } = to.params
   if (typeof projectId !== 'string') {
     return true
   }
 
-  const project = useProjectStore()
   if (!(await project.open(projectId))) {
     return { name: ROUTE_PROJECTS }
   }

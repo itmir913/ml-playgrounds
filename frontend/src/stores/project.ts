@@ -9,9 +9,17 @@
 import { computed, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 
-import type { ProjectFile } from '@/project/format'
-import { loadProject, readExportedAt, saveProject } from '@/project/storage'
+import { AUTOSAVE_DELAY_MS } from '@/limits'
+import { downloadBytes } from '@/project/download'
+import {
+  projectFileName,
+  writeProject,
+  type DroppedModel,
+  type ProjectFile,
+} from '@/project/format'
+import { loadProject, markExported, readExportedAt, saveProject } from '@/project/storage'
 import { NO_FACTS, type ProjectFacts } from '@/router/steps'
+import { useToastStore } from './toasts'
 
 /**
  * 파일에서 사실들을 뽑는다. **순수 함수라 스토어 없이 테스트한다.**
@@ -51,6 +59,11 @@ export const useProjectStore = defineStore('project', () => {
   const savedAt = shallowRef<string | null>(null)
   /** 마지막으로 .mlpx를 내려받은 시각. 파일에는 없고 이 기기에만 있다. */
   const exportedAt = shallowRef<string | null>(null)
+  /** 화면은 바뀌었는데 아직 안 쓴 상태. 상태 표시줄이 이걸 보여준다. */
+  const dirty = shallowRef(false)
+
+  /** 미뤄 둔 자동 저장. 새 변경이 오면 앞의 것을 버리고 다시 잡는다. */
+  let pending: ReturnType<typeof setTimeout> | null = null
 
   const projectId = computed(() => file.value?.document.manifest.projectId ?? null)
   const name = computed(() => file.value?.document.manifest.name ?? '')
@@ -71,6 +84,7 @@ export const useProjectStore = defineStore('project', () => {
       const loaded = await loadProject(id)
       file.value = loaded
       // 열린 직후는 방금 읽은 그대로이므로 저장된 상태다.
+      dirty.value = false
       savedAt.value = loaded === null ? null : loaded.document.manifest.updatedAt
       exportedAt.value = loaded === null ? null : await readExportedAt(id)
       return loaded !== null
@@ -90,23 +104,83 @@ export const useProjectStore = defineStore('project', () => {
    * 되지도 않은 것을 됐다고 믿는다.
    */
   async function save(next: ProjectFile): Promise<void> {
+    cancelPending()
+    file.value = next
+    dirty.value = true
+    await write()
+  }
+
+  /** 실제로 쓰는 곳. 지금 열려 있는 값을 쓴다. */
+  async function write(): Promise<void> {
+    const current = file.value
+    if (current === null || !dirty.value) return
     saving.value = true
     try {
-      await saveProject(next)
-      file.value = next
+      await saveProject(current)
+      // 쓰는 동안 또 바뀌었을 수 있다. 그러면 여전히 안 쓴 상태로 두어야 한다.
+      dirty.value = file.value !== current
       savedAt.value = new Date().toISOString()
     } finally {
       saving.value = false
     }
   }
 
-  /** `.mlpx`를 내려받은 뒤에 부른다. 저장과 달리 학생이 일부러 하는 일이다. */
-  function markExported(at: string): void {
+  function cancelPending(): void {
+    if (pending !== null) {
+      clearTimeout(pending)
+      pending = null
+    }
+  }
+
+  /**
+   * 값을 바꾸고 **잠시 뒤** 저장한다. 화면은 즉시 새 값을 본다.
+   *
+   * 슬라이더를 끌거나 글을 쓰는 화면이 쓰는 경로다 - 한 글자마다 수십 MB를 쓰면
+   * 교실 PC가 멈춘다. 되돌릴 수 없는 큰 변경(데이터셋 교체)은 `save`로 즉시 쓴다.
+   *
+   * **실패하면 알림을 띄운다.** 타이머가 부르는 것이라 기다리는 사람이 없고,
+   * 조용히 실패하면 학생은 저장된 줄 안다.
+   */
+  function update(next: ProjectFile): void {
+    file.value = next
+    dirty.value = true
+    cancelPending()
+    pending = setTimeout(() => {
+      pending = null
+      void write().catch((error: unknown) => useToastStore().pushError(error))
+    }, AUTOSAVE_DELAY_MS)
+  }
+
+  /** 미뤄 둔 저장을 지금 한다. 화면을 떠날 때와 내보내기 전에 부른다. */
+  async function flush(): Promise<void> {
+    cancelPending()
+    await write()
+  }
+
+  /**
+   * `.mlpx`를 내려받는다. **학생의 유일한 반출 경로다** (CLAUDE.md §1.1).
+   *
+   * 미뤄 둔 저장을 먼저 끝낸다 - 방금 쓴 글이 빠진 파일이 나가면 안 된다.
+   * 담지 못한 모델을 돌려주므로 화면이 경고할 수 있다.
+   */
+  async function exportFile(portfolioMarkdown: string): Promise<DroppedModel[]> {
+    await flush()
+    const current = file.value
+    if (current === null) return []
+
+    const { bytes, dropped } = await writeProject(current, portfolioMarkdown)
+    downloadBytes(bytes, projectFileName(current.document.manifest))
+
+    const at = new Date().toISOString()
+    await markExported(current.document.manifest.projectId, at)
     exportedAt.value = at
+    return dropped
   }
 
   function close(): void {
+    cancelPending()
     file.value = null
+    dirty.value = false
     savedAt.value = null
     exportedAt.value = null
   }
@@ -115,6 +189,7 @@ export const useProjectStore = defineStore('project', () => {
     file,
     opening,
     saving,
+    dirty,
     savedAt,
     exportedAt,
     projectId,
@@ -122,7 +197,9 @@ export const useProjectStore = defineStore('project', () => {
     facts,
     open,
     save,
-    markExported,
+    update,
+    flush,
+    exportFile,
     close,
   }
 })

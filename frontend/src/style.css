@@ -85,18 +85,42 @@
   --shadow-pop:
     0 10px 30px -6px oklch(0.55 0.03 257 / 0.18), 0 4px 8px -4px oklch(0.55 0.03 257 / 0.12);
 
-  /* 셸의 고정 치수. 화면 코드가 이 숫자를 다시 쓰지 않게 한다. */
-  --spacing-toolbar: 3.25rem;
-  --spacing-rail: 3.5rem;
-  --spacing-statusbar: 1.75rem;
+  /*
+   * 셸의 고정 치수. 화면 코드가 이 숫자를 다시 쓰지 않게 한다.
+   *
+   * **레일 폭과 도구 막대 높이가 같다.** 둘이 만나는 왼쪽 위 모서리가 정사각이 되어야
+   * 새 IntelliJ처럼 정돈돼 보인다. 두 값이 갈라지면 그 모서리가 어긋나므로 **함께
+   * 고친다.**
+   *
+   * 값이 4.5rem인 것은 **레일 쪽 사정이다.** 아이콘만 두면 3rem으로 끝나지만 학생은
+   * 그 그림이 무엇인지 배운 적이 없어 이름이 함께 있어야 하고, 화면에 뜨는 글자 중
+   * 가장 작은 것이 `text-base`다. 도구 막대가 그 폭에 맞춰 높아진다.
+   */
+  --spacing-toolbar: 4.5rem;
+  --spacing-rail: 4.5rem;
+  --spacing-statusbar: 2.25rem;
 }
 
 /*
- * 히어로 배경. 그라데이션 색을 화면 코드에 흩뿌리지 않으려고 유틸리티 하나로 둔다.
- * 시뮬레이터들은 주제마다 색이 달랐지만 앱은 정체성이 하나여야 한다.
+ * 표의 칸 모양.
+ *
+ * **화면 코드는 Tailwind 기본 클래스만 쓴다.** `[&_th]` 같은 임의 변형을 템플릿에
+ * 흩뿌리면 읽을 수도 고칠 수도 없어진다. 여기 한 번만 적고 AppTable이 가져다 쓴다.
  */
-@utility hero-surface {
-  background-image: linear-gradient(135deg, #2563eb 0%, #3b82f6 35%, #6366f1 65%, #8b5cf6 100%);
+@utility data-table {
+  & th {
+    background-color: var(--color-surface-sunken);
+    color: var(--color-ink-soft);
+    font-weight: 700;
+    padding: 0.625rem 1rem;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  & td {
+    border-top: 1px solid var(--color-line);
+    padding: 0.625rem 1rem;
+  }
 }
 
 @layer base {
@@ -105,11 +129,12 @@
     color: var(--color-ink);
     -webkit-text-size-adjust: 100%;
     /*
-     * 기준 글자 크기를 낮춘다. **작업실이라 촘촘해야 한다** (architecture.md §8.6) —
-     * 이 한 줄이 Tailwind의 모든 간격과 글자 크기를 함께 줄인다. 학생이 눌러야 하는
-     * 것들은 그만큼 여백을 더 주어 되돌린다(AppButton).
+     * **기준 글자 크기를 건드리지 않는다.** 한때 15px로 낮춰 밀도를 얻으려 했지만,
+     * 이 도구를 쓰는 사람은 중고등학생이고 교실 모니터는 좋지 않다. 촘촘함은 글자를
+     * 줄여서가 아니라 여백으로 얻는다.
+     *
+     * 그래서 화면 코드에 `text-sm`과 `text-xs`가 없다 — 가장 작은 것이 `text-base`다.
      */
-    font-size: 15px;
   }
 
   /* 셸이 화면을 정확히 채운다. 바깥은 절대 스크롤되지 않는다. */

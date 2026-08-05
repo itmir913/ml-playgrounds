@@ -1,0 +1,199 @@
+/**
+ * 자동 저장과 `.mlpx` 내보내기.
+ *
+ * **컴퓨터실 PC는 전원을 끄면 디스크가 되돌아간다.** 그래서 이 둘이 이 도구에서
+ * 특별히 중요하다 — 브라우저 저장은 새로고침과 크래시까지 지켜 주고, 차시를 넘기는
+ * 것은 내보낸 파일뿐이다 (architecture.md §8.8).
+ *
+ * 여기서 보는 것 셋.
+ *
+ * 1. 미뤄 둔 저장이 **실제로 도착하는가**, 그리고 그 사이 상태가 정직한가
+ * 2. 내보내기 전에 **미뤄 둔 것을 먼저 쓰는가** - 방금 쓴 글이 빠진 파일이 나가면 안 된다
+ * 3. 내보낸 시각을 저장이 **덮어쓰지 않는가** - 저장은 자주, 내보내기는 가끔이다
+ */
+
+import 'fake-indexeddb/auto'
+
+import { createPinia, setActivePinia } from 'pinia'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { AUTOSAVE_DELAY_MS } from '../src/limits'
+import { closeStorage, DB_NAME, loadProject, readExportedAt } from '../src/project/storage'
+import { useProjectStore } from '../src/stores/project'
+import { manifest, projectFile } from './fixtures/project'
+
+const downloads: { fileName: string; bytes: Uint8Array }[] = []
+
+vi.mock('../src/project/download', () => ({
+  downloadBytes: (bytes: Uint8Array, fileName: string) => {
+    downloads.push({ bytes, fileName })
+  },
+  readFileBytes: async (file: File) => new Uint8Array(await file.arrayBuffer()),
+}))
+
+async function deleteDatabase(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const request = indexedDB.deleteDatabase(DB_NAME)
+    request.onsuccess = () => resolve()
+    request.onerror = () => resolve()
+    request.onblocked = () => resolve()
+  })
+}
+
+/** 새 이름을 붙인 사본. 값이 바뀐 것을 흉내낸다. */
+function renamed(name: string) {
+  const base = projectFile()
+  return {
+    ...base,
+    document: { ...base.document, manifest: { ...base.document.manifest, name } },
+  }
+}
+
+beforeEach(async () => {
+  downloads.length = 0
+  setActivePinia(createPinia())
+  closeStorage()
+  await deleteDatabase()
+  // setTimeout만 가짜로 바꾼다. 전부 바꾸면 fake-indexeddb가 자기 이벤트 루프를
+  // 돌리지 못해 모든 요청이 영원히 안 끝난다.
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+})
+
+afterEach(async () => {
+  vi.useRealTimers()
+  closeStorage()
+  await deleteDatabase()
+})
+
+describe('자동 저장', () => {
+  it('바꾸면 화면은 즉시, 저장은 나중에', async () => {
+    const project = useProjectStore()
+    project.update(renamed('바뀐 이름'))
+
+    // 화면은 벌써 새 값을 본다. 기다리게 하면 입력이 끊긴다.
+    expect(project.name).toBe('바뀐 이름')
+    expect(project.dirty).toBe(true)
+    expect(await loadProject(manifest.projectId)).toBeNull()
+  })
+
+  it('시간이 지나면 도착한다', async () => {
+    const project = useProjectStore()
+    project.update(renamed('바뀐 이름'))
+
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS)
+
+    // 값을 먼저 확인한다. 타이머는 깨웠지만 IndexedDB 왕복은 실제 비동기라
+    // advanceTimersByTimeAsync가 그것까지 기다려 주지는 않는다.
+    expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe('바뀐 이름')
+    expect(project.dirty).toBe(false)
+  })
+
+  it('연달아 바꾸면 마지막 것만 쓴다', async () => {
+    // 슬라이더를 끄는 동안 한 픽셀마다 수십 MB를 쓰면 교실 PC가 멈춘다.
+    const project = useProjectStore()
+    project.update(renamed('하나'))
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS / 2)
+    project.update(renamed('둘'))
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS / 2)
+
+    // 아직 첫 타이머만 지났다. 두 번째가 앞의 것을 밀어냈으므로 안 써 있어야 한다.
+    expect(await loadProject(manifest.projectId)).toBeNull()
+
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS)
+    expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe('둘')
+  })
+
+  it('flush는 기다리지 않고 지금 쓴다', async () => {
+    const project = useProjectStore()
+    project.update(renamed('바뀐 이름'))
+    await project.flush()
+
+    expect(project.dirty).toBe(false)
+    expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe('바뀐 이름')
+  })
+
+  it('바꾼 것이 없으면 flush가 아무것도 안 한다', async () => {
+    const project = useProjectStore()
+    await project.flush()
+    expect(project.savedAt).toBeNull()
+  })
+
+  it('닫으면 미뤄 둔 저장이 취소된다', async () => {
+    // 프로젝트를 놓아준 뒤에 옛 값이 뒤늦게 도착하면 안 된다.
+    const project = useProjectStore()
+    project.update(renamed('바뀐 이름'))
+    project.close()
+
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS * 2)
+    expect(await loadProject(manifest.projectId)).toBeNull()
+  })
+
+  it('save는 미뤄 둔 것을 밀어내고 즉시 쓴다', async () => {
+    const project = useProjectStore()
+    project.update(renamed('미뤄진 것'))
+    await project.save(renamed('즉시'))
+
+    expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe('즉시')
+
+    // 취소되지 않았다면 여기서 옛 값이 덮어쓴다.
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS * 2)
+    expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe('즉시')
+  })
+})
+
+describe('내보내기', () => {
+  const markdown = '# 나의 AI 모델 정리\n'
+
+  it('파일 하나를 내려보낸다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+    await project.exportFile(markdown)
+
+    expect(downloads).toHaveLength(1)
+    expect(downloads[0]?.fileName.endsWith('.mlpx')).toBe(true)
+    expect((downloads[0]?.bytes.length ?? 0) > 0).toBe(true)
+  })
+
+  it('미뤄 둔 저장을 먼저 끝낸다 - 방금 쓴 글이 빠진 파일이 나가면 안 된다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+    project.update(renamed('마지막 순간에 고친 이름'))
+
+    await project.exportFile(markdown)
+
+    expect(project.dirty).toBe(false)
+    expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe(
+      '마지막 순간에 고친 이름',
+    )
+  })
+
+  it('내보낸 시각을 남긴다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+    expect(project.exportedAt).toBeNull()
+
+    await project.exportFile(markdown)
+
+    expect(project.exportedAt).not.toBeNull()
+    expect(await readExportedAt(manifest.projectId)).toBe(project.exportedAt)
+  })
+
+  it('그 뒤의 저장이 내보낸 시각을 지우지 않는다', async () => {
+    // 자동 저장은 자주 돌고 내보내기는 학생이 일부러 하는 일이다. 덮어쓰면
+    // "아직 안 내보냈습니다"가 계속 다시 뜬다.
+    const project = useProjectStore()
+    await project.save(projectFile())
+    await project.exportFile(markdown)
+    const at = project.exportedAt
+
+    await project.save(renamed('그 뒤에 고친 이름'))
+
+    expect(await readExportedAt(manifest.projectId)).toBe(at)
+  })
+
+  it('프로젝트가 없으면 아무것도 내려보내지 않는다', async () => {
+    const project = useProjectStore()
+    await expect(project.exportFile(markdown)).resolves.toEqual([])
+    expect(downloads).toHaveLength(0)
+  })
+})

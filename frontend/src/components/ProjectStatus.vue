@@ -37,7 +37,7 @@ const workflow = computed(() =>
   <div>
     <button
       type="button"
-      class="flex items-center gap-2 rounded-control px-2.5 py-1.5 text-sm font-bold text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink"
+      class="flex items-center gap-2 rounded-control px-2.5 py-1.5 text-base font-bold text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink"
       :popovertarget="popoverId"
     >
       <span
@@ -54,19 +54,19 @@ const workflow = computed(() =>
       class="m-0 w-72 rounded-panel border border-line bg-surface p-4 text-ink shadow-pop"
       style="position: fixed; inset: auto; top: var(--spacing-toolbar); right: 0.75rem"
     >
-      <h2 class="text-sm font-bold text-ink-soft">{{ t('shell.statusTitle') }}</h2>
+      <h2 class="text-base font-bold text-ink-soft">{{ t('shell.statusTitle') }}</h2>
       <p class="mt-1 truncate font-bold">{{ project.name }}</p>
 
-      <p class="mt-4 text-sm font-bold text-ink-soft">{{ t('shell.now') }}</p>
+      <p class="mt-4 text-base font-bold text-ink-soft">{{ t('shell.now') }}</p>
       <p class="mt-1">{{ now === null ? t('shell.finished') : t(`tasks.${now.key}`) }}</p>
 
-      <p class="mt-4 text-sm font-bold text-ink-soft">{{ t('save.exported') }}</p>
-      <p class="mt-1 text-sm" :class="project.exportedAt === null ? 'text-caution' : ''">
+      <p class="mt-4 text-base font-bold text-ink-soft">{{ t('save.exported') }}</p>
+      <p class="mt-1 text-base" :class="project.exportedAt === null ? 'text-caution' : ''">
         {{ project.exportedAt === null ? t('save.notExported') : t('save.exported') }}
       </p>
 
-      <p class="mt-4 text-sm font-bold text-ink-soft">{{ t('shell.workflow') }}</p>
-      <ul class="mt-2 flex flex-col gap-1 text-sm">
+      <p class="mt-4 text-base font-bold text-ink-soft">{{ t('shell.workflow') }}</p>
+      <ul class="mt-2 flex flex-col gap-1 text-base">
         <li
           v-for="entry in workflow"
           :key="entry.step"

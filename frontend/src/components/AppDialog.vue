@@ -44,7 +44,7 @@ function onBackdrop(event: MouseEvent): void {
 <template>
   <dialog
     ref="dialog"
-    class="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-card border border-line bg-surface p-0 text-ink shadow-pop backdrop:bg-slate-900/40 backdrop:backdrop-blur-sm"
+    class="m-auto w-full max-w-lg rounded-card border border-line bg-surface p-0 text-ink shadow-pop backdrop:bg-slate-900/40"
     @close="emit('close')"
     @click="onBackdrop"
   >

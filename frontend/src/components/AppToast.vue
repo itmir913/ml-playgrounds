@@ -8,6 +8,7 @@
 
 import { useI18n } from 'vue-i18n'
 
+import { ACTION_ICONS } from '@/icons'
 import { type Toast, type ToastTone, useToastStore } from '@/stores/toasts'
 
 const { t } = useI18n()
@@ -46,23 +47,23 @@ const BARS: Readonly<Record<ToastTone, string>> = {
       <span class="w-1.5 self-stretch" :class="BARS[toast.tone]" aria-hidden="true" />
 
       <div class="flex-1 py-4">
-        <p class="text-sm leading-relaxed font-medium">{{ t(toast.key, toast.params) }}</p>
+        <p class="text-base leading-relaxed font-medium">{{ t(toast.key, toast.params) }}</p>
         <!--
           남의 라이브러리가 던진 원문. 번역되지 않으므로 우리 문장과 섞지 않고
           아래에 기술 정보로 붙인다 (errors.ts의 failureDetail).
         -->
-        <p v-if="detailOf(toast)" class="mt-1 text-xs break-all text-ink-soft">
+        <p v-if="detailOf(toast)" class="mt-1 text-base break-all text-ink-soft">
           {{ detailOf(toast) }}
         </p>
       </div>
 
       <button
         type="button"
-        class="mt-3 rounded-field px-2 py-1 text-sm font-bold text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink"
+        class="mt-3 rounded-field px-2 py-1 text-base font-bold text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink"
         :aria-label="t('common.dismiss')"
         @click="toasts.dismiss(toast.id)"
       >
-        ✕
+        <component :is="ACTION_ICONS.dismiss" :size="18" aria-hidden="true" />
       </button>
     </div>
   </div>

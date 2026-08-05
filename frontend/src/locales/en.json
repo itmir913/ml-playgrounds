@@ -1,7 +1,8 @@
 {
   "app": {
-    "name": "ML Playgrounds",
-    "tagline": "Upload data, build a model, and keep the whole process as a portfolio."
+    "name": "Machine Learning Playgrounds",
+    "tagline": "Upload data, build a model, and keep the whole process as a portfolio.",
+    "short": "ML"
   },
   "nav": {
     "projects": "Projects"
@@ -109,7 +110,6 @@
     "categorical": "Category"
   },
   "projects": {
-    "title": "My projects",
     "new": "New project",
     "newTitle": "Create a new project",
     "newDescription": "Just a name and what you want to do. You will upload data on the next screen.",
@@ -121,16 +121,13 @@
     "delete": "Delete",
     "deleteTitle": "Delete this project?",
     "deleteDescription": "Its data and training results go with it. This cannot be undone. ({name})",
-    "count": "{count} project | {count} projects",
     "noDataYet": "No data yet",
     "updatedAt": "Last saved",
     "size": "Size",
     "loading": "Loading.",
-    "empty": {
-      "title": "No projects yet",
-      "description": "Create a project to upload data and train a model."
-    },
-    "storageNote": "Projects are stored in this browser. To continue on another device, save the project to a file and take it with you."
+    "storageNote": "Projects are stored in this browser. To continue on another device, save the project to a file and take it with you.",
+    "saved": "Saved projects",
+    "savedCount": "{count} in this browser | {count} in this browser"
   },
   "common": {
     "underConstruction": "This screen is still being built.",
@@ -246,5 +243,13 @@
       "result": "What the results show",
       "reflection": "What I learned"
     }
+  },
+  "project": {
+    "export": "Export to a file",
+    "exportDone": "The file has been downloaded. You need it to carry on from another computer.",
+    "exportDropped": "Some models were too large to include. Their scores are still there. ({count})",
+    "open": "Open a file",
+    "openDone": "The file is open.",
+    "openModified": "This file shows signs of having been edited after it was saved."
   }
 }

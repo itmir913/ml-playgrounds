@@ -197,9 +197,9 @@ function kindOf(column: ColumnSummary): string {
       v-if="opened"
       class="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-panel border border-brand-line bg-brand-soft px-4 py-2.5"
     >
-      <span class="max-w-64 truncate text-sm font-bold">{{ opened.fileName }}</span>
+      <span class="max-w-64 truncate text-base font-bold">{{ opened.fileName }}</span>
 
-      <label v-if="opened.document.sheetNames.length > 1" class="flex items-center gap-2 text-sm">
+      <label v-if="opened.document.sheetNames.length > 1" class="flex items-center gap-2 text-base">
         <span class="font-bold text-ink-soft">{{ t('data.sheet') }}</span>
         <select
           v-model="sheetName"
@@ -211,12 +211,12 @@ function kindOf(column: ColumnSummary): string {
         </select>
       </label>
 
-      <label class="flex cursor-pointer items-center gap-2 text-sm">
+      <label class="flex cursor-pointer items-center gap-2 text-base">
         <input v-model="hasHeader" type="checkbox" class="size-4 accent-brand" />
         <span class="font-bold">{{ t('data.hasHeader') }}</span>
       </label>
 
-      <span v-if="!hasHeader" class="text-xs text-ink-soft">{{ t('data.noHeaderNote') }}</span>
+      <span v-if="!hasHeader" class="text-base text-ink-soft">{{ t('data.noHeaderNote') }}</span>
 
       <div class="ml-auto flex gap-2">
         <AppButton variant="ghost" @click="opened = null">{{ t('common.cancel') }}</AppButton>
@@ -231,7 +231,7 @@ function kindOf(column: ColumnSummary): string {
           <tr>
             <th v-for="column in shown.columns" :key="column.name" class="align-bottom">
               <span class="block text-ink">{{ column.name }}</span>
-              <span class="block text-[0.625rem] font-normal">{{ kindOf(column) }}</span>
+              <span class="block font-normal">{{ kindOf(column) }}</span>
             </th>
           </tr>
         </thead>
@@ -255,7 +255,7 @@ function kindOf(column: ColumnSummary): string {
       </div>
     </div>
 
-    <p v-if="shown" class="shrink-0 text-xs text-ink-faint">
+    <p v-if="shown" class="shrink-0 text-base text-ink-faint">
       {{ t('data.previewNote', PREVIEW_ROW_COUNT) }}
     </p>
 
@@ -265,7 +265,7 @@ function kindOf(column: ColumnSummary): string {
       class="shrink-0 rounded-panel border border-line bg-surface"
       :open="inspecting"
     >
-      <summary class="cursor-pointer px-4 py-2.5 text-sm font-bold text-ink-soft">
+      <summary class="cursor-pointer px-4 py-2.5 text-base font-bold text-ink-soft">
         {{ t('data.inspector') }}
       </summary>
       <div class="border-t border-line p-3">

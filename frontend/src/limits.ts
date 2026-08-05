@@ -106,6 +106,15 @@ export const MAX_FAILURE_DETAIL_LENGTH = 200
  */
 export const TOAST_DURATION_MS = 6000
 
+/**
+ * 값이 바뀐 뒤 IndexedDB에 쓰기까지 기다리는 시간.
+ *
+ * **짧게 잡는다.** 학교 컴퓨터실 PC는 전원을 끄면 디스크가 되돌아가므로 브라우저
+ * 저장이 지켜 주는 것은 새로고침과 크래시까지인데, 그 둘은 예고 없이 온다.
+ * 슬라이더를 끌 때마다 수십 MB를 쓰지 않을 만큼만 미룬다.
+ */
+export const AUTOSAVE_DELAY_MS = 800
+
 /** 학번 입력 상한. 자유 문자열이다 - 1-2-03 같은 체계가 실재한다 (mlpx-spec.md 7). */
 export const MAX_STUDENT_ID_LENGTH = 20
 

@@ -31,7 +31,7 @@ const note = computed(() => props.error ?? props.hint)
 
 <template>
   <div class="flex flex-col gap-2">
-    <label :for="inputId" class="text-sm font-bold text-ink-soft">{{ label }}</label>
+    <label :for="inputId" class="text-base font-bold text-ink-soft">{{ label }}</label>
 
     <slot
       :id="inputId"
@@ -42,7 +42,7 @@ const note = computed(() => props.error ?? props.hint)
     <p
       v-if="note !== undefined"
       :id="noteId"
-      class="text-sm"
+      class="text-base"
       :class="error === undefined ? 'text-ink-faint' : 'font-medium text-danger'"
     >
       {{ note }}

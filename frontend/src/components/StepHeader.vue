@@ -15,10 +15,10 @@ defineProps<{
   <header class="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
     <div>
       <h2 class="text-lg font-bold tracking-tight">{{ title }}</h2>
-      <p class="mt-0.5 text-sm text-ink-soft">{{ purpose }}</p>
+      <p class="mt-0.5 text-base text-ink-soft">{{ purpose }}</p>
     </div>
 
-    <dl class="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-ink-soft">
+    <dl class="flex flex-wrap items-center gap-x-5 gap-y-1 text-base text-ink-soft">
       <slot name="context" />
     </dl>
   </header>

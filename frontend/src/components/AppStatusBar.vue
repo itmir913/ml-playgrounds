@@ -46,16 +46,18 @@ function onLocale(event: Event): void {
 
 <template>
   <footer
-    class="flex h-statusbar shrink-0 items-center gap-4 overflow-x-auto border-t border-line bg-surface px-3 text-xs text-ink-soft"
+    class="flex h-statusbar shrink-0 items-center gap-4 overflow-x-auto border-t border-line bg-surface px-3 text-base text-ink-soft"
   >
     <template v-if="project.projectId !== null">
       <span class="flex items-center gap-1.5 whitespace-nowrap">
         <span
           class="size-1.5 rounded-pill"
-          :class="project.saving ? 'bg-caution' : 'bg-positive'"
+          :class="project.saving || project.dirty ? 'bg-caution' : 'bg-positive'"
           aria-hidden="true"
         />
-        {{ project.saving ? t('save.saving') : t('save.saved') }}
+        {{
+          project.saving ? t('save.saving') : project.dirty ? t('save.unsaved') : t('save.saved')
+        }}
       </span>
 
       <span v-if="project.savedAt !== null" class="whitespace-nowrap text-ink-faint">
@@ -76,7 +78,7 @@ function onLocale(event: Event): void {
     <span v-else class="whitespace-nowrap">{{ t('shell.noProject') }}</span>
 
     <select
-      class="ml-auto rounded-field bg-transparent px-1 py-0.5 text-xs"
+      class="ml-auto rounded-field bg-transparent px-1 py-0.5 text-base"
       :aria-label="t('shell.language')"
       :value="locale"
       @change="onLocale"

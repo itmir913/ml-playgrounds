@@ -18,7 +18,7 @@ defineProps<{
 <template>
   <div class="flex flex-col items-center gap-3 px-6 py-14 text-center">
     <p class="font-bold text-ink-soft">{{ reason }}</p>
-    <p class="max-w-md text-sm leading-relaxed text-ink-faint">{{ next }}</p>
+    <p class="max-w-md text-base leading-relaxed text-ink-faint">{{ next }}</p>
     <div v-if="$slots.default" class="mt-2">
       <slot />
     </div>
