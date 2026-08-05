@@ -37,13 +37,13 @@
     "toDark": "어두운 화면으로 바꾸기"
   },
   "save": {
-    "browserOnly": "이 브라우저에만 있음",
-    "saving": "저장 중",
-    "unsaved": "저장되지 않음",
-    "notExported": "내보내지 않음",
-    "exported": "내보냄",
-    "stale": "내보낸 뒤 변경됨",
-    "exportWarning": "이 컴퓨터를 끄면 브라우저 안의 것은 사라집니다. 파일로 내보내 두세요."
+    "browserOnly": "이 컴퓨터에만 있음",
+    "saving": "이 컴퓨터에 담는 중",
+    "unsaved": "이 컴퓨터에 담기 전",
+    "notExported": "아직 파일로 저장 안 함",
+    "exported": "파일로 저장함",
+    "stale": "마지막 파일 저장 후 변경됨",
+    "exportWarning": "이 컴퓨터를 끄면 여기 있는 것은 사라집니다. 파일로 저장해 두세요."
   },
   "steps": {
     "data": {
@@ -97,7 +97,7 @@
     "missing": "결측치",
     "unique": "값 종류",
     "samples": "값 예시",
-    "applied": "데이터를 저장했습니다.",
+    "applied": "이 데이터를 사용합니다.",
     "droppedColumns": "새 데이터에 없는 열이라 선택에서 빠졌습니다. ({names})",
     "replaceTitle": "데이터를 바꾸면 학습 결과가 지워집니다",
     "replaceDescription": "지금까지 한 실험(Experiment) {count}개가 함께 사라집니다. 모델은 데이터의 행 번호를 가리키기 때문에, 남겨 두면 다른 줄을 보고 예측하게 됩니다.",
@@ -124,12 +124,12 @@
     "deleteTitle": "이 프로젝트를 지울까요?",
     "deleteDescription": "데이터와 학습 결과가 함께 사라집니다. 되돌릴 수 없습니다. ({name})",
     "noDataYet": "데이터 없음",
-    "updatedAt": "마지막 저장",
+    "updatedAt": "마지막으로 작업한 때",
     "size": "크기",
     "loading": "불러오는 중입니다.",
-    "storageNote": "프로젝트는 이 브라우저에만 남습니다. 다른 컴퓨터로 가져가려면 파일로 내보내세요.",
-    "saved": "저장된 프로젝트",
-    "savedCount": "이 브라우저에 {count}개 있습니다"
+    "storageNote": "프로젝트는 이 컴퓨터에만 남습니다. 다른 컴퓨터로 가져가려면 파일로 저장하세요.",
+    "saved": "이 컴퓨터의 프로젝트",
+    "savedCount": "이 컴퓨터에 {count}개 있습니다"
   },
   "common": {
     "underConstruction": "이 화면은 아직 만드는 중입니다.",
@@ -230,7 +230,7 @@
     "MODEL_FILE_INVALID": "저장된 모델을 읽을 수 없습니다. 다시 학습하면 쓸 수 있습니다.",
     "DATASET_FILE_TYPE_UNSUPPORTED": "지원하지 않는 파일 형식입니다. ({fileName})",
     "DATASET_SHEET_NOT_FOUND": "그 시트를 찾을 수 없습니다. ({sheetName})",
-    "STORAGE_QUOTA_EXCEEDED": "브라우저에 저장할 공간이 부족합니다. (필요 {requiredMb}MB, 남은 공간 {availableMb}MB)",
+    "STORAGE_QUOTA_EXCEEDED": "이 컴퓨터에 담을 공간이 부족합니다. (필요 {requiredMb}MB, 남은 공간 {availableMb}MB)",
     "UNEXPECTED_ERROR": "예상하지 못한 문제가 생겼습니다. 다시 시도해 주세요.",
     "SPLIT_TOO_FEW_ROWS": "학습에 쓸 수 있는 데이터가 {actualRows}줄뿐이라 학습용과 평가용으로 나눌 수 없습니다. (최소 {minRows}줄)",
     "SPLIT_STRATIFY_IMPOSSIBLE": "'{label}' 값이 {count}개뿐이라 비율을 맞춰 나눌 수 없습니다. 비율 맞추기를 끄거나 이 값의 데이터를 {minRows}개 이상 모아 주세요."
@@ -247,8 +247,8 @@
     }
   },
   "project": {
-    "export": "파일로 내보내기",
-    "exportDone": "파일을 내려받았습니다. 이 파일이 있어야 다른 컴퓨터에서 이어서 할 수 있습니다.",
+    "export": "파일로 저장",
+    "exportDone": "파일로 저장했습니다. 이 파일이 있어야 다른 컴퓨터에서 이어서 할 수 있습니다.",
     "exportDropped": "크기 때문에 담지 못한 모델이 있습니다. 지표는 그대로 남습니다. ({count}개)",
     "open": "파일 불러오기",
     "openDone": "파일을 열었습니다.",
@@ -260,7 +260,7 @@
     "done": "Done",
     "locked": "Locked",
     "exportLead": "학번과 이름을 적으면 파일 이름 앞에 붙습니다.",
-    "exportNow": "파일 내려받기",
+    "exportNow": "저장하기",
     "dashboard": "대시​보드"
   },
   "identity": {

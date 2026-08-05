@@ -37,13 +37,13 @@
     "toDark": "Switch to the dark theme"
   },
   "save": {
-    "browserOnly": "In this browser only",
-    "saving": "Saving",
-    "unsaved": "Not saved",
-    "notExported": "Not exported",
-    "exported": "Exported",
-    "stale": "Changed since export",
-    "exportWarning": "What is in the browser disappears when this computer shuts down. Export it to a file."
+    "browserOnly": "On this computer only",
+    "saving": "Storing on this computer",
+    "unsaved": "Not on this computer yet",
+    "notExported": "Not saved to a file yet",
+    "exported": "Saved to a file",
+    "stale": "Changed since the last file save",
+    "exportWarning": "What is here disappears when this computer shuts down. Save it to a file."
   },
   "steps": {
     "data": {
@@ -97,7 +97,7 @@
     "missing": "Missing",
     "unique": "Distinct values",
     "samples": "Examples",
-    "applied": "The data has been saved.",
+    "applied": "This data is now in use.",
     "droppedColumns": "Some chosen columns are not in the new data, so they were dropped. ({names})",
     "replaceTitle": "Replacing the data deletes your training results",
     "replaceDescription": "The {count} experiment you have run so far goes with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows. | The {count} experiments you have run so far go with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows.",
@@ -124,12 +124,12 @@
     "deleteTitle": "Delete this project?",
     "deleteDescription": "Its data and training results go with it. This cannot be undone. ({name})",
     "noDataYet": "No data yet",
-    "updatedAt": "Last saved",
+    "updatedAt": "Last worked on",
     "size": "Size",
     "loading": "Loading.",
-    "storageNote": "Projects live in this browser only. To take one to another computer, export it to a file.",
-    "saved": "Saved projects",
-    "savedCount": "{count} project in this browser | {count} projects in this browser"
+    "storageNote": "Projects live on this computer only. To take one to another computer, save it to a file.",
+    "saved": "Projects on this computer",
+    "savedCount": "{count} project on this computer | {count} projects on this computer"
   },
   "common": {
     "underConstruction": "This screen is still being built.",
@@ -230,7 +230,7 @@
     "MODEL_FILE_INVALID": "That saved model could not be read. Train it again to use it.",
     "DATASET_FILE_TYPE_UNSUPPORTED": "This file type is not supported. ({fileName})",
     "DATASET_SHEET_NOT_FOUND": "That sheet could not be found. ({sheetName})",
-    "STORAGE_QUOTA_EXCEEDED": "There is not enough room left in this browser. (needs {requiredMb}MB, {availableMb}MB free)",
+    "STORAGE_QUOTA_EXCEEDED": "There is not enough room left on this computer. (needs {requiredMb}MB, {availableMb}MB free)",
     "UNEXPECTED_ERROR": "Something went wrong. Please try again.",
     "SPLIT_TOO_FEW_ROWS": "There is not enough data to split into a training set and a test set. (usable {actualRows}, needs at least {minRows})",
     "SPLIT_STRATIFY_IMPOSSIBLE": "'{label}' appears too few times to keep the same proportions in the split. Turn off proportional splitting, or collect more rows with this value. (has {count}, needs at least {minRows})"
@@ -247,8 +247,8 @@
     }
   },
   "project": {
-    "export": "Export to a file",
-    "exportDone": "The file has been downloaded. You need it to carry on from another computer.",
+    "export": "Save to a file",
+    "exportDone": "Saved to a file. You need it to carry on from another computer.",
     "exportDropped": "Some models were too large to include. Their scores are still there. ({count})",
     "open": "Open a file",
     "openDone": "The file is open.",
@@ -260,7 +260,7 @@
     "done": "Done",
     "locked": "Locked",
     "exportLead": "A student number and name go in front of the file name.",
-    "exportNow": "Download",
+    "exportNow": "Save",
     "dashboard": "Dash­board"
   },
   "identity": {
