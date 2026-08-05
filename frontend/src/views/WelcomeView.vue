@@ -35,7 +35,19 @@ const router = useRouter()
 const toasts = useToastStore()
 
 const summaries = ref<ProjectSummary[]>([])
-const loading = ref(true)
+
+/**
+ * 첫 목록 읽기가 끝났는가. **한 번만 뒤집힌다.**
+ *
+ * 이 화면은 세로 가운데 정렬이라, 목록이 IndexedDB에서 늦게 도착해 아래에 붙으면
+ * **블록이 자라면서 가운데가 다시 잡히고 전체가 위로 튄다.** 학생 눈에는 화면이 한 번
+ * 흔들리는 것으로 보인다. 그래서 첫 읽기 전에는 아무것도 안 그리고, 도착한 뒤 최종
+ * 자리에 한 번에 그린다.
+ *
+ * **두 번째부터는 안 비운다.** 지우기·가져오기 뒤의 갱신에서도 화면이 사라졌다
+ * 나타나면 그게 더 나쁘다.
+ */
+const ready = ref(false)
 const busy = ref(false)
 
 const creating = ref(false)
@@ -46,13 +58,14 @@ const openInput = ref<HTMLInputElement | null>(null)
 const canCreate = computed(() => name.value.trim().length > 0 && !busy.value)
 
 async function refresh(): Promise<void> {
-  loading.value = true
   try {
     summaries.value = await listProjects()
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    loading.value = false
+    // 실패해도 뒤집는다 - 못 읽은 것과 아직 안 읽은 것은 다르고, 못 읽었어도
+    // [새 프로젝트]와 [파일 불러오기]는 여전히 할 수 있어야 한다.
+    ready.value = true
   }
 }
 
@@ -148,7 +161,7 @@ onMounted(refresh)
     이어서 하는 것이 필요하다.
   -->
   <div class="flex min-h-full items-center justify-center p-6">
-    <div class="flex w-full max-w-xl flex-col items-center gap-8">
+    <div v-if="ready" class="flex w-full max-w-xl flex-col items-center gap-8">
       <div class="text-center">
         <h2 class="text-3xl font-black tracking-tight">{{ t('app.name') }}</h2>
         <p class="mt-3 leading-relaxed text-ink-soft">{{ t('app.tagline') }}</p>
