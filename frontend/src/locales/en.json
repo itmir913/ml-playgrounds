@@ -214,7 +214,11 @@
     "progress": "Training model {completed} of {total}.",
     "finished": "Training finished.",
     "nothingToTrain": "Nothing to train yet — no models have been added.",
-    "seeResults": "See results"
+    "seeResults": "See results",
+    "leaveTitle": "Training has not finished.",
+    "leaveBody": "If you leave now, training stops and no result is kept. You will have to train again.",
+    "leaveStay": "Stay here",
+    "leaveGo": "Leave and stop training"
   },
   "projects": {
     "new": "New project",
@@ -361,7 +365,7 @@
     "openModified": "This file shows signs of having been changed after it was saved.",
     "homeTitle": "Dashboard",
     "homeLead": "Pick a step on the left, or carry on below.",
-    "resume": "Carry on — {task}",
+    "resume": "Go to — {task}",
     "openStep": "Open",
     "done": "Done",
     "locked": "Locked",

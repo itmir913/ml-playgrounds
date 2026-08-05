@@ -214,7 +214,11 @@
     "progress": "{total}개 중 {completed}개째 학습 중입니다.",
     "finished": "학습이 끝났습니다.",
     "nothingToTrain": "아직 담은 모델이 없어 학습할 것이 없습니다.",
-    "seeResults": "결과 보기"
+    "seeResults": "결과 보기",
+    "leaveTitle": "학습이 아직 안 끝났습니다.",
+    "leaveBody": "지금 나가면 학습이 멈추고 결과가 남지 않습니다. 다시 학습해야 합니다.",
+    "leaveStay": "머무르기",
+    "leaveGo": "나가고 학습 멈추기"
   },
   "projects": {
     "new": "새 프로젝트",
@@ -361,7 +365,7 @@
     "openModified": "저장한 뒤에 변경된 흔적이 있는 파일입니다.",
     "homeTitle": "대시보드",
     "homeLead": "왼쪽에서 단계를 고르거나, 아래에서 이어서 하세요.",
-    "resume": "이어서 하기 — {task}",
+    "resume": "바로가기 — {task}",
     "openStep": "들어가기",
     "done": "Done",
     "locked": "Locked",

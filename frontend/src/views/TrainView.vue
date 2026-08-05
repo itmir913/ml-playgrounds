@@ -14,11 +14,12 @@
  * 끝났다는 것과 [결과 보기]가 버튼 자리에 남는다.
  */
 
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRouter, type RouteLocationNormalized } from 'vue-router'
 
 import AppButton from '@/components/AppButton.vue'
+import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
@@ -255,6 +256,47 @@ async function startTraining(): Promise<void> {
 function goResults(): void {
   void router.push({ name: 'results', params: { projectId: project.projectId } })
 }
+
+/** 게이지 너비. 아직 아무것도 안 끝났으면 0%다 — 도는 척하는 막대를 만들지 않는다. */
+const donePercent = computed(() => {
+  const at = training.progress.value
+  if (!at || at.total === 0) return '0%'
+  return `${Math.round((at.completed / at.total) * 100)}%`
+})
+
+/**
+ * 학습 중에 나가려 한 곳. 확인을 기다리는 동안만 값이 있다.
+ *
+ * **화면 생명주기가 아니라 라우터 가드가 쥔다.** 컴포넌트가 사라진 뒤에 정리하려 들면
+ * 이미 늦고, 워커는 아무도 안 듣는 채로 계속 돈다.
+ */
+const leavingTo = ref<RouteLocationNormalized | null>(null)
+
+/** 확인을 받고 나가는 중인가. **불리언 하나로 가드를 통과시킨다** — 취소가 상태에 반영되는
+ * 것은 마이크로태스크 뒤라, `running`이 내려가길 기다렸다 밀면 가드가 한 번 더 걸린다. */
+let leaving = false
+
+onBeforeRouteLeave((to) => {
+  if (leaving || !training.running.value) return true
+  leavingTo.value = to
+  return false
+})
+
+function stay(): void {
+  leavingTo.value = null
+}
+
+function leave(): void {
+  const to = leavingTo.value
+  leavingTo.value = null
+  leaving = true
+  training.cancel()
+  if (to) {
+    void router.push(to.fullPath).catch(() => {
+      leaving = false
+    })
+  }
+}
 </script>
 
 <template>
@@ -269,7 +311,7 @@ function goResults(): void {
         </div>
         <div class="flex gap-1.5">
           <dt>{{ t('meta.features') }}</dt>
-          <dd class="tabular-nums">{{ t('meta.countUnit', usableFeatures) }}</dd>
+          <dd class="font-bold tabular-nums text-ink">{{ t('meta.countUnit', usableFeatures) }}</dd>
         </div>
       </template>
     </StepHeader>
@@ -309,12 +351,20 @@ function goResults(): void {
           />
         </div>
 
-        <ChosenModels
-          :chosen="chosen"
-          :values="settings.hyperparameters"
-          @remove="removeModel"
-          @set-param="setParam"
-        />
+        <!--
+          **두 열 사이도 점선으로 가른다** (§8.12). 축 사이를 가른 것과 같은 선이라
+          같은 문법으로 읽힌다. 한 열로 접히면 세로선이 뜻을 잃으므로 가로선이 된다.
+        -->
+        <div
+          class="min-w-0 border-t border-dashed border-line pt-5 md:border-t-0 md:border-l md:pt-0 md:pl-6"
+        >
+          <ChosenModels
+            :chosen="chosen"
+            :values="settings.hyperparameters"
+            @remove="removeModel"
+            @set-param="setParam"
+          />
+        </div>
       </div>
     </section>
 
@@ -322,32 +372,76 @@ function goResults(): void {
       **이 단계의 본 동작이라 카드 밖에 선다.** 도는 동안 같은 자리가 진행 표시와
       [멈추기]로 바뀐다 — 누른 자리에서 답이 나와야 눈을 옮기지 않는다.
     -->
-    <section
-      class="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-panel border border-line bg-surface p-4"
-    >
-      <template v-if="training.running.value">
-        <AppButton variant="secondary" size="lg" @click="training.cancel">
-          {{ t('train.stop') }}
-        </AppButton>
-        <p class="min-w-0 font-bold" role="status">
+    <section class="flex flex-col gap-3 rounded-panel border border-line bg-surface p-4">
+      <!--
+        **말이 왼쪽, 누를 것이 오른쪽이다.** 왜 못 누르는지가 버튼 바로 옆에 오고,
+        버튼은 카드의 오른쪽 끝에 고정되어 학생이 매번 같은 자리를 찾는다.
+      -->
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
+        <p v-if="training.running.value" class="min-w-0 font-bold" role="status">
           {{ t('train.progress', training.progress.value ?? { completed: 0, total: 0 }) }}
         </p>
-      </template>
-
-      <template v-else>
-        <AppButton size="lg" :disabled="nothingToTrain" :action="startTraining">
-          {{ t('train.start') }}
-        </AppButton>
-
         <!-- 이유 없이 꺼진 버튼은 학생에게 고장으로 보인다. -->
-        <p v-if="nothingToTrain" class="min-w-0 text-ink-soft">{{ t('train.nothingToTrain') }}</p>
+        <p v-else-if="nothingToTrain" class="min-w-0 text-ink-soft">
+          {{ t('train.nothingToTrain') }}
+        </p>
 
-        <AppButton v-if="hasResults" variant="secondary" class="ml-auto" @click="goResults">
-          {{ t('train.seeResults') }}
-        </AppButton>
-      </template>
+        <div class="ml-auto flex flex-wrap items-center gap-3">
+          <AppButton
+            v-if="hasResults && !training.running.value"
+            variant="secondary"
+            @click="goResults"
+          >
+            {{ t('train.seeResults') }}
+          </AppButton>
+
+          <AppButton
+            v-if="training.running.value"
+            variant="secondary"
+            size="lg"
+            @click="training.cancel"
+          >
+            {{ t('train.stop') }}
+          </AppButton>
+          <AppButton v-else size="lg" :disabled="nothingToTrain" :action="startTraining">
+            {{ t('train.start') }}
+          </AppButton>
+        </div>
+      </div>
+
+      <!--
+        **게이지는 모델 단위다** (mlpx-spec.md §0.3). 모델 하나가 안에서 몇 퍼센트인지는
+        엔진이 알려주지 않으므로 만들어 낼 수 없다 — 지어내면 멈춘 막대가 도는 척한다.
+        너비는 값이라 class가 아니라 style이다.
+      -->
+      <div
+        v-if="training.running.value"
+        class="h-2 w-full overflow-hidden rounded-pill bg-surface-sunken"
+        role="progressbar"
+        :aria-valuenow="training.progress.value?.completed ?? 0"
+        aria-valuemin="0"
+        :aria-valuemax="training.progress.value?.total ?? 0"
+      >
+        <div class="h-full rounded-pill bg-brand transition-all" :style="{ width: donePercent }" />
+      </div>
     </section>
   </div>
 
   <AppEmpty v-else :reason="t('train.emptyReason')" :next="t('train.emptyNext')" />
+
+  <!--
+    **학습 중에 나가면 결과가 없다.** 워커는 terminate되고 남는 것이 없으므로, 조용히
+    보내면 학생은 돌아와서 "결과가 왜 없지"를 만난다.
+  -->
+  <AppDialog
+    :open="leavingTo !== null"
+    :title="t('train.leaveTitle')"
+    :description="t('train.leaveBody')"
+    @close="stay"
+  >
+    <template #actions>
+      <AppButton variant="secondary" @click="stay">{{ t('train.leaveStay') }}</AppButton>
+      <AppButton variant="danger" @click="leave">{{ t('train.leaveGo') }}</AppButton>
+    </template>
+  </AppDialog>
 </template>
