@@ -128,7 +128,7 @@ function modelKeyRange(projectId: string): IDBKeyRange {
 }
 
 function totalBytes(project: ProjectFile): number {
-  let total = project.dataset.length
+  let total = project.dataset?.bytes.length ?? 0
   for (const bytes of project.models.values()) total += bytes.length
   return total
 }
@@ -189,11 +189,18 @@ export async function saveProject(project: ProjectFile): Promise<void> {
       updatedAt: project.document.manifest.updatedAt,
       sizeBytes: size,
     })
-    await transaction.objectStore(DATASETS_STORE).put({
-      projectId,
-      bytes: project.dataset,
-      hash: project.datasetHash,
-    })
+    // 데이터셋이 없는 프로젝트가 정상이다. 그때는 **남아 있던 레코드를 지운다** -
+    // 데이터를 바꾸는 도중의 상태가 옛 표와 새 설정으로 남으면 안 된다.
+    const datasets = transaction.objectStore(DATASETS_STORE)
+    if (project.dataset === undefined) {
+      await datasets.delete(projectId)
+    } else {
+      await datasets.put({
+        projectId,
+        bytes: project.dataset.bytes,
+        hash: project.dataset.hash,
+      })
+    }
 
     const models = transaction.objectStore(MODELS_STORE)
     await models.delete(modelKeyRange(projectId))
@@ -213,8 +220,13 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
   const transaction = database.transaction([PROJECTS_STORE, DATASETS_STORE, MODELS_STORE])
 
   const record = await transaction.objectStore(PROJECTS_STORE).get(projectId)
+  if (!record) return null
+
+  // 문서가 데이터셋을 가리키면 본체가 있어야 한다. 둘은 함께 있고 함께 없다
+  // (mlpx-spec.md §1). 어긋난 것은 우리가 고칠 수 없으므로 없는 것으로 다룬다.
   const dataset = await transaction.objectStore(DATASETS_STORE).get(projectId)
-  if (!record || !dataset) return null
+  const wanted = record.document.settings.dataset !== undefined
+  if (wanted !== (dataset !== undefined)) return null
 
   const stored = await transaction.objectStore(MODELS_STORE).getAll(modelKeyRange(projectId))
   const models = new Map<string, Uint8Array>()
@@ -224,9 +236,11 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
 
   return {
     document: record.document,
-    dataset: dataset.bytes,
     // hash가 없는 것은 이 필드가 생기기 전에 저장된 레코드다. 그때만 계산한다.
-    datasetHash: dataset.hash ?? hashBytes(dataset.bytes),
+    dataset:
+      dataset === undefined
+        ? undefined
+        : { bytes: dataset.bytes, hash: dataset.hash ?? hashBytes(dataset.bytes) },
     models,
   }
 }

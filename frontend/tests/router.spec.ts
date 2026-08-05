@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ROUTE_PROJECTS, router } from '../src/router'
 import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
-import { batch, manifest, projectFile, run } from './fixtures/project'
+import { batch, emptyProjectFile, manifest, projectFile, run } from './fixtures/project'
 
 async function deleteDatabase(): Promise<void> {
   await new Promise<void>((resolve) => {
@@ -61,6 +61,12 @@ describe('라우터', () => {
   it('프로젝트 주소에 단계가 없으면 첫 단계로 보낸다', async () => {
     await saveProject(projectFile())
     await router.push(`/project/${manifest.projectId}`)
+    expect(router.currentRoute.value.name).toBe('data')
+  })
+
+  it('표를 아직 안 올린 프로젝트는 어디를 눌러도 데이터로 온다', async () => {
+    await saveProject(emptyProjectFile())
+    await router.push(`/project/${manifest.projectId}/train`)
     expect(router.currentRoute.value.name).toBe('data')
   })
 

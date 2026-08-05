@@ -67,7 +67,8 @@ describe('저장할 때 남기는 것', () => {
   it('데이터셋을 다시 해싱하지 않는다 - 가져오기 시점의 값을 그대로 쓴다', async () => {
     // 일부러 틀린 해시를 넘긴다. 저장이 다시 계산한다면 이 값이 살아남을 수 없다.
     // 50MB 데이터셋에서 자동 저장마다 265ms를 쓰지 않기 위한 규칙이다.
-    const hashes = readHashes(await written(projectFile({ datasetHash: 'not-a-real-hash' })))
+    const wrong = { bytes: datasetBytes, hash: 'not-a-real-hash' }
+    const hashes = readHashes(await written(projectFile({ dataset: wrong })))
     expect(hashes.entries[DATASET_PATH]).toBe('not-a-real-hash')
   })
 
@@ -164,7 +165,7 @@ describe('열 때 하는 대조', () => {
 
   it('데이터셋 해시를 파일에서 다시 계산한다 - 적힌 값을 믿지 않는다', async () => {
     const { project } = await readProject((await writeProject(projectFile(), markdown)).bytes)
-    expect(project.datasetHash).toBe(hashBytes(datasetBytes))
+    expect(project.dataset?.hash).toBe(hashBytes(datasetBytes))
   })
 })
 

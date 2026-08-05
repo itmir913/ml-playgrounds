@@ -21,7 +21,14 @@ import {
   writeProject,
 } from '../src/project/format'
 import { FORMAT_VERSION } from '../src/project/schema'
-import { batch, datasetBytes, manifest, projectFile, run } from './fixtures/project'
+import {
+  batch,
+  datasetBytes,
+  emptyProjectFile,
+  manifest,
+  projectFile,
+  run,
+} from './fixtures/project'
 
 const markdown = '# 나의 AI 모델 정리\n'
 
@@ -39,6 +46,42 @@ function filler(size: number): Uint8Array {
   return new Uint8Array(size).fill(65)
 }
 
+describe('표를 아직 안 올린 프로젝트', () => {
+  it('저장하고 다시 열린다', async () => {
+    // 정상 상태다 (open-decisions.md "데이터 없는 프로젝트는 정상 상태다").
+    // 한 차시가 끝나 나가야 하는데 아직 자료를 못 정한 학생이 이 파일을 들고 간다.
+    const reopened = await roundTrip(emptyProjectFile())
+    expect(reopened.dataset).toBeUndefined()
+    expect(reopened.document.settings.dataset).toBeUndefined()
+  })
+
+  it('zip 안에 dataset/이 아예 없다', async () => {
+    const { bytes } = await writeProject(emptyProjectFile(), markdown)
+    const paths = Object.keys(unzipSync(bytes))
+    expect(paths.filter((path) => path.startsWith('dataset/'))).toEqual([])
+  })
+
+  it('그래도 hashes.json은 나온다 - 나머지 엔트리는 대조할 수 있다', async () => {
+    const { bytes, contentHash } = await writeProject(emptyProjectFile(), markdown)
+    expect(contentHash).not.toBe('')
+    expect(Object.keys(unzipSync(bytes))).toContain(ENTRY.hashes)
+  })
+
+  it('참조만 있고 본체가 없으면 저장을 거부한다', async () => {
+    // 우리 버그다. 그대로 쓰면 다시 열리지 않는 파일이 나간다.
+    const broken = emptyProjectFile()
+    broken.document.settings.dataset = projectFile().document.settings.dataset
+
+    await expect(writeProject(broken, markdown)).rejects.toSatisfy(isClientError)
+  })
+
+  it('본체만 있고 참조가 없어도 저장을 거부한다', async () => {
+    const broken = { ...emptyProjectFile(), dataset: projectFile().dataset }
+
+    await expect(writeProject(broken, markdown)).rejects.toSatisfy(isClientError)
+  })
+})
+
 describe('왕복', () => {
   it('문서가 그대로 돌아온다', async () => {
     const reopened = await roundTrip(projectFile())
@@ -49,7 +92,7 @@ describe('왕복', () => {
     const reopened = await roundTrip(projectFile())
     // Array로 펴서 비교한다. jsdom과 node의 Uint8Array는 realm이 달라
     // toEqual이 내용과 무관하게 어긋난다.
-    expect(Array.from(reopened.dataset)).toEqual(Array.from(datasetBytes))
+    expect(Array.from(reopened.dataset?.bytes ?? [])).toEqual(Array.from(datasetBytes))
   })
 
   it('한글 컬럼명과 클래스 라벨이 살아남는다', async () => {

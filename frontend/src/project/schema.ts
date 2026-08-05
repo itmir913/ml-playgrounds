@@ -188,7 +188,13 @@ export const splitSchema = z.looseObject({
 })
 
 export const settingsSchema = z.looseObject({
-  dataset: datasetRefSchema,
+  /**
+   * 아직 표를 올리지 않은 프로젝트에는 **없다.** 정상 상태다
+   * (open-decisions.md "데이터 없는 프로젝트는 정상 상태다").
+   *
+   * 이것과 zip 안의 `dataset/` 본체는 **함께 있고 함께 없다** (mlpx-spec.md §1).
+   */
+  dataset: datasetRefSchema.optional(),
   features: z.array(userString),
   /** 군집화에는 없다. 과제 유형에 따라 선택 항목이다. */
   target: userString.optional(),

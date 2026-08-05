@@ -18,7 +18,7 @@ import {
   type ProjectProgress,
 } from '../src/router/steps'
 import { progressOf } from '../src/stores/project'
-import { batch, projectFile, run } from './fixtures/project'
+import { batch, emptyProjectFile, projectFile, run } from './fixtures/project'
 
 function progress(overrides: Partial<ProjectProgress> = {}): ProjectProgress {
   return { ...NO_PROGRESS, ...overrides }
@@ -141,11 +141,12 @@ describe('프로젝트에서 진행 상황을 뽑는다', () => {
     expect(progressOf(projectFile())).toEqual(ALL)
   })
 
-  it('데이터셋은 경로가 아니라 바이트로 판정한다', () => {
-    // 빈 경로를 "없음"의 표시로 쓰면 파일 안에 거짓이 남는다.
-    const file = projectFile({ dataset: new Uint8Array() })
-    expect(progressOf(file).hasDataset).toBe(false)
-    expect(file.document.settings.dataset.path).not.toBe('')
+  it('표를 아직 안 올린 프로젝트는 데이터 단계만 열려 있다', () => {
+    // 정상 상태다. 새 프로젝트가 여기서 시작한다.
+    const empty = progressOf(emptyProjectFile())
+    expect(empty).toEqual(NO_PROGRESS)
+    expect(resolveStep('portfolio', empty)).toBe('portfolio')
+    expect(resolveStep('train', empty)).toBe(FIRST_STEP)
   })
 
   it('특성이나 알고리즘 중 하나만 비어도 설정이 안 됐다', () => {

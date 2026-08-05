@@ -25,9 +25,9 @@ export function progressOf(file: ProjectFile | null): ProjectProgress {
   const { settings, runs } = file.document
   const batches = runs.batches
   return {
-    // 경로가 아니라 실제 바이트를 본다. 빈 경로를 "없음"의 표시로 쓰면 파일 안에
-    // 거짓이 남는다.
-    hasDataset: file.dataset.byteLength > 0,
+    // 참조와 본체는 함께 있고 함께 없다 (mlpx-spec.md §1). 어느 쪽을 봐도 같지만
+    // 본체를 본다 - 화면이 알고 싶은 것은 "보여줄 표가 있는가"다.
+    hasDataset: file.dataset !== undefined,
     hasSettings: settings.features.length > 0 && settings.selectedAlgorithms.length > 0,
     hasRuns: batches.some((batch) => batch.runs.length > 0),
     hasModels: batches.some((batch) => batch.runs.some((run) => run.model !== undefined)),

@@ -22,7 +22,15 @@ import {
   saveProject,
   writePreferredLocale,
 } from '../src/project/storage'
-import { batch, manifest, projectFile, run } from './fixtures/project'
+import { hashBytes } from '../src/hash'
+import {
+  batch,
+  datasetBytes,
+  emptyProjectFile,
+  manifest,
+  projectFile,
+  run,
+} from './fixtures/project'
 
 async function deleteDatabase(): Promise<void> {
   await new Promise<void>((resolve) => {
@@ -84,7 +92,9 @@ describe('프로젝트 저장', () => {
     const loaded = await loadProject(manifest.projectId)
     expect(loaded?.document).toEqual(project.document)
     // Uint8Array는 realm이 달라 toEqual이 어긋난다. 바이트로 펴서 비교한다.
-    expect(Array.from(loaded?.dataset ?? [])).toEqual(Array.from(project.dataset))
+    expect(Array.from(loaded?.dataset?.bytes ?? [])).toEqual(
+      Array.from(project.dataset?.bytes ?? []),
+    )
     expect([...(loaded?.models.keys() ?? [])].sort()).toEqual([...project.models.keys()].sort())
   })
 
@@ -92,11 +102,27 @@ describe('프로젝트 저장', () => {
     await expect(loadProject('없는-프로젝트')).resolves.toBeNull()
   })
 
+  it('표를 아직 안 올린 프로젝트도 저장되고 다시 열린다', async () => {
+    await saveProject(emptyProjectFile())
+
+    const loaded = await loadProject(manifest.projectId)
+    expect(loaded).not.toBeNull()
+    expect(loaded?.dataset).toBeUndefined()
+  })
+
+  it('데이터셋을 떼면 남아 있던 표가 함께 사라진다', async () => {
+    await saveProject(projectFile())
+    await saveProject(emptyProjectFile())
+
+    // 옛 표가 남으면 새 설정과 짝이 맞지 않는 데이터로 학습하게 된다.
+    expect((await loadProject(manifest.projectId))?.dataset).toBeUndefined()
+  })
+
   it('데이터셋 해시가 함께 남는다 - 목록에서 고를 때마다 다시 해싱하지 않는다', async () => {
     // 저장된 값을 그대로 돌려주는지 보려고 일부러 틀린 값을 넣는다.
-    await saveProject(projectFile({ datasetHash: 'not-a-real-hash' }))
+    await saveProject(projectFile({ dataset: { bytes: datasetBytes, hash: 'not-a-real-hash' } }))
     const loaded = await loadProject(manifest.projectId)
-    expect(loaded?.datasetHash).toBe('not-a-real-hash')
+    expect(loaded?.dataset?.hash).toBe('not-a-real-hash')
   })
 
   it('연결을 닫았다 열어도 남아 있다', async () => {
@@ -109,8 +135,9 @@ describe('프로젝트 저장', () => {
     await saveProject(projectFile())
 
     // 데이터셋을 갈아끼우고 묶음을 전부 지운 상태 (mlpx-spec.md 5.2).
+    const swapped = new TextEncoder().encode('키,몸무게\n170,60\n')
     const replaced = projectFile({
-      dataset: new TextEncoder().encode('키,몸무게\n170,60\n'),
+      dataset: { bytes: swapped, hash: hashBytes(swapped) },
       models: new Map(),
     })
     replaced.document = {
@@ -121,7 +148,7 @@ describe('프로젝트 저장', () => {
 
     const loaded = await loadProject(manifest.projectId)
     expect(loaded?.models.size).toBe(0)
-    expect(new TextDecoder().decode(loaded?.dataset)).toContain('몸무게')
+    expect(new TextDecoder().decode(loaded?.dataset?.bytes)).toContain('몸무게')
   })
 
   it('모델이 줄면 줄어든 만큼만 남는다', async () => {
@@ -178,7 +205,7 @@ describe('프로젝트 목록', () => {
     await saveProject(project)
 
     const [summary] = await listProjects()
-    let expected = project.dataset.length
+    let expected = project.dataset?.bytes.length ?? 0
     for (const bytes of project.models.values()) expected += bytes.length
     expect(summary?.sizeBytes).toBe(expected)
     expect(summary?.taskType).toBe('classification')

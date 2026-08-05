@@ -64,19 +64,35 @@ export const DIR = {
  */
 const FORBIDDEN_IN_FILE_NAME = /[\\/:*?"<>|]/g
 
-export interface ProjectFile {
-  document: ProjectDocument
+/**
+ * 정본 데이터셋. **바이트와 해시를 쪼갤 수 없게 한 객체로 묶는다.**
+ *
+ * 둘이 갈라지면 무결성 대조가 조용히 무의미해진다 - 남의 해시로 내 바이트를 검사하는
+ * 코드는 언제나 "그대로"라고 답한다.
+ */
+export interface Dataset {
   /** 업로드된 원본 그대로. 절대 가공하지 않는다. */
-  dataset: Uint8Array
+  readonly bytes: Uint8Array
   /**
-   * dataset의 해시. **가져오기 시점에 한 번 계산한 값을 계속 들고 다닌다**
+   * **가져오기 시점에 한 번 계산한 값을 계속 들고 다닌다**
    * (data/table.ts의 ImportedTable.hash).
    *
    * 저장할 때마다 다시 계산하지 않기 위해 타입에 박아 둔다. 50MB 데이터셋이면
    * 자동 저장 한 번에 265ms이고, 정본은 확정된 뒤로 바뀌지 않으므로 다시 계산할
    * 이유가 없다 (mlpx-spec.md 7.2).
    */
-  datasetHash: string
+  readonly hash: string
+}
+
+export interface ProjectFile {
+  document: ProjectDocument
+  /**
+   * 아직 표를 올리지 않은 프로젝트에는 **없다.** 정상 상태다.
+   *
+   * `document.settings.dataset`과 **함께 있고 함께 없다** (mlpx-spec.md §1).
+   * 한쪽만 있는 것은 우리 버그이고, datasetEntry가 저장 직전에 잡는다.
+   */
+  dataset?: Dataset | undefined
   /** zip 경로 -> 내용. 모델과 전처리기가 들어온다. */
   models: Map<string, Uint8Array>
 }
@@ -314,7 +330,7 @@ export function selectModels(
  */
 function hashableEntries(
   entries: Map<string, Uint8Array>,
-  datasetPath: string,
+  datasetPath: string | undefined,
 ): Map<string, string> {
   const known = new Set<string>([
     ENTRY.manifest,
@@ -322,8 +338,9 @@ function hashableEntries(
     ENTRY.runs,
     ENTRY.portfolio,
     ENTRY.portfolioMarkdown,
-    datasetPath,
   ])
+  // 없는 프로젝트가 정상이다. 그러면 대조 대상에서 빠질 뿐이다.
+  if (datasetPath !== undefined) known.add(datasetPath)
 
   const present = new Map<string, string>()
   for (const [path, content] of entries) {
@@ -361,8 +378,32 @@ function requirePathUnder(path: string, directory: string, field: string): void 
 }
 
 /** 문서가 가리키는 모든 zip 경로를 검사한다. 하나라도 어긋나면 파일을 열지 않는다. */
+/**
+ * 데이터셋 참조와 실제 바이트가 **함께 있는지** 확인하고, 있으면 담을 것을 돌려준다.
+ *
+ * 한쪽만 있는 상태는 우리 버그다 (mlpx-spec.md §1). 그대로 쓰면 참조는 있는데 본체가
+ * 없는 .mlpx가 나가고 **그 파일은 다시 열리지 않는다.** 저장이 실패하는 편이 낫다 -
+ * 학생이 그 자리에서 알아채는 것과, 다음 차시에 열다가 아는 것은 다른 일이다.
+ */
+function datasetEntry(
+  document: ProjectDocument,
+  dataset: Dataset | undefined,
+): { path: string; bytes: Uint8Array; hash: string } | undefined {
+  const ref = document.settings.dataset
+  if (ref === undefined && dataset === undefined) {
+    return undefined
+  }
+  if (ref === undefined || dataset === undefined) {
+    throw new ClientError('PROJECT_FILE_INVALID', { path: 'settings.dataset', issues: 1 })
+  }
+  return { path: ref.path, bytes: dataset.bytes, hash: dataset.hash }
+}
+
 function requireSanePaths(document: ProjectDocument): void {
-  requirePathUnder(document.settings.dataset.path, DIR.dataset, 'settings.dataset.path')
+  const dataset = document.settings.dataset
+  if (dataset) {
+    requirePathUnder(dataset.path, DIR.dataset, 'settings.dataset.path')
+  }
 
   document.runs.batches.forEach((batch, batchIndex) => {
     const at = `runs.batches.${batchIndex}`
@@ -423,10 +464,12 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
   const document = migrateProjectDocument(raw)
   requireSanePaths(document)
 
-  // 데이터셋이 없으면 재학습도, 참조형 모델의 예측도, 해시 재계산도 전부 불가능하다.
-  const datasetPath = document.settings.dataset.path
-  const dataset = entries.get(datasetPath)
-  if (!dataset) {
+  // settings가 데이터셋을 가리키는데 본체가 없으면 재학습도, 참조형 모델의 예측도,
+  // 해시 재계산도 전부 불가능하다. 아예 안 가리키는 것은 다르다 - 표를 아직 안 올린
+  // 정상적인 파일이다 (mlpx-spec.md §1).
+  const datasetPath = document.settings.dataset?.path
+  const datasetBytes = datasetPath === undefined ? undefined : entries.get(datasetPath)
+  if (datasetPath !== undefined && datasetBytes === undefined) {
     throw new ClientError('PROJECT_FILE_ENTRY_MISSING', { entry: datasetPath })
   }
 
@@ -445,8 +488,10 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
   return {
     project: {
       document: detachMissingModels(document, new Set(models.keys())),
-      dataset,
-      datasetHash: present.get(datasetPath) ?? hashBytes(dataset),
+      dataset:
+        datasetPath === undefined || datasetBytes === undefined
+          ? undefined
+          : { bytes: datasetBytes, hash: present.get(datasetPath) ?? hashBytes(datasetBytes) },
       models,
     },
     integrity,
@@ -478,7 +523,10 @@ export async function writeProject(
     [ENTRY.runs]: encodeJson(document.runs),
     [ENTRY.portfolio]: encodeJson(document.portfolio),
     [ENTRY.portfolioMarkdown]: new TextEncoder().encode(portfolioMarkdown),
-    [document.settings.dataset.path]: project.dataset,
+  }
+  const dataset = datasetEntry(document, project.dataset)
+  if (dataset !== undefined) {
+    entries[dataset.path] = dataset.bytes
   }
   for (const path of kept) {
     const content = project.models.get(path)
@@ -486,7 +534,7 @@ export async function writeProject(
   }
 
   // 마지막에 만든다. 자기 자신은 대상이 아니므로 다른 엔트리가 전부 정해진 뒤여야 한다.
-  const hashes = buildHashes(entries, document.settings.dataset.path, project.datasetHash)
+  const hashes = buildHashes(entries, dataset)
   entries[ENTRY.hashes] = encodeJson(hashes)
 
   return { bytes: await zipAsync(entries), dropped, contentHash: hashes.contentHash }

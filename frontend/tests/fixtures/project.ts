@@ -6,7 +6,7 @@
  */
 
 import { hashBytes } from '../../src/hash'
-import type { ProjectFile } from '../../src/project/format'
+import type { Dataset, ProjectFile } from '../../src/project/format'
 import {
   FORMAT_VERSION,
   PROJECT_KIND_ML,
@@ -103,6 +103,34 @@ export function batch(id: string, runs: Run[]): Batch {
 /** BOM과 CRLF, 한글이 든 CSV. 이 바이트가 그대로 돌아와야 한다. */
 export const datasetBytes = new TextEncoder().encode('﻿꽃받침,품종\r\n5.1,setosa\r\n')
 
+export const dataset: Dataset = { bytes: datasetBytes, hash: hashBytes(datasetBytes) }
+
+/**
+ * 아직 표를 올리지 않은 프로젝트. **정상 상태다**
+ * (open-decisions.md "데이터 없는 프로젝트는 정상 상태다").
+ *
+ * settings에서 dataset을 빼고 본체도 뺀다. 둘은 함께 있고 함께 없다.
+ */
+export function emptyProjectFile(): ProjectFile {
+  return {
+    document: {
+      manifest,
+      // 전처리·분할·기본 실행 방법은 데이터가 없어도 고를 수 있는 값이라 남는다.
+      // 열 이름을 아는 것들만 빈다 - 표를 봐야 정할 수 있기 때문이다.
+      settings: {
+        ...settings,
+        dataset: undefined,
+        features: [],
+        target: undefined,
+        selectedAlgorithms: [],
+      },
+      runs: { batches: [] },
+      portfolio: { template: { id: 'default-v1' }, answers: {} },
+    },
+    models: new Map(),
+  }
+}
+
 export function projectFile(overrides: Partial<ProjectFile> = {}): ProjectFile {
   return {
     document: {
@@ -111,8 +139,7 @@ export function projectFile(overrides: Partial<ProjectFile> = {}): ProjectFile {
       runs: { batches: [batch('batch-1', [run('run-1')])] },
       portfolio: { template: { id: 'default-v1' }, answers: { motivation: '꽃이 좋아서' } },
     },
-    dataset: datasetBytes,
-    datasetHash: hashBytes(datasetBytes),
+    dataset,
     models: new Map([
       ['model/run-1.json', new TextEncoder().encode('{"tree":[]}')],
       ['model/preprocessor-batch-1.json', new TextEncoder().encode('{"columns":[]}')],
