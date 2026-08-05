@@ -43,8 +43,8 @@
     "notExported": "Not saved to a file yet",
     "exported": "Saved to a file",
     "stale": "Changed since the last file save",
-    "exportWarning": "The temporary copy disappears when this computer shuts down. Only a saved file lasts.",
-    "keepFile": "A saved file can disappear too if it stays on this computer. Move it off — to a USB drive or cloud storage — or hand it in."
+    "exportWarning": "A temporary copy can disappear. Only a saved file lasts.",
+    "keepFile": "Keep the saved file somewhere safe, such as a USB drive or cloud storage, or hand it in."
   },
   "steps": {
     "data": {
@@ -249,7 +249,7 @@
   },
   "project": {
     "export": "Save to a file",
-    "exportDone": "Saved to a file. Move it off this computer, to a USB drive or cloud storage.",
+    "exportDone": "Saved to a file. Keep it somewhere safe, such as a USB drive or cloud storage.",
     "exportDropped": "Some models were too large to include. Their scores are still there. ({count})",
     "open": "Open a file",
     "openDone": "The file is open.",
