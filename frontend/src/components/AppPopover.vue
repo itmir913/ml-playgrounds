@@ -23,8 +23,14 @@ const props = withDefaults(
   defineProps<{
     /** 패널이 트리거의 어느 쪽 끝에 맞춰 열리는가. */
     align?: 'left' | 'right'
+    /**
+     * 트리거의 위로 열리는가 아래로 열리는가.
+     *
+     * 화면 맨 아래에 있는 트리거(상태 표시줄)는 아래로 열면 패널이 화면 밖으로 나간다.
+     */
+    side?: 'top' | 'bottom'
   }>(),
-  { align: 'left' },
+  { align: 'left', side: 'bottom' },
 )
 
 const open = ref(false)
@@ -68,8 +74,11 @@ defineExpose({ close })
 
     <div
       v-if="open"
-      class="absolute top-full z-50 mt-1 w-80 rounded-panel border border-line bg-surface p-4 text-ink shadow-pop"
-      :class="props.align === 'right' ? 'right-0' : 'left-0'"
+      class="absolute z-50 w-80 rounded-panel border border-line bg-surface p-4 text-ink shadow-pop"
+      :class="[
+        props.align === 'right' ? 'right-0' : 'left-0',
+        props.side === 'top' ? 'bottom-full mb-1' : 'top-full mt-1',
+      ]"
     >
       <slot :close="close" />
     </div>
