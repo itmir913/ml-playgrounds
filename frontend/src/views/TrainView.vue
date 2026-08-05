@@ -9,16 +9,20 @@
  *
  * 타깃과 특성은 여기 없다. 그건 데이터의 성질이라 전처리에서 이미 정해졌다.
  *
- * **[학습] 버튼은 아직 없다.** 실행·진행 표시·취소는 다음 작업이고, 워커 껍데기는
- * 이미 서 있다 (`ml/worker/`, roadmap.md 구현 순서 6).
+ * **[학습]이 끝나도 결과 화면으로 옮기지 않는다.** 설정을 바꿔가며 반복 학습하는 것이
+ * 이 도구의 핵심 활동이라(CLAUDE.md §1.1) 매번 화면이 튀면 돌아오는 클릭이 계속 붙는다.
+ * 끝났다는 것과 [결과 보기]가 버튼 자리에 남는다.
  */
 
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 
+import AppButton from '@/components/AppButton.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
+import { useTraining } from '@/composables/useTraining'
 import { summarizeColumns } from '@/data/columns'
 import { algorithmOptions, supportedTaskTypes } from '@/ml/algorithms'
 import type { RuntimeContext } from '@/ml/backend'
@@ -28,6 +32,8 @@ import {
   requiredTargetKind,
   type ChosenModel,
 } from '@/ml/selection'
+import { spawnTrainingWorker } from '@/ml/worker/spawn'
+import { applyExperiment } from '@/project/attach'
 import { readDataset } from '@/project/dataset'
 import type { ProjectDocument, TaskType } from '@/project/schema'
 import {
@@ -42,8 +48,10 @@ import ChosenModels from './train/ChosenModels.vue'
 import ModelAxes from './train/ModelAxes.vue'
 
 const { t } = useI18n()
+const router = useRouter()
 const project = useProjectStore()
 const toasts = useToastStore()
+const training = useTraining(spawnTrainingWorker)
 
 const settings = computed(() => project.file?.document.settings ?? null)
 const dataset = computed(() => readDataset(project.file))
@@ -202,6 +210,51 @@ function setParam(
   if (!file) return
   apply(withHyperparameter(file.document, { algorithm, runtime, name }, value, now()))
 }
+
+/** 지난 실험이 하나라도 있으면 결과 화면에 볼 것이 있다. */
+const hasResults = computed(() => (project.file?.document.runs.experiments.length ?? 0) > 0)
+
+/** 담은 모델이 없으면 돌릴 것이 없다. 나머지 실패는 학습이 사유와 함께 돌려준다. */
+const nothingToTrain = computed(() => chosen.value.length === 0)
+
+/**
+ * 학습을 한 번 돌린다. **`AppButton`의 `action`으로 준다** — 도는 동안 버튼이 스스로
+ * 꺼진다. 학생은 느리다고 생각하면 한 번 더 누르고, 그러면 실험이 둘 생긴다.
+ *
+ * 결과는 그 자리에서 파일에 앉히고 자동 저장이 받는다. 취소면 아무 일도 없었던 것이라
+ * 알릴 것이 없다 — 학생이 스스로 누른 것이다.
+ */
+async function startTraining(): Promise<void> {
+  const file = project.file
+  const table = dataset.value
+  const taskType = project.taskType
+  if (!file || !table || taskType === undefined) return
+
+  try {
+    const result = await training.run({
+      type: 'train',
+      input: {
+        dataset: table,
+        taskType,
+        dataType: file.document.manifest.dataType,
+        settings: file.document.settings,
+        context: context.value,
+      },
+      history: file.document.runs,
+    })
+    if (result === null) return
+
+    // 학습하는 동안 학생이 다른 것을 고쳤을 수 있다. 그때의 파일이 아니라 지금 것에 앉힌다.
+    project.update(applyExperiment(project.file ?? file, result, now()))
+    toasts.push('success', 'train.finished')
+  } catch (error) {
+    toasts.pushError(error)
+  }
+}
+
+function goResults(): void {
+  void router.push({ name: 'results', params: { projectId: project.projectId } })
+}
 </script>
 
 <template>
@@ -254,6 +307,36 @@ function setParam(
           @set-param="setParam"
         />
       </div>
+    </section>
+
+    <!--
+      **이 단계의 본 동작이라 카드 밖에 선다.** 도는 동안 같은 자리가 진행 표시와
+      [멈추기]로 바뀐다 — 누른 자리에서 답이 나와야 눈을 옮기지 않는다.
+    -->
+    <section
+      class="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-panel border border-line bg-surface p-4"
+    >
+      <template v-if="training.running.value">
+        <AppButton variant="secondary" size="lg" @click="training.cancel">
+          {{ t('train.stop') }}
+        </AppButton>
+        <p class="min-w-0 font-bold" role="status">
+          {{ t('train.progress', training.progress.value ?? { completed: 0, total: 0 }) }}
+        </p>
+      </template>
+
+      <template v-else>
+        <AppButton size="lg" :disabled="nothingToTrain" :action="startTraining">
+          {{ t('train.start') }}
+        </AppButton>
+
+        <!-- 이유 없이 꺼진 버튼은 학생에게 고장으로 보인다. -->
+        <p v-if="nothingToTrain" class="min-w-0 text-ink-soft">{{ t('train.nothingToTrain') }}</p>
+
+        <AppButton v-if="hasResults" variant="secondary" class="ml-auto" @click="goResults">
+          {{ t('train.seeResults') }}
+        </AppButton>
+      </template>
     </section>
   </div>
 

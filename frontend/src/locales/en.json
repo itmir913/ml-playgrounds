@@ -191,8 +191,6 @@
   "train": {
     "taskTitle": "Task type",
     "taskChanged": "Some models were dropped because they do not fit the task type you chose. ({names})",
-    "runtimeTitle": "Where to train",
-    "runtimeNote": "Choose where the models you picked are trained.",
     "modelsTitle": "Choose the models",
     "modelsLead": "Choose what you want to do, and only the models that fit stay on. Pick several to train at once and compare.",
     "pickModel": "Model",
@@ -210,7 +208,13 @@
     "emptyNext": "Open a project and you can choose what to train here.",
     "noTaskTypeReason": "No task type chosen yet.",
     "noTaskTypeNext": "Choose a task type above and the models that fit will show up.",
-    "chosenTitle": "Chosen models"
+    "chosenTitle": "Chosen models",
+    "start": "Train",
+    "stop": "Stop",
+    "progress": "Training model {completed} of {total}.",
+    "finished": "Training finished.",
+    "nothingToTrain": "Nothing to train yet — no models have been added.",
+    "seeResults": "See results"
   },
   "projects": {
     "new": "New project",

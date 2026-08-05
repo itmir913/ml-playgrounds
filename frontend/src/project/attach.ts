@@ -12,8 +12,9 @@
  * **후보를 온전한 모양으로 만드는 것**까지다.
  */
 
+import type { ExperimentResult } from '../ml/experiment'
 import { interpreterFor, type ModelFile } from '../ml/models'
-import { DIR } from './format'
+import { DIR, type ProjectFile } from './format'
 import type { Experiment, Run } from './schema'
 
 export interface AttachedExperiment {
@@ -59,6 +60,38 @@ export function attachExperimentFiles(
       runs,
     },
     entries,
+  }
+}
+
+/**
+ * 끝난 실험 하나를 프로젝트에 앉힌다. **[학습]이 끝나면 부르는 것이 이것 하나다.**
+ *
+ * **덧붙이기만 한다.** 지난 실험을 지우지 않는다 - 결과 화면이 순위표가 아니라 **변경
+ * 이력**이고(architecture.md §8.9), 지난 실험이 없으면 `changed`가 가리킬 것이 없어진다.
+ *
+ * `manifest.updatedAt`을 찍는 것은 `project/settings.ts`와 같은 규칙이다. 저장은 여기서
+ * 하지 않는다 - 부르는 쪽이 스토어에 넘기고 자동 저장이 받는다.
+ */
+export function applyExperiment(
+  file: ProjectFile,
+  result: ExperimentResult,
+  now: string,
+): ProjectFile {
+  const attached = attachExperimentFiles(result.experiment, result.preprocessor, result.models)
+
+  return {
+    ...file,
+    document: {
+      ...file.document,
+      manifest: { ...file.document.manifest, updatedAt: now },
+      runs: {
+        ...file.document.runs,
+        experiments: [...file.document.runs.experiments, attached.experiment],
+      },
+    },
+    // 새 엔트리가 뒤에 온다. 경로에 실험 id와 run id가 들어 있어 부딪히지 않지만,
+    // 부딪힌다면 방금 학습한 것이 맞다.
+    models: new Map([...file.models, ...attached.entries]),
   }
 }
 

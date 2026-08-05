@@ -191,8 +191,6 @@
   "train": {
     "taskTitle": "기계학습 유형(Task Type)",
     "taskChanged": "고른 유형에서 쓸 수 없어 선택에서 빠진 모델이 있습니다. ({names})",
-    "runtimeTitle": "실행 방법",
-    "runtimeNote": "고른 모델들을 어디서 학습할지 정합니다.",
     "modelsTitle": "모델 선정",
     "modelsLead": "무엇을 할지 고르면 그에 맞는 모델만 켜집니다. 여러 개를 골라 한 번에 학습하고 결과를 견줍니다.",
     "pickModel": "모델",
@@ -210,7 +208,13 @@
     "emptyNext": "프로젝트를 열면 여기에서 무엇으로 학습할지 고를 수 있습니다.",
     "noTaskTypeReason": "기계학습 유형을 아직 고르지 않았습니다.",
     "noTaskTypeNext": "위에서 유형을 고르면 그 유형에 맞는 모델이 나옵니다.",
-    "chosenTitle": "담은 모델"
+    "chosenTitle": "담은 모델",
+    "start": "학습",
+    "stop": "멈추기",
+    "progress": "{total}개 중 {completed}개째 학습 중입니다.",
+    "finished": "학습이 끝났습니다.",
+    "nothingToTrain": "아직 담은 모델이 없어 학습할 것이 없습니다.",
+    "seeResults": "결과 보기"
   },
   "projects": {
     "new": "새 프로젝트",

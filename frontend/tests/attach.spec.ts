@@ -11,7 +11,9 @@ import { describe, expect, it } from 'vitest'
 import type { RuntimeContext } from '../src/ml/backend'
 import { runExperiment, type ExperimentInput } from '../src/ml/experiment'
 import { loadModel, TREE_FORMAT, type ModelFile } from '../src/ml/models'
-import { attachExperimentFiles } from '../src/project/attach'
+import { applyExperiment, attachExperimentFiles } from '../src/project/attach'
+import { newProjectDocument } from '../src/project/create'
+import type { ProjectFile } from '../src/project/format'
 import { experimentSchema, type Experiment, type Run } from '../src/project/schema'
 import {
   IRIS_FEATURE_COLUMNS,
@@ -201,5 +203,55 @@ describe('모델이 없는 이유를 적는다', () => {
     expect(attached.experiment.runs[0]?.model).toBeUndefined()
     expect(attached.experiment.runs[0]?.modelOmitted).toBe('engineUnsupported')
     expect(attached.entries.has('model/run-1.json')).toBe(false)
+  })
+})
+
+describe('끝난 실험을 프로젝트에 앉힌다', () => {
+  function emptyProject(): ProjectFile {
+    const document = newProjectDocument(
+      { name: '붓꽃' },
+      { projectId: 'p-1', createdAt: '2026-08-05T09:00:00Z' },
+    )
+    return { document, models: new Map() }
+  }
+
+  it('실험이 뒤에 붙고 모델 엔트리가 합쳐진다', () => {
+    const result = runExperiment(inputFor(['decision_tree']), { history: undefined })
+    const next = applyExperiment(emptyProject(), result, '2026-08-05T10:00:00Z')
+
+    expect(next.document.runs.experiments).toHaveLength(1)
+    const experiment = next.document.runs.experiments[0]
+    expect(experiment?.preprocessor?.path).toBeDefined()
+
+    // 참조가 가리키는 자리에 실제 바이트가 있어야 한다. 하나만 어긋나도 학생이 낸
+    // .mlpx는 열리는데 예측이 안 되는 파일이 된다.
+    for (const path of [experiment?.preprocessor?.path, experiment?.runs[0]?.model?.path]) {
+      expect(path).toBeDefined()
+      expect(next.models.has(path ?? '')).toBe(true)
+    }
+    expect(next.document.manifest.updatedAt).toBe('2026-08-05T10:00:00Z')
+  })
+
+  it('지난 실험을 지우지 않는다 - 결과 화면이 변경 이력이다', () => {
+    const first = runExperiment(inputFor(['decision_tree']))
+    const started = applyExperiment(emptyProject(), first, '2026-08-05T10:00:00Z')
+
+    const second = runExperiment(inputFor(['knn']), { history: started.document.runs })
+    const next = applyExperiment(started, second, '2026-08-05T10:05:00Z')
+
+    expect(next.document.runs.experiments.map((one) => one.id)).toEqual([
+      'experiment-1',
+      'experiment-2',
+    ])
+    // 먼저 담은 모델이 그대로 있다. 새 엔트리가 옛것을 밀어내지 않는다.
+    expect(next.models.size).toBeGreaterThan(started.models.size)
+    for (const path of started.models.keys()) expect(next.models.has(path)).toBe(true)
+  })
+
+  it('원본을 고치지 않는다 - 스토어가 새 값으로 갈아 끼운다', () => {
+    const before = emptyProject()
+    applyExperiment(before, runExperiment(inputFor(['decision_tree'])), '2026-08-05T10:00:00Z')
+    expect(before.document.runs.experiments).toHaveLength(0)
+    expect(before.models.size).toBe(0)
   })
 })
