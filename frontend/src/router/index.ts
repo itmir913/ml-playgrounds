@@ -80,6 +80,11 @@ router.beforeEach(async (to) => {
 
   const { projectId } = to.params
   if (typeof projectId !== 'string') {
+    // **프로젝트를 떠난다는 것을 아는 곳은 여기다.** 예전에는 목록 화면이 뜰 때
+    // onMounted에서 닫았는데, 그러면 정리가 화면의 생명주기에 매인다 - 화면이 안
+    // 뜨거나 순서가 어긋나면 열어 둔 프로젝트가 그대로 남아 도구 막대에 남의 이름이
+    // 계속 보인다. 데이터셋 바이트도 함께 붙들려 있다.
+    project.close()
     return true
   }
 

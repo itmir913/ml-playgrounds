@@ -28,12 +28,10 @@ import { newProjectDocument, newProjectSeed } from '@/project/create'
 import { readFileBytes } from '@/project/download'
 import { readProject } from '@/project/format'
 import { deleteProject, listProjects, saveProject, type ProjectSummary } from '@/project/storage'
-import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 
 const { t, locale } = useI18n()
 const router = useRouter()
-const project = useProjectStore()
 const toasts = useToastStore()
 
 const summaries = ref<ProjectSummary[]>([])
@@ -135,12 +133,9 @@ async function remove(): Promise<void> {
   }
 }
 
-onMounted(async () => {
-  // 목록으로 돌아오면 열어 둔 프로젝트를 놓아준다. 데이터셋 바이트를 계속 들고 있을
-  // 이유가 없고, 교실 PC에서는 그 몇십 MB가 그대로 비용이다.
-  project.close()
-  await refresh()
-})
+// 프로젝트를 놓아주는 것은 라우터가 한다(router/index.ts). 화면의 생명주기에
+// 맡기면 순서가 어긋났을 때 열어 둔 프로젝트가 그대로 남는다.
+onMounted(refresh)
 </script>
 
 <template>
