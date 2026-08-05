@@ -39,8 +39,8 @@
   "save": {
     "browserOnly": "Temporary copy only",
     "saving": "Making a temporary copy",
-    "unsaved": "Temporary copy pending",
-    "notExported": "Not saved to a file",
+    "unsaved": "Changes not stored yet",
+    "notExported": "Not saved to a file yet",
     "exported": "Saved to a file",
     "stale": "Changed since the last file save",
     "exportWarning": "A temporary copy can disappear. Only a saved file lasts.",
