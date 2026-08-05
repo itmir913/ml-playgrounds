@@ -13,15 +13,15 @@
     "clustering": "군집화"
   },
   "tasks": {
-    "datasetReady": "표 올리기",
-    "targetChosen": "예측할 값 고르기",
-    "featuresChosen": "예측에 쓸 값 고르기",
+    "datasetReady": "데이터 불러오기",
+    "targetChosen": "예측할 항목 정하기",
+    "featuresChosen": "예측에 사용할 특성 정하기",
     "algorithmsChosen": "알고리즘 고르기",
-    "trainingDone": "학습 시작하기",
+    "trainingDone": "모델 학습하기",
     "modelReady": "모델 만들기",
-    "portfolioWritten": "정리 글 쓰기",
-    "title": "할 일",
-    "allDone": "이 단계에서 할 일을 다 했습니다."
+    "portfolioWritten": "포트폴리오 작성하기",
+    "title": "해야 할 일",
+    "allDone": "이 단계에서 할 일을 모두 마쳤습니다."
   },
   "shell": {
     "steps": "단계",
@@ -46,27 +46,27 @@
   "steps": {
     "data": {
       "label": "데이터",
-      "purpose": "표를 올리고 어떤 열이 있는지 확인합니다."
+      "purpose": "데이터 파일을 불러오고 어떤 열이 있는지 확인합니다."
     },
     "preprocess": {
       "label": "전처리",
-      "locked": "데이터를 먼저 올려 주세요.",
+      "locked": "데이터를 먼저 불러와 주세요.",
       "purpose": "무엇을 무엇으로 예측할지 정하고 데이터를 다듬습니다."
     },
     "train": {
       "label": "학습",
-      "locked": "무엇을 예측할지와 어떤 알고리즘을 쓸지 먼저 골라 주세요.",
-      "purpose": "고른 알고리즘들을 한 번에 학습시킵니다."
+      "locked": "예측할 항목과 알고리즘을 먼저 정해 주세요.",
+      "purpose": "고른 알고리즘을 한 번에 학습시킵니다."
     },
     "results": {
       "label": "결과",
-      "locked": "학습을 한 번 끝내면 열립니다.",
-      "purpose": "지표를 견주고, 무엇을 바꿔서 달라졌는지 봅니다."
+      "locked": "학습을 한 번 마치면 열립니다.",
+      "purpose": "지표를 견주어 보고, 무엇을 바꿔서 달라졌는지 살펴봅니다."
     },
     "predict": {
       "label": "예측",
-      "locked": "예측에 쓸 수 있는 모델이 아직 없습니다.",
-      "purpose": "새 값을 넣어 모델이 뭐라고 하는지 봅니다."
+      "locked": "예측에 사용할 모델이 아직 없습니다.",
+      "purpose": "새로운 값을 넣어 모델이 무엇이라 답하는지 봅니다."
     },
     "portfolio": {
       "label": "포트폴리오",
@@ -74,35 +74,35 @@
     }
   },
   "data": {
-    "dropHint": "CSV 또는 엑셀 파일을 여기에 놓으세요.",
-    "accepted": "CSV(.csv)와 엑셀(.xlsx)을 읽을 수 있습니다.",
-    "choose": "파일 고르기",
+    "dropHint": "여기에 CSV나 엑셀 파일을 끌어다 놓으세요.",
+    "accepted": "CSV(.csv)와 엑셀(.xlsx) 파일을 불러올 수 있습니다.",
+    "choose": "파일 선택",
     "reading": "파일을 읽는 중입니다.",
-    "sheet": "시트 고르기",
-    "hasHeader": "첫 줄이 열 이름입니다",
-    "noHeaderNote": "열 이름이 없어서 A, B, C… 로 부릅니다.",
+    "sheet": "시트 선택",
+    "hasHeader": "첫 번째 줄이 열 이름입니다",
+    "noHeaderNote": "열 이름이 없어서 A, B, C… 로 표시합니다.",
     "preview": "미리보기",
-    "previewNote": "앞 {count}줄만 보여줍니다.",
-    "use": "이 데이터 사용하기",
-    "change": "다른 파일로 바꾸기",
-    "current": "지금 쓰는 데이터",
-    "fileName": "파일",
-    "rows": "행",
-    "columns": "열",
-    "encoding": "읽은 인코딩",
+    "previewNote": "처음 {count}줄만 보여 줍니다.",
+    "use": "이 데이터 사용",
+    "change": "데이터 바꾸기",
+    "current": "현재 데이터",
+    "fileName": "파일 이름",
+    "rows": "행 수",
+    "columns": "열 수",
+    "encoding": "문자 인코딩",
     "columnName": "열 이름",
     "kind": "자료형",
     "missing": "빈 칸",
     "unique": "값 종류",
-    "samples": "예시",
+    "samples": "값 예시",
     "applied": "데이터를 저장했습니다.",
-    "droppedColumns": "새 데이터에 없어서 선택에서 빠진 열이 있습니다. ({names})",
+    "droppedColumns": "새 데이터에 없는 열이라 선택에서 빠졌습니다. ({names})",
     "replaceTitle": "데이터를 바꾸면 학습 결과가 지워집니다",
     "replaceDescription": "지금까지 학습한 묶음 {count}개가 함께 사라집니다. 모델은 데이터의 행 번호를 가리키기 때문에, 남겨 두면 다른 줄을 보고 예측하게 됩니다.",
     "replaceConfirm": "지우고 바꾸기",
-    "emptyReason": "아직 표가 없습니다.",
-    "emptyNext": "파일을 올리면 여기에 표가 나옵니다.",
-    "inspector": "열 자세히 보기",
+    "emptyReason": "아직 불러온 데이터가 없습니다.",
+    "emptyNext": "파일을 불러오면 여기에 표로 나타납니다.",
+    "inspector": "열 정보 자세히 보기",
     "unsupportedKind": "이 프로젝트의 데이터 종류는 아직 다룰 수 없습니다.",
     "unsupportedKindNext": "더 새로운 버전에서 만든 파일일 수 있습니다. 앱을 최신으로 바꾼 뒤 다시 열어 주세요."
   },
@@ -113,7 +113,7 @@
   "projects": {
     "new": "새 프로젝트",
     "newTitle": "새 프로젝트 만들기",
-    "newDescription": "이름과 무엇을 할지만 정하면 됩니다. 데이터는 다음 화면에서 올립니다.",
+    "newDescription": "이름만 정하면 됩니다. 데이터는 다음 화면에서 불러옵니다.",
     "name": "프로젝트 이름",
     "nameHint": "저장할 때 파일 이름이 됩니다.",
     "create": "만들기",
@@ -125,9 +125,9 @@
     "updatedAt": "마지막 저장",
     "size": "크기",
     "loading": "불러오는 중입니다.",
-    "storageNote": "프로젝트는 이 브라우저 안에 저장됩니다. 다른 기기에서 이어서 하려면 파일로 저장해 가져가세요.",
+    "storageNote": "프로젝트는 이 브라우저 안에만 저장됩니다. 다른 컴퓨터에서 이어서 하려면 파일로 내보내 가져가세요.",
     "saved": "저장된 프로젝트",
-    "savedCount": "이 브라우저에 {count}개"
+    "savedCount": "이 브라우저에 {count}개 있습니다"
   },
   "common": {
     "underConstruction": "이 화면은 아직 만드는 중입니다.",
@@ -248,15 +248,18 @@
     "export": "파일로 내보내기",
     "exportDone": "파일을 내려받았습니다. 이 파일이 있어야 다른 컴퓨터에서 이어서 할 수 있습니다.",
     "exportDropped": "크기 때문에 담지 못한 모델이 있습니다. 지표는 그대로 남습니다. ({count}개)",
-    "open": "파일 열기",
+    "open": "파일 불러오기",
     "openDone": "파일을 열었습니다.",
     "openModified": "저장한 뒤에 고쳐진 흔적이 있는 파일입니다.",
-    "homeTitle": "어디까지 왔나",
-    "homeLead": "왼쪽에서 단계를 고르거나, 아래 이어서 하기를 누르세요.",
+    "homeTitle": "어디까지 했나요",
+    "homeLead": "왼쪽에서 단계를 고르거나, 아래에서 이어서 하세요.",
     "resume": "이어서 하기 — {task}",
-    "openStep": "열기",
+    "openStep": "들어가기",
     "done": "끝남",
-    "locked": "아직"
+    "locked": "아직",
+    "exportLead": "학번과 이름을 적으면 파일 이름 앞에 붙습니다.",
+    "exportNow": "파일 내려받기",
+    "dashboard": "한눈에"
   },
   "identity": {
     "title": "프로젝트 정보",
@@ -266,5 +269,21 @@
     "optional": "안 적어도 됩니다",
     "fileNameHint": "적으면 저장하는 파일 이름 앞에 붙습니다. ({fileName})",
     "edit": "프로젝트 정보 고치기"
+  },
+  "meta": {
+    "title": "프로젝트 정보",
+    "created": "만든 날",
+    "updated": "마지막 수정",
+    "size": "용량",
+    "dataset": "데이터 파일",
+    "rows": "행",
+    "columns": "열",
+    "taskType": "문제 유형",
+    "target": "예측할 항목",
+    "features": "사용하는 특성",
+    "algorithms": "고른 알고리즘",
+    "runs": "학습한 모델",
+    "none": "없음",
+    "countUnit": "{count}개"
   }
 }

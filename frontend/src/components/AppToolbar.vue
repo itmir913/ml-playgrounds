@@ -10,41 +10,15 @@
 
 import { useI18n } from 'vue-i18n'
 
-import AppButton from '@/components/AppButton.vue'
-import ProjectInfo from '@/components/ProjectInfo.vue'
+import ExportButton from '@/components/ExportButton.vue'
+import ProjectName from '@/components/ProjectName.vue'
 import ProjectStatus from '@/components/ProjectStatus.vue'
-import { ACTION_ICONS, BRAND_ICON } from '@/icons'
-import { renderPortfolioMarkdown } from '@/project/portfolio'
+import { BRAND_ICON } from '@/icons'
 import { ROUTE_PROJECTS } from '@/router'
 import { useProjectStore } from '@/stores/project'
-import { useToastStore } from '@/stores/toasts'
 
 const { t } = useI18n()
 const project = useProjectStore()
-const toasts = useToastStore()
-
-async function exportFile(): Promise<void> {
-  const file = project.file
-  if (!file) return
-  try {
-    // portfolio.md는 파생물이지만 파일에 담는다 - 교사가 압축을 풀어 메모장으로 열어도
-    // 학생이 무엇을 썼는지 보여야 한다 (CLAUDE.md §1.3).
-    const markdown = renderPortfolioMarkdown(
-      file.document.manifest.name,
-      file.document.portfolio,
-      (key) => t(key),
-    )
-    const dropped = await project.exportFile(markdown)
-
-    toasts.push('success', 'project.exportDone')
-    if (dropped.length > 0) {
-      // 조용히 빠지면 학생은 예측이 왜 안 되는지 모른다.
-      toasts.push('caution', 'project.exportDropped', { count: dropped.length })
-    }
-  } catch (error) {
-    toasts.pushError(error)
-  }
-}
 </script>
 
 <template>
@@ -59,15 +33,12 @@ async function exportFile(): Promise<void> {
 
     <template v-if="project.projectId !== null">
       <span class="shrink-0 text-line-strong" aria-hidden="true">/</span>
-      <ProjectInfo />
+      <ProjectName />
     </template>
 
     <div class="ml-auto flex shrink-0 items-center gap-1">
       <ProjectStatus v-if="project.projectId !== null" />
-      <AppButton v-if="project.projectId !== null" variant="secondary" :action="exportFile">
-        <component :is="ACTION_ICONS.exportFile" :size="18" aria-hidden="true" />
-        <span class="max-sm:hidden">{{ t('project.export') }}</span>
-      </AppButton>
+      <ExportButton v-if="project.projectId !== null" />
     </div>
   </header>
 </template>

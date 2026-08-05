@@ -23,6 +23,7 @@ function stubRouter() {
     history: createWebHashHistory(),
     routes: [
       { path: '/', name: 'projects', component: { template: '<div />' } },
+      { path: '/project/:projectId', name: 'project', component: { template: '<div />' } },
       ...STEP_IDS.map((step) => ({
         path: `/project/:projectId/${step}`,
         name: step,
@@ -71,10 +72,13 @@ describe('단계 레일', () => {
     await router.isReady()
 
     const rail = mount(StepRail, { global: { plugins: [router, i18n] } })
+    // 단계 여섯에 프로젝트 홈 하나가 더 있다.
     const links = rail.findAll('a')
-    expect(links).toHaveLength(STEP_IDS.length)
+    expect(links).toHaveLength(STEP_IDS.length + 1)
     // 링크는 스토어가 아는 프로젝트를 가리킨다.
-    expect(links[0]?.attributes('href')).toContain(projectFile().document.manifest.projectId)
+    for (const link of links) {
+      expect(link.attributes('href')).toContain(projectFile().document.manifest.projectId)
+    }
   })
 
   it('프로젝트가 없으면 어디로도 못 간다', async () => {
@@ -85,7 +89,7 @@ describe('단계 레일', () => {
   it('갖춰진 프로젝트는 여섯 곳이 전부 열린다', async () => {
     useProjectStore().file = projectFile()
     const rail = await mountRail()
-    expect(rail.findAll('a')).toHaveLength(STEP_IDS.length)
+    expect(rail.findAll('a')).toHaveLength(STEP_IDS.length + 1)
   })
 })
 

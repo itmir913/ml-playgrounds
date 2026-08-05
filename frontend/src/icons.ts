@@ -19,6 +19,7 @@ import {
   FileText,
   FlaskConical,
   FolderOpen,
+  LayoutDashboard,
   Library,
   Plus,
   SlidersHorizontal,
@@ -33,6 +34,9 @@ import type { StepId } from '@/router/steps'
 
 /** 제품 표시. 도구 막대 왼쪽 끝에 있다. */
 export const BRAND_ICON: LucideIcon = Shapes
+
+/** 프로젝트 홈. 단계가 아니라 그 위에 있는 자리다. */
+export const HOME_ICON: LucideIcon = LayoutDashboard
 
 /** 워크플로 단계의 그림. 레일과 상태 팝오버가 같은 것을 쓴다. */
 export const STEP_ICONS: Readonly<Record<StepId, LucideIcon>> = {

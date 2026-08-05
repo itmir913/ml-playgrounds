@@ -41,16 +41,22 @@ const exportState = computed(() => {
   return 'exported'
 })
 
-/** 브라우저 쪽 상태와 곁가지들. 가운뎃점으로 이어 붙일 것이라 배열로 만든다. */
+/**
+ * 브라우저 쪽 상태와 곁가지들. 가운뎃점으로 이어 붙일 것이라 배열로 만든다.
+ *
+ * **칸이 사라졌다 나타나지 않게 한다.** 저장이 도는 짧은 사이에 시각이 없어졌다가
+ * 다시 생기면 줄 전체가 흔들려서, 바뀐 것 하나가 아니라 상태 표시줄이 통째로
+ * 갈린 것처럼 보인다. 있는 칸은 계속 있고 **글자만 바뀐다.**
+ *
+ * 저장 중에도 마지막 저장 시각을 그대로 둔다 - 그건 여전히 사실이다.
+ */
 const facts = computed(() => {
   const parts: string[] = []
   if (project.saving) parts.push(t('save.saving'))
   else if (project.dirty) parts.push(t('save.unsaved'))
   else parts.push(t('save.browserOnly'))
 
-  if (project.savedAt !== null && !project.dirty && !project.saving) {
-    parts.push(format.dateTime(project.savedAt))
-  }
+  if (project.savedAt !== null) parts.push(format.dateTime(project.savedAt))
   // 아직 아무것도 없는 프로젝트에 "0 byte"는 알려 주는 것이 없다.
   if (sizeBytes.value > 0) parts.push(format.bytes(sizeBytes.value))
   return parts
@@ -79,7 +85,7 @@ function onLocale(event: Event): void {
         {{ t(`save.${exportState}`) }}
       </span>
 
-      <template v-for="fact in facts" :key="fact">
+      <template v-for="(fact, slot) in facts" :key="slot">
         <span class="shrink-0 text-line-strong" aria-hidden="true">·</span>
         <span class="shrink-0 whitespace-nowrap">{{ fact }}</span>
       </template>

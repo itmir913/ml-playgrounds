@@ -22,7 +22,8 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { type RouteLocationRaw, useRoute } from 'vue-router'
 
-import { STEP_ICONS } from '@/icons'
+import { HOME_ICON, STEP_ICONS } from '@/icons'
+import { ROUTE_PROJECT_HOME } from '@/router'
 import { isStepUnlocked, STEP_IDS, type StepId } from '@/router/steps'
 import { useProjectStore } from '@/stores/project'
 
@@ -79,6 +80,33 @@ const LABEL = 'w-full text-center break-words hyphens-auto'
     :aria-label="t('shell.steps')"
     class="scrollbar-none flex shrink-0 gap-1 overflow-x-auto border-line bg-surface-sunken p-1 max-md:order-last max-md:justify-center max-md:border-t md:w-rail md:flex-col md:overflow-x-hidden md:overflow-y-auto md:border-r"
   >
+    <!--
+      프로젝트 홈. **단계가 아니라 그 위에 있는 자리**라 STEP_IDS에 없고 여기 손으로
+      둔다. 학생이 "어디까지 했더라"로 돌아올 곳이 레일에 없으면 주소를 지워야 한다.
+    -->
+    <RouterLink
+      v-if="project.projectId !== null"
+      :to="{ name: ROUTE_PROJECT_HOME, params: { projectId: openId } }"
+      :title="t('project.dashboard')"
+      :aria-current="route.name === ROUTE_PROJECT_HOME ? 'page' : undefined"
+      :class="[
+        CELL,
+        'shrink-0 transition-colors',
+        route.name === ROUTE_PROJECT_HOME
+          ? 'z-10 bg-surface font-bold text-brand md:-mr-px md:rounded-r-none md:border-r md:border-surface'
+          : 'font-medium text-ink-soft hover:bg-surface/60 hover:text-ink',
+      ]"
+    >
+      <component :is="HOME_ICON" :size="20" aria-hidden="true" />
+      <span :class="[LABEL, 'max-md:hidden']">{{ t('project.dashboard') }}</span>
+    </RouterLink>
+
+    <span
+      v-if="project.projectId !== null"
+      class="my-1 shrink-0 self-stretch border-line max-md:border-l md:border-t"
+      aria-hidden="true"
+    />
+
     <template v-for="step in STEP_IDS" :key="step">
       <RouterLink
         v-if="unlocked(step)"

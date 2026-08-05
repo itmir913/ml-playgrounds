@@ -256,7 +256,10 @@
     "resume": "Carry on — {task}",
     "openStep": "Open",
     "done": "Done",
-    "locked": "Not yet"
+    "locked": "Not yet",
+    "exportLead": "A student number and name go in front of the file name.",
+    "exportNow": "Download",
+    "dashboard": "Overview"
   },
   "identity": {
     "title": "Project details",
@@ -266,5 +269,21 @@
     "optional": "You can leave these blank",
     "fileNameHint": "If you fill these in they go in front of the saved file name. ({fileName})",
     "edit": "Edit project details"
+  },
+  "meta": {
+    "title": "Project details",
+    "created": "Created",
+    "updated": "Last change",
+    "size": "Size",
+    "dataset": "Data",
+    "rows": "Rows",
+    "columns": "Columns",
+    "taskType": "Task",
+    "target": "Predicting",
+    "features": "Features",
+    "algorithms": "Algorithms",
+    "runs": "Trained models",
+    "none": "None",
+    "countUnit": "{count} | {count}"
   }
 }
