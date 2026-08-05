@@ -33,8 +33,8 @@
     "noProject": "아직 프로젝트를 열지 않았습니다.",
     "openMenu": "메뉴 열기",
     "language": "언어",
-    "toLight": "밝은 화면으로 바꾸기",
-    "toDark": "어두운 화면으로 바꾸기"
+    "toLight": "라이트 모드로 바꾸기",
+    "toDark": "다크 모드로 바꾸기"
   },
   "save": {
     "notExported": "아직 파일로 저장하지 않음",

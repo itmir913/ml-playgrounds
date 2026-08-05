@@ -8,8 +8,11 @@
  * `[data-theme='dark']`를 둘 다 두면 같은 배색이 두 벌 적히고, 한쪽만 고쳤을 때 갈린다.
  * `styles/dark.css`에는 선택자가 하나뿐이고 이 파일이 그 값을 채운다.
  *
- * **아직 저장하지 않는다.** 새로 고치면 기기 설정으로 돌아간다 — 그 부분은 다음 작업이다
- * (`docs/open-decisions.md`).
+ * **선택은 `localStorage`에 저장한다.** 언어는 IndexedDB에 두지만 배색은 다르다 —
+ * IndexedDB는 비동기라 읽는 동안 화면이 이미 떠 버리고, 어두운 배색을 고른 학생이
+ * 새로 고칠 때마다 흰 화면을 한 번씩 본다. 언어는 늦게 바뀌어도 글자만 바뀌지만
+ * **배색은 화면 전체가 번쩍인다.** `localStorage`는 동기라 첫 그림 전에 답이 나온다.
+ * (`docs/open-decisions.md` 3-2)
  */
 
 import { ref } from 'vue'
@@ -49,6 +52,31 @@ export function otherTheme(current: Theme): Theme {
   return current === 'dark' ? 'light' : 'dark'
 }
 
+/** `localStorage` 열쇠. 언어와 달리 IndexedDB가 아니므로 여기서 관리한다. */
+const STORAGE_KEY = 'ml-playgrounds:theme'
+
+/**
+ * 저장된 선택. 못 읽으면 null이다.
+ *
+ * 사파리의 사생활 보호 모드처럼 `localStorage` 접근 자체가 던지는 환경이 있다.
+ * 배색을 못 읽는 것으로 앱이 안 뜨면 안 되므로 삼킨다.
+ */
+function readStoredTheme(): string | null {
+  try {
+    return window.localStorage.getItem(STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+function writeStoredTheme(next: Theme): void {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, next)
+  } catch {
+    // 저장에 실패해도 이번 세션의 선택은 이미 화면에 반영돼 있다.
+  }
+}
+
 function darkMediaQuery(): MediaQueryList | null {
   return typeof window === 'undefined' ? null : window.matchMedia('(prefers-color-scheme: dark)')
 }
@@ -61,17 +89,21 @@ function applyTheme(next: Theme): void {
 }
 
 /**
- * 사람이 이번 세션에서 배색을 직접 골랐는가.
+ * 사람이 배색을 직접 골랐는가. 저장된 값이 있으면 고른 것이다.
  *
- * 골랐다면 그 뒤로 **기기 설정이 바뀌어도 따라가지 않는다.** 화면이 혼자 뒤집히는 것은
- * 고장으로 보인다. `i18n.ts`가 늦게 도착한 저장값을 막는 것과 같은 이유다.
+ * 골랐다면 그 뒤로 **기기 설정이 바뀌어도 따라가지 않는다.** 학생이 고른 화면이 혼자
+ * 뒤집히는 것은 고장으로 보인다. 되돌리는 길은 두지 않았다 — "시스템 따름"이라는
+ * 세 번째 상태는 중학생에게 설명하기 어렵고, 아이콘 하나로는 표현할 수도 없다.
  */
 let chosenByUser = false
 
 /** 앱 시작 시 한 번 부른다. 기기 설정이 바뀌면 따라가도록 구독도 여기서 건다. */
 export function initTheme(): Theme {
+  const stored = readStoredTheme()
+  chosenByUser = isTheme(stored)
+
   const media = darkMediaQuery()
-  applyTheme(resolveTheme(null, media?.matches ?? false))
+  applyTheme(resolveTheme(stored, media?.matches ?? false))
 
   media?.addEventListener('change', (event) => {
     if (!chosenByUser) applyTheme(event.matches ? 'dark' : 'light')
@@ -84,4 +116,5 @@ export function initTheme(): Theme {
 export function setTheme(next: Theme): void {
   chosenByUser = true
   applyTheme(next)
+  writeStoredTheme(next)
 }

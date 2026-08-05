@@ -33,8 +33,8 @@
     "noProject": "No project is open yet.",
     "openMenu": "Open menu",
     "language": "Language",
-    "toLight": "Switch to the light theme",
-    "toDark": "Switch to the dark theme"
+    "toLight": "Switch to light mode",
+    "toDark": "Switch to dark mode"
   },
   "save": {
     "notExported": "Not saved to a file yet",
