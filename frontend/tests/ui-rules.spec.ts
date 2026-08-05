@@ -21,6 +21,8 @@ interface Rule {
   readonly name: string
   readonly why: string
   readonly pattern: RegExp
+  /** 패턴이 걸린 뒤 한 번 더 거르는 조건. 없으면 패턴이 곧 위반이다. */
+  readonly only?: (line: string) => boolean
   readonly violations: readonly string[]
   readonly allowed: readonly string[]
 }
@@ -55,7 +57,31 @@ const RULES: readonly Rule[] = [
       'v-for="(row, index) in rows"',
     ],
   },
+  {
+    name: '작업 공간 래퍼의 세로 간격이 화면마다 같다',
+    why:
+      '단계를 옮길 때마다 내용이 몇 px씩 위아래로 뛴다. 한 화면만 gap-4였던 것이 실제로 ' +
+      '그랬고, 원인을 짚기 어려운 만큼 더 나쁘다 — 학생은 화면이 불안하다고만 느낀다.',
+    // 작업 공간의 바깥 여백은 `p-4 sm:p-5`로 고정돼 있다. 그 래퍼의 gap이 gap-5가
+    // 아니면 그 화면만 다른 리듬으로 선다.
+    pattern: /\sclass="[^"]*p-4 sm:p-5[^"]*"/,
+    only: (line) => /gap-\d/.test(line) && !/gap-5/.test(line),
+    violations: [
+      '<div class="flex flex-col gap-4 p-4 sm:p-5">',
+      '<div class="flex h-full flex-col gap-3 p-4 sm:p-5">',
+    ],
+    allowed: [
+      '<div class="flex flex-col gap-5 p-4 sm:p-5">',
+      '<div class="flex h-full flex-col gap-5 p-4 sm:p-5">',
+      // 래퍼가 아닌 곳의 gap-4는 상관없다.
+      '<div class="mt-3 flex flex-col gap-4">',
+    ],
+  },
 ]
+
+function hits(rule: Rule, line: string): boolean {
+  return rule.pattern.test(line) && (rule.only?.(line) ?? true)
+}
 
 /**
  * `<AppButton ... @click="이름">`인데 그 `이름`이 같은 파일의 `async function`인 경우.
@@ -95,12 +121,12 @@ describe('검사기가 실제로 잡는다', () => {
     describe(rule.name, () => {
       for (const line of rule.violations) {
         it(`위반을 잡는다: ${line}`, () => {
-          expect(rule.pattern.test(line)).toBe(true)
+          expect(hits(rule, line)).toBe(true)
         })
       }
       for (const line of rule.allowed) {
         it(`정상을 안 잡는다: ${line}`, () => {
-          expect(rule.pattern.test(line)).toBe(false)
+          expect(hits(rule, line)).toBe(false)
         })
       }
     })
@@ -155,7 +181,7 @@ describe('지금 화면 코드에 위반이 없다', () => {
       const found: string[] = []
       for (const path of vueFiles(SRC)) {
         withoutComments(readFileSync(path, 'utf-8')).forEach((line, index) => {
-          if (rule.pattern.test(line)) {
+          if (hits(rule, line)) {
             found.push(`${path.slice(SRC.length + 1)}:${index + 1}  ${line.trim()}`)
           }
         })

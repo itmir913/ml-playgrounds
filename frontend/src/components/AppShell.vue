@@ -30,7 +30,11 @@ import StepRail from '@/components/StepRail.vue'
         작업 공간이 **레일에서 열린 것처럼** 보여야 한다. 레일은 가라앉은 색이고
         여기는 흰 면인데, 지금 있는 단계 칸이 같은 흰색이라 둘이 이어져 보인다.
       -->
-      <main class="min-w-0 flex-1 overflow-auto bg-surface">
+      <!--
+        **스크롤 막대의 자리를 늘 비워 둔다.** 안 그러면 내용이 긴 단계와 짧은 단계를
+        오갈 때마다 작업 공간의 폭이 막대 하나만큼 달라져 화면 전체가 옆으로 튄다.
+      -->
+      <main class="min-w-0 flex-1 overflow-auto bg-surface scroll-gutter-stable">
         <slot />
       </main>
     </div>

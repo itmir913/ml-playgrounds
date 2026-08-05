@@ -41,6 +41,21 @@
   overflow-y: auto;
 }
 
+/**
+ * 세로 스크롤 막대의 자리를 **늘 비워 둔다.**
+ *
+ * `overflow: auto`만 두면 막대가 생기고 사라질 때마다 그 폭(윈도우 크롬에서 15px)만큼
+ * 안쪽 폭이 달라진다. 단계를 옮길 때마다 내용이 긴 화면과 짧은 화면이 번갈아 오므로
+ * **작업 공간 전체가 옆으로 튄다.** 몇 px이라 원인을 짚기 어렵고, 그래서 더 나쁘다 —
+ * 학생은 무엇이 움직였는지 모른 채 화면이 불안하다고 느낀다.
+ *
+ * Tailwind에 이 속성의 기본 클래스가 없어서 여기 한 번만 두고 이름으로 쓴다
+ * (CLAUDE.md §4).
+ */
+@utility scroll-gutter-stable {
+  scrollbar-gutter: stable;
+}
+
 @utility data-table {
   & th {
     background-color: var(--color-surface-sunken);

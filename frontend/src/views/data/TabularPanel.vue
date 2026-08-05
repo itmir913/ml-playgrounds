@@ -160,7 +160,7 @@ function kindOf(column: ColumnSummary): string {
 
 <template>
   <div
-    class="flex h-full flex-col gap-4 p-4 sm:p-5"
+    class="flex h-full flex-col gap-5 p-4 sm:p-5"
     @dragover.prevent="dragging = true"
     @dragleave="dragging = false"
     @drop.prevent="onDrop"
