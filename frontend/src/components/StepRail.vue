@@ -72,9 +72,16 @@ function reason(step: StepId): string {
   return project.projectId === null ? t('shell.noProject') : t(`steps.${step}.locked`)
 }
 
-/** 칸 하나의 공통 모양. 아이콘 위, 글자 아래. */
+/**
+ * 칸 하나의 공통 모양. 아이콘 위, 글자 아래.
+ *
+ * **`w-full`은 세로일 때만이다.** 가로로 누우면 칸마다 nav 전체 너비를 요구해서
+ * 여덟 칸이 통째로 넘치고, `justify-center`와 겹치면 넘친 쪽이 양옆으로 잘려
+ * **스크롤로도 닿지 않는다.** 태블릿에서 가운데 한 칸만 보이고 나머지를 누를 수
+ * 없던 이유가 이것이다. 가로에서는 내용만큼만 차지한다.
+ */
 const CELL =
-  'flex w-full min-w-0 flex-col items-center gap-1 rounded-control px-1 py-2 leading-tight'
+  'flex min-w-0 flex-col items-center gap-1 rounded-control px-1 py-2 leading-tight md:w-full'
 
 /**
  * 글자 상자.
