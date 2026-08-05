@@ -6,6 +6,15 @@
  * 열었을 때 보고 싶은 것은 "어디까지 했더라"이지 파일 업로드 칸이 아니다 —
  * 특히 **다음 차시에 파일을 열고 들어오는 경우**가 그렇다.
  *
+ * **두 열이다** (architecture.md §8.10.1). 왼쪽은 지금 하는 일, 오른쪽은 그 일을
+ * 판단하는 데 필요한 맥락이다. 전에는 카드 여섯 장을 격자로 깔았는데, 넓은 화면에서
+ * 카드가 위에 몰리고 아래 3분의 2가 비었다. 그건 웹사이트 문법이지 작업실 문법이 아니다.
+ *
+ * `md` 미만에서는 한 열이다. 좁은 화면에서 두 열은 둘 다 못 읽게 만든다.
+ *
+ * **단계는 카드가 아니라 줄이다.** 카드는 저마다 테두리와 여백을 갖느라 여섯 개가
+ * 화면을 다 먹는다. 여기서 학생이 하는 일은 훑는 것이므로 줄이 맞다.
+ *
  * 여기 있는 것은 §8.7의 사실들을 단계별로 펼친 것뿐이다. 새 판단을 만들지 않는다.
  */
 
@@ -14,6 +23,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import AppButton from '@/components/AppButton.vue'
+import ProjectSummary from '@/components/ProjectSummary.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { STEP_ICONS } from '@/icons'
 import { currentTask, isStepUnlocked, stepTasks, STEP_IDS, type StepId } from '@/router/steps'
@@ -47,46 +57,69 @@ function go(step: StepId): void {
   <div class="flex flex-col gap-5 p-4 sm:p-5">
     <StepHeader :title="t('project.homeTitle')" :purpose="t('project.homeLead')" />
 
-    <!-- 한 문장은 한 키다 (CLAUDE.md §3 규칙 3). 조각으로 이으면 어순이 다른 언어에서 무너진다. -->
-    <AppButton v-if="now !== null" size="lg" class="self-start" @click="go(now.step)">
-      {{ t('project.resume', { task: t(`tasks.${now.key}`) }) }}
-    </AppButton>
+    <!--
+      2 대 1이다. 왼쪽이 본체이고 오른쪽은 곁들이는 맥락이라, 반씩 나누면 오른쪽이
+      과하게 커지고 왼쪽 줄이 일찍 접힌다. 임의 값 대신 기본 눈금 셋을 쓴다.
+    -->
+    <div class="grid gap-5 md:grid-cols-3">
+      <!-- 왼쪽: 지금 하는 일 -->
+      <div class="flex min-w-0 flex-col gap-4 md:col-span-2">
+        <!-- 한 문장은 한 키다 (CLAUDE.md §3 규칙 3). 조각으로 이으면 어순이 다른 언어에서 무너진다. -->
+        <AppButton v-if="now !== null" size="lg" class="self-start" @click="go(now.step)">
+          {{ t('project.resume', { task: t(`tasks.${now.key}`) }) }}
+        </AppButton>
 
-    <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <li
-        v-for="entry in steps"
-        :key="entry.step"
-        class="flex flex-col gap-2 rounded-panel border bg-surface p-4"
-        :class="entry.here ? 'border-brand' : 'border-line'"
-      >
-        <div
-          class="flex items-center gap-2 font-bold"
-          :class="entry.unlocked ? '' : 'text-ink-faint'"
-        >
-          <component :is="STEP_ICONS[entry.step]" :size="20" aria-hidden="true" />
-          {{ t(`steps.${entry.step}.label`) }}
-        </div>
-
-        <p class="text-ink-soft">{{ t(`steps.${entry.step}.purpose`) }}</p>
-
-        <ul v-if="entry.tasks.length > 0" class="flex flex-col gap-1 text-ink-soft">
+        <ul class="flex flex-col rounded-panel border border-line bg-surface">
           <li
-            v-for="task in entry.tasks"
-            :key="task.key"
-            :class="task.done ? 'text-ink-faint line-through' : ''"
+            v-for="(entry, index) in steps"
+            :key="entry.step"
+            class="flex flex-wrap items-center gap-x-4 gap-y-2 p-4"
+            :class="[
+              index > 0 ? 'border-t border-line' : '',
+              entry.here ? 'bg-brand-soft' : '',
+              entry.unlocked ? '' : 'text-ink-faint',
+            ]"
           >
-            <span aria-hidden="true">{{ task.done ? '☑' : '☐' }}</span>
-            {{ t(`tasks.${task.key}`) }}
+            <div class="flex min-w-0 shrink-0 items-center gap-2 font-bold">
+              <component :is="STEP_ICONS[entry.step]" :size="20" aria-hidden="true" />
+              {{ t(`steps.${entry.step}.label`) }}
+            </div>
+
+            <!--
+              할 일은 줄바꿈되며 늘어선다. **설명문은 지금 있는 칸에만 붙인다** -
+              여섯 줄이 모두 설명을 달면 훑을 수가 없고, 각 단계의 설명은 그 단계
+              화면의 머리가 이미 갖고 있다 (architecture.md §8.9).
+            -->
+            <ul v-if="entry.tasks.length > 0" class="flex min-w-0 flex-wrap gap-x-4 gap-y-1">
+              <li
+                v-for="task in entry.tasks"
+                :key="task.key"
+                :class="task.done ? 'text-ink-faint line-through' : 'text-ink-soft'"
+              >
+                <span aria-hidden="true">{{ task.done ? '☑' : '☐' }}</span>
+                {{ t(`tasks.${task.key}`) }}
+              </li>
+            </ul>
+
+            <div class="ml-auto shrink-0">
+              <AppButton v-if="entry.unlocked" variant="subtle" @click="go(entry.step)">
+                {{ t('project.openStep') }}
+              </AppButton>
+              <span v-else>{{ t(`steps.${entry.step}.locked`) }}</span>
+            </div>
+
+            <p v-if="entry.here" class="w-full text-ink-soft">
+              {{ t(`steps.${entry.step}.purpose`) }}
+            </p>
           </li>
         </ul>
+      </div>
 
-        <div class="mt-auto pt-1">
-          <AppButton v-if="entry.unlocked" variant="subtle" @click="go(entry.step)">
-            {{ t('project.openStep') }}
-          </AppButton>
-          <span v-else class="text-ink-faint">{{ t(`steps.${entry.step}.locked`) }}</span>
-        </div>
-      </li>
-    </ul>
+      <!-- 오른쪽: 이게 무슨 프로젝트인지 -->
+      <aside class="min-w-0 rounded-panel border border-line bg-surface p-4">
+        <h2 class="mb-3 font-bold">{{ t('meta.title') }}</h2>
+        <ProjectSummary />
+      </aside>
+    </div>
   </div>
 </template>
