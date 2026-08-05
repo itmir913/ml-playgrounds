@@ -32,10 +32,11 @@ const popoverId = useId()
 </script>
 
 <template>
-  <div>
-    <AppButton variant="ghost" size="lg" :popovertarget="popoverId">
+  <div class="w-full">
+    <AppButton variant="subtle" size="lg" class="w-full" :popovertarget="popoverId">
+      <component :is="ACTION_ICONS.savedProjects" :size="20" aria-hidden="true" />
       {{ t('projects.saved') }}
-      <span class="rounded-pill bg-surface-sunken px-2 py-0.5 font-bold text-ink-soft">
+      <span class="rounded-pill bg-surface px-2 py-0.5 text-ink-soft">
         {{ summaries.length }}
       </span>
     </AppButton>
@@ -69,7 +70,11 @@ const popoverId = useId()
             {{ format.bytes(summary.sizeBytes) }}
           </span>
 
-          <AppButton variant="ghost" :label="t('projects.delete')" @click="emit('remove', summary)">
+          <AppButton
+            variant="ghost"
+            :label="t('projects.delete')"
+            :action="() => emit('remove', summary)"
+          >
             <component :is="ACTION_ICONS.remove" :size="18" aria-hidden="true" />
           </AppButton>
         </li>

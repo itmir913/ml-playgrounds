@@ -308,7 +308,7 @@ function kindOf(column: ColumnSummary): string {
     >
       <template #actions>
         <AppButton variant="ghost" @click="confirming = false">{{ t('common.cancel') }}</AppButton>
-        <AppButton variant="danger" :disabled="busy" @click="apply">
+        <AppButton variant="danger" :disabled="busy" :action="apply">
           {{ t('data.replaceConfirm') }}
         </AppButton>
       </template>

@@ -8,10 +8,10 @@
  * 얇게 유지한다. 큰 배너나 히어로가 들어오면 그만큼 작업 공간이 줄어든다.
  */
 
-import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
+import ProjectInfo from '@/components/ProjectInfo.vue'
 import ProjectStatus from '@/components/ProjectStatus.vue'
 import { ACTION_ICONS, BRAND_ICON } from '@/icons'
 import { renderPortfolioMarkdown } from '@/project/portfolio'
@@ -23,12 +23,9 @@ const { t } = useI18n()
 const project = useProjectStore()
 const toasts = useToastStore()
 
-const busy = ref(false)
-
 async function exportFile(): Promise<void> {
   const file = project.file
-  if (!file || busy.value) return
-  busy.value = true
+  if (!file) return
   try {
     // portfolio.md는 파생물이지만 파일에 담는다 - 교사가 압축을 풀어 메모장으로 열어도
     // 학생이 무엇을 썼는지 보여야 한다 (CLAUDE.md §1.3).
@@ -46,8 +43,6 @@ async function exportFile(): Promise<void> {
     }
   } catch (error) {
     toasts.pushError(error)
-  } finally {
-    busy.value = false
   }
 }
 </script>
@@ -64,17 +59,12 @@ async function exportFile(): Promise<void> {
 
     <template v-if="project.projectId !== null">
       <span class="shrink-0 text-line-strong" aria-hidden="true">/</span>
-      <h1 class="min-w-0 truncate font-bold">{{ project.name }}</h1>
+      <ProjectInfo />
     </template>
 
     <div class="ml-auto flex shrink-0 items-center gap-1">
       <ProjectStatus v-if="project.projectId !== null" />
-      <AppButton
-        v-if="project.projectId !== null"
-        variant="secondary"
-        :disabled="busy"
-        @click="exportFile"
-      >
+      <AppButton v-if="project.projectId !== null" variant="secondary" :action="exportFile">
         <component :is="ACTION_ICONS.exportFile" :size="18" aria-hidden="true" />
         <span class="max-sm:hidden">{{ t('project.export') }}</span>
       </AppButton>

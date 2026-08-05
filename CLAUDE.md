@@ -205,6 +205,18 @@ mixed content(Pages는 https, 교실 서버는 대개 http), 교사가 고쳐야
 
 - 백엔드: 타입 힌트 필수, `ruff`(린트+포맷), `mypy` strict, `pytest`. 모든 API 응답은 Pydantic 모델.
 - 프런트엔드: ESLint + Prettier, `vitest`. `any` 금지 — 불가피하면 이유를 주석으로 남긴다.
+- **화면 코드는 Tailwind 기본 클래스만 쓴다.** 임의 값(`w-[327px]`, `text-[0.625rem]`,
+  `[&_th]:px-4`)을 템플릿에 두지 마라. 꼭 필요하면 `style.css`에 `@utility`로 **한 번만**
+  정의하고 이름으로 쓴다. 눈금이 사라지면 디자인 교체가 전수 조사가 된다.
+- **가장 작은 글자가 `text-base`다.** `text-sm`·`text-xs`를 쓰지 마라. 이 도구를 쓰는
+  사람은 중고등학생이고 교실 모니터는 좋지 않다. 촘촘함은 글자를 줄여서가 아니라
+  여백으로 얻는다.
+- **오래 걸리는 일을 하는 버튼은 도는 동안 스스로 꺼져야 한다.** `@click`이 아니라
+  `AppButton`의 `action`으로 준다 — 리스너의 반환값을 Vue가 기다려 주지 않으므로
+  `@click`으로는 두 번 눌리는 것을 막을 수 없다. **학생은 느리다고 생각하면 한 번 더
+  누른다.** 그 순간 파일이 두 번 내려가고 프로젝트가 두 번 만들어진다.
+
+  위 셋은 전부 `frontend/tests/ui-rules.spec.ts`가 강제한다. 사람이 지키길 기대하지 않는다.
 - 커밋: Conventional Commits (`feat:` `fix:` `docs:` `refactor:` `test:` `chore:`)
 
 **커밋 규칙 (예외 없음)**

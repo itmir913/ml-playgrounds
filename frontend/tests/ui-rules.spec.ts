@@ -57,6 +57,22 @@ const RULES: readonly Rule[] = [
   },
 ]
 
+/**
+ * `<AppButton ... @click="이름">`인데 그 `이름`이 같은 파일의 `async function`인 경우.
+ *
+ * **오래 걸리는 일은 `action`으로 줘야 버튼이 스스로 꺼진다**(CLAUDE.md §4).
+ * `@click`은 리스너의 반환값을 기다려 주지 않으므로 두 번 눌리는 것을 못 막는다.
+ */
+function unguardedButtons(source: string): string[] {
+  const asyncNames = new Set(
+    [...source.matchAll(/async function (\w+)/g)].map((match) => match[1] ?? ''),
+  )
+  const template = source.slice(source.indexOf('<template>'))
+  return [...template.matchAll(/<AppButton[^>]*?@click="(\w+)"/gs)]
+    .map((match) => match[1] ?? '')
+    .filter((name) => asyncNames.has(name))
+}
+
 function vueFiles(directory: string): string[] {
   return readdirSync(directory).flatMap((entry) => {
     const path = join(directory, entry)
@@ -97,6 +113,39 @@ describe('검사기가 실제로 잡는다', () => {
       '// text-xs 금지',
     ].join('\n')
     expect(withoutComments(source).join('').trim()).toBe('')
+  })
+})
+
+describe('버튼이 두 번 눌리지 않는다', () => {
+  const NEWLINE = String.fromCharCode(10)
+
+  it('검사기가 안 막힌 버튼을 잡는다', () => {
+    const source = [
+      'async function save() {}',
+      '<template>',
+      '<AppButton @click="save">x</AppButton>',
+    ].join(NEWLINE)
+    expect(unguardedButtons(source)).toEqual(['save'])
+  })
+
+  it('검사기가 action과 동기 핸들러는 안 잡는다', () => {
+    const source = [
+      'async function save() {}',
+      'function close() {}',
+      '<template>',
+      '<AppButton :action="save">x</AppButton>',
+      '<AppButton @click="close">x</AppButton>',
+    ].join(NEWLINE)
+    expect(unguardedButtons(source)).toEqual([])
+  })
+
+  it('지금 소스에 안 막힌 버튼이 없다', () => {
+    const found = vueFiles(SRC).flatMap((path) =>
+      unguardedButtons(readFileSync(path, 'utf-8')).map(
+        (name) => `${path.slice(SRC.length + 1)}  ${name}`,
+      ),
+    )
+    expect(found).toEqual([])
   })
 })
 

@@ -251,5 +251,14 @@
     "open": "파일 열기",
     "openDone": "파일을 열었습니다.",
     "openModified": "저장한 뒤에 고쳐진 흔적이 있는 파일입니다."
+  },
+  "identity": {
+    "title": "프로젝트 정보",
+    "name": "프로젝트 이름",
+    "studentId": "학번",
+    "studentName": "이름",
+    "optional": "안 적어도 됩니다",
+    "fileNameHint": "적으면 저장하는 파일 이름 앞에 붙습니다. ({fileName})",
+    "edit": "프로젝트 정보 고치기"
   }
 }

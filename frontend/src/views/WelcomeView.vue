@@ -175,16 +175,16 @@ onMounted(async () => {
           <component :is="ACTION_ICONS.openFile" :size="20" aria-hidden="true" />
           {{ t('project.open') }}
         </AppButton>
+
+        <ProjectPicker
+          v-if="summaries.length > 0"
+          :summaries="summaries"
+          @open="openProject"
+          @remove="removing = $event"
+        />
       </div>
 
       <input ref="openInput" type="file" accept=".mlpx" class="hidden" @change="openFile" />
-
-      <ProjectPicker
-        v-if="summaries.length > 0"
-        :summaries="summaries"
-        @open="openProject"
-        @remove="removing = $event"
-      />
 
       <p class="max-w-md text-center leading-relaxed text-ink-faint">
         {{ t('projects.storageNote') }}
@@ -213,7 +213,7 @@ onMounted(async () => {
 
         <template #actions>
           <AppButton variant="ghost" @click="creating = false">{{ t('common.cancel') }}</AppButton>
-          <AppButton :disabled="!canCreate" @click="create">{{ t('projects.create') }}</AppButton>
+          <AppButton :disabled="!canCreate" :action="create">{{ t('projects.create') }}</AppButton>
         </template>
       </AppDialog>
 
@@ -225,7 +225,7 @@ onMounted(async () => {
       >
         <template #actions>
           <AppButton variant="ghost" @click="removing = null">{{ t('common.cancel') }}</AppButton>
-          <AppButton variant="danger" :disabled="busy" @click="remove">
+          <AppButton variant="danger" :action="remove">
             {{ t('projects.delete') }}
           </AppButton>
         </template>

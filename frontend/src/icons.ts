@@ -19,6 +19,7 @@ import {
   FileText,
   FlaskConical,
   FolderOpen,
+  Library,
   Plus,
   SlidersHorizontal,
   Sparkles,
@@ -47,6 +48,7 @@ export const STEP_ICONS: Readonly<Record<StepId, LucideIcon>> = {
 export const ACTION_ICONS = {
   newProject: Plus,
   openFile: FolderOpen,
+  savedProjects: Library,
   exportFile: Download,
   remove: Trash2,
   dismiss: X,

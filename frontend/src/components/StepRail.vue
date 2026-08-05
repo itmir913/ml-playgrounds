@@ -60,7 +60,7 @@ const LABEL = 'w-full text-center break-words hyphens-auto'
 <template>
   <nav
     :aria-label="t('shell.steps')"
-    class="scrollbar-none flex shrink-0 gap-1 overflow-x-auto border-line bg-surface-sunken p-1 max-sm:order-last max-sm:justify-center max-sm:border-t sm:w-rail sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto sm:border-r"
+    class="scrollbar-none flex shrink-0 gap-1 overflow-x-auto border-line bg-surface-sunken p-1 max-md:order-last max-md:justify-center max-md:border-t md:w-rail md:flex-col md:overflow-x-hidden md:overflow-y-auto md:border-r"
   >
     <template v-for="step in STEP_IDS" :key="step">
       <RouterLink
@@ -71,13 +71,15 @@ const LABEL = 'w-full text-center break-words hyphens-auto'
         :class="[
           CELL,
           'shrink-0 transition-colors',
+          // 지금 있는 칸은 작업 공간과 같은 흰 면이고 경계선을 1px 덮어 둘이
+          // 이어져 보인다 - 레일에서 그 탭이 열린 것처럼.
           route.name === step
-            ? 'bg-surface font-bold text-brand shadow-float'
-            : 'font-medium text-ink-soft hover:bg-surface hover:text-ink',
+            ? 'z-10 bg-surface font-bold text-brand md:-mr-px md:rounded-r-none md:border-r md:border-surface'
+            : 'font-medium text-ink-soft hover:bg-surface/60 hover:text-ink',
         ]"
       >
         <component :is="STEP_ICONS[step]" :size="20" aria-hidden="true" />
-        <span :class="[LABEL, 'max-sm:hidden']">{{ label(step) }}</span>
+        <span :class="[LABEL, 'max-md:hidden']">{{ label(step) }}</span>
       </RouterLink>
 
       <span
@@ -87,7 +89,7 @@ const LABEL = 'w-full text-center break-words hyphens-auto'
         :class="[CELL, 'shrink-0 cursor-not-allowed font-medium text-ink-faint']"
       >
         <component :is="STEP_ICONS[step]" :size="20" aria-hidden="true" />
-        <span :class="[LABEL, 'max-sm:hidden']">{{ label(step) }}</span>
+        <span :class="[LABEL, 'max-md:hidden']">{{ label(step) }}</span>
       </span>
     </template>
   </nav>
