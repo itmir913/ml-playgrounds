@@ -250,7 +250,13 @@
     "exportDropped": "크기 때문에 담지 못한 모델이 있습니다. 지표는 그대로 남습니다. ({count}개)",
     "open": "파일 열기",
     "openDone": "파일을 열었습니다.",
-    "openModified": "저장한 뒤에 고쳐진 흔적이 있는 파일입니다."
+    "openModified": "저장한 뒤에 고쳐진 흔적이 있는 파일입니다.",
+    "homeTitle": "어디까지 왔나",
+    "homeLead": "왼쪽에서 단계를 고르거나, 아래 이어서 하기를 누르세요.",
+    "resume": "이어서 하기 — {task}",
+    "openStep": "열기",
+    "done": "끝남",
+    "locked": "아직"
   },
   "identity": {
     "title": "프로젝트 정보",

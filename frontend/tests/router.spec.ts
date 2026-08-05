@@ -12,7 +12,7 @@ import 'fake-indexeddb/auto'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { ROUTE_PROJECTS, router } from '../src/router'
+import { ROUTE_PROJECT_HOME, ROUTE_PROJECTS, router } from '../src/router'
 import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { batch, emptyProjectFile, manifest, projectFile, run } from './fixtures/project'
@@ -58,10 +58,11 @@ describe('라우터', () => {
     expect(router.currentRoute.value.name).toBe(ROUTE_PROJECTS)
   })
 
-  it('프로젝트 주소에 단계가 없으면 첫 단계로 보낸다', async () => {
+  it('프로젝트 주소를 열면 홈이 나온다', async () => {
+    // 단계로 튕기지 않는다. 파일을 연 학생이 보고 싶은 것은 "어디까지 했더라"다.
     await saveProject(projectFile())
     await router.push(`/project/${manifest.projectId}`)
-    expect(router.currentRoute.value.name).toBe('data')
+    expect(router.currentRoute.value.name).toBe(ROUTE_PROJECT_HOME)
   })
 
   it('표를 아직 안 올린 프로젝트는 어디를 눌러도 데이터로 온다', async () => {

@@ -250,7 +250,13 @@
     "exportDropped": "Some models were too large to include. Their scores are still there. ({count})",
     "open": "Open a file",
     "openDone": "The file is open.",
-    "openModified": "This file shows signs of having been edited after it was saved."
+    "openModified": "This file shows signs of having been edited after it was saved.",
+    "homeTitle": "Where you are",
+    "homeLead": "Pick a step on the left, or carry on below.",
+    "resume": "Carry on — {task}",
+    "openStep": "Open",
+    "done": "Done",
+    "locked": "Not yet"
   },
   "identity": {
     "title": "Project details",

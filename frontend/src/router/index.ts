@@ -17,10 +17,18 @@ import {
 } from 'vue-router'
 
 import { useProjectStore } from '@/stores/project'
-import { FIRST_STEP, isStepId, resolveStep, STEP_IDS, type StepId } from './steps'
+import { isStepId, resolveStep, STEP_IDS, type StepId } from './steps'
 
 /** 프로젝트 목록. 단계가 아니므로 STEP_IDS에 없다. */
 export const ROUTE_PROJECTS = 'projects'
+
+/**
+ * 프로젝트 홈. **프로젝트를 열면 여기로 온다.**
+ *
+ * 예전에는 첫 단계로 곧장 리다이렉트했는데 그건 홈이 없어서 쓴 우회였고, 파라미터를
+ * 잃는 버그까지 있었다. 학생이 파일을 열었을 때 보고 싶은 것은 "어디까지 했더라"다.
+ */
+export const ROUTE_PROJECT_HOME = 'project'
 
 /**
  * 단계 -> 화면. **`if`로 고르지 않는다** — 이 표 하나가 라우트 목록의 출처이고,
@@ -44,7 +52,11 @@ const routes: RouteRecordRaw[] = [
     name: ROUTE_PROJECTS,
     component: () => import('@/views/WelcomeView.vue'),
   },
-  { path: '/project/:projectId', redirect: { name: FIRST_STEP } },
+  {
+    path: '/project/:projectId',
+    name: ROUTE_PROJECT_HOME,
+    component: () => import('@/views/ProjectHomeView.vue'),
+  },
   ...STEP_IDS.map((step) => ({
     path: `/project/:projectId/${step}`,
     name: step,

@@ -21,13 +21,13 @@ import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppField from '@/components/AppField.vue'
 import ProjectPicker from '@/components/ProjectPicker.vue'
+import { ROUTE_PROJECT_HOME } from '@/router'
 import { ACTION_ICONS } from '@/icons'
 import { MAX_FILE_NAME_LENGTH } from '@/limits'
 import { newProjectDocument, newProjectSeed } from '@/project/create'
 import { readFileBytes } from '@/project/download'
 import { readProject } from '@/project/format'
 import { deleteProject, listProjects, saveProject, type ProjectSummary } from '@/project/storage'
-import { FIRST_STEP } from '@/router/steps'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 
@@ -64,7 +64,7 @@ function openCreate(): void {
 }
 
 function openProject(projectId: string): void {
-  void router.push({ name: FIRST_STEP, params: { projectId } })
+  void router.push({ name: ROUTE_PROJECT_HOME, params: { projectId } })
 }
 
 async function create(): Promise<void> {
