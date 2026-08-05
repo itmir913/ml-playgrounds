@@ -8,20 +8,10 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { SOURCE_ENCODINGS } from '../src/data/encoding'
 import { isClientError } from '../src/errors'
-import { TRAINING_LOCATIONS } from '../src/ml/backend'
 import {
-  CATEGORICAL_ENCODINGS,
-  DATA_TYPES,
   FORMAT_VERSION,
-  MISSING_STRATEGIES,
-  MODEL_OMISSION_REASONS,
   PROJECT_KIND_ML,
-  RUN_STATUSES,
-  SCALING_METHODS,
-  SPLIT_METHODS,
-  TASK_TYPES,
   manifestSchema,
   parseProjectDocument,
   runSchema,
@@ -77,48 +67,13 @@ const document = {
   portfolio: { template: { id: 'default-v1' }, answers: {} },
 }
 
-describe('어휘 고정', () => {
-  it('어휘를 바꿨다면 FORMAT_VERSION을 올리고 마이그레이션을 추가했는가', () => {
-    // 이 테스트가 깨졌다면 값을 고치기 전에 다음을 확인하라.
-    // 1. FORMAT_VERSION을 올렸는가
-    // 2. project/migrate.ts에 마이그레이션 함수를 추가했는가
-    // 어휘가 늘어나면 구버전 앱이 못 여는 파일이 생긴다. 그게 의도한 동작이다.
-    //
-    // **단, 첫 배포 전에는 올리지 않는다** (mlpx-spec.md 9). 그 규칙이 지키는 것은
-    // 밖에 나간 파일과의 호환성인데 나간 파일이 하나도 없다. 그래서 여기 목록만
-    // 갱신하면 된다 - 지금 올리면 아무도 안 겪을 상황을 위해 변환 함수와 왕복 테스트를
-    // 영구히 지고 가는 것뿐이다. **배포하는 순간 이 예외가 죽는다.**
-    //
-    // **스키마가 z.enum으로 쓰는 배열이 전부 여기 있어야 한다.** 아래 둘은 schema.ts가
-    // 아니라 data/encoding.ts와 ml/backend.ts에 산다 - 그 모듈을 고치는 사람에게는
-    // 파일 어휘를 늘리고 있다는 신호가 없으므로, 오히려 여기 있는 것이 더 중요하다.
-    expect({
-      FORMAT_VERSION,
-      TASK_TYPES,
-      DATA_TYPES,
-      MISSING_STRATEGIES,
-      SCALING_METHODS,
-      CATEGORICAL_ENCODINGS,
-      SPLIT_METHODS,
-      RUN_STATUSES,
-      MODEL_OMISSION_REASONS,
-      SOURCE_ENCODINGS,
-      TRAINING_LOCATIONS,
-    }).toEqual({
-      FORMAT_VERSION: 1,
-      TASK_TYPES: ['classification', 'regression', 'clustering'],
-      DATA_TYPES: ['tabular', 'image', 'audio', 'text'],
-      MISSING_STRATEGIES: ['none', 'drop', 'mean', 'median', 'mostFrequent', 'zero'],
-      SCALING_METHODS: ['none', 'standard', 'minmax', 'robust'],
-      CATEGORICAL_ENCODINGS: ['none', 'onehot', 'ordinal'],
-      SPLIT_METHODS: ['holdout', 'none'],
-      RUN_STATUSES: ['done', 'failed'],
-      MODEL_OMISSION_REASONS: ['overBudget', 'tooLarge', 'engineUnsupported'],
-      SOURCE_ENCODINGS: ['utf-8', 'cp949', 'utf-16le', 'utf-16be'],
-      TRAINING_LOCATIONS: ['browser', 'server'],
-    })
-  })
-})
+/**
+ * **어휘 고정은 tests/schema-version.spec.ts로 옮겼다.**
+ *
+ * 목록만 못 박는 것으로는 부족했다 - 배포 뒤에 어휘를 바꾸고 버전을 안 올리는 것이
+ * 진짜 위험이고, 배포 전에 버전을 올리는 것은 그 반대 방향의 낭비다. 두 방향을 함께
+ * 보려면 버전마다의 지문이 필요해서 파일을 나눴다.
+ */
 
 describe('모르는 필드', () => {
   it('최상위에서 살아남는다', () => {
