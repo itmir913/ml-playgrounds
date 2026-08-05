@@ -121,7 +121,7 @@
     "linear_regression": "선형 회귀"
   },
   "runtimes": {
-    "mljs": "순수 JS",
+    "mljs": "ml.js · 내 컴퓨터",
     "pyodide-sklearn": "scikit-learn · 내 컴퓨터",
     "server-sklearn": "scikit-learn · 학교 서버"
   },
@@ -194,10 +194,10 @@
     "modelsTitle": "모델 선정",
     "modelsLead": "무엇을 할지 고르면 그에 맞는 모델만 켜집니다. 여러 개를 골라 한 번에 학습하고 결과를 견줍니다.",
     "pickModel": "모델",
-    "pickRuntime": "실행 방법",
+    "pickRuntime": "어디서 학습할까",
     "addModel": "추가",
     "removeModel": "빼기",
-    "alreadyAdded": "이미 담은 조합입니다. 실행 방법을 바꾸면 나란히 놓고 견줄 수 있습니다.",
+    "alreadyAdded": "이미 담은 조합입니다. 학습할 곳을 바꾸면 나란히 놓고 견줄 수 있습니다.",
     "modelSummary": "모델 {count}개를 골랐습니다.",
     "noModelChosen": "아직 고른 모델이 없습니다.",
     "tuning": "설정 바꾸기",
@@ -318,7 +318,7 @@
   "modelOmission": {
     "overBudget": "프로젝트 파일 크기를 줄이려고 모델을 담지 않았습니다. 예측에 쓰려면 다시 학습하세요.",
     "tooLarge": "모델이 너무 커서 파일에 담지 못했습니다. 다시 학습해도 같으니, 나무 개수처럼 모델을 키우는 설정을 줄여 보세요.",
-    "engineUnsupported": "이 실행 방법은 아직 모델을 저장할 수 없어 점수만 남겼습니다."
+    "engineUnsupported": "여기서 학습한 모델은 아직 저장할 수 없어 점수만 남겼습니다."
   },
   "execution": {
     "browser": "내 컴퓨터에서 학습",
@@ -328,9 +328,9 @@
     "ALGORITHM_NOT_FOR_DATA_TYPE": "이 모델은 지금 불러온 데이터에는 쓸 수 없습니다.",
     "ALGORITHM_NOT_FOR_TASK_TYPE": "이 모델은 지금 고른 기계학습 유형(Task Type)에는 쓸 수 없습니다.",
     "SERVER_UNAVAILABLE": "학습 서버에 연결할 수 없습니다. 지금은 내 컴퓨터에서만 학습할 수 있습니다.",
-    "ALGORITHM_NOT_AVAILABLE_HERE": "이 모델은 여기서 실행할 수 없습니다.",
+    "ALGORITHM_NOT_AVAILABLE_HERE": "이 모델은 여기서 학습할 수 없습니다.",
     "DATASET_TOO_LARGE_FOR_BROWSER": "데이터가 커서 내 컴퓨터에서는 학습할 수 없습니다. (최대 {limitRows}행)",
-    "ENGINE_NOT_READY": "이 실행 방법은 준비가 끝나야 쓸 수 있습니다.",
+    "ENGINE_NOT_READY": "여기서 학습하려면 준비가 먼저 끝나야 합니다.",
     "PROJECT_FILE_NOT_ZIP": "이 파일은 프로젝트 파일이 아닙니다.",
     "PROJECT_FILE_ENTRY_MISSING": "프로젝트 파일에 필요한 내용이 들어 있지 않습니다. ({entry})",
     "PROJECT_FILE_INVALID": "프로젝트 파일의 내용을 읽을 수 없습니다. ({path})",

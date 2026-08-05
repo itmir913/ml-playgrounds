@@ -121,7 +121,7 @@
     "linear_regression": "Linear regression"
   },
   "runtimes": {
-    "mljs": "Plain JavaScript",
+    "mljs": "ml.js · this computer",
     "pyodide-sklearn": "scikit-learn · this computer",
     "server-sklearn": "scikit-learn · school server"
   },
@@ -318,7 +318,7 @@
   "modelOmission": {
     "overBudget": "The model was left out to keep the project file small. Train again to use it for predictions.",
     "tooLarge": "The model was too big to fit in the file. Training again will not help — try lowering a setting that makes the model bigger, such as the number of trees.",
-    "engineUnsupported": "This way of training cannot save a model yet, so only the scores were kept."
+    "engineUnsupported": "Models trained here cannot be saved yet, so only the scores were kept."
   },
   "execution": {
     "browser": "Train on my computer",
@@ -328,9 +328,9 @@
     "ALGORITHM_NOT_FOR_DATA_TYPE": "This model cannot be used with the data you loaded.",
     "ALGORITHM_NOT_FOR_TASK_TYPE": "This model cannot be used for the task type you chose.",
     "SERVER_UNAVAILABLE": "The training server cannot be reached. For now you can train on your computer.",
-    "ALGORITHM_NOT_AVAILABLE_HERE": "This model cannot run here.",
+    "ALGORITHM_NOT_AVAILABLE_HERE": "This model cannot be trained here.",
     "DATASET_TOO_LARGE_FOR_BROWSER": "The data is too large to train on your computer. (limit {limitRows} rows)",
-    "ENGINE_NOT_READY": "This way of training can only be used once it is ready.",
+    "ENGINE_NOT_READY": "Training here needs some setup to finish first.",
     "PROJECT_FILE_NOT_ZIP": "This file is not a project file.",
     "PROJECT_FILE_ENTRY_MISSING": "The project file is missing something it needs. ({entry})",
     "PROJECT_FILE_INVALID": "The project file could not be read. ({path})",
