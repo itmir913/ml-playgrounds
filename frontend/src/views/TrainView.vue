@@ -71,7 +71,11 @@ const context = computed<RuntimeContext>(() => ({
   rowCount: dataset.value?.rows.length ?? 0,
 }))
 
-const taskTypes = computed(() => supportedTaskTypes())
+/**
+ * 고를 수 있는 유형. **데이터 종류가 좁힌다** - 이미지에 회귀는 성립하지 않는다.
+ * 표를 안 올렸으면 종류를 모르므로 좁히지 않는다 (ml/algorithms.ts).
+ */
+const taskTypes = computed(() => supportedTaskTypes(project.file?.document.manifest.dataType))
 
 /**
  * 지금 고를 수 있는 모델들. **유형을 안 골랐으면 빈 목록이다.**

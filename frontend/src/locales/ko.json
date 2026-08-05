@@ -123,7 +123,7 @@
   "runtimes": {
     "mljs": "ml.js · 내 컴퓨터",
     "pyodide-sklearn": "scikit-learn · 내 컴퓨터",
-    "server-sklearn": "scikit-learn · 학교 서버"
+    "server-sklearn": "자체 서버"
   },
   "hyperparams": {
     "maxDepth": "나무의 최대 깊이",
@@ -192,12 +192,12 @@
     "taskTitle": "기계학습 유형(Task Type)",
     "taskChanged": "고른 유형에서 쓸 수 없어 선택에서 빠진 모델이 있습니다. ({names})",
     "modelsTitle": "모델 선정",
-    "modelsLead": "무엇을 할지 고르면 그에 맞는 모델만 켜집니다. 여러 개를 골라 한 번에 학습하고 결과를 견줍니다.",
+    "modelsLead": "무엇을 할지 고르면 그에 맞는 모델만 켜집니다. 여러 개를 골라 한 번에 학습하고 결과를 비교합니다.",
     "pickModel": "모델",
     "pickRuntime": "어디서 학습할까",
     "addModel": "추가",
     "removeModel": "빼기",
-    "alreadyAdded": "이미 담은 조합입니다. 학습할 곳을 바꾸면 나란히 놓고 견줄 수 있습니다.",
+    "alreadyAdded": "이미 담은 조합입니다. 다른 모델이나 다른 곳을 고르면 더 담을 수 있습니다.",
     "modelSummary": "모델 {count}개를 골랐습니다.",
     "noModelChosen": "아직 고른 모델이 없습니다.",
     "tuning": "설정 바꾸기",
@@ -327,7 +327,7 @@
   "client": {
     "ALGORITHM_NOT_FOR_DATA_TYPE": "이 모델은 지금 불러온 데이터에는 쓸 수 없습니다.",
     "ALGORITHM_NOT_FOR_TASK_TYPE": "이 모델은 지금 고른 기계학습 유형(Task Type)에는 쓸 수 없습니다.",
-    "SERVER_UNAVAILABLE": "학습 서버에 연결할 수 없습니다. 지금은 내 컴퓨터에서만 학습할 수 있습니다.",
+    "SERVER_UNAVAILABLE": "연결된 서버가 없습니다. 지금은 내 컴퓨터에서만 학습할 수 있습니다.",
     "ALGORITHM_NOT_AVAILABLE_HERE": "이 모델은 여기서 학습할 수 없습니다.",
     "DATASET_TOO_LARGE_FOR_BROWSER": "데이터가 커서 내 컴퓨터에서는 학습할 수 없습니다. (최대 {limitRows}행)",
     "ENGINE_NOT_READY": "여기서 학습하려면 준비가 먼저 끝나야 합니다.",

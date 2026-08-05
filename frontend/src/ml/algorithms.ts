@@ -102,13 +102,25 @@ export interface AlgorithmOption {
  * 있게 되고, 학생은 아무것도 못 하는 프로젝트를 만든다. 군집 알고리즘을 등록하는 날
  * 여기가 저절로 따라온다.
  *
+ * **데이터 종류를 함께 본다.** 유형과 데이터 종류는 독립이 아니다 - 이미지에 회귀는
+ * 성립하지 않고, 그건 우리가 정하는 것이 아니라 **그 조합에 등록된 알고리즘이 없다는
+ * 사실**이다. 안 보면 학생이 회귀를 고른 뒤에야 모델이 전부 꺼진 목록을 만난다.
+ * `if (dataType === 'image')`를 쓰지 않는 이유는 이 파일의 첫 주석과 같다.
+ *
+ * 데이터를 아직 안 올렸으면 종류를 모른다. 그때는 **좁히지 않는다** - 무엇을 올릴지
+ * 모르는 채로 유형을 지울 근거가 없다.
+ *
  * 순서는 TASK_TYPES를 따른다 - 화면마다 순서가 다르면 안 된다.
  */
 export function supportedTaskTypes(
+  dataType?: DataType | undefined,
   algorithms: readonly Algorithm[] = ALGORITHMS,
 ): readonly TaskType[] {
+  const usable = algorithms.filter(
+    (algorithm) => dataType === undefined || algorithm.dataTypes.includes(dataType),
+  )
   return TASK_TYPES.filter((taskType) =>
-    algorithms.some((algorithm) => algorithm.taskTypes.includes(taskType)),
+    usable.some((algorithm) => algorithm.taskTypes.includes(taskType)),
   )
 }
 

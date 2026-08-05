@@ -123,7 +123,7 @@
   "runtimes": {
     "mljs": "ml.js · this computer",
     "pyodide-sklearn": "scikit-learn · this computer",
-    "server-sklearn": "scikit-learn · school server"
+    "server-sklearn": "Self-hosted server"
   },
   "hyperparams": {
     "maxDepth": "Maximum tree depth",
@@ -192,12 +192,12 @@
     "taskTitle": "Task type",
     "taskChanged": "Some models were dropped because they do not fit the task type you chose. ({names})",
     "modelsTitle": "Choose the models",
-    "modelsLead": "Choose what you want to do, and only the models that fit stay on. Pick several to train at once and compare.",
+    "modelsLead": "Choose what you want to do, and only the models that fit stay on. Pick several to train at once and compare the results.",
     "pickModel": "Model",
     "pickRuntime": "Where to train",
     "addModel": "Add",
     "removeModel": "Remove",
-    "alreadyAdded": "That pair is already on the list. Change where it trains to compare them side by side.",
+    "alreadyAdded": "That pair is already on the list. Choose another model or another place to add more.",
     "modelSummary": "{count} model chosen. | {count} models chosen.",
     "noModelChosen": "No model chosen yet.",
     "tuning": "Change the settings",
@@ -327,7 +327,7 @@
   "client": {
     "ALGORITHM_NOT_FOR_DATA_TYPE": "This model cannot be used with the data you loaded.",
     "ALGORITHM_NOT_FOR_TASK_TYPE": "This model cannot be used for the task type you chose.",
-    "SERVER_UNAVAILABLE": "The training server cannot be reached. For now you can train on your computer.",
+    "SERVER_UNAVAILABLE": "No server is connected. For now you can only train on this computer.",
     "ALGORITHM_NOT_AVAILABLE_HERE": "This model cannot be trained here.",
     "DATASET_TOO_LARGE_FOR_BROWSER": "The data is too large to train on your computer. (limit {limitRows} rows)",
     "ENGINE_NOT_READY": "Training here needs some setup to finish first.",

@@ -110,7 +110,22 @@ describe('고를 수 있는 과제 유형', () => {
 
   it('알고리즘을 등록하면 저절로 따라온다', () => {
     const only = ALGORITHMS.filter((one) => one.taskTypes.includes('regression'))
-    expect(supportedTaskTypes(only)).toEqual(['regression'])
+    expect(supportedTaskTypes(undefined, only)).toEqual(['regression'])
+  })
+
+  /**
+   * **유형과 데이터 종류는 독립이 아니다.** 이미지에 회귀는 성립하지 않는데, 그건 우리가
+   * 정한 것이 아니라 그 조합에 등록된 알고리즘이 없다는 사실이다. 안 걸러 주면 학생이
+   * 회귀를 고른 뒤에야 모델이 전부 꺼진 목록을 만난다.
+   */
+  it('데이터 종류에 맞는 유형만 남는다', () => {
+    expect(supportedTaskTypes('tabular')).toEqual(['classification', 'regression'])
+    // V1의 알고리즘은 전부 표 데이터용이다. 이미지 알고리즘을 등록하는 날 여기가 따라온다.
+    expect(supportedTaskTypes('image')).toEqual([])
+  })
+
+  it('데이터를 안 올렸으면 좁히지 않는다 - 무엇을 올릴지 모른다', () => {
+    expect(supportedTaskTypes(undefined)).toEqual(supportedTaskTypes())
   })
 
   it('순서는 TASK_TYPES를 따른다 - 화면마다 순서가 다르면 안 된다', () => {
