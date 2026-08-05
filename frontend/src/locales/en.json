@@ -37,14 +37,11 @@
     "toDark": "Switch to the dark theme"
   },
   "save": {
-    "browserOnly": "Temporary copy only",
-    "saving": "Making a temporary copy",
-    "unsaved": "Changes not stored yet",
     "notExported": "Not saved to a file yet",
     "exported": "Saved to a file",
     "stale": "Changed since the last file save",
-    "exportWarning": "A temporary copy can disappear. Only a saved file lasts.",
-    "keepFile": "Keep the saved file somewhere safe, such as a USB drive or cloud storage, or hand it in."
+    "exportWarning": "Anything held temporarily can disappear. Saving to a file keeps it permanently.",
+    "keepFile": "Please keep the saved file somewhere safe, such as a USB drive or cloud storage, or hand it in."
   },
   "steps": {
     "data": {
@@ -118,7 +115,7 @@
     "newTitle": "Create a new project",
     "newDescription": "Just a name is enough. You will load your data on the next screen.",
     "name": "Project name",
-    "nameHint": "This becomes the file name when you save.",
+    "nameHint": "Used as the file name when the project is saved to a file.",
     "create": "Create",
     "open": "Open",
     "delete": "Delete",
@@ -128,9 +125,9 @@
     "updatedAt": "Last worked on",
     "size": "Size",
     "loading": "Loading.",
-    "storageNote": "Projects are kept temporarily on this computer. Save one to a file and it lasts, and you can carry on from another computer.",
+    "storageNote": "Projects are held temporarily on this computer. Saving one to a file keeps it permanently, and lets you carry on from another computer.",
     "saved": "Projects on this computer",
-    "savedCount": "{count} project on this computer | {count} projects on this computer"
+    "savedCount": "This browser holds {count} project | This browser holds {count} projects"
   },
   "common": {
     "underConstruction": "This screen is still being built.",
@@ -231,7 +228,7 @@
     "MODEL_FILE_INVALID": "That saved model could not be read. Train it again to use it.",
     "DATASET_FILE_TYPE_UNSUPPORTED": "This file type is not supported. ({fileName})",
     "DATASET_SHEET_NOT_FOUND": "That sheet could not be found. ({sheetName})",
-    "STORAGE_QUOTA_EXCEEDED": "There is not enough room left on this computer. (needs {requiredMb}MB, {availableMb}MB free)",
+    "STORAGE_QUOTA_EXCEEDED": "There is not enough storage space on this computer. (needs {requiredMb}MB, {availableMb}MB free)",
     "UNEXPECTED_ERROR": "Something went wrong. Please try again.",
     "SPLIT_TOO_FEW_ROWS": "There is not enough data to split into a training set and a test set. (usable {actualRows}, needs at least {minRows})",
     "SPLIT_STRATIFY_IMPOSSIBLE": "'{label}' appears too few times to keep the same proportions in the split. Turn off proportional splitting, or collect more rows with this value. (has {count}, needs at least {minRows})"
@@ -249,7 +246,7 @@
   },
   "project": {
     "export": "Save to a file",
-    "exportDone": "Saved to a file. Keep it somewhere safe, such as a USB drive or cloud storage.",
+    "exportDone": "Saved to a file. Please keep it somewhere safe, such as a USB drive or cloud storage.",
     "exportDropped": "Some models were too large to include. Their scores are still there. ({count})",
     "open": "Open a file",
     "openDone": "The file is open.",
@@ -260,7 +257,7 @@
     "openStep": "Open",
     "done": "Done",
     "locked": "Locked",
-    "exportLead": "A student number and name go in front of the file name.",
+    "exportLead": "Enter a student number and name to add them to the front of the file name.",
     "exportNow": "Save",
     "dashboard": "Dash­board"
   },
@@ -269,8 +266,8 @@
     "name": "Project name",
     "studentId": "Student number",
     "studentName": "Name",
-    "optional": "You can leave these blank",
-    "fileNameHint": "If you fill these in they go in front of the saved file name. ({fileName})",
+    "optional": "Optional",
+    "fileNameHint": "What you enter is added to the front of the saved file name. ({fileName})",
     "rename": "Rename this project ({name})"
   },
   "meta": {

@@ -37,14 +37,11 @@
     "toDark": "어두운 화면으로 바꾸기"
   },
   "save": {
-    "browserOnly": "임시 보관됨",
-    "saving": "임시 보관 중",
-    "unsaved": "바뀐 내용 있음",
     "notExported": "아직 파일로 저장하지 않음",
     "exported": "파일로 저장함",
     "stale": "마지막 파일 저장 후 변경됨",
-    "exportWarning": "임시 보관은 사라질 수 있습니다. 파일로 저장해야 오래 남습니다.",
-    "keepFile": "저장한 파일은 USB나 클라우드 같은 안전한 곳에 보관하거나 제출하세요."
+    "exportWarning": "임시로 보관된 내용은 사라질 수 있습니다. 파일로 저장하면 영구적으로 보관할 수 있습니다.",
+    "keepFile": "저장한 파일은 USB나 클라우드 등 안전한 위치에 보관하거나 제출해 주세요."
   },
   "steps": {
     "data": {
@@ -118,7 +115,7 @@
     "newTitle": "새 프로젝트 만들기",
     "newDescription": "이름만 정하면 됩니다. 데이터는 다음 화면에서 불러옵니다.",
     "name": "프로젝트 이름",
-    "nameHint": "저장할 때 파일 이름이 됩니다.",
+    "nameHint": "프로젝트를 파일로 저장할 때 파일의 이름으로 사용됩니다.",
     "create": "만들기",
     "open": "열기",
     "delete": "삭제",
@@ -128,9 +125,9 @@
     "updatedAt": "마지막으로 작업한 때",
     "size": "크기",
     "loading": "불러오는 중입니다.",
-    "storageNote": "프로젝트는 이 컴퓨터에 임시로 보관됩니다. 파일로 저장해 두면 오래 남고, 다른 컴퓨터에서도 이어서 할 수 있습니다.",
+    "storageNote": "프로젝트는 이 컴퓨터에 임시로 보관됩니다. 파일로 저장하면 영구적으로 보관할 수 있고, 다른 컴퓨터에서도 이어서 진행할 수 있습니다.",
     "saved": "이 컴퓨터의 프로젝트",
-    "savedCount": "이 컴퓨터에 {count}개 있습니다"
+    "savedCount": "이 컴퓨터 브라우저에 프로젝트가 {count}개 있습니다"
   },
   "common": {
     "underConstruction": "이 화면은 아직 만드는 중입니다.",
@@ -231,7 +228,7 @@
     "MODEL_FILE_INVALID": "저장된 모델을 읽을 수 없습니다. 다시 학습하면 쓸 수 있습니다.",
     "DATASET_FILE_TYPE_UNSUPPORTED": "지원하지 않는 파일 형식입니다. ({fileName})",
     "DATASET_SHEET_NOT_FOUND": "그 시트를 찾을 수 없습니다. ({sheetName})",
-    "STORAGE_QUOTA_EXCEEDED": "이 컴퓨터에 담을 공간이 부족합니다. (필요 {requiredMb}MB, 남은 공간 {availableMb}MB)",
+    "STORAGE_QUOTA_EXCEEDED": "이 컴퓨터의 저장 공간이 부족합니다. (필요 {requiredMb}MB, 남은 공간 {availableMb}MB)",
     "UNEXPECTED_ERROR": "예상하지 못한 문제가 생겼습니다. 다시 시도해 주세요.",
     "SPLIT_TOO_FEW_ROWS": "학습에 쓸 수 있는 데이터가 {actualRows}줄뿐이라 학습용과 평가용으로 나눌 수 없습니다. (최소 {minRows}줄)",
     "SPLIT_STRATIFY_IMPOSSIBLE": "'{label}' 값이 {count}개뿐이라 비율을 맞춰 나눌 수 없습니다. 비율 맞추기를 끄거나 이 값의 데이터를 {minRows}개 이상 모아 주세요."
@@ -249,7 +246,7 @@
   },
   "project": {
     "export": "파일로 저장",
-    "exportDone": "파일로 저장했습니다. USB나 클라우드처럼 안전한 곳에 보관해 두세요.",
+    "exportDone": "파일로 저장했습니다. USB나 클라우드 등 안전한 위치에 보관해 주세요.",
     "exportDropped": "크기 때문에 담지 못한 모델이 있습니다. 지표는 그대로 남습니다. ({count}개)",
     "open": "파일 불러오기",
     "openDone": "파일을 열었습니다.",
@@ -260,7 +257,7 @@
     "openStep": "들어가기",
     "done": "Done",
     "locked": "Locked",
-    "exportLead": "학번과 이름을 적으면 파일 이름 앞에 붙습니다.",
+    "exportLead": "학번과 이름을 입력하면 파일 이름 앞에 붙습니다.",
     "exportNow": "저장하기",
     "dashboard": "대시​보드"
   },
@@ -269,8 +266,8 @@
     "name": "프로젝트 이름",
     "studentId": "학번",
     "studentName": "이름",
-    "optional": "안 적어도 됩니다",
-    "fileNameHint": "적으면 저장하는 파일 이름 앞에 붙습니다. ({fileName})",
+    "optional": "선택 사항입니다",
+    "fileNameHint": "입력한 내용은 저장되는 파일 이름 앞에 붙습니다. ({fileName})",
     "rename": "프로젝트 이름 바꾸기 ({name})"
   },
   "meta": {

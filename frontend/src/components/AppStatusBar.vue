@@ -3,14 +3,18 @@
  * 아래 상태 표시줄. **이 프로젝트에서는 장식이 아니라 핵심 기능이다**
  * (architecture.md §8.8).
  *
- * **"저장"은 파일에만 쓴다.** 학교 컴퓨터실 PC는 전원을 끄면 디스크가 되돌아가므로
- * 브라우저에 쓴 것은 안전하지 않다. 그런데 "저장됨"은 안전하다고 읽힌다 — 이 저장소가
- * 무결성 문구에 "verified"를 금지한 것과 **같은 종류의 잘못**이다(mlpx-spec.md §7.3).
+ * **"저장"은 파일에만 쓴다.** 브라우저에 쓴 것을 "저장됨"이라 하면 안전하다고 읽히는데,
+ * 재이미징되는 교실 PC에서는 그렇지 않다 — 이 저장소가 무결성 문구에 "verified"를
+ * 금지한 것과 **같은 종류의 잘못**이다(mlpx-spec.md §7.3).
  *
- * 그래서 낱말을 갈라 둔다. 브라우저 쪽은 **"임시 보관"**이고 파일 쪽만 **"저장"**이다.
- * "이 컴퓨터에 있음" 같은 말도 쓰지 않는다 — 어딘가에 안전히 놓였다고 읽히는데,
- * 재이미징되는 교실 PC에서는 그 컴퓨터조차 보장이 아니다. **학생이 가져가야 할 문장은
- * 하나다: 파일로 저장해야 남는다.**
+ * **그래서 브라우저 저장 상태를 아예 보여주지 않는다.** 처음에는 "임시 보관됨"으로
+ * 적어 두었는데, 파일 상태와 나란히 서면 학생 눈에 두 저장이 경쟁한다. 그리고
+ * 자동 저장은 **학생이 켜고 끌 수 없다** — §8.9가 "체크할 수 없는 체크박스는 안내가
+ * 아니라 방해다"라고 한 것과 같은 종류이고, 실패하면 어차피 알림이 뜬다.
+ *
+ * 남은 것은 **파일 상태 하나**다. 학생이 가져가야 할 문장도 하나다 — 파일로 저장해야
+ * 영구적으로 남는다. 마지막으로 작업한 시각은 팝오버에 남겼다. 그건 상태가 아니라
+ * 학생이 실제로 쓰는 정보다.
  *
  * **줄은 넘치는 대신 잘리고, 누르면 팝오버가 전부 보여준다.** 휴대폰에서 실측하면
  * 칸을 다 펼치는 데 654px이 필요한데 화면은 375px이다. 가로로 밀리게 두면 언어
@@ -67,14 +71,8 @@ const exportState = computed(() => {
  *
  * 저장 중에도 마지막 저장 시각을 그대로 둔다 - 그건 여전히 사실이다.
  */
-const browserState = computed(() => {
-  if (project.saving) return t('save.saving')
-  if (project.dirty) return t('save.unsaved')
-  return t('save.browserOnly')
-})
-
 const facts = computed(() => {
-  const parts: string[] = [browserState.value]
+  const parts: string[] = []
   if (project.savedAt !== null) parts.push(format.dateTime(project.savedAt))
   // 아직 아무것도 없는 프로젝트에 "0 byte"는 알려 주는 것이 없다.
   if (sizeBytes.value > 0) parts.push(format.bytes(sizeBytes.value))
@@ -146,8 +144,7 @@ const nextTheme = computed(() => otherTheme(theme.value))
         {{ exportState === 'exported' ? t('save.keepFile') : t('save.exportWarning') }}
       </p>
 
-      <p class="mt-3 border-t border-line pt-3">{{ browserState }}</p>
-      <dl v-if="details.length > 0" class="mt-1 text-ink-soft">
+      <dl v-if="details.length > 0" class="mt-3 border-t border-line pt-3 text-ink-soft">
         <div
           v-for="row in details"
           :key="row.label"
