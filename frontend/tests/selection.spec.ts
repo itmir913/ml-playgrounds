@@ -17,6 +17,7 @@ import type { Preprocessing } from '../src/project/schema'
 
 const ONEHOT: Preprocessing = { missing: 'drop', scaling: 'none', categoricalEncoding: 'onehot' }
 const NO_ENCODING: Preprocessing = { ...ONEHOT, categoricalEncoding: 'none' }
+const KEEP_BLANKS: Preprocessing = { ...ONEHOT, missing: 'none' }
 
 function column(overrides: Partial<ColumnSummary> & { name: string }): ColumnSummary {
   return { kind: 'numeric', missing: 0, unique: 5, samples: [], ...overrides }
@@ -60,6 +61,36 @@ describe('학습이 거부하는 것', () => {
   it('분류는 타깃 자료형을 가리지 않는다 - 3과 "3"을 나누지 않는다', () => {
     for (const one of planFor().columns) expect(one.targetIssue, one.summary.name).toBeUndefined()
     expect(requiredTargetKind('classification')).toBeUndefined()
+  })
+
+  it('"그대로 두기"에서는 빈 칸이 하나만 있어도 특성이 될 수 없다', () => {
+    // 빈 칸을 그대로 모델에 넣을 방법이 없다. 조용히 0으로 채우느니 거부한다
+    // (open-decisions.md "전처리도 분할도 끌 수 있다").
+    const holed = column({ name: '점수', missing: 2 })
+    const plan = columnPlan({
+      columns: [holed],
+      rowCount: 10,
+      taskType: 'classification',
+      target: undefined,
+      features: ['점수'],
+      preprocessing: KEEP_BLANKS,
+    })
+    expect(plan.columns[0]?.featureIssue).toBe('FEATURE_HAS_MISSING')
+    expect(plan.usableFeatures).toBe(0)
+  })
+
+  it('전략을 바꾸면 같은 열이 풀린다 - 열이 아니라 설정의 문제다', () => {
+    const holed = column({ name: '점수', missing: 2 })
+    const plan = columnPlan({
+      columns: [holed],
+      rowCount: 10,
+      taskType: 'classification',
+      target: undefined,
+      features: ['점수'],
+      preprocessing: { ...ONEHOT, missing: 'mean' },
+    })
+    expect(plan.columns[0]?.featureIssue).toBeUndefined()
+    expect(plan.usableFeatures).toBe(1)
   })
 
   it('값이 통째로 빈 열은 특성이 될 수 없고 학습에도 안 들어간다', () => {

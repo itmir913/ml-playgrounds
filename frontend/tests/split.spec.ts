@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
 import { MIN_SPLIT_ROWS } from '../src/limits'
-import { holdoutSplit } from '../src/ml/split'
+import { holdoutSplit, splitRows } from '../src/ml/split'
 import type { Split } from '../src/project/schema'
 
 const split = (overrides: Partial<Split> = {}): Split => ({
@@ -193,5 +193,40 @@ describe('나눌 수 없는 데이터', () => {
   it('층화를 끄면 같은 데이터가 나뉜다', () => {
     const labels = [...Array(20)].map((_, i) => (i === 0 ? '희귀품종' : 'common'))
     expect(() => holdoutSplit({ rows: rows(20), labels }, split())).not.toThrow()
+  })
+})
+
+describe('안 나누는 분할', () => {
+  /**
+   * **오렌지3의 "Test on train data"와 같다.** 가진 행을 전부 학습에 쓰고 점수도 그
+   * 행으로 매긴다. `testIndices`에 학습 행을 그대로 적는 것은 거짓말이 아니라 사실이고,
+   * 재실행 대조도 같은 행으로 다시 채점하므로 그대로 성립한다.
+   */
+  const noSplit = { method: 'none', testSize: 0.2, stratify: true, randomState: 42 } as const
+
+  it('학습셋과 평가셋이 같은 행이다', () => {
+    const { trainIndices, testIndices } = splitRows({ rows: [0, 1, 2, 3] }, noSplit)
+    expect(trainIndices).toEqual([0, 1, 2, 3])
+    expect(testIndices).toEqual([0, 1, 2, 3])
+  })
+
+  it('원본 행 번호를 그대로 쓴다 - 걸러낸 뒤 다시 세지 않는다', () => {
+    // 참조형 모델이 이 번호로 dataset/data.csv를 가리킨다 (mlpx-spec.md 5.1).
+    expect(splitRows({ rows: [2, 5, 9] }, noSplit).trainIndices).toEqual([2, 5, 9])
+  })
+
+  it('층화도 비율도 보지 않는다 - 나눌 것이 없다', () => {
+    const strict = { ...noSplit, stratify: false, testSize: 0.5 } as const
+    expect(splitRows({ rows: [0, 1, 2] }, strict)).toEqual(splitRows({ rows: [0, 1, 2] }, noSplit))
+  })
+
+  it('행이 하나도 없으면 시끄럽게 실패한다', () => {
+    expect(() => splitRows({ rows: [] }, noSplit)).toThrow()
+  })
+
+  it('holdout은 그대로 나눈다 - 표가 방식을 고른다', () => {
+    const holdout = { method: 'holdout', testSize: 0.5, stratify: false, randomState: 1 } as const
+    const { trainIndices, testIndices } = splitRows({ rows: [0, 1, 2, 3] }, holdout)
+    expect(trainIndices.filter((index) => testIndices.includes(index))).toEqual([])
   })
 })

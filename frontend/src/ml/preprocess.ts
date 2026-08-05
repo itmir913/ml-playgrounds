@@ -119,6 +119,8 @@ const FILL_BY_STRATEGY: Record<
   Preprocessing['missing'],
   (numbers: readonly number[], strings: readonly string[], kind: ColumnKind) => number | string
 > = {
+  // 여기까지 왔으면 빈 칸이 없다는 뜻이다 - missingColumns가 앞에서 거부했다.
+  none: () => '',
   drop: () => '',
   zero: (_numbers, strings, kind) => (kind === 'numeric' ? 0 : mostFrequent(strings)),
   mean: (numbers, strings, kind) => (kind === 'numeric' ? mean(numbers) : mostFrequent(strings)),
@@ -167,6 +169,28 @@ export interface Dataset {
   columns: readonly string[]
   /** 데이터 행만. **헤더는 여기 없다** - 행 번호가 곧 trainIndices의 번호다. */
   rows: readonly (readonly string[])[]
+}
+
+/**
+ * 고른 열 중 빈 칸이 있는 것들. **결측 전략이 `none`일 때 학습을 거부할 근거다.**
+ *
+ * **전체 데이터를 본다.** 학습셋만 검사하면 평가셋의 빈 칸이 조용히 0이 되어 지나간다 -
+ * 그게 이 전략이 막으려던 바로 그 상태다.
+ *
+ * 없는 열은 세지 않는다. 그건 COLUMN_NOT_FOUND가 따로 말할 일이다.
+ */
+export function missingColumns(
+  dataset: Dataset,
+  columns: readonly string[],
+): { name: string; count: number }[] {
+  const found: { name: string; count: number }[] = []
+  for (const name of columns) {
+    const index = dataset.columns.indexOf(name)
+    if (index < 0) continue
+    const count = dataset.rows.filter((row) => isMissing(row[index])).length
+    if (count > 0) found.push({ name, count })
+  }
+  return found
 }
 
 /**

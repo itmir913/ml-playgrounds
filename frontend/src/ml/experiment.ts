@@ -38,6 +38,7 @@ import type { ModelFile } from './models'
 import {
   detectKind,
   fitPreprocessor,
+  missingColumns,
   targetValues,
   transform,
   usableRows,
@@ -46,7 +47,7 @@ import {
 } from './preprocess'
 // 전처리 화면이 [학습] 전에 같은 판정을 한다. 표가 두 벌이면 화면과 학습이 갈린다.
 import { requiredTargetKind } from './selection'
-import { holdoutSplit } from './split'
+import { splitRows } from './split'
 
 export interface ExperimentInput {
   /** 정본 CSV를 읽은 표. 헤더는 rows에 없다 - 행 번호가 곧 분할 인덱스다. */
@@ -355,9 +356,18 @@ export function runExperiment(
     throw new ClientError(required.code, { target })
   }
 
+  // **"아무것도 안 함"은 빈 칸이 있으면 거부한다.** 조용히 두는 길이 없어서다 - 수치
+  // 열의 빈 칸은 결국 0이 되고, 그러면 그 이름으로 0 채우기를 하는 셈이 된다
+  // (open-decisions.md "전처리도 분할도 끌 수 있다"). 학습셋이 아니라 **전체**를 본다.
+  if (settings.preprocessing.missing === 'none') {
+    const blank = missingColumns(dataset, [...settings.features, target])[0]
+    if (blank)
+      throw new ClientError('FEATURE_HAS_MISSING', { feature: blank.name, count: blank.count })
+  }
+
   // 층화하지 않으면 라벨은 쓰이지 않는다. 회귀에 층화를 켠 설정은 여기서 시끄럽게
   // 실패한다 - 조용히 층화를 끄지 않는다는 ml/split.ts의 규칙과 같다.
-  const split = holdoutSplit({ rows, labels }, settings.split)
+  const split = splitRows({ rows, labels }, settings.split)
 
   const preprocessor = fitPreprocessor(
     dataset,

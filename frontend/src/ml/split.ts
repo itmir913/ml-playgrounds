@@ -145,3 +145,36 @@ export function holdoutSplit(input: SplitInput, split: Split): SplitIndices {
   const ascending = (a: number, b: number): number => a - b
   return { trainIndices: trainIndices.sort(ascending), testIndices: testIndices.sort(ascending) }
 }
+
+/**
+ * 안 나눈다. **가진 행을 전부 학습에 쓰고 점수도 그 행으로 매긴다.**
+ *
+ * 오렌지3의 "Test on train data"와 같다. `testIndices`에 학습 행을 그대로 적는 것은
+ * 거짓말이 아니라 사실이고, 재실행 대조도 그 행으로 다시 채점하므로 그대로 성립한다.
+ *
+ * **숫자는 거의 언제나 부푼다.** 결정트리는 100%가 흔하다. 그걸 아는 것은 화면의 일이고
+ * 여기서 할 수 있는 것은 사실을 정확히 적는 것뿐이다.
+ */
+function wholeSet(input: SplitInput): SplitIndices {
+  if (input.rows.length === 0) {
+    throw new ClientError('SPLIT_TOO_FEW_ROWS', { minRows: 1, actualRows: 0 })
+  }
+  const ascending = (a: number, b: number): number => a - b
+  const rows = [...input.rows].sort(ascending)
+  return { trainIndices: rows, testIndices: [...rows] }
+}
+
+/**
+ * 분할 방식마다의 구현. **`if (method === 'holdout')`을 만들지 마라** - 표에 줄을
+ * 더하면 부르는 쪽이 따라온다 (ml/algorithms.ts, ml/metrics.ts와 같은 방식).
+ */
+const SPLIT_BY_METHOD: Record<Split['method'], (input: SplitInput, split: Split) => SplitIndices> =
+  {
+    holdout: holdoutSplit,
+    none: wholeSet,
+  }
+
+/** 설정이 고른 방식으로 나눈다. 실험 실행이 부르는 유일한 입구다. */
+export function splitRows(input: SplitInput, split: Split): SplitIndices {
+  return SPLIT_BY_METHOD[split.method](input, split)
+}

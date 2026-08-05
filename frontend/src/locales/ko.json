@@ -134,6 +134,7 @@
     "learningRate": "학습률"
   },
   "missingStrategy": {
+    "none": "빈 칸을 그대로 두기",
     "drop": "빈 칸이 있는 줄 빼기",
     "mean": "평균으로 채우기",
     "median": "중앙값으로 채우기",
@@ -182,7 +183,10 @@
     "testSizeNote": "나머지로 학습하고 이만큼으로 점수를 매깁니다.",
     "stratify": "값 종류의 비율을 맞춰 나누기",
     "randomState": "난수 씨앗",
-    "randomStateNote": "프로젝트를 만들 때 정해집니다. 같은 씨앗이면 언제 돌려도 같게 나뉩니다."
+    "randomStateNote": "프로젝트를 만들 때 정해집니다. 같은 씨앗이면 언제 돌려도 같게 나뉩니다.",
+    "hasMissing": "빈 칸이 있어 지금 설정으로는 학습할 수 없습니다.",
+    "splitOn": "학습용과 평가용으로 나누기",
+    "splitOffNote": "나누지 않으면 가진 데이터를 모두 학습에 쓰고, 점수도 그 데이터로 매깁니다. 점수가 실제보다 높게 나옵니다."
   },
   "train": {
     "taskTitle": "기계학습 유형(Task Type)",
@@ -254,6 +258,7 @@
     "TARGET_TOO_MANY_CLASSES": "분류할 종류가 너무 많습니다. (최대 {limitClasses}개, 현재 {actualClasses}개)",
     "FEATURE_NOT_SELECTED": "학습에 사용할 특성(Feature)을 하나 이상 선택해 주세요.",
     "FEATURE_ALL_MISSING": "값이 모두 비어 있는 특성입니다. ({feature})",
+    "FEATURE_HAS_MISSING": "빈 칸을 그대로 두기로 했는데 이 열에 빈 칸이 있습니다. ({feature})",
     "ALGORITHM_UNSUPPORTED": "지원하지 않는 모델입니다. ({algorithm})",
     "HYPERPARAM_OUT_OF_RANGE": "{name} 값이 허용 범위를 벗어났습니다. ({min}~{max}, 현재 {actual})",
     "SPLIT_INVALID": "학습/평가 데이터 분할 설정이 올바르지 않습니다.",

@@ -59,8 +59,13 @@ export type ColumnRole = 'target' | 'feature' | 'unused'
 export type TargetIssue = 'TARGET_NOT_NUMERIC'
 /** 학습은 그대로 되지만 학생이 알아야 하는 것. */
 export type TargetCaution = 'singleValue'
-/** 이 열을 특성으로 두면 학습이 거부한다. */
-export type FeatureIssue = 'FEATURE_ALL_MISSING'
+/**
+ * 이 열을 고르면 학습이 거부한다.
+ *
+ * - `FEATURE_ALL_MISSING` - 값이 통째로 비었다. 어떤 전략으로도 못 쓴다.
+ * - `FEATURE_HAS_MISSING` - 빈 칸이 있는데 "그대로 두기"를 골랐다. 전략을 바꾸면 풀린다.
+ */
+export type FeatureIssue = 'FEATURE_ALL_MISSING' | 'FEATURE_HAS_MISSING'
 /** 학습은 되지만 이 열이 빠진다. ml/preprocess.ts의 excludedColumns와 같은 어휘다. */
 export type FeatureNote = 'notEncodable'
 
@@ -110,8 +115,15 @@ export function columnPlan(input: ColumnPlanInput): ColumnPlan {
 
     // 값이 전부 비었으면 전처리가 던진다. 학습셋만 비어도 던지지만 그건 분할을 해 봐야
     // 알고, 열 전체가 빈 것은 지금 알 수 있다 - 알 수 있는 것을 나중으로 미루지 않는다.
+    //
+    // "그대로 두기"는 빈 칸이 하나만 있어도 거부한다 - 빈 칸을 그대로 모델에 넣을
+    // 방법이 없어서다 (open-decisions.md "전처리도 분할도 끌 수 있다").
     const featureIssue =
-      summary.missing === input.rowCount ? ('FEATURE_ALL_MISSING' as const) : null
+      summary.missing === input.rowCount
+        ? ('FEATURE_ALL_MISSING' as const)
+        : summary.missing > 0 && input.preprocessing.missing === 'none'
+          ? ('FEATURE_HAS_MISSING' as const)
+          : null
     // 문자 열을 그대로 모델에 넣을 수는 없다. 인코딩이 꺼져 있으면 학습에서 빠진다.
     const featureNote =
       featureIssue === null && summary.kind === 'categorical' && !encodes

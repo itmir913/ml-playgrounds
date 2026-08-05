@@ -78,6 +78,9 @@ export const SHARED_ERROR_CODES = [
   'COLUMN_NOT_FOUND',
   'FEATURE_NOT_SELECTED',
   'FEATURE_ALL_MISSING',
+  // 결측 전략이 'none'인데 고른 열에 빈 칸이 있다. 브라우저가 학습하든 서버로 보내든
+  // 같은 판정이다 - 빈 칸을 그대로 모델에 넣을 방법이 양쪽 다 없다.
+  'FEATURE_HAS_MISSING',
   'TARGET_NOT_SELECTED',
   // 회귀인데 대상 열이 수치가 아니다. 브라우저가 학습하든 서버로 보내든 같은 판정이다.
   'TARGET_NOT_NUMERIC',

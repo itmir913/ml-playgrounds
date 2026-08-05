@@ -792,3 +792,87 @@ describe('데이터 타입·과제 유형에 안 맞는 모델', () => {
     expect(experiment.runs.map((run) => run.status)).toEqual(['failed', 'done'])
   })
 })
+
+describe('전처리와 분할을 끌 수 있다', () => {
+  /**
+   * **"빈 칸을 그대로 두기"는 빈 칸이 있으면 거부한다.** 조용히 두는 길이 없어서다 -
+   * 수치 열의 빈 칸은 결국 0이 되고, 그러면 그 이름으로 0 채우기를 하는 셈이 된다
+   * (open-decisions.md "전처리도 분할도 끌 수 있다").
+   */
+  const keepBlanks = { missing: 'none', scaling: 'none', categoricalEncoding: 'onehot' } as const
+
+  it('깨끗한 데이터면 아무 일도 안 일어난다', () => {
+    const { experiment } = runExperiment(
+      inputFor({ settings: settingsFor({ preprocessing: keepBlanks }) }),
+      frozen,
+    )
+    expect(experiment.runs.every((run) => run.status === 'done')).toBe(true)
+  })
+
+  it('빈 칸이 하나라도 있으면 실험이 통째로 거부된다', () => {
+    // 분할·전처리의 실패는 run 하나가 아니라 실험 자체가 성립하지 않는 것이다.
+    const holed = irisDataset()
+    const rows = holed.rows.map((row) => [...row])
+    rows[3] = (rows[3] ?? []).map((cell, column) => (column === 0 ? '' : cell))
+
+    try {
+      runExperiment(
+        inputFor({
+          dataset: { columns: holed.columns, rows },
+          settings: settingsFor({ preprocessing: keepBlanks }),
+        }),
+        frozen,
+      )
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error)).toBe(true)
+      if (!isClientError(error)) return
+      expect(error.code).toBe('FEATURE_HAS_MISSING')
+      // 어느 열인지 말해 준다. 그게 없으면 학생이 고칠 자리를 못 찾는다.
+      expect(error.params.feature).toBe(IRIS_FEATURE_COLUMNS[0])
+    }
+  })
+
+  it('평가셋의 빈 칸도 잡는다 - 학습셋만 보면 조용히 0이 되어 지나간다', () => {
+    const holed = irisDataset()
+    const rows = holed.rows.map((row) => [...row])
+    // 어느 행이 평가셋으로 가든 하나는 걸린다. 전체를 보므로 분할과 무관하다.
+    const testRow = runExperiment(inputFor(), frozen).experiment.settings.testIndices[0] ?? 0
+    rows[testRow] = (rows[testRow] ?? []).map((cell, column) => (column === 0 ? '' : cell))
+
+    expect(() =>
+      runExperiment(
+        inputFor({
+          dataset: { columns: holed.columns, rows },
+          settings: settingsFor({ preprocessing: keepBlanks }),
+        }),
+        frozen,
+      ),
+    ).toThrow()
+  })
+
+  it('안 나누면 학습에 쓴 데이터로 점수를 매긴다', () => {
+    // 오렌지3의 "Test on train data". 숫자는 거의 언제나 부푼다 - 화면이 말할 일이다.
+    const { experiment } = runExperiment(
+      inputFor({
+        settings: settingsFor({
+          selectedAlgorithms: models('decision_tree'),
+          split: { method: 'none', testSize: 0.3, stratify: true, randomState: 42 },
+        }),
+      }),
+      frozen,
+    )
+
+    const { trainIndices, testIndices } = experiment.settings
+    expect(testIndices).toEqual(trainIndices)
+    expect(trainIndices.length).toBe(IRIS_FEATURES.length)
+    // 학습에 쓴 데이터를 다시 채점하므로 나눴을 때보다 높다.
+    const split = runExperiment(
+      inputFor({ settings: settingsFor({ selectedAlgorithms: models('decision_tree') }) }),
+      frozen,
+    )
+    expect(experiment.runs[0]?.metrics?.accuracy ?? 0).toBeGreaterThan(
+      split.experiment.runs[0]?.metrics?.accuracy ?? 0,
+    )
+  })
+})

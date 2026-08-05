@@ -65,8 +65,22 @@ export const TASK_TYPES = ['classification', 'regression', 'clustering'] as cons
 /** 데이터 타입. 업로드한 파일에서 자동 판정된다. */
 export const DATA_TYPES = ['tabular', 'image', 'audio', 'text'] as const
 
-/** 결측치 처리. */
-export const MISSING_STRATEGIES = ['drop', 'mean', 'median', 'mostFrequent', 'zero'] as const
+/**
+ * 결측치 처리.
+ *
+ * `none`은 **아무것도 안 하고, 빈 칸이 있으면 학습을 거부한다.** 조용히 두는 길이
+ * 없어서다 - 수치 열의 빈 칸은 어떤 경로로든 결국 숫자가 되고, 그러면 "아무것도 안 함"
+ * 이라는 이름으로 0으로 채우기를 하는 셈이 된다
+ * (open-decisions.md "전처리도 분할도 끌 수 있다").
+ */
+export const MISSING_STRATEGIES = [
+  'none',
+  'drop',
+  'mean',
+  'median',
+  'mostFrequent',
+  'zero',
+] as const
 
 /** 수치 스케일링. */
 export const SCALING_METHODS = ['none', 'standard', 'minmax', 'robust'] as const
@@ -77,10 +91,16 @@ export const CATEGORICAL_ENCODINGS = ['none', 'onehot', 'ordinal'] as const
 /**
  * 분할 방식.
  *
+ * `none`은 **안 나눈다** - 가진 데이터를 전부 학습에 쓰고, 점수도 그 데이터로 매긴다
+ * (오렌지3의 "Test on train data"와 같다). 그래서 testIndices에 학습 행이 그대로
+ * 들어간다 - 거짓말이 아니라 사실이고 재실행 대조도 그대로 성립한다.
+ * **숫자는 거의 언제나 부푼다.** 화면이 그 사실을 지표 옆에 붙여야 한다
+ * (open-decisions.md "전처리도 분할도 끌 수 있다").
+ *
  * kfold는 여기 없다. 폴드마다 학습·평가가 생기면 trainIndices/testIndices의 모양 자체가
- * 달라져서 어차피 구조 변경이고, 그때 FORMAT_VERSION이 올라간다.
+ * 달라져서 어차피 구조 변경이다.
  */
-export const SPLIT_METHODS = ['holdout'] as const
+export const SPLIT_METHODS = ['holdout', 'none'] as const
 
 /** 개별 학습의 결과. 실패한 것도 비교표에 남는다 (mlpx-spec.md 5). */
 export const RUN_STATUSES = ['done', 'failed'] as const

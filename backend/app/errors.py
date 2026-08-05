@@ -67,6 +67,9 @@ class ErrorCode(_NameValueEnum):
     TARGET_TOO_MANY_CLASSES = auto()
     FEATURE_NOT_SELECTED = auto()
     FEATURE_ALL_MISSING = auto()
+    # 결측 전략이 none인데 고른 열에 빈 칸이 있다. 빈 칸을 그대로 모델에 넣을 방법이
+    # 없으므로 조용히 채우는 대신 거부한다 (open-decisions.md "전처리도 분할도 끌 수 있다").
+    FEATURE_HAS_MISSING = auto()
     ALGORITHM_UNSUPPORTED = auto()
     HYPERPARAM_OUT_OF_RANGE = auto()
     SPLIT_INVALID = auto()
@@ -134,6 +137,7 @@ HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.TARGET_TOO_MANY_CLASSES: HTTPStatus.BAD_REQUEST,
     ErrorCode.FEATURE_NOT_SELECTED: HTTPStatus.BAD_REQUEST,
     ErrorCode.FEATURE_ALL_MISSING: HTTPStatus.BAD_REQUEST,
+    ErrorCode.FEATURE_HAS_MISSING: HTTPStatus.BAD_REQUEST,
     ErrorCode.ALGORITHM_UNSUPPORTED: HTTPStatus.BAD_REQUEST,
     ErrorCode.HYPERPARAM_OUT_OF_RANGE: HTTPStatus.BAD_REQUEST,
     ErrorCode.SPLIT_INVALID: HTTPStatus.BAD_REQUEST,

@@ -134,6 +134,7 @@
     "learningRate": "Learning rate"
   },
   "missingStrategy": {
+    "none": "Leave blanks as they are",
     "drop": "Drop rows that have blanks",
     "mean": "Fill with the mean",
     "median": "Fill with the median",
@@ -182,7 +183,10 @@
     "testSizeNote": "The rest is used to train, and this share gives the score.",
     "stratify": "Keep each value's share the same on both sides",
     "randomState": "Random seed",
-    "randomStateNote": "Fixed when the project is created. The same seed always splits the same way."
+    "randomStateNote": "Fixed when the project is created. The same seed always splits the same way.",
+    "hasMissing": "This column has blanks, so your current settings cannot train.",
+    "splitOn": "Split into training and testing",
+    "splitOffNote": "Without a split, every row is used for training and the score comes from those same rows. The score comes out higher than it really is."
   },
   "train": {
     "taskTitle": "Task type",
@@ -254,6 +258,7 @@
     "TARGET_TOO_MANY_CLASSES": "Too many classes to predict. (limit {limitClasses}, yours {actualClasses})",
     "FEATURE_NOT_SELECTED": "Choose at least one feature to learn from.",
     "FEATURE_ALL_MISSING": "That feature has no values at all. ({feature})",
+    "FEATURE_HAS_MISSING": "You chose to leave blanks as they are, but this column has blanks. ({feature})",
     "ALGORITHM_UNSUPPORTED": "That model is not supported. ({algorithm})",
     "HYPERPARAM_OUT_OF_RANGE": "{name} is outside the allowed range. ({min}-{max}, yours {actual})",
     "SPLIT_INVALID": "The train/test split setting is not valid.",

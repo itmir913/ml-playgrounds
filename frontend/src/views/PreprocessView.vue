@@ -141,6 +141,16 @@ function onStratify(event: Event): void {
   const stratify = (event.target as HTMLInputElement).checked
   apply(withSplit(file.document, { stratify }, now()))
 }
+
+/** 나눌지 말지. 끄면 가진 데이터를 전부 학습에 쓰고 점수도 그 데이터로 매긴다. */
+const splitting = computed(() => settings.value?.split.method !== 'none')
+
+function onSplitting(event: Event): void {
+  const file = project.file
+  if (!file) return
+  const on = (event.target as HTMLInputElement).checked
+  apply(withSplit(file.document, { method: on ? 'holdout' : 'none' }, now()))
+}
 </script>
 
 <template>
@@ -261,7 +271,24 @@ function onStratify(event: Event): void {
           <h2 class="font-bold">{{ t('preprocess.splitTitle') }}</h2>
 
           <div class="mt-3 flex flex-col gap-4">
-            <div>
+            <!--
+              **끌 수 있다. 다만 기본은 켜짐이다.** 끄면 학습에 쓴 데이터로 점수를 매기게
+              되어 숫자가 거의 언제나 부푼다 - 그 사실을 그 자리에서 말한다
+              (open-decisions.md "전처리도 분할도 끌 수 있다").
+            -->
+            <label class="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                class="size-4 accent-brand"
+                :checked="splitting"
+                @change="onSplitting"
+              />
+              <span class="font-bold">{{ t('preprocess.splitOn') }}</span>
+            </label>
+
+            <p v-if="!splitting" class="text-caution">{{ t('preprocess.splitOffNote') }}</p>
+
+            <div v-if="splitting">
               <div class="flex flex-wrap items-center justify-between gap-x-4">
                 <h3 class="font-bold text-ink-soft">{{ t('preprocess.testSize') }}</h3>
                 <output class="font-bold tabular-nums">
@@ -281,7 +308,7 @@ function onStratify(event: Event): void {
               <p class="mt-1 text-ink-faint">{{ t('preprocess.testSizeNote') }}</p>
             </div>
 
-            <label class="flex cursor-pointer items-center gap-2">
+            <label v-if="splitting" class="flex cursor-pointer items-center gap-2">
               <input
                 type="checkbox"
                 class="size-4 accent-brand"
