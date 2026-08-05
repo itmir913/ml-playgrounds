@@ -94,7 +94,13 @@ export const useProjectStore = defineStore('project', () => {
     }
     opening.value = true
     try {
-      const loaded = await loadProject(id)
+      // **못 읽는 것은 없는 것과 다르다** (architecture.md §8.10.2). 형식이 바뀐 뒤의
+      // 옛 레코드나 손상된 레코드가 여기서 던지는데, 그대로 두면 렌더 중 예외가 되어
+      // 그 프로젝트만이 아니라 앱 전체가 멈춘다. 받아서 알리고 목록으로 돌려보낸다.
+      const loaded = await loadProject(id).catch((error: unknown) => {
+        useToastStore().pushError(error)
+        return null
+      })
       file.value = loaded
       // 열린 직후는 방금 읽은 그대로이므로 저장된 상태다.
       dirty.value = false

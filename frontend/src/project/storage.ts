@@ -18,6 +18,7 @@ import { ClientError } from '../errors'
 import { hashBytes } from '../hash'
 import { BYTES_PER_MB, STORAGE_SAFETY_FACTOR } from '../limits'
 import type { ProjectFile } from './format'
+import { migrateProjectDocument } from './migrate'
 import type { ProjectDocument, TaskType } from './schema'
 
 export const DB_NAME = 'ml-playgrounds'
@@ -76,9 +77,16 @@ interface PlaygroundDB extends DBSchema {
 export interface ProjectSummary {
   projectId: string
   name: string
-  taskType: TaskType
+  taskType: TaskType | undefined
   updatedAt: string
   sizeBytes: number
+  /**
+   * 요약을 만들 수 있었는가. `false`면 화면이 "열 수 없음"이라 말하고 열기를 막는다.
+   *
+   * **목록에서 빼지 않는 것이 요점이다** (architecture.md §8.10.2). 빼면 학생 눈에는
+   * 프로젝트가 사라진 것으로 보인다. 지우기는 열어 둔다.
+   */
+  readable: boolean
 }
 
 let connection: Promise<IDBPDatabase<PlaygroundDB>> | null = null
@@ -227,7 +235,16 @@ export async function saveProject(project: ProjectFile): Promise<void> {
   }
 }
 
-/** 프로젝트를 읽는다. 없으면 null. */
+/**
+ * 프로젝트를 읽는다. 없으면 null.
+ *
+ * **`.mlpx`를 열 때와 같은 문을 지난다** (architecture.md §8.10.2). 프로젝트가
+ * 들어오는 입구는 둘인데 마이그레이션과 스키마 검사가 파일 쪽에만 걸려 있으면,
+ * 형식을 바꾼 다음 배포에서 옛 레코드가 렌더 중 예외로 앱을 통째로 멈춘다.
+ *
+ * **못 읽으면 던진다.** null은 "없다"는 뜻이고, 있는데 못 읽는 것은 다른 사실이다.
+ * 둘을 같은 값으로 뭉개면 화면이 "지워졌나 보다"라고 말하게 된다.
+ */
 export async function loadProject(projectId: string): Promise<ProjectFile | null> {
   const database = await db()
   const transaction = database.transaction([PROJECTS_STORE, DATASETS_STORE, MODELS_STORE])
@@ -235,10 +252,12 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
   const record = await transaction.objectStore(PROJECTS_STORE).get(projectId)
   if (!record) return null
 
+  const document = migrateProjectDocument(record.document)
+
   // 문서가 데이터셋을 가리키면 본체가 있어야 한다. 둘은 함께 있고 함께 없다
   // (mlpx-spec.md §1). 어긋난 것은 우리가 고칠 수 없으므로 없는 것으로 다룬다.
   const dataset = await transaction.objectStore(DATASETS_STORE).get(projectId)
-  const wanted = record.document.settings.dataset !== undefined
+  const wanted = document.settings.dataset !== undefined
   if (wanted !== (dataset !== undefined)) return null
 
   const stored = await transaction.objectStore(MODELS_STORE).getAll(modelKeyRange(projectId))
@@ -248,7 +267,7 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
   }
 
   return {
-    document: record.document,
+    document,
     // hash가 없는 것은 이 필드가 생기기 전에 저장된 레코드다. 그때만 계산한다.
     dataset:
       dataset === undefined
@@ -258,16 +277,36 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
   }
 }
 
-/** 최근에 손댄 것부터 나열한다. */
+/**
+ * 최근에 손댄 것부터 나열한다.
+ *
+ * **못 읽는 레코드를 목록에서 빼지 않는다** (architecture.md §8.10.2). 빼면 학생
+ * 눈에는 프로젝트가 사라진 것으로 보이고, 그건 우리가 줄 수 있는 최악의 인상이다.
+ * `readable: false`로 두어 화면이 "열 수 없음"이라 말하고 **열기만 막는다.**
+ * 지우기는 열어 둔다 — 학생이 스스로 정리할 수 있어야 한다.
+ *
+ * 여기서는 마이그레이션을 돌리지 않는다. 목록 한 번에 문서 전체를 파싱하면
+ * 프로젝트가 여럿인 기기에서 목록이 느려진다. 레코드 위의 값만 읽고, 그것조차
+ * 못 읽을 때만 못 읽는 것으로 표시한다.
+ */
 export async function listProjects(): Promise<ProjectSummary[]> {
   const records = await (await db()).getAllFromIndex(PROJECTS_STORE, UPDATED_AT_INDEX)
-  return records.reverse().map((record) => ({
-    projectId: record.projectId,
-    name: record.document.manifest.name,
-    taskType: record.document.manifest.taskType,
-    updatedAt: record.updatedAt,
-    sizeBytes: record.sizeBytes,
-  }))
+  return records.reverse().map((record) => {
+    const manifest: unknown = (record.document as { manifest?: unknown } | undefined)?.manifest
+    const readable =
+      typeof manifest === 'object' &&
+      manifest !== null &&
+      typeof (manifest as { name?: unknown }).name === 'string'
+
+    return {
+      projectId: record.projectId,
+      name: readable ? (manifest as { name: string }).name : '',
+      taskType: record.document?.manifest?.taskType,
+      updatedAt: record.updatedAt,
+      sizeBytes: record.sizeBytes,
+      readable,
+    }
+  })
 }
 
 /**

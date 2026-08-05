@@ -122,6 +122,7 @@
     "deleteTitle": "이 프로젝트를 지울까요?",
     "deleteDescription": "데이터와 학습 결과가 함께 사라집니다. 되돌릴 수 없습니다. ({name})",
     "noDataYet": "데이터 없음",
+    "unreadable": "열 수 없는 프로젝트",
     "updatedAt": "마지막으로 작업한 때",
     "size": "크기",
     "loading": "불러오는 중입니다.",

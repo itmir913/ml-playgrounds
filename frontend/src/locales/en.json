@@ -122,6 +122,7 @@
     "deleteTitle": "Delete this project?",
     "deleteDescription": "Its data and training results go with it. This cannot be undone. ({name})",
     "noDataYet": "No data yet",
+    "unreadable": "This project cannot be opened",
     "updatedAt": "Last worked on",
     "size": "Size",
     "loading": "Loading.",

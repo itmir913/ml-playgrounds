@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { isClientError } from '../src/errors'
 import {
   DB_NAME,
+  DB_VERSION,
   closeStorage,
   deleteProject,
   listProjects,
@@ -264,5 +265,60 @@ describe('DB 업그레이드', () => {
     await expect(readPreferredLocale()).resolves.toBe('ko')
     await saveProject(projectFile())
     expect(await loadProject(manifest.projectId)).not.toBeNull()
+  })
+})
+
+describe('읽는 경로가 .mlpx와 같은 문을 지난다', () => {
+  /**
+   * 스키마를 거치지 않고 레코드를 직접 심는다. 옛 형식과 손상을 흉내 낸다.
+   *
+   * 앱 경로로 한 번 저장해 **오브젝트 스토어를 먼저 만든다.** 빈 DB에 곧장 붙으면
+   * 스토어가 없어 매달린다.
+   */
+  async function plant(document: unknown, projectId = 'planted'): Promise<void> {
+    await saveProject(emptyProjectFile())
+    closeStorage()
+
+    const database = await openDB(DB_NAME, DB_VERSION)
+    await database.put('projects', {
+      projectId,
+      document,
+      updatedAt: '2026-08-05T00:00:00.000Z',
+      sizeBytes: 0,
+    })
+    database.close()
+    closeStorage()
+  }
+
+  it('옛 모양이 저장돼 있어도 스키마 기본값으로 살아난다', async () => {
+    // 리네임 전에는 runs가 batches를 들고 있었다. experiments가 없으면 화면이
+    // .some(...)에서 던지고, 렌더 중 예외라 앱 전체가 멈춘다.
+    const old = emptyProjectFile().document as unknown as Record<string, unknown>
+    await plant({ ...old, runs: { batches: [] } })
+
+    const loaded = await loadProject('planted')
+    expect(loaded?.document.runs.experiments).toEqual([])
+  })
+
+  it('못 읽는 레코드는 던진다 - 없는 것과 다른 사실이다', async () => {
+    await plant({ manifest: { name: '망가진 것' } })
+    await expect(loadProject('planted')).rejects.toSatisfy(isClientError)
+  })
+
+  it('못 읽어도 목록에서 빼지 않는다 - 학생 눈에 사라진 것으로 보이면 안 된다', async () => {
+    await plant({ manifest: { name: '망가진 것' } })
+
+    const listed = await listProjects()
+    const found = listed.find((one) => one.projectId === 'planted')
+    expect(found).toBeDefined()
+    expect(found?.readable).toBe(true)
+  })
+
+  it('manifest조차 없으면 열 수 없는 것으로 표시한다', async () => {
+    await plant({ runs: {} })
+
+    const found = (await listProjects()).find((one) => one.projectId === 'planted')
+    expect(found).toBeDefined()
+    expect(found?.readable).toBe(false)
   })
 })

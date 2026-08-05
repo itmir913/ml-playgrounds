@@ -55,12 +55,21 @@ const popoverId = useId()
           :key="summary.projectId"
           class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel border border-line px-3 py-2 transition-colors hover:border-brand-line hover:bg-surface-sunken"
         >
+          <!--
+            **못 읽는 것도 목록에 남는다** (architecture.md §8.10.2). 빼면 학생 눈에는
+            프로젝트가 사라진 것으로 보인다. 열기만 막고 지우기는 아래에 그대로 둔다 —
+            학생이 스스로 정리할 수 있어야 한다.
+          -->
           <button
             type="button"
             class="min-w-0 flex-1 text-left"
+            :disabled="!summary.readable"
+            :class="summary.readable ? '' : 'cursor-not-allowed text-ink-faint'"
             @click="emit('open', summary.projectId)"
           >
-            <span class="block truncate font-bold">{{ summary.name }}</span>
+            <span class="block truncate font-bold">
+              {{ summary.readable ? summary.name : t('projects.unreadable') }}
+            </span>
             <span class="mt-1 block text-ink-faint">
               {{ format.dateTime(summary.updatedAt) }}
             </span>
