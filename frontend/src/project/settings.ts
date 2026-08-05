@@ -125,31 +125,21 @@ export function withRuntime(
 }
 
 /**
- * 학습할 모델 목록을 갈아 끼운다.
+ * 학습할 모델 목록을 갈아 끼운다. **부르는 쪽이 완성된 목록을 넘긴다.**
  *
- * **있던 줄은 그대로 옮긴다.** 같은 알고리즘이 실행 방법만 다르게 두 번 들어가 있을 수
- * 있고(mlpx-spec.md §3), 목록을 새로 만들면 그 덮어쓰기가 조용히 사라진다. 새로 체크한
- * 것만 실험 기본을 따르는 줄로 뒤에 붙는다.
+ * 여기서 합치거나 지우지 않는 이유는 화면이 (모델, 실행 방법) 쌍을 하나씩 쌓기
+ * 때문이다 - 무엇을 더하고 뺄지는 화면이 이미 알고 있고, 이 함수가 다시 판단하면
+ * 두 곳이 어긋난다.
+ *
+ * **같은 알고리즘이 실행 방법만 다르게 여러 번 들어갈 수 있다** (mlpx-spec.md §3).
+ * "같은 결정트리인데 엔진이 다르면 왜 숫자가 다른가"가 이 배열이 있는 이유다.
  */
-export function withAlgorithms(
+export function withSelectedAlgorithms(
   document: ProjectDocument,
-  algorithms: readonly string[],
+  selected: readonly Settings['selectedAlgorithms'][number][],
   now: string,
 ): ProjectDocument {
-  const wanted = new Set(algorithms)
-  const kept = document.settings.selectedAlgorithms.filter((selection) =>
-    wanted.has(selection.algorithm),
-  )
-  const already = new Set(kept.map((selection) => selection.algorithm))
-  const added = algorithms
-    .filter((algorithm) => !already.has(algorithm))
-    .map((algorithm) => ({ algorithm }))
-
-  return withSettings(
-    document,
-    { ...document.settings, selectedAlgorithms: [...kept, ...added] },
-    now,
-  )
+  return withSettings(document, { ...document.settings, selectedAlgorithms: [...selected] }, now)
 }
 
 /**

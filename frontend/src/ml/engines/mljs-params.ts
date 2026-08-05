@@ -33,9 +33,16 @@ export const MLJS_PARAMETERS: Readonly<Record<string, readonly HyperparameterSpe
     { name: 'maxDepth', integer: true, min: 1, max: 100, step: 1, default: 100 },
     { name: 'minNumSamples', integer: true, min: 1, max: 100, step: 1, default: 3 },
   ],
-  // 나무를 늘리면 시간이 행 수의 제곱으로 붙는다 (open-decisions.md #19).
-  // 막지는 않는다 - 45분이라는 제약은 교실의 것이지 도구의 것이 아니다.
-  random_forest: [{ name: 'nEstimators', integer: true, min: 1, max: 500, step: 1, default: 100 }],
+  // **오렌지3와 같은 10그루로 시작한다** (owrandomforest.py의 n_estimators=10).
+  // sklearn 기본값 100을 따라가고 있었는데, 나무를 늘리면 시간이 행 수의 제곱으로 붙어
+  // 1600행에서 39초, 5000행에서 약 7분이었다 (open-decisions.md #19). 교실에서 학생이
+  // 설정을 바꿔가며 여러 번 돌리는 것이 이 도구의 핵심 활동인데 그 활동이 성립하지 않는다.
+  //
+  // 예전에는 나무를 줄이면 ml-random-forest가 터져서 줄일 수도 없었다. OOB 계산을
+  // 끄면서(mljs.ts의 noOOB) 그 제약이 사라졌고, 그래서 이제 고를 수 있는 값이다.
+  //
+  // 막지는 않는다 - 45분이라는 제약은 교실의 것이지 도구의 것이 아니다. 위쪽 끝은 그대로다.
+  random_forest: [{ name: 'nEstimators', integer: true, min: 1, max: 500, step: 1, default: 10 }],
   naive_bayes: [],
   knn: [{ name: 'k', integer: true, min: 1, max: 100, step: 1, default: 5 }],
   logistic_regression: [

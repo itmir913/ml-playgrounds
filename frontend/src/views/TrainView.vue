@@ -21,14 +21,19 @@ import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { summarizeColumns } from '@/data/columns'
 import { algorithmOptions, supportedTaskTypes } from '@/ml/algorithms'
-import { RUNTIMES, reasonParams, runtimeOptions, type RuntimeContext } from '@/ml/backend'
+import { RUNTIMES, runtimeOptions, type RuntimeContext } from '@/ml/backend'
 import { algorithmsLosingMeaning, columnPlan, requiredTargetKind } from '@/ml/selection'
 import { readDataset } from '@/project/dataset'
 import type { ProjectDocument, TaskType } from '@/project/schema'
-import { withAlgorithms, withHyperparameter, withRuntime, withTaskType } from '@/project/settings'
+import {
+  withHyperparameter,
+  withRuntime,
+  withSelectedAlgorithms,
+  withTaskType,
+} from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
-import ModelPicker from './train/ModelPicker.vue'
+import ModelPicker, { type ChosenModel } from './train/ModelPicker.vue'
 
 const { t } = useI18n()
 const project = useProjectStore()
@@ -80,7 +85,21 @@ const runtimeChoices = computed(() =>
   runtimeOptions({ id: '', runtimes: RUNTIMES.map((runtime) => runtime.id) }, context.value),
 )
 
-const chosen = computed(() => settings.value?.selectedAlgorithms.map((one) => one.algorithm) ?? [])
+/**
+ * 쌓인 줄들. **실행 방법을 여기서 채운다.**
+ *
+ * 파일에서는 선택 항목이라(`{algorithm}`만 있는 줄이 정상이다) 옛 파일이나 남의 파일에
+ * 그런 줄이 있다. 화면은 쌍으로 다루므로 실험 기본을 끌어와 채운다 - 실제 학습도 같은
+ * 규칙으로 정한다(`ml/experiment.ts`).
+ */
+const chosen = computed<ChosenModel[]>(() => {
+  const current = settings.value
+  if (!current) return []
+  return current.selectedAlgorithms.map((one) => ({
+    algorithm: one.algorithm,
+    runtime: one.runtime ?? current.runtime,
+  }))
+})
 
 /**
  * 지금 고른 유형에서 타깃이 성립하지 않으면 그 사유.
@@ -144,29 +163,49 @@ function pickTaskType(taskType: TaskType): void {
   }
 }
 
-function setRuntime(runtime: string): void {
-  const file = project.file
-  if (file) apply(withRuntime(file.document, runtime, now()))
-}
-
-function toggleAlgorithm(id: string, on: boolean): void {
+/**
+ * 줄을 하나 담는다. **실행 방법을 줄에 박아 둔다.**
+ *
+ * 학생이 콕 집어 고른 것이므로 학습이 자동으로 옮기지 않는다 - 못 돌면 사유를 준다
+ * (open-decisions.md "실행 방법은 하나의 목록이다"). 화면이 못 담는 조합을 애초에
+ * 막으므로 그 경로로 실패할 일은 없다.
+ *
+ * **마지막에 고른 실행 방법을 실험 기본으로도 적어 둔다.** 스냅샷의 `runtime`이 늘
+ * 뜻 있는 값이어야 하고, 다음에 이 화면에 들어왔을 때 드롭다운이 거기서 시작한다.
+ */
+function addModel(algorithm: string, runtime: string): void {
   const file = project.file
   if (!file) return
-  const next = on ? [...chosen.value, id] : chosen.value.filter((one) => one !== id)
-  apply(withAlgorithms(file.document, next, now()))
+  const next = withSelectedAlgorithms(
+    file.document,
+    [...file.document.settings.selectedAlgorithms, { algorithm, runtime }],
+    now(),
+  )
+  apply(withRuntime(next, runtime, now()))
 }
 
-function setParam(algorithm: string, name: string, value: number | undefined): void {
+/** 번호로 뺀다 - 같은 모델이 실행 방법만 다르게 여러 줄 있을 수 있다. */
+function removeModel(index: number): void {
   const file = project.file
   if (!file) return
   apply(
-    withHyperparameter(
+    withSelectedAlgorithms(
       file.document,
-      { algorithm, runtime: file.document.settings.runtime, name },
-      value,
+      file.document.settings.selectedAlgorithms.filter((_, at) => at !== index),
       now(),
     ),
   )
+}
+
+function setParam(
+  algorithm: string,
+  runtime: string,
+  name: string,
+  value: number | undefined,
+): void {
+  const file = project.file
+  if (!file) return
+  apply(withHyperparameter(file.document, { algorithm, runtime, name }, value, now()))
 }
 </script>
 
@@ -222,71 +261,37 @@ function setParam(algorithm: string, name: string, value: number | undefined): v
       <p v-if="targetIssue" class="mt-3 font-bold text-danger">{{ targetIssue }}</p>
     </section>
 
-    <div class="grid gap-5 md:grid-cols-3">
-      <section class="min-w-0 rounded-panel border border-line bg-surface p-4 md:col-span-2">
-        <h2 class="font-bold">{{ t('train.modelsTitle') }}</h2>
-        <p class="mt-1 text-ink-soft">{{ t('train.modelsLead') }}</p>
+    <section class="min-w-0 rounded-panel border border-line bg-surface p-4">
+      <h2 class="font-bold">{{ t('train.modelsTitle') }}</h2>
+      <p class="mt-1 text-ink-soft">{{ t('train.modelsLead') }}</p>
 
-        <!-- 유형을 안 골랐으면 목록이 통째로 뜻이 없다. 회색 줄만 늘어놓지 않는다. -->
-        <AppEmpty
-          v-if="project.taskType === undefined"
-          :reason="t('train.noTaskTypeReason')"
-          :next="t('train.noTaskTypeNext')"
-        />
+      <!-- 유형을 안 골랐으면 목록이 통째로 뜻이 없다. 회색 줄만 늘어놓지 않는다. -->
+      <AppEmpty
+        v-if="project.taskType === undefined"
+        :reason="t('train.noTaskTypeReason')"
+        :next="t('train.noTaskTypeNext')"
+      />
 
-        <template v-else>
-          <div class="mt-3">
-            <ModelPicker
-              :options="options"
-              :chosen="chosen"
-              :runtime-id="settings.runtime"
-              :values="settings.hyperparameters"
-              @toggle="toggleAlgorithm"
-              @set-param="setParam"
-            />
-          </div>
-
-          <p class="mt-3 text-ink-soft">
-            {{
-              chosen.length === 0
-                ? t('train.noModelChosen')
-                : t('train.modelSummary', chosen.length)
-            }}
-          </p>
-        </template>
-      </section>
-
-      <section class="min-w-0 rounded-panel border border-line bg-surface p-4">
-        <h2 class="font-bold">{{ t('train.runtimeTitle') }}</h2>
-        <p class="mt-1 text-ink-soft">{{ t('train.runtimeNote') }}</p>
-
-        <div class="mt-3 flex flex-col gap-2">
-          <label
-            v-for="choice in runtimeChoices"
-            :key="choice.runtime.id"
-            class="flex items-start gap-2"
-            :class="choice.enabled ? 'cursor-pointer' : ''"
-          >
-            <input
-              type="radio"
-              name="runtime"
-              class="mt-1 size-4 shrink-0 accent-brand"
-              :checked="settings.runtime === choice.runtime.id"
-              :disabled="!choice.enabled"
-              @change="setRuntime(choice.runtime.id)"
-            />
-            <span class="min-w-0">
-              <span class="block font-bold" :class="choice.enabled ? 'text-ink' : 'text-ink-faint'">
-                {{ t(`runtimes.${choice.runtime.id}`) }}
-              </span>
-              <span v-if="choice.reason" class="block text-ink-soft">
-                {{ t(`client.${choice.reason}`, reasonParams(choice.reason)) }}
-              </span>
-            </span>
-          </label>
+      <template v-else>
+        <div class="mt-3">
+          <ModelPicker
+            :options="options"
+            :runtimes="runtimeChoices"
+            :chosen="chosen"
+            :values="settings.hyperparameters"
+            @add="addModel"
+            @remove="removeModel"
+            @set-param="setParam"
+          />
         </div>
-      </section>
-    </div>
+
+        <p class="mt-3 text-ink-soft">
+          {{
+            chosen.length === 0 ? t('train.noModelChosen') : t('train.modelSummary', chosen.length)
+          }}
+        </p>
+      </template>
+    </section>
   </div>
 
   <AppEmpty v-else :reason="t('train.emptyReason')" :next="t('train.emptyNext')" />

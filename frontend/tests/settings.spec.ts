@@ -13,11 +13,11 @@ import { describe, expect, it } from 'vitest'
 import { newProjectDocument } from '../src/project/create'
 import { projectDocumentSchema, type ProjectDocument } from '../src/project/schema'
 import {
-  withAlgorithms,
   withFeatures,
   withHyperparameter,
   withPreprocessing,
   withRuntime,
+  withSelectedAlgorithms,
   withSplit,
   withTarget,
   withTaskType,
@@ -39,7 +39,14 @@ function base(): ProjectDocument {
 /** 특성 몇 개와 모델 몇 개를 고른 상태. 대부분의 검사가 여기서 시작한다. */
 function chosen(): ProjectDocument {
   const document = withFeatures(base(), ['꽃받침길이', '꽃잎길이', '품종'], NOW)
-  return withAlgorithms(document, ['decision_tree', 'linear_regression'], NOW)
+  return withSelectedAlgorithms(
+    document,
+    [
+      { algorithm: 'decision_tree', runtime: 'mljs' },
+      { algorithm: 'linear_regression', runtime: 'mljs' },
+    ],
+    NOW,
+  )
 }
 
 describe('고친 시각을 남긴다', () => {
@@ -75,7 +82,9 @@ describe('기계학습 유형', () => {
 
   it('넘겨받은 모델만 지운다', () => {
     const next = withTaskType(chosen(), 'regression', ['decision_tree'], NOW)
-    expect(next.settings.selectedAlgorithms).toEqual([{ algorithm: 'linear_regression' }])
+    expect(next.settings.selectedAlgorithms).toEqual([
+      { algorithm: 'linear_regression', runtime: 'mljs' },
+    ])
   })
 
   it('아무것도 안 넘기면 선택은 그대로다', () => {
@@ -86,29 +95,26 @@ describe('기계학습 유형', () => {
 })
 
 describe('모델 목록', () => {
-  it('새로 체크한 것은 실험 기본을 따르는 줄로 붙는다', () => {
-    const next = withAlgorithms(base(), ['knn'], NOW)
-    expect(next.settings.selectedAlgorithms).toEqual([{ algorithm: 'knn' }])
+  it('넘긴 목록을 그대로 담는다', () => {
+    const next = withSelectedAlgorithms(base(), [{ algorithm: 'knn', runtime: 'mljs' }], NOW)
+    expect(next.settings.selectedAlgorithms).toEqual([{ algorithm: 'knn', runtime: 'mljs' }])
   })
 
-  it('있던 줄의 실행 방법 덮어쓰기를 잃지 않는다', () => {
-    // 같은 알고리즘이 실행 방법만 다르게 두 번 들어갈 수 있다 (mlpx-spec.md §3).
-    const document = base()
-    document.settings.selectedAlgorithms = [
-      { algorithm: 'svm', runtime: 'server-sklearn' },
-      { algorithm: 'svm' },
+  it('같은 모델이 실행 방법만 다르게 여러 줄 들어간다', () => {
+    // **이게 이 배열이 있는 이유다** (mlpx-spec.md §3). "같은 결정트리인데 엔진이
+    // 다르면 왜 숫자가 다른가"를 한 실험 안에서 본다.
+    const rows = [
+      { algorithm: 'decision_tree', runtime: 'mljs' },
+      { algorithm: 'decision_tree', runtime: 'server-sklearn' },
+      { algorithm: 'naive_bayes', runtime: 'mljs' },
     ]
-    const next = withAlgorithms(document, ['svm', 'knn'], NOW)
-    expect(next.settings.selectedAlgorithms).toEqual([
-      { algorithm: 'svm', runtime: 'server-sklearn' },
-      { algorithm: 'svm' },
-      { algorithm: 'knn' },
-    ])
+    expect(withSelectedAlgorithms(base(), rows, NOW).settings.selectedAlgorithms).toEqual(rows)
   })
 
-  it('체크를 풀면 그 줄이 전부 빠진다', () => {
-    const next = withAlgorithms(chosen(), ['decision_tree'], NOW)
-    expect(next.settings.selectedAlgorithms).toEqual([{ algorithm: 'decision_tree' }])
+  it('앞의 문서를 건드리지 않는다', () => {
+    const before = withSelectedAlgorithms(base(), [{ algorithm: 'knn', runtime: 'mljs' }], NOW)
+    withSelectedAlgorithms(before, [], NOW)
+    expect(before.settings.selectedAlgorithms).toEqual([{ algorithm: 'knn', runtime: 'mljs' }])
   })
 })
 
@@ -204,7 +210,7 @@ describe('결과가 스키마를 통과한다', () => {
     document = withPreprocessing(document, { missing: 'mean', scaling: 'robust' }, NOW)
     document = withSplit(document, { testSize: 0.35 }, NOW)
     document = withRuntime(document, 'mljs', NOW)
-    document = withAlgorithms(document, ['linear_regression'], NOW)
+    document = withSelectedAlgorithms(document, [{ algorithm: 'linear_regression' }], NOW)
     document = withHyperparameter(
       document,
       { algorithm: 'linear_regression', runtime: 'mljs', name: '뭔가' },

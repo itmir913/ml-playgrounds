@@ -162,11 +162,11 @@ function onStratify(event: Event): void {
 
     <!--
       **표가 넓은 쪽을 갖는다** (architecture.md §8.9). 열이 수십 개인 표를 반쪽 칸에
-      가두면 그 안에서만 옆으로 스크롤하게 된다. 오른쪽은 그 표를 보며 판단하는 설정들이라
-      좁아도 읽힌다. 임의 값 대신 기본 눈금 셋을 쓴다.
+      가두면 그 안에서만 옆으로 스크롤하게 된다. 다만 2 대 1은 표에 과했다 - 오른쪽
+      설정들이 라디오 줄이라 좁으면 글자마다 접힌다. **6 대 4**로 다섯 칸을 나눈다.
     -->
-    <div class="grid gap-5 md:grid-cols-3">
-      <section class="min-w-0 rounded-panel border border-line bg-surface p-4 md:col-span-2">
+    <div class="grid gap-5 md:grid-cols-5">
+      <section class="min-w-0 rounded-panel border border-line bg-surface p-4 md:col-span-3">
         <h2 class="font-bold">{{ t('preprocess.columnsTitle') }}</h2>
         <p class="mt-1 text-ink-soft">{{ t('preprocess.columnsLead') }}</p>
 
@@ -187,7 +187,7 @@ function onStratify(event: Event): void {
         <p class="mt-3" :class="featureSummary.tone">{{ featureSummary.text }}</p>
       </section>
 
-      <div class="flex min-w-0 flex-col gap-5">
+      <div class="flex min-w-0 flex-col gap-5 md:col-span-2">
         <section class="rounded-panel border border-line bg-surface p-4">
           <h2 class="font-bold">{{ t('preprocess.cleaningTitle') }}</h2>
 
