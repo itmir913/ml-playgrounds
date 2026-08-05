@@ -81,17 +81,26 @@ function go(step: StepId): void {
       <!-- 왼쪽: 지금 하는 일 -->
       <div class="flex min-w-0 flex-col gap-4 md:col-span-2">
         <ul class="flex flex-col rounded-panel border border-line bg-surface">
+          <!--
+            **줄마다 칸이 같은 자리에서 시작한다.** flex로 두면 단계 이름의 글자 수만큼
+            할 일이 밀려서 여섯 줄의 시작점이 제각각이 되고, 눈이 훑을 기준선이 없어진다
+            (§8.9의 "두 열의 머리가 어긋난다"와 같은 문제다).
+
+            **고정 너비가 아니라 격자다.** 칸을 px로 박으면 영어에서 30% 긴 이름이
+            넘친다(CLAUDE.md §3 규칙 7). 비율로 나누면 언어가 바뀌어도 줄이 서로 맞는다.
+            좁은 화면에서는 한 열로 쌓인다 - 거기서 2열은 둘 다 못 읽게 만든다.
+          -->
           <li
             v-for="(entry, index) in steps"
             :key="entry.step"
-            class="flex flex-wrap items-center gap-x-4 gap-y-2 p-4"
+            class="grid grid-cols-1 items-center gap-x-4 gap-y-2 p-4 sm:grid-cols-6"
             :class="[
               index > 0 ? 'border-t border-line' : '',
               entry.here ? 'bg-brand-soft' : '',
               entry.unlocked ? '' : 'text-ink-faint',
             ]"
           >
-            <div class="flex min-w-0 shrink-0 items-center gap-2 font-bold">
+            <div class="flex min-w-0 items-center gap-2 font-bold sm:col-span-1">
               <component :is="STEP_ICONS[entry.step]" :size="20" aria-hidden="true" />
               {{ t(`steps.${entry.step}.label`) }}
             </div>
@@ -101,7 +110,7 @@ function go(step: StepId): void {
               여섯 줄이 모두 설명을 달면 훑을 수가 없고, 각 단계의 설명은 그 단계
               화면의 머리가 이미 갖고 있다 (architecture.md §8.9).
             -->
-            <ul v-if="entry.tasks.length > 0" class="flex min-w-0 flex-wrap gap-x-4 gap-y-1">
+            <ul class="flex min-w-0 flex-wrap gap-x-4 gap-y-1 sm:col-span-4">
               <li
                 v-for="task in entry.tasks"
                 :key="task.key"
@@ -112,14 +121,14 @@ function go(step: StepId): void {
               </li>
             </ul>
 
-            <div class="ml-auto shrink-0">
+            <div class="min-w-0 sm:col-span-1 sm:justify-self-end">
               <AppButton v-if="entry.unlocked" variant="secondary" @click="go(entry.step)">
                 {{ t('project.openStep') }}
               </AppButton>
               <span v-else>{{ t(`steps.${entry.step}.locked`) }}</span>
             </div>
 
-            <p v-if="entry.here" class="w-full text-ink-soft">
+            <p v-if="entry.here" class="text-ink-soft sm:col-span-6">
               {{ t(`steps.${entry.step}.purpose`) }}
             </p>
           </li>
