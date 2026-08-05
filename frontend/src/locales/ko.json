@@ -1,22 +1,22 @@
 {
   "app": {
     "name": "Machine Learning Playgrounds",
-    "tagline": "데이터를 올려 모델을 만들고, 그 과정을 포트폴리오로 남깁니다.",
+    "tagline": "데이터를 불러와 모델을 만들고, 그 과정을 포트폴리오로 남깁니다.",
     "short": "ML"
   },
   "nav": {
     "projects": "프로젝트 목록"
   },
   "taskTypes": {
-    "classification": "분류",
-    "regression": "회귀",
-    "clustering": "군집화"
+    "classification": "분류(Classification)",
+    "regression": "회귀(Regression)",
+    "clustering": "군집화(Clustering)"
   },
   "tasks": {
     "datasetReady": "데이터 불러오기",
-    "targetChosen": "예측할 항목 정하기",
-    "featuresChosen": "예측에 사용할 특성 정하기",
-    "algorithmsChosen": "알고리즘 고르기",
+    "targetChosen": "타깃(Target) 정하기",
+    "featuresChosen": "특성(Feature) 정하기",
+    "algorithmsChosen": "알고리즘 정하기",
     "trainingDone": "모델 학습하기",
     "modelReady": "모델 만들기",
     "portfolioWritten": "포트폴리오 작성하기",
@@ -29,7 +29,7 @@
     "statusTitle": "진행 상황",
     "now": "지금 할 일",
     "workflow": "단계",
-    "finished": "할 일을 다 했습니다.",
+    "finished": "할 일을 모두 마쳤습니다.",
     "noProject": "아직 프로젝트를 열지 않았습니다.",
     "openMenu": "메뉴 열기",
     "language": "언어"
@@ -37,10 +37,10 @@
   "save": {
     "browserOnly": "이 브라우저에만 있음",
     "saving": "저장 중",
-    "unsaved": "아직 저장 안 됨",
-    "notExported": "파일로 안 내보냄",
-    "exported": "파일로 내보냄",
-    "stale": "내보낸 뒤 고쳐짐",
+    "unsaved": "저장되지 않음",
+    "notExported": "내보내지 않음",
+    "exported": "내보냄",
+    "stale": "내보낸 뒤 변경됨",
     "exportWarning": "이 컴퓨터를 끄면 브라우저 안의 것은 사라집니다. 파일로 내보내 두세요."
   },
   "steps": {
@@ -51,11 +51,11 @@
     "preprocess": {
       "label": "전처리",
       "locked": "데이터를 먼저 불러와 주세요.",
-      "purpose": "무엇을 무엇으로 예측할지 정하고 데이터를 다듬습니다."
+      "purpose": "타깃(Target)과 특성(Feature)을 정하고 데이터를 다듬습니다."
     },
     "train": {
       "label": "학습",
-      "locked": "예측할 항목과 알고리즘을 먼저 정해 주세요.",
+      "locked": "특성(Feature)과 알고리즘을 먼저 정해 주세요.",
       "purpose": "고른 알고리즘을 한 번에 학습시킵니다."
     },
     "results": {
@@ -69,7 +69,7 @@
       "purpose": "새로운 값을 넣어 모델이 무엇이라 답하는지 봅니다."
     },
     "portfolio": {
-      "label": "포트폴리오",
+      "label": "포트​폴리오",
       "purpose": "무엇을 했고 무엇을 알게 됐는지 정리합니다."
     }
   },
@@ -92,13 +92,13 @@
     "encoding": "문자 인코딩",
     "columnName": "열 이름",
     "kind": "자료형",
-    "missing": "빈 칸",
+    "missing": "결측치",
     "unique": "값 종류",
     "samples": "값 예시",
     "applied": "데이터를 저장했습니다.",
     "droppedColumns": "새 데이터에 없는 열이라 선택에서 빠졌습니다. ({names})",
     "replaceTitle": "데이터를 바꾸면 학습 결과가 지워집니다",
-    "replaceDescription": "지금까지 학습한 묶음 {count}개가 함께 사라집니다. 모델은 데이터의 행 번호를 가리키기 때문에, 남겨 두면 다른 줄을 보고 예측하게 됩니다.",
+    "replaceDescription": "지금까지 한 실험(Experiment) {count}개가 함께 사라집니다. 모델은 데이터의 행 번호를 가리키기 때문에, 남겨 두면 다른 줄을 보고 예측하게 됩니다.",
     "replaceConfirm": "지우고 바꾸기",
     "emptyReason": "아직 불러온 데이터가 없습니다.",
     "emptyNext": "파일을 불러오면 여기에 표로 나타납니다.",
@@ -149,11 +149,11 @@
     "DATASET_TOO_MANY_ROWS": "행이 너무 많습니다. (최대 {limitRows}행, 현재 {actualRows}행)",
     "DATASET_TOO_MANY_COLUMNS": "열이 너무 많습니다. (최대 {limitColumns}열, 현재 {actualColumns}열)",
     "COLUMN_NOT_FOUND": "데이터에 없는 열입니다. ({column})",
-    "TARGET_NOT_SELECTED": "예측할 대상 열을 선택해 주세요.",
+    "TARGET_NOT_SELECTED": "타깃(Target) 열을 선택해 주세요.",
     "TARGET_NOT_NUMERIC": "회귀는 숫자를 예측하는데 이 열에는 숫자가 아닌 값이 있습니다. 분류를 고르거나 다른 열을 예측해 주세요. ({target})",
-    "TARGET_SINGLE_CLASS": "대상 열의 값이 한 종류뿐이라 분류할 수 없습니다. ({target})",
+    "TARGET_SINGLE_CLASS": "타깃 열의 값이 한 종류뿐이라 분류할 수 없습니다. ({target})",
     "TARGET_TOO_MANY_CLASSES": "분류할 종류가 너무 많습니다. (최대 {limitClasses}개, 현재 {actualClasses}개)",
-    "FEATURE_NOT_SELECTED": "학습에 사용할 특성을 하나 이상 선택해 주세요.",
+    "FEATURE_NOT_SELECTED": "학습에 사용할 특성(Feature)을 하나 이상 선택해 주세요.",
     "FEATURE_ALL_MISSING": "값이 모두 비어 있는 특성입니다. ({feature})",
     "ALGORITHM_UNSUPPORTED": "지원하지 않는 알고리즘입니다. ({algorithm})",
     "HYPERPARAM_OUT_OF_RANGE": "{name} 값이 허용 범위를 벗어났습니다. ({min}~{max}, 현재 {actual})",
@@ -181,13 +181,13 @@
     "FAILED": "실패"
   },
   "fileHash": {
-    "UNCHANGED": "고쳐진 흔적 없음",
-    "MODIFIED": "저장 후 고쳐졌음",
+    "UNCHANGED": "변경된 흔적 없음",
+    "MODIFIED": "저장 후 변경됨",
     "UNKNOWN": "확인할 수 없음"
   },
   "entryHash": {
     "UNCHANGED": "저장했을 때 그대로",
-    "MODIFIED": "내용이 달라졌음",
+    "MODIFIED": "내용이 변경됨",
     "ADDED": "저장한 파일에 없던 것",
     "REMOVED": "파일에서 빠졌음"
   },
@@ -198,7 +198,7 @@
     "ENGINE_UNAVAILABLE": "여기서는 확인할 수 없음"
   },
   "engineState": {
-    "absent": "아직 준비 안 됨",
+    "absent": "준비되지 않음",
     "downloading": "내려받는 중",
     "downloaded": "내려받음 · 준비 필요",
     "ready": "준비됨"
@@ -213,12 +213,12 @@
     "server": "서버에서 학습"
   },
   "client": {
-    "ALGORITHM_NOT_FOR_DATA_TYPE": "이 모델은 지금 올린 데이터에는 쓸 수 없습니다.",
-    "ALGORITHM_NOT_FOR_TASK_TYPE": "이 모델은 지금 고른 과제 유형에는 쓸 수 없습니다.",
+    "ALGORITHM_NOT_FOR_DATA_TYPE": "이 모델은 지금 불러온 데이터에는 쓸 수 없습니다.",
+    "ALGORITHM_NOT_FOR_TASK_TYPE": "이 모델은 지금 고른 기계학습 유형(Task Type)에는 쓸 수 없습니다.",
     "SERVER_UNAVAILABLE": "학습 서버에 연결할 수 없습니다. 지금은 내 컴퓨터에서만 학습할 수 있습니다.",
     "ALGORITHM_NOT_AVAILABLE_HERE": "이 알고리즘은 여기서 실행할 수 없습니다.",
     "DATASET_TOO_LARGE_FOR_BROWSER": "데이터가 커서 내 컴퓨터에서는 학습할 수 없습니다. (최대 {limitRows}행)",
-    "ENGINE_NOT_READY": "이 학습 방법은 아직 준비되지 않았습니다. 학습 준비에서 먼저 준비해 주세요.",
+    "ENGINE_NOT_READY": "이 실행 방법은 준비가 끝나야 쓸 수 있습니다.",
     "PROJECT_FILE_NOT_ZIP": "이 파일은 프로젝트 파일이 아닙니다.",
     "PROJECT_FILE_ENTRY_MISSING": "프로젝트 파일에 필요한 내용이 들어 있지 않습니다. ({entry})",
     "PROJECT_FILE_INVALID": "프로젝트 파일의 내용을 읽을 수 없습니다. ({path})",
@@ -250,16 +250,16 @@
     "exportDropped": "크기 때문에 담지 못한 모델이 있습니다. 지표는 그대로 남습니다. ({count}개)",
     "open": "파일 불러오기",
     "openDone": "파일을 열었습니다.",
-    "openModified": "저장한 뒤에 고쳐진 흔적이 있는 파일입니다.",
-    "homeTitle": "어디까지 했나요",
+    "openModified": "저장한 뒤에 변경된 흔적이 있는 파일입니다.",
+    "homeTitle": "대시보드",
     "homeLead": "왼쪽에서 단계를 고르거나, 아래에서 이어서 하세요.",
     "resume": "이어서 하기 — {task}",
     "openStep": "들어가기",
-    "done": "끝남",
-    "locked": "아직",
+    "done": "Done",
+    "locked": "Locked",
     "exportLead": "학번과 이름을 적으면 파일 이름 앞에 붙습니다.",
     "exportNow": "파일 내려받기",
-    "dashboard": "대시보드"
+    "dashboard": "대시​보드"
   },
   "identity": {
     "title": "프로젝트 정보",
@@ -271,16 +271,16 @@
     "edit": "프로젝트 정보 고치기"
   },
   "meta": {
-    "title": "프로젝트 정보",
+    "title": "프로젝트 요약",
     "created": "만든 날",
     "updated": "마지막 수정",
     "size": "용량",
     "dataset": "데이터 파일",
     "rows": "행",
     "columns": "열",
-    "taskType": "문제 유형",
-    "target": "예측할 항목",
-    "features": "사용하는 특성",
+    "taskType": "기계학습 유형(Task Type)",
+    "target": "타깃(Target)",
+    "features": "특성(Feature)",
     "algorithms": "고른 알고리즘",
     "runs": "학습한 모델",
     "none": "없음",

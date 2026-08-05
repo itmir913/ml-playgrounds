@@ -8,7 +8,19 @@
  *
  * **글자는 레일 폭 안에서 줄을 바꿔 담긴다.** 영어 낱말이 한국어보다 길어서
  * (CLAUDE.md §3 규칙 7) `Preprocessing`이 두세 줄이 되는데, 그게 영역 밖으로
- * 삐져나오는 것보다 낫다. `break-words`가 그것을 보장한다.
+ * 삐져나오는 것보다 낫다.
+ *
+ * **끊는 자리는 언어마다 다르게 정해진다.** 한국어는 글자마다 줄바꿈 기회가 있어
+ * 브라우저에 맡기면 "대시보/드"가 된다. 그래서 로케일 문자열이 `​`(폭 없는
+ * 공백)로 자리를 지정하고 `break-keep`이 그 밖의 자리를 막는다. 영어에는 낱말
+ * 중간을 끊을 때 하이픈을 넣는 관행이 있으므로 `hyphens-auto`에 맡긴다 —
+ * 하이픈 없이 끊으면 두 낱말로 읽힌다. 자리 지정이 없는 긴 낱말이 들어왔을
+ * 때만 `break-words`가 마지막 수단으로 일한다.
+ *
+ * **활성 칸을 굵게 하지 않는다.** 안쪽 폭이 64px이고 한글 한 자가 약 15.8px이라
+ * 보통 굵기로는 네 자가 아슬아슬하게 들어가고 굵으면 안 들어간다. 그러면 칸을
+ * 누를 때마다 줄 수가 바뀌어 레일이 튄다. 활성 표시는 흰 면과 브랜드 색과
+ * 경계선이 이미 하고 있다.
  *
  * 못 가는 단계도 **지우지 않고** 왜 못 가는지와 함께 남긴다 — 목록에서 사라지면
  * 학생은 그런 단계가 있다는 것조차 모른다. 다만 **흐리게만 하고 지우듯 하지 않는다.**
@@ -72,7 +84,7 @@ const CELL =
  * 매어 놓아야 비로소 줄바꿈이 일한다 — 영어에서 레일에 가로 스크롤이 생기던 이유가
  * 이 한 클래스였다.
  */
-const LABEL = 'w-full text-center break-words hyphens-auto'
+const LABEL = 'w-full text-center break-keep break-words hyphens-auto'
 </script>
 
 <template>
@@ -93,7 +105,7 @@ const LABEL = 'w-full text-center break-words hyphens-auto'
         CELL,
         'shrink-0 transition-colors',
         route.name === ROUTE_PROJECT_HOME
-          ? 'z-10 bg-surface font-bold text-brand md:-mr-px md:rounded-r-none md:border-r md:border-surface'
+          ? 'z-10 bg-surface font-medium text-brand md:-mr-px md:rounded-r-none md:border-r md:border-surface'
           : 'font-medium text-ink-soft hover:bg-surface/60 hover:text-ink',
       ]"
     >
@@ -119,7 +131,7 @@ const LABEL = 'w-full text-center break-words hyphens-auto'
           // 지금 있는 칸은 작업 공간과 같은 흰 면이고 경계선을 1px 덮어 둘이
           // 이어져 보인다 - 레일에서 그 탭이 열린 것처럼.
           route.name === step
-            ? 'z-10 bg-surface font-bold text-brand md:-mr-px md:rounded-r-none md:border-r md:border-surface'
+            ? 'z-10 bg-surface font-medium text-brand md:-mr-px md:rounded-r-none md:border-r md:border-surface'
             : 'font-medium text-ink-soft hover:bg-surface/60 hover:text-ink',
         ]"
       >

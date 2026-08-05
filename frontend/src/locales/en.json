@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "Machine Learning Playgrounds",
-    "tagline": "Upload data, build a model, and keep the whole process as a portfolio.",
+    "tagline": "Load your data, build a model, and keep the whole process as a portfolio.",
     "short": "ML"
   },
   "nav": {
@@ -13,13 +13,13 @@
     "clustering": "Clustering"
   },
   "tasks": {
-    "datasetReady": "Upload a table",
-    "targetChosen": "Choose what to predict",
-    "featuresChosen": "Choose what to predict from",
-    "algorithmsChosen": "Choose an algorithm",
-    "trainingDone": "Start training",
+    "datasetReady": "Load your data",
+    "targetChosen": "Choose the target",
+    "featuresChosen": "Choose the features",
+    "algorithmsChosen": "Choose the algorithms",
+    "trainingDone": "Train the models",
     "modelReady": "Build a model",
-    "portfolioWritten": "Write it up",
+    "portfolioWritten": "Write the portfolio",
     "title": "To do",
     "allDone": "Everything in this step is done."
   },
@@ -37,7 +37,7 @@
   "save": {
     "browserOnly": "In this browser only",
     "saving": "Saving",
-    "unsaved": "Not saved yet",
+    "unsaved": "Not saved",
     "notExported": "Not exported",
     "exported": "Exported",
     "stale": "Changed since export",
@@ -46,16 +46,16 @@
   "steps": {
     "data": {
       "label": "Data",
-      "purpose": "Upload a table and see what columns it has."
+      "purpose": "Load a data file and see what columns it has."
     },
     "preprocess": {
-      "label": "Setup",
-      "locked": "Upload your data first.",
-      "purpose": "Decide what to predict from what, and tidy the data."
+      "label": "Pre­pro­cess­ing",
+      "locked": "Load your data first.",
+      "purpose": "Choose the target and the features, then tidy the data."
     },
     "train": {
-      "label": "Training",
-      "locked": "Choose what to predict and which algorithms to use first.",
+      "label": "Train­ing",
+      "locked": "Choose the features and the algorithms first.",
       "purpose": "Train every algorithm you picked in one go."
     },
     "results": {
@@ -69,7 +69,7 @@
       "purpose": "Put in new values and see what the model says."
     },
     "portfolio": {
-      "label": "Portfolio",
+      "label": "Port­folio",
       "purpose": "Write up what you did and what you found."
     }
   },
@@ -84,24 +84,24 @@
     "preview": "Preview",
     "previewNote": "Showing the first {count} row. | Showing the first {count} rows.",
     "use": "Use this data",
-    "change": "Replace with another file",
+    "change": "Replace the data",
     "current": "Data in use",
     "fileName": "File",
     "rows": "Rows",
     "columns": "Columns",
-    "encoding": "Read as",
+    "encoding": "Text encoding",
     "columnName": "Column",
     "kind": "Type",
-    "missing": "Empty",
+    "missing": "Missing",
     "unique": "Distinct values",
     "samples": "Examples",
     "applied": "The data has been saved.",
     "droppedColumns": "Some chosen columns are not in the new data, so they were dropped. ({names})",
     "replaceTitle": "Replacing the data deletes your training results",
-    "replaceDescription": "The {count} training batch you have so far goes with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows. | The {count} training batches you have so far go with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows.",
+    "replaceDescription": "The {count} experiment you have run so far goes with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows. | The {count} experiments you have run so far go with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows.",
     "replaceConfirm": "Delete and replace",
-    "emptyReason": "No table yet.",
-    "emptyNext": "Upload a file and it will appear here.",
+    "emptyReason": "No data yet.",
+    "emptyNext": "Load a file and it will appear here.",
     "inspector": "Column details",
     "unsupportedKind": "This project uses a kind of data that cannot be handled yet.",
     "unsupportedKindNext": "It may have been made with a newer version. Update the app and open it again."
@@ -113,7 +113,7 @@
   "projects": {
     "new": "New project",
     "newTitle": "Create a new project",
-    "newDescription": "Just a name and what you want to do. You will upload data on the next screen.",
+    "newDescription": "Just a name is enough. You will load your data on the next screen.",
     "name": "Project name",
     "nameHint": "This becomes the file name when you save.",
     "create": "Create",
@@ -127,7 +127,7 @@
     "loading": "Loading.",
     "storageNote": "Projects are stored in this browser. To continue on another device, save the project to a file and take it with you.",
     "saved": "Saved projects",
-    "savedCount": "{count} in this browser | {count} in this browser"
+    "savedCount": "{count} project in this browser | {count} projects in this browser"
   },
   "common": {
     "underConstruction": "This screen is still being built.",
@@ -149,7 +149,7 @@
     "DATASET_TOO_MANY_ROWS": "Too many rows. (limit {limitRows}, yours {actualRows})",
     "DATASET_TOO_MANY_COLUMNS": "Too many columns. (limit {limitColumns}, yours {actualColumns})",
     "COLUMN_NOT_FOUND": "That column is not in the data. ({column})",
-    "TARGET_NOT_SELECTED": "Choose the column you want to predict.",
+    "TARGET_NOT_SELECTED": "Choose the target column.",
     "TARGET_NOT_NUMERIC": "Regression predicts numbers, but that column has values that are not numbers. Choose classification, or predict a different column. ({target})",
     "TARGET_SINGLE_CLASS": "The target column has only one value, so it cannot be classified. ({target})",
     "TARGET_TOO_MANY_CLASSES": "Too many classes to predict. (limit {limitClasses}, yours {actualClasses})",
@@ -158,7 +158,7 @@
     "ALGORITHM_UNSUPPORTED": "That algorithm is not supported. ({algorithm})",
     "HYPERPARAM_OUT_OF_RANGE": "{name} is outside the allowed range. ({min}-{max}, yours {actual})",
     "SPLIT_INVALID": "The train/test split setting is not valid.",
-    "SPLIT_INDEX_OUT_OF_RANGE": "A row number used for training is outside the data. The data may have changed. (row {index}, data has {actualRows} rows)",
+    "SPLIT_INDEX_OUT_OF_RANGE": "A row number used for training is outside the data. The data may have changed. (row {index}, data has {actualRows})",
     "JOB_NOT_FOUND": "That job could not be found.",
     "JOB_TIMEOUT": "Training took longer than allowed. ({limitSeconds}s)",
     "JOB_MEMORY_EXCEEDED": "Training needed more memory than allowed. ({limitMb}MB)",
@@ -168,7 +168,7 @@
     "SERVER_BUSY": "The server is busy. Please try again shortly.",
     "SERVER_INTERNAL_ERROR": "Something went wrong on the server.",
     "SESSION_NOT_FOUND": "That working session no longer exists. Please upload your data again.",
-    "SESSION_EXPIRED": "The session ended after {idleMinutes} minutes of inactivity. Please upload your data again.",
+    "SESSION_EXPIRED": "The session ended after sitting idle. Please upload your data again. (idle limit {idleMinutes} min)",
     "SESSION_LIMIT_REACHED": "Too many people are connected right now. Please try again shortly."
   },
   "stages": {
@@ -181,13 +181,13 @@
     "FAILED": "Failed"
   },
   "fileHash": {
-    "UNCHANGED": "No sign of editing",
-    "MODIFIED": "Edited after saving",
+    "UNCHANGED": "No sign of changes",
+    "MODIFIED": "Changed after saving",
     "UNKNOWN": "Cannot tell"
   },
   "entryHash": {
     "UNCHANGED": "Same as saved",
-    "MODIFIED": "Contents differ",
+    "MODIFIED": "Contents changed",
     "ADDED": "Not in the saved file",
     "REMOVED": "Missing from the file"
   },
@@ -198,7 +198,7 @@
     "ENGINE_UNAVAILABLE": "Cannot check here"
   },
   "engineState": {
-    "absent": "Not set up yet",
+    "absent": "Not ready",
     "downloading": "Downloading",
     "downloaded": "Downloaded, needs setup",
     "ready": "Ready"
@@ -213,12 +213,12 @@
     "server": "Train on the server"
   },
   "client": {
-    "ALGORITHM_NOT_FOR_DATA_TYPE": "This model cannot be used with the data you uploaded.",
+    "ALGORITHM_NOT_FOR_DATA_TYPE": "This model cannot be used with the data you loaded.",
     "ALGORITHM_NOT_FOR_TASK_TYPE": "This model cannot be used for the task type you chose.",
     "SERVER_UNAVAILABLE": "The training server cannot be reached. For now you can train on your computer.",
     "ALGORITHM_NOT_AVAILABLE_HERE": "This algorithm cannot run here.",
     "DATASET_TOO_LARGE_FOR_BROWSER": "The data is too large to train on your computer. (limit {limitRows} rows)",
-    "ENGINE_NOT_READY": "This way of training is not ready yet. Set it up first under training setup.",
+    "ENGINE_NOT_READY": "This way of training can only be used once it is ready.",
     "PROJECT_FILE_NOT_ZIP": "This file is not a project file.",
     "PROJECT_FILE_ENTRY_MISSING": "The project file is missing something it needs. ({entry})",
     "PROJECT_FILE_INVALID": "The project file could not be read. ({path})",
@@ -230,8 +230,8 @@
     "DATASET_SHEET_NOT_FOUND": "That sheet could not be found. ({sheetName})",
     "STORAGE_QUOTA_EXCEEDED": "There is not enough room left in this browser. (needs {requiredMb}MB, {availableMb}MB free)",
     "UNEXPECTED_ERROR": "Something went wrong. Please try again.",
-    "SPLIT_TOO_FEW_ROWS": "Only {actualRows} rows can be used, which is too few to split into training and test sets. (needs at least {minRows})",
-    "SPLIT_STRATIFY_IMPOSSIBLE": "'{label}' appears only {count} time(s), so the split cannot keep the same proportions. Turn off proportional splitting, or collect at least {minRows} rows with this value."
+    "SPLIT_TOO_FEW_ROWS": "There is not enough data to split into a training set and a test set. (usable {actualRows}, needs at least {minRows})",
+    "SPLIT_STRATIFY_IMPOSSIBLE": "'{label}' appears too few times to keep the same proportions in the split. Turn off proportional splitting, or collect more rows with this value. (has {count}, needs at least {minRows})"
   },
   "portfolio": {
     "template": {
@@ -250,16 +250,16 @@
     "exportDropped": "Some models were too large to include. Their scores are still there. ({count})",
     "open": "Open a file",
     "openDone": "The file is open.",
-    "openModified": "This file shows signs of having been edited after it was saved.",
-    "homeTitle": "Where you are",
+    "openModified": "This file shows signs of having been changed after it was saved.",
+    "homeTitle": "Dashboard",
     "homeLead": "Pick a step on the left, or carry on below.",
     "resume": "Carry on — {task}",
     "openStep": "Open",
     "done": "Done",
-    "locked": "Not yet",
+    "locked": "Locked",
     "exportLead": "A student number and name go in front of the file name.",
     "exportNow": "Download",
-    "dashboard": "Dashboard"
+    "dashboard": "Dash­board"
   },
   "identity": {
     "title": "Project details",
@@ -271,19 +271,19 @@
     "edit": "Edit project details"
   },
   "meta": {
-    "title": "Project details",
+    "title": "Project summary",
     "created": "Created",
     "updated": "Last change",
     "size": "Size",
     "dataset": "Data",
     "rows": "Rows",
     "columns": "Columns",
-    "taskType": "Task",
-    "target": "Predicting",
+    "taskType": "Task type",
+    "target": "Target",
     "features": "Features",
     "algorithms": "Algorithms",
     "runs": "Trained models",
     "none": "None",
-    "countUnit": "{count} | {count}"
+    "countUnit": "{count}"
   }
 }
