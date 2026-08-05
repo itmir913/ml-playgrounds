@@ -268,7 +268,7 @@
     "studentName": "Name",
     "optional": "You can leave these blank",
     "fileNameHint": "If you fill these in they go in front of the saved file name. ({fileName})",
-    "edit": "Edit project details"
+    "rename": "Rename this project ({name})"
   },
   "meta": {
     "title": "Project summary",

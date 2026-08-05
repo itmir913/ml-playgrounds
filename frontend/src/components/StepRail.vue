@@ -102,6 +102,13 @@ const LABEL = 'w-full text-center break-keep break-words hyphens-auto'
     <!--
       프로젝트 홈. **단계가 아니라 그 위에 있는 자리**라 STEP_IDS에 없고 여기 손으로
       둔다. 학생이 "어디까지 했더라"로 돌아올 곳이 레일에 없으면 주소를 지워야 한다.
+
+      **없앴다 나타나게 하지 않는다.** 단계 여섯은 못 가도 이유와 함께 흐리게 남는데
+      (§8.6) 이 칸만 통째로 사라지면 규칙이 둘이 되고, 프로젝트를 열기 전과 연 뒤에
+      레일의 칸 수가 달라져 다른 화면처럼 보인다. 아래 단계들과 같은 모양으로 흐려진다.
+
+      다만 **잠겼을 때는 RouterLink가 아니어야 한다.** projectId가 없으면
+      `Missing required param`으로 던지고, 레일 한 칸이 던지면 앱 전체가 갱신을 멈춘다.
     -->
     <RouterLink
       v-if="project.projectId !== null"
@@ -121,7 +128,16 @@ const LABEL = 'w-full text-center break-keep break-words hyphens-auto'
     </RouterLink>
 
     <span
-      v-if="project.projectId !== null"
+      v-else
+      :title="t('shell.noProject')"
+      :aria-disabled="true"
+      :class="[CELL, 'shrink-0 cursor-not-allowed font-medium text-ink-faint']"
+    >
+      <component :is="HOME_ICON" :size="20" aria-hidden="true" />
+      <span :class="[LABEL, 'max-md:hidden']">{{ t('project.dashboard') }}</span>
+    </span>
+
+    <span
       class="my-1 shrink-0 self-stretch border-line max-md:border-l md:border-t"
       aria-hidden="true"
     />

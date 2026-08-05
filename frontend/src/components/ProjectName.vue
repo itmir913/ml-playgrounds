@@ -71,11 +71,20 @@ function cancel(): void {
     @blur="commit"
   />
 
+  <!--
+    **툴팁이 이름을 들고 있다.** 좁은 화면에서 이름이 잘리는데(truncate) 마우스를
+    올렸을 때 "고치기"라고만 뜨면, 정작 궁금한 것인 **전체 이름**을 볼 데가 없다.
+    한 문장이 둘을 다 한다 - 무엇을 하는 버튼인지와 지금 이름이 무엇인지.
+
+    문구가 "정보"가 아니라 "이름"인 이유는 이 버튼이 이름만 바꾸기 때문이다.
+    학번과 이름은 내보내기 쪽에 있다 (위 설명).
+  -->
   <button
     v-else
     type="button"
     class="max-w-64 min-w-0 truncate rounded-control px-2 py-1 font-bold transition-colors hover:bg-surface-sunken"
-    :title="t('identity.edit')"
+    :title="t('identity.rename', { name: project.name })"
+    :aria-label="t('identity.rename', { name: project.name })"
     @click="start"
   >
     {{ project.name }}

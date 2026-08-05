@@ -268,7 +268,7 @@
     "studentName": "이름",
     "optional": "안 적어도 됩니다",
     "fileNameHint": "적으면 저장하는 파일 이름 앞에 붙습니다. ({fileName})",
-    "edit": "프로젝트 정보 고치기"
+    "rename": "프로젝트 이름 바꾸기 ({name})"
   },
   "meta": {
     "title": "프로젝트 요약",
