@@ -111,6 +111,10 @@ defineExpose({ close })
       <slot name="trigger" :open="open" />
     </div>
 
+    <!--
+      **여는 자리와 떨어뜨린다.** 붙어 있으면 떠 있는 패널이 아니라 줄이 늘어난 것으로
+      보인다. 상태 표시줄처럼 화면 끝에 붙은 자리에서 특히 그렇다.
+    -->
     <div
       v-if="open"
       ref="panel"
@@ -118,7 +122,7 @@ defineExpose({ close })
       class="popover-panel absolute z-50 rounded-panel border border-line bg-surface p-4 text-ink shadow-pop"
       :class="[
         props.align === 'right' ? 'right-0' : 'left-0',
-        props.side === 'top' ? 'bottom-full mb-1' : 'top-full mt-1',
+        props.side === 'top' ? 'bottom-full mb-2' : 'top-full mt-2',
       ]"
     >
       <slot :close="close" />
