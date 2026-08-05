@@ -12,7 +12,15 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ColumnSummary } from '../src/data/columns'
-import { algorithmsLosingMeaning, columnPlan, requiredTargetKind } from '../src/ml/selection'
+import { algorithmOptions } from '../src/ml/algorithms'
+import type { RuntimeContext } from '../src/ml/backend'
+import {
+  algorithmsLosingMeaning,
+  columnPlan,
+  modelAxes,
+  requiredTargetKind,
+  type AxisChoice,
+} from '../src/ml/selection'
 import type { Preprocessing } from '../src/project/schema'
 
 const ONEHOT: Preprocessing = { missing: 'drop', scaling: 'none', categoricalEncoding: 'onehot' }
@@ -166,5 +174,89 @@ describe('유형을 바꾸면 뜻을 잃는 모델', () => {
 
   it('등록부에 없는 알고리즘은 남긴다 - 남의 파일에서 온 것이다', () => {
     expect(algorithmsLosingMeaning([{ algorithm: 'xgboost' }], 'regression')).toEqual([])
+  })
+})
+
+describe('세 축이 서로를 좁힌다', () => {
+  const OFFLINE: RuntimeContext = { serverStatus: 'unavailable', rowCount: 50 }
+  const ONLINE: RuntimeContext = { serverStatus: 'available', rowCount: 50 }
+
+  function axes(
+    overrides: Partial<Parameters<typeof modelAxes>[0]> = {},
+  ): ReturnType<typeof modelAxes> {
+    return modelAxes({
+      options: algorithmOptions({ dataType: 'tabular', taskType: 'classification' }, OFFLINE),
+      algorithm: 'decision_tree',
+      runtime: 'mljs',
+      chosen: [],
+      ...overrides,
+    })
+  }
+
+  function choice(list: readonly AxisChoice[], id: string): AxisChoice | undefined {
+    return list.find((one) => one.id === id)
+  }
+
+  it('실행 방법이 모델을 좁힌다 - 순수 JS에는 서포트 벡터 머신이 없다', () => {
+    const options = algorithmOptions({ dataType: 'tabular', taskType: 'classification' }, ONLINE)
+    const { algorithms } = axes({ options })
+    expect(choice(algorithms, 'decision_tree')?.enabled).toBe(true)
+    expect(choice(algorithms, 'svm')).toEqual({
+      id: 'svm',
+      enabled: false,
+      reason: 'ALGORITHM_NOT_AVAILABLE_HERE',
+    })
+  })
+
+  /**
+   * **어디서도 못 도는 것이 먼저다** (mlpx-spec.md 0.1). 서버가 없으면 서포트 벡터 머신은
+   * 순수 JS에 없어서가 아니라 **엔진이 준비되지 않아서** 못 쓴다 - 그쪽이 학생이 할 수
+   * 있는 일을 알려주는 사유다.
+   */
+  it('축이 좁히기 전에 더 근본적인 사유가 있으면 그것이 이긴다', () => {
+    expect(choice(axes().algorithms, 'svm')?.reason).toBe('ENGINE_NOT_READY')
+  })
+
+  it('과제 유형이 먼저다 - 회귀에서는 분류 모델이 유형 사유로 꺼진다', () => {
+    const { algorithms } = axes({
+      options: algorithmOptions({ dataType: 'tabular', taskType: 'regression' }, OFFLINE),
+      algorithm: 'linear_regression',
+    })
+    expect(choice(algorithms, 'decision_tree')?.reason).toBe('ALGORITHM_NOT_FOR_TASK_TYPE')
+    expect(choice(algorithms, 'linear_regression')?.enabled).toBe(true)
+  })
+
+  it('모델이 실행 방법을 좁힌다 - 축은 걸린 모델 기준으로 판정된다', () => {
+    expect(choice(axes().runtimes, 'mljs')?.enabled).toBe(true)
+    expect(choice(axes({ algorithm: 'svm' }).runtimes, 'mljs')?.reason).toBe(
+      'ALGORITHM_NOT_AVAILABLE_HERE',
+    )
+  })
+
+  it('서버가 없는 것은 정상 상태다 - 지우지 않고 사유와 함께 꺼 둔다', () => {
+    const { runtimes } = axes()
+    expect(runtimes.map((one) => one.id)).toEqual(['mljs', 'pyodide-sklearn', 'server-sklearn'])
+    expect(choice(runtimes, 'server-sklearn')?.reason).toBe('SERVER_UNAVAILABLE')
+    expect(choice(runtimes, 'pyodide-sklearn')?.reason).toBe('ENGINE_NOT_READY')
+  })
+
+  it('같은 쌍은 두 번 못 담고, 실행 방법이 다르면 담을 수 있다', () => {
+    const options = algorithmOptions({ dataType: 'tabular', taskType: 'classification' }, ONLINE)
+    const chosen = [{ algorithm: 'decision_tree', runtime: 'mljs' }]
+    expect(axes({ options, chosen }).blocked).toBe('alreadyAdded')
+    expect(axes({ options, chosen, runtime: 'server-sklearn' }).blocked).toBeNull()
+  })
+
+  /**
+   * **불변식이다** (architecture.md 8.12). 이게 깨지면 "카드는 멀쩡한데 [추가]가 꺼져
+   * 있다"가 생기고, 학생은 무엇을 고쳐야 하는지 알 수 없다.
+   */
+  it('담을 수 없으면 그 카드가 꺼져 있다', () => {
+    for (const algorithm of ['svm', 'linear_regression', 'decision_tree']) {
+      const result = axes({ algorithm })
+      const card = result.algorithms.find((one) => one.id === algorithm)
+      expect(card?.enabled).toBe(result.blocked === null)
+      if (!card?.enabled) expect(result.blocked).toBe(card?.reason)
+    }
   })
 })

@@ -19,7 +19,8 @@
 
 import type { ColumnSummary } from '../data/columns'
 import type { Preprocessing, TaskType } from '../project/schema'
-import { ALGORITHMS, type Algorithm } from './algorithms'
+import { ALGORITHMS, type Algorithm, type AlgorithmOption } from './algorithms'
+import type { UnavailableReason } from './backend'
 import type { ColumnKind } from './preprocess'
 
 /**
@@ -144,6 +145,107 @@ export function columnPlan(input: ColumnPlanInput): ColumnPlan {
   })
 
   return { columns, usableFeatures }
+}
+
+/** 축의 칸 하나. **꺼진 칸도 목록에 남고 왜 꺼졌는지를 함께 든다** (architecture.md 8.12). */
+export interface AxisChoice {
+  readonly id: string
+  readonly enabled: boolean
+  /** enabled가 false일 때만 채워진다. 화면이 t()에 넣어 한 줄로 보여준다. */
+  readonly reason?: UnavailableReason
+}
+
+/**
+ * 지금 걸린 쌍을 담을 수 없는 이유.
+ *
+ * `alreadyAdded`만 성질이 다르다 - 학습이 거부하는 것이 아니라 **같은 쌍을 두 줄 담아 봐야
+ * 하이퍼파라미터가 공유되어 똑같은 줄이 둘 생기기 때문**이다
+ * (open-decisions.md "실행 방법은 하나의 목록이다").
+ */
+export type AddBlocked = UnavailableReason | 'alreadyAdded'
+
+export interface ModelAxes {
+  /** 모델 축. 목록 순서는 등록부 그대로다. */
+  readonly algorithms: readonly AxisChoice[]
+  /** 실행 방법 축. **지금 걸린 모델 기준이다** - 모델마다 지원하는 것이 다르다. */
+  readonly runtimes: readonly AxisChoice[]
+  /** null이면 담을 수 있다. */
+  readonly blocked: AddBlocked | null
+}
+
+/**
+ * 담긴 줄 하나. **실행 방법이 언제나 채워져 있다** — 화면이 쌍으로 담기 때문이다.
+ * 파일에서는 선택 항목이라(`{algorithm}`만 있는 줄이 정상이다) 화면이 실험 기본을 끌어와
+ * 채운다. 실제 학습도 같은 규칙으로 정한다 (`ml/experiment.ts`).
+ */
+export interface ChosenModel {
+  readonly algorithm: string
+  readonly runtime: string
+}
+
+export interface ModelAxesInput {
+  /** algorithmOptions의 결과. 데이터 종류와 과제 유형은 여기서 이미 반영됐다. */
+  readonly options: readonly AlgorithmOption[]
+  /** 지금 걸린 모델. */
+  readonly algorithm: string
+  /** 지금 걸린 실행 방법. */
+  readonly runtime: string
+  /** 이미 담은 쌍들. */
+  readonly chosen: readonly ChosenModel[]
+}
+
+/**
+ * 학습 화면의 세 축이 서로를 좁힌 결과.
+ *
+ * **판정을 새로 하지 않는다.** algorithmOptions와 runtimeOptions가 이미 낸 값을 축의
+ * 모양으로 바꿔 놓을 뿐이다. 축마다 따로 판정하면 세 벌이 되고 반드시 어긋난다.
+ *
+ * 유형 축은 여기 없다. 무엇도 그것을 좁히지 않기 때문이다 - 알고리즘이 하나도 없는
+ * 유형은 supportedTaskTypes가 애초에 목록에서 뺀다.
+ *
+ * **지키는 불변식이 하나 있다 - 담을 수 없으면 그 칸이 꺼져 있다.** 그래서 blocked를
+ * 모델 축의 칸에서 그대로 읽는다. 두 곳에서 따로 판정하면 "카드는 멀쩡한데 [추가]가
+ * 꺼져 있다"가 생기고, 학생은 무엇을 고쳐야 하는지 알 수 없다.
+ */
+export function modelAxes(input: ModelAxesInput): ModelAxes {
+  const algorithms = input.options.map((option): AxisChoice => {
+    const id = option.algorithm.id
+    // 데이터 종류·과제 유형에서 이미 걸린 것. 더 근본적인 사유가 먼저다 (mlpx-spec.md 0.1).
+    if (!option.enabled)
+      return { id, enabled: false, ...(option.reason ? { reason: option.reason } : {}) }
+
+    // **지금 걸린 실행 방법에서 도는가.** 이것이 축이 서로를 좁힌다는 말의 실체다 -
+    // 순수 JS를 고르면 서포트 벡터 머신이 여기서 꺼진다.
+    const here = option.runtimes.find((one) => one.runtime.id === input.runtime)
+    if (here && !here.enabled)
+      return { id, enabled: false, ...(here.reason ? { reason: here.reason } : {}) }
+
+    return { id, enabled: true }
+  })
+
+  const drafted = input.options.find((option) => option.algorithm.id === input.algorithm)
+  const runtimes = (drafted?.runtimes ?? []).map((one): AxisChoice => ({
+    id: one.runtime.id,
+    enabled: one.enabled,
+    ...(one.reason ? { reason: one.reason } : {}),
+  }))
+
+  const choice = algorithms.find((one) => one.id === input.algorithm)
+  const already = input.chosen.some(
+    (one) => one.algorithm === input.algorithm && one.runtime === input.runtime,
+  )
+
+  // 카드가 아예 없는 경우는 등록부에 없는 알고리즘이 걸린 것이다. 화면은 목록에서만
+  // 고르므로 정상 경로에서는 나오지 않지만, 나온다면 담을 수 없는 것이 맞다.
+  const blocked: AddBlocked | null = !choice
+    ? 'ALGORITHM_NOT_AVAILABLE_HERE'
+    : !choice.enabled
+      ? (choice.reason ?? 'ALGORITHM_NOT_AVAILABLE_HERE')
+      : already
+        ? 'alreadyAdded'
+        : null
+
+  return { algorithms, runtimes, blocked }
 }
 
 /**

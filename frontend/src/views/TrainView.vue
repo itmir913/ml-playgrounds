@@ -2,10 +2,10 @@
 /**
  * train 단계 — **모델 얘기만 한다.**
  *
- * 순서는 기계학습 유형 → 모델 선정 → 실행 방법이다 (architecture.md §8.2).
- * 유형이 모델 목록을 좁히므로 위에 있고, **기본값이 없으므로 아무것도 안 골라진 채로
- * 시작한다** — 학생이 고른 분류와 아무도 안 고른 분류는 다르다
- * (open-decisions.md "기계학습 유형은 모델을 고르는 자리에서 고른다").
+ * 세 축(기계학습 유형 → 모델 → 실행 방법)이 **한 카드 안에** 있다. 서로를 좁히는 것들을
+ * 카드로 갈라 놓으면 이어져 있다는 것이 안 보인다 (architecture.md §8.12).
+ * **기본값이 없으므로 아무것도 안 골라진 채로 시작한다** — 학생이 고른 분류와 아무도 안
+ * 고른 분류는 다르다 (open-decisions.md "기계학습 유형은 모델을 고르는 자리에서 고른다").
  *
  * 타깃과 특성은 여기 없다. 그건 데이터의 성질이라 전처리에서 이미 정해졌다.
  *
@@ -21,8 +21,13 @@ import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { summarizeColumns } from '@/data/columns'
 import { algorithmOptions, supportedTaskTypes } from '@/ml/algorithms'
-import { RUNTIMES, runtimeOptions, type RuntimeContext } from '@/ml/backend'
-import { algorithmsLosingMeaning, columnPlan, requiredTargetKind } from '@/ml/selection'
+import type { RuntimeContext } from '@/ml/backend'
+import {
+  algorithmsLosingMeaning,
+  columnPlan,
+  requiredTargetKind,
+  type ChosenModel,
+} from '@/ml/selection'
 import { readDataset } from '@/project/dataset'
 import type { ProjectDocument, TaskType } from '@/project/schema'
 import {
@@ -33,7 +38,8 @@ import {
 } from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
-import ModelPicker, { type ChosenModel } from './train/ModelPicker.vue'
+import ChosenModels from './train/ChosenModels.vue'
+import ModelAxes from './train/ModelAxes.vue'
 
 const { t } = useI18n()
 const project = useProjectStore()
@@ -73,17 +79,6 @@ const options = computed(() => {
     context.value,
   )
 })
-
-/**
- * 실행 방법마다 지금 쓸 수 있는지.
- *
- * 알고리즘을 안 가리는 판정이라 **모든 실행 방법을 지원하는 가짜 알고리즘**을 넘긴다.
- * 여기서 보고 싶은 것은 "서버가 있는가, 엔진이 준비됐는가, 데이터가 큰가"뿐이고,
- * 알고리즘별 사정은 아래 모델 목록이 따로 말한다.
- */
-const runtimeChoices = computed(() =>
-  runtimeOptions({ id: '', runtimes: RUNTIMES.map((runtime) => runtime.id) }, context.value),
-)
 
 /**
  * 쌓인 줄들. **실행 방법을 여기서 채운다.**
@@ -229,68 +224,36 @@ function setParam(
     <StepChecklist step="train" />
 
     <!--
-      **유형이 맨 위에서 전체 폭을 갖는다.** 아래 두 열을 함께 먹이는 선택이고,
-      아무것도 안 골라진 채로 시작하므로 학생이 제일 먼저 보아야 한다.
+      **세 축과 담긴 목록이 한 카드 안에 있다** (§8.12). 넓은 화면에서는 왼쪽이 고르는
+      자리, 오른쪽이 그 판단의 맥락인 담긴 목록이다 (§8.10.1).
     -->
-    <section class="rounded-panel border border-line bg-surface p-4">
-      <div class="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-        <div class="min-w-0">
-          <h2 class="font-bold">{{ t('train.taskTitle') }}</h2>
-          <p class="mt-1 text-ink-soft">{{ t('train.taskLead') }}</p>
-        </div>
-
-        <div class="flex flex-wrap gap-x-5 gap-y-2">
-          <label
-            v-for="taskType in taskTypes"
-            :key="taskType"
-            class="flex cursor-pointer items-center gap-2"
-          >
-            <input
-              type="radio"
-              name="taskType"
-              class="size-4 accent-brand"
-              :checked="project.taskType === taskType"
-              @change="pickTaskType(taskType)"
-            />
-            <span class="font-bold">{{ t(`taskTypes.${taskType}`) }}</span>
-          </label>
-        </div>
-      </div>
-
-      <!-- 유형과 타깃이 안 맞는다. 둘 다 고칠 수 있으므로 어느 쪽도 되돌리지 않는다. -->
-      <p v-if="targetIssue" class="mt-3 font-bold text-danger">{{ targetIssue }}</p>
-    </section>
-
     <section class="min-w-0 rounded-panel border border-line bg-surface p-4">
       <h2 class="font-bold">{{ t('train.modelsTitle') }}</h2>
       <p class="mt-1 text-ink-soft">{{ t('train.modelsLead') }}</p>
 
-      <!-- 유형을 안 골랐으면 목록이 통째로 뜻이 없다. 회색 줄만 늘어놓지 않는다. -->
-      <AppEmpty
-        v-if="project.taskType === undefined"
-        :reason="t('train.noTaskTypeReason')"
-        :next="t('train.noTaskTypeNext')"
-      />
+      <!-- 유형과 타깃이 안 맞는다. 둘 다 고칠 수 있으므로 어느 쪽도 되돌리지 않는다. -->
+      <p v-if="targetIssue" class="mt-3 font-bold text-danger">{{ targetIssue }}</p>
 
-      <template v-else>
-        <div class="mt-3">
-          <ModelPicker
+      <div class="mt-4 grid gap-x-6 gap-y-5 md:grid-cols-3">
+        <div class="min-w-0 md:col-span-2">
+          <ModelAxes
+            :task-types="taskTypes"
+            :task-type="project.taskType"
             :options="options"
-            :runtimes="runtimeChoices"
             :chosen="chosen"
-            :values="settings.hyperparameters"
+            :preferred-runtime="settings.runtime"
+            @pick-task-type="pickTaskType"
             @add="addModel"
-            @remove="removeModel"
-            @set-param="setParam"
           />
         </div>
 
-        <p class="mt-3 text-ink-soft">
-          {{
-            chosen.length === 0 ? t('train.noModelChosen') : t('train.modelSummary', chosen.length)
-          }}
-        </p>
-      </template>
+        <ChosenModels
+          :chosen="chosen"
+          :values="settings.hyperparameters"
+          @remove="removeModel"
+          @set-param="setParam"
+        />
+      </div>
     </section>
   </div>
 

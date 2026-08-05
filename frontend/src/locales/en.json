@@ -190,12 +190,11 @@
   },
   "train": {
     "taskTitle": "Task type",
-    "taskLead": "Choose what you are trying to do first. Only models that fit stay on the right.",
     "taskChanged": "Some models were dropped because they do not fit the task type you chose. ({names})",
     "runtimeTitle": "Where to train",
     "runtimeNote": "Choose where the models you picked are trained.",
     "modelsTitle": "Choose the models",
-    "modelsLead": "Pick several, train them in one go, and compare what comes out.",
+    "modelsLead": "Choose what you want to do, and only the models that fit stay on. Pick several to train at once and compare.",
     "pickModel": "Model",
     "pickRuntime": "Where to train",
     "addModel": "Add",
@@ -210,7 +209,8 @@
     "emptyReason": "No project is open yet.",
     "emptyNext": "Open a project and you can choose what to train here.",
     "noTaskTypeReason": "No task type chosen yet.",
-    "noTaskTypeNext": "Choose one above and the models that fit it appear here."
+    "noTaskTypeNext": "Choose a task type above and the models that fit will show up.",
+    "chosenTitle": "Chosen models"
   },
   "projects": {
     "new": "New project",
