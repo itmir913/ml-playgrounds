@@ -75,13 +75,23 @@ function stateOf(item: Choice): string {
   <div class="min-w-0">
     <h3 class="font-bold text-ink-soft">{{ label }}</h3>
 
-    <!-- id로 잇지 않는다 — 라벨은 번역된 문장이라 공백이 들어가고, id에는 공백을 못 쓴다. -->
-    <div class="mt-1.5 flex flex-wrap gap-2" role="group" :aria-label="label">
+    <!--
+      **격자다.** flex-wrap으로 두면 글자 수대로 넓이가 제각각이 되고, 언어를 바꾸면 그
+      들쭉날쭉이 또 달라진다. `auto-rows-fr`이 행 높이까지 맞춰서 두 줄로 접힌 칸이 있는
+      행도 다른 행과 같은 높이로 선다.
+
+      id로 잇지 않는다 — 라벨은 번역된 문장이라 공백이 들어가고, id에는 공백을 못 쓴다.
+    -->
+    <div
+      class="mt-1.5 grid auto-rows-fr grid-cols-2 gap-2 sm:grid-cols-3"
+      role="group"
+      :aria-label="label"
+    >
       <button
         v-for="item in props.items"
         :key="item.id"
         type="button"
-        class="rounded-control border px-3 py-2 font-bold transition-colors"
+        class="min-w-0 rounded-control border px-3 py-2 text-center font-bold transition-colors"
         :class="stateOf(item)"
         :aria-pressed="props.selected === item.id"
         :aria-disabled="!item.enabled"
