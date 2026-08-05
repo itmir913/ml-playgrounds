@@ -11,28 +11,66 @@
     "regression": "Regression",
     "clustering": "Clustering"
   },
+  "tasks": {
+    "datasetReady": "Upload a table",
+    "targetChosen": "Choose what to predict",
+    "featuresChosen": "Choose what to predict from",
+    "algorithmsChosen": "Choose an algorithm",
+    "trainingDone": "Start training",
+    "modelReady": "Build a model",
+    "portfolioWritten": "Write it up",
+    "title": "To do",
+    "allDone": "Everything in this step is done."
+  },
+  "shell": {
+    "steps": "Steps",
+    "status": "Progress",
+    "statusTitle": "Progress",
+    "now": "Do this next",
+    "workflow": "Steps",
+    "finished": "Everything is done.",
+    "noProject": "No project is open yet.",
+    "openMenu": "Open menu",
+    "language": "Language"
+  },
+  "save": {
+    "saved": "Saved",
+    "saving": "Saving",
+    "unsaved": "Not saved",
+    "never": "-",
+    "exported": "Exported",
+    "notExported": "Not exported yet",
+    "exportWarning": "This disappears when the computer shuts down. Export it to a file.",
+    "size": "Size"
+  },
   "steps": {
     "data": {
-      "label": "Data"
+      "label": "Data",
+      "purpose": "Upload a table and see what columns it has."
     },
     "preprocess": {
       "label": "Preprocessing",
-      "locked": "Upload your data first."
+      "locked": "Upload your data first.",
+      "purpose": "Decide what to predict from what, and tidy the data."
     },
     "train": {
       "label": "Training",
-      "locked": "Choose what to predict and which algorithms to use first."
+      "locked": "Choose what to predict and which algorithms to use first.",
+      "purpose": "Train every algorithm you picked in one go."
     },
     "results": {
       "label": "Results",
-      "locked": "This opens once a training run has finished."
+      "locked": "This opens once a training run has finished.",
+      "purpose": "Compare the numbers and see what changed them."
     },
     "predict": {
       "label": "Prediction",
-      "locked": "No model is available to predict with yet."
+      "locked": "No model is available to predict with yet.",
+      "purpose": "Put in new values and see what the model says."
     },
     "portfolio": {
-      "label": "Portfolio"
+      "label": "Portfolio",
+      "purpose": "Write up what you did and what you found."
     }
   },
   "data": {
@@ -61,7 +99,10 @@
     "droppedColumns": "Some chosen columns are not in the new data, so they were dropped. ({names})",
     "replaceTitle": "Replacing the data deletes your training results",
     "replaceDescription": "The {count} training batch you have so far goes with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows. | The {count} training batches you have so far go with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows.",
-    "replaceConfirm": "Delete and replace"
+    "replaceConfirm": "Delete and replace",
+    "emptyReason": "No table yet.",
+    "emptyNext": "Upload a file and it will appear here.",
+    "inspector": "Column details"
   },
   "columnKind": {
     "numeric": "Number",

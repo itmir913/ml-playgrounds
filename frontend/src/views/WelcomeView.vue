@@ -1,6 +1,10 @@
 <script setup lang="ts">
 /**
- * 프로젝트 목록. 앱을 열면 여기부터다.
+ * 작업실을 열었을 때의 가운데. **홈 페이지가 아니다** (architecture.md §8.6) —
+ * 껍데기는 이미 떠 있고 여기는 그 안의 내용일 뿐이다.
+ *
+ * 할 일은 둘뿐이다 — 새로 만들거나, 있던 것을 열거나. 최근 프로젝트는 그 아래
+ * 딸린 것이다.
  *
  * **문서 전체를 열지 않는다.** 목록에 필요한 것은 요약뿐이고, 여기서 문서를 열면
  * 프로젝트 수만큼 데이터셋 바이트가 메모리로 올라온다 (storage.ts의 ProjectSummary).
@@ -14,16 +18,15 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import AppButton from '@/components/AppButton.vue'
-import AppCard from '@/components/AppCard.vue'
 import AppDialog from '@/components/AppDialog.vue'
+import AppEmpty from '@/components/AppEmpty.vue'
 import AppField from '@/components/AppField.vue'
-import AppHero from '@/components/AppHero.vue'
 import { useFormat } from '@/composables/useFormat'
 import { MAX_FILE_NAME_LENGTH } from '@/limits'
 import { supportedTaskTypes } from '@/ml/algorithms'
 import { newProjectDocument, newProjectSeed } from '@/project/create'
-import { deleteProject, listProjects, saveProject, type ProjectSummary } from '@/project/storage'
 import type { TaskType } from '@/project/schema'
+import { deleteProject, listProjects, saveProject, type ProjectSummary } from '@/project/storage'
 import { FIRST_STEP } from '@/router/steps'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
@@ -41,7 +44,6 @@ const busy = ref(false)
 const creating = ref(false)
 const name = ref('')
 const taskType = ref<TaskType>('classification')
-
 const removing = ref<ProjectSummary | null>(null)
 
 /** 알고리즘이 하나라도 있는 유형만 고르게 한다 (ml/algorithms.ts). */
@@ -66,6 +68,10 @@ function openCreate(): void {
   creating.value = true
 }
 
+function openProject(projectId: string): void {
+  void router.push({ name: FIRST_STEP, params: { projectId } })
+}
+
 async function create(): Promise<void> {
   if (!canCreate.value) return
   busy.value = true
@@ -76,10 +82,7 @@ async function create(): Promise<void> {
     )
     await saveProject({ document, models: new Map() })
     creating.value = false
-    await router.push({
-      name: FIRST_STEP,
-      params: { projectId: document.manifest.projectId },
-    })
+    openProject(document.manifest.projectId)
   } catch (error) {
     toasts.pushError(error)
   } finally {
@@ -111,73 +114,63 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen">
-    <AppHero :badge="t('app.name')" :title="t('projects.title')" :description="t('app.tagline')">
-      <div class="mt-2">
-        <AppButton variant="secondary" size="lg" @click="openCreate">
-          {{ t('projects.new') }}
-        </AppButton>
-      </div>
-    </AppHero>
+  <div class="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-10 sm:px-6">
+    <div class="text-center">
+      <h2 class="text-2xl font-black tracking-tight">{{ t('app.name') }}</h2>
+      <p class="mt-2 leading-relaxed text-ink-soft">{{ t('app.tagline') }}</p>
 
-    <main class="mx-auto max-w-shell px-4 py-8 sm:px-6 md:py-12">
-      <p v-if="loading" class="text-ink-soft">{{ t('projects.loading') }}</p>
-
-      <AppCard
-        v-else-if="summaries.length === 0"
-        :title="t('projects.empty.title')"
-        :description="t('projects.empty.description')"
-      >
+      <div class="mt-6">
         <AppButton size="lg" @click="openCreate">{{ t('projects.new') }}</AppButton>
-      </AppCard>
+      </div>
+    </div>
 
-      <template v-else>
-        <p class="mb-4 text-sm font-bold text-ink-soft">
-          {{ t('projects.count', summaries.length) }}
-        </p>
+    <section>
+      <h3 class="mb-3 text-sm font-bold text-ink-soft">{{ t('projects.title') }}</h3>
 
-        <ul class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <li
-            v-for="summary in summaries"
-            :key="summary.projectId"
-            class="flex flex-col gap-4 rounded-card border border-line bg-surface p-6 shadow-card"
+      <p v-if="loading" class="text-sm text-ink-faint">{{ t('projects.loading') }}</p>
+
+      <AppEmpty
+        v-else-if="summaries.length === 0"
+        :reason="t('projects.empty.title')"
+        :next="t('projects.empty.description')"
+      >
+        <AppButton @click="openCreate">{{ t('projects.new') }}</AppButton>
+      </AppEmpty>
+
+      <ul v-else class="flex flex-col gap-2">
+        <li
+          v-for="summary in summaries"
+          :key="summary.projectId"
+          class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-panel border border-line bg-surface px-4 py-3 transition-colors hover:border-brand-line"
+        >
+          <button
+            type="button"
+            class="min-w-0 flex-1 text-left"
+            @click="openProject(summary.projectId)"
           >
-            <div>
-              <span
-                class="inline-block rounded-pill bg-brand-soft px-3 py-1 text-xs font-bold text-brand"
-              >
-                {{ t(`taskTypes.${summary.taskType}`) }}
-              </span>
-              <h2 class="mt-3 text-lg font-bold break-keep">{{ summary.name }}</h2>
-            </div>
+            <span class="block truncate font-bold">{{ summary.name }}</span>
+            <span class="mt-0.5 block text-xs text-ink-faint">
+              {{ format.dateTime(summary.updatedAt) }}
+            </span>
+          </button>
 
-            <dl class="mt-auto flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-soft">
-              <div class="flex gap-2">
-                <dt class="sr-only">{{ t('projects.updatedAt') }}</dt>
-                <dd>{{ format.dateTime(summary.updatedAt) }}</dd>
-              </div>
-              <div class="flex gap-2">
-                <dt class="sr-only">{{ t('projects.size') }}</dt>
-                <dd>{{ format.bytes(summary.sizeBytes) }}</dd>
-              </div>
-            </dl>
+          <span
+            class="rounded-pill bg-brand-soft px-2.5 py-0.5 text-xs font-bold whitespace-nowrap text-brand"
+          >
+            {{ t(`taskTypes.${summary.taskType}`) }}
+          </span>
+          <span class="text-xs whitespace-nowrap text-ink-faint">
+            {{ format.bytes(summary.sizeBytes) }}
+          </span>
 
-            <div class="flex flex-wrap gap-2">
-              <AppButton
-                @click="router.push({ name: FIRST_STEP, params: { projectId: summary.projectId } })"
-              >
-                {{ t('projects.open') }}
-              </AppButton>
-              <AppButton variant="ghost" @click="removing = summary">
-                {{ t('projects.delete') }}
-              </AppButton>
-            </div>
-          </li>
-        </ul>
-      </template>
+          <AppButton variant="ghost" @click="removing = summary">
+            {{ t('projects.delete') }}
+          </AppButton>
+        </li>
+      </ul>
 
-      <p class="mt-8 text-sm leading-relaxed text-ink-faint">{{ t('projects.storageNote') }}</p>
-    </main>
+      <p class="mt-6 text-xs leading-relaxed text-ink-faint">{{ t('projects.storageNote') }}</p>
+    </section>
 
     <AppDialog
       :open="creating"
@@ -194,7 +187,7 @@ onMounted(async () => {
               type="text"
               :maxlength="MAX_FILE_NAME_LENGTH"
               autofocus
-              class="w-full rounded-field border border-line-strong bg-surface px-4 py-3 text-lg"
+              class="w-full rounded-field border border-line-strong bg-surface px-3 py-2.5"
             />
           </template>
         </AppField>
@@ -203,13 +196,13 @@ onMounted(async () => {
           라디오 묶음은 AppField를 쓰지 않는다. <label for>가 가리킬 입력이 하나가
           아니라 여럿이라 fieldset/legend가 맞는 모양이다.
         -->
-        <fieldset class="flex flex-col gap-2">
+        <fieldset>
           <legend class="mb-2 text-sm font-bold text-ink-soft">{{ t('projects.taskType') }}</legend>
           <div class="flex flex-wrap gap-2">
             <label
               v-for="option in taskTypes"
               :key="option"
-              class="cursor-pointer rounded-control border px-4 py-2.5 font-bold transition-colors"
+              class="cursor-pointer rounded-control border px-3 py-2 font-bold transition-colors"
               :class="
                 taskType === option
                   ? 'border-brand bg-brand-soft text-brand'

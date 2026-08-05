@@ -11,28 +11,66 @@
     "regression": "회귀",
     "clustering": "군집화"
   },
+  "tasks": {
+    "datasetReady": "표 올리기",
+    "targetChosen": "예측할 값 고르기",
+    "featuresChosen": "예측에 쓸 값 고르기",
+    "algorithmsChosen": "알고리즘 고르기",
+    "trainingDone": "학습 시작하기",
+    "modelReady": "모델 만들기",
+    "portfolioWritten": "정리 글 쓰기",
+    "title": "할 일",
+    "allDone": "이 단계에서 할 일을 다 했습니다."
+  },
+  "shell": {
+    "steps": "단계",
+    "status": "진행 상황",
+    "statusTitle": "진행 상황",
+    "now": "지금 할 일",
+    "workflow": "단계",
+    "finished": "할 일을 다 했습니다.",
+    "noProject": "아직 프로젝트를 열지 않았습니다.",
+    "openMenu": "메뉴 열기",
+    "language": "언어"
+  },
+  "save": {
+    "saved": "저장됨",
+    "saving": "저장 중",
+    "unsaved": "저장 안 됨",
+    "never": "-",
+    "exported": "내보냄",
+    "notExported": "아직 안 내보냄",
+    "exportWarning": "이 컴퓨터를 끄면 사라집니다. 파일로 내보내 두세요.",
+    "size": "크기"
+  },
   "steps": {
     "data": {
-      "label": "데이터"
+      "label": "데이터",
+      "purpose": "표를 올리고 어떤 열이 있는지 확인합니다."
     },
     "preprocess": {
       "label": "전처리",
-      "locked": "데이터를 먼저 올려 주세요."
+      "locked": "데이터를 먼저 올려 주세요.",
+      "purpose": "무엇을 무엇으로 예측할지 정하고 데이터를 다듬습니다."
     },
     "train": {
       "label": "학습",
-      "locked": "무엇을 예측할지와 어떤 알고리즘을 쓸지 먼저 골라 주세요."
+      "locked": "무엇을 예측할지와 어떤 알고리즘을 쓸지 먼저 골라 주세요.",
+      "purpose": "고른 알고리즘들을 한 번에 학습시킵니다."
     },
     "results": {
       "label": "결과",
-      "locked": "학습을 한 번 끝내면 열립니다."
+      "locked": "학습을 한 번 끝내면 열립니다.",
+      "purpose": "지표를 견주고, 무엇을 바꿔서 달라졌는지 봅니다."
     },
     "predict": {
       "label": "예측",
-      "locked": "예측에 쓸 수 있는 모델이 아직 없습니다."
+      "locked": "예측에 쓸 수 있는 모델이 아직 없습니다.",
+      "purpose": "새 값을 넣어 모델이 뭐라고 하는지 봅니다."
     },
     "portfolio": {
-      "label": "포트폴리오"
+      "label": "포트폴리오",
+      "purpose": "무엇을 했고 무엇을 알게 됐는지 정리합니다."
     }
   },
   "data": {
@@ -61,7 +99,10 @@
     "droppedColumns": "새 데이터에 없어서 선택에서 빠진 열이 있습니다. ({names})",
     "replaceTitle": "데이터를 바꾸면 학습 결과가 지워집니다",
     "replaceDescription": "지금까지 학습한 묶음 {count}개가 함께 사라집니다. 모델은 데이터의 행 번호를 가리키기 때문에, 남겨 두면 다른 줄을 보고 예측하게 됩니다.",
-    "replaceConfirm": "지우고 바꾸기"
+    "replaceConfirm": "지우고 바꾸기",
+    "emptyReason": "아직 표가 없습니다.",
+    "emptyNext": "파일을 올리면 여기에 표가 나옵니다.",
+    "inspector": "열 자세히 보기"
   },
   "columnKind": {
     "numeric": "숫자",

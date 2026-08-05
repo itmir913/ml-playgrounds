@@ -37,6 +37,14 @@ interface ProjectRecord {
   updatedAt: string
   /** 데이터셋 + 모델의 합계. 목록에서 바이트를 읽지 않고 용량을 보여주기 위한 것. */
   sizeBytes: number
+  /**
+   * 마지막으로 .mlpx를 내려받은 시각. 없으면 한 번도 안 내보낸 것이다.
+   *
+   * **.mlpx 안에는 적지 않는다.** 그건 이 기기의 사정이지 파일의 내용이 아니다
+   * (architecture.md §8.8). 컴퓨터실 PC는 전원을 끄면 디스크가 되돌아가므로,
+   * "아직 안 내보냈다"를 상태 표시줄에 상시 띄우는 것이 그 문제에 주는 답이다.
+   */
+  exportedAt?: string
 }
 
 interface DatasetRecord {
@@ -183,11 +191,16 @@ export async function saveProject(project: ProjectFile): Promise<void> {
       'readwrite',
     )
 
-    await transaction.objectStore(PROJECTS_STORE).put({
+    const projects = transaction.objectStore(PROJECTS_STORE)
+    // 내보낸 시각은 저장이 지우면 안 된다. 저장은 자동으로 자주 도는데 내보내기는
+    // 학생이 일부러 하는 일이라, 덮어쓰면 "안 내보냈다"가 계속 다시 뜬다.
+    const before = await projects.get(projectId)
+    await projects.put({
       projectId,
       document: project.document,
       updatedAt: project.document.manifest.updatedAt,
       sizeBytes: size,
+      ...(before?.exportedAt === undefined ? {} : { exportedAt: before.exportedAt }),
     })
     // 데이터셋이 없는 프로젝트가 정상이다. 그때는 **남아 있던 레코드를 지운다** -
     // 데이터를 바꾸는 도중의 상태가 옛 표와 새 설정으로 남으면 안 된다.
@@ -255,6 +268,27 @@ export async function listProjects(): Promise<ProjectSummary[]> {
     updatedAt: record.updatedAt,
     sizeBytes: record.sizeBytes,
   }))
+}
+
+/**
+ * 마지막으로 내보낸 시각을 남긴다. `.mlpx`를 내려받은 직후에 부른다.
+ *
+ * 없는 프로젝트에는 아무것도 하지 않는다 - 지워진 프로젝트를 되살리면 안 된다.
+ */
+export async function markExported(projectId: string, at: string): Promise<void> {
+  const database = await db()
+  const transaction = database.transaction(PROJECTS_STORE, 'readwrite')
+  const record = await transaction.store.get(projectId)
+  if (record) {
+    await transaction.store.put({ ...record, exportedAt: at })
+  }
+  await transaction.done
+}
+
+/** 파일에 담기지 않는 곁가지 정보. 상태 표시줄이 쓴다. */
+export async function readExportedAt(projectId: string): Promise<string | null> {
+  const record = await (await db()).get(PROJECTS_STORE, projectId)
+  return record?.exportedAt ?? null
 }
 
 /** 프로젝트와 딸린 것을 전부 지운다. */

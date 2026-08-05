@@ -20,7 +20,7 @@ import en from '../src/locales/en.json'
 import ko from '../src/locales/ko.json'
 import { ENGINE_STATES, TRAINING_LOCATIONS, UNAVAILABLE_REASONS } from '../src/ml/backend'
 import { MODEL_OMISSION_REASONS, TASK_TYPES } from '../src/project/schema'
-import { isStepUnlocked, NO_PROGRESS, STEP_IDS } from '../src/router/steps'
+import { isStepUnlocked, NO_FACTS, STEP_IDS, stepTasks } from '../src/router/steps'
 
 type Tree = { [key: string]: string | Tree }
 
@@ -200,9 +200,27 @@ describe('프런트엔드 전용 코드', () => {
     // 이유 없이 회색으로 죽어 있는 것은 학생에게 고장으로 보인다 (architecture.md §7.3).
     // data와 portfolio는 잠기지 않으므로 이유가 없는 것이 맞다.
     for (const step of STEP_IDS) {
-      const locks = !isStepUnlocked(step, NO_PROGRESS)
+      const locks = !isStepUnlocked(step, NO_FACTS)
       expect(english.has(`steps.${step}.locked`), step).toBe(locks)
       expect(korean.has(`steps.${step}.locked`), step).toBe(locks)
+    }
+  })
+
+  it('단계마다 무엇을 하는 곳인지가 있다', () => {
+    // 작업 공간 머리가 이걸 쓴다 (architecture.md §8.9).
+    for (const step of STEP_IDS) {
+      expect(english.has(`steps.${step}.purpose`), step).toBe(true)
+      expect(korean.has(`steps.${step}.purpose`), step).toBe(true)
+    }
+  })
+
+  it('체크리스트 항목마다 문구가 있다', () => {
+    // 여기가 비면 화면에 로케일 키가 그대로 뜬다.
+    for (const step of STEP_IDS) {
+      for (const task of stepTasks(step, NO_FACTS)) {
+        expect(english.has(`tasks.${task.key}`), task.key).toBe(true)
+        expect(korean.has(`tasks.${task.key}`), task.key).toBe(true)
+      }
     }
   })
 

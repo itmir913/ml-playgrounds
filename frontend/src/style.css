@@ -66,22 +66,29 @@
   /*
    * 모서리. 바깥이 크고 안으로 갈수록 작다 — 카드 > 패널 > 버튼 > 입력.
    * 이 순서가 깨지면 중첩된 모서리가 어긋나 보인다.
+   *
+   * **작업실이라 작다** (architecture.md §8.6). 강의노트라면 24px가 맞지만 표와 설정이
+   * 빽빽한 화면에서 큰 모서리는 안쪽 공간을 먹고 카드가 둥둥 뜬다.
    */
-  --radius-card: 1.5rem;
-  --radius-panel: 1rem;
-  --radius-control: 0.75rem;
-  --radius-field: 0.5rem;
+  --radius-card: 0.875rem;
+  --radius-panel: 0.625rem;
+  --radius-control: 0.5rem;
+  --radius-field: 0.375rem;
   --radius-pill: 9999px;
 
-  /* 그림자. 회색이 아니라 slate로 물들여 배경에서 뜨지 않게 한다. */
-  --shadow-card:
-    0 10px 15px -3px oklch(0.55 0.03 257 / 0.12), 0 4px 6px -4px oklch(0.55 0.03 257 / 0.12);
-  --shadow-float: 0 1px 3px oklch(0.55 0.03 257 / 0.14);
+  /*
+   * 그림자. 회색이 아니라 slate로 물들여 배경에서 뜨지 않게 한다.
+   * **얕다.** 한 화면에 카드가 여럿인데 그림자가 깊으면 어느 것이 위인지 알 수 없다.
+   */
+  --shadow-card: 0 1px 2px oklch(0.55 0.03 257 / 0.06), 0 1px 3px oklch(0.55 0.03 257 / 0.1);
+  --shadow-float: 0 1px 2px oklch(0.55 0.03 257 / 0.08);
   --shadow-pop:
-    0 20px 25px -5px oklch(0.55 0.03 257 / 0.18), 0 8px 10px -6px oklch(0.55 0.03 257 / 0.14);
+    0 10px 30px -6px oklch(0.55 0.03 257 / 0.18), 0 4px 8px -4px oklch(0.55 0.03 257 / 0.12);
 
-  /* 본문 최대 폭. 화면마다 다르게 잡지 마라. */
-  --container-shell: 80rem;
+  /* 셸의 고정 치수. 화면 코드가 이 숫자를 다시 쓰지 않게 한다. */
+  --spacing-toolbar: 3.25rem;
+  --spacing-rail: 3.5rem;
+  --spacing-statusbar: 1.75rem;
 }
 
 /*
@@ -97,6 +104,19 @@
     background-color: var(--color-canvas);
     color: var(--color-ink);
     -webkit-text-size-adjust: 100%;
+    /*
+     * 기준 글자 크기를 낮춘다. **작업실이라 촘촘해야 한다** (architecture.md §8.6) —
+     * 이 한 줄이 Tailwind의 모든 간격과 글자 크기를 함께 줄인다. 학생이 눌러야 하는
+     * 것들은 그만큼 여백을 더 주어 되돌린다(AppButton).
+     */
+    font-size: 15px;
+  }
+
+  /* 셸이 화면을 정확히 채운다. 바깥은 절대 스크롤되지 않는다. */
+  html,
+  body,
+  #app {
+    height: 100%;
   }
 
   body {

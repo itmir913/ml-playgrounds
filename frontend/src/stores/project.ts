@@ -10,27 +10,31 @@ import { computed, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 
 import type { ProjectFile } from '@/project/format'
-import { loadProject } from '@/project/storage'
-import { NO_PROGRESS, type ProjectProgress } from '@/router/steps'
+import { loadProject, readExportedAt, saveProject } from '@/project/storage'
+import { NO_FACTS, type ProjectFacts } from '@/router/steps'
 
 /**
- * 파일에서 단계 진입 조건을 뽑는다. **순수 함수라 스토어 없이 테스트한다.**
+ * 파일에서 사실들을 뽑는다. **순수 함수라 스토어 없이 테스트한다.**
  *
- * 스키마를 아는 것은 여기까지이고, steps.ts는 결과인 네 개의 불리언만 본다.
+ * 스키마를 아는 것은 여기까지다. steps.ts는 결과인 불리언들만 보고, 체크리스트와
+ * 잠금이 **둘 다 여기서 나온다** (architecture.md §8.7).
  */
-export function progressOf(file: ProjectFile | null): ProjectProgress {
+export function factsOf(file: ProjectFile | null): ProjectFacts {
   if (file === null) {
-    return NO_PROGRESS
+    return NO_FACTS
   }
-  const { settings, runs } = file.document
+  const { settings, runs, portfolio } = file.document
   const batches = runs.batches
   return {
     // 참조와 본체는 함께 있고 함께 없다 (mlpx-spec.md §1). 어느 쪽을 봐도 같지만
     // 본체를 본다 - 화면이 알고 싶은 것은 "보여줄 표가 있는가"다.
-    hasDataset: file.dataset !== undefined,
-    hasSettings: settings.features.length > 0 && settings.selectedAlgorithms.length > 0,
-    hasRuns: batches.some((batch) => batch.runs.length > 0),
-    hasModels: batches.some((batch) => batch.runs.some((run) => run.model !== undefined)),
+    datasetReady: file.dataset !== undefined,
+    targetChosen: settings.target !== undefined,
+    featuresChosen: settings.features.length > 0,
+    algorithmsChosen: settings.selectedAlgorithms.length > 0,
+    trainingDone: batches.some((batch) => batch.runs.length > 0),
+    modelReady: batches.some((batch) => batch.runs.some((run) => run.model !== undefined)),
+    portfolioWritten: Object.values(portfolio.answers).some((answer) => answer.trim() !== ''),
   }
 }
 
@@ -42,10 +46,15 @@ export const useProjectStore = defineStore('project', () => {
    */
   const file = shallowRef<ProjectFile | null>(null)
   const opening = shallowRef(false)
+  const saving = shallowRef(false)
+  /** 마지막으로 IndexedDB에 쓴 시각. 상태 표시줄이 보여준다. */
+  const savedAt = shallowRef<string | null>(null)
+  /** 마지막으로 .mlpx를 내려받은 시각. 파일에는 없고 이 기기에만 있다. */
+  const exportedAt = shallowRef<string | null>(null)
 
   const projectId = computed(() => file.value?.document.manifest.projectId ?? null)
   const name = computed(() => file.value?.document.manifest.name ?? '')
-  const progress = computed(() => progressOf(file.value))
+  const facts = computed(() => factsOf(file.value))
 
   /**
    * 프로젝트를 연다. 이미 그 프로젝트가 열려 있으면 아무것도 하지 않는다.
@@ -61,6 +70,9 @@ export const useProjectStore = defineStore('project', () => {
     try {
       const loaded = await loadProject(id)
       file.value = loaded
+      // 열린 직후는 방금 읽은 그대로이므로 저장된 상태다.
+      savedAt.value = loaded === null ? null : loaded.document.manifest.updatedAt
+      exportedAt.value = loaded === null ? null : await readExportedAt(id)
       return loaded !== null
     } finally {
       opening.value = false
@@ -68,18 +80,49 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   /**
-   * 열려 있는 프로젝트를 통째로 바꿔 끼운다. **저장에 성공한 뒤에 부른다.**
+   * 바뀐 프로젝트를 저장하고 화면에 반영한다.
    *
-   * 화면이 문서를 조금씩 고치지 않고 새 값을 통째로 넘기게 해 둔 것이다 —
-   * shallowRef라 안쪽을 고치면 화면이 따라오지 않고, 그건 조용히 어긋나는 종류다.
+   * **쓰기와 교체를 한 함수로 묶은 이유**는 둘이 갈라지면 언젠가 화면만 바뀌고 저장이
+   * 안 된 상태가 생기기 때문이다. 그리고 shallowRef라 문서 안쪽을 고쳐도 화면이
+   * 따라오지 않으므로, 부르는 쪽은 언제나 새 값을 통째로 넘긴다.
+   *
+   * 던지면 **아무것도 바꾸지 않는다.** 저장이 실패했는데 화면만 새 값이면 학생은
+   * 되지도 않은 것을 됐다고 믿는다.
    */
-  function replace(next: ProjectFile): void {
-    file.value = next
+  async function save(next: ProjectFile): Promise<void> {
+    saving.value = true
+    try {
+      await saveProject(next)
+      file.value = next
+      savedAt.value = new Date().toISOString()
+    } finally {
+      saving.value = false
+    }
+  }
+
+  /** `.mlpx`를 내려받은 뒤에 부른다. 저장과 달리 학생이 일부러 하는 일이다. */
+  function markExported(at: string): void {
+    exportedAt.value = at
   }
 
   function close(): void {
     file.value = null
+    savedAt.value = null
+    exportedAt.value = null
   }
 
-  return { file, opening, projectId, name, progress, open, replace, close }
+  return {
+    file,
+    opening,
+    saving,
+    savedAt,
+    exportedAt,
+    projectId,
+    name,
+    facts,
+    open,
+    save,
+    markExported,
+    close,
+  }
 })
