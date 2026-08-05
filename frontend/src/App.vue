@@ -8,11 +8,14 @@
  * 알림은 셸 바깥이다. 라우트를 넘어서도 살아 있어야 하고, 도구 막대와 상태 표시줄
  * 위에 떠야 한다.
  *
- * **단계가 바뀔 때 아주 짧게 흐린다** (`styles/base.css`의 `route-*`). 셸은 그대로 있고
- * 작업 공간만 바뀌는데, 내용이 즉시 갈리면 같은 자리에서 화면이 튀는 것으로 보인다.
- * 길면 안 된다 — 학생이 레일을 연달아 누르는 화면이라 0.1초대여야 응답이 느려졌다는
- * 느낌을 안 준다. `out-in`이라 두 화면이 겹쳐 뛰지 않는다. 모션을 줄이도록 설정한
- * 기기에서는 base.css가 전역으로 꺼 준다.
+ * **라우트 전환에 트랜지션을 두지 않는다 (2026-08-05).** 짧게 흐리는 것을 넣었다가
+ * 작업 공간이 통째로 비고 `<main>`에 `<!---->`만 남는 일을 겪어 되돌렸다. `out-in`은
+ * 나가는 쪽이 끝나야 들어오는 쪽이 붙는데, **그 조건이 어긋나면 화면이 아예 안 그려진다.**
+ * 새로고침하면 멀쩡해서 원인을 짚기도 어렵다.
+ *
+ * 다시 넣는다면 `mode`를 빼고(겹쳐서 바꾸고) 화면마다 루트가 하나인 것을 먼저 확인해야
+ * 한다. 그건 `tests/ui-rules.spec.ts`가 이제 막는다. **부드러움은 화면이 뜨는 것보다
+ * 뒤에 온다.**
  *
  * 자연어 문자열 리터럴 금지 - 전부 t()를 거친다 (CLAUDE.md §3).
  */
@@ -23,11 +26,7 @@ import AppToast from '@/components/AppToast.vue'
 
 <template>
   <AppShell>
-    <RouterView v-slot="{ Component }">
-      <Transition name="route" mode="out-in">
-        <component :is="Component" />
-      </Transition>
-    </RouterView>
+    <RouterView />
   </AppShell>
   <AppToast />
 </template>
