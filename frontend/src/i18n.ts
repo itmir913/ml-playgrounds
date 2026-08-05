@@ -73,15 +73,27 @@ function navigatorLanguages(): readonly string[] {
   return navigator.languages.length > 0 ? navigator.languages : [navigator.language]
 }
 
+/**
+ * 사용자가 이번 세션에서 언어를 직접 골랐는가.
+ *
+ * **시작할 때 저장된 값을 읽는 것은 비동기다.** IndexedDB가 느린 기기에서는 그 사이에
+ * 학생이 언어를 바꿀 수 있고, 그때 뒤늦게 도착한 옛 값이 학생의 선택을 되돌리면
+ * 화면이 혼자 되돌아간 것처럼 보인다. **나중에 온 것이 아니라 사람이 고른 것이 이긴다.**
+ */
+let chosenByUser = false
+
 /** 앱 시작 시 한 번 호출한다. 저장된 선택과 브라우저 설정을 반영한다. */
 export async function initLocale(): Promise<Locale> {
   const locale = resolveLocale(await readPreferredLocale(), navigatorLanguages())
-  applyLocale(locale)
+  if (!chosenByUser) {
+    applyLocale(locale)
+  }
   return locale
 }
 
 /** 사용자가 언어를 바꿀 때 호출한다. 화면에 즉시 반영하고 선택을 저장한다. */
 export async function setLocale(locale: Locale): Promise<void> {
+  chosenByUser = true
   applyLocale(locale)
   await writePreferredLocale(locale)
 }

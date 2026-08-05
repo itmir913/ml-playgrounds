@@ -43,10 +43,20 @@ export function newProjectSeed(): ProjectSeed {
 
 export interface NewProject {
   readonly name: string
-  readonly taskType: TaskType
   /** 만든 사람의 언어. 파일을 받은 교사에게 어떤 문항으로 썼는지 알려준다. */
   readonly locale: string
+  /**
+   * 무엇을 하는 프로젝트인가. **만들 때는 안 물어본다.**
+   *
+   * 표를 보기도 전에 분류인지 회귀인지 아는 학생은 없다. 그래서 기본값으로 시작하고
+   * 무엇을 예측할지 고르는 전처리 화면에서 바꾼다 - 그 자리가 판단이 서는 곳이다.
+   * 자동으로 판정하지는 않는다, 학생이 고른다(mlpx-spec.md §0.1).
+   */
+  readonly taskType?: TaskType
 }
+
+/** 아무것도 안 고른 프로젝트가 시작하는 유형. 전처리 화면에서 바꾼다. */
+const DEFAULT_TASK_TYPE: TaskType = 'classification'
 
 export function newProjectDocument(input: NewProject, seed: ProjectSeed): ProjectDocument {
   return {
@@ -58,7 +68,7 @@ export function newProjectDocument(input: NewProject, seed: ProjectSeed): Projec
       createdAt: seed.createdAt,
       updatedAt: seed.createdAt,
       kind: PROJECT_KIND_ML,
-      taskType: input.taskType,
+      taskType: input.taskType ?? DEFAULT_TASK_TYPE,
       // V1은 표 데이터뿐이라 고르게 하지 않는다. 이미지·음성이 들어오는 V5에서
       // 업로드한 것으로 정해진다 (architecture.md §6).
       dataType: 'tabular',

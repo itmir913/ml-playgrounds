@@ -35,14 +35,13 @@
     "language": "Language"
   },
   "save": {
-    "saved": "Saved",
+    "browserOnly": "In this browser only",
     "saving": "Saving",
-    "unsaved": "Not saved",
-    "never": "-",
+    "unsaved": "Not saved yet",
+    "notExported": "Not exported",
     "exported": "Exported",
-    "notExported": "Not exported yet",
-    "exportWarning": "This disappears when the computer shuts down. Export it to a file.",
-    "size": "Size"
+    "stale": "Changed since export",
+    "exportWarning": "What is in the browser disappears when this computer shuts down. Export it to a file."
   },
   "steps": {
     "data": {
@@ -103,7 +102,9 @@
     "replaceConfirm": "Delete and replace",
     "emptyReason": "No table yet.",
     "emptyNext": "Upload a file and it will appear here.",
-    "inspector": "Column details"
+    "inspector": "Column details",
+    "unsupportedKind": "This project uses a kind of data that cannot be handled yet.",
+    "unsupportedKindNext": "It may have been made with a newer version. Update the app and open it again."
   },
   "columnKind": {
     "numeric": "Number",
@@ -115,7 +116,6 @@
     "newDescription": "Just a name and what you want to do. You will upload data on the next screen.",
     "name": "Project name",
     "nameHint": "This becomes the file name when you save.",
-    "taskType": "What are you doing?",
     "create": "Create",
     "open": "Open",
     "delete": "Delete",

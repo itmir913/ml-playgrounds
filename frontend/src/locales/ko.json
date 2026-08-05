@@ -35,14 +35,13 @@
     "language": "언어"
   },
   "save": {
-    "saved": "저장됨",
+    "browserOnly": "이 브라우저에만 있음",
     "saving": "저장 중",
-    "unsaved": "저장 안 됨",
-    "never": "-",
-    "exported": "내보냄",
-    "notExported": "아직 안 내보냄",
-    "exportWarning": "이 컴퓨터를 끄면 사라집니다. 파일로 내보내 두세요.",
-    "size": "크기"
+    "unsaved": "아직 저장 안 됨",
+    "notExported": "파일로 안 내보냄",
+    "exported": "파일로 내보냄",
+    "stale": "내보낸 뒤 고쳐짐",
+    "exportWarning": "이 컴퓨터를 끄면 브라우저 안의 것은 사라집니다. 파일로 내보내 두세요."
   },
   "steps": {
     "data": {
@@ -103,7 +102,9 @@
     "replaceConfirm": "지우고 바꾸기",
     "emptyReason": "아직 표가 없습니다.",
     "emptyNext": "파일을 올리면 여기에 표가 나옵니다.",
-    "inspector": "열 자세히 보기"
+    "inspector": "열 자세히 보기",
+    "unsupportedKind": "이 프로젝트의 데이터 종류는 아직 다룰 수 없습니다.",
+    "unsupportedKindNext": "더 새로운 버전에서 만든 파일일 수 있습니다. 앱을 최신으로 바꾼 뒤 다시 열어 주세요."
   },
   "columnKind": {
     "numeric": "숫자",
@@ -115,7 +116,6 @@
     "newDescription": "이름과 무엇을 할지만 정하면 됩니다. 데이터는 다음 화면에서 올립니다.",
     "name": "프로젝트 이름",
     "nameHint": "저장할 때 파일 이름이 됩니다.",
-    "taskType": "무엇을 하나요?",
     "create": "만들기",
     "open": "열기",
     "delete": "삭제",

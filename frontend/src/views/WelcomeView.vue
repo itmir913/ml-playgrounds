@@ -23,11 +23,9 @@ import AppField from '@/components/AppField.vue'
 import ProjectPicker from '@/components/ProjectPicker.vue'
 import { ACTION_ICONS } from '@/icons'
 import { MAX_FILE_NAME_LENGTH } from '@/limits'
-import { supportedTaskTypes } from '@/ml/algorithms'
 import { newProjectDocument, newProjectSeed } from '@/project/create'
 import { readFileBytes } from '@/project/download'
 import { readProject } from '@/project/format'
-import type { TaskType } from '@/project/schema'
 import { deleteProject, listProjects, saveProject, type ProjectSummary } from '@/project/storage'
 import { FIRST_STEP } from '@/router/steps'
 import { useProjectStore } from '@/stores/project'
@@ -44,12 +42,8 @@ const busy = ref(false)
 
 const creating = ref(false)
 const name = ref('')
-const taskType = ref<TaskType>('classification')
 const removing = ref<ProjectSummary | null>(null)
 const openInput = ref<HTMLInputElement | null>(null)
-
-/** 알고리즘이 하나라도 있는 유형만 고르게 한다 (ml/algorithms.ts). */
-const taskTypes = supportedTaskTypes()
 
 const canCreate = computed(() => name.value.trim().length > 0 && !busy.value)
 
@@ -66,7 +60,6 @@ async function refresh(): Promise<void> {
 
 function openCreate(): void {
   name.value = ''
-  taskType.value = taskTypes[0] ?? 'classification'
   creating.value = true
 }
 
@@ -78,8 +71,11 @@ async function create(): Promise<void> {
   if (!canCreate.value) return
   busy.value = true
   try {
+    // **과제 유형은 여기서 정하지 않는다.** 표를 보기도 전에 분류인지 회귀인지 아는
+    // 학생은 없다. 무엇을 예측할지 고르는 전처리 화면이 그 판단이 서는 자리다
+    // (mlpx-spec.md §0.1 - 자동으로 판정하지 않고 학생이 고른다).
     const document = newProjectDocument(
-      { name: name.value.trim(), taskType: taskType.value, locale: locale.value },
+      { name: name.value.trim(), locale: locale.value },
       newProjectSeed(),
     )
     await saveProject({ document, models: new Map() })
@@ -213,29 +209,6 @@ onMounted(async () => {
               />
             </template>
           </AppField>
-
-          <!--
-            라디오 묶음은 AppField를 쓰지 않는다. <label for>가 가리킬 입력이 하나가
-            아니라 여럿이라 fieldset/legend가 맞는 모양이다.
-          -->
-          <fieldset>
-            <legend class="mb-2 font-bold text-ink-soft">{{ t('projects.taskType') }}</legend>
-            <div class="flex flex-wrap gap-2">
-              <label
-                v-for="option in taskTypes"
-                :key="option"
-                class="cursor-pointer rounded-control border px-3 py-2 font-bold transition-colors"
-                :class="
-                  taskType === option
-                    ? 'border-brand bg-brand-soft text-brand'
-                    : 'border-line text-ink-soft hover:bg-surface-sunken'
-                "
-              >
-                <input v-model="taskType" type="radio" :value="option" class="sr-only" />
-                {{ t(`taskTypes.${option}`) }}
-              </label>
-            </div>
-          </fieldset>
         </form>
 
         <template #actions>

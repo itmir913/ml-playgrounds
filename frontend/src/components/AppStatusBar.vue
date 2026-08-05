@@ -3,9 +3,11 @@
  * 아래 상태 표시줄. **이 프로젝트에서는 장식이 아니라 핵심 기능이다**
  * (architecture.md §8.8).
  *
- * 학교 컴퓨터실 PC는 전원을 끄면 디스크가 되돌아간다. 그래서 **"아직 안 내보냈습니다"가
- * 늘 보이는 것**이 그 문제에 주는 답이다 — 차시가 끝날 때 뜨는 배너보다 낫다.
- * 배너는 닫히고 이건 늘 거기 있다.
+ * **"저장됨"이라고 쓰지 않는다.** 학교 컴퓨터실 PC는 전원을 끄면 디스크가 되돌아가므로
+ * 브라우저에 쓴 것은 안전하지 않다. 그런데 "저장됨"은 안전하다고 읽힌다 — 이 저장소가
+ * 무결성 문구에 "verified"를 금지한 것과 **같은 종류의 잘못**이다(mlpx-spec.md §7.3).
+ * 그래서 브라우저 쪽은 "이 브라우저에만 있음"이라고만 말하고, **안전 여부는 내보내기
+ * 상태 하나가 쥔다.**
  */
 
 import { computed } from 'vue'
@@ -39,6 +41,21 @@ const exportState = computed(() => {
   return 'exported'
 })
 
+/** 브라우저 쪽 상태와 곁가지들. 가운뎃점으로 이어 붙일 것이라 배열로 만든다. */
+const facts = computed(() => {
+  const parts: string[] = []
+  if (project.saving) parts.push(t('save.saving'))
+  else if (project.dirty) parts.push(t('save.unsaved'))
+  else parts.push(t('save.browserOnly'))
+
+  if (project.savedAt !== null && !project.dirty && !project.saving) {
+    parts.push(format.dateTime(project.savedAt))
+  }
+  // 아직 아무것도 없는 프로젝트에 "0 byte"는 알려 주는 것이 없다.
+  if (sizeBytes.value > 0) parts.push(format.bytes(sizeBytes.value))
+  return parts
+})
+
 function onLocale(event: Event): void {
   void setLocale((event.target as HTMLSelectElement).value as Locale)
 }
@@ -46,39 +63,32 @@ function onLocale(event: Event): void {
 
 <template>
   <footer
-    class="flex h-statusbar shrink-0 items-center gap-4 overflow-x-auto border-t border-line bg-surface px-3 text-base text-ink-soft"
+    class="flex h-statusbar shrink-0 items-center gap-2 overflow-x-auto border-t border-line bg-surface px-3 text-ink-soft"
   >
     <template v-if="project.projectId !== null">
-      <span class="flex items-center gap-1.5 whitespace-nowrap">
-        <span
-          class="size-1.5 rounded-pill"
-          :class="project.saving || project.dirty ? 'bg-caution' : 'bg-positive'"
-          aria-hidden="true"
-        />
-        {{
-          project.saving ? t('save.saving') : project.dirty ? t('save.unsaved') : t('save.saved')
-        }}
-      </span>
-
-      <span v-if="project.savedAt !== null" class="whitespace-nowrap text-ink-faint">
-        {{ format.dateTime(project.savedAt) }}
-      </span>
-
+      <!--
+        내보내기 상태가 먼저다. 학생이 알아야 하는 것은 "내 작업이 이 컴퓨터를 나갈 수
+        있는가" 하나이고, 브라우저 저장 상태는 그 뒤의 곁가지다.
+      -->
       <span
-        class="whitespace-nowrap"
-        :class="exportState === 'exported' ? '' : 'font-bold text-caution'"
+        class="flex shrink-0 items-center gap-2 whitespace-nowrap"
+        :class="exportState === 'exported' ? 'text-positive' : 'font-bold text-caution'"
         :title="exportState === 'exported' ? undefined : t('save.exportWarning')"
       >
-        {{ exportState === 'notExported' ? t('save.notExported') : t('save.exported') }}
+        <span class="size-2 shrink-0 rounded-pill bg-current" aria-hidden="true" />
+        {{ t(`save.${exportState}`) }}
       </span>
 
-      <span class="whitespace-nowrap max-sm:hidden">{{ format.bytes(sizeBytes) }}</span>
+      <template v-for="fact in facts" :key="fact">
+        <span class="shrink-0 text-line-strong" aria-hidden="true">·</span>
+        <span class="shrink-0 whitespace-nowrap">{{ fact }}</span>
+      </template>
     </template>
 
     <span v-else class="whitespace-nowrap">{{ t('shell.noProject') }}</span>
 
     <select
-      class="ml-auto rounded-field bg-transparent px-1 py-0.5 text-base"
+      class="ml-auto shrink-0 rounded-field bg-transparent px-1 py-0.5"
       :aria-label="t('shell.language')"
       :value="locale"
       @change="onLocale"
