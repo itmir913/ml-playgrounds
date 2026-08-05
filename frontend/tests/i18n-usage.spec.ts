@@ -1,0 +1,224 @@
+/**
+ * i18n 사용 규약을 소스에서 강제한다 (CLAUDE.md 3).
+ *
+ * **로케일 파일이 완벽해도 화면은 깨질 수 있다.** 키 집합이 같고 보간 변수가 같아도,
+ * 문장을 조각으로 이어 붙였으면 어순이 다른 언어에서 무너진다. tests/locales.spec.ts는
+ * 파일 사이의 계약을 보고, 여기는 **그 문장을 쓰는 방식**을 본다.
+ *
+ * 사람의 주의로는 못 막는 종류다. 버튼 하나, 개수 표시 하나에서 슬금슬금 생기고
+ * 리뷰에서는 자연스러워 보인다. 그래서 검사로 만든다 - 백엔드의 한글 리터럴 검사
+ * (test_no_korean_literals.py)와 같은 성격이다.
+ *
+ * **검사기 자체를 먼저 검사한다.** 위반 표본을 잡아내는지, 정상 표본을 안 잡는지를
+ * 고정해 둔다. 소스를 훑는 검사만 두면 지금은 통과하지만 정규식이 틀렸을 때
+ * **아무것도 안 잡으면서 조용히 초록색**이 된다. 그게 제일 나쁜 상태다.
+ *
+ * **예외 통로를 두지 않았다.** 정말 필요한 경우가 나오면 그 사례를 손에 들고 그때 만든다.
+ * 미리 만들어 두면 규칙이 아니라 권고가 된다.
+ */
+
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { describe, expect, it } from 'vitest'
+
+// jsdom 환경에서는 import.meta.url이 file: 스킴이 아니라 URL 계산을 못 한다.
+// vitest는 vite.config.ts가 있는 곳에서 도므로 cwd가 frontend/ 다.
+const SRC = join(process.cwd(), 'src')
+if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
+
+interface Rule {
+  /** 실패했을 때 무엇을 어겼는지. */
+  readonly name: string
+  readonly pattern: RegExp
+  /** 패턴이 걸린 뒤 한 번 더 거르는 조건. 없으면 패턴이 곧 위반이다. */
+  readonly only?: (line: string) => boolean
+  /** 반드시 잡혀야 하는 줄. */
+  readonly violations: readonly string[]
+  /** 절대 잡히면 안 되는 줄. */
+  readonly allowed: readonly string[]
+}
+
+const RULES: readonly Rule[] = [
+  {
+    name: 't()를 + 로 잇지 않는다',
+    pattern: /\$?\bt\([^)]*\)\s*\+|\+\s*\$?\bt\(/,
+    violations: [
+      "const label = t('train.done') + ' ' + count",
+      "const label = count + ' ' + t('models')",
+      "const label = $t('a') + $t('b')",
+    ],
+    allowed: [
+      "const label = t('train.done', { count })",
+      'const total = left + right',
+      // 이름이 t로 끝나는 다른 함수는 걸리지 않아야 한다.
+      "const x = format('a') + 'b'",
+      "const y = split('a') + 'b'",
+    ],
+  },
+  {
+    name: 't()를 템플릿 리터럴 안에 넣지 않는다',
+    pattern: /`[^`]*\$\{[^}]*\$?\bt\(/,
+    violations: ["const label = `${t('a')} ${count}`", "const label = `${count} ${t('b')}`"],
+    allowed: [
+      "const label = t('a', { count })",
+      'const path = `${DIR.model}${run.id}.json`',
+      'const key = `errors.${code}`',
+    ],
+  },
+  {
+    name: '한 텍스트 노드에 mustache를 둘 이상 두지 않는다',
+    pattern: /\{\{[^}]*\}\}[^<>]*\{\{/,
+    // 적어도 한쪽이 번역이어야 한다. "3 / 10" 같은 수치 표시는 문장이 아니다.
+    only: (line) => /\$?\bt\(/.test(line),
+    violations: ['<p>{{ t("train.done") }} {{ count }}</p>', '<p>{{ count }}{{ t("models") }}</p>'],
+    allowed: [
+      '<p>{{ t("train.done", { count }) }}</p>',
+      // 태그로 나뉜 것은 각자 완결된 문장이다.
+      '<span>{{ t("a") }}</span><b>{{ x }}</b>',
+      // 번역이 없는 수치 표시.
+      '<p>{{ done }} / {{ total }}</p>',
+    ],
+  },
+  {
+    name: '로케일 태그를 코드에 박지 않는다',
+    pattern: /['"`](ko|en|ja)-[A-Z]{2}['"`]/,
+    violations: ["new Intl.NumberFormat('ko-KR')", 'const tag = "en-US"'],
+    allowed: ['new Intl.NumberFormat(locale.value)', "const tag = 'ko'", "if (x === 'en') return"],
+  },
+]
+
+function sourceFiles(directory: string): string[] {
+  return readdirSync(directory).flatMap((entry) => {
+    const path = join(directory, entry)
+    if (statSync(path).isDirectory()) return sourceFiles(path)
+    return /\.(ts|vue)$/.test(entry) && !/\.spec\.ts$/.test(entry) ? [path] : []
+  })
+}
+
+/**
+ * 주석을 걷어낸 줄들. **막으려는 것은 코드이지 설명이 아니다** - 백엔드의 한글 리터럴
+ * 검사가 주석과 docstring을 예외로 두는 것과 같은 이유다. 규칙을 설명하려면 금지된
+ * 모양을 주석에 적어야 하는데, 그것까지 걸리면 문서를 못 쓴다.
+ *
+ * 따옴표 안의 `//`는 주석이 아니다(URL이 그렇다). 문자열 상태를 따라가며 자른다.
+ *
+ * 줄을 넘기는 템플릿 리터럴은 따라가지 않는다 - 그 안의 `//`를 주석으로 볼 수 있다.
+ * 실제로 그런 자리에 규칙 위반이 들어갈 일은 없어서 감수한다.
+ */
+function withoutComments(source: string): string[] {
+  let inBlock = false
+  return source.split(/\r?\n/).map((line) => {
+    let kept = ''
+    let quote = ''
+    for (let i = 0; i < line.length; i += 1) {
+      const two = line.slice(i, i + 2)
+      if (inBlock) {
+        // 한 줄에서 열고 닫는 주석이 있다. 닫은 뒤의 코드는 살려야 한다.
+        if (two === '*/') {
+          inBlock = false
+          i += 1
+        }
+        continue
+      }
+      const char = line[i] ?? ''
+      if (quote) {
+        kept += char
+        if (char === '\\') {
+          kept += line[i + 1] ?? ''
+          i += 1
+        } else if (char === quote) quote = ''
+        continue
+      }
+      if (char === "'" || char === '"' || char === '`') {
+        quote = char
+        kept += char
+      } else if (two === '//') return kept
+      else if (two === '/*') {
+        inBlock = true
+        i += 1
+      } else kept += char
+    }
+    return kept
+  })
+}
+
+function hits(rule: Rule, line: string): boolean {
+  return rule.pattern.test(line) && (rule.only?.(line) ?? true)
+}
+
+describe('검사기가 실제로 잡는다', () => {
+  for (const rule of RULES) {
+    describe(rule.name, () => {
+      for (const line of rule.violations) {
+        it(`위반을 잡는다: ${line}`, () => {
+          expect(hits(rule, line)).toBe(true)
+        })
+      }
+      for (const line of rule.allowed) {
+        it(`정상을 안 잡는다: ${line}`, () => {
+          expect(hits(rule, line)).toBe(false)
+        })
+      }
+    })
+  }
+
+  it('주석은 걷어낸다 - 규칙을 설명하는 주석까지 걸리면 문서를 못 쓴다', () => {
+    const source = ["// t('a') + t('b') 는 금지다", "/* new Intl.NumberFormat('ko-KR') */"].join(
+      '\n',
+    )
+    expect(withoutComments(source).join('').trim()).toBe('')
+  })
+
+  it('따옴표 안의 //는 주석이 아니다', () => {
+    expect(withoutComments("const url = 'https://a.b'")[0]).toContain('https://a.b')
+  })
+
+  it('한 줄에서 열고 닫는 주석 뒤의 코드는 살린다', () => {
+    expect(withoutComments("/* 설명 */ const tag = 'ko-KR'")[0]).toContain('ko-KR')
+  })
+
+  it('여러 줄 주석은 통째로 걷어낸다', () => {
+    const source = ['/*', " * t('a') + t('b')", ' */', 'const ok = 1'].join('\n')
+    expect(withoutComments(source).join('\n').trim()).toBe('const ok = 1')
+  })
+})
+
+describe('지금 소스에 위반이 없다', () => {
+  for (const rule of RULES) {
+    it(rule.name, () => {
+      const found: string[] = []
+      for (const path of sourceFiles(SRC)) {
+        withoutComments(readFileSync(path, 'utf-8')).forEach((line, index) => {
+          if (hits(rule, line)) {
+            found.push(`${path.slice(SRC.length + 1)}:${index + 1}  ${line.trim()}`)
+          }
+        })
+      }
+      expect(found).toEqual([])
+    })
+  }
+})
+
+describe('로케일 문장', () => {
+  /** 조사는 앞 글자의 받침에 따라 갈린다. 값이 무엇일지 우리가 모르면 붙일 수 없다. */
+  const PARTICLES = '은는이가을를와과'
+
+  function particlesAfterPlaceholder(text: string): string[] {
+    return [...text.matchAll(/\{(\w+)\}(.)/g)]
+      .filter((match) => PARTICLES.includes(match[2] ?? ''))
+      .map((match) => `{${match[1]}}${match[2]}`)
+  }
+
+  it('검사기가 조사를 잡고 단위는 안 잡는다', () => {
+    expect(particlesAfterPlaceholder('{column}을 찾을 수 없습니다')).toEqual(['{column}을'])
+    // {count}개를 에서 } 다음 글자는 '개'다. 단위는 받침이 정해져 있어 문제가 없다.
+    expect(particlesAfterPlaceholder('{count}개를 담았습니다')).toEqual([])
+    expect(particlesAfterPlaceholder('지원하지 않습니다. ({fileName})')).toEqual([])
+  })
+
+  it('자리표시자 바로 뒤에 조사가 없다', () => {
+    const ko = readFileSync(join(SRC, 'locales', 'ko.json'), 'utf-8')
+    expect(particlesAfterPlaceholder(ko)).toEqual([])
+  })
+})
