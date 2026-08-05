@@ -142,6 +142,46 @@ describe('검사기가 실제로 잡는다', () => {
   })
 })
 
+/**
+ * **모든 버튼 변종이 테두리를 갖는다. 보이든 안 보이든.**
+ *
+ * 테두리가 있는 변종만 2px 높아서 나란히 세우면 줄이 어긋난다. 실제로 첫 화면의 버튼
+ * 셋이 64·66·69px이었고, **원인이 색이 아니라 상자라서 눈으로는 원인을 못 짚는다.**
+ * 안 보여야 하는 자리는 `border-transparent`로 두고 자리는 언제나 차지한다.
+ */
+describe('버튼의 상자가 변종마다 같다', () => {
+  const SOURCE = readFileSync(join(SRC, 'components', 'AppButton.vue'), 'utf-8')
+
+  /** VARIANTS 표의 `이름: '클래스들'` 줄만 뽑는다. */
+  function variantClasses(source: string): [string, string][] {
+    const table = source.slice(source.indexOf('const VARIANTS'))
+    return [...table.slice(0, table.indexOf('}')).matchAll(/(\w+):\s*'([^']*)'/g)].map((match) => [
+      match[1] ?? '',
+      match[2] ?? '',
+    ])
+  }
+
+  it('검사기가 표를 실제로 읽는다', () => {
+    const names = variantClasses(SOURCE).map(([name]) => name)
+    expect(names).toContain('primary')
+    expect(names).toContain('ghost')
+  })
+
+  it('검사기가 테두리 없는 변종을 잡는다', () => {
+    const broken = "const VARIANTS = {\n  ghost: 'text-ink-soft',\n}"
+    expect(
+      variantClasses(broken).filter(([, classes]) => !/\bborder\b/.test(classes)),
+    ).toHaveLength(1)
+  })
+
+  it('지금 모든 변종에 테두리가 있다', () => {
+    const missing = variantClasses(SOURCE)
+      .filter(([, classes]) => !/\bborder\b/.test(classes))
+      .map(([name]) => name)
+    expect(missing).toEqual([])
+  })
+})
+
 describe('버튼이 두 번 눌리지 않는다', () => {
   const NEWLINE = String.fromCharCode(10)
 

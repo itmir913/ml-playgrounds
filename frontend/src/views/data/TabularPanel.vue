@@ -222,7 +222,7 @@ function kindOf(column: ColumnSummary): string {
       <span v-if="!hasHeader" class="text-base text-ink-soft">{{ t('data.noHeaderNote') }}</span>
 
       <div class="ml-auto flex gap-2">
-        <AppButton variant="ghost" @click="opened = null">{{ t('common.cancel') }}</AppButton>
+        <AppButton variant="secondary" @click="opened = null">{{ t('common.cancel') }}</AppButton>
         <AppButton :disabled="busy" @click="requestApply">{{ t('data.use') }}</AppButton>
       </div>
     </div>
@@ -304,7 +304,9 @@ function kindOf(column: ColumnSummary): string {
       @close="confirming = false"
     >
       <template #actions>
-        <AppButton variant="ghost" @click="confirming = false">{{ t('common.cancel') }}</AppButton>
+        <AppButton variant="secondary" @click="confirming = false">{{
+          t('common.cancel')
+        }}</AppButton>
         <AppButton variant="danger" :disabled="busy" :action="apply">
           {{ t('data.replaceConfirm') }}
         </AppButton>

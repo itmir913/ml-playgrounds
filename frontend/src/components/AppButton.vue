@@ -67,13 +67,23 @@ async function run(): Promise<void> {
  * **넷은 무게 순서다** — primary > secondary > subtle > ghost. 나란히 놓인 선택지의
  * 무게가 같으면 학생은 어느 것이 보통의 길인지 모른다. subtle이 있는 이유가 그것이다:
  * ghost는 글자처럼 보여서 버튼인 줄 모르고, secondary는 흰 면이라 그 위와 비중이 같다.
+ *
+ * **모든 변종이 테두리를 갖는다. 보이든 안 보이든.** 테두리가 있는 것만 2px 높으면
+ * 나란히 세운 순간 줄이 어긋나고, 원인이 색이 아니라 상자라서 눈으로는 안 잡힌다.
+ * 실제로 첫 화면의 버튼 셋이 64·66·69px이었다. 안 보여야 하는 자리는 `transparent`로
+ * 두고 **자리는 언제나 차지한다** — 칸의 안쪽 폭이 상태에 따라 달라지면 안 된다는
+ * 규칙(CLAUDE.md)의 변종 판이다. `tests/ui-rules.spec.ts`가 이 표를 검사한다.
+ *
+ * **ghost는 나란한 선택지에 쓰지 마라.** 줄 안에서 눈에 안 띄어야 하는 것([빼기] 같은
+ * 것)에만 쓴다. 대화상자의 [취소]처럼 **고르는 것 둘이 나란히 설 때 한쪽만 면이 없으면
+ * 그건 버튼이 아니라 글자로 보인다.** 그 자리는 secondary다.
  */
 const VARIANTS: Readonly<Record<Variant, string>> = {
-  primary: 'bg-brand text-ink-invert shadow-card hover:bg-brand-strong',
+  primary: 'border border-brand bg-brand text-ink-invert shadow-card hover:bg-brand-strong',
   secondary: 'border border-line bg-surface text-ink hover:bg-surface-sunken',
-  subtle: 'bg-surface-sunken text-ink-soft hover:bg-line hover:text-ink',
-  ghost: 'text-ink-soft hover:bg-surface-sunken hover:text-ink',
-  danger: 'bg-danger text-ink-invert shadow-card hover:brightness-95',
+  subtle: 'border border-transparent bg-surface-sunken text-ink-soft hover:bg-line hover:text-ink',
+  ghost: 'border border-transparent text-ink-soft hover:bg-surface-sunken hover:text-ink',
+  danger: 'border border-danger bg-danger text-ink-invert shadow-card hover:brightness-95',
 }
 
 const SIZES: Readonly<Record<Size, string>> = {

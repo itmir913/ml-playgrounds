@@ -36,7 +36,7 @@ const popoverId = useId()
     <AppButton variant="subtle" size="lg" class="w-full" :popovertarget="popoverId">
       <component :is="ACTION_ICONS.savedProjects" :size="20" aria-hidden="true" />
       {{ t('projects.saved') }}
-      <span class="rounded-pill bg-surface px-2 py-0.5 text-ink-soft">
+      <span class="rounded-pill bg-surface px-2 py-0.5 text-base text-ink-soft">
         {{ summaries.length }}
       </span>
     </AppButton>

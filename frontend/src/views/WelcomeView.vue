@@ -207,7 +207,9 @@ onMounted(refresh)
         </form>
 
         <template #actions>
-          <AppButton variant="ghost" @click="creating = false">{{ t('common.cancel') }}</AppButton>
+          <AppButton variant="secondary" @click="creating = false">{{
+            t('common.cancel')
+          }}</AppButton>
           <AppButton :disabled="!canCreate" :action="create">{{ t('projects.create') }}</AppButton>
         </template>
       </AppDialog>
@@ -219,7 +221,9 @@ onMounted(refresh)
         @close="removing = null"
       >
         <template #actions>
-          <AppButton variant="ghost" @click="removing = null">{{ t('common.cancel') }}</AppButton>
+          <AppButton variant="secondary" @click="removing = null">{{
+            t('common.cancel')
+          }}</AppButton>
           <AppButton variant="danger" :action="remove">
             {{ t('projects.delete') }}
           </AppButton>
