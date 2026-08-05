@@ -106,14 +106,18 @@ function go(step: StepId): void {
             </div>
 
             <!--
-              할 일은 줄바꿈되며 늘어선다. **설명문은 지금 있는 칸에만 붙인다** -
-              여섯 줄이 모두 설명을 달면 훑을 수가 없고, 각 단계의 설명은 그 단계
-              화면의 머리가 이미 갖고 있다 (architecture.md §8.9).
+              할 일은 줄바꿈되며 늘어선다. **한 항목은 한 덩어리다** - 항목 가운데서
+              줄이 갈리면 "타깃(Target)" 과 "정하기"가 두 줄에 걸쳐 두 개처럼 읽힌다.
+              칸이 모자라면 항목째로 다음 줄에 내려간다.
+
+              **설명문은 지금 있는 칸에만 붙인다** - 여섯 줄이 모두 설명을 달면 훑을 수가
+              없고, 각 단계의 설명은 그 단계 화면의 머리가 이미 갖고 있다 (§8.9).
             -->
-            <ul class="flex min-w-0 flex-wrap gap-x-4 gap-y-1 sm:col-span-4">
+            <ul class="flex min-w-0 flex-wrap gap-x-4 gap-y-1 sm:col-span-3">
               <li
                 v-for="task in entry.tasks"
                 :key="task.key"
+                class="whitespace-nowrap"
                 :class="task.done ? 'text-ink-faint line-through' : 'text-ink-soft'"
               >
                 <span aria-hidden="true">{{ task.done ? '☑' : '☐' }}</span>
@@ -121,14 +125,28 @@ function go(step: StepId): void {
               </li>
             </ul>
 
-            <div class="min-w-0 sm:col-span-1 sm:justify-self-end">
+            <!--
+              **못 가는 이유가 [들어가기]와 같은 칸을 쓴다.** 한 줄에 둘 다 있는 일이
+              없으므로 자리를 나눌 이유가 없고, 문장이라 버튼보다 넓은 칸이 필요하다.
+
+              설명문이 붙는 줄에서는 **두 줄에 걸쳐 가운데 선다** - 버튼이 첫 줄에만
+              매달리면 줄의 무게 중심에서 벗어나 혼자 위로 올라가 보인다.
+            -->
+            <div
+              class="min-w-0 sm:col-span-2 sm:justify-self-end"
+              :class="entry.here ? 'sm:row-span-2' : ''"
+            >
               <AppButton v-if="entry.unlocked" variant="secondary" @click="go(entry.step)">
                 {{ t('project.openStep') }}
               </AppButton>
-              <span v-else>{{ t(`steps.${entry.step}.locked`) }}</span>
+              <span v-else class="block text-ink-soft">{{ t(`steps.${entry.step}.locked`) }}</span>
             </div>
 
-            <p v-if="entry.here" class="text-ink-soft sm:col-span-6">
+            <!--
+              버튼 칸을 침범하지 않는다. 여기까지가 왼쪽 네 칸이고, 그래서 위의
+              row-span이 성립한다.
+            -->
+            <p v-if="entry.here" class="text-ink-soft sm:col-span-4">
               {{ t(`steps.${entry.step}.purpose`) }}
             </p>
           </li>
