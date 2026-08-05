@@ -21,7 +21,8 @@
     "modelReady": "모델 만들기",
     "portfolioWritten": "포트폴리오 작성하기",
     "title": "해야 할 일",
-    "allDone": "이 단계에서 할 일을 모두 마쳤습니다."
+    "allDone": "이 단계에서 할 일을 모두 마쳤습니다.",
+    "taskTypeChosen": "기계학습 유형 정하기"
   },
   "shell": {
     "steps": "단계",
@@ -51,12 +52,12 @@
     "preprocess": {
       "label": "전처리",
       "locked": "데이터를 먼저 불러와 주세요.",
-      "purpose": "타깃(Target)과 특성(Feature)을 정하고 데이터를 다듬습니다."
+      "purpose": "데이터를 학습에 넣을 모양으로 다듬습니다."
     },
     "train": {
       "label": "학습",
-      "locked": "특성(Feature)과 모델을 먼저 정해 주세요.",
-      "purpose": "선정한 모델을 한 번에 학습시킵니다."
+      "locked": "타깃(Target)과 특성(Feature)을 먼저 정해 주세요.",
+      "purpose": "무엇을 할지 정하고, 학습할 모델을 고릅니다."
     },
     "results": {
       "label": "결과",
@@ -109,6 +110,98 @@
   "columnKind": {
     "numeric": "숫자",
     "categorical": "범주"
+  },
+  "algorithms": {
+    "decision_tree": "결정 트리",
+    "random_forest": "랜덤 포레스트",
+    "logistic_regression": "로지스틱 회귀",
+    "knn": "K-최근접 이웃",
+    "naive_bayes": "나이브 베이즈",
+    "svm": "서포트 벡터 머신",
+    "linear_regression": "선형 회귀"
+  },
+  "runtimes": {
+    "mljs": "순수 JS",
+    "pyodide-sklearn": "scikit-learn · 내 컴퓨터",
+    "server-sklearn": "scikit-learn · 학교 서버"
+  },
+  "hyperparams": {
+    "maxDepth": "나무의 최대 깊이",
+    "minNumSamples": "가지를 나누는 최소 데이터 수",
+    "nEstimators": "나무 개수",
+    "k": "이웃 수",
+    "numSteps": "학습 반복 횟수",
+    "learningRate": "학습률"
+  },
+  "missingStrategy": {
+    "drop": "빈 칸이 있는 줄 빼기",
+    "mean": "평균으로 채우기",
+    "median": "중앙값으로 채우기",
+    "mostFrequent": "가장 많은 값으로 채우기",
+    "zero": "0으로 채우기"
+  },
+  "scalingMethod": {
+    "none": "하지 않음",
+    "standard": "표준화",
+    "minmax": "정규화",
+    "robust": "로버스트"
+  },
+  "categoricalEncoding": {
+    "none": "하지 않음",
+    "onehot": "원-핫 인코딩",
+    "ordinal": "순서 인코딩"
+  },
+  "preprocess": {
+    "emptyReason": "아직 불러온 데이터가 없습니다.",
+    "emptyNext": "데이터 단계에서 표를 올리면 여기에서 무엇을 예측할지 고를 수 있습니다.",
+    "dataSide": "데이터",
+    "modelSide": "모델",
+    "columnsTitle": "타깃과 특성",
+    "columnsLead": "예측할 열 하나를 타깃으로, 예측에 쓸 열들을 특성으로 고릅니다.",
+    "targetRule": {
+      "TARGET_NOT_NUMERIC": "회귀는 숫자 열만 타깃으로 고를 수 있습니다."
+    },
+    "roleTarget": "타깃",
+    "roleFeature": "특성",
+    "selectAll": "특성 모두 고르기",
+    "clearAll": "특성 모두 풀기",
+    "notEncodable": "문자 값이 든 열이라 지금 설정에서는 학습에서 빠집니다.",
+    "targetSingleValue": "값이 한 종류뿐이라 예측할 것이 없습니다.",
+    "featureSummary": "특성 {count}개가 학습에 들어갑니다.",
+    "noFeatureChosen": "아직 고른 특성이 없습니다.",
+    "noUsableFeature": "학습에 들어갈 특성이 하나도 없습니다.",
+    "cleaningTitle": "데이터 다듬기",
+    "missing": "결측치 처리",
+    "missingNote": "문자 값이 든 열에는 평균도 중앙값도 없어 가장 많은 값으로 채웁니다.",
+    "scaling": "스케일링",
+    "scalingNote": "숫자 열의 크기를 고릅니다. 켜고 끄면서 결과가 어떻게 달라지는지 보세요.",
+    "encoding": "범주형 인코딩",
+    "encodingNote": "문자 값을 숫자로 바꾸는 방법입니다. 끄면 문자 열이 학습에서 빠집니다.",
+    "splitTitle": "학습용과 평가용 나누기",
+    "testSize": "평가용 비율",
+    "testSizeNote": "나머지로 학습하고 이만큼으로 점수를 매깁니다.",
+    "stratify": "값 종류의 비율을 맞춰 나누기",
+    "randomState": "난수 씨앗",
+    "randomStateNote": "프로젝트를 만들 때 정해집니다. 같은 씨앗이면 언제 돌려도 같게 나뉩니다."
+  },
+  "train": {
+    "taskTitle": "기계학습 유형(Task Type)",
+    "taskLead": "무엇을 하려는지 먼저 고릅니다. 고른 유형에 맞는 모델만 오른쪽에 남습니다.",
+    "taskChanged": "고른 유형에서 쓸 수 없어 선택에서 빠진 모델이 있습니다. ({names})",
+    "runtimeTitle": "실행 방법",
+    "runtimeNote": "고른 모델들을 어디서 학습할지 정합니다.",
+    "modelsTitle": "모델 선정",
+    "modelsLead": "여러 개를 골라 한 번에 학습하고 결과를 견줍니다.",
+    "modelSummary": "모델 {count}개를 골랐습니다.",
+    "noModelChosen": "아직 고른 모델이 없습니다.",
+    "tuning": "설정 바꾸기",
+    "noTuning": "이 모델에는 바꿀 값이 없습니다.",
+    "range": "{min} ~ {max}",
+    "outOfRange": "눈금 밖의 값이라 이 모델은 학습에 실패합니다.",
+    "emptyReason": "아직 프로젝트를 열지 않았습니다.",
+    "emptyNext": "프로젝트를 열면 여기에서 무엇으로 학습할지 고를 수 있습니다.",
+    "noTaskTypeReason": "기계학습 유형을 아직 고르지 않았습니다.",
+    "noTaskTypeNext": "위에서 유형을 고르면 그 유형에 맞는 모델이 여기에 나옵니다."
   },
   "projects": {
     "new": "새 프로젝트",

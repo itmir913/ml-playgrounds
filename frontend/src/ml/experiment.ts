@@ -22,12 +22,17 @@
  *   만들어 봐야 전부 같은 사유로 실패하고, 학생은 같은 문장을 모델 수만큼 보게 된다.
  */
 
-import { ClientError, failureDetail, isClientError, type ClientErrorParams } from '../errors'
-import { BROWSER_ROW_LIMIT } from '../limits'
+import { ClientError, failureDetail, isClientError } from '../errors'
 import type { Experiment, DataType, Run, RunsFile, Settings, TaskType } from '../project/schema'
 import { algorithmOptions, type AlgorithmOption } from './algorithms'
-import type { RuntimeContext, RuntimeSpec, UnavailableReason } from './backend'
+import {
+  reasonParams,
+  type RuntimeContext,
+  type RuntimeSpec,
+  type UnavailableReason,
+} from './backend'
 import { engineFor, type TrainingEngine } from './engines'
+import { assertInRange } from './hyperparams'
 import { evaluate } from './metrics'
 import type { ModelFile } from './models'
 import {
@@ -36,10 +41,11 @@ import {
   targetValues,
   transform,
   usableRows,
-  type ColumnKind,
   type Dataset,
   type Preprocessor,
 } from './preprocess'
+// 전처리 화면이 [학습] 전에 같은 판정을 한다. 표가 두 벌이면 화면과 학습이 갈린다.
+import { requiredTargetKind } from './selection'
 import { holdoutSplit } from './split'
 
 export interface ExperimentInput {
@@ -86,32 +92,6 @@ export interface ExperimentResult {
    * 그 사유는 run.modelOmitted에 적혀 있다 (mlpx-spec.md 4.2).
    */
   models: Map<string, ModelFile>
-}
-
-/**
- * 과제 유형이 타깃 열에 요구하는 자료형. **없으면 요구가 없다.**
- *
- * **과제 유형을 자동 판정하는 표가 아니다** (mlpx-spec.md 0.1). 학생이 고른 것을 다른
- * 것으로 바꾸지 않고, 그 선택으로는 답이 나오지 않는 조합만 거부한다. 분류에는 요구가
- * 없다 - 3과 "3"을 가르지 않고 라벨로 다루므로 어느 자료형이든 성립한다.
- *
- * 거부하지 않으면 어떻게 되는지가 이 표가 있는 이유다. 회귀 + `'상'/'중'/'하'`는
- * `Number('상')`이 NaN이라 지표가 통째로 NaN인 채 run이 **done으로 끝나고**, 저장할 때
- * JSON이 그 NaN을 null로 바꿔 **다시 열리지 않는 .mlpx**가 된다. 교실에서 아주 자연스러운
- * 실수다 - 성적 등급을 타깃으로 회귀를 고르는 것.
- *
- * `if (taskType === 'regression')`을 쓰지 않는 이유는 ml/metrics.ts와 같다. 군집이
- * 들어오면 여기에 줄이 하나 늘거나 안 늘 뿐이고, 부르는 쪽은 그대로다.
- */
-const TARGET_KIND_REQUIRED: Partial<
-  Record<TaskType, { kind: ColumnKind; code: 'TARGET_NOT_NUMERIC' }>
-> = {
-  regression: { kind: 'numeric', code: 'TARGET_NOT_NUMERIC' },
-}
-
-/** 사유별로 로케일 문장이 요구하는 값. 나머지는 빈 파라미터다. */
-function reasonParams(reason: UnavailableReason): ClientErrorParams {
-  return reason === 'DATASET_TOO_LARGE_FOR_BROWSER' ? { limitRows: BROWSER_ROW_LIMIT } : {}
 }
 
 /**
@@ -308,6 +288,11 @@ function trainOne(
   }
 
   try {
+    // **눈금 밖 값은 여기서 걸린다.** 화면이 이미 같은 서술로 말했지만 학생은 그대로
+    // 학습할 수 있고(막지 않는다), 그때 남아야 하는 것은 "이 모델은 이래서 안 돌았다"다.
+    // try 안이라 **이 run 하나만 실패하고 나머지 모델은 계속 돈다** (mlpx-spec.md 4.1).
+    assertInRange(engine.parameters(base.algorithm), base.hyperparameters)
+
     const { predict, model } = engine.fit(base.algorithm, {
       features: context.trainFeatures,
       target: context.trainTarget,
@@ -365,7 +350,7 @@ export function runExperiment(
 
   // **성립하지 않는 조합은 분할보다 먼저 거부한다.** 여기서 넘기면 지표가 NaN인 채로
   // run이 done으로 끝나고, 그 파일은 저장은 되는데 다시 열리지 않는다.
-  const required = TARGET_KIND_REQUIRED[taskType]
+  const required = requiredTargetKind(taskType)
   if (required && detectKind(labels) !== required.kind) {
     throw new ClientError(required.code, { target })
   }

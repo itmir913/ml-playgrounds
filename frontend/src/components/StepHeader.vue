@@ -4,6 +4,10 @@
  *
  * 이 단계가 무엇을 하는 곳인지 한 줄, 그리고 지금의 맥락. **길잡이 역할은 하지
  * 않는다** — 이동은 레일이 쥔다. 히어로가 아니라서 낮고 조용하다.
+ *
+ * 슬롯이 둘인 이유는 **맥락과 동작이 다른 것이기 때문이다.** 맥락은 `<dl>`에 들어가는
+ * 이름-값 쌍이고(파일 이름, 행 수), 동작은 버튼이다. 한 슬롯에 몰면 버튼이 `<dl>` 안에
+ * 들어가 마크업이 거짓말을 한다.
  */
 defineProps<{
   title: string
@@ -18,8 +22,14 @@ defineProps<{
       <p class="mt-0.5 text-base text-ink-soft">{{ purpose }}</p>
     </div>
 
-    <dl class="flex flex-wrap items-center gap-x-5 gap-y-1 text-base text-ink-soft">
-      <slot name="context" />
-    </dl>
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
+      <dl
+        v-if="$slots.context"
+        class="flex flex-wrap items-center gap-x-5 gap-y-1 text-base text-ink-soft"
+      >
+        <slot name="context" />
+      </dl>
+      <slot name="actions" />
+    </div>
   </header>
 </template>

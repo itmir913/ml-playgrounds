@@ -6,6 +6,9 @@
  * CI 스크립트가 errors.py까지 포함해 같은 검사를 하지만, 개발 중에 즉시 잡히도록 여기도 둔다.
  */
 
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -18,8 +21,17 @@ import {
 } from '../src/errors'
 import en from '../src/locales/en.json'
 import ko from '../src/locales/ko.json'
-import { ENGINE_STATES, TRAINING_LOCATIONS, UNAVAILABLE_REASONS } from '../src/ml/backend'
-import { MODEL_OMISSION_REASONS, TASK_TYPES } from '../src/project/schema'
+import { ALGORITHMS } from '../src/ml/algorithms'
+import { ENGINE_STATES, RUNTIMES, TRAINING_LOCATIONS, UNAVAILABLE_REASONS } from '../src/ml/backend'
+import { parametersFor } from '../src/ml/hyperparams'
+import { requiredTargetKind } from '../src/ml/selection'
+import {
+  CATEGORICAL_ENCODINGS,
+  MISSING_STRATEGIES,
+  MODEL_OMISSION_REASONS,
+  SCALING_METHODS,
+  TASK_TYPES,
+} from '../src/project/schema'
 import { isStepUnlocked, NO_FACTS, STEP_IDS, stepTasks } from '../src/router/steps'
 
 type Tree = { [key: string]: string | Tree }
@@ -54,6 +66,18 @@ function placeholders(message: string): string[] {
 const english = flatten(en as Tree)
 const korean = flatten(ko as Tree)
 
+/** vitest는 vite.config.ts가 있는 곳에서 돈다. cwd가 frontend/ 다. */
+const SRC = join(process.cwd(), 'src')
+if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
+
+function sourceFiles(directory: string): string[] {
+  return readdirSync(directory).flatMap((entry) => {
+    const path = join(directory, entry)
+    if (statSync(path).isDirectory()) return sourceFiles(path)
+    return /\.(ts|vue)$/.test(entry) ? [path] : []
+  })
+}
+
 describe('로케일 파일', () => {
   it('키 집합이 완전히 같다', () => {
     expect([...korean.keys()].sort()).toEqual([...english.keys()].sort())
@@ -87,6 +111,14 @@ describe('로케일 파일', () => {
       'taskTypes',
       'nav',
       'common',
+      'algorithms',
+      'runtimes',
+      'hyperparams',
+      'missingStrategy',
+      'scalingMethod',
+      'categoricalEncoding',
+      'preprocess',
+      'train',
     ]) {
       expect([...english.keys()].some((key) => key.startsWith(`${namespace}.`))).toBe(true)
     }
@@ -169,6 +201,79 @@ describe('프런트엔드 전용 코드', () => {
     }
   })
 
+  it('전처리 설정의 어휘가 로케일과 양방향으로 일치한다', () => {
+    // 전처리 화면이 이 배열들을 그대로 돌며 선택지를 그린다. 여기가 비면 화면에
+    // 로케일 키가 그대로 뜨고, 남으면 아무도 못 보는 문장이 두 언어에 산다.
+    const pairs = [
+      ['missingStrategy', MISSING_STRATEGIES],
+      ['scalingMethod', SCALING_METHODS],
+      ['categoricalEncoding', CATEGORICAL_ENCODINGS],
+    ] as const
+
+    for (const [namespace, codes] of pairs) {
+      for (const code of codes) {
+        expect(english.has(`${namespace}.${code}`), code).toBe(true)
+        expect(korean.has(`${namespace}.${code}`), code).toBe(true)
+      }
+      const declared = new Set<string>(codes)
+      const used = [...english.keys()]
+        .filter((key) => key.startsWith(`${namespace}.`))
+        .map((key) => key.slice(namespace.length + 1))
+      expect(used.filter((key) => !declared.has(key))).toEqual([])
+    }
+  })
+
+  it('등록부의 모델과 실행 방법마다 이름이 있다', () => {
+    // **이름은 두 벌이고 서로 독립이다** (open-decisions.md "무엇을 학습할 수 있는지는
+    // 서버가 알려준다"). 화면의 "결정 트리 / 순수 JS"는 합친 이름이 아니라 두 번 조회해
+    // 조립한 것이다. 그래서 검사도 둘로 나뉜다.
+    for (const algorithm of ALGORITHMS) {
+      expect(english.has(`algorithms.${algorithm.id}`), algorithm.id).toBe(true)
+      expect(korean.has(`algorithms.${algorithm.id}`), algorithm.id).toBe(true)
+    }
+    for (const runtime of RUNTIMES) {
+      expect(english.has(`runtimes.${runtime.id}`), runtime.id).toBe(true)
+      expect(korean.has(`runtimes.${runtime.id}`), runtime.id).toBe(true)
+    }
+
+    const declared = new Set<string>(ALGORITHMS.map((algorithm) => algorithm.id))
+    const used = [...english.keys()]
+      .filter((key) => key.startsWith('algorithms.'))
+      .map((key) => key.slice('algorithms.'.length))
+    expect(used.filter((key) => !declared.has(key))).toEqual([])
+  })
+
+  it('손잡이마다 이름이 있다', () => {
+    // 서술을 늘리는 사람이 문구를 함께 넣게 만든다. 빠지면 화면에 `maxDepth`가 뜬다.
+    const names = new Set<string>()
+    for (const runtime of RUNTIMES) {
+      for (const algorithm of ALGORITHMS) {
+        for (const spec of parametersFor(runtime.id, algorithm.id)) names.add(spec.name)
+      }
+    }
+    expect(names.size).toBeGreaterThan(0)
+
+    for (const name of names) {
+      expect(english.has(`hyperparams.${name}`), name).toBe(true)
+      expect(korean.has(`hyperparams.${name}`), name).toBe(true)
+    }
+    const used = [...english.keys()]
+      .filter((key) => key.startsWith('hyperparams.'))
+      .map((key) => key.slice('hyperparams.'.length))
+    expect(used.filter((key) => !names.has(key))).toEqual([])
+  })
+
+  it('타깃 자료형을 요구하는 유형마다 그 이유를 적을 자리가 있다', () => {
+    // 요구가 있으면 어떤 열의 타깃 칸이 꺼진다. 이유 없이 회색이면 학생에게 고장으로
+    // 보인다 - 요구를 하나 더 만드는 사람이 문장도 함께 넣게 한다.
+    for (const taskType of TASK_TYPES) {
+      const required = requiredTargetKind(taskType)
+      if (!required) continue
+      expect(english.has(`preprocess.targetRule.${required.code}`), taskType).toBe(true)
+      expect(korean.has(`preprocess.targetRule.${required.code}`), taskType).toBe(true)
+    }
+  })
+
   it('실행 위치마다 이름이 있다', () => {
     for (const location of TRAINING_LOCATIONS) {
       expect(english.has(`execution.${location}`), location).toBe(true)
@@ -236,5 +341,40 @@ describe('프런트엔드 전용 코드', () => {
       .filter((key) => key.startsWith('steps.'))
       .map((key) => key.slice('steps.'.length).split('.')[0] ?? '')
     expect([...new Set(used)].filter((key) => !declared.has(key))).toEqual([])
+  })
+})
+
+describe('화면이 부르는 키가 로케일에 있다', () => {
+  /**
+   * **키를 옮기면 참조가 남는다.** 실제로 겪었다 — `preprocess.*`의 모델 쪽 문구를
+   * `train.*`으로 옮겼는데 `ModelPicker`가 옛 키를 계속 불러서 화면에 `preprocess.tuning`이
+   * 그대로 떴다. 위의 네임스페이스 검사는 "그 네임스페이스에 키가 하나라도 있는가"만
+   * 보므로 이걸 못 잡는다.
+   *
+   * **정적으로 적힌 키만 본다.** `t(\`errors.${code}\`)` 같은 동적 조립은 여기서 확인할
+   * 수 없고, 그쪽은 등록부와 로케일을 짝지어 보는 위의 검사들이 맡는다.
+   */
+  function staticKeys(source: string): string[] {
+    // t('a.b') / $t("a.b"). 점이 하나라도 있어야 네임스페이스가 있는 키다.
+    return [...source.matchAll(/\$?\bt\(\s*['"]([\w.-]*\.[\w.-]+)['"]/g)].map(
+      (match) => match[1] ?? '',
+    )
+  }
+
+  it('검사기가 정적 키만 골라낸다', () => {
+    expect(staticKeys("t('train.tuning')")).toEqual(['train.tuning'])
+    expect(staticKeys('t(`errors.${code}`)')).toEqual([])
+    // 점이 없는 것은 네임스페이스가 아니다.
+    expect(staticKeys("format('a')")).toEqual([])
+  })
+
+  it('지금 화면이 부르는 키가 전부 있다', () => {
+    const missing: string[] = []
+    for (const path of sourceFiles(SRC)) {
+      for (const key of staticKeys(readFileSync(path, 'utf-8'))) {
+        if (!english.has(key)) missing.push(`${path.slice(SRC.length + 1)}  ${key}`)
+      }
+    }
+    expect(missing).toEqual([])
   })
 })

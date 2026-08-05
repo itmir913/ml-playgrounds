@@ -95,6 +95,6 @@ router.beforeEach(async (to) => {
   if (!isStepId(to.name)) {
     return true
   }
-  const allowed = resolveStep(to.name, project.facts)
+  const allowed = resolveStep(to.name, project.facts, project.taskType)
   return allowed === to.name ? true : { name: allowed, params: to.params }
 })

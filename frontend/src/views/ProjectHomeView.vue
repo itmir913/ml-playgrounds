@@ -6,9 +6,13 @@
  * 열었을 때 보고 싶은 것은 "어디까지 했더라"이지 파일 업로드 칸이 아니다 —
  * 특히 **다음 차시에 파일을 열고 들어오는 경우**가 그렇다.
  *
- * **두 열이다** (architecture.md §8.10.1). 왼쪽은 지금 하는 일, 오른쪽은 그 일을
- * 판단하는 데 필요한 맥락이다. 전에는 카드 여섯 장을 격자로 깔았는데, 넓은 화면에서
- * 카드가 위에 몰리고 아래 3분의 2가 비었다. 그건 웹사이트 문법이지 작업실 문법이 아니다.
+ * **[이어서 하기]가 맨 위 오른쪽이고, 그 아래에서 두 열이 같은 높이에서 시작한다**
+ * (architecture.md §8.9). 이어서 하기가 왼쪽 열 안에 있으면 오른쪽 요약이 그만큼 위로
+ * 떠서 두 열의 머리가 어긋나고, 눈이 훑을 기준선이 없어진다.
+ *
+ * **두 열이다** (§8.10.1). 왼쪽은 지금 하는 일, 오른쪽은 그 일을 판단하는 데 필요한
+ * 맥락이다. 전에는 카드 여섯 장을 격자로 깔았는데, 넓은 화면에서 카드가 위에 몰리고
+ * 아래 3분의 2가 비었다. 그건 웹사이트 문법이지 작업실 문법이 아니다.
  *
  * `md` 미만에서는 한 열이다. 좁은 화면에서 두 열은 둘 다 못 읽게 만든다.
  *
@@ -40,7 +44,7 @@ const steps = computed(() =>
     const tasks = stepTasks(step, project.facts, project.taskType)
     return {
       step,
-      unlocked: isStepUnlocked(step, project.facts),
+      unlocked: isStepUnlocked(step, project.facts, project.taskType),
       tasks,
       done: tasks.length > 0 && tasks.every((task) => task.done),
       here: now.value?.step === step,
@@ -55,7 +59,19 @@ function go(step: StepId): void {
 
 <template>
   <div class="flex flex-col gap-5 p-4 sm:p-5">
-    <StepHeader :title="t('project.homeTitle')" :purpose="t('project.homeLead')" />
+    <!--
+      머리와 [이어서 하기]가 한 줄이다. 이어서 하기를 왼쪽 열 안에 두면 오른쪽 요약이
+      그만큼 위로 떠서 두 열의 머리가 어긋난다.
+
+      한 문장은 한 키다 (CLAUDE.md §3 규칙 3) - 조각으로 이으면 어순이 다른 언어에서 무너진다.
+    -->
+    <StepHeader :title="t('project.homeTitle')" :purpose="t('project.homeLead')">
+      <template #actions>
+        <AppButton v-if="now !== null" size="lg" @click="go(now.step)">
+          {{ t('project.resume', { task: t(`tasks.${now.key}`) }) }}
+        </AppButton>
+      </template>
+    </StepHeader>
 
     <!--
       2 대 1이다. 왼쪽이 본체이고 오른쪽은 곁들이는 맥락이라, 반씩 나누면 오른쪽이
@@ -64,11 +80,6 @@ function go(step: StepId): void {
     <div class="grid gap-5 md:grid-cols-3">
       <!-- 왼쪽: 지금 하는 일 -->
       <div class="flex min-w-0 flex-col gap-4 md:col-span-2">
-        <!-- 한 문장은 한 키다 (CLAUDE.md §3 규칙 3). 조각으로 이으면 어순이 다른 언어에서 무너진다. -->
-        <AppButton v-if="now !== null" size="lg" class="self-start" @click="go(now.step)">
-          {{ t('project.resume', { task: t(`tasks.${now.key}`) }) }}
-        </AppButton>
-
         <ul class="flex flex-col rounded-panel border border-line bg-surface">
           <li
             v-for="(entry, index) in steps"
@@ -102,7 +113,7 @@ function go(step: StepId): void {
             </ul>
 
             <div class="ml-auto shrink-0">
-              <AppButton v-if="entry.unlocked" variant="subtle" @click="go(entry.step)">
+              <AppButton v-if="entry.unlocked" variant="secondary" @click="go(entry.step)">
                 {{ t('project.openStep') }}
               </AppButton>
               <span v-else>{{ t(`steps.${entry.step}.locked`) }}</span>

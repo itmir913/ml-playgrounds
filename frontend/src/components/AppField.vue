@@ -19,8 +19,9 @@ import { computed, useId } from 'vue'
 
 const props = defineProps<{
   label: string
-  hint?: string
-  error?: string
+  hint?: string | undefined
+  /** 있으면 도움말 자리를 차지한다. 조건부로 넘기는 자리라 undefined를 받는다. */
+  error?: string | undefined
 }>()
 
 const inputId = useId()

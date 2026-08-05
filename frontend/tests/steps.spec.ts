@@ -32,6 +32,7 @@ const FLAGS: readonly FactKey[] = [
   'datasetReady',
   'targetChosen',
   'featuresChosen',
+  'taskTypeChosen',
   'algorithmsChosen',
   'trainingDone',
   'modelReady',
@@ -58,7 +59,7 @@ const ALL: ProjectFacts = Object.fromEntries(
   FLAGS.map((flag) => [flag, true]),
 ) as unknown as ProjectFacts
 
-/** 불리언 일곱 개의 128가지 조합 전부. 손으로 고른 표본은 빈 자리를 남긴다. */
+/** 불리언 여덟 개의 256가지 조합 전부. 손으로 고른 표본은 빈 자리를 남긴다. */
 function everyCombination(): ProjectFacts[] {
   const all: ProjectFacts[] = []
   for (let mask = 0; mask < 1 << FLAGS.length; mask += 1) {
@@ -107,17 +108,26 @@ describe('잠금 해제', () => {
     expect(isStepUnlocked('preprocess', facts({ datasetReady: true }))).toBe(true)
   })
 
-  it('학습에 대상 열은 필요 없다 - 군집화에는 대상이 없다', () => {
-    const ready = facts({ datasetReady: true, featuresChosen: true, algorithmsChosen: true })
+  it('학습은 타깃과 특성이 정해지면 열린다', () => {
+    // 모델을 고르는 것은 학습 화면 안의 할 일이다. 그것까지 요구하면 학생이 들어갈 수 없다.
+    const ready = facts({ datasetReady: true, targetChosen: true, featuresChosen: true })
     expect(isStepUnlocked('train', ready)).toBe(true)
-    expect(ready.targetChosen).toBe(false)
+    expect(ready.algorithmsChosen).toBe(false)
+  })
+
+  it('군집화는 타깃 없이도 학습이 열린다 - 요구도 같은 필터를 지난다', () => {
+    // **여기가 이 설계의 요점이다.** 할 일에서만 빼고 잠금에서 안 빼면 군집화 학생이
+    // 영영 못 들어가는 단계를 보게 된다.
+    const ready = facts({ datasetReady: true, featuresChosen: true })
+    expect(isStepUnlocked('train', ready, 'clustering')).toBe(true)
+    expect(isStepUnlocked('train', ready, 'classification')).toBe(false)
+    // 유형을 아직 안 골랐으면 전부 해당한다 - 지금 등록부의 유형은 둘 다 타깃이 필요하다.
+    expect(isStepUnlocked('train', ready)).toBe(false)
   })
 
   it('학습은 설정만으로는 열리지 않는다', () => {
     // 설정이 남아 있는 채로 데이터를 갈아치우는 경우가 있다.
-    expect(isStepUnlocked('train', facts({ featuresChosen: true, algorithmsChosen: true }))).toBe(
-      false,
-    )
+    expect(isStepUnlocked('train', facts({ targetChosen: true, featuresChosen: true }))).toBe(false)
   })
 
   it('결과는 run이 있으면 열린다 - 실패한 학습도 결과다', () => {
@@ -211,7 +221,7 @@ describe('기계학습 유형마다 할 일이 다르다', () => {
         STEP_IDS.flatMap((step) => stepTasks(step, NO_FACTS, taskType)).map((task) => task.key),
       )
       const done = facts(Object.fromEntries([...shown].map((key) => [key, true])))
-      const locked = STEP_IDS.filter((step) => !isStepUnlocked(step, done))
+      const locked = STEP_IDS.filter((step) => !isStepUnlocked(step, done, taskType))
       // 예측만 남아야 한다. 모델이 예산에서 밀렸을 때이고 학생이 할 수 있는 일이 없다.
       expect(locked, taskType).toEqual(['predict'])
     }
@@ -226,6 +236,12 @@ describe('지금 할 일', () => {
   it('앞 단계가 끝나면 다음 열린 단계로 넘어간다', () => {
     const uploaded = facts({ datasetReady: true })
     expect(currentTask(uploaded, TASK)).toEqual({ step: 'preprocess', key: 'targetChosen' })
+  })
+
+  it('전처리를 마치면 학습의 첫 일은 유형 고르기다', () => {
+    // 모델 목록이 유형에서 나오므로 유형이 먼저다 (TrainView).
+    const ready = facts({ datasetReady: true, targetChosen: true, featuresChosen: true })
+    expect(currentTask(ready, TASK)).toEqual({ step: 'train', key: 'taskTypeChosen' })
   })
 
   it('잠긴 단계의 할 일은 고르지 않는다', () => {
@@ -262,7 +278,7 @@ describe('잠긴 단계를 요청했을 때', () => {
     expect(
       resolveStep(
         'results',
-        facts({ datasetReady: true, featuresChosen: true, algorithmsChosen: true }),
+        facts({ datasetReady: true, targetChosen: true, featuresChosen: true }),
       ),
     ).toBe('train')
     expect(resolveStep('train', facts({ datasetReady: true }))).toBe('preprocess')

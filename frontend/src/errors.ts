@@ -87,6 +87,9 @@ export const SHARED_ERROR_CODES = [
 
   // 학습 자체의 실패 - ml/metrics.ts, ml/engines/
   'ALGORITHM_UNSUPPORTED',
+  // 손잡이 값이 눈금 밖이다 - ml/hyperparams.ts. 브라우저가 학습하든 서버로 보내든
+  // 같은 판정이고, 서버도 자기 서술로 같은 코드를 낸다.
+  'HYPERPARAM_OUT_OF_RANGE',
   'JOB_FAILED',
   // 학생이 학습을 멈춘 것. 브라우저에서는 워커 terminate가, 서버에서는 취소 요청이
   // 같은 뜻이므로 코드가 하나다 (ml/worker/client.ts).

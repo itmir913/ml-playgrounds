@@ -41,8 +41,10 @@ import { RandomForestClassifier } from 'ml-random-forest'
 import MultivariateLinearRegression from 'ml-regression-multivariate-linear'
 
 import { ClientError } from '../../errors'
+import { resolveWith, type HyperparameterSpec } from '../hyperparams'
 import type { Prediction } from '../metrics'
 import type { ModelFile, Predict } from '../models/types'
+import { MLJS_PARAMETERS } from './mljs-params'
 import { serializeForest, serializeTree } from './mljs-serialize'
 
 /**
@@ -88,31 +90,13 @@ const toRows = (features: readonly (readonly number[])[]): number[][] =>
   features.map((row) => [...row])
 
 /**
- * 알고리즘별 기본 하이퍼파라미터. **이 엔진에서 이 값들의 유일한 출처다.**
+ * 이 엔진이 이 알고리즘에 받는 손잡이들. 모르는 알고리즘이면 빈 배열이다.
  *
- * 트레이너 안에 폴백으로 두면 같은 숫자가 두 군데 살고, 한쪽만 고쳤을 때 파일이 조용히
- * 거짓말을 한다 - run.hyperparameters에는 100이라 적혀 있는데 50으로 돈 상태다.
- * 그래서 resolve()가 여기서 값을 확정하고 트레이너는 확정된 값을 그냥 읽는다.
- *
- * **실측한 값 그대로다** - 이 값에서 파일 머리말의 붓꽃 숫자가 나왔고 tests/mljs.spec.ts가
- * 그것을 고정한다. 바꾸면 학생의 결과가 바뀐다.
- *
- * 여기 없는 생성자 인자가 둘 있다 - 결정트리의 gainFunction('gini')과 랜덤포레스트의
- * useSampleBagging(true). **구멍이 아니라 범위다.** 둘 다 진짜 손잡이지만(sklearn의
- * criterion, bootstrap) 표에 넣는 순간 학생이 바꿀 수 있는 값이 되고, 그건 하이퍼파라미터
- * 화면을 만들 때 입력 범위와 함께 볼 일이다(open-decisions.md "학습 실패는 교사가 읽을 수
- * 있게 전달한다"의 마지막 줄). 그때 여기로 옮긴다.
- *
- * randomState도 없다. 출처가 settings.split 하나이고 파일 두 곳에 같은 값이 있으면
- * 어긋났을 때 어느 쪽이 진짜인지 판정할 근거가 없다 (mlpx-spec.md 3).
+ * 표는 `mljs-params.ts`에 있다 - 전처리 화면이 같은 표를 읽어야 하는데 이 파일을
+ * 거치면 ml.js 라이브러리가 통째로 첫 화면 번들에 딸려 온다.
  */
-const DEFAULTS: Record<string, Record<string, unknown>> = {
-  decision_tree: { maxDepth: 100, minNumSamples: 3 },
-  random_forest: { nEstimators: 100 },
-  naive_bayes: {},
-  knn: { k: 5 },
-  logistic_regression: { numSteps: 1000, learningRate: 5e-3 },
-  linear_regression: {},
+export function parameters(algorithm: string): readonly HyperparameterSpec[] {
+  return MLJS_PARAMETERS[algorithm] ?? []
 }
 
 /**
@@ -411,31 +395,16 @@ export const MLJS_ALGORITHMS = Object.keys(TRAINERS)
  * 안 남는다.** 그러면 같은 필드가 성공과 실패에서 두 가지 뜻을 갖고, "실패한 run에도
  * 무엇을 시도했는지는 남아야 한다"(ml/experiment.ts)가 깨진다.
  *
- * 규칙 셋.
+ * 규칙은 ml/hyperparams.ts의 resolveWith에 있다. 여기서 하는 일은 서술을 고르는 것뿐이다.
  *
- * 1. **학생이 준 값이 이긴다.** 기본값은 안 준 자리만 채운다.
- * 2. **기본값이 있는 키는 여기서 숫자로 만든다.** 못 쓰는 값이면 기본값으로 돌아간다 -
- *    파일에 적힌 값과 엔진이 쓴 값이 갈리면 안 되므로 확정이 곧 기록이다.
- * 3. **모르는 키는 손대지 않고 통과시킨다.** 엔진이 받고 무시한 것까지가 "먹인 것"의
- *    사실이고, 버리면 실패한 run에서 학생이 무엇을 시도했는지가 지워진다. 재실행 때
- *    같은 것을 먹이면 같은 결과가 나오므로 재현도 깨지지 않는다.
- *
- * 모르는 알고리즘이면 채울 기본값이 없다. 던지지 않는다 - 판정은 fit의 일이고,
- * 여기서 던지면 실패 run을 만들기도 전에 실험이 죽는다.
+ * 모르는 알고리즘이면 서술이 빈 배열이라 준 값이 그대로 나온다. 던지지 않는다 -
+ * 판정은 fit의 일이고, 여기서 던지면 실패 run을 만들기도 전에 실험이 죽는다.
  */
 export function resolve(
   algorithm: string,
   given: Record<string, unknown>,
 ): Record<string, unknown> {
-  const defaults = DEFAULTS[algorithm]
-  if (!defaults) return { ...given }
-
-  const resolved: Record<string, unknown> = { ...defaults, ...given }
-  for (const [name, fallback] of Object.entries(defaults)) {
-    const value = resolved[name]
-    if (typeof value !== 'number' || !Number.isFinite(value)) resolved[name] = fallback
-  }
-  return resolved
+  return resolveWith(parameters(algorithm), given)
 }
 
 /**

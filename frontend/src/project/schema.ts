@@ -173,7 +173,21 @@ export const manifestSchema = z.looseObject({
    * 모르는 종류의 에러 코드, 종류별 체인)은 open-decisions.md #20에 있다.
    */
   kind: z.string().default(PROJECT_KIND_ML),
-  taskType: z.enum(TASK_TYPES),
+  /**
+   * 무엇을 하려는 프로젝트인가. **없으면 아직 아무도 안 골랐다는 뜻이다** (mlpx-spec.md 0.1).
+   *
+   * **기본값을 두지 않는다.** 두면 학생이 고른 분류와 아무도 안 고른 분류가 파일에서
+   * 구분되지 않고, 그건 "자동으로 판정하지 않는다"를 지킨다고 해 놓고 몰래 하나를 골라
+   * 두는 것이다 (open-decisions.md "기계학습 유형은 모델을 고르는 자리에서 고른다").
+   *
+   * **필수 → 선택은 읽기 호환이라 FORMAT_VERSION이 오르지 않는다.** settings.dataset을
+   * 선택으로 내렸을 때와 같다. 반대로 실험 스냅샷의 taskType은 여전히 필수다 -
+   * 학습이 돈 이상 유형은 반드시 정해져 있었다.
+   *
+   * **타깃·특성보다 뒤에 정해진다.** 그 둘은 데이터의 성질이라 유형과 무관하고,
+   * 유형이 좁히는 것은 모델 목록이다. 그래서 화면에서도 전처리가 아니라 학습에 있다.
+   */
+  taskType: z.enum(TASK_TYPES).optional(),
   dataType: z.enum(DATA_TYPES),
   locale: z.string(),
 })

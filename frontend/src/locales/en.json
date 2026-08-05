@@ -21,7 +21,8 @@
     "modelReady": "Build a model",
     "portfolioWritten": "Write the portfolio",
     "title": "To do",
-    "allDone": "Everything in this step is done."
+    "allDone": "Everything in this step is done.",
+    "taskTypeChosen": "Choose the task type"
   },
   "shell": {
     "steps": "Steps",
@@ -51,12 +52,12 @@
     "preprocess": {
       "label": "Pre­pro­cess­ing",
       "locked": "Load your data first.",
-      "purpose": "Choose the target and the features, then tidy the data."
+      "purpose": "Shape the data so it can go into training."
     },
     "train": {
       "label": "Train­ing",
-      "locked": "Choose the features and the models first.",
-      "purpose": "Train every model you picked in one go."
+      "locked": "Choose the target and the features first.",
+      "purpose": "Choose what you are doing, then pick the models to train."
     },
     "results": {
       "label": "Results",
@@ -109,6 +110,98 @@
   "columnKind": {
     "numeric": "Number",
     "categorical": "Category"
+  },
+  "algorithms": {
+    "decision_tree": "Decision tree",
+    "random_forest": "Random forest",
+    "logistic_regression": "Logistic regression",
+    "knn": "K-nearest neighbours",
+    "naive_bayes": "Naive Bayes",
+    "svm": "Support vector machine",
+    "linear_regression": "Linear regression"
+  },
+  "runtimes": {
+    "mljs": "Plain JavaScript",
+    "pyodide-sklearn": "scikit-learn · this computer",
+    "server-sklearn": "scikit-learn · school server"
+  },
+  "hyperparams": {
+    "maxDepth": "Maximum tree depth",
+    "minNumSamples": "Smallest group a branch may split",
+    "nEstimators": "Number of trees",
+    "k": "Number of neighbours",
+    "numSteps": "Training steps",
+    "learningRate": "Learning rate"
+  },
+  "missingStrategy": {
+    "drop": "Drop rows that have blanks",
+    "mean": "Fill with the mean",
+    "median": "Fill with the median",
+    "mostFrequent": "Fill with the most common value",
+    "zero": "Fill with zero"
+  },
+  "scalingMethod": {
+    "none": "None",
+    "standard": "Standardise",
+    "minmax": "Min-max",
+    "robust": "Robust"
+  },
+  "categoricalEncoding": {
+    "none": "None",
+    "onehot": "One-hot encoding",
+    "ordinal": "Ordinal encoding"
+  },
+  "preprocess": {
+    "emptyReason": "No data yet.",
+    "emptyNext": "Load a table in the data step and you can choose what to predict here.",
+    "dataSide": "Data",
+    "modelSide": "Models",
+    "columnsTitle": "Target and features",
+    "columnsLead": "Pick one column to predict, and the columns to predict it from.",
+    "targetRule": {
+      "TARGET_NOT_NUMERIC": "Regression can only predict a number column."
+    },
+    "roleTarget": "Target",
+    "roleFeature": "Feature",
+    "selectAll": "Use every feature",
+    "clearAll": "Clear every feature",
+    "notEncodable": "This column holds text, so your current settings leave it out of training.",
+    "targetSingleValue": "Every row has the same value here, so there is nothing to predict.",
+    "featureSummary": "{count} feature goes into training. | {count} features go into training.",
+    "noFeatureChosen": "No feature chosen yet.",
+    "noUsableFeature": "No feature goes into training at all.",
+    "cleaningTitle": "Tidy the data",
+    "missing": "Missing values",
+    "missingNote": "Text columns have no mean or median, so the most common value fills them.",
+    "scaling": "Scaling",
+    "scalingNote": "Evens out the size of number columns. Turn it on and off to see what changes.",
+    "encoding": "Category encoding",
+    "encodingNote": "How text values become numbers. With it off, text columns are left out.",
+    "splitTitle": "Split into training and testing",
+    "testSize": "Share kept for testing",
+    "testSizeNote": "The rest is used to train, and this share gives the score.",
+    "stratify": "Keep each value's share the same on both sides",
+    "randomState": "Random seed",
+    "randomStateNote": "Fixed when the project is created. The same seed always splits the same way."
+  },
+  "train": {
+    "taskTitle": "Task type",
+    "taskLead": "Choose what you are trying to do first. Only models that fit stay on the right.",
+    "taskChanged": "Some models were dropped because they do not fit the task type you chose. ({names})",
+    "runtimeTitle": "Where to train",
+    "runtimeNote": "Choose where the models you picked are trained.",
+    "modelsTitle": "Choose the models",
+    "modelsLead": "Pick several, train them in one go, and compare what comes out.",
+    "modelSummary": "{count} model chosen. | {count} models chosen.",
+    "noModelChosen": "No model chosen yet.",
+    "tuning": "Change the settings",
+    "noTuning": "This model has nothing to change.",
+    "range": "{min} – {max}",
+    "outOfRange": "This is outside the usual range, so this model will fail to train.",
+    "emptyReason": "No project is open yet.",
+    "emptyNext": "Open a project and you can choose what to train here.",
+    "noTaskTypeReason": "No task type chosen yet.",
+    "noTaskTypeNext": "Choose one above and the models that fit it appear here."
   },
   "projects": {
     "new": "New project",

@@ -10,10 +10,38 @@
  * 지표도 다른 데이터 기준이라 비교 자체가 성립하지 않는다.
  */
 
-import { columnNames } from '@/data/columns'
+import { columnNames, toDataset } from '@/data/columns'
+import { parseCsvText } from '@/data/csv'
 import type { ImportedTable } from '@/data/table'
-import { TABULAR_DATASET_PATH, type ProjectFile } from './format'
+import type { Dataset } from '@/ml/preprocess'
+import { TABULAR_DATASET_PATH, type Dataset as StoredDataset, type ProjectFile } from './format'
 import type { DatasetRef } from './schema'
+
+/**
+ * 정본 CSV를 학습 계층이 쓰는 표로 읽는다. 표가 없으면 `null`이다 - 정상 상태다.
+ *
+ * **파싱 결과를 정본 바이트에 매달아 둔다.** 화면은 체크박스 하나를 누를 때마다
+ * 프로젝트 문서를 통째로 갈아 끼우는데(shallowRef라 그래야 한다) 그때마다 5천 줄을
+ * 다시 파싱하면 교실 PC에서 클릭이 끊긴다. 정본은 확정된 뒤로 바뀌지 않으므로
+ * (open-decisions.md "정본 데이터셋은 언제나 UTF-8 CSV다") 바이트가 같으면 표도 같다.
+ *
+ * `hasHeader`는 키에 안 넣는다. 표를 바꾸는 유일한 경로인 `applyDataset`이 바이트와
+ * 함께 새로 만들기 때문에, 머리글 판단만 따로 바뀌는 일이 없다.
+ */
+const parsed = new WeakMap<StoredDataset, Dataset>()
+
+export function readDataset(project: ProjectFile | null): Dataset | null {
+  const reference = project?.document.settings.dataset
+  const stored = project?.dataset
+  if (!stored || !reference) return null
+
+  const cached = parsed.get(stored)
+  if (cached) return cached
+
+  const table = toDataset(parseCsvText(new TextDecoder().decode(stored.bytes)), reference.hasHeader)
+  parsed.set(stored, table)
+  return table
+}
 
 export interface AppliedDataset {
   readonly project: ProjectFile

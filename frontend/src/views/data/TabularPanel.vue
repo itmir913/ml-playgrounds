@@ -27,10 +27,9 @@ import AppTable from '@/components/AppTable.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { summarizeColumns, toDataset, type ColumnSummary } from '@/data/columns'
-import { parseCsvText } from '@/data/csv'
 import { importTable, openTable, previewTable, type TableDocument } from '@/data/table'
 import { PREVIEW_ROW_COUNT } from '@/limits'
-import { applyDataset } from '@/project/dataset'
+import { applyDataset, readDataset } from '@/project/dataset'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 
@@ -63,11 +62,9 @@ const previewRows = computed(() => {
 
 /** 확정된 데이터. 정본은 언제나 UTF-8 CSV라 인코딩을 판정할 필요가 없다. */
 const saved = computed(() => {
-  const file = project.file
-  const reference = file?.document.settings.dataset
-  if (!file?.dataset || !reference) return null
-  const grid = parseCsvText(new TextDecoder().decode(file.dataset.bytes))
-  const dataset = toDataset(grid, reference.hasHeader)
+  const reference = project.file?.document.settings.dataset
+  const dataset = readDataset(project.file)
+  if (!dataset || !reference) return null
   return { reference, dataset, columns: summarizeColumns(dataset) }
 })
 

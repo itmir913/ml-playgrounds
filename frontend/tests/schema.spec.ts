@@ -140,6 +140,16 @@ describe('모르는 어휘', () => {
     expect(manifestSchema.safeParse({ ...manifest, taskType: 'timeseries' }).success).toBe(false)
   })
 
+  it('과제 유형이 아예 없는 것은 정상이다 - 아직 안 골랐다는 뜻이다', () => {
+    // 기본값을 두면 학생이 고른 분류와 아무도 안 고른 분류가 구분되지 않는다
+    // (open-decisions.md "기계학습 유형은 모델을 고르는 자리에서 고른다").
+    const { taskType, ...withoutTaskType } = manifest
+    expect(taskType).toBeDefined()
+    const parsed = manifestSchema.safeParse(withoutTaskType)
+    expect(parsed.success).toBe(true)
+    if (parsed.success) expect(parsed.data.taskType).toBeUndefined()
+  })
+
   it('데이터 타입이 목록에 없으면 거부한다', () => {
     expect(manifestSchema.safeParse({ ...manifest, dataType: 'video' }).success).toBe(false)
   })

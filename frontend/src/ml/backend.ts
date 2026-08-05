@@ -64,6 +64,16 @@ export const UNAVAILABLE_REASONS = [
 export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number]
 
 /**
+ * 사유별로 로케일 문장이 요구하는 값. 나머지는 빈 파라미터다.
+ *
+ * **판정하는 곳 옆에 둔다.** 이유를 보여주는 자리가 둘이고(전처리 화면의 모델 목록,
+ * 실패한 run) 각자 파라미터를 만들면 한쪽 문장에만 숫자가 빠진 채 뜬다.
+ */
+export function reasonParams(reason: UnavailableReason): Record<string, number> {
+  return reason === 'DATASET_TOO_LARGE_FOR_BROWSER' ? { limitRows: BROWSER_ROW_LIMIT } : {}
+}
+
+/**
  * 실행 방법 하나.
  *
  * location과 engineKind가 파일에 남는 값이고, id는 화면과 등록부가 쓰는 이름이다.

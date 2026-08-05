@@ -334,40 +334,66 @@ describe('일부만 실패한다', () => {
     ])
   })
 
-  it('엔진 내부에서 터진 것도 사유와 원문을 남긴다', () => {
+  it('눈금 밖 손잡이는 그 모델만 실패시킨다', () => {
     /**
-     * **남의 라이브러리는 우리 어휘로 실패하지 않는다.** 여기서는 나무 0그루로 만든다 -
-     * ml.js가 영어 TypeError를 던지고, 그것이 화면에 그대로 나가면 안 된다(CLAUDE.md 1.4).
+     * **나무 0그루는 범위 밖 값이 아니라 값이 아니다.** 화면이 이미 그 자리에서 말하지만
+     * 학생은 그대로 [학습]을 누를 수 있고(막지 않는다), 그때 남아야 하는 것은
+     * "이 모델은 이래서 안 돌았다"다
+     * (open-decisions.md "하이퍼파라미터는 눈금을 주되 막지 않는다").
      *
-     * 어휘를 결함 수만큼 늘리는 대신 JOB_FAILED에 원문을 실어 보낸다. 학생은 못 읽어도
-     * **옆에 있는 교사는 읽고 대처할 수 있고**, 이 값은 runs.json에 그대로 들어가
-     * .mlpx를 여는 교사에게까지 따라간다.
+     * **옆의 모델은 그대로 돈다.** 실험 하나가 통째로 실패하는 일은 없다 (mlpx-spec.md 4.1).
      *
-     * 예전에는 이 자리를 `nEstimators: 3`이 채우고 있었다. **그건 ml-random-forest의
-     * 실제 결함이었다** - 어떤 학습 샘플이 모든 나무에서 in-bag이면 OOB 예측이 비는데
-     * 그 경우를 검사하지 않아서, 나무를 적게 잡으면 학습이 통째로 실패했다. "나무 개수"는
-     * 학생이 가장 먼저 줄여 볼 손잡이라 교실에서 실제로 일어나는 실패였다.
+     * 이 자리는 두 번 주인이 바뀌었다. 처음에는 `nEstimators: 3`이었고 **그건
+     * ml-random-forest의 실제 결함이었다** - 학습 샘플이 모든 나무에서 in-bag이면 OOB
+     * 예측이 비는데 그 경우를 검사하지 않았다. 우리가 OOB 계산을 끄면서(mljs.ts의 noOOB)
+     * 안 터지게 됐고, 그다음 `nEstimators: 0`이 "남의 예외가 우리 형식으로 번역되는가"를
+     * 대신했다. 이제는 그것도 눈금 검사에 먼저 걸린다.
      *
-     * **지금은 안 터진다 - 우리가 OOB 계산을 껐다**(ml/engines/mljs.ts의 noOOB). 쓰지도
-     * 않는 값을 계산하다 죽고 있었다. 그래서 이 테스트의 픽스처만 바꿨다. 여기서 보는
-     * 것은 랜덤포레스트가 아니라 **남의 예외가 우리 형식으로 번역되는가**이므로 테스트
-     * 자체는 그대로 남는다.
+     * **그래서 지금 이 엔진에서 남의 예외를 부를 방법이 없다.** 트레이너가 등록부에 있는
+     * 인자만 골라 넘기므로 모르는 키는 라이브러리에 닿지도 않는다. 번역 자체는
+     * errors.spec.ts의 failureDetail이 덮고 있고, 두 번째 엔진이 들어오면 그때 이 자리에
+     * 실물이 생긴다.
      */
     const { experiment } = runExperiment(
       inputFor({
         settings: settingsFor({
-          selectedAlgorithms: models('random_forest'),
+          selectedAlgorithms: models('random_forest', 'decision_tree'),
           hyperparameters: { random_forest: { mljs: { nEstimators: 0 } } },
         }),
       }),
       frozen,
     )
 
-    const [run] = experiment.runs
-    expect(run?.status).toBe('failed')
-    expect(run?.failure?.code).toBe('JOB_FAILED')
-    expect(typeof run?.failure?.params?.detail).toBe('string')
+    const [forest, tree] = experiment.runs
+    expect(forest?.status).toBe('failed')
+    expect(forest?.failure?.code).toBe('HYPERPARAM_OUT_OF_RANGE')
+    // 무엇이 왜 걸렸는지가 파일에 남는다. 이름은 엔진이 받는 키 그대로다.
+    expect(forest?.failure?.params).toMatchObject({ name: 'nEstimators', min: 1, actual: 0 })
+    // **시도한 값은 지워지지 않는다** - 실패한 run에도 무엇을 먹였는지가 남아야 한다.
+    expect(forest?.hyperparameters).toEqual({ nEstimators: 0 })
+    expect(tree?.status).toBe('done')
     expect(() => experimentSchema.parse(experiment)).not.toThrow()
+  })
+
+  it('정수 손잡이에 온 소수는 반올림해 확정한다', () => {
+    /**
+     * 나무 2.5그루는 거부할 값이 아니라 **값이 아니다.** 예전에는 그대로 라이브러리까지
+     * 가서 RangeError가 됐다 (open-decisions.md #21).
+     *
+     * **확정이 곧 기록이므로** 파일에 남는 것도 반올림된 값이다 (mlpx-spec.md 3).
+     */
+    const { experiment } = runExperiment(
+      inputFor({
+        settings: settingsFor({
+          selectedAlgorithms: models('random_forest'),
+          hyperparameters: { random_forest: { mljs: { nEstimators: 2.5 } } },
+        }),
+      }),
+      frozen,
+    )
+
+    expect(experiment.runs[0]?.status).toBe('done')
+    expect(experiment.runs[0]?.hyperparameters).toEqual({ nEstimators: 3 })
   })
 
   it('실패한 run도 스키마를 통과한다 - 사유가 반드시 있다', () => {

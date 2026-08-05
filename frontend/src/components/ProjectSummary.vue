@@ -15,8 +15,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useFormat } from '@/composables/useFormat'
-import { toDataset } from '@/data/columns'
-import { parseCsvText } from '@/data/csv'
+import { readDataset } from '@/project/dataset'
 import { useProjectStore } from '@/stores/project'
 
 const props = withDefaults(defineProps<{ withName?: boolean }>(), { withName: false })
@@ -36,15 +35,14 @@ const info = computed(() => {
   if (!file) return null
   const { manifest, settings, runs } = file.document
 
-  const grid =
-    file.dataset === undefined ? null : parseCsvText(new TextDecoder().decode(file.dataset.bytes))
+  const table = readDataset(file)
   const dataset =
-    grid === null || settings.dataset === undefined
+    table === null || settings.dataset === undefined
       ? null
       : {
           fileName: settings.dataset.originalFileName,
-          rows: toDataset(grid, settings.dataset.hasHeader).rows.length,
-          columns: toDataset(grid, settings.dataset.hasHeader).columns.length,
+          rows: table.rows.length,
+          columns: table.columns.length,
         }
 
   let bytes = file.dataset?.bytes.length ?? 0
@@ -70,7 +68,14 @@ const info = computed(() => {
     <dl class="flex flex-col gap-1.5">
       <div class="flex justify-between gap-4">
         <dt class="text-ink-soft">{{ t('meta.taskType') }}</dt>
-        <dd>{{ t(`taskTypes.${info.manifest.taskType}`) }}</dd>
+        <!-- 아직 안 골랐으면 없는 것이 맞다. 기본값을 보여주면 고른 것처럼 읽힌다. -->
+        <dd>
+          {{
+            info.manifest.taskType === undefined
+              ? t('meta.none')
+              : t(`taskTypes.${info.manifest.taskType}`)
+          }}
+        </dd>
       </div>
 
       <div class="flex justify-between gap-4">

@@ -67,7 +67,7 @@ function linkTo(step: StepId): RouteLocationRaw {
 const openId = computed(() => project.projectId ?? '')
 
 function unlocked(step: StepId): boolean {
-  return project.projectId !== null && isStepUnlocked(step, project.facts)
+  return project.projectId !== null && isStepUnlocked(step, project.facts, project.taskType)
 }
 
 function label(step: StepId): string {

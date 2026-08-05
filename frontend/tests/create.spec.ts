@@ -25,11 +25,24 @@ const seed = {
   randomState: 4242,
 }
 
-const input = { name: '붓꽃 품종 분류', taskType: 'classification', locale: 'ko' } as const
+const input = { name: '붓꽃 품종 분류', locale: 'ko' } as const
 
 describe('새 프로젝트', () => {
   it('스키마를 통과한다', () => {
     expect(() => parseProjectDocument(newProjectDocument(input, seed))).not.toThrow()
+  })
+
+  it('기계학습 유형이 없는 상태로 시작한다', () => {
+    // **기본값을 두면 학생이 고른 분류와 아무도 안 고른 분류가 파일에서 구분되지 않는다**
+    // (open-decisions.md "기계학습 유형은 모델을 고르는 자리에서 고른다").
+    expect(newProjectDocument(input, seed).manifest.taskType).toBeUndefined()
+    // 그래도 스키마는 통과한다 - 선택 항목이다.
+    expect(() => parseProjectDocument(newProjectDocument(input, seed))).not.toThrow()
+  })
+
+  it('유형을 넘기면 그대로 담는다 - 남의 파일에서 시작하는 경로가 쓴다', () => {
+    const withType = newProjectDocument({ ...input, taskType: 'regression' }, seed)
+    expect(withType.manifest.taskType).toBe('regression')
   })
 
   it('표가 없는 상태로 시작한다', () => {

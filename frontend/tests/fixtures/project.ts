@@ -23,6 +23,9 @@ export const manifest: Manifest = {
   createdAt: '2026-08-04T09:00:00Z',
   updatedAt: '2026-08-04T10:30:00Z',
   kind: PROJECT_KIND_ML,
+  // 학생이 학습 화면에서 골랐다. **새 프로젝트에는 이 필드가 아예 없다** -
+  // emptyProjectFile이 그 상태다 (open-decisions.md "기계학습 유형은 모델을 고르는
+  // 자리에서 고른다").
   taskType: 'classification',
   dataType: 'tabular',
   locale: 'ko',
@@ -81,8 +84,9 @@ export function experiment(id: string, runs: Run[]): Experiment {
     startedAt: '2026-08-04T10:30:00Z',
     settings: {
       // manifest에 있는 것을 다시 적는 것이 아니다 - 학생이 과제 유형을 바꾸면
-      // manifest는 따라가고 옛 실험은 안 따라간다.
-      taskType: manifest.taskType,
+      // manifest는 따라가고 옛 실험은 안 따라간다. **여기서는 필수다** - 학습이 돈
+      // 이상 유형은 반드시 정해져 있었다 (manifest 쪽은 선택 항목이다).
+      taskType: manifest.taskType ?? 'classification',
       runtime: 'mljs',
       selectedAlgorithms: [
         { algorithm: 'decision_tree', runtime: 'mljs' },
@@ -114,7 +118,9 @@ export const dataset: Dataset = { bytes: datasetBytes, hash: hashBytes(datasetBy
 export function emptyProjectFile(): ProjectFile {
   return {
     document: {
-      manifest,
+      // **유형도 아직 없다.** 학습 화면에서 고르는 것이라 새 프로젝트에는 없는 것이
+      // 맞다 (open-decisions.md "기계학습 유형은 모델을 고르는 자리에서 고른다").
+      manifest: { ...manifest, taskType: undefined },
       // 전처리·분할·기본 실행 방법은 데이터가 없어도 고를 수 있는 값이라 남는다.
       // 열 이름을 아는 것들만 빈다 - 표를 봐야 정할 수 있기 때문이다.
       settings: {

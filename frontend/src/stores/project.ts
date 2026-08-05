@@ -40,6 +40,9 @@ export function factsOf(file: ProjectFile | null): ProjectFacts {
     datasetReady: file.dataset !== undefined,
     targetChosen: settings.target !== undefined,
     featuresChosen: settings.features.length > 0,
+    // 기본값이 없으므로 이건 진짜로 "학생이 골랐는가"다
+    // (open-decisions.md "기계학습 유형은 모델을 고르는 자리에서 고른다").
+    taskTypeChosen: file.document.manifest.taskType !== undefined,
     algorithmsChosen: settings.selectedAlgorithms.length > 0,
     trainingDone: experiments.some((experiment) => experiment.runs.length > 0),
     modelReady: experiments.some((experiment) =>
@@ -73,14 +76,12 @@ export const useProjectStore = defineStore('project', () => {
   const facts = computed(() => factsOf(file.value))
 
   /**
-   * 지금 프로젝트의 기계학습 유형. 할 일 목록이 이것으로 걸러진다 (steps.ts).
+   * 지금 프로젝트의 기계학습 유형. 할 일 목록과 잠금이 이것으로 걸러진다 (steps.ts).
    *
-   * 프로젝트가 없을 때 분류로 떨어지는 것은 화면이 아무것도 안 그리는 상태라
-   * 무엇을 돌려주든 보이지 않기 때문이다. 그래도 값은 있어야 타입이 성립한다.
+   * **없는 것이 정상 상태다.** 학습 화면에서 고르기 전까지는 아무것도 아니고, 그때는
+   * 어떤 사실도 빠지지 않는다 (factAppliesTo).
    */
-  const taskType = computed<TaskType>(
-    () => file.value?.document.manifest.taskType ?? 'classification',
-  )
+  const taskType = computed<TaskType | undefined>(() => file.value?.document.manifest.taskType)
 
   /**
    * 프로젝트를 연다. 이미 그 프로젝트가 열려 있으면 아무것도 하지 않는다.

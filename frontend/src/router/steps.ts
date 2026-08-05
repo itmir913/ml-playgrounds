@@ -38,6 +38,11 @@ export interface ProjectFacts {
   readonly targetChosen: boolean
   /** 무엇으로 예측할지 정했는가. */
   readonly featuresChosen: boolean
+  /**
+   * 분류인지 회귀인지 정했는가. **기본값이 없으므로 정말로 안 정한 상태가 있다**
+   * (open-decisions.md "기계학습 유형은 모델을 고르는 자리에서 고른다").
+   */
+  readonly taskTypeChosen: boolean
   /** 학습할 알고리즘을 하나라도 골랐는가. */
   readonly algorithmsChosen: boolean
   /** 학습을 한 번이라도 끝냈는가. 실패한 것도 결과다. */
@@ -55,6 +60,7 @@ export const NO_FACTS: ProjectFacts = {
   datasetReady: false,
   targetChosen: false,
   featuresChosen: false,
+  taskTypeChosen: false,
   algorithmsChosen: false,
   trainingDone: false,
   modelReady: false,
@@ -74,8 +80,13 @@ interface Step {
  * `data`와 `portfolio`는 `requires`가 비어 있어 언제나 열린다. 데이터는 시작점이고,
  * **포트폴리오는 하는 도중에 쓰는 것**이라 결과가 나올 때까지 막으면 쓰던 글을 잃는다.
  *
- * `train`이 `targetChosen`을 요구하지 않는 것은 **군집화에 대상이 없기 때문이다.**
- * 체크리스트에는 뜨지만(전처리 단계) 잠금 조건은 아니다.
+ * **전처리와 학습의 경계는 데이터와 모델이다** (architecture.md §8.2). 전처리에서 정하는
+ * 것은 전부 데이터의 성질이고(타깃·특성), 모델의 성질은 전부 학습에 있다(기계학습 유형·
+ * 모델 선정). 타깃과 특성은 유형과 무관하게 정해지므로 유형이 그 앞에 설 이유가 없다 —
+ * 모델을 골라야 열을 고를 수 있다면 워크플로가 거꾸로 선다.
+ *
+ * `train`이 `targetChosen`을 요구해도 군집화가 막히지 않는다 — **잠금 조건도 할 일과
+ * 같은 필터를 지나기 때문이다**(아래 `isStepUnlocked`). 예전에는 여기서 손으로 빼 두었다.
  *
  * `results`와 `predict`에 할 일이 없는 것은 그 둘이 **보는 화면**이라서다. 빈 체크리스트는
  * 숨긴다 — 항목 없는 목록을 보여주면 무언가 빠진 것처럼 보인다.
@@ -83,12 +94,12 @@ interface Step {
 const STEPS: Readonly<Record<StepId, Step>> = {
   data: { tasks: ['datasetReady'], requires: [] },
   preprocess: {
-    tasks: ['targetChosen', 'featuresChosen', 'algorithmsChosen'],
+    tasks: ['targetChosen', 'featuresChosen'],
     requires: ['datasetReady'],
   },
   train: {
-    tasks: ['trainingDone'],
-    requires: ['datasetReady', 'featuresChosen', 'algorithmsChosen'],
+    tasks: ['taskTypeChosen', 'algorithmsChosen', 'trainingDone'],
+    requires: ['datasetReady', 'targetChosen', 'featuresChosen'],
   },
   results: { tasks: [], requires: ['trainingDone'] },
   predict: { tasks: [], requires: ['modelReady'] },
@@ -99,8 +110,22 @@ export function isStepId(value: unknown): value is StepId {
   return typeof value === 'string' && (STEP_IDS as readonly string[]).includes(value)
 }
 
-export function isStepUnlocked(step: StepId, facts: ProjectFacts): boolean {
-  return STEPS[step].requires.every((fact) => facts[fact])
+/**
+ * 이 단계에 들어갈 수 있는가.
+ *
+ * **과제 유형에 해당하지 않는 사실은 요구에서도 빠진다.** 할 일 목록에서만 빼고 여기서
+ * 안 빼면 "체크는 다 됐는데 잠겨 있다"가 생기고, 그건 학생이 고칠 방법이 없는 고장이다.
+ * 군집화가 타깃 없이 학습에 들어가는 것이 이 필터 하나로 성립한다.
+ *
+ * 유형을 아직 안 골랐으면 **전부 해당한다** - 무엇이 빠질지 아직 알 수 없고, 지금
+ * 등록부에 있는 유형은 둘 다 타깃이 필요하다.
+ */
+export function isStepUnlocked(
+  step: StepId,
+  facts: ProjectFacts,
+  taskType?: TaskType | undefined,
+): boolean {
+  return STEPS[step].requires.every((fact) => !factAppliesTo(fact, taskType) || facts[fact])
 }
 
 /** 이 단계에 들어가려면 참이어야 하는 사실들. 검사가 표를 훑는 데 쓴다. */
@@ -124,8 +149,8 @@ export const DERIVED_FACTS: readonly FactKey[] = ['modelReady']
  * **과제 유형마다 해당하지 않는 사실이 있다** (architecture.md §8.10).
  *
  * 군집화에는 타깃이 없다. 그러니 "타깃 정하기"는 문구를 바꿀 항목이 아니라
- * **애초에 항목이 아니다.** 잠금 조건이 이미 그렇게 되어 있다 — `train`이
- * `targetChosen`을 요구하지 않는 이유가 이것이고, 목록만 안 따라오고 있었다.
+ * **애초에 항목이 아니다.** 그리고 **할 일에서 빠지면 잠금 조건에서도 빠진다** —
+ * `isStepUnlocked`가 같은 필터를 지나므로 둘이 갈라질 자리가 없다.
  *
  * **여기 빠뜨리면 컴파일이 깨진다.** `Record<TaskType, …>`이므로 과제 유형을
  * 더하는 사람은 자기 칸을 채워야 한다. 비어 있는 칸은 실수가 아니라 선언이다.
@@ -140,9 +165,14 @@ const FACTS_NOT_IN_TASK: Readonly<Record<TaskType, readonly FactKey[]>> = {
   clustering: ['targetChosen'],
 }
 
-/** 이 과제 유형에 해당하는 사실인가. 해당하지 않으면 할 일 목록에 안 뜬다. */
-export function factAppliesTo(fact: FactKey, taskType: TaskType): boolean {
-  return !FACTS_NOT_IN_TASK[taskType].includes(fact)
+/**
+ * 이 과제 유형에 해당하는 사실인가. 해당하지 않으면 할 일에도 잠금 조건에도 안 쓰인다.
+ *
+ * **유형을 아직 안 골랐으면 전부 해당한다.** 없는 것을 미리 빼면 학생이 유형을 고르기도
+ * 전에 화면에서 항목이 사라지고, 그 뒤에 분류를 고르면 다시 나타난다.
+ */
+export function factAppliesTo(fact: FactKey, taskType?: TaskType | undefined): boolean {
+  return taskType === undefined || !FACTS_NOT_IN_TASK[taskType].includes(fact)
 }
 
 /** 체크리스트 한 줄. 문구는 `tasks.{key}` 로케일 키에서 온다. */
@@ -157,7 +187,11 @@ export interface StepTask {
  * **과제 유형에 해당하지 않는 사실은 빠진다** (§8.10). 군집화에서 "타깃 정하기"가
  * 사라지는 것이 여기다.
  */
-export function stepTasks(step: StepId, facts: ProjectFacts, taskType: TaskType): StepTask[] {
+export function stepTasks(
+  step: StepId,
+  facts: ProjectFacts,
+  taskType?: TaskType | undefined,
+): StepTask[] {
   return STEPS[step].tasks
     .filter((key) => factAppliesTo(key, taskType))
     .map((key) => ({ key, done: facts[key] }))
@@ -171,10 +205,10 @@ export function stepTasks(step: StepId, facts: ProjectFacts, taskType: TaskType)
  */
 export function currentTask(
   facts: ProjectFacts,
-  taskType: TaskType,
+  taskType?: TaskType | undefined,
 ): { step: StepId; key: FactKey } | null {
   for (const step of STEP_IDS) {
-    if (!isStepUnlocked(step, facts)) continue
+    if (!isStepUnlocked(step, facts, taskType)) continue
     const pending = STEPS[step].tasks.find((key) => factAppliesTo(key, taskType) && !facts[key])
     if (pending !== undefined) return { step, key: pending }
   }
@@ -190,10 +224,14 @@ export function currentTask(
  *
  * `data`가 언제나 열려 있으므로 돌려줄 것이 없는 경우는 생기지 않는다.
  */
-export function resolveStep(requested: StepId, facts: ProjectFacts): StepId {
+export function resolveStep(
+  requested: StepId,
+  facts: ProjectFacts,
+  taskType?: TaskType | undefined,
+): StepId {
   for (let index = STEP_IDS.indexOf(requested); index >= 0; index -= 1) {
     const step = STEP_IDS[index]
-    if (step !== undefined && isStepUnlocked(step, facts)) {
+    if (step !== undefined && isStepUnlocked(step, facts, taskType)) {
       return step
     }
   }

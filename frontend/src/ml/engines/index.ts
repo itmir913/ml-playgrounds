@@ -14,8 +14,15 @@
  * 메시지 인터페이스를 갖지만 구현이 다르다 (ml/server.ts, architecture.md 3.4).
  */
 
+import type { HyperparameterSpec } from '../hyperparams'
 import type { FitInput, FitResult } from './mljs'
-import { MLJS_ALGORITHMS, MLJS_ENGINE, fit as mljsFit, resolve as mljsResolve } from './mljs'
+import {
+  MLJS_ALGORITHMS,
+  MLJS_ENGINE,
+  fit as mljsFit,
+  parameters as mljsParameters,
+  resolve as mljsResolve,
+} from './mljs'
 
 export type { FitInput, FitResult, Predict } from './mljs'
 
@@ -26,6 +33,15 @@ export interface TrainingEngine {
   readonly engine: { readonly kind: string; readonly version: string }
   /** 이 엔진이 돌릴 수 있는 알고리즘. */
   readonly algorithms: readonly string[]
+  /**
+   * 이 알고리즘에 받는 손잡이들 - 이름·타입·범위·기본값 (ml/hyperparams.ts).
+   *
+   * **화면과 학습이 같은 것을 본다.** 전처리 화면이 이걸로 입력을 그리고, 학습 직전에
+   * 같은 서술로 값을 확인한다. 두 곳이 각자 판정하면 화면은 멀쩡한데 학습이 거부하는
+   * 상태가 생긴다. 서버가 자기 알고리즘을 알려주게 되면 이 자리에 프로토콜 응답이 온다
+   * (open-decisions.md "무엇을 학습할 수 있는지는 서버가 알려준다" 1번).
+   */
+  parameters(algorithm: string): readonly HyperparameterSpec[]
   /**
    * 학생이 준 값에 기본값을 얹어 **이 엔진이 실제로 먹을 값**을 확정한다.
    *
@@ -57,6 +73,7 @@ export const ENGINES: readonly TrainingEngine[] = [
     runtimeId: 'mljs',
     engine: MLJS_ENGINE,
     algorithms: MLJS_ALGORITHMS,
+    parameters: mljsParameters,
     resolve: mljsResolve,
     fit: mljsFit,
   },
