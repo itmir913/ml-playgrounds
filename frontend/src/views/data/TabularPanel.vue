@@ -188,15 +188,17 @@ function kindOf(column: ColumnSummary): string {
           </div>
           <div class="flex gap-1.5">
             <dt>{{ t('data.rows') }}</dt>
-            <dd class="tabular-nums">{{ saved.dataset.rows.length }}</dd>
+            <dd class="font-bold tabular-nums text-ink">{{ saved.dataset.rows.length }}</dd>
           </div>
           <div class="flex gap-1.5">
             <dt>{{ t('data.columns') }}</dt>
-            <dd class="tabular-nums">{{ saved.columns.length }}</dd>
+            <dd class="font-bold tabular-nums text-ink">{{ saved.columns.length }}</dd>
           </div>
           <div class="flex gap-1.5">
             <dt>{{ t('data.encoding') }}</dt>
-            <dd>{{ saved.reference.sourceEncoding ?? saved.reference.encoding }}</dd>
+            <dd class="font-bold text-ink">
+              {{ saved.reference.sourceEncoding ?? saved.reference.encoding }}
+            </dd>
           </div>
         </template>
         <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">
