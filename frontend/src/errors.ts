@@ -47,6 +47,11 @@ export const CLIENT_ERROR_CODES = [
   // 브라우저 저장소 - project/storage.ts
   'STORAGE_QUOTA_EXCEEDED',
 
+  // 우리가 코드로 만들어 두지 않은 실패의 마지막 그물.
+  // JOB_FAILED와 나누는 이유는 그건 학습에 대한 말이기 때문이다 - 저장이 실패했는데
+  // "학습에 실패했습니다"가 뜨면 학생은 엉뚱한 것을 다시 한다.
+  'UNEXPECTED_ERROR',
+
   // 학습셋/평가셋 분할 - ml/split.ts
   // 분할은 클라이언트만 계산한다(mlpx-spec.md 0.3). 서버는 인덱스를 받기만 하므로
   // 이 둘은 backend/app/errors.py 에 없다.

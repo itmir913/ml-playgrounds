@@ -39,8 +39,16 @@ function flatten(tree: Tree, prefix = ''): Map<string, string> {
   return flat
 }
 
+/**
+ * 문장 안의 보간 변수 이름들. **중복은 지운다.**
+ *
+ * 복수 규칙(`|`)이 있는 문장은 같은 변수가 형태마다 한 번씩 나온다 -
+ * 영어는 "{count} project | {count} projects"로 둘, 한국어는 하나다. 세는 방식으로
+ * 비교하면 **규칙대로 쓴 문장이 실패한다** (CLAUDE.md §3 규칙 4).
+ * 여기서 보려는 것은 "번역하다 변수를 빠뜨렸는가"이므로 이름의 집합이면 충분하다.
+ */
 function placeholders(message: string): string[] {
-  return [...message.matchAll(/\{(\w+)\}/g)].map((match) => match[1] ?? '').sort()
+  return [...new Set([...message.matchAll(/\{(\w+)\}/g)].map((match) => match[1] ?? ''))].sort()
 }
 
 const english = flatten(en as Tree)

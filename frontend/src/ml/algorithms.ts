@@ -17,7 +17,7 @@
  * 이미지 데이터에 회귀를 고른 학생에게 "서버가 없습니다"라고 답하면 안 된다.
  */
 
-import type { DataType, TaskType } from '../project/schema'
+import { TASK_TYPES, type DataType, type TaskType } from '../project/schema'
 import {
   runtimeOptions,
   type AlgorithmSpec,
@@ -93,6 +93,23 @@ export interface AlgorithmOption {
    * 실행 방법마다 이유가 달라야 무엇을 하면 되는지 알 수 있다.
    */
   readonly runtimes: RuntimeOption[]
+}
+
+/**
+ * 학생에게 고르게 할 수 있는 과제 유형.
+ *
+ * **등록부에서 뽑는다.** 목록을 손으로 적어 두면 알고리즘이 하나도 없는 유형을 고를 수
+ * 있게 되고, 학생은 아무것도 못 하는 프로젝트를 만든다. 군집 알고리즘을 등록하는 날
+ * 여기가 저절로 따라온다.
+ *
+ * 순서는 TASK_TYPES를 따른다 - 화면마다 순서가 다르면 안 된다.
+ */
+export function supportedTaskTypes(
+  algorithms: readonly Algorithm[] = ALGORITHMS,
+): readonly TaskType[] {
+  return TASK_TYPES.filter((taskType) =>
+    algorithms.some((algorithm) => algorithm.taskTypes.includes(taskType)),
+  )
 }
 
 export interface Selection {

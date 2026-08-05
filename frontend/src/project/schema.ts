@@ -37,6 +37,12 @@ export const FORMAT_VERSION = 1
 export const PROJECT_KIND_ML = 'machineLearning'
 
 /** 과제 유형. 자동 판정하지 않는다 - 학생이 고른다 (mlpx-spec.md 1.1). */
+/**
+ * 내장 포트폴리오 템플릿의 id. 문항 문구는 파일이 아니라 로케일에 있다
+ * (mlpx-spec.md §8) - 그래야 교사가 어떤 언어로 열어도 읽힌다.
+ */
+export const DEFAULT_PORTFOLIO_TEMPLATE_ID = 'default-v1'
+
 export const TASK_TYPES = ['classification', 'regression', 'clustering'] as const
 
 /** 데이터 타입. 업로드한 파일에서 자동 판정된다. */

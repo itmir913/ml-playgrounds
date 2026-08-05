@@ -35,8 +35,33 @@
       "label": "Portfolio"
     }
   },
+  "projects": {
+    "title": "My projects",
+    "new": "New project",
+    "newTitle": "Create a new project",
+    "newDescription": "Just a name and what you want to do. You will upload data on the next screen.",
+    "name": "Project name",
+    "nameHint": "This becomes the file name when you save.",
+    "taskType": "What are you doing?",
+    "create": "Create",
+    "open": "Open",
+    "delete": "Delete",
+    "deleteTitle": "Delete this project?",
+    "deleteDescription": "Its data and training results go with it. This cannot be undone. ({name})",
+    "count": "{count} project | {count} projects",
+    "noDataYet": "No data yet",
+    "updatedAt": "Last saved",
+    "size": "Size",
+    "loading": "Loading.",
+    "empty": {
+      "title": "No projects yet",
+      "description": "Create a project to upload data and train a model."
+    },
+    "storageNote": "Projects are stored in this browser. To continue on another device, save the project to a file and take it with you."
+  },
   "common": {
     "underConstruction": "This screen is still being built.",
+    "cancel": "Cancel",
     "dismiss": "Dismiss"
   },
   "language": {
@@ -134,6 +159,7 @@
     "DATASET_FILE_TYPE_UNSUPPORTED": "This file type is not supported. ({fileName})",
     "DATASET_SHEET_NOT_FOUND": "That sheet could not be found. ({sheetName})",
     "STORAGE_QUOTA_EXCEEDED": "There is not enough room left in this browser. (needs {requiredMb}MB, {availableMb}MB free)",
+    "UNEXPECTED_ERROR": "Something went wrong. Please try again.",
     "SPLIT_TOO_FEW_ROWS": "Only {actualRows} rows can be used, which is too few to split into training and test sets. (needs at least {minRows})",
     "SPLIT_STRATIFY_IMPOSSIBLE": "'{label}' appears only {count} time(s), so the split cannot keep the same proportions. Turn off proportional splitting, or collect at least {minRows} rows with this value."
   },

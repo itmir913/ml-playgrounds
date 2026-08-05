@@ -1,0 +1,126 @@
+/**
+ * 새 프로젝트 만들기와 화면이 쓰는 순수 함수들.
+ *
+ * 가장 중요한 것은 **갓 만든 프로젝트가 스키마를 통과하는가**다. 여기가 깨지면
+ * 학생이 프로젝트를 만드는 순간 저장이 실패하고, 그건 앱의 첫 동작이다.
+ */
+
+import { describe, expect, it } from 'vitest'
+
+import { formatBytes, formatDateTime, formatPercent } from '../src/composables/useFormat'
+import { ALGORITHMS, supportedTaskTypes } from '../src/ml/algorithms'
+import { FALLBACK_RUNTIME_ID, RUNTIMES } from '../src/ml/backend'
+import { newProjectDocument, newProjectSeed, touch } from '../src/project/create'
+import { parseProjectDocument, TASK_TYPES } from '../src/project/schema'
+
+const seed = {
+  projectId: '550e8400-e29b-41d4-a716-446655440000',
+  createdAt: '2026-08-05T09:00:00Z',
+  randomState: 4242,
+}
+
+const input = { name: '붓꽃 품종 분류', taskType: 'classification', locale: 'ko' } as const
+
+describe('새 프로젝트', () => {
+  it('스키마를 통과한다', () => {
+    expect(() => parseProjectDocument(newProjectDocument(input, seed))).not.toThrow()
+  })
+
+  it('표가 없는 상태로 시작한다', () => {
+    const document = newProjectDocument(input, seed)
+    expect(document.settings.dataset).toBeUndefined()
+    // 열 이름을 알아야 정할 수 있는 것들도 비어 있다.
+    expect(document.settings.features).toEqual([])
+    expect(document.settings.target).toBeUndefined()
+    expect(document.settings.selectedAlgorithms).toEqual([])
+    expect(document.runs.batches).toEqual([])
+  })
+
+  it('같은 씨앗이면 같은 문서가 나온다', () => {
+    expect(newProjectDocument(input, seed)).toEqual(newProjectDocument(input, seed))
+  })
+
+  it('randomState를 파일에 박는다 - 재현 가능성이 이 도구의 생명이다', () => {
+    expect(newProjectDocument(input, seed).settings.split.randomState).toBe(seed.randomState)
+  })
+
+  it('만든 시각과 고친 시각이 같은 값으로 시작한다', () => {
+    const { manifest } = newProjectDocument(input, seed)
+    expect(manifest.createdAt).toBe(seed.createdAt)
+    expect(manifest.updatedAt).toBe(seed.createdAt)
+  })
+
+  it('기본 실행 방법은 등록부에 있고 브라우저에서 돈다', () => {
+    // 서버가 없는 것이 기본 상태다 (CLAUDE.md §1.1).
+    const runtime = RUNTIMES.find((spec) => spec.id === FALLBACK_RUNTIME_ID)
+    expect(runtime?.location).toBe('browser')
+    expect(newProjectDocument(input, seed).settings.runtime).toBe(FALLBACK_RUNTIME_ID)
+  })
+
+  it('스케일링은 꺼진 채로, 범주형 인코딩은 켜진 채로 시작한다', () => {
+    // 학생이 스케일링을 켰을 때 숫자가 달라지는 것을 보는 것이 수업 장면이다.
+    // 인코딩은 반대다 - 꺼져 있으면 문자 열이 든 표로 아무것도 못 한다.
+    const { preprocessing } = newProjectDocument(input, seed).settings
+    expect(preprocessing.scaling).toBe('none')
+    expect(preprocessing.categoricalEncoding).toBe('onehot')
+  })
+
+  it('씨앗은 매번 다른 id를 준다', () => {
+    expect(newProjectSeed().projectId).not.toBe(newProjectSeed().projectId)
+  })
+
+  it('touch는 고친 시각만 바꾼다', () => {
+    const before = newProjectDocument(input, seed)
+    const after = touch(before, '2026-08-06T01:00:00Z')
+    expect(after.manifest.updatedAt).toBe('2026-08-06T01:00:00Z')
+    expect(after.manifest.createdAt).toBe(before.manifest.createdAt)
+    expect(after.settings).toBe(before.settings)
+  })
+})
+
+describe('고를 수 있는 과제 유형', () => {
+  it('알고리즘이 하나도 없는 유형은 빠진다', () => {
+    // 고르게 하면 학생이 아무것도 못 하는 프로젝트를 만든다.
+    for (const taskType of supportedTaskTypes()) {
+      expect(
+        ALGORITHMS.some((one) => one.taskTypes.includes(taskType)),
+        taskType,
+      ).toBe(true)
+    }
+  })
+
+  it('알고리즘을 등록하면 저절로 따라온다', () => {
+    const only = ALGORITHMS.filter((one) => one.taskTypes.includes('regression'))
+    expect(supportedTaskTypes(only)).toEqual(['regression'])
+  })
+
+  it('순서는 TASK_TYPES를 따른다 - 화면마다 순서가 다르면 안 된다', () => {
+    const supported = supportedTaskTypes()
+    expect(supported).toEqual(TASK_TYPES.filter((one) => supported.includes(one)))
+  })
+})
+
+describe('화면 표시 포맷', () => {
+  it('로케일을 바꾸면 결과가 따라간다', () => {
+    // 'ko-KR'을 코드에 박으면 그 자리는 영원히 한국어다 (CLAUDE.md §3 규칙 6).
+    expect(formatDateTime('ko', '2026-08-05T09:00:00Z')).not.toBe(
+      formatDateTime('en', '2026-08-05T09:00:00Z'),
+    )
+  })
+
+  it('바이트는 단위를 올려가며 보여준다', () => {
+    expect(formatBytes('en', 512)).toContain('512')
+    expect(formatBytes('en', 1024 * 1024)).toContain('1')
+    // 바이트 단위에서는 소수점이 의미가 없다.
+    expect(formatBytes('en', 900)).not.toContain('.')
+  })
+
+  it('깨진 시각은 있는 그대로 보여준다 - Invalid Date를 화면에 올리지 않는다', () => {
+    // 남의 파일에서 온 값이 깨져 있을 수 있다.
+    expect(formatDateTime('ko', '언제였더라')).toBe('언제였더라')
+  })
+
+  it('비율은 백분율로 바뀐다', () => {
+    expect(formatPercent('en', 0.9333)).toContain('93')
+  })
+})

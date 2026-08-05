@@ -9,6 +9,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 
+import { errorMessageKey, failureDetail, isClientError } from '@/errors'
 import { TOAST_DURATION_MS } from '@/limits'
 
 export const TOAST_TONES = ['info', 'success', 'caution', 'danger'] as const
@@ -51,9 +52,22 @@ export const useToastStore = defineStore('toasts', () => {
     return id
   }
 
+  /**
+   * 잡은 예외를 그대로 알림으로 만든다.
+   *
+   * 우리 코드가 아니면 UNEXPECTED_ERROR로 떨어지고 **원문은 버리지 않고 detail로
+   * 함께 실린다.** 남의 라이브러리가 던진 영어 문장이라 번역되지 않으므로 화면이
+   * 우리 문장과 섞지 않고 기술 정보로 따로 붙인다 (errors.ts의 failureDetail).
+   */
+  function pushError(error: unknown): number {
+    return isClientError(error)
+      ? push('danger', error.messageKey, error.params)
+      : push('danger', errorMessageKey('UNEXPECTED_ERROR'), failureDetail(error))
+  }
+
   function clear(): void {
     items.value = []
   }
 
-  return { items, push, dismiss, clear }
+  return { items, push, pushError, dismiss, clear }
 })

@@ -35,8 +35,33 @@
       "label": "포트폴리오"
     }
   },
+  "projects": {
+    "title": "내 프로젝트",
+    "new": "새 프로젝트",
+    "newTitle": "새 프로젝트 만들기",
+    "newDescription": "이름과 무엇을 할지만 정하면 됩니다. 데이터는 다음 화면에서 올립니다.",
+    "name": "프로젝트 이름",
+    "nameHint": "저장할 때 파일 이름이 됩니다.",
+    "taskType": "무엇을 하나요?",
+    "create": "만들기",
+    "open": "열기",
+    "delete": "삭제",
+    "deleteTitle": "이 프로젝트를 지울까요?",
+    "deleteDescription": "데이터와 학습 결과가 함께 사라집니다. 되돌릴 수 없습니다. ({name})",
+    "count": "프로젝트 {count}개",
+    "noDataYet": "데이터 없음",
+    "updatedAt": "마지막 저장",
+    "size": "크기",
+    "loading": "불러오는 중입니다.",
+    "empty": {
+      "title": "아직 프로젝트가 없습니다",
+      "description": "새 프로젝트를 만들면 데이터를 올리고 모델을 학습할 수 있습니다."
+    },
+    "storageNote": "프로젝트는 이 브라우저 안에 저장됩니다. 다른 기기에서 이어서 하려면 파일로 저장해 가져가세요."
+  },
   "common": {
     "underConstruction": "이 화면은 아직 만드는 중입니다.",
+    "cancel": "취소",
     "dismiss": "닫기"
   },
   "language": {
@@ -134,6 +159,7 @@
     "DATASET_FILE_TYPE_UNSUPPORTED": "지원하지 않는 파일 형식입니다. ({fileName})",
     "DATASET_SHEET_NOT_FOUND": "그 시트를 찾을 수 없습니다. ({sheetName})",
     "STORAGE_QUOTA_EXCEEDED": "브라우저에 저장할 공간이 부족합니다. (필요 {requiredMb}MB, 남은 공간 {availableMb}MB)",
+    "UNEXPECTED_ERROR": "예상하지 못한 문제가 생겼습니다. 다시 시도해 주세요.",
     "SPLIT_TOO_FEW_ROWS": "학습에 쓸 수 있는 데이터가 {actualRows}줄뿐이라 학습용과 평가용으로 나눌 수 없습니다. (최소 {minRows}줄)",
     "SPLIT_STRATIFY_IMPOSSIBLE": "'{label}' 값이 {count}개뿐이라 비율을 맞춰 나눌 수 없습니다. 비율 맞추기를 끄거나 이 값의 데이터를 {minRows}개 이상 모아 주세요."
   },

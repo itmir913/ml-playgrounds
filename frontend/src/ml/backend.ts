@@ -86,6 +86,15 @@ export interface RuntimeSpec {
  *
  * 여기 항목을 늘리는 것은 포맷 변경이 아니다. 등록부에 추가하면 화면이 따라온다.
  */
+/**
+ * 아무 정보도 없을 때 적어 두는 실행 방법.
+ *
+ * 새 프로젝트를 만드는 시점에는 서버가 있는지도, 무거운 엔진이 받아졌는지도 모른다.
+ * 그때 쓰는 값이고, 화면은 실제 상황을 보고 preferredRuntime으로 다시 고른다.
+ * **브라우저에서 도는 것이어야 한다** - 서버 없는 것이 기본 상태이기 때문이다.
+ */
+export const FALLBACK_RUNTIME_ID = 'mljs'
+
 export const RUNTIMES: readonly RuntimeSpec[] = [
   { id: 'mljs', location: 'browser', engineKind: 'mljs', needsPreparation: false },
   {

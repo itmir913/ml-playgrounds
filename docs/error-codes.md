@@ -106,6 +106,18 @@ PROJECT_FILE_VERSION_TOO_NEW, PROJECT_FILE_VERSION_UNSUPPORTED
 MODEL_FORMAT_UNSUPPORTED, MODEL_FILE_INVALID, STORAGE_QUOTA_EXCEEDED
 ```
 
+**마지막 그물**
+```
+UNEXPECTED_ERROR
+```
+우리가 코드로 만들어 두지 않은 실패가 화면까지 올라올 때 쓴다. 브라우저가 던지는
+`DOMException`, 남의 라이브러리가 던지는 것들이 여기 들어온다. `JOB_FAILED`와 나누는
+이유는 **그건 학습에 대한 말**이라서다 — 저장이 실패했는데 "학습에 실패했습니다"가 뜨면
+학생은 엉뚱한 것을 다시 한다.
+
+원문은 문장 안에 넣지 않고 `detail` 파라미터로 따로 실어 화면이 기술 정보로 붙인다
+(`failureDetail`). 번역되지 않는 남의 영어 문장이므로 우리 문장과 섞이면 안 된다.
+
 **표 파일 가져오기** (`data/table.ts`, `data/xlsx.ts`)
 ```
 DATASET_FILE_TYPE_UNSUPPORTED, DATASET_SHEET_NOT_FOUND

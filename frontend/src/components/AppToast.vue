@@ -8,10 +8,14 @@
 
 import { useI18n } from 'vue-i18n'
 
-import { type ToastTone, useToastStore } from '@/stores/toasts'
+import { type Toast, type ToastTone, useToastStore } from '@/stores/toasts'
 
 const { t } = useI18n()
 const toasts = useToastStore()
+
+function detailOf(toast: Toast): string {
+  return typeof toast.params.detail === 'string' ? toast.params.detail : ''
+}
 
 const TONES: Readonly<Record<ToastTone, string>> = {
   info: 'border-brand-line bg-info-soft text-ink',
@@ -41,9 +45,16 @@ const BARS: Readonly<Record<ToastTone, string>> = {
     >
       <span class="w-1.5 self-stretch" :class="BARS[toast.tone]" aria-hidden="true" />
 
-      <p class="flex-1 py-4 text-sm leading-relaxed font-medium">
-        {{ t(toast.key, toast.params) }}
-      </p>
+      <div class="flex-1 py-4">
+        <p class="text-sm leading-relaxed font-medium">{{ t(toast.key, toast.params) }}</p>
+        <!--
+          남의 라이브러리가 던진 원문. 번역되지 않으므로 우리 문장과 섞지 않고
+          아래에 기술 정보로 붙인다 (errors.ts의 failureDetail).
+        -->
+        <p v-if="detailOf(toast)" class="mt-1 text-xs break-all text-ink-soft">
+          {{ detailOf(toast) }}
+        </p>
+      </div>
 
       <button
         type="button"
