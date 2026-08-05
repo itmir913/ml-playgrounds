@@ -286,6 +286,7 @@ mixed content(Pages는 https, 교실 서버는 대개 http), 교사가 고쳐야
 | `docs/mlpx-spec.md` | 프로젝트 파일 포맷·무결성 확인을 건드릴 때 |
 | `docs/roadmap.md` | 이 기능이 지금 범위인지 확인할 때 |
 | `docs/open-decisions.md` | **구현 전 반드시 확인.** 아직 결정되지 않은 항목 |
+| `docs/copy.md` | **화면 문구를 쓰거나 고칠 때.** 말투와 내용 (구조는 §3) |
 | `docs/error-codes.md` | 에러 코드 레퍼런스 (출처는 `errors.py`) |
 | `docs/privacy.md` | 로깅·개인정보 정책 |
 
