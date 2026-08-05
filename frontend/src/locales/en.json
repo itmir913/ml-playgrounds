@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "Machine Learning Playgrounds",
-    "tagline": "Load your data, build a model, and keep the whole process as a portfolio.",
+    "tagline": "Build a model from your own data. The whole process becomes your portfolio.",
     "short": "ML"
   },
   "nav": {
@@ -61,16 +61,16 @@
     "results": {
       "label": "Results",
       "locked": "This opens once a training run has finished.",
-      "purpose": "Compare the numbers and see what changed them."
+      "purpose": "Put every experiment's scores side by side. You can see what you changed and what it changed."
     },
     "predict": {
       "label": "Predict",
       "locked": "No model is available to predict with yet.",
-      "purpose": "Put in new values and see what the model says."
+      "purpose": "Add a new row to the table and the model answers it."
     },
     "portfolio": {
       "label": "Port­folio",
-      "purpose": "Write up what you did and what you found."
+      "purpose": "Work through the questions and write this project up."
     }
   },
   "data": {
@@ -125,7 +125,7 @@
     "updatedAt": "Last saved",
     "size": "Size",
     "loading": "Loading.",
-    "storageNote": "Projects are stored in this browser. To continue on another device, save the project to a file and take it with you.",
+    "storageNote": "Projects live in this browser only. To take one to another computer, export it to a file.",
     "saved": "Saved projects",
     "savedCount": "{count} project in this browser | {count} projects in this browser"
   },
