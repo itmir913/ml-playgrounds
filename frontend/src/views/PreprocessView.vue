@@ -26,9 +26,9 @@ import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { useFormat } from '@/composables/useFormat'
 import { useRadioGroupGuard } from '@/composables/useRadioGroupGuard'
-import { summarizeColumns } from '@/data/columns'
+import { dataKindFor } from '@/data/kinds'
 import { importTable, openTable, type TableDocument } from '@/data/table'
-import { columnPlan, requiredTargetKind, rowUsage } from '@/ml/selection'
+import { rowUsage } from '@/ml/selection'
 import { newRandomState } from '@/project/create'
 import {
   applyTestDataset,
@@ -36,23 +36,10 @@ import {
   readTestDataset,
   removeTestDataset,
 } from '@/project/dataset'
-import {
-  CATEGORICAL_ENCODINGS,
-  MISSING_STRATEGIES,
-  SCALING_METHODS,
-  type Preprocessing,
-  type ProjectDocument,
-} from '@/project/schema'
-import {
-  withFeatures,
-  withPreprocessing,
-  withRandomState,
-  withSplit,
-  withTarget,
-} from '@/project/settings'
+import type { ProjectDocument } from '@/project/schema'
+import { withRandomState, withSplit } from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
-import ColumnPicker from './preprocess/ColumnPicker.vue'
 
 /** 평가용 파일이 받아들이는 형식. 표 데이터 종류가 쓰는 것과 같다 (data/kinds.ts). */
 const TEST_DATA_ACCEPT = '.csv,.xlsx'
@@ -67,21 +54,21 @@ const TEST_SIZE = { min: 0.05, max: 0.5, step: 0.05 }
 
 const settings = computed(() => project.file?.document.settings ?? null)
 
+/**
+ * 이 프로젝트의 데이터 종류를 다루는 판 (`data/kinds.ts`).
+ *
+ * **여기서 종류를 보지 않는다** (architecture.md §9.1). 등록부에 줄이 없으면 아직 못
+ * 다루는 종류이고, 그때는 데이터 화면이 이미 그 사실을 말했다.
+ */
+const kind = computed(() => dataKindFor(project.file?.document.manifest.dataType ?? ''))
+
 /** 정본을 파싱한 표. 바이트가 같으면 다시 파싱하지 않는다 (project/dataset.ts). */
 const dataset = computed(() => readDataset(project.file))
 
 /** 평가 데이터를 파싱한 표. `split.method`가 `provided`가 아니면 없다. */
 const testDataset = computed(() => readTestDataset(project.file))
 
-/** 열 요약. `dataset`이 그대로면 다시 세지 않는다 — 클릭마다 도는 계산이다. */
-const columns = computed(() => (dataset.value ? summarizeColumns(dataset.value) : []))
-
 /** 순수 함수는 ml/selection.ts에 있다 - 컴포넌트 밖에서 테스트한다. */
-const trainRowUsage = computed(() => {
-  const current = settings.value
-  if (!current) return null
-  return rowUsage(dataset.value, current.features, current.target, current.preprocessing.missing)
-})
 const testRowUsage = computed(() => {
   const current = settings.value
   if (!current) return null
@@ -93,42 +80,6 @@ const testRowUsage = computed(() => {
   )
 })
 
-const plan = computed(() => {
-  const current = settings.value
-  if (!current || !dataset.value) return null
-  return columnPlan({
-    columns: columns.value,
-    rowCount: dataset.value.rows.length,
-    taskType: project.taskType,
-    target: current.target,
-    features: current.features,
-    preprocessing: current.preprocessing,
-  })
-})
-
-/**
- * 유형이 타깃에 요구하는 것. **아직 안 골랐으면 없다** — 그때는 어떤 열도 자격을 잃지
- * 않는다. 회귀를 고른 뒤 이 화면에 돌아오면 그때 문자 열의 타깃 칸이 꺼진다.
- */
-const targetRule = computed(() => requiredTargetKind(project.taskType)?.code)
-
-/**
- * 특성 상태 한 줄. **세 가지 상태를 가른다** — 아직 안 골랐다 / 골랐는데 하나도 안
- * 들어간다 / 몇 개가 들어간다. 가운데만 빨갛다.
- */
-const featureSummary = computed(() => {
-  if ((settings.value?.features.length ?? 0) === 0) {
-    return { text: t('preprocess.noFeatureChosen'), tone: 'text-ink-soft' }
-  }
-  if ((plan.value?.usableFeatures ?? 0) === 0) {
-    return { text: t('preprocess.noUsableFeature'), tone: 'font-bold text-danger' }
-  }
-  return {
-    text: t('preprocess.featureSummary', plan.value?.usableFeatures ?? 0),
-    tone: 'text-ink-soft',
-  }
-})
-
 function apply(next: ProjectDocument): void {
   const file = project.file
   if (file) project.update({ ...file, document: next })
@@ -136,37 +87,6 @@ function apply(next: ProjectDocument): void {
 
 function now(): string {
   return new Date().toISOString()
-}
-
-function pickTarget(name: string): void {
-  const file = project.file
-  if (file) apply(withTarget(file.document, name, now()))
-}
-
-function toggleFeature(name: string, on: boolean): void {
-  const file = project.file
-  if (!file) return
-  const features = file.document.settings.features
-  const next = on ? [...features, name] : features.filter((feature) => feature !== name)
-  apply(withFeatures(file.document, next, now()))
-}
-
-/** 전부 고를 때도 못 쓰는 열은 뺀다 — 골라도 학습이 거부할 것을 체크해 주지 않는다. */
-function setAllFeatures(on: boolean): void {
-  const current = plan.value
-  const file = project.file
-  if (!current || !file) return
-  const names = on
-    ? current.columns
-        .filter((column) => column.role !== 'target' && column.featureIssue === undefined)
-        .map((column) => column.summary.name)
-    : []
-  apply(withFeatures(file.document, names, now()))
-}
-
-function setCleaning(patch: Partial<Preprocessing>): void {
-  const file = project.file
-  if (file) apply(withPreprocessing(file.document, patch, now()))
 }
 
 function onTestSize(event: Event): void {
@@ -345,16 +265,16 @@ function reseed(): void {
 </script>
 
 <template>
-  <div v-if="settings && plan" class="flex flex-col gap-5 p-4 sm:p-5">
+  <div v-if="settings && dataset" class="flex flex-col gap-5 p-4 sm:p-5">
     <StepHeader :title="t('steps.preprocess.label')" :purpose="t('steps.preprocess.purpose')">
       <template #context>
         <div class="flex gap-1.5">
           <dt>{{ t('data.rows') }}</dt>
-          <dd class="font-bold tabular-nums text-ink">{{ dataset?.rows.length ?? 0 }}</dd>
+          <dd class="font-bold tabular-nums text-ink">{{ dataset.rows.length }}</dd>
         </div>
         <div class="flex gap-1.5">
           <dt>{{ t('data.columns') }}</dt>
-          <dd class="font-bold tabular-nums text-ink">{{ columns.length }}</dd>
+          <dd class="font-bold tabular-nums text-ink">{{ dataset.columns.length }}</dd>
         </div>
       </template>
     </StepHeader>
@@ -362,305 +282,206 @@ function reseed(): void {
     <StepChecklist step="preprocess" />
 
     <!--
-      **표가 넓은 쪽을 갖는다** (architecture.md §8.9). 열이 수십 개인 표를 반쪽 칸에
-      가두면 그 안에서만 옆으로 스크롤하게 된다. 다만 2 대 1은 표에 과했다 - 오른쪽
-      설정들이 라디오 줄이라 좁으면 글자마다 접힌다. **6 대 4**로 다섯 칸을 나눈다.
+      **무엇을 그릴지 여기서 정하지 않는다** (architecture.md §9.1). 표의 열 고르기와
+      정리하기는 `data/kinds.ts`의 판이 갖고, 이 화면은 그 판을 하나 그린다.
+      **레이아웃도 판의 몫이다** — 아래 평가 데이터는 모든 종류에 공통이라 슬롯으로
+      건네고, 어디에 놓을지는 판이 정한다.
     -->
-    <div class="grid gap-5 md:grid-cols-5">
-      <section class="min-w-0 rounded-panel border border-line bg-surface p-4 md:col-span-3">
-        <h2 class="font-bold">{{ t('preprocess.columnsTitle') }}</h2>
-        <p class="mt-1 text-ink-soft">{{ t('preprocess.columnsLead') }}</p>
+    <component :is="kind.prepPanel" v-if="kind">
+      <section class="rounded-panel border border-line bg-surface p-4">
+        <h2 class="font-bold">{{ t('preprocess.testDataTitle') }}</h2>
+        <p class="mt-1 text-ink-soft">{{ t('preprocess.testDataLead') }}</p>
 
-        <div class="mt-3">
-          <ColumnPicker
-            :plan="plan"
-            :target-rule="targetRule"
-            @pick-target="pickTarget"
-            @toggle-feature="toggleFeature"
-            @set-all-features="setAllFeatures"
-          />
-        </div>
-
-        <!--
-          **아직 안 고른 것과 골랐는데 못 쓰는 것은 다르다.** 처음 들어온 학생에게
-          빨간 글씨를 보여주면 자기가 뭘 잘못한 줄 안다.
-        -->
-        <p class="mt-3" :class="featureSummary.tone">{{ featureSummary.text }}</p>
-        <!-- 빠진 행이 0이면 아무 말도 안 한다 (trainRowUsage가 그때 null이다). -->
-        <p v-if="trainRowUsage" class="mt-1 text-ink-faint">
-          {{ t('preprocess.rowsUsable', trainRowUsage) }}
-        </p>
-      </section>
-
-      <div class="flex min-w-0 flex-col gap-5 md:col-span-2">
-        <section class="rounded-panel border border-line bg-surface p-4">
-          <h2 class="font-bold">{{ t('preprocess.cleaningTitle') }}</h2>
-
-          <div class="mt-3 flex flex-col gap-4">
-            <div>
-              <h3 class="font-bold text-ink-soft">{{ t('preprocess.missing') }}</h3>
-              <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
-                <label
-                  v-for="strategy in MISSING_STRATEGIES"
-                  :key="strategy"
-                  class="flex cursor-pointer items-center gap-2"
-                >
-                  <input
-                    type="radio"
-                    name="missing"
-                    class="size-4 accent-brand"
-                    :checked="settings.preprocessing.missing === strategy"
-                    @change="setCleaning({ missing: strategy })"
-                  />
-                  {{ t(`missingStrategy.${strategy}`) }}
-                </label>
-              </div>
-              <p class="mt-1 text-ink-faint">{{ t('preprocess.missingNote') }}</p>
-            </div>
-
-            <div>
-              <h3 class="font-bold text-ink-soft">{{ t('preprocess.scaling') }}</h3>
-              <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
-                <label
-                  v-for="method in SCALING_METHODS"
-                  :key="method"
-                  class="flex cursor-pointer items-center gap-2"
-                >
-                  <input
-                    type="radio"
-                    name="scaling"
-                    class="size-4 accent-brand"
-                    :checked="settings.preprocessing.scaling === method"
-                    @change="setCleaning({ scaling: method })"
-                  />
-                  {{ t(`scalingMethod.${method}`) }}
-                </label>
-              </div>
-              <p class="mt-1 text-ink-faint">{{ t('preprocess.scalingNote') }}</p>
-            </div>
-
-            <div>
-              <h3 class="font-bold text-ink-soft">{{ t('preprocess.encoding') }}</h3>
-              <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
-                <label
-                  v-for="encoding in CATEGORICAL_ENCODINGS"
-                  :key="encoding"
-                  class="flex cursor-pointer items-center gap-2"
-                >
-                  <input
-                    type="radio"
-                    name="encoding"
-                    class="size-4 accent-brand"
-                    :checked="settings.preprocessing.categoricalEncoding === encoding"
-                    @change="setCleaning({ categoricalEncoding: encoding })"
-                  />
-                  {{ t(`categoricalEncoding.${encoding}`) }}
-                </label>
-              </div>
-              <p class="mt-1 text-ink-faint">{{ t('preprocess.encodingNote') }}</p>
-            </div>
-          </div>
-        </section>
-
-        <section class="rounded-panel border border-line bg-surface p-4">
-          <h2 class="font-bold">{{ t('preprocess.testDataTitle') }}</h2>
-          <p class="mt-1 text-ink-soft">{{ t('preprocess.testDataLead') }}</p>
-
-          <!-- 양자택일이다 - 세 번째 상태가 없어야 학습 데이터로 채점하는 길이 막힌다
+        <!-- 양자택일이다 - 세 번째 상태가 없어야 학습 데이터로 채점하는 길이 막힌다
                (open-decisions.md "`분할 안 함`을 없앱니다 - 그 자리가 양자택일이 된다"). -->
-          <div class="mt-3 flex flex-col gap-4">
-            <div>
-              <label class="flex cursor-pointer items-start gap-2">
-                <input
-                  :ref="testChoiceRadios.register('holdout')"
-                  type="radio"
-                  name="test-data-choice"
-                  class="mt-1 size-4 accent-brand"
-                  :checked="testChoice === 'holdout'"
-                  @change="chooseHoldout"
-                />
-                <span class="flex flex-col">
-                  <span class="font-bold">{{ t('preprocess.testDataHoldout') }}</span>
-                  <span class="text-ink-faint">{{ t('preprocess.testDataHoldoutNote') }}</span>
-                </span>
-              </label>
+        <div class="mt-3 flex flex-col gap-4">
+          <div>
+            <label class="flex cursor-pointer items-start gap-2">
+              <input
+                :ref="testChoiceRadios.register('holdout')"
+                type="radio"
+                name="test-data-choice"
+                class="mt-1 size-4 accent-brand"
+                :checked="testChoice === 'holdout'"
+                @change="chooseHoldout"
+              />
+              <span class="flex flex-col">
+                <span class="font-bold">{{ t('preprocess.testDataHoldout') }}</span>
+                <span class="text-ink-faint">{{ t('preprocess.testDataHoldoutNote') }}</span>
+              </span>
+            </label>
 
-              <div v-if="testChoice === 'holdout'" class="mt-3 ml-6 flex flex-col gap-4">
-                <div>
-                  <!--
+            <div v-if="testChoice === 'holdout'" class="mt-3 ml-6 flex flex-col gap-4">
+              <div>
+                <!--
                     **이름과 값은 기준선으로 맞춘다.** items-center는 글자가 아니라 상자를
                     맞추므로, 값이 길어져 이름이 두 줄로 접히면 한 줄짜리 값이 두 줄 높이의
                     가운데로 떠서 첫 줄보다 위에 놓인다. 영어는 같은 이름이 30% 정도 길어
                     한국어에서 안 접히는 폭에서도 접힌다.
                   -->
-                  <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                    <h3 class="font-bold text-ink-soft">{{ t('preprocess.testSize') }}</h3>
-                    <output class="font-bold tabular-nums">
-                      {{ format.percent(settings.split.testSize) }}
-                    </output>
-                  </div>
-                  <input
-                    type="range"
-                    class="mt-1.5 w-full accent-brand"
-                    :min="TEST_SIZE.min"
-                    :max="TEST_SIZE.max"
-                    :step="TEST_SIZE.step"
-                    :value="settings.split.testSize"
-                    :aria-label="t('preprocess.testSize')"
-                    @input="onTestSize"
-                  />
-                  <p class="mt-1 text-ink-faint">{{ t('preprocess.testSizeNote') }}</p>
+                <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  <h3 class="font-bold text-ink-soft">{{ t('preprocess.testSize') }}</h3>
+                  <output class="font-bold tabular-nums">
+                    {{ format.percent(settings.split.testSize) }}
+                  </output>
                 </div>
+                <input
+                  type="range"
+                  class="mt-1.5 w-full accent-brand"
+                  :min="TEST_SIZE.min"
+                  :max="TEST_SIZE.max"
+                  :step="TEST_SIZE.step"
+                  :value="settings.split.testSize"
+                  :aria-label="t('preprocess.testSize')"
+                  @input="onTestSize"
+                />
+                <p class="mt-1 text-ink-faint">{{ t('preprocess.testSizeNote') }}</p>
+              </div>
 
-                <label class="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="checkbox"
-                    class="size-4 accent-brand"
-                    :checked="settings.split.stratify"
-                    @change="onStratify"
-                  />
-                  <span class="font-bold">{{ t('preprocess.stratify') }}</span>
-                </label>
+              <label class="flex cursor-pointer items-center gap-2">
+                <input
+                  type="checkbox"
+                  class="size-4 accent-brand"
+                  :checked="settings.split.stratify"
+                  @change="onStratify"
+                />
+                <span class="font-bold">{{ t('preprocess.stratify') }}</span>
+              </label>
 
-                <div>
-                  <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                    <h3 class="font-bold text-ink-soft">{{ t('preprocess.randomState') }}</h3>
-                    <span class="tabular-nums">{{ settings.split.randomState }}</span>
-                  </div>
-                  <p class="mt-1 text-ink-faint">{{ t('preprocess.randomStateNote') }}</p>
-                  <AppButton class="mt-2" variant="secondary" @click="reseeding = true">
-                    {{ t('preprocess.reseed') }}
-                  </AppButton>
+              <div>
+                <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  <h3 class="font-bold text-ink-soft">{{ t('preprocess.randomState') }}</h3>
+                  <span class="tabular-nums">{{ settings.split.randomState }}</span>
                 </div>
+                <p class="mt-1 text-ink-faint">{{ t('preprocess.randomStateNote') }}</p>
+                <AppButton class="mt-2" variant="secondary" @click="reseeding = true">
+                  {{ t('preprocess.reseed') }}
+                </AppButton>
               </div>
             </div>
+          </div>
 
-            <div>
-              <label class="flex cursor-pointer items-start gap-2">
-                <input
-                  :ref="testChoiceRadios.register('provided')"
-                  type="radio"
-                  name="test-data-choice"
-                  class="mt-1 size-4 accent-brand"
-                  :disabled="!targetChosen"
-                  :checked="testChoice === 'provided'"
-                  @change="chooseProvided"
-                />
-                <span class="flex flex-col">
-                  <span class="font-bold">{{ t('preprocess.testDataProvided') }}</span>
-                  <span class="text-ink-faint">{{ t('preprocess.testDataProvidedNote') }}</span>
-                </span>
-              </label>
-              <p v-if="!targetChosen" class="mt-1 ml-6 text-caution">
-                {{ t('preprocess.testDataNeedsTarget') }}
-              </p>
+          <div>
+            <label class="flex cursor-pointer items-start gap-2">
+              <input
+                :ref="testChoiceRadios.register('provided')"
+                type="radio"
+                name="test-data-choice"
+                class="mt-1 size-4 accent-brand"
+                :disabled="!targetChosen"
+                :checked="testChoice === 'provided'"
+                @change="chooseProvided"
+              />
+              <span class="flex flex-col">
+                <span class="font-bold">{{ t('preprocess.testDataProvided') }}</span>
+                <span class="text-ink-faint">{{ t('preprocess.testDataProvidedNote') }}</span>
+              </span>
+            </label>
+            <p v-if="!targetChosen" class="mt-1 ml-6 text-caution">
+              {{ t('preprocess.testDataNeedsTarget') }}
+            </p>
 
+            <div
+              v-if="testChoice === 'provided'"
+              class="mt-3 ml-6 flex flex-col gap-3"
+              @dragover.prevent="testDragging = true"
+              @dragleave="testDragging = false"
+              @drop.prevent="onTestDrop"
+            >
+              <!-- 이미 붙어 있고, 새로 고르는 중이 아니다. -->
               <div
-                v-if="testChoice === 'provided'"
-                class="mt-3 ml-6 flex flex-col gap-3"
-                @dragover.prevent="testDragging = true"
-                @dragleave="testDragging = false"
-                @drop.prevent="onTestDrop"
+                v-if="settings.testDataset && !openedTest"
+                class="flex flex-wrap items-center gap-x-4 gap-y-2"
               >
-                <!-- 이미 붙어 있고, 새로 고르는 중이 아니다. -->
+                <span class="max-w-56 truncate font-bold text-ink">
+                  {{ settings.testDataset.originalFileName }}
+                </span>
+                <span class="flex items-center gap-1.5 text-ink-soft">
+                  <span>{{ t('data.rows') }}</span>
+                  <span class="font-bold tabular-nums text-ink">
+                    {{ testDataset?.rows.length ?? 0 }}
+                  </span>
+                </span>
+                <AppButton variant="secondary" :disabled="testBusy" @click="testFileInput?.click()">
+                  {{ t('data.change') }}
+                </AppButton>
+                <AppButton variant="secondary" :disabled="testBusy" @click="requestRemoveTest">
+                  {{ t('preprocess.testDataRemove') }}
+                </AppButton>
+              </div>
+
+              <!-- 아직 안 붙었거나, 다른 파일로 바꾸는 중이다. -->
+              <template v-if="!settings.testDataset || openedTest">
                 <div
-                  v-if="settings.testDataset && !openedTest"
-                  class="flex flex-wrap items-center gap-x-4 gap-y-2"
+                  v-if="!openedTest"
+                  class="rounded-panel border-2 border-dashed p-4 text-center transition-colors"
+                  :class="testDragging ? 'border-brand bg-brand-soft' : 'border-line-strong'"
                 >
-                  <span class="max-w-56 truncate font-bold text-ink">
-                    {{ settings.testDataset.originalFileName }}
-                  </span>
-                  <span class="flex items-center gap-1.5 text-ink-soft">
-                    <span>{{ t('data.rows') }}</span>
-                    <span class="font-bold tabular-nums text-ink">
-                      {{ testDataset?.rows.length ?? 0 }}
-                    </span>
-                  </span>
                   <AppButton
                     variant="secondary"
                     :disabled="testBusy"
                     @click="testFileInput?.click()"
                   >
-                    {{ t('data.change') }}
+                    {{ testBusy ? t('data.reading') : t('data.choose') }}
                   </AppButton>
-                  <AppButton variant="secondary" :disabled="testBusy" @click="requestRemoveTest">
-                    {{ t('preprocess.testDataRemove') }}
-                  </AppButton>
+                  <p class="mt-1.5 text-ink-faint">{{ t('data.dropHint') }}</p>
                 </div>
 
-                <!-- 아직 안 붙었거나, 다른 파일로 바꾸는 중이다. -->
-                <template v-if="!settings.testDataset || openedTest">
-                  <div
-                    v-if="!openedTest"
-                    class="rounded-panel border-2 border-dashed p-4 text-center transition-colors"
-                    :class="testDragging ? 'border-brand bg-brand-soft' : 'border-line-strong'"
+                <div v-else class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <span class="max-w-56 truncate font-bold">{{ openedTest.fileName }}</span>
+
+                  <label
+                    v-if="openedTest.document.sheetNames.length > 1"
+                    class="flex items-center gap-2"
                   >
-                    <AppButton
-                      variant="secondary"
-                      :disabled="testBusy"
-                      @click="testFileInput?.click()"
+                    <span class="font-bold text-ink-soft">{{ t('data.sheet') }}</span>
+                    <select
+                      v-model="testSheetName"
+                      class="rounded-field border border-line-strong bg-surface px-2 py-1"
                     >
-                      {{ testBusy ? t('data.reading') : t('data.choose') }}
-                    </AppButton>
-                    <p class="mt-1.5 text-ink-faint">{{ t('data.dropHint') }}</p>
-                  </div>
-
-                  <div v-else class="flex flex-wrap items-center gap-x-4 gap-y-2">
-                    <span class="max-w-56 truncate font-bold">{{ openedTest.fileName }}</span>
-
-                    <label
-                      v-if="openedTest.document.sheetNames.length > 1"
-                      class="flex items-center gap-2"
-                    >
-                      <span class="font-bold text-ink-soft">{{ t('data.sheet') }}</span>
-                      <select
-                        v-model="testSheetName"
-                        class="rounded-field border border-line-strong bg-surface px-2 py-1"
+                      <option
+                        v-for="name in openedTest.document.sheetNames"
+                        :key="name"
+                        :value="name"
                       >
-                        <option
-                          v-for="name in openedTest.document.sheetNames"
-                          :key="name"
-                          :value="name"
-                        >
-                          {{ name }}
-                        </option>
-                      </select>
-                    </label>
+                        {{ name }}
+                      </option>
+                    </select>
+                  </label>
 
-                    <label class="flex cursor-pointer items-center gap-2">
-                      <input v-model="testHasHeader" type="checkbox" class="size-4 accent-brand" />
-                      <span class="font-bold">{{ t('data.hasHeader') }}</span>
-                    </label>
+                  <label class="flex cursor-pointer items-center gap-2">
+                    <input v-model="testHasHeader" type="checkbox" class="size-4 accent-brand" />
+                    <span class="font-bold">{{ t('data.hasHeader') }}</span>
+                  </label>
 
-                    <div class="ml-auto flex gap-2">
-                      <AppButton variant="secondary" @click="openedTest = null">
-                        {{ t('common.cancel') }}
-                      </AppButton>
-                      <AppButton :disabled="testBusy" @click="requestApplyTest">
-                        {{ t('data.use') }}
-                      </AppButton>
-                    </div>
+                  <div class="ml-auto flex gap-2">
+                    <AppButton variant="secondary" @click="openedTest = null">
+                      {{ t('common.cancel') }}
+                    </AppButton>
+                    <AppButton :disabled="testBusy" @click="requestApplyTest">
+                      {{ t('data.use') }}
+                    </AppButton>
                   </div>
-                </template>
+                </div>
+              </template>
 
-                <!-- 빠진 행이 0이면 아무 말도 안 한다 (testRowUsage가 그때 null이다). -->
-                <p v-if="testRowUsage" class="text-ink-faint">
-                  {{ t('preprocess.rowsUsable', testRowUsage) }}
-                </p>
-              </div>
+              <!-- 빠진 행이 0이면 아무 말도 안 한다 (testRowUsage가 그때 null이다). -->
+              <p v-if="testRowUsage" class="text-ink-faint">
+                {{ t('preprocess.rowsUsable', testRowUsage) }}
+              </p>
             </div>
-
-            <input
-              ref="testFileInput"
-              type="file"
-              :accept="TEST_DATA_ACCEPT"
-              class="hidden"
-              @change="onTestPick"
-            />
           </div>
-        </section>
-      </div>
-    </div>
+
+          <input
+            ref="testFileInput"
+            type="file"
+            :accept="TEST_DATA_ACCEPT"
+            class="hidden"
+            @change="onTestPick"
+          />
+        </div>
+      </section>
+    </component>
 
     <!--
       **누르자마자 바뀌지 않는다.** 되돌릴 수 없고 지금까지의 실험과 점수를 나란히

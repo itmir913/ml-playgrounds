@@ -17,8 +17,19 @@ export interface DataKind {
   readonly dataType: DataType
   /** `<input accept>`에 그대로 들어간다. */
   readonly accept: string
-  /** 이 종류를 다루는 작업 공간. */
+  /** 데이터 화면에서 이 종류를 다루는 작업 공간. */
   readonly panel: Component
+  /**
+   * 전처리 화면에서 이 종류를 다루는 작업 공간.
+   *
+   * **판이 자기 레이아웃을 갖는다.** 표는 열이 수십 개라 넓은 칸이 필요하고 이미지는
+   * 전혀 다른 모양이 된다 (architecture.md §8.9). 모든 종류에 공통인 것(평가 데이터
+   * 나누기)은 `<slot>`으로 받아 판이 자리만 정해 준다.
+   *
+   * **화면 둘을 한 줄에 둔다.** 같은 열쇠(dataType)로 등록부를 둘 만들면 한쪽에만
+   * 줄을 넣는 일이 생기고, 그건 타입이 못 잡는다 (§9.2 "등록부의 모양은 하나다").
+   */
+  readonly prepPanel: Component
 }
 
 const KINDS: readonly DataKind[] = [
@@ -26,6 +37,7 @@ const KINDS: readonly DataKind[] = [
     dataType: 'tabular',
     accept: '.csv,.xlsx',
     panel: defineAsyncComponent(() => import('@/views/data/TabularPanel.vue')),
+    prepPanel: defineAsyncComponent(() => import('@/views/preprocess/TabularPrepPanel.vue')),
   },
 ]
 
