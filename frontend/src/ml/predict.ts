@@ -470,40 +470,41 @@ export function tallyClassificationAnswers(
 }
 
 /**
- * 이 모델의 답이 가장 많이 나온 답과 같은가. **분류에만, 가장 많이 나온 답이 있을
- * 때만 있다** (architecture.md 8.13.1).
+ * 답 값별 등수 (architecture.md 8.13.1 "값마다 다른 색"). **개수가 많은 값이
+ * 0등이다.** 값마다 다른 색을 매기려면 갈림표 칩과 카드가 같은 등수 하나를 같은
+ * 색으로 봐야 한다 - 두 곳이 각자 등수를 매기면 어긋날 자리가 생긴다.
+ *
+ * **값이 하나뿐이면 없다.** 갈리지 않은 것에 색을 매기면 없는 갈림을 지어내는
+ * 것이다. **동점은(1등이 여럿) 등수를 매긴다** - "몇 등인가"가 아니라 "그 값들이
+ * 서로 다른 색인가"만 있으면 되므로, 승자를 못 정한다는 사실이 색칠을 막을
+ * 이유가 안 된다(과거의 `majorityAnswer`는 "누가 1등인지"를 승패로 읽었기
+ * 때문에 동점을 비웠다 - 색이 정체성일 뿐인 지금은 그 이유가 없다).
+ */
+export function rankAnswers(tally: readonly AnswerCount[]): ReadonlyMap<Prediction, number> | null {
+  if (tally.length < 2) return null
+
+  const sorted = [...tally].sort((a, b) => b.count - a.count)
+  return new Map(sorted.map((entry, index) => [entry.value, index]))
+}
+
+/**
+ * 이 모델의 답 등수. **분류에만, 등수가 있을 때만 있다** (architecture.md 8.13.1).
  *
  * **화면이 아니라 여기 있다** (§9.1). "다수결은 분류에만 있다"는 위 집계가 이미 아는
  * 사실이고, 같은 사실을 화면이 한 번 더 알면 둘이 갈라질 자리가 생긴다. 예측 화면에는
  * **여러 실험의 모델이 섞여 설 수 있어서** 유형을 모델마다 봐야 한다 - 집계가
  * 걸러 줬으니 괜찮다고 넘길 수 없는 이유다.
  */
-export function answerTone(
+export function answerRank(
   model: PredictableModel,
   answers: ReadonlyMap<string, Answer>,
-  majority: Prediction | null,
-): 'majority' | 'minority' | null {
+  ranks: ReadonlyMap<Prediction, number> | null,
+): number | null {
   if (model.experiment.settings.taskType !== 'classification') return null
-  if (majority === null) return null
+  if (ranks === null) return null
   const value = answers.get(model.run.id)?.value
   if (value === undefined) return null
-  return value === majority ? 'majority' : 'minority'
-}
-
-/**
- * 가장 많이 나온 답 (architecture.md 8.13.1 "부르는 이름은 `가장 많이 나온 답`이다").
- * **`과반수`가 아니다** — 세 값으로 갈리면 최다가 절반이 안 될 수 있다.
- *
- * **동점이거나 값 종류가 하나뿐이면 없다.** 값이 하나뿐이면 보여줄 갈림이 없고,
- * 동점에 색을 얹으면 없는 승자를 지어내는 것이다 — `bestByMetric`이 모델 하나짜리
- * 실험에서 빈 값을 내는 것과 같은 규칙이다.
- */
-export function majorityAnswer(tally: readonly AnswerCount[]): Prediction | null {
-  if (tally.length < 2) return null
-
-  const max = Math.max(...tally.map((entry) => entry.count))
-  const leaders = tally.filter((entry) => entry.count === max)
-  return leaders.length === 1 ? (leaders[0]?.value ?? null) : null
+  return ranks.get(value) ?? null
 }
 
 /**

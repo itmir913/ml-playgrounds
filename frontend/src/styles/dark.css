@@ -49,6 +49,22 @@
   --color-info: #60a5fa;
   --color-info-soft: #172554;
 
+  /* 값을 구분하는 색. theme.css §"값을 구분하는 색" 참고 - 명도만 올린다. */
+  --color-chart-1: #ecbc51;
+  --color-chart-1-soft: #46391b;
+  --color-chart-2: #7fcbef;
+  --color-chart-2-soft: #17323f;
+  --color-chart-3: #4fe3be;
+  --color-chart-3-soft: #17352c;
+  --color-chart-4: #e8d24b;
+  --color-chart-4-soft: #3d3618;
+  --color-chart-5: #4fa8e0;
+  --color-chart-5-soft: #16293d;
+  --color-chart-6: #e89354;
+  --color-chart-6-soft: #3d2a16;
+  --color-chart-7: #d488b3;
+  --color-chart-7-soft: #33202c;
+
   /* 어두운 바탕에서 옅은 그림자는 아무것도 하지 않는다. 더 깊고 더 검게. */
   --shadow-card: 0 1px 2px oklch(0 0 0 / 0.3), 0 1px 3px oklch(0 0 0 / 0.4);
   --shadow-float: 0 1px 2px oklch(0 0 0 / 0.4);

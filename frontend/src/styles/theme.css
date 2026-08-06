@@ -47,6 +47,29 @@
   --color-info-soft: #eff6ff;
 
   /*
+   * 값을 구분하는 색 (architecture.md §8.13.1 "답이 어떻게 갈렸나"). **상태색이
+   * 아니다** - "맞다/틀리다/조심"이 아니라 "이 값과 저 값이 다르다"만 말한다. 그래서
+   * positive·danger 같은 뜻 있는 이름을 안 쓰고 순서로만 부른다.
+   *
+   * Okabe-Ito 색맹 안전 팔레트에서 가져왔다. 일곱 개뿐인 이유는 §8.13.1에 있다 -
+   * 답 종류가 이보다 늘면 여덟째부터는 등수를 매기지 않고 회색 하나로 묶는다.
+   */
+  --color-chart-1: #e69f00;
+  --color-chart-1-soft: #fbf3e4;
+  --color-chart-2: #56b4e9;
+  --color-chart-2-soft: #eaf6fc;
+  --color-chart-3: #009e73;
+  --color-chart-3-soft: #ebf9f5;
+  --color-chart-4: #9a8200;
+  --color-chart-4-soft: #f9f7eb;
+  --color-chart-5: #0072b2;
+  --color-chart-5-soft: #e3eff9;
+  --color-chart-6: #d55e00;
+  --color-chart-6-soft: #fbf1e7;
+  --color-chart-7: #cc79a7;
+  --color-chart-7-soft: #fbebf3;
+
+  /*
    * 모서리. 바깥이 크고 안으로 갈수록 작다 — 카드 > 패널 > 버튼 > 입력.
    * 이 순서가 깨지면 중첩된 모서리가 어긋나 보인다.
    *

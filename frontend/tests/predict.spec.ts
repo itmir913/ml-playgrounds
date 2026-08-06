@@ -15,16 +15,17 @@ import { describe, expect, it } from 'vitest'
 import { isClientError } from '../src/errors'
 import { loadModel, REFERENCE_FORMAT } from '../src/ml/models'
 import {
+  answerRank,
   applyPredictFilter,
   defaultFilter,
   inputFields,
-  majorityAnswer,
   mergeFields,
   inputVector,
   numericRanges,
   predictDownloadGrid,
   predictPage,
   predictPageSignature,
+  rankAnswers,
   sampleRow,
   predictableModels,
   tallyClassificationAnswers,
@@ -700,42 +701,62 @@ describe('분류 답의 집계 (architecture.md 8.13.1)', () => {
   })
 })
 
-describe('가장 많이 나온 답 - `과반수`가 아니다 (architecture.md 8.13.1)', () => {
-  it('갈리면 최다를 짚는다', () => {
-    expect(
-      majorityAnswer([
-        { value: 'a', count: 3 },
-        { value: 'b', count: 1 },
-      ]),
-    ).toBe('a')
+describe('답 값별 등수 - 갈림표 칩과 카드가 같은 색을 쓰기 위한 것 (architecture.md 8.13.1)', () => {
+  it('개수가 많은 값이 0등이다', () => {
+    const ranks = rankAnswers([
+      { value: 'a', count: 3 },
+      { value: 'b', count: 1 },
+    ])
+    expect(ranks?.get('a')).toBe(0)
+    expect(ranks?.get('b')).toBe(1)
   })
 
-  it('세 값으로 갈려 최다가 절반이 안 돼도 짚는다 - 그래서 이름이 과반수가 아니다', () => {
-    // 4표 중 2표(50%)가 안 되는 40%인데도 유일한 최다이므로 짚는다.
-    expect(
-      majorityAnswer([
-        { value: 'a', count: 2 },
-        { value: 'b', count: 1 },
-        { value: 'c', count: 1 },
-      ]),
-    ).toBe('a')
+  it('동점이어도 등수를 매긴다 - 1등이 누군지는 몰라도 서로 다른 색이면 된다', () => {
+    const ranks = rankAnswers([
+      { value: 'a', count: 2 },
+      { value: 'b', count: 2 },
+    ])
+    expect(ranks?.size).toBe(2)
+    expect(ranks?.get('a')).not.toBe(ranks?.get('b'))
   })
 
-  it('동점이면 아무것도 짚지 않는다 - 없는 승자를 지어내지 않는다', () => {
-    expect(
-      majorityAnswer([
-        { value: 'a', count: 2 },
-        { value: 'b', count: 2 },
-      ]),
-    ).toBeNull()
+  it('값이 하나뿐이면 없다 - 갈리지 않은 것에 색을 매기지 않는다', () => {
+    expect(rankAnswers([{ value: 'a', count: 5 }])).toBeNull()
   })
 
-  it('값이 하나뿐이면(전부 같은 답) 아무것도 짚지 않는다 - 보여줄 갈림이 없다', () => {
-    expect(majorityAnswer([{ value: 'a', count: 5 }])).toBeNull()
+  it('답이 하나도 없으면 없다', () => {
+    expect(rankAnswers([])).toBeNull()
   })
 
-  it('답이 하나도 없으면 아무것도 짚지 않는다', () => {
-    expect(majorityAnswer([])).toBeNull()
+  it('모델의 답 등수는 분류에만, 등수가 있을 때만 있다', () => {
+    const classification = experiment([0], onehot)
+    const regression = experiment([0], onehot, { taskType: 'regression' })
+    const models: PredictableModel[] = [
+      { experiment: classification, run: runOf('r1') },
+      { experiment: regression, run: runOf('r2') },
+    ]
+    const answers = new Map<string, Answer>([
+      ['r1', { value: 'b' }],
+      ['r2', { value: 3.14 }],
+    ])
+    const ranks = rankAnswers([
+      { value: 'a', count: 3 },
+      { value: 'b', count: 1 },
+    ])
+
+    expect(answerRank(models[0]!, answers, ranks)).toBe(1)
+    expect(answerRank(models[1]!, answers, ranks)).toBeNull()
+  })
+
+  it('답이 없는 모델은 등수도 없다', () => {
+    const subject = experiment([0], onehot)
+    const model: PredictableModel = { experiment: subject, run: runOf('r1') }
+    const ranks = rankAnswers([
+      { value: 'a', count: 3 },
+      { value: 'b', count: 1 },
+    ])
+
+    expect(answerRank(model, new Map(), ranks)).toBeNull()
   })
 })
 

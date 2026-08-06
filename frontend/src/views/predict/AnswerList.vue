@@ -20,8 +20,8 @@ import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import type { Prediction } from '@/ml/metrics'
 import {
-  answerTone,
-  majorityAnswer,
+  answerRank,
+  rankAnswers,
   tallyClassificationAnswers,
   type Answer,
   type PredictableModel,
@@ -52,29 +52,44 @@ function answerText(value: Prediction | undefined): string | null {
 }
 
 const tally = computed(() => tallyClassificationAnswers(props.models, props.answers))
-const majority = computed(() => majorityAnswer(tally.value))
+const ranks = computed(() => rankAnswers(tally.value))
+
+/** 갈림표는 많이 나온 답부터 늘어놓는다 - 카드 색의 1등이 표에서도 맨 앞이다. */
+const rankedTally = computed(() => {
+  const map = ranks.value
+  if (map === null) return tally.value
+  return [...tally.value].sort((a, b) => (map.get(a.value) ?? 0) - (map.get(b.value) ?? 0))
+})
 
 /**
- * 이 모델의 답이 가장 많이 나온 답과 같은지. **판정은 `ml/predict.ts`가 한다** —
- * "다수결은 분류에만 있다"는 집계가 아는 사실이고, 화면이 한 번 더 알면 갈라진다 (§9.1).
+ * 값마다 다른 색. **7개까지만 있다.** 값 종류가 이보다 늘면 8등부터는 전부 같은
+ * 회색이다 - 갈림표는 "값별로 다른 색"이 필요하지 "무한히 다른 색"이 필요하지 않고,
+ * 색이 여덟아홉 개를 넘으면 어차피 눈으로 못 가른다 (architecture.md 8.13.1).
+ *
+ * **문자열을 통째로 적는다.** `` `border-chart-${n}` `` 처럼 이어 붙이면 Tailwind가
+ * 소스에서 클래스 이름을 못 찾아 그 색이 빌드에서 통째로 빠진다 - CLAUDE.md §4가 임의
+ * 값을 막는 것과 같은 이유로, 만들어 붙인 이름도 안 된다.
  */
-function toneOf(model: PredictableModel): 'majority' | 'minority' | null {
-  return answerTone(model, props.answers, majority.value)
-}
+const CHART_CLASSES = [
+  'border-chart-1 bg-chart-1-soft',
+  'border-chart-2 bg-chart-2-soft',
+  'border-chart-3 bg-chart-3-soft',
+  'border-chart-4 bg-chart-4-soft',
+  'border-chart-5 bg-chart-5-soft',
+  'border-chart-6 bg-chart-6-soft',
+  'border-chart-7 bg-chart-7-soft',
+] as const
 
 /**
- * 카드 테두리·배경. **`info`/`caution`이지 `positive`/`danger`가 아니다** — 다른 답을
- * 낸 모델이 틀렸다는 뜻이 아니기 때문이다(`architecture.md` 8.13.1 "부르는 이름은
- * `가장 많이 나온 답`이다").
+ * 카드 테두리·배경. `null`은 갈리지 않았거나(값이 하나뿐) 회귀 모델이다 - 이때는
+ * 강조할 갈림이 없으므로 무채색이다.
  */
-function toneClass(tone: 'majority' | 'minority' | null): string {
-  if (tone === 'majority') return 'border-info bg-info-soft'
-  if (tone === 'minority') return 'border-caution bg-caution-soft'
-  return 'border-line bg-surface-sunken'
+function toneClass(rank: number | null): string {
+  return (rank !== null && CHART_CLASSES[rank]) || 'border-line bg-surface-sunken'
 }
 
 function cardClass(model: PredictableModel): string {
-  return toneClass(toneOf(model))
+  return toneClass(answerRank(model, props.answers, ranks.value))
 }
 
 /**
@@ -83,8 +98,8 @@ function cardClass(model: PredictableModel): string {
  * 카드였더라"를 표에서 못 찾았다.
  */
 function tallyChipClass(value: Prediction): string {
-  if (majority.value === null) return 'border-line-strong bg-surface'
-  return toneClass(value === majority.value ? 'majority' : 'minority')
+  const rank = ranks.value?.get(value) ?? null
+  return (rank !== null && CHART_CLASSES[rank]) || 'border-line-strong bg-surface'
 }
 </script>
 
@@ -106,7 +121,7 @@ function tallyChipClass(value: Prediction): string {
 
       <ul class="flex flex-wrap gap-2">
         <li
-          v-for="entry in tally"
+          v-for="entry in rankedTally"
           :key="String(entry.value)"
           class="flex items-baseline gap-2 rounded-field border px-3 py-1.5"
           :class="tallyChipClass(entry.value)"
