@@ -16,10 +16,16 @@
  * (ml/preprocess.ts의 parsePreprocessor).
  */
 
-import { ClientError } from '../errors'
-import type { Experiment } from '../project/schema'
-import type { LoadContext } from './models'
-import { targetValues, transform, type Dataset, type Preprocessor } from './preprocess'
+import { ClientError, type ClientErrorCode } from '../errors'
+import type { Experiment, ProjectDocument, Run } from '../project/schema'
+import { interpreterFor, type LoadContext } from './models'
+import {
+  targetValues,
+  transform,
+  type ColumnKind,
+  type Dataset,
+  type Preprocessor,
+} from './preprocess'
 
 /** `LoadContext.trainingRows`의 실체. 참조형 해석기가 이것을 받는다 (mlpx-spec.md 5.0). */
 export type TrainingRows = NonNullable<LoadContext['trainingRows']>
@@ -118,4 +124,185 @@ export function inputVector(
 
   assertWidth(preprocessor, row)
   return row
+}
+
+/**
+ * 칸 하나의 서술. **데이터가 칸의 모양을 정한다** (architecture.md 8.13.1).
+ *
+ * 범주형은 **학습 때 본 값 중에서 고르는 칸**이다. 자유 입력으로 두면 학생이 오타를 내고
+ * 그 값은 전처리에서 조용히 미지의 범주가 된다 - 화면이 답을 내주는데 그 답이 무의미해진다.
+ */
+export interface PredictionField {
+  readonly name: string
+  readonly kind: ColumnKind
+  /** 범주형에만 있다. **순서는 학습 때 본 순서** - 원-핫 열의 순서와 같다. */
+  readonly options?: readonly string[]
+}
+
+/**
+ * 채워야 하는 칸들. **`preprocessor.columns` 순서 그대로다.**
+ *
+ * **학습에 안 쓰인 열은 여기 없다.** 인코딩을 껐을 때 빠진 범주 열(`excludedColumns`)에
+ * 칸을 만들면 학생은 값을 넣는데 예측은 그 값을 안 본다 - 화면이 거짓말을 하는 셈이다.
+ */
+export function inputFields(preprocessor: Preprocessor): PredictionField[] {
+  return preprocessor.columns.map((column) => ({
+    name: column.name,
+    kind: column.kind,
+    ...(column.categories ? { options: column.categories } : {}),
+  }))
+}
+
+/**
+ * 여러 실험의 칸을 하나로 합친다. **입력은 한 줄이고 모델은 여러 실험에서 온다.**
+ *
+ * 실험마다 특성 목록이 다를 수 있는데(학생이 열을 바꿔가며 학습한다) 화면의 칸은 하나다.
+ * **합집합을 쓴다** - 교집합으로 하면 열을 하나 더 쓴 실험의 모델이 통째로 못 쓰게 되고,
+ * 그러면 "같은 값인데 모델마다 답이 다르다"를 보여줄 수가 없다 (architecture.md 8.13.1).
+ *
+ * 어느 실험이 그 칸을 실제로 보는지는 **각자의 전처리기가 정한다** - 안 쓰는 칸은
+ * `inputVector`가 그냥 지나친다. 범주 목록도 합친다: 학습셋이 달라 못 본 범주가 있을 수
+ * 있고, 그 값을 고른 학생에게 그 모델은 미지의 범주로 답한다(그게 `transform`의 규칙이다).
+ *
+ * **순서는 먼저 나온 것이 앞이다.** 최신 실험이 앞에 오도록 넘기면 화면의 칸 순서가
+ * 지금 설정과 같아진다.
+ */
+export function mergeFields(groups: readonly (readonly PredictionField[])[]): PredictionField[] {
+  const merged = new Map<string, { kind: ColumnKind; options: string[] | null }>()
+
+  for (const group of groups) {
+    for (const field of group) {
+      const seen = merged.get(field.name)
+      if (!seen) {
+        merged.set(field.name, {
+          kind: field.kind,
+          options: field.options ? [...field.options] : null,
+        })
+        continue
+      }
+      if (!seen.options || !field.options) continue
+      for (const option of field.options) {
+        if (!seen.options.includes(option)) seen.options.push(option)
+      }
+    }
+  }
+
+  return [...merged].map(([name, { kind, options }]) => ({
+    name,
+    kind,
+    ...(options ? { options } : {}),
+  }))
+}
+
+export interface SampleRow {
+  /** `dataset/data.csv`의 행 번호. 화면이 "몇 번째 줄을 가져왔다"를 말할 수 있다. */
+  readonly index: number
+  /** 칸 이름 -> 값. `inputVector`에 그대로 넣을 수 있는 모양이다. */
+  readonly values: Record<string, string>
+}
+
+/**
+ * 표에서 한 줄을 가져온다. **평가에 쓴 행을 먼저 준다.**
+ *
+ * 학생이 [예측]으로 보게 되는 것이 **자기가 학습에 쓴 행을 다시 맞히는 장면**이면
+ * 아무것도 가르치지 않는다 (architecture.md 8.13.1). 평가셋 행은 모델이 학습 때 못 본
+ * 행이라 그 장면이 아니다. 분할을 껐으면 둘이 같은 집합이고, 그때는 애초에 학습에 안 쓴
+ * 행이 없다 - 없는 것을 지어내지 않는다.
+ *
+ * **난수를 쓰지 않는다.** `after` 다음 것을 돌아가며 준다 - 같은 프로젝트를 다시 열어도
+ * 같은 순서이고, 학생이 여러 번 누르면 여러 줄을 본다. 여기에 난수를 넣으면 재현
+ * 가능성에 우리가 관리하지 않는 구멍이 하나 더 생긴다.
+ */
+export function nextSampleRow(
+  experiment: Experiment,
+  /** 채울 칸들. **전처리기가 아니라 칸을 받는다** - 화면의 칸은 여러 실험의 합집합이다. */
+  fields: readonly PredictionField[],
+  dataset: Dataset,
+  after?: number,
+): SampleRow | null {
+  const { testIndices, trainIndices } = experiment.settings
+  const candidates = testIndices.length > 0 ? testIndices : trainIndices
+  if (candidates.length === 0) return null
+
+  const seen = after === undefined ? -1 : candidates.indexOf(after)
+  const index = candidates[(seen + 1) % candidates.length]
+  const row = index === undefined ? undefined : dataset.rows[index]
+  // 파일이 가리키는 행이 표에 없다. 여기서는 던지지 않는다 - 학생이 누른 것은 편의
+  // 기능이고, 진짜 판정은 예측할 때 transform이 시끄럽게 한다.
+  if (index === undefined || row === undefined) return null
+
+  const values: Record<string, string> = {}
+  for (const field of fields) {
+    values[field.name] = row[dataset.columns.indexOf(field.name)] ?? ''
+  }
+  return { index, values }
+}
+
+/**
+ * 예측 화면의 한 줄. **모델이 아니라 (실험, run) 쌍이다** (architecture.md 8.13.1).
+ *
+ * 화면은 "모델 목록"으로 보이지만 각 줄이 매달려 있는 것은 그 실험이다 - 전처리기도
+ * 학습 행도 거기서 나온다.
+ */
+export interface PredictableModel {
+  readonly experiment: Experiment
+  readonly run: Run
+  /** 못 쓰면 그 사유. 있으면 화면이 이 줄을 끄고 이유를 함께 보여준다 (§8.2). */
+  readonly reason?: ClientErrorCode
+}
+
+/**
+ * 예측에 쓸 수 있는 것과 없는 것. **지우지 않고 사유와 함께 끈다** (architecture.md 8.2).
+ *
+ * 사유는 셋이고 전부 다른 말이다 - 학생이 할 수 있는 일이 다르기 때문이다.
+ *
+ * - `MODEL_FORMAT_UNSUPPORTED` — 이 빌드가 모르는 형식이다. 앱을 최신으로 바꾼다.
+ * - `MODEL_NEEDS_DATASET` — 원본 데이터가 있어야 하는데 파일에 없다. 데이터를 가진
+ *   파일로 다시 연다 (mlpx-spec.md 5.0).
+ * - `MODEL_FILE_INVALID` — 모델이 파일에 안 담겼다(`modelOmitted`). 그 사유는 §4.2가
+ *   따로 들고 있고, 여기서는 "이 줄로는 예측할 수 없다"까지만 말한다.
+ *
+ * **형식 이름을 보고 가르지 않는다** (mlpx-spec.md 5.0). 판정에 쓰는 것은 등록부의
+ * 불리언 둘뿐이라, 형식이 늘어도 이 함수는 안 바뀐다.
+ */
+export function predictableModels(
+  document: ProjectDocument,
+  hasDataset: boolean,
+): PredictableModel[] {
+  const list: PredictableModel[] = []
+
+  // 최신 실험이 위다. 결과 화면의 세로줄과 같은 순서여야 학생이 같은 것을 같은 자리에서
+  // 찾는다 (architecture.md 8.13).
+  for (const experiment of [...document.runs.experiments].reverse()) {
+    for (const run of experiment.runs) {
+      if (run.status !== 'done') continue
+
+      const model = run.model
+      // 지표만 남은 run이다. 왜 안 담겼는지는 run.modelOmitted가 들고 있다.
+      if (!model) {
+        list.push({ experiment, run, reason: 'MODEL_FILE_INVALID' })
+        continue
+      }
+
+      const interpreter = interpreterFor(model.format)
+      if (!interpreter) {
+        list.push({ experiment, run, reason: 'MODEL_FORMAT_UNSUPPORTED' })
+        continue
+      }
+      if (interpreter.needsTrainingRows && !hasDataset) {
+        list.push({ experiment, run, reason: 'MODEL_NEEDS_DATASET' })
+        continue
+      }
+      // 전처리기가 없으면 자체 JSON 모델은 좌표계를 못 세운다 (mlpx-spec.md 5).
+      // 정상 경로에서는 함께 담기지만, 남이 편집한 파일에서는 갈릴 수 있다.
+      if (!interpreter.includesPreprocessing && !experiment.preprocessor) {
+        list.push({ experiment, run, reason: 'MODEL_FILE_INVALID' })
+        continue
+      }
+
+      list.push({ experiment, run })
+    }
+  }
+
+  return list
 }

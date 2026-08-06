@@ -14,14 +14,21 @@ import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
 import { loadModel, REFERENCE_FORMAT } from '../src/ml/models'
-import { inputVector, trainingRowsFor } from '../src/ml/predict'
+import {
+  inputFields,
+  mergeFields,
+  inputVector,
+  nextSampleRow,
+  predictableModels,
+  trainingRowsFor,
+} from '../src/ml/predict'
 import {
   fitPreprocessor,
   parsePreprocessor,
   PREPROCESSOR_FORMAT,
   type Dataset,
 } from '../src/ml/preprocess'
-import type { Experiment, Preprocessing } from '../src/project/schema'
+import type { Experiment, Preprocessing, ProjectDocument, Run } from '../src/project/schema'
 
 /** 수치 둘·범주 하나. 범주가 있어야 원-핫으로 열이 늘어난다. */
 const dataset: Dataset = {
@@ -290,5 +297,196 @@ describe('참조형 모델과 이어 붙이기', () => {
         }),
       ),
     ).toBe('MODEL_NEEDS_DATASET')
+  })
+})
+
+describe('칸 서술', () => {
+  it('수치는 숫자 칸, 범주는 학습 때 본 값 중에서 고르는 칸이다', () => {
+    const subject = experiment([0, 1, 3], onehot)
+    expect(inputFields(fitFor(subject))).toEqual([
+      { name: '키', kind: 'numeric' },
+      { name: '몸무게', kind: 'numeric' },
+      // 순서가 원-핫 열의 순서와 같다. 자유 입력이면 오타가 미지의 범주가 된다.
+      { name: '지역', kind: 'categorical', options: ['서울', '부산', '대구'] },
+    ])
+  })
+
+  it('학습에 안 쓰인 열은 칸도 없다 - 넣어도 안 보는 값을 묻지 않는다', () => {
+    const subject = experiment([0, 1, 3], { ...onehot, categoricalEncoding: 'none' })
+    expect(inputFields(fitFor(subject)).map((field) => field.name)).toEqual(['키', '몸무게'])
+  })
+
+  it('순서형에도 고를 값이 있다 - 인코딩은 저장 방식이지 입력 방식이 아니다', () => {
+    const subject = experiment([0, 1, 3], ordinal)
+    const 지역 = inputFields(fitFor(subject)).find((field) => field.name === '지역')
+    expect(지역?.options).toEqual(['서울', '부산', '대구'])
+  })
+})
+
+describe('표에서 한 줄 가져오기', () => {
+  it('평가에 쓴 행을 준다 - 학습한 행을 다시 맞히는 장면은 아무것도 안 가르친다', () => {
+    const subject = experiment([0, 1, 3], onehot, { testIndices: [2, 4] })
+    const sample = nextSampleRow(subject, inputFields(fitFor(subject)), dataset)
+
+    expect(sample?.index).toBe(2)
+    expect(sample?.values).toEqual({ 키: '170', 몸무게: '60', 지역: '서울' })
+  })
+
+  it('누를 때마다 다음 줄이고, 끝나면 처음으로 돌아온다', () => {
+    const subject = experiment([0, 1, 3], onehot, { testIndices: [2, 4] })
+    const preprocessor = fitFor(subject)
+
+    expect(nextSampleRow(subject, inputFields(preprocessor), dataset, 2)?.index).toBe(4)
+    expect(nextSampleRow(subject, inputFields(preprocessor), dataset, 4)?.index).toBe(2)
+  })
+
+  it('분할을 껐으면 학습 행뿐이다 - 없는 것을 지어내지 않는다', () => {
+    const subject = experiment([0, 1], onehot, { testIndices: [] })
+    expect(nextSampleRow(subject, inputFields(fitFor(subject)), dataset)?.index).toBe(0)
+  })
+
+  it('가져온 줄이 그대로 벡터가 된다 - 한두 칸만 바꿔 보는 길이 여기서 열린다', () => {
+    const subject = experiment([0, 1, 3], scaled, { testIndices: [2] })
+    const preprocessor = fitFor(subject)
+    const sample = nextSampleRow(subject, inputFields(preprocessor), dataset)
+
+    expect(() => inputVector(subject, preprocessor, sample?.values ?? {})).not.toThrow()
+  })
+})
+
+describe('예측에 쓸 수 있는 모델', () => {
+  const modelRef = (format: string) => ({
+    format,
+    path: 'model/run-1.json',
+    includesPreprocessing: false,
+    sizeBytes: 10,
+  })
+
+  function documentWith(runs: Run[], preprocessor = true): ProjectDocument {
+    const subject = experiment([0, 1], onehot)
+    return {
+      manifest: {
+        formatVersion: 1,
+        appVersion: '0.1.0',
+        projectId: '11111111-1111-4111-8111-111111111111',
+        name: '테스트',
+        createdAt: '2026-08-06T00:00:00.000Z',
+        updatedAt: '2026-08-06T00:00:00.000Z',
+        kind: 'machineLearning',
+        dataType: 'tabular',
+        locale: 'ko',
+      },
+      settings: {
+        features,
+        target: '품종',
+        preprocessing: onehot,
+        split: subject.settings.split,
+        runtime: 'mljs',
+        selectedAlgorithms: [],
+        hyperparameters: {},
+      },
+      runs: {
+        experiments: [
+          {
+            ...subject,
+            runs,
+            ...(preprocessor
+              ? { preprocessor: { format: 'mlpx-preprocess-v1', path: 'model/p.json' } }
+              : {}),
+          },
+        ],
+      },
+      portfolio: { template: { id: 'default-v1' }, answers: {} },
+    }
+  }
+
+  const base: Run = {
+    id: 'run-1',
+    algorithm: 'decision_tree',
+    hyperparameters: {},
+    computedBy: 'browser',
+    trainedAt: '2026-08-06T00:00:00.000Z',
+    status: 'done',
+    metrics: { accuracy: 1 },
+  }
+
+  it('담긴 모델은 쓸 수 있다', () => {
+    const list = predictableModels(
+      documentWith([{ ...base, model: modelRef('mlpx-tree-v1') }]),
+      true,
+    )
+    expect(list).toHaveLength(1)
+    expect(list[0]?.reason).toBeUndefined()
+  })
+
+  it('실패한 run은 목록에 없다 - 지표조차 없는 줄이다', () => {
+    const failed: Run = {
+      ...base,
+      status: 'failed',
+      metrics: undefined,
+      failure: { code: 'JOB_FAILED' },
+    }
+    expect(predictableModels(documentWith([failed]), true)).toEqual([])
+  })
+
+  it('사유 셋이 서로 다른 말이다 - 학생이 할 수 있는 일이 다르다', () => {
+    // 이 빌드가 모르는 형식. 앱을 최신으로 바꾸면 된다.
+    expect(
+      predictableModels(documentWith([{ ...base, model: modelRef('onnx-v1') }]), true)[0]?.reason,
+    ).toBe('MODEL_FORMAT_UNSUPPORTED')
+
+    // 참조형인데 원본 데이터가 없다. 데이터를 가진 파일로 다시 열면 된다.
+    expect(
+      predictableModels(documentWith([{ ...base, model: modelRef(REFERENCE_FORMAT) }]), false)[0]
+        ?.reason,
+    ).toBe('MODEL_NEEDS_DATASET')
+
+    // 모델이 아예 안 담겼다. 예산에서 밀린 것이고 지표만 남았다.
+    expect(
+      predictableModels(documentWith([{ ...base, modelOmitted: 'overBudget' }]), true)[0]?.reason,
+    ).toBe('MODEL_FILE_INVALID')
+  })
+
+  it('참조형은 데이터가 있으면 쓸 수 있다 - 형식 이름으로 가르지 않는다', () => {
+    const list = predictableModels(
+      documentWith([{ ...base, model: modelRef(REFERENCE_FORMAT) }]),
+      true,
+    )
+    expect(list[0]?.reason).toBeUndefined()
+  })
+
+  it('전처리기가 없으면 자체 JSON 모델은 좌표계를 못 세운다', () => {
+    const list = predictableModels(
+      documentWith([{ ...base, model: modelRef('mlpx-tree-v1') }], false),
+      true,
+    )
+    expect(list[0]?.reason).toBe('MODEL_FILE_INVALID')
+  })
+})
+
+describe('여러 실험의 칸을 합친다', () => {
+  it('합집합이다 - 교집합으로 하면 열을 더 쓴 실험의 모델이 통째로 빠진다', () => {
+    const wide = inputFields(fitFor(experiment([0, 1, 3], onehot)))
+    const narrow = inputFields(fitFor(experiment([0, 1, 3], onehot, { features: ['키'] })))
+
+    expect(mergeFields([narrow, wide]).map((field) => field.name)).toEqual(['키', '몸무게', '지역'])
+  })
+
+  it('범주 목록도 합친다 - 학습셋이 달라 못 본 값이 있다', () => {
+    const seoulBusan = inputFields(fitFor(experiment([0, 1], onehot)))
+    const daegu = inputFields(fitFor(experiment([3], onehot)))
+    const merged = mergeFields([seoulBusan, daegu])
+
+    expect(merged.find((field) => field.name === '지역')?.options).toEqual(['서울', '부산', '대구'])
+  })
+
+  it('먼저 나온 순서를 지킨다 - 최신 실험을 앞에 주면 화면이 지금 설정을 따른다', () => {
+    const full = inputFields(fitFor(experiment([0, 1, 3], onehot)))
+    const reordered = [...full].reverse()
+    expect(mergeFields([reordered, full]).map((field) => field.name)).toEqual([
+      '지역',
+      '몸무게',
+      '키',
+    ])
   })
 })

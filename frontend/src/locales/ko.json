@@ -450,5 +450,23 @@
     "noDetail": "회귀에는 혼동 행렬이 없습니다. 위의 점수가 결과의 전부입니다.",
     "failedTitle": "학습하지 못한 모델 {count}개",
     "failureDetail": "기술 정보"
+  },
+  "predict": {
+    "emptyReason": "예측에 쓸 수 있는 모델이 이 파일에 없습니다.",
+    "emptyNext": "학습 단계에서 모델을 학습하면 여기서 새 값을 넣어 볼 수 있습니다.",
+    "inputTitle": "새로운 값",
+    "inputLead": "표에 새 줄을 하나 넣는다고 생각하면 됩니다. 값을 채우고 [예측]을 누르세요.",
+    "fromData": "데이터에서 한 줄 가져오기",
+    "fromDataDone": "{index}번째 줄을 가져왔습니다. 한두 칸만 바꿔서 다시 예측해 보세요.",
+    "noSample": "가져올 줄이 없습니다.",
+    "pickOption": "고르세요",
+    "run": "예측",
+    "clear": "비우기",
+    "answerTitle": "모델들의 답",
+    "answerLead": "같은 값을 모든 모델에 동시에 넣습니다. 답이 갈리는 것이 정상입니다.",
+    "waiting": "값을 채우고 [예측]을 누르면 여기에 답이 나옵니다.",
+    "modelName": "{algorithm} · {experiment}",
+    "unusable": "이 모델은 지금 쓸 수 없습니다.",
+    "notSaved": "예측한 값과 답은 프로젝트 파일에 저장되지 않습니다. 여기는 마음껏 시험해 보는 자리입니다."
   }
 }

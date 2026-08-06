@@ -1,0 +1,104 @@
+<script setup lang="ts">
+/**
+ * 입력 한 줄 — **표에 새 줄을 하나 넣는 일이다** (architecture.md §8.13.1).
+ *
+ * **칸의 모양은 데이터가 정한다.** 수치 열은 숫자 칸, 범주 열은 **학습 때 본 값 중에서
+ * 고르는 칸**이다. 자유 입력으로 두면 학생이 오타를 내고 그 값은 전처리에서 조용히 미지의
+ * 범주가 된다 — 화면이 답을 내주는데 그 답이 무의미해진다.
+ *
+ * **빈 칸으로 시작한다.** 처음부터 채워 두면 학생이 그대로 [예측]을 눌러 자기가 학습에
+ * 쓴 행을 다시 맞히는 것을 본다. 대신 [데이터에서 한 줄 가져오기]로 **한두 칸만 바꿔
+ * 보는 길**을 연다 — 이 도구가 주려는 장면이 그것이다.
+ */
+
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+import AppButton from '@/components/AppButton.vue'
+import AppField from '@/components/AppField.vue'
+import type { PredictionField } from '@/ml/predict'
+
+const props = defineProps<{
+  fields: readonly PredictionField[]
+  values: Readonly<Record<string, string>>
+  /** 가져온 줄의 번호. 화면이 무엇을 가져왔는지 말한다. 없으면 아직 안 가져왔다. */
+  sampled: number | null
+}>()
+
+const emit = defineEmits<{
+  set: [name: string, value: string]
+  sample: []
+  clear: []
+  run: []
+}>()
+
+const { t } = useI18n()
+
+/** 아직 안 채운 칸. **하나라도 있으면 [예측]이 멈춘다** — 비워 두고 누르면 학습셋의
+ * 대체값으로 예측되는데, 학생은 자기가 넣은 값으로 예측했다고 믿는다. */
+const blank = computed(() =>
+  props.fields.filter((field) => (props.values[field.name] ?? '').trim() === ''),
+)
+</script>
+
+<template>
+  <div class="flex flex-col gap-5">
+    <div class="flex flex-col gap-1.5">
+      <h3 class="text-lg font-bold">{{ t('predict.inputTitle') }}</h3>
+      <p class="text-ink-soft">{{ t('predict.inputLead') }}</p>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <AppButton variant="secondary" @click="emit('sample')">
+        {{ t('predict.fromData') }}
+      </AppButton>
+      <AppButton variant="ghost" @click="emit('clear')">{{ t('predict.clear') }}</AppButton>
+      <p v-if="props.sampled !== null" class="min-w-0 text-ink-soft">
+        {{ t('predict.fromDataDone', { index: props.sampled + 1 }) }}
+      </p>
+    </div>
+
+    <!--
+      칸이 스무 개인 데이터가 있다. 좁은 화면에서는 한 줄, 넓어지면 두 줄로 접는다 —
+      한 칸씩 세로로만 쌓으면 [예측] 버튼이 화면 밖으로 밀린다.
+    -->
+    <div class="grid gap-4 sm:grid-cols-2">
+      <AppField v-for="field in props.fields" :key="field.name" :label="field.name">
+        <template #default="control">
+          <select
+            v-if="field.options"
+            v-bind="control"
+            class="rounded-field border border-line-strong bg-surface px-3 py-2"
+            :value="props.values[field.name] ?? ''"
+            @change="emit('set', field.name, ($event.target as HTMLSelectElement).value)"
+          >
+            <option value="">{{ t('predict.pickOption') }}</option>
+            <option v-for="option in field.options" :key="option" :value="option">
+              {{ option }}
+            </option>
+          </select>
+
+          <input
+            v-else
+            v-bind="control"
+            type="number"
+            step="any"
+            class="rounded-field border border-line-strong bg-surface px-3 py-2 tabular-nums"
+            :value="props.values[field.name] ?? ''"
+            @input="emit('set', field.name, ($event.target as HTMLInputElement).value)"
+          />
+        </template>
+      </AppField>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <AppButton size="lg" :disabled="blank.length > 0" @click="emit('run')">
+        {{ t('predict.run') }}
+      </AppButton>
+      <!-- 왜 꺼져 있는지 말한다. 이유 없이 회색인 버튼은 학생에게 고장으로 보인다. -->
+      <p v-if="blank.length > 0" class="min-w-0 text-ink-soft">
+        {{ t('client.PREDICTION_INPUT_INCOMPLETE', { feature: blank[0]?.name ?? '' }) }}
+      </p>
+    </div>
+  </div>
+</template>
