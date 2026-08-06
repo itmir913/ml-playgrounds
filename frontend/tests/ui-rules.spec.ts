@@ -139,6 +139,55 @@ function unguardedButtons(source: string): string[] {
     .filter((name) => asyncNames.has(name))
 }
 
+/**
+ * 확인 모달(`request*`)이 걸린 라디오 그룹인데, 그룹의 노드 중 하나라도
+ * `useRadioGroupGuard`로 등록돼 있지 않은 경우 (`architecture.md` §8.15).
+ *
+ * **취소를 거쳐야 하는 옵션이 하나라도 있으면 그룹 전체를 등록해야 한다.** 라디오는
+ * 값이 실제로 안 바뀌면 Vue가 `checked`를 다시 안 써 주는데, 브라우저는 클릭한 순간
+ * 이미 같은 이름 그룹 전체의 네이티브 `checked`를 새 선택에 맞게 바꿔 둔 뒤다. 하나만
+ * 등록해 두면 취소했을 때 그 라디오만 되돌아오고 나머지는 브라우저가 꺼 둔 채로 남는다.
+ *
+ * "확인 모달이 걸렸다"는 `@change` 핸들러가 `request*` 함수(붙이거나 뗄 때 먼저
+ * 물어보는 이 저장소의 기존 관례, `PreprocessView.vue`의
+ * `requestApplyTest`/`requestRemoveTest`)를 부르는지로 판정한다.
+ */
+function unguardedConfirmRadios(source: string): string[] {
+  const template = source.slice(source.indexOf('<template>'))
+  const radios = [...template.matchAll(/<input\b[^>]*\btype="radio"[^>]*\/?>/gs)].map(
+    (match) => match[0],
+  )
+  if (radios.length === 0) return []
+
+  const groups = new Map<string, string[]>()
+  for (const tag of radios) {
+    const name = /\bname="([^"]+)"/.exec(tag)?.[1]
+    if (!name) continue
+    groups.set(name, [...(groups.get(name) ?? []), tag])
+  }
+
+  // 몸통에서 request*를 부르는 함수 이름들. 최상위 함수의 닫는 중괄호는 Prettier가
+  // 들여쓰기 없이 새 줄에 둔다 - 그 모양만 몸통으로 본다.
+  const script = source.slice(0, source.indexOf('<template>'))
+  const gatedFunctions = new Set(
+    [...script.matchAll(/function (\w+)\([^)]*\)[^{]*\{\n([\s\S]*?)\n\}/g)]
+      .filter((match) => /\brequest[A-Z]\w*\(/.test(match[2] ?? ''))
+      .map((match) => match[1] ?? ''),
+  )
+
+  const violations: string[] = []
+  for (const tags of groups.values()) {
+    const changeHandlers = tags
+      .map((tag) => /@change="(\w+)"/.exec(tag)?.[1])
+      .filter((name): name is string => !!name)
+    if (!changeHandlers.some((name) => gatedFunctions.has(name))) continue
+    for (const tag of tags) {
+      if (!/:ref="[^"]*\.register\(/.test(tag)) violations.push(tag)
+    }
+  }
+  return violations
+}
+
 function vueFiles(directory: string): string[] {
   return readdirSync(directory).flatMap((entry) => {
     const path = join(directory, entry)
@@ -307,6 +356,63 @@ describe('버튼이 두 번 눌리지 않는다', () => {
     const found = vueFiles(SRC).flatMap((path) =>
       unguardedButtons(readFileSync(path, 'utf-8')).map(
         (name) => `${path.slice(SRC.length + 1)}  ${name}`,
+      ),
+    )
+    expect(found).toEqual([])
+  })
+})
+
+describe('확인 모달이 걸린 라디오는 그룹째 되돌린다', () => {
+  const NEWLINE = String.fromCharCode(10)
+
+  it('검사기가 안 막힌 그룹을 잡는다', () => {
+    const source = [
+      'function requestRemove(): void {}',
+      'function chooseHoldout(): void {',
+      '  requestRemove()',
+      '}',
+      '<template>',
+      '<input type="radio" name="g" @change="chooseHoldout" />',
+      '<input type="radio" name="g" @change="chooseOther" />',
+      '</template>',
+    ].join(NEWLINE)
+    expect(unguardedConfirmRadios(source)).toEqual([
+      '<input type="radio" name="g" @change="chooseHoldout" />',
+      '<input type="radio" name="g" @change="chooseOther" />',
+    ])
+  })
+
+  it('검사기가 전부 등록된 그룹은 안 잡는다', () => {
+    const source = [
+      'function requestRemove(): void {}',
+      'function chooseHoldout(): void {',
+      '  requestRemove()',
+      '}',
+      '<template>',
+      '<input :ref="guard.register(\'a\')" type="radio" name="g" @change="chooseHoldout" />',
+      '<input :ref="guard.register(\'b\')" type="radio" name="g" @change="chooseOther" />',
+      '</template>',
+    ].join(NEWLINE)
+    expect(unguardedConfirmRadios(source)).toEqual([])
+  })
+
+  it('검사기가 확인 모달이 없는 그룹은 안 잡는다', () => {
+    const source = [
+      'function chooseHoldout(): void {',
+      '  doSomething()',
+      '}',
+      '<template>',
+      '<input type="radio" name="g" @change="chooseHoldout" />',
+      '<input type="radio" name="g" @change="chooseOther" />',
+      '</template>',
+    ].join(NEWLINE)
+    expect(unguardedConfirmRadios(source)).toEqual([])
+  })
+
+  it('지금 소스에 안 막힌 확인 라디오가 없다', () => {
+    const found = vueFiles(SRC).flatMap((path) =>
+      unguardedConfirmRadios(readFileSync(path, 'utf-8')).map(
+        (tag) => `${path.slice(SRC.length + 1)}  ${tag.trim()}`,
       ),
     )
     expect(found).toEqual([])

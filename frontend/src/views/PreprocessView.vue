@@ -25,6 +25,7 @@ import AppEmpty from '@/components/AppEmpty.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { useFormat } from '@/composables/useFormat'
+import { useRadioGroupGuard } from '@/composables/useRadioGroupGuard'
 import { summarizeColumns } from '@/data/columns'
 import { importTable, openTable, type TableDocument } from '@/data/table'
 import { columnPlan, requiredTargetKind, rowUsage } from '@/ml/selection'
@@ -201,6 +202,8 @@ const testChoice = computed(
 )
 
 const testFileInput = ref<HTMLInputElement | null>(null)
+/** "①"/"②" 라디오 그룹의 되돌리기 (`architecture.md` §8.15). */
+const testChoiceRadios = useRadioGroupGuard<'holdout' | 'provided'>()
 const testDragging = ref(false)
 const testBusy = ref(false)
 /** 아직 확정하지 않은 평가용 파일. 확정하면 비운다. */
@@ -210,10 +213,19 @@ const testHasHeader = ref(true)
 const testAttaching = ref(false)
 const testRemoving = ref(false)
 
-/** "①"을 고른다. 이미 붙어 있던 평가 데이터가 있으면 뗀다(경고를 거친다). */
+/**
+ * "①"을 고른다. 이미 붙어 있던 평가 데이터가 있으면 뗀다(경고를 거친다).
+ *
+ * **취소하면 그룹을 직접 되돌린다** (`architecture.md` §8.15) - 확인을 거치는 동안
+ * `testChoice`는 그대로 `'provided'`라 Vue가 다시 렌더링해도 라디오의 `checked`를
+ * 다시 안 써 준다. `useRadioGroupGuard`로 지금 실제 값에 맞춰 되돌려 둔다 - 취소하면
+ * 그대로 남고, 확정되면 `manualTestChoice`가 `'holdout'`으로 바뀌어 다음 렌더링이
+ * 알아서 맞춰 준다.
+ */
 function chooseHoldout(): void {
   openedTest.value = null
   if (settings.value?.split.method === 'provided') {
+    testChoiceRadios.resync('provided')
     requestRemoveTest()
   } else {
     manualTestChoice.value = 'holdout'
@@ -460,6 +472,7 @@ function reseed(): void {
             <div>
               <label class="flex cursor-pointer items-start gap-2">
                 <input
+                  :ref="testChoiceRadios.register('holdout')"
                   type="radio"
                   name="test-data-choice"
                   class="mt-1 size-4 accent-brand"
@@ -525,6 +538,7 @@ function reseed(): void {
             <div>
               <label class="flex cursor-pointer items-start gap-2">
                 <input
+                  :ref="testChoiceRadios.register('provided')"
                   type="radio"
                   name="test-data-choice"
                   class="mt-1 size-4 accent-brand"
