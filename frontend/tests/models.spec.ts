@@ -16,12 +16,14 @@ import { MAX_MODEL_BYTES } from '../src/limits'
 import { fit } from '../src/ml/engines/mljs'
 import {
   LINEAR_FORMAT,
+  NAIVE_BAYES_FORMAT,
   TREE_FORMAT,
   assertContext,
   interpreterFor,
   loadModel,
   type LinearModel,
   type ModelInterpreter,
+  type NaiveBayesModel,
   type TreeModel,
   type TreeNode,
 } from '../src/ml/models'
@@ -286,5 +288,93 @@ describe('mlpx-linear-v1', () => {
       weights: [[1, 1]],
     })
     expectCode(() => model([[1]]), 'MODEL_FILE_INVALID')
+  })
+})
+
+/**
+ * `mlpx-naive-bayes-v1` (mlpx-spec.md §5.5).
+ *
+ * **요구는 §5.4와 같다 — 다시 읽은 모델의 예측이 원본과 한 줄도 다르면 안 된다.**
+ * 여기는 학습 쪽과 해석기 쪽에 **같은 식이 두 벌** 있어서, 한쪽만 고치면 조용히 갈린다.
+ */
+describe('mlpx-naive-bayes-v1', () => {
+  const trained = train('naive_bayes')
+
+  it('나이브 베이즈가 우리 형식으로 담긴다', () => {
+    expect(trained.model?.format).toBe(NAIVE_BAYES_FORMAT)
+    expect(trained.modelOmittedDetail).toBeUndefined()
+  })
+
+  it('읽은 모델의 예측이 원본과 한 줄도 다르지 않다', () => {
+    const restored = loadModel(JSON.parse(JSON.stringify(trained.model)))
+    expect(restored(IRIS_FEATURES)).toEqual(trained.predict(IRIS_FEATURES))
+  })
+
+  it('계수의 줄 수가 전부 클래스 수와 같다', () => {
+    const model = trained.model as NaiveBayesModel
+    expect(model.logPriors).toHaveLength(model.classes.length)
+    expect(model.means).toHaveLength(model.classes.length)
+    expect(model.variances).toHaveLength(model.classes.length)
+    for (const row of [...model.means, ...model.variances]) {
+      expect(row).toHaveLength(model.featureCount)
+    }
+  })
+
+  it('사전확률이 이미 로그다 - 확률로 되돌리지 않는다', () => {
+    const model = trained.model as NaiveBayesModel
+    // 로그 확률이므로 전부 0 이하이고, exp의 합이 1이다.
+    expect(model.logPriors.every((value) => value <= 0)).toBe(true)
+    const total = model.logPriors.reduce((sum, value) => sum + Math.exp(value), 0)
+    expect(total).toBeCloseTo(1, 10)
+  })
+
+  it('분산이 0인 열은 점수에서 빠진다 - 나누면 전부 NaN이 된다', () => {
+    // 두 클래스가 같은 평균을 갖고, 유일하게 갈리는 열의 분산이 0이다.
+    const model = loadModel({
+      format: NAIVE_BAYES_FORMAT,
+      classes: ['a', 'b'],
+      featureCount: 2,
+      logPriors: [Math.log(0.5), Math.log(0.5)],
+      means: [
+        [0, 0],
+        [0, 100],
+      ],
+      variances: [
+        [1, 0],
+        [1, 0],
+      ],
+    })
+    // 건너뛰지 않으면 NaN 비교가 되어 아무도 못 이기고 던진다.
+    expect(model([[0, 50]])).toEqual(['a'])
+  })
+
+  it('정규화 상수가 식에 있어야 한다 - 분산이 다르면 답이 갈린다', () => {
+    // 두 클래스가 평균은 같고 분산만 다르다. 입력이 평균과 정확히 같으면 거리 항이 0이라
+    // **정규화 상수만 남고**, 분산이 작은 쪽이 이긴다. 상수를 빼면 0 대 0 동점이 되어
+    // 번호가 작은 a가 이긴다 - 붓꽃 왕복 테스트로는 이 차이가 안 잡힌다.
+    const model = loadModel({
+      format: NAIVE_BAYES_FORMAT,
+      classes: ['a', 'b'],
+      featureCount: 1,
+      logPriors: [Math.log(0.5), Math.log(0.5)],
+      means: [[0], [0]],
+      variances: [[100], [0.01]],
+    })
+    expect(model([[0]])).toEqual(['b'])
+  })
+
+  it('줄 수가 어긋나면 거부한다', () => {
+    expectCode(
+      () =>
+        loadModel({
+          format: NAIVE_BAYES_FORMAT,
+          classes: ['a', 'b'],
+          featureCount: 1,
+          logPriors: [-1],
+          means: [[0]],
+          variances: [[1]],
+        }),
+      'MODEL_FILE_INVALID',
+    )
   })
 })

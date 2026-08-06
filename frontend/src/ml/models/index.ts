@@ -13,11 +13,14 @@ import { z } from 'zod'
 
 import { ClientError } from '../../errors'
 import { LINEAR_FORMAT, loadLinearModel } from './linear'
+import { NAIVE_BAYES_FORMAT, loadNaiveBayesModel } from './naive-bayes'
 import { TREE_FORMAT, loadTreeModel } from './tree'
 import type { LoadContext, ModelInterpreter, Predict } from './types'
 
 export { LINEAR_FORMAT } from './linear'
 export type { LinearModel } from './linear'
+export { NAIVE_BAYES_FORMAT } from './naive-bayes'
+export type { NaiveBayesModel } from './naive-bayes'
 export { TREE_FORMAT } from './tree'
 export type { TreeModel, TreeNode } from './tree'
 export type { LoadContext, ModelFile, ModelInterpreter, Predict } from './types'
@@ -34,6 +37,12 @@ const INTERPRETERS: readonly ModelInterpreter[] = [
     includesPreprocessing: false,
     needsTrainingRows: false,
     load: loadLinearModel,
+  },
+  {
+    format: NAIVE_BAYES_FORMAT,
+    includesPreprocessing: false,
+    needsTrainingRows: false,
+    load: loadNaiveBayesModel,
   },
 ]
 

@@ -45,7 +45,13 @@ import { resolveWith, type HyperparameterSpec } from '../hyperparams'
 import type { Prediction } from '../metrics'
 import type { ModelFile, Predict } from '../models/types'
 import { MLJS_PARAMETERS } from './mljs-params'
-import { serializeForest, serializeLogistic, serializeTree } from './mljs-serialize'
+import {
+  serializeForest,
+  serializeLogistic,
+  serializeNaiveBayes,
+  serializeTree,
+  type NaiveBayesParameters,
+} from './mljs-serialize'
 
 /**
  * 이 엔진의 이름과 버전. run.engine에 그대로 들어간다.
@@ -200,10 +206,17 @@ function columnVariances(
  * 지수 합이 대략 -745 아래일 때 0으로 언더플로해서 모든 클래스가 같아지고, 그 라이브러리는
  * 거기서 "예측 없음"(-1)을 냈다. 비교만 하면 되므로 되돌릴 이유가 없다.
  *
- * 정규화 상수도 그대로 둔다. argmax에는 영향이 없지만 빼면 이 함수가 무엇을 계산하는지
- * 식으로 안 읽힌다.
+ * **정규화 상수를 빼면 안 된다.** 흔히 상수라서 지워도 된다고들 하는데 그건 클래스마다
+ * 분산이 같을 때 얘기다 - 여기서는 클래스마다 다르므로 `log(2π·분산)`이 **클래스마다
+ * 다른 값**이고, 빼면 답이 갈린다. 입력이 두 클래스의 평균과 같을 때 거리 항이 0이라
+ * 이 상수만 남고 분산이 작은 쪽이 이긴다 - tests/models.spec.ts가 그 경우를 못 박았다.
  */
-function gaussianNaiveBayes(): TrainablePredictor {
+/** 학습된 계수를 꺼낼 수 있는 분류기. 우리가 계산한 것이라 추측할 것이 없다. */
+interface NaiveBayesPredictor extends TrainablePredictor {
+  snapshot(): NaiveBayesParameters
+}
+
+function gaussianNaiveBayes(): NaiveBayesPredictor {
   let priors: number[] = []
   let means: number[][] = []
   let variances: number[][] = []
@@ -256,6 +269,10 @@ function gaussianNaiveBayes(): TrainablePredictor {
         return best
       })
     },
+
+    // **우리가 들고 있는 값을 그대로 준다** (mlpx-spec.md 5.5). 이 알고리즘만 라이브러리가
+    // 아니라 저장소 안에서 계산하므로, 직렬화기가 남의 구조를 추측할 일이 없다.
+    snapshot: () => ({ logPriors: priors, means, variances }),
   }
 }
 
@@ -370,7 +387,14 @@ const TRAINERS: Record<string, Trainer> = {
     }
   }),
 
-  naive_bayes: classifier(() => ({ predictor: gaussianNaiveBayes() })),
+  naive_bayes: classifier(() => {
+    const predictor = gaussianNaiveBayes()
+    return {
+      predictor,
+      serialize: (classes, featureCount) =>
+        serializeNaiveBayes(predictor.snapshot(), classes, featureCount),
+    }
+  }),
 
   knn: (input) => {
     const { encoded, decode } = labelCodec(input.target)

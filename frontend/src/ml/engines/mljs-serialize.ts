@@ -20,6 +20,7 @@ import type { RandomForestClassifier } from 'ml-random-forest'
 import { z } from 'zod'
 
 import { LINEAR_FORMAT, type LinearModel } from '../models/linear'
+import { NAIVE_BAYES_FORMAT, type NaiveBayesModel } from '../models/naive-bayes'
 import { LEAF, TREE_FORMAT, type TreeModel, type TreeNode } from '../models/tree'
 
 /**
@@ -243,4 +244,50 @@ export function serializeLogistic(
   })
 
   return { format: LINEAR_FORMAT, classes: [...classes], featureCount, weights }
+}
+
+/**
+ * 학습된 나이브 베이즈의 계수. **직렬화기의 입력 계약이라 여기 산다** - 엔진이 이쪽을
+ * 참조하는 방향은 이미 있고, 반대로 두면 의존이 양방향이 된다.
+ */
+export interface NaiveBayesParameters {
+  /** 클래스마다의 로그 사전확률. **이미 로그다** (mlpx-spec.md 5.5). */
+  readonly logPriors: readonly number[]
+  readonly means: readonly (readonly number[])[]
+  /** 평활을 **더한 뒤의** 값. 재현에 필요한 값은 파일 안에 있어야 한다. */
+  readonly variances: readonly (readonly number[])[]
+}
+
+/**
+ * 가우시안 나이브 베이즈 (mlpx-spec.md 5.5).
+ *
+ * **여기만 남의 구조를 읽지 않는다.** 이 알고리즘은 저장소 안에서 계산하므로 계수를
+ * 우리가 들고 있고, 하는 일은 모양을 확인해 옮기는 것뿐이다. 그래도 확인은 한다 -
+ * 학습 쪽 구현이 바뀌어 줄 수가 어긋나면 **읽을 때가 아니라 담을 때** 걸려야 한다.
+ */
+export function serializeNaiveBayes(
+  parameters: NaiveBayesParameters,
+  classes: readonly string[],
+  featureCount: number,
+): NaiveBayesModel {
+  const { logPriors, means, variances } = parameters
+  if (logPriors.length !== classes.length) drift('naive bayes classes')
+  if (means.length !== classes.length || variances.length !== classes.length) {
+    drift('naive bayes rows')
+  }
+
+  for (const value of logPriors) numberOf(value, 'naive bayes prior')
+  for (const row of [...means, ...variances] as readonly (readonly number[])[]) {
+    if (row.length !== featureCount) drift('naive bayes featureCount')
+    for (const value of row) numberOf(value, 'naive bayes value')
+  }
+
+  return {
+    format: NAIVE_BAYES_FORMAT,
+    classes: [...classes],
+    featureCount,
+    logPriors: [...logPriors],
+    means: means.map((row) => [...row]),
+    variances: variances.map((row) => [...row]),
+  }
 }
