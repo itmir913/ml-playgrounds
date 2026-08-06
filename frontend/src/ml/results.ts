@@ -9,6 +9,7 @@
  * 옛 실험의 지표가 새 유형의 표에 들어가 accuracy 칸에 r2가 뜬다 (schema.ts의 같은 경고).
  */
 
+import { RUNTIMES } from './backend'
 import type { Experiment, Run } from '../project/schema'
 import { bestOf, metricsOf, type MetricDisplay } from './metrics'
 
@@ -25,6 +26,24 @@ export function doneRuns(experiment: Experiment): readonly Run[] {
 
 export function failedRuns(experiment: Experiment): readonly Run[] {
   return experiment.runs.filter((run) => run.status === 'failed')
+}
+
+/**
+ * "학습한 곳" 문구가 가리킬 로케일 키.
+ *
+ * **`execution.*`(브라우저/서버)만으로는 부족하다.** 브라우저 안에도 순수 JS와
+ * scikit-learn(Pyodide) 둘이 있고(`ml/backend.ts`의 `RUNTIMES`), 둘 다 "내 컴퓨터에서
+ * 학습"으로 뭉치면 학생이 지금 무엇으로 돌았는지 알 수 없다. `run.engine.kind`가 그
+ * 실행 방법을 가리키므로 등록부에서 되짚어 `runtimes.*`(이미 있는, 더 구체적인 문구)를
+ * 쓴다. `engineKind`가 등록부의 `id`와 항상 같지는 않다 - server-sklearn만 다르다
+ * (`ml/backend.ts`의 `RUNTIMES` 참고).
+ *
+ * engine이 없는 run(옛 포맷 등 읽기 호환)은 위치만이라도 보여준다.
+ */
+export function whereTrainedKeyOf(run: Run): string {
+  const engineKind = run.engine?.kind
+  const runtime = engineKind !== undefined ? RUNTIMES.find((r) => r.engineKind === engineKind) : undefined
+  return runtime ? `runtimes.${runtime.id}` : `execution.${run.computedBy}`
 }
 
 /**

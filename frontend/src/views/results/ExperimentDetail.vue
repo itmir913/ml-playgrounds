@@ -16,7 +16,7 @@ import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { describeChanges } from '@/ml/changes'
 import { metricsOf } from '@/ml/metrics'
-import { bestByMetric, doneRuns, failedRuns } from '@/ml/results'
+import { bestByMetric, doneRuns, failedRuns, whereTrainedKeyOf } from '@/ml/results'
 import type { Experiment, Run } from '@/project/schema'
 import ChangeList from './ChangeList.vue'
 import RunDetail from './RunDetail.vue'
@@ -148,7 +148,7 @@ function failureDetailOf(run: Run): string | null {
             @click="pickRun(run.id)"
           >
             <th class="text-left">{{ t(`algorithms.${run.algorithm}`) }}</th>
-            <td>{{ t(`execution.${run.computedBy}`) }}</td>
+            <td>{{ t(whereTrainedKeyOf(run)) }}</td>
             <td
               v-for="display in displays"
               :key="display.name"

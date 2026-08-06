@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { bestByMetric, doneRuns, failedRuns, headlineOf } from '../src/ml/results'
+import { bestByMetric, doneRuns, failedRuns, headlineOf, whereTrainedKeyOf } from '../src/ml/results'
 import { metricsOf } from '../src/ml/metrics'
 import type { Experiment, Run, TaskType } from '../src/project/schema'
 
@@ -102,6 +102,44 @@ describe('지표별 최고값', () => {
     )
     expect(best.get('r2')).toBe(0.9)
     expect(best.get('rmse')).toBe(1)
+  })
+})
+
+describe('학습한 곳 문구', () => {
+  // execution.*(브라우저/서버)만으로는 순수 JS와 scikit-learn(Pyodide)이 둘 다
+  // "내 컴퓨터에서 학습"으로 뭉친다. engine.kind로 되짚어야 갈린다.
+  it('순수 JS(mljs)는 그 엔진 전용 문구로 간다', () => {
+    const r = run('run-1', { accuracy: 0.9 })
+    expect(whereTrainedKeyOf({ ...r, engine: { kind: 'mljs', version: '2' } })).toBe(
+      'runtimes.mljs',
+    )
+  })
+
+  it('scikit-learn(Pyodide)도 순수 JS와 다른 문구로 간다', () => {
+    const r = run('run-1', { accuracy: 0.9 })
+    expect(
+      whereTrainedKeyOf({ ...r, engine: { kind: 'pyodide-sklearn', version: '1' } }),
+    ).toBe('runtimes.pyodide-sklearn')
+  })
+
+  // 등록부의 engineKind('sklearn')와 id('server-sklearn')가 다른 유일한 자리다.
+  it('서버 sklearn은 engineKind가 아니라 등록부의 id로 옮겨진다', () => {
+    const r = run('run-1', { accuracy: 0.9 })
+    expect(
+      whereTrainedKeyOf({ ...r, computedBy: 'server', engine: { kind: 'sklearn', version: '1' } }),
+    ).toBe('runtimes.server-sklearn')
+  })
+
+  it('engine이 없으면(옛 포맷) 위치만 보여준다', () => {
+    const r = run('run-1', { accuracy: 0.9 })
+    expect(whereTrainedKeyOf(r)).toBe('execution.browser')
+  })
+
+  it('모르는 엔진이면 위치만 보여준다 - 아는 척하지 않는다', () => {
+    const r = run('run-1', { accuracy: 0.9 })
+    expect(whereTrainedKeyOf({ ...r, engine: { kind: 'unknown-engine', version: '1' } })).toBe(
+      'execution.browser',
+    )
   })
 })
 

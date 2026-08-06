@@ -16,6 +16,7 @@ import { useI18n } from 'vue-i18n'
 import AppTable from '@/components/AppTable.vue'
 import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
+import { whereTrainedKeyOf } from '@/ml/results'
 import type { Run } from '@/project/schema'
 
 const props = defineProps<{ run: Run }>()
@@ -50,7 +51,7 @@ const warningText = computed(() => {
       <h3 class="font-bold text-ink">
         {{ t('results.detailFor', { model: t(`algorithms.${props.run.algorithm}`) }) }}
       </h3>
-      <span class="text-ink-soft">{{ t(`execution.${props.run.computedBy}`) }}</span>
+      <span class="text-ink-soft">{{ t(whereTrainedKeyOf(props.run)) }}</span>
     </div>
 
     <div class="flex flex-col gap-5 bg-surface p-4">
