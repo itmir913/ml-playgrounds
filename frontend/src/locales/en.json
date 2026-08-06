@@ -199,7 +199,7 @@
     "pickRuntime": "Where to train",
     "addModel": "Add",
     "removeModel": "Remove",
-    "alreadyAdded": "That pair is already on the list. Choose another model or another place to add more.",
+    "alreadyAdded": "That combination is already selected. Please choose another model.",
     "modelSummary": "{count} model chosen. | {count} models chosen.",
     "noModelChosen": "No model chosen yet.",
     "tuning": "Change the settings",
