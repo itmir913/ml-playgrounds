@@ -67,6 +67,15 @@ const blank = computed(() =>
 
 /** 빈 칸이 하나라도 있으면 못 돌린다. **조합은 템플릿이 아니라 여기서 한다** (§10.1). */
 const cannotRun = computed(() => props.disabled || blank.value.length > 0)
+
+/**
+ * 학생에게 보여줄 행 번호. **0부터 세는 것은 우리 사정이다.**
+ *
+ * 계산을 템플릿에서 하지 않는다 - `t()` 옆에 산술이 붙으면 문장을 조각내어 잇는 것과
+ * 구별되지 않아 `tests/i18n-usage.spec.ts`가 잡는다. 검사의 오탐이지만 고칠 자리는
+ * 검사가 아니라 여기다 (architecture.md §10.1과 같은 이유 - 조합은 스크립트에서).
+ */
+const sampledIndex = computed(() => (props.sampled ?? 0) + 1)
 </script>
 
 <template>
@@ -126,7 +135,7 @@ const cannotRun = computed(() => props.disabled || blank.value.length > 0)
     <div class="flex flex-col gap-2">
       <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
         <p :class="{ invisible: props.sampled === null }" class="min-w-0 text-ink-soft">
-          {{ t('predict.fromDataDone', { index: (props.sampled ?? 0) + 1 }) }}
+          {{ t('predict.fromDataDone', { index: sampledIndex }) }}
         </p>
         <AppButton variant="secondary" :disabled="props.disabled" @click="emit('sample')">
           {{ t('predict.fromData') }}
