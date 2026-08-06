@@ -10,9 +10,61 @@
  * 도구 막대와 상태 표시줄이 제자리에 남는다.
  */
 
+import { ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+
 import AppStatusBar from '@/components/AppStatusBar.vue'
 import AppToolbar from '@/components/AppToolbar.vue'
 import StepRail from '@/components/StepRail.vue'
+
+/**
+ * 레일에서 단계를 옮기면 작업 공간을 맨 위로 되돌린다. 안 그러면 직전 단계에서
+ * 스크롤해 둔 위치가 그대로 남아, 새 단계인데 중간부터 보이는 것처럼 느껴진다.
+ *
+ * **네이티브 `scroll-behavior: smooth`를 안 쓴다.** 그 지속 시간은 브라우저가
+ * 정하고 손댈 수 없는데, 원하는 것은 "부드럽지만 짧게"다. 그래서 직접 `duration`을
+ * 쥔 애니메이션을 돈다 — 저사양 PC 기준으로 `transform`이 아니라 `scrollTop` 하나만
+ * 매 프레임 바꾸므로 가볍다.
+ *
+ * `prefers-reduced-motion`을 따로 확인한다. `base.css`의 전역 규칙은
+ * CSS 트랜지션·애니메이션만 잡고, `requestAnimationFrame`으로 도는 이 스크롤은
+ * 잡지 못한다.
+ */
+const route = useRoute()
+const mainEl = ref<HTMLElement | null>(null)
+
+const SCROLL_TOP_DURATION_MS = 220
+
+function easeOutCubic(t: number): number {
+  return 1 - (1 - t) ** 3
+}
+
+function scrollToTopFast(el: HTMLElement): void {
+  const from = el.scrollTop
+  if (from === 0) return
+
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    el.scrollTop = 0
+    return
+  }
+
+  const start = performance.now()
+
+  function step(now: number): void {
+    const t = Math.min(1, (now - start) / SCROLL_TOP_DURATION_MS)
+    el.scrollTop = from * (1 - easeOutCubic(t))
+    if (t < 1) requestAnimationFrame(step)
+  }
+
+  requestAnimationFrame(step)
+}
+
+watch(
+  () => route.name,
+  () => {
+    if (mainEl.value) scrollToTopFast(mainEl.value)
+  },
+)
 </script>
 
 <template>
@@ -34,7 +86,7 @@ import StepRail from '@/components/StepRail.vue'
         **스크롤 막대의 자리를 늘 비워 둔다.** 안 그러면 내용이 긴 단계와 짧은 단계를
         오갈 때마다 작업 공간의 폭이 막대 하나만큼 달라져 화면 전체가 옆으로 튄다.
       -->
-      <main class="min-w-0 flex-1 overflow-auto bg-surface scroll-gutter-stable">
+      <main ref="mainEl" class="min-w-0 flex-1 overflow-auto bg-surface scroll-gutter-stable">
         <slot />
       </main>
     </div>
