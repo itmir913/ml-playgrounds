@@ -67,11 +67,24 @@ function toneOf(model: PredictableModel): 'majority' | 'minority' | null {
  * 낸 모델이 틀렸다는 뜻이 아니기 때문이다(`architecture.md` 8.13.1 "부르는 이름은
  * `가장 많이 나온 답`이다").
  */
-function cardClass(model: PredictableModel): string {
-  const tone = toneOf(model)
+function toneClass(tone: 'majority' | 'minority' | null): string {
   if (tone === 'majority') return 'border-info bg-info-soft'
   if (tone === 'minority') return 'border-caution bg-caution-soft'
   return 'border-line bg-surface-sunken'
+}
+
+function cardClass(model: PredictableModel): string {
+  return toneClass(toneOf(model))
+}
+
+/**
+ * 집계 칩의 색. **카드와 같은 값이면 같은 색이어야 갈림표와 카드를 눈으로 맞춰
+ * 볼 수 있다** - 전에는 최다 답만 강조하고 나머지는 전부 무채색이라, "이 색이 어느
+ * 카드였더라"를 표에서 못 찾았다.
+ */
+function tallyChipClass(value: Prediction): string {
+  if (majority.value === null) return 'border-line-strong bg-surface'
+  return toneClass(value === majority.value ? 'majority' : 'minority')
 }
 </script>
 
@@ -96,11 +109,7 @@ function cardClass(model: PredictableModel): string {
           v-for="entry in tally"
           :key="String(entry.value)"
           class="flex items-baseline gap-2 rounded-field border px-3 py-1.5"
-          :class="
-            majority !== null && entry.value === majority
-              ? 'border-info bg-info-soft'
-              : 'border-line-strong bg-surface'
-          "
+          :class="tallyChipClass(entry.value)"
         >
           <span class="font-bold tabular-nums">{{ answerText(entry.value) }}</span>
           <span class="text-ink-soft">{{ t('meta.countUnit', { count: entry.count }) }}</span>
