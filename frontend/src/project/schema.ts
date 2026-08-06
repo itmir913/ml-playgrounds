@@ -66,8 +66,20 @@ export const DEFAULT_PORTFOLIO_SECTIONS = [
 
 export const TASK_TYPES = ['classification', 'regression', 'clustering'] as const
 
-/** 데이터 타입. 업로드한 파일에서 자동 판정된다. */
-export const DATA_TYPES = ['tabular', 'image', 'audio', 'text'] as const
+/**
+ * 데이터 타입. **프로젝트를 만들 때 학생이 고르고, 그 뒤로 안 바뀐다**
+ * (open-decisions.md "데이터 종류는 프로젝트를 만들 때 고르고, 그 뒤로 안 바뀐다").
+ * 업로드한 파일에서 판정하지 않는다.
+ *
+ * **여기에는 지금 되는 것만 있다.** `image`·`audio`·`text`를 미리 넣지 마라 - 등록부의
+ * `false`는 "이 조합에서 성립하지 않는다"는 뜻인데(architecture.md §9.2.1), 안 만든
+ * 종류에 `false`를 채워 두면 **거짓말이 파일에 남고 그 종류를 구현하는 날 아무것도
+ * 안 깨진다.** 값을 더하는 것은 그 종류를 구현하는 커밋이 한다. 그때 등록부가 전부
+ * 빨개지고, 넣는 사람이 항목마다 판단한다.
+ *
+ * 무엇을 만들 예정인지는 `roadmap.md`가 갖는다.
+ */
+export const DATA_TYPES = ['tabular'] as const
 
 /**
  * 결측치 처리.

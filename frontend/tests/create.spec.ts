@@ -13,6 +13,7 @@ import {
   formatPercent,
   formatPrediction,
 } from '../src/composables/useFormat'
+import { NOT_FOR_TABULAR_ALGORITHM } from './fixtures/algorithms'
 import { ALGORITHMS, supportedTaskTypes } from '../src/ml/algorithms'
 import { FALLBACK_RUNTIME_ID, RUNTIMES } from '../src/ml/backend'
 import { newProjectDocument, newProjectSeed, touch } from '../src/project/create'
@@ -125,8 +126,10 @@ describe('고를 수 있는 과제 유형', () => {
    */
   it('데이터 종류에 맞는 유형만 남는다', () => {
     expect(supportedTaskTypes('tabular')).toEqual(['classification', 'regression'])
-    // V1의 알고리즘은 전부 표 데이터용이다. 이미지 알고리즘을 등록하는 날 여기가 따라온다.
-    expect(supportedTaskTypes('image')).toEqual([])
+    // **표본은 가짜다.** 어휘에는 지금 되는 종류만 있으므로(open-decisions.md "어휘에는
+    // 지금 되는 것만 넣는다") 안 맞는 종류를 넘겨서 확인할 수 없다. 표에서 안 서는
+    // 알고리즘만 있는 세상에서는 고를 유형이 하나도 없어야 한다.
+    expect(supportedTaskTypes('tabular', [NOT_FOR_TABULAR_ALGORITHM])).toEqual([])
   })
 
   it('데이터를 안 올렸으면 좁히지 않는다 - 무엇을 올릴지 모른다', () => {

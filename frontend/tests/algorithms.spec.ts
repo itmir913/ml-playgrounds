@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest'
 
 import { CLIENT_ERROR_CODES } from '../src/errors'
 import { BROWSER_ROW_LIMIT } from '../src/limits'
-import { SKLEARN_ONLY_ALGORITHM } from './fixtures/algorithms'
+import { NOT_FOR_TABULAR_ALGORITHM, SKLEARN_ONLY_ALGORITHM } from './fixtures/algorithms'
 import {
   ALGORITHMS,
   algorithmOptions,
@@ -86,14 +86,19 @@ describe('세 축으로 고른다', () => {
   })
 
   it('데이터 타입이 다르면 잠긴다', () => {
-    const options = algorithmOptions({ dataType: 'image', taskType: 'classification' }, context())
+    // **표본은 가짜다.** 어휘에는 지금 되는 종류만 있으므로(open-decisions.md) 안 맞는
+    // 종류를 넘겨서 확인할 수 없다. 규칙을 확인하는 것이지 어휘를 확인하는 게 아니다.
+    const options = algorithmOptions(tabularClassification, context(), [NOT_FOR_TABULAR_ALGORITHM])
     expect(options.every((option) => option.reason === 'ALGORITHM_NOT_FOR_DATA_TYPE')).toBe(true)
   })
 
   it('데이터 타입이 과제 유형보다 먼저다 - 더 근본적인 것이 먼저 걸린다', () => {
-    // 이미지 + 회귀. 둘 다 안 맞지만 학생이 먼저 알아야 할 것은 데이터다.
-    const options = algorithmOptions({ dataType: 'image', taskType: 'regression' }, context())
-    expect(optionFor(options, 'decision_tree')?.reason).toBe('ALGORITHM_NOT_FOR_DATA_TYPE')
+    // 이 모델은 표에서도 안 서고 회귀도 아니다. 둘 다 안 맞지만 학생이 먼저 알아야
+    // 할 것은 데이터다.
+    const options = algorithmOptions({ dataType: 'tabular', taskType: 'regression' }, context(), [
+      NOT_FOR_TABULAR_ALGORITHM,
+    ])
+    expect(options[0]?.reason).toBe('ALGORITHM_NOT_FOR_DATA_TYPE')
   })
 
   it('축이 다 맞으면 실행 방법을 본다', () => {
@@ -140,7 +145,7 @@ describe('못 쓰는 이유가 쓸모 있어야 한다', () => {
   it('잠긴 항목에는 언제나 이유가 있고 그 이유가 로케일에 있다', () => {
     const cases = [
       algorithmOptions(tabularClassification, context()),
-      algorithmOptions({ dataType: 'audio', taskType: 'clustering' }, context()),
+      algorithmOptions(tabularClassification, context(), [NOT_FOR_TABULAR_ALGORITHM]),
       algorithmOptions(tabularClassification, context({ rowCount: 999999 })),
       algorithmOptions({ dataType: 'tabular', taskType: 'regression' }, context()),
     ]
@@ -180,7 +185,7 @@ describe('분기 없이 늘어난다', () => {
     const future: Algorithm[] = [
       {
         id: 'kmeans',
-        dataTypes: { tabular: true, image: false, audio: false, text: false },
+        dataTypes: { tabular: true },
         taskTypes: { classification: false, regression: false, clustering: true },
         runtimes: { mljs: true, 'pyodide-sklearn': false, 'server-sklearn': false },
       },

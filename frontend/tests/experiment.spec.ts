@@ -15,7 +15,9 @@
 import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
+import type { Algorithm } from '../src/ml/algorithms'
 import { runExperiment, type ExperimentInput } from '../src/ml/experiment'
+import { NOT_FOR_TABULAR_ALGORITHM } from './fixtures/algorithms'
 import type { RuntimeContext } from '../src/ml/backend'
 import type { Dataset } from '../src/ml/preprocess'
 import { experimentSchema, type Run, type RunsFile, type Settings } from '../src/project/schema'
@@ -735,7 +737,7 @@ describe('데이터 타입·과제 유형에 안 맞는 모델', () => {
     rows: [...Array(10).keys()].map((x) => [String(x), String(2 * x + 1)]),
   }
 
-  function runLine(overrides: Partial<ExperimentInput>) {
+  function runLine(overrides: Partial<ExperimentInput>, algorithms?: readonly Algorithm[]) {
     return runExperiment(
       {
         dataset: line,
@@ -751,7 +753,7 @@ describe('데이터 타입·과제 유형에 안 맞는 모델', () => {
         context: { serverStatus: 'unavailable', rowCount: line.rows.length },
         ...overrides,
       },
-      frozen,
+      algorithms ? { ...frozen, algorithms } : frozen,
     ).experiment
   }
 
@@ -763,7 +765,10 @@ describe('데이터 타입·과제 유형에 안 맞는 모델', () => {
   })
 
   it('데이터 타입이 안 맞으면 그쪽 사유가 이긴다 - 더 근본적인 것이 먼저다', () => {
-    const experiment = runLine({ dataType: 'image' })
+    // **표본은 가짜다.** 어휘에는 지금 되는 종류만 있어서(open-decisions.md "어휘에는
+    // 지금 되는 것만 넣는다") 안 맞는 종류를 넘길 수 없다. 확인하는 것은 어휘가 아니라
+    // unavailableReason이 데이터 타입 사유를 먼저 가로채는가다.
+    const experiment = runLine({}, [{ ...NOT_FOR_TABULAR_ALGORITHM, id: 'decision_tree' }])
     expect(experiment.runs[0]?.status).toBe('failed')
     expect(experiment.runs[0]?.failure?.code).toBe('ALGORITHM_NOT_FOR_DATA_TYPE')
   })

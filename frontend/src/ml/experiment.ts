@@ -24,7 +24,7 @@
 
 import { ClientError, failureDetail, isClientError } from '../errors'
 import type { Experiment, DataType, Run, RunsFile, Settings, TaskType } from '../project/schema'
-import { algorithmOptions, type AlgorithmOption } from './algorithms'
+import { algorithmOptions, type Algorithm, type AlgorithmOption } from './algorithms'
 import {
   reasonParams,
   type RuntimeContext,
@@ -88,6 +88,14 @@ export interface ExperimentOptions {
   now?: () => string
   /** 모델 하나가 끝날 때마다. 워커 껍데기가 이걸 postMessage로 바꾼다. */
   onRun?: (run: Run, completed: number, total: number) => void
+  /**
+   * 볼 알고리즘 등록부. 없으면 진짜 등록부다.
+   *
+   * **검사가 가짜 표본을 넣으려고 있다** (`algorithmOptions`·`runtimeOptions`와 같은
+   * 방식이다). 지금 등록부에는 표에서 안 서는 알고리즘이 하나도 없는데, 그건 규칙이
+   * 아니라 오늘의 사실이라 그것만 보고 검사를 짜면 규칙이 안 지켜진다.
+   */
+  algorithms?: readonly Algorithm[]
 }
 
 export interface ExperimentResult {
@@ -452,7 +460,7 @@ export function runExperiment(
   }
 
   const available = new Map(
-    algorithmOptions({ dataType, taskType }, context).map((option) => [
+    algorithmOptions({ dataType, taskType }, context, options.algorithms).map((option) => [
       option.algorithm.id,
       option,
     ]),

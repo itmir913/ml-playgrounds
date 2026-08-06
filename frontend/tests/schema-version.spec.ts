@@ -77,7 +77,7 @@ const VOCABULARY_BY_VERSION: Readonly<Record<number, Readonly<Record<string, rea
   {
     1: {
       TASK_TYPES: ['classification', 'regression', 'clustering'],
-      DATA_TYPES: ['tabular', 'image', 'audio', 'text'],
+      DATA_TYPES: ['tabular'],
       MISSING_STRATEGIES: ['none', 'drop', 'mean', 'median', 'mostFrequent', 'zero'],
       SCALING_METHODS: ['none', 'standard', 'minmax', 'robust'],
       CATEGORICAL_ENCODINGS: ['none', 'onehot', 'ordinal'],

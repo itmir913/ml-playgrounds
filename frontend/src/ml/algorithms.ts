@@ -3,7 +3,7 @@
  *
  * **선택 가능한 모델은 세 축으로 결정된다** (mlpx-spec.md 0.1).
  *
- *   dataTypes   업로드한 데이터에서 온다 - CSV면 표 데이터용만
+ *   dataTypes   프로젝트를 만들 때 정해진다 - 표 프로젝트면 표 데이터용만
  *   taskTypes   **학생이 고른다** - 분류를 고르면 분류 모델만
  *   runtimes    실행 방법 - 서버가 없으면 브라우저에서 되는 것만 (ml/backend.ts)
  *
@@ -58,37 +58,37 @@ export interface Algorithm extends AlgorithmSpec {
 export const ALGORITHMS: readonly Algorithm[] = [
   {
     id: 'decision_tree',
-    dataTypes: { tabular: true, image: false, audio: false, text: false },
+    dataTypes: { tabular: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
   },
   {
     id: 'knn',
-    dataTypes: { tabular: true, image: false, audio: false, text: false },
+    dataTypes: { tabular: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
   },
   {
     id: 'logistic_regression',
-    dataTypes: { tabular: true, image: false, audio: false, text: false },
+    dataTypes: { tabular: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
   },
   {
     id: 'random_forest',
-    dataTypes: { tabular: true, image: false, audio: false, text: false },
+    dataTypes: { tabular: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
   },
   {
     id: 'naive_bayes',
-    dataTypes: { tabular: true, image: false, audio: false, text: false },
+    dataTypes: { tabular: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
   },
   {
     id: 'svm',
-    dataTypes: { tabular: true, image: false, audio: false, text: false },
+    dataTypes: { tabular: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // **이 알고리즘만 상한이 따로다** (limits.ts의 SVM_ROW_LIMIT). SMO는 행 수의 제곱으로
@@ -97,7 +97,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
   },
   {
     id: 'linear_regression',
-    dataTypes: { tabular: true, image: false, audio: false, text: false },
+    dataTypes: { tabular: true },
     taskTypes: { classification: false, regression: true, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
   },

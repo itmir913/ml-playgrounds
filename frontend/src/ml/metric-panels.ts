@@ -40,14 +40,14 @@ export interface MetricPanel {
 const PANELS: readonly MetricPanel[] = [
   {
     id: 'confusion-matrix',
-    dataTypes: { tabular: true, image: false, audio: false, text: false },
+    dataTypes: { tabular: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     hasData: (run) => run.confusionMatrix !== undefined,
     panel: defineAsyncComponent(() => import('@/views/results/panels/ConfusionMatrixPanel.vue')),
   },
   {
     id: 'per-class',
-    dataTypes: { tabular: true, image: false, audio: false, text: false },
+    dataTypes: { tabular: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     hasData: (run) => run.perClass !== undefined,
     panel: defineAsyncComponent(() => import('@/views/results/panels/PerClassPanel.vue')),

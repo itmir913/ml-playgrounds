@@ -15,9 +15,26 @@ import type { Algorithm } from '../../src/ml/algorithms'
 
 export const SKLEARN_ONLY_ALGORITHM: Algorithm = {
   id: 'sklearn_only',
-  dataTypes: { tabular: true, image: false, audio: false, text: false },
+  dataTypes: { tabular: true },
   taskTypes: { classification: true, regression: false, clustering: false },
   runtimes: { mljs: false, 'pyodide-sklearn': true, 'server-sklearn': true },
+}
+
+/**
+ * **표 데이터에서는 안 서는 알고리즘.** 데이터 타입 사유를 확인할 때 쓴다.
+ *
+ * 예전에는 `dataType: 'image'`를 넘겨서 확인했다. **어휘에서 뺐다** - 안 만든 종류를
+ * `DATA_TYPES`에 미리 넣어 두면 등록부가 거짓말을 한다(open-decisions.md "어휘에는 지금
+ * 되는 것만 넣는다"). 그래서 표본을 여기서 만든다.
+ *
+ * 이미지가 들어오는 날 이 항목은 `{ tabular: false, image: true }`가 되고, 그때도
+ * 테스트는 그대로 돈다 - **확인하는 것이 어휘가 아니라 규칙이기 때문이다.**
+ */
+export const NOT_FOR_TABULAR_ALGORITHM: Algorithm = {
+  id: 'not_for_tabular',
+  dataTypes: { tabular: false },
+  taskTypes: { classification: true, regression: false, clustering: false },
+  runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
 }
 
 /** 등록부에 그 알고리즘 하나가 더 있는 세상. */
