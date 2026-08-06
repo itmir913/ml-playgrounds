@@ -1,0 +1,56 @@
+name: Deploy frontend
+
+# Manual only. Pushing to main does not deploy - an unintended deploy during a
+# class is a real accident here (docs/open-decisions.md #10-1).
+# One-time setup: repository Settings -> Pages -> Source must be "GitHub Actions".
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    # A later run wins. Cancelling a build is safe.
+    concurrency:
+      group: pages-build-${{ github.ref }}
+      cancel-in-progress: true
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          # Matches ci.yml and engines in package.json.
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      # Everything gates the deploy: eslint, prettier, vue-tsc, vitest, build.
+      # ci.yml checks the same commit, but reading this file alone must tell you
+      # what has to pass before anything ships (docs/open-decisions.md #10-1).
+      - run: npm run ci
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          # Relative to the workspace root - defaults.run does not apply here.
+          path: frontend/dist
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    # Never cancelled. A deployment cut off partway can leave the site broken.
+    concurrency:
+      group: pages-deploy
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

@@ -9,6 +9,20 @@ import tailwindcss from '@tailwindcss/vite'
 // Tailwind v4는 설정 파일이 없다. 테마는 src/styles/theme.css 안에서 정의한다.
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
+  /**
+   * **배포 경로가 둘이라 base를 상대 경로로 고정한다.**
+   *
+   * GitHub Pages는 `luminousky.com/ml-playgrounds/` 하위 경로에서 서빙하고, 도커
+   * 자가호스팅은 루트에서 서빙한다. `/ml-playgrounds/`처럼 절대 경로를 박아 넣으면
+   * 두 경로의 base가 갈리고, 주소가 바뀔 때마다 다시 빌드해야 한다 — "같은 `dist/`가
+   * 양쪽에 그대로 들어간다"(CLAUDE.md §2)와 부딪힌다. `'./'`면 어느 하위 경로에서도,
+   * 루트에서도 같은 산출물이 그대로 돈다.
+   *
+   * 이게 되는 전제 셋: 라우터가 해시 모드라(`router/index.ts`) `404.html` SPA
+   * 폴백이 필요 없고, 워커가 `import.meta.url` 기준으로 잡히며, 소스 어디서도
+   * `import.meta.env.BASE_URL`을 읽지 않는다. 상세는 `docs/open-decisions.md` #10-1.
+   */
+  base: './',
   // manifest.appVersion의 출처. package.json 하나만 고치면 파일에 적히는 값이 따라온다 -
   // 소스에 버전 문자열을 또 쓰면 반드시 어긋난다.
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
