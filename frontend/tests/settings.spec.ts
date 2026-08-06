@@ -18,6 +18,7 @@ import {
   withPreprocessing,
   withRuntime,
   withSelectedAlgorithms,
+  withRandomState,
   withSplit,
   withTarget,
   withTaskType,
@@ -181,7 +182,7 @@ describe('전처리와 분할', () => {
   })
 
   it('난수 씨앗은 분할을 고쳐도 그대로다', () => {
-    // 학생이 바꾸면 실험 사이의 비교가 성립하지 않는다 (project/create.ts).
+    // 값이 바뀌면 실험 사이의 비교가 성립하지 않으므로 이 문으로는 안 들어온다.
     const next = withSplit(base(), { testSize: 0.4, stratify: false }, NOW)
     expect(next.settings.split).toEqual({
       method: 'holdout',
@@ -189,6 +190,44 @@ describe('전처리와 분할', () => {
       stratify: false,
       randomState: 42,
     })
+  })
+
+  it('씨앗을 다시 뽑는 문은 따로 있고 나머지 분할 설정은 안 건드린다', () => {
+    // 화면이 경고를 거친 뒤에만 부른다
+    // (open-decisions.md "난수 씨앗은 고정이 기본이고, 다시 뽑는 것은 경고 뒤에 준다").
+    const next = withRandomState(withSplit(base(), { testSize: 0.4 }, NOW), 12345, NOW)
+    expect(next.settings.split).toEqual({
+      method: 'holdout',
+      testSize: 0.4,
+      stratify: true,
+      randomState: 12345,
+    })
+  })
+
+  it('씨앗을 다시 뽑아도 지난 실험은 그대로다 - 스냅샷이 실험마다 있다', () => {
+    const document = base()
+    document.runs.experiments = [
+      {
+        id: 'experiment-1',
+        startedAt: NOW,
+        settings: {
+          taskType: 'classification',
+          runtime: 'mljs',
+          selectedAlgorithms: [],
+          features: ['키'],
+          preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
+          split: { method: 'holdout', testSize: 0.2, stratify: true, randomState: 42 },
+          trainIndices: [0, 1],
+          testIndices: [2],
+        },
+        runs: [],
+      },
+    ]
+
+    const next = withRandomState(document, 999, NOW)
+    expect(next.settings.split.randomState).toBe(999)
+    expect(next.runs.experiments[0]?.settings.split.randomState).toBe(42)
+    expect(next.runs.experiments[0]?.settings.trainIndices).toEqual([0, 1])
   })
 
   it('실행 방법을 바꿔도 모델별 덮어쓰기는 그대로다', () => {

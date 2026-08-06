@@ -16,15 +16,18 @@
  * `project/settings.ts`다. 여기서 하는 일은 이어 붙이는 것뿐이다.
  */
 
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AppButton from '@/components/AppButton.vue'
+import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { useFormat } from '@/composables/useFormat'
 import { summarizeColumns } from '@/data/columns'
 import { columnPlan, requiredTargetKind } from '@/ml/selection'
+import { newRandomState } from '@/project/create'
 import { readDataset } from '@/project/dataset'
 import {
   CATEGORICAL_ENCODINGS,
@@ -33,7 +36,13 @@ import {
   type Preprocessing,
   type ProjectDocument,
 } from '@/project/schema'
-import { withFeatures, withPreprocessing, withSplit, withTarget } from '@/project/settings'
+import {
+  withFeatures,
+  withPreprocessing,
+  withRandomState,
+  withSplit,
+  withTarget,
+} from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
 import ColumnPicker from './preprocess/ColumnPicker.vue'
 
@@ -150,6 +159,22 @@ function onSplitting(event: Event): void {
   if (!file) return
   const on = (event.target as HTMLInputElement).checked
   apply(withSplit(file.document, { method: on ? 'holdout' : 'none' }, now()))
+}
+
+/**
+ * 씨앗을 다시 뽑기 전에 한 번 막는다
+ * (`open-decisions.md` "난수 씨앗은 고정이 기본이고, 다시 뽑는 것은 경고 뒤에 준다").
+ *
+ * **누르자마자 바뀌면 안 된다.** 되돌릴 수 없고, 지금까지의 실험과 점수를 나란히
+ * 비교할 수 없게 되는 조작이다.
+ */
+const reseeding = ref(false)
+
+function reseed(): void {
+  const file = project.file
+  reseeding.value = false
+  if (!file) return
+  apply(withRandomState(file.document, newRandomState(), now()))
 }
 </script>
 
@@ -324,17 +349,43 @@ function onSplitting(event: Event): void {
               <span class="font-bold">{{ t('preprocess.stratify') }}</span>
             </label>
 
-            <div>
+            <!--
+              **나누지 않으면 씨앗이 하는 일이 없다.** 그때까지 보이면 학생은 이 숫자가
+              무언가를 하고 있다고 읽는다
+              (`open-decisions.md` "난수 씨앗은 고정이 기본이고, 다시 뽑는 것은 경고 뒤에 준다").
+            -->
+            <div v-if="splitting">
               <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <h3 class="font-bold text-ink-soft">{{ t('preprocess.randomState') }}</h3>
                 <span class="tabular-nums">{{ settings.split.randomState }}</span>
               </div>
               <p class="mt-1 text-ink-faint">{{ t('preprocess.randomStateNote') }}</p>
+              <AppButton class="mt-2" variant="secondary" @click="reseeding = true">
+                {{ t('preprocess.reseed') }}
+              </AppButton>
             </div>
           </div>
         </section>
       </div>
     </div>
+
+    <!--
+      **누르자마자 바뀌지 않는다.** 되돌릴 수 없고 지금까지의 실험과 점수를 나란히
+      비교할 수 없게 되는 조작이다 (§8.2).
+    -->
+    <AppDialog
+      :open="reseeding"
+      :title="t('preprocess.reseedTitle')"
+      :description="t('preprocess.reseedDescription')"
+      @close="reseeding = false"
+    >
+      <template #actions>
+        <AppButton variant="secondary" @click="reseeding = false">
+          {{ t('common.cancel') }}
+        </AppButton>
+        <AppButton variant="danger" @click="reseed">{{ t('preprocess.reseedConfirm') }}</AppButton>
+      </template>
+    </AppDialog>
   </div>
 
   <AppEmpty v-else :reason="t('preprocess.emptyReason')" :next="t('preprocess.emptyNext')" />

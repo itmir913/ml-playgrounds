@@ -32,12 +32,20 @@ export interface ProjectSeed {
   readonly randomState: number
 }
 
+/**
+ * 분할 난수의 씨앗 하나. **여기가 유일한 출처다** — 전처리 화면의 [난수 다시 뽑기]도
+ * 이걸 부른다 (`project/settings.ts`의 `withRandomState`).
+ */
+export function newRandomState(): number {
+  return crypto.getRandomValues(new Uint32Array(1))[0] ?? 0
+}
+
 /** 실제 실행에서 쓰는 씨앗. 테스트는 이걸 안 부르고 값을 직접 넘긴다. */
 export function newProjectSeed(): ProjectSeed {
   return {
     projectId: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
-    randomState: crypto.getRandomValues(new Uint32Array(1))[0] ?? 0,
+    randomState: newRandomState(),
   }
 }
 

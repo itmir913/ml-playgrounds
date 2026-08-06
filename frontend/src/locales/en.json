@@ -185,7 +185,11 @@
     "testSizeNote": "The rest is used to train, and this share gives the score.",
     "stratify": "Keep each value's share the same on both sides",
     "randomState": "Random seed",
-    "randomStateNote": "Fixed when the project is created. The same seed always splits the same way.",
+    "randomStateNote": "This value decides how the data is split. Keeping it fixed means every training run uses the same split, so a change in your score can be traced to the setting you changed.",
+    "reseed": "Draw a new seed",
+    "reseedTitle": "A new seed makes your earlier scores incomparable",
+    "reseedDescription": "The data will be split into training and evaluation sets differently. Your earlier experiments stay in the project, but new scores come from different data, so you cannot line them up against the old ones.",
+    "reseedConfirm": "Draw a new seed",
     "hasMissing": "This column has blanks, so your current settings cannot train.",
     "splitOn": "Split into training and testing",
     "splitOffNote": "Without a split, every row is used for training and the score comes from those same rows. The score comes out higher than it really is."

@@ -100,8 +100,10 @@ export function withPreprocessing(
 /**
  * 분할 설정을 고친다.
  *
- * `randomState`는 여기로 들어오지 않는다 — 프로젝트를 만들 때 정해져 파일에 박히는
- * 값이고, 학생이 바꾸면 실험 사이의 비교가 성립하지 않는다 (`project/create.ts`).
+ * `randomState`는 여기로 들어오지 않는다 — 값이 바뀌면 실험 사이의 비교가 성립하지
+ * 않으므로, 미끄러져 들어갈 수 있는 문을 아예 막아 둔다. 다시 뽑는 것은 아래
+ * `withRandomState` 하나뿐이고 화면이 경고를 거친다
+ * (`open-decisions.md` "난수 씨앗은 고정이 기본이고, 다시 뽑는 것은 경고 뒤에 준다").
  */
 export function withSplit(
   document: ProjectDocument,
@@ -111,6 +113,28 @@ export function withSplit(
   return withSettings(
     document,
     { ...document.settings, split: { ...document.settings.split, ...patch } },
+    now,
+  )
+}
+
+/**
+ * 난수 씨앗을 다시 뽑는다. **되돌릴 수 없는 조작이라 화면이 먼저 경고한다.**
+ *
+ * **지난 실험은 건드리지 않는다.** 실험마다 자기 `randomState`와 행 번호 스냅샷을
+ * 들고 있으므로(`mlpx-spec.md` §4) 그 기록도 재실행 대조도 그대로 성립한다. 바뀌는
+ * 것은 앞으로의 분할뿐이고, 결과 화면의 변경 이력이 그 사실을 보여준다.
+ *
+ * **값을 인자로 받는다.** 난수를 여기서 부르면 같은 문서를 넣었을 때 결과가 달라져
+ * 테스트가 무엇을 확인해야 할지 알 수 없게 된다. 부르는 쪽이 `newRandomState()`를 쓴다.
+ */
+export function withRandomState(
+  document: ProjectDocument,
+  randomState: number,
+  now: string,
+): ProjectDocument {
+  return withSettings(
+    document,
+    { ...document.settings, split: { ...document.settings.split, randomState } },
     now,
   )
 }
