@@ -7,7 +7,15 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { bestByMetric, doneRuns, failedRuns, headlineOf, whereTrainedKeyOf } from '../src/ml/results'
+import {
+  bestByMetric,
+  doneRuns,
+  failedRuns,
+  headlineOf,
+  isWeakestPerClass,
+  weakestPerClass,
+  whereTrainedKeyOf,
+} from '../src/ml/results'
 import { metricsOf } from '../src/ml/metrics'
 import type { Experiment, Run, TaskType } from '../src/project/schema'
 
@@ -117,9 +125,9 @@ describe('학습한 곳 문구', () => {
 
   it('scikit-learn(Pyodide)도 순수 JS와 다른 문구로 간다', () => {
     const r = run('run-1', { accuracy: 0.9 })
-    expect(
-      whereTrainedKeyOf({ ...r, engine: { kind: 'pyodide-sklearn', version: '1' } }),
-    ).toBe('runtimes.pyodide-sklearn')
+    expect(whereTrainedKeyOf({ ...r, engine: { kind: 'pyodide-sklearn', version: '1' } })).toBe(
+      'runtimes.pyodide-sklearn',
+    )
   })
 
   // 등록부의 engineKind('sklearn')와 id('server-sklearn')가 다른 유일한 자리다.
@@ -140,6 +148,32 @@ describe('학습한 곳 문구', () => {
     expect(whereTrainedKeyOf({ ...r, engine: { kind: 'unknown-engine', version: '1' } })).toBe(
       'execution.browser',
     )
+  })
+})
+
+describe('값 종류별 점수의 가장 약한 칸', () => {
+  it('지표마다 가장 낮은 클래스를 짚는다', () => {
+    const weakest = weakestPerClass([
+      { label: '고양이', precision: 0.9, recall: 0.5, f1: 0.6, support: 10 },
+      { label: '강아지', precision: 0.4, recall: 0.9, f1: 0.9, support: 10 },
+    ])
+
+    expect(isWeakestPerClass(weakest, '강아지', 'precision')).toBe(true)
+    expect(isWeakestPerClass(weakest, '고양이', 'precision')).toBe(false)
+    expect(isWeakestPerClass(weakest, '고양이', 'recall')).toBe(true)
+    expect(isWeakestPerClass(weakest, '강아지', 'f1')).toBe(false)
+    expect(isWeakestPerClass(weakest, '고양이', 'f1')).toBe(true)
+  })
+
+  it('클래스가 하나뿐이면 아무것도 안 짚는다 - 견줄 것이 없다', () => {
+    const weakest = weakestPerClass([
+      { label: '고양이', precision: 0.9, recall: 0.5, f1: 0.6, support: 10 },
+    ])
+    expect(isWeakestPerClass(weakest, '고양이', 'precision')).toBe(false)
+  })
+
+  it('클래스가 없으면 아무것도 안 짚는다', () => {
+    expect(weakestPerClass([]).size).toBe(0)
   })
 })
 

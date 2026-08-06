@@ -10,8 +10,13 @@
  */
 
 import { RUNTIMES } from './backend'
-import type { Experiment, Run } from '../project/schema'
+import type { Experiment, PerClass, Run } from '../project/schema'
 import { bestOf, metricsOf, type MetricDisplay } from './metrics'
+
+/** 값 종류별 점수표에서 강조할 세 지표. */
+const PER_CLASS_METRICS = ['precision', 'recall', 'f1'] as const
+
+type PerClassMetric = (typeof PER_CLASS_METRICS)[number]
 
 /** 목록 한 줄에 보일 숫자 하나. */
 export interface Headline {
@@ -42,7 +47,8 @@ export function failedRuns(experiment: Experiment): readonly Run[] {
  */
 export function whereTrainedKeyOf(run: Run): string {
   const engineKind = run.engine?.kind
-  const runtime = engineKind !== undefined ? RUNTIMES.find((r) => r.engineKind === engineKind) : undefined
+  const runtime =
+    engineKind !== undefined ? RUNTIMES.find((r) => r.engineKind === engineKind) : undefined
   return runtime ? `runtimes.${runtime.id}` : `execution.${run.computedBy}`
 }
 
@@ -66,6 +72,38 @@ export function headlineOf(experiment: Experiment): Headline | null {
 
   const value = bestOf(values, display.better)
   return value === undefined ? null : { display, value }
+}
+
+/**
+ * 값 종류별 점수표에서 지표마다 가장 약한 클래스. 강조할 칸을 여기서 정한다.
+ *
+ * **최고값이 아니라 최저값이다.** 결과 표(`bestByMetric`)는 모델끼리 겨루니 "이겼다"가
+ * 의미가 있지만, 여기는 한 모델 안에서 클래스끼리 견주는 자리라 "이겼다"는 정보가 아니다.
+ * 학생에게 필요한 것은 **이 모델이 어느 값 종류를 가장 못 맞히는가**이고, 그게 혼동
+ * 행렬을 다시 보게 만드는 다리다 — recall이 낮은 줄은 혼동 행렬의 그 행에서 어디로
+ * 새는지 보면 이유가 보인다. `support`(개수)는 성능 지표가 아니라 강조하지 않는다.
+ *
+ * **클래스가 하나뿐이면 아무것도 강조하지 않는다** (`bestByMetric`과 같은 이유 —
+ * 견줄 것이 없는데 하나를 짚으면 비교가 아니라 장식이다).
+ */
+export function weakestPerClass(perClass: readonly PerClass[]): ReadonlySet<string> {
+  const weakest = new Set<string>()
+  if (perClass.length < 2) return weakest
+
+  for (const metric of PER_CLASS_METRICS) {
+    const loser = perClass.reduce((min, entry) => (entry[metric] < min[metric] ? entry : min))
+    weakest.add(`${loser.label}:${metric}`)
+  }
+  return weakest
+}
+
+/** `weakestPerClass`가 낸 집합에서 이 칸을 강조할지 읽는다. */
+export function isWeakestPerClass(
+  weakest: ReadonlySet<string>,
+  label: string,
+  metric: PerClassMetric,
+): boolean {
+  return weakest.has(`${label}:${metric}`)
 }
 
 /**

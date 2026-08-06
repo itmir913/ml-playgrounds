@@ -16,7 +16,7 @@ import { useI18n } from 'vue-i18n'
 import AppTable from '@/components/AppTable.vue'
 import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
-import { whereTrainedKeyOf } from '@/ml/results'
+import { isWeakestPerClass, weakestPerClass, whereTrainedKeyOf } from '@/ml/results'
 import type { Run } from '@/project/schema'
 
 const props = defineProps<{ run: Run }>()
@@ -35,6 +35,8 @@ const warningText = computed(() => {
   const warning = props.run.warning
   return warning ? t(errorMessageKey(warning.code as ClientErrorCode), { ...warning.params }) : null
 })
+
+const weakest = computed(() => weakestPerClass(props.run.perClass ?? []))
 </script>
 
 <template>
@@ -107,9 +109,36 @@ const warningText = computed(() => {
           <tbody>
             <tr v-for="entry in props.run.perClass" :key="entry.label">
               <th class="text-left">{{ entry.label }}</th>
-              <td>{{ format.percent(entry.precision) }}</td>
-              <td>{{ format.percent(entry.recall) }}</td>
-              <td>{{ format.percent(entry.f1) }}</td>
+              <!--
+                **가장 약한 값 종류를 지표마다 캐션 색으로 짚는다.** 혼동 행렬의
+                대각선(맞힌 칸, `bg-positive-soft`)과 반대 방향이다 — 저기는 "옳다"를
+                말하고 여기는 "여기를 다시 보라"를 말하므로 색을 다르게 둔다.
+              -->
+              <td
+                :class="
+                  isWeakestPerClass(weakest, entry.label, 'precision')
+                    ? 'bg-caution-soft font-bold'
+                    : ''
+                "
+              >
+                {{ format.percent(entry.precision) }}
+              </td>
+              <td
+                :class="
+                  isWeakestPerClass(weakest, entry.label, 'recall')
+                    ? 'bg-caution-soft font-bold'
+                    : ''
+                "
+              >
+                {{ format.percent(entry.recall) }}
+              </td>
+              <td
+                :class="
+                  isWeakestPerClass(weakest, entry.label, 'f1') ? 'bg-caution-soft font-bold' : ''
+                "
+              >
+                {{ format.percent(entry.f1) }}
+              </td>
               <td>{{ entry.support }}</td>
             </tr>
           </tbody>
