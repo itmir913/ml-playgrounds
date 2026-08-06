@@ -10,11 +10,18 @@
  * 지표도 다른 데이터 기준이라 비교 자체가 성립하지 않는다.
  */
 
-import { columnNames, toDataset } from '@/data/columns'
+import { alignTestDataset, columnNames, toDataset } from '@/data/columns'
 import { parseCsvText } from '@/data/csv'
+import { toCanonicalCsv } from '@/data/serialize'
 import type { ImportedTable } from '@/data/table'
+import { hashBytes } from '@/hash'
 import type { Dataset } from '@/ml/preprocess'
-import { TABULAR_DATASET_PATH, type Dataset as StoredDataset, type ProjectFile } from './format'
+import {
+  TABULAR_DATASET_PATH,
+  TEST_DATASET_PATH,
+  type Dataset as StoredDataset,
+  type ProjectFile,
+} from './format'
 import type { DatasetRef } from './schema'
 
 /**
@@ -40,6 +47,26 @@ export function readDataset(project: ProjectFile | null): Dataset | null {
 
   const table = toDataset(parseCsvText(new TextDecoder().decode(stored.bytes)), reference.hasHeader)
   parsed.set(stored, table)
+  return table
+}
+
+/** readDataset과 같은 캐시 규칙, 평가 데이터(test.csv)를 위한 것. */
+const parsedTest = new WeakMap<StoredDataset, Dataset>()
+
+/**
+ * 평가 데이터를 학습 계층이 쓰는 표로 읽는다. `split.method`가 `provided`가 아니면
+ * `null`이다 - 정상 상태다.
+ */
+export function readTestDataset(project: ProjectFile | null): Dataset | null {
+  const reference = project?.document.settings.testDataset
+  const stored = project?.testDataset
+  if (!stored || !reference) return null
+
+  const cached = parsedTest.get(stored)
+  if (cached) return cached
+
+  const table = toDataset(parseCsvText(new TextDecoder().decode(stored.bytes)), reference.hasHeader)
+  parsedTest.set(stored, table)
   return table
 }
 
@@ -107,5 +134,113 @@ export function applyDataset(
     },
     droppedExperiments: document.runs.experiments.length,
     droppedColumns,
+  }
+}
+
+export interface AppliedTestDataset {
+  readonly project: ProjectFile
+  /** 지워진 실험 수. 0이 아니면 화면이 붙이기 전에 학생에게 알려야 한다. */
+  readonly droppedExperiments: number
+}
+
+export interface ApplyTestOptions {
+  /** 학생이 올린 파일의 이름. 정본 경로가 아니라 기록이다. */
+  readonly fileName: string
+  /** 첫 줄이 머리글인가. 학생이 미리보기를 보고 고른다. */
+  readonly hasHeader: boolean
+  /** ISO 8601. manifest.updatedAt에 찍는다. */
+  readonly now: string
+}
+
+/**
+ * 평가 데이터를 프로젝트에 붙인다. **정본(`data.csv`)의 열 전체와 이름으로 대조한다**
+ * (`alignTestDataset`, mlpx-spec.md §1.1) - 특성만 대조하면 특성이 나중에 늘 때마다
+ * 받아 둔 파일이 조용히 무효가 진다.
+ *
+ * **저장하는 바이트는 정본 순서로 다시 세운 것이다.** 열 순서가 달라도 이름으로
+ * 재배열하므로, 여기서부터 나가는 test.csv는 항상 머리글이 있고 data.csv와 같은
+ * 열 순서를 갖는다.
+ *
+ * **붙이면 지금까지의 실험을 전부 지운다** - `applyDataset`과 같은 사유다. 평가셋이
+ * 바뀌면 그 위의 점수가 전부 다른 것을 잰 값이 된다
+ * (open-decisions.md "학습용과 평가용 파일이 따로일 수 있다").
+ *
+ * 정본이 아직 없거나 타깃이 안 정해졌으면 부르면 안 된다 - 화면이 그 전에 막는다
+ * (타깃이 있어야 정본 열 목록에 뜻이 생긴다).
+ */
+export function applyTestDataset(
+  project: ProjectFile,
+  imported: ImportedTable,
+  options: ApplyTestOptions,
+): AppliedTestDataset {
+  const { document } = project
+  const canonical = readDataset(project)
+  // 화면이 그 전에 막는다 - 정본이 있어야 대조할 열 목록이 있다. 호출부 버그다.
+  if (!canonical) throw new Error('applyTestDataset: no canonical dataset')
+
+  const aligned = alignTestDataset(imported.grid, options.hasHeader, canonical.columns)
+  const bytes = toCanonicalCsv([aligned.columns, ...aligned.rows])
+
+  const testDataset: DatasetRef = {
+    path: TEST_DATASET_PATH,
+    originalFileName: options.fileName,
+    // 저장하는 바이트는 언제나 머리글(정본 열 이름)로 시작한다 - 올린 파일에
+    // 머리글이 없었어도 여기서부터는 있다.
+    hasHeader: true,
+    encoding: 'utf-8',
+    ...(imported.sourceEncoding === null ? {} : { sourceEncoding: imported.sourceEncoding }),
+  }
+
+  return {
+    project: {
+      document: {
+        ...document,
+        manifest: { ...document.manifest, updatedAt: options.now },
+        settings: {
+          ...document.settings,
+          testDataset,
+          split: { ...document.settings.split, method: 'provided' },
+        },
+        runs: { ...document.runs, experiments: [] },
+      },
+      dataset: project.dataset,
+      testDataset: { bytes, hash: hashBytes(bytes) },
+      models: new Map(),
+    },
+    droppedExperiments: document.runs.experiments.length,
+  }
+}
+
+/**
+ * 평가 데이터를 뗀다. `split.method`를 `holdout`으로 되돌린다.
+ *
+ * **떼도 실험을 전부 지운다** - `applyTestDataset`과 같은 사유다.
+ */
+export function removeTestDataset(project: ProjectFile, now: string): AppliedTestDataset {
+  const { document } = project
+  if (document.settings.testDataset === undefined) {
+    // 이미 없다. 지울 것도 없다 - 호출부 버그가 아니라 조용히 아무 일도 안 한다.
+    return { project, droppedExperiments: 0 }
+  }
+
+  const settings = {
+    ...document.settings,
+    split: { ...document.settings.split, method: 'holdout' as const },
+  }
+  delete settings.testDataset
+
+  return {
+    project: {
+      document: {
+        ...document,
+        manifest: { ...document.manifest, updatedAt: now },
+        settings,
+        runs: { ...document.runs, experiments: [] },
+      },
+      dataset: project.dataset,
+      testDataset: undefined,
+      models: new Map(),
+    },
+    droppedExperiments: document.runs.experiments.length,
   }
 }

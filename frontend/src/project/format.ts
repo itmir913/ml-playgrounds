@@ -56,6 +56,14 @@ export const DIR = {
  */
 export const TABULAR_DATASET_PATH = `${DIR.dataset}data.csv`
 
+/**
+ * 평가 데이터의 정본 경로 (mlpx-spec.md §1.1).
+ *
+ * `split.method`가 `provided`일 때만 있다. `data.csv`와 같은 규칙 - 언제나 UTF-8 CSV고,
+ * 가져오기 시점에 한 번 정규화된다.
+ */
+export const TEST_DATASET_PATH = `${DIR.dataset}test.csv`
+
 /*
  * 없으면 파일을 열 수 없는 엔트리는 manifest / settings / runs / portfolio 넷이다.
  * readProject의 required()가 그 자리에서 확인한다.
@@ -98,9 +106,16 @@ export interface ProjectFile {
    * 아직 표를 올리지 않은 프로젝트에는 **없다.** 정상 상태다.
    *
    * `document.settings.dataset`과 **함께 있고 함께 없다** (mlpx-spec.md §1).
-   * 한쪽만 있는 것은 우리 버그이고, datasetEntry가 저장 직전에 잡는다.
+   * 한쪽만 있는 것은 우리 버그이고, referencedFileEntry가 저장 직전에 잡는다.
    */
   dataset?: Dataset | undefined
+  /**
+   * 평가 데이터. `split.method`가 `provided`일 때만 있다.
+   *
+   * `document.settings.testDataset`과 **함께 있고 함께 없다** - `dataset`과 같은 규칙이다
+   * (mlpx-spec.md §1.1).
+   */
+  testDataset?: Dataset | undefined
   /** zip 경로 -> 내용. 모델과 전처리기가 들어온다. */
   models: Map<string, Uint8Array>
 }
@@ -341,6 +356,7 @@ export function selectModels(
 function hashableEntries(
   entries: Map<string, Uint8Array>,
   datasetPath: string | undefined,
+  testDatasetPath: string | undefined,
 ): Map<string, string> {
   const known = new Set<string>([
     ENTRY.manifest,
@@ -349,8 +365,10 @@ function hashableEntries(
     ENTRY.portfolio,
     ENTRY.portfolioMarkdown,
   ])
-  // 없는 프로젝트가 정상이다. 그러면 대조 대상에서 빠질 뿐이다.
+  // 없는 것이 정상이다. 그러면 대조 대상에서 빠질 뿐이다 - 표를 아직 안 올렸거나
+  // (datasetPath) holdout이라 평가 데이터가 파일로 없다(testDatasetPath).
   if (datasetPath !== undefined) known.add(datasetPath)
+  if (testDatasetPath !== undefined) known.add(testDatasetPath)
 
   const present = new Map<string, string>()
   for (const [path, content] of entries) {
@@ -389,30 +407,36 @@ function requirePathUnder(path: string, directory: string, field: string): void 
 
 /** 문서가 가리키는 모든 zip 경로를 검사한다. 하나라도 어긋나면 파일을 열지 않는다. */
 /**
- * 데이터셋 참조와 실제 바이트가 **함께 있는지** 확인하고, 있으면 담을 것을 돌려준다.
+ * 참조와 실제 바이트가 **함께 있는지** 확인하고, 있으면 담을 것을 돌려준다.
  *
  * 한쪽만 있는 상태는 우리 버그다 (mlpx-spec.md §1). 그대로 쓰면 참조는 있는데 본체가
  * 없는 .mlpx가 나가고 **그 파일은 다시 열리지 않는다.** 저장이 실패하는 편이 낫다 -
  * 학생이 그 자리에서 알아채는 것과, 다음 차시에 열다가 아는 것은 다른 일이다.
+ *
+ * `dataset`(data.csv)과 `testDataset`(test.csv) 둘 다 같은 규칙이라 여기서 함께 쓴다.
  */
-function datasetEntry(
-  document: ProjectDocument,
-  dataset: Dataset | undefined,
+function referencedFileEntry(
+  ref: { path: string } | undefined,
+  content: Dataset | undefined,
+  field: string,
 ): { path: string; bytes: Uint8Array; hash: string } | undefined {
-  const ref = document.settings.dataset
-  if (ref === undefined && dataset === undefined) {
+  if (ref === undefined && content === undefined) {
     return undefined
   }
-  if (ref === undefined || dataset === undefined) {
-    throw new ClientError('PROJECT_FILE_INVALID', { path: 'settings.dataset', issues: 1 })
+  if (ref === undefined || content === undefined) {
+    throw new ClientError('PROJECT_FILE_INVALID', { path: field, issues: 1 })
   }
-  return { path: ref.path, bytes: dataset.bytes, hash: dataset.hash }
+  return { path: ref.path, bytes: content.bytes, hash: content.hash }
 }
 
 function requireSanePaths(document: ProjectDocument): void {
   const dataset = document.settings.dataset
   if (dataset) {
     requirePathUnder(dataset.path, DIR.dataset, 'settings.dataset.path')
+  }
+  const testDataset = document.settings.testDataset
+  if (testDataset) {
+    requirePathUnder(testDataset.path, DIR.dataset, 'settings.testDataset.path')
   }
 
   document.runs.experiments.forEach((experiment, experimentIndex) => {
@@ -483,8 +507,16 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
     throw new ClientError('PROJECT_FILE_ENTRY_MISSING', { entry: datasetPath })
   }
 
+  // 평가 데이터도 같은 규칙이다 - split.method가 provided인데 test.csv가 없으면
+  // 재현도 재학습도 못 한다 (mlpx-spec.md §1.1).
+  const testDatasetPath = document.settings.testDataset?.path
+  const testDatasetBytes = testDatasetPath === undefined ? undefined : entries.get(testDatasetPath)
+  if (testDatasetPath !== undefined && testDatasetBytes === undefined) {
+    throw new ClientError('PROJECT_FILE_ENTRY_MISSING', { entry: testDatasetPath })
+  }
+
   // 대조는 엔트리를 버리기 **전에** 한다. 끼어든 고아 모델도 신호이기 때문이다.
-  const present = hashableEntries(entries, datasetPath)
+  const present = hashableEntries(entries, datasetPath, testDatasetPath)
   const integrity = checkHashes(present, recordedHashes(entries.get(ENTRY.hashes)))
 
   // 문서가 가리키는 것만 가져온다. 고아와 쓰레기는 여기서 사라진다.
@@ -502,6 +534,13 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
         datasetPath === undefined || datasetBytes === undefined
           ? undefined
           : { bytes: datasetBytes, hash: present.get(datasetPath) ?? hashBytes(datasetBytes) },
+      testDataset:
+        testDatasetPath === undefined || testDatasetBytes === undefined
+          ? undefined
+          : {
+              bytes: testDatasetBytes,
+              hash: present.get(testDatasetPath) ?? hashBytes(testDatasetBytes),
+            },
       models,
     },
     integrity,
@@ -534,9 +573,17 @@ export async function writeProject(
     [ENTRY.portfolio]: encodeJson(document.portfolio),
     [ENTRY.portfolioMarkdown]: new TextEncoder().encode(portfolioMarkdown),
   }
-  const dataset = datasetEntry(document, project.dataset)
+  const dataset = referencedFileEntry(document.settings.dataset, project.dataset, 'settings.dataset')
   if (dataset !== undefined) {
     entries[dataset.path] = dataset.bytes
+  }
+  const testDataset = referencedFileEntry(
+    document.settings.testDataset,
+    project.testDataset,
+    'settings.testDataset',
+  )
+  if (testDataset !== undefined) {
+    entries[testDataset.path] = testDataset.bytes
   }
   for (const path of kept) {
     const content = project.models.get(path)
@@ -544,7 +591,7 @@ export async function writeProject(
   }
 
   // 마지막에 만든다. 자기 자신은 대상이 아니므로 다른 엔트리가 전부 정해진 뒤여야 한다.
-  const hashes = buildHashes(entries, dataset)
+  const hashes = buildHashes(entries, [dataset, testDataset].filter((entry) => entry !== undefined))
   entries[ENTRY.hashes] = encodeJson(hashes)
 
   return { bytes: await zipAsync(entries), dropped, contentHash: hashes.contentHash }

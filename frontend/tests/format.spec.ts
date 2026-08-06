@@ -27,6 +27,8 @@ import {
   emptyProjectFile,
   manifest,
   projectFile,
+  projectFileWithTestDataset,
+  testDatasetBytes,
   run,
 } from './fixtures/project'
 
@@ -136,6 +138,46 @@ describe('왕복', () => {
     const { bytes } = await writeProject(projectFile(), markdown)
     const entries = unzipSync(bytes)
     expect(new TextDecoder().decode(entries[ENTRY.portfolioMarkdown])).toBe(markdown)
+  })
+})
+
+describe('평가 데이터(test.csv)', () => {
+  it('holdout이면 zip에 test.csv가 없다', async () => {
+    const { bytes } = await writeProject(projectFile(), markdown)
+    expect(Object.keys(unzipSync(bytes))).not.toContain('dataset/test.csv')
+  })
+
+  it('provided면 test.csv가 비트 단위로 왕복한다', async () => {
+    const reopened = await roundTrip(projectFileWithTestDataset())
+    expect(Array.from(reopened.testDataset?.bytes ?? [])).toEqual(Array.from(testDatasetBytes))
+    expect(reopened.document.settings.testDataset?.path).toBe('dataset/test.csv')
+  })
+
+  it('참조만 있고 본체가 없으면 저장을 거부한다', async () => {
+    const broken = { ...projectFileWithTestDataset(), testDataset: undefined }
+    await expect(writeProject(broken, markdown)).rejects.toSatisfy(isClientError)
+  })
+
+  it('본체만 있고 참조가 없어도 저장을 거부한다', async () => {
+    const withTest = projectFileWithTestDataset()
+    const broken = {
+      ...projectFile(),
+      testDataset: withTest.testDataset,
+    }
+    await expect(writeProject(broken, markdown)).rejects.toSatisfy(isClientError)
+  })
+
+  it('test.csv가 없으면 열기를 거부한다 - 재현도 재학습도 못 한다', async () => {
+    const { bytes } = await writeProject(projectFileWithTestDataset(), markdown)
+    const entries = unzipSync(bytes)
+    delete entries['dataset/test.csv']
+
+    await expect(readProject(zipSync(entries))).rejects.toSatisfy(
+      (error: unknown) =>
+        isClientError(error) &&
+        error.code === 'PROJECT_FILE_ENTRY_MISSING' &&
+        error.params.entry === 'dataset/test.csv',
+    )
   })
 })
 

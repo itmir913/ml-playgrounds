@@ -21,9 +21,9 @@ import {
 } from '../src/data/columns'
 import { isClientError } from '../src/errors'
 import { hashBytes } from '../src/hash'
-import { applyDataset } from '../src/project/dataset'
-import { TABULAR_DATASET_PATH } from '../src/project/format'
-import { experiment, projectFile, run } from './fixtures/project'
+import { applyDataset, applyTestDataset, readTestDataset, removeTestDataset } from '../src/project/dataset'
+import { TABULAR_DATASET_PATH, TEST_DATASET_PATH, type ProjectFile } from '../src/project/format'
+import { experiment, emptyProjectFile, projectFile, run } from './fixtures/project'
 
 const grid = [
   ['이름', '점수', '반'],
@@ -277,5 +277,127 @@ describe('프로젝트에 붙이기', () => {
       },
     }
     expect(applyDataset(before, imported(), options).droppedExperiments).toBe(2)
+  })
+})
+
+describe('평가 데이터를 프로젝트에 붙이기', () => {
+  const now = '2026-08-06T02:00:00Z'
+  const options = { fileName: 'test.csv', hasHeader: true, now }
+
+  /** 정본(data.csv)이 있고 타깃이 정해진 프로젝트. */
+  function withCanonicalDataset(): ProjectFile {
+    const bytes = new TextEncoder().encode('이름,점수,반\n가,90,A\n나,80,B\n')
+    const base = emptyProjectFile()
+    return {
+      ...base,
+      document: {
+        ...base.document,
+        settings: {
+          ...base.document.settings,
+          dataset: {
+            path: TABULAR_DATASET_PATH,
+            originalFileName: 'grades.csv',
+            hasHeader: true,
+            encoding: 'utf-8',
+          },
+          target: '반',
+          features: ['점수'],
+        },
+      },
+      dataset: { bytes, hash: hashBytes(bytes) },
+    }
+  }
+
+  function testTable(overrides: Partial<Parameters<typeof applyTestDataset>[1]> = {}) {
+    const grid = [
+      ['반', '이름', '점수'],
+      ['A', '다', '70'],
+    ]
+    const bytes = new TextEncoder().encode('반,이름,점수\nA,다,70\n')
+    return {
+      bytes,
+      hash: hashBytes(bytes),
+      grid,
+      source: 'csv' as const,
+      sourceEncoding: 'utf-8' as const,
+      ...overrides,
+    }
+  }
+
+  it('split.method를 provided로 바꾸고 정본 순서로 다시 세워 담는다', () => {
+    const applied = applyTestDataset(withCanonicalDataset(), testTable(), options)
+    const { settings } = applied.project.document
+
+    expect(settings.split.method).toBe('provided')
+    expect(settings.testDataset?.path).toBe(TEST_DATASET_PATH)
+    expect(settings.testDataset?.originalFileName).toBe('test.csv')
+
+    const read = readTestDataset(applied.project)
+    expect(read?.columns).toEqual(['이름', '점수', '반'])
+    expect(read?.rows).toEqual([['다', '70', 'A']])
+  })
+
+  it('정본 열이 없으면 대조 실패를 그대로 던진다', () => {
+    const broken = testTable({
+      grid: [
+        ['반', '이름'],
+        ['A', '다'],
+      ],
+    })
+    try {
+      applyTestDataset(withCanonicalDataset(), broken, options)
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error)).toBe(true)
+      if (isClientError(error)) expect(error.code).toBe('TEST_DATASET_COLUMN_MISSING')
+    }
+  })
+
+  it('붙이면 지금까지의 실험을 전부 지운다', () => {
+    const before = withCanonicalDataset()
+    before.document = {
+      ...before.document,
+      runs: { experiments: [experiment('experiment-1', [run('run-1')])] },
+    }
+    const applied = applyTestDataset(before, testTable(), options)
+    expect(applied.droppedExperiments).toBe(1)
+    expect(applied.project.document.runs.experiments).toEqual([])
+    expect(applied.project.models.size).toBe(0)
+  })
+
+  it('고친 시각을 새로 찍는다', () => {
+    const applied = applyTestDataset(withCanonicalDataset(), testTable(), options)
+    expect(applied.project.document.manifest.updatedAt).toBe(now)
+  })
+
+  it('뗀다 - split.method가 holdout으로 되돌아간다', () => {
+    const attached = applyTestDataset(withCanonicalDataset(), testTable(), options).project
+    const removed = removeTestDataset(attached, now)
+
+    expect(removed.project.document.settings.split.method).toBe('holdout')
+    expect(removed.project.document.settings.testDataset).toBeUndefined()
+    expect(removed.project.testDataset).toBeUndefined()
+    expect(readTestDataset(removed.project)).toBeNull()
+  })
+
+  it('떼도 지금까지의 실험을 전부 지운다', () => {
+    const attached = applyTestDataset(withCanonicalDataset(), testTable(), options).project
+    const withExperiments = {
+      ...attached,
+      document: {
+        ...attached.document,
+        runs: { experiments: [experiment('experiment-1', [run('run-1')])] },
+      },
+    }
+    const removed = removeTestDataset(withExperiments, now)
+    expect(removed.droppedExperiments).toBe(1)
+    expect(removed.project.document.runs.experiments).toEqual([])
+  })
+
+  it('이미 없으면 뗄 것도 없다 - 조용히 아무 일도 안 한다', () => {
+    const before = withCanonicalDataset()
+    const removed = removeTestDataset(before, now)
+    expect(removed.droppedExperiments).toBe(0)
+    expect(removed.project).toBe(before)
   })
 })
