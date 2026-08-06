@@ -7,8 +7,8 @@
  * (architecture.md §6).
  *
  * **표가 주인공이다** (architecture.md §8.9). 카드를 쌓지 않는다 — 열이 수십 개인 표를
- * 카드 안에 가두면 가로 스크롤 상자 안에서만 볼 수 있게 된다. 순서는 표 > 데이터 정보 >
- * 열 검사기이고, 검사기는 필요할 때만 나오는 보조 영역이다.
+ * 카드 안에 가두면 가로 스크롤 상자 안에서만 볼 수 있게 된다. **열 검사기는 넓은 화면에서
+ * 표 옆에 서고, 좁은 화면에서만 표 아래로 접힌다** — 접어 두면 펼칠 때 표가 먹힌다.
  *
  * **판단은 전부 이 파일 밖에 있다** — 파싱과 인코딩 판정은 `data/`, 열 이름과 요약은
  * `data/columns.ts`, 프로젝트에 붙이는 것은 `project/dataset.ts`다.
@@ -28,6 +28,7 @@ import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { summarizeColumns, toDataset, type ColumnSummary } from '@/data/columns'
 import { importTable, openTable, previewTable, type TableDocument } from '@/data/table'
+import ColumnInspector from './ColumnInspector.vue'
 import { PREVIEW_ROW_COUNT } from '@/limits'
 import { applyDataset, readDataset } from '@/project/dataset'
 import { useProjectStore } from '@/stores/project'
@@ -241,35 +242,52 @@ function kindOf(column: ColumnSummary): string {
       </div>
     </div>
 
-    <!-- 표. 남은 세로 공간을 전부 쓴다. -->
-    <div class="min-h-0 flex-1">
-      <AppTable v-if="shown" class="h-full">
-        <thead class="sticky top-0 z-10">
-          <tr>
-            <th v-for="column in shown.columns" :key="column.name" class="align-bottom">
-              <span class="block text-ink">{{ column.name }}</span>
-              <span class="block font-normal">{{ kindOf(column) }}</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(row, index) in shown.dataset.rows" :key="index">
-            <td v-for="(cell, cellIndex) in row" :key="cellIndex">{{ cell }}</td>
-          </tr>
-        </tbody>
-      </AppTable>
+    <!--
+      **표와 열 검사기가 남은 세로 공간을 나눠 갖는다** (architecture.md §8.9).
+      넓은 화면에서는 옆으로, 좁은 화면에서는 표만 여기 있고 검사기는 아래로 접힌다.
+    -->
+    <div class="flex min-h-0 flex-1 gap-5">
+      <div class="min-w-0 flex-1">
+        <AppTable v-if="shown" class="h-full">
+          <thead class="sticky top-0 z-10">
+            <tr>
+              <th v-for="column in shown.columns" :key="column.name" class="align-bottom">
+                <span class="block text-ink">{{ column.name }}</span>
+                <span class="block font-normal">{{ kindOf(column) }}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(row, index) in shown.dataset.rows" :key="index">
+              <td v-for="(cell, cellIndex) in row" :key="cellIndex">{{ cell }}</td>
+            </tr>
+          </tbody>
+        </AppTable>
 
-      <div
-        v-else
-        class="grid h-full place-items-center rounded-panel border-2 border-dashed transition-colors"
-        :class="dragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
-      >
-        <AppEmpty :reason="t('data.emptyReason')" :next="t('data.dropHint')">
-          <AppButton size="lg" :disabled="busy" @click="fileInput?.click()">
-            {{ busy ? t('data.reading') : t('data.choose') }}
-          </AppButton>
-        </AppEmpty>
+        <div
+          v-else
+          class="grid h-full place-items-center rounded-panel border-2 border-dashed transition-colors"
+          :class="dragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
+        >
+          <AppEmpty :reason="t('data.emptyReason')" :next="t('data.dropHint')">
+            <AppButton size="lg" :disabled="busy" @click="fileInput?.click()">
+              {{ busy ? t('data.reading') : t('data.choose') }}
+            </AppButton>
+          </AppEmpty>
+        </div>
       </div>
+
+      <!--
+        **넓은 화면에서는 검사기가 표 옆에 늘 열려 있다.** 결측 수를 보는 이유가 표의 그
+        열을 보기 위해서이므로 둘은 함께 봐야 한다. 자기 열 안에서 스크롤하므로 열이
+        몇 개든 표의 자리는 안 줄어든다.
+      -->
+      <aside v-if="shown" class="hidden w-96 shrink-0 flex-col gap-1.5 md:flex">
+        <h3 class="font-bold text-ink-soft">{{ t('data.inspector') }}</h3>
+        <div class="min-h-0 flex-1">
+          <ColumnInspector :columns="shown.columns" />
+        </div>
+      </aside>
     </div>
 
     <!-- **자른 경우에만 말한다.** 20줄짜리 파일에 "처음 20줄만"은 거짓말이다. -->
@@ -277,36 +295,20 @@ function kindOf(column: ColumnSummary): string {
       {{ t('data.previewNote', truncated) }}
     </p>
 
-    <!-- 열 검사기. 보조 영역이라 접혀 있다. -->
+    <!--
+      **좁은 화면에서만 접힌다.** 여기서는 세로가 진짜로 부족해서, 펼치는 동안 표를
+      양보하는 것이 유일한 길이다 (§8.10.1은 좁은 화면에서 1열을 타협하지 않는다).
+    -->
     <details
       v-if="shown"
-      class="shrink-0 rounded-panel border border-line bg-surface"
+      class="shrink-0 rounded-panel border border-line bg-surface md:hidden"
       :open="inspecting"
     >
       <summary class="cursor-pointer px-4 py-2.5 text-base font-bold text-ink-soft">
         {{ t('data.inspector') }}
       </summary>
       <div class="max-h-72 overflow-y-auto border-t border-line p-3">
-        <AppTable>
-          <thead>
-            <tr>
-              <th>{{ t('data.columnName') }}</th>
-              <th>{{ t('data.kind') }}</th>
-              <th>{{ t('data.missing') }}</th>
-              <th>{{ t('data.unique') }}</th>
-              <th>{{ t('data.samples') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="column in shown.columns" :key="column.name">
-              <td class="font-bold">{{ column.name }}</td>
-              <td>{{ kindOf(column) }}</td>
-              <td>{{ column.missing }}</td>
-              <td>{{ column.unique }}</td>
-              <td class="text-ink-soft">{{ column.samples.join(', ') }}</td>
-            </tr>
-          </tbody>
-        </AppTable>
+        <ColumnInspector :columns="shown.columns" />
       </div>
     </details>
 
