@@ -14,6 +14,7 @@ import { useI18n } from 'vue-i18n'
 import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import type { Prediction } from '@/ml/metrics'
+import { whereTrainedKeyOf } from '@/ml/results'
 import type { PredictableModel } from '@/ml/predict'
 
 export interface Answer {
@@ -69,6 +70,7 @@ function answerText(value: Prediction | undefined): string | null {
             {{
               t('predict.modelName', {
                 algorithm: t(`algorithms.${model.run.algorithm}`),
+                runtime: t(whereTrainedKeyOf(model.run)),
                 experiment: props.experimentNames.get(model.experiment.id) ?? model.experiment.id,
               })
             }}
