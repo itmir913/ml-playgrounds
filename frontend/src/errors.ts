@@ -67,6 +67,15 @@ export const CLIENT_ERROR_CODES = [
   // 이 둘은 backend/app/errors.py 에 없다.
   'SPLIT_TOO_FEW_ROWS',
   'SPLIT_STRATIFY_IMPOSSIBLE',
+  // 타깃이 사실상 연속이다. **SPLIT_STRATIFY_IMPOSSIBLE과 나누는 이유는 학생이 할 일이
+  // 정반대이기 때문이다** - 그쪽은 "그 값을 더 모아라"이고 이쪽은 "끄라"다. 소수 하나가
+  // 두 번 나오는 데이터는 없으므로 뭉치면 불가능한 조언을 하게 된다
+  // (open-decisions.md "층화는 갈리는 값에서만 뜻이 있다").
+  'SPLIT_STRATIFY_TARGET_CONTINUOUS',
+  // 이 과제 유형에서는 층화가 뜻이 없다 - 던지는 코드가 아니라 **화면의 잠금 이유**다
+  // (ml/selection.ts의 stratifyBlock). 같은 목록에 두는 이유는 ALGORITHM_NOT_FOR_TASK_TYPE과
+  // 같다 - 이유 문장이 사는 곳이 client.* 하나여야 한다.
+  'STRATIFY_NOT_FOR_TASK_TYPE',
 
   // 평가 데이터(test.csv) 받기 - data/columns.ts
   // 정본 열과의 대조는 브라우저에서만 한다(mlpx-spec.md 0.3의 분할과 같은 이유 -

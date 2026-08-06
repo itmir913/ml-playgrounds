@@ -34,6 +34,7 @@ import {
   algorithmsLosingMeaning,
   columnPlan,
   requiredTargetKind,
+  stratifyBlock,
   type ChosenModel,
 } from '@/ml/selection'
 import { failedRuns } from '@/ml/results'
@@ -45,6 +46,7 @@ import {
   withHyperparameter,
   withRuntime,
   withSelectedAlgorithms,
+  withSplit,
   withTaskType,
 } from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
@@ -170,13 +172,30 @@ function pickTaskType(taskType: TaskType): void {
   if (!file || file.document.manifest.taskType === taskType) return
 
   const dropped = algorithmsLosingMeaning(file.document.settings.selectedAlgorithms, taskType)
-  apply(withTaskType(file.document, taskType, dropped, now()))
+  const changed = withTaskType(file.document, taskType, dropped, now())
+
+  // **층화도 뜻을 잃으면 내린다.** 회귀에서 켜 두면 [학습]이 통째로 거부하는데, 그 문구가
+  // "이 값의 데이터를 2개 이상 모아 주세요"라 학생이 할 수 있는 일이 없다
+  // (open-decisions.md "층화는 갈리는 값에서만 뜻이 있다"). 위의 모델 선택과 같은 처리다 -
+  // 뜻을 잃은 것은 지우고 알린다.
+  const stratifyOff =
+    changed.settings.split.stratify &&
+    stratifyBlock({
+      dataset: dataset.value,
+      taskType,
+      target: changed.settings.target,
+      features: changed.settings.features,
+      preprocessing: changed.settings.preprocessing,
+    })?.code === 'STRATIFY_NOT_FOR_TASK_TYPE'
+
+  apply(stratifyOff ? withSplit(changed, { stratify: false }, now()) : changed)
 
   if (dropped.length > 0) {
     toasts.push('caution', 'train.taskChanged', {
       names: dropped.map((id) => t(`algorithms.${id}`)).join(', '),
     })
   }
+  if (stratifyOff) toasts.push('caution', 'train.stratifyOff')
 }
 
 /**

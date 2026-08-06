@@ -175,6 +175,14 @@ describe('나눌 수 없는 데이터', () => {
     expect(code).toBe('SPLIT_STRATIFY_IMPOSSIBLE')
   })
 
+  it('1개뿐인 라벨이 여럿이면 SPLIT_STRATIFY_TARGET_CONTINUOUS - 끄는 것이 답이다', () => {
+    // **마지막 방어선이다.** 정상 경로에서는 전처리 화면이 먼저 말하지만, 남의 .mlpx를
+    // 열어 다시 돌리는 경로에는 우리 화면이 없다. 연속값 타깃이 이 모양으로 온다.
+    const labels = rows(20).map((row) => `${row}.5`)
+    const code = codeOf(() => holdoutSplit({ rows: rows(20), labels }, split({ stratify: true })))
+    expect(code).toBe('SPLIT_STRATIFY_TARGET_CONTINUOUS')
+  })
+
   it('무엇이 몇 개였는지 알려준다 - 학생이 다음에 뭘 할지 고를 수 있어야 한다', () => {
     const labels = [...Array(20)].map((_, i) => (i === 0 ? '희귀품종' : 'common'))
     try {

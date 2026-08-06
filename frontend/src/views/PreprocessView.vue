@@ -28,7 +28,7 @@ import { useFormat } from '@/composables/useFormat'
 import { useRadioGroupGuard } from '@/composables/useRadioGroupGuard'
 import { dataKindFor } from '@/data/kinds'
 import { importTable, openTable, type TableDocument } from '@/data/table'
-import { rowUsage } from '@/ml/selection'
+import { rowUsage, stratifyBlock } from '@/ml/selection'
 import { newRandomState } from '@/project/create'
 import {
   applyTestDataset,
@@ -102,6 +102,35 @@ function onStratify(event: Event): void {
   const stratify = (event.target as HTMLInputElement).checked
   apply(withSplit(file.document, { stratify }, now()))
 }
+
+/**
+ * 층화를 걸 수 없는 이유. **판정은 화면 밖에 있다** (`ml/selection.ts`의 `stratifyBlock`).
+ *
+ * 학습이 보는 것과 같은 함수라 "화면은 멀쩡한데 [학습]이 거부한다"가 생기지 않는다.
+ */
+const stratifyReason = computed(() => {
+  const current = settings.value
+  if (!current) return null
+  const block = stratifyBlock({
+    dataset: dataset.value,
+    taskType: project.taskType,
+    target: current.target,
+    features: current.features,
+    preprocessing: current.preprocessing,
+  })
+  return block === null ? null : t(`client.${block.code}`, block.params ?? {})
+})
+
+/**
+ * **잠그는 조건은 "뜻이 없다"가 아니라 "뜻이 없는데 꺼져 있다"다.**
+ *
+ * 켜진 채로 잠그면 학생은 이유를 읽고도 끌 수 없고 학습은 계속 거부한다 - 함정이다.
+ * 기본값이 켜짐이라 그 상태가 실재한다
+ * (open-decisions.md "층화는 갈리는 값에서만 뜻이 있다").
+ */
+const stratifyLocked = computed(
+  () => stratifyReason.value !== null && settings.value?.split.stratify === false,
+)
 
 const experimentCount = computed(() => project.file?.document.runs.experiments.length ?? 0)
 
@@ -339,15 +368,20 @@ function reseed(): void {
                 <p class="mt-1 text-ink-faint">{{ t('preprocess.testSizeNote') }}</p>
               </div>
 
-              <label class="flex cursor-pointer items-center gap-2">
-                <input
-                  type="checkbox"
-                  class="size-4 accent-brand"
-                  :checked="settings.split.stratify"
-                  @change="onStratify"
-                />
-                <span class="font-bold">{{ t('preprocess.stratify') }}</span>
-              </label>
+              <div>
+                <label class="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    class="size-4 accent-brand"
+                    :checked="settings.split.stratify"
+                    :disabled="stratifyLocked"
+                    @change="onStratify"
+                  />
+                  <span class="font-bold">{{ t('preprocess.stratify') }}</span>
+                </label>
+                <!-- 이유 없이 회색이면 고장으로 보이고, 켜진 채 걸린 것은 학생이 꺼야 한다. -->
+                <p v-if="stratifyReason" class="mt-1 ml-6 text-caution">{{ stratifyReason }}</p>
+              </div>
 
               <div>
                 <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">

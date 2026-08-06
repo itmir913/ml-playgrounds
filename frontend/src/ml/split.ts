@@ -120,16 +120,29 @@ export function holdoutSplit(input: SplitInput, split: Split): SplitIndices {
   const testIndices: number[] = []
 
   if (split.stratify && labels) {
-    for (const [label, group] of groupByLabel(rows, labels)) {
-      if (group.length < MIN_SPLIT_ROWS) {
-        // 조용히 층화를 끄지 않는다. 학생은 자기 데이터가 왜 그런지 알아야
-        // 층화를 끌지 데이터를 더 모을지 고를 수 있다.
-        throw new ClientError('SPLIT_STRATIFY_IMPOSSIBLE', {
-          label,
-          count: group.length,
-          minRows: MIN_SPLIT_ROWS,
-        })
-      }
+    const groups = groupByLabel(rows, labels)
+    // **조용히 층화를 끄지 않는다.** 학생은 자기 데이터가 왜 그런지 알아야 층화를 끌지
+    // 데이터를 더 모을지 고를 수 있다. 정상 경로에서는 전처리 화면이 먼저 말해 주고
+    // (ml/selection.ts의 stratifyBlock) 여기는 마지막 방어선이다 - 남의 .mlpx를 열어
+    // 다시 돌리는 경로에는 우리 화면이 없다.
+    const lonely = [...groups].filter(([, group]) => group.length < MIN_SPLIT_ROWS)
+    const first = lonely[0]
+    if (first && lonely.length > 1) {
+      // 1개뿐인 값이 여럿이면 타깃이 사실상 연속이다. "그 값을 더 모아라"는 영원히
+      // 불가능한 조언이 된다 (open-decisions.md "층화는 갈리는 값에서만 뜻이 있다").
+      throw new ClientError('SPLIT_STRATIFY_TARGET_CONTINUOUS', {
+        kinds: groups.size,
+        lonely: lonely.length,
+      })
+    }
+    if (first) {
+      throw new ClientError('SPLIT_STRATIFY_IMPOSSIBLE', {
+        label: first[0],
+        count: first[1].length,
+        minRows: MIN_SPLIT_ROWS,
+      })
+    }
+    for (const [label, group] of groups) {
       const order = shuffled(group, labelSeed(split.randomState, label))
       const testCount = testCountFor(order.length, split.testSize)
       testIndices.push(...order.slice(0, testCount))

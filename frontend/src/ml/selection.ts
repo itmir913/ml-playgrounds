@@ -18,6 +18,7 @@
  */
 
 import type { ColumnSummary } from '../data/columns'
+import { MIN_SPLIT_ROWS } from '../limits'
 import type { Preprocessing, TaskType } from '../project/schema'
 import { ALGORITHMS, type Algorithm, type AlgorithmOption } from './algorithms'
 import { supports } from './axes'
@@ -290,6 +291,93 @@ export function algorithmsLosingMeaning(
       const algorithm = known.get(id)
       return algorithm !== undefined && !supports(algorithm.taskTypes, taskType)
     })
+}
+
+/**
+ * 층화가 뜻을 잃는 과제 유형. **비율을 맞출 대상이 없다** - 값이 연속이면 "종류"가 없다.
+ *
+ * `if (taskType === 'regression')`을 쓰지 않는 이유는 위 `TARGET_KIND_REQUIRED`와 같다.
+ * 군집이 들어오는 날 여기에 줄이 하나 늘거나 안 늘 뿐이고, 부르는 쪽은 그대로다.
+ */
+const STRATIFY_MEANINGLESS: Partial<Record<TaskType, true>> = {
+  regression: true,
+}
+
+/**
+ * 층화를 걸 수 없는 이유. **없으면 null이다.**
+ *
+ * 코드는 `CLIENT_ERROR_CODES`에 있고 화면이 `client.*`로 문장을 만든다
+ * (architecture.md §10.2 - 이유는 코드이고 문장이 아니다).
+ */
+export interface StratifyBlock {
+  readonly code:
+    'STRATIFY_NOT_FOR_TASK_TYPE' | 'SPLIT_STRATIFY_IMPOSSIBLE' | 'SPLIT_STRATIFY_TARGET_CONTINUOUS'
+  readonly params?: Record<string, string | number>
+}
+
+/**
+ * 값이 1개뿐인 타깃 값들. **층화가 성립하려면 비어 있어야 한다.**
+ *
+ * 층화는 값 종류마다 학습셋과 평가셋에 하나씩 보내므로 그 종류의 행이 하나면 한쪽이 빈다
+ * (limits.ts의 MIN_SPLIT_ROWS).
+ */
+function lonelyValues(values: readonly string[]): { labels: string[]; kinds: number } {
+  const counts = new Map<string, number>()
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1)
+  return {
+    labels: [...counts].filter(([, count]) => count < MIN_SPLIT_ROWS).map(([label]) => label),
+    kinds: counts.size,
+  }
+}
+
+export interface StratifyInput {
+  readonly dataset: Dataset | null
+  /** 아직 안 골랐으면 없다. 그때는 유형으로 좁히지 않는다. */
+  readonly taskType?: TaskType | undefined
+  readonly target: string | undefined
+  readonly features: readonly string[]
+  readonly preprocessing: Preprocessing
+}
+
+/**
+ * 지금 이 데이터에 층화를 걸 수 있는가. **[학습]을 누르기 전에 답한다.**
+ *
+ * 판정이 `ml/split.ts`에만 있었을 때는 학생이 [학습]에서 처음 알았고, 회귀 데이터에서는
+ * **"이 값의 데이터를 2개 이상 모아 주세요"라는 불가능한 조언**을 받았다
+ * (open-decisions.md "층화는 갈리는 값에서만 뜻이 있다").
+ *
+ * **학습이 보는 것과 같은 행을 센다** (`usableRows`). 결측 처리에서 빠질 행을 함께 세면
+ * 화면은 멀쩡한데 학습이 거부한다.
+ *
+ * **1개뿐인 값이 하나인지 여럿인지로 문구가 갈린다.** 하나면 "그 값을 더 모아라"가 실행
+ * 가능한 조언이고, 여럿이면 타깃이 사실상 연속이라 끄는 것이 답이다. **"고유값이 몇 %
+ * 이상이면 연속"이라는 임계값을 두지 않는다** - 세는 것은 사실이고 임계값은 판단이다.
+ */
+export function stratifyBlock(input: StratifyInput): StratifyBlock | null {
+  if (input.taskType !== undefined && STRATIFY_MEANINGLESS[input.taskType]) {
+    return { code: 'STRATIFY_NOT_FOR_TASK_TYPE' }
+  }
+
+  const { dataset, target } = input
+  if (!dataset || target === undefined) return null
+
+  const column = dataset.columns.indexOf(target)
+  if (column < 0) return null
+
+  const rows = usableRows(dataset, input.features, target, input.preprocessing.missing)
+  const { labels, kinds } = lonelyValues(rows.map((row) => String(dataset.rows[row]?.[column])))
+  if (labels.length === 0) return null
+
+  // 값 하나만 부족한 것과 값이 거의 다 다른 것은 학생이 할 일이 정반대다.
+  return labels.length === 1
+    ? {
+        code: 'SPLIT_STRATIFY_IMPOSSIBLE',
+        params: { label: labels[0] as string, count: 1, minRows: MIN_SPLIT_ROWS },
+      }
+    : {
+        code: 'SPLIT_STRATIFY_TARGET_CONTINUOUS',
+        params: { kinds, lonely: labels.length },
+      }
 }
 
 export type RowUsage = {

@@ -210,6 +210,7 @@
   "train": {
     "taskTitle": "기계학습 유형(Task Type)",
     "taskChanged": "고른 유형에서 쓸 수 없어 선택에서 빠진 모델이 있습니다. ({names})",
+    "stratifyOff": "회귀에서는 값의 비율을 맞출 수 없어 비율 맞추기를 껐습니다.",
     "modelsTitle": "모델 선정",
     "modelsLead": "무엇을 할지 고르면 그에 맞는 모델만 켜집니다. 여러 개를 골라 한 번에 학습하고 결과를 비교합니다.",
     "pickModel": "모델",
@@ -371,6 +372,8 @@
     "UNEXPECTED_ERROR": "예상하지 못한 문제가 생겼습니다. 다시 시도해 주세요.",
     "SPLIT_TOO_FEW_ROWS": "학습에 쓸 수 있는 데이터가 {actualRows}줄뿐이라 학습용과 평가용으로 나눌 수 없습니다. (최소 {minRows}줄)",
     "SPLIT_STRATIFY_IMPOSSIBLE": "'{label}' 값이 {count}개뿐이라 비율을 맞춰 나눌 수 없습니다. 비율 맞추기를 끄거나 이 값의 데이터를 {minRows}개 이상 모아 주세요.",
+    "SPLIT_STRATIFY_TARGET_CONTINUOUS": "타깃 값이 {kinds}종류인데 그중 {lonely}종류가 1개뿐이라 비율을 맞춰 나눌 수 없습니다. 값이 거의 다 다른 열이니 비율 맞추기를 끄세요.",
+    "STRATIFY_NOT_FOR_TASK_TYPE": "지금 고른 기계학습 유형에서는 맞출 값의 종류가 없어 비율 맞추기를 쓸 수 없습니다.",
     "TEST_DATASET_COLUMN_MISSING": "평가용 파일에 학습 데이터의 열이 없습니다. ({columns})",
     "TEST_DATASET_NO_USABLE_ROWS": "평가 데이터에 채점할 수 있는 행이 하나도 없습니다.",
     "PREDICT_DATASET_COLUMN_MISSING": "예측할 파일에 지금 보이는 모델들이 쓰는 열이 없습니다. ({columns})"

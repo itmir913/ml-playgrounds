@@ -210,6 +210,7 @@
   "train": {
     "taskTitle": "Task type",
     "taskChanged": "Some models were dropped because they do not fit the task type you chose. ({names})",
+    "stratifyOff": "Proportional splitting was turned off: regression has no value categories to balance.",
     "modelsTitle": "Choose the models",
     "modelsLead": "Choose what you want to do, and only the models that fit stay on. Pick several to train at once and compare the results.",
     "pickModel": "Model",
@@ -371,6 +372,8 @@
     "UNEXPECTED_ERROR": "Something went wrong. Please try again.",
     "SPLIT_TOO_FEW_ROWS": "There is not enough data to split into a training set and a test set. (usable {actualRows}, needs at least {minRows})",
     "SPLIT_STRATIFY_IMPOSSIBLE": "'{label}' appears too few times to keep the same proportions in the split. Turn off proportional splitting, or collect more rows with this value. (has {count}, needs at least {minRows})",
+    "SPLIT_STRATIFY_TARGET_CONTINUOUS": "The target has {kinds} distinct values and {lonely} of them appear only once, so the split cannot keep the same proportions. Almost every value differs, so turn off proportional splitting.",
+    "STRATIFY_NOT_FOR_TASK_TYPE": "The machine learning type you picked has no value categories to balance, so proportional splitting is unavailable.",
     "TEST_DATASET_COLUMN_MISSING": "The Test Data file is missing columns from the training data. ({columns})",
     "TEST_DATASET_NO_USABLE_ROWS": "The test data has no rows left to score with.",
     "PREDICT_DATASET_COLUMN_MISSING": "The file to predict is missing columns the visible models use. ({columns})"

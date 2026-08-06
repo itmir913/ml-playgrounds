@@ -21,6 +21,7 @@ import {
   modelAxes,
   requiredTargetKind,
   rowUsage,
+  stratifyBlock,
   type AxisChoice,
 } from '../src/ml/selection'
 import type { Preprocessing } from '../src/project/schema'
@@ -285,6 +286,73 @@ describe('세 축이 서로를 좁힌다', () => {
       expect(card?.enabled).toBe(result.blocked === null)
       if (!card?.enabled) expect(result.blocked).toBe(card?.reason)
     }
+  })
+})
+
+describe('층화를 걸 수 있는가', () => {
+  const dataset = (targets: string[]): Dataset => ({
+    columns: ['키', '반'],
+    rows: targets.map((target, index) => [String(170 + index), target]),
+  })
+
+  function blockFor(overrides: Partial<Parameters<typeof stratifyBlock>[0]> = {}) {
+    return stratifyBlock({
+      dataset: dataset(['A', 'A', 'B', 'B']),
+      taskType: 'classification',
+      target: '반',
+      features: ['키'],
+      preprocessing: ONEHOT,
+      ...overrides,
+    })
+  }
+
+  it('값마다 두 줄 이상이면 걸 수 있다', () => {
+    expect(blockFor()).toBeNull()
+  })
+
+  it('회귀에서는 유형이 먼저 걸린다 - 값을 세기 전에 답이 나온다', () => {
+    // **데이터를 보지 않고도 답한다.** 값이 고르게 갈리는 데이터를 넣어도 마찬가지다 -
+    // 회귀에는 맞출 "종류"가 없다.
+    expect(blockFor({ taskType: 'regression' })?.code).toBe('STRATIFY_NOT_FOR_TASK_TYPE')
+  })
+
+  it('1개뿐인 값이 하나면 그 값을 알려준다 - 더 모으면 풀린다', () => {
+    const only = blockFor({ dataset: dataset(['A', 'A', 'B', 'B', '희귀품종']) })
+    expect(only?.code).toBe('SPLIT_STRATIFY_IMPOSSIBLE')
+    expect(only?.params).toMatchObject({ label: '희귀품종', count: 1 })
+  })
+
+  it('1개뿐인 값이 여럿이면 다른 사유다 - "더 모아라"가 불가능한 조언이 된다', () => {
+    // 연속값 타깃이 실제로 이 모양이다. 소수가 두 번 나오는 일은 없다.
+    const continuous = blockFor({ dataset: dataset(['1.13', '2.71', '3.14', '4.20']) })
+    expect(continuous?.code).toBe('SPLIT_STRATIFY_TARGET_CONTINUOUS')
+    expect(continuous?.params).toMatchObject({ kinds: 4, lonely: 4 })
+  })
+
+  it('학습이 버릴 행은 세지 않는다 - 화면과 학습이 같은 행을 봐야 한다', () => {
+    // 두 번째 'B'의 특성이 비었다. drop 전략이면 그 행이 빠지므로 'B'가 한 줄이 되고,
+    // 층화는 실제로 성립하지 않는다. 전체 행을 세면 이걸 못 잡는다.
+    const holed: Dataset = {
+      columns: ['키', '반'],
+      rows: [
+        ['170', 'A'],
+        ['171', 'A'],
+        ['172', 'B'],
+        ['', 'B'],
+      ],
+    }
+    expect(blockFor({ dataset: holed })?.code).toBe('SPLIT_STRATIFY_IMPOSSIBLE')
+    // 채워 쓰는 전략이면 네 줄이 다 남아 성립한다.
+    expect(blockFor({ dataset: holed, preprocessing: { ...ONEHOT, missing: 'mean' } })).toBeNull()
+  })
+
+  it('유형을 안 골랐으면 유형으로 좁히지 않는다', () => {
+    expect(blockFor({ taskType: undefined })).toBeNull()
+  })
+
+  it('데이터나 타깃이 없으면 할 말이 없다', () => {
+    expect(blockFor({ dataset: null })).toBeNull()
+    expect(blockFor({ target: undefined })).toBeNull()
   })
 })
 
