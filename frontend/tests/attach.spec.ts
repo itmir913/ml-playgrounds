@@ -27,6 +27,7 @@ const BROWSER_ONLY: RuntimeContext = { serverStatus: 'unavailable', rowCount: 30
 function inputFor(algorithms: string[]): ExperimentInput {
   return {
     dataset: irisDataset(),
+    testDataset: null,
     taskType: 'classification',
     dataType: 'tabular',
     settings: {

@@ -231,12 +231,22 @@ describe('평가 데이터가 파일로 온 분할', () => {
     expect(() => splitRows({ rows: [] }, provided, { rows: [0] })).toThrow()
   })
 
-  it('평가 데이터가 하나도 없으면 시끄럽게 실패한다', () => {
-    expect(() => splitRows({ rows: [0, 1] }, provided, { rows: [] })).toThrow()
+  it('평가 데이터가 하나도 없으면 평가 데이터를 가리켜 실패한다', () => {
+    // 학습 데이터를 탓하는 SPLIT_TOO_FEW_ROWS가 아니어야 한다 - 같은 코드로 뭉치면
+    // 평가 파일이 문제인데 학생이 멀쩡한 학습 데이터를 들여다본다.
+    expect(codeOf(() => splitRows({ rows: [0, 1] }, provided, { rows: [] }))).toBe(
+      'TEST_DATASET_NO_USABLE_ROWS',
+    )
   })
 
-  it('평가 데이터셋 자체가 없으면 시끄럽게 실패한다 - 부르는 쪽 버그다', () => {
-    expect(() => splitRows({ rows: [0, 1] }, provided)).toThrow()
+  it('평가 데이터셋 자체가 없어도 같은 코드다 - 부르는 쪽 버그다', () => {
+    expect(codeOf(() => splitRows({ rows: [0, 1] }, provided))).toBe('TEST_DATASET_NO_USABLE_ROWS')
+  })
+
+  it('학습 데이터가 비면 그때는 학습 데이터를 가리킨다', () => {
+    expect(codeOf(() => splitRows({ rows: [] }, provided, { rows: [0] }))).toBe(
+      'SPLIT_TOO_FEW_ROWS',
+    )
   })
 
   it('holdout은 그대로 나눈다 - 표가 방식을 고른다', () => {

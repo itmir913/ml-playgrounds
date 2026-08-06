@@ -55,8 +55,11 @@ export interface ReproduceInput {
    *
    * 그때 `testIndices`는 `dataset`이 아니라 이 표의 행 번호다 (mlpx-spec.md §1.1,
    * ml/split.ts) - 없으면 대조를 못 한다.
+   *
+   * **선택 인자가 아니라 필수다** (`ExperimentInput.testDataset`과 같은 이유다).
+   * 없으면 `null`을 말해야 부르는 쪽이 그 자리를 지나칠 수 없다.
    */
-  readonly testDataset?: Dataset
+  readonly testDataset: Dataset | null
 }
 
 /**

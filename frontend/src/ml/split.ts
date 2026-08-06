@@ -162,8 +162,11 @@ function providedSplit(input: SplitInput, testInput: SplitInput | undefined): Sp
   if (input.rows.length === 0) {
     throw new ClientError('SPLIT_TOO_FEW_ROWS', { minRows: 1, actualRows: 0 })
   }
+  // **평가 데이터가 없는 것은 학습 데이터가 없는 것과 다른 실패다.** 같은 코드로 뭉치면
+  // 평가 파일이 문제인데 "학습에 쓸 수 있는 데이터가 0줄"이라고 말하게 되고, 학생은
+  // 멀쩡한 학습 데이터를 들여다본다.
   if (!testInput || testInput.rows.length === 0) {
-    throw new ClientError('SPLIT_TOO_FEW_ROWS', { minRows: 1, actualRows: 0 })
+    throw new ClientError('TEST_DATASET_NO_USABLE_ROWS')
   }
   const ascending = (a: number, b: number): number => a - b
   return {

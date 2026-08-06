@@ -39,7 +39,7 @@ import {
 import { failedRuns } from '@/ml/results'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
 import { applyExperiment } from '@/project/attach'
-import { readDataset } from '@/project/dataset'
+import { readDataset, readTestDataset } from '@/project/dataset'
 import type { ProjectDocument, TaskType } from '@/project/schema'
 import {
   withHyperparameter,
@@ -61,6 +61,9 @@ const training = useTraining(spawnTrainingWorker)
 
 const settings = computed(() => project.file?.document.settings ?? null)
 const dataset = computed(() => readDataset(project.file))
+
+/** 평가 정본. `split.method`가 `provided`인 프로젝트에만 있다 (mlpx-spec.md §1.1). */
+const testDataset = computed(() => readTestDataset(project.file))
 const columns = computed(() => (dataset.value ? summarizeColumns(dataset.value) : []))
 
 /**
@@ -279,6 +282,9 @@ async function startTraining(): Promise<void> {
       type: 'train',
       input: {
         dataset: table,
+        // **평가 데이터가 파일로 온 실험은 이것 없이는 채점할 것이 없다**
+        // (mlpx-spec.md §1.1). holdout이면 null이고 splitRows가 아예 보지 않는다.
+        testDataset: testDataset.value,
         taskType,
         dataType: file.document.manifest.dataType,
         settings: file.document.settings,

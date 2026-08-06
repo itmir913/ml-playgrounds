@@ -33,6 +33,7 @@ function trained(algorithms: string[]): Experiment {
   return runExperiment(
     {
       dataset,
+      testDataset: null,
       taskType: 'classification',
       dataType: 'tabular',
       settings: settingsFor(algorithms),
@@ -51,7 +52,7 @@ function withRun(experiment: Experiment, index: number, overrides: Partial<Run>)
 describe('재실행 대조', () => {
   it('방금 학습한 실험은 그대로 재현된다', () => {
     const experiment = trained(['decision_tree', 'knn', 'naive_bayes', 'svm'])
-    const found = reproduceExperiment({ experiment, dataset })
+    const found = reproduceExperiment({ experiment, dataset, testDataset: null })
 
     expect(found).toHaveLength(4)
     for (const one of found) {
@@ -71,7 +72,7 @@ describe('재실행 대조', () => {
       metrics: { ...experiment.runs[0]?.metrics, accuracy: 1 },
     })
 
-    const [found] = reproduceExperiment({ experiment: tampered, dataset })
+    const [found] = reproduceExperiment({ experiment: tampered, dataset, testDataset: null })
     expect(found?.status).toBe('NOT_REPRODUCED')
     expect(found?.again?.['accuracy']).toBe(stored)
     // 판정하지 않고 차이를 준다. 얼마까지 봐 줄지는 이 층이 정하지 않는다.
@@ -82,7 +83,7 @@ describe('재실행 대조', () => {
     const experiment = trained(['decision_tree'])
     const other = withRun(experiment, 0, { engine: { kind: 'mljs', version: '999' } })
 
-    const [found] = reproduceExperiment({ experiment: other, dataset })
+    const [found] = reproduceExperiment({ experiment: other, dataset, testDataset: null })
     expect(found?.status).toBe('ENGINE_UNAVAILABLE')
     // 무엇으로 만든 것인지 함께 준다. 화면이 "이 파일은 다른 엔진에서 왔다"를 말해야 한다.
     expect(found?.engine?.version).toBe('999')
@@ -94,6 +95,7 @@ describe('재실행 대조', () => {
     const [found] = reproduceExperiment({
       experiment: withRun(experiment, 0, { engine: undefined }),
       dataset,
+      testDataset: null,
     })
     expect(found?.status).toBe('ENGINE_UNAVAILABLE')
   })
@@ -105,7 +107,7 @@ describe('재실행 대조', () => {
       metrics: undefined,
       failure: { code: 'JOB_FAILED' },
     })
-    expect(reproduceExperiment({ experiment: failed, dataset })).toEqual([])
+    expect(reproduceExperiment({ experiment: failed, dataset, testDataset: null })).toEqual([])
   })
 
   it('학생이 바꾼 하이퍼파라미터를 그대로 먹인다', () => {
@@ -113,7 +115,7 @@ describe('재실행 대조', () => {
     const experiment = trained(['decision_tree'])
     const shallow = withRun(experiment, 0, { hyperparameters: { maxDepth: 1, minNumSamples: 3 } })
 
-    const [found] = reproduceExperiment({ experiment: shallow, dataset })
+    const [found] = reproduceExperiment({ experiment: shallow, dataset, testDataset: null })
     // 깊이 1로 다시 돌리면 붓꽃 세 품종을 못 가르므로 파일의 지표와 어긋난다.
     expect(found?.status).toBe('NOT_REPRODUCED')
     expect(found?.again?.['accuracy']).toBeLessThan(experiment.runs[0]?.metrics?.['accuracy'] ?? 1)

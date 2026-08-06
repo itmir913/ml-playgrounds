@@ -50,6 +50,8 @@ function plain(request: TrainRequest): TrainRequest {
     input: {
       ...input,
       dataset: toRaw(input.dataset),
+      // 평가 데이터도 벗긴다. 프록시인 채로 postMessage에 태우면 구조화 복제가 거부한다.
+      testDataset: input.testDataset === null ? null : toRaw(input.testDataset),
       settings: toRaw(input.settings),
       context: toRaw(input.context),
     },

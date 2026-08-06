@@ -72,6 +72,10 @@ export const CLIENT_ERROR_CODES = [
   // 정본 열과의 대조는 브라우저에서만 한다(mlpx-spec.md 0.3의 분할과 같은 이유 -
   // 서버는 이미 확정된 정본과 분할 인덱스만 받는다).
   'TEST_DATASET_COLUMN_MISSING',
+  // 평가 데이터로 채점할 행이 하나도 없다 - ml/split.ts. 전처리(결측 규칙)가 전부
+  // 걸러냈거나 평가 데이터가 아예 없는 채로 provided인 경우다. **학습 데이터가 비었다는
+  // 말과 나눈다** - 같은 코드로 뭉치면 학생이 멀쩡한 학습 데이터를 들여다본다.
+  'TEST_DATASET_NO_USABLE_ROWS',
 
   // 예측 데이터(predict.csv) 받기 - data/columns.ts
   // 요구하는 열이 정본 열 전체가 아니라 특성 열의 합집합이라 TEST_DATASET_COLUMN_MISSING과

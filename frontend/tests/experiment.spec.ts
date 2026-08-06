@@ -57,6 +57,7 @@ function settingsFor(overrides: Partial<Settings> = {}): Settings {
 function inputFor(overrides: Partial<ExperimentInput> = {}): ExperimentInput {
   return {
     dataset: irisDataset(),
+    testDataset: null,
     taskType: 'classification',
     dataType: 'tabular',
     settings: settingsFor(),
@@ -538,6 +539,7 @@ describe('id와 changed', () => {
           columns: ['x', 'y'],
           rows: [...Array(10).keys()].map((x) => [`${x}`, `${2 * x + 1}`]),
         },
+        testDataset: null,
         taskType: 'regression',
         dataType: 'tabular',
         settings: settingsFor({
@@ -578,6 +580,7 @@ describe('회귀', () => {
   const { experiment } = runExperiment(
     {
       dataset: line,
+      testDataset: null,
       taskType: 'regression',
       dataType: 'tabular',
       settings: settingsFor({
@@ -629,6 +632,7 @@ describe('회귀 + 범주형 타깃', () => {
     return runExperiment(
       {
         dataset: grades,
+        testDataset: null,
         taskType,
         dataType: 'tabular',
         settings: settingsFor({
@@ -674,6 +678,7 @@ describe('회귀 + 범주형 타깃', () => {
     const { experiment } = runExperiment(
       {
         dataset: withGap,
+        testDataset: null,
         taskType: 'regression',
         dataType: 'tabular',
         settings: settingsFor({
@@ -698,6 +703,7 @@ describe('회귀 + 범주형 타깃', () => {
       runExperiment(
         {
           dataset: withText,
+          testDataset: null,
           taskType: 'regression',
           dataType: 'tabular',
           settings: settingsFor({
@@ -733,6 +739,7 @@ describe('데이터 타입·과제 유형에 안 맞는 모델', () => {
     return runExperiment(
       {
         dataset: line,
+        testDataset: null,
         taskType: 'regression',
         dataType: 'tabular',
         settings: settingsFor({
@@ -871,5 +878,62 @@ describe('전처리와 분할을 끌 수 있다', () => {
     expect(trainIndices.length).toBe(IRIS_FEATURES.length)
     expect(testIndices.length).toBe(testDataset.rows.length)
     expect(experiment.runs[0]?.status).toBe('done')
+  })
+
+  /**
+   * **평가 데이터를 안 넘긴 것과 학습 데이터가 빈 것은 다른 실패다.**
+   *
+   * 화면이 `testDataset`을 안 넘겨서 실제로 났던 고장이다 - 그때 학생이 본 문장은
+   * "학습에 쓸 수 있는 데이터가 0줄뿐"이었고, 멀쩡한 학습 데이터를 들여다보게 만들었다.
+   * 인자를 필수로 바꿔 그 경로는 타입이 막지만, 손으로 고친 파일에서는 여전히 올 수 있다.
+   */
+  it('평가 데이터 없이 provided로 돌리면 평가 데이터를 가리켜 실패한다', () => {
+    try {
+      runExperiment(
+        inputFor({
+          testDataset: null,
+          settings: settingsFor({
+            selectedAlgorithms: models('decision_tree'),
+            split: { method: 'provided', testSize: 0.3, stratify: true, randomState: 42 },
+          }),
+        }),
+        frozen,
+      )
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error)).toBe(true)
+      // 학습 데이터를 탓하는 SPLIT_TOO_FEW_ROWS가 아니어야 한다.
+      if (isClientError(error)) expect(error.code).toBe('TEST_DATASET_NO_USABLE_ROWS')
+    }
+  })
+
+  it('평가 데이터가 전처리에서 통째로 걸러져도 같은 코드다', () => {
+    // 타깃이 빈 행은 어떤 전략에서도 채점에 못 쓴다 - 전부 그러면 채점할 것이 없다.
+    const empty = irisDataset()
+    const blanked = {
+      columns: empty.columns,
+      rows: empty.rows.map((row) =>
+        row.map((cell, column) =>
+          column === empty.columns.indexOf(IRIS_TARGET_COLUMN) ? '' : cell,
+        ),
+      ),
+    }
+
+    try {
+      runExperiment(
+        inputFor({
+          testDataset: blanked,
+          settings: settingsFor({
+            selectedAlgorithms: models('decision_tree'),
+            split: { method: 'provided', testSize: 0.3, stratify: true, randomState: 42 },
+          }),
+        }),
+        frozen,
+      )
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error)).toBe(true)
+      if (isClientError(error)) expect(error.code).toBe('TEST_DATASET_NO_USABLE_ROWS')
+    }
   })
 })

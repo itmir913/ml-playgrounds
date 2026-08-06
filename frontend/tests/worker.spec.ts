@@ -44,6 +44,7 @@ function settingsFor(overrides: Partial<Settings> = {}): Settings {
 function inputFor(settings: Settings = settingsFor()): ExperimentInput {
   return {
     dataset: irisDataset(),
+    testDataset: null,
     taskType: 'classification',
     dataType: 'tabular',
     settings,

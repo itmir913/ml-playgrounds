@@ -57,9 +57,13 @@ export interface ExperimentInput {
    *
    * `testIndices`는 이 표의 행 번호다 - `dataset`(=data.csv)과는 다른 정본이라
    * `trainIndices`와 같은 표로 섞으면 안 된다 (mlpx-spec.md §1.1, ml/split.ts).
-   * `holdout`이면 없어야 한다 - 나눌 데이터가 하나뿐이라는 뜻이다.
+   * `holdout`이면 `null`이다 - 나눌 데이터가 하나뿐이라는 뜻이다.
+   *
+   * **선택 인자가 아니라 필수다.** 선택으로 두었더니 화면이 안 넘기는 것을 타입이
+   * 못 잡았고, `provided`로 학습하면 평가할 행이 하나도 없다며 거부했다. 없다는 것을
+   * `null`로 **말하게** 해야 부르는 쪽이 그 자리를 지나칠 수 없다.
    */
-  testDataset?: Dataset
+  testDataset: Dataset | null
   /** 학생이 고른다. 자동 판정하지 않는다 (mlpx-spec.md 0.1). */
   taskType: TaskType
   /** 업로드한 파일에서 판정된다. */
