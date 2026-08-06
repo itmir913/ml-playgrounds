@@ -20,6 +20,7 @@
 import type { ColumnSummary } from '../data/columns'
 import type { Preprocessing, TaskType } from '../project/schema'
 import { ALGORITHMS, type Algorithm, type AlgorithmOption } from './algorithms'
+import { supports } from './axes'
 import type { UnavailableReason } from './backend'
 import { usableRows, type Dataset } from './preprocess'
 import type { ColumnKind } from './preprocess'
@@ -269,7 +270,7 @@ export function algorithmsLosingMeaning(
     .map((selection) => selection.algorithm)
     .filter((id) => {
       const algorithm = known.get(id)
-      return algorithm !== undefined && !algorithm.taskTypes.includes(taskType)
+      return algorithm !== undefined && !supports(algorithm.taskTypes, taskType)
     })
 }
 

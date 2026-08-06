@@ -15,9 +15,9 @@ import type { Algorithm } from '../../src/ml/algorithms'
 
 export const SKLEARN_ONLY_ALGORITHM: Algorithm = {
   id: 'sklearn_only',
-  dataTypes: ['tabular'],
-  taskTypes: ['classification'],
-  runtimes: ['pyodide-sklearn', 'server-sklearn'],
+  dataTypes: { tabular: true, image: false, audio: false, text: false },
+  taskTypes: { classification: true, regression: false, clustering: false },
+  runtimes: { mljs: false, 'pyodide-sklearn': true, 'server-sklearn': true },
 }
 
 /** 등록부에 그 알고리즘 하나가 더 있는 세상. */

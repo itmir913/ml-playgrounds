@@ -107,14 +107,14 @@ describe('고를 수 있는 과제 유형', () => {
     // 고르게 하면 학생이 아무것도 못 하는 프로젝트를 만든다.
     for (const taskType of supportedTaskTypes()) {
       expect(
-        ALGORITHMS.some((one) => one.taskTypes.includes(taskType)),
+        ALGORITHMS.some((one) => one.taskTypes[taskType]),
         taskType,
       ).toBe(true)
     }
   })
 
   it('알고리즘을 등록하면 저절로 따라온다', () => {
-    const only = ALGORITHMS.filter((one) => one.taskTypes.includes('regression'))
+    const only = ALGORITHMS.filter((one) => one.taskTypes.regression)
     expect(supportedTaskTypes(undefined, only)).toEqual(['regression'])
   })
 

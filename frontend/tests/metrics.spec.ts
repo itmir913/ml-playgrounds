@@ -18,12 +18,13 @@ import {
   metricsOf,
   type MetricDisplay,
 } from '../src/ml/metrics'
-import type { TaskType } from '../src/project/schema'
+import { TASK_TYPES, type TaskType } from '../src/project/schema'
 
 describe('등록부끼리 어긋나지 않는다', () => {
   it('등록된 알고리즘의 과제 유형에는 전부 지표 계산기가 있다', () => {
     for (const algorithm of ALGORITHMS) {
-      for (const taskType of algorithm.taskTypes) {
+      for (const taskType of TASK_TYPES) {
+        if (!algorithm.taskTypes[taskType]) continue
         expect(EVALUATORS[taskType], `${algorithm.id} -> ${taskType}`).toBeDefined()
       }
     }

@@ -39,7 +39,7 @@ function run(algorithm: string, hyperparameters: Record<string, unknown> = {}) {
 
 describe('등록부가 서로 맞는다', () => {
   it('mljs로 선언된 알고리즘은 전부 여기 구현이 있다', () => {
-    const declared = ALGORITHMS.filter((a) => a.runtimes.includes('mljs')).map((a) => a.id)
+    const declared = ALGORITHMS.filter((a) => a.runtimes.mljs).map((a) => a.id)
     for (const id of declared) {
       expect(MLJS_ALGORITHMS, id).toContain(id)
     }
@@ -56,7 +56,7 @@ describe('등록부가 서로 맞는다', () => {
     // 예전에는 없었고, 그 상태가 공식 배포의 기본값이라 대부분의 학생에게 SVM은
     // 없는 물건이었다 (open-decisions.md "순수 JS 서포트 벡터 머신을 넣는다").
     expect(MLJS_ALGORITHMS).toContain('svm')
-    expect(ALGORITHMS.find((a) => a.id === 'svm')?.runtimes).toContain('mljs')
+    expect(ALGORITHMS.find((a) => a.id === 'svm')?.runtimes.mljs).toBe(true)
   })
 })
 

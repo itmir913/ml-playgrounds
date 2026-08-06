@@ -21,7 +21,7 @@ import {
   type Algorithm,
   type Selection,
 } from '../src/ml/algorithms'
-import type { EngineState, RuntimeContext } from '../src/ml/backend'
+import { RUNTIME_IDS, type EngineState, type RuntimeContext } from '../src/ml/backend'
 import { DATA_TYPES, TASK_TYPES } from '../src/project/schema'
 
 const tabularClassification: Selection = { dataType: 'tabular', taskType: 'classification' }
@@ -41,15 +41,25 @@ describe('등록부', () => {
     expect(new Set(ALGORITHMS.map((a) => a.id)).size).toBe(ALGORITHMS.length)
   })
 
-  it('모든 항목이 아는 어휘만 쓴다', () => {
+  it('아무 데서도 안 서는 줄이 없다', () => {
+    // **어휘는 이제 타입이 지킨다** (ml/axes.ts) - 모르는 축 값을 적거나 아는 값을
+    // 빠뜨리면 컴파일이 깨진다. 그래서 여기서 어휘를 다시 세지 않는다.
+    //
+    // 타입이 못 잡는 것은 **칸을 다 채웠는데 전부 false인 줄**이다. 화면 어디에도
+    // 안 나오는데 등록부에는 있는 항목이고, 그건 지웠어야 할 줄이다 (§9.2.1).
     for (const algorithm of ALGORITHMS) {
-      for (const dataType of algorithm.dataTypes) {
-        expect(DATA_TYPES, algorithm.id).toContain(dataType)
-      }
-      for (const taskType of algorithm.taskTypes) {
-        expect(TASK_TYPES, algorithm.id).toContain(taskType)
-      }
-      expect(algorithm.runtimes.length, algorithm.id).toBeGreaterThan(0)
+      expect(
+        DATA_TYPES.some((dataType) => algorithm.dataTypes[dataType]),
+        algorithm.id,
+      ).toBe(true)
+      expect(
+        TASK_TYPES.some((taskType) => algorithm.taskTypes[taskType]),
+        algorithm.id,
+      ).toBe(true)
+      expect(
+        RUNTIME_IDS.some((runtimeId) => algorithm.runtimes[runtimeId]),
+        algorithm.id,
+      ).toBe(true)
     }
   })
 
@@ -168,7 +178,12 @@ describe('분기 없이 늘어난다', () => {
 
   it('등록부를 넘기면 그것만 본다 - 새 항목이 코드 변경 없이 들어온다', () => {
     const future: Algorithm[] = [
-      { id: 'kmeans', dataTypes: ['tabular'], taskTypes: ['clustering'], runtimes: ['mljs'] },
+      {
+        id: 'kmeans',
+        dataTypes: { tabular: true, image: false, audio: false, text: false },
+        taskTypes: { classification: false, regression: false, clustering: true },
+        runtimes: { mljs: true, 'pyodide-sklearn': false, 'server-sklearn': false },
+      },
     ]
     const options = algorithmOptions(
       { dataType: 'tabular', taskType: 'clustering' },

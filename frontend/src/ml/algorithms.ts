@@ -11,6 +11,11 @@
  * **등록부에 항목을 추가하면 화면이 따라온다.** 지표도 같은 방식이다 (ml/metrics.ts).
  * 이미지·음성이 들어오는 V5에서 이 규칙이 값을 한다 (architecture.md 6).
  *
+ * **축은 배열이 아니라 Record다** (ml/axes.ts, architecture.md §9.3). 배열이면 축 값이
+ * 늘어도 컴파일이 조용하다 - 부분집합은 언제나 올바른 배열이기 때문이다. 줄마다
+ * `false`를 다 적는 것이 장황해 보이지만, **그 장황함이 곧 이미지가 들어온 날
+ * 다시 봐야 할 목록이다.**
+ *
  * **비활성화하되 숨기지 않고, 왜 못 쓰는지 이유를 함께 준다.** 목록에서 사라지면 학생은
  * 그런 모델이 있다는 것조차 모르고, 이유 없이 회색이면 고장으로 본다.
  * 이유의 우선순위는 **데이터 타입 > 과제 유형 > 실행 위치**다 - 더 근본적인 것이 먼저다.
@@ -19,6 +24,7 @@
 
 import { SVM_ROW_LIMIT } from '../limits'
 import { TASK_TYPES, type DataType, type TaskType } from '../project/schema'
+import { supports, type Axis } from './axes'
 import {
   runtimeOptions,
   type AlgorithmSpec,
@@ -28,15 +34,14 @@ import {
 } from './backend'
 
 export interface Algorithm extends AlgorithmSpec {
-  readonly dataTypes: readonly DataType[]
-  readonly taskTypes: readonly TaskType[]
+  readonly dataTypes: Axis<DataType>
+  readonly taskTypes: Axis<TaskType>
 }
 
-/** 순수 JS와 sklearn 양쪽에 구현이 있는 것. */
-const EVERYWHERE = ['mljs', 'pyodide-sklearn', 'server-sklearn'] as const
-
-// `SKLEARN_ONLY`가 있었고, 그 유일한 항목이 svm이었다. 순수 JS 솔버가 들어오면서
-// 비었다 - 안 쓰는 목록을 남겨 두면 다음 사람이 "여기 넣으면 되나"로 읽는다.
+// `EVERYWHERE`라는 상수가 있었고 일곱 줄이 전부 그걸 가리켰다. **지웠다** - 실행 방법이
+// 하나 늘면 그 상수 한 군데만 고치면 되고, 고치는 사람이 알고리즘 일곱 개를 대신
+// 판단해 버린다. architecture.md §9.3.1이 금지한 "일괄 치환"이 상수 하나로 제도화된
+// 꼴이었다. 같은 이유로 `SKLEARN_ONLY`도 두지 않는다.
 
 /**
  * V1 알고리즘. **여기 추가하는 것은 포맷 변경이 아니다** (mlpx-spec.md 5.2).
@@ -53,43 +58,48 @@ const EVERYWHERE = ['mljs', 'pyodide-sklearn', 'server-sklearn'] as const
 export const ALGORITHMS: readonly Algorithm[] = [
   {
     id: 'decision_tree',
-    dataTypes: ['tabular'],
-    taskTypes: ['classification'],
-    runtimes: EVERYWHERE,
+    dataTypes: { tabular: true, image: false, audio: false, text: false },
+    taskTypes: { classification: true, regression: false, clustering: false },
+    runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
   },
-  { id: 'knn', dataTypes: ['tabular'], taskTypes: ['classification'], runtimes: EVERYWHERE },
+  {
+    id: 'knn',
+    dataTypes: { tabular: true, image: false, audio: false, text: false },
+    taskTypes: { classification: true, regression: false, clustering: false },
+    runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
+  },
   {
     id: 'logistic_regression',
-    dataTypes: ['tabular'],
-    taskTypes: ['classification'],
-    runtimes: EVERYWHERE,
+    dataTypes: { tabular: true, image: false, audio: false, text: false },
+    taskTypes: { classification: true, regression: false, clustering: false },
+    runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
   },
   {
     id: 'random_forest',
-    dataTypes: ['tabular'],
-    taskTypes: ['classification'],
-    runtimes: EVERYWHERE,
+    dataTypes: { tabular: true, image: false, audio: false, text: false },
+    taskTypes: { classification: true, regression: false, clustering: false },
+    runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
   },
   {
     id: 'naive_bayes',
-    dataTypes: ['tabular'],
-    taskTypes: ['classification'],
-    runtimes: EVERYWHERE,
+    dataTypes: { tabular: true, image: false, audio: false, text: false },
+    taskTypes: { classification: true, regression: false, clustering: false },
+    runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
   },
   {
     id: 'svm',
-    dataTypes: ['tabular'],
-    taskTypes: ['classification'],
-    runtimes: EVERYWHERE,
+    dataTypes: { tabular: true, image: false, audio: false, text: false },
+    taskTypes: { classification: true, regression: false, clustering: false },
+    runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // **이 알고리즘만 상한이 따로다** (limits.ts의 SVM_ROW_LIMIT). SMO는 행 수의 제곱으로
     // 붙고 학습 시작에 N×N 커널 행렬을 만든다.
     maxRows: SVM_ROW_LIMIT,
   },
   {
     id: 'linear_regression',
-    dataTypes: ['tabular'],
-    taskTypes: ['regression'],
-    runtimes: EVERYWHERE,
+    dataTypes: { tabular: true, image: false, audio: false, text: false },
+    taskTypes: { classification: false, regression: true, clustering: false },
+    runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
   },
 ]
 
@@ -127,10 +137,10 @@ export function supportedTaskTypes(
   algorithms: readonly Algorithm[] = ALGORITHMS,
 ): readonly TaskType[] {
   const usable = algorithms.filter(
-    (algorithm) => dataType === undefined || algorithm.dataTypes.includes(dataType),
+    (algorithm) => dataType === undefined || supports(algorithm.dataTypes, dataType),
   )
   return TASK_TYPES.filter((taskType) =>
-    usable.some((algorithm) => algorithm.taskTypes.includes(taskType)),
+    usable.some((algorithm) => supports(algorithm.taskTypes, taskType)),
   )
 }
 
@@ -154,10 +164,10 @@ export function algorithmOptions(
     const runtimes = runtimeOptions(algorithm, context)
 
     // 순서가 곧 이유의 우선순위다. 더 근본적인 것이 먼저 걸린다.
-    if (!algorithm.dataTypes.includes(selection.dataType)) {
+    if (!supports(algorithm.dataTypes, selection.dataType)) {
       return { algorithm, enabled: false, reason: 'ALGORITHM_NOT_FOR_DATA_TYPE', runtimes }
     }
-    if (!algorithm.taskTypes.includes(selection.taskType)) {
+    if (!supports(algorithm.taskTypes, selection.taskType)) {
       return { algorithm, enabled: false, reason: 'ALGORITHM_NOT_FOR_TASK_TYPE', runtimes }
     }
 

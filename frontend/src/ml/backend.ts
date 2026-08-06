@@ -22,6 +22,7 @@
  */
 
 import { BROWSER_ROW_LIMIT } from '../limits'
+import { supports, type Axis } from './axes'
 
 /**
  * 학습이 실제로 도는 곳. .mlpx의 run.computedBy가 이 어휘를 그대로 쓴다.
@@ -83,13 +84,24 @@ export function reasonParams(
 }
 
 /**
+ * 실행 방법의 이름. **알고리즘 등록부가 이 축에 칸을 하나씩 갖는다** (architecture.md §9).
+ *
+ * **여기 값을 더하면 모든 알고리즘 줄이 깨진다. 그게 목적이다** - 새 엔진에 그 알고리즘
+ * 구현이 있는지는 알고리즘마다 다르고, 사람이 하나씩 판단해야 하는 것이다. 배열이었을
+ * 때는 아무 일도 안 일어났다.
+ */
+export const RUNTIME_IDS = ['mljs', 'pyodide-sklearn', 'server-sklearn'] as const
+
+export type RuntimeId = (typeof RUNTIME_IDS)[number]
+
+/**
  * 실행 방법 하나.
  *
  * location과 engineKind가 파일에 남는 값이고, id는 화면과 등록부가 쓰는 이름이다.
  * 같은 엔진이 두 위치에서 도는 일이 실제로 있으므로(sklearn) id가 따로 필요하다.
  */
 export interface RuntimeSpec {
-  readonly id: string
+  readonly id: RuntimeId
   readonly location: TrainingLocation
   /** run.engine.kind에 그대로 들어간다. 재실행 대조가 이 값으로 엔진을 가린다. */
   readonly engineKind: string
@@ -98,22 +110,23 @@ export interface RuntimeSpec {
 }
 
 /**
- * V1의 실행 방법. **순서가 곧 기본값 우선순위다** - 앞에 있는 것부터 고른다.
- *
- * 순수 JS가 맨 앞인 이유는 gzip 25KB에 시동이 없기 때문이다. scikit-learn은 26.3MB에
- * 시동 15.4초라 기본값이 될 수 없다 (open-decisions.md "브라우저 학습 엔진은 둘 다 간다").
- *
- * 여기 항목을 늘리는 것은 포맷 변경이 아니다. 등록부에 추가하면 화면이 따라온다.
- */
-/**
  * 아무 정보도 없을 때 적어 두는 실행 방법.
  *
  * 새 프로젝트를 만드는 시점에는 서버가 있는지도, 무거운 엔진이 받아졌는지도 모른다.
  * 그때 쓰는 값이고, 화면은 실제 상황을 보고 preferredRuntime으로 다시 고른다.
  * **브라우저에서 도는 것이어야 한다** - 서버 없는 것이 기본 상태이기 때문이다.
  */
-export const FALLBACK_RUNTIME_ID = 'mljs'
+export const FALLBACK_RUNTIME_ID: RuntimeId = 'mljs'
 
+/**
+ * V1의 실행 방법. **순서가 곧 기본값 우선순위다** - 앞에 있는 것부터 고른다.
+ *
+ * 순수 JS가 맨 앞인 이유는 gzip 25KB에 시동이 없기 때문이다. scikit-learn은 26.3MB에
+ * 시동 15.4초라 기본값이 될 수 없다 (open-decisions.md "브라우저 학습 엔진은 둘 다 간다").
+ *
+ * **RUNTIME_IDS 값마다 한 줄이 있어야 한다** - 이름만 있고 명세가 없는 실행 방법은
+ * 화면에서 통째로 사라진다. 타입은 이걸 못 잡으므로 검사가 본다 (§9.3.2).
+ */
 export const RUNTIMES: readonly RuntimeSpec[] = [
   { id: 'mljs', location: 'browser', engineKind: 'mljs', needsPreparation: false },
   {
@@ -127,8 +140,14 @@ export const RUNTIMES: readonly RuntimeSpec[] = [
 
 export interface AlgorithmSpec {
   readonly id: string
-  /** 이 알고리즘을 돌릴 수 있는 실행 방법의 id. 등록부가 알고리즘마다 선언한다. */
-  readonly runtimes: readonly string[]
+  /**
+   * 어느 실행 방법에 이 알고리즘의 구현이 있는가. 등록부가 알고리즘마다 선언한다.
+   *
+   * **정적 사실이다** (architecture.md §9의 표). "지금 그 서버가 붙어 있는가"는 여기가
+   * 아니라 RuntimeContext가 답한다 - 등록부에 지금 상태를 넣으면 표가 시간에 따라
+   * 변하고, 그 순간 표를 신뢰할 수 없다.
+   */
+  readonly runtimes: Axis<RuntimeId>
   /**
    * 브라우저에서 이 알고리즘에만 걸리는 행 상한. 없으면 전역 상한을 따른다.
    *
@@ -151,8 +170,13 @@ export interface RuntimeOption {
 
 export interface RuntimeContext {
   serverStatus: ServerStatus
-  /** 실행 방법 id -> 준비 상태. 없으면 'absent'로 본다. */
-  engineStates?: Readonly<Record<string, EngineState>>
+  /**
+   * 실행 방법 id -> 준비 상태. 없으면 'absent'로 본다.
+   *
+   * **여기는 Axis가 아니다.** 등록부의 선언이 아니라 지금 이 순간의 상태이고, 비어 있는
+   * 것이 정상이므로(아직 아무것도 안 받았다) 칸을 강제하지 않는다.
+   */
+  engineStates?: Readonly<Partial<Record<RuntimeId, EngineState>>>
   rowCount: number
 }
 
@@ -172,7 +196,7 @@ export function runtimeOptions(
   browserRowLimit: number = BROWSER_ROW_LIMIT,
 ): RuntimeOption[] {
   return runtimes.map((runtime): RuntimeOption => {
-    if (!algorithm.runtimes.includes(runtime.id)) {
+    if (!supports(algorithm.runtimes, runtime.id)) {
       return { runtime, enabled: false, reason: 'ALGORITHM_NOT_AVAILABLE_HERE' }
     }
     if (runtime.location === 'server' && context.serverStatus !== 'available') {

@@ -23,14 +23,20 @@ import {
 /** 셋 다 도는 알고리즘. 결정트리가 그렇다. */
 const anywhere: AlgorithmSpec = {
   id: 'decision_tree',
-  runtimes: ['mljs', 'pyodide-sklearn', 'server-sklearn'],
+  runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
 }
 
 /** 무거워서 서버에서만 도는 것. */
-const serverOnly: AlgorithmSpec = { id: 'gradient_boosting', runtimes: ['server-sklearn'] }
+const serverOnly: AlgorithmSpec = {
+  id: 'gradient_boosting',
+  runtimes: { mljs: false, 'pyodide-sklearn': false, 'server-sklearn': true },
+}
 
 /** 순수 JS 구현이 없어 sklearn에서만 도는 것. */
-const sklearnOnly: AlgorithmSpec = { id: 'svm', runtimes: ['pyodide-sklearn', 'server-sklearn'] }
+const sklearnOnly: AlgorithmSpec = {
+  id: 'svm',
+  runtimes: { mljs: false, 'pyodide-sklearn': true, 'server-sklearn': true },
+}
 
 function context(overrides: Partial<RuntimeContext> = {}): RuntimeContext {
   return { serverStatus: 'unavailable', rowCount: 100, ...overrides }
