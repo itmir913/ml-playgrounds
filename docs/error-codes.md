@@ -140,6 +140,17 @@ PREDICTION_INPUT_INCOMPLETE
 결측 전략 `none`을 시끄럽게 거부하는 것과 같은 판단이다. 예측은 언제나 브라우저에서만
 하므로(`mlpx-spec.md` §0.2) 서버에는 이 코드가 없다.
 
+**경고 — 실패가 아니다** (`ml/engines/svm-smo.ts`)
+```
+SVM_NOT_CONVERGED
+```
+
+**목록이 따로다** (`errors.ts`의 `CLIENT_WARNING_CODES`). 로케일은 같은 `client.*`를
+쓴다 — 그 네임스페이스가 가리키는 것은 "실패"가 아니라 **프런트엔드가 만든 코드**이고
+이것도 그것이다. 나눈 이유는 **자리가 다르기 때문**이다: 이 코드는 `run.warning`에
+`status: 'done'`과 함께 오고, `failure`에는 못 온다(`mlpx-spec.md` §5.9). 한 목록에
+담으면 "이 코드가 실패인가"를 이름으로 판정하게 되고 그건 반드시 틀린다.
+
 **마지막 그물**
 ```
 UNEXPECTED_ERROR

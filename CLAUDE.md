@@ -156,6 +156,11 @@
 
   **화면 규칙은 `frontend/tests/ui-rules.spec.ts`가 강제한다.** 무엇을 막는지는 그 파일이,
   **왜 그런지는 `docs/architecture.md` §8**이 답한다. 사람이 지키길 기대하지 않는다.
+- **남의 코드를 저장소에 들이면 파일 머리에 셋을 적는다** — 출처(저장소·버전·파일),
+  라이선스, **우리가 바꾼 것 전부.** 바꾼 목록이 없으면 다음 사람은 원본과 대조할 수
+  없고, 그 순간 그 코드는 우리 것도 남의 것도 아니게 된다. 벤더링은 마지막 수단이다:
+  먼저 의존성으로 쓸 수 없는 이유가 `docs/open-decisions.md`에 있어야 한다.
+  (예: `frontend/src/ml/engines/svm-smo.ts`)
 - 커밋: Conventional Commits (`feat:` `fix:` `docs:` `refactor:` `test:` `chore:`)
 
 **커밋 규칙 (예외 없음)**
