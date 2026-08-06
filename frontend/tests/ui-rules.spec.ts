@@ -58,6 +58,56 @@ const RULES: readonly Rule[] = [
     ],
   },
   {
+    name: '잠금 조건을 템플릿에서 조립하지 않는다',
+    why:
+      '조건을 하나 더할 때 고쳐야 할 파일이 늘고, 조건 하나를 확인하려고 화면 전체를 ' +
+      '마운트해야 하니 아무도 그 조건을 테스트하지 않는다. 무엇보다 **학생이 왜 못 ' +
+      '누르는지 모른다** — 회색 버튼은 이유 없이는 고장으로 보인다 (architecture.md §10). ' +
+      '조합이 필요해진 순간이 gate 함수(또는 이름 붙은 computed)를 만들 순간이다.',
+    // 막아야 할 죄는 **조합**이다. `!canSubmit`이나 `gate.length > 0`처럼 한 군데를
+    // 가리키는 표현은 통과시킨다 - 국소 조건까지 잡으면 검사가 성가셔지고, 성가신
+    // 검사는 꺼진다.
+    pattern: /:disabled="[^"]*(&&|\|\|)/,
+    violations: [
+      ':disabled="!hasData || !hasTarget"',
+      ':disabled="busy && !ready"',
+      ':disabled="computing || page === 0"',
+    ],
+    allowed: [
+      ':disabled="busy"',
+      ':disabled="!canSubmit"',
+      ':disabled="gate.length > 0"',
+      ':disabled="props.disabled"',
+      // :disabled가 아닌 곳의 조합은 상관없다.
+      'v-if="ready && !busy"',
+    ],
+  },
+  {
+    name: '화면에서 데이터 종류·과제 유형을 직접 비교하지 않는다',
+    why:
+      '"X는 Y에서만 쓸 수 있다"는 X의 등록부 항목에 적는다 (architecture.md §9.1). ' +
+      '화면에 적으면 이미지가 들어오는 날 고쳐야 할 파일이 등록부 하나가 아니라 그 ' +
+      '사실을 아는 화면 전부가 되고, **그중 하나를 빠뜨린 것은 컴파일도 검사도 못 잡고 ' +
+      '학생이 화면에서 알게 된다.**',
+    // **문자열 리터럴과의 비교만 잡는다.** `=== undefined`는 "어느 종류인가"가 아니라
+    // "아직 안 골랐는가"이고, 안 고른 상태는 등록부가 답할 수 있는 것이 아니다
+    // (ml/algorithms.ts의 supportedTaskTypes가 그때 좁히지 않는 것과 같다).
+    pattern: /(dataType|taskType)\s*(===|!==)\s*['"`]/,
+    violations: [
+      `<section v-if="dataType === 'tabular'">`,
+      `:class="props.taskType !== 'clustering' ? 'font-bold' : ''"`,
+    ],
+    allowed: [
+      '<component :is="kind.prepPanel" />',
+      'v-for="panel in panels"',
+      // 등록부에 넘기는 것은 비교가 아니다.
+      ':panels="metricPanelsFor(dataType, taskType, run)"',
+      // 아직 안 골랐는가는 종류 분기가 아니다.
+      'v-if="props.taskType === undefined"',
+      'if (taskType === undefined) return []',
+    ],
+  },
+  {
     name: '작업 공간 래퍼의 세로 간격이 화면마다 같다',
     why:
       '단계를 옮길 때마다 내용이 몇 px씩 위아래로 뛴다. 한 화면만 gap-4였던 것이 실제로 ' +

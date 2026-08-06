@@ -64,6 +64,9 @@ function hintOf(field: PredictionField): string | undefined {
 const blank = computed(() =>
   props.fields.filter((field) => (props.values[field.name] ?? '').trim() === ''),
 )
+
+/** 빈 칸이 하나라도 있으면 못 돌린다. **조합은 템플릿이 아니라 여기서 한다** (§10.1). */
+const cannotRun = computed(() => props.disabled || blank.value.length > 0)
 </script>
 
 <template>
@@ -126,7 +129,7 @@ const blank = computed(() =>
     </div>
 
     <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <AppButton size="lg" :disabled="props.disabled || blank.length > 0" :action="props.runAction">
+      <AppButton size="lg" :disabled="cannotRun" :action="props.runAction">
         {{ t('predict.run') }}
       </AppButton>
       <!-- 왜 꺼져 있는지 말한다. 이유 없이 회색인 버튼은 학생에게 고장으로 보인다. -->

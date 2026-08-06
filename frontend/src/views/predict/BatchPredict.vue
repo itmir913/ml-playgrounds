@@ -256,6 +256,13 @@ function loadPredictors(): Map<string, Predict> {
 
 const computing = shallowRef(false)
 
+/**
+ * 쪽 넘김 버튼의 잠금. **조합은 여기서 한다** (architecture.md §10.1) — 템플릿에서
+ * 조립하면 조건이 늘 때마다 마크업이 길어지고 그 조건을 아무도 테스트하지 않는다.
+ */
+const atFirstPage = computed(() => computing.value || page.value === 0)
+const atLastPage = computed(() => computing.value || page.value >= totalPages.value - 1)
+
 /** 이 페이지가 캐시에 없으면 계산해 채운다. */
 async function ensurePage(index: number): Promise<Answer[][]> {
   if (pageCache.value.signature !== signature.value) {
@@ -497,19 +504,11 @@ async function downloadAction(): Promise<void> {
       </div>
 
       <div class="flex items-center justify-between gap-4">
-        <AppButton
-          variant="secondary"
-          :disabled="computing || page === 0"
-          :action="() => goToPage(page - 1)"
-        >
+        <AppButton variant="secondary" :disabled="atFirstPage" :action="() => goToPage(page - 1)">
           {{ t('predict.prevPage') }}
         </AppButton>
         <p class="tabular-nums text-ink-soft">{{ page + 1 }} / {{ totalPages }}</p>
-        <AppButton
-          variant="secondary"
-          :disabled="computing || page >= totalPages - 1"
-          :action="() => goToPage(page + 1)"
-        >
+        <AppButton variant="secondary" :disabled="atLastPage" :action="() => goToPage(page + 1)">
           {{ t('predict.nextPage') }}
         </AppButton>
       </div>

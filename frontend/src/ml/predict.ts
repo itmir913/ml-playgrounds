@@ -470,6 +470,27 @@ export function tallyClassificationAnswers(
 }
 
 /**
+ * 이 모델의 답이 가장 많이 나온 답과 같은가. **분류에만, 가장 많이 나온 답이 있을
+ * 때만 있다** (architecture.md 8.13.1).
+ *
+ * **화면이 아니라 여기 있다** (§9.1). "다수결은 분류에만 있다"는 위 집계가 이미 아는
+ * 사실이고, 같은 사실을 화면이 한 번 더 알면 둘이 갈라질 자리가 생긴다. 예측 화면에는
+ * **여러 실험의 모델이 섞여 설 수 있어서** 유형을 모델마다 봐야 한다 - 집계가
+ * 걸러 줬으니 괜찮다고 넘길 수 없는 이유다.
+ */
+export function answerTone(
+  model: PredictableModel,
+  answers: ReadonlyMap<string, Answer>,
+  majority: Prediction | null,
+): 'majority' | 'minority' | null {
+  if (model.experiment.settings.taskType !== 'classification') return null
+  if (majority === null) return null
+  const value = answers.get(model.run.id)?.value
+  if (value === undefined) return null
+  return value === majority ? 'majority' : 'minority'
+}
+
+/**
  * 가장 많이 나온 답 (architecture.md 8.13.1 "부르는 이름은 `가장 많이 나온 답`이다").
  * **`과반수`가 아니다** — 세 값으로 갈리면 최다가 절반이 안 될 수 있다.
  *

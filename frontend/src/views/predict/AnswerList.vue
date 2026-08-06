@@ -20,6 +20,7 @@ import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import type { Prediction } from '@/ml/metrics'
 import {
+  answerTone,
   majorityAnswer,
   tallyClassificationAnswers,
   type Answer,
@@ -54,16 +55,11 @@ const tally = computed(() => tallyClassificationAnswers(props.models, props.answ
 const majority = computed(() => majorityAnswer(tally.value))
 
 /**
- * 이 모델의 답이 가장 많이 나온 답과 같은지. **분류에만, 가장 많이 나온 답이 있을
- * 때만 있다** (`architecture.md` 8.13.1) — 동점이거나 값이 하나뿐이면 `majority`가
- * `null`이라 자동으로 아무 카드도 강조되지 않는다.
+ * 이 모델의 답이 가장 많이 나온 답과 같은지. **판정은 `ml/predict.ts`가 한다** —
+ * "다수결은 분류에만 있다"는 집계가 아는 사실이고, 화면이 한 번 더 알면 갈라진다 (§9.1).
  */
 function toneOf(model: PredictableModel): 'majority' | 'minority' | null {
-  if (model.experiment.settings.taskType !== 'classification') return null
-  if (majority.value === null) return null
-  const value = props.answers.get(model.run.id)?.value
-  if (value === undefined) return null
-  return value === majority.value ? 'majority' : 'minority'
+  return answerTone(model, props.answers, majority.value)
 }
 
 /**
