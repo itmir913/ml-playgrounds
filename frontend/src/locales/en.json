@@ -105,7 +105,8 @@
     "emptyNext": "Load a file and it will appear here.",
     "inspector": "Column details",
     "unsupportedKind": "This project uses a kind of data that cannot be handled yet.",
-    "unsupportedKindNext": "It may have been made with a newer version. Update the app and open it again."
+    "unsupportedKindNext": "It may have been made with a newer version. Update the app and open it again.",
+    "previewTitle": "Data preview"
   },
   "columnKind": {
     "numeric": "Number",

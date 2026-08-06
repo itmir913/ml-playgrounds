@@ -43,7 +43,8 @@ const previous = computed(() => (index.value > 0 ? experiments.value[index.value
 </script>
 
 <template>
-  <div class="flex h-full flex-col gap-5 p-4 sm:p-5">
+  <!-- `min-h-full`인 이유는 `views/data/TabularPanel.vue`에 적어 두었다. -->
+  <div class="flex min-h-full flex-col gap-5 p-4 sm:p-5">
     <StepHeader :title="t('steps.results.label')" :purpose="t('steps.results.purpose')">
       <template v-if="experiments.length > 0" #context>
         <div class="flex gap-1.5">
@@ -63,7 +64,7 @@ const previous = computed(() => (index.value > 0 ? experiments.value[index.value
       <AppEmpty :reason="t('results.emptyReason')" :next="t('results.emptyNext')" />
     </div>
 
-    <div v-else class="flex min-h-0 flex-1 flex-col gap-5 md:flex-row">
+    <div v-else class="flex min-h-96 flex-1 flex-col gap-5 md:flex-row">
       <div class="min-h-0 shrink-0 overflow-y-auto md:w-80">
         <ExperimentList :experiments="experiments" :selected="selected" @pick="selected = $event" />
       </div>

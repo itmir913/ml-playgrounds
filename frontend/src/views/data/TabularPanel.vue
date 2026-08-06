@@ -172,8 +172,14 @@ function kindOf(column: ColumnSummary): string {
 </script>
 
 <template>
+  <!--
+    **`min-h-full`이지 `h-full`이 아니다.** 화면이 낮으면 `h-full`은 남은 자리를
+    0으로 나눠 주고, 그러면 표가 머리만 남긴 채 **잘리는데 스크롤도 안 생긴다** —
+    작업 공간의 높이가 딱 맞아떨어져서 바깥(`AppShell`의 `<main>`)도 넘칠 것이 없다고
+    본다. 최소 높이를 주면 낮은 화면에서는 바깥이 넘쳐서 그쪽이 스크롤한다.
+  -->
   <div
-    class="flex h-full flex-col gap-5 p-4 sm:p-5"
+    class="flex min-h-full flex-col gap-5 p-4 sm:p-5"
     @dragover.prevent="dragging = true"
     @dragleave="dragging = false"
     @drop.prevent="onDrop"
@@ -246,9 +252,11 @@ function kindOf(column: ColumnSummary): string {
       **표와 열 검사기가 남은 세로 공간을 나눠 갖는다** (architecture.md §8.9).
       넓은 화면에서는 옆으로, 좁은 화면에서는 표만 여기 있고 검사기는 아래로 접힌다.
     -->
-    <div class="flex min-h-0 flex-1 gap-5">
-      <div class="min-w-0 flex-1">
-        <AppTable v-if="shown" class="h-full">
+    <div class="flex min-h-96 flex-1 gap-5">
+      <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+        <h3 v-if="shown" class="font-bold text-ink-soft">{{ t('data.previewTitle') }}</h3>
+
+        <AppTable v-if="shown" class="min-h-0 flex-1">
           <thead class="sticky top-0 z-10">
             <tr>
               <th v-for="column in shown.columns" :key="column.name" class="align-bottom">
@@ -266,7 +274,7 @@ function kindOf(column: ColumnSummary): string {
 
         <div
           v-else
-          class="grid h-full place-items-center rounded-panel border-2 border-dashed transition-colors"
+          class="grid min-h-0 flex-1 place-items-center rounded-panel border-2 border-dashed transition-colors"
           :class="dragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
         >
           <AppEmpty :reason="t('data.emptyReason')" :next="t('data.dropHint')">
@@ -282,7 +290,7 @@ function kindOf(column: ColumnSummary): string {
         열을 보기 위해서이므로 둘은 함께 봐야 한다. 자기 열 안에서 스크롤하므로 열이
         몇 개든 표의 자리는 안 줄어든다.
       -->
-      <aside v-if="shown" class="hidden w-96 shrink-0 flex-col gap-1.5 md:flex">
+      <aside v-if="shown" class="hidden min-w-0 flex-1 flex-col gap-1.5 md:flex">
         <h3 class="font-bold text-ink-soft">{{ t('data.inspector') }}</h3>
         <div class="min-h-0 flex-1">
           <ColumnInspector :columns="shown.columns" />

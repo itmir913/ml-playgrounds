@@ -105,7 +105,8 @@
     "emptyNext": "파일을 불러오면 여기에 표로 나타납니다.",
     "inspector": "열 정보 자세히 보기",
     "unsupportedKind": "이 프로젝트의 데이터 종류는 아직 다룰 수 없습니다.",
-    "unsupportedKindNext": "더 새로운 버전에서 만든 파일일 수 있습니다. 앱을 최신으로 바꾼 뒤 다시 열어 주세요."
+    "unsupportedKindNext": "더 새로운 버전에서 만든 파일일 수 있습니다. 앱을 최신으로 바꾼 뒤 다시 열어 주세요.",
+    "previewTitle": "데이터 미리보기"
   },
   "columnKind": {
     "numeric": "숫자",
