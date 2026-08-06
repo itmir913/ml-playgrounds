@@ -182,11 +182,11 @@ function onTaskType(id: string): void {
       <!-- [추가]도 같은 선으로 가른다. 고르는 일이 아니라 담는 일이다. -->
       <hr class="border-t border-dashed border-line" />
 
-      <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+        <p v-if="blocked" class="min-w-0 text-ink-soft">{{ blocked }}</p>
         <AppButton :disabled="blocked !== null" @click="emit('add', algorithm, runtime)">
           {{ t('train.addModel') }}
         </AppButton>
-        <p v-if="blocked" class="min-w-0 text-ink-soft">{{ blocked }}</p>
       </div>
     </template>
   </div>
