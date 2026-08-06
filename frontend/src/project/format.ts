@@ -573,7 +573,11 @@ export async function writeProject(
     [ENTRY.portfolio]: encodeJson(document.portfolio),
     [ENTRY.portfolioMarkdown]: new TextEncoder().encode(portfolioMarkdown),
   }
-  const dataset = referencedFileEntry(document.settings.dataset, project.dataset, 'settings.dataset')
+  const dataset = referencedFileEntry(
+    document.settings.dataset,
+    project.dataset,
+    'settings.dataset',
+  )
   if (dataset !== undefined) {
     entries[dataset.path] = dataset.bytes
   }
@@ -591,7 +595,10 @@ export async function writeProject(
   }
 
   // 마지막에 만든다. 자기 자신은 대상이 아니므로 다른 엔트리가 전부 정해진 뒤여야 한다.
-  const hashes = buildHashes(entries, [dataset, testDataset].filter((entry) => entry !== undefined))
+  const hashes = buildHashes(
+    entries,
+    [dataset, testDataset].filter((entry) => entry !== undefined),
+  )
   entries[ENTRY.hashes] = encodeJson(hashes)
 
   return { bytes: await zipAsync(entries), dropped, contentHash: hashes.contentHash }

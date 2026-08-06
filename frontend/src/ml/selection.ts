@@ -21,6 +21,7 @@ import type { ColumnSummary } from '../data/columns'
 import type { Preprocessing, TaskType } from '../project/schema'
 import { ALGORITHMS, type Algorithm, type AlgorithmOption } from './algorithms'
 import type { UnavailableReason } from './backend'
+import { usableRows, type Dataset } from './preprocess'
 import type { ColumnKind } from './preprocess'
 
 /**
@@ -270,4 +271,30 @@ export function algorithmsLosingMeaning(
       const algorithm = known.get(id)
       return algorithm !== undefined && !algorithm.taskTypes.includes(taskType)
     })
+}
+
+export type RowUsage = {
+  readonly total: number
+  readonly usable: number
+  readonly dropped: number
+}
+
+/**
+ * 올린 행 중 몇 행을 실제로 쓰는지. **빠진 행이 0이면 null이다** - 할 말이 없을 때
+ * 굳이 하지 않는다
+ * (open-decisions.md "몇 행으로 학습하고 몇 행으로 채점하는지 말한다").
+ *
+ * **학습 데이터와 평가 데이터가 같은 함수를 본다.** `usableRows` 하나이므로 두 화면이
+ * 어긋나지 않는다 - 따로 세면 반드시 어긋난다.
+ */
+export function rowUsage(
+  dataset: Dataset | null,
+  features: readonly string[],
+  target: string | undefined,
+  missing: Preprocessing['missing'],
+): RowUsage | null {
+  if (!dataset || target === undefined) return null
+  const usable = usableRows(dataset, features, target, missing)
+  const dropped = dataset.rows.length - usable.length
+  return dropped > 0 ? { total: dataset.rows.length, usable: usable.length, dropped } : null
 }

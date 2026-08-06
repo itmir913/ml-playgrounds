@@ -14,11 +14,13 @@ import { describe, expect, it } from 'vitest'
 import type { ColumnSummary } from '../src/data/columns'
 import { ALGORITHMS, algorithmOptions } from '../src/ml/algorithms'
 import type { RuntimeContext } from '../src/ml/backend'
+import type { Dataset } from '../src/ml/preprocess'
 import {
   algorithmsLosingMeaning,
   columnPlan,
   modelAxes,
   requiredTargetKind,
+  rowUsage,
   type AxisChoice,
 } from '../src/ml/selection'
 import type { Preprocessing } from '../src/project/schema'
@@ -283,5 +285,41 @@ describe('세 축이 서로를 좁힌다', () => {
       expect(card?.enabled).toBe(result.blocked === null)
       if (!card?.enabled) expect(result.blocked).toBe(card?.reason)
     }
+  })
+})
+
+describe('올린 행 중 몇 행을 쓰는지', () => {
+  const dataset = (rows: string[][]): Dataset => ({ columns: ['키', '반'], rows })
+
+  it('빠진 행이 없으면 null이다 - 할 말이 없을 때 굳이 하지 않는다', () => {
+    const clean = dataset([
+      ['170', 'A'],
+      ['180', 'B'],
+    ])
+    expect(rowUsage(clean, ['키'], '반', 'mean')).toBeNull()
+  })
+
+  it('타깃이 빈 행은 결측 전략과 무관하게 빠진다', () => {
+    const holed = dataset([
+      ['170', 'A'],
+      ['180', ''],
+    ])
+    expect(rowUsage(holed, ['키'], '반', 'mean')).toEqual({ total: 2, usable: 1, dropped: 1 })
+  })
+
+  it('drop 전략이면 특성이 빈 행도 빠진다', () => {
+    const holed = dataset([
+      ['170', 'A'],
+      ['', 'B'],
+    ])
+    expect(rowUsage(holed, ['키'], '반', 'drop')).toEqual({ total: 2, usable: 1, dropped: 1 })
+    // mean이면 채워서 쓰므로 안 빠진다 - usableRows가 특성 결측을 drop에서만 본다.
+    expect(rowUsage(holed, ['키'], '반', 'mean')).toBeNull()
+  })
+
+  it('데이터가 없거나 타깃이 안 정해졌으면 null이다', () => {
+    const clean = dataset([['170', 'A']])
+    expect(rowUsage(null, ['키'], '반', 'mean')).toBeNull()
+    expect(rowUsage(clean, ['키'], undefined, 'mean')).toBeNull()
   })
 })

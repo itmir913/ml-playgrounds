@@ -128,7 +128,12 @@ export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
       return {
         preprocessor,
         trainFeatures: transform(preprocessor, dataset, settings.trainIndices, categoricalEncoding),
-        testFeatures: transform(preprocessor, testSource, settings.testIndices, categoricalEncoding),
+        testFeatures: transform(
+          preprocessor,
+          testSource,
+          settings.testIndices,
+          categoricalEncoding,
+        ),
         trainTarget: targetValues(dataset, settings.trainIndices, target),
         testTarget: targetValues(testSource, settings.testIndices, target),
       }

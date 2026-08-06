@@ -106,7 +106,7 @@ const LABELS: Readonly<Record<string, { readonly labelKey: string; readonly desc
       labelKey: 'preprocess.encoding',
       describe: vocabulary('categoricalEncoding'),
     },
-    'split.method': { labelKey: 'preprocess.splitTitle', describe: vocabulary('splitMethod') },
+    'split.method': { labelKey: 'preprocess.testDataTitle', describe: vocabulary('splitMethod') },
     'split.testSize': { labelKey: 'preprocess.testSize', describe: literal },
     'split.stratify': { labelKey: 'preprocess.stratify', describe: onOff },
     'split.randomState': { labelKey: 'preprocess.randomState', describe: literal },

@@ -112,7 +112,7 @@ describe('바뀐 값을 전후로 보여준다', () => {
     })
     const method = changes.find((change) => change.path === 'split.method')
 
-    expect(method?.labelKey).toBe('preprocess.splitTitle')
+    expect(method?.labelKey).toBe('preprocess.testDataTitle')
     expect(method?.to).toEqual({ kind: 'locale', key: 'splitMethod.provided' })
   })
 })

@@ -21,7 +21,12 @@ import {
 } from '../src/data/columns'
 import { isClientError } from '../src/errors'
 import { hashBytes } from '../src/hash'
-import { applyDataset, applyTestDataset, readTestDataset, removeTestDataset } from '../src/project/dataset'
+import {
+  applyDataset,
+  applyTestDataset,
+  readTestDataset,
+  removeTestDataset,
+} from '../src/project/dataset'
 import { TABULAR_DATASET_PATH, TEST_DATASET_PATH, type ProjectFile } from '../src/project/format'
 import { experiment, emptyProjectFile, projectFile, run } from './fixtures/project'
 

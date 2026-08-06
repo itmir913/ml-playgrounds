@@ -206,11 +206,9 @@ describe('평가 데이터가 파일로 온 분할', () => {
   const provided = { method: 'provided', testSize: 0.2, stratify: true, randomState: 42 } as const
 
   it('trainIndices는 학습 데이터 전부, testIndices는 평가 데이터 전부다', () => {
-    const { trainIndices, testIndices } = splitRows(
-      { rows: [0, 1, 2, 3] },
-      provided,
-      { rows: [0, 1, 2] },
-    )
+    const { trainIndices, testIndices } = splitRows({ rows: [0, 1, 2, 3] }, provided, {
+      rows: [0, 1, 2],
+    })
     expect(trainIndices).toEqual([0, 1, 2, 3])
     expect(testIndices).toEqual([0, 1, 2])
   })
