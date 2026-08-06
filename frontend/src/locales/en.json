@@ -484,7 +484,7 @@
     "run": "Predict",
     "clear": "Clear",
     "answerTitle": "What the models say",
-    "answerLead": "The same values go to every model at once. Different answers are normal.",
+    "answerLead": "The test data is fed into every trained model. Predictions can differ from model to model, and that is normal.",
     "waiting": "Fill the boxes and press [Predict] to see the answers here.",
     "modelName": "{algorithm} · {runtime}",
     "unusable": "This model cannot be used right now.",

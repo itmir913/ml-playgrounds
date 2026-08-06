@@ -484,7 +484,7 @@
     "run": "예측",
     "clear": "비우기",
     "answerTitle": "모델들의 답",
-    "answerLead": "같은 값을 모든 모델에 동시에 넣습니다. 답이 갈리는 것이 정상입니다.",
+    "answerLead": "평가 데이터(Test Data)를 학습한 모든 모델에 입력합니다. 모델마다 예측한 값이 갈릴 수 있으며 이는 정상입니다.",
     "waiting": "값을 채우고 [예측]을 누르면 여기에 답이 나옵니다.",
     "modelName": "{algorithm} · {runtime}",
     "unusable": "이 모델은 지금 쓸 수 없습니다.",
