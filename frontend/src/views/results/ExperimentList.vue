@@ -44,40 +44,43 @@ const rows = computed(() =>
 </script>
 
 <template>
-  <ul class="flex flex-col gap-2">
-    <li v-for="row in rows" :key="row.experiment.id">
-      <!--
-        **줄 전체가 누를 자리다.** 학생이 노리는 것은 줄이지 그 안의 글자가 아니다.
-        테두리는 늘 있고 색만 바뀐다 — 고른 줄에만 테두리를 주면 목록이 한 픽셀씩 움직인다.
-      -->
-      <button
-        type="button"
-        class="flex w-full flex-col gap-1 rounded-panel border p-3 text-left transition-colors"
-        :class="
-          props.selected === row.experiment.id
-            ? 'border-brand bg-brand-soft'
-            : 'border-line bg-surface hover:bg-surface-sunken'
-        "
-        :aria-pressed="props.selected === row.experiment.id"
-        @click="emit('pick', row.experiment.id)"
-      >
-        <span class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span class="font-bold">{{ t('results.experimentName', { index: row.index }) }}</span>
-          <span class="text-ink-faint">{{ format.dateTime(row.experiment.startedAt) }}</span>
-        </span>
-
+  <div class="flex flex-col gap-1.5">
+    <h3 class="font-bold text-ink-soft">{{ t('results.experimentTitle') }}</h3>
+    <ul class="flex flex-col gap-2">
+      <li v-for="row in rows" :key="row.experiment.id">
         <!--
-          **점수가 없는 실험도 있다** — 모델이 전부 실패한 경우다. 그때 0을 보이면
-          정확도 0%로 학습된 것처럼 읽히므로 아예 숫자를 안 낸다.
+          **줄 전체가 누를 자리다.** 학생이 노리는 것은 줄이지 그 안의 글자가 아니다.
+          테두리는 늘 있고 색만 바뀐다 — 고른 줄에만 테두리를 주면 목록이 한 픽셀씩 움직인다.
         -->
-        <span v-if="row.headline" class="flex items-baseline gap-2">
-          <span class="text-ink-soft">{{ t(`metrics.${row.headline.display.name}`) }}</span>
-          <span class="font-bold tabular-nums">
-            {{ format.metric(row.headline.value, row.headline.display.format) }}
+        <button
+          type="button"
+          class="flex w-full flex-col gap-1 rounded-panel border p-3 text-left transition-colors"
+          :class="
+            props.selected === row.experiment.id
+              ? 'border-brand bg-brand-soft'
+              : 'border-line bg-surface hover:bg-surface-sunken'
+          "
+          :aria-pressed="props.selected === row.experiment.id"
+          @click="emit('pick', row.experiment.id)"
+        >
+          <span class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span class="font-bold">{{ t('results.experimentName', { index: row.index }) }}</span>
+            <span class="text-ink-faint">{{ format.dateTime(row.experiment.startedAt) }}</span>
           </span>
-        </span>
-        <span v-else class="text-ink-faint">{{ t('results.noSuccess') }}</span>
-      </button>
-    </li>
-  </ul>
+
+          <!--
+            **점수가 없는 실험도 있다** — 모델이 전부 실패한 경우다. 그때 0을 보이면
+            정확도 0%로 학습된 것처럼 읽히므로 아예 숫자를 안 낸다.
+          -->
+          <span v-if="row.headline" class="flex items-baseline gap-2">
+            <span class="text-ink-soft">{{ t(`metrics.${row.headline.display.name}`) }}</span>
+            <span class="font-bold tabular-nums">
+              {{ format.metric(row.headline.value, row.headline.display.format) }}
+            </span>
+          </span>
+          <span v-else class="text-ink-faint">{{ t('results.noSuccess') }}</span>
+        </button>
+      </li>
+    </ul>
+  </div>
 </template>

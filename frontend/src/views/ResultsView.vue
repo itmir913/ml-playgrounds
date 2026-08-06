@@ -81,6 +81,7 @@ const previous = computed(() => (index.value > 0 ? experiments.value[index.value
         <ExperimentDetail
           v-if="current"
           :experiment="current"
+          :order="index + 1"
           :previous="previous"
           :data-type="dataType"
         />

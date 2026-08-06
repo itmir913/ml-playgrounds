@@ -23,6 +23,8 @@ import RunDetail from './RunDetail.vue'
 
 const props = defineProps<{
   experiment: Experiment
+  /** 몇 번째 학습인지. 파일 순서에서 매긴다 (`results/ExperimentList.vue`와 같은 번호). */
+  order: number
   /** 파일에서 이 실험 바로 앞의 것. 첫 실험이면 없다. */
   previous: Experiment | undefined
   /**
@@ -120,6 +122,10 @@ function failureDetailOf(run: Run): string | null {
 
 <template>
   <div class="flex flex-col gap-5">
+    <h3 class="font-bold text-ink-soft">
+      {{ t('results.experimentName', { index: props.order }) }}
+    </h3>
+
     <!-- 바뀐 것. 첫 실험에는 직전이 없고, 아무것도 안 바꾼 재학습도 있다. -->
     <section class="flex flex-col gap-1.5">
       <h3 class="font-bold text-ink-soft">{{ t('results.changeTitle') }}</h3>
