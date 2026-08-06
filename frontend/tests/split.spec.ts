@@ -230,3 +230,49 @@ describe('안 나누는 분할', () => {
     expect(trainIndices.filter((index) => testIndices.includes(index))).toEqual([])
   })
 })
+
+describe('파일로 받은 분할', () => {
+  /**
+   * **학습용과 평가용 파일이 따로 올라온 경우다**
+   * (open-decisions.md "학습용과 평가용 파일이 따로일 수 있다").
+   *
+   * 난수도 비율도 층화도 안 쓴다. `usableRows`를 경계로 가르기만 한다.
+   */
+  const provided = { method: 'provided', testSize: 0.2, stratify: true, randomState: 42 } as const
+
+  it('경계 앞은 학습, 뒤는 평가다', () => {
+    const { trainIndices, testIndices } = splitRows(
+      { rows: [0, 1, 2, 3, 4], testRowsFrom: 3 },
+      provided,
+    )
+    expect(trainIndices).toEqual([0, 1, 2])
+    expect(testIndices).toEqual([3, 4])
+  })
+
+  it('결측으로 버려진 행은 양쪽에서 함께 빠진다 - 그래서 경계를 따로 들고 있어야 한다', () => {
+    // 1번과 4번이 usableRows에서 빠진 상태. 결과가 [0..n-1]이 아니므로 스냅샷만으로는
+    // 경계를 되짚을 수 없다.
+    const { trainIndices, testIndices } = splitRows(
+      { rows: [0, 2, 3, 5], testRowsFrom: 3 },
+      provided,
+    )
+    expect(trainIndices).toEqual([0, 2])
+    expect(testIndices).toEqual([3, 5])
+  })
+
+  it('난수도 비율도 층화도 안 본다', () => {
+    const other = { ...provided, stratify: false, testSize: 0.5, randomState: 999 } as const
+    expect(splitRows({ rows: [0, 1, 2, 3], testRowsFrom: 2 }, other)).toEqual(
+      splitRows({ rows: [0, 1, 2, 3], testRowsFrom: 2 }, provided),
+    )
+  })
+
+  it('한쪽이 비면 시끄럽게 실패한다 - 조용히 넘어가면 학습 데이터로 채점된다', () => {
+    expect(() => splitRows({ rows: [3, 4], testRowsFrom: 3 }, provided)).toThrow()
+    expect(() => splitRows({ rows: [0, 1], testRowsFrom: 3 }, provided)).toThrow()
+  })
+
+  it('경계가 없으면 시끄럽게 실패한다 - 남이 편집한 파일에서 올 수 있다', () => {
+    expect(() => splitRows({ rows: [0, 1, 2] }, provided)).toThrow()
+  })
+})
