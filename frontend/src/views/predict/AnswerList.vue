@@ -61,6 +61,18 @@ const rankedTally = computed(() => {
   return [...tally.value].sort((a, b) => (map.get(a.value) ?? 0) - (map.get(b.value) ?? 0))
 })
 
+/** 한 번 섞은 새 배열. 제자리에서 안 바꾼다 - 원본을 공유하는 곳이 있으면 그쪽이 놀란다. */
+function shuffled<T>(items: readonly T[]): T[] {
+  const copy = [...items]
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const temp = copy[i]!
+    copy[i] = copy[j]!
+    copy[j] = temp
+  }
+  return copy
+}
+
 /**
  * 값마다 다른 색. **7개까지만 있다.** 값 종류가 이보다 늘면 8등부터는 전부 같은
  * 회색이다 - 갈림표는 "값별로 다른 색"이 필요하지 "무한히 다른 색"이 필요하지 않고,
@@ -69,8 +81,15 @@ const rankedTally = computed(() => {
  * **문자열을 통째로 적는다.** `` `border-chart-${n}` `` 처럼 이어 붙이면 Tailwind가
  * 소스에서 클래스 이름을 못 찾아 그 색이 빌드에서 통째로 빠진다 - CLAUDE.md §4가 임의
  * 값을 막는 것과 같은 이유로, 만들어 붙인 이름도 안 된다.
+ *
+ * **등수와 색의 대응은 뜬다(mount) 때마다 한 번 섞는다.** 색은 순위표가 아니라
+ * "같은 값이면 같은 색"만 보장하면 되므로, 1등이 매번 chart-1로 고정될 이유가 없다.
+ * 고정하면 분류가 대개 두세 갈래라 chart-1·2만 늘 쓰이고 나머지 다섯은 안 쓰인
+ * 채로 남는다. **답이 갱신되는 동안에는 다시 안 섞는다** - [예측]을 다시 누를 때마다
+ * 색이 바뀌면 방금 보던 카드를 못 찾는다. 그래서 반응형 값이 아니라 이 컴포넌트가
+ * 뜰 때 한 번만 계산해 상수처럼 쓴다.
  */
-const CHART_CLASSES = [
+const CHART_CLASSES = shuffled([
   'border-chart-1 bg-chart-1-soft',
   'border-chart-2 bg-chart-2-soft',
   'border-chart-3 bg-chart-3-soft',
@@ -78,7 +97,7 @@ const CHART_CLASSES = [
   'border-chart-5 bg-chart-5-soft',
   'border-chart-6 bg-chart-6-soft',
   'border-chart-7 bg-chart-7-soft',
-] as const
+])
 
 /**
  * 카드 테두리·배경. `null`은 갈리지 않았거나(값이 하나뿐) 회귀 모델이다 - 이때는
