@@ -45,7 +45,7 @@ import { resolveWith, type HyperparameterSpec } from '../hyperparams'
 import type { Prediction } from '../metrics'
 import type { ModelFile, Predict } from '../models/types'
 import { MLJS_PARAMETERS } from './mljs-params'
-import { serializeForest, serializeTree } from './mljs-serialize'
+import { serializeForest, serializeLogistic, serializeTree } from './mljs-serialize'
 
 /**
  * 이 엔진의 이름과 버전. run.engine에 그대로 들어간다.
@@ -385,16 +385,22 @@ const TRAINERS: Record<string, Trainer> = {
   },
 
   logistic_regression: (input) => {
-    const { encoded, decode } = labelCodec(input.target)
+    const { encoded, labels, decode } = labelCodec(input.target)
     const model = new LogisticRegression({
       numSteps: numberOption(input.hyperparameters, 'numSteps'),
       learningRate: numberOption(input.hyperparameters, 'learningRate'),
     })
     model.train(new Matrix(toRows(input.features)), Matrix.columnVector(encoded))
-    return {
-      predict: (features) =>
-        [...model.predict(new Matrix(toRows(features)))].map((value) => decode(Math.round(value))),
-    }
+
+    const predict: Predict = (features) =>
+      [...model.predict(new Matrix(toRows(features)))].map((value) => decode(Math.round(value)))
+
+    const featureCount = input.features[0]?.length ?? 0
+    const attempted = serializeOrOmit(() => serializeLogistic(model, labels, featureCount))
+    if (attempted.model) return { predict, model: attempted.model }
+    return attempted.detail === undefined
+      ? { predict }
+      : { predict, modelOmittedDetail: attempted.detail }
   },
 
   linear_regression: (input) => {

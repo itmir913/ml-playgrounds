@@ -12,9 +12,12 @@
 import { z } from 'zod'
 
 import { ClientError } from '../../errors'
+import { LINEAR_FORMAT, loadLinearModel } from './linear'
 import { TREE_FORMAT, loadTreeModel } from './tree'
 import type { LoadContext, ModelInterpreter, Predict } from './types'
 
+export { LINEAR_FORMAT } from './linear'
+export type { LinearModel } from './linear'
 export { TREE_FORMAT } from './tree'
 export type { TreeModel, TreeNode } from './tree'
 export type { LoadContext, ModelFile, ModelInterpreter, Predict } from './types'
@@ -25,6 +28,12 @@ const INTERPRETERS: readonly ModelInterpreter[] = [
     includesPreprocessing: false,
     needsTrainingRows: false,
     load: loadTreeModel,
+  },
+  {
+    format: LINEAR_FORMAT,
+    includesPreprocessing: false,
+    needsTrainingRows: false,
+    load: loadLinearModel,
   },
 ]
 

@@ -14,10 +14,12 @@
  */
 
 import type { DecisionTreeClassifier } from 'ml-cart'
+import type LogisticRegression from 'ml-logistic-regression'
 import { Matrix } from 'ml-matrix'
 import type { RandomForestClassifier } from 'ml-random-forest'
 import { z } from 'zod'
 
+import { LINEAR_FORMAT, type LinearModel } from '../models/linear'
 import { LEAF, TREE_FORMAT, type TreeModel, type TreeNode } from '../models/tree'
 
 /**
@@ -29,6 +31,17 @@ import { LEAF, TREE_FORMAT, type TreeModel, type TreeNode } from '../models/tree
  */
 function drift(what: string): never {
   throw new Error(`mljs model shape changed: ${what}`)
+}
+
+/**
+ * `toJSON()`을 부른다. **라이브러리 타입 선언에 이 메서드가 없다** - 실제로는 있고
+ * 공개 API인데 `.d.ts`가 빠뜨렸다. 단언으로 통과시키지 않고 있는지 재고 없으면 드리프트로
+ * 다룬다 - 이 파일이 지키는 규칙이 그것이다.
+ */
+function toJSONOf(value: object): unknown {
+  const method = (value as { toJSON?: unknown }).toJSON
+  if (typeof method !== 'function') drift('toJSON')
+  return (method as () => unknown).call(value)
 }
 
 /**
@@ -55,6 +68,11 @@ function numberOf(value: unknown, what: string): number {
 }
 
 const rootedSchema = z.looseObject({ root: z.unknown() })
+
+/** 로지스틱 회귀의 `toJSON()`. 우리가 읽는 것은 판별기별 가중치 한 줄뿐이다. */
+const logisticSchema = z.looseObject({
+  classifiers: z.array(z.looseObject({ weights: z.array(z.array(z.number())) })).min(1),
+})
 
 /** 분류기 하나에서 뿌리 노드를 꺼낸다. `toJSON()`은 공개 API라 입구로 쓴다. */
 function rootOf(value: unknown, what: string): unknown {
@@ -192,4 +210,37 @@ export function serializeForest(
   })
 
   return model(classes, featureCount, trees)
+}
+
+/**
+ * 로지스틱 회귀의 가중치를 꺼낸다 (mlpx-spec.md 5.4).
+ *
+ * **`toJSON()`이 Matrix 인스턴스를 그대로 담는다.** JSON으로 한 번 왕복시키지 않으면
+ * `weights[0]`이 `undefined`라, 확인 없이 읽으면 빈 가중치로 조용히 넘어간다.
+ * 그래서 여기서도 모양을 전부 확인한다.
+ *
+ * **클래스마다 한 줄이고 라이브러리가 그 순서를 우리 라벨 번호와 맞춰 만든다** -
+ * `classifiers[i]`가 "i번 클래스인가"를 재는 판별기다(대상이 0, 나머지가 1이다).
+ */
+export function serializeLogistic(
+  classifier: LogisticRegression,
+  classes: readonly string[],
+  featureCount: number,
+): LinearModel {
+  const parsed = logisticSchema.safeParse(JSON.parse(JSON.stringify(toJSONOf(classifier))))
+  if (!parsed.success) drift('logistic')
+
+  const { classifiers } = parsed.data
+  // 판별기 수가 클래스 수와 다르면 어느 줄이 어느 클래스인지 알 수 없다.
+  if (classifiers.length !== classes.length) drift('logistic classes')
+
+  const weights = classifiers.map((one) => {
+    const row = one.weights[0]
+    if (row === undefined || one.weights.length !== 1) drift('logistic weights')
+    if (row.length !== featureCount) drift('logistic featureCount')
+    for (const value of row) numberOf(value, 'logistic weight')
+    return [...row]
+  })
+
+  return { format: LINEAR_FORMAT, classes: [...classes], featureCount, weights }
 }

@@ -15,10 +15,12 @@ import { isClientError, type ClientErrorCode } from '../src/errors'
 import { MAX_MODEL_BYTES } from '../src/limits'
 import { fit } from '../src/ml/engines/mljs'
 import {
+  LINEAR_FORMAT,
   TREE_FORMAT,
   assertContext,
   interpreterFor,
   loadModel,
+  type LinearModel,
   type ModelInterpreter,
   type TreeModel,
   type TreeNode,
@@ -215,5 +217,74 @@ describe('학습 행이 필요한 형식', () => {
     const interpreter = interpreterFor(TREE_FORMAT)
     expect(interpreter).toBeDefined()
     if (interpreter) expect(() => assertContext(interpreter, {})).not.toThrow()
+  })
+})
+
+/**
+ * `mlpx-linear-v1` (mlpx-spec.md §5.4).
+ *
+ * **이 형식의 요구는 하나다 — 저장했다가 다시 읽은 모델의 예측이 원본과 하나도 다르지
+ * 않아야 한다.** 지표만 대조하면 어긋난 예측이 상쇄로 가려진다. 그리고 여기는 특히
+ * 위험하다 — 예측이 `argmin`이라 부호 하나를 뒤집으면 **에러 없이 정확히 반대인 답**이
+ * 나온다.
+ */
+describe('mlpx-linear-v1', () => {
+  const trained = train('logistic_regression')
+
+  it('로지스틱 회귀가 우리 형식으로 담긴다', () => {
+    expect(trained.model?.format).toBe(LINEAR_FORMAT)
+    expect(trained.modelOmittedDetail).toBeUndefined()
+  })
+
+  it('읽은 모델의 예측이 원본과 한 줄도 다르지 않다', () => {
+    const restored = loadModel(JSON.parse(JSON.stringify(trained.model)))
+    expect(restored(IRIS_FEATURES)).toEqual(trained.predict(IRIS_FEATURES))
+  })
+
+  it('클래스마다 한 줄이고 줄 길이가 특성 수다 - 절편은 없다', () => {
+    const model = trained.model as LinearModel
+    expect(model.weights).toHaveLength(model.classes.length)
+    for (const row of model.weights) expect(row).toHaveLength(model.featureCount)
+    expect(model.featureCount).toBe(IRIS_FEATURES[0]?.length)
+  })
+
+  it('점수가 낮은 클래스가 이긴다 - 뒤집으면 정확히 반대 답이 나온다', () => {
+    // 0번 클래스에만 큰 음수 점수를 주는 가중치. argmin이면 0번, argmax면 마지막이다.
+    const model = loadModel({
+      format: LINEAR_FORMAT,
+      classes: ['a', 'b', 'c'],
+      featureCount: 1,
+      weights: [[-10], [0], [10]],
+    })
+    expect(model([[1]])).toEqual(['a'])
+  })
+
+  it('동점이면 번호가 작은 클래스가 이긴다 - 포화에서 실제로 갈린다', () => {
+    // 시그모이드가 전부 정확히 1.0으로 포화한다. 라이브러리가 엄격한 `<`로 갱신한다.
+    const model = loadModel({
+      format: LINEAR_FORMAT,
+      classes: ['a', 'b'],
+      featureCount: 1,
+      weights: [[1000], [1000]],
+    })
+    expect(model([[1]])).toEqual(['a'])
+  })
+
+  it('줄 수가 클래스 수와 다르면 거부한다', () => {
+    expectCode(
+      () =>
+        loadModel({ format: LINEAR_FORMAT, classes: ['a', 'b'], featureCount: 1, weights: [[1]] }),
+      'MODEL_FILE_INVALID',
+    )
+  })
+
+  it('특성 개수가 다른 입력은 거부한다 - 맞춰 읽으면 다른 열로 예측한다', () => {
+    const model = loadModel({
+      format: LINEAR_FORMAT,
+      classes: ['a'],
+      featureCount: 2,
+      weights: [[1, 1]],
+    })
+    expectCode(() => model([[1]]), 'MODEL_FILE_INVALID')
   })
 })
