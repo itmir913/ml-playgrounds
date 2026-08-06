@@ -242,7 +242,18 @@ function run(): void {
     </div>
 
     <div v-else class="flex min-h-96 flex-1 flex-col gap-5 md:flex-row">
-      <div class="min-h-0 min-w-0 flex-1 overflow-y-auto md:max-w-lg">
+      <!--
+        **붙박이다** (architecture.md §8.13.1 "왼쪽은 붙박이다"). 오른쪽 답 목록은
+        실험이 쌓일수록 길어지는데 왼쪽 입력은 짧다 — 붙박이가 아니면 답을 보려고
+        내려 스크롤하는 순간 값을 바꿀 입력이 화면 밖으로 사라진다.
+
+        `self-start`가 필요하다 - 안 주면 flex 기본값(`stretch`)이 이 칸을 오른쪽
+        칸만큼 늘려서, sticky가 붙을 상단 여백이 칸 안쪽에 생기는 대신 칸 자체가
+        아래로 늘어난다. `sticky`는 `md`부터라 그 폭에서는 이미 `sm` 패딩(`p-5`,
+        1.25rem)이 적용 중이다 - `top-5`로 맞춰서 붙었을 때도 화면 끝에 딱 붙지
+        않고 그 여백을 유지한다.
+      -->
+      <div class="min-w-0 flex-1 self-start md:sticky md:top-5 md:max-w-lg">
         <InputRow
           :fields="fields"
           :values="values"
