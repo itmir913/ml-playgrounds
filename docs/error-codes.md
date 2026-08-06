@@ -130,6 +130,16 @@ MODEL_FORMAT_UNSUPPORTED, MODEL_FILE_INVALID, MODEL_NEEDS_DATASET, STORAGE_QUOTA
 이유는 학생이 할 일이 다르기 때문이다 — 앱을 최신으로 바꾼다 / 다시 학습한다 /
 데이터를 가진 파일로 다시 연다 (`mlpx-spec.md` §5.0, §5.2).
 
+**예측 입력** (`ml/predict.ts`)
+```
+PREDICTION_INPUT_INCOMPLETE
+```
+
+채우지 않은 칸이 있는 채로 [예측]을 눌렀다. **전처리기의 대체값으로 조용히 채우지
+않는다** — 학생은 자기가 넣은 값으로 예측했다고 믿는데 실제로는 학습셋의 평균이 들어간다.
+결측 전략 `none`을 시끄럽게 거부하는 것과 같은 판단이다. 예측은 언제나 브라우저에서만
+하므로(`mlpx-spec.md` §0.2) 서버에는 이 코드가 없다.
+
 **마지막 그물**
 ```
 UNEXPECTED_ERROR
