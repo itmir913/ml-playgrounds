@@ -28,7 +28,7 @@ import { useFormat } from '@/composables/useFormat'
 import { useRadioGroupGuard } from '@/composables/useRadioGroupGuard'
 import { dataKindFor } from '@/data/kinds'
 import { importTable, openTable, type TableDocument } from '@/data/table'
-import { rowUsage, stratifyBlock } from '@/ml/selection'
+import { rowUsage, stratifyBlock, stratifyLocked } from '@/ml/selection'
 import { newRandomState } from '@/project/create'
 import {
   applyTestDataset,
@@ -96,11 +96,25 @@ function onTestSize(event: Event): void {
   apply(withSplit(file.document, { testSize }, now()))
 }
 
+/**
+ * 층화를 켜고 끈다. **DOM과 파일이 갈리지 않게 끝에 되돌린다** (architecture.md §8.15.1).
+ *
+ * `:checked`는 `v-model`이 아니라, 계산값이 안 바뀌면 Vue가 DOM 프로퍼티를 다시 안 쓴다.
+ * 그런데 브라우저는 클릭한 순간 이미 `checked`를 뒤집어 둔 뒤다. 그래서 여기서 파일을
+ * 못 고치면(파일이 없다) **화면은 꺼진 것처럼 보이는데 파일은 켜져 있는** 상태로 남고,
+ * 잠금 판정은 파일을 보므로 **입력이 회색이 된 뒤에는 학생이 고칠 문이 없다.**
+ *
+ * 그래서 둘을 지킨다 - **의도는 파일에서 뒤집고**(브라우저가 바꿔 둔 `checked`는 우리가
+ * 만든 결과가 아니다), **끝에 DOM을 파일 값으로 다시 쓴다**(정상 경로에서는 이미 같아서
+ * 아무 일도 아니다).
+ */
 function onStratify(event: Event): void {
+  const input = event.target as HTMLInputElement
   const file = project.file
-  if (!file) return
-  const stratify = (event.target as HTMLInputElement).checked
-  apply(withSplit(file.document, { stratify }, now()))
+  if (file) {
+    apply(withSplit(file.document, { stratify: !file.document.settings.split.stratify }, now()))
+  }
+  input.checked = project.file?.document.settings.split.stratify ?? false
 }
 
 /**
@@ -108,28 +122,26 @@ function onStratify(event: Event): void {
  *
  * 학습이 보는 것과 같은 함수라 "화면은 멀쩡한데 [학습]이 거부한다"가 생기지 않는다.
  */
-const stratifyReason = computed(() => {
+const stratifyBlockNow = computed(() => {
   const current = settings.value
   if (!current) return null
-  const block = stratifyBlock({
+  return stratifyBlock({
     dataset: dataset.value,
     taskType: project.taskType,
     target: current.target,
     features: current.features,
     preprocessing: current.preprocessing,
   })
+})
+
+const stratifyReason = computed(() => {
+  const block = stratifyBlockNow.value
   return block === null ? null : t(`client.${block.code}`, block.params ?? {})
 })
 
-/**
- * **잠그는 조건은 "뜻이 없다"가 아니라 "뜻이 없는데 꺼져 있다"다.**
- *
- * 켜진 채로 잠그면 학생은 이유를 읽고도 끌 수 없고 학습은 계속 거부한다 - 함정이다.
- * 기본값이 켜짐이라 그 상태가 실재한다
- * (open-decisions.md "층화는 갈리는 값에서만 뜻이 있다").
- */
-const stratifyLocked = computed(
-  () => stratifyReason.value !== null && settings.value?.split.stratify === false,
+/** 잠금 규칙은 화면 밖에 있다 (`ml/selection.ts`의 `stratifyLocked` - 왜 그런지도 거기 있다). */
+const stratifyDisabled = computed(() =>
+  stratifyLocked(stratifyBlockNow.value, settings.value?.split.stratify ?? false),
 )
 
 const experimentCount = computed(() => project.file?.document.runs.experiments.length ?? 0)
@@ -374,7 +386,7 @@ function reseed(): void {
                     type="checkbox"
                     class="size-4 accent-brand"
                     :checked="settings.split.stratify"
-                    :disabled="stratifyLocked"
+                    :disabled="stratifyDisabled"
                     @change="onStratify"
                   />
                   <span class="font-bold">{{ t('preprocess.stratify') }}</span>

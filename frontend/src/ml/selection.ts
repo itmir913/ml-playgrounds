@@ -330,6 +330,24 @@ function lonelyValues(values: readonly string[]): { labels: string[]; kinds: num
   }
 }
 
+/**
+ * 층화 체크박스를 잠글 것인가.
+ *
+ * **켜져 있으면 절대 잠그지 않는다. 이 한 조건이 이 함수가 있는 이유다.**
+ *
+ * 파일에 `stratify: true`로 적힌 채 뜻을 잃은 상태가 실재한다 - 기본값이 켜짐이기 때문이다
+ * (`project/create.ts`). 그 상태에서 잠그면 **학생은 이유를 읽고도 끌 수 없고, 학습은 계속
+ * 거부한다.** 화면에서 빠져나갈 문이 없는 영구 차단이고, 파일을 손으로 고치는 것 말고는
+ * 방법이 없다. 꺼져 있을 때 잠그는 것은 아무것도 막지 않는다 - 이미 학습이 도는 상태다.
+ *
+ * **화면의 computed로 두지 않고 여기 둔 이유가 그것이다.** `block !== null`로 "단순화"하면
+ * 그 영구 차단이 되살아나는데 화면 코드만으로는 아무도 그걸 못 잡는다
+ * (tests/selection.spec.ts가 이 함수를 지킨다).
+ */
+export function stratifyLocked(block: StratifyBlock | null, stratify: boolean): boolean {
+  return block !== null && !stratify
+}
+
 export interface StratifyInput {
   readonly dataset: Dataset | null
   /** 아직 안 골랐으면 없다. 그때는 유형으로 좁히지 않는다. */

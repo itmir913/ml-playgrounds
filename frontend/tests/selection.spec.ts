@@ -22,6 +22,7 @@ import {
   requiredTargetKind,
   rowUsage,
   stratifyBlock,
+  stratifyLocked,
   type AxisChoice,
 } from '../src/ml/selection'
 import type { Preprocessing } from '../src/project/schema'
@@ -353,6 +354,26 @@ describe('층화를 걸 수 있는가', () => {
   it('데이터나 타깃이 없으면 할 말이 없다', () => {
     expect(blockFor({ dataset: null })).toBeNull()
     expect(blockFor({ target: undefined })).toBeNull()
+  })
+})
+
+describe('층화 체크박스를 잠그는 조건', () => {
+  const block = { code: 'STRATIFY_NOT_FOR_TASK_TYPE' } as const
+
+  it('켜진 채로는 절대 잠기지 않는다 - 영구 차단을 막는 조건이다', () => {
+    // **이 한 줄이 이 describe의 이유다.** 파일에 true로 적힌 채 뜻을 잃은 상태는
+    // 기본값이 켜짐이라 실재한다. 여기서 잠그면 학생은 이유를 읽고도 끌 수 없고,
+    // 학습은 계속 거부한다 - 화면에서 빠져나갈 문이 없다.
+    expect(stratifyLocked(block, true)).toBe(false)
+  })
+
+  it('꺼져 있고 뜻이 없으면 잠근다 - 켤 수 없는 것을 켜게 두지 않는다', () => {
+    expect(stratifyLocked(block, false)).toBe(true)
+  })
+
+  it('걸리는 것이 없으면 꺼져 있어도 잠기지 않는다', () => {
+    expect(stratifyLocked(null, false)).toBe(false)
+    expect(stratifyLocked(null, true)).toBe(false)
   })
 })
 

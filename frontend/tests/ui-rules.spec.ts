@@ -263,6 +263,47 @@ function undividedMetaGroups(source: string): string[] {
   )
 }
 
+/**
+ * `:disabled`가 걸린 입력인데 `@change` 핸들러가 **DOM을 스키마 값으로 되돌리지 않는**
+ * 경우 (`architecture.md` §8.15.1).
+ *
+ * **DOM과 스키마가 갈리는 순간 영구 차단이 된다.** `:checked`는 `v-model`이 아니라,
+ * 계산값이 안 바뀌면 Vue가 DOM 프로퍼티를 다시 안 쓴다. 그런데 브라우저는 클릭한 순간
+ * 이미 `checked`를 뒤집어 둔 뒤다. 그래서 핸들러가 스키마를 못 고치면(파일이 없다·가드가
+ * 막았다·적용이 실패했다) 화면이 파일과 다른 값을 보여주고, **잠금 판정은 스키마를 보므로
+ * 그 상태에서 입력이 회색이 되면 학생이 고칠 문이 없다.**
+ *
+ * 되돌리기로 인정하는 모양 둘 - 핸들러가 입력에 직접 쓰거나(`.checked = `), 그 입력이
+ * `useRadioGroupGuard`에 등록돼 있는 것(`:ref="....register("`). 후자를 여기서 다시
+ * 요구하지 않는 이유는 **되돌리기가 핸들러가 아니라 취소 시점에 일어나기 때문**이고,
+ * 그 짝이 맞는지는 위 `unguardedConfirmRadios`가 이미 본다.
+ */
+function unsyncedLockedInputs(source: string): string[] {
+  const template = source.slice(source.indexOf('<template>'))
+  const script = source.slice(0, source.indexOf('<template>'))
+
+  // 되돌리기를 하는 함수 이름들. 최상위 함수의 닫는 중괄호는 Prettier가 들여쓰기 없이
+  // 새 줄에 둔다 - 그 모양만 몸통으로 본다 (unguardedConfirmRadios와 같은 방식).
+  const resyncing = new Set(
+    [...script.matchAll(/function (\w+)\([^)]*\)[^{]*\{\n([\s\S]*?)\n\}/g)]
+      .filter((match) => /\.checked\s*=|\.resync\(/.test(match[2] ?? ''))
+      .map((match) => match[1] ?? ''),
+  )
+
+  return (
+    [...template.matchAll(/<input\b[^>]*>/gs)]
+      .map((match) => match[0])
+      .filter((tag) => /:disabled=/.test(tag))
+      // 그룹째 되돌리는 라디오는 §8.15의 검사가 맡는다.
+      .filter((tag) => !/:ref="[^"]*\.register\(/.test(tag))
+      .filter((tag) => {
+        const handler = /@change="(\w+)"/.exec(tag)?.[1]
+        // 핸들러가 없으면 학생이 바꿀 수 없는 입력이라 갈릴 것도 없다.
+        return handler !== undefined && !resyncing.has(handler)
+      })
+  )
+}
+
 function vueFiles(directory: string): string[] {
   return readdirSync(directory).flatMap((entry) => {
     const path = join(directory, entry)
@@ -488,6 +529,70 @@ describe('확인 모달이 걸린 라디오는 그룹째 되돌린다', () => {
     const found = vueFiles(SRC).flatMap((path) =>
       unguardedConfirmRadios(readFileSync(path, 'utf-8')).map(
         (tag) => `${path.slice(SRC.length + 1)}  ${tag.trim()}`,
+      ),
+    )
+    expect(found).toEqual([])
+  })
+})
+
+describe('잠기는 입력은 DOM을 스키마로 되돌린다', () => {
+  const NEWLINE = String.fromCharCode(10)
+
+  it('되돌리지 않는 잠기는 입력을 잡는다', () => {
+    const source = [
+      'function onStratify(): void {',
+      '  apply(withSplit(file.document, { stratify: true }, now()))',
+      '}',
+      '<template>',
+      '<input type="checkbox" :checked="x" :disabled="locked" @change="onStratify" />',
+      '</template>',
+    ].join(NEWLINE)
+    expect(unsyncedLockedInputs(source)).toEqual([
+      '<input type="checkbox" :checked="x" :disabled="locked" @change="onStratify" />',
+    ])
+  })
+
+  it('되돌리는 핸들러는 안 잡는다', () => {
+    const source = [
+      'function onStratify(event: Event): void {',
+      '  apply(withSplit(file.document, { stratify: true }, now()))',
+      '  input.checked = settings.split.stratify',
+      '}',
+      '<template>',
+      '<input type="checkbox" :checked="x" :disabled="locked" @change="onStratify" />',
+      '</template>',
+    ].join(NEWLINE)
+    expect(unsyncedLockedInputs(source)).toEqual([])
+  })
+
+  it('라디오 그룹 가드에 등록된 입력은 안 잡는다 - 되돌리기가 취소 시점에 있다', () => {
+    const source = [
+      'function chooseProvided(): void {',
+      '  requestApplyTest()',
+      '}',
+      '<template>',
+      `<input :ref="guard.register('provided')" type="radio" :disabled="!ok" @change="chooseProvided" />`,
+      '</template>',
+    ].join(NEWLINE)
+    expect(unsyncedLockedInputs(source)).toEqual([])
+  })
+
+  it('잠기지 않는 입력은 안 잡는다 - 한 번 더 누르면 맞아진다', () => {
+    const source = [
+      'function onTestSize(): void {',
+      '  apply(withSplit(file.document, { testSize: 0.2 }, now()))',
+      '}',
+      '<template>',
+      '<input type="range" :value="size" @change="onTestSize" />',
+      '</template>',
+    ].join(NEWLINE)
+    expect(unsyncedLockedInputs(source)).toEqual([])
+  })
+
+  it('지금 소스에 안 막힌 잠기는 입력이 없다', () => {
+    const found = vueFiles(SRC).flatMap((path) =>
+      unsyncedLockedInputs(readFileSync(path, 'utf-8')).map(
+        (tag) => `${path.slice(SRC.length + 1)}  ${tag.replace(/\s+/g, ' ').trim()}`,
       ),
     )
     expect(found).toEqual([])
