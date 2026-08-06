@@ -21,8 +21,8 @@ import {
   majorityAnswer,
   mergeFields,
   inputVector,
-  nextSampleRow,
   numericRanges,
+  sampleRow,
   predictableModels,
   tallyClassificationAnswers,
   trainingRowsFor,
@@ -331,31 +331,66 @@ describe('칸 서술', () => {
 })
 
 describe('표에서 한 줄 가져오기', () => {
-  it('평가에 쓴 행을 준다 - 학습한 행을 다시 맞히는 장면은 아무것도 안 가르친다', () => {
-    const subject = experiment([0, 1, 3], onehot, { testIndices: [2, 4] })
-    const sample = nextSampleRow(subject, inputFields(fitFor(subject)), dataset)
+  /** 뽑을 후보 중 `position`번째를 고르는 난수원. 어느 줄을 뽑는지 확인할 수 있다. */
+  const picks = (position: number) => () => position / 100
 
-    expect(sample?.index).toBe(2)
+  it('평가에 쓴 행에서 뽑는다 - 학습한 행을 다시 맞히는 장면은 아무것도 안 가르친다', () => {
+    const subject = experiment([0, 1, 3], onehot, { testIndices: [2, 4] })
+    const fields = inputFields(fitFor(subject))
+
+    // 난수를 어느 쪽으로 돌려도 평가 행 밖으로는 안 나간다.
+    expect(sampleRow(subject, fields, dataset, undefined, () => 0)?.index).toBe(2)
+    expect(sampleRow(subject, fields, dataset, undefined, () => 0.99)?.index).toBe(4)
+  })
+
+  it('가져온 줄의 값이 그 행 그대로다', () => {
+    const subject = experiment([0, 1, 3], onehot, { testIndices: [2, 4] })
+    const sample = sampleRow(subject, inputFields(fitFor(subject)), dataset, undefined, () => 0)
+
     expect(sample?.values).toEqual({ 키: '170', 몸무게: '60', 지역: '서울' })
   })
 
-  it('누를 때마다 다음 줄이고, 끝나면 처음으로 돌아온다', () => {
-    const subject = experiment([0, 1, 3], onehot, { testIndices: [2, 4] })
-    const preprocessor = fitFor(subject)
+  it('직전에 준 줄은 빼고 뽑는다 - 눌렀는데 그대로면 고장으로 읽힌다', () => {
+    const subject = experiment([0], onehot, { testIndices: [2, 4] })
+    const fields = inputFields(fitFor(subject))
 
-    expect(nextSampleRow(subject, inputFields(preprocessor), dataset, 2)?.index).toBe(4)
-    expect(nextSampleRow(subject, inputFields(preprocessor), dataset, 4)?.index).toBe(2)
+    // 후보가 둘인데 하나를 빼면 남는 것은 하나다. 난수를 어떻게 돌려도 그것이 나온다.
+    expect(sampleRow(subject, fields, dataset, 2, () => 0)?.index).toBe(4)
+    expect(sampleRow(subject, fields, dataset, 2, () => 0.99)?.index).toBe(4)
+    expect(sampleRow(subject, fields, dataset, 4, () => 0)?.index).toBe(2)
+  })
+
+  it('뽑을 것이 하나뿐이면 그것을 다시 준다 - 없는 것을 지어내지 않는다', () => {
+    const subject = experiment([0, 1, 3], onehot, { testIndices: [2] })
+    const fields = inputFields(fitFor(subject))
+
+    expect(sampleRow(subject, fields, dataset, 2, () => 0)?.index).toBe(2)
+  })
+
+  it('난수가 1을 줘도 범위를 안 벗어난다', () => {
+    const subject = experiment([0, 1], onehot, { testIndices: [2, 4] })
+    const fields = inputFields(fitFor(subject))
+
+    expect(sampleRow(subject, fields, dataset, undefined, () => 1)?.index).toBe(4)
   })
 
   it('분할을 껐으면 학습 행뿐이다 - 없는 것을 지어내지 않는다', () => {
     const subject = experiment([0, 1], onehot, { testIndices: [] })
-    expect(nextSampleRow(subject, inputFields(fitFor(subject)), dataset)?.index).toBe(0)
+    const fields = inputFields(fitFor(subject))
+
+    expect(sampleRow(subject, fields, dataset, undefined, picks(0))?.index).toBe(0)
+    expect(sampleRow(subject, fields, dataset, undefined, picks(60))?.index).toBe(1)
+  })
+
+  it('가져올 줄이 아예 없으면 null이다', () => {
+    const subject = experiment([], onehot, { testIndices: [] })
+    expect(sampleRow(subject, [], dataset)).toBeNull()
   })
 
   it('가져온 줄이 그대로 벡터가 된다 - 한두 칸만 바꿔 보는 길이 여기서 열린다', () => {
     const subject = experiment([0, 1, 3], scaled, { testIndices: [2] })
     const preprocessor = fitFor(subject)
-    const sample = nextSampleRow(subject, inputFields(preprocessor), dataset)
+    const sample = sampleRow(subject, inputFields(preprocessor), dataset)
 
     expect(() => inputVector(subject, preprocessor, sample?.values ?? {})).not.toThrow()
   })

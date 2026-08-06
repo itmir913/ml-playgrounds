@@ -29,8 +29,8 @@ import {
   inputFields,
   inputVector,
   mergeFields,
-  nextSampleRow,
   numericRanges,
+  sampleRow,
   predictableModels,
   trainingRowsFor,
   type Answer,
@@ -224,17 +224,19 @@ function clear(): void {
 watch(() => project.projectId, clear)
 
 /**
- * [데이터에서 한 줄 가져오기]. 평가에 쓴 행부터 돌아가며 준다.
+ * [데이터에서 한 줄 가져오기]. 평가에 쓴 행 중에서 무작위로 하나 준다.
  *
  * **보이는 것 중 첫 모델의 실험을 쓴다** (architecture.md §8.13.1). `usable`을 쓰면
  * 그 실험이 필터에 걸려 안 보일 때 화면에 없는 실험의 분할을 따라 행을 주게 된다.
+ *
+ * 직전에 준 줄은 빼고 뽑는다 — 눌렀는데 화면이 그대로면 고장으로 읽힌다.
  */
 function sample(): void {
   const table = dataset.value
   const experiment = visibleUsable.value[0]?.experiment
   if (!table || !experiment) return
 
-  const row = nextSampleRow(experiment, fields.value, table, sampled.value ?? undefined)
+  const row = sampleRow(experiment, fields.value, table, sampled.value ?? undefined)
   if (!row) return
 
   values.value = { ...values.value, ...row.values }

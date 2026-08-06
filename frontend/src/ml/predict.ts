@@ -251,23 +251,35 @@ export interface SampleRow {
  * 행이라 그 장면이 아니다. 분할을 껐으면 둘이 같은 집합이고, 그때는 애초에 학습에 안 쓴
  * 행이 없다 - 없는 것을 지어내지 않는다.
  *
- * **난수를 쓰지 않는다.** `after` 다음 것을 돌아가며 준다 - 같은 프로젝트를 다시 열어도
- * 같은 순서이고, 학생이 여러 번 누르면 여러 줄을 본다. 여기에 난수를 넣으면 재현
- * 가능성에 우리가 관리하지 않는 구멍이 하나 더 생긴다.
+ * **무작위로 뽑는다** (architecture.md 8.13.1, 2026-08-06에 순차에서 뒤집었다).
+ * `randomState`가 지키는 것은 파일에 기록되고 재실행 대조가 다시 돌리는 것인데, 이
+ * 버튼은 입력 칸을 채울 뿐이고 예측 결과는 파일에 안 남는다 - 재현할 대상이 없다.
+ * 순차로 두면 반 전체가 첫 줄로 같은 행을 본다.
+ *
+ * **`exclude`는 빼고 뽑는다.** 눌렀는데 화면이 그대로면 버튼이 고장 난 것으로 읽힌다.
+ * 뽑을 것이 하나뿐이면 그것을 다시 준다.
+ *
+ * **난수원을 인자로 받는다.** 순수 함수로 남아야 테스트가 어느 줄을 뽑는지 확인할 수 있다.
  */
-export function nextSampleRow(
+export function sampleRow(
   experiment: Experiment,
   /** 채울 칸들. **전처리기가 아니라 칸을 받는다** - 화면의 칸은 여러 실험의 합집합이다. */
   fields: readonly PredictionField[],
   dataset: Dataset,
-  after?: number,
+  /** 직전에 준 행 번호. 뽑을 것이 둘 이상이면 이것은 빼고 뽑는다. */
+  exclude?: number,
+  random: () => number = Math.random,
 ): SampleRow | null {
   const { testIndices, trainIndices } = experiment.settings
   const candidates = testIndices.length > 0 ? testIndices : trainIndices
   if (candidates.length === 0) return null
 
-  const seen = after === undefined ? -1 : candidates.indexOf(after)
-  const index = candidates[(seen + 1) % candidates.length]
+  const rest = exclude === undefined ? candidates : candidates.filter((one) => one !== exclude)
+  // 전부 걸러졌으면 후보가 그 한 줄뿐이었다는 뜻이다. 없는 것을 지어내지 않는다.
+  const pool = rest.length > 0 ? rest : candidates
+
+  // random()의 계약이 [0, 1)이지만 1을 주는 구현이 있어도 범위를 안 벗어나게 한다.
+  const index = pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))]
   const row = index === undefined ? undefined : dataset.rows[index]
   // 파일이 가리키는 행이 표에 없다. 여기서는 던지지 않는다 - 학생이 누른 것은 편의
   // 기능이고, 진짜 판정은 예측할 때 transform이 시끄럽게 한다.
