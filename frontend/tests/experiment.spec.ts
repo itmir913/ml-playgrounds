@@ -852,28 +852,24 @@ describe('전처리와 분할을 끌 수 있다', () => {
     ).toThrow()
   })
 
-  it('안 나누면 학습에 쓴 데이터로 점수를 매긴다', () => {
-    // 오렌지3의 "Test on train data". 숫자는 거의 언제나 부푼다 - 화면이 말할 일이다.
+  it('평가 데이터가 파일로 오면 나누지 않고 그 데이터 전부로 채점한다', () => {
+    const testDataset = irisDataset()
     const { experiment } = runExperiment(
       inputFor({
+        testDataset,
         settings: settingsFor({
           selectedAlgorithms: models('decision_tree'),
-          split: { method: 'none', testSize: 0.3, stratify: true, randomState: 42 },
+          split: { method: 'provided', testSize: 0.3, stratify: true, randomState: 42 },
         }),
       }),
       frozen,
     )
 
     const { trainIndices, testIndices } = experiment.settings
-    expect(testIndices).toEqual(trainIndices)
+    // trainIndices는 학습 데이터(dataset) 전부, testIndices는 평가 데이터(testDataset)
+    // 전부다 - 두 배열이 서로 다른 표를 가리킨다 (mlpx-spec.md §1.1).
     expect(trainIndices.length).toBe(IRIS_FEATURES.length)
-    // 학습에 쓴 데이터를 다시 채점하므로 나눴을 때보다 높다.
-    const split = runExperiment(
-      inputFor({ settings: settingsFor({ selectedAlgorithms: models('decision_tree') }) }),
-      frozen,
-    )
-    expect(experiment.runs[0]?.metrics?.accuracy ?? 0).toBeGreaterThan(
-      split.experiment.runs[0]?.metrics?.accuracy ?? 0,
-    )
+    expect(testIndices.length).toBe(testDataset.rows.length)
+    expect(experiment.runs[0]?.status).toBe('done')
   })
 })

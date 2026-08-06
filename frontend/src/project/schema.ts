@@ -95,16 +95,19 @@ export const CATEGORICAL_ENCODINGS = ['none', 'onehot', 'ordinal'] as const
 /**
  * 분할 방식.
  *
- * `none`은 **안 나눈다** - 가진 데이터를 전부 학습에 쓰고, 점수도 그 데이터로 매긴다
- * (오렌지3의 "Test on train data"와 같다). 그래서 testIndices에 학습 행이 그대로
- * 들어간다 - 거짓말이 아니라 사실이고 재실행 대조도 그대로 성립한다.
- * **숫자는 거의 언제나 부푼다.** 화면이 그 사실을 지표 옆에 붙여야 한다
- * (open-decisions.md "전처리도 분할도 끌 수 있다").
+ * `provided`는 **평가 데이터가 파일로 따로 왔다는 뜻이다** - `test.csv`가 정본이고
+ * (mlpx-spec.md §1.1), 나누지 않는다. 그 데이터셋의 usableRows 전부가 testIndices다.
+ * **trainIndices는 언제나 `data.csv`를 가리키고 testIndices는 `test.csv`를 가리킨다** -
+ * 두 배열이 서로 다른 정본을 가리키는 유일한 경우다. 참조형 모델이 보는 것은
+ * trainIndices뿐이라 그쪽은 흔들리지 않는다.
+ *
+ * `none`(안 나누고 같은 데이터로 채점)은 어휘에서 뺐다 (open-decisions.md
+ * "학습용과 평가용 파일이 따로일 수 있다", 2026-08-06) - 배포 전이라 마이그레이션은 없다.
  *
  * kfold는 여기 없다. 폴드마다 학습·평가가 생기면 trainIndices/testIndices의 모양 자체가
  * 달라져서 어차피 구조 변경이다.
  */
-export const SPLIT_METHODS = ['holdout', 'none'] as const
+export const SPLIT_METHODS = ['holdout', 'provided'] as const
 
 /** 개별 학습의 결과. 실패한 것도 비교표에 남는다 (mlpx-spec.md 5). */
 export const RUN_STATUSES = ['done', 'failed'] as const
@@ -256,6 +259,20 @@ export const settingsSchema = z.looseObject({
    * 이것과 zip 안의 `dataset/` 본체는 **함께 있고 함께 없다** (mlpx-spec.md §1).
    */
   dataset: datasetRefSchema.optional(),
+  /**
+   * 평가 데이터. **점수를 매기는 데 쓴다** (mlpx-spec.md §1.1). `split.method`가
+   * `provided`일 때만 있다 - `holdout`이면 학습 데이터에서 나눠 쓰므로 없다.
+   *
+   * `dataset`과 같은 규칙이다 - zip 안의 `dataset/test.csv` 본체와 **함께 있고
+   * 함께 없다.**
+   */
+  testDataset: datasetRefSchema.optional(),
+  /**
+   * 예측 데이터. **답을 모르는 새 줄들** - 예측 화면에서 올린다 (mlpx-spec.md §1.1).
+   * 타깃 열이 없다. 이번 범위(일괄 예측)는 아직 안 만들었지만 정본 자리는 셋이
+   * 함께 정해졌으므로 스키마도 함께 둔다.
+   */
+  predictDataset: datasetRefSchema.optional(),
   features: z.array(userString),
   /** 군집화에는 없다. 과제 유형에 따라 선택 항목이다. */
   target: userString.optional(),

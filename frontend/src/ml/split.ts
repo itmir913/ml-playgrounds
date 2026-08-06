@@ -147,34 +147,52 @@ export function holdoutSplit(input: SplitInput, split: Split): SplitIndices {
 }
 
 /**
- * 안 나눈다. **가진 행을 전부 학습에 쓰고 점수도 그 행으로 매긴다.**
+ * 평가 데이터가 파일로 왔을 때. **나누지 않는다** - 학습 데이터는 전부 학습에 쓰고,
+ * 평가 데이터셋의 usableRows 전부가 testIndices다 (mlpx-spec.md §1.1,
+ * open-decisions.md "학습용과 평가용 파일이 따로일 수 있다").
  *
- * 오렌지3의 "Test on train data"와 같다. `testIndices`에 학습 행을 그대로 적는 것은
- * 거짓말이 아니라 사실이고, 재실행 대조도 그 행으로 다시 채점하므로 그대로 성립한다.
+ * **`testIndices`는 `input.rows`와 다른 정본을 가리킨다.** trainIndices는 언제나
+ * `data.csv`이고 testIndices는 `test.csv`다 - 두 배열이 서로 다른 표를 가리키는
+ * 유일한 경우다. 참조형 모델이 보는 것은 trainIndices뿐이라 그쪽은 흔들리지 않는다.
  *
- * **숫자는 거의 언제나 부푼다.** 결정트리는 100%가 흔하다. 그걸 아는 것은 화면의 일이고
- * 여기서 할 수 있는 것은 사실을 정확히 적는 것뿐이다.
+ * `testInput`이 없는 것은 부르는 쪽 버그다 - `split.method`가 `provided`이면
+ * 평가 데이터셋이 확정된 뒤에만 이 함수가 불려야 한다 (전처리 화면이 그 순서를 보장한다).
  */
-function wholeSet(input: SplitInput): SplitIndices {
+function providedSplit(input: SplitInput, testInput: SplitInput | undefined): SplitIndices {
   if (input.rows.length === 0) {
     throw new ClientError('SPLIT_TOO_FEW_ROWS', { minRows: 1, actualRows: 0 })
   }
+  if (!testInput || testInput.rows.length === 0) {
+    throw new ClientError('SPLIT_TOO_FEW_ROWS', { minRows: 1, actualRows: 0 })
+  }
   const ascending = (a: number, b: number): number => a - b
-  const rows = [...input.rows].sort(ascending)
-  return { trainIndices: rows, testIndices: [...rows] }
+  return {
+    trainIndices: [...input.rows].sort(ascending),
+    testIndices: [...testInput.rows].sort(ascending),
+  }
 }
 
 /**
  * 분할 방식마다의 구현. **`if (method === 'holdout')`을 만들지 마라** - 표에 줄을
  * 더하면 부르는 쪽이 따라온다 (ml/algorithms.ts, ml/metrics.ts와 같은 방식).
+ *
+ * `provided`만 `testInput`을 쓴다. holdout은 한 표 안에서 나누므로 무시한다 - TS가
+ * 여분 인자를 허용하는 함수 할당성 규칙이라 시그니처를 하나로 맞출 수 있다.
  */
-const SPLIT_BY_METHOD: Record<Split['method'], (input: SplitInput, split: Split) => SplitIndices> =
-  {
-    holdout: holdoutSplit,
-    none: wholeSet,
-  }
+const SPLIT_BY_METHOD: Record<
+  Split['method'],
+  (input: SplitInput, split: Split, testInput?: SplitInput) => SplitIndices
+> = {
+  holdout: holdoutSplit,
+  provided: (input, _split, testInput) => providedSplit(input, testInput),
+}
 
-/** 설정이 고른 방식으로 나눈다. 실험 실행이 부르는 유일한 입구다. */
-export function splitRows(input: SplitInput, split: Split): SplitIndices {
-  return SPLIT_BY_METHOD[split.method](input, split)
+/**
+ * 설정이 고른 방식으로 나눈다. 실험 실행이 부르는 유일한 입구다.
+ *
+ * `testInput`은 `provided`일 때만 쓴다 - 평가 데이터셋의 usableRows다 (라벨은
+ * 필요 없다. 나누지 않으므로 층화가 없다).
+ */
+export function splitRows(input: SplitInput, split: Split, testInput?: SplitInput): SplitIndices {
+  return SPLIT_BY_METHOD[split.method](input, split, testInput)
 }

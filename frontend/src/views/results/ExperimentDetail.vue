@@ -116,17 +116,6 @@ function failureDetailOf(run: Run): string | null {
       <ChangeList v-else :changes="changes" />
     </section>
 
-    <!--
-      **분할을 껐다는 사실은 표 위에 둔다.** 표 전체에 걸리는 말이라 줄마다 배지를
-      붙이면 같은 문장이 모델 수만큼 반복된다.
-    -->
-    <p
-      v-if="props.experiment.settings.split.method === 'none'"
-      class="rounded-panel border border-caution/30 bg-caution-soft p-3"
-    >
-      {{ t('results.trainScoreNote') }}
-    </p>
-
     <section v-if="succeeded.length > 0" class="flex min-w-0 flex-col gap-1.5">
       <h3 class="font-bold text-ink-soft">{{ t('results.scoreTitle') }}</h3>
       <AppTable>

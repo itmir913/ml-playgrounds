@@ -151,16 +151,6 @@ function onStratify(event: Event): void {
   apply(withSplit(file.document, { stratify }, now()))
 }
 
-/** 나눌지 말지. 끄면 가진 데이터를 전부 학습에 쓰고 점수도 그 데이터로 매긴다. */
-const splitting = computed(() => settings.value?.split.method !== 'none')
-
-function onSplitting(event: Event): void {
-  const file = project.file
-  if (!file) return
-  const on = (event.target as HTMLInputElement).checked
-  apply(withSplit(file.document, { method: on ? 'holdout' : 'none' }, now()))
-}
-
 /**
  * 씨앗을 다시 뽑기 전에 한 번 막는다
  * (`open-decisions.md` "난수 씨앗은 고정이 기본이고, 다시 뽑는 것은 경고 뒤에 준다").
@@ -297,23 +287,11 @@ function reseed(): void {
 
           <div class="mt-3 flex flex-col gap-4">
             <!--
-              **끌 수 있다. 다만 기본은 켜짐이다.** 끄면 학습에 쓴 데이터로 점수를 매기게
-              되어 숫자가 거의 언제나 부푼다 - 그 사실을 그 자리에서 말한다
-              (open-decisions.md "전처리도 분할도 끌 수 있다").
+              **평가 데이터를 파일로 받는 화면은 아직 여기 없다**
+              (open-decisions.md "학습용과 평가용 파일이 따로일 수 있다"). 그때까지는
+              `holdout`이 유일한 방식이라 고를 것 없이 항상 나눈다.
             -->
-            <label class="flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
-                class="size-4 accent-brand"
-                :checked="splitting"
-                @change="onSplitting"
-              />
-              <span class="font-bold">{{ t('preprocess.splitOn') }}</span>
-            </label>
-
-            <p v-if="!splitting" class="text-caution">{{ t('preprocess.splitOffNote') }}</p>
-
-            <div v-if="splitting">
+            <div>
               <!--
                 **이름과 값은 기준선으로 맞춘다.** items-center는 글자가 아니라 상자를
                 맞추므로, 값이 길어져 이름이 두 줄로 접히면 한 줄짜리 값이 두 줄 높이의
@@ -339,7 +317,7 @@ function reseed(): void {
               <p class="mt-1 text-ink-faint">{{ t('preprocess.testSizeNote') }}</p>
             </div>
 
-            <label v-if="splitting" class="flex cursor-pointer items-center gap-2">
+            <label class="flex cursor-pointer items-center gap-2">
               <input
                 type="checkbox"
                 class="size-4 accent-brand"
@@ -349,12 +327,7 @@ function reseed(): void {
               <span class="font-bold">{{ t('preprocess.stratify') }}</span>
             </label>
 
-            <!--
-              **나누지 않으면 씨앗이 하는 일이 없다.** 그때까지 보이면 학생은 이 숫자가
-              무언가를 하고 있다고 읽는다
-              (`open-decisions.md` "난수 씨앗은 고정이 기본이고, 다시 뽑는 것은 경고 뒤에 준다").
-            -->
-            <div v-if="splitting">
+            <div>
               <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <h3 class="font-bold text-ink-soft">{{ t('preprocess.randomState') }}</h3>
                 <span class="tabular-nums">{{ settings.split.randomState }}</span>

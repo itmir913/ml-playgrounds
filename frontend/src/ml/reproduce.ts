@@ -50,6 +50,13 @@ export interface ReproduceInput {
   readonly experiment: Experiment
   /** 정본 표. `dataset/`이 없는 파일에서는 대조 자체가 불가능하다. */
   readonly dataset: Dataset
+  /**
+   * 평가 데이터. **`experiment.settings.split.method`가 `provided`일 때만 쓴다.**
+   *
+   * 그때 `testIndices`는 `dataset`이 아니라 이 표의 행 번호다 (mlpx-spec.md §1.1,
+   * ml/split.ts) - 없으면 대조를 못 한다.
+   */
+  readonly testDataset?: Dataset
 }
 
 /**
@@ -93,17 +100,23 @@ function ENGINES_BY_KIND(): Map<string, TrainingEngine> {
  * 여기서 통째로 멈추면 교사는 멀쩡한 모델의 대조 결과까지 못 본다.
  */
 export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
-  const { experiment, dataset } = input
+  const { experiment, dataset, testDataset } = input
   const { settings } = experiment
   const target = settings.target ?? ''
 
   const done = experiment.runs.filter((run) => run.status === 'done')
   if (done.length === 0) return []
 
+  // provided면 testIndices는 dataset이 아니라 testDataset의 행 번호다
+  // (mlpx-spec.md §1.1) — 학습 때와 같은 판정이다 (ml/experiment.ts).
+  // 없으면 대조 자체가 불가능하다 — shared를 null로 만들어 아래에서 잡는다.
+  const testSource = settings.split.method === 'provided' ? testDataset : dataset
+
   // 전처리기는 실험 전체가 공유한다. **학습 때와 같은 인자로 같은 자리에서 만든다** —
   // 파일에 담긴 전처리기를 읽지 않는 이유는, 그것도 대조 대상이기 때문이다. 설정에서
   // 다시 만든 것과 파일의 지표가 맞아야 "그 설정에서 그 숫자가 나온다"가 성립한다.
   const shared = (() => {
+    if (!testSource) return null
     try {
       const preprocessor = fitPreprocessor(
         dataset,
@@ -115,9 +128,9 @@ export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
       return {
         preprocessor,
         trainFeatures: transform(preprocessor, dataset, settings.trainIndices, categoricalEncoding),
-        testFeatures: transform(preprocessor, dataset, settings.testIndices, categoricalEncoding),
+        testFeatures: transform(preprocessor, testSource, settings.testIndices, categoricalEncoding),
         trainTarget: targetValues(dataset, settings.trainIndices, target),
-        testTarget: targetValues(dataset, settings.testIndices, target),
+        testTarget: targetValues(testSource, settings.testIndices, target),
       }
     } catch {
       return null

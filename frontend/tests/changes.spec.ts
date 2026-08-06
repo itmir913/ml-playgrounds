@@ -33,6 +33,9 @@ function settingsFor(overrides: Partial<Settings> = {}): Settings {
 function inputFor(settings: Settings): ExperimentInput {
   return {
     dataset: irisDataset(),
+    // provided를 골랐을 때만 쓰인다 - holdout이면 splitRows가 아예 보지 않는다
+    // (ml/split.ts). 매번 넣어 두면 이 파일에서 무엇을 바꾸든 신경 쓸 게 하나 준다.
+    testDataset: irisDataset(),
     taskType: 'classification',
     dataType: 'tabular',
     settings,
@@ -103,14 +106,14 @@ describe('바뀐 값을 전후로 보여준다', () => {
     expect(features?.to).toEqual({ kind: 'count', count: 1 })
   })
 
-  it('분할을 끄면 방식이 바뀐 것으로 잡힌다', () => {
+  it('분할 방식이 바뀌면 잡힌다', () => {
     const changes = changesOf({
-      split: { method: 'none', testSize: 0.3, stratify: false, randomState: 42 },
+      split: { method: 'provided', testSize: 0.3, stratify: false, randomState: 42 },
     })
     const method = changes.find((change) => change.path === 'split.method')
 
     expect(method?.labelKey).toBe('preprocess.splitTitle')
-    expect(method?.to).toEqual({ kind: 'locale', key: 'splitMethod.none' })
+    expect(method?.to).toEqual({ kind: 'locale', key: 'splitMethod.provided' })
   })
 })
 

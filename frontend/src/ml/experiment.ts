@@ -52,6 +52,14 @@ import { splitRows } from './split'
 export interface ExperimentInput {
   /** 정본 CSV를 읽은 표. 헤더는 rows에 없다 - 행 번호가 곧 분할 인덱스다. */
   dataset: Dataset
+  /**
+   * 평가 데이터. **`settings.split.method`가 `provided`일 때만 쓴다.**
+   *
+   * `testIndices`는 이 표의 행 번호다 - `dataset`(=data.csv)과는 다른 정본이라
+   * `trainIndices`와 같은 표로 섞으면 안 된다 (mlpx-spec.md §1.1, ml/split.ts).
+   * `holdout`이면 없어야 한다 - 나눌 데이터가 하나뿐이라는 뜻이다.
+   */
+  testDataset?: Dataset
   /** 학생이 고른다. 자동 판정하지 않는다 (mlpx-spec.md 0.1). */
   taskType: TaskType
   /** 업로드한 파일에서 판정된다. */
@@ -367,7 +375,7 @@ export function runExperiment(
   input: ExperimentInput,
   options: ExperimentOptions = {},
 ): ExperimentResult {
-  const { dataset, settings, taskType, dataType, context } = input
+  const { dataset, testDataset, settings, taskType, dataType, context } = input
   const now = options.now ?? (() => new Date().toISOString())
   const experiments = options.history?.experiments ?? []
   const { target } = settings
@@ -375,6 +383,13 @@ export function runExperiment(
   // 군집화에는 타깃이 없지만 군집 알고리즘도 아직 없다. 여기 오는 것은 분류·회귀뿐이고
   // 둘 다 정답 열이 있어야 학습도 채점도 된다.
   if (target === undefined || target === '') throw new ClientError('TARGET_NOT_SELECTED')
+
+  // provided일 때만 쓰는 평가 데이터셋의 usableRows. holdout이면 undefined다 -
+  // splitRows가 그때는 아예 보지 않는다 (ml/split.ts).
+  const providedTestRows =
+    settings.split.method === 'provided' && testDataset
+      ? usableRows(testDataset, settings.features, target, settings.preprocessing.missing)
+      : undefined
 
   const rows = usableRows(dataset, settings.features, target, settings.preprocessing.missing)
   const labels = targetValues(dataset, rows, target)
@@ -388,16 +403,26 @@ export function runExperiment(
 
   // **"아무것도 안 함"은 빈 칸이 있으면 거부한다.** 조용히 두는 길이 없어서다 - 수치
   // 열의 빈 칸은 결국 0이 되고, 그러면 그 이름으로 0 채우기를 하는 셈이 된다
-  // (open-decisions.md "전처리도 분할도 끌 수 있다"). 학습셋이 아니라 **전체**를 본다.
+  // (open-decisions.md "전처리도 분할도 끌 수 있다"). **전체**를 본다 - provided면
+  // 평가 데이터셋도 같은 전처리를 받으므로(mlpx-spec.md §1.1) 거기도 봐야 한다.
   if (settings.preprocessing.missing === 'none') {
-    const blank = missingColumns(dataset, [...settings.features, target])[0]
+    const checked = [...settings.features, target]
+    const blank =
+      missingColumns(dataset, checked)[0] ??
+      (settings.split.method === 'provided' && testDataset
+        ? missingColumns(testDataset, checked)[0]
+        : undefined)
     if (blank)
       throw new ClientError('FEATURE_HAS_MISSING', { feature: blank.name, count: blank.count })
   }
 
   // 층화하지 않으면 라벨은 쓰이지 않는다. 회귀에 층화를 켠 설정은 여기서 시끄럽게
   // 실패한다 - 조용히 층화를 끄지 않는다는 ml/split.ts의 규칙과 같다.
-  const split = splitRows({ rows, labels }, settings.split)
+  const split = splitRows(
+    { rows, labels },
+    settings.split,
+    providedTestRows ? { rows: providedTestRows } : undefined,
+  )
 
   const preprocessor = fitPreprocessor(
     dataset,
@@ -406,14 +431,19 @@ export function runExperiment(
     settings.preprocessing,
   )
 
+  // provided면 testIndices는 dataset이 아니라 testDataset의 행 번호다
+  // (mlpx-spec.md §1.1) - trainIndices와 testIndices가 서로 다른 정본을 가리키는
+  // 유일한 경우다.
+  const testSource = settings.split.method === 'provided' && testDataset ? testDataset : dataset
+
   const { categoricalEncoding } = settings.preprocessing
   const trainContext: TrainContext = {
     taskType,
     trainFeatures: transform(preprocessor, dataset, split.trainIndices, categoricalEncoding),
     trainRowIndices: split.trainIndices,
-    testFeatures: transform(preprocessor, dataset, split.testIndices, categoricalEncoding),
+    testFeatures: transform(preprocessor, testSource, split.testIndices, categoricalEncoding),
     trainTarget: targetValues(dataset, split.trainIndices, target),
-    testTarget: targetValues(dataset, split.testIndices, target),
+    testTarget: targetValues(testSource, split.testIndices, target),
     randomState: settings.split.randomState,
   }
 

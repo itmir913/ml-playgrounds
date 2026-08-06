@@ -190,9 +190,7 @@
     "reseedTitle": "난수 씨앗을 다시 뽑으면 지금까지의 점수와 비교할 수 없습니다",
     "reseedDescription": "학습용과 평가용으로 나누는 방식이 바뀝니다. 지금까지 한 실험은 그대로 남지만, 앞으로 나오는 점수는 다른 데이터로 매긴 것이라 예전 점수와 나란히 놓고 비교할 수 없습니다.",
     "reseedConfirm": "다시 뽑기",
-    "hasMissing": "빈 칸이 있어 지금 설정으로는 학습할 수 없습니다.",
-    "splitOn": "학습용과 평가용으로 나누기",
-    "splitOffNote": "나누지 않으면 가진 데이터를 모두 학습에 쓰고, 점수도 그 데이터로 매깁니다. 점수가 실제보다 높게 나옵니다."
+    "hasMissing": "빈 칸이 있어 지금 설정으로는 학습할 수 없습니다."
   },
   "train": {
     "taskTitle": "기계학습 유형(Task Type)",
@@ -415,7 +413,7 @@
   },
   "splitMethod": {
     "holdout": "나누기",
-    "none": "나누지 않기"
+    "provided": "평가 데이터(Test Data) 파일 사용"
   },
   "metrics": {
     "accuracy": "정확도(Accuracy)",
@@ -436,7 +434,6 @@
     "change": "{label}: {from} → {to}",
     "unknownChange": "알 수 없는 설정이 바뀌었습니다. ({path})",
     "modelScope": "{algorithm} · {runtime}",
-    "trainScoreNote": "나누지 않고 학습해서, 학습에 쓴 데이터로 매긴 점수입니다. 실제보다 높게 나옵니다.",
     "scoreTitle": "이번 학습 결과",
     "model": "모델",
     "where": "학습한 곳",

@@ -248,17 +248,9 @@ describe('학습한 파일을 다시 열어 예측한다', () => {
     }
   })
 
-  it('분할을 꺼도 재현한다 - 평가셋이 학습셋과 같은 경우다', async () => {
-    const settings = settingsFor({
-      split: { method: 'none', testSize: 0.3, stratify: false, randomState: 42 },
-      selectedAlgorithms: [{ algorithm: 'decision_tree' }, { algorithm: 'knn' }],
-    })
-
-    const reopened = await trainAndReopen(table, settings, 'classification')
-    for (const one of reproduceMetrics(reopened)) {
-      expect(one.again, one.algorithm).toEqual(one.stored)
-    }
-  })
+  // 'provided'(평가 데이터가 파일로 옴)의 왕복 재현은 .mlpx가 test.csv를 담게 되는
+  // 화면 작업(전처리 화면의 평가 데이터 섹션)과 함께 다룬다 - 지금 project/format.ts는
+  // 아직 testDataset을 저장하지 않는다.
 
   /**
    * **검사기 자체를 검사한다** (tests/ui-rules.spec.ts와 같은 이유다).

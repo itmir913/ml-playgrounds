@@ -81,7 +81,7 @@ const VOCABULARY_BY_VERSION: Readonly<Record<number, Readonly<Record<string, rea
       MISSING_STRATEGIES: ['none', 'drop', 'mean', 'median', 'mostFrequent', 'zero'],
       SCALING_METHODS: ['none', 'standard', 'minmax', 'robust'],
       CATEGORICAL_ENCODINGS: ['none', 'onehot', 'ordinal'],
-      SPLIT_METHODS: ['holdout', 'none'],
+      SPLIT_METHODS: ['holdout', 'provided'],
       RUN_STATUSES: ['done', 'failed'],
       MODEL_OMISSION_REASONS: ['overBudget', 'tooLarge', 'engineUnsupported'],
       SOURCE_ENCODINGS: ['utf-8', 'cp949', 'utf-16le', 'utf-16be'],

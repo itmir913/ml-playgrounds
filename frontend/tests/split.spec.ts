@@ -196,32 +196,49 @@ describe('나눌 수 없는 데이터', () => {
   })
 })
 
-describe('안 나누는 분할', () => {
+describe('평가 데이터가 파일로 온 분할', () => {
   /**
-   * **오렌지3의 "Test on train data"와 같다.** 가진 행을 전부 학습에 쓰고 점수도 그
-   * 행으로 매긴다. `testIndices`에 학습 행을 그대로 적는 것은 거짓말이 아니라 사실이고,
-   * 재실행 대조도 같은 행으로 다시 채점하므로 그대로 성립한다.
+   * **나누지 않는다.** 학습 데이터는 전부 학습에 쓰고, 평가 데이터셋의 usableRows
+   * 전부가 testIndices다 (mlpx-spec.md §1.1). `testIndices`는 `input.rows`와 다른
+   * 정본(test.csv)의 행 번호이므로 `trainIndices`와 겹칠 수 있다 - 서로 다른 표라
+   * 겹치는 것이 이상하지 않다.
    */
-  const noSplit = { method: 'none', testSize: 0.2, stratify: true, randomState: 42 } as const
+  const provided = { method: 'provided', testSize: 0.2, stratify: true, randomState: 42 } as const
 
-  it('학습셋과 평가셋이 같은 행이다', () => {
-    const { trainIndices, testIndices } = splitRows({ rows: [0, 1, 2, 3] }, noSplit)
+  it('trainIndices는 학습 데이터 전부, testIndices는 평가 데이터 전부다', () => {
+    const { trainIndices, testIndices } = splitRows(
+      { rows: [0, 1, 2, 3] },
+      provided,
+      { rows: [0, 1, 2] },
+    )
     expect(trainIndices).toEqual([0, 1, 2, 3])
-    expect(testIndices).toEqual([0, 1, 2, 3])
+    expect(testIndices).toEqual([0, 1, 2])
   })
 
   it('원본 행 번호를 그대로 쓴다 - 걸러낸 뒤 다시 세지 않는다', () => {
-    // 참조형 모델이 이 번호로 dataset/data.csv를 가리킨다 (mlpx-spec.md 5.1).
-    expect(splitRows({ rows: [2, 5, 9] }, noSplit).trainIndices).toEqual([2, 5, 9])
+    // 참조형 모델이 trainIndices로 dataset/data.csv를 가리킨다 (mlpx-spec.md 5.1).
+    expect(splitRows({ rows: [2, 5, 9] }, provided, { rows: [1, 4] }).trainIndices).toEqual([
+      2, 5, 9,
+    ])
   })
 
   it('층화도 비율도 보지 않는다 - 나눌 것이 없다', () => {
-    const strict = { ...noSplit, stratify: false, testSize: 0.5 } as const
-    expect(splitRows({ rows: [0, 1, 2] }, strict)).toEqual(splitRows({ rows: [0, 1, 2] }, noSplit))
+    const strict = { ...provided, stratify: false, testSize: 0.5 } as const
+    expect(splitRows({ rows: [0, 1, 2] }, strict, { rows: [5] })).toEqual(
+      splitRows({ rows: [0, 1, 2] }, provided, { rows: [5] }),
+    )
   })
 
-  it('행이 하나도 없으면 시끄럽게 실패한다', () => {
-    expect(() => splitRows({ rows: [] }, noSplit)).toThrow()
+  it('학습 데이터가 하나도 없으면 시끄럽게 실패한다', () => {
+    expect(() => splitRows({ rows: [] }, provided, { rows: [0] })).toThrow()
+  })
+
+  it('평가 데이터가 하나도 없으면 시끄럽게 실패한다', () => {
+    expect(() => splitRows({ rows: [0, 1] }, provided, { rows: [] })).toThrow()
+  })
+
+  it('평가 데이터셋 자체가 없으면 시끄럽게 실패한다 - 부르는 쪽 버그다', () => {
+    expect(() => splitRows({ rows: [0, 1] }, provided)).toThrow()
   })
 
   it('holdout은 그대로 나눈다 - 표가 방식을 고른다', () => {
