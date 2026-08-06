@@ -53,6 +53,22 @@ export function formatPercent(locale: string, ratio: number, digits = 1): string
 }
 
 /**
+ * 지표 하나. **자릿수를 여기서 줄인다** — 계산은 반올림하지 않고 그대로 저장한다
+ * (`ml/metrics.ts`의 머리말).
+ *
+ * 소수는 셋째 자리까지다. 교실에서 견주는 데 그 이상은 필요 없고, 자릿수가 들쭉날쭉하면
+ * 표에서 눈이 소수점을 못 따라간다 — `tabular-nums`가 자릿수를 맞춰 주는 것도 자릿수가
+ * 같을 때 얘기다.
+ */
+export function formatMetric(locale: string, value: number, format: 'percent' | 'number'): string {
+  if (format === 'percent') return formatPercent(locale, value)
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  }).format(value)
+}
+
+/**
  * 화면에서 쓰는 포맷터들.
  *
  * 평범한 함수를 돌려준다. 템플릿에서 부르면 그리는 동안 `locale.value`를 읽으므로
@@ -65,5 +81,7 @@ export function useFormat() {
     bytes: (value: number) => formatBytes(locale.value, value),
     dateTime: (iso: string) => formatDateTime(locale.value, iso),
     percent: (ratio: number) => formatPercent(locale.value, ratio),
+    metric: (value: number, format: 'percent' | 'number') =>
+      formatMetric(locale.value, value, format),
   }
 }
