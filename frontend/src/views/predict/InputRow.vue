@@ -83,8 +83,11 @@ const cannotRun = computed(() => props.disabled || blank.value.length > 0)
       <AppButton variant="secondary" :disabled="props.disabled" @click="emit('clear')">
         {{ t('predict.clear') }}
       </AppButton>
-      <p v-if="props.sampled !== null" class="min-w-0 text-ink-soft">
-        {{ t('predict.fromDataDone', { index: props.sampled + 1 }) }}
+      <p
+          :class="{ invisible: props.sampled === null }"
+          class="min-w-0 text-ink-soft"
+      >
+        {{ t('predict.fromDataDone', { index: (props.sampled ?? 0) + 1 }) }}
       </p>
     </div>
 
