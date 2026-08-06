@@ -237,10 +237,25 @@ export function numericRanges(
 }
 
 export interface SampleRow {
-  /** `dataset/data.csv`의 행 번호. 화면이 "몇 번째 줄을 가져왔다"를 말할 수 있다. */
+  /**
+   * 뽑아 온 행의 번호. 화면이 "몇 번째 줄을 가져왔다"를 말할 수 있다.
+   *
+   * **어느 표의 번호인지는 그 실험이 정한다** - 평가 행을 준 것이면 `provided`에서
+   * `test.csv`이고 그 밖에는 `data.csv`다 (`sampleRow`).
+   */
   readonly index: number
   /** 칸 이름 -> 값. `inputVector`에 그대로 넣을 수 있는 모양이다. */
   readonly values: Record<string, string>
+}
+
+/**
+ * `sampleRow`가 뒤질 표들. **둘을 함께 받는 이유는 어느 쪽인지를 실험이 정하기 때문이다.**
+ */
+export interface SampleTables {
+  /** 학습 정본 `dataset/data.csv`. `trainIndices`는 언제나 이 표의 행 번호다. */
+  readonly dataset: Dataset
+  /** 평가 정본 `dataset/test.csv`. `split.method`가 `provided`인 실험에만 있다. */
+  readonly testDataset?: Dataset | null | undefined
 }
 
 /**
@@ -248,8 +263,16 @@ export interface SampleRow {
  *
  * 학생이 [예측]으로 보게 되는 것이 **자기가 학습에 쓴 행을 다시 맞히는 장면**이면
  * 아무것도 가르치지 않는다 (architecture.md 8.13.1). 평가셋 행은 모델이 학습 때 못 본
- * 행이라 그 장면이 아니다. 분할을 껐으면 둘이 같은 집합이고, 그때는 애초에 학습에 안 쓴
- * 행이 없다 - 없는 것을 지어내지 않는다.
+ * 행이라 그 장면이 아니다.
+ *
+ * **어느 표에서 찾는지는 그 실험의 `split.method`가 정한다** (mlpx-spec.md 1.1).
+ * `testIndices`는 `holdout`이면 `data.csv`의 행 번호이고 `provided`면 `test.csv`의 행
+ * 번호다. 표를 부르는 쪽이 정하게 두면 **조용히 다른 줄을 채운다** - 열 이름과 순서는
+ * 양쪽이 같으므로(정본 순서로 재배열해 저장한다) 화면에 틀린 티가 전혀 안 난다.
+ *
+ * **`provided`인데 평가 표가 없으면 학습 표로 떨어지지 않는다.** 그건 참조와 본체가
+ * 한쪽만 있는 상태이고(mlpx-spec.md 1) 그때 학습 행을 주면 이 함수가 막으려던 바로 그
+ * 장면 - 모델이 외운 답 - 을 준다. 아무것도 안 주는 편이 낫다.
  *
  * **무작위로 뽑는다** (architecture.md 8.13.1, 2026-08-06에 순차에서 뒤집었다).
  * `randomState`가 지키는 것은 파일에 기록되고 재실행 대조가 다시 돌리는 것인데, 이
@@ -265,14 +288,20 @@ export function sampleRow(
   experiment: Experiment,
   /** 채울 칸들. **전처리기가 아니라 칸을 받는다** - 화면의 칸은 여러 실험의 합집합이다. */
   fields: readonly PredictionField[],
-  dataset: Dataset,
+  tables: SampleTables,
   /** 직전에 준 행 번호. 뽑을 것이 둘 이상이면 이것은 빼고 뽑는다. */
   exclude?: number,
   random: () => number = Math.random,
 ): SampleRow | null {
   const { testIndices, trainIndices } = experiment.settings
-  const candidates = testIndices.length > 0 ? testIndices : trainIndices
-  if (candidates.length === 0) return null
+
+  // 평가 행이 있으면 그쪽이고, 없으면 학습 행이다. **그 선택이 표까지 함께 고른다** -
+  // trainIndices는 어느 방식에서든 data.csv이고, testIndices만 방식에 따라 갈린다.
+  const useTest = testIndices.length > 0
+  const candidates = useTest ? testIndices : trainIndices
+  const source =
+    useTest && experiment.settings.split.method === 'provided' ? tables.testDataset : tables.dataset
+  if (candidates.length === 0 || !source) return null
 
   const rest = exclude === undefined ? candidates : candidates.filter((one) => one !== exclude)
   // 전부 걸러졌으면 후보가 그 한 줄뿐이었다는 뜻이다. 없는 것을 지어내지 않는다.
@@ -280,14 +309,14 @@ export function sampleRow(
 
   // random()의 계약이 [0, 1)이지만 1을 주는 구현이 있어도 범위를 안 벗어나게 한다.
   const index = pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))]
-  const row = index === undefined ? undefined : dataset.rows[index]
+  const row = index === undefined ? undefined : source.rows[index]
   // 파일이 가리키는 행이 표에 없다. 여기서는 던지지 않는다 - 학생이 누른 것은 편의
   // 기능이고, 진짜 판정은 예측할 때 transform이 시끄럽게 한다.
   if (index === undefined || row === undefined) return null
 
   const values: Record<string, string> = {}
   for (const field of fields) {
-    values[field.name] = row[dataset.columns.indexOf(field.name)] ?? ''
+    values[field.name] = row[source.columns.indexOf(field.name)] ?? ''
   }
   return { index, values }
 }

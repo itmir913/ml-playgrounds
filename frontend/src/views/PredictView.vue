@@ -38,7 +38,7 @@ import {
   type PredictFilter,
 } from '@/ml/predict'
 import { parsePreprocessor, type Preprocessor } from '@/ml/preprocess'
-import { readDataset } from '@/project/dataset'
+import { readDataset, readTestDataset } from '@/project/dataset'
 import type { Experiment } from '@/project/schema'
 import { useProjectStore } from '@/stores/project'
 import AnswerList from './predict/AnswerList.vue'
@@ -49,6 +49,9 @@ const { t } = useI18n()
 const project = useProjectStore()
 
 const dataset = computed(() => readDataset(project.file))
+
+/** 평가 정본. `split.method`가 `provided`인 프로젝트에만 있다 (mlpx-spec.md §1.1). */
+const testDataset = computed(() => readTestDataset(project.file))
 
 /**
  * 실험 id -> 그 실험의 전처리기.
@@ -236,7 +239,14 @@ function sample(): void {
   const experiment = visibleUsable.value[0]?.experiment
   if (!table || !experiment) return
 
-  const row = sampleRow(experiment, fields.value, table, sampled.value ?? undefined)
+  // **두 표를 다 넘긴다.** 평가 행이 어느 표의 번호인지는 그 실험의 split.method가
+  // 정하므로(mlpx-spec.md §1.1) 여기서 고르면 조용히 다른 줄이 채워진다.
+  const row = sampleRow(
+    experiment,
+    fields.value,
+    { dataset: table, testDataset: testDataset.value },
+    sampled.value ?? undefined,
+  )
   if (!row) return
 
   values.value = { ...values.value, ...row.values }

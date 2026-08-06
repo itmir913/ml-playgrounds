@@ -339,13 +339,13 @@ describe('표에서 한 줄 가져오기', () => {
     const fields = inputFields(fitFor(subject))
 
     // 난수를 어느 쪽으로 돌려도 평가 행 밖으로는 안 나간다.
-    expect(sampleRow(subject, fields, dataset, undefined, () => 0)?.index).toBe(2)
-    expect(sampleRow(subject, fields, dataset, undefined, () => 0.99)?.index).toBe(4)
+    expect(sampleRow(subject, fields, { dataset }, undefined, () => 0)?.index).toBe(2)
+    expect(sampleRow(subject, fields, { dataset }, undefined, () => 0.99)?.index).toBe(4)
   })
 
   it('가져온 줄의 값이 그 행 그대로다', () => {
     const subject = experiment([0, 1, 3], onehot, { testIndices: [2, 4] })
-    const sample = sampleRow(subject, inputFields(fitFor(subject)), dataset, undefined, () => 0)
+    const sample = sampleRow(subject, inputFields(fitFor(subject)), { dataset }, undefined, () => 0)
 
     expect(sample?.values).toEqual({ 키: '170', 몸무게: '60', 지역: '서울' })
   })
@@ -355,42 +355,109 @@ describe('표에서 한 줄 가져오기', () => {
     const fields = inputFields(fitFor(subject))
 
     // 후보가 둘인데 하나를 빼면 남는 것은 하나다. 난수를 어떻게 돌려도 그것이 나온다.
-    expect(sampleRow(subject, fields, dataset, 2, () => 0)?.index).toBe(4)
-    expect(sampleRow(subject, fields, dataset, 2, () => 0.99)?.index).toBe(4)
-    expect(sampleRow(subject, fields, dataset, 4, () => 0)?.index).toBe(2)
+    expect(sampleRow(subject, fields, { dataset }, 2, () => 0)?.index).toBe(4)
+    expect(sampleRow(subject, fields, { dataset }, 2, () => 0.99)?.index).toBe(4)
+    expect(sampleRow(subject, fields, { dataset }, 4, () => 0)?.index).toBe(2)
   })
 
   it('뽑을 것이 하나뿐이면 그것을 다시 준다 - 없는 것을 지어내지 않는다', () => {
     const subject = experiment([0, 1, 3], onehot, { testIndices: [2] })
     const fields = inputFields(fitFor(subject))
 
-    expect(sampleRow(subject, fields, dataset, 2, () => 0)?.index).toBe(2)
+    expect(sampleRow(subject, fields, { dataset }, 2, () => 0)?.index).toBe(2)
   })
 
   it('난수가 1을 줘도 범위를 안 벗어난다', () => {
     const subject = experiment([0, 1], onehot, { testIndices: [2, 4] })
     const fields = inputFields(fitFor(subject))
 
-    expect(sampleRow(subject, fields, dataset, undefined, () => 1)?.index).toBe(4)
+    expect(sampleRow(subject, fields, { dataset }, undefined, () => 1)?.index).toBe(4)
   })
 
-  it('분할을 껐으면 학습 행뿐이다 - 없는 것을 지어내지 않는다', () => {
+  it('평가 행이 없으면 학습 행뿐이다 - 없는 것을 지어내지 않는다', () => {
     const subject = experiment([0, 1], onehot, { testIndices: [] })
     const fields = inputFields(fitFor(subject))
 
-    expect(sampleRow(subject, fields, dataset, undefined, picks(0))?.index).toBe(0)
-    expect(sampleRow(subject, fields, dataset, undefined, picks(60))?.index).toBe(1)
+    expect(sampleRow(subject, fields, { dataset }, undefined, picks(0))?.index).toBe(0)
+    expect(sampleRow(subject, fields, { dataset }, undefined, picks(60))?.index).toBe(1)
   })
 
   it('가져올 줄이 아예 없으면 null이다', () => {
     const subject = experiment([], onehot, { testIndices: [] })
-    expect(sampleRow(subject, [], dataset)).toBeNull()
+    expect(sampleRow(subject, [], { dataset })).toBeNull()
+  })
+
+  /**
+   * **`provided`에서는 testIndices가 다른 표의 행 번호다** (mlpx-spec.md §1.1).
+   *
+   * 열 이름과 순서는 양쪽이 같으므로(정본 순서로 재배열해 저장한다) 잘못된 표에서 뽑아도
+   * 값이 그럴듯하게 채워지고 **화면에는 틀린 티가 전혀 안 난다.** 그래서 여기서 못 박는다.
+   */
+  describe('평가 데이터가 파일로 온 실험', () => {
+    const testDataset: Dataset = {
+      columns: ['키', '몸무게', '지역', '품종'],
+      rows: [
+        ['101', '11', '서울', 'a'],
+        ['102', '12', '부산', 'b'],
+        ['103', '13', '대구', 'a'],
+      ],
+    }
+
+    const providedExperiment = () =>
+      experiment([0, 1, 2, 3, 4], onehot, {
+        split: { method: 'provided', testSize: 0.3, stratify: true, randomState: 42 },
+        testIndices: [0, 1, 2],
+      })
+
+    it('평가 표에서 뽑는다 - 학습 표에서 뽑으면 모델이 외운 행을 준다', () => {
+      const subject = providedExperiment()
+      const fields = inputFields(fitFor(subject))
+      const sample = sampleRow(subject, fields, { dataset, testDataset }, undefined, picks(0))
+
+      // 학습 표의 0번은 키 150이다. 평가 표의 0번이 나와야 한다.
+      expect(sample?.values).toEqual({ 키: '101', 몸무게: '11', 지역: '서울' })
+    })
+
+    it('평가 표가 학습 표보다 길어도 뽑는다 - 학습 표를 보면 여기서 조용히 null이 된다', () => {
+      const longer: Dataset = {
+        columns: testDataset.columns,
+        rows: [...testDataset.rows, ['104', '14', '서울', 'b'], ['105', '15', '부산', 'a']],
+      }
+      const subject = experiment([0, 1], onehot, {
+        split: { method: 'provided', testSize: 0.3, stratify: true, randomState: 42 },
+        // 학습 표는 5행뿐이라 이 번호들은 그쪽에서 못 찾는다.
+        testIndices: [3, 4],
+      })
+      const fields = inputFields(fitFor(subject))
+
+      expect(
+        sampleRow(subject, fields, { dataset, testDataset: longer }, undefined, picks(0))?.index,
+      ).toBe(3)
+    })
+
+    it('평가 표가 없으면 null이다 - 학습 표로 조용히 떨어지지 않는다', () => {
+      const subject = providedExperiment()
+      const fields = inputFields(fitFor(subject))
+
+      expect(sampleRow(subject, fields, { dataset }, undefined, picks(0))).toBeNull()
+    })
+
+    it('학습 행으로 떨어질 때는 학습 표를 본다 - trainIndices는 언제나 data.csv다', () => {
+      const subject = experiment([0, 1], onehot, {
+        split: { method: 'provided', testSize: 0.3, stratify: true, randomState: 42 },
+        testIndices: [],
+      })
+      const fields = inputFields(fitFor(subject))
+      const sample = sampleRow(subject, fields, { dataset, testDataset }, undefined, picks(0))
+
+      expect(sample?.values).toEqual({ 키: '150', 몸무게: '40', 지역: '서울' })
+    })
   })
 
   it('가져온 줄이 그대로 벡터가 된다 - 한두 칸만 바꿔 보는 길이 여기서 열린다', () => {
     const subject = experiment([0, 1, 3], scaled, { testIndices: [2] })
     const preprocessor = fitFor(subject)
-    const sample = sampleRow(subject, inputFields(preprocessor), dataset)
+    const sample = sampleRow(subject, inputFields(preprocessor), { dataset })
 
     expect(() => inputVector(subject, preprocessor, sample?.values ?? {})).not.toThrow()
   })
