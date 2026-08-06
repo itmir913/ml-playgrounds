@@ -16,7 +16,7 @@
  * 꺼내 그 함수들에 넘기고 결과를 그리는 것까지다.
  */
 
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppEmpty from '@/components/AppEmpty.vue'
@@ -286,6 +286,14 @@ function contextFor(
 /** 계산이 도는 동안 켜진다. 필터·입력 칸이 이걸 보고 잠긴다 (architecture.md §8.13.1). */
 const predicting = ref(false)
 
+/**
+ * 답 목록의 DOM. **[예측]을 누르면 여기로 스스로 스크롤한다** - 왼쪽은 붙박이지만
+ * (architecture.md §8.13.1 "왼쪽은 붙박이다") 넓은 화면에서는 오른쪽 답 목록이 화면
+ * 위쪽에 있어, 표를 내려 보다가 눌렀으면 다시 올려다봐야 한다. `ExperimentDetail.vue`가
+ * 줄을 고르면 속으로 스크롤하는 것과 같은 이유·같은 모양이다.
+ */
+const answerListEl = ref<HTMLElement | null>(null)
+
 /** 화면에 한 프레임 양보한다. `setTimeout(0)`이 `requestAnimationFrame`보다 테스트 환경을 덜 가린다. */
 function yieldToScreen(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
@@ -313,6 +321,9 @@ async function run(): Promise<void> {
   if (!file) return
 
   predicting.value = true
+  void nextTick(() => {
+    answerListEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
   try {
     const next = new Map(answers.value)
     const contexts = new Map<string, LoadContext>()
@@ -404,7 +415,9 @@ async function run(): Promise<void> {
           평가 데이터 라디오와 같은 모양이다 - 묻는 것이 하나("이 모델들에 무엇을
           넣을까")인데 답하는 길이 둘이다.
         -->
-        <div class="flex flex-col gap-3 rounded-panel border border-line bg-surface p-4">
+        <div
+          class="flex flex-col gap-3 rounded-panel border border-line bg-surface p-4 md:flex-row md:flex-wrap md:gap-x-8"
+        >
           <label class="flex cursor-pointer items-start gap-2">
             <input
               type="radio"
@@ -459,7 +472,7 @@ async function run(): Promise<void> {
             />
           </div>
 
-          <div class="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          <div ref="answerListEl" class="min-h-0 min-w-0 flex-1 overflow-y-auto">
             <AnswerList :models="visible" :answers="answers" :experiment-names="experimentNames" />
           </div>
         </div>
