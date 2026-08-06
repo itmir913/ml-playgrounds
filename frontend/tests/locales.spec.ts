@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   CLIENT_ERROR_CODES,
+  CLIENT_WARNING_CODES,
   ENTRY_HASH_STATUSES,
   FILE_HASH_STATUSES,
   REPRODUCTION_STATUSES,
@@ -127,14 +128,16 @@ describe('로케일 파일', () => {
 
 describe('프런트엔드 전용 코드', () => {
   it('코드마다 문장이 있다', () => {
-    for (const code of CLIENT_ERROR_CODES) {
+    // 경고도 같은 네임스페이스를 쓴다 - client.*가 가리키는 것은 "실패"가 아니라
+    // "프런트엔드가 만든 코드"다 (errors.ts의 CLIENT_WARNING_CODES).
+    for (const code of [...CLIENT_ERROR_CODES, ...CLIENT_WARNING_CODES]) {
       expect(english.has(`client.${code}`), code).toBe(true)
       expect(korean.has(`client.${code}`), code).toBe(true)
     }
   })
 
   it('client.* 에 쓰이지 않는 키가 없다', () => {
-    const declared = new Set<string>(CLIENT_ERROR_CODES)
+    const declared = new Set<string>([...CLIENT_ERROR_CODES, ...CLIENT_WARNING_CODES])
     const used = [...english.keys()]
       .filter((key) => key.startsWith('client.'))
       .map((key) => key.slice('client.'.length))

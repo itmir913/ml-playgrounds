@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest'
 
 import { CLIENT_ERROR_CODES } from '../src/errors'
 import { BROWSER_ROW_LIMIT } from '../src/limits'
+import { SKLEARN_ONLY_ALGORITHM } from './fixtures/algorithms'
 import {
   ALGORITHMS,
   algorithmOptions,
@@ -53,8 +54,12 @@ describe('등록부', () => {
   })
 
   it('순수 JS 구현이 없는 것도 숨기지 않고 등록한다', () => {
-    // 목록에서 빼면 학생은 SVM이라는 것이 있다는 사실조차 모른다.
-    expect(ALGORITHMS.find((a) => a.id === 'svm')?.runtimes).not.toContain('mljs')
+    // 목록에서 빼면 학생은 그런 모델이 있다는 사실조차 모른다. **표본은 가짜다** -
+    // 등록부에는 지금 sklearn 전용이 하나도 없고, 그건 규칙이 아니라 오늘의 사실이다.
+    const options = algorithmOptions(tabularClassification, context(), [SKLEARN_ONLY_ALGORITHM])
+    expect(options).toHaveLength(1)
+    expect(options[0]?.enabled).toBe(false)
+    expect(options[0]?.reason).toBe('ENGINE_NOT_READY')
   })
 })
 
@@ -85,22 +90,25 @@ describe('세 축으로 고른다', () => {
     const options = algorithmOptions(tabularClassification, context())
     // 순수 JS가 있으므로 서버가 없어도 열린다.
     expect(optionFor(options, 'decision_tree')?.enabled).toBe(true)
-    // svm은 sklearn에서만 도는데 서버도 없고 엔진도 준비 안 됐다.
-    expect(optionFor(options, 'svm')?.enabled).toBe(false)
+    // sklearn에서만 도는 모델은 서버도 없고 엔진도 준비 안 됐으니 잠긴다.
+    const sklearnOnly = algorithmOptions(tabularClassification, context(), [SKLEARN_ONLY_ALGORITHM])
+    expect(sklearnOnly[0]?.enabled).toBe(false)
   })
 })
 
 describe('못 쓰는 이유가 쓸모 있어야 한다', () => {
   it('지원하지도 않는 실행 방법의 이유를 보여주지 않는다', () => {
-    // svm은 mljs를 아예 지원하지 않는다. "여기서 실행할 수 없습니다"라고만 하면
+    // 이 모델은 mljs를 아예 지원하지 않는다. "여기서 실행할 수 없습니다"라고만 하면
     // 학생은 무엇을 해야 하는지 모른다. 엔진을 준비하면 된다고 말해줘야 한다.
-    const options = algorithmOptions(tabularClassification, context())
-    expect(optionFor(options, 'svm')?.reason).toBe('ENGINE_NOT_READY')
+    const options = algorithmOptions(tabularClassification, context(), [SKLEARN_ONLY_ALGORITHM])
+    expect(options[0]?.reason).toBe('ENGINE_NOT_READY')
   })
 
   it('엔진을 준비하면 sklearn 전용 모델이 열린다', () => {
-    const options = algorithmOptions(tabularClassification, context({ engineStates: skReady }))
-    expect(optionFor(options, 'svm')?.enabled).toBe(true)
+    const options = algorithmOptions(tabularClassification, context({ engineStates: skReady }), [
+      SKLEARN_ONLY_ALGORITHM,
+    ])
+    expect(options[0]?.enabled).toBe(true)
   })
 
   it('데이터가 너무 크면 브라우저 전용 상황에서 잠긴다', () => {
@@ -137,7 +145,7 @@ describe('못 쓰는 이유가 쓸모 있어야 한다', () => {
   })
 
   it('잠겨 있어도 실행 방법별 판정을 함께 준다 - 무엇을 하면 되는지 알아야 한다', () => {
-    const option = optionFor(algorithmOptions(tabularClassification, context()), 'svm')
+    const option = algorithmOptions(tabularClassification, context(), [SKLEARN_ONLY_ALGORITHM])[0]
     expect(option?.runtimes).toHaveLength(3)
     expect(option?.runtimes.find((r) => r.runtime.id === 'mljs')?.reason).toBe(
       'ALGORITHM_NOT_AVAILABLE_HERE',
@@ -175,13 +183,14 @@ describe('enabledAlgorithms', () => {
   it('고를 수 있는 것만 남긴다', () => {
     const options = algorithmOptions(tabularClassification, context())
     const ids = enabledAlgorithms(options).map((a) => a.id)
-    // svm만 sklearn 전용이라 엔진을 준비하기 전에는 안 열린다.
+    // 분류 모델 전부다. **회귀 전용만 빠진다** - 이제 sklearn 전용은 하나도 없다.
     expect(ids).toEqual([
       'decision_tree',
       'knn',
       'logistic_regression',
       'random_forest',
       'naive_bayes',
+      'svm',
     ])
   })
 })

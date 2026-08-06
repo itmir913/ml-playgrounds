@@ -24,6 +24,17 @@ const MB = BYTES_PER_MB
 export const BROWSER_ROW_LIMIT = 5000
 
 /**
+ * SVM만의 상한. **알고리즘마다 상한이 다르다는 것이 여기서 처음 실물이 된다**
+ * (ml/algorithms.ts의 `maxRows`).
+ *
+ * 수렴하는 데이터에서 2000행 26초·5000행 181초 사이의 타협이다
+ * (open-decisions.md "순수 JS 서포트 벡터 머신을 넣는다"의 "다시 쟀더니").
+ * 5000행은 커널 행렬만 200MB라 저사양 학교 PC와 휴대폰에서 위험하기도 하다 -
+ * SMO는 학습 시작에 N×N을 통째로 만든다.
+ */
+export const SVM_ROW_LIMIT = 3000
+
+/**
  * 모델 하나를 .mlpx에 담을 수 있는 최대 크기.
  *
  * 이걸 넘는 모델은 담지 않고 지표만 남긴다. 저장 자체는 성공한다.

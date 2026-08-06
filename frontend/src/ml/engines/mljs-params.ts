@@ -52,4 +52,11 @@ export const MLJS_PARAMETERS: Readonly<Record<string, readonly HyperparameterSpe
     { name: 'learningRate', integer: false, min: 0.0001, max: 1, step: 0.0001, default: 5e-3 },
   ],
   linear_regression: [],
+  // **`C` 하나만 연다** (open-decisions.md "순수 JS 서포트 벡터 머신을 넣는다").
+  // 커널은 선형뿐이라 손잡이가 아니고, 수렴 허용오차·반복 횟수는 수업 내용이 아니라
+  // 수업 시간을 말아먹는 값이다. 기본값 1은 솔버 원본과 sklearn `SVC` 양쪽의 기본값이다.
+  //
+  // 아래쪽 끝이 0이 아닌 이유는 `C`가 0이면 모든 alpha가 0에 갇혀 **아무것도 안 배운
+  // 모델이 에러 없이 나오기** 때문이다. 로지스틱 회귀의 learningRate와 같은 자리다.
+  svm: [{ name: 'C', integer: false, min: 0.01, max: 100, step: 0.01, default: 1 }],
 }

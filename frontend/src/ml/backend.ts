@@ -69,8 +69,17 @@ export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number]
  * **판정하는 곳 옆에 둔다.** 이유를 보여주는 자리가 둘이고(전처리 화면의 모델 목록,
  * 실패한 run) 각자 파라미터를 만들면 한쪽 문장에만 숫자가 빠진 채 뜬다.
  */
-export function reasonParams(reason: UnavailableReason): Record<string, number> {
-  return reason === 'DATASET_TOO_LARGE_FOR_BROWSER' ? { limitRows: BROWSER_ROW_LIMIT } : {}
+export function reasonParams(
+  reason: UnavailableReason,
+  /**
+   * 이 알고리즘에 걸린 상한. **알고리즘마다 다르다** (AlgorithmSpec.maxRows).
+   *
+   * 기본값을 두는 이유는 나머지 사유가 이 값을 안 쓰기 때문이다. 다만 SVM처럼 상한이
+   * 따로 있는 알고리즘에서 이걸 안 넘기면 **화면이 5000이라고 말하고 3000에서 꺼진다.**
+   */
+  limitRows: number = BROWSER_ROW_LIMIT,
+): Record<string, number> {
+  return reason === 'DATASET_TOO_LARGE_FOR_BROWSER' ? { limitRows } : {}
 }
 
 /**
@@ -120,6 +129,17 @@ export interface AlgorithmSpec {
   readonly id: string
   /** 이 알고리즘을 돌릴 수 있는 실행 방법의 id. 등록부가 알고리즘마다 선언한다. */
   readonly runtimes: readonly string[]
+  /**
+   * 브라우저에서 이 알고리즘에만 걸리는 행 상한. 없으면 전역 상한을 따른다.
+   *
+   * **전역 하나로는 못 담는다** - 결정 트리가 즉시 끝나는 데이터에서 SVM만 몇 분이다
+   * (open-decisions.md "순수 JS 서포트 벡터 머신을 넣는다"). 값은 limits.ts가 출처이고
+   * 여기는 어느 알고리즘에 걸리는지만 선언한다.
+   *
+   * **서버에는 안 걸린다.** 여기 적힌 것은 브라우저에서 도는 구현의 성질이고, 서버는
+   * 자기 자원으로 자기 판정을 한다.
+   */
+  readonly maxRows?: number
 }
 
 export interface RuntimeOption {
@@ -158,7 +178,11 @@ export function runtimeOptions(
     if (runtime.location === 'server' && context.serverStatus !== 'available') {
       return { runtime, enabled: false, reason: 'SERVER_UNAVAILABLE' }
     }
-    if (runtime.location === 'browser' && context.rowCount > browserRowLimit) {
+    // 알고리즘이 자기 상한을 들고 있으면 그것이 이긴다. 전역보다 낮은 값만 오므로
+    // 더 작은 쪽을 고를 필요가 없다 - 더 높은 상한을 선언하는 것은 "전역이 틀렸다"는
+    // 뜻이고, 그건 알고리즘 등록부가 할 말이 아니다.
+    const limit = algorithm.maxRows ?? browserRowLimit
+    if (runtime.location === 'browser' && context.rowCount > limit) {
       return { runtime, enabled: false, reason: 'DATASET_TOO_LARGE_FOR_BROWSER' }
     }
     if (runtime.needsPreparation && (context.engineStates?.[runtime.id] ?? 'absent') !== 'ready') {

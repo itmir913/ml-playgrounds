@@ -110,6 +110,24 @@ export const SHARED_ERROR_CODES = [
 ] as const
 
 /**
+ * 성공한 run에 붙는 사실. **에러가 아니다** (mlpx-spec.md 5.9).
+ *
+ * 로케일은 `client.*`를 그대로 쓴다 - 네임스페이스가 가리키는 것은 "실패"가 아니라
+ * "프런트엔드가 만든 코드"이고, 이 코드도 그것이다. 목록을 나누는 이유는 **자리가 다르기
+ * 때문**이다: `run.warning`은 `status: 'done'`과 함께 오고 `failure`는 아니다. 한 목록에
+ * 담으면 "이 코드가 실패인가"를 이름으로 판정하게 되고, 그건 반드시 틀린다.
+ *
+ * 서버가 학습한 run도 같은 자리를 쓰게 되면 그때는 backend/app/errors.py 쪽으로 옮겨
+ * 간다 - 지금은 브라우저에서만 나온다.
+ */
+export const CLIENT_WARNING_CODES = [
+  // SMO가 반복 예산 안에 수렴하지 못했다. 계수는 나왔고 지표도 나왔다 - 덜 다듬어졌을 뿐이다.
+  'SVM_NOT_CONVERGED',
+] as const
+
+export type ClientWarningCode = (typeof CLIENT_WARNING_CODES)[number]
+
+/**
  * 무결성 확인 결과. **에러가 아니라 상태다** - 확인 자체는 성공했고 결과가 그중 하나다.
  *
  * 축이 둘이라 열거형도 둘이다. 하나로 합치면 화면에 if 분기가 생긴다.

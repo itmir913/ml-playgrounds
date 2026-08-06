@@ -222,17 +222,18 @@ describe('일부만 실패한다', () => {
     expect(experiment.runs[0]?.metrics?.accuracy).toBeLessThan(deep?.metrics?.accuracy ?? 0)
   })
 
-  it('svm은 순수 JS 구현이 없어 실패하고 사유가 남는다', () => {
-    // 자동으로 넘어갈 곳이 없다 - pyodide는 안 켜져 있고 서버도 없다.
+  it('svm도 순수 JS에서 돈다 - 서버가 없어도 지표가 나온다', () => {
+    // 예전에는 여기서 ENGINE_NOT_READY로 실패했다. 그 상태가 공식 배포의 기본값이라
+    // 대부분의 학생에게 SVM은 없는 물건이었다 (open-decisions.md).
     const { experiment } = runExperiment(
       inputFor({ settings: settingsFor({ selectedAlgorithms: models('svm') }) }),
       frozen,
     )
 
-    expect(experiment.runs[0]?.status).toBe('failed')
-    expect(experiment.runs[0]?.failure?.code).toBe('ENGINE_NOT_READY')
-    // 아무 엔진도 안 돌았으므로 확정할 주체가 없다. 학생이 준 것 그대로다.
-    expect(experiment.runs[0]?.hyperparameters).toEqual({})
+    expect(experiment.runs[0]?.status).toBe('done')
+    expect(experiment.runs[0]?.computedBy).toBe('browser')
+    // 손잡이는 하나뿐이고, 학생이 안 건드려도 확정된 값이 남는다.
+    expect(experiment.runs[0]?.hyperparameters).toEqual({ C: 1 })
   })
 
   it('학습이 터져도 무엇을 먹였는지가 남는다', () => {
@@ -306,7 +307,7 @@ describe('일부만 실패한다', () => {
     // **콕 집어 고른 것은 자동으로 안 옮긴다.** 옮기면 셋이 같은 곳으로 몰려 똑같은
     // 줄 세 개가 나오고, 비교하려던 것이 사라진다. 대신 사유가 각각 다르다.
     expect(experiment.runs.map((run) => run.failure?.code)).toEqual([
-      'ENGINE_NOT_READY', // 순수 JS에는 svm 구현이 없다 - 막다른 답 대신 준비 가능한 쪽을 준다
+      undefined, // 순수 JS는 돈다 - 벤더링한 SMO가 여기 있다
       'ENGINE_NOT_READY', // pyodide를 아직 안 켰다
       'SERVER_UNAVAILABLE', // 학교 서버가 없다
     ])

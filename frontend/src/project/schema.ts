@@ -349,6 +349,21 @@ export const failureSchema = z.looseObject({
 })
 
 /**
+ * 실패는 아니지만 학생이 알아야 하는 사실 (mlpx-spec.md 5.9).
+ *
+ * **`failure`와 모양이 같고 자리가 다르다.** 지금 여기 오는 것은 "SMO가 반복 예산 안에
+ * 수렴하지 못했다"뿐이고, 그때도 지표는 나오고 모델도 담긴다 - 실패로 만들면 학생은
+ * 숫자를 하나도 못 보는데 그건 사실보다 나쁜 상태다.
+ *
+ * **`failure`와 합치지 않는다.** 하나로 두면 "실패했는가"의 판정이 status와 그 필드
+ * 둘로 갈라지고, 화면이 성공한 run을 실패 목록에 넣는 경로가 생긴다.
+ */
+export const warningSchema = z.looseObject({
+  code: z.string(),
+  params: opaqueRecord.optional(),
+})
+
+/**
  * 모델 파일에 대한 참조.
  *
  * format은 검증하지 않는다. 포맷 계층은 모델 안을 들여다보지 않고 어떻게 해석할지만
@@ -380,6 +395,8 @@ export const runSchema = z
     featureImportance: z.array(featureImportanceSchema).optional(),
     engine: engineSchema.optional(),
     failure: failureSchema.optional(),
+    /** 성공했지만 학생이 알아야 하는 사실. status는 'done'이다 (mlpx-spec.md 5.9). */
+    warning: warningSchema.optional(),
     model: modelRefSchema.optional(),
     /** model이 없는 이유. 있으면 화면이 학생에게 무엇을 할 수 있는지 말할 수 있다. */
     modelOmitted: z.enum(MODEL_OMISSION_REASONS).optional(),
@@ -553,6 +570,7 @@ export type Split = z.infer<typeof splitSchema>
 export type Settings = z.infer<typeof settingsSchema>
 export type Engine = z.infer<typeof engineSchema>
 export type Failure = z.infer<typeof failureSchema>
+export type Warning = z.infer<typeof warningSchema>
 export type ModelRef = z.infer<typeof modelRefSchema>
 export type Run = z.infer<typeof runSchema>
 export type Experiment = z.infer<typeof experimentSchema>

@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ColumnSummary } from '../src/data/columns'
-import { algorithmOptions } from '../src/ml/algorithms'
+import { ALGORITHMS, algorithmOptions } from '../src/ml/algorithms'
 import type { RuntimeContext } from '../src/ml/backend'
 import {
   algorithmsLosingMeaning,
@@ -22,6 +22,7 @@ import {
   type AxisChoice,
 } from '../src/ml/selection'
 import type { Preprocessing } from '../src/project/schema'
+import { SKLEARN_ONLY_ALGORITHM, withSklearnOnly } from './fixtures/algorithms'
 
 const ONEHOT: Preprocessing = { missing: 'drop', scaling: 'none', categoricalEncoding: 'onehot' }
 const NO_ENCODING: Preprocessing = { ...ONEHOT, categoricalEncoding: 'none' }
@@ -168,8 +169,12 @@ describe('유형을 바꾸면 뜻을 잃는 모델', () => {
   })
 
   it('실행 위치는 보지 않는다 - 서버가 꺼져 있다고 선택을 지우지 않는다', () => {
-    // svm은 순수 JS에 구현이 없다. 그래도 분류에서는 뜻이 있으므로 남는다.
-    expect(algorithmsLosingMeaning([{ algorithm: 'svm' }], 'classification')).toEqual([])
+    // 이 모델은 서버나 준비된 엔진이 있어야 돈다. 그래도 분류에서는 뜻이 있으므로 남는다.
+    expect(
+      algorithmsLosingMeaning([{ algorithm: 'sklearn_only' }], 'classification', [
+        SKLEARN_ONLY_ALGORITHM,
+      ]),
+    ).toEqual([])
   })
 
   it('등록부에 없는 알고리즘은 남긴다 - 남의 파일에서 온 것이다', () => {
@@ -185,7 +190,13 @@ describe('세 축이 서로를 좁힌다', () => {
     overrides: Partial<Parameters<typeof modelAxes>[0]> = {},
   ): ReturnType<typeof modelAxes> {
     return modelAxes({
-      options: algorithmOptions({ dataType: 'tabular', taskType: 'classification' }, OFFLINE),
+      // 등록부에 sklearn 전용을 하나 얹어 둔다. 지금 실제 등록부에는 하나도 없는데,
+      // 그 사실이 이 규칙의 테스트를 지우면 안 된다 (fixtures/algorithms.ts).
+      options: algorithmOptions(
+        { dataType: 'tabular', taskType: 'classification' },
+        OFFLINE,
+        withSklearnOnly(ALGORITHMS),
+      ),
       algorithm: 'decision_tree',
       runtime: 'mljs',
       chosen: [],
@@ -197,12 +208,16 @@ describe('세 축이 서로를 좁힌다', () => {
     return list.find((one) => one.id === id)
   }
 
-  it('실행 방법이 모델을 좁힌다 - 순수 JS에는 서포트 벡터 머신이 없다', () => {
-    const options = algorithmOptions({ dataType: 'tabular', taskType: 'classification' }, ONLINE)
+  it('실행 방법이 모델을 좁힌다 - 순수 JS에 없는 모델은 순수 JS 축에서 꺼진다', () => {
+    const options = algorithmOptions(
+      { dataType: 'tabular', taskType: 'classification' },
+      ONLINE,
+      withSklearnOnly(ALGORITHMS),
+    )
     const { algorithms } = axes({ options })
     expect(choice(algorithms, 'decision_tree')?.enabled).toBe(true)
-    expect(choice(algorithms, 'svm')).toEqual({
-      id: 'svm',
+    expect(choice(algorithms, 'sklearn_only')).toEqual({
+      id: 'sklearn_only',
       enabled: false,
       reason: 'ALGORITHM_NOT_AVAILABLE_HERE',
     })
@@ -214,7 +229,12 @@ describe('세 축이 서로를 좁힌다', () => {
    * 있는 일을 알려주는 사유다.
    */
   it('축이 좁히기 전에 더 근본적인 사유가 있으면 그것이 이긴다', () => {
-    expect(choice(axes().algorithms, 'svm')?.reason).toBe('ENGINE_NOT_READY')
+    const options = algorithmOptions(
+      { dataType: 'tabular', taskType: 'classification' },
+      OFFLINE,
+      withSklearnOnly(ALGORITHMS),
+    )
+    expect(choice(axes({ options }).algorithms, 'sklearn_only')?.reason).toBe('ENGINE_NOT_READY')
   })
 
   it('과제 유형이 먼저다 - 회귀에서는 분류 모델이 유형 사유로 꺼진다', () => {
@@ -227,8 +247,13 @@ describe('세 축이 서로를 좁힌다', () => {
   })
 
   it('모델이 실행 방법을 좁힌다 - 축은 걸린 모델 기준으로 판정된다', () => {
+    const options = algorithmOptions(
+      { dataType: 'tabular', taskType: 'classification' },
+      OFFLINE,
+      withSklearnOnly(ALGORITHMS),
+    )
     expect(choice(axes().runtimes, 'mljs')?.enabled).toBe(true)
-    expect(choice(axes({ algorithm: 'svm' }).runtimes, 'mljs')?.reason).toBe(
+    expect(choice(axes({ options, algorithm: 'sklearn_only' }).runtimes, 'mljs')?.reason).toBe(
       'ALGORITHM_NOT_AVAILABLE_HERE',
     )
   })
@@ -252,7 +277,7 @@ describe('세 축이 서로를 좁힌다', () => {
    * 있다"가 생기고, 학생은 무엇을 고쳐야 하는지 알 수 없다.
    */
   it('담을 수 없으면 그 카드가 꺼져 있다', () => {
-    for (const algorithm of ['svm', 'linear_regression', 'decision_tree']) {
+    for (const algorithm of ['svm', 'linear_regression', 'decision_tree', 'sklearn_only']) {
       const result = axes({ algorithm })
       const card = result.algorithms.find((one) => one.id === algorithm)
       expect(card?.enabled).toBe(result.blocked === null)

@@ -316,7 +316,7 @@ function trainOne(
     // try 안이라 **이 run 하나만 실패하고 나머지 모델은 계속 돈다** (mlpx-spec.md 4.1).
     assertInRange(engine.parameters(base.algorithm), base.hyperparameters)
 
-    const { predict, model, modelOmittedDetail } = engine.fit(base.algorithm, {
+    const { predict, model, modelOmittedDetail, warning } = engine.fit(base.algorithm, {
       features: context.trainFeatures,
       rowIndices: context.trainRowIndices,
       target: context.trainTarget,
@@ -331,6 +331,9 @@ function trainOne(
       metrics: evaluation.metrics,
       ...(evaluation.perClass ? { perClass: evaluation.perClass } : {}),
       ...(evaluation.confusionMatrix ? { confusionMatrix: evaluation.confusionMatrix } : {}),
+      // **성공한 run에 붙는다** (mlpx-spec.md 5.9). 실패로 뒤집지 않는다 - 지표도 모델도
+      // 나왔고, 학생이 알아야 하는 것은 그 숫자가 덜 다듬어진 계수에서 나왔다는 사실이다.
+      ...(warning ? { warning } : {}),
       // **모델이 없는 이유를 여기서 적는다.** 저장까지 가야 알 수 있는 사유(예산, 개별
       // 상한)와 달리 이건 학습이 끝난 순간 확정되고, 그래서 저장 전에도 화면이 학생에게
       // 무엇을 할 수 있는지 말할 수 있다 (mlpx-spec.md 4.2).
@@ -479,7 +482,9 @@ export function runExperiment(
         ...base,
         computedBy: 'browser',
         status: 'failed',
-        failure: { code: reason, params: reasonParams(reason) },
+        // 상한은 알고리즘마다 다르다. 전역을 그대로 쓰면 SVM이 3000행에서 꺼지는데
+        // 실패한 run에는 5000이라고 적힌다.
+        failure: { code: reason, params: reasonParams(reason, option.algorithm.maxRows) },
       })
     } else {
       const trained = trainOne(base, runtime, engine, trainContext)

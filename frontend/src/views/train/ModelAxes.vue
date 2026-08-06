@@ -2,8 +2,8 @@
 /**
  * 학습할 것을 고르는 **세 축** — 기계학습 유형 · 모델 · 실행 방법 (architecture.md §8.12).
  *
- * **축들은 서로를 좁힌다.** 순수 JS를 고르면 서포트 벡터 머신이 꺼지고, 회귀를 고르면
- * 분류 모델이 꺼진다. 판정은 `ml/selection.ts`의 `modelAxes` 하나가 하고 여기서는
+ * **축들은 서로를 좁힌다.** 회귀를 고르면 분류 모델이 꺼지고, 그 실행 방법에 구현이 없는
+ * 모델은 그 축에서 꺼진다. 판정은 `ml/selection.ts`의 `modelAxes` 하나가 하고 여기서는
  * 문장을 붙여 그리기만 한다 — 축마다 따로 판정하면 세 벌이 되고 반드시 어긋난다.
  *
  * **고른 것을 되돌리지 않는다** (mlpx-spec.md §0.1). 유형을 바꿔서 걸어 둔 모델이 뜻을
@@ -80,13 +80,25 @@ const axes = computed(() =>
   }),
 )
 
+/**
+ * 이 알고리즘에 걸린 행 상한. **없으면 전역이고 `reasonParams`가 그걸 안다.**
+ *
+ * 사유 문장의 숫자가 여기서 나온다 - 상한이 알고리즘마다 다르므로(SVM) 전역을 그대로
+ * 쓰면 화면이 5000이라고 말하고 3000에서 꺼진다.
+ */
+function limitOf(algorithmId: string): number | undefined {
+  return props.options.find((option) => option.algorithm.id === algorithmId)?.algorithm.maxRows
+}
+
 /** 사유 문장은 `client.*`에 이미 있다. 화면이 새로 짓지 않는다. */
-function withReason(choice: AxisChoice, label: string): Choice {
+function withReason(choice: AxisChoice, label: string, algorithmId: string): Choice {
   return {
     id: choice.id,
     label,
     enabled: choice.enabled,
-    ...(choice.reason ? { reason: t(`client.${choice.reason}`, reasonParams(choice.reason)) } : {}),
+    ...(choice.reason
+      ? { reason: t(`client.${choice.reason}`, reasonParams(choice.reason, limitOf(algorithmId))) }
+      : {}),
   }
 }
 
@@ -103,11 +115,17 @@ const taskChoices = computed<Choice[]>(() =>
 )
 
 const modelChoices = computed<Choice[]>(() =>
-  axes.value.algorithms.map((choice) => withReason(choice, t(`algorithms.${choice.id}`))),
+  // 모델 축에서는 줄마다 알고리즘이 다르다. 그 줄의 상한을 그 줄이 쓴다.
+  axes.value.algorithms.map((choice) =>
+    withReason(choice, t(`algorithms.${choice.id}`), choice.id),
+  ),
 )
 
 const runtimeChoices = computed<Choice[]>(() =>
-  axes.value.runtimes.map((choice) => withReason(choice, t(`runtimes.${choice.id}`))),
+  // 실행 방법 축은 지금 고른 모델 하나에 대한 것이다.
+  axes.value.runtimes.map((choice) =>
+    withReason(choice, t(`runtimes.${choice.id}`), algorithm.value),
+  ),
 )
 
 /** 왜 못 담는지. 이유 없이 꺼진 버튼은 학생에게 고장으로 보인다. */
@@ -116,7 +134,7 @@ const blocked = computed(() => {
   if (reason === null) return null
   return reason === 'alreadyAdded'
     ? t('train.alreadyAdded')
-    : t(`client.${reason}`, reasonParams(reason))
+    : t(`client.${reason}`, reasonParams(reason, limitOf(algorithm.value)))
 })
 
 /** 문자열로 온 것을 유형으로 되돌린다. 목록에 있는 것만 통과하므로 단언이 필요 없다. */

@@ -16,6 +16,7 @@ import { LINEAR_FORMAT, loadLinearModel } from './linear'
 import { LINEAR_REGRESSION_FORMAT, loadLinearRegressionModel } from './linear-regression'
 import { NAIVE_BAYES_FORMAT, loadNaiveBayesModel } from './naive-bayes'
 import { REFERENCE_FORMAT, loadReferenceModel } from './reference'
+import { SVM_FORMAT, loadSvmModel } from './svm'
 import { TREE_FORMAT, loadTreeModel } from './tree'
 import type { LoadContext, ModelInterpreter, Predict } from './types'
 
@@ -27,6 +28,8 @@ export { NAIVE_BAYES_FORMAT } from './naive-bayes'
 export type { NaiveBayesModel } from './naive-bayes'
 export { REFERENCE_FORMAT, knnPredict } from './reference'
 export type { NeighborhoodInput, ReferenceModel } from './reference'
+export { SVM_FORMAT, svmPredict } from './svm'
+export type { PairwiseClassifier, SvmModel, VotingInput } from './svm'
 export { TREE_FORMAT } from './tree'
 export type { TreeModel, TreeNode } from './tree'
 export type { LoadContext, ModelFile, ModelInterpreter, Predict } from './types'
@@ -55,6 +58,13 @@ const INTERPRETERS: readonly ModelInterpreter[] = [
     includesPreprocessing: false,
     needsTrainingRows: false,
     load: loadLinearRegressionModel,
+  },
+  {
+    format: SVM_FORMAT,
+    includesPreprocessing: false,
+    // **선형 SVM은 가중치뿐이라 자체 완결이다** (mlpx-spec.md 5.8). 참조형과 갈리는 자리다.
+    needsTrainingRows: false,
+    load: loadSvmModel,
   },
   {
     format: REFERENCE_FORMAT,

@@ -40,10 +40,13 @@ import { RandomForestClassifier } from 'ml-random-forest'
 import MultivariateLinearRegression from 'ml-regression-multivariate-linear'
 
 import { ClientError, failureDetail } from '../../errors'
+import type { Warning } from '../../project/schema'
 import { resolveWith, type HyperparameterSpec } from '../hyperparams'
 import type { Prediction } from '../metrics'
-import { REFERENCE_FORMAT, knnPredict } from '../models'
+import { REFERENCE_FORMAT, SVM_FORMAT, knnPredict, svmPredict } from '../models'
+import type { PairwiseClassifier } from '../models'
 import type { ModelFile, Predict } from '../models/types'
+import { SMO_DEFAULTS, seededRandom, trainLinearSvm } from './svm-smo'
 import { MLJS_PARAMETERS } from './mljs-params'
 import {
   serializeForest,
@@ -92,6 +95,12 @@ export interface FitResult {
    * 사유 어휘(modelOmitted)는 부르는 쪽이 붙인다 - 여기서는 무엇이 터졌는지만 전한다.
    */
   modelOmittedDetail?: string
+  /**
+   * 학습은 됐지만 학생이 알아야 하는 사실. run.warning이 된다 (mlpx-spec.md 5.9).
+   *
+   * **실패가 아니다.** 지표도 모델도 정상으로 나오고, 화면이 그 옆에 사실 하나를 덧붙인다.
+   */
+  warning?: Warning
 }
 
 export interface FitInput {
@@ -439,6 +448,74 @@ const TRAINERS: Record<string, Trainer> = {
     return attempted.detail === undefined
       ? { predict }
       : { predict, modelOmittedDetail: attempted.detail }
+  },
+
+  /**
+   * 선형 SVM. **솔버는 벤더링한 SMO이고 다중 클래스는 여기서 감싼다** (mlpx-spec.md 5.8).
+   *
+   * 감싸는 것이 선택이 아니다 - 솔버는 이진 분류기이고, 라벨을 그대로 넘기면 던지지 않고
+   * **전부 한 클래스로 답한다**(실측). one-vs-one인 이유는 sklearn `SVC`와 같은 방식이어야
+   * 학생이 두 카드의 차이를 "엔진 차이"로 오해하지 않기 때문이다.
+   *
+   * KNN과 같이 **해석기의 예측 함수를 그대로 쓴다** - 왕복 동일성이 구조로 보장된다.
+   */
+  svm: (input) => {
+    const { encoded, labels } = labelCodec(input.target)
+    const featureCount = input.features[0]?.length ?? 0
+    const rows = toRows(input.features)
+    // 쌍마다 새로 만들지 않는다. 하나를 이어 쓰면 순서가 고정되어 있는 한 결정적이고,
+    // 쌍마다 시드를 조합하면 그 조합 규칙이 또 하나의 재현 조건이 된다.
+    const random = seededRandom(input.randomState)
+
+    const classifiers: PairwiseClassifier[] = []
+    let converged = true
+    let iterations = 0
+
+    for (let a = 0; a < labels.length; a += 1) {
+      for (let b = a + 1; b < labels.length; b += 1) {
+        const pairRows: number[][] = []
+        // **b가 +1이다.** svmPredict가 "양수면 b"로 읽으므로 여기서 뒤집으면 답이 정확히
+        // 반대가 되고, 지표만 보면 상쇄로 가려진다 (linear.ts가 겪은 그 자리다).
+        const pairLabels: number[] = []
+        encoded.forEach((label, row) => {
+          if (label !== a && label !== b) return
+          pairRows.push(rows[row] ?? [])
+          pairLabels.push(label === b ? 1 : -1)
+        })
+
+        const fitted = trainLinearSvm(pairRows, pairLabels, {
+          ...SMO_DEFAULTS,
+          C: numberOption(input.hyperparameters, 'C'),
+          random,
+        })
+        classifiers.push({ a, b, weights: fitted.weights, intercept: fitted.intercept })
+        converged &&= fitted.converged
+        iterations = Math.max(iterations, fitted.iterations)
+      }
+    }
+
+    const predict = svmPredict({ classes: labels, featureCount, classifiers })
+    const attempted = serializeOrOmit(() => ({
+      format: SVM_FORMAT,
+      classes: labels,
+      featureCount,
+      classifiers,
+    }))
+
+    // **수렴하지 못한 것은 실패가 아니다** (mlpx-spec.md 5.9). 계수가 덜 다듬어졌을 뿐이고,
+    // 그 사실을 숨기지 않는 것으로 충분하다 - sklearn도 같은 자리에서 경고만 낸다.
+    const warning: Warning | undefined = converged
+      ? undefined
+      : { code: 'SVM_NOT_CONVERGED', params: { iterations } }
+
+    return {
+      predict,
+      ...(warning ? { warning } : {}),
+      ...(attempted.model ? { model: attempted.model } : {}),
+      ...(attempted.model === undefined && attempted.detail !== undefined
+        ? { modelOmittedDetail: attempted.detail }
+        : {}),
+    }
   },
 
   logistic_regression: (input) => {

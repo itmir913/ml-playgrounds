@@ -17,6 +17,7 @@
  * 이미지 데이터에 회귀를 고른 학생에게 "서버가 없습니다"라고 답하면 안 된다.
  */
 
+import { SVM_ROW_LIMIT } from '../limits'
 import { TASK_TYPES, type DataType, type TaskType } from '../project/schema'
 import {
   runtimeOptions,
@@ -34,15 +35,16 @@ export interface Algorithm extends AlgorithmSpec {
 /** 순수 JS와 sklearn 양쪽에 구현이 있는 것. */
 const EVERYWHERE = ['mljs', 'pyodide-sklearn', 'server-sklearn'] as const
 
-/** 순수 JS 구현이 없어 sklearn에서만 도는 것. */
-const SKLEARN_ONLY = ['pyodide-sklearn', 'server-sklearn'] as const
+// `SKLEARN_ONLY`가 있었고, 그 유일한 항목이 svm이었다. 순수 JS 솔버가 들어오면서
+// 비었다 - 안 쓰는 목록을 남겨 두면 다음 사람이 "여기 넣으면 되나"로 읽는다.
 
 /**
  * V1 알고리즘. **여기 추가하는 것은 포맷 변경이 아니다** (mlpx-spec.md 5.2).
  * 그래서 formatVersion이 오르지 않고, 모르는 알고리즘이 든 파일도 열린다.
  *
- * svm이 순수 JS에 없는 것은 후보가 WASM(libsvm-js)뿐이기 때문이다. 숨기지 않고
- * 등록해 둔다 - 목록에서 빠지면 학생은 그런 모델이 있다는 것조차 모른다.
+ * **svm도 순수 JS에서 돈다** (2026-08-06). 후보가 WASM(libsvm-js)뿐이라 sklearn 전용이었고,
+ * 그 상태가 공식 배포(GitHub Pages)의 기본값이라 **대부분의 학생에게 SVM은 없는 물건이었다.**
+ * 솔버는 벤더링한 SMO다 (ml/engines/svm-smo.ts).
  *
  * **성능이 낮다는 이유로 빼지 않는다.** 엔진마다 숫자가 다른 것은 이 설계가 이미
  * 받아들인 사실이고(그래서 run.engine을 기록한다), 어디까지가 "낮은 것"이고 어디부터가
@@ -74,7 +76,15 @@ export const ALGORITHMS: readonly Algorithm[] = [
     taskTypes: ['classification'],
     runtimes: EVERYWHERE,
   },
-  { id: 'svm', dataTypes: ['tabular'], taskTypes: ['classification'], runtimes: SKLEARN_ONLY },
+  {
+    id: 'svm',
+    dataTypes: ['tabular'],
+    taskTypes: ['classification'],
+    runtimes: EVERYWHERE,
+    // **이 알고리즘만 상한이 따로다** (limits.ts의 SVM_ROW_LIMIT). SMO는 행 수의 제곱으로
+    // 붙고 학습 시작에 N×N 커널 행렬을 만든다.
+    maxRows: SVM_ROW_LIMIT,
+  },
   {
     id: 'linear_regression',
     dataTypes: ['tabular'],

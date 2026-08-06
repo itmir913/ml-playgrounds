@@ -132,7 +132,8 @@
     "nEstimators": "Number of trees",
     "k": "Number of neighbours",
     "numSteps": "Training steps",
-    "learningRate": "Learning rate"
+    "learningRate": "Learning rate",
+    "C": "How strictly to keep the boundary"
   },
   "missingStrategy": {
     "none": "Leave blanks as they are",
@@ -346,6 +347,7 @@
     "MODEL_FILE_INVALID": "That saved model could not be read. Train it again to use it.",
     "MODEL_NEEDS_DATASET": "This model needs the original data to predict, and this file has none.",
     "PREDICTION_INPUT_INCOMPLETE": "Some boxes are still empty. ({feature})",
+    "SVM_NOT_CONVERGED": "The boundary was not fully refined within the allowed rounds. The scores are real, but this model is a little rough.",
     "DATASET_FILE_TYPE_UNSUPPORTED": "This file type is not supported. ({fileName})",
     "DATASET_SHEET_NOT_FOUND": "That sheet could not be found. ({sheetName})",
     "STORAGE_QUOTA_EXCEEDED": "There is not enough storage space on this computer. (needs {requiredMb}MB, {availableMb}MB free)",

@@ -10,20 +10,38 @@
  * 고장으로 보인다 (§8.9).
  */
 
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppTable from '@/components/AppTable.vue'
 import { useFormat } from '@/composables/useFormat'
+import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import type { Run } from '@/project/schema'
 
 const props = defineProps<{ run: Run }>()
 
 const { t } = useI18n()
 const format = useFormat()
+
+/**
+ * 성공했지만 학생이 알아야 하는 사실 (mlpx-spec.md §5.9).
+ *
+ * **점수 위에 둔다.** 이 문장이 걸리는 대상이 아래의 모든 숫자이고, 숫자를 다 읽은 뒤에
+ * 알게 되면 이미 늦다. 실패한 run의 사유와 같은 방식으로 키를 만든다 — 코드가 어느
+ * 네임스페이스인지 아는 것은 `errorMessageKey` 하나다.
+ */
+const warningText = computed(() => {
+  const warning = props.run.warning
+  return warning ? t(errorMessageKey(warning.code as ClientErrorCode), { ...warning.params }) : null
+})
 </script>
 
 <template>
   <div class="flex flex-col gap-5">
+    <p v-if="warningText" class="rounded-panel border border-caution/30 bg-caution-soft p-3">
+      {{ warningText }}
+    </p>
+
     <section v-if="props.run.confusionMatrix" class="flex flex-col gap-1.5">
       <h4 class="font-bold">{{ t('results.confusion') }}</h4>
       <p class="text-ink-soft">{{ t('results.confusionLead') }}</p>

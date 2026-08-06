@@ -52,8 +52,11 @@ describe('등록부가 서로 맞는다', () => {
     }
   })
 
-  it('svm은 여기 없다 - 순수 JS 후보가 WASM뿐이다', () => {
-    expect(MLJS_ALGORITHMS).not.toContain('svm')
+  it('svm도 여기 있다 - 벤더링한 SMO가 들어왔다', () => {
+    // 예전에는 없었고, 그 상태가 공식 배포의 기본값이라 대부분의 학생에게 SVM은
+    // 없는 물건이었다 (open-decisions.md "순수 JS 서포트 벡터 머신을 넣는다").
+    expect(MLJS_ALGORITHMS).toContain('svm')
+    expect(ALGORITHMS.find((a) => a.id === 'svm')?.runtimes).toContain('mljs')
   })
 })
 
