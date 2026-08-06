@@ -19,6 +19,7 @@ import {
   mergeFields,
   inputVector,
   nextSampleRow,
+  numericRanges,
   predictableModels,
   trainingRowsFor,
 } from '../src/ml/predict'
@@ -488,5 +489,26 @@ describe('여러 실험의 칸을 합친다', () => {
       '몸무게',
       '키',
     ])
+  })
+})
+
+describe('수치 칸의 값 범위', () => {
+  it('표 전체에서 구한다 - 학생이 표에서 본 범위와 같아야 한다', () => {
+    const subject = experiment([0, 1], onehot)
+    const ranges = numericRanges(dataset, inputFields(fitFor(subject)))
+
+    // 학습셋은 150~160뿐이지만 표에는 150~190이 있다.
+    expect(ranges.get('키')).toEqual({ min: 150, max: 190 })
+    expect(ranges.get('몸무게')).toEqual({ min: 40, max: 80 })
+  })
+
+  it('범주 칸에는 범위가 없다 - 고를 것이 이미 목록에 있다', () => {
+    const subject = experiment([0, 1, 3], onehot)
+    expect(numericRanges(dataset, inputFields(fitFor(subject))).has('지역')).toBe(false)
+  })
+
+  it('숫자가 하나도 없는 열은 아무 말도 안 한다', () => {
+    const empty: Dataset = { columns: ['키'], rows: [[''], ['  ']] }
+    expect(numericRanges(empty, [{ name: '키', kind: 'numeric' }]).size).toBe(0)
   })
 })

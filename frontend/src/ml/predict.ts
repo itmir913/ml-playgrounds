@@ -194,6 +194,47 @@ export function mergeFields(groups: readonly (readonly PredictionField[])[]): Pr
   }))
 }
 
+/**
+ * 수치 칸마다 표에 실제로 있는 값의 범위. **눈금이 아니라 힌트다.**
+ *
+ * 빈 숫자 칸 앞에서 학생은 "여기 뭘 넣지"에서 멈춘다. 데이터에 150~190이 들어 있다는
+ * 사실이 그 자리에서 가장 쓸모 있는 정보이고, 그건 표를 보면 알 수 있는 것을 옮겨 놓는
+ * 것뿐이다.
+ *
+ * **막지 않는다** (open-decisions.md "하이퍼파라미터는 눈금을 주되 막지 않는다"와 같은
+ * 판단이다). 범위 밖 값을 넣어 보는 것은 이 도구에서 **해 볼 만한 일**이다 — 학습 데이터
+ * 밖에서 모델이 어떻게 구는지가 수업에서 가장 좋은 장면 중 하나다.
+ *
+ * **전체 행을 본다.** 학습셋만 보면 화면이 말하는 범위와 학생이 표에서 본 범위가 달라진다.
+ */
+export function numericRanges(
+  dataset: Dataset,
+  fields: readonly PredictionField[],
+): Map<string, { min: number; max: number }> {
+  const ranges = new Map<string, { min: number; max: number }>()
+
+  for (const field of fields) {
+    if (field.kind !== 'numeric') continue
+    const column = dataset.columns.indexOf(field.name)
+    if (column < 0) continue
+
+    let min = Number.POSITIVE_INFINITY
+    let max = Number.NEGATIVE_INFINITY
+    for (const row of dataset.rows) {
+      const cell = (row[column] ?? '').trim()
+      if (cell === '') continue
+      const value = Number(cell)
+      if (!Number.isFinite(value)) continue
+      if (value < min) min = value
+      if (value > max) max = value
+    }
+    // 숫자가 하나도 없는 열은 범위가 없다. 빈 힌트를 보이느니 아무 말도 안 한다.
+    if (min <= max) ranges.set(field.name, { min, max })
+  }
+
+  return ranges
+}
+
 export interface SampleRow {
   /** `dataset/data.csv`의 행 번호. 화면이 "몇 번째 줄을 가져왔다"를 말할 수 있다. */
   readonly index: number

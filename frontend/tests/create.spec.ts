@@ -7,7 +7,12 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { formatBytes, formatDateTime, formatPercent } from '../src/composables/useFormat'
+import {
+  formatBytes,
+  formatDateTime,
+  formatPercent,
+  formatPrediction,
+} from '../src/composables/useFormat'
 import { ALGORITHMS, supportedTaskTypes } from '../src/ml/algorithms'
 import { FALLBACK_RUNTIME_ID, RUNTIMES } from '../src/ml/backend'
 import { newProjectDocument, newProjectSeed, touch } from '../src/project/create'
@@ -156,6 +161,25 @@ describe('화면 표시 포맷', () => {
 
   it('비율은 백분율로 바뀐다', () => {
     expect(formatPercent('en', 0.9333)).toContain('93')
+  })
+
+  it('예측한 수치에서 부동소수의 잡음을 걷어낸다', () => {
+    // String(0.1 + 0.2)는 0.30000000000000004이다. 학생이 보는 것은 모델의 답인데
+    // 거기에 우리 계산기의 사정이 새어 나온다.
+    expect(formatPrediction('en', 0.1 + 0.2)).toBe('0.3')
+    expect(formatPrediction('en', 3.4000000000000004)).toBe('3.4')
+  })
+
+  it('예측값은 자릿수를 고정하지 않는다 - 학생의 데이터 단위이기 때문이다', () => {
+    // 지표와 다른 점이다. 집값이면 수백만이고 농도면 0.0001이라 소수 셋으로 자르면
+    // 한쪽은 뒤가 잘리고 다른 쪽은 0만 남는다.
+    expect(formatPrediction('en', 1250000)).toBe('1,250,000')
+    expect(formatPrediction('en', 0.000125)).toBe('0.000125')
+    expect(formatPrediction('en', 7)).toBe('7')
+  })
+
+  it('언어에 맡긴다 - 자릿수 구분을 직접 조립하지 않는다', () => {
+    expect(formatPrediction('de', 1250000)).not.toBe(formatPrediction('en', 1250000))
   })
 })
 

@@ -467,6 +467,7 @@
     "waiting": "Fill the boxes and press [Predict] to see the answers here.",
     "modelName": "{algorithm} · {experiment}",
     "unusable": "This model cannot be used right now.",
-    "notSaved": "The values you try and the answers you get are not saved into the project file. This is a place to experiment freely."
+    "notSaved": "The values you try and the answers you get are not saved into the project file. This is a place to experiment freely.",
+    "range": "Values in the data: {min} to {max}"
   }
 }

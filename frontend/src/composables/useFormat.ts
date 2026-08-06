@@ -69,6 +69,26 @@ export function formatMetric(locale: string, value: number, format: 'percent' | 
 }
 
 /**
+ * 모델이 낸 수치. **회귀의 답이 여기로 온다.**
+ *
+ * `String(value)`로는 안 된다 — 부동소수 계산의 결과라 `3.4000000000000004`가 그대로
+ * 화면에 뜬다. 학생이 보는 것은 모델의 답인데 거기에 우리 계산기의 사정이 새어 나온다.
+ *
+ * **자릿수를 고정하지 않는다.** 지표와 다른 점이 그것이다 — 지표는 언제나 0~1 근처지만
+ * 예측값은 **학생의 데이터 단위**다. 집값이면 수백만이고 농도면 0.0001이라, 소수 셋으로
+ * 자르면 한쪽은 뒤가 잘리고 다른 쪽은 0만 남는다.
+ *
+ * 유효숫자 12자리로 한 번 걷어내고 나머지는 그대로 둔다. 부동소수의 잡음은 마지막
+ * 자리들에만 있으므로 이 한 번으로 사라지고, **사람이 넣은 값에서 나온 자릿수는 남는다.**
+ */
+export function formatPrediction(locale: string, value: number): string {
+  if (!Number.isFinite(value)) return String(value)
+  return new Intl.NumberFormat(locale, { maximumFractionDigits: 20 }).format(
+    Number(value.toPrecision(12)),
+  )
+}
+
+/**
  * 화면에서 쓰는 포맷터들.
  *
  * 평범한 함수를 돌려준다. 템플릿에서 부르면 그리는 동안 `locale.value`를 읽으므로
@@ -81,6 +101,7 @@ export function useFormat() {
     bytes: (value: number) => formatBytes(locale.value, value),
     dateTime: (iso: string) => formatDateTime(locale.value, iso),
     percent: (ratio: number) => formatPercent(locale.value, ratio),
+    prediction: (value: number) => formatPrediction(locale.value, value),
     metric: (value: number, format: 'percent' | 'number') =>
       formatMetric(locale.value, value, format),
   }

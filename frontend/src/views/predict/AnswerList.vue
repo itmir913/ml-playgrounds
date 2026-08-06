@@ -11,12 +11,19 @@
 
 import { useI18n } from 'vue-i18n'
 
+import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
+import type { Prediction } from '@/ml/metrics'
 import type { PredictableModel } from '@/ml/predict'
 
 export interface Answer {
-  /** 모델이 낸 값. 실패했으면 없다. */
-  readonly value?: string
+  /**
+   * 모델이 낸 값. 실패했으면 없다.
+   *
+   * **분류는 라벨(문자열), 회귀는 수치다.** 수치를 미리 문자열로 굳히지 않는 이유는
+   * 어떻게 쓸지가 언어에 달렸기 때문이다 (docs/i18n.md 규칙 6).
+   */
+  readonly value?: Prediction
   /** 이 모델에서만 난 실패. 코드는 `client.*`이거나 `errors.*`다. */
   readonly failure?: { code: ClientErrorCode; params: Record<string, unknown> }
 }
@@ -30,9 +37,16 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const format = useFormat()
 
 function reasonText(code: ClientErrorCode, params: Record<string, unknown> = {}): string {
   return t(errorMessageKey(code), { ...params })
+}
+
+/** 회귀의 답은 수치다. 부동소수의 잡음을 걷어내고 언어에 맞게 쓴다. */
+function answerText(value: Prediction | undefined): string | null {
+  if (value === undefined) return null
+  return typeof value === 'number' ? format.prediction(value) : value
 }
 </script>
 
@@ -65,10 +79,10 @@ function reasonText(code: ClientErrorCode, params: Record<string, unknown> = {})
             줄마다 그것을 찾아 눈이 헤매면 비교가 안 된다.
           -->
           <p
-            v-if="props.answers.get(model.run.id)?.value !== undefined"
+            v-if="answerText(props.answers.get(model.run.id)?.value) !== null"
             class="text-xl font-bold tabular-nums text-brand-strong"
           >
-            {{ props.answers.get(model.run.id)?.value }}
+            {{ answerText(props.answers.get(model.run.id)?.value) }}
           </p>
         </div>
 

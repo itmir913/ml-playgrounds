@@ -16,11 +16,14 @@ import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
 import AppField from '@/components/AppField.vue'
+import { useFormat } from '@/composables/useFormat'
 import type { PredictionField } from '@/ml/predict'
 
 const props = defineProps<{
   fields: readonly PredictionField[]
   values: Readonly<Record<string, string>>
+  /** 수치 칸마다 표에 있는 값의 범위. 없는 칸도 있다 (숫자가 하나도 없는 열). */
+  ranges: ReadonlyMap<string, { min: number; max: number }>
   /** 가져온 줄의 번호. 화면이 무엇을 가져왔는지 말한다. 없으면 아직 안 가져왔다. */
   sampled: number | null
 }>()
@@ -33,6 +36,21 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const format = useFormat()
+
+/**
+ * 이 칸의 도움말. **수치 칸에만 있다** — 범주 칸은 고를 것이 이미 목록에 있다.
+ *
+ * 힌트일 뿐 막지 않는다. 범위 밖 값을 넣어 보는 것은 여기서 해 볼 만한 일이다.
+ */
+function hintOf(field: PredictionField): string | undefined {
+  const range = props.ranges.get(field.name)
+  if (!range) return undefined
+  return t('predict.range', {
+    min: format.prediction(range.min),
+    max: format.prediction(range.max),
+  })
+}
 
 /** 아직 안 채운 칸. **하나라도 있으면 [예측]이 멈춘다** — 비워 두고 누르면 학습셋의
  * 대체값으로 예측되는데, 학생은 자기가 넣은 값으로 예측했다고 믿는다. */
@@ -63,7 +81,12 @@ const blank = computed(() =>
       한 칸씩 세로로만 쌓으면 [예측] 버튼이 화면 밖으로 밀린다.
     -->
     <div class="grid gap-4 sm:grid-cols-2">
-      <AppField v-for="field in props.fields" :key="field.name" :label="field.name">
+      <AppField
+        v-for="field in props.fields"
+        :key="field.name"
+        :label="field.name"
+        :hint="hintOf(field)"
+      >
         <template #default="control">
           <select
             v-if="field.options"

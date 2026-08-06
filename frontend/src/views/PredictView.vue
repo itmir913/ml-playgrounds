@@ -28,6 +28,7 @@ import {
   inputVector,
   mergeFields,
   nextSampleRow,
+  numericRanges,
   predictableModels,
   trainingRowsFor,
   type PredictableModel,
@@ -103,6 +104,14 @@ const fields = computed(() =>
     }),
   ),
 )
+
+/** 수치 칸의 값 범위. 표 전체를 훑으므로 칸 목록이 바뀔 때만 다시 센다. */
+const ranges = computed(() => {
+  const table = dataset.value
+  return table
+    ? numericRanges(table, fields.value)
+    : new Map<string, { min: number; max: number }>()
+})
 
 /** 실험 이름. **결과 화면의 세로줄과 같은 이름이어야** 학생이 같은 것을 같은 것으로 읽는다. */
 const experimentNames = computed(() => {
@@ -202,7 +211,10 @@ function run(): void {
       const predict = loadModel(JSON.parse(new TextDecoder().decode(bytes)), context)
       const vector = inputVector(entry.experiment, preprocessor, values.value)
       const answer = predict([vector])[0]
-      next.set(entry.run.id, { value: answer === undefined ? '' : String(answer) })
+      // **수치를 여기서 문자열로 만들지 않는다.** 회귀의 답은 숫자이고 그것을 어떻게
+      // 쓸지는 언어가 정한다 (`useFormat`) - `String()`으로 굳히면 3.4000000000000004가
+      // 그대로 화면에 뜬다.
+      if (answer !== undefined) next.set(entry.run.id, { value: answer })
     } catch (error) {
       next.set(entry.run.id, {
         failure: isClientError(error)
@@ -234,6 +246,7 @@ function run(): void {
         <InputRow
           :fields="fields"
           :values="values"
+          :ranges="ranges"
           :sampled="sampled"
           @set="set"
           @sample="sample"
