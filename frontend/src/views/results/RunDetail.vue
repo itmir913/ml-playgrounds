@@ -38,6 +38,21 @@ const warningText = computed(() => {
 
 <template>
   <div class="flex flex-col gap-5">
+    <!--
+      **어느 모델의 속인지 여기서 말한다.** 표에서 줄을 눌러 내려오지만, 스크롤하고 나면
+      방금 누른 줄이 화면 밖이라 무엇을 보고 있는지 잊기 쉽다. 혼동 행렬과 값 종류별
+      점수가 둘 다 이 run 하나의 것이라 헤더 하나로 같이 건다 (`results.modelScope`는
+      ChangeList의 모델 배지와 같은 키다).
+    -->
+    <h3 class="text-lg font-bold text-ink">
+      {{
+        t('results.modelScope', {
+          algorithm: t(`algorithms.${props.run.algorithm}`),
+          runtime: t(`execution.${props.run.computedBy}`),
+        })
+      }}
+    </h3>
+
     <p v-if="warningText" class="rounded-panel border border-caution/30 bg-caution-soft p-3">
       {{ warningText }}
     </p>
