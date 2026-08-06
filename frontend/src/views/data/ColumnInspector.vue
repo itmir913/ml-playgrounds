@@ -6,6 +6,9 @@
  * 그래서 자리를 스스로 정하지 않는다 — 바깥이 준 만큼 채우고, 넘치면 **자기 안에서**
  * 스크롤한다. 여기서 높이를 박으면 두 자리 중 한쪽에서 반드시 틀린다.
  *
+ * **`h-full`이 아니라 `min-h-0 flex-1`로 받는다** (§8.14). `h-full`은 부모가 얼마나
+ * 작든 그만큼 따라 줄어들어 머리만 남는다.
+ *
  * 판단은 하나도 안 한다. `data/columns.ts`가 요약한 것을 그리기만 한다.
  */
 
@@ -20,7 +23,7 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <AppTable class="h-full">
+  <AppTable class="min-h-0 flex-1">
     <thead class="sticky top-0 z-10">
       <tr>
         <th>{{ t('data.columnName') }}</th>

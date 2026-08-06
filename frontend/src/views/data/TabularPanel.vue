@@ -292,7 +292,7 @@ function kindOf(column: ColumnSummary): string {
       -->
       <aside v-if="shown" class="hidden min-w-0 flex-1 flex-col gap-1.5 md:flex">
         <h3 class="font-bold text-ink-soft">{{ t('data.inspector') }}</h3>
-        <div class="min-h-0 flex-1">
+        <div class="flex min-h-0 flex-1 flex-col">
           <ColumnInspector :columns="shown.columns" />
         </div>
       </aside>

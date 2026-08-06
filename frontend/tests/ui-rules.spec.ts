@@ -77,6 +77,46 @@ const RULES: readonly Rule[] = [
       '<div class="mt-3 flex flex-col gap-4">',
     ],
   },
+  {
+    name: '작업 공간 래퍼의 높이는 h-full이 아니라 min-h-full이다',
+    why:
+      '`h-full`은 화면이 낮을 때 남은 자리를 0으로 나눠 준다. 그러면 표가 머리만 남긴 채 ' +
+      '**잘리는데 스크롤도 안 생긴다** — 작업 공간의 높이가 바깥과 딱 같아서 바깥도 넘칠 ' +
+      '것이 없다고 본다. 실제로 데이터 화면과 결과 화면이 둘 다 그랬고, 낮은 창에서만 ' +
+      '재현돼서 눈으로는 원인을 못 짚는다.',
+    pattern: /\sclass="[^"]*p-4 sm:p-5[^"]*"/,
+    // **`min-h-full`이 `h-full`을 품는다.** 앞이 낱말 문자나 하이픈이면 다른 클래스다 -
+    // 이걸 빼먹으면 고쳐 놓은 화면을 검사기가 다시 잡는다.
+    only: (line) => /(?<![\w-])h-full\b/.test(line),
+    violations: [
+      '<div class="flex h-full flex-col gap-5 p-4 sm:p-5">',
+      '<div class="h-full p-4 sm:p-5">',
+    ],
+    allowed: [
+      '<div class="flex min-h-full flex-col gap-5 p-4 sm:p-5">',
+      '<div class="flex flex-col gap-5 p-4 sm:p-5">',
+      // 래퍼가 아닌 곳의 h-full은 상관없다 - 진행 막대가 그렇다.
+      '<div class="h-full rounded-pill bg-brand" />',
+    ],
+  },
+  {
+    name: '표에 h-full을 주지 않는다',
+    why:
+      '`AppTable`은 스스로 스크롤하는 상자다. 거기에 `h-full`을 주면 **부모가 얼마나 ' +
+      '작든 그만큼 따라 줄어들어** 머리만 남고 줄이 하나도 안 보인다. 자리는 부모가 ' +
+      'flex로 주고 표는 `min-h-0 flex-1`로 받는다 — 그래야 최소 높이가 부모 쪽 한 군데에 ' +
+      '모인다.',
+    pattern: /<AppTable[^>]*\sclass="[^"]*(?<![\w-])h-full\b/,
+    violations: ['<AppTable class="h-full">', '<AppTable v-if="shown" class="mt-2 h-full">'],
+    allowed: [
+      '<AppTable class="min-h-0 flex-1">',
+      '<AppTable>',
+      // min-h-full은 다른 클래스다. 낱말 경계만 보면 이것까지 걸린다.
+      '<AppTable class="min-h-full">',
+      // 표가 아닌 것의 h-full은 상관없다.
+      '<div class="h-full">',
+    ],
+  },
 ]
 
 function hits(rule: Rule, line: string): boolean {
