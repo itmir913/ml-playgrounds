@@ -371,7 +371,8 @@
     "UNEXPECTED_ERROR": "예상하지 못한 문제가 생겼습니다. 다시 시도해 주세요.",
     "SPLIT_TOO_FEW_ROWS": "학습에 쓸 수 있는 데이터가 {actualRows}줄뿐이라 학습용과 평가용으로 나눌 수 없습니다. (최소 {minRows}줄)",
     "SPLIT_STRATIFY_IMPOSSIBLE": "'{label}' 값이 {count}개뿐이라 비율을 맞춰 나눌 수 없습니다. 비율 맞추기를 끄거나 이 값의 데이터를 {minRows}개 이상 모아 주세요.",
-    "TEST_DATASET_COLUMN_MISSING": "평가용 파일에 학습 데이터의 열이 없습니다. ({columns})"
+    "TEST_DATASET_COLUMN_MISSING": "평가용 파일에 학습 데이터의 열이 없습니다. ({columns})",
+    "PREDICT_DATASET_COLUMN_MISSING": "예측할 파일에 지금 보이는 모델들이 쓰는 열이 없습니다. ({columns})"
   },
   "portfolio": {
     "template": {
@@ -493,6 +494,22 @@
     "filterEmptyReason": "고른 필터에 맞는 모델이 없습니다.",
     "filterEmptyNext": "위에서 필터를 하나 이상 켜면 다시 보입니다.",
     "tallyTitle": "답이 어떻게 갈렸나",
-    "tallyLead": "분류 모델의 답만 셉니다. 색은 정답 여부가 아니라 가장 많이 나온 답과 같은지 다른지를 보여줍니다."
+    "tallyLead": "분류 모델의 답만 셉니다. 색은 정답 여부가 아니라 가장 많이 나온 답과 같은지 다른지를 보여줍니다.",
+    "inputChoiceValue": "값을 직접 넣습니다",
+    "inputChoiceValueNote": "표에 새 줄 하나를 만들어 답을 봅니다.",
+    "inputChoiceFile": "파일로 여러 줄을 한 번에 예측합니다",
+    "inputChoiceFileNote": "값을 모르는 새 줄이 담긴 파일을 올리면 모든 줄에 한 번에 답합니다.",
+    "fileLead": "값을 모르는 새 줄이 담긴 CSV나 엑셀 파일을 올리세요.",
+    "fileRemove": "지우기",
+    "fileApplied": "예측할 파일을 사용합니다.",
+    "fileEmptyReason": "아직 예측할 파일을 올리지 않았습니다.",
+    "fileEmptyNext": "파일을 올리면 그 안의 모든 줄에 답을 매깁니다.",
+    "rowNumber": "번호",
+    "tableTitle": "예측 결과",
+    "showFeatures": "특성 값 보기",
+    "computing": "계산하는 중입니다.",
+    "prevPage": "이전",
+    "nextPage": "다음",
+    "download": "CSV로 내려받기"
   }
 }

@@ -139,6 +139,39 @@ export function projectFileWithTestDataset(overrides: Partial<ProjectFile> = {})
   }
 }
 
+/** 예측 데이터(predict.csv). 타깃 열이 없다 - 답을 모르는 새 줄이라서다. */
+export const predictDatasetBytes = new TextEncoder().encode('﻿꽃받침\r\n5.5\r\n')
+
+export const predictDataset: Dataset = {
+  bytes: predictDatasetBytes,
+  hash: hashBytes(predictDatasetBytes),
+}
+
+/**
+ * `projectFile()`에 예측 데이터를 붙인 것. `settings.predictDataset`과 zip 본체를
+ * 함께 채운다 - 한쪽만 있으면 우리 버그다. **`applyTestDataset`과 달리 실험도
+ * `split.method`도 건드리지 않는다** - 이 픽스처가 그 규칙을 그대로 반영한다.
+ */
+export function projectFileWithPredictDataset(overrides: Partial<ProjectFile> = {}): ProjectFile {
+  const base = projectFile(overrides)
+  return {
+    ...base,
+    document: {
+      ...base.document,
+      settings: {
+        ...base.document.settings,
+        predictDataset: {
+          path: 'dataset/predict.csv',
+          originalFileName: 'iris_predict.csv',
+          hasHeader: true,
+          encoding: 'utf-8',
+        },
+      },
+    },
+    predictDataset,
+  }
+}
+
 /**
  * 아직 표를 올리지 않은 프로젝트. **정상 상태다**
  * (open-decisions.md "데이터 없는 프로젝트는 정상 상태다").

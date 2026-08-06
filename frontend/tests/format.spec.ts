@@ -26,7 +26,9 @@ import {
   datasetBytes,
   emptyProjectFile,
   manifest,
+  predictDatasetBytes,
   projectFile,
+  projectFileWithPredictDataset,
   projectFileWithTestDataset,
   testDatasetBytes,
   run,
@@ -177,6 +179,53 @@ describe('평가 데이터(test.csv)', () => {
         isClientError(error) &&
         error.code === 'PROJECT_FILE_ENTRY_MISSING' &&
         error.params.entry === 'dataset/test.csv',
+    )
+  })
+})
+
+describe('예측 데이터(predict.csv)', () => {
+  it('안 올렸으면 zip에 predict.csv가 없다', async () => {
+    const { bytes } = await writeProject(projectFile(), markdown)
+    expect(Object.keys(unzipSync(bytes))).not.toContain('dataset/predict.csv')
+  })
+
+  it('올렸으면 predict.csv가 비트 단위로 왕복한다', async () => {
+    const reopened = await roundTrip(projectFileWithPredictDataset())
+    expect(Array.from(reopened.predictDataset?.bytes ?? [])).toEqual(
+      Array.from(predictDatasetBytes),
+    )
+    expect(reopened.document.settings.predictDataset?.path).toBe('dataset/predict.csv')
+  })
+
+  it('실험을 지우지 않는다 - applyTestDataset과 결정적으로 다른 지점이다', async () => {
+    const reopened = await roundTrip(projectFileWithPredictDataset())
+    expect(reopened.document.runs.experiments).toHaveLength(1)
+  })
+
+  it('참조만 있고 본체가 없으면 저장을 거부한다', async () => {
+    const broken = { ...projectFileWithPredictDataset(), predictDataset: undefined }
+    await expect(writeProject(broken, markdown)).rejects.toSatisfy(isClientError)
+  })
+
+  it('본체만 있고 참조가 없어도 저장을 거부한다', async () => {
+    const withPredict = projectFileWithPredictDataset()
+    const broken = {
+      ...projectFile(),
+      predictDataset: withPredict.predictDataset,
+    }
+    await expect(writeProject(broken, markdown)).rejects.toSatisfy(isClientError)
+  })
+
+  it('predict.csv가 없으면 열기를 거부한다', async () => {
+    const { bytes } = await writeProject(projectFileWithPredictDataset(), markdown)
+    const entries = unzipSync(bytes)
+    delete entries['dataset/predict.csv']
+
+    await expect(readProject(zipSync(entries))).rejects.toSatisfy(
+      (error: unknown) =>
+        isClientError(error) &&
+        error.code === 'PROJECT_FILE_ENTRY_MISSING' &&
+        error.params.entry === 'dataset/predict.csv',
     )
   })
 })

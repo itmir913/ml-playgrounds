@@ -72,6 +72,11 @@ export const CLIENT_ERROR_CODES = [
   // 정본 열과의 대조는 브라우저에서만 한다(mlpx-spec.md 0.3의 분할과 같은 이유 -
   // 서버는 이미 확정된 정본과 분할 인덱스만 받는다).
   'TEST_DATASET_COLUMN_MISSING',
+
+  // 예측 데이터(predict.csv) 받기 - data/columns.ts
+  // 요구하는 열이 정본 열 전체가 아니라 특성 열의 합집합이라 TEST_DATASET_COLUMN_MISSING과
+  // 다른 코드다 (open-decisions.md "일괄 예측은 `행 × 모델` 매트릭스다").
+  'PREDICT_DATASET_COLUMN_MISSING',
 ] as const
 
 /**

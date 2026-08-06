@@ -64,6 +64,15 @@ export const TABULAR_DATASET_PATH = `${DIR.dataset}data.csv`
  */
 export const TEST_DATASET_PATH = `${DIR.dataset}test.csv`
 
+/**
+ * 예측 데이터의 정본 경로 (mlpx-spec.md §1.1).
+ *
+ * 예측 화면에서 파일을 올리면 생긴다. 답을 모르는 새 줄들이라 타깃 열이 없다.
+ * `data.csv`·`test.csv`와 같은 규칙 - 언제나 UTF-8 CSV고, 가져오기 시점에 한 번
+ * 정규화된다.
+ */
+export const PREDICT_DATASET_PATH = `${DIR.dataset}predict.csv`
+
 /*
  * 없으면 파일을 열 수 없는 엔트리는 manifest / settings / runs / portfolio 넷이다.
  * readProject의 required()가 그 자리에서 확인한다.
@@ -116,6 +125,13 @@ export interface ProjectFile {
    * (mlpx-spec.md §1.1).
    */
   testDataset?: Dataset | undefined
+  /**
+   * 예측 데이터. 예측 화면에서 파일을 올렸을 때만 있다.
+   *
+   * `document.settings.predictDataset`과 **함께 있고 함께 없다** - `dataset`·`testDataset`과
+   * 같은 규칙이다 (mlpx-spec.md §1.1).
+   */
+  predictDataset?: Dataset | undefined
   /** zip 경로 -> 내용. 모델과 전처리기가 들어온다. */
   models: Map<string, Uint8Array>
 }
@@ -357,6 +373,7 @@ function hashableEntries(
   entries: Map<string, Uint8Array>,
   datasetPath: string | undefined,
   testDatasetPath: string | undefined,
+  predictDatasetPath: string | undefined,
 ): Map<string, string> {
   const known = new Set<string>([
     ENTRY.manifest,
@@ -366,9 +383,11 @@ function hashableEntries(
     ENTRY.portfolioMarkdown,
   ])
   // 없는 것이 정상이다. 그러면 대조 대상에서 빠질 뿐이다 - 표를 아직 안 올렸거나
-  // (datasetPath) holdout이라 평가 데이터가 파일로 없다(testDatasetPath).
+  // (datasetPath) holdout이라 평가 데이터가 파일로 없거나(testDatasetPath) 예측 데이터를
+  // 아직 안 올렸다(predictDatasetPath).
   if (datasetPath !== undefined) known.add(datasetPath)
   if (testDatasetPath !== undefined) known.add(testDatasetPath)
+  if (predictDatasetPath !== undefined) known.add(predictDatasetPath)
 
   const present = new Map<string, string>()
   for (const [path, content] of entries) {
@@ -437,6 +456,10 @@ function requireSanePaths(document: ProjectDocument): void {
   const testDataset = document.settings.testDataset
   if (testDataset) {
     requirePathUnder(testDataset.path, DIR.dataset, 'settings.testDataset.path')
+  }
+  const predictDataset = document.settings.predictDataset
+  if (predictDataset) {
+    requirePathUnder(predictDataset.path, DIR.dataset, 'settings.predictDataset.path')
   }
 
   document.runs.experiments.forEach((experiment, experimentIndex) => {
@@ -515,8 +538,16 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
     throw new ClientError('PROJECT_FILE_ENTRY_MISSING', { entry: testDatasetPath })
   }
 
+  // 예측 데이터도 같은 규칙이다 - 참조가 있는데 본체가 없으면 우리 버그다 (mlpx-spec.md §1).
+  const predictDatasetPath = document.settings.predictDataset?.path
+  const predictDatasetBytes =
+    predictDatasetPath === undefined ? undefined : entries.get(predictDatasetPath)
+  if (predictDatasetPath !== undefined && predictDatasetBytes === undefined) {
+    throw new ClientError('PROJECT_FILE_ENTRY_MISSING', { entry: predictDatasetPath })
+  }
+
   // 대조는 엔트리를 버리기 **전에** 한다. 끼어든 고아 모델도 신호이기 때문이다.
-  const present = hashableEntries(entries, datasetPath, testDatasetPath)
+  const present = hashableEntries(entries, datasetPath, testDatasetPath, predictDatasetPath)
   const integrity = checkHashes(present, recordedHashes(entries.get(ENTRY.hashes)))
 
   // 문서가 가리키는 것만 가져온다. 고아와 쓰레기는 여기서 사라진다.
@@ -540,6 +571,13 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
           : {
               bytes: testDatasetBytes,
               hash: present.get(testDatasetPath) ?? hashBytes(testDatasetBytes),
+            },
+      predictDataset:
+        predictDatasetPath === undefined || predictDatasetBytes === undefined
+          ? undefined
+          : {
+              bytes: predictDatasetBytes,
+              hash: present.get(predictDatasetPath) ?? hashBytes(predictDatasetBytes),
             },
       models,
     },
@@ -589,6 +627,14 @@ export async function writeProject(
   if (testDataset !== undefined) {
     entries[testDataset.path] = testDataset.bytes
   }
+  const predictDataset = referencedFileEntry(
+    document.settings.predictDataset,
+    project.predictDataset,
+    'settings.predictDataset',
+  )
+  if (predictDataset !== undefined) {
+    entries[predictDataset.path] = predictDataset.bytes
+  }
   for (const path of kept) {
     const content = project.models.get(path)
     if (content) entries[path] = content
@@ -597,7 +643,7 @@ export async function writeProject(
   // 마지막에 만든다. 자기 자신은 대상이 아니므로 다른 엔트리가 전부 정해진 뒤여야 한다.
   const hashes = buildHashes(
     entries,
-    [dataset, testDataset].filter((entry) => entry !== undefined),
+    [dataset, testDataset, predictDataset].filter((entry) => entry !== undefined),
   )
   entries[ENTRY.hashes] = encodeJson(hashes)
 

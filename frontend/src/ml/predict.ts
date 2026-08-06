@@ -16,10 +16,10 @@
  * (ml/preprocess.ts의 parsePreprocessor).
  */
 
-import { ClientError, type ClientErrorCode } from '../errors'
+import { ClientError, isClientError, type ClientErrorCode } from '../errors'
 import type { Experiment, ProjectDocument, Run } from '../project/schema'
 import type { Prediction } from './metrics'
-import { interpreterFor, type LoadContext } from './models'
+import { interpreterFor, type LoadContext, type Predict } from './models'
 import {
   targetValues,
   transform,
@@ -483,4 +483,129 @@ export function majorityAnswer(tally: readonly AnswerCount[]): Prediction | null
   const max = Math.max(...tally.map((entry) => entry.count))
   const leaders = tally.filter((entry) => entry.count === max)
   return leaders.length === 1 ? (leaders[0]?.value ?? null) : null
+}
+
+/**
+ * 일괄 예측 (open-decisions.md "일괄 예측은 `행 × 모델` 매트릭스다", architecture.md
+ * §8.13.1). **한 페이지 분량의 행에 대해 (실험, run)마다 예측을 돌려 `행 × 모델`
+ * 결과를 만든다.**
+ *
+ * **미리 로드한 predict 함수를 받는다.** 모델 바이트를 zip에서 꺼내 JSON으로 파싱하고
+ * `loadModel`을 부르는 일은 이 계층의 몫이 아니다 - `inputVector`가 전처리기를 인자로
+ * 받는 것과 같은 경계다(이 계층은 zip을 모른다). 참조형처럼 `LoadContext`가 필요한
+ * 모델도 부르는 쪽이 이미 갖춰 넣은 채로 넘긴다.
+ *
+ * **빈 칸이 있는 행은 그 행·그 모델 칸만 "예측할 수 없음"이다.** `inputVector`가 던지는
+ * `PREDICTION_INPUT_INCOMPLETE`를 (행, 모델) 단위로 잡는다 - 모델마다 보는 열이 다를 수
+ * 있어(`mergeFields`) 어느 모델은 그 행을 예측하고 어느 모델은 못할 수 있다. 파일 전체를
+ * 거부하면 500행 중 한 칸이 비었다고 멀쩡한 499행을 못 본다.
+ *
+ * 사유로 이미 꺼진 모델(`model.reason`)은 그 칸이 빈 채로(`{}`) 남는다 - 실패가 아니라
+ * "애초에 안 돈다"이므로 실패 문구를 붙이지 않는다. 화면이 그 칸을 grey-out으로 이미
+ * 보여주고 있어야 한다.
+ *
+ * **반환은 `rows[행][모델]`이다.** `models`와 같은 순서·같은 길이의 배열이 행마다 있다.
+ */
+export function predictPage(
+  models: readonly PredictableModel[],
+  rows: readonly Readonly<Record<string, string>>[],
+  preprocessors: ReadonlyMap<string, Preprocessor>,
+  predictors: ReadonlyMap<string, Predict>,
+): Answer[][] {
+  return rows.map((values) =>
+    models.map((model): Answer => {
+      if (model.reason) return {}
+
+      const preprocessor = preprocessors.get(model.experiment.id)
+      const predictor = predictors.get(model.run.id)
+      // 여기까지 왔는데 없으면 화면이 predictableModels()의 판정과 다른 것을 넘긴 것이다.
+      if (!preprocessor || !predictor) {
+        return { failure: { code: 'MODEL_FILE_INVALID', params: { field: 'payload' } } }
+      }
+
+      try {
+        const vector = inputVector(model.experiment, preprocessor, values)
+        const [value] = predictor([vector])
+        return value === undefined ? {} : { value }
+      } catch (error) {
+        return {
+          failure: isClientError(error)
+            ? { code: error.code, params: error.params }
+            : { code: 'MODEL_FILE_INVALID', params: { field: 'payload' } },
+        }
+      }
+    }),
+  )
+}
+
+/**
+ * 페이지 캐시 무효화용 서명 (architecture.md §8.13.1 "한 번 계산한 페이지는 캐시").
+ *
+ * **들어가는 것 셋 - 예측 파일의 해시, 보이는 모델 목록, 전처리 설정.** 셋 중 하나라도
+ * 바뀌면 이전 페이지의 답은 다른 것을 잰 값이므로 화면이 캐시를 통째로 버려야 한다.
+ * 순수 문자열 비교면 되므로 해시는 안 쓴다 - 굳이 압축할 만큼 크지 않다.
+ *
+ * **모델마다 자기 실험의 전처리 설정을 함께 싣는다.** 실험은 지울 수 없고 전처리기는
+ * 학습 시점에 확정되어 안 바뀌지만(mlpx-spec.md §4), "보이는 모델 목록"만으로는 같은
+ * run id가 가리키는 설정이 달라졌는지까지는 말해 주지 않는다 - 여기서 명시적으로 함께
+ * 싣어 둔다.
+ */
+export function predictPageSignature(
+  predictDatasetHash: string,
+  models: readonly PredictableModel[],
+): string {
+  const parts = models
+    .map((model) => `${model.run.id}:${JSON.stringify(model.experiment.settings.preprocessing)}`)
+    .sort()
+  return `${predictDatasetHash}|${parts.join(',')}`
+}
+
+/**
+ * 내려받을 CSV 격자를 만든다 (open-decisions.md "일괄 예측은 `행 × 모델` 매트릭스다").
+ * **전체 행이다 - 지금 보이는 페이지가 아니다.**
+ *
+ * **열 이름은 번역된 모델 이름이다.** 이 계층은 `t()`를 모르므로 호출부가 이미 만든
+ * 이름을 그대로 받는다 - `predict.modelName`이 이미 그 모양이다(같은 알고리즘이 실행
+ * 방법만 다르게 둘 이상 있으면 뒤에 실행 방법을 괄호로 붙인다). `models`와 `modelNames`는
+ * 같은 순서·같은 길이여야 한다.
+ *
+ * **특성 열은 `showFeatures`가 켜졌을 때만 낀다.** 화면의 전역 토글을 그대로 따라간다 -
+ * 내려받는 순간의 "펼쳐 보기" 상태와 다른 모양이면 학생이 화면에서 본 것과 받은 파일이
+ * 다르게 느껴진다.
+ *
+ * 답을 못 낸 칸(`answer.value`가 없음 - 사유로 꺼졌거나 그 행에서 실패했거나)은 빈
+ * 칸이다. 사람이 읽는 "예측할 수 없음" 같은 문장을 넣지 않는다 - 이 파일은 우리가 다시
+ * 읽지 않으므로 데이터로서는 빈 칸이 맞고, 문장을 넣으면 언어마다 값이 달라진다.
+ */
+export function predictDownloadGrid(
+  models: readonly PredictableModel[],
+  modelNames: readonly string[],
+  /**
+   * 행 번호 열의 이름. **모델 이름과 같은 이유로 번역된 것을 받는다** - 화면의 표
+   * 머리글과 같은 낱말이어야 학생이 받은 파일을 화면과 같은 것으로 읽는다.
+   */
+  rowNumberName: string,
+  rows: readonly Readonly<Record<string, string>>[],
+  /** 특성 열 이름들. `.name`만 쓰이므로 `PredictionField`가 아니라 문자열로 받는다. */
+  featureNames: readonly string[],
+  answers: readonly (readonly Answer[])[],
+  showFeatures: boolean,
+  formatValue: (value: Prediction) => string,
+): string[][] {
+  const featureColumns = showFeatures ? featureNames : []
+  const header = [rowNumberName, ...featureColumns, ...modelNames]
+
+  const body = rows.map((values, rowIndex) => {
+    const answerRow = answers[rowIndex] ?? []
+    return [
+      String(rowIndex + 1),
+      ...featureColumns.map((name) => values[name] ?? ''),
+      ...models.map((_model, modelIndex) => {
+        const value = answerRow[modelIndex]?.value
+        return value === undefined ? '' : formatValue(value)
+      }),
+    ]
+  })
+
+  return [header, ...body]
 }

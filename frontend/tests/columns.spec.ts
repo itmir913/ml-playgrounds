@@ -13,6 +13,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  alignPredictDataset,
   alignTestDataset,
   columnNames,
   spreadsheetName,
@@ -23,12 +24,26 @@ import { isClientError } from '../src/errors'
 import { hashBytes } from '../src/hash'
 import {
   applyDataset,
+  applyPredictDataset,
   applyTestDataset,
+  readPredictDataset,
   readTestDataset,
+  removePredictDataset,
   removeTestDataset,
 } from '../src/project/dataset'
-import { TABULAR_DATASET_PATH, TEST_DATASET_PATH, type ProjectFile } from '../src/project/format'
-import { experiment, emptyProjectFile, projectFile, run } from './fixtures/project'
+import {
+  PREDICT_DATASET_PATH,
+  TABULAR_DATASET_PATH,
+  TEST_DATASET_PATH,
+  type ProjectFile,
+} from '../src/project/format'
+import {
+  experiment,
+  emptyProjectFile,
+  projectFile,
+  projectFileWithTestDataset,
+  run,
+} from './fixtures/project'
 
 const grid = [
   ['이름', '점수', '반'],
@@ -185,6 +200,43 @@ describe('평가 데이터 받기', () => {
   })
 })
 
+describe('예측 데이터 받기', () => {
+  // 특성 열의 합집합이다 - 정본 열 전체가 아니다. 타깃('반')은 요구하지 않는다.
+  const required = ['이름', '점수']
+
+  it('요구한 열로 다시 세운다 - 순서가 달라도, 타깃이 없어도 된다', () => {
+    const shuffled = [
+      ['점수', '이름'],
+      ['90', '가'],
+    ]
+    const aligned = alignPredictDataset(shuffled, true, required)
+    expect(aligned.columns).toEqual(required)
+    expect(aligned.rows).toEqual([['가', '90']])
+  })
+
+  it('요구하지 않는 열은 조용히 버린다', () => {
+    const extra = [
+      ['이름', '점수', '반'],
+      ['가', '90', 'A'],
+    ]
+    expect(alignPredictDataset(extra, true, required).columns).toEqual(required)
+  })
+
+  it('요구한 열이 없으면 거부하고 무엇이 없는지 말한다 - TEST_DATASET_COLUMN_MISSING과 다른 코드다', () => {
+    const missing = [['이름'], ['가']]
+    try {
+      alignPredictDataset(missing, true, required)
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error)).toBe(true)
+      if (isClientError(error)) {
+        expect(error.code).toBe('PREDICT_DATASET_COLUMN_MISSING')
+        expect(error.params.columns).toEqual(['점수'])
+      }
+    }
+  })
+})
+
 describe('프로젝트에 붙이기', () => {
   const now = '2026-08-06T01:00:00Z'
   const options = { fileName: '성적.csv', hasHeader: true, now }
@@ -282,6 +334,45 @@ describe('프로젝트에 붙이기', () => {
       },
     }
     expect(applyDataset(before, imported(), options).droppedExperiments).toBe(2)
+  })
+
+  /**
+   * **학습 데이터를 바꾸면 평가·예측 데이터도 함께 떨어진다.**
+   *
+   * 참조만 남고 본체가 없으면 `writeProject`가 거부해 **그 프로젝트를 저장도 내보내기도
+   * 못 하게 된다** (mlpx-spec.md §1 "함께 있고 함께 없다"). 그리고 정본 열이 통째로
+   * 바뀐 마당에 옛 `test.csv`는 어차피 대조를 다시 통과해야 하는 파일이다.
+   */
+  it('평가 데이터도 함께 뗀다 - 참조만 남으면 저장이 막힌다', () => {
+    const before = projectFileWithTestDataset()
+    const applied = applyDataset(before, imported(), options)
+
+    expect(applied.project.document.settings.testDataset).toBeUndefined()
+    expect(applied.project.testDataset).toBeUndefined()
+    // 평가 데이터가 없어졌으므로 분할 방식도 되돌아간다 - provided인 채로 두면
+    // 학습이 평가할 것을 못 찾는다.
+    expect(applied.project.document.settings.split.method).toBe('holdout')
+  })
+
+  it('예측 데이터도 함께 뗀다 - 같은 이유다', () => {
+    const before = projectFile()
+    before.document = {
+      ...before.document,
+      settings: {
+        ...before.document.settings,
+        predictDataset: {
+          path: PREDICT_DATASET_PATH,
+          originalFileName: 'predict.csv',
+          hasHeader: true,
+          encoding: 'utf-8',
+        },
+      },
+    }
+    before.predictDataset = { bytes: new TextEncoder().encode('a\n1\n'), hash: 'x'.repeat(64) }
+
+    const applied = applyDataset(before, imported(), options)
+    expect(applied.project.document.settings.predictDataset).toBeUndefined()
+    expect(applied.project.predictDataset).toBeUndefined()
   })
 })
 
@@ -399,10 +490,124 @@ describe('평가 데이터를 프로젝트에 붙이기', () => {
     expect(removed.project.document.runs.experiments).toEqual([])
   })
 
+  /**
+   * **예측 데이터는 점수와 무관하므로 평가 데이터를 붙이거나 떼도 그대로 있어야 한다.**
+   * 여기서 떨어뜨리면 참조만 남아 저장이 막힌다 (mlpx-spec.md §1).
+   */
+  it('붙이고 떼는 동안 예측 데이터는 그대로 있다', () => {
+    const base = withCanonicalDataset()
+    const withPredict: ProjectFile = {
+      ...base,
+      document: {
+        ...base.document,
+        settings: {
+          ...base.document.settings,
+          predictDataset: {
+            path: PREDICT_DATASET_PATH,
+            originalFileName: 'predict.csv',
+            hasHeader: true,
+            encoding: 'utf-8',
+          },
+        },
+      },
+      predictDataset: { bytes: new TextEncoder().encode('a\n1\n'), hash: 'y'.repeat(64) },
+    }
+
+    const attached = applyTestDataset(withPredict, testTable(), options).project
+    expect(attached.document.settings.predictDataset).toBeDefined()
+    expect(attached.predictDataset).toBeDefined()
+
+    const removed = removeTestDataset(attached, now).project
+    expect(removed.document.settings.predictDataset).toBeDefined()
+    expect(removed.predictDataset).toBeDefined()
+  })
+
   it('이미 없으면 뗄 것도 없다 - 조용히 아무 일도 안 한다', () => {
     const before = withCanonicalDataset()
     const removed = removeTestDataset(before, now)
     expect(removed.droppedExperiments).toBe(0)
+    expect(removed.project).toBe(before)
+  })
+})
+
+describe('예측 데이터를 프로젝트에 붙이기', () => {
+  const now = '2026-08-06T03:00:00Z'
+  const options = { fileName: 'predict.csv', hasHeader: true, now, requiredColumns: ['점수'] }
+
+  function predictTable(overrides: Partial<Parameters<typeof applyPredictDataset>[1]> = {}) {
+    const grid = [
+      ['이름', '점수'],
+      ['라', '85'],
+    ]
+    const bytes = new TextEncoder().encode('이름,점수\n라,85\n')
+    return {
+      bytes,
+      hash: hashBytes(bytes),
+      grid,
+      source: 'csv' as const,
+      sourceEncoding: 'utf-8' as const,
+      ...overrides,
+    }
+  }
+
+  it('요구한 열로 다시 세워 담고, 실험은 그대로 둔다', () => {
+    const before = projectFile()
+    const applied = applyPredictDataset(before, predictTable(), options)
+    const { settings } = applied.project.document
+
+    expect(settings.predictDataset?.path).toBe(PREDICT_DATASET_PATH)
+    expect(settings.predictDataset?.originalFileName).toBe('predict.csv')
+    // applyTestDataset과 결정적으로 다른 점 - 실험이 안 지워진다.
+    expect(applied.project.document.runs.experiments).toEqual(before.document.runs.experiments)
+    expect(applied.project.models).toBe(before.models)
+
+    const read = readPredictDataset(applied.project)
+    expect(read?.columns).toEqual(['점수'])
+    expect(read?.rows).toEqual([['85']])
+  })
+
+  it('split.method를 건드리지 않는다', () => {
+    const before = projectFile()
+    const applied = applyPredictDataset(before, predictTable(), options)
+    expect(applied.project.document.settings.split.method).toBe(
+      before.document.settings.split.method,
+    )
+  })
+
+  it('요구한 열이 없으면 대조 실패를 그대로 던진다', () => {
+    const broken = predictTable({ grid: [['이름'], ['라']] })
+    try {
+      applyPredictDataset(projectFile(), broken, options)
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error)).toBe(true)
+      if (isClientError(error)) expect(error.code).toBe('PREDICT_DATASET_COLUMN_MISSING')
+    }
+  })
+
+  it('고친 시각을 새로 찍는다', () => {
+    const applied = applyPredictDataset(projectFile(), predictTable(), options)
+    expect(applied.project.document.manifest.updatedAt).toBe(now)
+  })
+
+  it('뗀다 - 예측 데이터 참조와 본체가 함께 사라진다', () => {
+    const attached = applyPredictDataset(projectFile(), predictTable(), options).project
+    const removed = removePredictDataset(attached, now)
+
+    expect(removed.project.document.settings.predictDataset).toBeUndefined()
+    expect(removed.project.predictDataset).toBeUndefined()
+    expect(readPredictDataset(removed.project)).toBeNull()
+  })
+
+  it('떼도 실험은 그대로다', () => {
+    const attached = applyPredictDataset(projectFile(), predictTable(), options).project
+    const removed = removePredictDataset(attached, now)
+    expect(removed.project.document.runs.experiments).toEqual(attached.document.runs.experiments)
+  })
+
+  it('이미 없으면 뗄 것도 없다', () => {
+    const before = projectFile()
+    const removed = removePredictDataset(before, now)
     expect(removed.project).toBe(before)
   })
 })

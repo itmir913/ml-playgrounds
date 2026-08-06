@@ -22,6 +22,9 @@ import {
   mergeFields,
   inputVector,
   numericRanges,
+  predictDownloadGrid,
+  predictPage,
+  predictPageSignature,
   sampleRow,
   predictableModels,
   tallyClassificationAnswers,
@@ -733,5 +736,119 @@ describe('가장 많이 나온 답 - `과반수`가 아니다 (architecture.md 8
 
   it('답이 하나도 없으면 아무것도 짚지 않는다', () => {
     expect(majorityAnswer([])).toBeNull()
+  })
+})
+
+describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매트릭스다")', () => {
+  const subject = experiment([0, 1, 2, 3, 4], onehot)
+  const preprocessor = fitFor(subject)
+  const preprocessors = new Map([[subject.id, preprocessor]])
+
+  const model: PredictableModel = { experiment: subject, run: runOf('r1') }
+  // '키' 하나만 보는 결정트리 흉내 - 몸무게·지역이 비어도 이 모델은 예측할 수 있다.
+  const predictor = (vectors: readonly (readonly number[])[]) =>
+    vectors.map((vector) => ((vector[0] ?? 0) > 165 ? 'b' : 'a'))
+  const predictors = new Map([['r1', predictor]])
+
+  it('행마다 모델의 답을 낸다', () => {
+    const rows = [cellsOf(0), cellsOf(3)]
+    const page = predictPage([model], rows, preprocessors, predictors)
+
+    expect(page).toHaveLength(2)
+    expect(page[0]?.[0]).toEqual({ value: 'a' }) // 키 150
+    expect(page[1]?.[0]).toEqual({ value: 'b' }) // 키 180
+  })
+
+  it('빈 칸이 있는 행은 그 행·그 모델 칸만 예측할 수 없다 - 나머지 행은 계속 간다', () => {
+    const rows = [cellsOf(0), { 키: '160' }, cellsOf(2)]
+    const page = predictPage([model], rows, preprocessors, predictors)
+
+    expect(page[0]?.[0]?.value).toBe('a')
+    expect(page[1]?.[0]?.failure?.code).toBe('PREDICTION_INPUT_INCOMPLETE')
+    expect(page[2]?.[0]?.value).toBe('b')
+  })
+
+  it('사유로 꺼진 모델은 실패가 아니라 빈 칸이다 - 애초에 안 도는 것이다', () => {
+    const disabled: PredictableModel = { ...model, reason: 'MODEL_FORMAT_UNSUPPORTED' }
+    const page = predictPage([disabled], [cellsOf(0)], preprocessors, predictors)
+
+    expect(page[0]?.[0]).toEqual({})
+  })
+
+  it('전처리기나 predictor가 없으면 화면 쪽 버그로 취급해 실패 칸을 준다', () => {
+    const page = predictPage([model], [cellsOf(0)], new Map(), new Map())
+    expect(page[0]?.[0]?.failure?.code).toBe('MODEL_FILE_INVALID')
+  })
+
+  it('서명은 파일 해시·모델·전처리 설정이 바뀌면 달라진다', () => {
+    const base = predictPageSignature('hash-1', [model])
+
+    expect(predictPageSignature('hash-2', [model])).not.toBe(base)
+    expect(predictPageSignature('hash-1', [])).not.toBe(base)
+
+    const changed: PredictableModel = {
+      ...model,
+      experiment: {
+        ...subject,
+        settings: { ...subject.settings, preprocessing: scaled },
+      },
+    }
+    expect(predictPageSignature('hash-1', [changed])).not.toBe(base)
+  })
+
+  it('서명은 같은 입력에서 같다', () => {
+    expect(predictPageSignature('hash-1', [model])).toBe(predictPageSignature('hash-1', [model]))
+  })
+
+  describe('내려받을 CSV 격자', () => {
+    const featureNames = inputFields(preprocessor).map((field) => field.name)
+    const rows = [cellsOf(0), cellsOf(1)]
+    const answers = predictPage([model], rows, preprocessors, predictors)
+    const format = (value: unknown) => String(value)
+
+    it('첫 줄은 행 번호·모델 이름이다 - 특성은 기본으로 숨긴다', () => {
+      const grid = predictDownloadGrid(
+        [model],
+        ['결정 트리 · 내 컴퓨터'],
+        '번호',
+        rows,
+        featureNames,
+        answers,
+        false,
+        format,
+      )
+      expect(grid[0]).toEqual(['번호', '결정 트리 · 내 컴퓨터'])
+    })
+
+    it('토글을 켜면 특성 열이 행 번호와 모델 사이에 낀다', () => {
+      const grid = predictDownloadGrid(
+        [model],
+        ['결정 트리'],
+        '번호',
+        rows,
+        featureNames,
+        answers,
+        true,
+        format,
+      )
+      expect(grid[0]).toEqual(['번호', '키', '몸무게', '지역', '결정 트리'])
+      expect(grid[1]).toEqual(['1', '150', '40', '서울', 'a'])
+    })
+
+    it('답을 못 낸 칸은 빈 칸이다 - 사람이 읽는 문장을 데이터에 넣지 않는다', () => {
+      const incomplete = [{ 키: '160' }]
+      const page = predictPage([model], incomplete, preprocessors, predictors)
+      const grid = predictDownloadGrid(
+        [model],
+        ['결정 트리'],
+        '번호',
+        incomplete,
+        featureNames,
+        page,
+        false,
+        format,
+      )
+      expect(grid[1]).toEqual(['1', ''])
+    })
   })
 })

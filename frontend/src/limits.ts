@@ -102,6 +102,13 @@ export const STORAGE_SAFETY_FACTOR = 1.5
 export const MAX_FILE_NAME_LENGTH = 100
 
 /**
+ * 일괄 예측 결과 표를 끊어 보여주는 줄 수. **화면을 위한 것이 아니라 계산을 위한 것이다**
+ * (architecture.md §8.13.1) - 5천 줄 × 모델 5개면 2만 5천 번이고 참조형이면 그 한
+ * 번마다 학습셋 전체와의 거리 계산이라, 저사양 학교 PC를 얼릴 수 있다.
+ */
+export const PREDICT_PAGE_SIZE = 100
+
+/**
  * 실패 run에 함께 남기는 기술 정보의 최대 길이.
  *
  * 남의 라이브러리가 던진 원문이라 길이도 내용도 우리 통제 밖이다. 자르지 않으면

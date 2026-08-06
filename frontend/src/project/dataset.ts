@@ -10,13 +10,14 @@
  * 지표도 다른 데이터 기준이라 비교 자체가 성립하지 않는다.
  */
 
-import { alignTestDataset, columnNames, toDataset } from '@/data/columns'
+import { alignPredictDataset, alignTestDataset, columnNames, toDataset } from '@/data/columns'
 import { parseCsvText } from '@/data/csv'
 import { toCanonicalCsv } from '@/data/serialize'
 import type { ImportedTable } from '@/data/table'
 import { hashBytes } from '@/hash'
 import type { Dataset } from '@/ml/preprocess'
 import {
+  PREDICT_DATASET_PATH,
   TABULAR_DATASET_PATH,
   TEST_DATASET_PATH,
   type Dataset as StoredDataset,
@@ -47,6 +48,26 @@ export function readDataset(project: ProjectFile | null): Dataset | null {
 
   const table = toDataset(parseCsvText(new TextDecoder().decode(stored.bytes)), reference.hasHeader)
   parsed.set(stored, table)
+  return table
+}
+
+/** readDataset과 같은 캐시 규칙, 예측 데이터(predict.csv)를 위한 것. */
+const parsedPredict = new WeakMap<StoredDataset, Dataset>()
+
+/**
+ * 예측 데이터를 학습 계층이 쓰는 표로 읽는다. 아직 파일을 안 올렸으면 `null`이다 -
+ * 정상 상태다 (mlpx-spec.md §1.1).
+ */
+export function readPredictDataset(project: ProjectFile | null): Dataset | null {
+  const reference = project?.document.settings.predictDataset
+  const stored = project?.predictDataset
+  if (!stored || !reference) return null
+
+  const cached = parsedPredict.get(stored)
+  if (cached) return cached
+
+  const table = toDataset(parseCsvText(new TextDecoder().decode(stored.bytes)), reference.hasHeader)
+  parsedPredict.set(stored, table)
   return table
 }
 
@@ -120,16 +141,34 @@ export function applyDataset(
     ...(imported.sourceEncoding === null ? {} : { sourceEncoding: imported.sourceEncoding }),
   }
 
+  // **평가·예측 데이터도 함께 뗀다.** 참조만 남고 본체가 없으면 writeProject가 거부해
+  // **그 프로젝트를 저장도 내보내기도 못 하게 된다** (mlpx-spec.md §1 "함께 있고 함께
+  // 없다"). 그리고 정본 열이 통째로 바뀐 마당에 옛 test.csv는 어차피 대조를 다시
+  // 통과해야 하는 파일이라, 들고 있어 봐야 학습이 시작된 뒤에 터진다.
+  const settings = {
+    ...document.settings,
+    dataset,
+    features,
+    target,
+    // 평가 데이터가 없어졌으므로 분할 방식도 되돌아간다 - provided인 채로 두면
+    // 학습이 평가할 것을 못 찾는다 (ml/split.ts).
+    split: { ...document.settings.split, method: 'holdout' as const },
+  }
+  delete settings.testDataset
+  delete settings.predictDataset
+
   return {
     project: {
       document: {
         ...document,
         manifest: { ...document.manifest, updatedAt: options.now },
-        settings: { ...document.settings, dataset, features, target },
+        settings,
         // mlpx-spec.md §4.3. 모델도 함께 버린다 - 남으면 고아가 된다.
         runs: { ...document.runs, experiments: [] },
       },
       dataset: { bytes: imported.bytes, hash: imported.hash },
+      testDataset: undefined,
+      predictDataset: undefined,
       models: new Map(),
     },
     droppedExperiments: document.runs.experiments.length,
@@ -205,9 +244,107 @@ export function applyTestDataset(
       },
       dataset: project.dataset,
       testDataset: { bytes, hash: hashBytes(bytes) },
+      // **예측 데이터는 그대로 둔다.** 점수와 무관하므로 지울 이유가 없고, 여기서
+      // 떨어뜨리면 참조만 남아 저장이 막힌다 (mlpx-spec.md §1).
+      predictDataset: project.predictDataset,
       models: new Map(),
     },
     droppedExperiments: document.runs.experiments.length,
+  }
+}
+
+export interface AppliedPredictDataset {
+  readonly project: ProjectFile
+}
+
+export interface ApplyPredictOptions {
+  /** 학생이 올린 파일의 이름. 정본 경로가 아니라 기록이다. */
+  readonly fileName: string
+  /** 첫 줄이 머리글인가. 학생이 미리보기를 보고 고른다. */
+  readonly hasHeader: boolean
+  /** ISO 8601. manifest.updatedAt에 찍는다. */
+  readonly now: string
+  /**
+   * 요구하는 열. **특성 열의 합집합이다 - 정본 열 전체가 아니다**
+   * (open-decisions.md "일괄 예측은 `행 × 모델` 매트릭스다"). 화면이 지금 보이는
+   * 모델들의 실험을 모아 만든다 (`ml/predict.ts`의 `mergeFields`).
+   */
+  readonly requiredColumns: readonly string[]
+}
+
+/**
+ * 예측 데이터를 프로젝트에 붙인다. **`applyTestDataset`과 결정적으로 다른 점 하나** -
+ * **실험을 지우지 않는다.** 예측 데이터는 점수에 영향을 주지 않는다 - `.mlpx`에는
+ * 담기지만(학생이 올린 데이터라서, mlpx-spec.md §0) 학습에도 채점에도 안 쓰인다.
+ * `split.method`도 건드리지 않는다.
+ *
+ * `requiredColumns`(특성 열의 합집합)와 이름으로 대조한다(`alignPredictDataset`) - 타깃
+ * 열은 요구하지 않는다. 정본에 없는 열은 조용히 버린다.
+ *
+ * **저장하는 바이트는 요구한 열 순서로 다시 세운 것이다** - `applyTestDataset`과 같은
+ * 이유로, 여기서부터 나가는 predict.csv는 항상 머리글이 있다.
+ */
+export function applyPredictDataset(
+  project: ProjectFile,
+  imported: ImportedTable,
+  options: ApplyPredictOptions,
+): AppliedPredictDataset {
+  const { document } = project
+
+  const aligned = alignPredictDataset(imported.grid, options.hasHeader, options.requiredColumns)
+  const bytes = toCanonicalCsv([aligned.columns, ...aligned.rows])
+
+  const predictDataset: DatasetRef = {
+    path: PREDICT_DATASET_PATH,
+    originalFileName: options.fileName,
+    // 저장하는 바이트는 언제나 머리글(요구한 열 이름)로 시작한다 - 올린 파일에
+    // 머리글이 없었어도 여기서부터는 있다.
+    hasHeader: true,
+    encoding: 'utf-8',
+    ...(imported.sourceEncoding === null ? {} : { sourceEncoding: imported.sourceEncoding }),
+  }
+
+  return {
+    project: {
+      document: {
+        ...document,
+        manifest: { ...document.manifest, updatedAt: options.now },
+        settings: { ...document.settings, predictDataset },
+        // 실험은 그대로다 - 예측 데이터는 점수에 영향을 주지 않는다.
+      },
+      dataset: project.dataset,
+      testDataset: project.testDataset,
+      predictDataset: { bytes, hash: hashBytes(bytes) },
+      models: project.models,
+    },
+  }
+}
+
+/**
+ * 예측 데이터를 뗀다. **실험은 원래부터 안 지운다** - 붙일 때와 같은 이유다.
+ */
+export function removePredictDataset(project: ProjectFile, now: string): AppliedPredictDataset {
+  const { document } = project
+  if (document.settings.predictDataset === undefined) {
+    // 이미 없다. 지울 것도 없다.
+    return { project }
+  }
+
+  const settings = { ...document.settings }
+  delete settings.predictDataset
+
+  return {
+    project: {
+      document: {
+        ...document,
+        manifest: { ...document.manifest, updatedAt: now },
+        settings,
+      },
+      dataset: project.dataset,
+      testDataset: project.testDataset,
+      predictDataset: undefined,
+      models: project.models,
+    },
   }
 }
 
@@ -239,6 +376,8 @@ export function removeTestDataset(project: ProjectFile, now: string): AppliedTes
       },
       dataset: project.dataset,
       testDataset: undefined,
+      // 예측 데이터는 그대로 둔다 - `applyTestDataset`과 같은 이유다.
+      predictDataset: project.predictDataset,
       models: new Map(),
     },
     droppedExperiments: document.runs.experiments.length,

@@ -371,7 +371,8 @@
     "UNEXPECTED_ERROR": "Something went wrong. Please try again.",
     "SPLIT_TOO_FEW_ROWS": "There is not enough data to split into a training set and a test set. (usable {actualRows}, needs at least {minRows})",
     "SPLIT_STRATIFY_IMPOSSIBLE": "'{label}' appears too few times to keep the same proportions in the split. Turn off proportional splitting, or collect more rows with this value. (has {count}, needs at least {minRows})",
-    "TEST_DATASET_COLUMN_MISSING": "The Test Data file is missing columns from the training data. ({columns})"
+    "TEST_DATASET_COLUMN_MISSING": "The Test Data file is missing columns from the training data. ({columns})",
+    "PREDICT_DATASET_COLUMN_MISSING": "The file to predict is missing columns the visible models use. ({columns})"
   },
   "portfolio": {
     "template": {
@@ -493,6 +494,22 @@
     "filterEmptyReason": "No model matches the selected filters.",
     "filterEmptyNext": "Turn on at least one filter above to see models again.",
     "tallyTitle": "How the answers split",
-    "tallyLead": "Only classification models are counted. The color shows whether an answer matches the most common one, not whether it is correct."
+    "tallyLead": "Only classification models are counted. The color shows whether an answer matches the most common one, not whether it is correct.",
+    "inputChoiceValue": "Enter values directly",
+    "inputChoiceValueNote": "Add one row to the table and see the answer.",
+    "inputChoiceFile": "Predict many rows from a file at once",
+    "inputChoiceFileNote": "Upload a file of rows with unknown answers, and every row is answered at once.",
+    "fileLead": "Upload a CSV or Excel file with rows whose answers are unknown.",
+    "fileRemove": "Remove",
+    "fileApplied": "The file to predict is in use.",
+    "fileEmptyReason": "No file to predict has been uploaded yet.",
+    "fileEmptyNext": "Upload a file and every row in it gets an answer.",
+    "rowNumber": "Row",
+    "tableTitle": "Prediction results",
+    "showFeatures": "Show feature values",
+    "computing": "Computing.",
+    "prevPage": "Previous",
+    "nextPage": "Next",
+    "download": "Download as CSV"
   }
 }
