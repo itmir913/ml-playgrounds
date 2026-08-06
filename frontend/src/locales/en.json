@@ -439,6 +439,7 @@
     "noSuccess": "No model in this training run produced a score.",
     "noSuccessNext": "Read why they failed below, change a setting, and train again.",
     "detailLead": "Select a model to see its performance metrics.",
+    "detailFor": "Training result for {model}.",
     "confusion": "Confusion matrix",
     "confusionLead": "Rows are the real values, columns are what the model answered.",
     "actual": "Real",

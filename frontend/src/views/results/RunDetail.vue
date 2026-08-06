@@ -37,85 +37,87 @@ const warningText = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-5">
-    <!--
-      **어느 모델의 속인지 여기서 말한다.** 표에서 줄을 눌러 내려오지만, 스크롤하고 나면
-      방금 누른 줄이 화면 밖이라 무엇을 보고 있는지 잊기 쉽다. 혼동 행렬과 값 종류별
-      점수가 둘 다 이 run 하나의 것이라 헤더 하나로 같이 건다 (`results.modelScope`는
-      ChangeList의 모델 배지와 같은 키다).
-    -->
-    <h3 class="text-lg font-bold text-ink">
-      {{
-        t('results.modelScope', {
-          algorithm: t(`algorithms.${props.run.algorithm}`),
-          runtime: t(`execution.${props.run.computedBy}`),
-        })
-      }}
-    </h3>
+  <!--
+    **카드 하나가 이 run 하나의 것임을 테두리로 말한다.** 표에서 줄을 눌러 내려오지만,
+    스크롤하고 나면 방금 누른 줄이 화면 밖이라 무엇을 보고 있는지 잊기 쉽다. 문장 한 줄로
+    "어느 모델"인지 밝히는 것보다, 그 속(혼동 행렬 등)을 통째로 카드 테두리 안에 담아
+    "이 안이 전부 그 모델의 것"이라고 형태로 보여주는 편이 더 즉각적이다. 강조색은
+    `ExperimentDetail`이 고른 줄에 쓰는 `bg-brand-soft`와 같다 — 표의 그 줄이 이 카드로
+    펼쳐졌다는 것이 색으로 이어진다.
+  -->
+  <div class="overflow-hidden rounded-panel border border-brand-line">
+    <div class="flex flex-wrap items-baseline gap-x-2 bg-brand-soft px-4 py-3">
+      <h3 class="font-bold text-ink">
+        {{ t('results.detailFor', { model: t(`algorithms.${props.run.algorithm}`) }) }}
+      </h3>
+      <span class="text-ink-soft">{{ t(`execution.${props.run.computedBy}`) }}</span>
+    </div>
 
-    <p v-if="warningText" class="rounded-panel border border-caution/30 bg-caution-soft p-3">
-      {{ warningText }}
-    </p>
+    <div class="flex flex-col gap-5 bg-surface p-4">
+      <p v-if="warningText" class="rounded-panel border border-caution/30 bg-caution-soft p-3">
+        {{ warningText }}
+      </p>
 
-    <section v-if="props.run.confusionMatrix" class="flex flex-col gap-1.5">
-      <h4 class="font-bold">{{ t('results.confusion') }}</h4>
-      <p class="text-ink-soft">{{ t('results.confusionLead') }}</p>
+      <section v-if="props.run.confusionMatrix" class="flex flex-col gap-1.5">
+        <h4 class="font-bold">{{ t('results.confusion') }}</h4>
+        <p class="text-ink-soft">{{ t('results.confusionLead') }}</p>
 
-      <AppTable>
-        <thead>
-          <tr>
-            <!-- 모서리 칸. 세로축이 실제이고 가로축이 예측이라는 것을 여기서 말한다. -->
-            <th>{{ t('results.actual') }}</th>
-            <th v-for="label in props.run.confusionMatrix.labels" :key="label">{{ label }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(row, index) in props.run.confusionMatrix.matrix" :key="index">
-            <th class="text-left">{{ props.run.confusionMatrix.labels[index] }}</th>
-            <!--
-              **맞힌 칸(대각선)은 굵기와 배경을 함께 준다.** 굵기만으로는 표를 눈으로
-              훑을 때 잘 안 걸린다 — 배경색이 먼저 눈에 들어와야 어디를 봐야 하는지가
-              읽기 전에 이미 보인다.
-            -->
-            <td
-              v-for="(count, column) in row"
-              :key="column"
-              :class="index === column ? 'bg-positive-soft font-bold' : ''"
-            >
-              {{ count }}
-            </td>
-          </tr>
-        </tbody>
-      </AppTable>
-    </section>
+        <AppTable>
+          <thead>
+            <tr>
+              <!-- 모서리 칸. 세로축이 실제이고 가로축이 예측이라는 것을 여기서 말한다. -->
+              <th>{{ t('results.actual') }}</th>
+              <th v-for="label in props.run.confusionMatrix.labels" :key="label">{{ label }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(row, index) in props.run.confusionMatrix.matrix" :key="index">
+              <th class="text-left">{{ props.run.confusionMatrix.labels[index] }}</th>
+              <!--
+                **맞힌 칸(대각선)은 굵기와 배경을 함께 준다.** 굵기만으로는 표를 눈으로
+                훑을 때 잘 안 걸린다 — 배경색이 먼저 눈에 들어와야 어디를 봐야 하는지가
+                읽기 전에 이미 보인다.
+              -->
+              <td
+                v-for="(count, column) in row"
+                :key="column"
+                :class="index === column ? 'bg-positive-soft font-bold' : ''"
+              >
+                {{ count }}
+              </td>
+            </tr>
+          </tbody>
+        </AppTable>
+      </section>
 
-    <section v-if="props.run.perClass" class="flex flex-col gap-1.5">
-      <h4 class="font-bold">{{ t('results.perClass') }}</h4>
+      <section v-if="props.run.perClass" class="flex flex-col gap-1.5">
+        <h4 class="font-bold">{{ t('results.perClass') }}</h4>
 
-      <AppTable>
-        <thead>
-          <tr>
-            <th>{{ t('results.label') }}</th>
-            <th>{{ t('results.precision') }}</th>
-            <th>{{ t('results.recall') }}</th>
-            <th>{{ t('results.f1') }}</th>
-            <th>{{ t('results.support') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="entry in props.run.perClass" :key="entry.label">
-            <th class="text-left">{{ entry.label }}</th>
-            <td>{{ format.percent(entry.precision) }}</td>
-            <td>{{ format.percent(entry.recall) }}</td>
-            <td>{{ format.percent(entry.f1) }}</td>
-            <td>{{ entry.support }}</td>
-          </tr>
-        </tbody>
-      </AppTable>
-    </section>
+        <AppTable>
+          <thead>
+            <tr>
+              <th>{{ t('results.label') }}</th>
+              <th>{{ t('results.precision') }}</th>
+              <th>{{ t('results.recall') }}</th>
+              <th>{{ t('results.f1') }}</th>
+              <th>{{ t('results.support') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="entry in props.run.perClass" :key="entry.label">
+              <th class="text-left">{{ entry.label }}</th>
+              <td>{{ format.percent(entry.precision) }}</td>
+              <td>{{ format.percent(entry.recall) }}</td>
+              <td>{{ format.percent(entry.f1) }}</td>
+              <td>{{ entry.support }}</td>
+            </tr>
+          </tbody>
+        </AppTable>
+      </section>
 
-    <p v-if="!props.run.confusionMatrix && !props.run.perClass" class="text-ink-soft">
-      {{ t('results.noDetail') }}
-    </p>
+      <p v-if="!props.run.confusionMatrix && !props.run.perClass" class="text-ink-soft">
+        {{ t('results.noDetail') }}
+      </p>
+    </div>
   </div>
 </template>
