@@ -454,12 +454,14 @@ async function downloadAction(): Promise<void> {
         <table class="w-full text-left">
           <thead class="bg-surface-sunken">
             <tr>
-              <th class="px-3 py-2 font-bold text-ink-soft">{{ t('predict.rowNumber') }}</th>
+              <th class="min-w-20 px-3 py-2 font-bold text-ink-soft">
+                {{ t('predict.rowNumber') }}
+              </th>
               <template v-if="showFeatures">
                 <th
                   v-for="field in props.fields"
                   :key="field.name"
-                  class="px-3 py-2 font-bold text-ink-soft"
+                  class="min-w-32 px-3 py-2 font-bold text-ink-soft"
                 >
                   {{ field.name }}
                 </th>
@@ -467,7 +469,7 @@ async function downloadAction(): Promise<void> {
               <th
                 v-for="(model, index) in props.models"
                 :key="model.run.id"
-                class="px-3 py-2 font-bold text-ink-soft"
+                class="min-w-40 px-3 py-2 font-bold text-ink-soft"
               >
                 <span class="flex flex-col">
                   <span>{{
