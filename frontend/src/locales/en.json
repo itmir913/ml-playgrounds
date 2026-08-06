@@ -477,7 +477,7 @@
     "emptyNext": "Train a model in the training step, and you can try new values here.",
     "inputTitle": "New values",
     "inputLead": "Think of it as adding one row to your table. Fill the boxes and press [Predict].",
-    "fromData": "Take a random row from the data",
+    "fromData": "Take a random row from the test data",
     "fromDataDone": "Took row {index}. Try changing a box or two and predicting again.",
     "noSample": "There is no row to take.",
     "pickOption": "Choose one",
@@ -511,6 +511,6 @@
     "computing": "Computing.",
     "prevPage": "Previous",
     "nextPage": "Next",
-    "download": "Download as CSV"
+    "download": "Download predictions as CSV"
   }
 }
