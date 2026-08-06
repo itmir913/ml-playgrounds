@@ -26,12 +26,15 @@ const props = defineProps<{
   /** 파일에서 이 실험 바로 앞의 것. 첫 실험이면 없다. */
   previous: Experiment | undefined
   /**
-   * 지금 프로젝트의 데이터 종류. 상세 패널 등록부가 이 축을 본다 (`ml/metric-panels.ts`).
+   * 이 프로젝트의 데이터 종류. 상세 패널 등록부가 이 축을 본다 (`ml/metric-panels.ts`).
    *
-   * **manifest에서 온다** — 실험 스냅샷에는 taskType만 있고 dataType은 없다. 학생이
-   * 데이터를 갈아 끼우면 옛 실험이 새 종류로 읽히는데, 그건 taskType이 스냅샷에 들어간
-   * 것과 똑같은 문제다 (schema.ts의 experimentSettings 주석). **포맷 변경이므로 여기서
-   * 정하지 않는다** — 지금은 표뿐이라 어긋날 수가 없다.
+   * **manifest에서 온다. taskType처럼 스냅샷일 필요가 없다.**
+   *
+   * taskType이 실험 스냅샷에 들어간 이유는 **학생이 그것을 바꿔도 옛 실험이 남기**
+   * 때문이다(schema.ts의 experimentSettings 주석). dataType에는 그 조건이 성립하지
+   * 않는다 — 프로젝트를 만들 때 한 번 정해지고 아무도 안 고치며, 데이터를 갈아 끼우면
+   * **그 순간 실험을 통째로 버린다**(project/dataset.ts, mlpx-spec.md §4.3). 그러므로
+   * manifest의 현재 값과 남아 있는 실험이 어긋날 경로가 없다.
    */
   dataType: DataType
 }>()
