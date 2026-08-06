@@ -17,6 +17,7 @@ import { loadModel, REFERENCE_FORMAT } from '../src/ml/models'
 import {
   answerRank,
   applyPredictFilter,
+  assignAnswerColors,
   defaultFilter,
   inputFields,
   mergeFields,
@@ -757,6 +758,76 @@ describe('답 값별 등수 - 갈림표 칩과 카드가 같은 색을 쓰기 �
     ])
 
     expect(answerRank(model, new Map(), ranks)).toBeNull()
+  })
+})
+
+describe('일괄 예측 표의 값별 색 배정 - 등수가 아니라 처음 본 순서다 (architecture.md 8.13.1)', () => {
+  it('처음 보는 값에 순서대로 색을 준다', () => {
+    const subject = experiment([0], onehot)
+    const models: PredictableModel[] = [{ experiment: subject, run: runOf('r1') }]
+    const rows: Answer[][] = [[{ value: 'b' }], [{ value: 'a' }]]
+
+    const assigned = assignAnswerColors(models, rows, new Map(), 7)
+
+    expect(assigned.get('b')).toBe(0)
+    expect(assigned.get('a')).toBe(1)
+  })
+
+  it('이미 배정된 값은 다시 안 바꾼다 - 페이지를 오가도 색이 그대로다', () => {
+    const subject = experiment([0], onehot)
+    const models: PredictableModel[] = [{ experiment: subject, run: runOf('r1') }]
+    const existing = new Map([['a', 0]])
+    const rows: Answer[][] = [[{ value: 'b' }], [{ value: 'a' }]]
+
+    const assigned = assignAnswerColors(models, rows, existing, 7)
+
+    expect(assigned.get('a')).toBe(0)
+    expect(assigned.get('b')).toBe(1)
+  })
+
+  it('최대치를 넘으면 더 안 준다 - 그 값은 색 없이 남는다', () => {
+    const subject = experiment([0], onehot)
+    const models: PredictableModel[] = [{ experiment: subject, run: runOf('r1') }]
+    const rows: Answer[][] = [[{ value: 'a' }], [{ value: 'b' }], [{ value: 'c' }]]
+
+    const assigned = assignAnswerColors(models, rows, new Map(), 2)
+
+    expect(assigned.get('a')).toBe(0)
+    expect(assigned.get('b')).toBe(1)
+    expect(assigned.has('c')).toBe(false)
+  })
+
+  it('회귀 모델의 값은 건너뛴다', () => {
+    const subject = experiment([0], onehot, { taskType: 'regression' })
+    const models: PredictableModel[] = [{ experiment: subject, run: runOf('r1') }]
+    const rows: Answer[][] = [[{ value: 3.14 }]]
+
+    const assigned = assignAnswerColors(models, rows, new Map(), 7)
+
+    expect(assigned.size).toBe(0)
+  })
+
+  it('여러 모델이 섞인 행에서 열마다 값을 본다', () => {
+    const classification = experiment([0], onehot)
+    const models: PredictableModel[] = [
+      { experiment: classification, run: runOf('r1') },
+      { experiment: classification, run: runOf('r2') },
+    ]
+    const rows: Answer[][] = [[{ value: 'a' }, { value: 'b' }]]
+
+    const assigned = assignAnswerColors(models, rows, new Map(), 7)
+
+    expect(assigned.get('a')).toBe(0)
+    expect(assigned.get('b')).toBe(1)
+  })
+
+  it('바뀐 게 없으면 같은 맵을 그대로 돌려준다', () => {
+    const subject = experiment([0], onehot)
+    const models: PredictableModel[] = [{ experiment: subject, run: runOf('r1') }]
+    const existing = new Map([['a', 0]])
+    const rows: Answer[][] = [[{ value: 'a' }]]
+
+    expect(assignAnswerColors(models, rows, existing, 7)).toBe(existing)
   })
 })
 

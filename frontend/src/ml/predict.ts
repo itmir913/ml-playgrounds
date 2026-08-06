@@ -508,6 +508,57 @@ export function answerRank(
 }
 
 /**
+ * 값별 색 배정 - **처음 본 순서대로, 한 번 준 색은 안 바꾼다** (architecture.md
+ * §8.13.1 "일괄 예측 표의 셀도 값별로 다른 색"). `rankAnswers`처럼 개수 순으로
+ * 매기지 않는 이유는 여기가 **페이지로 끊겨 있기 때문**이다 - 파일 전체의 분포를
+ * 모르는 채로 한 페이지씩 계산하므로(연산 억제, 위 `predictPage`), "몇 번째로
+ * 많이 나왔는가"를 매길 수 없다. 대신 **이미 배정된 값은 그대로 두고, 새 페이지에서
+ * 처음 보는 값에만 다음 색을 준다** - 그래야 페이지를 앞뒤로 오가도 같은 값이
+ * 같은 색으로 남는다.
+ *
+ * **`existing`을 그대로 확장한다.** 화면이 페이지를 넘길 때마다 이 함수를 다시
+ * 부르며 그 전까지 쌓인 맵을 넘긴다 - 매번 새로 세면 이미 배정된 색이 바뀔 수 있다.
+ *
+ * **`maxColors`를 넘기면 더 안 준다.** 그 값은 계속 색이 없는 채로 남는다(§8.13.1
+ * "값마다 다른 색"의 일곱 개 제한과 같다). 무엇이 일곱 개 안에 드는지는 페이지를
+ * 넘긴 순서에 달려 있다 - 파일 전체를 먼저 세어 두면 결정적이 되겠지만 그러려면
+ * 페이지네이션의 연산 억제를 우회해야 한다(architecture.md §8.13.1의 열린 여지 참고).
+ */
+export function assignAnswerColors(
+  models: readonly PredictableModel[],
+  answers: readonly (readonly Answer[])[],
+  existing: ReadonlyMap<Prediction, number>,
+  maxColors: number,
+): ReadonlyMap<Prediction, number> {
+  const next = new Map(existing)
+  for (const row of answers) {
+    for (const [index, model] of models.entries()) {
+      if (model.experiment.settings.taskType !== 'classification') continue
+      if (next.size >= maxColors) continue
+      const value = row[index]?.value
+      if (value === undefined || next.has(value)) continue
+      next.set(value, next.size)
+    }
+  }
+  return next.size === existing.size ? existing : next
+}
+
+/**
+ * 이 셀의 색 인덱스. **분류이고 색이 배정된 값일 때만 있다** (architecture.md
+ * §8.13.1). `answerRank`와 같은 이유로 화면이 아니라 여기 있다(§9.1) - 일괄 예측
+ * 표는 여러 실험의 모델이 열로 섞여 서므로, 유형은 모델(열)마다 봐야 한다.
+ */
+export function cellColorIndex(
+  model: PredictableModel,
+  value: Prediction | undefined,
+  colors: ReadonlyMap<Prediction, number>,
+): number | null {
+  if (model.experiment.settings.taskType !== 'classification') return null
+  if (value === undefined) return null
+  return colors.get(value) ?? null
+}
+
+/**
  * 일괄 예측 (open-decisions.md "일괄 예측은 `행 × 모델` 매트릭스다", architecture.md
  * §8.13.1). **한 페이지 분량의 행에 대해 (실험, run)마다 예측을 돌려 `행 × 모델`
  * 결과를 만든다.**

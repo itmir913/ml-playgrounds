@@ -20,8 +20,11 @@ import { useFormat } from '@/composables/useFormat'
 import { importTable, openTable, type TableDocument } from '@/data/table'
 import { toCanonicalCsv } from '@/data/serialize'
 import { PREDICT_PAGE_SIZE } from '@/limits'
+import type { Prediction } from '@/ml/metrics'
 import { interpreterFor, loadModel, type LoadContext, type Predict } from '@/ml/models'
 import {
+  assignAnswerColors,
+  cellColorIndex,
   predictDownloadGrid,
   predictPage,
   predictPageSignature,
@@ -294,10 +297,47 @@ async function goToPage(index: number): Promise<void> {
   }
 }
 
+/** 한 번 섞은 새 배열. 제자리에서 안 바꾼다 - 원본을 공유하는 곳이 있으면 그쪽이 놀란다. */
+function shuffled<T>(items: readonly T[]): T[] {
+  const copy = [...items]
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const temp = copy[i]!
+    copy[i] = copy[j]!
+    copy[j] = temp
+  }
+  return copy
+}
+
+/**
+ * 값마다 다른 글자색. `AnswerList.vue`와 같은 팔레트(architecture.md §8.13.1)이지만
+ * **팔레트를 공유하진 않는다** - `PredictView.vue`에서 이 화면과 `AnswerList`는
+ * `v-if`/`v-else`로 갈려 동시에 안 보이므로, 같은 값이 두 화면에서 같은 색일 이유가
+ * 없다. 그래서 여기서 따로, 뜰 때 한 번만 섞는다.
+ */
+const CHART_CLASSES = shuffled([
+  'text-chart-1',
+  'text-chart-2',
+  'text-chart-3',
+  'text-chart-4',
+  'text-chart-5',
+  'text-chart-6',
+  'text-chart-7',
+])
+
+/**
+ * 값 -> 색 인덱스. **등수(개수 순)가 아니라 처음 본 순서다** - 왜인지, 일곱 개를
+ * 넘으면 어떻게 되는지는 `assignAnswerColors`(`ml/predict.ts`)에 있다.
+ */
+const colorAssignments = shallowRef<ReadonlyMap<Prediction, number>>(new Map())
+
 /**
  * 서명이 바뀌면(파일이 바뀌거나 보이는 모델이 바뀌면) 캐시와 학습 행 캐시를 버리고
  * 첫 페이지를 다시 계산한다. **처음 보일 때도 돈다** (`immediate`) - 그래야 파일이
  * 이미 붙어 있는 프로젝트를 열었을 때도 표가 비어 있지 않다.
+ *
+ * **색 배정도 여기서 같이 비운다.** 다른 파일·다른 모델이면 값의 세계 자체가
+ * 바뀐 것이라 이전 배정을 들고 있을 이유가 없다.
  */
 watch(
   signature,
@@ -305,12 +345,35 @@ watch(
     pageCache.value = { signature: signature.value, pages: new Map() }
     trainingRowContexts = new Map()
     predictorCache = null
+    colorAssignments.value = new Map()
     void goToPage(0)
   },
   { immediate: true },
 )
 
 const currentAnswers = computed(() => pageCache.value.pages.get(page.value) ?? [])
+
+/**
+ * 페이지가 새로 계산될 때마다 그 안에서 처음 보는 값에만 색을 배정한다. **이미
+ * 배정된 값은 안 건드린다** - 그래야 페이지를 앞뒤로 오가도 같은 값이 같은 색이다.
+ */
+watch(currentAnswers, (rows) => {
+  colorAssignments.value = assignAnswerColors(
+    props.models,
+    rows,
+    colorAssignments.value,
+    CHART_CLASSES.length,
+  )
+})
+
+/**
+ * 셀 글자색. 판정(분류인지, 색이 배정된 값인지)은 `cellColorIndex`가 한다
+ * (`ml/predict.ts`) - 화면은 그 등수를 팔레트 배열의 자리로 바꾸기만 한다.
+ */
+function cellColorClass(model: PredictableModel, value: Prediction | undefined): string {
+  const index = cellColorIndex(model, value, colorAssignments.value)
+  return index === null ? '' : (CHART_CLASSES[index] ?? '')
+}
 
 /** 답 하나를 표에 쓸 문자열로. 수치는 언어에 맞게, 아직 없으면 빈 칸이다. */
 function cellText(answer: Answer | undefined): string {
@@ -498,6 +561,7 @@ async function downloadAction(): Promise<void> {
                 v-for="(model, modelIndex) in props.models"
                 :key="model.run.id"
                 class="px-3 py-2 tabular-nums font-bold"
+                :class="cellColorClass(model, currentAnswers[rowIndex]?.[modelIndex]?.value)"
               >
                 {{ cellText(currentAnswers[rowIndex]?.[modelIndex]) }}
               </td>
