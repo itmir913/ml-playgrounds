@@ -16,6 +16,8 @@
  * 그 표가 갈라져야 할 자리를 못 찾는다.
  */
 
+import { z } from 'zod'
+
 import { ClientError } from '../errors'
 import type { Preprocessing } from '../project/schema'
 
@@ -282,6 +284,66 @@ export function fitPreprocessor(
   if (columns.length === 0) throw new ClientError('FEATURE_NOT_SELECTED')
 
   return { format: PREPROCESSOR_FORMAT, columns, featureNames, excludedColumns }
+}
+
+const fittedColumnSchema = z.looseObject({
+  name: z.string(),
+  kind: z.enum(['numeric', 'categorical']),
+  fill: z.union([z.number(), z.string()]).optional(),
+  scale: z.looseObject({ center: z.number(), spread: z.number() }).optional(),
+  categories: z.array(z.string()).optional(),
+})
+
+const preprocessorSchema = z.looseObject({
+  format: z.literal(PREPROCESSOR_FORMAT),
+  columns: z.array(fittedColumnSchema).min(1),
+  featureNames: z.array(z.string()).min(1),
+  // 없는 것과 비어 있는 것이 같은 뜻이라 기본값을 준다. 옛 파일이나 남이 만든 파일에
+  // 이 배열이 없을 수 있고, 그때 잃는 것은 "이 열은 쓰이지 않았습니다"라는 말뿐이다.
+  excludedColumns: z
+    .array(z.looseObject({ name: z.string(), reason: z.literal('notEncodable') }))
+    .default([]),
+})
+
+/**
+ * 파일에서 읽은 전처리기 JSON을 검증한다. **`model/preprocessor-experiment-N.json`이 이것이다.**
+ *
+ * 캐스팅으로 넘기지 않는 이유는 이것이 **밖에서 들어온 파일**이기 때문이다 (mlpx-spec.md 10).
+ * 여기가 무너지면 예측의 두 이음매(ml/predict.ts)가 검증되지 않은 바닥 위에 서고,
+ * 잘못된 `categories` 하나가 예외 없이 **한 칸 밀린 원-핫**을 만든다.
+ *
+ * 모델 파일과 같은 코드로 던진다 - 학생이 할 일이 같다(다시 학습한다). 전처리기는
+ * 그 실험 모델 전체의 전제이므로(mlpx-spec.md 5) 이것이 깨지면 어차피 그 실험의 모델은
+ * 하나도 못 쓴다.
+ */
+export function parsePreprocessor(value: unknown): Preprocessor {
+  const parsed = preprocessorSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new ClientError('MODEL_FILE_INVALID', {
+      field: parsed.error.issues[0]?.path.join('.') || 'format',
+    })
+  }
+
+  // **선택 필드는 있을 때만 옮긴다.** undefined를 담아 두면 "없음"과 "값이 undefined"가
+  // 섞이고, 그 상태로 transform에 들어가면 fill이 있는 열처럼 굴다가 빈 문자열이 된다.
+  //
+  // 모르는 필드는 여기서 사라진다. 문서 스키마(project/schema.ts)와 반대인 이유는 **이
+  // 파일을 다시 쓰지 않기 때문이다** - zip 안의 원본은 그대로 남고, 우리는 예측 한 번을
+  // 위해 읽을 뿐이다. 모델 해석기가 하는 것과 같다.
+  return {
+    format: PREPROCESSOR_FORMAT,
+    columns: parsed.data.columns.map((column) => ({
+      name: column.name,
+      kind: column.kind,
+      ...(column.fill === undefined ? {} : { fill: column.fill }),
+      ...(column.scale === undefined
+        ? {}
+        : { scale: { center: column.scale.center, spread: column.scale.spread } }),
+      ...(column.categories === undefined ? {} : { categories: column.categories }),
+    })),
+    featureNames: parsed.data.featureNames,
+    excludedColumns: parsed.data.excludedColumns.map(({ name, reason }) => ({ name, reason })),
+  }
 }
 
 /**

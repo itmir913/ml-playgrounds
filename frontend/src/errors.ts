@@ -44,6 +44,12 @@ export const CLIENT_ERROR_CODES = [
   // 파일로 다시 여는 것이다.
   'MODEL_NEEDS_DATASET',
 
+  // 예측 입력 - ml/predict.ts
+  // 채우지 않은 칸이 있다. **전처리기의 대체값으로 조용히 채우지 않는다** - 학생은
+  // 자기가 넣은 값으로 예측했다고 믿는데 실제로는 학습셋의 평균이 들어간다.
+  // 예측은 브라우저에서만 하므로(mlpx-spec.md 0.2) 이 코드는 서버에 없다.
+  'PREDICTION_INPUT_INCOMPLETE',
+
   // 표 파일 가져오기 - 서버는 정규화된 CSV만 보므로 이 둘은 서버에 없다 (data/table.ts)
   'DATASET_FILE_TYPE_UNSUPPORTED',
   'DATASET_SHEET_NOT_FOUND',

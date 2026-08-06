@@ -345,6 +345,7 @@
     "MODEL_FORMAT_UNSUPPORTED": "이 버전에서는 이 모델을 실행할 수 없습니다. ({format})",
     "MODEL_FILE_INVALID": "저장된 모델을 읽을 수 없습니다. 다시 학습하면 쓸 수 있습니다.",
     "MODEL_NEEDS_DATASET": "이 모델은 원본 데이터가 있어야 예측할 수 있는데, 이 파일에는 데이터가 없습니다.",
+    "PREDICTION_INPUT_INCOMPLETE": "아직 값을 넣지 않은 칸이 있습니다. ({feature})",
     "DATASET_FILE_TYPE_UNSUPPORTED": "지원하지 않는 파일 형식입니다. ({fileName})",
     "DATASET_SHEET_NOT_FOUND": "그 시트를 찾을 수 없습니다. ({sheetName})",
     "STORAGE_QUOTA_EXCEEDED": "이 컴퓨터의 저장 공간이 부족합니다. (필요 {requiredMb}MB, 남은 공간 {availableMb}MB)",

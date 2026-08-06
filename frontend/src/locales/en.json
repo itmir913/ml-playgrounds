@@ -345,6 +345,7 @@
     "MODEL_FORMAT_UNSUPPORTED": "This version cannot run that model. ({format})",
     "MODEL_FILE_INVALID": "That saved model could not be read. Train it again to use it.",
     "MODEL_NEEDS_DATASET": "This model needs the original data to predict, and this file has none.",
+    "PREDICTION_INPUT_INCOMPLETE": "Some boxes are still empty. ({feature})",
     "DATASET_FILE_TYPE_UNSUPPORTED": "This file type is not supported. ({fileName})",
     "DATASET_SHEET_NOT_FOUND": "That sheet could not be found. ({sheetName})",
     "STORAGE_QUOTA_EXCEEDED": "There is not enough storage space on this computer. (needs {requiredMb}MB, {availableMb}MB free)",
