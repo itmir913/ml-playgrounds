@@ -17,7 +17,7 @@
  * 한다. 그건 `tests/ui-rules.spec.ts`가 이제 막는다. **부드러움은 화면이 뜨는 것보다
  * 뒤에 온다.**
  *
- * 자연어 문자열 리터럴 금지 - 전부 t()를 거친다 (CLAUDE.md §3).
+ * 자연어 문자열 리터럴 금지 - 전부 t()를 거친다 (docs/i18n.md).
  */
 
 import AppShell from '@/components/AppShell.vue'

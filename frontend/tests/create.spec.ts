@@ -136,7 +136,7 @@ describe('고를 수 있는 과제 유형', () => {
 
 describe('화면 표시 포맷', () => {
   it('로케일을 바꾸면 결과가 따라간다', () => {
-    // 'ko-KR'을 코드에 박으면 그 자리는 영원히 한국어다 (CLAUDE.md §3 규칙 6).
+    // 'ko-KR'을 코드에 박으면 그 자리는 영원히 한국어다 (docs/i18n.md 규칙 6).
     expect(formatDateTime('ko', '2026-08-05T09:00:00Z')).not.toBe(
       formatDateTime('en', '2026-08-05T09:00:00Z'),
     )

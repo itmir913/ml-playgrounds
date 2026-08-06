@@ -63,7 +63,7 @@ function go(step: StepId): void {
       머리와 [이어서 하기]가 한 줄이다. 이어서 하기를 왼쪽 열 안에 두면 오른쪽 요약이
       그만큼 위로 떠서 두 열의 머리가 어긋난다.
 
-      한 문장은 한 키다 (CLAUDE.md §3 규칙 3) - 조각으로 이으면 어순이 다른 언어에서 무너진다.
+      한 문장은 한 키다 (docs/i18n.md 규칙 3) - 조각으로 이으면 어순이 다른 언어에서 무너진다.
     -->
     <StepHeader :title="t('project.homeTitle')" :purpose="t('project.homeLead')">
       <template #actions>
@@ -87,7 +87,7 @@ function go(step: StepId): void {
             (§8.9의 "두 열의 머리가 어긋난다"와 같은 문제다).
 
             **고정 너비가 아니라 격자다.** 칸을 px로 박으면 영어에서 30% 긴 이름이
-            넘친다(CLAUDE.md §3 규칙 7). 비율로 나누면 언어가 바뀌어도 줄이 서로 맞는다.
+            넘친다(docs/i18n.md 규칙 7). 비율로 나누면 언어가 바뀌어도 줄이 서로 맞는다.
             좁은 화면에서는 한 열로 쌓인다 - 거기서 2열은 둘 다 못 읽게 만든다.
           -->
           <li

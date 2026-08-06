@@ -37,7 +37,7 @@ const project = useProjectStore()
         <!--
           좁은 화면에서는 짧은 쪽을 쓴다. 이 버튼이 넓어진 만큼 프로젝트 이름이
           깎이는데, **이름이 잘려서 여기까지 오는 것**이므로 이름을 먹으면 앞뒤가
-          안 맞는다. 조각을 잇는 것이 아니라 처음부터 다른 문자열이다 (CLAUDE.md §3).
+          안 맞는다. 조각을 잇는 것이 아니라 처음부터 다른 문자열이다 (docs/i18n.md).
         -->
         <span class="max-md:hidden">{{ t('meta.title') }}</span>
         <span class="md:hidden">{{ t('meta.titleShort') }}</span>
