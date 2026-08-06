@@ -77,8 +77,10 @@ export function newProjectDocument(input: NewProject, seed: ProjectSeed): Projec
       kind: PROJECT_KIND_ML,
       // 아직 안 골랐다. 없는 것이 맞다.
       taskType: input.taskType,
-      // V1은 표 데이터뿐이라 고르게 하지 않는다. 이미지·음성이 들어오는 V5에서
-      // 업로드한 것으로 정해진다 (architecture.md §6).
+      // **여기서 정해지고 그 뒤로 안 바뀐다** (open-decisions.md "데이터 종류는
+      // 프로젝트를 만들 때 고르고, 그 뒤로 안 바뀐다"). 업로드한 파일로 추론하지 않는다.
+      // V1은 표뿐이라 선택지가 하나이고, 선택지가 하나면 묻지 않는다 - 이미지가
+      // 들어오는 V5에서 이 값이 input으로 올라온다.
       dataType: 'tabular',
       locale: input.locale,
     },

@@ -311,7 +311,7 @@ V1은 표 데이터만 다루지만, 최종 목표는 학생이 이미지·음�
 
 | 지점 | 어떻게 확장되는가 |
 |---|---|
-| `manifest.dataType` | `tabular` / `image` / `audio` / `text` |
+| `manifest.dataType` | `tabular` / `image` / `audio` / `text`. **프로젝트를 만들 때 정해지고 안 바뀐다** (`open-decisions.md`) |
 | 큐 라우팅 | 타입 축이 이미 있다. 이미지 학습이 CSV 학습을 막지 않는다 |
 | `dataset/` 레이아웃 | 타입별 구조가 명세돼 있다 (`mlpx-spec.md` §1) |
 | `registry` | 알고리즘을 등록만 하면 된다 |

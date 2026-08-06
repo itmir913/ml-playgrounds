@@ -34,5 +34,9 @@ export function dataKindFor(dataType: string): DataKind | undefined {
   return KINDS.find((kind) => kind.dataType === dataType)
 }
 
-/** 다룰 수 있는 종류들. 새 프로젝트 화면이 고르게 할 때 쓴다. */
+/**
+ * 다룰 수 있는 종류들. **새 프로젝트 화면이 고르게 할 때 쓴다** — 업로드한 파일로
+ * 추론하지 않는다 (open-decisions.md "데이터 종류는 프로젝트를 만들 때 고르고, 그 뒤로
+ * 안 바뀐다"). 지금은 하나뿐이라 묻지 않는다.
+ */
 export const SUPPORTED_DATA_TYPES: readonly DataType[] = KINDS.map((kind) => kind.dataType)
