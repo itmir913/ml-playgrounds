@@ -98,7 +98,14 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span class="font-bold">{{ t(`algorithms.${row.algorithm}`) }}</span>
           <span class="text-ink-soft">{{ t(`runtimes.${row.runtime}`) }}</span>
-          <AppButton variant="ghost" class="ml-auto" @click="emit('remove', index)">
+          <!--
+            **줄 안의 버튼이 줄 높이를 키우면 안 된다.** ghost도 다른 변종과 같은
+            `py-2.5`를 갖는데(그래야 나란히 설 때 줄이 안 어긋난다), 그대로 두면 이
+            줄만 46px이 되어 모델 이름이 가운데로 밀린다. 그러면 안쪽 여백은 사방이
+            12px인데 **위 여백만 23px로 보인다.** 세로 여백만큼 되당겨 글자 줄에
+            맞춘다 — 누를 자리는 그대로다.
+          -->
+          <AppButton variant="ghost" class="-my-2.5 ml-auto" @click="emit('remove', index)">
             {{ t('train.removeModel') }}
           </AppButton>
         </div>
