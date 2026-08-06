@@ -116,22 +116,22 @@ function cardClass(model: PredictableModel): string {
         :class="[cardClass(model), model.reason ? 'opacity-60' : '']"
       >
         <!--
-          **셋을 위계로 나눈다.** 실험 이름이 "무엇"(식별자), 알고리즘·실행 위치가
-          "어떻게"(부가 정보), 답이 "결과"다. 한 줄에 욱여넣으면 좁은 카드에서 아무
-          데서나 끊기고, 학생이 찾는 답이 눈에 안 띈다.
+          **셋을 위계로 나눈다.** 알고리즘·실행 위치가 "어떻게"(이 카드를 다른 카드와
+          가르는 값), 실험 이름이 "무엇"(부가 식별자), 답이 "결과"다. 한 줄에
+          욱여넣으면 좁은 카드에서 아무 데서나 끊기고, 학생이 찾는 답이 눈에 안 띈다.
         -->
         <div class="flex flex-col gap-1">
           <p class="font-bold">
-            {{ props.experimentNames.get(model.experiment.id) ?? model.experiment.id }}
-          </p>
-
-          <p class="text-ink-soft">
             {{
               t('predict.modelName', {
                 algorithm: t(`algorithms.${model.run.algorithm}`),
                 runtime: t(whereTrainedKeyOf(model.run)),
               })
             }}
+          </p>
+
+          <p class="text-ink-soft">
+            {{ props.experimentNames.get(model.experiment.id) ?? model.experiment.id }}
           </p>
 
           <!--
