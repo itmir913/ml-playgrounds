@@ -67,6 +67,11 @@ export const CLIENT_ERROR_CODES = [
   // 이 둘은 backend/app/errors.py 에 없다.
   'SPLIT_TOO_FEW_ROWS',
   'SPLIT_STRATIFY_IMPOSSIBLE',
+
+  // 평가 데이터(test.csv) 받기 - data/columns.ts
+  // 정본 열과의 대조는 브라우저에서만 한다(mlpx-spec.md 0.3의 분할과 같은 이유 -
+  // 서버는 이미 확정된 정본과 분할 인덱스만 받는다).
+  'TEST_DATASET_COLUMN_MISSING',
 ] as const
 
 /**

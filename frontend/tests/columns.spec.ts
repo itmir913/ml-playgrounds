@@ -12,7 +12,14 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { columnNames, spreadsheetName, summarizeColumns, toDataset } from '../src/data/columns'
+import {
+  alignTestDataset,
+  columnNames,
+  spreadsheetName,
+  summarizeColumns,
+  toDataset,
+} from '../src/data/columns'
+import { isClientError } from '../src/errors'
 import { hashBytes } from '../src/hash'
 import { applyDataset } from '../src/project/dataset'
 import { TABULAR_DATASET_PATH } from '../src/project/format'
@@ -111,6 +118,65 @@ describe('열 요약', () => {
   it('값이 하나도 없는 열은 범주로 떨어진다', () => {
     // 수치라고 우기면 스케일링이 NaN을 만든다.
     expect(summarizeColumns({ columns: ['x'], rows: [[''], ['']] })[0]?.kind).toBe('categorical')
+  })
+})
+
+describe('평가 데이터 받기', () => {
+  // 정본(data.csv). 열 순서는 이름, 점수, 반이고 타깃은 반이라 하자.
+  const canonical = ['이름', '점수', '반']
+
+  it('정본과 열 순서가 달라도 이름으로 다시 세운다', () => {
+    const shuffled = [
+      ['반', '이름', '점수'],
+      ['A', '가', '90'],
+      ['B', '나', '80'],
+    ]
+    const aligned = alignTestDataset(shuffled, true, canonical)
+    expect(aligned.columns).toEqual(canonical)
+    expect(aligned.rows).toEqual([
+      ['가', '90', 'A'],
+      ['나', '80', 'B'],
+    ])
+  })
+
+  it('정본에 없는 열은 조용히 버린다', () => {
+    const extra = [
+      ['이름', '점수', '반', '메모'],
+      ['가', '90', 'A', '결석'],
+    ]
+    const aligned = alignTestDataset(extra, true, canonical)
+    expect(aligned.columns).toEqual(canonical)
+    expect(aligned.rows).toEqual([['가', '90', 'A']])
+  })
+
+  it('타깃 열을 포함해 정본 열 하나라도 없으면 거부한다', () => {
+    // data.csv는 언제나 타깃 열을 포함하므로 canonical에 이미 '반'이 들어 있다 -
+    // 여기서 그 열이 없는 파일을 올리면 학습에 쓴 특성과 무관하게 걸린다.
+    const noTarget = [
+      ['이름', '점수'],
+      ['가', '90'],
+    ]
+    try {
+      alignTestDataset(noTarget, true, canonical)
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error)).toBe(true)
+      if (isClientError(error)) {
+        expect(error.code).toBe('TEST_DATASET_COLUMN_MISSING')
+        expect(error.params.columns).toEqual(['반'])
+      }
+    }
+  })
+
+  it('없는 열을 전부 말해 준다', () => {
+    const missingTwo = [['이름'], ['가']]
+    try {
+      alignTestDataset(missingTwo, true, canonical)
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error)).toBe(true)
+      if (isClientError(error)) expect(error.params.columns).toEqual(['점수', '반'])
+    }
   })
 })
 

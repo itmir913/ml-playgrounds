@@ -11,6 +11,7 @@
  * 다른 파일이 된다.
  */
 
+import { ClientError } from '@/errors'
 import { detectKind, type ColumnKind } from '@/ml/preprocess'
 import type { Dataset } from '@/ml/preprocess'
 import type { TableGrid } from './grid'
@@ -104,4 +105,40 @@ export function summarizeColumns(dataset: Dataset): ColumnSummary[] {
       samples: [...distinct].slice(0, SAMPLE_COUNT),
     }
   })
+}
+
+/**
+ * 평가 데이터(`test.csv`)를 받을 때 한 번 하는 검사 (mlpx-spec.md §1.1,
+ * open-decisions.md "학습용과 평가용 파일이 따로일 수 있다").
+ *
+ * **정본(`data.csv`)의 열 전체와 대조한다.** 학습에 쓴 특성 열과만 대조하면, 특성이
+ * `{A,B}`일 때 받아 둔 파일이 나중에 `C`를 추가하는 순간 무효가 된다 - 그 실패가
+ * [학습]을 누른 뒤에야 터진다. 정본 열 전체와 대조하면 `특성 ⊆ 정본 열 ⊆ 평가 데이터 열`이
+ * **항상** 참이라 늦은 실패가 구조적으로 불가능해진다. `data.csv`는 언제나 타깃 열을
+ * 포함하므로 이 대조가 타깃 열도 함께 요구한다 - 정답이 없으면 채점을 못 한다.
+ *
+ * **열 순서가 달라도 이름으로 다시 세운다.** 매핑이 아니라 모호함이 없는 재배열이다 -
+ * 이름이 다른 열을 우리가 짝지어 주지는 않는다(그건 학생의 데이터 품질 문제다). 돌려주는
+ * `Dataset`은 정본과 같은 열 순서를 갖는다. 정본에 없는 열은 조용히 버린다 - 평가
+ * 데이터에 정본에 없는 열이 섞여 있어도 검사 대상이 아니다.
+ *
+ * **하나라도 없으면 거부하고 어느 열이 없는지 말한다.** `TEST_DATASET_COLUMN_MISSING`.
+ */
+export function alignTestDataset(
+  grid: TableGrid,
+  hasHeader: boolean,
+  canonicalColumns: readonly string[],
+): Dataset {
+  const dataset = toDataset(grid, hasHeader)
+  const positions = canonicalColumns.map((name) => dataset.columns.indexOf(name))
+
+  const missing = canonicalColumns.filter((_name, index) => positions[index] === -1)
+  if (missing.length > 0) {
+    throw new ClientError('TEST_DATASET_COLUMN_MISSING', { columns: missing })
+  }
+
+  return {
+    columns: canonicalColumns,
+    rows: dataset.rows.map((row) => positions.map((index) => row[index] ?? '')),
+  }
 }
