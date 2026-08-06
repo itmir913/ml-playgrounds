@@ -13,7 +13,7 @@
  * 검사하게 된다. 앱이 쓰는 진짜 생성기는 ml/worker/spawn.ts에 있다.
  */
 
-import { ClientError, toClientErrorCode } from '../../errors'
+import { ClientError, failureDetail, toClientErrorCode } from '../../errors'
 import type { Run } from '../../project/schema'
 import type { ExperimentResult } from '../experiment'
 import type { TrainRequest, WorkerMessage } from './protocol'
@@ -25,6 +25,13 @@ import type { TrainRequest, WorkerMessage } from './protocol'
 export interface TrainWorker {
   onmessage: ((event: MessageEvent<WorkerMessage>) => void) | null
   onerror: ((event: ErrorEvent) => void) | null
+  /**
+   * 워커가 보낸 것을 이쪽이 **복원하지 못했을 때** 온다.
+   *
+   * 없으면 아무 일도 안 일어난 것처럼 보인다 - 결과도 실패도 안 오고 Promise가 영영
+   * 안 풀려서 [학습] 버튼이 꺼진 채로 남는다.
+   */
+  onmessageerror?: ((event: MessageEvent<unknown>) => void) | null
   postMessage(message: TrainRequest): void
   terminate(): void
 }
@@ -67,6 +74,7 @@ export function train(request: TrainRequest, options: TrainOptions): TrainHandle
     finished = true
     worker.onmessage = null
     worker.onerror = null
+    worker.onmessageerror = null
     worker.terminate()
     act()
   }
@@ -91,8 +99,27 @@ export function train(request: TrainRequest, options: TrainOptions): TrainHandle
     settle(() => reject(new ClientError(toClientErrorCode(message.code), message.params)))
   }
 
-  // 워커 자체가 죽은 것이다(로드 실패, 메모리). 사유를 알 수 없으므로 JOB_FAILED다.
-  worker.onerror = () => settle(() => reject(new ClientError('JOB_FAILED')))
+  /**
+   * 워커 자체가 죽은 것이다 - 로드 실패, 메모리, 핸들러 밖에서 터진 예외.
+   *
+   * 코드는 JOB_FAILED다. 사유를 우리 어휘로 옮길 수 없어서다. **그러나 원문까지
+   * 버리면 화면에 "학습에 실패했습니다." 한 줄만 남고 교사도 손쓸 것이 없어진다**
+   * (open-decisions.md "학습 실패는 교사가 읽을 수 있게 전달한다"). 실제로 그 상태였다 -
+   * 이 경로만 params가 통째로 비어 있었고, 그래서 알림에 붙는 기술 정보도 없었다.
+   *
+   * 어디서 터졌는지까지 싣는다. 메시지만으로는 워커를 못 띄운 것인지 학습 중에 터진
+   * 것인지 갈리지 않는데, 둘은 대처가 완전히 다르다.
+   */
+  worker.onerror = (event) => {
+    const where = event.filename ? `${event.filename}:${event.lineno}` : ''
+    settle(() =>
+      reject(new ClientError('JOB_FAILED', failureDetail(`${event.message} ${where}`.trim()))),
+    )
+  }
+
+  // 복원하지 못한 메시지. 여기서 안 끊으면 Promise가 영영 안 풀린다.
+  worker.onmessageerror = () =>
+    settle(() => reject(new ClientError('JOB_FAILED', failureDetail('messageerror'))))
 
   worker.postMessage(request)
 

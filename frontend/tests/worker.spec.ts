@@ -59,6 +59,7 @@ function requestFor(settings?: Settings): TrainRequest {
 class FakeWorker implements TrainWorker {
   onmessage: ((event: MessageEvent<WorkerMessage>) => void) | null = null
   onerror: ((event: ErrorEvent) => void) | null = null
+  onmessageerror: ((event: MessageEvent<unknown>) => void) | null = null
   readonly posted: TrainRequest[] = []
   terminated = 0
 
@@ -74,8 +75,12 @@ class FakeWorker implements TrainWorker {
     this.onmessage?.({ data: message } as MessageEvent<WorkerMessage>)
   }
 
-  crash(): void {
-    this.onerror?.(new ErrorEvent('error'))
+  crash(message = '', filename = '', lineno = 0): void {
+    this.onerror?.(new ErrorEvent('error', { message, filename, lineno }))
+  }
+
+  garble(): void {
+    this.onmessageerror?.({} as MessageEvent<unknown>)
   }
 }
 
@@ -203,6 +208,44 @@ describe('메인 스레드 쪽', () => {
     const worker = new FakeWorker()
     const { result } = train(requestFor(), { createWorker: () => worker })
     worker.crash()
+
+    await expect(rejectionCode(result)).resolves.toBe('JOB_FAILED')
+    expect(worker.terminated).toBe(1)
+  })
+
+  /**
+   * **이 경로만 원문이 통째로 비어 있었다.** 그래서 화면에는 "학습에 실패했습니다."
+   * 한 줄만 뜨고 교사가 손쓸 단서가 하나도 없었다
+   * (open-decisions.md "학습 실패는 교사가 읽을 수 있게 전달한다").
+   */
+  it('죽은 사유와 자리를 기술 정보로 싣는다', async () => {
+    const worker = new FakeWorker()
+    const { result } = train(requestFor(), { createWorker: () => worker })
+    worker.crash('ml-cart is not a function', 'http://localhost/train.worker.js', 42)
+
+    const error = await result.catch((thrown: unknown) => thrown)
+    expect(isClientError(error) && error.params.detail).toBe(
+      'ml-cart is not a function http://localhost/train.worker.js:42',
+    )
+  })
+
+  it('사유가 없어도 코드는 남는다 - 빈 문자열을 기술 정보라고 붙이지 않는다', async () => {
+    const worker = new FakeWorker()
+    const { result } = train(requestFor(), { createWorker: () => worker })
+    worker.crash()
+
+    const error = await result.catch((thrown: unknown) => thrown)
+    expect(isClientError(error) && error.params.detail).toBeUndefined()
+  })
+
+  /**
+   * 여기서 안 끊으면 **아무 일도 안 일어난 것처럼 보인다** - 결과도 실패도 안 오고
+   * Promise가 영영 안 풀려 [학습] 버튼이 꺼진 채로 남는다.
+   */
+  it('복원하지 못한 메시지도 실패로 끊는다', async () => {
+    const worker = new FakeWorker()
+    const { result } = train(requestFor(), { createWorker: () => worker })
+    worker.garble()
 
     await expect(rejectionCode(result)).resolves.toBe('JOB_FAILED')
     expect(worker.terminated).toBe(1)
