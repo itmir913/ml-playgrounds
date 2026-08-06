@@ -55,6 +55,12 @@
 파일 자체를 검증하는 실물 `.mlpx` 감사는 여기가 아니라 **V7**이다 — 포맷을 건드리는
 작업(V4 이미지, V5 포트폴리오 첨부)이 그 앞에 있기 때문이다.
 
+- **다중 타깃 지원 여부** — `project/schema.ts`에서 `features`는 `z.array(userString)`인데
+  `target`은 `userString.optional()`, 즉 단일 문자열이다. 전처리 화면의 target 라디오
+  버튼 제한은 UI가 아니라 **스키마 단계부터의 제한**이다. multi-output을 지원하는
+  모델도 있으므로 이 감사에서 배열로 넓힐지 다시 결정한다. 넓히기로 하면 `.mlpx`
+  포맷·registry·화면 세 곳이 함께 흔들리므로 `mlpx-spec.md`부터 고친다.
+
 ## V3 — 군집화 (K-means)
 
 **축이 세 값을 다 갖게 하는 단계다.** 분류·회귀만으로는 `taskType`이 이름만 축이다.
