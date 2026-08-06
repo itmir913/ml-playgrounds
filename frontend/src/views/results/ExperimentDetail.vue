@@ -114,6 +114,7 @@ function failureDetailOf(run: Run): string | null {
     </p>
 
     <section v-if="succeeded.length > 0" class="flex min-w-0 flex-col gap-1.5">
+      <h3 class="font-bold text-ink-soft">{{ t('results.scoreTitle') }}</h3>
       <AppTable>
         <thead>
           <tr>
