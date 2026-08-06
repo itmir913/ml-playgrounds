@@ -30,7 +30,9 @@ import {
   emptyProjectFile,
   manifest,
   projectFile,
+  projectFileWithTestDataset,
   run,
+  testDatasetBytes,
 } from './fixtures/project'
 
 async function deleteDatabase(): Promise<void> {
@@ -101,6 +103,56 @@ describe('프로젝트 저장', () => {
 
   it('없는 프로젝트는 null이다', async () => {
     await expect(loadProject('없는-프로젝트')).resolves.toBeNull()
+  })
+
+  /**
+   * **정본 셋이 다 살아남아야 한다** (mlpx-spec.md §1.1). 브라우저가 저장소이므로
+   * (CLAUDE.md §1.2) 여기서 빠지면 새로고침 한 번에 평가 데이터가 사라지고, 참조만
+   * 남은 프로젝트는 **저장도 내보내기도 안 된다**(writeProject가 거부한다).
+   */
+  it('평가 데이터가 왕복한다', async () => {
+    const project = projectFileWithTestDataset()
+    await saveProject(project)
+
+    const loaded = await loadProject(manifest.projectId)
+    expect(loaded?.document.settings.testDataset).toBeDefined()
+    expect(Array.from(loaded?.testDataset?.bytes ?? [])).toEqual(Array.from(testDatasetBytes))
+    expect(loaded?.testDataset?.hash).toBe(project.testDataset?.hash)
+  })
+
+  it('예측 데이터가 왕복한다', async () => {
+    const bytes = new TextEncoder().encode('꽃받침\n5.1\n')
+    const base = projectFile()
+    const project = {
+      ...base,
+      document: {
+        ...base.document,
+        settings: {
+          ...base.document.settings,
+          predictDataset: {
+            path: 'dataset/predict.csv',
+            originalFileName: 'predict.csv',
+            hasHeader: true,
+            encoding: 'utf-8',
+          },
+        },
+      },
+      predictDataset: { bytes, hash: hashBytes(bytes) },
+    }
+    await saveProject(project)
+
+    const loaded = await loadProject(manifest.projectId)
+    expect(loaded?.document.settings.predictDataset).toBeDefined()
+    expect(Array.from(loaded?.predictDataset?.bytes ?? [])).toEqual(Array.from(bytes))
+  })
+
+  it('평가 데이터를 떼면 남아 있던 것도 함께 사라진다', async () => {
+    await saveProject(projectFileWithTestDataset())
+    await saveProject(projectFile())
+
+    const loaded = await loadProject(manifest.projectId)
+    expect(loaded?.testDataset).toBeUndefined()
+    expect(loaded?.document.settings.testDataset).toBeUndefined()
   })
 
   it('표를 아직 안 올린 프로젝트도 저장되고 다시 열린다', async () => {

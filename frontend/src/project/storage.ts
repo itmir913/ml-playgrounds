@@ -58,6 +58,18 @@ interface DatasetRecord {
    * 고를 때마다 저사양 PC가 수백 ms씩 멈춘다.
    */
   hash?: string
+  /**
+   * 평가 데이터(`test.csv`)와 예측 데이터(`predict.csv`).
+   *
+   * **레코드 안에 곁들인다.** 키(`projectId`)를 복합 키로 바꾸면 DB 버전을 올리고
+   * 기존 레코드를 옮겨야 하는데, 여기 붙는 것은 언제나 학습 정본과 **함께 있고 함께
+   * 없다** - 평가 데이터는 타깃이 정해진 뒤에만 받을 수 있고 타깃은 표가 있어야 정해진다
+   * (mlpx-spec.md §1.1). 그래서 학습 정본이 없으면 이 레코드 자체가 없다.
+   *
+   * 없는 것이 정상이다. 이 필드가 생기기 전에 저장된 레코드에도 없다.
+   */
+  test?: { bytes: Uint8Array; hash: string }
+  predict?: { bytes: Uint8Array; hash: string }
 }
 
 interface ModelRecord {
@@ -144,7 +156,12 @@ function modelKeyRange(projectId: string): IDBKeyRange {
 }
 
 function totalBytes(project: ProjectFile): number {
+  // 정본 셋이 전부 자리를 차지한다 (mlpx-spec.md §1.1). 학습 정본만 세면 여유 공간
+  // 검사가 실제로 쓸 양보다 적게 잡고, 그러면 사전 검사를 통과한 뒤 실제 쓰기에서
+  // 터진다.
   let total = project.dataset?.bytes.length ?? 0
+  total += project.testDataset?.bytes.length ?? 0
+  total += project.predictDataset?.bytes.length ?? 0
   for (const bytes of project.models.values()) total += bytes.length
   return total
 }
@@ -216,10 +233,23 @@ export async function saveProject(project: ProjectFile): Promise<void> {
     if (project.dataset === undefined) {
       await datasets.delete(projectId)
     } else {
+      // 평가·예측 데이터가 함께 실린다. 없으면 그 키를 아예 안 넣는다 - undefined를
+      // 넣어 두면 "없음"과 "값이 undefined"가 섞인다.
       await datasets.put({
         projectId,
         bytes: project.dataset.bytes,
         hash: project.dataset.hash,
+        ...(project.testDataset === undefined
+          ? {}
+          : { test: { bytes: project.testDataset.bytes, hash: project.testDataset.hash } }),
+        ...(project.predictDataset === undefined
+          ? {}
+          : {
+              predict: {
+                bytes: project.predictDataset.bytes,
+                hash: project.predictDataset.hash,
+              },
+            }),
       })
     }
 
@@ -259,6 +289,13 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
   const dataset = await transaction.objectStore(DATASETS_STORE).get(projectId)
   const wanted = document.settings.dataset !== undefined
   if (wanted !== (dataset !== undefined)) return null
+  // 평가·예측 데이터도 같은 규칙이다. 참조만 남은 채로 열어 주면 **그 프로젝트는
+  // 저장도 내보내기도 못 하는 상태**가 되고(writeProject가 거부한다) 학생은 왜인지
+  // 모른 채 다음 차시에 그걸 안다.
+  if ((document.settings.testDataset !== undefined) !== (dataset?.test !== undefined)) return null
+  if ((document.settings.predictDataset !== undefined) !== (dataset?.predict !== undefined)) {
+    return null
+  }
 
   const stored = await transaction.objectStore(MODELS_STORE).getAll(modelKeyRange(projectId))
   const models = new Map<string, Uint8Array>()
@@ -273,6 +310,8 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
       dataset === undefined
         ? undefined
         : { bytes: dataset.bytes, hash: dataset.hash ?? hashBytes(dataset.bytes) },
+    testDataset: dataset?.test,
+    predictDataset: dataset?.predict,
     models,
   }
 }
