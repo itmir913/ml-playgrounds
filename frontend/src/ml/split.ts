@@ -40,15 +40,6 @@ export interface SplitInput {
    * 알 필요가 없다. 아는 척하면 3과 "3"이 다른 클래스가 된다.
    */
   labels?: readonly string[]
-  /**
-   * **이 행 번호부터 평가용이다.** `provided`에만 쓴다
-   * (open-decisions.md "학습용과 평가용 파일이 따로일 수 있다").
-   *
-   * `split`이 아니라 여기로 받는 이유는 **이것이 정책이 아니라 데이터의 사실**이기
-   * 때문이다 - 경계를 만든 것은 파일 둘을 이어 붙인 일이고, 출처는 `dataset.testRowsFrom`
-   * 하나다.
-   */
-  testRowsFrom?: number
 }
 
 /**
@@ -174,39 +165,6 @@ function wholeSet(input: SplitInput): SplitIndices {
 }
 
 /**
- * 파일이 이미 나눠 놓은 것을 그대로 쓴다. **난수도 비율도 층화도 안 쓴다**
- * (open-decisions.md "학습용과 평가용 파일이 따로일 수 있다").
- *
- * `usableRows`를 경계로 가르기만 한다 - 결측으로 버려진 행이 양쪽에서 빠지므로
- * 결과는 `[0..n-1]`이 아니고, 그래서 경계는 스냅샷이 아니라 `dataset.testRowsFrom`이
- * 들고 있어야 한다.
- *
- * **한쪽이 비면 시끄럽게 거부한다.** 결측 처리가 평가 행을 전부 걷어냈는데 조용히
- * 넘어가면, 학생은 평가용 파일을 올려 놓고 학습 데이터로 채점된 점수를 본다.
- */
-function providedSplit(input: SplitInput): SplitIndices {
-  const boundary = input.testRowsFrom
-  // 경계가 없으면 파일이 자기 자신에 대해 거짓말을 하고 있는 것이다 - 남이 편집한
-  // 파일에서 올 수 있다.
-  if (boundary === undefined)
-    throw new ClientError('SPLIT_TOO_FEW_ROWS', { minRows: 1, actualRows: 0 })
-
-  const ascending = (a: number, b: number): number => a - b
-  const rows = [...input.rows].sort(ascending)
-  const trainIndices = rows.filter((row) => row < boundary)
-  const testIndices = rows.filter((row) => row >= boundary)
-
-  if (trainIndices.length === 0 || testIndices.length === 0) {
-    throw new ClientError('SPLIT_TOO_FEW_ROWS', {
-      minRows: 1,
-      actualRows: trainIndices.length === 0 ? trainIndices.length : testIndices.length,
-    })
-  }
-
-  return { trainIndices, testIndices }
-}
-
-/**
  * 분할 방식마다의 구현. **`if (method === 'holdout')`을 만들지 마라** - 표에 줄을
  * 더하면 부르는 쪽이 따라온다 (ml/algorithms.ts, ml/metrics.ts와 같은 방식).
  */
@@ -214,7 +172,6 @@ const SPLIT_BY_METHOD: Record<Split['method'], (input: SplitInput, split: Split)
   {
     holdout: holdoutSplit,
     none: wholeSet,
-    provided: providedSplit,
   }
 
 /** 설정이 고른 방식으로 나눈다. 실험 실행이 부르는 유일한 입구다. */

@@ -104,7 +104,7 @@ export const CATEGORICAL_ENCODINGS = ['none', 'onehot', 'ordinal'] as const
  * kfold는 여기 없다. 폴드마다 학습·평가가 생기면 trainIndices/testIndices의 모양 자체가
  * 달라져서 어차피 구조 변경이다.
  */
-export const SPLIT_METHODS = ['holdout', 'none', 'provided'] as const
+export const SPLIT_METHODS = ['holdout', 'none'] as const
 
 /** 개별 학습의 결과. 실패한 것도 비교표에 남는다 (mlpx-spec.md 5). */
 export const RUN_STATUSES = ['done', 'failed'] as const
@@ -232,17 +232,6 @@ export const datasetRefSchema = z.looseObject({
    * 원본이 깨진 건지 구분할 수 없다 - "CP949로 읽었습니다"는 교실에서 값을 하는 정보다.
    */
   sourceEncoding: z.enum(SOURCE_ENCODINGS).optional(),
-  /**
-   * **이 행 번호부터 평가용이다.** 학습용과 평가용 파일이 따로 올라온 프로젝트에만 있다
-   * (open-decisions.md "학습용과 평가용 파일이 따로일 수 있다").
-   *
-   * **경계의 유일한 출처다.** 실험의 `trainIndices`/`testIndices`는 여기서 나오지만
-   * `usableRows`(결측으로 버려진 행을 뺀 것) 다음에 만들어져 `[0..n-1]`이 아니므로,
-   * 그 스냅샷에서 경계를 되짚을 수 없다. 같은 값을 두 곳에 두는 것이 아니다.
-   */
-  testRowsFrom: z.int().nonnegative().optional(),
-  /** 평가용으로 올라온 파일의 이름. 화면 표시용이고 판정에 안 쓴다. */
-  testFileName: userString.optional(),
 })
 
 export const preprocessingSchema = z.looseObject({

@@ -397,15 +397,7 @@ export function runExperiment(
 
   // 층화하지 않으면 라벨은 쓰이지 않는다. 회귀에 층화를 켠 설정은 여기서 시끄럽게
   // 실패한다 - 조용히 층화를 끄지 않는다는 ml/split.ts의 규칙과 같다.
-  //
-  // `testRowsFrom`은 `provided`에만 쓰인다. 경계는 정책이 아니라 데이터의 사실이라
-  // settings.split이 아니라 dataset에서 온다 (open-decisions.md "학습용과 평가용
-  // 파일이 따로일 수 있다").
-  const boundary = settings.dataset?.testRowsFrom
-  const split = splitRows(
-    { rows, labels, ...(boundary === undefined ? {} : { testRowsFrom: boundary }) },
-    settings.split,
-  )
+  const split = splitRows({ rows, labels }, settings.split)
 
   const preprocessor = fitPreprocessor(
     dataset,
