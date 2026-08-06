@@ -128,14 +128,15 @@ const cannotRun = computed(() => props.disabled || blank.value.length > 0)
       </AppField>
     </div>
 
-    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <AppButton size="lg" :disabled="cannotRun" :action="props.runAction">
-        {{ t('predict.run') }}
-      </AppButton>
+    <!-- [예측]은 오른쪽에 붙인다 - 입력 칸들과 같은 오른쪽 끝에 맞춰야 한 덩어리로 읽힌다. -->
+    <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
       <!-- 왜 꺼져 있는지 말한다. 이유 없이 회색인 버튼은 학생에게 고장으로 보인다. -->
       <p v-if="blank.length > 0" class="min-w-0 text-ink-soft">
         {{ t('client.PREDICTION_INPUT_INCOMPLETE', { feature: blank[0]?.name ?? '' }) }}
       </p>
+      <AppButton size="lg" :disabled="cannotRun" :action="props.runAction">
+        {{ t('predict.run') }}
+      </AppButton>
     </div>
   </div>
 </template>
