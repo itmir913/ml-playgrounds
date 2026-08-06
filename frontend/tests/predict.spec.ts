@@ -15,6 +15,8 @@ import { describe, expect, it } from 'vitest'
 import { isClientError } from '../src/errors'
 import { loadModel, REFERENCE_FORMAT } from '../src/ml/models'
 import {
+  applyPredictFilter,
+  defaultFilter,
   inputFields,
   mergeFields,
   inputVector,
@@ -22,6 +24,7 @@ import {
   numericRanges,
   predictableModels,
   trainingRowsFor,
+  type PredictableModel,
 } from '../src/ml/predict'
 import {
   fitPreprocessor,
@@ -510,5 +513,51 @@ describe('수치 칸의 값 범위', () => {
   it('숫자가 하나도 없는 열은 아무 말도 안 한다', () => {
     const empty: Dataset = { columns: ['키'], rows: [[''], ['  ']] }
     expect(numericRanges(empty, [{ name: '키', kind: 'numeric' }]).size).toBe(0)
+  })
+})
+
+/** run 하나. 필터·집계 테스트는 알고리즘과 id만 있으면 된다. */
+function runOf(id: string, algorithm = 'decision_tree'): Run {
+  return {
+    id,
+    algorithm,
+    hyperparameters: {},
+    computedBy: 'browser',
+    trainedAt: '2026-08-06T00:00:00.000Z',
+    status: 'done',
+    metrics: {},
+  }
+}
+
+describe('필터 (architecture.md 8.13.1 "답을 거르고 세어 본다")', () => {
+  it('기본값은 지금 있는 모델이 전부 보이는 상태다', () => {
+    const subject = experiment([0], onehot)
+    const models: PredictableModel[] = [
+      { experiment: subject, run: runOf('r1', 'decision_tree') },
+      { experiment: subject, run: runOf('r2', 'knn') },
+    ]
+
+    expect(applyPredictFilter(models, defaultFilter(models))).toEqual(models)
+  })
+
+  it('실험과 알고리즘 둘 다 걸려야 보인다', () => {
+    const exp1 = { ...experiment([0], onehot), id: 'exp-1' }
+    const exp2 = { ...experiment([0], onehot), id: 'exp-2' }
+    const models: PredictableModel[] = [
+      { experiment: exp1, run: runOf('r1', 'decision_tree') },
+      { experiment: exp1, run: runOf('r2', 'knn') },
+      { experiment: exp2, run: runOf('r3', 'decision_tree') },
+    ]
+
+    const filter = { experimentIds: new Set(['exp-1']), algorithms: new Set(['decision_tree']) }
+    expect(applyPredictFilter(models, filter).map((model) => model.run.id)).toEqual(['r1'])
+  })
+
+  it('둘 다 꺼지면 아무것도 안 보인다 - 지어낸 승자를 강조하지 않는다', () => {
+    const subject = experiment([0], onehot)
+    const models: PredictableModel[] = [{ experiment: subject, run: runOf('r1') }]
+    const filter = { experimentIds: new Set<string>(), algorithms: new Set<string>() }
+
+    expect(applyPredictFilter(models, filter)).toEqual([])
   })
 })

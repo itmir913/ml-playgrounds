@@ -26,13 +26,20 @@ const props = defineProps<{
   ranges: ReadonlyMap<string, { min: number; max: number }>
   /** 가져온 줄의 번호. 화면이 무엇을 가져왔는지 말한다. 없으면 아직 안 가져왔다. */
   sampled: number | null
+  /**
+   * 계산이 도는 동안 켜진다. **칸도 함께 잠근다.** 도중에 값이 바뀌면 이미 도는
+   * 계산이 어느 입력에 대한 답인지 흐려진다 — 필터를 못 바꾸게 하는 것과 같은
+   * 이유다(architecture.md §8.13.1).
+   */
+  disabled: boolean
+  /** [예측]을 누르면 할 일. `AppButton`의 `action`으로 준다 - 두 번 눌리는 것을 막는다. */
+  runAction: () => Promise<void>
 }>()
 
 const emit = defineEmits<{
   set: [name: string, value: string]
   sample: []
   clear: []
-  run: []
 }>()
 
 const { t } = useI18n()
@@ -67,10 +74,12 @@ const blank = computed(() =>
     </div>
 
     <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <AppButton variant="secondary" @click="emit('sample')">
+      <AppButton variant="secondary" :disabled="props.disabled" @click="emit('sample')">
         {{ t('predict.fromData') }}
       </AppButton>
-      <AppButton variant="ghost" @click="emit('clear')">{{ t('predict.clear') }}</AppButton>
+      <AppButton variant="ghost" :disabled="props.disabled" @click="emit('clear')">
+        {{ t('predict.clear') }}
+      </AppButton>
       <p v-if="props.sampled !== null" class="min-w-0 text-ink-soft">
         {{ t('predict.fromDataDone', { index: props.sampled + 1 }) }}
       </p>
@@ -93,6 +102,7 @@ const blank = computed(() =>
             v-bind="control"
             class="rounded-field border border-line-strong bg-surface px-3 py-2"
             :value="props.values[field.name] ?? ''"
+            :disabled="props.disabled"
             @change="emit('set', field.name, ($event.target as HTMLSelectElement).value)"
           >
             <option value="">{{ t('predict.pickOption') }}</option>
@@ -108,6 +118,7 @@ const blank = computed(() =>
             step="any"
             class="rounded-field border border-line-strong bg-surface px-3 py-2 tabular-nums"
             :value="props.values[field.name] ?? ''"
+            :disabled="props.disabled"
             @input="emit('set', field.name, ($event.target as HTMLInputElement).value)"
           />
         </template>
@@ -115,7 +126,7 @@ const blank = computed(() =>
     </div>
 
     <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <AppButton size="lg" :disabled="blank.length > 0" @click="emit('run')">
+      <AppButton size="lg" :disabled="props.disabled || blank.length > 0" :action="props.runAction">
         {{ t('predict.run') }}
       </AppButton>
       <!-- 왜 꺼져 있는지 말한다. 이유 없이 회색인 버튼은 학생에게 고장으로 보인다. -->

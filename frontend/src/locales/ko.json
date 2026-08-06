@@ -470,6 +470,10 @@
     "modelName": "{algorithm} · {runtime} · {experiment}",
     "unusable": "이 모델은 지금 쓸 수 없습니다.",
     "notSaved": "예측한 값과 답은 프로젝트 파일에 저장되지 않습니다. 여기는 마음껏 시험해 보는 자리입니다.",
-    "range": "데이터에 있는 값: {min} ~ {max}"
+    "range": "데이터에 있는 값: {min} ~ {max}",
+    "filterExperiments": "학습 차수",
+    "filterAlgorithms": "모델",
+    "filterEmptyReason": "고른 필터에 맞는 모델이 없습니다.",
+    "filterEmptyNext": "위에서 필터를 하나 이상 켜면 다시 보입니다."
   }
 }

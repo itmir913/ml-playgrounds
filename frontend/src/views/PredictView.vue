@@ -24,6 +24,8 @@ import StepHeader from '@/components/StepHeader.vue'
 import { isClientError, type ClientErrorCode } from '@/errors'
 import { interpreterFor, loadModel, type LoadContext } from '@/ml/models'
 import {
+  applyPredictFilter,
+  defaultFilter,
   inputFields,
   inputVector,
   mergeFields,
@@ -31,14 +33,17 @@ import {
   numericRanges,
   predictableModels,
   trainingRowsFor,
+  type Answer,
   type PredictableModel,
+  type PredictFilter,
 } from '@/ml/predict'
 import { parsePreprocessor, type Preprocessor } from '@/ml/preprocess'
 import { readDataset } from '@/project/dataset'
 import type { Experiment } from '@/project/schema'
 import { useProjectStore } from '@/stores/project'
-import AnswerList, { type Answer } from './predict/AnswerList.vue'
+import AnswerList from './predict/AnswerList.vue'
 import InputRow from './predict/InputRow.vue'
+import PredictFilters, { type FilterOption } from './predict/PredictFilters.vue'
 
 const { t } = useI18n()
 const project = useProjectStore()
@@ -88,17 +93,102 @@ const models = computed<PredictableModel[]>(() => {
   })
 })
 
-const usable = computed(() => models.value.filter((entry) => entry.reason === undefined))
+/** 실험 이름. **결과 화면의 세로줄과 같은 이름이어야** 학생이 같은 것을 같은 것으로 읽는다. */
+const experimentNames = computed(() => {
+  const names = new Map<string, string>()
+  const experiments = project.file?.document.runs.experiments ?? []
+  experiments.forEach((experiment, index) => {
+    names.set(experiment.id, t('results.experimentName', { index: index + 1 }))
+  })
+  return names
+})
 
 /**
- * 채워야 하는 칸. **쓸 수 있는 모델들의 합집합이다.**
+ * 필터 — 실험 × 알고리즘의 다중 선택이다 (architecture.md §8.13.1 "답을 거르고
+ * 세어 본다"). **기본값은 전부 켠 상태**이고, 지금 있는 실험·알고리즘 집합이
+ * 바뀌면(새로 학습, 프로젝트 전환) 다시 전부 켠 상태로 돌아간다 — 없어진 것을
+ * 계속 선택한 채로 두면 아무것도 안 보이는 필터가 조용히 생긴다.
+ */
+const filter = ref<PredictFilter>({ experimentIds: new Set(), algorithms: new Set() })
+
+/** 지금 있는 실험·알고리즘의 집합. 이게 바뀔 때만 필터를 다시 연다. */
+const availableIds = computed(() => {
+  const experiments = [...new Set(models.value.map((entry) => entry.experiment.id))].sort()
+  const algorithms = [...new Set(models.value.map((entry) => entry.run.algorithm))].sort()
+  return `${experiments.join(',')}|${algorithms.join(',')}`
+})
+
+watch(
+  availableIds,
+  () => {
+    filter.value = defaultFilter(models.value)
+  },
+  { immediate: true },
+)
+
+/** 필터 칸에 쓸 이름표. 실험은 결과 화면과 같은 이름, 알고리즘은 등록부 문구다. */
+const experimentOptions = computed<FilterOption[]>(() => {
+  const seen = new Set<string>()
+  const list: FilterOption[] = []
+  for (const entry of models.value) {
+    if (seen.has(entry.experiment.id)) continue
+    seen.add(entry.experiment.id)
+    list.push({
+      id: entry.experiment.id,
+      label: experimentNames.value.get(entry.experiment.id) ?? entry.experiment.id,
+    })
+  }
+  return list
+})
+
+const algorithmOptions = computed<FilterOption[]>(() => {
+  const seen = new Set<string>()
+  const list: FilterOption[] = []
+  for (const entry of models.value) {
+    if (seen.has(entry.run.algorithm)) continue
+    seen.add(entry.run.algorithm)
+    list.push({ id: entry.run.algorithm, label: t(`algorithms.${entry.run.algorithm}`) })
+  }
+  return list
+})
+
+/**
+ * 필터를 바꾸면 지금까지의 답을 지운다 (architecture.md §8.13.1). 안 지우고 새로
+ * 보이는 것만 채우면 답이 있는 카드와 없는 카드가 섞여 집계표의 합계가 화면의
+ * 카드 수와 안 맞는다.
+ */
+function toggleExperiment(id: string): void {
+  const next = new Set(filter.value.experimentIds)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  filter.value = { ...filter.value, experimentIds: next }
+  answers.value = new Map()
+}
+
+function toggleAlgorithm(id: string): void {
+  const next = new Set(filter.value.algorithms)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  filter.value = { ...filter.value, algorithms: next }
+  answers.value = new Map()
+}
+
+/** 필터를 지난 것만. 안 쓰는 모델의 카드도 포함한다 - 사유는 필터와 별개다. */
+const visible = computed(() => applyPredictFilter(models.value, filter.value))
+const visibleUsable = computed(() => visible.value.filter((entry) => entry.reason === undefined))
+
+/**
+ * 채워야 하는 칸. **지금 보이는(필터를 지난) 쓸 수 있는 모델들의 합집합이다.**
  *
  * 실험마다 특성이 다를 수 있는데 입력은 한 줄이다. 교집합으로 하면 열을 하나 더 쓴
  * 실험의 모델이 통째로 못 쓰게 되고, 그러면 이 화면이 하려던 비교가 사라진다.
+ *
+ * **필터를 따라가는 이유도 같다** — 필터로 좁힌 실험이 안 쓰는 열까지 채워야
+ * [예측]이 켜지면, 아무 모델도 안 보는 값을 요구하는 셈이다.
  */
 const fields = computed(() =>
   mergeFields(
-    usable.value.map((entry) => {
+    visibleUsable.value.map((entry) => {
       const preprocessor = preprocessors.value.get(entry.experiment.id)
       return preprocessor ? inputFields(preprocessor) : []
     }),
@@ -111,16 +201,6 @@ const ranges = computed(() => {
   return table
     ? numericRanges(table, fields.value)
     : new Map<string, { min: number; max: number }>()
-})
-
-/** 실험 이름. **결과 화면의 세로줄과 같은 이름이어야** 학생이 같은 것을 같은 것으로 읽는다. */
-const experimentNames = computed(() => {
-  const names = new Map<string, string>()
-  const experiments = project.file?.document.runs.experiments ?? []
-  experiments.forEach((experiment, index) => {
-    names.set(experiment.id, t('results.experimentName', { index: index + 1 }))
-  })
-  return names
 })
 
 const values = ref<Record<string, string>>({})
@@ -143,10 +223,15 @@ function clear(): void {
 // 프로젝트를 바꿔 들어오면 남은 값이 뜻을 잃는다. 열 이름이 아예 다를 수 있다.
 watch(() => project.projectId, clear)
 
-/** [데이터에서 한 줄 가져오기]. 평가에 쓴 행부터 돌아가며 준다. */
+/**
+ * [데이터에서 한 줄 가져오기]. 평가에 쓴 행부터 돌아가며 준다.
+ *
+ * **보이는 것 중 첫 모델의 실험을 쓴다** (architecture.md §8.13.1). `usable`을 쓰면
+ * 그 실험이 필터에 걸려 안 보일 때 화면에 없는 실험의 분할을 따라 행을 주게 된다.
+ */
 function sample(): void {
   const table = dataset.value
-  const experiment = usable.value[0]?.experiment
+  const experiment = visibleUsable.value[0]?.experiment
   if (!table || !experiment) return
 
   const row = nextSampleRow(experiment, fields.value, table, sampled.value ?? undefined)
@@ -179,52 +264,79 @@ function contextFor(
   return context
 }
 
+/** 계산이 도는 동안 켜진다. 필터·입력 칸이 이걸 보고 잠긴다 (architecture.md §8.13.1). */
+const predicting = ref(false)
+
+/** 화면에 한 프레임 양보한다. `setTimeout(0)`이 `requestAnimationFrame`보다 테스트 환경을 덜 가린다. */
+function yieldToScreen(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 /**
- * 모든 모델에 같은 값을 넣는다.
+ * 지금 보이는(필터를 지난) 쓸 수 있는 모델에 같은 값을 넣는다.
  *
  * **한 모델의 실패가 나머지를 막지 않는다.** 학습에서 run 하나의 실패가 실험을 죽이지
  * 않는 것과 같은 규칙이다 (mlpx-spec.md §4.1) — 여기서 통째로 멈추면 학생은 멀쩡한
  * 모델의 답까지 못 본다.
+ *
+ * **필터를 못 바꾸게 계산 중에는 `predicting`을 켠다** (architecture.md §8.13.1). 도는
+ * 동안 대상이 바뀌면 어느 집합에 대한 답인지 흐려진다. 그러려면 이 함수가 메인
+ * 스레드를 계속 붙잡고 있으면 안 되므로, 모델 하나를 마칠 때마다 화면에 양보한다 —
+ * 참조형이 낀 파일에서는 이게 실제로 뜻이 있다(학습셋 전체를 매번 전처리한다).
+ *
+ * **이미 답이 있는 모델은 다시 안 돈다.** 필터·입력값이 바뀌면 `answers`가 통째로
+ * 지워지므로(아래 `toggleExperiment` 등) 실제로는 매번 전부 다시 도는 것과 같지만,
+ * 규칙은 "보이면서 답이 없는 것만"이다 - 같은 값을 두 번 계산하지 않는다는 뜻을
+ * 코드로 남겨 둔다.
  */
-function run(): void {
+async function run(): Promise<void> {
   const file = project.file
   if (!file) return
 
-  const next = new Map<string, Answer>()
-  const contexts = new Map<string, LoadContext>()
+  predicting.value = true
+  try {
+    const next = new Map(answers.value)
+    const contexts = new Map<string, LoadContext>()
 
-  for (const entry of usable.value) {
-    const preprocessor = preprocessors.value.get(entry.experiment.id)
-    const path = entry.run.model?.path
-    const bytes = path === undefined ? undefined : file.models.get(path)
+    for (const entry of visibleUsable.value) {
+      if (next.has(entry.run.id)) continue
 
-    try {
-      // 여기까지 왔는데 없으면 파일이 자기 자신에 대해 거짓말을 하고 있는 것이다.
-      if (!preprocessor || bytes === undefined) throw new Error('model entry missing')
+      const preprocessor = preprocessors.value.get(entry.experiment.id)
+      const path = entry.run.model?.path
+      const bytes = path === undefined ? undefined : file.models.get(path)
 
-      const interpreter = interpreterFor(entry.run.model?.format ?? '')
-      // **형식 이름을 보지 않는다** — 등록부의 불리언 하나가 무엇이 필요한지 안다.
-      const context = interpreter?.needsTrainingRows
-        ? contextFor(entry.experiment, preprocessor, contexts)
-        : {}
+      try {
+        // 여기까지 왔는데 없으면 파일이 자기 자신에 대해 거짓말을 하고 있는 것이다.
+        if (!preprocessor || bytes === undefined) throw new Error('model entry missing')
 
-      const predict = loadModel(JSON.parse(new TextDecoder().decode(bytes)), context)
-      const vector = inputVector(entry.experiment, preprocessor, values.value)
-      const answer = predict([vector])[0]
-      // **수치를 여기서 문자열로 만들지 않는다.** 회귀의 답은 숫자이고 그것을 어떻게
-      // 쓸지는 언어가 정한다 (`useFormat`) - `String()`으로 굳히면 3.4000000000000004가
-      // 그대로 화면에 뜬다.
-      if (answer !== undefined) next.set(entry.run.id, { value: answer })
-    } catch (error) {
-      next.set(entry.run.id, {
-        failure: isClientError(error)
-          ? { code: error.code, params: error.params }
-          : { code: 'MODEL_FILE_INVALID', params: { field: 'payload' } },
-      })
+        const interpreter = interpreterFor(entry.run.model?.format ?? '')
+        // **형식 이름을 보지 않는다** — 등록부의 불리언 하나가 무엇이 필요한지 안다.
+        const context = interpreter?.needsTrainingRows
+          ? contextFor(entry.experiment, preprocessor, contexts)
+          : {}
+
+        const predict = loadModel(JSON.parse(new TextDecoder().decode(bytes)), context)
+        const vector = inputVector(entry.experiment, preprocessor, values.value)
+        const answer = predict([vector])[0]
+        // **수치를 여기서 문자열로 만들지 않는다.** 회귀의 답은 숫자이고 그것을 어떻게
+        // 쓸지는 언어가 정한다 (`useFormat`) - `String()`으로 굳히면 3.4000000000000004가
+        // 그대로 화면에 뜬다.
+        if (answer !== undefined) next.set(entry.run.id, { value: answer })
+      } catch (error) {
+        next.set(entry.run.id, {
+          failure: isClientError(error)
+            ? { code: error.code, params: error.params }
+            : { code: 'MODEL_FILE_INVALID', params: { field: 'payload' } },
+        })
+      }
+
+      // 답이 나올 때마다 바로 보여준다 - 화면이 멎지 않았다는 것을 눈으로 알 수 있다.
+      answers.value = new Map(next)
+      await yieldToScreen()
     }
+  } finally {
+    predicting.value = false
   }
-
-  answers.value = next
 }
 </script>
 
@@ -241,35 +353,62 @@ function run(): void {
       <AppEmpty :reason="t('predict.emptyReason')" :next="t('predict.emptyNext')" />
     </div>
 
-    <div v-else class="flex min-h-96 flex-1 flex-col gap-5 md:flex-row">
+    <template v-else>
       <!--
-        **붙박이다** (architecture.md §8.13.1 "왼쪽은 붙박이다"). 오른쪽 답 목록은
-        실험이 쌓일수록 길어지는데 왼쪽 입력은 짧다 — 붙박이가 아니면 답을 보려고
-        내려 스크롤하는 순간 값을 바꿀 입력이 화면 밖으로 사라진다.
-
-        `self-start`가 필요하다 - 안 주면 flex 기본값(`stretch`)이 이 칸을 오른쪽
-        칸만큼 늘려서, sticky가 붙을 상단 여백이 칸 안쪽에 생기는 대신 칸 자체가
-        아래로 늘어난다. `sticky`는 `md`부터라 그 폭에서는 이미 `sm` 패딩(`p-5`,
-        1.25rem)이 적용 중이다 - `top-5`로 맞춰서 붙었을 때도 화면 끝에 딱 붙지
-        않고 그 여백을 유지한다.
+        필터 칸은 각 축이 둘 이상일 때만 그 축을 보인다(`PredictFilters` 안에서
+        판정한다) - 실험이 하나뿐인데 거를 것을 보이면 아무것도 안 하는 버튼이 된다.
       -->
-      <div class="min-w-0 flex-1 self-start md:sticky md:top-5 md:max-w-lg">
-        <InputRow
-          :fields="fields"
-          :values="values"
-          :ranges="ranges"
-          :sampled="sampled"
-          @set="set"
-          @sample="sample"
-          @clear="clear"
-          @run="run"
-        />
+      <PredictFilters
+        :experiments="experimentOptions"
+        :algorithms="algorithmOptions"
+        :selected-experiments="filter.experimentIds"
+        :selected-algorithms="filter.algorithms"
+        :experiments-label="t('predict.filterExperiments')"
+        :algorithms-label="t('predict.filterAlgorithms')"
+        :disabled="predicting"
+        @toggle-experiment="toggleExperiment"
+        @toggle-algorithm="toggleAlgorithm"
+      />
+
+      <!--
+        **필터가 전부 걸러 냈을 때다** (architecture.md §8.13.1). 모델이 없는 것과는
+        다른 사유다 - 이유 없이 꺼진 것처럼 보이면 안 되므로 따로 문구를 준다.
+      -->
+      <div v-if="visible.length === 0" class="grid min-h-0 flex-1 place-items-center">
+        <AppEmpty :reason="t('predict.filterEmptyReason')" :next="t('predict.filterEmptyNext')" />
       </div>
 
-      <div class="min-h-0 min-w-0 flex-1 overflow-y-auto">
-        <AnswerList :models="models" :answers="answers" :experiment-names="experimentNames" />
+      <div v-else class="flex min-h-96 flex-1 flex-col gap-5 md:flex-row">
+        <!--
+          **붙박이다** (architecture.md §8.13.1 "왼쪽은 붙박이다"). 오른쪽 답 목록은
+          실험이 쌓일수록 길어지는데 왼쪽 입력은 짧다 — 붙박이가 아니면 답을 보려고
+          내려 스크롤하는 순간 값을 바꿀 입력이 화면 밖으로 사라진다.
+
+          `self-start`가 필요하다 - 안 주면 flex 기본값(`stretch`)이 이 칸을 오른쪽
+          칸만큼 늘려서, sticky가 붙을 상단 여백이 칸 안쪽에 생기는 대신 칸 자체가
+          아래로 늘어난다. `sticky`는 `md`부터라 그 폭에서는 이미 `sm` 패딩(`p-5`,
+          1.25rem)이 적용 중이다 - `top-5`로 맞춰서 붙었을 때도 화면 끝에 딱 붙지
+          않고 그 여백을 유지한다.
+        -->
+        <div class="min-w-0 flex-1 self-start md:sticky md:top-5 md:max-w-lg">
+          <InputRow
+            :fields="fields"
+            :values="values"
+            :ranges="ranges"
+            :sampled="sampled"
+            :disabled="predicting"
+            :run-action="run"
+            @set="set"
+            @sample="sample"
+            @clear="clear"
+          />
+        </div>
+
+        <div class="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          <AnswerList :models="visible" :answers="answers" :experiment-names="experimentNames" />
+        </div>
       </div>
-    </div>
+    </template>
 
     <!--
       **파일에 안 남는다는 사실을 말한다** (mlpx-spec.md §0). 학생이 여기서 마음껏

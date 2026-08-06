@@ -18,6 +18,7 @@
 
 import { ClientError, type ClientErrorCode } from '../errors'
 import type { Experiment, ProjectDocument, Run } from '../project/schema'
+import type { Prediction } from './metrics'
 import { interpreterFor, type LoadContext } from './models'
 import {
   targetValues,
@@ -346,4 +347,52 @@ export function predictableModels(
   }
 
   return list
+}
+
+/**
+ * 모델 하나의 답 (architecture.md 8.13.1).
+ *
+ * **컴포넌트가 아니라 여기서 정의한다.** 필터·집계·강조가 전부 이 모양을 놓고 판정하는
+ * 순수 함수이고, 화면 파일에 두면 화면이 아닌 코드가 화면 파일에 기대게 된다.
+ */
+export interface Answer {
+  /**
+   * 모델이 낸 값. 실패했으면 없다.
+   *
+   * **분류는 라벨(문자열), 회귀는 수치다.** 수치를 미리 문자열로 굳히지 않는 이유는
+   * 어떻게 쓸지가 언어에 달렸기 때문이다 (docs/i18n.md 규칙 6).
+   */
+  readonly value?: Prediction
+  /** 이 모델에서만 난 실패. 코드는 `client.*`이거나 `errors.*`다. */
+  readonly failure?: { code: ClientErrorCode; params: Record<string, unknown> }
+}
+
+/**
+ * 예측 화면의 필터. **실험 × 알고리즘의 다중 선택이다** (architecture.md 8.13.1).
+ *
+ * **무엇을 뺐는지가 아니라 무엇이 보이는지를 든다.** "빈 필터"가 "전부 안 보임"인지
+ * "전부 보임"인지 헷갈릴 자리를 아예 없앤다.
+ */
+export interface PredictFilter {
+  readonly experimentIds: ReadonlySet<string>
+  readonly algorithms: ReadonlySet<string>
+}
+
+/** 필터의 기본값 — **지금 있는 모델이 전부 보이는 상태**다 (architecture.md 8.13.1). */
+export function defaultFilter(models: readonly PredictableModel[]): PredictFilter {
+  return {
+    experimentIds: new Set(models.map((model) => model.experiment.id)),
+    algorithms: new Set(models.map((model) => model.run.algorithm)),
+  }
+}
+
+/** 필터를 지나는 모델만 남긴다. 실험과 알고리즘 둘 다 걸려야 보인다. */
+export function applyPredictFilter(
+  models: readonly PredictableModel[],
+  filter: PredictFilter,
+): PredictableModel[] {
+  return models.filter(
+    (model) =>
+      filter.experimentIds.has(model.experiment.id) && filter.algorithms.has(model.run.algorithm),
+  )
 }

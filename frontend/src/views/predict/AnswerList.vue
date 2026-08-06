@@ -7,6 +7,10 @@
  *
  * **쓸 수 없는 모델은 지우지 않고 사유와 함께 끈다** (§8.2). 목록에서 사라지면 학생은
  * 그 모델이 있었다는 것조차 모르고, 이유 없이 회색이면 고장으로 본다.
+ *
+ * **`models`는 필터를 지난 것만 받는다.** 필터를 지난 것만 여기 오르므로
+ * (`architecture.md` 8.13.1 "답을 거르고 세어 본다"), 따로 필터를 다시 걸 필요가
+ * 없다.
  */
 
 import { useI18n } from 'vue-i18n'
@@ -14,20 +18,10 @@ import { useI18n } from 'vue-i18n'
 import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import type { Prediction } from '@/ml/metrics'
+import type { Answer, PredictableModel } from '@/ml/predict'
 import { whereTrainedKeyOf } from '@/ml/results'
-import type { PredictableModel } from '@/ml/predict'
 
-export interface Answer {
-  /**
-   * 모델이 낸 값. 실패했으면 없다.
-   *
-   * **분류는 라벨(문자열), 회귀는 수치다.** 수치를 미리 문자열로 굳히지 않는 이유는
-   * 어떻게 쓸지가 언어에 달렸기 때문이다 (docs/i18n.md 규칙 6).
-   */
-  readonly value?: Prediction
-  /** 이 모델에서만 난 실패. 코드는 `client.*`이거나 `errors.*`다. */
-  readonly failure?: { code: ClientErrorCode; params: Record<string, unknown> }
-}
+export type { Answer }
 
 const props = defineProps<{
   models: readonly PredictableModel[]
@@ -104,7 +98,12 @@ function answerText(value: Prediction | undefined): string | null {
           }}
         </p>
 
-        <p v-else-if="props.answers.size === 0" class="mt-1 text-ink-faint">
+        <!--
+          **모델마다 따로 본다** — `answers.size === 0`이 아니라 이 run에 답이 없는지를
+          본다. 필터를 넓히면 답이 있는 카드와 없는 카드가 같이 보일 수 있고, 전체가
+          비었을 때만 문구가 뜨면 새로 보인 카드는 아무 말도 못 한다.
+        -->
+        <p v-else-if="!props.answers.has(model.run.id)" class="mt-1 text-ink-faint">
           {{ t('predict.waiting') }}
         </p>
       </li>
