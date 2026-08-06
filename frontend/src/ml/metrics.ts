@@ -143,6 +143,63 @@ export const EVALUATORS: Partial<Record<TaskType, Evaluator>> = {
 }
 
 /**
+ * 지표 하나를 화면에 어떻게 보일 것인가.
+ *
+ * **계산과 표시는 다른 앎이다.** 위의 계산기들은 값만 내고, 무엇을 먼저 보일지·높을수록
+ * 좋은지·백분율인지는 아무도 몰랐다. 결과 화면이 **지표별 최고값을 굵게** 하려면
+ * 방향이 있어야 한다 (architecture.md 8.13).
+ */
+export interface MetricDisplay {
+  /** run.metrics의 키. 로케일 키도 `metrics.{name}`으로 여기서 나온다. */
+  readonly name: string
+  /** 높을수록 좋은가 낮을수록 좋은가. 최고값 표시가 이것을 본다. */
+  readonly better: 'higher' | 'lower'
+  /** 백분율로 쓸 수 있는 값인가. */
+  readonly format: 'percent' | 'number'
+}
+
+/**
+ * 과제 유형 -> 지표 표시 순서.
+ *
+ * **`EVALUATORS`와 같은 파일에 같은 모양으로 둔다.** 지표를 늘리면 화면이 따라오고,
+ * 빠뜨리면 tests/metrics.spec.ts가 잡는다 - 두 표의 과제 유형 집합이 어긋나거나,
+ * 실제 계산 결과에 없는 지표를 여기 적으면 빨개진다.
+ *
+ * **`r2`는 백분율이 아니다.** 비율처럼 보이지만 **음수가 될 수 있어서**, 백분율로 쓰면
+ * 못 맞힌 모델 옆에 `-234%`가 뜬다.
+ */
+export const METRIC_DISPLAY: Partial<Record<TaskType, readonly MetricDisplay[]>> = {
+  classification: [
+    { name: 'accuracy', better: 'higher', format: 'percent' },
+    { name: 'f1Macro', better: 'higher', format: 'percent' },
+  ],
+  regression: [
+    { name: 'r2', better: 'higher', format: 'number' },
+    { name: 'rmse', better: 'lower', format: 'number' },
+    { name: 'mae', better: 'lower', format: 'number' },
+  ],
+}
+
+/** 이 과제 유형에서 보일 지표들. 모르는 유형이면 빈 목록이다 - 화면이 던지지 않는다. */
+export function metricsOf(taskType: TaskType): readonly MetricDisplay[] {
+  return METRIC_DISPLAY[taskType] ?? []
+}
+
+/**
+ * 값들 중 가장 좋은 것. **없으면 undefined다** - 견줄 것이 하나도 없는데 그 하나를
+ * "최고"라고 굵게 하면 비교가 아니라 장식이 된다. 하나뿐일 때도 굵게 할지는 부르는
+ * 쪽이 정한다.
+ */
+export function bestOf(
+  values: readonly number[],
+  better: MetricDisplay['better'],
+): number | undefined {
+  const usable = values.filter((value) => Number.isFinite(value))
+  if (usable.length === 0) return undefined
+  return better === 'higher' ? Math.max(...usable) : Math.min(...usable)
+}
+
+/**
  * 과제 유형에 맞는 지표를 계산한다. 부르는 쪽에 분기가 없다.
  *
  * **양쪽 끝에서 막는다.** 들어오는 것의 길이가 다르면 던지고, 나가는 값이 수치가 아니면

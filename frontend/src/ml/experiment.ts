@@ -221,29 +221,49 @@ function comparable(
   }
 }
 
+/** 견줄 수 있는 한 벌. Experiment가 그대로 들어맞는다. */
+export interface ComparableSource {
+  readonly settings: Experiment['settings']
+  readonly runs: readonly Run[]
+}
+
 /**
- * 직전 실험 대비 바뀐 설정 경로.
+ * 두 실험을 견주기 좋은 모양으로 나란히 편다.
+ *
+ * **`experiment.changed`의 경로가 이 객체의 경로다.** 그래서 결과 화면이 전후 값을
+ * 보여줄 때도 여기서 꺼낸다 (architecture.md 8.13) - 값을 딴 데서 읽으면 경로 규칙이
+ * 두 벌이 되고, 하이퍼파라미터를 `알고리즘:실행방법`으로 묶은 것이나 trainIndices를
+ * 뺀 것 같은 판단이 **반드시 어긋난다.**
  *
  * 하이퍼파라미터는 **양쪽에 다 있는 (알고리즘, 실행 방법)만** 본다. KNN을 목록에서 빼면
  * 그 하이퍼파라미터도 같이 사라지는데, 둘 다 적으면 학생은 하나를 바꾸고 두 줄을 보게
  * 된다. 목록이 바뀐 것은 `algorithms` 한 줄로 이미 드러난다.
  */
+export function comparablePair(
+  previous: ComparableSource,
+  current: ComparableSource,
+): { before: Record<string, unknown>; after: Record<string, unknown> } {
+  const key = (selection: { algorithm: string; runtime: string }): string =>
+    `${selection.algorithm}:${selection.runtime}`
+  const after = new Set(current.settings.selectedAlgorithms.map(key))
+  const shared = new Set(
+    previous.settings.selectedAlgorithms.map(key).filter((id) => after.has(id)),
+  )
+
+  return {
+    before: comparable(previous.settings, previous.runs, shared),
+    after: comparable(current.settings, current.runs, shared),
+  }
+}
+
+/** 직전 실험 대비 바뀐 설정 경로. */
 function changedSince(
   previous: Experiment,
   settings: Experiment['settings'],
   runs: readonly Run[],
 ): string[] {
-  const key = (selection: { algorithm: string; runtime: string }): string =>
-    `${selection.algorithm}:${selection.runtime}`
-  const after = new Set(settings.selectedAlgorithms.map(key))
-  const shared = new Set(
-    previous.settings.selectedAlgorithms.map(key).filter((id) => after.has(id)),
-  )
-
-  return changedPaths(
-    comparable(previous.settings, previous.runs, shared),
-    comparable(settings, runs, shared),
-  )
+  const { before, after } = comparablePair(previous, { settings, runs })
+  return changedPaths(before, after)
 }
 
 /** `experiment-3` 같은 id에서 다음 번호. 번호는 프로젝트 전역이다 (mlpx-spec.md 4). */

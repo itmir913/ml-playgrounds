@@ -10,13 +10,79 @@ import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
 import { ALGORITHMS } from '../src/ml/algorithms'
-import { EVALUATORS, evaluate } from '../src/ml/metrics'
+import {
+  EVALUATORS,
+  METRIC_DISPLAY,
+  bestOf,
+  evaluate,
+  metricsOf,
+  type MetricDisplay,
+} from '../src/ml/metrics'
+import type { TaskType } from '../src/project/schema'
 
 describe('등록부끼리 어긋나지 않는다', () => {
   it('등록된 알고리즘의 과제 유형에는 전부 지표 계산기가 있다', () => {
     for (const algorithm of ALGORITHMS) {
       for (const taskType of algorithm.taskTypes) {
         expect(EVALUATORS[taskType], `${algorithm.id} -> ${taskType}`).toBeDefined()
+      }
+    }
+  })
+
+  it('계산기가 있는 과제 유형에는 표시 등록부도 있다', () => {
+    expect(Object.keys(METRIC_DISPLAY).sort()).toEqual(Object.keys(EVALUATORS).sort())
+  })
+
+  /**
+   * **이게 이 등록부의 핵심 검사다.** 키를 오타내거나 지표 이름을 바꾸면 화면에는
+   * 빈 칸이 뜰 뿐 아무것도 안 터진다. 실제로 계산해서 나온 키와 맞춰 본다.
+   */
+  it('표시 등록부의 지표가 실제 계산 결과에 전부 있다', () => {
+    const samples: Readonly<Record<string, () => Record<string, number>>> = {
+      classification: () => evaluate('classification', ['a', 'b'], ['a', 'a']).metrics,
+      regression: () => evaluate('regression', [1, 2, 3], [1, 2, 4]).metrics,
+    }
+
+    for (const [taskType, displays] of Object.entries(METRIC_DISPLAY)) {
+      const computed = samples[taskType]
+      expect(computed, `${taskType} 표본이 없다`).toBeDefined()
+      const keys = Object.keys(computed?.() ?? {})
+      expect(displays?.map((display) => display.name).sort(), taskType).toEqual(keys.sort())
+    }
+  })
+
+  it('r2는 백분율이 아니다 - 음수가 될 수 있다', () => {
+    const r2 = metricsOf('regression').find((display) => display.name === 'r2')
+    expect(r2?.format).toBe('number')
+    // 실제로 음수가 나오는지도 본다. 안 나오면 이 규칙의 근거가 사라진 것이다.
+    expect(evaluate('regression', [1, 2, 3], [30, 2, -8]).metrics.r2).toBeLessThan(0)
+  })
+
+  it('모르는 과제 유형에는 빈 목록을 준다 - 화면이 던지지 않는다', () => {
+    expect(metricsOf('clustering' as TaskType)).toEqual([])
+  })
+})
+
+describe('최고값 고르기', () => {
+  it('방향에 따라 최고가 갈린다', () => {
+    expect(bestOf([0.4, 0.9, 0.7], 'higher')).toBe(0.9)
+    expect(bestOf([0.4, 0.9, 0.7], 'lower')).toBe(0.4)
+  })
+
+  it('견줄 것이 없으면 undefined다', () => {
+    expect(bestOf([], 'higher')).toBeUndefined()
+  })
+
+  it('수치가 아닌 값은 세지 않는다', () => {
+    expect(bestOf([Number.NaN, 0.5], 'higher')).toBe(0.5)
+    expect(bestOf([Number.NaN], 'lower')).toBeUndefined()
+  })
+
+  it('모든 지표에 방향이 있다', () => {
+    const directions = new Set<MetricDisplay['better']>(['higher', 'lower'])
+    for (const displays of Object.values(METRIC_DISPLAY)) {
+      for (const display of displays ?? []) {
+        expect(directions.has(display.better), display.name).toBe(true)
       }
     }
   })

@@ -243,7 +243,9 @@
   "common": {
     "underConstruction": "This screen is still being built.",
     "cancel": "Cancel",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "on": "On",
+    "off": "Off"
   },
   "language": {
     "en": "English",
@@ -398,5 +400,47 @@
     "runs": "Trained models",
     "none": "None",
     "countUnit": "{count}"
+  },
+  "splitMethod": {
+    "holdout": "Split",
+    "none": "No split"
+  },
+  "metrics": {
+    "accuracy": "Accuracy",
+    "f1Macro": "F1 score (macro)",
+    "r2": "R² score",
+    "rmse": "RMSE",
+    "mae": "MAE"
+  },
+  "results": {
+    "emptyReason": "Nothing has been trained yet.",
+    "emptyNext": "Pick models in the training step and train them, and the results will show up here.",
+    "experimentTitle": "Training history",
+    "experimentName": "Training {index}",
+    "experimentCount": "{count} training run | {count} training runs",
+    "firstRun": "This was the first training run.",
+    "noChange": "Trained again without changing any setting.",
+    "changeTitle": "Changed since the previous run",
+    "change": "{label}: {from} → {to}",
+    "unknownChange": "An unrecognised setting changed. ({path})",
+    "modelScope": "{algorithm} · {runtime}",
+    "trainScoreNote": "The data was not split, so the score comes from the same data the model learned from. It looks better than it really is.",
+    "model": "Model",
+    "where": "Trained on",
+    "noSuccess": "No model in this training run produced a score.",
+    "noSuccessNext": "Read why they failed below, change a setting, and train again.",
+    "detailLead": "Select a row to see that model in detail.",
+    "confusion": "Confusion matrix",
+    "confusionLead": "Rows are the real values, columns are what the model answered.",
+    "actual": "Real",
+    "perClass": "Score for each value",
+    "label": "Value",
+    "precision": "Precision",
+    "recall": "Recall",
+    "f1": "F1 score",
+    "support": "Real count",
+    "noDetail": "Regression has no confusion matrix. The scores above are the whole result.",
+    "failedTitle": "{count} model could not be trained | {count} models could not be trained",
+    "failureDetail": "Technical details"
   }
 }
