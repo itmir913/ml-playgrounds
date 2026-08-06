@@ -9,7 +9,7 @@
  *
  * `if (dataType === 'image')` 도 `if (taskType === 'regression')` 도 만들지 마라.
  * **등록부에 항목을 추가하면 화면이 따라온다.** 지표도 같은 방식이다 (ml/metrics.ts).
- * 이미지·음성이 들어오는 V5에서 이 규칙이 값을 한다 (architecture.md 6).
+ * 이미지·음성이 들어올 때 이 규칙이 값을 한다 (architecture.md 6).
  *
  * **축은 배열이 아니라 Record다** (ml/axes.ts, architecture.md §9.3). 배열이면 축 값이
  * 늘어도 컴파일이 조용하다 - 부분집합은 언제나 올바른 배열이기 때문이다. 줄마다

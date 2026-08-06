@@ -80,7 +80,7 @@ export function newProjectDocument(input: NewProject, seed: ProjectSeed): Projec
       // **여기서 정해지고 그 뒤로 안 바뀐다** (open-decisions.md "데이터 종류는
       // 프로젝트를 만들 때 고르고, 그 뒤로 안 바뀐다"). 업로드한 파일로 추론하지 않는다.
       // V1은 표뿐이라 선택지가 하나이고, 선택지가 하나면 묻지 않는다 - 이미지가
-      // 들어오는 V5에서 이 값이 input으로 올라온다.
+      // 들어올 때 이 값이 input으로 올라온다.
       dataType: 'tabular',
       locale: input.locale,
     },
