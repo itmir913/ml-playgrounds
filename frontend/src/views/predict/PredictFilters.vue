@@ -41,7 +41,7 @@ function chipClass(on: boolean): string {
 </script>
 
 <template>
-  <div class="flex flex-wrap gap-x-6 gap-y-3">
+  <div class="flex flex-wrap gap-x-6 gap-y-3 rounded-panel border border-line bg-surface p-4">
     <div v-if="props.experiments.length > 1" class="min-w-0">
       <h3 class="font-bold text-ink-soft">{{ props.experimentsLabel }}</h3>
       <div class="mt-1.5 flex flex-wrap gap-1.5">
