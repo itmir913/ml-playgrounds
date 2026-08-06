@@ -219,7 +219,10 @@
     "leaveTitle": "Training has not finished.",
     "leaveBody": "If you leave now, training stops and no result is kept. You will have to train again.",
     "leaveStay": "Stay here",
-    "leaveGo": "Leave and stop training"
+    "leaveGo": "Leave and stop training",
+    "lastRun": "Last trained {at}",
+    "lastRunFailed": "{count} model was not trained. | {count} models were not trained.",
+    "failedHere": "Training failed. See why"
   },
   "projects": {
     "new": "New project",

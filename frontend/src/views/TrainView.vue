@@ -21,10 +21,13 @@ import { onBeforeRouteLeave, useRouter, type RouteLocationNormalized } from 'vue
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
+import AppPopover from '@/components/AppPopover.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
+import { useFormat } from '@/composables/useFormat'
 import { useTraining } from '@/composables/useTraining'
 import { summarizeColumns } from '@/data/columns'
+import { toMessage } from '@/errors'
 import { algorithmOptions, supportedTaskTypes } from '@/ml/algorithms'
 import type { RuntimeContext } from '@/ml/backend'
 import {
@@ -33,6 +36,7 @@ import {
   requiredTargetKind,
   type ChosenModel,
 } from '@/ml/selection'
+import { failedRuns } from '@/ml/results'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
 import { applyExperiment } from '@/project/attach'
 import { readDataset } from '@/project/dataset'
@@ -49,6 +53,7 @@ import ChosenModels from './train/ChosenModels.vue'
 import ModelAxes from './train/ModelAxes.vue'
 
 const { t } = useI18n()
+const format = useFormat()
 const router = useRouter()
 const project = useProjectStore()
 const toasts = useToastStore()
@@ -219,6 +224,37 @@ function setParam(
 /** 지난 실험이 하나라도 있으면 결과 화면에 볼 것이 있다. */
 const hasResults = computed(() => (project.file?.document.runs.experiments.length ?? 0) > 0)
 
+/**
+ * 마지막 학습의 요약. **파일에서 나온다.**
+ *
+ * 끝났다는 사실을 알림으로만 알리면 **몇 초 뒤에 사라진다.** 그 뒤에 화면을 보는
+ * 학생에게는 방금 학습이 돌았는지 아닌지가 남지 않는다. 그래서 [학습] 옆에 상시로 둔다.
+ *
+ * 컴포넌트 상태가 아니라 파일에서 읽는 이유는 **화면을 떠났다 와도 사실이 그대로여야
+ * 하기 때문**이다. 결과를 보러 갔다 돌아온 학생에게 "학습한 적 없음"이 보이면 안 된다.
+ */
+const lastRun = computed(() => {
+  const experiments = project.file?.document.runs.experiments ?? []
+  const last = experiments[experiments.length - 1]
+  if (!last) return null
+  return { at: last.startedAt, failed: failedRuns(last).length }
+})
+
+/**
+ * 실험 자체가 성립하지 않은 실패. **파일에 남지 않으므로 여기서 들고 있는다.**
+ *
+ * 모델 하나가 죽는 것은 failed run으로 파일에 남지만(mlpx-spec.md §4.1), 분할이나
+ * 전처리가 죽으면 실험이 통째로 안 만들어져서 **어디에도 기록이 없다.** 알림은 사라지고
+ * 나면 학생에게 남는 것이 아무것도 없다.
+ */
+const failure = ref<{ key: string; params: Record<string, unknown> } | null>(null)
+
+/** 실패의 기술 원문. 우리 어휘가 아니라 번역하지 않고 따로 붙인다 (copy.md §5). */
+const failureDetailText = computed(() => {
+  const detail = failure.value?.params['detail']
+  return typeof detail === 'string' && detail !== '' ? detail : null
+})
+
 /** 담은 모델이 없으면 돌릴 것이 없다. 나머지 실패는 학습이 사유와 함께 돌려준다. */
 const nothingToTrain = computed(() => chosen.value.length === 0)
 
@@ -234,6 +270,9 @@ async function startTraining(): Promise<void> {
   const table = dataset.value
   const taskType = project.taskType
   if (!file || !table || taskType === undefined) return
+
+  // 지난 실패는 지운다. 새로 돌리는 순간 그건 더 이상 지금의 사실이 아니다.
+  failure.value = null
 
   try {
     const result = await training.run({
@@ -253,6 +292,8 @@ async function startTraining(): Promise<void> {
     project.update(applyExperiment(project.file ?? file, result, now()))
     toasts.push('success', 'train.finished')
   } catch (error) {
+    // 같은 실패를 알림과 상태 줄 둘 다에 보인다. 알림은 눈에 띄고 상태 줄은 남는다.
+    failure.value = toMessage(error)
     toasts.pushError(error)
   }
 }
@@ -378,10 +419,11 @@ function leave(): void {
     -->
     <section class="flex flex-col gap-3 rounded-panel border border-line bg-surface p-4">
       <!--
-        **말이 왼쪽, 누를 것이 오른쪽이다.** 왜 못 누르는지가 버튼 바로 옆에 오고,
-        버튼은 카드의 오른쪽 끝에 고정되어 학생이 매번 같은 자리를 찾는다.
+        **말도 버튼도 오른쪽에 모인다.** 상태를 왼쪽 끝에 두면 넓은 화면에서 버튼과
+        멀어져, 방금 누른 자리와 그 답이 화면 양 끝으로 갈린다. 눈이 한 번에 담아야
+        하는 것은 "무슨 일이 있었나 + 다음에 뭘 누르나"이므로 둘을 붙여 둔다.
       -->
-      <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
+      <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-3">
         <p v-if="training.running.value" class="min-w-0 font-bold" role="status">
           {{ t('train.progress', training.progress.value ?? { completed: 0, total: 0 }) }}
         </p>
@@ -390,7 +432,51 @@ function leave(): void {
           {{ t('train.nothingToTrain') }}
         </p>
 
-        <div class="ml-auto flex flex-wrap items-center gap-3">
+        <!--
+          **실패는 알림으로 끝내지 않는다.** 알림은 몇 초 뒤에 사라지고, 그러면 학생에게
+          남는 것이 없다. 사유는 여기 남고 원문은 눌러서 편다
+          (open-decisions.md "학습 실패는 교사가 읽을 수 있게 전달한다").
+        -->
+        <AppPopover v-else-if="failure" align="right" side="top">
+          <template #trigger>
+            <button
+              type="button"
+              class="min-w-0 rounded-field px-2 py-1 font-bold text-danger underline decoration-dotted underline-offset-4"
+            >
+              {{ t('train.failedHere') }}
+            </button>
+          </template>
+
+          <div class="flex flex-col gap-2">
+            <p class="font-bold">{{ t(failure.key, failure.params) }}</p>
+            <!-- 남의 라이브러리가 던진 영어 문장이다. 우리 문장과 섞지 않는다. -->
+            <p v-if="failureDetailText" class="break-words text-ink-soft">
+              {{ failureDetailText }}
+            </p>
+          </div>
+        </AppPopover>
+
+        <!--
+          끝났다는 사실은 파일에서 나오므로 화면을 떠났다 와도 남는다.
+
+          **모델 하나가 죽은 것은 실험의 실패가 아니다** (mlpx-spec.md §4.1). 그건 위의
+          팝오버가 아니라 여기 한 줄로 알리고, 사유는 결과 화면이 모델마다 들고 있다 —
+          [결과 보기]가 바로 옆에 있다.
+        -->
+        <div
+          v-else-if="lastRun"
+          class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
+          role="status"
+        >
+          <span class="text-ink-soft">
+            {{ t('train.lastRun', { at: format.dateTime(lastRun.at) }) }}
+          </span>
+          <span v-if="lastRun.failed > 0" class="font-bold text-caution">
+            {{ t('train.lastRunFailed', lastRun.failed) }}
+          </span>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
           <AppButton
             v-if="hasResults && !training.running.value"
             variant="secondary"

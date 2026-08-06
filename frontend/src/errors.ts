@@ -182,6 +182,22 @@ export function isClientError(error: unknown): error is ClientError {
 }
 
 /**
+ * 잡은 예외를 **화면에 보일 로케일 키와 파라미터**로 바꾼다.
+ *
+ * 알림도 학습 화면의 상태 줄도 같은 실패를 보여주므로 **변환이 한 곳이어야 한다.**
+ * 두 벌이면 한쪽만 고쳐져서, 토스트에는 사유가 뜨는데 화면에는 "실패했습니다"만
+ * 남는 상태가 생긴다.
+ *
+ * 우리 코드가 아니면 `UNEXPECTED_ERROR`로 떨어지고 **원문은 버리지 않고 detail로**
+ * 함께 실린다 (open-decisions.md "학습 실패는 교사가 읽을 수 있게 전달한다").
+ */
+export function toMessage(error: unknown): { key: string; params: ClientErrorParams } {
+  return isClientError(error)
+    ? { key: error.messageKey, params: error.params }
+    : { key: errorMessageKey('UNEXPECTED_ERROR'), params: failureDetail(error) }
+}
+
+/**
  * 우리 어휘가 아닌 실패에 붙이는 기술 정보.
  *
  * **에러 코드를 라이브러리 결함 수만큼 늘리지 않기 위한 것이다.** 결함마다 코드를 새로

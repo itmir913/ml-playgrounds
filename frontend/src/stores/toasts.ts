@@ -9,7 +9,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import { errorMessageKey, failureDetail, isClientError } from '@/errors'
+import { toMessage } from '@/errors'
 import { TOAST_DURATION_MS } from '@/limits'
 
 export const TOAST_TONES = ['info', 'success', 'caution', 'danger'] as const
@@ -55,14 +55,12 @@ export const useToastStore = defineStore('toasts', () => {
   /**
    * 잡은 예외를 그대로 알림으로 만든다.
    *
-   * 우리 코드가 아니면 UNEXPECTED_ERROR로 떨어지고 **원문은 버리지 않고 detail로
-   * 함께 실린다.** 남의 라이브러리가 던진 영어 문장이라 번역되지 않으므로 화면이
-   * 우리 문장과 섞지 않고 기술 정보로 따로 붙인다 (errors.ts의 failureDetail).
+   * **변환은 `errors.ts`의 `toMessage` 하나다.** 학습 화면도 같은 실패를 버튼 옆에
+   * 남겨야 하는데, 변환이 두 벌이면 한쪽만 고쳐져 어긋난다.
    */
   function pushError(error: unknown): number {
-    return isClientError(error)
-      ? push('danger', error.messageKey, error.params)
-      : push('danger', errorMessageKey('UNEXPECTED_ERROR'), failureDetail(error))
+    const { key, params } = toMessage(error)
+    return push('danger', key, params)
   }
 
   function clear(): void {
