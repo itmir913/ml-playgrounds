@@ -1,28 +1,30 @@
 <script setup lang="ts">
 /**
- * run 하나의 속 — 혼동 행렬과 값 종류별 점수.
+ * run 하나의 속 — 등록부가 고른 상세 패널들.
  *
  * **표 줄 안에서 펼치지 않고 표 아래에 둔다** (architecture.md §8.13). 표 안에 표를
  * 넣으면 열 폭이 무너진다.
  *
+ * **무엇을 그릴지 여기서 정하지 않는다** (§9.1). 혼동 행렬이 분류 전용이라는 사실은
+ * `ml/metric-panels.ts`에 있고, 이 화면은 등록부가 준 목록을 순서대로 그리기만 한다.
+ * 이미지가 들어와도 여기는 안 고친다.
+ *
  * **회귀에는 아무것도 없다.** 맞고 틀림이 아니라 얼마나 벗어났느냐이고, 그건 위의
  * 점수가 이미 전부 말했다. 빈 칸으로 두지 않고 그 사실을 적는다 — 이유 없는 빈 자리는
- * 고장으로 보인다 (§8.9).
+ * 고장으로 보인다 (§8.9). **패널이 0개인 것은 고장이 아니라 정상인 조합이 있다** (§9.3).
  */
 
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import AppTable from '@/components/AppTable.vue'
-import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
-import { isWeakestPerClass, weakestPerClass, whereTrainedKeyOf } from '@/ml/results'
-import type { Run } from '@/project/schema'
+import { metricPanelsFor } from '@/ml/metric-panels'
+import { whereTrainedKeyOf } from '@/ml/results'
+import type { DataType, Run, TaskType } from '@/project/schema'
 
-const props = defineProps<{ run: Run }>()
+const props = defineProps<{ run: Run; dataType: DataType; taskType: TaskType }>()
 
 const { t } = useI18n()
-const format = useFormat()
 
 /**
  * 성공했지만 학생이 알아야 하는 사실 (mlpx-spec.md §5.9).
@@ -36,7 +38,7 @@ const warningText = computed(() => {
   return warning ? t(errorMessageKey(warning.code as ClientErrorCode), { ...warning.params }) : null
 })
 
-const weakest = computed(() => weakestPerClass(props.run.perClass ?? []))
+const panels = computed(() => metricPanelsFor(props.dataType, props.taskType, props.run))
 </script>
 
 <template>
@@ -61,91 +63,13 @@ const weakest = computed(() => weakestPerClass(props.run.perClass ?? []))
         {{ warningText }}
       </p>
 
-      <section v-if="props.run.confusionMatrix" class="flex flex-col gap-1.5">
-        <h4 class="font-bold">{{ t('results.confusion') }}</h4>
-        <p class="text-ink-soft">{{ t('results.confusionLead') }}</p>
+      <!--
+        **등록부가 준 순서 그대로다.** 여기에 조건을 더하지 마라 — 무엇이 언제 뜨는지는
+        `ml/metric-panels.ts`의 항목이 자기 옆에 갖는다 (§9.1).
+      -->
+      <component :is="panel.panel" v-for="panel in panels" :key="panel.id" :run="props.run" />
 
-        <AppTable>
-          <thead>
-            <tr>
-              <!-- 모서리 칸. 세로축이 실제이고 가로축이 예측이라는 것을 여기서 말한다. -->
-              <th>{{ t('results.actual') }}</th>
-              <th v-for="label in props.run.confusionMatrix.labels" :key="label">{{ label }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, index) in props.run.confusionMatrix.matrix" :key="index">
-              <th class="text-left">{{ props.run.confusionMatrix.labels[index] }}</th>
-              <!--
-                **맞힌 칸(대각선)은 굵기와 배경을 함께 준다.** 굵기만으로는 표를 눈으로
-                훑을 때 잘 안 걸린다 — 배경색이 먼저 눈에 들어와야 어디를 봐야 하는지가
-                읽기 전에 이미 보인다.
-              -->
-              <td
-                v-for="(count, column) in row"
-                :key="column"
-                :class="index === column ? 'bg-positive-soft font-bold' : ''"
-              >
-                {{ count }}
-              </td>
-            </tr>
-          </tbody>
-        </AppTable>
-      </section>
-
-      <section v-if="props.run.perClass" class="flex flex-col gap-1.5">
-        <h4 class="font-bold">{{ t('results.perClass') }}</h4>
-
-        <AppTable>
-          <thead>
-            <tr>
-              <th>{{ t('results.label') }}</th>
-              <th>{{ t('results.precision') }}</th>
-              <th>{{ t('results.recall') }}</th>
-              <th>{{ t('results.f1') }}</th>
-              <th>{{ t('results.support') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="entry in props.run.perClass" :key="entry.label">
-              <th class="text-left">{{ entry.label }}</th>
-              <!--
-                **가장 약한 값 종류를 지표마다 캐션 색으로 짚는다.** 혼동 행렬의
-                대각선(맞힌 칸, `bg-positive-soft`)과 반대 방향이다 — 저기는 "옳다"를
-                말하고 여기는 "여기를 다시 보라"를 말하므로 색을 다르게 둔다.
-              -->
-              <td
-                :class="
-                  isWeakestPerClass(weakest, entry.label, 'precision')
-                    ? 'bg-caution-soft font-bold'
-                    : ''
-                "
-              >
-                {{ format.percent(entry.precision) }}
-              </td>
-              <td
-                :class="
-                  isWeakestPerClass(weakest, entry.label, 'recall')
-                    ? 'bg-caution-soft font-bold'
-                    : ''
-                "
-              >
-                {{ format.percent(entry.recall) }}
-              </td>
-              <td
-                :class="
-                  isWeakestPerClass(weakest, entry.label, 'f1') ? 'bg-caution-soft font-bold' : ''
-                "
-              >
-                {{ format.percent(entry.f1) }}
-              </td>
-              <td>{{ entry.support }}</td>
-            </tr>
-          </tbody>
-        </AppTable>
-      </section>
-
-      <p v-if="!props.run.confusionMatrix && !props.run.perClass" class="text-ink-soft">
+      <p v-if="panels.length === 0" class="text-ink-soft">
         {{ t('results.noDetail') }}
       </p>
     </div>

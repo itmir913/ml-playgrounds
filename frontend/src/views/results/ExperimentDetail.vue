@@ -17,7 +17,7 @@ import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { describeChanges } from '@/ml/changes'
 import { metricsOf } from '@/ml/metrics'
 import { bestByMetric, doneRuns, failedRuns, whereTrainedKeyOf } from '@/ml/results'
-import type { Experiment, Run } from '@/project/schema'
+import type { DataType, Experiment, Run } from '@/project/schema'
 import ChangeList from './ChangeList.vue'
 import RunDetail from './RunDetail.vue'
 
@@ -25,6 +25,15 @@ const props = defineProps<{
   experiment: Experiment
   /** 파일에서 이 실험 바로 앞의 것. 첫 실험이면 없다. */
   previous: Experiment | undefined
+  /**
+   * 지금 프로젝트의 데이터 종류. 상세 패널 등록부가 이 축을 본다 (`ml/metric-panels.ts`).
+   *
+   * **manifest에서 온다** — 실험 스냅샷에는 taskType만 있고 dataType은 없다. 학생이
+   * 데이터를 갈아 끼우면 옛 실험이 새 종류로 읽히는데, 그건 taskType이 스냅샷에 들어간
+   * 것과 똑같은 문제다 (schema.ts의 experimentSettings 주석). **포맷 변경이므로 여기서
+   * 정하지 않는다** — 지금은 표뿐이라 어긋날 수가 없다.
+   */
+  dataType: DataType
 }>()
 
 const { t } = useI18n()
@@ -157,7 +166,11 @@ function failureDetailOf(run: Run): string | null {
     </section>
 
     <div v-if="opened" ref="runDetailEl">
-      <RunDetail :run="opened" />
+      <RunDetail
+        :run="opened"
+        :data-type="props.dataType"
+        :task-type="props.experiment.settings.taskType"
+      />
     </div>
 
     <!-- 실패한 모델. 접어 둔다 — 학생이 먼저 볼 것은 나온 점수다. -->

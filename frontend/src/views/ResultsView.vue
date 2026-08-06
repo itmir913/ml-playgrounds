@@ -23,6 +23,14 @@ const project = useProjectStore()
 
 const experiments = computed(() => project.file?.document.runs.experiments ?? [])
 
+/**
+ * 상세 패널 등록부가 보는 축 (`ml/metric-panels.ts`).
+ *
+ * 파일이 아직 없을 때 'tabular'로 두는 것은 화면이 그때 실험 목록 자리에 빈 상태를
+ * 보여주기 때문이다 - 패널까지 내려가지 않는다.
+ */
+const dataType = computed(() => project.file?.document.manifest.dataType ?? 'tabular')
+
 /** 고른 실험. 들어오면 가장 최근 것부터 본다 — 방금 학습한 것이 그것이다. */
 const selected = ref<string | null>(null)
 
@@ -70,7 +78,12 @@ const previous = computed(() => (index.value > 0 ? experiments.value[index.value
       </div>
 
       <div class="min-h-0 min-w-0 flex-1 overflow-y-auto">
-        <ExperimentDetail v-if="current" :experiment="current" :previous="previous" />
+        <ExperimentDetail
+          v-if="current"
+          :experiment="current"
+          :previous="previous"
+          :data-type="dataType"
+        />
       </div>
     </div>
   </div>
