@@ -18,12 +18,15 @@ import {
   applyPredictFilter,
   defaultFilter,
   inputFields,
+  majorityAnswer,
   mergeFields,
   inputVector,
   nextSampleRow,
   numericRanges,
   predictableModels,
+  tallyClassificationAnswers,
   trainingRowsFor,
+  type Answer,
   type PredictableModel,
 } from '../src/ml/predict'
 import {
@@ -559,5 +562,74 @@ describe('필터 (architecture.md 8.13.1 "답을 거르고 세어 본다")', () 
     const filter = { experimentIds: new Set<string>(), algorithms: new Set<string>() }
 
     expect(applyPredictFilter(models, filter)).toEqual([])
+  })
+})
+
+describe('분류 답의 집계 (architecture.md 8.13.1)', () => {
+  it('분류 답만 센다 - 회귀는 값이 거의 안 겹쳐서 집계가 장식이 된다', () => {
+    const classification = experiment([0], onehot)
+    const regression = experiment([0], onehot, { taskType: 'regression' })
+    const models: PredictableModel[] = [
+      { experiment: classification, run: runOf('r1') },
+      { experiment: classification, run: runOf('r2') },
+      { experiment: regression, run: runOf('r3') },
+    ]
+    const answers = new Map<string, Answer>([
+      ['r1', { value: 'a' }],
+      ['r2', { value: 'a' }],
+      ['r3', { value: 3.14 }],
+    ])
+
+    expect(tallyClassificationAnswers(models, answers)).toEqual([{ value: 'a', count: 2 }])
+  })
+
+  it('답을 낸 모델만 센다 - 실패했거나 아직 안 돈 모델은 표에 안 든다', () => {
+    const subject = experiment([0], onehot)
+    const models: PredictableModel[] = [
+      { experiment: subject, run: runOf('r1') },
+      { experiment: subject, run: runOf('r2') },
+    ]
+    const answers = new Map<string, Answer>([['r1', { value: 'a' }]])
+
+    expect(tallyClassificationAnswers(models, answers)).toEqual([{ value: 'a', count: 1 }])
+  })
+})
+
+describe('가장 많이 나온 답 - `과반수`가 아니다 (architecture.md 8.13.1)', () => {
+  it('갈리면 최다를 짚는다', () => {
+    expect(
+      majorityAnswer([
+        { value: 'a', count: 3 },
+        { value: 'b', count: 1 },
+      ]),
+    ).toBe('a')
+  })
+
+  it('세 값으로 갈려 최다가 절반이 안 돼도 짚는다 - 그래서 이름이 과반수가 아니다', () => {
+    // 4표 중 2표(50%)가 안 되는 40%인데도 유일한 최다이므로 짚는다.
+    expect(
+      majorityAnswer([
+        { value: 'a', count: 2 },
+        { value: 'b', count: 1 },
+        { value: 'c', count: 1 },
+      ]),
+    ).toBe('a')
+  })
+
+  it('동점이면 아무것도 짚지 않는다 - 없는 승자를 지어내지 않는다', () => {
+    expect(
+      majorityAnswer([
+        { value: 'a', count: 2 },
+        { value: 'b', count: 2 },
+      ]),
+    ).toBeNull()
+  })
+
+  it('값이 하나뿐이면(전부 같은 답) 아무것도 짚지 않는다 - 보여줄 갈림이 없다', () => {
+    expect(majorityAnswer([{ value: 'a', count: 5 }])).toBeNull()
+  })
+
+  it('답이 하나도 없으면 아무것도 짚지 않는다', () => {
+    expect(majorityAnswer([])).toBeNull()
   })
 })

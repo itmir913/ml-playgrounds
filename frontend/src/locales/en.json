@@ -474,6 +474,8 @@
     "filterExperiments": "Training round",
     "filterAlgorithms": "Model",
     "filterEmptyReason": "No model matches the selected filters.",
-    "filterEmptyNext": "Turn on at least one filter above to see models again."
+    "filterEmptyNext": "Turn on at least one filter above to see models again.",
+    "tallyTitle": "How the answers split",
+    "tallyLead": "Only classification models are counted. The color shows whether an answer matches the most common one, not whether it is correct."
   }
 }

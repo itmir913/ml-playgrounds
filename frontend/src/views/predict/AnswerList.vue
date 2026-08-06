@@ -8,17 +8,23 @@
  * **쓸 수 없는 모델은 지우지 않고 사유와 함께 끈다** (§8.2). 목록에서 사라지면 학생은
  * 그 모델이 있었다는 것조차 모르고, 이유 없이 회색이면 고장으로 본다.
  *
- * **`models`는 필터를 지난 것만 받는다.** 필터를 지난 것만 여기 오르므로
- * (`architecture.md` 8.13.1 "답을 거르고 세어 본다"), 따로 필터를 다시 걸 필요가
- * 없다.
+ * **집계와 강조는 이 목록이 받은 `models`를 그대로 본다.** 필터를 지난 것만 여기
+ * 오르므로 (`architecture.md` 8.13.1 "답을 거르고 세어 본다"), 따로 필터를 다시 걸
+ * 필요가 없다 — 표의 숫자가 화면의 카드와 저절로 맞아떨어진다.
  */
 
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import type { Prediction } from '@/ml/metrics'
-import type { Answer, PredictableModel } from '@/ml/predict'
+import {
+  majorityAnswer,
+  tallyClassificationAnswers,
+  type Answer,
+  type PredictableModel,
+} from '@/ml/predict'
 import { whereTrainedKeyOf } from '@/ml/results'
 
 export type { Answer }
@@ -43,6 +49,34 @@ function answerText(value: Prediction | undefined): string | null {
   if (value === undefined) return null
   return typeof value === 'number' ? format.prediction(value) : value
 }
+
+const tally = computed(() => tallyClassificationAnswers(props.models, props.answers))
+const majority = computed(() => majorityAnswer(tally.value))
+
+/**
+ * 이 모델의 답이 가장 많이 나온 답과 같은지. **분류에만, 가장 많이 나온 답이 있을
+ * 때만 있다** (`architecture.md` 8.13.1) — 동점이거나 값이 하나뿐이면 `majority`가
+ * `null`이라 자동으로 아무 카드도 강조되지 않는다.
+ */
+function toneOf(model: PredictableModel): 'majority' | 'minority' | null {
+  if (model.experiment.settings.taskType !== 'classification') return null
+  if (majority.value === null) return null
+  const value = props.answers.get(model.run.id)?.value
+  if (value === undefined) return null
+  return value === majority.value ? 'majority' : 'minority'
+}
+
+/**
+ * 카드 테두리·배경. **`info`/`caution`이지 `positive`/`danger`가 아니다** — 다른 답을
+ * 낸 모델이 틀렸다는 뜻이 아니기 때문이다(`architecture.md` 8.13.1 "부르는 이름은
+ * `가장 많이 나온 답`이다").
+ */
+function cardClass(model: PredictableModel): string {
+  const tone = toneOf(model)
+  if (tone === 'majority') return 'border-info bg-info-soft'
+  if (tone === 'minority') return 'border-caution bg-caution-soft'
+  return 'border-line bg-surface-sunken'
+}
 </script>
 
 <template>
@@ -52,12 +86,38 @@ function answerText(value: Prediction | undefined): string | null {
       <p class="text-ink-soft">{{ t('predict.answerLead') }}</p>
     </div>
 
+    <!--
+      **분류 답만 집계한다** (`architecture.md` 8.13.1). 회귀는 연속값이라 정확히
+      겹칠 일이 실질적으로 없다. **판정 도구가 아니라 관찰 도구다** — "얼마나
+      갈렸나"를 보여줄 뿐 어느 쪽이 옳은지는 말하지 않는다.
+    -->
+    <section v-if="tally.length > 0" class="flex flex-col gap-1.5">
+      <h4 class="font-bold">{{ t('predict.tallyTitle') }}</h4>
+      <p class="text-ink-soft">{{ t('predict.tallyLead') }}</p>
+
+      <ul class="flex flex-wrap gap-2">
+        <li
+          v-for="entry in tally"
+          :key="String(entry.value)"
+          class="flex items-baseline gap-2 rounded-field border px-3 py-1.5"
+          :class="
+            majority !== null && entry.value === majority
+              ? 'border-info bg-info-soft'
+              : 'border-line-strong bg-surface'
+          "
+        >
+          <span class="font-bold tabular-nums">{{ answerText(entry.value) }}</span>
+          <span class="text-ink-soft">{{ t('meta.countUnit', { count: entry.count }) }}</span>
+        </li>
+      </ul>
+    </section>
+
     <ul class="flex flex-col gap-3">
       <li
         v-for="model in props.models"
         :key="model.run.id"
-        class="rounded-panel border border-line bg-surface-sunken p-4"
-        :class="model.reason ? 'opacity-60' : ''"
+        class="rounded-panel border p-4"
+        :class="[cardClass(model), model.reason ? 'opacity-60' : '']"
       >
         <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <p class="font-bold">

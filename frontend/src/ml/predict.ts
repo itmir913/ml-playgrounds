@@ -396,3 +396,50 @@ export function applyPredictFilter(
       filter.experimentIds.has(model.experiment.id) && filter.algorithms.has(model.run.algorithm),
   )
 }
+
+/** 값 하나와 그 값을 낸 모델 수. */
+export interface AnswerCount {
+  readonly value: Prediction
+  readonly count: number
+}
+
+/**
+ * 분류 답의 값별 집계 (architecture.md 8.13.1 "답을 거르고 세어 본다").
+ *
+ * **회귀는 뺀다.** 답이 연속값이라 부동소수 두 개가 정확히 같을 일이 실질적으로 없고,
+ * 그러면 집계표가 거의 항상 "1"만 늘어선 장식이 된다.
+ *
+ * **답을 낸 모델만 센다.** 사유로 꺼진 모델과 예측이 실패한 모델은 목록에는 남지만
+ * 표에는 안 들어간다 — 표가 세는 것은 "답"이지 "카드"가 아니다.
+ */
+export function tallyClassificationAnswers(
+  models: readonly PredictableModel[],
+  answers: ReadonlyMap<string, Answer>,
+): AnswerCount[] {
+  const counts = new Map<Prediction, number>()
+
+  for (const model of models) {
+    if (model.experiment.settings.taskType !== 'classification') continue
+    const value = answers.get(model.run.id)?.value
+    if (value === undefined) continue
+    counts.set(value, (counts.get(value) ?? 0) + 1)
+  }
+
+  return [...counts].map(([value, count]) => ({ value, count }))
+}
+
+/**
+ * 가장 많이 나온 답 (architecture.md 8.13.1 "부르는 이름은 `가장 많이 나온 답`이다").
+ * **`과반수`가 아니다** — 세 값으로 갈리면 최다가 절반이 안 될 수 있다.
+ *
+ * **동점이거나 값 종류가 하나뿐이면 없다.** 값이 하나뿐이면 보여줄 갈림이 없고,
+ * 동점에 색을 얹으면 없는 승자를 지어내는 것이다 — `bestByMetric`이 모델 하나짜리
+ * 실험에서 빈 값을 내는 것과 같은 규칙이다.
+ */
+export function majorityAnswer(tally: readonly AnswerCount[]): Prediction | null {
+  if (tally.length < 2) return null
+
+  const max = Math.max(...tally.map((entry) => entry.count))
+  const leaders = tally.filter((entry) => entry.count === max)
+  return leaders.length === 1 ? (leaders[0]?.value ?? null) : null
+}
