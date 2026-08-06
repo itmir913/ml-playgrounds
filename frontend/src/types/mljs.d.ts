@@ -29,19 +29,6 @@ declare module 'ml-cart' {
   }
 }
 
-declare module 'ml-knn' {
-  export interface KNNOptions {
-    k?: number
-    distance?: (a: number[], b: number[]) => number
-  }
-
-  /** 생성자에서 학습한다 - 사실상 학습 데이터 전체가 모델이다. */
-  export default class KNN {
-    constructor(features: number[][], target: number[], options?: KNNOptions)
-    predict(features: number[][]): number[]
-  }
-}
-
 declare module 'ml-naivebayes' {
   /** 라벨은 0부터 n-1까지의 정수여야 한다 (라이브러리 문서). */
   export class GaussianNB {

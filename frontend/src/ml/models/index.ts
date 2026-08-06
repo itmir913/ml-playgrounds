@@ -14,6 +14,7 @@ import { z } from 'zod'
 import { ClientError } from '../../errors'
 import { LINEAR_FORMAT, loadLinearModel } from './linear'
 import { NAIVE_BAYES_FORMAT, loadNaiveBayesModel } from './naive-bayes'
+import { REFERENCE_FORMAT, loadReferenceModel } from './reference'
 import { TREE_FORMAT, loadTreeModel } from './tree'
 import type { LoadContext, ModelInterpreter, Predict } from './types'
 
@@ -21,6 +22,8 @@ export { LINEAR_FORMAT } from './linear'
 export type { LinearModel } from './linear'
 export { NAIVE_BAYES_FORMAT } from './naive-bayes'
 export type { NaiveBayesModel } from './naive-bayes'
+export { REFERENCE_FORMAT, knnPredict } from './reference'
+export type { NeighborhoodInput, ReferenceModel } from './reference'
 export { TREE_FORMAT } from './tree'
 export type { TreeModel, TreeNode } from './tree'
 export type { LoadContext, ModelFile, ModelInterpreter, Predict } from './types'
@@ -43,6 +46,13 @@ const INTERPRETERS: readonly ModelInterpreter[] = [
     includesPreprocessing: false,
     needsTrainingRows: false,
     load: loadNaiveBayesModel,
+  },
+  {
+    format: REFERENCE_FORMAT,
+    includesPreprocessing: false,
+    // **첫 true다.** 모델이 사실상 학습 데이터라 행 번호만 담는다 (mlpx-spec.md 5.1).
+    needsTrainingRows: true,
+    load: loadReferenceModel,
   },
 ]
 

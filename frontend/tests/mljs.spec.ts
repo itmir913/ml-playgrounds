@@ -29,6 +29,7 @@ function run(algorithm: string, hyperparameters: Record<string, unknown> = {}) {
 
   const { predict } = fit(algorithm, {
     features: pick(split.trainIndices),
+    rowIndices: split.trainIndices,
     target: labelsOf(split.trainIndices),
     hyperparameters,
     randomState: 42,
@@ -63,14 +64,12 @@ describe('엔진 버전이 의존성에 묶여 있다', () => {
     // 옛 .mlpx가 "재현되지 않음"으로 뒤집힌다.
     expect({
       'ml-cart': packageJson.dependencies['ml-cart'],
-      'ml-knn': packageJson.dependencies['ml-knn'],
       'ml-logistic-regression': packageJson.dependencies['ml-logistic-regression'],
       'ml-random-forest': packageJson.dependencies['ml-random-forest'],
       'ml-regression-multivariate-linear':
         packageJson.dependencies['ml-regression-multivariate-linear'],
     }).toEqual({
       'ml-cart': '^2.1.1',
-      'ml-knn': '^3.0.0',
       'ml-logistic-regression': '^2.0.0',
       'ml-random-forest': '^2.1.0',
       'ml-regression-multivariate-linear': '^2.0.4',
@@ -229,6 +228,7 @@ describe('회귀', () => {
     const features = [[0], [1], [2], [3], [4]]
     const { predict } = fit('linear_regression', {
       features,
+      rowIndices: [0, 1, 2, 3, 4],
       target: [1, 3, 5, 7, 9],
       hyperparameters: {},
       randomState: 42,
@@ -242,7 +242,13 @@ describe('회귀', () => {
 describe('모르는 알고리즘', () => {
   it('ALGORITHM_UNSUPPORTED로 실패한다', () => {
     try {
-      fit('없는알고리즘', { features: [[1]], target: ['a'], hyperparameters: {}, randomState: 1 })
+      fit('없는알고리즘', {
+        features: [[1]],
+        rowIndices: [0],
+        target: ['a'],
+        hyperparameters: {},
+        randomState: 1,
+      })
       expect.unreachable()
     } catch (error) {
       expect(isClientError(error)).toBe(true)

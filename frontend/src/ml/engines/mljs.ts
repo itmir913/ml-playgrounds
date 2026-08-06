@@ -34,7 +34,6 @@
  */
 
 import { DecisionTreeClassifier } from 'ml-cart'
-import KNN from 'ml-knn'
 import LogisticRegression from 'ml-logistic-regression'
 import { Matrix } from 'ml-matrix'
 import { RandomForestClassifier } from 'ml-random-forest'
@@ -43,6 +42,7 @@ import MultivariateLinearRegression from 'ml-regression-multivariate-linear'
 import { ClientError, failureDetail } from '../../errors'
 import { resolveWith, type HyperparameterSpec } from '../hyperparams'
 import type { Prediction } from '../metrics'
+import { REFERENCE_FORMAT, knnPredict } from '../models'
 import type { ModelFile, Predict } from '../models/types'
 import { MLJS_PARAMETERS } from './mljs-params'
 import {
@@ -96,6 +96,13 @@ export interface FitResult {
 export interface FitInput {
   /** 전처리를 마친 숫자 행렬 (ml/preprocess.ts). */
   features: readonly (readonly number[])[]
+  /**
+   * features[i]의 **원본 행 번호** (dataset/data.csv 기준). 실험의 trainIndices다.
+   *
+   * 참조형이 이걸 그대로 모델에 담고(mlpx-spec.md 5.1) 동점을 가르는 데도 쓴다.
+   * 학습 쪽과 해석기 쪽이 **같은 규칙**을 쓰려면 양쪽이 같은 번호를 봐야 한다.
+   */
+  rowIndices: readonly number[]
   /** 분류면 라벨 문자열, 회귀면 수치. */
   target: readonly Prediction[]
   hyperparameters: Record<string, unknown>
@@ -396,16 +403,41 @@ const TRAINERS: Record<string, Trainer> = {
     }
   }),
 
+  /**
+   * KNN. **라이브러리를 쓰지 않는다** (mlpx-spec.md 5.6).
+   *
+   * `ml-knn`은 동점을 KDTree 내부 힙 순서로 갈라서, 파일에서 읽은 모델이 그것을 재현하려면
+   * 남의 자료구조를 통째로 옮겨 와야 했다. 그리고 그 동점 처리에는 아무 근거가 없다.
+   * 여기서 해석기와 **같은 함수**를 쓰므로 재현이 구조로 보장된다.
+   *
+   * 학습이랄 것이 없다 - 담는 것은 행 번호뿐이다.
+   */
   knn: (input) => {
-    const { encoded, decode } = labelCodec(input.target)
-    // KNN은 생성자에서 학습한다 - 사실상 학습 데이터 전체가 모델이다 (mlpx-spec.md 5.1).
-    const model = new KNN(toRows(input.features), encoded, {
-      k: numberOption(input.hyperparameters, 'k'),
+    const { labels } = labelCodec(input.target)
+    const k = numberOption(input.hyperparameters, 'k')
+    const featureCount = input.features[0]?.length ?? 0
+    const rows = input.features
+    const rowLabels = input.target.map(String)
+
+    const predict = knnPredict({
+      k,
+      featureCount,
+      rows,
+      labels: rowLabels,
+      indices: input.rowIndices,
     })
-    return {
-      predict: (features) =>
-        [...model.predict(toRows(features))].map((value) => decode(Math.round(value))),
-    }
+
+    const attempted = serializeOrOmit(() => ({
+      format: REFERENCE_FORMAT,
+      k,
+      classes: labels,
+      featureCount,
+      trainIndices: [...input.rowIndices],
+    }))
+    if (attempted.model) return { predict, model: attempted.model }
+    return attempted.detail === undefined
+      ? { predict }
+      : { predict, modelOmittedDetail: attempted.detail }
   },
 
   logistic_regression: (input) => {

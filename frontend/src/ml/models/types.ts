@@ -41,6 +41,13 @@ export interface LoadContext {
    * 알아야 하는 순간 그게 곧 분기이기 때문이다.
    */
   readonly trainingRows?: {
+    /**
+     * `features[i]`의 **원본 행 번호** (`dataset/data.csv` 기준, 헤더 제외 0부터).
+     *
+     * 이것이 있어야 참조형이 자기 `trainIndices`로 필요한 행만 고를 수 있다. 부르는 쪽은
+     * 그 실험의 학습 행을 통째로 주기만 하므로 **형식 지식을 갖지 않는다** (mlpx-spec.md 5.0).
+     */
+    readonly indices: readonly number[]
     readonly features: readonly (readonly number[])[]
     readonly target: readonly string[]
   }

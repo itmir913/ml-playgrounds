@@ -17,13 +17,17 @@ import { fit } from '../src/ml/engines/mljs'
 import {
   LINEAR_FORMAT,
   NAIVE_BAYES_FORMAT,
+  REFERENCE_FORMAT,
   TREE_FORMAT,
   assertContext,
   interpreterFor,
+  knnPredict,
   loadModel,
   type LinearModel,
   type ModelInterpreter,
   type NaiveBayesModel,
+  type NeighborhoodInput,
+  type ReferenceModel,
   type TreeModel,
   type TreeNode,
 } from '../src/ml/models'
@@ -47,6 +51,7 @@ function expectCode(run: () => unknown, code: ClientErrorCode): void {
 function train(algorithm: string, hyperparameters: Record<string, unknown> = {}) {
   return fit(algorithm, {
     features: IRIS_FEATURES,
+    rowIndices: IRIS_FEATURES.map((_, index) => index),
     target: IRIS_LABELS,
     hyperparameters,
     randomState: 42,
@@ -101,9 +106,16 @@ describe('라운드트립 — 예측이 원본과 하나도 다르지 않다', (
   })
 
   it('직렬화기가 없는 알고리즘은 모델을 안 준다 — 실패가 아니라 지표만 남는 것이다', () => {
-    const { predict, model } = train('knn')
+    // 회귀는 아직 우리 형식이 없다. 지표는 멀쩡히 나온다 (mlpx-spec.md §4.2).
+    const { predict, model } = fit('linear_regression', {
+      features: [[0], [1], [2]],
+      rowIndices: [0, 1, 2],
+      target: [1, 3, 5],
+      hyperparameters: {},
+      randomState: 42,
+    })
     expect(model).toBeUndefined()
-    expect(predict(IRIS_FEATURES)).toHaveLength(IRIS_FEATURES.length)
+    expect(predict([[3]])).toHaveLength(1)
   })
 })
 
@@ -195,9 +207,11 @@ describe('크기', () => {
  * `needsTrainingRows` 불리언으로 판정하고, 형식이 늘어도 그 판정은 안 바뀐다.
  */
 describe('학습 행이 필요한 형식', () => {
-  it('지금 등록된 형식은 학습 행을 요구하지 않는다', () => {
-    // 참조형(KNN·SVM)이 들어오면 이 목록이 늘어난다. 그때 화면 판정도 함께 봐야 한다.
-    expect(interpreterFor(TREE_FORMAT)?.needsTrainingRows).toBe(false)
+  it('자체 완결형은 요구하지 않고 참조형만 요구한다', () => {
+    for (const format of [TREE_FORMAT, LINEAR_FORMAT, NAIVE_BAYES_FORMAT]) {
+      expect(interpreterFor(format)?.needsTrainingRows, format).toBe(false)
+    }
+    expect(interpreterFor(REFERENCE_FORMAT)?.needsTrainingRows).toBe(true)
   })
 
   it('요구하는데 안 주면 던진다 - 빈 학습셋으로 그럴듯한 답을 내지 않는다', () => {
@@ -211,7 +225,7 @@ describe('학습 행이 필요한 형식', () => {
     expectCode(() => assertContext(needy, {}), 'MODEL_NEEDS_DATASET')
     // 주면 통과한다. 안 그러면 위 검사가 "언제나 던진다"를 확인한 것에 불과하다.
     expect(() =>
-      assertContext(needy, { trainingRows: { features: [[1]], target: ['a'] } }),
+      assertContext(needy, { trainingRows: { indices: [0], features: [[1]], target: ['a'] } }),
     ).not.toThrow()
   })
 
@@ -376,5 +390,185 @@ describe('mlpx-naive-bayes-v1', () => {
         }),
       'MODEL_FILE_INVALID',
     )
+  })
+})
+
+/**
+ * `mlpx-reference-v1` (mlpx-spec.md §5.6).
+ *
+ * **첫 `needsTrainingRows: true`다.** 그리고 학습 쪽과 해석기 쪽이 같은 함수를 쓰므로
+ * 재현은 구조로 보장된다 — 여기서 확인하는 것은 그 구조가 실제로 이어져 있는지와,
+ * **동점 규칙 넷이 각각 실제로 작동하는지**다.
+ */
+describe('mlpx-reference-v1', () => {
+  const indices = IRIS_FEATURES.map((_, index) => index)
+  const trained = train('knn', { k: 5 })
+  const context = {
+    trainingRows: { indices, features: IRIS_FEATURES, target: IRIS_LABELS },
+  }
+
+  it('KNN이 행 번호만 담는다 — 데이터를 중복 저장하지 않는다', () => {
+    const model = trained.model as ReferenceModel
+    expect(model.format).toBe(REFERENCE_FORMAT)
+    expect(model.trainIndices).toEqual(indices)
+    // 학습 행렬이 통째로 들어가면 안 된다.
+    expect(JSON.stringify(model)).not.toContain(String(IRIS_FEATURES[0]?.[0]))
+  })
+
+  it('읽은 모델의 예측이 원본과 한 줄도 다르지 않다', () => {
+    const restored = loadModel(JSON.parse(JSON.stringify(trained.model)), context)
+    expect(restored(IRIS_FEATURES)).toEqual(trained.predict(IRIS_FEATURES))
+  })
+
+  it('원본 데이터가 없으면 예측을 만들지 않는다', () => {
+    expectCode(() => loadModel(JSON.parse(JSON.stringify(trained.model))), 'MODEL_NEEDS_DATASET')
+  })
+
+  it('가리키는 행이 데이터에 없으면 거부한다 — 데이터가 없는 것과 다르다', () => {
+    expectCode(
+      () =>
+        loadModel(
+          { ...(trained.model as ReferenceModel), trainIndices: [9999] },
+          { trainingRows: { indices, features: IRIS_FEATURES, target: IRIS_LABELS } },
+        ),
+      'MODEL_FILE_INVALID',
+    )
+  })
+
+  /** 규칙 2 — 최다 득표. 나머지 규칙이 끼어들지 않는 평범한 경우다. */
+  it('최다 득표 클래스가 이긴다', () => {
+    const predict = knnPredict({
+      k: 3,
+      featureCount: 1,
+      rows: [[0], [1], [10]],
+      labels: ['a', 'a', 'b'],
+      indices: [0, 1, 2],
+    })
+    expect(predict([[0.5]])).toEqual(['a'])
+  })
+
+  /** 규칙 3 — 득표가 같으면 가장 가까운 이웃을 가진 클래스가 이긴다. */
+  it('득표가 같으면 더 가까운 이웃을 가진 클래스가 이긴다', () => {
+    const predict = knnPredict({
+      k: 2,
+      featureCount: 1,
+      rows: [[5], [1]],
+      labels: ['a', 'b'],
+      indices: [0, 1],
+    })
+    // 1대1 동점인데 b가 훨씬 가깝다. 번호 순으로 갈랐다면 a가 나온다.
+    expect(predict([[0]])).toEqual(['b'])
+  })
+
+  /** 규칙 4 — 거리까지 같으면 행 번호가 작은 쪽. */
+  it('거리까지 같으면 행 번호가 작은 쪽이 이긴다', () => {
+    const predict = knnPredict({
+      k: 2,
+      featureCount: 1,
+      rows: [[-1], [1]],
+      labels: ['b', 'a'],
+      indices: [7, 3],
+    })
+    // 거리가 완전히 같다. 라벨 순서(a<b)로 갈랐다면 a가 나온다.
+    expect(predict([[0]])).toEqual(['a'])
+  })
+
+  /** 규칙 1 — k개를 고르는 것 자체도 (거리, 행 번호) 전순서를 따른다. */
+  it('k개를 고를 때도 거리가 같으면 행 번호가 작은 쪽이 들어간다', () => {
+    const predict = knnPredict({
+      k: 1,
+      featureCount: 1,
+      rows: [[1], [-1]],
+      labels: ['far', 'near'],
+      indices: [5, 2],
+    })
+    // 둘 다 거리 1이다. 행 번호가 작은 2번(near)이 뽑혀야 한다.
+    expect(predict([[0]])).toEqual(['near'])
+  })
+
+  it('이웃 수가 학습 행보다 많으면 있는 만큼만 본다', () => {
+    const predict = knnPredict({
+      k: 99,
+      featureCount: 1,
+      rows: [[0], [1]],
+      labels: ['a', 'b'],
+      indices: [0, 1],
+    })
+    expect(predict([[0]])).toEqual(['a'])
+  })
+})
+
+/**
+ * **힙으로 고른 k개가 완전 정렬로 고른 것과 같은가.**
+ *
+ * 이 성질이 깨지면 예측이 조용히 달라진다 - 에러도 안 나고 지표도 비슷하게 나온다.
+ * 그래서 무작위 데이터로 두 구현을 맞대어 본다. 여기 있는 순진한 구현이 기준이다.
+ */
+describe('k개 고르기 — 힙이 완전 정렬과 같은 답을 낸다', () => {
+  /** 완전 정렬판. 규칙 1~4를 그대로 옮긴 것이고 빠르지 않아도 된다. */
+  function naive(input: NeighborhoodInput): (query: readonly number[]) => string {
+    const { k, rows, labels, indices } = input
+    return (query) => {
+      const scored = rows.map((row, position) => ({
+        distance: row.reduce((sum, value, column) => sum + (value - (query[column] ?? 0)) ** 2, 0),
+        index: indices[position] ?? 0,
+        label: labels[position] ?? '',
+      }))
+      scored.sort((a, b) => a.distance - b.distance || a.index - b.index)
+
+      const votes = new Map<string, { count: number; distance: number; index: number }>()
+      for (const near of scored.slice(0, Math.min(k, scored.length))) {
+        const seen = votes.get(near.label)
+        if (!seen) {
+          votes.set(near.label, { count: 1, distance: near.distance, index: near.index })
+          continue
+        }
+        seen.count += 1
+        // 정렬돼 있으므로 먼저 만난 것이 언제나 더 가깝다.
+      }
+
+      let best = ''
+      let bestVote = { count: -1, distance: 0, index: 0 }
+      for (const [label, vote] of votes) {
+        const wins =
+          vote.count > bestVote.count ||
+          (vote.count === bestVote.count &&
+            (vote.distance < bestVote.distance ||
+              (vote.distance === bestVote.distance && vote.index < bestVote.index)))
+        if (wins) {
+          best = label
+          bestVote = vote
+        }
+      }
+      return best
+    }
+  }
+
+  it('무작위 데이터에서 두 구현이 한 줄도 다르지 않다', () => {
+    // 좌표를 성기게 잡아 **동점이 실제로 생기게** 한다. 연속값만 쓰면 규칙 3·4가
+    // 한 번도 안 밟히고, 그러면 이 테스트는 아무것도 확인하지 않는다.
+    let seed = 20260806
+    const random = (): number => {
+      seed = (seed * 1103515245 + 12345) % 2147483648
+      return seed / 2147483648
+    }
+    const labels = ['a', 'b', 'c']
+
+    for (const k of [1, 3, 4, 7]) {
+      const rows = Array.from({ length: 40 }, () =>
+        Array.from({ length: 2 }, () => Math.round(random() * 4)),
+      )
+      const rowLabels = rows.map(() => labels[Math.floor(random() * 3)] ?? 'a')
+      const indices = rows.map((_, index) => index * 3)
+      const input: NeighborhoodInput = { k, featureCount: 2, rows, labels: rowLabels, indices }
+
+      const heap = knnPredict(input)
+      const reference = naive(input)
+      const queries = Array.from({ length: 30 }, () => [
+        Math.round(random() * 4),
+        Math.round(random() * 4),
+      ])
+      expect(heap(queries), `k=${k}`).toEqual(queries.map(reference))
+    }
   })
 })

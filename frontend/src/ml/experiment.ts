@@ -280,6 +280,8 @@ function nextSequence(prefix: string, ids: Iterable<string>): number {
 interface TrainContext {
   taskType: TaskType
   trainFeatures: number[][]
+  /** trainFeatures[i]의 원본 행 번호. 참조형 모델이 이것을 담는다 (mlpx-spec.md 5.1). */
+  trainRowIndices: readonly number[]
   testFeatures: number[][]
   trainTarget: string[]
   testTarget: string[]
@@ -316,6 +318,7 @@ function trainOne(
 
     const { predict, model, modelOmittedDetail } = engine.fit(base.algorithm, {
       features: context.trainFeatures,
+      rowIndices: context.trainRowIndices,
       target: context.trainTarget,
       hyperparameters: base.hyperparameters,
       randomState: context.randomState,
@@ -404,6 +407,7 @@ export function runExperiment(
   const trainContext: TrainContext = {
     taskType,
     trainFeatures: transform(preprocessor, dataset, split.trainIndices, categoricalEncoding),
+    trainRowIndices: split.trainIndices,
     testFeatures: transform(preprocessor, dataset, split.testIndices, categoricalEncoding),
     trainTarget: targetValues(dataset, split.trainIndices, target),
     testTarget: targetValues(dataset, split.testIndices, target),
