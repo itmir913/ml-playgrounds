@@ -76,21 +76,6 @@ const cannotRun = computed(() => props.disabled || blank.value.length > 0)
       <p class="text-ink-soft">{{ t('predict.inputLead') }}</p>
     </div>
 
-    <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <AppButton variant="secondary" :disabled="props.disabled" @click="emit('sample')">
-        {{ t('predict.fromData') }}
-      </AppButton>
-      <AppButton variant="secondary" :disabled="props.disabled" @click="emit('clear')">
-        {{ t('predict.clear') }}
-      </AppButton>
-      <p
-          :class="{ invisible: props.sampled === null }"
-          class="min-w-0 text-ink-soft"
-      >
-        {{ t('predict.fromDataDone', { index: (props.sampled ?? 0) + 1 }) }}
-      </p>
-    </div>
-
     <!--
       칸이 스무 개인 데이터가 있다. 좁은 화면에서는 한 줄, 넓어지면 두 줄로 접는다 —
       한 칸씩 세로로만 쌓으면 [예측] 버튼이 화면 밖으로 밀린다.
@@ -131,15 +116,36 @@ const cannotRun = computed(() => props.disabled || blank.value.length > 0)
       </AppField>
     </div>
 
-    <!-- [예측]은 오른쪽에 붙인다 - 입력 칸들과 같은 오른쪽 끝에 맞춰야 한 덩어리로 읽힌다. -->
-    <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-      <!-- 왜 꺼져 있는지 말한다. 이유 없이 회색인 버튼은 학생에게 고장으로 보인다. -->
-      <p v-if="blank.length > 0" class="min-w-0 text-ink-soft">
-        {{ t('client.PREDICTION_INPUT_INCOMPLETE', { feature: blank[0]?.name ?? '' }) }}
-      </p>
-      <AppButton size="lg" :disabled="cannotRun" :action="props.runAction">
-        {{ t('predict.run') }}
-      </AppButton>
+    <!--
+      **가져오기·비우기가 [예측]과 한 덩어리로 붙는다.** 값을 손보는 버튼과 실행
+      버튼이 입력 칸을 사이에 두고 멀리 떨어져 있으면 "가져와서 한두 칸만 바꿔
+      다시 예측해 본다"는 이 화면의 핵심 동작(§8.13.1 "빈 칸으로 시작한다")이
+      두 자리를 오가는 일이 된다. 둘 다 오른쪽 끝에 맞춰 같은 축에 세우고, 사이
+      간격도 다른 구획보다 좁혀 한 그룹으로 읽히게 한다.
+    -->
+    <div class="flex flex-col gap-2">
+      <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+        <p :class="{ invisible: props.sampled === null }" class="min-w-0 text-ink-soft">
+          {{ t('predict.fromDataDone', { index: (props.sampled ?? 0) + 1 }) }}
+        </p>
+        <AppButton variant="secondary" :disabled="props.disabled" @click="emit('sample')">
+          {{ t('predict.fromData') }}
+        </AppButton>
+        <AppButton variant="secondary" :disabled="props.disabled" @click="emit('clear')">
+          {{ t('predict.clear') }}
+        </AppButton>
+      </div>
+
+      <!-- [예측]은 오른쪽에 붙인다 - 입력 칸들과 같은 오른쪽 끝에 맞춰야 한 덩어리로 읽힌다. -->
+      <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+        <!-- 왜 꺼져 있는지 말한다. 이유 없이 회색인 버튼은 학생에게 고장으로 보인다. -->
+        <p v-if="blank.length > 0" class="min-w-0 text-ink-soft">
+          {{ t('client.PREDICTION_INPUT_INCOMPLETE', { feature: blank[0]?.name ?? '' }) }}
+        </p>
+        <AppButton size="lg" :disabled="cannotRun" :action="props.runAction">
+          {{ t('predict.run') }}
+        </AppButton>
+      </div>
     </div>
   </div>
 </template>
