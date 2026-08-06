@@ -58,13 +58,14 @@ const warningText = computed(() => {
           <tr v-for="(row, index) in props.run.confusionMatrix.matrix" :key="index">
             <th class="text-left">{{ props.run.confusionMatrix.labels[index] }}</th>
             <!--
-              **맞힌 칸(대각선)만 굵다.** 행렬을 처음 보는 학생이 어디를 봐야 하는지가
-              그 굵기 하나로 정해진다.
+              **맞힌 칸(대각선)은 굵기와 배경을 함께 준다.** 굵기만으로는 표를 눈으로
+              훑을 때 잘 안 걸린다 — 배경색이 먼저 눈에 들어와야 어디를 봐야 하는지가
+              읽기 전에 이미 보인다.
             -->
             <td
               v-for="(count, column) in row"
               :key="column"
-              :class="index === column ? 'font-bold' : ''"
+              :class="index === column ? 'bg-positive-soft font-bold' : ''"
             >
               {{ count }}
             </td>
