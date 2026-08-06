@@ -314,7 +314,7 @@ function trainOne(
     // try 안이라 **이 run 하나만 실패하고 나머지 모델은 계속 돈다** (mlpx-spec.md 4.1).
     assertInRange(engine.parameters(base.algorithm), base.hyperparameters)
 
-    const { predict, model } = engine.fit(base.algorithm, {
+    const { predict, model, modelOmittedDetail } = engine.fit(base.algorithm, {
       features: context.trainFeatures,
       target: context.trainTarget,
       hyperparameters: base.hyperparameters,
@@ -331,7 +331,11 @@ function trainOne(
       // **모델이 없는 이유를 여기서 적는다.** 저장까지 가야 알 수 있는 사유(예산, 개별
       // 상한)와 달리 이건 학습이 끝난 순간 확정되고, 그래서 저장 전에도 화면이 학생에게
       // 무엇을 할 수 있는지 말할 수 있다 (mlpx-spec.md 4.2).
+      // **원문도 함께 남긴다** (mlpx-spec.md 4.2, 5.0.1). 사유 어휘는 학생에게 할 말이고
+      // 원문은 교사와 우리가 읽는 단서다 - 직렬화가 터졌는데 아무 기록이 없으면
+      // 학생 환경에서 재현할 단서가 0이 된다.
       ...(model ? {} : { modelOmitted: 'engineUnsupported' as const }),
+      ...(model === undefined && modelOmittedDetail !== undefined ? { modelOmittedDetail } : {}),
     }
     return model ? { run, model } : { run }
   } catch (error) {

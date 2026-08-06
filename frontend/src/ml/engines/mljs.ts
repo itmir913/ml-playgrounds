@@ -40,7 +40,7 @@ import { Matrix } from 'ml-matrix'
 import { RandomForestClassifier } from 'ml-random-forest'
 import MultivariateLinearRegression from 'ml-regression-multivariate-linear'
 
-import { ClientError } from '../../errors'
+import { ClientError, failureDetail } from '../../errors'
 import { resolveWith, type HyperparameterSpec } from '../hyperparams'
 import type { Prediction } from '../metrics'
 import type { ModelFile, Predict } from '../models/types'
@@ -79,6 +79,12 @@ export type { Predict } from '../models/types'
 export interface FitResult {
   predict: Predict
   model?: ModelFile
+  /**
+   * 모델을 못 담았을 때 그 원문. **어휘가 아니라 기술 정보다** (mlpx-spec.md 5.0.1).
+   *
+   * 사유 어휘(modelOmitted)는 부르는 쪽이 붙인다 - 여기서는 무엇이 터졌는지만 전한다.
+   */
+  modelOmittedDetail?: string
 }
 
 export interface FitInput {
@@ -280,12 +286,20 @@ interface Trained {
  *
  * **조용히 삼키는 것이 아니다.** 모델이 없으면 파일에 사유가 남고(modelOmitted) 화면은
  * "예측할 수 없습니다"를 말한다. 학생이 할 일은 직렬화기가 아예 없을 때와 같다.
+ *
+ * **그리고 원문을 버리지 않는다** (mlpx-spec.md 5.0.1). 사유 어휘는 "직렬화기 없음"과
+ * 같지만, 그건 학생에게 할 말이 같다는 뜻이지 우리가 알 필요가 없다는 뜻이 아니다 -
+ * 원문이 없으면 학생 환경에서 실제로 터졌을 때 진단 단서가 0이다.
  */
-function serializeOrOmit(serialize: () => ModelFile): ModelFile | undefined {
+function serializeOrOmit(serialize: () => ModelFile): {
+  model?: ModelFile
+  detail?: string
+} {
   try {
-    return serialize()
-  } catch {
-    return undefined
+    return { model: serialize() }
+  } catch (error) {
+    const { detail } = failureDetail(error)
+    return typeof detail === 'string' ? { detail } : {}
   }
 }
 
@@ -302,8 +316,11 @@ function classifier(build: (input: FitInput) => Trained): Trainer {
     // 전처리를 마친 행렬의 열 수. 모델이 이 값을 들고 있어야 다른 전처리기로 예측하는
     // 것을 막을 수 있다 (mlpx-spec.md 5.3).
     const featureCount = input.features[0]?.length ?? 0
-    const model = serializeOrOmit(() => serialize(labels, featureCount))
-    return model ? { predict, model } : { predict }
+    const attempted = serializeOrOmit(() => serialize(labels, featureCount))
+    if (attempted.model) return { predict, model: attempted.model }
+    return attempted.detail === undefined
+      ? { predict }
+      : { predict, modelOmittedDetail: attempted.detail }
   }
 }
 

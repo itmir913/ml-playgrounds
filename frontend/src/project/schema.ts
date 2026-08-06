@@ -22,7 +22,11 @@ import { z } from 'zod'
 
 import { SOURCE_ENCODINGS } from '../data/encoding'
 import { ClientError } from '../errors'
-import { MAX_STUDENT_ID_LENGTH, MAX_STUDENT_NAME_LENGTH } from '../limits'
+import {
+  MAX_FAILURE_DETAIL_LENGTH,
+  MAX_STUDENT_ID_LENGTH,
+  MAX_STUDENT_NAME_LENGTH,
+} from '../limits'
 import { TRAINING_LOCATIONS } from '../ml/backend'
 
 /** 이 앱이 읽고 쓰는 포맷 버전. 마이그레이션 체인의 종착점이다. */
@@ -379,6 +383,15 @@ export const runSchema = z
     model: modelRefSchema.optional(),
     /** model이 없는 이유. 있으면 화면이 학생에게 무엇을 할 수 있는지 말할 수 있다. */
     modelOmitted: z.enum(MODEL_OMISSION_REASONS).optional(),
+    /**
+     * 담지 못한 사유의 **기술 원문**. 어휘가 아니라 남의 라이브러리가 던진 문장이다
+     * (mlpx-spec.md 5.0.1).
+     *
+     * modelOmitted에 값을 더하지 않는 이유는 어휘를 나누는 기준이 "화면이 서로 다른
+     * 지시를 해야 하는가"인데 **학생이 할 일은 같기 때문**이다. 읽을 사람은 교사와
+     * 우리다. 실패한 run의 failure.params.detail과 같은 성격이다.
+     */
+    modelOmittedDetail: z.string().max(MAX_FAILURE_DETAIL_LENGTH).optional(),
   })
   .refine((run) => run.status !== 'failed' || run.failure !== undefined, {
     // 실패한 run은 사유가 있어야 한다. 학생이 무엇이 왜 안 됐는지 알아야

@@ -14,7 +14,15 @@ import { describe, expect, it } from 'vitest'
 import { isClientError, type ClientErrorCode } from '../src/errors'
 import { MAX_MODEL_BYTES } from '../src/limits'
 import { fit } from '../src/ml/engines/mljs'
-import { TREE_FORMAT, loadModel, type TreeModel, type TreeNode } from '../src/ml/models'
+import {
+  TREE_FORMAT,
+  assertContext,
+  interpreterFor,
+  loadModel,
+  type ModelInterpreter,
+  type TreeModel,
+  type TreeNode,
+} from '../src/ml/models'
 import { IRIS_FEATURES, IRIS_LABELS } from './fixtures/iris'
 
 /** 파일에 들어가는 바이트를 실제로 거친다. 객체를 그대로 넘기면 왕복을 안 한 것이다. */
@@ -175,5 +183,37 @@ describe('크기', () => {
     // 목적이다 - 형식을 바꿔 모델이 커지면 이 테스트가 먼저 깨진다.
     const { model } = train('random_forest')
     expect(new TextEncoder().encode(JSON.stringify(model)).length).toBeLessThan(MAX_MODEL_BYTES)
+  })
+})
+
+/**
+ * **축 하나가 형식 이름을 대신한다** (mlpx-spec.md §5.0). 화면은 "이 모델을 쓸 수 있나"를
+ * `needsTrainingRows` 불리언으로 판정하고, 형식이 늘어도 그 판정은 안 바뀐다.
+ */
+describe('학습 행이 필요한 형식', () => {
+  it('지금 등록된 형식은 학습 행을 요구하지 않는다', () => {
+    // 참조형(KNN·SVM)이 들어오면 이 목록이 늘어난다. 그때 화면 판정도 함께 봐야 한다.
+    expect(interpreterFor(TREE_FORMAT)?.needsTrainingRows).toBe(false)
+  })
+
+  it('요구하는데 안 주면 던진다 - 빈 학습셋으로 그럴듯한 답을 내지 않는다', () => {
+    const needy: ModelInterpreter = {
+      format: 'test-reference',
+      includesPreprocessing: false,
+      needsTrainingRows: true,
+      load: () => () => ['nope'],
+    }
+
+    expectCode(() => assertContext(needy, {}), 'MODEL_NEEDS_DATASET')
+    // 주면 통과한다. 안 그러면 위 검사가 "언제나 던진다"를 확인한 것에 불과하다.
+    expect(() =>
+      assertContext(needy, { trainingRows: { features: [[1]], target: ['a'] } }),
+    ).not.toThrow()
+  })
+
+  it('요구하지 않는 형식은 행이 없어도 그냥 통과한다', () => {
+    const interpreter = interpreterFor(TREE_FORMAT)
+    expect(interpreter).toBeDefined()
+    if (interpreter) expect(() => assertContext(interpreter, {})).not.toThrow()
   })
 })

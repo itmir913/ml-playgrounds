@@ -123,8 +123,12 @@ PROJECT_FILE_VERSION_TOO_NEW, PROJECT_FILE_VERSION_UNSUPPORTED
 
 **모델 실행 / 저장소**
 ```
-MODEL_FORMAT_UNSUPPORTED, MODEL_FILE_INVALID, STORAGE_QUOTA_EXCEEDED
+MODEL_FORMAT_UNSUPPORTED, MODEL_FILE_INVALID, MODEL_NEEDS_DATASET, STORAGE_QUOTA_EXCEEDED
 ```
+
+앞의 셋은 전부 **파일은 멀쩡히 열리고 그 모델로 예측만 못 하는** 경우이고, 셋으로 나눈
+이유는 학생이 할 일이 다르기 때문이다 — 앱을 최신으로 바꾼다 / 다시 학습한다 /
+데이터를 가진 파일로 다시 연다 (`mlpx-spec.md` §5.0, §5.2).
 
 **마지막 그물**
 ```

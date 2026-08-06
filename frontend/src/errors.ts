@@ -39,6 +39,10 @@ export const CLIENT_ERROR_CODES = [
   // 형식은 아는데 내용이 그 형식이 아니다. 위와 나누는 이유는 학생이 할 일이 다르기
   // 때문이다 - 위는 앱을 최신으로 바꾸면 되고, 이건 다시 학습해야 한다 (mlpx-spec.md 5.3).
   'MODEL_FILE_INVALID',
+  // 참조형인데 원본 데이터가 파일에 없다 (mlpx-spec.md 5.0). 위 둘과 또 다르다 -
+  // 모델도 형식도 멀쩡하고 없는 것은 dataset/이라, 학생이 할 일은 데이터를 가진
+  // 파일로 다시 여는 것이다.
+  'MODEL_NEEDS_DATASET',
 
   // 표 파일 가져오기 - 서버는 정규화된 CSV만 보므로 이 둘은 서버에 없다 (data/table.ts)
   'DATASET_FILE_TYPE_UNSUPPORTED',
