@@ -461,8 +461,17 @@ IndexedDB 저장은 이 교체를 **한 트랜잭션에서** 처리한다. 중�
 | `mlpx-tree-v1` | Decision Tree, Random Forest | 밖 | 모델 + preprocessor |
 | `mlpx-linear-v1` | Logistic Regression | 밖 | 모델 + preprocessor |
 | `mlpx-naive-bayes-v1` | Naive Bayes | 밖 | 모델 + preprocessor |
-| `mlpx-reference-v1` | **KNN, SVM** | 밖 | 모델 + preprocessor + **`dataset/`** |
+| `mlpx-reference-v1` | **KNN** (SVM은 아래) | 밖 | 모델 + preprocessor + **`dataset/`** |
 | `onnx-v1` | V5 이후 딥러닝 | **그래프에 포함** | 모델 하나 |
+
+> **SVM은 이 표에서 KNN과 같은 칸에 있었고, 그게 틀렸다** (2026-08-06). 학습 행을 들고
+> 다녀야 하는 KNN과 달리 **선형 SVM은 가중치뿐이라 자체 완결이다** — 실측에서 747바이트
+> JSON으로 왕복했다(`open-decisions.md` "순수 JS 서포트 벡터 머신을 넣는다"). RBF는 서포트
+> 벡터를 담아야 하니 커지지만 그때도 `dataset/`은 필요 없을 가능성이 높다.
+>
+> **그래서 지금 칸을 옮기지 않고 비워 둔다.** 형식 이름과 payload는 **만드는 시점에**
+> 적는다는 것이 이 절의 규칙이고(아래), SVM 구현은 나머지 모델 형식 작업과 한 덩어리다.
+> 넣는 사람이 이 표에 줄을 더한다.
 
 해석기는 알고리즘 등록부와 같은 방식으로 등록한다. `if format === 'onnx'` 분기를 만들지 않는다.
 

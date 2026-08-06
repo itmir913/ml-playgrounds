@@ -105,8 +105,9 @@
 
 | 지점 | 인터페이스 | V1 구현 | 이후 |
 |---|---|---|---|
-| 작업 큐 | `JobQueue` | `InProcessQueue` | `CeleryQueue` (Redis) |
-| 학습 실행 | `TrainingBackend` | **브라우저 학습** (엔진은 등록부에) | 서버 학습 (자가호스팅) |
+| 작업 큐 | `JobQueue` (`backend/app/jobs/base.py`) | `InProcessQueue` | `CeleryQueue` (Redis) |
+| 실행 위치 | `ml/backend.ts`의 판정 함수 | **브라우저** | 서버 (자가호스팅) |
+| 학습 엔진 | `ml/engines`의 등록부 | 순수 JS | sklearn·서버는 등록만 추가 |
 | 알고리즘 | `registry` 등록 | — | 등록만 추가 |
 
 - 알고리즘 선택에 `if/elif` 분기 금지. 반드시 registry 등록 방식으로.
@@ -264,7 +265,8 @@ mixed content(Pages는 https, 교실 서버는 대개 http), 교사가 고쳐야
 - **프런트엔드는 두 갈래다.** 눈으로 확인해야 하는 화면은 브라우저에서 직접 조작해 검증한다.
   로직(포맷 파싱, 마이그레이션, IndexedDB, 스토어, 컴포저블)은 vitest로 덮는다.
   화면을 만들 때는 검증 가능한 로직을 컴포넌트 밖으로 빼서 테스트할 수 있게 하라.
-- IDE 실행 구성은 `.idea/runConfigurations/`의 `dev` / `build` / `test` 세 개다.
+- IDE 실행 구성은 `.idea/runConfigurations/`에 있다. 앞뒤를 함께 띄우는 것(`dev`)과
+  한쪽만 띄우는 것이 나뉘어 있으니 목록은 그 디렉터리를 봐라.
 
 **테스트에서 반드시 다뤄야 할 것**
 

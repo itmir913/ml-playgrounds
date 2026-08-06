@@ -92,8 +92,28 @@ QUEUED → VALIDATING → PREPROCESSING → TRAINING → EVALUATING → DONE
 
 **실행 위치**
 ```
-SERVER_UNAVAILABLE, ALGORITHM_NOT_AVAILABLE_HERE, DATASET_TOO_LARGE_FOR_BROWSER
+SERVER_UNAVAILABLE, ALGORITHM_NOT_AVAILABLE_HERE, DATASET_TOO_LARGE_FOR_BROWSER,
+ENGINE_NOT_READY
 ```
+
+**이 모델을 이 데이터·과제에 쓸 수 없다**
+```
+ALGORITHM_NOT_FOR_DATA_TYPE, ALGORITHM_NOT_FOR_TASK_TYPE
+```
+
+위 둘이 실행 위치와 나뉘는 이유는 **학생이 할 수 있는 일이 다르기 때문**이다. 실행 위치는
+"서버를 켜라 / 엔진을 준비하라"로 열리지만, 이쪽은 모델이나 과제 유형을 바꿔야 한다.
+사유를 고를 때 **가장 근본적인 것을 준다**는 규칙이 여기서 나온다(`ml/experiment.ts`) —
+이미지 데이터에 회귀를 고른 학생에게 "엔진이 준비되지 않았습니다"라고 답하면 안 된다.
+
+**분할** (`ml/split.ts`)
+```
+SPLIT_TOO_FEW_ROWS, SPLIT_STRATIFY_IMPOSSIBLE
+```
+
+백엔드의 `SPLIT_INVALID`와 나뉜다. 저쪽은 **설정이 말이 안 되는 것**이고 이 둘은
+**설정은 멀쩡한데 이 데이터로는 못 나누는 것**이다 — 학생이 고칠 자리가 설정이 아니라
+데이터거나 비율이다.
 
 **프로젝트 파일 열기**
 ```
