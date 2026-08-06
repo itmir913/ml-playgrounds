@@ -77,7 +77,7 @@ const blank = computed(() =>
       <AppButton variant="secondary" :disabled="props.disabled" @click="emit('sample')">
         {{ t('predict.fromData') }}
       </AppButton>
-      <AppButton variant="ghost" :disabled="props.disabled" @click="emit('clear')">
+      <AppButton variant="secondary" :disabled="props.disabled" @click="emit('clear')">
         {{ t('predict.clear') }}
       </AppButton>
       <p v-if="props.sampled !== null" class="min-w-0 text-ink-soft">

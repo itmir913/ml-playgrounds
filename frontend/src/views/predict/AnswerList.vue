@@ -112,27 +112,34 @@ function cardClass(model: PredictableModel): string {
       </ul>
     </section>
 
-    <ul class="flex flex-col gap-3">
+    <ul class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <li
         v-for="model in props.models"
         :key="model.run.id"
         class="rounded-panel border p-4"
         :class="[cardClass(model), model.reason ? 'opacity-60' : '']"
       >
-        <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <!--
+          **셋을 위계로 나눈다.** 실험 이름이 "무엇"(식별자), 알고리즘·실행 위치가
+          "어떻게"(부가 정보), 답이 "결과"다. 한 줄에 욱여넣으면 좁은 카드에서 아무
+          데서나 끊기고, 학생이 찾는 답이 눈에 안 띈다.
+        -->
+        <div class="flex flex-col gap-1">
           <p class="font-bold">
+            {{ props.experimentNames.get(model.experiment.id) ?? model.experiment.id }}
+          </p>
+
+          <p class="text-ink-soft">
             {{
               t('predict.modelName', {
                 algorithm: t(`algorithms.${model.run.algorithm}`),
                 runtime: t(whereTrainedKeyOf(model.run)),
-                experiment: props.experimentNames.get(model.experiment.id) ?? model.experiment.id,
               })
             }}
           </p>
 
           <!--
-            **답은 크게 쓴다.** 이 화면에서 학생이 보러 온 것이 이 한 낱말이고,
-            줄마다 그것을 찾아 눈이 헤매면 비교가 안 된다.
+            **답은 크게 쓴다.** 이 화면에서 학생이 보러 온 것이 이 한 낱말이다.
           -->
           <p
             v-if="answerText(props.answers.get(model.run.id)?.value) !== null"

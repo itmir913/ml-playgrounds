@@ -569,7 +569,7 @@ function reseed(): void {
                   >
                     {{ t('data.change') }}
                   </AppButton>
-                  <AppButton variant="ghost" :disabled="testBusy" @click="requestRemoveTest">
+                  <AppButton variant="secondary" :disabled="testBusy" @click="requestRemoveTest">
                     {{ t('preprocess.testDataRemove') }}
                   </AppButton>
                 </div>
