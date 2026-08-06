@@ -47,6 +47,7 @@ import type { ModelFile, Predict } from '../models/types'
 import { MLJS_PARAMETERS } from './mljs-params'
 import {
   serializeForest,
+  serializeLinearRegression,
   serializeLogistic,
   serializeNaiveBayes,
   serializeTree,
@@ -465,7 +466,13 @@ const TRAINERS: Record<string, Trainer> = {
       toRows(input.features),
       input.target.map((value) => [Number(value)]),
     )
+    const featureCount = input.features[0]?.length ?? 0
+    const attempted = serializeOrOmit(() => serializeLinearRegression(model, featureCount))
     return {
+      ...(attempted.model ? { model: attempted.model } : {}),
+      ...(attempted.model === undefined && attempted.detail !== undefined
+        ? { modelOmittedDetail: attempted.detail }
+        : {}),
       predict: (features) => toRows(features).map((row) => Number(model.predict(row)[0] ?? 0)),
     }
   },

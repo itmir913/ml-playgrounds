@@ -13,6 +13,7 @@ import { z } from 'zod'
 
 import { ClientError } from '../../errors'
 import { LINEAR_FORMAT, loadLinearModel } from './linear'
+import { LINEAR_REGRESSION_FORMAT, loadLinearRegressionModel } from './linear-regression'
 import { NAIVE_BAYES_FORMAT, loadNaiveBayesModel } from './naive-bayes'
 import { REFERENCE_FORMAT, loadReferenceModel } from './reference'
 import { TREE_FORMAT, loadTreeModel } from './tree'
@@ -20,6 +21,8 @@ import type { LoadContext, ModelInterpreter, Predict } from './types'
 
 export { LINEAR_FORMAT } from './linear'
 export type { LinearModel } from './linear'
+export { LINEAR_REGRESSION_FORMAT } from './linear-regression'
+export type { LinearRegressionModel } from './linear-regression'
 export { NAIVE_BAYES_FORMAT } from './naive-bayes'
 export type { NaiveBayesModel } from './naive-bayes'
 export { REFERENCE_FORMAT, knnPredict } from './reference'
@@ -46,6 +49,12 @@ const INTERPRETERS: readonly ModelInterpreter[] = [
     includesPreprocessing: false,
     needsTrainingRows: false,
     load: loadNaiveBayesModel,
+  },
+  {
+    format: LINEAR_REGRESSION_FORMAT,
+    includesPreprocessing: false,
+    needsTrainingRows: false,
+    load: loadLinearRegressionModel,
   },
   {
     format: REFERENCE_FORMAT,

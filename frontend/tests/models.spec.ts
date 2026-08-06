@@ -13,9 +13,10 @@ import { describe, expect, it } from 'vitest'
 
 import { isClientError, type ClientErrorCode } from '../src/errors'
 import { MAX_MODEL_BYTES } from '../src/limits'
-import { fit } from '../src/ml/engines/mljs'
+import { MLJS_ALGORITHMS, fit } from '../src/ml/engines/mljs'
 import {
   LINEAR_FORMAT,
+  LINEAR_REGRESSION_FORMAT,
   NAIVE_BAYES_FORMAT,
   REFERENCE_FORMAT,
   TREE_FORMAT,
@@ -24,6 +25,7 @@ import {
   knnPredict,
   loadModel,
   type LinearModel,
+  type LinearRegressionModel,
   type ModelInterpreter,
   type NaiveBayesModel,
   type NeighborhoodInput,
@@ -105,17 +107,31 @@ describe('라운드트립 — 예측이 원본과 하나도 다르지 않다', (
     expect((model as TreeModel).classes).toEqual([...new Set(IRIS_LABELS)].sort())
   })
 
-  it('직렬화기가 없는 알고리즘은 모델을 안 준다 — 실패가 아니라 지표만 남는 것이다', () => {
-    // 회귀는 아직 우리 형식이 없다. 지표는 멀쩡히 나온다 (mlpx-spec.md §4.2).
-    const { predict, model } = fit('linear_regression', {
-      features: [[0], [1], [2]],
-      rowIndices: [0, 1, 2],
-      target: [1, 3, 5],
-      hyperparameters: {},
-      randomState: 42,
-    })
-    expect(model).toBeUndefined()
-    expect(predict([[3]])).toHaveLength(1)
+  /**
+   * **이제 이 엔진의 모든 알고리즘이 우리 형식으로 담긴다** (2026-08-06). 회귀까지 붙으면서
+   * `modelOmitted: 'engineUnsupported'`가 나올 경로가 이 엔진에는 남지 않았다.
+   *
+   * 그래서 이 검사가 앞을 지킨다 — **직렬화기 없이 알고리즘을 등록하면 여기가 빨개진다.**
+   * 어휘 자체는 스키마에 남는다. 앞으로 들어올 엔진(pyodide·서버)에는 여전히 필요하다.
+   */
+  it('이 엔진의 모든 알고리즘이 우리 형식으로 담긴다', () => {
+    const regressionOnly = new Set(['linear_regression'])
+    for (const algorithm of MLJS_ALGORITHMS) {
+      const trained = regressionOnly.has(algorithm)
+        ? fit(algorithm, {
+            features: [[0], [1], [2], [3]],
+            rowIndices: [0, 1, 2, 3],
+            target: [1, 3, 5, 7],
+            hyperparameters: {},
+            randomState: 42,
+          })
+        : train(algorithm)
+
+      expect(trained.model, algorithm).toBeDefined()
+      expect(trained.modelOmittedDetail, algorithm).toBeUndefined()
+      // 담긴 형식은 반드시 이 빌드가 읽을 수 있어야 한다.
+      expect(interpreterFor(trained.model?.format ?? ''), algorithm).toBeDefined()
+    }
   })
 })
 
@@ -570,5 +586,79 @@ describe('k개 고르기 — 힙이 완전 정렬과 같은 답을 낸다', () =
       ])
       expect(heap(queries), `k=${k}`).toEqual(queries.map(reference))
     }
+  })
+})
+
+/**
+ * `mlpx-linear-regression-v1` (mlpx-spec.md §5.7).
+ *
+ * **회귀 해석기는 라벨이 아니라 수치를 돌려준다.** 분류 넷과 갈리는 유일한 자리다.
+ */
+describe('mlpx-linear-regression-v1', () => {
+  // y = 2a + 3b + 1
+  const features = [
+    [0, 1],
+    [1, 2],
+    [2, 4],
+    [3, 6],
+    [4, 9],
+  ]
+  const target = features.map(([a, b]) => 2 * (a ?? 0) + 3 * (b ?? 0) + 1)
+  const trained = fit('linear_regression', {
+    features,
+    rowIndices: features.map((_, index) => index),
+    target,
+    hyperparameters: {},
+    randomState: 42,
+  })
+
+  it('선형 회귀가 우리 형식으로 담긴다', () => {
+    expect(trained.model?.format).toBe(LINEAR_REGRESSION_FORMAT)
+    expect(trained.modelOmittedDetail).toBeUndefined()
+  })
+
+  it('읽은 모델의 예측이 원본과 한 줄도 다르지 않다', () => {
+    const restored = loadModel(roundTrip(trained.model))
+    expect(restored(features)).toEqual(trained.predict(features))
+  })
+
+  it('계수와 절편이 학습한 식 그대로다', () => {
+    const model = trained.model as LinearRegressionModel
+    expect(model.coefficients[0]).toBeCloseTo(2, 6)
+    expect(model.coefficients[1]).toBeCloseTo(3, 6)
+    expect(model.intercept).toBeCloseTo(1, 6)
+  })
+
+  it('절편이 계수 배열에 섞여 있지 않다', () => {
+    const model = trained.model as LinearRegressionModel
+    expect(model.coefficients).toHaveLength(model.featureCount)
+  })
+
+  it('라벨이 아니라 수치를 돌려준다', () => {
+    const restored = loadModel(roundTrip(trained.model))
+    expect(typeof restored([[10, 10]])[0]).toBe('number')
+  })
+
+  it('계수 수가 특성 수와 다르면 거부한다 — 다른 열에 계수를 곱하게 된다', () => {
+    expectCode(
+      () =>
+        loadModel({
+          format: LINEAR_REGRESSION_FORMAT,
+          featureCount: 2,
+          coefficients: [1],
+          intercept: 0,
+        }),
+      'MODEL_FILE_INVALID',
+    )
+  })
+
+  it('특성 개수가 다른 입력은 거부한다', () => {
+    const model = loadModel({
+      format: LINEAR_REGRESSION_FORMAT,
+      featureCount: 2,
+      coefficients: [1, 1],
+      intercept: 0,
+    })
+    expectCode(() => model([[1]]), 'MODEL_FILE_INVALID')
   })
 })

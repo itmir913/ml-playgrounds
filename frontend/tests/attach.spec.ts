@@ -109,11 +109,13 @@ describe('학습 → 담기 → 다시 꺼내 예측', () => {
     expect(experimentSchema.safeParse(attached.experiment).success).toBe(true)
   })
 
-  it('직렬화기가 없는 알고리즘은 학습 직후부터 사유를 들고 있다', () => {
-    // 저장까지 가야 아는 사유(예산)와 달리 이건 학습이 끝난 순간 확정된다.
-    //
-    // **분류 알고리즘은 이제 전부 형식이 있다** (2026-08-06에 셋이 붙었다). 그래서 이
-    // 경로가 남아 있는 곳은 회귀뿐이다 - 선형 회귀는 아직 우리 형식이 없다.
+  it('참조형도 담긴다 - 행 번호만 담으므로 데이터를 중복 저장하지 않는다', () => {
+    const result = runExperiment(inputFor(['knn']))
+    expect(result.models.size).toBe(1)
+    expect(result.experiment.runs[0]?.modelOmitted).toBeUndefined()
+  })
+
+  it('회귀도 담긴다 - 이제 이 엔진에 못 담는 알고리즘이 없다', () => {
     // 회귀에는 수치 타깃이 필요하다. 특성 하나를 타깃으로 돌려 쓴다 - 붓꽃 열은 전부 수치다.
     const base = inputFor(['linear_regression'])
     const [first, ...rest] = IRIS_FEATURE_COLUMNS
@@ -128,14 +130,8 @@ describe('학습 → 담기 → 다시 꺼내 예측', () => {
         split: { ...base.settings.split, stratify: false },
       },
     })
-    expect(result.models.size).toBe(0)
-    expect(result.experiment.runs[0]?.status).toBe('done')
-    expect(result.experiment.runs[0]?.modelOmitted).toBe('engineUnsupported')
-  })
-
-  it('참조형은 이제 담긴다 - 행 번호만 담으므로 데이터를 중복 저장하지 않는다', () => {
-    const result = runExperiment(inputFor(['knn']))
     expect(result.models.size).toBe(1)
+    expect(result.experiment.runs[0]?.status).toBe('done')
     expect(result.experiment.runs[0]?.modelOmitted).toBeUndefined()
   })
 })
