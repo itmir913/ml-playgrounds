@@ -8,7 +8,7 @@
  * 이 화면이 하려는 일은 그 반대다. 대신 **지표별 최고값만 굵게** 한다.
  */
 
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppTable from '@/components/AppTable.vue'
@@ -48,6 +48,20 @@ const changes = computed(() => {
 
 /** 속을 펼쳐 볼 run. 실험을 옮기면 그 실험의 첫 줄로 돌아간다. */
 const openedRun = ref<string | null>(null)
+
+/**
+ * 표 아래로 접힌 속. 표를 정렬 없이 두는 것과 같은 이유로 표 안에서 안 펼치지만
+ * (architecture.md §8.13), 표가 길면 학생이 클릭해도 아래가 화면 밖이라 바뀐 걸 못
+ * 본다. 그래서 줄을 고르면 여기로 스스로 스크롤한다.
+ */
+const runDetailEl = ref<HTMLElement | null>(null)
+
+function pickRun(runId: string): void {
+  openedRun.value = runId
+  void nextTick(() => {
+    runDetailEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
 
 watch(
   () => props.experiment.id,
@@ -131,7 +145,7 @@ function failureDetailOf(run: Run): string | null {
             :key="run.id"
             class="cursor-pointer"
             :class="run.id === openedRun ? 'bg-brand-soft' : ''"
-            @click="openedRun = run.id"
+            @click="pickRun(run.id)"
           >
             <th class="text-left">{{ t(`algorithms.${run.algorithm}`) }}</th>
             <td>{{ t(`execution.${run.computedBy}`) }}</td>
@@ -153,7 +167,9 @@ function failureDetailOf(run: Run): string | null {
       <p class="text-ink-soft">{{ t('results.noSuccessNext') }}</p>
     </section>
 
-    <RunDetail v-if="opened" :run="opened" />
+    <div v-if="opened" ref="runDetailEl">
+      <RunDetail :run="opened" />
+    </div>
 
     <!-- 실패한 모델. 접어 둔다 — 학생이 먼저 볼 것은 나온 점수다. -->
     <details v-if="failed.length > 0" class="rounded-panel border border-line bg-surface">
