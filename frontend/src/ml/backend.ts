@@ -95,6 +95,34 @@ export const RUNTIME_IDS = ['mljs', 'pyodide-sklearn', 'server-sklearn'] as cons
 export type RuntimeId = (typeof RUNTIME_IDS)[number]
 
 /**
+ * 번들에 들어 있는 실행 방법. **행 상한을 등록부가 선언할 수 있는 것이 정확히 이것뿐이다.**
+ *
+ * 서버 쪽 상한은 그 학교가 꽂은 하드웨어가 정하므로 우리가 적으면 거짓말이 된다 -
+ * 능력 협상이 알려준다 (open-decisions.md "서버의 상한은 등록부에 없다").
+ *
+ * **RUNTIMES와 어긋나면 안 된다.** 타입은 이걸 못 잡으므로 tests/runtime-options.spec.ts가
+ * 두 목록을 대조한다.
+ */
+export const BROWSER_RUNTIME_IDS = ['mljs', 'pyodide-sklearn'] as const
+
+export type BrowserRuntimeId = (typeof BROWSER_RUNTIME_IDS)[number]
+
+export function isBrowserRuntimeId(id: RuntimeId): id is BrowserRuntimeId {
+  return (BROWSER_RUNTIME_IDS as readonly RuntimeId[]).includes(id)
+}
+
+/**
+ * **아직 재 보지 않았다는 표시.** 빈 칸이 아니라 값이다.
+ *
+ * 숫자를 지어 넣으면 근거 없는 값이 실측처럼 보이고, 옵셔널로 비워 두면 빠뜨림이 합법이
+ * 된다 (ml/axes.ts가 `Partial<>`을 금지하는 것과 같은 이유). 이 칸은 전역 기본값을 따르고,
+ * **보수적으로 틀리는 쪽이다** - 실제로는 더 큰 데이터가 될 가능성이 높다.
+ */
+export const UNMEASURED = null
+
+export type RowLimit = number | typeof UNMEASURED
+
+/**
  * 실행 방법 하나.
  *
  * location과 engineKind가 파일에 남는 값이고, id는 화면과 등록부가 쓰는 이름이다.
@@ -149,16 +177,21 @@ export interface AlgorithmSpec {
    */
   readonly runtimes: Axis<RuntimeId>
   /**
-   * 브라우저에서 이 알고리즘에만 걸리는 행 상한. 없으면 전역 상한을 따른다.
+   * 브라우저 구현마다 걸리는 행 상한. **알고리즘 하나에 값 하나가 아니다.**
    *
-   * **전역 하나로는 못 담는다** - 결정 트리가 즉시 끝나는 데이터에서 SVM만 몇 분이다
-   * (open-decisions.md "순수 JS 서포트 벡터 머신을 넣는다"). 값은 limits.ts가 출처이고
-   * 여기는 어느 알고리즘에 걸리는지만 선언한다.
+   * 전역 하나로는 못 담고(10만 행 0.3초인 선형 회귀와 5000행 7분인 랜덤포레스트),
+   * **알고리즘 하나로도 못 담는다** - `ml-cart`의 분할 탐색이 O(특성 × 행²)인 것은
+   * `ml-cart`의 성질이지 결정 트리의 성질이 아니다. 같은 결정 트리를 sklearn으로 돌리면
+   * 다른 숫자가 나온다 (open-decisions.md #13의 "(알고리즘 × 구현)에 걸린다").
    *
-   * **서버에는 안 걸린다.** 여기 적힌 것은 브라우저에서 도는 구현의 성질이고, 서버는
-   * 자기 자원으로 자기 판정을 한다.
+   * **칸을 다 채운다** (`Axis`와 같은 이유, ml/axes.ts). 안 재 본 칸에는 `UNMEASURED`를
+   * 적는다 - 새 브라우저 엔진이 붙는 날 알고리즘 줄마다 "이건 얼마인가"를 묻게 하려고
+   * `Partial`이 아니다. 값은 limits.ts가 출처이고 여기는 어느 칸에 걸리는지만 선언한다.
+   *
+   * **서버 칸이 없다.** 여기 적을 수 있는 것은 번들에 든 우리 구현의 성질뿐이고, 서버의
+   * 상한은 능력 협상이 알려준다 (BROWSER_RUNTIME_IDS).
    */
-  readonly maxRows?: number
+  readonly maxRows: Readonly<Record<BrowserRuntimeId, RowLimit>>
 }
 
 export interface RuntimeOption {
@@ -166,6 +199,16 @@ export interface RuntimeOption {
   readonly enabled: boolean
   /** enabled가 false일 때만 채워진다. UI는 이 값을 t()에 넣어 이유를 보여준다. */
   readonly reason?: UnavailableReason
+  /**
+   * 이 칸을 판정할 때 **실제로 쓴 행 상한.** 사유 문장의 숫자가 여기서 나온다.
+   *
+   * **판정한 값을 그대로 들려 보낸다** - 부르는 쪽이 등록부를 다시 뒤져 상한을 고르면
+   * 그 순간 두 벌이 되고, 어긋나는 모양은 "화면이 5000이라고 말하고 3000에서 꺼진다"다.
+   *
+   * 서버 칸에는 없다. 브라우저 칸에는 꺼졌든 켜졌든 채워진다 - 학생이 "얼마까지 되나"를
+   * 묻는 자리가 잠기기 전에도 있다.
+   */
+  readonly maxRows?: number
 }
 
 export interface RuntimeContext {
@@ -189,6 +232,10 @@ export interface RuntimeContext {
  *
  * 순수 함수다. 화면은 이 결과를 그대로 그리기만 한다.
  */
+function isReady(context: RuntimeContext, id: RuntimeId): boolean {
+  return (context.engineStates?.[id] ?? 'absent') === 'ready'
+}
+
 export function runtimeOptions(
   algorithm: AlgorithmSpec,
   context: RuntimeContext,
@@ -202,19 +249,29 @@ export function runtimeOptions(
     if (runtime.location === 'server' && context.serverStatus !== 'available') {
       return { runtime, enabled: false, reason: 'SERVER_UNAVAILABLE' }
     }
-    // 알고리즘이 자기 상한을 들고 있으면 그것이 이긴다. 전역보다 낮은 값만 오므로
-    // 더 작은 쪽을 고를 필요가 없다 - 더 높은 상한을 선언하는 것은 "전역이 틀렸다"는
-    // 뜻이고, 그건 알고리즘 등록부가 할 말이 아니다.
-    const limit = algorithm.maxRows ?? browserRowLimit
-    if (runtime.location === 'browser' && context.rowCount > limit) {
-      return { runtime, enabled: false, reason: 'DATASET_TOO_LARGE_FOR_BROWSER' }
+
+    // **서버 칸에는 상한을 걸지 않는다.** 그 숫자는 능력 협상이 알려줄 것이고, 우리가
+    // 대신 정하면 GPU 서버를 띄운 학교의 상한을 우리 상수가 깎는다 (open-decisions.md #13).
+    if (!isBrowserRuntimeId(runtime.id)) {
+      if (runtime.needsPreparation && !isReady(context, runtime.id)) {
+        return { runtime, enabled: false, reason: 'ENGINE_NOT_READY' }
+      }
+      return { runtime, enabled: true }
     }
-    if (runtime.needsPreparation && (context.engineStates?.[runtime.id] ?? 'absent') !== 'ready') {
+
+    // 상한의 출처는 등록부의 **이 칸**이다. 전역은 **아직 재 보지 않은 칸의 기본값**일
+    // 뿐이므로 칸의 값이 더 높아도 그대로 이긴다 - 더 작은 쪽을 고르면 재서 얻은 값을
+    // 재지 않은 값이 덮는다 (open-decisions.md #13의 "역할이 뒤집힌다").
+    const maxRows = algorithm.maxRows[runtime.id] ?? browserRowLimit
+    if (context.rowCount > maxRows) {
+      return { runtime, enabled: false, reason: 'DATASET_TOO_LARGE_FOR_BROWSER', maxRows }
+    }
+    if (runtime.needsPreparation && !isReady(context, runtime.id)) {
       // 여기서 내려받게 하지 않는다. 준비는 상단 상태 점검 한 곳에서만 일어나야
       // 교사가 "다 같이 지금 눌러라"로 부하 타이밍을 쥘 수 있다.
-      return { runtime, enabled: false, reason: 'ENGINE_NOT_READY' }
+      return { runtime, enabled: false, reason: 'ENGINE_NOT_READY', maxRows }
     }
-    return { runtime, enabled: true }
+    return { runtime, enabled: true, maxRows }
   })
 }
 

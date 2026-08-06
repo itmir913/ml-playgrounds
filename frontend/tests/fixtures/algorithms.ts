@@ -12,12 +12,17 @@
  */
 
 import type { Algorithm } from '../../src/ml/algorithms'
+import { UNMEASURED } from '../../src/ml/backend'
+
+/** 표본은 상한을 재지 않았다. 확인하는 것이 상한이 아니라 판정 규칙이다. */
+const UNMEASURED_ROWS = { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED } as const
 
 export const SKLEARN_ONLY_ALGORITHM: Algorithm = {
   id: 'sklearn_only',
   dataTypes: { tabular: true },
   taskTypes: { classification: true, regression: false, clustering: false },
   runtimes: { mljs: false, 'pyodide-sklearn': true, 'server-sklearn': true },
+  maxRows: UNMEASURED_ROWS,
 }
 
 /**
@@ -35,6 +40,7 @@ export const NOT_FOR_TABULAR_ALGORITHM: Algorithm = {
   dataTypes: { tabular: false },
   taskTypes: { classification: true, regression: false, clustering: false },
   runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
+  maxRows: UNMEASURED_ROWS,
 }
 
 /** 등록부에 그 알고리즘 하나가 더 있는 세상. */

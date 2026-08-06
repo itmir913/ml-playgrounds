@@ -155,6 +155,13 @@ export interface AxisChoice {
   readonly enabled: boolean
   /** enabled가 false일 때만 채워진다. 화면이 t()에 넣어 한 줄로 보여준다. */
   readonly reason?: UnavailableReason
+  /**
+   * 사유 문장이 쓸 행 상한. **사유와 같은 칸에서 함께 온다** (ml/backend.ts).
+   *
+   * 화면이 알고리즘 id로 등록부를 되짚어 상한을 고르던 자리가 여기다. 상한이
+   * (알고리즘 × 구현)마다 다르므로 id 하나로는 애초에 고를 수 없다.
+   */
+  readonly maxRows?: number
 }
 
 /**
@@ -214,13 +221,23 @@ export function modelAxes(input: ModelAxesInput): ModelAxes {
     const id = option.algorithm.id
     // 데이터 종류·과제 유형에서 이미 걸린 것. 더 근본적인 사유가 먼저다 (mlpx-spec.md 0.1).
     if (!option.enabled)
-      return { id, enabled: false, ...(option.reason ? { reason: option.reason } : {}) }
+      return {
+        id,
+        enabled: false,
+        ...(option.reason ? { reason: option.reason } : {}),
+        ...(option.maxRows === undefined ? {} : { maxRows: option.maxRows }),
+      }
 
     // **지금 걸린 실행 방법에서 도는가.** 이것이 축이 서로를 좁힌다는 말의 실체다 -
     // 순수 JS를 고르면 서포트 벡터 머신이 여기서 꺼진다.
     const here = option.runtimes.find((one) => one.runtime.id === input.runtime)
     if (here && !here.enabled)
-      return { id, enabled: false, ...(here.reason ? { reason: here.reason } : {}) }
+      return {
+        id,
+        enabled: false,
+        ...(here.reason ? { reason: here.reason } : {}),
+        ...(here.maxRows === undefined ? {} : { maxRows: here.maxRows }),
+      }
 
     return { id, enabled: true }
   })
@@ -230,6 +247,7 @@ export function modelAxes(input: ModelAxesInput): ModelAxes {
     id: one.runtime.id,
     enabled: one.enabled,
     ...(one.reason ? { reason: one.reason } : {}),
+    ...(one.maxRows === undefined ? {} : { maxRows: one.maxRows }),
   }))
 
   const choice = algorithms.find((one) => one.id === input.algorithm)

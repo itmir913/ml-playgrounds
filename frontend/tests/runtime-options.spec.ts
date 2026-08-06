@@ -12,7 +12,9 @@ import { describe, expect, it } from 'vitest'
 
 import { BROWSER_ROW_LIMIT } from '../src/limits'
 import {
+  BROWSER_RUNTIME_IDS,
   RUNTIMES,
+  UNMEASURED,
   type AlgorithmSpec,
   type EngineState,
   type RuntimeContext,
@@ -20,22 +22,31 @@ import {
   runtimeOptions,
 } from '../src/ml/backend'
 
+/**
+ * 상한을 안 재 본 칸들. **표본이 전역 기본값을 따르게 둔다** - 여기서 확인하는 것은
+ * 판정 규칙이고, 실측값은 등록부의 사실이라 바뀐다.
+ */
+const unmeasured = { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED } as const
+
 /** 셋 다 도는 알고리즘. 결정트리가 그렇다. */
 const anywhere: AlgorithmSpec = {
   id: 'decision_tree',
   runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
+  maxRows: unmeasured,
 }
 
 /** 무거워서 서버에서만 도는 것. */
 const serverOnly: AlgorithmSpec = {
   id: 'gradient_boosting',
   runtimes: { mljs: false, 'pyodide-sklearn': false, 'server-sklearn': true },
+  maxRows: unmeasured,
 }
 
 /** 순수 JS 구현이 없어 sklearn에서만 도는 것. */
 const sklearnOnly: AlgorithmSpec = {
   id: 'svm',
   runtimes: { mljs: false, 'pyodide-sklearn': true, 'server-sklearn': true },
+  maxRows: unmeasured,
 }
 
 function context(overrides: Partial<RuntimeContext> = {}): RuntimeContext {
@@ -100,6 +111,8 @@ describe('엔진 준비 상태', () => {
       runtime: RUNTIMES[1],
       enabled: false,
       reason: 'ENGINE_NOT_READY',
+      // 잠긴 칸에도 상한이 붙는다 - "얼마까지 되나"는 잠기기 전에도 묻는 질문이다.
+      maxRows: BROWSER_ROW_LIMIT,
     })
   })
 
@@ -146,6 +159,50 @@ describe('데이터 크기', () => {
   it('상한 자체는 허용한다', () => {
     const options = runtimeOptions(anywhere, context({ rowCount: BROWSER_ROW_LIMIT }))
     expect(optionFor(options, 'mljs')?.enabled).toBe(true)
+  })
+
+  it('같은 알고리즘이라도 구현마다 상한이 다르다', () => {
+    // **이것이 (알고리즘 × 구현)이라는 말의 실체다** (open-decisions.md #13).
+    // 같은 결정 트리인데 순수 JS는 O(특성 × 행²)이고 sklearn은 아니다.
+    const uneven: AlgorithmSpec = {
+      ...anywhere,
+      maxRows: { mljs: 100, 'pyodide-sklearn': 1000 },
+    }
+    const options = runtimeOptions(uneven, context({ rowCount: 500, engineStates: ready }))
+    expect(optionFor(options, 'mljs')?.reason).toBe('DATASET_TOO_LARGE_FOR_BROWSER')
+    expect(optionFor(options, 'pyodide-sklearn')?.enabled).toBe(true)
+  })
+
+  it('안 재 본 칸은 전역 기본값을 따른다 - 보수적으로 틀린다', () => {
+    const partly: AlgorithmSpec = {
+      ...anywhere,
+      maxRows: { mljs: BROWSER_ROW_LIMIT * 4, 'pyodide-sklearn': UNMEASURED },
+    }
+    const context4x = context({ rowCount: BROWSER_ROW_LIMIT * 2, engineStates: ready })
+    const options = runtimeOptions(partly, context4x)
+    // 재서 얻은 값이 전역보다 높아도 그대로 이긴다. 이 방향이 뒤집힌 것이 이번 변경이다.
+    expect(optionFor(options, 'mljs')?.enabled).toBe(true)
+    expect(optionFor(options, 'pyodide-sklearn')?.reason).toBe('DATASET_TOO_LARGE_FOR_BROWSER')
+  })
+
+  it('서버 칸에는 상한이 걸리지 않는다 - 그 숫자는 협상이 준다', () => {
+    // 등록부에 서버 칸이 없다는 것을 타입이 지키고, 판정이 서버를 건너뛴다는 것을
+    // 여기가 지킨다 (open-decisions.md "서버의 상한은 등록부에 없다").
+    const options = runtimeOptions(
+      anywhere,
+      context({ serverStatus: 'available', rowCount: 10_000_000 }),
+    )
+    const server = optionFor(options, 'server-sklearn')
+    expect(server?.enabled).toBe(true)
+    expect(server?.maxRows).toBeUndefined()
+  })
+
+  it('브라우저 실행 방법 목록이 RUNTIMES와 어긋나지 않는다', () => {
+    // 어긋나면 등록부가 칸을 가진 실행 방법과 판정이 상한을 보는 실행 방법이 갈리고,
+    // 새 브라우저 엔진의 상한이 조용히 무시된다. 타입은 이걸 못 잡는다.
+    expect([...BROWSER_RUNTIME_IDS]).toEqual(
+      RUNTIMES.filter((runtime) => runtime.location === 'browser').map((runtime) => runtime.id),
+    )
   })
 })
 

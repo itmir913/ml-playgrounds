@@ -157,6 +157,23 @@ function chooseRuntime(
  * 실행 방법의 사유다. 이미지 데이터에 회귀를 고른 학생에게 "엔진이 준비되지 않았습니다"
  * 라고 답하면 안 된다 (ml/algorithms.ts와 같은 순서다).
  */
+/**
+ * 실패 run에 적을 사유와, 그 사유가 쓰는 행 상한.
+ *
+ * **둘이 함께 나와야 한다.** 상한은 (알고리즘 × 구현)마다 다르므로 사유를 고른 뒤에
+ * 등록부를 다시 뒤져 숫자를 고르면 다른 칸의 값이 붙는다.
+ */
+function unavailable(
+  option: AlgorithmOption,
+  preferred: string,
+): { reason: UnavailableReason; maxRows?: number } {
+  const reason = unavailableReason(option, preferred)
+  const from =
+    option.runtimes.find((candidate) => candidate.reason === reason) ??
+    (option.reason === reason ? option : undefined)
+  return { reason, ...(from?.maxRows === undefined ? {} : { maxRows: from.maxRows }) }
+}
+
 function unavailableReason(option: AlgorithmOption, preferred: string): UnavailableReason {
   // option.reason은 "이 데이터·과제에 안 맞다"와 "어디서도 못 돈다"를 한 값에 담는다.
   // 앞의 둘만 먼저 가로챈다 - 뒤엣것까지 가로채면 학생이 콕 집은 실행 방법의 사유를
@@ -519,14 +536,14 @@ export function runExperiment(
         failure: { code: 'ALGORITHM_UNSUPPORTED', params: { algorithm } },
       })
     } else if (!runtime || !engine) {
-      const reason = unavailableReason(option, wanted)
+      const { reason, maxRows } = unavailable(option, wanted)
       runs.push({
         ...base,
         computedBy: 'browser',
         status: 'failed',
-        // 상한은 알고리즘마다 다르다. 전역을 그대로 쓰면 SVM이 3000행에서 꺼지는데
-        // 실패한 run에는 5000이라고 적힌다.
-        failure: { code: reason, params: reasonParams(reason, option.algorithm.maxRows) },
+        // 상한은 (알고리즘 × 구현)마다 다르다. 전역을 그대로 쓰면 SVM이 3000행에서
+        // 꺼지는데 실패한 run에는 5000이라고 적힌다.
+        failure: { code: reason, params: reasonParams(reason, maxRows) },
       })
     } else {
       const trained = trainOne(base, runtime, engine, trainContext)

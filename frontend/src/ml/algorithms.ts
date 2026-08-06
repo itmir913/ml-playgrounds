@@ -22,7 +22,15 @@
  * 이미지 데이터에 회귀를 고른 학생에게 "서버가 없습니다"라고 답하면 안 된다.
  */
 
-import { SVM_ROW_LIMIT } from '../limits'
+import {
+  MLJS_DECISION_TREE_ROW_LIMIT,
+  MLJS_KNN_ROW_LIMIT,
+  MLJS_LINEAR_REGRESSION_ROW_LIMIT,
+  MLJS_LOGISTIC_REGRESSION_ROW_LIMIT,
+  MLJS_NAIVE_BAYES_ROW_LIMIT,
+  MLJS_RANDOM_FOREST_ROW_LIMIT,
+  MLJS_SVM_ROW_LIMIT,
+} from '../limits'
 import { TASK_TYPES, type DataType, type TaskType } from '../project/schema'
 import { supports, type Axis } from './axes'
 import {
@@ -30,6 +38,7 @@ import {
   type AlgorithmSpec,
   type RuntimeContext,
   type RuntimeOption,
+  UNMEASURED,
   type UnavailableReason,
 } from './backend'
 
@@ -61,45 +70,57 @@ export const ALGORITHMS: readonly Algorithm[] = [
     dataTypes: { tabular: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
+    // 20000행 22초. 분할 탐색이 노드마다 O(특성 × 행²)이다.
+    maxRows: { mljs: MLJS_DECISION_TREE_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
   },
   {
     id: 'knn',
     dataTypes: { tabular: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
+    // **학습이 아니라 예측이 비싸고, 그 비용은 예측마다 되풀이된다.**
+    maxRows: { mljs: MLJS_KNN_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
   },
   {
     id: 'logistic_regression',
     dataTypes: { tabular: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
+    // 선형 회귀와 이름만 닮았다 - 경사하강이고 5000행에서 이미 4.3초다.
+    maxRows: { mljs: MLJS_LOGISTIC_REGRESSION_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
   },
   {
     id: 'random_forest',
     dataTypes: { tabular: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
+    // 5000행 100그루가 약 7분이다. **값이 안 바뀌어도 적는다** (backend.ts의 maxRows).
+    maxRows: { mljs: MLJS_RANDOM_FOREST_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
   },
   {
     id: 'naive_bayes',
     dataTypes: { tabular: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
+    // 10만 행 0.1초. 데이터를 한 번 훑는다.
+    maxRows: { mljs: MLJS_NAIVE_BAYES_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
   },
   {
     id: 'svm',
     dataTypes: { tabular: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
-    // **이 알고리즘만 상한이 따로다** (limits.ts의 SVM_ROW_LIMIT). SMO는 행 수의 제곱으로
-    // 붙고 학습 시작에 N×N 커널 행렬을 만든다.
-    maxRows: SVM_ROW_LIMIT,
+    // SMO는 행 수의 제곱으로 붙고 학습 시작에 N×N 커널 행렬을 만든다. **여기가 알고리즘별
+    // 상한의 시작이었고, 이제는 일곱 줄 전부가 자기 값을 든다** (open-decisions.md #13).
+    maxRows: { mljs: MLJS_SVM_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
   },
   {
     id: 'linear_regression',
     dataTypes: { tabular: true },
     taskTypes: { classification: false, regression: true, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
+    // 10만 행 0.3초. 브라우저 상한을 둘 이유가 없어 데이터셋 천장을 그대로 쓴다.
+    maxRows: { mljs: MLJS_LINEAR_REGRESSION_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
   },
 ]
 
@@ -108,6 +129,13 @@ export interface AlgorithmOption {
   readonly enabled: boolean
   /** enabled가 false일 때만 채워진다. 화면은 t()에 넣어 한 줄로 보여준다. */
   readonly reason?: UnavailableReason
+  /**
+   * 사유 문장이 쓸 행 상한. **사유를 가져온 그 칸의 값이다** (RuntimeOption.maxRows).
+   *
+   * 여기서 다시 고르지 않는다 - 어느 칸의 사유를 채택했는지는 아래 판정이 이미 알고
+   * 있고, 부르는 쪽이 등록부를 다시 뒤지면 화면과 판정이 다른 숫자를 말한다.
+   */
+  readonly maxRows?: number
   /**
    * 실행 방법별 판정. **enabled가 false여도 채운다** - 학생이 "왜 못 쓰지"를 열어봤을 때
    * 실행 방법마다 이유가 달라야 무엇을 하면 되는지 알 수 있다.
@@ -178,7 +206,14 @@ export function algorithmOptions(
     // 지원하지도 않는 것의 "여기서 실행할 수 없습니다"를 보여주면 아무 도움이 안 된다.
     const relevant = runtimes.find((option) => option.reason !== 'ALGORITHM_NOT_AVAILABLE_HERE')
     const reason = relevant?.reason ?? 'ALGORITHM_NOT_AVAILABLE_HERE'
-    return { algorithm, enabled: false, reason, runtimes }
+    // 상한도 그 칸에서 함께 온다. 사유와 숫자가 다른 칸에서 오면 문장이 어긋난다.
+    return {
+      algorithm,
+      enabled: false,
+      reason,
+      ...(relevant?.maxRows === undefined ? {} : { maxRows: relevant.maxRows }),
+      runtimes,
+    }
   })
 }
 

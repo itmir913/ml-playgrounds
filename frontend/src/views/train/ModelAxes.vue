@@ -81,23 +81,19 @@ const axes = computed(() =>
 )
 
 /**
- * 이 알고리즘에 걸린 행 상한. **없으면 전역이고 `reasonParams`가 그걸 안다.**
+ * 사유 문장은 `client.*`에 이미 있다. 화면이 새로 짓지 않는다.
  *
- * 사유 문장의 숫자가 여기서 나온다 - 상한이 알고리즘마다 다르므로(SVM) 전역을 그대로
- * 쓰면 화면이 5000이라고 말하고 3000에서 꺼진다.
+ * **숫자를 화면이 고르지 않는다.** 상한은 (알고리즘 × 구현)마다 다르므로 알고리즘 id로
+ * 되짚어 고를 수 있는 값이 아니고, 판정이 이미 그 칸의 값을 함께 들려 보냈다
+ * (`AxisChoice.maxRows`). 여기서 다시 고르면 화면이 5000이라고 말하고 3000에서 꺼진다.
  */
-function limitOf(algorithmId: string): number | undefined {
-  return props.options.find((option) => option.algorithm.id === algorithmId)?.algorithm.maxRows
-}
-
-/** 사유 문장은 `client.*`에 이미 있다. 화면이 새로 짓지 않는다. */
-function withReason(choice: AxisChoice, label: string, algorithmId: string): Choice {
+function withReason(choice: AxisChoice, label: string): Choice {
   return {
     id: choice.id,
     label,
     enabled: choice.enabled,
     ...(choice.reason
-      ? { reason: t(`client.${choice.reason}`, reasonParams(choice.reason, limitOf(algorithmId))) }
+      ? { reason: t(`client.${choice.reason}`, reasonParams(choice.reason, choice.maxRows)) }
       : {}),
   }
 }
@@ -114,27 +110,24 @@ const taskChoices = computed<Choice[]>(() =>
   })),
 )
 
+// 줄마다 자기 사유와 자기 숫자를 들고 있다 (modelAxes).
 const modelChoices = computed<Choice[]>(() =>
-  // 모델 축에서는 줄마다 알고리즘이 다르다. 그 줄의 상한을 그 줄이 쓴다.
-  axes.value.algorithms.map((choice) =>
-    withReason(choice, t(`algorithms.${choice.id}`), choice.id),
-  ),
+  axes.value.algorithms.map((choice) => withReason(choice, t(`algorithms.${choice.id}`))),
 )
 
 const runtimeChoices = computed<Choice[]>(() =>
-  // 실행 방법 축은 지금 고른 모델 하나에 대한 것이다.
-  axes.value.runtimes.map((choice) =>
-    withReason(choice, t(`runtimes.${choice.id}`), algorithm.value),
-  ),
+  axes.value.runtimes.map((choice) => withReason(choice, t(`runtimes.${choice.id}`))),
 )
 
 /** 왜 못 담는지. 이유 없이 꺼진 버튼은 학생에게 고장으로 보인다. */
 const blocked = computed(() => {
   const reason = axes.value.blocked
   if (reason === null) return null
+  // 사유가 모델 축의 칸에서 온다(modelAxes의 불변식). 숫자도 같은 칸에서 온다.
+  const choice = axes.value.algorithms.find((one) => one.id === algorithm.value)
   return reason === 'alreadyAdded'
     ? t('train.alreadyAdded')
-    : t(`client.${reason}`, reasonParams(reason, limitOf(algorithm.value)))
+    : t(`client.${reason}`, reasonParams(reason, choice?.maxRows))
 })
 
 /** 문자열로 온 것을 유형으로 되돌린다. 목록에 있는 것만 통과하므로 단언이 필요 없다. */

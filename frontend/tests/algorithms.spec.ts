@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { CLIENT_ERROR_CODES } from '../src/errors'
-import { BROWSER_ROW_LIMIT } from '../src/limits'
+import { MAX_DATASET_ROWS, MLJS_DECISION_TREE_ROW_LIMIT } from '../src/limits'
 import { NOT_FOR_TABULAR_ALGORITHM, SKLEARN_ONLY_ALGORITHM } from './fixtures/algorithms'
 import {
   ALGORITHMS,
@@ -21,7 +21,13 @@ import {
   type Algorithm,
   type Selection,
 } from '../src/ml/algorithms'
-import { RUNTIME_IDS, type EngineState, type RuntimeContext } from '../src/ml/backend'
+import {
+  BROWSER_RUNTIME_IDS,
+  RUNTIME_IDS,
+  UNMEASURED,
+  type EngineState,
+  type RuntimeContext,
+} from '../src/ml/backend'
 import { DATA_TYPES, TASK_TYPES } from '../src/project/schema'
 
 const tabularClassification: Selection = { dataType: 'tabular', taskType: 'classification' }
@@ -60,6 +66,29 @@ describe('등록부', () => {
         RUNTIME_IDS.some((runtimeId) => algorithm.runtimes[runtimeId]),
         algorithm.id,
       ).toBe(true)
+    }
+  })
+
+  it('순수 JS 칸은 전부 재 본 값이다', () => {
+    // **전역 기본값에 얹혀 있는 줄이 없어야 한다.** 일곱 줄 전부 실측이 있고
+    // (open-decisions.md #13), 비워 두면 다음에 전역을 올리는 사람이 그 알고리즘까지
+    // 대신 허락하게 된다. 값이 안 바뀌는 랜덤포레스트도 그래서 적혀 있다.
+    //
+    // **다른 칸을 여기서 요구하지 않는다** - `pyodide-sklearn`은 아직 아무것도 안 쟀고,
+    // `UNMEASURED`가 그 사실을 적은 것이다. 지어낸 숫자보다 낫다.
+    for (const algorithm of ALGORITHMS) {
+      expect(algorithm.maxRows.mljs, algorithm.id).toBeTypeOf('number')
+    }
+  })
+
+  it('행 상한이 데이터셋 상한을 넘지 않는다', () => {
+    // 넘는 값은 거짓말이다 - 그만큼의 행은 애초에 앱에 들어오지 못한다.
+    for (const algorithm of ALGORITHMS) {
+      for (const runtimeId of BROWSER_RUNTIME_IDS) {
+        const limit = algorithm.maxRows[runtimeId]
+        if (limit === UNMEASURED) continue
+        expect(limit, `${algorithm.id}/${runtimeId}`).toBeLessThanOrEqual(MAX_DATASET_ROWS)
+      }
     }
   })
 
@@ -127,9 +156,11 @@ describe('못 쓰는 이유가 쓸모 있어야 한다', () => {
   })
 
   it('데이터가 너무 크면 브라우저 전용 상황에서 잠긴다', () => {
+    // **알고리즘의 상한을 쓴다.** 전역 기본값으로 재면 상한이 그보다 높은 알고리즘에서
+    // 이 검사가 아무것도 확인하지 않게 된다.
     const options = algorithmOptions(
       tabularClassification,
-      context({ rowCount: BROWSER_ROW_LIMIT + 1 }),
+      context({ rowCount: MLJS_DECISION_TREE_ROW_LIMIT + 1 }),
     )
     expect(optionFor(options, 'decision_tree')?.reason).toBe('DATASET_TOO_LARGE_FOR_BROWSER')
   })
@@ -137,7 +168,7 @@ describe('못 쓰는 이유가 쓸모 있어야 한다', () => {
   it('서버가 있으면 큰 데이터도 열린다', () => {
     const options = algorithmOptions(
       tabularClassification,
-      context({ serverStatus: 'available', rowCount: BROWSER_ROW_LIMIT + 1 }),
+      context({ serverStatus: 'available', rowCount: MLJS_DECISION_TREE_ROW_LIMIT + 1 }),
     )
     expect(optionFor(options, 'decision_tree')?.enabled).toBe(true)
   })
@@ -188,6 +219,8 @@ describe('분기 없이 늘어난다', () => {
         dataTypes: { tabular: true },
         taskTypes: { classification: false, regression: false, clustering: true },
         runtimes: { mljs: true, 'pyodide-sklearn': false, 'server-sklearn': false },
+        // 아직 아무도 안 쟀다. 군집을 실제로 넣는 날 이 칸이 숫자를 요구한다.
+        maxRows: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
       },
     ]
     const options = algorithmOptions(
