@@ -261,43 +261,21 @@ V1은 단일 백엔드 인스턴스를 전제한다. 이 전제를 깨야 할 �
 
 ## 4. 디렉터리 구조
 
-> 골격 생성 후에는 **실제 디렉터리가 출처**다. 이 트리는 초기 골격을 만들기 위한 것이며,
-> 구조가 바뀌어도 이 문서를 따라 고칠 의무는 없다.
+**실제 디렉터리가 출처다.** 여기 트리를 그려 두었었는데 지웠다 (2026-08-06) — `CLAUDE.md`
+§6의 "이 값이 문서에도 적혀 있으면 문서에서 지워라"에 정면으로 걸리고, 실제로 이미 몇
+군데가 어긋나 있었다. 구조가 궁금하면 디렉터리를 봐라.
 
-```
-ml-playgrounds/
-├── CLAUDE.md
-├── README.md
-├── LICENSE
-├── docs/
-├── scripts/                      CI 검사 스크립트
-├── backend/
-│   ├── pyproject.toml
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── config.py             환경 변수 → Pydantic Settings
-│   │   ├── errors.py             에러 코드 StrEnum (단일 출처)
-│   │   ├── api/                  routes_train / routes_predict / health / ws
-│   │   ├── core/                 quota / diskguard / lifecycle
-│   │   ├── jobs/                 base(Protocol) / inprocess / celery_queue
-│   │   ├── ml/                   registry / preprocess / train / evaluate
-│   │   └── schemas/
-│   └── tests/
-└── frontend/
-    ├── package.json
-    ├── src/
-    │   ├── main.ts
-    │   ├── i18n.ts
-    │   ├── locales/              en.json / ko.json
-    │   ├── data/                 table / csv / xlsx / encoding / serialize / grid
-    │   ├── project/              format(zip) / schema / migrate / storage(IndexedDB)
-    │   ├── ml/                   backend(interface) / browser(기본) / server(자가호스팅)
-    │   ├── stores/
-    │   ├── composables/
-    │   ├── components/
-    │   └── views/
-    └── tests/
-```
+**대신 여기 남기는 것은 경계다.** 어느 디렉터리에 무엇을 두는지가 아니라, **왜 그 경계가
+있는지**는 코드를 봐서 알 수 없다.
+
+| 경계 | 규칙 |
+|---|---|
+| `backend/app/errors.py` | 에러 코드의 **유일한 출처**. 로케일·문서가 여기를 따른다 |
+| `backend/app/jobs/` | `JobQueue` 뒤에 구현이 숨는다. 부르는 쪽은 어느 큐인지 모른다 |
+| `frontend/src/ml/` | **Vue를 모른다.** 워커와 서버 학습 양쪽에 그대로 쓰이기 때문이다 |
+| `frontend/src/project/` | `.mlpx`와 IndexedDB가 **같은 문**(마이그레이션→검증)을 지난다 (§8.10.2) |
+| `frontend/src/composables/` | 프레임워크를 아는 이음매. `toRaw` 같은 것이 여기 산다 |
+| `scripts/` | CI가 부르는 검사. 사람이 지키길 기대하지 않는 것들이다 |
 
 ---
 
@@ -597,7 +575,7 @@ Pretendard Variable **동적 서브셋**을 저장소에 넣고 우리가 서빙
   범위만** 받는다. 전체를 한 파일로 받으면 첫 화면에서 1 MB가 넘는다.
 - `font-display: swap`. 글꼴을 기다리느라 글자가 안 보이는 시간을 만들지 않는다.
 - **글꼴 스택에 일본어 대체를 처음부터 넣는다.** ja를 추가할 때 스택을 고치는 일이
-  없어야 한다 (CLAUDE.md §3).
+  없어야 한다 (docs/i18n.md).
 
 ### 8.6 셸은 웹페이지가 아니라 작업실이다 (2026-08-05)
 
@@ -905,7 +883,7 @@ V3에서 알고리즘을 넣는 사람이 문구도 함께 넣는다. 그때는 
 
 **한 축의 카드는 크기가 같다.** 격자에 넣고 행 높이를 맞춘다. 글자 수대로 넓이가
 제각각이면 목록이 아니라 부스러기로 보이고, **언어를 바꾸면 그 들쭉날쭉이 또 달라진다.**
-다만 고정 너비는 주지 않는다(CLAUDE.md §3 규칙 7) — 칸이 화면 폭을 나눠 갖고 글자는 그
+다만 고정 너비는 주지 않는다(docs/i18n.md 규칙 7) — 칸이 화면 폭을 나눠 갖고 글자는 그
 안에서 접힌다. 좁은 화면에서는 칸 수가 줄 뿐이다.
 
 **축과 축 사이는 점선으로 가른다.** 셋이 세로로 붙어 있으면 어디까지가 한 축인지 안
@@ -980,7 +958,7 @@ V3에서 알고리즘을 넣는 사람이 문구도 함께 넣는다. 그때는 
 
 **등록부에 없는 경로가 와도 버리지 않는다.** 남의 파일이나 나중 버전에서 올 수 있다.
 경로를 괄호에 담아 그대로 보여준다 — 우리가 모르는 것을 아는 척하지 않는다
-(CLAUDE.md §3 규칙 5는 값이 무엇일지 모를 때 괄호로 빼라고 이미 말한다).
+(docs/i18n.md 규칙 5는 값이 무엇일지 모를 때 괄호로 빼라고 이미 말한다).
 
 **실험은 지울 수 없다** (2026-08-06). `project/attach.ts`가 덧붙이기만 하는 것이 그
 결정의 구현이다. 이력이 주인공인 화면에서 지우기를 먼저 주면 학생은 **실패한 실험부터
