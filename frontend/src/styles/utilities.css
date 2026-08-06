@@ -70,4 +70,14 @@
     border-top: 1px solid var(--color-line);
     padding: 0.625rem 1rem;
   }
+
+  /*
+   * 첫 열은 줄 이름표로 <th>를 쓴다(모델 이름, 혼동 행렬의 실제 값 등). 위 `& td`
+   * 규칙이 안 걸려서 그 열만 구분선이 없었고, 줄 높이가 흔들리면(값이 여러 줄로
+   * 접히는 열 옆에서 특히) 구분선이 끊겨 보였다. 맨 위 줄(머리글)은 그대로 두고
+   * 본문 줄의 <th>에만 준다.
+   */
+  & tbody th {
+    border-top: 1px solid var(--color-line);
+  }
 }
