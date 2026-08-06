@@ -360,6 +360,7 @@ function leave(): void {
             {{ settings.target ?? t('meta.none') }}
           </dd>
         </div>
+        <span class="text-line-strong" aria-hidden="true"> · </span>
         <div class="flex gap-1.5">
           <dt>{{ t('meta.features') }}</dt>
           <dd class="font-bold tabular-nums text-ink">{{ t('meta.countUnit', usableFeatures) }}</dd>

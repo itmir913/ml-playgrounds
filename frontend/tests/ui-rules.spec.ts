@@ -238,6 +238,31 @@ function unguardedConfirmRadios(source: string): string[] {
   return violations
 }
 
+/**
+ * 이름-값 그룹이 구분자 없이 바로 이어 붙은 경우 (architecture.md 8.16 "나열에는
+ * 구분자를 넣는다").
+ *
+ * **글자만 이어 붙으면 어디서 한 값이 끝나고 다음 값이 시작하는지 안 보인다.** `gap`은
+ * 여백일 뿐 눈에 보이는 경계가 아니고, 볼드는 값과 다음 그룹의 이름을 똑같이 굵게 써서
+ * 오히려 구분이 더 안 된다. 볼드나 버튼 테두리처럼 **굵기·상자 자체가 이미 구분자
+ * 역할을 하는 줄**에는 해당 없다 - 여기서 잡는 것은 plaintext 이름-값이 그대로
+ * 나열되는 자리뿐이다.
+ *
+ * **`class="flex gap-1.5"`인 그룹만 본다.** `ProjectSummary.vue`처럼 `justify-between`로
+ * 한 줄씩 세로로 쌓는 그룹은 이미 줄 자체가 경계라 구분자가 필요 없다 - 클래스까지
+ * 정확히 같아야 "StepHeader 맥락 줄처럼 가로로 촘촘히 늘어놓는 자리"로 본다.
+ *
+ * `AppStatusBar.vue`가 이미 쓰는 모양
+ * (`<span class="text-line-strong" aria-hidden="true"> · </span>`)을 그대로 따르는지
+ * 본다 - `</div>` 바로 뒤에 같은 모양의 새 그룹이 구분자 없이 오면 잡는다.
+ */
+function undividedMetaGroups(source: string): string[] {
+  const template = source.slice(source.indexOf('<template>'))
+  return [...template.matchAll(/<\/div>\s*(<div class="flex gap-1\.5">\s*<dt\b[^>]*>)/gs)].map(
+    (match) => match[1] ?? '',
+  )
+}
+
 function vueFiles(directory: string): string[] {
   return readdirSync(directory).flatMap((entry) => {
     const path = join(directory, entry)
@@ -462,6 +487,55 @@ describe('확인 모달이 걸린 라디오는 그룹째 되돌린다', () => {
   it('지금 소스에 안 막힌 확인 라디오가 없다', () => {
     const found = vueFiles(SRC).flatMap((path) =>
       unguardedConfirmRadios(readFileSync(path, 'utf-8')).map(
+        (tag) => `${path.slice(SRC.length + 1)}  ${tag.trim()}`,
+      ),
+    )
+    expect(found).toEqual([])
+  })
+})
+
+describe('나열되는 이름-값에는 구분자를 넣는다', () => {
+  const NEWLINE = String.fromCharCode(10)
+
+  it('구분자 없이 이어 붙은 그룹을 잡는다', () => {
+    const source = [
+      '<template>',
+      '<dl>',
+      '  <div class="flex gap-1.5"><dt>a</dt><dd>1</dd></div>',
+      '  <div class="flex gap-1.5"><dt>b</dt><dd>2</dd></div>',
+      '</dl>',
+      '</template>',
+    ].join(NEWLINE)
+    expect(undividedMetaGroups(source)).toEqual(['<div class="flex gap-1.5"><dt>'])
+  })
+
+  it('구분자가 있으면 안 잡는다', () => {
+    const source = [
+      '<template>',
+      '<dl>',
+      '  <div class="flex gap-1.5"><dt>a</dt><dd>1</dd></div>',
+      '  <span class="text-line-strong" aria-hidden="true"> · </span>',
+      '  <div class="flex gap-1.5"><dt>b</dt><dd>2</dd></div>',
+      '</dl>',
+      '</template>',
+    ].join(NEWLINE)
+    expect(undividedMetaGroups(source)).toEqual([])
+  })
+
+  it('첫 그룹은 안 잡는다 - 앞에 아무 값도 없다', () => {
+    const source = [
+      '<template>',
+      '<dl>',
+      '  <div class="flex gap-1.5"><dt>a</dt><dd>1</dd></div>',
+      '</dl>',
+      '</template>',
+    ].join(NEWLINE)
+    expect(undividedMetaGroups(source)).toEqual([])
+  })
+
+  it('지금 소스에 구분자 없이 이어 붙은 그룹이 없다', () => {
+    const found = vueFiles(SRC).flatMap((path) =>
+      undividedMetaGroups(readFileSync(path, 'utf-8')).map(
         (tag) => `${path.slice(SRC.length + 1)}  ${tag.trim()}`,
       ),
     )

@@ -272,6 +272,7 @@ function reseed(): void {
           <dt>{{ t('data.rows') }}</dt>
           <dd class="font-bold tabular-nums text-ink">{{ dataset.rows.length }}</dd>
         </div>
+        <span class="text-line-strong" aria-hidden="true"> · </span>
         <div class="flex gap-1.5">
           <dt>{{ t('data.columns') }}</dt>
           <dd class="font-bold tabular-nums text-ink">{{ dataset.columns.length }}</dd>

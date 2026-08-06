@@ -366,6 +366,7 @@ async function downloadAction(): Promise<void> {
       <span class="max-w-56 truncate font-bold text-ink">
         {{ project.file.document.settings.predictDataset.originalFileName }}
       </span>
+      <span class="text-line-strong" aria-hidden="true"> · </span>
       <span class="flex items-center gap-1.5 text-ink-soft">
         <span>{{ t('data.rows') }}</span>
         <span class="font-bold tabular-nums text-ink">{{ predictDataset?.rows.length ?? 0 }}</span>

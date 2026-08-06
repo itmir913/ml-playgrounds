@@ -193,14 +193,17 @@ function kindOf(column: ColumnSummary): string {
               {{ saved.reference.originalFileName }}
             </dd>
           </div>
+          <span class="text-line-strong" aria-hidden="true"> · </span>
           <div class="flex gap-1.5">
             <dt>{{ t('data.rows') }}</dt>
             <dd class="font-bold tabular-nums text-ink">{{ saved.dataset.rows.length }}</dd>
           </div>
+          <span class="text-line-strong" aria-hidden="true"> · </span>
           <div class="flex gap-1.5">
             <dt>{{ t('data.columns') }}</dt>
             <dd class="font-bold tabular-nums text-ink">{{ saved.columns.length }}</dd>
           </div>
+          <span class="text-line-strong" aria-hidden="true"> · </span>
           <div class="flex gap-1.5">
             <dt>{{ t('data.encoding') }}</dt>
             <dd class="font-bold text-ink">
