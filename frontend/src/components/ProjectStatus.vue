@@ -22,7 +22,13 @@ const project = useProjectStore()
 </script>
 
 <template>
-  <AppPopover v-if="project.file !== null" align="right">
+  <!--
+    **넓게 연다.** 이름-값이 한 줄에 하나씩 열두 줄 쌓이는 표라, 기본 폭에서는 파일
+    이름과 타깃 열 이름이 자주 잘렸다(`ProjectSummary`의 `truncate`) - 이 팝오버가
+    있는 이유가 **잘린 이름을 읽는 것**인데 여기서 또 잘리면 앞뒤가 안 맞는다.
+    좁은 화면에서는 `popover-panel`의 max-width가 그대로 걸린다.
+  -->
+  <AppPopover v-if="project.file !== null" align="right" wide>
     <template #trigger>
       <!--
         아이콘이 붙는 이유는 장식이 아니다. 좁은 화면에서 프로젝트 이름이 잘리는데

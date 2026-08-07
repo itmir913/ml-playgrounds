@@ -74,12 +74,13 @@ function go(step: StepId): void {
     </StepHeader>
 
     <!--
-      2 대 1이다. 왼쪽이 본체이고 오른쪽은 곁들이는 맥락이라, 반씩 나누면 오른쪽이
-      과하게 커지고 왼쪽 줄이 일찍 접힌다. 임의 값 대신 기본 눈금 셋을 쓴다.
+      3 대 2다. 왼쪽이 본체이고 오른쪽은 곁들이는 맥락이라 반씩 나누지는 않지만,
+      2 대 1에서는 오른쪽 요약의 이름-값이 자주 잘렸다 - 거기 있는 파일 이름과 타깃
+      열 이름은 **잘리면 쓸모가 없는 값**이다. 임의 값 대신 기본 눈금 다섯을 쓴다.
     -->
-    <div class="grid gap-5 md:grid-cols-3">
+    <div class="grid gap-5 md:grid-cols-5">
       <!-- 왼쪽: 지금 하는 일 -->
-      <div class="flex min-w-0 flex-col gap-4 md:col-span-2">
+      <div class="flex min-w-0 flex-col gap-4 md:col-span-3">
         <ul class="flex flex-col rounded-panel border border-line bg-surface">
           <!--
             **줄마다 칸이 같은 자리에서 시작한다.** flex로 두면 단계 이름의 글자 수만큼
@@ -167,7 +168,7 @@ function go(step: StepId): void {
       </div>
 
       <!-- 오른쪽: 이게 무슨 프로젝트인지 -->
-      <aside class="min-w-0 rounded-panel border border-line bg-surface p-4">
+      <aside class="min-w-0 rounded-panel border border-line bg-surface p-4 md:col-span-2">
         <h2 class="mb-3 font-bold">{{ t('meta.title') }}</h2>
         <ProjectSummary />
       </aside>

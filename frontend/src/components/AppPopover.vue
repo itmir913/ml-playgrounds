@@ -39,8 +39,16 @@ const props = withDefaults(
      * 화면 맨 아래에 있는 트리거(상태 표시줄)는 아래로 열면 패널이 화면 밖으로 나간다.
      */
     side?: 'top' | 'bottom'
+    /**
+     * 넓은 패널로 연다.
+     *
+     * **폭을 px로 받지 않는다.** 자리마다 다른 숫자를 넘기기 시작하면 "화면 밖으로 안
+     * 나간다"는 규칙(`popover-panel`의 max-width)을 자리마다 다시 지켜야 한다. 여기서
+     * 고르는 것은 숫자가 아니라 **둘 중 하나**이고, 값은 `styles/utilities.css`가 갖는다.
+     */
+    wide?: boolean
   }>(),
-  { align: 'left', side: 'bottom' },
+  { align: 'left', side: 'bottom', wide: false },
 )
 
 const open = ref(false)
@@ -123,6 +131,7 @@ defineExpose({ close })
       :class="[
         props.align === 'right' ? 'right-0' : 'left-0',
         props.side === 'top' ? 'bottom-full mb-2' : 'top-full mt-2',
+        props.wide ? 'popover-panel-wide' : '',
       ]"
     >
       <slot :close="close" />
