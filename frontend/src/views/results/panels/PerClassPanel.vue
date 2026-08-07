@@ -10,6 +10,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppTable from '@/components/AppTable.vue'
+import TermPopover from '@/components/TermPopover.vue'
 import { useFormat } from '@/composables/useFormat'
 import { isWeakestPerClass, weakestPerClass } from '@/ml/results'
 import type { Run } from '@/project/schema'
@@ -30,10 +31,13 @@ const weakest = computed(() => weakestPerClass(props.run.perClass ?? []))
       <thead>
         <tr>
           <th>{{ t('results.label') }}</th>
-          <th>{{ t('metrics.precision') }}</th>
-          <th>{{ t('metrics.recall') }}</th>
-          <th>{{ t('metrics.f1') }}</th>
-          <th>{{ t('results.support') }}</th>
+          <!-- 키를 자리마다 적어 둔다 - 조립하면 CI의 정적 t() 검사가 못 잡는다. -->
+          <th>
+            <TermPopover :title="t('metrics.precision')" :body="t('metricHelp.precision')" />
+          </th>
+          <th><TermPopover :title="t('metrics.recall')" :body="t('metricHelp.recall')" /></th>
+          <th><TermPopover :title="t('metrics.f1')" :body="t('metricHelp.f1')" /></th>
+          <th><TermPopover :title="t('results.support')" :body="t('metricHelp.support')" /></th>
         </tr>
       </thead>
       <tbody>

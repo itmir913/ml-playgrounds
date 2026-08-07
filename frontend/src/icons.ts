@@ -18,6 +18,7 @@ import {
   Download,
   FileText,
   FlaskConical,
+  CircleQuestionMark,
   FolderOpen,
   Info,
   LayoutDashboard,
@@ -58,6 +59,8 @@ export const ACTION_ICONS = {
   savedProjects: Library,
   exportFile: Download,
   showSummary: Info,
+  /** 용어 설명을 여는 물음표. 눌러야 나온다는 것을 이 그림이 말한다 (§8.13). */
+  explainTerm: CircleQuestionMark,
   // 스위치는 **바뀔 쪽**을 그린다. 지금 어두우면 해를 보여 준다 - 누르면 밝아진다는 뜻이다.
   toLight: Sun,
   toDark: Moon,

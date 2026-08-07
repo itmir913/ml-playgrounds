@@ -13,6 +13,7 @@ import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
 import AppTable from '@/components/AppTable.vue'
+import TermPopover from '@/components/TermPopover.vue'
 import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { describeChanges } from '@/ml/changes'
@@ -149,8 +150,15 @@ function failureDetailOf(run: Run): string | null {
           <tr>
             <th>{{ t('results.model') }}</th>
             <th>{{ t('results.where') }}</th>
+            <!--
+              **머리글을 눌러 설명을 연다** (§8.13). 키는 등록부가 준 이름으로 만든다 -
+              지표가 늘면 로케일에 두 줄(이름·설명)을 더하는 것으로 끝난다.
+            -->
             <th v-for="display in displays" :key="display.name">
-              {{ t(`metrics.${display.label ?? display.name}`) }}
+              <TermPopover
+                :title="t(`metrics.${display.label ?? display.name}`)"
+                :body="t(`metricHelp.${display.label ?? display.name}`)"
+              />
             </th>
           </tr>
         </thead>

@@ -449,6 +449,16 @@
     "rmse": "RMSE",
     "mae": "MAE"
   },
+  "metricHelp": {
+    "accuracy": "The share of all rows the model got right. It can look high just by always guessing the most common value, so read it together with the F1 score.",
+    "f1": "A score that balances precision and recall. It averages the F1 score of every value, so the table below shows which value pulled it down.",
+    "precision": "Of the rows the model answered with this value, the share that were right. A low number means the model reaches for this value too often.",
+    "recall": "Of the rows that really are this value, the share the model found. A low number means the model keeps missing this value.",
+    "support": "How many rows of the evaluation data really are this value. It counts the data used for scoring, not the data used for training. When it is small, the three scores beside it swing on a single row.",
+    "r2": "How much of the variation in the values the model explains. Closer to 1 is better, and it goes negative when the model does worse than always guessing the average.",
+    "rmse": "How far the predictions land from the real values on average. Large misses count for more, and the unit is the same as the value being predicted.",
+    "mae": "How far the predictions land from the real values on average. Every miss counts the same, so it stays steadier when a few values are extreme."
+  },
   "results": {
     "emptyReason": "Nothing has been trained yet.",
     "emptyNext": "Pick models in the training step and train them, and the results will show up here.",
@@ -474,7 +484,13 @@
     "actual": "Real",
     "perClass": "Score for each value",
     "label": "Value",
-    "support": "Real count",
+    "support": "Rows in the data (support)",
+    "cellTitle": "What this cell means",
+    "cellPredicted": "Model answered",
+    "cellActual": "Real value",
+    "cellCount": "Rows",
+    "cellCorrect": "These rows were predicted correctly.",
+    "cellWrong": "These rows were predicted incorrectly.",
     "failedTitle": "{count} model could not be trained | {count} models could not be trained",
     "failureDetail": "Technical details"
   },

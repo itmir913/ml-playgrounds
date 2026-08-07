@@ -8,6 +8,8 @@
 
 import { useI18n } from 'vue-i18n'
 
+import AppBadge from '@/components/AppBadge.vue'
+import AppPopover from '@/components/AppPopover.vue'
 import AppTable from '@/components/AppTable.vue'
 import type { Run } from '@/project/schema'
 
@@ -41,12 +43,61 @@ const { t } = useI18n()
             훑을 때 잘 안 걸린다 — 배경색이 먼저 눈에 들어와야 어디를 봐야 하는지가
             읽기 전에 이미 보인다.
           -->
+          <!--
+            **칸을 누르면 그 칸이 무엇인지 말한다** (§8.13). 세로가 실제, 가로가 예측이라는
+            것을 머리에서 다시 조합해야 읽히는 표라, 학생이 가장 자주 막히는 자리다.
+
+            **문장으로 쓰지 않는다.** 값 종류는 학생의 데이터라 `{값}라고`/`{값}이라고`로
+            조사가 갈리고, i18n.md 규칙 5는 회피형까지 금지한다. 이름은 배지, 값은
+            plaintext로 세우면(§8.16) 조사가 생길 자리가 아예 없다.
+          -->
           <td
             v-for="(count, column) in row"
             :key="column"
             :class="index === column ? 'bg-positive-soft font-bold' : ''"
           >
-            {{ count }}
+            <AppPopover wide>
+              <template #trigger="{ open }">
+                <button
+                  type="button"
+                  :aria-expanded="open"
+                  class="w-full rounded-control text-left transition-colors hover:text-ink"
+                >
+                  {{ count }}
+                </button>
+              </template>
+
+              <h4 class="font-bold text-ink">{{ t('results.cellTitle') }}</h4>
+
+              <dl class="mt-1.5 flex flex-wrap gap-x-6 gap-y-1.5">
+                <div class="flex items-baseline gap-1.5">
+                  <dt>
+                    <AppBadge>{{ t('results.cellPredicted') }}</AppBadge>
+                  </dt>
+                  <dd class="font-bold text-ink">
+                    {{ props.run.confusionMatrix?.labels[column] }}
+                  </dd>
+                </div>
+                <div class="flex items-baseline gap-1.5">
+                  <dt>
+                    <AppBadge>{{ t('results.cellActual') }}</AppBadge>
+                  </dt>
+                  <dd class="font-bold text-ink">
+                    {{ props.run.confusionMatrix?.labels[index] }}
+                  </dd>
+                </div>
+                <div class="flex items-baseline gap-1.5">
+                  <dt>
+                    <AppBadge>{{ t('results.cellCount') }}</AppBadge>
+                  </dt>
+                  <dd class="font-bold tabular-nums text-ink">{{ count }}</dd>
+                </div>
+              </dl>
+
+              <p class="mt-1.5 text-ink-soft">
+                {{ index === column ? t('results.cellCorrect') : t('results.cellWrong') }}
+              </p>
+            </AppPopover>
           </td>
         </tr>
       </tbody>
