@@ -10,7 +10,7 @@
  * 지표도 다른 데이터 기준이라 비교 자체가 성립하지 않는다.
  */
 
-import { alignPredictDataset, alignTestDataset, columnNames, toDataset } from '@/data/columns'
+import { acceptPredictDataset, alignTestDataset, columnNames, toDataset } from '@/data/columns'
 import { parseCsvText } from '@/data/csv'
 import { toCanonicalCsv } from '@/data/serialize'
 import type { ImportedTable } from '@/data/table'
@@ -265,9 +265,11 @@ export interface ApplyPredictOptions {
   /** ISO 8601. manifest.updatedAt에 찍는다. */
   readonly now: string
   /**
-   * 요구하는 열. **특성 열의 합집합이다 - 정본 열 전체가 아니다**
+   * 있는지 **확인할** 열. **특성 열의 합집합이다 - 정본 열 전체가 아니다**
    * (open-decisions.md "일괄 예측은 `행 × 모델` 매트릭스다"). 화면이 지금 보이는
    * 모델들의 실험을 모아 만든다 (`ml/predict.ts`의 `mergeFields`).
+   *
+   * **저장할 열이 아니다.** 여기 없는 열도 파일에 그대로 담긴다 (아래).
    */
   readonly requiredColumns: readonly string[]
 }
@@ -278,11 +280,16 @@ export interface ApplyPredictOptions {
  * 담기지만(학생이 올린 데이터라서, mlpx-spec.md §0) 학습에도 채점에도 안 쓰인다.
  * `split.method`도 건드리지 않는다.
  *
- * `requiredColumns`(특성 열의 합집합)와 이름으로 대조한다(`alignPredictDataset`) - 타깃
- * 열은 요구하지 않는다. 정본에 없는 열은 조용히 버린다.
+ * `requiredColumns`(특성 열의 합집합)가 다 있는지 본다(`acceptPredictDataset`) - 타깃
+ * 열은 요구하지 않는다.
  *
- * **저장하는 바이트는 요구한 열 순서로 다시 세운 것이다** - `applyTestDataset`과 같은
- * 이유로, 여기서부터 나가는 predict.csv는 항상 머리글이 있다.
+ * **저장하는 것은 올린 열 전부다 - 요구한 열만이 아니다**
+ * (open-decisions.md "검사는 특성 열, 저장은 올린 열 전부"). 요구 목록은 학생이 특성을
+ * 바꿀 때마다 달라지므로, 여기서 나머지를 버리면 이미 붙인 파일이 그 순간 조용히
+ * 무효가 된다. 열 순서도 올린 그대로다.
+ *
+ * **머리글은 언제나 붙는다** - `applyTestDataset`과 같은 이유로, 여기서부터 나가는
+ * predict.csv는 첫 줄이 열 이름이다.
  */
 export function applyPredictDataset(
   project: ProjectFile,
@@ -291,14 +298,14 @@ export function applyPredictDataset(
 ): AppliedPredictDataset {
   const { document } = project
 
-  const aligned = alignPredictDataset(imported.grid, options.hasHeader, options.requiredColumns)
-  const bytes = toCanonicalCsv([aligned.columns, ...aligned.rows])
+  const accepted = acceptPredictDataset(imported.grid, options.hasHeader, options.requiredColumns)
+  const bytes = toCanonicalCsv([accepted.columns, ...accepted.rows])
 
   const predictDataset: DatasetRef = {
     path: PREDICT_DATASET_PATH,
     originalFileName: options.fileName,
-    // 저장하는 바이트는 언제나 머리글(요구한 열 이름)로 시작한다 - 올린 파일에
-    // 머리글이 없었어도 여기서부터는 있다.
+    // 저장하는 바이트는 언제나 머리글(열 이름)로 시작한다 - 올린 파일에 머리글이
+    // 없었어도 여기서부터는 있다(그때 이름은 columnNames가 만든 엑셀식 이름이다).
     hasHeader: true,
     encoding: 'utf-8',
     ...(imported.sourceEncoding === null ? {} : { sourceEncoding: imported.sourceEncoding }),

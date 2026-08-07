@@ -169,6 +169,30 @@ const pageRows = computed(() => {
 const showFeatures = shallowRef(false)
 
 /**
+ * 파일에 없는데 어느 모델이 보는 열들. **비어 있지 않으면 그 모델의 칸이 전부 빈다** -
+ * `predictPage`가 같은 판정을 (모델마다) 하고 `PREDICT_DATASET_COLUMN_MISSING`을 준다.
+ *
+ * **화면이 조용히 빈 표를 보여주면 안 되므로 여기서 한 번 더 센다.** 답이 없는 칸은
+ * 원래 빈 칸이라(사유로 꺼진 모델, 빈 값이 있는 행) 표만 봐서는 무슨 일이 났는지 알
+ * 수 없는데, 이 경우는 **파일 하나를 다시 올리면 전부 풀리는 상태**라 말해 줄 값어치가
+ * 있다. 파일을 붙인 뒤에 특성을 바꿔 재학습하면 여기로 온다
+ * (open-decisions.md "붙일 때 본 것을 예측 직전에 다시 본다").
+ */
+const missingColumns = computed(() => {
+  const available = new Set(predictDataset.value?.columns ?? [])
+  const missing = new Set<string>()
+  for (const model of props.models) {
+    if (model.reason) continue
+    const preprocessor = props.preprocessors.get(model.experiment.id)
+    if (!preprocessor) continue
+    for (const column of preprocessor.columns) {
+      if (!available.has(column.name)) missing.add(column.name)
+    }
+  }
+  return [...missing]
+})
+
+/**
  * 같은 알고리즘이 실행 방법만 다르게 둘 이상 있으면 뒤에 실행 방법을 괄호로 붙인다
  * (open-decisions.md "일괄 예측은 `행 × 모델` 매트릭스다"). `predict.modelName`이
  * 이미 "{algorithm} · {runtime}" 모양이므로 그 값을 그대로 괄호 안에 쓴다.
@@ -278,7 +302,14 @@ async function ensurePage(index: number): Promise<Answer[][]> {
   const slice = rows.value.slice(start, start + PREDICT_PAGE_SIZE)
   if (slice.length === 0) return []
 
-  const result = predictPage(props.models, slice, props.preprocessors, predictorsFor())
+  // 열 목록을 함께 넘긴다 - 행의 키로는 "열이 없다"와 "값이 다 비었다"가 안 갈린다.
+  const result = predictPage(
+    props.models,
+    slice,
+    props.preprocessors,
+    predictorsFor(),
+    predictDataset.value?.columns ?? [],
+  )
 
   const pages = new Map(pageCache.value.pages)
   pages.set(index, result)
@@ -512,6 +543,13 @@ async function downloadAction(): Promise<void> {
       </div>
 
       <p v-if="computing" class="text-ink-soft">{{ t('predict.computing') }}</p>
+
+      <p
+        v-if="missingColumns.length > 0"
+        class="rounded-panel border border-danger/30 bg-danger-soft p-3 font-bold text-ink"
+      >
+        {{ t('client.PREDICT_DATASET_COLUMN_MISSING', { columns: missingColumns }) }}
+      </p>
 
       <div class="overflow-x-auto rounded-panel border border-line">
         <table class="w-full text-left">

@@ -108,35 +108,6 @@ export function summarizeColumns(dataset: Dataset): ColumnSummary[] {
 }
 
 /**
- * `alignTestDataset`과 `alignPredictDataset`이 공유하는 속. **요구하는 열 목록과
- * 에러 코드만 다르다** - 그 둘을 뺀 나머지(이름으로 재배열, 정본에 없는 열은 버림,
- * 하나라도 없으면 전부 말하며 거부)는 완전히 같은 규칙이라 여기 한 번만 둔다.
- *
- * **열 순서가 달라도 이름으로 다시 세운다.** 매핑이 아니라 모호함이 없는 재배열이다 -
- * 이름이 다른 열을 우리가 짝지어 주지는 않는다(그건 학생의 데이터 품질 문제다). 돌려주는
- * `Dataset`은 `requiredColumns`와 같은 열 순서를 갖는다. 거기 없는 열은 조용히 버린다.
- */
-function alignDataset(
-  grid: TableGrid,
-  hasHeader: boolean,
-  requiredColumns: readonly string[],
-  errorCode: 'TEST_DATASET_COLUMN_MISSING' | 'PREDICT_DATASET_COLUMN_MISSING',
-): Dataset {
-  const dataset = toDataset(grid, hasHeader)
-  const positions = requiredColumns.map((name) => dataset.columns.indexOf(name))
-
-  const missing = requiredColumns.filter((_name, index) => positions[index] === -1)
-  if (missing.length > 0) {
-    throw new ClientError(errorCode, { columns: missing })
-  }
-
-  return {
-    columns: requiredColumns,
-    rows: dataset.rows.map((row) => positions.map((index) => row[index] ?? '')),
-  }
-}
-
-/**
  * 평가 데이터(`test.csv`)를 받을 때 한 번 하는 검사 (mlpx-spec.md §1.1,
  * open-decisions.md "학습용과 평가용 파일이 따로일 수 있다").
  *
@@ -147,13 +118,30 @@ function alignDataset(
  * 포함하므로 이 대조가 타깃 열도 함께 요구한다 - 정답이 없으면 채점을 못 한다.
  *
  * **하나라도 없으면 거부하고 어느 열이 없는지 말한다.** `TEST_DATASET_COLUMN_MISSING`.
+ *
+ * **열 순서가 달라도 이름으로 다시 세운다.** 매핑이 아니라 모호함이 없는 재배열이다 -
+ * 이름이 다른 열을 우리가 짝지어 주지는 않는다(그건 학생의 데이터 품질 문제다). 돌려주는
+ * `Dataset`은 정본과 같은 열 순서를 갖고, 거기 없는 열은 조용히 버린다 - 채점에 쓸 수
+ * 없는 열이고, 정본 열이 바뀌면 실험이 통째로 지워지므로(mlpx-spec.md §4.3) 나중에
+ * 필요해질 일도 없다. **`acceptPredictDataset`이 열을 안 버리는 것과 갈리는 자리다.**
  */
 export function alignTestDataset(
   grid: TableGrid,
   hasHeader: boolean,
   canonicalColumns: readonly string[],
 ): Dataset {
-  return alignDataset(grid, hasHeader, canonicalColumns, 'TEST_DATASET_COLUMN_MISSING')
+  const dataset = toDataset(grid, hasHeader)
+  const positions = canonicalColumns.map((name) => dataset.columns.indexOf(name))
+
+  const missing = canonicalColumns.filter((_name, index) => positions[index] === -1)
+  if (missing.length > 0) {
+    throw new ClientError('TEST_DATASET_COLUMN_MISSING', { columns: missing })
+  }
+
+  return {
+    columns: canonicalColumns,
+    rows: dataset.rows.map((row) => positions.map((index) => row[index] ?? '')),
+  }
 }
 
 /**
@@ -168,11 +156,27 @@ export function alignTestDataset(
  * **하나라도 없으면 거부하고 어느 열이 없는지 말한다.** `PREDICT_DATASET_COLUMN_MISSING` -
  * `TEST_DATASET_COLUMN_MISSING`과 다른 코드다. 학생이 할 일이 같지 않다(평가 데이터는
  * 정본과 짝을 맞춰야 하고, 예측 데이터는 지금 보이는 모델들이 보는 열만 맞으면 된다).
+ *
+ * **통과하면 올린 열을 전부 돌려준다 - `alignTestDataset`과 결정적으로 다르다**
+ * (open-decisions.md "검사는 특성 열, 저장은 올린 열 전부", 2026-08-07). 요구 열은
+ * **지금 보이는 모델들**이 정하는데 그 목록은 학생이 언제든 바꾸는 값이라, 여기서
+ * 나머지를 버리면 특성을 하나 추가해 재학습하는 순간 **학생이 올린 파일에는 있던 열인데도**
+ * 그 모델이 예측을 못 한다. 재배열도 안 한다 - 맞출 정본 순서라는 것이 없다.
+ *
+ * 그래서 이 함수가 하는 일은 **검사뿐이고 표는 그대로 지나간다.** 여분의 열이 예측에
+ * 섞이지 않는 것은 `inputVector`가 전처리기의 열만 보기 때문이다(`ml/predict.ts`).
  */
-export function alignPredictDataset(
+export function acceptPredictDataset(
   grid: TableGrid,
   hasHeader: boolean,
   requiredColumns: readonly string[],
 ): Dataset {
-  return alignDataset(grid, hasHeader, requiredColumns, 'PREDICT_DATASET_COLUMN_MISSING')
+  const dataset = toDataset(grid, hasHeader)
+
+  const missing = requiredColumns.filter((name) => !dataset.columns.includes(name))
+  if (missing.length > 0) {
+    throw new ClientError('PREDICT_DATASET_COLUMN_MISSING', { columns: missing })
+  }
+
+  return dataset
 }

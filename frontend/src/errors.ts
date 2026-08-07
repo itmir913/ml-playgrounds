@@ -86,9 +86,13 @@ export const CLIENT_ERROR_CODES = [
   // 말과 나눈다** - 같은 코드로 뭉치면 학생이 멀쩡한 학습 데이터를 들여다본다.
   'TEST_DATASET_NO_USABLE_ROWS',
 
-  // 예측 데이터(predict.csv) 받기 - data/columns.ts
+  // 예측 데이터(predict.csv) 받기 - data/columns.ts, 그리고 예측 직전 - ml/predict.ts
   // 요구하는 열이 정본 열 전체가 아니라 특성 열의 합집합이라 TEST_DATASET_COLUMN_MISSING과
   // 다른 코드다 (open-decisions.md "일괄 예측은 `행 × 모델` 매트릭스다").
+  // **자리가 둘인 유일한 코드다.** 받을 때 본 것이 예측할 때도 맞다는 보장이 없다 -
+  // 학생이 그 사이에 특성을 바꿔 재학습하면 predictPage가 같은 코드로 다시 잡는다
+  // (open-decisions.md "붙일 때 본 것을 예측 직전에 다시 본다"). 빈 칸
+  // (PREDICTION_INPUT_INCOMPLETE)과는 끝까지 나눈다 - 학생이 할 일이 다르다.
   'PREDICT_DATASET_COLUMN_MISSING',
 ] as const
 

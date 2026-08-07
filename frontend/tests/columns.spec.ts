@@ -13,7 +13,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  alignPredictDataset,
+  acceptPredictDataset,
   alignTestDataset,
   columnNames,
   spreadsheetName,
@@ -204,28 +204,30 @@ describe('예측 데이터 받기', () => {
   // 특성 열의 합집합이다 - 정본 열 전체가 아니다. 타깃('반')은 요구하지 않는다.
   const required = ['이름', '점수']
 
-  it('요구한 열로 다시 세운다 - 순서가 달라도, 타깃이 없어도 된다', () => {
+  it('타깃이 없어도, 열 순서가 달라도 통과한다 - 순서는 올린 그대로다', () => {
     const shuffled = [
       ['점수', '이름'],
       ['90', '가'],
     ]
-    const aligned = alignPredictDataset(shuffled, true, required)
-    expect(aligned.columns).toEqual(required)
-    expect(aligned.rows).toEqual([['가', '90']])
+    const accepted = acceptPredictDataset(shuffled, true, required)
+    expect(accepted.columns).toEqual(['점수', '이름'])
+    expect(accepted.rows).toEqual([['90', '가']])
   })
 
-  it('요구하지 않는 열은 조용히 버린다', () => {
+  it('요구하지 않는 열도 버리지 않는다 - 특성이 바뀌면 그 열이 필요해진다', () => {
     const extra = [
       ['이름', '점수', '반'],
       ['가', '90', 'A'],
     ]
-    expect(alignPredictDataset(extra, true, required).columns).toEqual(required)
+    const accepted = acceptPredictDataset(extra, true, required)
+    expect(accepted.columns).toEqual(['이름', '점수', '반'])
+    expect(accepted.rows).toEqual([['가', '90', 'A']])
   })
 
   it('요구한 열이 없으면 거부하고 무엇이 없는지 말한다 - TEST_DATASET_COLUMN_MISSING과 다른 코드다', () => {
     const missing = [['이름'], ['가']]
     try {
-      alignPredictDataset(missing, true, required)
+      acceptPredictDataset(missing, true, required)
       expect.unreachable()
     } catch (error) {
       expect(isClientError(error)).toBe(true)
@@ -550,7 +552,7 @@ describe('예측 데이터를 프로젝트에 붙이기', () => {
     }
   }
 
-  it('요구한 열로 다시 세워 담고, 실험은 그대로 둔다', () => {
+  it('올린 열을 전부 담고, 실험은 그대로 둔다', () => {
     const before = projectFile()
     const applied = applyPredictDataset(before, predictTable(), options)
     const { settings } = applied.project.document
@@ -561,9 +563,25 @@ describe('예측 데이터를 프로젝트에 붙이기', () => {
     expect(applied.project.document.runs.experiments).toEqual(before.document.runs.experiments)
     expect(applied.project.models).toBe(before.models)
 
+    // 요구한 것은 '점수' 하나뿐이지만 '이름'도 남는다 - 학생이 특성에 '이름'을 넣어
+    // 재학습하는 순간 그 열이 필요해지고, 그때 이미 버렸으면 파일이 조용히 무효가 된다.
     const read = readPredictDataset(applied.project)
-    expect(read?.columns).toEqual(['점수'])
-    expect(read?.rows).toEqual([['85']])
+    expect(read?.columns).toEqual(['이름', '점수'])
+    expect(read?.rows).toEqual([['라', '85']])
+  })
+
+  it('머리글이 없는 파일도 이름을 받아 담는다 - 여기서부터 predict.csv에는 머리글이 있다', () => {
+    const headerless = predictTable({ grid: [['라', '85']] })
+    const applied = applyPredictDataset(projectFile(), headerless, {
+      ...options,
+      hasHeader: false,
+      // 머리글이 없으면 열 이름이 엑셀식이므로 요구 열도 그 이름으로 온다.
+      requiredColumns: ['(B)'],
+    })
+
+    const read = readPredictDataset(applied.project)
+    expect(read?.columns).toEqual(['(A)', '(B)'])
+    expect(read?.rows).toEqual([['라', '85']])
   })
 
   it('split.method를 건드리지 않는다', () => {

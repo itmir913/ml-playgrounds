@@ -90,6 +90,11 @@ export function trainingRowsFor(
  * 값으로 예측했다고 믿는데 실제로는 학습셋의 평균이 들어간다. 결측 전략 `none`을 거부하는
  * 것과 같은 판단이다 (open-decisions.md "전처리도 분할도 끌 수 있다").
  *
+ * **여기서 "열이 없다"를 말하지는 않는다.** 이 함수가 받는 것은 표가 아니라 값 하나짜리
+ * 사전이고, **한 줄 입력에서는 아직 안 건드린 칸이 아예 키가 없다**(`PredictView.vue`의
+ * `values`는 빈 객체에서 시작한다) - 여기서 `undefined`를 "열이 없다"로 읽으면 학생이
+ * 칸 하나를 비워 둔 것을 파일 탓으로 돌린다. 그 판정은 표를 아는 `predictPage`가 한다.
+ *
  * 학습 때 못 본 범주가 오면 `transform`의 규칙을 그대로 따른다(onehot은 전부 0, ordinal은
  * -1). 화면이 본 값 중에서 고르게 하므로 정상 경로에서는 나오지 않는다.
  */
@@ -577,6 +582,16 @@ export function cellColorIndex(
  * "애초에 안 돈다"이므로 실패 문구를 붙이지 않는다. 화면이 그 칸을 grey-out으로 이미
  * 보여주고 있어야 한다.
  *
+ * **모델에 넣기 직전에 그 모델이 보는 열이 파일에 다 있는지 다시 본다**
+ * (open-decisions.md "붙일 때 본 것을 예측 직전에 다시 본다", 2026-08-07). 파일을 받을 때
+ * 이미 검사했지만 **그것은 붙이던 그 순간의 사실이다** - 학생이 그 뒤에 특성을 바꿔
+ * 재학습하면 지금 필요한 열이 그 파일에 없을 수 있다. 없는 열을 `inputVector`에 그대로
+ * 태우면 빈 칸으로 읽혀 `PREDICTION_INPUT_INCOMPLETE`가 나고, 화면이 **틀린 사유**를 말한다
+ * (값이 빈 것이 아니라 열이 없는 것이다 - 학생이 할 일은 파일을 다시 올리는 것이다).
+ *
+ * **행이 아니라 모델마다 한 번 본다.** 파일의 열 목록은 행마다 같으므로 행 안에서 다시
+ * 볼 이유가 없다 - 5천 행 × 모델 5개면 그 차이가 실제로 느껴진다.
+ *
  * **반환은 `rows[행][모델]`이다.** `models`와 같은 순서·같은 길이의 배열이 행마다 있다.
  */
 export function predictPage(
@@ -584,21 +599,46 @@ export function predictPage(
   rows: readonly Readonly<Record<string, string>>[],
   preprocessors: ReadonlyMap<string, Preprocessor>,
   predictors: ReadonlyMap<string, Predict>,
+  /**
+   * 파일에 실제로 있는 열 이름. **행의 키가 아니라 표의 열 목록이다** - 행에서 뽑으면
+   * 열이 있는데 값이 다 빈 경우와 열 자체가 없는 경우를 못 가른다.
+   */
+  columns: readonly string[],
 ): Answer[][] {
-  return rows.map((values) =>
-    models.map((model): Answer => {
+  const available = new Set(columns)
+
+  // 행과 무관한 판정을 먼저 끝낸다. 여기서 답이 정해진 모델은 모든 행에서 같은 칸이다.
+  const prepared = models.map(
+    (model): Answer | { preprocessor: Preprocessor; predict: Predict } => {
       if (model.reason) return {}
 
       const preprocessor = preprocessors.get(model.experiment.id)
-      const predictor = predictors.get(model.run.id)
+      const predict = predictors.get(model.run.id)
       // 여기까지 왔는데 없으면 화면이 predictableModels()의 판정과 다른 것을 넘긴 것이다.
-      if (!preprocessor || !predictor) {
+      if (!preprocessor || !predict) {
         return { failure: { code: 'MODEL_FILE_INVALID', params: { field: 'payload' } } }
       }
 
+      const missing = preprocessor.columns
+        .map((column) => column.name)
+        .filter((name) => !available.has(name))
+      if (missing.length > 0) {
+        return { failure: { code: 'PREDICT_DATASET_COLUMN_MISSING', params: { columns: missing } } }
+      }
+
+      return { preprocessor, predict }
+    },
+  )
+
+  return rows.map((values) =>
+    prepared.map((entry, index): Answer => {
+      if (!('predict' in entry)) return entry
+
+      // models와 prepared는 같은 순서·같은 길이다 - 위에서 map으로 만들었다.
+      const model = models[index]!
       try {
-        const vector = inputVector(model.experiment, preprocessor, values)
-        const [value] = predictor([vector])
+        const vector = inputVector(model.experiment, entry.preprocessor, values)
+        const [value] = entry.predict([vector])
         return value === undefined ? {} : { value }
       } catch (error) {
         return {

@@ -836,6 +836,9 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
   const preprocessor = fitFor(subject)
   const preprocessors = new Map([[subject.id, preprocessor]])
 
+  /** 붙여 둔 predict.csv의 열. **올린 열을 전부 담으므로 안 쓰는 열도 함께 있다.** */
+  const fileColumns = dataset.columns
+
   const model: PredictableModel = { experiment: subject, run: runOf('r1') }
   // '키' 하나만 보는 결정트리 흉내 - 몸무게·지역이 비어도 이 모델은 예측할 수 있다.
   const predictor = (vectors: readonly (readonly number[])[]) =>
@@ -844,7 +847,7 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
 
   it('행마다 모델의 답을 낸다', () => {
     const rows = [cellsOf(0), cellsOf(3)]
-    const page = predictPage([model], rows, preprocessors, predictors)
+    const page = predictPage([model], rows, preprocessors, predictors, fileColumns)
 
     expect(page).toHaveLength(2)
     expect(page[0]?.[0]).toEqual({ value: 'a' }) // 키 150
@@ -853,22 +856,58 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
 
   it('빈 칸이 있는 행은 그 행·그 모델 칸만 예측할 수 없다 - 나머지 행은 계속 간다', () => {
     const rows = [cellsOf(0), { 키: '160' }, cellsOf(2)]
-    const page = predictPage([model], rows, preprocessors, predictors)
+    const page = predictPage([model], rows, preprocessors, predictors, fileColumns)
 
     expect(page[0]?.[0]?.value).toBe('a')
     expect(page[1]?.[0]?.failure?.code).toBe('PREDICTION_INPUT_INCOMPLETE')
     expect(page[2]?.[0]?.value).toBe('b')
   })
 
+  it('모델이 보는 열이 파일에 없으면 빈 칸이 아니라 열이 없다고 말한다', () => {
+    // 파일을 붙인 뒤 학생이 특성을 바꿔 재학습한 상태. 붙일 때는 통과했던 파일이다.
+    const without = ['몸무게', '지역', '품종']
+    const rows = [cellsOf(0)].map((values) => {
+      const kept: Record<string, string> = { ...values }
+      delete kept['키']
+      return kept
+    })
+
+    const page = predictPage([model], rows, preprocessors, predictors, without)
+
+    const failure = page[0]?.[0]?.failure
+    expect(failure?.code).toBe('PREDICT_DATASET_COLUMN_MISSING')
+    expect(failure?.params).toEqual({ columns: ['키'] })
+  })
+
+  it('열이 있는데 값만 비었으면 여전히 빈 칸이다 - 학생이 할 일이 다르다', () => {
+    // 위와 나란히 둔다. 이 둘이 같은 코드로 떨어지면 화면이 틀린 사유를 말한다.
+    const blank = [{ ...cellsOf(0), 키: '' }]
+    const page = predictPage([model], blank, preprocessors, predictors, fileColumns)
+
+    expect(page[0]?.[0]?.failure?.code).toBe('PREDICTION_INPUT_INCOMPLETE')
+  })
+
+  it('파일에 여분의 열이 있어도 예측은 그대로 된다 - 전처리기가 보는 열만 쓴다', () => {
+    const page = predictPage(
+      [model],
+      [{ ...cellsOf(3), 메모: '결석' }],
+      preprocessors,
+      predictors,
+      [...fileColumns, '메모'],
+    )
+
+    expect(page[0]?.[0]).toEqual({ value: 'b' })
+  })
+
   it('사유로 꺼진 모델은 실패가 아니라 빈 칸이다 - 애초에 안 도는 것이다', () => {
     const disabled: PredictableModel = { ...model, reason: 'MODEL_FORMAT_UNSUPPORTED' }
-    const page = predictPage([disabled], [cellsOf(0)], preprocessors, predictors)
+    const page = predictPage([disabled], [cellsOf(0)], preprocessors, predictors, fileColumns)
 
     expect(page[0]?.[0]).toEqual({})
   })
 
   it('전처리기나 predictor가 없으면 화면 쪽 버그로 취급해 실패 칸을 준다', () => {
-    const page = predictPage([model], [cellsOf(0)], new Map(), new Map())
+    const page = predictPage([model], [cellsOf(0)], new Map(), new Map(), fileColumns)
     expect(page[0]?.[0]?.failure?.code).toBe('MODEL_FILE_INVALID')
   })
 
@@ -895,7 +934,7 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
   describe('내려받을 CSV 격자', () => {
     const featureNames = inputFields(preprocessor).map((field) => field.name)
     const rows = [cellsOf(0), cellsOf(1)]
-    const answers = predictPage([model], rows, preprocessors, predictors)
+    const answers = predictPage([model], rows, preprocessors, predictors, fileColumns)
     const format = (value: unknown) => String(value)
 
     it('첫 줄은 행 번호·모델 이름이다 - 특성은 기본으로 숨긴다', () => {
@@ -929,7 +968,7 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
 
     it('답을 못 낸 칸은 빈 칸이다 - 사람이 읽는 문장을 데이터에 넣지 않는다', () => {
       const incomplete = [{ 키: '160' }]
-      const page = predictPage([model], incomplete, preprocessors, predictors)
+      const page = predictPage([model], incomplete, preprocessors, predictors, fileColumns)
       const grid = predictDownloadGrid(
         [model],
         ['결정 트리'],
