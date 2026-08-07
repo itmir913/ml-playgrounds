@@ -8,8 +8,16 @@
  *
  * **브라우저의 `popover` 속성을 쓰지 않는다.** 그건 요소를 최상위 층으로 올려서
  * 조상 기준의 위치 잡기가 통하지 않고, 결국 화면 한가운데 뜨는 상자가 된다 —
- * 그게 모달이다. 트리거에 붙이는 것이 이 컴포넌트의 존재 이유이므로 평범한
- * `absolute`로 둔다.
+ * 그게 모달이다. 트리거에 붙이는 것이 이 컴포넌트의 존재 이유다.
+ *
+ * **그래서 패널은 `body`로 옮겨 띄우되(`Teleport`) 자리는 우리가 잰다.** 조상 중 하나라도
+ * `overflow`를 잘라내면 `absolute`는 그 상자 안에 갇힌다 — 표 머리글에서 용어 설명을 열자
+ * (§8.13) `AppTable`의 스크롤 상자가 패널을 통째로 잘랐다. 트리거의 화면 좌표를 재서
+ * `fixed`로 붙이므로 **"트리거에 붙어 있다"는 성질은 그대로이고 잘릴 조상만 사라진다.**
+ *
+ * **스크롤하면 닫는다.** 붙어 있던 자리가 움직이는데 패널만 떠 있으면 어디서 나온
+ * 것인지 알 수 없다. 위치를 따라다니게 만들 수도 있지만, 팝오버는 읽고 닫는 물건이라
+ * 그 복잡함을 살 이유가 없다.
  *
  * CSS 앵커 위치 지정(`anchor-name`)을 쓰지 않은 이유는 파이어폭스와 사파리가 아직
  * 모르기 때문이다. 학교 PC의 브라우저를 우리가 고를 수 없다.
@@ -58,25 +66,37 @@ const panel = ref<HTMLElement | null>(null)
 /** 화면 가장자리에서 띄울 간격. `styles/utilities.css`의 `popover-panel` 여백과 같다. */
 const EDGE = 12
 
-/** 화면 밖으로 나간 만큼만 되민 거리(px). 0이면 정렬 그대로다. */
-const shift = ref(0)
+/** 트리거와 패널 사이. 붙어 있으면 떠 있는 패널이 아니라 줄이 늘어난 것으로 보인다. */
+const GAP = 8
+
+/** 패널의 화면 좌표. `body`로 옮겨 띄우므로 위치를 우리가 준다. */
+const style = ref<Record<string, string>>({})
 
 /**
- * 열린 패널을 화면 안으로 들인다.
+ * 트리거를 재서 패널을 그 옆에 붙인다.
  *
- * **먼저 0으로 되돌리고 잰다.** 지난번에 민 값을 안고 재면 그만큼 어긋난 자리를
- * 재게 되고, 열고 닫을 때마다 조금씩 밀려난다.
+ * **두 번에 걸쳐 잰다.** 패널 폭은 열어 봐야 알 수 있고(내용과 `max-width`가 정한다),
+ * 그 폭을 알아야 화면 안으로 당길 수 있다. 첫 프레임에는 화면 밖에 두어 **자리를 잡는
+ * 동안 눈에 안 보이게** 한다 - 왼쪽 끝에 잠깐 나타났다 옮겨 가면 그 깜빡임이 보인다.
  */
 async function place(): Promise<void> {
-  shift.value = 0
-  await nextTick()
-  const rect = panel.value?.getBoundingClientRect()
-  if (!rect) return
+  const trigger = root.value?.getBoundingClientRect()
+  if (!trigger) return
 
-  if (rect.left < EDGE) shift.value = EDGE - rect.left
-  else if (rect.right > window.innerWidth - EDGE) {
-    shift.value = window.innerWidth - EDGE - rect.right
-  }
+  const vertical =
+    props.side === 'top'
+      ? { bottom: `${window.innerHeight - trigger.top + GAP}px` }
+      : { top: `${trigger.bottom + GAP}px` }
+
+  style.value = { ...vertical, left: '-9999px' }
+  await nextTick()
+
+  const width = panel.value?.getBoundingClientRect().width ?? 0
+  const wanted = props.align === 'right' ? trigger.right - width : trigger.left
+  // 모자란 만큼만 민다. 들어가는 팝오버는 정렬 그대로다.
+  const left = Math.min(Math.max(wanted, EDGE), Math.max(EDGE, window.innerWidth - EDGE - width))
+
+  style.value = { ...vertical, left: `${left}px` }
 }
 
 function close(): void {
@@ -84,8 +104,11 @@ function close(): void {
 }
 
 function onPointerDown(event: MouseEvent): void {
-  // 패널 안이나 트리거를 누른 것은 바깥이 아니다.
-  if (!root.value?.contains(event.target as Node)) close()
+  // 패널 안이나 트리거를 누른 것은 바깥이 아니다. **패널은 body에 있으므로 따로 본다** -
+  // root만 보면 패널 안의 글자를 드래그해 고르는 순간 닫힌다.
+  const target = event.target as Node
+  if (root.value?.contains(target) || panel.value?.contains(target)) return
+  close()
 }
 
 function onKeydown(event: KeyboardEvent): void {
@@ -99,6 +122,8 @@ watch(open, (isOpen) => {
   document[method]('pointerdown', onPointerDown as EventListener)
   document[method]('keydown', onKeydown as EventListener)
   window[method]('resize', place as EventListener)
+  // 캡처로 듣는다 - 표나 작업 공간처럼 **안쪽 상자가 스크롤할 때는 이벤트가 안 올라온다.**
+  document[method]('scroll', close as EventListener, true)
   if (isOpen) void place()
 })
 
@@ -106,6 +131,7 @@ watch(open, (isOpen) => {
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', onPointerDown as EventListener)
   document.removeEventListener('keydown', onKeydown as EventListener)
+  document.removeEventListener('scroll', close as EventListener, true)
   window.removeEventListener('resize', place as EventListener)
 })
 
@@ -123,18 +149,16 @@ defineExpose({ close })
       **여는 자리와 떨어뜨린다.** 붙어 있으면 떠 있는 패널이 아니라 줄이 늘어난 것으로
       보인다. 상태 표시줄처럼 화면 끝에 붙은 자리에서 특히 그렇다.
     -->
-    <div
-      v-if="open"
-      ref="panel"
-      :style="{ transform: `translateX(${shift}px)` }"
-      class="popover-panel absolute z-50 rounded-panel border border-line bg-surface p-4 text-ink shadow-pop"
-      :class="[
-        props.align === 'right' ? 'right-0' : 'left-0',
-        props.side === 'top' ? 'bottom-full mb-2' : 'top-full mt-2',
-        props.wide ? 'popover-panel-wide' : '',
-      ]"
-    >
-      <slot :close="close" />
-    </div>
+    <Teleport to="body">
+      <div
+        v-if="open"
+        ref="panel"
+        :style="style"
+        class="popover-panel fixed z-50 rounded-panel border border-line bg-surface p-4 text-ink shadow-pop"
+        :class="props.wide ? 'popover-panel-wide' : ''"
+      >
+        <slot :close="close" />
+      </div>
+    </Teleport>
   </div>
 </template>
