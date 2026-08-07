@@ -89,18 +89,22 @@ function go(step: StepId): void {
             **고정 너비가 아니라 격자다.** 칸을 px로 박으면 영어에서 30% 긴 이름이
             넘친다(docs/i18n.md 규칙 7). 비율로 나누면 언어가 바뀌어도 줄이 서로 맞는다.
             좁은 화면에서는 한 열로 쌓인다 - 거기서 2열은 둘 다 못 읽게 만든다.
+
+            **다만 첫 칸은 내용보다 좁아지지 않는다** (`step-row-grid`). 비율만으로
+            나누면 `전처리`가 `전처` / `리`로 갈리는데, 단계 이름이 갈리면 그것이 한
+            낱말이라는 것부터 다시 읽어야 한다. 비율(1 : 3 : 2)은 그대로다.
           -->
           <li
             v-for="(entry, index) in steps"
             :key="entry.step"
-            class="grid grid-cols-1 items-center gap-x-4 gap-y-2 p-4 sm:grid-cols-6"
+            class="grid grid-cols-1 items-center gap-x-4 gap-y-2 p-4 sm:step-row-grid"
             :class="[
               index > 0 ? 'border-t border-line' : '',
               entry.here ? 'bg-brand-soft' : '',
               entry.unlocked ? '' : 'text-ink-faint',
             ]"
           >
-            <div class="flex min-w-0 items-center gap-2 font-bold sm:col-span-1">
+            <div class="flex min-w-0 items-center gap-2 font-bold">
               <component :is="STEP_ICONS[entry.step]" :size="20" aria-hidden="true" />
               {{ t(`steps.${entry.step}.label`) }}
             </div>
@@ -113,7 +117,7 @@ function go(step: StepId): void {
               **설명문은 지금 있는 칸에만 붙인다** - 여섯 줄이 모두 설명을 달면 훑을 수가
               없고, 각 단계의 설명은 그 단계 화면의 머리가 이미 갖고 있다 (§8.9).
             -->
-            <ul class="flex min-w-0 flex-wrap gap-x-4 gap-y-1 sm:col-span-3">
+            <ul class="flex min-w-0 flex-wrap gap-x-4 gap-y-1">
               <li
                 v-for="task in entry.tasks"
                 :key="task.key"
@@ -132,10 +136,7 @@ function go(step: StepId): void {
               설명문이 붙는 줄에서는 **두 줄에 걸쳐 가운데 선다** - 버튼이 첫 줄에만
               매달리면 줄의 무게 중심에서 벗어나 혼자 위로 올라가 보인다.
             -->
-            <div
-              class="min-w-0 sm:col-span-2 sm:justify-self-end"
-              :class="entry.here ? 'sm:row-span-2' : ''"
-            >
+            <div class="min-w-0 sm:justify-self-end" :class="entry.here ? 'sm:row-span-2' : ''">
               <AppButton v-if="entry.unlocked" variant="secondary" @click="go(entry.step)">
                 {{ t('project.openStep') }}
               </AppButton>
@@ -143,10 +144,10 @@ function go(step: StepId): void {
             </div>
 
             <!--
-              버튼 칸을 침범하지 않는다. 여기까지가 왼쪽 네 칸이고, 그래서 위의
-              row-span이 성립한다.
+              버튼 칸을 침범하지 않는다. 여기까지가 왼쪽 두 칸(이름 · 할 일)이고,
+              그래서 위의 row-span이 성립한다.
             -->
-            <p v-if="entry.here" class="text-ink-soft sm:col-span-4">
+            <p v-if="entry.here" class="text-ink-soft sm:col-span-2">
               {{ t(`steps.${entry.step}.purpose`) }}
             </p>
           </li>

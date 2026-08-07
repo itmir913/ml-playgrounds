@@ -81,3 +81,22 @@
     border-top: 1px solid var(--color-line);
   }
 }
+
+/**
+ * 대시보드 단계 줄의 칸 나눔 — **단계 이름 · 할 일 · 들어가기**.
+ *
+ * 비율은 `grid-cols-6` 시절과 같다(1 : 3 : 2). 바뀐 것은 첫 칸의 **아래쪽 끝**뿐이다 —
+ * Tailwind의 `grid-cols-*`는 모든 칸을 `minmax(0, 1fr)`로 깔아서 **칸이 내용보다 좁아질
+ * 수 있고**, 그래서 좁은 화면에서 `전처리`가 `전처` / `리`로 갈렸다. 단계 이름이 갈리면
+ * 그것이 한 낱말이라는 것부터 다시 읽어야 한다.
+ *
+ * `min-content`이지 고정 px이 아니다. 픽셀로 박으면 영어에서 30% 긴 이름이 넘치고
+ * (docs/i18n.md 규칙 7), 언어마다 다른 값을 두는 순간 그 표는 아무도 못 맞춘다.
+ * **얼마가 필요한지는 그 언어의 글자가 정한다.**
+ *
+ * Tailwind 기본 눈금으로는 칸마다 다른 minmax를 쓸 수 없어 여기 한 번만 두고 이름으로
+ * 쓴다 (CLAUDE.md §4).
+ */
+@utility step-row-grid {
+  grid-template-columns: minmax(min-content, 1fr) 3fr 2fr;
+}
