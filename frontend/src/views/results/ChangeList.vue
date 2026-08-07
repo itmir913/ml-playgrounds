@@ -32,34 +32,40 @@ function valueText(value: ChangeValue): string {
 </script>
 
 <template>
-  <ul class="flex flex-col gap-1.5">
-    <li
-      v-for="change in props.changes"
-      :key="change.path"
-      class="flex flex-wrap items-baseline gap-x-2"
-    >
-      <!--
+  <!--
+    **불릿은 `list-outside`다** (architecture.md §8.13). 글머리표가 글자 바깥에 서므로
+    한 변경이 두 줄로 접혀도 둘째 줄이 첫 줄과 나란히 들여쓰이고, 그래야 다음 항목의
+    시작과 구별된다. 번호는 안 매긴다 - 변경들 사이에 순서나 우열이 없다.
+
+    **`li`에 flex를 주지 않는다.** 주면 그 줄이 list-item이 아니게 되어 글머리표가
+    사라진다 - 배치는 안쪽 상자가 맡는다.
+  -->
+  <ul class="flex list-outside list-disc flex-col gap-1.5 pl-5 marker:text-line-strong">
+    <li v-for="change in props.changes" :key="change.path">
+      <div class="flex flex-wrap items-baseline gap-x-2">
+        <!--
         **모르는 경로는 버리지 않는다.** 남의 파일이나 나중 버전에서 올 수 있고,
         모르는 것을 아는 척하는 것보다 경로를 그대로 보여주는 편이 정직하다.
       -->
-      <AppBadge v-if="change.labelKey === null">
-        {{ t('results.unknownChange', { path: change.path }) }}
-      </AppBadge>
-
-      <template v-else>
-        <AppBadge v-if="change.model">
-          {{
-            t('results.modelScope', {
-              algorithm: t(`algorithms.${change.model.algorithm}`),
-              runtime: t(`runtimes.${change.model.runtime}`),
-            })
-          }}
+        <AppBadge v-if="change.labelKey === null">
+          {{ t('results.unknownChange', { path: change.path }) }}
         </AppBadge>
-        <AppBadge>{{ t(change.labelKey) }}</AppBadge>
-        <span>
-          {{ t('results.change', { from: valueText(change.from), to: valueText(change.to) }) }}
-        </span>
-      </template>
+
+        <template v-else>
+          <AppBadge v-if="change.model">
+            {{
+              t('results.modelScope', {
+                algorithm: t(`algorithms.${change.model.algorithm}`),
+                runtime: t(`runtimes.${change.model.runtime}`),
+              })
+            }}
+          </AppBadge>
+          <AppBadge>{{ t(change.labelKey) }}</AppBadge>
+          <span>
+            {{ t('results.change', { from: valueText(change.from), to: valueText(change.to) }) }}
+          </span>
+        </template>
+      </div>
     </li>
   </ul>
 </template>
