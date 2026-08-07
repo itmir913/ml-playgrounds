@@ -63,16 +63,27 @@ function evaluateClassification(
     if (row && column !== undefined) row[column] = (row[column] ?? 0) + 1
   })
 
+  const total = actualLabels.length
+
   const perClass = labels.map((label, index): PerClass => {
     const truePositive = matrix[index]?.[index] ?? 0
     const predictedAsThis = labels.reduce((sum, _, row) => sum + (matrix[row]?.[index] ?? 0), 0)
     const support = labels.reduce((sum, _, column) => sum + (matrix[index]?.[column] ?? 0), 0)
     const precision = ratio(truePositive, predictedAsThis)
     const recall = ratio(truePositive, support)
+
+    // **특이도는 반대쪽에서 본다** (mlpx-spec.md 4). 정밀도·재현율이 "이 범주인 것"을
+    // 보는 동안, 이것은 **이 범주가 아닌 것**을 아니라고 맞혔는지 본다. 이 범주가 아닌
+    // 데이터가 `total - support`이고, 그중 잘못 이 범주라고 부른 것이
+    // `predictedAsThis - truePositive`다.
+    const negatives = total - support
+    const falsePositive = predictedAsThis - truePositive
+
     return {
       label,
       precision,
       recall,
+      specificity: ratio(negatives - falsePositive, negatives),
       f1: ratio(2 * precision * recall, precision + recall),
       support,
     }

@@ -138,6 +138,31 @@ describe('분류', () => {
     expect(virginica?.recall).toBeCloseTo(1, 10)
   })
 
+  it('특이도는 그 범주가 아닌 데이터를 아니라고 맞힌 비율이다', () => {
+    const { perClass } = evaluate('classification', actual, predicted)
+
+    // virginica가 아닌 데이터 4줄(setosa 2, versicolor 2) 중 하나를 virginica라고 불렀다.
+    expect(perClass?.find((entry) => entry.label === 'virginica')?.specificity).toBeCloseTo(
+      3 / 4,
+      10,
+    )
+    // versicolor가 아닌 4줄은 하나도 versicolor라고 부르지 않았다.
+    expect(perClass?.find((entry) => entry.label === 'versicolor')?.specificity).toBeCloseTo(1, 10)
+  })
+
+  it('특이도는 재현율과 다른 방향을 본다 - 쏠린 데이터에서 갈린다', () => {
+    // 전부 common이라고 찍으면 rare의 재현율은 0인데 특이도는 1이다 - 반대쪽만 보기
+    // 때문이다. 이 둘이 같은 값이 되면 계산이 한쪽으로 무너진 것이다.
+    const truth = [...Array(100)].map((_, index) => (index < 90 ? 'common' : 'rare'))
+    const lazy = truth.map(() => 'common')
+    const rare = evaluate('classification', truth, lazy).perClass?.find(
+      (entry) => entry.label === 'rare',
+    )
+
+    expect(rare?.recall).toBe(0)
+    expect(rare?.specificity).toBe(1)
+  })
+
   it('예측에만 나온 라벨도 행렬에 남는다 - 오분류가 사라지면 안 된다', () => {
     const { confusionMatrix, perClass } = evaluate('classification', ['a', 'a'], ['a', 'b'])
     expect(confusionMatrix?.labels).toEqual(['a', 'b'])
@@ -150,6 +175,7 @@ describe('분류', () => {
     expect(metrics.accuracy).toBe(0)
     expect(Object.values(metrics).every(Number.isFinite)).toBe(true)
     expect(perClass?.every((entry) => Number.isFinite(entry.f1))).toBe(true)
+    expect(perClass?.every((entry) => Number.isFinite(entry.specificity ?? 0))).toBe(true)
   })
 
   it('쏠린 데이터에서 accuracy와 f1Macro가 갈린다 - 그래서 둘 다 낸다', () => {

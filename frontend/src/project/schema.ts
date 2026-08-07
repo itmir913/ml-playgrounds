@@ -337,6 +337,15 @@ export const perClassSchema = z.looseObject({
   label: userString,
   precision: z.number(),
   recall: z.number(),
+  /**
+   * 이 범주가 **아닌** 데이터를 아니라고 맞힌 비율 (mlpx-spec.md 4, 2026-08-07).
+   *
+   * **선택 필드인 이유는 옛 파일이다.** 2026-08-07 전에 만든 실험에는 없고, 그때
+   * 화면은 그 칸을 비운다 - 없는 값을 0으로 채우면 "특이도가 0인 모델"이라는 거짓말이
+   * 되고 표에서 구별되지 않는다. `formatVersion`은 안 올랐다(필드가 느는 것은 어휘가
+   * 느는 것과 다르고, 첫 배포 전이라 밖에 나간 파일이 없다).
+   */
+  specificity: z.number().optional(),
   f1: z.number(),
   support: z.int(),
 })
