@@ -476,7 +476,6 @@
     "recall": "Recall",
     "f1": "F1 score",
     "support": "Real count",
-    "noDetail": "Regression has no confusion matrix. The scores above are the whole result.",
     "failedTitle": "{count} model could not be trained | {count} models could not be trained",
     "failureDetail": "Technical details"
   },

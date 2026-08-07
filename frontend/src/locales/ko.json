@@ -476,7 +476,6 @@
     "recall": "재현율(Recall)",
     "f1": "F1 점수",
     "support": "실제 개수",
-    "noDetail": "회귀에는 혼동 행렬이 없습니다. 위의 점수가 결과의 전부입니다.",
     "failedTitle": "학습하지 못한 모델 {count}개",
     "failureDetail": "기술 정보"
   },
