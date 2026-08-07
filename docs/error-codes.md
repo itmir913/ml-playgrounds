@@ -140,6 +140,11 @@ PREDICTION_INPUT_INCOMPLETE
 결측 전략 `none`을 시끄럽게 거부하는 것과 같은 판단이다. 예측은 언제나 브라우저에서만
 하므로(`mlpx-spec.md` §0.2) 서버에는 이 코드가 없다.
 
+**빈 칸과 없는 열은 다른 코드다.** 열 자체가 없으면 `PREDICT_DATASET_COLUMN_MISSING`이다
+(파일을 받을 때와 같은 코드 — 학생이 할 일이 "파일을 다시 올린다"로 같다). 일괄 예측에서
+파일을 받은 뒤 학생이 특성을 바꿔 재학습하면 이 자리에 온다
+(`open-decisions.md` "붙일 때 본 것을 예측 직전에 다시 본다").
+
 **경고 — 실패가 아니다** (`ml/engines/svm-smo.ts`)
 ```
 SVM_NOT_CONVERGED

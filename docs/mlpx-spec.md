@@ -173,6 +173,12 @@ UTF-8 CSV다"). 정규화는 정본이 되기 **전에** 끝나므로 아래 §7
 | `dataset/test.csv` | **평가 데이터** — 점수를 매기는 데 쓴다 | **필수** | 있다 (`split.method`가 `holdout`이면 없다) |
 | `dataset/predict.csv` | **예측 데이터** — 답을 모르는 새 줄들 | **없다** | 있다 |
 
+`predict.csv`만 **올린 열을 전부 담는다.** 받을 때 특성 열이 다 있는지는 보지만 나머지
+열을 버리지 않는다 — 특성은 학생이 언제든 바꾸는 값이라, 그때 필요한 열을 이미 버렸으면
+학생이 올린 파일에 있던 열인데도 예측이 안 된다
+(`open-decisions.md` "검사는 특성 열, 저장은 올린 열 전부"). `data.csv`·`test.csv`는
+정본 열과 짝을 맞춰야 하므로 다르다.
+
 셋 다 **같은 길로 정규화된다** — 엑셀이든 CP949 CSV든 UTF-8 CSV(BOM 포함)가 되고,
 `hashes.json`에 각자 항목을 갖는다(§7). `settings.dataset`·`settings.testDataset`·
 `settings.predictDataset`이 각각을 가리키며 **본체와 참조는 함께 있고 함께 없다.**
