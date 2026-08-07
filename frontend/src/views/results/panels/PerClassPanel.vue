@@ -92,15 +92,21 @@ const weakest = computed(() => weakestPerClass(props.run.perClass ?? []))
             {{ format.percent(entry.recall) }}
           </td>
           <!--
-            **특이도는 최저값을 안 짚는다.** 강조가 답하는 질문은 "이 모델이 어느 범주를
-            가장 못 맞히는가"인데, 특이도는 **그 범주가 아닌 것을 아니라고 잘 하는가**라
-            방향이 다르다. 범주가 여럿이면 그 분모가 늘 크므로 값이 1 근처에 몰리고,
-            가장 낮은 칸은 대개 성능이 아니라 **데이터가 가장 많은 범주**를 가리킨다.
+            **특이도가 낮은 범주도 짚는다.** 그 칸이 가리키는 것은 **모델이 자꾸 이
+            범주라고 잘못 부른다**는 사실이고, 그건 분포가 아니라 모델의 편향이다.
+            정밀도와 같은 실수를 벌하므로 두 칸이 같은 줄에 함께 노래지는 일이 잦은데,
+            **같은 사실을 두 각도에서 확인시켜 주는 것**이라 그대로 둔다.
 
             **옛 파일에는 이 값이 없다** (mlpx-spec.md §4). 그때는 0으로 채우지 않고
             비운다 - 0은 "특이도가 0인 모델"이라는 거짓말이고 표에서 구별되지 않는다.
           -->
-          <td>
+          <td
+            :class="
+              isWeakestPerClass(weakest, entry.label, 'specificity')
+                ? 'bg-caution-soft font-bold'
+                : ''
+            "
+          >
             {{ entry.specificity === undefined ? '' : format.percent(entry.specificity) }}
           </td>
           <td

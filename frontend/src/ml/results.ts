@@ -14,8 +14,8 @@ import type { Experiment, PerClass, Run } from '../project/schema'
 import { parametersFor } from './hyperparams'
 import { bestOf, metricsOf, type MetricDisplay } from './metrics'
 
-/** 값 종류별 점수표에서 강조할 세 지표. */
-const PER_CLASS_METRICS = ['precision', 'recall', 'f1'] as const
+/** 범주별 점수표에서 강조할 지표들. `support`는 점수가 아니라 여기 없다. */
+const PER_CLASS_METRICS = ['precision', 'recall', 'specificity', 'f1'] as const
 
 type PerClassMetric = (typeof PER_CLASS_METRICS)[number]
 
@@ -131,15 +131,20 @@ export function headlineOf(experiment: Experiment): Headline | null {
 }
 
 /**
- * 값 종류별 점수표에서 지표마다 가장 약한 클래스. 강조할 칸을 여기서 정한다.
+ * 범주별 점수표에서 지표마다 가장 약한 범주. 강조할 칸을 여기서 정한다.
  *
  * **최고값이 아니라 최저값이다.** 결과 표(`bestByMetric`)는 모델끼리 겨루니 "이겼다"가
- * 의미가 있지만, 여기는 한 모델 안에서 클래스끼리 견주는 자리라 "이겼다"는 정보가 아니다.
- * 학생에게 필요한 것은 **이 모델이 어느 값 종류를 가장 못 맞히는가**이고, 그게 혼동
+ * 의미가 있지만, 여기는 한 모델 안에서 범주끼리 견주는 자리라 "이겼다"는 정보가 아니다.
+ * 학생에게 필요한 것은 **이 모델이 어느 범주를 가장 못 맞히는가**이고, 그게 혼동
  * 행렬을 다시 보게 만드는 다리다 — recall이 낮은 줄은 혼동 행렬의 그 행에서 어디로
  * 새는지 보면 이유가 보인다. `support`(개수)는 성능 지표가 아니라 강조하지 않는다.
  *
- * **클래스가 하나뿐이면 아무것도 강조하지 않는다** (`bestByMetric`과 같은 이유 —
+ * **특이도도 짚는다** (2026-08-07). 낮은 특이도가 가리키는 것은 **모델이 자꾸 이 범주라고
+ * 잘못 부른다**는 사실이라 분포가 아니라 모델의 편향이다. 정밀도와 같은 실수를 벌하므로
+ * 한 줄에 두 칸이 함께 노래지는 일이 잦은데, 같은 사실을 두 각도에서 확인시켜 주는
+ * 것이라 그대로 둔다.
+ *
+ * **범주가 하나뿐이면 아무것도 강조하지 않는다** (`bestByMetric`과 같은 이유 —
  * 견줄 것이 없는데 하나를 짚으면 비교가 아니라 장식이다).
  */
 export function weakestPerClass(perClass: readonly PerClass[]): ReadonlySet<string> {
@@ -147,7 +152,14 @@ export function weakestPerClass(perClass: readonly PerClass[]): ReadonlySet<stri
   if (perClass.length < 2) return weakest
 
   for (const metric of PER_CLASS_METRICS) {
-    const loser = perClass.reduce((min, entry) => (entry[metric] < min[metric] ? entry : min))
+    // **값이 없는 지표는 통째로 건너뛴다.** 특이도는 옛 파일에 없고(mlpx-spec.md §4),
+    // 없는 것을 0으로 보면 그 범주가 언제나 최저가 되어 **아무 뜻 없는 칸이 노랗게 된다.**
+    const scored = perClass.filter((entry) => entry[metric] !== undefined)
+    if (scored.length < 2) continue
+
+    const loser = scored.reduce((min, entry) =>
+      (entry[metric] ?? 0) < (min[metric] ?? 0) ? entry : min,
+    )
     weakest.add(`${loser.label}:${metric}`)
   }
   return weakest

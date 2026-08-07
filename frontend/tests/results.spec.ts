@@ -213,6 +213,29 @@ describe('값 종류별 점수의 가장 약한 칸', () => {
     expect(isWeakestPerClass(weakest, '고양이', 'f1')).toBe(true)
   })
 
+  it('특이도도 짚는다 - 모델이 자꾸 그 범주라고 잘못 부른다는 뜻이다', () => {
+    const weakest = weakestPerClass([
+      { label: '고양이', precision: 0.9, recall: 0.5, specificity: 0.6, f1: 0.6, support: 10 },
+      { label: '강아지', precision: 0.4, recall: 0.9, specificity: 0.95, f1: 0.9, support: 10 },
+    ])
+
+    expect(isWeakestPerClass(weakest, '고양이', 'specificity')).toBe(true)
+    expect(isWeakestPerClass(weakest, '강아지', 'specificity')).toBe(false)
+  })
+
+  it('특이도가 없는 옛 파일에서는 그 열을 아무도 안 짚는다', () => {
+    // 없는 것을 0으로 보면 첫 범주가 늘 최저가 되어 뜻 없는 칸이 노래진다.
+    const weakest = weakestPerClass([
+      { label: '고양이', precision: 0.9, recall: 0.5, f1: 0.6, support: 10 },
+      { label: '강아지', precision: 0.4, recall: 0.9, f1: 0.9, support: 10 },
+    ])
+
+    expect(isWeakestPerClass(weakest, '고양이', 'specificity')).toBe(false)
+    expect(isWeakestPerClass(weakest, '강아지', 'specificity')).toBe(false)
+    // 나머지 지표는 그대로 짚는다.
+    expect(isWeakestPerClass(weakest, '강아지', 'precision')).toBe(true)
+  })
+
   it('클래스가 하나뿐이면 아무것도 안 짚는다 - 견줄 것이 없다', () => {
     const weakest = weakestPerClass([
       { label: '고양이', precision: 0.9, recall: 0.5, f1: 0.6, support: 10 },
