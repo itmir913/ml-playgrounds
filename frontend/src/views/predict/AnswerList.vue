@@ -249,8 +249,16 @@ function bars(model: PredictableModel): ProbabilityBar[] {
                 </span>
               </div>
 
-              <!-- 학습 진행률 막대와 같은 모양이다 (TrainView.vue). -->
-              <div class="h-2 w-full overflow-hidden rounded-pill bg-surface-sunken">
+              <!--
+                학습 진행률 막대와 같은 모양이되 **테두리가 있다.** 저기서는 트랙이
+                흰 배경 위에 있지만 여기 카드가 `bg-surface-sunken`이라 트랙과 색이
+                정확히 같고, 그러면 0%인 범주는 막대가 통째로 사라져 후보에 없었던 것처럼
+                보인다. 카드 톤이 여덟 가지라(무채색 + 갈림 색 일곱) 어느 배경에서도
+                안전한 트랙 색이 없어서, 색이 아니라 선으로 자리를 잡는다.
+              -->
+              <div
+                class="h-2 w-full overflow-hidden rounded-pill border border-line-strong bg-surface-sunken"
+              >
                 <div
                   class="h-full rounded-pill"
                   :class="bar.chosen ? 'bg-brand' : 'bg-brand-line'"
