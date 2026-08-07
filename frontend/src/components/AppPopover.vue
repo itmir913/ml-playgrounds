@@ -75,26 +75,39 @@ const style = ref<Record<string, string>>({})
 /**
  * 트리거를 재서 패널을 그 옆에 붙인다.
  *
- * **두 번에 걸쳐 잰다.** 패널 폭은 열어 봐야 알 수 있고(내용과 `max-width`가 정한다),
- * 그 폭을 알아야 화면 안으로 당길 수 있다. 첫 프레임에는 화면 밖에 두어 **자리를 잡는
- * 동안 눈에 안 보이게** 한다 - 왼쪽 끝에 잠깐 나타났다 옮겨 가면 그 깜빡임이 보인다.
+ * **두 번에 걸쳐 잰다.** 패널의 폭과 높이는 열어 봐야 알 수 있고(내용과 `max-width`가
+ * 정한다), 그 값을 알아야 화면 안으로 당기고 모자란 쪽을 뒤집을 수 있다. 첫 프레임에는
+ * 화면 밖에 두어 **자리를 잡는 동안 눈에 안 보이게** 한다 - 왼쪽 끝에 잠깐 나타났다
+ * 옮겨 가면 그 깜빡임이 보인다.
  */
 async function place(): Promise<void> {
   const trigger = root.value?.getBoundingClientRect()
   if (!trigger) return
 
-  const vertical =
-    props.side === 'top'
-      ? { bottom: `${window.innerHeight - trigger.top + GAP}px` }
-      : { top: `${trigger.bottom + GAP}px` }
-
-  style.value = { ...vertical, left: '-9999px' }
+  style.value = { top: '-9999px', left: '-9999px' }
   await nextTick()
 
-  const width = panel.value?.getBoundingClientRect().width ?? 0
-  const wanted = props.align === 'right' ? trigger.right - width : trigger.left
-  // 모자란 만큼만 민다. 들어가는 팝오버는 정렬 그대로다.
-  const left = Math.min(Math.max(wanted, EDGE), Math.max(EDGE, window.innerWidth - EDGE - width))
+  const rect = panel.value?.getBoundingClientRect()
+  if (!rect) return
+
+  // **모자라면 반대쪽으로 뒤집는다.** 표 머리글은 위로 열지만(§8.13 - 아래는 전부 값이라
+  // 가리면 안 된다) 그 표가 화면 맨 위에 있으면 위쪽에 자리가 없다. 요청한 쪽을 먼저
+  // 보고, 안 들어갈 때만 더 넓은 쪽으로 옮긴다.
+  const above = trigger.top - GAP - EDGE
+  const below = window.innerHeight - trigger.bottom - GAP - EDGE
+  const wanted = props.side === 'top'
+  const useTop = (wanted ? above : below) >= rect.height ? wanted : above > below
+
+  const vertical = useTop
+    ? { bottom: `${window.innerHeight - trigger.top + GAP}px` }
+    : { top: `${trigger.bottom + GAP}px` }
+
+  const start = props.align === 'right' ? trigger.right - rect.width : trigger.left
+  // 가로도 모자란 만큼만 민다. 들어가는 팝오버는 정렬 그대로다.
+  const left = Math.min(
+    Math.max(start, EDGE),
+    Math.max(EDGE, window.innerWidth - EDGE - rect.width),
+  )
 
   style.value = { ...vertical, left: `${left}px` }
 }

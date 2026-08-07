@@ -450,6 +450,22 @@
     "rmse": "RMSE",
     "mae": "MAE"
   },
+  "metricFormula": {
+    "accuracy": { "top": "Rows classified correctly", "bottom": "All rows" },
+    "precision": {
+      "top": "Rows correctly given this category",
+      "bottom": "Rows the model gave this category"
+    },
+    "recall": {
+      "top": "Rows correctly given this category",
+      "bottom": "Rows that really are this category"
+    },
+    "specificity": {
+      "top": "Rows correctly kept out of this category",
+      "bottom": "Rows that really are not this category"
+    },
+    "f1": { "top": "2 × precision × recall", "bottom": "precision + recall" }
+  },
   "metricHelp": {
     "accuracy": "The share of all rows the model got right. It reads easily, but it misleads when the classes are imbalanced — if 90 of 100 rows share one category, answering with that category every time already scores 90%. Read it together with the other scores.",
     "f1": "A score that reflects precision and recall together, so a high score on only one of them does not lift it — 90% precision with 10% recall gives an F1 of 18%. It is worked out for each category, and this model’s F1 score is the average of those.",

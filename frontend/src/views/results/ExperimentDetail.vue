@@ -17,7 +17,7 @@ import TermPopover from '@/components/TermPopover.vue'
 import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { describeChanges } from '@/ml/changes'
-import { metricsOf } from '@/ml/metrics'
+import { metricsOf, type MetricDisplay } from '@/ml/metrics'
 import { bestByMetric, doneRuns, failedRuns, whereTrainedKeyOf } from '@/ml/results'
 import type { DataType, Experiment, Run } from '@/project/schema'
 import ChangeList from './ChangeList.vue'
@@ -43,10 +43,21 @@ const props = defineProps<{
   dataType: DataType
 }>()
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const format = useFormat()
 
 const displays = computed(() => metricsOf(props.experiment.settings.taskType))
+
+/**
+ * 지표의 수식 조각. **없는 지표는 빈 문자열이라 수식이 안 그려진다** (`TermPopover`).
+ *
+ * 회귀 지표(R²·RMSE·MAE)는 수식이 한 줄에 안 들어가서 안 넣었다 - 분수 하나로 못 쓰는
+ * 것을 억지로 접으면 오히려 못 읽는다.
+ */
+function formulaOf(display: MetricDisplay, part: 'top' | 'bottom'): string {
+  const key = `metricFormula.${display.label ?? display.name}.${part}`
+  return te(key) ? t(key) : ''
+}
 const succeeded = computed(() => doneRuns(props.experiment))
 const failed = computed(() => failedRuns(props.experiment))
 const best = computed(() => bestByMetric(succeeded.value, displays.value))
@@ -158,6 +169,8 @@ function failureDetailOf(run: Run): string | null {
               <TermPopover
                 :title="t(`metrics.${display.label ?? display.name}`)"
                 :body="t(`metricHelp.${display.label ?? display.name}`)"
+                :numerator="formulaOf(display, 'top')"
+                :denominator="formulaOf(display, 'bottom')"
               />
             </th>
           </tr>

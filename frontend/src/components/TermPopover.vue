@@ -21,6 +21,15 @@ defineProps<{
   title: string
   /** 두세 줄 설명. */
   body: string
+  /**
+   * 수식의 분자·분모. **둘 다 있을 때만 수식을 그린다** - 셀 수 없는 것(실제 데이터
+   * 수)에는 수식이 없다.
+   *
+   * 라이브러리를 쓰지 않는 이유는 architecture.md §8.13에 있다 - 그릴 것이 가로줄
+   * 하나에 낱말 둘이다.
+   */
+  numerator?: string
+  denominator?: string
 }>()
 </script>
 
@@ -28,8 +37,12 @@ defineProps<{
   <!--
     **가로로 긴 직사각형이다** (`wide`). 두세 줄짜리 설명이라 세로로 좁고, 좁은 화면에서는
     `popover-panel`의 max-width가 그대로 걸려 화면을 넘지 않는다.
+
+    **위로 연다.** 이 트리거는 전부 표 머리글이고 그 아래는 전부 값이라, 아래로 열면
+    설명을 읽는 동안 정작 설명이 걸린 숫자들이 가려진다. 위쪽에 자리가 모자라면
+    `AppPopover`가 알아서 아래로 뒤집는다.
   -->
-  <AppPopover wide>
+  <AppPopover wide side="top">
     <template #trigger="{ open }">
       <!--
         **표 머리글 전체가 아니라 그 안의 버튼이 눌린다.** 머리글 자체를 버튼으로 만들면
@@ -49,6 +62,24 @@ defineProps<{
     </template>
 
     <h4 class="font-bold text-ink">{{ title }}</h4>
-    <p class="mt-1.5 text-ink-soft">{{ body }}</p>
+
+    <!--
+      **교과서처럼 분자를 위에, 분모를 아래에 둔다.** 글로 푼 문장보다 이 한 줄이 먼저
+      읽힌다. `=`와 `×`는 번역하지 않으므로 여기 그대로 둔다 - 자연어가 아니다.
+
+      **스크린 리더에는 빗금을 들려준다.** 위아래로 쌓인 낱말 둘은 소리로는 그냥 이어져
+      "옳게 분류된 수 예측한 수"가 된다.
+    -->
+    <p v-if="numerator && denominator" class="mt-2 flex flex-wrap items-center gap-2">
+      <span class="font-bold text-ink">{{ title }}</span>
+      <span aria-hidden="true">=</span>
+      <span class="inline-flex flex-col items-center text-center text-ink">
+        <span class="px-2">{{ numerator }}</span>
+        <span class="sr-only">/</span>
+        <span class="mt-1 border-t border-line-strong px-2 pt-1">{{ denominator }}</span>
+      </span>
+    </p>
+
+    <p class="mt-2 text-ink-soft">{{ body }}</p>
   </AppPopover>
 </template>
