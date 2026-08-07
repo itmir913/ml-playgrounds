@@ -24,6 +24,7 @@ import {
   interpreterFor,
   knnPredict,
   loadModel,
+  loadModelProba,
   type LinearModel,
   type LinearRegressionModel,
   type ModelInterpreter,
@@ -318,6 +319,127 @@ describe('mlpx-linear-v1', () => {
       weights: [[1, 1]],
     })
     expectCode(() => model([[1]]), 'MODEL_FILE_INVALID')
+  })
+
+  /**
+   * 확률 (mlpx-spec.md §5.4).
+   *
+   * **여기서 지키는 것은 라벨과 확률이 같은 말을 하는가 하나다.** 둘을 따로 계산하면
+   * "예측: A, P(A)=12%"라는 자기모순이 **에러 없이** 화면에 뜨고, 그건 부호가 뒤집혔다는
+   * 뜻인데 지표만 보면 상쇄로 가려진다 - 이 형식이 실제로 겪은 그 자리다.
+   */
+  describe('확률', () => {
+    const file = roundTrip(trained.model)
+    const classes = (trained.model as LinearModel).classes
+
+    /** 확률이 가장 높은 칸. 화면이 하는 일과 같다. */
+    function argmax(row: Float64Array): number {
+      let best = 0
+      row.forEach((value, index) => {
+        if (value > (row[best] ?? 0)) best = index
+      })
+      return best
+    }
+
+    it('해석기가 자기 라벨을 함께 준다 - 화면이 모델 파일을 뒤지지 않는다', () => {
+      expect(loadModelProba(file)?.classes).toEqual(classes)
+    })
+
+    it('합이 1이다', () => {
+      const rows = loadModelProba(file)?.predict(IRIS_FEATURES) ?? []
+      expect(rows).toHaveLength(IRIS_FEATURES.length)
+      for (const row of rows) {
+        expect(row).not.toBeNull()
+        if (row) expect([...row].reduce((sum, one) => sum + one, 0)).toBeCloseTo(1, 10)
+      }
+    })
+
+    it('라벨이 확률의 argmax와 같다 - 포화하지 않으면 두 판정이 어긋날 수 없다', () => {
+      const labels = loadModel(file)(IRIS_FEATURES)
+      const rows = loadModelProba(file)?.predict(IRIS_FEATURES) ?? []
+
+      rows.forEach((row, index) => {
+        expect(row).not.toBeNull()
+        if (row) expect(classes[argmax(row)]).toBe(labels[index])
+      })
+    })
+
+    it('칸의 순서가 classes 순서다', () => {
+      // 점수 -10, 0, 10. 뒤집어 재므로 0번이 가장 높고 2번이 가장 낮다.
+      const rows =
+        loadModelProba({
+          format: LINEAR_FORMAT,
+          classes: ['a', 'b', 'c'],
+          featureCount: 1,
+          weights: [[-10], [0], [10]],
+        })?.predict([[1]]) ?? []
+
+      const row = rows[0]
+      expect(row).toBeDefined()
+      if (!row) return
+      expect(argmax(row)).toBe(0)
+      expect(row[0]).toBeGreaterThan(row[1] ?? 0)
+      expect(row[1]).toBeGreaterThan(row[2] ?? 0)
+    })
+
+    /**
+     * **균등분포로 채우지 않는다.** 일대다 판별기가 전부 "나는 아니다"라고 답한 것이지
+     * 모르겠다는 뜻이 아니라, 33.3%씩 보여주면 정반대의 거짓말이 된다.
+     */
+    it('전부 포화하면 확률이 없다 - 라벨은 그래도 나온다', () => {
+      const payload = {
+        format: LINEAR_FORMAT,
+        classes: ['a', 'b'],
+        featureCount: 1,
+        weights: [[1000], [1000]],
+      }
+      expect(loadModelProba(payload)?.predict([[1]])).toEqual([null])
+      // 동점이면 번호가 작은 쪽이라는 규칙은 확률이 없어도 그대로다.
+      expect(loadModel(payload)([[1]])).toEqual(['a'])
+    })
+
+    /**
+     * **이진에서도 판별기가 2개다** (실측, mlpx-spec.md §5.4). sklearn은 이진을 특수
+     * 경로로 다루지만 `ml-logistic-regression`에는 그 갈림이 없다. 공용 픽스처가
+     * 3클래스라 이 경로가 통째로 안 덮여 있었다.
+     */
+    it('클래스가 2개여도 담기고 읽히고 확률이 나온다', () => {
+      const [first, second] = [...new Set(IRIS_LABELS)].sort()
+      const picked = IRIS_LABELS.flatMap((label, index) =>
+        label === first || label === second ? [index] : [],
+      )
+      const features = picked.map((index) => IRIS_FEATURES[index] ?? [])
+
+      const binary = fit('logistic_regression', {
+        features,
+        rowIndices: picked,
+        target: picked.map((index) => IRIS_LABELS[index] ?? ''),
+        hyperparameters: {},
+        randomState: 42,
+      })
+
+      const model = binary.model as LinearModel
+      expect(model?.format).toBe(LINEAR_FORMAT)
+      expect(model.classes).toEqual([first, second])
+      expect(model.weights).toHaveLength(2)
+
+      const saved = roundTrip(model)
+      expect(loadModel(saved)(features)).toEqual(binary.predict(features))
+
+      const rows = loadModelProba(saved)?.predict(features) ?? []
+      const labels = loadModel(saved)(features)
+      rows.forEach((row, index) => {
+        expect(row).not.toBeNull()
+        if (!row) return
+        expect([...row].reduce((sum, one) => sum + one, 0)).toBeCloseTo(1, 10)
+        expect(model.classes[argmax(row)]).toBe(labels[index])
+      })
+    })
+
+    it('확률을 안 내는 형식은 null이다 - 화면은 형식 이름을 보지 않는다', () => {
+      expect(loadModelProba(roundTrip(train('decision_tree').model))).toBeNull()
+      expect(loadModelProba(roundTrip(train('naive_bayes').model))).toBeNull()
+    })
   })
 })
 

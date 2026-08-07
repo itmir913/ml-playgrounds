@@ -15,6 +15,32 @@ import type { Prediction } from '../metrics'
 export type Predict = (features: readonly (readonly number[])[]) => Prediction[]
 
 /**
+ * 클래스별 확률. **`classes`와 같은 순서·같은 길이이고 합은 1이다** (mlpx-spec.md §5.4).
+ *
+ * sklearn의 `predict_proba`가 `classes_` 순서로 열을 주는 것과 같은 모양이다. 이름 붙인
+ * 사전이 아닌 이유가 둘이다 — 파이썬 관행을 따르는 것이 하나이고(CLAUDE.md §2), 일괄
+ * 예측에서 셀마다 `Map`을 만들지 않아도 되는 것이 하나다.
+ *
+ * **낼 수 없는 행은 `null`이다.** 모든 점수가 포화해 분모가 0이 되는 자리이고, 균등분포로
+ * 채우면 정반대의 거짓말이 된다 — 일대다 판별기가 전부 "나는 아니다"라고 답한 상태이지
+ * 모르겠다는 뜻이 아니다 (mlpx-spec.md §5.4).
+ */
+export type PredictProba = (features: readonly (readonly number[])[]) => (Float64Array | null)[]
+
+/**
+ * 확률을 내는 모델. **칸 이름을 함께 준다.**
+ *
+ * 배열만 주면 어느 칸이 어느 범주인지 부르는 쪽이 모델 파일을 직접 뒤져야 하고, 그 순간
+ * 화면이 그 형식의 필드 이름을 알게 된다 — 이 계층이 막으려는 것이 정확히 그것이다.
+ * 어느 형식이든 **자기 라벨은 자기가 안다.**
+ */
+export interface ProbaModel {
+  /** `predict`가 주는 배열의 칸 순서. sklearn의 `classes_`에 해당한다. */
+  readonly classes: readonly string[]
+  readonly predict: PredictProba
+}
+
+/**
  * 모델 파일 하나의 내용. **format이 나머지 필드의 스키마를 결정한다** (mlpx-spec.md 5).
  *
  * 공통으로 있는 것은 format 하나뿐이다. 여기에 필드를 더 올리면 형식마다 다른 것을
@@ -75,4 +101,16 @@ export interface ModelInterpreter {
   readonly needsTrainingRows: boolean
   /** 파일 내용을 예측 함수로. 내용이 형식과 안 맞으면 던진다. */
   load(file: unknown, context: LoadContext): Predict
+  /**
+   * 확률을 내는 형식만 구현한다. **있다는 것 자체가 선언이다** (architecture.md §8.13.1).
+   *
+   * **불리언 플래그를 나란히 두지 않는다** — 플래그와 구현이 갈라질 자리를 만들지 않기
+   * 위해서다. 위 두 불리언이 불리언인 것은 그 둘이 **모델을 읽기 전에** 판정에 쓰이기
+   * 때문이고(꺼진 줄을 그리려면 그 전에 알아야 한다), 확률에는 그런 사전 판정이 없다.
+   *
+   * **`load`와 라벨이 어긋나면 안 된다.** 점수 계산을 공유하고 라벨 판정은 `load` 쪽
+   * 규칙 그대로 두어라 — 확률의 argmax로 라벨을 정하면 포화 구간에서 답이 갈린다
+   * (mlpx-spec.md §5.4).
+   */
+  loadProba?(file: unknown, context: LoadContext): ProbaModel
 }

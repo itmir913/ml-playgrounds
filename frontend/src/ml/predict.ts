@@ -409,6 +409,20 @@ export interface Answer {
    * 어떻게 쓸지가 언어에 달렸기 때문이다 (docs/i18n.md 규칙 6).
    */
   readonly value?: Prediction
+  /**
+   * 클래스별 확률. **확률을 내는 모델에만 있다** (mlpx-spec.md 5.4 — 지금은 로지스틱
+   * 회귀뿐이다). 포화해서 못 낸 행에도 없다.
+   *
+   * **클래스 이름을 함께 든다.** 값만 있으면 어느 칸이 어느 범주인지 화면이 모델 파일을
+   * 다시 뒤져야 하고, 그 순간 화면이 형식을 알게 된다. `classes`와 `values`는 같은
+   * 순서·같은 길이다.
+   *
+   * **`value`를 여기서 다시 구하지 마라.** 포화 구간에서 argmax와 라벨이 갈린다.
+   */
+  readonly probabilities?: {
+    readonly classes: readonly string[]
+    readonly values: Float64Array
+  }
   /** 이 모델에서만 난 실패. 코드는 `client.*`이거나 `errors.*`다. */
   readonly failure?: { code: ClientErrorCode; params: Record<string, unknown> }
 }

@@ -12,13 +12,13 @@
 import { z } from 'zod'
 
 import { ClientError } from '../../errors'
-import { LINEAR_FORMAT, loadLinearModel } from './linear'
+import { LINEAR_FORMAT, loadLinearModel, loadLinearProba } from './linear'
 import { LINEAR_REGRESSION_FORMAT, loadLinearRegressionModel } from './linear-regression'
 import { NAIVE_BAYES_FORMAT, loadNaiveBayesModel } from './naive-bayes'
 import { REFERENCE_FORMAT, loadReferenceModel } from './reference'
 import { SVM_FORMAT, loadSvmModel } from './svm'
 import { TREE_FORMAT, loadTreeModel } from './tree'
-import type { LoadContext, ModelInterpreter, Predict } from './types'
+import type { LoadContext, ModelInterpreter, Predict, ProbaModel } from './types'
 
 export { LINEAR_FORMAT } from './linear'
 export type { LinearModel } from './linear'
@@ -32,7 +32,14 @@ export { SVM_FORMAT, svmPredict } from './svm'
 export type { PairwiseClassifier, SvmModel, VotingInput } from './svm'
 export { TREE_FORMAT } from './tree'
 export type { TreeModel, TreeNode } from './tree'
-export type { LoadContext, ModelFile, ModelInterpreter, Predict } from './types'
+export type {
+  LoadContext,
+  ModelFile,
+  ModelInterpreter,
+  Predict,
+  PredictProba,
+  ProbaModel,
+} from './types'
 
 const INTERPRETERS: readonly ModelInterpreter[] = [
   {
@@ -46,6 +53,9 @@ const INTERPRETERS: readonly ModelInterpreter[] = [
     includesPreprocessing: false,
     needsTrainingRows: false,
     load: loadLinearModel,
+    // **지금 확률을 내는 유일한 형식이다** (mlpx-spec.md 5.4). 결정 트리와 나이브
+    // 베이즈도 sklearn에서는 predict_proba를 가지므로 여기 항목이 늘어날 자리다.
+    loadProba: loadLinearProba,
   },
   {
     format: NAIVE_BAYES_FORMAT,
@@ -121,4 +131,25 @@ export function loadModel(file: unknown, context: LoadContext = {}): Predict {
 
   assertContext(interpreter, context)
   return interpreter.load(file, context)
+}
+
+/**
+ * 확률을 낼 수 있으면 그 함수를, 아니면 `null` (mlpx-spec.md 5.4).
+ *
+ * **`loadModel`과 나란히 둔다.** 부르는 쪽이 등록부를 직접 뒤지면 "형식 이름을 보고
+ * 가르지 않는다"가 화면 코드에서 깨진다 - 화면이 보는 것은 여기서 null이 왔는지뿐이다.
+ *
+ * **모르는 형식도 null이다.** 그 판정은 `loadModel`이 먼저 던져 끝내므로 여기 도달하지
+ * 않고, 여기서 굳이 한 번 더 던지면 "확률이 없다"와 "이 파일을 못 읽는다"가 같은 자리에서
+ * 섞인다.
+ */
+export function loadModelProba(file: unknown, context: LoadContext = {}): ProbaModel | null {
+  const parsed = formatSchema.safeParse(file)
+  if (!parsed.success) return null
+
+  const interpreter = interpreterFor(parsed.data.format)
+  if (!interpreter?.loadProba) return null
+
+  assertContext(interpreter, context)
+  return interpreter.loadProba(file, context)
 }
