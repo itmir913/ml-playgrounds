@@ -93,7 +93,7 @@ const details = computed(() => {
 
 /** 내보내기 상태의 색. 잘린 줄과 팝오버가 같은 것을 봐야 한다. */
 const exportTone = computed(() =>
-  exportState.value === 'exported' ? 'text-positive' : 'font-bold text-caution',
+  exportState.value === 'exported' ? 'font-bold text-positive' : 'font-bold text-caution',
 )
 
 function onLocale(event: Event): void {
