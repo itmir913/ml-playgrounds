@@ -106,11 +106,21 @@ describe('지표별 최고값', () => {
 
   it('그 지표를 안 가진 run이 섞여도 나머지로 고른다', () => {
     const best = bestByMetric(
-      [run('run-1', { r2: 0.9 }), run('run-2', { r2: 0.4, rmse: 1, mae: 1 })],
+      [run('run-1', { r2: 0.9, rmse: 3 }), run('run-2', { r2: 0.4, rmse: 1, mae: 1 })],
       displays,
     )
     expect(best.get('r2')).toBe(0.9)
     expect(best.get('rmse')).toBe(1)
+    // mae는 run-2에만 있다 - 견줄 것이 하나뿐이라 굵게 하지 않는다.
+    expect(best.get('mae')).toBeUndefined()
+  })
+
+  it('전부 같은 점수면 아무것도 안 굵어진다 - 없는 차이를 지어내지 않는다', () => {
+    const best = bestByMetric(
+      [run('run-1', { r2: 0.9, rmse: 1, mae: 1 }), run('run-2', { r2: 0.9, rmse: 1, mae: 1 })],
+      displays,
+    )
+    expect(best.size).toBe(0)
   })
 })
 
@@ -234,6 +244,27 @@ describe('값 종류별 점수의 가장 약한 칸', () => {
     expect(isWeakestPerClass(weakest, '강아지', 'specificity')).toBe(false)
     // 나머지 지표는 그대로 짚는다.
     expect(isWeakestPerClass(weakest, '강아지', 'precision')).toBe(true)
+  })
+
+  it('전부 같은 점수면 아무것도 안 짚는다 - 붓꽃처럼 다 100%인 실험이 그렇다', () => {
+    const weakest = weakestPerClass([
+      { label: 'setosa', precision: 1, recall: 1, specificity: 1, f1: 1, support: 10 },
+      { label: 'versicolor', precision: 1, recall: 1, specificity: 1, f1: 1, support: 10 },
+      { label: 'virginica', precision: 1, recall: 1, specificity: 1, f1: 1, support: 10 },
+    ])
+    expect(weakest.size).toBe(0)
+  })
+
+  it('가장 낮은 값이 여럿이면 전부 짚는다 - 하나만 고를 근거가 없다', () => {
+    const weakest = weakestPerClass([
+      { label: '고양이', precision: 0.5, recall: 0.9, f1: 0.9, support: 10 },
+      { label: '강아지', precision: 0.5, recall: 0.9, f1: 0.9, support: 10 },
+      { label: '토끼', precision: 0.9, recall: 0.5, f1: 0.5, support: 10 },
+    ])
+
+    expect(isWeakestPerClass(weakest, '고양이', 'precision')).toBe(true)
+    expect(isWeakestPerClass(weakest, '강아지', 'precision')).toBe(true)
+    expect(isWeakestPerClass(weakest, '토끼', 'precision')).toBe(false)
   })
 
   it('클래스가 하나뿐이면 아무것도 안 짚는다 - 견줄 것이 없다', () => {

@@ -157,10 +157,17 @@ export function weakestPerClass(perClass: readonly PerClass[]): ReadonlySet<stri
     const scored = perClass.filter((entry) => entry[metric] !== undefined)
     if (scored.length < 2) continue
 
-    const loser = scored.reduce((min, entry) =>
-      (entry[metric] ?? 0) < (min[metric] ?? 0) ? entry : min,
-    )
-    weakest.add(`${loser.label}:${metric}`)
+    const values = scored.map((entry) => entry[metric] ?? 0)
+    const lowest = Math.min(...values)
+    // **갈리지 않으면 아무것도 안 짚는다** (§8.13). 전부 100%인 실험에서 첫 줄만
+    // 노래지고 있었다 - 화면이 없는 차이를 있다고 말한 셈이다.
+    if (lowest === Math.max(...values)) continue
+
+    // **같은 값이 여럿이면 전부 짚는다.** 먼저 담긴 하나만 고르면 나머지는 멀쩡한
+    // 것처럼 보이는데, 어느 쪽을 고를 근거가 우리에게 없다.
+    for (const entry of scored) {
+      if ((entry[metric] ?? 0) === lowest) weakest.add(`${entry.label}:${metric}`)
+    }
   }
   return weakest
 }
@@ -191,8 +198,12 @@ export function bestByMetric(
     const values = runs
       .map((run) => run.metrics?.[display.name])
       .filter((value): value is number => typeof value === 'number')
+
     const winner = bestOf(values, display.better)
-    if (winner !== undefined) best.set(display.name, winner)
+    // **갈리지 않으면 아무것도 안 굵어진다** (§8.13, `weakestPerClass`와 같은 규칙).
+    // 세 모델이 같은 점수를 냈는데 셋 다 굵으면 그건 비교가 아니라 장식이다.
+    if (winner === undefined || values.every((value) => value === winner)) continue
+    best.set(display.name, winner)
   }
   return best
 }
