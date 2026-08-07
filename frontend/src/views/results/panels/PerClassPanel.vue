@@ -1,9 +1,14 @@
 <script setup lang="ts">
 /**
- * 값 종류별 점수. **분류 전용이라는 사실은 등록부에 있다** (`ml/metric-panels.ts`).
+ * 범주별 점수. **분류 전용이라는 사실은 등록부에 있다** (`ml/metric-panels.ts`).
  *
  * 혼동 행렬과 나란히 서지만 서로를 모른다. 하나가 빠진 파일이 실제로 있으므로
  * (mlpx-spec.md §4.2) 둘을 한 컴포넌트에 묶으면 한쪽이 없을 때 나머지도 못 그린다.
+ *
+ * **열 순서는 sklearn의 `classification_report`다** (open-decisions.md "파이썬 표준
+ * 관행을 따른다"). `precision, recall, f1-score, support`의 상대 순서를 그대로 두고
+ * 그 표에 없는 특이도만 끼웠다. **여기를 재배열하기 전에 그 문서를 읽어라** - 근거는
+ * 교과서가 아니라 **학생이 다음에 만날 도구**다.
  */
 
 import { computed } from 'vue'
