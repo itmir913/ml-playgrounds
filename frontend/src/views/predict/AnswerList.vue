@@ -120,6 +120,42 @@ function tallyChipClass(value: Prediction): string {
   const rank = ranks.value?.get(value) ?? null
   return (rank !== null && CHART_CLASSES[rank]) || 'border-line-strong bg-surface'
 }
+
+/** 막대 한 줄. 화면이 그리는 데 필요한 것만 담는다. */
+interface ProbabilityBar {
+  readonly name: string
+  readonly percent: string
+  readonly width: string
+  /** 이 범주가 이 모델의 답인가. **확률의 최댓값이 아니라 답과 대조한다** (아래 주석). */
+  readonly chosen: boolean
+}
+
+/**
+ * 범주별 확률 막대 (architecture.md §8.13.1, mlpx-spec.md §5.4).
+ *
+ * **확률을 내는 모델에만 있다.** 지금은 로지스틱 회귀뿐이고, 포화해서 못 낸 답에도 없다 —
+ * 그때 균등분포를 그리면 없는 확신을 지어낸다.
+ *
+ * **어느 막대를 굵게 쓸지는 `value`와 이름을 대조해 정한다.** 확률의 argmax로 정하면
+ * 포화 구간에서 큰 답과 굵은 막대가 갈릴 수 있고(mlpx-spec.md §5.4), 그러면 화면이
+ * 자기 자신과 어긋난 말을 한다. **답은 언제나 모델이 낸 그 값이다.**
+ */
+function bars(model: PredictableModel): ProbabilityBar[] {
+  const answer = props.answers.get(model.run.id)
+  const proba = answer?.probabilities
+  if (!proba) return []
+
+  return proba.classes.map((name, index) => {
+    const ratio = proba.values[index] ?? 0
+    return {
+      name,
+      percent: format.percent(ratio),
+      // 소수점을 남긴다 - 반올림하면 1%가 안 되는 막대가 통째로 사라진다.
+      width: `${(ratio * 100).toFixed(2)}%`,
+      chosen: name === answer?.value,
+    }
+  })
+}
 </script>
 
 <template>
@@ -187,6 +223,43 @@ function tallyChipClass(value: Prediction): string {
             {{ answerText(props.answers.get(model.run.id)?.value) }}
           </p>
         </div>
+
+        <!--
+          **범주별 확률** (mlpx-spec.md §5.4). 확률을 내는 모델에만 붙고, 포화해서 못 낸
+          답에는 안 붙는다 — 없는 확신을 지어내지 않는다.
+
+          **이름과 값을 한 줄에, 막대를 그 아래에 둔다.** 이름을 막대와 나란히 두면 범주
+          이름이 길 때 잘리는데, 그 이름은 학생의 데이터에서 온 것이라 길이를 우리가 정할
+          수 없다.
+        -->
+        <section v-if="bars(model).length > 0" class="mt-3 flex flex-col gap-2">
+          <h5 class="text-ink-soft">{{ t('predict.probability') }}</h5>
+
+          <ul class="flex flex-col gap-2">
+            <li v-for="bar in bars(model)" :key="bar.name" class="flex flex-col gap-1">
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="truncate" :class="bar.chosen ? 'font-bold' : 'text-ink-soft'">
+                  {{ bar.name }}
+                </span>
+                <span
+                  class="shrink-0 tabular-nums"
+                  :class="bar.chosen ? 'font-bold' : 'text-ink-soft'"
+                >
+                  {{ bar.percent }}
+                </span>
+              </div>
+
+              <!-- 학습 진행률 막대와 같은 모양이다 (TrainView.vue). -->
+              <div class="h-2 w-full overflow-hidden rounded-pill bg-surface-sunken">
+                <div
+                  class="h-full rounded-pill"
+                  :class="bar.chosen ? 'bg-brand' : 'bg-brand-line'"
+                  :style="{ width: bar.width }"
+                />
+              </div>
+            </li>
+          </ul>
+        </section>
 
         <!-- 쓸 수 없는 사유. 셋이 전부 다른 말이고 학생이 할 수 있는 일이 다르다. -->
         <p v-if="model.reason" class="mt-1 text-ink-soft">{{ reasonText(model.reason) }}</p>

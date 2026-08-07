@@ -22,7 +22,7 @@ import { useI18n } from 'vue-i18n'
 import AppEmpty from '@/components/AppEmpty.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { isClientError, type ClientErrorCode } from '@/errors'
-import { interpreterFor, loadModel, type LoadContext } from '@/ml/models'
+import { interpreterFor, loadModel, loadModelProba, type LoadContext } from '@/ml/models'
 import {
   applyPredictFilter,
   defaultFilter,
@@ -345,13 +345,26 @@ async function run(): Promise<void> {
           ? contextFor(entry.experiment, preprocessor, contexts)
           : {}
 
-        const predict = loadModel(JSON.parse(new TextDecoder().decode(bytes)), context)
+        const payload: unknown = JSON.parse(new TextDecoder().decode(bytes))
+        const predict = loadModel(payload, context)
         const vector = inputVector(entry.experiment, preprocessor, values.value)
         const answer = predict([vector])[0]
+
+        // **확률을 내는 모델만 확률이 있다** (mlpx-spec.md §5.4). 여기서도 형식 이름을
+        // 보지 않는다 - 등록부에 `loadProba`가 없으면 null이고, 포화한 행도 null이다.
+        // 라벨은 위에서 이미 나왔다. **확률로 다시 구하지 않는다.**
+        const proba = loadModelProba(payload, context)
+        const row = proba?.predict([vector])[0]
+
         // **수치를 여기서 문자열로 만들지 않는다.** 회귀의 답은 숫자이고 그것을 어떻게
         // 쓸지는 언어가 정한다 (`useFormat`) - `String()`으로 굳히면 3.4000000000000004가
         // 그대로 화면에 뜬다.
-        if (answer !== undefined) next.set(entry.run.id, { value: answer })
+        if (answer !== undefined) {
+          next.set(entry.run.id, {
+            value: answer,
+            ...(proba && row ? { probabilities: { classes: proba.classes, values: row } } : {}),
+          })
+        }
       } catch (error) {
         next.set(entry.run.id, {
           failure: isClientError(error)

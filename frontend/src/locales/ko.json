@@ -523,6 +523,7 @@
     "answerTitle": "모델들의 답",
     "answerLead": "평가 데이터(Test Data)를 학습한 모든 모델에 입력합니다. 모델마다 예측한 값이 갈릴 수 있으며 이는 정상입니다.",
     "waiting": "값을 채우고 [예측]을 누르면 여기에 답이 나옵니다.",
+    "probability": "범주별 확률",
     "modelName": "{algorithm} · {runtime}",
     "unusable": "이 모델은 지금 쓸 수 없습니다.",
     "notSaved": "예측한 값과 답은 프로젝트 파일에 저장되지 않습니다. 여기는 마음껏 시험해 보는 자리입니다.",
