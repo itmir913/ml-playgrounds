@@ -450,10 +450,10 @@
     "mae": "MAE"
   },
   "metricHelp": {
-    "accuracy": "The share of all rows the model got right. It can look high just by always guessing the most common value, so read it together with the F1 score.",
-    "f1": "A score that balances precision and recall. It averages the F1 score of every value, so the table below shows which value pulled it down.",
-    "precision": "Of the rows the model answered with this value, the share that were right. A low number means the model reaches for this value too often.",
-    "recall": "Of the rows that really are this value, the share the model found. A low number means the model keeps missing this value.",
+    "accuracy": "The share of all rows the model got right. It reads easily, but it misleads when the classes are imbalanced — when most rows share one value, answering with that value every time still scores high. Read it together with the other scores.",
+    "f1": "A score that reflects precision and recall together, so a high score on only one of them does not lift it. It is worked out for each value, and the F1 score in the table above is the average of those.",
+    "precision": "Of the rows the model answered with this value, the share that really were this value. A low number means the model reaches for this value too often. It is worked out for each value in turn, treating that value as the positive one.",
+    "recall": "Of the rows that really are this value, the share the model found. A low number means the model keeps missing this value. Missing a value and over-using it are different problems, so read this beside precision.",
     "support": "How many rows of the evaluation data really are this value. It counts the data used for scoring, not the data used for training. When it is small, the three scores beside it swing on a single row.",
     "r2": "How much of the variation in the values the model explains. Closer to 1 is better, and it goes negative when the model does worse than always guessing the average.",
     "rmse": "How far the predictions land from the real values on average. Large misses count for more, and the unit is the same as the value being predicted.",
