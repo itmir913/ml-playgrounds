@@ -76,7 +76,7 @@ const info = computed(() => {
 
     <dl class="flex flex-col gap-1.5">
       <div class="flex justify-between gap-4">
-        <dt class="text-ink-soft">{{ t('meta.taskType') }}</dt>
+        <dt class="font-bold text-ink-soft">{{ t('meta.taskType') }}</dt>
         <!-- 아직 안 골랐으면 없는 것이 맞다. 기본값을 보여주면 고른 것처럼 읽힌다. -->
         <dd>
           {{
@@ -88,54 +88,54 @@ const info = computed(() => {
       </div>
 
       <div class="flex justify-between gap-4">
-        <dt class="shrink-0 text-ink-soft">{{ t('meta.dataset') }}</dt>
+        <dt class="shrink-0 font-bold text-ink-soft">{{ t('meta.dataset') }}</dt>
         <dd class="truncate">{{ info.dataset?.fileName ?? t('meta.none') }}</dd>
       </div>
 
       <div v-if="info.dataset" class="flex justify-between gap-4">
-        <dt class="text-ink-soft">{{ t('meta.rows') }}</dt>
+        <dt class="font-bold text-ink-soft">{{ t('meta.rows') }}</dt>
         <dd class="tabular-nums">{{ info.dataset.rows }}</dd>
       </div>
 
       <div v-if="info.dataset" class="flex justify-between gap-4">
-        <dt class="text-ink-soft">{{ t('meta.columns') }}</dt>
+        <dt class="font-bold text-ink-soft">{{ t('meta.columns') }}</dt>
         <dd class="tabular-nums">{{ info.dataset.columns }}</dd>
       </div>
 
       <div class="flex justify-between gap-4">
-        <dt class="text-ink-soft">{{ t('meta.target') }}</dt>
+        <dt class="font-bold text-ink-soft">{{ t('meta.target') }}</dt>
         <dd class="truncate">{{ info.target ?? t('meta.none') }}</dd>
       </div>
 
       <div class="flex justify-between gap-4">
-        <dt class="text-ink-soft">{{ t('meta.features') }}</dt>
+        <dt class="font-bold text-ink-soft">{{ t('meta.features') }}</dt>
         <dd class="tabular-nums">{{ t('meta.countUnit', info.features) }}</dd>
       </div>
 
       <div class="flex justify-between gap-4">
-        <dt class="shrink-0 text-ink-soft">{{ t('meta.algorithms') }}</dt>
+        <dt class="shrink-0 font-bold text-ink-soft">{{ t('meta.algorithms') }}</dt>
         <dd class="truncate">
           {{ info.algorithms.length === 0 ? t('meta.none') : info.algorithms.join(', ') }}
         </dd>
       </div>
 
       <div class="flex justify-between gap-4">
-        <dt class="text-ink-soft">{{ t('meta.runs') }}</dt>
+        <dt class="font-bold text-ink-soft">{{ t('meta.runs') }}</dt>
         <dd class="tabular-nums">{{ t('meta.countUnit', info.runs) }}</dd>
       </div>
 
       <div class="mt-2 flex justify-between gap-4 border-t border-line pt-2">
-        <dt class="text-ink-soft">{{ t('meta.size') }}</dt>
+        <dt class="font-bold text-ink-soft">{{ t('meta.size') }}</dt>
         <dd>{{ format.bytes(info.bytes) }}</dd>
       </div>
 
       <div class="flex justify-between gap-4">
-        <dt class="text-ink-soft">{{ t('meta.created') }}</dt>
+        <dt class="font-bold text-ink-soft">{{ t('meta.created') }}</dt>
         <dd>{{ format.dateTime(info.manifest.createdAt) }}</dd>
       </div>
 
       <div class="flex justify-between gap-4">
-        <dt class="text-ink-soft">{{ t('meta.updated') }}</dt>
+        <dt class="font-bold text-ink-soft">{{ t('meta.updated') }}</dt>
         <dd>{{ format.dateTime(info.manifest.updatedAt) }}</dd>
       </div>
     </dl>

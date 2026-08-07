@@ -150,7 +150,7 @@ const nextTheme = computed(() => otherTheme(theme.value))
           :key="row.label"
           class="flex items-baseline justify-between gap-3"
         >
-          <dt>{{ row.label }}</dt>
+          <dt class="font-bold">{{ row.label }}</dt>
           <dd class="tabular-nums">{{ row.value }}</dd>
         </div>
       </dl>
