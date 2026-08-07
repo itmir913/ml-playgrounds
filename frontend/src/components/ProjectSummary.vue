@@ -55,7 +55,16 @@ const info = computed(() => {
     bytes,
     target: settings.target,
     features: settings.features.length,
-    algorithms: settings.selectedAlgorithms.map((one) => one.algorithm),
+    /**
+     * **번역된 이름이다. 등록부 id가 아니다.** `decision_tree`가 그대로 뜨고 있었다 -
+     * 화면에 나가는 모든 알고리즘 이름은 `algorithms.*`를 지난다(결과·예측 화면이 이미
+     * 그렇게 하고 있고, 여기만 빠져 있었다).
+     *
+     * 등록부에 없는 id면 `t()`가 키를 그대로 돌려준다. 그대로 둔다 - 남의 파일에서
+     * 온 모르는 모델이고, 모르는 것을 아는 척하는 것보다 낫다(§8.13의 모르는 경로와
+     * 같은 판단이다).
+     */
+    algorithms: settings.selectedAlgorithms.map((one) => t(`algorithms.${one.algorithm}`)),
     runs: allRuns.length,
   }
 })
