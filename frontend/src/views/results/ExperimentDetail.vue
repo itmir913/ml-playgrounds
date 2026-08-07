@@ -150,7 +150,7 @@ function failureDetailOf(run: Run): string | null {
             <th>{{ t('results.model') }}</th>
             <th>{{ t('results.where') }}</th>
             <th v-for="display in displays" :key="display.name">
-              {{ t(`metrics.${display.name}`) }}
+              {{ t(`metrics.${display.label ?? display.name}`) }}
             </th>
           </tr>
         </thead>

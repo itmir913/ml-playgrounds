@@ -442,7 +442,9 @@
   },
   "metrics": {
     "accuracy": "정확도(Accuracy)",
-    "f1Macro": "F1 점수(Macro)",
+    "f1": "F1 점수",
+    "precision": "정밀도(Precision)",
+    "recall": "재현율(Recall)",
     "r2": "결정계수(R²)",
     "rmse": "평균 제곱근 오차(RMSE)",
     "mae": "평균 절대 오차(MAE)"
@@ -472,9 +474,6 @@
     "actual": "실제",
     "perClass": "값 종류별 점수",
     "label": "값 종류",
-    "precision": "정밀도(Precision)",
-    "recall": "재현율(Recall)",
-    "f1": "F1 점수",
     "support": "실제 개수",
     "failedTitle": "학습하지 못한 모델 {count}개",
     "failureDetail": "기술 정보"

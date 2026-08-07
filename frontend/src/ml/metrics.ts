@@ -150,8 +150,20 @@ export const EVALUATORS: Partial<Record<TaskType, Evaluator>> = {
  * 방향이 있어야 한다 (architecture.md 8.13).
  */
 export interface MetricDisplay {
-  /** run.metrics의 키. 로케일 키도 `metrics.{name}`으로 여기서 나온다. */
+  /** run.metrics의 키. **파일에 남는 이름이다** (mlpx-spec.md §4). */
   readonly name: string
+  /**
+   * 화면 이름의 로케일 키 조각. 없으면 `name`을 그대로 쓴다 - `metrics.{여기}`가 된다.
+   *
+   * **파일의 이름과 화면의 이름이 달라도 되는 자리다.** `f1Macro`가 그렇다 - 매크로
+   * 평균이라는 것은 **계산의 성질이지 학생이 볼 이름이 아니고**, 값 종류별 점수표의
+   * `F1 점수`를 그대로 평균 낸 값이라 **같은 지표는 같은 이름이어야 한다**
+   * (docs/copy.md "같은 지표는 같은 이름이고 키도 하나다"). 이름을 갈라 두면 학생은
+   * 다른 지표 둘로 읽고, 두 표를 잇는 길이 끊긴다.
+   *
+   * 파일 쪽 이름은 절대 안 바꾼다 - 그건 포맷이다.
+   */
+  readonly label?: string
   /** 높을수록 좋은가 낮을수록 좋은가. 최고값 표시가 이것을 본다. */
   readonly better: 'higher' | 'lower'
   /** 백분율로 쓸 수 있는 값인가. */
@@ -171,7 +183,8 @@ export interface MetricDisplay {
 export const METRIC_DISPLAY: Partial<Record<TaskType, readonly MetricDisplay[]>> = {
   classification: [
     { name: 'accuracy', better: 'higher', format: 'percent' },
-    { name: 'f1Macro', better: 'higher', format: 'percent' },
+    // 화면 이름은 `F1 점수`다 - 위 label 주석 참고. 파일에는 f1Macro로 남는다.
+    { name: 'f1Macro', label: 'f1', better: 'higher', format: 'percent' },
   ],
   regression: [
     { name: 'r2', better: 'higher', format: 'number' },

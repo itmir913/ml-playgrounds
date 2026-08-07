@@ -30,9 +30,9 @@ const weakest = computed(() => weakestPerClass(props.run.perClass ?? []))
       <thead>
         <tr>
           <th>{{ t('results.label') }}</th>
-          <th>{{ t('results.precision') }}</th>
-          <th>{{ t('results.recall') }}</th>
-          <th>{{ t('results.f1') }}</th>
+          <th>{{ t('metrics.precision') }}</th>
+          <th>{{ t('metrics.recall') }}</th>
+          <th>{{ t('metrics.f1') }}</th>
           <th>{{ t('results.support') }}</th>
         </tr>
       </thead>
