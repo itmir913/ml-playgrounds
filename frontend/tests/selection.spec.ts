@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ColumnSummary } from '../src/data/columns'
-import { ALGORITHMS, algorithmOptions } from '../src/ml/algorithms'
+import { ALGORITHMS, algorithmOptions, type AlgorithmOption } from '../src/ml/algorithms'
 import type { RuntimeContext } from '../src/ml/backend'
 import type { Dataset } from '../src/ml/preprocess'
 import {
@@ -23,8 +23,10 @@ import {
   rowUsage,
   stratifyBlock,
   stratifyLocked,
+  trainableRowCount,
   type AxisChoice,
 } from '../src/ml/selection'
+import { MLJS_SVM_ROW_LIMIT } from '../src/limits'
 import type { Preprocessing } from '../src/project/schema'
 import { SKLEARN_ONLY_ALGORITHM, withSklearnOnly } from './fixtures/algorithms'
 
@@ -410,5 +412,67 @@ describe('올린 행 중 몇 행을 쓰는지', () => {
     const clean = dataset([['170', 'A']])
     expect(rowUsage(null, ['키'], '반', 'mean')).toBeNull()
     expect(rowUsage(clean, ['키'], undefined, 'mean')).toBeNull()
+  })
+})
+
+describe('행 상한은 전처리 후 행 수로 잰다', () => {
+  const table = (rows: string[][]): Dataset => ({ columns: ['키', '반'], rows })
+
+  it('빠질 행을 뺀 수를 준다', () => {
+    const holed = table([
+      ['170', 'A'],
+      ['180', ''],
+      ['190', 'B'],
+    ])
+    expect(trainableRowCount(holed, ['키'], '반', 'mean')).toBe(2)
+  })
+
+  it('drop 전략에서는 특성이 빈 행도 빠진다', () => {
+    const holed = table([
+      ['170', 'A'],
+      ['', 'B'],
+    ])
+    expect(trainableRowCount(holed, ['키'], '반', 'drop')).toBe(1)
+    // mean이면 채워서 쓰므로 안 빠진다 - rowUsage와 같은 usableRows를 본다.
+    expect(trainableRowCount(holed, ['키'], '반', 'mean')).toBe(2)
+  })
+
+  it('타깃을 안 골랐으면 파일의 행 수다 - 무엇이 빠질지 아직 모른다', () => {
+    const clean = table([
+      ['170', 'A'],
+      ['180', 'B'],
+    ])
+    expect(trainableRowCount(clean, ['키'], undefined, 'mean')).toBe(2)
+    expect(trainableRowCount(null, ['키'], '반', 'mean')).toBe(0)
+  })
+
+  /**
+   * **화면이 학습보다 엄격하면 안 된다.** 학습은 `usableRows`로 거른 뒤에 시작하므로
+   * (ml/experiment.ts) 걸러서 상한 아래로 내려온 데이터는 실제로 학습할 수 있다. 파일의
+   * 행 수로 재면 전처리 화면이 "최종 N행을 학습에 사용합니다"라고 말한 바로 다음 화면에서
+   * 그보다 큰 수로 모델을 잠근다 - 학생은 고칠 방법이 없는 이유로 모델을 잃는다.
+   */
+  it('파일은 상한을 넘어도 전처리 후 아래면 그 모델은 열려 있다', () => {
+    const dropped = 200
+    const rows = Array.from({ length: MLJS_SVM_ROW_LIMIT + 100 }, (_, index) => [
+      String(150 + (index % 50)),
+      // 앞의 200행은 타깃이 비어 있다. 어떤 결측 전략에서도 빠진다.
+      index < dropped ? '' : 'A',
+    ])
+    const big = table(rows)
+    const usable = trainableRowCount(big, ['키'], '반', 'mean')
+
+    expect(big.rows.length).toBeGreaterThan(MLJS_SVM_ROW_LIMIT)
+    expect(usable).toBeLessThan(MLJS_SVM_ROW_LIMIT)
+
+    const svm = (rowCount: number): AlgorithmOption | undefined =>
+      algorithmOptions(
+        { dataType: 'tabular', taskType: 'classification' },
+        { serverStatus: 'unavailable', rowCount },
+      ).find((one) => one.algorithm.id === 'svm')
+
+    expect(svm(usable)?.enabled).toBe(true)
+    // 같은 데이터를 파일의 행 수로 재면 잠긴다. 고친 것이 정확히 이 차이다.
+    expect(svm(big.rows.length)?.reason).toBe('DATASET_TOO_LARGE_FOR_BROWSER')
   })
 })

@@ -36,6 +36,7 @@ import {
   columnPlan,
   requiredTargetKind,
   stratifyBlock,
+  trainableRowCount,
   type ChosenModel,
 } from '@/ml/selection'
 import { failedRuns } from '@/ml/results'
@@ -75,12 +76,27 @@ const columns = computed(() => (dataset.value ? summarizeColumns(dataset.value) 
  * **서버 상태를 아는 곳이 아직 없다.** 같은 오리진 헬스 엔드포인트를 찌르는 상태 점검
  * 패널이 생기면 거기서 온다(architecture.md §7.3). 그때까지 `unknown`이고, 서버 항목은
  * 이유와 함께 꺼진 채로 보인다 — 지금 그것이 사실이다.
+ *
+ * **행 수는 전처리에서 빠질 행을 뺀 것이다** (`trainableRowCount`). 파일의 행 수를 넘기면
+ * 학습이 실제로 받아들일 데이터를 이 화면이 거부한다 — 전처리 화면은 "최종 2011행을 학습에
+ * 사용합니다"라고 말하는데 여기서는 3276행으로 상한을 재는 식이다.
  */
-const context = computed<RuntimeContext>(() => ({
-  serverStatus: 'unknown',
-  engineStates: {},
-  rowCount: dataset.value?.rows.length ?? 0,
-}))
+const context = computed<RuntimeContext>(() => {
+  const current = settings.value
+  return {
+    serverStatus: 'unknown',
+    engineStates: {},
+    // 아무것도 안 골랐으면 무엇이 빠질지 정해지지 않았다. 그때는 파일의 행 수가 보수적이다.
+    rowCount: current
+      ? trainableRowCount(
+          dataset.value,
+          current.features,
+          current.target,
+          current.preprocessing.missing,
+        )
+      : (dataset.value?.rows.length ?? 0),
+  }
+})
 
 /**
  * 고를 수 있는 유형. **데이터 종류가 좁힌다** - 이미지에 회귀는 성립하지 않는다.

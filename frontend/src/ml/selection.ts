@@ -398,6 +398,36 @@ export function stratifyBlock(input: StratifyInput): StratifyBlock | null {
       }
 }
 
+/**
+ * 상한 판정이 세어야 하는 행 수 — **학습에 실제로 들어가는 행이다.**
+ *
+ * 파일의 행 수가 아니다. `ml/experiment.ts`는 `usableRows`로 거른 뒤에 학습을 시작하므로,
+ * 3276행짜리 파일에서 결측으로 1265행이 빠지면 모델이 보는 것은 2011행이다. `limits.ts`의
+ * `MLJS_*_ROW_LIMIT`을 정한 실측도 그 걸러진 행에 대한 값이다 — SVM의 커널 행렬 N×N에서
+ * N이 이것이지 파일의 행 수가 아니다. 파일의 행 수로 재면 **학습은 받아들일 데이터를
+ * 화면이 거부한다.** 층화 판정(`stratifyBlock`)이 `usableRows`를 보는 것과 같은 이유이고,
+ * 여기서 어긋나면 방향만 반대일 뿐 같은 종류의 거짓말이다.
+ *
+ * **업로드 상한(`MAX_DATASET_ROWS`)은 여기 해당하지 않는다.** 그것은 "이 앱이 다루는 표의
+ * 크기"라 파일의 행 수가 맞다 (limits.ts가 두 값을 갈라 둔 이유).
+ *
+ * **분할은 빼지 않는다.** `test_size`만큼 빼면 `fit`에 들어가는 행은 더 적지만, 그러면
+ * 학생이 비율 슬라이더를 끌 때마다 고를 수 있는 모델 목록이 바뀐다. 보수적인 쪽으로 둔다.
+ *
+ * **타깃을 안 골랐으면 파일의 행 수다.** 무엇이 빠질지 아직 정해지지 않았고, 그때 적게
+ * 세면 나중에 잠길 모델을 지금 열어 주게 된다.
+ */
+export function trainableRowCount(
+  dataset: Dataset | null,
+  features: readonly string[],
+  target: string | undefined,
+  missing: Preprocessing['missing'],
+): number {
+  if (!dataset) return 0
+  if (target === undefined) return dataset.rows.length
+  return usableRows(dataset, features, target, missing).length
+}
+
 export type RowUsage = {
   readonly total: number
   readonly usable: number
@@ -419,7 +449,7 @@ export function rowUsage(
   missing: Preprocessing['missing'],
 ): RowUsage | null {
   if (!dataset || target === undefined) return null
-  const usable = usableRows(dataset, features, target, missing)
-  const dropped = dataset.rows.length - usable.length
-  return dropped > 0 ? { total: dataset.rows.length, usable: usable.length, dropped } : null
+  const usable = trainableRowCount(dataset, features, target, missing)
+  const dropped = dataset.rows.length - usable
+  return dropped > 0 ? { total: dataset.rows.length, usable, dropped } : null
 }
