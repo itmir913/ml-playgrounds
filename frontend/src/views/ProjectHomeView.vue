@@ -104,7 +104,19 @@ function go(step: StepId): void {
               entry.unlocked ? '' : 'text-ink-faint',
             ]"
           >
-            <div class="flex min-w-0 items-center gap-2 font-bold">
+            <!--
+              **`break-keep`이 있어야 앞의 `min-content`가 뜻을 갖는다.** 한국어는 글자마다
+              줄바꿈 기회가 있어서(docs/i18n.md 규칙 9) 기본값에서는 `전처리`의 min-content가
+              **한 글자**다 - 칸을 아무리 내용 기준으로 잡아도 `전처` / `리`로 갈린다.
+              끊을 자리를 띄어쓰기로 제한하면 그제서야 min-content가 낱말 전체가 된다.
+
+              **`min-w-0`을 빼는 것도 같은 이유다.** 0으로 열어 두면 이 칸이 얼마든지
+              좁아져도 된다고 말하는 셈이라, 칸의 아래쪽 끝을 올려 둔 것이 무의미해진다.
+
+              단계 이름은 짧고 띄어쓰기가 없어 넘칠 걱정이 없다 - 규칙 9가 경고하는
+              "띄어쓰기 없는 긴 낱말"은 레일의 긴 문구 쪽 이야기다.
+            -->
+            <div class="flex items-center gap-2 font-bold break-keep">
               <component :is="STEP_ICONS[entry.step]" :size="20" aria-hidden="true" />
               {{ t(`steps.${entry.step}.label`) }}
             </div>
