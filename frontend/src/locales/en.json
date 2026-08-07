@@ -456,7 +456,7 @@
     "firstRun": "This was the first training run.",
     "noChange": "Trained again without changing any setting.",
     "changeTitle": "Changed since the previous run",
-    "change": "{label}: {from} → {to}",
+    "change": "{from} → {to}",
     "unknownChange": "An unrecognised setting changed. ({path})",
     "modelScope": "{algorithm} · {runtime}",
     "scoreTitle": "Results from this training run",

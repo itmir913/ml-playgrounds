@@ -456,7 +456,7 @@
     "firstRun": "처음 학습입니다.",
     "noChange": "설정을 바꾸지 않고 다시 학습했습니다.",
     "changeTitle": "직전 학습에서 바뀐 것",
-    "change": "{label}: {from} → {to}",
+    "change": "{from} → {to}",
     "unknownChange": "알 수 없는 설정이 바뀌었습니다. ({path})",
     "modelScope": "{algorithm} · {runtime}",
     "scoreTitle": "이번 학습 결과",

@@ -11,6 +11,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AppBadge from '@/components/AppBadge.vue'
 import AppTable from '@/components/AppTable.vue'
 import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
@@ -129,8 +130,15 @@ function failureDetailOf(run: Run): string | null {
     <!-- 바뀐 것. 첫 실험에는 직전이 없고, 아무것도 안 바꾼 재학습도 있다. -->
     <section class="flex flex-col gap-1.5">
       <h3 class="font-bold text-ink-soft">{{ t('results.changeTitle') }}</h3>
-      <p v-if="!props.previous" class="text-ink-soft">{{ t('results.firstRun') }}</p>
-      <p v-else-if="changes.length === 0" class="text-ink-soft">{{ t('results.noChange') }}</p>
+      <!--
+        **줄 전체가 문구인 것도 배지다** (§8.13). 그 자리에 있는 것이 값이 아니라 상태의
+        이름이라, plaintext로 두면 그것만 "바뀐 값"처럼 읽힌다. `self-start`인 이유는
+        알약이 줄 전체로 늘어나면 배지가 아니라 띠가 되기 때문이다.
+      -->
+      <AppBadge v-if="!props.previous" class="self-start">{{ t('results.firstRun') }}</AppBadge>
+      <AppBadge v-else-if="changes.length === 0" class="self-start">
+        {{ t('results.noChange') }}
+      </AppBadge>
       <ChangeList v-else :changes="changes" />
     </section>
 
