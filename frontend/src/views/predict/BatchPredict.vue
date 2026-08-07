@@ -22,10 +22,18 @@ import { importTable, openTable, type TableDocument } from '@/data/table'
 import { toCanonicalCsv } from '@/data/serialize'
 import { PREDICT_PAGE_SIZE } from '@/limits'
 import type { Prediction } from '@/ml/metrics'
-import { interpreterFor, loadModel, type LoadContext, type Predict } from '@/ml/models'
+import {
+  interpreterFor,
+  loadModel,
+  loadModelProba,
+  type LoadContext,
+  type Predict,
+  type ProbaModel,
+} from '@/ml/models'
 import {
   assignAnswerColors,
   cellColorIndex,
+  chosenProbability,
   predictDownloadGrid,
   predictPage,
   predictPageSignature,
@@ -251,20 +259,27 @@ function contextFor(model: PredictableModel, preprocessor: Preprocessor): LoadCo
  * 끊은 이유가 애초에 연산 억제인데(limits.ts의 `PREDICT_PAGE_SIZE`) 그 자리에서 도로
  * 까먹는 셈이다.
  */
-let predictorCache: { signature: string; predictors: Map<string, Predict> } | null = null
+interface LoadedModels {
+  readonly predictors: Map<string, Predict>
+  /** 확률을 내는 모델만 들어 있다 (mlpx-spec.md §5.4). */
+  readonly probaModels: Map<string, ProbaModel>
+}
 
-function predictorsFor(): Map<string, Predict> {
-  if (predictorCache?.signature === signature.value) return predictorCache.predictors
-  const predictors = loadPredictors()
-  predictorCache = { signature: signature.value, predictors }
-  return predictors
+let predictorCache: { signature: string; loaded: LoadedModels } | null = null
+
+function predictorsFor(): LoadedModels {
+  if (predictorCache?.signature === signature.value) return predictorCache.loaded
+  const loaded = loadPredictors()
+  predictorCache = { signature: signature.value, loaded }
+  return loaded
 }
 
 /** predict 함수들을 로드한다. 모델 바이트를 zip에서 꺼내는 것은 이 화면의 일이다. */
-function loadPredictors(): Map<string, Predict> {
+function loadPredictors(): LoadedModels {
   const file = project.file
   const predictors = new Map<string, Predict>()
-  if (!file) return predictors
+  const probaModels = new Map<string, ProbaModel>()
+  if (!file) return { predictors, probaModels }
 
   for (const model of props.models) {
     const preprocessor = props.preprocessors.get(model.experiment.id)
@@ -274,12 +289,16 @@ function loadPredictors(): Map<string, Predict> {
     try {
       const interpreter = interpreterFor(model.run.model?.format ?? '')
       const context = interpreter?.needsTrainingRows ? contextFor(model, preprocessor) : {}
-      predictors.set(model.run.id, loadModel(JSON.parse(new TextDecoder().decode(bytes)), context))
+      const payload: unknown = JSON.parse(new TextDecoder().decode(bytes))
+      predictors.set(model.run.id, loadModel(payload, context))
+      // 확률을 못 내는 형식이면 null이다. **여기서도 형식 이름을 보지 않는다.**
+      const proba = loadModelProba(payload, context)
+      if (proba) probaModels.set(model.run.id, proba)
     } catch {
       // predictPage가 이 run을 predictors에서 못 찾으면 MODEL_FILE_INVALID 칸을 준다.
     }
   }
-  return predictors
+  return { predictors, probaModels }
 }
 
 const computing = shallowRef(false)
@@ -304,11 +323,13 @@ async function ensurePage(index: number): Promise<Answer[][]> {
   if (slice.length === 0) return []
 
   // 열 목록을 함께 넘긴다 - 행의 키로는 "열이 없다"와 "값이 다 비었다"가 안 갈린다.
+  const { predictors, probaModels } = predictorsFor()
   const result = predictPage(
     props.models,
     slice,
     props.preprocessors,
-    predictorsFor(),
+    predictors,
+    probaModels,
     predictDataset.value?.columns ?? [],
   )
 
@@ -407,11 +428,25 @@ function cellColorClass(model: PredictableModel, value: Prediction | undefined):
   return index === null ? '' : (CHART_CLASSES[index] ?? '')
 }
 
-/** 답 하나를 표에 쓸 문자열로. 수치는 언어에 맞게, 아직 없으면 빈 칸이다. */
+/**
+ * 답 하나를 표에 쓸 문자열로. 수치는 언어에 맞게, 아직 없으면 빈 칸이다.
+ *
+ * **확률을 내는 모델은 그 답의 확신을 괄호로 붙인다** (mlpx-spec.md §5.4) —
+ * `FALSE (100%)`. 열을 따로 세우지 않는 이유는 모델이 여럿이면 정작 비교할 열이 화면
+ * 밖으로 밀리기 때문이다. **내려받는 파일에서는 반대로 열을 나눈다**
+ * (`predictDownloadGrid`) — 저기는 데이터이고 여기는 눈이다.
+ *
+ * 붙는 숫자는 **답으로 나온 범주의 확률**이지 최댓값이 아니다 (`chosenProbability`).
+ */
 function cellText(answer: Answer | undefined): string {
   const value = answer?.value
   if (value === undefined) return ''
-  return typeof value === 'number' ? format.prediction(value) : value
+  const text = typeof value === 'number' ? format.prediction(value) : value
+
+  const ratio = chosenProbability(answer)
+  return ratio === null
+    ? text
+    : t('predict.cellWithProbability', { value: text, percent: format.percent(ratio) })
 }
 
 /**
@@ -426,9 +461,18 @@ async function downloadAction(): Promise<void> {
       answers.push(...(await ensurePage(index)))
     }
 
+    // **확률 열은 실제로 확률을 낸 모델에만 선다.** 캐시는 위 ensurePage가 이미 채웠다.
+    const { probaModels } = predictorsFor()
+    const probabilityNames = props.models.map((model, index) =>
+      probaModels.has(model.run.id)
+        ? t('predict.probabilityColumn', { model: modelNames.value[index] ?? '' })
+        : null,
+    )
+
     const grid = predictDownloadGrid(
       props.models,
       modelNames.value,
+      probabilityNames,
       t('predict.rowNumber'),
       rows.value,
       props.fields.map((field) => field.name),

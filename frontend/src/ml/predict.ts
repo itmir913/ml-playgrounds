@@ -19,7 +19,7 @@
 import { ClientError, isClientError, type ClientErrorCode } from '../errors'
 import type { Experiment, ProjectDocument, Run } from '../project/schema'
 import type { Prediction } from './metrics'
-import { interpreterFor, type LoadContext, type Predict } from './models'
+import { interpreterFor, type LoadContext, type Predict, type ProbaModel } from './models'
 import {
   targetValues,
   transform,
@@ -457,6 +457,22 @@ export function applyPredictFilter(
   )
 }
 
+/**
+ * **답으로 나온 범주**의 확률. 확률이 없으면 `null`이다.
+ *
+ * **최댓값을 고르지 않는다.** `value`와 이름을 대조해 그 칸을 찾는다 — 포화 구간에서는
+ * argmax와 라벨이 갈릴 수 있고(mlpx-spec.md 5.4), 최댓값을 쓰면 표가 "FALSE라고 답해
+ * 놓고 TRUE의 확률"을 쓴다. 답 옆에 붙는 숫자는 **그 답의 확신**이어야 한다.
+ *
+ * 회귀는 애초에 `probabilities`가 없으므로 자연히 `null`이다.
+ */
+export function chosenProbability(answer: Answer | undefined): number | null {
+  const proba = answer?.probabilities
+  if (!proba || answer?.value === undefined) return null
+  const index = proba.classes.indexOf(String(answer.value))
+  return index < 0 ? null : (proba.values[index] ?? null)
+}
+
 /** 값 하나와 그 값을 낸 모델 수. */
 export interface AnswerCount {
   readonly value: Prediction
@@ -614,6 +630,12 @@ export function predictPage(
   preprocessors: ReadonlyMap<string, Preprocessor>,
   predictors: ReadonlyMap<string, Predict>,
   /**
+   * 확률을 내는 모델만 여기 있다 (mlpx-spec.md 5.4). **빈 Map을 넘기면 확률이 없다.**
+   * 선택 인자로 두지 않는 이유는, 안 넘긴 것과 낼 모델이 없는 것이 같아 보이면 배선을
+   * 빠뜨려도 화면이 조용히 멀쩡해 보이기 때문이다.
+   */
+  probaModels: ReadonlyMap<string, ProbaModel>,
+  /**
    * 파일에 실제로 있는 열 이름. **행의 키가 아니라 표의 열 목록이다** - 행에서 뽑으면
    * 열이 있는데 값이 다 빈 경우와 열 자체가 없는 경우를 못 가른다.
    */
@@ -623,7 +645,10 @@ export function predictPage(
 
   // 행과 무관한 판정을 먼저 끝낸다. 여기서 답이 정해진 모델은 모든 행에서 같은 칸이다.
   const prepared = models.map(
-    (model): Answer | { preprocessor: Preprocessor; predict: Predict } => {
+    (
+      model,
+    ):
+      Answer | { preprocessor: Preprocessor; predict: Predict; proba?: ProbaModel | undefined } => {
       if (model.reason) return {}
 
       const preprocessor = preprocessors.get(model.experiment.id)
@@ -640,7 +665,7 @@ export function predictPage(
         return { failure: { code: 'PREDICT_DATASET_COLUMN_MISSING', params: { columns: missing } } }
       }
 
-      return { preprocessor, predict }
+      return { preprocessor, predict, proba: probaModels.get(model.run.id) }
     },
   )
 
@@ -653,7 +678,14 @@ export function predictPage(
       try {
         const vector = inputVector(model.experiment, entry.preprocessor, values)
         const [value] = entry.predict([vector])
-        return value === undefined ? {} : { value }
+        if (value === undefined) return {}
+
+        // **라벨을 다시 구하지 않는다.** 확률은 위에서 나온 답에 덧붙는 것뿐이다.
+        const { proba } = entry
+        const row = proba?.predict([vector])[0]
+        return proba && row
+          ? { value, probabilities: { classes: proba.classes, values: row } }
+          : { value }
       } catch (error) {
         return {
           failure: isClientError(error)
@@ -703,10 +735,23 @@ export function predictPageSignature(
  * 답을 못 낸 칸(`answer.value`가 없음 - 사유로 꺼졌거나 그 행에서 실패했거나)은 빈
  * 칸이다. 사람이 읽는 "예측할 수 없음" 같은 문장을 넣지 않는다 - 이 파일은 우리가 다시
  * 읽지 않으므로 데이터로서는 빈 칸이 맞고, 문장을 넣으면 언어마다 값이 달라진다.
+ *
+ * **확률은 열을 따로 세운다** (2026-08-07). 화면 셀은 `FALSE (100%)` 한 덩어리지만 그건
+ * 사람이 읽는 모양이고, 파일에 그대로 넣으면 엑셀에서 정렬도 계산도 안 되는 문자열이
+ * 된다 - 위 문단이 "예측할 수 없음"을 막는 것과 같은 이유다. sklearn의 `predict_proba`를
+ * 열로 받는 모양과도 같아진다.
+ *
+ * **확률 값은 비율 그대로다.** 퍼센트로 바꾸지도 반올림하지도 않는다 - 자릿수를 줄이는
+ * 것은 화면의 일이고(ml/metrics.ts와 같은 규칙), 한 번 자른 자릿수는 되돌릴 수 없다.
  */
 export function predictDownloadGrid(
   models: readonly PredictableModel[],
   modelNames: readonly string[],
+  /**
+   * 모델마다의 확률 열 이름. **확률을 내는 모델만 문자열이고 나머지는 `null`이다.**
+   * `models`와 같은 순서·같은 길이여야 한다. 번역은 모델 이름과 같은 이유로 호출부가 한다.
+   */
+  probabilityNames: readonly (string | null)[],
   /**
    * 행 번호 열의 이름. **모델 이름과 같은 이유로 번역된 것을 받는다** - 화면의 표
    * 머리글과 같은 낱말이어야 학생이 받은 파일을 화면과 같은 것으로 읽는다.
@@ -720,16 +765,32 @@ export function predictDownloadGrid(
   formatValue: (value: Prediction) => string,
 ): string[][] {
   const featureColumns = showFeatures ? featureNames : []
-  const header = [rowNumberName, ...featureColumns, ...modelNames]
+  const header = [
+    rowNumberName,
+    ...featureColumns,
+    // 확률 열은 그 모델 바로 뒤에 붙는다 - 모델이 여럿이면 끝에 몰아 두는 것보다
+    // 어느 모델의 확률인지가 눈으로 붙는다.
+    ...models.flatMap((_model, index) => {
+      const label = modelNames[index] ?? ''
+      const probability = probabilityNames[index]
+      return probability == null ? [label] : [label, probability]
+    }),
+  ]
 
   const body = rows.map((values, rowIndex) => {
     const answerRow = answers[rowIndex] ?? []
     return [
       String(rowIndex + 1),
       ...featureColumns.map((name) => values[name] ?? ''),
-      ...models.map((_model, modelIndex) => {
-        const value = answerRow[modelIndex]?.value
-        return value === undefined ? '' : formatValue(value)
+      ...models.flatMap((_model, modelIndex) => {
+        const answer = answerRow[modelIndex]
+        const value = answer?.value
+        const cell = value === undefined ? '' : formatValue(value)
+        if (probabilityNames[modelIndex] == null) return [cell]
+
+        // 열은 있는데 이 행만 확률이 없을 수 있다 - 포화했거나 그 행에서 실패했거나다.
+        const ratio = chosenProbability(answer)
+        return [cell, ratio === null ? '' : String(ratio)]
       }),
     ]
   })

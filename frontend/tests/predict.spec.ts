@@ -13,11 +13,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
-import { loadModel, REFERENCE_FORMAT } from '../src/ml/models'
+import { loadModel, REFERENCE_FORMAT, type ProbaModel } from '../src/ml/models'
 import {
   answerRank,
   applyPredictFilter,
   assignAnswerColors,
+  chosenProbability,
   defaultFilter,
   inputFields,
   mergeFields,
@@ -844,10 +845,12 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
   const predictor = (vectors: readonly (readonly number[])[]) =>
     vectors.map((vector) => ((vector[0] ?? 0) > 165 ? 'b' : 'a'))
   const predictors = new Map([['r1', predictor]])
+  /** 확률을 내는 모델이 없는 경우. 아래 검사는 대부분 확률과 무관하다. */
+  const noProba = new Map<string, ProbaModel>()
 
   it('행마다 모델의 답을 낸다', () => {
     const rows = [cellsOf(0), cellsOf(3)]
-    const page = predictPage([model], rows, preprocessors, predictors, fileColumns)
+    const page = predictPage([model], rows, preprocessors, predictors, noProba, fileColumns)
 
     expect(page).toHaveLength(2)
     expect(page[0]?.[0]).toEqual({ value: 'a' }) // 키 150
@@ -856,7 +859,7 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
 
   it('빈 칸이 있는 행은 그 행·그 모델 칸만 예측할 수 없다 - 나머지 행은 계속 간다', () => {
     const rows = [cellsOf(0), { 키: '160' }, cellsOf(2)]
-    const page = predictPage([model], rows, preprocessors, predictors, fileColumns)
+    const page = predictPage([model], rows, preprocessors, predictors, noProba, fileColumns)
 
     expect(page[0]?.[0]?.value).toBe('a')
     expect(page[1]?.[0]?.failure?.code).toBe('PREDICTION_INPUT_INCOMPLETE')
@@ -872,7 +875,7 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
       return kept
     })
 
-    const page = predictPage([model], rows, preprocessors, predictors, without)
+    const page = predictPage([model], rows, preprocessors, predictors, noProba, without)
 
     const failure = page[0]?.[0]?.failure
     expect(failure?.code).toBe('PREDICT_DATASET_COLUMN_MISSING')
@@ -882,7 +885,7 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
   it('열이 있는데 값만 비었으면 여전히 빈 칸이다 - 학생이 할 일이 다르다', () => {
     // 위와 나란히 둔다. 이 둘이 같은 코드로 떨어지면 화면이 틀린 사유를 말한다.
     const blank = [{ ...cellsOf(0), 키: '' }]
-    const page = predictPage([model], blank, preprocessors, predictors, fileColumns)
+    const page = predictPage([model], blank, preprocessors, predictors, noProba, fileColumns)
 
     expect(page[0]?.[0]?.failure?.code).toBe('PREDICTION_INPUT_INCOMPLETE')
   })
@@ -893,6 +896,7 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
       [{ ...cellsOf(3), 메모: '결석' }],
       preprocessors,
       predictors,
+      noProba,
       [...fileColumns, '메모'],
     )
 
@@ -901,13 +905,20 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
 
   it('사유로 꺼진 모델은 실패가 아니라 빈 칸이다 - 애초에 안 도는 것이다', () => {
     const disabled: PredictableModel = { ...model, reason: 'MODEL_FORMAT_UNSUPPORTED' }
-    const page = predictPage([disabled], [cellsOf(0)], preprocessors, predictors, fileColumns)
+    const page = predictPage(
+      [disabled],
+      [cellsOf(0)],
+      preprocessors,
+      predictors,
+      noProba,
+      fileColumns,
+    )
 
     expect(page[0]?.[0]).toEqual({})
   })
 
   it('전처리기나 predictor가 없으면 화면 쪽 버그로 취급해 실패 칸을 준다', () => {
-    const page = predictPage([model], [cellsOf(0)], new Map(), new Map(), fileColumns)
+    const page = predictPage([model], [cellsOf(0)], new Map(), new Map(), noProba, fileColumns)
     expect(page[0]?.[0]?.failure?.code).toBe('MODEL_FILE_INVALID')
   })
 
@@ -934,13 +945,14 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
   describe('내려받을 CSV 격자', () => {
     const featureNames = inputFields(preprocessor).map((field) => field.name)
     const rows = [cellsOf(0), cellsOf(1)]
-    const answers = predictPage([model], rows, preprocessors, predictors, fileColumns)
+    const answers = predictPage([model], rows, preprocessors, predictors, noProba, fileColumns)
     const format = (value: unknown) => String(value)
 
     it('첫 줄은 행 번호·모델 이름이다 - 특성은 기본으로 숨긴다', () => {
       const grid = predictDownloadGrid(
         [model],
         ['결정 트리 · 내 컴퓨터'],
+        [null],
         '번호',
         rows,
         featureNames,
@@ -955,6 +967,7 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
       const grid = predictDownloadGrid(
         [model],
         ['결정 트리'],
+        [null],
         '번호',
         rows,
         featureNames,
@@ -968,10 +981,11 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
 
     it('답을 못 낸 칸은 빈 칸이다 - 사람이 읽는 문장을 데이터에 넣지 않는다', () => {
       const incomplete = [{ 키: '160' }]
-      const page = predictPage([model], incomplete, preprocessors, predictors, fileColumns)
+      const page = predictPage([model], incomplete, preprocessors, predictors, noProba, fileColumns)
       const grid = predictDownloadGrid(
         [model],
         ['결정 트리'],
+        [null],
         '번호',
         incomplete,
         featureNames,
@@ -980,6 +994,134 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
         format,
       )
       expect(grid[1]).toEqual(['1', ''])
+    })
+  })
+
+  /**
+   * 확률 (mlpx-spec.md §5.4).
+   *
+   * **여기서 지키는 것은 답 옆의 숫자가 그 답의 확신인가 하나다.** 최댓값을 쓰면 포화
+   * 구간에서 "FALSE라고 답해 놓고 TRUE의 확률"이 표에 뜨고, 그건 에러가 안 난다.
+   */
+  describe('확률', () => {
+    const featureNames = inputFields(preprocessor).map((field) => field.name)
+    const format = (value: unknown) => String(value)
+
+    /** 언제나 'a'라고 답하면서 확률은 'b'가 높다고 하는 모델. 정상 경로에는 없다. */
+    const contrary: ProbaModel = {
+      classes: ['a', 'b'],
+      predict: (vectors) => vectors.map(() => Float64Array.from([0.25, 0.75])),
+    }
+    const withProba = new Map([['r1', contrary]])
+
+    it('답 옆의 숫자는 최댓값이 아니라 그 답의 확률이다', () => {
+      const page = predictPage(
+        [model],
+        [cellsOf(0)],
+        preprocessors,
+        predictors,
+        withProba,
+        fileColumns,
+      )
+      const answer = page[0]?.[0]
+
+      // 모델이 낸 답은 'a'다. 확률에서 라벨을 다시 구하면 'b'가 됐을 것이다.
+      expect(answer?.value).toBe('a')
+      expect(chosenProbability(answer)).toBeCloseTo(0.25, 10)
+    })
+
+    it('확률을 내는 모델만 확률이 붙는다', () => {
+      const page = predictPage(
+        [model],
+        [cellsOf(0)],
+        preprocessors,
+        predictors,
+        noProba,
+        fileColumns,
+      )
+      expect(page[0]?.[0]?.probabilities).toBeUndefined()
+      expect(chosenProbability(page[0]?.[0])).toBeNull()
+    })
+
+    it('포화해서 못 낸 행은 확률이 없다 - 답은 그대로 나온다', () => {
+      const saturated = new Map([
+        ['r1', { classes: ['a', 'b'], predict: () => [null] } satisfies ProbaModel],
+      ])
+      const page = predictPage(
+        [model],
+        [cellsOf(0)],
+        preprocessors,
+        predictors,
+        saturated,
+        fileColumns,
+      )
+
+      expect(page[0]?.[0]?.value).toBe('a')
+      expect(page[0]?.[0]?.probabilities).toBeUndefined()
+    })
+
+    /**
+     * **화면은 한 칸, 파일은 두 열이다.** 화면의 `FALSE (100%)`는 사람이 읽는 모양이라
+     * 파일에 그대로 넣으면 엑셀에서 정렬도 계산도 안 되는 문자열이 된다.
+     */
+    it('CSV는 확률 열을 그 모델 바로 뒤에 따로 세운다', () => {
+      const rows = [cellsOf(0), cellsOf(1)]
+      const answers = predictPage([model], rows, preprocessors, predictors, withProba, fileColumns)
+      const grid = predictDownloadGrid(
+        [model],
+        ['로지스틱 회귀'],
+        ['로지스틱 회귀 확률'],
+        '번호',
+        rows,
+        featureNames,
+        answers,
+        false,
+        format,
+      )
+
+      expect(grid[0]).toEqual(['번호', '로지스틱 회귀', '로지스틱 회귀 확률'])
+      // **비율 그대로다.** 퍼센트로 바꾸거나 반올림하는 것은 화면의 일이다.
+      expect(grid[1]).toEqual(['1', 'a', '0.25'])
+    })
+
+    it('확률을 안 내는 모델은 확률 열 자체가 없다', () => {
+      const rows = [cellsOf(0)]
+      const answers = predictPage([model], rows, preprocessors, predictors, noProba, fileColumns)
+      const grid = predictDownloadGrid(
+        [model],
+        ['결정 트리'],
+        [null],
+        '번호',
+        rows,
+        featureNames,
+        answers,
+        false,
+        format,
+      )
+
+      expect(grid[0]).toEqual(['번호', '결정 트리'])
+      expect(grid[1]).toEqual(['1', 'a'])
+    })
+
+    it('열은 있는데 그 행만 확률이 없으면 그 칸만 빈다', () => {
+      const rows = [cellsOf(0)]
+      const saturated = new Map([
+        ['r1', { classes: ['a', 'b'], predict: () => [null] } satisfies ProbaModel],
+      ])
+      const answers = predictPage([model], rows, preprocessors, predictors, saturated, fileColumns)
+      const grid = predictDownloadGrid(
+        [model],
+        ['로지스틱 회귀'],
+        ['로지스틱 회귀 확률'],
+        '번호',
+        rows,
+        featureNames,
+        answers,
+        false,
+        format,
+      )
+
+      expect(grid[1]).toEqual(['1', 'a', ''])
     })
   })
 })
