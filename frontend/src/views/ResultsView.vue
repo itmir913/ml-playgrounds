@@ -9,7 +9,7 @@
  * 바로 앞 실험이므로, 화면이 다른 짝을 고르면 경로와 값이 어긋난다.
  */
 
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppEmpty from '@/components/AppEmpty.vue'
@@ -43,6 +43,22 @@ watch(
   { immediate: true },
 )
 
+/**
+ * 오른쪽 속의 DOM. **세로줄에서 실험을 고르면 여기로 스스로 스크롤한다** (§8.13).
+ *
+ * 좁은 화면에서는 두 열이 위아래로 접히므로 고른 결과가 화면 밖이고, 눌렀는데 아무 일도
+ * 안 일어난 것처럼 보인다. `ExperimentDetail`이 모델 줄을 고를 때 하는 것과 같은 모양이다.
+ */
+const detailEl = ref<HTMLElement | null>(null)
+
+function pick(id: string): void {
+  selected.value = id
+  // 고른 실험이 그려진 뒤라야 그 높이로 스크롤한다.
+  void nextTick(() => {
+    detailEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
 const index = computed(() =>
   experiments.value.findIndex((experiment) => experiment.id === selected.value),
 )
@@ -74,17 +90,26 @@ const previous = computed(() => (index.value > 0 ? experiments.value[index.value
 
     <div v-else class="flex min-h-96 flex-1 flex-col gap-5 md:flex-row">
       <div class="min-h-0 shrink-0 overflow-y-auto md:w-80">
-        <ExperimentList :experiments="experiments" :selected="selected" @pick="selected = $event" />
+        <ExperimentList :experiments="experiments" :selected="selected" @pick="pick" />
       </div>
 
       <div class="min-h-0 min-w-0 flex-1 overflow-y-auto">
-        <ExperimentDetail
-          v-if="current"
-          :experiment="current"
-          :order="index + 1"
-          :previous="previous"
-          :data-type="dataType"
-        />
+        <!--
+          **스크롤 대상은 이 안쪽이지 바깥 상자가 아니다.** 바깥(`overflow-y-auto`)에
+          `scrollIntoView`를 걸면 그 상자를 화면 안으로 들이기만 하고 **상자 안의 스크롤은
+          내려간 그대로**라, 실험을 바꿔도 중간부터 보인다. 안쪽 머리를 가리키면 한 번에
+          둘 다 맞는다 - 좁은 화면에서는 상자가 화면에 들어오고, 넓은 화면에서는 상자
+          안이 맨 위로 올라간다.
+        -->
+        <div ref="detailEl">
+          <ExperimentDetail
+            v-if="current"
+            :experiment="current"
+            :order="index + 1"
+            :previous="previous"
+            :data-type="dataType"
+          />
+        </div>
       </div>
     </div>
   </div>
