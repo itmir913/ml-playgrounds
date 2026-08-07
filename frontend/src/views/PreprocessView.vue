@@ -19,6 +19,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
@@ -309,13 +310,16 @@ function reseed(): void {
   <div v-if="settings && dataset" class="flex flex-col gap-5 p-4 sm:p-5">
     <StepHeader :title="t('steps.preprocess.label')" :purpose="t('steps.preprocess.purpose')">
       <template #context>
-        <div class="flex gap-1.5">
-          <dt>{{ t('data.rows') }}</dt>
+        <div class="flex items-baseline gap-1.5">
+          <dt>
+            <AppBadge>{{ t('data.rows') }}</AppBadge>
+          </dt>
           <dd class="font-bold tabular-nums text-ink">{{ dataset.rows.length }}</dd>
         </div>
-        <span class="text-line-strong" aria-hidden="true"> · </span>
-        <div class="flex gap-1.5">
-          <dt>{{ t('data.columns') }}</dt>
+        <div class="flex items-baseline gap-1.5">
+          <dt>
+            <AppBadge>{{ t('data.columns') }}</AppBadge>
+          </dt>
           <dd class="font-bold tabular-nums text-ink">{{ dataset.columns.length }}</dd>
         </div>
       </template>

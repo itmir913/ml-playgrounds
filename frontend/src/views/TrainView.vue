@@ -18,6 +18,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter, type RouteLocationNormalized } from 'vue-router'
 
+import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
@@ -373,15 +374,18 @@ function leave(): void {
   <div v-if="settings" class="flex flex-col gap-5 p-4 sm:p-5">
     <StepHeader :title="t('steps.train.label')" :purpose="t('steps.train.purpose')">
       <template #context>
-        <div class="flex gap-1.5">
-          <dt>{{ t('meta.target') }}</dt>
+        <div class="flex items-baseline gap-1.5">
+          <dt>
+            <AppBadge>{{ t('meta.target') }}</AppBadge>
+          </dt>
           <dd class="max-w-48 truncate font-bold text-ink">
             {{ settings.target ?? t('meta.none') }}
           </dd>
         </div>
-        <span class="text-line-strong" aria-hidden="true"> · </span>
-        <div class="flex gap-1.5">
-          <dt>{{ t('meta.features') }}</dt>
+        <div class="flex items-baseline gap-1.5">
+          <dt>
+            <AppBadge>{{ t('meta.features') }}</AppBadge>
+          </dt>
           <dd class="font-bold tabular-nums text-ink">{{ t('meta.countUnit', usableFeatures) }}</dd>
         </div>
       </template>

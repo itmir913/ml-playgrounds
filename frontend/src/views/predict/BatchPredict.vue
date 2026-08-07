@@ -15,6 +15,7 @@
 import { computed, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
 import { useFormat } from '@/composables/useFormat'
 import { importTable, openTable, type TableDocument } from '@/data/table'
@@ -460,9 +461,9 @@ async function downloadAction(): Promise<void> {
       <span class="max-w-56 truncate font-bold text-ink">
         {{ project.file.document.settings.predictDataset.originalFileName }}
       </span>
-      <span class="text-line-strong" aria-hidden="true"> · </span>
-      <span class="flex items-center gap-1.5 text-ink-soft">
-        <span>{{ t('data.rows') }}</span>
+      <!-- 이름은 배지, 값은 plaintext (§8.16). 파일 이름은 그 자체가 값이라 배지가 없다. -->
+      <span class="flex items-baseline gap-1.5">
+        <AppBadge>{{ t('data.rows') }}</AppBadge>
         <span class="font-bold tabular-nums text-ink">{{ predictDataset?.rows.length ?? 0 }}</span>
       </span>
       <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">

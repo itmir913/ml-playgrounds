@@ -239,31 +239,6 @@ function unguardedConfirmRadios(source: string): string[] {
 }
 
 /**
- * 이름-값 그룹이 구분자 없이 바로 이어 붙은 경우 (architecture.md 8.16 "나열에는
- * 구분자를 넣는다").
- *
- * **글자만 이어 붙으면 어디서 한 값이 끝나고 다음 값이 시작하는지 안 보인다.** `gap`은
- * 여백일 뿐 눈에 보이는 경계가 아니고, 볼드는 값과 다음 그룹의 이름을 똑같이 굵게 써서
- * 오히려 구분이 더 안 된다. 볼드나 버튼 테두리처럼 **굵기·상자 자체가 이미 구분자
- * 역할을 하는 줄**에는 해당 없다 - 여기서 잡는 것은 plaintext 이름-값이 그대로
- * 나열되는 자리뿐이다.
- *
- * **`class="flex gap-1.5"`인 그룹만 본다.** `ProjectSummary.vue`처럼 `justify-between`로
- * 한 줄씩 세로로 쌓는 그룹은 이미 줄 자체가 경계라 구분자가 필요 없다 - 클래스까지
- * 정확히 같아야 "StepHeader 맥락 줄처럼 가로로 촘촘히 늘어놓는 자리"로 본다.
- *
- * `AppStatusBar.vue`가 이미 쓰는 모양
- * (`<span class="text-line-strong" aria-hidden="true"> · </span>`)을 그대로 따르는지
- * 본다 - `</div>` 바로 뒤에 같은 모양의 새 그룹이 구분자 없이 오면 잡는다.
- */
-function undividedMetaGroups(source: string): string[] {
-  const template = source.slice(source.indexOf('<template>'))
-  return [...template.matchAll(/<\/div>\s*(<div class="flex gap-1\.5">\s*<dt\b[^>]*>)/gs)].map(
-    (match) => match[1] ?? '',
-  )
-}
-
-/**
  * `:disabled`가 걸린 입력인데 `@change` 핸들러가 **DOM을 스키마 값으로 되돌리지 않는**
  * 경우 (`architecture.md` §8.15.1).
  *
@@ -301,6 +276,44 @@ function unsyncedLockedInputs(source: string): string[] {
         // 핸들러가 없으면 학생이 바꿀 수 없는 입력이라 갈릴 것도 없다.
         return handler !== undefined && !resyncing.has(handler)
       })
+  )
+}
+
+/**
+ * 보이는 이름에 배지가 없는 이름-값 그룹 (architecture.md 8.16 "나열에서 이름은 배지,
+ * 값은 plaintext다").
+ *
+ * **글자만 이어 붙으면 어디서 한 값이 끝나고 다음 값이 시작하는지 안 보인다.** 처음에는
+ * 가운뎃점으로 갈랐는데, 점은 "여기서 끊긴다"만 말하고 **어느 쪽이 이름인지는 여전히
+ * 서식으로 알아내야 한다.** 이름을 배지로 세우면 둘을 한 번에 말한다.
+ *
+ * **`class="flex ... gap-1.5"`인 그룹만 본다.** `ProjectSummary.vue`처럼 `justify-between`으로
+ * 한 줄씩 세로로 쌓는 그룹은 줄 자체가 경계라 배지가 필요 없다 - 거기까지 알약을 씌우면
+ * 회색이 열 줄 넘게 쌓여 값보다 눈에 띈다.
+ *
+ * **`sr-only`인 이름은 안 잡는다.** 값 자체가 무엇인지 말하고 있어 이름을 숨겨 둔 자리이고
+ * (파일 이름, 실험 개수), 안 보이는 것에 배지를 씌울 수도 없다.
+ */
+function unbadgedMetaNames(source: string): string[] {
+  const template = source.slice(source.indexOf('<template>'))
+  const groups = [
+    ...template.matchAll(/<div class="flex[^"]*gap-1\.5">\s*(<dt[^>]*>[\s\S]*?<\/dt>)/g),
+  ]
+  return groups
+    .map((match) => match[1] ?? '')
+    .filter((tag) => !tag.includes('sr-only') && !tag.includes('<AppBadge'))
+}
+
+/**
+ * `AppStatusBar` 밖의 가운뎃점 구분자 (architecture.md 8.16).
+ *
+ * **이 절은 한 번 뒤집혔다.** 옛 모양을 기억하는 사람이 점을 다시 넣는 것을 막는 자리가
+ * 있어야 한다. 상태 표시줄만 예외인 이유는 거기가 `<dl>`이 아니라 한 줄로 이어 붙인
+ * 요약이고, **높이를 늘릴 수 없어 배지가 설 자리가 없기 때문이다.**
+ */
+function strayDotSeparators(source: string): string[] {
+  return [...source.matchAll(/<span[^>]*aria-hidden="true">\s*·\s*<\/span>/g)].map(
+    (match) => match[0],
   )
 }
 
@@ -599,51 +612,64 @@ describe('잠기는 입력은 DOM을 스키마로 되돌린다', () => {
   })
 })
 
-describe('나열되는 이름-값에는 구분자를 넣는다', () => {
+describe('나열에서 이름은 배지, 값은 plaintext다', () => {
   const NEWLINE = String.fromCharCode(10)
 
-  it('구분자 없이 이어 붙은 그룹을 잡는다', () => {
+  it('배지 없는 이름을 잡는다', () => {
     const source = [
       '<template>',
       '<dl>',
-      '  <div class="flex gap-1.5"><dt>a</dt><dd>1</dd></div>',
-      '  <div class="flex gap-1.5"><dt>b</dt><dd>2</dd></div>',
+      '  <div class="flex items-baseline gap-1.5"><dt>a</dt><dd>1</dd></div>',
       '</dl>',
       '</template>',
     ].join(NEWLINE)
-    expect(undividedMetaGroups(source)).toEqual(['<div class="flex gap-1.5"><dt>'])
+    expect(unbadgedMetaNames(source)).toEqual(['<dt>a</dt>'])
   })
 
-  it('구분자가 있으면 안 잡는다', () => {
+  it('배지가 있으면 안 잡는다', () => {
     const source = [
       '<template>',
       '<dl>',
-      '  <div class="flex gap-1.5"><dt>a</dt><dd>1</dd></div>',
-      '  <span class="text-line-strong" aria-hidden="true"> · </span>',
-      '  <div class="flex gap-1.5"><dt>b</dt><dd>2</dd></div>',
+      '  <div class="flex items-baseline gap-1.5"><dt><AppBadge>a</AppBadge></dt><dd>1</dd></div>',
       '</dl>',
       '</template>',
     ].join(NEWLINE)
-    expect(undividedMetaGroups(source)).toEqual([])
+    expect(unbadgedMetaNames(source)).toEqual([])
   })
 
-  it('첫 그룹은 안 잡는다 - 앞에 아무 값도 없다', () => {
+  it('숨긴 이름은 안 잡는다 - 값 자체가 무엇인지 말하는 자리다', () => {
     const source = [
       '<template>',
       '<dl>',
-      '  <div class="flex gap-1.5"><dt>a</dt><dd>1</dd></div>',
+      '  <div class="flex items-baseline gap-1.5"><dt class="sr-only">a</dt><dd>1</dd></div>',
       '</dl>',
       '</template>',
     ].join(NEWLINE)
-    expect(undividedMetaGroups(source)).toEqual([])
+    expect(unbadgedMetaNames(source)).toEqual([])
   })
 
-  it('지금 소스에 구분자 없이 이어 붙은 그룹이 없다', () => {
+  it('가운뎃점 구분자를 잡는다', () => {
+    const source = '<span class="text-line-strong" aria-hidden="true"> · </span>'
+    expect(strayDotSeparators(source)).toHaveLength(1)
+  })
+
+  it('지금 소스에 배지 없는 이름이 없다', () => {
     const found = vueFiles(SRC).flatMap((path) =>
-      undividedMetaGroups(readFileSync(path, 'utf-8')).map(
+      unbadgedMetaNames(readFileSync(path, 'utf-8')).map(
         (tag) => `${path.slice(SRC.length + 1)}  ${tag.trim()}`,
       ),
     )
+    expect(found).toEqual([])
+  })
+
+  it('가운뎃점은 하단 상태 표시줄에만 있다', () => {
+    const found = vueFiles(SRC)
+      .filter((path) => !path.endsWith('AppStatusBar.vue'))
+      .flatMap((path) =>
+        strayDotSeparators(readFileSync(path, 'utf-8')).map(
+          (tag) => `${path.slice(SRC.length + 1)}  ${tag.trim()}`,
+        ),
+      )
     expect(found).toEqual([])
   })
 })
