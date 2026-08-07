@@ -12,6 +12,7 @@ import {
   doneRuns,
   failedRuns,
   headlineOf,
+  hyperparametersOf,
   isWeakestPerClass,
   weakestPerClass,
   whereTrainedKeyOf,
@@ -148,6 +149,53 @@ describe('학습한 곳 문구', () => {
     expect(whereTrainedKeyOf({ ...r, engine: { kind: 'unknown-engine', version: '1' } })).toBe(
       'execution.browser',
     )
+  })
+})
+
+describe('run에 먹인 하이퍼파라미터', () => {
+  /** mljs 결정트리로 돈 run. 등록부가 아는 손잡이가 둘이다(maxDepth, minNumSamples). */
+  function tree(hyperparameters: Record<string, unknown>): Run {
+    return {
+      ...run('run-1', { accuracy: 0.9 }),
+      hyperparameters,
+      engine: { kind: 'mljs', version: '2' },
+    }
+  }
+
+  it('등록부 순서로 이름과 값을 낸다 - 파일에 담긴 순서가 아니다', () => {
+    // 값은 학습 직전에 확정된 것이라 학생이 안 건드린 것도 들어 있다.
+    const shown = hyperparametersOf(tree({ minNumSamples: 3, maxDepth: 100 }))
+
+    expect(shown).toEqual([
+      { name: 'maxDepth', labelKey: 'hyperparams.maxDepth', text: '100' },
+      { name: 'minNumSamples', labelKey: 'hyperparams.minNumSamples', text: '3' },
+    ])
+  })
+
+  it('등록부가 모르는 키도 버리지 않는다 - 이름은 엔진이 받는 키 그대로다', () => {
+    // 서버 엔진이나 남의 파일에서 올 수 있다. 감추면 화면이 파일보다 적게 말한다.
+    const shown = hyperparametersOf(tree({ maxDepth: 5, criterion: 'entropy' }))
+
+    expect(shown).toEqual([
+      { name: 'maxDepth', labelKey: 'hyperparams.maxDepth', text: '5' },
+      { name: 'criterion', labelKey: null, text: 'entropy' },
+    ])
+  })
+
+  it('등록부에 있어도 값이 없으면 줄을 만들지 않는다 - 빈 값을 지어내지 않는다', () => {
+    expect(hyperparametersOf(tree({ maxDepth: 5 })).map((one) => one.name)).toEqual(['maxDepth'])
+  })
+
+  it('손잡이가 없는 모델은 빈 목록이다 - 화면이 그 사실을 적는다', () => {
+    const bayes = { ...tree({}), algorithm: 'naive_bayes' }
+    expect(hyperparametersOf(bayes)).toEqual([])
+  })
+
+  it('engine이 없으면(옛 포맷) 이름은 못 붙여도 값은 그대로 보인다', () => {
+    // 실행 방법을 모르면 어느 어휘인지 모른다(ml.js maxDepth / sklearn max_depth).
+    const noEngine = { ...run('run-1', { accuracy: 0.9 }), hyperparameters: { maxDepth: 7 } }
+
+    expect(hyperparametersOf(noEngine)).toEqual([{ name: 'maxDepth', labelKey: null, text: '7' }])
   })
 })
 

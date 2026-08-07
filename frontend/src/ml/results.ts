@@ -11,6 +11,7 @@
 
 import { RUNTIMES } from './backend'
 import type { Experiment, PerClass, Run } from '../project/schema'
+import { parametersFor } from './hyperparams'
 import { bestOf, metricsOf, type MetricDisplay } from './metrics'
 
 /** 값 종류별 점수표에서 강조할 세 지표. */
@@ -50,6 +51,61 @@ export function whereTrainedKeyOf(run: Run): string {
   const runtime =
     engineKind !== undefined ? RUNTIMES.find((r) => r.engineKind === engineKind) : undefined
   return runtime ? `runtimes.${runtime.id}` : `execution.${run.computedBy}`
+}
+
+/** run 하나에 먹인 손잡이 하나. 화면은 이걸 줄 하나로 그린다. */
+export interface HyperparameterDisplay {
+  /** 엔진이 받는 키 그대로. 등록부가 모르는 값일 때 화면이 이걸 그대로 보인다. */
+  readonly name: string
+  /**
+   * 이름의 로케일 키. **등록부에 없으면 null이다** - `describeChanges`가 모르는 경로를
+   * 버리지 않는 것과 같은 판단이다(architecture.md §8.13). 서버 엔진이나 남의 파일에서
+   * 우리가 모르는 키가 올 수 있고, 그때 값을 감추면 화면이 파일보다 적게 말한다.
+   */
+  readonly labelKey: string | null
+  /**
+   * 값의 표시 문자열.
+   *
+   * **Intl로 다듬지 않는다** - 이 자리의 값은 지표(0~1)가 아니라 **학생이 설정 화면에서
+   * 친 그 숫자**이고, `ChangeList`가 같은 값을 이미 그대로 보이고 있다(`ml/changes.ts`의
+   * `literal`). 한쪽만 자릿수를 넣으면 같은 화면에서 `10000`과 `10,000`이 나란히 선다.
+   */
+  readonly text: string
+}
+
+/**
+ * 이 run에 **실제로 먹인** 하이퍼파라미터들 (architecture.md §8.13).
+ *
+ * **`run.hyperparameters`가 유일한 출처다.** `settings.hyperparameters`는 학생이 화면에서
+ * 고른 값이라, 실행 방법이 자동으로 넘어갔으면 실제로 먹인 것과 다르다
+ * (`ml/experiment.ts`의 "실행 방법이 정해진 뒤에 하이퍼파라미터를 읽는다"). run에 박힌
+ * 값은 학습 직전에 기본값까지 채워 확정한 것이다 (mlpx-spec.md §3).
+ *
+ * **순서와 이름은 손잡이 등록부에서 온다.** 실행 방법은 `run.engine.kind`로 되짚는다 -
+ * `whereTrainedKeyOf`와 같은 길이고, 어휘가 실행 방법마다 다르기 때문이다(ml.js `maxDepth`,
+ * sklearn `max_depth`). **등록부에 없는 키는 뒤에 붙인다** - 순서를 잃을 뿐 값은 안 잃는다.
+ */
+export function hyperparametersOf(run: Run): HyperparameterDisplay[] {
+  const engineKind = run.engine?.kind
+  const runtime =
+    engineKind !== undefined ? RUNTIMES.find((one) => one.engineKind === engineKind) : undefined
+  const specs = runtime ? parametersFor(runtime.id, run.algorithm) : []
+
+  const values = run.hyperparameters
+  const known = specs
+    .filter((spec) => values[spec.name] !== undefined)
+    .map((spec) => ({
+      name: spec.name,
+      labelKey: `hyperparams.${spec.name}`,
+      text: String(values[spec.name]),
+    }))
+
+  const seen = new Set(known.map((entry) => entry.name))
+  const rest = Object.keys(values)
+    .filter((name) => !seen.has(name))
+    .map((name) => ({ name, labelKey: null, text: String(values[name]) }))
+
+  return [...known, ...rest]
 }
 
 /**

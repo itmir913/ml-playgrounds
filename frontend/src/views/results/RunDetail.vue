@@ -12,6 +12,10 @@
  * **회귀에는 아무것도 없다.** 맞고 틀림이 아니라 얼마나 벗어났느냐이고, 그건 위의
  * 점수가 이미 전부 말했다. 빈 칸으로 두지 않고 그 사실을 적는다 — 이유 없는 빈 자리는
  * 고장으로 보인다 (§8.9). **패널이 0개인 것은 고장이 아니라 정상인 조합이 있다** (§9.3).
+ *
+ * **맨 위는 이 run에 먹인 손잡이들이다** (§8.13, 2026-08-07). 등록부가 고르는 패널들과
+ * 달리 **축을 안 보므로 등록부에 안 들어간다** — 어느 데이터 종류, 어느 과제 유형이든
+ * 모든 run에 있다. 무엇을 어떤 순서로 보일지는 `hyperparametersOf`가 정한다 (§9.1).
  */
 
 import { computed } from 'vue'
@@ -19,7 +23,7 @@ import { useI18n } from 'vue-i18n'
 
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { metricPanelsFor } from '@/ml/metric-panels'
-import { whereTrainedKeyOf } from '@/ml/results'
+import { hyperparametersOf, whereTrainedKeyOf } from '@/ml/results'
 import type { DataType, Run, TaskType } from '@/project/schema'
 
 const props = defineProps<{ run: Run; dataType: DataType; taskType: TaskType }>()
@@ -39,6 +43,9 @@ const warningText = computed(() => {
 })
 
 const panels = computed(() => metricPanelsFor(props.dataType, props.taskType, props.run))
+
+/** 이 run에 먹인 손잡이들. 판정은 전부 `ml/results.ts`에 있다. */
+const hyperparameters = computed(() => hyperparametersOf(props.run))
 </script>
 
 <template>
@@ -62,6 +69,35 @@ const panels = computed(() => metricPanelsFor(props.dataType, props.taskType, pr
       <p v-if="warningText" class="rounded-panel border border-caution/30 bg-caution-soft p-3">
         {{ warningText }}
       </p>
+
+      <!--
+        **이 run에 먹인 손잡이들.** 지표보다 위다 (§8.13) — 아래의 모든 숫자가 이 설정에서
+        나온 값이고, 다 읽은 뒤에 무슨 설정이었는지 알게 되면 이미 늦다. `직전 학습에서
+        바뀐 것`은 이 자리를 대신하지 못한다: 그것은 두 실험의 차이라 안 바꾼 값은 안 뜨고
+        첫 실험에는 아무것도 안 뜬다.
+      -->
+      <section class="flex flex-col gap-1.5">
+        <h4 class="font-bold">{{ t('results.paramTitle') }}</h4>
+
+        <!--
+          **손잡이가 없는 모델도 그 사실을 적는다** (나이브 베이즈·선형 회귀). 학습 화면이
+          같은 상황에서 쓰는 문장을 그대로 쓴다 — 같은 사실을 두 화면이 다른 낱말로 말할
+          이유가 없다.
+        -->
+        <p v-if="hyperparameters.length === 0" class="text-ink-soft">{{ t('train.noTuning') }}</p>
+
+        <dl v-else class="flex flex-wrap gap-x-6 gap-y-1.5">
+          <div v-for="param in hyperparameters" :key="param.name" class="flex items-baseline gap-2">
+            <!--
+              **등록부가 모르는 키는 엔진이 받는 키 그대로 보인다.** 번역된 이름이 없다고
+              값을 감추면 화면이 파일보다 적게 말한다 (`ChangeList`의 모르는 경로와 같다).
+            -->
+            <dt v-if="param.labelKey === null" class="text-ink-soft">{{ param.name }}</dt>
+            <dt v-else class="text-ink-soft">{{ t(param.labelKey) }}</dt>
+            <dd class="font-bold tabular-nums">{{ param.text }}</dd>
+          </div>
+        </dl>
+      </section>
 
       <!--
         **등록부가 준 순서 그대로다.** 여기에 조건을 더하지 마라 — 무엇이 언제 뜨는지는
