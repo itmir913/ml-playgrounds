@@ -20,7 +20,10 @@ export function handleTrain(request: TrainRequest, emit: (message: WorkerMessage
   try {
     const { experiment, preprocessor, models } = runExperiment(request.input, {
       ...(request.history ? { history: request.history } : {}),
-      onRun: (run, completed, total) => emit({ type: 'progress', run, completed, total }),
+      onRunStart: ({ index, algorithm, runtime }, total) =>
+        emit({ type: 'started', index, algorithm, runtime, total }),
+      onRun: (run, completed, total, index) =>
+        emit({ type: 'progress', run, index, completed, total }),
     })
     emit({ type: 'done', experiment, preprocessor, models })
   } catch (error) {

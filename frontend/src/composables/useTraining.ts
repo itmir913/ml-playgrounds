@@ -15,10 +15,11 @@
  * 번들러가 워커 청크를 만들려 든다 (ml/worker/spawn.ts와 같은 이유다).
  */
 
-import { computed, readonly, ref, toRaw } from 'vue'
+import { computed, readonly, ref, shallowRef, toRaw } from 'vue'
 
 import { isClientError } from '../errors'
 import type { ExperimentResult } from '../ml/experiment'
+import { waitingStatuses, withFinished, withStarted, type ModelStatus } from '../ml/training-status'
 import { train, type TrainWorker } from '../ml/worker/client'
 import type { TrainRequest } from '../ml/worker/protocol'
 
@@ -63,6 +64,14 @@ export function useTraining(createWorker: () => TrainWorker) {
   const progress = ref<TrainingProgress | null>(null)
   const running = computed(() => progress.value !== null)
 
+  /**
+   * 담은 모델마다의 상태 (architecture.md §8.17). **자리는 `selectedAlgorithms`와 같다.**
+   *
+   * **학습이 끝나면 비운다.** 결과는 결과 화면이 말하는 것이고, 학습 화면에 남겨 두면
+   * 같은 사실을 두 화면이 각자 들고 있게 된다. 이 목록이 말하는 것은 지금 도는 학습이다.
+   */
+  const statuses = shallowRef<readonly ModelStatus[]>([])
+
   /** 지금 도는 학습을 멈추는 손잡이. 안 돌면 null이다. */
   let handle: { cancel: () => void } | null = null
 
@@ -77,7 +86,9 @@ export function useTraining(createWorker: () => TrainWorker) {
     // 두 번 눌려도 두 개가 돌지 않는다. 버튼이 이미 막지만 여기가 마지막 관문이다.
     if (running.value) return null
 
-    progress.value = { completed: 0, total: request.input.settings.selectedAlgorithms.length }
+    const total = request.input.settings.selectedAlgorithms.length
+    progress.value = { completed: 0, total }
+    statuses.value = waitingStatuses(total)
 
     // **train은 반드시 try 안에 있어야 한다.** postMessage는 동기로 던질 수 있고
     // (아래 plain 참조), 밖에 두면 그때 finally가 안 돌아 progress가 남는다.
@@ -85,8 +96,12 @@ export function useTraining(createWorker: () => TrainWorker) {
     try {
       const started = train(plain(request), {
         createWorker,
-        onProgress: (_run, completed, total) => {
-          progress.value = { completed, total }
+        onStarted: ({ index }) => {
+          statuses.value = withStarted(statuses.value, index)
+        },
+        onProgress: (run, completed, count, index) => {
+          progress.value = { completed, total: count }
+          statuses.value = withFinished(statuses.value, index, run)
         },
       })
       handle = started
@@ -97,6 +112,7 @@ export function useTraining(createWorker: () => TrainWorker) {
     } finally {
       handle = null
       progress.value = null
+      statuses.value = []
     }
   }
 
@@ -105,5 +121,5 @@ export function useTraining(createWorker: () => TrainWorker) {
     handle?.cancel()
   }
 
-  return { progress: readonly(progress), running, run, cancel }
+  return { progress: readonly(progress), statuses: readonly(statuses), running, run, cancel }
 }

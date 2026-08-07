@@ -86,8 +86,24 @@ export interface ExperimentOptions {
   history?: RunsFile
   /** 시각. 테스트가 결정적이려면 주입할 수 있어야 한다. */
   now?: () => string
-  /** 모델 하나가 끝날 때마다. 워커 껍데기가 이걸 postMessage로 바꾼다. */
-  onRun?: (run: Run, completed: number, total: number) => void
+  /**
+   * 모델 하나를 **시작할 때마다** (mlpx-spec.md §0.3). 워커 껍데기가 이걸 postMessage로
+   * 바꾼다.
+   *
+   * **끝날 때(`onRun`)만으로는 지금 도는 것이 무엇인지 말할 수 없다.** 실행 방법을 함께
+   * 주는 이유는 학생이 고른 것과 실제로 도는 것이 다를 수 있어서다(자동 이동).
+   */
+  onRunStart?: (
+    started: { index: number; algorithm: string; runtime: string },
+    total: number,
+  ) => void
+  /**
+   * 모델 하나가 끝날 때마다. 워커 껍데기가 이걸 postMessage로 바꾼다.
+   *
+   * **`index`는 `onRunStart`와 같은 자리다.** 받는 쪽이 "끝난 개수 - 1"로 되짚으면
+   * 순차 실행을 가정하는 셈이라, 세는 쪽이 아니라 도는 쪽이 말한다.
+   */
+  onRun?: (run: Run, completed: number, total: number, index: number) => void
   /**
    * 볼 알고리즘 등록부. 없으면 진짜 등록부다.
    *
@@ -502,10 +518,15 @@ export function runExperiment(
 
   const runs: Run[] = []
   const models = new Map<string, ModelFile>()
-  for (const { algorithm, runtime: wanted, explicit } of requested) {
+  for (const [index, { algorithm, runtime: wanted, explicit }] of requested.entries()) {
     const option = available.get(algorithm)
     const runtime = option ? chooseRuntime(option, wanted, explicit) : undefined
     const engine = runtime ? engineFor(runtime.id) : undefined
+
+    // **실행 방법이 정해진 뒤에 시작을 알린다.** 자동으로 넘어갔으면 넘어간 쪽을 말해야
+    // 한다 - 화면이 "지금 무엇이 도는가"를 말하는 자리에서 틀리면 안 된다. 못 도는
+    // 조합이면 학생이 고른 쪽을 말한다(그 run은 곧 실패로 끝난다).
+    options.onRunStart?.({ index, algorithm, runtime: runtime?.id ?? wanted }, total)
 
     // **실행 방법이 정해진 뒤에 하이퍼파라미터를 읽는다.** 어휘가 실행 방법마다 다르므로
     // (ml.js maxDepth / sklearn max_depth) 어느 것으로 돌지 모르면 무엇을 먹일지도 모른다.
@@ -552,7 +573,7 @@ export function runExperiment(
     }
 
     const finished = runs[runs.length - 1]
-    if (finished) options.onRun?.(finished, runs.length, total)
+    if (finished) options.onRun?.(finished, runs.length, total, index)
   }
 
   const experimentSettings: Experiment['settings'] = {

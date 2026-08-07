@@ -397,12 +397,12 @@ function leave(): void {
       **학습이 도는 동안에는 못 건드린다.** 실험은 [학습]을 누른 순간의 스냅샷으로 돌므로
       지금 모델을 빼도 도는 것은 안 바뀐다 — 고칠 수 있게 두면 화면이 지금 무엇이 도는지에
       대해 거짓말을 하게 된다. `inert`는 하위 전체를 못 누르게 하고 접근성 트리에서도 뺀다.
+
+      **다만 담은 목록은 예외다** (§8.17, 2026-08-07). 도는 동안 그 목록이 상태판이 되므로
+      흐리게 하거나 접근성 트리에서 빼면 **정작 읽어야 할 때 못 읽는다.** 그래서 잠금은
+      고르는 쪽(축)에만 걸고, 목록은 자기 안에서 손잡이와 [빼기]만 감춘다.
     -->
-    <section
-      class="min-w-0 rounded-panel border border-line bg-surface p-4 transition-opacity"
-      :class="training.running.value ? 'opacity-60' : ''"
-      :inert="training.running.value"
-    >
+    <section class="min-w-0 rounded-panel border border-line bg-surface p-4">
       <h2 class="font-bold">{{ t('train.modelsTitle') }}</h2>
       <p class="mt-1 text-ink-soft">{{ t('train.modelsLead') }}</p>
 
@@ -410,7 +410,11 @@ function leave(): void {
       <p v-if="targetIssue" class="mt-3 font-bold text-danger">{{ targetIssue }}</p>
 
       <div class="mt-4 grid gap-x-6 gap-y-5 md:grid-cols-3">
-        <div class="min-w-0 md:col-span-2">
+        <div
+          class="min-w-0 transition-opacity md:col-span-2"
+          :class="training.running.value ? 'opacity-60' : ''"
+          :inert="training.running.value"
+        >
           <ModelAxes
             :task-types="taskTypes"
             :task-type="project.taskType"
@@ -432,6 +436,8 @@ function leave(): void {
           <ChosenModels
             :chosen="chosen"
             :values="settings.hyperparameters"
+            :statuses="training.statuses.value"
+            :running="training.running.value"
             @remove="removeModel"
             @set-param="setParam"
           />

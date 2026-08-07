@@ -36,11 +36,25 @@ export interface TrainWorker {
   terminate(): void
 }
 
+/** 워커가 "이걸 시작했다"고 말한 것. `selectedAlgorithms`의 `index` 자리다. */
+export interface StartedModel {
+  readonly index: number
+  readonly algorithm: string
+  /** **실제로 도는** 실행 방법. 자동으로 넘어갔으면 학생이 고른 것과 다르다. */
+  readonly runtime: string
+}
+
 export interface TrainOptions {
   /** 워커를 만든다. 앱은 spawnTrainingWorker를, 테스트는 가짜를 넣는다. */
   createWorker: () => TrainWorker
-  /** 모델 하나가 끝날 때마다. 실험 전체 진행률은 여기서 센다 (mlpx-spec.md 0.3). */
-  onProgress?: (run: Run, completed: number, total: number) => void
+  /** 모델 하나를 시작할 때마다 (mlpx-spec.md 0.3). 화면이 "지금 무엇이 도는가"를 안다. */
+  onStarted?: (started: StartedModel, total: number) => void
+  /**
+   * 모델 하나가 끝날 때마다. 실험 전체 진행률은 여기서 센다 (mlpx-spec.md 0.3).
+   *
+   * `index`는 `onStarted`와 같은 자리다 - 화면이 "끝난 개수 - 1"로 되짚지 않는다.
+   */
+  onProgress?: (run: Run, completed: number, total: number, index: number) => void
 }
 
 export interface TrainHandle {
@@ -81,9 +95,18 @@ export function train(request: TrainRequest, options: TrainOptions): TrainHandle
 
   worker.onmessage = (event) => {
     const message = event.data
+    if (message.type === 'started') {
+      // 취소한 뒤에 도착한 보고는 버린다 - progress와 같은 이유다.
+      if (!finished) {
+        const { index, algorithm, runtime } = message
+        options.onStarted?.({ index, algorithm, runtime }, message.total)
+      }
+      return
+    }
     if (message.type === 'progress') {
       // 취소한 뒤에 도착한 보고는 버린다. terminate가 즉시 조용해지지는 않는다.
-      if (!finished) options.onProgress?.(message.run, message.completed, message.total)
+      if (!finished)
+        options.onProgress?.(message.run, message.completed, message.total, message.index)
       return
     }
     if (message.type === 'done') {

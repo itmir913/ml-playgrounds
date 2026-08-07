@@ -111,13 +111,39 @@ describe('워커 안의 처리', () => {
     return messages
   }
 
-  it('모델마다 진행을 보내고 마지막에 결과를 보낸다', () => {
+  it('모델마다 시작과 끝을 보내고 마지막에 결과를 보낸다', () => {
     const messages = collect(requestFor())
-    expect(messages.map((message) => message.type)).toEqual(['progress', 'progress', 'done'])
+    expect(messages.map((message) => message.type)).toEqual([
+      'started',
+      'progress',
+      'started',
+      'progress',
+      'done',
+    ])
+  })
+
+  it('시작 보고가 무엇이 도는지 말한다 - 끝난 개수로는 알 수 없다', () => {
+    const [first] = collect(requestFor())
+    expect(first?.type).toBe('started')
+    if (first?.type === 'started') {
+      expect(first.index).toBe(0)
+      expect(first.algorithm).toBe('decision_tree')
+      // 학생이 고른 것이 아니라 **실제로 도는** 실행 방법이다.
+      expect(first.runtime).toBe('mljs')
+      expect(first.total).toBe(2)
+    }
+  })
+
+  it('끝 보고도 자리를 싣는다 - 받는 쪽이 "끝난 개수 - 1"로 되짚지 않는다', () => {
+    const messages = collect(requestFor())
+    const finished = messages.filter((message) => message.type === 'progress')
+    expect(finished.map((message) => (message.type === 'progress' ? message.index : -1))).toEqual([
+      0, 1,
+    ])
   })
 
   it('진행은 모델 단위다 - 백분율을 만들지 않는다', () => {
-    const [first] = collect(requestFor())
+    const first = collect(requestFor()).find((message) => message.type === 'progress')
     expect(first?.type).toBe('progress')
     if (first?.type === 'progress') {
       expect(first.completed).toBe(1)
@@ -186,6 +212,39 @@ describe('메인 스레드 쪽', () => {
       ['knn', 1, 2],
       ['svm', 2, 2],
     ])
+  })
+
+  it('시작도 순서대로 흘러나온다 - 화면이 지금 도는 것을 안다', async () => {
+    const worker = new HandlerWorker()
+    const seen: [number, string, string][] = []
+    const { result } = train(
+      { type: 'train', input: inputFor(settingsFor({ selectedAlgorithms: models('knn', 'svm') })) },
+      {
+        createWorker: () => worker,
+        onStarted: ({ index, algorithm, runtime }) => seen.push([index, algorithm, runtime]),
+      },
+    )
+
+    await result
+    expect(seen).toEqual([
+      [0, 'knn', 'mljs'],
+      [1, 'svm', 'mljs'],
+    ])
+  })
+
+  it('취소한 뒤 도착한 시작 보고는 버린다', async () => {
+    const worker = new FakeWorker()
+    const seen: number[] = []
+    const { result, cancel } = train(requestFor(), {
+      createWorker: () => worker,
+      onStarted: ({ index }) => seen.push(index),
+    })
+
+    cancel()
+    worker.emit({ type: 'started', index: 0, algorithm: 'knn', runtime: 'mljs', total: 2 })
+
+    await expect(rejectionCode(result)).resolves.toBe('JOB_CANCELLED')
+    expect(seen).toEqual([])
   })
 
   it('failed는 ClientError로 다시 세워진다', async () => {

@@ -31,7 +31,27 @@ export interface TrainRequest {
  * 여기서 백분율을 만들면 서버 학습과 계산이 두 벌이 되고 반드시 어긋난다.
  */
 export type WorkerMessage =
-  | { type: 'progress'; run: Run; completed: number; total: number }
+  /**
+   * 모델 하나를 시작했다 (mlpx-spec.md §0.3, 2026-08-07).
+   *
+   * **끝날 때만 보고하면 지금 도는 것이 무엇인지 아무도 모른다.** 모델 하나가 몇 분씩
+   * 걸리는 조합이 있고, 그때 화면이 끝난 개수만 들고 있으면 학생은 어느 모델이 오래
+   * 걸리는지 알아내려고 모델을 하나씩 빼 가며 다시 학습한다.
+   *
+   * **`index`는 `selectedAlgorithms`의 자리다.** 같은 알고리즘이 실행 방법만 다르게 두 번
+   * 들어올 수 있어(schema.ts) 이름은 키가 못 된다.
+   *
+   * `runtime`을 싣는 이유는 **학생이 고른 것과 실제로 도는 것이 다를 수 있어서다** -
+   * 자동으로 넘어간 경우(open-decisions.md "실행 방법은 하나의 목록이다") 지금 도는 것을
+   * 말하는 자리에서 그걸 틀리게 말하면 안 된다.
+   */
+  | { type: 'started'; index: number; algorithm: string; runtime: string; total: number }
+  /**
+   * 모델 하나가 끝났다. **`index`는 `started`와 같은 자리를 가리킨다** - 받는 쪽이
+   * "끝난 개수 - 1"로 되짚지 않게 하려고 싣는다. 그 되짚기는 **순차 실행일 때만 맞는
+   * 추론**이고, 서버 학습이나 병렬 실행이 붙는 날 조용히 틀린다 (architecture.md §8.17).
+   */
+  | { type: 'progress'; run: Run; index: number; completed: number; total: number }
   // 모델은 Map으로 간다. 구조화 복제가 Map을 그대로 넘기므로 평평하게 펼 이유가 없다.
   | {
       type: 'done'

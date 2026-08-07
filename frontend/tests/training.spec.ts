@@ -56,6 +56,15 @@ const RUN: Run = {
   metrics: { accuracy: 1 },
 }
 
+/** 실패한 run. 상태 배열이 성공과 실패를 가르는지 보려고 둔다. */
+const FAILED_RUN: Run = {
+  ...RUN,
+  id: 'run-2',
+  status: 'failed',
+  metrics: undefined,
+  failure: { code: 'JOB_FAILED' },
+}
+
 /** 실험 내용은 여기서 안 본다. 이 층이 하는 일은 상태와 수명이다. */
 const DONE = {
   type: 'done',
@@ -87,13 +96,37 @@ describe('학습이 도는 동안', () => {
     expect(training.running.value).toBe(true)
     expect(training.progress.value).toEqual({ completed: 0, total: 3 })
 
-    latest()?.emit({ type: 'progress', run: RUN, completed: 2, total: 3 })
+    latest()?.emit({ type: 'progress', run: RUN, index: 1, completed: 2, total: 3 })
     expect(training.progress.value).toEqual({ completed: 2, total: 3 })
 
     latest()?.emit(DONE)
     await done
     expect(training.running.value).toBe(false)
     expect(training.progress.value).toBeNull()
+  })
+
+  it('담은 모델마다 상태를 들고 있다 - 끝난 개수로는 누가 오래 걸리는지 모른다', async () => {
+    const { training, latest } = harness()
+    const done = training.run(requestFor(3))
+
+    // 누른 직후에는 아직 아무 보고도 안 왔다.
+    expect(training.statuses.value).toEqual(['waiting', 'waiting', 'waiting'])
+
+    latest()?.emit({ type: 'started', index: 0, algorithm: 'knn', runtime: 'mljs', total: 3 })
+    expect(training.statuses.value).toEqual(['running', 'waiting', 'waiting'])
+
+    latest()?.emit({ type: 'progress', run: RUN, index: 0, completed: 1, total: 3 })
+    latest()?.emit({ type: 'started', index: 1, algorithm: 'svm', runtime: 'mljs', total: 3 })
+    latest()?.emit({ type: 'progress', run: FAILED_RUN, index: 1, completed: 2, total: 3 })
+    latest()?.emit({ type: 'started', index: 2, algorithm: 'knn', runtime: 'mljs', total: 3 })
+
+    // **여기가 실제로 겪은 장면이다** - 둘은 끝났고 하나만 몇 분씩 돈다.
+    expect(training.statuses.value).toEqual(['done', 'failed', 'running'])
+
+    latest()?.emit(DONE)
+    await done
+    // 끝나면 비운다 - 결과는 결과 화면이 말한다.
+    expect(training.statuses.value).toEqual([])
   })
 
   it('두 번 눌러도 워커는 하나다', async () => {
