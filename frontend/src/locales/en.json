@@ -195,7 +195,7 @@
     "testDataRemoveTitle": "Removing the test data deletes your training results",
     "testDataRemoveDescription": "The {count} experiment you have run so far goes with it. When the test set changes, the scores above it were measuring something else. | The {count} experiments you have run so far go with it. When the test set changes, the scores above it were measuring something else.",
     "testDataRemoveConfirm": "Delete and remove",
-    "rowsUsable": "{total} rows uploaded, {dropped} dropped during preprocessing, {usable} used.",
+    "rowsUsable": "total {total} rows uploaded, {dropped} dropped during preprocessing, {usable} used.",
     "testSize": "Share of data to sample",
     "testSizeNote": "Set the share of training data to set aside for testing.",
     "stratify": "Split keeping the mix of categories",

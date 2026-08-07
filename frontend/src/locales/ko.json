@@ -195,7 +195,7 @@
     "testDataRemoveTitle": "평가 데이터를 떼면 학습 결과가 지워집니다",
     "testDataRemoveDescription": "지금까지 한 실험(Experiment) {count}개가 함께 사라집니다. 평가셋이 바뀌면 그 위의 점수가 전부 다른 것을 잰 값이 되기 때문입니다.",
     "testDataRemoveConfirm": "지우고 떼기",
-    "rowsUsable": "올린 {total}행 중 {dropped}행이 전처리에서 빠져 최종 {usable}행을 씁니다.",
+    "rowsUsable": "전체 {total}행 중 {dropped}행이 전처리에서 빠져 최종 {usable}행을 학습에 사용합니다.",
     "testSize": "샘플링할 데이터 비율",
     "testSizeNote": "학습 데이터 중 평가용으로 분리할 비율을 설정합니다.",
     "stratify": "범주의 비율을 맞춰 나누기",

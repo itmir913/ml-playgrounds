@@ -148,8 +148,9 @@ function setCleaning(patch: Partial<Preprocessing>): void {
           빨간 글씨를 보여주면 자기가 뭘 잘못한 줄 안다.
         -->
       <p class="mt-3" :class="featureSummary.tone">{{ featureSummary.text }}</p>
-      <!-- 빠진 행이 0이면 아무 말도 안 한다 (trainRowUsage가 그때 null이다). -->
-      <p v-if="trainRowUsage" class="mt-1 text-ink-faint">
+      <!-- 빠진 행이 0이면 아무 말도 안 한다 (trainRowUsage가 그때 null이다).
+           학생이 반드시 알고 있어야 하는 서술은 다른 컬러를 사용하여 주의를 끌어야 한다. -->
+      <p v-if="trainRowUsage" class="mt-1 text-caution">
         {{ t('preprocess.rowsUsable', trainRowUsage) }}
       </p>
     </section>
