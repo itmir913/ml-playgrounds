@@ -44,6 +44,24 @@ jobs:
       - name: pytest
         run: uv run pytest
 
+  # sklearn 대조 픽스처가 낡지 않았는지. 기본 관문(vitest의 sklearn-parity.spec.ts)은
+  # frontend 잡 안에서 파이썬 없이 돌고, 이 잡은 픽스처의 기대값 자체를 sklearn으로
+  # 재계산해 커밋된 것과 대조한다 (open-decisions.md "sklearn 대조 픽스처가 CI 관문에
+  # 들어간다"). sklearn 버전은 backend/uv.lock이 못박는다.
+  ml-fixtures:
+    name: ML fixtures (sklearn parity)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --frozen
+        working-directory: backend
+      - name: fixtures up to date
+        run: uv run --project backend python scripts/generate_sklearn_fixtures.py --check
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest

@@ -197,8 +197,8 @@ describe('로지스틱 수렴 경고 (mlpx-spec.md 5.9)', () => {
     })
     expect(warning?.code).toBe('LOGISTIC_NOT_CONVERGED')
     // 파일에 남는 것은 판정의 근거다 - 기울기와 문턱이 함께 적힌다.
-    expect(typeof warning?.params.gradient).toBe('number')
-    expect(warning?.params.tol).toBe(1e-4)
+    expect(typeof warning?.params?.gradient).toBe('number')
+    expect(warning?.params?.tol).toBe(1e-4)
   })
 
   it('기울기가 0인 데이터에서는 경고가 없다', () => {

@@ -1,0 +1,3 @@
+# sklearn 대조 픽스처 - scripts/generate_sklearn_fixtures.py가 만드는 산출물이라
+# 사람이 편집하지 않고, 포맷터가 손대면 --check(재생성 대조)가 어긋난다.
+tests/fixtures/sklearn/expected.json
