@@ -67,8 +67,9 @@ function worse(distanceA: number, indexA: number, distanceB: number, indexB: num
 /**
  * KNN 예측 함수를 만든다. **학습 쪽과 해석기 쪽이 이 함수 하나를 공유한다.**
  *
- * 득표 집계에 이웃의 순서는 필요 없다 - 클래스마다 개수와 (최소 거리, 그 행 번호)만
- * 들고 있으면 규칙 2~4가 그대로 계산된다.
+ * 득표 집계에 이웃의 순서는 필요 없다 - 클래스마다 개수만 들고 있으면 규칙 2~3이
+ * 그대로 계산된다. 득표 동점은 **정렬 순서가 앞선 클래스**가 이긴다 - sklearn
+ * `KNeighborsClassifier`와 같은 답이다 (mlpx-spec.md 5.6, 2026-08-10에 바꿨다).
  */
 export function knnPredict(input: NeighborhoodInput): Predict {
   const { k, featureCount, rows, labels, indices } = input
@@ -142,39 +143,25 @@ export function knnPredict(input: NeighborhoodInput): Predict {
         }
       })
 
-      // 클래스마다 개수와 가장 가까운 이웃. 순서는 필요 없다.
-      const byLabel = new Map<string, { count: number; distance: number; index: number }>()
+      // 클래스마다 개수. 순서는 필요 없다.
+      const byLabel = new Map<string, number>()
       const rowToLabel = new Map<number, string>()
       indices.forEach((rowIndex, position) => {
         rowToLabel.set(rowIndex, labels[position] ?? '')
       })
 
       for (let slot = 0; slot < size; slot += 1) {
-        const rowIndex = heapRow[slot] ?? 0
-        const label = rowToLabel.get(rowIndex) ?? ''
-        const distance = heapDistance[slot] ?? 0
-        const seen = byLabel.get(label)
-        if (!seen) {
-          byLabel.set(label, { count: 1, distance, index: rowIndex })
-          continue
-        }
-        seen.count += 1
-        if (worse(seen.distance, seen.index, distance, rowIndex)) {
-          seen.distance = distance
-          seen.index = rowIndex
-        }
+        const label = rowToLabel.get(heapRow[slot] ?? 0) ?? ''
+        byLabel.set(label, (byLabel.get(label) ?? 0) + 1)
       }
 
+      // 득표 동점은 정렬 순서가 앞선 클래스 - sklearn과 같은 답이다 (mlpx-spec.md 5.6).
       let best: string | undefined
-      let bestVote = { count: -1, distance: 0, index: 0 }
-      for (const [label, vote] of byLabel) {
-        const wins =
-          vote.count > bestVote.count ||
-          (vote.count === bestVote.count &&
-            worse(bestVote.distance, bestVote.index, vote.distance, vote.index))
-        if (wins) {
+      let bestCount = -1
+      for (const [label, count] of byLabel) {
+        if (count > bestCount || (count === bestCount && best !== undefined && label < best)) {
           best = label
-          bestVote = vote
+          bestCount = count
         }
       }
 

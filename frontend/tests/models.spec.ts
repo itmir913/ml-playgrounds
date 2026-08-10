@@ -616,8 +616,12 @@ describe('mlpx-reference-v1', () => {
     expect(predict([[0.5]])).toEqual(['a'])
   })
 
-  /** 규칙 3 — 득표가 같으면 가장 가까운 이웃을 가진 클래스가 이긴다. */
-  it('득표가 같으면 더 가까운 이웃을 가진 클래스가 이긴다', () => {
+  /**
+   * 규칙 3 — 득표가 같으면 정렬 순서가 앞선 클래스 (mlpx-spec.md §5.6, 2026-08-10에
+   * 바꿨다). sklearn `KNeighborsClassifier`와 같은 답이다 — 1만 행 실측에서 갈린
+   * 9행이 전부 이 규약 차이였다.
+   */
+  it('득표가 같으면 정렬 순서가 앞선 클래스가 이긴다 - sklearn과 같은 답이다', () => {
     const predict = knnPredict({
       k: 2,
       featureCount: 1,
@@ -625,12 +629,11 @@ describe('mlpx-reference-v1', () => {
       labels: ['a', 'b'],
       indices: [0, 1],
     })
-    // 1대1 동점인데 b가 훨씬 가깝다. 번호 순으로 갈랐다면 a가 나온다.
-    expect(predict([[0]])).toEqual(['b'])
+    // 1대1 동점이고 b가 훨씬 가깝지만, sklearn은 정렬 순서가 앞선 a를 낸다.
+    expect(predict([[0]])).toEqual(['a'])
   })
 
-  /** 규칙 4 — 거리까지 같으면 행 번호가 작은 쪽. */
-  it('거리까지 같으면 행 번호가 작은 쪽이 이긴다', () => {
+  it('거리까지 같은 득표 동점에서도 정렬 순서가 앞선 클래스다', () => {
     const predict = knnPredict({
       k: 2,
       featureCount: 1,
@@ -638,7 +641,6 @@ describe('mlpx-reference-v1', () => {
       labels: ['b', 'a'],
       indices: [7, 3],
     })
-    // 거리가 완전히 같다. 라벨 순서(a<b)로 갈랐다면 a가 나온다.
     expect(predict([[0]])).toEqual(['a'])
   })
 
@@ -674,7 +676,7 @@ describe('mlpx-reference-v1', () => {
  * 그래서 무작위 데이터로 두 구현을 맞대어 본다. 여기 있는 순진한 구현이 기준이다.
  */
 describe('k개 고르기 — 힙이 완전 정렬과 같은 답을 낸다', () => {
-  /** 완전 정렬판. 규칙 1~4를 그대로 옮긴 것이고 빠르지 않아도 된다. */
+  /** 완전 정렬판. 규칙 1~3을 그대로 옮긴 것이고 빠르지 않아도 된다. */
   function naive(input: NeighborhoodInput): (query: readonly number[]) => string {
     const { k, rows, labels, indices } = input
     return (query) => {
@@ -685,28 +687,18 @@ describe('k개 고르기 — 힙이 완전 정렬과 같은 답을 낸다', () =
       }))
       scored.sort((a, b) => a.distance - b.distance || a.index - b.index)
 
-      const votes = new Map<string, { count: number; distance: number; index: number }>()
+      const votes = new Map<string, number>()
       for (const near of scored.slice(0, Math.min(k, scored.length))) {
-        const seen = votes.get(near.label)
-        if (!seen) {
-          votes.set(near.label, { count: 1, distance: near.distance, index: near.index })
-          continue
-        }
-        seen.count += 1
-        // 정렬돼 있으므로 먼저 만난 것이 언제나 더 가깝다.
+        votes.set(near.label, (votes.get(near.label) ?? 0) + 1)
       }
 
+      // 득표 동점은 정렬 순서가 앞선 클래스 (mlpx-spec.md §5.6).
       let best = ''
-      let bestVote = { count: -1, distance: 0, index: 0 }
-      for (const [label, vote] of votes) {
-        const wins =
-          vote.count > bestVote.count ||
-          (vote.count === bestVote.count &&
-            (vote.distance < bestVote.distance ||
-              (vote.distance === bestVote.distance && vote.index < bestVote.index)))
-        if (wins) {
+      let bestCount = -1
+      for (const [label, count] of votes) {
+        if (count > bestCount || (count === bestCount && label < best)) {
           best = label
-          bestVote = vote
+          bestCount = count
         }
       }
       return best
