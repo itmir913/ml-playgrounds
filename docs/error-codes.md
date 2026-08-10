@@ -106,14 +106,36 @@ ALGORITHM_NOT_FOR_DATA_TYPE, ALGORITHM_NOT_FOR_TASK_TYPE
 사유를 고를 때 **가장 근본적인 것을 준다**는 규칙이 여기서 나온다(`ml/experiment.ts`) —
 이미지 데이터에 회귀를 고른 학생에게 "엔진이 준비되지 않았습니다"라고 답하면 안 된다.
 
-**분할** (`ml/split.ts`)
+**분할·층화** (`ml/split.ts`, `ml/selection.ts`)
 ```
-SPLIT_TOO_FEW_ROWS, SPLIT_STRATIFY_IMPOSSIBLE
+SPLIT_TOO_FEW_ROWS, SPLIT_STRATIFY_IMPOSSIBLE,
+SPLIT_STRATIFY_TARGET_CONTINUOUS, STRATIFY_NOT_FOR_TASK_TYPE
 ```
 
-백엔드의 `SPLIT_INVALID`와 나뉜다. 저쪽은 **설정이 말이 안 되는 것**이고 이 둘은
-**설정은 멀쩡한데 이 데이터로는 못 나누는 것**이다 — 학생이 고칠 자리가 설정이 아니라
-데이터거나 비율이다.
+앞 둘은 백엔드의 `SPLIT_INVALID`와 나뉜다. 저쪽은 **설정이 말이 안 되는 것**이고 이
+둘은 **설정은 멀쩡한데 이 데이터로는 못 나누는 것**이다 — 학생이 고칠 자리가 설정이
+아니라 데이터거나 비율이다.
+
+뒤 둘은 **층화**에만 붙는다. `SPLIT_STRATIFY_TARGET_CONTINUOUS`는 타깃이 사실상
+연속이라 층화가 성립하지 않는 것이고, `SPLIT_STRATIFY_IMPOSSIBLE`과 학생이 할 일이
+정반대다 — 그쪽은 "그 값을 더 모아라"이고 이쪽은 "층화를 끄라"다
+(`open-decisions.md` "층화는 갈리는 값에서만 뜻이 있다"). `STRATIFY_NOT_FOR_TASK_TYPE`은
+이 과제 유형에서 층화가 뜻이 없다는 **화면의 잠금 이유**이지 던지는 코드가 아니다
+(`ml/selection.ts`의 `stratifyBlock`).
+
+**평가·예측 데이터 받기** (`data/columns.ts`, `ml/split.ts`, `ml/predict.ts`)
+```
+TEST_DATASET_COLUMN_MISSING, TEST_DATASET_NO_USABLE_ROWS,
+PREDICT_DATASET_COLUMN_MISSING
+```
+
+정본 열과의 대조는 브라우저에서만 한다(`mlpx-spec.md` §0.3 — 서버는 확정된 정본과
+분할 인덱스만 받는다). `TEST_DATASET_NO_USABLE_ROWS`는 평가 데이터로 채점할 행이 하나도
+없는 것(전처리가 전부 걸렀거나 `provided`인데 비었다)이고, **학습 데이터가 비었다는
+말과 나눈다** — 뭉치면 학생이 멀쩡한 학습 데이터를 들여다본다.
+`PREDICT_DATASET_COLUMN_MISSING`은 요구하는 열이 정본 열 전체가 아니라 특성 열의
+합집합이라 `TEST_DATASET_COLUMN_MISSING`과 다른 코드이고, **파일을 받을 때와 예측
+직전 두 자리**에서 잡힌다(`open-decisions.md` "붙일 때 본 것을 예측 직전에 다시 본다").
 
 **프로젝트 파일 열기**
 ```
