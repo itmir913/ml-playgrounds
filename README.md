@@ -15,7 +15,7 @@
 
 | 도구 | 버전          | 확인 |
 |---|-------------|---|
-| Node.js | 20 이상       | `node --version` |
+| Node.js | 22.13 이상    | `node --version` |
 | Python | 3.12 이상     | `python --version` |
 | [uv](https://docs.astral.sh/uv/) | 최신(0.11.32) | `uv --version` |
 
