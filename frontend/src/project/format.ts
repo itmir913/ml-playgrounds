@@ -37,15 +37,20 @@ export const ENTRY = {
   manifest: 'manifest.json',
   settings: 'settings.json',
   runs: 'runs.json',
-  portfolio: 'portfolio.json',
-  portfolioMarkdown: 'portfolio.md',
   hashes: 'hashes.json',
+  // **포트폴리오는 디렉터리 안이다** (mlpx-spec.md 1). 글에 이미지가 붙는 것이
+  // 예정되어 있고(open-decisions.md 23) 첨부는 DIR.portfolio 아래로 들어간다.
+  // 배포 뒤에는 못 옮긴다 - 마이그레이션이 받는 것은 JSON 넷이지 엔트리 맵이
+  // 아니라서 엔트리의 이동을 표현할 자리가 없다 (mlpx-spec.md 9).
+  portfolio: 'portfolio/document.json',
+  portfolioMarkdown: 'portfolio/document.md',
 } as const
 
 /** 내용이 가변인 디렉터리. */
 export const DIR = {
   model: 'model/',
   dataset: 'dataset/',
+  portfolio: 'portfolio/',
 } as const
 
 /**
