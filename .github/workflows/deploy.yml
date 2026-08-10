@@ -31,9 +31,15 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      # Everything gates the deploy: eslint, prettier, vue-tsc, vitest, build.
+      # This gates the deploy: eslint, prettier, vue-tsc, vitest, build.
       # ci.yml checks the same commit, but reading this file alone must tell you
       # what has to pass before anything ships (docs/open-decisions.md #10-1).
+      #
+      # One check in ci.yml is deliberately NOT here: the ml-fixtures job, which
+      # regenerates the sklearn parity fixtures and fails if they drifted. That
+      # needs Python, and it answers "did sklearn change?" - not "did we break?".
+      # Our side is already gated, because tests/sklearn-parity.spec.ts compares
+      # against the committed fixtures inside vitest below.
       - run: npm run ci
       - uses: actions/upload-pages-artifact@v5
         with:
