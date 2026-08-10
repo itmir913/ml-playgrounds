@@ -44,7 +44,7 @@ import type { Warning } from '../../project/schema'
 import { resolveWith, type HyperparameterSpec } from '../hyperparams'
 import type { Prediction } from '../metrics'
 import { REFERENCE_FORMAT, SVM_FORMAT, knnPredict, loadLinearV2Model, svmPredict } from '../models'
-import type { PairwiseClassifier } from '../models'
+import type { LinearModelV2, PairwiseClassifier } from '../models'
 import type { ModelFile, Predict } from '../models/types'
 import { SMO_DEFAULTS, seededRandom, trainLinearSvm } from './svm-smo'
 import { MLJS_PARAMETERS } from './mljs-params'
@@ -292,6 +292,49 @@ function gaussianNaiveBayes(): NaiveBayesPredictor {
     // 아니라 저장소 안에서 계산하므로, 직렬화기가 남의 구조를 추측할 일이 없다.
     snapshot: () => ({ logPriors: priors, means, variances }),
   }
+}
+
+/**
+ * sklearn `LogisticRegression`의 수렴 판정 기본값(tol=1e-4)을 그대로 빌린 문턱.
+ * lbfgs가 목적함수 기울기의 최대 성분이 이 값 아래로 갈 때까지 도는 그 기준이다 -
+ * 임의 상수가 아니라 관행이다 (open-decisions.md "파이썬 표준 관행을 따른다").
+ */
+const LOGISTIC_TOL = 1e-4
+
+/**
+ * 학습이 멈춘 자리의 목적함수(합 로그손실) 기울기 최대 성분 (mlpx-spec.md 5.9).
+ *
+ * **경사하강이 실제로 걷는 표준화 좌표계에서 잰다** - 접힌 가중치를 그 좌표계로
+ * 되돌려 쓴다(직렬화의 접기를 거꾸로 한 것이다). 이 값이 크면 스텝 예산 안에
+ * 최적점에 못 닿은 것이고, sklearn이 ConvergenceWarning을 내는 그 상태다.
+ */
+function logisticGradient(
+  model: LinearModelV2,
+  /** 표준화 + 상수 1 열이 붙은 학습 행렬. 마지막 열이 절편 자리다. */
+  augmented: readonly (readonly number[])[],
+  encoded: readonly number[],
+  scaler: InternalScaler,
+): number {
+  const width = model.featureCount
+  let worst = 0
+  model.weights.forEach((row, k) => {
+    // 표준화 좌표계로 되접는다: w'_j = w_j·σ_j, b' = b + Σ w_j·μ_j.
+    const unfolded = row.map((value, j) => value * (scaler.spreads[j] ?? 1))
+    const interceptZ = row.reduce(
+      (sum, value, j) => sum + value * (scaler.centers[j] ?? 0),
+      model.intercepts[k] ?? 0,
+    )
+    const gradient = new Float64Array(width + 1)
+    augmented.forEach((z, i) => {
+      let score = interceptZ
+      for (let j = 0; j < width; j += 1) score += (unfolded[j] ?? 0) * (z[j] ?? 0)
+      // 라이브러리 규약대로 대상 클래스가 0이다. 상승 기울기 Xᵀ(y − p)를 그대로 잰다.
+      const gap = (encoded[i] === k ? 0 : 1) - 1 / (1 + Math.exp(-score))
+      for (let j = 0; j <= width; j += 1) gradient[j] = (gradient[j] ?? 0) + gap * (z[j] ?? 0)
+    })
+    for (let j = 0; j <= width; j += 1) worst = Math.max(worst, Math.abs(gradient[j] ?? 0))
+  })
+  return worst
 }
 
 /**
@@ -577,7 +620,22 @@ const TRAINERS: Record<string, Trainer> = {
 
     const attempted = serializeOrOmit(() => serializeLogistic(model, labels, featureCount, scaler))
     if (attempted.model) {
-      return { predict: loadLinearV2Model(attempted.model), model: attempted.model }
+      // 직렬화가 성공했을 때만 접힌 가중치가 있으므로 수렴 판정도 여기서 한다.
+      const gradient = logisticGradient(
+        attempted.model as LinearModelV2,
+        augmented,
+        encoded,
+        scaler,
+      )
+      const warning: Warning | undefined =
+        gradient > LOGISTIC_TOL
+          ? { code: 'LOGISTIC_NOT_CONVERGED', params: { gradient, tol: LOGISTIC_TOL } }
+          : undefined
+      return {
+        predict: loadLinearV2Model(attempted.model),
+        model: attempted.model,
+        ...(warning ? { warning } : {}),
+      }
     }
 
     // 접힌 모델을 못 만들었다(ml.js 내부 구조가 움직였다). 지표는 살린다 - 라이브러리로

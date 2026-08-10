@@ -186,6 +186,34 @@ describe('하이퍼파라미터', () => {
   })
 })
 
+describe('로지스틱 수렴 경고 (mlpx-spec.md 5.9)', () => {
+  it('스텝이 모자라면 LOGISTIC_NOT_CONVERGED가 붙는다', () => {
+    const { warning } = fit('logistic_regression', {
+      features: IRIS_FEATURES,
+      rowIndices: IRIS_FEATURES.map((_, index) => index),
+      target: IRIS_LABELS,
+      hyperparameters: { numSteps: 5 },
+      randomState: 42,
+    })
+    expect(warning?.code).toBe('LOGISTIC_NOT_CONVERGED')
+    // 파일에 남는 것은 판정의 근거다 - 기울기와 문턱이 함께 적힌다.
+    expect(typeof warning?.params.gradient).toBe('number')
+    expect(warning?.params.tol).toBe(1e-4)
+  })
+
+  it('기울기가 0인 데이터에서는 경고가 없다', () => {
+    // 완전히 대칭인 데이터 - 최적점이 w=0이고 시작점이 곧 최적점이다.
+    const { warning } = fit('logistic_regression', {
+      features: [[0], [0], [1], [1]],
+      rowIndices: [0, 1, 2, 3],
+      target: ['a', 'b', 'a', 'b'],
+      hyperparameters: {},
+      randomState: 42,
+    })
+    expect(warning).toBeUndefined()
+  })
+})
+
 describe('resolve - 무엇을 먹였는지 확정한다', () => {
   it('학생이 안 건드린 자리를 기본값으로 채운다', () => {
     // 이게 없으면 run.hyperparameters가 빈 객체로 남아, 교사가 파일을 열고 "이 결정트리는

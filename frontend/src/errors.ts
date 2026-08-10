@@ -150,6 +150,9 @@ export const SHARED_ERROR_CODES = [
 export const CLIENT_WARNING_CODES = [
   // SMO가 반복 예산 안에 수렴하지 못했다. 계수는 나왔고 지표도 나왔다 - 덜 다듬어졌을 뿐이다.
   'SVM_NOT_CONVERGED',
+  // 경사하강이 스텝 예산 안에 최적점에 못 닿았다. sklearn의 ConvergenceWarning 자리다
+  // (mlpx-spec.md 5.9).
+  'LOGISTIC_NOT_CONVERGED',
 ] as const
 
 export type ClientWarningCode = (typeof CLIENT_WARNING_CODES)[number]
