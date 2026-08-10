@@ -502,6 +502,16 @@ const TRAINERS: Record<string, Trainer> = {
           C: numberOption(input.hyperparameters, 'C'),
           random,
         })
+        // **유한하지 않은 계수는 시끄럽게 실패한다.** 솔버가 폭주하면 NaN·Infinity가
+        // 나오는데, 그대로 흘리면 svmPredict가 에러 없이 전부 한 클래스로 답한다 -
+        // 이 저장소가 규정한 최악이 그것이다. 원본의 H 수식 결함(svm-smo.ts 머리말 4)이
+        // 실제로 이 모양으로 터졌고, 고친 뒤에도 방어선은 남긴다.
+        if (
+          !fitted.weights.every((value) => Number.isFinite(value)) ||
+          !Number.isFinite(fitted.intercept)
+        ) {
+          throw new ClientError('JOB_FAILED', { classA: a, classB: b, detail: 'svm not finite' })
+        }
         classifiers.push({ a, b, weights: fitted.weights, intercept: fitted.intercept })
         converged &&= fitted.converged
         iterations = Math.max(iterations, fitted.iterations)

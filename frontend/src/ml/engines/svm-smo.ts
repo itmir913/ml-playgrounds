@@ -10,7 +10,7 @@
  * `Ei`·`L`·`H`·`eta`·`b1`·`b2`의 식과 건너뛰는 조건까지 같다. 읽을 때 원본과 나란히
  * 놓고 볼 수 있어야 한다.
  *
- * **바꾼 것은 셋뿐이다.**
+ * **바꾼 것은 넷이다.**
  *
  * 1. **반복을 다 써도 던지지 않는다.** 원본은 `throw new Error('max iterations reached')`인데,
  *    실측에서 겹치는 데이터는 **500행에서도** 거기 도달했다. 그때 나오는 계수는 쓸모없는
@@ -20,6 +20,13 @@
  * 2. **난수를 주입받는다.** 원본 기본값이 `Math.random`이라 같은 설정으로 두 번 돌려도
  *    답이 달랐다. `randomState`는 항상 저장하고 항상 쓴다 (CLAUDE.md 2).
  * 3. **선형 커널만 남겼다.** 커널 추상(`ml-kernel`)이 빠지면서 의존성 하나와 분기가 사라진다.
+ * 4. **`H`의 수식을 고쳤다 (2026-08-10, V2 감사 1단계-A).** 라벨이 다른 쌍의 위쪽 경계가
+ *    원본에는 `min(C, C + aj + ai)`로 적혀 있는데 **표준 SMO(Platt 1998)는
+ *    `min(C, C + aj − ai)`다.** 부호 하나가 틀리면 α가 제약(Σαy 보존·상자 [0,C])을
+ *    벗어나 자랄 수 있고, 실측에서 잡음 있는 600행부터 가중치가 Infinity로 폭주해
+ *    **에러 없이 전부 한 클래스로 답하는 모델**이 나왔다(정확도 = 동전 던지기).
+ *    원본 저장소(mljs/svm)의 `src/svm.js`에도 같은 식이 있다 — 벤더링 전사 오류가
+ *    아니라 원본의 결함이다.
  *
  * 표현만 바꾼 것이 하나 더 있다 — 커널 행렬을 `Float64Array`의 배열로 든다. **값과 계산
  * 순서는 같고** 3000행에서 72MB로 고정된다(중첩 배열이면 그 두 배가 넘는다).
@@ -156,8 +163,10 @@ export function trainLinearSvm(
       const ai = alpha[i] as number
       const aj = alpha[j] as number
       const low = yi === yj ? Math.max(0, ai + aj - options.C) : Math.max(0, aj - ai)
+      // 라벨이 다른 쪽의 위 경계는 C + aj − ai다 (Platt 1998). 원본의 `+ ai`는 결함이다 —
+      // 머리말 "바꾼 것 4"를 보라.
       const high =
-        yi === yj ? Math.min(options.C, ai + aj) : Math.min(options.C, options.C + aj + ai)
+        yi === yj ? Math.min(options.C, ai + aj) : Math.min(options.C, options.C + aj - ai)
       if (Math.abs(low - high) < 1e-4) continue
 
       const kii = (kernel[i] as Float64Array)[i] as number
