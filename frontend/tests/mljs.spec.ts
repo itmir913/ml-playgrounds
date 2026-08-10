@@ -137,11 +137,18 @@ describe('붓꽃을 실제로 학습한다', () => {
    * 값이 처음부터 틀렸으면 고정은 그것을 지켜 줄 뿐이다. 낮은 숫자를 "구현 차이"로
    * 설명하고 넘어가기 전에 입력이 실제로 다 쓰이는지부터 본다.
    */
+  /**
+   * **logistic_regression은 9/9였다가 8/9가 됐다 (2026-08-10, V2 감사 1단계-A).**
+   * 엔진이 내부 표준화와 절편을 넣으면서다(mlpx-spec.md 5.4.1) - 이 축소판(행 30개,
+   * 평가 9행)에서는 한 줄 내려갔지만, 같은 변경이 붓꽃 150행 전체에서 0.9333→0.9667,
+   * 값의 높낮이로 갈리는 교실 데이터에서 기준선 이하→sklearn 수준이다. 실측표는
+   * open-decisions.md에 있다. 배포 전이라 MLJS_ENGINE.version은 안 올린다(파일 머리말).
+   */
   const PINNED: Record<string, number> = {
     decision_tree: 7 / 9,
     knn: 8 / 9,
     random_forest: 8 / 9,
-    logistic_regression: 1,
+    logistic_regression: 8 / 9,
     naive_bayes: 8 / 9,
   }
 

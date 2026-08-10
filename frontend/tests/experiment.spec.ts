@@ -82,7 +82,8 @@ describe('실험이 실제로 학습한다', () => {
     decision_tree: 7 / 9,
     knn: 8 / 9,
     random_forest: 8 / 9,
-    logistic_regression: 1,
+    // 내부 표준화+절편이 들어오면서 mljs.spec.ts의 PINNED와 함께 움직였다 (2026-08-10).
+    logistic_regression: 8 / 9,
     naive_bayes: 8 / 9,
   }
 

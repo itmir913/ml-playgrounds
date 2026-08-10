@@ -12,7 +12,14 @@
 import { z } from 'zod'
 
 import { ClientError } from '../../errors'
-import { LINEAR_FORMAT, loadLinearModel, loadLinearProba } from './linear'
+import {
+  LINEAR_FORMAT,
+  LINEAR_V2_FORMAT,
+  loadLinearModel,
+  loadLinearProba,
+  loadLinearV2Model,
+  loadLinearV2Proba,
+} from './linear'
 import { LINEAR_REGRESSION_FORMAT, loadLinearRegressionModel } from './linear-regression'
 import { NAIVE_BAYES_FORMAT, loadNaiveBayesModel } from './naive-bayes'
 import { REFERENCE_FORMAT, loadReferenceModel } from './reference'
@@ -20,8 +27,8 @@ import { SVM_FORMAT, loadSvmModel } from './svm'
 import { TREE_FORMAT, loadTreeModel } from './tree'
 import type { LoadContext, ModelInterpreter, Predict, ProbaModel } from './types'
 
-export { LINEAR_FORMAT } from './linear'
-export type { LinearModel } from './linear'
+export { LINEAR_FORMAT, LINEAR_V2_FORMAT, loadLinearV2Model } from './linear'
+export type { LinearModel, LinearModelV2 } from './linear'
 export { LINEAR_REGRESSION_FORMAT } from './linear-regression'
 export type { LinearRegressionModel } from './linear-regression'
 export { NAIVE_BAYES_FORMAT } from './naive-bayes'
@@ -49,13 +56,21 @@ const INTERPRETERS: readonly ModelInterpreter[] = [
     load: loadTreeModel,
   },
   {
+    // **엔진이 더 이상 만들지 않는 형식이다** (mlpx-spec.md 5.4). 해석기만 남는다.
     format: LINEAR_FORMAT,
     includesPreprocessing: false,
     needsTrainingRows: false,
     load: loadLinearModel,
-    // **지금 확률을 내는 유일한 형식이다** (mlpx-spec.md 5.4). 결정 트리와 나이브
-    // 베이즈도 sklearn에서는 predict_proba를 가지므로 여기 항목이 늘어날 자리다.
     loadProba: loadLinearProba,
+  },
+  {
+    format: LINEAR_V2_FORMAT,
+    includesPreprocessing: false,
+    needsTrainingRows: false,
+    load: loadLinearV2Model,
+    // **확률을 내는 형식은 이 계열뿐이다** (mlpx-spec.md 5.4). 결정 트리와 나이브
+    // 베이즈도 sklearn에서는 predict_proba를 가지므로 여기 항목이 늘어날 자리다.
+    loadProba: loadLinearV2Proba,
   },
   {
     format: NAIVE_BAYES_FORMAT,

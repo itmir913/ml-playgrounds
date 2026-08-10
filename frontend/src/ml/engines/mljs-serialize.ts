@@ -20,7 +20,7 @@ import { Matrix } from 'ml-matrix'
 import type { RandomForestClassifier } from 'ml-random-forest'
 import { z } from 'zod'
 
-import { LINEAR_FORMAT, type LinearModel } from '../models/linear'
+import { LINEAR_V2_FORMAT, type LinearModelV2 } from '../models/linear'
 import { LINEAR_REGRESSION_FORMAT, type LinearRegressionModel } from '../models/linear-regression'
 import { NAIVE_BAYES_FORMAT, type NaiveBayesModel } from '../models/naive-bayes'
 import { LEAF, TREE_FORMAT, type TreeModel, type TreeNode } from '../models/tree'
@@ -216,7 +216,23 @@ export function serializeForest(
 }
 
 /**
- * 로지스틱 회귀의 가중치를 꺼낸다 (mlpx-spec.md 5.4).
+ * 엔진이 최적화 직전에 쓴 내부 표준화의 파라미터 (mlpx-spec.md 5.4.1).
+ * 직렬화기의 입력 계약이라 여기 산다 — `NaiveBayesParameters`와 같은 이유다.
+ */
+export interface InternalScaler {
+  /** 열별 모평균. 길이는 featureCount다. */
+  readonly centers: readonly number[]
+  /** 열별 모표준편차. 0인 열은 1로 둔 값이다. */
+  readonly spreads: readonly number[]
+}
+
+/**
+ * 로지스틱 회귀의 가중치를 꺼내 **원래 좌표계로 접는다** (mlpx-spec.md 5.4.1).
+ *
+ * 학습은 표준화된 행렬에 상수 1 열을 덧붙여 했으므로(ml/engines/mljs.ts) 판별기 한 줄의
+ * 길이는 `featureCount + 1`이고 마지막 값이 절편이다. 접기는 선형 대입이다:
+ *
+ *   w_j = w'_j / σ_j          b = w'_절편 − Σ_j w'_j·μ_j / σ_j
  *
  * **`toJSON()`이 Matrix 인스턴스를 그대로 담는다.** JSON으로 한 번 왕복시키지 않으면
  * `weights[0]`이 `undefined`라, 확인 없이 읽으면 빈 가중치로 조용히 넘어간다.
@@ -229,23 +245,39 @@ export function serializeLogistic(
   classifier: LogisticRegression,
   classes: readonly string[],
   featureCount: number,
-): LinearModel {
+  scaler: InternalScaler,
+): LinearModelV2 {
   const parsed = logisticSchema.safeParse(JSON.parse(JSON.stringify(toJSONOf(classifier))))
   if (!parsed.success) drift('logistic')
 
   const { classifiers } = parsed.data
   // 판별기 수가 클래스 수와 다르면 어느 줄이 어느 클래스인지 알 수 없다.
   if (classifiers.length !== classes.length) drift('logistic classes')
+  if (scaler.centers.length !== featureCount || scaler.spreads.length !== featureCount) {
+    drift('logistic scaler')
+  }
 
-  const weights = classifiers.map((one) => {
+  const weights: number[][] = []
+  const intercepts: number[] = []
+  for (const one of classifiers) {
     const row = one.weights[0]
     if (row === undefined || one.weights.length !== 1) drift('logistic weights')
-    if (row.length !== featureCount) drift('logistic featureCount')
+    // 마지막 값이 상수 1 열의 계수, 곧 표준화 좌표계의 절편이다.
+    if (row.length !== featureCount + 1) drift('logistic featureCount')
     for (const value of row) numberOf(value, 'logistic weight')
-    return [...row]
-  })
 
-  return { format: LINEAR_FORMAT, classes: [...classes], featureCount, weights }
+    let intercept = row[featureCount] as number
+    const folded = row.slice(0, featureCount).map((value, j) => {
+      const spread = scaler.spreads[j] as number
+      const center = scaler.centers[j] as number
+      intercept -= (value * center) / spread
+      return value / spread
+    })
+    weights.push(folded)
+    intercepts.push(intercept)
+  }
+
+  return { format: LINEAR_V2_FORMAT, classes: [...classes], featureCount, weights, intercepts }
 }
 
 /**

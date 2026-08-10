@@ -16,6 +16,7 @@ import { MAX_MODEL_BYTES } from '../src/limits'
 import { MLJS_ALGORITHMS, fit } from '../src/ml/engines/mljs'
 import {
   LINEAR_FORMAT,
+  LINEAR_V2_FORMAT,
   LINEAR_REGRESSION_FORMAT,
   NAIVE_BAYES_FORMAT,
   REFERENCE_FORMAT,
@@ -26,6 +27,7 @@ import {
   loadModel,
   loadModelProba,
   type LinearModel,
+  type LinearModelV2,
   type LinearRegressionModel,
   type ModelInterpreter,
   type NaiveBayesModel,
@@ -225,7 +227,7 @@ describe('크기', () => {
  */
 describe('학습 행이 필요한 형식', () => {
   it('자체 완결형은 요구하지 않고 참조형만 요구한다', () => {
-    for (const format of [TREE_FORMAT, LINEAR_FORMAT, NAIVE_BAYES_FORMAT]) {
+    for (const format of [TREE_FORMAT, LINEAR_FORMAT, LINEAR_V2_FORMAT, NAIVE_BAYES_FORMAT]) {
       expect(interpreterFor(format)?.needsTrainingRows, format).toBe(false)
     }
     expect(interpreterFor(REFERENCE_FORMAT)?.needsTrainingRows).toBe(true)
@@ -254,18 +256,22 @@ describe('학습 행이 필요한 형식', () => {
 })
 
 /**
- * `mlpx-linear-v1` (mlpx-spec.md §5.4).
+ * `mlpx-linear-v1`·`mlpx-linear-v2` (mlpx-spec.md §5.4·§5.4.1).
  *
  * **이 형식의 요구는 하나다 — 저장했다가 다시 읽은 모델의 예측이 원본과 하나도 다르지
  * 않아야 한다.** 지표만 대조하면 어긋난 예측이 상쇄로 가려진다. 그리고 여기는 특히
  * 위험하다 — 예측이 `argmin`이라 부호 하나를 뒤집으면 **에러 없이 정확히 반대인 답**이
  * 나온다.
+ *
+ * **엔진이 만드는 것은 v2다** (2026-08-10) — 내부 표준화를 접은 가중치에 절편이
+ * 붙는다. v1은 손으로 만든 payload로 해석기만 검사한다 — 엔진이 더 이상 만들지 않아도
+ * 해석기는 남기 때문이다(§5.4).
  */
-describe('mlpx-linear-v1', () => {
+describe('mlpx-linear-v2', () => {
   const trained = train('logistic_regression')
 
   it('로지스틱 회귀가 우리 형식으로 담긴다', () => {
-    expect(trained.model?.format).toBe(LINEAR_FORMAT)
+    expect(trained.model?.format).toBe(LINEAR_V2_FORMAT)
     expect(trained.modelOmittedDetail).toBeUndefined()
   })
 
@@ -274,11 +280,35 @@ describe('mlpx-linear-v1', () => {
     expect(restored(IRIS_FEATURES)).toEqual(trained.predict(IRIS_FEATURES))
   })
 
-  it('클래스마다 한 줄이고 줄 길이가 특성 수다 - 절편은 없다', () => {
-    const model = trained.model as LinearModel
+  it('클래스마다 가중치 한 줄과 절편 하나다 - 가중치는 원래 좌표계다', () => {
+    const model = trained.model as LinearModelV2
     expect(model.weights).toHaveLength(model.classes.length)
+    expect(model.intercepts).toHaveLength(model.classes.length)
     for (const row of model.weights) expect(row).toHaveLength(model.featureCount)
     expect(model.featureCount).toBe(IRIS_FEATURES[0]?.length)
+  })
+
+  it('절편이 점수에 실제로 더해진다 - 0인 모델과 답이 갈린다', () => {
+    // 가중치가 0이면 점수는 절편뿐이다. argmin이므로 절편이 더 작은(음수) 쪽이 이긴다.
+    const base = { classes: ['a', 'b'], featureCount: 1, weights: [[0], [0]] }
+    const tilted = loadModel({ format: LINEAR_V2_FORMAT, ...base, intercepts: [5, -5] })
+    expect(tilted([[1]])).toEqual(['b'])
+    const flat = loadModel({ format: LINEAR_V2_FORMAT, ...base, intercepts: [0, 0] })
+    expect(flat([[1]])).toEqual(['a'])
+  })
+
+  it('절편 수가 클래스 수와 다르면 거부한다', () => {
+    expectCode(
+      () =>
+        loadModel({
+          format: LINEAR_V2_FORMAT,
+          classes: ['a', 'b'],
+          featureCount: 1,
+          weights: [[1], [2]],
+          intercepts: [1],
+        }),
+      'MODEL_FILE_INVALID',
+    )
   })
 
   it('점수가 낮은 클래스가 이긴다 - 뒤집으면 정확히 반대 답이 나온다', () => {
@@ -418,10 +448,11 @@ describe('mlpx-linear-v1', () => {
         randomState: 42,
       })
 
-      const model = binary.model as LinearModel
-      expect(model?.format).toBe(LINEAR_FORMAT)
+      const model = binary.model as LinearModelV2
+      expect(model?.format).toBe(LINEAR_V2_FORMAT)
       expect(model.classes).toEqual([first, second])
       expect(model.weights).toHaveLength(2)
+      expect(model.intercepts).toHaveLength(2)
 
       const saved = roundTrip(model)
       expect(loadModel(saved)(features)).toEqual(binary.predict(features))

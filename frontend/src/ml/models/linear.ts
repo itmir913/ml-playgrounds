@@ -1,5 +1,10 @@
 /**
- * `mlpx-linear-v1` — 로지스틱 회귀 (mlpx-spec.md 5.4).
+ * `mlpx-linear-v1`·`mlpx-linear-v2` — 로지스틱 회귀 (mlpx-spec.md 5.4·5.4.1).
+ *
+ * **v2와 v1의 차이는 점수에 절편이 더해지는 것 하나다.** 엔진이 내부 표준화와 절편을
+ * 넣으면서(§5.4.1) payload에 `intercepts`가 생겼고, 규칙 3에 따라 새 이름을 받았다.
+ * v1은 엔진이 더 이상 만들지 않지만 해석기는 남는다. 아래 규칙 전부가 두 형식에 같게
+ * 적용된다 — v1은 절편이 0인 v2로 읽으면 정확히 같은 산수다.
  *
  * **점수가 낮은 클래스가 이긴다.** 직관과 반대라 이 파일에서 가장 중요한 사실이다 —
  * `ml-logistic-regression`은 one-vs-all을 만들 때 **대상 클래스를 0, 나머지를 1로** 두고
@@ -25,6 +30,7 @@ import { ClientError } from '../../errors'
 import type { ModelFile, Predict, ProbaModel } from './types'
 
 export const LINEAR_FORMAT = 'mlpx-linear-v1'
+export const LINEAR_V2_FORMAT = 'mlpx-linear-v2'
 
 export interface LinearModel extends ModelFile {
   readonly format: typeof LINEAR_FORMAT
@@ -36,11 +42,29 @@ export interface LinearModel extends ModelFile {
   readonly weights: readonly (readonly number[])[]
 }
 
+export interface LinearModelV2 extends ModelFile {
+  readonly format: typeof LINEAR_V2_FORMAT
+  readonly classes: readonly string[]
+  readonly featureCount: number
+  /** **원래 좌표계다** — 엔진의 내부 표준화는 접혀 있다 (mlpx-spec.md 5.4.1). */
+  readonly weights: readonly (readonly number[])[]
+  /** 클래스마다 하나. weights와 같은 순서다. */
+  readonly intercepts: readonly number[]
+}
+
 const linearModelSchema = z.looseObject({
   format: z.literal(LINEAR_FORMAT),
   classes: z.array(z.string()).min(1),
   featureCount: z.number(),
   weights: z.array(z.array(z.number())).min(1),
+})
+
+const linearV2ModelSchema = z.looseObject({
+  format: z.literal(LINEAR_V2_FORMAT),
+  classes: z.array(z.string()).min(1),
+  featureCount: z.number(),
+  weights: z.array(z.array(z.number())).min(1),
+  intercepts: z.array(z.number()).min(1),
 })
 
 function invalid(field: string): never {
@@ -57,6 +81,25 @@ interface ParsedLinear {
   readonly classes: readonly string[]
   readonly featureCount: number
   readonly rows: readonly Float64Array[]
+  /** v1은 전부 0이다 — 절편 0인 v2와 정확히 같은 산수가 된다. */
+  readonly intercepts: Float64Array
+}
+
+/** 검증을 마친 가중치 행렬. 두 형식이 공유하는 부분이다. */
+function weightRows(
+  weights: readonly (readonly number[])[],
+  classes: readonly string[],
+  featureCount: number,
+): Float64Array[] {
+  if (!Number.isInteger(featureCount) || featureCount <= 0) invalid('featureCount')
+  // 줄 하나가 클래스 하나다. 어긋나면 어느 줄이 어느 클래스인지 알 수 없다.
+  if (weights.length !== classes.length) invalid('weights')
+
+  return weights.map((row) => {
+    if (row.length !== featureCount) invalid('weights')
+    if (!row.every((value) => Number.isFinite(value))) invalid('weights')
+    return Float64Array.from(row)
+  })
 }
 
 /**
@@ -68,25 +111,37 @@ function parseLinear(file: unknown): ParsedLinear {
   if (!parsed.success) invalid('payload')
 
   const { classes, featureCount, weights } = parsed.data
-  if (!Number.isInteger(featureCount) || featureCount <= 0) invalid('featureCount')
-  // 줄 하나가 클래스 하나다. 어긋나면 어느 줄이 어느 클래스인지 알 수 없다.
-  if (weights.length !== classes.length) invalid('weights')
+  return {
+    classes,
+    featureCount,
+    rows: weightRows(weights, classes, featureCount),
+    intercepts: new Float64Array(classes.length),
+  }
+}
 
-  const rows = weights.map((row) => {
-    if (row.length !== featureCount) invalid('weights')
-    if (!row.every((value) => Number.isFinite(value))) invalid('weights')
-    return Float64Array.from(row)
-  })
+function parseLinearV2(file: unknown): ParsedLinear {
+  const parsed = linearV2ModelSchema.safeParse(file)
+  if (!parsed.success) invalid('payload')
 
-  return { classes, featureCount, rows }
+  const { classes, featureCount, weights, intercepts } = parsed.data
+  // 절편도 클래스마다 하나다 (mlpx-spec.md 5.4.1 불변식 5).
+  if (intercepts.length !== classes.length) invalid('intercepts')
+  if (!intercepts.every((value) => Number.isFinite(value))) invalid('intercepts')
+
+  return {
+    classes,
+    featureCount,
+    rows: weightRows(weights, classes, featureCount),
+    intercepts: Float64Array.from(intercepts),
+  }
 }
 
 /** 클래스마다의 원점수. **라벨과 확률이 같은 값을 본다** (mlpx-spec.md 5.4). */
 function scoresOf(model: ParsedLinear, input: readonly number[]): Float64Array {
-  const { featureCount, rows } = model
+  const { featureCount, rows, intercepts } = model
   const scores = new Float64Array(rows.length)
   rows.forEach((weightRow, index) => {
-    let score = 0
+    let score = intercepts[index] ?? 0
     for (let column = 0; column < featureCount; column += 1) {
       score += (weightRow[column] ?? 0) * (input[column] ?? 0)
     }
@@ -95,9 +150,7 @@ function scoresOf(model: ParsedLinear, input: readonly number[]): Float64Array {
   return scores
 }
 
-/** 파일을 예측 함수로. */
-export function loadLinearModel(file: unknown): Predict {
-  const model = parseLinear(file)
+function predictOf(model: ParsedLinear): Predict {
   const { classes, featureCount } = model
 
   return (features) =>
@@ -122,15 +175,14 @@ export function loadLinearModel(file: unknown): Predict {
 }
 
 /**
- * 파일을 확률 함수로 (mlpx-spec.md 5.4). **`classes` 순서·같은 길이이고 합은 1이다.**
+ * 확률 (mlpx-spec.md 5.4). **`classes` 순서·같은 길이이고 합은 1이다.**
  *
  * **라벨을 여기서 정하지 않는다.** 포화하지 않은 입력에서는 이 확률의 argmax가
- * `loadLinearModel`의 argmin과 반드시 같지만, 점수가 37을 넘으면 시그모이드가 전부
+ * 예측의 argmin과 반드시 같지만, 점수가 37을 넘으면 시그모이드가 전부
  * 정확히 1.0으로 뭉개져 저쪽은 동점이 되는 반면 `sigmoid(-score)`는 710까지 살아 있어
  * 이쪽은 여전히 구별한다. 재현이 목적이므로 **라벨은 언제나 저쪽 규칙이다.**
  */
-export function loadLinearProba(file: unknown): ProbaModel {
-  const model = parseLinear(file)
+function probaOf(model: ParsedLinear): ProbaModel {
   const { classes, featureCount } = model
 
   return {
@@ -150,4 +202,22 @@ export function loadLinearProba(file: unknown): ProbaModel {
         return raw.map((value) => value / sum)
       }),
   }
+}
+
+/** 파일을 예측 함수로. */
+export function loadLinearModel(file: unknown): Predict {
+  return predictOf(parseLinear(file))
+}
+
+export function loadLinearProba(file: unknown): ProbaModel {
+  return probaOf(parseLinear(file))
+}
+
+/** v2 — 절편이 더해지는 것 말고는 v1과 같은 규칙이다 (mlpx-spec.md 5.4.1). */
+export function loadLinearV2Model(file: unknown): Predict {
+  return predictOf(parseLinearV2(file))
+}
+
+export function loadLinearV2Proba(file: unknown): ProbaModel {
+  return probaOf(parseLinearV2(file))
 }

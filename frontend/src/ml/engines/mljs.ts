@@ -43,7 +43,7 @@ import { ClientError, failureDetail } from '../../errors'
 import type { Warning } from '../../project/schema'
 import { resolveWith, type HyperparameterSpec } from '../hyperparams'
 import type { Prediction } from '../metrics'
-import { REFERENCE_FORMAT, SVM_FORMAT, knnPredict, svmPredict } from '../models'
+import { REFERENCE_FORMAT, SVM_FORMAT, knnPredict, loadLinearV2Model, svmPredict } from '../models'
 import type { PairwiseClassifier } from '../models'
 import type { ModelFile, Predict } from '../models/types'
 import { SMO_DEFAULTS, seededRandom, trainLinearSvm } from './svm-smo'
@@ -54,6 +54,7 @@ import {
   serializeLogistic,
   serializeNaiveBayes,
   serializeTree,
+  type InternalScaler,
   type NaiveBayesParameters,
 } from './mljs-serialize'
 
@@ -293,6 +294,19 @@ function gaussianNaiveBayes(): NaiveBayesPredictor {
   }
 }
 
+/**
+ * 로지스틱 회귀의 내부 표준화 파라미터 (mlpx-spec.md 5.4.1). **학습 행렬에서 구한다** -
+ * 전처리기와 같은 모평균·모표준편차이고, 0인 열은 1로 둔다(전처리기의 spread와 같은
+ * 규칙 - 0으로 나누면 행렬 전체가 NaN이다).
+ */
+function internalScaler(features: readonly (readonly number[])[], width: number): InternalScaler {
+  const centers = columnMeans(features, width)
+  const spreads = columnVariances(features, centers, width).map(
+    (variance) => Math.sqrt(variance) || 1,
+  )
+  return { centers, spreads }
+}
+
 /** train/predict 모양을 가진 분류기들의 공통 껍데기. */
 interface TrainablePredictor {
   train(features: number[][], target: number[]): void
@@ -518,20 +532,59 @@ const TRAINERS: Record<string, Trainer> = {
     }
   },
 
+  /**
+   * 로지스틱 회귀. **최적화 직전에 내부 표준화하고 절편을 함께 학습한다**
+   * (mlpx-spec.md 5.4.1, open-decisions.md "로지스틱 회귀는 엔진 안에서 표준화하고
+   * 절편을 학습한다").
+   *
+   * 원좌표 경사하강(규제·절편 없음, 고정 학습률)은 값의 높낮이로 갈리는 교실 데이터에서
+   * 다수 클래스로 전부 찍는 것보다 못했다 - 실측표는 open-decisions.md에 있다. 솔버를
+   * 바꾸지 않고 좌표계를 바꾼다: 열별 모평균·모표준편차로 표준화하고 값이 늘 1인 열을
+   * 덧붙인 뒤, 가중치를 원래 좌표계로 접어 저장한다(SMO의 min-max 접기와 같은 방식).
+   * 학생의 스케일링 설정과 무관하다 - "표준화를 켜야 제대로 도는 모델"은 화면이 말해
+   * 주지 않는 함정이다.
+   *
+   * **예측은 접힌 모델의 해석기를 그대로 쓴다** - KNN·SVM과 같은 방식이고, 그래서
+   * 저장했다 읽은 모델의 예측이 원본과 같은 것이 구조로 보장된다. 접기 산수를 두 번
+   * 구현하면 경계 위의 행에서 마지막 비트가 갈릴 수 있다.
+   */
   logistic_regression: (input) => {
     const { encoded, labels, decode } = labelCodec(input.target)
+    const featureCount = input.features[0]?.length ?? 0
+    const scaler = internalScaler(input.features, featureCount)
+
+    // 표준화한 행렬에 상수 1 열을 덧붙인다. 절편은 이 열의 계수로 학습된다.
+    const augmented = input.features.map((row) => [
+      ...row.map((value, j) => (value - (scaler.centers[j] ?? 0)) / (scaler.spreads[j] ?? 1)),
+      1,
+    ])
+
     const model = new LogisticRegression({
       numSteps: numberOption(input.hyperparameters, 'numSteps'),
       learningRate: numberOption(input.hyperparameters, 'learningRate'),
     })
-    model.train(new Matrix(toRows(input.features)), Matrix.columnVector(encoded))
+    model.train(new Matrix(augmented), Matrix.columnVector(encoded))
 
+    const attempted = serializeOrOmit(() => serializeLogistic(model, labels, featureCount, scaler))
+    if (attempted.model) {
+      return { predict: loadLinearV2Model(attempted.model), model: attempted.model }
+    }
+
+    // 접힌 모델을 못 만들었다(ml.js 내부 구조가 움직였다). 지표는 살린다 - 라이브러리로
+    // 직접 예측하되 학습과 같은 변환을 태운다. 모델이 없으므로 어긋날 상대도 없다.
     const predict: Predict = (features) =>
-      [...model.predict(new Matrix(toRows(features)))].map((value) => decode(Math.round(value)))
-
-    const featureCount = input.features[0]?.length ?? 0
-    const attempted = serializeOrOmit(() => serializeLogistic(model, labels, featureCount))
-    if (attempted.model) return { predict, model: attempted.model }
+      [
+        ...model.predict(
+          new Matrix(
+            features.map((row) => [
+              ...row.map(
+                (value, j) => (value - (scaler.centers[j] ?? 0)) / (scaler.spreads[j] ?? 1),
+              ),
+              1,
+            ]),
+          ),
+        ),
+      ].map((value) => decode(Math.round(value)))
     return attempted.detail === undefined
       ? { predict }
       : { predict, modelOmittedDetail: attempted.detail }
