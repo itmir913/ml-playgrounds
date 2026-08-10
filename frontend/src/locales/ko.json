@@ -131,8 +131,8 @@
     "minNumSamples": "가지를 나누는 최소 데이터 수",
     "nEstimators": "나무 개수",
     "k": "이웃 수",
-    "numSteps": "학습 반복 횟수",
-    "learningRate": "학습률",
+    "maxIter": "학습 반복 횟수",
+    "tol": "수렴 판정 기준",
     "C": "경계를 얼마나 엄하게 지킬지"
   },
   "missingStrategy": {

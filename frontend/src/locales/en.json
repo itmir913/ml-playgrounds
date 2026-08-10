@@ -131,8 +131,8 @@
     "minNumSamples": "Smallest group a branch may split",
     "nEstimators": "Number of trees",
     "k": "Number of neighbours",
-    "numSteps": "Training steps",
-    "learningRate": "Learning rate",
+    "maxIter": "Training iterations",
+    "tol": "Convergence tolerance",
     "C": "How strictly to keep the boundary"
   },
   "missingStrategy": {

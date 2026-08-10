@@ -1,25 +1,17 @@
 /**
  * `mlpx-linear-v1`·`mlpx-linear-v2` — 로지스틱 회귀 (mlpx-spec.md 5.4·5.4.1).
  *
- * **v2와 v1의 차이는 점수에 절편이 더해지는 것 하나다.** 엔진이 내부 표준화와 절편을
- * 넣으면서(§5.4.1) payload에 `intercepts`가 생겼고, 규칙 3에 따라 새 이름을 받았다.
- * v1은 엔진이 더 이상 만들지 않지만 해석기는 남는다. 아래 규칙 전부가 두 형식에 같게
- * 적용된다 — v1은 절편이 0인 v2로 읽으면 정확히 같은 산수다.
+ * **두 형식은 점수의 방향이 반대다.** 가장 헷갈리기 쉬운 사실이라 맨 위에 적는다.
  *
- * **점수가 낮은 클래스가 이긴다.** 직관과 반대라 이 파일에서 가장 중요한 사실이다 —
- * `ml-logistic-regression`은 one-vs-all을 만들 때 **대상 클래스를 0, 나머지를 1로** 두고
- * 학습하므로 "그 클래스일수록 점수가 낮다"가 된다. 뒤집으면 **에러 없이 정확히 반대인
- * 답**이 나오고, 지표만 대조하면 그게 상쇄로 가려진다.
- *
- * **시그모이드를 씌워서 비교한다.** 단조 함수라 순서는 원점수와 같은데, **포화에서만
- * 다르다** — 원점수가 크면 시그모이드가 전부 정확히 1.0이 되어 동점이 되고, 그때는
- * 번호가 작은 클래스가 이긴다(라이브러리가 엄격한 `<`로 갱신한다). 원점수로 비교하면
- * 그 자리에서 답이 갈린다. 재현이 목적이므로 같은 식을 쓴다.
- *
- * **확률도 낸다** (`loadLinearProba`, mlpx-spec.md 5.4). 판별기가 재는 것이 "이 클래스가
- * **아닐** 확률"이라 뒤집어서 정규화한다. **점수 계산은 라벨과 공유하고, 라벨은 확률에서
- * 유도하지 않는다** — 위 포화 문단이 그 이유다. 두 벌로 계산하면 "예측: A, P(A)=12%"
- * 같은 자기모순이 에러 없이 나온다.
+ * - **v2 (엔진이 지금 만드는 형식): 높은 점수가 이긴다.** `argmax`, 확률은 softmax —
+ *   sklearn `predict`·`predict_proba`와 같은 식이다. 절편이 있고, 동점이면 정렬 순서가
+ *   앞선 클래스다(argmax가 첫 최댓값을 고른다). softmax는 로그합지수로 안정화하므로
+ *   **확률이 언제나 있다.**
+ * - **v1 (읽기 전용 유산): 낮은 점수가 이긴다.** 떼어낸 `ml-logistic-regression`이
+ *   one-vs-all에서 **대상 클래스를 0, 나머지를 1로** 두고 학습했기 때문이다. 시그모이드를
+ *   씌워 비교하고(포화 동점은 번호가 작은 쪽), 확률은 `sigmoid(−score)`를 정규화하며,
+ *   전부 언더플로하면 확률이 없다(null). 이 규칙들은 그 라이브러리의 재현이므로
+ *   v1에만 적용된다.
  *
  * **ml.js를 import하지 않는다.** 경계는 tree.ts와 같다.
  */
@@ -150,14 +142,14 @@ function scoresOf(model: ParsedLinear, input: readonly number[]): Float64Array {
   return scores
 }
 
-function predictOf(model: ParsedLinear): Predict {
+/** v1 예측 — **argmin이다.** 갱신이 엄격한 `<`라 동점이면 번호가 작은 쪽이 남는다. */
+function predictOfV1(model: ParsedLinear): Predict {
   const { classes, featureCount } = model
 
   return (features) =>
     features.map((input) => {
       if (input.length !== featureCount) invalid('featureCount')
 
-      // **argmin이다.** 그리고 갱신이 엄격한 `<`라 동점이면 번호가 작은 쪽이 남는다.
       let best = 0
       let lowest = Number.POSITIVE_INFINITY
       scoresOf(model, input).forEach((score, index) => {
@@ -175,14 +167,10 @@ function predictOf(model: ParsedLinear): Predict {
 }
 
 /**
- * 확률 (mlpx-spec.md 5.4). **`classes` 순서·같은 길이이고 합은 1이다.**
- *
- * **라벨을 여기서 정하지 않는다.** 포화하지 않은 입력에서는 이 확률의 argmax가
- * 예측의 argmin과 반드시 같지만, 점수가 37을 넘으면 시그모이드가 전부
- * 정확히 1.0으로 뭉개져 저쪽은 동점이 되는 반면 `sigmoid(-score)`는 710까지 살아 있어
- * 이쪽은 여전히 구별한다. 재현이 목적이므로 **라벨은 언제나 저쪽 규칙이다.**
+ * v1 확률 (mlpx-spec.md 5.4). 판별기가 "이 클래스가 **아닐** 확률"을 재므로 뒤집어서
+ * 정규화한다. 전부 언더플로하면 확률이 없다(null) — 균등분포로 채우지 않는다.
  */
-function probaOf(model: ParsedLinear): ProbaModel {
+function probaOfV1(model: ParsedLinear): ProbaModel {
   const { classes, featureCount } = model
 
   return {
@@ -191,14 +179,59 @@ function probaOf(model: ParsedLinear): ProbaModel {
       features.map((input) => {
         if (input.length !== featureCount) invalid('featureCount')
 
-        // 판별기는 "이 클래스가 **아닐** 확률"을 잰다. 뒤집어서 합이 1이 되게 나눈다.
         const raw = scoresOf(model, input).map((score) => sigmoid(-score))
         let sum = 0
         for (const value of raw) sum += value
 
-        // 전부 언더플로했다(또는 입력이 유한하지 않다). **균등분포로 채우지 않는다** —
-        // 일대다 판별기가 전부 "나는 아니다"라고 답한 것이지 모르겠다는 뜻이 아니다.
         if (!(sum > 0)) return null
+        return raw.map((value) => value / sum)
+      }),
+  }
+}
+
+/** v2 예측 — **argmax다.** 동점이면 첫 최댓값, 곧 정렬 순서가 앞선 클래스다. */
+function predictOfV2(model: ParsedLinear): Predict {
+  const { classes, featureCount } = model
+
+  return (features) =>
+    features.map((input) => {
+      if (input.length !== featureCount) invalid('featureCount')
+
+      let best = 0
+      let highest = Number.NEGATIVE_INFINITY
+      scoresOf(model, input).forEach((score, index) => {
+        if (score > highest) {
+          highest = score
+          best = index
+        }
+      })
+
+      const label = classes[best]
+      if (label === undefined) invalid('classes')
+      return label
+    })
+}
+
+/**
+ * v2 확률 — softmax (mlpx-spec.md 5.4.1). sklearn `predict_proba`와 같은 식이고,
+ * 로그합지수로 안정화하므로 **언제나 있다.** argmax가 예측과 같은 점수를 보므로
+ * "예측: A, P(A)=12%" 같은 자기모순이 구조적으로 불가능하다.
+ */
+function probaOfV2(model: ParsedLinear): ProbaModel {
+  const { classes, featureCount } = model
+
+  return {
+    classes,
+    predict: (features) =>
+      features.map((input) => {
+        if (input.length !== featureCount) invalid('featureCount')
+
+        const scores = scoresOf(model, input)
+        let top = Number.NEGATIVE_INFINITY
+        for (const score of scores) if (score > top) top = score
+        const raw = scores.map((score) => Math.exp(score - top))
+        let sum = 0
+        for (const value of raw) sum += value
         return raw.map((value) => value / sum)
       }),
   }
@@ -206,18 +239,17 @@ function probaOf(model: ParsedLinear): ProbaModel {
 
 /** 파일을 예측 함수로. */
 export function loadLinearModel(file: unknown): Predict {
-  return predictOf(parseLinear(file))
+  return predictOfV1(parseLinear(file))
 }
 
 export function loadLinearProba(file: unknown): ProbaModel {
-  return probaOf(parseLinear(file))
+  return probaOfV1(parseLinear(file))
 }
 
-/** v2 — 절편이 더해지는 것 말고는 v1과 같은 규칙이다 (mlpx-spec.md 5.4.1). */
 export function loadLinearV2Model(file: unknown): Predict {
-  return predictOf(parseLinearV2(file))
+  return predictOfV2(parseLinearV2(file))
 }
 
 export function loadLinearV2Proba(file: unknown): ProbaModel {
-  return probaOf(parseLinearV2(file))
+  return probaOfV2(parseLinearV2(file))
 }

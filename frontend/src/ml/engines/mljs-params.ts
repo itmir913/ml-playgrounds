@@ -45,11 +45,15 @@ export const MLJS_PARAMETERS: Readonly<Record<string, readonly HyperparameterSpe
   random_forest: [{ name: 'nEstimators', integer: true, min: 1, max: 500, step: 1, default: 10 }],
   naive_bayes: [],
   knn: [{ name: 'k', integer: true, min: 1, max: 100, step: 1, default: 5 }],
+  // **sklearn `LogisticRegression` 기본값 그대로다** (open-decisions.md "로지스틱 회귀
+  // 솔버를 sklearn과 같은 구조로 바꾼다"). 이름도 sklearn을 따른다 - C는 SVM과 같은
+  // 낱말이고, 옛 손잡이(numSteps·learningRate)는 L-BFGS에서 뜻이 없어 빠졌다. 옛 파일에
+  // 남은 값은 resolveWith가 모르는 키로 통과시키고 엔진이 무시한다.
   logistic_regression: [
-    { name: 'numSteps', integer: true, min: 1, max: 10000, step: 1, default: 1000 },
-    // 0을 넣으면 모델이 한 걸음도 안 움직인다. 에러 없이 아무것도 안 배운 모델이
-    // 나오므로 아래쪽 끝이 특히 중요하다.
-    { name: 'learningRate', integer: false, min: 0.0001, max: 1, step: 0.0001, default: 5e-3 },
+    { name: 'C', integer: false, min: 0.01, max: 100, step: 0.01, default: 1 },
+    // 1이 아래쪽 끝이다 - 0이면 한 걸음도 안 걷고, 그건 값이 아니라 고장이다.
+    { name: 'maxIter', integer: true, min: 1, max: 1000, step: 1, default: 100 },
+    { name: 'tol', integer: false, min: 0.000001, max: 0.01, step: 0.000001, default: 0.0001 },
   ],
   linear_regression: [],
   // **`C` 하나만 연다** (open-decisions.md "순수 JS 서포트 벡터 머신을 넣는다").

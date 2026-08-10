@@ -289,10 +289,12 @@ describe('mlpx-linear-v2', () => {
   })
 
   it('절편이 점수에 실제로 더해진다 - 0인 모델과 답이 갈린다', () => {
-    // 가중치가 0이면 점수는 절편뿐이다. argmin이므로 절편이 더 작은(음수) 쪽이 이긴다.
+    // 가중치가 0이면 점수는 절편뿐이다. **argmax이므로** 절편이 큰 쪽이 이긴다
+    // (mlpx-spec.md §5.4.1 - v1의 argmin과 반대다).
     const base = { classes: ['a', 'b'], featureCount: 1, weights: [[0], [0]] }
-    const tilted = loadModel({ format: LINEAR_V2_FORMAT, ...base, intercepts: [5, -5] })
+    const tilted = loadModel({ format: LINEAR_V2_FORMAT, ...base, intercepts: [-5, 5] })
     expect(tilted([[1]])).toEqual(['b'])
+    // 동점이면 첫 최댓값 - 정렬 순서가 앞선 클래스다.
     const flat = loadModel({ format: LINEAR_V2_FORMAT, ...base, intercepts: [0, 0] })
     expect(flat([[1]])).toEqual(['a'])
   })

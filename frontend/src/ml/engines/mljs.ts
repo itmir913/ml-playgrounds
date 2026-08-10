@@ -5,19 +5,22 @@
  * (open-decisions.md "브라우저 학습 엔진은 둘 다 간다").
  *
  * **sklearn과 숫자가 다를 수 있고, 폭이 알고리즘마다 크게 다르다.**
- * 붓꽃 전체를 같은 분할로 돌린 실측:
+ * 붓꽃 전체(150행, 분할 0.2·시드 42)를 같은 분할로 돌린 실측 (2026-08-10, V2 감사):
  *
- *   결정트리        0.9333  =  0.9333   같다
- *   KNN             1.0000  =  1.0000   같다
- *   로지스틱 회귀    0.9667 -> 0.8667   여기는 정규화 없는 경사하강이다
- *   랜덤포레스트     0.9000 -> 0.9667   배깅 난수가 다르다 (여기가 더 높다)
- *   나이브 베이즈    0.9667 -> (붓꽃 전체는 미측정. 아래를 보라)
+ *   결정트리        0.9333  =  0.9333   같다 (동점 분할에서만 갈릴 수 있다)
+ *   KNN             0.9333  =  0.9333   라벨까지 완전 일치
+ *   나이브 베이즈    0.9667  =  0.9667   파라미터가 비트 일치한다
+ *   로지스틱 회귀    0.9667  =  0.9667   같은 목적함수를 푼다 (engines/logistic.ts)
+ *   SVM             1.0000  =  1.0000   수렴 경로만 다르다
+ *   랜덤포레스트     0.9333 vs 0.9667   배깅 난수가 다르다 - 분포로 비교하라
+ *
+ * 이 표를 지키는 것이 tests/sklearn-parity.spec.ts다 - 아홉 가지 데이터 모양의
+ * sklearn 기대값 픽스처가 CI 관문에 있다. 여기 숫자는 요약일 뿐이고 출처는 그 픽스처다.
  *
  * **나이브 베이즈 행은 한 번 거짓말을 했다.** 예전에 0.7000이라 적혀 있었고 그 숫자가
  * "폭이 제일 크다"의 근거였는데, 실은 `ml-naivebayes`가 특성을 앞 2개만 읽은 결과였다.
- * 지금은 이 파일 안에서 계산한다(gaussianNaiveBayes). 픽스처 30행 기준으로 3/9에서
- * 8/9로 올랐다. 붓꽃 전체 150행 재측정은 아직 안 했으므로 **여기에 숫자를 적지 않는다** -
- * 안 잰 값을 적는 것이 애초에 이 행을 틀리게 만든 방식이다.
+ * 지금은 이 파일 안에서 계산하고(gaussianNaiveBayes) 평균·분산·사전확률이 sklearn과
+ * 비트 일치한다 - 평균이 1e5 규모인 데이터와 10만 행에서도 확인했다 (V2 감사 1단계).
  *
  * **폭이 크다는 이유로 알고리즘을 빼지 않는다.** 어디까지가 "구현 차이"이고 어디부터가
  * "빼야 할 것"인지 그을 선이 없고, 그 선을 임의로 그으면 학생은 어떤 모델이 왜
@@ -34,8 +37,6 @@
  */
 
 import { DecisionTreeClassifier } from 'ml-cart'
-import LogisticRegression from 'ml-logistic-regression'
-import { Matrix } from 'ml-matrix'
 import { RandomForestClassifier } from 'ml-random-forest'
 import MultivariateLinearRegression from 'ml-regression-multivariate-linear'
 
@@ -43,18 +44,24 @@ import { ClientError, failureDetail } from '../../errors'
 import type { Warning } from '../../project/schema'
 import { resolveWith, type HyperparameterSpec } from '../hyperparams'
 import type { Prediction } from '../metrics'
-import { REFERENCE_FORMAT, SVM_FORMAT, knnPredict, loadLinearV2Model, svmPredict } from '../models'
+import {
+  LINEAR_V2_FORMAT,
+  REFERENCE_FORMAT,
+  SVM_FORMAT,
+  knnPredict,
+  loadLinearV2Model,
+  svmPredict,
+} from '../models'
 import type { LinearModelV2, PairwiseClassifier } from '../models'
 import type { ModelFile, Predict } from '../models/types'
+import { fitLogistic } from './logistic'
 import { SMO_DEFAULTS, seededRandom, trainLinearSvm } from './svm-smo'
 import { MLJS_PARAMETERS } from './mljs-params'
 import {
   serializeForest,
   serializeLinearRegression,
-  serializeLogistic,
   serializeNaiveBayes,
   serializeTree,
-  type InternalScaler,
   type NaiveBayesParameters,
 } from './mljs-serialize'
 
@@ -294,62 +301,6 @@ function gaussianNaiveBayes(): NaiveBayesPredictor {
   }
 }
 
-/**
- * sklearn `LogisticRegression`의 수렴 판정 기본값(tol=1e-4)을 그대로 빌린 문턱.
- * lbfgs가 목적함수 기울기의 최대 성분이 이 값 아래로 갈 때까지 도는 그 기준이다 -
- * 임의 상수가 아니라 관행이다 (open-decisions.md "파이썬 표준 관행을 따른다").
- */
-const LOGISTIC_TOL = 1e-4
-
-/**
- * 학습이 멈춘 자리의 목적함수(합 로그손실) 기울기 최대 성분 (mlpx-spec.md 5.9).
- *
- * **경사하강이 실제로 걷는 표준화 좌표계에서 잰다** - 접힌 가중치를 그 좌표계로
- * 되돌려 쓴다(직렬화의 접기를 거꾸로 한 것이다). 이 값이 크면 스텝 예산 안에
- * 최적점에 못 닿은 것이고, sklearn이 ConvergenceWarning을 내는 그 상태다.
- */
-function logisticGradient(
-  model: LinearModelV2,
-  /** 표준화 + 상수 1 열이 붙은 학습 행렬. 마지막 열이 절편 자리다. */
-  augmented: readonly (readonly number[])[],
-  encoded: readonly number[],
-  scaler: InternalScaler,
-): number {
-  const width = model.featureCount
-  let worst = 0
-  model.weights.forEach((row, k) => {
-    // 표준화 좌표계로 되접는다: w'_j = w_j·σ_j, b' = b + Σ w_j·μ_j.
-    const unfolded = row.map((value, j) => value * (scaler.spreads[j] ?? 1))
-    const interceptZ = row.reduce(
-      (sum, value, j) => sum + value * (scaler.centers[j] ?? 0),
-      model.intercepts[k] ?? 0,
-    )
-    const gradient = new Float64Array(width + 1)
-    augmented.forEach((z, i) => {
-      let score = interceptZ
-      for (let j = 0; j < width; j += 1) score += (unfolded[j] ?? 0) * (z[j] ?? 0)
-      // 라이브러리 규약대로 대상 클래스가 0이다. 상승 기울기 Xᵀ(y − p)를 그대로 잰다.
-      const gap = (encoded[i] === k ? 0 : 1) - 1 / (1 + Math.exp(-score))
-      for (let j = 0; j <= width; j += 1) gradient[j] = (gradient[j] ?? 0) + gap * (z[j] ?? 0)
-    })
-    for (let j = 0; j <= width; j += 1) worst = Math.max(worst, Math.abs(gradient[j] ?? 0))
-  })
-  return worst
-}
-
-/**
- * 로지스틱 회귀의 내부 표준화 파라미터 (mlpx-spec.md 5.4.1). **학습 행렬에서 구한다** -
- * 전처리기와 같은 모평균·모표준편차이고, 0인 열은 1로 둔다(전처리기의 spread와 같은
- * 규칙 - 0으로 나누면 행렬 전체가 NaN이다).
- */
-function internalScaler(features: readonly (readonly number[])[], width: number): InternalScaler {
-  const centers = columnMeans(features, width)
-  const spreads = columnVariances(features, centers, width).map(
-    (variance) => Math.sqrt(variance) || 1,
-  )
-  return { centers, spreads }
-}
-
 /** train/predict 모양을 가진 분류기들의 공통 껍데기. */
 interface TrainablePredictor {
   train(features: number[][], target: number[]): void
@@ -586,76 +537,48 @@ const TRAINERS: Record<string, Trainer> = {
   },
 
   /**
-   * 로지스틱 회귀. **최적화 직전에 내부 표준화하고 절편을 함께 학습한다**
-   * (mlpx-spec.md 5.4.1, open-decisions.md "로지스틱 회귀는 엔진 안에서 표준화하고
-   * 절편을 학습한다").
+   * 로지스틱 회귀. **sklearn `LogisticRegression` 기본값의 목적함수를 그대로 푼다**
+   * (open-decisions.md "로지스틱 회귀 솔버를 sklearn과 같은 구조로 바꾼다") -
+   * L2(C)·절편(규제 제외)·수렴 판정 tol·반복 상한 maxIter. 솔버는 우리가 짠
+   * L-BFGS다 (ml/engines/logistic.ts).
    *
-   * 원좌표 경사하강(규제·절편 없음, 고정 학습률)은 값의 높낮이로 갈리는 교실 데이터에서
-   * 다수 클래스로 전부 찍는 것보다 못했다 - 실측표는 open-decisions.md에 있다. 솔버를
-   * 바꾸지 않고 좌표계를 바꾼다: 열별 모평균·모표준편차로 표준화하고 값이 늘 1인 열을
-   * 덧붙인 뒤, 가중치를 원래 좌표계로 접어 저장한다(SMO의 min-max 접기와 같은 방식).
-   * 학생의 스케일링 설정과 무관하다 - "표준화를 켜야 제대로 도는 모델"은 화면이 말해
-   * 주지 않는 함정이다.
+   * L2가 최적점을 유한하고 유일하게 만들므로, 올바르게 수렴하면 계수 자체가 sklearn과
+   * 같다 - 그 대조는 tests/sklearn-parity.spec.ts가 상시로 지킨다. 다중 클래스는
+   * multinomial(softmax), 이진은 binomial로 풀어 ±절반 두 줄로 담는다 (mlpx-spec.md
+   * 5.4.1). maxIter에 닿으면 sklearn의 ConvergenceWarning 자리에서 경고가 붙는다.
    *
-   * **예측은 접힌 모델의 해석기를 그대로 쓴다** - KNN·SVM과 같은 방식이고, 그래서
-   * 저장했다 읽은 모델의 예측이 원본과 같은 것이 구조로 보장된다. 접기 산수를 두 번
-   * 구현하면 경계 위의 행에서 마지막 비트가 갈릴 수 있다.
+   * **예측은 담은 모델의 해석기를 그대로 쓴다** - KNN·SVM과 같은 방식이고, 그래서
+   * 저장했다 읽은 모델의 예측이 원본과 같은 것이 구조로 보장된다.
    */
   logistic_regression: (input) => {
-    const { encoded, labels, decode } = labelCodec(input.target)
+    const { encoded, labels } = labelCodec(input.target)
     const featureCount = input.features[0]?.length ?? 0
-    const scaler = internalScaler(input.features, featureCount)
 
-    // 표준화한 행렬에 상수 1 열을 덧붙인다. 절편은 이 열의 계수로 학습된다.
-    const augmented = input.features.map((row) => [
-      ...row.map((value, j) => (value - (scaler.centers[j] ?? 0)) / (scaler.spreads[j] ?? 1)),
-      1,
-    ])
-
-    const model = new LogisticRegression({
-      numSteps: numberOption(input.hyperparameters, 'numSteps'),
-      learningRate: numberOption(input.hyperparameters, 'learningRate'),
+    const fitted = fitLogistic(input.features, encoded, labels.length, {
+      C: numberOption(input.hyperparameters, 'C'),
+      tol: numberOption(input.hyperparameters, 'tol'),
+      maxIter: numberOption(input.hyperparameters, 'maxIter'),
     })
-    model.train(new Matrix(augmented), Matrix.columnVector(encoded))
 
-    const attempted = serializeOrOmit(() => serializeLogistic(model, labels, featureCount, scaler))
-    if (attempted.model) {
-      // 직렬화가 성공했을 때만 접힌 가중치가 있으므로 수렴 판정도 여기서 한다.
-      const gradient = logisticGradient(
-        attempted.model as LinearModelV2,
-        augmented,
-        encoded,
-        scaler,
-      )
-      const warning: Warning | undefined =
-        gradient > LOGISTIC_TOL
-          ? { code: 'LOGISTIC_NOT_CONVERGED', params: { gradient, tol: LOGISTIC_TOL } }
-          : undefined
-      return {
-        predict: loadLinearV2Model(attempted.model),
-        model: attempted.model,
-        ...(warning ? { warning } : {}),
-      }
+    const model: LinearModelV2 = {
+      format: LINEAR_V2_FORMAT,
+      classes: labels,
+      featureCount,
+      weights: fitted.weights,
+      intercepts: fitted.intercepts,
     }
 
-    // 접힌 모델을 못 만들었다(ml.js 내부 구조가 움직였다). 지표는 살린다 - 라이브러리로
-    // 직접 예측하되 학습과 같은 변환을 태운다. 모델이 없으므로 어긋날 상대도 없다.
-    const predict: Predict = (features) =>
-      [
-        ...model.predict(
-          new Matrix(
-            features.map((row) => [
-              ...row.map(
-                (value, j) => (value - (scaler.centers[j] ?? 0)) / (scaler.spreads[j] ?? 1),
-              ),
-              1,
-            ]),
-          ),
-        ),
-      ].map((value) => decode(Math.round(value)))
-    return attempted.detail === undefined
-      ? { predict }
-      : { predict, modelOmittedDetail: attempted.detail }
+    // sklearn이 ConvergenceWarning을 내는 그 자리다 (mlpx-spec.md 5.9). L2 덕에
+    // 최적점이 유한하므로 이 경고는 정말로 덜 배운 모델에서만 뜬다.
+    const warning: Warning | undefined = fitted.converged
+      ? undefined
+      : { code: 'LOGISTIC_NOT_CONVERGED', params: { iterations: fitted.iterations } }
+
+    return {
+      predict: loadLinearV2Model(model),
+      model,
+      ...(warning ? { warning } : {}),
+    }
   },
 
   linear_regression: (input) => {

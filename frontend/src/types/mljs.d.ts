@@ -42,17 +42,3 @@ declare module 'ml-naivebayes' {
   }
 }
 
-declare module 'ml-logistic-regression' {
-  import type { Matrix } from 'ml-matrix'
-
-  export interface LogisticRegressionOptions {
-    numSteps?: number
-    learningRate?: number
-  }
-
-  export default class LogisticRegression {
-    constructor(options?: LogisticRegressionOptions)
-    train(features: Matrix, target: Matrix): void
-    predict(features: Matrix): number[]
-  }
-}

@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
 import { ALGORITHMS } from '../src/ml/algorithms'
+import { logisticObjectiveForTest } from '../src/ml/engines/logistic'
 import { MLJS_ALGORITHMS, MLJS_ENGINE, fit, resolve } from '../src/ml/engines/mljs'
 import { evaluate } from '../src/ml/metrics'
 import { holdoutSplit } from '../src/ml/split'
@@ -67,16 +68,20 @@ describe('엔진 버전이 의존성에 묶여 있다', () => {
     // 옛 .mlpx가 "재현되지 않음"으로 뒤집힌다.
     expect({
       'ml-cart': packageJson.dependencies['ml-cart'],
-      'ml-logistic-regression': packageJson.dependencies['ml-logistic-regression'],
       'ml-random-forest': packageJson.dependencies['ml-random-forest'],
       'ml-regression-multivariate-linear':
         packageJson.dependencies['ml-regression-multivariate-linear'],
     }).toEqual({
       'ml-cart': '^2.1.1',
-      'ml-logistic-regression': '^2.0.0',
       'ml-random-forest': '^2.1.0',
       'ml-regression-multivariate-linear': '^2.0.4',
     })
+  })
+
+  it('ml-logistic-regression은 의존성에서 빠졌다 - 로지스틱은 저장소 안 솔버가 푼다', () => {
+    // 2026-08-10, V2 감사 1단계-B (ml/engines/logistic.ts). 다시 들어오면 그건
+    // 솔버 교체 결정(open-decisions.md)을 되돌리는 일이니 여기가 시끄럽게 알린다.
+    expect('ml-logistic-regression' in packageJson.dependencies).toBe(false)
   })
 
   it('엔진 이름이 실행 방법의 engineKind와 같다', () => {
@@ -187,31 +192,71 @@ describe('하이퍼파라미터', () => {
 })
 
 describe('로지스틱 수렴 경고 (mlpx-spec.md 5.9)', () => {
-  it('스텝이 모자라면 LOGISTIC_NOT_CONVERGED가 붙는다', () => {
+  it('maxIter에 닿으면 LOGISTIC_NOT_CONVERGED가 붙는다', () => {
     const { warning } = fit('logistic_regression', {
       features: IRIS_FEATURES,
       rowIndices: IRIS_FEATURES.map((_, index) => index),
       target: IRIS_LABELS,
-      hyperparameters: { numSteps: 5 },
+      hyperparameters: { maxIter: 1 },
       randomState: 42,
     })
     expect(warning?.code).toBe('LOGISTIC_NOT_CONVERGED')
-    // 파일에 남는 것은 판정의 근거다 - 기울기와 문턱이 함께 적힌다.
-    expect(typeof warning?.params?.gradient).toBe('number')
-    expect(warning?.params?.tol).toBe(1e-4)
+    expect(warning?.params?.iterations).toBe(1)
   })
 
-  it('기울기가 0인 데이터에서는 경고가 없다', () => {
-    // 완전히 대칭인 데이터 - 최적점이 w=0이고 시작점이 곧 최적점이다.
+  it('기본값으로 수렴하면 경고가 없다 - L2 덕에 최적점이 유한하다', () => {
+    // 규제 없는 옛 솔버는 분리 가능한 데이터에서 좋은 모델에도 경고가 떴다.
+    // 이 검사가 그 상태로 돌아가는 것을 막는다 (open-decisions.md "솔버를 sklearn과
+    // 같은 구조로 바꾼다").
     const { warning } = fit('logistic_regression', {
-      features: [[0], [0], [1], [1]],
-      rowIndices: [0, 1, 2, 3],
-      target: ['a', 'b', 'a', 'b'],
+      features: IRIS_FEATURES,
+      rowIndices: IRIS_FEATURES.map((_, index) => index),
+      target: IRIS_LABELS,
       hyperparameters: {},
       randomState: 42,
     })
     expect(warning).toBeUndefined()
   })
+})
+
+describe('로지스틱 목적함수 - 기울기가 유한차분과 맞는다', () => {
+  // 솔버는 기울기만 믿고 걷는다. 기울기 식이 틀리면 엉뚱한 곳에 수렴하고, 그건
+  // 에러 없이 그럴듯한 숫자다 - 여기서 수식 자체를 못 박는다.
+  for (const [name, classCount, labels] of [
+    ['이진(binomial)', 2, ['a', 'b', 'a', 'b', 'b']],
+    ['다중(multinomial)', 3, ['a', 'b', 'c', 'b', 'a']],
+  ] as const) {
+    it(name, () => {
+      const features = [
+        [0.5, -1.2],
+        [1.5, 0.3],
+        [-0.7, 2.1],
+        [0.9, 0.9],
+        [-1.1, -0.4],
+      ]
+      const encoded = labels.map((label) => ['a', 'b', 'c'].indexOf(label))
+      const objective = logisticObjectiveForTest(features, encoded, classCount, 1)
+
+      const theta = Float64Array.from(
+        { length: objective.size },
+        (_, index) => 0.1 * (index + 1) * (index % 2 === 0 ? 1 : -1),
+      )
+      const gradient = new Float64Array(objective.size)
+      objective.evaluate(theta, gradient)
+
+      const h = 1e-6
+      const scratch = new Float64Array(objective.size)
+      for (let j = 0; j < objective.size; j += 1) {
+        const bumped = Float64Array.from(theta)
+        bumped[j] = (bumped[j] as number) + h
+        const forward = objective.evaluate(bumped, scratch)
+        bumped[j] = (bumped[j] as number) - 2 * h
+        const backward = objective.evaluate(bumped, scratch)
+        const numeric = (forward - backward) / (2 * h)
+        expect(Math.abs((gradient[j] as number) - numeric), `성분 ${j}`).toBeLessThan(1e-5)
+      }
+    })
+  }
 })
 
 describe('resolve - 무엇을 먹였는지 확정한다', () => {
