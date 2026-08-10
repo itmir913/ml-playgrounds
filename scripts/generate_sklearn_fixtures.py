@@ -183,6 +183,19 @@ def expectations_for(name: str, entry: dict[str, Any]) -> dict[str, Any]:
         # 답이 하나뿐인 알고리즘은 라벨 전체를 굳힌다 - 정확도가 같아도 라벨이 다를 수 있다.
         if algorithm == "naive_bayes":
             record["labels"] = predicted
+        if algorithm == "logistic_regression":
+            # L2가 최적점을 유일하게 만들었으므로 로지스틱도 라벨을 굳힌다 (1단계-B,
+            # 솔버 교체 뒤 11개 데이터셋에서 라벨 완전 일치·확률 최대차 8.4e-4 실측).
+            # **경계 위의 행은 굳히지 않는다(null)** - 1·2등 확률 차가 1e-2 아래인 행은
+            # tol 수준(실측 최대차의 10배 여유)의 솔버 잔차로도 뒤집힐 수 있고, 그건
+            # 결함이 아니라 판정 불능이다.
+            proba = model.predict_proba(x_test)
+            top2 = np.sort(proba, axis=1)[:, -2:]
+            margin = top2[:, 1] - top2[:, 0]
+            record["labels"] = [
+                label if margin[row] >= 1e-2 else None
+                for row, label in enumerate(predicted)
+            ]
         if algorithm == "knn":
             # **이웃 선택 동점은 sklearn이 규약을 정의하지 않는 자리다** (자료구조에 따라
             # 다르다). k번째와 k+1번째 이웃의 거리가 같은 행은 라벨을 굳히지 않는다(null) -

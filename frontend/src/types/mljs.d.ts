@@ -41,4 +41,3 @@ declare module 'ml-naivebayes' {
     predict(features: number[][]): number[]
   }
 }
-

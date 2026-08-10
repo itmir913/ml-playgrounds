@@ -53,12 +53,16 @@ const document: { sklearnVersion: string; datasets: Record<string, FixtureEntry>
 )
 
 /**
- * 정확도 여유. 실측 최대 결손(트리 계열 0.075, 로지스틱 0)의 여유 배수다 —
+ * 정확도 여유. 실측 최대 결손(트리 계열 0.075)의 여유 배수다 —
  * 동점 분할·배깅 난수·수렴 경로가 정당하게 갈리는 자리만 흡수하고,
  * "찍기보다 못하다"급 결함은 기준선 검사가 따로 잡는다.
+ *
+ * 로지스틱은 여기 없다 — L2 솔버 교체(1단계-B) 뒤로는 나이브베이즈·KNN처럼 **라벨
+ * 단위로 굳힌다**(경계 위의 행만 생성기가 null로 비워 둔다). 0.05였던 여유를 라벨
+ * 일치로 좁힌 것이 교체가 성공했다는 증거다 — 실측 근거는 open-decisions.md의
+ * "로지스틱 회귀 솔버를 sklearn과 같은 구조로 바꾼다".
  */
 const TREE_FAMILY_TOLERANCE = 0.1
-const LOGISTIC_TOLERANCE = 0.05
 /** 닫힌 식 파라미터의 허용 상대차. 실측은 비트 일치였다 — 여유는 플랫폼 몫이다. */
 const PARAM_RELATIVE_TOLERANCE = 1e-9
 /** 최소제곱 해석해의 허용 절대차. 실측은 1e-11 이하였다. */
@@ -140,18 +144,17 @@ for (const [name, entry] of Object.entries(document.datasets)) {
         expect(accuracy, `${name}/${algorithm} 기준선`).toBeGreaterThan(entry.baseline ?? 0)
 
         if (expected.labels) {
-          // 답이 하나뿐인 알고리즘(나이브베이즈·KNN)은 라벨 단위로 완전히 같아야 한다.
-          // **null은 이웃 선택 동점 행이다** — sklearn이 규약을 정의하지 않는 자리라
-          // 생성기가 라벨을 굳히지 않았다. 그 행만 건너뛴다.
+          // 답이 하나뿐인 알고리즘(나이브베이즈·KNN·로지스틱)은 라벨 단위로 완전히
+          // 같아야 한다. **null은 판정 불능 행이다** — KNN의 이웃 선택 동점, 로지스틱의
+          // 경계 위 행처럼 규약 또는 tol 수준 잔차가 답을 가르는 자리라 생성기가 라벨을
+          // 굳히지 않았다. 그 행만 건너뛴다.
           expected.labels.forEach((label, index) => {
             if (label === null) return
             expect(predicted[index], `${name}/${algorithm} 라벨 ${index}행`).toBe(label)
           })
         } else {
-          const tolerance =
-            algorithm === 'logistic_regression' ? LOGISTIC_TOLERANCE : TREE_FAMILY_TOLERANCE
           expect(accuracy, `${name}/${algorithm} vs sklearn`).toBeGreaterThanOrEqual(
-            (expected.accuracy ?? 0) - tolerance,
+            (expected.accuracy ?? 0) - TREE_FAMILY_TOLERANCE,
           )
         }
 
