@@ -132,9 +132,10 @@
 ├── manifest.json      누가 · 언제 · 무엇을
 ├── settings.json      현재 편집 중인 설정
 ├── runs.json          학습 실험과 결과들
-├── portfolio.json     "나의 AI 모델 정리" 원본
-├── portfolio.md       사람이 읽는 렌더링
 ├── hashes.json        엔트리별 해시와 contentHash (§7.2.1). 옛 파일에는 없다
+├── portfolio/
+│   ├── document.json  "나의 AI 모델 정리" 원본
+│   └── document.md    사람이 읽는 렌더링
 ├── model/
 │   ├── preprocessor-experiment-2.json
 │   ├── run-1.json
@@ -143,7 +144,15 @@
     └── data.csv       원본 그대로 (해시 재계산 때문에 손대지 않는다)
 ```
 
-**없으면 열 수 없는 것은 앞의 JSON 넷뿐이다.** `portfolio.md`는 파생물이라 없어도 열리고,
+**포트폴리오가 디렉터리인 이유는 자랄 것이기 때문이다 (2026-08-11).** 학생이 글에
+이미지를 붙이는 것이 예정되어 있고(`open-decisions.md` #23), 그때 첨부는
+`portfolio/images/` 아래로 들어간다. **지금 옮기는 이유는 §9다** — 마이그레이션은 JSON
+넷을 묶은 단위로 동작하고 **엔트리의 이름·추가·이동을 표현할 자리가 없어서 zip 레이아웃은
+v1에서 동결이다.** 배포 뒤에는 옮길 수단 자체가 없으므로, 옮길 거면 지금이 마지막이다.
+`dataset/data.csv`와 같은 모양(`<디렉터리>/<일반 이름>`)을 따른다.
+
+**없으면 열 수 없는 것은 JSON 넷뿐이다**(`manifest`·`settings`·`runs`·`portfolio/document`).
+`portfolio/document.md`는 파생물이라 없어도 열리고,
 `model/` 아래가 없는 것은 지표만 남은 정상적인 파일이다. `hashes.json`도 필수가 아니다 —
 없으면 무결성을 "확인할 수 없음"일 뿐이다(§7.2.1).
 
@@ -248,12 +257,12 @@ UTF-8 CSV다"). 정규화는 정본이 되기 **전에** 끝나므로 아래 §7
 위한 에러 코드, 종류마다 다른 확장자와 마이그레이션 체인)은 `open-decisions.md` #20에 있다.
 **그때까지 만들지 않는다.**
 
-**`locale`은 저장 시점의 UI 언어이고 `portfolio.md`가 렌더링된 언어다.** 저장할 때마다
+**`locale`은 저장 시점의 UI 언어이고 `portfolio/document.md`가 렌더링된 언어다.** 저장할 때마다
 현재 언어로 갱신된다 — `.md`를 만든 언어와 어긋나면 그 필드는 거짓말이 된다.
 
 **파일을 열 때 앱 언어를 바꾸는 데 쓰지 않는다.** 언어 선택은 사용자의 것이고
 IndexedDB에 저장된다(docs/i18n.md). 남의 파일을 열었다고 화면 언어가 바뀌면
-학생이 고른 것과 싸운다. 이 값이 답하는 질문은 하나다 — "이 `portfolio.md`는 무슨
+학생이 고른 것과 싸운다. 이 값이 답하는 질문은 하나다 — "이 `portfolio/document.md`는 무슨
 언어로 쓰여 있나".
 
 ---
@@ -1357,7 +1366,7 @@ i18n을 끌어들이면 zip 왕복 테스트마다 번역을 부팅해야 한다
 
 **엔트리 존재 검사보다도 앞이어야 한다.** 없으면 못 여는 엔트리는 넷이지만(§1), 그 넷을
 먼저 요구하면 **미래의 파일이 `PROJECT_FILE_VERSION_TOO_NEW` 대신 `PROJECT_FILE_ENTRY_MISSING`
-으로 거부된다.** v2가 `portfolio.json`을 `manifest.json`에 합치기만 해도 그렇게 된다.
+으로 거부된다.** v2가 `portfolio/document.json`을 `manifest.json`에 합치기만 해도 그렇게 된다.
 학생과 교사가 보는 것은 "앱을 업데이트하세요"가 아니라 "manifest.json이 없습니다"이고,
 둘은 파일이 손상됐다고 결론 낸다. 2번 조항이 약속한 "명확한 거부"가 여기서 새어 나간다.
 
