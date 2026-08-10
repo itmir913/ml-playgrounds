@@ -145,10 +145,14 @@ PREDICTION_INPUT_INCOMPLETE
 파일을 받은 뒤 학생이 특성을 바꿔 재학습하면 이 자리에 온다
 (`open-decisions.md` "붙일 때 본 것을 예측 직전에 다시 본다").
 
-**경고 — 실패가 아니다** (`ml/engines/svm-smo.ts`)
+**경고 — 실패가 아니다** (`ml/engines/mljs.ts`의 svm·logistic 트레이너)
 ```
 SVM_NOT_CONVERGED
+LOGISTIC_NOT_CONVERGED
 ```
+
+둘 다 "반복 예산 안에 최적점에 못 닿았다"이고 sklearn이 `ConvergenceWarning`을 내는
+자리다. 지표도 모델도 나온다 — 덜 다듬어졌다는 사실 하나가 덧붙는다.
 
 **목록이 따로다** (`errors.ts`의 `CLIENT_WARNING_CODES`). 로케일은 같은 `client.*`를
 쓴다 — 그 네임스페이스가 가리키는 것은 "실패"가 아니라 **프런트엔드가 만든 코드**이고
