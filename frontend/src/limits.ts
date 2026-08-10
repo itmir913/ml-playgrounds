@@ -56,12 +56,13 @@ export const MLJS_LINEAR_REGRESSION_ROW_LIMIT = MAX_DATASET_ROWS
 export const MLJS_NAIVE_BAYES_ROW_LIMIT = MAX_DATASET_ROWS
 
 /**
- * 로지스틱 회귀. **이름이 선형 회귀와 닮았을 뿐 경사하강이다** - 5000행에서 이미 4.3초다.
+ * 로지스틱 회귀. **가벼운 쪽이 됐다** (2026-08-10 재실측, open-decisions.md #13).
  *
- * 20000행 19.6초와 50000행 71초 사이에서 끊었다. 10만 행에서는 시간(155초)보다 메모리가
- * 먼저 위험하다 - `ml-matrix`가 힙을 368MB 밀어 올린다.
+ * 옛 값 20,000은 떼어낸 경사하강 구현(5천 행 4.3초, 10만 행 155초 + 힙 368MB)의
+ * 것이었다. L-BFGS(ml/engines/logistic.ts)는 2만 행 59ms · 10만 행 188ms이고 행렬
+ * 라이브러리를 안 쓰므로 메모리 문제도 함께 사라졌다 - 데이터셋 천장이 그대로 상한이다.
  */
-export const MLJS_LOGISTIC_REGRESSION_ROW_LIMIT = 20_000
+export const MLJS_LOGISTIC_REGRESSION_ROW_LIMIT = MAX_DATASET_ROWS
 
 /** 결정 트리. 20000행 22초, 50000행 91초. 분할 탐색이 노드마다 O(특성 × 행²)이다. */
 export const MLJS_DECISION_TREE_ROW_LIMIT = 20_000
