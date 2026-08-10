@@ -56,11 +56,12 @@ export const MLJS_LINEAR_REGRESSION_ROW_LIMIT = MAX_DATASET_ROWS
 export const MLJS_NAIVE_BAYES_ROW_LIMIT = MAX_DATASET_ROWS
 
 /**
- * 로지스틱 회귀. **가벼운 쪽이 됐다** (2026-08-10 재실측, open-decisions.md #13).
+ * 로지스틱 회귀. **가벼운 쪽이 됐다** (2026-08-11 재실측, open-decisions.md #13).
  *
  * 옛 값 20,000은 떼어낸 경사하강 구현(5천 행 4.3초, 10만 행 155초 + 힙 368MB)의
- * 것이었다. L-BFGS(ml/engines/logistic.ts)는 2만 행 59ms · 10만 행 188ms이고 행렬
- * 라이브러리를 안 쓰므로 메모리 문제도 함께 사라졌다 - 데이터셋 천장이 그대로 상한이다.
+ * 것이었다. L-BFGS(ml/engines/logistic.ts) 실측 - 수렴하면 2만 행 52ms · 10만 행
+ * 0.2초, maxIter(기본 100)에 걸리면 10만 행 최악 9.5초 + 경고. **시간의 천장은 행이
+ * 아니라 maxIter가 쥔다.** 힙 +2~17MB, RSS 최대 +45MB - 데이터셋 천장이 그대로 상한이다.
  */
 export const MLJS_LOGISTIC_REGRESSION_ROW_LIMIT = MAX_DATASET_ROWS
 

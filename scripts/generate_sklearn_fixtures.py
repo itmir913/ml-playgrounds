@@ -35,11 +35,13 @@ from __future__ import annotations
 import csv
 import json
 import sys
+import warnings
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import sklearn
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import accuracy_score, r2_score
@@ -177,9 +179,20 @@ def expectations_for(name: str, entry: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {"__baseline": baseline}
     for algorithm in CLASSIFIERS:
         model = build_model(algorithm, random_state)
-        model.fit(x_train, y_train)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            model.fit(x_train, y_train)
+        sk_converged = not any(
+            issubclass(one.category, ConvergenceWarning) for one in caught
+        )
         predicted = [str(one) for one in model.predict(x_test)]
         record: dict[str, Any] = {"accuracy": accuracy_score(y_test, predicted)}
+        if algorithm == "logistic_regression":
+            # 수렴 상태를 담는다 (1단계-C) - 관문이 빨개졌을 때 "진짜 결함인가, 경로가
+            # 조금 움직인 것인가"를 가를 근거가 파일 안에 있어야 한다. 라벨 완전 일치
+            # 관문은 양쪽이 수렴했을 때만 구조적으로 정당하다(L2의 유일 최적점).
+            record["converged"] = sk_converged
+            record["nIter"] = int(np.max(model.n_iter_))
         # 답이 하나뿐인 알고리즘은 라벨 전체를 굳힌다 - 정확도가 같아도 라벨이 다를 수 있다.
         if algorithm == "naive_bayes":
             record["labels"] = predicted

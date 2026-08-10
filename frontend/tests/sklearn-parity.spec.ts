@@ -40,6 +40,9 @@ interface FixtureEntry {
     {
       accuracy?: number
       labels?: (string | null)[]
+      /** 로지스틱만. sklearn이 수렴했는가 - 라벨 완전 일치 관문의 전제다 (1단계-C). */
+      converged?: boolean
+      nIter?: number
       params?: { theta: number[][]; var: number[][]; classLogPrior: number[] }
       coefficients?: number[]
       intercept?: number
@@ -63,6 +66,19 @@ const document: { sklearnVersion: string; datasets: Record<string, FixtureEntry>
  * "로지스틱 회귀 솔버를 sklearn과 같은 구조로 바꾼다".
  */
 const TREE_FAMILY_TOLERANCE = 0.1
+
+/**
+ * 경고 발화가 sklearn과 갈리는 것이 **기록된 예외**인 데이터셋 (1단계-C).
+ *
+ * iris: sklearn은 83회에 아슬아슬하게 수렴하고(전처리 안내를 문서에 둘 만큼 유명한
+ * 자리다), 우리 선탐색(Armijo 역추적)은 scipy(강한 Wolfe)보다 tol 도달 꼬리가 길어
+ * 100회를 넘긴다 - **보수적인 쪽**(경고를 내는 쪽)으로 갈린다. 문턱을 조정해
+ * 침묵시키지 않는다 - 그러면 근거 없는 임계값이 된다. 여기 없는 데이터셋에서
+ * 발화가 갈리면 그건 예외가 아니라 결함이다.
+ */
+const CONVERGENCE_MISMATCH_EXCEPTIONS: Readonly<Record<string, 'ours-warns'>> = {
+  iris: 'ours-warns',
+}
 /** 닫힌 식 파라미터의 허용 상대차. 실측은 비트 일치였다 — 여유는 플랫폼 몫이다. */
 const PARAM_RELATIVE_TOLERANCE = 1e-9
 /** 최소제곱 해석해의 허용 절대차. 실측은 1e-11 이하였다. */
@@ -128,7 +144,7 @@ for (const [name, entry] of Object.entries(document.datasets)) {
 
     for (const [algorithm, expected] of Object.entries(entry.sklearn)) {
       it(`${algorithm} — sklearn 수준이고 기준선을 넘는다`, () => {
-        const { predict } = fit(algorithm, {
+        const { predict, warning } = fit(algorithm, {
           features: trainFeatures,
           rowIndices: entry.trainIndices,
           target: trainTarget,
@@ -143,15 +159,50 @@ for (const [name, entry] of Object.entries(document.datasets)) {
         // 모델이 조용히 지나가는 일이 다시는 없어야 한다.
         expect(accuracy, `${name}/${algorithm} 기준선`).toBeGreaterThan(entry.baseline ?? 0)
 
-        if (expected.labels) {
-          // 답이 하나뿐인 알고리즘(나이브베이즈·KNN·로지스틱)은 라벨 단위로 완전히
-          // 같아야 한다. **null은 판정 불능 행이다** — KNN의 이웃 선택 동점, 로지스틱의
-          // 경계 위 행처럼 규약 또는 tol 수준 잔차가 답을 가르는 자리라 생성기가 라벨을
-          // 굳히지 않았다. 그 행만 건너뛴다.
+        // **경고 발화 자체가 관문이다** (1단계-C). 우리 run.warning의 유무가 sklearn의
+        // 수렴 실패 여부와 같아야 한다 — 11벌 + 독립 2벌에서 같은 자리에 떴다는 것이
+        // 이 감사의 가장 값진 실측이고, 관찰로만 두면 다음 변경에서 조용히 사라진다.
+        const ourWarned = warning !== undefined
+        if (algorithm === 'logistic_regression') {
+          if (CONVERGENCE_MISMATCH_EXCEPTIONS[name] === 'ours-warns') {
+            // 기록된 예외 — 우리가 보수적인 쪽. 이 상태가 바뀌는 것도 알아야 한다.
+            expect(ourWarned, `${name} 예외: 우리만 경고`).toBe(true)
+            expect(expected.converged, `${name} 예외: sklearn은 수렴`).toBe(true)
+          } else {
+            expect(ourWarned, `${name} 경고 발화가 sklearn과 같다`).toBe(
+              expected.converged === false,
+            )
+          }
+        }
+
+        // **양쪽이 수렴했을 때만 라벨 완전 일치가 구조다** (L2의 유일 최적점, 1단계-C).
+        // 한쪽이라도 반복 예산에서 멈췄으면 둘은 경로 중간의 서로 다른 지점이다 —
+        // 트리 계열과 같은 갈래 (2)이므로 같은 여유를 쓰고, 얼마나 갈렸는지(일치율)를
+        // 판정에 남긴다.
+        const bothConverged =
+          algorithm !== 'logistic_regression' || (expected.converged === true && !ourWarned)
+
+        if (expected.labels && bothConverged) {
+          // 답이 하나뿐인 알고리즘(나이브베이즈·KNN·수렴한 로지스틱)은 라벨 단위로
+          // 완전히 같아야 한다. **null은 판정 불능 행이다** — KNN의 이웃 선택 동점,
+          // 로지스틱의 경계 위 행처럼 규약 또는 tol 수준 잔차가 답을 가르는 자리라
+          // 생성기가 라벨을 굳히지 않았다. 그 행만 건너뛴다.
           expected.labels.forEach((label, index) => {
             if (label === null) return
             expect(predicted[index], `${name}/${algorithm} 라벨 ${index}행`).toBe(label)
           })
+        } else if (expected.labels) {
+          // 비수렴 로지스틱: 정확도·기준선에 더해 라벨 일치율을 판정에 남긴다.
+          const agreement =
+            expected.labels.filter((label, index) => label === null || predicted[index] === label)
+              .length / expected.labels.length
+          expect(accuracy, `${name}/${algorithm} (비수렴) vs sklearn`).toBeGreaterThanOrEqual(
+            (expected.accuracy ?? 0) - TREE_FAMILY_TOLERANCE,
+          )
+          expect(
+            agreement,
+            `${name}/${algorithm} (비수렴) 라벨 일치율 ${agreement.toFixed(4)}`,
+          ).toBeGreaterThanOrEqual(1 - TREE_FAMILY_TOLERANCE)
         } else {
           expect(accuracy, `${name}/${algorithm} vs sklearn`).toBeGreaterThanOrEqual(
             (expected.accuracy ?? 0) - TREE_FAMILY_TOLERANCE,
