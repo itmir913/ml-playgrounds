@@ -130,9 +130,9 @@ PREDICT_DATASET_COLUMN_MISSING
 ```
 
 정본 열과의 대조는 브라우저에서만 한다(`mlpx-spec.md` §0.3 — 서버는 확정된 정본과
-분할 인덱스만 받는다). `TEST_DATASET_NO_USABLE_ROWS`는 평가 데이터로 채점할 행이 하나도
-없는 것(전처리가 전부 걸렀거나 `provided`인데 비었다)이고, **학습 데이터가 비었다는
-말과 나눈다** — 뭉치면 학생이 멀쩡한 학습 데이터를 들여다본다.
+분할 인덱스만 받는다). `TEST_DATASET_NO_USABLE_ROWS`는 테스트 데이터로 채점할 행이 하나도
+없는 것(전처리가 전부 걸렀거나 `provided`인데 비었다)이고, **훈련 데이터가 비었다는
+말과 나눈다** — 뭉치면 학생이 멀쩡한 훈련 데이터를 들여다본다.
 `PREDICT_DATASET_COLUMN_MISSING`은 요구하는 열이 정본 열 전체가 아니라 특성 열의
 합집합이라 `TEST_DATASET_COLUMN_MISSING`과 다른 코드이고, **파일을 받을 때와 예측
 직전 두 자리**에서 잡힌다(`open-decisions.md` "붙일 때 본 것을 예측 직전에 다시 본다").
