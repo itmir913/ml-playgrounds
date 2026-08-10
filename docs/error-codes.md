@@ -151,8 +151,13 @@ SVM_NOT_CONVERGED
 LOGISTIC_NOT_CONVERGED
 ```
 
-둘 다 "반복 예산 안에 최적점에 못 닿았다"이고 sklearn이 `ConvergenceWarning`을 내는
+둘 다 "반복 예산 안에 멈추지 못했다"이고 sklearn이 `ConvergenceWarning`을 내는
 자리다. 지표도 모델도 나온다 — 덜 다듬어졌다는 사실 하나가 덧붙는다.
+
+**다만 뒤집었을 때의 뜻이 다르다.** 로지스틱은 경고가 없으면 최적점 근방이지만,
+SMO는 정지 조건이 휴리스틱이라 **경고가 없어도 최적점 근방이라는 보증이 없다**
+(`mlpx-spec.md` §5.9, `open-decisions.md` #26). 같은 자리를 쓴다고 같은 세기의
+주장은 아니다.
 
 **목록이 따로다** (`errors.ts`의 `CLIENT_WARNING_CODES`). 로케일은 같은 `client.*`를
 쓴다 — 그 네임스페이스가 가리키는 것은 "실패"가 아니라 **프런트엔드가 만든 코드**이고
