@@ -57,7 +57,9 @@ export interface NeighborhoodInput {
 /**
  * (거리, 행 번호)의 사전식 전순서에서 **더 나쁜 쪽**인가.
  *
- * 이 순서 하나가 규칙 1과 규칙 4를 함께 정한다. 전순서로 고른 k개 집합은 유일하므로
+ * 이 순서 하나가 **규칙 1**을 정한다 (mlpx-spec.md 5.6). 득표 동점(규칙 3)은 이제 라벨의
+ * 정렬 순서가 정하므로 여기가 아니다 — 2026-08-10에 sklearn 규약으로 바꿨다.
+ * 전순서로 고른 k개 집합은 유일하므로
  * **힙으로 고르든 완전 정렬로 고르든 반드시 같은 집합**이 나온다.
  */
 function worse(distanceA: number, indexA: number, distanceB: number, indexB: number): boolean {
