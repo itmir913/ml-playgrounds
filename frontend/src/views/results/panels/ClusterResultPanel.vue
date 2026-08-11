@@ -11,20 +11,17 @@
  *
  * **계산은 전부 `ml/clusters.ts`에 있다.** 여기 있는 것은 그리기와 고르기뿐이다 (§8.3).
  *
- * **Chart.js는 필요한 것만 등록한다.** 이 파일은 지연 로딩이므로(등록부의
- * `defineAsyncComponent`) 군집 결과를 여는 학생만 이 코드를 받는다.
+ * **그림은 예측 화면과 같은 부품이다** (`components/ClusterScatter.vue`, #28-7). 그것도
+ * 지연 로딩이라 군집을 안 보는 학생은 차트 라이브러리를 받지 않는다.
  */
 
-import { Chart, Legend, LinearScale, PointElement, ScatterController, Tooltip } from 'chart.js'
-import { computed, onMounted, ref, watch } from 'vue'
-import { Scatter } from 'vue-chartjs'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppTable from '@/components/AppTable.vue'
 import TermPopover from '@/components/TermPopover.vue'
 import { useFormat } from '@/composables/useFormat'
 import { CLUSTER_MEMBER_ROW_COUNT, CLUSTER_SCATTER_POINT_LIMIT } from '@/limits'
-import { FALLBACK_PALETTE, clusterChartData, clusterChartOptions } from '@/ml/cluster-chart'
 import {
   axisOverviews,
   clusterMaterialFor,
@@ -33,9 +30,8 @@ import {
   scatterPoints,
 } from '@/ml/clusters'
 import type { PanelInput } from '@/ml/metric-panels'
-import { theme } from '@/theme'
 
-Chart.register(ScatterController, PointElement, LinearScale, Tooltip, Legend)
+const ClusterScatter = defineAsyncComponent(() => import('@/components/ClusterScatter.vue'))
 
 const props = defineProps<{ input: PanelInput }>()
 
@@ -66,22 +62,12 @@ const material = computed(() => {
   return found ? { dataset, ...found } : null
 })
 
-/** 고른 축. **행렬 열 번호가 아니라 `axes` 안의 자리다.** */
-const xAxis = ref(0)
-const yAxis = ref(1)
-
 /** 구성원을 펼쳐 볼 군집. 실험이나 run을 옮기면 첫 군집으로 돌아간다. */
 const openedCluster = ref(0)
 
-watch(
-  material,
-  () => {
-    xAxis.value = 0
-    yAxis.value = 1
-    openedCluster.value = 0
-  },
-  { immediate: true },
-)
+watch(material, () => {
+  openedCluster.value = 0
+})
 
 const axes = computed(() => material.value?.axes ?? [])
 
@@ -139,82 +125,9 @@ function axisHelp(position: number): string {
   })
 }
 
-/**
- * 배색 토큰의 실제 값. **캔버스는 CSS 클래스를 못 쓰므로 값을 읽어 와야 한다.**
- *
- * 어두운 배색은 같은 이름의 값을 바꾸므로(`styles/dark.css`) **배색이 바뀌면 다시
- * 읽는다** — 안 그러면 어두운 화면에 밝은 배색용 색이 남는다.
- */
-const palette = ref<string[]>([])
-const surface = ref('#ffffff')
-const ink = ref('#475569')
-const line = ref('#e2e8f0')
-
-function readTokens(): void {
-  if (typeof document === 'undefined') return
-  const styles = getComputedStyle(document.documentElement)
-  const token = (name: string, fallback: string): string =>
-    styles.getPropertyValue(name).trim() || fallback
-
-  // **대체값이 색마다 달라야 한다** — 전부 같으면 토큰을 못 읽는 순간 모든 군집이
-  // 한 색이 되고, 그림은 멀쩡해 보인다 (`FALLBACK_PALETTE`).
-  palette.value = FALLBACK_PALETTE.map((fallback, index) =>
-    token(`--color-chart-${index + 1}`, fallback),
-  )
-  surface.value = token('--color-surface', '#ffffff')
-  ink.value = token('--color-ink-soft', '#475569')
-  line.value = token('--color-line', '#e2e8f0')
-}
-
-onMounted(readTokens)
-watch(theme, readTokens)
-
-/**
- * 배색 토큰을 그림이 쓰는 모양으로 묶는다. **캔버스는 CSS 클래스를 못 쓴다.**
- */
-const tokens = computed(() => ({
-  palette: palette.value,
-  surface: surface.value,
-  ink: ink.value,
-  line: line.value,
-}))
-
 function clusterName(cluster: number): string {
   return t('results.clusterName', { index: cluster })
 }
-
-const axisName = (position: number): string => axes.value[position]?.name ?? ''
-
-/**
- * 툴팁에 적는 좌표. **Chart.js는 좌표를 `null`일 수 있는 것으로 본다** — 빈 자리를 둘 수
- * 있는 차트 종류가 있어서다. 산점도에는 그런 점이 없지만 타입은 그것을 모른다.
- *
- * **지표 포맷터를 쓰지 마라** (`useFormat.ts`의 `formatPrediction` 머리말). 이 값은
- * 되돌린 좌표라 **학생의 데이터 단위**다 — 지표처럼 소수 셋으로 자르면 농도 열은
- * 전부 `0.000`이 되고 집값 열은 뒤가 잘린다.
- */
-function coordinate(value: number | null): string {
-  return value === null ? t('meta.none') : format.prediction(value)
-}
-
-/** **그림을 만드는 계산은 화면 밖에 있다** (§8.13.2의 4번, `ml/cluster-chart.ts`). */
-const chartData = computed(() =>
-  clusterChartData(
-    scatter.value ?? { points: [], drawn: 0, total: 0 },
-    summaries.value,
-    { x: xAxis.value, y: yAxis.value },
-    tokens.value,
-    { clusterName, centroid: t('results.clusterCentroid') },
-  ),
-)
-
-const chartOptions = computed(() =>
-  clusterChartOptions(summaries.value.length, tokens.value, {
-    axisX: axisName(xAxis.value),
-    axisY: axisName(yAxis.value),
-    point: (name, x, y) => t('results.clusterPoint', { name, x: coordinate(x), y: coordinate(y) }),
-  }),
-)
 
 /** 원본 표의 한 줄. **학습에 안 쓴 열도 그대로 보인다** — 누가 그 군집인지는 거기 있다. */
 function cellsOf(row: number): readonly string[] {
@@ -224,58 +137,13 @@ function cellsOf(row: number): readonly string[] {
 
 <template>
   <section v-if="material && scatter" class="flex min-w-0 flex-col gap-5">
-    <!--
-      **축이 둘 미만이면 이 자리가 통째로 없다** (§9.2 "없는 것을 이름으로 말하지
-      않는다"). 수치 특성이 하나뿐이면 x·y를 세울 수 없는데, 제목과 설명만 남기면
-      화면이 **없는 그림의 이름을 부르고** 학생은 고장으로 읽는다. 군집 요약표와
-      구성원 표는 그때도 선다 - 그 둘은 축이 필요 없다.
-    -->
-    <div v-if="axes.length >= 2" class="flex min-w-0 flex-col gap-1.5">
-      <h4 class="font-bold">{{ t('results.clusterScatter') }}</h4>
-      <p class="text-ink-soft">{{ t('results.clusterScatterLead') }}</p>
-
-      <!--
-        **축 선택은 그림 위 왼쪽, 좁은 화면에서 세로로 쌓는다** (§8.10.1). 고를 것이
-        둘뿐이면 자리 자체가 없다 — 없는 선택지를 회색으로 두면 학생이 고장으로 읽는다.
-      -->
-      <div v-if="axes.length > 2" class="flex flex-col gap-2 sm:flex-row sm:gap-5">
-        <label class="flex items-center gap-2">
-          <span class="font-bold text-ink-soft">{{ t('results.clusterAxisX') }}</span>
-          <select
-            v-model.number="xAxis"
-            class="rounded-field border border-line-strong bg-surface px-2 py-1"
-          >
-            <option v-for="(axis, index) in axes" :key="axis.name" :value="index">
-              {{ axis.name }}
-            </option>
-          </select>
-        </label>
-
-        <label class="flex items-center gap-2">
-          <span class="font-bold text-ink-soft">{{ t('results.clusterAxisY') }}</span>
-          <select
-            v-model.number="yAxis"
-            class="rounded-field border border-line-strong bg-surface px-2 py-1"
-          >
-            <option v-for="(axis, index) in axes" :key="axis.name" :value="index">
-              {{ axis.name }}
-            </option>
-          </select>
-        </label>
-      </div>
-
-      <div class="h-96 min-w-0">
-        <Scatter :data="chartData" :options="chartOptions" />
-      </div>
-
-      <!--
-        **표본을 뽑았으면 말한다** (#28-5). 조용히 일부만 그리면 학생은 자기 데이터가
-        다 거기 있다고 믿는다.
-      -->
-      <p v-if="scatter.drawn < scatter.total" class="text-ink-faint">
-        {{ t('results.clusterSample', { drawn: scatter.drawn, total: scatter.total }) }}
-      </p>
-    </div>
+    <ClusterScatter
+      :axes="axes"
+      :summaries="summaries"
+      :scatter="scatter"
+      :title="t('results.clusterScatter')"
+      :lead="t('results.clusterScatterLead')"
+    />
 
     <!--
       **군집 요약표.** 값은 그 군집에 실제로 담긴 행들의 평균이다 (#28-6) — 중심점이

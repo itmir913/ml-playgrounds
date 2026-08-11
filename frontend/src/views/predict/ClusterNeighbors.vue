@@ -14,18 +14,24 @@
  * 것이 안 되게 된다.
  */
 
-import { computed, watch } from 'vue'
+import { computed, defineAsyncComponent, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
 import AppTable from '@/components/AppTable.vue'
 import { useFormat } from '@/composables/useFormat'
-import { CLUSTER_NEIGHBOR_ROW_COUNT } from '@/limits'
+import { CLUSTER_NEIGHBOR_ROW_COUNT, CLUSTER_SCATTER_POINT_LIMIT } from '@/limits'
+import type { ClusterHighlight } from '@/ml/cluster-chart'
 import {
+  axisValues,
   clusterMaterialFor,
   clusterSummaries,
   nearestMembers,
+  scatterPoints,
+  type ClusterAxis,
   type ClusterMaterial,
+  type ClusterSummary,
+  type ScatterData,
 } from '@/ml/clusters'
 import { inputVector, type Answer, type PredictableModel } from '@/ml/predict'
 import type { Dataset, Preprocessor } from '@/ml/preprocess'
@@ -45,6 +51,8 @@ const props = defineProps<{
   experimentNames: ReadonlyMap<string, string>
 }>()
 
+const ClusterScatter = defineAsyncComponent(() => import('@/components/ClusterScatter.vue'))
+
 const { t } = useI18n()
 const format = useFormat()
 
@@ -61,6 +69,12 @@ interface Neighborhood {
   /** 원본 표의 줄들. **학습에 안 쓴 열도 그대로 보인다.** */
   readonly rows: readonly (readonly string[])[]
   readonly total: number
+  /** 그림에 넘길 것들 (#28-7). 결과 화면과 같은 부품이 그린다. */
+  readonly axes: readonly ClusterAxis[]
+  readonly summaries: readonly ClusterSummary[]
+  readonly scatter: ScatterData
+  /** 학생이 넣은 한 줄의 자리. **축 순서의 되돌린 좌표다.** */
+  readonly highlight: ClusterHighlight
 }
 
 /**
@@ -126,16 +140,18 @@ const neighborhoods = computed<Neighborhood[]>(() => {
 
     try {
       const cluster = Number(answer)
-      const summary = clusterSummaries(
+
+      const vector = inputVector(experiment, preprocessor, props.values)
+      const rows = nearestMembers(material, cluster, vector, CLUSTER_NEIGHBOR_ROW_COUNT)
+      const summaries = clusterSummaries(
         material.assignment,
         material.axes,
         material.columns,
         material.matrix,
-      ).find((entry) => entry.cluster === cluster)
-      if (!summary) continue
+      )
 
-      const vector = inputVector(experiment, preprocessor, props.values)
-      const rows = nearestMembers(material, cluster, vector, CLUSTER_NEIGHBOR_ROW_COUNT)
+      const summary = summaries.find((entry) => entry.cluster === cluster)
+      if (!summary) continue
 
       found.push({
         runId: run.id,
@@ -152,6 +168,18 @@ const neighborhoods = computed<Neighborhood[]>(() => {
         columns: dataset.columns,
         rows: rows.map((row) => dataset.rows[row] ?? []),
         total: summary.size,
+        axes: material.axes,
+        summaries,
+        scatter: scatterPoints(
+          material.assignment,
+          material.axes,
+          material.columns,
+          material.matrix,
+          CLUSTER_SCATTER_POINT_LIMIT,
+          experiment.settings.split.randomState,
+        ),
+        // **같은 함수로 되돌린다** — 점과 새 점이 다른 좌표계에 찍히면 그림이 거짓말한다.
+        highlight: { values: axisValues(vector, material.axes, material.columns), cluster },
       })
     } catch {
       // 남이 편집한 파일이거나 데이터가 바뀐 파일이다. 답은 이미 위 카드에 있고,
@@ -207,6 +235,19 @@ const neighborhoods = computed<Neighborhood[]>(() => {
           <dd class="font-bold tabular-nums">{{ mean.value }}</dd>
         </div>
       </dl>
+
+      <!--
+        **입력한 데이터가 어디쯤 있는지** (#28-7). 이웃 표가 "비슷하다"고 말한 것을
+        점 하나로 보여주는 자리라 표보다 위에 둔다.
+      -->
+      <ClusterScatter
+        :axes="place.axes"
+        :summaries="place.summaries"
+        :scatter="place.scatter"
+        :highlight="place.highlight"
+        :title="t('predict.clusterScatterTitle')"
+        :lead="t('predict.clusterScatterLead')"
+      />
 
       <AppTable>
         <thead>
