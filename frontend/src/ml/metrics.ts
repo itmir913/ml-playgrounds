@@ -411,3 +411,33 @@ export function evaluate(
 
   return evaluation
 }
+
+/**
+ * **군집** 지표를 계산한다. `evaluate()`의 군집판이다.
+ *
+ * 시그니처가 다른 이유는 architecture.md §3.7에 있다 — 정답이 없으므로
+ * `(actual, predicted)`를 쓸 수 없고, `(data, assignments, centroids)`를 받는다.
+ *
+ * **`evaluate()`와 같은 방어선을 둔다** — 들어오는 것의 길이가 다르면 던지고,
+ * 나가는 값이 수치가 아니면 던진다.
+ */
+export function evaluateCluster(
+  data: readonly (readonly number[])[],
+  assignments: readonly number[],
+  centroids: readonly (readonly number[])[],
+): Evaluation {
+  if (data.length !== assignments.length) {
+    throw new ClientError('JOB_FAILED', {
+      dataCount: data.length,
+      assignmentCount: assignments.length,
+    })
+  }
+
+  const evaluation = CLUSTER_EVALUATOR(data, assignments, centroids)
+
+  for (const [metric, value] of Object.entries(evaluation.metrics)) {
+    if (!Number.isFinite(value)) throw new ClientError('JOB_FAILED', { metric })
+  }
+
+  return evaluation
+}

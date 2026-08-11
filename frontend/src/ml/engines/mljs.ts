@@ -116,6 +116,17 @@ export interface FitResult {
    * **실패가 아니다.** 지표도 모델도 정상으로 나오고, 화면이 그 옆에 사실 하나를 덧붙인다.
    */
   warning?: Warning
+  /**
+   * 군집 학습 결과. **군집 지표 계산에 쓴다** (architecture.md §3.7).
+   *
+   * 군집 지표(실루엣 계수, 이너셔)는 `(data, assignments, centroids)`를 받는다.
+   * 분류·회귀의 `(actual, predicted)`와 시그니처가 다르므로 별도로 돌려준다.
+   * 분류·회귀 트레이너에서는 없다.
+   */
+  clusterResult?: {
+    readonly assignments: readonly number[]
+    readonly centroids: readonly (readonly number[])[]
+  }
 }
 
 export interface FitInput {
@@ -652,6 +663,7 @@ const TRAINERS: Record<string, Trainer> = {
           return String(bestCluster)
         }),
       model,
+      clusterResult: { assignments: result.assignments, centroids: result.centroids },
       ...(warning ? { warning } : {}),
     }
   },

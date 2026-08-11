@@ -943,3 +943,135 @@ describe('전처리와 분할을 끌 수 있다', () => {
     }
   })
 })
+
+describe('군집', () => {
+  /**
+   * 세 뭉치가 뚜렷한 2차원 표. 타깃 열이 없다 — 군집화에는 정답이 없다.
+   *
+   * 값은 결정적이고 뭉치 사이 거리가 커서 K-Means가 확실히 분리한다.
+   * 실루엣이 1에 가깝게 나오는 것을 그대로 못 박을 수 있다.
+   */
+  const clusters: Dataset = {
+    columns: ['x', 'y'],
+    rows: [
+      // 뭉치 A (0 근처)
+      ['0', '0'],
+      ['1', '0'],
+      ['0', '1'],
+      // 뭉치 B (10 근처)
+      ['10', '10'],
+      ['11', '10'],
+      ['10', '11'],
+      // 뭉치 C (20 근처)
+      ['20', '20'],
+      ['21', '20'],
+      ['20', '21'],
+    ],
+  }
+
+  function clusterSettings(overrides: Partial<Settings> = {}): Settings {
+    return {
+      dataset: {
+        path: 'dataset/data.csv',
+        originalFileName: 'clusters.csv',
+        hasHeader: true,
+        encoding: 'utf-8',
+      },
+      features: ['x', 'y'],
+      // 군집화에는 타깃이 없다 (architecture.md §3.6).
+      preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
+      split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: 42 },
+      runtime: 'mljs',
+      selectedAlgorithms: models('k_means'),
+      hyperparameters: {},
+      ...overrides,
+    }
+  }
+
+  const { experiment, preprocessor } = runExperiment(
+    {
+      dataset: clusters,
+      testDataset: null,
+      taskType: 'clustering',
+      dataType: 'tabular',
+      settings: clusterSettings(),
+      context: BROWSER_ONLY,
+    },
+    frozen,
+  )
+
+  it('학습이 성공한다', () => {
+    expect(experiment.runs[0]?.status).toBe('done')
+  })
+
+  it('실루엣 계수와 이너셔가 나온다', () => {
+    expect(experiment.runs[0]?.metrics?.silhouette).toBeDefined()
+    expect(experiment.runs[0]?.metrics?.inertia).toBeDefined()
+  })
+
+  it('뚜렷한 뭉치를 정확히 분리한다', () => {
+    // 거리가 멀어 실루엣이 0.9 이상이 아니면 엔진이 잘못된 것이다.
+    expect(experiment.runs[0]?.metrics?.silhouette).toBeGreaterThan(0.9)
+  })
+
+  it('혼동 행렬도 클래스별 지표도 없다 — 정답이 없다', () => {
+    expect(experiment.runs[0]?.confusionMatrix).toBeUndefined()
+    expect(experiment.runs[0]?.perClass).toBeUndefined()
+  })
+
+  it('설정에 타깃이 없다', () => {
+    expect(experiment.settings.target).toBeUndefined()
+  })
+
+  it('전체 데이터로 학습하고 평가셋은 비어 있다', () => {
+    // architecture.md §3.6: 군집화는 나누지 않는다.
+    expect(experiment.settings.trainIndices).toEqual([...clusters.rows.keys()])
+    expect(experiment.settings.testIndices).toEqual([])
+  })
+
+  it('스키마를 통과한다', () => {
+    expect(() => experimentSchema.parse(experiment)).not.toThrow()
+  })
+
+  it('같은 설정으로 두 번 돌리면 결과가 같다', () => {
+    const second = runExperiment(
+      {
+        dataset: clusters,
+        testDataset: null,
+        taskType: 'clustering',
+        dataType: 'tabular',
+        settings: clusterSettings(),
+        context: BROWSER_ONLY,
+      },
+      frozen,
+    )
+    expect(second.experiment.runs[0]?.metrics).toEqual(experiment.runs[0]?.metrics)
+  })
+
+  it('전처리기가 따로 나온다', () => {
+    expect(preprocessor.format).toBe('mlpx-preprocess-v1')
+  })
+
+  it('하이퍼파라미터가 확정된다', () => {
+    // 학생이 안 건드려도 nClusters의 확정 값이 남아야 한다.
+    expect(experiment.runs[0]?.hyperparameters).toHaveProperty('nClusters')
+  })
+
+  it('타깃 없이도 TARGET_NOT_SELECTED가 나지 않는다', () => {
+    // 분류·회귀는 타깃이 없으면 TARGET_NOT_SELECTED로 거부한다. 군집화는 타깃이 없는
+    // 것이 정상이므로 같은 검사에 걸리면 안 된다.
+    expect(() =>
+      runExperiment(
+        {
+          dataset: clusters,
+          testDataset: null,
+          taskType: 'clustering',
+          dataType: 'tabular',
+          settings: clusterSettings(),
+          context: BROWSER_ONLY,
+        },
+        frozen,
+      ),
+    ).not.toThrow()
+  })
+})

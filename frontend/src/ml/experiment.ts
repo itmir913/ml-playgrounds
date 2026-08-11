@@ -33,7 +33,7 @@ import {
 } from './backend'
 import { engineFor, type TrainingEngine } from './engines'
 import { assertInRange } from './hyperparams'
-import { evaluate } from './metrics'
+import { evaluate, evaluateCluster, type Evaluation } from './metrics'
 import type { ModelFile } from './models'
 import {
   detectKind,
@@ -369,14 +369,31 @@ function trainOne(
     // try 안이라 **이 run 하나만 실패하고 나머지 모델은 계속 돈다** (mlpx-spec.md 4.1).
     assertInRange(engine.parameters(base.algorithm), base.hyperparameters)
 
-    const { predict, model, modelOmittedDetail, warning } = engine.fit(base.algorithm, {
-      features: context.trainFeatures,
-      rowIndices: context.trainRowIndices,
-      target: context.trainTarget,
-      hyperparameters: base.hyperparameters,
-      randomState: context.randomState,
-    })
-    const evaluation = evaluate(context.taskType, context.testTarget, predict(context.testFeatures))
+    const { predict, model, modelOmittedDetail, warning, clusterResult } = engine.fit(
+      base.algorithm,
+      {
+        features: context.trainFeatures,
+        rowIndices: context.trainRowIndices,
+        target: context.trainTarget,
+        hyperparameters: base.hyperparameters,
+        randomState: context.randomState,
+      },
+    )
+
+    // **군집은 시그니처가 다르다** (architecture.md §3.7). 정답이 없으므로
+    // (actual, predicted)를 쓸 수 없고, 학습 데이터·할당·중심점으로 지표를 낸다.
+    // 분류·회귀는 평가셋으로 채점하고, 군집은 전체 데이터로 채점한다 (§3.6).
+    let evaluation: Evaluation
+    if (context.taskType === 'clustering') {
+      if (!clusterResult) throw new ClientError('JOB_FAILED', { taskType: 'clustering' })
+      evaluation = evaluateCluster(
+        context.trainFeatures,
+        clusterResult.assignments,
+        clusterResult.centroids,
+      )
+    } else {
+      evaluation = evaluate(context.taskType, context.testTarget, predict(context.testFeatures))
+    }
 
     const run: Run = {
       ...stamp,
@@ -424,50 +441,68 @@ export function runExperiment(
   const now = options.now ?? (() => new Date().toISOString())
   const experiments = options.history?.experiments ?? []
   const { target } = settings
+  const isClustering = taskType === 'clustering'
 
-  // 군집화에는 타깃이 없지만 군집 알고리즘도 아직 없다. 여기 오는 것은 분류·회귀뿐이고
-  // 둘 다 정답 열이 있어야 학습도 채점도 된다.
-  if (target === undefined || target === '') throw new ClientError('TARGET_NOT_SELECTED')
+  // 군집화에는 타깃이 없다 (architecture.md §3.6). 분류·회귀는 정답 열이 있어야
+  // 학습도 채점도 된다.
+  if (!isClustering && (target === undefined || target === '')) {
+    throw new ClientError('TARGET_NOT_SELECTED')
+  }
 
   // provided일 때만 쓰는 평가 데이터셋의 usableRows. holdout이면 undefined다 -
   // splitRows가 그때는 아예 보지 않는다 (ml/split.ts).
+  // 군집화에는 평가 데이터셋이 없다 — 전체 데이터로 학습한다.
   const providedTestRows =
-    settings.split.method === 'provided' && testDataset
-      ? usableRows(testDataset, settings.features, target, settings.preprocessing.missing)
+    !isClustering && settings.split.method === 'provided' && testDataset
+      ? usableRows(testDataset, settings.features, target!, settings.preprocessing.missing)
       : undefined
 
-  const rows = usableRows(dataset, settings.features, target, settings.preprocessing.missing)
-  const labels = targetValues(dataset, rows, target)
+  // 군집화에는 타깃이 없으므로 usableRows에 undefined를 넘긴다. usableRows는
+  // target이 없으면 타깃 결측 검사를 건너뛴다.
+  const rows = usableRows(
+    dataset,
+    settings.features,
+    isClustering ? undefined : target,
+    settings.preprocessing.missing,
+  )
+  const labels = isClustering ? [] : targetValues(dataset, rows, target!)
 
   // **성립하지 않는 조합은 분할보다 먼저 거부한다.** 여기서 넘기면 지표가 NaN인 채로
   // run이 done으로 끝나고, 그 파일은 저장은 되는데 다시 열리지 않는다.
-  const required = requiredTargetKind(taskType)
-  if (required && detectKind(labels) !== required.kind) {
-    throw new ClientError(required.code, { target })
+  // 군집화에는 타깃 자료형 요구가 없다.
+  if (!isClustering) {
+    const required = requiredTargetKind(taskType)
+    if (required && detectKind(labels) !== required.kind) {
+      throw new ClientError(required.code, { target: target! })
+    }
   }
 
   // **"아무것도 안 함"은 빈 칸이 있으면 거부한다.** 조용히 두는 길이 없어서다 - 수치
   // 열의 빈 칸은 결국 0이 되고, 그러면 그 이름으로 0 채우기를 하는 셈이 된다
   // (open-decisions.md "전처리도 분할도 끌 수 있다"). **전체**를 본다 - provided면
   // 평가 데이터셋도 같은 전처리를 받으므로(mlpx-spec.md §1.1) 거기도 봐야 한다.
+  // 군집화에는 타깃이 없으므로 특성만 본다.
   if (settings.preprocessing.missing === 'none') {
-    const checked = [...settings.features, target]
+    const checked = isClustering ? [...settings.features] : [...settings.features, target!]
     const blank =
       missingColumns(dataset, checked)[0] ??
-      (settings.split.method === 'provided' && testDataset
+      (!isClustering && settings.split.method === 'provided' && testDataset
         ? missingColumns(testDataset, checked)[0]
         : undefined)
     if (blank)
       throw new ClientError('FEATURE_HAS_MISSING', { feature: blank.name, count: blank.count })
   }
 
-  // 층화하지 않으면 라벨은 쓰이지 않는다. 회귀에 층화를 켠 설정은 여기서 시끄럽게
-  // 실패한다 - 조용히 층화를 끄지 않는다는 ml/split.ts의 규칙과 같다.
-  const split = splitRows(
-    { rows, labels },
-    settings.split,
-    providedTestRows ? { rows: providedTestRows } : undefined,
-  )
+  // **군집화는 나누지 않는다** (architecture.md §3.6). 전체 데이터로 학습하고,
+  // trainIndices는 전체, testIndices는 빈 배열이다. 교실에서 "왜 나누지 않나요?"는
+  // 비지도학습을 이해하는 좋은 질문이고, 그것을 설명할 자리가 생기는 것이 교육적 가치다.
+  const split = isClustering
+    ? { trainIndices: rows, testIndices: [] as number[] }
+    : splitRows(
+        { rows, labels },
+        settings.split,
+        providedTestRows ? { rows: providedTestRows } : undefined,
+      )
 
   const preprocessor = fitPreprocessor(
     dataset,
@@ -478,17 +513,20 @@ export function runExperiment(
 
   // provided면 testIndices는 dataset이 아니라 testDataset의 행 번호다
   // (mlpx-spec.md §1.1) - trainIndices와 testIndices가 서로 다른 정본을 가리키는
-  // 유일한 경우다.
-  const testSource = settings.split.method === 'provided' && testDataset ? testDataset : dataset
+  // 유일한 경우다. 군집화에는 testIndices가 비어 있어 testSource를 쓸 일이 없다.
+  const testSource =
+    !isClustering && settings.split.method === 'provided' && testDataset ? testDataset : dataset
 
   const { categoricalEncoding } = settings.preprocessing
   const trainContext: TrainContext = {
     taskType,
     trainFeatures: transform(preprocessor, dataset, split.trainIndices, categoricalEncoding),
     trainRowIndices: split.trainIndices,
+    // 군집화에는 평가셋이 없다 — testIndices가 빈 배열이므로 빈 행렬이 나온다.
     testFeatures: transform(preprocessor, testSource, split.testIndices, categoricalEncoding),
-    trainTarget: targetValues(dataset, split.trainIndices, target),
-    testTarget: targetValues(testSource, split.testIndices, target),
+    // 군집화에는 타깃이 없다 — 빈 배열이 들어가고, 트레이너가 무시한다.
+    trainTarget: isClustering ? [] : targetValues(dataset, split.trainIndices, target!),
+    testTarget: isClustering ? [] : targetValues(testSource, split.testIndices, target!),
     randomState: settings.split.randomState,
   }
 
@@ -583,7 +621,8 @@ export function runExperiment(
     // 스냅샷에는 결과적으로 무엇을 요청했는지만 있으면 된다.
     selectedAlgorithms: requested.map(({ algorithm, runtime }) => ({ algorithm, runtime })),
     features: settings.features,
-    target,
+    // 군집화에는 타깃이 없다. 스키마에서 선택 항목이다 (schema.ts).
+    ...(target ? { target } : {}),
     preprocessing: settings.preprocessing,
     split: settings.split,
     trainIndices: split.trainIndices,
