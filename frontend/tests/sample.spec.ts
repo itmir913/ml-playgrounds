@@ -37,6 +37,28 @@ function skewed(): { rows: number[]; labels: string[] } {
   return { rows: rows(1000), labels }
 }
 
+/**
+ * 라벨을 덩어리로 늘어놓는다. **순서가 뜻을 갖는다** — 되받기 도너 고르기와 최대잉여법의
+ * 동점 처리가 등장 순서를 쓰므로, 검사가 그 규칙을 가르려면 순서를 손으로 정해야 한다.
+ */
+function blocks(...sizes: readonly (readonly [string, number])[]): {
+  rows: number[]
+  labels: string[]
+} {
+  const labels = sizes.flatMap(([label, size]) => Array<string>(size).fill(label))
+  return { rows: rows(labels.length), labels }
+}
+
+/** 뽑힌 행을 라벨별로 센다. */
+function countByLabel(picked: readonly number[], labels: readonly string[]): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const row of picked) {
+    const label = labels[row] as string
+    counts.set(label, (counts.get(label) ?? 0) + 1)
+  }
+  return counts
+}
+
 function codeOf(run: () => unknown): string {
   try {
     run()
@@ -158,6 +180,71 @@ describe('층화', () => {
     expect(
       codeOf(() => sampleRows({ rows: rows(1000), labels }, split({ stratify: true }), 5)),
     ).toBe('SAMPLE_STRATIFY_IMPOSSIBLE')
+  })
+
+  /**
+   * **소수부가 갈리는 표본이라야 최대잉여법을 가른다.**
+   *
+   * 위 '라벨 비율을 지킨다'(600:300:100 → 200)는 몫이 정확히 떨어져 소수부가 전부 0이라,
+   * 남은 자리를 **누구에게 주는지**를 확인하지 못한다. 실제로 `remainders.sort`를 지워도
+   * 그 검사가 통과했다 (2026-08-12 감사).
+   */
+  it('남은 자리는 소수부가 큰 라벨이 가져간다', () => {
+    // 7:11:13에서 10줄. 몫이 2.258 / 3.548 / 4.194이고 내림하면 합이 9라 한 자리가 남는다.
+    // 소수부가 가장 큰 B(.548)가 가져가야 한다 — 등장 순서대로면 A가 가져간다.
+    const { rows: all, labels } = blocks(['A', 7], ['B', 11], ['C', 13])
+    const counts = countByLabel(
+      sampleRows({ rows: all, labels }, split({ stratify: true }), 10),
+      labels,
+    )
+    expect([counts.get('A'), counts.get('B'), counts.get('C')]).toEqual([2, 4, 4])
+  })
+
+  /**
+   * **바닥을 올린 만큼은 가장 많이 가진 라벨에서 되받는다** (`ml/sample.ts`의 2단계).
+   *
+   * 되받는 비용을 비율이 가장 덜 흔들리는 쪽에 물리는 규칙인데, 이것도 검사가 없어서
+   * 도너를 "처음 것"으로 바꿔도 통과했다. **큰 라벨이 뒤에 오는 순서**라야 둘이 갈린다.
+   */
+  it('되받기는 가장 많이 가진 라벨에서 한다', () => {
+    // 400:500:98:2에서 20줄. 비례로 8/10/2/0이 되고 D가 바닥(2)에 못 미쳐 2로 올라간다.
+    // 넘친 2를 가장 많이 가진 Y(10)에서 되받아 8이 된다 — 처음 것(X)에서 받으면 6이다.
+    const { rows: all, labels } = blocks(['X', 400], ['Y', 500], ['C', 98], ['D', 2])
+    const counts = countByLabel(
+      sampleRows({ rows: all, labels }, split({ stratify: true }), 20),
+      labels,
+    )
+    expect([counts.get('X'), counts.get('Y'), counts.get('C'), counts.get('D')]).toEqual([
+      8, 8, 2, 2,
+    ])
+  })
+
+  /**
+   * **라벨마다 씨앗을 흔든다** (`ml/shuffle.ts`의 `labelSeed`).
+   *
+   * 흔들지 않으면 **크기가 같은 두 라벨이 완전히 같은 순열을 얻는다.** 교실 CSV는 대개
+   * 정렬돼 있어서 그 상관이 표본에 그대로 새겨진다. `labelSeed`는 그것 하나를 막으려고
+   * 있는데 저장소 어디에도 그 성질을 확인하는 검사가 없었다 (2026-08-12 감사).
+   */
+  it('크기가 같은 두 라벨이 같은 자리에서 뽑히지 않는다', () => {
+    // A는 행 0~99, B는 행 100~199. 씨앗을 안 흔들면 두 셔플이 같은 순열이라
+    // 뽑힌 자리가 정확히 100만큼 평행 이동한 꼴이 된다.
+    const { rows: all, labels } = blocks(['A', 100], ['B', 100])
+    const picked = sampleRows({ rows: all, labels }, split({ stratify: true }), 20)
+    const fromA = picked.filter((row) => row < 100)
+    const fromB = picked.filter((row) => row >= 100).map((row) => row - 100)
+
+    expect(fromA).toHaveLength(10)
+    expect(fromB).toHaveLength(10)
+    expect(fromB).not.toEqual(fromA)
+  })
+
+  it('층화 경로도 오름차순으로 돌려준다', () => {
+    // 위 '오름차순으로 돌려준다'는 층화가 꺼진 경로만 지난다. 군집은 sampleRows의 순서를
+    // 그대로 trainIndices로 쓰므로(분할이 다시 정렬해 주지 않는다) 이쪽도 못 박는다.
+    const { rows: all, labels } = blocks(['A', 600], ['B', 300], ['C', 100])
+    const picked = sampleRows({ rows: all, labels }, split({ stratify: true }), 200)
+    expect(picked).toEqual([...picked].sort((a, b) => a - b))
   })
 
   it('원래부터 희귀한 라벨의 사정은 여기서 판정하지 않는다', () => {
