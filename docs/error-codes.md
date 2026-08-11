@@ -183,15 +183,24 @@ PREDICTION_INPUT_INCOMPLETE
 ```
 SVM_NOT_CONVERGED
 LOGISTIC_NOT_CONVERGED
+KMEANS_NOT_CONVERGED
 ```
 
-둘 다 "반복 예산 안에 멈추지 못했다"이고 sklearn이 `ConvergenceWarning`을 내는
+셋 다 "반복 예산 안에 멈추지 못했다"이고 sklearn이 `ConvergenceWarning`을 내는
 자리다. 지표도 모델도 나온다 — 덜 다듬어졌다는 사실 하나가 덧붙는다.
 
 **다만 뒤집었을 때의 뜻이 다르다.** 로지스틱은 경고가 없으면 최적점 근방이지만,
 SMO는 정지 조건이 휴리스틱이라 **경고가 없어도 최적점 근방이라는 보증이 없다**
 (`mlpx-spec.md` §5.9, `open-decisions.md` #26). 같은 자리를 쓴다고 같은 세기의
 주장은 아니다.
+
+**`KMEANS_NOT_CONVERGED`는 등록되지 않은 채 V3를 통과했다.** 코드 문자열이 트레이너에만
+있었고 목록에도 로케일에도 없어서, 학생 화면에 번역되지 않은 키가 그대로 갈 수 있었다.
+막았어야 할 장치 셋이 전부 비껴갔다 — `warningSchema.code`가 `z.string()`이고,
+로케일 검사 둘은 `CLIENT_WARNING_CODES`를 **훑으므로** 목록에 없는 코드를 볼 수 없다.
+그래서 **만드는 쪽에 열거형을 세웠다**: `ml/engines/mljs.ts`의 `EngineWarning.code`가
+`ClientWarningCode`라 목록에 없는 코드는 컴파일에서 걸린다. 읽는 쪽(`warningSchema`)은
+그대로 `z.string()`이다 — 미래 버전이 만든 코드가 든 `.mlpx`가 안 열리면 안 된다.
 
 **목록이 따로다** (`errors.ts`의 `CLIENT_WARNING_CODES`). 로케일은 같은 `client.*`를
 쓴다 — 그 네임스페이스가 가리키는 것은 "실패"가 아니라 **프런트엔드가 만든 코드**이고

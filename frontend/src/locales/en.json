@@ -379,6 +379,7 @@
     "PREDICTION_INPUT_INCOMPLETE": "Some boxes are still empty. ({feature})",
     "SVM_NOT_CONVERGED": "The boundary was not fully refined within the allowed rounds. The scores are real, but this model is a little rough.",
     "LOGISTIC_NOT_CONVERGED": "The best fit was not reached within the allowed iterations. The scores are real, but this model is a little rough.",
+    "KMEANS_NOT_CONVERGED": "The cluster centers had not settled within the allowed rounds. The clusters are real, but they could still shift a little.",
     "DATASET_FILE_TYPE_UNSUPPORTED": "This file type is not supported. ({fileName})",
     "DATASET_SHEET_NOT_FOUND": "That sheet could not be found. ({sheetName})",
     "STORAGE_QUOTA_EXCEEDED": "There is not enough storage space on this computer. (needs {requiredMb}MB, {availableMb}MB free)",
@@ -487,7 +488,9 @@
     "support": "How many rows of the test data really are this class. It counts the data used for scoring, not the data used for training. When it is small, the scores beside it swing on a single row — in a class of three rows, getting one more right lifts recall by 33 points.",
     "r2": "How much of the variation in the values the model explains. Closer to 1 is better, and it goes negative when the model does worse than always guessing the average.",
     "rmse": "How far the predictions land from the real values on average. Large misses count for more, and the unit is the same as the value being predicted.",
-    "mae": "How far the predictions land from the real values on average. Every miss counts the same, so it stays steadier when a few values are extreme."
+    "mae": "How far the predictions land from the real values on average. Every miss counts the same, so it stays steadier when a few values are extreme.",
+    "silhouette": "How well each row fits its own cluster compared with the nearest other cluster, averaged over every row. It runs from -1 to 1, and the closer to 1, the more clearly the clusters are separated. Around 0 the clusters touch each other, and a negative score means many rows sit closer to a neighbouring cluster than to their own.",
+    "inertia": "The squared distance from every row to the center of its own cluster, all added up. Lower means tighter clusters, but it always drops as you add more clusters, so it cannot tell you on its own whether the result is good. Use it by changing the number of clusters and looking for where the value stops dropping sharply."
   },
   "results": {
     "emptyReason": "Nothing has been trained yet.",

@@ -44,6 +44,7 @@ import { RandomForestClassifier } from 'ml-random-forest'
 import MultivariateLinearRegression from 'ml-regression-multivariate-linear'
 
 import { ClientError, failureDetail } from '../../errors'
+import type { ClientWarningCode } from '../../errors'
 import type { Warning } from '../../project/schema'
 import { resolveWith, type HyperparameterSpec } from '../hyperparams'
 import type { Prediction } from '../metrics'
@@ -89,6 +90,17 @@ export const MLJS_ENGINE = { kind: 'mljs', version: '2' } as const
 export type { Predict } from '../models/types'
 
 /**
+ * 엔진이 붙이는 경고. **`project/schema.ts`의 `Warning`과 코드 타입만 다르다.**
+ *
+ * 파일에서 읽는 쪽(`warningSchema.code`)은 `z.string()`이어야 한다 - 미래 버전이
+ * 만든 코드가 든 `.mlpx`를 여는 것이 파싱 실패가 되면 안 된다. 그러나 **우리가
+ * 만드는 쪽은 열거형이어야 한다.** V3에서 등록되지 않은 `KMEANS_NOT_CONVERGED`가
+ * 화면까지 간 이유가 여기가 `string`이었기 때문이다 - 타입도, 로케일 검사도
+ * (목록을 훑으므로 목록에 없는 코드는 대상이 아니다) 전부 비껴갔다.
+ */
+export type EngineWarning = Warning & { readonly code: ClientWarningCode }
+
+/**
  * 학습 한 번의 결과.
  *
  * **이 엔진이 돌리는 알고리즘 일곱은 전부 우리 형식으로 담긴다** (2026-08-11에 고쳐 적는다).
@@ -115,7 +127,7 @@ export interface FitResult {
    *
    * **실패가 아니다.** 지표도 모델도 정상으로 나오고, 화면이 그 옆에 사실 하나를 덧붙인다.
    */
-  warning?: Warning
+  warning?: EngineWarning
   /**
    * 군집 학습 결과. **군집 지표 계산에 쓴다** (architecture.md §3.7).
    *
@@ -540,7 +552,7 @@ const TRAINERS: Record<string, Trainer> = {
 
     // **수렴하지 못한 것은 실패가 아니다** (mlpx-spec.md 5.9). 계수가 덜 다듬어졌을 뿐이고,
     // 그 사실을 숨기지 않는 것으로 충분하다 - sklearn도 같은 자리에서 경고만 낸다.
-    const warning: Warning | undefined = converged
+    const warning: EngineWarning | undefined = converged
       ? undefined
       : { code: 'SVM_NOT_CONVERGED', params: { iterations } }
 
@@ -588,7 +600,7 @@ const TRAINERS: Record<string, Trainer> = {
 
     // sklearn이 ConvergenceWarning을 내는 그 자리다 (mlpx-spec.md 5.9). L2 덕에
     // 최적점이 유한하므로 이 경고는 정말로 덜 배운 모델에서만 뜬다.
-    const warning: Warning | undefined = fitted.converged
+    const warning: EngineWarning | undefined = fitted.converged
       ? undefined
       : { code: 'LOGISTIC_NOT_CONVERGED', params: { iterations: fitted.iterations } }
 
@@ -639,7 +651,7 @@ const TRAINERS: Record<string, Trainer> = {
       centroids: result.centroids.map((c) => [...c]),
     }
 
-    const warning: Warning | undefined = result.converged
+    const warning: EngineWarning | undefined = result.converged
       ? undefined
       : { code: 'KMEANS_NOT_CONVERGED', params: { iterations: result.iterations } }
 

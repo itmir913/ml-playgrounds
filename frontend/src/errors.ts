@@ -161,6 +161,9 @@ export const CLIENT_WARNING_CODES = [
   // 경사하강이 스텝 예산 안에 최적점에 못 닿았다. sklearn의 ConvergenceWarning 자리다
   // (mlpx-spec.md 5.9).
   'LOGISTIC_NOT_CONVERGED',
+  // Lloyd 반복이 max_iter 안에 중심점을 고정하지 못했다. 중심점도 군집 번호도 나온다 -
+  // 조금 더 돌리면 미세하게 움직일 뿐이다. sklearn도 같은 자리에서 ConvergenceWarning을 낸다.
+  'KMEANS_NOT_CONVERGED',
 ] as const
 
 export type ClientWarningCode = (typeof CLIENT_WARNING_CODES)[number]
