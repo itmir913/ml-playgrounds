@@ -16,6 +16,7 @@ import { isClientError } from '../src/errors'
 import { loadModel, REFERENCE_FORMAT, type ProbaModel } from '../src/ml/models'
 import {
   answerRank,
+  answersInClusters,
   applyPredictFilter,
   assignAnswerColors,
   chosenProbability,
@@ -1123,5 +1124,23 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
 
       expect(grid[1]).toEqual(['1', 'a', ''])
     })
+  })
+})
+
+describe('군집의 답은 번호가 아니라 이름으로 쓴다', () => {
+  it('군집 모델만 참이다', () => {
+    // **화면이 과제 유형을 보지 않게 하는 판정이다** (§9.1). 이것이 없으면 답 카드에
+    // `0`만 떠서 분류의 라벨 0이나 회귀의 값 0과 글자가 같아진다.
+    const clustering: PredictableModel = {
+      experiment: experiment([0], onehot, { taskType: 'clustering', target: undefined }),
+      run: runOf('r1', 'kmeans'),
+    }
+    const classification: PredictableModel = {
+      experiment: experiment([0], onehot),
+      run: runOf('r2'),
+    }
+
+    expect(answersInClusters(clustering)).toBe(true)
+    expect(answersInClusters(classification)).toBe(false)
   })
 })

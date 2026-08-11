@@ -21,6 +21,7 @@ import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import type { Prediction } from '@/ml/metrics'
 import {
   answerRank,
+  answersInClusters,
   rankAnswers,
   tallyClassificationAnswers,
   type Answer,
@@ -50,6 +51,29 @@ function answerText(value: Prediction | undefined): string | null {
   if (value === undefined) return null
   return typeof value === 'number' ? format.prediction(value) : value
 }
+
+/**
+ * 카드에 쓰는 답. **군집은 번호가 아니라 이름으로 쓴다** (§8.13.1).
+ *
+ * `0`이라고만 쓰면 분류의 라벨 `0`이나 회귀의 값 `0`과 글자가 같다. **어느 모델의 답이
+ * 군집 번호인지는 화면이 아니라 `ml/predict.ts`가 안다** (§9.1).
+ */
+function cardAnswer(model: PredictableModel): string | null {
+  const value = props.answers.get(model.run.id)?.value
+  if (value === undefined) return null
+  if (!answersInClusters(model)) return answerText(value)
+  return t('results.clusterName', { index: Number(value) })
+}
+
+/**
+ * 군집으로 답한 모델이 하나라도 있는가. **있으면 번호의 뜻을 한 줄로 말한다.**
+ *
+ * 서로 다른 학습의 `0번 군집`은 같은 군집이 아닌데, 카드 둘이 나란히 같은 글자를 달고
+ * 있으면 학생은 "둘 다 같은 답"으로 읽는다.
+ */
+const hasClusterAnswer = computed(() =>
+  props.models.some((model) => answersInClusters(model) && props.answers.has(model.run.id)),
+)
 
 const tally = computed(() => tallyClassificationAnswers(props.models, props.answers))
 const ranks = computed(() => rankAnswers(tally.value))
@@ -163,6 +187,8 @@ function bars(model: PredictableModel): ProbabilityBar[] {
     <div class="flex flex-col gap-1.5">
       <h3 class="text-lg font-bold">{{ t('predict.answerTitle') }}</h3>
       <p class="text-ink-soft">{{ t('predict.answerLead') }}</p>
+      <!-- **번호는 그 모델 안에서만 뜻이 있다** (§8.13.1). 갈림표가 군집을 안 세는 이유도 이것이다. -->
+      <p v-if="hasClusterAnswer" class="text-ink-soft">{{ t('predict.clusterAnswerNote') }}</p>
     </div>
 
     <!--
@@ -217,10 +243,10 @@ function bars(model: PredictableModel): ProbabilityBar[] {
             **답은 크게 쓴다.** 이 화면에서 학생이 보러 온 것이 이 한 낱말이다.
           -->
           <p
-            v-if="answerText(props.answers.get(model.run.id)?.value) !== null"
+            v-if="cardAnswer(model) !== null"
             class="text-xl font-bold tabular-nums text-brand-strong"
           >
-            {{ answerText(props.answers.get(model.run.id)?.value) }}
+            {{ cardAnswer(model) }}
           </p>
         </div>
 

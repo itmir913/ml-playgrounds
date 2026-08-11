@@ -473,6 +473,19 @@ export function chosenProbability(answer: Answer | undefined): number | null {
   return index < 0 ? null : (proba.values[index] ?? null)
 }
 
+/**
+ * 이 모델의 답이 **군집 번호**인가.
+ *
+ * **화면이 과제 유형을 보지 않게 한다** (architecture.md §9.1) — `answerRank`가 분류에만
+ * 등수를 주는 것과 같은 모양이다. 답 카드는 이것만 보고 `0` 대신 `0번 군집`이라고 쓴다.
+ *
+ * **군집 번호를 그대로 쓰면 분류의 라벨 `0`이나 회귀의 값 `0`과 글자가 같다.** 화면에서
+ * 실제로 그렇게 났다 (2026-08-11).
+ */
+export function answersInClusters(model: PredictableModel): boolean {
+  return model.experiment.settings.taskType === 'clustering'
+}
+
 /** 값 하나와 그 값을 낸 모델 수. */
 export interface AnswerCount {
   readonly value: Prediction

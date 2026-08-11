@@ -556,6 +556,7 @@
     "clear": "Clear",
     "answerTitle": "What the models say",
     "answerLead": "The test data is fed into every trained model. Predictions can differ from model to model, and that is normal.",
+    "clusterAnswerNote": "Cluster numbers are assigned separately by each model. The same number from a different training run is not the same cluster.",
     "waiting": "Fill the boxes and press [Predict] to see the answers here.",
     "probability": "Probability by class",
     "cellWithProbability": "{value} ({percent})",
