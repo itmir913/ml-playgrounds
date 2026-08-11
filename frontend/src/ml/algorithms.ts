@@ -128,7 +128,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
     dataTypes: { tabular: true },
     taskTypes: { classification: false, regression: false, clustering: true },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
-    // 할당과 갱신이 반복마다 O(n·k·d). 아직 실측하지 않았다.
+    // 할당과 갱신이 반복마다 O(n·k·d). 10만 행 k=20이 112회 반복 6.4초 (limits.ts).
     maxRows: { mljs: MLJS_KMEANS_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
   },
 ]

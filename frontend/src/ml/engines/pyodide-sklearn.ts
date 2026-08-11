@@ -87,16 +87,42 @@ export function resetPyodide(): void {
  * **알고리즘 id가 과제 유형을 결정한다** — 등록부에서 `decision_tree`는
  * `classification: true`이므로 항상 `DecisionTreeClassifier`다. 같은 id로
  * Classifier와 Regressor를 고를 일이 없다 (algorithms.ts).
+ *
+ * **`fixed`는 우리가 고정하는 sklearn 옵션이다.** 학생에게 열지 않고 값이 바뀌지도
+ * 않으므로 서술(`HyperparameterSpec`)이 아니라 여기 산다. 표의 칸으로 두는 이유는
+ * `if (algorithm === 'knn')`을 만들지 않기 위해서다 (CLAUDE.md §2) — sklearn
+ * 알고리즘이 하나 늘 때 고쳐야 하는 곳이 이 표 하나여야 한다.
  */
-const SKLEARN_CLASSES: Readonly<Record<string, { module: string; cls: string }>> = {
+interface SklearnClass {
+  readonly module: string
+  readonly cls: string
+  /** 생성자에 항상 붙는 인자. **Python 소스 조각이므로 우리 상수만 온다.** */
+  readonly fixed?: readonly string[]
+}
+
+const SKLEARN_CLASSES: Readonly<Record<string, SklearnClass>> = {
   decision_tree: { module: 'sklearn.tree', cls: 'DecisionTreeClassifier' },
-  knn: { module: 'sklearn.neighbors', cls: 'KNeighborsClassifier' },
+  // KNN: 교실 데이터에서 kd-tree 구축 비용이 오히려 크고, brute force가 가장 결정론적이다.
+  knn: {
+    module: 'sklearn.neighbors',
+    cls: 'KNeighborsClassifier',
+    fixed: ["algorithm='brute'"],
+  },
   logistic_regression: { module: 'sklearn.linear_model', cls: 'LogisticRegression' },
   random_forest: { module: 'sklearn.ensemble', cls: 'RandomForestClassifier' },
   naive_bayes: { module: 'sklearn.naive_bayes', cls: 'GaussianNB' },
-  svm: { module: 'sklearn.svm', cls: 'SVC' },
+  // SVM: mljs의 우리 SMO와 같은 조건으로 맞춘다 (선형 커널).
+  svm: { module: 'sklearn.svm', cls: 'SVC', fixed: ["kernel='linear'"] },
   linear_regression: { module: 'sklearn.linear_model', cls: 'LinearRegression' },
-  k_means: { module: 'sklearn.cluster', cls: 'KMeans' },
+  // KMeans: 기본 알고리즘 'lloyd'와 init='k-means++'는 그대로 두고 n_init만 고정한다.
+  k_means: { module: 'sklearn.cluster', cls: 'KMeans', fixed: ["n_init='auto'"] },
+}
+
+/** 등록부에 없는 알고리즘은 여기서 걸린다. */
+function classOf(algorithm: string): SklearnClass {
+  const info = SKLEARN_CLASSES[algorithm]
+  if (!info) throw new ClientError('ALGORITHM_UNSUPPORTED', { algorithm })
+  return info
 }
 
 // ---------------------------------------------------------------------------
@@ -174,19 +200,13 @@ const SUPPORTS_RANDOM_STATE: ReadonlySet<string> = new Set([
  * 때문이다. 매번 전체를 다시 만들면 Pyodide 전역이 점점 커진다.
  */
 function buildFitCode(algorithm: string, hp: Record<string, unknown>, randomState: number): string {
-  const info = SKLEARN_CLASSES[algorithm]
-  if (!info) throw new ClientError('ALGORITHM_UNSUPPORTED', { algorithm })
+  const info = classOf(algorithm)
 
   const params: string[] = []
   const formatted = formatHyperparameters(parameters(algorithm), hp)
   if (formatted) params.push(formatted)
   if (SUPPORTS_RANDOM_STATE.has(algorithm)) params.push(`random_state=${randomState}`)
-
-  // KNN: algorithm='brute'로 고정한다. 교실 데이터에서 kd-tree 구축 비용이 오히려
-  // 크고, brute force가 가장 결정론적이다.
-  if (algorithm === 'knn') params.push("algorithm='brute'")
-  // SVM: kernel='linear'로 고정한다. mljs의 벤더링한 SMO와 같은 조건이다.
-  if (algorithm === 'svm') params.push("kernel='linear'")
+  params.push(...(info.fixed ?? []))
 
   return `
 import numpy as np
@@ -203,19 +223,20 @@ _model.fit(_X, _y)
  * K-Means 학습 코드. 분류·회귀와 달리 타깃이 없고, clusterResult를 돌려줘야 한다.
  */
 function buildKMeansFitCode(hp: Record<string, unknown>, randomState: number): string {
+  const info = classOf('k_means')
+
   const params: string[] = []
   const formatted = formatHyperparameters(parameters('k_means'), hp)
   if (formatted) params.push(formatted)
   params.push(`random_state=${randomState}`)
-  // sklearn KMeans의 기본 알고리즘은 'lloyd'이고 init='k-means++'. 그대로 둔다.
-  params.push("n_init='auto'")
+  params.push(...(info.fixed ?? []))
 
   return `
 import numpy as np
-from sklearn.cluster import KMeans
+from ${info.module} import ${info.cls}
 
 _X = np.array(_X_train_js.to_py(), dtype=np.float64)
-_model = KMeans(${params.join(', ')})
+_model = ${info.cls}(${params.join(', ')})
 _model.fit(_X)
 _assignments = _model.labels_.tolist()
 _centroids = _model.cluster_centers_.tolist()

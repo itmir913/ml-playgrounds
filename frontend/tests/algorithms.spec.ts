@@ -203,13 +203,13 @@ describe('못 쓰는 이유가 쓸모 있어야 한다', () => {
 })
 
 describe('분기 없이 늘어난다', () => {
-  it('등록부에 없는 과제 유형을 골라도 터지지 않고 전부 잠긴다', () => {
-    // 세 과제 유형(분류·회귀·군집) 전부에 알고리즘이 있으므로, 과제 유형이 아니라
-    // 데이터 종류 쪽에서 하나도 안 되는 경우를 만들어 검사한다.
-    // tabular 전용 알고리즘에 이미지를 넘기면 전부 잠긴다.
+  it('군집에서는 k_means만 살고 나머지는 이유와 함께 잠긴다', () => {
+    // **예전 이름은 "등록부에 없는 과제 유형을 골라도 전부 잠긴다"였다.** 그 검사는
+    // 군집에 알고리즘이 하나도 없던 시절의 것이고, V3에서 k_means가 살면서 확인
+    // 대상을 잃었다. 축의 한 값에서 전부 잠기는 상태는 `DataType`에 이미지가 들어오는
+    // V4에서 다시 생긴다 - 그때 그 검사를 쓴다.
     const options = algorithmOptions({ dataType: 'tabular', taskType: 'clustering' }, context())
     expect(options).toHaveLength(ALGORITHMS.length)
-    // 군집에 맞지 않는 알고리즘은 잠기고, k_means만 살아야 한다.
     const enabled = enabledAlgorithms(options)
     expect(enabled.map((a) => a.id)).toEqual(['k_means'])
     expect(

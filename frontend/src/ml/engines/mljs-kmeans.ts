@@ -20,6 +20,15 @@ import { xoroshiro128plus } from 'pure-rand/generator/xoroshiro128plus'
 
 import { ClientError } from '../../errors'
 
+/**
+ * 반복 상한과 수렴 문턱. **sklearn `KMeans`의 기본값 그대로다.**
+ *
+ * 학생에게 열지 않는다 (`mljs-params.ts`: "maxIter와 tol은 SVM과 같은 이유로 열지
+ * 않는다"). 열지 않는 값이라도 출처는 하나여야 하므로 SVM의 `SMO_DEFAULTS`와 같은
+ * 자리를 갖는다 — 함수 기본값 리터럴로 두면 부르는 쪽마다 다른 값이 설 수 있다.
+ */
+export const KMEANS_DEFAULTS = { maxIter: 300, tol: 1e-4 } as const
+
 /** K-Means 학습 결과. */
 export interface KMeansResult {
   /** 각 군집의 중심점. centroids[k][j] = 군집 k의 특성 j. */
@@ -230,15 +239,15 @@ function updateCentroids(
  * @param features 전처리를 마친 숫자 행렬
  * @param k 군집 수 (n_clusters)
  * @param randomState 난수 씨앗
- * @param maxIter 최대 반복 횟수 (기본 300, sklearn 기본값)
- * @param tol 수렴 판정 기준 (기본 1e-4, sklearn 기본값)
+ * @param maxIter 최대 반복 횟수 (KMEANS_DEFAULTS)
+ * @param tol 수렴 판정 기준 (KMEANS_DEFAULTS)
  */
 export function fitKMeans(
   features: readonly (readonly number[])[],
   k: number,
   randomState: number,
-  maxIter: number = 300,
-  tol: number = 1e-4,
+  maxIter: number = KMEANS_DEFAULTS.maxIter,
+  tol: number = KMEANS_DEFAULTS.tol,
 ): KMeansResult {
   const n = features.length
   const width = features[0]?.length ?? 0

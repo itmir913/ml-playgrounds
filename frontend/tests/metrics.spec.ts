@@ -23,15 +23,34 @@ import { TASK_TYPES, type TaskType } from '../src/project/schema'
 
 describe('등록부끼리 어긋나지 않는다', () => {
   it('등록된 알고리즘의 과제 유형에는 전부 지표 계산기가 있다', () => {
+    // 군집은 시그니처가 달라 EVALUATORS가 아니라 CLUSTER_EVALUATOR에 있다
+    // (architecture.md §3.7). 등록부가 둘이므로 각각을 본다.
+    //
+    // **군집 쪽은 값의 존재가 아니라 결과를 본다.** `CLUSTER_EVALUATOR`는 모듈
+    // 최상위의 const 함수라 `!== undefined`가 항상 참이었다 - 빠뜨린 상태를 절대
+    // 잡을 수 없는 검사가 잡는 척을 하고 있었다. 없으면 import가 깨지므로 존재는
+    // 컴파일이 잡고, 여기서는 실제로 지표가 나오는지를 본다.
+    const clusterMetrics = Object.keys(
+      CLUSTER_EVALUATOR(
+        [
+          [0, 0],
+          [1, 0],
+          [10, 10],
+          [11, 10],
+        ],
+        [0, 0, 1, 1],
+        [
+          [0.5, 0],
+          [10.5, 10],
+        ],
+      ).metrics,
+    )
+
     for (const algorithm of ALGORITHMS) {
       for (const taskType of TASK_TYPES) {
         if (!algorithm.taskTypes[taskType]) continue
-        // 군집은 시그니처가 달라 EVALUATORS가 아니라 CLUSTER_EVALUATOR에 있다
-        // (architecture.md §3.7). 등록부가 둘이므로 각각을 본다.
         const has =
-          taskType === 'clustering'
-            ? CLUSTER_EVALUATOR !== undefined
-            : EVALUATORS[taskType] !== undefined
+          taskType === 'clustering' ? clusterMetrics.length > 0 : EVALUATORS[taskType] !== undefined
         expect(has, `${algorithm.id} -> ${taskType}`).toBe(true)
       }
     }
