@@ -87,9 +87,12 @@ const neighborhoods = computed<Neighborhood[]>(() => {
 
     try {
       const cluster = Number(answer)
-      const summary = clusterSummaries(material.assignment, material.axes, material.columns).find(
-        (entry) => entry.cluster === cluster,
-      )
+      const summary = clusterSummaries(
+        material.assignment,
+        material.axes,
+        material.columns,
+        material.matrix,
+      ).find((entry) => entry.cluster === cluster)
       if (!summary) continue
 
       const vector = inputVector(experiment, preprocessor, props.values)

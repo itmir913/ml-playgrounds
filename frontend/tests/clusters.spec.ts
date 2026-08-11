@@ -193,27 +193,97 @@ describe('배정 되계산', () => {
 })
 
 describe('군집 요약', () => {
+  /** 그 군집에 실제로 담긴 행들의, 되돌린 값 평균. 검사가 손으로 다시 구한다. */
+  function memberMean(
+    matrix: readonly (readonly number[])[],
+    assignment: { clusters: Int32Array },
+    columns: ReturnType<typeof matrixColumns>,
+    cluster: number,
+    axisIndex: number,
+  ): number {
+    const own = matrix.filter((_row, index) => assignment.clusters[index] === cluster)
+    return (
+      own.reduce((sum, row) => sum + unscale(columns[axisIndex]!.column, row[axisIndex]!), 0) /
+      own.length
+    )
+  }
+
   it('평균은 그 군집 구성원의 되돌린 값 평균이다', () => {
-    // **이 검사가 #28-6의 근거 문장을 지킨다** — "중심점이 곧 그 군집의 평균"이 깨지면
-    // 요약표가 조용히 다른 것을 말한다.
     const { preprocessor, matrix, rows, model, options } = fixture()
     const columns = matrixColumns(preprocessor, options.categoricalEncoding)
     const axes = clusterAxes(preprocessor, options.categoricalEncoding)
     const assignment = assignClusters(matrix, rows, model)
-    const summaries = clusterSummaries(assignment, axes, columns)
+    const summaries = clusterSummaries(assignment, axes, columns, matrix)
 
     for (const summary of summaries) {
       axes.forEach((axis, position) => {
-        const own = matrix.filter((_row, index) => assignment.clusters[index] === summary.cluster)
-        const mean =
-          own.reduce(
-            (sum, row) => sum + unscale(columns[axis.index]!.column, row[axis.index]!),
-            0,
-          ) / own.length
+        const mean = memberMean(matrix, assignment, columns, summary.cluster, axis.index)
         expect(summary.means[position]).toBeCloseTo(mean, 9)
       })
       expect(summary.size).toBe(assignment.counts[summary.cluster])
     }
+  })
+
+  it('수렴하면 평균과 중심점이 같다', () => {
+    const { preprocessor, matrix, rows, model, options } = fixture()
+    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
+    const axes = clusterAxes(preprocessor, options.categoricalEncoding)
+    const summaries = clusterSummaries(assignClusters(matrix, rows, model), axes, columns, matrix)
+
+    for (const summary of summaries) {
+      summary.means.forEach((mean, position) => {
+        expect(mean).toBeCloseTo(summary.centroid[position]!, 9)
+      })
+    }
+  })
+
+  it('수렴하지 못하면 갈리고, 표가 보이는 것은 평균이다', () => {
+    // **감사가 연 자리다 (2026-08-11).** `fitKMeans`는 루프를 나온 뒤 최종 중심점으로 한
+    // 번 더 배정하는데 그 중심점은 **직전 배정의 평균**이다. 반복 예산이 모자라면 둘이
+    // 갈린다. **위의 두 검사는 수렴한 픽스처만 돌아서 이 경우에 구조적으로 실패할 수
+    // 없었다** - 그래서 갈리는 픽스처를 따로 세운다.
+    //
+    // 한 줄 위에 늘어선 12개 · k=2 · 반복 1회. 초기 중심점으로 한 번 가른 평균이
+    // 새 경계를 만들고, 그 경계로 다시 가른 무리의 평균은 그 중심점이 아니다.
+    const line: Dataset = {
+      columns: ['이름', '값'],
+      rows: Array.from({ length: 12 }, (_value, index) => [`행-${index}`, String(index)]),
+    }
+    const features = ['값']
+    const options = preprocessing({ scaling: 'none' })
+    const rows = usableRows(line, features, undefined, options.missing)
+    const preprocessor = fitPreprocessor(line, rows, features, options)
+    const matrix = transform(preprocessor, line, rows, options.categoricalEncoding)
+    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
+    const axes = clusterAxes(preprocessor, options.categoricalEncoding)
+
+    const fitted = fitKMeans(matrix, 2, RANDOM_STATE, 1)
+    expect(fitted.converged).toBe(false)
+
+    const model: KMeansModel = {
+      format: KMEANS_FORMAT,
+      featureCount: preprocessor.featureNames.length,
+      k: 2,
+      centroids: fitted.centroids,
+    }
+    const assignment = assignClusters(matrix, rows, model)
+    const summaries = clusterSummaries(assignment, axes, columns, matrix)
+
+    // **평균은 언제나 구성원의 평균이다** - 수렴 여부와 무관하다.
+    for (const summary of summaries) {
+      if (summary.size === 0) continue
+      axes.forEach((axis, position) => {
+        const mean = memberMean(matrix, assignment, columns, summary.cluster, axis.index)
+        expect(summary.means[position]).toBeCloseTo(mean, 9)
+      })
+    }
+
+    // **그리고 실제로 갈린다.** 갈리지 않으면 위 확인이 아무것도 안 지키므로, 이
+    // 픽스처가 여전히 그 경우를 만들고 있는지를 함께 못 박는다.
+    const gaps = summaries.flatMap((summary) =>
+      summary.means.map((mean, position) => Math.abs(mean - (summary.centroid[position] ?? 0))),
+    )
+    expect(Math.max(...gaps)).toBeCloseTo(0.5, 9)
   })
 
   it('빈 군집도 줄을 갖는다', () => {
@@ -230,9 +300,12 @@ describe('군집 요약', () => {
       centroids: [matrix[0]!, matrix[7]!, new Array<number>(width).fill(1e6)],
     }
 
-    const summaries = clusterSummaries(assignClusters(matrix, rows, model), axes, columns)
+    const summaries = clusterSummaries(assignClusters(matrix, rows, model), axes, columns, matrix)
     expect(summaries).toHaveLength(3)
     expect(summaries[2]!.size).toBe(0)
+    // 나눌 것이 없는 군집은 중심점을 그대로 쓴다 - NaN을 표에 내보내지 않는다.
+    expect(summaries[2]!.means).toEqual(summaries[2]!.centroid)
+    expect(summaries[2]!.means.every((value) => Number.isFinite(value))).toBe(true)
   })
 })
 

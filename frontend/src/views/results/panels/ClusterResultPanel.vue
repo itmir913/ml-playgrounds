@@ -108,7 +108,7 @@ const scatter = computed(() => {
 
 const summaries = computed(() => {
   const found = material.value
-  return found ? clusterSummaries(found.assignment, found.axes, found.columns) : []
+  return found ? clusterSummaries(found.assignment, found.axes, found.columns, found.matrix) : []
 })
 
 /** 펼친 군집의 구성원. **원본 표의 행 번호**라 아래 표가 그 줄을 그대로 보인다. */
@@ -218,9 +218,11 @@ const chartData = computed<ChartData<'scatter'>>(() => {
     order: DRAW_ORDER.points,
   }))
 
+  // **✕는 중심점이지 평균이 아니다** (#28-6). 수렴하지 못한 학습에서 둘이 갈리는데,
+  // 그림이 말해야 하는 것은 "가장 가까운 중심점으로 배정된다"는 모델의 규칙이다.
   const centers = summaries.value.map((summary) => ({
-    x: summary.means[xAxis.value] ?? 0,
-    y: summary.means[yAxis.value] ?? 0,
+    x: summary.centroid[xAxis.value] ?? 0,
+    y: summary.centroid[yAxis.value] ?? 0,
   }))
 
   return {
@@ -381,7 +383,8 @@ function cellsOf(row: number): readonly string[] {
     </div>
 
     <!--
-      **군집 요약표.** 값은 그 군집 구성원의 평균이고, 그것이 곧 중심점이다 (#28-6).
+      **군집 요약표.** 값은 그 군집에 실제로 담긴 행들의 평균이다 (#28-6) — 중심점이
+      아니다. 둘은 수렴하지 못한 학습에서 갈리고, 그림의 ✕가 중심점 쪽이다.
       줄을 누르면 아래에 구성원이 펼쳐진다 - 점수 표와 같은 문법이다 (§8.13).
     -->
     <div class="flex min-w-0 flex-col gap-1.5">

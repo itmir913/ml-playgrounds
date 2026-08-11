@@ -170,33 +170,81 @@ export function assignClusters(
   }
 }
 
-/** 군집 한 줄의 요약. **크기와 특성별 평균이다** (#28-6). */
+/** 군집 한 줄의 요약. **크기와 특성별 평균, 그리고 중심점이다** (#28-6). */
 export interface ClusterSummary {
   readonly cluster: number
   readonly size: number
-  /** `axes`와 같은 순서. 되돌린 중심점 = 그 군집의 특성별 평균이다. */
+  /**
+   * `axes`와 같은 순서. **그 군집에 실제로 담긴 행들의 평균**이다 (되돌린 값 기준).
+   *
+   * 빈 군집이면 전부 `NaN`이 아니라 중심점 값을 준다 — 아래 참고.
+   */
   readonly means: readonly number[]
+  /**
+   * `axes`와 같은 순서. **모델의 중심점**을 되돌린 값이고, 그림의 ✕가 이것이다.
+   *
+   * `means`와 다를 수 있다 — 아래 머리말.
+   */
+  readonly centroid: readonly number[]
 }
 
 /**
- * 군집마다 한 줄. **새로 계산하는 것이 없다.**
+ * 군집마다 한 줄.
  *
- * K-Means의 중심점은 정의상 구성원의 평균이고(Lloyd 반복의 갱신 단계가 합을 개수로
- * 나눈다), 되돌리기가 1차식이라 **되돌린 중심점이 곧 원래 단위의 평균**이다. 즉
- * `키 172.3`이 이미 모델 파일 안에 있었다 (#28-6).
+ * **평균을 중심점으로 대신하지 않는다** (#28-6, 2026-08-11 감사에서 뒤집혔다).
+ * "K-Means의 중심점은 곧 그 군집의 평균"은 **수렴했을 때만 참이다** — `fitKMeans`는
+ * 루프를 나온 뒤 **최종 중심점으로 한 번 더 배정하는데**(배정과 중심점의 한 스텝
+ * 어긋남을 없애려고 넣은 것이다) 그 중심점은 **직전 배정의 평균**이라, `maxIter`에
+ * 닿으면 최종 배정의 평균과 갈린다.
+ *
+ * 표가 `평균`이라고 쓰고 그 자리에 평균이 아닌 값을 보이는 것이 이 저장소가 규정한
+ * 최악(조용히 틀린 결과)에 가장 가까운 자리다. 그래서 **배정에서 한 번 훑는다** —
+ * 이미 들고 있는 행렬로 O(n·d)다.
+ *
+ * **중심점도 함께 돌려준다.** 그림의 ✕는 여전히 모델이 쓴 점이어야 한다(#28-1이
+ * 이너셔를 설명하는 근거로 삼은 것이 그것이다). 둘이 갈리는 경우는 수렴하지 못한
+ * 학습뿐이고, 화면은 이미 `KMEANS_NOT_CONVERGED`로 그 사실을 말하고 있다.
  *
  * **빈 군집도 줄을 갖는다.** 크기 0이 사실이고, 감추면 군집 번호가 중간에 건너뛴다.
+ * 그때 평균은 나눌 것이 없으므로 **중심점을 그대로 쓴다** — 0으로 나눈 `NaN`을 표에
+ * 내보내는 것보다 낫고, 빈 군집의 중심점은 그 자리에 있는 유일한 사실이다.
  */
 export function clusterSummaries(
   assignment: ClusterAssignment,
   axes: readonly ClusterAxis[],
   columns: readonly MatrixColumn[],
+  matrix: readonly (readonly number[])[],
 ): ClusterSummary[] {
-  return assignment.centroids.map((centroid, cluster) => ({
-    cluster,
-    size: assignment.counts[cluster] ?? 0,
-    means: axes.map((axis) => unscale(columns[axis.index]!.column, centroid[axis.index] ?? 0)),
-  }))
+  // 군집 × 축의 합계를 한 번에 모은다. 행을 군집마다 다시 훑으면 k배가 된다.
+  const sums = assignment.centroids.map(() => new Float64Array(axes.length))
+  for (let i = 0; i < assignment.rows.length; i += 1) {
+    const row = matrix[i]
+    const target = sums[assignment.clusters[i] ?? 0]
+    if (!row || !target) continue
+    axes.forEach((axis, position) => {
+      target[position]! += row[axis.index] ?? 0
+    })
+  }
+
+  return assignment.centroids.map((centroid, cluster) => {
+    const size = assignment.counts[cluster] ?? 0
+    const total = sums[cluster]
+    const centroidValues = axes.map((axis) =>
+      unscale(columns[axis.index]!.column, centroid[axis.index] ?? 0),
+    )
+
+    return {
+      cluster,
+      size,
+      means:
+        size === 0
+          ? centroidValues
+          : axes.map((axis, position) =>
+              unscale(columns[axis.index]!.column, (total?.[position] ?? 0) / size),
+            ),
+      centroid: centroidValues,
+    }
+  })
 }
 
 /**
