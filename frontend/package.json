@@ -11,12 +11,16 @@
     "build": "vue-tsc --build && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "ci": "eslint . && prettier --check src/ tests/ && npm run typecheck && npm run test && npm run build",
+    "ci": "npm run lint:check && npm run typecheck && npm run test && npm run build",
     "test:watch": "vitest",
     "lint": "eslint . --fix && prettier --write src/ tests/",
+    "lint:check": "eslint . --cache && prettier --check src/ tests/ --cache",
     "format": "prettier --write src/ tests/",
-    "typecheck": "vue-tsc --build --force"
+    "typecheck": "vue-tsc --build"
   },
+  "comment:lint-check": "고치는 것과 확인하는 것을 나눈 이유. 전에는 CI가 `npm run lint -- --no-fix`를 불렀는데, npm은 `--` 뒤의 인자를 스크립트 문자열 **끝**에 붙인다. lint는 `&&`로 이어진 두 명령이라 `--no-fix`가 eslint가 아니라 prettier에 붙었고, prettier는 모르는 옵션이라며 경고만 내고 넘어갔다(eslint에는 `--no-fix`라는 옵션 자체가 없다). 그래서 **CI의 lint 단계가 `eslint . --fix`로 돌았다** - 자동 수정되는 위반은 러너에서 조용히 고쳐져 통과하고, 그 수정은 러너와 함께 버려져 저장소에는 그대로 남았다. 게이트가 이빨이 없었다. 확인 전용 스크립트를 따로 두어 인자를 덧붙일 일이 없게 한다.",
+  "comment:cache": "`--cache`는 확인 경로에만 붙인다. 캐시가 설정 변경을 무시하면 조용히 덜 검사하게 되므로, 넣기 전에 시험했다 - eslint.config.js에 규칙을 하나 더해 캐시를 그대로 두고 다시 돌리니 185건을 잡았다. 설정 변경을 반영한다. prettier도 옵션을 캐시 키에 넣는다. GitHub Actions는 매번 캐시 없이 시작하므로 그쪽 판정은 어차피 전량 검사다.",
+  "comment:typecheck": "`--force`를 뺐다. 이 스크립트만 전량 재검사를 강제하느라 39초가 고정으로 들었는데, `ci`는 뒤에서 `build`(`vue-tsc --build`)를 또 부르므로 같은 일을 두 번 했다. 증분은 tsconfig와 입력 파일 해시를 함께 보므로 의존성이 바뀌어도 다시 검사한다. 판정 기준인 GitHub Actions는 .tsbuildinfo 없이 시작하니 거기서는 증분이 곧 전량이다.",
   "comment:typescript": "TypeScript는 6.0에 묶여 있다. 7.0은 Go 재작성판이라 컴파일러 API가 다르고, typescript-eslint가 아직 못 읽는다(peer: typescript >=4.8.4 <6.1.0). 그러면 eslint가 시작조차 못 한다. 올라갈 상위 버전도 없다 - @vue/eslint-config-typescript 14.9.0이 최신이고 그게 typescript-eslint ^8.60.0을 문다. .github/dependabot.yml이 major 제안을 막아 두었으니 지원이 나오면 거기 ignore부터 지운다.",
   "comment:overrides": "exceljs 4.4.0이 uuid 8.3.2를 물고 있고 거기 경고가 붙어 있다. exceljs는 v4()를 인자 없이만 쓰므로 실제 노출은 없지만, 경고를 남겨두면 진짜 경고가 묻힌다. npm audit fix --force는 exceljs를 3.4.0으로 되돌리는 다운그레이드라 쓰지 않는다.",
   "overrides": {

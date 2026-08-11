@@ -79,8 +79,12 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      # `npm run lint -- --no-fix`가 아니다. npm은 `--` 뒤의 인자를 스크립트 문자열
+      # 끝에 붙이는데, lint는 `&&`로 이어진 두 명령이라 `--no-fix`가 eslint가 아니라
+      # prettier에 붙었다. 그래서 이 단계가 `eslint . --fix`로 돌았고, 자동 수정되는
+      # 위반은 여기서 조용히 고쳐져 통과한 뒤 그 수정은 러너와 함께 버려졌다.
       - name: eslint
-        run: npm run lint -- --no-fix
+        run: npx eslint .
       - name: prettier
         run: npx prettier --check src/ tests/
       - name: vue-tsc
