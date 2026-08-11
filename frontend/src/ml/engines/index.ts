@@ -23,6 +23,13 @@ import {
   parameters as mljsParameters,
   resolve as mljsResolve,
 } from './mljs'
+import {
+  PYODIDE_SKLEARN_ALGORITHMS,
+  PYODIDE_SKLEARN_ENGINE,
+  fit as pyodideFit,
+  parameters as pyodideParameters,
+  resolve as pyodideResolve,
+} from './pyodide-sklearn'
 
 export type { FitInput, FitResult, Predict } from './mljs'
 
@@ -68,6 +75,15 @@ export interface TrainingEngine {
   fit(algorithm: string, input: FitInput): FitResult
 }
 
+/**
+ * V3 엔진. **순서가 기본값 우선순위다** — 앞에 있는 것부터 고른다 (ml/backend.ts).
+ *
+ * 순수 JS가 맨 앞인 이유는 gzip 25KB에 시동이 없기 때문이다. scikit-learn은 26.3MB에
+ * 시동 15.4초라 기본값이 될 수 없다 (open-decisions.md "브라우저 학습 엔진은 둘 다 간다").
+ *
+ * **여기 항목을 추가하면 실험이 따라온다.** experiment.ts가 `engineFor(runtimeId)`로
+ * 이 배열을 보고, runtimeOptions가 `engineFor`로 존재 여부를 확인한다.
+ */
 export const ENGINES: readonly TrainingEngine[] = [
   {
     runtimeId: 'mljs',
@@ -76,6 +92,14 @@ export const ENGINES: readonly TrainingEngine[] = [
     parameters: mljsParameters,
     resolve: mljsResolve,
     fit: mljsFit,
+  },
+  {
+    runtimeId: 'pyodide-sklearn',
+    engine: PYODIDE_SKLEARN_ENGINE,
+    algorithms: PYODIDE_SKLEARN_ALGORITHMS,
+    parameters: pyodideParameters,
+    resolve: pyodideResolve,
+    fit: pyodideFit,
   },
 ]
 

@@ -135,7 +135,13 @@
     "maxIter": "최대 반복 횟수(max_iter)",
     "tol": "수렴 판정 기준(Tolerance)",
     "C": "규제 강도(C)",
-    "nClusters": "군집 수(n_clusters)"
+    "nClusters": "군집 수(n_clusters)",
+    "max_depth": "나무의 최대 깊이(max_depth)",
+    "min_samples_split": "가지를 나누는 최소 데이터 수(min_samples_split)",
+    "n_estimators": "나무 개수(n_estimators)",
+    "n_neighbors": "이웃 수(n_neighbors)",
+    "max_iter": "최대 반복 횟수(max_iter)",
+    "n_clusters": "군집 수(n_clusters)"
   },
   "missingStrategy": {
     "none": "빈 칸을 그대로 두기",

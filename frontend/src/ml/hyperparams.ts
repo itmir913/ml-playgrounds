@@ -21,6 +21,7 @@
 
 import { ClientError } from '../errors'
 import { MLJS_PARAMETERS } from './engines/mljs-params'
+import { PYODIDE_SKLEARN_PARAMETERS } from './engines/pyodide-sklearn-params'
 
 export interface HyperparameterSpec {
   /**
@@ -52,6 +53,7 @@ const PARAMETERS_BY_RUNTIME: Readonly<
   Record<string, Readonly<Record<string, readonly HyperparameterSpec[]>>>
 > = {
   mljs: MLJS_PARAMETERS,
+  'pyodide-sklearn': PYODIDE_SKLEARN_PARAMETERS,
 }
 
 /**

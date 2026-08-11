@@ -135,7 +135,13 @@
     "maxIter": "Maximum iterations",
     "tol": "Convergence tolerance",
     "C": "Regularisation strength",
-    "nClusters": "Number of clusters"
+    "nClusters": "Number of clusters",
+    "max_depth": "Maximum tree depth",
+    "min_samples_split": "Smallest group a branch may split",
+    "n_estimators": "Number of trees",
+    "n_neighbors": "Number of neighbours",
+    "max_iter": "Maximum iterations",
+    "n_clusters": "Number of clusters"
   },
   "missingStrategy": {
     "none": "Leave blanks as they are",
