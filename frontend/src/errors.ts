@@ -72,6 +72,11 @@ export const CLIENT_ERROR_CODES = [
   // 두 번 나오는 데이터는 없으므로 뭉치면 불가능한 조언을 하게 된다
   // (open-decisions.md "층화는 갈리는 값에서만 뜻이 있다").
   'SPLIT_STRATIFY_TARGET_CONTINUOUS',
+  // 층화를 켠 채로 뽑을 행 수가 너무 적다 - ml/sample.ts (open-decisions.md #22).
+  // **SPLIT_STRATIFY_IMPOSSIBLE과 나누는 이유는 학생이 할 일이 다르기 때문이다** -
+  // 그쪽은 데이터에 그 값이 원래 적어서 "더 모아라"이고, 이쪽은 학생이 방금 정한 숫자가
+  // 작아서 "그 숫자를 올리거나 층화를 꺼라"다. 뭉치면 고칠 수 있는 것을 못 고친다.
+  'SAMPLE_STRATIFY_IMPOSSIBLE',
   // 이 과제 유형에서는 층화가 뜻이 없다 - 던지는 코드가 아니라 **화면의 잠금 이유**다
   // (ml/selection.ts의 stratifyBlock). 같은 목록에 두는 이유는 ALGORITHM_NOT_FOR_TASK_TYPE과
   // 같다 - 이유 문장이 사는 곳이 client.* 하나여야 한다.

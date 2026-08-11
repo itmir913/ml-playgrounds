@@ -263,6 +263,20 @@ export const splitSchema = z.looseObject({
   randomState: z.int(),
 })
 
+/**
+ * 쓸 수 있는 행 중 몇 개를 뽑아 쓸지 (`open-decisions.md` #22).
+ *
+ * **없으면 전부 쓴다.** 선택 항목이라 이 필드를 모르는 옛 `.mlpx`가 그대로 열리고,
+ * `formatVersion`은 오르지 않는다 (`mlpx-spec.md` §3).
+ *
+ * **비율이 아니라 행 수다.** 학생이 이 손잡이를 잡는 이유가 카드가 잠겨서인데, 카드는
+ * "최대 3,000행"이라고 말한다. 비율이면 학생이 계산을 해야 잠금이 풀리는지 안다.
+ * 이름은 sklearn의 `resample(n_samples=)`에서 왔다 - `testSize` ← `test_size`와 같다.
+ *
+ * **씨앗과 층화는 여기 없다.** `split.randomState`와 `split.stratify`를 따라간다.
+ */
+const nSamplesSchema = z.int().positive().optional()
+
 export const settingsSchema = z.looseObject({
   /**
    * 아직 표를 올리지 않은 프로젝트에는 **없다.** 정상 상태다
@@ -290,6 +304,7 @@ export const settingsSchema = z.looseObject({
   target: userString.optional(),
   preprocessing: preprocessingSchema,
   split: splitSchema,
+  nSamples: nSamplesSchema,
   /**
    * 실험 전체의 기본 실행 방법 id (ml/backend.ts의 RUNTIMES).
    *
@@ -491,6 +506,11 @@ export const experimentSettingsSchema = z.looseObject({
   target: userString.optional(),
   preprocessing: preprocessingSchema,
   split: splitSchema,
+  /**
+   * 학습 시점의 `nSamples`. **스냅샷에도 있어야 재현이 성립한다** - 화면의 값은 그 뒤로
+   * 얼마든지 바뀌고, 결과 화면의 변경 이력이 이 축을 읽는다.
+   */
+  nSamples: nSamplesSchema,
   /**
    * 분할을 클라이언트가 계산해 서버에 함께 보낸다.
    * 양쪽이 각자 계산하면 라이브러리 버전 차이로 테스트셋이 갈리고,

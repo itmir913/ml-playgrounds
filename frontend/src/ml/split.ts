@@ -14,13 +14,10 @@
  * randomState는 항상 저장하고 항상 쓴다. 재현 가능성이 교육용 도구의 생명이다 (CLAUDE.md 2).
  */
 
-import { uniformInt } from 'pure-rand/distribution/uniformInt'
-import { xoroshiro128plus } from 'pure-rand/generator/xoroshiro128plus'
-
 import { ClientError } from '../errors'
-import { hashText } from '../hash'
 import { MIN_SPLIT_ROWS } from '../limits'
 import type { Split } from '../project/schema'
+import { groupByLabel, labelSeed, shuffled } from './shuffle'
 
 export interface SplitIndices {
   trainIndices: number[]
@@ -43,37 +40,6 @@ export interface SplitInput {
 }
 
 /**
- * 결정적 셔플. 같은 시드면 언제나 같은 순서다.
- *
- * Math.random을 쓰면 안 된다 - 시드를 줄 수 없어서 재현이 불가능하다.
- */
-function shuffled(values: readonly number[], seed: number): number[] {
-  const out = [...values]
-  const rng = xoroshiro128plus(seed)
-  // Fisher-Yates. 뒤에서부터 훑는다.
-  for (let i = out.length - 1; i > 0; i -= 1) {
-    const j = uniformInt(rng, 0, i)
-    const swap = out[i] as number
-    out[i] = out[j] as number
-    out[j] = swap
-  }
-  return out
-}
-
-/**
- * 라벨마다 시드를 흔든다.
- *
- * 라벨을 무시하고 randomState를 그대로 쓰면 **크기가 같은 두 라벨이 완전히 같은 순열을
- * 얻는다.** 데이터가 어떤 순서로 정렬돼 있으면(교실 CSV는 대개 정렬돼 있다) 그 상관이
- * 평가셋에 그대로 새겨진다. 라벨 길이만 더하는 식으로는 'cat'과 'dog'가 또 겹친다.
- *
- * 해시를 쓰는 이유는 안전이 아니라 **고르게 흩어지고 버전이 바뀌어도 같기 때문**이다.
- */
-function labelSeed(randomState: number, label: string): number {
-  return randomState ^ Number.parseInt(hashText(label).slice(0, 8), 16)
-}
-
-/**
  * 한 덩어리에서 평가셋으로 보낼 개수.
  *
  * **양쪽 모두 최소 하나는 남긴다.** 반올림해서 0이 나오면 평가할 것이 없고,
@@ -81,18 +47,6 @@ function labelSeed(randomState: number, label: string): number {
  */
 function testCountFor(total: number, testSize: number): number {
   return Math.min(Math.max(Math.round(total * testSize), 1), total - 1)
-}
-
-/** 라벨별로 원본 행 번호를 모은다. 등장 순서를 지켜야 결과가 결정적이다. */
-function groupByLabel(rows: readonly number[], labels: readonly string[]): Map<string, number[]> {
-  const groups = new Map<string, number[]>()
-  rows.forEach((row, position) => {
-    const label = labels[position] ?? ''
-    const group = groups.get(label)
-    if (group) group.push(row)
-    else groups.set(label, [row])
-  })
-  return groups
 }
 
 /**

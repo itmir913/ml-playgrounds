@@ -6,7 +6,7 @@
  * (mlpx-spec.md 4). 그래서 전처리기는 실험당 한 번만 학습하고 전체가 공유한다.
  *
  * ```
- * usableRows -> holdoutSplit -> fitPreprocessor -> transform -> fit -> predict -> evaluate
+ * usableRows -> sampleRows -> holdoutSplit -> fitPreprocessor -> transform -> fit -> predict -> evaluate
  * ```
  *
  * **동기 함수다.** 이 함수는 Web Worker 안에서 돌므로 메인 스레드는 얼지 않고
@@ -47,6 +47,7 @@ import {
 } from './preprocess'
 // 전처리 화면이 [학습] 전에 같은 판정을 한다. 표가 두 벌이면 화면과 학습이 갈린다.
 import { requiredTargetKind } from './selection'
+import { sampleRows } from './sample'
 import { splitRows } from './split'
 
 export interface ExperimentInput {
@@ -459,20 +460,23 @@ export function runExperiment(
 
   // 군집화에는 타깃이 없으므로 usableRows에 undefined를 넘긴다. usableRows는
   // target이 없으면 타깃 결측 검사를 건너뛴다.
-  const rows = usableRows(
+  const usable = usableRows(
     dataset,
     settings.features,
     isClustering ? undefined : target,
     settings.preprocessing.missing,
   )
-  const labels = isClustering ? [] : targetValues(dataset, rows, target!)
+  const usableLabels = isClustering ? [] : targetValues(dataset, usable, target!)
 
   // **성립하지 않는 조합은 분할보다 먼저 거부한다.** 여기서 넘기면 지표가 NaN인 채로
   // run이 done으로 끝나고, 그 파일은 저장은 되는데 다시 열리지 않는다.
   // 군집화에는 타깃 자료형 요구가 없다.
   if (!isClustering) {
     const required = requiredTargetKind(taskType)
-    if (required && detectKind(labels) !== required.kind) {
+    // **표본이 아니라 쓸 수 있는 행 전부를 본다.** 타깃이 숫자인지 범주인지는 열의
+    // 성질이지 뽑기의 결과가 아니고, 표본으로 판정하면 nSamples를 움직일 때마다
+    // 같은 데이터의 판정이 흔들릴 수 있다.
+    if (required && detectKind(usableLabels) !== required.kind) {
       throw new ClientError(required.code, { target: target! })
     }
   }
@@ -492,6 +496,19 @@ export function runExperiment(
     if (blank)
       throw new ClientError('FEATURE_HAS_MISSING', { feature: blank.name, count: blank.count })
   }
+
+  // **뽑고 나서 나눈다** (open-decisions.md #22). 뽑힌 행만 분할되므로 trainIndices와
+  // testIndices의 뜻은 그대로이고, **뽑히지 않은 행은 그 둘의 여집합**이라 따로 적지
+  // 않는다. nSamples가 없으면 usable을 그대로 돌려주므로 지금까지의 동작과 같다.
+  const rows = sampleRows(
+    { rows: usable, ...(isClustering ? {} : { labels: usableLabels }) },
+    settings.split,
+    settings.nSamples,
+  )
+  // 뽑힌 행의 정답이다. usableLabels를 잘라 쓰지 않는 이유는 sampleRows가 원본 행
+  // 번호를 오름차순으로 돌려주지 usable의 위치를 돌려주지 않기 때문이다 - 위치로
+  // 착각해 자르면 라벨이 조용히 다른 행의 것이 된다.
+  const labels = isClustering ? [] : targetValues(dataset, rows, target!)
 
   // **군집화는 나누지 않는다** (architecture.md §3.6). 전체 데이터로 학습하고,
   // trainIndices는 전체, testIndices는 빈 배열이다. 교실에서 "왜 나누지 않나요?"는
@@ -625,6 +642,9 @@ export function runExperiment(
     ...(target ? { target } : {}),
     preprocessing: settings.preprocessing,
     split: settings.split,
+    // 선택 항목이다 - 안 뽑은 실험에는 아예 없다 (schema.ts). undefined를 그대로 넣으면
+    // 그 키가 파일에 `null`로 남거나 사라지는 것이 직렬화에 달리게 된다.
+    ...(settings.nSamples === undefined ? {} : { nSamples: settings.nSamples }),
     trainIndices: split.trainIndices,
     testIndices: split.testIndices,
   }

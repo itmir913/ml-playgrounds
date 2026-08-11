@@ -387,6 +387,7 @@
     "SPLIT_TOO_FEW_ROWS": "There is not enough data to split into a training set and a test set. (usable {actualRows}, needs at least {minRows})",
     "SPLIT_STRATIFY_IMPOSSIBLE": "'{label}' appears too few times to keep the same proportions in the split. Turn off proportional splitting, or collect more rows with this value. (has {count}, needs at least {minRows})",
     "SPLIT_STRATIFY_TARGET_CONTINUOUS": "The target has {kinds} distinct values and {lonely} of them appear only once, so the split cannot keep the same proportions. Almost every value differs, so turn off proportional splitting.",
+    "SAMPLE_STRATIFY_IMPOSSIBLE": "You chose to use only {nSamples} rows, but the target has {labels} distinct values, so the sample cannot keep the same proportions. Use more rows, or turn off proportional splitting. (each value needs at least {minRows})",
     "STRATIFY_NOT_FOR_TASK_TYPE": "The machine learning type you picked has no value categories to balance, so proportional splitting is unavailable.",
     "CLUSTER_TOO_FEW_ROWS": "There are only {rows} rows, so the data cannot be split into {clusters} clusters. Lower the number of clusters, or collect more data.",
     "TEST_DATASET_COLUMN_MISSING": "The Test Data file is missing columns from the training data. ({columns})",
