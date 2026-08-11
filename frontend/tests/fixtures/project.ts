@@ -17,7 +17,7 @@ import {
 
 export const manifest: Manifest = {
   formatVersion: FORMAT_VERSION,
-  appVersion: '0.1.0',
+  appVersion: '0.0.0',
   projectId: '550e8400-e29b-41d4-a716-446655440000',
   name: '붓꽃 품종 분류',
   createdAt: '2026-08-04T09:00:00Z',

@@ -11,7 +11,7 @@ from app.api.handlers import register_exception_handlers
 
 def create_app() -> FastAPI:
     """앱을 조립한다. 테스트가 매번 깨끗한 인스턴스를 만들 수 있게 팩토리로 둔다."""
-    application = FastAPI(title="ML Playgrounds", version="0.1.0")
+    application = FastAPI(title="ML Playgrounds", version="0.0.0")
     register_exception_handlers(application)
 
     @application.get("/health")

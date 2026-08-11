@@ -171,6 +171,13 @@
   없고, 그 순간 그 코드는 우리 것도 남의 것도 아니게 된다. 벤더링은 마지막 수단이다:
   먼저 의존성으로 쓸 수 없는 이유가 `docs/open-decisions.md`에 있어야 한다.
   (예: `frontend/src/ml/engines/svm-smo.ts`)
+- **관리하는 버전은 `frontend/package.json` 하나다.** 그 값이 `__APP_VERSION__`을 거쳐
+  학생 파일의 `manifest.appVersion`에 박힌다 — 태그와 어긋나면 받은 `.mlpx`가 어느
+  빌드에서 나왔는지 알 수 없다. **나머지 버전 문자열은 전부 `0.0.0`으로 둔다**
+  (백엔드 `pyproject.toml`, FastAPI 앱, 문서 예시, 테스트 픽스처). 아무도 안 올리는
+  숫자가 진짜 버전처럼 보이면 다음 사람이 그것을 믿는다.
+  **포맷·엔진 버전은 여기 해당하지 않는다** — `FORMAT_VERSION`·`DB_VERSION`·엔진
+  `version`은 값 자체가 뜻을 가지며, **배포 전에는 올리지 않는다.**
 - 커밋: Conventional Commits (`feat:` `fix:` `docs:` `refactor:` `test:` `chore:`)
 
 **커밋 규칙 (예외 없음)**

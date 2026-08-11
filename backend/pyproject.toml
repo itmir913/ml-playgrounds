@@ -1,6 +1,6 @@
 [project]
 name = "ml-playgrounds-backend"
-version = "0.1.0"
+version = "0.0.0"
 description = "ML Playgrounds backend - computes only, stores nothing"
 requires-python = ">=3.12"
 license = { text = "MIT" }

@@ -483,7 +483,7 @@ describe('예측에 쓸 수 있는 모델', () => {
     return {
       manifest: {
         formatVersion: 1,
-        appVersion: '0.1.0',
+        appVersion: '0.0.0',
         projectId: '11111111-1111-4111-8111-111111111111',
         name: '테스트',
         createdAt: '2026-08-06T00:00:00.000Z',
