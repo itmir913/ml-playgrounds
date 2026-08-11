@@ -42,7 +42,13 @@ afterEach(async () => {
   await deleteDatabase()
 })
 
-describe('라우터', () => {
+/**
+ * **기본 타임아웃(5초)으로는 모자란다.** 이 검사들은 라우터를 실제로 태우므로 그때마다
+ * 화면 청크를 **동적으로 import**한다 — 혼자 돌리면 1.4초인 줄이 전체 검사와 함께 돌면
+ * 그 수 배가 된다(2026-08-11에 세 번 흔들렸다). 느려진 것이 아니라 **재는 자리가 원래
+ * 그런 자리**라, 시간을 늘려 두고 진짜 멈춤은 20초가 잡게 한다.
+ */
+describe('라우터', { timeout: 20_000 }, () => {
   it('해시 모드다 - Pages에서 새로고침이 404가 되면 안 된다', async () => {
     await router.push({ name: ROUTE_PROJECTS })
     expect(window.location.hash).toBe('#/')
