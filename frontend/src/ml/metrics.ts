@@ -200,7 +200,14 @@ function euclideanDistance(a: readonly number[], b: readonly number[]): number {
  *
  * **이너셔 (Inertia)**
  * 각 데이터와 자기 군집 중심점까지 거리의 제곱합. K-Means의 목적함수다.
- * 학습 엔진이 이미 계산하지만 검증을 위해 여기서도 계산한다.
+ *
+ * **`run.metrics`에 남는 값은 여기서 계산한 것이다.** mljs 엔진도 자기 결과에
+ * 이너셔를 들고 있지만(sklearn의 `inertia_` 자리) 그 값을 받아 쓰지 않는다 -
+ * 받으면 지표 계산이 엔진의 출력을 요구하게 되고, 이너셔를 주지 않는 엔진이
+ * 들어오는 순간 군집 지표가 엔진마다 갈린다. 지표는 `(data, assignments,
+ * centroids)`만 있으면 언제나 같은 값을 낸다. **두 값이 같은지는
+ * tests/mljs-kmeans.spec.ts가 대조한다** - 예전 주석은 "검증을 위해 여기서도
+ * 계산한다"고 적어 놓고 아무 데서도 대조하지 않았다.
  */
 function evaluateClustering(
   data: readonly (readonly number[])[],
@@ -221,19 +228,24 @@ function evaluateClustering(
     }
   }
 
+  // 군집별 데이터 인덱스
+  const clusters: number[][] = Array.from({ length: k }, () => [])
+  for (let i = 0; i < n; i += 1) {
+    clusters[assignments[i]!]?.push(i)
+  }
+  // **가드가 보는 것은 중심점 수가 아니라 실제로 채워진 군집 수다.** 중심점이 셋이어도
+  // 점이 전부 한 군집에 몰리면 비교할 다른 군집이 없다. 그때 bi가 갱신되지 못해 0이 되고
+  // 모든 점에서 s = (0 − a)/a = −1이 나온다 - "가장 나쁜 군집화"를 뜻하는 값을 조용히
+  // 돌려주는 것이다. 학생은 k를 올렸는데 점수가 −1로 떨어지는 표를 보게 된다.
+  const filled = clusters.reduce((count, cluster) => count + (cluster.length > 0 ? 1 : 0), 0)
+
   // 실루엣 계수
   let silhouette: number
-  if (k <= 1 || k >= n) {
-    // k=1이면 비교할 다른 군집이 없다. k≥n이면 군집마다 점이 하나뿐이라 a(i)=0이고
-    // b(i)=0이다 — sklearn도 0을 돌려준다.
+  if (filled <= 1 || k >= n) {
+    // 군집이 하나면 비교할 다른 군집이 없다 (sklearn은 여기서 ValueError를 던진다).
+    // k≥n이면 군집마다 점이 하나뿐이라 a(i)=0이고 b(i)=0이다 — sklearn도 0을 돌려준다.
     silhouette = 0
   } else {
-    // 군집별 데이터 인덱스
-    const clusters: number[][] = Array.from({ length: k }, () => [])
-    for (let i = 0; i < n; i += 1) {
-      clusters[assignments[i]!]!.push(i)
-    }
-
     let totalSilhouette = 0
     for (let i = 0; i < n; i += 1) {
       const ci = assignments[i]!
@@ -262,7 +274,8 @@ function evaluateClustering(
         bi = Math.min(bi, sum / clusters[c]!.length)
       }
 
-      // 다른 군집이 전부 비어서 bi가 갱신되지 않은 경우 (k≥n 가드 위에서 걸리지만 방어)
+      // 다른 군집이 전부 비어서 bi가 갱신되지 않은 경우. 위의 filled 가드가 이미
+      // 걸러내므로 여기 오지 않는다 - 방어선으로 남긴다.
       if (!Number.isFinite(bi)) bi = 0
 
       const maxAB = Math.max(ai, bi)

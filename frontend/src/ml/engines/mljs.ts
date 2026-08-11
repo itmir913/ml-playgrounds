@@ -54,6 +54,7 @@ import {
   REFERENCE_FORMAT,
   SVM_FORMAT,
   knnPredict,
+  loadKMeansModel,
   loadLinearV2Model,
   svmPredict,
 } from '../models'
@@ -635,8 +636,10 @@ const TRAINERS: Record<string, Trainer> = {
    * 인터페이스에 있는 이유는 분류·회귀와 같은 시그니처를 쓰기 위해서이고,
    * 여기서 target을 읽지 않는 것이 그 사실을 드러낸다.
    *
-   * 예측은 모델 해석기(loadKMeansModel)와 같은 규칙이다 — 가장 가까운 중심점의
-   * 번호를 문자열로 돌려준다.
+   * **예측은 담은 모델의 해석기를 그대로 쓴다** — KNN·SVM·로지스틱과 같은 방식이고,
+   * 그래서 저장했다 읽은 모델의 예측이 원본과 같은 것이 구조로 보장된다. 같은 규칙을
+   * 두 번 적으면 동점 처리나 featureCount 취급이 한쪽만 바뀌었을 때 저장 전후 예측이
+   * 갈라지고, 그 어긋남은 파일을 다시 열어야 보인다.
    */
   k_means: (input) => {
     const featureCount = input.features[0]?.length ?? 0
@@ -656,24 +659,7 @@ const TRAINERS: Record<string, Trainer> = {
       : { code: 'KMEANS_NOT_CONVERGED', params: { iterations: result.iterations } }
 
     return {
-      predict: (features) =>
-        features.map((row) => {
-          let bestCluster = 0
-          let bestDist = Number.POSITIVE_INFINITY
-          for (let c = 0; c < k; c += 1) {
-            const centroid = result.centroids[c]!
-            let dist = 0
-            for (let j = 0; j < featureCount; j += 1) {
-              const gap = (row[j] ?? 0) - (centroid[j] ?? 0)
-              dist += gap * gap
-            }
-            if (dist < bestDist) {
-              bestDist = dist
-              bestCluster = c
-            }
-          }
-          return String(bestCluster)
-        }),
+      predict: loadKMeansModel(model),
       model,
       clusterResult: { assignments: result.assignments, centroids: result.centroids },
       ...(warning ? { warning } : {}),

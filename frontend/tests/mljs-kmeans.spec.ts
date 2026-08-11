@@ -19,6 +19,7 @@ import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
 import { fitKMeans } from '../src/ml/engines/mljs-kmeans'
+import { CLUSTER_EVALUATOR } from '../src/ml/metrics'
 
 /** 돌려받은 중심점으로 직접 배정해 본 결과. 엔진의 답과 같아야 한다. */
 function assignBy(
@@ -127,6 +128,16 @@ describe('돌려주는 값이 서로 맞는다', () => {
     expect(result.iterations).toBe(1)
     expect([...result.assignments]).toEqual(recomputed.assignments)
     expect(result.inertia).toBeCloseTo(recomputed.inertia, 10)
+  })
+
+  it('엔진의 이너셔가 지표 쪽 계산과 같다', () => {
+    // **대조는 여기서 한다.** `metrics.ts`가 이너셔를 다시 계산하는 이유는 지표가
+    // 엔진의 출력을 요구하지 않기 위해서다(이너셔를 안 주는 엔진이 들어올 수 있다).
+    // 그렇다면 두 값이 같은지는 어디선가 봐야 하고, 그 자리가 검사다 - 예전에는
+    // "검증을 위해"라고 주석만 있고 대조하는 코드가 없었다.
+    const result = fitKMeans(TWO_BLOBS, 2, 42)
+    const { metrics } = CLUSTER_EVALUATOR(TWO_BLOBS, result.assignments, result.centroids)
+    expect(metrics.inertia).toBeCloseTo(result.inertia, 10)
   })
 })
 

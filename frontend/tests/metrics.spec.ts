@@ -309,6 +309,22 @@ describe('군집', () => {
     expect(metrics.silhouette).toBe(0)
   })
 
+  it('중심점이 여럿이어도 점이 한 군집에 몰리면 0이다 - −1이 아니다', () => {
+    // 가드가 중심점 수를 보던 때는 여기서 −1이 나왔다. 빈 군집은 건너뛰므로 bi가
+    // 갱신되지 않고, 그러면 모든 점에서 s = (0 − a)/a = −1이다. "가장 나쁜 군집화"를
+    // 뜻하는 값이라 학생은 k를 올렸는데 점수가 떨어지는 표를 본다.
+    const { metrics } = CLUSTER_EVALUATOR(
+      data,
+      [0, 0, 0, 0],
+      [
+        [5.5, 5],
+        [100, 100],
+        [200, 200],
+      ],
+    )
+    expect(metrics.silhouette).toBe(0)
+  })
+
   it('혼동 행렬도 클래스별 지표도 없다 - 비지도학습이다', () => {
     const result = CLUSTER_EVALUATOR(data, assignments, centroids)
     expect(result.confusionMatrix).toBeUndefined()
