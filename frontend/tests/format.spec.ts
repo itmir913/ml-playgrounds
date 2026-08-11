@@ -130,13 +130,10 @@ describe('왕복', () => {
    */
   it('뽑은 행 수가 왕복한다', async () => {
     const project = projectFile()
-    // **`settings`를 제자리에서 고치지 마라.** fixtures/project.ts의 `settings`는 모듈
-    // 수준 상수라 projectFile()들이 같은 객체를 공유한다 - 여기서 키를 하나 얹으면
-    // 뒤따르는 모든 검사가 그 값을 물려받는다.
-    project.document = {
-      ...project.document,
-      settings: { ...project.document.settings, nSamples: 3000 },
-    }
+    // 제자리에서 고쳐도 다음 projectFile()은 멀쩡하다 - 팩토리가 매번 복사본을 준다
+    // (tests/fixtures.spec.ts가 그것을 지킨다). 예전에는 아니었고, 이 검사가 그 오염을
+    // 처음 밟았다.
+    project.document.settings.nSamples = 3000
     const reopened = await roundTrip(project)
     expect(reopened.document.settings.nSamples).toBe(3000)
   })

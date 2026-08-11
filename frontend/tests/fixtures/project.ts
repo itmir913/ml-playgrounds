@@ -15,6 +15,23 @@ import {
   type Run,
 } from '../../src/project/schema'
 
+/**
+ * 공유 상수를 **팩토리 밖으로 내보낼 때마다** 통과시킨다.
+ *
+ * 아래 `manifest`·`settings`·`dataset` 같은 것들은 검사가 기대값으로도 쓰기 때문에
+ * `export const`로 남는다. 그런데 그것을 팩토리가 그대로 넣어 주면 **모든 프로젝트가
+ * 같은 객체를 공유하게 되고**, 어느 검사가 `project.document.settings.<키> = 값`처럼
+ * 제자리에서 고치는 순간 같은 파일의 뒤따르는 검사가 전부 그 값을 물려받는다.
+ *
+ * **그 오염은 격리 실행에서 안 보인다.** `vitest -t`로 하나만 돌리면 통과하고 전체를
+ * 돌릴 때만 빨개져서, 원인이 자기 검사 안에 없다 (2026-08-12에 실제로 밟았다 —
+ * `format.spec.ts`의 `nSamples` 왕복 검사).
+ *
+ * 얕은 복사로는 부족하다. `settings.split`·`settings.preprocessing`처럼 한 겹 아래가
+ * 여전히 같은 객체다.
+ */
+const fresh = <T>(value: T): T => structuredClone(value)
+
 export const manifest: Manifest = {
   formatVersion: FORMAT_VERSION,
   appVersion: '0.0.0',
@@ -92,10 +109,12 @@ export function experiment(id: string, runs: Run[]): Experiment {
         { algorithm: 'decision_tree', runtime: 'mljs' },
         { algorithm: 'svm', runtime: 'server-sklearn' },
       ],
-      features: settings.features,
+      // **여기도 복사한다.** 실험 스냅샷이 settings의 중첩 객체를 그대로 물면
+      // `experiment.settings.split.testSize = …` 하나로 위 상수까지 오염된다.
+      features: fresh(settings.features),
       target: settings.target,
-      preprocessing: settings.preprocessing,
-      split: settings.split,
+      preprocessing: fresh(settings.preprocessing),
+      split: fresh(settings.split),
       trainIndices: [0, 2, 3],
       testIndices: [1],
     },
@@ -135,7 +154,7 @@ export function projectFileWithTestDataset(overrides: Partial<ProjectFile> = {})
         },
       },
     },
-    testDataset,
+    testDataset: fresh(testDataset),
   }
 }
 
@@ -168,7 +187,7 @@ export function projectFileWithPredictDataset(overrides: Partial<ProjectFile> = 
         },
       },
     },
-    predictDataset,
+    predictDataset: fresh(predictDataset),
   }
 }
 
@@ -183,11 +202,11 @@ export function emptyProjectFile(): ProjectFile {
     document: {
       // **유형도 아직 없다.** 학습 화면에서 고르는 것이라 새 프로젝트에는 없는 것이
       // 맞다 (open-decisions.md "기계학습 유형은 모델을 고르는 자리에서 고른다").
-      manifest: { ...manifest, taskType: undefined },
+      manifest: { ...fresh(manifest), taskType: undefined },
       // 전처리·분할·기본 실행 방법은 데이터가 없어도 고를 수 있는 값이라 남는다.
       // 열 이름을 아는 것들만 빈다 - 표를 봐야 정할 수 있기 때문이다.
       settings: {
-        ...settings,
+        ...fresh(settings),
         dataset: undefined,
         features: [],
         target: undefined,
@@ -203,12 +222,12 @@ export function emptyProjectFile(): ProjectFile {
 export function projectFile(overrides: Partial<ProjectFile> = {}): ProjectFile {
   return {
     document: {
-      manifest,
-      settings,
+      manifest: fresh(manifest),
+      settings: fresh(settings),
       runs: { experiments: [experiment('experiment-1', [run('run-1')])] },
       portfolio: { template: { id: 'default-v1' }, answers: { motivation: '꽃이 좋아서' } },
     },
-    dataset,
+    dataset: fresh(dataset),
     models: new Map([
       ['model/run-1.json', new TextEncoder().encode('{"tree":[]}')],
       ['model/preprocessor-experiment-1.json', new TextEncoder().encode('{"columns":[]}')],
