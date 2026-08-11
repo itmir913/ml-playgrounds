@@ -14,14 +14,19 @@
  * 것이 안 되게 된다.
  */
 
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
 import AppTable from '@/components/AppTable.vue'
 import { useFormat } from '@/composables/useFormat'
 import { CLUSTER_NEIGHBOR_ROW_COUNT } from '@/limits'
-import { clusterMaterialFor, clusterSummaries, nearestMembers } from '@/ml/clusters'
+import {
+  clusterMaterialFor,
+  clusterSummaries,
+  nearestMembers,
+  type ClusterMaterial,
+} from '@/ml/clusters'
 import { inputVector, type Answer, type PredictableModel } from '@/ml/predict'
 import type { Dataset, Preprocessor } from '@/ml/preprocess'
 import { whereTrainedKeyOf } from '@/ml/results'
@@ -59,6 +64,43 @@ interface Neighborhood {
 }
 
 /**
+ * 실험·모델마다 재료 한 벌. **한 번 만들어 들고 있는다** (#28-6).
+ *
+ * **computed 안에서 만들면 안 된다** — 재료의 알맹이는 학습 행렬이고 그건 파일에만
+ * 달려 있는데, computed는 학생이 [예측]을 누를 때마다(답이 바뀔 때마다) 통째로 다시
+ * 돈다. 10만 행짜리 행렬을 그때마다 다시 만들면 저사양 학교 PC에서 그 버튼이 멈춘다.
+ *
+ * **`null`도 담는다.** "아직 안 만들어 봤다"와 "만들어 봤는데 무리로 설명할 수 없다"를
+ * 가르지 않으면 군집이 아닌 모델마다 매번 다시 시도하게 된다.
+ */
+const materials = new Map<string, ClusterMaterial | null>()
+
+/** 표가 가리키는 것이 통째로 바뀌는 유일한 경로다. 그때 들고 있던 것을 버린다. */
+watch(
+  () => props.dataset,
+  () => materials.clear(),
+)
+
+function materialFor(model: PredictableModel): ClusterMaterial | null {
+  const { experiment, run } = model
+  const path = run.model?.path
+  const key = `${experiment.id}|${path ?? ''}`
+
+  const cached = materials.get(key)
+  if (cached !== undefined) return cached
+
+  const built = clusterMaterialFor(
+    run.model?.format,
+    path === undefined ? undefined : props.modelFiles.get(path),
+    props.dataset,
+    props.preprocessors.get(experiment.id),
+    experiment.settings,
+  )
+  materials.set(key, built)
+  return built
+}
+
+/**
  * 무리로 설명할 수 있는 답마다 한 덩어리.
  *
  * **이 화면은 과제 유형도 모델 형식도 모른다** (§9.1). 무엇이 무리로 설명되는지는
@@ -73,17 +115,14 @@ const neighborhoods = computed<Neighborhood[]>(() => {
     const { experiment, run } = model
     if (model.reason) continue
 
+    // **답이 없으면 아무것도 만들지 않는다.** 재료를 먼저 만들면 [예측]을 누르기 전에도
+    // 학습 행렬이 서고, 군집이 아닌 모델에서도 선다.
     const answer = props.answers.get(run.id)?.value
     const preprocessor = props.preprocessors.get(experiment.id)
-    const bytes = run.model?.path === undefined ? undefined : props.modelFiles.get(run.model.path)
-    const material = clusterMaterialFor(
-      run.model?.format,
-      bytes,
-      dataset,
-      preprocessor,
-      experiment.settings,
-    )
-    if (answer === undefined || !preprocessor || !dataset || !material) continue
+    if (answer === undefined || !preprocessor || !dataset) continue
+
+    const material = materialFor(model)
+    if (!material) continue
 
     try {
       const cluster = Number(answer)
