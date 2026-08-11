@@ -413,28 +413,62 @@ function sampleStratifyBlock(
   }
 }
 
-export function stratifyBlock(input: StratifyInput): StratifyBlock | null {
-  if (input.taskType !== undefined && STRATIFY_MEANINGLESS[input.taskType]) {
+/**
+ * 층화를 걸 수 있는가 — **라벨만 보고 답한다.**
+ *
+ * 판정에 실제로 필요한 것은 **쓸 수 있는 표본의 라벨 하나하나**뿐이다. 그것을 무엇에서
+ * 뽑는지는 데이터 종류마다 다르다 — 표는 타깃 열의 값이고 이미지는 사진이 든 범주다.
+ * **그래서 뽑는 일은 판이 하고, 판정은 여기 하나로 남는다** (architecture.md §9.1.2).
+ * `MIN_SPLIT_ROWS`의 주석이 "층화할 때는 **라벨마다** 이만큼 필요하다"고 적어 둔 그 뜻이다.
+ *
+ * `labels`는 **표본 하나에 원소 하나**다. 미리 센 개수가 아니라 값의 나열인 이유는
+ * 아래 둘이 "값이 몇 종류인가"와 "1개뿐인 값이 몇 개인가"를 함께 봐야 하기 때문이다.
+ */
+export function stratifyBlockFor(
+  taskType: TaskType | undefined,
+  labels: readonly string[],
+  nSamples: number | undefined,
+): StratifyBlock | null {
+  if (taskType !== undefined && STRATIFY_MEANINGLESS[taskType]) {
     return { code: 'STRATIFY_NOT_FOR_TASK_TYPE' }
   }
 
-  const { dataset, target } = input
-  if (!dataset || target === undefined) return null
-
-  const column = dataset.columns.indexOf(target)
-  if (column < 0) return null
-
-  const rows = usableRows(dataset, input.features, target, input.preprocessing.missing)
-  const values = rows.map((row) => String(dataset.rows[row]?.[column]))
-
   // **뽑기를 먼저 본다.** 학습에서도 뽑기가 분할보다 앞이라(ml/experiment.ts) 둘 다
   // 걸리는 데이터에서 화면과 [학습]이 다른 말을 하면 안 된다.
-  const tooFewToSample = sampleStratifyBlock(values, input.nSamples)
+  const tooFewToSample = sampleStratifyBlock(labels, nSamples)
   if (tooFewToSample) return tooFewToSample
 
-  const { labels, kinds } = lonelyValues(values)
-  if (labels.length === 0) return null
+  const { labels: lonely, kinds } = lonelyValues(labels)
+  if (lonely.length === 0) return null
+  return blockFor(lonely, kinds)
+}
 
+/**
+ * 표의 타깃 열에서 라벨을 뽑아 위 판정에 넘긴다. **표 전용 어댑터다.**
+ *
+ * **학습이 보는 것과 같은 행을 센다** (`usableRows`). 결측 처리에서 빠질 행을 함께 세면
+ * 화면은 멀쩡한데 학습이 거부한다.
+ */
+export function stratifyBlock(input: StratifyInput): StratifyBlock | null {
+  const { dataset, target } = input
+  // 유형 판정은 데이터가 없어도 성립한다 - 회귀를 고른 순간 층화는 뜻을 잃는다.
+  if (!dataset || target === undefined) {
+    return stratifyBlockFor(input.taskType, [], input.nSamples)
+  }
+
+  const column = dataset.columns.indexOf(target)
+  if (column < 0) return stratifyBlockFor(input.taskType, [], input.nSamples)
+
+  const rows = usableRows(dataset, input.features, target, input.preprocessing.missing)
+  return stratifyBlockFor(
+    input.taskType,
+    rows.map((row) => String(dataset.rows[row]?.[column])),
+    input.nSamples,
+  )
+}
+
+/** 1개뿐인 값들을 어떤 이유로 말할지. **위 판정이 걸린 뒤에만 부른다.** */
+function blockFor(labels: readonly string[], kinds: number): StratifyBlock {
   // 값 하나만 부족한 것과 값이 거의 다 다른 것은 학생이 할 일이 정반대다.
   return labels.length === 1
     ? {

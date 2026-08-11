@@ -27,7 +27,14 @@ import { useRadioGroupGuard } from '@/composables/useRadioGroupGuard'
 import { summarizeColumns } from '@/data/columns'
 import { importTable, openTable, TABULAR_ACCEPT, type TableDocument } from '@/data/table'
 import { MIN_SPLIT_ROWS } from '@/limits'
-import { columnPlan, requiredTargetKind, rowUsage, trainableRowCount } from '@/ml/selection'
+import {
+  columnPlan,
+  requiredTargetKind,
+  rowUsage,
+  stratifyBlock,
+  stratifyLocked,
+  trainableRowCount,
+} from '@/ml/selection'
 import {
   applyTestDataset,
   readDataset,
@@ -41,7 +48,13 @@ import {
   type Preprocessing,
   type ProjectDocument,
 } from '@/project/schema'
-import { withFeatures, withPreprocessing, withSampling, withTarget } from '@/project/settings'
+import {
+  withFeatures,
+  withPreprocessing,
+  withSampling,
+  withSplit,
+  withTarget,
+} from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import ColumnPicker from './ColumnPicker.vue'
@@ -220,6 +233,57 @@ function setSampleRows(input: HTMLInputElement): void {
   input.value = String(next)
 }
 
+// ---------------------------------------------------------------------- 층화
+
+/**
+ * 층화를 켜고 끈다. **DOM과 파일이 갈리지 않게 끝에 되돌린다** (architecture.md §8.15.1).
+ *
+ * `:checked`는 `v-model`이 아니라, 계산값이 안 바뀌면 Vue가 DOM 프로퍼티를 다시 안 쓴다.
+ * 그런데 브라우저는 클릭한 순간 이미 `checked`를 뒤집어 둔 뒤다. 그래서 여기서 파일을
+ * 못 고치면(파일이 없다) **화면은 꺼진 것처럼 보이는데 파일은 켜져 있는** 상태로 남고,
+ * 잠금 판정은 파일을 보므로 **입력이 회색이 된 뒤에는 학생이 고칠 문이 없다.**
+ *
+ * 그래서 둘을 지킨다 - **의도는 파일에서 뒤집고**(브라우저가 바꿔 둔 `checked`는 우리가
+ * 만든 결과가 아니다), **끝에 DOM을 파일 값으로 다시 쓴다**(정상 경로에서는 이미 같아서
+ * 아무 일도 아니다).
+ */
+function onStratify(event: Event): void {
+  const input = event.target as HTMLInputElement
+  const file = project.file
+  if (file) {
+    apply(withSplit(file.document, { stratify: !file.document.settings.split.stratify }, now()))
+  }
+  input.checked = project.file?.document.settings.split.stratify ?? false
+}
+
+/**
+ * 층화를 걸 수 없는 이유. **판정은 화면 밖에 있다** (`ml/selection.ts`의 `stratifyBlock`).
+ *
+ * 학습이 보는 것과 같은 함수라 "화면은 멀쩡한데 [학습]이 거부한다"가 생기지 않는다.
+ */
+const stratifyBlockNow = computed(() => {
+  const current = settings.value
+  if (!current) return null
+  return stratifyBlock({
+    dataset: dataset.value,
+    taskType: project.taskType,
+    target: current.data.target,
+    features: current.data.features,
+    preprocessing: current.data.preprocessing,
+    nSamples: current.nSamples,
+  })
+})
+
+const stratifyReason = computed(() => {
+  const block = stratifyBlockNow.value
+  return block === null ? null : t(`client.${block.code}`, block.params ?? {})
+})
+
+/** 잠금 규칙은 화면 밖에 있다 (`ml/selection.ts`의 `stratifyLocked` - 왜 그런지도 거기 있다). */
+const stratifyDisabled = computed(() =>
+  stratifyLocked(stratifyBlockNow.value, settings.value?.split.stratify ?? false),
+)
+
 // ------------------------------------------------------------ 평가 데이터 받기
 
 /** 평가 데이터를 파싱한 표. `split.method`가 `provided`가 아니면 없다. */
@@ -388,7 +452,7 @@ async function removeTest(): Promise<void> {
     가두면 그 안에서만 옆으로 스크롤하게 된다. 다만 2 대 1은 표에 과했다 - 오른쪽
     설정들이 라디오 줄이라 좁으면 글자마다 접힌다. **6 대 4**로 다섯 칸을 나눈다.
   -->
-  <div v-if="data && plan" class="grid gap-5 md:grid-cols-5">
+  <div v-if="settings && data && plan" class="grid gap-5 md:grid-cols-5">
     <section class="min-w-0 rounded-panel border border-line bg-surface p-4 md:col-span-3">
       <h2 class="font-bold">{{ t('preprocess.columnsTitle') }}</h2>
       <p class="mt-1 text-ink-soft">{{ t('preprocess.columnsLead') }}</p>
@@ -582,8 +646,29 @@ async function removeTest(): Promise<void> {
               </span>
             </label>
 
-            <!-- 얼마나 나눌 것인가는 모든 종류에 공통이다. 내용은 PreprocessView가 넣는다. -->
             <div v-if="testChoice === 'holdout'" class="mt-3 ml-6 flex flex-col gap-4">
+              <!--
+                **비율과 씨앗은 공통이라 슬롯으로 온다** (architecture.md 9.1.2).
+                층화만 여기 있는 이유는 잠기는지와 왜 잠기는지가 이 종류의 라벨 분포에
+                달려 있어서다 - 슬롯은 그것을 알 방법이 없다.
+              -->
+              <slot name="split-ratio" />
+
+              <div>
+                <label class="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    class="size-4 accent-brand"
+                    :checked="settings.split.stratify"
+                    :disabled="stratifyDisabled"
+                    @change="onStratify"
+                  />
+                  <span class="font-bold">{{ t('preprocess.stratify') }}</span>
+                </label>
+                <!-- 이유 없이 회색이면 고장으로 보이고, 켜진 채 걸린 것은 학생이 꺼야 한다. -->
+                <p v-if="stratifyReason" class="mt-1 ml-6 text-caution">{{ stratifyReason }}</p>
+              </div>
+
               <slot />
             </div>
           </div>

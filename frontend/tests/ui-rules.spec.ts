@@ -972,3 +972,58 @@ describe('DOM이 필요한 검사는 스스로 밝힌다', () => {
     expect(silent).toEqual([])
   })
 })
+
+/**
+ * **종류를 모르는 화면은 데이터 계층과 학습 계층을 import하지 않는다**
+ * (architecture.md §9.1.2).
+ *
+ * 표의 열이든 이미지의 범주든, 그 사실을 아는 것은 등록부에서 꺼낸 판이다. 공통 화면이
+ * 한 줄만 끌어와도 그 화면은 "표가 있다"를 아는 화면이 되고, **이미지가 들어오는 날
+ * 고쳐야 할 파일이 등록부 하나가 아니라 그 사실을 아는 화면 전부가 된다** (§9.1).
+ *
+ * 실제로 그 자리가 둘 있었다 — 평가용 파일의 `accept`와 시트 고르기가 종류를 모르는
+ * 화면에 있었고(2026-08-12에 판으로 옮겼다), 층화 판정이 타깃 열 분포를 직접 보고
+ * 있었다(같은 날 라벨 분포로 낮췄다). **둘 다 그 자리에서는 한 줄이 더 싸 보였다.**
+ *
+ * **못 막는 것을 적어 둔다.** 이 검사는 `@/data/*`와 `@/ml/*`만 본다. `PreprocessView`가
+ * 아직 `@/project/dataset`의 `readDataset`을 부르는데(머리글의 행 수·열 수), 그건
+ * 로드맵 V4의 "헤더 문맥을 판으로 옮기기"가 가져갈 자리다 — 여기서 함께 막으면 그 항목을
+ * 하기 전까지 검사가 빨간 채로 있게 된다.
+ */
+describe('종류를 모르는 화면은 종류를 모른다', () => {
+  /**
+   * 데이터 종류를 모른 채 판을 그리는 화면들. **판(`views/data/`·`views/preprocess/`)은
+   * 여기 없다** — 그쪽은 자기 종류를 아는 것이 일이다.
+   */
+  const KIND_AGNOSTIC = ['DataView.vue', 'PreprocessView.vue']
+
+  const NEWLINE = String.fromCharCode(10)
+  /** 윈도우와 POSIX를 함께 다룬다 - 경로 구분자가 갈린다. */
+  const SEPARATOR = new RegExp('[\\\\/]')
+
+  /**
+   * 종류를 아는 계층. 판만 여기서 꺼내 쓴다.
+   *
+   * **등록부(`@/data/kinds`)는 예외다.** 종류를 모르는 화면이 판을 얻는 유일한 문이고,
+   * 그것을 부르는 것이 곧 "종류를 모른 채 그린다"는 뜻이다 — 막으면 규칙이 자기 장치를
+   * 금지하는 셈이 된다.
+   */
+  const KIND_AWARE = /from '@\/(data|ml)\/(?!kinds')/
+
+  it('목록의 화면이 실제로 있다 - 없으면 아래가 조용히 통과한다', () => {
+    const names = vueFiles(SRC).map((path) => path.split(SEPARATOR).pop())
+    for (const screen of KIND_AGNOSTIC) expect(names, screen).toContain(screen)
+  })
+
+  it('@/data/*와 @/ml/*를 import하지 않는다', () => {
+    const found = vueFiles(SRC)
+      .filter((path) => KIND_AGNOSTIC.includes(path.split(SEPARATOR).pop() ?? ''))
+      .flatMap((path) =>
+        readFileSync(path, 'utf-8')
+          .split(NEWLINE)
+          .filter((line) => KIND_AWARE.test(line))
+          .map((line) => `${path.slice(SRC.length + 1)}  ${line.trim()}`),
+      )
+    expect(found, '종류를 아는 계층은 등록부에서 꺼낸 판이 부른다').toEqual([])
+  })
+})
