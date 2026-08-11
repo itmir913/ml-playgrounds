@@ -123,13 +123,34 @@ export function resolve(
  *
  * `{ max_depth: 5, min_samples_split: 2 }` → `"max_depth=5, min_samples_split=2"`
  *
+ * **서술을 순회한다. 준 값의 키를 순회하지 않는다.** 이름이 우리 상수(`spec.name`)가
+ * 되므로 학생 파일의 문자열이 Python 소스에 닿는 경로가 닫힌다. 예전에는
+ * `Object.entries(hp)`를 돌았고, 그 키의 출처는 `.mlpx`의
+ * `hyperparameters`(`z.record(z.string(), z.unknown())`)였다 — `resolveWith`는
+ * 서술에 없는 키를 손대지 않고 통과시키므로 남의 파일에 든 임의의 문자열이
+ * `runPython()`까지 갔다. `.mlpx`는 교사와 학생이 서로 주고받는 것이 이 도구의
+ * 전제이고(CLAUDE.md §1.3), Pyodide의 Python은 `import js`로 IndexedDB와 `fetch`에
+ * 닿는다. **지금은 `setPyodide()`를 부르는 코드가 없어 도달하지 않지만, 워커 배선이
+ * 붙는 순간 열리는 경로다.**
+ *
+ * **값도 유한한 수치만 받는다.** 서술(`HyperparameterSpec`)이 수치 전용이다.
+ * 예전 코드는 수치가 아니면 `JSON.stringify`를 했는데, 그러면 boolean이 Python에서
+ * `true`(이름 오류)가 되고 문자열은 따옴표째 소스가 된다.
+ *
  * **randomState는 여기서 넣지 않는다** — `random_state`는 모든 알고리즘에
  * 공통이고 FitInput에서 오므로 호출 쪽이 따로 붙인다.
  */
-function formatHyperparameters(hp: Record<string, unknown>): string {
-  return Object.entries(hp)
-    .filter(([, value]) => value !== undefined && value !== null)
-    .map(([key, value]) => `${key}=${typeof value === 'number' ? value : JSON.stringify(value)}`)
+function formatHyperparameters(
+  specs: readonly HyperparameterSpec[],
+  hp: Record<string, unknown>,
+): string {
+  return specs
+    .map((spec) => ({ name: spec.name, value: hp[spec.name] }))
+    .filter(
+      (entry): entry is { name: string; value: number } =>
+        typeof entry.value === 'number' && Number.isFinite(entry.value),
+    )
+    .map((entry) => `${entry.name}=${entry.value}`)
     .join(', ')
 }
 
@@ -157,7 +178,7 @@ function buildFitCode(algorithm: string, hp: Record<string, unknown>, randomStat
   if (!info) throw new ClientError('ALGORITHM_UNSUPPORTED', { algorithm })
 
   const params: string[] = []
-  const formatted = formatHyperparameters(hp)
+  const formatted = formatHyperparameters(parameters(algorithm), hp)
   if (formatted) params.push(formatted)
   if (SUPPORTS_RANDOM_STATE.has(algorithm)) params.push(`random_state=${randomState}`)
 
@@ -183,7 +204,7 @@ _model.fit(_X, _y)
  */
 function buildKMeansFitCode(hp: Record<string, unknown>, randomState: number): string {
   const params: string[] = []
-  const formatted = formatHyperparameters(hp)
+  const formatted = formatHyperparameters(parameters('k_means'), hp)
   if (formatted) params.push(formatted)
   params.push(`random_state=${randomState}`)
   // sklearn KMeans의 기본 알고리즘은 'lloyd'이고 init='k-means++'. 그대로 둔다.
