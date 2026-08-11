@@ -248,6 +248,16 @@ const chartOptions = computed<ChartOptions<'scatter'>>(() => ({
   responsive: true,
   maintainAspectRatio: false,
   /**
+   * **애니메이션을 끈다.** 기본값이 켬이라 축을 한 번 바꾸면 71프레임을 다시 그린다 —
+   * 1만 점에서 799ms, 2만 점에서 4,210ms다(감사 실측). 점 수천 개가 날아다니는 것은
+   * 이 화면이 원하는 장면도 아니다.
+   *
+   * **`limits.ts`의 `CLUSTER_SCATTER_POINT_LIMIT`이 이 줄에 매여 있다** — 상한의 근거가
+   * 된 실측이 `animation: false`에서 나왔다 (open-decisions.md #28-5). 이 줄을 지우면
+   * 그 숫자가 화면의 숫자가 아니게 된다.
+   */
+  animation: false,
+  /**
    * **가리킨 것 하나만 말한다.** 산점도의 기본 모드는 `point`라 커서 아래에 겹친 점을
    * **전부** 세운다 — 촘촘한 자리에서 거의 같은 숫자가 열 줄씩 뜨고, 학생이 가리킨
    * 것이 그중 무엇인지 알 수 없다. `nearest`는 가장 가까운 하나를 준다.
