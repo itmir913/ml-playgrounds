@@ -559,6 +559,8 @@
     "modelName": "{algorithm} · {runtime}",
     "unusable": "이 모델은 지금 쓸 수 없습니다.",
     "notSaved": "예측한 값과 답은 프로젝트 파일에 저장되지 않습니다. 여기는 마음껏 시험해 보는 자리입니다.",
+    "clusterNeighborTitle": "이 답과 비슷한 데이터",
+    "clusterNeighborLead": "같은 군집에 속한 데이터 중에서 입력한 값에 가까운 순서입니다.",
     "range": "데이터에 있는 값: {min} ~ {max}",
     "filterExperiments": "학습 차수",
     "filterAlgorithms": "모델",

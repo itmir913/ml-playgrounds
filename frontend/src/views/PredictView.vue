@@ -42,6 +42,7 @@ import { readDataset, readTestDataset } from '@/project/dataset'
 import type { Experiment } from '@/project/schema'
 import { useProjectStore } from '@/stores/project'
 import AnswerList from './predict/AnswerList.vue'
+import ClusterNeighbors from './predict/ClusterNeighbors.vue'
 import BatchPredict from './predict/BatchPredict.vue'
 import InputRow from './predict/InputRow.vue'
 import PredictFilters, { type FilterOption } from './predict/PredictFilters.vue'
@@ -67,6 +68,11 @@ const testDataset = computed(() => readTestDataset(project.file))
  * 하나가 예외 없이 한 칸 밀린 원-핫을 만든다. 못 읽은 실험은 여기 없고, 그 실험의 모델은
  * 아래에서 사유와 함께 꺼진다.
  */
+/** 모델 경로 → 바이트. 군집 답의 이웃이 중심점을 읽는 데 쓴다 (`ClusterNeighbors`). */
+const modelFiles = computed<ReadonlyMap<string, Uint8Array>>(
+  () => project.file?.models ?? new Map<string, Uint8Array>(),
+)
+
 const preprocessors = computed(() => {
   const parsed = new Map<string, Preprocessor>()
   const file = project.file
@@ -487,6 +493,21 @@ async function run(): Promise<void> {
 
           <div ref="answerListEl" class="min-h-0 min-w-0 flex-1 overflow-y-auto">
             <AnswerList :models="visible" :answers="answers" :experiment-names="experimentNames" />
+
+            <!--
+              **군집의 답에는 이웃이 딸린다** (architecture.md §8.13.1). `2번 군집`이라는
+              답만으로는 학생에게 정수 하나다. 답 카드가 좁아 표가 안 들어가므로 카드
+              아래에 선다.
+            -->
+            <ClusterNeighbors
+              :models="visible"
+              :answers="answers"
+              :dataset="dataset"
+              :preprocessors="preprocessors"
+              :model-files="modelFiles"
+              :values="values"
+              :experiment-names="experimentNames"
+            />
           </div>
         </div>
 

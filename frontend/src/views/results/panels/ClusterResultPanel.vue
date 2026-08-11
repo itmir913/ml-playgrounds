@@ -33,17 +33,8 @@ import { useI18n } from 'vue-i18n'
 import AppTable from '@/components/AppTable.vue'
 import { useFormat } from '@/composables/useFormat'
 import { CLUSTER_MEMBER_ROW_COUNT, CLUSTER_SCATTER_POINT_LIMIT } from '@/limits'
-import {
-  assignClusters,
-  clusterAxes,
-  clusterMembers,
-  clusterSummaries,
-  matrixColumns,
-  scatterPoints,
-} from '@/ml/clusters'
+import { clusterMaterialFor, clusterMembers, clusterSummaries, scatterPoints } from '@/ml/clusters'
 import type { PanelInput } from '@/ml/metric-panels'
-import { parseKMeansModel } from '@/ml/models'
-import { transform } from '@/ml/preprocess'
 import { theme } from '@/theme'
 
 Chart.register(ScatterController, PointElement, LinearScale, Tooltip, Legend)
@@ -62,26 +53,19 @@ const format = useFormat()
  * 파일에 달린 사실이라 등록부가 답할 수 없다.
  */
 const material = computed(() => {
-  const { dataset, preprocessor, modelBytes, experiment } = props.input
-  if (!dataset || !preprocessor || !modelBytes) return null
+  const { dataset, preprocessor, modelBytes, experiment, run } = props.input
+  if (!dataset) return null
 
-  try {
-    const model = parseKMeansModel(JSON.parse(new TextDecoder().decode(modelBytes)))
-    const encoding = experiment.settings.preprocessing.categoricalEncoding
-    const columns = matrixColumns(preprocessor, encoding)
-    const rows = experiment.settings.trainIndices
-    const matrix = transform(preprocessor, dataset, rows, encoding)
-    return {
-      dataset,
-      columns,
-      axes: clusterAxes(preprocessor, encoding),
-      matrix,
-      assignment: assignClusters(matrix, rows, model),
-    }
-  } catch {
-    // 군집 모델이 아니거나, 전처리기와 폭이 안 맞거나, 파일이 가리키는 행이 표에 없다.
-    return null
-  }
+  // **조립도 형식 판정도 `ml/clusters.ts`가 한다** — 예측 화면의 이웃이 같은 것을 쓰고,
+  // 화면은 형식 이름도 과제 유형도 알지 않는다 (§9.1).
+  const found = clusterMaterialFor(
+    run.model?.format,
+    modelBytes,
+    dataset,
+    preprocessor,
+    experiment.settings,
+  )
+  return found ? { dataset, ...found } : null
 })
 
 /** 고른 축. **행렬 열 번호가 아니라 `axes` 안의 자리다.** */

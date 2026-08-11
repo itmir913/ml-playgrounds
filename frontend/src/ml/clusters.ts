@@ -20,9 +20,9 @@ import { uniformInt } from 'pure-rand/distribution/uniformInt'
 import { xoroshiro128plus } from 'pure-rand/generator/xoroshiro128plus'
 
 import { ClientError } from '../errors'
-import type { Preprocessing } from '../project/schema'
-import { kmeansPredict, type KMeansModel } from './models'
-import type { FittedColumn, Preprocessor } from './preprocess'
+import type { Experiment, Preprocessing } from '../project/schema'
+import { KMEANS_FORMAT, kmeansPredict, parseKMeansModel, type KMeansModel } from './models'
+import { transform, type Dataset, type FittedColumn, type Preprocessor } from './preprocess'
 
 /**
  * 학습 행렬의 열 하나. **전처리기의 열과 행렬의 열은 1:1이 아니다** — 원핫이면 열
@@ -221,6 +221,128 @@ export function clusterMembers(
 
   picked.sort((a, b) => {
     const gap = (assignment.distances[a] ?? 0) - (assignment.distances[b] ?? 0)
+    return gap !== 0 ? gap : (assignment.rows[a] ?? 0) - (assignment.rows[b] ?? 0)
+  })
+
+  return picked.slice(0, Math.max(0, limit)).map((index) => assignment.rows[index]!)
+}
+
+/**
+ * 화면 둘이 함께 쓰는 재료 한 벌 (결과 화면의 패널, 예측 화면의 이웃).
+ *
+ * **두 화면이 각자 조립하면 같은 파일을 놓고 다른 배정을 볼 수 있다.** 조립 순서 자체가
+ * 규칙이라(인코딩은 그 실험의 것, 행 번호는 `trainIndices`, 배정은 해석기가 준 것)
+ * 그 순서를 두 벌로 두지 않는다.
+ */
+export interface ClusterMaterial {
+  readonly columns: readonly MatrixColumn[]
+  readonly axes: readonly ClusterAxis[]
+  /** 학습 행렬. 전처리된 값이다 — 되돌리기 전이다. */
+  readonly matrix: readonly (readonly number[])[]
+  readonly assignment: ClusterAssignment
+}
+
+/**
+ * 파일에서 꺼낸 것들로 재료 한 벌을 만든다.
+ *
+ * **인코딩과 행 번호는 그 실험에서 나온다.** 다른 실험 것을 섞으면 좌표계가 어긋난 채로
+ * 그림이 그려진다 — 예측이 (실험, run) 쌍에 매달려 있는 것과 같은 이유다(`ml/predict.ts`).
+ *
+ * 부르는 쪽이 실패를 삼킬 수 있도록 **던지는 것을 감추지 않는다.** 여기서 던지는 경우는
+ * 남이 편집한 파일이거나 데이터가 바뀐 파일이고, 그때 화면은 그 자리에 아무것도 안 그린다.
+ */
+export function clusterMaterial(
+  dataset: Dataset,
+  preprocessor: Preprocessor,
+  model: KMeansModel,
+  settings: Experiment['settings'],
+): ClusterMaterial {
+  const encoding = settings.preprocessing.categoricalEncoding
+  const rows = settings.trainIndices
+  const matrix = transform(preprocessor, dataset, rows, encoding)
+
+  return {
+    columns: matrixColumns(preprocessor, encoding),
+    axes: clusterAxes(preprocessor, encoding),
+    matrix,
+    assignment: assignClusters(matrix, rows, model),
+  }
+}
+
+/**
+ * **답을 무리로 설명할 수 있는 형식.** 지금은 K-평균 하나뿐이다.
+ *
+ * 이 목록이 여기 있는 이유는 §9.1이다 — **화면이 `taskType === 'clustering'`이나 형식
+ * 이름을 알면 안 된다.** 두 번째 군집 알고리즘이 생기는 날 고칠 자리가 이 줄 하나여야
+ * 하고, 그때 화면 셋을 뒤지게 되면 그중 하나를 빠뜨린 것은 아무도 못 잡는다.
+ */
+const CLUSTER_FORMATS: readonly string[] = [KMEANS_FORMAT]
+
+/**
+ * 파일에서 꺼낸 것들로 재료를 만든다. **못 만들면 `null`이고, 그때 화면은 그 자리에
+ * 아무것도 안 그린다** (`ml/models`의 `loadModelProba`와 같은 모양이다).
+ *
+ * `null`이 되는 경우는 셋이다 — 무리로 설명할 수 있는 형식이 아니거나, 재료 중 하나가
+ * 파일에 없거나(데이터를 뺀 파일), 읽다가 실패했거나(남이 편집한 파일). **셋을 가르지
+ * 않는 이유는 화면이 할 일이 셋 다 같기 때문이다.** 답 자체는 이미 다른 자리에 있다.
+ */
+export function clusterMaterialFor(
+  format: string | undefined,
+  bytes: Uint8Array | undefined,
+  dataset: Dataset | null,
+  preprocessor: Preprocessor | null | undefined,
+  settings: Experiment['settings'],
+): ClusterMaterial | null {
+  if (format === undefined || !CLUSTER_FORMATS.includes(format)) return null
+  if (!bytes || !dataset || !preprocessor) return null
+
+  try {
+    const model = parseKMeansModel(JSON.parse(new TextDecoder().decode(bytes)))
+    return clusterMaterial(dataset, preprocessor, model, settings)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * **그 군집 안에서** 새 입력에 가까운 행들 (#28-6). 예측 화면이 "이거랑 비슷한 게
+ * 뭔데"에 답하는 자리다.
+ *
+ * **`clusterMembers`와 정렬 기준이 다르다.** 저기는 중심점까지의 거리(그 군집에서 가장
+ * 전형적인 것)이고 여기는 **입력까지의 거리**(진짜 이웃)다. 하나로 뭉치면 예측 화면이
+ * "전형적인 것"을 "너와 비슷한 것"이라고 말하게 된다.
+ *
+ * **그 군집으로 좁히는 이유**는 이 자리가 답(`2번 군집`)이 무슨 뜻인지 말하는 자리이기
+ * 때문이다. 전체에서 고르면 답과 다른 군집의 행이 "비슷한 것"으로 올라올 수 있고,
+ * 그러면 바로 위에 적힌 답과 그 아래 표가 서로를 부정한다.
+ *
+ * 동점이면 행 번호가 앞선 것이 앞이다 — `clusterMembers`와 같은 규칙이다.
+ */
+export function nearestMembers(
+  material: ClusterMaterial,
+  cluster: number,
+  input: readonly number[],
+  limit: number,
+): number[] {
+  const { assignment, matrix } = material
+  const picked: number[] = []
+  for (let i = 0; i < assignment.rows.length; i += 1) {
+    if (assignment.clusters[i] === cluster) picked.push(i)
+  }
+
+  const distanceOf = (index: number): number => {
+    const row = matrix[index] ?? []
+    let distance = 0
+    for (let j = 0; j < input.length; j += 1) {
+      const gap = (row[j] ?? 0) - (input[j] ?? 0)
+      distance += gap * gap
+    }
+    return distance
+  }
+
+  const distances = new Map(picked.map((index) => [index, distanceOf(index)]))
+  picked.sort((a, b) => {
+    const gap = (distances.get(a) ?? 0) - (distances.get(b) ?? 0)
     return gap !== 0 ? gap : (assignment.rows[a] ?? 0) - (assignment.rows[b] ?? 0)
   })
 

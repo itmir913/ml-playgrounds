@@ -16,9 +16,11 @@ import { isClientError } from '../src/errors'
 import {
   assignClusters,
   clusterAxes,
+  clusterMaterial,
   clusterMembers,
   clusterSummaries,
   matrixColumns,
+  nearestMembers,
   scatterPoints,
   unscale,
 } from '../src/ml/clusters'
@@ -31,7 +33,7 @@ import {
   type Dataset,
   type Preprocessor,
 } from '../src/ml/preprocess'
-import type { Preprocessing } from '../src/project/schema'
+import type { Experiment, Preprocessing } from '../src/project/schema'
 
 /**
  * 두 덩어리로 갈리는 교실풍 표. **학습에 안 쓰는 열(`이름`)과 범주 열과 빈 칸이 하나씩
@@ -270,6 +272,74 @@ describe('구성원', () => {
     }
     const assignment = assignClusters([[1], [-1], [0]], rows, model)
     expect(clusterMembers(assignment, 0, 3)).toEqual([2, 0, 1])
+  })
+})
+
+describe('재료 조립', () => {
+  /** 실험 설정 중 재료가 보는 것만. 스키마 전체를 만들 이유가 없다. */
+  function settingsOf(rows: readonly number[], options: Preprocessing) {
+    return { preprocessing: options, trainIndices: rows } as Experiment['settings']
+  }
+
+  it('손으로 조립한 것과 같다', () => {
+    // **두 화면이 각자 조립하면 같은 파일을 놓고 다른 배정을 볼 수 있다.**
+    const { preprocessor, matrix, rows, model, options } = fixture()
+    const material = clusterMaterial(DATASET, preprocessor, model, settingsOf(rows, options))
+
+    expect(material.matrix).toEqual(matrix)
+    expect(material.axes).toEqual(clusterAxes(preprocessor, options.categoricalEncoding))
+    expect([...material.assignment.clusters]).toEqual([
+      ...assignClusters(matrix, rows, model).clusters,
+    ])
+  })
+
+  it('그 실험의 인코딩을 쓴다 - 다른 것을 넣으면 던진다', () => {
+    const { preprocessor, rows, model, options } = fixture()
+    const wrong = { ...options, categoricalEncoding: 'ordinal' as const }
+    expect(() => clusterMaterial(DATASET, preprocessor, model, settingsOf(rows, wrong))).toThrow()
+  })
+})
+
+describe('예측 화면의 이웃', () => {
+  function materialOf() {
+    const { preprocessor, rows, model, options, matrix } = fixture()
+    const settings = { preprocessing: options, trainIndices: rows } as Experiment['settings']
+    return { material: clusterMaterial(DATASET, preprocessor, model, settings), matrix }
+  }
+
+  it('입력에 가까운 순이다 - 중심점 기준이 아니다', () => {
+    const { material, matrix } = materialOf()
+    // 6번 행('사')을 그대로 입력으로 넣으면 자기 자신이 가장 가깝다.
+    const input = matrix[6]!
+    const cluster = material.assignment.clusters[6]!
+
+    expect(nearestMembers(material, cluster, input, 3)[0]).toBe(6)
+  })
+
+  it('그 군집 안에서만 고른다', () => {
+    // **답이 2번 군집인데 표에 3번 군집 행이 뜨면 답과 표가 서로를 부정한다.**
+    const { material, matrix } = materialOf()
+    const far = material.assignment.clusters[0]!
+    const input = matrix[7]!
+
+    const found = nearestMembers(material, far, input, 10)
+    expect(found).toHaveLength(4)
+    found.forEach((row) => {
+      expect(material.assignment.clusters[material.assignment.rows.indexOf(row)]).toBe(far)
+    })
+  })
+
+  it('중심점 기준과 다른 답을 낸다', () => {
+    // 둘이 같은 순서만 낸다면 이 함수가 있을 이유가 없다. 군집 안에서 가장 먼 행을
+    // 입력으로 주면 그 행이 이웃 목록의 맨 앞이고, 전형적인 것 목록에서는 맨 뒤다.
+    const { material, matrix } = materialOf()
+    const cluster = material.assignment.clusters[0]!
+    const typical = clusterMembers(material.assignment, cluster, 10)
+    const last = typical[typical.length - 1]!
+    const input = matrix[material.assignment.rows.indexOf(last)]!
+
+    expect(nearestMembers(material, cluster, input, 10)[0]).toBe(last)
+    expect(typical[0]).not.toBe(last)
   })
 })
 

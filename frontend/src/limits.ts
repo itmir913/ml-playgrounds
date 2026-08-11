@@ -171,6 +171,15 @@ export const CLUSTER_SCATTER_POINT_LIMIT = 2000
 export const CLUSTER_MEMBER_ROW_COUNT = 20
 
 /**
+ * 예측 화면에서 답 옆에 보이는 이웃 줄 수 (open-decisions.md #28-6).
+ *
+ * **위 `CLUSTER_MEMBER_ROW_COUNT`와 값을 공유하지 않는다.** 답하는 질문이 다르다 —
+ * 저기는 "이 군집은 어떤 애들인가"라 표를 훑는 일이고, 여기는 "이거랑 비슷한 게 뭔데"라
+ * 학생이 자기 입력과 한 줄씩 견줘 본다. 견주는 일은 줄이 적을수록 낫다.
+ */
+export const CLUSTER_NEIGHBOR_ROW_COUNT = 5
+
+/**
  * 데이터셋의 최대 컬럼 수.
  *
  * 교실 데이터가 여기 닿는 일은 없다. 병적으로 넓은 파일에서 화면과 메모리를

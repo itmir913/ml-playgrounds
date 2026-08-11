@@ -562,6 +562,8 @@
     "modelName": "{algorithm} · {runtime}",
     "unusable": "This model cannot be used right now.",
     "notSaved": "The values you try and the answers you get are not saved into the project file. This is a place to experiment freely.",
+    "clusterNeighborTitle": "Data similar to this answer",
+    "clusterNeighborLead": "Rows in the same cluster, closest to the values you entered first.",
     "range": "Values in the data: {min} to {max}",
     "filterExperiments": "Training round",
     "filterAlgorithms": "Model",
