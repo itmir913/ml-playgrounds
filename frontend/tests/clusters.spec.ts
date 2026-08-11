@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest'
 import { isClientError } from '../src/errors'
 import {
   assignClusters,
+  axisOverviews,
   clusterAxes,
   clusterMaterial,
   clusterMaterialFor,
@@ -315,6 +316,31 @@ describe('군집 요약', () => {
     // 나눌 것이 없는 군집은 중심점을 그대로 쓴다 - NaN을 표에 내보내지 않는다.
     expect(summaries[2]!.means).toEqual(summaries[2]!.centroid)
     expect(summaries[2]!.means.every((value) => Number.isFinite(value))).toBe(true)
+  })
+})
+
+describe('축의 전체 모습', () => {
+  it('평균과 범위가 되돌린 값 기준이다', () => {
+    // 표에 뜬 숫자와 같은 단위여야 견줄 수 있다.
+    const { preprocessor, matrix, options } = fixture()
+    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
+    const axes = clusterAxes(preprocessor, options.categoricalEncoding)
+    const [height] = axisOverviews(matrix, axes, columns)
+
+    expect(height!.name).toBe('키')
+    expect(height!.min).toBeCloseTo(150, 9)
+    expect(height!.max).toBeCloseTo(183, 9)
+    expect(height!.mean).toBeCloseTo((150 + 151 + 152 + 153 + 180 + 181 + 182 + 183) / 8, 9)
+  })
+
+  it('행이 없어도 축마다 한 줄을 준다', () => {
+    // 화면이 축 목록을 그대로 도는데 길이가 달라지면 자리가 어긋난다.
+    const { preprocessor, options } = fixture()
+    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
+    const axes = clusterAxes(preprocessor, options.categoricalEncoding)
+
+    expect(axisOverviews([], axes, columns)).toHaveLength(axes.length)
+    expect(axisOverviews([], axes, columns).every((one) => Number.isFinite(one.min))).toBe(true)
   })
 })
 

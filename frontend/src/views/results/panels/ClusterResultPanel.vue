@@ -21,10 +21,17 @@ import { Scatter } from 'vue-chartjs'
 import { useI18n } from 'vue-i18n'
 
 import AppTable from '@/components/AppTable.vue'
+import TermPopover from '@/components/TermPopover.vue'
 import { useFormat } from '@/composables/useFormat'
 import { CLUSTER_MEMBER_ROW_COUNT, CLUSTER_SCATTER_POINT_LIMIT } from '@/limits'
 import { FALLBACK_PALETTE, clusterChartData, clusterChartOptions } from '@/ml/cluster-chart'
-import { clusterMaterialFor, clusterMembers, clusterSummaries, scatterPoints } from '@/ml/clusters'
+import {
+  axisOverviews,
+  clusterMaterialFor,
+  clusterMembers,
+  clusterSummaries,
+  scatterPoints,
+} from '@/ml/clusters'
 import type { PanelInput } from '@/ml/metric-panels'
 import { theme } from '@/theme'
 
@@ -110,6 +117,27 @@ const members = computed(() => {
 })
 
 const memberTotal = computed(() => material.value?.assignment.counts[openedCluster.value] ?? 0)
+
+/**
+ * 축마다 전체 데이터의 평균과 범위. **요약표 머리글의 설명이 이것을 쓴다** (#28-6).
+ *
+ * "이 군집의 평균 45"만으로는 그것이 높은 값인지 낮은 값인지 알 수 없고, 그 판단이
+ * 이 표를 보는 이유다.
+ */
+const overviews = computed(() => {
+  const found = material.value
+  return found ? axisOverviews(found.matrix, found.axes, found.columns) : []
+})
+
+/** 머리글 설명 한 문장. **키를 조립하지 않는다** (`TermPopover`의 머리말). */
+function axisHelp(position: number): string {
+  const overview = overviews.value[position]
+  return t('results.clusterMeanHelp', {
+    overall: format.prediction(overview?.mean ?? 0),
+    min: format.prediction(overview?.min ?? 0),
+    max: format.prediction(overview?.max ?? 0),
+  })
+}
 
 /**
  * 배색 토큰의 실제 값. **캔버스는 CSS 클래스를 못 쓰므로 값을 읽어 와야 한다.**
@@ -263,7 +291,13 @@ function cellsOf(row: number): readonly string[] {
           <tr>
             <th>{{ t('results.cluster') }}</th>
             <th>{{ t('results.clusterSize') }}</th>
-            <th v-for="axis in axes" :key="axis.name">{{ axis.name }}</th>
+            <!--
+              **머리글을 눌러 설명을 연다** (§8.13, 점수 표와 같은 문법). 제목은 우리
+              어휘가 아니라 학생의 열 이름이라 번역하지 않는다 - 설명만 우리가 쓴다.
+            -->
+            <th v-for="(axis, position) in axes" :key="axis.name">
+              <TermPopover :title="axis.name" :body="axisHelp(position)" />
+            </th>
           </tr>
         </thead>
         <tbody>

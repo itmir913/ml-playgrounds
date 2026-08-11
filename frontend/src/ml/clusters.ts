@@ -247,6 +247,51 @@ export function clusterSummaries(
   })
 }
 
+/** 축 하나를 전체 데이터에서 본 모습. 요약표 머리글의 설명이 이것을 쓴다 (#28-6). */
+export interface AxisOverview {
+  readonly name: string
+  /** 전체 행의 평균. 군집별 평균이 높은 값인지 낮은 값인지 견줄 자리다. */
+  readonly mean: number
+  readonly min: number
+  readonly max: number
+}
+
+/**
+ * 축마다 전체 데이터의 평균과 범위. **되돌린 값 기준**이라 표에 뜬 숫자와 같은 단위다.
+ *
+ * **"이 군집의 평균 45"만으로는 그것이 높은지 낮은지 알 수 없다.** 그 판단이 요약표를
+ * 보는 이유이고, 견줄 것이 없으면 표가 숫자만 늘어놓은 것이 된다.
+ *
+ * 행이 없으면 빈 배열이 아니라 축마다 0을 준다 — 화면이 축 목록을 그대로 도는데 길이가
+ * 달라지면 자리가 어긋난다.
+ */
+export function axisOverviews(
+  matrix: readonly (readonly number[])[],
+  axes: readonly ClusterAxis[],
+  columns: readonly MatrixColumn[],
+): AxisOverview[] {
+  return axes.map((axis) => {
+    const column = columns[axis.index]!.column
+    let sum = 0
+    let min = Number.POSITIVE_INFINITY
+    let max = Number.NEGATIVE_INFINITY
+
+    for (const row of matrix) {
+      const value = unscale(column, row[axis.index] ?? 0)
+      sum += value
+      if (value < min) min = value
+      if (value > max) max = value
+    }
+
+    return {
+      name: axis.name,
+      mean: matrix.length === 0 ? 0 : sum / matrix.length,
+      min: matrix.length === 0 ? 0 : min,
+      max: matrix.length === 0 ? 0 : max,
+    }
+  })
+}
+
 /**
  * 그 군집의 구성원. **중심점에 가까운 순으로 `limit`개까지** (#28-6).
  *

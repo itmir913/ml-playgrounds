@@ -535,6 +535,7 @@
     "clusterSample": "점이 너무 많아 일부만 그렸습니다. (전체 {total}행 중 {drawn}행)",
     "clusterSummary": "군집마다 어떤 값이 모였나",
     "clusterSummaryLead": "각 칸은 그 군집에 속한 데이터의 평균입니다. 줄을 누르면 그 군집의 데이터를 볼 수 있습니다.",
+    "clusterMeanHelp": "그 군집에 속한 데이터의 평균입니다. 전체 데이터의 평균은 {overall}, 값의 범위는 {min}부터 {max}까지입니다.",
     "clusterMembers": "{name}에 속한 데이터",
     "clusterMembersLead": "중심점에 가까운 순서입니다. 학습에 쓰지 않은 열도 함께 보입니다.",
     "clusterMemberCount": "전체 {total}행 중 {shown}행을 보이고 있습니다."

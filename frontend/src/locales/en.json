@@ -538,6 +538,7 @@
     "clusterSample": "There are too many dots to draw them all, so only some are shown. ({drawn} of {total} rows)",
     "clusterSummary": "What gathered in each cluster",
     "clusterSummaryLead": "Each cell is the average of the rows in that cluster. Select a row to see the data in that cluster.",
+    "clusterMeanHelp": "The average of the rows in this cluster. Across all the data the average is {overall}, and values range from {min} to {max}.",
     "clusterMembers": "Data in {name}",
     "clusterMembersLead": "Sorted by distance from the centroid. Columns not used for training are shown too.",
     "clusterMemberCount": "Showing {shown} of {total} rows."
