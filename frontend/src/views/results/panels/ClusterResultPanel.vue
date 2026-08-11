@@ -180,6 +180,17 @@ function coordinate(value: number | null): string {
 }
 
 /**
+ * 그리는 차례. **작을수록 위에 그려진다.**
+ *
+ * **배열에 나중에 넣는다고 위로 오지 않는다.** Chart.js는 데이터셋을 `order`(같으면
+ * 배열 순서)로 정렬한 뒤 **뒤에서부터** 그린다(`_drawDatasets`). 그래서 배열 끝에 둔
+ * 중심점이 **맨 아래에 깔려 점 수천 개에 묻혔다** — 2026-08-11에 화면에서 잡혔다.
+ *
+ * 셋을 명시적으로 나눈다: 점 → 흰 테두리 → 군집 색 ✕ 순으로 쌓인다.
+ */
+const DRAW_ORDER = { points: 2, halo: 1, centroid: 0 } as const
+
+/**
  * 군집마다 데이터셋 하나, 그 위에 중심점 둘.
  *
  * **중심점을 두 겹으로 그린다** (#28-1의 "✕에 흰 테두리"). `crossRot`은 선으로만
@@ -200,6 +211,7 @@ const chartData = computed<ChartData<'scatter'>>(() => {
     borderColor: colorOf(cluster),
     pointStyle: shapeOf(cluster),
     radius: 4,
+    order: DRAW_ORDER.points,
   }))
 
   const centers = summaries.value.map((summary) => ({
@@ -217,8 +229,7 @@ const chartData = computed<ChartData<'scatter'>>(() => {
         pointStyle: 'crossRot' as const,
         borderWidth: 6,
         radius: 9,
-        // 흰 테두리는 아래에 깔린 획일 뿐이라 범례에 두 번 서지 않는다.
-        hidden: false,
+        order: DRAW_ORDER.halo,
       },
       {
         label: t('results.clusterCentroid'),
@@ -227,6 +238,7 @@ const chartData = computed<ChartData<'scatter'>>(() => {
         pointStyle: 'crossRot' as const,
         borderWidth: 3,
         radius: 9,
+        order: DRAW_ORDER.centroid,
       },
     ],
   }
@@ -256,6 +268,11 @@ const chartOptions = computed<ChartOptions<'scatter'>>(() => ({
         // 흰 테두리 데이터셋은 범례에서 뺀다 - 중심점이 두 줄로 서면 둘의 차이를
         // 설명할 수 없다.
         filter: (item) => item.datasetIndex !== summaries.value.length,
+        // **범례는 그리는 차례를 따라가지 않는다.** Chart.js가 범례 항목도 `order`로
+        // 정렬하므로(`generateLabels`가 `_getSortedDatasetMetas`를 쓴다) 그대로 두면
+        // 위에 그리려고 준 `order`가 범례에서는 "중심점이 맨 앞"이 된다. 읽는 차례는
+        // 군집들 다음이 중심점이다.
+        sort: (a, b) => (a.datasetIndex ?? 0) - (b.datasetIndex ?? 0),
       },
     },
     tooltip: {
