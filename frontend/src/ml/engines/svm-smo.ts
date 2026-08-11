@@ -14,6 +14,19 @@
  *    α 하나가 1e-5만 움직여도 카운터가 리셋되기 때문이다. 지금은 **매 패스의 최대
  *    KKT 위반이 `tol` 아래로 갈 때** 멈춘다 (libsvm과 같은 기준).
  *    `tol`의 기본값은 sklearn `SVC`의 1e-3이다.
+ *
+ *    **실측하니 이 출구는 실제로 열리지 않는다 (2026-08-11, V3 감사 6단계).** 개발
+ *    PC(i5-1135G7)에서 겹침 10~50%의 800·1500·3000행, 그리고 멀찍이 떨어진 두
+ *    덩어리(20~400행)까지 **열다섯 가지 데이터가 전부 정체 종료로 끝났다** — KKT
+ *    최댓값이 `tol` 아래로 내려간 경우는 하나도 없었다. 갈라치기의 α 변화량 문턱
+ *    (`1e-3`)이 `tol`과 같은 규모라 마지막 위반이 그 아래로 안 깎인다. 그래서
+ *    **이 솔버의 실질적 종료 조건은 정체다.** 그 출구가 `converged: false`였다면
+ *    교실의 거의 모든 SVM 학습에 경고가 붙었을 것이다 (open-decisions.md #26).
+ *
+ *    같은 실측에서 반복 수는 38~702회였다 (3000행 겹침 30%가 702회로 최대,
+ *    24.5초·힙 +47MB). **`maxIterations`(10,000)에 닿은 경우는 없다** — 결정문 3번이
+ *    미뤄 둔 "충분성 실측"의 답이다. sklearn이 800행에 7,174 반복을 쓴 것과 자릿수가
+ *    다른 이유는 우리 쪽이 이론적 최적점까지 가지 않고 정체에서 멈추기 때문이다.
  * 2. **반복을 다 써도 던지지 않는다.** 원본은 `throw new Error('max iterations reached')`인데,
  *    실측에서 겹치는 데이터는 **500행에서도** 거기 도달했다. 그때 나오는 계수는 쓸모없는
  *    값이 아니라 **덜 다듬어진 값**이고, sklearn도 같은 자리에서 경고만 내고 모델을 준다.
@@ -56,6 +69,16 @@ export const SMO_DEFAULTS = {
   C: 1,
   tol: 1e-3,
   maxIterations: 10000,
+  /**
+   * 정체 종료 문턱 — α가 하나도 안 바뀐 패스가 **연속 이만큼**이면 멈춘다.
+   *
+   * **`SmoOptions`에는 없다.** 원본 `ml-svm`의 `maxPasses`가 손잡이였지만 그 값은
+   * 수렴과 직결되지 않아 V3에서 뺐다(머리말 "바꾼 것 1"). 그런데 같은 10이 함수
+   * 본문에 리터럴로 되살아났고, 그건 CLAUDE.md §1.5가 금지하는 자리다 — 상한은
+   * 이름을 갖는다. 여기 두는 이유는 값의 출처가 하나여야 하기 때문이고, 손잡이로
+   * 되돌리는 것이 아니다.
+   */
+  stallPasses: 10,
 } as const
 
 export interface LinearSvm {
@@ -214,12 +237,12 @@ export function trainLinearSvm(
     if (changed === 0) {
       stalls += 1
       // **단순화 SMO의 수렴** — KKT 위반이 tol보다 크지만 어떤 쌍도 α를 바꾸지
-      // 못하는 패스가 연속 10회. 무작위 짝 선택은 패스마다 다른 j를 고르므로 한 번의
-      // 정체가 곧 교착은 아니지만, 연속으로 쌓이면 해소할 쌍이 없는 것이다.
+      // 못하는 패스가 연속 stallPasses회. 무작위 짝 선택은 패스마다 다른 j를 고르므로
+      // 한 번의 정체가 곧 교착은 아니지만, 연속으로 쌓이면 해소할 쌍이 없는 것이다.
       // libsvm이라면 WSS3으로 이 상태를 빠져나오지만, 단순화 SMO는 여기가 한계다.
       // 그래도 모델은 학생이 쓸 수 있는 상태이므로 converged=true로 남긴다 —
-      // "덜 다듬어진"과 "더 못 다듬는"은 다르다.
-      if (stalls >= 10) {
+      // "덜 다듬어진"과 "더 못 다듬는"은 다르다 (open-decisions.md #26).
+      if (stalls >= SMO_DEFAULTS.stallPasses) {
         converged = true
         break
       }
@@ -245,7 +268,7 @@ export function trainLinearSvm(
   return {
     weights,
     intercept,
-    // KKT max < tol이거나 연속 정체(10패스)면 수렴이다. maxIterations를 먼저 쓴 것은
+    // KKT max < tol이거나 연속 정체(stallPasses)면 수렴이다. maxIterations를 먼저 쓴 것은
     // 아직 덜 다듬어진 상태이고, 그 사실이 run.warning으로 남는다 (mlpx-spec.md 5.9).
     converged,
     iterations,
