@@ -40,8 +40,8 @@ describe('등록부끼리 어긋나지 않는다', () => {
   it('계산기가 있는 과제 유형에는 표시 등록부도 있다', () => {
     // EVALUATORS(분류·회귀)와 CLUSTER_EVALUATOR(군집)를 합친 집합이
     // METRIC_DISPLAY의 키 집합과 같아야 한다.
-    const evaluatable = [...Object.keys(EVALUATORS)]
-    if (CLUSTER_EVALUATOR) evaluatable.push('clustering')
+    // CLUSTER_EVALUATOR는 const 함수라 빼먹으면 import가 깨진다 — 컴파일이 잡는다.
+    const evaluatable = [...Object.keys(EVALUATORS), 'clustering']
     expect(Object.keys(METRIC_DISPLAY).sort()).toEqual(evaluatable.sort())
   })
 
@@ -305,11 +305,7 @@ describe('군집', () => {
   })
 
   it('k=1이면 실루엣 계수가 0이다', () => {
-    const { metrics } = CLUSTER_EVALUATOR(
-      data,
-      [0, 0, 0, 0],
-      [[5.5, 5]],
-    )
+    const { metrics } = CLUSTER_EVALUATOR(data, [0, 0, 0, 0], [[5.5, 5]])
     expect(metrics.silhouette).toBe(0)
   })
 

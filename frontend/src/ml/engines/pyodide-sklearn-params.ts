@@ -22,9 +22,7 @@
 
 import type { HyperparameterSpec } from '../hyperparams'
 
-export const PYODIDE_SKLEARN_PARAMETERS: Readonly<
-  Record<string, readonly HyperparameterSpec[]>
-> = {
+export const PYODIDE_SKLEARN_PARAMETERS: Readonly<Record<string, readonly HyperparameterSpec[]>> = {
   // sklearn DecisionTreeClassifier
   decision_tree: [
     { name: 'max_depth', integer: true, min: 1, max: 100, step: 1, default: 100 },

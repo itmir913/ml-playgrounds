@@ -149,11 +149,11 @@ function updateCentroids(
 
   for (let i = 0; i < features.length; i += 1) {
     const cluster = assignments[i]!
-    counts[cluster] += 1
+    counts[cluster]! += 1
     const row = features[i]!
     const target = sums[cluster]!
     for (let j = 0; j < width; j += 1) {
-      target[j] += row[j] ?? 0
+      target[j]! += row[j] ?? 0
     }
   }
 
@@ -188,7 +188,7 @@ export function fitKMeans(
 
   let converged = false
   let iterations = 0
-  let currentAssignments = new Int32Array(n)
+  let currentAssignments: Int32Array = new Int32Array(n)
   let currentInertia = 0
 
   for (let iter = 0; iter < maxIter; iter += 1) {

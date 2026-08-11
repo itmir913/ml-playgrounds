@@ -152,11 +152,7 @@ const SUPPORTS_RANDOM_STATE: ReadonlySet<string> = new Set([
  * 모델과 예측 함수를 함께 남겨 놓아야 `predict()`가 나중에 불릴 때 쓸 수 있기
  * 때문이다. 매번 전체를 다시 만들면 Pyodide 전역이 점점 커진다.
  */
-function buildFitCode(
-  algorithm: string,
-  hp: Record<string, unknown>,
-  randomState: number,
-): string {
+function buildFitCode(algorithm: string, hp: Record<string, unknown>, randomState: number): string {
   const info = SKLEARN_CLASSES[algorithm]
   if (!info) throw new ClientError('ALGORITHM_UNSUPPORTED', { algorithm })
 
@@ -257,7 +253,7 @@ export function fit(algorithm: string, input: FitInput): FitResult {
   py.runPython(code)
 
   // 3. 예측 함수
-  const predict: Predict = (features: number[][]): string[] => {
+  const predict: Predict = (features) => {
     if (!py) throw new ClientError('ENGINE_NOT_READY')
     py.globals.set('_X_test_js', features)
     py.runPython(PREDICT_CODE)
@@ -276,8 +272,7 @@ export function fit(algorithm: string, input: FitInput): FitResult {
     predict,
     // **직렬화는 아직 안 한다** (이 파일 머리말). 사유 코드는 run.modelOmitted에 남고,
     // 원문은 run.modelOmittedDetail에 남아 교사가 읽을 수 있다 (mlpx-spec.md 4.2).
-    model: undefined,
-    modelOmittedDetail: 'sklearn model serialization not yet implemented',
+    modelOmittedDetail: 'serializer-missing:pyodide-sklearn',
     ...(clusterResult ? { clusterResult } : {}),
   }
 }
