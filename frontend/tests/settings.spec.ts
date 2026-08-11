@@ -19,6 +19,7 @@ import {
   withRuntime,
   withSelectedAlgorithms,
   withRandomState,
+  withSampling,
   withSplit,
   withTarget,
   withTaskType,
@@ -190,6 +191,20 @@ describe('전처리와 분할', () => {
       stratify: false,
       randomState: 42,
     })
+  })
+
+  it('뽑을 행 수를 정하면 그 값만 는다', () => {
+    const next = withSampling(base(), 3000, NOW)
+    expect(next.settings.nSamples).toBe(3000)
+    // 씨앗과 층화는 여기로 안 들어온다 - split의 값을 따라간다 (open-decisions.md #22).
+    expect(next.settings.split).toEqual(base().settings.split)
+  })
+
+  it('전부 쓰기로 되돌리면 **키가 사라진다** - undefined로 남기지 않는다', () => {
+    // undefined를 그대로 두면 파일에 null로 나가는지 사라지는지가 직렬화에 달리고,
+    // 스키마는 선택 항목이라 둘 다 통과해 버린다.
+    const next = withSampling(withSampling(base(), 3000, NOW), undefined, NOW)
+    expect(next.settings).not.toHaveProperty('nSamples')
   })
 
   it('씨앗을 다시 뽑는 문은 따로 있고 나머지 분할 설정은 안 건드린다', () => {

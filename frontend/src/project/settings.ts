@@ -118,6 +118,27 @@ export function withSplit(
 }
 
 /**
+ * 쓸 행을 몇 개만 뽑을지 (`open-decisions.md` #22). `undefined`면 전부 쓴다.
+ *
+ * **`undefined`를 넣으면 키를 지운다.** `nSamples: undefined`를 그대로 남기면 그 키가
+ * 파일에 `null`로 나가는지 사라지는지가 직렬화에 달리게 되고, 스키마는 선택 항목이라
+ * 둘 다 통과해 버린다 (`project/schema.ts`).
+ *
+ * **씨앗과 층화는 여기로 안 들어온다.** `split.randomState`와 `split.stratify`를
+ * 따라가므로 손잡이가 하나뿐이다 — `withSplit`이 `randomState`를 막아 둔 것과 같은
+ * 성격의 문이다.
+ */
+export function withSampling(
+  document: ProjectDocument,
+  nSamples: number | undefined,
+  now: string,
+): ProjectDocument {
+  const rest = { ...document.settings }
+  delete rest.nSamples
+  return withSettings(document, nSamples === undefined ? rest : { ...rest, nSamples }, now)
+}
+
+/**
  * 난수 씨앗을 다시 뽑는다. **되돌릴 수 없는 조작이라 화면이 먼저 경고한다.**
  *
  * **지난 실험은 건드리지 않는다.** 실험마다 자기 `randomState`와 행 번호 스냅샷을

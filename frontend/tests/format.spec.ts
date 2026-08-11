@@ -121,6 +121,31 @@ describe('왕복', () => {
     expect(reopenedRun?.failure?.code).toBe('JOB_TIMEOUT')
   })
 
+  /**
+   * 행 표본 뽑기 (open-decisions.md #22).
+   *
+   * **선택 필드라 두 방향을 다 봐야 한다.** 있으면 살아 돌아오는지, **없으면 없는 채로**
+   * 열리는지다. 뒤쪽이 곧 "이 필드를 모르는 옛 `.mlpx`가 그대로 열린다"이고,
+   * `formatVersion`을 안 올린 근거가 그것이다.
+   */
+  it('뽑은 행 수가 왕복한다', async () => {
+    const project = projectFile()
+    // **`settings`를 제자리에서 고치지 마라.** fixtures/project.ts의 `settings`는 모듈
+    // 수준 상수라 projectFile()들이 같은 객체를 공유한다 - 여기서 키를 하나 얹으면
+    // 뒤따르는 모든 검사가 그 값을 물려받는다.
+    project.document = {
+      ...project.document,
+      settings: { ...project.document.settings, nSamples: 3000 },
+    }
+    const reopened = await roundTrip(project)
+    expect(reopened.document.settings.nSamples).toBe(3000)
+  })
+
+  it('뽑지 않은 프로젝트에는 그 키가 아예 없다', async () => {
+    const reopened = await roundTrip(projectFile())
+    expect(reopened.document.settings).not.toHaveProperty('nSamples')
+  })
+
   it('실험이 없는 새 프로젝트도 왕복한다', async () => {
     const project = projectFile({ models: new Map() })
     project.document.runs.experiments = []

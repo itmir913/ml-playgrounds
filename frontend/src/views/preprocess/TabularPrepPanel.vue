@@ -19,7 +19,8 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { summarizeColumns } from '@/data/columns'
-import { columnPlan, requiredTargetKind, rowUsage } from '@/ml/selection'
+import { MIN_SPLIT_ROWS } from '@/limits'
+import { columnPlan, requiredTargetKind, rowUsage, trainableRowCount } from '@/ml/selection'
 import { readDataset } from '@/project/dataset'
 import {
   CATEGORICAL_ENCODINGS,
@@ -28,7 +29,7 @@ import {
   type Preprocessing,
   type ProjectDocument,
 } from '@/project/schema'
-import { withFeatures, withPreprocessing, withTarget } from '@/project/settings'
+import { withFeatures, withPreprocessing, withSampling, withTarget } from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
 import ColumnPicker from './ColumnPicker.vue'
 
@@ -119,6 +120,56 @@ function setAllFeatures(on: boolean): void {
 function setCleaning(patch: Partial<Preprocessing>): void {
   const file = project.file
   if (file) apply(withPreprocessing(file.document, patch, now()))
+}
+
+/**
+ * 뽑기 전에 쓸 수 있는 행 수. **이 손잡이의 천장이다.**
+ *
+ * `trainableRowCount`에 `undefined`를 넘기는 것이 핵심이다 — 지금 뽑은 값을 반영하면
+ * 학생이 3,000을 넣는 순간 천장도 3,000이 되어 다시는 못 올린다.
+ */
+const usableRowCount = computed(() =>
+  trainableRowCount(
+    dataset.value,
+    settings.value?.features ?? [],
+    settings.value?.target,
+    settings.value?.preprocessing.missing ?? 'drop',
+    undefined,
+  ),
+)
+
+/** 지금 뽑기로 한 수. 안 뽑으면 `undefined`다. */
+const nSamples = computed(() => settings.value?.nSamples)
+
+/** 뽑은 뒤 남는 행. **모델이 한 번도 보지 않는 줄이다** (open-decisions.md #30). */
+const sampleSummary = computed(() => {
+  const chosen = nSamples.value
+  if (chosen === undefined) return null
+  const usable = usableRowCount.value
+  return { usable, used: Math.min(chosen, usable), rest: Math.max(usable - chosen, 0) }
+})
+
+function setSampling(chosen: number | undefined): void {
+  const file = project.file
+  if (file) apply(withSampling(file.document, chosen, now()))
+}
+
+/**
+ * 켤 때의 기본값. **천장의 절반이 아니라 천장 그대로다** — 켜자마자 데이터가 줄어들면
+ * 학생이 고르지도 않은 표본으로 학습하게 된다. 줄이는 것은 학생이 한다.
+ */
+function startSampling(): void {
+  setSampling(Math.max(usableRowCount.value, MIN_SPLIT_ROWS))
+}
+
+/**
+ * 입력값을 천장과 바닥 사이로 되돌린다. **입력 중에는 부르지 않는다**(change에 건다) —
+ * keyup마다 고치면 "3000"을 치는 도중의 "3"이 바닥으로 튀어 올라 뒷자리를 못 친다.
+ */
+function setSampleRows(raw: string): void {
+  const parsed = Number.parseInt(raw, 10)
+  if (Number.isNaN(parsed)) return
+  setSampling(Math.min(Math.max(parsed, MIN_SPLIT_ROWS), usableRowCount.value))
 }
 </script>
 
@@ -224,6 +275,71 @@ function setCleaning(patch: Partial<Preprocessing>): void {
           </div>
         </div>
       </section>
+      <!--
+          **뽑기는 나누기 앞에 선다** (architecture.md §8.9). 실행 순서가 그렇고,
+          화면을 위에서 아래로 읽으면 그 순서가 그대로 보여야 한다.
+
+          **표에만 있는 개념이라 이 판이 갖는다.** 아래 나누기는 모든 종류에 공통이라
+          슬롯으로 온다 - 둘이 붙어 있지만 소유자가 다르다 (open-decisions.md #22).
+        -->
+      <section class="rounded-panel border border-line bg-surface p-4">
+        <h2 class="font-bold">{{ t('preprocess.sampleTitle') }}</h2>
+        <p class="mt-1 text-ink-soft">{{ t('preprocess.sampleLead') }}</p>
+
+        <!-- 양자택일이다. 세 번째 상태가 없어야 "일부만 뽑는데 몇 행인지 모르는" 칸이
+               생기지 않는다 (아래 나누기 카드와 같은 규칙). -->
+        <div class="mt-3 flex flex-col gap-4">
+          <label class="flex cursor-pointer items-start gap-2">
+            <input
+              type="radio"
+              name="sampling"
+              class="mt-1 size-4 accent-brand"
+              :checked="nSamples === undefined"
+              @change="setSampling(undefined)"
+            />
+            <span class="flex flex-col">
+              <span class="font-bold">{{ t('preprocess.sampleAll') }}</span>
+              <span class="text-ink-faint">{{ t('preprocess.sampleAllNote') }}</span>
+            </span>
+          </label>
+
+          <div>
+            <label class="flex cursor-pointer items-start gap-2">
+              <input
+                type="radio"
+                name="sampling"
+                class="mt-1 size-4 accent-brand"
+                :checked="nSamples !== undefined"
+                @change="startSampling"
+              />
+              <span class="flex flex-col">
+                <span class="font-bold">{{ t('preprocess.samplePart') }}</span>
+                <span class="text-ink-faint">{{ t('preprocess.samplePartNote') }}</span>
+              </span>
+            </label>
+
+            <div v-if="sampleSummary" class="mt-3 ml-6">
+              <label class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span class="font-bold text-ink-soft">{{ t('preprocess.sampleRows') }}</span>
+                <input
+                  type="number"
+                  class="w-28 rounded border border-line bg-surface px-2 py-1 text-right tabular-nums"
+                  :min="MIN_SPLIT_ROWS"
+                  :max="usableRowCount"
+                  :value="sampleSummary.used"
+                  @change="setSampleRows(($event.target as HTMLInputElement).value)"
+                />
+              </label>
+              <!-- **조용히 일부만 쓰지 않는다** - 안 쓰는 행이 몇 행인지 말한다
+                     (architecture.md §8.9, §8.13.2의 산점도 상한과 같은 규칙). -->
+              <p class="mt-1.5 text-caution">
+                {{ t('preprocess.sampleSummary', sampleSummary) }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- 모든 데이터 종류에 공통이다. 내용은 PreprocessView가 넣는다. -->
       <slot />
     </div>
