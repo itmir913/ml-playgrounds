@@ -10,8 +10,12 @@ import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
 import {
+  DATA_COMPARABLE_KEYS,
+  DATA_SCHEMAS,
+  DATA_TYPES,
   FORMAT_VERSION,
   PROJECT_KIND_ML,
+  experimentSettingsSchema,
   manifestSchema,
   parseProjectDocument,
   runSchema,
@@ -33,15 +37,17 @@ const manifest = {
 }
 
 const settings = {
-  dataset: {
-    path: 'dataset/data.csv',
-    originalFileName: 'iris_data_final(1).csv',
-    hasHeader: true,
-    encoding: 'utf-8',
+  data: {
+    dataset: {
+      path: 'dataset/data.csv',
+      originalFileName: 'iris_data_final(1).csv',
+      hasHeader: true,
+      encoding: 'utf-8',
+    },
+    features: ['sepal_length', 'petal_length'],
+    target: 'species',
+    preprocessing: { missing: 'drop', scaling: 'standard', categoricalEncoding: 'onehot' },
   },
-  features: ['sepal_length', 'petal_length'],
-  target: 'species',
-  preprocessing: { missing: 'drop', scaling: 'standard', categoricalEncoding: 'onehot' },
   split: { method: 'holdout', testSize: 0.2, stratify: true, randomState: 42 },
   runtime: 'mljs',
   selectedAlgorithms: [{ algorithm: 'decision_tree' }],
@@ -84,9 +90,12 @@ describe('모르는 필드', () => {
   it('중첩된 안쪽에서도 살아남는다', () => {
     const parsed = settingsSchema.parse({
       ...settings,
-      preprocessing: { ...settings.preprocessing, outlierRemoval: 'iqr' },
+      data: {
+        ...settings.data,
+        preprocessing: { ...settings.data.preprocessing, outlierRemoval: 'iqr' },
+      },
     })
-    expect(parsed.preprocessing.outlierRemoval).toBe('iqr')
+    expect(parsed.data.preprocessing.outlierRemoval).toBe('iqr')
   })
 
   it('지표는 이름을 모르는 것도 그대로 받는다', () => {
@@ -121,7 +130,7 @@ describe('모르는 어휘', () => {
   it('업로드 인코딩이 목록에 없으면 거부한다', () => {
     const withSource = (sourceEncoding: string) => ({
       ...settings,
-      dataset: { ...settings.dataset, sourceEncoding },
+      data: { ...settings.data, dataset: { ...settings.data.dataset, sourceEncoding } },
     })
     expect(settingsSchema.safeParse(withSource('cp949')).success).toBe(true)
     expect(settingsSchema.safeParse(withSource('euc-kr')).success).toBe(false)
@@ -293,5 +302,44 @@ describe('폼 입력은 엄격하다', () => {
   it('파일 파싱에는 그 상한이 걸리지 않는다', () => {
     const student = { studentId: '1'.repeat(40), name: '이'.repeat(50) }
     expect(manifestSchema.safeParse({ ...manifest, student }).success).toBe(true)
+  })
+})
+
+/**
+ * 데이터 종류별 설정을 가른 뒤 생긴 규칙들 (open-decisions.md "설정 스키마를 데이터
+ * 종류별로 가른다").
+ */
+describe('데이터 종류별 설정', () => {
+  const kindFields = (pick: 'settings' | 'snapshot') =>
+    DATA_TYPES.flatMap((dataType) => Object.keys(DATA_SCHEMAS[dataType][pick].shape))
+
+  it('종류마다 스키마 둘이 다 있다 - 없으면 그 파일을 읽을 방법이 없다', () => {
+    for (const dataType of DATA_TYPES) {
+      expect(DATA_SCHEMAS[dataType].settings, dataType).toBeDefined()
+      expect(DATA_SCHEMAS[dataType].snapshot, dataType).toBeDefined()
+    }
+  })
+
+  /**
+   * **변경 이력이 `settings.data`를 평평하게 펴기 때문이다** (`ml/experiment.ts`의
+   * `comparable`). 이름이 겹치면 편 자리에서 하나가 다른 하나를 조용히 덮고, 그러면
+   * 학생이 바꾼 것이 목록에서 사라진다.
+   */
+  it('종류별 필드는 공통 필드와 이름이 겹치지 않는다', () => {
+    const common = new Set([
+      ...Object.keys(settingsSchema.shape).filter((key) => key !== 'data'),
+      ...Object.keys(experimentSettingsSchema.shape).filter((key) => key !== 'data'),
+      // comparable에서 selectedAlgorithms가 눕는 이름이다 (mlpx-spec.md §4).
+      'algorithms',
+    ])
+    const clashes = [...kindFields('settings'), ...kindFields('snapshot')].filter((key) =>
+      common.has(key),
+    )
+    expect(clashes, '종류별 필드 이름이 공통 필드와 겹친다').toEqual([])
+  })
+
+  it('스냅샷 필드가 전부 비교 목록에 있다 - 빠지면 그 변경이 안 뜬다', () => {
+    const missing = kindFields('snapshot').filter((key) => !DATA_COMPARABLE_KEYS.includes(key))
+    expect(missing).toEqual([])
   })
 })

@@ -105,7 +105,7 @@ function ENGINES_BY_KIND(): Map<string, TrainingEngine> {
 export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
   const { experiment, dataset, testDataset } = input
   const { settings } = experiment
-  const target = settings.target ?? ''
+  const target = settings.data.target ?? ''
 
   const done = experiment.runs.filter((run) => run.status === 'done')
   if (done.length === 0) return []
@@ -124,10 +124,10 @@ export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
       const preprocessor = fitPreprocessor(
         dataset,
         settings.trainIndices,
-        settings.features,
-        settings.preprocessing,
+        settings.data.features,
+        settings.data.preprocessing,
       )
-      const { categoricalEncoding } = settings.preprocessing
+      const { categoricalEncoding } = settings.data.preprocessing
       return {
         preprocessor,
         trainFeatures: transform(preprocessor, dataset, settings.trainIndices, categoricalEncoding),

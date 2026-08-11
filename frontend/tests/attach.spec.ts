@@ -31,15 +31,17 @@ function inputFor(algorithms: string[]): ExperimentInput {
     taskType: 'classification',
     dataType: 'tabular',
     settings: {
-      dataset: {
-        path: 'dataset/data.csv',
-        originalFileName: 'iris.csv',
-        hasHeader: true,
-        encoding: 'utf-8',
+      data: {
+        dataset: {
+          path: 'dataset/data.csv',
+          originalFileName: 'iris.csv',
+          hasHeader: true,
+          encoding: 'utf-8',
+        },
+        features: [...IRIS_FEATURE_COLUMNS],
+        target: IRIS_TARGET_COLUMN,
+        preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
       },
-      features: [...IRIS_FEATURE_COLUMNS],
-      target: IRIS_TARGET_COLUMN,
-      preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
       split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: 42 },
       runtime: 'mljs',
       selectedAlgorithms: algorithms.map((algorithm) => ({ algorithm })),
@@ -63,9 +65,11 @@ function bareExperiment(runs: Run[]): Experiment {
       taskType: 'classification',
       runtime: 'mljs',
       selectedAlgorithms: runs.map((run) => ({ algorithm: run.algorithm, runtime: 'mljs' })),
-      features: ['a'],
-      target: 'b',
-      preprocessing: { missing: 'drop', scaling: 'none', categoricalEncoding: 'onehot' },
+      data: {
+        features: ['a'],
+        target: 'b',
+        preprocessing: { missing: 'drop', scaling: 'none', categoricalEncoding: 'onehot' },
+      },
       split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: 42 },
       trainIndices: [0],
       testIndices: [1],
@@ -125,8 +129,7 @@ describe('학습 → 담기 → 다시 꺼내 예측', () => {
       taskType: 'regression',
       settings: {
         ...base.settings,
-        features: rest,
-        target: first ?? '',
+        data: { ...base.settings.data, features: rest, target: first ?? '' },
         // 층화는 분류의 것이다. 회귀에 켜 두면 split이 시끄럽게 실패한다 (ml/split.ts).
         split: { ...base.settings.split, stratify: false },
       },

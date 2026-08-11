@@ -56,7 +56,7 @@ describe('표를 아직 안 올린 프로젝트', () => {
     // 한 차시가 끝나 나가야 하는데 아직 자료를 못 정한 학생이 이 파일을 들고 간다.
     const reopened = await roundTrip(emptyProjectFile())
     expect(reopened.dataset).toBeUndefined()
-    expect(reopened.document.settings.dataset).toBeUndefined()
+    expect(reopened.document.settings.data.dataset).toBeUndefined()
   })
 
   it('zip 안에 dataset/이 아예 없다', async () => {
@@ -74,7 +74,7 @@ describe('표를 아직 안 올린 프로젝트', () => {
   it('참조만 있고 본체가 없으면 저장을 거부한다', async () => {
     // 우리 버그다. 그대로 쓰면 다시 열리지 않는 파일이 나간다.
     const broken = emptyProjectFile()
-    broken.document.settings.dataset = projectFile().document.settings.dataset
+    broken.document.settings.data.dataset = projectFile().document.settings.data.dataset
 
     await expect(writeProject(broken, markdown)).rejects.toSatisfy(isClientError)
   })
@@ -101,8 +101,8 @@ describe('왕복', () => {
 
   it('한글 컬럼명과 클래스 라벨이 살아남는다', async () => {
     const reopened = await roundTrip(projectFile())
-    expect(reopened.document.settings.features).toEqual(['꽃받침 길이', 'petal_length'])
-    expect(reopened.document.settings.target).toBe('품종')
+    expect(reopened.document.settings.data.features).toEqual(['꽃받침 길이', 'petal_length'])
+    expect(reopened.document.settings.data.target).toBe('품종')
   })
 
   it('실패한 run이 사유와 함께 남는다', async () => {
@@ -174,7 +174,7 @@ describe('평가 데이터(test.csv)', () => {
   it('provided면 test.csv가 비트 단위로 왕복한다', async () => {
     const reopened = await roundTrip(projectFileWithTestDataset())
     expect(Array.from(reopened.testDataset?.bytes ?? [])).toEqual(Array.from(testDatasetBytes))
-    expect(reopened.document.settings.testDataset?.path).toBe('dataset/test.csv')
+    expect(reopened.document.settings.data.testDataset?.path).toBe('dataset/test.csv')
   })
 
   it('참조만 있고 본체가 없으면 저장을 거부한다', async () => {
@@ -216,7 +216,7 @@ describe('예측 데이터(predict.csv)', () => {
     expect(Array.from(reopened.predictDataset?.bytes ?? [])).toEqual(
       Array.from(predictDatasetBytes),
     )
-    expect(reopened.document.settings.predictDataset?.path).toBe('dataset/predict.csv')
+    expect(reopened.document.settings.data.predictDataset?.path).toBe('dataset/predict.csv')
   })
 
   it('실험을 지우지 않는다 - applyTestDataset과 결정적으로 다른 지점이다', async () => {
@@ -546,11 +546,11 @@ describe('열 수 없는 파일', () => {
 
 describe('경로가 어긋난 파일', () => {
   /** settings.json을 손으로 고친 파일을 만든다. */
-  async function withSettings(mutate: (settings: { dataset: { path: string } }) => void) {
+  async function withSettings(mutate: (settings: { data: { dataset: { path: string } } }) => void) {
     const { bytes } = await writeProject(projectFile(), markdown)
     const entries = unzipSync(bytes)
     const settings = JSON.parse(new TextDecoder().decode(entries[ENTRY.settings])) as {
-      dataset: { path: string }
+      data: { dataset: { path: string } }
     }
     mutate(settings)
     entries[ENTRY.settings] = new TextEncoder().encode(JSON.stringify(settings, null, 2))
@@ -586,27 +586,27 @@ describe('경로가 어긋난 파일', () => {
     // 저장하면 데이터셋이 manifest를 덮어써서 **다시 못 여는 파일**이 나간다.
     await rejectsAt(
       await withSettings((settings) => {
-        settings.dataset.path = ENTRY.manifest
+        settings.data.dataset.path = ENTRY.manifest
       }),
-      'settings.dataset.path',
+      'settings.data.dataset.path',
     )
   })
 
   it('데이터셋이 hashes.json을 가리켜도 거부한다', async () => {
     await rejectsAt(
       await withSettings((settings) => {
-        settings.dataset.path = ENTRY.hashes
+        settings.data.dataset.path = ENTRY.hashes
       }),
-      'settings.dataset.path',
+      'settings.data.dataset.path',
     )
   })
 
   it('데이터셋 경로가 dataset/ 밖이면 거부한다', async () => {
     await rejectsAt(
       await withSettings((settings) => {
-        settings.dataset.path = 'data.csv'
+        settings.data.dataset.path = 'data.csv'
       }),
-      'settings.dataset.path',
+      'settings.data.dataset.path',
     )
   })
 
@@ -635,18 +635,18 @@ describe('경로가 어긋난 파일', () => {
   it('상위 디렉터리로 새는 경로를 거부한다 - 학생이 압축을 풀 때 밖으로 나간다', async () => {
     await rejectsAt(
       await withSettings((settings) => {
-        settings.dataset.path = 'dataset/../../evil.csv'
+        settings.data.dataset.path = 'dataset/../../evil.csv'
       }),
-      'settings.dataset.path',
+      'settings.data.dataset.path',
     )
   })
 
   it('디렉터리 이름 자체는 파일이 아니다', async () => {
     await rejectsAt(
       await withSettings((settings) => {
-        settings.dataset.path = 'dataset/'
+        settings.data.dataset.path = 'dataset/'
       }),
-      'settings.dataset.path',
+      'settings.data.dataset.path',
     )
   })
 })

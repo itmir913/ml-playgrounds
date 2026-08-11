@@ -23,6 +23,7 @@
  */
 
 import { ClientError, failureDetail, isClientError } from '../errors'
+import { DATA_COMPARABLE_KEYS } from '../project/schema'
 import type { Experiment, DataType, Run, RunsFile, Settings, TaskType } from '../project/schema'
 import { algorithmOptions, type Algorithm, type AlgorithmOption } from './algorithms'
 import {
@@ -262,9 +263,14 @@ function comparable(
     // 안 뜨면 학생은 비교표가 왜 딴판인지 알 수 없다.
     taskType: settings.taskType,
     runtime: settings.runtime,
-    features: settings.features,
-    target: settings.target ?? null,
-    preprocessing: settings.preprocessing,
+    // **종류별 설정은 평평하게 편다** (schema.ts의 DATA_COMPARABLE_KEYS). 파일에서는
+    // settings.data 안에 있지만 `changed`의 경로는 `preprocessing.scaling`처럼 평평하고,
+    // 그 경로가 움직이면 옛 실험의 기록도 로케일 키도 함께 썩는다.
+    //
+    // **`null`로 펴는 것이 핵심이다.** 없는 값을 undefined로 두면 `JSON.stringify`가
+    // 그 키를 지워 "없다가 생김"과 "있다가 없어짐"이 둘 다 안 잡힌다 - 타깃을 고르고
+    // 안 고른 것이 학생이 한 변경인데도 목록에 안 뜬다.
+    ...Object.fromEntries(DATA_COMPARABLE_KEYS.map((key) => [key, settings.data[key] ?? null])),
     split: settings.split,
     // **`null`로 펴는 것이 핵심이다** (target과 같은 방식). 뽑기를 켠 것과 끈 것은
     // 학생이 한 변경인데, undefined로 두면 `JSON.stringify`가 그 키를 지워 "없다가
@@ -445,7 +451,7 @@ export function runExperiment(
   const { dataset, testDataset, settings, taskType, dataType, context } = input
   const now = options.now ?? (() => new Date().toISOString())
   const experiments = options.history?.experiments ?? []
-  const { target } = settings
+  const { target } = settings.data
   const isClustering = taskType === 'clustering'
 
   // 군집화에는 타깃이 없다 (architecture.md §3.6). 분류·회귀는 정답 열이 있어야
@@ -459,16 +465,21 @@ export function runExperiment(
   // 군집화에는 평가 데이터셋이 없다 — 전체 데이터로 학습한다.
   const providedTestRows =
     !isClustering && settings.split.method === 'provided' && testDataset
-      ? usableRows(testDataset, settings.features, target!, settings.preprocessing.missing)
+      ? usableRows(
+          testDataset,
+          settings.data.features,
+          target!,
+          settings.data.preprocessing.missing,
+        )
       : undefined
 
   // 군집화에는 타깃이 없으므로 usableRows에 undefined를 넘긴다. usableRows는
   // target이 없으면 타깃 결측 검사를 건너뛴다.
   const usable = usableRows(
     dataset,
-    settings.features,
+    settings.data.features,
     isClustering ? undefined : target,
-    settings.preprocessing.missing,
+    settings.data.preprocessing.missing,
   )
   const usableLabels = isClustering ? [] : targetValues(dataset, usable, target!)
 
@@ -490,8 +501,10 @@ export function runExperiment(
   // (open-decisions.md "전처리도 분할도 끌 수 있다"). **전체**를 본다 - provided면
   // 평가 데이터셋도 같은 전처리를 받으므로(mlpx-spec.md §1.1) 거기도 봐야 한다.
   // 군집화에는 타깃이 없으므로 특성만 본다.
-  if (settings.preprocessing.missing === 'none') {
-    const checked = isClustering ? [...settings.features] : [...settings.features, target!]
+  if (settings.data.preprocessing.missing === 'none') {
+    const checked = isClustering
+      ? [...settings.data.features]
+      : [...settings.data.features, target!]
     const blank =
       missingColumns(dataset, checked)[0] ??
       (!isClustering && settings.split.method === 'provided' && testDataset
@@ -528,8 +541,8 @@ export function runExperiment(
   const preprocessor = fitPreprocessor(
     dataset,
     split.trainIndices,
-    settings.features,
-    settings.preprocessing,
+    settings.data.features,
+    settings.data.preprocessing,
   )
 
   // provided면 testIndices는 dataset이 아니라 testDataset의 행 번호다
@@ -538,7 +551,7 @@ export function runExperiment(
   const testSource =
     !isClustering && settings.split.method === 'provided' && testDataset ? testDataset : dataset
 
-  const { categoricalEncoding } = settings.preprocessing
+  const { categoricalEncoding } = settings.data.preprocessing
   const trainContext: TrainContext = {
     taskType,
     trainFeatures: transform(preprocessor, dataset, split.trainIndices, categoricalEncoding),
@@ -641,10 +654,14 @@ export function runExperiment(
     // explicit은 요청을 만드는 동안만 쓰는 값이라 파일에 남기지 않는다.
     // 스냅샷에는 결과적으로 무엇을 요청했는지만 있으면 된다.
     selectedAlgorithms: requested.map(({ algorithm, runtime }) => ({ algorithm, runtime })),
-    features: settings.features,
-    // 군집화에는 타깃이 없다. 스키마에서 선택 항목이다 (schema.ts).
-    ...(target ? { target } : {}),
-    preprocessing: settings.preprocessing,
+    // 데이터 종류별 스냅샷 (mlpx-spec.md §4). 정본 참조는 여기 없다 - 실험이 보장하는
+    // 것은 같은 데이터·전처리·분할이고, 어느 파일에서 왔는지는 그 목록에 없다.
+    data: {
+      features: settings.data.features,
+      // 군집화에는 타깃이 없다. 스키마에서 선택 항목이다 (schema.ts).
+      ...(target ? { target } : {}),
+      preprocessing: settings.data.preprocessing,
+    },
     split: settings.split,
     // 선택 항목이다 - 안 뽑은 실험에는 아예 없다 (schema.ts). undefined를 그대로 넣으면
     // 그 키가 파일에 `null`로 남거나 사라지는 것이 직렬화에 달리게 된다.

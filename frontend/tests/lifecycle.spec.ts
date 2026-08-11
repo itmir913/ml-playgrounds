@@ -40,22 +40,50 @@ function csvBytes(dataset: Dataset): Uint8Array {
   return toCanonicalCsv([[...dataset.columns], ...dataset.rows.map((row) => [...row])])
 }
 
-function settingsFor(overrides: Partial<Settings> = {}): Settings {
+/**
+ * **표의 설정은 `settings.data` 안이지만 여기서는 평평하게 받는다** (mlpx-spec.md §3).
+ *
+ * 검사가 실제로 넘기는 것은 아래에서 조립한 진짜 `Settings`다. 평평하게 받는 이유는
+ * `Settings`가 looseObject라 **`Partial<Settings>`에 `features`를 얹어도 타입이 안
+ * 울고 조용히 무시되기 때문이다** — 스키마를 가르던 날 실제로 그렇게 통과했다.
+ * 여기서 갈라 넣으면 그 자리가 컴파일에 걸린다.
+ */
+type SettingsOverrides = Partial<Omit<Settings, 'data'>> & Partial<Settings['data']>
+
+function splitOverrides(overrides: SettingsOverrides) {
+  const { dataset, testDataset, predictDataset, features, target, preprocessing, ...common } =
+    overrides
+  const data = {
+    ...(dataset === undefined ? {} : { dataset }),
+    ...(testDataset === undefined ? {} : { testDataset }),
+    ...(predictDataset === undefined ? {} : { predictDataset }),
+    ...(features === undefined ? {} : { features }),
+    ...('target' in overrides ? { target } : {}),
+    ...(preprocessing === undefined ? {} : { preprocessing }),
+  }
+  return { data, common }
+}
+
+const baseData: Settings['data'] = {
+  dataset: {
+    path: 'dataset/data.csv',
+    originalFileName: 'iris.csv',
+    hasHeader: true,
+    encoding: 'utf-8',
+  },
+  features: [...IRIS_FEATURE_COLUMNS],
+  target: IRIS_TARGET_COLUMN,
+  preprocessing: { missing: 'mean', scaling: 'standard', categoricalEncoding: 'onehot' },
+}
+
+function settingsFor(overrides: SettingsOverrides = {}): Settings {
   return {
-    dataset: {
-      path: 'dataset/data.csv',
-      originalFileName: 'iris.csv',
-      hasHeader: true,
-      encoding: 'utf-8',
-    },
-    features: [...IRIS_FEATURE_COLUMNS],
-    target: IRIS_TARGET_COLUMN,
-    preprocessing: { missing: 'mean', scaling: 'standard', categoricalEncoding: 'onehot' },
     split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: 42 },
     runtime: 'mljs',
     selectedAlgorithms: [],
     hyperparameters: {},
-    ...overrides,
+    ...splitOverrides(overrides).common,
+    data: { ...baseData, ...splitOverrides(overrides).data },
   }
 }
 
@@ -68,7 +96,7 @@ function projectWith(dataset: Dataset, settings: Settings): ProjectFile {
       ...base.document,
       manifest: {
         ...base.document.manifest,
-        taskType: settings.target ? 'classification' : undefined,
+        taskType: settings.data.target ? 'classification' : undefined,
       },
       settings,
     },
@@ -162,7 +190,7 @@ function reproduceMetrics(
     const truth = targetValues(
       table,
       experiment.settings.testIndices,
-      experiment.settings.target ?? '',
+      experiment.settings.data.target ?? '',
     )
     const again = evaluate(experiment.settings.taskType, truth, predict(rows)).metrics
 

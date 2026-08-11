@@ -315,13 +315,14 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
   // 문서가 데이터셋을 가리키면 본체가 있어야 한다. 둘은 함께 있고 함께 없다
   // (mlpx-spec.md §1). 어긋난 것은 우리가 고칠 수 없으므로 없는 것으로 다룬다.
   const dataset = await transaction.objectStore(DATASETS_STORE).get(projectId)
-  const wanted = document.settings.dataset !== undefined
+  const wanted = document.settings.data.dataset !== undefined
   if (wanted !== (dataset !== undefined)) return null
   // 평가·예측 데이터도 같은 규칙이다. 참조만 남은 채로 열어 주면 **그 프로젝트는
   // 저장도 내보내기도 못 하는 상태**가 되고(writeProject가 거부한다) 학생은 왜인지
   // 모른 채 다음 차시에 그걸 안다.
-  if ((document.settings.testDataset !== undefined) !== (dataset?.test !== undefined)) return null
-  if ((document.settings.predictDataset !== undefined) !== (dataset?.predict !== undefined)) {
+  if ((document.settings.data.testDataset !== undefined) !== (dataset?.test !== undefined))
+    return null
+  if ((document.settings.data.predictDataset !== undefined) !== (dataset?.predict !== undefined)) {
     return null
   }
 

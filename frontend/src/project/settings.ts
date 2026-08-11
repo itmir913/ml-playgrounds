@@ -23,6 +23,25 @@ function withSettings(document: ProjectDocument, settings: Settings, now: string
 }
 
 /**
+ * 데이터 종류별 설정만 갈아 끼운다 (`settings.data`, mlpx-spec.md §3).
+ *
+ * **아래 `withTarget`·`withFeatures`·`withPreprocessing`은 표 전용이다.** 지금은
+ * `Settings['data']`가 표의 것 하나뿐이라 그대로 서지만, 이미지가 등록되는 날 이 세
+ * 함수는 컴파일에서 깨진다 — 그때 표의 판이 가져갈 함수들이다.
+ */
+function withData(
+  document: ProjectDocument,
+  patch: Partial<Settings['data']>,
+  now: string,
+): ProjectDocument {
+  return withSettings(
+    document,
+    { ...document.settings, data: { ...document.settings.data, ...patch } },
+    now,
+  )
+}
+
+/**
  * 기계학습 유형을 바꾼다. **`manifest`에 있다** — `settings`가 아니다.
  *
  * 뜻을 잃은 모델 선택은 부르는 쪽이 `algorithmsLosingMeaning`으로 골라 `drop`에 넘긴다.
@@ -60,12 +79,11 @@ export function withTarget(
   target: string | undefined,
   now: string,
 ): ProjectDocument {
-  return withSettings(
+  return withData(
     document,
     {
-      ...document.settings,
       target,
-      features: document.settings.features.filter((name) => name !== target),
+      features: document.settings.data.features.filter((name) => name !== target),
     },
     now,
   )
@@ -77,12 +95,8 @@ export function withFeatures(
   features: readonly string[],
   now: string,
 ): ProjectDocument {
-  const { target } = document.settings
-  return withSettings(
-    document,
-    { ...document.settings, features: features.filter((name) => name !== target) },
-    now,
-  )
+  const { target } = document.settings.data
+  return withData(document, { features: features.filter((name) => name !== target) }, now)
 }
 
 export function withPreprocessing(
@@ -90,9 +104,9 @@ export function withPreprocessing(
   patch: Partial<Preprocessing>,
   now: string,
 ): ProjectDocument {
-  return withSettings(
+  return withData(
     document,
-    { ...document.settings, preprocessing: { ...document.settings.preprocessing, ...patch } },
+    { preprocessing: { ...document.settings.data.preprocessing, ...patch } },
     now,
   )
 }

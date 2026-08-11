@@ -364,7 +364,7 @@ export function clusterMaterial(
   model: KMeansModel,
   settings: Experiment['settings'],
 ): ClusterMaterial {
-  const encoding = settings.preprocessing.categoricalEncoding
+  const encoding = settings.data.preprocessing.categoricalEncoding
   const rows = settings.trainIndices
   const matrix = transform(preprocessor, dataset, rows, encoding)
 

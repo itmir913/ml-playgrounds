@@ -119,21 +119,21 @@ export interface ProjectFile {
   /**
    * 아직 표를 올리지 않은 프로젝트에는 **없다.** 정상 상태다.
    *
-   * `document.settings.dataset`과 **함께 있고 함께 없다** (mlpx-spec.md §1).
+   * `document.settings.data.dataset`과 **함께 있고 함께 없다** (mlpx-spec.md §1).
    * 한쪽만 있는 것은 우리 버그이고, referencedFileEntry가 저장 직전에 잡는다.
    */
   dataset?: Dataset | undefined
   /**
    * 평가 데이터. `split.method`가 `provided`일 때만 있다.
    *
-   * `document.settings.testDataset`과 **함께 있고 함께 없다** - `dataset`과 같은 규칙이다
+   * `document.settings.data.testDataset`과 **함께 있고 함께 없다** - `dataset`과 같은 규칙이다
    * (mlpx-spec.md §1.1).
    */
   testDataset?: Dataset | undefined
   /**
    * 예측 데이터. 예측 화면에서 파일을 올렸을 때만 있다.
    *
-   * `document.settings.predictDataset`과 **함께 있고 함께 없다** - `dataset`·`testDataset`과
+   * `document.settings.data.predictDataset`과 **함께 있고 함께 없다** - `dataset`·`testDataset`과
    * 같은 규칙이다 (mlpx-spec.md §1.1).
    */
   predictDataset?: Dataset | undefined
@@ -454,17 +454,17 @@ function referencedFileEntry(
 }
 
 function requireSanePaths(document: ProjectDocument): void {
-  const dataset = document.settings.dataset
+  const dataset = document.settings.data.dataset
   if (dataset) {
-    requirePathUnder(dataset.path, DIR.dataset, 'settings.dataset.path')
+    requirePathUnder(dataset.path, DIR.dataset, 'settings.data.dataset.path')
   }
-  const testDataset = document.settings.testDataset
+  const testDataset = document.settings.data.testDataset
   if (testDataset) {
-    requirePathUnder(testDataset.path, DIR.dataset, 'settings.testDataset.path')
+    requirePathUnder(testDataset.path, DIR.dataset, 'settings.data.testDataset.path')
   }
-  const predictDataset = document.settings.predictDataset
+  const predictDataset = document.settings.data.predictDataset
   if (predictDataset) {
-    requirePathUnder(predictDataset.path, DIR.dataset, 'settings.predictDataset.path')
+    requirePathUnder(predictDataset.path, DIR.dataset, 'settings.data.predictDataset.path')
   }
 
   document.runs.experiments.forEach((experiment, experimentIndex) => {
@@ -529,7 +529,7 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
   // settings가 데이터셋을 가리키는데 본체가 없으면 재학습도, 참조형 모델의 예측도,
   // 해시 재계산도 전부 불가능하다. 아예 안 가리키는 것은 다르다 - 표를 아직 안 올린
   // 정상적인 파일이다 (mlpx-spec.md §1).
-  const datasetPath = document.settings.dataset?.path
+  const datasetPath = document.settings.data.dataset?.path
   const datasetBytes = datasetPath === undefined ? undefined : entries.get(datasetPath)
   if (datasetPath !== undefined && datasetBytes === undefined) {
     throw new ClientError('PROJECT_FILE_ENTRY_MISSING', { entry: datasetPath })
@@ -537,14 +537,14 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
 
   // 평가 데이터도 같은 규칙이다 - split.method가 provided인데 test.csv가 없으면
   // 재현도 재학습도 못 한다 (mlpx-spec.md §1.1).
-  const testDatasetPath = document.settings.testDataset?.path
+  const testDatasetPath = document.settings.data.testDataset?.path
   const testDatasetBytes = testDatasetPath === undefined ? undefined : entries.get(testDatasetPath)
   if (testDatasetPath !== undefined && testDatasetBytes === undefined) {
     throw new ClientError('PROJECT_FILE_ENTRY_MISSING', { entry: testDatasetPath })
   }
 
   // 예측 데이터도 같은 규칙이다 - 참조가 있는데 본체가 없으면 우리 버그다 (mlpx-spec.md §1).
-  const predictDatasetPath = document.settings.predictDataset?.path
+  const predictDatasetPath = document.settings.data.predictDataset?.path
   const predictDatasetBytes =
     predictDatasetPath === undefined ? undefined : entries.get(predictDatasetPath)
   if (predictDatasetPath !== undefined && predictDatasetBytes === undefined) {
@@ -617,25 +617,25 @@ export async function writeProject(
     [ENTRY.portfolioMarkdown]: new TextEncoder().encode(portfolioMarkdown),
   }
   const dataset = referencedFileEntry(
-    document.settings.dataset,
+    document.settings.data.dataset,
     project.dataset,
-    'settings.dataset',
+    'settings.data.dataset',
   )
   if (dataset !== undefined) {
     entries[dataset.path] = dataset.bytes
   }
   const testDataset = referencedFileEntry(
-    document.settings.testDataset,
+    document.settings.data.testDataset,
     project.testDataset,
-    'settings.testDataset',
+    'settings.data.testDataset',
   )
   if (testDataset !== undefined) {
     entries[testDataset.path] = testDataset.bytes
   }
   const predictDataset = referencedFileEntry(
-    document.settings.predictDataset,
+    document.settings.data.predictDataset,
     project.predictDataset,
-    'settings.predictDataset',
+    'settings.data.predictDataset',
   )
   if (predictDataset !== undefined) {
     entries[predictDataset.path] = predictDataset.bytes

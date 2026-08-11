@@ -325,7 +325,10 @@ describe('프로젝트에서 사실을 뽑는다', () => {
 
   it('특성과 알고리즘은 따로 본다', () => {
     const base = projectFile()
-    const settings = { ...base.document.settings, features: [] }
+    const settings = {
+      ...base.document.settings,
+      data: { ...base.document.settings.data, features: [] },
+    }
     const changed = factsOf({ ...base, document: { ...base.document, settings } })
     expect(changed.featuresChosen).toBe(false)
     expect(changed.algorithmsChosen).toBe(true)

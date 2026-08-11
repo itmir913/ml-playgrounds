@@ -41,8 +41,10 @@ function experiment(taskType: TaskType, runs: Run[]): Experiment {
       taskType,
       runtime: 'mljs',
       selectedAlgorithms: [],
-      features: [],
-      preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
+      data: {
+        features: [],
+        preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
+      },
       split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: 42 },
       trainIndices: [],
       testIndices: [],

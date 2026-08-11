@@ -1850,7 +1850,13 @@ boolean>>` 같은 것을 두면 축이 늘 때 칸이 곱으로 늘어 사람이
 | 등록부 | 무엇을 | 모양 | 빠지면 |
 |---|---|---|---|
 | `data/kinds.ts` | 화면 판(`panel`·`prepPanel`)과 `accept` | **배열** | "아직 못 다루는 종류"다. `dataKindFor`가 `undefined`를 준다 |
-| 스키마 등록부 (Vue 없는 모듈) | `settings.data`·`experimentSettings.data`의 스키마와 비교 서술 | **`Record<DataType, …>`** | **컴파일이 깨진다** |
+| `project/schema.ts`의 `DATA_SCHEMAS` | `settings.data`와 `experimentSettings.data`의 스키마 둘 | **`Record<DataType, …>`** | **컴파일이 깨진다** |
+
+**스키마 등록부에 타입 주석 대신 `satisfies`를 쓴다.** 주석을 달면 각 항목이 인터페이스로
+넓어져 `settings.data`가 `Record<string, unknown>`이 되고, 읽는 자리가 전부 `unknown`을
+받는다. `satisfies`는 빠진 칸을 그대로 잡으면서 구체 타입을 남긴다 — **종류가 하나뿐인
+동안 `Settings['data']`는 정확히 표의 것이고, 이미지가 등록되는 날 유니온이 되어 좁히지
+않은 자리가 전부 깨진다.** 그게 이 리팩터의 목적이다.
 
 **비대칭이 실수가 아니다.** 화면은 없어도 프로그램이 성립한다 — 화면이 "이 종류는 아직
 못 다룬다"고 말하면 그만이고, 실제로 `DATA_TYPES`에 값을 먼저 세우고 판을 나중에 붙이는

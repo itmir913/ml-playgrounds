@@ -37,17 +37,19 @@ const { t } = useI18n()
 const project = useProjectStore()
 
 const settings = computed(() => project.file?.document.settings ?? null)
+/** 이 판이 다루는 것은 표의 설정이다 (`settings.data`, mlpx-spec.md §3). */
+const data = computed(() => settings.value?.data ?? null)
 const dataset = computed(() => readDataset(project.file))
 const columns = computed(() => (dataset.value ? summarizeColumns(dataset.value) : []))
 
 const trainRowUsage = computed(() => {
-  const current = settings.value
+  const current = data.value
   if (!current) return null
   return rowUsage(dataset.value, current.features, current.target, current.preprocessing.missing)
 })
 
 const plan = computed(() => {
-  const current = settings.value
+  const current = data.value
   if (!current || !dataset.value) return null
   return columnPlan({
     columns: columns.value,
@@ -70,7 +72,7 @@ const targetRule = computed(() => requiredTargetKind(project.taskType)?.code)
  * 들어간다 / 몇 개가 들어간다. 가운데만 빨갛다.
  */
 const featureSummary = computed(() => {
-  if ((settings.value?.features.length ?? 0) === 0) {
+  if ((data.value?.features.length ?? 0) === 0) {
     return { text: t('preprocess.noFeatureChosen'), tone: 'text-ink-soft' }
   }
   if ((plan.value?.usableFeatures ?? 0) === 0) {
@@ -99,7 +101,7 @@ function pickTarget(name: string): void {
 function toggleFeature(name: string, on: boolean): void {
   const file = project.file
   if (!file) return
-  const features = file.document.settings.features
+  const features = file.document.settings.data.features
   const next = on ? [...features, name] : features.filter((feature) => feature !== name)
   apply(withFeatures(file.document, next, now()))
 }
@@ -131,9 +133,9 @@ function setCleaning(patch: Partial<Preprocessing>): void {
 const usableRowCount = computed(() =>
   trainableRowCount(
     dataset.value,
-    settings.value?.features ?? [],
-    settings.value?.target,
-    settings.value?.preprocessing.missing ?? 'drop',
+    data.value?.features ?? [],
+    data.value?.target,
+    data.value?.preprocessing.missing ?? 'drop',
     undefined,
   ),
 )
@@ -150,7 +152,7 @@ const nSamples = computed(() => settings.value?.nSamples)
  * 데이터보다 큰 표본 수가 남는다.** 학습은 안 틀리지만(`sampleRows`가 그대로 돌려준다)
  * 파일만 보고 답해야 하는 교사 쪽에서 걸린다.
  */
-const samplingLocked = computed(() => settings.value?.target === undefined)
+const samplingLocked = computed(() => data.value?.target === undefined)
 
 /** 뽑은 뒤 남는 행. **모델이 한 번도 보지 않는 줄이다** (open-decisions.md #30). */
 const sampleSummary = computed(() => {
@@ -161,9 +163,9 @@ const sampleSummary = computed(() => {
   // (2026-08-12 감사 C-1).
   const used = trainableRowCount(
     dataset.value,
-    settings.value?.features ?? [],
-    settings.value?.target,
-    settings.value?.preprocessing.missing ?? 'drop',
+    data.value?.features ?? [],
+    data.value?.target,
+    data.value?.preprocessing.missing ?? 'drop',
     chosen,
   )
   return { usable, used, rest: Math.max(usable - used, 0) }
@@ -211,7 +213,7 @@ function setSampleRows(input: HTMLInputElement): void {
     가두면 그 안에서만 옆으로 스크롤하게 된다. 다만 2 대 1은 표에 과했다 - 오른쪽
     설정들이 라디오 줄이라 좁으면 글자마다 접힌다. **6 대 4**로 다섯 칸을 나눈다.
   -->
-  <div v-if="settings && plan" class="grid gap-5 md:grid-cols-5">
+  <div v-if="data && plan" class="grid gap-5 md:grid-cols-5">
     <section class="min-w-0 rounded-panel border border-line bg-surface p-4 md:col-span-3">
       <h2 class="font-bold">{{ t('preprocess.columnsTitle') }}</h2>
       <p class="mt-1 text-ink-soft">{{ t('preprocess.columnsLead') }}</p>
@@ -255,7 +257,7 @@ function setSampleRows(input: HTMLInputElement): void {
                   type="radio"
                   name="missing"
                   class="size-4 accent-brand"
-                  :checked="settings.preprocessing.missing === strategy"
+                  :checked="data.preprocessing.missing === strategy"
                   @change="setCleaning({ missing: strategy })"
                 />
                 {{ t(`missingStrategy.${strategy}`) }}
@@ -276,7 +278,7 @@ function setSampleRows(input: HTMLInputElement): void {
                   type="radio"
                   name="scaling"
                   class="size-4 accent-brand"
-                  :checked="settings.preprocessing.scaling === method"
+                  :checked="data.preprocessing.scaling === method"
                   @change="setCleaning({ scaling: method })"
                 />
                 {{ t(`scalingMethod.${method}`) }}
@@ -297,7 +299,7 @@ function setSampleRows(input: HTMLInputElement): void {
                   type="radio"
                   name="encoding"
                   class="size-4 accent-brand"
-                  :checked="settings.preprocessing.categoricalEncoding === encoding"
+                  :checked="data.preprocessing.categoricalEncoding === encoding"
                   @change="setCleaning({ categoricalEncoding: encoding })"
                 />
                 {{ t(`categoricalEncoding.${encoding}`) }}

@@ -7,7 +7,7 @@
  * 판정 순서: BOM 확인 -> UTF-8 유효성 검사 -> 실패하면 CP949.
  *
  * **여기서 판정한 인코딩은 정본(canonical)이 아니다.** 정본 바이트는 언제나
- * UTF-8 CSV로 정규화되며(serialize.ts), settings.dataset.encoding에 기록되는 값도
+ * UTF-8 CSV로 정규화되며(serialize.ts), settings.data.dataset.encoding에 기록되는 값도
  * 항상 'utf-8'이다. 이 모듈의 결과는 "업로드된 파일을 어떻게 읽을 것인가"에만 쓴다.
  */
 
@@ -19,7 +19,7 @@ import { ClientError } from '../errors'
  * 배열이 유일한 출처다. 여기 없는 것은 지원하지 않는 인코딩이다.
  * TextDecoder가 처리할 수 있는 라벨만 넣는다.
  *
- * **이 배열은 .mlpx의 어휘이기도 하다** - settings.dataset.sourceEncoding이 z.enum으로
+ * **이 배열은 .mlpx의 어휘이기도 하다** - settings.data.dataset.sourceEncoding이 z.enum으로
  * 이걸 쓴다. 값을 늘리면 파일 포맷이 바뀌는 것이므로 formatVersion을 올려야 한다.
  * 인코딩 판정만 고치는 줄 알고 파일 어휘를 늘리는 일이 없도록 tests/schema.spec.ts가
  * 이 배열을 고정해 두었다 (ml/backend.ts의 TRAINING_LOCATIONS도 같다).

@@ -19,9 +19,11 @@ const dataset = irisDataset()
 
 function settingsFor(algorithms: string[]): Settings {
   return {
-    features: [...IRIS_FEATURE_COLUMNS],
-    target: IRIS_TARGET_COLUMN,
-    preprocessing: { missing: 'mean', scaling: 'standard', categoricalEncoding: 'onehot' },
+    data: {
+      features: [...IRIS_FEATURE_COLUMNS],
+      target: IRIS_TARGET_COLUMN,
+      preprocessing: { missing: 'mean', scaling: 'standard', categoricalEncoding: 'onehot' },
+    },
     split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: 42 },
     runtime: 'mljs',
     selectedAlgorithms: algorithms.map((algorithm) => ({ algorithm })),

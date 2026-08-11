@@ -37,10 +37,10 @@ const info = computed(() => {
 
   const table = readDataset(file)
   const dataset =
-    table === null || settings.dataset === undefined
+    table === null || settings.data.dataset === undefined
       ? null
       : {
-          fileName: settings.dataset.originalFileName,
+          fileName: settings.data.dataset.originalFileName,
           rows: table.rows.length,
           columns: table.columns.length,
         }
@@ -53,8 +53,8 @@ const info = computed(() => {
     manifest,
     dataset,
     bytes,
-    target: settings.target,
-    features: settings.features.length,
+    target: settings.data.target,
+    features: settings.data.features.length,
     /**
      * **번역된 이름이다. 등록부 id가 아니다.** `decision_tree`가 그대로 뜨고 있었다 -
      * 화면에 나가는 모든 알고리즘 이름은 `algorithms.*`를 지난다(결과·예측 화면이 이미

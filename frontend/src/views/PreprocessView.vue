@@ -75,9 +75,9 @@ const testRowUsage = computed(() => {
   if (!current) return null
   return rowUsage(
     testDataset.value,
-    current.features,
-    current.target,
-    current.preprocessing.missing,
+    current.data.features,
+    current.data.target,
+    current.data.preprocessing.missing,
   )
 })
 
@@ -129,9 +129,9 @@ const stratifyBlockNow = computed(() => {
   return stratifyBlock({
     dataset: dataset.value,
     taskType: project.taskType,
-    target: current.target,
-    features: current.features,
-    preprocessing: current.preprocessing,
+    target: current.data.target,
+    features: current.data.features,
+    preprocessing: current.data.preprocessing,
     nSamples: current.nSamples,
   })
 })
@@ -442,11 +442,11 @@ function reseed(): void {
             >
               <!-- 이미 붙어 있고, 새로 고르는 중이 아니다. -->
               <div
-                v-if="settings.testDataset && !openedTest"
+                v-if="settings.data.testDataset && !openedTest"
                 class="flex flex-wrap items-center gap-x-4 gap-y-2"
               >
                 <span class="max-w-56 truncate font-bold text-ink">
-                  {{ settings.testDataset.originalFileName }}
+                  {{ settings.data.testDataset.originalFileName }}
                 </span>
                 <span class="flex items-center gap-1.5 text-ink-soft">
                   <span>{{ t('data.rows') }}</span>
@@ -463,7 +463,7 @@ function reseed(): void {
               </div>
 
               <!-- 아직 안 붙었거나, 다른 파일로 바꾸는 중이다. -->
-              <template v-if="!settings.testDataset || openedTest">
+              <template v-if="!settings.data.testDataset || openedTest">
                 <div
                   v-if="!openedTest"
                   class="rounded-panel border-2 border-dashed p-4 text-center transition-colors"

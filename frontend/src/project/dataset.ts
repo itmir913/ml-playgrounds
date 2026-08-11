@@ -39,7 +39,7 @@ import type { DatasetRef } from './schema'
 const parsed = new WeakMap<StoredDataset, Dataset>()
 
 export function readDataset(project: ProjectFile | null): Dataset | null {
-  const reference = project?.document.settings.dataset
+  const reference = project?.document.settings.data.dataset
   const stored = project?.dataset
   if (!stored || !reference) return null
 
@@ -59,7 +59,7 @@ const parsedPredict = new WeakMap<StoredDataset, Dataset>()
  * 정상 상태다 (mlpx-spec.md §1.1).
  */
 export function readPredictDataset(project: ProjectFile | null): Dataset | null {
-  const reference = project?.document.settings.predictDataset
+  const reference = project?.document.settings.data.predictDataset
   const stored = project?.predictDataset
   if (!stored || !reference) return null
 
@@ -79,7 +79,7 @@ const parsedTest = new WeakMap<StoredDataset, Dataset>()
  * `null`이다 - 정상 상태다.
  */
 export function readTestDataset(project: ProjectFile | null): Dataset | null {
-  const reference = project?.document.settings.testDataset
+  const reference = project?.document.settings.data.testDataset
   const stored = project?.testDataset
   if (!stored || !reference) return null
 
@@ -119,17 +119,14 @@ export function applyDataset(
   // 열 선택은 **살아남은 것만** 남긴다. 통째로 비우면 오타 하나 고치려고 CSV를 다시
   // 올린 학생이 고르기를 처음부터 다시 한다. 없는 열을 남겨 두는 것은 더 나쁘다 -
   // 학습이 시작된 뒤에야 터진다.
-  const features = document.settings.features.filter((name) => names.has(name))
+  const previous = document.settings.data
+  const features = previous.features.filter((name) => names.has(name))
   const target =
-    document.settings.target !== undefined && names.has(document.settings.target)
-      ? document.settings.target
-      : undefined
+    previous.target !== undefined && names.has(previous.target) ? previous.target : undefined
 
   const droppedColumns = [
-    ...document.settings.features.filter((name) => !names.has(name)),
-    ...(document.settings.target !== undefined && !names.has(document.settings.target)
-      ? [document.settings.target]
-      : []),
+    ...previous.features.filter((name) => !names.has(name)),
+    ...(previous.target !== undefined && !names.has(previous.target) ? [previous.target] : []),
   ]
 
   const dataset: DatasetRef = {
@@ -145,17 +142,17 @@ export function applyDataset(
   // **그 프로젝트를 저장도 내보내기도 못 하게 된다** (mlpx-spec.md §1 "함께 있고 함께
   // 없다"). 그리고 정본 열이 통째로 바뀐 마당에 옛 test.csv는 어차피 대조를 다시
   // 통과해야 하는 파일이라, 들고 있어 봐야 학습이 시작된 뒤에 터진다.
+  const data = { ...previous, dataset, features, target }
+  delete data.testDataset
+  delete data.predictDataset
+
   const settings = {
     ...document.settings,
-    dataset,
-    features,
-    target,
+    data,
     // 평가 데이터가 없어졌으므로 분할 방식도 되돌아간다 - provided인 채로 두면
     // 학습이 평가할 것을 못 찾는다 (ml/split.ts).
     split: { ...document.settings.split, method: 'holdout' as const },
   }
-  delete settings.testDataset
-  delete settings.predictDataset
 
   return {
     project: {
@@ -237,7 +234,7 @@ export function applyTestDataset(
         manifest: { ...document.manifest, updatedAt: options.now },
         settings: {
           ...document.settings,
-          testDataset,
+          data: { ...document.settings.data, testDataset },
           split: { ...document.settings.split, method: 'provided' },
         },
         runs: { ...document.runs, experiments: [] },
@@ -316,7 +313,10 @@ export function applyPredictDataset(
       document: {
         ...document,
         manifest: { ...document.manifest, updatedAt: options.now },
-        settings: { ...document.settings, predictDataset },
+        settings: {
+          ...document.settings,
+          data: { ...document.settings.data, predictDataset },
+        },
         // 실험은 그대로다 - 예측 데이터는 점수에 영향을 주지 않는다.
       },
       dataset: project.dataset,
@@ -332,13 +332,14 @@ export function applyPredictDataset(
  */
 export function removePredictDataset(project: ProjectFile, now: string): AppliedPredictDataset {
   const { document } = project
-  if (document.settings.predictDataset === undefined) {
+  if (document.settings.data.predictDataset === undefined) {
     // 이미 없다. 지울 것도 없다.
     return { project }
   }
 
-  const settings = { ...document.settings }
-  delete settings.predictDataset
+  const data = { ...document.settings.data }
+  delete data.predictDataset
+  const settings = { ...document.settings, data }
 
   return {
     project: {
@@ -362,16 +363,18 @@ export function removePredictDataset(project: ProjectFile, now: string): Applied
  */
 export function removeTestDataset(project: ProjectFile, now: string): AppliedTestDataset {
   const { document } = project
-  if (document.settings.testDataset === undefined) {
+  if (document.settings.data.testDataset === undefined) {
     // 이미 없다. 지울 것도 없다 - 호출부 버그가 아니라 조용히 아무 일도 안 한다.
     return { project, droppedExperiments: 0 }
   }
 
+  const data = { ...document.settings.data }
+  delete data.testDataset
   const settings = {
     ...document.settings,
+    data,
     split: { ...document.settings.split, method: 'holdout' as const },
   }
-  delete settings.testDataset
 
   return {
     project: {

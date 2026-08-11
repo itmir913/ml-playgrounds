@@ -384,7 +384,7 @@ describe('구성원', () => {
 
 describe('재료를 꺼내는 문', () => {
   const settings = (rows: readonly number[], options: Preprocessing) =>
-    ({ preprocessing: options, trainIndices: rows }) as Experiment['settings']
+    ({ data: { preprocessing: options }, trainIndices: rows }) as unknown as Experiment['settings']
 
   function bytesOf(model: KMeansModel): Uint8Array {
     return new TextEncoder().encode(JSON.stringify(model))
@@ -457,7 +457,10 @@ describe('재료를 꺼내는 문', () => {
 describe('재료 조립', () => {
   /** 실험 설정 중 재료가 보는 것만. 스키마 전체를 만들 이유가 없다. */
   function settingsOf(rows: readonly number[], options: Preprocessing) {
-    return { preprocessing: options, trainIndices: rows } as Experiment['settings']
+    return {
+      data: { preprocessing: options },
+      trainIndices: rows,
+    } as unknown as Experiment['settings']
   }
 
   it('손으로 조립한 것과 같다', () => {
@@ -482,7 +485,10 @@ describe('재료 조립', () => {
 describe('예측 화면의 이웃', () => {
   function materialOf() {
     const { preprocessor, rows, model, options, matrix } = fixture()
-    const settings = { preprocessing: options, trainIndices: rows } as Experiment['settings']
+    const settings = {
+      data: { preprocessing: options },
+      trainIndices: rows,
+    } as unknown as Experiment['settings']
     return { material: clusterMaterial(DATASET, preprocessor, model, settings), matrix }
   }
 

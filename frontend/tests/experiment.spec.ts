@@ -22,6 +22,8 @@ import { NOT_FOR_TABULAR_ALGORITHM } from './fixtures/algorithms'
 import type { RuntimeContext } from '../src/ml/backend'
 import type { Dataset } from '../src/ml/preprocess'
 import {
+  DATA_SCHEMAS,
+  DATA_TYPES,
   experimentSchema,
   settingsSchema,
   type Run,
@@ -44,22 +46,50 @@ const models = (...names: string[]) => names.map((algorithm) => ({ algorithm }))
 /** 서버도 무거운 엔진도 없는 상태. 공식 배포(GitHub Pages)가 정확히 이렇다. */
 const BROWSER_ONLY: RuntimeContext = { serverStatus: 'unavailable', rowCount: 30 }
 
-function settingsFor(overrides: Partial<Settings> = {}): Settings {
+/**
+ * **표의 설정은 `settings.data` 안이지만 여기서는 평평하게 받는다** (mlpx-spec.md §3).
+ *
+ * 검사가 실제로 넘기는 것은 아래에서 조립한 진짜 `Settings`다. 평평하게 받는 이유는
+ * `Settings`가 looseObject라 **`Partial<Settings>`에 `features`를 얹어도 타입이 안
+ * 울고 조용히 무시되기 때문이다** — 스키마를 가르던 날 실제로 그렇게 통과했다.
+ * 여기서 갈라 넣으면 그 자리가 컴파일에 걸린다.
+ */
+type SettingsOverrides = Partial<Omit<Settings, 'data'>> & Partial<Settings['data']>
+
+function splitOverrides(overrides: SettingsOverrides) {
+  const { dataset, testDataset, predictDataset, features, target, preprocessing, ...common } =
+    overrides
+  const data = {
+    ...(dataset === undefined ? {} : { dataset }),
+    ...(testDataset === undefined ? {} : { testDataset }),
+    ...(predictDataset === undefined ? {} : { predictDataset }),
+    ...(features === undefined ? {} : { features }),
+    ...('target' in overrides ? { target } : {}),
+    ...(preprocessing === undefined ? {} : { preprocessing }),
+  }
+  return { data, common }
+}
+
+const baseData: Settings['data'] = {
+  dataset: {
+    path: 'dataset/data.csv',
+    originalFileName: 'iris.csv',
+    hasHeader: true,
+    encoding: 'utf-8',
+  },
+  features: [...IRIS_FEATURE_COLUMNS],
+  target: IRIS_TARGET_COLUMN,
+  preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
+}
+
+function settingsFor(overrides: SettingsOverrides = {}): Settings {
   return {
-    dataset: {
-      path: 'dataset/data.csv',
-      originalFileName: 'iris.csv',
-      hasHeader: true,
-      encoding: 'utf-8',
-    },
-    features: [...IRIS_FEATURE_COLUMNS],
-    target: IRIS_TARGET_COLUMN,
-    preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
     split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: 42 },
     runtime: 'mljs',
     selectedAlgorithms: models('decision_tree', 'knn'),
     hyperparameters: {},
-    ...overrides,
+    ...splitOverrides(overrides).common,
+    data: { ...baseData, ...splitOverrides(overrides).data },
   }
 }
 
@@ -426,7 +456,7 @@ describe('일부만 실패한다', () => {
     // 군집화에는 타깃이 없어서 스키마상 선택 항목이지만, 분류·회귀는 정답 열이 없으면
     // 학습도 채점도 못 한다. 열을 안 고른 것과 빈 문자열을 같게 다룬다.
     const withoutTarget = settingsFor()
-    delete withoutTarget.target
+    delete withoutTarget.data.target
 
     for (const settings of [withoutTarget, settingsFor({ target: '' })]) {
       try {
@@ -612,7 +642,7 @@ describe('id와 changed', () => {
      * 이 필드를 바꾸면 학생이 한 변경이다. 값은 `settingsFor()`의 기본과 달라야 한다.
      */
     const MUTATIONS: Readonly<
-      Record<string, { readonly patch: Partial<Settings>; readonly path: string }>
+      Record<string, { readonly patch: SettingsOverrides; readonly path: string }>
     > = {
       features: { patch: { features: [IRIS_FEATURE_COLUMNS[0] as string] }, path: 'features' },
       // **타깃만 바꿀 수 없다.** 붓꽃 픽스처에서 범주형 열은 `species` 하나뿐이라, 다른
@@ -657,14 +687,25 @@ describe('id와 changed', () => {
       predictDataset: '학습에 들어가지 않는다',
     }
 
+    /**
+     * 훑을 필드. **`data`는 그릇이라 이름 대신 속을 편다** (mlpx-spec.md §3).
+     *
+     * 종류별 스키마를 등록부에서 꺼내는 것이 핵심이다 — 이미지가 등록되는 날 그 칸들도
+     * 자동으로 이 목록에 들어오고, 선언 안 하면 아래 첫 검사가 운다.
+     */
+    const FIELDS = [
+      ...Object.keys(settingsSchema.shape).filter((key) => key !== 'data'),
+      ...DATA_TYPES.flatMap((dataType) => Object.keys(DATA_SCHEMAS[dataType].settings.shape)),
+    ]
+
     it('스키마의 모든 필드가 둘 중 하나에 적혀 있다', () => {
       const declared = new Set([...Object.keys(MUTATIONS), ...Object.keys(NOT_COMPARED)])
-      const missing = Object.keys(settingsSchema.shape).filter((key) => !declared.has(key))
+      const missing = FIELDS.filter((key) => !declared.has(key))
       expect(missing, '새 설정 필드는 MUTATIONS나 NOT_COMPARED에 넣어라').toEqual([])
     })
 
     it('적힌 것 말고 다른 것이 없다 - 필드가 사라지면 표도 따라간다', () => {
-      const fields = new Set(Object.keys(settingsSchema.shape))
+      const fields = new Set(FIELDS)
       const extra = [...Object.keys(MUTATIONS), ...Object.keys(NOT_COMPARED)].filter(
         (key) => !fields.has(key),
       )
@@ -1095,15 +1136,17 @@ describe('군집', () => {
 
   function clusterSettings(overrides: Partial<Settings> = {}): Settings {
     return {
-      dataset: {
-        path: 'dataset/data.csv',
-        originalFileName: 'clusters.csv',
-        hasHeader: true,
-        encoding: 'utf-8',
+      data: {
+        dataset: {
+          path: 'dataset/data.csv',
+          originalFileName: 'clusters.csv',
+          hasHeader: true,
+          encoding: 'utf-8',
+        },
+        features: ['x', 'y'],
+        // 군집화에는 타깃이 없다 (architecture.md §3.6).
+        preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
       },
-      features: ['x', 'y'],
-      // 군집화에는 타깃이 없다 (architecture.md §3.6).
-      preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
       split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: 42 },
       runtime: 'mljs',
       selectedAlgorithms: models('k_means'),
@@ -1144,7 +1187,7 @@ describe('군집', () => {
   })
 
   it('설정에 타깃이 없다', () => {
-    expect(experiment.settings.target).toBeUndefined()
+    expect(experiment.settings.data.target).toBeUndefined()
   })
 
   it('전체 데이터로 학습하고 평가셋은 비어 있다', () => {
@@ -1250,9 +1293,9 @@ describe('표본 뽑기', () => {
   const gateFor = (settings: Settings): number =>
     trainableRowCount(
       irisDataset(),
-      settings.features,
-      settings.target,
-      settings.preprocessing.missing,
+      settings.data.features,
+      settings.data.target,
+      settings.data.preprocessing.missing,
       settings.nSamples,
     )
 

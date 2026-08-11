@@ -499,11 +499,11 @@ async function downloadAction(): Promise<void> {
 
     <!-- 이미 붙어 있고, 새로 고르는 중이 아니다. -->
     <div
-      v-if="project.file?.document.settings.predictDataset && !opened"
+      v-if="project.file?.document.settings.data.predictDataset && !opened"
       class="flex flex-wrap items-center gap-x-4 gap-y-2"
     >
       <span class="max-w-56 truncate font-bold text-ink">
-        {{ project.file.document.settings.predictDataset.originalFileName }}
+        {{ project.file.document.settings.data.predictDataset.originalFileName }}
       </span>
       <!-- 이름은 배지, 값은 plaintext (§8.16). 파일 이름은 그 자체가 값이라 배지가 없다. -->
       <span class="flex items-baseline gap-1.5">
@@ -519,7 +519,7 @@ async function downloadAction(): Promise<void> {
     </div>
 
     <!-- 아직 안 붙었거나, 다른 파일로 바꾸는 중이다. -->
-    <template v-if="!project.file?.document.settings.predictDataset || opened">
+    <template v-if="!project.file?.document.settings.data.predictDataset || opened">
       <div
         v-if="!opened"
         class="rounded-panel border-2 border-dashed p-4 text-center transition-colors"

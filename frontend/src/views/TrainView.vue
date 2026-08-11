@@ -92,9 +92,9 @@ const context = computed<RuntimeContext>(() => {
     rowCount: current
       ? trainableRowCount(
           dataset.value,
-          current.features,
-          current.target,
-          current.preprocessing.missing,
+          current.data.features,
+          current.data.target,
+          current.data.preprocessing.missing,
           current.nSamples,
         )
       : (dataset.value?.rows.length ?? 0),
@@ -165,9 +165,9 @@ const usableFeatures = computed(() => {
     columns: columns.value,
     rowCount: table.rows.length,
     taskType: project.taskType,
-    target: current.target,
-    features: current.features,
-    preprocessing: current.preprocessing,
+    target: current.data.target,
+    features: current.data.features,
+    preprocessing: current.data.preprocessing,
   }).usableFeatures
 })
 
@@ -203,9 +203,9 @@ function pickTaskType(taskType: TaskType): void {
     stratifyBlock({
       dataset: dataset.value,
       taskType,
-      target: changed.settings.target,
-      features: changed.settings.features,
-      preprocessing: changed.settings.preprocessing,
+      target: changed.settings.data.target,
+      features: changed.settings.data.features,
+      preprocessing: changed.settings.data.preprocessing,
       nSamples: changed.settings.nSamples,
     })?.code === 'STRATIFY_NOT_FOR_TASK_TYPE'
 
@@ -399,7 +399,7 @@ function leave(): void {
             <AppBadge>{{ t('meta.target') }}</AppBadge>
           </dt>
           <dd class="max-w-48 truncate font-bold text-ink">
-            {{ settings.target ?? t('meta.none') }}
+            {{ settings.data.target ?? t('meta.none') }}
           </dd>
         </div>
         <div class="flex items-baseline gap-1.5">

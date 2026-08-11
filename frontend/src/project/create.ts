@@ -85,17 +85,20 @@ export function newProjectDocument(input: NewProject, seed: ProjectSeed): Projec
       locale: input.locale,
     },
     settings: {
-      // 표를 아직 안 올렸다. dataset은 없는 것이 맞다.
-      dataset: undefined,
-      // 열 이름을 알아야 정할 수 있는 것들은 비워 둔다.
-      features: [],
-      target: undefined,
-      /**
-       * 스케일링은 꺼진 채로 시작한다. **학생이 켰을 때 숫자가 달라지는 것을 보는 것이
-       * 이 도구가 만드는 수업 장면이고**, 처음부터 켜져 있으면 그 장면이 없다.
-       * 범주형 인코딩은 반대다 - 꺼져 있으면 문자 열이 든 표로는 아무것도 못 한다.
-       */
-      preprocessing: { missing: 'drop', scaling: 'none', categoricalEncoding: 'onehot' },
+      // 데이터 종류별 설정. 위 dataType과 짝이다 (mlpx-spec.md §3).
+      data: {
+        // 표를 아직 안 올렸다. dataset은 없는 것이 맞다.
+        dataset: undefined,
+        // 열 이름을 알아야 정할 수 있는 것들은 비워 둔다.
+        features: [],
+        target: undefined,
+        /**
+         * 스케일링은 꺼진 채로 시작한다. **학생이 켰을 때 숫자가 달라지는 것을 보는 것이
+         * 이 도구가 만드는 수업 장면이고**, 처음부터 켜져 있으면 그 장면이 없다.
+         * 범주형 인코딩은 반대다 - 꺼져 있으면 문자 열이 든 표로는 아무것도 못 한다.
+         */
+        preprocessing: { missing: 'drop', scaling: 'none', categoricalEncoding: 'onehot' },
+      },
       split: { method: 'holdout', testSize: 0.2, stratify: true, randomState: seed.randomState },
       // 서버가 있는지 아직 모른다. 화면이 실제 상황을 보고 다시 고른다.
       runtime: FALLBACK_RUNTIME_ID,

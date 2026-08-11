@@ -62,18 +62,18 @@ describe('고친 시각을 남긴다', () => {
 describe('타깃과 특성은 겹치지 않는다', () => {
   it('타깃으로 고른 열은 특성에서 빠진다', () => {
     const next = withTarget(chosen(), '품종', NOW)
-    expect(next.settings.target).toBe('품종')
-    expect(next.settings.features).toEqual(['꽃받침길이', '꽃잎길이'])
+    expect(next.settings.data.target).toBe('품종')
+    expect(next.settings.data.features).toEqual(['꽃받침길이', '꽃잎길이'])
   })
 
   it('특성 목록에 타깃을 넣어도 안 들어간다', () => {
     const next = withFeatures(withTarget(base(), '품종', NOW), ['꽃잎길이', '품종'], NOW)
-    expect(next.settings.features).toEqual(['꽃잎길이'])
+    expect(next.settings.data.features).toEqual(['꽃잎길이'])
   })
 
   it('타깃을 지우면 고르지 않은 상태로 돌아간다', () => {
     const next = withTarget(withTarget(base(), '품종', NOW), undefined, NOW)
-    expect(next.settings.target).toBeUndefined()
+    expect(next.settings.data.target).toBeUndefined()
   })
 })
 
@@ -175,7 +175,7 @@ describe('하이퍼파라미터', () => {
 describe('전처리와 분할', () => {
   it('건드린 값만 바뀐다', () => {
     const next = withPreprocessing(base(), { scaling: 'standard' }, NOW)
-    expect(next.settings.preprocessing).toEqual({
+    expect(next.settings.data.preprocessing).toEqual({
       missing: 'drop',
       scaling: 'standard',
       categoricalEncoding: 'onehot',
@@ -229,8 +229,10 @@ describe('전처리와 분할', () => {
           taskType: 'classification',
           runtime: 'mljs',
           selectedAlgorithms: [],
-          features: ['키'],
-          preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
+          data: {
+            features: ['키'],
+            preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
+          },
           split: { method: 'holdout', testSize: 0.2, stratify: true, randomState: 42 },
           trainIndices: [0, 1],
           testIndices: [2],

@@ -115,7 +115,7 @@ describe('프로젝트 저장', () => {
     await saveProject(project)
 
     const loaded = await loadProject(manifest.projectId)
-    expect(loaded?.document.settings.testDataset).toBeDefined()
+    expect(loaded?.document.settings.data.testDataset).toBeDefined()
     expect(Array.from(loaded?.testDataset?.bytes ?? [])).toEqual(Array.from(testDatasetBytes))
     expect(loaded?.testDataset?.hash).toBe(project.testDataset?.hash)
   })
@@ -129,11 +129,14 @@ describe('프로젝트 저장', () => {
         ...base.document,
         settings: {
           ...base.document.settings,
-          predictDataset: {
-            path: 'dataset/predict.csv',
-            originalFileName: 'predict.csv',
-            hasHeader: true,
-            encoding: 'utf-8',
+          data: {
+            ...base.document.settings.data,
+            predictDataset: {
+              path: 'dataset/predict.csv',
+              originalFileName: 'predict.csv',
+              hasHeader: true,
+              encoding: 'utf-8',
+            },
           },
         },
       },
@@ -142,7 +145,7 @@ describe('프로젝트 저장', () => {
     await saveProject(project)
 
     const loaded = await loadProject(manifest.projectId)
-    expect(loaded?.document.settings.predictDataset).toBeDefined()
+    expect(loaded?.document.settings.data.predictDataset).toBeDefined()
     expect(Array.from(loaded?.predictDataset?.bytes ?? [])).toEqual(Array.from(bytes))
   })
 
@@ -152,7 +155,7 @@ describe('프로젝트 저장', () => {
 
     const loaded = await loadProject(manifest.projectId)
     expect(loaded?.testDataset).toBeUndefined()
-    expect(loaded?.document.settings.testDataset).toBeUndefined()
+    expect(loaded?.document.settings.data.testDataset).toBeUndefined()
   })
 
   it('표를 아직 안 올린 프로젝트도 저장되고 다시 열린다', async () => {

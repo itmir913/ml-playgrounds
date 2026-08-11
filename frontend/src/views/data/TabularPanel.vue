@@ -64,7 +64,7 @@ const previewRows = computed(() => {
 
 /** 확정된 데이터. 정본은 언제나 UTF-8 CSV라 인코딩을 판정할 필요가 없다. */
 const saved = computed(() => {
-  const reference = project.file?.document.settings.dataset
+  const reference = project.file?.document.settings.data.dataset
   const dataset = readDataset(project.file)
   if (!dataset || !reference) return null
   return { reference, dataset, columns: summarizeColumns(dataset) }

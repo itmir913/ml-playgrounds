@@ -44,8 +44,8 @@ export function factsOf(file: ProjectFile | null): ProjectFacts {
     // 참조와 본체는 함께 있고 함께 없다 (mlpx-spec.md §1). 어느 쪽을 봐도 같지만
     // 본체를 본다 - 화면이 알고 싶은 것은 "보여줄 표가 있는가"다.
     datasetReady: file.dataset !== undefined,
-    targetChosen: settings.target !== undefined,
-    featuresChosen: settings.features.length > 0,
+    targetChosen: settings.data.target !== undefined,
+    featuresChosen: settings.data.features.length > 0,
     // 기본값이 없으므로 이건 진짜로 "학생이 골랐는가"다
     // (open-decisions.md "기계학습 유형은 모델을 고르는 자리에서 고른다").
     taskTypeChosen: file.document.manifest.taskType !== undefined,

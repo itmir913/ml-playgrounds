@@ -53,10 +53,10 @@ describe('새 프로젝트', () => {
 
   it('표가 없는 상태로 시작한다', () => {
     const document = newProjectDocument(input, seed)
-    expect(document.settings.dataset).toBeUndefined()
+    expect(document.settings.data.dataset).toBeUndefined()
     // 열 이름을 알아야 정할 수 있는 것들도 비어 있다.
-    expect(document.settings.features).toEqual([])
-    expect(document.settings.target).toBeUndefined()
+    expect(document.settings.data.features).toEqual([])
+    expect(document.settings.data.target).toBeUndefined()
     expect(document.settings.selectedAlgorithms).toEqual([])
     expect(document.runs.experiments).toEqual([])
   })
@@ -85,7 +85,7 @@ describe('새 프로젝트', () => {
   it('스케일링은 꺼진 채로, 범주형 인코딩은 켜진 채로 시작한다', () => {
     // 학생이 스케일링을 켰을 때 숫자가 달라지는 것을 보는 것이 수업 장면이다.
     // 인코딩은 반대다 - 꺼져 있으면 문자 열이 든 표로 아무것도 못 한다.
-    const { preprocessing } = newProjectDocument(input, seed).settings
+    const { preprocessing } = newProjectDocument(input, seed).settings.data
     expect(preprocessing.scaling).toBe('none')
     expect(preprocessing.categoricalEncoding).toBe('onehot')
   })

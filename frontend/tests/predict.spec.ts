@@ -70,9 +70,7 @@ function experiment(
       taskType: 'classification',
       runtime: 'mljs',
       selectedAlgorithms: [],
-      features,
-      target: '품종',
-      preprocessing,
+      data: { features, target: '품종', preprocessing },
       split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: 42 },
       trainIndices,
       testIndices: [],
@@ -95,8 +93,8 @@ function fitFor(subject: Experiment) {
   return fitPreprocessor(
     dataset,
     subject.settings.trainIndices,
-    subject.settings.features,
-    subject.settings.preprocessing,
+    subject.settings.data.features,
+    subject.settings.data.preprocessing,
   )
 }
 
@@ -165,7 +163,7 @@ describe('① 학습 행 만들기', () => {
   })
 
   it('타깃이 없으면 거부한다 - 정답 없이 이웃의 답을 셀 수 없다', () => {
-    const subject = experiment([0, 1], onehot, { target: undefined })
+    const subject = experiment([0, 1], onehot, { data: { features, preprocessing: onehot } })
     expect(codeOf(() => trainingRowsFor(subject, fitFor(subject), dataset))).toBe(
       'TARGET_NOT_SELECTED',
     )
@@ -493,9 +491,7 @@ describe('예측에 쓸 수 있는 모델', () => {
         locale: 'ko',
       },
       settings: {
-        features,
-        target: '품종',
-        preprocessing: onehot,
+        data: { features, target: '품종', preprocessing: onehot },
         split: subject.settings.split,
         runtime: 'mljs',
         selectedAlgorithms: [],
@@ -933,7 +929,10 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
       ...model,
       experiment: {
         ...subject,
-        settings: { ...subject.settings, preprocessing: scaled },
+        settings: {
+          ...subject.settings,
+          data: { ...subject.settings.data, preprocessing: scaled },
+        },
       },
     }
     expect(predictPageSignature('hash-1', [changed])).not.toBe(base)

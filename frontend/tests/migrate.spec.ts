@@ -31,15 +31,17 @@ const document = {
     locale: 'ko',
   },
   settings: {
-    dataset: {
-      path: 'dataset/data.csv',
-      originalFileName: 'iris.csv',
-      hasHeader: true,
-      encoding: 'utf-8',
+    data: {
+      dataset: {
+        path: 'dataset/data.csv',
+        originalFileName: 'iris.csv',
+        hasHeader: true,
+        encoding: 'utf-8',
+      },
+      features: ['sepal_length'],
+      target: 'species',
+      preprocessing: { missing: 'drop', scaling: 'standard', categoricalEncoding: 'onehot' },
     },
-    features: ['sepal_length'],
-    target: 'species',
-    preprocessing: { missing: 'drop', scaling: 'standard', categoricalEncoding: 'onehot' },
     split: { method: 'holdout', testSize: 0.2, stratify: true, randomState: 42 },
     runtime: 'mljs',
     selectedAlgorithms: [{ algorithm: 'decision_tree' }],
@@ -163,7 +165,13 @@ describe('migrateProjectDocument', () => {
   })
 
   it('버전은 맞는데 내용이 깨졌으면 검증에서 걸린다', () => {
-    const broken = { ...document, settings: { ...document.settings, features: 'not an array' } }
+    const broken = {
+      ...document,
+      settings: {
+        ...document.settings,
+        data: { ...document.settings.data, features: 'not an array' },
+      },
+    }
     expect(codeOf(() => migrateProjectDocument(broken))).toBe('PROJECT_FILE_INVALID')
   })
 

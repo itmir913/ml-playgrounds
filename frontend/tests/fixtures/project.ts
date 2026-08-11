@@ -27,7 +27,7 @@ import {
  * 돌릴 때만 빨개져서, 원인이 자기 검사 안에 없다 (2026-08-12에 실제로 밟았다 —
  * `format.spec.ts`의 `nSamples` 왕복 검사).
  *
- * 얕은 복사로는 부족하다. `settings.split`·`settings.preprocessing`처럼 한 겹 아래가
+ * 얕은 복사로는 부족하다. `settings.split`·`settings.data.preprocessing`처럼 한 겹 아래가
  * 여전히 같은 객체다.
  */
 const fresh = <T>(value: T): T => structuredClone(value)
@@ -49,18 +49,25 @@ export const manifest: Manifest = {
 }
 
 export const settings = {
-  dataset: {
-    path: 'dataset/data.csv',
-    originalFileName: 'iris_data_final(1).csv',
-    hasHeader: true,
-    // 정본은 언제나 utf-8이고, 올라온 파일이 무엇이었는지는 따로 남는다.
-    // 한국 윈도우 엑셀의 "CSV로 저장"이 정확히 이 조합이다.
-    encoding: 'utf-8',
-    sourceEncoding: 'cp949' as const,
+  // 데이터 종류별 설정 (mlpx-spec.md §3). 표 프로젝트의 것이다.
+  data: {
+    dataset: {
+      path: 'dataset/data.csv',
+      originalFileName: 'iris_data_final(1).csv',
+      hasHeader: true,
+      // 정본은 언제나 utf-8이고, 올라온 파일이 무엇이었는지는 따로 남는다.
+      // 한국 윈도우 엑셀의 "CSV로 저장"이 정확히 이 조합이다.
+      encoding: 'utf-8',
+      sourceEncoding: 'cp949' as const,
+    },
+    features: ['꽃받침 길이', 'petal_length'],
+    target: '품종',
+    preprocessing: {
+      missing: 'drop',
+      scaling: 'standard',
+      categoricalEncoding: 'onehot',
+    } as const,
   },
-  features: ['꽃받침 길이', 'petal_length'],
-  target: '품종',
-  preprocessing: { missing: 'drop', scaling: 'standard', categoricalEncoding: 'onehot' } as const,
   split: { method: 'holdout', testSize: 0.2, stratify: true, randomState: 42 } as const,
   runtime: 'mljs',
   // SVM은 순수 JS 구현이 없어 학생이 개별로 서버를 골랐다. 실험 안에 엔진이 섞이는
@@ -111,9 +118,11 @@ export function experiment(id: string, runs: Run[]): Experiment {
       ],
       // **여기도 복사한다.** 실험 스냅샷이 settings의 중첩 객체를 그대로 물면
       // `experiment.settings.split.testSize = …` 하나로 위 상수까지 오염된다.
-      features: fresh(settings.features),
-      target: settings.target,
-      preprocessing: fresh(settings.preprocessing),
+      data: {
+        features: fresh(settings.data.features),
+        target: settings.data.target,
+        preprocessing: fresh(settings.data.preprocessing),
+      },
       split: fresh(settings.split),
       trainIndices: [0, 2, 3],
       testIndices: [1],
@@ -135,7 +144,7 @@ export const testDataset: Dataset = { bytes: testDatasetBytes, hash: hashBytes(t
 
 /**
  * `projectFile()`에 평가 데이터를 붙인 것. `split.method`를 `provided`로 바꾸고
- * `settings.testDataset`과 zip 본체를 함께 채운다 - 한쪽만 있으면 우리 버그다.
+ * `settings.data.testDataset`과 zip 본체를 함께 채운다 - 한쪽만 있으면 우리 버그다.
  */
 export function projectFileWithTestDataset(overrides: Partial<ProjectFile> = {}): ProjectFile {
   const base = projectFile(overrides)
@@ -146,11 +155,14 @@ export function projectFileWithTestDataset(overrides: Partial<ProjectFile> = {})
       settings: {
         ...base.document.settings,
         split: { ...base.document.settings.split, method: 'provided' },
-        testDataset: {
-          path: 'dataset/test.csv',
-          originalFileName: 'iris_test.csv',
-          hasHeader: true,
-          encoding: 'utf-8',
+        data: {
+          ...base.document.settings.data,
+          testDataset: {
+            path: 'dataset/test.csv',
+            originalFileName: 'iris_test.csv',
+            hasHeader: true,
+            encoding: 'utf-8',
+          },
         },
       },
     },
@@ -167,7 +179,7 @@ export const predictDataset: Dataset = {
 }
 
 /**
- * `projectFile()`에 예측 데이터를 붙인 것. `settings.predictDataset`과 zip 본체를
+ * `projectFile()`에 예측 데이터를 붙인 것. `settings.data.predictDataset`과 zip 본체를
  * 함께 채운다 - 한쪽만 있으면 우리 버그다. **`applyTestDataset`과 달리 실험도
  * `split.method`도 건드리지 않는다** - 이 픽스처가 그 규칙을 그대로 반영한다.
  */
@@ -179,11 +191,14 @@ export function projectFileWithPredictDataset(overrides: Partial<ProjectFile> = 
       ...base.document,
       settings: {
         ...base.document.settings,
-        predictDataset: {
-          path: 'dataset/predict.csv',
-          originalFileName: 'iris_predict.csv',
-          hasHeader: true,
-          encoding: 'utf-8',
+        data: {
+          ...base.document.settings.data,
+          predictDataset: {
+            path: 'dataset/predict.csv',
+            originalFileName: 'iris_predict.csv',
+            hasHeader: true,
+            encoding: 'utf-8',
+          },
         },
       },
     },
@@ -207,9 +222,7 @@ export function emptyProjectFile(): ProjectFile {
       // 열 이름을 아는 것들만 빈다 - 표를 봐야 정할 수 있기 때문이다.
       settings: {
         ...fresh(settings),
-        dataset: undefined,
-        features: [],
-        target: undefined,
+        data: { ...fresh(settings.data), dataset: undefined, features: [], target: undefined },
         selectedAlgorithms: [],
       },
       runs: { experiments: [] },

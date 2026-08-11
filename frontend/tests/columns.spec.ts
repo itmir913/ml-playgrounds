@@ -260,6 +260,7 @@ describe('프로젝트에 붙이기', () => {
 
   it('정본 경로와 인코딩 기록을 남긴다', () => {
     const { dataset } = applyDataset(projectFile(), imported(), options).project.document.settings
+      .data
 
     expect(dataset?.path).toBe(TABULAR_DATASET_PATH)
     expect(dataset?.originalFileName).toBe('성적.csv')
@@ -270,7 +271,7 @@ describe('프로젝트에 붙이기', () => {
 
   it('엑셀에는 원본 인코딩이 없다', () => {
     const excel = imported({ source: 'xlsx', sourceEncoding: null })
-    const { dataset } = applyDataset(projectFile(), excel, options).project.document.settings
+    const { dataset } = applyDataset(projectFile(), excel, options).project.document.settings.data
     expect(dataset?.sourceEncoding).toBeUndefined()
   })
 
@@ -279,12 +280,15 @@ describe('프로젝트에 붙이기', () => {
     const before = projectFile()
     before.document = {
       ...before.document,
-      settings: { ...before.document.settings, features: ['이름', '점수'], target: '반' },
+      settings: {
+        ...before.document.settings,
+        data: { ...before.document.settings.data, features: ['이름', '점수'], target: '반' },
+      },
     }
 
     const applied = applyDataset(before, imported(), options)
-    expect(applied.project.document.settings.features).toEqual(['이름', '점수'])
-    expect(applied.project.document.settings.target).toBe('반')
+    expect(applied.project.document.settings.data.features).toEqual(['이름', '점수'])
+    expect(applied.project.document.settings.data.target).toBe('반')
     expect(applied.droppedColumns).toEqual([])
   })
 
@@ -293,12 +297,15 @@ describe('프로젝트에 붙이기', () => {
     const before = projectFile()
     before.document = {
       ...before.document,
-      settings: { ...before.document.settings, features: ['점수', '키'], target: '몸무게' },
+      settings: {
+        ...before.document.settings,
+        data: { ...before.document.settings.data, features: ['점수', '키'], target: '몸무게' },
+      },
     }
 
     const applied = applyDataset(before, imported(), options)
-    expect(applied.project.document.settings.features).toEqual(['점수'])
-    expect(applied.project.document.settings.target).toBeUndefined()
+    expect(applied.project.document.settings.data.features).toEqual(['점수'])
+    expect(applied.project.document.settings.data.target).toBeUndefined()
     expect(applied.droppedColumns).toEqual(['키', '몸무게'])
   })
 
@@ -306,11 +313,14 @@ describe('프로젝트에 붙이기', () => {
     const before = projectFile()
     before.document = {
       ...before.document,
-      settings: { ...before.document.settings, features: ['(A)', '이름'], target: undefined },
+      settings: {
+        ...before.document.settings,
+        data: { ...before.document.settings.data, features: ['(A)', '이름'], target: undefined },
+      },
     }
 
     const applied = applyDataset(before, imported(), { ...options, hasHeader: false })
-    expect(applied.project.document.settings.features).toEqual(['(A)'])
+    expect(applied.project.document.settings.data.features).toEqual(['(A)'])
   })
 
   it('고친 시각을 새로 찍는다', () => {
@@ -349,7 +359,7 @@ describe('프로젝트에 붙이기', () => {
     const before = projectFileWithTestDataset()
     const applied = applyDataset(before, imported(), options)
 
-    expect(applied.project.document.settings.testDataset).toBeUndefined()
+    expect(applied.project.document.settings.data.testDataset).toBeUndefined()
     expect(applied.project.testDataset).toBeUndefined()
     // 평가 데이터가 없어졌으므로 분할 방식도 되돌아간다 - provided인 채로 두면
     // 학습이 평가할 것을 못 찾는다.
@@ -362,18 +372,21 @@ describe('프로젝트에 붙이기', () => {
       ...before.document,
       settings: {
         ...before.document.settings,
-        predictDataset: {
-          path: PREDICT_DATASET_PATH,
-          originalFileName: 'predict.csv',
-          hasHeader: true,
-          encoding: 'utf-8',
+        data: {
+          ...before.document.settings.data,
+          predictDataset: {
+            path: PREDICT_DATASET_PATH,
+            originalFileName: 'predict.csv',
+            hasHeader: true,
+            encoding: 'utf-8',
+          },
         },
       },
     }
     before.predictDataset = { bytes: new TextEncoder().encode('a\n1\n'), hash: 'x'.repeat(64) }
 
     const applied = applyDataset(before, imported(), options)
-    expect(applied.project.document.settings.predictDataset).toBeUndefined()
+    expect(applied.project.document.settings.data.predictDataset).toBeUndefined()
     expect(applied.project.predictDataset).toBeUndefined()
   })
 })
@@ -392,14 +405,17 @@ describe('평가 데이터를 프로젝트에 붙이기', () => {
         ...base.document,
         settings: {
           ...base.document.settings,
-          dataset: {
-            path: TABULAR_DATASET_PATH,
-            originalFileName: 'grades.csv',
-            hasHeader: true,
-            encoding: 'utf-8',
+          data: {
+            ...base.document.settings.data,
+            dataset: {
+              path: TABULAR_DATASET_PATH,
+              originalFileName: 'grades.csv',
+              hasHeader: true,
+              encoding: 'utf-8',
+            },
+            target: '반',
+            features: ['점수'],
           },
-          target: '반',
-          features: ['점수'],
         },
       },
       dataset: { bytes, hash: hashBytes(bytes) },
@@ -427,8 +443,8 @@ describe('평가 데이터를 프로젝트에 붙이기', () => {
     const { settings } = applied.project.document
 
     expect(settings.split.method).toBe('provided')
-    expect(settings.testDataset?.path).toBe(TEST_DATASET_PATH)
-    expect(settings.testDataset?.originalFileName).toBe('test.csv')
+    expect(settings.data.testDataset?.path).toBe(TEST_DATASET_PATH)
+    expect(settings.data.testDataset?.originalFileName).toBe('test.csv')
 
     const read = readTestDataset(applied.project)
     expect(read?.columns).toEqual(['이름', '점수', '반'])
@@ -473,7 +489,7 @@ describe('평가 데이터를 프로젝트에 붙이기', () => {
     const removed = removeTestDataset(attached, now)
 
     expect(removed.project.document.settings.split.method).toBe('holdout')
-    expect(removed.project.document.settings.testDataset).toBeUndefined()
+    expect(removed.project.document.settings.data.testDataset).toBeUndefined()
     expect(removed.project.testDataset).toBeUndefined()
     expect(readTestDataset(removed.project)).toBeNull()
   })
@@ -504,11 +520,14 @@ describe('평가 데이터를 프로젝트에 붙이기', () => {
         ...base.document,
         settings: {
           ...base.document.settings,
-          predictDataset: {
-            path: PREDICT_DATASET_PATH,
-            originalFileName: 'predict.csv',
-            hasHeader: true,
-            encoding: 'utf-8',
+          data: {
+            ...base.document.settings.data,
+            predictDataset: {
+              path: PREDICT_DATASET_PATH,
+              originalFileName: 'predict.csv',
+              hasHeader: true,
+              encoding: 'utf-8',
+            },
           },
         },
       },
@@ -516,11 +535,11 @@ describe('평가 데이터를 프로젝트에 붙이기', () => {
     }
 
     const attached = applyTestDataset(withPredict, testTable(), options).project
-    expect(attached.document.settings.predictDataset).toBeDefined()
+    expect(attached.document.settings.data.predictDataset).toBeDefined()
     expect(attached.predictDataset).toBeDefined()
 
     const removed = removeTestDataset(attached, now).project
-    expect(removed.document.settings.predictDataset).toBeDefined()
+    expect(removed.document.settings.data.predictDataset).toBeDefined()
     expect(removed.predictDataset).toBeDefined()
   })
 
@@ -557,8 +576,8 @@ describe('예측 데이터를 프로젝트에 붙이기', () => {
     const applied = applyPredictDataset(before, predictTable(), options)
     const { settings } = applied.project.document
 
-    expect(settings.predictDataset?.path).toBe(PREDICT_DATASET_PATH)
-    expect(settings.predictDataset?.originalFileName).toBe('predict.csv')
+    expect(settings.data.predictDataset?.path).toBe(PREDICT_DATASET_PATH)
+    expect(settings.data.predictDataset?.originalFileName).toBe('predict.csv')
     // applyTestDataset과 결정적으로 다른 점 - 실험이 안 지워진다.
     expect(applied.project.document.runs.experiments).toEqual(before.document.runs.experiments)
     expect(applied.project.models).toBe(before.models)
@@ -612,7 +631,7 @@ describe('예측 데이터를 프로젝트에 붙이기', () => {
     const attached = applyPredictDataset(projectFile(), predictTable(), options).project
     const removed = removePredictDataset(attached, now)
 
-    expect(removed.project.document.settings.predictDataset).toBeUndefined()
+    expect(removed.project.document.settings.data.predictDataset).toBeUndefined()
     expect(removed.project.predictDataset).toBeUndefined()
     expect(readPredictDataset(removed.project)).toBeNull()
   })

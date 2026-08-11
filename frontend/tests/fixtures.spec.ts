@@ -39,8 +39,10 @@ describe('projectFile()은 부를 때마다 남남이다', () => {
     const first = projectFile()
     const second = projectFile()
     expect(first.document.settings.split).not.toBe(second.document.settings.split)
-    expect(first.document.settings.preprocessing).not.toBe(second.document.settings.preprocessing)
-    expect(first.document.settings.features).not.toBe(second.document.settings.features)
+    expect(first.document.settings.data.preprocessing).not.toBe(
+      second.document.settings.data.preprocessing,
+    )
+    expect(first.document.settings.data.features).not.toBe(second.document.settings.data.features)
     expect(first.document.manifest).not.toBe(second.document.manifest)
     expect(first.dataset).not.toBe(second.dataset)
   })
@@ -48,11 +50,11 @@ describe('projectFile()은 부를 때마다 남남이다', () => {
   it('하나를 고쳐도 다음에 부른 것이 멀쩡하다', () => {
     const poisoned = projectFile()
     poisoned.document.settings.split.testSize = 0.99
-    poisoned.document.settings.features.push('없는 열')
+    poisoned.document.settings.data.features.push('없는 열')
 
     const clean = projectFile()
     expect(clean.document.settings.split.testSize).toBe(0.2)
-    expect(clean.document.settings.features).toEqual(['꽃받침 길이', 'petal_length'])
+    expect(clean.document.settings.data.features).toEqual(['꽃받침 길이', 'petal_length'])
   })
 
   it('내보낸 상수 자체도 안 다친다 - 검사가 기대값으로 쓰는 것이다', () => {
@@ -103,11 +105,11 @@ describe('나머지 팩토리도 같다', () => {
   it('실험 스냅샷의 분할 설정', () => {
     const poisoned = experiment('experiment-1', [run('run-1')])
     poisoned.settings.split.testSize = 0.99
-    poisoned.settings.features.push('없는 열')
+    poisoned.settings.data.features.push('없는 열')
 
     const clean = experiment('experiment-2', [run('run-2')])
     expect(clean.settings.split.testSize).toBe(0.2)
-    expect(clean.settings.features).toEqual(['꽃받침 길이', 'petal_length'])
+    expect(clean.settings.data.features).toEqual(['꽃받침 길이', 'petal_length'])
     expect(settings.split.testSize).toBe(0.2)
   })
 })

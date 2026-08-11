@@ -282,7 +282,17 @@ export const splitSchema = z.looseObject({
  */
 const nSamplesSchema = z.int().min(MIN_SPLIT_ROWS).optional()
 
-export const settingsSchema = z.looseObject({
+// ------------------------------------------------- 데이터 종류별 설정 (등록부)
+
+/**
+ * **표 전용 설정.** 데이터 종류가 늘면 이 옆에 형제가 생긴다 (architecture.md §9.2.3).
+ *
+ * 여기 있는 것은 전부 "열이 있는 표"를 전제한다 - 특성과 타깃은 열 이름이고, 결측치와
+ * 범주형 인코딩은 열의 성질이며, `hasHeader`·`encoding`은 CSV의 성질이다. 이미지에는
+ * 그중 무엇도 없다. **평면에 두면 이미지 파일이 뜻 없는 필드를 물려받는다**
+ * (open-decisions.md "설정 스키마를 데이터 종류별로 가른다").
+ */
+export const tabularSettingsSchema = z.looseObject({
   /**
    * 아직 표를 올리지 않은 프로젝트에는 **없다.** 정상 상태다
    * (open-decisions.md "데이터 없는 프로젝트는 정상 상태다").
@@ -308,6 +318,87 @@ export const settingsSchema = z.looseObject({
   /** 군집화에는 없다. 과제 유형에 따라 선택 항목이다. */
   target: userString.optional(),
   preprocessing: preprocessingSchema,
+})
+
+/**
+ * **학습 시점 스냅샷의 종류별 부분.** 정본 참조가 빠진 것이 위와 다른 점이다.
+ *
+ * 한 스키마로 뭉뚱그리지 않는 이유는, 그러면 스냅샷에 **없어야 할 필드가 선택 항목으로
+ * 열리기** 때문이다. 실험이 보장하는 것은 같은 데이터·전처리·분할이고, 어느 파일에서
+ * 왔는지는 그 목록에 없다.
+ */
+export const tabularSnapshotSchema = z.looseObject({
+  features: z.array(userString),
+  target: userString.optional(),
+  preprocessing: preprocessingSchema,
+})
+
+/** 한 데이터 종류가 선언하는 스키마 둘. */
+export interface DataKindSchema {
+  readonly settings: z.ZodType<Record<string, unknown>>
+  readonly snapshot: z.ZodType<Record<string, unknown>>
+}
+
+/**
+ * 데이터 종류별 스키마 등록부.
+ *
+ * **`Record`인 것이 이 등록부의 전부다** (architecture.md §9.2.3). 화면 등록부
+ * (`data/kinds.ts`)는 배열이라 종류가 빠져도 "아직 못 다루는 종류"로 성립하지만,
+ * **스키마가 없으면 그 파일은 읽을 방법 자체가 없다.** 그래서 `DataType`이 늘면
+ * 여기서 컴파일이 깨진다.
+ *
+ * **이 파일에 있는 이유는 Vue를 안 들이기 위해서다.** `data/kinds.ts`는
+ * `defineAsyncComponent`를 들고 있어서, 스키마를 거기 붙이면 `.mlpx`를 파싱하는 워커와
+ * node 환경 검사가 Vue를 끌고 온다.
+ *
+ * **`satisfies`이지 타입 주석이 아니다.** 주석을 달면 각 항목이 `DataKindSchema`로
+ * 넓어져 `settings.data`의 타입이 `Record<string, unknown>`이 되고, 읽는 자리가 전부
+ * `unknown`을 받는다. `satisfies`는 빠진 칸을 그대로 잡으면서 구체 타입을 남긴다.
+ */
+export const DATA_SCHEMAS = {
+  tabular: { settings: tabularSettingsSchema, snapshot: tabularSnapshotSchema },
+} satisfies Readonly<Record<DataType, DataKindSchema>>
+
+/**
+ * 등록부의 스키마들을 하나로 묶는다.
+ *
+ * **종류가 하나뿐인 동안은 유니온이 아니라 그 하나다.** 그래서 지금 `settings.data`의
+ * 타입은 정확히 표의 것이고, 읽는 자리들이 좁히기 없이 그대로 쓴다. **이미지가 등록되는
+ * 날 이 타입은 유니온이 되고, 좁히지 않은 자리가 전부 컴파일에서 깨진다** - 그게 이
+ * 리팩터의 목적이다.
+ */
+function oneOf<Schema extends z.ZodTypeAny>(schemas: readonly Schema[]): Schema {
+  const [first, ...rest] = schemas
+  if (first === undefined) throw new Error('DATA_SCHEMAS is empty')
+  if (rest.length === 0) return first
+  // 배열의 원소 타입 `Schema`가 이미 종류들의 유니온이므로 z.union의 결과와 뜻이 같다.
+  // 타입스크립트가 그것을 스스로 알아보지 못할 뿐이라 여기서만 단언한다.
+  return z.union([first, ...rest]) as unknown as Schema
+}
+
+/**
+ * 스냅샷의 종류별 필드 이름 전부. **변경 이력이 `settings.data`를 평평하게 펼 때 쓴다**
+ * (`ml/experiment.ts`의 `comparable`).
+ *
+ * `experiment.changed`에 적히는 경로는 `preprocessing.scaling`처럼 평평하고, 스키마가
+ * 한 겹 깊어졌다고 그 경로가 움직이면 **옛 실험의 기록도 로케일 키도 함께 썩는다.**
+ * 그래서 파일의 모양과 비교의 모양을 여기서 가른다.
+ *
+ * **종류를 다 합친 목록이다.** 표 프로젝트에 이미지의 칸이 `null`로 함께 서지만, 양쪽이
+ * 다 `null`이라 변경으로 잡히지 않는다. 대신 **종류별 필드 이름은 공통 필드
+ * (`split`·`nSamples`·`runtime`·`algorithms`·`taskType`·`hyperparameters`)와 겹치면 안
+ * 된다** — 평평하게 편 자리에서 하나가 다른 하나를 덮는다. `tests/schema.spec.ts`가 막는다.
+ */
+export const DATA_COMPARABLE_KEYS: readonly string[] = [
+  ...new Set(DATA_TYPES.flatMap((dataType) => Object.keys(DATA_SCHEMAS[dataType].snapshot.shape))),
+]
+
+export const settingsSchema = z.looseObject({
+  /**
+   * 데이터 종류별 설정. 어느 스키마로 읽을지는 `manifest.dataType`이 정한다
+   * (mlpx-spec.md §3).
+   */
+  data: oneOf(DATA_TYPES.map((dataType) => DATA_SCHEMAS[dataType].settings)),
   split: splitSchema,
   nSamples: nSamplesSchema,
   /**
@@ -507,9 +598,8 @@ export const experimentSettingsSchema = z.looseObject({
       runtime: z.string(),
     }),
   ),
-  features: z.array(userString),
-  target: userString.optional(),
-  preprocessing: preprocessingSchema,
+  /** 데이터 종류별 스냅샷. 등록부는 위 `DATA_SCHEMAS`이고 정본 참조는 여기 없다. */
+  data: oneOf(DATA_TYPES.map((dataType) => DATA_SCHEMAS[dataType].snapshot)),
   split: splitSchema,
   /**
    * 학습 시점의 `nSamples`. **스냅샷에도 있어야 재현이 성립한다** - 화면의 값은 그 뒤로
@@ -630,6 +720,9 @@ export type Manifest = z.infer<typeof manifestSchema>
 export type DatasetRef = z.infer<typeof datasetRefSchema>
 export type Preprocessing = z.infer<typeof preprocessingSchema>
 export type Split = z.infer<typeof splitSchema>
+/** 표 프로젝트의 `settings.data`. 종류가 늘면 `Settings['data']`가 유니온이 된다. */
+export type TabularSettings = z.infer<typeof tabularSettingsSchema>
+export type TabularSnapshot = z.infer<typeof tabularSnapshotSchema>
 export type Settings = z.infer<typeof settingsSchema>
 export type Engine = z.infer<typeof engineSchema>
 export type Failure = z.infer<typeof failureSchema>
