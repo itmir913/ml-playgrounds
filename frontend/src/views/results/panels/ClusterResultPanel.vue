@@ -247,6 +247,12 @@ const chartData = computed<ChartData<'scatter'>>(() => {
 const chartOptions = computed<ChartOptions<'scatter'>>(() => ({
   responsive: true,
   maintainAspectRatio: false,
+  /**
+   * **가리킨 것 하나만 말한다.** 산점도의 기본 모드는 `point`라 커서 아래에 겹친 점을
+   * **전부** 세운다 — 촘촘한 자리에서 거의 같은 숫자가 열 줄씩 뜨고, 학생이 가리킨
+   * 것이 그중 무엇인지 알 수 없다. `nearest`는 가장 가까운 하나를 준다.
+   */
+  interaction: { mode: 'nearest', intersect: true },
   // 축 이름은 학생의 열 이름이라 번역하지 않는다.
   scales: {
     x: {
@@ -276,6 +282,15 @@ const chartOptions = computed<ChartOptions<'scatter'>>(() => ({
       },
     },
     tooltip: {
+      /**
+       * **표식이 그림과 같은 모양이어야 한다.** 기본은 색 네모라, 중심점을 가리켜도
+       * 네모가 뜨고 그것이 ✕라는 것을 말해 주지 않는다. 켜면 점은 자기 모양대로,
+       * 중심점은 ✕로 선다.
+       */
+      usePointStyle: true,
+      // 흰 테두리는 아래에 깔린 획일 뿐이다. 안 빼면 중심점이 두 줄로 서고, 그중
+      // 하나는 흰 표식에 같은 좌표라 학생이 둘의 차이를 물을 수밖에 없다.
+      filter: (item) => item.datasetIndex !== summaries.value.length,
       callbacks: {
         // **한 문장은 한 키다** (docs/i18n.md 규칙 3). 조각을 이어 붙이면 어순이 언어마다
         // 다른 것을 담을 수 없다 — 여기서는 값이 괄호로 뒤에 붙는다(규칙 5).
