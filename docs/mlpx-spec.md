@@ -160,11 +160,11 @@ v1에서 동결이다.** 배포 뒤에는 옮길 수단 자체가 없으므로, 
 만들어 이름을 짓는 순간과 파일을 올리는 순간 사이에 그 상태가 반드시 생기고, 자동 저장은
 그 사이에도 돌아야 한다(`open-decisions.md` "데이터 없는 프로젝트는 정상 상태다").
 
-그때 `settings.dataset`이 **없다.** 규칙은 하나다 —
+그때 `settings.data.dataset`이 **없다.** 규칙은 하나다 —
 
-> **`settings.dataset`과 `dataset/`의 본체는 함께 있고 함께 없다.**
+> **`settings.data.dataset`과 `dataset/`의 본체는 함께 있고 함께 없다.**
 
-한쪽만 있는 파일은 거부한다. `settings.dataset`이 가리키는데 본체가 없으면
+한쪽만 있는 파일은 거부한다. `settings.data.dataset`이 가리키는데 본체가 없으면
 `PROJECT_FILE_ENTRY_MISSING`이다. 반대쪽, 즉 본체가 있는데 참조가 없는 것은 고아이고
 저장할 때 버려진다(바로 아래 "모르는 엔트리"와 같은 처리다).
 
@@ -182,9 +182,9 @@ UTF-8 CSV다"). 정규화는 정본이 되기 **전에** 끝나므로 아래 §7
 | 데이터 타입 | 구조 |
 |---|---|
 | 표 | `dataset/data.csv` |
-| 이미지 | `dataset/{라벨}/{파일}.jpg` |
-| 음성 | `dataset/{라벨}/{파일}.wav` |
-| 텍스트 | `dataset/data.csv` 또는 `dataset/{라벨}/` |
+| 이미지 | `dataset/data/{범주}/{해시}.jpg` (V4, 아래 §1.2) |
+| 음성 | `dataset/data/{범주}/{해시}.wav` (V8, 미정) |
+| 텍스트 | `dataset/data.csv` 또는 `dataset/data/{범주}/` (V9, 미정) |
 
 **학생이 올리는 표는 셋까지다. 이름은 역할로 짓는다** — 압축을 푼 교사가 알고 싶은 것은
 그 파일이 어디서 올라왔는지가 아니라 **무엇인지**다.
@@ -202,13 +202,53 @@ UTF-8 CSV다"). 정규화는 정본이 되기 **전에** 끝나므로 아래 §7
 정본 열과 짝을 맞춰야 하므로 다르다.
 
 셋 다 **같은 길로 정규화된다** — 엑셀이든 CP949 CSV든 UTF-8 CSV(BOM 포함)가 되고,
-`hashes.json`에 각자 항목을 갖는다(§7). `settings.dataset`·`settings.testDataset`·
-`settings.predictDataset`이 각각을 가리키며 **본체와 참조는 함께 있고 함께 없다.**
+`hashes.json`에 각자 항목을 갖는다(§7). `settings.data`의 `dataset`·`testDataset`·
+`predictDataset`이 각각을 가리키며 **본체와 참조는 함께 있고 함께 없다.**
 
-**이미지·음성의 포함 정책은 미확정이다 (이미지 단계 착수 전 결정 → `open-decisions.md`).**
-원본을 그대로 담으면 IndexedDB 할당량과 파일 크기가 모두 감당이 안 된다.
-유력한 방향은 썸네일과 해시·통계만 남기는 것인데, 그러면 **`datasetHash` 재계산이
-불가능해져 무결성 검증도 무력해진다.**
+### 1.2 이미지의 `dataset/` — 정본만 담고, 라벨은 구조가 갖는다 (V4, 2026-08-12)
+
+**결정의 근거는 `open-decisions.md` #4에 있다.** 여기는 파일에 남는 모양만 적는다.
+
+```
+dataset/
+├── data/                     훈련 데이터
+│   ├── _unlabeled/           라벨 없음. 예약된 이름이다
+│   │   └── 3f9a….jpg
+│   ├── 개/
+│   │   └── 7c21….jpg
+│   └── 고양이/
+│       └── b0e4….jpg
+├── test/                     평가 데이터 (split.method가 provided일 때만)
+│   ├── 개/
+│   └── 고양이/
+└── predict/                  예측 데이터. 라벨이 없으므로 한 겹이다
+    └── e55d….jpg
+```
+
+**표의 `data.csv`·`test.csv`·`predict.csv`와 같은 역할 이름이다** — 압축을 푼 교사가 알고
+싶은 것은 그 파일이 무엇인지이고, 그 규칙이 종류를 넘어 같다.
+
+**넷을 못 박는다.**
+
+1. **담기는 것은 정본뿐이다.** 원본은 안 담는다. 업로드 시점에 224×224 jpg로 굽고, 그
+   뒤로는 아무도 원본을 안 본다. 표가 UTF-8 CSV로 정규화되는 것과 같은 자리라 §7의
+   "바이트를 가공하지 않는다"와 충돌하지 않는다 — **확정된 뒤로는 누구도 손대지 않는다.**
+2. **파일 이름은 정본 바이트의 SHA-256(소문자 16진수 64자)이고 확장자는 `.jpg`다.**
+   학생이 사진을 지우거나 범주를 옮겨도 이름이 안 흔들린다. 같은 사진을 두 번 올리면
+   저절로 한 장이 되고, **같은 사진이 두 범주에 있으면 이름이 같아서 이름만 비교해도
+   잡힌다.**
+3. **범주는 디렉터리 이름이다. 매핑 테이블을 두지 않는다.** `ImageFolder`(PyTorch)와
+   `image_dataset_from_directory`(Keras)가 쓰는 구조라, 이 zip이 파이썬에서 그대로 열린다.
+4. **`_unlabeled/`는 예약된 이름이다.** 학생 범주 이름은 `_`로 시작할 수 없다.
+   **이 이름은 번역하지 않는다** — 화면에 보이는 말은 로케일에서 오고, 파일 안 구조는
+   언어에 딸리지 않는다.
+
+**`hashes.json`은 이미지 한 장마다 항목을 갖는다** (§7.2.1의 규칙 그대로). 엔트리 경로가
+곧 라벨이므로, **사진을 다른 범주로 옮기면 경로가 바뀌고 해시 항목도 따라 움직인다** —
+바이트는 그대로다.
+
+**음성·텍스트의 포함 정책은 아직 미확정이다** (V8·V9). 이미지와 같은 규칙을 따를
+후보이지만, 정본이 무엇인지(표본율·길이·형식)를 그때 정해야 한다.
 
 ---
 
@@ -271,22 +311,37 @@ IndexedDB에 저장된다(docs/i18n.md). 남의 파일을 열었다고 화면 �
 
 화면에서 만지고 있는 값이다. 학습 시점의 값은 각 실험이 따로 들고 있다.
 
-`dataset`은 **선택 항목이다.** 없으면 아직 표를 올리지 않은 것이고, 그 프로젝트는
+**두 부분이다 — 공통과 `data`(데이터 종류별).** 갈라 놓은 이유와 근거는
+`open-decisions.md` "설정 스키마를 데이터 종류별로 가른다"에 있다. 한 줄로: **표 전용
+필드가 넷이나 되고, 그걸 평면에 두면 이미지·음성·텍스트 파일이 뜻 없는 필드를 물려받는다.**
+
+| | |
+|---|---|
+| 공통 | `split` · `nSamples` · `runtime` · `selectedAlgorithms` · `hyperparameters` |
+| `data` (종류별) | 표: `dataset` · `testDataset` · `predictDataset` · `features` · `target` · `preprocessing` |
+
+**`data`의 스키마는 등록부가 준다.** `manifest.dataType`으로 고르고, **종류마다 반드시
+있어야 한다** — 화면은 없어도 되지만(아직 못 다루는 종류는 "못 다룬다"고 말하면 그만)
+스키마가 없으면 파일 자체를 못 읽는다.
+
+`data.dataset`은 **선택 항목이다.** 없으면 아직 표를 올리지 않은 것이고, 그 프로젝트는
 데이터 단계에서 시작한다(`architecture.md` §8.2). 나머지 값들은 그때도 기본값이 들어 있다 —
 전처리와 분할은 데이터가 없어도 고를 수 있는 값이기 때문이다.
 
 ```jsonc
 {
-  "dataset": {                   // 선택. 표를 올리기 전에는 없다
-    "path": "dataset/data.csv",
-    "originalFileName": "iris_data_final(1).csv",
-    "hasHeader": true,
-    "encoding": "utf-8",         // 정본. 언제나 utf-8이다
-    "sourceEncoding": "cp949"    // 올라온 파일이 무엇이었는지. 화면 표시용. 엑셀에는 없다
+  "data": {                      // 종류별. 아래는 dataType이 "tabular"일 때
+    "dataset": {                 // 선택. 표를 올리기 전에는 없다
+      "path": "dataset/data.csv",
+      "originalFileName": "iris_data_final(1).csv",
+      "hasHeader": true,
+      "encoding": "utf-8",       // 정본. 언제나 utf-8이다
+      "sourceEncoding": "cp949"  // 올라온 파일이 무엇이었는지. 화면 표시용. 엑셀에는 없다
+    },
+    "features": ["sepal_length", "sepal_width", "petal_length", "petal_width"],
+    "target": "species",        // 군집화에는 없다. 과제 유형에 따라 선택 항목
+    "preprocessing": { "missing": "drop", "scaling": "standard", "categoricalEncoding": "onehot" }
   },
-  "features": ["sepal_length", "sepal_width", "petal_length", "petal_width"],
-  "target": "species",          // 군집화에는 없다. 과제 유형에 따라 선택 항목
-  "preprocessing": { "missing": "drop", "scaling": "standard", "categoricalEncoding": "onehot" },
   "split": { "method": "holdout", "testSize": 0.2, "stratify": true, "randomState": 42 },
   "nSamples": 3000,             // 선택. 없으면 쓸 수 있는 행을 전부 쓴다
 
@@ -397,9 +452,11 @@ IndexedDB에 저장된다(docs/i18n.md). 남의 파일을 열었다고 화면 �
           { "algorithm": "logistic_regression", "runtime": "mljs" },
           { "algorithm": "svm", "runtime": "server-sklearn" }
         ],
-        "features": ["sepal_length", "…"],
-        "target": "species",
-        "preprocessing": { … },
+        "data": {                                // 종류별. §3의 settings.data와 같은 등록부
+          "features": ["sepal_length", "…"],
+          "target": "species",
+          "preprocessing": { … }
+        },
         "split": { "method": "holdout", "testSize": 0.2, "stratify": true, "randomState": 42 },
         "nSamples": 3000,                        // 선택. §3과 같은 뜻
         "trainIndices": [0, 3, 5, …],            // 환경 무관하게 같은 분할을 보장
@@ -1310,7 +1367,8 @@ git이 blob·tree·commit을 전부 해시하면서도 `commit -S`를 따로 두
 **옛 파일에는 없으므로 선택 항목이다.** 없거나 깨져 있으면 "확인할 수 없음"이지 파일 열기
 실패가 아니다. 무결성 정보 때문에 학생의 작업물이 안 열리는 일은 없어야 한다.
 
-대조 대상은 **아는 엔트리만**이다 — 고정 엔트리, `settings.dataset.path`(있을 때), `model/` 아래.
+대조 대상은 **아는 엔트리만**이다 — 고정 엔트리, `settings.data`가 가리키는 정본(있을 때),
+`model/` 아래. **이미지는 정본 한 장 한 장이 그 대상이다**(§1.2).
 `__MACOSX/` 같은 쓰레기까지 세면 맥에서 압축을 풀었다 다시 압축한 파일이 전부 "고쳐졌음"이
 되고, 그러면 아무도 이 표시를 믿지 않는다. 반대로 `model/`을 통째로 보는 이유는 끼어든
 고아 모델도 신호이기 때문이다.
