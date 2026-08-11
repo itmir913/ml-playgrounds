@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 import { isClientError } from '../src/errors'
 import { ALGORITHMS } from '../src/ml/algorithms'
 import {
+  CLUSTER_EVALUATOR,
   EVALUATORS,
   METRIC_DISPLAY,
   bestOf,
@@ -25,13 +26,23 @@ describe('등록부끼리 어긋나지 않는다', () => {
     for (const algorithm of ALGORITHMS) {
       for (const taskType of TASK_TYPES) {
         if (!algorithm.taskTypes[taskType]) continue
-        expect(EVALUATORS[taskType], `${algorithm.id} -> ${taskType}`).toBeDefined()
+        // 군집은 시그니처가 달라 EVALUATORS가 아니라 CLUSTER_EVALUATOR에 있다
+        // (architecture.md §3.7). 등록부가 둘이므로 각각을 본다.
+        const has =
+          taskType === 'clustering'
+            ? CLUSTER_EVALUATOR !== undefined
+            : EVALUATORS[taskType] !== undefined
+        expect(has, `${algorithm.id} -> ${taskType}`).toBe(true)
       }
     }
   })
 
   it('계산기가 있는 과제 유형에는 표시 등록부도 있다', () => {
-    expect(Object.keys(METRIC_DISPLAY).sort()).toEqual(Object.keys(EVALUATORS).sort())
+    // EVALUATORS(분류·회귀)와 CLUSTER_EVALUATOR(군집)를 합친 집합이
+    // METRIC_DISPLAY의 키 집합과 같아야 한다.
+    const evaluatable = [...Object.keys(EVALUATORS)]
+    if (CLUSTER_EVALUATOR) evaluatable.push('clustering')
+    expect(Object.keys(METRIC_DISPLAY).sort()).toEqual(evaluatable.sort())
   })
 
   /**
@@ -39,9 +50,26 @@ describe('등록부끼리 어긋나지 않는다', () => {
    * 빈 칸이 뜰 뿐 아무것도 안 터진다. 실제로 계산해서 나온 키와 맞춰 본다.
    */
   it('표시 등록부의 지표가 실제 계산 결과에 전부 있다', () => {
+    // 군집은 시그니처가 달라 evaluate()가 아니라 CLUSTER_EVALUATOR를 직접 부른다.
+    const clusterData = [
+      [0, 0],
+      [1, 0],
+      [10, 10],
+      [11, 10],
+    ]
+
     const samples: Readonly<Record<string, () => Record<string, number>>> = {
       classification: () => evaluate('classification', ['a', 'b'], ['a', 'a']).metrics,
       regression: () => evaluate('regression', [1, 2, 3], [1, 2, 4]).metrics,
+      clustering: () =>
+        CLUSTER_EVALUATOR(
+          clusterData,
+          [0, 0, 1, 1],
+          [
+            [0.5, 0],
+            [10.5, 10],
+          ],
+        ).metrics,
     }
 
     for (const [taskType, displays] of Object.entries(METRIC_DISPLAY)) {
@@ -60,7 +88,7 @@ describe('등록부끼리 어긋나지 않는다', () => {
   })
 
   it('모르는 과제 유형에는 빈 목록을 준다 - 화면이 던지지 않는다', () => {
-    expect(metricsOf('clustering' as TaskType)).toEqual([])
+    expect(metricsOf('unknown_task' as TaskType)).toEqual([])
   })
 })
 
@@ -88,7 +116,9 @@ describe('최고값 고르기', () => {
     }
   })
 
-  it('계산기가 없는 과제 유형은 조용히 넘어가지 않는다', () => {
+  it('군집을 evaluate()에 넘기면 던진다 - evaluateClustering()이 별도다', () => {
+    // 군집은 시그니처가 달라서 evaluate()에 넘기면 안 된다 (architecture.md §3.7).
+    // EVALUATORS['clustering']이 없으므로 JOB_FAILED로 던진다.
     try {
       evaluate('clustering', ['a'], ['a'])
       expect.unreachable()
@@ -229,6 +259,98 @@ describe('회귀', () => {
   it('문자열로 들어온 숫자도 읽는다 - CSV는 전부 문자열이다', () => {
     const fromCsv = evaluate('regression', ['1', '2', '3', '4'], ['1.5', '2', '2.5', '5'])
     expect(fromCsv.metrics).toEqual(evaluate('regression', actual, predicted).metrics)
+  })
+})
+
+describe('군집', () => {
+  // 두 군집이 깔끔하게 갈리는 경우.
+  // 군집 0: (0,0), (1,0)  →  중심 (0.5, 0)
+  // 군집 1: (10,10), (11,10)  →  중심 (10.5, 10)
+  const data = [
+    [0, 0],
+    [1, 0],
+    [10, 10],
+    [11, 10],
+  ]
+  const assignments = [0, 0, 1, 1]
+  const centroids = [
+    [0.5, 0],
+    [10.5, 10],
+  ]
+
+  it('이너셔는 각 데이터와 자기 중심점까지 거리의 제곱합이다', () => {
+    const { metrics } = CLUSTER_EVALUATOR(data, assignments, centroids)
+    // (0-0.5)² + (0-0)² = 0.25
+    // (1-0.5)² + (0-0)² = 0.25
+    // (10-10.5)² + (10-10)² = 0.25
+    // (11-10.5)² + (10-10)² = 0.25
+    // 합 = 1.0
+    expect(metrics.inertia).toBeCloseTo(1.0, 10)
+  })
+
+  it('깔끔하게 갈리면 실루엣 계수가 1에 가깝다', () => {
+    const { metrics } = CLUSTER_EVALUATOR(data, assignments, centroids)
+    expect(metrics.silhouette).toBeGreaterThan(0.9)
+  })
+
+  it('뒤섞이면 실루엣 계수가 낮다', () => {
+    // 엉뚱한 할당: 먼 것끼리 묶는다
+    const badAssignments = [0, 1, 0, 1]
+    const badCentroids = [
+      [5, 5],
+      [6, 5],
+    ]
+    const { metrics } = CLUSTER_EVALUATOR(data, badAssignments, badCentroids)
+    expect(metrics.silhouette).toBeLessThan(0)
+  })
+
+  it('k=1이면 실루엣 계수가 0이다', () => {
+    const { metrics } = CLUSTER_EVALUATOR(
+      data,
+      [0, 0, 0, 0],
+      [[5.5, 5]],
+    )
+    expect(metrics.silhouette).toBe(0)
+  })
+
+  it('혼동 행렬도 클래스별 지표도 없다 - 비지도학습이다', () => {
+    const result = CLUSTER_EVALUATOR(data, assignments, centroids)
+    expect(result.confusionMatrix).toBeUndefined()
+    expect(result.perClass).toBeUndefined()
+  })
+
+  it('실루엣이 백분율이 아니다 - 음수가 될 수 있다', () => {
+    const sil = metricsOf('clustering').find((display) => display.name === 'silhouette')
+    expect(sil?.format).toBe('number')
+  })
+
+  it('반올림하지 않는다 - 자릿수는 화면이 줄인다', () => {
+    const { metrics } = CLUSTER_EVALUATOR(data, assignments, centroids)
+    // 이너셔가 정확히 1.0인 경우는 반올림이 필요 없다. 실루엣은 무리수다.
+    expect(Number.isFinite(metrics.silhouette)).toBe(true)
+    expect(Number.isFinite(metrics.inertia)).toBe(true)
+  })
+
+  it('0으로 나누는 자리에서 NaN을 내보내지 않는다', () => {
+    // 모든 데이터가 같은 점이면 거리가 전부 0이다.
+    const sameData = [
+      [5, 5],
+      [5, 5],
+      [5, 5],
+      [5, 5],
+    ]
+    const { metrics } = CLUSTER_EVALUATOR(
+      sameData,
+      [0, 0, 1, 1],
+      [
+        [5, 5],
+        [5, 5],
+      ],
+    )
+    expect(Number.isFinite(metrics.silhouette)).toBe(true)
+    expect(Number.isFinite(metrics.inertia)).toBe(true)
+    expect(metrics.inertia).toBe(0)
+    expect(metrics.silhouette).toBe(0)
   })
 })
 

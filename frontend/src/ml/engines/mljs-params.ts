@@ -63,4 +63,8 @@ export const MLJS_PARAMETERS: Readonly<Record<string, readonly HyperparameterSpe
   // 아래쪽 끝이 0이 아닌 이유는 `C`가 0이면 모든 alpha가 0에 갇혀 **아무것도 안 배운
   // 모델이 에러 없이 나오기** 때문이다. 로지스틱 회귀의 learningRate와 같은 자리다.
   svm: [{ name: 'C', integer: false, min: 0.01, max: 100, step: 0.01, default: 1 }],
+  // **sklearn `KMeans`의 `n_clusters` 기본값은 8이다.** 교실에서는 k=2~5가 대부분이므로
+  // 기본값을 3으로 뒀다. 학생이 k를 바꿔 가며 비교하는 것이 핵심 활동이다.
+  // maxIter와 tol은 SVM과 같은 이유로 열지 않는다 — 수업 내용이 아니라 수렴 설정이다.
+  k_means: [{ name: 'nClusters', integer: true, min: 2, max: 20, step: 1, default: 3 }],
 }

@@ -48,6 +48,7 @@ import type { Warning } from '../../project/schema'
 import { resolveWith, type HyperparameterSpec } from '../hyperparams'
 import type { Prediction } from '../metrics'
 import {
+  KMEANS_FORMAT,
   LINEAR_V2_FORMAT,
   REFERENCE_FORMAT,
   SVM_FORMAT,
@@ -55,9 +56,10 @@ import {
   loadLinearV2Model,
   svmPredict,
 } from '../models'
-import type { LinearModelV2, PairwiseClassifier } from '../models'
+import type { KMeansModel, LinearModelV2, PairwiseClassifier } from '../models'
 import type { ModelFile, Predict } from '../models/types'
 import { fitLogistic } from './logistic'
+import { fitKMeans } from './mljs-kmeans'
 import { SMO_DEFAULTS, seededRandom, trainLinearSvm } from './svm-smo'
 import { MLJS_PARAMETERS } from './mljs-params'
 import {
@@ -600,6 +602,57 @@ const TRAINERS: Record<string, Trainer> = {
         ? { modelOmittedDetail: attempted.detail }
         : {}),
       predict: (features) => toRows(features).map((row) => Number(model.predict(row)[0] ?? 0)),
+    }
+  },
+
+  /**
+   * K-Means 군집화. **타깃이 없다.**
+   *
+   * target은 비어 있거나 무시된다 — 군집화는 비지도학습이다. FitInput.target이
+   * 인터페이스에 있는 이유는 분류·회귀와 같은 시그니처를 쓰기 위해서이고,
+   * 여기서 target을 읽지 않는 것이 그 사실을 드러낸다.
+   *
+   * 예측은 모델 해석기(loadKMeansModel)와 같은 규칙이다 — 가장 가까운 중심점의
+   * 번호를 문자열로 돌려준다.
+   */
+  k_means: (input) => {
+    const featureCount = input.features[0]?.length ?? 0
+    const k = numberOption(input.hyperparameters, 'nClusters')
+
+    const result = fitKMeans(input.features, k, input.randomState)
+
+    const model: KMeansModel = {
+      format: KMEANS_FORMAT,
+      featureCount,
+      k,
+      centroids: result.centroids.map((c) => [...c]),
+    }
+
+    const warning: Warning | undefined = result.converged
+      ? undefined
+      : { code: 'KMEANS_NOT_CONVERGED', params: { iterations: result.iterations } }
+
+    return {
+      predict: (features) =>
+        features.map((row) => {
+          let bestCluster = 0
+          let bestDist = Number.POSITIVE_INFINITY
+          for (let c = 0; c < k; c += 1) {
+            const centroid = result.centroids[c]!
+            let dist = 0
+            for (let j = 0; j < featureCount; j += 1) {
+              const gap = (row[j] ?? 0) - (centroid[j] ?? 0)
+              dist += gap * gap
+            }
+            if (dist < bestDist) {
+              bestDist = dist
+              bestCluster = c
+            }
+          }
+          return String(bestCluster)
+        }),
+      model,
+      ...(warning ? { warning } : {}),
     }
   },
 }

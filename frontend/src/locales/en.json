@@ -119,7 +119,8 @@
     "knn": "K-nearest neighbours",
     "naive_bayes": "Naive Bayes",
     "svm": "Support vector machine",
-    "linear_regression": "Linear regression"
+    "linear_regression": "Linear regression",
+    "k_means": "K-means"
   },
   "runtimes": {
     "mljs": "ml.js · this computer",
@@ -133,7 +134,8 @@
     "k": "Number of neighbours",
     "maxIter": "Maximum iterations",
     "tol": "Convergence tolerance",
-    "C": "Regularisation strength"
+    "C": "Regularisation strength",
+    "nClusters": "Number of clusters"
   },
   "missingStrategy": {
     "none": "Leave blanks as they are",
@@ -449,7 +451,9 @@
     "specificity": "Specificity",
     "r2": "R² score",
     "rmse": "RMSE",
-    "mae": "MAE"
+    "mae": "MAE",
+    "silhouette": "Silhouette Coefficient",
+    "inertia": "Inertia"
   },
   "metricFormula": {
     "accuracy": { "top": "Rows classified correctly", "bottom": "All rows" },

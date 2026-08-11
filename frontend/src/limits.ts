@@ -96,6 +96,14 @@ export const MLJS_RANDOM_FOREST_ROW_LIMIT = 5000
 export const MLJS_SVM_ROW_LIMIT = 3000
 
 /**
+ * K-Means. 할당(O(n·k))과 갱신(O(n·d))이 반복마다 선형이다.
+ *
+ * **아직 실측하지 않았다.** 알고리즘이 새로 들어왔고, 데이터셋 천장을 넘을 이유가 없다.
+ * 정확한 값은 V3 후반에 다른 알고리즘과 함께 잰다.
+ */
+export const MLJS_KMEANS_ROW_LIMIT = MAX_DATASET_ROWS
+
+/**
  * 모델 하나를 .mlpx에 담을 수 있는 최대 크기.
  *
  * 이걸 넘는 모델은 담지 않고 지표만 남긴다. 저장 자체는 성공한다.

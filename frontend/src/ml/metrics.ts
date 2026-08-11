@@ -144,14 +144,145 @@ function evaluateRegression(
 /**
  * 과제 유형 -> 지표 계산기.
  *
- * 군집은 아직 없다. 군집 알고리즘도 등록부에 없으므로(ml/algorithms.ts) 여기 도달할 수
- * 없고, **tests/metrics.spec.ts가 그 대응을 강제한다** - 알고리즘을 먼저 등록하고
- * 지표를 잊는 일이 생기지 않는다.
+ * **`EVALUATORS`는 분류·회귀만 갖는다.** 군집은 시그니처가 다르다 — 정답(actual)이
+ * 없으므로 같은 `Evaluator`를 쓸 수 없고, 빈 배열을 넣으면 타입이 거짓말을 한다
+ * (architecture.md §3.7). `CLUSTER_EVALUATOR`가 따로 있다.
+ *
+ * **tests/metrics.spec.ts가 대응을 강제한다** — 알고리즘을 먼저 등록하고 지표를
+ * 잊는 일이 생기지 않는다.
  */
 export const EVALUATORS: Partial<Record<TaskType, Evaluator>> = {
   classification: evaluateClassification,
   regression: evaluateRegression,
 }
+
+// ---------------------------------------------------------------------------
+// 군집 지표 (architecture.md §3.7)
+// ---------------------------------------------------------------------------
+
+/**
+ * 군집 지표의 입력. 정답이 없으므로 `Evaluator`와 시그니처가 다르다.
+ *
+ * `data`는 전처리를 마친 숫자 행렬이고, `assignments`와 `centroids`는 학습 결과에서
+ * 그대로 온다. 실루엣 계수는 데이터 전체를 쓰고, 이너셔는 centroids까지 거리의
+ * 제곱합이다.
+ */
+export type ClusterEvaluator = (
+  data: readonly (readonly number[])[],
+  assignments: readonly number[],
+  centroids: readonly (readonly number[])[],
+) => Evaluation
+
+/** 유클리드 거리. */
+function euclideanDistance(a: readonly number[], b: readonly number[]): number {
+  let sum = 0
+  for (let j = 0; j < a.length; j += 1) {
+    const gap = (a[j] ?? 0) - (b[j] ?? 0)
+    sum += gap * gap
+  }
+  return Math.sqrt(sum)
+}
+
+/**
+ * 실루엣 계수 + 이너셔.
+ *
+ * **실루엣 계수 (Silhouette Coefficient)**
+ * 각 데이터 i에 대해:
+ *   a(i) = 같은 군집 내 다른 데이터까지 평균 거리
+ *   b(i) = 가장 가까운 다른 군집의 데이터까지 평균 거리
+ *   s(i) = (b(i) - a(i)) / max(a(i), b(i))
+ * 전체 평균이 실루엣 계수다. −1~1이고 높을수록 좋다.
+ *
+ * **sklearn과 같은 예외 처리:**
+ * - k=1이면 0 (비교할 다른 군집이 없다)
+ * - 한 데이터만 있는 군집: a(i) = 0, s(i)는 b(i)에만 의존한다
+ * - 모든 데이터가 같은 점이면 a(i)=b(i)=0이고 s(i)=0이다
+ *
+ * **이너셔 (Inertia)**
+ * 각 데이터와 자기 군집 중심점까지 거리의 제곱합. K-Means의 목적함수다.
+ * 학습 엔진이 이미 계산하지만 검증을 위해 여기서도 계산한다.
+ */
+function evaluateClustering(
+  data: readonly (readonly number[])[],
+  assignments: readonly number[],
+  centroids: readonly (readonly number[])[],
+): Evaluation {
+  const n = data.length
+  const k = centroids.length
+
+  // 이너셔: 각 데이터와 자기 군집 중심점까지 거리의 제곱합
+  let inertia = 0
+  for (let i = 0; i < n; i += 1) {
+    const row = data[i]!
+    const centroid = centroids[assignments[i]!]!
+    for (let j = 0; j < row.length; j += 1) {
+      const gap = (row[j] ?? 0) - (centroid[j] ?? 0)
+      inertia += gap * gap
+    }
+  }
+
+  // 실루엣 계수
+  let silhouette: number
+  if (k <= 1 || k >= n) {
+    // k=1이면 비교할 다른 군집이 없다. k≥n이면 군집마다 점이 하나뿐이라 a(i)=0이고
+    // b(i)=0이다 — sklearn도 0을 돌려준다.
+    silhouette = 0
+  } else {
+    // 군집별 데이터 인덱스
+    const clusters: number[][] = Array.from({ length: k }, () => [])
+    for (let i = 0; i < n; i += 1) {
+      clusters[assignments[i]!]!.push(i)
+    }
+
+    let totalSilhouette = 0
+    for (let i = 0; i < n; i += 1) {
+      const ci = assignments[i]!
+      const myCluster = clusters[ci]!
+
+      // a(i): 같은 군집 내 다른 데이터까지 평균 거리
+      let ai: number
+      if (myCluster.length <= 1) {
+        ai = 0
+      } else {
+        let sum = 0
+        for (const j of myCluster) {
+          if (j !== i) sum += euclideanDistance(data[i]!, data[j]!)
+        }
+        ai = sum / (myCluster.length - 1)
+      }
+
+      // b(i): 가장 가까운 다른 군집까지 평균 거리
+      let bi = Number.POSITIVE_INFINITY
+      for (let c = 0; c < k; c += 1) {
+        if (c === ci || clusters[c]!.length === 0) continue
+        let sum = 0
+        for (const j of clusters[c]!) {
+          sum += euclideanDistance(data[i]!, data[j]!)
+        }
+        bi = Math.min(bi, sum / clusters[c]!.length)
+      }
+
+      // 다른 군집이 전부 비어서 bi가 갱신되지 않은 경우 (k≥n 가드 위에서 걸리지만 방어)
+      if (!Number.isFinite(bi)) bi = 0
+
+      const maxAB = Math.max(ai, bi)
+      totalSilhouette += maxAB === 0 ? 0 : (bi - ai) / maxAB
+    }
+
+    silhouette = totalSilhouette / n
+  }
+
+  return { metrics: { silhouette, inertia } }
+}
+
+/**
+ * 군집 지표 계산기. **`EVALUATORS`와 분리된 등록부다** (architecture.md §3.7).
+ *
+ * 시그니처가 `Evaluator`와 다르므로 같은 `Record`에 넣을 수 없다. 대신
+ * `evaluateClustering()`을 직접 부르고, tests/metrics.spec.ts가 이 값의 존재를
+ * 확인해서 빠뜨리면 빨개진다.
+ */
+export const CLUSTER_EVALUATOR: ClusterEvaluator = evaluateClustering
 
 /**
  * 지표 하나를 화면에 어떻게 보일 것인가.
@@ -202,6 +333,14 @@ export const METRIC_DISPLAY: Partial<Record<TaskType, readonly MetricDisplay[]>>
     { name: 'rmse', better: 'lower', format: 'number' },
     { name: 'mae', better: 'lower', format: 'number' },
   ],
+  clustering: [
+    // −1~1이고 높을수록 좋다. 비율처럼 보이지만 음수가 될 수 있어서 r2와 같은 이유로
+    // 백분율이 아니다.
+    { name: 'silhouette', better: 'higher', format: 'number' },
+    // K-Means의 목적함수. 낮을수록 좋지만 k를 올리면 무조건 내려간다 -
+    // 단독으로 "좋다"를 말할 수 없고, k를 바꿔 가며 비교하는 것이 교실 활동의 핵심이다.
+    { name: 'inertia', better: 'lower', format: 'number' },
+  ],
 }
 
 /** 이 과제 유형에서 보일 지표들. 모르는 유형이면 빈 목록이다 - 화면이 던지지 않는다. */
@@ -224,7 +363,12 @@ export function bestOf(
 }
 
 /**
- * 과제 유형에 맞는 지표를 계산한다. 부르는 쪽에 분기가 없다.
+ * **분류·회귀** 지표를 계산한다. 부르는 쪽에 분기가 없다.
+ *
+ * **군집은 여기가 아니라 `evaluateClustering()`이다** (architecture.md §3.7).
+ * 군집을 여기에 넘기면 `EVALUATORS`에 없으므로 `JOB_FAILED`로 던진다 — 이것은
+ * 올바른 동작이다. 군집의 시그니처는 `(data, assignments, centroids)`이고 여기의
+ * `(actual, predicted)`와 다르다.
  *
  * **양쪽 끝에서 막는다.** 들어오는 것의 길이가 다르면 던지고, 나가는 값이 수치가 아니면
  * 던진다. 둘 다 "조용히 그럴듯한 숫자"로 끝나는 경로라 여기서 끊지 않으면 아무 데서도

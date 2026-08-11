@@ -12,6 +12,7 @@
 import { z } from 'zod'
 
 import { ClientError } from '../../errors'
+import { KMEANS_FORMAT, loadKMeansModel } from './kmeans'
 import {
   LINEAR_FORMAT,
   LINEAR_V2_FORMAT,
@@ -27,6 +28,8 @@ import { SVM_FORMAT, loadSvmModel } from './svm'
 import { TREE_FORMAT, loadTreeModel } from './tree'
 import type { LoadContext, ModelInterpreter, Predict, ProbaModel } from './types'
 
+export { KMEANS_FORMAT } from './kmeans'
+export type { KMeansModel } from './kmeans'
 export { LINEAR_FORMAT, LINEAR_V2_FORMAT, loadLinearV2Model } from './linear'
 export type { LinearModel, LinearModelV2 } from './linear'
 export { LINEAR_REGRESSION_FORMAT } from './linear-regression'
@@ -97,6 +100,14 @@ const INTERPRETERS: readonly ModelInterpreter[] = [
     // **첫 true다.** 모델이 사실상 학습 데이터라 행 번호만 담는다 (mlpx-spec.md 5.1).
     needsTrainingRows: true,
     load: loadReferenceModel,
+  },
+  {
+    // **군집화 모델은 중심점뿐이다.** 예측은 입력과 각 중심점의 거리를 재서 가장
+    // 가까운 것을 고르는 것이 전부라, 학습 데이터도 전처리기도 필요 없다.
+    format: KMEANS_FORMAT,
+    includesPreprocessing: false,
+    needsTrainingRows: false,
+    load: loadKMeansModel,
   },
 ]
 

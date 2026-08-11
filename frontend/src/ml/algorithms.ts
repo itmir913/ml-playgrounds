@@ -24,6 +24,7 @@
 
 import {
   MLJS_DECISION_TREE_ROW_LIMIT,
+  MLJS_KMEANS_ROW_LIMIT,
   MLJS_KNN_ROW_LIMIT,
   MLJS_LINEAR_REGRESSION_ROW_LIMIT,
   MLJS_LOGISTIC_REGRESSION_ROW_LIMIT,
@@ -121,6 +122,14 @@ export const ALGORITHMS: readonly Algorithm[] = [
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // 10만 행 0.3초. 브라우저 상한을 둘 이유가 없어 데이터셋 천장을 그대로 쓴다.
     maxRows: { mljs: MLJS_LINEAR_REGRESSION_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+  },
+  {
+    id: 'k_means',
+    dataTypes: { tabular: true },
+    taskTypes: { classification: false, regression: false, clustering: true },
+    runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
+    // 할당과 갱신이 반복마다 O(n·k·d). 아직 실측하지 않았다.
+    maxRows: { mljs: MLJS_KMEANS_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
   },
 ]
 

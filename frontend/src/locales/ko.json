@@ -119,7 +119,8 @@
     "knn": "K-최근접 이웃(KNN)",
     "naive_bayes": "나이브 베이즈(Naive Bayes)",
     "svm": "서포트 벡터 머신(SVM)",
-    "linear_regression": "선형 회귀(Linear Regression)"
+    "linear_regression": "선형 회귀(Linear Regression)",
+    "k_means": "K-평균(K-Means)"
   },
   "runtimes": {
     "mljs": "ml.js · 내 컴퓨터",
@@ -133,7 +134,8 @@
     "k": "이웃 수(n_neighbors)",
     "maxIter": "최대 반복 횟수(max_iter)",
     "tol": "수렴 판정 기준(Tolerance)",
-    "C": "규제 강도(C)"
+    "C": "규제 강도(C)",
+    "nClusters": "군집 수(n_clusters)"
   },
   "missingStrategy": {
     "none": "빈 칸을 그대로 두기",
@@ -449,7 +451,9 @@
     "specificity": "특이도(Specificity)",
     "r2": "결정계수(R²)",
     "rmse": "평균 제곱근 오차(RMSE)",
-    "mae": "평균 절대 오차(MAE)"
+    "mae": "평균 절대 오차(MAE)",
+    "silhouette": "실루엣 계수(Silhouette Coefficient)",
+    "inertia": "이너셔(Inertia)"
   },
   "metricFormula": {
     "accuracy": { "top": "옳게 분류된 데이터 수", "bottom": "전체 데이터 수" },

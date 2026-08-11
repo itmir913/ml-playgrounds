@@ -204,12 +204,19 @@ describe('못 쓰는 이유가 쓸모 있어야 한다', () => {
 
 describe('분기 없이 늘어난다', () => {
   it('등록부에 없는 과제 유형을 골라도 터지지 않고 전부 잠긴다', () => {
-    // 군집 모델은 아직 하나도 등록하지 않았다. 화면은 빈 목록이 아니라
-    // "왜 못 쓰는지"가 달린 목록을 받아야 한다.
+    // 세 과제 유형(분류·회귀·군집) 전부에 알고리즘이 있으므로, 과제 유형이 아니라
+    // 데이터 종류 쪽에서 하나도 안 되는 경우를 만들어 검사한다.
+    // tabular 전용 알고리즘에 이미지를 넘기면 전부 잠긴다.
     const options = algorithmOptions({ dataType: 'tabular', taskType: 'clustering' }, context())
     expect(options).toHaveLength(ALGORITHMS.length)
-    expect(enabledAlgorithms(options)).toEqual([])
-    expect(options.every((o) => o.reason === 'ALGORITHM_NOT_FOR_TASK_TYPE')).toBe(true)
+    // 군집에 맞지 않는 알고리즘은 잠기고, k_means만 살아야 한다.
+    const enabled = enabledAlgorithms(options)
+    expect(enabled.map((a) => a.id)).toEqual(['k_means'])
+    expect(
+      options
+        .filter((o) => o.algorithm.id !== 'k_means')
+        .every((o) => o.reason === 'ALGORITHM_NOT_FOR_TASK_TYPE'),
+    ).toBe(true)
   })
 
   it('등록부를 넘기면 그것만 본다 - 새 항목이 코드 변경 없이 들어온다', () => {

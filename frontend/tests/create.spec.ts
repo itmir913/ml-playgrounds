@@ -125,7 +125,7 @@ describe('고를 수 있는 과제 유형', () => {
    * 회귀를 고른 뒤에야 모델이 전부 꺼진 목록을 만난다.
    */
   it('데이터 종류에 맞는 유형만 남는다', () => {
-    expect(supportedTaskTypes('tabular')).toEqual(['classification', 'regression'])
+    expect(supportedTaskTypes('tabular')).toEqual(['classification', 'regression', 'clustering'])
     // **표본은 가짜다.** 어휘에는 지금 되는 종류만 있으므로(open-decisions.md "어휘에는
     // 지금 되는 것만 넣는다") 안 맞는 종류를 넘겨서 확인할 수 없다. 표에서 안 서는
     // 알고리즘만 있는 세상에서는 고를 유형이 하나도 없어야 한다.
