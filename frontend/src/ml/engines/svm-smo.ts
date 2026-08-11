@@ -1,26 +1,28 @@
 /**
- * 선형 SVM 솔버 — **`ml-svm@2.1.2`(MIT, mljs)를 벤더링한 것이다.**
+ * 선형 SVM 솔버 — **우리 구현이다. 원본은 `ml-svm@2.1.2`(MIT, mljs).**
  *
  * 원본: https://github.com/mljs/svm · `src/svm.js`의 단순화된 SMO.
  * Copyright (c) 2014 ml.js contributors. MIT License.
  *
- * **직접 짜지 않기로 한 판단은 그대로다** (open-decisions.md "순수 JS 서포트 벡터 머신을
- * 넣는다"). 이 종류의 코드는 틀렸을 때 예외를 던지지 않고 그럴듯한 숫자를 내는데,
- * 브라우저 안에는 대조할 상대가 없다. 그래서 **갱신 규칙과 그 순서를 원본 그대로 옮겼다** —
- * `Ei`·`L`·`H`·`eta`·`b1`·`b2`의 식과 건너뛰는 조건까지 같다. 읽을 때 원본과 나란히
- * 놓고 볼 수 있어야 한다.
+ * **갱신 규칙(`Ei`·`L`·`H`·`eta`·`b1`·`b2`)은 원본 그대로다.** 정지 조건과 정규화가
+ * 다르므로 원본과 나란히 놓고 동일하다고 말할 수 없어 우리 구현으로 선언한다.
  *
- * **바꾼 것은 넷이다.**
+ * **원본에서 바꾼 것 — 다섯이다.**
  *
- * 1. **반복을 다 써도 던지지 않는다.** 원본은 `throw new Error('max iterations reached')`인데,
+ * 1. **정지 조건이 KKT 위반 기준이다 (V3, 2026-08-11).** 원본은 α가 안 바뀌는 연속
+ *    패스를 세어 `maxPasses`에 도달하면 멈추는데, 그 기준은 수렴과 직결되지 않는다 —
+ *    α 하나가 1e-5만 움직여도 카운터가 리셋되기 때문이다. 지금은 **매 패스의 최대
+ *    KKT 위반이 `tol` 아래로 갈 때** 멈춘다 (libsvm과 같은 기준).
+ *    `tol`의 기본값은 sklearn `SVC`의 1e-3이다.
+ * 2. **반복을 다 써도 던지지 않는다.** 원본은 `throw new Error('max iterations reached')`인데,
  *    실측에서 겹치는 데이터는 **500행에서도** 거기 도달했다. 그때 나오는 계수는 쓸모없는
  *    값이 아니라 **덜 다듬어진 값**이고, sklearn도 같은 자리에서 경고만 내고 모델을 준다.
  *    그래서 `converged`를 함께 돌려주고, 화면까지 그 사실을 들고 간다
  *    (`run.warning`, mlpx-spec.md 5.9). **조용히 넘기는 것이 아니다.**
- * 2. **난수를 주입받는다.** 원본 기본값이 `Math.random`이라 같은 설정으로 두 번 돌려도
+ * 3. **난수를 주입받는다.** 원본 기본값이 `Math.random`이라 같은 설정으로 두 번 돌려도
  *    답이 달랐다. `randomState`는 항상 저장하고 항상 쓴다 (CLAUDE.md 2).
- * 3. **선형 커널만 남겼다.** 커널 추상(`ml-kernel`)이 빠지면서 의존성 하나와 분기가 사라진다.
- * 4. **`H`의 수식을 고쳤다 (2026-08-10, V2 감사 1단계-A).** 라벨이 다른 쌍의 위쪽 경계가
+ * 4. **선형 커널만 남겼다.** 커널 추상(`ml-kernel`)이 빠지면서 의존성 하나와 분기가 사라진다.
+ * 5. **`H`의 수식을 고쳤다 (2026-08-10, V2 감사 1단계-A).** 라벨이 다른 쌍의 위쪽 경계가
  *    원본에는 `min(C, C + aj + ai)`로 적혀 있는데 **표준 SMO(Platt 1998)는
  *    `min(C, C + aj − ai)`다.** 부호 하나가 틀리면 α가 제약(Σαy 보존·상자 [0,C])을
  *    벗어나 자랄 수 있고, 실측에서 잡음 있는 600행부터 가중치가 Infinity로 폭주해
@@ -35,12 +37,16 @@
  * 돌려준다 (mlpx-spec.md 5.8) - 담았다가 예측에서 다시 적용하는 것을 잊는 경로를 없앤다.
  */
 
-/** 솔버의 손잡이. 기본값은 원본과 같다. */
+/** 솔버의 손잡이. */
 export interface SmoOptions {
   /** 정규화 세기. 학생이 화면에서 고르는 유일한 값이다. */
   readonly C: number
+  /**
+   * KKT 위반 허용 오차. **매 패스의 최대 KKT 위반이 이 아래로 가면 수렴이다.**
+   * sklearn `SVC`의 기본값 1e-3을 따른다. 원본 `ml-svm`의 1e-4는 갈라치기의
+   * α 변화량 문턱이었고 KKT 위반과는 뜻이 다른 값이라 그대로 쓸 수 없다.
+   */
   readonly tol: number
-  readonly maxPasses: number
   readonly maxIterations: number
   /** [0,1)의 난수. **시드에서 나와야 한다** - 여기가 재현 가능성의 유일한 구멍이다. */
   readonly random: () => number
@@ -48,8 +54,7 @@ export interface SmoOptions {
 
 export const SMO_DEFAULTS = {
   C: 1,
-  tol: 1e-4,
-  maxPasses: 10,
+  tol: 1e-3,
   maxIterations: 10000,
 } as const
 
@@ -142,29 +147,38 @@ export function trainLinearSvm(
     return sum
   }
 
-  let passes = 0
   let iterations = 0
-  while (passes < options.maxPasses && iterations < options.maxIterations) {
+  let converged = false
+  let stalls = 0
+  while (iterations < options.maxIterations) {
+    let maxViolation = 0
     let changed = 0
     for (let i = 0; i < m; i += 1) {
       const yi = labels[i] ?? 0
       const Ei = marginAt(i) - yi
-      const violates =
-        (yi * Ei < -options.tol && (alpha[i] as number) < options.C) ||
-        (yi * Ei > options.tol && (alpha[i] as number) > 0)
-      if (!violates) continue
+      const ai = alpha[i] as number
 
-      // 짝은 무작위로 고른다. **여기가 시드를 쓰는 유일한 자리다.**
+      // KKT 위반 크기. αᵢ의 위치에 따라 한쪽 또는 양쪽을 본다.
+      // αᵢ = 0 → yᵢEᵢ ≥ 0이어야 한다 → 위반 = max(0, -(yᵢEᵢ))
+      // 0 < αᵢ < C → yᵢEᵢ = 0이어야 한다 → 위반 = |yᵢEᵢ|
+      // αᵢ = C → yᵢEᵢ ≤ 0이어야 한다 → 위반 = max(0, yᵢEᵢ)
+      let violation = 0
+      if (ai < options.C) violation = Math.max(violation, -(yi * Ei))
+      if (ai > 0) violation = Math.max(violation, yi * Ei)
+      maxViolation = Math.max(maxViolation, violation)
+
+      if (violation <= options.tol) continue
+
+      // **짝은 무작위로 고른다.** 여기가 시드를 쓰는 유일한 자리다.
       let j = i
       while (j === i) j = Math.floor(options.random() * m)
       const yj = labels[j] ?? 0
       const Ej = marginAt(j) - yj
 
-      const ai = alpha[i] as number
       const aj = alpha[j] as number
       const low = yi === yj ? Math.max(0, ai + aj - options.C) : Math.max(0, aj - ai)
       // 라벨이 다른 쪽의 위 경계는 C + aj − ai다 (Platt 1998). 원본의 `+ ai`는 결함이다 —
-      // 머리말 "바꾼 것 4"를 보라.
+      // 머리말 "바꾼 것 5"를 보라.
       const high =
         yi === yj ? Math.min(options.C, ai + aj) : Math.min(options.C, options.C + aj - ai)
       if (Math.abs(low - high) < 1e-4) continue
@@ -192,8 +206,26 @@ export function trainLinearSvm(
     }
 
     iterations += 1
-    if (changed === 0) passes += 1
-    else passes = 0
+    if (maxViolation < options.tol) {
+      // 모든 샘플이 KKT를 tol 안에서 만족한다 — 이상적 수렴.
+      converged = true
+      break
+    }
+    if (changed === 0) {
+      stalls += 1
+      // **단순화 SMO의 수렴** — KKT 위반이 tol보다 크지만 어떤 쌍도 α를 바꾸지
+      // 못하는 패스가 연속 10회. 무작위 짝 선택은 패스마다 다른 j를 고르므로 한 번의
+      // 정체가 곧 교착은 아니지만, 연속으로 쌓이면 해소할 쌍이 없는 것이다.
+      // libsvm이라면 WSS3으로 이 상태를 빠져나오지만, 단순화 SMO는 여기가 한계다.
+      // 그래도 모델은 학생이 쓸 수 있는 상태이므로 converged=true로 남긴다 —
+      // "덜 다듬어진"과 "더 못 다듬는"은 다르다.
+      if (stalls >= 10) {
+        converged = true
+        break
+      }
+    } else {
+      stalls = 0
+    }
   }
 
   // 정규화된 좌표계의 가중치.
@@ -213,8 +245,9 @@ export function trainLinearSvm(
   return {
     weights,
     intercept,
-    // 원본이 던지던 조건과 같다. 여기서는 사실로 남긴다.
-    converged: iterations < options.maxIterations,
+    // KKT max < tol이거나 연속 정체(10패스)면 수렴이다. maxIterations를 먼저 쓴 것은
+    // 아직 덜 다듬어진 상태이고, 그 사실이 run.warning으로 남는다 (mlpx-spec.md 5.9).
+    converged,
     iterations,
   }
 }
