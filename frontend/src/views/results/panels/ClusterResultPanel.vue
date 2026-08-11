@@ -15,17 +15,7 @@
  * `defineAsyncComponent`) 군집 결과를 여는 학생만 이 코드를 받는다.
  */
 
-import {
-  Chart,
-  Legend,
-  LinearScale,
-  PointElement,
-  ScatterController,
-  Tooltip,
-  type ChartData,
-  type ChartOptions,
-  type PointStyle,
-} from 'chart.js'
+import { Chart, Legend, LinearScale, PointElement, ScatterController, Tooltip } from 'chart.js'
 import { computed, onMounted, ref, watch } from 'vue'
 import { Scatter } from 'vue-chartjs'
 import { useI18n } from 'vue-i18n'
@@ -33,6 +23,7 @@ import { useI18n } from 'vue-i18n'
 import AppTable from '@/components/AppTable.vue'
 import { useFormat } from '@/composables/useFormat'
 import { CLUSTER_MEMBER_ROW_COUNT, CLUSTER_SCATTER_POINT_LIMIT } from '@/limits'
+import { clusterChartData, clusterChartOptions } from '@/ml/cluster-chart'
 import { clusterMaterialFor, clusterMembers, clusterSummaries, scatterPoints } from '@/ml/clusters'
 import type { PanelInput } from '@/ml/metric-panels'
 import { theme } from '@/theme'
@@ -150,20 +141,14 @@ onMounted(readTokens)
 watch(theme, readTokens)
 
 /**
- * 군집의 색과 모양. **일곱 색을 돌려 쓰고 여덟 번째부터 모양을 바꾼다** (#28-3).
- *
- * 색을 스무 개로 늘리지 않는다 — 늘리는 순간 이 팔레트가 색맹 안전(Okabe-Ito)이라는
- * 근거가 깨진다. 7 × 3 = 21이라 `n_clusters` 상한 20을 덮는다.
+ * 배색 토큰을 그림이 쓰는 모양으로 묶는다. **캔버스는 CSS 클래스를 못 쓴다.**
  */
-const POINT_SHAPES: readonly PointStyle[] = ['circle', 'triangle', 'rect']
-
-function colorOf(cluster: number): string {
-  return palette.value[cluster % CHART_COLOR_COUNT] ?? ink.value
-}
-
-function shapeOf(cluster: number): PointStyle {
-  return POINT_SHAPES[Math.floor(cluster / CHART_COLOR_COUNT) % POINT_SHAPES.length] ?? 'circle'
-}
+const tokens = computed(() => ({
+  palette: palette.value,
+  surface: surface.value,
+  ink: ink.value,
+  line: line.value,
+}))
 
 function clusterName(cluster: number): string {
   return t('results.clusterName', { index: cluster })
@@ -183,143 +168,24 @@ function coordinate(value: number | null): string {
   return value === null ? t('meta.none') : format.prediction(value)
 }
 
-/**
- * 그리는 차례. **작을수록 위에 그려진다.**
- *
- * **배열에 나중에 넣는다고 위로 오지 않는다.** Chart.js는 데이터셋을 `order`(같으면
- * 배열 순서)로 정렬한 뒤 **뒤에서부터** 그린다(`_drawDatasets`). 그래서 배열 끝에 둔
- * 중심점이 **맨 아래에 깔려 점 수천 개에 묻혔다** — 2026-08-11에 화면에서 잡혔다.
- *
- * 셋을 명시적으로 나눈다: 점 → 흰 테두리 → 군집 색 ✕ 순으로 쌓인다.
- */
-const DRAW_ORDER = { points: 2, halo: 1, centroid: 0 } as const
+/** **그림을 만드는 계산은 화면 밖에 있다** (§8.13.2의 4번, `ml/cluster-chart.ts`). */
+const chartData = computed(() =>
+  clusterChartData(
+    scatter.value ?? { points: [], drawn: 0, total: 0 },
+    summaries.value,
+    { x: xAxis.value, y: yAxis.value },
+    tokens.value,
+    { clusterName, centroid: t('results.clusterCentroid') },
+  ),
+)
 
-/**
- * 군집마다 데이터셋 하나, 그 위에 중심점 둘.
- *
- * **중심점을 두 겹으로 그린다** (#28-1의 "✕에 흰 테두리"). `crossRot`은 선으로만
- * 그려지므로 흰 굵은 선을 먼저 깔고 그 위에 군집 색을 얹는다 — 점이 몰린 자리에서
- * 중심점이 묻히지 않게 하는 것이 흰 테두리의 일이다.
- */
-const chartData = computed<ChartData<'scatter'>>(() => {
-  const found = material.value
-  const drawn = scatter.value
-  if (!found || !drawn) return { datasets: [] }
-
-  const clusters = found.assignment.centroids.map((_centroid, cluster) => ({
-    label: clusterName(cluster),
-    data: drawn.points
-      .filter((point) => point.cluster === cluster)
-      .map((point) => ({ x: point.values[xAxis.value] ?? 0, y: point.values[yAxis.value] ?? 0 })),
-    backgroundColor: colorOf(cluster),
-    borderColor: colorOf(cluster),
-    pointStyle: shapeOf(cluster),
-    radius: 4,
-    order: DRAW_ORDER.points,
-  }))
-
-  // **✕는 중심점이지 평균이 아니다** (#28-6). 수렴하지 못한 학습에서 둘이 갈리는데,
-  // 그림이 말해야 하는 것은 "가장 가까운 중심점으로 배정된다"는 모델의 규칙이다.
-  const centers = summaries.value.map((summary) => ({
-    x: summary.centroid[xAxis.value] ?? 0,
-    y: summary.centroid[yAxis.value] ?? 0,
-  }))
-
-  return {
-    datasets: [
-      ...clusters,
-      {
-        label: t('results.clusterCentroid'),
-        data: centers,
-        borderColor: surface.value,
-        pointStyle: 'crossRot' as const,
-        borderWidth: 6,
-        radius: 9,
-        order: DRAW_ORDER.halo,
-      },
-      {
-        label: t('results.clusterCentroid'),
-        data: centers,
-        borderColor: summaries.value.map((summary) => colorOf(summary.cluster)),
-        pointStyle: 'crossRot' as const,
-        borderWidth: 3,
-        radius: 9,
-        order: DRAW_ORDER.centroid,
-      },
-    ],
-  }
-})
-
-const chartOptions = computed<ChartOptions<'scatter'>>(() => ({
-  responsive: true,
-  maintainAspectRatio: false,
-  /**
-   * **애니메이션을 끈다.** 기본값이 켬이라 축을 한 번 바꾸면 71프레임을 다시 그린다 —
-   * 1만 점에서 799ms, 2만 점에서 4,210ms다(감사 실측). 점 수천 개가 날아다니는 것은
-   * 이 화면이 원하는 장면도 아니다.
-   *
-   * **`limits.ts`의 `CLUSTER_SCATTER_POINT_LIMIT`이 이 줄에 매여 있다** — 상한의 근거가
-   * 된 실측이 `animation: false`에서 나왔다 (open-decisions.md #28-5). 이 줄을 지우면
-   * 그 숫자가 화면의 숫자가 아니게 된다.
-   */
-  animation: false,
-  /**
-   * **가리킨 것 하나만 말한다.** 산점도의 기본 모드는 `point`라 커서 아래에 겹친 점을
-   * **전부** 세운다 — 촘촘한 자리에서 거의 같은 숫자가 열 줄씩 뜨고, 학생이 가리킨
-   * 것이 그중 무엇인지 알 수 없다. `nearest`는 가장 가까운 하나를 준다.
-   */
-  interaction: { mode: 'nearest', intersect: true },
-  // 축 이름은 학생의 열 이름이라 번역하지 않는다.
-  scales: {
-    x: {
-      title: { display: true, text: axisName(xAxis.value), color: ink.value },
-      ticks: { color: ink.value },
-      grid: { color: line.value },
-    },
-    y: {
-      title: { display: true, text: axisName(yAxis.value), color: ink.value },
-      ticks: { color: ink.value },
-      grid: { color: line.value },
-    },
-  },
-  plugins: {
-    legend: {
-      labels: {
-        color: ink.value,
-        usePointStyle: true,
-        // 흰 테두리 데이터셋은 범례에서 뺀다 - 중심점이 두 줄로 서면 둘의 차이를
-        // 설명할 수 없다.
-        filter: (item) => item.datasetIndex !== summaries.value.length,
-        // **범례는 그리는 차례를 따라가지 않는다.** Chart.js가 범례 항목도 `order`로
-        // 정렬하므로(`generateLabels`가 `_getSortedDatasetMetas`를 쓴다) 그대로 두면
-        // 위에 그리려고 준 `order`가 범례에서는 "중심점이 맨 앞"이 된다. 읽는 차례는
-        // 군집들 다음이 중심점이다.
-        sort: (a, b) => (a.datasetIndex ?? 0) - (b.datasetIndex ?? 0),
-      },
-    },
-    tooltip: {
-      /**
-       * **표식이 그림과 같은 모양이어야 한다.** 기본은 색 네모라, 중심점을 가리켜도
-       * 네모가 뜨고 그것이 ✕라는 것을 말해 주지 않는다. 켜면 점은 자기 모양대로,
-       * 중심점은 ✕로 선다.
-       */
-      usePointStyle: true,
-      // 흰 테두리는 아래에 깔린 획일 뿐이다. 안 빼면 중심점이 두 줄로 서고, 그중
-      // 하나는 흰 표식에 같은 좌표라 학생이 둘의 차이를 물을 수밖에 없다.
-      filter: (item) => item.datasetIndex !== summaries.value.length,
-      callbacks: {
-        // **한 문장은 한 키다** (docs/i18n.md 규칙 3). 조각을 이어 붙이면 어순이 언어마다
-        // 다른 것을 담을 수 없다 — 여기서는 값이 괄호로 뒤에 붙는다(규칙 5).
-        label: (item) =>
-          t('results.clusterPoint', {
-            name: item.dataset.label ?? '',
-            x: coordinate(item.parsed.x),
-            y: coordinate(item.parsed.y),
-          }),
-      },
-    },
-  },
-}))
+const chartOptions = computed(() =>
+  clusterChartOptions(summaries.value.length, tokens.value, {
+    axisX: axisName(xAxis.value),
+    axisY: axisName(yAxis.value),
+    point: (name, x, y) => t('results.clusterPoint', { name, x: coordinate(x), y: coordinate(y) }),
+  }),
+)
 
 /** 원본 표의 한 줄. **학습에 안 쓴 열도 그대로 보인다** — 누가 그 군집인지는 거기 있다. */
 function cellsOf(row: number): readonly string[] {
