@@ -327,7 +327,13 @@ function cellsOf(row: number): readonly string[] {
 
 <template>
   <section v-if="material && scatter" class="flex min-w-0 flex-col gap-5">
-    <div class="flex min-w-0 flex-col gap-1.5">
+    <!--
+      **축이 둘 미만이면 이 자리가 통째로 없다** (§9.2 "없는 것을 이름으로 말하지
+      않는다"). 수치 특성이 하나뿐이면 x·y를 세울 수 없는데, 제목과 설명만 남기면
+      화면이 **없는 그림의 이름을 부르고** 학생은 고장으로 읽는다. 군집 요약표와
+      구성원 표는 그때도 선다 - 그 둘은 축이 필요 없다.
+    -->
+    <div v-if="axes.length >= 2" class="flex min-w-0 flex-col gap-1.5">
       <h4 class="font-bold">{{ t('results.clusterScatter') }}</h4>
       <p class="text-ink-soft">{{ t('results.clusterScatterLead') }}</p>
 
@@ -361,7 +367,7 @@ function cellsOf(row: number): readonly string[] {
         </label>
       </div>
 
-      <div v-if="axes.length >= 2" class="h-96 min-w-0">
+      <div class="h-96 min-w-0">
         <Scatter :data="chartData" :options="chartOptions" />
       </div>
 
