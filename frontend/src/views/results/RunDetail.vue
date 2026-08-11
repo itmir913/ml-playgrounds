@@ -24,11 +24,25 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
-import { metricPanelsFor } from '@/ml/metric-panels'
+import { metricPanelsFor, type PanelInput } from '@/ml/metric-panels'
+import type { Dataset, Preprocessor } from '@/ml/preprocess'
 import { hyperparametersOf, whereTrainedKeyOf } from '@/ml/results'
-import type { DataType, Run, TaskType } from '@/project/schema'
+import type { DataType, Experiment, Run, TaskType } from '@/project/schema'
 
-const props = defineProps<{ run: Run; dataType: DataType; taskType: TaskType }>()
+const props = defineProps<{
+  run: Run
+  experiment: Experiment
+  dataType: DataType
+  taskType: TaskType
+  /**
+   * 아래 셋은 **이 화면이 안 쓰고 패널에 그대로 넘기는 것들**이다 (`PanelInput`).
+   * 여기서 풀어 쓰면 어느 패널이 무엇을 쓰는지가 이 파일에 적히게 되고, 그건 등록부가
+   * 가져간 앎이다 (architecture.md §9.1).
+   */
+  dataset: Dataset | null
+  preprocessor: Preprocessor | null
+  modelBytes: Uint8Array | undefined
+}>()
 
 const { t } = useI18n()
 
@@ -45,6 +59,18 @@ const warningText = computed(() => {
 })
 
 const panels = computed(() => metricPanelsFor(props.dataType, props.taskType, props.run))
+
+/**
+ * 패널이 받는 것. **computed로 한 번 만든다** — 템플릿에 객체 리터럴로 쓰면 렌더마다
+ * 새 객체가 되어 패널 쪽 computed가 매번 헛돈다.
+ */
+const panelInput = computed<PanelInput>(() => ({
+  run: props.run,
+  experiment: props.experiment,
+  dataset: props.dataset,
+  preprocessor: props.preprocessor,
+  modelBytes: props.modelBytes,
+}))
 
 /** 이 run에 먹인 손잡이들. 판정은 전부 `ml/results.ts`에 있다. */
 const hyperparameters = computed(() => hyperparametersOf(props.run))
@@ -106,7 +132,11 @@ const hyperparameters = computed(() => hyperparametersOf(props.run))
         `ml/metric-panels.ts`의 항목이 자기 옆에 갖는다 (§9.1). **0개일 때의 가지도 두지
         마라** — 그 가지에 쓸 문장은 반드시 등록부가 아는 것의 이름을 부르게 된다 (§9.2).
       -->
-      <component :is="panel.panel" v-for="panel in panels" :key="panel.id" :run="props.run" />
+      <!--
+        **프롭은 하나다** (§8.13.2). 개별 프롭으로 흩으면 안 쓰는 패널이 그것을 선언하지
+        않게 되고, 선언 안 한 객체 프롭은 `[object Object]`로 DOM에 박힌다.
+      -->
+      <component :is="panel.panel" v-for="panel in panels" :key="panel.id" :input="panelInput" />
     </div>
   </div>
 </template>

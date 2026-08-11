@@ -18,6 +18,7 @@ import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { describeChanges } from '@/ml/changes'
 import { metricsOf, type MetricDisplay } from '@/ml/metrics'
+import type { Dataset, Preprocessor } from '@/ml/preprocess'
 import { bestByMetric, doneRuns, failedRuns, whereTrainedKeyOf } from '@/ml/results'
 import type { DataType, Experiment, Run } from '@/project/schema'
 import ChangeList from './ChangeList.vue'
@@ -41,6 +42,15 @@ const props = defineProps<{
    * manifest의 현재 값과 남아 있는 실험이 어긋날 경로가 없다.
    */
   dataType: DataType
+  /**
+   * 아래 셋은 **상세 패널의 재료**다 (`ml/metric-panels.ts`의 `PanelInput`). 이 화면은
+   * 쓰지 않고 `RunDetail`로 넘기기만 한다 — 파일에서 꺼내는 일은 스토어를 아는
+   * `ResultsView`의 몫이고, 그 아래는 받은 것을 나르기만 한다.
+   */
+  dataset: Dataset | null
+  preprocessor: Preprocessor | null
+  /** 모델 경로 → 바이트. 어느 run의 것을 꺼낼지는 여기서 정해진다 (`openedModelBytes`). */
+  models: ReadonlyMap<string, Uint8Array>
 }>()
 
 const { t, te } = useI18n()
@@ -101,6 +111,17 @@ watch(
 const opened = computed<Run | undefined>(() =>
   succeeded.value.find((run) => run.id === openedRun.value),
 )
+
+/**
+ * 펼친 run의 모델 바이트. **담기지 않았으면 없다** (`run.modelOmitted`, mlpx-spec.md §4.2).
+ *
+ * 파싱하지 않고 바이트 그대로 넘긴다 — 모델 JSON을 읽는 것은 그것을 쓰는 패널의 일이고,
+ * 그 패널은 지연 로딩이라 **분류만 보는 학생은 모델을 파싱하지 않는다.**
+ */
+const openedModelBytes = computed<Uint8Array | undefined>(() => {
+  const path = opened.value?.model?.path
+  return path === undefined ? undefined : props.models.get(path)
+})
 
 /** 이 칸이 지금 실험에서 가장 좋은 값인가. 견줄 것이 없으면 아무것도 굵지 않다. */
 function isBest(run: Run, metric: string): boolean {
@@ -206,8 +227,12 @@ function failureDetailOf(run: Run): string | null {
     <div v-if="opened" ref="runDetailEl">
       <RunDetail
         :run="opened"
+        :experiment="props.experiment"
         :data-type="props.dataType"
         :task-type="props.experiment.settings.taskType"
+        :dataset="props.dataset"
+        :preprocessor="props.preprocessor"
+        :model-bytes="openedModelBytes"
       />
     </div>
 

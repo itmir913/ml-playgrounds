@@ -18,18 +18,21 @@ import AppTable from '@/components/AppTable.vue'
 import TermPopover from '@/components/TermPopover.vue'
 import { useFormat } from '@/composables/useFormat'
 import { isWeakestPerClass, weakestPerClass } from '@/ml/results'
-import type { Run } from '@/project/schema'
+import type { PanelInput } from '@/ml/metric-panels'
 
-const props = defineProps<{ run: Run }>()
+const props = defineProps<{ input: PanelInput }>()
+
+/** 이 패널이 쓰는 것은 `run` 하나뿐이다. 나머지 재료는 군집 패널의 것이다. */
+const run = computed(() => props.input.run)
 
 const { t } = useI18n()
 const format = useFormat()
 
-const weakest = computed(() => weakestPerClass(props.run.perClass ?? []))
+const weakest = computed(() => weakestPerClass(run.value.perClass ?? []))
 </script>
 
 <template>
-  <section v-if="props.run.perClass" class="flex flex-col gap-1.5">
+  <section v-if="run.perClass" class="flex flex-col gap-1.5">
     <h4 class="font-bold">{{ t('results.perClass') }}</h4>
 
     <AppTable>
@@ -73,7 +76,7 @@ const weakest = computed(() => weakestPerClass(props.run.perClass ?? []))
         </tr>
       </thead>
       <tbody>
-        <tr v-for="entry in props.run.perClass" :key="entry.label">
+        <tr v-for="entry in run.perClass" :key="entry.label">
           <th class="text-left">{{ entry.label }}</th>
           <!--
             **가장 약한 범주를 지표마다 캐션 색으로 짚는다.** 혼동 행렬의

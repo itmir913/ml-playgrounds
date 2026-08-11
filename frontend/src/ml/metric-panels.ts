@@ -20,8 +20,37 @@
 
 import { defineAsyncComponent, type Component } from 'vue'
 
-import type { DataType, Run, TaskType } from '../project/schema'
+import type { DataType, Experiment, Run, TaskType } from '../project/schema'
 import { supports, type Axis } from './axes'
+import type { Dataset, Preprocessor } from './preprocess'
+
+/**
+ * 패널이 받는 것 전부. **모든 패널이 같은 것을 받고, 안 쓰는 패널은 안 쓴다.**
+ *
+ * `run` 하나였던 것이 여기까지 넓어진 이유는 군집 패널이다 — 배정을 되계산하려면
+ * 전처리기와 모델과 데이터셋이 필요하고, **그 값을 `run`에 담을 수는 없다**(행마다
+ * 하나라 데이터가 클수록 커진다, `open-decisions.md` #28-4).
+ *
+ * **프롭 하나로 묶는다. 개별 프롭으로 흩지 마라** (architecture.md §8.13.2). 흩으면
+ * 안 쓰는 패널이 그것을 선언하지 않게 되고, **선언하지 않은 객체 프롭은
+ * `[object Object]`라는 어트리뷰트로 DOM에 그대로 박힌다.** 그러면 이 계약이 넓어질
+ * 때마다 패널 전부를 고쳐야 하고, 하나를 빠뜨린 것은 컴파일도 검사도 못 잡는다 —
+ * 등록부를 만든 이유(§9.1)와 같은 실패 모양이다.
+ *
+ * 호출부가 `<component :is>` 하나뿐이라 타입이 이 계약을 못 지킨다.
+ * **`tests/ui-rules.spec.ts`가 "패널은 프롭을 하나만 선언한다"를 강제한다.**
+ */
+export interface PanelInput {
+  readonly run: Run
+  /** 이 run이 속한 실험. 전처리 설정(인코딩)과 학습 행 번호가 여기서 나온다. */
+  readonly experiment: Experiment
+  /** 정본 데이터. **없을 수 있다** — 데이터를 뺀 채로 받은 파일이 그렇다. */
+  readonly dataset: Dataset | null
+  /** 그 실험의 전처리기. 파일에서 읽어 검증한 것이고, 못 읽었으면 `null`이다. */
+  readonly preprocessor: Preprocessor | null
+  /** 이 run의 모델 바이트. 파일에 안 담겼으면 `undefined`다 (`run.modelOmitted`). */
+  readonly modelBytes: Uint8Array | undefined
+}
 
 export interface MetricPanel {
   /** 로케일 키도 아니고 화면에 안 나온다. 검사와 v-for의 key에만 쓴다. */

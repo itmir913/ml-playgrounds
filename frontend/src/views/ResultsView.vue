@@ -14,6 +14,8 @@ import { useI18n } from 'vue-i18n'
 
 import AppEmpty from '@/components/AppEmpty.vue'
 import StepHeader from '@/components/StepHeader.vue'
+import { parsePreprocessor, type Preprocessor } from '@/ml/preprocess'
+import { readDataset } from '@/project/dataset'
 import { useProjectStore } from '@/stores/project'
 import ExperimentDetail from './results/ExperimentDetail.vue'
 import ExperimentList from './results/ExperimentList.vue'
@@ -64,6 +66,40 @@ const index = computed(() =>
 )
 const current = computed(() => experiments.value[index.value])
 const previous = computed(() => (index.value > 0 ? experiments.value[index.value - 1] : undefined))
+
+/**
+ * 상세 패널의 재료 (`ml/metric-panels.ts`의 `PanelInput`). **파일을 아는 것은 이 화면
+ * 하나이고, 아래는 받은 것을 나르기만 한다.**
+ *
+ * `readDataset`은 정본 바이트에 파싱 결과를 매달아 두므로(`project/dataset.ts`) 학습을
+ * 거쳐 온 정상 경로에서는 여기서 다시 파싱하지 않는다.
+ */
+const dataset = computed(() => readDataset(project.file))
+
+/**
+ * 고른 실험의 전처리기. **파일에서 읽어 검증한다** (`parsePreprocessor`) — 캐스팅으로
+ * 넘기면 잘못된 `categories` 하나가 예외 없이 한 칸 밀린 원-핫을 만든다. 예측 화면이
+ * 같은 길을 쓴다(`PredictView.vue`).
+ *
+ * **고른 실험 것만 읽는다.** 패널이 보는 것은 그 실험 하나이고, 실험이 스물이면 스무
+ * 벌을 미리 읽을 이유가 없다.
+ */
+const preprocessor = computed<Preprocessor | null>(() => {
+  const path = current.value?.preprocessor?.path
+  const bytes = path === undefined ? undefined : project.file?.models.get(path)
+  if (bytes === undefined) return null
+  try {
+    return parsePreprocessor(JSON.parse(new TextDecoder().decode(bytes)))
+  } catch {
+    // 못 읽은 전처리기다. 남의 파일에서 올 수 있고, 그때 그 재료가 필요한 패널만 안 뜬다.
+    return null
+  }
+})
+
+/** 모델 경로 → 바이트. 어느 run의 것을 꺼낼지는 `ExperimentDetail`이 정한다. */
+const models = computed<ReadonlyMap<string, Uint8Array>>(
+  () => project.file?.models ?? new Map<string, Uint8Array>(),
+)
 </script>
 
 <template>
@@ -108,6 +144,9 @@ const previous = computed(() => (index.value > 0 ? experiments.value[index.value
             :order="index + 1"
             :previous="previous"
             :data-type="dataType"
+            :dataset="dataset"
+            :preprocessor="preprocessor"
+            :models="models"
           />
         </div>
       </div>

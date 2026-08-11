@@ -317,6 +317,22 @@ function strayDotSeparators(source: string): string[] {
   )
 }
 
+/**
+ * 상세 패널이 선언한 프롭 이름들 (architecture.md §8.13.2).
+ *
+ * **패널은 `input` 하나만 받는다.** 개별 프롭으로 흩으면 안 쓰는 패널이 그것을 선언하지
+ * 않게 되고, **선언하지 않은 객체 프롭은 `[object Object]`라는 어트리뷰트로 DOM에 그대로
+ * 박힌다.** 계약이 넓어질 때마다 패널 전부를 고쳐야 하는 모양이기도 하다.
+ *
+ * **여기가 검사여야 하는 이유는 타입이 못 지키기 때문이다** — 호출부가
+ * `<component :is>` 하나뿐이라 vue-tsc가 프롭을 대조하지 않는다.
+ */
+function panelProps(source: string): string[] {
+  const match = /defineProps<\{([\s\S]*?)\}>\(\)/.exec(source)
+  if (!match) return []
+  return [...(match[1] ?? '').matchAll(/(\w+)\s*\??\s*:/g)].map((one) => one[1] ?? '')
+}
+
 function vueFiles(directory: string): string[] {
   return readdirSync(directory).flatMap((entry) => {
     const path = join(directory, entry)
@@ -671,6 +687,35 @@ describe('나열에서 이름은 배지, 값은 plaintext다', () => {
         ),
       )
     expect(found).toEqual([])
+  })
+})
+
+describe('상세 패널은 프롭을 하나만 선언한다', () => {
+  const PANELS = join(SRC, 'views', 'results', 'panels')
+
+  it('개별 프롭으로 흩은 패널을 잡는다', () => {
+    const source = `<script setup lang="ts">
+const props = defineProps<{ run: Run; dataset: Dataset | null }>()
+</script>`
+    expect(panelProps(source)).toEqual(['run', 'dataset'])
+  })
+
+  it('선택 프롭도 이름으로 센다', () => {
+    // `modelBytes?: Uint8Array`처럼 물음표가 붙어도 프롭은 프롭이다.
+    const source = 'const props = defineProps<{ input: PanelInput; extra?: number }>()'
+    expect(panelProps(source)).toEqual(['input', 'extra'])
+  })
+
+  it('지금 패널이 전부 input 하나만 받는다', () => {
+    const found = vueFiles(PANELS)
+      .map((path) => ({ path, props: panelProps(readFileSync(path, 'utf-8')) }))
+      .filter((entry) => entry.props.length !== 1 || entry.props[0] !== 'input')
+      .map((entry) => `${entry.path.slice(SRC.length + 1)}  ${entry.props.join(', ')}`)
+    expect(found).toEqual([])
+  })
+
+  it('패널이 하나라도 있다 - 빈 디렉터리에서 조용히 통과하지 않는다', () => {
+    expect(vueFiles(PANELS).length).toBeGreaterThan(0)
   })
 })
 
