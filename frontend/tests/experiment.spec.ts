@@ -1074,4 +1074,41 @@ describe('군집', () => {
       ),
     ).not.toThrow()
   })
+
+  /**
+   * **군집 전용 실패 경로.** 성공 경로만 덮여 있었고, 군집에서만 나는 실패는 어느
+   * 검사에도 없었다 (V3 감사의 "확인 필요").
+   *
+   * 실험 하나가 통째로 죽지 않고 **그 모델만 failed로 남는 것**이 여기서 확인할
+   * 것이다 (mlpx-spec.md §4.1) — 데이터보다 군집이 많은 것은 학생이 손잡이로 만들 수
+   * 있는 상태이고, 그때 다른 모델까지 사라지면 안 된다.
+   */
+  it('데이터보다 군집이 많으면 그 모델만 failed로 남는다', () => {
+    const twoRows: Dataset = {
+      columns: ['x', 'y'],
+      rows: [
+        ['0', '0'],
+        ['1', '1'],
+      ],
+    }
+    const { experiment: failed } = runExperiment(
+      {
+        dataset: twoRows,
+        testDataset: null,
+        taskType: 'clustering',
+        dataType: 'tabular',
+        settings: clusterSettings({ hyperparameters: { k_means: { mljs: { nClusters: 5 } } } }),
+        context: BROWSER_ONLY,
+      },
+      frozen,
+    )
+
+    const run = failed.runs[0]
+    expect(run?.status).toBe('failed')
+    expect(run?.failure?.code).toBe('CLUSTER_TOO_FEW_ROWS')
+    expect(run?.failure?.params).toEqual({ rows: 2, clusters: 5 })
+    // 실패한 run에도 무엇을 시도했는지는 남는다 (ml/experiment.ts).
+    expect(run?.hyperparameters).toHaveProperty('nClusters', 5)
+    expect(run?.metrics).toBeUndefined()
+  })
 })
