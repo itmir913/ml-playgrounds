@@ -165,11 +165,20 @@ function startSampling(): void {
 /**
  * 입력값을 천장과 바닥 사이로 되돌린다. **입력 중에는 부르지 않는다**(change에 건다) —
  * keyup마다 고치면 "3000"을 치는 도중의 "3"이 바닥으로 튀어 올라 뒷자리를 못 친다.
+ *
+ * **끝에서 칸을 스키마 값으로 다시 쓴다** (`architecture.md` §8.15.1). 안 쓰면 화면이
+ * 조용히 거짓말한다 — 클램프한 결과가 지금 값과 **같으면** computed가 안 바뀌고,
+ * 그러면 Vue가 DOM 프로퍼티를 다시 안 쓴다. 칸을 비우고 나가거나(파싱 실패) 천장에서
+ * 더 큰 수를 치면 학생이 친 것이 칸에 남고 바로 아래 요약 줄은 파일 값을 말한다.
+ * **라디오와 달리 숫자 칸에는 "한 번 더 누르면 맞아진다"가 없다.**
  */
-function setSampleRows(raw: string): void {
-  const parsed = Number.parseInt(raw, 10)
-  if (Number.isNaN(parsed)) return
-  setSampling(Math.min(Math.max(parsed, MIN_SPLIT_ROWS), usableRowCount.value))
+function setSampleRows(input: HTMLInputElement): void {
+  const parsed = Number.parseInt(input.value, 10)
+  const next = Number.isNaN(parsed)
+    ? (nSamples.value ?? usableRowCount.value)
+    : Math.min(Math.max(parsed, MIN_SPLIT_ROWS), usableRowCount.value)
+  setSampling(next)
+  input.value = String(next)
 }
 </script>
 
@@ -327,7 +336,7 @@ function setSampleRows(raw: string): void {
                   :min="MIN_SPLIT_ROWS"
                   :max="usableRowCount"
                   :value="sampleSummary.used"
-                  @change="setSampleRows(($event.target as HTMLInputElement).value)"
+                  @change="setSampleRows($event.target as HTMLInputElement)"
                 />
               </label>
               <!-- **조용히 일부만 쓰지 않는다** - 안 쓰는 행이 몇 행인지 말한다

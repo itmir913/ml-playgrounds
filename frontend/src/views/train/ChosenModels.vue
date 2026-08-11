@@ -120,15 +120,33 @@ function violated(row: ChosenModel): ReadonlySet<string> {
  * **정수 자리는 여기서 반올림한다.** 학습 직전에 확정하면 화면에 2.5가 떠 있는 채로
  * 3으로 돌게 되고, 학생이 보는 값과 도는 값이 갈린다.
  */
+/**
+ * **칸을 저장된 값으로 다시 쓴다** (`architecture.md` §8.15.1).
+ *
+ * 여기는 값을 그대로 올려보내지 않고 **고쳐서** 올려보낸다 — 빈 칸은 기본값으로
+ * 되돌리고, 정수 눈금이면 반올림한다. 그래서 저장된 값과 칸의 값이 갈릴 수 있다.
+ * `3.7`을 치면 파일에는 `4`가 들어가는데 칸에는 `3.7`이 남아 있었고, 학생이 다시
+ * 손대기 전까지 화면이 계속 거짓말했다 — **숫자 칸에는 "한 번 더 누르면 맞아진다"가
+ * 없다** (2026-08-12 감사 B-3이 표본 뽑기에서 같은 결함을 잡았고, 검사를 넓히자
+ * 이 자리가 함께 나왔다).
+ */
 function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void {
-  const raw = (event.target as HTMLInputElement).value.trim()
+  const input = event.target as HTMLInputElement
+  const raw = input.value.trim()
   if (raw === '') {
     emit('setParam', row.algorithm, row.runtime, spec.name, undefined)
+    // 비우면 기본값으로 돌아간다. 그 값을 칸이 보여야 학생이 무엇이 먹히는지 안다.
+    input.value = String(valueOf(row, spec))
     return
   }
   const value = Number(raw)
-  if (!Number.isFinite(value)) return
-  emit('setParam', row.algorithm, row.runtime, spec.name, spec.integer ? Math.round(value) : value)
+  if (!Number.isFinite(value)) {
+    input.value = String(valueOf(row, spec))
+    return
+  }
+  const next = spec.integer ? Math.round(value) : value
+  emit('setParam', row.algorithm, row.runtime, spec.name, next)
+  input.value = String(next)
 }
 </script>
 

@@ -259,22 +259,58 @@ function unsyncedLockedInputs(source: string): string[] {
 
   // 되돌리기를 하는 함수 이름들. 최상위 함수의 닫는 중괄호는 Prettier가 들여쓰기 없이
   // 새 줄에 둔다 - 그 모양만 몸통으로 본다 (unguardedConfirmRadios와 같은 방식).
+  //
+  // **숫자 칸은 `.value`로 되돌린다.** 그런데 `foo.value = ...`는 Vue의 ref에도 그대로
+  // 나오는 모양이라 그것만 보면 아무 핸들러나 되돌린다고 판정한다. 그래서 **요소를 손에
+  // 쥔 함수**(인자로 받거나 몸통에서 캐스팅하거나)에서만 `.value` 대입을 되돌리기로
+  // 센다 - 그게 이 저장소가 쓰는 관용구다.
+  //
+  // **함수 단위로 본다. 갈래 단위가 아니다.** 되돌리는 줄이 한 갈래에만 있어도 그 함수는
+  // 되돌린다고 판정한다 - 이르게 `return`하는 갈래 하나가 빠진 것은 이 검사가 못 잡는다.
+  // 위 `.checked` 규칙도 같은 굵기이고, 갈래를 세려면 파서가 필요하다.
   const resyncing = new Set(
-    [...script.matchAll(/function (\w+)\([^)]*\)[^{]*\{\n([\s\S]*?)\n\}/g)]
-      .filter((match) => /\.checked\s*=|\.resync\(/.test(match[2] ?? ''))
+    [...script.matchAll(/function (\w+)\(([^)]*)\)[^{]*\{\n([\s\S]*?)\n\}/g)]
+      .filter((match) => {
+        const params = match[2] ?? ''
+        const body = match[3] ?? ''
+        if (/\.checked\s*=|\.resync\(/.test(body)) return true
+        // 인자로 받든(`input: HTMLInputElement`) 몸통에서 캐스팅하든
+        // (`event.target as HTMLInputElement`) 둘 다 요소를 손에 쥔 것이다.
+        return /HTMLInputElement/.test(params + body) && /\.value\s*=/.test(body)
+      })
+      .map((match) => match[1] ?? ''),
+  )
+
+  // 몸통이 `emit(...)` 하나뿐인 함수들. 값을 고치지 않고 그대로 올려보내는 자리다.
+  const forwarding = new Set(
+    [...script.matchAll(/function (\w+)\(([^)]*)\)[^{]*\{\n([\s\S]*?)\n\}/g)]
+      .filter((match) => /^\s*emit\([^;]*\)\s*$/.test(match[3] ?? ''))
       .map((match) => match[1] ?? ''),
   )
 
   return (
     [...template.matchAll(/<input\b[^>]*>/gs)]
       .map((match) => match[0])
-      .filter((tag) => /:disabled=/.test(tag))
+      // **숫자 칸은 잠기지 않아도 본다.** 아래 "한 번 더 누르면 맞아진다"는 라디오와
+      // 체크박스 이야기다 - 그것들은 상태가 둘뿐이라 학생이 다시 누르면 맞아진다.
+      // **숫자 칸에는 '한 번 더'가 없다.** 클램프한 값이 지금 값과 같으면 Vue가 DOM을
+      // 다시 안 쓰고, 학생이 친 숫자가 칸에 그대로 남아 화면이 계속 거짓말한다
+      // (2026-08-12 감사 B-3).
+      .filter((tag) => /:disabled=/.test(tag) || /type="number"/.test(tag))
       // 그룹째 되돌리는 라디오는 §8.15의 검사가 맡는다.
       .filter((tag) => !/:ref="[^"]*\.register\(/.test(tag))
       .filter((tag) => {
-        const handler = /@change="(\w+)"/.exec(tag)?.[1]
+        // **인자를 넘기는 꼴도 읽는다** - `@change="setRows($event.target)"`처럼 쓰는
+        // 자리가 실재하고, 이름만 읽으면 그 입력이 통째로 검사를 빠져나간다.
+        const handler = /@change="(\w+)/.exec(tag)?.[1]
         // 핸들러가 없으면 학생이 바꿀 수 없는 입력이라 갈릴 것도 없다.
-        return handler !== undefined && !resyncing.has(handler)
+        if (handler === undefined) return false
+        // **그대로 넘기기만 하는 것은 되돌릴 주체가 아니다.** 상태를 가진 쪽이 부모라
+        // 이 컴포넌트에는 되돌릴 값이 없고, 부모가 값을 바꾸면 다시 그려진다.
+        // 값을 **고쳐서** 넘기는 핸들러는 여기 안 걸린다 - 그때는 저장된 값과 칸의
+        // 값이 갈릴 수 있어서 되돌려야 한다.
+        if (handler === 'emit' || forwarding.has(handler)) return false
+        return !resyncing.has(handler)
       })
   )
 }
@@ -690,6 +726,48 @@ describe('잠기는 입력은 DOM을 스키마로 되돌린다', () => {
       '</template>',
     ].join(NEWLINE)
     expect(unsyncedLockedInputs(source)).toEqual([])
+  })
+
+  it('되돌리지 않는 숫자 칸을 잡는다 - 잠겨 있지 않아도 본다', () => {
+    const source = [
+      'function setRows(raw: string): void {',
+      '  apply(withSampling(file.document, clamp(raw), now()))',
+      '}',
+      '<template>',
+      '<input type="number" :value="n" @change="setRows($event.target.value)" />',
+      '</template>',
+    ].join(NEWLINE)
+    expect(unsyncedLockedInputs(source)).toEqual([
+      '<input type="number" :value="n" @change="setRows($event.target.value)" />',
+    ])
+  })
+
+  it('요소를 받아 되돌리는 숫자 칸은 안 잡는다', () => {
+    const source = [
+      'function setRows(input: HTMLInputElement): void {',
+      '  apply(withSampling(file.document, clamp(input.value), now()))',
+      '  input.value = String(next)',
+      '}',
+      '<template>',
+      '<input type="number" :value="n" @change="setRows($event.target)" />',
+      '</template>',
+    ].join(NEWLINE)
+    expect(unsyncedLockedInputs(source)).toEqual([])
+  })
+
+  it('ref에 쓰는 것은 되돌리기가 아니다 - 요소를 받는 함수만 센다', () => {
+    // `foo.value = ...`는 Vue의 ref에도 그대로 나오는 모양이다. 그것만 보면
+    // 아무 핸들러나 되돌린다고 판정해 검사가 통째로 무력해진다.
+    const source = [
+      'function setRows(raw: string): void {',
+      '  opened.value = null',
+      '  apply(withSampling(file.document, clamp(raw), now()))',
+      '}',
+      '<template>',
+      '<input type="number" :value="n" @change="setRows($event.target.value)" />',
+      '</template>',
+    ].join(NEWLINE)
+    expect(unsyncedLockedInputs(source)).toHaveLength(1)
   })
 
   it('잠기지 않는 입력은 안 잡는다 - 한 번 더 누르면 맞아진다', () => {
