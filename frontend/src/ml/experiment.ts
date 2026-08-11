@@ -266,6 +266,10 @@ function comparable(
     target: settings.target ?? null,
     preprocessing: settings.preprocessing,
     split: settings.split,
+    // **`null`로 펴는 것이 핵심이다** (target과 같은 방식). 뽑기를 켠 것과 끈 것은
+    // 학생이 한 변경인데, undefined로 두면 `JSON.stringify`가 그 키를 지워 "없다가
+    // 생김"과 "있다가 없어짐"이 둘 다 안 잡힌다.
+    nSamples: settings.nSamples ?? null,
     // 모델과 그 실행 방법을 함께 본다. 알고리즘은 그대로인데 엔진만 바꾼 것도
     // 학생이 한 변경이고, 숫자가 움직이는 가장 흔한 이유다.
     algorithms: settings.selectedAlgorithms.map(

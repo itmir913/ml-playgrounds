@@ -110,6 +110,9 @@ const LABELS: Readonly<Record<string, { readonly labelKey: string; readonly desc
     'split.testSize': { labelKey: 'preprocess.testSize', describe: literal },
     'split.stratify': { labelKey: 'preprocess.stratify', describe: onOff },
     'split.randomState': { labelKey: 'preprocess.randomState', describe: literal },
+    // 뽑기를 껐을 때는 `null`이고 `literal`이 그것을 `absent`로 편다 — 그래서
+    // "전체 사용 → 3,000행"과 그 반대가 둘 다 문장이 된다 (target과 같은 방식).
+    nSamples: { labelKey: 'preprocess.sampleRows', describe: literal },
   }
 
 /** 점 표기 경로로 값을 꺼낸다. 없으면 undefined다. */

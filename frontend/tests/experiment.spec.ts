@@ -572,6 +572,33 @@ describe('id와 changed', () => {
     ).experiment
     expect(second.changed).toEqual(['split.randomState'])
   })
+
+  /**
+   * **뽑는 수를 바꾸면 지표가 크게 움직인다.** 붓꽃 30행에서 12행만 뽑으면 정확도가
+   * 0.7778에서 1.0으로, 24행이면 0.8333으로 간다. 그런데 이력이 침묵하면 화면은
+   * "직전과 같은 설정"이라고 말하면서 숫자만 딴판인 상태가 된다 — 결과 화면이
+   * 순위표가 아니라 **변경 이력**이라는 것이 이 도구의 차별점이다
+   * (`architecture.md` §8.9).
+   */
+  it('뽑는 수를 바꾸면 changed에 뜬다', () => {
+    const sampled = runExperiment(inputFor({ settings: settingsFor({ nSamples: 12 }) }), {
+      ...frozen,
+      history,
+    }).experiment
+    expect(sampled.changed).toEqual(['nSamples'])
+  })
+
+  it('뽑기를 껐다 켜는 것도 잡는다 - 없다가 생긴 것이 변경이 아닐 수 없다', () => {
+    const sampled = runExperiment(
+      inputFor({ settings: settingsFor({ nSamples: 12 }) }),
+      frozen,
+    ).experiment
+    const back = runExperiment(inputFor(), {
+      ...frozen,
+      history: { experiments: [sampled] },
+    }).experiment
+    expect(back.changed).toEqual(['nSamples'])
+  })
 })
 
 describe('회귀', () => {
