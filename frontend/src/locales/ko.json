@@ -564,6 +564,7 @@
     "clusterNeighborLead": "같은 군집에 속한 데이터 중에서 입력한 값에 가까운 순서입니다.",
     "clusterInputPoint": "입력한 데이터",
     "clusterModelPick": "설명할 모델",
+    "clusterModelLabel": "{round} · {model}",
     "clusterScatterTitle": "입력한 데이터의 자리",
     "clusterScatterLead": "점 하나가 데이터 한 줄이고, 마름모가 방금 넣은 값입니다. ✕ 표시는 각 군집의 중심점입니다.",
     "range": "데이터에 있는 값: {min} ~ {max}",
