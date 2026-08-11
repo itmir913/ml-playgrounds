@@ -21,7 +21,13 @@ import { trainableRowCount } from '../src/ml/selection'
 import { NOT_FOR_TABULAR_ALGORITHM } from './fixtures/algorithms'
 import type { RuntimeContext } from '../src/ml/backend'
 import type { Dataset } from '../src/ml/preprocess'
-import { experimentSchema, type Run, type RunsFile, type Settings } from '../src/project/schema'
+import {
+  experimentSchema,
+  settingsSchema,
+  type Run,
+  type RunsFile,
+  type Settings,
+} from '../src/project/schema'
 import {
   IRIS_FEATURE_COLUMNS,
   IRIS_TARGET_COLUMN,
@@ -586,6 +592,96 @@ describe('id와 changed', () => {
       history,
     }).experiment
     expect(sampled.changed).toEqual(['nSamples'])
+  })
+
+  /**
+   * **`comparable()`은 손으로 관리하는 목록이고, 손으로 관리하는 목록은 새 필드를
+   * 놓친다.** 실제로 `nSamples`가 그렇게 빠졌다 — 검사를 하나 더 쓰는 것으로는 **다음**
+   * 필드를 못 막는다 (2026-08-12 감사 A-1).
+   *
+   * 그래서 **설정의 모든 필드를 스키마에서 훑어** 둘 중 하나이기를 요구한다.
+   *
+   * - 바꾸면 `changed`가 뜬다 (아래 `MUTATIONS`)
+   * - 안 뜨는 이유가 적혀 있다 (아래 `NOT_COMPARED`)
+   *
+   * 새 필드를 넣는 사람은 **둘 중 어디에 넣을지 정해야 한다.** 아무 데도 안 넣으면
+   * 첫 번째 검사가 운다.
+   */
+  describe('설정 필드가 늘면 변경 이력이 따라온다', () => {
+    /**
+     * 이 필드를 바꾸면 학생이 한 변경이다. 값은 `settingsFor()`의 기본과 달라야 한다.
+     */
+    const MUTATIONS: Readonly<
+      Record<string, { readonly patch: Partial<Settings>; readonly path: string }>
+    > = {
+      features: { patch: { features: [IRIS_FEATURE_COLUMNS[0] as string] }, path: 'features' },
+      // **타깃만 바꿀 수 없다.** 붓꽃 픽스처에서 범주형 열은 `species` 하나뿐이라, 다른
+      // 열로 옮기면 값이 거의 다 달라 층화가 거부한다. 그래서 층화를 함께 끄고 —
+      // 그 대신 **`target` 경로가 실제로 떴는지**를 본다. "비어 있지 않다"로는 곁다리
+      // 변경이 대신 떠 준 것을 못 가른다.
+      target: {
+        patch: {
+          target: IRIS_FEATURE_COLUMNS[0] as string,
+          split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+        },
+        path: 'target',
+      },
+      preprocessing: {
+        patch: {
+          preprocessing: { missing: 'mean', scaling: 'standard', categoricalEncoding: 'onehot' },
+        },
+        path: 'preprocessing',
+      },
+      split: {
+        patch: { split: { method: 'holdout', testSize: 0.4, stratify: true, randomState: 42 } },
+        path: 'split',
+      },
+      nSamples: { patch: { nSamples: 12 }, path: 'nSamples' },
+      runtime: { patch: { runtime: 'server-sklearn' }, path: 'runtime' },
+      // 스냅샷에서는 `algorithms`라는 이름으로 눕는다 - 모델과 실행 방법을 함께 보기
+      // 때문이다. **이름이 갈리는 자리라 경로를 손으로 적는다.**
+      selectedAlgorithms: { patch: { selectedAlgorithms: models('knn') }, path: 'algorithms' },
+      hyperparameters: {
+        patch: { hyperparameters: { decision_tree: { mljs: { maxDepth: 1 } } } },
+        path: 'hyperparameters',
+      },
+    }
+
+    /** 견주지 않는 필드와 그 이유. */
+    const NOT_COMPARED: Readonly<Record<string, string>> = {
+      // 데이터셋을 바꾸면 그 위의 실험이 통째로 지워진다 (mlpx-spec.md §4.3).
+      // 견줄 직전 실험 자체가 없으므로 이력에 뜰 일이 없다.
+      dataset: '바꾸면 기존 실험이 지워진다',
+      testDataset: '바꾸면 기존 실험이 지워진다',
+      // 예측 화면에서만 쓴다. 학습에 안 들어가므로 지표를 움직이지 않는다.
+      predictDataset: '학습에 들어가지 않는다',
+    }
+
+    it('스키마의 모든 필드가 둘 중 하나에 적혀 있다', () => {
+      const declared = new Set([...Object.keys(MUTATIONS), ...Object.keys(NOT_COMPARED)])
+      const missing = Object.keys(settingsSchema.shape).filter((key) => !declared.has(key))
+      expect(missing, '새 설정 필드는 MUTATIONS나 NOT_COMPARED에 넣어라').toEqual([])
+    })
+
+    it('적힌 것 말고 다른 것이 없다 - 필드가 사라지면 표도 따라간다', () => {
+      const fields = new Set(Object.keys(settingsSchema.shape))
+      const extra = [...Object.keys(MUTATIONS), ...Object.keys(NOT_COMPARED)].filter(
+        (key) => !fields.has(key),
+      )
+      expect(extra).toEqual([])
+    })
+
+    for (const [field, { patch, path }] of Object.entries(MUTATIONS)) {
+      it(`${field}를 바꾸면 changed에 ${path}가 뜬다`, () => {
+        const base = runExperiment(inputFor(), frozen).experiment
+        const next = runExperiment(inputFor({ settings: settingsFor(patch) }), {
+          ...frozen,
+          history: { experiments: [base] },
+        }).experiment
+        const hit = (next.changed ?? []).some((one) => one === path || one.startsWith(`${path}.`))
+        expect(hit, `${field}가 변경 이력에서 빠졌다: ${JSON.stringify(next.changed)}`).toBe(true)
+      })
+    }
   })
 
   it('뽑기를 껐다 켜는 것도 잡는다 - 없다가 생긴 것이 변경이 아닐 수 없다', () => {
