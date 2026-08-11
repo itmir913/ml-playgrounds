@@ -474,7 +474,10 @@
     "inertia": "Inertia"
   },
   "metricFormula": {
-    "accuracy": { "top": "Rows classified correctly", "bottom": "All rows" },
+    "accuracy": {
+      "top": "Rows classified correctly",
+      "bottom": "All rows"
+    },
     "precision": {
       "top": "Rows correctly given this class",
       "bottom": "Rows the model gave this class"
@@ -487,7 +490,10 @@
       "top": "Rows correctly kept out of this class",
       "bottom": "Rows that really are not this class"
     },
-    "f1": { "top": "2 × precision × recall", "bottom": "precision + recall" }
+    "f1": {
+      "top": "2 × precision × recall",
+      "bottom": "precision + recall"
+    }
   },
   "metricHelp": {
     "accuracy": "The share of all rows the model got right. It reads easily, but it misleads when the classes are imbalanced — if 90 of 100 rows share one class, answering with that class every time already scores 90%. Read it together with the other scores.",
@@ -551,7 +557,10 @@
     "clusterMeanHelp": "The average of the rows in this cluster. Across all the data the average is {overall}, and values range from {min} to {max}.",
     "clusterMembers": "Data in {name}",
     "clusterMembersLead": "Sorted by distance from the centroid. Columns not used for training are shown too.",
-    "clusterMemberCount": "Showing {shown} of {total} rows."
+    "clusterMemberCount": "Showing {shown} of {total} rows.",
+    "whatChanged": "What changed",
+    "membersAdded": "Added",
+    "membersRemoved": "Removed"
   },
   "predict": {
     "emptyReason": "This file has no model you can predict with.",

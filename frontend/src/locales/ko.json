@@ -474,17 +474,26 @@
     "inertia": "이너셔(Inertia)"
   },
   "metricFormula": {
-    "accuracy": { "top": "옳게 분류된 데이터 수", "bottom": "전체 데이터 수" },
+    "accuracy": {
+      "top": "옳게 분류된 데이터 수",
+      "bottom": "전체 데이터 수"
+    },
     "precision": {
       "top": "이 범주로 옳게 분류된 데이터 수",
       "bottom": "이 범주로 예측한 데이터 수"
     },
-    "recall": { "top": "이 범주로 옳게 분류된 데이터 수", "bottom": "실제 이 범주인 데이터 수" },
+    "recall": {
+      "top": "이 범주로 옳게 분류된 데이터 수",
+      "bottom": "실제 이 범주인 데이터 수"
+    },
     "specificity": {
       "top": "이 범주가 아니라고 옳게 분류된 데이터 수",
       "bottom": "실제 이 범주가 아닌 데이터 수"
     },
-    "f1": { "top": "2 × 정밀도 × 재현율", "bottom": "정밀도 + 재현율" }
+    "f1": {
+      "top": "2 × 정밀도 × 재현율",
+      "bottom": "정밀도 + 재현율"
+    }
   },
   "metricHelp": {
     "accuracy": "전체 데이터 중에서 모델이 정답을 맞힌 비율입니다. 한눈에 보기 좋지만 범주 불균형이 심한 데이터, 즉 한 범주에 데이터가 몰린 경우에는 오해를 부릅니다. 100줄 중 90줄이 같은 범주라면 전부 그 범주라고 답해도 정확도는 90%가 나옵니다. 그래서 다른 지표와 함께 봐야 합니다.",
@@ -548,7 +557,10 @@
     "clusterMeanHelp": "그 군집에 속한 데이터의 평균입니다. 전체 데이터의 평균은 {overall}, 값의 범위는 {min}부터 {max}까지입니다.",
     "clusterMembers": "{name}에 속한 데이터",
     "clusterMembersLead": "중심점에 가까운 순서입니다. 학습에 쓰지 않은 열도 함께 보입니다.",
-    "clusterMemberCount": "전체 {total}행 중 {shown}행을 보이고 있습니다."
+    "clusterMemberCount": "전체 {total}행 중 {shown}행을 보이고 있습니다.",
+    "whatChanged": "무엇이 바뀌었나",
+    "membersAdded": "들어온 것",
+    "membersRemoved": "빠진 것"
   },
   "predict": {
     "emptyReason": "예측에 쓸 수 있는 모델이 이 파일에 없습니다.",

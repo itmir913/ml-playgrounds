@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { describeChanges } from '../src/ml/changes'
+import { describeChanges, memberDiff } from '../src/ml/changes'
 import { runExperiment, type ExperimentInput } from '../src/ml/experiment'
 import type { RuntimeContext } from '../src/ml/backend'
 import type { Experiment, Settings } from '../src/project/schema'
@@ -102,8 +102,27 @@ describe('바뀐 값을 전후로 보여준다', () => {
     const changes = changesOf({ features: [IRIS_FEATURE_COLUMNS[0] ?? ''] })
     const features = changes.find((change) => change.path === 'features')
 
-    expect(features?.from).toEqual({ kind: 'count', count: 4 })
-    expect(features?.to).toEqual({ kind: 'count', count: 1 })
+    // **줄에 쓰는 것은 개수다.** 이름은 아래 `items`에 실려 있고 화면이 눌러야 연다.
+    expect(features?.from.kind).toBe('count')
+    expect(features?.to.kind).toBe('count')
+    expect(features?.from).toMatchObject({ count: 4 })
+    expect(features?.to).toMatchObject({ count: 1 })
+  })
+
+  it('특성은 무엇이었는지까지 들고 있다 - 개수만으로는 무엇을 뺐는지 모른다', () => {
+    const changes = changesOf({ features: [IRIS_FEATURE_COLUMNS[0] ?? ''] })
+    const features = changes.find((change) => change.path === 'features')
+
+    expect(features?.from).toMatchObject({ items: [...IRIS_FEATURE_COLUMNS] })
+    expect(features?.to).toMatchObject({ items: [IRIS_FEATURE_COLUMNS[0]] })
+  })
+
+  it('모델 목록은 이름을 안 들고 있다 - 식별자라 화면이 로케일을 찾아야 한다', () => {
+    const changes = changesOf({ selectedAlgorithms: [{ algorithm: 'knn' }] })
+    const algorithms = changes.find((change) => change.path === 'algorithms')
+
+    expect(algorithms?.from.kind).toBe('count')
+    expect(algorithms?.from).not.toHaveProperty('items')
   })
 
   it('분할 방식이 바뀌면 잡힌다', () => {
@@ -114,6 +133,47 @@ describe('바뀐 값을 전후로 보여준다', () => {
 
     expect(method?.labelKey).toBe('preprocess.testDataTitle')
     expect(method?.to).toEqual({ kind: 'locale', key: 'splitMethod.provided' })
+  })
+})
+
+/**
+ * 목록에서 무엇이 들고 났는가 (2026-08-12).
+ *
+ * **화면이 아니라 여기서 센다.** `.vue`의 computed는 아무도 테스트하지 않아서, 나중에
+ * "단순화"가 규칙을 되돌려도 초록색이 유지된다.
+ */
+describe('목록의 들고 남', () => {
+  const list = (...items: string[]) => ({ kind: 'count' as const, count: items.length, items })
+
+  it('들어온 것과 빠진 것을 가른다', () => {
+    expect(memberDiff(list('키', '몸무게', '나이'), list('키', '성별'))).toEqual({
+      added: ['성별'],
+      removed: ['몸무게', '나이'],
+    })
+  })
+
+  it('원본 순서를 지킨다 - 학생이 고른 순서가 곧 표의 순서다', () => {
+    expect(memberDiff(list('a', 'b', 'c'), list('c', 'z', 'a', 'y'))).toEqual({
+      added: ['z', 'y'],
+      removed: ['b'],
+    })
+  })
+
+  it('개수만 같고 구성이 다른 것도 잡는다 - 줄에는 아무 변화가 없어 보인다', () => {
+    expect(memberDiff(list('키', '몸무게'), list('키', '나이'))).toEqual({
+      added: ['나이'],
+      removed: ['몸무게'],
+    })
+  })
+
+  it('이름을 안 든 목록에는 답하지 않는다', () => {
+    expect(memberDiff({ kind: 'count', count: 2 }, list('a'))).toBeNull()
+    expect(memberDiff(list('a'), { kind: 'count', count: 2 })).toBeNull()
+  })
+
+  it('목록이 아닌 값에는 답하지 않는다', () => {
+    expect(memberDiff({ kind: 'literal', text: '3' }, list('a'))).toBeNull()
+    expect(memberDiff(list('a'), { kind: 'absent' })).toBeNull()
   })
 })
 

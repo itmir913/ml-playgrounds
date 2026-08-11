@@ -23,7 +23,13 @@ import { comparablePair, type ComparableSource } from './experiment'
 export type ChangeValue =
   | { readonly kind: 'literal'; readonly text: string }
   | { readonly kind: 'locale'; readonly key: string }
-  | { readonly kind: 'count'; readonly count: number }
+  /**
+   * 개수. **`items`가 있으면 무엇이었는지까지 안다.**
+   *
+   * 줄에 쓰는 것은 여전히 개수뿐이다 — 특성 스무 개가 열여덟 개가 된 것을 이름으로
+   * 늘어놓으면 그 줄이 화면을 덮는다. `items`는 **학생이 눌러서 열 때** 쓴다.
+   */
+  | { readonly kind: 'count'; readonly count: number; readonly items?: readonly string[] }
   | { readonly kind: 'absent' }
 
 export interface Change {
@@ -82,6 +88,46 @@ const countOf: Describe = (value) => ({
 })
 
 /**
+ * 목록. **개수를 말하되 무엇이었는지도 들고 있는다.**
+ *
+ * `countOf`와 나누는 이유는 **이름을 그대로 보여도 되는 목록에만 쓰기 때문**이다.
+ * 특성 이름은 학생의 CSV 컬럼명이라 그대로 읽히지만, 알고리즘 목록은 `knn:mljs` 같은
+ * 식별자라 화면이 로케일을 찾아야 한다 — 그건 여기가 아니라 그 화면의 일이고, 지금
+ * 필요하지 않다.
+ */
+const listOf: Describe = (value) => ({
+  kind: 'count',
+  count: Array.isArray(value) ? value.length : 0,
+  items: Array.isArray(value) ? value.map(String) : [],
+})
+
+export interface MemberDiff {
+  readonly added: readonly string[]
+  readonly removed: readonly string[]
+}
+
+/**
+ * 목록에서 무엇이 들어오고 무엇이 빠졌는지. **없으면 `null`이다.**
+ *
+ * **화면이 아니라 여기서 센다.** `.vue`의 computed는 아무도 테스트하지 않아서, 나중에
+ * "단순화"가 규칙을 되돌려도 초록색이 유지된다.
+ *
+ * 양쪽이 `items`를 든 목록일 때만 답한다 — 개수만 아는 값(`countOf`)이나 어휘 값에는
+ * 들고 날 것이 없다. **순서는 원본 그대로 둔다.** 학생이 고른 순서가 곧 표의 순서다.
+ */
+export function memberDiff(from: ChangeValue, to: ChangeValue): MemberDiff | null {
+  if (from.kind !== 'count' || to.kind !== 'count') return null
+  if (from.items === undefined || to.items === undefined) return null
+
+  const before = new Set(from.items)
+  const after = new Set(to.items)
+  return {
+    added: to.items.filter((name) => !before.has(name)),
+    removed: from.items.filter((name) => !after.has(name)),
+  }
+}
+
+/**
  * 경로 -> 라벨과 값 서술.
  *
  * **여기 없는 경로도 화면에 뜬다.** 이 표는 "우리가 문장을 아는 것"의 목록이지
@@ -92,7 +138,9 @@ const LABELS: Readonly<Record<string, { readonly labelKey: string; readonly desc
     taskType: { labelKey: 'meta.taskType', describe: vocabulary('taskTypes') },
     runtime: { labelKey: 'train.pickRuntime', describe: vocabulary('runtimes') },
     target: { labelKey: 'preprocess.roleTarget', describe: literal },
-    features: { labelKey: 'preprocess.roleFeature', describe: countOf },
+    // **특성만 `listOf`다.** 학생이 가장 자주 만지는 목록이고, 개수만 보고는 무엇을
+    // 뺐는지 알 수 없어서 화면이 눌러 여는 자리를 준다 (results/ChangeList.vue).
+    features: { labelKey: 'preprocess.roleFeature', describe: listOf },
     algorithms: { labelKey: 'train.chosenTitle', describe: countOf },
     'preprocessing.missing': {
       labelKey: 'preprocess.missing',
