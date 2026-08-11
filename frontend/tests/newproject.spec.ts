@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+// 라우터를 실제로 태우므로 history와 document가 필요하다.
 import 'fake-indexeddb/auto'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'

@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+// 셸을 실제로 mount해서 그려진 것을 본다.
 /**
  * 셸이 실제로 그려지는지.
  *

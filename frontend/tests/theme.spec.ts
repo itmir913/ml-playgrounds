@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+// documentElement의 data-theme와 matchMedia를 읽는다.
 /**
  * 배색 결정.
  *
