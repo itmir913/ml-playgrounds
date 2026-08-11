@@ -9,11 +9,15 @@
  * 넘기는가**이지 Chart.js가 그것을 어떻게 그리는가가 아니다.
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import type { LegendItem, TooltipItem } from 'chart.js'
 import { describe, expect, it } from 'vitest'
 
 import {
   DRAW_ORDER,
+  FALLBACK_PALETTE,
   clusterChartData,
   clusterChartOptions,
   clusterColor,
@@ -164,5 +168,24 @@ describe('색과 모양', () => {
       ),
     )
     expect(seen.size).toBe(20)
+  })
+})
+
+describe('토큰을 못 읽었을 때', () => {
+  it('대체 색이 서로 다르다 - 한 색이면 군집이 안 갈린다', () => {
+    // **그림은 멀쩡해 보이는데 군집이 안 갈리는 것**이 이 검사가 막는 상태다.
+    expect(new Set(FALLBACK_PALETTE).size).toBe(FALLBACK_PALETTE.length)
+  })
+
+  it('대체 색이 theme.css의 값과 같다', () => {
+    // 값이 두 벌인 자리다. 갈리면 스타일시트가 없는 화면만 다른 색으로 그려지고,
+    // 그건 아무도 안 본다.
+    const css = readFileSync(join(process.cwd(), 'src', 'styles', 'theme.css'), 'utf-8')
+    const declared = FALLBACK_PALETTE.map((_value, index) => {
+      const found = new RegExp(`--color-chart-${index + 1}:\s*([^;]+);`).exec(css)
+      return found?.[1]?.trim()
+    })
+
+    expect(declared).toEqual([...FALLBACK_PALETTE])
   })
 })

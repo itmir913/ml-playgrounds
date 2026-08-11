@@ -23,7 +23,7 @@ import { useI18n } from 'vue-i18n'
 import AppTable from '@/components/AppTable.vue'
 import { useFormat } from '@/composables/useFormat'
 import { CLUSTER_MEMBER_ROW_COUNT, CLUSTER_SCATTER_POINT_LIMIT } from '@/limits'
-import { clusterChartData, clusterChartOptions } from '@/ml/cluster-chart'
+import { FALLBACK_PALETTE, clusterChartData, clusterChartOptions } from '@/ml/cluster-chart'
 import { clusterMaterialFor, clusterMembers, clusterSummaries, scatterPoints } from '@/ml/clusters'
 import type { PanelInput } from '@/ml/metric-panels'
 import { theme } from '@/theme'
@@ -117,7 +117,6 @@ const memberTotal = computed(() => material.value?.assignment.counts[openedClust
  * 어두운 배색은 같은 이름의 값을 바꾸므로(`styles/dark.css`) **배색이 바뀌면 다시
  * 읽는다** — 안 그러면 어두운 화면에 밝은 배색용 색이 남는다.
  */
-const CHART_COLOR_COUNT = 7
 const palette = ref<string[]>([])
 const surface = ref('#ffffff')
 const ink = ref('#475569')
@@ -129,8 +128,10 @@ function readTokens(): void {
   const token = (name: string, fallback: string): string =>
     styles.getPropertyValue(name).trim() || fallback
 
-  palette.value = Array.from({ length: CHART_COLOR_COUNT }, (_value, index) =>
-    token(`--color-chart-${index + 1}`, '#000000'),
+  // **대체값이 색마다 달라야 한다** — 전부 같으면 토큰을 못 읽는 순간 모든 군집이
+  // 한 색이 되고, 그림은 멀쩡해 보인다 (`FALLBACK_PALETTE`).
+  palette.value = FALLBACK_PALETTE.map((fallback, index) =>
+    token(`--color-chart-${index + 1}`, fallback),
   )
   surface.value = token('--color-surface', '#ffffff')
   ink.value = token('--color-ink-soft', '#475569')

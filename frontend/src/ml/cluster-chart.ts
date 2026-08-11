@@ -65,6 +65,30 @@ const CENTROID_RADIUS = 9
 const CENTROID_HALO_WIDTH = 6
 const CENTROID_WIDTH = 3
 
+/**
+ * 토큰을 못 읽었을 때 쓰는 색. **`styles/theme.css`의 값을 그대로 옮긴 것이다.**
+ *
+ * **대체값이 전부 같으면 안 된다.** 처음에는 일곱 개를 모두 `#000000`으로 두었는데,
+ * 그러면 토큰을 못 읽는 순간 **모든 군집이 같은 검정으로 그려지고 아무도 실패를
+ * 모른다** (2026-08-11 감사). 그림은 멀쩡해 보이는데 군집이 안 갈린다.
+ *
+ * **밝은 배색의 값이다** — 못 읽는 상황은 스타일시트가 아예 없는 상황이고, 그때 기본은
+ * `FALLBACK_THEME`(밝게)이다. 넷째 값이 Okabe-Ito 원본(#f0e442)이 아닌 것도 CSS 그대로다 —
+ * 흰 바탕에서 노랑이 안 보여 어둡게 조정된 값이고, 여기서 원본으로 되돌리면 두 벌이 갈린다.
+ *
+ * **값이 두 벌이 된 자리이므로 검사가 지킨다** — `tests/cluster-chart.spec.ts`가
+ * `theme.css`를 읽어 대조한다. 배색 값의 출처는 여전히 CSS 하나다 (§8.4).
+ */
+export const FALLBACK_PALETTE: readonly string[] = [
+  '#e69f00',
+  '#56b4e9',
+  '#009e73',
+  '#9a8200',
+  '#0072b2',
+  '#d55e00',
+  '#cc79a7',
+]
+
 /** 색은 일곱을 돌려 쓰고 여덟 번째 군집부터 모양을 바꾼다 (#28-3). */
 export const POINT_SHAPES: readonly PointStyle[] = ['circle', 'triangle', 'rect']
 
