@@ -1,27 +1,39 @@
 <script setup lang="ts">
 /**
- * 표 데이터의 전처리 작업 공간 — 열 고르기와 정리하기.
+ * 표 데이터의 전처리 작업 공간 — 열 고르기, 정리하기, 뽑기, 그리고 **평가 데이터 받기.**
  *
  * **이 화면이 표 전용이라는 사실은 `data/kinds.ts`에 있다** (architecture.md §9.1).
  * `PreprocessView`는 종류를 모른 채 판을 하나 그리고, 이미지가 들어오면 여기가 아니라
  * 등록부에 줄이 하나 는다.
  *
  * **레이아웃도 판의 몫이다.** 표는 열이 수십 개라 넓은 칸을 갖지만(§8.9) 이미지 판은
- * 전혀 다른 모양이 된다. 그래서 그리드를 여기서 짜고, **모든 종류에 공통인 것(평가
- * 데이터 나누기)은 `<slot>`으로 받아 자리만 정해 준다** — 나누기는 표에만 있는 개념이
- * 아니므로 이 파일이 그 내용을 알면 안 된다.
+ * 전혀 다른 모양이 된다.
+ *
+ * **슬롯으로 받는 것은 "얼마나 나눌 것인가"뿐이다** (§9.1.1). 비율·층화·씨앗은
+ * `settings.split`이라 모든 종류에 공통이고, **"평가 데이터를 무엇으로 어디서 받나"는
+ * 종류마다 다르다** — 표는 CSV·엑셀 파일 하나이고 이미지는 폴더나 zip이 된다.
+ * 그래서 파일 받기와 시트 고르기가 이 파일에 있다.
  *
  * 스토어를 직접 본다. `data/TabularPanel.vue`와 같은 방식이다 — 판마다 필요한 것이
  * 다르므로 프롭으로 받으면 등록부의 계약이 표 모양이 되어 버린다.
  */
 
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AppButton from '@/components/AppButton.vue'
+import AppDialog from '@/components/AppDialog.vue'
+import { useRadioGroupGuard } from '@/composables/useRadioGroupGuard'
 import { summarizeColumns } from '@/data/columns'
+import { importTable, openTable, TABULAR_ACCEPT, type TableDocument } from '@/data/table'
 import { MIN_SPLIT_ROWS } from '@/limits'
 import { columnPlan, requiredTargetKind, rowUsage, trainableRowCount } from '@/ml/selection'
-import { readDataset } from '@/project/dataset'
+import {
+  applyTestDataset,
+  readDataset,
+  readTestDataset,
+  removeTestDataset,
+} from '@/project/dataset'
 import {
   CATEGORICAL_ENCODINGS,
   MISSING_STRATEGIES,
@@ -31,10 +43,12 @@ import {
 } from '@/project/schema'
 import { withFeatures, withPreprocessing, withSampling, withTarget } from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
+import { useToastStore } from '@/stores/toasts'
 import ColumnPicker from './ColumnPicker.vue'
 
 const { t } = useI18n()
 const project = useProjectStore()
+const toasts = useToastStore()
 
 const settings = computed(() => project.file?.document.settings ?? null)
 /** 이 판이 다루는 것은 표의 설정이다 (`settings.data`, mlpx-spec.md §3). */
@@ -204,6 +218,167 @@ function setSampleRows(input: HTMLInputElement): void {
     : Math.min(Math.max(parsed, MIN_SPLIT_ROWS), usableRowCount.value)
   setSampling(next)
   input.value = String(next)
+}
+
+// ------------------------------------------------------------ 평가 데이터 받기
+
+/** 평가 데이터를 파싱한 표. `split.method`가 `provided`가 아니면 없다. */
+const testDataset = computed(() => readTestDataset(project.file))
+
+/** 순수 함수는 ml/selection.ts에 있다 - 컴포넌트 밖에서 테스트한다. */
+const testRowUsage = computed(() => {
+  const current = settings.value
+  if (!current) return null
+  return rowUsage(
+    testDataset.value,
+    current.data.features,
+    current.data.target,
+    current.data.preprocessing.missing,
+  )
+})
+
+const experimentCount = computed(() => project.file?.document.runs.experiments.length ?? 0)
+
+/** 타깃이 정해진 뒤에만 평가용 파일을 받을 수 있다 (mlpx-spec.md §1.1). */
+const targetChosen = computed(() => settings.value?.target !== undefined)
+
+/**
+ * 화면이 지금 보여주는 선택. **커밋 전 임시 선택이 실제 값을 덮는다.**
+ *
+ * 파일을 아직 안 올린 채 "②"를 누른 상태는 `settings.split.method`에 없다 - 그건
+ * `applyTestDataset`이 성공해야 생기는 값이다. 그 사이를 이 값이 메운다.
+ */
+const manualTestChoice = ref<'holdout' | 'provided' | null>(null)
+const testChoice = computed(
+  () =>
+    manualTestChoice.value ??
+    (settings.value?.split.method === 'provided' ? 'provided' : 'holdout'),
+)
+
+const testFileInput = ref<HTMLInputElement | null>(null)
+/** "①"/"②" 라디오 그룹의 되돌리기 (`architecture.md` §8.15). */
+const testChoiceRadios = useRadioGroupGuard<'holdout' | 'provided'>()
+const testDragging = ref(false)
+const testBusy = ref(false)
+/** 아직 확정하지 않은 평가용 파일. 확정하면 비운다. */
+const openedTest = ref<{ document: TableDocument; fileName: string } | null>(null)
+const testSheetName = ref<string | undefined>(undefined)
+const testHasHeader = ref(true)
+const testAttaching = ref(false)
+const testRemoving = ref(false)
+
+/**
+ * "①"을 고른다. 이미 붙어 있던 평가 데이터가 있으면 뗀다(경고를 거친다).
+ *
+ * **취소하면 그룹을 직접 되돌린다** (`architecture.md` §8.15) - 확인을 거치는 동안
+ * `testChoice`는 그대로 `'provided'`라 Vue가 다시 렌더링해도 라디오의 `checked`를
+ * 다시 안 써 준다. `useRadioGroupGuard`로 지금 실제 값에 맞춰 되돌려 둔다 - 취소하면
+ * 그대로 남고, 확정되면 `manualTestChoice`가 `'holdout'`으로 바뀌어 다음 렌더링이
+ * 알아서 맞춰 준다.
+ */
+function chooseHoldout(): void {
+  openedTest.value = null
+  if (settings.value?.split.method === 'provided') {
+    testChoiceRadios.resync('provided')
+    requestRemoveTest()
+  } else {
+    manualTestChoice.value = 'holdout'
+  }
+}
+
+/** "②"를 고른다. **아직 아무 일도 하지 않는다** - 올리는 자리를 펼칠 뿐이다. */
+function chooseProvided(): void {
+  manualTestChoice.value = 'provided'
+}
+
+async function readTestFile(file: File): Promise<void> {
+  testBusy.value = true
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    const document = await openTable(bytes, file.name)
+    openedTest.value = { document, fileName: file.name }
+    testSheetName.value = document.sheetNames[0]
+    testHasHeader.value = true
+  } catch (error) {
+    toasts.pushError(error)
+  } finally {
+    testBusy.value = false
+  }
+}
+
+function onTestPick(event: Event): void {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  // 같은 파일을 다시 고를 수 있어야 한다. 값을 비우지 않으면 change가 다시 안 뜬다.
+  input.value = ''
+  if (file) void readTestFile(file)
+}
+
+function onTestDrop(event: DragEvent): void {
+  testDragging.value = false
+  const file = event.dataTransfer?.files[0]
+  if (file) void readTestFile(file)
+}
+
+/** 붙이기 요청. 지울 실험이 있으면 먼저 물어본다 (mlpx-spec.md §1.1 "따라오는 것 넷"). */
+function requestApplyTest(): void {
+  if (experimentCount.value > 0) {
+    testAttaching.value = true
+    return
+  }
+  void applyTest()
+}
+
+async function applyTest(): Promise<void> {
+  const source = openedTest.value
+  const file = project.file
+  if (!source || !file || testBusy.value) return
+
+  testBusy.value = true
+  try {
+    const imported = importTable(source.document, testSheetName.value)
+    const applied = applyTestDataset(file, imported, {
+      fileName: source.fileName,
+      hasHeader: testHasHeader.value,
+      now: new Date().toISOString(),
+    })
+    await project.save(applied.project)
+
+    testAttaching.value = false
+    openedTest.value = null
+    manualTestChoice.value = null
+    toasts.push('success', 'preprocess.testDataApplied')
+  } catch (error) {
+    toasts.pushError(error)
+  } finally {
+    testBusy.value = false
+  }
+}
+
+/** 떼기 요청. 지울 실험이 있으면 먼저 물어본다. */
+function requestRemoveTest(): void {
+  if (experimentCount.value > 0) {
+    testRemoving.value = true
+    return
+  }
+  void removeTest()
+}
+
+async function removeTest(): Promise<void> {
+  const file = project.file
+  if (!file || testBusy.value) return
+
+  testBusy.value = true
+  try {
+    const removed = removeTestDataset(file, new Date().toISOString())
+    await project.save(removed.project)
+    testRemoving.value = false
+    manualTestChoice.value = 'holdout'
+  } catch (error) {
+    toasts.pushError(error)
+  } finally {
+    testBusy.value = false
+  }
 }
 </script>
 
@@ -380,8 +555,196 @@ function setSampleRows(input: HTMLInputElement): void {
         </div>
       </section>
 
-      <!-- 모든 데이터 종류에 공통이다. 내용은 PreprocessView가 넣는다. -->
-      <slot />
+      <!--
+        **평가 데이터를 어디서 받나는 종류별이다** (architecture.md 9.1.1). 표는 파일
+        하나이고 이미지는 폴더나 zip이 된다. 얼마나 나눌 것인가만 공통이라 슬롯으로 온다.
+      -->
+      <section class="rounded-panel border border-line bg-surface p-4">
+        <h2 class="font-bold">{{ t('preprocess.testDataTitle') }}</h2>
+        <p class="mt-1 text-ink-soft">{{ t('preprocess.testDataLead') }}</p>
+
+        <!-- 양자택일이다 - 세 번째 상태가 없어야 학습 데이터로 채점하는 길이 막힌다
+               (open-decisions.md "`분할 안 함`을 없앱니다 - 그 자리가 양자택일이 된다"). -->
+        <div class="mt-3 flex flex-col gap-4">
+          <div>
+            <label class="flex cursor-pointer items-start gap-2">
+              <input
+                :ref="testChoiceRadios.register('holdout')"
+                type="radio"
+                name="test-data-choice"
+                class="mt-1 size-4 accent-brand"
+                :checked="testChoice === 'holdout'"
+                @change="chooseHoldout"
+              />
+              <span class="flex flex-col">
+                <span class="font-bold">{{ t('preprocess.testDataHoldout') }}</span>
+                <span class="text-ink-faint">{{ t('preprocess.testDataHoldoutNote') }}</span>
+              </span>
+            </label>
+
+            <!-- 얼마나 나눌 것인가는 모든 종류에 공통이다. 내용은 PreprocessView가 넣는다. -->
+            <div v-if="testChoice === 'holdout'" class="mt-3 ml-6 flex flex-col gap-4">
+              <slot />
+            </div>
+          </div>
+
+          <div>
+            <label class="flex cursor-pointer items-start gap-2">
+              <input
+                :ref="testChoiceRadios.register('provided')"
+                type="radio"
+                name="test-data-choice"
+                class="mt-1 size-4 accent-brand"
+                :disabled="!targetChosen"
+                :checked="testChoice === 'provided'"
+                @change="chooseProvided"
+              />
+              <span class="flex flex-col">
+                <span class="font-bold">{{ t('preprocess.testDataProvided') }}</span>
+                <span class="text-ink-faint">{{ t('preprocess.testDataProvidedNote') }}</span>
+              </span>
+            </label>
+            <p v-if="!targetChosen" class="mt-1 ml-6 text-caution">
+              {{ t('preprocess.testDataNeedsTarget') }}
+            </p>
+
+            <div
+              v-if="testChoice === 'provided'"
+              class="mt-3 ml-6 flex flex-col gap-3"
+              @dragover.prevent="testDragging = true"
+              @dragleave="testDragging = false"
+              @drop.prevent="onTestDrop"
+            >
+              <!-- 이미 붙어 있고, 새로 고르는 중이 아니다. -->
+              <div
+                v-if="data.testDataset && !openedTest"
+                class="flex flex-wrap items-center gap-x-4 gap-y-2"
+              >
+                <span class="max-w-56 truncate font-bold text-ink">
+                  {{ data.testDataset.originalFileName }}
+                </span>
+                <span class="flex items-center gap-1.5 text-ink-soft">
+                  <span>{{ t('data.rows') }}</span>
+                  <span class="font-bold tabular-nums text-ink">
+                    {{ testDataset?.rows.length ?? 0 }}
+                  </span>
+                </span>
+                <AppButton variant="secondary" :disabled="testBusy" @click="testFileInput?.click()">
+                  {{ t('data.change') }}
+                </AppButton>
+                <AppButton variant="secondary" :disabled="testBusy" @click="requestRemoveTest">
+                  {{ t('preprocess.testDataRemove') }}
+                </AppButton>
+              </div>
+
+              <!-- 아직 안 붙었거나, 다른 파일로 바꾸는 중이다. -->
+              <template v-if="!data.testDataset || openedTest">
+                <div
+                  v-if="!openedTest"
+                  class="rounded-panel border-2 border-dashed p-4 text-center transition-colors"
+                  :class="testDragging ? 'border-brand bg-brand-soft' : 'border-line-strong'"
+                >
+                  <AppButton
+                    variant="secondary"
+                    :disabled="testBusy"
+                    @click="testFileInput?.click()"
+                  >
+                    {{ testBusy ? t('data.reading') : t('data.choose') }}
+                  </AppButton>
+                  <p class="mt-1.5 text-ink-faint">{{ t('data.dropHint') }}</p>
+                </div>
+
+                <div v-else class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <span class="max-w-56 truncate font-bold">{{ openedTest.fileName }}</span>
+
+                  <label
+                    v-if="openedTest.document.sheetNames.length > 1"
+                    class="flex items-center gap-2"
+                  >
+                    <span class="font-bold text-ink-soft">{{ t('data.sheet') }}</span>
+                    <select
+                      v-model="testSheetName"
+                      class="rounded-field border border-line-strong bg-surface px-2 py-1"
+                    >
+                      <option
+                        v-for="name in openedTest.document.sheetNames"
+                        :key="name"
+                        :value="name"
+                      >
+                        {{ name }}
+                      </option>
+                    </select>
+                  </label>
+
+                  <label class="flex cursor-pointer items-center gap-2">
+                    <input v-model="testHasHeader" type="checkbox" class="size-4 accent-brand" />
+                    <span class="font-bold">{{ t('data.hasHeader') }}</span>
+                  </label>
+
+                  <div class="ml-auto flex gap-2">
+                    <AppButton variant="secondary" @click="openedTest = null">
+                      {{ t('common.cancel') }}
+                    </AppButton>
+                    <AppButton :disabled="testBusy" @click="requestApplyTest">
+                      {{ t('data.use') }}
+                    </AppButton>
+                  </div>
+                </div>
+              </template>
+
+              <!-- 빠진 행이 0이면 아무 말도 안 한다 (testRowUsage가 그때 null이다). -->
+              <p v-if="testRowUsage" class="text-ink-faint">
+                {{ t('preprocess.rowsUsable', testRowUsage) }}
+              </p>
+            </div>
+          </div>
+
+          <input
+            ref="testFileInput"
+            type="file"
+            :accept="TABULAR_ACCEPT"
+            class="hidden"
+            @change="onTestPick"
+          />
+        </div>
+      </section>
     </div>
   </div>
+
+  <!--
+    **붙이거나 떼면 지금까지의 실험이 지워진다** - 평가셋이 바뀌면 그 위의 점수가
+    전부 다른 것을 잰 값이 된다 (open-decisions.md "학습용과 평가용 파일이 따로일
+    수 있다"). data.replaceTitle과 같은 사유·같은 경고다.
+  -->
+  <AppDialog
+    :open="testAttaching"
+    :title="t('preprocess.testDataAttachTitle')"
+    :description="t('preprocess.testDataAttachDescription', experimentCount)"
+    @close="testAttaching = false"
+  >
+    <template #actions>
+      <AppButton variant="secondary" @click="testAttaching = false">
+        {{ t('common.cancel') }}
+      </AppButton>
+      <AppButton variant="danger" :disabled="testBusy" :action="applyTest">
+        {{ t('preprocess.testDataAttachConfirm') }}
+      </AppButton>
+    </template>
+  </AppDialog>
+
+  <AppDialog
+    :open="testRemoving"
+    :title="t('preprocess.testDataRemoveTitle')"
+    :description="t('preprocess.testDataRemoveDescription', experimentCount)"
+    @close="testRemoving = false"
+  >
+    <template #actions>
+      <AppButton variant="secondary" @click="testRemoving = false">
+        {{ t('common.cancel') }}
+      </AppButton>
+      <AppButton variant="danger" :disabled="testBusy" :action="removeTest">
+        {{ t('preprocess.testDataRemoveConfirm') }}
+      </AppButton>
+    </template>
+  </AppDialog>
 </template>

@@ -11,6 +11,7 @@
 
 import { defineAsyncComponent, type Component } from 'vue'
 
+import { TABULAR_ACCEPT } from '@/data/table'
 import type { DataType } from '@/project/schema'
 
 export interface DataKind {
@@ -23,8 +24,11 @@ export interface DataKind {
    * 전처리 화면에서 이 종류를 다루는 작업 공간.
    *
    * **판이 자기 레이아웃을 갖는다.** 표는 열이 수십 개라 넓은 칸이 필요하고 이미지는
-   * 전혀 다른 모양이 된다 (architecture.md §8.9). 모든 종류에 공통인 것(평가 데이터
-   * 나누기)은 `<slot>`으로 받아 판이 자리만 정해 준다.
+   * 전혀 다른 모양이 된다 (architecture.md §8.9).
+   *
+   * **평가 데이터를 어디서 받나도 판의 몫이다** (§9.1.1) — 표는 파일 하나이고 이미지는
+   * 폴더나 zip이 된다. 판이 `<slot>`으로 받는 것은 **얼마나 나눌 것인가**(비율·층화·
+   * 씨앗)뿐이고, 그것만 `settings.split`이라 모든 종류에 공통이다.
    *
    * **화면 둘을 한 줄에 둔다.** 같은 열쇠(dataType)로 등록부를 둘 만들면 한쪽에만
    * 줄을 넣는 일이 생기고, 그건 타입이 못 잡는다 (§9.2 "등록부의 모양은 하나다").
@@ -35,7 +39,7 @@ export interface DataKind {
 const KINDS: readonly DataKind[] = [
   {
     dataType: 'tabular',
-    accept: '.csv,.xlsx',
+    accept: TABULAR_ACCEPT,
     panel: defineAsyncComponent(() => import('@/views/data/TabularPanel.vue')),
     prepPanel: defineAsyncComponent(() => import('@/views/preprocess/TabularPrepPanel.vue')),
   },
