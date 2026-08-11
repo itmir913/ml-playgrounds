@@ -247,6 +247,20 @@ export function clusterSummaries(
   })
 }
 
+/**
+ * 행 하나를 **축 순서의 되돌린 좌표**로 바꾼다.
+ *
+ * **그림에 찍히는 모든 점이 이 함수를 지난다** — 산점도의 점도, 예측 화면이 얹는 새 점도.
+ * 두 벌이 되면 학생이 넣은 점만 다른 좌표계에 찍히고, 그림은 멀쩡해 보인다.
+ */
+export function axisValues(
+  row: readonly number[],
+  axes: readonly ClusterAxis[],
+  columns: readonly MatrixColumn[],
+): number[] {
+  return axes.map((axis) => unscale(columns[axis.index]!.column, row[axis.index] ?? 0))
+}
+
 /** 축 하나를 전체 데이터에서 본 모습. 요약표 머리글의 설명이 이것을 쓴다 (#28-6). */
 export interface AxisOverview {
   readonly name: string
@@ -488,7 +502,7 @@ export function scatterPoints(
     return {
       row: assignment.rows[index]!,
       cluster: assignment.clusters[index] ?? 0,
-      values: axes.map((axis) => unscale(columns[axis.index]!.column, row[axis.index] ?? 0)),
+      values: axisValues(row, axes, columns),
     }
   })
 

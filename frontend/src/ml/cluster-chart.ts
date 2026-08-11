@@ -33,10 +33,23 @@ export interface ClusterChartTokens {
   readonly line: string
 }
 
+/**
+ * 학생이 방금 넣은 한 줄 (#28-7). **결과 화면에는 없고 예측 화면에만 있다.**
+ *
+ * `values`는 `axes` 순서의 되돌린 좌표다 — `axisValues`가 만든 것을 그대로 받는다.
+ */
+export interface ClusterHighlight {
+  readonly values: readonly number[]
+  /** 답으로 나온 군집. **색이 여기서 온다** - "너는 2번 군집이다"가 색으로 읽힌다. */
+  readonly cluster: number
+}
+
 /** 화면이 번역해 넘기는 문구. 이 계층은 `t()`를 모른다. */
 export interface ClusterChartText {
   readonly clusterName: (cluster: number) => string
   readonly centroid: string
+  /** 새 점의 범례 이름. 예측 화면에서만 쓰인다. */
+  readonly highlight?: string
   /** 축 이름은 학생의 열 이름이라 번역하지 않는다. */
   readonly axisX: string
   readonly axisY: string
@@ -50,7 +63,7 @@ export interface ClusterChartText {
  * Chart.js가 정렬한 뒤 뒤에서부터 그리기 때문이다(`_drawDatasets`). 배열 순서에
  * 기대면 중심점이 맨 아래로 간다.
  */
-export const DRAW_ORDER = { points: 2, halo: 1, centroid: 0 } as const
+export const DRAW_ORDER = { points: 3, halo: 2, centroid: 1, highlight: 0 } as const
 
 /**
  * 점의 크기와 획. **`radius`가 아니라 `pointRadius`다.**
@@ -64,6 +77,9 @@ const CENTROID_RADIUS = 9
 /** 흰 테두리가 군집 색보다 굵어야 테두리로 보인다. */
 const CENTROID_HALO_WIDTH = 6
 const CENTROID_WIDTH = 3
+/** 학생이 넣은 점은 데이터보다 크고 중심점만큼 눈에 띈다. */
+const HIGHLIGHT_RADIUS = 10
+const HIGHLIGHT_BORDER_WIDTH = 3
 
 /**
  * 토큰을 못 읽었을 때 쓰는 색. **`styles/theme.css`의 값을 그대로 옮긴 것이다.**
@@ -127,7 +143,8 @@ export function clusterChartData(
   summaries: readonly ClusterSummary[],
   axis: { readonly x: number; readonly y: number },
   tokens: ClusterChartTokens,
-  text: Pick<ClusterChartText, 'clusterName' | 'centroid'>,
+  text: Pick<ClusterChartText, 'clusterName' | 'centroid' | 'highlight'>,
+  highlight?: ClusterHighlight | undefined,
 ): ChartData<'scatter'> {
   const clusters = summaries.map((summary) => ({
     label: text.clusterName(summary.cluster),
@@ -167,6 +184,24 @@ export function clusterChartData(
         pointRadius: CENTROID_RADIUS,
         order: DRAW_ORDER.centroid,
       },
+      // **맨 위이고, 맨 뒤다** (#28-7). 위에 그려져야 점에 안 묻히고, 배열 끝이어야
+      // 흰 테두리의 자리(`haloIndex`)가 안 밀린다.
+      ...(highlight
+        ? [
+            {
+              label: text.highlight ?? '',
+              data: [{ x: highlight.values[axis.x] ?? 0, y: highlight.values[axis.y] ?? 0 }],
+              // **채워진 도형이다.** ✕처럼 선으로만 그려지는 모양은 점이 몰린 자리에서
+              // 묻힌다. 마름모는 군집이 쓰는 세 모양과 겹치지 않는다 (#28-3).
+              pointBackgroundColor: clusterColor(tokens, highlight.cluster),
+              pointBorderColor: tokens.surface,
+              pointStyle: 'rectRot' as const,
+              pointBorderWidth: HIGHLIGHT_BORDER_WIDTH,
+              pointRadius: HIGHLIGHT_RADIUS,
+              order: DRAW_ORDER.highlight,
+            },
+          ]
+        : []),
     ],
   }
 }

@@ -23,6 +23,7 @@ import {
   clusterColor,
   clusterShape,
   haloIndex,
+  POINT_SHAPES,
   type ClusterChartTokens,
 } from '../src/ml/cluster-chart'
 import type { ClusterSummary, ScatterData } from '../src/ml/clusters'
@@ -52,10 +53,14 @@ function scatter(count: number): ScatterData {
   return { points, drawn: points.length, total: points.length }
 }
 
-const TEXT = { clusterName: (cluster: number) => `${cluster}번 군집`, centroid: '중심점' }
+const TEXT = {
+  clusterName: (cluster: number) => `${cluster}번 군집`,
+  centroid: '중심점',
+  highlight: '입력한 데이터',
+}
 
-function dataOf(count: number) {
-  return clusterChartData(scatter(count), summaries(count), { x: 0, y: 1 }, TOKENS, TEXT)
+function dataOf(count: number, highlight?: { values: number[]; cluster: number }) {
+  return clusterChartData(scatter(count), summaries(count), { x: 0, y: 1 }, TOKENS, TEXT, highlight)
 }
 
 function optionsOf(count: number) {
@@ -187,5 +192,40 @@ describe('토큰을 못 읽었을 때', () => {
     })
 
     expect(declared).toEqual([...FALLBACK_PALETTE])
+  })
+})
+
+describe('학생이 넣은 점', () => {
+  const highlight = { values: [7, 9], cluster: 1 }
+
+  it('없으면 데이터셋도 없다 - 결과 화면에는 새 점이 없다', () => {
+    expect(dataOf(3).datasets).toHaveLength(5)
+  })
+
+  it('맨 위에 그려진다', () => {
+    // 점에 묻히면 "내 데이터가 어디 있나"에 답하지 못한다 - 이 그림의 유일한 이유다.
+    const datasets = dataOf(3, highlight).datasets
+    const orders = datasets.map((dataset) => dataset.order!)
+    const last = orders[orders.length - 1]!
+
+    expect(Math.min(...orders)).toBe(last)
+    expect(orders.filter((order) => order === last)).toHaveLength(1)
+  })
+
+  it('배열 끝이라 흰 테두리의 자리가 안 밀린다', () => {
+    // **`haloIndex`가 밀리면 범례와 툴팁이 군집 하나를 대신 지운다.**
+    const datasets = dataOf(3, highlight).datasets
+    expect(datasets[haloIndex(3)]!.pointBorderColor).toBe(TOKENS.surface)
+    expect(datasets[datasets.length - 1]!.label).toBe('입력한 데이터')
+  })
+
+  it('색은 답으로 나온 군집의 것이고 모양은 군집과 겹치지 않는다', () => {
+    // **빨강이 아니다** (#28-7). 색은 "너는 1번 군집이다"를 말하고, 모양이 "이건 네가
+    // 방금 넣은 것"을 말한다.
+    const point = dataOf(3, highlight).datasets.at(-1)!
+    expect(point.pointBackgroundColor).toBe(clusterColor(TOKENS, 1))
+    expect(point.pointBorderColor).toBe(TOKENS.surface)
+    expect(point.pointStyle).toBe('rectRot')
+    expect(POINT_SHAPES).not.toContain(point.pointStyle)
   })
 })
