@@ -174,9 +174,13 @@ const axisName = (position: number): string => axes.value[position]?.name ?? ''
 /**
  * 툴팁에 적는 좌표. **Chart.js는 좌표를 `null`일 수 있는 것으로 본다** — 빈 자리를 둘 수
  * 있는 차트 종류가 있어서다. 산점도에는 그런 점이 없지만 타입은 그것을 모른다.
+ *
+ * **지표 포맷터를 쓰지 마라** (`useFormat.ts`의 `formatPrediction` 머리말). 이 값은
+ * 되돌린 좌표라 **학생의 데이터 단위**다 — 지표처럼 소수 셋으로 자르면 농도 열은
+ * 전부 `0.000`이 되고 집값 열은 뒤가 잘린다.
  */
 function coordinate(value: number | null): string {
-  return value === null ? t('meta.none') : format.metric(value, 'number')
+  return value === null ? t('meta.none') : format.prediction(value)
 }
 
 /**
@@ -397,7 +401,7 @@ function cellsOf(row: number): readonly string[] {
             <th class="text-left">{{ clusterName(summary.cluster) }}</th>
             <td class="tabular-nums">{{ summary.size }}</td>
             <td v-for="(mean, position) in summary.means" :key="position" class="tabular-nums">
-              {{ format.metric(mean, 'number') }}
+              {{ format.prediction(mean) }}
             </td>
           </tr>
         </tbody>
