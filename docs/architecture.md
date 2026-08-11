@@ -361,7 +361,8 @@ uv run ruff check . && uv run mypy . && uv run pytest
 # 프런트엔드 (frontend/)
 npm install
 npm run dev
-npm run lint && npm run typecheck && npm test
+npm run ci        # lint:check → typecheck → vitest → build. 커밋 전에 이것만 돌리면 된다
+npm run lint      # 고치는 쪽. 대상이 src/ tests/ 전체라 남의 작업 파일도 건드린다
 ```
 
 `package.json`과 `pyproject.toml`의 버전은 상한 없는 캐럿 범위다.

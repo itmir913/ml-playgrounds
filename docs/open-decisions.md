@@ -275,7 +275,10 @@ lint·prettier·typecheck·vitest·build를 다 거친 뒤에만 나간다. `ci.
 
 - **`dist/`는 어차피 배포 잡이 빌드해야 한다.** `ci.yml`이 산출물을 아티팩트로 올리지
   않으므로, CI가 통과했든 아니든 `npm ci`와 `vite build`는 그대로 낸다. 줄여서 아끼는
-  것은 eslint·prettier·vitest뿐이고 **1분 남짓**이다(실측: vitest 38초, eslint 10초).
+  것은 eslint·prettier·vitest뿐이고 **1분 남짓**이었다(GitHub Actions 실측: vitest 38초,
+  eslint 10초). **2026-08-11에 더 줄었다** — vitest의 pool과 environment를 고쳐 개발 PC에서
+  146초가 21초가 됐으니 러너에서도 38초보다 짧다. 새로 재지는 않았지만 **방향이 한쪽이라
+  결론은 그대로다**: 아끼는 것이 줄었으므로 기각의 근거가 더 세졌다.
 - **푸시하고 바로 디스패치하면 CI가 `in_progress`라 거부된다.** "깨져서"가 아니라 "아직
   안 끝나서"인데 배포 로그만 보면 구분이 안 간다. `main`이 아닌 ref에서 디스패치하면
   CI 실행 자체가 없어 항상 거부된다(`ci.yml`은 `push: branches: [main]`이다).
