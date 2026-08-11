@@ -311,7 +311,12 @@ const STRATIFY_MEANINGLESS: Partial<Record<TaskType, true>> = {
  */
 export interface StratifyBlock {
   readonly code:
-    'STRATIFY_NOT_FOR_TASK_TYPE' | 'SPLIT_STRATIFY_IMPOSSIBLE' | 'SPLIT_STRATIFY_TARGET_CONTINUOUS'
+    | 'STRATIFY_NOT_FOR_TASK_TYPE'
+    | 'SPLIT_STRATIFY_IMPOSSIBLE'
+    | 'SPLIT_STRATIFY_TARGET_CONTINUOUS'
+    // 뽑을 줄 수가 라벨 종류를 감당 못 한다 (open-decisions.md #22). 위 셋과 달리
+    // **학생이 방금 정한 숫자**가 원인이라 할 일이 다르다 - 그 숫자를 올리거나 층화를 끈다.
+    | 'SAMPLE_STRATIFY_IMPOSSIBLE'
   readonly params?: Record<string, string | number>
 }
 
@@ -355,6 +360,13 @@ export interface StratifyInput {
   readonly target: string | undefined
   readonly features: readonly string[]
   readonly preprocessing: Preprocessing
+  /**
+   * 뽑기로 정한 행 수 (`open-decisions.md` #22). 없으면 전부 쓴다.
+   *
+   * **선택 인자로 두지 않는다.** `trainableRowCount`가 같은 이유로 필수를 고집한다 —
+   * 빠뜨린 자리는 조용히 "안 뽑은 것"이 되고, 그러면 화면이 [학습]보다 관대해진다.
+   */
+  readonly nSamples: number | undefined
 }
 
 /**
@@ -371,6 +383,36 @@ export interface StratifyInput {
  * 가능한 조언이고, 여럿이면 타깃이 사실상 연속이라 끄는 것이 답이다. **"고유값이 몇 %
  * 이상이면 연속"이라는 임계값을 두지 않는다** - 세는 것은 사실이고 임계값은 판단이다.
  */
+/**
+ * 뽑을 줄 수가 라벨 종류를 감당 못 하는가 (`ml/sample.ts`의 `allocate`와 같은 판정).
+ *
+ * **경계를 두 곳에서 따로 계산하는 것이 아니다** — 뽑기는 워커 안에서 돌아 화면이 그
+ * 함수를 부를 수 없고, 그래서 **같은 식을 여기 한 번 더 쓴다.** 어긋나면 화면과 [학습]이
+ * 다른 말을 하므로, 저쪽을 고치는 사람은 여기도 고쳐야 한다
+ * (`tests/selection.spec.ts`가 두 경계가 같은 값인지 확인한다).
+ *
+ * `nSamples`가 쓸 수 있는 행보다 크거나 같으면 뽑기 자체가 안 일어난다 — `sampleRows`가
+ * 그대로 돌려주므로 여기서도 통과다.
+ */
+function sampleStratifyBlock(
+  values: readonly string[],
+  nSamples: number | undefined,
+): StratifyBlock | null {
+  if (nSamples === undefined || nSamples >= values.length) return null
+
+  const sizes = new Map<string, number>()
+  for (const value of values) sizes.set(value, (sizes.get(value) ?? 0) + 1)
+
+  let floors = 0
+  for (const size of sizes.values()) floors += Math.min(size, MIN_SPLIT_ROWS)
+  if (floors <= nSamples) return null
+
+  return {
+    code: 'SAMPLE_STRATIFY_IMPOSSIBLE',
+    params: { nSamples, labels: sizes.size, minRows: MIN_SPLIT_ROWS },
+  }
+}
+
 export function stratifyBlock(input: StratifyInput): StratifyBlock | null {
   if (input.taskType !== undefined && STRATIFY_MEANINGLESS[input.taskType]) {
     return { code: 'STRATIFY_NOT_FOR_TASK_TYPE' }
@@ -383,7 +425,14 @@ export function stratifyBlock(input: StratifyInput): StratifyBlock | null {
   if (column < 0) return null
 
   const rows = usableRows(dataset, input.features, target, input.preprocessing.missing)
-  const { labels, kinds } = lonelyValues(rows.map((row) => String(dataset.rows[row]?.[column])))
+  const values = rows.map((row) => String(dataset.rows[row]?.[column]))
+
+  // **뽑기를 먼저 본다.** 학습에서도 뽑기가 분할보다 앞이라(ml/experiment.ts) 둘 다
+  // 걸리는 데이터에서 화면과 [학습]이 다른 말을 하면 안 된다.
+  const tooFewToSample = sampleStratifyBlock(values, input.nSamples)
+  if (tooFewToSample) return tooFewToSample
+
+  const { labels, kinds } = lonelyValues(values)
   if (labels.length === 0) return null
 
   // 값 하나만 부족한 것과 값이 거의 다 다른 것은 학생이 할 일이 정반대다.

@@ -132,6 +132,7 @@ const stratifyBlockNow = computed(() => {
     target: current.target,
     features: current.features,
     preprocessing: current.preprocessing,
+    nSamples: current.nSamples,
   })
 })
 

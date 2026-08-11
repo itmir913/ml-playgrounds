@@ -141,12 +141,32 @@ const usableRowCount = computed(() =>
 /** 지금 뽑기로 한 수. 안 뽑으면 `undefined`다. */
 const nSamples = computed(() => settings.value?.nSamples)
 
+/**
+ * **타깃을 고르기 전에는 잠근다** (`open-decisions.md` #22).
+ *
+ * 타깃이 없으면 위 천장이 **파일의 행 수**다(`trainableRowCount`가 무엇이 빠질지 아직
+ * 모르므로 보수적으로 센다). 그 상태에서 켜면 `nSamples`에 파일 행 수가 박히고, 나중에
+ * 타깃을 골라 쓸 수 있는 행이 줄어도 그 숫자는 안 따라간다 — **파일과 실험 스냅샷에
+ * 데이터보다 큰 표본 수가 남는다.** 학습은 안 틀리지만(`sampleRows`가 그대로 돌려준다)
+ * 파일만 보고 답해야 하는 교사 쪽에서 걸린다.
+ */
+const samplingLocked = computed(() => settings.value?.target === undefined)
+
 /** 뽑은 뒤 남는 행. **모델이 한 번도 보지 않는 줄이다** (open-decisions.md #30). */
 const sampleSummary = computed(() => {
   const chosen = nSamples.value
   if (chosen === undefined) return null
   const usable = usableRowCount.value
-  return { usable, used: Math.min(chosen, usable), rest: Math.max(usable - chosen, 0) }
+  // **`trainableRowCount`를 다시 구현하지 않는다.** 같은 규칙이 두 벌이면 어긋난다
+  // (2026-08-12 감사 C-1).
+  const used = trainableRowCount(
+    dataset.value,
+    settings.value?.features ?? [],
+    settings.value?.target,
+    settings.value?.preprocessing.missing ?? 'drop',
+    chosen,
+  )
+  return { usable, used, rest: Math.max(usable - used, 0) }
 })
 
 function setSampling(chosen: number | undefined): void {
@@ -158,8 +178,11 @@ function setSampling(chosen: number | undefined): void {
  * 켤 때의 기본값. **천장의 절반이 아니라 천장 그대로다** — 켜자마자 데이터가 줄어들면
  * 학생이 고르지도 않은 표본으로 학습하게 된다. 줄이는 것은 학생이 한다.
  */
-function startSampling(): void {
+function startSampling(input: HTMLInputElement): void {
   setSampling(Math.max(usableRowCount.value, MIN_SPLIT_ROWS))
+  // **DOM을 스키마로 되돌린다** (architecture.md §8.15.1). `setSampling`은 열린 프로젝트가
+  // 없으면 아무것도 안 하는데, 그때 라디오만 켜진 채로 남으면 화면이 거짓말한다.
+  input.checked = nSamples.value !== undefined
 }
 
 /**
@@ -319,13 +342,19 @@ function setSampleRows(input: HTMLInputElement): void {
                 name="sampling"
                 class="mt-1 size-4 accent-brand"
                 :checked="nSamples !== undefined"
-                @change="startSampling"
+                :disabled="samplingLocked"
+                @change="startSampling($event.target as HTMLInputElement)"
               />
               <span class="flex flex-col">
                 <span class="font-bold">{{ t('preprocess.samplePart') }}</span>
                 <span class="text-ink-faint">{{ t('preprocess.samplePartNote') }}</span>
               </span>
             </label>
+
+            <!-- **이유 없이 회색이면 고장으로 본다** (architecture.md §8.2). -->
+            <p v-if="samplingLocked" class="mt-1 ml-6 text-caution">
+              {{ t('preprocess.sampleNeedsTarget') }}
+            </p>
 
             <div v-if="sampleSummary" class="mt-3 ml-6">
               <label class="flex flex-wrap items-baseline gap-x-3 gap-y-1">

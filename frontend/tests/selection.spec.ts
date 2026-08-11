@@ -26,8 +26,10 @@ import {
   trainableRowCount,
   type AxisChoice,
 } from '../src/ml/selection'
-import { MLJS_SVM_ROW_LIMIT } from '../src/limits'
-import type { Preprocessing } from '../src/project/schema'
+import { isClientError } from '../src/errors'
+import { MIN_SPLIT_ROWS, MLJS_SVM_ROW_LIMIT } from '../src/limits'
+import { sampleRows } from '../src/ml/sample'
+import type { Preprocessing, Split } from '../src/project/schema'
 import { SKLEARN_ONLY_ALGORITHM, withSklearnOnly } from './fixtures/algorithms'
 
 const ONEHOT: Preprocessing = { missing: 'drop', scaling: 'none', categoricalEncoding: 'onehot' }
@@ -292,6 +294,15 @@ describe('세 축이 서로를 좁힌다', () => {
   })
 })
 
+function codeOf(run: () => unknown): string {
+  try {
+    run()
+  } catch (error) {
+    return isClientError(error) ? error.code : `던진 것이 ClientError가 아니다: ${String(error)}`
+  }
+  return '아무것도 던지지 않았다'
+}
+
 describe('층화를 걸 수 있는가', () => {
   const dataset = (targets: string[]): Dataset => ({
     columns: ['키', '반'],
@@ -305,6 +316,7 @@ describe('층화를 걸 수 있는가', () => {
       target: '반',
       features: ['키'],
       preprocessing: ONEHOT,
+      nSamples: undefined,
       ...overrides,
     })
   }
@@ -317,6 +329,56 @@ describe('층화를 걸 수 있는가', () => {
     // **데이터를 보지 않고도 답한다.** 값이 고르게 갈리는 데이터를 넣어도 마찬가지다 -
     // 회귀에는 맞출 "종류"가 없다.
     expect(blockFor({ taskType: 'regression' })?.code).toBe('STRATIFY_NOT_FOR_TASK_TYPE')
+  })
+
+  /**
+   * **화면이 [학습]보다 관대하면 안 된다** (`selection.ts` 머리말).
+   *
+   * `sampleRows`는 워커 안에서 돌아 화면이 부를 수 없어서 같은 식을 `selection.ts`에
+   * 한 번 더 쓴다. 그래서 **두 경계가 같은 값인지**를 여기서 못 박는다 — 한쪽만 고치면
+   * 학생이 [학습]을 눌러야 알게 된다.
+   */
+  describe('뽑기가 층화를 감당 못 하면 화면이 먼저 말한다', () => {
+    /** 라벨 10종 × 각 2줄. 바닥의 합이 20이다. */
+    const tenLabels = dataset([...Array(20).keys()].map((index) => `L${index % 10}`))
+    const rowsOf = (): number[] => [...Array(20).keys()]
+    const labelsOf = (): string[] => [...Array(20).keys()].map((index) => `L${index % 10}`)
+    const split: Split = { method: 'holdout', testSize: 0.2, stratify: true, randomState: 42 }
+
+    it('바닥의 합보다 적게 뽑으면 화면이 잠근다', () => {
+      const block = blockFor({ dataset: tenLabels, nSamples: 19 })
+      expect(block?.code).toBe('SAMPLE_STRATIFY_IMPOSSIBLE')
+      expect(block?.params).toMatchObject({ nSamples: 19, labels: 10, minRows: MIN_SPLIT_ROWS })
+    })
+
+    it('바닥의 합만큼이면 통과한다', () => {
+      expect(blockFor({ dataset: tenLabels, nSamples: 20 })).toBeNull()
+    })
+
+    it('화면의 경계와 뽑기의 경계가 같다', () => {
+      // 한쪽만 고치면 여기가 운다. 두 판정이 다른 파일에 사는 값이다.
+      for (const nSamples of [2, 5, 10, 18, 19, 20, 21]) {
+        const blocked = blockFor({ dataset: tenLabels, nSamples })?.code
+        const threw = codeOf(() =>
+          sampleRows({ rows: rowsOf(), labels: labelsOf() }, split, nSamples),
+        )
+        expect(
+          { nSamples, blocked: blocked ?? null },
+          `nSamples=${nSamples}에서 화면과 뽑기가 갈렸다`,
+        ).toEqual({
+          nSamples,
+          blocked: threw === 'SAMPLE_STRATIFY_IMPOSSIBLE' ? 'SAMPLE_STRATIFY_IMPOSSIBLE' : null,
+        })
+      }
+    })
+
+    it('안 뽑으면 아무 말도 안 한다', () => {
+      expect(blockFor({ dataset: tenLabels, nSamples: undefined })).toBeNull()
+    })
+
+    it('쓸 수 있는 행보다 크면 뽑기가 없는 것과 같다', () => {
+      expect(blockFor({ dataset: tenLabels, nSamples: 999 })).toBeNull()
+    })
   })
 
   it('1개뿐인 값이 하나면 그 값을 알려준다 - 더 모으면 풀린다', () => {

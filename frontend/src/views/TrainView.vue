@@ -206,6 +206,7 @@ function pickTaskType(taskType: TaskType): void {
       target: changed.settings.target,
       features: changed.settings.features,
       preprocessing: changed.settings.preprocessing,
+      nSamples: changed.settings.nSamples,
     })?.code === 'STRATIFY_NOT_FOR_TASK_TYPE'
 
   apply(stratifyOff ? withSplit(changed, { stratify: false }, now()) : changed)

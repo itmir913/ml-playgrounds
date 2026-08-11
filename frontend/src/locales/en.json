@@ -210,6 +210,7 @@
     "samplePart": "Draw a random sample and use only that",
     "samplePartNote": "The sample is drawn before the training and test split, using the same random seed as the split.",
     "sampleRows": "Rows to draw",
+    "sampleNeedsTarget": "Pick a target first so the number of usable rows is known.",
     "sampleSummary": "Using {used} of {usable} rows. The model never sees the remaining {rest}.",
     "rowsUsable": "total {total} rows uploaded, {dropped} dropped during preprocessing, {usable} used.",
     "testSize": "Share of data to sample",
