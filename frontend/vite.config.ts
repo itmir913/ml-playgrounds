@@ -69,8 +69,11 @@ export default defineConfig({
      *    놓고 쓰지 않았다. 기본을 `'node'`로 내리고 **필요한 파일이 스스로 밝히게**
      *    한다 - 파일 첫 줄의 `// @vitest-environment jsdom`이다.
      *
-     * **빠뜨리면 시끄럽게 실패한다** - `document is not defined`로 그 자리에서
-     * 죽는다. 조용히 덜 검사하게 되는 길이 없어서 이 방식을 골랐다.
+     * **빠뜨리면 대개 시끄럽게 실패한다** - `document is not defined`로 그 자리에서
+     * 죽는다. 다만 **조용한 길이 하나 있었다**: 소스가 `typeof document === 'undefined'`로
+     * DOM 부재를 분기하고 있으면 죽는 대신 대체 경로를 검사한다. 초록색인데 다른 것을
+     * 보는 상태다. 그 길은 `tests/ui-rules.spec.ts`의 "DOM이 필요한 검사는 스스로
+     * 밝힌다"가 막는다 - 가드가 있는 모듈에 닿는 스펙은 밝히지 않으면 거기서 걸린다.
      */
     pool: 'threads',
     environment: 'node',

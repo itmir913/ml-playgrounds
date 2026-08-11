@@ -1,3 +1,6 @@
+// @vitest-environment jsdom
+// 지금 쓰는 것은 순수 함수뿐이지만 i18n.ts에 DOM 부재 분기가 있다. node로 두면
+// setLocale 검사를 하나 더하는 순간 죽지 않고 조용히 대체 경로를 보게 된다.
 /**
  * 초기 언어 결정 규칙.
  * 저장된 선택 > navigator 선호 목록 > 대체 언어 순이다.

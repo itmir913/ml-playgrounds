@@ -1,3 +1,6 @@
+// @vitest-environment jsdom
+// 등록부가 패널을 거쳐 ClusterScatter.vue에 닿고 거기 DOM 부재 분기가 있다.
+// 지금은 지연 import라 실행되지 않지만, 검사가 await하면 그때부터 조용해진다.
 /**
  * 결과 화면의 상세 패널 등록부.
  *

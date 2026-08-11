@@ -211,7 +211,10 @@
   `lint`는 `src/ tests/` 전체를 고쳐 쓰므로 **병렬 세션이 돌 때 남의 작업 파일까지
   건드린다.** 확인하려던 것뿐이라면 절대 `lint`를 쓰지 마라.
 - **DOM이 필요한 스펙은 첫 줄에 `// @vitest-environment jsdom`으로 스스로 밝힌다.**
-  기본 환경은 `node`다. 안 밝히면 `document is not defined`로 그 자리에서 죽는다.
+  기본 환경은 `node`다. 안 밝히면 대개 `document is not defined`로 죽지만, 소스에
+  DOM 부재 분기가 있으면 **죽는 대신 조용히 대체 경로를 검사한다.** 그래서
+  `ui-rules.spec.ts`가 강제한다 — 닿기만 해도 요구하고, **DOM 부재 판정은
+  `typeof X === 'undefined'` 한 표기만 쓴다**(다른 표기를 쓰면 검사기가 못 본다).
 - IDE 실행 구성은 `.idea/runConfigurations/`에 있다. 앞뒤를 함께 띄우는 것(`dev`)과
   한쪽만 띄우는 것이 나뉘어 있으니 목록은 그 디렉터리를 봐라.
 

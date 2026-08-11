@@ -10,7 +10,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -348,6 +348,92 @@ function vueFiles(directory: string): string[] {
 function withoutComments(source: string): string[] {
   const stripped = source.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
   return stripped.split(/\r?\n/).map((line) => line.replace(/\/\/.*$/, ''))
+}
+
+/**
+ * **DOM 부재를 판정하는 유일하게 허용된 표기.**
+ *
+ * 표기가 여럿이면 아래 `reachesDomGuard`가 못 보는 가드가 생기고, 그 순간 이 규칙
+ * 전체가 헛돈다. 그래서 `STRAY_DOM_CHECKS`가 다른 표기를 금지해 이 정규식을 유일한
+ * 창으로 만든다. **둘은 한 쌍이고 따로 떼면 안 된다.**
+ */
+const DOM_GUARD =
+  /typeof\s+(?:document|window|navigator|localStorage|matchMedia)\s*[!=]==?\s*['"]undefined['"]/
+
+/** 같은 뜻인데 위 정규식이 못 보는 표기들. */
+const STRAY_DOM_CHECKS: readonly RegExp[] = [
+  /globalThis\s*\.\s*(?:document|window|navigator|localStorage|matchMedia)\b/,
+  /['"](?:document|window|navigator|localStorage|matchMedia)['"]\s+in\s/,
+  // 앞에 `.`이나 낱말 글자가 있으면 우리 자료구조의 속성이다 —
+  // `record.document?.manifest`(project/storage.ts)가 실제로 그렇다.
+  /(?<![.\w$])(?:document|window|navigator|localStorage|matchMedia)\s*\?\./,
+]
+
+function strayDomChecks(source: string): string[] {
+  return withoutComments(source)
+    .filter((line) => STRAY_DOM_CHECKS.some((pattern) => pattern.test(line)))
+    .map((line) => line.trim())
+}
+
+function hasDomGuard(source: string): boolean {
+  return withoutComments(source).some((line) => DOM_GUARD.test(line))
+}
+
+function codeFiles(directory: string): string[] {
+  return readdirSync(directory).flatMap((entry) => {
+    const path = join(directory, entry)
+    if (statSync(path).isDirectory()) return codeFiles(path)
+    return /\.(?:ts|vue)$/.test(entry) ? [path] : []
+  })
+}
+
+const sources = new Map<string, string>()
+function sourceOf(path: string): string {
+  const cached = sources.get(path)
+  if (cached !== undefined) return cached
+  const text = readFileSync(path, 'utf-8')
+  sources.set(path, text)
+  return text
+}
+
+/**
+ * import 대상 중 **우리 소스인 것만.** 외부 패키지는 이 규칙의 관심이 아니다.
+ * `await import(...)`도 센다 — 지금 안 불러도 검사가 await하면 그때 닿는다.
+ */
+function localImports(file: string, source: string): string[] {
+  const found: string[] = []
+  for (const match of source.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)) {
+    const specifier = match[1] ?? ''
+    if (!specifier.startsWith('.') && !specifier.startsWith('@/')) continue
+    const base = specifier.startsWith('@/')
+      ? join(SRC, specifier.slice(2))
+      : resolve(dirname(file), specifier)
+    const hit = [base, `${base}.ts`, `${base}.vue`, join(base, 'index.ts')].find(
+      (candidate) => existsSync(candidate) && statSync(candidate).isFile(),
+    )
+    if (hit !== undefined) found.push(hit)
+  }
+  return found
+}
+
+/** 이 파일에서 (전이적으로) 닿는 첫 DOM 가드 모듈. 없으면 `null`. */
+function reachesDomGuard(file: string, seen: Set<string> = new Set()): string | null {
+  if (seen.has(file)) return null
+  seen.add(file)
+  const source = sourceOf(file)
+  if (file.startsWith(SRC) && hasDomGuard(source)) return file
+  for (const dependency of localImports(file, source)) {
+    const hit = reachesDomGuard(dependency, seen)
+    if (hit !== null) return hit
+  }
+  return null
+}
+
+/** 첫 줄에 적는다. vitest는 파일 첫 주석에서 이것을 읽는다. */
+const DECLARES_JSDOM = /^\/\/\s*@vitest-environment\s+jsdom\s*$/m
+
+function specFiles(): string[] {
+  return codeFiles(join(process.cwd(), 'tests')).filter((path) => path.endsWith('.spec.ts'))
 }
 
 describe('검사기가 실제로 잡는다', () => {
@@ -733,4 +819,78 @@ describe('지금 화면 코드에 위반이 없다', () => {
       expect(found).toEqual([])
     })
   }
+})
+
+/**
+ * **DOM이 필요한 검사는 스스로 밝힌다.**
+ *
+ * vitest의 기본 환경은 `node`다(`vite.config.ts`). DOM이 필요한 스펙은 첫 줄에
+ * `// @vitest-environment jsdom`을 적고, **빠뜨리면 `document is not defined`로 그
+ * 자리에서 죽는다** — 거기까지는 사람이 안 지켜도 시끄러우니 검사가 필요 없다.
+ *
+ * **조용한 구멍은 그다음이다.** 소스가 `typeof document === 'undefined'`로 DOM 부재를
+ * 분기하고 있으면, 밝히지 않은 스펙은 죽는 대신 **대체 경로를 검사한다.** 초록색인데
+ * 다른 것을 보고 있는 상태라 사람 눈으로는 영원히 안 보인다. 실제로 `i18n.ts`·
+ * `theme.ts`·`ClusterScatter.vue` 셋에 그런 분기가 있다.
+ *
+ * **직접 부르지 않아도 막는다.** 지금 그 함수를 안 부른다는 것이 내일도 안 부른다는
+ * 뜻은 아니고, 부르는 줄이 하나 늘어나는 순간 조용해진다. 닿기만 하면 요구한다.
+ */
+describe('DOM이 필요한 검사는 스스로 밝힌다', () => {
+  const guarded = codeFiles(SRC).filter((path) => hasDomGuard(sourceOf(path)))
+  const specs = specFiles()
+  const needsDom = specs
+    .map((path) => ({ path, via: reachesDomGuard(path) }))
+    .filter((entry): entry is { path: string; via: string } => entry.via !== null)
+
+  it('허용된 표기의 가드를 잡는다', () => {
+    expect(hasDomGuard("if (typeof document === 'undefined') return")).toBe(true)
+    expect(hasDomGuard('return typeof window === "undefined" ? null : matchMedia(query)')).toBe(
+      true,
+    )
+    expect(hasDomGuard("if (typeof navigator !== 'undefined') {")).toBe(true)
+  })
+
+  it('주석 속 가드는 안 잡는다 - 규칙을 설명할 수 있어야 한다', () => {
+    expect(hasDomGuard("// typeof document === 'undefined'로 판정한다")).toBe(false)
+  })
+
+  it('검사기가 못 보는 표기를 잡는다', () => {
+    expect(strayDomChecks('const target = globalThis.document')).toHaveLength(1)
+    expect(strayDomChecks("if ('document' in globalThis) return")).toHaveLength(1)
+    expect(strayDomChecks('document?.documentElement.setAttribute("lang", locale)')).toHaveLength(1)
+  })
+
+  it('같은 이름의 속성 접근은 안 잡는다 - 우리 자료구조에도 document가 있다', () => {
+    // project/storage.ts의 `record.document?.manifest`가 실제로 이 모양이다.
+    expect(strayDomChecks('taskType: record.document?.manifest?.taskType')).toEqual([])
+    expect(strayDomChecks('const saved = state.document')).toEqual([])
+  })
+
+  it('지금 소스에 인정되지 않은 DOM 부재 표기가 없다', () => {
+    const found = codeFiles(SRC).flatMap((path) =>
+      strayDomChecks(sourceOf(path)).map((line) => `${path.slice(SRC.length + 1)}  ${line}`),
+    )
+    expect(found).toEqual([])
+  })
+
+  it('가드가 있는 모듈이 실제로 있다 - 없으면 아래가 조용히 통과한다', () => {
+    expect(guarded.length).toBeGreaterThan(0)
+  })
+
+  it('가드에 닿는 스펙이 실제로 있다 - 없으면 아래가 조용히 통과한다', () => {
+    expect(specs.length).toBeGreaterThan(10)
+    expect(needsDom.length).toBeGreaterThan(0)
+  })
+
+  it('가드에 닿는 스펙은 전부 jsdom을 밝히고 있다', () => {
+    const silent = needsDom
+      .filter((entry) => !DECLARES_JSDOM.test(sourceOf(entry.path)))
+      .map(
+        (entry) =>
+          `${entry.path.split(/[\\/]/).pop()} — ${entry.via.slice(SRC.length + 1)}에 닿는다. ` +
+          `첫 줄에 // @vitest-environment jsdom 을 적어라`,
+      )
+    expect(silent).toEqual([])
+  })
 })
