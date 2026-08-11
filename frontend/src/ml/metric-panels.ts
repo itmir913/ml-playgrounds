@@ -85,6 +85,21 @@ const PANELS: readonly MetricPanel[] = [
     hasData: (run) => run.perClass !== undefined,
     panel: defineAsyncComponent(() => import('@/views/results/panels/PerClassPanel.vue')),
   },
+  {
+    id: 'cluster-result',
+    dataTypes: { tabular: true },
+    taskTypes: { classification: false, regression: false, clustering: true },
+    /**
+     * **모델이 있어야 그릴 수 있다** (§9.5, `open-decisions.md` #28-4). 군집 배정은
+     * 파일에 안 담기고 모델로 되계산하므로, 모델이 없으면 재료가 없다 — 그때 화면은
+     * 아무 말도 안 한다(사유는 `run.modelOmitted`가 다른 자리에서 말한다).
+     *
+     * 데이터셋과 전처리기도 필요하지만 **그건 run이 아니라 파일에 달린 사실**이라
+     * 여기서 답할 수 없다. 그 둘이 없을 때는 패널이 자기 자리에서 아무것도 안 그린다.
+     */
+    hasData: (run) => run.model !== undefined,
+    panel: defineAsyncComponent(() => import('@/views/results/panels/ClusterResultPanel.vue')),
+  },
 ]
 
 /**

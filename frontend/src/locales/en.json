@@ -525,7 +525,22 @@
     "cellCorrect": "These rows were predicted correctly.",
     "cellWrong": "These rows were predicted incorrectly.",
     "failedTitle": "{count} model could not be trained | {count} models could not be trained",
-    "failureDetail": "Technical details"
+    "failureDetail": "Technical details",
+    "cluster": "Cluster",
+    "clusterName": "Cluster {index}",
+    "clusterSize": "Rows",
+    "clusterScatter": "Cluster scatter plot",
+    "clusterScatterLead": "Each dot is one row of data, and each ✕ marks the centroid of a cluster.",
+    "clusterAxisX": "X axis",
+    "clusterAxisY": "Y axis",
+    "clusterCentroid": "Centroid",
+    "clusterPoint": "{name} ({x}, {y})",
+    "clusterSample": "There are too many dots to draw them all, so only some are shown. ({drawn} of {total} rows)",
+    "clusterSummary": "What gathered in each cluster",
+    "clusterSummaryLead": "Each cell is the average of the rows in that cluster. Select a row to see the data in that cluster.",
+    "clusterMembers": "Data in {name}",
+    "clusterMembersLead": "Sorted by distance from the centroid. Columns not used for training are shown too.",
+    "clusterMemberCount": "Showing {shown} of {total} rows."
   },
   "predict": {
     "emptyReason": "This file has no model you can predict with.",
