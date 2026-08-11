@@ -424,7 +424,7 @@ describe('행 상한은 전처리 후 행 수로 잰다', () => {
       ['180', ''],
       ['190', 'B'],
     ])
-    expect(trainableRowCount(holed, ['키'], '반', 'mean')).toBe(2)
+    expect(trainableRowCount(holed, ['키'], '반', 'mean', undefined)).toBe(2)
   })
 
   it('drop 전략에서는 특성이 빈 행도 빠진다', () => {
@@ -432,9 +432,9 @@ describe('행 상한은 전처리 후 행 수로 잰다', () => {
       ['170', 'A'],
       ['', 'B'],
     ])
-    expect(trainableRowCount(holed, ['키'], '반', 'drop')).toBe(1)
+    expect(trainableRowCount(holed, ['키'], '반', 'drop', undefined)).toBe(1)
     // mean이면 채워서 쓰므로 안 빠진다 - rowUsage와 같은 usableRows를 본다.
-    expect(trainableRowCount(holed, ['키'], '반', 'mean')).toBe(2)
+    expect(trainableRowCount(holed, ['키'], '반', 'mean', undefined)).toBe(2)
   })
 
   it('타깃을 안 골랐으면 파일의 행 수다 - 무엇이 빠질지 아직 모른다', () => {
@@ -442,8 +442,19 @@ describe('행 상한은 전처리 후 행 수로 잰다', () => {
       ['170', 'A'],
       ['180', 'B'],
     ])
-    expect(trainableRowCount(clean, ['키'], undefined, 'mean')).toBe(2)
-    expect(trainableRowCount(null, ['키'], '반', 'mean')).toBe(0)
+    expect(trainableRowCount(clean, ['키'], undefined, 'mean', undefined)).toBe(2)
+    expect(trainableRowCount(null, ['키'], '반', 'mean', undefined)).toBe(0)
+  })
+
+  it('nSamples를 뺀다 - 뽑기는 학생이 잠긴 카드를 여는 손잡이다', () => {
+    const clean = table(
+      Array.from({ length: 100 }, (_, index) => [String(150 + (index % 50)), 'A']),
+    )
+    expect(trainableRowCount(clean, ['키'], '반', 'mean', 30)).toBe(30)
+    // 가진 행보다 크면 아무 일도 안 한다 - ml/sample.ts가 그대로 돌려주기 때문이다.
+    expect(trainableRowCount(clean, ['키'], '반', 'mean', 999)).toBe(100)
+    // 타깃을 안 골랐어도 뺀다. fit이 nSamples보다 많이 볼 수 없다.
+    expect(trainableRowCount(clean, ['키'], undefined, 'mean', 30)).toBe(30)
   })
 
   /**
@@ -460,7 +471,7 @@ describe('행 상한은 전처리 후 행 수로 잰다', () => {
       index < dropped ? '' : 'A',
     ])
     const big = table(rows)
-    const usable = trainableRowCount(big, ['키'], '반', 'mean')
+    const usable = trainableRowCount(big, ['키'], '반', 'mean', undefined)
 
     expect(big.rows.length).toBeGreaterThan(MLJS_SVM_ROW_LIMIT)
     expect(usable).toBeLessThan(MLJS_SVM_ROW_LIMIT)

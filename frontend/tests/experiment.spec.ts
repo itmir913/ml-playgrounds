@@ -17,6 +17,7 @@ import { describe, expect, it } from 'vitest'
 import { isClientError } from '../src/errors'
 import type { Algorithm } from '../src/ml/algorithms'
 import { runExperiment, type ExperimentInput } from '../src/ml/experiment'
+import { trainableRowCount } from '../src/ml/selection'
 import { NOT_FOR_TABULAR_ALGORITHM } from './fixtures/algorithms'
 import type { RuntimeContext } from '../src/ml/backend'
 import type { Dataset } from '../src/ml/preprocess'
@@ -1110,5 +1111,76 @@ describe('군집', () => {
     // 실패한 run에도 무엇을 시도했는지는 남는다 (ml/experiment.ts).
     expect(run?.hyperparameters).toHaveProperty('nClusters', 5)
     expect(run?.metrics).toBeUndefined()
+  })
+})
+
+/**
+ * 행 표본 뽑기 (open-decisions.md #22).
+ *
+ * **여기가 지키는 것은 하나다 — 화면이 세는 수와 학습이 실제로 쓰는 행 수가 같은가.**
+ * 이 축은 과거에 한 번 어긋난 적이 있다: 전처리로 걸러진 뒤라면 상한 아래인데도 **CSV
+ * 원본의 행 수로 잠근** 것이다. 그래서 손으로 조립하지 않고 `runExperiment`를 실제로
+ * 돌려, 파일에 남은 `trainIndices + testIndices`와 `trainableRowCount`를 견준다 —
+ * 저 둘이 곧 "학습이 본 행"과 "화면이 센 행"이다.
+ */
+describe('표본 뽑기', () => {
+  const gateFor = (settings: Settings): number =>
+    trainableRowCount(
+      irisDataset(),
+      settings.features,
+      settings.target,
+      settings.preprocessing.missing,
+      settings.nSamples,
+    )
+
+  const usedBy = (settings: Settings): number => {
+    const { experiment } = runExperiment(inputFor({ settings }), frozen)
+    return experiment.settings.trainIndices.length + experiment.settings.testIndices.length
+  }
+
+  it('화면이 센 행 수가 학습이 실제로 쓴 행 수와 같다', () => {
+    // 붓꽃 픽스처는 30행이다. 안 뽑는 경우 · 딱 맞는 경우 · 넘치는 경우 · 뽑는 경우.
+    for (const nSamples of [undefined, 30, 60, 24, 12, 6]) {
+      const settings = settingsFor(nSamples === undefined ? {} : { nSamples })
+      expect({ nSamples, gate: gateFor(settings) }).toEqual({ nSamples, gate: usedBy(settings) })
+    }
+  })
+
+  it('뽑은 실험도 끝까지 돈다 - 세는 것만 맞고 학습이 죽으면 소용없다', () => {
+    const settings = settingsFor({ nSamples: 12 })
+    const { experiment } = runExperiment(inputFor({ settings }), frozen)
+    for (const run of experiment.runs) expect(run.status).toBe('done')
+  })
+
+  it('뽑은 값이 실험 스냅샷에 남는다 - 없으면 재현이 성립하지 않는다', () => {
+    const { experiment } = runExperiment(
+      inputFor({ settings: settingsFor({ nSamples: 12 }) }),
+      frozen,
+    )
+    expect(experiment.settings.nSamples).toBe(12)
+
+    // 안 뽑았으면 키 자체가 없다. undefined가 파일에 null로 남으면 안 된다.
+    const { experiment: whole } = runExperiment(inputFor(), frozen)
+    expect(whole.settings).not.toHaveProperty('nSamples')
+  })
+
+  it('같은 씨앗이면 뽑은 실험도 통째로 같다', () => {
+    const settings = settingsFor({ nSamples: 12 })
+    const first = runExperiment(inputFor({ settings }), frozen).experiment
+    const second = runExperiment(inputFor({ settings }), frozen).experiment
+    expect(second.settings.trainIndices).toEqual(first.settings.trainIndices)
+    expect(second.settings.testIndices).toEqual(first.settings.testIndices)
+  })
+
+  it('뽑힌 행은 원본 행 번호이고 파일 안에 있다', () => {
+    const { experiment } = runExperiment(
+      inputFor({ settings: settingsFor({ nSamples: 12 }) }),
+      frozen,
+    )
+    const used = [...experiment.settings.trainIndices, ...experiment.settings.testIndices]
+    for (const row of used) {
+      expect(row).toBeGreaterThanOrEqual(0)
+      expect(row).toBeLessThan(irisDataset().rows.length)
+    }
   })
 })

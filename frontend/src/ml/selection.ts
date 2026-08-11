@@ -414,18 +414,32 @@ export function stratifyBlock(input: StratifyInput): StratifyBlock | null {
  * **분할은 빼지 않는다.** `test_size`만큼 빼면 `fit`에 들어가는 행은 더 적지만, 그러면
  * 학생이 비율 슬라이더를 끌 때마다 고를 수 있는 모델 목록이 바뀐다. 보수적인 쪽으로 둔다.
  *
+ * **`nSamples`는 뺀다** (open-decisions.md #22). 분할과 반대인 이유는 **이 손잡이의 목적
+ * 자체가 고를 수 있는 모델 목록을 바꾸는 것**이기 때문이다 — 잠긴 카드를 여는 유일한
+ * 수단이라 여기 반영되지 않으면 손잡이가 아무 일도 안 한다. 그리고 분할과 달리
+ * **`fit`이 보는 행의 상한이 정확히 이 값이다**(`ml/sample.ts`가 딱 그만큼 돌려준다).
+ *
+ * **인자에서 뺄 수 있게 만들지 마라.** 선택 인자로 두면 빠뜨린 자리가 조용히 옛 동작이
+ * 되고, 이 함수에서 그건 **화면과 학습이 다른 행을 세는 상태**다. 세지 않겠다는 판단도
+ * `undefined`를 적어서 남긴다 (`rowUsage`가 그렇게 부른다).
+ *
  * **타깃을 안 골랐으면 파일의 행 수다.** 무엇이 빠질지 아직 정해지지 않았고, 그때 적게
- * 세면 나중에 잠길 모델을 지금 열어 주게 된다.
+ * 세면 나중에 잠길 모델을 지금 열어 주게 된다. `nSamples`는 그때도 뺀다 — 타깃과 무관하게
+ * `fit`이 그보다 많이 볼 수 없다.
  */
 export function trainableRowCount(
   dataset: Dataset | null,
   features: readonly string[],
   target: string | undefined,
   missing: Preprocessing['missing'],
+  nSamples: number | undefined,
 ): number {
   if (!dataset) return 0
-  if (target === undefined) return dataset.rows.length
-  return usableRows(dataset, features, target, missing).length
+  const usable =
+    target === undefined
+      ? dataset.rows.length
+      : usableRows(dataset, features, target, missing).length
+  return nSamples === undefined ? usable : Math.min(usable, nSamples)
 }
 
 export type RowUsage = {
@@ -441,6 +455,11 @@ export type RowUsage = {
  *
  * **학습 데이터와 평가 데이터가 같은 함수를 본다.** `usableRows` 하나이므로 두 화면이
  * 어긋나지 않는다 - 따로 세면 반드시 어긋난다.
+ *
+ * **`nSamples`는 일부러 안 센다.** 이 줄이 답하는 질문은 "올린 것 중 몇 행이 **쓸 수
+ * 있는** 행인가"이고, 빠진 이유는 결측 하나다. 뽑기는 학생이 그 뒤에 스스로 건 것이라
+ * 다른 사실이고, **화면에서도 다른 줄이 말한다**(`architecture.md` §8.9). 둘을 한 숫자로
+ * 뭉치면 "50행이 빠졌습니다"가 결측인지 안 뽑힌 것인지 구분이 안 된다.
  */
 export function rowUsage(
   dataset: Dataset | null,
@@ -449,7 +468,7 @@ export function rowUsage(
   missing: Preprocessing['missing'],
 ): RowUsage | null {
   if (!dataset || target === undefined) return null
-  const usable = trainableRowCount(dataset, features, target, missing)
+  const usable = trainableRowCount(dataset, features, target, missing, undefined)
   const dropped = dataset.rows.length - usable
   return dropped > 0 ? { total: dataset.rows.length, usable, dropped } : null
 }

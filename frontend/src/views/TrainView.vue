@@ -77,9 +77,11 @@ const columns = computed(() => (dataset.value ? summarizeColumns(dataset.value) 
  * 패널이 생기면 거기서 온다(architecture.md §7.3). 그때까지 `unknown`이고, 서버 항목은
  * 이유와 함께 꺼진 채로 보인다 — 지금 그것이 사실이다.
  *
- * **행 수는 전처리에서 빠질 행을 뺀 것이다** (`trainableRowCount`). 파일의 행 수를 넘기면
- * 학습이 실제로 받아들일 데이터를 이 화면이 거부한다 — 전처리 화면은 "최종 2011행을 학습에
- * 사용합니다"라고 말하는데 여기서는 3276행으로 상한을 재는 식이다.
+ * **행 수는 전처리에서 빠질 행과 뽑기에서 빠질 행을 뺀 것이다** (`trainableRowCount`).
+ * 파일의 행 수를 넘기면 학습이 실제로 받아들일 데이터를 이 화면이 거부한다 — 전처리 화면은
+ * "최종 2011행을 학습에 사용합니다"라고 말하는데 여기서는 3276행으로 상한을 재는 식이다.
+ * **`nSamples`를 빠뜨리면 같은 거짓말이 다시 생긴다** — 학생이 3,000행만 쓰기로 했는데
+ * 카드는 1만 행으로 재서 잠긴 채로 있고, 그러면 그 손잡이가 아무 일도 안 한다.
  */
 const context = computed<RuntimeContext>(() => {
   const current = settings.value
@@ -93,6 +95,7 @@ const context = computed<RuntimeContext>(() => {
           current.features,
           current.target,
           current.preprocessing.missing,
+          current.nSamples,
         )
       : (dataset.value?.rows.length ?? 0),
   }
