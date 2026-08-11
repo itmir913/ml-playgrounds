@@ -28,7 +28,7 @@ import { SVM_FORMAT, loadSvmModel } from './svm'
 import { TREE_FORMAT, loadTreeModel } from './tree'
 import type { LoadContext, ModelInterpreter, Predict, ProbaModel } from './types'
 
-export { KMEANS_FORMAT, loadKMeansModel } from './kmeans'
+export { KMEANS_FORMAT, kmeansPredict, loadKMeansModel, parseKMeansModel } from './kmeans'
 export type { KMeansModel } from './kmeans'
 export { LINEAR_FORMAT, LINEAR_V2_FORMAT, loadLinearV2Model } from './linear'
 export type { LinearModel, LinearModelV2 } from './linear'

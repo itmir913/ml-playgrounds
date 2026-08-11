@@ -38,13 +38,13 @@ function invalid(field: string): never {
 }
 
 /**
- * 가장 가까운 중심점의 번호를 문자열로 돌려준다.
+ * 파일에서 읽은 JSON을 검증해 모델로 만든다.
  *
- * **문자열인 이유:** 분류의 라벨이 문자열이고 Prediction = string | number다.
- * 군집 번호를 수치로 돌려주면 부르는 쪽이 "이건 회귀인가 군집인가"를 봐야 한다.
- * 문자열이면 분류와 같은 경로를 탄다.
+ * **예측만 쓰던 것을 밖으로 낸 이유는 중심점 자체가 화면에 쓰이기 때문이다** —
+ * 되돌린 중심점이 곧 그 군집의 특성별 평균이다 (`ml/clusters.ts`,
+ * `open-decisions.md` #28-6). 검증을 두 벌로 만들지 않으려고 여기 하나만 둔다.
  */
-export function loadKMeansModel(file: unknown): Predict {
+export function parseKMeansModel(file: unknown): KMeansModel {
   const parsed = kmeansSchema.safeParse(file)
   if (!parsed.success) invalid('payload')
 
@@ -56,6 +56,19 @@ export function loadKMeansModel(file: unknown): Predict {
     if (centroid.length !== featureCount) invalid('centroids')
     if (!centroid.every((value) => Number.isFinite(value))) invalid('centroids')
   }
+
+  return { format: KMEANS_FORMAT, featureCount, k, centroids }
+}
+
+/**
+ * 가장 가까운 중심점의 번호를 문자열로 돌려준다.
+ *
+ * **문자열인 이유:** 분류의 라벨이 문자열이고 Prediction = string | number다.
+ * 군집 번호를 수치로 돌려주면 부르는 쪽이 "이건 회귀인가 군집인가"를 봐야 한다.
+ * 문자열이면 분류와 같은 경로를 탄다.
+ */
+export function kmeansPredict(model: KMeansModel): Predict {
+  const { featureCount, k, centroids } = model
 
   return (features) =>
     features.map((input) => {
@@ -76,4 +89,9 @@ export function loadKMeansModel(file: unknown): Predict {
       }
       return String(bestCluster)
     })
+}
+
+/** 등록부가 부르는 이음매. 검증과 예측을 잇는 것뿐이다. */
+export function loadKMeansModel(file: unknown): Predict {
+  return kmeansPredict(parseKMeansModel(file))
 }
