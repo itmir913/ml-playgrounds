@@ -235,7 +235,7 @@ const neighborhood = computed<Neighborhood | null>(() => {
 </script>
 
 <template>
-  <section v-if="neighborhood" class="mt-5 flex min-w-0 flex-col gap-5">
+  <section v-if="neighborhood" class="flex min-w-0 flex-col gap-5">
     <div class="flex flex-col gap-1.5">
       <h4 class="font-bold">{{ t('predict.clusterNeighborTitle') }}</h4>
       <p class="text-ink-soft">{{ t('predict.clusterNeighborLead') }}</p>
