@@ -77,6 +77,14 @@ export const CLIENT_ERROR_CODES = [
   // 같다 - 이유 문장이 사는 곳이 client.* 하나여야 한다.
   'STRATIFY_NOT_FOR_TASK_TYPE',
 
+  // 군집화 - ml/engines/mljs-kmeans.ts
+  // 데이터보다 군집이 많다. sklearn이 `n_samples should be >= n_clusters`로 던지는 자리다.
+  // **SPLIT_TOO_FEW_ROWS와 나누는 이유는 학생이 할 일이 다르기 때문이다** - 그쪽은 데이터를
+  // 더 모으는 것뿐이고 이쪽은 군집 수를 줄이는 길이 함께 있다. 지금은 군집화가 브라우저에만
+  // 있어서 클라이언트 전용이고, 서버가 군집을 학습하게 되면 backend/app/errors.py 쪽으로
+  // 옮겨 간다 (아래 CLIENT_WARNING_CODES의 사정과 같다).
+  'CLUSTER_TOO_FEW_ROWS',
+
   // 평가 데이터(test.csv) 받기 - data/columns.ts
   // 정본 열과의 대조는 브라우저에서만 한다(mlpx-spec.md 0.3의 분할과 같은 이유 -
   // 서버는 이미 확정된 정본과 분할 인덱스만 받는다).

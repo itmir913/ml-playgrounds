@@ -123,6 +123,18 @@ SPLIT_STRATIFY_TARGET_CONTINUOUS, STRATIFY_NOT_FOR_TASK_TYPE
 이 과제 유형에서 층화가 뜻이 없다는 **화면의 잠금 이유**이지 던지는 코드가 아니다
 (`ml/selection.ts`의 `stratifyBlock`).
 
+**군집화** (`ml/engines/mljs-kmeans.ts`)
+```
+CLUSTER_TOO_FEW_ROWS
+```
+
+데이터보다 군집이 많다. sklearn이 `n_samples=2 should be >= n_clusters=5`로 던지는
+자리이고, 넘기면 학생은 데이터에 없는 유령 중심점을 "찾은 군집"으로 본다 — 실패가
+아니라 조용히 틀린 숫자다. `SPLIT_TOO_FEW_ROWS`와 나누는 이유는 **학생이 할 일이
+다르기 때문**이다: 그쪽은 데이터를 더 모으는 길뿐이고, 이쪽은 군집 수를 줄이는 길이
+함께 있다. 군집화는 아직 브라우저에만 있어 `client.*`이고, 서버가 군집을 학습하게
+되면(V6) 같은 판정을 서버도 하므로 `backend/app/errors.py` 쪽으로 옮겨 간다.
+
 **평가·예측 데이터 받기** (`data/columns.ts`, `ml/split.ts`, `ml/predict.ts`)
 ```
 TEST_DATASET_COLUMN_MISSING, TEST_DATASET_NO_USABLE_ROWS,

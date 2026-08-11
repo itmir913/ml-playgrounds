@@ -18,6 +18,8 @@
 import { uniformInt } from 'pure-rand/distribution/uniformInt'
 import { xoroshiro128plus } from 'pure-rand/generator/xoroshiro128plus'
 
+import { ClientError } from '../../errors'
+
 /** K-Means 학습 결과. */
 export interface KMeansResult {
   /** 각 군집의 중심점. centroids[k][j] = 군집 k의 특성 j. */
@@ -112,13 +114,19 @@ function distanceSquared(a: readonly number[], b: readonly number[]): number {
   return sum
 }
 
-/** 각 데이터를 가장 가까운 중심점에 할당한다. */
+/**
+ * 각 데이터를 가장 가까운 중심점에 할당한다.
+ *
+ * `distances`는 각 데이터에서 **자기 군집 중심점까지의 거리²**다. 이너셔의 항이면서
+ * 빈 군집 재배치가 "가장 먼 점"을 고르는 근거이기도 하다 (updateCentroids).
+ */
 function assign(
   features: readonly (readonly number[])[],
   centroids: readonly (readonly number[])[],
-): { assignments: Int32Array; inertia: number } {
+): { assignments: Int32Array; distances: Float64Array; inertia: number } {
   const n = features.length
   const assignments = new Int32Array(n)
+  const distances = new Float64Array(n)
   let inertia = 0
   for (let i = 0; i < n; i += 1) {
     const row = features[i]!
@@ -132,15 +140,30 @@ function assign(
       }
     }
     assignments[i] = bestCluster
+    distances[i] = bestDist
     inertia += bestDist
   }
-  return { assignments, inertia }
+  return { assignments, distances, inertia }
 }
 
-/** 할당에 따라 중심점을 다시 계산한다. */
+/**
+ * 할당에 따라 중심점을 다시 계산한다.
+ *
+ * **빈 군집은 sklearn처럼 재배치한다** (`_kmeans.py`의 `_relocate_empty_clusters_dense`).
+ * 자기 중심점에서 가장 먼 점부터 빈 군집 하나씩에 옮겨 주고, 그 점을 원래 군집의
+ * 합계에서 뺀다. 재배치하지 않으면 빈 군집의 합계는 0 벡터이므로 **중심점이 원점으로
+ * 간다** - 표준화한 데이터에서 원점은 곧 평균이라, 데이터에 없는 곳에 찍힌 유령
+ * 중심점이 다음 반복에서 실제 점들을 끌어간다. 값이 같은 열이나 중복 행은 교실 CSV에
+ * 흔하다.
+ *
+ * 재배치로도 못 채운 군집(옮겨 줄 점보다 빈 군집이 많은 경우)은 **이전 중심점을
+ * 그대로 유지한다.** 원점으로 보내는 경로를 구조적으로 없애기 위한 마지막 그물이다.
+ */
 function updateCentroids(
   features: readonly (readonly number[])[],
   assignments: Int32Array,
+  distances: Float64Array,
+  centroids: readonly (readonly number[])[],
   k: number,
   width: number,
 ): number[][] {
@@ -157,15 +180,52 @@ function updateCentroids(
     }
   }
 
+  const empty: number[] = []
+  for (let c = 0; c < k; c += 1) {
+    if (counts[c] === 0) empty.push(c)
+  }
+
+  if (empty.length > 0) {
+    // 먼 순서. **같은 거리면 행 번호가 앞선 쪽이다** - sklearn의 argpartition은 동점
+    // 순서를 정하지 않지만 우리는 재현 가능성이 먼저다 (CLAUDE.md §2).
+    const farthest = Array.from({ length: features.length }, (_, i) => i).sort((a, b) => {
+      const gap = (distances[b] ?? 0) - (distances[a] ?? 0)
+      return gap !== 0 ? gap : a - b
+    })
+
+    for (let idx = 0; idx < empty.length && idx < farthest.length; idx += 1) {
+      const target = empty[idx]!
+      const point = farthest[idx]!
+      const from = assignments[point]!
+      // 점 하나짜리 군집에서 빼면 그 자리가 다시 빈다. 옮겨도 얻는 것이 없다.
+      if (counts[from]! <= 1) continue
+      const row = features[point]!
+      const to = sums[target]!
+      const source = sums[from]!
+      for (let j = 0; j < width; j += 1) {
+        const value = row[j] ?? 0
+        to[j] = value
+        source[j]! -= value
+      }
+      counts[target] = 1
+      counts[from]! -= 1
+    }
+  }
+
   return sums.map((sum, c) => {
     const count = counts[c]!
-    if (count === 0) return sum // 빈 군집은 중심점이 그대로 남는다 (sklearn과 같다)
+    if (count === 0) return [...(centroids[c] ?? sum)]
     return sum.map((value) => value / count)
   })
 }
 
 /**
  * K-Means 학습. **순수 함수다.**
+ *
+ * **성립하지 않는 요청은 시작 전에 거부한다.** 데이터보다 군집이 많으면 빈 군집이
+ * 반드시 생기고, 재배치로도 채울 점이 없다. sklearn도 같은 자리에서 던진다
+ * (`n_samples=2 should be >= n_clusters=5`). 넘기면 학생은 데이터에 없는 유령
+ * 중심점을 "찾은 군집"으로 보게 된다 - 실패가 아니라 조용히 틀린 숫자다.
  *
  * @param features 전처리를 마친 숫자 행렬
  * @param k 군집 수 (n_clusters)
@@ -183,24 +243,29 @@ export function fitKMeans(
   const n = features.length
   const width = features[0]?.length ?? 0
 
+  if (k > n) throw new ClientError('CLUSTER_TOO_FEW_ROWS', { rows: n, clusters: k })
+
   // K-Means++ 초기화
   let centroids = kMeansPlusPlusInit(features, k, randomState)
 
   let converged = false
   let iterations = 0
-  let currentAssignments: Int32Array = new Int32Array(n)
-  let currentInertia = 0
 
   for (let iter = 0; iter < maxIter; iter += 1) {
     iterations = iter + 1
 
     // 할당
     const result = assign(features, centroids)
-    currentAssignments = result.assignments
-    currentInertia = result.inertia
 
     // 중심점 갱신
-    const newCentroids = updateCentroids(features, currentAssignments, k, width)
+    const newCentroids = updateCentroids(
+      features,
+      result.assignments,
+      result.distances,
+      centroids,
+      k,
+      width,
+    )
 
     // 수렴 판정: 중심점 이동의 제곱합 (sklearn과 같은 기준)
     let shift = 0
@@ -216,10 +281,16 @@ export function fitKMeans(
     }
   }
 
+  // **마지막 중심점으로 한 번 더 배정한다.** 루프 안의 할당은 갱신 전 중심점 기준이라
+  // 그대로 돌려주면 centroids와 assignments가 한 스텝 어긋난다 - maxIter를 다 써서
+  // 끝날 때는 온전히 한 스텝이고, 그때가 바로 학생이 숫자를 의심하는 상황이다.
+  // sklearn의 `labels_`·`cluster_centers_`·`inertia_`도 이렇게 서로 맞는다.
+  const final = assign(features, centroids)
+
   return {
     centroids,
-    assignments: [...currentAssignments],
-    inertia: currentInertia,
+    assignments: [...final.assignments],
+    inertia: final.inertia,
     converged,
     iterations,
   }

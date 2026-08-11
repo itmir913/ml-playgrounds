@@ -387,6 +387,7 @@
     "SPLIT_STRATIFY_IMPOSSIBLE": "'{label}' 값이 {count}개뿐이라 비율을 맞춰 나눌 수 없습니다. 비율 맞추기를 끄거나 이 값의 데이터를 {minRows}개 이상 모아 주세요.",
     "SPLIT_STRATIFY_TARGET_CONTINUOUS": "타깃 값이 {kinds}종류인데 그중 {lonely}종류가 1개뿐이라 비율을 맞춰 나눌 수 없습니다. 값이 거의 다 다른 열이니 비율 맞추기를 끄세요.",
     "STRATIFY_NOT_FOR_TASK_TYPE": "지금 고른 기계학습 유형에서는 맞출 값의 종류가 없어 비율 맞추기를 쓸 수 없습니다.",
+    "CLUSTER_TOO_FEW_ROWS": "데이터가 {rows}줄뿐이라 군집 {clusters}개로 나눌 수 없습니다. 군집 수를 줄이거나 데이터를 더 모아 주세요.",
     "TEST_DATASET_COLUMN_MISSING": "테스트용 파일에 훈련 데이터의 열이 없습니다. ({columns})",
     "TEST_DATASET_NO_USABLE_ROWS": "테스트 데이터에 채점할 수 있는 행이 하나도 없습니다.",
     "PREDICT_DATASET_COLUMN_MISSING": "예측할 파일에 지금 보이는 모델들이 쓰는 열이 없습니다. ({columns})"
