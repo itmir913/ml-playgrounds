@@ -288,6 +288,7 @@ IndexedDB에 저장된다(docs/i18n.md). 남의 파일을 열었다고 화면 �
   "target": "species",          // 군집화에는 없다. 과제 유형에 따라 선택 항목
   "preprocessing": { "missing": "drop", "scaling": "standard", "categoricalEncoding": "onehot" },
   "split": { "method": "holdout", "testSize": 0.2, "stratify": true, "randomState": 42 },
+  "nSamples": 3000,             // 선택. 없으면 쓸 수 있는 행을 전부 쓴다
 
   "runtime": "mljs",            // 실험 기본 실행 방법
   "selectedAlgorithms": [
@@ -300,6 +301,20 @@ IndexedDB에 저장된다(docs/i18n.md). 남의 파일을 열었다고 화면 �
   }
 }
 ```
+
+**`nSamples`는 쓸 수 있는 행 중 몇 개를 뽑아 쓸지다** (`open-decisions.md` #22).
+`usableRows`로 거른 다음, 분할하기 전에 뽑는다 — 뽑힌 행만 학습셋과 평가셋으로 나뉘므로
+`trainIndices`/`testIndices`의 뜻은 그대로다. **없으면 전부 쓴다.** 선택 항목이라 이
+필드가 없는 옛 파일은 지금 동작 그대로 열린다.
+
+**뽑히지 않은 행의 목록은 적지 않는다.** `trainIndices ∪ testIndices`의 여집합이 곧
+그것이다. 같은 사실을 두 곳에 두면 어긋났을 때 어느 쪽이 진짜인지 판정할 근거가 없다 —
+아래 `randomState`와 같은 규칙이다.
+
+**씨앗과 층화도 새로 만들지 않는다.** 뽑을 때 쓰는 것은 `split.randomState`이고, 층화
+여부는 `split.stratify`를 따라간다. 씨앗이 둘이면 재실행 대조가 무엇을 믿어야 하는지
+모르게 되고, 층화 손잡이가 둘이면 샘플링에서 빠진 클래스 때문에 **학생이 만지지도 않은
+분할 단계에서** 오류가 난다.
 
 **실행 방법은 실험 기본을 두고 모델마다 덮어쓴다.** 학생 대부분은 위에서 한 번 고르고
 끝이지만, 축을 열어 두는 이유가 있다 — 그 방법으로 못 도는 알고리즘은 어차피 자동으로
@@ -379,6 +394,7 @@ IndexedDB에 저장된다(docs/i18n.md). 남의 파일을 열었다고 화면 �
         "target": "species",
         "preprocessing": { … },
         "split": { "method": "holdout", "testSize": 0.2, "stratify": true, "randomState": 42 },
+        "nSamples": 3000,                        // 선택. §3과 같은 뜻
         "trainIndices": [0, 3, 5, …],            // 환경 무관하게 같은 분할을 보장
         "testIndices": [1, 2, 4, …]
       },
