@@ -14,7 +14,12 @@ import { describe, expect, it } from 'vitest'
 import { isClientError } from '../src/errors'
 import { ALGORITHMS } from '../src/ml/algorithms'
 import { RUNTIMES } from '../src/ml/backend'
-import { parameters as mljsParameters, resolve } from '../src/ml/engines/mljs'
+import { ENGINES } from '../src/ml/engines'
+import { parameters as mljsParameters, resolve as mljsResolve } from '../src/ml/engines/mljs'
+import {
+  parameters as pyodideParameters,
+  resolve as pyodideResolve,
+} from '../src/ml/engines/pyodide-sklearn'
 import {
   assertInRange,
   defaultsOf,
@@ -131,10 +136,13 @@ describe('등록부', () => {
   it('실행 방법을 거쳐도 엔진과 같은 표를 본다', () => {
     // 화면은 parametersFor로, 학습은 엔진의 parameters로 읽는다. 둘이 갈리면
     // 화면은 멀쩡한데 학습이 거부하는 상태가 생긴다.
-    for (const algorithm of ALGORITHMS) {
-      expect(parametersFor('mljs', algorithm.id), algorithm.id).toEqual(
-        mljsParameters(algorithm.id),
-      )
+    for (const engine of ENGINES) {
+      for (const algorithm of ALGORITHMS) {
+        expect(
+          parametersFor(engine.runtimeId, algorithm.id),
+          `${engine.runtimeId}/${algorithm.id}`,
+        ).toEqual(engine.parameters(algorithm.id))
+      }
     }
   })
 
@@ -156,8 +164,27 @@ describe('등록부', () => {
   it('엔진의 확정이 서술을 그대로 쓴다', () => {
     // resolve가 자기 폴백 표를 따로 들고 있으면 두 숫자가 갈라진다.
     for (const algorithm of ALGORITHMS) {
-      const specs = mljsParameters(algorithm.id)
-      expect(resolve(algorithm.id, {}), algorithm.id).toEqual(defaultsOf(specs))
+      const mljsSpecs = mljsParameters(algorithm.id)
+      expect(mljsResolve(algorithm.id, {}), `mljs/${algorithm.id}`).toEqual(defaultsOf(mljsSpecs))
+
+      const pyodideSpecs = pyodideParameters(algorithm.id)
+      expect(pyodideResolve(algorithm.id, {}), `pyodide-sklearn/${algorithm.id}`).toEqual(
+        defaultsOf(pyodideSpecs),
+      )
+    }
+  })
+
+  it('엔진의 확정이 멱등이다', () => {
+    // fit이 안에서 한 번 더 부르므로 두 번 걸어도 같아야 한다.
+    for (const engine of ENGINES) {
+      for (const algorithm of ALGORITHMS) {
+        const specs = engine.parameters(algorithm.id)
+        if (specs.length === 0) continue
+        const once = engine.resolve(algorithm.id, {})
+        expect(engine.resolve(algorithm.id, once), `${engine.runtimeId}/${algorithm.id}`).toEqual(
+          once,
+        )
+      }
     }
   })
 })
