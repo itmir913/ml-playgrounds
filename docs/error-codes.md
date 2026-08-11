@@ -106,10 +106,11 @@ ALGORITHM_NOT_FOR_DATA_TYPE, ALGORITHM_NOT_FOR_TASK_TYPE
 사유를 고를 때 **가장 근본적인 것을 준다**는 규칙이 여기서 나온다(`ml/experiment.ts`) —
 이미지 데이터에 회귀를 고른 학생에게 "엔진이 준비되지 않았습니다"라고 답하면 안 된다.
 
-**분할·층화** (`ml/split.ts`, `ml/selection.ts`)
+**분할·층화** (`ml/split.ts`, `ml/sample.ts`, `ml/selection.ts`)
 ```
 SPLIT_TOO_FEW_ROWS, SPLIT_STRATIFY_IMPOSSIBLE,
-SPLIT_STRATIFY_TARGET_CONTINUOUS, STRATIFY_NOT_FOR_TASK_TYPE
+SPLIT_STRATIFY_TARGET_CONTINUOUS, STRATIFY_NOT_FOR_TASK_TYPE,
+SAMPLE_STRATIFY_IMPOSSIBLE
 ```
 
 앞 둘은 백엔드의 `SPLIT_INVALID`와 나뉜다. 저쪽은 **설정이 말이 안 되는 것**이고 이
@@ -122,6 +123,12 @@ SPLIT_STRATIFY_TARGET_CONTINUOUS, STRATIFY_NOT_FOR_TASK_TYPE
 (`open-decisions.md` "층화는 갈리는 값에서만 뜻이 있다"). `STRATIFY_NOT_FOR_TASK_TYPE`은
 이 과제 유형에서 층화가 뜻이 없다는 **화면의 잠금 이유**이지 던지는 코드가 아니다
 (`ml/selection.ts`의 `stratifyBlock`).
+
+`SAMPLE_STRATIFY_IMPOSSIBLE`은 **뽑을 줄 수가 라벨 종류를 감당 못 하는 것**이다
+(`open-decisions.md` #22). 위 셋과 나누는 이유는 **원인이 데이터가 아니라 학생이 방금
+정한 숫자**이기 때문이다 — 할 일이 "그 숫자를 올리거나 층화를 끄라"로 정확히 갈린다.
+경계는 `Σ min(라벨 크기, MIN_SPLIT_ROWS)`이고, **던지는 자리와 화면의 잠금 이유 양쪽에
+쓰인다** (`ml/sample.ts`의 `allocate`, `ml/selection.ts`의 `stratifyBlock`).
 
 **군집화** (`ml/engines/mljs-kmeans.ts`)
 ```

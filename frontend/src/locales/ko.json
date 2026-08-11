@@ -203,7 +203,7 @@
     "testDataRemoveTitle": "테스트 데이터를 삭제하면 학습 결과가 지워집니다",
     "testDataRemoveDescription": "지금까지 한 실험(Experiment) {count}개가 함께 사라집니다. 테스트 데이터가 바뀌면 그 위의 점수가 전부 다른 것을 잰 값이 되기 때문입니다.",
     "testDataRemoveConfirm": "지우고 재업로드",
-    "rowsUsable": "전체 {total}행 중 {dropped}행이 전처리에서 빠져 최종 {usable}행을 학습에 사용합니다.",
+    "rowsUsable": "전체 {total}행 중 {dropped}행이 전처리에서 빠져 {usable}행을 쓸 수 있습니다.",
     "sampleTitle": "사용할 데이터 양",
     "sampleLead": "데이터가 많으면 고를 수 없는 모델이 생깁니다. 일부만 뽑으면 그 모델도 먼저 시험해 볼 수 있습니다.",
     "sampleAll": "쓸 수 있는 데이터를 모두 사용합니다",

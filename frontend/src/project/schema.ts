@@ -26,6 +26,7 @@ import {
   MAX_FAILURE_DETAIL_LENGTH,
   MAX_STUDENT_ID_LENGTH,
   MAX_STUDENT_NAME_LENGTH,
+  MIN_SPLIT_ROWS,
 } from '../limits'
 import { TRAINING_LOCATIONS } from '../ml/backend'
 
@@ -274,8 +275,12 @@ export const splitSchema = z.looseObject({
  * 이름은 sklearn의 `resample(n_samples=)`에서 왔다 - `testSize` ← `test_size`와 같다.
  *
  * **씨앗과 층화는 여기 없다.** `split.randomState`와 `split.stratify`를 따라간다.
+ *
+ * **바닥이 `MIN_SPLIT_ROWS`다. 1이 아니다.** 화면이 그 밑으로 못 내려가는데 스키마만
+ * 1을 받으면, 손으로 고친 파일이 열리기는 하고 [학습]에서 `SPLIT_TOO_FEW_ROWS`로
+ * 죽는다 — **읽는 문에서 거부할 수 있는 것을 뒤로 미루는 셈**이다 (§10의 경계).
  */
-const nSamplesSchema = z.int().positive().optional()
+const nSamplesSchema = z.int().min(MIN_SPLIT_ROWS).optional()
 
 export const settingsSchema = z.looseObject({
   /**

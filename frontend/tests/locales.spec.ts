@@ -136,6 +136,25 @@ describe('프런트엔드 전용 코드', () => {
     }
   })
 
+  /**
+   * **`docs/error-codes.md`가 코드를 하나도 안 빠뜨렸는가.**
+   *
+   * 그 문서는 "학생이 할 일이 다르니 코드를 나눈다"를 설명하는 자리라, 새 코드가 가장
+   * 들어가야 할 곳이 거기다. 그런데 코드↔문서 대조를 아무도 안 봐서 실제로 하나가
+   * 빠졌다 (`SAMPLE_STRATIFY_IMPOSSIBLE`, 2026-08-12 감사 B-4). **검사가 없으면 다음에도
+   * 또 빠진다.**
+   *
+   * **문장이 아니라 등장 여부만 본다.** 설명이 맞는지는 기계가 모르고, 여기서 문구까지
+   * 요구하면 문서를 고칠 때마다 검사가 운다.
+   */
+  it('에러 코드 문서에 빠진 코드가 없다', () => {
+    const doc = readFileSync(join(process.cwd(), '..', 'docs', 'error-codes.md'), 'utf-8')
+    const missing = [...CLIENT_ERROR_CODES, ...CLIENT_WARNING_CODES].filter(
+      (code) => !doc.includes(code),
+    )
+    expect(missing).toEqual([])
+  })
+
   it('client.* 에 쓰이지 않는 키가 없다', () => {
     const declared = new Set<string>([...CLIENT_ERROR_CODES, ...CLIENT_WARNING_CODES])
     const used = [...english.keys()]
