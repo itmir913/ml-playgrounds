@@ -17,6 +17,7 @@ import {
   assignClusters,
   clusterAxes,
   clusterMaterial,
+  clusterMaterialFor,
   clusterMembers,
   clusterSummaries,
   matrixColumns,
@@ -77,6 +78,14 @@ function fixture(options: Preprocessing = preprocessing(), k = 2) {
     centroids: fitted.centroids,
   }
   return { rows, preprocessor, matrix, model, options }
+}
+
+/** 중심점 하나짜리 모델. 동점 규칙을 볼 때 쓴다 - 모든 행이 한 군집에 든다. */
+const ONE_CENTROID: KMeansModel = {
+  format: KMEANS_FORMAT,
+  featureCount: 1,
+  k: 1,
+  centroids: [[0]],
 }
 
 /** 원본 표의 수치 값. 빈 칸은 `null`이다. */
@@ -336,15 +345,77 @@ describe('구성원', () => {
   it('거리가 같으면 행 번호가 앞선 것이 앞이다', () => {
     // 같은 값이 여러 번 들어 있는 표는 교실에서 흔하다. 순서가 안 정해지면 같은
     // 파일을 두 번 열어 다른 표를 본다.
-    const rows = [0, 1, 2]
-    const model: KMeansModel = {
-      format: KMEANS_FORMAT,
-      featureCount: 1,
-      k: 1,
-      centroids: [[0]],
-    }
-    const assignment = assignClusters([[1], [-1], [0]], rows, model)
-    expect(clusterMembers(assignment, 0, 3)).toEqual([2, 0, 1])
+    //
+    // **행 번호를 자리 순서와 어긋나게 둔다.** 처음에는 `[0, 1, 2]`로 두었는데, 그러면
+    // 동점을 되돌리는 규칙을 통째로 지워도 통과한다 — `sort`가 stable이라 자리 순서가
+    // 곧 행 번호 순서였다 (2026-08-11 감사가 잡았다).
+    const rows = [5, 3, 9]
+    const assignment = assignClusters([[1], [-1], [0]], rows, ONE_CENTROID)
+    expect(clusterMembers(assignment, 0, 3)).toEqual([9, 3, 5])
+  })
+})
+
+describe('재료를 꺼내는 문', () => {
+  const settings = (rows: readonly number[], options: Preprocessing) =>
+    ({ preprocessing: options, trainIndices: rows }) as Experiment['settings']
+
+  function bytesOf(model: KMeansModel): Uint8Array {
+    return new TextEncoder().encode(JSON.stringify(model))
+  }
+
+  it('무리로 설명할 수 있는 형식만 재료를 준다', () => {
+    // **이 목록이 화면 대신 아는 사실이다** (§9.1). 비면 군집 결과가 통째로 사라지는데,
+    // 화면에는 아무 표시도 안 난다.
+    const { preprocessor, rows, model, options } = fixture()
+    const built = clusterMaterialFor(
+      'mlpx-tree-v1',
+      bytesOf(model),
+      DATASET,
+      preprocessor,
+      settings(rows, options),
+    )
+    expect(built).toBeNull()
+  })
+
+  it('제대로 주면 손으로 조립한 것과 같다', () => {
+    const { preprocessor, rows, model, options } = fixture()
+    const built = clusterMaterialFor(
+      KMEANS_FORMAT,
+      bytesOf(model),
+      DATASET,
+      preprocessor,
+      settings(rows, options),
+    )
+    expect(built).not.toBeNull()
+    expect([...built!.assignment.clusters]).toEqual([
+      ...clusterMaterial(DATASET, preprocessor, model, settings(rows, options)).assignment.clusters,
+    ])
+  })
+
+  it('재료가 하나라도 없으면 null이다', () => {
+    const { preprocessor, rows, model, options } = fixture()
+    const bytes = bytesOf(model)
+    expect(
+      clusterMaterialFor(KMEANS_FORMAT, undefined, DATASET, preprocessor, settings(rows, options)),
+    ).toBeNull()
+    expect(
+      clusterMaterialFor(KMEANS_FORMAT, bytes, null, preprocessor, settings(rows, options)),
+    ).toBeNull()
+    expect(
+      clusterMaterialFor(KMEANS_FORMAT, bytes, DATASET, null, settings(rows, options)),
+    ).toBeNull()
+    expect(
+      clusterMaterialFor(undefined, bytes, DATASET, preprocessor, settings(rows, options)),
+    ).toBeNull()
+  })
+
+  it('못 읽는 바이트는 던지지 않고 null이다', () => {
+    // 남이 편집한 파일이다. 여기서 던지면 예측 화면의 답 카드까지 함께 무너진다.
+    const { preprocessor, rows, options } = fixture()
+    const broken = new TextEncoder().encode('{ 이건 JSON이 아니다')
+    expect(
+      clusterMaterialFor(KMEANS_FORMAT, broken, DATASET, preprocessor, settings(rows, options)),
+    ).toBeNull()
   })
 })
 
@@ -400,6 +471,13 @@ describe('예측 화면의 이웃', () => {
     found.forEach((row) => {
       expect(material.assignment.clusters[material.assignment.rows.indexOf(row)]).toBe(far)
     })
+  })
+
+  it('거리가 같으면 행 번호가 앞선 것이 앞이다', () => {
+    // `clusterMembers`와 같은 규칙, 같은 함정이다.
+    const assignment = assignClusters([[1], [-1], [0]], [5, 3, 9], ONE_CENTROID)
+    const material = { columns: [], axes: [], matrix: [[1], [-1], [0]], assignment }
+    expect(nearestMembers(material, 0, [0], 3)).toEqual([9, 3, 5])
   })
 
   it('중심점 기준과 다른 답을 낸다', () => {

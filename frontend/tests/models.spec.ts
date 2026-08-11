@@ -15,6 +15,7 @@ import { isClientError, type ClientErrorCode } from '../src/errors'
 import { MAX_MODEL_BYTES } from '../src/limits'
 import { MLJS_ALGORITHMS, fit } from '../src/ml/engines/mljs'
 import {
+  KMEANS_FORMAT,
   LINEAR_FORMAT,
   LINEAR_V2_FORMAT,
   LINEAR_REGRESSION_FORMAT,
@@ -807,5 +808,57 @@ describe('mlpx-linear-regression-v1', () => {
       intercept: 0,
     })
     expectCode(() => model([[1]]), 'MODEL_FILE_INVALID')
+  })
+})
+
+describe('mlpx-kmeans-v1', () => {
+  /** 세 중심점. 군집 번호가 곧 그 자리다. */
+  function model(): unknown {
+    return {
+      format: KMEANS_FORMAT,
+      featureCount: 2,
+      k: 3,
+      centroids: [
+        [0, 0],
+        [10, 0],
+        [0, 10],
+      ],
+    }
+  }
+
+  it('가장 가까운 중심점의 번호를 문자열로 준다', () => {
+    // 문자열인 이유는 분류와 같은 경로를 타기 위해서다 (mlpx-spec.md §5.10).
+    const predict = loadModel(JSON.parse(JSON.stringify(model())))
+    expect(
+      predict([
+        [1, 1],
+        [9, 1],
+        [1, 9],
+      ]),
+    ).toEqual(['0', '1', '2'])
+  })
+
+  it('거리가 같으면 번호가 앞선 중심점이 이긴다', () => {
+    // 결정적이어야 한다 - 같은 파일을 두 번 열어 다른 군집을 보면 안 된다.
+    const predict = loadModel(JSON.parse(JSON.stringify(model())))
+    expect(predict([[5, 5]])).toEqual(['0'])
+  })
+
+  it('폭이 다른 입력을 거부한다', () => {
+    // **조용히 틀릴 자리다.** 짧은 벡터를 0으로 채워 거리를 재면 그럴듯한 군집 번호가
+    // 나오고, 그것이 다른 실험의 전처리기를 끼운 입력에서 실제로 온다.
+    const predict = loadModel(JSON.parse(JSON.stringify(model())))
+    expectCode(() => predict([[1]]), 'MODEL_FILE_INVALID')
+  })
+
+  it('중심점 개수가 k와 다르면 거부한다', () => {
+    expectCode(() => loadModel({ ...(model() as object), k: 4 }), 'MODEL_FILE_INVALID')
+  })
+
+  it('중심점의 폭이 featureCount와 다르면 거부한다', () => {
+    expectCode(
+      () => loadModel({ ...(model() as object), centroids: [[0], [1], [2]] }),
+      'MODEL_FILE_INVALID',
+    )
   })
 })
