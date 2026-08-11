@@ -566,6 +566,7 @@
     "clusterNeighborTitle": "Data similar to this answer",
     "clusterNeighborLead": "Rows in the same cluster, closest to the values you entered first.",
     "clusterInputPoint": "Your input",
+    "clusterModelPick": "Model to explain",
     "clusterScatterTitle": "Where your input sits",
     "clusterScatterLead": "Each dot is one row of data and the diamond is what you just entered. Each ✕ marks the centroid of a cluster.",
     "range": "Values in the data: {min} to {max}",

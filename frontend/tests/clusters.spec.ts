@@ -21,6 +21,7 @@ import {
   clusterMaterialFor,
   clusterMembers,
   clusterSummaries,
+  explainsAsClusters,
   matrixColumns,
   nearestMembers,
   scatterPoints,
@@ -388,6 +389,14 @@ describe('재료를 꺼내는 문', () => {
   function bytesOf(model: KMeansModel): Uint8Array {
     return new TextEncoder().encode(JSON.stringify(model))
   }
+
+  it('형식만 보고도 답한다 - 목록을 세우는 데 행렬이 필요하지 않다', () => {
+    // 화면이 "무엇을 고를 수 있는가"를 세울 때 쓴다 (#28-7). 이것이 없으면 목록을
+    // 세우려고 학습 행렬을 모델 수만큼 만들게 되고, 그러면 하나를 고르는 의미가 없다.
+    expect(explainsAsClusters(KMEANS_FORMAT)).toBe(true)
+    expect(explainsAsClusters('mlpx-tree-v1')).toBe(false)
+    expect(explainsAsClusters(undefined)).toBe(false)
+  })
 
   it('무리로 설명할 수 있는 형식만 재료를 준다', () => {
     // **이 목록이 화면 대신 아는 사실이다** (§9.1). 비면 군집 결과가 통째로 사라지는데,

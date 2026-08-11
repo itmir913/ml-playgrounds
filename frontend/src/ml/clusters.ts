@@ -386,6 +386,17 @@ export function clusterMaterial(
 const CLUSTER_FORMATS: readonly string[] = [KMEANS_FORMAT]
 
 /**
+ * 이 형식이 답을 무리로 설명할 수 있는가. **재료를 만들지 않고 답한다.**
+ *
+ * 화면이 "무엇을 고를 수 있는가"를 세우는 데는 이것이면 되고, **학습 행렬은 고른
+ * 하나에만 필요하다** (#28-7). 목록을 세우려고 행렬을 스무 개 만들면 그 목록에서
+ * 하나를 고르는 의미가 없어진다.
+ */
+export function explainsAsClusters(format: string | undefined): boolean {
+  return format !== undefined && CLUSTER_FORMATS.includes(format)
+}
+
+/**
  * 파일에서 꺼낸 것들로 재료를 만든다. **못 만들면 `null`이고, 그때 화면은 그 자리에
  * 아무것도 안 그린다** (`ml/models`의 `loadModelProba`와 같은 모양이다).
  *
@@ -400,7 +411,7 @@ export function clusterMaterialFor(
   preprocessor: Preprocessor | null | undefined,
   settings: Experiment['settings'],
 ): ClusterMaterial | null {
-  if (format === undefined || !CLUSTER_FORMATS.includes(format)) return null
+  if (!explainsAsClusters(format)) return null
   if (!bytes || !dataset || !preprocessor) return null
 
   try {
