@@ -188,6 +188,34 @@ async function ensureRoom(bytes: number): Promise<void> {
   }
 }
 
+/**
+ * 이 저장소를 **지우지 말아 달라고** 브라우저에 요청한다 (`open-decisions.md` #7).
+ *
+ * 안 부르면 기본값이 "지워도 되는 데이터"이고, **iOS Safari는 일정 기간 방문이 없으면
+ * IndexedDB를 통째로 지운다.** 수행평가 제출물이 조용히 사라지는 모양이라 §1.2
+ * ("브라우저가 저장소다")가 여기서 가장 약하다.
+ *
+ * **던지지 않고 막지도 않는다.** 이건 저장의 전제 조건이 아니라 저장된 것을 오래 살게
+ * 하는 요청이라, 거절당하든 브라우저가 이 API를 모르든 저장은 그대로 진행돼야 한다.
+ * 그래서 부르는 쪽이 결과를 기다리지 않는다 (`stores/project.ts`).
+ *
+ * **이미 허락받았으면 다시 묻지 않는다.** 파이어폭스는 이 호출에 권한 팝업을 띄우므로
+ * (크롬은 휴리스틱으로 조용히 준다) 물어보는 횟수 자체를 줄인다.
+ *
+ * @returns 허락받았으면 true. **부르는 쪽이 이 값으로 화면을 바꾸지는 않는다** —
+ *   "지워질 수도 있습니다"를 학생에게 말해 봐야 학생이 할 수 있는 일이 없다.
+ */
+export async function requestPersistence(): Promise<boolean> {
+  const storage = navigator.storage
+  if (!storage?.persist) return false
+  try {
+    if (await storage.persisted?.()) return true
+    return await storage.persist()
+  } catch {
+    return false
+  }
+}
+
 function asStorageError(error: unknown): unknown {
   const name = error instanceof Error ? error.name : ''
   if (name === 'QuotaExceededError') {

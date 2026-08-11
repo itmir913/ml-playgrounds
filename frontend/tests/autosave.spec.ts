@@ -20,7 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AUTOSAVE_DELAY_MS } from '../src/limits'
 import { closeStorage, DB_NAME, loadProject, readExportedAt } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
-import { manifest, projectFile } from './fixtures/project'
+import { emptyProjectFile, manifest, projectFile } from './fixtures/project'
 
 const downloads: { fileName: string; bytes: Uint8Array }[] = []
 
@@ -195,5 +195,116 @@ describe('내보내기', () => {
     const project = useProjectStore()
     await expect(project.exportFile(markdown)).resolves.toEqual([])
     expect(downloads).toHaveLength(0)
+  })
+})
+
+/**
+ * 저장소를 지우지 말아 달라는 요청 (`open-decisions.md` #7).
+ *
+ * **안 부르면 IndexedDB는 "지워도 되는 데이터"다.** iOS Safari는 일정 기간 방문이 없으면
+ * 통째로 지운다 — 수행평가 제출물이 조용히 사라지는 모양이다.
+ *
+ * 여기서 보는 것 셋. **셋 다 "언제 부르는가"이지 "허락받았는가"가 아니다** — 허락은
+ * 브라우저가 정하고 우리가 할 수 있는 일이 없다.
+ */
+describe('저장소를 지우지 말아 달라고 청한다', () => {
+  let asked = 0
+
+  beforeEach(() => {
+    asked = 0
+    vi.stubGlobal('navigator', {
+      storage: {
+        persisted: async () => false,
+        persist: async () => {
+          asked += 1
+          return true
+        },
+      },
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('표가 들어간 저장에서 청한다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+    expect(asked).toBe(1)
+  })
+
+  it('빈 프로젝트에서는 안 청한다 - 아직 지킬 것이 없다', async () => {
+    // 프로젝트를 만들면 빈 문서가 곧장 쓰인다. 거기서 청하면 학생이 아무것도 안 한
+    // 시점에 브라우저 팝업을 보게 되고(파이어폭스), 정작 지킬 것은 없다.
+    const project = useProjectStore()
+    await project.save(emptyProjectFile())
+    expect(asked).toBe(0)
+  })
+
+  it('표가 들어온 뒤에는 청한다 - 빈 채로 시작했어도', async () => {
+    const project = useProjectStore()
+    await project.save(emptyProjectFile())
+    expect(asked).toBe(0)
+
+    await project.save(projectFile())
+    expect(asked).toBe(1)
+  })
+
+  it('여러 번 저장해도 한 번만 청한다', async () => {
+    // 자동저장은 슬라이더를 끌 때마다 돈다. 그때마다 물으면 브라우저에 계속 묻는 꼴이다.
+    const project = useProjectStore()
+    await project.save(projectFile())
+    await project.save(renamed('둘'))
+    await project.save(renamed('셋'))
+    expect(asked).toBe(1)
+  })
+
+  it('브라우저가 이 API를 몰라도 저장은 그대로 된다', async () => {
+    // 이건 저장의 전제 조건이 아니라 저장된 것을 오래 살게 하는 요청이다.
+    vi.stubGlobal('navigator', {})
+    const project = useProjectStore()
+    await expect(project.save(projectFile())).resolves.toBeUndefined()
+    expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe(
+      projectFile().document.manifest.name,
+    )
+  })
+
+  it('거절당해도 저장은 그대로 된다', async () => {
+    vi.stubGlobal('navigator', {
+      storage: { persisted: async () => false, persist: async () => false },
+    })
+    const project = useProjectStore()
+    await expect(project.save(projectFile())).resolves.toBeUndefined()
+    expect(await loadProject(manifest.projectId)).not.toBeNull()
+  })
+
+  it('던져도 저장은 그대로 된다', async () => {
+    vi.stubGlobal('navigator', {
+      storage: {
+        persisted: async () => false,
+        persist: async () => {
+          throw new Error('사용자가 거부했다')
+        },
+      },
+    })
+    const project = useProjectStore()
+    await expect(project.save(projectFile())).resolves.toBeUndefined()
+    expect(await loadProject(manifest.projectId)).not.toBeNull()
+  })
+
+  it('이미 허락받았으면 다시 묻지 않는다', async () => {
+    // 파이어폭스는 이 호출에 권한 팝업을 띄운다. 물어보는 횟수 자체를 줄인다.
+    vi.stubGlobal('navigator', {
+      storage: {
+        persisted: async () => true,
+        persist: async () => {
+          asked += 1
+          return true
+        },
+      },
+    })
+    const project = useProjectStore()
+    await project.save(projectFile())
+    expect(asked).toBe(0)
   })
 })

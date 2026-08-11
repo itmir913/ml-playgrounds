@@ -18,7 +18,13 @@ import {
   type ProjectFile,
 } from '@/project/format'
 import type { TaskType } from '@/project/schema'
-import { loadProject, markExported, readExportedAt, saveProject } from '@/project/storage'
+import {
+  loadProject,
+  markExported,
+  readExportedAt,
+  requestPersistence,
+  saveProject,
+} from '@/project/storage'
 import { NO_FACTS, type ProjectFacts } from '@/router/steps'
 import { useToastStore } from './toasts'
 
@@ -70,6 +76,14 @@ export const useProjectStore = defineStore('project', () => {
 
   /** 미뤄 둔 자동 저장. 새 변경이 오면 앞의 것을 버리고 다시 잡는다. */
   let pending: ReturnType<typeof setTimeout> | null = null
+
+  /**
+   * 저장소를 지우지 말아 달라고 이미 청했는가 (`askToKeep`).
+   *
+   * **화면에 안 보이는 값이라 ref가 아니다.** 상태 표시줄이 이걸 읽지 않는다 —
+   * 학생에게 "지워질 수도 있습니다"를 말해 봐야 할 수 있는 일이 없다.
+   */
+  let askedToKeep = false
 
   const projectId = computed(() => file.value?.document.manifest.projectId ?? null)
   const name = computed(() => file.value?.document.manifest.name ?? '')
@@ -140,9 +154,31 @@ export const useProjectStore = defineStore('project', () => {
       // 쓰는 동안 또 바뀌었을 수 있다. 그러면 여전히 안 쓴 상태로 두어야 한다.
       dirty.value = file.value !== current
       savedAt.value = new Date().toISOString()
+      askToKeep(current)
     } finally {
       saving.value = false
     }
+  }
+
+  /**
+   * **표가 들어간 첫 저장에서 한 번만** 브라우저에 "지우지 말아 달라"고 청한다
+   * (`open-decisions.md` #7).
+   *
+   * **빈 프로젝트에서는 안 청한다.** 프로젝트를 만들면 빈 문서가 곧장 쓰이는데 그때는
+   * 지킬 것이 없다. 표를 올린 직후가 학생에게 잃을 것이 생긴 순간이고, 내보내기까지는
+   * 아직 한참 남았다 — **내보낸 뒤에 청하면 위험이 사라진 다음에 도착한다.**
+   *
+   * **한 번만 부른다.** 자동저장은 슬라이더를 끌 때마다 도는데 그때마다 부르면 매번
+   * 브라우저에 묻는 꼴이다(파이어폭스는 권한 팝업을 띄운다).
+   *
+   * **기다리지 않고 실패도 삼킨다.** 저장은 이미 끝났고, 이건 그 저장을 오래 살게 하는
+   * 요청일 뿐이라 거절당해도 학생이 할 일이 없다. `write()`가 이것 때문에 느려지거나
+   * 실패하면 안 된다.
+   */
+  function askToKeep(saved: ProjectFile): void {
+    if (askedToKeep || saved.dataset === undefined) return
+    askedToKeep = true
+    void requestPersistence()
   }
 
   function cancelPending(): void {
