@@ -56,7 +56,9 @@ describe('openTable - csv', () => {
   })
 })
 
-describe('openTable - xlsx', () => {
+// 여기도 진짜 xlsx를 만들어 진짜 파서로 읽으므로 부하에서 늘어난다.
+// 왜 5초로 모자란지는 `xlsx.spec.ts` 맨 위에 실측과 함께 적어 두었다.
+describe('openTable - xlsx', { timeout: 20_000 }, () => {
   it('시트 이름을 준다', async () => {
     const document = await openTable(await xlsxBytes({ 데이터: [['a']], 메모: [['x']] }), 'd.xlsx')
     expect(document.sheetNames).toEqual(['데이터', '메모'])
@@ -69,7 +71,8 @@ describe('openTable - xlsx', () => {
   })
 })
 
-describe('previewTable', () => {
+// xlsx를 만들어 읽는 줄이 섞여 있다 — 이유는 위와 같다.
+describe('previewTable', { timeout: 20_000 }, () => {
   it('csv는 항목 하나를 낸다', async () => {
     const document = await openTable(new TextEncoder().encode('a,b\n1,2\n'), 'data.csv')
     const preview = previewTable(document, 10)
@@ -101,7 +104,8 @@ describe('previewTable', () => {
   })
 })
 
-describe('importTable - 정규화', () => {
+// xlsx를 만들어 읽는 줄이 섞여 있다 — 이유는 위와 같다.
+describe('importTable - 정규화', { timeout: 20_000 }, () => {
   it('CP949 CSV를 UTF-8 정본으로 바꾼다', async () => {
     const document = await openTable(CP949_CSV, 'data.csv')
     const imported = importTable(document)

@@ -13,7 +13,21 @@ async function buildWorkbook(sheets: Record<string, (string | number)[][]>): Pro
   return new Uint8Array(await workbook.xlsx.writeBuffer())
 }
 
-describe('openXlsx', () => {
+/**
+ * **기본 타임아웃(5초)으로는 모자란다.** 이 파일의 검사는 전부 진짜 xlsx를 만들어
+ * 진짜 파서로 읽는다 — 붙박이 CPU 작업이라 스레드가 붐비면 그대로 늘어난다.
+ *
+ * 실측(2026-08-12): 순수 node로 잰 작업 자체는 쓰기 5ms + 읽기 3ms이고, 이 파일만
+ * 혼자 돌리면 검사 열하나를 다 합쳐 207ms다. 그런데 전체 검사와 함께 돌면 한 줄이
+ * 700ms대로 오르고, 전체를 **두 벌 동시에** 돌리면 800ms에 닿는다. 과거에 6.4초까지
+ * 간 기록이 있다. **느려지는 줄이 매번 다르다** — 두 벌을 겹쳐 돌린 실측에서 한 번은
+ * 첫 줄이, 한 번은 둘째 줄이 가장 느렸다. 그래서 첫 검사만 손보면 다음엔 다른 줄이
+ * 운다.
+ *
+ * `router.spec.ts`와 같은 처방이고 같은 값이다 — 시간을 늘려 두고 진짜 멈춤은
+ * 20초가 잡게 한다.
+ */
+describe('openXlsx', { timeout: 20_000 }, () => {
   it('시트 이름을 순서대로 준다', async () => {
     const bytes = await buildWorkbook({ 데이터: [['a']], Sheet1: [['x']] })
     const document = await openXlsx(bytes)
@@ -95,7 +109,8 @@ describe('openXlsx', () => {
   })
 })
 
-describe('폴백', () => {
+// 타임아웃을 늘린 이유는 위 describe에 있다.
+describe('폴백', { timeout: 20_000 }, () => {
   it('ExcelJS가 못 읽는 파일을 SheetJS가 읽어낸다', async () => {
     // SheetJS로 쓴 xlsx. ExcelJS가 이걸 읽지 못하더라도 폴백이 살려내야 한다.
     // 한셀 등 비표준 생성기에서 실제로 겪은 실패의 대역이다.
@@ -142,7 +157,8 @@ describe('폴백', () => {
   })
 })
 
-describe('previewSheets', () => {
+// 타임아웃을 늘린 이유는 맨 위 describe에 있다.
+describe('previewSheets', { timeout: 20_000 }, () => {
   it('모든 시트의 앞 몇 행을 함께 낸다', async () => {
     const bytes = await buildWorkbook({
       데이터: [
