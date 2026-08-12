@@ -643,9 +643,7 @@
     "emptyNext": "Train a model in the training step, and you can try new values here.",
     "run": "Predict",
     "answerTitle": "What the models say",
-    "answerLead": "The test data is fed into every trained model. Predictions can differ from model to model, and that is normal.",
     "clusterAnswerNote": "Cluster numbers are assigned separately by each model. The same number from a different training run is not the same cluster.",
-    "waiting": "Fill the boxes and press [Predict] to see the answers here.",
     "probability": "Probability by class",
     "modelName": "{algorithm} · {runtime}",
     "unusable": "This model cannot be used right now.",
@@ -658,6 +656,7 @@
     "tallyLead": "Only classification models are counted. The color shows whether an answer matches the most common one, not whether it is correct.",
     "image": {
       "add": "Add photos",
+      "answerLead": "Each photo you added is fed into every trained model. Predictions can differ from model to model, and that is normal.",
       "clear": "Remove all photos",
       "clearDescription": "This removes the {count} photo you added for prediction. Your training photos stay. | This removes the {count} photos you added for prediction. Your training photos stay.",
       "clearTitle": "Remove all photos?",
@@ -665,9 +664,11 @@
       "emptyReason": "No photos yet.",
       "photo": "Photo to predict",
       "purpose": "Add new photos and each model gives its own answer.",
-      "remove": "Remove"
+      "remove": "Remove",
+      "waiting": "Add photos and press [Predict] to see the answers here."
     },
     "tabular": {
+      "answerLead": "The test data is fed into every trained model. Predictions can differ from model to model, and that is normal.",
       "cellWithProbability": "{value} ({percent})",
       "clear": "Clear",
       "clusterInputPoint": "Your input",
@@ -699,7 +700,8 @@
       "range": "Values in the data: {min} to {max}",
       "rowNumber": "Row",
       "showFeatures": "Show feature values",
-      "tableTitle": "Prediction results"
+      "tableTitle": "Prediction results",
+      "waiting": "Fill the boxes and press [Predict] to see the answers here."
     }
   }
 }

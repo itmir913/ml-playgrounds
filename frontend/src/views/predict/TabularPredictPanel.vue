@@ -495,7 +495,13 @@ async function run(): Promise<void> {
           </div>
 
           <div ref="answerListEl" class="min-h-0 min-w-0 flex-1 overflow-y-auto">
-            <AnswerList :models="visible" :answers="answers" :experiment-names="experimentNames">
+            <AnswerList
+              :models="visible"
+              :answers="answers"
+              :experiment-names="experimentNames"
+              :lead="t('predict.tabular.answerLead')"
+              :waiting="t('predict.tabular.waiting')"
+            >
               <!--
                 **답 목록 안에 든다** (architecture.md §8.13.1). `2번 군집`이라는 답만으로는
                 학생에게 정수 하나이고, 그 뜻을 만드는 것이 이 자리다 — 답과 떨어진 별도

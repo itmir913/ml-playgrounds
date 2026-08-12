@@ -76,6 +76,22 @@ const settings = computed(() => project.file?.document.settings ?? null)
  */
 const kind = computed(() => dataKindFor(project.file?.document.manifest.dataType ?? ''))
 
+/**
+ * 준비 진행 문구. **이 화면은 무엇을 준비하는지 모른다** — 문구 키는 종류가 갖는다
+ * (`data/kinds.ts`의 `preparingKey`, architecture.md §8.10). 전에는 여기에
+ * `train.image.preparingPhotos`가 박혀 있었고, 음성이 들어오는 날 `v-if`가 될 자리였다.
+ *
+ * 세는 것이 아직 없으면(백본을 받는 중) 엔진 상태를 말한다 — 그건 종류를 안 가린다.
+ */
+const preparingText = computed(() => {
+  const now = preparing.value
+  if (!now) return ''
+  const key = kind.value?.preparingKey
+  return now.total > 0 && key !== undefined
+    ? t(key, { done: now.completed, total: now.total })
+    : t(`engineState.${now.state}`)
+})
+
 const dataset = computed(() => readDataset(project.file))
 const columns = computed(() => (dataset.value ? summarizeColumns(dataset.value) : []))
 
@@ -498,16 +514,7 @@ function leave(): void {
           붙는데, 그동안 아무 말도 없으면 학생은 멈춘 줄 알고 새로고침을 누른다.
           표에서는 준비할 것이 없어 한 번도 안 뜬다.
         -->
-        <p v-if="preparing" class="min-w-0 font-bold" role="status">
-          {{
-            preparing.total > 0
-              ? t('train.image.preparingPhotos', {
-                  done: preparing.completed,
-                  total: preparing.total,
-                })
-              : t(`engineState.${preparing.state}`)
-          }}
-        </p>
+        <p v-if="preparing" class="min-w-0 font-bold" role="status">{{ preparingText }}</p>
         <p v-else-if="training.running.value" class="min-w-0 font-bold" role="status">
           {{ t('train.progress', training.progress.value ?? { completed: 0, total: 0 }) }}
         </p>

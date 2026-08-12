@@ -37,6 +37,15 @@ const props = defineProps<{
   answers: ReadonlyMap<string, Answer>
   /** 실험 id -> 화면에 쓰는 이름. 결과 화면의 세로줄과 같은 이름이어야 한다. */
   experimentNames: ReadonlyMap<string, string>
+  /**
+   * 무엇을 모델에 넣는지, 그리고 아직 안 눌렀을 때 무엇을 하면 되는지.
+   *
+   * **이미 번역된 채로 온다** (`PredictFilters`와 같은 규칙). 여기서 키를 고르면 이
+   * 목록이 데이터 종류를 알게 되고, 실제로 그래서 **사진 예측 화면에 "값을 채우고
+   * [예측]을 누르면"이 떴다** — 사진에는 채울 값이 없다.
+   */
+  lead: string
+  waiting: string
 }>()
 
 const { t } = useI18n()
@@ -186,7 +195,7 @@ function bars(model: PredictableModel): ProbabilityBar[] {
   <div class="flex flex-col gap-5">
     <div class="flex flex-col gap-1.5">
       <h3 class="text-lg font-bold">{{ t('predict.answerTitle') }}</h3>
-      <p class="text-ink-soft">{{ t('predict.answerLead') }}</p>
+      <p class="text-ink-soft">{{ props.lead }}</p>
       <!-- **번호는 그 모델 안에서만 뜻이 있다** (§8.13.1). 갈림표가 군집을 안 세는 이유도 이것이다. -->
       <p v-if="hasClusterAnswer" class="text-ink-soft">{{ t('predict.clusterAnswerNote') }}</p>
     </div>
@@ -317,7 +326,7 @@ function bars(model: PredictableModel): ProbabilityBar[] {
           비었을 때만 문구가 뜨면 새로 보인 카드는 아무 말도 못 한다.
         -->
         <p v-else-if="!props.answers.has(model.run.id)" class="mt-1 text-ink-faint">
-          {{ t('predict.waiting') }}
+          {{ props.waiting }}
         </p>
       </li>
     </ul>

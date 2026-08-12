@@ -643,9 +643,7 @@
     "emptyNext": "학습 단계에서 모델을 학습하면 여기서 새 값을 넣어 볼 수 있습니다.",
     "run": "예측",
     "answerTitle": "모델들의 답",
-    "answerLead": "테스트 데이터(Test Data)를 학습한 모든 모델에 입력합니다. 모델마다 예측한 값이 갈릴 수 있으며 이는 정상입니다.",
     "clusterAnswerNote": "군집 번호는 모델마다 따로 매겨집니다. 다른 학습의 같은 번호는 같은 군집이 아닙니다.",
-    "waiting": "값을 채우고 [예측]을 누르면 여기에 답이 나옵니다.",
     "probability": "범주별 확률",
     "modelName": "{algorithm} · {runtime}",
     "unusable": "이 모델은 지금 쓸 수 없습니다.",
@@ -658,6 +656,7 @@
     "tallyLead": "분류 모델의 답만 셉니다. 색은 정답 여부가 아니라 가장 많이 나온 답과 같은지 다른지를 보여줍니다.",
     "image": {
       "add": "사진 올리기",
+      "answerLead": "올린 사진을 학습한 모든 모델에 입력합니다. 모델마다 예측한 값이 갈릴 수 있으며 이는 정상입니다.",
       "clear": "사진 전부 지우기",
       "clearDescription": "예측하려고 올린 사진 {count}장을 지웁니다. 학습에 쓴 사진은 그대로 있습니다.",
       "clearTitle": "올린 사진을 전부 지울까요?",
@@ -665,9 +664,11 @@
       "emptyReason": "아직 올린 사진이 없습니다.",
       "photo": "예측할 사진",
       "purpose": "새 사진을 올리면 모델이 각각 답을 내놓습니다.",
-      "remove": "빼기"
+      "remove": "빼기",
+      "waiting": "사진을 올리고 [예측]을 누르면 여기에 답이 나옵니다."
     },
     "tabular": {
+      "answerLead": "테스트 데이터(Test Data)를 학습한 모든 모델에 입력합니다. 모델마다 예측한 값이 갈릴 수 있으며 이는 정상입니다.",
       "cellWithProbability": "{value} ({percent})",
       "clear": "비우기",
       "clusterInputPoint": "입력한 데이터",
@@ -699,7 +700,8 @@
       "range": "데이터에 있는 값: {min} ~ {max}",
       "rowNumber": "번호",
       "showFeatures": "특성 값 보기",
-      "tableTitle": "예측 결과"
+      "tableTitle": "예측 결과",
+      "waiting": "값을 채우고 [예측]을 누르면 여기에 답이 나옵니다."
     }
   }
 }

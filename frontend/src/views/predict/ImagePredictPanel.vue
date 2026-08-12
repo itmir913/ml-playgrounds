@@ -578,6 +578,8 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
             :models="visible"
             :answers="answers.get(photo.hash) ?? new Map()"
             :experiment-names="experimentNames"
+            :lead="t('predict.image.answerLead')"
+            :waiting="t('predict.image.waiting')"
           />
         </div>
 
@@ -623,6 +625,12 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
         </AppButton>
       </template>
     </AppDialog>
+
+    <!--
+      **파일에 안 남는다는 사실을 말한다** (mlpx-spec.md §0). 표 화면에만 있고 여기엔
+      없었다 — 사진을 올리는 화면이라 오히려 여기서 더 궁금한 말이다.
+    -->
+    <p class="text-right text-ink-faint">{{ t('predict.notSaved') }}</p>
 
     <input
       ref="fileInput"
