@@ -118,6 +118,7 @@
     "image": {
       "add": "Add photos",
       "addFolder": "Add a folder",
+      "addHere": "Add photos here",
       "added": "Added {count} photo. | Added {count} photos.",
       "backbone": "Backbone",
       "baking": "Preparing {done} of {total}",
@@ -132,7 +133,8 @@
       "dropHint": "Drop photos or a zip file here.",
       "duplicates": "Skipped {count} photo you already have. | Skipped {count} photos you already have.",
       "emptyCategory": "No photos in this category yet.",
-      "emptyReason": "No photos yet.",
+      "emptyNext": "Name what you want to tell apart — dog, cat — then add photos to that box. You can also add photos first and sort them later.",
+      "emptyReason": "Start by creating the categories you want to sort into.",
       "moveTo": "Move to",
       "nameConfirm": "Save",
       "nameDescription": "This name groups your photos. It becomes the folder name when you save the project.",

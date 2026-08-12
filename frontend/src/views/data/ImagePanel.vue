@@ -60,6 +60,13 @@ const folderInput = ref<HTMLInputElement | null>(null)
 const dragging = ref(false)
 const busy = ref(false)
 
+/**
+ * 다음에 고를 사진이 들어갈 칸. **파일 고르기 입구가 하나여서 필요하다** — 칸마다 숨은
+ * `<input>`을 두면 범주 수만큼 늘고, 그 중 하나만 값을 안 비워도 같은 파일을 다시 못
+ * 고르는 칸이 생긴다.
+ */
+const target = ref<string>(IMAGE_UNLABELED)
+
 /** 읽었지만 아직 안 구운 것. **확인시키기 전에는 프로젝트를 손대지 않는다.** */
 const pending = ref<readonly UploadItem[] | null>(null)
 /** 굽는 중의 진행. 백분율은 화면이 만든다. */
@@ -128,15 +135,17 @@ function labelOf(category: string): string {
 }
 
 /** 꾸러미인가 사진인가. **학생에게 묻지 않는다** — 확장자가 이미 답을 갖고 있다. */
-async function readPicked(files: readonly File[]): Promise<void> {
+async function readPicked(files: readonly File[], into: string): Promise<void> {
   if (files.length === 0) return
   busy.value = true
   try {
     const [only] = files
+    // **구조가 있으면 구조가 이긴다.** 폴더나 zip이 라벨을 들고 있으면 그것이 답이고,
+    // `into`는 구조가 없는 사진이 떨어질 자리다 (open-decisions.md "zip 읽기 규칙 다섯").
     const items =
       files.length === 1 && only && only.name.toLowerCase().endsWith('.zip')
-        ? await readImageZip(new Uint8Array(await only.arrayBuffer()))
-        : readImageFiles(files)
+        ? await readImageZip(new Uint8Array(await only.arrayBuffer()), into)
+        : readImageFiles(files, into)
     pending.value = items
   } catch (error) {
     toasts.pushError(error)
@@ -150,12 +159,19 @@ function onPick(event: Event): void {
   const files = [...(input.files ?? [])]
   // 같은 것을 다시 고를 수 있어야 한다. 값을 비우지 않으면 change가 다시 안 뜬다.
   input.value = ''
-  void readPicked(files)
+  void readPicked(files, target.value)
 }
 
+/** 어느 칸에 넣을지 정하고 파일 고르기를 연다. */
+function pickInto(category: string, input: HTMLInputElement | null): void {
+  target.value = category
+  input?.click()
+}
+
+/** 판 전체에 떨어뜨린 것. **어느 칸도 아니므로 라벨이 없다.** */
 function onDrop(event: DragEvent): void {
   dragging.value = false
-  void readPicked([...(event.dataTransfer?.files ?? [])])
+  void readPicked([...(event.dataTransfer?.files ?? [])], IMAGE_UNLABELED)
 }
 
 /**
@@ -330,7 +346,11 @@ async function commitRemoveCategory(): Promise<void> {
             <dd class="font-bold tabular-nums text-ink">{{ categories.length }}</dd>
           </div>
         </template>
-        <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">
+        <AppButton
+          variant="secondary"
+          :disabled="busy"
+          @click="pickInto(IMAGE_UNLABELED, fileInput)"
+        >
           {{ t('data.image.add') }}
         </AppButton>
       </template>
@@ -371,12 +391,33 @@ async function commitRemoveCategory(): Promise<void> {
       class="grid min-h-96 flex-1 place-items-center rounded-panel border-2 border-dashed transition-colors"
       :class="dragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
     >
-      <AppEmpty :reason="t('data.image.emptyReason')" :next="t('data.image.dropHint')">
+      <!--
+        **첫 동작이 [범주 만들기]다** (open-decisions.md "범주를 먼저 만들고 그 칸에
+        올린다"). 드롭존만 보이면 화면이 "일단 올려라"라고 말하는 셈인데, 학생이 하려는
+        일은 "개와 고양이를 구분하는 것"이고 그건 범주를 세우는 데서 시작한다.
+
+        사진 올리기를 없애지는 않는다 — 폴더나 zip이 이미 라벨을 들고 있는 경우가 있고,
+        군집만 하려는 학생에게는 범주가 아예 필요 없다.
+      -->
+      <AppEmpty :reason="t('data.image.emptyReason')" :next="t('data.image.emptyNext')">
         <div class="flex flex-wrap justify-center gap-2">
-          <AppButton size="lg" :disabled="busy" @click="fileInput?.click()">
+          <AppButton size="lg" @click="naming = { mode: 'create', from: '', value: '' }">
+            {{ t('data.image.newCategory') }}
+          </AppButton>
+          <AppButton
+            size="lg"
+            variant="secondary"
+            :disabled="busy"
+            @click="pickInto(IMAGE_UNLABELED, fileInput)"
+          >
             {{ t('data.image.add') }}
           </AppButton>
-          <AppButton size="lg" variant="secondary" :disabled="busy" @click="folderInput?.click()">
+          <AppButton
+            size="lg"
+            variant="secondary"
+            :disabled="busy"
+            @click="pickInto(IMAGE_UNLABELED, folderInput)"
+          >
             {{ t('data.image.addFolder') }}
           </AppButton>
         </div>
@@ -388,7 +429,11 @@ async function commitRemoveCategory(): Promise<void> {
         <AppButton variant="secondary" @click="naming = { mode: 'create', from: '', value: '' }">
           {{ t('data.image.newCategory') }}
         </AppButton>
-        <AppButton variant="secondary" :disabled="busy" @click="folderInput?.click()">
+        <AppButton
+          variant="secondary"
+          :disabled="busy"
+          @click="pickInto(IMAGE_UNLABELED, folderInput)"
+        >
           {{ t('data.image.addFolder') }}
         </AppButton>
       </div>
@@ -416,6 +461,8 @@ async function commitRemoveCategory(): Promise<void> {
           @pick-all="pickAll(category)"
           @rename="naming = { mode: 'rename', from: category, value: category }"
           @remove="removingCategory = category"
+          @add="pickInto(category, fileInput)"
+          @drop="readPicked($event, category)"
         />
       </div>
 
@@ -433,6 +480,8 @@ async function commitRemoveCategory(): Promise<void> {
         unlabeled
         @toggle="toggle"
         @pick-all="pickAll(IMAGE_UNLABELED)"
+        @add="pickInto(IMAGE_UNLABELED, fileInput)"
+        @drop="readPicked($event, IMAGE_UNLABELED)"
       />
     </div>
 

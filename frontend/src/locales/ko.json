@@ -118,6 +118,7 @@
     "image": {
       "add": "사진 추가",
       "addFolder": "폴더에서 추가",
+      "addHere": "여기에 사진 추가",
       "added": "사진 {count}장을 추가했습니다.",
       "backbone": "백본(Backbone)",
       "baking": "사진 준비 중 {done}/{total}",
@@ -132,7 +133,8 @@
       "dropHint": "사진이나 압축 파일을 여기에 끌어다 놓으세요.",
       "duplicates": "이미 있는 사진 {count}장은 넘어갔습니다.",
       "emptyCategory": "이 범주에는 아직 사진이 없습니다.",
-      "emptyReason": "아직 올린 사진이 없습니다.",
+      "emptyNext": "개·고양이처럼 구분하고 싶은 이름을 만들고, 그 칸에 사진을 넣으면 됩니다. 사진을 먼저 올려서 나중에 나눠도 됩니다.",
+      "emptyReason": "먼저 나눌 범주를 만들어 보세요.",
       "moveTo": "옮길 곳",
       "nameConfirm": "확인",
       "nameDescription": "사진을 나눌 이름입니다. 저장할 때 폴더 이름으로 사용됩니다.",

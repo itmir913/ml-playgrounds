@@ -34,9 +34,25 @@ const emit = defineEmits<{
   pickAll: []
   rename: []
   remove: []
+  /** 이 칸에 사진을 넣겠다는 뜻. 파일 고르기는 판이 연다 — 입구가 하나여야 한다. */
+  add: []
+  /** 이 칸에 끌어다 놓았다. */
+  drop: [files: readonly File[]]
 }>()
 
 const { t } = useI18n()
+
+/**
+ * 이 칸 위에 무언가 끌고 있는가. **칸마다 따로 든다** — 판 하나가 들면 어느 칸 위에
+ * 있는지 화면이 말할 수 없고, 그러면 학생은 사진이 어디로 떨어질지 모른 채 놓는다.
+ */
+const hovering = ref(false)
+
+function onDrop(event: DragEvent): void {
+  hovering.value = false
+  const files = [...(event.dataTransfer?.files ?? [])]
+  if (files.length > 0) emit('drop', files)
+}
 
 /**
  * 지금 쪽. **한 번에 다 그리지 않는다** — 200장짜리 격자는 화면을 통째로 덮어서 범주
@@ -62,12 +78,30 @@ const shown = computed(() =>
 </script>
 
 <template>
-  <section class="flex flex-col gap-2 rounded-panel border border-line bg-surface p-4">
+  <!--
+    **칸 자체가 떨어뜨리는 자리다** (open-decisions.md "범주를 먼저 만들고 그 칸에
+    올린다"). `stop`이 없으면 판의 드롭까지 함께 터져 같은 사진이 두 번 들어온다.
+  -->
+  <section
+    class="flex flex-col gap-2 rounded-panel border bg-surface p-4 transition-colors"
+    :class="hovering ? 'border-brand bg-brand-soft' : 'border-line'"
+    @dragover.prevent.stop="hovering = true"
+    @dragleave.stop="hovering = false"
+    @drop.prevent.stop="onDrop"
+  >
     <header class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
       <h3 class="min-w-0 truncate font-bold text-ink">{{ props.label }}</h3>
       <AppBadge>{{ t('data.image.count', props.entries.length) }}</AppBadge>
 
       <div class="ml-auto flex items-center gap-3">
+        <!-- **이 칸으로 바로 들어간다.** 올린 뒤 다시 골라 옮기는 걸음이 없어진다. -->
+        <button
+          type="button"
+          class="text-base font-bold text-brand hover:underline"
+          @click="emit('add')"
+        >
+          {{ t('data.image.addHere') }}
+        </button>
         <!--
           **누르는 것이 아니라 고르는 것이다.** 사진 수십 장을 하나씩 누르게 하면
           범주를 옮기는 일이 실제로는 못 하는 일이 된다.
