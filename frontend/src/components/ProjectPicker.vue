@@ -10,7 +10,7 @@
  * 것을 우리가 짜지 않는다. 그리고 **작업을 막지 않는다.**
  */
 
-import { useId } from 'vue'
+import { ref, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
@@ -18,7 +18,17 @@ import { useFormat } from '@/composables/useFormat'
 import { ACTION_ICONS } from '@/icons'
 import type { ProjectSummary } from '@/project/storage'
 
-defineProps<{ summaries: readonly ProjectSummary[] }>()
+const props = defineProps<{
+  summaries: readonly ProjectSummary[]
+  /**
+   * 화면이 무언가 하는 중인가. **켜지면 이 목록 전체가 잠긴다.**
+   *
+   * 파일을 여는 동안 여기가 살아 있으면, 학생이 목록에서 다른 프로젝트를 눌러 먼저
+   * 이동하고 **뒤늦게 끝난 파일 열기가 또 한 번 화면을 민다** — 방금 연 파일이 아닌
+   * 프로젝트를 보고 있게 된다. 지우기도 같은 이유로 함께 잠근다.
+   */
+  disabled?: boolean | undefined
+}>()
 
 const emit = defineEmits<{
   open: [projectId: string]
@@ -29,11 +39,49 @@ const { t } = useI18n()
 const format = useFormat()
 
 const popoverId = useId()
+const panel = ref<HTMLElement | null>(null)
+
+/**
+ * 목록을 다시 연다. **확인창이 닫힌 뒤에 화면이 부른다.**
+ *
+ * 지우기를 누르면 이 목록은 브라우저가 닫는다 — `popover`는 다른 최상위 층(확인창)이
+ * 열리면 스스로 물러난다. 그 자체는 맞지만, **돌아왔을 때 목록이 없으면** 학생은
+ * 방금 지운 것이 사라졌는지 확인하러 버튼을 다시 눌러야 하고, 취소한 사람은 보던
+ * 자리를 잃는다.
+ *
+ * 이미 열려 있으면 브라우저가 던지므로 삼킨다 — 여는 것이 목적이지 상태를 뒤집는
+ * 것이 아니다.
+ */
+function open(): void {
+  try {
+    panel.value?.showPopover()
+  } catch {
+    // 이미 열려 있다. 할 일이 없다.
+  }
+}
+
+defineExpose({ open })
+
+/**
+ * 이 줄을 누를 수 있는가. **템플릿에서 조건을 조립하지 않는다** (architecture.md §10) —
+ * 못 읽는 프로젝트와 지금 바쁜 것은 다른 사유이고, 둘을 `||`로 이어 붙이면 그 구분이
+ * 화면 코드 속으로 사라진다.
+ */
+function locked(summary: ProjectSummary): boolean {
+  if (props.disabled === true) return true
+  return !summary.readable
+}
 </script>
 
 <template>
   <div class="w-full">
-    <AppButton variant="subtle" size="lg" class="w-full" :popovertarget="popoverId">
+    <AppButton
+      variant="subtle"
+      size="lg"
+      class="w-full"
+      :disabled="props.disabled"
+      :popovertarget="popoverId"
+    >
       <component :is="ACTION_ICONS.savedProjects" :size="20" aria-hidden="true" />
       {{ t('projects.saved') }}
       <span class="rounded-pill bg-surface px-2 py-0.5 text-base text-ink-soft">
@@ -43,6 +91,7 @@ const popoverId = useId()
 
     <div
       :id="popoverId"
+      ref="panel"
       popover="auto"
       class="m-auto w-full max-w-lg rounded-card border border-line bg-surface p-4 text-ink shadow-pop"
     >
@@ -63,7 +112,7 @@ const popoverId = useId()
           <button
             type="button"
             class="min-w-0 flex-1 text-left"
-            :disabled="!summary.readable"
+            :disabled="locked(summary)"
             :class="summary.readable ? '' : 'cursor-not-allowed text-ink-faint'"
             @click="emit('open', summary.projectId)"
           >
@@ -81,6 +130,7 @@ const popoverId = useId()
 
           <AppButton
             variant="ghost"
+            :disabled="props.disabled"
             :label="t('projects.delete')"
             :action="() => emit('remove', summary)"
           >
