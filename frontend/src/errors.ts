@@ -27,6 +27,13 @@ export const CLIENT_ERROR_CODES = [
   'DATASET_TOO_LARGE_FOR_BROWSER',
   'ENGINE_NOT_READY',
 
+  // 이미지 백본 - ml/embed/*
+  // 백본을 준비하지 못했다: 가중치를 못 받았거나, 쓸 수 있는 TF.js 백엔드가 없거나,
+  // 워커가 통째로 죽었다(메모리). **셋을 나누지 않는 이유는 학생이 할 일이 같기
+  // 때문이다** - 다시 시도하는 것뿐이고, 무엇이 달랐는지는 교사가 읽을 기술 원문에 있다.
+  // 등록부에 없는 백본을 가리키는 옛 파일도 여기로 온다.
+  'BACKBONE_UNAVAILABLE',
+
   // 프로젝트 파일 열기 - project/format.ts, project/migrate.ts
   'PROJECT_FILE_NOT_ZIP',
   'PROJECT_FILE_ENTRY_MISSING',

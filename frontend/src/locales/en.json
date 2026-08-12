@@ -379,6 +379,7 @@
     "ALGORITHM_NOT_AVAILABLE_HERE": "This model cannot be trained here.",
     "DATASET_TOO_LARGE_FOR_BROWSER": "The data is too large to train on your computer. (limit {limitRows} rows)",
     "ENGINE_NOT_READY": "Training here needs some setup to finish first.",
+    "BACKBONE_UNAVAILABLE": "Could not finish getting ready for image training. Please try again in a moment.",
     "PROJECT_FILE_NOT_ZIP": "This file is not a project file.",
     "PROJECT_FILE_ENTRY_MISSING": "The project file is missing something it needs. ({entry})",
     "PROJECT_FILE_INVALID": "The project file could not be read. ({path})",

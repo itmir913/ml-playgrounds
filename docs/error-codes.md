@@ -96,6 +96,13 @@ SERVER_UNAVAILABLE, ALGORITHM_NOT_AVAILABLE_HERE, DATASET_TOO_LARGE_FOR_BROWSER,
 ENGINE_NOT_READY
 ```
 
+**이미지 백본** — 가중치를 못 받았거나, 쓸 수 있는 TF.js 백엔드가 없거나, 워커가
+메모리로 죽었거나, 등록부에 없는 백본을 가리키는 파일이다. 넷을 한 코드로 두는 이유는
+학생이 할 일이 같아서이고, 무엇이 달랐는지는 기술 원문에 남는다.
+```
+BACKBONE_UNAVAILABLE
+```
+
 **이 모델을 이 데이터·과제에 쓸 수 없다**
 ```
 ALGORITHM_NOT_FOR_DATA_TYPE, ALGORITHM_NOT_FOR_TASK_TYPE
