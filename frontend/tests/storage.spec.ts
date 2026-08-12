@@ -431,6 +431,7 @@ describe('이미지 프로젝트', () => {
         },
       },
       images: new Map(),
+      embeddings: new Map(),
     })
 
     const loaded = await loadProject(project.document.manifest.projectId)

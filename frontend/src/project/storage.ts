@@ -81,6 +81,13 @@ interface DatasetRecord {
    * 본체"이고 이미지에서는 그게 파일 여러 개다.
    */
   images?: Map<string, Uint8Array>
+  /**
+   * 백본이 뽑아 둔 임베딩 (mlpx-spec.md §1.3). `images`와 같은 이유로 같은 자리에 있다.
+   *
+   * **없는 것이 정상이다.** 파생물이라 학습을 한 번도 안 한 프로젝트에는 없고, 사진이
+   * 있는데 일부만 있는 것도 정상이다 — 없는 것만 다시 뽑는다.
+   */
+  embeddings?: Map<string, Uint8Array>
   test?: { bytes: Uint8Array; hash: string }
   predict?: { bytes: Uint8Array; hash: string }
 }
@@ -178,6 +185,9 @@ function totalBytes(project: ProjectFile): number {
   for (const bytes of project.models.values()) total += bytes.length
   // 사진도 자리를 차지한다. 이미지 프로젝트에서는 사실상 전부가 이 값이다.
   for (const bytes of project.images.values()) total += bytes.length
+  // 임베딩도 실제로 쓰는 자리다. 사진 200장이면 1MB이고, 안 세면 여유 공간 검사가
+  // 통과한 뒤 실제 쓰기에서 터진다.
+  for (const bytes of project.embeddings.values()) total += bytes.length
   return total
 }
 
@@ -284,6 +294,7 @@ export async function saveProject(project: ProjectFile): Promise<void> {
           ? {}
           : { bytes: project.dataset.bytes, hash: project.dataset.hash }),
         ...(project.images.size === 0 ? {} : { images: project.images }),
+        ...(project.embeddings.size === 0 ? {} : { embeddings: project.embeddings }),
         ...(project.testDataset === undefined
           ? {}
           : { test: { bytes: project.testDataset.bytes, hash: project.testDataset.hash } }),
@@ -333,6 +344,7 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
   // (mlpx-spec.md §1). 어긋난 것은 우리가 고칠 수 없으므로 없는 것으로 다룬다.
   const dataset = await transaction.objectStore(DATASETS_STORE).get(projectId)
   const images = dataset?.images ?? new Map<string, Uint8Array>()
+  const embeddings = dataset?.embeddings ?? new Map<string, Uint8Array>()
 
   /**
    * 참조와 본체가 함께 있는가. **파일 참조와 폴더 참조를 나눠 본다** — 폴더는 파일 하나를
@@ -369,6 +381,7 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
     predictDataset: dataset?.predict,
     models,
     images,
+    embeddings,
   }
 }
 

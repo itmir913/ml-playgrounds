@@ -51,6 +51,13 @@ export const DIR = {
   model: 'model/',
   dataset: 'dataset/',
   portfolio: 'portfolio/',
+  /**
+   * 백본이 뽑아 둔 임베딩 (mlpx-spec.md §1.3). 아래에 백본 id가 한 겹 더 있다.
+   *
+   * **`dataset/` 밑이 아니다.** 학생이 올린 것이 아니라 우리가 계산한 것이고, 지우고
+   * 다시 뽑아도 프로젝트는 그대로다.
+   */
+  embeddings: 'embeddings/',
 } as const
 
 /**
@@ -171,6 +178,14 @@ export interface ProjectFile {
    * 수백 개라 위 세 칸(`dataset`·`testDataset`·`predictDataset`)에 못 들어간다.
    */
   images: Map<string, Uint8Array>
+  /**
+   * zip 경로 -> 임베딩 벡터 (mlpx-spec.md §1.3). **파생물이라 비어 있어도 정상이다.**
+   *
+   * 위 셋과 다른 점은 **가리키는 참조가 없다는 것**이다 — `settings` 어디에도 안 적혀
+   * 있고, 경로 자체가 "어느 백본이 어느 사진에서 뽑았는가"를 다 말한다. 그래서
+   * "함께 있고 함께 없다"가 여기에는 해당하지 않는다.
+   */
+  embeddings: Map<string, Uint8Array>
 }
 
 /** 이미지 정본이 사는 자리들. 아래 판정들이 이 목록으로 걷는다. */
@@ -179,6 +194,21 @@ const IMAGE_DIRS = [IMAGE_DATA_DIR, IMAGE_TEST_DIR, IMAGE_PREDICT_DIR] as const
 /** zip 엔트리가 정본 사진인가. */
 function isImageEntry(path: string): boolean {
   return IMAGE_DIRS.some((directory) => path.startsWith(directory))
+}
+
+/** zip 엔트리가 임베딩인가. */
+function isEmbeddingEntry(path: string): boolean {
+  return path.startsWith(DIR.embeddings)
+}
+
+/**
+ * 이 경로가 가리키는 사진의 해시. 정본이든 임베딩이든 **이름이 곧 해시다**
+ * (mlpx-spec.md §1.2·§1.3).
+ */
+function hashOfEntry(path: string): string {
+  const name = path.slice(path.lastIndexOf('/') + 1)
+  const dot = name.lastIndexOf('.')
+  return dot < 0 ? name : name.slice(0, dot)
 }
 
 /**
@@ -447,7 +477,12 @@ function hashableEntries(
 
   const present = new Map<string, string>()
   for (const [path, content] of entries) {
-    if (known.has(path) || path.startsWith(DIR.model) || isImageEntry(path)) {
+    if (
+      known.has(path) ||
+      path.startsWith(DIR.model) ||
+      isImageEntry(path) ||
+      isEmbeddingEntry(path)
+    ) {
       present.set(path, hashBytes(content))
     }
   }
@@ -638,8 +673,12 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
   // 정본 사진을 걷는다. **문서가 한 장씩 가리키지 않는다** - 라벨이 폴더 구조에 있으므로
   // (mlpx-spec.md §1.2) 그 아래 있는 것이 곧 이 프로젝트의 사진이다.
   const images = new Map<string, Uint8Array>()
+  // 임베딩은 파생물이라 **아무도 안 가리킨다.** 그래서 참조 대조가 없고, 있으면 있는
+  // 대로 들인다 - 없으면 학습할 때 다시 뽑는다 (mlpx-spec.md §1.3).
+  const embeddings = new Map<string, Uint8Array>()
   for (const [path, content] of entries) {
     if (isImageEntry(path)) images.set(path, content)
+    else if (isEmbeddingEntry(path)) embeddings.set(path, content)
   }
 
   // 폴더 참조는 파일 하나를 안 가리키므로 **그 아래 한 장이라도 있는가**로 같은 것을
@@ -686,6 +725,7 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
             },
       models,
       images,
+      embeddings,
     },
     integrity,
   }
@@ -752,6 +792,13 @@ export async function writeProject(
     entries[path] = content
   }
   requireFolderBodies(document, project.images)
+
+  // **짝 없는 임베딩은 버린다.** 사진을 지우면 그 임베딩은 아무 사진의 것도 아니고,
+  // 들고 다니면 파일이 지운 사진 수만큼 계속 자란다 (mlpx-spec.md §1.3).
+  const photoHashes = new Set([...project.images.keys()].map(hashOfEntry))
+  for (const [path, content] of project.embeddings) {
+    if (photoHashes.has(hashOfEntry(path))) entries[path] = content
+  }
 
   // 마지막에 만든다. 자기 자신은 대상이 아니므로 다른 엔트리가 전부 정해진 뒤여야 한다.
   const hashes = buildHashes(

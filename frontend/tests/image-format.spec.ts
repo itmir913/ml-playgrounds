@@ -64,6 +64,7 @@ function imageProject(overrides: Partial<ProjectFile> = {}): ProjectFile {
     },
     models: new Map(),
     images,
+    embeddings: new Map(),
     ...overrides,
   }
 }
@@ -143,7 +144,7 @@ describe('이미지 프로젝트의 왕복', () => {
 
 describe('참조와 본체는 함께 있고 함께 없다', () => {
   it('참조는 있는데 사진이 하나도 없으면 저장이 거부된다', async () => {
-    const project = imageProject({ images: new Map() })
+    const project = imageProject({ images: new Map(), embeddings: new Map() })
     await expect(writeProject(project, markdown)).rejects.toSatisfy(
       (error: unknown) => isClientError(error) && error.code === 'PROJECT_FILE_INVALID',
     )

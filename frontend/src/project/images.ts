@@ -17,6 +17,7 @@ import {
   isValidCategoryName,
   type ImageRole,
 } from '@/data/image/canonical'
+import { removeEmbeddings } from '@/project/embeddings'
 import { IMAGE_DATA_DIR, IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
 import { IMAGE_JPEG_QUALITY } from '@/limits'
 import { dataSettings, type Settings } from '@/project/schema'
@@ -232,7 +233,10 @@ export function removeImages(
   // **범주 목록은 안 건드린다.** 마지막 한 장을 지웠다고 범주가 사라지면, 학생이
   // 사진을 바꿔 넣으려던 것뿐인데 만들어 둔 칸이 함께 없어진다.
   const previous = dataSettings('image', project.document.settings)
-  return withImages(project, images, { ...previous }, now)
+  // 임베딩은 그 사진의 것이라 함께 나간다 (mlpx-spec.md §1.3). 안 지우면 IndexedDB에
+  // 아무 사진의 것도 아닌 벡터가 계속 쌓인다.
+  const pruned = removeEmbeddings(project, hashes)
+  return withImages({ ...pruned, images }, images, { ...previous }, now)
 }
 
 /**

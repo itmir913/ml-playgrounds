@@ -170,6 +170,7 @@ export function applyDataset(
       models: new Map(),
       // 표 프로젝트라 사진이 없다. 빈 맵이 정상이다.
       images: new Map(),
+      embeddings: new Map(),
     },
     droppedExperiments: document.runs.experiments.length,
     droppedColumns,
@@ -250,6 +251,7 @@ export function applyTestDataset(
       models: new Map(),
       // 표 프로젝트라 사진이 없다. 빈 맵이 정상이다.
       images: new Map(),
+      embeddings: new Map(),
     },
     droppedExperiments: document.runs.experiments.length,
   }
@@ -329,6 +331,7 @@ export function applyPredictDataset(
       predictDataset: { bytes, hash: hashBytes(bytes) },
       models: project.models,
       images: project.images,
+      embeddings: project.embeddings,
     },
   }
 }
@@ -359,6 +362,7 @@ export function removePredictDataset(project: ProjectFile, now: string): Applied
       predictDataset: undefined,
       models: project.models,
       images: project.images,
+      embeddings: project.embeddings,
     },
   }
 }
@@ -398,6 +402,7 @@ export function removeTestDataset(project: ProjectFile, now: string): AppliedTes
       models: new Map(),
       // 표 프로젝트라 사진이 없다. 빈 맵이 정상이다.
       images: new Map(),
+      embeddings: new Map(),
     },
     droppedExperiments: document.runs.experiments.length,
   }

@@ -235,7 +235,7 @@ describe('끝난 실험을 프로젝트에 앉힌다', () => {
       { name: '붓꽃', locale: 'ko', dataType: 'tabular' },
       { projectId: 'p-1', createdAt: '2026-08-05T09:00:00Z', randomState: 42 },
     )
-    return { document, models: new Map(), images: new Map() }
+    return { document, models: new Map(), images: new Map(), embeddings: new Map() }
   }
 
   it('실험이 뒤에 붙고 모델 엔트리가 합쳐진다', () => {

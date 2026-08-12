@@ -108,6 +108,7 @@ function projectWith(dataset: Dataset, settings: Settings): ProjectFile {
     dataset: { bytes, hash: 'x'.repeat(64) },
     models: new Map(),
     images: new Map(),
+    embeddings: new Map(),
   }
 }
 

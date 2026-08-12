@@ -231,6 +231,7 @@ export function emptyProjectFile(): ProjectFile {
     },
     models: new Map(),
     images: new Map(),
+    embeddings: new Map(),
   }
 }
 
@@ -249,6 +250,7 @@ export function projectFile(overrides: Partial<ProjectFile> = {}): ProjectFile {
     ]),
     // 표 픽스처라 사진이 없다. **매번 새 맵이다** (tests/fixtures.spec.ts).
     images: new Map(),
+    embeddings: new Map(),
     ...overrides,
   }
 }
