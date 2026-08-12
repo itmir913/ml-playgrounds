@@ -43,6 +43,7 @@ import { type RouteLocationRaw, useRoute } from 'vue-router'
 
 import { HOME_ICON, STEP_ICONS } from '@/icons'
 import { ROUTE_PROJECT_HOME } from '@/router'
+import { dataKindFor, stepTextKey } from '@/data/kinds'
 import { isStepUnlocked, STEP_IDS, type StepId } from '@/router/steps'
 import { useProjectStore } from '@/stores/project'
 
@@ -79,7 +80,10 @@ function label(step: StepId): string {
 
 /** 못 가는 이유. 프로젝트가 없으면 그것이 이유다. */
 function reason(step: StepId): string {
-  return project.projectId === null ? t('shell.noProject') : t(`steps.${step}.locked`)
+  if (project.projectId === null) return t('shell.noProject')
+  // **잠금 이유도 종류가 준다** (architecture.md §8.10) — 표의 "타깃과 특성을 먼저
+  // 정해 주세요"는 이미지에서 학생이 할 수 없는 일을 하라는 말이 된다.
+  return t(stepTextKey(dataKindFor(project.dataType ?? ''), step, 'locked'))
 }
 
 /**

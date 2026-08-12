@@ -20,6 +20,8 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { dataKindFor, stepTextKey } from '@/data/kinds'
+
 import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
@@ -38,6 +40,12 @@ import { useToastStore } from '@/stores/toasts'
 defineProps<{ accept: string }>()
 
 const { t } = useI18n()
+
+/**
+ * 이 단계의 설명문. **등록부가 준다** (architecture.md §8.10) — `steps.data.purpose`를
+ * 직접 읽으면 표를 두고 쓴 문장("어떤 열이 있는지")이 이미지 화면에도 뜬다.
+ */
+const dataPurpose = stepTextKey(dataKindFor('tabular'), 'data', 'purpose')
 const project = useProjectStore()
 const toasts = useToastStore()
 
@@ -185,7 +193,7 @@ function kindOf(column: ColumnSummary): string {
     @dragleave="dragging = false"
     @drop.prevent="onDrop"
   >
-    <StepHeader :title="t('steps.data.label')" :purpose="t('steps.data.purpose')">
+    <StepHeader :title="t('steps.data.label')" :purpose="t(dataPurpose)">
       <template #context>
         <template v-if="saved">
           <div class="flex gap-1.5">

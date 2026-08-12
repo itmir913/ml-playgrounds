@@ -132,7 +132,7 @@
       "deleteTitle": "사진을 지울까요?",
       "dropHint": "사진이나 압축 파일을 여기에 끌어다 놓으세요.",
       "duplicates": "이미 있는 사진 {count}장은 넘어갔습니다.",
-      "emptyCategory": "이 범주에는 아직 사진이 없습니다.",
+      "emptyCategory": "이 범주에는 아직 사진이 없습니다. 사진 파일을 이곳에 끌어다 놓거나 [여기에 사진 추가]를 누르세요.",
       "emptyNext": "개·고양이처럼 구분하고 싶은 이름을 만들고, 그 칸에 사진을 넣으면 됩니다. 사진을 먼저 올려서 나중에 나눠도 됩니다.",
       "emptyReason": "먼저 나눌 범주를 만들어 보세요.",
       "moveTo": "옮길 곳",
@@ -141,11 +141,12 @@
       "nameHint": "_로 시작할 수 없고, 경로에 못 쓰는 문자는 넣을 수 없습니다.",
       "nameTaken": "같은 이름의 범주가 이미 있습니다.",
       "newCategory": "범주 만들기",
-      "noUnlabeled": "라벨 없는 사진이 없습니다.",
+      "noUnlabeled": "라벨 없는 사진이 없습니다. 어느 범주에도 넣지 않은 사진이 여기로 옵니다.",
       "photos": "사진",
       "photosPerCategory": "범주별 사진 수",
       "pickAll": "모두 선택",
       "pickCategory": "범주 선택",
+      "purpose": "구분하고 싶은 범주를 만들고, 각 범주에 사진을 모읍니다.",
       "readTitle": "사진 {count}장을 읽었습니다.",
       "removeCategory": "범주 없애기",
       "removeCategoryDescription": "사진은 지워지지 않고 라벨만 떨어집니다. ({name})",
@@ -283,6 +284,9 @@
     "emptyReason": "아직 프로젝트를 열지 않았습니다.",
     "failedHere": "학습에 실패했습니다. 이유 보기",
     "finished": "학습이 끝났습니다.",
+    "image": {
+      "locked": "범주를 둘 이상 만들고 사진을 넣어 주세요."
+    },
     "lastRun": "마지막 학습 {at}",
     "lastRunFailed": "모델 {count}개가 학습되지 않았습니다.",
     "leaveBody": "지금 나가면 학습이 멈추고 결과가 남지 않습니다. 다시 학습해야 합니다.",
@@ -680,6 +684,7 @@
       "emptyNext": "예측할 사진을 올리면 모델들이 각각 답을 냅니다.",
       "emptyReason": "아직 올린 사진이 없습니다.",
       "photo": "예측할 사진",
+      "purpose": "새 사진을 올리면 모델이 각각 답을 내놓습니다.",
       "remove": "빼기"
     }
   }

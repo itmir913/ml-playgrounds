@@ -15,19 +15,22 @@ import { useI18n } from 'vue-i18n'
 
 import AppEmpty from '@/components/AppEmpty.vue'
 import StepHeader from '@/components/StepHeader.vue'
-import { dataKindFor } from '@/data/kinds'
+import { dataKindFor, stepTextKey } from '@/data/kinds'
 import { useProjectStore } from '@/stores/project'
 
 const { t } = useI18n()
 const project = useProjectStore()
 
 const kind = computed(() => dataKindFor(project.file?.document.manifest.dataType ?? ''))
+
+/** 설명문도 종류가 준다 (architecture.md §8.10) — 표는 "표에 새 줄을 하나 넣으면"이다. */
+const purpose = computed(() => stepTextKey(kind.value, 'predict', 'purpose'))
 </script>
 
 <template>
   <!-- `min-h-full`인 이유는 `views/data/TabularPanel.vue`에 적어 두었다. -->
   <div class="flex min-h-full flex-col gap-5 p-4 sm:p-5">
-    <StepHeader :title="t('steps.predict.label')" :purpose="t('steps.predict.purpose')" />
+    <StepHeader :title="t('steps.predict.label')" :purpose="t(purpose)" />
 
     <component :is="kind.predictPanel" v-if="kind" />
     <AppEmpty v-else :reason="t('data.unsupportedKind')" :next="t('data.unsupportedKindNext')" />

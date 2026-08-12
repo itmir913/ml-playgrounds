@@ -14,6 +14,7 @@ import { defineAsyncComponent, type Component } from 'vue'
 import { IMAGE_ACCEPT } from '@/data/image/upload'
 import { TABULAR_ACCEPT } from '@/data/table'
 import type { DataType } from '@/project/schema'
+import type { StepId } from '@/router/steps'
 
 export interface DataKind {
   readonly dataType: DataType
@@ -65,6 +66,35 @@ export interface DataKind {
    * 갈리는 이유가 문구가 아니라 **동작의 수**다.
    */
   readonly predictPanel: Component
+  /**
+   * 단계 문구 중 **이 종류에서 달라지는 것만** (architecture.md §8.10).
+   *
+   * 없으면 `steps.{단계}.{자리}`가 기본이다. **전부를 다시 쓰게 하지 않는다** — 여섯
+   * 단계를 종류마다 적게 하면 공통 문장이 종류 수만큼 복제되고, 그중 하나만 고치는
+   * 일이 반드시 생긴다. 체크리스트 문구(`router/steps.ts`의 `TASK_LABELS`)와 같은
+   * 모양이다.
+   *
+   * **빠뜨리면 `tests/kinds.spec.ts`가 운다.** `Partial`이라 타입으로는 못 잡는다.
+   *
+   * **키는 `steps.*` 아래가 아니라 그 화면의 이름 아래다** (`data.image.purpose`).
+   * `steps.*`에는 단계 id만 온다는 것을 `tests/locales.spec.ts`가 지키고 있고, 그
+   * 규칙이 맞다 — 여기 있는 것은 단계의 문구가 아니라 **그 화면이 이 종류에서 하는
+   * 말**이다.
+   */
+  readonly stepText: Partial<Record<StepId, { purpose?: string; locked?: string }>>
+}
+
+/**
+ * 이 종류에서 이 단계의 문구 키. **화면은 이것만 부른다** — `steps.*`를 직접 읽으면
+ * 종류가 늘 때 고칠 자리가 화면 수만큼이 되고, 그중 하나를 빠뜨린 것은 컴파일도
+ * 검사도 못 잡는다 (§9.1).
+ */
+export function stepTextKey(
+  kind: DataKind | undefined,
+  step: StepId,
+  slot: 'purpose' | 'locked',
+): string {
+  return kind?.stepText[step]?.[slot] ?? `steps.${step}.${slot}`
 }
 
 /**
@@ -81,6 +111,8 @@ export const DATA_KINDS: readonly DataKind[] = [
     prepContext: defineAsyncComponent(() => import('@/views/preprocess/TabularPrepContext.vue')),
     trainContext: defineAsyncComponent(() => import('@/views/train/TabularTrainContext.vue')),
     predictPanel: defineAsyncComponent(() => import('@/views/predict/TabularPredictPanel.vue')),
+    // 표는 기본 문구가 곧 자기 문구다 — `steps.*`가 표를 두고 쓰인 문장이다.
+    stepText: {},
   },
   {
     dataType: 'image',
@@ -91,6 +123,14 @@ export const DATA_KINDS: readonly DataKind[] = [
     prepContext: defineAsyncComponent(() => import('@/views/preprocess/ImagePrepContext.vue')),
     trainContext: defineAsyncComponent(() => import('@/views/train/ImageTrainContext.vue')),
     predictPanel: defineAsyncComponent(() => import('@/views/predict/ImagePredictPanel.vue')),
+    stepText: {
+      // "어떤 열이 있는지"는 이미지에 없는 말이다.
+      data: { purpose: 'data.image.purpose' },
+      // "표에 새 줄을 하나 넣으면"도 마찬가지다.
+      predict: { purpose: 'predict.image.purpose' },
+      // 잠금 이유가 "타깃과 특성을 정해 주세요"인데 이미지에는 둘 다 없다.
+      train: { locked: 'train.image.locked' },
+    },
   },
 ]
 

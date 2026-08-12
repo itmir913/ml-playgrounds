@@ -132,7 +132,7 @@
       "deleteTitle": "Delete these photos?",
       "dropHint": "Drop photos or a zip file here.",
       "duplicates": "Skipped {count} photo you already have. | Skipped {count} photos you already have.",
-      "emptyCategory": "No photos in this category yet.",
+      "emptyCategory": "No photos in this category yet. Drop photo files here, or use [Add photos here].",
       "emptyNext": "Name what you want to tell apart — dog, cat — then add photos to that box. You can also add photos first and sort them later.",
       "emptyReason": "Start by creating the categories you want to sort into.",
       "moveTo": "Move to",
@@ -141,11 +141,12 @@
       "nameHint": "Cannot start with _ or contain characters that are not allowed in a path.",
       "nameTaken": "A category with this name already exists.",
       "newCategory": "New category",
-      "noUnlabeled": "No unlabeled photos.",
+      "noUnlabeled": "No unlabeled photos. Photos you have not sorted into a category land here.",
       "photos": "Photos",
       "photosPerCategory": "Photos per category",
       "pickAll": "Select all",
       "pickCategory": "Choose a category",
+      "purpose": "Create the categories you want to tell apart, then collect photos in each one.",
       "readTitle": "Read {count} photo. | Read {count} photos.",
       "removeCategory": "Delete category",
       "removeCategoryDescription": "The photos stay — only the label is removed. ({name})",
@@ -283,6 +284,9 @@
     "emptyReason": "No project is open yet.",
     "failedHere": "Training failed. See why",
     "finished": "Training finished.",
+    "image": {
+      "locked": "Create at least two categories and add photos to them."
+    },
     "lastRun": "Last trained {at}",
     "lastRunFailed": "{count} model was not trained. | {count} models were not trained.",
     "leaveBody": "If you leave now, training stops and no result is kept. You will have to train again.",
@@ -680,6 +684,7 @@
       "emptyNext": "Add photos and each model will give its own answer.",
       "emptyReason": "No photos yet.",
       "photo": "Photo to predict",
+      "purpose": "Add new photos and each model gives its own answer.",
       "remove": "Remove"
     }
   }
