@@ -32,6 +32,7 @@ import { loadModel, loadModelProba, type LoadContext } from '@/ml/models'
 import { predictableModels, type Answer, type PredictableModel } from '@/ml/predict'
 import { parsePreprocessor, transform, type Preprocessor } from '@/ml/preprocess'
 import { addEmbeddings, readEmbeddings } from '@/project/embeddings'
+import { IMAGE_PREDICT_PAGE_SIZE } from '@/limits'
 import { IMAGE_UNLABELED } from '@/project/format'
 import { addImages, readImages, removeImages } from '@/project/images'
 import { dataSettings } from '@/project/schema'
@@ -60,6 +61,44 @@ const backbone = computed(() => {
 
 /** 예측 자리에 앉은 사진들. 범주 폴더가 없는 한 겹이다 (mlpx-spec.md §1.2). */
 const photos = computed(() => readImages(project.file, 'predict'))
+
+/**
+ * 지금 쪽. **끊는 이유가 화면이 아니라 계산이다** — 답 하나가 `사진 수 × 모델 수`이고
+ * 임베딩도 그만큼 뽑는다 (`limits.ts`의 `IMAGE_PREDICT_PAGE_SIZE`).
+ */
+const page = ref(0)
+
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(photos.value.length / IMAGE_PREDICT_PAGE_SIZE)),
+)
+
+/** 사진이 줄면 지금 쪽이 빈 쪽이 될 수 있다. 그때 빈 화면을 보이면 다 사라진 줄 안다. */
+watch(totalPages, (count) => {
+  if (page.value > count - 1) page.value = count - 1
+})
+
+/** 이 쪽에 세울 사진들. **뽑는 것도 예측하는 것도 이만큼이다.** */
+const shown = computed(() =>
+  photos.value.slice(
+    page.value * IMAGE_PREDICT_PAGE_SIZE,
+    (page.value + 1) * IMAGE_PREDICT_PAGE_SIZE,
+  ),
+)
+
+/**
+ * 한 번이라도 [예측]을 눌렀는가. **쪽을 넘길 때 자동으로 이어 도는 근거다** —
+ * 안 누른 학생에게 백본 12.4MB를 받게 하지 않으면서, 누른 뒤에는 쪽마다 다시 누르게
+ * 하지 않는다.
+ */
+const predicted = ref(false)
+
+/**
+ * 넘길 수 있는가. **템플릿에서 조건을 조립하지 않는다** (architecture.md §10) —
+ * 도는 중에 넘기면 답이 이 쪽 것인지 저 쪽 것인지 알 수 없다. `BatchPredict`가 같은
+ * 이름으로 같은 일을 한다.
+ */
+const atFirstPage = computed(() => predicting.value || page.value === 0)
+const atLastPage = computed(() => predicting.value || page.value >= totalPages.value - 1)
 
 const models = computed<readonly PredictableModel[]>(() => {
   const file = project.file
@@ -165,8 +204,11 @@ async function run(): Promise<void> {
   try {
     let current = file
     const known = readEmbeddings(current, spec.id, spec.embeddingDim)
+    // **이 쪽의 사진만이다.** 200장을 한 번에 뽑으면 학생이 보지도 않을 사진 때문에
+    // 기다린다 (limits.ts의 `IMAGE_PREDICT_PAGE_SIZE`).
+    const wanted = new Set(shown.value.map((photo) => photo.hash))
     const pending = pendingEmbeddings(current, new Set(known.keys())).filter((entry) =>
-      photos.value.some((photo) => photo.hash === entry.hash),
+      wanted.has(entry.hash),
     )
 
     if (pending.length > 0) {
@@ -200,10 +242,12 @@ async function run(): Promise<void> {
       ),
     }
 
-    const next = new Map<string, Map<string, Answer>>()
+    // **이미 낸 답은 그대로 둔다.** 쪽을 되돌아갔을 때 다시 계산하지 않는다.
+    const next = new Map(answers.value)
     const contexts = new Map<string, LoadContext>()
 
     for (const [index, photo] of photos.value.entries()) {
+      if (!wanted.has(photo.hash)) continue
       const perRun = new Map<string, Answer>()
       for (const entry of models.value) {
         if (entry.reason) continue
@@ -251,6 +295,7 @@ async function run(): Promise<void> {
       next.set(photo.hash, perRun)
     }
     answers.value = next
+    predicted.value = true
   } catch (error) {
     toasts.pushError(error)
   } finally {
@@ -287,6 +332,15 @@ function removeOne(hash: string): void {
 function clearAll(): Promise<void> {
   return drop(photos.value.map((photo) => photo.hash))
 }
+
+/**
+ * 쪽을 넘기면 그 쪽을 이어서 돌린다. **한 번 누른 뒤에는 쪽마다 다시 누르게 하지
+ * 않는다** — 학생이 하려는 일은 "이 사진들의 답 보기"이지 쪽 넘기기가 아니다.
+ */
+watch(page, () => {
+  const missing = shown.value.some((photo) => !answers.value.has(photo.hash))
+  if (predicted.value && missing) void run()
+})
 
 /** 해시 -> 썸네일 주소. 만든 자리와 놓아주는 자리를 함께 둔다. */
 const urls = ref(new Map<string, string>())
@@ -359,7 +413,7 @@ const canPredict = computed(
     -->
     <ul v-else class="flex flex-col gap-3">
       <li
-        v-for="photo in photos"
+        v-for="photo in shown"
         :key="photo.hash"
         class="flex flex-col gap-3 rounded-panel border border-line bg-surface p-4 md:flex-row"
       >
@@ -397,6 +451,17 @@ const canPredict = computed(
         </button>
       </li>
     </ul>
+
+    <!-- 쪽이 하나뿐이면 안 그린다. 아무 데도 못 가는 버튼은 고장으로 보인다. -->
+    <div v-if="totalPages > 1" class="flex items-center justify-between gap-4">
+      <AppButton variant="secondary" :disabled="atFirstPage" @click="page -= 1">
+        {{ t('common.prevPage') }}
+      </AppButton>
+      <p class="tabular-nums text-ink-soft">{{ page + 1 }} / {{ totalPages }}</p>
+      <AppButton variant="secondary" :disabled="atLastPage" @click="page += 1">
+        {{ t('common.nextPage') }}
+      </AppButton>
+    </div>
 
     <AppDialog
       :open="clearing"
