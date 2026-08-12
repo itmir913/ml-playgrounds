@@ -10,10 +10,23 @@
 import { describe, expect, it } from 'vitest'
 
 import { describeChanges, memberDiff } from '../src/ml/changes'
-import { runExperiment, type ExperimentInput } from '../src/ml/experiment'
+import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/ml/experiment'
+import { dataSnapshot } from '../src/project/schema'
 import type { RuntimeContext } from '../src/ml/backend'
 import type { Experiment, Settings, TabularSettings } from '../src/project/schema'
 import { IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN, irisDataset } from './fixtures/iris'
+
+/**
+ * 스냅샷은 **표에서는 설정에서 그대로 나온다** (open-decisions.md "이미지 학습은 표
+ * 문제로 바꿔서 푼다"). 검사가 매번 손으로 적을 값이 아니라 여기서 한 번 채운다 —
+ * 갈리는 것은 이미지뿐이고 그건 어댑터가 짓는다.
+ */
+function runExperiment(
+  input: Omit<ExperimentInput, 'snapshot'>,
+  options?: Parameters<typeof runExperimentRaw>[1],
+): ReturnType<typeof runExperimentRaw> {
+  return runExperimentRaw({ ...input, snapshot: dataSnapshot('tabular', input.settings) }, options)
+}
 
 const BROWSER_ONLY: RuntimeContext = { serverStatus: 'unavailable', rowCount: 30 }
 
@@ -58,7 +71,7 @@ function settingsFor(overrides: SettingsOverrides = {}): Settings {
   }
 }
 
-function inputFor(settings: Settings): ExperimentInput {
+function inputFor(settings: Settings): Omit<ExperimentInput, 'snapshot'> {
   return {
     dataset: irisDataset(),
     // provided를 골랐을 때만 쓰인다 - holdout이면 splitRows가 아예 보지 않는다

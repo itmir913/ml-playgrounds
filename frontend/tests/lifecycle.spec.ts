@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest'
 
 import { toCanonicalCsv } from '../src/data/serialize'
 import { evaluate } from '../src/ml/metrics'
-import { runExperiment } from '../src/ml/experiment'
+import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/ml/experiment'
 import { inputVector, predictableModels, trainingRowsFor } from '../src/ml/predict'
 import { interpreterFor, loadModel } from '../src/ml/models'
 import { parsePreprocessor, targetValues, type Dataset } from '../src/ml/preprocess'
@@ -34,6 +34,18 @@ import {
 } from '../src/project/schema'
 import { emptyProjectFile } from './fixtures/project'
 import { irisDataset, IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN } from './fixtures/iris'
+
+/**
+ * 스냅샷은 **표에서는 설정에서 그대로 나온다** (open-decisions.md "이미지 학습은 표
+ * 문제로 바꿔서 푼다"). 검사가 매번 손으로 적을 값이 아니라 여기서 한 번 채운다 —
+ * 갈리는 것은 이미지뿐이고 그건 어댑터가 짓는다.
+ */
+function runExperiment(
+  input: Omit<ExperimentInput, 'snapshot'>,
+  options?: Parameters<typeof runExperimentRaw>[1],
+): ReturnType<typeof runExperimentRaw> {
+  return runExperimentRaw({ ...input, snapshot: dataSnapshot('tabular', input.settings) }, options)
+}
 
 /** 서버도 없고 무거운 엔진도 없다. **공식 배포(GitHub Pages)의 기본 상태다.** */
 const OFFLINE = { serverStatus: 'unavailable' as const, rowCount: 30 }

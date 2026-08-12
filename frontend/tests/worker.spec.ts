@@ -21,6 +21,7 @@ import { handleTrain } from '../src/ml/worker/handler'
 import type { TrainRequest, WorkerMessage } from '../src/ml/worker/protocol'
 import type { RunsFile, Settings, TabularSettings } from '../src/project/schema'
 import { IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN, irisDataset } from './fixtures/iris'
+import { dataSnapshot } from '../src/project/schema'
 
 const models = (...names: string[]) => names.map((algorithm) => ({ algorithm }))
 
@@ -79,6 +80,8 @@ function inputFor(settings: Settings = settingsFor()): ExperimentInput {
     dataType: 'tabular',
     settings,
     context: { serverStatus: 'unavailable', rowCount: 30 },
+    // 표에서는 설정에서 그대로 나온다. 갈리는 것은 이미지뿐이고 그건 어댑터가 짓는다.
+    snapshot: dataSnapshot('tabular', settings),
   }
 }
 

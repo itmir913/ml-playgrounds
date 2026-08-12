@@ -78,6 +78,19 @@ export interface ExperimentInput {
   settings: Settings
   /** 서버 유무·엔진 준비 상태·행 수. 실행 방법 판정에 쓴다. */
   context: RuntimeContext
+  /**
+   * **파일에 남길 종류별 스냅샷.** 위 `settings`는 계산에 쓰는 값이고, 이것은 기록이다.
+   *
+   * 둘이 갈리는 자리는 여기 하나뿐이다 — 이미지는 임베딩을 **열 이름 붙인 표**로 바꿔서
+   * 이 함수로 들어오는데(open-decisions.md "이미지 학습은 표 문제로 바꿔서 푼다"),
+   * 그 표의 `f0…f1279`가 실험 기록에 적히면 거짓말이다. 학생이 고른 것도 아니고 다시
+   * 열었을 때 뜻도 없다.
+   *
+   * **그래서 짓지 않고 받는다.** 인자로 세워 두면 이 함수 안에 `if (dataType ===
+   * 'image')`가 안 생긴다. 표를 부르는 쪽은 `dataSnapshot('tabular', settings)`를 그대로
+   * 넘기므로 파일에 남는 값이 안 바뀐다.
+   */
+  snapshot: Experiment['settings']['data']
 }
 
 export interface ExperimentOptions {
@@ -448,11 +461,11 @@ export function runExperiment(
   input: ExperimentInput,
   options: ExperimentOptions = {},
 ): ExperimentResult {
-  const { dataset, testDataset, settings, taskType, dataType, context } = input
+  const { dataset, testDataset, settings, taskType, dataType, context, snapshot } = input
   /**
-   * **이 함수는 아직 표 전용이다.** 이미지는 임베딩을 뽑아 여기로 들어오는 경로가 아직
-   * 없다 (roadmap.md V4). 어긋나면 던지는 쪽이 맞다 — 표 코드가 이미지 설정을 읽으면
-   * 특성 목록이 `undefined`인 채로 학습이 시작된다.
+   * **여기서 읽는 설정은 언제나 표의 모양이다.** 이미지도 임베딩을 열 이름 붙인 표로
+   * 바꿔서 들어오므로(open-decisions.md "이미지 학습은 표 문제로 바꿔서 푼다") 이
+   * 자리에 종류 분기가 없다. **파일에 남는 것만 갈리고**, 그건 `input.snapshot`이다.
    */
   const data = dataSettings('tabular', settings)
   const now = options.now ?? (() => new Date().toISOString())
@@ -653,14 +666,10 @@ export function runExperiment(
     // explicit은 요청을 만드는 동안만 쓰는 값이라 파일에 남기지 않는다.
     // 스냅샷에는 결과적으로 무엇을 요청했는지만 있으면 된다.
     selectedAlgorithms: requested.map(({ algorithm, runtime }) => ({ algorithm, runtime })),
-    // 데이터 종류별 스냅샷 (mlpx-spec.md §4). 정본 참조는 여기 없다 - 실험이 보장하는
-    // 것은 같은 데이터·전처리·분할이고, 어느 파일에서 왔는지는 그 목록에 없다.
-    data: {
-      features: data.features,
-      // 군집화에는 타깃이 없다. 스키마에서 선택 항목이다 (schema.ts).
-      ...(target ? { target } : {}),
-      preprocessing: data.preprocessing,
-    },
+    // 데이터 종류별 스냅샷 (mlpx-spec.md §4). **부르는 쪽이 지어서 준다** — 정본 참조가
+    // 여기 없는 것과 같은 이유이고(실험이 보장하는 것은 같은 데이터·전처리·분할이다),
+    // 이미지는 계산에 쓴 표가 아니라 범주와 백본이 기록이다.
+    data: snapshot,
     split: settings.split,
     // 선택 항목이다 - 안 뽑은 실험에는 아예 없다 (schema.ts). undefined를 그대로 넣으면
     // 그 키가 파일에 `null`로 남거나 사라지는 것이 직렬화에 달리게 된다.

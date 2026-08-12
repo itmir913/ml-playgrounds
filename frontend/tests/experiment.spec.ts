@@ -16,7 +16,8 @@ import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
 import type { Algorithm } from '../src/ml/algorithms'
-import { runExperiment, type ExperimentInput } from '../src/ml/experiment'
+import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/ml/experiment'
+import { dataSnapshot } from '../src/project/schema'
 import { trainableRowCount } from '../src/ml/selection'
 import { NOT_FOR_TABULAR_ALGORITHM } from './fixtures/algorithms'
 import type { RuntimeContext } from '../src/ml/backend'
@@ -38,6 +39,18 @@ import {
   irisDataset,
   IRIS_FEATURES,
 } from './fixtures/iris'
+
+/**
+ * 스냅샷은 **표에서는 설정에서 그대로 나온다** (open-decisions.md "이미지 학습은 표
+ * 문제로 바꿔서 푼다"). 검사가 매번 손으로 적을 값이 아니라 여기서 한 번 채운다 —
+ * 갈리는 것은 이미지뿐이고 그건 어댑터가 짓는다.
+ */
+function runExperiment(
+  input: Omit<ExperimentInput, 'snapshot'>,
+  options?: Parameters<typeof runExperimentRaw>[1],
+): ReturnType<typeof runExperimentRaw> {
+  return runExperimentRaw({ ...input, snapshot: dataSnapshot('tabular', input.settings) }, options)
+}
 
 /**
  * 모델 목록을 짧게 쓴다. 실행 방법을 안 적으면 실험 기본(settings.runtime)을 따른다 -
@@ -95,7 +108,9 @@ function settingsFor(overrides: SettingsOverrides = {}): Settings {
   }
 }
 
-function inputFor(overrides: Partial<ExperimentInput> = {}): ExperimentInput {
+function inputFor(
+  overrides: Partial<Omit<ExperimentInput, 'snapshot'>> = {},
+): Omit<ExperimentInput, 'snapshot'> {
   return {
     dataset: irisDataset(),
     testDataset: null,

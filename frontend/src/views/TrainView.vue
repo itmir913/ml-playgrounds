@@ -43,7 +43,7 @@ import { failedRuns } from '@/ml/results'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
 import { applyExperiment } from '@/project/attach'
 import { readDataset, readTestDataset } from '@/project/dataset'
-import { tabularDataOf, type ProjectDocument, type TaskType } from '@/project/schema'
+import { dataSnapshot, tabularDataOf, type ProjectDocument, type TaskType } from '@/project/schema'
 import {
   withHyperparameter,
   withRuntime,
@@ -341,6 +341,10 @@ async function startTraining(): Promise<void> {
         dataType: file.document.manifest.dataType,
         settings: file.document.settings,
         context: context.value,
+        // **파일에 남는 것은 계산에 쓴 설정이 아니라 기록이다.** 표에서는 둘이 같은
+        // 값이라 여기서 그대로 짓는다 — 갈리는 것은 이미지뿐이고, 그건 임베딩을 표로
+        // 바꾸는 어댑터가 짓는다 (open-decisions.md "이미지 학습은 표 문제로 바꿔서 푼다").
+        snapshot: dataSnapshot('tabular', file.document.settings),
       },
       history: file.document.runs,
     })
