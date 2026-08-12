@@ -9,7 +9,12 @@
  *
  * **여기는 무엇을 거르는 축인지 모른다.** 이름표는 이미 번역된 채로 온다 —
  * `AppChoices`와 같은 이유다.
+ *
+ * **그릴 축이 없으면 통째로 안 그린다.** 축은 저마다 둘 이상일 때만 서는데, 바깥 칸은
+ * 남아서 **아무것도 안 든 빈 카드**가 화면에 떴다 — 학생에게는 무언가 안 뜬 고장이다.
  */
+
+import { computed } from 'vue'
 
 export interface FilterOption {
   readonly id: string
@@ -32,6 +37,16 @@ const emit = defineEmits<{
   toggleAlgorithm: [id: string]
 }>()
 
+/**
+ * 그 축을 그리는가. **하나뿐이면 안 그린다** - 끌 수 있는 것이 하나뿐인 필터는 누르면
+ * 화면이 비는 버튼이고, 학생이 그것으로 알 수 있는 것이 없다.
+ *
+ * **템플릿에서 조건을 조립하지 않는다** (architecture.md 10).
+ */
+const showExperiments = computed(() => props.experiments.length > 1)
+const showAlgorithms = computed(() => props.algorithms.length > 1)
+const hasAxis = computed(() => showExperiments.value || showAlgorithms.value)
+
 /** 테두리는 늘 있고 색만 바뀐다 - `AppChoices`와 같은 이유(칸 안쪽 폭이 상태에 따라 흔들리면 안 된다). */
 function chipClass(on: boolean): string {
   return on
@@ -41,8 +56,11 @@ function chipClass(on: boolean): string {
 </script>
 
 <template>
-  <div class="flex flex-wrap gap-x-6 gap-y-3 rounded-panel border border-line bg-surface p-4">
-    <div v-if="props.experiments.length > 1" class="min-w-0">
+  <div
+    v-if="hasAxis"
+    class="flex flex-wrap gap-x-6 gap-y-3 rounded-panel border border-line bg-surface p-4"
+  >
+    <div v-if="showExperiments" class="min-w-0">
       <h3 class="font-bold text-ink-soft">{{ props.experimentsLabel }}</h3>
       <div class="mt-1.5 flex flex-wrap gap-1.5">
         <button
@@ -60,7 +78,7 @@ function chipClass(on: boolean): string {
       </div>
     </div>
 
-    <div v-if="props.algorithms.length > 1" class="min-w-0">
+    <div v-if="showAlgorithms" class="min-w-0">
       <h3 class="font-bold text-ink-soft">{{ props.algorithmsLabel }}</h3>
       <div class="mt-1.5 flex flex-wrap gap-1.5">
         <button
