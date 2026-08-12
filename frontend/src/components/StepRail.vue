@@ -89,10 +89,11 @@ function reason(step: StepId): string {
 /**
  * 칸 하나의 공통 모양. 아이콘 위, 글자 아래.
  *
- * **좌우 여백도 세로일 때만이다.** 레일에서는 글자 자리를 그만큼 잡아먹어 `대시보드`가
- * 두 줄로 접힌다(theme.css의 `--spacing-rail`). 칸의 여백은 레일 자신의 `p-1`이 이미
- * 주고 있다. 가로로 누우면 이름이 숨고 아이콘만 남아서, 거기서는 이 여백이 칸과 칸
- * 사이의 유일한 숨통이다.
+ * **좌우 여백도 세로일 때만이다.** 레일 4.5rem에서 글자에 돌아가는 자리는 여백을 뺀
+ * 나머지인데, 칸의 `px-1`과 레일의 `p-1`이 양쪽에서 0.5rem씩 먹어 3.5rem만 남았다 —
+ * `대시보드`는 4rem이라 **반 글자가 모자라 접혔다.** 그래서 세로에서는 칸의 좌우
+ * 여백을 없애고 레일 쪽도 반으로 줄인다. 가로로 누우면 이름이 숨고 아이콘만 남아서,
+ * 거기서는 이 여백이 칸과 칸 사이의 유일한 숨통이다.
  *
  * **`w-full`은 세로일 때만이다.** 가로로 누우면 칸마다 nav 전체 너비를 요구해서
  * 여덟 칸이 통째로 넘치고, `justify-center`와 겹치면 넘친 쪽이 양옆으로 잘려
@@ -116,7 +117,7 @@ const LABEL = 'w-full text-center break-keep break-words hyphens-auto'
 <template>
   <nav
     :aria-label="t('shell.steps')"
-    class="scrollbar-none flex shrink-0 gap-1 overflow-x-auto border-line bg-surface-sunken p-1 max-md:order-last max-md:justify-center max-md:border-t md:w-rail md:flex-col md:overflow-x-hidden md:overflow-y-auto md:border-r"
+    class="scrollbar-none flex shrink-0 gap-1 overflow-x-auto border-line bg-surface-sunken p-1 max-md:order-last max-md:justify-center max-md:border-t md:w-rail md:px-0.5 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:border-r"
   >
     <!--
       프로젝트 홈. **단계가 아니라 그 위에 있는 자리**라 STEP_IDS에 없고 여기 손으로
