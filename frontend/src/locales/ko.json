@@ -25,7 +25,11 @@
     "portfolioWritten": "포트폴리오 작성하기",
     "title": "해야 할 일",
     "allDone": "이 단계에서 할 일을 모두 마쳤습니다.",
-    "taskTypeChosen": "기계학습 유형 정하기"
+    "taskTypeChosen": "기계학습 유형 정하기",
+    "image": {
+      "datasetReady": "사진 올리기",
+      "targetChosen": "범주 나누기"
+    }
   },
   "shell": {
     "steps": "단계",

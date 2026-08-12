@@ -12,7 +12,7 @@
  * 단계 순서는 **학생이 프로젝트를 만들어 가는 워크플로**다. 수행평가 진행 순서가 아니다.
  */
 
-import type { TaskType } from '@/project/schema'
+import type { DataType, TaskType } from '@/project/schema'
 
 /** 화면에 나오는 순서 그대로다. 이 배열이 레일의 순서이자 되돌아갈 순서다. */
 export const STEP_IDS = ['data', 'preprocess', 'train', 'results', 'predict', 'portfolio'] as const
@@ -124,8 +124,11 @@ export function isStepUnlocked(
   step: StepId,
   facts: ProjectFacts,
   taskType?: TaskType | undefined,
+  dataType?: DataType | undefined,
 ): boolean {
-  return STEPS[step].requires.every((fact) => !factAppliesTo(fact, taskType) || facts[fact])
+  return STEPS[step].requires.every(
+    (fact) => !factAppliesTo(fact, taskType, dataType) || facts[fact],
+  )
 }
 
 /** 이 단계에 들어가려면 참이어야 하는 사실들. 검사가 표를 훑는 데 쓴다. */
@@ -171,14 +174,59 @@ const FACTS_NOT_IN_TASK: Readonly<Record<TaskType, readonly FactKey[]>> = {
  * **유형을 아직 안 골랐으면 전부 해당한다.** 없는 것을 미리 빼면 학생이 유형을 고르기도
  * 전에 화면에서 항목이 사라지고, 그 뒤에 분류를 고르면 다시 나타난다.
  */
-export function factAppliesTo(fact: FactKey, taskType?: TaskType | undefined): boolean {
+const FACTS_NOT_IN_DATA_TYPE: Readonly<Record<DataType, readonly FactKey[]>> = {
+  tabular: [],
+  // **학생이 특성을 안 고른다. 백본이 만든다** (open-decisions.md "이미지에서 체크리스트
+  // 세 항목은 무엇인가"). `featuresChosen`을 `false`로 두면 학습 단계에 영원히 못
+  // 들어가고, `true`로 두면 아무 뜻 없는 체크가 하나 뜬다. 답은 **항목이 아닌 것**이다.
+  image: ['featuresChosen'],
+}
+
+/**
+ * 종류마다 다른 문구. **없으면 `tasks.{key}`가 기본이다.**
+ *
+ * 사실의 이름은 종류마다 안 가른다 — 가르면 같은 자리를 뜻하는 이름이 둘이 되고
+ * 잠금표가 종류마다 갈린다. **갈리는 것은 문구뿐이다** (§8.10).
+ */
+const TASK_LABELS: Readonly<Record<DataType, Partial<Record<FactKey, string>>>> = {
+  tabular: {},
+  image: {
+    datasetReady: 'tasks.image.datasetReady',
+    // 이미지에는 타깃 열이 없다. 학생이 하는 일은 범주를 나누는 것이다.
+    targetChosen: 'tasks.image.targetChosen',
+  },
+}
+
+/**
+ * 이 과제 유형과 데이터 종류에 해당하는 사실인가. 해당하지 않으면 할 일에도 잠금
+ * 조건에도 안 쓰인다.
+ *
+ * **유형을 아직 안 골랐으면 전부 해당한다.** 없는 것을 미리 빼면 학생이 유형을 고르기도
+ * 전에 화면에서 항목이 사라지고, 그 뒤에 분류를 고르면 다시 나타난다.
+ *
+ * **데이터 종류는 다르다 — 프로젝트를 만들 때 정해져 안 바뀐다**(open-decisions.md)
+ * 그래서 처음부터 뺄 수 있고, 안 빼면 학생이 못 채우는 항목을 계속 본다.
+ */
+export function factAppliesTo(
+  fact: FactKey,
+  taskType?: TaskType | undefined,
+  dataType?: DataType | undefined,
+): boolean {
+  if (dataType !== undefined && FACTS_NOT_IN_DATA_TYPE[dataType].includes(fact)) return false
   return taskType === undefined || !FACTS_NOT_IN_TASK[taskType].includes(fact)
+}
+
+/** 이 사실을 이 종류에서 뭐라고 부르는가. */
+export function factLabelKey(fact: FactKey, dataType?: DataType | undefined): string {
+  return (dataType === undefined ? undefined : TASK_LABELS[dataType][fact]) ?? `tasks.${fact}`
 }
 
 /** 체크리스트 한 줄. 문구는 `tasks.{key}` 로케일 키에서 온다. */
 export interface StepTask {
   readonly key: FactKey
   readonly done: boolean
+  /** 화면이 그대로 `t()`에 넣는다. 종류마다 갈릴 수 있다 (`factLabelKey`). */
+  readonly labelKey: string
 }
 
 /**
@@ -191,10 +239,11 @@ export function stepTasks(
   step: StepId,
   facts: ProjectFacts,
   taskType?: TaskType | undefined,
+  dataType?: DataType | undefined,
 ): StepTask[] {
   return STEPS[step].tasks
-    .filter((key) => factAppliesTo(key, taskType))
-    .map((key) => ({ key, done: facts[key] }))
+    .filter((key) => factAppliesTo(key, taskType, dataType))
+    .map((key) => ({ key, done: facts[key], labelKey: factLabelKey(key, dataType) }))
 }
 
 /**
@@ -206,10 +255,13 @@ export function stepTasks(
 export function currentTask(
   facts: ProjectFacts,
   taskType?: TaskType | undefined,
+  dataType?: DataType | undefined,
 ): { step: StepId; key: FactKey } | null {
   for (const step of STEP_IDS) {
-    if (!isStepUnlocked(step, facts, taskType)) continue
-    const pending = STEPS[step].tasks.find((key) => factAppliesTo(key, taskType) && !facts[key])
+    if (!isStepUnlocked(step, facts, taskType, dataType)) continue
+    const pending = STEPS[step].tasks.find(
+      (key) => factAppliesTo(key, taskType, dataType) && !facts[key],
+    )
     if (pending !== undefined) return { step, key: pending }
   }
   return null
@@ -228,10 +280,11 @@ export function resolveStep(
   requested: StepId,
   facts: ProjectFacts,
   taskType?: TaskType | undefined,
+  dataType?: DataType | undefined,
 ): StepId {
   for (let index = STEP_IDS.indexOf(requested); index >= 0; index -= 1) {
     const step = STEP_IDS[index]
-    if (step !== undefined && isStepUnlocked(step, facts, taskType)) {
+    if (step !== undefined && isStepUnlocked(step, facts, taskType, dataType)) {
       return step
     }
   }

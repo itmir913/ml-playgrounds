@@ -25,7 +25,11 @@
     "portfolioWritten": "Write the portfolio",
     "title": "To do",
     "allDone": "Everything in this step is done.",
-    "taskTypeChosen": "Choose the task type"
+    "taskTypeChosen": "Choose the task type",
+    "image": {
+      "datasetReady": "Add photos",
+      "targetChosen": "Sort into categories"
+    }
   },
   "shell": {
     "steps": "Steps",

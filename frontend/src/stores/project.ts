@@ -17,7 +17,8 @@ import {
   type DroppedModel,
   type ProjectFile,
 } from '@/project/format'
-import { tabularDataOf, type TaskType } from '@/project/schema'
+import { dataFactsOf } from '@/project/facts'
+import { type DataType, type TaskType } from '@/project/schema'
 import {
   loadProject,
   markExported,
@@ -43,11 +44,9 @@ export function factsOf(file: ProjectFile | null): ProjectFacts {
   return {
     // 참조와 본체는 함께 있고 함께 없다 (mlpx-spec.md §1). 어느 쪽을 봐도 같지만
     // 본체를 본다 - 화면이 알고 싶은 것은 "보여줄 표가 있는가"다.
-    datasetReady: file.dataset !== undefined,
-    // **표의 준비 상태다.** 이미지는 범주와 사진이 이 자리를 답하고, 이미지 판이 서는
-    // 커밋이 등록부에 그 판단을 넣는다 (roadmap.md V4 2단계).
-    targetChosen: tabularDataOf(file.document)?.target !== undefined,
-    featuresChosen: (tabularDataOf(file.document)?.features.length ?? 0) > 0,
+    // **데이터 쪽 셋은 종류가 답한다** (`project/facts.ts`). 표는 타깃 열과 특성 열로,
+    // 이미지는 사진과 범주로 같은 질문에 답한다 — 여기서 종류를 묻지 않는다.
+    ...dataFactsOf(file),
     // 기본값이 없으므로 이건 진짜로 "학생이 골랐는가"다
     // (open-decisions.md "기계학습 유형은 모델을 고르는 자리에서 고른다").
     taskTypeChosen: file.document.manifest.taskType !== undefined,
@@ -98,6 +97,8 @@ export const useProjectStore = defineStore('project', () => {
    * 어떤 사실도 빠지지 않는다 (factAppliesTo).
    */
   const taskType = computed<TaskType | undefined>(() => file.value?.document.manifest.taskType)
+  /** 이 프로젝트의 데이터 종류. 만들 때 정해져 안 바뀐다 (open-decisions.md). */
+  const dataType = computed<DataType | undefined>(() => file.value?.document.manifest.dataType)
 
   /**
    * 프로젝트를 연다. 이미 그 프로젝트가 열려 있으면 아무것도 하지 않는다.
@@ -254,6 +255,7 @@ export const useProjectStore = defineStore('project', () => {
     name,
     facts,
     taskType,
+    dataType,
     open,
     save,
     update,

@@ -170,9 +170,37 @@ describe('체크리스트', () => {
     expect(locked).toEqual(['predict'])
   })
 
-  it('데이터 단계의 할 일은 표를 올리는 것 하나다', () => {
-    expect(stepTasks('data', NO_FACTS, TASK)).toEqual([{ key: 'datasetReady', done: false }])
-    expect(stepTasks('data', ALL, TASK)).toEqual([{ key: 'datasetReady', done: true }])
+  it('데이터 단계의 할 일은 정본을 올리는 것 하나다', () => {
+    expect(stepTasks('data', NO_FACTS, TASK)).toEqual([
+      { key: 'datasetReady', done: false, labelKey: 'tasks.datasetReady' },
+    ])
+    expect(stepTasks('data', ALL, TASK)).toEqual([
+      { key: 'datasetReady', done: true, labelKey: 'tasks.datasetReady' },
+    ])
+  })
+
+  /**
+   * **데이터 종류마다 해당하지 않는 사실이 있다** (open-decisions.md "이미지에서
+   * 체크리스트 세 항목은 무엇인가"). 이미지에서 특성 고르기는 항목이 아니다 —
+   * 백본이 만든다. `false`로 두면 학습 단계에 영원히 못 들어간다.
+   */
+  it('이미지에서는 특성 고르기가 항목도 잠금 조건도 아니다', () => {
+    const keys = stepTasks('preprocess', NO_FACTS, 'classification', 'image').map(
+      (task) => task.key,
+    )
+    expect(keys).not.toContain('featuresChosen')
+
+    const ready = facts({ datasetReady: true, targetChosen: true })
+    expect(isStepUnlocked('train', ready, 'classification', 'image')).toBe(true)
+    // 표에서는 여전히 필요하다. 축을 더한 것이지 규칙을 무르게 한 것이 아니다.
+    expect(isStepUnlocked('train', ready, 'classification', 'tabular')).toBe(false)
+  })
+
+  /** 사실의 이름은 안 가르고 문구만 가른다 — 갈리면 잠금표가 종류마다 갈린다. */
+  it('같은 사실을 종류마다 다른 문구로 부른다', () => {
+    const [task] = stepTasks('data', NO_FACTS, TASK, 'image')
+    expect(task?.key).toBe('datasetReady')
+    expect(task?.labelKey).toBe('tasks.image.datasetReady')
   })
 
   it('보는 화면에는 할 일이 없다 - 빈 목록은 그리지 않는다', () => {

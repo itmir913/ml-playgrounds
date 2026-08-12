@@ -20,7 +20,9 @@ const props = defineProps<{ step: StepId }>()
 const { t } = useI18n()
 const project = useProjectStore()
 
-const tasks = computed(() => stepTasks(props.step, project.facts, project.taskType))
+const tasks = computed(() =>
+  stepTasks(props.step, project.facts, project.taskType, project.dataType),
+)
 const done = computed(() => tasks.value.every((task) => task.done))
 </script>
 
@@ -47,7 +49,7 @@ const done = computed(() => tasks.value.every((task) => task.done))
           :class="task.done ? 'text-ink-faint line-through' : 'font-bold text-ink'"
         >
           <span aria-hidden="true">{{ task.done ? '☑' : '☐' }}</span>
-          {{ t(`tasks.${task.key}`) }}
+          {{ t(task.labelKey) }}
         </li>
       </ul>
 
