@@ -19,7 +19,6 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
@@ -28,8 +27,7 @@ import StepHeader from '@/components/StepHeader.vue'
 import { useFormat } from '@/composables/useFormat'
 import { dataKindFor } from '@/data/kinds'
 import { newRandomState } from '@/project/create'
-import { readDataset } from '@/project/dataset'
-import type { ProjectDocument } from '@/project/schema'
+import { dataSettings, type ProjectDocument } from '@/project/schema'
 import { withRandomState, withSplit } from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
 
@@ -50,8 +48,18 @@ const settings = computed(() => project.file?.document.settings ?? null)
  */
 const kind = computed(() => dataKindFor(project.file?.document.manifest.dataType ?? ''))
 
-/** 정본을 파싱한 표. 바이트가 같으면 다시 파싱하지 않는다 (project/dataset.ts). */
-const dataset = computed(() => readDataset(project.file))
+/**
+ * 정본이 앉았는가. **종류를 안 묻는다** — 세 종류가 다 `settings.data.dataset`을 갖고,
+ * 그것이 없으면 아직 전처리할 것이 없다는 뜻이 종류를 가리지 않고 같다.
+ *
+ * 예전에는 이 자리가 "표가 파싱되는가"였다. 그러면 이미지 프로젝트는 **영원히 빈
+ * 화면**이고, 그 사실이 컴파일에서도 검사에서도 안 드러난다.
+ */
+const hasData = computed(() => {
+  const file = project.file
+  if (!file) return false
+  return dataSettings(file.document.manifest.dataType, file.document.settings).dataset !== undefined
+})
 
 function apply(next: ProjectDocument): void {
   const file = project.file
@@ -87,21 +95,14 @@ function reseed(): void {
 </script>
 
 <template>
-  <div v-if="settings && dataset" class="flex flex-col gap-5 p-4 sm:p-5">
+  <div v-if="settings && hasData" class="flex flex-col gap-5 p-4 sm:p-5">
     <StepHeader :title="t('steps.preprocess.label')" :purpose="t('steps.preprocess.purpose')">
+      <!--
+        **무엇을 셀지 이 화면이 모른다** (architecture.md §9.3.2). 여기 "열 수"가 박혀
+        있었는데 이미지에는 열이 없다 — 종류별 문맥은 등록부가 갖는다.
+      -->
       <template #context>
-        <div class="flex items-baseline gap-1.5">
-          <dt>
-            <AppBadge>{{ t('data.rows') }}</AppBadge>
-          </dt>
-          <dd class="font-bold tabular-nums text-ink">{{ dataset.rows.length }}</dd>
-        </div>
-        <div class="flex items-baseline gap-1.5">
-          <dt>
-            <AppBadge>{{ t('data.columns') }}</AppBadge>
-          </dt>
-          <dd class="font-bold tabular-nums text-ink">{{ dataset.columns.length }}</dd>
-        </div>
+        <component :is="kind.prepContext" v-if="kind" />
       </template>
     </StepHeader>
 

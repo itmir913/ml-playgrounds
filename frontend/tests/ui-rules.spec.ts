@@ -985,10 +985,11 @@ describe('DOM이 필요한 검사는 스스로 밝힌다', () => {
  * 화면에 있었고(2026-08-12에 판으로 옮겼다), 층화 판정이 타깃 열 분포를 직접 보고
  * 있었다(같은 날 라벨 분포로 낮췄다). **둘 다 그 자리에서는 한 줄이 더 싸 보였다.**
  *
- * **못 막는 것을 적어 둔다.** 이 검사는 `@/data/*`와 `@/ml/*`만 본다. `PreprocessView`가
- * 아직 `@/project/dataset`의 `readDataset`을 부르는데(머리글의 행 수·열 수), 그건
- * 로드맵 V4의 "헤더 문맥을 판으로 옮기기"가 가져갈 자리다 — 여기서 함께 막으면 그 항목을
- * 하기 전까지 검사가 빨간 채로 있게 된다.
+ * **`@/project`의 종류별 계층도 본다 (2026-08-12).** 예전에는 `@/data/*`와 `@/ml/*`만
+ * 봤고, 그 사이로 `PreprocessView`가 `readDataset`을 부르고 있었다 — 머리글의 행 수·열
+ * 수다. 그 자리를 판으로 옮기면서(§9.3.2) 이 구멍도 함께 닫았다. **정본을 표로 파싱하는
+ * 함수를 종류를 모르는 화면이 부르면, 이미지 프로젝트는 영원히 빈 화면이고 그 사실이
+ * 컴파일에서도 검사에서도 안 드러난다.**
  */
 describe('종류를 모르는 화면은 종류를 모른다', () => {
   /**
@@ -1008,14 +1009,14 @@ describe('종류를 모르는 화면은 종류를 모른다', () => {
    * 그것을 부르는 것이 곧 "종류를 모른 채 그린다"는 뜻이다 — 막으면 규칙이 자기 장치를
    * 금지하는 셈이 된다.
    */
-  const KIND_AWARE = /from '@\/(data|ml)\/(?!kinds')/
+  const KIND_AWARE = /from '@\/(data|ml)\/(?!kinds')|from '@\/project\/(dataset|images)'/
 
   it('목록의 화면이 실제로 있다 - 없으면 아래가 조용히 통과한다', () => {
     const names = vueFiles(SRC).map((path) => path.split(SEPARATOR).pop())
     for (const screen of KIND_AGNOSTIC) expect(names, screen).toContain(screen)
   })
 
-  it('@/data/*와 @/ml/*를 import하지 않는다', () => {
+  it('종류를 아는 계층(@/data/*, @/ml/*, @/project/dataset, @/project/images)을 import하지 않는다', () => {
     const found = vueFiles(SRC)
       .filter((path) => KIND_AGNOSTIC.includes(path.split(SEPARATOR).pop() ?? ''))
       .flatMap((path) =>

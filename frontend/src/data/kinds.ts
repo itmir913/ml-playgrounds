@@ -42,6 +42,15 @@ export interface DataKind {
    * 줄을 넣는 일이 생기고, 그건 타입이 못 잡는다 (§9.2 "등록부의 모양은 하나다").
    */
   readonly prepPanel: Component
+  /**
+   * 전처리 화면 **머리**의 문맥 (`StepHeader`의 `#context`).
+   *
+   * 판과 따로인 이유는 자리가 다르기 때문이다 — 머리는 제목·목적과 한 덩어리라
+   * 종류마다 다시 그리면 그 셋이 종류 수만큼 복제된다. **그렇다고 화면이 갖고 있을
+   * 수도 없다** — 거기 있던 "열 수"는 표에만 있는 말이고, 타입이 못 잡는 자리였다
+   * (architecture.md §9.3.2).
+   */
+  readonly prepContext: Component
 }
 
 /**
@@ -55,6 +64,7 @@ export const DATA_KINDS: readonly DataKind[] = [
     accept: TABULAR_ACCEPT,
     panel: defineAsyncComponent(() => import('@/views/data/TabularPanel.vue')),
     prepPanel: defineAsyncComponent(() => import('@/views/preprocess/TabularPrepPanel.vue')),
+    prepContext: defineAsyncComponent(() => import('@/views/preprocess/TabularPrepContext.vue')),
   },
 ]
 
