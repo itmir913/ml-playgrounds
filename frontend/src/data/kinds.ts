@@ -82,6 +82,14 @@ export interface DataKind {
    * 말**이다.
    */
   readonly stepText: Partial<Record<StepId, { purpose?: string; locked?: string }>>
+  /**
+   * 프로젝트 요약에서 **이 종류만 답할 수 있는 줄들** (`components/ProjectSummary.vue`).
+   *
+   * 표는 파일 이름·행·열·타깃·특성이고 이미지는 사진 수·범주 수다. 요약 화면이 그걸
+   * 알면 이미지 프로젝트에 `타깃: 없음 · 특성: 0개`가 뜬다 — **없는 것이 아니라 애초에
+   * 그 종류에 없는 항목**인데 "아직 안 골랐다"로 읽힌다 (§9.3.2).
+   */
+  readonly summaryRows: Component
 }
 
 /**
@@ -113,6 +121,7 @@ export const DATA_KINDS: readonly DataKind[] = [
     predictPanel: defineAsyncComponent(() => import('@/views/predict/TabularPredictPanel.vue')),
     // 표는 기본 문구가 곧 자기 문구다 — `steps.*`가 표를 두고 쓰인 문장이다.
     stepText: {},
+    summaryRows: defineAsyncComponent(() => import('@/components/summary/TabularSummaryRows.vue')),
   },
   {
     dataType: 'image',
@@ -131,6 +140,7 @@ export const DATA_KINDS: readonly DataKind[] = [
       // 잠금 이유가 "타깃과 특성을 정해 주세요"인데 이미지에는 둘 다 없다.
       train: { locked: 'train.image.locked' },
     },
+    summaryRows: defineAsyncComponent(() => import('@/components/summary/ImageSummaryRows.vue')),
   },
 ]
 

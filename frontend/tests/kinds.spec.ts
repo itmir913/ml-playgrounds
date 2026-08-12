@@ -43,13 +43,16 @@ describe('데이터 종류 등록부', () => {
    * 대신 **판이 선언해야 할 칸을 빠뜨렸는지는 타입이 잡는다** — `DataKind`의 필드가
    * 전부 필수라 줄을 더하는 사람이 넷을 다 채워야 한다.
    */
-  it('등록된 종류마다 화면 넷이 다 있다', () => {
+  it('등록된 종류마다 화면이 다 있다', () => {
     for (const dataType of SUPPORTED_DATA_TYPES) {
       const kind = dataKindFor(dataType)
       expect(kind?.panel, dataType).toBeDefined()
       expect(kind?.prepPanel, dataType).toBeDefined()
       expect(kind?.prepContext, dataType).toBeDefined()
       expect(kind?.trainContext, dataType).toBeDefined()
+      expect(kind?.predictPanel, dataType).toBeDefined()
+      // 요약이 빠지면 그 종류의 프로젝트가 "무엇인지"를 아무 데서도 안 말한다.
+      expect(kind?.summaryRows, dataType).toBeDefined()
       // 문구가 빠지면 새 프로젝트 대화상자에 이름 없는 칸이 뜬다.
       expect(kind?.labelKey, dataType).toMatch(/^dataTypes\./)
     }

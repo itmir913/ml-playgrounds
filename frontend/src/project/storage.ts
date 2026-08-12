@@ -175,7 +175,11 @@ function modelKeyRange(projectId: string): IDBKeyRange {
   return IDBKeyRange.bound([projectId], [projectId, []])
 }
 
-function totalBytes(project: ProjectFile): number {
+/**
+ * 이 프로젝트가 실제로 차지하는 바이트. **여유 공간 검사와 화면의 "용량"이 같은 것을
+ * 센다** — 두 벌이면 요약이 0byte라고 말하는 동안 저장은 1MB를 쓴다.
+ */
+export function totalBytes(project: ProjectFile): number {
   // 정본 셋이 전부 자리를 차지한다 (mlpx-spec.md §1.1). 학습 정본만 세면 여유 공간
   // 검사가 실제로 쓸 양보다 적게 잡고, 그러면 사전 검사를 통과한 뒤 실제 쓰기에서
   // 터진다.

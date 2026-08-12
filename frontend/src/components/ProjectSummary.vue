@@ -15,8 +15,8 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useFormat } from '@/composables/useFormat'
-import { readDataset } from '@/project/dataset'
-import { tabularDataOf } from '@/project/schema'
+import { dataKindFor } from '@/data/kinds'
+import { totalBytes } from '@/project/storage'
 import { useProjectStore } from '@/stores/project'
 
 const props = withDefaults(defineProps<{ withName?: boolean }>(), { withName: false })
@@ -31,33 +31,22 @@ const project = useProjectStore()
  * 표의 크기는 정본 CSV를 파싱해서 센다. 저장해 둔 숫자가 아니라 실제 바이트에서
  * 세는 이유는, 파일을 손으로 고친 남의 프로젝트에서도 맞아야 하기 때문이다.
  */
+const kind = computed(() => dataKindFor(project.file?.document.manifest.dataType ?? ''))
+
 const info = computed(() => {
   const file = project.file
   if (!file) return null
   const { manifest, settings, runs } = file.document
 
-  const table = readDataset(file)
-  const dataset =
-    table === null || settings.data.dataset === undefined
-      ? null
-      : {
-          fileName: settings.data.dataset.originalFileName,
-          rows: table.rows.length,
-          columns: table.columns.length,
-        }
-
-  let bytes = file.dataset?.bytes.length ?? 0
-  for (const model of file.models.values()) bytes += model.length
-
   const allRuns = runs.experiments.flatMap((experiment) => experiment.runs)
   return {
     manifest,
-    dataset,
-    bytes,
-    // 표 프로젝트의 요약이다. **이미지의 요약은 범주 수와 사진 수가 답한다** —
-    // 이미지 판이 서는 커밋이 그것을 넣는다 (roadmap.md V4 2단계).
-    target: tabularDataOf(file.document)?.target,
-    features: tabularDataOf(file.document)?.features.length ?? 0,
+    /**
+     * **저장이 세는 것과 같은 함수다** (`project/storage.ts`의 `totalBytes`). 여기서
+     * 따로 세고 있었고 사진과 임베딩이 빠져 있어서, 이미지 프로젝트는 사진 200장을
+     * 들고도 `0byte`라고 말했다.
+     */
+    bytes: totalBytes(file),
     /**
      * **번역된 이름이다. 등록부 id가 아니다.** `decision_tree`가 그대로 뜨고 있었다 -
      * 화면에 나가는 모든 알고리즘 이름은 `algorithms.*`를 지난다(결과·예측 화면이 이미
@@ -90,30 +79,13 @@ const info = computed(() => {
         </dd>
       </div>
 
-      <div class="flex justify-between gap-4">
-        <dt class="shrink-0 font-bold text-ink-soft">{{ t('meta.dataset') }}</dt>
-        <dd class="truncate">{{ info.dataset?.fileName ?? t('meta.none') }}</dd>
-      </div>
-
-      <div v-if="info.dataset" class="flex justify-between gap-4">
-        <dt class="font-bold text-ink-soft">{{ t('meta.rows') }}</dt>
-        <dd class="tabular-nums">{{ info.dataset.rows }}</dd>
-      </div>
-
-      <div v-if="info.dataset" class="flex justify-between gap-4">
-        <dt class="font-bold text-ink-soft">{{ t('meta.columns') }}</dt>
-        <dd class="tabular-nums">{{ info.dataset.columns }}</dd>
-      </div>
-
-      <div class="flex justify-between gap-4">
-        <dt class="font-bold text-ink-soft">{{ t('meta.target') }}</dt>
-        <dd class="truncate">{{ info.target ?? t('meta.none') }}</dd>
-      </div>
-
-      <div class="flex justify-between gap-4">
-        <dt class="font-bold text-ink-soft">{{ t('meta.features') }}</dt>
-        <dd class="tabular-nums">{{ t('meta.countUnit', info.features) }}</dd>
-      </div>
+      <!--
+        **무엇을 셀지 이 화면이 모른다** (architecture.md §9.3.2). 여기 파일 이름·행·열·
+        타깃·특성이 박혀 있었고, 이미지 프로젝트는 그 다섯 줄이 전부 `없음`·`0개`로
+        떴다 — 없는 것이 아니라 **애초에 그 종류에 없는 항목**인데 "아직 안 골랐다"로
+        읽힌다.
+      -->
+      <component :is="kind.summaryRows" v-if="kind" />
 
       <div class="flex justify-between gap-4">
         <dt class="shrink-0 font-bold text-ink-soft">{{ t('meta.algorithms') }}</dt>
