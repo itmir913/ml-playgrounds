@@ -15,8 +15,8 @@
  */
 
 import { createPinia, setActivePinia } from 'pinia'
-import { mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
 import ProjectHomeView from '../src/views/ProjectHomeView.vue'
@@ -69,6 +69,23 @@ async function mountHome(dataType: DataType) {
   return mount(ProjectHomeView, { global: { plugins: [router, i18n] } })
 }
 
+/**
+ * 요약의 종류별 줄들(`DataKind.summaryRows`)은 **지연 로딩이다.** 마운트만 하고 끝내면
+ * 두 가지가 한꺼번에 어긋난다 — 그 줄들의 문구는 아무도 안 보고 넘어가는데(이 스펙이
+ * 하려는 일이 바로 그건데), 로딩은 검사가 끝난 뒤에도 계속 돌아 **환경이 내려간 뒤
+ * 모듈을 읽으려다 죽는다**(`EnvironmentTeardownError`). 로컬에서는 초록이고 CI에서만
+ * 터졌다.
+ *
+ * 그래서 **먼저 module cache에 올려 둔다.** 그러면 마운트 뒤의 `import()`가 마이크로태스크
+ * 한 번에 끝나 `flushPromises()`로 확실히 붙는다. 이름을 열거하지 않고 디렉터리째 훑는
+ * 이유는, 종류를 더하는 사람이 이 줄을 고치지 않아도 되게 하기 위해서다.
+ */
+const SUMMARY_ROWS = import.meta.glob('../src/components/summary/*.vue')
+
+beforeAll(async () => {
+  await Promise.all(Object.values(SUMMARY_ROWS).map((load) => load()))
+})
+
 beforeEach(async () => {
   setActivePinia(createPinia())
   await setLocale('ko')
@@ -78,6 +95,14 @@ describe('대시보드는 모든 종류에서 문장을 갖는다', () => {
   for (const dataType of SUPPORTED_DATA_TYPES) {
     it(`${dataType}에서 로케일 키가 화면에 뜨지 않는다`, async () => {
       const home = await mountHome(dataType)
+
+      // 지연 로딩된 요약 줄이 붙기 전에는 그 줄들의 문구를 아무도 안 본다. **붙은
+      // 것을 확인하고 나서 읽는다** - 숫자를 적지 않고 붙기 전후를 견주는 이유는,
+      // 요약이 자기 줄을 몇 개 그리는지는 이 검사가 알 바가 아니기 때문이다.
+      const beforeRows = home.findAll('dl > div').length
+      await flushPromises()
+      expect(home.findAll('dl > div').length, dataType).toBeGreaterThan(beforeRows)
+
       const text = home.text()
       // 던지지 않고 여기까지 왔다는 것이 이미 절반이다. 나머지 절반은 눈으로 보이는 모양이다 -
       // 키가 로케일에 **있으면서** 값이 키와 같은 경우까지 막는다.
