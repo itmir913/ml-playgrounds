@@ -147,7 +147,7 @@ const chosen = computed<ChosenModel[]>(() => {
  * 않는다"뿐이다. 고칠 방법은 둘 다 열려 있다 — 유형을 바꾸거나 타깃을 바꾸거나.
  */
 const targetIssue = computed(() => {
-  const target = settings.value?.target
+  const target = settings.value?.data.target
   const required = requiredTargetKind(project.taskType)
   if (!required || target === undefined) return null
 

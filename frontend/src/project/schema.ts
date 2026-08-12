@@ -220,7 +220,7 @@ export const manifestSchema = z.looseObject({
    * 구분되지 않고, 그건 "자동으로 판정하지 않는다"를 지킨다고 해 놓고 몰래 하나를 골라
    * 두는 것이다 (open-decisions.md "기계학습 유형은 모델을 고르는 자리에서 고른다").
    *
-   * **필수 → 선택은 읽기 호환이라 FORMAT_VERSION이 오르지 않는다.** settings.dataset을
+   * **필수 → 선택은 읽기 호환이라 FORMAT_VERSION이 오르지 않는다.** `settings.data.dataset`을
    * 선택으로 내렸을 때와 같다. 반대로 실험 스냅샷의 taskType은 여전히 필수다 -
    * 학습이 돈 이상 유형은 반드시 정해져 있었다.
    *

@@ -304,7 +304,7 @@ const testRowUsage = computed(() => {
 const experimentCount = computed(() => project.file?.document.runs.experiments.length ?? 0)
 
 /** 타깃이 정해진 뒤에만 평가용 파일을 받을 수 있다 (mlpx-spec.md §1.1). */
-const targetChosen = computed(() => settings.value?.target !== undefined)
+const targetChosen = computed(() => data.value?.target !== undefined)
 
 /**
  * 화면이 지금 보여주는 선택. **커밋 전 임시 선택이 실제 값을 덮는다.**
