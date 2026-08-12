@@ -29,7 +29,14 @@ import { embedImages } from '@/ml/embed/client'
 import { spawnEmbedWorker } from '@/ml/embed/spawn'
 import { imageTrainingRows, imageTrainingSource, pendingEmbeddings } from '@/ml/images'
 import { loadModel, loadModelProba, type LoadContext } from '@/ml/models'
-import { predictableModels, type Answer, type PredictableModel } from '@/ml/predict'
+import {
+  applyPredictFilter,
+  defaultFilter,
+  predictableModels,
+  type Answer,
+  type PredictableModel,
+  type PredictFilter,
+} from '@/ml/predict'
 import { parsePreprocessor, transform, type Preprocessor } from '@/ml/preprocess'
 import { addEmbeddings, readEmbeddings } from '@/project/embeddings'
 import { IMAGE_PREDICT_PAGE_SIZE } from '@/limits'
@@ -39,6 +46,7 @@ import { dataSettings } from '@/project/schema'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import AnswerList from './AnswerList.vue'
+import PredictFilters, { type FilterOption } from './PredictFilters.vue'
 
 const { t } = useI18n()
 const project = useProjectStore()
@@ -134,6 +142,83 @@ const preprocessors = computed(() => {
   }
   return found
 })
+
+/**
+ * 필터 — 실험 × 알고리즘의 다중 선택이다 (architecture.md §8.13.1 "답을 거르고 세어
+ * 본다"). **표와 같은 것이 같은 모양으로 있어야 한다** — 종류를 바꿨다고 화면의 문법이
+ * 달라지면 학생은 같은 도구를 두 번 배운다.
+ *
+ * **여기서는 거르는 것이 화면 정리에 그치지 않는다.** 답 하나가 `사진 수 × 모델 수`라,
+ * 모델을 반으로 줄이면 도는 계산도 반이 된다 — 쪽 나누기와 같은 이유의 장치다.
+ */
+const filter = ref<PredictFilter>({ experimentIds: new Set(), algorithms: new Set() })
+
+/** 지금 있는 실험·알고리즘의 집합. 이게 바뀔 때만 필터를 다시 연다. */
+const availableIds = computed(() => {
+  const experiments = [...new Set(models.value.map((entry) => entry.experiment.id))].sort()
+  const algorithms = [...new Set(models.value.map((entry) => entry.run.algorithm))].sort()
+  return `${experiments.join(',')}|${algorithms.join(',')}`
+})
+
+watch(
+  availableIds,
+  () => {
+    filter.value = defaultFilter(models.value)
+  },
+  { immediate: true },
+)
+
+const experimentOptions = computed<FilterOption[]>(() => {
+  const seen = new Set<string>()
+  const list: FilterOption[] = []
+  for (const entry of models.value) {
+    if (seen.has(entry.experiment.id)) continue
+    seen.add(entry.experiment.id)
+    list.push({
+      id: entry.experiment.id,
+      label: experimentNames.value.get(entry.experiment.id) ?? entry.experiment.id,
+    })
+  }
+  return list
+})
+
+const algorithmOptions = computed<FilterOption[]>(() => {
+  const seen = new Set<string>()
+  const list: FilterOption[] = []
+  for (const entry of models.value) {
+    if (seen.has(entry.run.algorithm)) continue
+    seen.add(entry.run.algorithm)
+    list.push({ id: entry.run.algorithm, label: t(`algorithms.${entry.run.algorithm}`) })
+  }
+  return list
+})
+
+/** 필터를 지난 모델. 사유가 있는 카드도 포함한다 — 꺼진 이유는 필터와 별개다. */
+const visible = computed(() => applyPredictFilter(models.value, filter.value))
+const visibleUsable = computed(() => visible.value.filter((entry) => entry.reason === undefined))
+
+/**
+ * 필터를 바꾸면 지금까지의 답을 지운다 (표와 같다). 안 지우면 방금 켠 모델만 빈 채로
+ * 남아, 사진마다 답이 있는 칸과 없는 칸이 섞인다.
+ *
+ * **임베딩은 안 지운다.** 그건 사진에서 나온 것이라 어느 모델을 보든 같다 — 필터를
+ * 껐다 켰다 한다고 백본을 다시 돌릴 이유가 없다.
+ */
+function toggleExperiment(id: string): void {
+  const next = new Set(filter.value.experimentIds)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  filter.value = { ...filter.value, experimentIds: next }
+  answers.value = new Map()
+}
+
+function toggleAlgorithm(id: string): void {
+  const next = new Set(filter.value.algorithms)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  filter.value = { ...filter.value, algorithms: next }
+  answers.value = new Map()
+}
 
 /** 사진을 받아 정본으로 굽고 예측 자리에 앉힌다. 데이터 화면과 같은 문이다. */
 async function readPicked(files: readonly File[]): Promise<void> {
@@ -249,8 +334,9 @@ async function run(): Promise<void> {
     for (const [index, photo] of photos.value.entries()) {
       if (!wanted.has(photo.hash)) continue
       const perRun = new Map<string, Answer>()
-      for (const entry of models.value) {
-        if (entry.reason) continue
+      // **필터를 지난 것만 돈다.** 안 보이는 모델을 돌리면 사진 수만큼의 계산이 화면에
+      // 뜨지도 않을 답을 위해 늘어난다.
+      for (const entry of visibleUsable.value) {
         const preprocessor = preprocessors.value.get(entry.experiment.id)
         const path = entry.run.model?.path
         const bytes = path === undefined ? undefined : current.models.get(path)
@@ -369,8 +455,23 @@ onBeforeUnmount(() => {
 })
 
 const canPredict = computed(
-  () => photos.value.length > 0 && models.value.some((model) => !model.reason) && !busy.value,
+  () => photos.value.length > 0 && visibleUsable.value.length > 0 && !busy.value,
 )
+
+/**
+ * 필터 칸을 보이는가. 각 축이 둘 이상일 때만 그 축을 그리는 판정은 `PredictFilters`가
+ * 한다 — 여기는 "거를 모델이 있는가"만 본다.
+ */
+const showFilters = computed(() => models.value.length > 0)
+
+/**
+ * **필터가 전부 걸러 냈다.** 모델이 없는 것과는 다른 사유다 — 이유 없이 빈 화면이
+ * 되면 학생은 사진이 사라진 줄 안다.
+ */
+const filteredOut = computed(() => models.value.length > 0 && visible.value.length === 0)
+
+/** 아무 사진도 안 그리는 동안에는 쪽 넘기기도 뜻이 없다. */
+const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
 </script>
 
 <template>
@@ -408,10 +509,31 @@ const canPredict = computed(
     </div>
 
     <!--
+      **표와 같은 필터다.** 각 축이 둘 이상일 때만 그 축이 그려진다(`PredictFilters` 안에서
+      판정한다) - 실험이 하나뿐인데 거를 것을 보이면 아무것도 안 하는 버튼이 된다.
+    -->
+    <PredictFilters
+      v-else-if="showFilters"
+      :experiments="experimentOptions"
+      :algorithms="algorithmOptions"
+      :selected-experiments="filter.experimentIds"
+      :selected-algorithms="filter.algorithms"
+      :experiments-label="t('predict.filterExperiments')"
+      :algorithms-label="t('predict.filterAlgorithms')"
+      :disabled="predicting"
+      @toggle-experiment="toggleExperiment"
+      @toggle-algorithm="toggleAlgorithm"
+    />
+
+    <div v-if="filteredOut" class="grid min-h-0 flex-1 place-items-center">
+      <AppEmpty :reason="t('predict.filterEmptyReason')" :next="t('predict.filterEmptyNext')" />
+    </div>
+
+    <!--
       **사진 하나가 표의 한 줄이다** (open-decisions.md "이미지 예측 화면"). 왼쪽 붙박이
       자리에 값 대신 사진이 뜨고, 오른쪽에 모델들의 답이 나란히 선다.
     -->
-    <ul v-else class="flex flex-col gap-3">
+    <ul v-else-if="photos.length > 0" class="flex flex-col gap-3">
       <li
         v-for="photo in shown"
         :key="photo.hash"
@@ -430,7 +552,7 @@ const canPredict = computed(
         />
         <div class="min-w-0 flex-1">
           <AnswerList
-            :models="models"
+            :models="visible"
             :answers="answers.get(photo.hash) ?? new Map()"
             :experiment-names="experimentNames"
           />
@@ -453,7 +575,7 @@ const canPredict = computed(
     </ul>
 
     <!-- 쪽이 하나뿐이면 안 그린다. 아무 데도 못 가는 버튼은 고장으로 보인다. -->
-    <div v-if="totalPages > 1" class="flex items-center justify-between gap-4">
+    <div v-if="showPages" class="flex items-center justify-between gap-4">
       <AppButton variant="secondary" :disabled="atFirstPage" @click="page -= 1">
         {{ t('common.prevPage') }}
       </AppButton>
