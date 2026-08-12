@@ -23,6 +23,22 @@ const MB = BYTES_PER_MB
 export const MAX_DATASET_ROWS = 100_000
 
 /**
+ * 정본 jpg의 품질 (mlpx-spec.md §1.2).
+ *
+ * **0.85는 실측에서 나왔다** (2026-08-12): 500×400 안팎의 사진 100장이 정본 1.05MB가
+ * 됐다 — 장당 10.5kB다. 200장이면 2MB 남짓이고 임베딩(장당 5kB)까지 담아도 `.mlpx`가
+ * 3MB를 안 넘는다.
+ *
+ * **값을 바꿔도 옛 파일은 안 흔들린다** — 정본을 구운 품질이 그 파일의 `dataset`에
+ * 적혀 있다 (`project/schema.ts`의 `imageDatasetRefSchema`). 그래야 "왜 이 프로젝트만
+ * 흐린가"에 답할 수 있다.
+ *
+ * **정본의 크기는 여기 없다.** 그건 상한이 아니라 백본이 요구하는 값이라 백본 등록부가
+ * 갖는다 (`ml/backbones.ts`의 `canonicalSize`).
+ */
+export const IMAGE_JPEG_QUALITY = 0.85
+
+/**
  * **아직 재 보지 않은 칸의 기본 행 상한.** 이름과 달리 "브라우저의 상한"이 아니다.
  *
  * 상한의 출처는 **(알고리즘 × 구현)마다 따로다** (아래 `MLJS_*_ROW_LIMIT`들,
