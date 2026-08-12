@@ -57,15 +57,25 @@ async function loadBackend(tf: TfCore, backend: Backend): Promise<boolean> {
       await import('@tensorflow/tfjs-backend-webgl')
     } else {
       const wasm = await import('@tensorflow/tfjs-backend-wasm')
-      const [plain, simd, threaded] = await Promise.all([
+      /**
+       * **멀티스레드를 여기서 끈다.** 위에 "후보에 없다"고 적어 두고 바이너리를 넘기면
+       * 그 말이 코드에는 없는 것이다 — `SharedArrayBuffer`가 있는 환경(자가호스팅이
+       * COOP/COEP를 주면 생긴다)에서 TF.js가 알아서 threaded 쪽을 고른다.
+       *
+       * **끄면 산출물에서도 뺄 수 있다** — 425KB다. 그리고 어디서 돌든 같은 바이너리로
+       * 계산한다는 뜻이라, 결과가 환경에 따라 갈릴 자리가 하나 줄어든다.
+       *
+       * 플래그는 위 `import`가 등록한다. **순서가 중요하다** — 등록 전에 켜고 끄면
+       * 기본값에 덮인다.
+       */
+      tf.env().set('WASM_HAS_MULTITHREAD_SUPPORT', false)
+      const [plain, simd] = await Promise.all([
         import('@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm.wasm?url'),
         import('@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm-simd.wasm?url'),
-        import('@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm-threaded-simd.wasm?url'),
       ])
       wasm.setWasmPaths({
         'tfjs-backend-wasm.wasm': plain.default,
         'tfjs-backend-wasm-simd.wasm': simd.default,
-        'tfjs-backend-wasm-threaded-simd.wasm': threaded.default,
       })
     }
     if (!(await tf.setBackend(backend))) return false
