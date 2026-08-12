@@ -213,6 +213,29 @@ export function moveImages(
 }
 
 /**
+ * 사진을 프로젝트에서 아주 뺀다. **범주를 없애는 것과 다르다** — 그쪽은 라벨만 뗀다.
+ *
+ * **지운 것은 이력에 남는다.** 실험 스냅샷이 범주별 장수를 들고 있어서, 지우고 다시
+ * 학습하면 결과 화면이 "사진 수가 달라졌다"고 말한다 (open-decisions.md "장수가
+ * 스냅샷에 있어야 하는 이유"). 그게 없으면 도구가 "직전과 같은 설정"이라고 거짓말한다.
+ */
+export function removeImages(
+  project: ProjectFile,
+  hashes: readonly string[],
+  now: string,
+): ProjectFile {
+  const removing = new Set(hashes)
+  const images = new Map(project.images)
+  for (const entry of readImages(project)) {
+    if (removing.has(entry.hash)) images.delete(entry.path)
+  }
+  // **범주 목록은 안 건드린다.** 마지막 한 장을 지웠다고 범주가 사라지면, 학생이
+  // 사진을 바꿔 넣으려던 것뿐인데 만들어 둔 칸이 함께 없어진다.
+  const previous = dataSettings('image', project.document.settings)
+  return withImages(project, images, { ...previous }, now)
+}
+
+/**
  * 빈 범주를 만든다. **사진 없이도 남아야 한다** — zip은 빈 폴더를 표현하지 못하므로
  * 목록이 그것을 갖는다. 수업 중에 만든 것이 저장하고 열었더니 없는 것은 교실에서 사고다.
  */

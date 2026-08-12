@@ -693,6 +693,11 @@ describe('id와 changed', () => {
       // 특성이 통째로 달라진다. 둘 다 학생에게 보여야 하는 변경이다.
       categories: '이미지 학습이 아직 이 함수로 안 온다',
       backboneId: '이미지 학습이 아직 이 함수로 안 온다',
+      // 스냅샷에만 있는 둘이다 — 사진을 더하고 빼고 옮긴 것을 잡는다
+      // (open-decisions.md "장수가 스냅샷에 있어야 하는 이유"). 위 둘과 함께 넷이
+      // 한꺼번에 `MUTATIONS`로 옮겨 간다.
+      categoryCounts: '이미지 학습이 아직 이 함수로 안 온다',
+      unlabeledCount: '이미지 학습이 아직 이 함수로 안 온다',
     }
 
     /**
@@ -702,8 +707,14 @@ describe('id와 changed', () => {
      * 자동으로 이 목록에 들어오고, 선언 안 하면 아래 첫 검사가 운다.
      */
     const FIELDS = [
-      ...Object.keys(settingsSchema.shape).filter((key) => key !== 'data'),
-      ...DATA_TYPES.flatMap((dataType) => Object.keys(DATA_SCHEMAS[dataType].settings.shape)),
+      ...new Set([
+        ...Object.keys(settingsSchema.shape).filter((key) => key !== 'data'),
+        ...DATA_TYPES.flatMap((dataType) => Object.keys(DATA_SCHEMAS[dataType].settings.shape)),
+        // **스냅샷 쪽도 훑는다.** 스냅샷에만 있는 필드가 실재한다 — 이미지의 장수는
+        // 설정이 아니라 학습 시점에 세는 값이라 `settings.data`에 없다. 설정 쪽만
+        // 훑으면 그 필드가 이 선언을 통째로 빠져나간다.
+        ...DATA_TYPES.flatMap((dataType) => Object.keys(DATA_SCHEMAS[dataType].snapshot.shape)),
+      ]),
     ]
 
     it('스키마의 모든 필드가 둘 중 하나에 적혀 있다', () => {

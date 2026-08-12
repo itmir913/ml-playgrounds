@@ -447,6 +447,27 @@ export function imageInitialSettings(): z.infer<typeof imageSettingsSchema> {
 export const imageSnapshotSchema = z.looseObject({
   categories: z.array(userString),
   backboneId: z.string(),
+  /**
+   * `categories`와 **같은 순서·같은 길이**의 장수.
+   *
+   * **표에는 없는 필드다.** 표는 데이터를 바꾸면 그 위의 실험을 통째로 버리므로
+   * (mlpx-spec.md §4.3) 견줄 직전 실험 자체가 없다. **이미지는 더하고 빼고 옮기는
+   * 것**이라 실험을 안 버리고, 그러면 데이터가 다른 두 실험이 나란히 선다 — 이력이
+   * 침묵하면 결과 화면이 "직전과 같은 설정"이라고 거짓말한다.
+   *
+   * **총 장수 하나로는 모자란다.** 이미지에서 가장 흔한 편집이 라벨을 옮기는 것인데,
+   * 그건 총 장수도 범주 목록도 안 건드린다.
+   *
+   * **배열인 것이 중요하다.** `changed`는 배열을 통째로 한 경로로 본다
+   * (`ml/experiment.ts`) — 범주마다 경로가 생기면 문구를 못 붙이는 경로가 범주 수만큼
+   * 늘어난다.
+   */
+  categoryCounts: z.array(z.int().nonnegative()),
+  /**
+   * 라벨 없는 사진 수. **군집은 이것까지 전부 쓴다** — 따로 세지 않으면 군집 실험 둘
+   * 사이에서 데이터가 달라진 것이 안 잡힌다.
+   */
+  unlabeledCount: z.int().nonnegative(),
 })
 
 /** 한 데이터 종류가 선언하는 것 — 스키마 둘과 시작값 하나. */

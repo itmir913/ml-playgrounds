@@ -15,6 +15,7 @@ import {
   moveImages,
   readImages,
   removeCategory,
+  removeImages,
   renameCategory,
 } from '../src/project/images'
 import { newProjectDocument } from '../src/project/create'
@@ -158,6 +159,22 @@ describe('범주를 옮기고 고친다', () => {
     const removed = removeCategory(project, '개', NOW)
     expect(imageCategories(removed)).toEqual([])
     expect(readImages(removed)[0]?.category).toBe(IMAGE_UNLABELED)
+  })
+
+  /** 범주를 없애는 것과 다르다 — 이쪽은 사진 자체가 빠진다. */
+  it('사진을 지우면 프로젝트에서 빠진다', () => {
+    const project = withPhotos({ hash: 'a', category: '개' }, { hash: 'b', category: '개' })
+    const left = removeImages(project, ['a'], NOW)
+    expect(readImages(left).map((entry) => entry.hash)).toEqual(['b'])
+  })
+
+  /**
+   * 마지막 한 장을 지웠다고 범주가 사라지면, 사진을 바꿔 넣으려던 학생이 만들어 둔
+   * 칸까지 잃는다.
+   */
+  it('마지막 사진을 지워도 범주는 남는다', () => {
+    const project = withPhotos({ hash: 'a', category: '개' })
+    expect(imageCategories(removeImages(project, ['a'], NOW))).toEqual(['개'])
   })
 
   /**
