@@ -19,6 +19,7 @@ import {
   writeProject,
   type ProjectFile,
 } from '../src/project/format'
+import { readImages, removeImages } from '../src/project/images'
 import { parseHashes } from '../src/project/integrity'
 import { FORMAT_VERSION, PROJECT_KIND_ML } from '../src/project/schema'
 
@@ -170,5 +171,26 @@ describe('참조와 본체는 함께 있고 함께 없다', () => {
     await expect(readProject(zipSync(entries))).rejects.toSatisfy(
       (error: unknown) => isClientError(error) && error.code === 'PROJECT_FILE_ENTRY_MISSING',
     )
+  })
+})
+
+describe('사진을 다 지운 프로젝트도 저장된다', () => {
+  /**
+   * **학생이 실제로 하는 일이다** — 사진을 잘못 올려 전부 지우고 다시 시작한다. 그때
+   * 참조만 남으면 저장이 거부되고 다음 차시에는 아예 안 열린다. `removeImages`가
+   * 마지막 한 장에서 참조를 함께 걷어 가는 것이 그 자리를 막는다.
+   */
+  it('마지막 사진까지 지우고 저장했다 열 수 있다', async () => {
+    const project = imageProject()
+    const emptied = removeImages(
+      project,
+      readImages(project).map((entry) => entry.hash),
+      '2026-08-12T10:00:00.000Z',
+    )
+
+    const { bytes } = await writeProject(emptied, markdown)
+    const { project: opened } = await readProject(bytes)
+    expect(opened.images.size).toBe(0)
+    expect(opened.document.settings.data.dataset).toBeUndefined()
   })
 })

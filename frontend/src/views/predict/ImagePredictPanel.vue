@@ -18,6 +18,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
+import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import { canonicalizeImages } from '@/data/image/client'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
@@ -32,7 +33,7 @@ import { predictableModels, type Answer, type PredictableModel } from '@/ml/pred
 import { parsePreprocessor, transform, type Preprocessor } from '@/ml/preprocess'
 import { addEmbeddings, readEmbeddings } from '@/project/embeddings'
 import { IMAGE_UNLABELED } from '@/project/format'
-import { addImages, readImages } from '@/project/images'
+import { addImages, readImages, removeImages } from '@/project/images'
 import { dataSettings } from '@/project/schema'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
@@ -258,6 +259,35 @@ async function run(): Promise<void> {
   }
 }
 
+/** 예측 사진을 전부 지울지 묻는 중. */
+const clearing = ref(false)
+
+/** 사진이 나가면 그 답도 뜻을 잃는다. 남겨 두면 없는 사진의 답이 화면에 남는다. */
+async function drop(hashes: readonly string[]): Promise<void> {
+  const file = project.file
+  if (!file || hashes.length === 0) return
+  busy.value = true
+  try {
+    await project.save(removeImages(file, hashes, new Date().toISOString(), 'predict'))
+    const next = new Map(answers.value)
+    for (const hash of hashes) next.delete(hash)
+    answers.value = next
+  } catch (error) {
+    toasts.pushError(error)
+  } finally {
+    busy.value = false
+    clearing.value = false
+  }
+}
+
+function removeOne(hash: string): void {
+  void drop([hash])
+}
+
+function clearAll(): Promise<void> {
+  return drop(photos.value.map((photo) => photo.hash))
+}
+
 /** 해시 -> 썸네일 주소. 만든 자리와 놓아주는 자리를 함께 둔다. */
 const urls = ref(new Map<string, string>())
 
@@ -298,6 +328,18 @@ const canPredict = computed(
       <span v-if="progress" class="tabular-nums font-bold" role="status">
         {{ t('train.preparingPhotos', { done: progress.completed, total: progress.total }) }}
       </span>
+      <!--
+        **초기화 경로가 있어야 한다.** 잘못 올린 사진을 빼는 길이 없으면 학생이 할 수
+        있는 일이 프로젝트를 새로 만드는 것뿐이다.
+      -->
+      <AppButton
+        v-if="photos.length > 0"
+        variant="secondary"
+        :disabled="busy"
+        @click="clearing = true"
+      >
+        {{ t('predict.image.clear') }}
+      </AppButton>
       <AppButton class="ml-auto" :disabled="!canPredict" :action="run">
         {{ t('predict.run') }}
       </AppButton>
@@ -321,11 +363,16 @@ const canPredict = computed(
         :key="photo.hash"
         class="flex flex-col gap-3 rounded-panel border border-line bg-surface p-4 md:flex-row"
       >
+        <!--
+          **`self-start`가 없으면 비율이 깨진다.** flex 행의 기본은 `stretch`라 답이 길어
+          행이 높아지면 사진이 그만큼 늘어나고, `aspect-square`가 그걸 못 막는다 —
+          늘어나는 것은 높이이고 비율은 그 뒤에 계산된다.
+        -->
         <img
           :src="urls.get(photo.hash)"
           :alt="t('predict.image.photo')"
           loading="lazy"
-          class="aspect-square w-32 shrink-0 rounded-control bg-surface-sunken object-cover"
+          class="aspect-square w-32 shrink-0 self-start rounded-control bg-surface-sunken object-cover"
         />
         <div class="min-w-0 flex-1">
           <AnswerList
@@ -334,8 +381,38 @@ const canPredict = computed(
             :experiment-names="experimentNames"
           />
         </div>
+
+        <!--
+          **한 장 빼기는 확인창을 안 거친다.** 예측 사진은 답을 얻으려고 올린 입력이고
+          다시 올리면 그만이다 — 훈련 사진을 지우는 것과 무게가 다르다. 대신 전부
+          지우기는 묻는다.
+        -->
+        <button
+          type="button"
+          class="self-start text-base font-bold text-ink-soft hover:underline"
+          :disabled="busy"
+          @click="removeOne(photo.hash)"
+        >
+          {{ t('predict.image.remove') }}
+        </button>
       </li>
     </ul>
+
+    <AppDialog
+      :open="clearing"
+      :title="t('predict.image.clearTitle')"
+      :description="t('predict.image.clearDescription', photos.length)"
+      @close="clearing = false"
+    >
+      <template #actions>
+        <AppButton variant="secondary" @click="clearing = false">{{
+          t('common.cancel')
+        }}</AppButton>
+        <AppButton variant="danger" :disabled="busy" :action="clearAll">
+          {{ t('predict.image.clear') }}
+        </AppButton>
+      </template>
+    </AppDialog>
 
     <input
       ref="fileInput"

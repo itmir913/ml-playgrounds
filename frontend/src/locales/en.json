@@ -672,9 +672,13 @@
     "download": "Download predictions as CSV",
     "image": {
       "add": "Add photos",
+      "clear": "Remove all photos",
+      "clearDescription": "This removes the {count} photo you added for prediction. Your training photos stay. | This removes the {count} photos you added for prediction. Your training photos stay.",
+      "clearTitle": "Remove all photos?",
       "emptyNext": "Add photos and each model will give its own answer.",
       "emptyReason": "No photos yet.",
-      "photo": "Photo to predict"
+      "photo": "Photo to predict",
+      "remove": "Remove"
     }
   }
 }

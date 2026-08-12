@@ -178,6 +178,45 @@ describe('범주를 옮기고 고친다', () => {
   })
 
   /**
+   * **참조와 본체는 함께 있고 함께 없다** (mlpx-spec.md §1). 참조만 남으면
+   * `writeProject`가 저장을 거부하고 `loadProject`는 그 프로젝트를 **아예 안 열어
+   * 준다** — 사진을 다 지운 학생이 다음 차시에 빈 목록을 만난다.
+   */
+  it('마지막 사진을 지우면 참조도 함께 나간다', () => {
+    const project = withPhotos({ hash: 'a', category: '개' }, { hash: 'b', category: '개' })
+    const one = removeImages(project, ['a'], NOW)
+    // 한 장이라도 남아 있으면 참조는 그대로다.
+    expect(dataSettings('image', one.document.settings).dataset).toBeDefined()
+
+    const none = removeImages(one, ['b'], NOW)
+    expect(dataSettings('image', none.document.settings).dataset).toBeUndefined()
+  })
+
+  it('예측 자리도 같은 규칙이다', () => {
+    const project = addImages(emptyProject(), [baked('a', IMAGE_UNLABELED)], {
+      canonicalSize: SIZE,
+      now: NOW,
+      role: 'predict',
+    }).project
+    const emptied = removeImages(project, ['a'], NOW, 'predict')
+    expect(readImages(emptied, 'predict')).toEqual([])
+    expect(dataSettings('image', emptied.document.settings).predictDataset).toBeUndefined()
+  })
+
+  /** 자리가 갈려 있어야 예측 사진을 지워도 훈련 사진이 안 사라진다. */
+  it('예측 사진을 지워도 훈련 사진은 그대로다', () => {
+    const trained = withPhotos({ hash: 'a', category: '개' })
+    const both = addImages(trained, [baked('b', IMAGE_UNLABELED)], {
+      canonicalSize: SIZE,
+      now: NOW,
+      role: 'predict',
+    }).project
+    const left = removeImages(both, ['b'], NOW, 'predict')
+    expect(readImages(left).map((entry) => entry.hash)).toEqual(['a'])
+    expect(dataSettings('image', left.document.settings).dataset).toBeDefined()
+  })
+
+  /**
    * **zip은 빈 폴더를 표현하지 못한다.** 목록이 갖지 않으면 수업 중에 만든 범주가
    * 저장하고 열었을 때 사라진다.
    */

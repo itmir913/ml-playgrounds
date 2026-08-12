@@ -672,9 +672,13 @@
     "download": "예측 결과 CSV로 내려받기",
     "image": {
       "add": "사진 올리기",
+      "clear": "사진 전부 지우기",
+      "clearDescription": "예측하려고 올린 사진 {count}장을 지웁니다. 학습에 쓴 사진은 그대로 있습니다.",
+      "clearTitle": "올린 사진을 전부 지울까요?",
       "emptyNext": "예측할 사진을 올리면 모델들이 각각 답을 냅니다.",
       "emptyReason": "아직 올린 사진이 없습니다.",
-      "photo": "예측할 사진"
+      "photo": "예측할 사진",
+      "remove": "빼기"
     }
   }
 }

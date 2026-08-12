@@ -252,19 +252,33 @@ export function removeImages(
   project: ProjectFile,
   hashes: readonly string[],
   now: string,
+  role: ImageRole = 'data',
 ): ProjectFile {
   const removing = new Set(hashes)
   const images = new Map(project.images)
-  for (const entry of readImages(project)) {
+  for (const entry of readImages(project, role)) {
     if (removing.has(entry.hash)) images.delete(entry.path)
   }
   // **범주 목록은 안 건드린다.** 마지막 한 장을 지웠다고 범주가 사라지면, 학생이
   // 사진을 바꿔 넣으려던 것뿐인데 만들어 둔 칸이 함께 없어진다.
   const previous = dataSettings('image', project.document.settings)
+
+  /**
+   * **마지막 한 장을 지우면 참조도 함께 나간다.**
+   *
+   * 참조와 본체는 함께 있고 함께 없다 (mlpx-spec.md §1). 참조만 남으면
+   * `writeProject`가 저장을 거부하고 `loadProject`는 그 프로젝트를 **아예 안 열어
+   * 준다** — 사진을 다 지운 학생이 다음 차시에 빈 목록을 만나게 된다.
+   */
+  const data = { ...previous }
+  const { field } = ROLE_REFERENCE[role]
+  const left = [...images.keys()].some((path) => path.startsWith(ROLE_REFERENCE[role].path))
+  if (!left) delete data[field]
+
   // 임베딩은 그 사진의 것이라 함께 나간다 (mlpx-spec.md §1.3). 안 지우면 IndexedDB에
   // 아무 사진의 것도 아닌 벡터가 계속 쌓인다.
   const pruned = removeEmbeddings(project, hashes)
-  return withImages({ ...pruned, images }, images, { ...previous }, now)
+  return withImages({ ...pruned, images }, images, data, now)
 }
 
 /**
