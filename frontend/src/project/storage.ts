@@ -17,7 +17,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { ClientError } from '../errors'
 import { hashBytes } from '../hash'
 import { BYTES_PER_MB, STORAGE_SAFETY_FACTOR } from '../limits'
-import type { ProjectFile } from './format'
+import { pointsToFile, type ProjectFile } from './format'
 import { migrateProjectDocument } from './migrate'
 import type { ProjectDocument, TaskType } from './schema'
 
@@ -50,7 +50,11 @@ interface ProjectRecord {
 
 interface DatasetRecord {
   projectId: string
-  bytes: Uint8Array
+  /**
+   * 표 정본. **이미지 프로젝트에는 없다** - 그때 이 레코드가 갖는 것은 `images`뿐이다
+   * (open-decisions.md "파일 계층은 '파일 참조인가'를 묻는다").
+   */
+  bytes?: Uint8Array
   /**
    * 가져오기 시점에 계산한 해시를 함께 들고 있는다.
    *
@@ -68,6 +72,15 @@ interface DatasetRecord {
    *
    * 없는 것이 정상이다. 이 필드가 생기기 전에 저장된 레코드에도 없다.
    */
+  /**
+   * 정본 사진들. zip 경로 -> 바이트로, `.mlpx` 안의 모양과 같다 (mlpx-spec.md §1.2).
+   *
+   * **새 object store를 안 만든다.** 그러려면 `DB_VERSION`을 올려야 하는데 그건 지시
+   * 없이 올릴 값이 아니고(`tests/versions.spec.ts`), 레코드에 필드를 더하는 것은
+   * IndexedDB가 버전을 안 요구한다. 의미도 맞다 - 이 store는 "그 프로젝트의 데이터
+   * 본체"이고 이미지에서는 그게 파일 여러 개다.
+   */
+  images?: Map<string, Uint8Array>
   test?: { bytes: Uint8Array; hash: string }
   predict?: { bytes: Uint8Array; hash: string }
 }
@@ -163,6 +176,8 @@ function totalBytes(project: ProjectFile): number {
   total += project.testDataset?.bytes.length ?? 0
   total += project.predictDataset?.bytes.length ?? 0
   for (const bytes of project.models.values()) total += bytes.length
+  // 사진도 자리를 차지한다. 이미지 프로젝트에서는 사실상 전부가 이 값이다.
+  for (const bytes of project.images.values()) total += bytes.length
   return total
 }
 
@@ -258,15 +273,17 @@ export async function saveProject(project: ProjectFile): Promise<void> {
     // 데이터셋이 없는 프로젝트가 정상이다. 그때는 **남아 있던 레코드를 지운다** -
     // 데이터를 바꾸는 도중의 상태가 옛 표와 새 설정으로 남으면 안 된다.
     const datasets = transaction.objectStore(DATASETS_STORE)
-    if (project.dataset === undefined) {
+    if (project.dataset === undefined && project.images.size === 0) {
       await datasets.delete(projectId)
     } else {
       // 평가·예측 데이터가 함께 실린다. 없으면 그 키를 아예 안 넣는다 - undefined를
       // 넣어 두면 "없음"과 "값이 undefined"가 섞인다.
       await datasets.put({
         projectId,
-        bytes: project.dataset.bytes,
-        hash: project.dataset.hash,
+        ...(project.dataset === undefined
+          ? {}
+          : { bytes: project.dataset.bytes, hash: project.dataset.hash }),
+        ...(project.images.size === 0 ? {} : { images: project.images }),
         ...(project.testDataset === undefined
           ? {}
           : { test: { bytes: project.testDataset.bytes, hash: project.testDataset.hash } }),
@@ -315,16 +332,25 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
   // 문서가 데이터셋을 가리키면 본체가 있어야 한다. 둘은 함께 있고 함께 없다
   // (mlpx-spec.md §1). 어긋난 것은 우리가 고칠 수 없으므로 없는 것으로 다룬다.
   const dataset = await transaction.objectStore(DATASETS_STORE).get(projectId)
-  const wanted = document.settings.data.dataset !== undefined
-  if (wanted !== (dataset !== undefined)) return null
+  const images = dataset?.images ?? new Map<string, Uint8Array>()
+
+  /**
+   * 참조와 본체가 함께 있는가. **파일 참조와 폴더 참조를 나눠 본다** — 폴더는 파일 하나를
+   * 안 가리키므로 "그 아래 한 장이라도 있는가"가 같은 질문이다
+   * (open-decisions.md "파일 계층은 '파일 참조인가'를 묻는다").
+   */
+  const paired = (ref: { path: string } | undefined, body: unknown): boolean => {
+    if (ref === undefined) return body === undefined
+    if (pointsToFile(ref)) return body !== undefined
+    return [...images.keys()].some((path) => path.startsWith(ref.path))
+  }
+
+  if (!paired(document.settings.data.dataset, dataset?.bytes)) return null
   // 평가·예측 데이터도 같은 규칙이다. 참조만 남은 채로 열어 주면 **그 프로젝트는
   // 저장도 내보내기도 못 하는 상태**가 되고(writeProject가 거부한다) 학생은 왜인지
   // 모른 채 다음 차시에 그걸 안다.
-  if ((document.settings.data.testDataset !== undefined) !== (dataset?.test !== undefined))
-    return null
-  if ((document.settings.data.predictDataset !== undefined) !== (dataset?.predict !== undefined)) {
-    return null
-  }
+  if (!paired(document.settings.data.testDataset, dataset?.test)) return null
+  if (!paired(document.settings.data.predictDataset, dataset?.predict)) return null
 
   const stored = await transaction.objectStore(MODELS_STORE).getAll(modelKeyRange(projectId))
   const models = new Map<string, Uint8Array>()
@@ -336,12 +362,13 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
     document,
     // hash가 없는 것은 이 필드가 생기기 전에 저장된 레코드다. 그때만 계산한다.
     dataset:
-      dataset === undefined
+      dataset?.bytes === undefined
         ? undefined
         : { bytes: dataset.bytes, hash: dataset.hash ?? hashBytes(dataset.bytes) },
     testDataset: dataset?.test,
     predictDataset: dataset?.predict,
     models,
+    images,
   }
 }
 

@@ -230,6 +230,7 @@ export function emptyProjectFile(): ProjectFile {
       portfolio: { template: { id: 'default-v1' }, answers: {} },
     },
     models: new Map(),
+    images: new Map(),
   }
 }
 
@@ -246,6 +247,8 @@ export function projectFile(overrides: Partial<ProjectFile> = {}): ProjectFile {
       ['model/run-1.json', new TextEncoder().encode('{"tree":[]}')],
       ['model/preprocessor-experiment-1.json', new TextEncoder().encode('{"columns":[]}')],
     ]),
+    // 표 픽스처라 사진이 없다. **매번 새 맵이다** (tests/fixtures.spec.ts).
+    images: new Map(),
     ...overrides,
   }
 }

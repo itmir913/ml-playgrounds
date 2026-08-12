@@ -89,7 +89,7 @@ async function create(): Promise<void> {
       { name: name.value.trim(), locale: locale.value },
       newProjectSeed(),
     )
-    await saveProject({ document, models: new Map() })
+    await saveProject({ document, models: new Map(), images: new Map() })
     creating.value = false
     openProject(document.manifest.projectId)
   } catch (error) {

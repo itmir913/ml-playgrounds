@@ -163,6 +163,33 @@ export interface ProjectFile {
   predictDataset?: Dataset | undefined
   /** zip 경로 -> 내용. 모델과 전처리기가 들어온다. */
   models: Map<string, Uint8Array>
+  /**
+   * zip 경로 -> 정본 사진. **표 프로젝트에서는 비어 있다.**
+   *
+   * `models`와 같은 모양인 것이 핵심이다 (open-decisions.md "파일 계층은 '파일 참조인가'를
+   * 묻는다") — 새 개념이 아니라 있는 길을 한 번 더 쓴다. 이미지는 참조 하나에 본체가
+   * 수백 개라 위 세 칸(`dataset`·`testDataset`·`predictDataset`)에 못 들어간다.
+   */
+  images: Map<string, Uint8Array>
+}
+
+/** 이미지 정본이 사는 자리들. 아래 판정들이 이 목록으로 걷는다. */
+const IMAGE_DIRS = [IMAGE_DATA_DIR, IMAGE_TEST_DIR, IMAGE_PREDICT_DIR] as const
+
+/** zip 엔트리가 정본 사진인가. */
+function isImageEntry(path: string): boolean {
+  return IMAGE_DIRS.some((directory) => path.startsWith(directory))
+}
+
+/**
+ * 이 참조가 파일 하나를 가리키는가. **데이터 종류를 묻지 않는다**
+ * (open-decisions.md "파일 계층은 '파일 참조인가'를 묻는다").
+ *
+ * 답은 참조 자신에게 있다 — 폴더 경로는 `/`로 끝나고, 그 모양은 스키마가 강제한다
+ * (`imageDatasetRefSchema`). 종류로 갈랐다면 음성·텍스트가 올 때마다 분기가 자란다.
+ */
+export function pointsToFile(ref: { path: string } | undefined): boolean {
+  return ref !== undefined && !ref.path.endsWith('/')
 }
 
 export type DropReason = 'tooLarge' | 'overBudget' | 'preprocessorMissing'
@@ -420,7 +447,7 @@ function hashableEntries(
 
   const present = new Map<string, string>()
   for (const [path, content] of entries) {
-    if (known.has(path) || path.startsWith(DIR.model)) {
+    if (known.has(path) || path.startsWith(DIR.model) || isImageEntry(path)) {
       present.set(path, hashBytes(content))
     }
   }
@@ -475,6 +502,36 @@ function referencedFileEntry(
     throw new ClientError('PROJECT_FILE_INVALID', { path: field, issues: 1 })
   }
   return { path: ref.path, bytes: content.bytes, hash: content.hash }
+}
+
+/**
+ * 파일 참조만 돌려준다. 폴더 참조는 `undefined`가 되어 "참조 하나 ↔ 파일 하나" 확인에서
+ * 빠진다 — 그 확인이 폴더에는 뜻이 없기 때문이다.
+ */
+function fileRefOf(ref: { path: string } | undefined): { path: string } | undefined {
+  return pointsToFile(ref) ? ref : undefined
+}
+
+/**
+ * 폴더 참조와 본체가 함께 있는지 확인한다. **파일 참조의 `referencedFileEntry`와 같은 일을
+ * 폴더에 대고 한다** — 참조는 있는데 사진이 하나도 없거나, 사진은 있는데 참조가 없으면
+ * 저장된 파일이 다시 안 열린다.
+ */
+function requireFolderBodies(document: ProjectDocument, images: Map<string, Uint8Array>): void {
+  const paths = [...images.keys()]
+  const slots = [
+    ['settings.data.dataset', document.settings.data.dataset, IMAGE_DATA_DIR],
+    ['settings.data.testDataset', document.settings.data.testDataset, IMAGE_TEST_DIR],
+    ['settings.data.predictDataset', document.settings.data.predictDataset, IMAGE_PREDICT_DIR],
+  ] as const
+
+  for (const [field, ref, directory] of slots) {
+    const folder = ref !== undefined && !pointsToFile(ref) ? ref.path : undefined
+    const has = paths.some((path) => path.startsWith(folder ?? directory))
+    if ((folder !== undefined) !== has) {
+      throw new ClientError('PROJECT_FILE_INVALID', { path: field, issues: 1 })
+    }
+  }
 }
 
 function requireSanePaths(document: ProjectDocument): void {
@@ -553,7 +610,8 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
   // settings가 데이터셋을 가리키는데 본체가 없으면 재학습도, 참조형 모델의 예측도,
   // 해시 재계산도 전부 불가능하다. 아예 안 가리키는 것은 다르다 - 표를 아직 안 올린
   // 정상적인 파일이다 (mlpx-spec.md §1).
-  const datasetPath = document.settings.data.dataset?.path
+  const datasetRef = document.settings.data.dataset
+  const datasetPath = pointsToFile(datasetRef) ? datasetRef?.path : undefined
   const datasetBytes = datasetPath === undefined ? undefined : entries.get(datasetPath)
   if (datasetPath !== undefined && datasetBytes === undefined) {
     throw new ClientError('PROJECT_FILE_ENTRY_MISSING', { entry: datasetPath })
@@ -561,18 +619,36 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
 
   // 평가 데이터도 같은 규칙이다 - split.method가 provided인데 test.csv가 없으면
   // 재현도 재학습도 못 한다 (mlpx-spec.md §1.1).
-  const testDatasetPath = document.settings.data.testDataset?.path
+  const testDatasetRef = document.settings.data.testDataset
+  const testDatasetPath = pointsToFile(testDatasetRef) ? testDatasetRef?.path : undefined
   const testDatasetBytes = testDatasetPath === undefined ? undefined : entries.get(testDatasetPath)
   if (testDatasetPath !== undefined && testDatasetBytes === undefined) {
     throw new ClientError('PROJECT_FILE_ENTRY_MISSING', { entry: testDatasetPath })
   }
 
   // 예측 데이터도 같은 규칙이다 - 참조가 있는데 본체가 없으면 우리 버그다 (mlpx-spec.md §1).
-  const predictDatasetPath = document.settings.data.predictDataset?.path
+  const predictDatasetRef = document.settings.data.predictDataset
+  const predictDatasetPath = pointsToFile(predictDatasetRef) ? predictDatasetRef?.path : undefined
   const predictDatasetBytes =
     predictDatasetPath === undefined ? undefined : entries.get(predictDatasetPath)
   if (predictDatasetPath !== undefined && predictDatasetBytes === undefined) {
     throw new ClientError('PROJECT_FILE_ENTRY_MISSING', { entry: predictDatasetPath })
+  }
+
+  // 정본 사진을 걷는다. **문서가 한 장씩 가리키지 않는다** - 라벨이 폴더 구조에 있으므로
+  // (mlpx-spec.md §1.2) 그 아래 있는 것이 곧 이 프로젝트의 사진이다.
+  const images = new Map<string, Uint8Array>()
+  for (const [path, content] of entries) {
+    if (isImageEntry(path)) images.set(path, content)
+  }
+
+  // 폴더 참조는 파일 하나를 안 가리키므로 **그 아래 한 장이라도 있는가**로 같은 것을
+  // 확인한다. 참조가 있는데 사진이 하나도 없으면 위 세 자리와 같은 상태다.
+  for (const ref of [datasetRef, testDatasetRef, predictDatasetRef]) {
+    if (ref === undefined || pointsToFile(ref)) continue
+    if (![...images.keys()].some((path) => path.startsWith(ref.path))) {
+      throw new ClientError('PROJECT_FILE_ENTRY_MISSING', { entry: ref.path })
+    }
   }
 
   // 대조는 엔트리를 버리기 **전에** 한다. 끼어든 고아 모델도 신호이기 때문이다.
@@ -609,6 +685,7 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
               hash: present.get(predictDatasetPath) ?? hashBytes(predictDatasetBytes),
             },
       models,
+      images,
     },
     integrity,
   }
@@ -641,7 +718,7 @@ export async function writeProject(
     [ENTRY.portfolioMarkdown]: new TextEncoder().encode(portfolioMarkdown),
   }
   const dataset = referencedFileEntry(
-    document.settings.data.dataset,
+    fileRefOf(document.settings.data.dataset),
     project.dataset,
     'settings.data.dataset',
   )
@@ -649,7 +726,7 @@ export async function writeProject(
     entries[dataset.path] = dataset.bytes
   }
   const testDataset = referencedFileEntry(
-    document.settings.data.testDataset,
+    fileRefOf(document.settings.data.testDataset),
     project.testDataset,
     'settings.data.testDataset',
   )
@@ -657,7 +734,7 @@ export async function writeProject(
     entries[testDataset.path] = testDataset.bytes
   }
   const predictDataset = referencedFileEntry(
-    document.settings.data.predictDataset,
+    fileRefOf(document.settings.data.predictDataset),
     project.predictDataset,
     'settings.data.predictDataset',
   )
@@ -668,6 +745,13 @@ export async function writeProject(
     const content = project.models.get(path)
     if (content) entries[path] = content
   }
+
+  // 정본 사진. **여기서는 종류를 안 본다** - 표 프로젝트는 이 맵이 비어 있다
+  // (open-decisions.md "파일 계층은 '파일 참조인가'를 묻는다").
+  for (const [path, content] of project.images) {
+    entries[path] = content
+  }
+  requireFolderBodies(document, project.images)
 
   // 마지막에 만든다. 자기 자신은 대상이 아니므로 다른 엔트리가 전부 정해진 뒤여야 한다.
   const hashes = buildHashes(

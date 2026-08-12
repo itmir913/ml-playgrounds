@@ -168,6 +168,8 @@ export function applyDataset(
       testDataset: undefined,
       predictDataset: undefined,
       models: new Map(),
+      // 표 프로젝트라 사진이 없다. 빈 맵이 정상이다.
+      images: new Map(),
     },
     droppedExperiments: document.runs.experiments.length,
     droppedColumns,
@@ -246,6 +248,8 @@ export function applyTestDataset(
       // 떨어뜨리면 참조만 남아 저장이 막힌다 (mlpx-spec.md §1).
       predictDataset: project.predictDataset,
       models: new Map(),
+      // 표 프로젝트라 사진이 없다. 빈 맵이 정상이다.
+      images: new Map(),
     },
     droppedExperiments: document.runs.experiments.length,
   }
@@ -324,6 +328,7 @@ export function applyPredictDataset(
       testDataset: project.testDataset,
       predictDataset: { bytes, hash: hashBytes(bytes) },
       models: project.models,
+      images: project.images,
     },
   }
 }
@@ -353,6 +358,7 @@ export function removePredictDataset(project: ProjectFile, now: string): Applied
       testDataset: project.testDataset,
       predictDataset: undefined,
       models: project.models,
+      images: project.images,
     },
   }
 }
@@ -390,6 +396,8 @@ export function removeTestDataset(project: ProjectFile, now: string): AppliedTes
       // 예측 데이터는 그대로 둔다 - `applyTestDataset`과 같은 이유다.
       predictDataset: project.predictDataset,
       models: new Map(),
+      // 표 프로젝트라 사진이 없다. 빈 맵이 정상이다.
+      images: new Map(),
     },
     droppedExperiments: document.runs.experiments.length,
   }

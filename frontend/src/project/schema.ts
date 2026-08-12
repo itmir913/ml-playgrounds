@@ -340,8 +340,14 @@ export const tabularSnapshotSchema = z.looseObject({
  * (open-decisions.md "이미지 프로젝트의 `settings.data`는 무엇을 갖는가").
  */
 export const imageDatasetRefSchema = z.looseObject({
-  /** zip 안의 폴더 경로 (mlpx-spec.md §1.2). 그 아래가 범주 폴더다. */
-  path: z.string(),
+  /**
+   * zip 안의 **폴더** 경로 (mlpx-spec.md §1.2). 그 아래가 범주 폴더다.
+   *
+   * **`/`로 끝나야 한다.** 파일 계층이 "이 참조가 파일을 가리키는가"를 그 모양으로
+   * 판정하기 때문이다 (open-decisions.md "파일 계층은 '파일 참조인가'를 묻는다").
+   * 슬래시가 빠지면 폴더 참조가 파일 참조로 읽혀 **저장이 조용히 어긋난다.**
+   */
+  path: z.string().endsWith('/'),
   /**
    * 정본 한 변의 길이.
    *

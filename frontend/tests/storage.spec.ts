@@ -24,6 +24,7 @@ import {
   writePreferredLocale,
 } from '../src/project/storage'
 import { hashBytes } from '../src/hash'
+import type { ProjectFile } from '../src/project/format'
 import { dataSettings } from '../src/project/schema'
 import {
   experiment,
@@ -376,5 +377,63 @@ describe('읽는 경로가 .mlpx와 같은 문을 지난다', () => {
     const found = (await listProjects()).find((one) => one.projectId === 'planted')
     expect(found).toBeDefined()
     expect(found?.readable).toBe(false)
+  })
+})
+
+describe('이미지 프로젝트', () => {
+  /**
+   * **표 정본이 없는 프로젝트다.** `datasets` 레코드가 사진만 들고 있어야 하고,
+   * 그 모양이 어긋나면 `loadProject`가 `null`을 준다 — 학생 입장에서는 프로젝트가
+   * 사라진 것과 같다 (open-decisions.md "파일 계층은 '파일 참조인가'를 묻는다").
+   */
+  function imageProjectFile(): ProjectFile {
+    const base = emptyProjectFile()
+    const bytes = new TextEncoder().encode('가짜jpg')
+    return {
+      ...base,
+      document: {
+        ...base.document,
+        manifest: { ...base.document.manifest, dataType: 'image' },
+        settings: {
+          ...base.document.settings,
+          data: {
+            dataset: { path: 'dataset/data/', canonicalSize: 224, jpegQuality: 0.85 },
+            categories: ['개'],
+            backboneId: 'mobilenet-v2',
+          },
+        },
+      },
+      images: new Map([[`dataset/data/개/${hashBytes(bytes)}.jpg`, bytes]]),
+    }
+  }
+
+  it('사진만 있는 프로젝트가 저장되고 돌아온다', async () => {
+    const project = imageProjectFile()
+    await saveProject(project)
+
+    const loaded = await loadProject(project.document.manifest.projectId)
+    expect(loaded).not.toBeNull()
+    expect([...(loaded?.images.keys() ?? [])]).toEqual([...project.images.keys()])
+    // 표 정본은 없는 것이 정상이다.
+    expect(loaded?.dataset).toBeUndefined()
+  })
+
+  it('사진을 다 지우면 레코드도 사라진다', async () => {
+    const project = imageProjectFile()
+    await saveProject(project)
+    await saveProject({
+      ...project,
+      document: {
+        ...project.document,
+        settings: {
+          ...project.document.settings,
+          data: { categories: [], backboneId: 'mobilenet-v2' },
+        },
+      },
+      images: new Map(),
+    })
+
+    const loaded = await loadProject(project.document.manifest.projectId)
+    expect(loaded?.images.size).toBe(0)
   })
 })
