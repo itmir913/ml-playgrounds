@@ -113,9 +113,15 @@ describe('사진 꾸러미의 구조가 라벨이다', () => {
     ])
   })
 
+  /**
+   * **굽는 워커는 이름으로만 대답한다** (`CanonicalImage.sourceName`). 파일 이름을
+   * 그대로 두면 `개/1.jpg`와 `고양이/1.jpg`가 같은 열쇠가 되어 **한쪽 라벨이 다른 쪽을
+   * 덮는다.** 화면에는 아무것도 안 보인다.
+   */
   it('경로가 라벨의 열쇠다 - 파일 이름이 겹쳐도 섞이지 않는다', async () => {
     const items = await readImageZip(makeZip(['개/1.jpg', '고양이/1.jpg']))
     expect(new Set(items.map((item) => item.path)).size).toBe(2)
+    expect(items.map((item) => item.file.name)).toEqual(items.map((item) => item.path))
   })
 })
 
@@ -166,6 +172,8 @@ describe('파일과 폴더로 고른 경우', () => {
   it('폴더를 통째로 고르면 구조가 라벨이 된다', () => {
     const items = readImageFiles([pick('사진/개/1.jpg'), pick('사진/고양이/2.jpg')])
     expect(items.map((item) => item.category)).toEqual(['개', '고양이'])
+    // 여기서도 워커에 넘길 이름이 경로여야 한다.
+    expect(items.map((item) => item.file.name)).toEqual(['개/1.jpg', '고양이/2.jpg'])
   })
 
   it('구조 없이 파일만 고르면 떨어뜨린 자리로 간다', () => {

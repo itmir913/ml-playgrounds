@@ -26,9 +26,14 @@ export interface UploadItem {
    * `고양이/1.jpg`가 같은 열쇠가 되어 **한쪽 라벨이 다른 쪽을 덮는다.**
    */
   readonly path: string
+  /**
+   * 굽는 워커에 넘길 것. **`file.name`이 위 `path`와 같다** — 워커는 그 이름을
+   * `sourceName`으로 되돌려 주고, 부르는 쪽은 그것으로 다시 범주를 찾는다.
+   * 파일 이름(`1.jpg`)을 그대로 두면 그 열쇠가 범주 사이에서 겹친다.
+   */
+  readonly file: File
   /** 이 사진이 들어갈 범주. `_unlabeled`면 아직 안 정한 상태다. */
   readonly category: string
-  readonly file: File
 }
 
 /**
@@ -133,12 +138,11 @@ export async function readImageZip(
   const paths = unwrapOnce(entries.map(([path]) => path))
   const items = paths.map((path, index) => {
     const content = entries[index]?.[1] ?? new Uint8Array()
-    const name = path.split('/').pop() ?? path
     return {
       path,
       category: categoryOf(path, fallbackCategory),
       // 바이트를 여기서 한 번 감싼다. 실제로 읽는 것은 워커다.
-      file: new File([content], name),
+      file: new File([content], path),
     }
   })
 
@@ -164,12 +168,24 @@ export function readImageFiles(
 
   const items = kept.map((file, index) => {
     const path = paths[index] ?? file.name
-    return { path, category: categoryOf(path, fallbackCategory), file }
+    return {
+      path,
+      category: categoryOf(path, fallbackCategory),
+      // **이름을 경로로 바꿔 단다.** 바이트는 안 읽는다 - 같은 데이터를 가리키는 새
+      // 껍데기일 뿐이다.
+      file: file.name === path ? file : new File([file], path),
+    }
   })
 
   requireValidCategories(new Set(items.map((item) => item.category)))
   return items
 }
+
+/**
+ * 사진 받는 자리가 받는 것. **꾸러미(zip)와 사진 파일을 같은 입구로 받는다** — 학생이
+ * 둘 중 무엇을 들고 오는지 미리 정할 수 없다.
+ */
+export const IMAGE_ACCEPT = 'image/*,.zip'
 
 /** 범주 하나에 몇 장이 들어오는가. */
 export interface UploadCount {
