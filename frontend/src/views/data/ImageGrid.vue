@@ -10,9 +10,12 @@
  * 같은 사진의 주소가 새로 생기고, 놓아주는 자리가 없어 탭을 닫을 때까지 쌓인다.
  */
 
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
+import AppButton from '@/components/AppButton.vue'
+import { IMAGE_GRID_PAGE_SIZE } from '@/limits'
 import type { ImageEntry } from '@/project/images'
 
 const props = defineProps<{
@@ -34,6 +37,28 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+/**
+ * 지금 쪽. **한 번에 다 그리지 않는다** — 200장짜리 격자는 화면을 통째로 덮어서 범주
+ * 사이를 오가는 것이 스크롤 작업이 된다 (`limits.ts`의 `IMAGE_GRID_PAGE_SIZE`).
+ */
+const page = ref(0)
+
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(props.entries.length / IMAGE_GRID_PAGE_SIZE)),
+)
+
+/**
+ * 장수가 줄면 지금 쪽이 빈 쪽이 될 수 있다 — 사진을 지우거나 다른 범주로 옮겼을 때다.
+ * **그때 빈 격자를 보이면 학생은 사진이 다 사라진 줄 안다.**
+ */
+watch(totalPages, (count) => {
+  if (page.value > count - 1) page.value = count - 1
+})
+
+const shown = computed(() =>
+  props.entries.slice(page.value * IMAGE_GRID_PAGE_SIZE, (page.value + 1) * IMAGE_GRID_PAGE_SIZE),
+)
 </script>
 
 <template>
@@ -82,8 +107,8 @@ const { t } = useI18n()
       {{ props.unlabeled ? t('data.image.noUnlabeled') : t('data.image.emptyCategory') }}
     </p>
 
-    <ul v-else class="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-8">
-      <li v-for="entry in props.entries" :key="entry.hash">
+    <ul v-else class="grid grid-cols-3 gap-2 sm:grid-cols-5">
+      <li v-for="entry in shown" :key="entry.hash">
         <!--
           **테두리는 늘 있고 색만 바뀐다** (AppChoices와 같은 이유) — 고른 것만 테두리를
           주면 안쪽 크기가 상태에 따라 달라져 격자가 한 픽셀씩 움직인다.
@@ -108,5 +133,20 @@ const { t } = useI18n()
         </button>
       </li>
     </ul>
+
+    <!--
+      **쪽이 하나뿐이면 안 그린다.** 아무 데도 못 가는 버튼 둘은 학생에게 고장으로 보인다.
+      [모두 선택]은 이 칸 전체를 고르지 이 쪽만 고르지 않는다 — 쪽은 보는 단위이지
+      고르는 단위가 아니다.
+    -->
+    <div v-if="totalPages > 1" class="flex items-center justify-between gap-4">
+      <AppButton variant="secondary" :disabled="page === 0" @click="page -= 1">
+        {{ t('common.prevPage') }}
+      </AppButton>
+      <p class="tabular-nums text-ink-soft">{{ page + 1 }} / {{ totalPages }}</p>
+      <AppButton variant="secondary" :disabled="page >= totalPages - 1" @click="page += 1">
+        {{ t('common.nextPage') }}
+      </AppButton>
+    </div>
   </section>
 </template>

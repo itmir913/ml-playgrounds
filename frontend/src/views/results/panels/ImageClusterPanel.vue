@@ -16,6 +16,8 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
+import AppButton from '@/components/AppButton.vue'
+import { IMAGE_GRID_PAGE_SIZE } from '@/limits'
 import { backboneFor } from '@/ml/backbones'
 import { imageClusterGroups } from '@/ml/image-clusters'
 import { imageTrainingSource } from '@/ml/images'
@@ -94,6 +96,36 @@ watch(
 onBeforeUnmount(() => {
   for (const url of urls.value.values()) URL.revokeObjectURL(url)
 })
+
+/**
+ * 군집마다의 지금 쪽. **군집 하나가 200장일 수 있다** — 한 번에 다 그리면 그 군집
+ * 하나가 화면을 덮어서 다른 군집을 보려면 스크롤해야 한다 (데이터 화면과 같은 규칙).
+ */
+const pages = ref(new Map<number, number>())
+
+/** 배정이 다시 계산되면 쪽도 처음으로. 사진이 옮겨 갔는데 3쪽에 서 있으면 빈 격자다. */
+watch(groups, () => {
+  pages.value = new Map()
+})
+
+function pageOf(cluster: number): number {
+  return pages.value.get(cluster) ?? 0
+}
+
+function totalPagesOf(count: number): number {
+  return Math.max(1, Math.ceil(count / IMAGE_GRID_PAGE_SIZE))
+}
+
+function shownOf(group: { cluster: number; hashes: readonly string[] }): readonly string[] {
+  const page = pageOf(group.cluster)
+  return group.hashes.slice(page * IMAGE_GRID_PAGE_SIZE, (page + 1) * IMAGE_GRID_PAGE_SIZE)
+}
+
+function turn(cluster: number, step: number): void {
+  const next = new Map(pages.value)
+  next.set(cluster, pageOf(cluster) + step)
+  pages.value = next
+}
 </script>
 
 <template>
@@ -122,16 +154,40 @@ onBeforeUnmount(() => {
         "이 군집은 무엇인가"를 볼 때 먼저 보는 것이 그것이어야 한다.
       -->
       <ul v-else class="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-10">
-        <li v-for="(hash, index) in group.hashes" :key="hash">
+        <li v-for="(hash, index) in shownOf(group)" :key="hash">
           <img
             :src="urls.get(hash)"
             :alt="t('results.clusterName', { cluster: group.cluster })"
             loading="lazy"
             class="aspect-square w-full rounded-control bg-surface-sunken object-cover"
-            :class="index === 0 ? 'ring-2 ring-brand' : ''"
+            :class="index === 0 && pageOf(group.cluster) === 0 ? 'ring-2 ring-brand' : ''"
           />
         </li>
       </ul>
+
+      <!-- 쪽이 하나뿐이면 안 그린다. 아무 데도 못 가는 버튼은 고장으로 보인다. -->
+      <div
+        v-if="totalPagesOf(group.hashes.length) > 1"
+        class="flex items-center justify-between gap-4"
+      >
+        <AppButton
+          variant="secondary"
+          :disabled="pageOf(group.cluster) === 0"
+          @click="turn(group.cluster, -1)"
+        >
+          {{ t('common.prevPage') }}
+        </AppButton>
+        <p class="tabular-nums text-ink-soft">
+          {{ pageOf(group.cluster) + 1 }} / {{ totalPagesOf(group.hashes.length) }}
+        </p>
+        <AppButton
+          variant="secondary"
+          :disabled="pageOf(group.cluster) >= totalPagesOf(group.hashes.length) - 1"
+          @click="turn(group.cluster, 1)"
+        >
+          {{ t('common.nextPage') }}
+        </AppButton>
+      </div>
     </section>
   </div>
 </template>

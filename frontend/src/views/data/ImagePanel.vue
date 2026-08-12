@@ -428,18 +428,31 @@ async function commitRemoveCategory(): Promise<void> {
         </AppButton>
       </div>
 
-      <ImageGrid
-        v-for="category in categories"
-        :key="category"
-        :label="category"
-        :entries="entriesOf(category)"
-        :urls="urls"
-        :selected="selected"
-        @toggle="toggle"
-        @pick-all="pickAll(category)"
-        @rename="naming = { mode: 'rename', from: category, value: category }"
-        @remove="removingCategory = category"
-      />
+      <!--
+        **넓은 화면에서는 범주 칸이 두 줄로 선다** (architecture.md §8.10.1 "넓은 화면은
+        세로로 늘리지 않는다"). 한 줄로 쌓으면 범주 셋만 있어도 아래 것을 보려고
+        스크롤해야 하고, 사진을 옮기는 일은 **두 칸을 함께 보는 일**이다.
+
+        **`items-start`가 있어야 한다.** 없으면 같은 행의 칸이 서로 높이를 맞추느라
+        사진 세 장짜리 범주가 서른 장짜리만큼 늘어난다.
+
+        **격자다.** 신문처럼 흘리면(`columns`) 읽는 차례가 세로가 되어 학생이 정렬해 둔
+        범주 순서와 어긋난다 — 순서를 파일에 남기는 이유가 그것이다.
+      -->
+      <div class="grid items-start gap-3 lg:grid-cols-2">
+        <ImageGrid
+          v-for="category in categories"
+          :key="category"
+          :label="category"
+          :entries="entriesOf(category)"
+          :urls="urls"
+          :selected="selected"
+          @toggle="toggle"
+          @pick-all="pickAll(category)"
+          @rename="naming = { mode: 'rename', from: category, value: category }"
+          @remove="removingCategory = category"
+        />
+      </div>
 
       <!--
         **범주가 아니라 상태다** (open-decisions.md). 그래서 맨 아래에 따로 서고 이름
