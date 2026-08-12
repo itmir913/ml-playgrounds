@@ -7,11 +7,12 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc --build && vite build",
+    "dev": "npm run backbones && vite",
+    "build": "npm run backbones && vue-tsc --build && vite build",
+    "backbones": "node scripts/fetch-backbone.mjs",
     "preview": "vite preview",
     "test": "vitest run",
-    "ci": "npm run lint:check && npm run typecheck && npm run test && npm run build",
+    "ci": "npm run backbones && npm run lint:check && npm run typecheck && npm run test && npm run build",
     "test:watch": "vitest",
     "lint": "eslint . --fix && prettier --write src/ tests/",
     "lint:check": "eslint . --cache && prettier --check src/ tests/ --cache",
@@ -30,6 +31,11 @@
   },
   "dependencies": {
     "@noble/hashes": "^2.2.0",
+    "@tensorflow/tfjs-backend-wasm": "^4.22.0",
+    "@tensorflow/tfjs-backend-webgl": "^4.22.0",
+    "@tensorflow/tfjs-backend-webgpu": "^4.22.0",
+    "@tensorflow/tfjs-converter": "^4.22.0",
+    "@tensorflow/tfjs-core": "^4.22.0",
     "chart.js": "^4.5.1",
     "exceljs": "^4.4.0",
     "fflate": "^0.8.3",
