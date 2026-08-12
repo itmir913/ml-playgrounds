@@ -89,13 +89,18 @@ function reason(step: StepId): string {
 /**
  * 칸 하나의 공통 모양. 아이콘 위, 글자 아래.
  *
+ * **좌우 여백도 세로일 때만이다.** 레일에서는 글자 자리를 그만큼 잡아먹어 `대시보드`가
+ * 두 줄로 접힌다(theme.css의 `--spacing-rail`). 칸의 여백은 레일 자신의 `p-1`이 이미
+ * 주고 있다. 가로로 누우면 이름이 숨고 아이콘만 남아서, 거기서는 이 여백이 칸과 칸
+ * 사이의 유일한 숨통이다.
+ *
  * **`w-full`은 세로일 때만이다.** 가로로 누우면 칸마다 nav 전체 너비를 요구해서
  * 여덟 칸이 통째로 넘치고, `justify-center`와 겹치면 넘친 쪽이 양옆으로 잘려
  * **스크롤로도 닿지 않는다.** 태블릿에서 가운데 한 칸만 보이고 나머지를 누를 수
  * 없던 이유가 이것이다. 가로에서는 내용만큼만 차지한다.
  */
 const CELL =
-  'flex min-w-0 flex-col items-center gap-1 rounded-control border-transparent px-1 py-2 leading-tight md:w-full md:border-r'
+  'flex min-w-0 flex-col items-center gap-1 rounded-control border-transparent px-1 py-2 leading-tight md:w-full md:border-r md:px-0'
 
 /**
  * 글자 상자.
