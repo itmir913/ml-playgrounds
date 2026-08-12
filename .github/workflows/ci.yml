@@ -79,23 +79,16 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      # vitest보다 먼저 받아야 한다. 가중치를 받는 것은 `backbones` 스크립트인데 그것이
-      # 붙어 있는 곳은 `ci`와 `build`이고, 이 잡은 단계를 하나씩 부르므로 vitest가 build
-      # 앞에 선다. tests/backbones.spec.ts가 model.json을 읽어 등록부와 대조한다 —
-      # 파일이 없을 때 건너뛰게 만들면 가중치가 등록부와 어긋나는 날 조용히 통과한다.
-      - name: backbone weights
-        run: npm run backbones
-      # `npm run lint -- --no-fix`가 아니다. npm은 `--` 뒤의 인자를 스크립트 문자열
-      # 끝에 붙이는데, lint는 `&&`로 이어진 두 명령이라 `--no-fix`가 eslint가 아니라
-      # prettier에 붙었다. 그래서 이 단계가 `eslint . --fix`로 돌았고, 자동 수정되는
-      # 위반은 여기서 조용히 고쳐져 통과한 뒤 그 수정은 러너와 함께 버려졌다.
-      - name: eslint
-        run: npx eslint .
-      - name: prettier
-        run: npx prettier --check src/ tests/
-      - name: vue-tsc
-        run: npm run typecheck
-      - name: vitest
-        run: npm test
-      - name: build
-        run: npm run build
+      # 관문의 정의는 `package.json`의 `ci` 스크립트 하나다 — backbones · lint:check ·
+      # typecheck · vitest · build. 여기서 단계를 하나씩 풀어 쓰고 있었는데, 그러면
+      # 스크립트에 검사를 더한 사람이 이 파일을 안 고쳤을 때 **push 관문에서만 조용히
+      # 빠진다.** 실제로 그랬다 — 백본 가중치 받기는 `ci`에 이미 있었는데 여기에는
+      # 없어서 나중에 따로 넣어야 했다(`40e5c63`). `deploy.yml`도 같은 한 줄을 부른다.
+      #
+      # 이 안의 순서에는 이유가 있으니 스크립트를 고칠 때 함께 봐라.
+      # - 백본 가중치가 vitest보다 앞이다. tests/backbones.spec.ts가 model.json을 읽어
+      #   등록부와 대조한다 — 파일이 없을 때 건너뛰게 만들면 가중치가 등록부와 어긋나는
+      #   날 조용히 통과한다.
+      # - 린트는 `lint`가 아니라 `lint:check`다. `lint`는 `--fix`가 붙어 있어 위반을
+      #   러너에서 고쳐 통과시키고, 그 수정은 러너와 함께 버려진다(`556d6d4`).
+      - run: npm run ci
