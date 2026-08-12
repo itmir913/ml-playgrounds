@@ -141,7 +141,7 @@ const overviews = computed(() => {
 /** 머리글 설명 한 문장. **키를 조립하지 않는다** (`TermPopover`의 머리말). */
 function axisHelp(position: number): string {
   const overview = overviews.value[position]
-  return t('results.clusterMeanHelp', {
+  return t('results.tabular.clusterMeanHelp', {
     overall: format.prediction(overview?.mean ?? 0),
     min: format.prediction(overview?.min ?? 0),
     max: format.prediction(overview?.max ?? 0),
@@ -164,8 +164,8 @@ function cellsOf(row: number): readonly string[] {
       :axes="axes"
       :summaries="summaries"
       :scatter="scatter"
-      :title="t('results.clusterScatter')"
-      :lead="t('results.clusterScatterLead')"
+      :title="t('results.tabular.clusterScatter')"
+      :lead="t('results.tabular.clusterScatterLead')"
     />
 
     <!--
@@ -174,14 +174,14 @@ function cellsOf(row: number): readonly string[] {
       줄을 누르면 아래에 구성원이 펼쳐진다 - 점수 표와 같은 문법이다 (§8.13).
     -->
     <div class="flex min-w-0 flex-col gap-1.5">
-      <h4 class="font-bold">{{ t('results.clusterSummary') }}</h4>
-      <p class="text-ink-soft">{{ t('results.clusterSummaryLead') }}</p>
+      <h4 class="font-bold">{{ t('results.tabular.clusterSummary') }}</h4>
+      <p class="text-ink-soft">{{ t('results.tabular.clusterSummaryLead') }}</p>
 
       <AppTable>
         <thead>
           <tr>
-            <th>{{ t('results.cluster') }}</th>
-            <th>{{ t('results.clusterSize') }}</th>
+            <th>{{ t('results.tabular.cluster') }}</th>
+            <th>{{ t('results.tabular.clusterSize') }}</th>
             <!--
               **머리글을 눌러 설명을 연다** (§8.13, 점수 표와 같은 문법). 제목은 우리
               어휘가 아니라 학생의 열 이름이라 번역하지 않는다 - 설명만 우리가 쓴다.
@@ -215,9 +215,9 @@ function cellsOf(row: number): readonly string[] {
     -->
     <div class="flex min-w-0 flex-col gap-1.5">
       <h4 class="font-bold">
-        {{ t('results.clusterMembers', { name: clusterName(openedCluster) }) }}
+        {{ t('results.tabular.clusterMembers', { name: clusterName(openedCluster) }) }}
       </h4>
-      <p class="text-ink-soft">{{ t('results.clusterMembersLead') }}</p>
+      <p class="text-ink-soft">{{ t('results.tabular.clusterMembersLead') }}</p>
 
       <AppTable>
         <thead>
@@ -233,7 +233,7 @@ function cellsOf(row: number): readonly string[] {
       </AppTable>
 
       <p class="text-ink-faint">
-        {{ t('results.clusterMemberCount', { shown: members.length, total: memberTotal }) }}
+        {{ t('results.tabular.clusterMemberCount', { shown: members.length, total: memberTotal }) }}
       </p>
 
       <!-- 한 쪽뿐이면 넘길 것이 없다. 못 누르는 단추 둘을 두지 않는다. -->

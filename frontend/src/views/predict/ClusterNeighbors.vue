@@ -271,13 +271,13 @@ const neighborhood = computed<Neighborhood | null>(() => {
       <dl class="flex flex-wrap gap-x-6 gap-y-1.5">
         <div class="flex items-baseline gap-1.5">
           <dt>
-            <AppBadge>{{ t('results.cluster') }}</AppBadge>
+            <AppBadge>{{ t('results.tabular.cluster') }}</AppBadge>
           </dt>
           <dd class="font-bold">{{ t('results.clusterName', { index: neighborhood.cluster }) }}</dd>
         </div>
         <div class="flex items-baseline gap-1.5">
           <dt>
-            <AppBadge>{{ t('results.clusterSize') }}</AppBadge>
+            <AppBadge>{{ t('results.tabular.clusterSize') }}</AppBadge>
           </dt>
           <dd class="font-bold tabular-nums">{{ neighborhood.size }}</dd>
         </div>
@@ -321,7 +321,7 @@ const neighborhood = computed<Neighborhood | null>(() => {
 
       <p class="text-ink-faint">
         {{
-          t('results.clusterMemberCount', {
+          t('results.tabular.clusterMemberCount', {
             shown: neighborhood.rows.length,
             total: neighborhood.total,
           })

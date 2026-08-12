@@ -141,12 +141,12 @@ function turn(cluster: number, step: number): void {
           모르고, 순서에 뜻이 있다는 것도 모른다.
         -->
         <span v-if="group.representative" class="text-ink-soft">
-          {{ t('results.clusterRepresentative') }}
+          {{ t('results.image.clusterRepresentative') }}
         </span>
       </header>
 
       <p v-if="group.hashes.length === 0" class="text-base text-ink-faint">
-        {{ t('results.clusterEmpty') }}
+        {{ t('results.image.clusterEmpty') }}
       </p>
 
       <!--

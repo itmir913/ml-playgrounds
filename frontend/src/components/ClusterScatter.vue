@@ -127,7 +127,7 @@ const chartData = computed(() =>
     tokens.value,
     {
       clusterName: (cluster: number) => t('results.clusterName', { index: cluster }),
-      centroid: t('results.clusterCentroid'),
+      centroid: t('results.tabular.clusterCentroid'),
       highlight: t('predict.tabular.clusterInputPoint'),
     },
     props.highlight,
@@ -138,7 +138,8 @@ const chartOptions = computed(() =>
   clusterChartOptions(props.summaries.length, tokens.value, {
     axisX: axisName(xAxis.value),
     axisY: axisName(yAxis.value),
-    point: (name, x, y) => t('results.clusterPoint', { name, x: coordinate(x), y: coordinate(y) }),
+    point: (name, x, y) =>
+      t('results.tabular.clusterPoint', { name, x: coordinate(x), y: coordinate(y) }),
   }),
 )
 </script>
@@ -158,7 +159,7 @@ const chartOptions = computed(() =>
     -->
     <div v-if="props.axes.length > 2" class="flex flex-col gap-2 sm:flex-row sm:gap-5">
       <label class="flex items-center gap-2">
-        <span class="font-bold text-ink-soft">{{ t('results.clusterAxisX') }}</span>
+        <span class="font-bold text-ink-soft">{{ t('results.tabular.clusterAxisX') }}</span>
         <select
           v-model.number="xAxis"
           class="rounded-field border border-line-strong bg-surface px-2 py-1"
@@ -170,7 +171,7 @@ const chartOptions = computed(() =>
       </label>
 
       <label class="flex items-center gap-2">
-        <span class="font-bold text-ink-soft">{{ t('results.clusterAxisY') }}</span>
+        <span class="font-bold text-ink-soft">{{ t('results.tabular.clusterAxisY') }}</span>
         <select
           v-model.number="yAxis"
           class="rounded-field border border-line-strong bg-surface px-2 py-1"
@@ -192,7 +193,7 @@ const chartOptions = computed(() =>
     -->
     <p v-if="props.scatter.drawn < props.scatter.total" class="text-ink-faint">
       {{
-        t('results.clusterSample', {
+        t('results.tabular.clusterSample', {
           drawn: props.scatter.drawn,
           total: props.scatter.total,
         })
