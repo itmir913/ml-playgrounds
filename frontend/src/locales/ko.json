@@ -289,7 +289,9 @@
     "cancel": "취소",
     "dismiss": "닫기",
     "on": "켬",
-    "off": "끔"
+    "off": "끔",
+    "prevPage": "이전",
+    "nextPage": "다음"
   },
   "language": {
     "en": "English",
@@ -610,8 +612,6 @@
     "tableTitle": "예측 결과",
     "showFeatures": "특성 값 보기",
     "computing": "계산하는 중입니다.",
-    "prevPage": "이전",
-    "nextPage": "다음",
     "download": "예측 결과 CSV로 내려받기"
   }
 }

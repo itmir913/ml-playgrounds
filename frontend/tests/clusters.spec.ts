@@ -363,10 +363,37 @@ describe('구성원', () => {
     }
   })
 
-  it('상한만큼만 준다', () => {
+  it('한 페이지만큼만 준다', () => {
     const { matrix, rows, model } = fixture()
     const assignment = assignClusters(matrix, rows, model)
     expect(clusterMembers(assignment, assignment.clusters[0]!, 2)).toHaveLength(2)
+  })
+
+  /**
+   * **페이지를 넘겨도 같은 줄이 두 번 나오거나 빠지면 안 된다** (#28-6).
+   *
+   * 쪽마다 따로 정렬하면 동점에서 순서가 흔들려 그런 일이 생긴다. 여기서 확인하는 것은
+   * "쪽들을 이어 붙인 것 = 한 번에 다 뽑은 것"이다.
+   */
+  it('쪽을 이어 붙이면 전체와 같다 - 겹치지도 빠지지도 않는다', () => {
+    const { matrix, rows, model } = fixture()
+    const assignment = assignClusters(matrix, rows, model)
+    const cluster = assignment.clusters[0]!
+    const all = clusterMembers(assignment, cluster, rows.length)
+
+    const paged = [
+      ...clusterMembers(assignment, cluster, 2, 0),
+      ...clusterMembers(assignment, cluster, 2, 2),
+      ...clusterMembers(assignment, cluster, 2, 4),
+    ]
+    expect(paged).toEqual(all.slice(0, 6))
+    expect(new Set(paged).size).toBe(paged.length)
+  })
+
+  it('마지막 쪽을 넘어가면 빈 배열이다 - 화면이 빈 표를 그린다', () => {
+    const { matrix, rows, model } = fixture()
+    const assignment = assignClusters(matrix, rows, model)
+    expect(clusterMembers(assignment, assignment.clusters[0]!, 10, 999)).toEqual([])
   })
 
   it('거리가 같으면 행 번호가 앞선 것이 앞이다', () => {

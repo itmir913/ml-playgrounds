@@ -18,10 +18,11 @@
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AppButton from '@/components/AppButton.vue'
 import AppTable from '@/components/AppTable.vue'
 import TermPopover from '@/components/TermPopover.vue'
 import { useFormat } from '@/composables/useFormat'
-import { CLUSTER_MEMBER_ROW_COUNT, CLUSTER_SCATTER_POINT_LIMIT } from '@/limits'
+import { CLUSTER_MEMBER_PAGE_SIZE, CLUSTER_SCATTER_POINT_LIMIT } from '@/limits'
 import {
   axisOverviews,
   clusterMaterialFor,
@@ -67,6 +68,18 @@ const openedCluster = ref(0)
 
 watch(material, () => {
   openedCluster.value = 0
+  memberPage.value = 0
+})
+
+/**
+ * 구성원 표의 페이지 (#28-6). **군집을 바꾸면 첫 장으로 돌아간다** — 3번 군집의 5쪽에
+ * 있다가 2번 군집을 누르면 거기 5쪽이 있다는 보장이 없고, 있어도 학생이 방금 누른 것은
+ * "2번 군집"이지 "2번 군집의 5쪽"이 아니다.
+ */
+const memberPage = ref(0)
+
+watch(openedCluster, () => {
+  memberPage.value = 0
 })
 
 const axes = computed(() => material.value?.axes ?? [])
@@ -99,10 +112,20 @@ const summaries = computed(() => {
 const members = computed(() => {
   const found = material.value
   if (!found) return []
-  return clusterMembers(found.assignment, openedCluster.value, CLUSTER_MEMBER_ROW_COUNT)
+  return clusterMembers(
+    found.assignment,
+    openedCluster.value,
+    CLUSTER_MEMBER_PAGE_SIZE,
+    memberPage.value * CLUSTER_MEMBER_PAGE_SIZE,
+  )
 })
 
 const memberTotal = computed(() => material.value?.assignment.counts[openedCluster.value] ?? 0)
+
+/** 빈 군집에서도 1쪽이다 — `0 / 0`은 화면이 고장 난 것처럼 읽힌다. */
+const memberPages = computed(() =>
+  Math.max(1, Math.ceil(memberTotal.value / CLUSTER_MEMBER_PAGE_SIZE)),
+)
 
 /**
  * 축마다 전체 데이터의 평균과 범위. **요약표 머리글의 설명이 이것을 쓴다** (#28-6).
@@ -212,6 +235,25 @@ function cellsOf(row: number): readonly string[] {
       <p class="text-ink-faint">
         {{ t('results.clusterMemberCount', { shown: members.length, total: memberTotal }) }}
       </p>
+
+      <!-- 한 쪽뿐이면 넘길 것이 없다. 못 누르는 단추 둘을 두지 않는다. -->
+      <div v-if="memberPages > 1" class="flex items-center justify-between gap-4">
+        <AppButton
+          variant="secondary"
+          :disabled="memberPage === 0"
+          @click="memberPage = memberPage - 1"
+        >
+          {{ t('common.prevPage') }}
+        </AppButton>
+        <p class="tabular-nums text-ink-soft">{{ memberPage + 1 }} / {{ memberPages }}</p>
+        <AppButton
+          variant="secondary"
+          :disabled="memberPage >= memberPages - 1"
+          @click="memberPage = memberPage + 1"
+        >
+          {{ t('common.nextPage') }}
+        </AppButton>
+      </div>
     </div>
   </section>
 </template>

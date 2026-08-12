@@ -289,7 +289,9 @@
     "cancel": "Cancel",
     "dismiss": "Dismiss",
     "on": "On",
-    "off": "Off"
+    "off": "Off",
+    "prevPage": "Previous",
+    "nextPage": "Next"
   },
   "language": {
     "en": "English",
@@ -610,8 +612,6 @@
     "tableTitle": "Prediction results",
     "showFeatures": "Show feature values",
     "computing": "Computing.",
-    "prevPage": "Previous",
-    "nextPage": "Next",
     "download": "Download predictions as CSV"
   }
 }

@@ -307,19 +307,24 @@ export function axisOverviews(
 }
 
 /**
- * 그 군집의 구성원. **중심점에 가까운 순으로 `limit`개까지** (#28-6).
+ * 그 군집의 구성원 한 페이지. **중심점에 가까운 순으로 `offset`부터 `limit`개** (#28-6).
  *
  * 가까운 순인 이유는 **가장 전형적인 것부터**이기 때문이다. 돌려주는 것은 원본 표의
  * 행 번호라, 화면은 그 줄을 원본 값 그대로 보인다 — 그림의 좌표(되돌린 값)와 다를 수
  * 있고 그것이 맞다.
  *
  * **동점이면 행 번호가 앞선 것이 앞이다.** 정렬이 결정적이어야 같은 파일을 두 번 열어
- * 같은 표를 본다.
+ * 같은 표를 보고, **페이지를 넘겼다 돌아와도 같은 줄이 같은 자리에 있다.**
+ *
+ * **자르는 일을 화면에 넘기지 않는다.** 전부 돌려주면 그 배열이 그대로 DOM 가까이
+ * 가고, 십만 행짜리 군집에서 그것은 교실 PC가 멈추는 자리다 (#28-5가 점의 상한을
+ * 세운 것과 같은 이유).
  */
 export function clusterMembers(
   assignment: ClusterAssignment,
   cluster: number,
   limit: number,
+  offset = 0,
 ): number[] {
   const picked: number[] = []
   for (let i = 0; i < assignment.rows.length; i += 1) {
@@ -331,7 +336,8 @@ export function clusterMembers(
     return gap !== 0 ? gap : (assignment.rows[a] ?? 0) - (assignment.rows[b] ?? 0)
   })
 
-  return picked.slice(0, Math.max(0, limit)).map((index) => assignment.rows[index]!)
+  const start = Math.max(0, offset)
+  return picked.slice(start, start + Math.max(0, limit)).map((index) => assignment.rows[index]!)
 }
 
 /**

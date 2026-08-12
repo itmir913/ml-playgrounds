@@ -655,11 +655,11 @@ async function downloadAction(): Promise<void> {
 
       <div class="flex items-center justify-between gap-4">
         <AppButton variant="secondary" :disabled="atFirstPage" :action="() => goToPage(page - 1)">
-          {{ t('predict.prevPage') }}
+          {{ t('common.prevPage') }}
         </AppButton>
         <p class="tabular-nums text-ink-soft">{{ page + 1 }} / {{ totalPages }}</p>
         <AppButton variant="secondary" :disabled="atLastPage" :action="() => goToPage(page + 1)">
-          {{ t('predict.nextPage') }}
+          {{ t('common.nextPage') }}
         </AppButton>
       </div>
     </template>
