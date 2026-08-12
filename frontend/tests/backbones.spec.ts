@@ -43,6 +43,9 @@ function readModelJson(modelPath: string): ModelJson {
   return JSON.parse(readFileSync(path, 'utf-8')) as ModelJson
 }
 
+/** 소스에 안 보이는 바이트를 남기지 않으려고 이름을 붙인다 (`tests/kinds.spec.ts`와 같다). */
+const NEWLINE = String.fromCharCode(10)
+
 describe('백본 등록부', () => {
   it('id마다 명세가 하나씩 있다', () => {
     expect(BACKBONES.map((backbone) => backbone.id)).toEqual([...BACKBONE_IDS])
@@ -50,6 +53,36 @@ describe('백본 등록부', () => {
 
   it('기본 백본이 등록부에 있다', () => {
     expect(backboneFor(DEFAULT_BACKBONE_ID)).toBeDefined()
+  })
+
+  /**
+   * **트립와이어다.** 통과가 목적이 아니라 둘째 백본이 등록되는 순간 멈추는 것이 목적이다.
+   *
+   * 지금은 **고르게 하지 않는다** — 손잡이가 하나 늘면 재현 필드와 화면이 같이 늘고,
+   * 프로젝트를 만들 때 `DEFAULT_BACKBONE_ID`가 파일에 박힌 뒤로는 아무도 그 값을 안
+   * 바꾼다. **그래서 지금은 흔들릴 자리가 없다.**
+   *
+   * 둘째가 등록되는 날 정해야 하는 것이 셋이다.
+   *
+   * 1. **고르게 할 것인가.** 안 고르게 하면 기본이 곧 전부이고, 그때 기본을 옮기는 것은
+   *    새 프로젝트만 조용히 달라지게 하는 일이다 — 옛 프로젝트는 자기 값을 파일에
+   *    들고 있어 안 흔들린다(그게 `backboneId`를 파일에 적는 이유다).
+   * 2. **정본 크기가 갈리면 카드가 잠긴다.** 224로 구운 정본은 260을 요구하는 백본에
+   *    못 간다 (open-decisions.md #4). 없는 화소를 만들어 늘리지 않는다.
+   * 3. **임베딩은 백본마다 따로 쌓인다** (mlpx-spec.md §1.3). 바꾸면 다시 뽑는 것이
+   *    맞고, 그 비용을 학생에게 어떻게 말할지가 화면의 일이다.
+   */
+  it('백본이 하나뿐이다 - 늘리는 사람은 고르게 할지 먼저 정해야 한다', () => {
+    expect(
+      [...BACKBONE_IDS],
+      [
+        '백본이 늘었다. 정할 것이 셋 있다.',
+        '  1. 고르게 할 것인가 (지금은 안 고르게 하고 기본 하나를 파일에 박는다)',
+        '  2. 정본 크기가 갈리면 그 백본 카드를 잠근다 (224 정본 -> 260 백본 불가)',
+        '  3. 임베딩은 백본마다 따로 쌓인다 - 바꿀 때 다시 뽑는 비용을 화면이 말해야 한다',
+        '정하고 나서 이 검사를 고쳐라.',
+      ].join(NEWLINE),
+    ).toEqual(['mobilenet-v2'])
   })
 
   it.each(BACKBONES.map((backbone) => [backbone.id, backbone] as const))(
