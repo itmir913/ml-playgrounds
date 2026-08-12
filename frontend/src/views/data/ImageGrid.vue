@@ -137,9 +137,17 @@ const shown = computed(() =>
       **빈 범주도 자리를 갖는다.** 사진이 없다고 칸이 사라지면 학생이 방금 만든 범주가
       화면에서 없어진 것처럼 보인다.
     -->
-    <p v-if="props.entries.length === 0" class="py-3 text-base text-ink-faint">
+    <!--
+      **빈 칸에 높이를 준다.** 한 줄짜리 문장만 두면 떨어뜨릴 자리가 손가락만 해서
+      끌어다 놓기가 사실상 못 하는 동작이 된다 — 이 칸은 안내문이 아니라 **과녁**이다.
+      점선은 "여기가 받는 자리"라는 말이고, 사진이 들어오면 격자가 그 말을 대신한다.
+    -->
+    <div
+      v-if="props.entries.length === 0"
+      class="grid min-h-32 place-items-center rounded-control border-2 border-dashed border-line px-4 py-6 text-center text-base text-ink-faint"
+    >
       {{ props.unlabeled ? t('data.image.noUnlabeled') : t('data.image.emptyCategory') }}
-    </p>
+    </div>
 
     <ul v-else class="grid grid-cols-3 gap-2 sm:grid-cols-5">
       <li v-for="entry in shown" :key="entry.hash">
