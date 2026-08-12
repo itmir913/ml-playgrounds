@@ -108,7 +108,7 @@ const nextTheme = computed(() => otherTheme(theme.value))
   <footer
     class="flex h-statusbar shrink-0 items-center gap-2 border-t border-line bg-surface px-3 text-ink-soft"
   >
-    <AppPopover v-if="project.projectId !== null" side="top" class="min-w-0 flex-1">
+    <AppPopover v-if="project.projectId !== null" side="top" size="medium" class="min-w-0 flex-1">
       <template #trigger="{ open }">
         <!--
           내보내기 상태가 먼저다. 학생이 알아야 하는 것은 "내 작업이 이 컴퓨터를 나갈 수

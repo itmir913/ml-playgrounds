@@ -48,16 +48,26 @@ const props = withDefaults(
      */
     side?: 'top' | 'bottom'
     /**
-     * 넓은 패널로 연다.
+     * 패널의 폭. **숫자가 아니라 정해진 셋 중 하나다.**
      *
      * **폭을 px로 받지 않는다.** 자리마다 다른 숫자를 넘기기 시작하면 "화면 밖으로 안
      * 나간다"는 규칙(`popover-panel`의 max-width)을 자리마다 다시 지켜야 한다. 여기서
-     * 고르는 것은 숫자가 아니라 **둘 중 하나**이고, 값은 `styles/utilities.css`가 갖는다.
+     * 고르는 것은 **이름**이고, 값은 `styles/utilities.css`가 갖는다.
+     *
+     * **불리언이었다가 셋이 되면서 이름이 바뀌었다** — `wide`는 "넓게"였지 "얼마나"가
+     * 아니라서, 셋째가 생기는 순간 `wide && !medium` 같은 조합이 생길 자리였다.
      */
-    wide?: boolean
+    size?: 'default' | 'medium' | 'wide'
   }>(),
-  { align: 'left', side: 'bottom', wide: false },
+  { align: 'left', side: 'bottom', size: 'default' },
 )
+
+/** 이름 -> 폭 유틸리티. 기본은 `popover-panel`이 이미 갖고 있어 더할 것이 없다. */
+const WIDTHS: Readonly<Record<'default' | 'medium' | 'wide', string>> = {
+  default: '',
+  medium: 'popover-panel-medium',
+  wide: 'popover-panel-wide',
+}
 
 const open = ref(false)
 const root = ref<HTMLElement | null>(null)
@@ -168,7 +178,7 @@ defineExpose({ close })
         ref="panel"
         :style="style"
         class="popover-panel fixed z-50 rounded-panel border border-line bg-surface p-4 text-ink shadow-pop"
-        :class="props.wide ? 'popover-panel-wide' : ''"
+        :class="WIDTHS[props.size]"
       >
         <slot :close="close" />
       </div>

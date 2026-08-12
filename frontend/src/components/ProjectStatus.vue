@@ -28,7 +28,7 @@ const project = useProjectStore()
     있는 이유가 **잘린 이름을 읽는 것**인데 여기서 또 잘리면 앞뒤가 안 맞는다.
     좁은 화면에서는 `popover-panel`의 max-width가 그대로 걸린다.
   -->
-  <AppPopover v-if="project.file !== null" align="right" wide>
+  <AppPopover v-if="project.file !== null" align="right" size="wide">
     <template #trigger>
       <!--
         아이콘이 붙는 이유는 장식이 아니다. 좁은 화면에서 프로젝트 이름이 잘리는데

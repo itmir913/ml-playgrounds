@@ -42,7 +42,7 @@ defineProps<{
     설명을 읽는 동안 정작 설명이 걸린 숫자들이 가려진다. 위쪽에 자리가 모자라면
     `AppPopover`가 알아서 아래로 뒤집는다.
   -->
-  <AppPopover wide side="top">
+  <AppPopover size="wide" side="top">
     <template #trigger="{ open }">
       <!--
         **표 머리글 전체가 아니라 그 안의 버튼이 눌린다.** 머리글 자체를 버튼으로 만들면

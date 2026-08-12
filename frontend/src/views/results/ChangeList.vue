@@ -87,7 +87,7 @@ function membersOf(change: Change): ReturnType<typeof memberDiff> {
             **위로 연다.** 변경 이력은 실험 속의 맨 위에 있고 그 아래가 전부 지표라,
             아래로 열면 정작 견주려던 숫자들이 가려진다.
           -->
-          <AppPopover v-if="membersOf(change)" wide side="top">
+          <AppPopover v-if="membersOf(change)" size="wide" side="top">
             <template #trigger="{ open }">
               <button
                 type="button"

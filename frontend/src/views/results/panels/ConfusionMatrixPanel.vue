@@ -60,7 +60,7 @@ const { t } = useI18n()
             :key="column"
             :class="index === column ? 'bg-positive-soft font-bold' : ''"
           >
-            <AppPopover wide>
+            <AppPopover size="wide">
               <template #trigger="{ open }">
                 <button
                   type="button"
