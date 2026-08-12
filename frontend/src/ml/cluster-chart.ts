@@ -74,7 +74,12 @@ export const DRAW_ORDER = { points: 3, halo: 2, centroid: 1, highlight: 0 } as c
  */
 const POINT_RADIUS = 4
 const CENTROID_RADIUS = 9
-/** 흰 테두리가 군집 색보다 굵어야 테두리로 보인다. */
+/**
+ * 테두리가 군집 색보다 굵어야 테두리로 보인다.
+ *
+ * **색은 `surface`가 아니라 `ink`다** (#28-1에서 2026-08-12에 뒤집었다). 배경색 테두리는
+ * 점이 몰린 자리에서만 뜻이 있고 **빈 배경에서는 아예 안 보인다.**
+ */
 const CENTROID_HALO_WIDTH = 6
 const CENTROID_WIDTH = 3
 /** 학생이 넣은 점은 데이터보다 크고 중심점만큼 눈에 띈다. */
@@ -169,7 +174,7 @@ export function clusterChartData(
       {
         label: text.centroid,
         data: centers,
-        pointBorderColor: tokens.surface,
+        pointBorderColor: tokens.ink,
         pointStyle: 'crossRot' as const,
         pointBorderWidth: CENTROID_HALO_WIDTH,
         pointRadius: CENTROID_RADIUS,
@@ -194,7 +199,8 @@ export function clusterChartData(
               // **채워진 도형이다.** ✕처럼 선으로만 그려지는 모양은 점이 몰린 자리에서
               // 묻힌다. 마름모는 군집이 쓰는 세 모양과 겹치지 않는다 (#28-3).
               pointBackgroundColor: clusterColor(tokens, highlight.cluster),
-              pointBorderColor: tokens.surface,
+              // 중심점과 같은 이유로 배경색이 아니라 글자색이다 (#28-7).
+              pointBorderColor: tokens.ink,
               pointStyle: 'rectRot' as const,
               pointBorderWidth: HIGHLIGHT_BORDER_WIDTH,
               pointRadius: HIGHLIGHT_RADIUS,

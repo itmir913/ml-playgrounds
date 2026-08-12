@@ -86,21 +86,22 @@ describe('그리는 차례', () => {
     }
   })
 
-  it('흰 테두리가 군집 색 ✕보다 아래다', () => {
+  it('테두리가 군집 색 ✕보다 아래다', () => {
     expect(DRAW_ORDER.halo).toBeGreaterThan(DRAW_ORDER.centroid)
     expect(DRAW_ORDER.points).toBeGreaterThan(DRAW_ORDER.halo)
   })
 })
 
-describe('흰 테두리의 자리', () => {
-  it('범례와 툴팁이 빼는 것이 흰 테두리다 - 군집이 아니다', () => {
+describe('테두리의 자리', () => {
+  it('범례와 툴팁이 빼는 것이 테두리다 - 군집이 아니다', () => {
     // **배열 순서가 바뀌면 군집 하나가 대신 지워진다.** 화면에는 아무 표시도 안 난다.
     const datasets = dataOf(4).datasets
     const halo = haloIndex(4)
 
     expect(halo).toBe(4)
     expect(datasets[halo]!.label).toBe('중심점')
-    expect(datasets[halo]!.pointBorderColor).toBe(TOKENS.surface)
+    // **배경색이 아니라 글자색이다** (#28-1) - 배경색 테두리는 빈 자리에서 안 보인다.
+    expect(datasets[halo]!.pointBorderColor).toBe(TOKENS.ink)
     // 그 앞은 전부 군집이다.
     expect(datasets.slice(0, halo).map((dataset) => dataset.label)).toEqual([
       '0번 군집',
@@ -110,7 +111,7 @@ describe('흰 테두리의 자리', () => {
     ])
   })
 
-  it('범례에서 흰 테두리만 빠지고 중심점은 한 줄로 남는다', () => {
+  it('범례에서 테두리만 빠지고 중심점은 한 줄로 남는다', () => {
     const filter = optionsOf(3).plugins!.legend!.labels!.filter!
     const kept = [0, 1, 2, 3, 4]
       .map((datasetIndex) => ({ datasetIndex }) as LegendItem)
@@ -212,10 +213,10 @@ describe('학생이 넣은 점', () => {
     expect(orders.filter((order) => order === last)).toHaveLength(1)
   })
 
-  it('배열 끝이라 흰 테두리의 자리가 안 밀린다', () => {
+  it('배열 끝이라 테두리의 자리가 안 밀린다', () => {
     // **`haloIndex`가 밀리면 범례와 툴팁이 군집 하나를 대신 지운다.**
     const datasets = dataOf(3, highlight).datasets
-    expect(datasets[haloIndex(3)]!.pointBorderColor).toBe(TOKENS.surface)
+    expect(datasets[haloIndex(3)]!.pointBorderColor).toBe(TOKENS.ink)
     expect(datasets[datasets.length - 1]!.label).toBe('입력한 데이터')
   })
 
@@ -224,7 +225,8 @@ describe('학생이 넣은 점', () => {
     // 방금 넣은 것"을 말한다.
     const point = dataOf(3, highlight).datasets.at(-1)!
     expect(point.pointBackgroundColor).toBe(clusterColor(TOKENS, 1))
-    expect(point.pointBorderColor).toBe(TOKENS.surface)
+    // 새 점의 테두리도 글자색이다 (#28-7).
+    expect(point.pointBorderColor).toBe(TOKENS.ink)
     expect(point.pointStyle).toBe('rectRot')
     expect(POINT_SHAPES).not.toContain(point.pointStyle)
   })
