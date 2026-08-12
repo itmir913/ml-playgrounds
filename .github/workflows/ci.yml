@@ -79,6 +79,12 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      # vitest보다 먼저 받아야 한다. 가중치를 받는 것은 `backbones` 스크립트인데 그것이
+      # 붙어 있는 곳은 `ci`와 `build`이고, 이 잡은 단계를 하나씩 부르므로 vitest가 build
+      # 앞에 선다. tests/backbones.spec.ts가 model.json을 읽어 등록부와 대조한다 —
+      # 파일이 없을 때 건너뛰게 만들면 가중치가 등록부와 어긋나는 날 조용히 통과한다.
+      - name: backbone weights
+        run: npm run backbones
       # `npm run lint -- --no-fix`가 아니다. npm은 `--` 뒤의 인자를 스크립트 문자열
       # 끝에 붙이는데, lint는 `&&`로 이어진 두 명령이라 `--no-fix`가 eslint가 아니라
       # prettier에 붙었다. 그래서 이 단계가 `eslint . --fix`로 돌았고, 자동 수정되는
