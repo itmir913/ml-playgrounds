@@ -78,6 +78,30 @@ export const TEST_DATASET_PATH = `${DIR.dataset}test.csv`
  */
 export const PREDICT_DATASET_PATH = `${DIR.dataset}predict.csv`
 
+/**
+ * 이미지 정본이 사는 폴더들 (mlpx-spec.md §1.2).
+ *
+ * **표의 `data.csv`·`test.csv`·`predict.csv`와 같은 역할 이름이다** — 압축을 푼 교사가
+ * 알고 싶은 것은 그 파일이 무엇인지이고, 그 규칙이 종류를 넘어 같다.
+ *
+ * `data/`와 `test/` 아래는 범주 폴더가 한 겹 더 있고, `predict/`는 라벨이 없어 한 겹이다.
+ */
+export const IMAGE_DATA_DIR = `${DIR.dataset}data/`
+export const IMAGE_TEST_DIR = `${DIR.dataset}test/`
+export const IMAGE_PREDICT_DIR = `${DIR.dataset}predict/`
+
+/**
+ * 라벨 없는 사진이 사는 범주 폴더 (mlpx-spec.md §1.2).
+ *
+ * **예약된 이름이고 번역하지 않는다.** 화면에 보이는 말은 로케일에서 오고, 파일 안의
+ * 구조는 언어에 딸리지 않는다 — 한국어로 만든 프로젝트를 영어 화면에서 열어도 폴더
+ * 이름이 그대로여야 zip이 같은 파일이다.
+ *
+ * **범주가 아니라 상태다.** 학생이 만든 범주 목록(`settings.data.categories`)에는
+ * 안 들어간다.
+ */
+export const IMAGE_UNLABELED = '_unlabeled'
+
 /*
  * 없으면 파일을 열 수 없는 엔트리는 manifest / settings / runs / portfolio 넷이다.
  * readProject의 required()가 그 자리에서 확인한다.
