@@ -27,6 +27,7 @@ import {
   DATA_TYPES,
   experimentSchema,
   settingsSchema,
+  type Experiment,
   type Run,
   type RunsFile,
   type Settings,
@@ -702,17 +703,32 @@ describe('id와 changed', () => {
       testDataset: '바꾸면 기존 실험이 지워진다',
       // 예측 화면에서만 쓴다. 학습에 안 들어가므로 지표를 움직이지 않는다.
       predictDataset: '학습에 들어가지 않는다',
-      // **이미지 설정이고, 아직 견줄 수가 없다** — `runExperiment`가 표 전용이라 이미지
-      // 실험 자체가 안 만들어진다 (roadmap.md V4). **이미지 학습이 붙는 커밋이 이 둘을
-      // `MUTATIONS`로 옮긴다** — 범주를 바꾸면 라벨이 통째로 달라지고, 백본을 바꾸면
-      // 특성이 통째로 달라진다. 둘 다 학생에게 보여야 하는 변경이다.
-      categories: '이미지 학습이 아직 이 함수로 안 온다',
-      backboneId: '이미지 학습이 아직 이 함수로 안 온다',
-      // 스냅샷에만 있는 둘이다 — 사진을 더하고 빼고 옮긴 것을 잡는다
-      // (open-decisions.md "장수가 스냅샷에 있어야 하는 이유"). 위 둘과 함께 넷이
-      // 한꺼번에 `MUTATIONS`로 옮겨 간다.
-      categoryCounts: '이미지 학습이 아직 이 함수로 안 온다',
-      unlabeledCount: '이미지 학습이 아직 이 함수로 안 온다',
+    }
+
+    /**
+     * **이미지의 넷.** 위 `MUTATIONS`와 나누는 이유는 **바꾸는 자리가 다르기** 때문이다 —
+     * 저기는 계산에 쓰는 설정을 바꾸고, 이 넷은 **스냅샷에만 있다**
+     * (open-decisions.md "이미지 학습은 표 문제로 바꿔서 푼다"). 같은 표에 넣으면
+     * `settingsFor()`가 만들 수 없는 값을 요구하게 된다.
+     *
+     * 2026-08-12까지 이 넷은 `NOT_COMPARED`에 "이미지 학습이 아직 이 함수로 안 온다"로
+     * 있었다. **이제 온다.**
+     */
+    const IMAGE_SNAPSHOT = {
+      categories: ['개', '고양이'],
+      backboneId: 'mobilenet-v2',
+      categoryCounts: [2, 2],
+      unlabeledCount: 0,
+    }
+
+    const IMAGE_MUTATIONS: Readonly<Record<string, Record<string, unknown>>> = {
+      // 범주를 바꾸면 라벨이 통째로 달라진다.
+      categories: { categories: ['개', '고양이', '토끼'] },
+      // 백본을 바꾸면 특성이 통째로 달라진다.
+      backboneId: { backboneId: 'other-backbone' },
+      // 사진을 더하고 빼고 옮긴 것이 여기서 잡힌다.
+      categoryCounts: { categoryCounts: [3, 1] },
+      unlabeledCount: { unlabeledCount: 5 },
     }
 
     /**
@@ -732,19 +748,56 @@ describe('id와 changed', () => {
       ]),
     ]
 
-    it('스키마의 모든 필드가 둘 중 하나에 적혀 있다', () => {
-      const declared = new Set([...Object.keys(MUTATIONS), ...Object.keys(NOT_COMPARED)])
+    it('스키마의 모든 필드가 셋 중 하나에 적혀 있다', () => {
+      const declared = new Set([
+        ...Object.keys(MUTATIONS),
+        ...Object.keys(IMAGE_MUTATIONS),
+        ...Object.keys(NOT_COMPARED),
+      ])
       const missing = FIELDS.filter((key) => !declared.has(key))
       expect(missing, '새 설정 필드는 MUTATIONS나 NOT_COMPARED에 넣어라').toEqual([])
     })
 
     it('적힌 것 말고 다른 것이 없다 - 필드가 사라지면 표도 따라간다', () => {
       const fields = new Set(FIELDS)
-      const extra = [...Object.keys(MUTATIONS), ...Object.keys(NOT_COMPARED)].filter(
-        (key) => !fields.has(key),
-      )
+      const extra = [
+        ...Object.keys(MUTATIONS),
+        ...Object.keys(IMAGE_MUTATIONS),
+        ...Object.keys(NOT_COMPARED),
+      ].filter((key) => !fields.has(key))
       expect(extra).toEqual([])
     })
+
+    /**
+     * **이미지 실험 둘을 견준다.** 계산에 쓰는 표는 그대로 두고 스냅샷만 바꾼다 — 실제
+     * 앱에서 갈리는 자리가 정확히 거기다.
+     */
+    for (const [field, patch] of Object.entries(IMAGE_MUTATIONS)) {
+      it(`이미지: ${field}를 바꾸면 changed에 뜬다`, () => {
+        const of = (snapshot: Record<string, unknown>): Experiment =>
+          runExperimentRaw(
+            {
+              ...inputFor({ dataType: 'image' }),
+              snapshot: snapshot as Experiment['settings']['data'],
+            },
+            frozen,
+          ).experiment
+
+        const base = of(IMAGE_SNAPSHOT)
+        const next = runExperimentRaw(
+          {
+            ...inputFor({ dataType: 'image' }),
+            snapshot: { ...IMAGE_SNAPSHOT, ...patch } as Experiment['settings']['data'],
+          },
+          { ...frozen, history: { experiments: [base] } },
+        ).experiment
+
+        expect(
+          next.changed,
+          `${field}가 변경 이력에서 빠졌다: ${JSON.stringify(next.changed)}`,
+        ).toContain(field)
+      })
+    }
 
     for (const [field, { patch, path }] of Object.entries(MUTATIONS)) {
       it(`${field}를 바꾸면 changed에 ${path}가 뜬다`, () => {

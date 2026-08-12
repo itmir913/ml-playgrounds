@@ -101,6 +101,18 @@ const listOf: Describe = (value) => ({
   items: Array.isArray(value) ? value.map(String) : [],
 })
 
+/**
+ * 숫자 목록. **이어 붙여 그대로 보인다.**
+ *
+ * `countOf`를 쓸 수 없는 자리다 — 거기서 세는 것은 목록의 길이인데, 여기 목록의 길이는
+ * **범주 수**이고 학생이 알고 싶은 것은 **사진 수**다. 바로 윗줄의 범주 목록과 같은
+ * 순서라 나란히 읽힌다.
+ */
+const joined: Describe = (value) => {
+  if (!Array.isArray(value) || value.length === 0) return { kind: 'absent' }
+  return { kind: 'literal', text: value.map(String).join(' · ') }
+}
+
 export interface MemberDiff {
   readonly added: readonly string[]
   readonly removed: readonly string[]
@@ -161,6 +173,18 @@ const LABELS: Readonly<Record<string, { readonly labelKey: string; readonly desc
     // 뽑기를 껐을 때는 `null`이고 `literal`이 그것을 `absent`로 편다 — 그래서
     // "전체 사용 → 3,000행"과 그 반대가 둘 다 문장이 된다 (target과 같은 방식).
     nSamples: { labelKey: 'preprocess.sampleRows', describe: literal },
+    /**
+     * **이미지의 넷.** 학습이 이 함수로 오게 된 2026-08-12에 붙였다 — 그 전에는 쓸
+     * 대상이 없어서 일부러 비워 두었다 (architecture.md §8.10).
+     *
+     * `categories`가 `listOf`인 이유는 특성 이름과 같다 — **학생이 지은 말이라 그대로
+     * 읽힌다.** 무엇이 들고 났는지까지 펼쳐 볼 수 있어야 한다.
+     */
+    categories: { labelKey: 'data.image.categories', describe: listOf },
+    categoryCounts: { labelKey: 'data.image.photosPerCategory', describe: joined },
+    unlabeledCount: { labelKey: 'data.image.unlabeledCount', describe: literal },
+    // 고르게 하지 않으므로 사실상 안 뜬다. 옛 파일을 다시 학습할 때를 위해 둔다.
+    backboneId: { labelKey: 'data.image.backbone', describe: literal },
   }
 
 /** 점 표기 경로로 값을 꺼낸다. 없으면 undefined다. */

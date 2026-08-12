@@ -119,6 +119,7 @@
       "add": "Add photos",
       "addFolder": "Add a folder",
       "added": "Added {count} photo. | Added {count} photos.",
+      "backbone": "Backbone",
       "baking": "Preparing {done} of {total}",
       "categories": "Categories",
       "categoryName": "Category name",
@@ -140,6 +141,7 @@
       "newCategory": "New category",
       "noUnlabeled": "No unlabeled photos.",
       "photos": "Photos",
+      "photosPerCategory": "Photos per category",
       "pickAll": "Select all",
       "pickCategory": "Choose a category",
       "readTitle": "Read {count} photo. | Read {count} photos.",
@@ -151,6 +153,7 @@
       "selected": "{count} photo selected | {count} photos selected",
       "skipped": "Left out {count} file that could not be read. | Left out {count} files that could not be read.",
       "unlabeled": "Unlabeled",
+      "unlabeledCount": "Unlabeled photos",
       "use": "Use these"
     }
   },

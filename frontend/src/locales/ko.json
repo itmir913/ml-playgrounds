@@ -119,6 +119,7 @@
       "add": "사진 추가",
       "addFolder": "폴더에서 추가",
       "added": "사진 {count}장을 추가했습니다.",
+      "backbone": "백본(Backbone)",
       "baking": "사진 준비 중 {done}/{total}",
       "categories": "범주",
       "categoryName": "범주 이름",
@@ -140,6 +141,7 @@
       "newCategory": "범주 만들기",
       "noUnlabeled": "라벨 없는 사진이 없습니다.",
       "photos": "사진",
+      "photosPerCategory": "범주별 사진 수",
       "pickAll": "모두 선택",
       "pickCategory": "범주 선택",
       "readTitle": "사진 {count}장을 읽었습니다.",
@@ -151,6 +153,7 @@
       "selected": "사진 {count}장 선택",
       "skipped": "읽지 못한 파일 {count}개는 빼고 추가했습니다.",
       "unlabeled": "라벨 없음",
+      "unlabeledCount": "라벨 없는 사진",
       "use": "사용"
     }
   },
