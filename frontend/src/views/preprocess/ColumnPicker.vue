@@ -51,7 +51,7 @@ function noteOf(column: ColumnPlan['columns'][number]): string | null {
     return t(`errors.${column.targetIssue}`, { target: column.summary.name })
   }
   if (column.role === 'feature' && column.featureNote !== undefined) {
-    return t(`preprocess.${column.featureNote}`)
+    return t(`preprocess.tabular.${column.featureNote}`)
   }
   if (column.role === 'target' && column.targetCaution !== undefined) {
     return t('preprocess.tabular.targetSingleValue')
@@ -137,7 +137,7 @@ function onFeature(name: string, event: Event): void {
 
     <!-- 왜 어떤 줄의 타깃 칸이 꺼져 있는지. 줄마다 붙이면 표가 사유로 뒤덮인다. -->
     <p v-if="props.targetRule" class="text-base text-ink-soft">
-      {{ t(`preprocess.targetRule.${props.targetRule}`) }}
+      {{ t(`preprocess.tabular.targetRule.${props.targetRule}`) }}
     </p>
   </div>
 </template>

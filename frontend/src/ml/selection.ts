@@ -70,8 +70,16 @@ export type TargetCaution = 'singleValue'
  * - `FEATURE_HAS_MISSING` - 빈 칸이 있는데 "그대로 두기"를 골랐다. 전략을 바꾸면 풀린다.
  */
 export type FeatureIssue = 'FEATURE_ALL_MISSING' | 'FEATURE_HAS_MISSING'
-/** 학습은 되지만 이 열이 빠진다. ml/preprocess.ts의 excludedColumns와 같은 어휘다. */
-export type FeatureNote = 'notEncodable'
+/**
+ * 학습은 되지만 이 열이 빠진다. ml/preprocess.ts의 excludedColumns와 같은 어휘다.
+ *
+ * **배열이 먼저다.** 화면이 이 값으로 문구 키를 조립하므로(`preprocess.tabular.${note}`)
+ * 값 목록이 실행 중에도 있어야 로케일과 짝지어 검사할 수 있다 — 타입만 두면 그 짝을
+ * 아무것도 안 본다. **실제로 그래서 한 번 깨졌다** (2026-08-12): 키를 종류 아래로
+ * 옮겼는데 부르는 쪽은 옛 이름 그대로였고, CI는 전부 초록이었다.
+ */
+export const FEATURE_NOTES = ['notEncodable'] as const
+export type FeatureNote = (typeof FEATURE_NOTES)[number]
 
 export interface ColumnChoice {
   readonly summary: ColumnSummary

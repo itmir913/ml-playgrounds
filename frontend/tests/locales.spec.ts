@@ -25,7 +25,7 @@ import ko from '../src/locales/ko.json'
 import { ALGORITHMS } from '../src/ml/algorithms'
 import { ENGINE_STATES, RUNTIMES, TRAINING_LOCATIONS, UNAVAILABLE_REASONS } from '../src/ml/backend'
 import { parametersFor } from '../src/ml/hyperparams'
-import { requiredTargetKind } from '../src/ml/selection'
+import { FEATURE_NOTES, requiredTargetKind } from '../src/ml/selection'
 import {
   CATEGORICAL_ENCODINGS,
   MISSING_STRATEGIES,
@@ -252,6 +252,17 @@ describe('프런트엔드 전용 코드', () => {
     }
   })
 
+  it('특성 참고 문구마다 문장이 있다', () => {
+    // 화면이 이 값으로 키를 조립한다 (`ColumnPicker`). **`FEATURE_NOTES`를 늘리는 사람이
+    // 문장도 함께 넣게 한다** - 빠지면 열 옆에 키 문자열이 그대로 뜬다.
+    //
+    // **표 아래에 있다** (docs/i18n.md 규칙 10). "문자 값이 든 열"은 열이 있어야 하는 말이다.
+    for (const note of FEATURE_NOTES) {
+      expect(english.has(`preprocess.tabular.${note}`), note).toBe(true)
+      expect(korean.has(`preprocess.tabular.${note}`), note).toBe(true)
+    }
+  })
+
   it('등록부의 모델과 실행 방법마다 이름이 있다', () => {
     // **이름은 두 벌이고 서로 독립이다** (open-decisions.md "무엇을 학습할 수 있는지는
     // 서버가 알려준다"). 화면의 "결정 트리 / 순수 JS"는 합친 이름이 아니라 두 번 조회해
@@ -387,6 +398,9 @@ describe('프런트엔드 전용 코드', () => {
 })
 
 describe('화면이 부르는 키가 로케일에 있다', () => {
+  /** 정규식 안에 그대로 못 적는다 - 이 파일 자신이 검사 대상이라 조립 자리로 읽힌다. */
+  const BACKTICK = String.fromCharCode(96)
+
   /**
    * **키를 옮기면 참조가 남는다.** 실제로 겪었다 — `preprocess.*`의 모델 쪽 문구를
    * `train.*`으로 옮겼는데 `ModelPicker`가 옛 키를 계속 불러서 화면에 `preprocess.tuning`이
@@ -418,5 +432,48 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
       }
     }
     expect(missing).toEqual([])
+  })
+
+  /**
+   * **이름을 조립해 부르는 자리의 앞부분.** `t(`preprocess.${note}`)`처럼 뒤가 값으로
+   * 채워지는 호출에서 **앞의 네임스페이스만** 본다.
+   *
+   * **여기가 잡는 것은 네임스페이스가 통째로 사라진 것뿐이다.** 이 검사만으로 부족하다는
+   * 것을 실제로 확인했다 (2026-08-12) — `preprocess.notEncodable`을 `preprocess.tabular.*`로
+   * 내리고 `ColumnPicker`의 조립 자리를 안 고쳤을 때, 앞부분 `preprocess.`에 다른 키가
+   * 남아 있어서 **이 검사는 조용했다.** 그 자리를 잡는 것은 값 목록과 로케일을 짝지어
+   * 보는 검사다 (위의 `FEATURE_NOTES`처럼).
+   *
+   * 그래도 두는 이유는, 네임스페이스를 통째로 옮기는 일이 지금 실제로 벌어지고 있고
+   * 그때는 조립 자리가 소리 없이 빈 곳을 가리키기 때문이다.
+   *
+   * **뒤는 못 본다.** 값이 무엇이 될지는 여기서 모른다.
+   */
+  function dynamicPrefixes(source: string): string[] {
+    const pattern = new RegExp(
+      String.raw`\$?\bt\(\s*` + BACKTICK + String.raw`([\w.-]*\.)\$\{`,
+      'g',
+    )
+    return [...source.matchAll(pattern)].map((match) => match[1] ?? '')
+  }
+
+  it('검사기가 조립 자리의 앞부분을 골라낸다', () => {
+    expect(dynamicPrefixes('t(`errors.${code}`)')).toEqual(['errors.'])
+    expect(dynamicPrefixes('t(`preprocess.tabular.${note}`)')).toEqual(['preprocess.tabular.'])
+    // 앞이 통째로 값이면 볼 것이 없다.
+    expect(dynamicPrefixes('t(`${key}`)')).toEqual([])
+  })
+
+  it('조립해 부르는 자리의 네임스페이스가 비어 있지 않다', () => {
+    const keys = [...english.keys()]
+    const empty: string[] = []
+    for (const path of sourceFiles(SRC)) {
+      for (const prefix of dynamicPrefixes(readFileSync(path, 'utf-8'))) {
+        if (!keys.some((key) => key.startsWith(prefix))) {
+          empty.push(`${path.slice(SRC.length + 1)}  ${prefix}`)
+        }
+      }
+    }
+    expect(empty).toEqual([])
   })
 })
