@@ -141,10 +141,12 @@ const shown = computed(() =>
       **빈 칸에 높이를 준다.** 한 줄짜리 문장만 두면 떨어뜨릴 자리가 손가락만 해서
       끌어다 놓기가 사실상 못 하는 동작이 된다 — 이 칸은 안내문이 아니라 **과녁**이다.
       점선은 "여기가 받는 자리"라는 말이고, 사진이 들어오면 격자가 그 말을 대신한다.
+      **사진 한 줄이 서는 높이만큼 준다** — 채워졌을 때와 비었을 때 칸 크기가 크게
+      달라지면, 사진을 넣는 순간 옆 칸이 밀려 화면이 흔들린다.
     -->
     <div
       v-if="props.entries.length === 0"
-      class="grid min-h-32 place-items-center rounded-control border-2 border-dashed border-line px-4 py-6 text-center text-base text-ink-faint"
+      class="grid min-h-64 place-items-center rounded-control border-2 border-dashed border-line px-4 py-6 text-center text-base text-ink-faint"
     >
       {{ props.unlabeled ? t('data.image.noUnlabeled') : t('data.image.emptyCategory') }}
     </div>
