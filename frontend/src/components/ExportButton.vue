@@ -115,7 +115,7 @@ const INPUT = 'w-full rounded-field border border-line-strong bg-surface px-3 py
       <p class="mb-4 leading-relaxed text-ink-soft">{{ t('project.exportLead') }}</p>
 
       <div class="flex flex-col gap-3">
-        <AppField :label="t('identity.studentId')" :hint="t('identity.optional')">
+        <AppField :label="t('identity.studentId')">
           <template #default="field">
             <input
               v-bind="field"
@@ -127,7 +127,7 @@ const INPUT = 'w-full rounded-field border border-line-strong bg-surface px-3 py
           </template>
         </AppField>
 
-        <AppField :label="t('identity.studentName')" :hint="t('identity.optional')">
+        <AppField :label="t('identity.studentName')">
           <template #default="field">
             <input
               v-bind="field"

@@ -65,7 +65,7 @@ function cancel(): void {
     type="text"
     class="min-w-0 rounded-field border border-brand bg-surface px-2 py-1 font-bold"
     :maxlength="MAX_FILE_NAME_LENGTH"
-    :aria-label="t('identity.name')"
+    :aria-label="t('projects.name')"
     @keydown.enter="commit"
     @keydown.esc="cancel"
     @blur="commit"

@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "Machine Learning Playgrounds",
-    "tagline": "인공지능을 자유롭게 즐겨 보세요. 데이터만 있으면 누구나 기계학습 모델을 만들 수 있습니다."
+    "tagline": "별도의 프로그램 설치 없이 인공지능을 자유롭게 즐겨 보세요. 데이터만 있으면 누구나 기계학습 모델을 만들고, 그 과정을 하나의 프로젝트로 남길 수 있습니다."
   },
   "nav": {},
   "dataTypes": {
@@ -46,7 +46,7 @@
     "notExported": "아직 파일로 저장하지 않음",
     "exported": "파일로 저장함",
     "stale": "마지막 파일 저장 후 변경됨",
-    "exportWarning": "임시로 보관된 내용은 사라질 수 있습니다. 파일로 저장하면 영구적으로 보관할 수 있습니다.",
+    "exportWarning": "지금까지 한 작업은 이 컴퓨터에만 임시로 남아 있어 지워질 수 있습니다. 파일로 저장하면 오래 보관할 수 있고, 다른 컴퓨터에서 열어 이어서 할 수 있습니다.",
     "keepFile": "저장한 파일은 USB나 클라우드 등 안전한 위치에 보관하거나 제출해 주세요."
   },
   "steps": {
@@ -247,7 +247,7 @@
       "sampleSummary": "{usable}행 중 {used}행을 뽑아 사용하고, 나머지 {rest}행은 모델이 한 번도 보지 않습니다.",
       "sampleTitle": "사용할 데이터 양",
       "scaling": "스케일링",
-      "scalingNote": "숫자 열의 크기를 고릅니다. 켜고 끄면서 결과가 어떻게 달라지는지 보세요.",
+      "scalingNote": "숫자 열의 값 범위를 비슷하게 맞춥니다. 켜고 끄면서 결과가 어떻게 달라지는지 보세요.",
       "selectAll": "특성 모두 고르기",
       "targetRule": {
         "TARGET_NOT_NUMERIC": "회귀는 숫자 열만 타깃으로 고를 수 있습니다."
@@ -317,21 +317,21 @@
   },
   "projects": {
     "dataType": "데이터 종류",
+    "dataTypeHint": "프로젝트를 만든 뒤에는 데이터 종류를 바꿀 수 없습니다.",
     "new": "새 프로젝트",
     "newTitle": "새 프로젝트 만들기",
-    "newDescription": "데이터는 다음 화면에서 불러옵니다.",
+    "newDescription": "프로젝트 이름을 정하고, 어떤 종류의 데이터를 다룰지 고르세요.",
     "name": "프로젝트 이름",
-    "nameHint": "프로젝트를 파일로 저장할 때 파일의 이름으로 사용됩니다.",
+    "nameHint": "프로젝트를 파일로 저장하면 프로젝트 이름이 파일 이름이 됩니다.",
     "create": "만들기",
-    "delete": "삭제",
+    "delete": "지우기",
     "deleteTitle": "이 프로젝트를 지울까요?",
     "deleteDescription": "데이터와 학습 결과가 함께 사라집니다. 되돌릴 수 없습니다. ({name})",
     "unreadable": "열 수 없는 프로젝트",
-    "updatedAt": "마지막으로 작업한 때",
-    "size": "크기",
-    "storageNote": "프로젝트는 이 컴퓨터에 임시로 보관됩니다. 파일로 저장하면 영구적으로 보관할 수 있고, 다른 컴퓨터에서도 이어서 진행할 수 있습니다.",
+    "updatedAt": "마지막 작업",
+    "size": "용량",
     "saved": "이 컴퓨터의 프로젝트",
-    "savedCount": "이 컴퓨터 브라우저에 프로젝트가 {count}개 있습니다"
+    "savedCount": "이 컴퓨터에 프로젝트가 {count}개 있습니다."
   },
   "common": {
     "underConstruction": "이 화면은 아직 만드는 중입니다.",
@@ -413,7 +413,7 @@
     "ready": "준비됨"
   },
   "modelOmission": {
-    "overBudget": "프로젝트 파일 크기를 줄이려고 모델을 담지 않았습니다. 예측에 쓰려면 다시 학습하세요.",
+    "overBudget": "프로젝트 파일 용량을 줄이려고 모델을 담지 않았습니다. 예측에 쓰려면 다시 학습하세요.",
     "tooLarge": "모델이 너무 커서 파일에 담지 못했습니다. 다시 학습해도 같으니, 나무 개수처럼 모델을 키우는 설정을 줄여 보세요.",
     "engineUnsupported": "여기서 학습한 모델은 아직 저장할 수 없어 점수만 남겼습니다."
   },
@@ -472,26 +472,24 @@
   "project": {
     "export": "파일로 저장",
     "exportDone": "파일로 저장했습니다. USB나 클라우드 등 안전한 위치에 보관해 주세요.",
-    "exportDropped": "크기 때문에 담지 못한 모델이 있습니다. 지표는 그대로 남습니다. ({count}개)",
+    "exportDropped": "용량 제한 때문에 담지 못한 모델이 있습니다. 지표는 그대로 남습니다. ({count}개)",
     "open": "파일 불러오기",
-    "openModified": "저장한 뒤에 변경된 흔적이 있는 파일입니다.",
+    "openModified": "저장한 뒤에 이 앱 밖에서 내용이 바뀐 파일입니다. 그대로 열 수 있지만, 파일에 적힌 결과가 실제와 다를 수 있습니다.",
     "homeTitle": "대시보드",
     "homeLead": "왼쪽에서 단계를 고르거나, 아래에서 이어서 하세요.",
     "resume": "바로가기 — {task}",
     "openStep": "들어가기",
     "done": "Done",
     "locked": "Locked",
-    "exportLead": "학번과 이름을 입력하면 파일 이름 앞에 붙습니다.",
+    "exportLead": "학번과 이름은 선택 사항입니다. 입력하면 파일 이름 앞에 붙습니다.",
     "exportNow": "저장하기",
     "dashboard": "대시​보드"
   },
   "identity": {
     "title": "프로젝트 정보",
-    "name": "프로젝트 이름",
     "studentId": "학번",
     "studentName": "이름",
-    "optional": "선택 사항입니다",
-    "fileNameHint": "입력한 내용은 저장되는 파일 이름 앞에 붙습니다. ({fileName})",
+    "fileNameHint": "저장될 파일 이름: {fileName}",
     "rename": "프로젝트 이름 바꾸기 ({name})"
   },
   "meta": {

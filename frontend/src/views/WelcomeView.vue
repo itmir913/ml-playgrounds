@@ -13,7 +13,7 @@
  * (open-decisions.md "데이터 없는 프로젝트는 정상 상태다").
  */
 
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
@@ -80,6 +80,20 @@ function pickDataType(id: string): void {
   if (kind !== undefined) dataType.value = kind.dataType
 }
 const removing = ref<ProjectSummary | null>(null)
+
+/**
+ * 프로젝트 목록. **지우기 확인창을 닫은 뒤 다시 열어 주려고** 잡아 둔다.
+ *
+ * 확인창이 열리면 목록(popover)은 브라우저가 닫는다. 그대로 두면 지운 사람은 결과를
+ * 확인하러, 취소한 사람은 보던 자리로 돌아가려고 **버튼을 한 번 더 눌러야 한다.**
+ */
+const picker = ref<InstanceType<typeof ProjectPicker> | null>(null)
+
+/** 확인창을 닫고 목록을 되돌린다. 확인창이 화면에서 사라진 뒤라야 열린다. */
+function closeRemove(): void {
+  removing.value = null
+  void nextTick(() => picker.value?.open())
+}
 const openInput = ref<HTMLInputElement | null>(null)
 
 const canCreate = computed(() => name.value.trim().length > 0 && !busy.value)
@@ -166,8 +180,8 @@ async function remove(): Promise<void> {
   busy.value = true
   try {
     await deleteProject(target.projectId)
-    removing.value = null
     await refresh()
+    closeRemove()
   } catch (error) {
     toasts.pushError(error)
   } finally {
@@ -215,17 +229,15 @@ onMounted(refresh)
 
         <ProjectPicker
           v-if="summaries.length > 0"
+          ref="picker"
           :summaries="summaries"
+          :disabled="busy"
           @open="openProject"
           @remove="removing = $event"
         />
       </div>
 
       <input ref="openInput" type="file" accept=".mlpx" class="hidden" @change="openFile" />
-
-      <p class="max-w-md text-center leading-relaxed text-ink-faint">
-        {{ t('projects.storageNote') }}
-      </p>
 
       <AppDialog
         :open="creating"
@@ -254,6 +266,7 @@ onMounted(refresh)
           <AppChoices
             v-if="asksDataType"
             :label="t('projects.dataType')"
+            :hint="t('projects.dataTypeHint')"
             :items="dataTypeChoices"
             :selected="dataType"
             @pick="pickDataType"
@@ -272,7 +285,7 @@ onMounted(refresh)
         :open="removing !== null"
         :title="t('projects.deleteTitle')"
         :description="t('projects.deleteDescription', { name: removing?.name ?? '' })"
-        @close="removing = null"
+        @close="closeRemove"
       >
         <template #actions>
           <AppButton variant="secondary" @click="removing = null">{{

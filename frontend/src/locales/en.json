@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "Machine Learning Playgrounds",
-    "tagline": "Play freely with AI. With just your own data, anyone can build a machine learning model."
+    "tagline": "Nothing to install — play freely with AI right in your browser. With just your own data, anyone can build a machine learning model and keep the whole process in a single project."
   },
   "nav": {},
   "dataTypes": {
@@ -46,7 +46,7 @@
     "notExported": "Not saved to a file yet",
     "exported": "Saved to a file",
     "stale": "Changed since the last file save",
-    "exportWarning": "Anything held temporarily can disappear. Saving to a file keeps it permanently.",
+    "exportWarning": "Everything you have done so far is held only on this computer, temporarily, and can disappear. Saving to a file keeps it, and lets you open it on another computer and carry on.",
     "keepFile": "Please keep the saved file somewhere safe, such as a USB drive or cloud storage, or hand it in."
   },
   "steps": {
@@ -247,7 +247,7 @@
       "sampleSummary": "Using {used} of {usable} rows. The model never sees the remaining {rest}.",
       "sampleTitle": "How much data to use",
       "scaling": "Scaling",
-      "scalingNote": "Evens out the size of number columns. Turn it on and off to see what changes.",
+      "scalingNote": "Brings the value ranges of number columns closer together. Turn it on and off to see what changes.",
       "selectAll": "Use every feature",
       "targetRule": {
         "TARGET_NOT_NUMERIC": "Regression can only predict a number column."
@@ -317,11 +317,12 @@
   },
   "projects": {
     "dataType": "Data type",
+    "dataTypeHint": "You cannot change the data type after the project is created.",
     "new": "New project",
     "newTitle": "Create a new project",
-    "newDescription": "You will load your data on the next screen.",
+    "newDescription": "Name the project, then choose what kind of data it will work with.",
     "name": "Project name",
-    "nameHint": "Used as the file name when the project is saved to a file.",
+    "nameHint": "When you save the project to a file, the project name becomes the file name.",
     "create": "Create",
     "delete": "Delete",
     "deleteTitle": "Delete this project?",
@@ -329,9 +330,8 @@
     "unreadable": "This project cannot be opened",
     "updatedAt": "Last worked on",
     "size": "Size",
-    "storageNote": "Projects are held temporarily on this computer. Saving one to a file keeps it permanently, and lets you carry on from another computer.",
     "saved": "Projects on this computer",
-    "savedCount": "This browser holds {count} project | This browser holds {count} projects"
+    "savedCount": "This computer holds {count} project | This computer holds {count} projects"
   },
   "common": {
     "underConstruction": "This screen is still being built.",
@@ -474,24 +474,22 @@
     "exportDone": "Saved to a file. Please keep it somewhere safe, such as a USB drive or cloud storage.",
     "exportDropped": "Some models were too large to include. Their scores are still there. ({count})",
     "open": "Open a file",
-    "openModified": "This file shows signs of having been changed after it was saved.",
+    "openModified": "This file was changed outside the app after it was saved. You can still open it, but the results recorded inside may not match what actually happened.",
     "homeTitle": "Dashboard",
     "homeLead": "Pick a step on the left, or carry on below.",
     "resume": "Go to — {task}",
     "openStep": "Open",
     "done": "Done",
     "locked": "Locked",
-    "exportLead": "Enter a student number and name to add them to the front of the file name.",
+    "exportLead": "A student number and name are optional. If you enter them, they go at the front of the file name.",
     "exportNow": "Save",
     "dashboard": "Dash­board"
   },
   "identity": {
     "title": "Project details",
-    "name": "Project name",
     "studentId": "Student number",
     "studentName": "Name",
-    "optional": "Optional",
-    "fileNameHint": "What you enter is added to the front of the saved file name. ({fileName})",
+    "fileNameHint": "The file will be saved as: {fileName}",
     "rename": "Rename this project ({name})"
   },
   "meta": {
