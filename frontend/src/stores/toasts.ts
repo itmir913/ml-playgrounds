@@ -25,12 +25,23 @@ export interface Toast {
 }
 
 /**
- * 저절로 사라지지 않는 어조.
+ * 저절로 사라지는 어조. **성공 하나뿐이고, 나머지는 학생이 닫아야 한다.**
  *
- * **실패는 학생이 읽고 닫아야 한다.** 몇 초 뒤에 사라지면 무엇이 왜 안 됐는지
- * 못 읽은 채로 다음 시도를 하게 된다.
+ * **목록을 뒤집어 적는 이유는 기본값 때문이다.** "사라지지 않는 것"을 세면 어조를
+ * 하나 더 만드는 사람이 아무것도 안 적어도 사라지는 알림이 되고, **그게 잘못된
+ * 쪽으로 조용하다** — 못 읽은 알림은 아무 흔적을 안 남긴다. 여기서는 안 적으면
+ * 남는다.
+ *
+ * **성공만 사라져도 되는 이유**는 그 알림이 **이미 화면에 결과가 보이는 일**을
+ * 말하기 때문이다 — 데이터를 사용했으면 표가 떠 있고, 파일로 저장했으면 파일이
+ * 내려와 있다. 못 읽어도 잃는 것이 없다.
+ *
+ * 나머지 셋은 전부 **학생이 모르면 다음 판단이 틀어지는 것**이다. 실패(`danger`)는
+ * 무엇이 왜 안 됐는지이고, `caution`은 **몰래 빠진 것**이다 — 읽지 못한 파일, 선택에서
+ * 빠진 열, 담지 못한 모델, 꺼진 비율 맞추기. `info`도 지금 하나뿐인데 같은 성질이다
+ * ("이미 있는 사진 {count}장은 넘어갔습니다" — 40장을 올렸는데 12장만 늘어난 이유).
  */
-const STICKY: ReadonlySet<ToastTone> = new Set<ToastTone>(['danger'])
+const AUTO_DISMISS: ReadonlySet<ToastTone> = new Set<ToastTone>(['success'])
 
 export const useToastStore = defineStore('toasts', () => {
   const items = ref<Toast[]>([])
@@ -44,7 +55,7 @@ export const useToastStore = defineStore('toasts', () => {
     lastId += 1
     const id = lastId
     items.value = [...items.value, { id, tone, key, params }]
-    if (!STICKY.has(tone)) {
+    if (AUTO_DISMISS.has(tone)) {
       setTimeout(() => {
         dismiss(id)
       }, TOAST_DURATION_MS)
