@@ -11,6 +11,7 @@
 
 import { defineAsyncComponent, type Component } from 'vue'
 
+import { IMAGE_ACCEPT } from '@/data/image/upload'
 import { TABULAR_ACCEPT } from '@/data/table'
 import type { DataType } from '@/project/schema'
 
@@ -71,6 +72,15 @@ export const DATA_KINDS: readonly DataKind[] = [
     prepPanel: defineAsyncComponent(() => import('@/views/preprocess/TabularPrepPanel.vue')),
     prepContext: defineAsyncComponent(() => import('@/views/preprocess/TabularPrepContext.vue')),
     trainContext: defineAsyncComponent(() => import('@/views/train/TabularTrainContext.vue')),
+  },
+  {
+    dataType: 'image',
+    labelKey: 'dataTypes.image',
+    accept: IMAGE_ACCEPT,
+    panel: defineAsyncComponent(() => import('@/views/data/ImagePanel.vue')),
+    prepPanel: defineAsyncComponent(() => import('@/views/preprocess/ImagePrepPanel.vue')),
+    prepContext: defineAsyncComponent(() => import('@/views/preprocess/ImagePrepContext.vue')),
+    trainContext: defineAsyncComponent(() => import('@/views/train/ImageTrainContext.vue')),
   },
 ]
 

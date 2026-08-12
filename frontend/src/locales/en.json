@@ -8,6 +8,7 @@
     "projects": "Projects"
   },
   "dataTypes": {
+    "image": "Image data",
     "tabular": "Table data"
   },
   "taskTypes": {

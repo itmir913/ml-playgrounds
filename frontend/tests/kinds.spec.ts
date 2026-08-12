@@ -1,5 +1,10 @@
+// @vitest-environment jsdom
 /**
  * 데이터 종류 등록부 (`data/kinds.ts`).
+ *
+ * **jsdom이 필요해진 것은 이미지 판이 등록되면서다** — 등록부가 판을 지연 로딩으로
+ * 들고 있고 그 줄을 따라가면 임베딩 클라이언트에 닿는다. 거기에 DOM 부재 분기가 있어서
+ * node 환경에서는 **죽는 대신 조용히 대체 경로를 검사하게** 된다.
  *
  * **열쇠형 등록부다** (architecture.md §9.2) — 종류 하나에 줄 하나다. 축을 선언하는
  * 등록부(알고리즘·지표 패널)와 달리 타입이 "줄이 빠졌다"를 못 잡는다. 그래서 검사가 본다.
@@ -29,27 +34,23 @@ describe('데이터 종류 등록부', () => {
   })
 
   /**
-   * **트립와이어다.** 통과하는 것이 목적이 아니라, 두 번째 종류가 생기는 순간
-   * 여기서 멈추게 하는 것이 목적이다.
+   * **트립와이어가 여기 있었다.** "종류를 늘리는 사람은 `PreprocessView`와 `TrainView`의
+   * 머리 문맥을 판으로 옮겨라"였고, 2026-08-12에 이미지를 등록하면서 실제로 옮겼다 —
+   * 그 둘은 이제 `DataKind.prepContext`·`trainContext`가 갖는다. 할 일이 끝났으므로
+   * 검사도 지웠다 (트립와이어는 통과가 목적이 아니라 멈추는 것이 목적이다).
    *
-   * **전처리 쪽은 2026-08-12에 옮겼다** — `DataKind.prepContext`가 갖고
-   * `PreprocessView`는 그리기만 한다. **`TrainView`가 남았다** — "타깃"과 "특성 n개"를
-   * 보여주는데 이미지에는 타깃 열이 없고 특성을 학생이 고르지도 않는다. 판 밖(화면)에
-   * 있어서 **타입이 못 잡는다** (architecture.md §9.3.2 "화면이 등록부를 우회하는 것").
-   *
-   * 지금 옮기지 않은 이유는 **이미지 학습 화면이 무엇을 보여줘야 하는지가 학습을
-   * 만들면서 정해지기 때문**이다. 구현이 하나뿐인 계약을 미리 설계하면 §9.2.1이
-   * 경계한 것과 같은 상태가 된다.
+   * 대신 **판이 선언해야 할 칸을 빠뜨렸는지는 타입이 잡는다** — `DataKind`의 필드가
+   * 전부 필수라 줄을 더하는 사람이 넷을 다 채워야 한다.
    */
-  it('종류가 하나뿐이다 - 늘리는 사람은 헤더 문맥을 판으로 옮겨야 한다', () => {
-    expect(
-      SUPPORTED_DATA_TYPES,
-      [
-        '데이터 종류가 늘었다. 옮겨야 할 것이 둘 있다.',
-        '  1. PreprocessView의 StepHeader #context — "열 수"가 표 전용이다',
-        '  2. TrainView의 StepHeader #context — "특성 n개"가 표 전용이다',
-        '둘을 data/kinds.ts의 판이 갖게 한 뒤 이 검사를 지워라.',
-      ].join('\n'),
-    ).toEqual(['tabular'])
+  it('등록된 종류마다 화면 넷이 다 있다', () => {
+    for (const dataType of SUPPORTED_DATA_TYPES) {
+      const kind = dataKindFor(dataType)
+      expect(kind?.panel, dataType).toBeDefined()
+      expect(kind?.prepPanel, dataType).toBeDefined()
+      expect(kind?.prepContext, dataType).toBeDefined()
+      expect(kind?.trainContext, dataType).toBeDefined()
+      // 문구가 빠지면 새 프로젝트 대화상자에 이름 없는 칸이 뜬다.
+      expect(kind?.labelKey, dataType).toMatch(/^dataTypes\./)
+    }
   })
 })

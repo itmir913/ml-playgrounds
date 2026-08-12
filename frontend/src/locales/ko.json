@@ -8,6 +8,7 @@
     "projects": "프로젝트 목록"
   },
   "dataTypes": {
+    "image": "이미지 데이터",
     "tabular": "표 데이터"
   },
   "taskTypes": {
