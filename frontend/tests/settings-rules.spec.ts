@@ -18,9 +18,8 @@
  *
  * **못 보는 것을 밝혀 둔다.** 밝히지 않으면 다음 사람이 이 초록색을 실제보다 넓게 믿는다.
  *
- * - **이름이 `settings`가 아닌 변수는 못 본다.** `const s = document.settings` 뒤의
- *   `s.target`은 안 걸린다. 이 저장소가 그 값을 `settings`·`current`로 부르는 관용구를
- *   지키는 동안만 유효하다.
+ * - **한 겹짜리 별칭까지만 본다.** `const current = settings.value` 뒤의 `current.target`은
+ *   아래 둘째 규칙이 잡지만, 그 별칭을 또 다른 변수에 옮겨 담으면 못 따라간다.
  * - **구조 분해는 못 본다.** `const { target } = settings`는 잡히지 않는다.
  *   다만 그 모양은 `settings.data`에서 꺼내는 것이 자연스러워 실수가 덜하다.
  * - **`settings.data`를 거친 뒤의 오타는 대상이 아니다.** 거기서부터는 타입이 잡는다.
@@ -79,6 +78,33 @@ function leaks(source: string): string[] {
     .map((line) => line.trim())
 }
 
+/**
+ * `settings`를 통째로 담은 지역 변수. **이름이 `settings`가 아니면 위 규칙이 못 본다.**
+ *
+ * 오른쪽에 `.data`가 있으면 그건 종류별 블록을 담은 것이라 대상이 아니다 —
+ * `const previous = document.settings.data`나 `const data = settings.value?.data`가 그렇다.
+ */
+function aliasesOfSettings(source: string): string[] {
+  const declaration = /(?:const|let)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*([^\n]*)/g
+  return [...source.matchAll(declaration)]
+    .filter(([, , value]) => /\bsettings\b/.test(value ?? '') && !/\.data\b/.test(value ?? ''))
+    .map(([, name]) => name ?? '')
+    .filter((name) => name !== 'settings')
+}
+
+/** 별칭이 종류별 필드를 직접 읽는 줄. */
+function aliasLeaks(source: string): string[] {
+  const names = new Set(aliasesOfSettings(source))
+  if (names.size === 0) return []
+  const pattern = new RegExp(
+    `\\b(${[...names].join('|')})\\??\\.(${KIND_FIELDS.join('|')})(?![\\w$])`,
+  )
+  return source
+    .split(NEWLINE)
+    .filter((line) => pattern.test(line))
+    .map((line) => line.trim())
+}
+
 describe('종류별 설정은 settings.data를 거친다', () => {
   it('등록부에서 이름을 가져온다 - 비면 아래가 조용히 통과한다', () => {
     expect(KIND_FIELDS.length).toBeGreaterThan(0)
@@ -108,5 +134,31 @@ describe('종류별 설정은 settings.data를 거친다', () => {
       leaks(readFileSync(path, 'utf-8')).map((line) => `${path.slice(SRC.length + 1)}  ${line}`),
     )
     expect(found, '종류별 필드는 settings.data를 거쳐 읽어라').toEqual([])
+  })
+
+  /**
+   * **별칭이 이 검사의 사각지대였다.** 2026-08-12에 코드베이스를 전수로 훑다가 알았다 —
+   * `settings`를 다른 이름에 담아 두면 위 규칙이 한 글자도 못 본다. 지금 소스의 별칭
+   * 다섯은 전부 `.data`를 거치지만, 다음에 하나가 어긋나도 화면에서야 드러난다.
+   */
+  it('별칭도 settings.data를 거친다', () => {
+    expect(aliasesOfSettings('const current = settings.value')).toEqual(['current'])
+    // 종류별 블록을 담은 것은 대상이 아니다 - 그 뒤로는 바로 읽는 것이 맞다.
+    expect(aliasesOfSettings('const previous = document.settings.data')).toEqual([])
+    expect(aliasesOfSettings('const data = computed(() => settings.value?.data ?? null)')).toEqual(
+      [],
+    )
+
+    const bad = ['const current = settings.value', 'return current.target'].join(NEWLINE)
+    expect(aliasLeaks(bad)).toHaveLength(1)
+    const good = ['const current = settings.value', 'return current.data.target'].join(NEWLINE)
+    expect(aliasLeaks(good)).toEqual([])
+
+    const found = sourceFiles(SRC).flatMap((path) =>
+      aliasLeaks(readFileSync(path, 'utf-8')).map(
+        (line) => `${path.slice(SRC.length + 1)}  ${line}`,
+      ),
+    )
+    expect(found, 'settings를 담은 변수도 .data를 거쳐 읽어라').toEqual([])
   })
 })

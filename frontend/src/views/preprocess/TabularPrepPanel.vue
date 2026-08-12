@@ -262,15 +262,15 @@ function onStratify(event: Event): void {
  * 학습이 보는 것과 같은 함수라 "화면은 멀쩡한데 [학습]이 거부한다"가 생기지 않는다.
  */
 const stratifyBlockNow = computed(() => {
-  const current = settings.value
+  const current = data.value
   if (!current) return null
   return stratifyBlock({
     dataset: dataset.value,
     taskType: project.taskType,
-    target: current.data.target,
-    features: current.data.features,
-    preprocessing: current.data.preprocessing,
-    nSamples: current.nSamples,
+    target: current.target,
+    features: current.features,
+    preprocessing: current.preprocessing,
+    nSamples: nSamples.value,
   })
 })
 
@@ -291,13 +291,13 @@ const testDataset = computed(() => readTestDataset(project.file))
 
 /** 순수 함수는 ml/selection.ts에 있다 - 컴포넌트 밖에서 테스트한다. */
 const testRowUsage = computed(() => {
-  const current = settings.value
+  const current = data.value
   if (!current) return null
   return rowUsage(
     testDataset.value,
-    current.data.features,
-    current.data.target,
-    current.data.preprocessing.missing,
+    current.features,
+    current.target,
+    current.preprocessing.missing,
   )
 })
 
