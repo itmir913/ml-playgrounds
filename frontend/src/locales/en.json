@@ -15,15 +15,15 @@
   },
   "tasks": {
     "datasetReady": "Load your data",
-    "targetChosen": "Set the target",
-    "featuresChosen": "Set the features",
-    "algorithmsChosen": "Choose the models",
+    "targetChosen": "Select the target",
+    "featuresChosen": "Select the features",
+    "algorithmsChosen": "Select the models",
     "trainingDone": "Train the models",
-    "modelReady": "Build a model",
+    "modelReady": "Get a model ready to predict with",
     "portfolioWritten": "Write the portfolio",
     "title": "To do",
     "allDone": "Everything in this step is done.",
-    "taskTypeChosen": "Choose the task type",
+    "taskTypeChosen": "Select the task type",
     "image": {
       "datasetReady": "Add photos",
       "targetChosen": "Sort into categories"
@@ -54,16 +54,16 @@
     },
     "train": {
       "label": "Train­ing",
-      "purpose": "Choose what you are doing, then pick the models to train."
+      "purpose": "Choose the task type and the models to train."
     },
     "results": {
       "label": "Results",
       "locked": "This opens once a training run has finished.",
-      "purpose": "Put every experiment's scores side by side. You can see what you changed and what it changed."
+      "purpose": "Put every experiment's scores side by side and compare them. You can see what you changed and what it changed."
     },
     "predict": {
       "label": "Predict",
-      "locked": "No model is available to predict with yet."
+      "locked": "You need a trained model before you can predict."
     },
     "portfolio": {
       "label": "Port­folio",
@@ -204,7 +204,7 @@
     "emptyReason": "No data yet.",
     "emptyNext": "Load a file in the data step and you can choose what to predict here.",
     "testDataTitle": "Test Data",
-    "testDataLead": "Choose data to evaluate your trained model's performance.",
+    "testDataLead": "Choose the data used to score your trained models.",
     "testSize": "Share of data to sample",
     "testSizeNote": "Set the share of training data to set aside for testing.",
     "stratify": "Split keeping the mix of categories",
@@ -282,7 +282,7 @@
     "modelSummary": "{count} model chosen. | {count} models chosen.",
     "modelWaiting": "Waiting",
     "modelsLead": "Choose what you want to do, and only the models that fit stay on. Pick several to train at once and compare the results.",
-    "modelsTitle": "Choose the models",
+    "modelsTitle": "Model selection",
     "noModelChosen": "No model chosen yet.",
     "noTaskTypeNext": "Choose a task type above and the models that fit will show up.",
     "noTaskTypeReason": "No task type chosen yet.",
@@ -469,9 +469,8 @@
     "exportDropped": "Some models were too large to include. Their scores are still there. ({count})",
     "open": "Open a file",
     "openModified": "This file was changed outside the app after it was saved. You can still open it, but the results recorded inside may not match what actually happened.",
-    "homeTitle": "Dashboard",
-    "homeLead": "Pick a step on the left, or carry on below.",
-    "resume": "Go to — {task}",
+    "homeLead": "See how far this project has come. Pick the step to carry on with below.",
+    "resume": "Go to: {task}",
     "openStep": "Open",
     "done": "Done",
     "locked": "Locked",
@@ -493,7 +492,7 @@
     "updated": "Last change",
     "size": "Size",
     "taskType": "Task type",
-    "algorithms": "Models",
+    "algorithms": "Selected models",
     "runs": "Trained models",
     "none": "None",
     "countUnit": "{count}",
@@ -672,7 +671,7 @@
       "inputTitle": "New values",
       "pickOption": "Choose one",
       "probabilityColumn": "{model} probability",
-      "purpose": "Add a new row to the table and the model answers it.",
+      "purpose": "Fill in the values you want predicted and every model gives its answer.",
       "range": "Values in the data: {min} to {max}",
       "rowNumber": "Row",
       "showFeatures": "Show feature values",

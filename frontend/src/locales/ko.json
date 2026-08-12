@@ -15,15 +15,15 @@
   },
   "tasks": {
     "datasetReady": "데이터 불러오기",
-    "targetChosen": "타깃(Target) 설정하기",
-    "featuresChosen": "특성(Feature) 설정하기",
-    "algorithmsChosen": "모델 선정하기",
+    "targetChosen": "타깃(Target) 선택하기",
+    "featuresChosen": "특성(Feature) 선택하기",
+    "algorithmsChosen": "모델 선택하기",
     "trainingDone": "모델 학습하기",
-    "modelReady": "모델 만들기",
+    "modelReady": "예측에 쓸 모델 준비하기",
     "portfolioWritten": "포트폴리오 작성하기",
     "title": "해야 할 일",
     "allDone": "이 단계에서 할 일을 모두 마쳤습니다.",
-    "taskTypeChosen": "기계학습 유형 정하기",
+    "taskTypeChosen": "기계학습 유형 선택하기",
     "image": {
       "datasetReady": "사진 올리기",
       "targetChosen": "범주 나누기"
@@ -50,20 +50,20 @@
     "preprocess": {
       "label": "전처리",
       "locked": "데이터를 먼저 불러와 주세요.",
-      "purpose": "데이터를 학습에 활용할 수 있도록 다듬습니다."
+      "purpose": "학습에 쓸 수 있게 데이터를 다듬습니다."
     },
     "train": {
       "label": "학습",
-      "purpose": "무엇을 할지 정하고, 학습할 모델을 고릅니다."
+      "purpose": "기계학습 유형과 학습할 모델을 선택합니다."
     },
     "results": {
       "label": "결과",
       "locked": "학습을 한 번 마치면 열립니다.",
-      "purpose": "실험마다 나온 지표를 나란히 놓습니다. 무엇을 바꿨더니 무엇이 달라졌는지가 여기서 보입니다."
+      "purpose": "실험마다 나온 지표를 나란히 놓고 비교합니다. 무엇을 바꿨더니 무엇이 달라졌는지가 여기서 보입니다."
     },
     "predict": {
       "label": "예측",
-      "locked": "예측에 사용할 모델이 아직 없습니다."
+      "locked": "학습한 모델이 있어야 예측할 수 있습니다."
     },
     "portfolio": {
       "label": "포트​폴리오",
@@ -204,7 +204,7 @@
     "emptyReason": "아직 불러온 데이터가 없습니다.",
     "emptyNext": "데이터 단계에서 파일을 불러오면 여기에서 무엇을 예측할지 고를 수 있습니다.",
     "testDataTitle": "테스트 데이터(Test Data)",
-    "testDataLead": "학습을 마친 기계학습 모델의 성능을 평가하기 위한 데이터를 선정합니다.",
+    "testDataLead": "학습을 마친 기계학습 모델의 성능을 평가할 데이터를 선택합니다.",
     "testSize": "샘플링할 데이터 비율",
     "testSizeNote": "훈련 데이터 중 테스트용으로 분리할 비율을 설정합니다.",
     "stratify": "범주의 비율을 맞춰 나누기",
@@ -282,7 +282,7 @@
     "modelSummary": "모델 {count}개를 골랐습니다.",
     "modelWaiting": "대기",
     "modelsLead": "무엇을 할지 고르면 그에 맞는 모델만 켜집니다. 여러 개를 골라 한 번에 학습하고 결과를 비교합니다.",
-    "modelsTitle": "모델 선정",
+    "modelsTitle": "모델 선택",
     "noModelChosen": "아직 고른 모델이 없습니다.",
     "noTaskTypeNext": "위에서 유형을 고르면 그 유형에 맞는 모델이 나옵니다.",
     "noTaskTypeReason": "기계학습 유형을 아직 고르지 않았습니다.",
@@ -469,9 +469,8 @@
     "exportDropped": "용량 제한 때문에 담지 못한 모델이 있습니다. 지표는 그대로 남습니다. ({count}개)",
     "open": "파일 불러오기",
     "openModified": "저장한 뒤에 이 앱 밖에서 내용이 바뀐 파일입니다. 그대로 열 수 있지만, 파일에 적힌 결과가 실제와 다를 수 있습니다.",
-    "homeTitle": "대시보드",
-    "homeLead": "왼쪽에서 단계를 고르거나, 아래에서 이어서 하세요.",
-    "resume": "바로가기 — {task}",
+    "homeLead": "이 프로젝트가 어디까지 왔는지 보여줍니다. 이어서 진행할 단계를 아래에서 고르세요.",
+    "resume": "바로가기: {task}",
     "openStep": "들어가기",
     "done": "Done",
     "locked": "Locked",
@@ -489,11 +488,11 @@
   "meta": {
     "title": "프로젝트 요약",
     "titleShort": "요약",
-    "created": "만든 날",
-    "updated": "마지막 수정",
+    "created": "만든 시각",
+    "updated": "마지막 수정 시각",
     "size": "용량",
     "taskType": "기계학습 유형",
-    "algorithms": "선정한 모델",
+    "algorithms": "선택한 모델",
     "runs": "학습한 모델",
     "none": "없음",
     "countUnit": "{count}개",
@@ -672,7 +671,7 @@
       "inputTitle": "새로운 값",
       "pickOption": "고르세요",
       "probabilityColumn": "{model} 확률",
-      "purpose": "표에 새 줄을 하나 넣으면 모델이 답을 내놓습니다.",
+      "purpose": "예측할 값을 채우면 모델마다 답을 내놓습니다.",
       "range": "데이터에 있는 값: {min} ~ {max}",
       "rowNumber": "번호",
       "showFeatures": "특성 값 보기",

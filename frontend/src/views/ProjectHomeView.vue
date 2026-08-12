@@ -53,12 +53,34 @@ const kind = computed(() => dataKindFor(project.dataType ?? ''))
 const steps = computed(() =>
   STEP_IDS.map((step) => {
     const tasks = stepTasks(step, project.facts, project.taskType, project.dataType)
+    const unlocked = isStepUnlocked(step, project.facts, project.taskType, project.dataType)
+    const here = now.value?.step === step
     return {
       step,
-      unlocked: isStepUnlocked(step, project.facts, project.taskType, project.dataType),
+      unlocked,
       tasks,
       done: tasks.length > 0 && tasks.every((task) => task.done),
-      here: now.value?.step === step,
+      here,
+      /**
+       * 이 줄이 설명문을 다는가. **템플릿에서 조건을 조립하지 않는다** (§10).
+       *
+       * **여섯 줄이 모두 설명을 달면 훑을 수가 없다.** 그래서 지금 있는 줄에만 달았는데,
+       * 그러면 **할 일이 없는 단계는 영영 아무 말도 안 한다** — 결과와 예측은 체크리스트가
+       * 비어 있고(파생 사실뿐이라 학생이 체크할 것이 없다), 그래서 `currentTask`가 그 줄을
+       * 고르는 일도 없다. 열리고 나면 이름과 버튼만 남은 빈 줄이 된다.
+       *
+       * **잠겨 있을 때는 사유가 그 자리를 채우므로** 설명까지 겹치지 않는다.
+       */
+      explains: here || (unlocked && tasks.length === 0),
+      /**
+       * 설명문이 차지하는 칸 수. **할 일이 없는 줄에서는 줄 전체를 쓴다** — 그 줄의
+       * 가운데 칸은 어차피 비어 있고, 좁게 두면 두 문장짜리 설명(결과)이 두 줄로
+       * 접히면서 빈자리는 빈자리대로 남는다.
+       *
+       * 항목이 있는 줄에서는 버튼 칸을 침범하지 않는다 — 거기서는 버튼이 두 줄에
+       * 걸쳐 가운데 서 있다(`sm:row-span-2`).
+       */
+      explainSpan: tasks.length === 0 ? 'sm:col-span-3' : 'sm:col-span-2',
     }
   }),
 )
@@ -76,7 +98,7 @@ function go(step: StepId): void {
 
       한 문장은 한 키다 (docs/i18n.md 규칙 3) - 조각으로 이으면 어순이 다른 언어에서 무너진다.
     -->
-    <StepHeader :title="t('project.homeTitle')" :purpose="t('project.homeLead')">
+    <StepHeader :title="t('project.dashboard')" :purpose="t('project.homeLead')">
       <template #actions>
         <AppButton v-if="now !== null" size="lg" @click="go(now.step)">
           {{ t('project.resume', { task: t(`tasks.${now.key}`) }) }}
@@ -141,7 +163,7 @@ function go(step: StepId): void {
               **설명문은 지금 있는 칸에만 붙인다** - 여섯 줄이 모두 설명을 달면 훑을 수가
               없고, 각 단계의 설명은 그 단계 화면의 머리가 이미 갖고 있다 (§8.9).
             -->
-            <ul class="flex min-w-0 flex-wrap gap-x-4 gap-y-1">
+            <ul v-if="entry.tasks.length > 0" class="flex min-w-0 flex-wrap gap-x-4 gap-y-1">
               <li
                 v-for="task in entry.tasks"
                 :key="task.key"
@@ -154,28 +176,43 @@ function go(step: StepId): void {
             </ul>
 
             <!--
+              **버튼보다 앞에 둔다.** 좁은 화면에서는 격자가 한 열로 쌓여 DOM 순서가 곧
+              읽는 순서가 되는데, `할 일 → 들어가기 → 설명`은 **들어가고 나서 거기가
+              어디였는지 알려주는 순서**다. 넓은 화면의 자리는 위·아래에서 못 박아
+              두었으므로 여기서 순서를 바꿔도 격자는 안 움직인다.
+            -->
+            <p v-if="entry.explains" class="text-ink-soft" :class="entry.explainSpan">
+              {{ t(stepTextKey(kind, entry.step, 'purpose')) }}
+            </p>
+
+            <!--
               **못 가는 이유가 [들어가기]와 같은 칸을 쓴다.** 한 줄에 둘 다 있는 일이
               없으므로 자리를 나눌 이유가 없고, 문장이라 버튼보다 넓은 칸이 필요하다.
 
               설명문이 붙는 줄에서는 **두 줄에 걸쳐 가운데 선다** - 버튼이 첫 줄에만
               매달리면 줄의 무게 중심에서 벗어나 혼자 위로 올라가 보인다.
+
+              **칸과 줄을 둘 다 못 박는다.** 할 일이 없는 줄은 가운데 칸을 안 그리고,
+              설명문은 DOM에서 이 칸보다 앞에 있다 — 자동 배치에 맡기면 버튼이 빈 가운데
+              칸이나 둘째 줄로 흘러간다.
             -->
-            <div class="min-w-0 sm:justify-self-end" :class="entry.here ? 'sm:row-span-2' : ''">
+            <div
+              class="min-w-0 sm:col-start-3 sm:row-start-1 sm:justify-self-end"
+              :class="entry.here ? 'sm:row-span-2' : ''"
+            >
               <AppButton v-if="entry.unlocked" variant="secondary" @click="go(entry.step)">
                 {{ t('project.openStep') }}
               </AppButton>
-              <span v-else class="block text-ink-soft">{{
+              <!--
+                **넓을 때만 오른쪽에 붙인다.** 칸 자체는 이미 오른쪽 끝에 서 있지만
+                (`sm:justify-self-end`), 두 줄로 접히면 안쪽 글줄이 왼쪽에 맞아 오른쪽
+                가장자리가 들쭉날쭉해진다 — 버튼과 같은 세로선에 서야 한 칸으로 읽힌다.
+                좁은 화면에서는 칸이 왼쪽부터 시작하므로 그대로 왼쪽 정렬이 맞다.
+              -->
+              <span v-else class="block text-ink-soft sm:text-right">{{
                 t(stepTextKey(kind, entry.step, 'locked'))
               }}</span>
             </div>
-
-            <!--
-              버튼 칸을 침범하지 않는다. 여기까지가 왼쪽 두 칸(이름 · 할 일)이고,
-              그래서 위의 row-span이 성립한다.
-            -->
-            <p v-if="entry.here" class="text-ink-soft sm:col-span-2">
-              {{ t(stepTextKey(kind, entry.step, 'purpose')) }}
-            </p>
           </li>
         </ul>
       </div>

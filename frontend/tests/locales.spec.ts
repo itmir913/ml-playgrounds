@@ -105,6 +105,16 @@ describe('로케일 파일', () => {
     expect([...korean.keys()].sort()).toEqual([...english.keys()].sort())
   })
 
+  it('값의 앞뒤에 공백이 없다', () => {
+    // **화면에서는 안 보이고 diff에서도 안 보인다.** 실제로 문장 끝에 공백 하나가
+    // 딸려 들어왔다 (2026-08-13). 붙여 쓰는 자리(배지·버튼)에서는 칸이 한 칸 어긋나고,
+    // 두 언어 중 한쪽에만 있으면 아무도 그 차이를 못 찾는다.
+    const ragged = [...english.entries(), ...korean.entries()]
+      .filter(([, value]) => value !== value.trim())
+      .map(([key]) => key)
+    expect([...new Set(ragged)]).toEqual([])
+  })
+
   it('모든 값이 비어 있지 않다', () => {
     for (const [key, value] of [...english, ...korean]) {
       expect(value.trim(), key).not.toBe('')
