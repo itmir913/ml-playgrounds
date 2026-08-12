@@ -247,6 +247,18 @@ export const STORAGE_SAFETY_FACTOR = 1.5
 export const MAX_FILE_NAME_LENGTH = 100
 
 /**
+ * 범주 이름의 최대 길이. **자르지 않고 거부한다** — 위 파일명과 다른 점이다.
+ *
+ * 범주 이름은 그대로 zip 안의 폴더 이름이 되고(mlpx-spec.md §1.2) 그 아래에 64자
+ * 해시와 `.jpg`가 붙는다. 학생이 `.mlpx`를 윈도우 탐색기에서 풀면 경로 길이가 260자를
+ * 넘는 순간 **압축이 조용히 반만 풀린다.** 자르면 서로 다른 범주 둘이 같은 폴더가 될 수
+ * 있어서, 이쪽은 거부가 맞다.
+ *
+ * `dataset/data/<이름>/<64자>.jpg`가 이 값에서 약 90자 + 이름이다.
+ */
+export const MAX_CATEGORY_NAME_LENGTH = MAX_FILE_NAME_LENGTH
+
+/**
  * 일괄 예측 결과 표를 끊어 보여주는 줄 수. **화면을 위한 것이 아니라 계산을 위한 것이다**
  * (architecture.md §8.13.1) - 5천 줄 × 모델 5개면 2만 5천 번이고 참조형이면 그 한
  * 번마다 학습셋 전체와의 거리 계산이라, 저사양 학교 PC를 얼릴 수 있다.

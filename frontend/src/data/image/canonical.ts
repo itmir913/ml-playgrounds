@@ -6,6 +6,7 @@
  * 장으로 남는다. 셋 다 화면에서는 안 보이는 종류의 고장이라 검사가 본다.
  */
 
+import { MAX_CATEGORY_NAME_LENGTH } from '@/limits'
 import {
   IMAGE_DATA_DIR,
   IMAGE_PREDICT_DIR,
@@ -80,9 +81,13 @@ const FORBIDDEN_IN_NAME = ['/', '\\', ':', '*', '?', '"', '<', '>', '|']
  *
  * **`_`로 시작할 수 없다** — `_unlabeled`가 예약돼 있고, 예약어를 하나만 막으면 다음에
  * 예약어가 늘 때 옛 파일과 부딪힌다 (mlpx-spec.md §1.2).
+ *
+ * **길이도 여기서 본다.** 이름이 곧 폴더 이름이라 긴 이름은 학생이 `.mlpx`를 풀 때
+ * 윈도우 경로 길이에 걸린다 (`limits.ts`의 `MAX_CATEGORY_NAME_LENGTH`).
  */
 export function isValidCategoryName(name: string): boolean {
   if (name !== name.trim() || name === '') return false
+  if (name.length > MAX_CATEGORY_NAME_LENGTH) return false
   if (name.startsWith('_')) return false
   if (name === '.' || name === '..') return false
   return !FORBIDDEN_IN_NAME.some((character) => name.includes(character))

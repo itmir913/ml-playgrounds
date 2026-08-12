@@ -34,6 +34,18 @@ export const CLIENT_ERROR_CODES = [
   // 등록부에 없는 백본을 가리키는 옛 파일도 여기로 온다.
   'BACKBONE_UNAVAILABLE',
 
+  // 사진 올리기 - data/image/upload.ts
+  // zip이 아니거나 깨졌다. PROJECT_FILE_NOT_ZIP과 나누는 이유는 학생이 할 일이 다르기
+  // 때문이다 - 그쪽은 프로젝트 파일이고 이쪽은 방금 만든 사진 꾸러미다.
+  'IMAGE_ZIP_INVALID',
+  // 꾸러미 안에 사진이 될 만한 파일이 하나도 없다. 맥/윈도가 넣는 부스러기만 남은
+  // 경우도 여기다 - "0장을 받았습니다"로 조용히 끝내면 학생은 올린 줄 안다.
+  'IMAGE_ZIP_NO_IMAGES',
+  // 폴더 이름을 범주로 쓸 수 없다 (data/image/canonical.ts의 isValidCategoryName).
+  // **고쳐서 받지 않는다** - 이름을 다듬으면 서로 다른 폴더 둘이 한 범주로 합쳐질 수
+  // 있고, 그건 라벨이 조용히 바뀌는 것이다.
+  'IMAGE_CATEGORY_NAME_INVALID',
+
   // 프로젝트 파일 열기 - project/format.ts, project/migrate.ts
   'PROJECT_FILE_NOT_ZIP',
   'PROJECT_FILE_ENTRY_MISSING',

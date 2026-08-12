@@ -408,7 +408,10 @@
     "CLUSTER_TOO_FEW_ROWS": "데이터가 {rows}줄뿐이라 군집 {clusters}개로 나눌 수 없습니다. 군집 수를 줄이거나 데이터를 더 모아 주세요.",
     "TEST_DATASET_COLUMN_MISSING": "테스트용 파일에 훈련 데이터의 열이 없습니다. ({columns})",
     "TEST_DATASET_NO_USABLE_ROWS": "테스트 데이터에 채점할 수 있는 행이 하나도 없습니다.",
-    "PREDICT_DATASET_COLUMN_MISSING": "예측할 파일에 지금 보이는 모델들이 쓰는 열이 없습니다. ({columns})"
+    "PREDICT_DATASET_COLUMN_MISSING": "예측할 파일에 지금 보이는 모델들이 쓰는 열이 없습니다. ({columns})",
+    "IMAGE_ZIP_INVALID": "압축 파일을 열지 못했습니다. 사진 폴더를 다시 압축해 주세요.",
+    "IMAGE_ZIP_NO_IMAGES": "올린 파일에 사진이 하나도 없습니다.",
+    "IMAGE_CATEGORY_NAME_INVALID": "범주 이름으로 쓸 수 없는 폴더가 있습니다. 폴더 이름을 바꾼 뒤 다시 압축해 주세요. ({name})"
   },
   "portfolio": {
     "template": {

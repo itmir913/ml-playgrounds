@@ -408,7 +408,10 @@
     "CLUSTER_TOO_FEW_ROWS": "There are only {rows} rows, so the data cannot be split into {clusters} clusters. Lower the number of clusters, or collect more data.",
     "TEST_DATASET_COLUMN_MISSING": "The Test Data file is missing columns from the training data. ({columns})",
     "TEST_DATASET_NO_USABLE_ROWS": "The test data has no rows left to score with.",
-    "PREDICT_DATASET_COLUMN_MISSING": "The file to predict is missing columns the visible models use. ({columns})"
+    "PREDICT_DATASET_COLUMN_MISSING": "The file to predict is missing columns the visible models use. ({columns})",
+    "IMAGE_ZIP_INVALID": "Could not open the zip file. Try compressing your photo folder again.",
+    "IMAGE_ZIP_NO_IMAGES": "There are no photos in the file you uploaded.",
+    "IMAGE_CATEGORY_NAME_INVALID": "A folder here cannot be used as a category name. Rename the folder and compress it again. ({name})"
   },
   "portfolio": {
     "template": {
