@@ -133,7 +133,7 @@ function turn(cluster: number, step: number): void {
     <section v-for="group in groups" :key="group.cluster" class="flex flex-col gap-2">
       <header class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <h3 class="font-bold text-ink">
-          {{ t('results.clusterName', { cluster: group.cluster }) }}
+          {{ t('results.clusterName', { index: group.cluster }) }}
         </h3>
         <AppBadge>{{ t('data.image.count', group.hashes.length) }}</AppBadge>
         <!--
@@ -157,7 +157,7 @@ function turn(cluster: number, step: number): void {
         <li v-for="(hash, index) in shownOf(group)" :key="hash">
           <img
             :src="urls.get(hash)"
-            :alt="t('results.clusterName', { cluster: group.cluster })"
+            :alt="t('results.clusterName', { index: group.cluster })"
             loading="lazy"
             class="aspect-square w-full rounded-control bg-surface-sunken object-cover"
             :class="index === 0 && pageOf(group.cluster) === 0 ? 'ring-2 ring-brand' : ''"

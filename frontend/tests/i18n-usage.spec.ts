@@ -222,3 +222,80 @@ describe('로케일 문장', () => {
     expect(particlesAfterPlaceholder(ko)).toEqual([])
   })
 })
+
+/**
+ * **부른 자리가 로케일이 요구하는 자리표시자를 다 넘기는가.**
+ *
+ * vue-i18n은 못 채운 자리표시자를 **조용히 지운다.** 실제로 그렇게 새 나갔다 —
+ * `{index}번 군집`에 `{ cluster: … }`를 넘겨서 화면에 `번 군집`만 떴고, 검사도 타입도
+ * 아무것도 안 잡았다 (2026-08-12).
+ *
+ * **키 집합 검사(tests/locales.spec.ts)로는 못 잡는다.** 그건 두 로케일 사이의 계약을
+ * 보고, 여기는 **소스와 로케일 사이**를 본다.
+ *
+ * **모자란 것만 잡는다.** 남는 것(안 쓰는 값을 함께 넘기는 것)은 화면을 안 깨뜨리고,
+ * 사유 파라미터를 통째로 펴 넘기는 자리가 실제로 있다.
+ */
+describe('자리표시자를 다 넘긴다', () => {
+  /** `t('a.b', { x: 1, y: z })` — 중첩 없는 객체 리터럴만 본다. 나머지는 넘긴다. */
+  const CALL = /\$?\bt\(\s*'([\w.]+)'\s*,\s*\{([^{}]*)\}/g
+
+  function placeholdersOf(text: string): string[] {
+    return [...new Set([...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1] ?? ''))]
+  }
+
+  function messageFor(locale: Record<string, unknown>, key: string): string | undefined {
+    let current: unknown = locale
+    for (const step of key.split('.')) {
+      if (typeof current !== 'object' || current === null) return undefined
+      current = (current as Record<string, unknown>)[step]
+    }
+    return typeof current === 'string' ? current : undefined
+  }
+
+  function missingIn(source: string, locale: Record<string, unknown>): string[] {
+    const found: string[] = []
+    for (const call of source.matchAll(CALL)) {
+      const message = messageFor(locale, call[1] ?? '')
+      if (message === undefined) continue
+      // **줄임 표기도 센다** — `{ name, x: 1 }`의 `name`처럼 콜론이 없는 자리다.
+      // 안 세면 멀쩡한 호출이 위반으로 잡히고, 그러면 이 검사부터 못 믿게 된다.
+      const body = call[2] ?? ''
+      const passed = new Set([
+        ...[...body.matchAll(/(\w+)\s*:/g)].map((one) => one[1]),
+        ...[...body.matchAll(/(?:^|,)\s*(\w+)\s*(?=,|$)/g)].map((one) => one[1]),
+      ])
+      const missing = placeholdersOf(message).filter((name) => !passed.has(name))
+      if (missing.length > 0) found.push(`${call[1]} <- ${missing.join(', ')}`)
+    }
+    return found
+  }
+
+  const ko = JSON.parse(readFileSync(join(SRC, 'locales', 'ko.json'), 'utf-8')) as Record<
+    string,
+    unknown
+  >
+
+  it('검사기가 빠진 자리표시자를 잡는다', () => {
+    const locale = { results: { clusterName: '{index}번 군집' } }
+    expect(missingIn("t('results.clusterName', { cluster: group.cluster })", locale)).toEqual([
+      'results.clusterName <- index',
+    ])
+    expect(missingIn("t('results.clusterName', { index: group.cluster })", locale)).toEqual([])
+    // 자리표시자가 없는 문장에 값을 함께 넘기는 것은 화면을 안 깨뜨린다.
+    expect(missingIn("t('a.b', { extra: 1 })", { a: { b: '그냥 문장' } })).toEqual([])
+    // **줄임 표기를 위반으로 잡으면 안 된다.** 실제로 그렇게 쓰는 자리가 있다.
+    expect(missingIn("t('a.b', { fileName })", { a: { b: '({fileName})' } })).toEqual([])
+    expect(missingIn("t('a.b', { name, x: 1 })", { a: { b: '{name} {x}' } })).toEqual([])
+  })
+
+  it('지금 소스에 빠진 자리표시자가 없다', () => {
+    const found: string[] = []
+    for (const path of sourceFiles(SRC)) {
+      for (const one of missingIn(readFileSync(path, 'utf-8'), ko)) {
+        found.push(`${path.slice(SRC.length + 1)}  ${one}`)
+      }
+    }
+    expect(found).toEqual([])
+  })
+})
