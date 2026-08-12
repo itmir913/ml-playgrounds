@@ -51,6 +51,11 @@ export interface DataKind {
    * (architecture.md §9.3.2).
    */
   readonly prepContext: Component
+  /**
+   * 학습 화면 **머리**의 문맥. `prepContext`와 같은 사정이다 — 거기 있던 "타깃"과
+   * "특성 n개"는 표에만 있는 말이고, 이미지에는 타깃 열이 없다.
+   */
+  readonly trainContext: Component
 }
 
 /**
@@ -65,6 +70,7 @@ export const DATA_KINDS: readonly DataKind[] = [
     panel: defineAsyncComponent(() => import('@/views/data/TabularPanel.vue')),
     prepPanel: defineAsyncComponent(() => import('@/views/preprocess/TabularPrepPanel.vue')),
     prepContext: defineAsyncComponent(() => import('@/views/preprocess/TabularPrepContext.vue')),
+    trainContext: defineAsyncComponent(() => import('@/views/train/TabularTrainContext.vue')),
   },
 ]
 

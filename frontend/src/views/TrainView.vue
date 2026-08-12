@@ -18,7 +18,6 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter, type RouteLocationNormalized } from 'vue-router'
 
-import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
@@ -30,20 +29,20 @@ import { useTraining } from '@/composables/useTraining'
 import { summarizeColumns } from '@/data/columns'
 import { toMessage } from '@/errors'
 import { algorithmOptions, supportedTaskTypes } from '@/ml/algorithms'
-import type { RuntimeContext } from '@/ml/backend'
+import type { EngineState, RuntimeContext } from '@/ml/backend'
 import {
   algorithmsLosingMeaning,
-  columnPlan,
   requiredTargetKind,
   stratifyBlock,
-  trainableRowCount,
   type ChosenModel,
 } from '@/ml/selection'
+import { trainableRowsOf, trainingSourceOf } from '@/ml/training-source'
 import { failedRuns } from '@/ml/results'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
 import { applyExperiment } from '@/project/attach'
-import { readDataset, readTestDataset } from '@/project/dataset'
-import { dataSnapshot, tabularDataOf, type ProjectDocument, type TaskType } from '@/project/schema'
+import { dataKindFor } from '@/data/kinds'
+import { readDataset } from '@/project/dataset'
+import { tabularDataOf, type ProjectDocument, type TaskType } from '@/project/schema'
 import {
   withHyperparameter,
   withRuntime,
@@ -71,11 +70,13 @@ const settings = computed(() => project.file?.document.settings ?? null)
  * 열을 보는 표의 계산이다. **이미지의 같은 자리는 사진 수와 범주가 답한다** — 이미지 판이
  * 서는 커밋이 그것을 넣는다 (roadmap.md V4 2단계).
  */
-const tabularData = computed(() => tabularDataOf(project.file?.document))
-const dataset = computed(() => readDataset(project.file))
+/**
+ * 이 프로젝트의 종류를 다루는 판 (`data/kinds.ts`). **머리의 문맥과 학습 입력이
+ * 여기서 나온다** — 이 화면은 종류를 모른다.
+ */
+const kind = computed(() => dataKindFor(project.file?.document.manifest.dataType ?? ''))
 
-/** 평가 정본. `split.method`가 `provided`인 프로젝트에만 있다 (mlpx-spec.md §1.1). */
-const testDataset = computed(() => readTestDataset(project.file))
+const dataset = computed(() => readDataset(project.file))
 const columns = computed(() => (dataset.value ? summarizeColumns(dataset.value) : []))
 
 /**
@@ -92,21 +93,12 @@ const columns = computed(() => (dataset.value ? summarizeColumns(dataset.value) 
  * 카드는 1만 행으로 재서 잠긴 채로 있고, 그러면 그 손잡이가 아무 일도 안 한다.
  */
 const context = computed<RuntimeContext>(() => {
-  const current = settings.value
   return {
     serverStatus: 'unknown',
     engineStates: {},
-    // 아무것도 안 골랐으면 무엇이 빠질지 정해지지 않았다. 그때는 파일의 행 수가 보수적이다.
-    rowCount:
-      current && tabularData.value
-        ? trainableRowCount(
-            dataset.value,
-            tabularData.value.features,
-            tabularData.value.target,
-            tabularData.value.preprocessing.missing,
-            current.nSamples,
-          )
-        : (dataset.value?.rows.length ?? 0),
+    // **종류가 센다** (`ml/training-source.ts`). 표는 전처리와 뽑기에서 빠질 행을 뺀
+    // 수이고, 이미지는 학습에 들어갈 사진 수다.
+    rowCount: project.file === null ? 0 : trainableRowsOf(project.file, project.taskType),
   }
 })
 
@@ -166,21 +158,6 @@ const targetIssue = computed(() => {
 })
 
 /** 지금 설정으로 학습에 들어갈 특성 수. 0이면 전처리로 돌아가야 한다. */
-const usableFeatures = computed(() => {
-  const current = settings.value
-  const table = dataset.value
-  const data = tabularData.value
-  if (!current || !table || !data) return 0
-  return columnPlan({
-    columns: columns.value,
-    rowCount: table.rows.length,
-    taskType: project.taskType,
-    target: data.target,
-    features: data.features,
-    preprocessing: data.preprocessing,
-  }).usableFeatures
-})
-
 function apply(next: ProjectDocument): void {
   const file = project.file
   if (file) project.update({ ...file, document: next })
@@ -310,6 +287,14 @@ const failureDetailText = computed(() => {
   return typeof detail === 'string' && detail !== '' ? detail : null
 })
 
+/**
+ * 학습 전 준비 상태. **표에서는 한 번도 안 뜬다** — 준비할 것이 없어서다.
+ *
+ * 이미지는 백본을 받고(12.4MB) 사진을 한 장씩 통과시키는 동안 아무 일도 안 일어나는
+ * 것처럼 보인다. 그 시간을 진행률 0%로 두면 학생은 멈춘 줄 알고 새로고침을 누른다.
+ */
+const preparing = ref<{ state: EngineState; completed: number; total: number } | null>(null)
+
 /** 담은 모델이 없으면 돌릴 것이 없다. 나머지 실패는 학습이 사유와 함께 돌려준다. */
 const nothingToTrain = computed(() => chosen.value.length === 0)
 
@@ -322,41 +307,62 @@ const nothingToTrain = computed(() => chosen.value.length === 0)
  */
 async function startTraining(): Promise<void> {
   const file = project.file
-  const table = dataset.value
   const taskType = project.taskType
-  if (!file || !table || taskType === undefined) return
+  if (!file || taskType === undefined) return
 
   // 지난 실패는 지운다. 새로 돌리는 순간 그건 더 이상 지금의 사실이 아니다.
   failure.value = null
 
   try {
+    /**
+     * **무엇을 넘길지 종류가 준비한다** (`ml/training-source.ts`). 표는 정본을 파싱해
+     * 그대로 오지만 이미지는 여기서 임베딩을 뽑는다 — 백본 12.4MB를 받는 동안 화면이
+     * 할 말이 `preparing`에서 나온다.
+     */
+    const source = await trainingSourceOf({
+      project: file,
+      taskType,
+      onPrepare: (state) => {
+        preparing.value = { state, completed: 0, total: 0 }
+      },
+      onProgress: (completed, total) => {
+        preparing.value = { state: 'ready', completed, total }
+      },
+    })
+
+    // **뽑은 임베딩을 먼저 앉힌다.** 학습이 실패해도 그건 이미 유효한 계산이고,
+    // 버리면 다음 시도에서 백본을 다시 받는다 (mlpx-spec.md §1.3).
+    if (source.project !== file) project.update(source.project)
+    preparing.value = null
+
     const result = await training.run({
       type: 'train',
       input: {
-        dataset: table,
+        dataset: source.dataset,
         // **평가 데이터가 파일로 온 실험은 이것 없이는 채점할 것이 없다**
         // (mlpx-spec.md §1.1). holdout이면 null이고 splitRows가 아예 보지 않는다.
-        testDataset: testDataset.value,
+        testDataset: source.testDataset,
         taskType,
         dataType: file.document.manifest.dataType,
-        settings: file.document.settings,
+        settings: source.settings,
         context: context.value,
-        // **파일에 남는 것은 계산에 쓴 설정이 아니라 기록이다.** 표에서는 둘이 같은
-        // 값이라 여기서 그대로 짓는다 — 갈리는 것은 이미지뿐이고, 그건 임베딩을 표로
-        // 바꾸는 어댑터가 짓는다 (open-decisions.md "이미지 학습은 표 문제로 바꿔서 푼다").
-        snapshot: dataSnapshot('tabular', file.document.settings),
+        // **파일에 남는 것은 계산에 쓴 설정이 아니라 기록이다.** 이미지는 둘이 갈린다
+        // (open-decisions.md "이미지 학습은 표 문제로 바꿔서 푼다").
+        snapshot: source.snapshot,
       },
       history: file.document.runs,
     })
     if (result === null) return
 
     // 학습하는 동안 학생이 다른 것을 고쳤을 수 있다. 그때의 파일이 아니라 지금 것에 앉힌다.
-    project.update(applyExperiment(project.file ?? file, result, now()))
+    project.update(applyExperiment(project.file ?? source.project, result, now()))
     toasts.push('success', 'train.finished')
   } catch (error) {
     // 같은 실패를 알림과 상태 줄 둘 다에 보인다. 알림은 눈에 띄고 상태 줄은 남는다.
     failure.value = toMessage(error)
     toasts.pushError(error)
+  } finally {
+    preparing.value = null
   }
 }
 
@@ -409,21 +415,12 @@ function leave(): void {
 <template>
   <div v-if="settings" class="flex flex-col gap-5 p-4 sm:p-5">
     <StepHeader :title="t('steps.train.label')" :purpose="t('steps.train.purpose')">
+      <!--
+        **무엇을 셀지 이 화면이 모른다** (architecture.md §9.3.2). 여기 "타깃"과
+        "특성 n개"가 박혀 있었는데 이미지에는 타깃 열이 없다.
+      -->
       <template #context>
-        <div class="flex items-baseline gap-1.5">
-          <dt>
-            <AppBadge>{{ t('meta.target') }}</AppBadge>
-          </dt>
-          <dd class="max-w-48 truncate font-bold text-ink">
-            {{ settings.data.target ?? t('meta.none') }}
-          </dd>
-        </div>
-        <div class="flex items-baseline gap-1.5">
-          <dt>
-            <AppBadge>{{ t('meta.features') }}</AppBadge>
-          </dt>
-          <dd class="font-bold tabular-nums text-ink">{{ t('meta.countUnit', usableFeatures) }}</dd>
-        </div>
+        <component :is="kind.trainContext" v-if="kind" />
       </template>
     </StepHeader>
 
@@ -496,7 +493,22 @@ function leave(): void {
         하는 것은 "무슨 일이 있었나 + 다음에 뭘 누르나"이므로 둘을 붙여 둔다.
       -->
       <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-3">
-        <p v-if="training.running.value" class="min-w-0 font-bold" role="status">
+        <!--
+          **학습보다 먼저 뜬다.** 이미지는 백본을 받고 사진을 통과시키는 시간이 앞에
+          붙는데, 그동안 아무 말도 없으면 학생은 멈춘 줄 알고 새로고침을 누른다.
+          표에서는 준비할 것이 없어 한 번도 안 뜬다.
+        -->
+        <p v-if="preparing" class="min-w-0 font-bold" role="status">
+          {{
+            preparing.total > 0
+              ? t('train.preparingPhotos', {
+                  done: preparing.completed,
+                  total: preparing.total,
+                })
+              : t(`engineState.${preparing.state}`)
+          }}
+        </p>
+        <p v-else-if="training.running.value" class="min-w-0 font-bold" role="status">
           {{ t('train.progress', training.progress.value ?? { completed: 0, total: 0 }) }}
         </p>
         <!-- 이유 없이 꺼진 버튼은 학생에게 고장으로 보인다. -->

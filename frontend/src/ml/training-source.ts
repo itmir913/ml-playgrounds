@@ -17,14 +17,17 @@ import { embedImages, type EmbedWorker } from '@/ml/embed/client'
 import { spawnEmbedWorker } from '@/ml/embed/spawn'
 import { imageTrainingSource, pendingEmbeddings } from '@/ml/images'
 import type { Dataset } from '@/ml/preprocess'
+import { trainableRowCount } from '@/ml/selection'
 import { readDataset, readTestDataset } from '@/project/dataset'
 import { addEmbeddings, readEmbeddings } from '@/project/embeddings'
-import type { ProjectFile } from '@/project/format'
+import { IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
+import { readImages } from '@/project/images'
 import {
   dataSettings,
   dataSnapshot,
   type DataType,
   type Experiment,
+  tabularDataOf,
   type Settings,
   type TaskType,
 } from '@/project/schema'
@@ -132,6 +135,40 @@ export const TRAINING_SOURCES: Readonly<
       rowKeys: source.hashes,
     }
   },
+}
+
+/**
+ * 실행 방법 판정에 넘길 행 수. **종류마다 세는 것이 다르다.**
+ *
+ * 표는 전처리에서 빠질 행과 뽑기에서 빠질 행을 뺀 수다 — 파일의 행 수를 넘기면 학습이
+ * 실제로 받아들일 데이터를 화면이 거부한다. 이미지는 **학습에 들어갈 사진 수**이고,
+ * 분류에서는 라벨 붙은 것만이다(어댑터가 세는 것과 같아야 한다).
+ */
+export const TRAINING_ROW_COUNTS: Readonly<
+  Record<DataType, (project: ProjectFile, taskType: TaskType | undefined) => number>
+> = {
+  tabular: (project) => {
+    const dataset = readDataset(project)
+    const data = tabularDataOf(project.document)
+    if (!dataset) return 0
+    if (!data) return dataset.rows.length
+    return trainableRowCount(
+      dataset,
+      data.features,
+      data.target,
+      data.preprocessing.missing,
+      project.document.settings.nSamples,
+    )
+  },
+  image: (project, taskType) =>
+    readImages(project).filter(
+      (entry) => taskType === 'clustering' || entry.category !== IMAGE_UNLABELED,
+    ).length,
+}
+
+/** 이 프로젝트의 종류가 세는 학습 행 수. */
+export function trainableRowsOf(project: ProjectFile, taskType: TaskType | undefined): number {
+  return TRAINING_ROW_COUNTS[project.document.manifest.dataType](project, taskType)
 }
 
 /** 이 프로젝트의 종류가 준비하는 학습 입력. */
