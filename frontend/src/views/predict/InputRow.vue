@@ -53,7 +53,7 @@ const format = useFormat()
 function hintOf(field: PredictionField): string | undefined {
   const range = props.ranges.get(field.name)
   if (!range) return undefined
-  return t('predict.range', {
+  return t('predict.tabular.range', {
     min: format.prediction(range.min),
     max: format.prediction(range.max),
   })
@@ -81,8 +81,8 @@ const sampledIndex = computed(() => (props.sampled ?? 0) + 1)
 <template>
   <div class="flex flex-col gap-5">
     <div class="flex flex-col gap-1.5">
-      <h3 class="text-lg font-bold">{{ t('predict.inputTitle') }}</h3>
-      <p class="text-ink-soft">{{ t('predict.inputLead') }}</p>
+      <h3 class="text-lg font-bold">{{ t('predict.tabular.inputTitle') }}</h3>
+      <p class="text-ink-soft">{{ t('predict.tabular.inputLead') }}</p>
     </div>
 
     <!--
@@ -105,7 +105,7 @@ const sampledIndex = computed(() => (props.sampled ?? 0) + 1)
             :disabled="props.disabled"
             @change="emit('set', field.name, ($event.target as HTMLSelectElement).value)"
           >
-            <option value="">{{ t('predict.pickOption') }}</option>
+            <option value="">{{ t('predict.tabular.pickOption') }}</option>
             <option v-for="option in field.options" :key="option" :value="option">
               {{ option }}
             </option>
@@ -135,13 +135,13 @@ const sampledIndex = computed(() => (props.sampled ?? 0) + 1)
     <div class="flex flex-col gap-2">
       <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
         <p :class="{ invisible: props.sampled === null }" class="min-w-0 text-ink-soft">
-          {{ t('predict.fromDataDone', { index: sampledIndex }) }}
+          {{ t('predict.tabular.fromDataDone', { index: sampledIndex }) }}
         </p>
         <AppButton variant="secondary" :disabled="props.disabled" @click="emit('sample')">
-          {{ t('predict.fromData') }}
+          {{ t('predict.tabular.fromData') }}
         </AppButton>
         <AppButton variant="secondary" :disabled="props.disabled" @click="emit('clear')">
-          {{ t('predict.clear') }}
+          {{ t('predict.tabular.clear') }}
         </AppButton>
       </div>
 

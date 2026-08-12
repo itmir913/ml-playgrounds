@@ -138,7 +138,7 @@ const candidates = computed(() =>
       // **몇 번째 학습인지가 먼저다.** 학생이 설정을 바꿔 가며 같은 알고리즘을 여러 번
       // 돌리므로(그것이 이 도구의 핵심 활동이다) **회차가 빠지면 칩 둘이 같은 글자가
       // 된다** — 2026-08-11에 화면에서 그렇게 났다.
-      label: t('predict.clusterModelLabel', {
+      label: t('predict.tabular.clusterModelLabel', {
         round: props.experimentNames.get(model.experiment.id) ?? model.experiment.id,
         model: t('predict.modelName', {
           algorithm: t(`algorithms.${model.run.algorithm}`),
@@ -237,8 +237,8 @@ const neighborhood = computed<Neighborhood | null>(() => {
 <template>
   <section v-if="neighborhood" class="flex min-w-0 flex-col gap-5">
     <div class="flex flex-col gap-1.5">
-      <h4 class="font-bold">{{ t('predict.clusterNeighborTitle') }}</h4>
-      <p class="text-ink-soft">{{ t('predict.clusterNeighborLead') }}</p>
+      <h4 class="font-bold">{{ t('predict.tabular.clusterNeighborTitle') }}</h4>
+      <p class="text-ink-soft">{{ t('predict.tabular.clusterNeighborLead') }}</p>
     </div>
 
     <!--
@@ -248,7 +248,7 @@ const neighborhood = computed<Neighborhood | null>(() => {
     -->
     <AppChoices
       v-if="candidates.length > 1"
-      :label="t('predict.clusterModelPick')"
+      :label="t('predict.tabular.clusterModelPick')"
       :items="candidates"
       :selected="picked ?? undefined"
       @pick="picked = $event"
@@ -302,8 +302,8 @@ const neighborhood = computed<Neighborhood | null>(() => {
         :summaries="neighborhood.summaries"
         :scatter="neighborhood.scatter"
         :highlight="neighborhood.highlight"
-        :title="t('predict.clusterScatterTitle')"
-        :lead="t('predict.clusterScatterLead')"
+        :title="t('predict.tabular.clusterScatterTitle')"
+        :lead="t('predict.tabular.clusterScatterLead')"
       />
 
       <AppTable>

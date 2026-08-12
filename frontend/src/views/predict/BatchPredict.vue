@@ -131,7 +131,7 @@ async function apply(): Promise<void> {
     await project.save(applied.project)
 
     opened.value = null
-    toasts.push('success', 'predict.fileApplied')
+    toasts.push('success', 'predict.tabular.fileApplied')
   } catch (error) {
     toasts.pushError(error)
   } finally {
@@ -446,7 +446,7 @@ function cellText(answer: Answer | undefined): string {
   const ratio = chosenProbability(answer)
   return ratio === null
     ? text
-    : t('predict.cellWithProbability', { value: text, percent: format.percent(ratio) })
+    : t('predict.tabular.cellWithProbability', { value: text, percent: format.percent(ratio) })
 }
 
 /**
@@ -465,7 +465,7 @@ async function downloadAction(): Promise<void> {
     const { probaModels } = predictorsFor()
     const probabilityNames = props.models.map((model, index) =>
       probaModels.has(model.run.id)
-        ? t('predict.probabilityColumn', { model: modelNames.value[index] ?? '' })
+        ? t('predict.tabular.probabilityColumn', { model: modelNames.value[index] ?? '' })
         : null,
     )
 
@@ -473,7 +473,7 @@ async function downloadAction(): Promise<void> {
       props.models,
       modelNames.value,
       probabilityNames,
-      t('predict.rowNumber'),
+      t('predict.tabular.rowNumber'),
       rows.value,
       props.fields.map((field) => field.name),
       answers,
@@ -493,8 +493,8 @@ async function downloadAction(): Promise<void> {
 <template>
   <div class="flex flex-col gap-5">
     <div class="flex flex-col gap-1.5">
-      <h3 class="text-lg font-bold">{{ t('predict.tableTitle') }}</h3>
-      <p class="text-ink-soft">{{ t('predict.fileLead') }}</p>
+      <h3 class="text-lg font-bold">{{ t('predict.tabular.tableTitle') }}</h3>
+      <p class="text-ink-soft">{{ t('predict.tabular.fileLead') }}</p>
     </div>
 
     <!-- 이미 붙어 있고, 새로 고르는 중이 아니다. -->
@@ -514,7 +514,7 @@ async function downloadAction(): Promise<void> {
         {{ t('data.tabular.change') }}
       </AppButton>
       <AppButton variant="secondary" :disabled="busy" :action="remove">
-        {{ t('predict.fileRemove') }}
+        {{ t('predict.tabular.fileRemove') }}
       </AppButton>
     </div>
 
@@ -571,23 +571,23 @@ async function downloadAction(): Promise<void> {
 
     <!-- 아직 파일이 없다. -->
     <div v-if="!predictDataset" class="rounded-panel border border-line bg-surface-sunken p-4">
-      <p class="font-bold text-ink-soft">{{ t('predict.fileEmptyReason') }}</p>
-      <p class="mt-1 text-ink-faint">{{ t('predict.fileEmptyNext') }}</p>
+      <p class="font-bold text-ink-soft">{{ t('predict.tabular.fileEmptyReason') }}</p>
+      <p class="mt-1 text-ink-faint">{{ t('predict.tabular.fileEmptyNext') }}</p>
     </div>
 
     <template v-else>
       <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <label class="flex cursor-pointer items-center gap-2">
           <input v-model="showFeatures" type="checkbox" class="size-4 accent-brand" />
-          <span class="font-bold">{{ t('predict.showFeatures') }}</span>
+          <span class="font-bold">{{ t('predict.tabular.showFeatures') }}</span>
         </label>
 
         <AppButton variant="secondary" :disabled="computing" :action="downloadAction">
-          {{ t('predict.download') }}
+          {{ t('predict.tabular.download') }}
         </AppButton>
       </div>
 
-      <p v-if="computing" class="text-ink-soft">{{ t('predict.computing') }}</p>
+      <p v-if="computing" class="text-ink-soft">{{ t('predict.tabular.computing') }}</p>
 
       <p
         v-if="missingColumns.length > 0"
@@ -601,7 +601,7 @@ async function downloadAction(): Promise<void> {
           <thead class="bg-surface-sunken">
             <tr>
               <th class="min-w-20 px-3 py-2 font-bold text-ink-soft">
-                {{ t('predict.rowNumber') }}
+                {{ t('predict.tabular.rowNumber') }}
               </th>
               <template v-if="showFeatures">
                 <th

@@ -128,7 +128,7 @@ const chartData = computed(() =>
     {
       clusterName: (cluster: number) => t('results.clusterName', { index: cluster }),
       centroid: t('results.clusterCentroid'),
-      highlight: t('predict.clusterInputPoint'),
+      highlight: t('predict.tabular.clusterInputPoint'),
     },
     props.highlight,
   ),

@@ -449,8 +449,8 @@ async function run(): Promise<void> {
               @change="inputMode = 'value'"
             />
             <span class="flex flex-col">
-              <span class="font-bold">{{ t('predict.inputChoiceValue') }}</span>
-              <span class="text-ink-faint">{{ t('predict.inputChoiceValueNote') }}</span>
+              <span class="font-bold">{{ t('predict.tabular.inputChoiceValue') }}</span>
+              <span class="text-ink-faint">{{ t('predict.tabular.inputChoiceValueNote') }}</span>
             </span>
           </label>
           <label class="flex cursor-pointer items-start gap-2">
@@ -462,8 +462,8 @@ async function run(): Promise<void> {
               @change="inputMode = 'file'"
             />
             <span class="flex flex-col">
-              <span class="font-bold">{{ t('predict.inputChoiceFile') }}</span>
-              <span class="text-ink-faint">{{ t('predict.inputChoiceFileNote') }}</span>
+              <span class="font-bold">{{ t('predict.tabular.inputChoiceFile') }}</span>
+              <span class="text-ink-faint">{{ t('predict.tabular.inputChoiceFileNote') }}</span>
             </span>
           </label>
         </div>
