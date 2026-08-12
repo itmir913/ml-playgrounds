@@ -6,7 +6,7 @@
  * 빠뜨리고, 빠진 라벨은 눈으로는 멀쩡해 보인다. 슬롯으로 내려주는 값을 그대로 쓴다.
  *
  * ```
- * <AppField :label="t('data.fileName')">
+ * <AppField :label="t('data.tabular.fileName')">
  *   <template #default="field"><input v-bind="field" /></template>
  * </AppField>
  * ```

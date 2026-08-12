@@ -26,11 +26,11 @@ const { t } = useI18n()
   <AppTable class="min-h-0 flex-1">
     <thead class="sticky top-0 z-10">
       <tr>
-        <th>{{ t('data.columnName') }}</th>
-        <th>{{ t('data.kind') }}</th>
-        <th>{{ t('data.missing') }}</th>
-        <th>{{ t('data.unique') }}</th>
-        <th>{{ t('data.samples') }}</th>
+        <th>{{ t('data.tabular.columnName') }}</th>
+        <th>{{ t('data.tabular.kind') }}</th>
+        <th>{{ t('data.tabular.missing') }}</th>
+        <th>{{ t('data.tabular.unique') }}</th>
+        <th>{{ t('data.tabular.samples') }}</th>
       </tr>
     </thead>
     <tbody>

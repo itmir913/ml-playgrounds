@@ -507,11 +507,11 @@ async function downloadAction(): Promise<void> {
       </span>
       <!-- 이름은 배지, 값은 plaintext (§8.16). 파일 이름은 그 자체가 값이라 배지가 없다. -->
       <span class="flex items-baseline gap-1.5">
-        <AppBadge>{{ t('data.rows') }}</AppBadge>
+        <AppBadge>{{ t('data.tabular.rows') }}</AppBadge>
         <span class="font-bold tabular-nums text-ink">{{ predictDataset?.rows.length ?? 0 }}</span>
       </span>
       <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">
-        {{ t('data.change') }}
+        {{ t('data.tabular.change') }}
       </AppButton>
       <AppButton variant="secondary" :disabled="busy" :action="remove">
         {{ t('predict.fileRemove') }}
@@ -529,16 +529,16 @@ async function downloadAction(): Promise<void> {
         @drop.prevent="onDrop"
       >
         <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">
-          {{ busy ? t('data.reading') : t('data.choose') }}
+          {{ busy ? t('data.tabular.reading') : t('data.tabular.choose') }}
         </AppButton>
-        <p class="mt-1.5 text-ink-faint">{{ t('data.dropHint') }}</p>
+        <p class="mt-1.5 text-ink-faint">{{ t('data.tabular.dropHint') }}</p>
       </div>
 
       <div v-else class="flex flex-wrap items-center gap-x-4 gap-y-2">
         <span class="max-w-56 truncate font-bold">{{ opened.fileName }}</span>
 
         <label v-if="opened.document.sheetNames.length > 1" class="flex items-center gap-2">
-          <span class="font-bold text-ink-soft">{{ t('data.sheet') }}</span>
+          <span class="font-bold text-ink-soft">{{ t('data.tabular.sheet') }}</span>
           <select
             v-model="sheetName"
             class="rounded-field border border-line-strong bg-surface px-2 py-1"
@@ -551,12 +551,12 @@ async function downloadAction(): Promise<void> {
 
         <label class="flex cursor-pointer items-center gap-2">
           <input v-model="hasHeader" type="checkbox" class="size-4 accent-brand" />
-          <span class="font-bold">{{ t('data.hasHeader') }}</span>
+          <span class="font-bold">{{ t('data.tabular.hasHeader') }}</span>
         </label>
 
         <div class="ml-auto flex gap-2">
           <AppButton variant="secondary" @click="opened = null">{{ t('common.cancel') }}</AppButton>
-          <AppButton :disabled="busy" :action="apply">{{ t('data.use') }}</AppButton>
+          <AppButton :disabled="busy" :action="apply">{{ t('data.tabular.use') }}</AppButton>
         </div>
       </div>
     </template>

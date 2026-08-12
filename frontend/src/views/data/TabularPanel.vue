@@ -163,10 +163,12 @@ async function apply(): Promise<void> {
 
     confirming.value = false
     opened.value = null
-    toasts.push('success', 'data.applied')
+    toasts.push('success', 'data.tabular.applied')
     if (applied.droppedColumns.length > 0) {
       // 조용히 사라지면 학생은 자기가 고른 열이 빠진 줄 모른다.
-      toasts.push('caution', 'data.droppedColumns', { names: applied.droppedColumns.join(', ') })
+      toasts.push('caution', 'data.tabular.droppedColumns', {
+        names: applied.droppedColumns.join(', '),
+      })
     }
   } catch (error) {
     toasts.pushError(error)
@@ -197,26 +199,26 @@ function kindOf(column: ColumnSummary): string {
       <template #context>
         <template v-if="saved">
           <div class="flex gap-1.5">
-            <dt class="sr-only">{{ t('data.fileName') }}</dt>
+            <dt class="sr-only">{{ t('data.tabular.fileName') }}</dt>
             <dd class="max-w-56 truncate font-bold text-ink">
               {{ saved.reference.originalFileName }}
             </dd>
           </div>
           <div class="flex items-baseline gap-1.5">
             <dt>
-              <AppBadge>{{ t('data.rows') }}</AppBadge>
+              <AppBadge>{{ t('data.tabular.rows') }}</AppBadge>
             </dt>
             <dd class="font-bold tabular-nums text-ink">{{ saved.dataset.rows.length }}</dd>
           </div>
           <div class="flex items-baseline gap-1.5">
             <dt>
-              <AppBadge>{{ t('data.columns') }}</AppBadge>
+              <AppBadge>{{ t('data.tabular.columns') }}</AppBadge>
             </dt>
             <dd class="font-bold tabular-nums text-ink">{{ saved.columns.length }}</dd>
           </div>
           <div class="flex items-baseline gap-1.5">
             <dt>
-              <AppBadge>{{ t('data.encoding') }}</AppBadge>
+              <AppBadge>{{ t('data.tabular.encoding') }}</AppBadge>
             </dt>
             <dd class="font-bold text-ink">
               {{ saved.reference.sourceEncoding ?? saved.reference.encoding }}
@@ -224,7 +226,7 @@ function kindOf(column: ColumnSummary): string {
           </div>
         </template>
         <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">
-          {{ saved ? t('data.change') : t('data.choose') }}
+          {{ saved ? t('data.tabular.change') : t('data.tabular.choose') }}
         </AppButton>
       </template>
     </StepHeader>
@@ -239,7 +241,7 @@ function kindOf(column: ColumnSummary): string {
       <span class="max-w-64 truncate text-base font-bold">{{ opened.fileName }}</span>
 
       <label v-if="opened.document.sheetNames.length > 1" class="flex items-center gap-2 text-base">
-        <span class="font-bold text-ink-soft">{{ t('data.sheet') }}</span>
+        <span class="font-bold text-ink-soft">{{ t('data.tabular.sheet') }}</span>
         <select
           v-model="sheetName"
           class="rounded-field border border-line-strong bg-surface px-2 py-1"
@@ -252,14 +254,16 @@ function kindOf(column: ColumnSummary): string {
 
       <label class="flex cursor-pointer items-center gap-2 text-base">
         <input v-model="hasHeader" type="checkbox" class="size-4 accent-brand" />
-        <span class="font-bold">{{ t('data.hasHeader') }}</span>
+        <span class="font-bold">{{ t('data.tabular.hasHeader') }}</span>
       </label>
 
-      <span v-if="!hasHeader" class="text-base text-ink-soft">{{ t('data.noHeaderNote') }}</span>
+      <span v-if="!hasHeader" class="text-base text-ink-soft">{{
+        t('data.tabular.noHeaderNote')
+      }}</span>
 
       <div class="ml-auto flex gap-2">
         <AppButton variant="secondary" @click="opened = null">{{ t('common.cancel') }}</AppButton>
-        <AppButton :disabled="busy" @click="requestApply">{{ t('data.use') }}</AppButton>
+        <AppButton :disabled="busy" @click="requestApply">{{ t('data.tabular.use') }}</AppButton>
       </div>
     </div>
 
@@ -269,7 +273,7 @@ function kindOf(column: ColumnSummary): string {
     -->
     <div class="flex min-h-96 flex-1 gap-5">
       <div class="flex min-w-0 flex-1 flex-col gap-1.5">
-        <h3 v-if="shown" class="font-bold text-ink-soft">{{ t('data.previewTitle') }}</h3>
+        <h3 v-if="shown" class="font-bold text-ink-soft">{{ t('data.tabular.previewTitle') }}</h3>
 
         <AppTable v-if="shown" class="min-h-0 flex-1">
           <thead class="sticky top-0 z-10">
@@ -292,9 +296,9 @@ function kindOf(column: ColumnSummary): string {
           class="grid min-h-0 flex-1 place-items-center rounded-panel border-2 border-dashed transition-colors"
           :class="dragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
         >
-          <AppEmpty :reason="t('data.emptyReason')" :next="t('data.dropHint')">
+          <AppEmpty :reason="t('data.tabular.emptyReason')" :next="t('data.tabular.dropHint')">
             <AppButton size="lg" :disabled="busy" @click="fileInput?.click()">
-              {{ busy ? t('data.reading') : t('data.choose') }}
+              {{ busy ? t('data.tabular.reading') : t('data.tabular.choose') }}
             </AppButton>
           </AppEmpty>
         </div>
@@ -306,7 +310,7 @@ function kindOf(column: ColumnSummary): string {
         몇 개든 표의 자리는 안 줄어든다.
       -->
       <aside v-if="shown" class="hidden min-w-0 flex-1 flex-col gap-1.5 md:flex">
-        <h3 class="font-bold text-ink-soft">{{ t('data.inspector') }}</h3>
+        <h3 class="font-bold text-ink-soft">{{ t('data.tabular.inspector') }}</h3>
         <div class="flex min-h-0 flex-1 flex-col">
           <ColumnInspector :columns="shown.columns" />
         </div>
@@ -315,7 +319,7 @@ function kindOf(column: ColumnSummary): string {
 
     <!-- **자른 경우에만 말한다.** 20줄짜리 파일에 "처음 20줄만"은 거짓말이다. -->
     <p v-if="truncated" class="shrink-0 text-base text-ink-faint">
-      {{ t('data.previewNote', truncated) }}
+      {{ t('data.tabular.previewNote', truncated) }}
     </p>
 
     <!--
@@ -328,7 +332,7 @@ function kindOf(column: ColumnSummary): string {
       :open="inspecting"
     >
       <summary class="cursor-pointer px-4 py-2.5 text-base font-bold text-ink-soft">
-        {{ t('data.inspector') }}
+        {{ t('data.tabular.inspector') }}
       </summary>
       <div class="max-h-72 overflow-y-auto border-t border-line p-3">
         <ColumnInspector :columns="shown.columns" />
@@ -339,8 +343,8 @@ function kindOf(column: ColumnSummary): string {
 
     <AppDialog
       :open="confirming"
-      :title="t('data.replaceTitle')"
-      :description="t('data.replaceDescription', experimentCount)"
+      :title="t('data.tabular.replaceTitle')"
+      :description="t('data.tabular.replaceDescription', experimentCount)"
       @close="confirming = false"
     >
       <template #actions>
@@ -348,7 +352,7 @@ function kindOf(column: ColumnSummary): string {
           t('common.cancel')
         }}</AppButton>
         <AppButton variant="danger" :disabled="busy" :action="apply">
-          {{ t('data.replaceConfirm') }}
+          {{ t('data.tabular.replaceConfirm') }}
         </AppButton>
       </template>
     </AppDialog>

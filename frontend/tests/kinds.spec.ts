@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest'
 
 import { dataKindFor, stepTextKey, SUPPORTED_DATA_TYPES } from '../src/data/kinds'
 import { DATA_TYPES } from '../src/project/schema'
-import type { StepId } from '../src/router/steps'
+import { KIND_SPECIFIC_STEP_TEXT } from '../src/router/steps'
 
 describe('데이터 종류 등록부', () => {
   it('열쇠가 겹치지 않는다', () => {
@@ -59,28 +59,17 @@ describe('데이터 종류 등록부', () => {
   })
 
   /**
-   * **단계 문구 중 종류를 가리는 셋** (architecture.md §8.10). 표를 두고 쓴 문장이라
-   * 이미지에서는 참이 아니다 — "어떤 열이 있는지", "표에 새 줄을 하나 넣으면",
-   * "타깃과 특성을 먼저 정해 주세요".
-   *
-   * **`Partial`이라 타입이 못 잡는다.** 종류를 더하는 사람이 이 셋을 빠뜨리면 화면에
-   * 표의 문장이 그대로 뜨고, 그건 컴파일도 다른 검사도 안 잡는다.
+   * **표도 예외가 아니다** (docs/i18n.md 규칙 10). 전에는 표가 기본값을 쓰고 이미지만
+   * 덮었는데, 그러면 **다음에 들어오는 종류가 아무것도 안 써도 화면이 멀쩡해 보인다** —
+   * 조용히 표의 말을 하면서. `Partial`이라 타입은 못 잡는 자리다.
    */
-  const KIND_SPECIFIC: readonly { step: StepId; slot: 'purpose' | 'locked' }[] = [
-    { step: 'data', slot: 'purpose' },
-    { step: 'predict', slot: 'purpose' },
-    { step: 'train', slot: 'locked' },
-  ]
-
-  it('표가 아닌 종류는 종류를 가리는 단계 문구를 스스로 갖는다', () => {
+  it('모든 종류가 종류를 가리는 단계 문구를 스스로 갖는다', () => {
     for (const dataType of SUPPORTED_DATA_TYPES) {
-      // 표는 기본 문구가 곧 자기 문구다 — `steps.*`가 표를 두고 쓰인 문장이다.
-      if (dataType === 'tabular') continue
       const kind = dataKindFor(dataType)
-      for (const { step, slot } of KIND_SPECIFIC) {
+      for (const { step, slot } of KIND_SPECIFIC_STEP_TEXT) {
         expect(
           stepTextKey(kind, step, slot),
-          `${dataType}가 steps.${step}.${slot}을 표의 문장 그대로 쓴다`,
+          `${dataType}가 ${step}.${slot}의 문장을 안 갖는다 - 기본값이 없는 자리다`,
         ).not.toBe(`steps.${step}.${slot}`)
       }
     }
@@ -88,7 +77,7 @@ describe('데이터 종류 등록부', () => {
 
   /** 나머지는 종류를 안 가린다. 덮어쓰면 공통 문장이 종류 수만큼 복제되기 시작한다. */
   it('가리지 않는 단계 문구는 덮어쓰지 않는다', () => {
-    const specific = new Set(KIND_SPECIFIC.map(({ step, slot }) => `${step}.${slot}`))
+    const specific = new Set(KIND_SPECIFIC_STEP_TEXT.map(({ step, slot }) => `${step}.${slot}`))
     for (const dataType of SUPPORTED_DATA_TYPES) {
       const kind = dataKindFor(dataType)
       for (const [step, slots] of Object.entries(kind?.stepText ?? {})) {

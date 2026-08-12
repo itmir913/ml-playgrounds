@@ -54,8 +54,7 @@
   },
   "steps": {
     "data": {
-      "label": "데이터",
-      "purpose": "데이터 파일을 불러오고 어떤 열이 있는지 확인합니다."
+      "label": "데이터"
     },
     "preprocess": {
       "label": "전처리",
@@ -64,7 +63,6 @@
     },
     "train": {
       "label": "학습",
-      "locked": "타깃(Target)과 특성(Feature)을 먼저 정해 주세요.",
       "purpose": "무엇을 할지 정하고, 학습할 모델을 고릅니다."
     },
     "results": {
@@ -74,8 +72,7 @@
     },
     "predict": {
       "label": "예측",
-      "locked": "예측에 사용할 모델이 아직 없습니다.",
-      "purpose": "표에 새 줄을 하나 넣으면 모델이 답을 내놓습니다."
+      "locked": "예측에 사용할 모델이 아직 없습니다."
     },
     "portfolio": {
       "label": "포트​폴리오",
@@ -83,38 +80,8 @@
     }
   },
   "data": {
-    "dropHint": "여기에 CSV나 엑셀 파일을 끌어다 놓으세요.",
-    "accepted": "CSV(.csv)와 엑셀(.xlsx) 파일을 불러올 수 있습니다.",
-    "choose": "파일 선택",
-    "reading": "파일을 읽는 중입니다.",
-    "sheet": "시트 선택",
-    "hasHeader": "첫 번째 줄이 열 이름입니다",
-    "noHeaderNote": "열 이름이 없어서 A, B, C… 로 표시합니다.",
-    "preview": "미리보기",
-    "previewNote": "처음 {count}줄만 보여 줍니다.",
-    "use": "이 데이터 사용",
-    "change": "데이터 바꾸기",
-    "current": "현재 데이터",
-    "fileName": "파일 이름",
-    "rows": "행 수",
-    "columns": "열 수",
-    "encoding": "문자 인코딩",
-    "columnName": "열 이름",
-    "kind": "자료형",
-    "missing": "결측치",
-    "unique": "값 종류",
-    "samples": "값 예시",
-    "applied": "이 데이터를 사용합니다.",
-    "droppedColumns": "새 데이터에 없는 열이라 선택에서 빠졌습니다. ({names})",
-    "replaceTitle": "데이터를 바꾸면 학습 결과가 지워집니다",
-    "replaceDescription": "지금까지 한 실험(Experiment) {count}개가 함께 사라집니다. 모델은 데이터의 행 번호를 가리키기 때문에, 남겨 두면 다른 줄을 보고 예측하게 됩니다.",
-    "replaceConfirm": "지우고 바꾸기",
-    "emptyReason": "아직 불러온 데이터가 없습니다.",
-    "emptyNext": "파일을 불러오면 여기에 표로 나타납니다.",
-    "inspector": "열 정보 자세히 보기",
     "unsupportedKind": "이 프로젝트의 데이터 종류는 아직 다룰 수 없습니다.",
     "unsupportedKindNext": "더 새로운 버전에서 만든 파일일 수 있습니다. 앱을 최신으로 바꾼 뒤 다시 열어 주세요.",
-    "previewTitle": "데이터 미리보기",
     "image": {
       "add": "사진 추가",
       "addFolder": "폴더에서 추가",
@@ -158,6 +125,39 @@
       "unlabeled": "라벨 없음",
       "unlabeledCount": "라벨 없는 사진",
       "use": "사용"
+    },
+    "tabular": {
+      "accepted": "CSV(.csv)와 엑셀(.xlsx) 파일을 불러올 수 있습니다.",
+      "applied": "이 데이터를 사용합니다.",
+      "change": "데이터 바꾸기",
+      "choose": "파일 선택",
+      "columnName": "열 이름",
+      "columns": "열 수",
+      "current": "현재 데이터",
+      "dropHint": "여기에 CSV나 엑셀 파일을 끌어다 놓으세요.",
+      "droppedColumns": "새 데이터에 없는 열이라 선택에서 빠졌습니다. ({names})",
+      "emptyNext": "파일을 불러오면 여기에 표로 나타납니다.",
+      "emptyReason": "아직 불러온 데이터가 없습니다.",
+      "encoding": "문자 인코딩",
+      "fileName": "파일 이름",
+      "hasHeader": "첫 번째 줄이 열 이름입니다",
+      "inspector": "열 정보 자세히 보기",
+      "kind": "자료형",
+      "missing": "결측치",
+      "noHeaderNote": "열 이름이 없어서 A, B, C… 로 표시합니다.",
+      "preview": "미리보기",
+      "previewNote": "처음 {count}줄만 보여 줍니다.",
+      "previewTitle": "데이터 미리보기",
+      "purpose": "데이터 파일을 불러오고 어떤 열이 있는지 확인합니다.",
+      "reading": "파일을 읽는 중입니다.",
+      "replaceConfirm": "지우고 바꾸기",
+      "replaceDescription": "지금까지 한 실험(Experiment) {count}개가 함께 사라집니다. 모델은 데이터의 행 번호를 가리키기 때문에, 남겨 두면 다른 줄을 보고 예측하게 됩니다.",
+      "replaceTitle": "데이터를 바꾸면 학습 결과가 지워집니다",
+      "rows": "행 수",
+      "samples": "값 예시",
+      "sheet": "시트 선택",
+      "unique": "값 종류",
+      "use": "이 데이터 사용"
     }
   },
   "columnKind": {
@@ -318,7 +318,10 @@
     "stratifyOff": "회귀에서는 값의 비율을 맞출 수 없어 비율 맞추기를 껐습니다.",
     "taskChanged": "고른 유형에서 쓸 수 없어 선택에서 빠진 모델이 있습니다. ({names})",
     "taskTitle": "기계학습 유형",
-    "tuning": "설정 바꾸기"
+    "tuning": "설정 바꾸기",
+    "tabular": {
+      "locked": "타깃(Target)과 특성(Feature)을 먼저 정해 주세요."
+    }
   },
   "projects": {
     "dataType": "데이터 종류",
@@ -686,6 +689,9 @@
       "photo": "예측할 사진",
       "purpose": "새 사진을 올리면 모델이 각각 답을 내놓습니다.",
       "remove": "빼기"
+    },
+    "tabular": {
+      "purpose": "표에 새 줄을 하나 넣으면 모델이 답을 내놓습니다."
     }
   }
 }

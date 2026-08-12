@@ -94,10 +94,10 @@ function onFeature(name: string, event: Event): void {
             **이름 칸이 남는 폭을 전부 가진다.** 안 그러면 숫자 세 칸이 자리를 나눠 갖고
             열 이름이 글자마다 줄바꿈된다 — 사유가 붙은 줄에서 특히 그렇다.
           -->
-          <th class="w-full">{{ t('data.columnName') }}</th>
-          <th>{{ t('data.kind') }}</th>
-          <th>{{ t('data.missing') }}</th>
-          <th>{{ t('data.unique') }}</th>
+          <th class="w-full">{{ t('data.tabular.columnName') }}</th>
+          <th>{{ t('data.tabular.kind') }}</th>
+          <th>{{ t('data.tabular.missing') }}</th>
+          <th>{{ t('data.tabular.unique') }}</th>
         </tr>
       </thead>
       <tbody>

@@ -74,6 +74,9 @@ export interface DataKind {
    * 일이 반드시 생긴다. 체크리스트 문구(`router/steps.ts`의 `TASK_LABELS`)와 같은
    * 모양이다.
    *
+   * **다만 종류를 가리는 셋에는 기본값이 없다** (`KIND_SPECIFIC_STEP_TEXT`). 거기는
+   * 모든 종류가 자기 문장을 선언해야 하고, 표도 예외가 아니다.
+   *
    * **빠뜨리면 `tests/kinds.spec.ts`가 운다.** `Partial`이라 타입으로는 못 잡는다.
    *
    * **키는 `steps.*` 아래가 아니라 그 화면의 이름 아래다** (`data.image.purpose`).
@@ -119,8 +122,14 @@ export const DATA_KINDS: readonly DataKind[] = [
     prepContext: defineAsyncComponent(() => import('@/views/preprocess/TabularPrepContext.vue')),
     trainContext: defineAsyncComponent(() => import('@/views/train/TabularTrainContext.vue')),
     predictPanel: defineAsyncComponent(() => import('@/views/predict/TabularPredictPanel.vue')),
-    // 표는 기본 문구가 곧 자기 문구다 — `steps.*`가 표를 두고 쓰인 문장이다.
-    stepText: {},
+    // **표도 자기 문장을 선언한다.** 이걸 비워 두고 `steps.*`에 표의 문장을 두었더니
+    // 그것이 기본값이 되었고, 그러면 다음에 들어오는 종류가 아무것도 안 써도 화면이
+    // 멀쩡해 보인다 — 조용히 표의 말을 하면서 (docs/i18n.md 규칙 10).
+    stepText: {
+      data: { purpose: 'data.tabular.purpose' },
+      predict: { purpose: 'predict.tabular.purpose' },
+      train: { locked: 'train.tabular.locked' },
+    },
     summaryRows: defineAsyncComponent(() => import('@/components/summary/TabularSummaryRows.vue')),
   },
   {

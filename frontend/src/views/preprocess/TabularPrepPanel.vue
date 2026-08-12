@@ -717,13 +717,13 @@ async function removeTest(): Promise<void> {
                   {{ data.testDataset.originalFileName }}
                 </span>
                 <span class="flex items-center gap-1.5 text-ink-soft">
-                  <span>{{ t('data.rows') }}</span>
+                  <span>{{ t('data.tabular.rows') }}</span>
                   <span class="font-bold tabular-nums text-ink">
                     {{ testDataset?.rows.length ?? 0 }}
                   </span>
                 </span>
                 <AppButton variant="secondary" :disabled="testBusy" @click="testFileInput?.click()">
-                  {{ t('data.change') }}
+                  {{ t('data.tabular.change') }}
                 </AppButton>
                 <AppButton variant="secondary" :disabled="testBusy" @click="requestRemoveTest">
                   {{ t('preprocess.testDataRemove') }}
@@ -742,9 +742,9 @@ async function removeTest(): Promise<void> {
                     :disabled="testBusy"
                     @click="testFileInput?.click()"
                   >
-                    {{ testBusy ? t('data.reading') : t('data.choose') }}
+                    {{ testBusy ? t('data.tabular.reading') : t('data.tabular.choose') }}
                   </AppButton>
-                  <p class="mt-1.5 text-ink-faint">{{ t('data.dropHint') }}</p>
+                  <p class="mt-1.5 text-ink-faint">{{ t('data.tabular.dropHint') }}</p>
                 </div>
 
                 <div v-else class="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -754,7 +754,7 @@ async function removeTest(): Promise<void> {
                     v-if="openedTest.document.sheetNames.length > 1"
                     class="flex items-center gap-2"
                   >
-                    <span class="font-bold text-ink-soft">{{ t('data.sheet') }}</span>
+                    <span class="font-bold text-ink-soft">{{ t('data.tabular.sheet') }}</span>
                     <select
                       v-model="testSheetName"
                       class="rounded-field border border-line-strong bg-surface px-2 py-1"
@@ -771,7 +771,7 @@ async function removeTest(): Promise<void> {
 
                   <label class="flex cursor-pointer items-center gap-2">
                     <input v-model="testHasHeader" type="checkbox" class="size-4 accent-brand" />
-                    <span class="font-bold">{{ t('data.hasHeader') }}</span>
+                    <span class="font-bold">{{ t('data.tabular.hasHeader') }}</span>
                   </label>
 
                   <div class="ml-auto flex gap-2">
@@ -779,7 +779,7 @@ async function removeTest(): Promise<void> {
                       {{ t('common.cancel') }}
                     </AppButton>
                     <AppButton :disabled="testBusy" @click="requestApplyTest">
-                      {{ t('data.use') }}
+                      {{ t('data.tabular.use') }}
                     </AppButton>
                   </div>
                 </div>

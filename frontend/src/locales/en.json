@@ -54,8 +54,7 @@
   },
   "steps": {
     "data": {
-      "label": "Data",
-      "purpose": "Load a data file and see what columns it has."
+      "label": "Data"
     },
     "preprocess": {
       "label": "Pre­pro­cess­ing",
@@ -64,7 +63,6 @@
     },
     "train": {
       "label": "Train­ing",
-      "locked": "Choose the target and the features first.",
       "purpose": "Choose what you are doing, then pick the models to train."
     },
     "results": {
@@ -74,8 +72,7 @@
     },
     "predict": {
       "label": "Predict",
-      "locked": "No model is available to predict with yet.",
-      "purpose": "Add a new row to the table and the model answers it."
+      "locked": "No model is available to predict with yet."
     },
     "portfolio": {
       "label": "Port­folio",
@@ -83,38 +80,8 @@
     }
   },
   "data": {
-    "dropHint": "Drop a CSV or Excel file here.",
-    "accepted": "CSV (.csv) and Excel (.xlsx) files can be read.",
-    "choose": "Choose a file",
-    "reading": "Reading the file.",
-    "sheet": "Choose a sheet",
-    "hasHeader": "The first row holds the column names",
-    "noHeaderNote": "There are no column names, so they are called A, B, C and so on.",
-    "preview": "Preview",
-    "previewNote": "Showing the first {count} row. | Showing the first {count} rows.",
-    "use": "Use this data",
-    "change": "Replace the data",
-    "current": "Data in use",
-    "fileName": "File",
-    "rows": "Rows",
-    "columns": "Columns",
-    "encoding": "Text encoding",
-    "columnName": "Column",
-    "kind": "Type",
-    "missing": "Missing",
-    "unique": "Distinct values",
-    "samples": "Examples",
-    "applied": "This data is now in use.",
-    "droppedColumns": "Some chosen columns are not in the new data, so they were dropped. ({names})",
-    "replaceTitle": "Replacing the data deletes your training results",
-    "replaceDescription": "The {count} experiment you have run so far goes with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows. | The {count} experiments you have run so far go with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows.",
-    "replaceConfirm": "Delete and replace",
-    "emptyReason": "No data yet.",
-    "emptyNext": "Load a file and it will appear here.",
-    "inspector": "Column details",
     "unsupportedKind": "This project uses a kind of data that cannot be handled yet.",
     "unsupportedKindNext": "It may have been made with a newer version. Update the app and open it again.",
-    "previewTitle": "Data preview",
     "image": {
       "add": "Add photos",
       "addFolder": "Add a folder",
@@ -158,6 +125,39 @@
       "unlabeled": "Unlabeled",
       "unlabeledCount": "Unlabeled photos",
       "use": "Use these"
+    },
+    "tabular": {
+      "accepted": "CSV (.csv) and Excel (.xlsx) files can be read.",
+      "applied": "This data is now in use.",
+      "change": "Replace the data",
+      "choose": "Choose a file",
+      "columnName": "Column",
+      "columns": "Columns",
+      "current": "Data in use",
+      "dropHint": "Drop a CSV or Excel file here.",
+      "droppedColumns": "Some chosen columns are not in the new data, so they were dropped. ({names})",
+      "emptyNext": "Load a file and it will appear here.",
+      "emptyReason": "No data yet.",
+      "encoding": "Text encoding",
+      "fileName": "File",
+      "hasHeader": "The first row holds the column names",
+      "inspector": "Column details",
+      "kind": "Type",
+      "missing": "Missing",
+      "noHeaderNote": "There are no column names, so they are called A, B, C and so on.",
+      "preview": "Preview",
+      "previewNote": "Showing the first {count} row. | Showing the first {count} rows.",
+      "previewTitle": "Data preview",
+      "purpose": "Load a data file and see what columns it has.",
+      "reading": "Reading the file.",
+      "replaceConfirm": "Delete and replace",
+      "replaceDescription": "The {count} experiment you have run so far goes with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows. | The {count} experiments you have run so far go with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows.",
+      "replaceTitle": "Replacing the data deletes your training results",
+      "rows": "Rows",
+      "samples": "Examples",
+      "sheet": "Choose a sheet",
+      "unique": "Distinct values",
+      "use": "Use this data"
     }
   },
   "columnKind": {
@@ -318,7 +318,10 @@
     "stratifyOff": "Proportional splitting was turned off: regression has no value categories to balance.",
     "taskChanged": "Some models were dropped because they do not fit the task type you chose. ({names})",
     "taskTitle": "Task type",
-    "tuning": "Change the settings"
+    "tuning": "Change the settings",
+    "tabular": {
+      "locked": "Choose the target and the features first."
+    }
   },
   "projects": {
     "dataType": "Data type",
@@ -686,6 +689,9 @@
       "photo": "Photo to predict",
       "purpose": "Add new photos and each model gives its own answer.",
       "remove": "Remove"
+    },
+    "tabular": {
+      "purpose": "Add a new row to the table and the model answers it."
     }
   }
 }

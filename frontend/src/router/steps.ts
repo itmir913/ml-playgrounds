@@ -183,6 +183,32 @@ const FACTS_NOT_IN_DATA_TYPE: Readonly<Record<DataType, readonly FactKey[]>> = {
 }
 
 /**
+ * **단계 문구 중 데이터 종류를 가리는 자리** (architecture.md 8.10, docs/i18n.md 규칙 10).
+ *
+ * 표를 두고 쓴 문장이라 이미지에서는 참이 아니다 - "어떤 열이 있는지", "표에 새 줄을
+ * 하나 넣으면", "타깃과 특성을 먼저 정해 주세요".
+ *
+ * **이 자리에는 기본값이 없다.** 표의 문장을 `steps.*`에 두었더니 그것이 기본값이
+ * 되었고, 그러면 **다음 종류가 아무것도 안 써도 화면이 멀쩡해 보인다** - 조용히 표의
+ * 말을 하면서. 그래서 표도 자기 것(`data.tabular.purpose`)을 선언한다.
+ *
+ * **여기가 그 목록의 유일한 출처다.** `tests/kinds.spec.ts`는 "모든 종류가 이 셋을
+ * 선언했는가"를, `tests/locales.spec.ts`는 "이 셋이 공통 자리에 되살아나지 않았는가"를
+ * 이 배열 하나를 보고 판정한다 - 둘이 각자 목록을 들면 한쪽만 늘어난다.
+ *
+ * **여기는 화면을 모른다.** 그래서 이 파일에 있다 - `data/kinds.ts`는 Vue 컴포넌트를
+ * 물고 있어서 node 환경의 검사가 못 읽는다.
+ */
+export const KIND_SPECIFIC_STEP_TEXT: readonly {
+  readonly step: StepId
+  readonly slot: 'purpose' | 'locked'
+}[] = [
+  { step: 'data', slot: 'purpose' },
+  { step: 'predict', slot: 'purpose' },
+  { step: 'train', slot: 'locked' },
+]
+
+/**
  * 종류마다 다른 문구. **없으면 `tasks.{key}`가 기본이다.**
  *
  * 사실의 이름은 종류마다 안 가른다 — 가르면 같은 자리를 뜻하는 이름이 둘이 되고
