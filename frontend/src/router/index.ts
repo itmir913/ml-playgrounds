@@ -63,7 +63,11 @@ const routes: RouteRecordRaw[] = [
     component: STEP_VIEWS[step],
   })),
   // 없는 주소는 목록으로 보낸다. 학생에게 404 화면을 보여줄 이유가 없다.
-  { path: '/:pathMatch(.*)*', redirect: { name: ROUTE_PROJECTS } },
+  //
+  // **`params: {}`가 필요하다.** 안 주면 vue-router가 이 패턴이 잡은 `pathMatch`를
+  // 목적지에도 넘기려다 버리면서 경고를 낸다. 동작은 같지만 검사 로그가 매번
+  // 더러워지고, **무시할 경고가 쌓이면 진짜 경고를 같이 무시하게 된다.**
+  { path: '/:pathMatch(.*)*', redirect: { name: ROUTE_PROJECTS, params: {} } },
 ]
 
 export const router = createRouter({
