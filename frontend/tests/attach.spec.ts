@@ -232,7 +232,7 @@ describe('모델이 없는 이유를 적는다', () => {
 describe('끝난 실험을 프로젝트에 앉힌다', () => {
   function emptyProject(): ProjectFile {
     const document = newProjectDocument(
-      { name: '붓꽃', locale: 'ko' },
+      { name: '붓꽃', locale: 'ko', dataType: 'tabular' },
       { projectId: 'p-1', createdAt: '2026-08-05T09:00:00Z', randomState: 42 },
     )
     return { document, models: new Map(), images: new Map() }

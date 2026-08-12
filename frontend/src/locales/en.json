@@ -7,6 +7,9 @@
   "nav": {
     "projects": "Projects"
   },
+  "dataTypes": {
+    "tabular": "Table data"
+  },
   "taskTypes": {
     "classification": "Classification",
     "regression": "Regression",
@@ -265,9 +268,10 @@
     "failedHere": "Training failed. See why"
   },
   "projects": {
+    "dataType": "Data type",
     "new": "New project",
     "newTitle": "Create a new project",
-    "newDescription": "Just a name is enough. You will load your data on the next screen.",
+    "newDescription": "You will load your data on the next screen.",
     "name": "Project name",
     "nameHint": "Used as the file name when the project is saved to a file.",
     "create": "Create",

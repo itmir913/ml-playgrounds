@@ -18,13 +18,16 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import AppButton from '@/components/AppButton.vue'
+import AppChoices from '@/components/AppChoices.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppField from '@/components/AppField.vue'
 import ProjectPicker from '@/components/ProjectPicker.vue'
+import { DATA_KINDS, DEFAULT_DATA_TYPE } from '@/data/kinds'
 import { ROUTE_PROJECT_HOME } from '@/router'
 import { ACTION_ICONS } from '@/icons'
 import { MAX_FILE_NAME_LENGTH } from '@/limits'
 import { newProjectDocument, newProjectSeed } from '@/project/create'
+import type { DataType } from '@/project/schema'
 import { readFileBytes } from '@/project/download'
 import { readProject } from '@/project/format'
 import { deleteProject, listProjects, saveProject, type ProjectSummary } from '@/project/storage'
@@ -52,6 +55,30 @@ const busy = ref(false)
 
 const creating = ref(false)
 const name = ref('')
+const dataType = ref<DataType>(DEFAULT_DATA_TYPE)
+
+/**
+ * 종류를 묻는가. **선택지가 하나면 묻지 않는다**
+ * (open-decisions.md "데이터 종류는 프로젝트를 만들 때 고르고, 그 뒤로 안 바뀐다").
+ *
+ * 아무것도 보기 전에 받는 질문이라 값이 하나뿐일 때까지 물으면 순수한 소음이다.
+ * 숫자를 적지 않는 이유는 판이 늘거나 줄 때 이 자리가 따라 움직이지 않게 하기 위해서다.
+ */
+const asksDataType = computed(() => DATA_KINDS.length > 1)
+
+/**
+ * 고를 수 있는 종류들. **전부 켜져 있다** — 목록 자체가 "판이 있는 것"이라
+ * 꺼질 이유가 없다. 꺼진 칸이 생기는 것은 사유를 댈 수 있는 축에서다 (AppChoices).
+ */
+const dataTypeChoices = computed(() =>
+  DATA_KINDS.map((kind) => ({ id: kind.dataType, label: t(kind.labelKey), enabled: true })),
+)
+
+/** 고른 칸의 id를 종류로 되돌린다. 등록부에 없는 id는 온 적이 없다 — 목록이 거기서 났다. */
+function pickDataType(id: string): void {
+  const kind = DATA_KINDS.find((one) => one.dataType === id)
+  if (kind !== undefined) dataType.value = kind.dataType
+}
 const removing = ref<ProjectSummary | null>(null)
 const openInput = ref<HTMLInputElement | null>(null)
 
@@ -71,6 +98,8 @@ async function refresh(): Promise<void> {
 
 function openCreate(): void {
   name.value = ''
+  // 지난번에 고른 것이 남아 있으면 학생이 안 본 채로 만들어진다. 매번 처음으로 돌린다.
+  dataType.value = DEFAULT_DATA_TYPE
   creating.value = true
 }
 
@@ -86,7 +115,7 @@ async function create(): Promise<void> {
     // 학생은 없다. 무엇을 예측할지 고르는 전처리 화면이 그 판단이 서는 자리다
     // (mlpx-spec.md §0.1 - 자동으로 판정하지 않고 학생이 고른다).
     const document = newProjectDocument(
-      { name: name.value.trim(), locale: locale.value },
+      { name: name.value.trim(), locale: locale.value, dataType: dataType.value },
       newProjectSeed(),
     )
     await saveProject({ document, models: new Map(), images: new Map() })
@@ -217,6 +246,18 @@ onMounted(refresh)
               />
             </template>
           </AppField>
+
+          <!--
+            **이름 다음이다.** 종류가 첫 질문이면 아무것도 안 본 학생이 모르는 것부터
+            받는다. 이름은 무엇을 물어보는지 알고 답할 수 있는 유일한 칸이다.
+          -->
+          <AppChoices
+            v-if="asksDataType"
+            :label="t('projects.dataType')"
+            :items="dataTypeChoices"
+            :selected="dataType"
+            @pick="pickDataType"
+          />
         </form>
 
         <template #actions>

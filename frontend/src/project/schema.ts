@@ -28,6 +28,7 @@ import {
   MAX_STUDENT_NAME_LENGTH,
   MIN_SPLIT_ROWS,
 } from '../limits'
+import { DEFAULT_BACKBONE_ID } from '../ml/backbones'
 import { TRAINING_LOCATIONS } from '../ml/backend'
 
 /** 이 앱이 읽고 쓰는 포맷 버전. 마이그레이션 체인의 종착점이다. */
@@ -321,6 +322,29 @@ export const tabularSettingsSchema = z.looseObject({
 })
 
 /**
+ * 표 프로젝트를 새로 만들 때의 `settings.data`.
+ *
+ * **여기가 이 값의 유일한 자리다** — 새 프로젝트를 만드는 함수(`project/create.ts`)가
+ * 들고 있으면 종류가 둘이 된 순간 그 자리가 `if (dataType === 'image')`가 된다
+ * (architecture.md §9.2.3).
+ */
+export function tabularInitialSettings(): z.infer<typeof tabularSettingsSchema> {
+  return {
+    // 표를 아직 안 올렸다. dataset은 **없는 것이 맞다.**
+    dataset: undefined,
+    // 열 이름을 알아야 정할 수 있는 것들은 비워 둔다.
+    features: [],
+    target: undefined,
+    /**
+     * 스케일링은 꺼진 채로 시작한다. **학생이 켰을 때 숫자가 달라지는 것을 보는 것이
+     * 이 도구가 만드는 수업 장면이고**, 처음부터 켜져 있으면 그 장면이 없다.
+     * 범주형 인코딩은 반대다 - 꺼져 있으면 문자 열이 든 표로는 아무것도 못 한다.
+     */
+    preprocessing: { missing: 'drop', scaling: 'none', categoricalEncoding: 'onehot' },
+  }
+}
+
+/**
  * **학습 시점 스냅샷의 종류별 부분.** 정본 참조가 빠진 것이 위와 다른 점이다.
  *
  * 한 스키마로 뭉뚱그리지 않는 이유는, 그러면 스냅샷에 **없어야 할 필드가 선택 항목으로
@@ -394,6 +418,26 @@ export const imageSettingsSchema = z.looseObject({
 })
 
 /**
+ * 이미지 프로젝트를 새로 만들 때의 `settings.data`. `tabularInitialSettings`의 형제다.
+ */
+export function imageInitialSettings(): z.infer<typeof imageSettingsSchema> {
+  return {
+    // 사진을 아직 안 올렸다. 표와 같은 규칙이다.
+    dataset: undefined,
+    /**
+     * 범주는 폴더가 갖는다. 폴더를 받기 전에는 **하나도 모르는 것이 맞다** - 여기에
+     * 예시 범주를 미리 채우면 학생이 안 쓴 범주가 파일에 남는다.
+     */
+    categories: [],
+    /**
+     * 고르게 하지 않지만 파일에는 적는다 (`imageSettingsSchema`). 등록부의 기본 하나가
+     * 여기서 프로젝트에 박히고, 그 뒤로 이 프로젝트의 임베딩은 전부 그 백본의 것이다.
+     */
+    backboneId: DEFAULT_BACKBONE_ID,
+  }
+}
+
+/**
  * **이미지 학습 시점 스냅샷의 종류별 부분.** 정본 참조가 빠진 것이 위와 다른 점이다.
  *
  * **전처리가 없는 것은 임시 상태다** - 이미지에서 스케일링이 무슨 뜻인지가 아직 안
@@ -405,10 +449,22 @@ export const imageSnapshotSchema = z.looseObject({
   backboneId: z.string(),
 })
 
-/** 한 데이터 종류가 선언하는 스키마 둘. */
+/** 한 데이터 종류가 선언하는 것 — 스키마 둘과 시작값 하나. */
 export interface DataKindSchema {
   readonly settings: z.ZodType<Record<string, unknown>>
   readonly snapshot: z.ZodType<Record<string, unknown>>
+  /**
+   * 새 프로젝트의 `settings.data`.
+   *
+   * **값이 아니라 만드는 함수다.** 값 하나를 등록부에 두면 프로젝트 여럿이 같은 배열
+   * (`features`·`categories`)을 가리키고, 한 프로젝트에서 특성을 고르면 다른 프로젝트가
+   * 따라 바뀐다.
+   *
+   * 자기 `settings` 스키마로 파싱되는지는 `tests/schema.spec.ts`가 본다 - 어긋나면
+   * 만들자마자 못 여는 프로젝트가 나오고, 그 실패를 만나는 것은 만든 학생이 아니라
+   * **파일을 받은 교사**다.
+   */
+  readonly initial: () => Record<string, unknown>
 }
 
 /**
@@ -428,8 +484,16 @@ export interface DataKindSchema {
  * `unknown`을 받는다. `satisfies`는 빠진 칸을 그대로 잡으면서 구체 타입을 남긴다.
  */
 export const DATA_SCHEMAS = {
-  tabular: { settings: tabularSettingsSchema, snapshot: tabularSnapshotSchema },
-  image: { settings: imageSettingsSchema, snapshot: imageSnapshotSchema },
+  tabular: {
+    settings: tabularSettingsSchema,
+    snapshot: tabularSnapshotSchema,
+    initial: tabularInitialSettings,
+  },
+  image: {
+    settings: imageSettingsSchema,
+    snapshot: imageSnapshotSchema,
+    initial: imageInitialSettings,
+  },
 } satisfies Readonly<Record<DataType, DataKindSchema>>
 
 /**

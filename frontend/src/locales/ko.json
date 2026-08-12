@@ -7,6 +7,9 @@
   "nav": {
     "projects": "프로젝트 목록"
   },
+  "dataTypes": {
+    "tabular": "표 데이터"
+  },
   "taskTypes": {
     "classification": "분류(Classification)",
     "regression": "회귀(Regression)",
@@ -265,9 +268,10 @@
     "failedHere": "학습에 실패했습니다. 이유 보기"
   },
   "projects": {
+    "dataType": "데이터 종류",
     "new": "새 프로젝트",
     "newTitle": "새 프로젝트 만들기",
-    "newDescription": "이름만 정하면 됩니다. 데이터는 다음 화면에서 불러옵니다.",
+    "newDescription": "데이터는 다음 화면에서 불러옵니다.",
     "name": "프로젝트 이름",
     "nameHint": "프로젝트를 파일로 저장할 때 파일의 이름으로 사용됩니다.",
     "create": "만들기",

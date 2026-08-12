@@ -23,6 +23,8 @@ import {
   DEFAULT_PORTFOLIO_TEMPLATE_ID,
   parseProjectDocument,
   TASK_TYPES,
+  DATA_SCHEMAS,
+  DATA_TYPES,
   dataSettings,
 } from '../src/project/schema'
 
@@ -32,11 +34,26 @@ const seed = {
   randomState: 4242,
 }
 
-const input = { name: '붓꽃 품종 분류', locale: 'ko' } as const
+const input = { name: '붓꽃 품종 분류', locale: 'ko', dataType: 'tabular' } as const
 
 describe('새 프로젝트', () => {
   it('스키마를 통과한다', () => {
     expect(() => parseProjectDocument(newProjectDocument(input, seed))).not.toThrow()
+  })
+
+  /**
+   * **골라서 오는 값이다.** 함수가 기본값을 지어내면 판이 늘어도 화면이 계속 표만
+   * 만들고, 그건 컴파일에서 안 잡힌다 (open-decisions.md "데이터 종류는 프로젝트를
+   * 만들 때 고르고, 그 뒤로 안 바뀐다").
+   */
+  it('데이터 종류는 부르는 쪽이 고른 것이 그대로 박힌다', () => {
+    for (const dataType of DATA_TYPES) {
+      const document = newProjectDocument({ ...input, dataType }, seed)
+      expect(document.manifest.dataType, dataType).toBe(dataType)
+      // 설정도 그 종류의 것이다. 어긋나면 만들자마자 못 여는 프로젝트가 된다.
+      expect(() => parseProjectDocument(document), dataType).not.toThrow()
+      expect(document.settings.data, dataType).toEqual(DATA_SCHEMAS[dataType].initial())
+    }
   })
 
   it('기계학습 유형이 없는 상태로 시작한다', () => {

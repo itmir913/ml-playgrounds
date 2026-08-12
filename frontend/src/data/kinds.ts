@@ -16,6 +16,14 @@ import type { DataType } from '@/project/schema'
 
 export interface DataKind {
   readonly dataType: DataType
+  /**
+   * 새 프로젝트에서 이 종류를 고르는 칸의 이름. **번역 키다** (architecture.md §8.10).
+   *
+   * 화면이 `dataTypes.tabular`를 직접 쓰지 않는 이유는, 그러면 종류를 더하는 사람이
+   * 판만 등록하고 문구를 빠뜨려도 **컴파일이 통과하기** 때문이다. 여기 있으면 칸을
+   * 못 채운다.
+   */
+  readonly labelKey: string
   /** `<input accept>`에 그대로 들어간다. */
   readonly accept: string
   /** 데이터 화면에서 이 종류를 다루는 작업 공간. */
@@ -36,9 +44,14 @@ export interface DataKind {
   readonly prepPanel: Component
 }
 
-const KINDS: readonly DataKind[] = [
+/**
+ * 등록된 판들. **새 프로젝트 화면이 고를 것을 여기서 만든다** — 종류 목록과 그 이름이
+ * 같은 줄에서 나와야 한 쪽만 늘어나는 일이 없다.
+ */
+export const DATA_KINDS: readonly DataKind[] = [
   {
     dataType: 'tabular',
+    labelKey: 'dataTypes.tabular',
     accept: TABULAR_ACCEPT,
     panel: defineAsyncComponent(() => import('@/views/data/TabularPanel.vue')),
     prepPanel: defineAsyncComponent(() => import('@/views/preprocess/TabularPrepPanel.vue')),
@@ -47,12 +60,29 @@ const KINDS: readonly DataKind[] = [
 
 /** 이 종류를 다룰 수 있는가. 없으면 화면이 "아직 못 다룬다"고 말한다. */
 export function dataKindFor(dataType: string): DataKind | undefined {
-  return KINDS.find((kind) => kind.dataType === dataType)
+  return DATA_KINDS.find((kind) => kind.dataType === dataType)
 }
 
 /**
  * 다룰 수 있는 종류들. **새 프로젝트 화면이 고르게 할 때 쓴다** — 업로드한 파일로
  * 추론하지 않는다 (open-decisions.md "데이터 종류는 프로젝트를 만들 때 고르고, 그 뒤로
- * 안 바뀐다"). 지금은 하나뿐이라 묻지 않는다.
+ * 안 바뀐다").
+ *
+ * **어휘(`DATA_TYPES`)가 아니라 이 목록으로 묻는다.** 둘은 일부러 어긋날 수 있고
+ * (architecture.md §9.2.3), 어휘로 물으면 판이 없는 종류를 고를 수 있게 되어 **학생이
+ * 고른 뒤에 갈 화면이 없다.**
+ *
+ * **하나뿐이면 묻지 않는다.** 그 판정은 이 목록의 길이가 하고, 화면에 숫자를 적지 않는다.
  */
-export const SUPPORTED_DATA_TYPES: readonly DataType[] = KINDS.map((kind) => kind.dataType)
+export const SUPPORTED_DATA_TYPES: readonly DataType[] = DATA_KINDS.map((kind) => kind.dataType)
+
+/**
+ * 목록의 처음. 안 물었을 때 만들어지는 종류이고, 물었을 때 처음 골라져 있는 칸이다.
+ *
+ * **이름을 적어 두지 않는다.** `'tabular'`를 기본값으로 쓰면 표 판을 지우거나 순서를
+ * 바꿨을 때 이 상수만 옛 답을 계속 준다. 등록부가 비면 만들 수 있는 프로젝트가 없다는
+ * 뜻이므로 시끄럽게 죽는 것이 맞다.
+ */
+const [FIRST_KIND] = DATA_KINDS
+if (FIRST_KIND === undefined) throw new Error('data kind registry is empty')
+export const DEFAULT_DATA_TYPE: DataType = FIRST_KIND.dataType

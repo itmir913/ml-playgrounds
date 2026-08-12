@@ -343,4 +343,33 @@ describe('데이터 종류별 설정', () => {
     const missing = kindFields('snapshot').filter((key) => !DATA_COMPARABLE_KEYS.includes(key))
     expect(missing).toEqual([])
   })
+
+  /**
+   * 시작값이 자기 스키마와 어긋나면 **만들자마자 못 여는 프로젝트**가 나온다. 그리고
+   * 그 실패를 만나는 것은 만든 학생이 아니라 파일을 받은 교사다 - 저장은 성공하고
+   * 여는 쪽에서 죽는다.
+   */
+  it('종류마다 시작값이 자기 스키마를 통과한다', () => {
+    for (const dataType of DATA_TYPES) {
+      const kind = DATA_SCHEMAS[dataType]
+      expect(() => kind.settings.parse(kind.initial()), dataType).not.toThrow()
+    }
+  })
+
+  /**
+   * **값이 아니라 만드는 함수여야 하는 이유다.** 값 하나를 등록부에 두면 프로젝트
+   * 여럿이 같은 배열을 가리키고, 한 프로젝트에서 특성이나 범주를 고치면 다른
+   * 프로젝트가 따라 바뀐다. 격리해서 돌리면 통과하고 여럿을 만들 때만 무너지는 종류다.
+   */
+  it('시작값은 부를 때마다 새것이다 - 프로젝트끼리 같은 객체를 안 나눠 쓴다', () => {
+    for (const dataType of DATA_TYPES) {
+      const first = DATA_SCHEMAS[dataType].initial()
+      const second = DATA_SCHEMAS[dataType].initial()
+      expect(first, dataType).not.toBe(second)
+      for (const [key, value] of Object.entries(first)) {
+        if (typeof value !== 'object' || value === null) continue
+        expect(value, `${dataType}.${key}`).not.toBe((second as Record<string, unknown>)[key])
+      }
+    }
+  })
 })

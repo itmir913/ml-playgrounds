@@ -10,9 +10,11 @@
 
 import { FALLBACK_RUNTIME_ID } from '@/ml/backend'
 import {
+  DATA_SCHEMAS,
   DEFAULT_PORTFOLIO_TEMPLATE_ID,
   FORMAT_VERSION,
   PROJECT_KIND_ML,
+  type DataType,
   type ProjectDocument,
   type TaskType,
 } from './schema'
@@ -54,6 +56,15 @@ export interface NewProject {
   /** 만든 사람의 언어. 파일을 받은 교사에게 어떤 문항으로 썼는지 알려준다. */
   readonly locale: string
   /**
+   * 표로 할 것인가 사진으로 할 것인가. **여기서 정해지고 그 뒤로 안 바뀐다**
+   * (open-decisions.md "데이터 종류는 프로젝트를 만들 때 고르고, 그 뒤로 안 바뀐다").
+   * 업로드한 파일로 추론하지 않는다.
+   *
+   * **기본값이 없다.** 부르는 쪽이 반드시 고르게 하는 것이 이 필드의 목적이다 - 기본값을
+   * 두면 판이 늘어도 화면이 계속 표만 만들고, 그건 컴파일에서 안 잡힌다.
+   */
+  readonly dataType: DataType
+  /**
    * 무엇을 하는 프로젝트인가. **만들 때는 안 물어보고 기본값도 없다.**
    *
    * 표를 보기도 전에 분류인지 회귀인지 아는 학생은 없다. 그래서 비워 두고 모델을 고르는
@@ -77,28 +88,17 @@ export function newProjectDocument(input: NewProject, seed: ProjectSeed): Projec
       kind: PROJECT_KIND_ML,
       // 아직 안 골랐다. 없는 것이 맞다.
       taskType: input.taskType,
-      // **여기서 정해지고 그 뒤로 안 바뀐다** (open-decisions.md "데이터 종류는
-      // 프로젝트를 만들 때 고르고, 그 뒤로 안 바뀐다"). 업로드한 파일로 추론하지 않는다.
-      // V1은 표뿐이라 선택지가 하나이고, 선택지가 하나면 묻지 않는다 - 이미지가
-      // 들어올 때 이 값이 input으로 올라온다.
-      dataType: 'tabular',
+      dataType: input.dataType,
       locale: input.locale,
     },
     settings: {
-      // 데이터 종류별 설정. 위 dataType과 짝이다 (mlpx-spec.md §3).
-      data: {
-        // 표를 아직 안 올렸다. dataset은 없는 것이 맞다.
-        dataset: undefined,
-        // 열 이름을 알아야 정할 수 있는 것들은 비워 둔다.
-        features: [],
-        target: undefined,
-        /**
-         * 스케일링은 꺼진 채로 시작한다. **학생이 켰을 때 숫자가 달라지는 것을 보는 것이
-         * 이 도구가 만드는 수업 장면이고**, 처음부터 켜져 있으면 그 장면이 없다.
-         * 범주형 인코딩은 반대다 - 꺼져 있으면 문자 열이 든 표로는 아무것도 못 한다.
-         */
-        preprocessing: { missing: 'drop', scaling: 'none', categoricalEncoding: 'onehot' },
-      },
+      /**
+       * 데이터 종류별 설정. 위 dataType과 짝이다 (mlpx-spec.md §3).
+       *
+       * **무엇이 들어가는지는 이 함수가 모른다.** 등록부가 답한다 - 여기서 알기 시작하면
+       * 종류가 늘 때마다 이 자리에 분기가 하나씩 생긴다 (architecture.md §9.2.3).
+       */
+      data: DATA_SCHEMAS[input.dataType].initial(),
       split: { method: 'holdout', testSize: 0.2, stratify: true, randomState: seed.randomState },
       // 서버가 있는지 아직 모른다. 화면이 실제 상황을 보고 다시 고른다.
       runtime: FALLBACK_RUNTIME_ID,

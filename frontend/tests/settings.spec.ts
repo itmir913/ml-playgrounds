@@ -29,7 +29,7 @@ const NOW = '2026-08-06T01:00:00.000Z'
 
 function base(): ProjectDocument {
   return newProjectDocument(
-    { name: '붓꽃', locale: 'ko' },
+    { name: '붓꽃', locale: 'ko', dataType: 'tabular' },
     {
       projectId: '550e8400-e29b-41d4-a716-446655440000',
       createdAt: '2026-08-05T00:00:00.000Z',
