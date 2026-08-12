@@ -1028,3 +1028,46 @@ describe('종류를 모르는 화면은 종류를 모른다', () => {
     expect(found, '종류를 아는 계층은 등록부에서 꺼낸 판이 부른다').toEqual([])
   })
 })
+
+/**
+ * **단계 문구를 화면이 손으로 조립하지 않는다** (architecture.md 8.10, docs/i18n.md 규칙 10).
+ *
+ * 종류를 가리는 셋(`data.purpose`·`predict.purpose`·`train.locked`)은 `steps.*`에 없고
+ * 등록부가 갖는다. 그런데 대시보드가 `steps.${step}.purpose`를 직접 만들고 있어서
+ * **로케일에 없는 키를 부르고, 화면에 키 문자열이 그대로 떴다** (2026-08-13에 발견).
+ *
+ * **왜 아무 검사도 안 울었나.** 정적 키 검사는 따옴표 안에 통째로 적힌 키만 보고,
+ * 조립 자리 검사는 앞부분(`steps.`)에 키가 하나라도 있으면 통과한다 — `label`이 거기
+ * 남아 있어서 조용했다. 조립된 키의 **뒤**는 어떤 검사도 확인할 수 없다. 그러므로
+ * 막을 자리는 문구가 아니라 **조립 자체**다.
+ *
+ * `label`은 예외다. 그건 종류를 안 가려서 언제나 `steps.*`에 있다.
+ */
+function composedStepText(source: string): string[] {
+  // 주석은 걷어낸다. 이 규칙을 설명하려면 금지된 모양을 주석에 적어야 한다.
+  const code = withoutComments(source).join(String.fromCharCode(10))
+  const pattern = new RegExp(String.fromCharCode(96) + String.raw`steps[.]\$\{[^}]*\}[.](\w+)`, 'g')
+  return [...code.matchAll(pattern)]
+    .map((match) => match[1] ?? '')
+    .filter((slot) => slot !== 'label')
+}
+
+describe('단계 문구를 화면이 조립하지 않는다', () => {
+  it('검사기가 purpose와 locked를 잡는다', () => {
+    expect(composedStepText('t(`steps.${step}.purpose`)')).toEqual(['purpose'])
+    expect(composedStepText('t(`steps.${entry.step}.locked`)')).toEqual(['locked'])
+  })
+
+  it('검사기가 label은 안 잡는다', () => {
+    expect(composedStepText('t(`steps.${step}.label`)')).toEqual([])
+  })
+
+  it('지금 소스에 조립한 단계 문구가 없다', () => {
+    const found = codeFiles(SRC).flatMap((path) =>
+      composedStepText(readFileSync(path, 'utf-8')).map(
+        (slot) => `${path.slice(SRC.length + 1)}  steps.*.${slot}`,
+      ),
+    )
+    expect(found).toEqual([])
+  })
+})

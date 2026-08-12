@@ -29,6 +29,7 @@ import { useRouter } from 'vue-router'
 import AppButton from '@/components/AppButton.vue'
 import ProjectSummary from '@/components/ProjectSummary.vue'
 import StepHeader from '@/components/StepHeader.vue'
+import { dataKindFor, stepTextKey } from '@/data/kinds'
 import { STEP_ICONS } from '@/icons'
 import { currentTask, isStepUnlocked, stepTasks, STEP_IDS, type StepId } from '@/router/steps'
 import { useProjectStore } from '@/stores/project'
@@ -38,6 +39,16 @@ const router = useRouter()
 const project = useProjectStore()
 
 const now = computed(() => currentTask(project.facts, project.taskType, project.dataType))
+
+/**
+ * 이 프로젝트의 데이터 종류. **단계 설명문과 잠금 사유가 여기서 나온다** (§8.10).
+ *
+ * **`steps.${step}.purpose`를 직접 조립하면 안 된다.** 그 자리 셋(`data.purpose`·
+ * `predict.purpose`·`train.locked`)은 종류가 갖고 `steps.*`에는 없다 — 손으로 조립한
+ * 키는 로케일에 없는 것을 가리키고, **화면에는 키 문자열이 그대로 뜬다.** 실제로
+ * 그렇게 떴다. 정적 키 검사는 따옴표 안의 키만 보므로 이 자리를 못 본다.
+ */
+const kind = computed(() => dataKindFor(project.dataType ?? ''))
 
 const steps = computed(() =>
   STEP_IDS.map((step) => {
@@ -153,7 +164,9 @@ function go(step: StepId): void {
               <AppButton v-if="entry.unlocked" variant="secondary" @click="go(entry.step)">
                 {{ t('project.openStep') }}
               </AppButton>
-              <span v-else class="block text-ink-soft">{{ t(`steps.${entry.step}.locked`) }}</span>
+              <span v-else class="block text-ink-soft">{{
+                t(stepTextKey(kind, entry.step, 'locked'))
+              }}</span>
             </div>
 
             <!--
@@ -161,7 +174,7 @@ function go(step: StepId): void {
               그래서 위의 row-span이 성립한다.
             -->
             <p v-if="entry.here" class="text-ink-soft sm:col-span-2">
-              {{ t(`steps.${entry.step}.purpose`) }}
+              {{ t(stepTextKey(kind, entry.step, 'purpose')) }}
             </p>
           </li>
         </ul>
