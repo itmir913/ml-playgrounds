@@ -12,6 +12,8 @@
 
 import { describe, expect, it } from 'vitest'
 
+import { dataSettings } from '../src/project/schema'
+
 import {
   acceptPredictDataset,
   alignTestDataset,
@@ -373,7 +375,7 @@ describe('프로젝트에 붙이기', () => {
       settings: {
         ...before.document.settings,
         data: {
-          ...before.document.settings.data,
+          ...dataSettings('tabular', before.document.settings),
           predictDataset: {
             path: PREDICT_DATASET_PATH,
             originalFileName: 'predict.csv',
@@ -406,7 +408,7 @@ describe('평가 데이터를 프로젝트에 붙이기', () => {
         settings: {
           ...base.document.settings,
           data: {
-            ...base.document.settings.data,
+            ...dataSettings('tabular', base.document.settings),
             dataset: {
               path: TABULAR_DATASET_PATH,
               originalFileName: 'grades.csv',
@@ -521,7 +523,7 @@ describe('평가 데이터를 프로젝트에 붙이기', () => {
         settings: {
           ...base.document.settings,
           data: {
-            ...base.document.settings.data,
+            ...dataSettings('tabular', base.document.settings),
             predictDataset: {
               path: PREDICT_DATASET_PATH,
               originalFileName: 'predict.csv',

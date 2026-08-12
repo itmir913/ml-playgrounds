@@ -29,6 +29,8 @@ import {
   type Run,
   type RunsFile,
   type Settings,
+  type TabularSettings,
+  dataSettings,
 } from '../src/project/schema'
 import {
   IRIS_FEATURE_COLUMNS,
@@ -54,7 +56,7 @@ const BROWSER_ONLY: RuntimeContext = { serverStatus: 'unavailable', rowCount: 30
  * 울고 조용히 무시되기 때문이다** — 스키마를 가르던 날 실제로 그렇게 통과했다.
  * 여기서 갈라 넣으면 그 자리가 컴파일에 걸린다.
  */
-type SettingsOverrides = Partial<Omit<Settings, 'data'>> & Partial<Settings['data']>
+type SettingsOverrides = Partial<Omit<Settings, 'data'>> & Partial<TabularSettings>
 
 function splitOverrides(overrides: SettingsOverrides) {
   const { dataset, testDataset, predictDataset, features, target, preprocessing, ...common } =
@@ -70,7 +72,7 @@ function splitOverrides(overrides: SettingsOverrides) {
   return { data, common }
 }
 
-const baseData: Settings['data'] = {
+const baseData: TabularSettings = {
   dataset: {
     path: 'dataset/data.csv',
     originalFileName: 'iris.csv',
@@ -685,6 +687,12 @@ describe('id와 changed', () => {
       testDataset: '바꾸면 기존 실험이 지워진다',
       // 예측 화면에서만 쓴다. 학습에 안 들어가므로 지표를 움직이지 않는다.
       predictDataset: '학습에 들어가지 않는다',
+      // **이미지 설정이고, 아직 견줄 수가 없다** — `runExperiment`가 표 전용이라 이미지
+      // 실험 자체가 안 만들어진다 (roadmap.md V4). **이미지 학습이 붙는 커밋이 이 둘을
+      // `MUTATIONS`로 옮긴다** — 범주를 바꾸면 라벨이 통째로 달라지고, 백본을 바꾸면
+      // 특성이 통째로 달라진다. 둘 다 학생에게 보여야 하는 변경이다.
+      categories: '이미지 학습이 아직 이 함수로 안 온다',
+      backboneId: '이미지 학습이 아직 이 함수로 안 온다',
     }
 
     /**
@@ -1293,9 +1301,9 @@ describe('표본 뽑기', () => {
   const gateFor = (settings: Settings): number =>
     trainableRowCount(
       irisDataset(),
-      settings.data.features,
-      settings.data.target,
-      settings.data.preprocessing.missing,
+      dataSettings('tabular', settings).features,
+      dataSettings('tabular', settings).target,
+      dataSettings('tabular', settings).preprocessing.missing,
       settings.nSamples,
     )
 

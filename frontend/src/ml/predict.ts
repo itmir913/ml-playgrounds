@@ -17,7 +17,7 @@
  */
 
 import { ClientError, isClientError, type ClientErrorCode } from '../errors'
-import type { Experiment, ProjectDocument, Run } from '../project/schema'
+import { dataSnapshot, type Experiment, type ProjectDocument, type Run } from '../project/schema'
 import type { Prediction } from './metrics'
 import { interpreterFor, type LoadContext, type Predict, type ProbaModel } from './models'
 import {
@@ -64,7 +64,8 @@ export function trainingRowsFor(
   dataset: Dataset,
 ): TrainingRows {
   const { trainIndices } = experiment.settings
-  const { target, preprocessing } = experiment.settings.data
+  // 참조형 모델은 표에만 있다 — 이미지 예측은 임베딩 위에서 돌고 경로가 따로 선다.
+  const { target, preprocessing } = dataSnapshot('tabular', experiment.settings)
   // 군집화에는 타깃이 없지만 군집 알고리즘도 참조형 모델도 아직 없다. 여기 오는 것은
   // 정답 열이 있어야 이웃의 답을 셀 수 있는 모델뿐이다.
   if (target === undefined || target === '') throw new ClientError('TARGET_NOT_SELECTED')
@@ -124,7 +125,7 @@ export function inputVector(
     preprocessor,
     table,
     [0],
-    experiment.settings.data.preprocessing.categoricalEncoding,
+    dataSnapshot('tabular', experiment.settings).preprocessing.categoricalEncoding,
   )[0]
   // transform은 준 인덱스마다 한 줄을 돌려준다. 없을 수 없지만 타입이 그걸 모른다.
   if (row === undefined) throw new ClientError('MODEL_FILE_INVALID', { field: 'columns' })

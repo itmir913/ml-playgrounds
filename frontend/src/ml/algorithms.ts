@@ -61,6 +61,14 @@ export interface Algorithm extends AlgorithmSpec {
  * 그 상태가 공식 배포(GitHub Pages)의 기본값이라 **대부분의 학생에게 SVM은 없는 물건이었다.**
  * 솔버는 벤더링한 SMO다 (ml/engines/svm-smo.ts).
  *
+ * **이미지에도 거의 다 연다** (open-decisions.md "이미지 학습의 모양"). 임베딩이 숫자
+ * 표이므로 코드 추가 없이 그 위에서 돈다. **트리 계열이 눈에 띄게 뒤처질 것이고, 그래도
+ * 빼지 않는다** - 표에서 잘 되던 것이 이미지에서 안 되는 것을 학생이 직접 보는 것이 이
+ * 도구가 줄 수 있는 수업 장면이다. 회귀만 닫혀 있다(백본 등록부가 과제를 좁힌다).
+ *
+ * **`maxRows`는 표에서 잰 값이다.** 이미지는 특성이 1,280개라 같은 행 수가 같은 시간을
+ * 뜻하지 않는다 - 이미지의 상한은 사진 수로 따로 재야 한다 (open-decisions.md #13).
+ *
  * **성능이 낮다는 이유로 빼지 않는다.** 엔진마다 숫자가 다른 것은 이 설계가 이미
  * 받아들인 사실이고(그래서 run.engine을 기록한다), 어디까지가 "낮은 것"이고 어디부터가
  * "빼야 할 것"인지 그을 선이 없다. 실제 폭은 ml/engines/mljs.ts에 적어 두었다.
@@ -68,7 +76,7 @@ export interface Algorithm extends AlgorithmSpec {
 export const ALGORITHMS: readonly Algorithm[] = [
   {
     id: 'decision_tree',
-    dataTypes: { tabular: true },
+    dataTypes: { tabular: true, image: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // 20000행 22초. 분할 탐색이 노드마다 O(특성 × 행²)이다.
@@ -76,7 +84,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
   },
   {
     id: 'knn',
-    dataTypes: { tabular: true },
+    dataTypes: { tabular: true, image: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // **학습이 아니라 예측이 비싸고, 그 비용은 예측마다 되풀이된다.**
@@ -84,7 +92,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
   },
   {
     id: 'logistic_regression',
-    dataTypes: { tabular: true },
+    dataTypes: { tabular: true, image: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // 선형 회귀와 이름만 닮았다 - 경사하강이고 5000행에서 이미 4.3초다.
@@ -92,7 +100,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
   },
   {
     id: 'random_forest',
-    dataTypes: { tabular: true },
+    dataTypes: { tabular: true, image: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // 5000행 100그루가 약 7분이다. **값이 안 바뀌어도 적는다** (backend.ts의 maxRows).
@@ -100,7 +108,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
   },
   {
     id: 'naive_bayes',
-    dataTypes: { tabular: true },
+    dataTypes: { tabular: true, image: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // 10만 행 0.1초. 데이터를 한 번 훑는다.
@@ -108,7 +116,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
   },
   {
     id: 'svm',
-    dataTypes: { tabular: true },
+    dataTypes: { tabular: true, image: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // SMO는 행 수의 제곱으로 붙고 학습 시작에 N×N 커널 행렬을 만든다. **여기가 알고리즘별
@@ -117,7 +125,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
   },
   {
     id: 'linear_regression',
-    dataTypes: { tabular: true },
+    dataTypes: { tabular: true, image: false },
     taskTypes: { classification: false, regression: true, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // 10만 행 0.3초. 브라우저 상한을 둘 이유가 없어 데이터셋 천장을 그대로 쓴다.
@@ -125,7 +133,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
   },
   {
     id: 'k_means',
-    dataTypes: { tabular: true },
+    dataTypes: { tabular: true, image: true },
     taskTypes: { classification: false, regression: false, clustering: true },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // 할당과 갱신이 반복마다 O(n·k·d). 10만 행 k=20이 112회 반복 6.4초 (limits.ts).

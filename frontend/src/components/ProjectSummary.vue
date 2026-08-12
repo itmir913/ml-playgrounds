@@ -16,6 +16,7 @@ import { useI18n } from 'vue-i18n'
 
 import { useFormat } from '@/composables/useFormat'
 import { readDataset } from '@/project/dataset'
+import { tabularDataOf } from '@/project/schema'
 import { useProjectStore } from '@/stores/project'
 
 const props = withDefaults(defineProps<{ withName?: boolean }>(), { withName: false })
@@ -53,8 +54,10 @@ const info = computed(() => {
     manifest,
     dataset,
     bytes,
-    target: settings.data.target,
-    features: settings.data.features.length,
+    // 표 프로젝트의 요약이다. **이미지의 요약은 범주 수와 사진 수가 답한다** —
+    // 이미지 판이 서는 커밋이 그것을 넣는다 (roadmap.md V4 2단계).
+    target: tabularDataOf(file.document)?.target,
+    features: tabularDataOf(file.document)?.features.length ?? 0,
     /**
      * **번역된 이름이다. 등록부 id가 아니다.** `decision_tree`가 그대로 뜨고 있었다 -
      * 화면에 나가는 모든 알고리즘 이름은 `algorithms.*`를 지난다(결과·예측 화면이 이미

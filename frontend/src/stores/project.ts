@@ -17,7 +17,7 @@ import {
   type DroppedModel,
   type ProjectFile,
 } from '@/project/format'
-import type { TaskType } from '@/project/schema'
+import { tabularDataOf, type TaskType } from '@/project/schema'
 import {
   loadProject,
   markExported,
@@ -44,8 +44,10 @@ export function factsOf(file: ProjectFile | null): ProjectFacts {
     // 참조와 본체는 함께 있고 함께 없다 (mlpx-spec.md §1). 어느 쪽을 봐도 같지만
     // 본체를 본다 - 화면이 알고 싶은 것은 "보여줄 표가 있는가"다.
     datasetReady: file.dataset !== undefined,
-    targetChosen: settings.data.target !== undefined,
-    featuresChosen: settings.data.features.length > 0,
+    // **표의 준비 상태다.** 이미지는 범주와 사진이 이 자리를 답하고, 이미지 판이 서는
+    // 커밋이 등록부에 그 판단을 넣는다 (roadmap.md V4 2단계).
+    targetChosen: tabularDataOf(file.document)?.target !== undefined,
+    featuresChosen: (tabularDataOf(file.document)?.features.length ?? 0) > 0,
     // 기본값이 없으므로 이건 진짜로 "학생이 골랐는가"다
     // (open-decisions.md "기계학습 유형은 모델을 고르는 자리에서 고른다").
     taskTypeChosen: file.document.manifest.taskType !== undefined,

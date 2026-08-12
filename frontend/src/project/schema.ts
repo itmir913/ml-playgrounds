@@ -72,7 +72,7 @@ export const TASK_TYPES = ['classification', 'regression', 'clustering'] as cons
  * (open-decisions.md "데이터 종류는 프로젝트를 만들 때 고르고, 그 뒤로 안 바뀐다").
  * 업로드한 파일에서 판정하지 않는다.
  *
- * **여기에는 지금 되는 것만 있다.** `image`·`audio`·`text`를 미리 넣지 마라 - 등록부의
+ * **여기에는 지금 되는 것만 있다.** `audio`·`text`를 미리 넣지 마라 - 등록부의
  * `false`는 "이 조합에서 성립하지 않는다"는 뜻인데(architecture.md §9.2.1), 안 만든
  * 종류에 `false`를 채워 두면 **거짓말이 파일에 남고 그 종류를 구현하는 날 아무것도
  * 안 깨진다.** 값을 더하는 것은 그 종류를 구현하는 커밋이 한다. 그때 등록부가 전부
@@ -80,7 +80,7 @@ export const TASK_TYPES = ['classification', 'regression', 'clustering'] as cons
  *
  * 무엇을 만들 예정인지는 `roadmap.md`가 갖는다.
  */
-export const DATA_TYPES = ['tabular'] as const
+export const DATA_TYPES = ['tabular', 'image'] as const
 
 /**
  * 결측치 처리.
@@ -333,6 +333,72 @@ export const tabularSnapshotSchema = z.looseObject({
   preprocessing: preprocessingSchema,
 })
 
+/**
+ * 이미지 정본 폴더 참조. **표의 `datasetRef`가 파일 하나를 가리키는 자리다.**
+ *
+ * 표의 `hasHeader`·`encoding`·`sourceEncoding` 자리에는 **정본을 구운 조건**이 들어간다
+ * (open-decisions.md "이미지 프로젝트의 `settings.data`는 무엇을 갖는가").
+ */
+export const imageDatasetRefSchema = z.looseObject({
+  /** zip 안의 폴더 경로 (mlpx-spec.md §1.2). 그 아래가 범주 폴더다. */
+  path: z.string(),
+  /**
+   * 정본 한 변의 길이.
+   *
+   * **카드를 잠그는 근거다** - 224로 구운 정본은 260을 요구하는 백본에 못 간다.
+   * 없는 화소를 만들어 늘리지 않는다.
+   */
+  canonicalSize: z.int().positive(),
+  /**
+   * 정본을 구울 때 쓴 jpeg 품질. 값 자체의 출처는 `limits.ts`다.
+   *
+   * 적어 두는 이유는 **나중에 값을 바꿔도 옛 파일에 그때의 사실이 남기** 때문이다 -
+   * "왜 이 프로젝트만 흐린가"에 답할 수 있는 유일한 자리다.
+   */
+  jpegQuality: z.number().gt(0).lte(1),
+})
+
+/**
+ * 이미지 프로젝트의 종류별 설정.
+ *
+ * 표가 갖는 넷(`features`·`target`·`preprocessing`·인코딩류)은 **하나도 해당하지 않는다.**
+ */
+export const imageSettingsSchema = z.looseObject({
+  /** 아직 사진을 안 올린 프로젝트에는 **없다.** 표와 같은 규칙이다. */
+  dataset: imageDatasetRefSchema.optional(),
+  testDataset: imageDatasetRefSchema.optional(),
+  predictDataset: imageDatasetRefSchema.optional(),
+  /**
+   * 순서 있는 범주 목록. **매핑 테이블이 아니다** - 사진 한 장이 어디 속하는지는
+   * 여전히 폴더만 안다 (open-decisions.md "범주는 폴더가 갖고, 목록과 순서는
+   * `settings`가 갖는다").
+   *
+   * 목록이 따로 있는 이유는 zip이 **빈 폴더를 표현하지 못하기** 때문이다. 사진을 아직
+   * 안 넣은 범주가 저장하고 열면 사라진다. `_unlabeled`는 여기 안 들어간다 - 범주가
+   * 아니라 상태다.
+   */
+  categories: z.array(userString),
+  /**
+   * 이 프로젝트가 쓰는 백본 (ml/backbones.ts).
+   *
+   * 고르게 하지는 않지만 **파일에는 적는다** - 임베딩이 어느 백본에서 나왔는지 모르면
+   * 다시 뽑아야 할지 판단할 수 없다.
+   */
+  backboneId: z.string(),
+})
+
+/**
+ * **이미지 학습 시점 스냅샷의 종류별 부분.** 정본 참조가 빠진 것이 위와 다른 점이다.
+ *
+ * **전처리가 없는 것은 임시 상태다** - 이미지에서 스케일링이 무슨 뜻인지가 아직 안
+ * 정해졌다(open-decisions.md). 그 결정이 나면 필드가 늘고 `tests/experiment.spec.ts`의
+ * 트립와이어가 이름을 대며 운다.
+ */
+export const imageSnapshotSchema = z.looseObject({
+  categories: z.array(userString),
+  backboneId: z.string(),
+})
+
 /** 한 데이터 종류가 선언하는 스키마 둘. */
 export interface DataKindSchema {
   readonly settings: z.ZodType<Record<string, unknown>>
@@ -357,6 +423,7 @@ export interface DataKindSchema {
  */
 export const DATA_SCHEMAS = {
   tabular: { settings: tabularSettingsSchema, snapshot: tabularSnapshotSchema },
+  image: { settings: imageSettingsSchema, snapshot: imageSnapshotSchema },
 } satisfies Readonly<Record<DataType, DataKindSchema>>
 
 /**
@@ -374,6 +441,40 @@ function oneOf<Schema extends z.ZodTypeAny>(schemas: readonly Schema[]): Schema 
   // 배열의 원소 타입 `Schema`가 이미 종류들의 유니온이므로 z.union의 결과와 뜻이 같다.
   // 타입스크립트가 그것을 스스로 알아보지 못할 뿐이라 여기서만 단언한다.
   return z.union([first, ...rest]) as unknown as Schema
+}
+
+/**
+ * `settings.data`를 그 종류의 것으로 좁힌다.
+ *
+ * **어느 종류인지는 밖에서 온다.** 판별 필드가 `settings` 안이 아니라 매니페스트에 있기
+ * 때문이다 (mlpx-spec.md §3) — 그래서 타입스크립트가 스스로 좁히지 못하고, 종류가 둘이
+ * 된 순간 읽는 자리가 전부 `unknown`이 됐다. 그게 이 리팩터가 예고한 자리다.
+ *
+ * **캐스팅이 아니라 파싱이다.** 매니페스트와 설정이 어긋난 파일이면 여기서 시끄럽게
+ * 죽는 것이 맞다 — 조용히 넘기면 표 코드가 이미지 설정을 읽어 `undefined`로 학습한다.
+ */
+export function dataSettings<Kind extends DataType>(
+  dataType: Kind,
+  settings: Pick<Settings, 'data'>,
+): z.infer<(typeof DATA_SCHEMAS)[Kind]['settings']> {
+  return DATA_SCHEMAS[dataType].settings.parse(settings.data) as z.infer<
+    (typeof DATA_SCHEMAS)[Kind]['settings']
+  >
+}
+
+/**
+ * 실험 스냅샷의 `data`를 그 종류의 것으로 좁힌다. `dataSettings`의 스냅샷 판이다.
+ *
+ * **실험 스냅샷에는 종류가 안 적혀 있다** — 매니페스트가 갖고, 그건 프로젝트 하나에
+ * 하나뿐이라 실험마다 달라지지 않는다 (mlpx-spec.md §3).
+ */
+export function dataSnapshot<Kind extends DataType>(
+  dataType: Kind,
+  settings: { readonly data: unknown },
+): z.infer<(typeof DATA_SCHEMAS)[Kind]['snapshot']> {
+  return DATA_SCHEMAS[dataType].snapshot.parse(settings.data) as z.infer<
+    (typeof DATA_SCHEMAS)[Kind]['snapshot']
+  >
 }
 
 /**
@@ -723,6 +824,9 @@ export type Split = z.infer<typeof splitSchema>
 /** 표 프로젝트의 `settings.data`. 종류가 늘면 `Settings['data']`가 유니온이 된다. */
 export type TabularSettings = z.infer<typeof tabularSettingsSchema>
 export type TabularSnapshot = z.infer<typeof tabularSnapshotSchema>
+/** 이미지 프로젝트의 `settings.data`. */
+export type ImageSettings = z.infer<typeof imageSettingsSchema>
+export type ImageSnapshot = z.infer<typeof imageSnapshotSchema>
 export type Settings = z.infer<typeof settingsSchema>
 export type Engine = z.infer<typeof engineSchema>
 export type Failure = z.infer<typeof failureSchema>
@@ -733,3 +837,17 @@ export type Experiment = z.infer<typeof experimentSchema>
 export type RunsFile = z.infer<typeof runsFileSchema>
 export type Portfolio = z.infer<typeof portfolioSchema>
 export type ProjectDocument = z.infer<typeof projectDocumentSchema>
+
+/**
+ * 문서가 표 프로젝트면 그 설정을 좁혀서 주고, 아니면 `null`이다.
+ *
+ * **표 전용 코드가 이미지 프로젝트에서 죽지 않게 하는 자리다.** `dataSettings`는 종류가
+ * 어긋나면 던지는데(그게 맞는 자리가 따로 있다), 화면과 저장소에는 **어느 종류든 올 수
+ * 있는 통로**가 있다 — 거기서 던지면 이미지 프로젝트를 여는 것만으로 앱이 죽는다.
+ */
+export function tabularDataOf(
+  document: ProjectDocument | null | undefined,
+): TabularSettings | null {
+  if (!document || document.manifest.dataType !== 'tabular') return null
+  return dataSettings('tabular', document.settings)
+}

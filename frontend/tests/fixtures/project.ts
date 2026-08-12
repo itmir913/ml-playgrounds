@@ -10,6 +10,7 @@ import type { Dataset, ProjectFile } from '../../src/project/format'
 import {
   FORMAT_VERSION,
   PROJECT_KIND_ML,
+  dataSettings,
   type Experiment,
   type Manifest,
   type Run,
@@ -156,7 +157,7 @@ export function projectFileWithTestDataset(overrides: Partial<ProjectFile> = {})
         ...base.document.settings,
         split: { ...base.document.settings.split, method: 'provided' },
         data: {
-          ...base.document.settings.data,
+          ...dataSettings('tabular', base.document.settings),
           testDataset: {
             path: 'dataset/test.csv',
             originalFileName: 'iris_test.csv',
@@ -192,7 +193,7 @@ export function projectFileWithPredictDataset(overrides: Partial<ProjectFile> = 
       settings: {
         ...base.document.settings,
         data: {
-          ...base.document.settings.data,
+          ...dataSettings('tabular', base.document.settings),
           predictDataset: {
             path: 'dataset/predict.csv',
             originalFileName: 'iris_predict.csv',

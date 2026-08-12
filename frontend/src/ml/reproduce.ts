@@ -20,7 +20,7 @@
  */
 
 import { ClientError, isClientError, type ReproductionStatus } from '../errors'
-import type { Experiment, Run } from '../project/schema'
+import { dataSnapshot, type Experiment, type Run } from '../project/schema'
 import { RUNTIMES } from './backend'
 import { engineFor, type TrainingEngine } from './engines'
 import { evaluate } from './metrics'
@@ -105,7 +105,8 @@ function ENGINES_BY_KIND(): Map<string, TrainingEngine> {
 export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
   const { experiment, dataset, testDataset } = input
   const { settings } = experiment
-  const target = settings.data.target ?? ''
+  // 재실행 대조는 표에만 있다 — 이미지는 임베딩이 파일에 담겨 경로가 따로 선다.
+  const target = dataSnapshot('tabular', settings).target ?? ''
 
   const done = experiment.runs.filter((run) => run.status === 'done')
   if (done.length === 0) return []
@@ -121,13 +122,14 @@ export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
   const shared = (() => {
     if (!testSource) return null
     try {
+      const data = dataSnapshot('tabular', settings)
       const preprocessor = fitPreprocessor(
         dataset,
         settings.trainIndices,
-        settings.data.features,
-        settings.data.preprocessing,
+        data.features,
+        data.preprocessing,
       )
-      const { categoricalEncoding } = settings.data.preprocessing
+      const { categoricalEncoding } = data.preprocessing
       return {
         preprocessor,
         trainFeatures: transform(preprocessor, dataset, settings.trainIndices, categoricalEncoding),

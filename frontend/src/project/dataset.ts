@@ -23,7 +23,7 @@ import {
   type Dataset as StoredDataset,
   type ProjectFile,
 } from './format'
-import type { DatasetRef } from './schema'
+import { dataSettings, tabularDataOf, type DatasetRef } from './schema'
 
 /**
  * 정본 CSV를 학습 계층이 쓰는 표로 읽는다. 표가 없으면 `null`이다 - 정상 상태다.
@@ -39,7 +39,7 @@ import type { DatasetRef } from './schema'
 const parsed = new WeakMap<StoredDataset, Dataset>()
 
 export function readDataset(project: ProjectFile | null): Dataset | null {
-  const reference = project?.document.settings.data.dataset
+  const reference = tabularDataOf(project?.document)?.dataset
   const stored = project?.dataset
   if (!stored || !reference) return null
 
@@ -59,7 +59,7 @@ const parsedPredict = new WeakMap<StoredDataset, Dataset>()
  * 정상 상태다 (mlpx-spec.md §1.1).
  */
 export function readPredictDataset(project: ProjectFile | null): Dataset | null {
-  const reference = project?.document.settings.data.predictDataset
+  const reference = tabularDataOf(project?.document)?.predictDataset
   const stored = project?.predictDataset
   if (!stored || !reference) return null
 
@@ -79,7 +79,7 @@ const parsedTest = new WeakMap<StoredDataset, Dataset>()
  * `null`이다 - 정상 상태다.
  */
 export function readTestDataset(project: ProjectFile | null): Dataset | null {
-  const reference = project?.document.settings.data.testDataset
+  const reference = tabularDataOf(project?.document)?.testDataset
   const stored = project?.testDataset
   if (!stored || !reference) return null
 
@@ -119,7 +119,8 @@ export function applyDataset(
   // 열 선택은 **살아남은 것만** 남긴다. 통째로 비우면 오타 하나 고치려고 CSV를 다시
   // 올린 학생이 고르기를 처음부터 다시 한다. 없는 열을 남겨 두는 것은 더 나쁘다 -
   // 학습이 시작된 뒤에야 터진다.
-  const previous = document.settings.data
+  // 표 화면에서만 부른다. 이미지 프로젝트가 여기 오면 그건 배선 버그이므로 던지는 쪽이 맞다.
+  const previous = dataSettings('tabular', document.settings)
   const features = previous.features.filter((name) => names.has(name))
   const target =
     previous.target !== undefined && names.has(previous.target) ? previous.target : undefined
@@ -234,7 +235,7 @@ export function applyTestDataset(
         manifest: { ...document.manifest, updatedAt: options.now },
         settings: {
           ...document.settings,
-          data: { ...document.settings.data, testDataset },
+          data: { ...dataSettings('tabular', document.settings), testDataset },
           split: { ...document.settings.split, method: 'provided' },
         },
         runs: { ...document.runs, experiments: [] },
@@ -315,7 +316,7 @@ export function applyPredictDataset(
         manifest: { ...document.manifest, updatedAt: options.now },
         settings: {
           ...document.settings,
-          data: { ...document.settings.data, predictDataset },
+          data: { ...dataSettings('tabular', document.settings), predictDataset },
         },
         // 실험은 그대로다 - 예측 데이터는 점수에 영향을 주지 않는다.
       },

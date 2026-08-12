@@ -42,7 +42,13 @@ import {
   PREPROCESSOR_FORMAT,
   type Dataset,
 } from '../src/ml/preprocess'
-import type { Experiment, Preprocessing, ProjectDocument, Run } from '../src/project/schema'
+import {
+  dataSnapshot,
+  type Experiment,
+  type Preprocessing,
+  type ProjectDocument,
+  type Run,
+} from '../src/project/schema'
 
 /** 수치 둘·범주 하나. 범주가 있어야 원-핫으로 열이 늘어난다. */
 const dataset: Dataset = {
@@ -93,8 +99,8 @@ function fitFor(subject: Experiment) {
   return fitPreprocessor(
     dataset,
     subject.settings.trainIndices,
-    subject.settings.data.features,
-    subject.settings.data.preprocessing,
+    dataSnapshot('tabular', subject.settings).features,
+    dataSnapshot('tabular', subject.settings).preprocessing,
   )
 }
 

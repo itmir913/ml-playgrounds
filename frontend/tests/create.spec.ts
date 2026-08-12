@@ -23,6 +23,7 @@ import {
   DEFAULT_PORTFOLIO_TEMPLATE_ID,
   parseProjectDocument,
   TASK_TYPES,
+  dataSettings,
 } from '../src/project/schema'
 
 const seed = {
@@ -85,7 +86,7 @@ describe('새 프로젝트', () => {
   it('스케일링은 꺼진 채로, 범주형 인코딩은 켜진 채로 시작한다', () => {
     // 학생이 스케일링을 켰을 때 숫자가 달라지는 것을 보는 것이 수업 장면이다.
     // 인코딩은 반대다 - 꺼져 있으면 문자 열이 든 표로 아무것도 못 한다.
-    const { preprocessing } = newProjectDocument(input, seed).settings.data
+    const { preprocessing } = dataSettings('tabular', newProjectDocument(input, seed).settings)
     expect(preprocessing.scaling).toBe('none')
     expect(preprocessing.categoricalEncoding).toBe('onehot')
   })

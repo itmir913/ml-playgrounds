@@ -26,7 +26,12 @@ import { parsePreprocessor, targetValues, type Dataset } from '../src/ml/preproc
 import { applyExperiment } from '../src/project/attach'
 import { readProject, writeProject, type ProjectFile } from '../src/project/format'
 import { readDataset } from '../src/project/dataset'
-import type { Settings, TaskType } from '../src/project/schema'
+import {
+  dataSnapshot,
+  type Settings,
+  type TabularSettings,
+  type TaskType,
+} from '../src/project/schema'
 import { emptyProjectFile } from './fixtures/project'
 import { irisDataset, IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN } from './fixtures/iris'
 
@@ -48,7 +53,7 @@ function csvBytes(dataset: Dataset): Uint8Array {
  * 울고 조용히 무시되기 때문이다** — 스키마를 가르던 날 실제로 그렇게 통과했다.
  * 여기서 갈라 넣으면 그 자리가 컴파일에 걸린다.
  */
-type SettingsOverrides = Partial<Omit<Settings, 'data'>> & Partial<Settings['data']>
+type SettingsOverrides = Partial<Omit<Settings, 'data'>> & Partial<TabularSettings>
 
 function splitOverrides(overrides: SettingsOverrides) {
   const { dataset, testDataset, predictDataset, features, target, preprocessing, ...common } =
@@ -64,7 +69,7 @@ function splitOverrides(overrides: SettingsOverrides) {
   return { data, common }
 }
 
-const baseData: Settings['data'] = {
+const baseData: TabularSettings = {
   dataset: {
     path: 'dataset/data.csv',
     originalFileName: 'iris.csv',
@@ -190,7 +195,7 @@ function reproduceMetrics(
     const truth = targetValues(
       table,
       experiment.settings.testIndices,
-      experiment.settings.data.target ?? '',
+      dataSnapshot('tabular', experiment.settings).target ?? '',
     )
     const again = evaluate(experiment.settings.taskType, truth, predict(rows)).metrics
 

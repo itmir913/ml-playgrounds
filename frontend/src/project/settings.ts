@@ -11,7 +11,15 @@
  * `ml/hyperparams.ts`가 출처다.
  */
 
-import type { Preprocessing, ProjectDocument, Settings, Split, TaskType } from './schema'
+import {
+  dataSettings,
+  type Preprocessing,
+  type ProjectDocument,
+  type Settings,
+  type Split,
+  type TabularSettings,
+  type TaskType,
+} from './schema'
 
 /** 설정만 갈아 끼우고 시각을 찍는다. 아래 함수들이 전부 이걸 지난다. */
 function withSettings(document: ProjectDocument, settings: Settings, now: string): ProjectDocument {
@@ -23,20 +31,23 @@ function withSettings(document: ProjectDocument, settings: Settings, now: string
 }
 
 /**
- * 데이터 종류별 설정만 갈아 끼운다 (`settings.data`, mlpx-spec.md §3).
+ * 표 프로젝트의 종류별 설정만 갈아 끼운다 (`settings.data`, mlpx-spec.md §3).
  *
- * **아래 `withTarget`·`withFeatures`·`withPreprocessing`은 표 전용이다.** 지금은
- * `Settings['data']`가 표의 것 하나뿐이라 그대로 서지만, 이미지가 등록되는 날 이 세
- * 함수는 컴파일에서 깨진다 — 그때 표의 판이 가져갈 함수들이다.
+ * **`withTarget`·`withFeatures`·`withPreprocessing`과 함께 표 전용이다.** 예고한 대로
+ * 이미지가 등록되는 날 깨졌고(2026-08-12), 그래서 이름과 타입이 표의 것으로 못 박혔다.
+ * 이미지가 자기 설정을 고치는 함수는 자기 이름으로 따로 선다.
+ *
+ * **어긋나면 던진다.** 이 함수를 부르는 화면은 표 프로젝트에서만 뜨므로, 이미지
+ * 프로젝트가 여기 오면 그건 배선 버그다.
  */
-function withData(
+function withTabularData(
   document: ProjectDocument,
-  patch: Partial<Settings['data']>,
+  patch: Partial<TabularSettings>,
   now: string,
 ): ProjectDocument {
   return withSettings(
     document,
-    { ...document.settings, data: { ...document.settings.data, ...patch } },
+    { ...document.settings, data: { ...dataSettings('tabular', document.settings), ...patch } },
     now,
   )
 }
@@ -79,11 +90,13 @@ export function withTarget(
   target: string | undefined,
   now: string,
 ): ProjectDocument {
-  return withData(
+  return withTabularData(
     document,
     {
       target,
-      features: document.settings.data.features.filter((name) => name !== target),
+      features: dataSettings('tabular', document.settings).features.filter(
+        (name) => name !== target,
+      ),
     },
     now,
   )
@@ -95,8 +108,8 @@ export function withFeatures(
   features: readonly string[],
   now: string,
 ): ProjectDocument {
-  const { target } = document.settings.data
-  return withData(document, { features: features.filter((name) => name !== target) }, now)
+  const { target } = dataSettings('tabular', document.settings)
+  return withTabularData(document, { features: features.filter((name) => name !== target) }, now)
 }
 
 export function withPreprocessing(
@@ -104,9 +117,9 @@ export function withPreprocessing(
   patch: Partial<Preprocessing>,
   now: string,
 ): ProjectDocument {
-  return withData(
+  return withTabularData(
     document,
-    { preprocessing: { ...document.settings.data.preprocessing, ...patch } },
+    { preprocessing: { ...dataSettings('tabular', document.settings).preprocessing, ...patch } },
     now,
   )
 }

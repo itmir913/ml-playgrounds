@@ -45,6 +45,8 @@ import {
   CATEGORICAL_ENCODINGS,
   MISSING_STRATEGIES,
   SCALING_METHODS,
+  dataSettings,
+  tabularDataOf,
   type Preprocessing,
   type ProjectDocument,
 } from '@/project/schema'
@@ -64,8 +66,14 @@ const project = useProjectStore()
 const toasts = useToastStore()
 
 const settings = computed(() => project.file?.document.settings ?? null)
-/** 이 판이 다루는 것은 표의 설정이다 (`settings.data`, mlpx-spec.md §3). */
-const data = computed(() => settings.value?.data ?? null)
+/**
+ * 이 판이 다루는 것은 표의 설정이다 (`settings.data`, mlpx-spec.md §3).
+ *
+ * **판이 등록부에서 표에만 걸려 있으므로 여기 오는 것은 표뿐이다.** 그래도 좁히기를
+ * 거치는 이유는 타입이 그걸 모르기 때문이고, 종류가 어긋난 문서가 오면 `null`이 되어
+ * 화면이 조용히 빈다 — 이미지 설정을 표로 읽어 그리는 것보다 낫다.
+ */
+const data = computed(() => tabularDataOf(project.file?.document))
 const dataset = computed(() => readDataset(project.file))
 const columns = computed(() => (dataset.value ? summarizeColumns(dataset.value) : []))
 
@@ -128,7 +136,7 @@ function pickTarget(name: string): void {
 function toggleFeature(name: string, on: boolean): void {
   const file = project.file
   if (!file) return
-  const features = file.document.settings.data.features
+  const features = dataSettings('tabular', file.document.settings).features
   const next = on ? [...features, name] : features.filter((feature) => feature !== name)
   apply(withFeatures(file.document, next, now()))
 }

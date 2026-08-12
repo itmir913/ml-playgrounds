@@ -73,21 +73,23 @@ export interface MetricPanel {
 const PANELS: readonly MetricPanel[] = [
   {
     id: 'confusion-matrix',
-    dataTypes: { tabular: true },
+    dataTypes: { tabular: true, image: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     hasData: (run) => run.confusionMatrix !== undefined,
     panel: defineAsyncComponent(() => import('@/views/results/panels/ConfusionMatrixPanel.vue')),
   },
   {
     id: 'per-class',
-    dataTypes: { tabular: true },
+    dataTypes: { tabular: true, image: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     hasData: (run) => run.perClass !== undefined,
     panel: defineAsyncComponent(() => import('@/views/results/panels/PerClassPanel.vue')),
   },
   {
     id: 'cluster-result',
-    dataTypes: { tabular: true },
+    // **이미지 군집은 산점도를 안 그린다** (open-decisions.md #28-8). 묶인 사진을 그대로
+    // 보여주는 쪽이 비교도 안 되게 많은 것을 말한다. 그 판은 따로 등록된다.
+    dataTypes: { tabular: true, image: false },
     taskTypes: { classification: false, regression: false, clustering: true },
     /**
      * **모델이 있어야 그릴 수 있다** (§9.5, `open-decisions.md` #28-4). 군집 배정은

@@ -43,7 +43,7 @@ import { failedRuns } from '@/ml/results'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
 import { applyExperiment } from '@/project/attach'
 import { readDataset, readTestDataset } from '@/project/dataset'
-import type { ProjectDocument, TaskType } from '@/project/schema'
+import { tabularDataOf, type ProjectDocument, type TaskType } from '@/project/schema'
 import {
   withHyperparameter,
   withRuntime,
@@ -64,6 +64,14 @@ const toasts = useToastStore()
 const training = useTraining(spawnTrainingWorker)
 
 const settings = computed(() => project.file?.document.settings ?? null)
+/**
+ * 표 프로젝트일 때의 종류별 설정. **이미지면 `null`이다.**
+ *
+ * 이 화면은 종류를 가리지 않고 뜨는데 아래 셋(행 수 세기 · 쓸 수 있는 특성 · 층화 판정)은
+ * 열을 보는 표의 계산이다. **이미지의 같은 자리는 사진 수와 범주가 답한다** — 이미지 판이
+ * 서는 커밋이 그것을 넣는다 (roadmap.md V4 2단계).
+ */
+const tabularData = computed(() => tabularDataOf(project.file?.document))
 const dataset = computed(() => readDataset(project.file))
 
 /** 평가 정본. `split.method`가 `provided`인 프로젝트에만 있다 (mlpx-spec.md §1.1). */
@@ -89,15 +97,16 @@ const context = computed<RuntimeContext>(() => {
     serverStatus: 'unknown',
     engineStates: {},
     // 아무것도 안 골랐으면 무엇이 빠질지 정해지지 않았다. 그때는 파일의 행 수가 보수적이다.
-    rowCount: current
-      ? trainableRowCount(
-          dataset.value,
-          current.data.features,
-          current.data.target,
-          current.data.preprocessing.missing,
-          current.nSamples,
-        )
-      : (dataset.value?.rows.length ?? 0),
+    rowCount:
+      current && tabularData.value
+        ? trainableRowCount(
+            dataset.value,
+            tabularData.value.features,
+            tabularData.value.target,
+            tabularData.value.preprocessing.missing,
+            current.nSamples,
+          )
+        : (dataset.value?.rows.length ?? 0),
   }
 })
 
@@ -160,14 +169,15 @@ const targetIssue = computed(() => {
 const usableFeatures = computed(() => {
   const current = settings.value
   const table = dataset.value
-  if (!current || !table) return 0
+  const data = tabularData.value
+  if (!current || !table || !data) return 0
   return columnPlan({
     columns: columns.value,
     rowCount: table.rows.length,
     taskType: project.taskType,
-    target: current.data.target,
-    features: current.data.features,
-    preprocessing: current.data.preprocessing,
+    target: data.target,
+    features: data.features,
+    preprocessing: data.preprocessing,
   }).usableFeatures
 })
 
@@ -198,14 +208,16 @@ function pickTaskType(taskType: TaskType): void {
   // "이 값의 데이터를 2개 이상 모아 주세요"라 학생이 할 수 있는 일이 없다
   // (open-decisions.md "층화는 갈리는 값에서만 뜻이 있다"). 위의 모델 선택과 같은 처리다 -
   // 뜻을 잃은 것은 지우고 알린다.
+  const changedData = tabularDataOf(changed)
   const stratifyOff =
     changed.settings.split.stratify &&
+    changedData !== null &&
     stratifyBlock({
       dataset: dataset.value,
       taskType,
-      target: changed.settings.data.target,
-      features: changed.settings.data.features,
-      preprocessing: changed.settings.data.preprocessing,
+      target: changedData.target,
+      features: changedData.features,
+      preprocessing: changedData.preprocessing,
       nSamples: changed.settings.nSamples,
     })?.code === 'STRATIFY_NOT_FOR_TASK_TYPE'
 

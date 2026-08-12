@@ -19,7 +19,7 @@ import type { ExperimentInput } from '../src/ml/experiment'
 import { train, type TrainWorker } from '../src/ml/worker/client'
 import { handleTrain } from '../src/ml/worker/handler'
 import type { TrainRequest, WorkerMessage } from '../src/ml/worker/protocol'
-import type { RunsFile, Settings } from '../src/project/schema'
+import type { RunsFile, Settings, TabularSettings } from '../src/project/schema'
 import { IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN, irisDataset } from './fixtures/iris'
 
 const models = (...names: string[]) => names.map((algorithm) => ({ algorithm }))
@@ -32,7 +32,7 @@ const models = (...names: string[]) => names.map((algorithm) => ({ algorithm }))
  * 울고 조용히 무시되기 때문이다** — 스키마를 가르던 날 실제로 그렇게 통과했다.
  * 여기서 갈라 넣으면 그 자리가 컴파일에 걸린다.
  */
-type SettingsOverrides = Partial<Omit<Settings, 'data'>> & Partial<Settings['data']>
+type SettingsOverrides = Partial<Omit<Settings, 'data'>> & Partial<TabularSettings>
 
 function splitOverrides(overrides: SettingsOverrides) {
   const { dataset, testDataset, predictDataset, features, target, preprocessing, ...common } =
@@ -48,7 +48,7 @@ function splitOverrides(overrides: SettingsOverrides) {
   return { data, common }
 }
 
-const baseData: Settings['data'] = {
+const baseData: TabularSettings = {
   dataset: {
     path: 'dataset/data.csv',
     originalFileName: 'iris.csv',

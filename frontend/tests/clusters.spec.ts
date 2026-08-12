@@ -411,7 +411,11 @@ describe('구성원', () => {
 
 describe('재료를 꺼내는 문', () => {
   const settings = (rows: readonly number[], options: Preprocessing) =>
-    ({ data: { preprocessing: options }, trainIndices: rows }) as unknown as Experiment['settings']
+    ({
+      // 스냅샷 스키마에 맞춘다 - 위 `settingsOf`와 같은 사정이다.
+      data: { features: [], preprocessing: options },
+      trainIndices: rows,
+    }) as unknown as Experiment['settings']
 
   function bytesOf(model: KMeansModel): Uint8Array {
     return new TextEncoder().encode(JSON.stringify(model))
@@ -485,7 +489,9 @@ describe('재료 조립', () => {
   /** 실험 설정 중 재료가 보는 것만. 스키마 전체를 만들 이유가 없다. */
   function settingsOf(rows: readonly number[], options: Preprocessing) {
     return {
-      data: { preprocessing: options },
+      // **스냅샷 스키마에 맞춘다.** `clusterMaterial`이 종류를 좁히며 파싱하므로
+      // (표 전용 판이다) 모자란 픽스처는 그 자리에서 거부된다.
+      data: { features: [], preprocessing: options },
       trainIndices: rows,
     } as unknown as Experiment['settings']
   }
@@ -513,7 +519,9 @@ describe('예측 화면의 이웃', () => {
   function materialOf() {
     const { preprocessor, rows, model, options, matrix } = fixture()
     const settings = {
-      data: { preprocessing: options },
+      // **스냅샷 스키마에 맞춘다.** `clusterMaterial`이 종류를 좁히며 파싱하므로
+      // (표 전용 판이다) 모자란 픽스처는 그 자리에서 거부된다.
+      data: { features: [], preprocessing: options },
       trainIndices: rows,
     } as unknown as Experiment['settings']
     return { material: clusterMaterial(DATASET, preprocessor, model, settings), matrix }

@@ -91,10 +91,11 @@ describe('상세 패널 등록부', () => {
   })
 
   it('데이터 종류가 안 맞으면 안 선다', () => {
-    // **표본은 가짜다.** 어휘에는 지금 되는 종류만 있으므로(open-decisions.md "어휘에는
-    // 지금 되는 것만 넣는다") 안 맞는 종류를 넘겨서 확인할 수 없다. 이미지가 들어오는
-    // 날 이 항목은 이미지용이 되고, 그때도 이 검사는 그대로 돈다.
-    const imageOnly = METRIC_PANELS.map((panel) => ({ ...panel, dataTypes: { tabular: false } }))
+    // **이미지가 들어온 날 진짜 종류가 됐다** (2026-08-12). 검사는 그대로 돈다.
+    const imageOnly = METRIC_PANELS.map((panel) => ({
+      ...panel,
+      dataTypes: { tabular: false, image: true },
+    }))
     expect(metricPanelsFor('tabular', 'classification', classified, imageOnly)).toEqual([])
   })
 })

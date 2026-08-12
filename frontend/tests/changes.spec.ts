@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest'
 import { describeChanges, memberDiff } from '../src/ml/changes'
 import { runExperiment, type ExperimentInput } from '../src/ml/experiment'
 import type { RuntimeContext } from '../src/ml/backend'
-import type { Experiment, Settings } from '../src/project/schema'
+import type { Experiment, Settings, TabularSettings } from '../src/project/schema'
 import { IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN, irisDataset } from './fixtures/iris'
 
 const BROWSER_ONLY: RuntimeContext = { serverStatus: 'unavailable', rowCount: 30 }
@@ -25,7 +25,7 @@ const BROWSER_ONLY: RuntimeContext = { serverStatus: 'unavailable', rowCount: 30
  * 울고 조용히 무시되기 때문이다** — 스키마를 가르던 날 실제로 그렇게 통과했다.
  * 여기서 갈라 넣으면 그 자리가 컴파일에 걸린다.
  */
-type SettingsOverrides = Partial<Omit<Settings, 'data'>> & Partial<Settings['data']>
+type SettingsOverrides = Partial<Omit<Settings, 'data'>> & Partial<TabularSettings>
 
 function splitOverrides(overrides: SettingsOverrides) {
   const { dataset, testDataset, predictDataset, features, target, preprocessing, ...common } =
@@ -41,7 +41,7 @@ function splitOverrides(overrides: SettingsOverrides) {
   return { data, common }
 }
 
-const baseData: Settings['data'] = {
+const baseData: TabularSettings = {
   features: [...IRIS_FEATURE_COLUMNS],
   target: IRIS_TARGET_COLUMN,
   preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },

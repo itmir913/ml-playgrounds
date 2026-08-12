@@ -15,6 +15,8 @@
 
 import { describe, expect, it } from 'vitest'
 
+import { dataSettings } from '../src/project/schema'
+
 import {
   emptyProjectFile,
   experiment,
@@ -50,7 +52,7 @@ describe('projectFile()은 부를 때마다 남남이다', () => {
   it('하나를 고쳐도 다음에 부른 것이 멀쩡하다', () => {
     const poisoned = projectFile()
     poisoned.document.settings.split.testSize = 0.99
-    poisoned.document.settings.data.features.push('없는 열')
+    dataSettings('tabular', poisoned.document.settings).features.push('없는 열')
 
     const clean = projectFile()
     expect(clean.document.settings.split.testSize).toBe(0.2)
@@ -105,7 +107,7 @@ describe('나머지 팩토리도 같다', () => {
   it('실험 스냅샷의 분할 설정', () => {
     const poisoned = experiment('experiment-1', [run('run-1')])
     poisoned.settings.split.testSize = 0.99
-    poisoned.settings.data.features.push('없는 열')
+    dataSettings('tabular', poisoned.settings).features.push('없는 열')
 
     const clean = experiment('experiment-2', [run('run-2')])
     expect(clean.settings.split.testSize).toBe(0.2)

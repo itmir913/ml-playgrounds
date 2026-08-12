@@ -20,7 +20,7 @@ import { uniformInt } from 'pure-rand/distribution/uniformInt'
 import { xoroshiro128plus } from 'pure-rand/generator/xoroshiro128plus'
 
 import { ClientError } from '../errors'
-import type { Experiment, Preprocessing } from '../project/schema'
+import { dataSnapshot, type Experiment, type Preprocessing } from '../project/schema'
 import { KMEANS_FORMAT, kmeansPredict, parseKMeansModel, type KMeansModel } from './models'
 import { transform, type Dataset, type FittedColumn, type Preprocessor } from './preprocess'
 
@@ -370,7 +370,8 @@ export function clusterMaterial(
   model: KMeansModel,
   settings: Experiment['settings'],
 ): ClusterMaterial {
-  const encoding = settings.data.preprocessing.categoricalEncoding
+  // 이 판은 표 전용이다 — 이미지 군집은 산점도를 안 그린다 (open-decisions.md #28-8).
+  const encoding = dataSnapshot('tabular', settings).preprocessing.categoricalEncoding
   const rows = settings.trainIndices
   const matrix = transform(preprocessor, dataset, rows, encoding)
 

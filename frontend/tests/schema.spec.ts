@@ -22,6 +22,7 @@ import {
   runsFileSchema,
   settingsSchema,
   studentIdInputSchema,
+  dataSettings,
 } from '../src/project/schema'
 
 const manifest = {
@@ -95,7 +96,7 @@ describe('모르는 필드', () => {
         preprocessing: { ...settings.data.preprocessing, outlierRemoval: 'iqr' },
       },
     })
-    expect(parsed.data.preprocessing.outlierRemoval).toBe('iqr')
+    expect(dataSettings('tabular', parsed).preprocessing.outlierRemoval).toBe('iqr')
   })
 
   it('지표는 이름을 모르는 것도 그대로 받는다', () => {

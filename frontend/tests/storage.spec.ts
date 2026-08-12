@@ -24,6 +24,7 @@ import {
   writePreferredLocale,
 } from '../src/project/storage'
 import { hashBytes } from '../src/hash'
+import { dataSettings } from '../src/project/schema'
 import {
   experiment,
   datasetBytes,
@@ -130,7 +131,7 @@ describe('프로젝트 저장', () => {
         settings: {
           ...base.document.settings,
           data: {
-            ...base.document.settings.data,
+            ...dataSettings('tabular', base.document.settings),
             predictDataset: {
               path: 'dataset/predict.csv',
               originalFileName: 'predict.csv',
@@ -145,7 +146,7 @@ describe('프로젝트 저장', () => {
     await saveProject(project)
 
     const loaded = await loadProject(manifest.projectId)
-    expect(loaded?.document.settings.data.predictDataset).toBeDefined()
+    expect(dataSettings('tabular', loaded!.document.settings).predictDataset).toBeDefined()
     expect(Array.from(loaded?.predictDataset?.bytes ?? [])).toEqual(Array.from(bytes))
   })
 

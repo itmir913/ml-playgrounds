@@ -83,11 +83,21 @@ function leaks(source: string): string[] {
  *
  * 오른쪽에 `.data`가 있으면 그건 종류별 블록을 담은 것이라 대상이 아니다 —
  * `const previous = document.settings.data`나 `const data = settings.value?.data`가 그렇다.
+ *
+ * **좁히기 함수의 결과도 대상이 아니다** (`dataSettings` · `dataSnapshot` · `tabularDataOf`).
+ * 돌려주는 것이 이미 종류별 블록이고, 게다가 **타입이 붙어 있어서** 그 뒤의 오타는
+ * 컴파일이 잡는다 — `.data`를 거친 것보다 강한 자리다 (2026-08-12, 이미지가 등록되면서
+ * 생긴 모양).
  */
 function aliasesOfSettings(source: string): string[] {
   const declaration = /(?:const|let)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*([^\n]*)/g
   return [...source.matchAll(declaration)]
-    .filter(([, , value]) => /\bsettings\b/.test(value ?? '') && !/\.data\b/.test(value ?? ''))
+    .filter(([, , value]) => {
+      const right = value ?? ''
+      // 좁히기 함수의 결과는 이미 종류별 블록이다 - `.data`를 거친 것과 같다.
+      if (/\b(dataSettings|dataSnapshot|tabularDataOf)\s*\(/.test(right)) return false
+      return /\bsettings\b/.test(right) && !/\.data\b/.test(right)
+    })
     .map(([, name]) => name ?? '')
     .filter((name) => name !== 'settings')
 }
@@ -148,6 +158,11 @@ describe('종류별 설정은 settings.data를 거친다', () => {
     expect(aliasesOfSettings('const data = computed(() => settings.value?.data ?? null)')).toEqual(
       [],
     )
+    // 좁히기 함수를 거친 것도 대상이 아니다 - 그 뒤로는 타입이 잡는다.
+    expect(aliasesOfSettings("const data = dataSettings('tabular', settings)")).toEqual([])
+    expect(aliasesOfSettings("const d = dataSnapshot('tabular', experiment.settings)")).toEqual([])
+    // 그래도 맨 별칭은 여전히 잡는다.
+    expect(aliasesOfSettings('const current = settings.value')).toEqual(['current'])
 
     const bad = ['const current = settings.value', 'return current.target'].join(NEWLINE)
     expect(aliasLeaks(bad)).toHaveLength(1)

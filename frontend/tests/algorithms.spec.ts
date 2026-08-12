@@ -223,7 +223,7 @@ describe('분기 없이 늘어난다', () => {
     const future: Algorithm[] = [
       {
         id: 'kmeans',
-        dataTypes: { tabular: true },
+        dataTypes: { tabular: true, image: true },
         taskTypes: { classification: false, regression: false, clustering: true },
         runtimes: { mljs: true, 'pyodide-sklearn': false, 'server-sklearn': false },
         // 아직 아무도 안 쟀다. 군집을 실제로 넣는 날 이 칸이 숫자를 요구한다.
