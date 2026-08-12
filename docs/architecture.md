@@ -1910,7 +1910,7 @@ boolean>>` 같은 것을 두면 축이 늘 때 칸이 곱으로 늘어 사람이
 | 등록부 | 무엇을 | 모양 | 빠지면 |
 |---|---|---|---|
 | `data/kinds.ts` | 화면 판(`panel`·`prepPanel`)과 `accept` | **배열** | "아직 못 다루는 종류"다. `dataKindFor`가 `undefined`를 준다 |
-| `project/schema.ts`의 `DATA_SCHEMAS` | `settings.data`와 `experimentSettings.data`의 스키마 둘 | **`Record<DataType, …>`** | **컴파일이 깨진다** |
+| `project/schema.ts`의 `DATA_SCHEMAS` | `settings.data`와 `experimentSettings.data`의 스키마 둘, 그리고 **새 프로젝트의 기본 `settings.data`(`initial()`)** | **`Record<DataType, …>`** | **컴파일이 깨진다** |
 
 **스키마 등록부에 타입 주석 대신 `satisfies`를 쓴다.** 주석을 달면 각 항목이 인터페이스로
 넓어져 `settings.data`가 `Record<string, unknown>`이 되고, 읽는 자리가 전부 `unknown`을
@@ -1922,6 +1922,13 @@ boolean>>` 같은 것을 두면 축이 늘 때 칸이 곱으로 늘어 사람이
 못 다룬다"고 말하면 그만이고, 실제로 `DATA_TYPES`에 값을 먼저 세우고 판을 나중에 붙이는
 순서가 가능해야 한다. **스키마는 없으면 파일 자체를 못 읽는다.** 그래서 스키마 쪽만
 아래 §9.3의 exhaustive Record를 쓴다.
+
+**기본값도 스키마 쪽 등록부다** (2026-08-12). 새 프로젝트를 만드는 함수가 표의 기본값을
+직접 들고 있으면 종류가 둘이 된 순간 그 자리가 `if (dataType === 'image')`가 된다
+(`open-decisions.md` "데이터 종류는 프로젝트를 만들 때 고르고, 그 뒤로 안 바뀐다").
+**화면 쪽 등록부에 두면 안 된다** — `.mlpx`를 만드는 것은 워커와 검사에서도 일어나고,
+아래의 "Vue를 들이지 마라"가 그대로 걸린다. `initial()`이 **함수**인 이유는 값 하나를
+공유하면 프로젝트 여럿이 같은 배열을 가리키기 때문이다.
 
 **스키마 등록부에 Vue를 들이지 마라.** `data/kinds.ts`는 `defineAsyncComponent`를 들고
 있어서, 스키마를 거기 붙이면 **`.mlpx`를 파싱하는 워커와 node 환경 검사가 Vue를 끌고
