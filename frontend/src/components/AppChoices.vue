@@ -27,6 +27,13 @@ export interface Choice {
 
 const props = defineProps<{
   label: string
+  /**
+   * 축 이름 아래 한 줄. **이 축을 고르기 전에 알아야 하는 것**만 온다.
+   *
+   * 대화상자 설명문으로 밀지 않는 이유는, 거기 적으면 축이 안 보이는 화면에서도
+   * 문장이 남기 때문이다 — 종류가 하나뿐이면 이 컴포넌트 자체가 안 그려진다.
+   */
+  hint?: string | undefined
   items: readonly Choice[]
   /** 지금 골라진 칸. 아무것도 안 골랐으면 undefined다 — 기본값을 지어내지 않는다. */
   selected?: string | undefined
@@ -74,6 +81,8 @@ function stateOf(item: Choice): string {
 <template>
   <div class="min-w-0">
     <h3 class="font-bold text-ink-soft">{{ label }}</h3>
+    <!-- 여백은 `AppField`와 같다 — 나란히 선 두 칸의 리듬이 다르면 한쪽이 밀린 것처럼 보인다. -->
+    <p v-if="props.hint" class="mt-1.5 text-ink-faint">{{ props.hint }}</p>
 
     <!--
       **격자다.** flex-wrap으로 두면 글자 수대로 넓이가 제각각이 되고, 언어를 바꾸면 그

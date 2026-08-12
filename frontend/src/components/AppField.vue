@@ -13,6 +13,11 @@
  *
  * 오류가 있으면 도움말 자리를 오류가 차지한다. 둘을 같이 띄우면 어느 쪽을 읽어야
  * 하는지 알 수 없다.
+ *
+ * **순서는 이름 → 도움말 → 입력이다.** 도움말이 입력 아래에 있으면 **읽기 전에 이미
+ * 답하고 있다** — 이름을 다 적고 나서야 "파일 이름이 됩니다"를 만난다. 그리고 축을
+ * 고르는 칸(`AppChoices`)은 그 한 줄이 위에 있어서, 나란히 선 두 칸의 순서가 서로
+ * 달랐다.
  */
 
 import { computed, useId } from 'vue'
@@ -31,14 +36,8 @@ const note = computed(() => props.error ?? props.hint)
 </script>
 
 <template>
-  <div class="flex flex-col gap-2">
+  <div class="flex flex-col gap-1.5">
     <label :for="inputId" class="text-base font-bold text-ink-soft">{{ label }}</label>
-
-    <slot
-      :id="inputId"
-      :aria-describedby="note === undefined ? undefined : noteId"
-      :aria-invalid="error !== undefined"
-    />
 
     <p
       v-if="note !== undefined"
@@ -48,5 +47,11 @@ const note = computed(() => props.error ?? props.hint)
     >
       {{ note }}
     </p>
+
+    <slot
+      :id="inputId"
+      :aria-describedby="note === undefined ? undefined : noteId"
+      :aria-invalid="error !== undefined"
+    />
   </div>
 </template>

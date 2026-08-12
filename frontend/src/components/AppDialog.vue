@@ -50,7 +50,12 @@ function onBackdrop(event: MouseEvent): void {
   >
     <div class="p-6 md:p-8">
       <h2 class="text-xl font-bold tracking-tight md:text-2xl">{{ title }}</h2>
-      <p v-if="description !== undefined" class="mt-2 leading-relaxed text-ink-soft">
+      <!--
+        **리듬이 두 단이다** — 이름과 그 설명 사이는 1.5, 덩어리와 덩어리 사이는 6.
+        칸 안의 `AppField`·`AppChoices`가 같은 두 값을 쓰므로, 대화상자 제목부터
+        버튼까지 내려오는 간격이 한 벌로 읽힌다.
+      -->
+      <p v-if="description !== undefined" class="mt-1.5 leading-relaxed text-ink-soft">
         {{ description }}
       </p>
 
@@ -58,7 +63,7 @@ function onBackdrop(event: MouseEvent): void {
         <slot />
       </div>
 
-      <div class="mt-8 flex flex-wrap justify-end gap-3">
+      <div class="mt-6 flex flex-wrap justify-end gap-3">
         <slot name="actions" />
       </div>
     </div>
