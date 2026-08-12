@@ -366,41 +366,6 @@ async function commitRemoveCategory(): Promise<void> {
       </div>
     </div>
 
-    <!--
-      **고른 것에 대한 조작은 한 줄에 모은다.** 범주마다 버튼을 두면 "어느 범주로
-      옮길까"가 범주 수만큼의 버튼이 된다.
-    -->
-    <div
-      v-if="selected.size > 0"
-      class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel border border-line-strong bg-surface px-4 py-2.5"
-    >
-      <span class="font-bold">{{ t('data.image.selected', selected.size) }}</span>
-      <label class="flex items-center gap-2">
-        <span class="font-bold text-ink-soft">{{ t('data.image.moveTo') }}</span>
-        <select
-          class="rounded-field border border-line-strong bg-surface px-2 py-1"
-          :disabled="busy"
-          @change="moveSelected(($event.target as HTMLSelectElement).value)"
-        >
-          <!-- 고른 것이 아니라 명령이다. 고른 상태로 남으면 다시 누를 수 없다. -->
-          <option value="" selected disabled>{{ t('data.image.pickCategory') }}</option>
-          <option v-for="category in categories" :key="category" :value="category">
-            {{ category }}
-          </option>
-          <option :value="IMAGE_UNLABELED">{{ t('data.image.unlabeled') }}</option>
-        </select>
-      </label>
-
-      <div class="ml-auto flex gap-2">
-        <AppButton variant="secondary" @click="selected = new Set()">
-          {{ t('data.image.clearSelection') }}
-        </AppButton>
-        <AppButton variant="danger" :disabled="busy" @click="deleting = true">
-          {{ t('data.image.deletePhotos') }}
-        </AppButton>
-      </div>
-    </div>
-
     <div
       v-if="entries.length === 0 && categories.length === 0"
       class="grid min-h-96 flex-1 place-items-center rounded-panel border-2 border-dashed transition-colors"
@@ -469,6 +434,49 @@ async function commitRemoveCategory(): Promise<void> {
         @toggle="toggle"
         @pick-all="pickAll(IMAGE_UNLABELED)"
       />
+    </div>
+
+    <!--
+      **고른 것에 대한 조작은 한 줄에 모은다.** 범주마다 버튼을 두면 "어느 범주로
+      옮길까"가 범주 수만큼의 버튼이 된다.
+
+      **판의 맨 아래이고 `sticky`다.** 위쪽에 두면 나타날 때 아래 내용을 밀어내서 보고
+      있던 자리가 흔들린다 — 흔들림을 만드는 것은 등장이 아니라 **흐름에 끼어드는
+      것**이다. 흐름의 끝에 있으면 나타나도 페이지 끝이 늘어날 뿐이고, 스크롤 중에는
+      아래에 붙어 따라오다가 끝까지 내리면 제자리로 돌아가 **마지막 사진 줄을 안 가린다.**
+
+      **`fixed`가 아니다.** `AppShell`의 상태 표시줄이 `<main>` 밖에 따로 있어서
+      `fixed`로 붙이면 그 위에 겹친다.
+    -->
+    <div
+      v-if="selected.size > 0"
+      class="sticky bottom-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel border border-line-strong bg-surface px-4 py-2.5 shadow-card"
+    >
+      <span class="font-bold">{{ t('data.image.selected', selected.size) }}</span>
+      <label class="flex items-center gap-2">
+        <span class="font-bold text-ink-soft">{{ t('data.image.moveTo') }}</span>
+        <select
+          class="rounded-field border border-line-strong bg-surface px-2 py-1"
+          :disabled="busy"
+          @change="moveSelected(($event.target as HTMLSelectElement).value)"
+        >
+          <!-- 고른 것이 아니라 명령이다. 고른 상태로 남으면 다시 누를 수 없다. -->
+          <option value="" selected disabled>{{ t('data.image.pickCategory') }}</option>
+          <option v-for="category in categories" :key="category" :value="category">
+            {{ category }}
+          </option>
+          <option :value="IMAGE_UNLABELED">{{ t('data.image.unlabeled') }}</option>
+        </select>
+      </label>
+
+      <div class="ml-auto flex gap-2">
+        <AppButton variant="secondary" @click="selected = new Set()">
+          {{ t('data.image.clearSelection') }}
+        </AppButton>
+        <AppButton variant="danger" :disabled="busy" @click="deleting = true">
+          {{ t('data.image.deletePhotos') }}
+        </AppButton>
+      </div>
     </div>
 
     <input ref="fileInput" type="file" multiple :accept="accept" class="hidden" @change="onPick" />
