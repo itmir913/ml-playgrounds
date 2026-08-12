@@ -295,11 +295,14 @@ describe('프런트엔드 전용 코드', () => {
   it('타깃 자료형을 요구하는 유형마다 그 이유를 적을 자리가 있다', () => {
     // 요구가 있으면 어떤 열의 타깃 칸이 꺼진다. 이유 없이 회색이면 학생에게 고장으로
     // 보인다 - 요구를 하나 더 만드는 사람이 문장도 함께 넣게 한다.
+    //
+    // **표 아래에 있다** (docs/i18n.md 규칙 10). 요구하는 것이 "타깃 **열**의 자료형"이라
+    // 열이 없는 종류에는 이 문장이 성립하지 않는다.
     for (const taskType of TASK_TYPES) {
       const required = requiredTargetKind(taskType)
       if (!required) continue
-      expect(english.has(`preprocess.targetRule.${required.code}`), taskType).toBe(true)
-      expect(korean.has(`preprocess.targetRule.${required.code}`), taskType).toBe(true)
+      expect(english.has(`preprocess.tabular.targetRule.${required.code}`), taskType).toBe(true)
+      expect(korean.has(`preprocess.tabular.targetRule.${required.code}`), taskType).toBe(true)
     }
   })
 

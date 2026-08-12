@@ -108,13 +108,13 @@ const targetRule = computed(() => requiredTargetKind(project.taskType)?.code)
  */
 const featureSummary = computed(() => {
   if ((data.value?.features.length ?? 0) === 0) {
-    return { text: t('preprocess.noFeatureChosen'), tone: 'text-ink-soft' }
+    return { text: t('preprocess.tabular.noFeatureChosen'), tone: 'text-ink-soft' }
   }
   if ((plan.value?.usableFeatures ?? 0) === 0) {
-    return { text: t('preprocess.noUsableFeature'), tone: 'font-bold text-danger' }
+    return { text: t('preprocess.tabular.noUsableFeature'), tone: 'font-bold text-danger' }
   }
   return {
-    text: t('preprocess.featureSummary', plan.value?.usableFeatures ?? 0),
+    text: t('preprocess.tabular.featureSummary', plan.value?.usableFeatures ?? 0),
     tone: 'text-ink-soft',
   }
 })
@@ -419,7 +419,7 @@ async function applyTest(): Promise<void> {
     testAttaching.value = false
     openedTest.value = null
     manualTestChoice.value = null
-    toasts.push('success', 'preprocess.testDataApplied')
+    toasts.push('success', 'preprocess.tabular.testDataApplied')
   } catch (error) {
     toasts.pushError(error)
   } finally {
@@ -462,8 +462,8 @@ async function removeTest(): Promise<void> {
   -->
   <div v-if="settings && data && plan" class="grid gap-5 md:grid-cols-5">
     <section class="min-w-0 rounded-panel border border-line bg-surface p-4 md:col-span-3">
-      <h2 class="font-bold">{{ t('preprocess.columnsTitle') }}</h2>
-      <p class="mt-1 text-ink-soft">{{ t('preprocess.columnsLead') }}</p>
+      <h2 class="font-bold">{{ t('preprocess.tabular.columnsTitle') }}</h2>
+      <p class="mt-1 text-ink-soft">{{ t('preprocess.tabular.columnsLead') }}</p>
 
       <div class="mt-3">
         <ColumnPicker
@@ -483,17 +483,17 @@ async function removeTest(): Promise<void> {
       <!-- 빠진 행이 0이면 아무 말도 안 한다 (trainRowUsage가 그때 null이다).
            학생이 반드시 알고 있어야 하는 서술은 다른 컬러를 사용하여 주의를 끌어야 한다. -->
       <p v-if="trainRowUsage" class="mt-1 text-caution">
-        {{ t('preprocess.rowsUsable', trainRowUsage) }}
+        {{ t('preprocess.tabular.rowsUsable', trainRowUsage) }}
       </p>
     </section>
 
     <div class="flex min-w-0 flex-col gap-5 md:col-span-2">
       <section class="rounded-panel border border-line bg-surface p-4">
-        <h2 class="font-bold">{{ t('preprocess.cleaningTitle') }}</h2>
+        <h2 class="font-bold">{{ t('preprocess.tabular.cleaningTitle') }}</h2>
 
         <div class="mt-3 flex flex-col gap-4">
           <div>
-            <h3 class="font-bold text-ink-soft">{{ t('preprocess.missing') }}</h3>
+            <h3 class="font-bold text-ink-soft">{{ t('preprocess.tabular.missing') }}</h3>
             <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
               <label
                 v-for="strategy in MISSING_STRATEGIES"
@@ -510,11 +510,11 @@ async function removeTest(): Promise<void> {
                 {{ t(`missingStrategy.${strategy}`) }}
               </label>
             </div>
-            <p class="mt-1 text-ink-faint">{{ t('preprocess.missingNote') }}</p>
+            <p class="mt-1 text-ink-faint">{{ t('preprocess.tabular.missingNote') }}</p>
           </div>
 
           <div>
-            <h3 class="font-bold text-ink-soft">{{ t('preprocess.scaling') }}</h3>
+            <h3 class="font-bold text-ink-soft">{{ t('preprocess.tabular.scaling') }}</h3>
             <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
               <label
                 v-for="method in SCALING_METHODS"
@@ -531,11 +531,11 @@ async function removeTest(): Promise<void> {
                 {{ t(`scalingMethod.${method}`) }}
               </label>
             </div>
-            <p class="mt-1 text-ink-faint">{{ t('preprocess.scalingNote') }}</p>
+            <p class="mt-1 text-ink-faint">{{ t('preprocess.tabular.scalingNote') }}</p>
           </div>
 
           <div>
-            <h3 class="font-bold text-ink-soft">{{ t('preprocess.encoding') }}</h3>
+            <h3 class="font-bold text-ink-soft">{{ t('preprocess.tabular.encoding') }}</h3>
             <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
               <label
                 v-for="encoding in CATEGORICAL_ENCODINGS"
@@ -552,7 +552,7 @@ async function removeTest(): Promise<void> {
                 {{ t(`categoricalEncoding.${encoding}`) }}
               </label>
             </div>
-            <p class="mt-1 text-ink-faint">{{ t('preprocess.encodingNote') }}</p>
+            <p class="mt-1 text-ink-faint">{{ t('preprocess.tabular.encodingNote') }}</p>
           </div>
         </div>
       </section>
@@ -564,8 +564,8 @@ async function removeTest(): Promise<void> {
           슬롯으로 온다 - 둘이 붙어 있지만 소유자가 다르다 (open-decisions.md #22).
         -->
       <section class="rounded-panel border border-line bg-surface p-4">
-        <h2 class="font-bold">{{ t('preprocess.sampleTitle') }}</h2>
-        <p class="mt-1 text-ink-soft">{{ t('preprocess.sampleLead') }}</p>
+        <h2 class="font-bold">{{ t('preprocess.tabular.sampleTitle') }}</h2>
+        <p class="mt-1 text-ink-soft">{{ t('preprocess.tabular.sampleLead') }}</p>
 
         <!-- 양자택일이다. 세 번째 상태가 없어야 "일부만 뽑는데 몇 행인지 모르는" 칸이
                생기지 않는다 (아래 나누기 카드와 같은 규칙). -->
@@ -579,8 +579,8 @@ async function removeTest(): Promise<void> {
               @change="setSampling(undefined)"
             />
             <span class="flex flex-col">
-              <span class="font-bold">{{ t('preprocess.sampleAll') }}</span>
-              <span class="text-ink-faint">{{ t('preprocess.sampleAllNote') }}</span>
+              <span class="font-bold">{{ t('preprocess.tabular.sampleAll') }}</span>
+              <span class="text-ink-faint">{{ t('preprocess.tabular.sampleAllNote') }}</span>
             </span>
           </label>
 
@@ -595,19 +595,21 @@ async function removeTest(): Promise<void> {
                 @change="startSampling($event.target as HTMLInputElement)"
               />
               <span class="flex flex-col">
-                <span class="font-bold">{{ t('preprocess.samplePart') }}</span>
-                <span class="text-ink-faint">{{ t('preprocess.samplePartNote') }}</span>
+                <span class="font-bold">{{ t('preprocess.tabular.samplePart') }}</span>
+                <span class="text-ink-faint">{{ t('preprocess.tabular.samplePartNote') }}</span>
               </span>
             </label>
 
             <!-- **이유 없이 회색이면 고장으로 본다** (architecture.md §8.2). -->
             <p v-if="samplingLocked" class="mt-1 ml-6 text-caution">
-              {{ t('preprocess.sampleNeedsTarget') }}
+              {{ t('preprocess.tabular.sampleNeedsTarget') }}
             </p>
 
             <div v-if="sampleSummary" class="mt-3 ml-6">
               <label class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span class="font-bold text-ink-soft">{{ t('preprocess.sampleRows') }}</span>
+                <span class="font-bold text-ink-soft">{{
+                  t('preprocess.tabular.sampleRows')
+                }}</span>
                 <input
                   type="number"
                   class="w-28 rounded border border-line bg-surface px-2 py-1 text-right tabular-nums"
@@ -620,7 +622,7 @@ async function removeTest(): Promise<void> {
               <!-- **조용히 일부만 쓰지 않는다** - 안 쓰는 행이 몇 행인지 말한다
                      (architecture.md §8.9, §8.13.2의 산점도 상한과 같은 규칙). -->
               <p class="mt-1.5 text-caution">
-                {{ t('preprocess.sampleSummary', sampleSummary) }}
+                {{ t('preprocess.tabular.sampleSummary', sampleSummary) }}
               </p>
             </div>
           </div>
@@ -649,8 +651,10 @@ async function removeTest(): Promise<void> {
                 @change="chooseHoldout"
               />
               <span class="flex flex-col">
-                <span class="font-bold">{{ t('preprocess.testDataHoldout') }}</span>
-                <span class="text-ink-faint">{{ t('preprocess.testDataHoldoutNote') }}</span>
+                <span class="font-bold">{{ t('preprocess.tabular.testDataHoldout') }}</span>
+                <span class="text-ink-faint">{{
+                  t('preprocess.tabular.testDataHoldoutNote')
+                }}</span>
               </span>
             </label>
 
@@ -693,12 +697,14 @@ async function removeTest(): Promise<void> {
                 @change="chooseProvided"
               />
               <span class="flex flex-col">
-                <span class="font-bold">{{ t('preprocess.testDataProvided') }}</span>
-                <span class="text-ink-faint">{{ t('preprocess.testDataProvidedNote') }}</span>
+                <span class="font-bold">{{ t('preprocess.tabular.testDataProvided') }}</span>
+                <span class="text-ink-faint">{{
+                  t('preprocess.tabular.testDataProvidedNote')
+                }}</span>
               </span>
             </label>
             <p v-if="!targetChosen" class="mt-1 ml-6 text-caution">
-              {{ t('preprocess.testDataNeedsTarget') }}
+              {{ t('preprocess.tabular.testDataNeedsTarget') }}
             </p>
 
             <div
@@ -726,7 +732,7 @@ async function removeTest(): Promise<void> {
                   {{ t('data.tabular.change') }}
                 </AppButton>
                 <AppButton variant="secondary" :disabled="testBusy" @click="requestRemoveTest">
-                  {{ t('preprocess.testDataRemove') }}
+                  {{ t('preprocess.tabular.testDataRemove') }}
                 </AppButton>
               </div>
 
@@ -787,7 +793,7 @@ async function removeTest(): Promise<void> {
 
               <!-- 빠진 행이 0이면 아무 말도 안 한다 (testRowUsage가 그때 null이다). -->
               <p v-if="testRowUsage" class="text-ink-faint">
-                {{ t('preprocess.rowsUsable', testRowUsage) }}
+                {{ t('preprocess.tabular.rowsUsable', testRowUsage) }}
               </p>
             </div>
           </div>
@@ -811,8 +817,8 @@ async function removeTest(): Promise<void> {
   -->
   <AppDialog
     :open="testAttaching"
-    :title="t('preprocess.testDataAttachTitle')"
-    :description="t('preprocess.testDataAttachDescription', experimentCount)"
+    :title="t('preprocess.tabular.testDataAttachTitle')"
+    :description="t('preprocess.tabular.testDataAttachDescription', experimentCount)"
     @close="testAttaching = false"
   >
     <template #actions>
@@ -820,15 +826,15 @@ async function removeTest(): Promise<void> {
         {{ t('common.cancel') }}
       </AppButton>
       <AppButton variant="danger" :disabled="testBusy" :action="applyTest">
-        {{ t('preprocess.testDataAttachConfirm') }}
+        {{ t('preprocess.tabular.testDataAttachConfirm') }}
       </AppButton>
     </template>
   </AppDialog>
 
   <AppDialog
     :open="testRemoving"
-    :title="t('preprocess.testDataRemoveTitle')"
-    :description="t('preprocess.testDataRemoveDescription', experimentCount)"
+    :title="t('preprocess.tabular.testDataRemoveTitle')"
+    :description="t('preprocess.tabular.testDataRemoveDescription', experimentCount)"
     @close="testRemoving = false"
   >
     <template #actions>
@@ -836,7 +842,7 @@ async function removeTest(): Promise<void> {
         {{ t('common.cancel') }}
       </AppButton>
       <AppButton variant="danger" :disabled="testBusy" :action="removeTest">
-        {{ t('preprocess.testDataRemoveConfirm') }}
+        {{ t('preprocess.tabular.testDataRemoveConfirm') }}
       </AppButton>
     </template>
   </AppDialog>

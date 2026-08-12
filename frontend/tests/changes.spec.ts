@@ -108,7 +108,7 @@ describe('바뀐 값을 전후로 보여준다', () => {
     expect(changes).toEqual([
       {
         path: 'preprocessing.scaling',
-        labelKey: 'preprocess.scaling',
+        labelKey: 'preprocess.tabular.scaling',
         from: { kind: 'locale', key: 'scalingMethod.none' },
         to: { kind: 'locale', key: 'scalingMethod.standard' },
       },

@@ -54,7 +54,7 @@ function noteOf(column: ColumnPlan['columns'][number]): string | null {
     return t(`preprocess.${column.featureNote}`)
   }
   if (column.role === 'target' && column.targetCaution !== undefined) {
-    return t('preprocess.targetSingleValue')
+    return t('preprocess.tabular.targetSingleValue')
   }
   return null
 }
@@ -78,18 +78,18 @@ function onFeature(name: string, event: Event): void {
   <div class="flex flex-col gap-3">
     <div class="flex flex-wrap items-center gap-2">
       <AppButton variant="secondary" @click="emit('setAllFeatures', true)">
-        {{ t('preprocess.selectAll') }}
+        {{ t('preprocess.tabular.selectAll') }}
       </AppButton>
       <AppButton variant="secondary" @click="emit('setAllFeatures', false)">
-        {{ t('preprocess.clearAll') }}
+        {{ t('preprocess.tabular.clearAll') }}
       </AppButton>
     </div>
 
     <AppTable>
       <thead>
         <tr>
-          <th>{{ t('preprocess.roleTarget') }}</th>
-          <th>{{ t('preprocess.roleFeature') }}</th>
+          <th>{{ t('preprocess.tabular.roleTarget') }}</th>
+          <th>{{ t('preprocess.tabular.roleFeature') }}</th>
           <!--
             **이름 칸이 남는 폭을 전부 가진다.** 안 그러면 숫자 세 칸이 자리를 나눠 갖고
             열 이름이 글자마다 줄바꿈된다 — 사유가 붙은 줄에서 특히 그렇다.

@@ -149,21 +149,21 @@ const LABELS: Readonly<Record<string, { readonly labelKey: string; readonly desc
   {
     taskType: { labelKey: 'meta.taskType', describe: vocabulary('taskTypes') },
     runtime: { labelKey: 'train.pickRuntime', describe: vocabulary('runtimes') },
-    target: { labelKey: 'preprocess.roleTarget', describe: literal },
+    target: { labelKey: 'preprocess.tabular.roleTarget', describe: literal },
     // **특성만 `listOf`다.** 학생이 가장 자주 만지는 목록이고, 개수만 보고는 무엇을
     // 뺐는지 알 수 없어서 화면이 눌러 여는 자리를 준다 (results/ChangeList.vue).
-    features: { labelKey: 'preprocess.roleFeature', describe: listOf },
+    features: { labelKey: 'preprocess.tabular.roleFeature', describe: listOf },
     algorithms: { labelKey: 'train.chosenTitle', describe: countOf },
     'preprocessing.missing': {
-      labelKey: 'preprocess.missing',
+      labelKey: 'preprocess.tabular.missing',
       describe: vocabulary('missingStrategy'),
     },
     'preprocessing.scaling': {
-      labelKey: 'preprocess.scaling',
+      labelKey: 'preprocess.tabular.scaling',
       describe: vocabulary('scalingMethod'),
     },
     'preprocessing.categoricalEncoding': {
-      labelKey: 'preprocess.encoding',
+      labelKey: 'preprocess.tabular.encoding',
       describe: vocabulary('categoricalEncoding'),
     },
     'split.method': { labelKey: 'preprocess.testDataTitle', describe: vocabulary('splitMethod') },
@@ -172,7 +172,7 @@ const LABELS: Readonly<Record<string, { readonly labelKey: string; readonly desc
     'split.randomState': { labelKey: 'preprocess.randomState', describe: literal },
     // 뽑기를 껐을 때는 `null`이고 `literal`이 그것을 `absent`로 편다 — 그래서
     // "전체 사용 → 3,000행"과 그 반대가 둘 다 문장이 된다 (target과 같은 방식).
-    nSamples: { labelKey: 'preprocess.sampleRows', describe: literal },
+    nSamples: { labelKey: 'preprocess.tabular.sampleRows', describe: literal },
     /**
      * **이미지의 넷.** 학습이 이 함수로 오게 된 2026-08-12에 붙였다 — 그 전에는 쓸
      * 대상이 없어서 일부러 비워 두었다 (architecture.md §8.10).
