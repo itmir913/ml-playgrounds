@@ -514,16 +514,18 @@
     "created": "만든 날",
     "updated": "마지막 수정",
     "size": "용량",
-    "dataset": "데이터 파일",
-    "rows": "행",
-    "columns": "열",
     "taskType": "기계학습 유형",
-    "target": "타깃(Target)",
-    "features": "특성(Feature)",
     "algorithms": "선정한 모델",
     "runs": "학습한 모델",
     "none": "없음",
-    "countUnit": "{count}개"
+    "countUnit": "{count}개",
+    "tabular": {
+      "columns": "열",
+      "dataset": "데이터 파일",
+      "features": "특성(Feature)",
+      "rows": "행",
+      "target": "타깃(Target)"
+    }
   },
   "splitMethod": {
     "holdout": "나누기",

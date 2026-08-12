@@ -38,27 +38,27 @@ const data = computed(() => tabularDataOf(project.file?.document))
 
 <template>
   <div class="flex justify-between gap-4">
-    <dt class="shrink-0 font-bold text-ink-soft">{{ t('meta.dataset') }}</dt>
+    <dt class="shrink-0 font-bold text-ink-soft">{{ t('meta.tabular.dataset') }}</dt>
     <dd class="truncate">{{ dataset?.fileName ?? t('meta.none') }}</dd>
   </div>
 
   <div v-if="dataset" class="flex justify-between gap-4">
-    <dt class="font-bold text-ink-soft">{{ t('meta.rows') }}</dt>
+    <dt class="font-bold text-ink-soft">{{ t('meta.tabular.rows') }}</dt>
     <dd class="tabular-nums">{{ dataset.rows }}</dd>
   </div>
 
   <div v-if="dataset" class="flex justify-between gap-4">
-    <dt class="font-bold text-ink-soft">{{ t('meta.columns') }}</dt>
+    <dt class="font-bold text-ink-soft">{{ t('meta.tabular.columns') }}</dt>
     <dd class="tabular-nums">{{ dataset.columns }}</dd>
   </div>
 
   <div class="flex justify-between gap-4">
-    <dt class="font-bold text-ink-soft">{{ t('meta.target') }}</dt>
+    <dt class="font-bold text-ink-soft">{{ t('meta.tabular.target') }}</dt>
     <dd class="truncate">{{ data?.target ?? t('meta.none') }}</dd>
   </div>
 
   <div class="flex justify-between gap-4">
-    <dt class="font-bold text-ink-soft">{{ t('meta.features') }}</dt>
+    <dt class="font-bold text-ink-soft">{{ t('meta.tabular.features') }}</dt>
     <dd class="tabular-nums">{{ t('meta.countUnit', data?.features.length ?? 0) }}</dd>
   </div>
 </template>

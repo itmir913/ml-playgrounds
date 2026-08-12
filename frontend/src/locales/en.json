@@ -514,16 +514,18 @@
     "created": "Created",
     "updated": "Last change",
     "size": "Size",
-    "dataset": "Data",
-    "rows": "Rows",
-    "columns": "Columns",
     "taskType": "Task type",
-    "target": "Target",
-    "features": "Features",
     "algorithms": "Models",
     "runs": "Trained models",
     "none": "None",
-    "countUnit": "{count}"
+    "countUnit": "{count}",
+    "tabular": {
+      "columns": "Columns",
+      "dataset": "Data",
+      "features": "Features",
+      "rows": "Rows",
+      "target": "Target"
+    }
   },
   "splitMethod": {
     "holdout": "Split",

@@ -43,7 +43,7 @@ const usableFeatures = computed(() => {
 <template>
   <div class="flex items-baseline gap-1.5">
     <dt>
-      <AppBadge>{{ t('meta.target') }}</AppBadge>
+      <AppBadge>{{ t('meta.tabular.target') }}</AppBadge>
     </dt>
     <dd class="max-w-48 truncate font-bold text-ink">
       {{ data?.target ?? t('meta.none') }}
@@ -51,7 +51,7 @@ const usableFeatures = computed(() => {
   </div>
   <div class="flex items-baseline gap-1.5">
     <dt>
-      <AppBadge>{{ t('meta.features') }}</AppBadge>
+      <AppBadge>{{ t('meta.tabular.features') }}</AppBadge>
     </dt>
     <dd class="font-bold tabular-nums text-ink">{{ t('meta.countUnit', usableFeatures) }}</dd>
   </div>
