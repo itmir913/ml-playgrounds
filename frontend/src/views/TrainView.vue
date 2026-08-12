@@ -501,7 +501,7 @@ function leave(): void {
         <p v-if="preparing" class="min-w-0 font-bold" role="status">
           {{
             preparing.total > 0
-              ? t('train.preparingPhotos', {
+              ? t('train.image.preparingPhotos', {
                   done: preparing.completed,
                   total: preparing.total,
                 })

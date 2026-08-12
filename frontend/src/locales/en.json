@@ -284,9 +284,6 @@
     "emptyReason": "No project is open yet.",
     "failedHere": "Training failed. See why",
     "finished": "Training finished.",
-    "image": {
-      "locked": "Create at least two categories and add photos to them."
-    },
     "lastRun": "Last trained {at}",
     "lastRunFailed": "{count} model was not trained. | {count} models were not trained.",
     "leaveBody": "If you leave now, training stops and no result is kept. You will have to train again.",
@@ -308,7 +305,6 @@
     "outOfRange": "This is outside the usual range, so this model will fail to train.",
     "pickModel": "Model",
     "pickRuntime": "Where to train",
-    "preparingPhotos": "Preparing photos {done} of {total}",
     "progress": "{completed} of {total} models trained.",
     "range": "{min} – {max}",
     "removeModel": "Remove",
@@ -319,6 +315,10 @@
     "taskChanged": "Some models were dropped because they do not fit the task type you chose. ({names})",
     "taskTitle": "Task type",
     "tuning": "Change the settings",
+    "image": {
+      "locked": "Create at least two categories and add photos to them.",
+      "preparingPhotos": "Preparing photos {done} of {total}"
+    },
     "tabular": {
       "locked": "Choose the target and the features first."
     }

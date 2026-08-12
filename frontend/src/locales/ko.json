@@ -284,9 +284,6 @@
     "emptyReason": "아직 프로젝트를 열지 않았습니다.",
     "failedHere": "학습에 실패했습니다. 이유 보기",
     "finished": "학습이 끝났습니다.",
-    "image": {
-      "locked": "범주를 둘 이상 만들고 사진을 넣어 주세요."
-    },
     "lastRun": "마지막 학습 {at}",
     "lastRunFailed": "모델 {count}개가 학습되지 않았습니다.",
     "leaveBody": "지금 나가면 학습이 멈추고 결과가 남지 않습니다. 다시 학습해야 합니다.",
@@ -308,7 +305,6 @@
     "outOfRange": "눈금 밖의 값이라 이 모델은 학습에 실패합니다.",
     "pickModel": "모델",
     "pickRuntime": "어디서 학습할까",
-    "preparingPhotos": "사진 준비 중 {done}/{total}",
     "progress": "{total}개 중 {completed}개 모델이 학습되었습니다.",
     "range": "{min} ~ {max}",
     "removeModel": "빼기",
@@ -319,6 +315,10 @@
     "taskChanged": "고른 유형에서 쓸 수 없어 선택에서 빠진 모델이 있습니다. ({names})",
     "taskTitle": "기계학습 유형",
     "tuning": "설정 바꾸기",
+    "image": {
+      "locked": "범주를 둘 이상 만들고 사진을 넣어 주세요.",
+      "preparingPhotos": "사진 준비 중 {done}/{total}"
+    },
     "tabular": {
       "locked": "타깃(Target)과 특성(Feature)을 먼저 정해 주세요."
     }
