@@ -117,7 +117,6 @@ describe('로케일 파일', () => {
       'client',
       'steps',
       'taskTypes',
-      'nav',
       'common',
       'algorithms',
       'runtimes',
@@ -475,5 +474,78 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
       }
     }
     expect(empty).toEqual([])
+  })
+
+  /**
+   * **아직 화면이 없는 기능의 어휘.** 여기 있는 것은 "안 쓰이는 것이 정상"이라는 선언이고,
+   * 목록에 없는데 안 불리면 아래 검사가 실패한다.
+   *
+   * **지우지 않고 남기는 이유는 문구가 이미 정해졌기 때문이다.** 무결성 확인 화면과
+   * 백엔드 큐는 어휘를 먼저 못 박아 둔 자리라(`docs/architecture.md`), 화면을 만들 때
+   * 다시 짓게 하면 같은 것을 두 번 정하게 된다.
+   *
+   * **화면을 붙이는 사람이 여기서 자기 줄을 지운다.** 안 지워도 아무 일이 안 일어나는
+   * 것이 이 목록의 유일한 약점이라, 줄마다 언제 지울 수 있는지를 적어 둔다.
+   */
+  const NOT_ON_SCREEN_YET: readonly string[] = [
+    // 백엔드 큐의 단계. 자가호스팅 백엔드가 서면 상태 표시줄이 부른다.
+    'stages.',
+    // 무결성 확인과 재실행 대조. 교사용 확인 화면이 V7이다 (roadmap.md).
+    'fileHash.',
+    'entryHash.',
+    'reproduction.',
+    // 모델이 파일에 안 담긴 사유. 지금은 담긴 개수만 말하고 사유는 아무 데도 안 뜬다.
+    'modelOmission.',
+    // 나누기 방식의 이름. 요약이 아직 이 축을 안 보인다.
+    'splitMethod.',
+    // 프로젝트 정보 화면의 제목. 지금은 대화상자 안에 항목만 있다.
+    'identity.title',
+    // 포트폴리오 제출 상태. 게시글 모양이 정해지면 쓴다 (open-decisions.md #23).
+    'project.done',
+    'project.locked',
+  ]
+
+  /**
+   * **아무 데서도 안 불리는 문장을 두지 않는다** (docs/i18n.md의 CI 목록).
+   *
+   * 위의 "부르는 키가 다 있는가"와 **반대 방향**이다. 화면이 바뀌면 참조만 사라지고
+   * 문장은 두 언어에 그대로 남는다 — 실제로 15개가 그렇게 남아 있었고(2026-08-12에
+   * 지웠다), 그중에는 **화면 설계가 바뀌어 못 쓰게 된 문장**과 **한 번도 안 쓰인
+   * 문장**이 섞여 있었다. 아무도 못 보는데 번역 감사와 새 언어 추가에는 짐이 된다.
+   */
+  /**
+   * 따옴표 안에 통째로 적힌 것 전부. **`t()` 안만 보면 안 된다** — 등록부가 키를 값으로
+   * 들고 있고(`kinds.ts`의 `labelKey`·`stepText`), 토스트도 코드가 키를 넘긴다.
+   * 키가 아닌 문자열(`'data.csv'`)은 로케일에 없으므로 저절로 걸러진다.
+   */
+  function literalKeys(source: string): string[] {
+    return [...source.matchAll(/['"`]([A-Za-z][\w-]*(?:\.[\w-]+)+)['"`]/g)].map(
+      (match) => match[1] ?? '',
+    )
+  }
+
+  /**
+   * 이름을 조립하는 자리의 앞부분 — **`t()` 안이 아닌 것까지 본다.** 키를 만들어
+   * 돌려주는 함수가 있다(`ml/results.ts`의 `whereTrainedKeyOf`, `project/portfolio.ts`).
+   * 그것까지 세지 않으면 멀쩡히 쓰이는 문장이 "안 불린다"로 잡힌다.
+   */
+  function builtPrefixes(source: string): string[] {
+    const pattern = new RegExp(BACKTICK + String.raw`([A-Za-z][\w.-]*\.)\$\{`, 'g')
+    return [...source.matchAll(pattern)].map((match) => match[1] ?? '')
+  }
+
+  it('아무 데서도 안 불리는 키가 없다', () => {
+    const used = new Set<string>()
+    const prefixes: string[] = [...NOT_ON_SCREEN_YET]
+    for (const path of sourceFiles(SRC)) {
+      const source = readFileSync(path, 'utf-8')
+      for (const key of literalKeys(source)) used.add(key)
+      prefixes.push(...builtPrefixes(source))
+    }
+
+    const orphans = [...english.keys()].filter(
+      (key) => !used.has(key) && !prefixes.some((prefix) => key.startsWith(prefix)),
+    )
+    expect(orphans).toEqual([])
   })
 })

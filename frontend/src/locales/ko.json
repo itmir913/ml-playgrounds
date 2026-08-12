@@ -1,12 +1,9 @@
 {
   "app": {
     "name": "Machine Learning Playgrounds",
-    "tagline": "인공지능을 자유롭게 즐겨 보세요. 데이터만 있으면 누구나 기계학습 모델을 만들 수 있습니다.",
-    "short": "ML"
+    "tagline": "인공지능을 자유롭게 즐겨 보세요. 데이터만 있으면 누구나 기계학습 모델을 만들 수 있습니다."
   },
-  "nav": {
-    "projects": "프로젝트 목록"
-  },
+  "nav": {},
   "dataTypes": {
     "image": "이미지 데이터",
     "tabular": "표 데이터"
@@ -97,7 +94,6 @@
       "deleteDescription": "선택한 사진 {count}장을 프로젝트에서 지웁니다. 되돌릴 수 없습니다.",
       "deletePhotos": "사진 지우기",
       "deleteTitle": "사진을 지울까요?",
-      "dropHint": "사진이나 압축 파일을 여기에 끌어다 놓으세요.",
       "duplicates": "이미 있는 사진 {count}장은 넘어갔습니다.",
       "emptyCategory": "이 범주에는 아직 사진이 없습니다. 사진 파일을 이곳에 끌어다 놓거나 [여기에 사진 추가]를 누르세요.",
       "emptyNext": "개·고양이처럼 구분하고 싶은 이름을 만들고, 그 칸에 사진을 넣으면 됩니다. 사진을 먼저 올려서 나중에 나눠도 됩니다.",
@@ -127,16 +123,13 @@
       "use": "사용"
     },
     "tabular": {
-      "accepted": "CSV(.csv)와 엑셀(.xlsx) 파일을 불러올 수 있습니다.",
       "applied": "이 데이터를 사용합니다.",
       "change": "데이터 바꾸기",
       "choose": "파일 선택",
       "columnName": "열 이름",
       "columns": "열 수",
-      "current": "현재 데이터",
       "dropHint": "여기에 CSV나 엑셀 파일을 끌어다 놓으세요.",
       "droppedColumns": "새 데이터에 없는 열이라 선택에서 빠졌습니다. ({names})",
-      "emptyNext": "파일을 불러오면 여기에 표로 나타납니다.",
       "emptyReason": "아직 불러온 데이터가 없습니다.",
       "encoding": "문자 인코딩",
       "fileName": "파일 이름",
@@ -145,7 +138,6 @@
       "kind": "자료형",
       "missing": "결측치",
       "noHeaderNote": "열 이름이 없어서 A, B, C… 로 표시합니다.",
-      "preview": "미리보기",
       "previewNote": "처음 {count}줄만 보여 줍니다.",
       "previewTitle": "데이터 미리보기",
       "purpose": "데이터 파일을 불러오고 어떤 열이 있는지 확인합니다.",
@@ -217,8 +209,6 @@
   "preprocess": {
     "emptyReason": "아직 불러온 데이터가 없습니다.",
     "emptyNext": "데이터 단계에서 파일을 불러오면 여기에서 무엇을 예측할지 고를 수 있습니다.",
-    "dataSide": "데이터",
-    "modelSide": "모델",
     "testDataTitle": "테스트 데이터(Test Data)",
     "testDataLead": "학습을 마친 기계학습 모델의 성능을 평가하기 위한 데이터를 선정합니다.",
     "testSize": "샘플링할 데이터 비율",
@@ -333,15 +323,12 @@
     "name": "프로젝트 이름",
     "nameHint": "프로젝트를 파일로 저장할 때 파일의 이름으로 사용됩니다.",
     "create": "만들기",
-    "open": "열기",
     "delete": "삭제",
     "deleteTitle": "이 프로젝트를 지울까요?",
     "deleteDescription": "데이터와 학습 결과가 함께 사라집니다. 되돌릴 수 없습니다. ({name})",
-    "noDataYet": "데이터 없음",
     "unreadable": "열 수 없는 프로젝트",
     "updatedAt": "마지막으로 작업한 때",
     "size": "크기",
-    "loading": "불러오는 중입니다.",
     "storageNote": "프로젝트는 이 컴퓨터에 임시로 보관됩니다. 파일로 저장하면 영구적으로 보관할 수 있고, 다른 컴퓨터에서도 이어서 진행할 수 있습니다.",
     "saved": "이 컴퓨터의 프로젝트",
     "savedCount": "이 컴퓨터 브라우저에 프로젝트가 {count}개 있습니다"
@@ -487,7 +474,6 @@
     "exportDone": "파일로 저장했습니다. USB나 클라우드 등 안전한 위치에 보관해 주세요.",
     "exportDropped": "크기 때문에 담지 못한 모델이 있습니다. 지표는 그대로 남습니다. ({count}개)",
     "open": "파일 불러오기",
-    "openDone": "파일을 열었습니다.",
     "openModified": "저장한 뒤에 변경된 흔적이 있는 파일입니다.",
     "homeTitle": "대시보드",
     "homeLead": "왼쪽에서 단계를 고르거나, 아래에서 이어서 하세요.",
@@ -646,7 +632,6 @@
     "clusterAnswerNote": "군집 번호는 모델마다 따로 매겨집니다. 다른 학습의 같은 번호는 같은 군집이 아닙니다.",
     "probability": "범주별 확률",
     "modelName": "{algorithm} · {runtime}",
-    "unusable": "이 모델은 지금 쓸 수 없습니다.",
     "notSaved": "예측한 값과 답은 프로젝트 파일에 저장되지 않습니다. 여기는 마음껏 시험해 보는 자리입니다.",
     "filterExperiments": "학습 차수",
     "filterAlgorithms": "모델",
@@ -693,7 +678,6 @@
       "inputChoiceValueNote": "표에 새 줄 하나를 만들어 답을 봅니다.",
       "inputLead": "표에 새 줄을 하나 넣는다고 생각하면 됩니다. 값을 채우고 [예측]을 누르세요.",
       "inputTitle": "새로운 값",
-      "noSample": "가져올 줄이 없습니다.",
       "pickOption": "고르세요",
       "probabilityColumn": "{model} 확률",
       "purpose": "표에 새 줄을 하나 넣으면 모델이 답을 내놓습니다.",

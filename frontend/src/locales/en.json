@@ -1,12 +1,9 @@
 {
   "app": {
     "name": "Machine Learning Playgrounds",
-    "tagline": "Play freely with AI. With just your own data, anyone can build a machine learning model.",
-    "short": "ML"
+    "tagline": "Play freely with AI. With just your own data, anyone can build a machine learning model."
   },
-  "nav": {
-    "projects": "Projects"
-  },
+  "nav": {},
   "dataTypes": {
     "image": "Image data",
     "tabular": "Table data"
@@ -97,7 +94,6 @@
       "deleteDescription": "This removes the {count} selected photo from the project. It cannot be undone. | This removes the {count} selected photos from the project. It cannot be undone.",
       "deletePhotos": "Delete photos",
       "deleteTitle": "Delete these photos?",
-      "dropHint": "Drop photos or a zip file here.",
       "duplicates": "Skipped {count} photo you already have. | Skipped {count} photos you already have.",
       "emptyCategory": "No photos in this category yet. Drop photo files here, or use [Add photos here].",
       "emptyNext": "Name what you want to tell apart — dog, cat — then add photos to that box. You can also add photos first and sort them later.",
@@ -127,16 +123,13 @@
       "use": "Use these"
     },
     "tabular": {
-      "accepted": "CSV (.csv) and Excel (.xlsx) files can be read.",
       "applied": "This data is now in use.",
       "change": "Replace the data",
       "choose": "Choose a file",
       "columnName": "Column",
       "columns": "Columns",
-      "current": "Data in use",
       "dropHint": "Drop a CSV or Excel file here.",
       "droppedColumns": "Some chosen columns are not in the new data, so they were dropped. ({names})",
-      "emptyNext": "Load a file and it will appear here.",
       "emptyReason": "No data yet.",
       "encoding": "Text encoding",
       "fileName": "File",
@@ -145,7 +138,6 @@
       "kind": "Type",
       "missing": "Missing",
       "noHeaderNote": "There are no column names, so they are called A, B, C and so on.",
-      "preview": "Preview",
       "previewNote": "Showing the first {count} row. | Showing the first {count} rows.",
       "previewTitle": "Data preview",
       "purpose": "Load a data file and see what columns it has.",
@@ -217,8 +209,6 @@
   "preprocess": {
     "emptyReason": "No data yet.",
     "emptyNext": "Load a file in the data step and you can choose what to predict here.",
-    "dataSide": "Data",
-    "modelSide": "Models",
     "testDataTitle": "Test Data",
     "testDataLead": "Choose data to evaluate your trained model's performance.",
     "testSize": "Share of data to sample",
@@ -333,15 +323,12 @@
     "name": "Project name",
     "nameHint": "Used as the file name when the project is saved to a file.",
     "create": "Create",
-    "open": "Open",
     "delete": "Delete",
     "deleteTitle": "Delete this project?",
     "deleteDescription": "Its data and training results go with it. This cannot be undone. ({name})",
-    "noDataYet": "No data yet",
     "unreadable": "This project cannot be opened",
     "updatedAt": "Last worked on",
     "size": "Size",
-    "loading": "Loading.",
     "storageNote": "Projects are held temporarily on this computer. Saving one to a file keeps it permanently, and lets you carry on from another computer.",
     "saved": "Projects on this computer",
     "savedCount": "This browser holds {count} project | This browser holds {count} projects"
@@ -487,7 +474,6 @@
     "exportDone": "Saved to a file. Please keep it somewhere safe, such as a USB drive or cloud storage.",
     "exportDropped": "Some models were too large to include. Their scores are still there. ({count})",
     "open": "Open a file",
-    "openDone": "The file is open.",
     "openModified": "This file shows signs of having been changed after it was saved.",
     "homeTitle": "Dashboard",
     "homeLead": "Pick a step on the left, or carry on below.",
@@ -646,7 +632,6 @@
     "clusterAnswerNote": "Cluster numbers are assigned separately by each model. The same number from a different training run is not the same cluster.",
     "probability": "Probability by class",
     "modelName": "{algorithm} · {runtime}",
-    "unusable": "This model cannot be used right now.",
     "notSaved": "The values you try and the answers you get are not saved into the project file. This is a place to experiment freely.",
     "filterExperiments": "Training round",
     "filterAlgorithms": "Model",
@@ -693,7 +678,6 @@
       "inputChoiceValueNote": "Add one row to the table and see the answer.",
       "inputLead": "Think of it as adding one row to your table. Fill the boxes and press [Predict].",
       "inputTitle": "New values",
-      "noSample": "There is no row to take.",
       "pickOption": "Choose one",
       "probabilityColumn": "{model} probability",
       "purpose": "Add a new row to the table and the model answers it.",
