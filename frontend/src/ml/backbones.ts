@@ -13,9 +13,10 @@
  * **"이 백본으로 무엇을 할 수 있나"는 여기 적는다. 화면에 적지 마라** (§9). 이미지
  * 회귀가 막히는 것은 화면의 `v-if`가 아니라 `tasks`가 짧기 때문이다.
  *
- * **가중치는 저장소에 없다.** `scripts/fetch-backbone.mjs`가 빌드와 개발 서버 앞에서
- * 받아 `public/`에 놓는다. `modelPath`는 그 자리를 가리킨다 — 둘이 갈리면 개발 서버에서
- * 404가 나고 빌드는 통과한다.
+ * **가중치는 우리가 서빙하지 않는다.** 학생 브라우저가 원본에서 직접 받는다
+ * (open-decisions.md "백본을 붙이는 방법", 2026-08-12에 뒤집었다) — 우리 Pages로
+ * 서빙하면 한 반 한 차시가 335MB이고, 컴퓨터실 PC는 리셋을 전제라 캐시도 안 남는다.
+ * `scripts/fetch-backbone.mjs`는 이제 **CI가 원본을 감시하는 장치**다.
  */
 
 import type { TaskType } from '../project/schema'
@@ -47,8 +48,13 @@ export interface BackboneSpec {
    * 자르지 않아도 된다.
    */
   readonly embeddingNode: string
-  /** `loadGraphModel`에 주는 주소. `scripts/fetch-backbone.mjs`가 놓는 자리다. */
-  readonly modelPath: string
+  /**
+   * `loadGraphModel`에 주는 주소. **원본의 절대 주소다** — 우리 산출물에 없다.
+   *
+   * `scripts/fetch-backbone.mjs`가 같은 주소에서 받아 SHA-256을 대조하므로, 원격이
+   * 조용히 바뀌면 학생이 아니라 **CI가 먼저 운다.**
+   */
+  readonly modelUrl: string
   /**
    * 화소값을 이 범위로 옮겨 넣는다. 백본마다 다르고, **틀리면 조용히 성적만 나빠진다** —
    * 예외가 안 난다.
@@ -79,7 +85,8 @@ export const BACKBONES: readonly BackboneSpec[] = [
     canonicalSize: 224,
     embeddingDim: 1280,
     embeddingNode: 'module_apply_default/MobilenetV2/Logits/AvgPool',
-    modelPath: 'backbones/mobilenet-v2/model.json',
+    modelUrl:
+      'https://storage.googleapis.com/tfjs-models/savedmodel/mobilenet_v2_1.0_224/model.json',
     inputRange: [-1, 1],
     tasks: ['classification', 'clustering'],
   },

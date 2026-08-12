@@ -7,8 +7,8 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "npm run backbones && vite",
-    "build": "npm run backbones && vue-tsc --build && vite build",
+    "dev": "vite",
+    "build": "vue-tsc --build && vite build",
     "backbones": "node scripts/fetch-backbone.mjs",
     "preview": "vite preview",
     "test": "vitest run",

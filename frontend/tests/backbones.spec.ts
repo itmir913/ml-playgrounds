@@ -32,11 +32,16 @@ interface ModelJson {
   }[]
 }
 
-function readModelJson(modelPath: string): ModelJson {
-  const path = fileURLToPath(new URL(`../public/${modelPath}`, import.meta.url))
+/**
+ * 원본에서 받아 둔 `model.json`. **산출물에는 없다** — 학생 브라우저가 원본에서 직접
+ * 받으므로(open-decisions.md "백본을 붙이는 방법") 이 파일이 있는 곳은
+ * `scripts/fetch-backbone.mjs`가 놓는 캐시뿐이고, 쓰는 것은 이 검사뿐이다.
+ */
+function readModelJson(id: string): ModelJson {
+  const path = fileURLToPath(new URL(`../.cache/backbones/${id}/model.json`, import.meta.url))
   if (!existsSync(path)) {
     throw new Error(
-      `백본 가중치가 없다: ${modelPath}\n` +
+      `백본 가중치가 없다: ${id}\n` +
         `저장소에 두지 않는 파일이다. \`npm run backbones\`로 받아라.`,
     )
   }
@@ -98,7 +103,7 @@ describe('백본 등록부', () => {
 
 describe('백본 명세는 model.json과 맞는다', () => {
   it.each(BACKBONES.map((backbone) => [backbone.id, backbone] as const))('%s', (_id, backbone) => {
-    const model = readModelJson(backbone.modelPath)
+    const model = readModelJson(backbone.id)
     const nodes = model.modelTopology.node
 
     // 입력 크기 — 정본을 이 크기로 굽는다.

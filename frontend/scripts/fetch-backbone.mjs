@@ -1,13 +1,18 @@
 /**
- * 백본 가중치를 받아 `public/`에 둔다. **빌드와 개발 서버 앞에 붙는다** (package.json).
+ * 백본 가중치를 받아 **원격을 감시한다.** 산출물에 넣는 장치가 아니다.
  *
- * **저장소에 12.4MB 바이너리를 넣지 않는다** (open-decisions.md "백본을 붙이는 방법").
- * 대신 여기서 받아 산출물에 넣는다 — 수업 중에 외부 호스트를 타면 학교 방화벽 하나에
- * 이미지 수업이 통째로 멈춘다.
+ * **가중치는 학생 브라우저가 원본에서 직접 받는다** (open-decisions.md "백본을 붙이는
+ * 방법", 2026-08-12에 뒤집었다). 우리 Pages로 서빙하면 한 반 한 차시가 335MB이고,
+ * 컴퓨터실 PC는 리셋을 전제라 캐시가 차시마다 사라진다 — 전국 단위에서 월 100GB
+ * 소프트 상한에 며칠이면 닿는다.
  *
- * **SHA-256이 안 맞으면 빌드를 세운다.** 원격 파일이 조용히 바뀌면 학생 파일의
- * `backboneId`가 가리키는 것이 달라지고, 그 순간 재현 가능성이 무너진다. 경고로 두면
- * 아무도 안 본다.
+ * **그래서 여기서 받은 파일은 `dist/`에 안 들어간다.** `public/`이 아니라 캐시
+ * 디렉터리에 놓고, 쓰는 것은 `tests/backbones.spec.ts` 하나다 — 등록부에 적힌
+ * 노드 이름과 임베딩 차원을 **실제 `model.json`과 대조한다.**
+ *
+ * **SHA-256이 안 맞으면 CI가 선다.** 원격 파일이 조용히 바뀌면 학생 파일의
+ * `backboneId`가 가리키는 것이 달라지고, 그 순간 재현 가능성이 무너진다. 학생
+ * 브라우저는 해시를 확인하지 않으므로, **그 순간을 잡는 자리가 여기뿐이다.**
  *
  * 이미 받아 둔 파일은 해시만 확인하고 넘어간다. 네트워크를 매번 타지 않는다.
  *
@@ -23,11 +28,11 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const OUT_ROOT = join(HERE, '..', 'public', 'backbones')
+const OUT_ROOT = join(HERE, '..', '.cache', 'backbones')
 
 /**
- * 받을 것들. **`ml/backbones.ts`의 `weightsPath`와 같은 자리를 가리켜야 한다** —
- * 여기가 놓는 곳과 앱이 찾는 곳이 갈리면 개발 서버에서는 404, 빌드는 통과다.
+ * 받을 것들. **`ml/backbones.ts`의 `modelUrl`과 같은 원본을 가리켜야 한다** — 갈리면
+ * 우리는 A를 감시하고 학생은 B를 받는다.
  */
 const BACKBONES = [
   {

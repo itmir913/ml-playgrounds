@@ -31,13 +31,6 @@ export interface EmbedOptions {
   onState?: (state: EngineState) => void
   /** 사진 하나가 끝날 때마다. 백분율은 받는 쪽이 만든다. */
   onProgress?: (completed: number, total: number) => void
-  /**
-   * `model.json`을 어디서 찾을지 푸는 방법. 기본은 문서 기준이다.
-   *
-   * **`base`가 `'./'`이므로 문서를 기준으로 풀어야 한다** — 앱이 Pages의 하위 경로에
-   * 있든 도커의 루트에 있든 같은 산출물이 돌아야 한다 (CLAUDE.md §2).
-   */
-  resolveUrl?: (path: string) => string
 }
 
 export interface EmbedResult {
@@ -52,9 +45,6 @@ export interface EmbedHandle {
   cancel: () => void
 }
 
-const documentUrl = (path: string): string =>
-  new URL(path, typeof document === 'undefined' ? location.href : document.baseURI).href
-
 /**
  * 워커에서 임베딩을 뽑는다.
  *
@@ -67,7 +57,6 @@ export function embedImages(
   options: EmbedOptions,
 ): EmbedHandle {
   const worker = options.createWorker()
-  const resolvePath = options.resolveUrl ?? documentUrl
 
   let resolve!: (value: EmbedResult) => void
   let reject!: (reason: ClientError) => void
@@ -135,7 +124,7 @@ export function embedImages(
   worker.postMessage({
     type: 'embed',
     backboneId,
-    modelUrl: resolvePath(spec.modelPath),
+    modelUrl: spec.modelUrl,
     images,
   })
 

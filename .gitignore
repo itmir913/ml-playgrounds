@@ -75,7 +75,7 @@ frontend/dist/
 frontend/dist-ssr/
 # 백본 가중치는 빌드가 받는다 (frontend/scripts/fetch-backbone.mjs).
 # 저장소에 12.4MB 바이너리를 넣지 않는다 - git 이력에 들어간 것은 다시 못 뺀다.
-frontend/public/backbones/
+frontend/.cache/
 *.local
 .turbo/
 

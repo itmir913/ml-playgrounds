@@ -439,7 +439,7 @@
     "ALGORITHM_NOT_AVAILABLE_HERE": "이 모델은 여기서 학습할 수 없습니다.",
     "DATASET_TOO_LARGE_FOR_BROWSER": "데이터가 커서 내 컴퓨터에서는 학습할 수 없습니다. (최대 {limitRows}행)",
     "ENGINE_NOT_READY": "여기서 학습하려면 준비가 먼저 끝나야 합니다.",
-    "BACKBONE_UNAVAILABLE": "이미지 학습 준비를 마치지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+    "BACKBONE_UNAVAILABLE": "이미지 학습 준비를 마치지 못했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요. 학교 네트워크가 막고 있다면 선생님께 말씀드려야 합니다.",
     "PROJECT_FILE_NOT_ZIP": "이 파일은 프로젝트 파일이 아닙니다.",
     "PROJECT_FILE_ENTRY_MISSING": "프로젝트 파일에 필요한 내용이 들어 있지 않습니다. ({entry})",
     "PROJECT_FILE_INVALID": "프로젝트 파일의 내용을 읽을 수 없습니다. ({path})",

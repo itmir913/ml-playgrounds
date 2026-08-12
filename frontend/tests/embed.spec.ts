@@ -211,13 +211,15 @@ const images = (count: number) =>
   Array.from({ length: count }, () => new Uint8Array(new ArrayBuffer(4)))
 
 describe('임베딩 클라이언트', () => {
-  it('등록부의 상대 경로를 문서 기준으로 풀어 넘긴다', () => {
+  /**
+   * **주소를 손대지 않는다.** 등록부의 것은 원본의 절대 주소이고, 우리 산출물 어디에도
+   * 그 파일이 없다 — 문서 기준으로 풀던 코드가 남아 있으면 앱 주소 밑을 뒤져 404가 난다.
+   */
+  it('등록부의 원본 주소를 그대로 넘긴다', () => {
     const worker = new FakeWorker()
-    embedImages(DEFAULT_BACKBONE_ID, images(1), {
-      createWorker: () => worker,
-      resolveUrl: (path) => `https://example.test/ml-playgrounds/${path}`,
-    })
-    expect(worker.posted[0]?.modelUrl).toBe(`https://example.test/ml-playgrounds/${spec.modelPath}`)
+    embedImages(DEFAULT_BACKBONE_ID, images(1), { createWorker: () => worker })
+    expect(worker.posted[0]?.modelUrl).toBe(spec.modelUrl)
+    expect(spec.modelUrl.startsWith('https://')).toBe(true)
   })
 
   it('준비와 진행을 흘리고 결과를 준 뒤 워커를 끝낸다', async () => {
