@@ -102,6 +102,16 @@ const PANELS: readonly MetricPanel[] = [
     hasData: (run) => run.model !== undefined,
     panel: defineAsyncComponent(() => import('@/views/results/panels/ClusterResultPanel.vue')),
   },
+  {
+    id: 'image-cluster-result',
+    // **묶인 사진을 그대로 보여준다** (open-decisions.md #28-8). 위 판의 산점도 자리가
+    // 여기서는 사진 그리드다 — `v-if`가 아니라 등록부 줄 하나로 갈린다.
+    dataTypes: { tabular: false, image: true },
+    taskTypes: { classification: false, regression: false, clustering: true },
+    // 위 판과 같은 사정이다 — 배정은 파일에 안 담기고 모델로 되계산한다.
+    hasData: (run) => run.model !== undefined,
+    panel: defineAsyncComponent(() => import('@/views/results/panels/ImageClusterPanel.vue')),
+  },
 ]
 
 /**
