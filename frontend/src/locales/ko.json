@@ -669,6 +669,12 @@
     "tableTitle": "예측 결과",
     "showFeatures": "특성 값 보기",
     "computing": "계산하는 중입니다.",
-    "download": "예측 결과 CSV로 내려받기"
+    "download": "예측 결과 CSV로 내려받기",
+    "image": {
+      "add": "사진 올리기",
+      "emptyNext": "예측할 사진을 올리면 모델들이 각각 답을 냅니다.",
+      "emptyReason": "아직 올린 사진이 없습니다.",
+      "photo": "예측할 사진"
+    }
   }
 }

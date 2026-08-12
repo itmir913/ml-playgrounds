@@ -57,6 +57,14 @@ export interface DataKind {
    * "특성 n개"는 표에만 있는 말이고, 이미지에는 타깃 열이 없다.
    */
   readonly trainContext: Component
+  /**
+   * 예측 화면에서 이 종류를 다루는 작업 공간.
+   *
+   * **표는 입력이 양자택일이고 이미지는 아니다** (open-decisions.md "이미지 예측 화면") —
+   * 사진에는 "손으로 채우기"에 해당하는 것이 없어서 고를 갈래가 안 생긴다. 판이
+   * 갈리는 이유가 문구가 아니라 **동작의 수**다.
+   */
+  readonly predictPanel: Component
 }
 
 /**
@@ -72,6 +80,7 @@ export const DATA_KINDS: readonly DataKind[] = [
     prepPanel: defineAsyncComponent(() => import('@/views/preprocess/TabularPrepPanel.vue')),
     prepContext: defineAsyncComponent(() => import('@/views/preprocess/TabularPrepContext.vue')),
     trainContext: defineAsyncComponent(() => import('@/views/train/TabularTrainContext.vue')),
+    predictPanel: defineAsyncComponent(() => import('@/views/predict/TabularPredictPanel.vue')),
   },
   {
     dataType: 'image',
@@ -81,6 +90,7 @@ export const DATA_KINDS: readonly DataKind[] = [
     prepPanel: defineAsyncComponent(() => import('@/views/preprocess/ImagePrepPanel.vue')),
     prepContext: defineAsyncComponent(() => import('@/views/preprocess/ImagePrepContext.vue')),
     trainContext: defineAsyncComponent(() => import('@/views/train/ImageTrainContext.vue')),
+    predictPanel: defineAsyncComponent(() => import('@/views/predict/ImagePredictPanel.vue')),
   },
 ]
 

@@ -188,6 +188,39 @@ describe('범주를 옮기고 고친다', () => {
   })
 
   /**
+   * **예측 사진은 답을 모르는 사진이라 범주에 못 넣는다** (mlpx-spec.md §1.2).
+   * 범주 폴더가 한 겹 없고 범주 목록도 안 건드린다.
+   */
+  it('예측 자리에 앉힌 사진은 범주를 안 만든다', () => {
+    const project = addImages(emptyProject(), [baked('a', '개')], {
+      canonicalSize: SIZE,
+      now: NOW,
+      role: 'predict',
+    }).project
+    expect(imageCategories(project)).toEqual([])
+    expect(readImages(project, 'predict')).toHaveLength(1)
+    // 훈련 자리는 그대로 비어 있다.
+    expect(readImages(project)).toEqual([])
+    expect(dataSettings('image', project.document.settings).predictDataset).toBeDefined()
+  })
+
+  /**
+   * 훈련에 쓴 사진을 예측으로 올리는 것은 학생이 일부러 하는 일이다 — "이 사진은 뭐라고
+   * 답하지?". 없는 것으로 다루면 아무 일도 안 일어난 것처럼 보인다.
+   */
+  it('같은 사진이 훈련과 예측 양쪽에 설 수 있다', () => {
+    const first = withPhotos({ hash: 'a', category: '개' })
+    const both = addImages(first, [baked('a', '개')], {
+      canonicalSize: SIZE,
+      now: NOW,
+      role: 'predict',
+    })
+    expect(both.duplicates).toBe(0)
+    expect(readImages(both.project, 'predict')).toHaveLength(1)
+    expect(readImages(both.project)).toHaveLength(1)
+  })
+
+  /**
    * 학생이 zip을 직접 열어 폴더를 넣는 일은 실제로 일어난다. 그때 **사진이 있는데
    * 화면에 안 보이는 쪽이 더 나쁘다.**
    */

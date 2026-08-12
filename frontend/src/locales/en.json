@@ -669,6 +669,12 @@
     "tableTitle": "Prediction results",
     "showFeatures": "Show feature values",
     "computing": "Computing.",
-    "download": "Download predictions as CSV"
+    "download": "Download predictions as CSV",
+    "image": {
+      "add": "Add photos",
+      "emptyNext": "Add photos and each model will give its own answer.",
+      "emptyReason": "No photos yet.",
+      "photo": "Photo to predict"
+    }
   }
 }

@@ -18,7 +18,13 @@ import {
   type ImageRole,
 } from '@/data/image/canonical'
 import { removeEmbeddings } from '@/project/embeddings'
-import { IMAGE_DATA_DIR, IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
+import {
+  IMAGE_DATA_DIR,
+  IMAGE_PREDICT_DIR,
+  IMAGE_TEST_DIR,
+  IMAGE_UNLABELED,
+  type ProjectFile,
+} from '@/project/format'
 import { IMAGE_JPEG_QUALITY } from '@/limits'
 import { dataSettings, type Settings } from '@/project/schema'
 
@@ -108,6 +114,18 @@ function withImages(
   }
 }
 
+/**
+ * 자리마다 짝이 되는 참조 필드와 폴더 경로 (mlpx-spec.md §1.2).
+ *
+ * **참조와 본체는 함께 있고 함께 없다** — 사진을 앉히면서 참조를 안 세우면
+ * `writeProject`가 저장을 거부한다.
+ */
+const ROLE_REFERENCE: Readonly<Record<ImageRole, { field: string; path: string }>> = {
+  data: { field: 'dataset', path: IMAGE_DATA_DIR },
+  test: { field: 'testDataset', path: IMAGE_TEST_DIR },
+  predict: { field: 'predictDataset', path: IMAGE_PREDICT_DIR },
+}
+
 /** 굽고 나온 것 한 장과 그것이 갈 자리. */
 export interface BakedImage {
   readonly hash: string
@@ -133,6 +151,13 @@ export interface AddImagesOptions {
   readonly canonicalSize: number
   /** ISO 8601. manifest.updatedAt에 찍는다. */
   readonly now: string
+  /**
+   * 어느 자리에 앉히나. 기본은 훈련 데이터다.
+   *
+   * **`predict`에는 라벨이 없다** (mlpx-spec.md §1.2) — 범주 폴더가 한 겹 없고, 그래서
+   * 범주 목록도 안 건드린다. 답을 모르는 사진이라 범주에 넣을 수가 없다.
+   */
+  readonly role?: ImageRole
 }
 
 /**
@@ -149,9 +174,13 @@ export function addImages(
   baked: readonly BakedImage[],
   options: AddImagesOptions,
 ): AddedImages {
+  const role = options.role ?? 'data'
   const previous = dataSettings('image', project.document.settings)
   const images = new Map(project.images)
-  const known = new Set(readImages(project).map((entry) => entry.hash))
+  // **같은 자리 안에서만 같은 사진이다.** 훈련에 쓴 사진을 예측으로 올리는 것은
+  // 학생이 일부러 하는 일이고("이 사진은 뭐라고 답하지?"), 그때 없는 것으로 다루면
+  // 아무 일도 안 일어난 것처럼 보인다.
+  const known = new Set(readImages(project, role).map((entry) => entry.hash))
 
   let added = 0
   let duplicates = 0
@@ -163,8 +192,10 @@ export function addImages(
     }
     known.add(image.hash)
     added += 1
-    images.set(imageEntryPath('data', image.hash, image.category), image.bytes)
+    images.set(imageEntryPath(role, image.hash, image.category), image.bytes)
+    // 예측 자리에는 라벨이 없다. 범주 목록을 건드릴 일도 없다.
     if (
+      role !== 'predict' &&
       image.category !== IMAGE_UNLABELED &&
       isValidCategoryName(image.category) &&
       !categories.includes(image.category)
@@ -173,15 +204,12 @@ export function addImages(
     }
   }
 
-  const data = {
-    ...previous,
-    categories,
-    dataset: {
-      path: IMAGE_DATA_DIR,
-      canonicalSize: options.canonicalSize,
-      jpegQuality: IMAGE_JPEG_QUALITY,
-    },
+  const reference = {
+    path: ROLE_REFERENCE[role].path,
+    canonicalSize: options.canonicalSize,
+    jpegQuality: IMAGE_JPEG_QUALITY,
   }
+  const data = { ...previous, categories, [ROLE_REFERENCE[role].field]: reference }
   return { project: withImages(project, images, data, options.now), added, duplicates }
 }
 
