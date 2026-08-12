@@ -10,6 +10,11 @@
  * 아무도 안 본다.
  *
  * 이미 받아 둔 파일은 해시만 확인하고 넘어간다. 네트워크를 매번 타지 않는다.
+ *
+ * **아무 말도 안 하는 것이 정상이다.** 이 스크립트는 `dev`와 `build` 앞에 매번 붙는데,
+ * 거의 언제나 하는 일이 "다섯 파일의 해시가 맞다"뿐이다. 그걸 매번 한 줄로 알리면
+ * 진짜 할 말(내려받기·해시 불일치)이 그 줄에 묻힌다. **말은 영어다** — 여기 출력은
+ * 학생이 아니라 이 저장소를 빌드하는 사람이 보고, 그 옆줄은 vite와 npm이 채운다.
  */
 
 import { createHash } from 'node:crypto'
@@ -54,9 +59,6 @@ async function fetchFile(url) {
   return Buffer.from(await response.arrayBuffer())
 }
 
-let downloaded = 0
-let kept = 0
-
 for (const backbone of BACKBONES) {
   const dir = join(OUT_ROOT, backbone.id)
   await mkdir(dir, { recursive: true })
@@ -64,23 +66,19 @@ for (const backbone of BACKBONES) {
   for (const [name, expected] of Object.entries(backbone.files)) {
     const path = join(dir, name)
     const present = await readIfPresent(path)
-    if (present && sha256(present) === expected) {
-      kept += 1
-      continue
-    }
+    if (present && sha256(present) === expected) continue
 
+    // 받을 때만 말한다. 12.4MB가 오는 동안 아무 말이 없으면 멈춘 것으로 보인다.
+    console.log(`Fetching backbone weights: ${backbone.id}/${name}`)
     const bytes = await fetchFile(backbone.baseUrl + name)
     const actual = sha256(bytes)
     if (actual !== expected) {
       throw new Error(
-        `백본 가중치의 해시가 다르다: ${backbone.id}/${name}\n` +
-          `  기대: ${expected}\n  실제: ${actual}\n` +
-          `  원격 파일이 바뀌었다. 확인하기 전에는 이 빌드를 내보내지 마라.`,
+        `Backbone weight hash mismatch: ${backbone.id}/${name}\n` +
+          `  expected: ${expected}\n  actual:   ${actual}\n` +
+          `  The remote file changed. Do not ship this build until you know why.`,
       )
     }
     await writeFile(path, bytes)
-    downloaded += 1
   }
 }
-
-console.log(`백본 가중치: 새로 받은 것 ${downloaded}개, 이미 있던 것 ${kept}개`)
