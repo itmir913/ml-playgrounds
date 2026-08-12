@@ -25,9 +25,14 @@ import ko from '../src/locales/ko.json'
 import { ALGORITHMS } from '../src/ml/algorithms'
 import { ENGINE_STATES, RUNTIMES, TRAINING_LOCATIONS, UNAVAILABLE_REASONS } from '../src/ml/backend'
 import { parametersFor } from '../src/ml/hyperparams'
+import { metricsOf } from '../src/ml/metrics'
+import { PER_CLASS_METRICS } from '../src/ml/results'
+import { COLUMN_KINDS } from '../src/ml/preprocess'
 import { FEATURE_NOTES, requiredTargetKind } from '../src/ml/selection'
+import { EXPORT_STATES } from '../src/project/export-state'
 import {
   CATEGORICAL_ENCODINGS,
+  DEFAULT_PORTFOLIO_SECTIONS,
   MISSING_STRATEGIES,
   MODEL_OMISSION_REASONS,
   SCALING_METHODS,
@@ -77,6 +82,15 @@ const korean = flatten(ko as Tree)
 /** vitest는 vite.config.ts가 있는 곳에서 돈다. cwd가 frontend/ 다. */
 const SRC = join(process.cwd(), 'src')
 if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
+
+/**
+ * 실제로 실어 보내는 언어들. **`src/i18n.ts`에서 가져오지 않는다** — 그 모듈은 화면
+ * 환경(navigator·document)에 닿아서, 이 스펙이 node 환경인 채로는 못 읽는다. 그리고
+ * 여기서 물어야 하는 것은 "실린 언어마다 이름이 있는가"이므로 파일 목록이 곧 답이다.
+ */
+const LOCALE_TAGS = readdirSync(join(SRC, 'locales'))
+  .filter((entry) => entry.endsWith('.json'))
+  .map((entry) => entry.replace(/\.json$/, ''))
 
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory).flatMap((entry) => {
@@ -259,6 +273,68 @@ describe('프런트엔드 전용 코드', () => {
     for (const note of FEATURE_NOTES) {
       expect(english.has(`preprocess.tabular.${note}`), note).toBe(true)
       expect(korean.has(`preprocess.tabular.${note}`), note).toBe(true)
+    }
+  })
+
+  /**
+   * 화면에 이름이 뜨는 지표 전부. **두 곳에서 온다** — 실험 표의 지표(`METRIC_DISPLAY`)와
+   * 범주별 표의 열(`PER_CLASS_METRICS`)이다. 뒤엣것은 실험 표에 없는 이름을 셋 갖는다.
+   */
+  function metricNames(): Set<string> {
+    const names = new Set<string>(PER_CLASS_METRICS)
+    for (const taskType of TASK_TYPES) {
+      for (const display of metricsOf(taskType)) names.add(display.label ?? display.name)
+    }
+    return names
+  }
+
+  it('지표마다 이름과 설명이 있다', () => {
+    // 결과 화면이 `metrics.${이름}`으로 조립한다. 지표를 늘리는 사람이 문구도 함께 넣게 한다.
+    // **화면 이름은 label이 있으면 label이다** (`f1Macro` -> `f1`, docs/copy.md).
+    const names = metricNames()
+    expect(names.size).toBeGreaterThan(0)
+
+    for (const name of names) {
+      expect(english.has(`metrics.${name}`), name).toBe(true)
+      expect(korean.has(`metrics.${name}`), name).toBe(true)
+      expect(english.has(`metricHelp.${name}`), name).toBe(true)
+      expect(korean.has(`metricHelp.${name}`), name).toBe(true)
+    }
+
+    // 남는 이름도 없어야 한다 - 지표를 빼면 문장이 남는다.
+    for (const namespace of ['metrics', 'metricHelp'] as const) {
+      const used = [...english.keys()]
+        .filter((key) => key.startsWith(`${namespace}.`))
+        .map((key) => key.slice(namespace.length + 1))
+      // `support`는 지표가 아니라 범주별 표의 열이라 metricHelp에만 있다.
+      expect(used.filter((key) => !names.has(key) && key !== 'support')).toEqual([])
+    }
+  })
+
+  it('수식은 있는 지표의 것만 있다', () => {
+    // **수식은 선택이다** — 회귀 지표는 한 줄에 안 들어가서 안 넣었고, 화면이 `te()`로
+    // 있는지 보고 그린다. 그러므로 "모두 있다"가 아니라 **남는 것이 없다**를 본다.
+    const names = metricNames()
+    const used = [...english.keys()]
+      .filter((key) => key.startsWith('metricFormula.'))
+      .map((key) => key.slice('metricFormula.'.length).split('.')[0] ?? '')
+    expect([...new Set(used)].filter((name) => !names.has(name))).toEqual([])
+  })
+
+  it('열 자료형·내보내기 상태·언어·포트폴리오 문항마다 이름이 있다', () => {
+    // 넷 다 화면이 값으로 키를 조립하는 자리다. 값을 늘리는 사람이 문구를 함께 넣게 한다.
+    const pairs = [
+      ['columnKind', COLUMN_KINDS],
+      ['save', EXPORT_STATES],
+      ['language', LOCALE_TAGS],
+      ['portfolio.template', DEFAULT_PORTFOLIO_SECTIONS],
+    ] as const
+
+    for (const [namespace, codes] of pairs) {
+      for (const code of codes) {
+        expect(english.has(`${namespace}.${code}`), code).toBe(true)
+        expect(korean.has(`${namespace}.${code}`), code).toBe(true)
+      }
     }
   })
 
@@ -547,5 +623,58 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
       (key) => !used.has(key) && !prefixes.some((prefix) => key.startsWith(prefix)),
     )
     expect(orphans).toEqual([])
+  })
+
+  /**
+   * **키를 조립해도 되는 자리.** 여기 적힌 앞부분만 조립할 수 있고, 다른 것이 새로
+   * 생기면 아래 검사가 실패한다.
+   *
+   * **조립 자체가 나쁜 것이 아니다.** 값이 닫힌 집합이고 그 집합을 로케일과 짝지어 보는
+   * 검사가 있으면, 값이 늘 때 문구가 빠진 것을 그 검사가 잡는다. 위험한 것은 **짝이
+   * 없는 조립**이다 — 뒷부분이 실행 중 값이라 정적으로는 아무것도 확인할 수 없고,
+   * 화면에는 키 문자열이 그대로 뜬다.
+   *
+   * **그 일이 실제로 일어났다** (2026-08-13). `steps.`는 세 자리를 다 짝지어 봤는데
+   * 그중 둘을 종류 아래로 옮기면서 짝을 지웠고, 조립하는 코드는 그대로 남았다.
+   * 그래서 목록을 **선언**으로 만든다 — 조립을 늘리는 사람이 짝도 함께 만들게.
+   *
+   * 각 줄 옆의 검사가 그 자리의 짝이다.
+   */
+  const PAIRED_PREFIXES: readonly string[] = [
+    'algorithms.', // 등록부의 모델과 실행 방법마다 이름이 있다
+    'runtimes.', //   〃
+    'hyperparams.', // 손잡이마다 이름이 있다
+    'taskTypes.', // 과제 유형마다 이름이 있고 남는 것이 없다
+    'tasks.', // 체크리스트 항목마다 문구가 있다
+    'steps.', // 단계마다 탭에 쓸 이름이 있다 (label만 조립한다 - ui-rules가 나머지를 막는다)
+    'errors.', // 공유 코드는 errors.* 에서 찾는다
+    'client.', // 클라이언트 전용 코드는 client.* 에서 찾는다
+    'execution.', // 실행 위치마다 이름이 있다
+    'engineState.', // 무결성 어휘가 로케일과 양방향으로 일치한다
+    'missingStrategy.', // 전처리 설정의 어휘가 로케일과 양방향으로 일치한다
+    'scalingMethod.', //   〃
+    'categoricalEncoding.', //   〃
+    'columnKind.', // 열 자료형·내보내기 상태·언어·포트폴리오 문항마다 이름이 있다
+    'save.', //   〃
+    'language.', //   〃
+    'portfolio.template.', //   〃
+    'metrics.', // 지표마다 이름과 설명이 있다
+    'metricHelp.', //   〃
+    'metricFormula.', // 수식은 있는 지표의 것만 있다
+    'preprocess.tabular.', // 특성 참고 문구마다 문장이 있다 + 타깃 자료형 이유
+    'preprocess.tabular.targetRule.', //   〃
+  ]
+
+  it('조립해 부르는 자리마다 짝이 있다', () => {
+    const namespaces = new Set([...english.keys()].map((key) => key.split('.')[0] ?? ''))
+    const composed = new Set<string>()
+    for (const path of sourceFiles(SRC)) {
+      for (const prefix of builtPrefixes(readFileSync(path, 'utf-8'))) {
+        // 로케일 키가 아닌 것도 같은 모양이다 (`runs.experiments.${i}`는 파일 안 경로다).
+        if (namespaces.has(prefix.split('.')[0] ?? '')) composed.add(prefix)
+      }
+    }
+    expect(composed.size).toBeGreaterThan(0)
+    expect([...composed].filter((prefix) => !PAIRED_PREFIXES.includes(prefix))).toEqual([])
   })
 })

@@ -31,13 +31,7 @@
   },
   "shell": {
     "steps": "Steps",
-    "status": "Progress",
-    "statusTitle": "Progress",
-    "now": "Do this next",
-    "workflow": "Steps",
-    "finished": "Everything is done.",
     "noProject": "No project is open yet.",
-    "openMenu": "Open menu",
     "language": "Language",
     "toLight": "Switch to light mode",
     "toDark": "Switch to dark mode"

@@ -30,7 +30,13 @@ export const PREPROCESSOR_FORMAT = 'mlpx-preprocess-v1'
  * 과제 유형(분류/회귀)은 학생이 고르지만(mlpx-spec.md 0.1) 열이 수치인지 범주인지는
  * 값을 보면 알 수 있고, 물어봐야 할 이유가 없다.
  */
-export type ColumnKind = 'numeric' | 'categorical'
+/**
+ * 열의 자료형. **배열이 먼저다** — 화면이 이 값으로 문구 키를 조립하므로
+ * (`columnKind.${kind}`), 값 목록이 실행 중에도 있어야 로케일과 짝지어 검사할 수 있다
+ * (docs/i18n.md의 CI 목록).
+ */
+export const COLUMN_KINDS = ['numeric', 'categorical'] as const
+export type ColumnKind = (typeof COLUMN_KINDS)[number]
 
 export interface FittedColumn {
   name: string

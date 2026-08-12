@@ -15,7 +15,11 @@ import { parametersFor } from './hyperparams'
 import { bestOf, metricsOf, type MetricDisplay } from './metrics'
 
 /** 범주별 점수표에서 강조할 지표들. `support`는 점수가 아니라 여기 없다. */
-const PER_CLASS_METRICS = ['precision', 'recall', 'specificity', 'f1'] as const
+/**
+ * 범주별 표의 열. **내보내는 이유는 로케일과 짝지어 보기 위해서다** — 이 이름들이
+ * 그대로 `metrics.*`·`metricHelp.*` 키가 된다 (docs/i18n.md의 CI 목록).
+ */
+export const PER_CLASS_METRICS = ['precision', 'recall', 'specificity', 'f1'] as const
 
 type PerClassMetric = (typeof PER_CLASS_METRICS)[number]
 

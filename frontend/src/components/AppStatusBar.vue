@@ -32,6 +32,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppPopover from '@/components/AppPopover.vue'
+import { exportStateOf } from '@/project/export-state'
 import { useFormat } from '@/composables/useFormat'
 import { ACTION_ICONS } from '@/icons'
 import { setLocale, SUPPORTED_LOCALES, type Locale } from '@/i18n'
@@ -56,11 +57,7 @@ const sizeBytes = computed(() => {
  * **가운데가 중요하다.** "내보냈다"만 보여주면 그 뒤에 한 시간을 더 작업한 학생이
  * 안심한 채로 컴퓨터를 끈다.
  */
-const exportState = computed(() => {
-  if (project.exportedAt === null) return 'notExported'
-  if (project.savedAt !== null && project.savedAt > project.exportedAt) return 'stale'
-  return 'exported'
-})
+const exportState = computed(() => exportStateOf(project.savedAt, project.exportedAt))
 
 /**
  * 브라우저 쪽 상태와 곁가지들. 가운뎃점으로 이어 붙일 것이라 배열로 만든다.
@@ -102,6 +99,14 @@ function onLocale(event: Event): void {
 
 /** 스위치가 가리키는 곳. 아이콘도 설명도 **바뀔 쪽**을 말한다. */
 const nextTheme = computed(() => otherTheme(theme.value))
+
+/**
+ * 다음에 켤 테마의 이름. **키를 조립하지 않는다** — 값이 둘뿐이고 둘 다 여기서 아는데,
+ * 조립하면 그 자리가 "짝이 있는가"를 물어야 하는 자리가 된다 (docs/i18n.md).
+ */
+const themeLabel = computed(() =>
+  nextTheme.value === 'dark' ? t('shell.toDark') : t('shell.toLight'),
+)
 </script>
 
 <template>
@@ -176,8 +181,8 @@ const nextTheme = computed(() => otherTheme(theme.value))
     <button
       type="button"
       class="shrink-0 rounded-control p-1 transition-colors hover:bg-surface-sunken hover:text-ink"
-      :title="t(`shell.${nextTheme === 'dark' ? 'toDark' : 'toLight'}`)"
-      :aria-label="t(`shell.${nextTheme === 'dark' ? 'toDark' : 'toLight'}`)"
+      :title="themeLabel"
+      :aria-label="themeLabel"
       @click="setTheme(nextTheme)"
     >
       <component

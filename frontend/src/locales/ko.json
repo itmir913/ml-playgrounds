@@ -31,13 +31,7 @@
   },
   "shell": {
     "steps": "단계",
-    "status": "진행 상황",
-    "statusTitle": "진행 상황",
-    "now": "지금 할 일",
-    "workflow": "단계",
-    "finished": "할 일을 모두 마쳤습니다.",
     "noProject": "아직 프로젝트를 열지 않았습니다.",
-    "openMenu": "메뉴 열기",
     "language": "언어",
     "toLight": "라이트 모드로 바꾸기",
     "toDark": "다크 모드로 바꾸기"
