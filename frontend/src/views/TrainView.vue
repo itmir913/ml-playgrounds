@@ -462,7 +462,7 @@ function leave(): void {
       <!-- 유형과 타깃이 안 맞는다. 둘 다 고칠 수 있으므로 어느 쪽도 되돌리지 않는다. -->
       <p v-if="targetIssue" class="mt-3 font-bold text-danger">{{ targetIssue }}</p>
 
-      <div class="mt-4 grid gap-x-6 gap-y-5 md:grid-cols-3">
+      <div class="mt-4 grid gap-x-4 gap-y-5 md:grid-cols-3">
         <div
           class="min-w-0 transition-opacity md:col-span-2"
           :class="training.running.value ? 'opacity-60' : ''"
@@ -482,9 +482,12 @@ function leave(): void {
         <!--
           **두 열 사이도 점선으로 가른다** (§8.12). 축 사이를 가른 것과 같은 선이라
           같은 문법으로 읽힌다. 한 열로 접히면 세로선이 뜻을 잃으므로 가로선이 된다.
+
+          **선 좌우의 여백은 카드 안 여백과 같은 값이다**(`p-4` ↔ `gap-x-4`+`pl-4`).
+          더 넓게 주었더니 선이 카드 안에서 혼자 헐렁해 보였다 (2026-08-13).
         -->
         <div
-          class="min-w-0 border-t border-dashed border-line pt-5 md:border-t-0 md:border-l md:pt-0 md:pl-6"
+          class="min-w-0 border-t border-dashed border-line-strong pt-5 md:border-t-0 md:border-l md:pt-0 md:pl-4"
         >
           <ChosenModels
             :chosen="chosen"

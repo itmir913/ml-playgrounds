@@ -146,7 +146,7 @@ function onTaskType(id: string): void {
       @pick="onTaskType"
     />
 
-    <hr class="border-t border-dashed border-line" />
+    <hr class="border-t border-dashed border-line-strong" />
 
     <!-- 유형을 안 골랐으면 아래 두 축이 통째로 뜻이 없다. 회색 줄만 늘어놓지 않는다. -->
     <AppEmpty
@@ -163,7 +163,7 @@ function onTaskType(id: string): void {
         @pick="pickedAlgorithm = $event"
       />
 
-      <hr class="border-t border-dashed border-line" />
+      <hr class="border-t border-dashed border-line-strong" />
 
       <AppChoices
         :label="t('train.pickRuntime')"
@@ -173,7 +173,7 @@ function onTaskType(id: string): void {
       />
 
       <!-- [담기]도 같은 선으로 가른다. 고르는 일이 아니라 담는 일이다. -->
-      <hr class="border-t border-dashed border-line" />
+      <hr class="border-t border-dashed border-line-strong" />
 
       <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
         <p v-if="blocked" class="min-w-0 text-ink-soft">{{ blocked }}</p>

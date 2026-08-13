@@ -129,7 +129,14 @@ const models = computed<ReadonlyMap<string, Uint8Array>>(
         <ExperimentList :experiments="experiments" :selected="selected" @pick="pick" />
       </div>
 
-      <div class="min-h-0 min-w-0 flex-1 overflow-y-auto">
+      <!--
+        **두 열 사이를 점선으로 가른다** (§8.12). 왼쪽이 고르는 자리, 오른쪽이 고른 것의
+        속이라 학습 화면의 두 열과 같은 관계다 - 같은 선으로 갈라야 같은 문법으로 읽힌다.
+        한 열로 접히면 세로선이 뜻을 잃으므로 가로선이 된다.
+      -->
+      <div
+        class="min-h-0 min-w-0 flex-1 overflow-y-auto border-t border-dashed border-line-strong pt-5 md:border-t-0 md:border-l md:pt-0 md:pl-5"
+      >
         <!--
           **스크롤 대상은 이 안쪽이지 바깥 상자가 아니다.** 바깥(`overflow-y-auto`)에
           `scrollIntoView`를 걸면 그 상자를 화면 안으로 들이기만 하고 **상자 안의 스크롤은

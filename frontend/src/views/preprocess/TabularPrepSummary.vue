@@ -92,13 +92,17 @@ const unused = computed(() => {
 
     <!--
       **위 두 카드와 세로로 짝을 맞춘다** — 왼쪽에서 고른 것의 결과가 왼쪽 아래,
-      오른쪽 설정의 결과가 오른쪽 아래다. 높이는 맞추지 않는다(줄 수가 상태마다 변한다).
+      오른쪽 설정의 결과가 오른쪽 아래다.
+
+      **`items-start`를 두지 않는다.** 칸을 내용 높이에 맞추면 **가르는 선도 그 높이에서
+      끊긴다** — 오른쪽이 짧은 상태에서 선이 중간에 멎어 무엇을 가르는지 안 보였다
+      (2026-08-13). 늘어나는 것은 칸이지 글이 아니라, 줄 수가 달라도 글은 위에서 시작한다.
 
       **여기는 `md`에서 갈린다.** 위 두 판은 `lg`에서 갈리는데(표가 좁아지면 열 이름이
       글자마다 접힌다), 이 카드가 담는 것은 이름과 숫자 한 쌍이라 좁아도 안 접힌다.
       태블릿 폭에서 한 줄에 하나씩 늘어놓으면 오른쪽이 통째로 빈다.
     -->
-    <div class="mt-3 grid items-start gap-x-8 gap-y-5 md:grid-cols-2">
+    <div class="mt-3 grid gap-x-4 gap-y-5 md:grid-cols-2">
       <dl class="flex flex-col gap-1.5">
         <div class="flex justify-between gap-4">
           <dt class="font-bold text-ink-soft">{{ t('preprocess.tabular.roleTarget') }}</dt>
@@ -150,7 +154,14 @@ const unused = computed(() => {
         </p>
       </dl>
 
-      <dl class="flex flex-col gap-1.5">
+      <!--
+        **두 열 사이를 점선으로 가른다** (§8.12). 학습 화면의 두 열이 같은 선으로 갈려
+        있어서 같은 문법으로 읽힌다 - 왼쪽에서 정한 것과 오른쪽에서 정한 것이 다른
+        이야기라는 표시다. 한 열로 접히면 세로선이 뜻을 잃으므로 가로선이 된다.
+      -->
+      <dl
+        class="flex flex-col gap-1.5 border-t border-dashed border-line-strong pt-5 md:border-t-0 md:border-l md:pt-0 md:pl-4"
+      >
         <div class="flex justify-between gap-4">
           <dt class="font-bold text-ink-soft">{{ t('preprocess.tabular.summaryTotal') }}</dt>
           <!-- **계획이 못 서도 전체 행 수는 안다.** 정본을 읽은 것이 곧 그 숫자다. -->
