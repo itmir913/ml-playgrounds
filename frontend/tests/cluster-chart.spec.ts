@@ -155,6 +155,31 @@ describe('그리기 비용에 매인 옵션', () => {
   })
 })
 
+describe('가리켜도 표식이 안 변한다', () => {
+  // **Chart.js의 hover 기본값은 반지름 4, 테두리 1이다.** 우리가 키운 표식만 가리키는
+  // 순간 그 값으로 쪼그라들었다 돌아왔고, 중심점과 데이터 점이 겹친 자리에서는 커서가
+  // 1px만 움직여도 어느 쪽이 잡혔는지가 바뀌어 계속 떨렸다 (2026-08-14).
+  const highlight = { values: [7, 9], cluster: 1 }
+
+  it('키운 표식은 hover 크기가 평소와 같다', () => {
+    for (const dataset of dataOf(3, highlight).datasets) {
+      if (dataset.pointRadius === undefined) continue
+      expect(dataset.pointHoverRadius ?? 4).toBe(dataset.pointRadius)
+    }
+  })
+
+  it('키운 테두리도 hover에서 안 얇아진다', () => {
+    for (const dataset of dataOf(3, highlight).datasets) {
+      if (dataset.pointBorderWidth === undefined) continue
+      expect(dataset.pointHoverBorderWidth ?? 1).toBe(dataset.pointBorderWidth)
+    }
+  })
+
+  it('툴팁이 가리킨 것에 붙는다 - 겹친 자리에서 상자가 헤엄치지 않게', () => {
+    expect(optionsOf(3).plugins!.tooltip!.position).toBe('nearest')
+  })
+})
+
 describe('색과 모양', () => {
   it('일곱을 돌려 쓰고 여덟 번째부터 모양을 바꾼다', () => {
     // 색을 스무 개로 늘리지 않는다 - 늘리는 순간 색맹 안전이라는 근거가 깨진다 (#28-3).

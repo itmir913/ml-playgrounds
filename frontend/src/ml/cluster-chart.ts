@@ -178,6 +178,9 @@ export function clusterChartData(
         pointStyle: 'crossRot' as const,
         pointBorderWidth: CENTROID_HALO_WIDTH,
         pointRadius: CENTROID_RADIUS,
+        // 가리켜도 그대로다 — 아래 "표식은 hover에서 안 변한다" 참고.
+        pointHoverBorderWidth: CENTROID_HALO_WIDTH,
+        pointHoverRadius: CENTROID_RADIUS,
         order: DRAW_ORDER.halo,
       },
       {
@@ -187,6 +190,8 @@ export function clusterChartData(
         pointStyle: 'crossRot' as const,
         pointBorderWidth: CENTROID_WIDTH,
         pointRadius: CENTROID_RADIUS,
+        pointHoverBorderWidth: CENTROID_WIDTH,
+        pointHoverRadius: CENTROID_RADIUS,
         order: DRAW_ORDER.centroid,
       },
       // **맨 위이고, 맨 뒤다** (#28-7). 위에 그려져야 점에 안 묻히고, 배열 끝이어야
@@ -204,6 +209,8 @@ export function clusterChartData(
               pointStyle: 'rectRot' as const,
               pointBorderWidth: HIGHLIGHT_BORDER_WIDTH,
               pointRadius: HIGHLIGHT_RADIUS,
+              pointHoverBorderWidth: HIGHLIGHT_BORDER_WIDTH,
+              pointHoverRadius: HIGHLIGHT_RADIUS,
               order: DRAW_ORDER.highlight,
             },
           ]
@@ -219,6 +226,13 @@ export function clusterChartData(
  *   있다 — 상한의 근거가 된 실측이 `animation: false`에서 나왔다 (#28-5).
  * - **가리킨 것 하나만 말한다.** 산점도의 기본 모드는 `point`라 커서 아래에 겹친 점을
  *   전부 세운다.
+ * - **표식은 hover에서 안 변한다.** Chart.js의 `pointHoverRadius` 기본값이 4이고
+ *   `pointHoverBorderWidth`가 1이라, 우리가 키운 중심점(9·6)과 입력한 값(10·3)만
+ *   가리키는 순간 기본값으로 **쪼그라들었다 돌아온다.** 중심점과 데이터 점이 같은 자리에
+ *   겹치면 커서가 1px만 움직여도 어느 쪽이 잡혔는지가 바뀌어 **표식이 계속 떨렸다**
+ *   (2026-08-14). 데이터 점은 반지름이 4라 기본값과 같아 처음부터 안 떨렸다.
+ * - **툴팁을 가리킨 것에 붙인다.** 기본값(`average`)은 잡힌 것들의 한가운데에 상자를
+ *   놓는데, 겹친 자리에서는 그 집합이 바뀔 때마다 상자가 헤엄친다.
  * - **범례는 그리는 차례를 따라가지 않는다.** Chart.js가 범례 항목도 `order`로
  *   정렬하므로, 그대로 두면 중심점이 맨 앞에 선다.
  */
@@ -256,6 +270,7 @@ export function clusterChartOptions(
         },
       },
       tooltip: {
+        position: 'nearest',
         usePointStyle: true,
         filter: (item) => item.datasetIndex !== halo,
         callbacks: {
