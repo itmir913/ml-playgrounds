@@ -17,6 +17,7 @@ import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
+import AppTable from '@/components/AppTable.vue'
 import { useFormat } from '@/composables/useFormat'
 import { importTable, openTable, type TableDocument } from '@/data/table'
 import { toCanonicalCsv } from '@/data/serialize'
@@ -613,62 +614,58 @@ defineExpose({
         {{ t('client.PREDICT_DATASET_COLUMN_MISSING', { columns: missingColumns }) }}
       </p>
 
-      <div class="overflow-x-auto rounded-panel border border-line">
-        <table class="w-full text-left">
-          <thead class="bg-surface-sunken">
-            <tr>
-              <th class="min-w-20 px-3 py-2 font-bold text-ink-soft">
-                {{ t('predict.tabular.rowNumber') }}
+      <!--
+        **저장소의 다른 표와 같은 상자다** (§8.9). 여기만 `<table>`을 손으로 짜고 넘칠
+        때의 처리와 머리글 색을 따로 붙이고 있었다 — 그러면 `ui-rules`가 표를 지키려고
+        쓴 검사가 이 표만 못 본다(그 검사는 `<AppTable`을 훑는다).
+
+        **줄무늬는 여기 남는다.** `data-table`로 올리면 나머지 여덟 자리가 함께 칠해지는데,
+        그중 둘은 평평한 줄 배경 위에 자기 색을 얹는다(혼동행렬의 대각선, 결과 표의 고른
+        줄). 저장소에서 줄무늬를 쓰는 표는 이것 하나다.
+
+        **칸 색칠도 그대로다.** `AppTable`은 `<slot />`만 두므로 `:class`에 손대지 않는다 —
+        혼동행렬이 대각선을 칠하는 것과 같은 기법이다.
+      -->
+      <AppTable>
+        <thead>
+          <tr>
+            <th class="min-w-20">{{ t('predict.tabular.rowNumber') }}</th>
+            <template v-if="showFeatures">
+              <th v-for="field in props.fields" :key="field.name" class="min-w-32">
+                {{ field.name }}
               </th>
-              <template v-if="showFeatures">
-                <th
-                  v-for="field in props.fields"
-                  :key="field.name"
-                  class="min-w-32 px-3 py-2 font-bold text-ink-soft"
-                >
-                  {{ field.name }}
-                </th>
-              </template>
-              <th
-                v-for="(model, index) in props.models"
-                :key="model.run.id"
-                class="min-w-40 px-3 py-2 font-bold text-ink-soft"
-              >
-                <span class="flex flex-col">
-                  <span>{{
-                    props.experimentNames.get(model.experiment.id) ?? model.experiment.id
-                  }}</span>
-                  <span class="font-normal text-ink-faint">{{ modelNames[index] }}</span>
-                </span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="(row, rowIndex) in pageRows"
-              :key="page * PREDICT_PAGE_SIZE + rowIndex"
-              class="border-t border-line odd:bg-surface even:bg-surface-sunken"
+            </template>
+            <th v-for="(model, index) in props.models" :key="model.run.id" class="min-w-40">
+              <span class="flex flex-col">
+                <span>{{
+                  props.experimentNames.get(model.experiment.id) ?? model.experiment.id
+                }}</span>
+                <span class="font-normal text-ink-faint">{{ modelNames[index] }}</span>
+              </span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="(row, rowIndex) in pageRows"
+            :key="page * PREDICT_PAGE_SIZE + rowIndex"
+            class="odd:bg-surface even:bg-surface-sunken"
+          >
+            <td class="text-ink-faint">{{ page * PREDICT_PAGE_SIZE + rowIndex + 1 }}</td>
+            <template v-if="showFeatures">
+              <td v-for="field in props.fields" :key="field.name">{{ row[field.name] ?? '' }}</td>
+            </template>
+            <td
+              v-for="(model, modelIndex) in props.models"
+              :key="model.run.id"
+              class="font-bold"
+              :class="cellColorClass(model, currentAnswers[rowIndex]?.[modelIndex]?.value)"
             >
-              <td class="px-3 py-2 tabular-nums text-ink-faint">
-                {{ page * PREDICT_PAGE_SIZE + rowIndex + 1 }}
-              </td>
-              <template v-if="showFeatures">
-                <td v-for="field in props.fields" :key="field.name" class="px-3 py-2 tabular-nums">
-                  {{ row[field.name] ?? '' }}
-                </td>
-              </template>
-              <td
-                v-for="(model, modelIndex) in props.models"
-                :key="model.run.id"
-                class="px-3 py-2 tabular-nums font-bold"
-                :class="cellColorClass(model, currentAnswers[rowIndex]?.[modelIndex]?.value)"
-              >
-                {{ cellText(currentAnswers[rowIndex]?.[modelIndex]) }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+              {{ cellText(currentAnswers[rowIndex]?.[modelIndex]) }}
+            </td>
+          </tr>
+        </tbody>
+      </AppTable>
 
       <div class="flex items-center justify-between gap-4">
         <AppButton variant="secondary" :disabled="atFirstPage" :action="() => goToPage(page - 1)">
