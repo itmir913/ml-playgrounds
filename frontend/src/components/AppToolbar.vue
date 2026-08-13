@@ -32,7 +32,7 @@ const project = useProjectStore()
     </RouterLink>
 
     <template v-if="project.projectId !== null">
-      <span class="shrink-0 text-line-strong" aria-hidden="true">/</span>
+      <span class="shrink-0 text-ink-faint" aria-hidden="true">/</span>
       <ProjectName />
     </template>
 

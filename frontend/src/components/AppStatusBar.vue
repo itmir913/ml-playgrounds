@@ -132,8 +132,14 @@ const themeLabel = computed(() =>
             <span class="mr-2 inline-block size-2 rounded-pill bg-current" aria-hidden="true" />
             {{ t(`save.${exportState}`) }}
           </span>
+          <!--
+            **구분자도 글자다.** 테두리 토큰(`line-strong`)을 글자색으로 쓰고 있었는데
+            흰 바탕에서 대비가 1.6:1이라 가운뎃점이 사실상 안 보였다. 글자 토큰 중
+            가장 옅은 것을 쓴다 — 옆 글자(`ink-soft`)보다 한 단 옅어 종속돼 보이면서
+            눈에는 들어온다.
+          -->
           <template v-for="(fact, slot) in facts" :key="slot">
-            <span class="text-line-strong" aria-hidden="true"> · </span>
+            <span class="text-ink-faint" aria-hidden="true"> · </span>
             <span>{{ fact }}</span>
           </template>
         </button>

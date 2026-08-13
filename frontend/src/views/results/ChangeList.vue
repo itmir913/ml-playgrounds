@@ -54,7 +54,7 @@ function membersOf(change: Change): ReturnType<typeof memberDiff> {
     **`li`에 flex를 주지 않는다.** 주면 그 줄이 list-item이 아니게 되어 글머리표가
     사라진다 - 배치는 안쪽 상자가 맡는다.
   -->
-  <ul class="flex list-outside list-disc flex-col gap-1.5 pl-5 marker:text-line-strong">
+  <ul class="flex list-outside list-disc flex-col gap-1.5 pl-5 marker:text-ink-faint">
     <li v-for="change in props.changes" :key="change.path">
       <div class="flex flex-wrap items-baseline gap-x-2">
         <!--
