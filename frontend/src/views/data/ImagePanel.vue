@@ -25,6 +25,7 @@ import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import AppField from '@/components/AppField.vue'
+import StepActionBar from '@/components/StepActionBar.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { isValidCategoryName } from '@/data/image/canonical'
@@ -364,32 +365,65 @@ async function commitRemoveCategory(): Promise<void> {
     <StepChecklist step="data" />
 
     <!--
-      **굽기 전에 읽은 결과를 확인시킨다** (open-decisions.md "zip 읽기 규칙 다섯").
-      감싼 겹을 벗기는 판정은 구조만으로는 답이 없는 자리이고, 이 줄이 그것을 시끄럽게
-      만든다 — 엑셀 시트 고르기와 같은 자리다.
-    -->
-    <div
-      v-if="pending"
-      class="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-panel border border-brand-line bg-brand-soft px-4 py-2.5"
-    >
-      <span class="font-bold">{{ t('data.image.readTitle', pending.length) }}</span>
-      <ul class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-        <li v-for="one in summary" :key="one.category" class="flex items-baseline gap-1.5">
-          <span class="max-w-40 truncate font-bold text-ink-soft">{{ labelOf(one.category) }}</span>
-          <span class="tabular-nums">{{ t('data.image.count', one.count) }}</span>
-        </li>
-      </ul>
+      **전체에 걸리는 동작은 위에 붙어 따라온다** (§8.13.1 "동작 바는 화면들이 함께
+      쓴다"). 표 경로·학습·예측과 같은 컴포넌트다.
 
-      <div class="ml-auto flex items-center gap-2">
-        <span v-if="progress" class="tabular-nums text-ink-soft">
-          {{ t('data.image.preparing', { done: progress.completed, total: progress.total }) }}
-        </span>
-        <AppButton variant="secondary" @click="progress ? running?.cancel() : (pending = null)">
-          {{ t('common.cancel') }}
+      **동작 셋이 여기 모인다** (§8.9). 머리에 있던 [사진 추가]가 내려와, 범주 카드의
+      [여기에 사진 추가](그 범주로 들어간다)와 자리로 구별된다. 빈 상태와 같은 순서,
+      같은 색이다 — 사진이 생겼다고 파란 버튼이 다른 것으로 옮겨 가면 학생은 화면이
+      바뀐 줄 안다.
+
+      **굽기 전에는 바가 읽은 결과를 든다** (open-decisions.md "zip 읽기 규칙 다섯").
+      감싼 겹을 벗기는 판정은 구조만으로 답이 없는 자리이고, 이 줄이 그것을 시끄럽게
+      만든다 — 표 경로가 시트와 머리글을 바에서 확인시키는 것과 같다.
+
+      **아무것도 없을 때는 안 뜬다.** 그때 동작의 유일한 출처는 화면 가운데 빈 상태다.
+    -->
+    <StepActionBar v-if="pending || entries.length > 0 || categories.length > 0">
+      <template v-if="pending">
+        <span class="font-bold">{{ t('data.image.readTitle', pending.length) }}</span>
+        <ul class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          <li v-for="one in summary" :key="one.category" class="flex items-baseline gap-1.5">
+            <span class="max-w-40 truncate font-bold text-ink-soft">
+              {{ labelOf(one.category) }}
+            </span>
+            <span class="tabular-nums">{{ t('data.image.count', one.count) }}</span>
+          </li>
+        </ul>
+      </template>
+
+      <template v-else>
+        <AppButton @click="naming = { mode: 'create', from: '', value: '' }">
+          {{ t('data.image.newCategory') }}
         </AppButton>
-        <AppButton :disabled="busy" :action="bake">{{ t('data.image.use') }}</AppButton>
-      </div>
-    </div>
+        <AppButton
+          variant="secondary"
+          :disabled="busy"
+          @click="pickInto(IMAGE_UNLABELED, fileInput)"
+        >
+          {{ t('data.image.add') }}
+        </AppButton>
+        <AppButton
+          variant="secondary"
+          :disabled="busy"
+          @click="pickInto(IMAGE_UNLABELED, folderInput)"
+        >
+          {{ t('data.image.addFolder') }}
+        </AppButton>
+      </template>
+
+      <template #end>
+        <template v-if="pending">
+          <span v-if="progress" class="tabular-nums text-ink-soft">
+            {{ t('data.image.preparing', { done: progress.completed, total: progress.total }) }}
+          </span>
+          <AppButton variant="secondary" @click="progress ? running?.cancel() : (pending = null)">
+            {{ t('common.cancel') }}
+          </AppButton>
+          <AppButton :disabled="busy" :action="bake">{{ t('data.image.use') }}</AppButton>
+        </template>
+      </template>
+    </StepActionBar>
 
     <div
       v-if="entries.length === 0 && categories.length === 0"
@@ -430,36 +464,6 @@ async function commitRemoveCategory(): Promise<void> {
     </div>
 
     <div v-else class="flex flex-1 flex-col gap-3">
-      <!--
-        **전체에 걸리는 동작 셋이 여기 모인다** (§8.9). 머리에 있던 [사진 추가]가 여기로
-        내려와, 범주 카드의 [여기에 사진 추가](그 범주로 들어간다)와 자리로 구별된다.
-
-        **빈 상태와 같은 순서, 같은 색이다.** 사진이 생겼다고 파란 버튼이 다른 것으로
-        옮겨 가면 학생은 화면이 바뀐 줄 안다 - 사진이 있든 없든 다음 할 일은 범주를
-        세우는 것이다 (체크리스트의 `범주 나누기`와 같은 말).
-      -->
-      <section
-        class="flex flex-wrap items-center gap-2 rounded-panel border border-line bg-surface p-4"
-      >
-        <AppButton @click="naming = { mode: 'create', from: '', value: '' }">
-          {{ t('data.image.newCategory') }}
-        </AppButton>
-        <AppButton
-          variant="secondary"
-          :disabled="busy"
-          @click="pickInto(IMAGE_UNLABELED, fileInput)"
-        >
-          {{ t('data.image.add') }}
-        </AppButton>
-        <AppButton
-          variant="secondary"
-          :disabled="busy"
-          @click="pickInto(IMAGE_UNLABELED, folderInput)"
-        >
-          {{ t('data.image.addFolder') }}
-        </AppButton>
-      </section>
-
       <!--
         **넓은 화면에서는 범주 칸이 두 줄로 선다** (architecture.md §8.10.1 "넓은 화면은
         세로로 늘리지 않는다"). 한 줄로 쌓으면 범주 셋만 있어도 아래 것을 보려고

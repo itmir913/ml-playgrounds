@@ -313,7 +313,7 @@
     "noTaskTypeNext": "위에서 기계학습 유형을 고르면 그에 맞는 모델이 나옵니다.",
     "noTaskTypeReason": "아직 기계학습 유형을 고르지 않았습니다.",
     "noTuning": "이 모델에는 바꿀 수 있는 하이퍼파라미터가 없습니다.",
-    "nothingToTrain": "아직 담은 모델이 없어 학습할 것이 없습니다.",
+    "nothingToTrain": "아직 담은 모델이 없어 학습할 수 없습니다.",
     "outOfRange": "넣을 수 있는 범위를 벗어난 값이라 이대로는 학습에 실패합니다.",
     "pickModel": "모델",
     "pickRuntime": "학습할 곳",

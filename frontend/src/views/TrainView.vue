@@ -441,6 +441,8 @@ function leave(): void {
       </template>
     </StepHeader>
 
+    <StepChecklist step="train" />
+
     <!--
       **이 단계의 본 동작이라 위에 붙어 따라온다** (§8.13.1 "동작 바는 화면들이 함께
       쓴다"). 예측 화면과 같은 컴포넌트다 — 한 교사가 두 화면에서 다른 문법을 가르치지
@@ -556,8 +558,6 @@ function leave(): void {
         </div>
       </template>
     </StepActionBar>
-
-    <StepChecklist step="train" />
 
     <!--
       **세 축과 담긴 목록이 한 카드 안에 있다** (§8.12). 넓은 화면에서는 왼쪽이 고르는

@@ -27,6 +27,7 @@ import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import AppTable from '@/components/AppTable.vue'
+import StepActionBar from '@/components/StepActionBar.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { summarizeColumns, toDataset, type ColumnSummary } from '@/data/columns'
@@ -231,55 +232,53 @@ function kindOf(column: ColumnSummary): string {
     <StepChecklist step="data" />
 
     <!--
-      **전체에 걸리는 동작은 여기 모인다** (§8.9). 머리에 두면 네 화면의 같은 자리가
-      데이터에서만 다른 모양이 되고, 데이터가 없을 때는 화면 가운데 [파일 선택]과
-      **같은 동작의 버튼이 둘**이 된다.
+      **전체에 걸리는 동작은 위에 붙어 따라온다** (§8.13.1 "동작 바는 화면들이 함께
+      쓴다"). 학습·예측 화면과 같은 컴포넌트다 — 네 화면이 같은 자리에서 같은 문법으로
+      동작을 갖는다.
 
-      **그래서 데이터가 있을 때만 뜬다.** 없을 때 이 동작의 유일한 출처는 가운데
-      빈 상태다. 이미지 경로의 버튼 줄과 같은 자리, 같은 규칙이다.
+      **데이터가 있을 때만 뜬다.** 없을 때 이 동작의 유일한 출처는 화면 가운데 빈
+      상태이고, 둘 다 두면 같은 동작의 버튼이 둘이 된다.
+
+      **고르는 중에는 바가 그 파일을 든다** (예측 화면의 파일 모드와 같다). 확정 전의
+      조작 줄을 따로 두면 눌러야 할 [이 데이터 사용]이 바 밖에 있게 된다.
     -->
-    <section
-      v-if="saved"
-      class="flex flex-wrap items-center gap-2 rounded-panel border border-line bg-surface p-4"
-    >
-      <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">
+    <StepActionBar v-if="saved || opened">
+      <template v-if="opened">
+        <span class="max-w-64 truncate font-bold">{{ opened.fileName }}</span>
+
+        <label v-if="opened.document.sheetNames.length > 1" class="flex items-center gap-2">
+          <span class="font-bold text-ink-soft">{{ t('data.tabular.sheet') }}</span>
+          <select
+            v-model="sheetName"
+            class="rounded-field border border-line-strong bg-surface px-2 py-1"
+          >
+            <option v-for="name in opened.document.sheetNames" :key="name" :value="name">
+              {{ name }}
+            </option>
+          </select>
+        </label>
+
+        <label class="flex cursor-pointer items-center gap-2">
+          <input v-model="hasHeader" type="checkbox" class="size-4 accent-brand" />
+          <span class="font-bold">{{ t('data.tabular.hasHeader') }}</span>
+        </label>
+
+        <span v-if="!hasHeader" class="text-ink-soft">{{ t('data.tabular.noHeaderNote') }}</span>
+      </template>
+
+      <AppButton v-else variant="secondary" :disabled="busy" @click="fileInput?.click()">
         {{ busy ? t('data.tabular.reading') : t('data.tabular.change') }}
       </AppButton>
-    </section>
 
-    <!-- 고르는 중일 때의 조작 줄. 확정 전에만 있다. -->
-    <div
-      v-if="opened"
-      class="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-panel border border-brand-line bg-brand-soft px-4 py-2.5"
-    >
-      <span class="max-w-64 truncate text-base font-bold">{{ opened.fileName }}</span>
-
-      <label v-if="opened.document.sheetNames.length > 1" class="flex items-center gap-2 text-base">
-        <span class="font-bold text-ink-soft">{{ t('data.tabular.sheet') }}</span>
-        <select
-          v-model="sheetName"
-          class="rounded-field border border-line-strong bg-surface px-2 py-1"
-        >
-          <option v-for="name in opened.document.sheetNames" :key="name" :value="name">
-            {{ name }}
-          </option>
-        </select>
-      </label>
-
-      <label class="flex cursor-pointer items-center gap-2 text-base">
-        <input v-model="hasHeader" type="checkbox" class="size-4 accent-brand" />
-        <span class="font-bold">{{ t('data.tabular.hasHeader') }}</span>
-      </label>
-
-      <span v-if="!hasHeader" class="text-base text-ink-soft">{{
-        t('data.tabular.noHeaderNote')
-      }}</span>
-
-      <div class="ml-auto flex gap-2">
-        <AppButton variant="secondary" @click="opened = null">{{ t('common.cancel') }}</AppButton>
-        <AppButton :disabled="busy" @click="requestApply">{{ t('data.tabular.use') }}</AppButton>
-      </div>
-    </div>
+      <template #end>
+        <template v-if="opened">
+          <AppButton variant="secondary" @click="opened = null">
+            {{ t('common.cancel') }}
+          </AppButton>
+          <AppButton :disabled="busy" @click="requestApply">{{ t('data.tabular.use') }}</AppButton>
+        </template>
+      </template>
+    </StepActionBar>
 
     <!--
       **표와 열 검사기가 남은 세로 공간을 나눠 갖는다** (architecture.md §8.9).

@@ -14,6 +14,10 @@
  *
  * **`fixed`가 아니다** — `AppShell`의 상태 표시줄이 `<main>` 밖에 있다.
  *
+ * **표 머리글보다 앞이어야 한다.** 붙박이 머리글도 `z-10`으로 붙는데 DOM에서 이 바보다
+ * 뒤에 있어서, 같은 값이면 표가 바를 덮는다 — 데이터 화면에서 실제로 그렇게 나갔다
+ * (2026-08-14). 대화상자·팝오버의 `z-50`은 그대로 이 위를 덮는다.
+ *
  * **바깥 칸은 여백을 만드는 자리다.** `top-0`으로 붙이면 바가 화면 맨 끝에 딱 달라붙어
  * 눌린 것처럼 보이고, 그렇다고 `top-4`로 띄우면 그 틈으로 아래 내용이 지나가는 것이
  * 보인다. 그래서 위쪽 여백만큼을 **칸 안의 `pt`로 넣고 같은 값을 `-mt`로 도로 빼서**,
@@ -29,7 +33,7 @@
 </script>
 
 <template>
-  <div class="sticky top-0 z-10 -mt-4 bg-surface pt-4 sm:-mt-5 sm:pt-5">
+  <div class="sticky top-0 z-20 -mt-4 bg-surface pt-4 sm:-mt-5 sm:pt-5">
     <div
       class="flex flex-wrap items-center gap-3 rounded-panel border border-line-strong bg-surface px-4 py-2.5 shadow-card"
     >
