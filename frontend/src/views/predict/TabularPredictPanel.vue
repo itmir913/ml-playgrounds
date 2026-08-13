@@ -650,7 +650,7 @@ async function run(): Promise<void> {
           -->
           <div
             ref="inputRowEl"
-            class="min-w-0 flex-1 scroll-mt-27 self-start md:sticky md:top-27 md:max-w-lg"
+            class="min-w-0 flex-1 scroll-mt-26 self-start md:sticky md:top-26 md:max-w-lg"
           >
             <InputRow
               :fields="fields"
@@ -670,7 +670,7 @@ async function run(): Promise<void> {
             **값이 붙박이 열의 `top`과 같다** — 둘 다 "바 아래 첫 자리"를 가리키므로
             같은 계산에서 나온다(§8.13.1 "왼쪽은 붙박이다").
           -->
-          <div ref="answerListEl" class="min-h-0 min-w-0 flex-1 scroll-mt-27 overflow-y-auto">
+          <div ref="answerListEl" class="min-h-0 min-w-0 flex-1 scroll-mt-26 overflow-y-auto">
             <AnswerList
               :models="visible"
               :answers="answers"
