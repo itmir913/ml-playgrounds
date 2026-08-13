@@ -16,6 +16,7 @@ import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
 import AppTable from '@/components/AppTable.vue'
+import TermPopover from '@/components/TermPopover.vue'
 import { useFormat } from '@/composables/useFormat'
 import type { FittedColumn } from '@/ml/preprocess'
 import type { ColumnPlan } from '@/ml/selection'
@@ -145,19 +146,45 @@ function onFeature(name: string, event: Event): void {
     -->
     <AppTable class="lg:max-h-150">
       <thead class="sticky top-0 z-10">
+        <!--
+          **머리글을 눌러 설명을 연다** (§8.13, 결과 화면의 지표 머리글과 같다). 이 표는
+          학생이 이 화면에서 가장 먼저 만나는 것인데 낱말 여섯이 한꺼번에 선다 — 상시
+          설명을 깔지 않는 규칙(§8.7)과 부딪히지 않으려면 눌러서 여는 수밖에 없다.
+
+          **`열 이름`에는 안 붙는다.** 설명할 것이 "학생 파일의 첫 줄에서 온 이름"뿐이라,
+          붙이면 머리글 일곱이 전부 눌리는 것이 되어 정작 설명이 필요한 칸이 묻힌다.
+        -->
         <tr>
-          <th>{{ t('preprocess.tabular.roleTarget') }}</th>
-          <th>{{ t('preprocess.tabular.roleFeature') }}</th>
+          <th>
+            <TermPopover
+              :title="t('preprocess.tabular.roleTarget')"
+              :body="t('columnHelp.target')"
+            />
+          </th>
+          <th>
+            <TermPopover
+              :title="t('preprocess.tabular.roleFeature')"
+              :body="t('columnHelp.feature')"
+            />
+          </th>
           <!--
             **이름 칸이 남는 폭을 전부 가진다.** 안 그러면 숫자 세 칸이 자리를 나눠 갖고
             열 이름이 글자마다 줄바꿈된다 — 사유가 붙은 줄에서 특히 그렇다.
           -->
           <th class="w-full">{{ t('data.tabular.columnName') }}</th>
-          <th>{{ t('data.tabular.kind') }}</th>
-          <th>{{ t('data.tabular.missing') }}</th>
-          <th>{{ t('data.tabular.unique') }}</th>
+          <th>
+            <TermPopover :title="t('data.tabular.kind')" :body="t('columnHelp.kind')" />
+          </th>
+          <th>
+            <TermPopover :title="t('data.tabular.missing')" :body="t('columnHelp.missing')" />
+          </th>
+          <th>
+            <TermPopover :title="t('data.tabular.unique')" :body="t('columnHelp.unique')" />
+          </th>
           <!-- 학습셋에서 구한 값이라 계획이 서야 채워진다. 그전에는 빈 칸이다. -->
-          <th class="whitespace-nowrap">{{ t('preprocess.tabular.effect') }}</th>
+          <th class="whitespace-nowrap">
+            <TermPopover :title="t('preprocess.tabular.effect')" :body="t('columnHelp.effect')" />
+          </th>
         </tr>
       </thead>
       <tbody>

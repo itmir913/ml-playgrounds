@@ -577,6 +577,14 @@
     "silhouette": "How well each sample fits its own cluster compared with the nearest other cluster, averaged over every sample. It runs from -1 to 1, and the closer to 1, the more clearly the clusters are separated. Around 0 the clusters touch each other, and a negative score means many samples sit closer to a neighboring cluster than to their own.",
     "inertia": "The squared distance from every sample to the center of its own cluster, all added up. Lower means tighter clusters, but it always drops as you add more clusters, so it cannot tell you on its own whether the result is good. For example, note the value with 2, 3, and 4 clusters and look for where it stops dropping sharply."
   },
+  "columnHelp": {
+    "target": "The column the model has to guess. You can pick only one, and the column you pick cannot also be a feature. For example, to guess exam scores, the score column is the target. Clustering has no target.",
+    "feature": "A column the model uses as evidence. You can pick several, and columns you leave unpicked are not used in training. For example, to guess exam scores you might pick study hours and attendance.",
+    "kind": "Whether the values in this column read as numbers or as text. Number columns go through scaling, text columns through encoding. Some columns are written as numbers but have no size meaning, such as a grade level or a postal code, so it is worth checking with your own eyes.",
+    "missing": "How many rows have no value here. Empty boxes must be either filled in or dropped before training, and you choose which in [Clean up the data] below.",
+    "unique": "How many different values this column holds. A column with only one value cannot tell anything apart, and a text column adds one encoded column per value, so many values means many columns.",
+    "effect": "What actually happens to this column with the current settings. Replacement values and scaling are worked out from the training data only, so these numbers are not the whole column."
+  },
   "results": {
     "actual": "Actual",
     "cellActual": "Actual",
