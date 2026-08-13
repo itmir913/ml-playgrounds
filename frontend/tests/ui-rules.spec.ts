@@ -150,6 +150,30 @@ const RULES: readonly Rule[] = [
     ],
   },
   {
+    name: '테두리 토큰을 글자색으로 쓰지 않는다',
+    why:
+      '**구분자도 글자다.** 상태바의 가운뎃점이 `text-line-strong`이었는데 흰 바탕에서 ' +
+      '대비가 1.6:1이라 사실상 안 보였다 — 선으로는 맞는 값이고 글자로는 틀린 값이다. ' +
+      '눈으로만 보이는 결함이라 리뷰가 못 잡는다(같은 자리가 셋이었다). 옅게 두고 ' +
+      '싶으면 글자 토큰 중 가장 옅은 `ink-faint`를 쓴다.',
+    // `marker:`·`placeholder:` 같은 변형이 앞에 붙어도 걸려야 한다. 낱말 경계가
+    // 콜론과 t 사이에서 서므로 접두사는 그냥 통과한다.
+    pattern: /\btext-line(-strong)?\b/,
+    violations: [
+      '<span class="text-line-strong" aria-hidden="true"> · </span>',
+      '<ul class="marker:text-line-strong">',
+      '<span class="text-line">/</span>',
+    ],
+    allowed: [
+      '<span class="text-ink-faint"> · </span>',
+      // 테두리 토큰을 테두리에 쓰는 것은 제자리다.
+      '<div class="border border-line-strong">',
+      '<hr class="border-line" />',
+      // 낱말 안에 우연히 들어간 경우는 걸리지 않아야 한다.
+      'class="text-lines-count"',
+    ],
+  },
+  {
     name: '표에 h-full을 주지 않는다',
     why:
       '`AppTable`은 스스로 스크롤하는 상자다. 거기에 `h-full`을 주면 **부모가 얼마나 ' +
