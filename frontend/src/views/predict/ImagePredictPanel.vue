@@ -560,16 +560,42 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
         class="flex flex-col gap-3 rounded-panel border border-line bg-surface p-4 md:flex-row"
       >
         <!--
-          **`self-start`가 없으면 비율이 깨진다.** flex 행의 기본은 `stretch`라 답이 길어
-          행이 높아지면 사진이 그만큼 늘어나고, `aspect-square`가 그걸 못 막는다 —
-          늘어나는 것은 높이이고 비율은 그 뒤에 계산된다.
+          **좁은 화면에서는 사진과 [빼기]가 한 줄이다.** 축이 뒤집히면 같은 속성의 뜻도
+          뒤집힌다 — `flex-col`에서는 마지막 자식이 맨 **아래**이고 `self-start`가
+          **왼쪽**이라, 묶지 않으면 버튼이 왼쪽 하단으로 떨어진다.
+
+          **`md:contents`로 넓은 화면에서는 이 줄이 사라진다.** 그러면 사진과 버튼이 다시
+          `<li>`의 직계가 되어 가로로 서는데, DOM 차례가 사진 → 빼기 → 답이므로
+          **`md:order-last`가 함께 있어야** 버튼이 맨 오른쪽에 선다.
         -->
-        <img
-          :src="urls.get(photo.hash)"
-          :alt="t('predict.image.photo')"
-          loading="lazy"
-          class="aspect-square w-32 shrink-0 self-start rounded-control bg-surface-sunken object-cover"
-        />
+        <div class="flex items-start justify-between gap-3 md:contents">
+          <!--
+            **`self-start`가 없으면 비율이 깨진다.** flex 행의 기본은 `stretch`라 답이 길어
+            행이 높아지면 사진이 그만큼 늘어나고, `aspect-square`가 그걸 못 막는다 —
+            늘어나는 것은 높이이고 비율은 그 뒤에 계산된다.
+          -->
+          <img
+            :src="urls.get(photo.hash)"
+            :alt="t('predict.image.photo')"
+            loading="lazy"
+            class="aspect-square w-32 shrink-0 self-start rounded-control bg-surface-sunken object-cover"
+          />
+
+          <!--
+            **한 장 빼기는 확인창을 안 거친다.** 예측 사진은 답을 얻으려고 올린 입력이고
+            다시 올리면 그만이다 — 훈련 사진을 지우는 것과 무게가 다르다. 대신 전부
+            지우기는 묻는다.
+          -->
+          <AppButton
+            variant="ghost"
+            class="self-start md:order-last"
+            :disabled="busy"
+            @click="removeOne(photo.hash)"
+          >
+            {{ t('predict.image.remove') }}
+          </AppButton>
+        </div>
+
         <div class="min-w-0 flex-1">
           <AnswerList
             :models="visible"
@@ -579,20 +605,6 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
             :waiting="t('predict.image.waiting')"
           />
         </div>
-
-        <!--
-          **한 장 빼기는 확인창을 안 거친다.** 예측 사진은 답을 얻으려고 올린 입력이고
-          다시 올리면 그만이다 — 훈련 사진을 지우는 것과 무게가 다르다. 대신 전부
-          지우기는 묻는다.
-        -->
-        <AppButton
-          variant="ghost"
-          class="self-start"
-          :disabled="busy"
-          @click="removeOne(photo.hash)"
-        >
-          {{ t('predict.image.remove') }}
-        </AppButton>
       </li>
     </ul>
 
