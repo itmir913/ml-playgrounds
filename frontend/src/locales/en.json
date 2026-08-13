@@ -83,6 +83,7 @@
       "categoryName": "Category name",
       "clearSelection": "Clear selection",
       "count": "{count} photo | {count} photos",
+      "countUnit": "{count}",
       "createTitle": "New category",
       "deleteDescription": "This removes the {count} selected photo from the project. It cannot be undone. | This removes the {count} selected photos from the project. It cannot be undone.",
       "deletePhotos": "Delete photos",

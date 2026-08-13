@@ -83,6 +83,7 @@
       "categoryName": "범주 이름",
       "clearSelection": "선택 해제",
       "count": "{count}장",
+      "countUnit": "{count}장",
       "createTitle": "범주 만들기",
       "deleteDescription": "선택한 사진 {count}장을 프로젝트에서 지웁니다. 되돌릴 수 없습니다.",
       "deletePhotos": "사진 지우기",

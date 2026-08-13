@@ -747,9 +747,13 @@ describe('두 언어가 나란히 말한다', () => {
     // 한국어는 세는 것을 앞 문장이 말해서 `{count}개` 하나로 되지만, 영어는 단위 낱말이
     // 붙고 복수형이 갈린다.
     ['meta.countUnit', 'preprocess.tabular.summaryFeatureUnit'],
-    // 한국어는 세는 것마다 단위가 다르다(`개`·`번`). 영어는 배지가 이름을 말하므로
-    // 값 쪽에 붙일 낱말이 없어 숫자만 남는다.
-    ['meta.countUnit', 'results.experimentCount'],
+    // 한국어는 세는 것마다 단위가 다르다(`개`·`번`·`장`). 영어는 이름을 배지가 말하므로
+    // 값 쪽에 붙일 낱말이 없어 셋 다 숫자만 남는다.
+    ['data.image.countUnit', 'meta.countUnit', 'results.experimentCount'],
+    // 한국어의 `장`은 세는 단위라 이름 옆에서도 붙지만, 영어의 `photos`는 이름 그
+    // 자체라 배지가 이미 말한 낱말이 된다. 혼자 서는 배지는 낱말이 있어야 하고
+    // (`1001 photos`), 이름 옆의 값은 숫자만 남아야 한다 (`Photos 1001`).
+    ['data.image.count', 'data.image.countUnit'],
     // 프로젝트는 영구히 없애는 것(Delete)이고 파일은 떼는 것(Remove)이다. 한국어는
     // 둘 다 `지우기`로 굳어 있다.
     ['predict.tabular.fileRemove', 'projects.delete'],

@@ -345,13 +345,17 @@ async function commitRemoveCategory(): Promise<void> {
             <dt>
               <AppBadge>{{ t('data.image.photos') }}</AppBadge>
             </dt>
-            <dd class="font-bold tabular-nums text-ink">{{ entries.length }}</dd>
+            <dd class="font-bold tabular-nums text-ink">
+              {{ t('data.image.countUnit', entries.length) }}
+            </dd>
           </div>
           <div class="flex items-baseline gap-1.5">
             <dt>
               <AppBadge>{{ t('data.image.categories') }}</AppBadge>
             </dt>
-            <dd class="font-bold tabular-nums text-ink">{{ categories.length }}</dd>
+            <dd class="font-bold tabular-nums text-ink">
+              {{ t('meta.countUnit', categories.length) }}
+            </dd>
           </div>
         </template>
         <AppButton

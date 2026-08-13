@@ -28,7 +28,7 @@ const unlabeled = computed(() => countByCategory(project.file).get(IMAGE_UNLABEL
 <template>
   <div class="flex justify-between gap-4">
     <dt class="font-bold text-ink-soft">{{ t('data.image.photos') }}</dt>
-    <dd class="tabular-nums">{{ t('data.image.count', photos) }}</dd>
+    <dd class="tabular-nums">{{ t('data.image.countUnit', photos) }}</dd>
   </div>
 
   <div class="flex justify-between gap-4">
@@ -39,6 +39,6 @@ const unlabeled = computed(() => countByCategory(project.file).get(IMAGE_UNLABEL
   <!-- 0장이면 안 보인다. 할 일이 없는 줄은 요약에 자리를 차지할 이유가 없다. -->
   <div v-if="unlabeled > 0" class="flex justify-between gap-4">
     <dt class="font-bold text-ink-soft">{{ t('data.image.unlabeled') }}</dt>
-    <dd class="tabular-nums">{{ t('data.image.count', unlabeled) }}</dd>
+    <dd class="tabular-nums">{{ t('data.image.countUnit', unlabeled) }}</dd>
   </div>
 </template>
