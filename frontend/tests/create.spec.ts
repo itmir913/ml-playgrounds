@@ -17,7 +17,7 @@ import {
 import { NOT_FOR_TABULAR_ALGORITHM } from './fixtures/algorithms'
 import { ALGORITHMS, supportedTaskTypes } from '../src/ml/algorithms'
 import { FALLBACK_RUNTIME_ID, RUNTIMES } from '../src/ml/backend'
-import { newProjectDocument, newProjectSeed, touch } from '../src/project/create'
+import { newProjectDocument, newProjectId, newProjectSeed, touch } from '../src/project/create'
 import { portfolioSections, renderPortfolioMarkdown } from '../src/project/portfolio'
 import {
   DEFAULT_PORTFOLIO_SECTIONS,
@@ -111,6 +111,16 @@ describe('새 프로젝트', () => {
 
   it('씨앗은 매번 다른 id를 준다', () => {
     expect(newProjectSeed().projectId).not.toBe(newProjectSeed().projectId)
+  })
+
+  /**
+   * **id의 모양이 UUID v4 그대로여야 한다.** `crypto.randomUUID`를 쓸 수 없어서
+   * (보안 컨텍스트 전용 - `secure-context-rules.spec.ts`) 직접 만드는데, 모양이
+   * 어긋나면 **이미 나간 `.mlpx`와 새 파일의 `projectId`가 다른 종류가 된다.**
+   */
+  it('id는 UUID v4 모양이다', () => {
+    const pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    for (let i = 0; i < 50; i += 1) expect(newProjectId()).toMatch(pattern)
   })
 
   it('touch는 고친 시각만 바꾼다', () => {

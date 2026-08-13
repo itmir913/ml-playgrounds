@@ -42,10 +42,37 @@ export function newRandomState(): number {
   return crypto.getRandomValues(new Uint32Array(1))[0] ?? 0
 }
 
+/**
+ * 프로젝트 식별자. **`crypto.randomUUID`를 쓰지 않는다.**
+ *
+ * 그것은 보안 컨텍스트(https, localhost)에서만 존재하는데 **자가호스팅 서버는 대개
+ * http://192.168.x.x 로 접속한다** — `hash.ts`가 `crypto.subtle`을 버린 것과 같은
+ * 이유이고 같은 배포 경로다. 실제로 아이폰에서 개발 서버(http://192.168.x.x)로 들어가니
+ * 새 프로젝트 만들기가 그 자리에서 죽었다 (2026-08-14).
+ *
+ * `getRandomValues`는 보안 컨텍스트를 안 따진다. 나오는 값은 UUID v4 그대로라
+ * **이미 나간 `.mlpx`의 `projectId`와 같은 모양이다** - 형식이 갈리지 않는다.
+ */
+export function newProjectId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  // 버전(4)과 변형 자리를 규격대로 박는다. 나머지 122비트가 난수다.
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80
+
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20),
+  ].join('-')
+}
+
 /** 실제 실행에서 쓰는 씨앗. 테스트는 이걸 안 부르고 값을 직접 넘긴다. */
 export function newProjectSeed(): ProjectSeed {
   return {
-    projectId: crypto.randomUUID(),
+    projectId: newProjectId(),
     createdAt: new Date().toISOString(),
     randomState: newRandomState(),
   }
