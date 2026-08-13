@@ -103,18 +103,28 @@ const plan = computed(() => {
 const targetRule = computed(() => requiredTargetKind(project.taskType)?.code)
 
 /**
- * 특성 상태 한 줄. **세 가지 상태를 가른다** — 아직 안 골랐다 / 골랐는데 하나도 안
- * 들어간다 / 몇 개가 들어간다. 가운데만 빨갛다.
+ * 특성 상태 한 줄. **네 가지 상태를 가른다** — 아직 안 골랐다 / 골랐는데 하나도 안
+ * 들어간다 / 고른 것이 전부 들어간다 / 그중 일부만 들어간다. 둘째만 빨갛다.
+ *
+ * **고른 수와 들어가는 수는 다르다.** 문자 열을 특성으로 골라도 인코딩을 끄면 학습에서
+ * 빠지므로, 체크박스는 다섯 개가 켜져 있는데 들어가는 것은 둘일 수 있다. 그 차이가
+ * 있을 때만 둘을 말한다 — 늘 "5개 중 5개"라고 하면 아무 일도 없는 화면이 매번 뺄셈을
+ * 시킨다.
  */
 const featureSummary = computed(() => {
-  if ((data.value?.features.length ?? 0) === 0) {
+  const chosen = data.value?.features.length ?? 0
+  const usable = plan.value?.usableFeatures ?? 0
+  if (chosen === 0) {
     return { text: t('preprocess.tabular.noFeatureChosen'), tone: 'text-ink-soft' }
   }
-  if ((plan.value?.usableFeatures ?? 0) === 0) {
+  if (usable === 0) {
     return { text: t('preprocess.tabular.noUsableFeature'), tone: 'font-bold text-danger' }
   }
   return {
-    text: t('preprocess.tabular.featureSummary', plan.value?.usableFeatures ?? 0),
+    text:
+      chosen === usable
+        ? t('preprocess.tabular.featureSummary', usable)
+        : t('preprocess.tabular.featureSummaryPartial', chosen, { named: { chosen, usable } }),
     tone: 'text-ink-soft',
   }
 })
