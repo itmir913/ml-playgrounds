@@ -132,8 +132,19 @@ function onFeature(name: string, event: Event): void {
       </AppButton>
     </div>
 
-    <AppTable>
-      <thead>
+    <!--
+      **높이 상한이 있다** (architecture.md §8.9). 표가 전체 폭을 갖게 되면서 열이 서른
+      개일 때 아래 설정 셋이 한 화면 밖으로 밀린다. 1080p에서 쓸 수 있는 높이가 900px
+      남짓이고 화면 머리와 여백이 200px이라, 600px이면 다음 카드의 머리가 첫 화면에
+      걸린다. 열이 적으면 상한에 안 닿으므로 그때는 아무 변화가 없다.
+
+      **그래서 머리글을 고정한다.** 안에서 스크롤하는 동안 열 이름이 사라지면 어느 칸을
+      보고 있는지 알 수 없다. `top-0`이어야 한다 — 조금이라도 띄우면 그 틈으로 아래 행이
+      지나가는 것이 보인다(§8.13.1의 동작 바에서 밟은 것과 같다). 여백은 `data-table`이
+      `th`에 준 안쪽 여백이 갖고, 그 바탕이 불투명해서 행을 덮는다.
+    -->
+    <AppTable class="lg:max-h-150">
+      <thead class="sticky top-0 z-10">
         <tr>
           <th>{{ t('preprocess.tabular.roleTarget') }}</th>
           <th>{{ t('preprocess.tabular.roleFeature') }}</th>

@@ -501,8 +501,19 @@ async function removeTest(): Promise<void> {
     라디오·이름·자료형·결측·값 종류·전처리까지 일곱 칸이 들어가 이름이 글자마다 접힌다.
     나뉜 두 열이 둘 다 좁은 것보다, 한 열로 쌓아 각자 온 폭을 갖는 편이 낫다.
   -->
-  <div v-if="settings && data && plan" class="grid gap-5 lg:grid-cols-5">
-    <section class="min-w-0 rounded-panel border border-line bg-surface p-4 lg:col-span-3">
+  <!--
+    **세 줄이다** (architecture.md §8.9). 1행이 타깃·특성 표, 2행이 설정 셋, 3행이 요약이고,
+    **2행의 왼쪽에서 오른쪽이 곧 실행 순서다** (`ml/plan.ts`: sampleRows → splitRows →
+    fitPreprocessor).
+
+    원래는 `표(3) | 설정 셋(2)`이었는데 **열이 적은 데이터에서 표 아래가 통째로 비었다** —
+    교실 데이터는 열이 네댓인 경우가 흔하다.
+
+    **`lg`에서 갈린다.** 1024px에서 세 열이 각 328px인데, 그보다 좁은 데서 셋으로 쪼개면
+    라디오의 설명 줄이 글자마다 접힌다. 한 열로 쌓여도 위에서 아래가 곧 실행 순서다.
+  -->
+  <div v-if="settings && data && plan" class="flex flex-col gap-5">
+    <section class="min-w-0 rounded-panel border border-line bg-surface p-4">
       <h2 class="font-bold">{{ t('preprocess.tabular.columnsTitle') }}</h2>
       <p class="mt-1 text-ink-soft">{{ t('preprocess.tabular.columnsLead') }}</p>
 
@@ -519,99 +530,24 @@ async function removeTest(): Promise<void> {
       </div>
 
       <!--
-          **아직 안 고른 것과 골랐는데 못 쓰는 것은 다르다.** 처음 들어온 학생에게
-          빨간 글씨를 보여주면 자기가 뭘 잘못한 줄 안다.
-        -->
+        **아직 안 고른 것과 골랐는데 못 쓰는 것은 다르다.** 처음 들어온 학생에게
+        빨간 글씨를 보여주면 자기가 뭘 잘못한 줄 안다.
+      -->
       <p class="mt-3" :class="featureSummary.tone">{{ featureSummary.text }}</p>
       <!-- 빠진 행이 0이면 아무 말도 안 한다 (trainRowUsage가 그때 null이다).
-           학생이 반드시 알고 있어야 하는 서술은 다른 컬러를 사용하여 주의를 끌어야 한다. -->
+         학생이 반드시 알고 있어야 하는 서술은 다른 컬러를 사용하여 주의를 끌어야 한다. -->
       <p v-if="trainRowUsage" class="mt-1 text-caution">
         {{ t('preprocess.tabular.rowsUsable', trainRowUsage) }}
       </p>
     </section>
 
-    <div class="flex min-w-0 flex-col gap-5 lg:col-span-2">
-      <section class="rounded-panel border border-line bg-surface p-4">
-        <h2 class="font-bold">{{ t('preprocess.tabular.cleaningTitle') }}</h2>
-
-        <div class="mt-3 flex flex-col gap-4">
-          <div>
-            <h3 class="font-bold text-ink-soft">{{ t('preprocess.tabular.missing') }}</h3>
-            <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
-              <label
-                v-for="strategy in MISSING_STRATEGIES"
-                :key="strategy"
-                class="flex cursor-pointer items-center gap-2"
-              >
-                <input
-                  type="radio"
-                  name="missing"
-                  class="size-4 accent-brand"
-                  :checked="data.preprocessing.missing === strategy"
-                  @change="setCleaning({ missing: strategy })"
-                />
-                {{ t(`missingStrategy.${strategy}`) }}
-              </label>
-            </div>
-            <p class="mt-1 text-ink-faint">{{ t('preprocess.tabular.missingNote') }}</p>
-          </div>
-
-          <div>
-            <h3 class="font-bold text-ink-soft">{{ t('preprocess.tabular.scaling') }}</h3>
-            <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
-              <label
-                v-for="method in SCALING_METHODS"
-                :key="method"
-                class="flex cursor-pointer items-center gap-2"
-              >
-                <input
-                  type="radio"
-                  name="scaling"
-                  class="size-4 accent-brand"
-                  :checked="data.preprocessing.scaling === method"
-                  @change="setCleaning({ scaling: method })"
-                />
-                {{ t(`scalingMethod.${method}`) }}
-              </label>
-            </div>
-            <p class="mt-1 text-ink-faint">{{ t('preprocess.tabular.scalingNote') }}</p>
-          </div>
-
-          <div>
-            <h3 class="font-bold text-ink-soft">{{ t('preprocess.tabular.encoding') }}</h3>
-            <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
-              <label
-                v-for="encoding in CATEGORICAL_ENCODINGS"
-                :key="encoding"
-                class="flex cursor-pointer items-center gap-2"
-              >
-                <input
-                  type="radio"
-                  name="encoding"
-                  class="size-4 accent-brand"
-                  :checked="data.preprocessing.categoricalEncoding === encoding"
-                  @change="setCleaning({ categoricalEncoding: encoding })"
-                />
-                {{ t(`categoricalEncoding.${encoding}`) }}
-              </label>
-            </div>
-            <p class="mt-1 text-ink-faint">{{ t('preprocess.tabular.encodingNote') }}</p>
-          </div>
-        </div>
-      </section>
-      <!--
-          **뽑기는 나누기 앞에 선다** (architecture.md §8.9). 실행 순서가 그렇고,
-          화면을 위에서 아래로 읽으면 그 순서가 그대로 보여야 한다.
-
-          **표에만 있는 개념이라 이 판이 갖는다.** 아래 나누기는 모든 종류에 공통이라
-          슬롯으로 온다 - 둘이 붙어 있지만 소유자가 다르다 (open-decisions.md #22).
-        -->
+    <div class="grid gap-5 lg:grid-cols-3">
       <section class="rounded-panel border border-line bg-surface p-4">
         <h2 class="font-bold">{{ t('preprocess.tabular.sampleTitle') }}</h2>
         <p class="mt-1 text-ink-soft">{{ t('preprocess.tabular.sampleLead') }}</p>
 
         <!-- 양자택일이다. 세 번째 상태가 없어야 "일부만 뽑는데 몇 행인지 모르는" 칸이
-               생기지 않는다 (아래 나누기 카드와 같은 규칙). -->
+             생기지 않는다 (아래 나누기 카드와 같은 규칙). -->
         <div class="mt-3 flex flex-col gap-4">
           <label class="flex cursor-pointer items-start gap-2">
             <input
@@ -663,7 +599,7 @@ async function removeTest(): Promise<void> {
                 />
               </label>
               <!-- **조용히 일부만 쓰지 않는다** - 안 쓰는 행이 몇 행인지 말한다
-                     (architecture.md §8.9, §8.13.2의 산점도 상한과 같은 규칙). -->
+                   (architecture.md §8.9, §8.13.2의 산점도 상한과 같은 규칙). -->
               <p class="mt-1.5 text-caution">
                 {{ t('preprocess.tabular.sampleSummary', sampleSummary) }}
               </p>
@@ -673,15 +609,15 @@ async function removeTest(): Promise<void> {
       </section>
 
       <!--
-        **평가 데이터를 어디서 받나는 종류별이다** (architecture.md 9.1.1). 표는 파일
-        하나이고 이미지는 폴더나 zip이 된다. 얼마나 나눌 것인가만 공통이라 슬롯으로 온다.
-      -->
+      **평가 데이터를 어디서 받나는 종류별이다** (architecture.md 9.1.1). 표는 파일
+      하나이고 이미지는 폴더나 zip이 된다. 얼마나 나눌 것인가만 공통이라 슬롯으로 온다.
+    -->
       <section class="rounded-panel border border-line bg-surface p-4">
         <h2 class="font-bold">{{ t('preprocess.testDataTitle') }}</h2>
         <p class="mt-1 text-ink-soft">{{ t('preprocess.testDataLead') }}</p>
 
         <!-- 양자택일이다 - 세 번째 상태가 없어야 학습 데이터로 채점하는 길이 막힌다
-               (open-decisions.md "`분할 안 함`을 없앱니다 - 그 자리가 양자택일이 된다"). -->
+             (open-decisions.md "`분할 안 함`을 없앱니다 - 그 자리가 양자택일이 된다"). -->
         <div class="mt-3 flex flex-col gap-4">
           <div>
             <label class="flex cursor-pointer items-start gap-2">
@@ -703,10 +639,10 @@ async function removeTest(): Promise<void> {
 
             <div v-if="testChoice === 'holdout'" class="mt-3 ml-6 flex flex-col gap-4">
               <!--
-                **비율과 씨앗은 공통이라 슬롯으로 온다** (architecture.md 9.1.2).
-                층화만 여기 있는 이유는 잠기는지와 왜 잠기는지가 이 종류의 라벨 분포에
-                달려 있어서다 - 슬롯은 그것을 알 방법이 없다.
-              -->
+              **비율과 씨앗은 공통이라 슬롯으로 온다** (architecture.md 9.1.2).
+              층화만 여기 있는 이유는 잠기는지와 왜 잠기는지가 이 종류의 라벨 분포에
+              달려 있어서다 - 슬롯은 그것을 알 방법이 없다.
+            -->
               <slot name="split-ratio" />
 
               <div>
@@ -850,6 +786,81 @@ async function removeTest(): Promise<void> {
           />
         </div>
       </section>
+      <section class="rounded-panel border border-line bg-surface p-4">
+        <h2 class="font-bold">{{ t('preprocess.tabular.cleaningTitle') }}</h2>
+
+        <div class="mt-3 flex flex-col gap-4">
+          <div>
+            <h3 class="font-bold text-ink-soft">{{ t('preprocess.tabular.missing') }}</h3>
+            <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
+              <label
+                v-for="strategy in MISSING_STRATEGIES"
+                :key="strategy"
+                class="flex cursor-pointer items-center gap-2"
+              >
+                <input
+                  type="radio"
+                  name="missing"
+                  class="size-4 accent-brand"
+                  :checked="data.preprocessing.missing === strategy"
+                  @change="setCleaning({ missing: strategy })"
+                />
+                {{ t(`missingStrategy.${strategy}`) }}
+              </label>
+            </div>
+            <p class="mt-1 text-ink-faint">{{ t('preprocess.tabular.missingNote') }}</p>
+          </div>
+
+          <div>
+            <h3 class="font-bold text-ink-soft">{{ t('preprocess.tabular.scaling') }}</h3>
+            <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
+              <label
+                v-for="method in SCALING_METHODS"
+                :key="method"
+                class="flex cursor-pointer items-center gap-2"
+              >
+                <input
+                  type="radio"
+                  name="scaling"
+                  class="size-4 accent-brand"
+                  :checked="data.preprocessing.scaling === method"
+                  @change="setCleaning({ scaling: method })"
+                />
+                {{ t(`scalingMethod.${method}`) }}
+              </label>
+            </div>
+            <p class="mt-1 text-ink-faint">{{ t('preprocess.tabular.scalingNote') }}</p>
+          </div>
+
+          <div>
+            <h3 class="font-bold text-ink-soft">{{ t('preprocess.tabular.encoding') }}</h3>
+            <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
+              <label
+                v-for="encoding in CATEGORICAL_ENCODINGS"
+                :key="encoding"
+                class="flex cursor-pointer items-center gap-2"
+              >
+                <input
+                  type="radio"
+                  name="encoding"
+                  class="size-4 accent-brand"
+                  :checked="data.preprocessing.categoricalEncoding === encoding"
+                  @change="setCleaning({ categoricalEncoding: encoding })"
+                />
+                {{ t(`categoricalEncoding.${encoding}`) }}
+              </label>
+            </div>
+            <p class="mt-1 text-ink-faint">{{ t('preprocess.tabular.encodingNote') }}</p>
+          </div>
+        </div>
+      </section>
+      <!--
+        **뽑기는 나누기 앞에 선다** (architecture.md §8.9). 실행 순서가 그렇고,
+        화면을 위에서 아래로 읽으면 그 순서가 그대로 보여야 한다.
+
+        **표에만 있는 개념이라 이 판이 갖는다.** 아래 나누기는 모든 종류에 공통이라
+        슬롯으로 온다 - 둘이 붙어 있지만 소유자가 다르다 (open-decisions.md #22).
+      -->
     </div>
 
     <!--
@@ -857,7 +868,7 @@ async function removeTest(): Promise<void> {
       어느 한쪽에 붙이면 카드의 자리가 데이터에 따라 움직인다 — 열이 40개면 왼쪽이 길고
       8개면 오른쪽이 길다. 카드 안에서 다시 두 열로 갈라 넓은 화면을 쓴다.
     -->
-    <TabularPrepSummary :plan="runPlan" class="lg:col-span-5" />
+    <TabularPrepSummary :plan="runPlan" />
   </div>
 
   <!--
