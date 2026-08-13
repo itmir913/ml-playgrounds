@@ -418,15 +418,15 @@ function withoutComments(source: string): string[] {
  * 창으로 만든다. **둘은 한 쌍이고 따로 떼면 안 된다.**
  */
 const DOM_GUARD =
-  /typeof\s+(?:document|window|navigator|localStorage|matchMedia)\s*[!=]==?\s*['"]undefined['"]/
+  /typeof\s+(?:document|window|navigator|localStorage|matchMedia|ResizeObserver)\s*[!=]==?\s*['"]undefined['"]/
 
 /** 같은 뜻인데 위 정규식이 못 보는 표기들. */
 const STRAY_DOM_CHECKS: readonly RegExp[] = [
-  /globalThis\s*\.\s*(?:document|window|navigator|localStorage|matchMedia)\b/,
-  /['"](?:document|window|navigator|localStorage|matchMedia)['"]\s+in\s/,
+  /globalThis\s*\.\s*(?:document|window|navigator|localStorage|matchMedia|ResizeObserver)\b/,
+  /['"](?:document|window|navigator|localStorage|matchMedia|ResizeObserver)['"]\s+in\s/,
   // 앞에 `.`이나 낱말 글자가 있으면 우리 자료구조의 속성이다 —
   // `record.document?.manifest`(project/storage.ts)가 실제로 그렇다.
-  /(?<![.\w$])(?:document|window|navigator|localStorage|matchMedia)\s*\?\./,
+  /(?<![.\w$])(?:document|window|navigator|localStorage|matchMedia|ResizeObserver)\s*\?\./,
 ]
 
 function strayDomChecks(source: string): string[] {

@@ -644,13 +644,15 @@ async function run(): Promise<void> {
 
             `self-start`가 필요하다 - 안 주면 flex 기본값(`stretch`)이 이 칸을 오른쪽
             칸만큼 늘려서, sticky가 붙을 상단 여백이 칸 안쪽에 생기는 대신 칸 자체가
-            아래로 늘어난다. `sticky`는 `md`부터라 그 폭에서는 이미 `sm` 패딩(`p-5`,
-            1.25rem)이 적용 중이다 - `top-5`로 맞춰서 붙었을 때도 화면 끝에 딱 붙지
-            않고 그 여백을 유지한다.
+            아래로 늘어난다.
+
+            **붙는 자리는 동작 바가 정한다** (`styles/utilities.css`의
+            `stick-under-step-bar`). 여기 숫자를 적어 두면 좁은 화면에서 바가 두 줄이
+            되는 순간 그만큼 어긋나 바가 이 칸의 머리를 덮는다.
           -->
           <div
             ref="inputRowEl"
-            class="min-w-0 flex-1 scroll-mt-26 self-start md:sticky md:top-26 md:max-w-lg"
+            class="min-w-0 flex-1 self-start under-step-bar md:sticky md:max-w-lg md:stick-under-step-bar"
           >
             <InputRow
               :fields="fields"
@@ -663,14 +665,14 @@ async function run(): Promise<void> {
           </div>
 
           <!--
-            **도착 지점이 바 아래에서 멈춘다.** `scroll-mt`가 없으면 `scrollIntoView`가
-            목표를 화면 맨 위에 붙여 놓는데, 그 자리는 이제 붙박이 바가 덮고 있어
+            **도착 지점이 바 아래에서 멈춘다.** 여백이 없으면 `scrollIntoView`가 목표를
+            화면 맨 위에 붙여 놓는데, 그 자리는 이제 붙박이 바가 덮고 있어
             `모델들의 답`이 가려진다.
 
-            **값이 붙박이 열의 `top`과 같다** — 둘 다 "바 아래 첫 자리"를 가리키므로
-            같은 계산에서 나온다(§8.13.1 "왼쪽은 붙박이다").
+            **붙박이 열과 같은 이름을 쓴다** — 둘 다 "바 아래 첫 자리"를 가리키므로
+            같은 값에서 나온다(§8.13.1 "왼쪽은 붙박이다").
           -->
-          <div ref="answerListEl" class="min-h-0 min-w-0 flex-1 scroll-mt-26 overflow-y-auto">
+          <div ref="answerListEl" class="min-h-0 min-w-0 flex-1 overflow-y-auto under-step-bar">
             <AnswerList
               :models="visible"
               :answers="answers"
