@@ -70,10 +70,33 @@ function now(): string {
   return new Date().toISOString()
 }
 
-function onTestSize(event: Event): void {
+/**
+ * 끄는 동안의 값. **저장된 값과 따로 둔다.**
+ *
+ * 슬라이더를 잡고 끄는 내내 설정을 고치면 두 가지가 매 프레임 일어난다 — 프로젝트가
+ * IndexedDB에 저장되고, **전처리 요약이 `fitPreprocessor`를 다시 돌린다.** 5천 행 ×
+ * 수십 열이면 저사양 교실 PC에서 눈에 띄게 끊긴다.
+ *
+ * 그렇다고 `@change`로 옮기기만 하면 **끄는 동안 옆의 퍼센트가 굳어** 고장으로 보인다.
+ * 그래서 표시는 여기가, 저장과 계산은 손을 뗄 때가 맡는다.
+ */
+const dragging = ref<number | null>(null)
+
+/** 화면에 뜨는 비율. 끄는 중이면 그 값이고, 아니면 저장된 값이다. */
+const shownTestSize = computed(() => dragging.value ?? settings.value?.split.testSize ?? 0)
+
+function onTestSizeInput(event: Event): void {
+  dragging.value = Number((event.target as HTMLInputElement).value)
+}
+
+/** 손을 뗐다. 여기서만 저장한다. */
+function onTestSizeChange(event: Event): void {
   const file = project.file
+  dragging.value = null
   if (!file) return
   const testSize = Number((event.target as HTMLInputElement).value)
+  // 안 움직였어도 change는 뜬다. 그때 저장하면 안 바뀐 값으로 파일의 시각만 새로 찍힌다.
+  if (testSize === file.document.settings.split.testSize) return
   apply(withSplit(file.document, { testSize }, now()))
 }
 
@@ -129,7 +152,7 @@ function reseed(): void {
           <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <h3 class="font-bold text-ink-soft">{{ t('preprocess.testSize') }}</h3>
             <output class="font-bold tabular-nums">
-              {{ format.percent(settings.split.testSize) }}
+              {{ format.percent(shownTestSize) }}
             </output>
           </div>
           <input
@@ -140,7 +163,8 @@ function reseed(): void {
             :step="TEST_SIZE.step"
             :value="settings.split.testSize"
             :aria-label="t('preprocess.testSize')"
-            @input="onTestSize"
+            @input="onTestSizeInput"
+            @change="onTestSizeChange"
           />
           <p class="mt-1 text-ink-faint">{{ t('preprocess.testSizeNote') }}</p>
         </div>
