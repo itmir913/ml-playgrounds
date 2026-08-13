@@ -225,13 +225,24 @@ function kindOf(column: ColumnSummary): string {
             </dd>
           </div>
         </template>
-        <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">
-          {{ saved ? t('data.tabular.change') : t('data.tabular.choose') }}
-        </AppButton>
       </template>
     </StepHeader>
 
     <StepChecklist step="data" />
+
+    <!--
+      **전체에 걸리는 동작은 여기 모인다** (§8.9). 머리에 두면 네 화면의 같은 자리가
+      데이터에서만 다른 모양이 되고, 데이터가 없을 때는 화면 가운데 [파일 선택]과
+      **같은 동작의 버튼이 둘**이 된다.
+
+      **그래서 데이터가 있을 때만 뜬다.** 없을 때 이 동작의 유일한 출처는 가운데
+      빈 상태다. 이미지 경로의 버튼 줄과 같은 자리, 같은 규칙이다.
+    -->
+    <div v-if="saved" class="flex flex-wrap items-center gap-2">
+      <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">
+        {{ busy ? t('data.tabular.reading') : t('data.tabular.change') }}
+      </AppButton>
+    </div>
 
     <!-- 고르는 중일 때의 조작 줄. 확정 전에만 있다. -->
     <div

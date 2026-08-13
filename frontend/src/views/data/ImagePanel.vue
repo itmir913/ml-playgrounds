@@ -358,13 +358,6 @@ async function commitRemoveCategory(): Promise<void> {
             </dd>
           </div>
         </template>
-        <AppButton
-          variant="secondary"
-          :disabled="busy"
-          @click="pickInto(IMAGE_UNLABELED, fileInput)"
-        >
-          {{ t('data.image.add') }}
-        </AppButton>
       </template>
     </StepHeader>
 
@@ -437,9 +430,24 @@ async function commitRemoveCategory(): Promise<void> {
     </div>
 
     <div v-else class="flex flex-1 flex-col gap-3">
+      <!--
+        **전체에 걸리는 동작 셋이 여기 모인다** (§8.9). 머리에 있던 [사진 추가]가 여기로
+        내려와, 범주 카드의 [여기에 사진 추가](그 범주로 들어간다)와 자리로 구별된다.
+
+        **빈 상태와 같은 순서, 같은 색이다.** 사진이 생겼다고 파란 버튼이 다른 것으로
+        옮겨 가면 학생은 화면이 바뀐 줄 안다 - 사진이 있든 없든 다음 할 일은 범주를
+        세우는 것이다 (체크리스트의 `범주 나누기`와 같은 말).
+      -->
       <div class="flex flex-wrap items-center gap-2">
-        <AppButton variant="secondary" @click="naming = { mode: 'create', from: '', value: '' }">
+        <AppButton @click="naming = { mode: 'create', from: '', value: '' }">
           {{ t('data.image.newCategory') }}
+        </AppButton>
+        <AppButton
+          variant="secondary"
+          :disabled="busy"
+          @click="pickInto(IMAGE_UNLABELED, fileInput)"
+        >
+          {{ t('data.image.add') }}
         </AppButton>
         <AppButton
           variant="secondary"

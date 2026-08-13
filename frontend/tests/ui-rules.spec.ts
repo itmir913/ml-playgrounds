@@ -1095,3 +1095,74 @@ describe('단계 문구를 화면이 조립하지 않는다', () => {
     expect(found).toEqual([])
   })
 })
+
+/**
+ * **머리의 맥락 자리에는 버튼이 없다** (architecture.md §8.9, 2026-08-13).
+ *
+ * `StepHeader`의 맥락 슬롯은 `<dl>`이다 — 이름-값 쌍이 들어가는 자리다. 데이터 화면이
+ * 거기에 [파일 선택]·[사진 추가]를 넣어 두어서, **버튼이 `<dl>` 안에 있었고** 네 단계
+ * 화면의 같은 자리가 데이터에서만 다른 모양이었다. 데이터가 없을 때는 화면 가운데
+ * [파일 선택]과 **같은 동작의 버튼이 둘**이 되기도 했다.
+ *
+ * **동작 슬롯까지 막지는 않는다.** 대시보드의 [바로가기]가 맨 위 오른쪽이어야 하는
+ * 이유가 §8.9에 따로 있다. 막는 것은 맥락 슬롯 하나다.
+ */
+describe('머리의 맥락 자리에는 버튼이 없다', () => {
+  /** `<StepHeader …> … </StepHeader>` 안쪽들. 없으면 빈 배열이다. */
+  function headerBlocks(source: string): string[] {
+    return [...source.matchAll(/<StepHeader[\s\S]*?<\/StepHeader>/g)].map((match) => match[0])
+  }
+
+  /**
+   * 맥락 슬롯 안에 버튼이 있는가.
+   *
+   * **동작 슬롯은 걷어내고 본다.** `#actions` 안의 버튼은 허용이므로, 그 블록을 먼저
+   * 지운 뒤에 남은 자리에서 찾는다.
+   */
+  function buttonsInContext(source: string): boolean {
+    return headerBlocks(source)
+      .map((block) => block.replaceAll(/<template #actions>[\s\S]*?<\/template>/g, ''))
+      .some((block) => /<AppButton/.test(block))
+  }
+
+  it('맥락 슬롯 안의 버튼을 잡는다', () => {
+    const source = `<StepHeader :title="t('steps.data.label')" :purpose="p">
+      <template #context>
+        <dd>{{ rows }}</dd>
+        <AppButton @click="pick">고르기</AppButton>
+      </template>
+    </StepHeader>`
+    expect(buttonsInContext(source)).toBe(true)
+  })
+
+  it('동작 슬롯 안의 버튼은 안 잡는다 - 대시보드의 [바로가기]가 거기 산다', () => {
+    const source = `<StepHeader :title="t('project.dashboard')" :purpose="p">
+      <template #actions>
+        <AppButton size="lg" @click="go">바로가기</AppButton>
+      </template>
+    </StepHeader>`
+    expect(buttonsInContext(source)).toBe(false)
+  })
+
+  it('머리 밖의 버튼은 안 잡는다 - 동작은 본문에 선다', () => {
+    const source = `<StepHeader :title="t" :purpose="p">
+      <template #context><dd>{{ rows }}</dd></template>
+    </StepHeader>
+    <div><AppButton @click="change">데이터 바꾸기</AppButton></div>`
+    expect(buttonsInContext(source)).toBe(false)
+  })
+
+  it('머리를 쓰는 화면이 실제로 있다 - 없으면 아래가 조용히 통과한다', () => {
+    const users = vueFiles(SRC).filter(
+      (path) => headerBlocks(readFileSync(path, 'utf-8')).length > 0,
+    )
+    expect(users.length).toBeGreaterThan(0)
+  })
+
+  it('지금 소스에 맥락 슬롯 안의 버튼이 없다', () => {
+    const found = vueFiles(SRC)
+      .filter((path) => buttonsInContext(readFileSync(path, 'utf-8')))
+      .map((path) => path.slice(SRC.length + 1))
+    expect(found).toEqual([])
+  })
+})
