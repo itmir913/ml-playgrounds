@@ -661,8 +661,15 @@ async function run(): Promise<void> {
             />
           </div>
 
-          <!-- 도착 지점에 여백을 남긴다 (ExperimentDetail.vue 주석). -->
-          <div ref="answerListEl" class="min-h-0 min-w-0 flex-1 scroll-mt-5 overflow-y-auto">
+          <!--
+            **도착 지점이 바 아래에서 멈춘다.** `scroll-mt`가 없으면 `scrollIntoView`가
+            목표를 화면 맨 위에 붙여 놓는데, 그 자리는 이제 붙박이 바가 덮고 있어
+            `모델들의 답`이 가려진다.
+
+            **값이 붙박이 열의 `top`과 같다** — 둘 다 "바 아래 첫 자리"를 가리키므로
+            같은 계산에서 나온다(§8.13.1 "왼쪽은 붙박이다").
+          -->
+          <div ref="answerListEl" class="min-h-0 min-w-0 flex-1 scroll-mt-27 overflow-y-auto">
             <AnswerList
               :models="visible"
               :answers="answers"
