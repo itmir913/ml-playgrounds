@@ -286,10 +286,21 @@ function kindOf(column: ColumnSummary): string {
       넓은 화면에서는 옆으로, 좁은 화면에서는 표만 여기 있고 검사기는 아래로 접힌다.
     -->
     <div class="flex min-h-96 flex-1 gap-5">
-      <div class="flex min-w-0 flex-1 flex-col gap-1.5">
-        <h3 v-if="shown" class="font-bold text-ink-soft">{{ t('data.tabular.previewTitle') }}</h3>
+      <!--
+        **표도 카드에 담는다** (§8.9, 2026-08-13). 전처리가 같은 성질의 표를 이미 카드에
+        담고 있어서 두 화면의 뼈대가 갈려 있었다. 표는 `AppTable`이 스스로 스크롤
+        상자라 카드가 더 가두는 것이 없다 - 치르는 값은 여백만큼의 폭이다.
 
-        <AppTable v-if="shown" class="min-h-0 flex-1">
+        **데이터가 없을 때는 카드가 없다.** 그 자리는 파일을 떨어뜨리는 과녁이고,
+        과녁을 카드 안에 넣으면 떨어뜨릴 자리가 그만큼 줄어든다.
+      -->
+      <section
+        v-if="shown"
+        class="flex min-w-0 flex-1 flex-col gap-1.5 rounded-panel border border-line bg-surface p-4"
+      >
+        <h3 class="font-bold text-ink-soft">{{ t('data.tabular.previewTitle') }}</h3>
+
+        <AppTable class="min-h-0 flex-1">
           <thead class="sticky top-0 z-10">
             <tr>
               <th v-for="column in shown.columns" :key="column.name" class="align-bottom">
@@ -304,18 +315,18 @@ function kindOf(column: ColumnSummary): string {
             </tr>
           </tbody>
         </AppTable>
+      </section>
 
-        <div
-          v-else
-          class="grid min-h-0 flex-1 place-items-center rounded-panel border-2 border-dashed transition-colors"
-          :class="dragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
-        >
-          <AppEmpty :reason="t('data.tabular.emptyReason')" :next="t('data.tabular.dropHint')">
-            <AppButton size="lg" :disabled="busy" @click="fileInput?.click()">
-              {{ busy ? t('data.tabular.reading') : t('data.tabular.choose') }}
-            </AppButton>
-          </AppEmpty>
-        </div>
+      <div
+        v-else
+        class="grid min-h-0 flex-1 place-items-center rounded-panel border-2 border-dashed transition-colors"
+        :class="dragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
+      >
+        <AppEmpty :reason="t('data.tabular.emptyReason')" :next="t('data.tabular.dropHint')">
+          <AppButton size="lg" :disabled="busy" @click="fileInput?.click()">
+            {{ busy ? t('data.tabular.reading') : t('data.tabular.choose') }}
+          </AppButton>
+        </AppEmpty>
       </div>
 
       <!--
@@ -323,7 +334,10 @@ function kindOf(column: ColumnSummary): string {
         열을 보기 위해서이므로 둘은 함께 봐야 한다. 자기 열 안에서 스크롤하므로 열이
         몇 개든 표의 자리는 안 줄어든다.
       -->
-      <aside v-if="shown" class="hidden min-w-0 flex-1 flex-col gap-1.5 md:flex">
+      <aside
+        v-if="shown"
+        class="hidden min-w-0 flex-1 flex-col gap-1.5 rounded-panel border border-line bg-surface p-4 md:flex"
+      >
         <h3 class="font-bold text-ink-soft">{{ t('data.tabular.inspector') }}</h3>
         <div class="flex min-h-0 flex-1 flex-col">
           <ColumnInspector :columns="shown.columns" />
