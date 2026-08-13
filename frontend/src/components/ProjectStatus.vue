@@ -40,13 +40,7 @@ const project = useProjectStore()
         class="flex items-center gap-1.5 rounded-control px-2.5 py-1.5 font-bold text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink"
       >
         <component :is="ACTION_ICONS.showSummary" :size="18" aria-hidden="true" />
-        <!--
-          좁은 화면에서는 짧은 쪽을 쓴다. 이 버튼이 넓어진 만큼 프로젝트 이름이
-          깎이는데, **이름이 잘려서 여기까지 오는 것**이므로 이름을 먹으면 앞뒤가
-          안 맞는다. 조각을 잇는 것이 아니라 처음부터 다른 문자열이다 (docs/i18n.md).
-        -->
         <span class="max-md:hidden">{{ t('meta.title') }}</span>
-        <span class="md:hidden">{{ t('meta.titleShort') }}</span>
       </button>
     </template>
 
