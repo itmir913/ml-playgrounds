@@ -648,7 +648,6 @@
     "notSaved": "예측한 값과 답은 프로젝트 파일에 저장되지 않습니다. 여기는 마음껏 시험해 보는 자리입니다.",
     "filterExperiments": "실험(Experiment)",
     "filterAlgorithms": "모델",
-    "filterLead": "켜 둔 것만 아래에서 답을 냅니다.",
     "filterCount": "모델 {total}개 중 {shown}개",
     "filterEmptyReason": "고른 필터에 맞는 모델이 없습니다.",
     "filterEmptyNext": "위에서 필터를 하나 이상 켜면 다시 보입니다.",

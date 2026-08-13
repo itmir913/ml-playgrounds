@@ -648,7 +648,6 @@
     "notSaved": "The values you try and the answers you get are not saved into the project file. This is a place to experiment freely.",
     "filterExperiments": "Experiment",
     "filterAlgorithms": "Model",
-    "filterLead": "Only what you keep on answers below.",
     "filterCount": "{shown} of {total} models",
     "filterEmptyReason": "No model matches the selected filters.",
     "filterEmptyNext": "Turn on at least one filter above to see models again.",

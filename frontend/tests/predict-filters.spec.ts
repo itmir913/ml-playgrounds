@@ -40,7 +40,6 @@ function render(experiments: typeof ONE, algorithms: typeof ONE, filter?: Predic
         experimentIds: new Set(experiments.map((option) => option.id)),
         algorithms: new Set(algorithms.map((option) => option.id)),
       },
-      lead: '켜 둔 것만 아래에서 답을 냅니다.',
       count: '모델 2개 중 2개',
       disabled: false,
     },

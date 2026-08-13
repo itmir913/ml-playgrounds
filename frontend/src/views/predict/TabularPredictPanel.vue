@@ -427,7 +427,6 @@ async function run(): Promise<void> {
       <PredictFilters
         :axes="axes"
         :filter="filter"
-        :lead="t('predict.filterLead')"
         :count="filterCount"
         :disabled="predicting"
         @toggle="toggle"

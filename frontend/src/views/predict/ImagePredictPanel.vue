@@ -539,7 +539,6 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       v-else-if="showFilters"
       :axes="axes"
       :filter="filter"
-      :lead="t('predict.filterLead')"
       :count="filterCount"
       :disabled="predicting"
       @toggle="toggle"

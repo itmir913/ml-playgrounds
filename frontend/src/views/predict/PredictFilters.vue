@@ -41,9 +41,12 @@ export interface FilterAxis {
 const props = defineProps<{
   axes: readonly FilterAxis[]
   filter: PredictFilter
-  /** 이 칸이 무엇을 하는지 한 줄. 제목 대신이다 — 명사로 이름 붙일 것이 아니라 동작이다. */
-  lead: string
-  /** 지금 몇 개가 답하는지. 답이 셋뿐일 때 그 이유를 여기서 읽는다. */
+  /**
+   * 지금 몇 개가 답하는지. 답이 셋뿐일 때 그 이유를 여기서 읽는다.
+   *
+   * **설명 한 줄을 두지 않는다.** "켜 둔 것만 답을 냅니다" 같은 말은 칩을 한 번 눌러
+   * 보면 아는 것이라 자리만 먹는다.
+   */
   count: string
   /** 계산이 도는 동안 켜진다. 도중에 대상이 바뀌면 어느 집합에 대한 답인지 흐려진다. */
   disabled: boolean
@@ -93,10 +96,7 @@ function chipClass(state: boolean): string {
     v-if="shown.length > 0"
     class="flex flex-col gap-3 rounded-panel border border-line bg-surface p-4"
   >
-    <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-      <p class="text-ink-soft">{{ props.lead }}</p>
-      <p class="font-bold tabular-nums">{{ props.count }}</p>
-    </div>
+    <p class="font-bold tabular-nums">{{ props.count }}</p>
 
     <!--
       **축마다 한 줄이다.** 이름·전체 버튼·칩이 한 줄에 서면 축 둘이 넉 줄에서 두 줄로
