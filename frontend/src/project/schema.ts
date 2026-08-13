@@ -278,7 +278,7 @@ export const splitSchema = z.looseObject({
  * **씨앗과 층화는 여기 없다.** `split.randomState`와 `split.stratify`를 따라간다.
  *
  * **바닥이 `MIN_SPLIT_ROWS`다. 1이 아니다.** 화면이 그 밑으로 못 내려가는데 스키마만
- * 1을 받으면, 손으로 고친 파일이 열리기는 하고 [학습]에서 `SPLIT_TOO_FEW_ROWS`로
+ * 1을 받으면, 손으로 고친 파일이 열리기는 하고 [학습하기]에서 `SPLIT_TOO_FEW_ROWS`로
  * 죽는다 — **읽는 문에서 거부할 수 있는 것을 뒤로 미루는 셈**이다 (§10의 경계).
  */
 const nSamplesSchema = z.int().min(MIN_SPLIT_ROWS).optional()
@@ -808,7 +808,7 @@ export const experimentSettingsSchema = z.looseObject({
 })
 
 /**
- * [학습] 한 번이 실험 하나다. 같은 데이터·전처리·분할을 쓰므로
+ * [학습하기] 한 번이 실험 하나다. 같은 데이터·전처리·분할을 쓰므로
  * 공정한 비교가 구조적으로 보장된다.
  */
 export const experimentSchema = z.looseObject({

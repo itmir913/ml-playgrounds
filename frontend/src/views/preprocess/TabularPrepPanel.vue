@@ -304,7 +304,7 @@ function onStratify(event: Event): void {
 /**
  * 층화를 걸 수 없는 이유. **판정은 화면 밖에 있다** (`ml/selection.ts`의 `stratifyBlock`).
  *
- * 학습이 보는 것과 같은 함수라 "화면은 멀쩡한데 [학습]이 거부한다"가 생기지 않는다.
+ * 학습이 보는 것과 같은 함수라 "화면은 멀쩡한데 [학습하기]가 거부한다"가 생기지 않는다.
  */
 const stratifyBlockNow = computed(() => {
   const current = data.value

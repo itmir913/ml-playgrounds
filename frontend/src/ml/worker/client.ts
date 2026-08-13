@@ -29,7 +29,7 @@ export interface TrainWorker {
    * 워커가 보낸 것을 이쪽이 **복원하지 못했을 때** 온다.
    *
    * 없으면 아무 일도 안 일어난 것처럼 보인다 - 결과도 실패도 안 오고 Promise가 영영
-   * 안 풀려서 [학습] 버튼이 꺼진 채로 남는다.
+   * 안 풀려서 [학습하기] 버튼이 꺼진 채로 남는다.
    */
   onmessageerror?: ((event: MessageEvent<unknown>) => void) | null
   postMessage(message: TrainRequest): void

@@ -1,5 +1,5 @@
 /**
- * [학습] 한 번의 수명. **화면은 상태만 읽는다.**
+ * [학습하기] 한 번의 수명. **화면은 상태만 읽는다.**
  *
  * **학습은 언제나 백그라운드다** (open-decisions.md). 워커가 도는 동안 화면이 살아 있어야
  * 하고, 그래서 진행과 취소가 여기 있다 — 메인 스레드에서 돌리면 진행률도 [멈추기]도 같이
@@ -92,7 +92,7 @@ export function useTraining(createWorker: () => TrainWorker) {
 
     // **train은 반드시 try 안에 있어야 한다.** postMessage는 동기로 던질 수 있고
     // (아래 plain 참조), 밖에 두면 그때 finally가 안 돌아 progress가 남는다.
-    // 그러면 화면이 "학습 중"에 영구히 갇히고 [학습] 버튼은 그 가지에 없다.
+    // 그러면 화면이 "학습 중"에 영구히 갇히고 [학습하기] 버튼은 그 가지에 없다.
     try {
       const started = train(plain(request), {
         createWorker,

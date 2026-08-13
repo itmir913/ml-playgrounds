@@ -31,7 +31,7 @@ const settings = computed(() => project.file?.document.settings ?? null)
  *
  * **라벨 없는 사진은 안 센다.** 분류에서 그 사진들은 학습에 안 들어가고, 그건 표에서
  * 타깃이 빈 행이 `usableRows`에서 빠지는 것과 같다 (open-decisions.md "이미지
- * 프로젝트의 데이터 화면"). 함께 세면 화면은 멀쩡한데 [학습]이 거부한다.
+ * 프로젝트의 데이터 화면"). 함께 세면 화면은 멀쩡한데 [학습하기]가 거부한다.
  */
 const labels = computed(() =>
   readImages(project.file)

@@ -35,7 +35,7 @@ import {
   type Preprocessor,
 } from './preprocess'
 import { sampleRows } from './sample'
-// 전처리 화면이 [학습] 전에 같은 판정을 한다. 표가 두 벌이면 화면과 학습이 갈린다.
+// 전처리 화면이 [학습하기] 전에 같은 판정을 한다. 표가 두 벌이면 화면과 학습이 갈린다.
 import { requiredTargetKind } from './selection'
 import { splitRows } from './split'
 
