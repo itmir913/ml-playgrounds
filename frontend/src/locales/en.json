@@ -203,6 +203,7 @@
   "preprocess": {
     "emptyReason": "No data yet.",
     "emptyNext": "Load a file in the data step and you can choose what to predict here.",
+    "summaryTitle": "Preprocessing summary",
     "testDataTitle": "Test Data",
     "testDataLead": "Choose the data used to score your trained models.",
     "testSize": "Test data share",
@@ -246,6 +247,20 @@
       "targetRule": {
         "TARGET_NOT_NUMERIC": "Regression can only predict a number column."
       },
+      "summaryClustering": "You chose clustering, so these split settings are not used. The data is not split and all of it goes into training.",
+      "summaryEncoded": "Features after encoding",
+      "summaryExcluded": "Columns left out",
+      "summaryFeatureUnit": "{count} feature | {count} features",
+      "summaryFeatures": "Features going into training",
+      "summaryFitNote": "Fill values and scaling are worked out from the training data only.",
+      "summaryPending": "This is set once you choose a task type.",
+      "summaryRowUnit": "{count} row | {count} rows",
+      "summarySampled": "Rows drawn",
+      "summaryTest": "Test data",
+      "summaryTestFile": "Test data (separate file)",
+      "summaryTotal": "All rows",
+      "summaryTrain": "Training data",
+      "summaryUsable": "Usable rows",
       "targetSingleValue": "The target has only one distinct value, so there is nothing to predict.",
       "testDataApplied": "The test data was attached.",
       "testDataAttachConfirm": "Delete and attach",

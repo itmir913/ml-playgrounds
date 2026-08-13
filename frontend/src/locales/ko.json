@@ -203,6 +203,7 @@
   "preprocess": {
     "emptyReason": "아직 불러온 데이터가 없습니다.",
     "emptyNext": "데이터 단계에서 파일을 불러오면 여기에서 무엇을 예측할지 고를 수 있습니다.",
+    "summaryTitle": "전처리 요약",
     "testDataTitle": "테스트 데이터(Test Data)",
     "testDataLead": "학습을 마친 모델의 점수를 매길 데이터를 고릅니다.",
     "testSize": "테스트 데이터 비율",
@@ -246,6 +247,20 @@
       "targetRule": {
         "TARGET_NOT_NUMERIC": "회귀는 숫자 열만 타깃으로 고를 수 있습니다."
       },
+      "summaryClustering": "군집을 선택하였으므로 이 전처리 설정은 활용되지 않습니다. 분할하지 않고 전체로 학습합니다.",
+      "summaryEncoded": "인코딩 뒤 특성",
+      "summaryExcluded": "빠진 열",
+      "summaryFeatureUnit": "{count}개",
+      "summaryFeatures": "학습에 들어가는 특성",
+      "summaryFitNote": "채움값과 스케일 기준은 훈련 데이터에서만 구합니다.",
+      "summaryPending": "기계학습 유형을 고르면 정해집니다.",
+      "summaryRowUnit": "{count}행",
+      "summarySampled": "뽑은 행",
+      "summaryTest": "테스트 데이터",
+      "summaryTestFile": "테스트 데이터(별도 파일)",
+      "summaryTotal": "전체",
+      "summaryTrain": "훈련 데이터",
+      "summaryUsable": "쓸 수 있는 행",
       "targetSingleValue": "타깃에 값이 한 종류뿐이라 예측할 것이 없습니다.",
       "testDataApplied": "테스트 데이터를 붙였습니다.",
       "testDataAttachConfirm": "지우고 붙이기",

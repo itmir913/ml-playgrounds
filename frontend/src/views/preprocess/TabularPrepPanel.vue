@@ -60,6 +60,7 @@ import {
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import ColumnPicker from './ColumnPicker.vue'
+import TabularPrepSummary from './TabularPrepSummary.vue'
 
 const { t } = useI18n()
 const project = useProjectStore()
@@ -818,6 +819,13 @@ async function removeTest(): Promise<void> {
         </div>
       </section>
     </div>
+
+    <!--
+      **전처리 요약은 두 열 아래에 통째로 깔린다** (open-decisions.md "전처리 요약 카드").
+      어느 한쪽에 붙이면 카드의 자리가 데이터에 따라 움직인다 — 열이 40개면 왼쪽이 길고
+      8개면 오른쪽이 길다. 카드 안에서 다시 두 열로 갈라 넓은 화면을 쓴다.
+    -->
+    <TabularPrepSummary class="md:col-span-5" />
   </div>
 
   <!--
