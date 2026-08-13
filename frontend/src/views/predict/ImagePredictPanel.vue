@@ -575,14 +575,14 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
           다시 올리면 그만이다 — 훈련 사진을 지우는 것과 무게가 다르다. 대신 전부
           지우기는 묻는다.
         -->
-        <button
-          type="button"
-          class="self-start text-base font-bold text-ink-soft hover:underline"
+        <AppButton
+          variant="ghost"
+          class="self-start"
           :disabled="busy"
           @click="removeOne(photo.hash)"
         >
           {{ t('predict.image.remove') }}
-        </button>
+        </AppButton>
       </li>
     </ul>
 
