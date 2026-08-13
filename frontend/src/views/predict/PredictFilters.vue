@@ -44,8 +44,12 @@ const props = defineProps<{
   /**
    * 지금 몇 개가 답하는지. 답이 셋뿐일 때 그 이유를 여기서 읽는다.
    *
-   * **설명 한 줄을 두지 않는다.** "켜 둔 것만 답을 냅니다" 같은 말은 칩을 한 번 눌러
-   * 보면 아는 것이라 자리만 먹는다.
+   * **줄을 따로 안 쓴다.** 첫 축의 이름 옆에 끼워 넣는다 — 셈 하나가 한 줄을 차지하면
+   * 카드가 그만큼 길어지는데, 그 줄에서 읽을 것은 숫자 두 개뿐이다. 설명 한 줄을 안 두는
+   * 것도 같은 이유다("켜 둔 것만 답을 냅니다"는 칩을 한 번 눌러 보면 안다).
+   *
+   * **첫 축에 붙이는 이유**는 축 하나가 안 그려질 수 있기 때문이다. 특정 축에 매달면
+   * 그 축이 빠지는 프로젝트에서 셈이 통째로 사라진다.
    */
   count: string
   /** 계산이 도는 동안 켜진다. 도중에 대상이 바뀌면 어느 집합에 대한 답인지 흐려진다. */
@@ -96,8 +100,6 @@ function chipClass(state: boolean): string {
     v-if="shown.length > 0"
     class="flex flex-col gap-3 rounded-panel border border-line bg-surface p-4"
   >
-    <p class="font-bold tabular-nums">{{ props.count }}</p>
-
     <!--
       **축마다 한 줄이다.** 이름·전체 버튼·칩이 한 줄에 서면 축 둘이 넉 줄에서 두 줄로
       준다. 줄 사이는 **점선**이다 — 두 열을 가르던 것과 같은 문법이고, 여기서도 가르는
@@ -110,6 +112,7 @@ function chipClass(state: boolean): string {
       :class="index > 0 ? 'border-t border-dashed border-line-strong pt-3' : ''"
     >
       <h3 class="font-bold text-ink-soft">{{ axis.label }}</h3>
+      <p v-if="index === 0" class="tabular-nums text-ink-soft">{{ props.count }}</p>
 
       <!-- 글자 버튼이라 `ghost`다. 상하 여백을 도로 빼서 줄 높이를 안 키운다. -->
       <AppButton
