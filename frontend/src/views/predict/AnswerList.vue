@@ -192,7 +192,13 @@ function bars(model: PredictableModel): ProbabilityBar[] {
 </script>
 
 <template>
-  <div class="flex flex-col gap-5">
+  <!--
+    **`@container`가 붙는 자리다.** 아래 그리드가 창이 아니라 **자기가 받은 폭**을 보게
+    한다 — `lg:`로 쓰면 창이 1024px일 때 열이 셋으로 갈리는데, 그때 이 목록이 사는
+    오른쪽 칸은 아직 482px이라 카드 하나가 147px이 된다. 사진 예측에서는 더 나쁘다(사진
+    128px과 [빼기]를 뺀 나머지가 이 폭이다).
+  -->
+  <div class="@container flex flex-col gap-5">
     <div class="flex flex-col gap-1.5">
       <h3 class="text-lg font-bold">{{ t('predict.answerTitle') }}</h3>
       <p class="text-ink-soft">{{ props.lead }}</p>
@@ -222,7 +228,12 @@ function bars(model: PredictableModel): ProbabilityBar[] {
       </ul>
     </section>
 
-    <ul class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <!--
+      **기준은 카드 하나가 280px 아래로 안 내려가는 것이다.** 카드가 담는 것은 두 줄로
+      접히는 모델 이름과 답, 그리고 범주별 확률 막대다. 문턱은 그 값에서 나온다 —
+      간격 16px을 빼고 나누면 36rem에서 280px, 56rem에서 288px, 72rem에서 276px이다.
+    -->
+    <ul class="grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4">
       <li
         v-for="model in props.models"
         :key="model.run.id"
