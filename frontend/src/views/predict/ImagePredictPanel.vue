@@ -20,6 +20,7 @@ import { useI18n } from 'vue-i18n'
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
+import StepActionBar from '@/components/StepActionBar.vue'
 import { canonicalizeImages } from '@/data/image/client'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
 import { IMAGE_ACCEPT, readImageFiles, readImageZip } from '@/data/image/upload'
@@ -49,7 +50,6 @@ import { dataSettings } from '@/project/schema'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import AnswerList from './AnswerList.vue'
-import PredictActionBar from './PredictActionBar.vue'
 import PredictFilters, { type FilterAxis, type FilterOption } from './PredictFilters.vue'
 
 const { t } = useI18n()
@@ -496,9 +496,9 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       붙인다 — 나타나며 아래를 밀어내는 일이 없다.
 
       **진행 표시가 바 안에 서는 이유**는 짧기 때문이다. 긴 문장은 바를 두 줄로 만든다
-      (`PredictActionBar` 주석).
+      (`StepActionBar` 주석).
     -->
-    <PredictActionBar>
+    <StepActionBar>
       <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">
         {{ t('predict.image.add') }}
       </AppButton>
@@ -521,7 +521,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       <template #end>
         <AppButton :disabled="!canPredict" :action="run">{{ t('predict.run') }}</AppButton>
       </template>
-    </PredictActionBar>
+    </StepActionBar>
 
     <div v-if="photos.length === 0" class="grid min-h-0 flex-1 place-items-center">
       <AppEmpty :reason="t('predict.image.emptyReason')" :next="t('predict.image.emptyNext')">

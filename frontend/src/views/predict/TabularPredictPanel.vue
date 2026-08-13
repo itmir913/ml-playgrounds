@@ -27,6 +27,7 @@ import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
+import StepActionBar from '@/components/StepActionBar.vue'
 import { isClientError, type ClientErrorCode } from '@/errors'
 import { interpreterFor, loadModel, loadModelProba, type LoadContext } from '@/ml/models'
 import {
@@ -54,7 +55,6 @@ import AnswerList from './AnswerList.vue'
 import ClusterNeighbors from './ClusterNeighbors.vue'
 import BatchPredict from './BatchPredict.vue'
 import InputRow from './InputRow.vue'
-import PredictActionBar from './PredictActionBar.vue'
 import PredictFilters, { type FilterAxis, type FilterOption } from './PredictFilters.vue'
 
 const { t } = useI18n()
@@ -484,7 +484,7 @@ async function run(): Promise<void> {
         **누르는 것은 전부 바에 모인다** (architecture.md §8.13.1 "동작 바는 세 경로가
         함께 쓴다"). 이미지 경로와 같은 컴포넌트이고 같은 자리다.
       -->
-      <PredictActionBar v-if="inputMode === 'value'">
+      <StepActionBar v-if="inputMode === 'value'">
         <AppButton variant="secondary" :disabled="predicting" @click="sample">
           {{ t('predict.tabular.fromData') }}
         </AppButton>
@@ -495,14 +495,14 @@ async function run(): Promise<void> {
         <template #end>
           <AppButton :disabled="cannotRun" :action="run">{{ t('predict.run') }}</AppButton>
         </template>
-      </PredictActionBar>
+      </StepActionBar>
 
       <!--
         **같은 바에 다른 버튼이 선다.** 파일 모드에는 누를 [예측]이 없다 — 쪽마다 저절로
         계산한다. 그래서 오른쪽 끝에 서는 것은 "예측"이 아니라 **이 모드의 결론**이고,
         여기서는 내려받기다.
       -->
-      <PredictActionBar v-else>
+      <StepActionBar v-else>
         <!--
           **고르는 중에는 바가 그 파일을 든다.** 이때 [파일 선택]을 그대로 두면 바가
           엉뚱한 버튼을 들고 있게 된다 — 눌러야 하는 것은 [이 데이터 사용]이다.
@@ -568,7 +568,7 @@ async function run(): Promise<void> {
             {{ t('predict.tabular.download') }}
           </AppButton>
         </template>
-      </PredictActionBar>
+      </StepActionBar>
 
       <!--
         **입력은 양자택일이다 - 한 줄이거나 파일이거나**

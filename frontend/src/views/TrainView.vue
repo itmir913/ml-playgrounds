@@ -23,6 +23,7 @@ import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import AppPopover from '@/components/AppPopover.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
+import StepActionBar from '@/components/StepActionBar.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { useFormat } from '@/composables/useFormat'
 import { useTraining } from '@/composables/useTraining'
@@ -440,6 +441,122 @@ function leave(): void {
       </template>
     </StepHeader>
 
+    <!--
+      **이 단계의 본 동작이라 위에 붙어 따라온다** (§8.13.1 "동작 바는 화면들이 함께
+      쓴다"). 예측 화면과 같은 컴포넌트다 — 한 교사가 두 화면에서 다른 문법을 가르치지
+      않게 한다.
+
+      **원래는 흐름 끝의 카드였다** (2026-08-14에 뒤집었다). 학습은 한 번 누르고
+      기다리는 곳이라 끝에 두어도 된다고 적어 두었는데, **오래 걸리는 동작일수록 진행
+      표시가 화면에 남아 있어야 한다** — 안 보이면 학생은 아무 일도 안 일어난 줄 알고
+      다시 누르러 올라간다.
+
+      **말도 버튼도 오른쪽에 모인다.** 상태를 왼쪽 끝에 두면 넓은 화면에서 버튼과
+      멀어져, 방금 누른 자리와 그 답이 화면 양 끝으로 갈린다.
+    -->
+    <StepActionBar>
+      <div class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-4 gap-y-3">
+        <!--
+          **학습보다 먼저 뜬다.** 이미지는 백본을 받고 사진을 통과시키는 시간이 앞에
+          붙는데, 그동안 아무 말도 없으면 학생은 멈춘 줄 알고 새로고침을 누른다.
+          표에서는 준비할 것이 없어 한 번도 안 뜬다.
+        -->
+        <p v-if="preparing" class="min-w-0 font-bold" role="status">{{ preparingText }}</p>
+        <p v-else-if="training.running.value" class="min-w-0 font-bold" role="status">
+          {{ t('train.progress', training.progress.value ?? { completed: 0, total: 0 }) }}
+        </p>
+        <!-- 이유 없이 꺼진 버튼은 학생에게 고장으로 보인다. -->
+        <p v-else-if="nothingToTrain" class="min-w-0 text-ink-soft">
+          {{ t('train.nothingToTrain') }}
+        </p>
+
+        <!--
+          **실패는 알림으로 끝내지 않는다.** 알림은 몇 초 뒤에 사라지고, 그러면 학생에게
+          남는 것이 없다. 사유는 여기 남고 원문은 눌러서 편다
+          (open-decisions.md "학습 실패는 교사가 읽을 수 있게 전달한다").
+        -->
+        <AppPopover v-else-if="failure" align="right" side="top">
+          <template #trigger>
+            <button
+              type="button"
+              class="min-w-0 rounded-field px-2 py-1 font-bold text-danger underline decoration-dotted underline-offset-4"
+            >
+              {{ t('train.failedHere') }}
+            </button>
+          </template>
+
+          <div class="flex flex-col gap-2">
+            <p class="font-bold">{{ t(failure.key, failure.params) }}</p>
+            <!-- 남의 라이브러리가 던진 영어 문장이다. 우리 문장과 섞지 않는다. -->
+            <p v-if="failureDetailText" class="break-words text-ink-soft">
+              {{ failureDetailText }}
+            </p>
+          </div>
+        </AppPopover>
+
+        <!--
+          끝났다는 사실은 파일에서 나오므로 화면을 떠났다 와도 남는다.
+
+          **모델 하나가 죽은 것은 실험의 실패가 아니다** (mlpx-spec.md §4.1). 그건 위의
+          팝오버가 아니라 여기 한 줄로 알리고, 사유는 결과 화면이 모델마다 들고 있다 —
+          [결과 보기]가 바로 옆에 있다.
+        -->
+        <div
+          v-else-if="lastRun"
+          class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
+          role="status"
+        >
+          <span class="text-ink-soft">
+            {{ t('train.lastRun', { at: format.dateTime(lastRun.at) }) }}
+          </span>
+          <span v-if="lastRun.failed > 0" class="font-bold text-caution">
+            {{ t('train.lastRunFailed', lastRun.failed) }}
+          </span>
+        </div>
+      </div>
+
+      <template #end>
+        <AppButton
+          v-if="hasResults && !training.running.value"
+          variant="secondary"
+          @click="goResults"
+        >
+          {{ t('train.seeResults') }}
+        </AppButton>
+
+        <AppButton v-if="training.running.value" variant="secondary" @click="training.cancel">
+          {{ t('train.stop') }}
+        </AppButton>
+        <AppButton v-else :disabled="nothingToTrain" :action="startTraining">
+          {{ t('train.start') }}
+        </AppButton>
+      </template>
+
+      <!--
+        **조건을 슬롯에 건다.** 안쪽 `div`에 걸면 학습이 안 도는 동안에도 슬롯이 전달돼
+        바가 전체 폭짜리 빈 줄을 하나 더 갖는다 — 높이가 0이라도 `gap`만큼 벌어진다.
+      -->
+      <template v-if="training.running.value" #below>
+        <!--
+          **게이지는 모델 단위다** (mlpx-spec.md §0.3). 모델 하나가 안에서 몇 퍼센트인지는
+          엔진이 알려주지 않으므로 만들어 낼 수 없다 — 지어내면 멈춘 막대가 도는 척한다.
+          너비는 값이라 class가 아니라 style이다.
+        -->
+        <div
+          class="h-2 w-full overflow-hidden rounded-pill bg-surface-sunken"
+          role="progressbar"
+          :aria-valuenow="training.progress.value?.completed ?? 0"
+          aria-valuemin="0"
+          :aria-valuemax="training.progress.value?.total ?? 0"
+        >
+          <div
+            class="h-full rounded-pill bg-brand transition-all"
+            :style="{ width: donePercent }"
+          />
+        </div>
+      </template>
+    </StepActionBar>
+
     <StepChecklist step="train" />
 
     <!--
@@ -498,116 +615,6 @@ function leave(): void {
             @set-param="setParam"
           />
         </div>
-      </div>
-    </section>
-
-    <!--
-      **이 단계의 본 동작이라 카드 밖에 선다.** 도는 동안 같은 자리가 진행 표시와
-      [멈추기]로 바뀐다 — 누른 자리에서 답이 나와야 눈을 옮기지 않는다.
-    -->
-    <section class="flex flex-col gap-3 rounded-panel border border-line bg-surface p-4">
-      <!--
-        **말도 버튼도 오른쪽에 모인다.** 상태를 왼쪽 끝에 두면 넓은 화면에서 버튼과
-        멀어져, 방금 누른 자리와 그 답이 화면 양 끝으로 갈린다. 눈이 한 번에 담아야
-        하는 것은 "무슨 일이 있었나 + 다음에 뭘 누르나"이므로 둘을 붙여 둔다.
-      -->
-      <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-3">
-        <!--
-          **학습보다 먼저 뜬다.** 이미지는 백본을 받고 사진을 통과시키는 시간이 앞에
-          붙는데, 그동안 아무 말도 없으면 학생은 멈춘 줄 알고 새로고침을 누른다.
-          표에서는 준비할 것이 없어 한 번도 안 뜬다.
-        -->
-        <p v-if="preparing" class="min-w-0 font-bold" role="status">{{ preparingText }}</p>
-        <p v-else-if="training.running.value" class="min-w-0 font-bold" role="status">
-          {{ t('train.progress', training.progress.value ?? { completed: 0, total: 0 }) }}
-        </p>
-        <!-- 이유 없이 꺼진 버튼은 학생에게 고장으로 보인다. -->
-        <p v-else-if="nothingToTrain" class="min-w-0 text-ink-soft">
-          {{ t('train.nothingToTrain') }}
-        </p>
-
-        <!--
-          **실패는 알림으로 끝내지 않는다.** 알림은 몇 초 뒤에 사라지고, 그러면 학생에게
-          남는 것이 없다. 사유는 여기 남고 원문은 눌러서 편다
-          (open-decisions.md "학습 실패는 교사가 읽을 수 있게 전달한다").
-        -->
-        <AppPopover v-else-if="failure" align="right" side="top">
-          <template #trigger>
-            <button
-              type="button"
-              class="min-w-0 rounded-field px-2 py-1 font-bold text-danger underline decoration-dotted underline-offset-4"
-            >
-              {{ t('train.failedHere') }}
-            </button>
-          </template>
-
-          <div class="flex flex-col gap-2">
-            <p class="font-bold">{{ t(failure.key, failure.params) }}</p>
-            <!-- 남의 라이브러리가 던진 영어 문장이다. 우리 문장과 섞지 않는다. -->
-            <p v-if="failureDetailText" class="break-words text-ink-soft">
-              {{ failureDetailText }}
-            </p>
-          </div>
-        </AppPopover>
-
-        <!--
-          끝났다는 사실은 파일에서 나오므로 화면을 떠났다 와도 남는다.
-
-          **모델 하나가 죽은 것은 실험의 실패가 아니다** (mlpx-spec.md §4.1). 그건 위의
-          팝오버가 아니라 여기 한 줄로 알리고, 사유는 결과 화면이 모델마다 들고 있다 —
-          [결과 보기]가 바로 옆에 있다.
-        -->
-        <div
-          v-else-if="lastRun"
-          class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
-          role="status"
-        >
-          <span class="text-ink-soft">
-            {{ t('train.lastRun', { at: format.dateTime(lastRun.at) }) }}
-          </span>
-          <span v-if="lastRun.failed > 0" class="font-bold text-caution">
-            {{ t('train.lastRunFailed', lastRun.failed) }}
-          </span>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-3">
-          <AppButton
-            v-if="hasResults && !training.running.value"
-            variant="secondary"
-            size="lg"
-            @click="goResults"
-          >
-            {{ t('train.seeResults') }}
-          </AppButton>
-
-          <AppButton
-            v-if="training.running.value"
-            variant="secondary"
-            size="lg"
-            @click="training.cancel"
-          >
-            {{ t('train.stop') }}
-          </AppButton>
-          <AppButton v-else size="lg" :disabled="nothingToTrain" :action="startTraining">
-            {{ t('train.start') }}
-          </AppButton>
-        </div>
-      </div>
-
-      <!--
-        **게이지는 모델 단위다** (mlpx-spec.md §0.3). 모델 하나가 안에서 몇 퍼센트인지는
-        엔진이 알려주지 않으므로 만들어 낼 수 없다 — 지어내면 멈춘 막대가 도는 척한다.
-        너비는 값이라 class가 아니라 style이다.
-      -->
-      <div
-        v-if="training.running.value"
-        class="h-2 w-full overflow-hidden rounded-pill bg-surface-sunken"
-        role="progressbar"
-        :aria-valuenow="training.progress.value?.completed ?? 0"
-        aria-valuemin="0"
-        :aria-valuemax="training.progress.value?.total ?? 0"
-      >
-        <div class="h-full rounded-pill bg-brand transition-all" :style="{ width: donePercent }" />
       </div>
     </section>
 
