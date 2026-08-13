@@ -494,7 +494,8 @@ async function run(): Promise<void> {
             />
           </div>
 
-          <div ref="answerListEl" class="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          <!-- 도착 지점에 여백을 남긴다 (ExperimentDetail.vue 주석). -->
+          <div ref="answerListEl" class="min-h-0 min-w-0 flex-1 scroll-mt-5 overflow-y-auto">
             <AnswerList
               :models="visible"
               :answers="answers"

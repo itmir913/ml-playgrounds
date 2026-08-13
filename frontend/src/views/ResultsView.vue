@@ -155,7 +155,8 @@ const models = computed<ReadonlyMap<string, Uint8Array>>(
           둘 다 맞는다 - 좁은 화면에서는 상자가 화면에 들어오고, 넓은 화면에서는 상자
           안이 맨 위로 올라간다.
         -->
-        <div ref="detailEl">
+        <!-- 도착 지점에 여백을 남긴다 (ExperimentDetail.vue 주석). -->
+        <div ref="detailEl" class="scroll-mt-5">
           <ExperimentDetail
             v-if="current"
             :experiment="current"

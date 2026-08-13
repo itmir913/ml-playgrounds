@@ -228,7 +228,15 @@ function failureDetailOf(run: Run): string | null {
       <p class="text-ink-soft">{{ t('results.noSuccessNext') }}</p>
     </section>
 
-    <div v-if="opened" ref="runDetailEl">
+    <!--
+      **`scroll-mt-*`로 여백을 남긴다.** `scrollIntoView`는 목표를 화면 맨 위에 딱
+      붙여 놓아서, 도착한 자리가 무엇의 시작인지 위쪽 맥락이 하나도 안 보인다.
+      JS에 오프셋을 계산해 넣지 않는 이유는 그 값이 화면마다 갈리기 때문이다.
+
+      **값은 블록을 쌓는 `gap-5`와 같다.** 스크롤이 멎은 자리가 위 블록과 벌어진 만큼만
+      벌어져서, 도착한 화면이 평소의 세로 리듬 그대로 보인다.
+    -->
+    <div v-if="opened" ref="runDetailEl" class="scroll-mt-5">
       <RunDetail
         :run="opened"
         :experiment="props.experiment"
