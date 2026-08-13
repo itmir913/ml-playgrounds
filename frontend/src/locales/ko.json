@@ -192,7 +192,7 @@
   "scalingBasis": {
     "standard": "평균 {center} · 표준편차 {spread}",
     "minmax": "최솟값 {center} · 범위 {spread}",
-    "robust": "중앙값 {center} · IQR {spread}"
+    "robust": "중앙값 {center} · 사분위 범위 {spread}"
   },
   "scalingMethod": {
     "none": "하지 않음",
@@ -254,17 +254,17 @@
       "targetRule": {
         "TARGET_NOT_NUMERIC": "회귀는 숫자 열만 타깃으로 고를 수 있습니다."
       },
-      "summaryClustering": "군집을 선택하였으므로 이 전처리 설정은 활용되지 않습니다. 분할하지 않고 전체로 학습합니다.",
+      "summaryClustering": "군집을 골랐으므로 이 분할 설정은 쓰이지 않습니다. 분할하지 않고 전체로 학습합니다.",
       "summaryEncoded": "인코딩 뒤 특성",
       "summaryExcluded": "빠진 열",
       "summaryFeatureUnit": "{count}개",
       "summaryFeatures": "학습에 들어가는 특성",
-      "summaryFitNote": "채움값과 스케일 기준은 훈련 데이터에서만 구합니다.",
+      "summaryFitNote": "대체값과 스케일링 기준은 훈련 데이터에서만 구합니다.",
       "summaryPending": "기계학습 유형을 고르면 정해집니다.",
       "summaryRowUnit": "{count}행",
       "summarySampled": "뽑은 행",
       "summaryTest": "테스트 데이터",
-      "summaryTestFile": "테스트 데이터(별도 파일)",
+      "summaryTestFile": "별도 테스트 데이터",
       "summaryTotal": "전체",
       "summaryTrain": "훈련 데이터",
       "summaryUsable": "쓸 수 있는 행",

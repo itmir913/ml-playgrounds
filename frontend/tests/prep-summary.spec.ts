@@ -126,7 +126,7 @@ describe('전처리 요약', () => {
     expect(text).toContain('훈련 데이터')
     expect(text).toContain('3행')
     expect(text).toContain('1행')
-    expect(text).toContain('채움값과 스케일 기준은 훈련 데이터에서만 구합니다.')
+    expect(text).toContain('대체값과 스케일링 기준은 훈련 데이터에서만 구합니다.')
   })
 
   /**
