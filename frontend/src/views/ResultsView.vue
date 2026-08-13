@@ -12,6 +12,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AppBadge from '@/components/AppBadge.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { parsePreprocessor, type Preprocessor } from '@/ml/preprocess'
@@ -107,8 +108,18 @@ const models = computed<ReadonlyMap<string, Uint8Array>>(
   <div class="flex min-h-full flex-col gap-5 p-4 sm:p-5">
     <StepHeader :title="t('steps.results.label')" :purpose="t('steps.results.purpose')">
       <template v-if="experiments.length > 0" #context>
-        <div class="flex gap-1.5">
-          <dt class="sr-only">{{ t('results.experimentTitle') }}</dt>
+        <!--
+          **이름은 배지, 값은 plaintext다** (§8.16). 전처리와 학습 화면의 머리가 같은
+          문법으로 서 있는데 여기만 이름을 숨기고 값 안에 넣어 두었다 - `실험 4번`처럼
+          값이 스스로를 설명하면 검사는 통과하지만, 세 화면의 머리가 다른 모양이 된다.
+
+          **병기가 여기로 온다.** 이 배지가 학생이 화면에서 처음 만나는 `실험`이고,
+          왼쪽 목록의 제목은 그 아래다 (docs/copy.md §2).
+        -->
+        <div class="flex items-baseline gap-1.5">
+          <dt>
+            <AppBadge>{{ t('results.experiment') }}</AppBadge>
+          </dt>
           <dd class="font-bold tabular-nums text-ink">
             {{ t('results.experimentCount', experiments.length) }}
           </dd>

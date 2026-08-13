@@ -591,12 +591,17 @@
     "detailLead": "모델을 누르면 자세한 결과가 열립니다.",
     "emptyNext": "학습 단계에서 모델을 고르고 학습하면 여기에 결과가 나옵니다.",
     "emptyReason": "아직 학습한 적이 없습니다.",
-    "experimentCount": "실험 {count}번",
+    "experiment": "실험(Experiment)",
+    "experimentCount": "{count}번",
     "experimentName": "{index}번째 실험",
-    "experimentTitle": "실험(Experiment) 기록",
+    "experimentTitle": "실험 기록",
     "failedTitle": "학습하지 못한 모델 {count}개",
     "failureDetail": "기술 정보",
     "firstRun": "첫 실험",
+    "image": {
+      "clusterEmpty": "이 군집에는 사진이 없습니다.",
+      "clusterRepresentative": "첫 사진이 이 군집의 대표입니다."
+    },
     "label": "범주(Class)",
     "membersAdded": "들어온 것",
     "membersRemoved": "빠진 것",
@@ -608,13 +613,6 @@
     "perClass": "범주별 점수",
     "scoreTitle": "이번 실험의 점수",
     "support": "실제 데이터 수(Support)",
-    "unknownChange": "알 수 없는 설정이 바뀌었습니다. ({path})",
-    "whatChanged": "무엇이 바뀌었나",
-    "where": "학습한 곳",
-    "image": {
-      "clusterEmpty": "이 군집에는 사진이 없습니다.",
-      "clusterRepresentative": "첫 사진이 이 군집의 대표입니다."
-    },
     "tabular": {
       "cluster": "군집",
       "clusterAxisX": "가로축",
@@ -631,7 +629,10 @@
       "clusterSize": "데이터 수",
       "clusterSummary": "군집마다 어떤 값이 모였나",
       "clusterSummaryLead": "각 칸은 그 군집에 속한 데이터의 평균입니다. 행을 누르면 그 군집의 데이터를 볼 수 있습니다."
-    }
+    },
+    "unknownChange": "알 수 없는 설정이 바뀌었습니다. ({path})",
+    "whatChanged": "무엇이 바뀌었나",
+    "where": "학습한 곳"
   },
   "predict": {
     "emptyReason": "예측에 쓸 수 있는 모델이 이 파일에 없습니다.",

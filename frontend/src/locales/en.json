@@ -591,12 +591,17 @@
     "detailLead": "Select a model to see its details.",
     "emptyNext": "Pick models in the training step and train them, and the results will show up here.",
     "emptyReason": "Nothing has been trained yet.",
-    "experimentCount": "{count} experiment | {count} experiments",
+    "experiment": "Experiments",
+    "experimentCount": "{count}",
     "experimentName": "Experiment {index}",
     "experimentTitle": "Experiment history",
     "failedTitle": "{count} model could not be trained | {count} models could not be trained",
     "failureDetail": "Technical details",
     "firstRun": "First experiment",
+    "image": {
+      "clusterEmpty": "No photos in this cluster.",
+      "clusterRepresentative": "The first photo represents this cluster."
+    },
     "label": "Class",
     "membersAdded": "Added",
     "membersRemoved": "Removed",
@@ -608,13 +613,6 @@
     "perClass": "Score for each class",
     "scoreTitle": "Scores from this experiment",
     "support": "Samples in the test data (support)",
-    "unknownChange": "An unrecognised setting changed. ({path})",
-    "whatChanged": "What changed",
-    "where": "Trained on",
-    "image": {
-      "clusterEmpty": "No photos in this cluster.",
-      "clusterRepresentative": "The first photo represents this cluster."
-    },
     "tabular": {
       "cluster": "Cluster",
       "clusterAxisX": "X axis",
@@ -631,7 +629,10 @@
       "clusterSize": "Samples",
       "clusterSummary": "What gathered in each cluster",
       "clusterSummaryLead": "Each cell is the average of the rows in that cluster. Select a row to see the data in that cluster."
-    }
+    },
+    "unknownChange": "An unrecognised setting changed. ({path})",
+    "whatChanged": "What changed",
+    "where": "Trained on"
   },
   "predict": {
     "emptyReason": "This file has no model you can predict with.",
