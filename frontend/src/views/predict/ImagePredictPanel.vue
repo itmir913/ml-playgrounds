@@ -46,6 +46,7 @@ import { dataSettings } from '@/project/schema'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import AnswerList from './AnswerList.vue'
+import PredictActionBar from './PredictActionBar.vue'
 import PredictFilters, { type FilterOption } from './PredictFilters.vue'
 
 const { t } = useI18n()
@@ -477,49 +478,37 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-5">
     <!--
-      **위에 붙어 따라온다.** 쪽 넘기기가 화면 맨 아래에 있어서, 다음 쪽으로 넘어가면
-      그 쪽 임베딩을 뽑는 동안의 진행 표시(`사진 준비 중 n/m`)와 [예측]이 화면 위쪽
-      밖에 있다 — 학생은 아무 일도 안 일어난 줄 알고 다시 누르러 올라간다.
+      **`ImagePanel`의 선택 줄과 방향만 다르다.** 거기는 나타났다 사라지는 줄이라 흐름
+      끝(`bottom-0`)이어야 했고, 여기는 늘 있는 줄이라 흐름 맨 앞에 그대로 둔 채 위에
+      붙인다 — 나타나며 아래를 밀어내는 일이 없다.
 
-      **`ImagePanel`의 선택 줄과 방향만 다르다.** 거기는 나타났다 사라지는 줄이라
-      흐름 끝(`bottom-0`)이어야 했고, 여기는 늘 있는 줄이라 흐름 맨 앞에 그대로 둔 채
-      위에 붙인다 — 나타나며 아래를 밀어내는 일이 없다.
-
-      **`fixed`가 아닌 이유도 같다** — `AppShell`의 상태 표시줄이 `<main>` 밖에 있다.
-
-      **바깥 칸은 여백을 만드는 자리다.** `top-0`으로 붙이면 줄이 화면 맨 끝에 딱
-      달라붙어 눌린 것처럼 보이고, 그렇다고 `top-4`로 띄우면 그 틈으로 아래 내용이
-      지나가는 것이 보인다. 그래서 위쪽 여백만큼을 **칸 안의 `pt`로 넣고 같은 값을
-      `-mt`로 도로 빼서**, 붙었을 때 그 자리를 불투명한 바탕이 덮게 한다 — 값은 화면의
-      바깥 여백(`PredictView`의 `p-4 sm:p-5`)과 같아야 제자리에 선다.
+      **진행 표시가 바 안에 서는 이유**는 짧기 때문이다. 긴 문장은 바를 두 줄로 만든다
+      (`PredictActionBar` 주석).
     -->
-    <div class="sticky top-0 z-10 -mt-4 bg-surface pt-4 sm:-mt-5 sm:pt-5">
-      <div
-        class="flex flex-wrap items-center gap-3 rounded-panel border border-line-strong bg-surface px-4 py-2.5 shadow-card"
+    <PredictActionBar>
+      <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">
+        {{ t('predict.image.add') }}
+      </AppButton>
+      <span v-if="progress" class="tabular-nums font-bold" role="status">
+        {{ t('data.image.preparing', { done: progress.completed, total: progress.total }) }}
+      </span>
+      <!--
+        **초기화 경로가 있어야 한다.** 잘못 올린 사진을 빼는 길이 없으면 학생이 할 수
+        있는 일이 프로젝트를 새로 만드는 것뿐이다.
+      -->
+      <AppButton
+        v-if="photos.length > 0"
+        variant="secondary"
+        :disabled="busy"
+        @click="clearing = true"
       >
-        <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">
-          {{ t('predict.image.add') }}
-        </AppButton>
-        <span v-if="progress" class="tabular-nums font-bold" role="status">
-          {{ t('data.image.preparing', { done: progress.completed, total: progress.total }) }}
-        </span>
-        <!--
-          **초기화 경로가 있어야 한다.** 잘못 올린 사진을 빼는 길이 없으면 학생이 할 수
-          있는 일이 프로젝트를 새로 만드는 것뿐이다.
-        -->
-        <AppButton
-          v-if="photos.length > 0"
-          variant="secondary"
-          :disabled="busy"
-          @click="clearing = true"
-        >
-          {{ t('predict.image.clear') }}
-        </AppButton>
-        <AppButton class="ml-auto" :disabled="!canPredict" :action="run">
-          {{ t('predict.run') }}
-        </AppButton>
-      </div>
-    </div>
+        {{ t('predict.image.clear') }}
+      </AppButton>
+
+      <template #end>
+        <AppButton :disabled="!canPredict" :action="run">{{ t('predict.run') }}</AppButton>
+      </template>
+    </PredictActionBar>
 
     <div v-if="photos.length === 0" class="grid min-h-0 flex-1 place-items-center">
       <AppEmpty :reason="t('predict.image.emptyReason')" :next="t('predict.image.emptyNext')">
