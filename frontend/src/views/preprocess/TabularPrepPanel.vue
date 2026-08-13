@@ -605,6 +605,14 @@ async function removeTest(): Promise<void> {
               </p>
             </div>
           </div>
+
+          <!--
+            **난수 씨앗이 여기 선다** (architecture.md §9.1.1 "씨앗이 서는 자리는 판이
+            정한다"). 실행 순서가 `sampleRows → splitRows`라 **씨앗이 처음 쓰이는 곳이
+            이 카드다.** 나누기 카드에 있었던 것은 이 카드가 나중에 생겼기 때문이지
+            순서가 그래서가 아니었다.
+          -->
+          <slot />
         </div>
       </section>
 
@@ -639,9 +647,9 @@ async function removeTest(): Promise<void> {
 
             <div v-if="testChoice === 'holdout'" class="mt-3 ml-6 flex flex-col gap-4">
               <!--
-              **비율과 씨앗은 공통이라 슬롯으로 온다** (architecture.md 9.1.2).
-              층화만 여기 있는 이유는 잠기는지와 왜 잠기는지가 이 종류의 라벨 분포에
-              달려 있어서다 - 슬롯은 그것을 알 방법이 없다.
+              **비율은 공통이라 슬롯으로 온다** (architecture.md 9.1.2). 층화만 여기 있는
+              이유는 잠기는지와 왜 잠기는지가 이 종류의 라벨 분포에 달려 있어서다 -
+              슬롯은 그것을 알 방법이 없다. 씨앗은 뽑기 카드로 갔다(§9.1.1).
             -->
               <slot name="split-ratio" />
 
@@ -659,8 +667,6 @@ async function removeTest(): Promise<void> {
                 <!-- 이유 없이 회색이면 고장으로 보이고, 켜진 채 걸린 것은 학생이 꺼야 한다. -->
                 <p v-if="stratifyReason" class="mt-1 ml-6 text-caution">{{ stratifyReason }}</p>
               </div>
-
-              <slot />
             </div>
           </div>
 

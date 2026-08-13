@@ -176,7 +176,11 @@ function reseed(): void {
         </div>
       </template>
 
-      <!-- 난수 씨앗. 판이 층화 아래에 놓는다. -->
+      <!--
+        난수 씨앗. **어디에 서는지는 판이 정한다** (architecture.md §9.1.1) — 표 판은
+        뽑기 카드 아래에, 이미지 판은 층화 아래에 놓는다. 그래서 이 설명 문구는 **어느
+        판에서 읽어도 맞아야 한다** - 뽑기가 없는 종류가 있다.
+      -->
       <div>
         <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <h3 class="font-bold text-ink-soft">{{ t('preprocess.randomState') }}</h3>
