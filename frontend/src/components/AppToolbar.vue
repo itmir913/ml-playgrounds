@@ -22,7 +22,18 @@ const project = useProjectStore()
 </script>
 
 <template>
-  <header class="flex h-toolbar shrink-0 items-center gap-3 border-b border-line bg-surface px-3">
+  <!--
+    **`md` 미만에서 위에 붙는다** (architecture.md §8.6). 그 폭에서는 문서가
+    스크롤하므로 붙여 두지 않으면 도구 막대가 위로 사라진다. `md` 이상에서는 바깥이
+    스크롤하지 않아 `sticky`가 아무 일도 하지 않지만, 폭마다 다른 클래스를 두는 것보다
+    한 줄로 두는 편이 낫다.
+
+    **레일·상태 표시줄(z-30)과 같은 층이다.** 단계 동작 바(z-20)보다 앞이어야 그
+    바가 도구 막대 아래로 지나간다.
+  -->
+  <header
+    class="sticky top-0 z-30 flex h-toolbar shrink-0 items-center gap-3 border-b border-line bg-surface px-3"
+  >
     <RouterLink
       :to="{ name: ROUTE_PROJECTS }"
       class="flex shrink-0 items-center gap-2 rounded-control px-1.5 py-1 text-lg font-black tracking-tight transition-colors hover:bg-surface-sunken"

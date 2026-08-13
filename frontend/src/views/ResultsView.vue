@@ -156,7 +156,7 @@ const models = computed<ReadonlyMap<string, Uint8Array>>(
           안이 맨 위로 올라간다.
         -->
         <!-- 도착 지점에 여백을 남긴다 (ExperimentDetail.vue 주석). -->
-        <div ref="detailEl" class="scroll-mt-5">
+        <div ref="detailEl" class="scroll-below-shell">
           <ExperimentDetail
             v-if="current"
             :experiment="current"

@@ -121,8 +121,16 @@ const themeLabel = computed(() =>
 </script>
 
 <template>
+  <!--
+    **`md` 미만에서 화면 아래에 붙는다** (architecture.md §8.6). 그 폭에서는 문서가
+    스크롤하므로, 흐름에 두면 페이지 맨 끝까지 내려야 보인다 — **저장 상태는 늘 보여야
+    하는 것**이라(§8.8) 그건 이 줄의 존재 이유를 없앤다.
+
+    아래 여백은 아이폰의 홈 인디케이터 자리다. `h-statusbar`는 그 위의 줄 높이이고,
+    비워 둔 만큼은 `--shell-bottom`이 이미 세어 두었다(`base.css`).
+  -->
   <footer
-    class="flex h-statusbar shrink-0 items-center gap-2 border-t border-line bg-surface px-3 text-ink-soft"
+    class="z-30 flex h-statusbar shrink-0 items-center gap-2 border-t border-line bg-surface px-3 text-ink-soft max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:box-content max-md:pad-safe-bottom"
   >
     <AppPopover v-if="project.projectId !== null" side="top" size="medium" class="min-w-0 flex-1">
       <template #trigger="{ open }">

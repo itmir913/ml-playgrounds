@@ -96,11 +96,53 @@
  * **JS가 못 돌아도 지금 데스크톱과 같은 자리에 선다.**
  */
 @utility under-step-bar {
-  scroll-margin-top: calc(var(--step-bar-height, 5.25rem) + 1.25rem);
+  scroll-margin-top: calc(var(--shell-top) + var(--step-bar-height, 5.25rem) + 1.25rem);
 }
 
 @utility stick-under-step-bar {
-  top: calc(var(--step-bar-height, 5.25rem) + 1.25rem);
+  top: calc(var(--shell-top) + var(--step-bar-height, 5.25rem) + 1.25rem);
+}
+
+/**
+ * **셸이 가리는 안쪽에 붙는다.** `--shell-top`·`--shell-bottom`이 무엇인지는
+ * `base.css`에 있다 — `md` 미만에서 문서가 스크롤하면서 도구 막대와 하단 바가
+ * 화면 끝을 덮기 때문에 생긴 값이다.
+ *
+ * `top-0`/`bottom-0`으로 붙인 것들이 전부 이걸로 바뀐다. **`md` 이상에서는 값이 0이라
+ * 예전과 똑같이 선다.**
+ */
+@utility stick-below-shell {
+  top: var(--shell-top);
+}
+
+@utility stick-above-shell {
+  bottom: calc(var(--shell-bottom) + 1rem);
+}
+
+/** 셸 안쪽에서 멈추는 스크롤 도착 지점. 붙박이 바가 없는 화면(결과)이 쓴다. */
+@utility scroll-below-shell {
+  scroll-margin-top: calc(var(--shell-top) + 1.25rem);
+}
+
+/**
+ * 하단 바에 가리는 만큼 작업 공간 아래를 비워 둔다. **`md` 미만에서만 값이 있다** —
+ * 거기서만 하단 바가 `fixed`라 흐름에서 빠져 있다.
+ */
+@utility pad-below-shell {
+  padding-bottom: var(--shell-bottom);
+}
+
+/**
+ * 화면 맨 아래에 붙는 것의 아래 여백. 아이폰의 홈 인디케이터 자리를 비켜선다.
+ * **`env()`는 Tailwind 눈금으로 쓸 수 없어서** 여기 한 번만 둔다 (CLAUDE.md §4).
+ */
+@utility pad-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/** 상태 표시줄 바로 위. 하단 바가 둘 겹치는 자리는 여기 하나뿐이다(레일). */
+@utility above-statusbar {
+  bottom: calc(var(--spacing-statusbar) + env(safe-area-inset-bottom));
 }
 
 @utility data-table {

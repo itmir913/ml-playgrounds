@@ -34,10 +34,11 @@
  * 너무 흐리면 안 보이고, 안 보이면 없는 것과 같다.
  *
  * 휴대폰에서는 가로로 눕는다. 좁은 화면에서 세로 사이드바는 이미 부족한 가로 폭을
- * 더 깎는다.
+ * 더 깎는다. **그 폭에서는 문서가 스크롤하므로 화면 아래에 `fixed`로 붙는다**
+ * (architecture.md §8.6) — 흐름에 두면 페이지 맨 끝까지 내려야 단계를 옮길 수 있다.
  */
 
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { type RouteLocationRaw, useRoute } from 'vue-router'
 
@@ -50,6 +51,45 @@ import { useProjectStore } from '@/stores/project'
 const { t } = useI18n()
 const route = useRoute()
 const project = useProjectStore()
+
+/**
+ * **가로로 누웠을 때의 높이를 내놓는다.** 그 폭에서 이 레일은 `fixed`라 흐름에서
+ * 빠져 있고, 작업 공간은 가려지는 만큼을 아래 여백으로 비워 둬야 한다
+ * (`base.css`의 `--shell-bottom`).
+ *
+ * 도구 막대와 상태 표시줄은 높이가 토큰으로 고정인데 **여기는 아이콘 줄이라 그렇지
+ * 않다.** 값을 손으로 적어 두면 아이콘 크기나 여백이 바뀌는 날 조용히 어긋난다.
+ *
+ * 세로로 선 폭(`md` 이상)에서도 계속 내놓지만 그때는 아무도 안 쓴다 —
+ * `--shell-bottom`이 그 폭에서 0이다.
+ *
+ * `ResizeObserver`가 없으면(jsdom) 첫 값만 쓴다.
+ */
+const HEIGHT_VAR = '--rail-bar-height'
+
+const railEl = ref<HTMLElement | null>(null)
+let observer: ResizeObserver | null = null
+
+function publish(el: HTMLElement): void {
+  document.documentElement.style.setProperty(HEIGHT_VAR, `${el.offsetHeight}px`)
+}
+
+onMounted(() => {
+  const el = railEl.value
+  if (!el) return
+
+  publish(el)
+  if (typeof ResizeObserver === 'undefined') return
+
+  observer = new ResizeObserver(() => publish(el))
+  observer.observe(el)
+})
+
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  observer = null
+  document.documentElement.style.removeProperty(HEIGHT_VAR)
+})
 
 /**
  * 링크가 가리킬 곳. **`route.params`가 아니라 스토어를 본다.**
@@ -116,8 +156,9 @@ const LABEL = 'w-full text-center break-keep break-words hyphens-auto'
 
 <template>
   <nav
+    ref="railEl"
     :aria-label="t('shell.steps')"
-    class="scrollbar-none flex shrink-0 gap-1 overflow-x-auto border-line bg-surface-sunken p-1 max-md:order-last max-md:justify-center max-md:border-t md:w-rail md:px-0.5 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:border-r"
+    class="scrollbar-none z-30 flex shrink-0 gap-1 overflow-x-auto border-line bg-surface-sunken p-1 max-md:fixed max-md:inset-x-0 max-md:above-statusbar max-md:justify-center max-md:border-t md:w-rail md:px-0.5 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:border-r"
   >
     <!--
       프로젝트 홈. **단계가 아니라 그 위에 있는 자리**라 STEP_IDS에 없고 여기 손으로

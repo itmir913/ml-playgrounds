@@ -12,11 +12,55 @@
      */
   }
 
-  /* 셸이 화면을 정확히 채운다. 바깥은 절대 스크롤되지 않는다. */
+  /*
+   * **스크롤하는 것이 폭에 따라 갈린다** (architecture.md §8.6).
+   *
+   * `md` 이상에서는 셸이 화면을 정확히 채우고 작업 공간 안에서만 스크롤한다. `md`
+   * 미만에서는 **문서가 스크롤한다** — iOS는 상단 탭으로 맨 위 가기와 주소창 접기를
+   * **메인 프레임 스크롤러에만** 준다. 안쪽 상자가 스크롤하면 그 둘이 영영 안 온다.
+   *
+   * 그래서 높이를 `md`에서만 잠근다. 그 아래에서는 내용만큼 자라고 넘치면 문서가
+   * 스크롤한다.
+   */
   html,
   body,
   #app {
-    height: 100%;
+    min-height: 100%;
+  }
+
+  @media (width >= theme(--breakpoint-md)) {
+    html,
+    body,
+    #app {
+      height: 100%;
+    }
+  }
+
+  /*
+   * **셸이 가리는 두께.** 위는 도구 막대, 아래는 레일과 상태 표시줄이다.
+   *
+   * 붙박이(`sticky`)와 스크롤 도착 지점은 **화면 끝이 아니라 이 안쪽에서** 멈춰야
+   * 한다. 각자 계산하면 폭이 바뀔 때마다 한둘이 빠지므로 여기 한 번만 적는다
+   * (`styles/utilities.css`의 `stick-below-shell` 계열이 이걸 쓴다).
+   *
+   * **`md` 이상에서는 0이다.** 거기서는 작업 공간이 스크롤 대상이라 도구 막대도
+   * 상태 표시줄도 그 바깥에 있어서 아무것도 안 가린다.
+   *
+   * 레일 높이만 재서 받는다(`--rail-bar-height`, `StepRail`이 내놓는다) — 도구 막대와
+   * 상태 표시줄은 높이가 토큰으로 고정인데 레일은 아이콘 줄이라 그렇지 않다.
+   */
+  :root {
+    --shell-top: 0px;
+    --shell-bottom: 0px;
+  }
+
+  @media (width < theme(--breakpoint-md)) {
+    :root {
+      --shell-top: var(--spacing-toolbar);
+      --shell-bottom: calc(
+        var(--rail-bar-height, 2.8125rem) + var(--spacing-statusbar) + env(safe-area-inset-bottom)
+      );
+    }
   }
 
   body {

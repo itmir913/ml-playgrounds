@@ -14,6 +14,9 @@
  *
  * **`fixed`가 아니다** — `AppShell`의 상태 표시줄이 `<main>` 밖에 있다.
  *
+ * **붙는 높이는 `--shell-top`이 정한다**(`stick-below-shell`). `md` 미만에서는 문서가
+ * 스크롤하고 도구 막대가 화면 위를 덮고 있어서, `top-0`이면 바가 그 아래로 숨는다.
+ *
  * **표 머리글보다 앞이어야 한다.** 붙박이 머리글도 `z-10`으로 붙는데 DOM에서 이 바보다
  * 뒤에 있어서, 같은 값이면 표가 바를 덮는다 — 데이터 화면에서 실제로 그렇게 나갔다
  * (2026-08-14). 대화상자·팝오버의 `z-50`은 그대로 이 위를 덮는다.
@@ -81,7 +84,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="barEl" class="sticky top-0 z-20 -mt-4 bg-surface pt-4">
+  <div ref="barEl" class="sticky z-20 -mt-4 bg-surface pt-4 stick-below-shell">
     <div
       class="flex flex-wrap items-center gap-3 rounded-panel border border-line-strong bg-surface px-4 py-2.5 shadow-card"
     >
