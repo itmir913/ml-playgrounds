@@ -294,6 +294,12 @@ function sample(): void {
   values.value = { ...values.value, ...row.values }
   sampled.value = row.index
   answers.value = new Map()
+
+  // **가져온 줄을 보여 준다.** 버튼이 화면 맨 위 바에 있어서, 답을 보다가 누르면 채워진
+  // 칸이 화면 밖에 있다 — 학생은 아무 일도 안 일어난 줄 안다.
+  void nextTick(() => {
+    inputRowEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
 }
 
 /**
@@ -337,12 +343,17 @@ const predicting = ref(false)
  * **문장을 스크립트에서 만든다** — `t()` 옆에 계산이 붙으면 문장을 조각내는 것과
  * 구별되지 않아 `tests/i18n-usage.spec.ts`가 잡는다.
  */
-const inputStatus = computed<string | null>(() => {
-  if (predicting.value) return t('predict.tabular.computing')
+const inputStatus = computed<{ text: string; caution: boolean } | null>(() => {
+  if (predicting.value) return { text: t('predict.tabular.computing'), caution: false }
   const missing = blank.value[0]
-  if (missing) return t('client.PREDICTION_INPUT_INCOMPLETE', { feature: missing.name })
+  if (missing) {
+    return {
+      text: t('client.PREDICTION_INPUT_INCOMPLETE', { feature: missing.name }),
+      caution: true,
+    }
+  }
   if (sampled.value !== null) {
-    return t('predict.tabular.fromDataDone', { index: sampled.value + 1 })
+    return { text: t('predict.tabular.fromDataDone', { index: sampled.value + 1 }), caution: false }
   }
   return null
 })
@@ -351,6 +362,7 @@ const inputStatus = computed<string | null>(() => {
 const cannotRun = computed(() => predicting.value || blank.value.length > 0)
 
 const answerListEl = ref<HTMLElement | null>(null)
+const inputRowEl = ref<HTMLElement | null>(null)
 
 /** 화면에 한 프레임 양보한다. `setTimeout(0)`이 `requestAnimationFrame`보다 테스트 환경을 덜 가린다. */
 function yieldToScreen(): Promise<void> {
@@ -548,7 +560,10 @@ async function run(): Promise<void> {
             1.25rem)이 적용 중이다 - `top-5`로 맞춰서 붙었을 때도 화면 끝에 딱 붙지
             않고 그 여백을 유지한다.
           -->
-          <div class="min-w-0 flex-1 self-start md:sticky md:top-27 md:max-w-lg">
+          <div
+            ref="inputRowEl"
+            class="min-w-0 flex-1 scroll-mt-27 self-start md:sticky md:top-27 md:max-w-lg"
+          >
             <InputRow
               :fields="fields"
               :values="values"

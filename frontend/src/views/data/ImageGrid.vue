@@ -173,7 +173,7 @@ const shown = computed(() =>
 
     <!--
       **쪽이 하나뿐이면 안 그린다.** 아무 데도 못 가는 버튼 둘은 학생에게 고장으로 보인다.
-      [모두 선택]은 이 칸 전체를 고르지 이 쪽만 고르지 않는다 — 쪽은 보는 단위이지
+      [전체 선택]은 이 칸 전체를 고르지 이 쪽만 고르지 않는다 — 쪽은 보는 단위이지
       고르는 단위가 아니다.
     -->
     <div v-if="totalPages > 1" class="flex items-center justify-between gap-4">

@@ -101,7 +101,7 @@
       "noUnlabeled": "라벨 없는 사진이 없습니다. 어느 범주에도 넣지 않은 사진이 여기로 옵니다.",
       "photos": "사진",
       "photosPerCategory": "범주별 사진 수",
-      "pickAll": "모두 선택",
+      "pickAll": "전체 선택",
       "pickCategory": "범주 선택",
       "preparing": "사진 준비 중 {done}/{total}",
       "purpose": "구분하고 싶은 범주를 만들고, 각 범주마다 사진을 추가합니다.",
@@ -223,7 +223,7 @@
     "reseedConfirm": "다시 뽑기",
     "tabular": {
       "cleaningTitle": "데이터 다듬기",
-      "clearAll": "특성 모두 해제",
+      "clearAll": "특성 전체 해제",
       "columnsLead": "예측할 열 하나를 타깃으로, 예측에 쓸 열들을 특성으로 고릅니다.",
       "columnsTitle": "타깃과 특성",
       "effect": "전처리",
@@ -251,7 +251,7 @@
       "sampleTitle": "사용할 데이터 양",
       "scaling": "스케일링(Scaling)",
       "scalingNote": "숫자 열의 값 범위를 비슷하게 맞춥니다. 바꾸고 다시 학습하면 점수가 어떻게 달라졌는지 결과 화면에서 볼 수 있습니다.",
-      "selectAll": "특성 모두 선택",
+      "selectAll": "특성 전체 선택",
       "targetRule": {
         "TARGET_NOT_NUMERIC": "회귀는 숫자 열만 타깃으로 고를 수 있습니다."
       },
@@ -354,8 +354,8 @@
     "dismiss": "닫기",
     "on": "켬",
     "off": "끔",
-    "selectAll": "모두 선택",
-    "clearAll": "모두 해제",
+    "selectAll": "전체 선택",
+    "clearAll": "전체 해제",
     "prevPage": "이전",
     "nextPage": "다음"
   },

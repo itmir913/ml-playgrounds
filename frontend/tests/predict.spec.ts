@@ -713,7 +713,7 @@ describe('축을 켜고 끈다 (architecture.md 8.13.1 "답을 거르고 세어 
     expect(isAllSelected(base, 'experiment', ['exp-1', 'exp-2', 'exp-3'])).toBe(false)
   })
 
-  it('켤 것이 없으면 전부 켜진 것도 아니다 - 빈 축에 [모두 해제]가 뜨면 안 된다', () => {
+  it('켤 것이 없으면 전부 켜진 것도 아니다 - 빈 축에 [전체 해제]가 뜨면 안 된다', () => {
     expect(isAllSelected(base, 'experiment', [])).toBe(false)
   })
 })

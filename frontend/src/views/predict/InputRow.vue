@@ -30,8 +30,11 @@ const props = defineProps<{
    * 제목 아래 한 줄. **자리는 하나이고 판이 사슬로 나눠 쓴다** — 못 누르는 이유와 방금
    * 가져온 행이 각자 자리를 가지면 문구가 두 군데로 흩어지고, 아무 말도 안 할 때는 빈
    * 자리가 남는다. 이미 번역돼서 온다.
+   *
+   * **경고인지 아닌지는 판이 안다.** 빈 칸이 있다는 말은 [예측]을 막고 있는 사유이고,
+   * 방금 가져온 행은 그냥 알림이다 — 둘을 같은 색으로 쓰면 막힌 것을 못 알아챈다.
    */
-  status: string | null
+  status: { text: string; caution: boolean } | null
   /**
    * 계산이 도는 동안 켜진다. **칸도 함께 잠근다.** 도중에 값이 바뀌면 이미 도는
    * 계산이 어느 입력에 대한 답인지 흐려진다 — 필터를 못 바꾸게 하는 것과 같은
@@ -75,7 +78,13 @@ function hintOf(field: PredictionField): string | undefined {
         **바꿀 칸 바로 위다.** "한두 칸만 바꿔서 다시 예측해 보세요"가 칸을 다 지나
         아래에 있으면 무엇을 가리키는지 멀다.
       -->
-      <p v-if="props.status" class="text-ink-soft" role="status">{{ props.status }}</p>
+      <p
+        v-if="props.status"
+        role="status"
+        :class="props.status.caution ? 'font-bold text-caution' : 'text-ink-soft'"
+      >
+        {{ props.status.text }}
+      </p>
     </div>
 
     <!--

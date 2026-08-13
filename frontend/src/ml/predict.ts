@@ -483,7 +483,7 @@ export function toggleFilter(filter: PredictFilter, axis: FilterAxisId, id: stri
  * 하나가 두 일을 하므로 화면은 지금 어느 쪽인지를 `isAllSelected`로 물어 이름을 정한다.
  *
  * **판정을 화면에 두지 않는 이유**는 이름과 동작이 각자 판정하면 어긋나기 때문이다 —
- * [모두 해제]라고 적힌 버튼이 전부 켜는 일이 생긴다.
+ * [전체 해제]라고 적힌 버튼이 전부 켜는 일이 생긴다.
  */
 export function toggleAllFilter(
   filter: PredictFilter,
