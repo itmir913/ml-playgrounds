@@ -202,8 +202,17 @@ function bars(model: PredictableModel): ProbabilityBar[] {
     <div class="flex flex-col gap-1.5">
       <h3 class="text-lg font-bold">{{ t('predict.answerTitle') }}</h3>
       <p class="text-ink-soft">{{ props.lead }}</p>
-      <!-- **번호는 그 모델 안에서만 뜻이 있다** (§8.13.1). 갈림표가 군집을 안 세는 이유도 이것이다. -->
-      <p v-if="hasClusterAnswer" class="text-ink-soft">{{ t('predict.clusterAnswerNote') }}</p>
+      <!--
+        **번호는 그 모델 안에서만 뜻이 있다** (§8.13.1). 갈림표가 군집을 안 세는 이유도
+        이것이다.
+
+        **경고로 세운다.** 이걸 모르고 보면 학생은 두 모델의 `2번 군집`을 같은 것으로
+        읽고, 그 순간 화면의 모든 비교가 틀린 비교가 된다 — 조용한 오독이라 스스로
+        알아챌 방법이 없다.
+      -->
+      <p v-if="hasClusterAnswer" class="font-bold text-caution">
+        {{ t('predict.clusterAnswerNote') }}
+      </p>
     </div>
 
     <!--
