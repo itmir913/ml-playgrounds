@@ -94,9 +94,12 @@ const hyperparameters = computed(() => hyperparametersOf(props.run))
     </div>
 
     <div class="flex flex-col gap-5 bg-surface p-4">
-      <p v-if="warningText" class="rounded-panel border border-caution/30 bg-caution-soft p-3">
-        {{ warningText }}
-      </p>
+      <!--
+        **경고는 색으로 말한다** (§8.16). 노란 상자로 감싸면 이 카드 안에서 그것만 다른
+        문법이 되고, 빈 칸을 알리는 줄이나 학습 실패 줄과도 갈린다 — 저장소의 경고는
+        전부 `font-bold text-caution`이다.
+      -->
+      <p v-if="warningText" class="font-bold text-caution">{{ warningText }}</p>
 
       <!--
         **이 run에 먹인 손잡이들.** 지표보다 위다 (§8.13) — 아래의 모든 숫자가 이 설정에서

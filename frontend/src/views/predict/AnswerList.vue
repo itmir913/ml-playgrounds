@@ -16,7 +16,9 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AppPopover from '@/components/AppPopover.vue'
 import { useFormat } from '@/composables/useFormat'
+import { ACTION_ICONS } from '@/icons'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import type { Prediction } from '@/ml/metrics'
 import {
@@ -27,7 +29,7 @@ import {
   type Answer,
   type PredictableModel,
 } from '@/ml/predict'
-import { whereTrainedKeyOf } from '@/ml/results'
+import { hyperparametersOf, whereTrainedKeyOf } from '@/ml/results'
 
 export type { Answer }
 
@@ -50,6 +52,11 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const format = useFormat()
+
+/** 그 모델에 먹인 손잡이들. **판정은 `ml/results.ts`가 한다** — 결과 화면과 같은 함수다. */
+function paramsOf(model: PredictableModel) {
+  return hyperparametersOf(model.run)
+}
 
 function reasonText(code: ClientErrorCode, params: Record<string, unknown> = {}): string {
   return t(errorMessageKey(code), { ...params })
@@ -264,9 +271,47 @@ function bars(model: PredictableModel): ProbabilityBar[] {
             }}
           </p>
 
-          <p class="text-ink-soft">
-            {{ props.experimentNames.get(model.experiment.id) ?? model.experiment.id }}
-          </p>
+          <!--
+            **실험 이름을 누르면 그 모델의 손잡이가 열린다.** 이 화면의 일이 "같은 값인데
+            모델마다 답이 다르다"를 보는 것인데, 왜 다른지의 절반이 하이퍼파라미터다 —
+            그걸 보려고 결과 화면으로 갔다 오면 답들이 눈앞에서 사라진다.
+
+            **표 머리글의 설명과 같은 문법이다** (§8.13) — 평문에 아이콘이 붙고, 눌러야
+            열린다. 다만 여는 것이 설명이 아니라 값이라 `TermPopover`가 아니다.
+          -->
+          <AppPopover size="medium">
+            <template #trigger="{ open }">
+              <button
+                type="button"
+                :aria-expanded="open"
+                class="flex items-center gap-1 rounded-control text-ink-soft transition-colors hover:text-ink"
+              >
+                {{ props.experimentNames.get(model.experiment.id) ?? model.experiment.id }}
+                <component :is="ACTION_ICONS.explainTerm" :size="16" aria-hidden="true" />
+              </button>
+            </template>
+
+            <h5 class="font-bold text-ink">{{ t('results.paramTitle') }}</h5>
+
+            <!-- 손잡이가 없는 모델도 그 사실을 적는다 (`RunDetail`과 같은 문장이다). -->
+            <p v-if="paramsOf(model).length === 0" class="mt-2 text-ink-soft">
+              {{ t('train.noTuning') }}
+            </p>
+
+            <dl v-else class="mt-2 flex flex-col gap-1.5">
+              <div
+                v-for="param in paramsOf(model)"
+                :key="param.name"
+                class="flex items-baseline justify-between gap-4"
+              >
+                <!-- 등록부가 모르는 키는 엔진이 받는 키 그대로 보인다 (`RunDetail`과 같다). -->
+                <dt class="text-ink-soft">
+                  {{ param.labelKey === null ? param.name : t(param.labelKey) }}
+                </dt>
+                <dd class="font-bold tabular-nums">{{ param.text }}</dd>
+              </div>
+            </dl>
+          </AppPopover>
 
           <!--
             **답은 크게 쓴다.** 이 화면에서 학생이 보러 온 것이 이 한 낱말이다.
