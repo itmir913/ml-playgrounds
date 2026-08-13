@@ -364,6 +364,17 @@ const cannotRun = computed(() => predicting.value || blank.value.length > 0)
 const answerListEl = ref<HTMLElement | null>(null)
 const inputRowEl = ref<HTMLElement | null>(null)
 
+/**
+ * 파일 모드의 손잡이. **바는 판이 그리는데 파일 상태는 `BatchPredict`가 든다** — 고르는
+ * 중인 시트나 머리글 여부까지 여기로 올리면 판이 두 모드의 상태를 다 지게 된다.
+ *
+ * **필터가 전부 걸러 내면 `BatchPredict`가 안 그려진다.** 그때 바의 버튼은 부를 곳이
+ * 없으므로 꺼진다 — 학생이 할 일은 필터를 켜는 것이다.
+ */
+const batch = ref<InstanceType<typeof BatchPredict> | null>(null)
+const fileBusy = computed(() => !batch.value || batch.value.busy || batch.value.computing)
+const hasPredictFile = computed(() => batch.value?.hasFile === true)
+
 /** 화면에 한 프레임 양보한다. `setTimeout(0)`이 `requestAnimationFrame`보다 테스트 환경을 덜 가린다. */
 function yieldToScreen(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
@@ -479,6 +490,31 @@ async function run(): Promise<void> {
 
         <template #end>
           <AppButton :disabled="cannotRun" :action="run">{{ t('predict.run') }}</AppButton>
+        </template>
+      </PredictActionBar>
+
+      <!--
+        **같은 바에 다른 버튼이 선다.** 파일 모드에는 누를 [예측]이 없다 — 쪽마다 저절로
+        계산한다. 그래서 오른쪽 끝에 서는 것은 "예측"이 아니라 **이 모드의 결론**이고,
+        여기서는 내려받기다.
+      -->
+      <PredictActionBar v-else>
+        <AppButton variant="secondary" :disabled="fileBusy" @click="batch?.pickFile()">
+          {{ hasPredictFile ? t('data.tabular.change') : t('data.tabular.choose') }}
+        </AppButton>
+        <AppButton
+          v-if="hasPredictFile"
+          variant="secondary"
+          :disabled="fileBusy"
+          :action="() => batch?.remove()"
+        >
+          {{ t('predict.tabular.fileRemove') }}
+        </AppButton>
+
+        <template #end>
+          <AppButton v-if="hasPredictFile" :disabled="fileBusy" :action="() => batch?.download()">
+            {{ t('predict.tabular.download') }}
+          </AppButton>
         </template>
       </PredictActionBar>
 
@@ -610,6 +646,7 @@ async function run(): Promise<void> {
         -->
         <div v-else class="min-h-0 flex-1">
           <BatchPredict
+            ref="batch"
             :models="visibleUsable"
             :preprocessors="preprocessors"
             :dataset="dataset"

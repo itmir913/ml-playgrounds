@@ -72,6 +72,9 @@ const toasts = useToastStore()
 
 const predictDataset = computed(() => readPredictDataset(project.file))
 
+/** 예측할 파일이 붙어 있는가. */
+const hasFile = computed(() => predictDataset.value !== null)
+
 const fileInput = shallowRef<HTMLInputElement | null>(null)
 const dragging = shallowRef(false)
 const busy = shallowRef(false)
@@ -93,6 +96,16 @@ async function readFile(file: File): Promise<void> {
   } finally {
     busy.value = false
   }
+}
+
+/**
+ * 파일 고르기 창을 연다. **바가 부른다** — 누르는 것은 전부 화면 위 동작 바에 모이는데
+ * (architecture.md §8.13.1 "동작 바는 세 경로가 함께 쓴다"), 바는 판이 그리므로 여기
+ * 상태에 손이 닿지 않는다. 파일에 얽힌 것(고르는 중인 시트, 머리글 여부, 읽는 중인지)이
+ * 전부 이 컴포넌트에 있어서 **상태를 위로 올리는 대신 손잡이를 내준다.**
+ */
+function pickFile(): void {
+  fileInput.value?.click()
 }
 
 function onPick(event: Event): void {
@@ -488,6 +501,12 @@ async function downloadAction(): Promise<void> {
     computing.value = false
   }
 }
+
+/**
+ * 바에 내주는 손잡이. **`hasFile`도 함께 준다** — 판이 프로젝트에서 직접 읽을 수도
+ * 있지만, 그러면 "파일이 붙었는가"를 두 곳이 각자 판정하게 된다.
+ */
+defineExpose({ pickFile, remove, download: downloadAction, busy, computing, hasFile })
 </script>
 
 <template>
@@ -510,12 +529,6 @@ async function downloadAction(): Promise<void> {
         <AppBadge>{{ t('data.tabular.rows') }}</AppBadge>
         <span class="font-bold tabular-nums text-ink">{{ predictDataset?.rows.length ?? 0 }}</span>
       </span>
-      <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">
-        {{ t('data.tabular.change') }}
-      </AppButton>
-      <AppButton variant="secondary" :disabled="busy" :action="remove">
-        {{ t('predict.tabular.fileRemove') }}
-      </AppButton>
     </div>
 
     <!-- 아직 안 붙었거나, 다른 파일로 바꾸는 중이다. -->
@@ -576,16 +589,10 @@ async function downloadAction(): Promise<void> {
     </div>
 
     <template v-else>
-      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <label class="flex cursor-pointer items-center gap-2">
-          <input v-model="showFeatures" type="checkbox" class="size-4 accent-brand" />
-          <span class="font-bold">{{ t('predict.tabular.showFeatures') }}</span>
-        </label>
-
-        <AppButton variant="secondary" :disabled="computing" :action="downloadAction">
-          {{ t('predict.tabular.download') }}
-        </AppButton>
-      </div>
+      <label class="flex cursor-pointer items-center gap-2">
+        <input v-model="showFeatures" type="checkbox" class="size-4 accent-brand" />
+        <span class="font-bold">{{ t('predict.tabular.showFeatures') }}</span>
+      </label>
 
       <p v-if="computing" class="text-ink-soft">{{ t('predict.tabular.computing') }}</p>
 
