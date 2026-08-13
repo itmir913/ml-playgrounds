@@ -101,9 +101,9 @@ def check() -> list[str]:
         if name == reference_name:
             continue
         for key in sorted(set(reference) - set(flat)):
-            problems.append(f"{name}.json 에 키가 없다: {key}")
+            problems.append(f"{name}.json: missing key {key}")
         for key in sorted(set(flat) - set(reference)):
-            problems.append(f"{reference_name}.json 에 키가 없다: {key}")
+            problems.append(f"{reference_name}.json: missing key {key}")
 
     # 2. 보간 변수 일치
     for name, flat in locales.items():
@@ -114,7 +114,7 @@ def check() -> list[str]:
             actual = placeholders(flat[key])
             if expected != actual:
                 problems.append(
-                    f"{key}: 보간 변수가 다르다 "
+                    f"{key}: placeholders differ "
                     f"({reference_name}={sorted(expected)}, {name}={sorted(actual)})"
                 )
 
@@ -123,14 +123,14 @@ def check() -> list[str]:
     for enum_name, namespace in NAMESPACES.items():
         expected_codes = members.get(enum_name)
         if expected_codes is None:
-            problems.append(f"errors.py 에서 {enum_name} 을(를) 찾지 못했다")
+            problems.append(f"errors.py: {enum_name} not found")
             continue
         for name, flat in locales.items():
             actual_codes = namespace_keys(flat, namespace)
             for code in sorted(expected_codes - actual_codes):
-                problems.append(f"{name}.json: {namespace}.{code} 가 없다 ({enum_name})")
+                problems.append(f"{name}.json: {namespace}.{code} is missing ({enum_name})")
             for code in sorted(actual_codes - expected_codes):
-                problems.append(f"{name}.json: {namespace}.{code} 는 {enum_name} 에 없는 코드다")
+                problems.append(f"{name}.json: {namespace}.{code} is not in {enum_name}")
 
     return problems
 
@@ -138,11 +138,11 @@ def check() -> list[str]:
 def main() -> int:
     problems = check()
     if problems:
-        print(f"로케일 검사 실패 ({len(problems)}건)", file=sys.stderr)
+        print(f"Locale contract check failed ({len(problems)} problems)", file=sys.stderr)
         for problem in problems:
             print(f"  - {problem}", file=sys.stderr)
         return 1
-    print("로케일 검사 통과")
+    print("Locale contract check passed.")
     return 0
 
 

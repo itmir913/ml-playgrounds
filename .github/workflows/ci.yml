@@ -35,14 +35,11 @@ jobs:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
       - run: uv sync --frozen
-      - name: ruff (lint)
-        run: uv run ruff check .
-      - name: ruff (format)
-        run: uv run ruff format --check .
-      - name: mypy
-        run: uv run mypy .
-      - name: pytest
-        run: uv run pytest
+      # 관문의 정의는 `backend/scripts/ci.py` 하나다 — lint · format · types · tests.
+      # 여기서 단계를 풀어 쓰고 있었는데, 그러면 검사를 더한 사람이 이 파일을 안
+      # 고쳤을 때 **관문에서만 조용히 빠진다.** 프런트엔드가 실제로 그렇게 당했다
+      # (아래 `npm run ci` 옆의 주석).
+      - run: uv run python scripts/ci.py
 
   # sklearn 대조 픽스처가 낡지 않았는지. 기본 관문(vitest의 sklearn-parity.spec.ts)은
   # frontend 잡 안에서 파이썬 없이 돌고, 이 잡은 픽스처의 기대값 자체를 sklearn으로

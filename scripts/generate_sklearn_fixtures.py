@@ -262,17 +262,17 @@ def main() -> int:
 
     if check:
         if stale:
-            print(f"픽스처가 낡았다: {', '.join(stale)}")
-            print("다시 생성하라: uv run --project backend python scripts/generate_sklearn_fixtures.py")
+            print(f"Stale fixtures: {', '.join(stale)}")
+            print("Regenerate with: uv run --project backend python scripts/generate_sklearn_fixtures.py")
             return 1
-        print(f"픽스처가 sklearn {sklearn.__version__} 재계산과 일치한다")
+        print(f"Fixtures match a fresh run of sklearn {sklearn.__version__}.")
         return 0
 
     document["sklearnVersion"] = sklearn.__version__
     EXPECTED.write_text(
         json.dumps(document, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
     )
-    print(f"생성 완료 (sklearn {sklearn.__version__}) -> {EXPECTED}")
+    print(f"Wrote fixtures from sklearn {sklearn.__version__} -> {EXPECTED}")
     return 0
 
 
