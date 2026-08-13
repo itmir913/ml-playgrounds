@@ -27,9 +27,16 @@ const done = computed(() => tasks.value.every((task) => task.done))
 </script>
 
 <template>
+  <!--
+    **동작 바와 같은 무게로 선다** (§8.13.1). 진한 테두리와 그림자가 그 표시다 — 둘은
+    "이 화면에서 무엇을 해야 하고 무엇을 누르나"를 나눠 맡은 한 쌍이고, 한쪽만 도드라지면
+    학생 눈이 바에만 간다. 바가 없는 화면(전처리·결과)에서는 이 칸 혼자 그 자리를 갖는다.
+
+    **그림자가 "떠 있음"을 뜻하지는 않는다** — `AppCard`도 같은 그림자를 쓴다.
+  -->
   <section
     v-if="tasks.length > 0"
-    class="rounded-panel border border-line bg-surface px-4 py-3"
+    class="rounded-panel border border-line-strong bg-surface px-4 py-3 shadow-card"
     :aria-label="t('tasks.title')"
   >
     <!--
