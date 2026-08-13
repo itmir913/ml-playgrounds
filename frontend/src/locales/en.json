@@ -694,7 +694,7 @@
       "pickOption": "Choose one",
       "probabilityColumn": "{model} probability",
       "purpose": "Enter the values you want predicted and every model gives its answer.",
-      "range": "Values in the data: {min} to {max}",
+      "range": "Values in the data you loaded: {min} to {max}",
       "rowNumber": "Row",
       "showFeatures": "Show feature values",
       "tableTitle": "Prediction results",

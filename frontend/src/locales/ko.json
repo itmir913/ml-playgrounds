@@ -694,7 +694,7 @@
       "pickOption": "고르세요",
       "probabilityColumn": "{model} 확률",
       "purpose": "예측할 값을 입력하면 모델마다 답을 내놓습니다.",
-      "range": "데이터에 있는 값: {min} ~ {max}",
+      "range": "불러온 데이터에 있는 값: {min} ~ {max}",
       "rowNumber": "번호",
       "showFeatures": "특성 값 보기",
       "tableTitle": "예측 결과",

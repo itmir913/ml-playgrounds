@@ -215,26 +215,42 @@ export function mergeFields(groups: readonly (readonly PredictionField[])[]): Pr
  *
  * **전체 행을 본다.** 학습셋만 보면 화면이 말하는 범위와 학생이 표에서 본 범위가 달라진다.
  */
+/**
+ * 수치 칸에 붙는 힌트의 범위. **가진 표를 전부 훑는다.**
+ *
+ * **한 표만 보면 화면이 자기모순에 빠진다.** [랜덤으로 하나 가져오기]가 주는 행은 그
+ * 실험의 평가 몫이고, 평가 데이터를 파일로 따로 붙였으면 그 행은 `test.csv`에서 온다
+ * (mlpx-spec.md §1.1). `data.csv`만 보고 범위를 적으면 **화면이 스스로 채워 넣은 값이
+ * 그 범위 밖에** 있게 된다.
+ *
+ * **실험과 무관해야 한다.** 칸은 하나인데 실험은 여럿이고 분할도 저마다 다르므로, 어느
+ * 실험의 평가 몫인지를 화면이 정할 수 없다. 그래서 분할 이전의 원본을 본다.
+ *
+ * 표마다 열 순서가 다를 수 있어 이름으로 다시 찾는다.
+ */
 export function numericRanges(
-  dataset: Dataset,
+  datasets: readonly Dataset[],
   fields: readonly PredictionField[],
 ): Map<string, { min: number; max: number }> {
   const ranges = new Map<string, { min: number; max: number }>()
 
   for (const field of fields) {
     if (field.kind !== 'numeric') continue
-    const column = dataset.columns.indexOf(field.name)
-    if (column < 0) continue
 
     let min = Number.POSITIVE_INFINITY
     let max = Number.NEGATIVE_INFINITY
-    for (const row of dataset.rows) {
-      const cell = (row[column] ?? '').trim()
-      if (cell === '') continue
-      const value = Number(cell)
-      if (!Number.isFinite(value)) continue
-      if (value < min) min = value
-      if (value > max) max = value
+    for (const dataset of datasets) {
+      const column = dataset.columns.indexOf(field.name)
+      if (column < 0) continue
+
+      for (const row of dataset.rows) {
+        const cell = (row[column] ?? '').trim()
+        if (cell === '') continue
+        const value = Number(cell)
+        if (!Number.isFinite(value)) continue
+        if (value < min) min = value
+        if (value > max) max = value
+      }
     }
     // 숫자가 하나도 없는 열은 범위가 없다. 빈 힌트를 보이느니 아무 말도 안 한다.
     if (min <= max) ranges.set(field.name, { min, max })

@@ -233,12 +233,13 @@ const fields = computed(() =>
 )
 
 /** 수치 칸의 값 범위. 표 전체를 훑으므로 칸 목록이 바뀔 때만 다시 센다. */
-const ranges = computed(() => {
-  const table = dataset.value
-  return table
-    ? numericRanges(table, fields.value)
-    : new Map<string, { min: number; max: number }>()
-})
+/** 가진 표를 전부 넘긴다 — 왜 하나로는 안 되는지는 `numericRanges`에 적혀 있다. */
+const ranges = computed(() =>
+  numericRanges(
+    [dataset.value, testDataset.value].filter((one) => one !== null),
+    fields.value,
+  ),
+)
 
 const values = ref<Record<string, string>>({})
 const sampled = ref<number | null>(null)

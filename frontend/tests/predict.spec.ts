@@ -615,21 +615,43 @@ describe('여러 실험의 칸을 합친다', () => {
 describe('수치 칸의 값 범위', () => {
   it('표 전체에서 구한다 - 학생이 표에서 본 범위와 같아야 한다', () => {
     const subject = experiment([0, 1], onehot)
-    const ranges = numericRanges(dataset, inputFields(fitFor(subject)))
+    const ranges = numericRanges([dataset], inputFields(fitFor(subject)))
 
     // 학습셋은 150~160뿐이지만 표에는 150~190이 있다.
     expect(ranges.get('키')).toEqual({ min: 150, max: 190 })
     expect(ranges.get('몸무게')).toEqual({ min: 40, max: 80 })
   })
 
+  it('평가 파일까지 함께 본다 - 가져온 값이 힌트 범위 밖에 있으면 안 된다', () => {
+    const subject = experiment([0, 1], onehot)
+    const provided: Dataset = {
+      columns: ['키', '몸무게', '지역'],
+      rows: [['200', '30', '서울']],
+    }
+
+    const ranges = numericRanges([dataset, provided], inputFields(fitFor(subject)))
+
+    expect(ranges.get('키')).toEqual({ min: 150, max: 200 })
+    expect(ranges.get('몸무게')).toEqual({ min: 30, max: 80 })
+  })
+
+  it('열 순서가 달라도 이름으로 찾는다', () => {
+    const subject = experiment([0, 1], onehot)
+    const swapped: Dataset = { columns: ['몸무게', '키'], rows: [['30', '200']] }
+
+    const ranges = numericRanges([dataset, swapped], inputFields(fitFor(subject)))
+
+    expect(ranges.get('키')).toEqual({ min: 150, max: 200 })
+  })
+
   it('범주 칸에는 범위가 없다 - 고를 것이 이미 목록에 있다', () => {
     const subject = experiment([0, 1, 3], onehot)
-    expect(numericRanges(dataset, inputFields(fitFor(subject))).has('지역')).toBe(false)
+    expect(numericRanges([dataset], inputFields(fitFor(subject))).has('지역')).toBe(false)
   })
 
   it('숫자가 하나도 없는 열은 아무 말도 안 한다', () => {
     const empty: Dataset = { columns: ['키'], rows: [[''], ['  ']] }
-    expect(numericRanges(empty, [{ name: '키', kind: 'numeric' }]).size).toBe(0)
+    expect(numericRanges([empty], [{ name: '키', kind: 'numeric' }]).size).toBe(0)
   })
 })
 
