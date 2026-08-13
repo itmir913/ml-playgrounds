@@ -12,6 +12,7 @@ import {
   formatDateTime,
   formatPercent,
   formatPrediction,
+  formatStat,
 } from '../src/composables/useFormat'
 import { NOT_FOR_TABULAR_ALGORITHM } from './fixtures/algorithms'
 import { ALGORITHMS, supportedTaskTypes } from '../src/ml/algorithms'
@@ -201,6 +202,22 @@ describe('화면 표시 포맷', () => {
 
   it('언어에 맡긴다 - 자릿수 구분을 직접 조립하지 않는다', () => {
     expect(formatPrediction('de', 1250000)).not.toBe(formatPrediction('en', 1250000))
+  })
+})
+
+describe('계산해 낸 통계는 유효숫자 넷에서 자른다', () => {
+  it('나눗셈이 만든 자릿수를 걷어낸다 - 데이터에 없던 정밀도다', () => {
+    expect(formatStat('en', 76.9166666666667)).toBe('76.92')
+    expect(formatStat('en', 0.820903550296)).toBe('0.8209')
+  })
+
+  it('단위가 크든 작든 유효숫자로 센다 - 집값과 농도가 같은 함수를 지난다', () => {
+    expect(formatStat('en', 1250000)).toBe('1,250,000')
+    expect(formatStat('en', 0.000123456)).toBe('0.0001235')
+  })
+
+  it('짧은 값은 늘리지 않는다', () => {
+    expect(formatStat('en', 7)).toBe('7')
   })
 })
 

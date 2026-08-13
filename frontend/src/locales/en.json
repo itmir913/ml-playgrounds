@@ -191,9 +191,9 @@
     "zero": "Fill with zero"
   },
   "scalingBasis": {
-    "standard": "mean {center} · SD {spread}",
-    "minmax": "min {center} · range {spread}",
-    "robust": "median {center} · IQR {spread}"
+    "standard": "training mean {center} · SD {spread}",
+    "minmax": "training min {center} · range {spread}",
+    "robust": "training median {center} · IQR {spread}"
   },
   "scalingMethod": {
     "none": "None",
@@ -694,7 +694,7 @@
       "pickOption": "Choose one",
       "probabilityColumn": "{model} probability",
       "purpose": "Enter the values you want predicted and every model gives its answer.",
-      "range": "Values in the data you loaded: {min} to {max}",
+      "range": "Values for this feature: {min} to {max}",
       "rowNumber": "Row",
       "showFeatures": "Show feature values",
       "tableTitle": "Prediction results",

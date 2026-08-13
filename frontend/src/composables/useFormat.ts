@@ -89,6 +89,28 @@ export function formatPrediction(locale: string, value: number): string {
 }
 
 /**
+ * 데이터에서 **계산해 낸 통계**. 평균·표준편차·중앙값·스케일링 기준이 여기로 온다.
+ *
+ * **유효숫자 넷에서 자른다.** 평균은 나눗셈의 결과라 원래 데이터에 없던 자릿수가
+ * 딸려 온다 — 소수 한 자리로 적힌 열의 평균이 `76.9166666667`로 뜬다. **데이터가 갖지
+ * 않은 정밀도를 화면이 지어내는 것**이고, 그 자릿수로 학생이 할 수 있는 일도 없다.
+ *
+ * **자릿수가 아니라 유효숫자인 이유**는 `formatPrediction`과 같다 — 이 값들도 학생의
+ * 데이터 단위라, 집값이면 수백만이고 농도면 0.0001이다. 소수 자릿수를 고정하면 한쪽은
+ * 뒤가 잘리고 다른 쪽은 0만 남는다.
+ *
+ * 넷인 것은 지표를 소수 셋으로 자른 것과 같은 눈금이다(`formatMetric`) — 0~1 지표에서
+ * 소수 셋이 곧 유효숫자 서넛이다. 교실에서 견주는 데는 그 이상이 필요 없다.
+ *
+ * **모델의 답에는 쓰지 마라.** 그건 계산해 낸 통계가 아니라 그 모델이 내놓은 값이고,
+ * 우리가 자를 자리가 아니다(`formatPrediction`).
+ */
+export function formatStat(locale: string, value: number): string {
+  if (!Number.isFinite(value)) return String(value)
+  return new Intl.NumberFormat(locale, { maximumSignificantDigits: 4 }).format(value)
+}
+
+/**
  * 화면에서 쓰는 포맷터들.
  *
  * 평범한 함수를 돌려준다. 템플릿에서 부르면 그리는 동안 `locale.value`를 읽으므로
@@ -102,6 +124,7 @@ export function useFormat() {
     dateTime: (iso: string) => formatDateTime(locale.value, iso),
     percent: (ratio: number) => formatPercent(locale.value, ratio),
     prediction: (value: number) => formatPrediction(locale.value, value),
+    stat: (value: number) => formatStat(locale.value, value),
     metric: (value: number, format: 'percent' | 'number') =>
       formatMetric(locale.value, value, format),
   }

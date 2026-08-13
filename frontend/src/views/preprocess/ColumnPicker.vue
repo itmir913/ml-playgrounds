@@ -38,7 +38,14 @@ const props = defineProps<{
    * 빈다 — 아직 정해지지 않은 것을 지어내지 않는다.
    */
   fitted?: ReadonlyMap<string, FittedColumn> | undefined
-  /** 기준을 읽는 말이 방식마다 다르다 — 평균·표준편차인지 최솟값·범위인지. */
+  /**
+   * 기준을 읽는 말이 방식마다 다르다 — 평균·표준편차인지 최솟값·범위인지.
+   *
+   * **문구가 `훈련 데이터`라고 밝힌다.** 이 숫자는 그 열의 최솟값이 아니라 **스케일러가
+   * 훈련 데이터에서 잡은 기준값**이다(§9.1.3). 그냥 `최솟값 3.2`라고 적으면 학생이
+   * 열의 최솟값으로 읽고, 예측 화면이 말하는 그 특성의 값 범위와 안 맞는 것을 보고
+   * 화면이 틀렸다고 여긴다 — **둘이 같아지면 그때가 데이터 누수다.**
+   */
   scaling: Preprocessing['scaling']
 }>()
 
@@ -62,15 +69,15 @@ function effectOf(column: ColumnPlan['columns'][number]): string[] {
   if (fitted.fill !== undefined && column.summary.missing > 0) {
     parts.push(
       t('preprocess.tabular.fillWith', {
-        value: typeof fitted.fill === 'number' ? format.prediction(fitted.fill) : fitted.fill,
+        value: typeof fitted.fill === 'number' ? format.stat(fitted.fill) : fitted.fill,
       }),
     )
   }
   if (fitted.scale) {
     parts.push(
       t(`scalingBasis.${props.scaling}`, {
-        center: format.prediction(fitted.scale.center),
-        spread: format.prediction(fitted.scale.spread),
+        center: format.stat(fitted.scale.center),
+        spread: format.stat(fitted.scale.spread),
       }),
     )
   }

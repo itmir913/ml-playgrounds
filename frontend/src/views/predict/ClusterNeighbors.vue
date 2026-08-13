@@ -208,7 +208,7 @@ const neighborhood = computed<Neighborhood | null>(() => {
       means: material.axes.map((axis, position) => ({
         name: axis.name,
         // 지표가 아니라 학생의 데이터 단위다 (`useFormat.ts`의 `formatPrediction`).
-        value: format.prediction(summary.means[position] ?? 0),
+        value: format.stat(summary.means[position] ?? 0),
       })),
       columns: dataset.columns,
       rows: rows.map((row) => dataset.rows[row] ?? []),

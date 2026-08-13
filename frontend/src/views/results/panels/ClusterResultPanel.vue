@@ -142,7 +142,7 @@ const overviews = computed(() => {
 function axisHelp(position: number): string {
   const overview = overviews.value[position]
   return t('results.tabular.clusterMeanHelp', {
-    overall: format.prediction(overview?.mean ?? 0),
+    overall: format.stat(overview?.mean ?? 0),
     min: format.prediction(overview?.min ?? 0),
     max: format.prediction(overview?.max ?? 0),
   })
@@ -202,7 +202,7 @@ function cellsOf(row: number): readonly string[] {
             <th class="text-left">{{ clusterName(summary.cluster) }}</th>
             <td class="tabular-nums">{{ summary.size }}</td>
             <td v-for="(mean, position) in summary.means" :key="position" class="tabular-nums">
-              {{ format.prediction(mean) }}
+              {{ format.stat(mean) }}
             </td>
           </tr>
         </tbody>

@@ -191,9 +191,9 @@
     "zero": "0으로 채우기"
   },
   "scalingBasis": {
-    "standard": "평균 {center} · 표준편차 {spread}",
-    "minmax": "최솟값 {center} · 범위 {spread}",
-    "robust": "중앙값 {center} · 사분위 범위 {spread}"
+    "standard": "훈련 데이터 평균 {center} · 표준편차 {spread}",
+    "minmax": "훈련 데이터 최솟값 {center} · 범위 {spread}",
+    "robust": "훈련 데이터 중앙값 {center} · 사분위 범위 {spread}"
   },
   "scalingMethod": {
     "none": "하지 않음",
@@ -694,7 +694,7 @@
       "pickOption": "고르세요",
       "probabilityColumn": "{model} 확률",
       "purpose": "예측할 값을 입력하면 모델마다 답을 내놓습니다.",
-      "range": "불러온 데이터에 있는 값: {min} ~ {max}",
+      "range": "이 특성에 있는 값: {min} ~ {max}",
       "rowNumber": "번호",
       "showFeatures": "특성 값 보기",
       "tableTitle": "예측 결과",
