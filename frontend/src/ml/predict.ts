@@ -448,6 +448,62 @@ export function defaultFilter(models: readonly PredictableModel[]): PredictFilte
   }
 }
 
+/**
+ * 필터의 축. **화면이 이 이름으로 어느 집합을 건드릴지 정한다** — 축이 늘면 여기에
+ * 하나를 더하는 것으로 끝나야 하고, 화면이 자기 나름의 문자열을 쓰기 시작하면 그 순간
+ * 두 경로가 갈린다.
+ */
+export type FilterAxisId = 'experiment' | 'algorithm'
+
+/** 그 축이 든 집합. **어느 필드를 건드릴지를 한 자리에서 정한다.** */
+function setOf(filter: PredictFilter, axis: FilterAxisId): ReadonlySet<string> {
+  return axis === 'experiment' ? filter.experimentIds : filter.algorithms
+}
+
+function withSet(
+  filter: PredictFilter,
+  axis: FilterAxisId,
+  next: ReadonlySet<string>,
+): PredictFilter {
+  return axis === 'experiment'
+    ? { ...filter, experimentIds: next }
+    : { ...filter, algorithms: next }
+}
+
+/** 칩 하나를 켜거나 끈다. */
+export function toggleFilter(filter: PredictFilter, axis: FilterAxisId, id: string): PredictFilter {
+  const next = new Set(setOf(filter, axis))
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  return withSet(filter, axis, next)
+}
+
+/**
+ * 축 하나를 통째로 켜거나 끈다. **전부 켜져 있으면 끄고, 아니면 전부 켠다** — 버튼
+ * 하나가 두 일을 하므로 화면은 지금 어느 쪽인지를 `isAllSelected`로 물어 이름을 정한다.
+ *
+ * **판정을 화면에 두지 않는 이유**는 이름과 동작이 각자 판정하면 어긋나기 때문이다 —
+ * [모두 해제]라고 적힌 버튼이 전부 켜는 일이 생긴다.
+ */
+export function toggleAllFilter(
+  filter: PredictFilter,
+  axis: FilterAxisId,
+  ids: readonly string[],
+): PredictFilter {
+  const next = isAllSelected(filter, axis, ids) ? new Set<string>() : new Set(ids)
+  return withSet(filter, axis, next)
+}
+
+/** 그 축이 전부 켜져 있는가. 켤 것이 없으면 켜진 것도 없다. */
+export function isAllSelected(
+  filter: PredictFilter,
+  axis: FilterAxisId,
+  ids: readonly string[],
+): boolean {
+  const set = setOf(filter, axis)
+  return ids.length > 0 && ids.every((id) => set.has(id))
+}
+
 /** 필터를 지나는 모델만 남긴다. 실험과 알고리즘 둘 다 걸려야 보인다. */
 export function applyPredictFilter(
   models: readonly PredictableModel[],

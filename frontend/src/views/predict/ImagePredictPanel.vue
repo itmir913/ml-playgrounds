@@ -33,7 +33,10 @@ import {
   applyPredictFilter,
   defaultFilter,
   predictableModels,
+  toggleAllFilter,
+  toggleFilter,
   type Answer,
+  type FilterAxisId,
   type PredictableModel,
   type PredictFilter,
 } from '@/ml/predict'
@@ -47,7 +50,7 @@ import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import AnswerList from './AnswerList.vue'
 import PredictActionBar from './PredictActionBar.vue'
-import PredictFilters, { type FilterOption } from './PredictFilters.vue'
+import PredictFilters, { type FilterAxis, type FilterOption } from './PredictFilters.vue'
 
 const { t } = useI18n()
 const project = useProjectStore()
@@ -205,19 +208,18 @@ const visibleUsable = computed(() => visible.value.filter((entry) => entry.reaso
  * **임베딩은 안 지운다.** 그건 사진에서 나온 것이라 어느 모델을 보든 같다 — 필터를
  * 껐다 켰다 한다고 백본을 다시 돌릴 이유가 없다.
  */
-function toggleExperiment(id: string): void {
-  const next = new Set(filter.value.experimentIds)
-  if (next.has(id)) next.delete(id)
-  else next.add(id)
-  filter.value = { ...filter.value, experimentIds: next }
+function toggle(axis: FilterAxisId, id: string): void {
+  filter.value = toggleFilter(filter.value, axis, id)
   answers.value = new Map()
 }
 
-function toggleAlgorithm(id: string): void {
-  const next = new Set(filter.value.algorithms)
-  if (next.has(id)) next.delete(id)
-  else next.add(id)
-  filter.value = { ...filter.value, algorithms: next }
+function toggleAll(axis: FilterAxisId): void {
+  const found = axes.value.find((one) => one.id === axis)
+  filter.value = toggleAllFilter(
+    filter.value,
+    axis,
+    (found?.options ?? []).map((option) => option.id),
+  )
   answers.value = new Map()
 }
 
@@ -465,6 +467,17 @@ const canPredict = computed(
  */
 const showFilters = computed(() => models.value.length > 0)
 
+/** 필터에 그릴 축. 표 경로와 같은 배열이다 — 두 경로가 같은 필터를 쓴다. */
+const axes = computed<FilterAxis[]>(() => [
+  { id: 'experiment', label: t('predict.filterExperiments'), options: experimentOptions.value },
+  { id: 'algorithm', label: t('predict.filterAlgorithms'), options: algorithmOptions.value },
+])
+
+/** 셈은 스크립트에서 만든다 (`TabularPredictPanel`과 같은 이유). */
+const filterCount = computed(() =>
+  t('predict.filterCount', { shown: visible.value.length, total: models.value.length }),
+)
+
 /**
  * **필터가 전부 걸러 냈다.** 모델이 없는 것과는 다른 사유다 — 이유 없이 빈 화면이
  * 되면 학생은 사진이 사라진 줄 안다.
@@ -524,15 +537,13 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
     -->
     <PredictFilters
       v-else-if="showFilters"
-      :experiments="experimentOptions"
-      :algorithms="algorithmOptions"
-      :selected-experiments="filter.experimentIds"
-      :selected-algorithms="filter.algorithms"
-      :experiments-label="t('predict.filterExperiments')"
-      :algorithms-label="t('predict.filterAlgorithms')"
+      :axes="axes"
+      :filter="filter"
+      :lead="t('predict.filterLead')"
+      :count="filterCount"
       :disabled="predicting"
-      @toggle-experiment="toggleExperiment"
-      @toggle-algorithm="toggleAlgorithm"
+      @toggle="toggle"
+      @toggle-all="toggleAll"
     />
 
     <div v-if="filteredOut" class="grid min-h-0 flex-1 place-items-center">

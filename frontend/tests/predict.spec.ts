@@ -22,12 +22,15 @@ import {
   chosenProbability,
   defaultFilter,
   inputFields,
+  isAllSelected,
   mergeFields,
   inputVector,
   numericRanges,
   predictDownloadGrid,
   predictPage,
   predictPageSignature,
+  toggleAllFilter,
+  toggleFilter,
   rankAnswers,
   sampleRow,
   predictableModels,
@@ -673,6 +676,45 @@ describe('필터 (architecture.md 8.13.1 "답을 거르고 세어 본다")', () 
     const filter = { experimentIds: new Set<string>(), algorithms: new Set<string>() }
 
     expect(applyPredictFilter(models, filter)).toEqual([])
+  })
+})
+
+describe('축을 켜고 끈다 (architecture.md 8.13.1 "답을 거르고 세어 본다")', () => {
+  const base = { experimentIds: new Set(['exp-1', 'exp-2']), algorithms: new Set(['knn']) }
+
+  it('칩 하나를 끄면 그 축에서만 빠진다', () => {
+    const next = toggleFilter(base, 'experiment', 'exp-1')
+
+    expect([...next.experimentIds]).toEqual(['exp-2'])
+    expect([...next.algorithms]).toEqual(['knn'])
+  })
+
+  it('꺼진 칩을 누르면 다시 켜진다', () => {
+    const off = toggleFilter(base, 'algorithm', 'knn')
+
+    expect([...toggleFilter(off, 'algorithm', 'knn').algorithms]).toEqual(['knn'])
+  })
+
+  it('전부 켜져 있으면 전체 버튼이 끈다', () => {
+    const next = toggleAllFilter(base, 'experiment', ['exp-1', 'exp-2'])
+
+    expect([...next.experimentIds]).toEqual([])
+  })
+
+  it('하나라도 꺼져 있으면 전체 버튼이 전부 켠다', () => {
+    const some = toggleFilter(base, 'experiment', 'exp-1')
+    const next = toggleAllFilter(some, 'experiment', ['exp-1', 'exp-2'])
+
+    expect([...next.experimentIds].sort()).toEqual(['exp-1', 'exp-2'])
+  })
+
+  it('버튼 이름과 동작이 같은 판정을 본다', () => {
+    expect(isAllSelected(base, 'experiment', ['exp-1', 'exp-2'])).toBe(true)
+    expect(isAllSelected(base, 'experiment', ['exp-1', 'exp-2', 'exp-3'])).toBe(false)
+  })
+
+  it('켤 것이 없으면 전부 켜진 것도 아니다 - 빈 축에 [모두 해제]가 뜨면 안 된다', () => {
+    expect(isAllSelected(base, 'experiment', [])).toBe(false)
   })
 })
 

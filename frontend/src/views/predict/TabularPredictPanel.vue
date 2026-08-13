@@ -31,6 +31,9 @@ import { interpreterFor, loadModel, loadModelProba, type LoadContext } from '@/m
 import {
   applyPredictFilter,
   defaultFilter,
+  toggleAllFilter,
+  toggleFilter,
+  type FilterAxisId,
   inputFields,
   inputVector,
   mergeFields,
@@ -50,7 +53,7 @@ import AnswerList from './AnswerList.vue'
 import ClusterNeighbors from './ClusterNeighbors.vue'
 import BatchPredict from './BatchPredict.vue'
 import InputRow from './InputRow.vue'
-import PredictFilters, { type FilterOption } from './PredictFilters.vue'
+import PredictFilters, { type FilterAxis, type FilterOption } from './PredictFilters.vue'
 
 const { t } = useI18n()
 const project = useProjectStore()
@@ -173,29 +176,40 @@ const algorithmOptions = computed<FilterOption[]>(() => {
   return list
 })
 
+/** 필터에 그릴 축. **배열이라 셋째 축이 생겨도 화면 코드가 안 바뀐다.** */
+const axes = computed<FilterAxis[]>(() => [
+  { id: 'experiment', label: t('predict.filterExperiments'), options: experimentOptions.value },
+  { id: 'algorithm', label: t('predict.filterAlgorithms'), options: algorithmOptions.value },
+])
+
 /**
  * 필터를 바꾸면 지금까지의 답을 지운다 (architecture.md §8.13.1). 안 지우고 새로
  * 보이는 것만 채우면 답이 있는 카드와 없는 카드가 섞여 집계표의 합계가 화면의
  * 카드 수와 안 맞는다.
  */
-function toggleExperiment(id: string): void {
-  const next = new Set(filter.value.experimentIds)
-  if (next.has(id)) next.delete(id)
-  else next.add(id)
-  filter.value = { ...filter.value, experimentIds: next }
+function toggle(axis: FilterAxisId, id: string): void {
+  filter.value = toggleFilter(filter.value, axis, id)
   answers.value = new Map()
 }
 
-function toggleAlgorithm(id: string): void {
-  const next = new Set(filter.value.algorithms)
-  if (next.has(id)) next.delete(id)
-  else next.add(id)
-  filter.value = { ...filter.value, algorithms: next }
+function toggleAll(axis: FilterAxisId): void {
+  const found = axes.value.find((one) => one.id === axis)
+  filter.value = toggleAllFilter(
+    filter.value,
+    axis,
+    (found?.options ?? []).map((option) => option.id),
+  )
   answers.value = new Map()
 }
 
 /** 필터를 지난 것만. 안 쓰는 모델의 카드도 포함한다 - 사유는 필터와 별개다. */
 const visible = computed(() => applyPredictFilter(models.value, filter.value))
+
+/** **셈은 스크립트에서 만든다** — `t()` 옆에 계산이 붙으면 문장을 조각내는 것과
+ * 구별되지 않아 `tests/i18n-usage.spec.ts`가 잡는다 (`InputRow`와 같은 이유). */
+const filterCount = computed(() =>
+  t('predict.filterCount', { shown: visible.value.length, total: models.value.length }),
+)
 const visibleUsable = computed(() => visible.value.filter((entry) => entry.reason === undefined))
 
 /**
@@ -411,15 +425,13 @@ async function run(): Promise<void> {
         판정한다) - 실험이 하나뿐인데 거를 것을 보이면 아무것도 안 하는 버튼이 된다.
       -->
       <PredictFilters
-        :experiments="experimentOptions"
-        :algorithms="algorithmOptions"
-        :selected-experiments="filter.experimentIds"
-        :selected-algorithms="filter.algorithms"
-        :experiments-label="t('predict.filterExperiments')"
-        :algorithms-label="t('predict.filterAlgorithms')"
+        :axes="axes"
+        :filter="filter"
+        :lead="t('predict.filterLead')"
+        :count="filterCount"
         :disabled="predicting"
-        @toggle-experiment="toggleExperiment"
-        @toggle-algorithm="toggleAlgorithm"
+        @toggle="toggle"
+        @toggle-all="toggleAll"
       />
 
       <!--

@@ -774,6 +774,10 @@ describe('두 언어가 나란히 말한다', () => {
     // 병기가 없으므로 짝이 하나로 모인다.
     ['meta.tabular.target', 'preprocess.tabular.roleTarget'],
     ['meta.taskType', 'train.taskTitle'],
+    // 한국어에 복수 표시가 없어 한 낱말로 모인다. 결과 화면의 배지는 **개수를 세는
+    // 자리**(`Experiments 3`)라 복수이고, 예측 필터의 축 이름은 **무엇으로 거르는지**를
+    // 가리키는 자리라 옆의 `Model`과 같이 단수다.
+    ['predict.filterExperiments', 'results.experiment'],
     // 담은 모델과 예측할 사진에서는 `빼기`, 불러온 파일은 `지우기`다.
     ['predict.image.remove', 'predict.tabular.fileRemove', 'train.removeModel'],
   ]
