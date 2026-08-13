@@ -82,7 +82,13 @@ function now(): string {
  */
 const dragging = ref<number | null>(null)
 
-/** 화면에 뜨는 비율. 끄는 중이면 그 값이고, 아니면 저장된 값이다. */
+/**
+ * 화면에 뜨는 비율. 끄는 중이면 그 값이고, 아니면 저장된 값이다.
+ *
+ * **슬라이더의 `value`도 이것을 봐야 한다.** 저장된 값에 묶어 두면 끄는 동안 잔상이
+ * 생긴다 — `dragging`이 바뀔 때마다 다시 그려지고, 그때 Vue가 DOM의 `value`를 **저장된
+ * 값으로 되돌려 놓기** 때문이다. 손잡이가 원래 자리로 튀었다가 마우스 위치로 돌아온다.
+ */
 const shownTestSize = computed(() => dragging.value ?? settings.value?.split.testSize ?? 0)
 
 function onTestSizeInput(event: Event): void {
@@ -161,7 +167,7 @@ function reseed(): void {
             :min="TEST_SIZE.min"
             :max="TEST_SIZE.max"
             :step="TEST_SIZE.step"
-            :value="settings.split.testSize"
+            :value="shownTestSize"
             :aria-label="t('preprocess.testSize')"
             @input="onTestSizeInput"
             @change="onTestSizeChange"
