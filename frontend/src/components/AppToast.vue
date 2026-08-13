@@ -34,8 +34,14 @@ const BARS: Readonly<Record<ToastTone, string>> = {
 </script>
 
 <template>
+  <!--
+    **하단 바를 덮지 않는다** (architecture.md §8.6). `md` 미만에서는 레일과 상태
+    표시줄이 `fixed`로 화면 아래에 붙어 있어서, `bottom-0`이면 알림이 그 둘을 통째로
+    가린다 — 단계를 옮길 수도, 저장 상태를 볼 수도 없게 된다(2026-08-14 실기기).
+    `md` 이상에서는 `--shell-bottom`이 0이라 예전과 같은 자리다.
+  -->
   <div
-    class="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-3 p-4 sm:items-end sm:p-6"
+    class="pointer-events-none fixed inset-x-0 z-50 flex flex-col items-center gap-3 p-4 above-shell sm:items-end sm:p-6"
     aria-live="polite"
   >
     <div

@@ -119,6 +119,14 @@
   bottom: calc(var(--shell-bottom) + 1rem);
 }
 
+/**
+ * 화면 아래에 뜨는 것(`fixed`)이 하단 바를 안 덮게 한다. 여백은 그 요소가 이미 가진
+ * 안쪽 여백이 갖는다 — 알림 더미가 그렇다.
+ */
+@utility above-shell {
+  bottom: var(--shell-bottom);
+}
+
 /** 셸 안쪽에서 멈추는 스크롤 도착 지점. 붙박이 바가 없는 화면(결과)이 쓴다. */
 @utility scroll-below-shell {
   scroll-margin-top: calc(var(--shell-top) + 1.25rem);
