@@ -62,7 +62,7 @@
       "purpose": "Every time you train, one experiment is added. Their scores line up side by side, so you can see what you changed and what it changed."
     },
     "predict": {
-      "label": "Predict",
+      "label": "Predict­ing",
       "locked": "You need a trained model before you can predict."
     },
     "portfolio": {
