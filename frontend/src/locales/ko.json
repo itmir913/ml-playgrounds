@@ -189,6 +189,11 @@
     "mostFrequent": "가장 많은 값으로 채우기",
     "zero": "0으로 채우기"
   },
+  "scalingBasis": {
+    "standard": "평균 {center} · 표준편차 {spread}",
+    "minmax": "최솟값 {center} · 범위 {spread}",
+    "robust": "중앙값 {center} · IQR {spread}"
+  },
   "scalingMethod": {
     "none": "하지 않음",
     "standard": "표준화(Standardization)",
@@ -220,8 +225,10 @@
       "clearAll": "특성 모두 해제",
       "columnsLead": "예측할 열 하나를 타깃으로, 예측에 쓸 열들을 특성으로 고릅니다.",
       "columnsTitle": "타깃과 특성",
+      "effect": "전처리",
       "encoding": "범주형 인코딩",
       "encodingNote": "문자 값을 숫자로 바꾸는 방법입니다. 끄면 문자 열이 학습에서 빠집니다.",
+      "fillWith": "빈 칸 → {value}",
       "featureSummary": "특성 {count}개가 학습에 들어갑니다.",
       "featureSummaryPartial": "선택한 특성 {chosen}개 중 {usable}개가 학습에 들어갑니다.",
       "missing": "결측치 처리",

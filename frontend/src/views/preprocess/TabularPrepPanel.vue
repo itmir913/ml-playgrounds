@@ -35,6 +35,7 @@ import {
   stratifyLocked,
   trainableRowCount,
 } from '@/ml/selection'
+import { planRun } from '@/ml/plan'
 import {
   applyTestDataset,
   readDataset,
@@ -82,6 +83,31 @@ const trainRowUsage = computed(() => {
   const current = data.value
   if (!current) return null
   return rowUsage(dataset.value, current.features, current.target, current.preprocessing.missing)
+})
+
+/**
+ * 학습 직전까지의 계획 (`ml/plan.ts`). **여기서 한 번만 부른다** — 요약 카드와 열 표가
+ * 같은 값을 쓰는데 각자 부르면 설정 하나 바꿀 때마다 `fitPreprocessor`가 두 번 돈다.
+ *
+ * **학습이 부르는 그 함수다.** 화면이 말하는 숫자와 모델이 쓰는 숫자가 같은 객체에서
+ * 나온다 (architecture.md §9.1.3).
+ */
+const runPlan = computed(() => {
+  const file = project.file
+  if (!file || !dataset.value) return null
+  return planRun({
+    dataset: dataset.value,
+    testDataset: readTestDataset(file),
+    settings: file.document.settings,
+    taskType: project.taskType,
+  })
+})
+
+/** 열마다의 전처리 값. 계획이 못 섰으면 없다 — 그때 표의 그 칸은 빈다. */
+const fittedColumns = computed(() => {
+  const current = runPlan.value
+  if (current === null || !current.ok) return undefined
+  return new Map(current.preprocessor.columns.map((column) => [column.name, column]))
 })
 
 const plan = computed(() => {
@@ -480,6 +506,8 @@ async function removeTest(): Promise<void> {
         <ColumnPicker
           :plan="plan"
           :target-rule="targetRule"
+          :fitted="fittedColumns"
+          :scaling="data.preprocessing.scaling"
           @pick-target="pickTarget"
           @toggle-feature="toggleFeature"
           @set-all-features="setAllFeatures"
@@ -825,7 +853,7 @@ async function removeTest(): Promise<void> {
       어느 한쪽에 붙이면 카드의 자리가 데이터에 따라 움직인다 — 열이 40개면 왼쪽이 길고
       8개면 오른쪽이 길다. 카드 안에서 다시 두 열로 갈라 넓은 화면을 쓴다.
     -->
-    <TabularPrepSummary class="md:col-span-5" />
+    <TabularPrepSummary :plan="runPlan" class="md:col-span-5" />
   </div>
 
   <!--

@@ -19,10 +19,21 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { errorMessageKey } from '@/errors'
-import { planRun } from '@/ml/plan'
-import { readDataset, readTestDataset } from '@/project/dataset'
+import type { RunPlan } from '@/ml/plan'
+import { readDataset } from '@/project/dataset'
 import { tabularDataOf } from '@/project/schema'
 import { useProjectStore } from '@/stores/project'
+
+const props = defineProps<{
+  /**
+   * 지금 설정의 계획. **판이 한 번만 계산해서 내려준다** — 카드와 열 표가 같은 값을
+   * 쓰는데 각자 부르면 `fitPreprocessor`가 설정 하나 바꿀 때마다 두 번 돈다.
+   *
+   * **유형을 안 골랐어도 온다.** 그때는 `pending`이고, 화면은 "고르면 정해집니다"라고
+   * 말한다.
+   */
+  plan: RunPlan | null
+}>()
 
 const { t } = useI18n()
 const project = useProjectStore()
@@ -31,21 +42,7 @@ const data = computed(() => tabularDataOf(project.file?.document))
 
 const dataset = computed(() => readDataset(project.file))
 
-/**
- * 지금 설정의 계획. **유형을 안 골랐어도 부른다** — 그때 `pending`이 오고, 화면은
- * "유형을 고르면 정해집니다"라고 말한다.
- */
-const plan = computed(() => {
-  const file = project.file
-  const table = dataset.value
-  if (!file || !table) return null
-  return planRun({
-    dataset: table,
-    testDataset: readTestDataset(file),
-    settings: file.document.settings,
-    taskType: project.taskType,
-  })
-})
+const plan = computed(() => props.plan)
 
 /** 계획이 섰을 때의 사실들. 막혔거나 아직이면 `null`이다. */
 const facts = computed(() => {

@@ -189,6 +189,11 @@
     "mostFrequent": "Fill with the most common value",
     "zero": "Fill with zero"
   },
+  "scalingBasis": {
+    "standard": "mean {center} · SD {spread}",
+    "minmax": "min {center} · range {spread}",
+    "robust": "median {center} · IQR {spread}"
+  },
   "scalingMethod": {
     "none": "None",
     "standard": "Standardize",
@@ -220,8 +225,10 @@
       "clearAll": "Clear every feature",
       "columnsLead": "Pick one column to predict, and the columns to predict it from.",
       "columnsTitle": "Target and features",
+      "effect": "Preprocessing",
       "encoding": "Category encoding",
       "encodingNote": "How text values become numbers. With it off, text columns are left out.",
+      "fillWith": "Blanks → {value}",
       "featureSummary": "{count} feature goes into training. | {count} features go into training.",
       "featureSummaryPartial": "{usable} of the {chosen} feature you chose goes into training. | {usable} of the {chosen} features you chose go into training.",
       "missing": "Missing values",

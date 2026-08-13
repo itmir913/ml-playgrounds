@@ -262,6 +262,15 @@ describe('프런트엔드 전용 코드', () => {
       ['categoricalEncoding', CATEGORICAL_ENCODINGS],
     ] as const
 
+    /**
+     * **스케일링 기준을 읽는 말은 `none`에만 없다** — 안 하는데 기준이 있을 수 없다.
+     * 열 표가 그 이름으로 부르므로 나머지 셋에는 반드시 있어야 한다.
+     */
+    for (const method of SCALING_METHODS) {
+      expect(english.has(`scalingBasis.${method}`), method).toBe(method !== 'none')
+      expect(korean.has(`scalingBasis.${method}`), method).toBe(method !== 'none')
+    }
+
     for (const [namespace, codes] of pairs) {
       for (const code of codes) {
         expect(english.has(`${namespace}.${code}`), code).toBe(true)
@@ -663,6 +672,7 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
     'engineState.', // 무결성 어휘가 로케일과 양방향으로 일치한다
     'missingStrategy.', // 전처리 설정의 어휘가 로케일과 양방향으로 일치한다
     'scalingMethod.', //   〃
+    'scalingBasis.', // 스케일링 방식마다 기준을 읽는 말이 있다 (none만 없다)
     'categoricalEncoding.', //   〃
     'columnKind.', // 열 자료형·내보내기 상태·언어·포트폴리오 문항마다 이름이 있다
     'save.', //   〃

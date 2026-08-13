@@ -16,7 +16,10 @@ import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
 import AppTable from '@/components/AppTable.vue'
+import { useFormat } from '@/composables/useFormat'
+import type { FittedColumn } from '@/ml/preprocess'
 import type { ColumnPlan } from '@/ml/selection'
+import type { Preprocessing } from '@/project/schema'
 
 const props = defineProps<{
   plan: ColumnPlan
@@ -27,6 +30,16 @@ const props = defineProps<{
    * 요구를 하나 더 만드는 사람은 로케일에 문장을 함께 넣어야 화면이 말을 한다.
    */
   targetRule?: 'TARGET_NOT_NUMERIC' | undefined
+  /**
+   * 학습셋에서 구한 열별 전처리 값 — 무엇으로 채우고 무엇을 기준으로 스케일링하는가.
+   *
+   * **여기서 계산하지 않는다.** `planRun`이 학습과 같은 함수로 구한 것을 받아 적기만
+   * 한다 (architecture.md §9.1.3). 계획이 아직 못 섰으면 비어 있고, 그때는 이 칸이
+   * 빈다 — 아직 정해지지 않은 것을 지어내지 않는다.
+   */
+  fitted?: ReadonlyMap<string, FittedColumn> | undefined
+  /** 기준을 읽는 말이 방식마다 다르다 — 평균·표준편차인지 최솟값·범위인지. */
+  scaling: Preprocessing['scaling']
 }>()
 
 const emit = defineEmits<{
@@ -36,6 +49,33 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const format = useFormat()
+
+/**
+ * 이 열에 실제로 무슨 일이 일어나는가. **결측이 없으면 채움값을 말하지 않는다** —
+ * 채울 것이 없는데 값을 보여주면 그 열에도 빈 칸이 있는 것처럼 읽힌다.
+ */
+function effectOf(column: ColumnPlan['columns'][number]): string[] {
+  const fitted = props.fitted?.get(column.summary.name)
+  if (!fitted) return []
+  const parts: string[] = []
+  if (fitted.fill !== undefined && column.summary.missing > 0) {
+    parts.push(
+      t('preprocess.tabular.fillWith', {
+        value: typeof fitted.fill === 'number' ? format.prediction(fitted.fill) : fitted.fill,
+      }),
+    )
+  }
+  if (fitted.scale) {
+    parts.push(
+      t(`scalingBasis.${props.scaling}`, {
+        center: format.prediction(fitted.scale.center),
+        spread: format.prediction(fitted.scale.spread),
+      }),
+    )
+  }
+  return parts
+}
 
 /**
  * 이 줄에 붙일 한 줄. **하나만 붙인다** — 세 줄이 겹치면 아무것도 안 읽힌다.
@@ -98,6 +138,8 @@ function onFeature(name: string, event: Event): void {
           <th>{{ t('data.tabular.kind') }}</th>
           <th>{{ t('data.tabular.missing') }}</th>
           <th>{{ t('data.tabular.unique') }}</th>
+          <!-- 학습셋에서 구한 값이라 계획이 서야 채워진다. 그전에는 빈 칸이다. -->
+          <th class="whitespace-nowrap">{{ t('preprocess.tabular.effect') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -131,6 +173,9 @@ function onFeature(name: string, event: Event): void {
           <td class="whitespace-nowrap">{{ t(`columnKind.${column.summary.kind}`) }}</td>
           <td class="whitespace-nowrap">{{ column.summary.missing }}</td>
           <td class="whitespace-nowrap">{{ column.summary.unique }}</td>
+          <td class="whitespace-nowrap text-ink-soft">
+            <span v-for="part in effectOf(column)" :key="part" class="block">{{ part }}</span>
+          </td>
         </tr>
       </tbody>
     </AppTable>
