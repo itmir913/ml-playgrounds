@@ -53,6 +53,7 @@ import AnswerList from './AnswerList.vue'
 import ClusterNeighbors from './ClusterNeighbors.vue'
 import BatchPredict from './BatchPredict.vue'
 import InputRow from './InputRow.vue'
+import PredictActionBar from './PredictActionBar.vue'
 import PredictFilters, { type FilterAxis, type FilterOption } from './PredictFilters.vue'
 
 const { t } = useI18n()
@@ -240,6 +241,14 @@ const ranges = computed(() => {
 
 const values = ref<Record<string, string>>({})
 const sampled = ref<number | null>(null)
+/**
+ * 아직 안 채운 칸. **하나라도 있으면 [예측]이 멈춘다** — 비워 두고 누르면 학습셋의
+ * 대체값으로 예측되는데, 학생은 자기가 넣은 값으로 예측했다고 믿는다.
+ */
+const blank = computed(() =>
+  fields.value.filter((field) => (values.value[field.name] ?? '').trim() === ''),
+)
+
 /** run id -> 답. **비어 있으면 아직 안 눌렀다는 뜻이다.** */
 const answers = shallowRef<Map<string, Answer>>(new Map())
 
@@ -317,6 +326,29 @@ const predicting = ref(false)
  * 위쪽에 있어, 표를 내려 보다가 눌렀으면 다시 올려다봐야 한다. `ExperimentDetail.vue`가
  * 줄을 고르면 속으로 스크롤하는 것과 같은 이유·같은 모양이다.
  */
+/**
+ * 입력 칸 위에 뜨는 한 줄. **자리는 하나이고 사슬이 나눠 쓴다**
+ * (architecture.md §8.13.1 "동작 바는 세 경로가 함께 쓴다").
+ *
+ * **못 누르는 이유가 방금 한 일보다 앞이다.** 값을 가져온 뒤 한 칸을 지우면 둘 다
+ * 참이 되는데, 그때 학생이 알아야 하는 것은 왜 [예측]이 꺼져 있는가다.
+ *
+ * **문장을 스크립트에서 만든다** — `t()` 옆에 계산이 붙으면 문장을 조각내는 것과
+ * 구별되지 않아 `tests/i18n-usage.spec.ts`가 잡는다.
+ */
+const inputStatus = computed<string | null>(() => {
+  if (predicting.value) return t('predict.tabular.computing')
+  const missing = blank.value[0]
+  if (missing) return t('client.PREDICTION_INPUT_INCOMPLETE', { feature: missing.name })
+  if (sampled.value !== null) {
+    return t('predict.tabular.fromDataDone', { index: sampled.value + 1 })
+  }
+  return null
+})
+
+/** 빈 칸이 하나라도 있으면 못 돌린다. **조합은 템플릿이 아니라 여기서 한다** (§10.1). */
+const cannotRun = computed(() => predicting.value || blank.value.length > 0)
+
 const answerListEl = ref<HTMLElement | null>(null)
 
 /** 화면에 한 프레임 양보한다. `setTimeout(0)`이 `requestAnimationFrame`보다 테스트 환경을 덜 가린다. */
@@ -421,8 +453,69 @@ async function run(): Promise<void> {
 
     <template v-else>
       <!--
+        **누르는 것은 전부 바에 모인다** (architecture.md §8.13.1 "동작 바는 세 경로가
+        함께 쓴다"). 이미지 경로와 같은 컴포넌트이고 같은 자리다.
+      -->
+      <PredictActionBar v-if="inputMode === 'value'">
+        <AppButton variant="secondary" :disabled="predicting" @click="sample">
+          {{ t('predict.tabular.fromData') }}
+        </AppButton>
+        <AppButton variant="secondary" :disabled="predicting" @click="clear">
+          {{ t('predict.tabular.clear') }}
+        </AppButton>
+
+        <template #end>
+          <AppButton :disabled="cannotRun" :action="run">{{ t('predict.run') }}</AppButton>
+        </template>
+      </PredictActionBar>
+
+      <!--
+        **입력은 양자택일이다 - 한 줄이거나 파일이거나**
+        (architecture.md §8.13.1 "입력은 양자택일이다"). `PreprocessView.vue`의 평가
+        데이터 라디오와 같은 모양이다 - 묻는 것이 하나("이 모델들에 무엇을 넣을까")인데
+        답하는 길이 둘이다.
+
+        **정확히 반씩 가른다.** 폭에 따라 나란히 섰다 접혔다 하면 "둘 중 하나"라는 것이
+        모양으로 안 보인다.
+
+        **바 아래, 필터 위다.** 무엇을 넣을지가 먼저이고 어느 모델이 답할지가 그 다음이다.
+      -->
+      <div class="grid gap-3 rounded-panel border border-line bg-surface p-4 md:grid-cols-2">
+        <label class="flex cursor-pointer items-start gap-2">
+          <input
+            type="radio"
+            name="predict-input-mode"
+            class="mt-1 size-4 accent-brand"
+            :checked="inputMode === 'value'"
+            @change="inputMode = 'value'"
+          />
+          <span class="flex flex-col">
+            <span class="font-bold">{{ t('predict.tabular.inputChoiceValue') }}</span>
+            <span class="text-ink-faint">{{ t('predict.tabular.inputChoiceValueNote') }}</span>
+          </span>
+        </label>
+        <label class="flex cursor-pointer items-start gap-2">
+          <input
+            type="radio"
+            name="predict-input-mode"
+            class="mt-1 size-4 accent-brand"
+            :checked="inputMode === 'file'"
+            @change="inputMode = 'file'"
+          />
+          <span class="flex flex-col">
+            <span class="font-bold">{{ t('predict.tabular.inputChoiceFile') }}</span>
+            <span class="text-ink-faint">{{ t('predict.tabular.inputChoiceFileNote') }}</span>
+          </span>
+        </label>
+      </div>
+
+      <!--
         필터 칸은 각 축이 둘 이상일 때만 그 축을 보인다(`PredictFilters` 안에서
         판정한다) - 실험이 하나뿐인데 거를 것을 보이면 아무것도 안 하는 버튼이 된다.
+
+        **두 모드가 같은 자리에서 같은 말을 한다.** 파일 모드에서는 표의 열이 곧 모델이라
+        좁힐 수 없어 전체 폭인데, 값 모드만 오른쪽 칸 안으로 넣으면 모드를 바꿀 때마다
+        거르개가 화면을 옮겨 다닌다.
       -->
       <PredictFilters
         :axes="axes"
@@ -442,43 +535,6 @@ async function run(): Promise<void> {
       </div>
 
       <template v-else>
-        <!--
-          **입력은 양자택일이다 - 한 줄이거나 파일이거나**
-          (architecture.md §8.13.1 "입력은 양자택일이다"). `PreprocessView.vue`의
-          평가 데이터 라디오와 같은 모양이다 - 묻는 것이 하나("이 모델들에 무엇을
-          넣을까")인데 답하는 길이 둘이다.
-        -->
-        <div
-          class="flex flex-col gap-3 rounded-panel border border-line bg-surface p-4 md:flex-row md:flex-wrap md:gap-x-8"
-        >
-          <label class="flex cursor-pointer items-start gap-2">
-            <input
-              type="radio"
-              name="predict-input-mode"
-              class="mt-1 size-4 accent-brand"
-              :checked="inputMode === 'value'"
-              @change="inputMode = 'value'"
-            />
-            <span class="flex flex-col">
-              <span class="font-bold">{{ t('predict.tabular.inputChoiceValue') }}</span>
-              <span class="text-ink-faint">{{ t('predict.tabular.inputChoiceValueNote') }}</span>
-            </span>
-          </label>
-          <label class="flex cursor-pointer items-start gap-2">
-            <input
-              type="radio"
-              name="predict-input-mode"
-              class="mt-1 size-4 accent-brand"
-              :checked="inputMode === 'file'"
-              @change="inputMode = 'file'"
-            />
-            <span class="flex flex-col">
-              <span class="font-bold">{{ t('predict.tabular.inputChoiceFile') }}</span>
-              <span class="text-ink-faint">{{ t('predict.tabular.inputChoiceFileNote') }}</span>
-            </span>
-          </label>
-        </div>
-
         <div v-if="inputMode === 'value'" class="flex min-h-96 flex-1 flex-col gap-5 md:flex-row">
           <!--
             **붙박이다** (architecture.md §8.13.1 "왼쪽은 붙박이다"). 오른쪽 답 목록은
@@ -491,17 +547,14 @@ async function run(): Promise<void> {
             1.25rem)이 적용 중이다 - `top-5`로 맞춰서 붙었을 때도 화면 끝에 딱 붙지
             않고 그 여백을 유지한다.
           -->
-          <div class="min-w-0 flex-1 self-start md:sticky md:top-5 md:max-w-lg">
+          <div class="min-w-0 flex-1 self-start md:sticky md:top-22 md:max-w-lg">
             <InputRow
               :fields="fields"
               :values="values"
               :ranges="ranges"
-              :sampled="sampled"
+              :status="inputStatus"
               :disabled="predicting"
-              :run-action="run"
               @set="set"
-              @sample="sample"
-              @clear="clear"
             />
           </div>
 

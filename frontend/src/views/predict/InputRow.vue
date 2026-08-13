@@ -7,14 +7,16 @@
  * 범주가 된다 — 화면이 답을 내주는데 그 답이 무의미해진다.
  *
  * **빈 칸으로 시작한다.** 처음부터 채워 두면 학생이 그대로 [예측]을 눌러 자기가 학습에
- * 쓴 행을 다시 맞히는 것을 본다. 대신 [데이터에서 한 줄 가져오기]로 **한두 칸만 바꿔
+ * 쓴 행을 다시 맞히는 것을 본다. 대신 [랜덤으로 하나 가져오기]로 **한두 칸만 바꿔
  * 보는 길**을 연다 — 이 도구가 주려는 장면이 그것이다.
+ *
+ * **누르는 것은 여기 없다.** 가져오기·비우기·예측은 전부 화면 위에 붙은 동작 바에 있다
+ * (architecture.md §8.13.1 "동작 바는 세 경로가 함께 쓴다"). 이 카드는 값을 채우는
+ * 곳이고, 바는 누르는 곳이다.
  */
 
-import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import AppButton from '@/components/AppButton.vue'
 import AppField from '@/components/AppField.vue'
 import { useFormat } from '@/composables/useFormat'
 import type { PredictionField } from '@/ml/predict'
@@ -24,22 +26,22 @@ const props = defineProps<{
   values: Readonly<Record<string, string>>
   /** 수치 칸마다 표에 있는 값의 범위. 없는 칸도 있다 (숫자가 하나도 없는 열). */
   ranges: ReadonlyMap<string, { min: number; max: number }>
-  /** 가져온 줄의 번호. 화면이 무엇을 가져왔는지 말한다. 없으면 아직 안 가져왔다. */
-  sampled: number | null
+  /**
+   * 제목 아래 한 줄. **자리는 하나이고 판이 사슬로 나눠 쓴다** — 못 누르는 이유와 방금
+   * 가져온 행이 각자 자리를 가지면 문구가 두 군데로 흩어지고, 아무 말도 안 할 때는 빈
+   * 자리가 남는다. 이미 번역돼서 온다.
+   */
+  status: string | null
   /**
    * 계산이 도는 동안 켜진다. **칸도 함께 잠근다.** 도중에 값이 바뀌면 이미 도는
    * 계산이 어느 입력에 대한 답인지 흐려진다 — 필터를 못 바꾸게 하는 것과 같은
    * 이유다(architecture.md §8.13.1).
    */
   disabled: boolean
-  /** [예측]을 누르면 할 일. `AppButton`의 `action`으로 준다 - 두 번 눌리는 것을 막는다. */
-  runAction: () => Promise<void>
 }>()
 
 const emit = defineEmits<{
   set: [name: string, value: string]
-  sample: []
-  clear: []
 }>()
 
 const { t } = useI18n()
@@ -58,31 +60,22 @@ function hintOf(field: PredictionField): string | undefined {
     max: format.prediction(range.max),
   })
 }
-
-/** 아직 안 채운 칸. **하나라도 있으면 [예측]이 멈춘다** — 비워 두고 누르면 학습셋의
- * 대체값으로 예측되는데, 학생은 자기가 넣은 값으로 예측했다고 믿는다. */
-const blank = computed(() =>
-  props.fields.filter((field) => (props.values[field.name] ?? '').trim() === ''),
-)
-
-/** 빈 칸이 하나라도 있으면 못 돌린다. **조합은 템플릿이 아니라 여기서 한다** (§10.1). */
-const cannotRun = computed(() => props.disabled || blank.value.length > 0)
-
-/**
- * 학생에게 보여줄 행 번호. **0부터 세는 것은 우리 사정이다.**
- *
- * 계산을 템플릿에서 하지 않는다 - `t()` 옆에 산술이 붙으면 문장을 조각내어 잇는 것과
- * 구별되지 않아 `tests/i18n-usage.spec.ts`가 잡는다. 검사의 오탐이지만 고칠 자리는
- * 검사가 아니라 여기다 (architecture.md §10.1과 같은 이유 - 조합은 스크립트에서).
- */
-const sampledIndex = computed(() => (props.sampled ?? 0) + 1)
 </script>
 
 <template>
-  <div class="flex flex-col gap-5">
+  <!--
+    **카드로 선다.** 붙박이로 화면을 따라올 때 테두리가 없으면 무엇이 따라오는 건지
+    경계가 안 보인다.
+  -->
+  <section class="flex flex-col gap-5 rounded-panel border border-line bg-surface p-4">
     <div class="flex flex-col gap-1.5">
       <h3 class="text-lg font-bold">{{ t('predict.tabular.inputTitle') }}</h3>
       <p class="text-ink-soft">{{ t('predict.tabular.inputLead') }}</p>
+      <!--
+        **바꿀 칸 바로 위다.** "한두 칸만 바꿔서 다시 예측해 보세요"가 칸을 다 지나
+        아래에 있으면 무엇을 가리키는지 멀다.
+      -->
+      <p v-if="props.status" class="text-ink-soft" role="status">{{ props.status }}</p>
     </div>
 
     <!--
@@ -124,37 +117,5 @@ const sampledIndex = computed(() => (props.sampled ?? 0) + 1)
         </template>
       </AppField>
     </div>
-
-    <!--
-      **가져오기·비우기가 [예측]과 한 덩어리로 붙는다.** 값을 손보는 버튼과 실행
-      버튼이 입력 칸을 사이에 두고 멀리 떨어져 있으면 "가져와서 한두 칸만 바꿔
-      다시 예측해 본다"는 이 화면의 핵심 동작(§8.13.1 "빈 칸으로 시작한다")이
-      두 자리를 오가는 일이 된다. 둘 다 오른쪽 끝에 맞춰 같은 축에 세우고, 사이
-      간격도 다른 구획보다 좁혀 한 그룹으로 읽히게 한다.
-    -->
-    <div class="flex flex-col gap-2">
-      <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-        <p :class="{ invisible: props.sampled === null }" class="min-w-0 text-ink-soft">
-          {{ t('predict.tabular.fromDataDone', { index: sampledIndex }) }}
-        </p>
-        <AppButton variant="secondary" :disabled="props.disabled" @click="emit('sample')">
-          {{ t('predict.tabular.fromData') }}
-        </AppButton>
-        <AppButton variant="secondary" :disabled="props.disabled" @click="emit('clear')">
-          {{ t('predict.tabular.clear') }}
-        </AppButton>
-      </div>
-
-      <!-- [예측]은 오른쪽에 붙인다 - 입력 칸들과 같은 오른쪽 끝에 맞춰야 한 덩어리로 읽힌다. -->
-      <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-        <!-- 왜 꺼져 있는지 말한다. 이유 없이 회색인 버튼은 학생에게 고장으로 보인다. -->
-        <p v-if="blank.length > 0" class="min-w-0 text-ink-soft">
-          {{ t('client.PREDICTION_INPUT_INCOMPLETE', { feature: blank[0]?.name ?? '' }) }}
-        </p>
-        <AppButton size="lg" :disabled="cannotRun" :action="props.runAction">
-          {{ t('predict.run') }}
-        </AppButton>
-      </div>
-    </div>
-  </div>
+  </section>
 </template>
