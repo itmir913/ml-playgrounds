@@ -165,8 +165,15 @@ function onTaskType(id: string): void {
 
       <hr class="border-t border-dashed border-line-strong" />
 
+      <!--
+        **이 축만 힌트를 갖는다.** 라벨은 오른쪽(어디서)을 말하는데 목록의 왼쪽에는
+        라이브러리 이름이 서 있고, 그래서 `scikit-learn`이 두 줄인 이유가 라벨만으로는
+        안 읽힌다. 한 낱말로 둘을 덮으려다 `학습 엔진`으로 갔던 안을 접고, 라벨은
+        그대로 두고 문장이 나머지 절반을 말하게 했다 (2026-08-13).
+      -->
       <AppChoices
         :label="t('train.pickRuntime')"
+        :hint="t('train.pickRuntimeHint')"
         :items="runtimeChoices"
         :selected="runtime"
         @pick="pickedRuntime = $event"

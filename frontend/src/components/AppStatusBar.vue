@@ -76,14 +76,20 @@ const facts = computed(() => {
   return parts
 })
 
-/** 팝오버 안의 이름 붙은 줄들. 잘린 줄에서는 값만 보이지만 여기서는 무엇인지 밝힌다. */
+/**
+ * 팝오버 안의 이름 붙은 줄들. 잘린 줄에서는 값만 보이지만 여기서는 무엇인지 밝힌다.
+ *
+ * **이름은 프로젝트 요약과 같은 키를 쓴다** (`meta.*`). 같은 두 사실을 여기서는
+ * `마지막 작업`·`용량`, 요약에서는 `마지막 수정 시각`·`용량`이라 부르고 있었다 -
+ * 한쪽만 고쳐지면 학생은 두 화면이 다른 것을 말한다고 읽는다 (2026-08-13).
+ */
 const details = computed(() => {
   const rows: { label: string; value: string }[] = []
   if (project.savedAt !== null) {
-    rows.push({ label: t('projects.updatedAt'), value: format.dateTime(project.savedAt) })
+    rows.push({ label: t('meta.updated'), value: format.dateTime(project.savedAt) })
   }
   if (sizeBytes.value > 0) {
-    rows.push({ label: t('projects.size'), value: format.bytes(sizeBytes.value) })
+    rows.push({ label: t('meta.size'), value: format.bytes(sizeBytes.value) })
   }
   return rows
 })

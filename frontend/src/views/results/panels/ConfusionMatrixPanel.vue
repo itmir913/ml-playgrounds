@@ -74,20 +74,25 @@ const { t } = useI18n()
               <h4 class="font-bold text-ink">{{ t('results.cellTitle') }}</h4>
 
               <dl class="mt-1.5 flex flex-wrap gap-x-6 gap-y-1.5">
-                <div class="flex items-baseline gap-1.5">
-                  <dt>
-                    <AppBadge>{{ t('results.cellPredicted') }}</AppBadge>
-                  </dt>
-                  <dd class="font-bold text-ink">
-                    {{ run.confusionMatrix?.labels[column] }}
-                  </dd>
-                </div>
+                <!--
+                **표와 같은 순서로 놓는다** - 실제가 먼저, 예측이 나중이다. 안내 문장이
+                "왼쪽에 적힌 것이 실제 값"이라고 말해 놓고 팝오버가 예측부터 보이면,
+                학생은 방금 읽은 순서를 뒤집어 다시 맞춰야 한다.
+              -->
                 <div class="flex items-baseline gap-1.5">
                   <dt>
                     <AppBadge>{{ t('results.cellActual') }}</AppBadge>
                   </dt>
                   <dd class="font-bold text-ink">
                     {{ run.confusionMatrix?.labels[index] }}
+                  </dd>
+                </div>
+                <div class="flex items-baseline gap-1.5">
+                  <dt>
+                    <AppBadge>{{ t('results.cellPredicted') }}</AppBadge>
+                  </dt>
+                  <dd class="font-bold text-ink">
+                    {{ run.confusionMatrix?.labels[column] }}
                   </dd>
                 </div>
                 <div class="flex items-baseline gap-1.5">

@@ -100,11 +100,6 @@ const info = computed(() => {
       </div>
 
       <div class="mt-2 flex justify-between gap-4 border-t border-line pt-2">
-        <dt class="font-bold text-ink-soft">{{ t('meta.size') }}</dt>
-        <dd>{{ format.bytes(info.bytes) }}</dd>
-      </div>
-
-      <div class="flex justify-between gap-4">
         <dt class="font-bold text-ink-soft">{{ t('meta.created') }}</dt>
         <dd>{{ format.dateTime(info.manifest.createdAt) }}</dd>
       </div>
@@ -112,6 +107,10 @@ const info = computed(() => {
       <div class="flex justify-between gap-4">
         <dt class="font-bold text-ink-soft">{{ t('meta.updated') }}</dt>
         <dd>{{ format.dateTime(info.manifest.updatedAt) }}</dd>
+      </div>
+      <div class="flex justify-between gap-4">
+        <dt class="font-bold text-ink-soft">{{ t('meta.size') }}</dt>
+        <dd>{{ format.bytes(info.bytes) }}</dd>
       </div>
     </dl>
   </div>

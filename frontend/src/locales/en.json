@@ -59,7 +59,7 @@
     "results": {
       "label": "Results",
       "locked": "This opens once a training run has finished.",
-      "purpose": "Put every experiment's scores side by side and compare them. You can see what you changed and what it changed."
+      "purpose": "Every time you train, one experiment is added. Their scores line up side by side, so you can see what you changed and what it changed."
     },
     "predict": {
       "label": "Predict",
@@ -213,7 +213,7 @@
     "testDataLead": "Choose the data used to score your trained models.",
     "testSize": "Test data share",
     "testSizeNote": "This share of the data you are using becomes the test data, and the rest is used for training.",
-    "stratify": "Split keeping the mix of categories.",
+    "stratify": "Keep the class proportions when splitting",
     "randomState": "Random seed",
     "randomStateNote": "This value decides how the data is split into training and test sets. Keeping it fixed means every training run uses the same split, so a change in your score can be traced to the model setting you changed.",
     "reseed": "Draw a new seed",
@@ -292,6 +292,9 @@
     "emptyReason": "No project is open yet.",
     "failedHere": "Training failed. See why",
     "finished": "Training finished.",
+    "image": {
+      "locked": "Create at least two categories and add photos to them."
+    },
     "lastRun": "Last trained {at}",
     "lastRunFailed": "{count} model failed to train. | {count} models failed to train.",
     "leaveBody": "If you leave now, training stops and no result is kept. You will have to train again.",
@@ -308,27 +311,25 @@
     "noModelChosen": "No model added yet.",
     "noTaskTypeNext": "Choose a task type above and the models that fit will show up.",
     "noTaskTypeReason": "No task type chosen yet.",
-    "noTuning": "This model has no hyperparameters to change.",
+    "noTuning": "This model has no hyperparameters you can change.",
     "nothingToTrain": "Nothing to train yet — no models have been added.",
     "outOfRange": "This is outside the range you can enter, so training will fail.",
     "pickModel": "Model",
     "pickRuntime": "Where to train",
+    "pickRuntimeHint": "ml.js and scikit-learn are different libraries, each with its own implementation of the same models. Even with the same model, the scores can differ depending on where you train it.",
     "progress": "{completed} of {total} models trained.",
     "range": "{min} – {max}",
     "removeModel": "Remove",
     "seeResults": "See results",
     "start": "Train",
     "stop": "Stop",
-    "stratifyOff": "Proportional splitting was turned off: the task type you chose has no categories to balance.",
-    "taskChanged": "Some models were dropped from your list because they do not fit the task type you chose. ({names})",
-    "taskTitle": "Task type",
-    "tuning": "Change the hyperparameters",
-    "image": {
-      "locked": "Create at least two categories and add photos to them."
-    },
+    "stratifyOff": "The task type you chose has no categories to balance, so proportional splitting was turned off in the preprocess step.",
     "tabular": {
       "locked": "Choose the target and the features first."
-    }
+    },
+    "taskChanged": "Some models were dropped from your list because they do not fit the task type you chose. ({names})",
+    "taskTitle": "Task type",
+    "tuning": "Change the hyperparameters"
   },
   "projects": {
     "dataType": "Data type",
@@ -343,8 +344,6 @@
     "deleteTitle": "Delete this project?",
     "deleteDescription": "Its data and training results go with it. This cannot be undone. ({name})",
     "unreadable": "This project cannot be opened",
-    "updatedAt": "Last worked on",
-    "size": "Size",
     "saved": "Projects on this computer",
     "savedCount": "This computer holds {count} project | This computer holds {count} projects"
   },
@@ -433,8 +432,8 @@
     "engineUnsupported": "Models trained here cannot be saved yet, so only the scores were kept."
   },
   "execution": {
-    "browser": "Train on my computer",
-    "server": "Train on the server"
+    "browser": "On my computer",
+    "server": "On the server"
   },
   "client": {
     "ALGORITHM_NOT_FOR_DATA_TYPE": "This model cannot be used with the data you loaded.",
@@ -509,7 +508,7 @@
   "meta": {
     "title": "Project summary",
     "created": "Created",
-    "updated": "Last change",
+    "updated": "Modified",
     "size": "Size",
     "taskType": "Task type",
     "algorithms": "Selected models",
@@ -534,7 +533,7 @@
     "precision": "Precision",
     "recall": "Recall",
     "specificity": "Specificity",
-    "r2": "R² score",
+    "r2": "R-squared",
     "rmse": "RMSE",
     "mae": "MAE",
     "silhouette": "Silhouette Coefficient",
@@ -542,20 +541,20 @@
   },
   "metricFormula": {
     "accuracy": {
-      "top": "Rows classified correctly",
+      "top": "Samples classified correctly",
       "bottom": "All samples"
     },
     "precision": {
-      "top": "Rows correctly given this class",
-      "bottom": "Rows the model gave this class"
+      "top": "Samples correctly given this class",
+      "bottom": "Samples the model gave this class"
     },
     "recall": {
-      "top": "Rows correctly given this class",
-      "bottom": "Rows that really are this class"
+      "top": "Samples correctly given this class",
+      "bottom": "Samples that really are this class"
     },
     "specificity": {
-      "top": "Rows correctly kept out of this class",
-      "bottom": "Rows that really are not this class"
+      "top": "Samples correctly kept out of this class",
+      "bottom": "Samples that really are not this class"
     },
     "f1": {
       "top": "2 × precision × recall",
@@ -563,53 +562,53 @@
     }
   },
   "metricHelp": {
-    "accuracy": "The share of all rows the model got right. It reads easily, but it misleads when the classes are imbalanced — if 90 of 100 rows share one class, answering with that class every time already scores 90%. Read it together with the other scores.",
-    "f1": "A score that reflects precision and recall together, so a high score on only one of them does not lift it — 90% precision with 10% recall gives an F1 of 18%. It is worked out for each class, and this model’s F1 score is the average of those.",
-    "precision": "Of the rows the model answered with this class, the share that really were this class. What matters is the denominator: the model’s own answers. In a factory test, it asks how many of the parts pulled aside as faulty really were faulty. A low number means the model reaches for this class too often and throws out good parts with the bad.",
-    "recall": "Of the rows that really are this class, the share the model found. The denominator is the truth, and that is what separates it from precision — in the same factory test, it asks how many of the truly faulty parts were caught, because the ones missed ship out. Missing a class and over-using it are different problems, so read the two together.",
-    "specificity": "Of the rows that are not this class, the share the model correctly kept out of it. In a medical test it is the ability to tell a healthy person they are healthy; when it is low, rows get labelled with this class by mistake and false alarms pile up. It is easy to confuse with precision: both punish the same mistake, but precision divides by the model’s answers while specificity divides by every row that truly is not this class.",
-    "support": "How many rows of the test data really are this class. It counts the data used for scoring, not the data used for training. When it is small, the scores beside it swing on a single row — in a class of three rows, getting one more right lifts recall by 33 points.",
-    "r2": "How much of the variation in the values the model explains. Closer to 1 is better, and it goes negative when the model does worse than always guessing the average.",
-    "rmse": "How far the predictions land from the real values on average. Large misses count for more, and the unit is the same as the value being predicted.",
-    "mae": "How far the predictions land from the real values on average. Every miss counts the same, so it stays steadier when a few values are extreme.",
-    "silhouette": "How well each row fits its own cluster compared with the nearest other cluster, averaged over every row. It runs from -1 to 1, and the closer to 1, the more clearly the clusters are separated. Around 0 the clusters touch each other, and a negative score means many rows sit closer to a neighboring cluster than to their own.",
-    "inertia": "The squared distance from every row to the center of its own cluster, all added up. Lower means tighter clusters, but it always drops as you add more clusters, so it cannot tell you on its own whether the result is good. Use it by changing the number of clusters and looking for where the value stops dropping sharply."
+    "accuracy": "The share of all samples the model got right. It reads easily, but it misleads when one class holds most of the data. For example, if 90 of 100 samples share one class, answering with that class every time already scores 90%. Read it together with the other scores.",
+    "f1": "The harmonic mean of precision and recall, so a high score on only one of them does not lift it. For example, 90% precision with 10% recall gives an F1 score of 18%. It is worked out for each class, and this model’s F1 score is the average of those.",
+    "precision": "Of the samples the model answered with this class, the share that really were this class. What matters is the denominator: the model’s own answers. For example, in a factory test it asks how many of the parts pulled aside as faulty really were faulty. A low number means the model reaches for this class too often and throws out good parts with the bad.",
+    "recall": "Of the samples that really are this class, the share the model found. The denominator is the truth, and that is what separates it from precision. For example, in a factory test it asks how many of the truly faulty parts were caught, because the ones missed ship out. Missing a class and over-using it are different problems, so read the two together.",
+    "specificity": "Of the samples that are not this class, the share the model correctly kept out of it. For example, in a medical test it is the ability to tell a healthy person they are healthy, and when it is low, healthy people get told they are ill. It is easy to confuse with precision: both catch the same mistake, but precision divides by the model’s answers while specificity divides by every sample that truly is not this class.",
+    "support": "How many samples of this class the test data really held. It counts the data used for scoring, not the data used for training. When it is small, the scores beside it swing wildly. For example, when it is 3, getting one more right or wrong moves recall by 33 points.",
+    "r2": "How much of the variation in the values the model explains. Closer to 1 is better, and 0 means it did no better than answering with the average every time. Below that it goes negative.",
+    "rmse": "How far the predictions land from the real values, and lower is better. Errors are squared before they are added up, so one badly wrong prediction pulls the number up a long way. The unit is the same as the value being predicted: if you predicted a price in dollars, read this in dollars.",
+    "mae": "How far the predictions land from the real values on average, and lower is better. Every error counts the same, so one badly wrong prediction moves it less. For example, if everything else is close but a single prediction is far off, RMSE climbs sharply while this number barely moves.",
+    "silhouette": "How well each sample fits its own cluster compared with the nearest other cluster, averaged over every sample. It runs from -1 to 1, and the closer to 1, the more clearly the clusters are separated. Around 0 the clusters touch each other, and a negative score means many samples sit closer to a neighboring cluster than to their own.",
+    "inertia": "The squared distance from every sample to the center of its own cluster, all added up. Lower means tighter clusters, but it always drops as you add more clusters, so it cannot tell you on its own whether the result is good. For example, note the value with 2, 3, and 4 clusters and look for where it stops dropping sharply."
   },
   "results": {
-    "actual": "Real",
-    "cellActual": "Real value",
-    "cellCorrect": "These rows were predicted correctly.",
+    "actual": "Actual",
+    "cellActual": "Actual",
+    "cellCorrect": "Predictions in this cell match the actual value.",
     "cellCount": "Samples",
-    "cellPredicted": "Model answered",
+    "cellPredicted": "Predicted",
     "cellTitle": "What this cell means",
-    "cellWrong": "These rows were predicted incorrectly.",
+    "cellWrong": "Predictions in this cell differ from the actual value.",
     "change": "{from} → {to}",
-    "changeTitle": "Changed since the previous run",
+    "changeTitle": "Changed since the previous experiment",
     "clusterName": "Cluster {index}",
     "confusion": "Confusion matrix",
-    "confusionLead": "Rows are the real values, columns are what the model answered.",
+    "confusionLead": "The labels down the left are the actual values, and the labels across the top are what the model predicted. Cells on the diagonal are the ones it got right; the rest show what was mistaken for what.",
     "detailFor": "Training result for {model}.",
-    "detailLead": "Select a model to see its performance metrics.",
+    "detailLead": "Select a model to see its details.",
     "emptyNext": "Pick models in the training step and train them, and the results will show up here.",
     "emptyReason": "Nothing has been trained yet.",
-    "experimentCount": "{count} training run | {count} training runs",
-    "experimentName": "Training {index}",
-    "experimentTitle": "Training history",
+    "experimentCount": "{count} experiment | {count} experiments",
+    "experimentName": "Experiment {index}",
+    "experimentTitle": "Experiment history",
     "failedTitle": "{count} model could not be trained | {count} models could not be trained",
     "failureDetail": "Technical details",
-    "firstRun": "This was the first training run.",
+    "firstRun": "First experiment",
     "label": "Class",
     "membersAdded": "Added",
     "membersRemoved": "Removed",
     "model": "Model",
     "modelScope": "{algorithm} · {runtime}",
-    "noChange": "Trained again without changing any setting.",
-    "noSuccess": "No model in this training run produced a score.",
+    "noChange": "Trained again without changing any setting. Change anything and train again, and the difference shows up here.",
+    "noSuccess": "No model in this experiment produced a score.",
     "noSuccessNext": "Read why they failed below, change a setting, and train again.",
     "paramTitle": "Hyperparameters used for this model",
     "perClass": "Score for each class",
-    "scoreTitle": "Results from this training run",
-    "support": "Rows in the data (support)",
+    "scoreTitle": "Scores from this experiment",
+    "support": "Samples in the test data (support)",
     "unknownChange": "An unrecognised setting changed. ({path})",
     "whatChanged": "What changed",
     "where": "Trained on",

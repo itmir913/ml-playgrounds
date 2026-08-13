@@ -61,24 +61,29 @@ defineProps<{
       </button>
     </template>
 
-    <h4 class="font-bold text-ink">{{ title }}</h4>
-
     <!--
+      **제목이 곧 수식의 왼쪽이다.** 제목 줄과 수식 줄을 따로 두었더니 `정확도(Accuracy)`가
+      두 줄 연속으로 나와 같은 말을 두 번 했다 (2026-08-13). 제목을 숨기는 대신 한 줄로
+      합친 이유는 **수식이 없는 지표(R²·RMSE·실제 데이터 수)도 제목을 갖기 때문**이다 -
+      숨기면 팝오버의 생김새가 두 가지가 되고, 읽어 주는 기계에는 제목이 아예 없어진다.
+
       **교과서처럼 분자를 위에, 분모를 아래에 둔다.** 글로 푼 문장보다 이 한 줄이 먼저
       읽힌다. `=`와 `×`는 번역하지 않으므로 여기 그대로 둔다 - 자연어가 아니다.
 
       **스크린 리더에는 빗금을 들려준다.** 위아래로 쌓인 낱말 둘은 소리로는 그냥 이어져
-      "옳게 분류된 수 예측한 수"가 된다.
+      "옳게 예측한 데이터 수 예측한 데이터 수"가 된다.
     -->
-    <p v-if="numerator && denominator" class="mt-2 flex flex-wrap items-center gap-2">
-      <span class="font-bold text-ink">{{ title }}</span>
-      <span aria-hidden="true">=</span>
-      <span class="inline-flex flex-col items-center text-center text-ink">
-        <span class="px-2">{{ numerator }}</span>
-        <span class="sr-only">/</span>
-        <span class="mt-1 border-t border-line-strong px-2 pt-1">{{ denominator }}</span>
-      </span>
-    </p>
+    <div class="flex flex-wrap items-center gap-2">
+      <h4 class="font-bold text-ink">{{ title }}</h4>
+      <template v-if="numerator && denominator">
+        <span aria-hidden="true">=</span>
+        <span class="inline-flex flex-col items-center text-center text-ink">
+          <span class="px-2">{{ numerator }}</span>
+          <span class="sr-only">/</span>
+          <span class="mt-1 border-t border-line-strong px-2 pt-1">{{ denominator }}</span>
+        </span>
+      </template>
+    </div>
 
     <p class="mt-2 text-ink-soft">{{ body }}</p>
   </AppPopover>
