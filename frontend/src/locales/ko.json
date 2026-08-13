@@ -674,7 +674,7 @@
       "waiting": "사진을 추가하고 [예측하기]를 누르면 여기에 답이 나옵니다."
     },
     "tabular": {
-      "answerLead": "채운 값을 모델마다 똑같이 넣습니다. 예측한 값이 갈릴 수 있으며 이는 정상입니다.",
+      "answerLead": "입력한 값을 모델마다 똑같이 넣습니다. 예측한 값이 갈릴 수 있으며 이는 정상입니다.",
       "cellWithProbability": "{value} ({percent})",
       "clear": "비우기",
       "clusterInputPoint": "입력한 값",
@@ -687,7 +687,7 @@
       "computing": "계산하는 중입니다.",
       "download": "CSV로 내려받기",
       "fileApplied": "예측할 파일을 붙였습니다.",
-      "fileEmptyNext": "파일을 불러오면 그 안의 모든 행에 답을 매깁니다.",
+      "fileEmptyNext": "행마다 모델들의 답이 한 줄로 섭니다.",
       "fileEmptyReason": "아직 예측할 파일을 불러오지 않았습니다.",
       "fileRemove": "지우기",
       "fileChange": "파일 바꾸기",

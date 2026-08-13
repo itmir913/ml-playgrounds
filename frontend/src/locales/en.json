@@ -687,7 +687,7 @@
       "computing": "Computing.",
       "download": "Download predictions as CSV",
       "fileApplied": "Attached the file to predict.",
-      "fileEmptyNext": "Load a file and every row in it gets an answer.",
+      "fileEmptyNext": "Each row of the file becomes one line of answers, one column per model.",
       "fileEmptyReason": "No file to predict has been loaded yet.",
       "fileRemove": "Remove",
       "fileChange": "Change file",
