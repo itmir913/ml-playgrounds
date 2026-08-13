@@ -493,8 +493,8 @@
     "homeLead": "이 프로젝트가 어디까지 왔는지 보여줍니다. 이어서 진행할 단계를 아래에서 고르세요.",
     "resume": "바로가기: {task}",
     "openStep": "들어가기",
-    "done": "Done",
-    "locked": "Locked",
+    "done": "완료",
+    "locked": "잠김",
     "exportLead": "학번과 이름은 선택 사항입니다. 입력하면 파일 이름 앞에 붙습니다.",
     "exportNow": "저장하기",
     "dashboard": "대시​보드"

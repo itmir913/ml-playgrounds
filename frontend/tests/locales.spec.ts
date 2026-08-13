@@ -698,3 +698,174 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
     expect([...composed].filter((prefix) => !PAIRED_PREFIXES.includes(prefix))).toEqual([])
   })
 })
+
+/**
+ * **두 언어가 나란히 말하는가.**
+ *
+ * 키 집합도 보간 변수도 같은데 **뜻만 갈릴 수 있다.** 실제로 갈렸다 - 사진 준비
+ * 문구가 키 둘로 나뉘어 있었고, 한국어는 글자까지 같은데 영어만 `Preparing` /
+ * `Preparing photos`로 갈려 있었다(2026-08-13에 키 하나로 합쳤다). **두 문장이 파일의
+ * 다른 구역에 떨어져 있으면 사람은 못 본다** - 나란히 놓는 것이 검사가 할 일이다.
+ *
+ * 한 언어에서 같은 문장이 다른 언어에서 갈리면 둘 중 하나다. **한쪽만 고쳤거나**,
+ * 애초에 다른 뜻인데 한 언어가 우연히 같은 말을 쓰는 것이다(`하지 않음`이 스케일링과
+ * 인코딩 양쪽에 있는 것처럼). 뒤쪽은 정당하므로 목록에 적어 두고, **적는 행위가 곧
+ * 두 언어를 나란히 읽었다는 기록이다.**
+ */
+describe('두 언어가 나란히 말한다', () => {
+  /**
+   * `same`에서 값이 같은데 `other`에서는 갈리는 키 묶음들.
+   *
+   * 값이 하나뿐인 키는 비교할 짝이 없으므로 보지 않는다.
+   */
+  function divergentTwins(
+    same: Map<string, string>,
+    other: Map<string, string>,
+  ): readonly (readonly string[])[] {
+    const byValue = new Map<string, string[]>()
+    for (const [key, value] of same) {
+      byValue.set(value, [...(byValue.get(value) ?? []), key])
+    }
+    return [...byValue.values()]
+      .filter((keys) => keys.length > 1)
+      .filter((keys) => new Set(keys.map((key) => other.get(key))).size > 1)
+      .map((keys) => [...keys].sort())
+      .sort((left, right) => (left[0] ?? '').localeCompare(right[0] ?? ''))
+  }
+
+  function fingerprint(keys: readonly string[]): string {
+    return [...keys].sort().join(' + ')
+  }
+
+  /**
+   * 갈려도 되는 묶음. **줄마다 왜 갈리는지가 있어야 한다.**
+   *
+   * 아래 `죽은 줄이 없다`가 이 목록을 지켜본다 - 문구를 고쳐서 더 이상 안 갈리는 줄은
+   * 검사가 지우라고 말한다. 그래야 목록이 "예전에 한 번 봐줬다"의 무덤이 되지 않는다.
+   */
+  const ALLOWED: readonly (readonly string[])[] = [
+    // 한국어는 세는 것을 앞 문장이 말해서 `{count}개` 하나로 되지만, 영어는 단위 낱말이
+    // 붙고 복수형이 갈린다.
+    ['meta.countUnit', 'preprocess.tabular.summaryFeatureUnit'],
+    // 프로젝트는 영구히 없애는 것(Delete)이고 파일은 떼는 것(Remove)이다. 한국어는
+    // 둘 다 `지우기`로 굳어 있다.
+    ['predict.tabular.fileRemove', 'projects.delete'],
+    // 레일의 단계 이름에는 줄바꿈 자리를 심어 두었다(`StepRail`). 같은 낱말이지만
+    // 글자가 다르다.
+    ['preprocess.tabular.effect', 'steps.preprocess.label'],
+    // 영어 `None`이 셋을 덮는다. 한국어는 `하지 않음`(전처리를 안 한다)과
+    // `없음`(값이 없다)이 다른 말이다.
+    ['categoricalEncoding.none', 'meta.none', 'scalingMethod.none'],
+    // 체크리스트 항목만 `~하기`다. 영어는 항목도 버튼도 명령형이라 같아진다.
+    ['data.image.add', 'predict.image.add', 'tasks.image.datasetReady'],
+    // 한국어는 세는 자리에 `수`가 붙는다. 영어는 열 이름이 곧 세는 것이다.
+    ['data.tabular.columns', 'meta.tabular.columns'],
+    ['data.tabular.rows', 'meta.tabular.rows'],
+    // 단계 이름은 `데이터`, 요약이 가리키는 것은 그 파일이다.
+    ['meta.tabular.dataset', 'steps.data.label'],
+    // 병기는 그 화면에서 처음 마주치는 자리에만 붙는다(docs/copy.md §2). 영어에는
+    // 병기가 없으므로 짝이 하나로 모인다.
+    ['meta.tabular.target', 'preprocess.tabular.roleTarget'],
+    ['meta.taskType', 'train.taskTitle'],
+    // 담은 모델과 예측할 사진에서는 `빼기`, 불러온 파일은 `지우기`다.
+    ['predict.image.remove', 'predict.tabular.fileRemove', 'train.removeModel'],
+  ]
+
+  const allowed = new Set(ALLOWED.map(fingerprint))
+
+  const twins = [...divergentTwins(korean, english), ...divergentTwins(english, korean)]
+
+  it('검사기가 한쪽만 고쳐진 묶음을 잡는다', () => {
+    const same = new Map([
+      ['a', '사진 준비 중'],
+      ['b', '사진 준비 중'],
+    ])
+    const other = new Map([
+      ['a', 'Preparing'],
+      ['b', 'Preparing photos'],
+    ])
+    expect(divergentTwins(same, other)).toEqual([['a', 'b']])
+  })
+
+  it('검사기가 양쪽 다 같은 묶음은 안 잡는다', () => {
+    const same = new Map([
+      ['a', '완료'],
+      ['b', '완료'],
+    ])
+    const other = new Map([
+      ['a', 'Done'],
+      ['b', 'Done'],
+    ])
+    expect(divergentTwins(same, other)).toEqual([])
+  })
+
+  it('검사기가 짝 없는 키는 안 본다 - 비교할 것이 없다', () => {
+    const same = new Map([
+      ['a', '하나'],
+      ['b', '둘'],
+    ])
+    const other = new Map([
+      ['a', 'One'],
+      ['b', 'Two'],
+    ])
+    expect(divergentTwins(same, other)).toEqual([])
+  })
+
+  it('허용 목록 밖에서 갈리는 묶음이 없다', () => {
+    const unexpected = twins.filter((keys) => !allowed.has(fingerprint(keys)))
+    expect(unexpected).toEqual([])
+  })
+
+  it('허용 목록에 죽은 줄이 없다', () => {
+    const live = new Set(twins.map(fingerprint))
+    expect(ALLOWED.map(fingerprint).filter((entry) => !live.has(entry))).toEqual([])
+  })
+})
+
+/**
+ * **번역이 빠진 값이 없다.**
+ *
+ * 키를 새로 만들 때 두 파일에 같은 문장을 넣어 두고 한쪽을 나중에 고치려다 잊는다.
+ * 키 집합 검사도 보간 변수 검사도 이것을 못 본다 - 값이 멀쩡히 들어 있기 때문이다.
+ * 실제로 `project.done`과 `project.locked`가 한국어 파일에서 `Done`·`Locked`인 채로
+ * 남아 있었다. **아직 화면에 안 뜨는 문장이라 아무도 못 봤다.**
+ */
+describe('번역이 빠진 값이 없다', () => {
+  /** 자리표시자와 기호만으로 이루어진 값. 번역할 낱말이 애초에 없다. */
+  function hasWords(message: string): boolean {
+    return /[A-Za-z]/.test(message.replaceAll(/\{\w+\}/g, ''))
+  }
+
+  const HANGUL = /[가-힣]/
+
+  /** 그 언어의 글자가 없어도 되는 자리. **줄마다 왜인지 적는다.** */
+  const NOT_TRANSLATED: readonly string[] = [
+    // 제품 이름. 언어를 가리지 않는다.
+    'app.name',
+    // 언어 이름은 그 언어로 적는다 - 한국어 화면에서도 English를 찾을 수 있어야 한다.
+    'language.en',
+    'language.ko',
+  ]
+
+  it('한국어 값에 한글이 있다', () => {
+    const missing = [...korean]
+      .filter(([key]) => !NOT_TRANSLATED.includes(key))
+      .filter(([, value]) => hasWords(value) && !HANGUL.test(value))
+      .map(([key]) => key)
+    expect(missing).toEqual([])
+  })
+
+  it('영어 값에 한글이 없다', () => {
+    const leftover = [...english]
+      .filter(([key]) => !NOT_TRANSLATED.includes(key))
+      .filter(([, value]) => HANGUL.test(value))
+      .map(([key]) => key)
+    expect(leftover).toEqual([])
+  })
+
+  it('검사기가 기호와 자리표시자만 남은 값은 안 잡는다', () => {
+    expect(hasWords('{min} ~ {max}')).toBe(false)
+    expect(hasWords('{algorithm} · {runtime}')).toBe(false)
+    expect(hasWords('Done')).toBe(true)
+  })
+})

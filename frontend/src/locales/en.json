@@ -92,7 +92,7 @@
       "emptyNext": "Name what you want to tell apart — dog, cat — then add photos to that box. You can also add photos first and sort them later.",
       "emptyReason": "Start by creating the categories you want to sort into.",
       "moveTo": "Move to",
-      "nameConfirm": "Save",
+      "nameConfirm": "OK",
       "nameDescription": "This name groups your photos. It becomes the folder name when you save the project.",
       "nameHint": "Cannot start with _ or contain characters that are not allowed in a path.",
       "nameTaken": "A category with this name already exists.",
@@ -219,7 +219,7 @@
     "reseed": "Draw a new seed",
     "reseedTitle": "A new seed makes your earlier scores incomparable",
     "reseedDescription": "The data will be split into training and test sets differently. Your earlier experiments stay in the project, but new scores come from different data, so you cannot line them up against the old ones.",
-    "reseedConfirm": "Draw a new seed",
+    "reseedConfirm": "Draw",
     "tabular": {
       "cleaningTitle": "Tidy the data",
       "clearAll": "Clear every feature",
@@ -231,7 +231,7 @@
       "fillWith": "Blanks → {value}",
       "featureSummary": "{count} feature goes into training. | {count} features go into training.",
       "featureSummaryPartial": "{usable} of the {chosen} feature you chose goes into training. | {usable} of the {chosen} features you chose go into training.",
-      "missing": "Missing values",
+      "missing": "Missing value handling",
       "missingNote": "Text columns have no mean or median, so the most common value fills them.",
       "noFeatureChosen": "No feature chosen yet.",
       "noUsableFeature": "No feature goes into training at all.",
@@ -543,7 +543,7 @@
   "metricFormula": {
     "accuracy": {
       "top": "Rows classified correctly",
-      "bottom": "All rows"
+      "bottom": "All samples"
     },
     "precision": {
       "top": "Rows correctly given this class",
@@ -579,7 +579,7 @@
     "actual": "Real",
     "cellActual": "Real value",
     "cellCorrect": "These rows were predicted correctly.",
-    "cellCount": "Rows",
+    "cellCount": "Samples",
     "cellPredicted": "Model answered",
     "cellTitle": "What this cell means",
     "cellWrong": "These rows were predicted incorrectly.",
@@ -630,7 +630,7 @@
       "clusterSample": "There are too many dots to draw them all, so only some are shown. ({drawn} of {total} rows)",
       "clusterScatter": "Cluster scatter plot",
       "clusterScatterLead": "Each dot is one row of data, and each ✕ marks the centroid of a cluster.",
-      "clusterSize": "Rows",
+      "clusterSize": "Samples",
       "clusterSummary": "What gathered in each cluster",
       "clusterSummaryLead": "Each cell is the average of the rows in that cluster. Select a row to see the data in that cluster."
     }
