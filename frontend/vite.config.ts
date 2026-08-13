@@ -23,6 +23,17 @@ export default defineConfig({
    * `import.meta.env.BASE_URL`을 읽지 않는다. 상세는 `docs/open-decisions.md` #10-1.
    */
   base: './',
+  /**
+   * **개발 서버를 같은 네트워크에 연다.**
+   *
+   * 기본값은 `localhost`뿐이라 **개발 PC 밖에서는 열 수 없다.** 그런데 이 도구는
+   * 휴대폰이 기준 기기 중 하나이고(CLAUDE.md §0), 실기기에서만 드러나는 것들이 있다 —
+   * iOS 주소창이 접히고 펴지는 것, 상단 탭으로 맨 위 가기, 키보드가 올라올 때 하단
+   * 고정 바. 데스크톱 브라우저의 반응형 모드로는 셋 다 재현되지 않는다.
+   *
+   * 개발 서버에만 걸린다. 빌드 산출물은 정적 파일이라 이 설정과 무관하다.
+   */
+  server: { host: true },
   // manifest.appVersion의 출처. package.json 하나만 고치면 파일에 적히는 값이 따라온다 -
   // 소스에 버전 문자열을 또 쓰면 반드시 어긋난다.
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
