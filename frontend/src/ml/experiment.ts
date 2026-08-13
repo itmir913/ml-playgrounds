@@ -36,20 +36,9 @@ import { engineFor, type TrainingEngine } from './engines'
 import { assertInRange } from './hyperparams'
 import { evaluate, evaluateCluster, type Evaluation } from './metrics'
 import type { ModelFile } from './models'
-import {
-  detectKind,
-  fitPreprocessor,
-  missingColumns,
-  targetValues,
-  transform,
-  usableRows,
-  type Dataset,
-  type Preprocessor,
-} from './preprocess'
-// 전처리 화면이 [학습] 전에 같은 판정을 한다. 표가 두 벌이면 화면과 학습이 갈린다.
-import { requiredTargetKind } from './selection'
-import { sampleRows } from './sample'
-import { splitRows } from './split'
+import { targetValues, transform, type Dataset, type Preprocessor } from './preprocess'
+// 행 고르기·뽑기·분할·전처리기. **전처리 화면의 요약 카드가 같은 함수를 부른다.**
+import { planRunOrThrow } from './plan'
 
 export interface ExperimentInput {
   /** 정본 CSV를 읽은 표. 헤더는 rows에 없다 - 행 번호가 곧 분할 인덱스다. */
@@ -471,91 +460,18 @@ export function runExperiment(
   const now = options.now ?? (() => new Date().toISOString())
   const experiments = options.history?.experiments ?? []
   const { target } = data
-  const isClustering = taskType === 'clustering'
 
-  // 군집화에는 타깃이 없다 (architecture.md §3.6). 분류·회귀는 정답 열이 있어야
-  // 학습도 채점도 된다.
-  if (!isClustering && (target === undefined || target === '')) {
-    throw new ClientError('TARGET_NOT_SELECTED')
-  }
-
-  // provided일 때만 쓰는 평가 데이터셋의 usableRows. holdout이면 undefined다 -
-  // splitRows가 그때는 아예 보지 않는다 (ml/split.ts).
-  // 군집화에는 평가 데이터셋이 없다 — 전체 데이터로 학습한다.
-  const providedTestRows =
-    !isClustering && settings.split.method === 'provided' && testDataset
-      ? usableRows(testDataset, data.features, target!, data.preprocessing.missing)
-      : undefined
-
-  // 군집화에는 타깃이 없으므로 usableRows에 undefined를 넘긴다. usableRows는
-  // target이 없으면 타깃 결측 검사를 건너뛴다.
-  const usable = usableRows(
+  /**
+   * **행 고르기·뽑기·분할·전처리기는 `planRun`이 한다** (ml/plan.ts). 전처리 화면의
+   * 요약 카드가 같은 함수를 부르므로, 화면이 말하는 숫자와 여기서 학습하는 숫자가
+   * 같은 객체에서 나온다 (architecture.md §9.1.3).
+   */
+  const { split, preprocessor, isClustering } = planRunOrThrow({
     dataset,
-    data.features,
-    isClustering ? undefined : target,
-    data.preprocessing.missing,
-  )
-  const usableLabels = isClustering ? [] : targetValues(dataset, usable, target!)
-
-  // **성립하지 않는 조합은 분할보다 먼저 거부한다.** 여기서 넘기면 지표가 NaN인 채로
-  // run이 done으로 끝나고, 그 파일은 저장은 되는데 다시 열리지 않는다.
-  // 군집화에는 타깃 자료형 요구가 없다.
-  if (!isClustering) {
-    const required = requiredTargetKind(taskType)
-    // **표본이 아니라 쓸 수 있는 행 전부를 본다.** 타깃이 숫자인지 범주인지는 열의
-    // 성질이지 뽑기의 결과가 아니고, 표본으로 판정하면 nSamples를 움직일 때마다
-    // 같은 데이터의 판정이 흔들릴 수 있다.
-    if (required && detectKind(usableLabels) !== required.kind) {
-      throw new ClientError(required.code, { target: target! })
-    }
-  }
-
-  // **"아무것도 안 함"은 빈 칸이 있으면 거부한다.** 조용히 두는 길이 없어서다 - 수치
-  // 열의 빈 칸은 결국 0이 되고, 그러면 그 이름으로 0 채우기를 하는 셈이 된다
-  // (open-decisions.md "전처리도 분할도 끌 수 있다"). **전체**를 본다 - provided면
-  // 평가 데이터셋도 같은 전처리를 받으므로(mlpx-spec.md §1.1) 거기도 봐야 한다.
-  // 군집화에는 타깃이 없으므로 특성만 본다.
-  if (data.preprocessing.missing === 'none') {
-    const checked = isClustering ? [...data.features] : [...data.features, target!]
-    const blank =
-      missingColumns(dataset, checked)[0] ??
-      (!isClustering && settings.split.method === 'provided' && testDataset
-        ? missingColumns(testDataset, checked)[0]
-        : undefined)
-    if (blank)
-      throw new ClientError('FEATURE_HAS_MISSING', { feature: blank.name, count: blank.count })
-  }
-
-  // **뽑고 나서 나눈다** (open-decisions.md #22). 뽑힌 행만 분할되므로 trainIndices와
-  // testIndices의 뜻은 그대로이고, **뽑히지 않은 행은 그 둘의 여집합**이라 따로 적지
-  // 않는다. nSamples가 없으면 usable을 그대로 돌려주므로 지금까지의 동작과 같다.
-  const rows = sampleRows(
-    { rows: usable, ...(isClustering ? {} : { labels: usableLabels }) },
-    settings.split,
-    settings.nSamples,
-  )
-  // 뽑힌 행의 정답이다. usableLabels를 잘라 쓰지 않는 이유는 sampleRows가 원본 행
-  // 번호를 오름차순으로 돌려주지 usable의 위치를 돌려주지 않기 때문이다 - 위치로
-  // 착각해 자르면 라벨이 조용히 다른 행의 것이 된다.
-  const labels = isClustering ? [] : targetValues(dataset, rows, target!)
-
-  // **군집화는 나누지 않는다** (architecture.md §3.6). 전체 데이터로 학습하고,
-  // trainIndices는 전체, testIndices는 빈 배열이다. 교실에서 "왜 나누지 않나요?"는
-  // 비지도학습을 이해하는 좋은 질문이고, 그것을 설명할 자리가 생기는 것이 교육적 가치다.
-  const split = isClustering
-    ? { trainIndices: rows, testIndices: [] as number[] }
-    : splitRows(
-        { rows, labels },
-        settings.split,
-        providedTestRows ? { rows: providedTestRows } : undefined,
-      )
-
-  const preprocessor = fitPreprocessor(
-    dataset,
-    split.trainIndices,
-    data.features,
-    data.preprocessing,
-  )
+    testDataset,
+    settings,
+    taskType,
+  })
 
   // provided면 testIndices는 dataset이 아니라 testDataset의 행 번호다
   // (mlpx-spec.md §1.1) - trainIndices와 testIndices가 서로 다른 정본을 가리키는
@@ -674,8 +590,10 @@ export function runExperiment(
     // 선택 항목이다 - 안 뽑은 실험에는 아예 없다 (schema.ts). undefined를 그대로 넣으면
     // 그 키가 파일에 `null`로 남거나 사라지는 것이 직렬화에 달리게 된다.
     ...(settings.nSamples === undefined ? {} : { nSamples: settings.nSamples }),
-    trainIndices: split.trainIndices,
-    testIndices: split.testIndices,
+    // **사본을 남긴다.** 계획이 들고 있는 배열을 그대로 넣으면 파일에 적힌 것과
+    // 도는 것이 같은 객체가 된다.
+    trainIndices: [...split.trainIndices],
+    testIndices: [...split.testIndices],
   }
 
   const previous = experiments[experiments.length - 1]
