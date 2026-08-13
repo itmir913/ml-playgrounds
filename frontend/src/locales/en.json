@@ -117,25 +117,25 @@
       "use": "Use these"
     },
     "tabular": {
-      "applied": "This data is now in use.",
+      "applied": "The data is loaded.",
       "change": "Replace the data",
       "choose": "Choose a file",
       "columnName": "Column",
       "columns": "Columns",
-      "dropHint": "Drop a CSV or Excel file here.",
-      "droppedColumns": "Some chosen columns are not in the new data, so they were dropped. ({names})",
+      "dropHint": "Drop a CSV or Excel file here, or use [Choose a file].",
+      "droppedColumns": "Some chosen columns are not in the new data, so they were dropped. Choose them again in the preprocessing step. ({names})",
       "emptyReason": "No data yet.",
       "encoding": "Text encoding",
       "fileName": "File",
-      "hasHeader": "The first row holds the column names",
-      "inspector": "Column details",
+      "hasHeader": "Use the first row as the column names.",
+      "inspector": "Data summary",
       "kind": "Type",
-      "missing": "Missing",
+      "missing": "Missing values",
       "noHeaderNote": "There are no column names, so they are called A, B, C and so on.",
       "previewNote": "Showing the first {count} row. | Showing the first {count} rows.",
       "previewTitle": "Data preview",
       "purpose": "Load a data file and see what columns it has.",
-      "reading": "Reading the file.",
+      "reading": "Reading…",
       "replaceConfirm": "Delete and replace",
       "replaceDescription": "The {count} experiment you have run so far goes with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows. | The {count} experiments you have run so far go with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows.",
       "replaceTitle": "Replacing the data deletes your training results",
@@ -147,8 +147,8 @@
     }
   },
   "columnKind": {
-    "numeric": "Number",
-    "categorical": "Category"
+    "numeric": "Numeric",
+    "categorical": "Categorical"
   },
   "algorithms": {
     "decision_tree": "Decision tree",
