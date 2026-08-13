@@ -159,6 +159,19 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
   <div class="min-w-0">
     <h3 class="font-bold text-ink-soft">{{ t('train.chosenTitle') }}</h3>
 
+    <!--
+      **제목 바로 아래다.** 목록 끝에 두었더니 담은 모델이 많을 때 세는 말이 화면 밖으로
+      나가, 정작 몇 개인지 궁금한 순간에 안 보였다. 왼쪽 축의 `제목 + 힌트`와도 같은
+      리듬이 된다(`AppChoices`).
+    -->
+    <p class="mt-1.5 text-ink-soft">
+      {{
+        props.chosen.length === 0
+          ? t('train.noModelChosen')
+          : t('train.modelSummary', props.chosen.length)
+      }}
+    </p>
+
     <ul
       v-if="props.chosen.length > 0"
       class="mt-1.5 flex flex-col rounded-panel border border-line"
@@ -246,13 +259,5 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
         </details>
       </li>
     </ul>
-
-    <p class="mt-1.5 text-ink-soft">
-      {{
-        props.chosen.length === 0
-          ? t('train.noModelChosen')
-          : t('train.modelSummary', props.chosen.length)
-      }}
-    </p>
   </div>
 </template>

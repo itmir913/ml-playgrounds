@@ -464,7 +464,7 @@
     "UNEXPECTED_ERROR": "예상하지 못한 문제가 생겼습니다. 다시 시도해 주세요.",
     "SPLIT_TOO_FEW_ROWS": "데이터가 {actualRows}행뿐이라 훈련 데이터와 테스트 데이터로 분할할 수 없습니다. (최소 {minRows}행)",
     "SPLIT_STRATIFY_IMPOSSIBLE": "이 값이 {count}개뿐이라 비율을 맞춰 분할할 수 없습니다. 비율 맞추기를 끄거나 이 값의 데이터를 {minRows}개 이상 모아 주세요. ({label})",
-    "SPLIT_STRATIFY_TARGET_CONTINUOUS": "타깃 값이 {kinds}종류인데 그중 {lonely}종류가 1개뿐이라 비율을 맞춰 분할할 수 없습니다. 값이 거의 다 다른 열이니 비율 맞추기를 끄세요.",
+    "SPLIT_STRATIFY_TARGET_CONTINUOUS": "타깃 열의 값이 {kinds}종류이며, 그중 {lonely}종류는 한 번씩만 나타납니다. 값이 거의 모두 달라 비율을 맞춰 나눌 수 없으니 비율 맞추기를 끄세요.",
     "SAMPLE_STRATIFY_IMPOSSIBLE": "{nSamples}행만 뽑기로 했는데 타깃 값이 {labels}종류라 비율을 맞춰 뽑을 수 없습니다. 뽑을 행 수를 늘리거나 비율 맞추기를 끄세요. (값 하나마다 최소 {minRows}행)",
     "STRATIFY_NOT_FOR_TASK_TYPE": "지금 고른 기계학습 유형에서는 맞출 범주가 없어 비율 맞추기를 쓸 수 없습니다.",
     "CLUSTER_TOO_FEW_ROWS": "데이터가 {rows}행뿐이라 군집 {clusters}개로 묶을 수 없습니다. 군집 수를 줄이거나 데이터를 더 모아 주세요.",
