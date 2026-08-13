@@ -308,7 +308,7 @@
     "noModelChosen": "No model added yet.",
     "noTaskTypeNext": "Choose a task type above and the models that fit will show up.",
     "noTaskTypeReason": "No task type chosen yet.",
-    "noTuning": "This model has nothing to change.",
+    "noTuning": "This model has no hyperparameters to change.",
     "nothingToTrain": "Nothing to train yet — no models have been added.",
     "outOfRange": "This is outside the range you can enter, so training will fail.",
     "pickModel": "Model",
@@ -322,7 +322,7 @@
     "stratifyOff": "Proportional splitting was turned off: the task type you chose has no categories to balance.",
     "taskChanged": "Some models were dropped from your list because they do not fit the task type you chose. ({names})",
     "taskTitle": "Task type",
-    "tuning": "Change the settings",
+    "tuning": "Change the hyperparameters",
     "image": {
       "locked": "Create at least two categories and add photos to them."
     },
@@ -606,7 +606,7 @@
     "noChange": "Trained again without changing any setting.",
     "noSuccess": "No model in this training run produced a score.",
     "noSuccessNext": "Read why they failed below, change a setting, and train again.",
-    "paramTitle": "Settings used for this model",
+    "paramTitle": "Hyperparameters used for this model",
     "perClass": "Score for each class",
     "scoreTitle": "Results from this training run",
     "support": "Rows in the data (support)",
