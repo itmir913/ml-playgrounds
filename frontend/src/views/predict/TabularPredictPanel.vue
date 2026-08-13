@@ -25,6 +25,7 @@
 import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AppButton from '@/components/AppButton.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import { isClientError, type ClientErrorCode } from '@/errors'
 import { interpreterFor, loadModel, loadModelProba, type LoadContext } from '@/ml/models'
@@ -547,7 +548,7 @@ async function run(): Promise<void> {
             1.25rem)이 적용 중이다 - `top-5`로 맞춰서 붙었을 때도 화면 끝에 딱 붙지
             않고 그 여백을 유지한다.
           -->
-          <div class="min-w-0 flex-1 self-start md:sticky md:top-22 md:max-w-lg">
+          <div class="min-w-0 flex-1 self-start md:sticky md:top-27 md:max-w-lg">
             <InputRow
               :fields="fields"
               :values="values"
