@@ -601,7 +601,6 @@
     "membersAdded": "들어온 것",
     "membersRemoved": "빠진 것",
     "model": "모델",
-    "modelScope": "{algorithm} · {runtime}",
     "noChange": "설정을 바꾸지 않고 다시 학습했습니다. 무엇이든 바꾸고 다시 학습하면 여기에 그 차이가 나옵니다.",
     "noSuccess": "이 실험에서는 점수가 나온 모델이 없습니다.",
     "noSuccessNext": "아래에서 실패한 사유를 보고 설정을 바꿔 다시 학습해 보세요.",

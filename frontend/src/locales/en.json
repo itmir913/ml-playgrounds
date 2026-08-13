@@ -601,7 +601,6 @@
     "membersAdded": "Added",
     "membersRemoved": "Removed",
     "model": "Model",
-    "modelScope": "{algorithm} · {runtime}",
     "noChange": "Trained again without changing any setting. Change anything and train again, and the difference shows up here.",
     "noSuccess": "No model in this experiment produced a score.",
     "noSuccessNext": "Read why they failed below, change a setting, and train again.",

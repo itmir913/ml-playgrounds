@@ -54,9 +54,14 @@ function membersOf(change: Change): ReturnType<typeof memberDiff> {
     **`li`에 flex를 주지 않는다.** 주면 그 줄이 list-item이 아니게 되어 글머리표가
     사라진다 - 배치는 안쪽 상자가 맡는다.
   -->
-  <ul class="flex list-outside list-disc flex-col gap-1.5 pl-5 marker:text-ink-faint">
+  <ul class="flex list-outside list-disc flex-col gap-3 pl-5 marker:text-ink-faint">
     <li v-for="change in props.changes" :key="change.path">
-      <div class="flex flex-wrap items-baseline gap-x-2">
+      <!--
+        **가로 간격만 주면 접힌 줄이 붙는다.** 배지가 두 줄로 넘어가는 순간 세로 간격이
+        0이라 배지들이 겹쳐 보였다 (좁은 화면, 2026-08-13). 그리고 **항목 사이가 항목
+        안보다 넓어야 한다** - 둘이 같으면 어디까지가 한 변경인지 안 보인다.
+      -->
+      <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1.5">
         <!--
         **모르는 경로는 버리지 않는다.** 남의 파일이나 나중 버전에서 올 수 있고,
         모르는 것을 아는 척하는 것보다 경로를 그대로 보여주는 편이 정직하다.
@@ -66,14 +71,16 @@ function membersOf(change: Change): ReturnType<typeof memberDiff> {
         </AppBadge>
 
         <template v-else>
-          <AppBadge v-if="change.model">
-            {{
-              t('results.modelScope', {
-                algorithm: t(`algorithms.${change.model.algorithm}`),
-                runtime: t(`runtimes.${change.model.runtime}`),
-              })
-            }}
-          </AppBadge>
+          <!--
+            **모델과 실행을 따로 세운다** (2026-08-13). 하나로 이으면 가운뎃점 셋이
+            서로 다른 층위를 같은 기호로 잇는다 - 앞은 모델과 실행을 가르고, 뒤는 실행
+            이름 안의 라이브러리와 장소를 가른다. 학습 화면에서도 따로 고른 두 축이라
+            결과에서도 따로 서는 편이 앞뒤가 맞는다.
+          -->
+          <template v-if="change.model">
+            <AppBadge>{{ t(`algorithms.${change.model.algorithm}`) }}</AppBadge>
+            <AppBadge>{{ t(`runtimes.${change.model.runtime}`) }}</AppBadge>
+          </template>
           <AppBadge>{{ t(change.labelKey) }}</AppBadge>
           <span>
             {{ t('results.change', { from: valueText(change.from), to: valueText(change.to) }) }}
@@ -89,10 +96,17 @@ function membersOf(change: Change): ReturnType<typeof memberDiff> {
           -->
           <AppPopover v-if="membersOf(change)" size="wide" side="top">
             <template #trigger="{ open }">
+              <!--
+                **누를 수 있는 글자에는 점선 밑줄과 색을 준다.** 값들 사이에 낀 평문이라
+                옆의 `2개 → 4개`와 같은 무게로 서 있었고, 아무도 누르지 않았다. 학습
+                화면의 `이유 보기`와 같은 모양이다 - 색만 다르다(거기는 실패라 danger).
+                실선이 아닌 이유는 실선이 다른 곳으로 가는 링크로 읽히기 때문이다.
+                여기서 일어나는 일은 이동이 아니라 펼침이다.
+              -->
               <button
                 type="button"
                 :aria-expanded="open"
-                class="flex items-center gap-1 rounded-control text-ink-soft transition-colors hover:text-ink"
+                class="flex items-center gap-1 rounded-control text-brand underline decoration-dotted underline-offset-4 transition-colors hover:text-brand-strong"
               >
                 {{ t('results.whatChanged') }}
                 <component :is="ACTION_ICONS.explainTerm" :size="16" aria-hidden="true" />
