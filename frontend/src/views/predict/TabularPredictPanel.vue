@@ -537,7 +537,7 @@ async function run(): Promise<void> {
 
         <template v-else>
           <AppButton variant="secondary" :disabled="fileBusy" @click="batch?.pickFile()">
-            {{ hasPredictFile ? t('data.tabular.change') : t('data.tabular.choose') }}
+            {{ hasPredictFile ? t('predict.tabular.fileChange') : t('data.tabular.choose') }}
           </AppButton>
           <AppButton
             v-if="hasPredictFile"
@@ -714,11 +714,5 @@ async function run(): Promise<void> {
         </div>
       </template>
     </template>
-
-    <!--
-      **파일에 안 남는다는 사실을 말한다** (mlpx-spec.md §0). 학생이 여기서 마음껏
-      눌러 보려면 무엇이 남고 무엇이 안 남는지 알아야 한다.
-    -->
-    <p class="text-right text-ink-faint">{{ t('predict.notSaved') }}</p>
   </div>
 </template>

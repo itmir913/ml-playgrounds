@@ -139,7 +139,7 @@ const candidates = computed(() =>
       // 돌리므로(그것이 이 도구의 핵심 활동이다) **회차가 빠지면 칩 둘이 같은 글자가
       // 된다** — 2026-08-11에 화면에서 그렇게 났다.
       label: t('predict.tabular.clusterModelLabel', {
-        round: props.experimentNames.get(model.experiment.id) ?? model.experiment.id,
+        experiment: props.experimentNames.get(model.experiment.id) ?? model.experiment.id,
         model: t('predict.modelName', {
           algorithm: t(`algorithms.${model.run.algorithm}`),
           runtime: t(whereTrainedKeyOf(model.run)),

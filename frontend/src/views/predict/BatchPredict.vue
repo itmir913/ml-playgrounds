@@ -544,10 +544,12 @@ defineExpose({
 
 <template>
   <div class="flex flex-col gap-5">
-    <div class="flex flex-col gap-1.5">
-      <h3 class="text-lg font-bold">{{ t('predict.tabular.tableTitle') }}</h3>
-      <p class="text-ink-soft">{{ t('predict.tabular.fileLead') }}</p>
-    </div>
+    <!--
+      **설명 줄이 없다.** 같은 말을 세 군데서 했다 — 위 양자택일의 딸림 문장, 여기, 그리고
+      아직 파일이 없을 때의 빈 상태. 남은 둘은 각자 다른 상태에서만 뜨는데 이 줄은 파일이
+      붙은 뒤에도 "불러오세요"라고 말하고 있었다.
+    -->
+    <h3 class="text-lg font-bold">{{ t('predict.tabular.tableTitle') }}</h3>
 
     <!-- 이미 붙어 있고, 새로 고르는 중이 아니다. -->
     <div
