@@ -279,7 +279,7 @@ function bars(model: PredictableModel): ProbabilityBar[] {
             **표 머리글의 설명과 같은 문법이다** (§8.13) — 평문에 아이콘이 붙고, 눌러야
             열린다. 다만 여는 것이 설명이 아니라 값이라 `TermPopover`가 아니다.
           -->
-          <AppPopover size="medium">
+          <AppPopover>
             <template #trigger="{ open }">
               <button
                 type="button"
