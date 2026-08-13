@@ -502,11 +502,44 @@ async function downloadAction(): Promise<void> {
   }
 }
 
+/** 고르던 파일을 물린다. */
+function cancelPick(): void {
+  opened.value = null
+}
+
+function setSheet(name: string): void {
+  sheetName.value = name
+}
+
+function setHasHeader(value: boolean): void {
+  hasHeader.value = value
+}
+
 /**
  * 바에 내주는 손잡이. **`hasFile`도 함께 준다** — 판이 프로젝트에서 직접 읽을 수도
  * 있지만, 그러면 "파일이 붙었는가"를 두 곳이 각자 판정하게 된다.
+ *
+ * **v-model 대신 설정 함수를 준다.** 노출된 ref는 읽을 때만 벗겨지고 쓰는 쪽은
+ * 보장되지 않는다.
+ *
+ * **이 목록이 더 길어지면 경계가 잘못된 것이다** — 그때는 파일 고르기 상태를 컴포저블로
+ * 빼서 판이 들고 이 컴포넌트가 props로 받아야 한다.
  */
-defineExpose({ pickFile, remove, download: downloadAction, busy, computing, hasFile })
+defineExpose({
+  pickFile,
+  remove,
+  download: downloadAction,
+  apply,
+  cancelPick,
+  setSheet,
+  setHasHeader,
+  busy,
+  computing,
+  hasFile,
+  opened,
+  sheetName,
+  hasHeader,
+})
 </script>
 
 <template>
@@ -533,6 +566,7 @@ defineExpose({ pickFile, remove, download: downloadAction, busy, computing, hasF
 
     <!-- 아직 안 붙었거나, 다른 파일로 바꾸는 중이다. -->
     <template v-if="!project.file?.document.settings.data.predictDataset || opened">
+      <!-- 고르는 중일 때는 안 그린다. 그때 눌러야 하는 것은 바의 [이 데이터 사용]이다. -->
       <div
         v-if="!opened"
         class="rounded-panel border-2 border-dashed p-4 text-center transition-colors"
@@ -545,32 +579,6 @@ defineExpose({ pickFile, remove, download: downloadAction, busy, computing, hasF
           {{ busy ? t('data.tabular.reading') : t('data.tabular.choose') }}
         </AppButton>
         <p class="mt-1.5 text-ink-faint">{{ t('data.tabular.dropHint') }}</p>
-      </div>
-
-      <div v-else class="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <span class="max-w-56 truncate font-bold">{{ opened.fileName }}</span>
-
-        <label v-if="opened.document.sheetNames.length > 1" class="flex items-center gap-2">
-          <span class="font-bold text-ink-soft">{{ t('data.tabular.sheet') }}</span>
-          <select
-            v-model="sheetName"
-            class="rounded-field border border-line-strong bg-surface px-2 py-1"
-          >
-            <option v-for="name in opened.document.sheetNames" :key="name" :value="name">
-              {{ name }}
-            </option>
-          </select>
-        </label>
-
-        <label class="flex cursor-pointer items-center gap-2">
-          <input v-model="hasHeader" type="checkbox" class="size-4 accent-brand" />
-          <span class="font-bold">{{ t('data.tabular.hasHeader') }}</span>
-        </label>
-
-        <div class="ml-auto flex gap-2">
-          <AppButton variant="secondary" @click="opened = null">{{ t('common.cancel') }}</AppButton>
-          <AppButton :disabled="busy" :action="apply">{{ t('data.tabular.use') }}</AppButton>
-        </div>
       </div>
     </template>
 

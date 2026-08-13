@@ -375,6 +375,9 @@ const batch = ref<InstanceType<typeof BatchPredict> | null>(null)
 const fileBusy = computed(() => !batch.value || batch.value.busy || batch.value.computing)
 const hasPredictFile = computed(() => batch.value?.hasFile === true)
 
+/** 고르는 중인 파일. **그동안 바가 드는 것은 [파일 선택]이 아니라 [이 데이터 사용]이다.** */
+const picking = computed(() => batch.value?.opened ?? null)
+
 /** 화면에 한 프레임 양보한다. `setTimeout(0)`이 `requestAnimationFrame`보다 테스트 환경을 덜 가린다. */
 function yieldToScreen(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
@@ -499,20 +502,68 @@ async function run(): Promise<void> {
         여기서는 내려받기다.
       -->
       <PredictActionBar v-else>
-        <AppButton variant="secondary" :disabled="fileBusy" @click="batch?.pickFile()">
-          {{ hasPredictFile ? t('data.tabular.change') : t('data.tabular.choose') }}
-        </AppButton>
-        <AppButton
-          v-if="hasPredictFile"
-          variant="secondary"
-          :disabled="fileBusy"
-          :action="() => batch?.remove()"
-        >
-          {{ t('predict.tabular.fileRemove') }}
-        </AppButton>
+        <!--
+          **고르는 중에는 바가 그 파일을 든다.** 이때 [파일 선택]을 그대로 두면 바가
+          엉뚱한 버튼을 들고 있게 된다 — 눌러야 하는 것은 [이 데이터 사용]이다.
+          머리글 여부를 여기 함께 두는 이유는, 정하는 것과 확정하는 것이 갈리면 학생이
+          체크를 바꾸고 다른 자리로 눈을 옮겨야 하기 때문이다.
+        -->
+        <template v-if="picking">
+          <span class="max-w-56 truncate font-bold">{{ picking.fileName }}</span>
+
+          <label v-if="picking.document.sheetNames.length > 1" class="flex items-center gap-2">
+            <span class="font-bold text-ink-soft">{{ t('data.tabular.sheet') }}</span>
+            <select
+              class="rounded-field border border-line-strong bg-surface px-2 py-1"
+              :value="batch?.sheetName"
+              @change="batch?.setSheet(($event.target as HTMLSelectElement).value)"
+            >
+              <option v-for="name in picking.document.sheetNames" :key="name" :value="name">
+                {{ name }}
+              </option>
+            </select>
+          </label>
+
+          <label class="flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              class="size-4 accent-brand"
+              :checked="batch?.hasHeader"
+              @change="batch?.setHasHeader(($event.target as HTMLInputElement).checked)"
+            />
+            <span class="font-bold">{{ t('data.tabular.hasHeader') }}</span>
+          </label>
+        </template>
+
+        <template v-else>
+          <AppButton variant="secondary" :disabled="fileBusy" @click="batch?.pickFile()">
+            {{ hasPredictFile ? t('data.tabular.change') : t('data.tabular.choose') }}
+          </AppButton>
+          <AppButton
+            v-if="hasPredictFile"
+            variant="secondary"
+            :disabled="fileBusy"
+            :action="() => batch?.remove()"
+          >
+            {{ t('predict.tabular.fileRemove') }}
+          </AppButton>
+        </template>
 
         <template #end>
-          <AppButton v-if="hasPredictFile" :disabled="fileBusy" :action="() => batch?.download()">
+          <template v-if="picking">
+            <AppButton variant="secondary" @click="batch?.cancelPick()">
+              {{ t('common.cancel') }}
+            </AppButton>
+            <AppButton :disabled="fileBusy" :action="() => batch?.apply()">
+              {{ t('data.tabular.use') }}
+            </AppButton>
+          </template>
+
+          <AppButton
+            v-else-if="hasPredictFile"
+            :disabled="fileBusy"
+            :action="() => batch?.download()"
+          >
             {{ t('predict.tabular.download') }}
           </AppButton>
         </template>
