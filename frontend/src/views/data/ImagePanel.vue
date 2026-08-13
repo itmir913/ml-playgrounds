@@ -521,7 +521,7 @@ async function commitRemoveCategory(): Promise<void> {
     -->
     <div
       v-if="selected.size > 0"
-      class="sticky bottom-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel border border-line-strong bg-surface px-4 py-2.5 shadow-card"
+      class="sticky bottom-4 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel border border-line-strong bg-surface px-4 py-2.5 shadow-card sm:bottom-5"
     >
       <span class="font-bold">{{ t('data.image.selected', selected.size) }}</span>
       <label class="flex items-center gap-2">
