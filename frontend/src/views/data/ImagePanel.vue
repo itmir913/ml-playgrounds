@@ -385,7 +385,7 @@ async function commitRemoveCategory(): Promise<void> {
 
       <div class="ml-auto flex items-center gap-2">
         <span v-if="progress" class="tabular-nums text-ink-soft">
-          {{ t('data.image.baking', { done: progress.completed, total: progress.total }) }}
+          {{ t('data.image.preparing', { done: progress.completed, total: progress.total }) }}
         </span>
         <AppButton variant="secondary" @click="progress ? running?.cancel() : (pending = null)">
           {{ t('common.cancel') }}

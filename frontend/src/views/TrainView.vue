@@ -79,7 +79,7 @@ const kind = computed(() => dataKindFor(project.file?.document.manifest.dataType
 /**
  * 준비 진행 문구. **이 화면은 무엇을 준비하는지 모른다** — 문구 키는 종류가 갖는다
  * (`data/kinds.ts`의 `preparingKey`, architecture.md §8.10). 전에는 여기에
- * `train.image.preparingPhotos`가 박혀 있었고, 음성이 들어오는 날 `v-if`가 될 자리였다.
+ * 사진 준비 문구가 박혀 있었고, 음성이 들어오는 날 `v-if`가 될 자리였다.
  *
  * 세는 것이 아직 없으면(백본을 받는 중) 엔진 상태를 말한다 — 그건 종류를 안 가린다.
  */

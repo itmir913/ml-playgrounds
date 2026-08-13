@@ -91,7 +91,7 @@ export interface DataKind {
    * **없는 것이 정상이다** — 표는 학습 전에 준비할 것이 없어 이 자리가 한 번도 안 뜬다.
    * 이미지는 백본을 받고 사진을 통과시키는 시간이 앞에 붙는다.
    *
-   * **학습 화면이 이 문구를 직접 들고 있었다** — `t('train.image.preparingPhotos')`가
+   * **학습 화면이 이 문구를 직접 들고 있었다** — `t('data.image.preparing')`가
    * 종류를 모르는 화면 안에 박혀 있었고, 그건 음성이 들어오는 날 `v-if`가 될 자리다.
    */
   readonly preparingKey?: string
@@ -159,7 +159,7 @@ export const DATA_KINDS: readonly DataKind[] = [
       // 잠금 이유가 "타깃과 특성을 정해 주세요"인데 이미지에는 둘 다 없다.
       train: { locked: 'train.image.locked' },
     },
-    preparingKey: 'train.image.preparingPhotos',
+    preparingKey: 'data.image.preparing',
     summaryRows: defineAsyncComponent(() => import('@/components/summary/ImageSummaryRows.vue')),
   },
 ]
