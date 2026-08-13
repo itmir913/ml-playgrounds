@@ -177,6 +177,11 @@ function failureDetailOf(run: Run): string | null {
 
     <section v-if="succeeded.length > 0" class="flex min-w-0 flex-col gap-1.5">
       <h3 class="font-bold text-ink-soft">{{ t('results.scoreTitle') }}</h3>
+      <!--
+        **안내는 제목 바로 아래다.** 표를 지나 아래에 두면 눌러도 된다는 것을 표를
+        다 읽은 뒤에야 알게 된다.
+      -->
+      <p class="text-ink-faint">{{ t('results.detailLead') }}</p>
       <AppTable>
         <thead>
           <tr>
@@ -216,7 +221,6 @@ function failureDetailOf(run: Run): string | null {
           </tr>
         </tbody>
       </AppTable>
-      <p class="text-ink-faint">{{ t('results.detailLead') }}</p>
     </section>
 
     <section v-else class="flex flex-col gap-1.5">
