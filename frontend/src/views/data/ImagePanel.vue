@@ -438,7 +438,9 @@ async function commitRemoveCategory(): Promise<void> {
         옮겨 가면 학생은 화면이 바뀐 줄 안다 - 사진이 있든 없든 다음 할 일은 범주를
         세우는 것이다 (체크리스트의 `범주 나누기`와 같은 말).
       -->
-      <div class="flex flex-wrap items-center gap-2">
+      <section
+        class="flex flex-wrap items-center gap-2 rounded-panel border border-line bg-surface p-4"
+      >
         <AppButton @click="naming = { mode: 'create', from: '', value: '' }">
           {{ t('data.image.newCategory') }}
         </AppButton>
@@ -456,7 +458,7 @@ async function commitRemoveCategory(): Promise<void> {
         >
           {{ t('data.image.addFolder') }}
         </AppButton>
-      </div>
+      </section>
 
       <!--
         **넓은 화면에서는 범주 칸이 두 줄로 선다** (architecture.md §8.10.1 "넓은 화면은

@@ -238,11 +238,14 @@ function kindOf(column: ColumnSummary): string {
       **그래서 데이터가 있을 때만 뜬다.** 없을 때 이 동작의 유일한 출처는 가운데
       빈 상태다. 이미지 경로의 버튼 줄과 같은 자리, 같은 규칙이다.
     -->
-    <div v-if="saved" class="flex flex-wrap items-center gap-2">
+    <section
+      v-if="saved"
+      class="flex flex-wrap items-center gap-2 rounded-panel border border-line bg-surface p-4"
+    >
       <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">
         {{ busy ? t('data.tabular.reading') : t('data.tabular.change') }}
       </AppButton>
-    </div>
+    </section>
 
     <!-- 고르는 중일 때의 조작 줄. 확정 전에만 있다. -->
     <div
