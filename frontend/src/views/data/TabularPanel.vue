@@ -296,9 +296,16 @@ function kindOf(column: ColumnSummary): string {
       -->
       <section
         v-if="shown"
-        class="flex min-w-0 flex-1 flex-col gap-1.5 rounded-panel border border-line bg-surface p-4"
+        class="flex min-w-0 flex-1 flex-col gap-3 rounded-panel border border-line bg-surface p-4"
       >
-        <h3 class="font-bold text-ink-soft">{{ t('data.tabular.previewTitle') }}</h3>
+        <!--
+          **제목의 줄 높이를 조인다.** 기본 줄 상자는 글자보다 위아래로 4px씩 넓어서,
+          카드 위 여백이 16px인데 20px처럼 보인다 - 아래는 표의 테두리가 딱 떨어지므로
+          위만 길어 보인다 (2026-08-13).
+        -->
+        <h3 class="leading-tight font-bold text-ink-soft">
+          {{ t('data.tabular.previewTitle') }}
+        </h3>
 
         <AppTable class="min-h-0 flex-1">
           <thead class="sticky top-0 z-10">
@@ -336,9 +343,9 @@ function kindOf(column: ColumnSummary): string {
       -->
       <aside
         v-if="shown"
-        class="hidden min-w-0 flex-1 flex-col gap-1.5 rounded-panel border border-line bg-surface p-4 md:flex"
+        class="hidden min-w-0 flex-1 flex-col gap-3 rounded-panel border border-line bg-surface p-4 md:flex"
       >
-        <h3 class="font-bold text-ink-soft">{{ t('data.tabular.inspector') }}</h3>
+        <h3 class="leading-tight font-bold text-ink-soft">{{ t('data.tabular.inspector') }}</h3>
         <div class="flex min-h-0 flex-1 flex-col">
           <ColumnInspector :columns="shown.columns" />
         </div>
