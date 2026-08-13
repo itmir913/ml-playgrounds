@@ -496,9 +496,13 @@ async function removeTest(): Promise<void> {
     **표가 넓은 쪽을 갖는다** (architecture.md §8.9). 열이 수십 개인 표를 반쪽 칸에
     가두면 그 안에서만 옆으로 스크롤하게 된다. 다만 2 대 1은 표에 과했다 - 오른쪽
     설정들이 라디오 줄이라 좁으면 글자마다 접힌다. **6 대 4**로 다섯 칸을 나눈다.
+
+    **`lg`에서 갈린다.** `md`(768px)에서 나누면 표가 460px 남짓을 갖는데, 거기에 체크·
+    라디오·이름·자료형·결측·값 종류·전처리까지 일곱 칸이 들어가 이름이 글자마다 접힌다.
+    나뉜 두 열이 둘 다 좁은 것보다, 한 열로 쌓아 각자 온 폭을 갖는 편이 낫다.
   -->
-  <div v-if="settings && data && plan" class="grid gap-5 md:grid-cols-5">
-    <section class="min-w-0 rounded-panel border border-line bg-surface p-4 md:col-span-3">
+  <div v-if="settings && data && plan" class="grid gap-5 lg:grid-cols-5">
+    <section class="min-w-0 rounded-panel border border-line bg-surface p-4 lg:col-span-3">
       <h2 class="font-bold">{{ t('preprocess.tabular.columnsTitle') }}</h2>
       <p class="mt-1 text-ink-soft">{{ t('preprocess.tabular.columnsLead') }}</p>
 
@@ -526,7 +530,7 @@ async function removeTest(): Promise<void> {
       </p>
     </section>
 
-    <div class="flex min-w-0 flex-col gap-5 md:col-span-2">
+    <div class="flex min-w-0 flex-col gap-5 lg:col-span-2">
       <section class="rounded-panel border border-line bg-surface p-4">
         <h2 class="font-bold">{{ t('preprocess.tabular.cleaningTitle') }}</h2>
 
@@ -853,7 +857,7 @@ async function removeTest(): Promise<void> {
       어느 한쪽에 붙이면 카드의 자리가 데이터에 따라 움직인다 — 열이 40개면 왼쪽이 길고
       8개면 오른쪽이 길다. 카드 안에서 다시 두 열로 갈라 넓은 화면을 쓴다.
     -->
-    <TabularPrepSummary :plan="runPlan" class="md:col-span-5" />
+    <TabularPrepSummary :plan="runPlan" class="lg:col-span-5" />
   </div>
 
   <!--
