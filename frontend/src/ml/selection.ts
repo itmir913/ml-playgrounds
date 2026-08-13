@@ -222,7 +222,7 @@ export interface ModelAxesInput {
  * 유형은 supportedTaskTypes가 애초에 목록에서 뺀다.
  *
  * **지키는 불변식이 하나 있다 - 담을 수 없으면 그 칸이 꺼져 있다.** 그래서 blocked를
- * 모델 축의 칸에서 그대로 읽는다. 두 곳에서 따로 판정하면 "카드는 멀쩡한데 [추가]가
+ * 모델 축의 칸에서 그대로 읽는다. 두 곳에서 따로 판정하면 "카드는 멀쩡한데 [담기]가
  * 꺼져 있다"가 생기고, 학생은 무엇을 고쳐야 하는지 알 수 없다.
  */
 export function modelAxes(input: ModelAxesInput): ModelAxes {

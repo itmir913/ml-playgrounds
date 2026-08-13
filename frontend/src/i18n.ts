@@ -123,3 +123,25 @@ function applyLocale(locale: Locale): void {
     document.documentElement.lang = locale
   }
 }
+
+/**
+ * 병기 괄호를 본체에서 떼어낸다 — **줄바꿈을 위해서다** (`docs/copy.md` §2).
+ *
+ * `의사결정트리(Decision Tree)`가 좁은 칸에 들어가면 브라우저는 줄바꿈 기회를 괄호
+ * **안의 띄어쓰기**에서 찾는다. 그래서 `의사결정트리(Decision` / `Tree)`로 갈리고,
+ * 학생은 원어가 어디서 시작해 어디서 끝나는지를 두 줄에 걸쳐 다시 맞춰 읽어야 한다.
+ * 갈릴 자리는 괄호 앞이다.
+ *
+ * **ZWSP로는 안 된다.** 괄호 앞에 기회를 하나 더 주어도 괄호 안의 기회가 그대로 남아,
+ * 한 줄에 더 들어가는 쪽을 고르는 브라우저는 여전히 `(Decision`까지 채운다
+ * (`StepRail`의 `포트​폴리오`와 다른 경우다 — 거기는 막을 기회가 애초에 없다).
+ * 괄호를 통째로 안 갈리게 만들어야 비로소 앞자리가 유일한 기회가 된다.
+ *
+ * 괄호가 **끝에 있을 때만** 뗀다. 문장 중간의 괄호는 병기가 아니라 부연이고
+ * (`({fileName})` 같은 자리), 그건 갈려도 읽는 데 지장이 없다.
+ */
+export function splitTerm(label: string): { head: string; term: string | null } {
+  const match = /^(.+?)(\([^()]*\))$/.exec(label)
+  if (!match || match[1] === undefined || match[2] === undefined) return { head: label, term: null }
+  return { head: match[1], term: match[2] }
+}

@@ -17,6 +17,8 @@
 
 import { computed, ref } from 'vue'
 
+import { splitTerm } from '@/i18n'
+
 export interface Choice {
   readonly id: string
   readonly label: string
@@ -76,6 +78,14 @@ function stateOf(item: Choice): string {
   if (!item.enabled) return STATES.off
   return props.selected === item.id ? STATES.selected : STATES.idle
 }
+
+/**
+ * 그릴 칸들. **병기 괄호를 미리 떼어 둔다** (`splitTerm`).
+ *
+ * 라벨이 번역된 문장이라 여기서 뜻을 읽지는 않는다 - 떼는 규칙은 문구 규약이지
+ * 이 축의 어휘가 아니다.
+ */
+const cells = computed(() => props.items.map((item) => ({ item, ...splitTerm(item.label) })))
 </script>
 
 <template>
@@ -97,16 +107,25 @@ function stateOf(item: Choice): string {
       :aria-label="label"
     >
       <button
-        v-for="item in props.items"
-        :key="item.id"
+        v-for="cell in cells"
+        :key="cell.item.id"
         type="button"
-        class="min-w-0 rounded-control border px-3 py-2 text-center font-bold transition-colors"
-        :class="stateOf(item)"
-        :aria-pressed="props.selected === item.id"
-        :aria-disabled="!item.enabled"
-        @click="press(item)"
+        class="min-w-0 rounded-control border px-3 py-2 text-center font-bold break-keep transition-colors"
+        :class="stateOf(cell.item)"
+        :aria-pressed="props.selected === cell.item.id"
+        :aria-disabled="!cell.item.enabled"
+        @click="press(cell.item)"
       >
-        {{ item.label }}
+        <!--
+          **원어는 통째로 다니되, 저 혼자 칸보다 넓으면 저 안에서 접힌다.** `inline-block`이
+          그 둘을 동시에 한다 - 줄바꿈에는 덩어리 하나로 참여하고(그래서 괄호 앞이 갈릴
+          자리가 된다), 칸보다 넓어지면 제 안에서 다시 접힌다. `whitespace-nowrap`은 앞의
+          절반만 해서 `(Logistic Regression)`이 카드 밖으로 삐져나갔다.
+
+          두 조각을 한 줄에 붙여 둔 것도 규칙이다 - 사이에 줄바꿈을 넣으면 Vue가 공백 한
+          칸으로 읽어 `의사결정트리 (Decision Tree)`가 된다.
+        -->
+        {{ cell.head }}<span v-if="cell.term" class="inline-block">{{ cell.term }}</span>
       </button>
     </div>
 

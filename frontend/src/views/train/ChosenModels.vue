@@ -176,13 +176,21 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
           tone ? tone.accent : 'border-l-transparent',
         ]"
       >
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span class="font-bold">{{ t(`algorithms.${row.algorithm}`) }}</span>
-          <span class="text-ink-soft">{{ t(`runtimes.${row.runtime}`) }}</span>
+        <!--
+          **[빼기]는 줄의 오른쪽 위에 못 박힌다.** 이름·학습할 곳·상태와 같은 줄에서
+          접히게 두면, 좁은 칸에서 셋이 두 줄이 되는 순간 버튼만 아래로 떨어져 나가
+          **모델 이름 밑에 혼자 놓인다** - 무엇을 빼는 버튼인지가 그때 흐려진다.
+          그래서 바깥은 안 접히는 두 칸(글자 / 버튼)이고, 접히는 것은 왼쪽 안에서다.
+        -->
+        <div class="flex items-start gap-x-3">
+          <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+            <span class="font-bold">{{ t(`algorithms.${row.algorithm}`) }}</span>
+            <span class="text-ink-soft">{{ t(`runtimes.${row.runtime}`) }}</span>
 
-          <span v-if="tone" class="rounded-field px-2 py-0.5" :class="tone.badge">
-            {{ t(tone.key) }}
-          </span>
+            <span v-if="tone" class="rounded-field px-2 py-0.5" :class="tone.badge">
+              {{ t(tone.key) }}
+            </span>
+          </div>
 
           <!--
             **줄 안의 버튼이 줄 높이를 키우면 안 된다.** ghost도 다른 변종과 같은
@@ -198,7 +206,7 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
           <AppButton
             v-if="!props.running"
             variant="ghost"
-            class="-my-2.5 ml-auto"
+            class="-my-2.5 shrink-0"
             @click="emit('remove', index)"
           >
             {{ t('train.removeModel') }}
