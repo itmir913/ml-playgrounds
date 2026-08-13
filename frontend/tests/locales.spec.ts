@@ -712,6 +712,51 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
  * 인코딩 양쪽에 있는 것처럼). 뒤쪽은 정당하므로 목록에 적어 두고, **적는 행위가 곧
  * 두 언어를 나란히 읽었다는 기록이다.**
  */
+/**
+ * 문구가 버튼을 이름으로 부르는 자리 — `값을 입력하고 [예측하기]를 누르면`.
+ *
+ * **버튼 이름이 바뀌면 이 인용이 조용히 거짓말이 된다.** 화면에는 없는 버튼을 누르라고
+ * 말하게 되는데, 로케일 검사도 타입도 이것을 못 본다 — 실제로 영어 쪽이 있지도 않은
+ * `[Clean up the data]`를 가리키고 있었다(2026-08-14).
+ */
+function quotedLabels(strings: ReadonlyMap<string, string>): [string, string][] {
+  const found: [string, string][] = []
+  for (const [key, text] of strings) {
+    for (const match of text.matchAll(/\[([^[\]]+)\]/g)) {
+      const quoted = match[1]
+      if (quoted !== undefined) found.push([key, quoted])
+    }
+  }
+  return found
+}
+
+describe('버튼을 이름으로 부르는 문구', () => {
+  it('검사기가 없는 이름을 잡는다', () => {
+    const strings = new Map([
+      ['a', '[없는 버튼]을 누르세요.'],
+      ['b', '있는 버튼'],
+    ])
+    const labels = new Set([...strings.values()])
+    expect(quotedLabels(strings).filter(([, name]) => !labels.has(name))).toEqual([
+      ['a', '없는 버튼'],
+    ])
+  })
+
+  it('검사기가 대괄호가 없는 문구는 안 본다', () => {
+    expect(quotedLabels(new Map([['a', '누르세요.']]))).toEqual([])
+  })
+
+  for (const [locale, strings] of [
+    ['ko', korean],
+    ['en', english],
+  ] as const) {
+    it(`${locale}이 부르는 이름이 전부 로케일에 있다`, () => {
+      const labels = new Set([...strings.values()])
+      expect(quotedLabels(strings).filter(([, name]) => !labels.has(name))).toEqual([])
+    })
+  }
+})
+
 describe('두 언어가 나란히 말한다', () => {
   /**
    * `same`에서 값이 같은데 `other`에서는 갈리는 키 묶음들.
