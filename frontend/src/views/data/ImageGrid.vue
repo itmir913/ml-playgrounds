@@ -93,42 +93,35 @@ const shown = computed(() =>
       <h3 class="min-w-0 truncate font-bold text-ink">{{ props.label }}</h3>
       <AppBadge>{{ t('data.image.count', props.entries.length) }}</AppBadge>
 
-      <div class="ml-auto flex items-center gap-3">
+      <!--
+        **글자 버튼은 안쪽 여백을 되당긴다.** `AppButton`의 `px-4`가 그대로 서면 글자
+        사이가 44px이 되어 넷이 흩어져 보인다 - 눌리는 자리는 그대로 두고 자리만
+        글자 폭으로 되돌린다 (`ChosenModels`의 `-my-2.5`와 같은 손질이다).
+      -->
+      <div class="ml-auto flex items-center gap-1">
         <!-- **이 칸으로 바로 들어간다.** 올린 뒤 다시 골라 옮기는 걸음이 없어진다. -->
-        <button
-          type="button"
-          class="text-base font-bold text-brand hover:underline"
-          @click="emit('add')"
-        >
+        <AppButton variant="ghost" class="-mx-2 -my-2.5" @click="emit('add')">
           {{ t('data.image.addHere') }}
-        </button>
+        </AppButton>
         <!--
           **누르는 것이 아니라 고르는 것이다.** 사진 수십 장을 하나씩 누르게 하면
           범주를 옮기는 일이 실제로는 못 하는 일이 된다.
         -->
-        <button
+        <AppButton
           v-if="props.entries.length > 0"
-          type="button"
-          class="text-base font-bold text-brand hover:underline"
+          variant="ghost"
+          class="-mx-2 -my-2.5"
           @click="emit('pickAll')"
         >
           {{ t('data.image.pickAll') }}
-        </button>
+        </AppButton>
         <template v-if="!props.unlabeled">
-          <button
-            type="button"
-            class="text-base font-bold text-ink-soft hover:underline"
-            @click="emit('rename')"
-          >
+          <AppButton variant="ghost" class="-mx-2 -my-2.5" @click="emit('rename')">
             {{ t('data.image.rename') }}
-          </button>
-          <button
-            type="button"
-            class="text-base font-bold text-ink-soft hover:underline"
-            @click="emit('remove')"
-          >
+          </AppButton>
+          <AppButton variant="ghost" class="-mx-2 -my-2.5" @click="emit('remove')">
             {{ t('data.image.removeCategory') }}
-          </button>
+          </AppButton>
         </template>
       </div>
     </header>

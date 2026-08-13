@@ -74,6 +74,14 @@ async function run(): Promise<void> {
  * 두고 **자리는 언제나 차지한다** — 칸의 안쪽 폭이 상태에 따라 달라지면 안 된다는
  * 규칙(CLAUDE.md)의 변종 판이다. `tests/ui-rules.spec.ts`가 이 표를 검사한다.
  *
+ * **ghost만 밑줄을 갖는다** (2026-08-13). 면도 테두리도 없어서 가만히 있을 때는 버튼인
+ * 줄 모르고, hover로는 못 알린다 — 휴대폰에는 hover가 없다. 실선인 이유는 **점선이
+ * 이미 다른 뜻이기 때문이다**: 점선 밑줄에 아이콘이 붙은 글자는 눌러도 아무 일이 안
+ * 일어나고 설명만 펼쳐진다(`TermPopover`·`이유 보기`). 실선은 실제로 무언가를 한다.
+ *
+ * **두께는 1px로 못 박는다.** 굵은 글자에 기본값을 두면 브라우저가 2px을 그어서 줄이
+ * 글자만큼 무거워진다 — 조용해야 하는 변종에서 그건 목적을 뒤집는다.
+ *
  * **ghost는 나란한 선택지에 쓰지 마라.** 줄 안에서 눈에 안 띄어야 하는 것([빼기] 같은
  * 것)에만 쓴다. 대화상자의 [취소]처럼 **고르는 것 둘이 나란히 설 때 한쪽만 면이 없으면
  * 그건 버튼이 아니라 글자로 보인다.** 그 자리는 secondary다.
@@ -82,7 +90,8 @@ const VARIANTS: Readonly<Record<Variant, string>> = {
   primary: 'border border-brand bg-brand text-ink-invert shadow-card hover:bg-brand-strong',
   secondary: 'border border-line bg-surface text-ink hover:bg-surface-sunken',
   subtle: 'border border-transparent bg-surface-sunken text-ink-soft hover:bg-line hover:text-ink',
-  ghost: 'border border-transparent text-ink-soft hover:bg-surface-sunken hover:text-ink',
+  ghost:
+    'border border-transparent text-ink-soft underline decoration-1 underline-offset-4 hover:bg-surface-sunken hover:text-ink',
   danger: 'border border-danger bg-danger text-ink-invert shadow-card hover:brightness-95',
 }
 
