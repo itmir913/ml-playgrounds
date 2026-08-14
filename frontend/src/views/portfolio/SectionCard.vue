@@ -143,17 +143,27 @@ function onPaste(event: ClipboardEvent): void {
     class="group transition-shadow focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-line"
   >
     <div class="flex flex-col gap-3">
-      <header class="flex items-center gap-3">
+      <!--
+        **좁은 화면에서는 도구가 아래로 내려간다.** 도구 넷이 늘 자리를 차지하는데
+        (터치에는 hover가 없다) 그것을 제쳐 두면 제목에 남는 폭이 대여섯 글자도 안 되고,
+        **한국어는 글자마다 줄바꿈 기회가 있어서 제목이 세로로 쪼개진다** (2026-08-15,
+        아이폰에서 실제로 그랬다). 그래서 둘을 세운다 - 제목이 먼저 가질 너비(`basis-40`)와
+        낱말 단위로만 끊는 규칙(`break-keep`). `docs/i18n.md` 규칙 9의 그 짝이고, 한쪽만
+        으로는 아무 일도 안 일어난다.
+      -->
+      <header class="flex flex-wrap items-center gap-3">
         <!-- 번호는 배지다. 읽기 화면의 여백 번호와 같은 표기를 쓴다 (§8.18.1). -->
         <span
           class="inline-flex size-8 shrink-0 items-center justify-center rounded-control font-bold tabular-nums transition-colors bg-surface-sunken text-ink-soft group-focus-within:bg-brand-soft group-focus-within:text-brand"
         >
           {{ number }}
         </span>
-        <h3 :id="headingId" class="min-w-0 flex-1 text-lg font-bold">{{ props.section.title }}</h3>
+        <h3 :id="headingId" class="min-w-0 flex-1 basis-40 text-lg font-bold break-keep">
+          {{ props.section.title }}
+        </h3>
 
         <div
-          class="flex shrink-0 items-center gap-1 tools-on-demand group-hover:opacity-100 group-focus-within:opacity-100"
+          class="ml-auto flex shrink-0 items-center gap-1 tools-on-demand group-hover:opacity-100 group-focus-within:opacity-100"
         >
           <AppButton
             variant="ghost"
