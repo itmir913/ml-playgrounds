@@ -60,6 +60,7 @@ function projectWith(csv = CSV): ProjectFile {
     document,
     models: new Map(),
     images: new Map(),
+    attachments: new Map(),
     embeddings: new Map(),
   }
   return applyDataset(

@@ -431,6 +431,7 @@ describe('이미지 프로젝트', () => {
         },
       },
       images: new Map(),
+      attachments: new Map(),
       embeddings: new Map(),
     })
 

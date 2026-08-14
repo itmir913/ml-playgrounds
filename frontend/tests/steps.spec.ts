@@ -417,6 +417,7 @@ describe('프로젝트에서 사실을 뽑는다', () => {
         ],
       },
       answers: { motivation: '꽃이 좋아서' },
+      attachments: {},
     }
     expect(factsOf({ ...base, document: { ...base.document, portfolio } }).portfolioAnswered).toBe(
       false,
@@ -425,7 +426,7 @@ describe('프로젝트에서 사실을 뽑는다', () => {
 
   it('양식을 아직 고르지 않았으면 완료가 아니다', () => {
     const base = projectFile()
-    const portfolio = { template: { sections: [] }, answers: {} }
+    const portfolio = { template: { sections: [] }, answers: {}, attachments: {} }
     expect(factsOf({ ...base, document: { ...base.document, portfolio } }).portfolioAnswered).toBe(
       false,
     )

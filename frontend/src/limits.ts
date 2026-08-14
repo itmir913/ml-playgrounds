@@ -272,6 +272,19 @@ export const PROJECT_FILE_WARN_BYTES = 50 * MB
 export const MAX_PORTFOLIO_BYTES = 5 * MB
 
 /**
+ * 포트폴리오에 붙인 사진의 긴 변 상한 (mlpx-spec.md §8.6.1).
+ *
+ * **우리가 이미 쓰는 눈금이다.** 완성본 본문 폭이 `md`(48rem = 768px)이고 그 두 배이며,
+ * 동시에 Tailwind의 가장 큰 브레이크포인트(`2xl` = 96rem = 1536px)다 - 고해상도 화면에서
+ * 본문 폭을 꽉 채워도 뭉개지지 않는 가장 작은 값이라는 뜻이다.
+ *
+ * **학습용 정본과 다른 값이고 다른 규칙이다.** 저쪽은 백본이 요구하는 정사각형이라
+ * 레터박스로 여백을 채우는데, 여기는 사람이 보는 그림이라 비율을 지키고 여백을 안 붙인다.
+ * 형식과 품질은 같은 상수를 쓴다 (`data/image/formats.ts`).
+ */
+export const MAX_ATTACHMENT_EDGE = 1536
+
+/**
  * 표 파일(CSV/엑셀) 훑어보기 단계에서 보여줄 행 수.
  *
  * 시트 전체를 파싱하지 않고 이 수만큼만 보여준다 (docs/open-decisions.md #14).

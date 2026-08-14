@@ -685,3 +685,44 @@ describe('projectFileName', () => {
     expect(projectFileName(long).length).toBeLessThan(120)
   })
 })
+
+describe('포트폴리오 첨부', () => {
+  const path = 'portfolio/attachments/1.webp'
+  const bytes = new Uint8Array([1, 2, 3, 4])
+
+  /** 사진 한 장이 붙어 있는 프로젝트. */
+  function withAttachment(): ProjectFile {
+    const project = projectFile()
+    return {
+      ...project,
+      document: {
+        ...project.document,
+        portfolio: { ...project.document.portfolio, attachments: { motivation: [path] } },
+      },
+      attachments: new Map([[path, bytes]]),
+    }
+  }
+
+  it('저장했다 열면 그대로 있다', async () => {
+    const reopened = await roundTrip(withAttachment())
+    expect(reopened.attachments.get(path)).toEqual(bytes)
+    expect(reopened.document.portfolio.attachments).toEqual({ motivation: [path] })
+  })
+
+  it('아무도 안 가리키는 사진은 안 담긴다 - 지운 사진만큼 파일이 자라면 안 된다', async () => {
+    const project = withAttachment()
+    project.attachments.set('portfolio/attachments/2.webp', new Uint8Array([9]))
+
+    const reopened = await roundTrip(project)
+    expect([...reopened.attachments.keys()]).toEqual([path])
+  })
+
+  it('무결성 대조가 사진을 본다 - 바꿔치기하면 잡힌다', async () => {
+    const { bytes: file } = await writeProject(withAttachment(), markdown)
+    const entries = unzipSync(file)
+    entries[path] = new Uint8Array([9, 9, 9, 9])
+
+    const { integrity } = await readProject(zipSync(entries))
+    expect(integrity.status).not.toBe('verified')
+  })
+})

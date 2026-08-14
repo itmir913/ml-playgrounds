@@ -44,6 +44,7 @@ function imageProject(seeds: readonly string[]): ProjectFile {
     document,
     models: new Map(),
     images: new Map(),
+    attachments: new Map(),
     embeddings: new Map(),
   }
   return addImages(
@@ -93,6 +94,7 @@ describe('표는 정본을 그대로 넘긴다', () => {
       document,
       models: new Map(),
       images: new Map(),
+      attachments: new Map(),
       embeddings: new Map(),
     }
     // **던지는 것이 아니라 거부한다.** 둘이 섞이면 부르는 쪽이 한쪽을 빠뜨린다.

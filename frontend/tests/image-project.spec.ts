@@ -40,7 +40,13 @@ function emptyProject(): ProjectFile {
       randomState: 42,
     },
   )
-  return { document, models: new Map(), images: new Map(), embeddings: new Map() }
+  return {
+    document,
+    models: new Map(),
+    images: new Map(),
+    attachments: new Map(),
+    embeddings: new Map(),
+  }
 }
 
 /** 해시 자리에 알아볼 수 있는 문자열을 넣는다. 여기서 보는 것은 자리이지 해시가 아니다. */

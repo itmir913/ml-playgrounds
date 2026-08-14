@@ -52,6 +52,12 @@ export const DIR = {
   dataset: 'dataset/',
   portfolio: 'portfolio/',
   /**
+   * 포트폴리오에 붙인 사진 (mlpx-spec.md §8.5). **`portfolio/` 아래인 것이 핵심이다** -
+   * `portfolio.md`가 `attachments/3.webp`이라는 상대 경로로 가리키고, 압축을 푼 자리에서
+   * 그대로 맞아야 한다.
+   */
+  attachments: 'portfolio/attachments/',
+  /**
    * 백본이 뽑아 둔 임베딩 (mlpx-spec.md §1.3). 아래에 백본 id가 한 겹 더 있다.
    *
    * **`dataset/` 밑이 아니다.** 학생이 올린 것이 아니라 우리가 계산한 것이고, 지우고
@@ -179,6 +185,14 @@ export interface ProjectFile {
    */
   images: Map<string, Uint8Array>
   /**
+   * zip 경로 -> 포트폴리오에 붙인 사진. **`images`와 같은 모양이다** - 새 개념이 아니라
+   * 있는 길을 한 번 더 쓴다.
+   *
+   * **학습용 정본과 섞이지 않는다.** 저쪽은 백본이 먹는 정사각형이고 이쪽은 사람이 보는
+   * 그림이라, 크기 규칙도 사는 자리도 다르다 (mlpx-spec.md §8.6.1).
+   */
+  attachments: Map<string, Uint8Array>
+  /**
    * zip 경로 -> 임베딩 벡터 (mlpx-spec.md §1.3). **파생물이라 비어 있어도 정상이다.**
    *
    * 위 셋과 다른 점은 **가리키는 참조가 없다는 것**이다 — `settings` 어디에도 안 적혀
@@ -194,6 +208,11 @@ const IMAGE_DIRS = [IMAGE_DATA_DIR, IMAGE_TEST_DIR, IMAGE_PREDICT_DIR] as const
 /** zip 엔트리가 정본 사진인가. */
 function isImageEntry(path: string): boolean {
   return IMAGE_DIRS.some((directory) => path.startsWith(directory))
+}
+
+/** zip 엔트리가 포트폴리오 첨부인가. */
+function isAttachmentEntry(path: string): boolean {
+  return path.startsWith(DIR.attachments)
 }
 
 /** zip 엔트리가 임베딩인가. */
@@ -481,6 +500,7 @@ function hashableEntries(
       known.has(path) ||
       path.startsWith(DIR.model) ||
       isImageEntry(path) ||
+      isAttachmentEntry(path) ||
       isEmbeddingEntry(path)
     ) {
       present.set(path, hashBytes(content))
@@ -676,8 +696,12 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
   // 임베딩은 파생물이라 **아무도 안 가리킨다.** 그래서 참조 대조가 없고, 있으면 있는
   // 대로 들인다 - 없으면 학습할 때 다시 뽑는다 (mlpx-spec.md §1.3).
   const embeddings = new Map<string, Uint8Array>()
+  // 포트폴리오 첨부. **문서가 문항마다 가리킨다**(`portfolio.attachments`) - 그래도 여기서는
+  // 있는 대로 들이고, 아무도 안 가리키는 것은 저장할 때 빠진다 (`keptAttachments`).
+  const attachments = new Map<string, Uint8Array>()
   for (const [path, content] of entries) {
-    if (isImageEntry(path)) images.set(path, content)
+    if (isAttachmentEntry(path)) attachments.set(path, content)
+    else if (isImageEntry(path)) images.set(path, content)
     else if (isEmbeddingEntry(path)) embeddings.set(path, content)
   }
 
@@ -725,6 +749,7 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
             },
       models,
       images,
+      attachments,
       embeddings,
     },
     integrity,
@@ -792,6 +817,14 @@ export async function writeProject(
     entries[path] = content
   }
   requireFolderBodies(document, project.images)
+
+  // 포트폴리오 첨부. **아무도 안 가리키는 것은 안 담는다** - 문항을 지우면 그 사진은
+  // 아무 문항의 것도 아니고, 들고 다니면 파일이 지운 사진 수만큼 계속 자란다
+  // (mlpx-spec.md §8.4). 짝 없는 임베딩을 버리는 것과 같은 자리다.
+  const wanted = new Set(Object.values(document.portfolio.attachments).flat())
+  for (const [path, content] of project.attachments) {
+    if (wanted.has(path)) entries[path] = content
+  }
 
   // **짝 없는 임베딩은 버린다.** 사진을 지우면 그 임베딩은 아무 사진의 것도 아니고,
   // 들고 다니면 파일이 지운 사진 수만큼 계속 자란다 (mlpx-spec.md §1.3).

@@ -82,6 +82,11 @@ interface DatasetRecord {
    */
   images?: Map<string, Uint8Array>
   /**
+   * 포트폴리오에 붙인 사진 (mlpx-spec.md §8.5). **`images`와 같은 자리에 둔다** - 종류가
+   * 다르지만 "경로 -> 바이트"라는 모양이 같고, 자동 저장이 이 레코드 하나만 쓴다.
+   */
+  attachments?: Map<string, Uint8Array>
+  /**
    * 백본이 뽑아 둔 임베딩 (mlpx-spec.md §1.3). `images`와 같은 이유로 같은 자리에 있다.
    *
    * **없는 것이 정상이다.** 파생물이라 학습을 한 번도 안 한 프로젝트에는 없고, 사진이
@@ -189,6 +194,7 @@ export function totalBytes(project: ProjectFile): number {
   for (const bytes of project.models.values()) total += bytes.length
   // 사진도 자리를 차지한다. 이미지 프로젝트에서는 사실상 전부가 이 값이다.
   for (const bytes of project.images.values()) total += bytes.length
+  for (const bytes of project.attachments.values()) total += bytes.length
   // 임베딩도 실제로 쓰는 자리다. 사진 200장이면 1MB이고, 안 세면 여유 공간 검사가
   // 통과한 뒤 실제 쓰기에서 터진다.
   for (const bytes of project.embeddings.values()) total += bytes.length
@@ -287,7 +293,13 @@ export async function saveProject(project: ProjectFile): Promise<void> {
     // 데이터셋이 없는 프로젝트가 정상이다. 그때는 **남아 있던 레코드를 지운다** -
     // 데이터를 바꾸는 도중의 상태가 옛 표와 새 설정으로 남으면 안 된다.
     const datasets = transaction.objectStore(DATASETS_STORE)
-    if (project.dataset === undefined && project.images.size === 0) {
+    // **첨부도 이 레코드에 산다.** 표도 사진도 없지만 포트폴리오에 사진을 붙인
+    // 프로젝트가 있고, 여기서 레코드를 지우면 그 사진이 새로고침에 사라진다.
+    if (
+      project.dataset === undefined &&
+      project.images.size === 0 &&
+      project.attachments.size === 0
+    ) {
       await datasets.delete(projectId)
     } else {
       // 평가·예측 데이터가 함께 실린다. 없으면 그 키를 아예 안 넣는다 - undefined를
@@ -298,6 +310,7 @@ export async function saveProject(project: ProjectFile): Promise<void> {
           ? {}
           : { bytes: project.dataset.bytes, hash: project.dataset.hash }),
         ...(project.images.size === 0 ? {} : { images: project.images }),
+        ...(project.attachments.size === 0 ? {} : { attachments: project.attachments }),
         ...(project.embeddings.size === 0 ? {} : { embeddings: project.embeddings }),
         ...(project.testDataset === undefined
           ? {}
@@ -348,6 +361,7 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
   // (mlpx-spec.md §1). 어긋난 것은 우리가 고칠 수 없으므로 없는 것으로 다룬다.
   const dataset = await transaction.objectStore(DATASETS_STORE).get(projectId)
   const images = dataset?.images ?? new Map<string, Uint8Array>()
+  const attachments = dataset?.attachments ?? new Map<string, Uint8Array>()
   const embeddings = dataset?.embeddings ?? new Map<string, Uint8Array>()
 
   /**
@@ -385,6 +399,7 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
     predictDataset: dataset?.predict,
     models,
     images,
+    attachments,
     embeddings,
   }
 }

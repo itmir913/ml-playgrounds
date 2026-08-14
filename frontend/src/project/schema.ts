@@ -853,6 +853,15 @@ export const portfolioSchema = z.looseObject({
   template: portfolioTemplateSchema,
   /** 문항 id -> 학생이 쓴 글. */
   answers: z.record(z.string(), z.string()).default({}),
+  /**
+   * 문항 id -> 붙인 사진의 zip 경로들 (mlpx-spec.md §8.5).
+   *
+   * **답과 같은 자리에 매달린다.** 사진은 답 아래에 카드로 붙고 문단 중간에는 못
+   * 꽂는다 - 중간 삽입을 포기하면 글 편집기를 만들 일이 없어진다.
+   *
+   * **문항을 지우면 여기서도 사라지고 zip 엔트리도 지운다** (§8.4).
+   */
+  attachments: z.record(z.string(), z.array(z.string())).default({}),
 })
 
 // ---------------------------------------------------------------- document

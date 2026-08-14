@@ -134,7 +134,7 @@ export function newProjectDocument(input: NewProject, seed: ProjectSeed): Projec
     runs: { experiments: [] },
     // **양식은 비어 있다.** 새 프로젝트에는 아직 고른 양식이 없고, 그 상태를
     // 화면이 시작 화면으로 받는다 (mlpx-spec.md §8.3·§8.5).
-    portfolio: { template: { sections: [] }, answers: {} },
+    portfolio: { template: { sections: [] }, answers: {}, attachments: {} },
   }
 }
 

@@ -12,8 +12,11 @@ import { newProjectDocument } from '../src/project/create'
 import { parsePortfolioForm } from '../src/project/portfolio-form'
 import { portfolioMarkdownText } from '../src/project/portfolio-text'
 import {
+  attachmentsOf,
   hasTemplate,
   isPortfolioAnswered,
+  nextAttachmentPath,
+  portfolioBytes,
   orphanAnswers,
   portfolioSections,
   portfolioTextBytes,
@@ -24,6 +27,8 @@ import {
   withSectionAdded,
   withSectionMoved,
   withSectionRemoved,
+  withAttachmentAdded,
+  withAttachmentRemoved,
   withSectionText,
   type PortfolioMarkdownText,
 } from '../src/project/portfolio'
@@ -33,7 +38,7 @@ function portfolio(
   sections: { id: string; title: string; description?: string }[],
   answers: Record<string, string> = {},
 ): Portfolio {
-  return { template: { sections }, answers }
+  return { template: { sections }, answers, attachments: {} }
 }
 
 const TEXT: PortfolioMarkdownText = {
@@ -210,6 +215,44 @@ describe('완료는 모든 문항에 답이 있는 것이다', () => {
   })
 })
 
+describe('사진은 답 아래에 붙는다', () => {
+  const before = portfolio([{ id: 'a', title: '첫 문항' }])
+
+  it('붙인 순서가 곧 보이는 순서다', () => {
+    const one = withAttachmentAdded(before, 'a', 'portfolio/attachments/1.webp')
+    const two = withAttachmentAdded(one, 'a', 'portfolio/attachments/2.webp')
+    expect(attachmentsOf(two, 'a')).toEqual([
+      'portfolio/attachments/1.webp',
+      'portfolio/attachments/2.webp',
+    ])
+  })
+
+  it('번호는 있는 것들의 최대값 + 1이다 - 지웠다 붙여도 안 되풀이한다', () => {
+    const two = withAttachmentAdded(
+      withAttachmentAdded(before, 'a', 'portfolio/attachments/1.webp'),
+      'a',
+      'portfolio/attachments/2.webp',
+    )
+    const removed = withAttachmentRemoved(two, 'a', 'portfolio/attachments/2.webp')
+    expect(nextAttachmentPath(removed, '.webp')).toBe('portfolio/attachments/2.webp')
+    expect(nextAttachmentPath(two, '.webp')).toBe('portfolio/attachments/3.webp')
+  })
+
+  it('굽는 형식이 갈려도 이름은 그 형식을 따른다', () => {
+    expect(nextAttachmentPath(before, '.jpg')).toBe('portfolio/attachments/1.jpg')
+  })
+
+  it('마지막 한 장을 떼면 그 문항의 자리도 없앤다', () => {
+    const one = withAttachmentAdded(before, 'a', 'portfolio/attachments/1.webp')
+    expect(withAttachmentRemoved(one, 'a', 'portfolio/attachments/1.webp').attachments).toEqual({})
+  })
+
+  it('문항을 지우면 사진도 함께 사라진다', () => {
+    const one = withAttachmentAdded(before, 'a', 'portfolio/attachments/1.webp')
+    expect(withSectionRemoved(one, 'a').attachments).toEqual({})
+  })
+})
+
 describe('상한은 글과 첨부를 합쳐 하나다', () => {
   it('문항 문구와 답을 함께 센다', () => {
     const before = portfolio([{ id: 'a', title: 'ab', description: 'cd' }], { a: 'ef' })
@@ -218,6 +261,21 @@ describe('상한은 글과 첨부를 합쳐 하나다', () => {
 
   it('한글은 글자당 세 바이트다 - 길이가 아니라 바이트를 센다', () => {
     expect(portfolioTextBytes(portfolio([], { a: '글' }))).toBe(3)
+  })
+
+  it('사진 바이트가 같은 상한에 합류한다', () => {
+    const before = withAttachmentAdded(
+      portfolio([{ id: 'a', title: 'ab' }], { a: 'ef' }),
+      'a',
+      'portfolio/attachments/1.webp',
+    )
+    const bytes = new Map([['portfolio/attachments/1.webp', new Uint8Array(100)]])
+    expect(portfolioBytes(before, bytes)).toBe(4 + 100)
+  })
+
+  it('아무도 안 가리키는 사진은 안 센다 - 뗀 사진이 자리를 계속 먹으면 안 된다', () => {
+    const bytes = new Map([['portfolio/attachments/9.webp', new Uint8Array(100)]])
+    expect(portfolioBytes(portfolio([], { a: '글' }), bytes)).toBe(3)
   })
 })
 
@@ -258,6 +316,15 @@ describe('마크다운으로 옮긴다', () => {
     )
     expect(markdown).toContain('\\---')
     expect(markdown).toContain('\\===')
+  })
+
+  it('사진은 상대 경로로 적는다 - 압축을 푼 자리에서 그대로 맞는다', () => {
+    const before = withAttachmentAdded(
+      portfolio([{ id: 'a', title: '동기' }], { a: '글' }),
+      'a',
+      'portfolio/attachments/3.webp',
+    )
+    expect(renderPortfolioMarkdown(TEXT, before)).toContain('![](attachments/3.webp)')
   })
 
   it('이전 문항의 답도 파일에 남는다', () => {

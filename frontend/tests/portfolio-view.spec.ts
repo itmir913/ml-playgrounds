@@ -31,7 +31,13 @@ function project(): ProjectFile {
       randomState: 42,
     },
   )
-  return { document, models: new Map(), images: new Map(), embeddings: new Map() }
+  return {
+    document,
+    models: new Map(),
+    images: new Map(),
+    attachments: new Map(),
+    embeddings: new Map(),
+  }
 }
 
 function mountView() {

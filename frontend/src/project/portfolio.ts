@@ -9,6 +9,7 @@
  * `.md` 머리글의 라벨은 부르는 쪽이 만들어 넘긴다 (§8.6).
  */
 
+import { DIR } from './format'
 import type { Portfolio, PortfolioTemplateSection } from './schema'
 
 /** 아직 id가 없는 문항. 마크다운에서 갓 읽어 온 것과 화면이 새로 만드는 것이 이 모양이다. */
@@ -144,7 +145,11 @@ export function withSectionRemoved(portfolio: Portfolio, id: string): Portfolio 
   if (sections.length === portfolio.template.sections.length) return portfolio
   const answers = { ...portfolio.answers }
   delete answers[id]
-  return { ...portfolio, template: { ...portfolio.template, sections }, answers }
+  // **첨부도 함께 지운다.** 문서에서만 떼면 사진 바이트가 파일에 남아 크기만 먹고
+  // 아무도 못 본다 - 저장할 때 아무도 안 가리키는 것은 안 담긴다(`keptAttachments`).
+  const attachments = { ...portfolio.attachments }
+  delete attachments[id]
+  return { ...portfolio, template: { ...portfolio.template, sections }, answers, attachments }
 }
 
 /** 문항을 한 칸 옮긴다. 끝에서 더 가면 아무 일도 안 일어난다. */
@@ -197,6 +202,59 @@ export function withAnswer(portfolio: Portfolio, id: string, answer: string): Po
   return { ...portfolio, answers: { ...portfolio.answers, [id]: answer } }
 }
 
+/** 이 문항에 붙은 사진들. 붙인 순서가 곧 보이는 순서다. */
+export function attachmentsOf(portfolio: Portfolio, sectionId: string): readonly string[] {
+  return portfolio.attachments[sectionId] ?? []
+}
+
+/** 파일 안에서 누군가 가리키고 있는 사진 경로 전부. */
+export function referencedAttachments(portfolio: Portfolio): Set<string> {
+  return new Set(Object.values(portfolio.attachments).flat())
+}
+
+/**
+ * 다음 사진이 가질 경로.
+ *
+ * **있는 것들의 최대 번호 + 1이다.** 개수로 세면 지웠다 붙일 때 번호가 되풀이되고,
+ * 그러면 옛 무결성 기록과 같은 이름의 다른 사진이 생긴다.
+ */
+export function nextAttachmentPath(portfolio: Portfolio, extension: string): string {
+  const numbers = [...referencedAttachments(portfolio)].map((path) => {
+    const name = path.slice(path.lastIndexOf('/') + 1)
+    return Number.parseInt(name, 10)
+  })
+  const last = Math.max(0, ...numbers.filter((one) => Number.isFinite(one)))
+  return `${DIR.attachments}${last + 1}${extension}`
+}
+
+/** 사진 하나를 문항에 붙인다. **답 아래에 카드로 붙는다** - 문단 중간에는 못 꽂는다. */
+export function withAttachmentAdded(
+  portfolio: Portfolio,
+  sectionId: string,
+  path: string,
+): Portfolio {
+  return {
+    ...portfolio,
+    attachments: {
+      ...portfolio.attachments,
+      [sectionId]: [...attachmentsOf(portfolio, sectionId), path],
+    },
+  }
+}
+
+/** 사진 하나를 뗀다. 마지막 한 장을 떼면 그 문항의 자리도 없앤다. */
+export function withAttachmentRemoved(
+  portfolio: Portfolio,
+  sectionId: string,
+  path: string,
+): Portfolio {
+  const kept = attachmentsOf(portfolio, sectionId).filter((one) => one !== path)
+  const attachments = { ...portfolio.attachments }
+  if (kept.length === 0) delete attachments[sectionId]
+  else attachments[sectionId] = kept
+  return { ...portfolio, attachments }
+}
+
 /**
  * 지금 양식에 없는 id의 답 (mlpx-spec.md §8.4).
  *
@@ -241,6 +299,22 @@ export function portfolioTextBytes(portfolio: Portfolio): number {
   }
   for (const answer of Object.values(portfolio.answers)) {
     bytes += encoder.encode(answer).length
+  }
+  return bytes
+}
+
+/**
+ * 글과 첨부를 합친 크기. **상한이 보는 값이다** (mlpx-spec.md §8.6.1).
+ *
+ * 문항마다 나누지 않는다 - 나누면 어느 칸이 얼마인지를 설명해야 한다.
+ */
+export function portfolioBytes(
+  portfolio: Portfolio,
+  attachments: ReadonlyMap<string, Uint8Array>,
+): number {
+  let bytes = portfolioTextBytes(portfolio)
+  for (const path of referencedAttachments(portfolio)) {
+    bytes += attachments.get(path)?.byteLength ?? 0
   }
   return bytes
 }
@@ -315,6 +389,11 @@ export function renderPortfolioMarkdown(text: PortfolioMarkdownText, portfolio: 
     lines.push(`## ${oneLine(section.title)}`, '')
     const answer = escapeAnswer(section.answer.trim())
     if (answer !== '') lines.push(answer, '')
+    // **사진은 상대 경로로 적는다** (§8.6.1). `portfolio/document.md`에서 본 자리이고,
+    // 압축을 푼 뒤에도 그대로 맞는다 - 안 적으면 파일만 받은 사람에게는 사진이 없다.
+    for (const path of attachmentsOf(portfolio, section.id)) {
+      lines.push(`![](${path.slice(DIR.portfolio.length)})`, '')
+    }
   }
 
   // 지금 양식에 없는 답도 파일에 남긴다. 화면이 "이전 문항의 답"으로 보여주는 것과

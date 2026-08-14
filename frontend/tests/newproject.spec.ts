@@ -33,7 +33,13 @@ describe('갓 만든 프로젝트를 연다', () => {
       { name: '새 프로젝트', locale: 'ko', dataType: 'tabular' },
       newProjectSeed(),
     )
-    await saveProject({ document, models: new Map(), images: new Map(), embeddings: new Map() })
+    await saveProject({
+      document,
+      models: new Map(),
+      images: new Map(),
+      attachments: new Map(),
+      embeddings: new Map(),
+    })
     expect(await loadProject(document.manifest.projectId)).not.toBeNull()
   })
 
@@ -42,7 +48,13 @@ describe('갓 만든 프로젝트를 연다', () => {
       { name: '새 프로젝트', locale: 'ko', dataType: 'tabular' },
       newProjectSeed(),
     )
-    await saveProject({ document, models: new Map(), images: new Map(), embeddings: new Map() })
+    await saveProject({
+      document,
+      models: new Map(),
+      images: new Map(),
+      attachments: new Map(),
+      embeddings: new Map(),
+    })
 
     await router.push({ name: 'data', params: { projectId: document.manifest.projectId } })
 
@@ -57,7 +69,13 @@ describe('갓 만든 프로젝트를 연다', () => {
       { name: '새 프로젝트', locale: 'ko', dataType: 'tabular' },
       newProjectSeed(),
     )
-    await saveProject({ document, models: new Map(), images: new Map(), embeddings: new Map() })
+    await saveProject({
+      document,
+      models: new Map(),
+      images: new Map(),
+      attachments: new Map(),
+      embeddings: new Map(),
+    })
 
     await router.push(`/project/${document.manifest.projectId}`)
 
@@ -70,7 +88,13 @@ describe('갓 만든 프로젝트를 연다', () => {
       { name: '새 프로젝트', locale: 'ko', dataType: 'tabular' },
       newProjectSeed(),
     )
-    await saveProject({ document, models: new Map(), images: new Map(), embeddings: new Map() })
+    await saveProject({
+      document,
+      models: new Map(),
+      images: new Map(),
+      attachments: new Map(),
+      embeddings: new Map(),
+    })
     await router.push(`/project/${document.manifest.projectId}/data`)
     expect(router.currentRoute.value.name).not.toBe(ROUTE_PROJECTS)
   })

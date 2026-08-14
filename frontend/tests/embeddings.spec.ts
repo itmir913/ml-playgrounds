@@ -44,6 +44,7 @@ function imageProject(seeds: readonly string[]): ProjectFile {
     document,
     models: new Map(),
     images: new Map(),
+    attachments: new Map(),
     embeddings: new Map(),
   }
   return addImages(

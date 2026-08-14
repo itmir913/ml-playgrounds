@@ -227,10 +227,11 @@ export function emptyProjectFile(): ProjectFile {
         selectedAlgorithms: [],
       },
       runs: { experiments: [] },
-      portfolio: { template: { sections: [] }, answers: {} },
+      portfolio: { template: { sections: [] }, answers: {}, attachments: {} },
     },
     models: new Map(),
     images: new Map(),
+    attachments: new Map(),
     embeddings: new Map(),
   }
 }
@@ -244,6 +245,7 @@ export function projectFile(overrides: Partial<ProjectFile> = {}): ProjectFile {
       portfolio: {
         template: { sections: [{ id: 'motivation', title: '이 주제를 선택한 이유' }] },
         answers: { motivation: '꽃이 좋아서' },
+        attachments: {},
       },
     },
     dataset: fresh(dataset),
@@ -253,6 +255,7 @@ export function projectFile(overrides: Partial<ProjectFile> = {}): ProjectFile {
     ]),
     // 표 픽스처라 사진이 없다. **매번 새 맵이다** (tests/fixtures.spec.ts).
     images: new Map(),
+    attachments: new Map(),
     embeddings: new Map(),
     ...overrides,
   }
