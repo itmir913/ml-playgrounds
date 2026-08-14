@@ -463,7 +463,7 @@
     "MODEL_NEEDS_DATASET": "이 모델은 원본 데이터가 있어야 예측할 수 있는데, 이 파일에는 데이터가 없습니다.",
     "PREDICTION_INPUT_INCOMPLETE": "아직 값을 입력하지 않은 칸이 있습니다. ({feature})",
     "SVM_NOT_CONVERGED": "정해진 횟수 안에 경계를 다 다듬지 못했습니다. 점수는 나왔지만 조금 덜 다듬어진 모델입니다. 전처리에서 [스케일링(Scaling)]을 켜거나 [규제 강도(C)]를 낮추면 경계를 더 쉽게 찾습니다.",
-    "LOGISTIC_NOT_CONVERGED": "정해진 횟수 안에 가장 나은 답에 닿지 못했습니다. 점수는 나왔지만 조금 덜 다듬어진 모델입니다. 학습 단계에서 [최대 반복 횟수(maxIter)]를 늘려 다시 학습해 보세요.",
+    "LOGISTIC_NOT_CONVERGED": "정해진 횟수 안에 가장 나은 답에 도달하지 못했습니다. 점수는 나왔지만 조금 덜 다듬어진 모델입니다. 학습 단계에서 [최대 반복 횟수(maxIter)]를 늘려 다시 학습해 보세요.",
     "KMEANS_NOT_CONVERGED": "정해진 횟수 안에 중심점이 제자리를 잡지 못했습니다. 군집은 나왔지만 조금 더 움직일 수 있는 상태입니다. 전처리에서 [스케일링(Scaling)]을 켜거나 [군집 수(nClusters)]를 줄이면 중심점이 더 빨리 자리를 잡습니다.",
     "DATASET_FILE_TYPE_UNSUPPORTED": "지원하지 않는 파일 형식입니다. ({fileName})",
     "DATASET_SHEET_NOT_FOUND": "그 시트를 찾을 수 없습니다. ({sheetName})",
@@ -541,7 +541,11 @@
       "photosPerCategory": "범주별 사진 수",
       "unlabeledCount": "범주 없는 사진 수",
       "backbone": "백본(Backbone)",
-      "preparing": "사진 준비 중 {done}/{total}"
+      "preparing": "사진 준비 중 {done}/{total}",
+      "engineAbsent": "이미지 학습을 준비하는 중입니다.",
+      "engineDownloading": "백본(Backbone)을 내려받는 중입니다.",
+      "engineDownloaded": "백본(Backbone)을 다 받았습니다. 준비하는 중입니다.",
+      "engineReady": "사진을 백본(Backbone)에 통과시키는 중입니다."
     }
   },
   "splitMethod": {

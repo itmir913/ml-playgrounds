@@ -541,7 +541,11 @@
       "photosPerCategory": "Photos per category",
       "unlabeledCount": "Photos with no category",
       "backbone": "Backbone",
-      "preparing": "Preparing photos {done} of {total}"
+      "preparing": "Preparing photos {done} of {total}",
+      "engineAbsent": "Getting ready to train on images.",
+      "engineDownloading": "Downloading the backbone.",
+      "engineDownloaded": "The backbone is downloaded. Getting it ready.",
+      "engineReady": "Running your photos through the backbone."
     }
   },
   "splitMethod": {

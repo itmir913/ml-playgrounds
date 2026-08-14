@@ -82,7 +82,9 @@ const kind = computed(() => dataKindFor(project.file?.document.manifest.dataType
  * (`data/kinds.ts`의 `preparingKey`, architecture.md §8.10). 전에는 여기에
  * 사진 준비 문구가 박혀 있었고, 음성이 들어오는 날 `v-if`가 될 자리였다.
  *
- * 세는 것이 아직 없으면(백본을 받는 중) 엔진 상태를 말한다 — 그건 종류를 안 가린다.
+ * 세는 것이 아직 없으면(백본을 받는 중) **무엇을 준비하는 중인지**를 말한다. 그 문장도
+ * 종류가 갖는다 — `engineState.*`는 상태의 이름일 뿐이라 혼자 서면 "준비되지 않음"이
+ * 무엇을 가리키는지 학생이 알 수 없다.
  */
 const preparingText = computed(() => {
   const now = preparing.value
@@ -90,7 +92,7 @@ const preparingText = computed(() => {
   const key = kind.value?.preparingKey
   return now.total > 0 && key !== undefined
     ? t(key, { done: now.completed, total: now.total })
-    : t(`engineState.${now.state}`)
+    : t(kind.value?.engineStateKeys?.[now.state] ?? `engineState.${now.state}`)
 })
 
 const dataset = computed(() => readDataset(project.file))

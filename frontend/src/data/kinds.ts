@@ -14,6 +14,7 @@ import { defineAsyncComponent, type Component } from 'vue'
 import { IMAGE_ACCEPT } from '@/data/image/upload'
 import { TABULAR_ACCEPT } from '@/data/table'
 import type { DataType } from '@/project/schema'
+import type { EngineState } from '@/ml/backend'
 import type { StepId, StepTextSlot } from '@/router/steps'
 
 export interface DataKind {
@@ -100,6 +101,17 @@ export interface DataKind {
    */
   readonly preparingKey?: string
   /**
+   * 세기 전 단계의 문구 — **무엇을 준비하는 중인가.**
+   *
+   * `engineState.*`는 상태의 이름일 뿐이라 화면에 혼자 서면 **무엇이 준비되지 않았고
+   * 무엇을 내려받는지가 없다.** 학생이 이 화면에서 가장 오래 기다리는 자리가 여기다
+   * (백본 12.4MB).
+   *
+   * **`Record<EngineState, …>`이라 상태를 더하는 사람은 칸을 채워야 한다.**
+   * `preparingKey`와 짝이다 — 준비가 있는 종류는 둘 다 갖는다(`tests/kinds.spec.ts`).
+   */
+  readonly engineStateKeys?: Readonly<Record<EngineState, string>>
+  /**
    * 프로젝트 요약에서 **이 종류만 답할 수 있는 줄들** (`components/ProjectSummary.vue`).
    *
    * 표는 파일 이름·행·열·타깃·특성이고 이미지는 사진 수·범주 수다. 요약 화면이 그걸
@@ -174,6 +186,13 @@ export const DATA_KINDS: readonly DataKind[] = [
       train: { locked: 'steps.train.image.locked' },
     },
     preparingKey: 'meta.image.preparing',
+    engineStateKeys: {
+      absent: 'meta.image.engineAbsent',
+      downloading: 'meta.image.engineDownloading',
+      downloaded: 'meta.image.engineDownloaded',
+      // 받아 놓은 뒤 사진을 통과시키기 시작하는 순간이다. 곧 세는 문구로 바뀐다.
+      ready: 'meta.image.engineReady',
+    },
     summaryRows: defineAsyncComponent(() => import('@/components/summary/ImageSummaryRows.vue')),
   },
 ]

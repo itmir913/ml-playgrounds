@@ -99,6 +99,10 @@ describe('데이터 종류 등록부', () => {
       const named: [string, string][] = [
         ['labelKey', kind?.labelKey ?? ''],
         ...(kind?.preparingKey === undefined ? [] : [['preparingKey', kind.preparingKey]]),
+        ...Object.entries(kind?.engineStateKeys ?? {}).map(([state, key]) => [
+          `engineStateKeys.${state}`,
+          key,
+        ]),
         ...Object.entries(kind?.stepText ?? {}).flatMap(([step, slots]) =>
           Object.entries(slots).map(([slot, key]) => [`${step}.${slot}`, key]),
         ),
@@ -108,6 +112,18 @@ describe('데이터 종류 등록부', () => {
         expect(typeof value(ko, key), `ko에 ${key}가 없다 (${dataType} ${where})`).toBe('string')
         expect(typeof value(en, key), `en에 ${key}가 없다 (${dataType} ${where})`).toBe('string')
       }
+    }
+  })
+
+  /**
+   * **준비가 있는 종류는 문구 두 벌을 다 갖는다.** 세는 단계(`preparingKey`)만 있고
+   * 그전 단계가 없으면, 화면이 공통 어휘로 떨어져 "준비되지 않음"이라고만 말한다 —
+   * 무엇이 준비되지 않았는지가 없다. 학생이 이 화면에서 가장 오래 기다리는 자리다.
+   */
+  it('준비 문구는 두 벌이 함께 선다', () => {
+    for (const dataType of SUPPORTED_DATA_TYPES) {
+      const kind = dataKindFor(dataType)
+      expect(kind?.engineStateKeys === undefined, dataType).toBe(kind?.preparingKey === undefined)
     }
   })
 
