@@ -142,6 +142,23 @@ function onKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape') close()
 }
 
+/**
+ * 스크롤하면 닫는다 — **다만 패널 자신이 스크롤한 것은 아니다.**
+ *
+ * 닫는 이유는 붙어 있던 자리가 움직이기 때문인데(위 주석), **패널 안을 굴리는 것은 그
+ * 자리를 안 움직인다.** 캡처로 듣느라 패널 안의 스크롤까지 여기로 오는 바람에, 내용이
+ * 넘치는 팝오버는 **읽으려고 굴리는 순간 닫혔다** (2026-08-14, 군집 대표 사진에서
+ * 사용자가 겪었다).
+ *
+ * **상자를 키워서 넘어가는 문제가 아니다.** 내용이 넘칠 수 있는 것은 이미 정해져 있고
+ * (`popover-panel`이 `overflow-y: auto`와 `max-height`를 갖는다), 화면이 작으면 어떤
+ * 크기로도 넘친다.
+ */
+function onScroll(event: Event): void {
+  if (panel.value?.contains(event.target as Node)) return
+  close()
+}
+
 // 열려 있는 동안만 문서를 듣는다. 닫힌 팝오버가 이벤트를 붙들고 있을 이유가 없다.
 // 화면 크기가 바뀌면 다시 잰다 - 가로로 눕히는 동안 열려 있을 수 있다.
 watch(open, (isOpen) => {
@@ -150,7 +167,7 @@ watch(open, (isOpen) => {
   document[method]('keydown', onKeydown as EventListener)
   window[method]('resize', place as EventListener)
   // 캡처로 듣는다 - 표나 작업 공간처럼 **안쪽 상자가 스크롤할 때는 이벤트가 안 올라온다.**
-  document[method]('scroll', close as EventListener, true)
+  document[method]('scroll', onScroll as EventListener, true)
   if (isOpen) void place()
 })
 
@@ -158,7 +175,7 @@ watch(open, (isOpen) => {
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', onPointerDown as EventListener)
   document.removeEventListener('keydown', onKeydown as EventListener)
-  document.removeEventListener('scroll', close as EventListener, true)
+  document.removeEventListener('scroll', onScroll as EventListener, true)
   window.removeEventListener('resize', place as EventListener)
 })
 

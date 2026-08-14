@@ -18,6 +18,7 @@ import {
   answerRank,
   answersInClusters,
   rankAnswersAcross,
+  clusterNumberOf,
   showsClusterNames,
   applyPredictFilter,
   assignAnswerColors,
@@ -1281,6 +1282,30 @@ describe('군집의 답은 번호가 아니라 이름으로 쓴다', () => {
     // 군집 모델을 걸러 낸 학생에게는 할 말이 없다.
     expect(showsClusterNames([classification], true)).toBe(false)
     expect(showsClusterNames([], true)).toBe(false)
+  })
+
+  /**
+   * **군집 답은 문자열로 온다** (`ml/models/kmeans.ts`가 `"0"`을 돌려준다). 화면이 그걸
+   * 잊고 숫자만 받으면 **아무 일도 안 일어나면서 아무 데도 안 우는 결함**이 된다 —
+   * 실제로 답 카드의 팝오버가 그렇게 안 붙었다 (2026-08-14).
+   */
+  it('군집 번호는 문자열로 와도 읽는다', () => {
+    const clustering: PredictableModel = {
+      experiment: experiment([0], onehot, { taskType: 'clustering', target: undefined }),
+      run: runOf('r1', 'kmeans'),
+    }
+    const classification: PredictableModel = {
+      experiment: experiment([0], onehot),
+      run: runOf('r2'),
+    }
+
+    expect(clusterNumberOf(clustering, '2')).toBe(2)
+    expect(clusterNumberOf(clustering, 2)).toBe(2)
+    expect(clusterNumberOf(clustering, undefined)).toBeNull()
+    // 분류 라벨이 "3"인 데이터가 실제로 있다. 그건 군집 번호가 아니다.
+    expect(clusterNumberOf(classification, '3')).toBeNull()
+    // 범주 이름이 답인 군집은 없다 - 숫자로 안 읽히면 그릴 것이 없다.
+    expect(clusterNumberOf(clustering, '개')).toBeNull()
   })
 
   /**

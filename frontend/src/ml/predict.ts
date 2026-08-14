@@ -561,6 +561,26 @@ export function answersInClusters(model: PredictableModel): boolean {
 }
 
 /**
+ * 군집 답의 번호. 군집 답이 아니거나 번호로 안 읽히면 `null`이다.
+ *
+ * **답은 문자열로 온다** — `mlpx-kmeans-v1`이 `"0"`, `"1"`을 돌려준다(`ml/models/kmeans.ts`).
+ * 화면이 그것을 잊고 `typeof value === 'number'`로 물으면 **아무 일도 안 일어나면서
+ * 아무 데도 안 우는 결함**이 된다 — 실제로 그렇게 나갔다(2026-08-14, 답에 팝오버가
+ * 안 붙었다). 그래서 묻는 자리를 여기 하나로 둔다.
+ *
+ * `Number()`가 아니라 정수인지까지 본다. 분류 라벨이 `"3"`인 데이터가 실제로 있고,
+ * 그건 군집 번호가 아니다 — 판정을 유형에서 먼저 거르는 이유도 그것이다.
+ */
+export function clusterNumberOf(
+  model: PredictableModel,
+  value: Prediction | undefined,
+): number | null {
+  if (value === undefined || !answersInClusters(model)) return null
+  const cluster = Number(value)
+  return Number.isInteger(cluster) ? cluster : null
+}
+
+/**
  * 보이는 모델 중에 **군집 번호로 답할 모델**이 있는가. 있으면 화면이 번호의 뜻을 한 줄로
  * 말한다 (open-decisions.md "머리글은 목록 밖에 선다").
  *

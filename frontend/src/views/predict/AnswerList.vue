@@ -86,6 +86,7 @@ import type { Prediction } from '@/ml/metrics'
 import {
   answerRank,
   answersInClusters,
+  clusterNumberOf,
   tallyClassificationAnswers,
   type PredictableModel,
 } from '@/ml/predict'
@@ -160,10 +161,11 @@ function cardAnswer(model: PredictableModel): string | null {
  * 눌러 보고 빈 상자를 본다.
  */
 function evidenceOf(model: PredictableModel) {
-  const value = props.answers.get(model.run.id)?.value
-  if (typeof value !== 'number') return null
+  // **답은 문자열로 온다** (`clusterNumberOf`). 여기서 다시 묻지 않는다.
+  const cluster = clusterNumberOf(model, props.answers.get(model.run.id)?.value)
+  if (cluster === null) return null
   const found = answerEvidenceFor(props.dataType, model.experiment.settings.taskType, model.run)
-  return found ? { panel: found.panel, value } : null
+  return found ? { panel: found.panel, value: cluster } : null
 }
 
 const tally = computed(() => tallyClassificationAnswers(props.models, props.answers))
