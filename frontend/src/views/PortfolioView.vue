@@ -22,7 +22,6 @@ import AppButton from '@/components/AppButton.vue'
 import AppCard from '@/components/AppCard.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
-import AppPopover from '@/components/AppPopover.vue'
 import StepActionBar from '@/components/StepActionBar.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { ClientError } from '@/errors'
@@ -359,8 +358,8 @@ function remove(): void {
 
     <template v-if="started">
       <!--
-        **바가 비어 있으면 안 된다** (architecture.md §8.18). 여기 오는 것 넷 - 가져오기,
-        문항 추가, 좁은 화면의 목차, 그리고 지금 어디까지 왔는지(문항 수와 담긴 양)다.
+        **바가 비어 있으면 안 된다** (architecture.md §8.18). 넓은 화면에 오는 것 셋 -
+        가져오기, 문항 추가, 그리고 지금 어디까지 왔는지(문항 수와 담긴 양)다.
       -->
       <StepActionBar>
         <TemplateSourceMenu
@@ -375,36 +374,19 @@ function remove(): void {
         </AppButton>
 
         <!--
-          **좁은 화면에는 붙박이 목차가 없다** (§8.10.1). 열두 번째 문항에 가는 길이
-          굴리는 것뿐이라 같은 목차를 팝오버에 담는다 - 목록은 한 벌이다.
+          **알려 주는 것은 좁은 화면에서 빠진다** (§8.18). 바가 접히면서 먹는 세로가 곧
+          아래 글 칸의 높이다 - 누를 것이 없으면 화면이 멈추지만, 알려 주는 것이 없으면
+          굴려서 알 수 있다.
         -->
-        <AppPopover class="md:hidden">
-          <template #trigger>
-            <AppButton variant="secondary">{{ t('portfolio.contents') }}</AppButton>
-          </template>
-          <template #default="{ close }">
-            <SectionIndex
-              bare
-              :sections="sections"
-              :active="active ?? undefined"
-              @pick="
-                (id) => {
-                  goTo(id)
-                  close()
-                }
-              "
-            />
-          </template>
-        </AppPopover>
-
-        <span class="text-ink-soft tabular-nums">
+        <span class="text-ink-soft tabular-nums max-md:hidden">
           {{ t('portfolio.progress', { done: written, total: sections.length }) }}
         </span>
 
-        <SizeMeter :used="usedBytes" :limit="MAX_PORTFOLIO_BYTES" />
+        <SizeMeter class="max-md:hidden" :used="usedBytes" :limit="MAX_PORTFOLIO_BYTES" />
 
+        <!-- 결론은 이 화면에서도 primary다 (§8.13.1) - 왼쪽의 거드는 단추들과 무게가 다르다. -->
         <template #end>
-          <AppButton variant="secondary" @click="preview = !preview">
+          <AppButton @click="preview = !preview">
             {{ preview ? t('portfolio.write') : t('portfolio.preview') }}
           </AppButton>
         </template>

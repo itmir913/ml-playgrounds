@@ -23,17 +23,13 @@
  * 쓴 문항에는 그림을 붙인다. 지금 보고 있는 문항도 같다 - 바탕색만이 아니라 **왼쪽에
  * 막대가 선다.**
  *
- * **좁은 화면에서는 같은 것이 팝오버 안에 선다** (`bare`). 판이 아니라 알맹이만 그리는
- * 것 하나가 다르다 - 팝오버가 이미 면과 테두리와 천장을 갖고 있어서, 두 벌이면 상자
- * 안에 상자가 생긴다. **목록을 두 벌로 만들지 않는 것이 이 프롭의 이유다.**
- *
  * **표시한 문항을 자기 안으로 데려온다.** 문항이 열둘이면 목록이 자기 안에서 스크롤하고,
  * 그때 표시가 목록 밖에 있으면 **표시를 해 둔 것이 아무 일도 안 한 것과 같다**
  * (2026-08-15, 사용자 화면에서 실제로 그랬다). 굴리는 것은 이 목록뿐이다 -
  * `scrollIntoView`는 조상을 전부 굴려서 **읽던 자리가 따라 움직인다.**
  */
 
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { ACTION_ICONS } from '@/icons'
@@ -43,8 +39,6 @@ const props = defineProps<{
   sections: readonly PortfolioSection[]
   /** 지금 화면에 보이는 문항. 아직 판정 전이면 없다. */
   active?: string | undefined
-  /** 판 없이 알맹이만. 팝오버 안에 설 때다 - 면과 천장은 팝오버가 이미 갖고 있다. */
-  bare?: boolean
 }>()
 
 const emit = defineEmits<{ pick: [id: string] }>()
@@ -76,17 +70,10 @@ function reveal(id: string | undefined): void {
 }
 
 watch(() => props.active, reveal)
-// 팝오버는 열 때 붙는다. 그때 표시한 줄이 목록 밖에 있으면 열자마자 안 보인다.
-onMounted(() => {
-  reveal(props.active)
-})
 </script>
 
 <template>
-  <div
-    class="flex flex-col"
-    :class="props.bare ? '' : 'rounded-panel border border-line bg-surface p-4 fit-under-step-bar'"
-  >
+  <div class="flex flex-col rounded-panel border border-line bg-surface p-4 fit-under-step-bar">
     <h2 class="font-bold">{{ t('portfolio.contents') }}</h2>
     <p class="mt-1 text-ink-soft tabular-nums">
       {{ t('portfolio.progress', { done, total: props.sections.length }) }}
@@ -97,11 +84,7 @@ onMounted(() => {
       <div class="h-full rounded-pill bg-brand transition-all" :style="{ width: donePercent }" />
     </div>
 
-    <ol
-      ref="list"
-      class="mt-3 flex flex-col"
-      :class="props.bare ? '' : 'min-h-0 flex-1 overflow-y-auto scroll-gutter-stable'"
-    >
+    <ol ref="list" class="mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto scroll-gutter-stable">
       <li v-for="(section, index) in props.sections" :key="section.id">
         <!--
           **막대는 언제나 자리를 차지한다.** 표시된 줄에만 테두리를 주면 그 줄의 글자가
