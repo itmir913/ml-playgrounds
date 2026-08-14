@@ -131,6 +131,18 @@ export const CLIENT_ERROR_CODES = [
   // (open-decisions.md "붙일 때 본 것을 예측 직전에 다시 본다"). 빈 칸
   // (PREDICTION_INPUT_INCOMPLETE)과는 끝까지 나눈다 - 학생이 할 일이 다르다.
   'PREDICT_DATASET_COLUMN_MISSING',
+
+  // 포트폴리오 - project/portfolio-sources.ts, views/PortfolioView.vue
+  // 내장 양식을 못 받았다. **같은 오리진의 정적 파일인데도 네트워크를 탄다**
+  // (mlpx-spec.md §8.7) - 오프라인이거나 학교망이 막았을 수 있다. 조용히 빈손으로
+  // 돌아가지 않는 이유는 누른 사람이 무슨 일이 일어났는지 알아야 하기 때문이고,
+  // 그때도 [빈 양식에서 시작]은 그대로 있다.
+  'PORTFOLIO_TEMPLATE_UNAVAILABLE',
+  // 글이 상한을 넘겼다 (limits.ts의 MAX_PORTFOLIO_BYTES, mlpx-spec.md §8.6.1).
+  // **제약이 아니라 폭주 방지턱이다** - 손으로 쓴 글은 여기 안 닿고, 실제로 걸리는
+  // 것은 붙여넣기 한 번에 들어오는 거대한 텍스트다. 상한이 없으면 안 걸리는 것이
+  // 아니라 저장이 실패하는 모양으로 터진다.
+  'PORTFOLIO_TOO_LARGE',
 ] as const
 
 /**

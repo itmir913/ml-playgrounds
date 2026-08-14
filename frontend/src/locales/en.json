@@ -355,7 +355,6 @@
     "savedCount": "This computer holds {count} project | This computer holds {count} projects"
   },
   "common": {
-    "underConstruction": "This screen is still being built.",
     "cancel": "Cancel",
     "dismiss": "Dismiss",
     "on": "On",
@@ -478,13 +477,41 @@
     "TEST_DATASET_COLUMN_MISSING": "The test data file is missing columns from the training data. ({columns})",
     "TEST_DATASET_NO_USABLE_ROWS": "The test data has no rows that can be scored.",
     "PREDICT_DATASET_COLUMN_MISSING": "The file to predict is missing columns the visible models use. ({columns})",
+    "PORTFOLIO_TEMPLATE_UNAVAILABLE": "Could not fetch the form. Check your connection and try again. You can also start from a blank form.",
+    "PORTFOLIO_TOO_LARGE": "The portfolio is larger than it can be. ({limitMb}MB)",
     "IMAGE_ZIP_INVALID": "Could not open the zip file. Try compressing your photo folder again.",
     "IMAGE_ZIP_NO_IMAGES": "There are no photos in this zip file.",
     "IMAGE_TOO_MANY_PHOTOS": "A project can hold up to {limit} photos. Remove some photos, or upload fewer at a time. (has {current}, adding {incoming})",
     "IMAGE_CATEGORY_NAME_INVALID": "A folder here cannot be used as a category name. Rename the folder and compress it again. ({name})"
   },
   "portfolio": {
-    "orphanTitle": "Answers to earlier questions"
+    "orphanTitle": "Answers to earlier questions",
+    "orphanLead": "These answers belong to questions the form no longer has.",
+    "startReason": "There is no form yet.",
+    "startNext": "Start from a blank form, or bring in a form someone prepared.",
+    "startEmpty": "Start from a blank form",
+    "import": "Bring in a form",
+    "source": {
+      "preset": "Bring in the built-in form"
+    },
+    "imported": "Added {count} questions.",
+    "importedNone": "Nothing was added - the form already has these questions.",
+    "firstSection": "What did you do?",
+    "newSection": "New question",
+    "editSection": "Edit this question",
+    "addSection": "Add a question",
+    "sectionTitle": "Question",
+    "sectionDescription": "Guidance",
+    "answerHint": "Write your answer here.",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "remove": "Delete this question",
+    "removeTitle": "Delete this question?",
+    "removeLead": "The question and what you wrote in it both go away. This cannot be undone.",
+    "removeConfirm": "Delete",
+    "unanswered": "Not written yet.",
+    "preview": "See the finished write-up",
+    "write": "Back to writing"
   },
   "project": {
     "export": "Save to a file",

@@ -1,3 +1,6 @@
+// @vitest-environment jsdom
+// 양식 출처 등록부를 통해 `i18n.ts`에 닿고, 그 파일에 DOM 부재 가드가 있다.
+// 밝히지 않으면 그 가드의 대체 경로를 검사하게 된다 (ui-rules.spec.ts).
 /**
  * 로케일 파일 사이의 계약.
  *
@@ -30,6 +33,7 @@ import { PER_CLASS_METRICS } from '../src/ml/results'
 import { COLUMN_KINDS } from '../src/ml/preprocess'
 import { FEATURE_NOTES, requiredTargetKind } from '../src/ml/selection'
 import { EXPORT_STATES } from '../src/project/export-state'
+import { TEMPLATE_SOURCES } from '../src/project/portfolio-sources'
 import {
   CATEGORICAL_ENCODINGS,
   DATA_TYPES,
@@ -350,6 +354,7 @@ describe('프런트엔드 전용 코드', () => {
       ['save', EXPORT_STATES],
       ['language', LOCALE_TAGS],
       ['dataTypes', DATA_TYPES],
+      ['portfolio.source', TEMPLATE_SOURCES.map((source) => source.id)],
     ] as const
 
     for (const [namespace, codes] of pairs) {
@@ -681,6 +686,7 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
     'save.', //   〃
     'language.', //   〃
     'dataTypes.', //   〃
+    'portfolio.source.', // 양식 출처마다 이름이 있다
     'portfolio.preset.', // 지원 언어마다 내장 양식 파일이 있다 (portfolio-preset.spec.ts)
     'metrics.', // 지표마다 이름과 설명이 있다
     'metricHelp.', //   〃
@@ -803,9 +809,9 @@ describe('두 언어가 나란히 말한다', () => {
     // 자체라 배지가 이미 말한 낱말이 된다. 혼자 서는 배지는 낱말이 있어야 하고
     // (`1001 photos`), 이름 옆의 값은 숫자만 남아야 한다 (`Photos 1001`).
     ['meta.image.count', 'meta.image.countUnit'],
-    // 프로젝트는 영구히 없애는 것(Delete)이고 파일은 떼는 것(Remove)이다. 한국어는
-    // 둘 다 `지우기`로 굳어 있다.
-    ['predict.tabular.fileRemove', 'projects.delete'],
+    // 프로젝트와 포트폴리오 문항은 영구히 없애는 것(Delete)이고 파일은 떼는 것
+    // (Remove)이다. 한국어는 셋 다 `지우기`로 굳어 있다.
+    ['portfolio.removeConfirm', 'predict.tabular.fileRemove', 'projects.delete'],
     // 레일의 단계 이름에는 줄바꿈 자리를 심어 두었다(`StepRail`). 같은 낱말이지만
     // 글자가 다르다.
     ['preprocess.tabular.effect', 'steps.preprocess.label'],

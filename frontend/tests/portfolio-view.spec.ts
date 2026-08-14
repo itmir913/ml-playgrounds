@@ -1,0 +1,92 @@
+// @vitest-environment jsdom
+// 화면을 실제로 마운트한다 - 여기서 잡으려는 것은 화면과 파일이 갈리는 자리다.
+/**
+ * 포트폴리오 화면 (`views/PortfolioView.vue`, mlpx-spec.md §8.3).
+ *
+ * **빈 프로젝트에서 열어도 화면이 비지 않는다**는 것과, **상한에 걸렸을 때 화면이 파일과
+ * 다른 글자를 들고 있지 않다**는 것 둘을 본다. 뒤엣것은 눈으로는 안 보인다 - 값이
+ * 안 바뀌면 Vue가 DOM을 다시 안 쓰기 때문에 거절당한 글자가 칸에 그대로 남는다
+ * (architecture.md §8.15.1).
+ *
+ * 나머지 판단(문항을 지우면 답도 지운다 등)은 `portfolio.spec.ts`가 화면 없이 덮는다.
+ */
+
+import { createPinia, setActivePinia } from 'pinia'
+import { mount } from '@vue/test-utils'
+import { beforeEach, describe, expect, it } from 'vitest'
+
+import PortfolioView from '../src/views/PortfolioView.vue'
+import { i18n, setLocale } from '../src/i18n'
+import { MAX_PORTFOLIO_BYTES } from '../src/limits'
+import { newProjectDocument } from '../src/project/create'
+import type { ProjectFile } from '../src/project/format'
+import { useProjectStore } from '../src/stores/project'
+
+function project(): ProjectFile {
+  const document = newProjectDocument(
+    { name: '테스트', locale: 'ko', dataType: 'tabular' },
+    {
+      projectId: '550e8400-e29b-41d4-a716-446655440000',
+      createdAt: '2026-08-14T00:00:00.000Z',
+      randomState: 42,
+    },
+  )
+  return { document, models: new Map(), images: new Map(), embeddings: new Map() }
+}
+
+function mountView() {
+  useProjectStore().file = project()
+  return mount(PortfolioView, { global: { plugins: [i18n] } })
+}
+
+beforeEach(async () => {
+  setActivePinia(createPinia())
+  await setLocale('ko')
+})
+
+describe('양식이 없어도 화면이 비지 않는다', () => {
+  it('시작할 두 갈래를 준다', () => {
+    const view = mountView()
+    const labels = view.findAll('button').map((button) => button.text())
+    expect(labels).toContain('빈 양식에서 시작')
+    expect(labels).toContain('양식 가져오기')
+  })
+
+  it('빈 양식은 네트워크 없이 선다 - 문항 하나로 시작한다', async () => {
+    const view = mountView()
+    const start = view.findAll('button').find((button) => button.text() === '빈 양식에서 시작')
+    await start?.trigger('click')
+
+    const sections = useProjectStore().file?.document.portfolio.template.sections ?? []
+    expect(sections).toHaveLength(1)
+    expect(view.find('textarea').exists()).toBe(true)
+  })
+
+  it('로케일 키가 화면에 그대로 뜨지 않는다', () => {
+    expect(mountView().text()).not.toMatch(/portfolio[.]\w+/)
+  })
+})
+
+describe('상한에 걸리면 화면이 파일과 갈리지 않는다', () => {
+  it('거절한 글이 칸에 남지 않는다', async () => {
+    const view = mountView()
+    const start = view.findAll('button').find((button) => button.text() === '빈 양식에서 시작')
+    await start?.trigger('click')
+
+    const store = useProjectStore()
+    const id = store.file?.document.portfolio.template.sections[0]?.id ?? ''
+    const textarea = view.find('textarea')
+
+    // 먼저 받아들여지는 글 하나. 이것이 되돌아갈 자리다.
+    ;(textarea.element as HTMLTextAreaElement).value = '짧은 글'
+    await textarea.trigger('input')
+    expect(store.file?.document.portfolio.answers[id]).toBe('짧은 글')
+
+    // 그다음 상한을 넘기는 붙여넣기. **거절하고 칸을 파일의 값으로 되돌린다.**
+    ;(textarea.element as HTMLTextAreaElement).value = 'a'.repeat(MAX_PORTFOLIO_BYTES + 1)
+    await textarea.trigger('input')
+
+    expect(store.file?.document.portfolio.answers[id]).toBe('짧은 글')
+    expect((textarea.element as HTMLTextAreaElement).value).toBe('짧은 글')
+  })
+})

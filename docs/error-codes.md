@@ -220,6 +220,20 @@ PREDICTION_INPUT_INCOMPLETE
 파일을 받은 뒤 학생이 특성을 바꿔 재학습하면 이 자리에 온다
 (`open-decisions.md` "붙일 때 본 것을 예측 직전에 다시 본다").
 
+**포트폴리오** (`project/portfolio-sources.ts`, `views/PortfolioView.vue`)
+```
+PORTFOLIO_TEMPLATE_UNAVAILABLE, PORTFOLIO_TOO_LARGE
+```
+
+앞은 **내장 양식을 못 받은 것**이다. `public/`의 정적 파일인데도 네트워크를 타므로
+(`mlpx-spec.md` §8.7) 오프라인이나 학교망에서 실패할 수 있다. 조용히 빈손으로 돌아가지
+않는 이유는 누른 사람이 무슨 일이 일어났는지 알아야 하기 때문이고, **그때도 [빈 양식에서
+시작]은 그대로 있다** — 바닥이 프리셋이 아닌 이유가 이것이다.
+
+뒤는 **글과 첨부를 합친 상한**을 넘긴 것이다 (`limits.ts`의 `MAX_PORTFOLIO_BYTES`,
+`mlpx-spec.md` §8.6.1). 제약이 아니라 폭주 방지턱이다 — 손으로 쓴 글은 여기 안 닿고,
+실제로 걸리는 것은 붙여넣기 한 번에 들어오는 거대한 텍스트다.
+
 **경고 — 실패가 아니다** (`ml/engines/mljs.ts`의 svm·logistic 트레이너)
 ```
 SVM_NOT_CONVERGED
