@@ -709,6 +709,7 @@ async function run(): Promise<void> {
             </div>
 
             <AnswerList
+              data-type="tabular"
               :models="visible"
               :answers="answers"
               :experiment-names="experimentNames"

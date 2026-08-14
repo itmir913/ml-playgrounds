@@ -56,17 +56,21 @@ const props = withDefaults(
      *
      * **불리언이었다가 셋이 되면서 이름이 바뀌었다** — `wide`는 "넓게"였지 "얼마나"가
      * 아니라서, 셋째가 생기는 순간 `wide && !medium` 같은 조합이 생길 자리였다.
+     *
+     * `square`만 높이도 정한다. 정사각형 사진을 격자로 세우는 자리가 그렇다 — 상자가
+     * 내용을 따라 세로로만 길어지면 3×3이 아니라 줄줄이가 된다.
      */
-    size?: 'default' | 'medium' | 'wide'
+    size?: 'default' | 'medium' | 'wide' | 'square'
   }>(),
   { align: 'left', side: 'bottom', size: 'default' },
 )
 
 /** 이름 -> 폭 유틸리티. 기본은 `popover-panel`이 이미 갖고 있어 더할 것이 없다. */
-const WIDTHS: Readonly<Record<'default' | 'medium' | 'wide', string>> = {
+const WIDTHS: Readonly<Record<NonNullable<typeof props.size>, string>> = {
   default: '',
   medium: 'popover-panel-medium',
   wide: 'popover-panel-wide',
+  square: 'popover-panel-square',
 }
 
 const open = ref(false)

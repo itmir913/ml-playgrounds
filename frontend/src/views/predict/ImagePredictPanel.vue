@@ -685,6 +685,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
 
         <div class="min-w-0 flex-1">
           <AnswerList
+            data-type="image"
             :models="visible"
             :answers="answers.get(photo.hash) ?? new Map()"
             :experiment-names="experimentNames"

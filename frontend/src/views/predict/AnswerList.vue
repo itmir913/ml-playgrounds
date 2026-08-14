@@ -90,8 +90,16 @@ import {
   type PredictableModel,
 } from '@/ml/predict'
 import { hyperparametersOf, whereTrainedKeyOf } from '@/ml/results'
+import { answerEvidenceFor } from '@/ml/answer-evidence'
+import type { DataType } from '@/project/schema'
 
 const props = defineProps<{
+  /**
+   * 무엇을 예측하는가. **여기서 비교하지 않는다** — 답에 붙일 증거를 등록부에 물을 때만
+   * 쓴다 (`ml/answer-evidence.ts`). 목록이 종류를 알고 갈라지기 시작하면, 음성이 오는
+   * 날 고쳐야 할 파일이 등록부 하나가 아니라 이 화면이 된다 (architecture.md §9.1).
+   */
+  dataType: DataType
   models: readonly PredictableModel[]
   /** run id -> 답. 아직 안 눌렀으면 비어 있다. */
   answers: ReadonlyMap<string, Answer>
@@ -142,6 +150,20 @@ function cardAnswer(model: PredictableModel): string | null {
   if (value === undefined) return null
   if (!answersInClusters(model)) return answerText(value)
   return t('results.clusterName', { index: Number(value) })
+}
+
+/**
+ * 이 답에 붙일 증거. **등록부가 고른다** (`ml/answer-evidence.ts`) — 이 목록은 무엇이
+ * 붙는지 모르고, 붙을 것이 없는 조합이 정상이다(분류·표 군집).
+ *
+ * 답이 없으면 붙일 것도 없다. 아직 안 누른 카드에 여는 단추만 서 있으면 학생은 그것부터
+ * 눌러 보고 빈 상자를 본다.
+ */
+function evidenceOf(model: PredictableModel) {
+  const value = props.answers.get(model.run.id)?.value
+  if (typeof value !== 'number') return null
+  const found = answerEvidenceFor(props.dataType, model.experiment.settings.taskType, model.run)
+  return found ? { panel: found.panel, value } : null
 }
 
 const tally = computed(() => tallyClassificationAnswers(props.models, props.answers))
@@ -320,12 +342,57 @@ function bars(model: PredictableModel): ProbabilityBar[] {
           <!--
             **답은 크게 쓴다.** 이 화면에서 학생이 보러 온 것이 이 한 낱말이다.
           -->
-          <p
-            v-if="cardAnswer(model) !== null"
-            class="text-xl font-bold tabular-nums text-brand-strong"
-          >
-            {{ cardAnswer(model) }}
-          </p>
+          <div v-if="cardAnswer(model) !== null" class="flex items-center gap-1.5">
+            <!--
+              **답이 곧 트리거다.** 증거가 붙는 답(군집 번호)은 그 글자를 눌러 연다 —
+              옆에 아이콘을 하나 더 두면 한 카드에 여는 표시가 둘이 된다. 증거가 없는
+              답은 지금까지처럼 그냥 글자다.
+            -->
+            <p v-if="!evidenceOf(model)" class="text-xl font-bold tabular-nums text-brand-strong">
+              {{ cardAnswer(model) }}
+            </p>
+
+            <!--
+              **답의 증거.** 군집 번호처럼 그 자체로는 아무 말도 안 하는 답에 붙는다
+              (open-decisions.md "군집 답의 증거는 팝오버가 갖는다").
+
+              **목록 위나 카드 안에 늘 그리지 않는다** — 위에 그리면 답이 나올 때 아래가
+              밀리고, 카드마다 그리면 `사진 수 × 모델 수 × 아홉 장`이 한 쪽에 뜬다.
+              팝오버는 흐름 밖에 뜨고 **연 것만** 그린다.
+
+              위로 여는 이유는 손잡이 팝오버와 같다 — 아래가 전부 답이다.
+            -->
+            <AppPopover v-if="evidenceOf(model)" side="top" size="square">
+              <template #trigger="{ open }">
+                <!--
+                  **아이콘을 안 단다** (2026-08-14, 사용자). 이 카드에는 실험 이름의 설명
+                  팝오버가 이미 (i) 아이콘을 달고 있어서, 둘이 서면 무엇이 무엇의 설명인지
+                  자리와 문맥으로만 갈린다.
+
+                  **점선 밑줄은 이 앱에서 이미 "눌러도 아무 일이 안 일어나고 설명만
+                  펼쳐진다"는 뜻이다** (`AppButton` 주석의 표기 규칙). 실선은 실제로
+                  무언가를 하는 것(ghost 버튼)이라 둘이 안 헷갈린다.
+                -->
+                <button
+                  type="button"
+                  :aria-expanded="open"
+                  :aria-label="t('predict.clusterEvidenceOpen')"
+                  class="rounded-control text-xl font-bold tabular-nums text-brand-strong underline decoration-dotted decoration-1 underline-offset-4 transition-colors hover:text-brand"
+                >
+                  {{ cardAnswer(model) }}
+                </button>
+              </template>
+
+              <component
+                :is="evidenceOf(model)?.panel"
+                :input="{
+                  experiment: model.experiment,
+                  run: model.run,
+                  value: evidenceOf(model)?.value ?? 0,
+                }"
+              />
+            </AppPopover>
+          </div>
         </div>
 
         <!--
