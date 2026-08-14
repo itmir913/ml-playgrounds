@@ -39,6 +39,7 @@ import {
   type Answer,
   type FilterAxisId,
   type PredictableModel,
+  rankAnswersAcross,
   showsClusterNames,
   type PredictFilter,
 } from '@/ml/predict'
@@ -200,6 +201,17 @@ const algorithmOptions = computed<FilterOption[]>(() => {
 
 /** 필터를 지난 모델. 사유가 있는 카드도 포함한다 — 꺼진 이유는 필터와 별개다. */
 const visible = computed(() => applyPredictFilter(models.value, filter.value))
+
+/**
+ * `값 -> 등수`. **사진 전부를 모아 한 번 매긴다** (architecture.md §8.13.1).
+ *
+ * 사진마다 매기면 `몰루 1개 · 0 1개`처럼 동점일 때 정렬이 뒤집혀 **같은 답이 사진마다
+ * 다른 색**을 받는다. 화면에서 실제로 그렇게 났다.
+ *
+ * **쪽에 보이는 것만이 아니라 지금 올린 사진 전부를 본다** — 쪽을 넘길 때마다 색이
+ * 바뀌면 방금 본 카드를 못 찾는다.
+ */
+const ranks = computed(() => rankAnswersAcross(visible.value, answers.value.values()))
 const visibleUsable = computed(() => visible.value.filter((entry) => entry.reason === undefined))
 
 /**
@@ -621,6 +633,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
             :models="visible"
             :answers="answers.get(photo.hash) ?? new Map()"
             :experiment-names="experimentNames"
+            :ranks="ranks"
             :waiting="t('predict.image.waiting')"
           />
         </div>

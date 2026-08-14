@@ -17,6 +17,7 @@ import { loadModel, REFERENCE_FORMAT, type ProbaModel } from '../src/ml/models'
 import {
   answerRank,
   answersInClusters,
+  rankAnswersAcross,
   showsClusterNames,
   applyPredictFilter,
   assignAnswerColors,
@@ -1194,6 +1195,53 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
 
       expect(grid[1]).toEqual(['1', 'a', ''])
     })
+  })
+})
+
+describe('색은 화면 전체에서 한 번 정한다', () => {
+  const models: PredictableModel[] = [
+    { experiment: experiment([0], onehot), run: runOf('r1') },
+    { experiment: experiment([0], onehot), run: runOf('r2') },
+  ]
+
+  const answersOf = (a: string, b: string) =>
+    new Map([
+      ['r1', { value: a } as Answer],
+      ['r2', { value: b } as Answer],
+    ])
+
+  /**
+   * **사진마다 매기면 동점에서 정렬이 뒤집힌다.** `몰루 1개 · 0 1개`가 두 사진에서
+   * 각각 나오면 벌마다 1등이 달라지고, 같은 답이 사진마다 다른 색을 받는다.
+   * 화면에서 실제로 그렇게 났다.
+   */
+  it('사진이 여럿이어도 같은 답은 같은 등수다', () => {
+    const ranks = rankAnswersAcross(models, [answersOf('몰루', '0'), answersOf('0', '몰루')])
+    expect(ranks).not.toBeNull()
+    // 두 벌을 합치면 둘 다 2개씩이고, 어느 쪽이 1등이든 **하나의 답이 하나의 등수**다.
+    expect(new Set(ranks?.values()).size).toBe(2)
+  })
+
+  /**
+   * 한 사진 안에서만 보면 갈릴 것이 없어 색이 없었다. 화면 전체로 보면 그 값은
+   * **정체성을 가진 값**이고, "이 사진은 전부 몰루"가 같은 색 넉 장으로 보인다.
+   */
+  it('한 벌이 전부 같은 답이어도 다른 벌에서 갈렸으면 등수가 있다', () => {
+    const ranks = rankAnswersAcross(models, [answersOf('몰루', '몰루'), answersOf('0', '0')])
+    expect(ranks?.get('몰루')).not.toBeUndefined()
+    expect(ranks?.get('0')).not.toBeUndefined()
+  })
+
+  it('답이 한 가지뿐이면 갈릴 것이 없다', () => {
+    expect(rankAnswersAcross(models, [answersOf('몰루', '몰루')])).toBeNull()
+  })
+
+  /** 표 예측은 벌이 하나다. 그 자리에서 결과가 예전과 같아야 한다. */
+  it('벌이 하나면 그 벌만 센 것과 같다', () => {
+    const answers = answersOf('몰루', '0')
+    expect(rankAnswersAcross(models, [answers])).toEqual(
+      rankAnswers(tallyClassificationAnswers(models, answers)),
+    )
   })
 })
 

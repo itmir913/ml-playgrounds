@@ -625,6 +625,30 @@ export function rankAnswers(tally: readonly AnswerCount[]): ReadonlyMap<Predicti
 }
 
 /**
+ * **화면 전체의 등수** — 여러 벌의 답을 모아 한 번 매긴다 (architecture.md §8.13.1).
+ *
+ * **사진 예측은 답이 사진 수만큼 있다.** 벌마다 따로 매기면 `몰루 1개 · 0 1개`처럼
+ * 동점일 때 정렬이 뒤집혀 **같은 답이 사진마다 다른 색**을 받는다. 실제로 그렇게 났다.
+ *
+ * **개수는 여기서 안 쓴다.** 칩이 보여주는 수는 그 사진에 대한 사실이라 벌마다 따로
+ * 세고(`tallyClassificationAnswers`), 이 함수가 정하는 것은 **색의 순서뿐**이다.
+ *
+ * 표 예측은 벌이 하나라 결과가 `rankAnswers(tally)`와 같다.
+ */
+export function rankAnswersAcross(
+  models: readonly PredictableModel[],
+  answerSets: Iterable<ReadonlyMap<string, Answer>>,
+): ReadonlyMap<Prediction, number> | null {
+  const counts = new Map<Prediction, number>()
+  for (const answers of answerSets) {
+    for (const entry of tallyClassificationAnswers(models, answers)) {
+      counts.set(entry.value, (counts.get(entry.value) ?? 0) + entry.count)
+    }
+  }
+  return rankAnswers([...counts].map(([value, count]) => ({ value, count })))
+}
+
+/**
  * 이 모델의 답 등수. **분류에만, 등수가 있을 때만 있다** (architecture.md 8.13.1).
  *
  * **화면이 아니라 여기 있다** (§9.1). "다수결은 분류에만 있다"는 위 집계가 이미 아는

@@ -42,6 +42,7 @@ import {
   numericRanges,
   sampleRow,
   showsClusterNames,
+  rankAnswersAcross,
   predictableModels,
   trainingRowsFor,
   type Answer,
@@ -207,6 +208,13 @@ function toggleAll(axis: FilterAxisId): void {
 
 /** 필터를 지난 것만. 안 쓰는 모델의 카드도 포함한다 - 사유는 필터와 별개다. */
 const visible = computed(() => applyPredictFilter(models.value, filter.value))
+
+/**
+ * `값 -> 등수`. **색의 순서만 정한다** (architecture.md §8.13.1). 여기는 답이 한 벌이라
+ * 화면 단위와 목록 단위가 같은 말이지만, **판정이 사는 자리는 사진 예측과 같아야 한다** —
+ * 갈리면 두 화면이 다른 규칙으로 색을 칠한다.
+ */
+const ranks = computed(() => rankAnswersAcross(visible.value, [answers.value]))
 
 /** **셈은 스크립트에서 만든다** — `t()` 옆에 계산이 붙으면 문장을 조각내는 것과
  * 구별되지 않아 `tests/i18n-usage.spec.ts`가 잡는다 (`InputRow`와 같은 이유). */
@@ -700,6 +708,7 @@ async function run(): Promise<void> {
               :models="visible"
               :answers="answers"
               :experiment-names="experimentNames"
+              :ranks="ranks"
               :waiting="t('predict.tabular.waiting')"
             >
               <!--

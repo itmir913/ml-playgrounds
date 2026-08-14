@@ -1,3 +1,60 @@
+<script lang="ts">
+/**
+ * **팔레트는 모듈에서 한 번 섞는다** (architecture.md §8.13.1).
+ *
+ * `<script setup>`은 목록 하나마다 다시 실행되므로 거기서 섞으면 **사진 스무 장짜리
+ * 화면에서 셔플이 스무 번 돈다** — 같은 등수에 사진마다 다른 색이 배정된다. 목록이
+ * 하나뿐이던 시절에는 "인스턴스마다"와 "페이지마다"가 같은 말이었고, 이미지가
+ * 들어오면서 갈라졌다. 여기 두면 **페이지당 한 번**이라 세션 중에는 고정이면서
+ * 매번 다른 성질은 그대로다.
+ */
+
+import type { Answer } from '@/ml/predict'
+
+/**
+ * **재수출은 이 블록에 있어야 한다.** `<script setup>` 안의 `export`는 컴파일러가
+ * 못 받는다 — 블록이 둘로 갈리면서 옮겨 온 자리다.
+ */
+export type { Answer }
+
+/** 한 번 섞은 새 배열. 제자리에서 안 바꾼다 - 원본을 공유하는 곳이 있으면 그쪽이 놀란다. */
+function shuffled<T>(items: readonly T[]): T[] {
+  const copy = [...items]
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const temp = copy[i]!
+    copy[i] = copy[j]!
+    copy[j] = temp
+  }
+  return copy
+}
+
+/**
+ * 값마다 다른 색. **7개까지만 있다.** 값 종류가 이보다 늘면 8등부터는 전부 같은
+ * 회색이다 - 갈림표는 "값별로 다른 색"이 필요하지 "무한히 다른 색"이 필요하지 않고,
+ * 색이 여덟아홉 개를 넘으면 어차피 눈으로 못 가른다 (architecture.md 8.13.1).
+ *
+ * **문자열을 통째로 적는다.** `` `border-chart-${n}` `` 처럼 이어 붙이면 Tailwind가
+ * 소스에서 클래스 이름을 못 찾아 그 색이 빌드에서 통째로 빠진다 - CLAUDE.md §4가 임의
+ * 값을 막는 것과 같은 이유로, 만들어 붙인 이름도 안 된다.
+ *
+ * **등수와 색의 대응은 페이지가 뜰 때 한 번 섞는다.** 색은 순위표가 아니라 "같은
+ * 값이면 같은 색"만 보장하면 되므로, 1등이 매번 chart-1로 고정될 이유가 없다.
+ * 고정하면 분류가 대개 두세 갈래라 chart-1·2만 늘 쓰이고 나머지 다섯은 안 쓰인
+ * 채로 남는다. **답이 갱신되는 동안에는 다시 안 섞는다** - [예측]을 다시 누를 때마다
+ * 색이 바뀌면 방금 보던 카드를 못 찾는다.
+ */
+const CHART_CLASSES = shuffled([
+  'border-chart-1 bg-chart-1-soft',
+  'border-chart-2 bg-chart-2-soft',
+  'border-chart-3 bg-chart-3-soft',
+  'border-chart-4 bg-chart-4-soft',
+  'border-chart-5 bg-chart-5-soft',
+  'border-chart-6 bg-chart-6-soft',
+  'border-chart-7 bg-chart-7-soft',
+])
+</script>
+
 <script setup lang="ts">
 /**
  * 모델들의 답 (architecture.md §8.13.1).
@@ -29,14 +86,10 @@ import type { Prediction } from '@/ml/metrics'
 import {
   answerRank,
   answersInClusters,
-  rankAnswers,
   tallyClassificationAnswers,
-  type Answer,
   type PredictableModel,
 } from '@/ml/predict'
 import { hyperparametersOf, whereTrainedKeyOf } from '@/ml/results'
-
-export type { Answer }
 
 const props = defineProps<{
   models: readonly PredictableModel[]
@@ -50,6 +103,14 @@ const props = defineProps<{
    * **사진 예측 화면에 "값을 채우고 [예측]을 누르면"이 떴다.**
    */
   waiting: string
+  /**
+   * `값 -> 등수`. **화면 전체에서 매겨 내려온다** (`rankAnswersAcross`).
+   *
+   * 여기서 매기면 사진마다 따로 매겨져, 동점일 때 정렬이 뒤집혀 **같은 답이 사진마다
+   * 다른 색**을 받는다. 갈림표의 **개수**는 여전히 이 목록이 받은 답으로 센다 —
+   * 그건 그 사진에 대한 사실이다.
+   */
+  ranks: ReadonlyMap<Prediction, number> | null
 }>()
 
 const { t } = useI18n()
@@ -84,52 +145,13 @@ function cardAnswer(model: PredictableModel): string | null {
 }
 
 const tally = computed(() => tallyClassificationAnswers(props.models, props.answers))
-const ranks = computed(() => rankAnswers(tally.value))
 
 /** 갈림표는 많이 나온 답부터 늘어놓는다 - 카드 색의 1등이 표에서도 맨 앞이다. */
 const rankedTally = computed(() => {
-  const map = ranks.value
+  const map = props.ranks
   if (map === null) return tally.value
   return [...tally.value].sort((a, b) => (map.get(a.value) ?? 0) - (map.get(b.value) ?? 0))
 })
-
-/** 한 번 섞은 새 배열. 제자리에서 안 바꾼다 - 원본을 공유하는 곳이 있으면 그쪽이 놀란다. */
-function shuffled<T>(items: readonly T[]): T[] {
-  const copy = [...items]
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    const temp = copy[i]!
-    copy[i] = copy[j]!
-    copy[j] = temp
-  }
-  return copy
-}
-
-/**
- * 값마다 다른 색. **7개까지만 있다.** 값 종류가 이보다 늘면 8등부터는 전부 같은
- * 회색이다 - 갈림표는 "값별로 다른 색"이 필요하지 "무한히 다른 색"이 필요하지 않고,
- * 색이 여덟아홉 개를 넘으면 어차피 눈으로 못 가른다 (architecture.md 8.13.1).
- *
- * **문자열을 통째로 적는다.** `` `border-chart-${n}` `` 처럼 이어 붙이면 Tailwind가
- * 소스에서 클래스 이름을 못 찾아 그 색이 빌드에서 통째로 빠진다 - CLAUDE.md §4가 임의
- * 값을 막는 것과 같은 이유로, 만들어 붙인 이름도 안 된다.
- *
- * **등수와 색의 대응은 뜬다(mount) 때마다 한 번 섞는다.** 색은 순위표가 아니라
- * "같은 값이면 같은 색"만 보장하면 되므로, 1등이 매번 chart-1로 고정될 이유가 없다.
- * 고정하면 분류가 대개 두세 갈래라 chart-1·2만 늘 쓰이고 나머지 다섯은 안 쓰인
- * 채로 남는다. **답이 갱신되는 동안에는 다시 안 섞는다** - [예측]을 다시 누를 때마다
- * 색이 바뀌면 방금 보던 카드를 못 찾는다. 그래서 반응형 값이 아니라 이 컴포넌트가
- * 뜰 때 한 번만 계산해 상수처럼 쓴다.
- */
-const CHART_CLASSES = shuffled([
-  'border-chart-1 bg-chart-1-soft',
-  'border-chart-2 bg-chart-2-soft',
-  'border-chart-3 bg-chart-3-soft',
-  'border-chart-4 bg-chart-4-soft',
-  'border-chart-5 bg-chart-5-soft',
-  'border-chart-6 bg-chart-6-soft',
-  'border-chart-7 bg-chart-7-soft',
-])
 
 /**
  * 카드 테두리·배경. `null`은 갈리지 않았거나(값이 하나뿐) 회귀 모델이다 - 이때는
@@ -140,7 +162,7 @@ function toneClass(rank: number | null): string {
 }
 
 function cardClass(model: PredictableModel): string {
-  return toneClass(answerRank(model, props.answers, ranks.value))
+  return toneClass(answerRank(model, props.answers, props.ranks))
 }
 
 /**
@@ -149,7 +171,7 @@ function cardClass(model: PredictableModel): string {
  * 카드였더라"를 표에서 못 찾았다.
  */
 function tallyChipClass(value: Prediction): string {
-  const rank = ranks.value?.get(value) ?? null
+  const rank = props.ranks?.get(value) ?? null
   return (rank !== null && CHART_CLASSES[rank]) || 'border-line-strong bg-surface'
 }
 
