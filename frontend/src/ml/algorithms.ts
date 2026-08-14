@@ -24,6 +24,13 @@
 
 import {
   MLJS_DECISION_TREE_ROW_LIMIT,
+  MLJS_IMAGE_DECISION_TREE_ROW_LIMIT,
+  MLJS_IMAGE_KMEANS_ROW_LIMIT,
+  MLJS_IMAGE_KNN_ROW_LIMIT,
+  MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT,
+  MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT,
+  MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT,
+  MLJS_IMAGE_SVM_ROW_LIMIT,
   MLJS_KMEANS_ROW_LIMIT,
   MLJS_KNN_ROW_LIMIT,
   MLJS_LINEAR_REGRESSION_ROW_LIMIT,
@@ -66,8 +73,10 @@ export interface Algorithm extends AlgorithmSpec {
  * 빼지 않는다** - 표에서 잘 되던 것이 이미지에서 안 되는 것을 학생이 직접 보는 것이 이
  * 도구가 줄 수 있는 수업 장면이다. 회귀만 닫혀 있다(백본 등록부가 과제를 좁힌다).
  *
- * **`maxRows`는 표에서 잰 값이다.** 이미지는 특성이 1,280개라 같은 행 수가 같은 시간을
- * 뜻하지 않는다 - 이미지의 상한은 사진 수로 따로 재야 한다 (open-decisions.md #13).
+ * **`maxRows`는 데이터 종류마다 다르다** (2026-08-14에 쟀다, open-decisions.md #13).
+ * 이미지는 특성이 1,280개라 같은 행 수가 같은 시간을 뜻하지 않는다 - 표에서 2만 행이
+ * 22초인 결정 트리가 사진 1,500장에서 136초다. **트리 계열 둘만 눈에 띄게 낮고, 나머지는
+ * 사진 수 상한을 그대로 쓴다.**
  *
  * **성능이 낮다는 이유로 빼지 않는다.** 엔진마다 숫자가 다른 것은 이 설계가 이미
  * 받아들인 사실이고(그래서 run.engine을 기록한다), 어디까지가 "낮은 것"이고 어디부터가
@@ -79,8 +88,12 @@ export const ALGORITHMS: readonly Algorithm[] = [
     dataTypes: { tabular: true, image: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
-    // 20000행 22초. 분할 탐색이 노드마다 O(특성 × 행²)이다.
-    maxRows: { mljs: MLJS_DECISION_TREE_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+    // 20000행 22초. 분할 탐색이 노드마다 O(특성 × 행²)이다. **이미지에서 가장 크게
+    // 갈린다** - 1,000장 58.7초이고 1,500장이면 136초다.
+    maxRows: {
+      tabular: { mljs: MLJS_DECISION_TREE_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      image: { mljs: MLJS_IMAGE_DECISION_TREE_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+    },
   },
   {
     id: 'knn',
@@ -88,7 +101,10 @@ export const ALGORITHMS: readonly Algorithm[] = [
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // **학습이 아니라 예측이 비싸고, 그 비용은 예측마다 되풀이된다.**
-    maxRows: { mljs: MLJS_KNN_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+    maxRows: {
+      tabular: { mljs: MLJS_KNN_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      image: { mljs: MLJS_IMAGE_KNN_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+    },
   },
   {
     id: 'logistic_regression',
@@ -96,7 +112,10 @@ export const ALGORITHMS: readonly Algorithm[] = [
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // 선형 회귀와 이름만 닮았다 - 경사하강이고 5000행에서 이미 4.3초다.
-    maxRows: { mljs: MLJS_LOGISTIC_REGRESSION_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+    maxRows: {
+      tabular: { mljs: MLJS_LOGISTIC_REGRESSION_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      image: { mljs: MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+    },
   },
   {
     id: 'random_forest',
@@ -104,7 +123,11 @@ export const ALGORITHMS: readonly Algorithm[] = [
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // 5000행 100그루가 약 7분이다. **값이 안 바뀌어도 적는다** (backend.ts의 maxRows).
-    maxRows: { mljs: MLJS_RANDOM_FOREST_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+    // 이미지는 1,000장이 521.7초라 등록부에서 가장 낮은 칸이 됐다.
+    maxRows: {
+      tabular: { mljs: MLJS_RANDOM_FOREST_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      image: { mljs: MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+    },
   },
   {
     id: 'naive_bayes',
@@ -112,7 +135,10 @@ export const ALGORITHMS: readonly Algorithm[] = [
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // 10만 행 0.1초. 데이터를 한 번 훑는다.
-    maxRows: { mljs: MLJS_NAIVE_BAYES_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+    maxRows: {
+      tabular: { mljs: MLJS_NAIVE_BAYES_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      image: { mljs: MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+    },
   },
   {
     id: 'svm',
@@ -121,7 +147,11 @@ export const ALGORITHMS: readonly Algorithm[] = [
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // SMO는 행 수의 제곱으로 붙고 학습 시작에 N×N 커널 행렬을 만든다. **여기가 알고리즘별
     // 상한의 시작이었고, 이제는 일곱 줄 전부가 자기 값을 든다** (open-decisions.md #13).
-    maxRows: { mljs: MLJS_SVM_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+    // **이미지 칸의 값이 같은 것은 우연이다** - 커널 크기는 특성 수를 안 가린다.
+    maxRows: {
+      tabular: { mljs: MLJS_SVM_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      image: { mljs: MLJS_IMAGE_SVM_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+    },
   },
   {
     id: 'linear_regression',
@@ -129,7 +159,12 @@ export const ALGORITHMS: readonly Algorithm[] = [
     taskTypes: { classification: false, regression: true, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // 10만 행 0.3초. 브라우저 상한을 둘 이유가 없어 데이터셋 천장을 그대로 쓴다.
-    maxRows: { mljs: MLJS_LINEAR_REGRESSION_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+    // **이미지 칸은 `UNMEASURED`다** - 위 `dataTypes`가 이미 닫아서 판정이 여기까지
+    // 오지 않는다. 숫자를 지어 넣으면 재 본 값처럼 보인다 (backend.ts의 UNMEASURED).
+    maxRows: {
+      tabular: { mljs: MLJS_LINEAR_REGRESSION_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
+    },
   },
   {
     id: 'k_means',
@@ -137,7 +172,10 @@ export const ALGORITHMS: readonly Algorithm[] = [
     taskTypes: { classification: false, regression: false, clustering: true },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // 할당과 갱신이 반복마다 O(n·k·d). 10만 행 k=20이 112회 반복 6.4초 (limits.ts).
-    maxRows: { mljs: MLJS_KMEANS_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+    maxRows: {
+      tabular: { mljs: MLJS_KMEANS_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      image: { mljs: MLJS_IMAGE_KMEANS_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+    },
   },
 ]
 

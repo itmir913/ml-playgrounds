@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { CLIENT_ERROR_CODES } from '../src/errors'
-import { MAX_DATASET_ROWS, MLJS_DECISION_TREE_ROW_LIMIT } from '../src/limits'
+import { MAX_DATASET_ROWS, MAX_IMAGE_COUNT, MLJS_DECISION_TREE_ROW_LIMIT } from '../src/limits'
 import { NOT_FOR_TABULAR_ALGORITHM, SKLEARN_ONLY_ALGORITHM } from './fixtures/algorithms'
 import {
   ALGORITHMS,
@@ -28,7 +28,7 @@ import {
   type EngineState,
   type RuntimeContext,
 } from '../src/ml/backend'
-import { DATA_TYPES, TASK_TYPES } from '../src/project/schema'
+import { DATA_TYPES, TASK_TYPES, type DataType } from '../src/project/schema'
 
 const tabularClassification: Selection = { dataType: 'tabular', taskType: 'classification' }
 
@@ -76,19 +76,45 @@ describe('등록부', () => {
     //
     // **다른 칸을 여기서 요구하지 않는다** - `pyodide-sklearn`은 아직 아무것도 안 쟀고,
     // `UNMEASURED`가 그 사실을 적은 것이다. 지어낸 숫자보다 낫다.
+    //
+    // **다루는 종류의 칸만 요구한다** - 등록부가 닫아 둔 칸(회귀의 이미지)은 판정이
+    // 닿지 않는 자리라 지어낸 숫자보다 `UNMEASURED`가 정직하다.
     for (const algorithm of ALGORITHMS) {
-      expect(algorithm.maxRows.mljs, algorithm.id).toBeTypeOf('number')
+      for (const dataType of DATA_TYPES) {
+        if (!algorithm.dataTypes[dataType]) continue
+        expect(algorithm.maxRows[dataType].mljs, `${algorithm.id}/${dataType}`).toBeTypeOf('number')
+      }
     }
   })
 
-  it('행 상한이 데이터셋 상한을 넘지 않는다', () => {
+  it('행 상한이 그 종류의 데이터 상한을 넘지 않는다', () => {
     // 넘는 값은 거짓말이다 - 그만큼의 행은 애초에 앱에 들어오지 못한다.
+    // **천장이 종류마다 다르다**: 표는 `MAX_DATASET_ROWS`, 이미지는 `MAX_IMAGE_COUNT`가
+    // 업로드에서 이미 막는다 (limits.ts).
+    const ceiling: Record<DataType, number> = { tabular: MAX_DATASET_ROWS, image: MAX_IMAGE_COUNT }
     for (const algorithm of ALGORITHMS) {
-      for (const runtimeId of BROWSER_RUNTIME_IDS) {
-        const limit = algorithm.maxRows[runtimeId]
-        if (limit === UNMEASURED) continue
-        expect(limit, `${algorithm.id}/${runtimeId}`).toBeLessThanOrEqual(MAX_DATASET_ROWS)
+      for (const dataType of DATA_TYPES) {
+        for (const runtimeId of BROWSER_RUNTIME_IDS) {
+          const limit = algorithm.maxRows[dataType][runtimeId]
+          if (limit === UNMEASURED) continue
+          expect(limit, `${algorithm.id}/${dataType}/${runtimeId}`).toBeLessThanOrEqual(
+            ceiling[dataType],
+          )
+        }
       }
+    }
+  })
+
+  it('이미지에서 무거운 것은 이미지 칸이 더 낮다', () => {
+    // **트리 계열 둘만 갈린다** (open-decisions.md #13). 갈린 값이 같은 상수를 가리키게
+    // 되면 이 검사가 운다 - 그때 봐야 할 것은 검사가 아니라 상수다.
+    for (const id of ['decision_tree', 'random_forest']) {
+      const algorithm = ALGORITHMS.find((candidate) => candidate.id === id)
+      const image = algorithm?.maxRows.image.mljs
+      const tabular = algorithm?.maxRows.tabular.mljs
+      expect(typeof image === 'number' && typeof tabular === 'number' && image < tabular, id).toBe(
+        true,
+      )
     }
   })
 
@@ -231,7 +257,10 @@ describe('분기 없이 늘어난다', () => {
         taskTypes: { classification: false, regression: false, clustering: true },
         runtimes: { mljs: true, 'pyodide-sklearn': false, 'server-sklearn': false },
         // 아직 아무도 안 쟀다. 군집을 실제로 넣는 날 이 칸이 숫자를 요구한다.
-        maxRows: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
+        maxRows: {
+          tabular: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
+          image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
+        },
       },
     ]
     const options = algorithmOptions(

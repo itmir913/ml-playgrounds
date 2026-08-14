@@ -15,7 +15,10 @@ import type { Algorithm } from '../../src/ml/algorithms'
 import { UNMEASURED } from '../../src/ml/backend'
 
 /** 표본은 상한을 재지 않았다. 확인하는 것이 상한이 아니라 판정 규칙이다. */
-const UNMEASURED_ROWS = { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED } as const
+const UNMEASURED_ROWS = {
+  tabular: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
+  image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
+} as const
 
 export const SKLEARN_ONLY_ALGORITHM: Algorithm = {
   id: 'sklearn_only',

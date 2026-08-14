@@ -23,6 +23,19 @@ const MB = BYTES_PER_MB
 export const MAX_DATASET_ROWS = 100_000
 
 /**
+ * 한 프로젝트가 담을 수 있는 사진 수. **표의 `MAX_DATASET_ROWS`와 같은 자리다** —
+ * "이 앱이 다루는 크기"이지 "이 알고리즘으로 학습할 수 있는 크기"가 아니다.
+ *
+ * **막는 것은 학습이 아니라 업로드다** (open-decisions.md #13의 "이미지의 상한").
+ * 굽기 전에 거절해야 백본도 안 돌고 시간도 안 쓴다. 알고리즘 상한은 이 아래에서
+ * 카드를 잠근다.
+ *
+ * **5,000장은 코드 소유자가 정했다** (2026-08-14). 가벼운 알고리즘 다섯이 개발 PC에서
+ * 4,000장까지 문제없이 도는 것을 실측한 위에서 고른 값이다.
+ */
+export const MAX_IMAGE_COUNT = 5000
+
+/**
  * 정본 jpg의 품질 (mlpx-spec.md §1.2).
  *
  * **0.85는 실측에서 나왔다** (2026-08-12): 500×400 안팎의 사진 100장이 정본 1.05MB가
@@ -157,6 +170,46 @@ export const MLJS_SVM_ROW_LIMIT = 3000
  * 먼저 맞춰야 한다.
  */
 export const MLJS_KMEANS_ROW_LIMIT = MAX_DATASET_ROWS
+
+/*
+ * (알고리즘 × 구현 × **데이터 종류**)별 행 상한 — 이미지 칸. **같은 행 수가 같은 시간을
+ * 뜻하지 않는다**: 사진 한 장이 1,280차원이라 표의 수십 개와 비용이 다르다.
+ *
+ * **위의 표 상수와 값이 같아도 따로 둔다** (2026-08-14, 사용자). 이미지 SVM의 3,000과
+ * 표 SVM의 3,000은 우연히 같은 값이고, 하나로 묶으면 한쪽을 옮기려는 사람이 재 보지
+ * 않은 다른 칸까지 대신 판단하게 된다 — 위의 "비용이 닮았다고 상수를 공유하지 마라"가
+ * 데이터 종류 축에도 그대로 걸린다.
+ *
+ * 근거가 되는 실측 표는 open-decisions.md #13의 "이미지의 상한 — 쟀다 (2026-08-14)"에
+ * 있다. 개발 PC(i5-1135G7)에서 임베딩 위에 직접 `fit()`을 걸어 쟀고, **실제 앱은 이
+ * 값의 약 1.4배다** (Vue와 워커 왕복). 정한 값은 그 보정을 안 뒤에 고른 것이다.
+ */
+
+/** 이미지 결정 트리. **1,000장 58.7초 · 1,500장 136.3초** — 4,000장이면 약 16분이다. */
+export const MLJS_IMAGE_DECISION_TREE_ROW_LIMIT = 1000
+
+/** 이미지 랜덤포레스트. **500장 113초 · 1,000장 521.7초** — 4,000장이면 약 2.5시간이다. */
+export const MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT = 500
+
+/**
+ * 이미지 SVM. **시간이 아니라 메모리가 먼저 걸린다.**
+ *
+ * SMO가 학습 시작에 N×N 커널을 통째로 만드는데 5,000행이면 200MB다. **특성이 늘어도
+ * 커널 크기는 그대로라** 표에서 고른 것과 같은 값이 되지만, 근거를 이 칸이 따로 든다.
+ */
+export const MLJS_IMAGE_SVM_ROW_LIMIT = 3000
+
+/** 이미지 KNN. 학습 0초 · 4,000장 학습셋에서 50장 예측이 0.6초다. */
+export const MLJS_IMAGE_KNN_ROW_LIMIT = MAX_IMAGE_COUNT
+
+/** 이미지 나이브 베이즈. 4,000장 0.7초 · 6,000장 1.1초. 데이터를 한 번 훑는다. */
+export const MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT = MAX_IMAGE_COUNT
+
+/** 이미지 로지스틱 회귀. 3,000장 9.1초 · 4,000장 16.6초. L-BFGS가 maxIter에 갇힌다. */
+export const MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT = MAX_IMAGE_COUNT
+
+/** 이미지 K-평균. 4,000장 0.9초. 반복마다 선형이다. */
+export const MLJS_IMAGE_KMEANS_ROW_LIMIT = MAX_IMAGE_COUNT
 
 /**
  * 모델 하나를 .mlpx에 담을 수 있는 최대 크기.

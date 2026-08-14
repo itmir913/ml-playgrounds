@@ -26,7 +26,10 @@ import {
  * 상한을 안 재 본 칸들. **표본이 전역 기본값을 따르게 둔다** - 여기서 확인하는 것은
  * 판정 규칙이고, 실측값은 등록부의 사실이라 바뀐다.
  */
-const unmeasured = { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED } as const
+const unmeasured = {
+  tabular: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
+  image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
+} as const
 
 /** 셋 다 도는 알고리즘. 결정트리가 그렇다. */
 const anywhere: AlgorithmSpec = {
@@ -186,17 +189,43 @@ describe('데이터 크기', () => {
     // 같은 결정 트리인데 순수 JS는 O(특성 × 행²)이고 sklearn은 아니다.
     const uneven: AlgorithmSpec = {
       ...anywhere,
-      maxRows: { mljs: 100, 'pyodide-sklearn': 1000 },
+      maxRows: {
+        tabular: { mljs: 100, 'pyodide-sklearn': 1000 },
+        image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
+      },
     }
     const options = runtimeOptions(uneven, context({ rowCount: 500, engineStates: ready }))
     expect(optionFor(options, 'mljs')?.reason).toBe('DATASET_TOO_LARGE_FOR_BROWSER')
     expect(optionFor(options, 'pyodide-sklearn')?.enabled).toBe(true)
   })
 
+  it('같은 알고리즘·같은 구현이라도 데이터 종류마다 상한이 다르다', () => {
+    // **사진 한 장이 1,280차원이라 같은 행 수가 같은 시간이 아니다** (open-decisions.md
+    // #13의 "이미지의 상한"). 표에서 도는 크기가 이미지에서 16분이 되는 것이 결정 트리다.
+    const uneven: AlgorithmSpec = {
+      ...anywhere,
+      maxRows: {
+        tabular: { mljs: 1000, 'pyodide-sklearn': UNMEASURED },
+        image: { mljs: 100, 'pyodide-sklearn': UNMEASURED },
+      },
+    }
+    const rowCount = 500
+    expect(optionFor(runtimeOptions(uneven, context({ rowCount })), 'mljs')?.enabled).toBe(true)
+
+    const asImage = runtimeOptions(uneven, context({ rowCount, dataType: 'image' }))
+    expect(optionFor(asImage, 'mljs')?.reason).toBe('IMAGE_TOO_LARGE_FOR_BROWSER')
+    // **사유 문장의 숫자도 그 칸의 것이어야 한다** - 표의 1000을 말하면 학생은 지우지
+    // 않아도 될 사진을 지운다.
+    expect(optionFor(asImage, 'mljs')?.maxRows).toBe(100)
+  })
+
   it('안 재 본 칸은 전역 기본값을 따른다 - 보수적으로 틀린다', () => {
     const partly: AlgorithmSpec = {
       ...anywhere,
-      maxRows: { mljs: BROWSER_ROW_LIMIT * 4, 'pyodide-sklearn': UNMEASURED },
+      maxRows: {
+        tabular: { mljs: BROWSER_ROW_LIMIT * 4, 'pyodide-sklearn': UNMEASURED },
+        image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
+      },
     }
     const context4x = context({ rowCount: BROWSER_ROW_LIMIT * 2, engineStates: ready })
     const options = runtimeOptions(partly, context4x)

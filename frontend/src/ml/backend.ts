@@ -179,21 +179,27 @@ export interface AlgorithmSpec {
    */
   readonly runtimes: Axis<RuntimeId>
   /**
-   * 브라우저 구현마다 걸리는 행 상한. **알고리즘 하나에 값 하나가 아니다.**
+   * (데이터 종류 × 브라우저 구현)마다 걸리는 행 상한. **알고리즘 하나에 값 하나가 아니다.**
    *
    * 전역 하나로는 못 담고(10만 행 0.3초인 선형 회귀와 5000행 7분인 랜덤포레스트),
    * **알고리즘 하나로도 못 담는다** - `ml-cart`의 분할 탐색이 O(특성 × 행²)인 것은
    * `ml-cart`의 성질이지 결정 트리의 성질이 아니다. 같은 결정 트리를 sklearn으로 돌리면
    * 다른 숫자가 나온다 (open-decisions.md #13의 "(알고리즘 × 구현)에 걸린다").
    *
+   * **종류 축이 세 번째다** (2026-08-14). 사진 한 장이 1,280차원이라 **같은 행 수가 같은
+   * 시간을 뜻하지 않는다** - 표에서 2만 행이 22초인 결정 트리가 이미지에서는 1,500장에
+   * 136초다. 곱해진 칸이 아니라 갈라진 사실이라 값도 상수도 따로다 (limits.ts의
+   * `MLJS_IMAGE_*_ROW_LIMIT`).
+   *
    * **칸을 다 채운다** (`Axis`와 같은 이유, ml/axes.ts). 안 재 본 칸에는 `UNMEASURED`를
-   * 적는다 - 새 브라우저 엔진이 붙는 날 알고리즘 줄마다 "이건 얼마인가"를 묻게 하려고
-   * `Partial`이 아니다. 값은 limits.ts가 출처이고 여기는 어느 칸에 걸리는지만 선언한다.
+   * 적는다 - 새 브라우저 엔진이나 **새 데이터 종류**가 붙는 날 알고리즘 줄마다 "이건
+   * 얼마인가"를 묻게 하려고 `Partial`이 아니다. 값은 limits.ts가 출처이고 여기는 어느
+   * 칸에 걸리는지만 선언한다.
    *
    * **서버 칸이 없다.** 여기 적을 수 있는 것은 번들에 든 우리 구현의 성질뿐이고, 서버의
    * 상한은 능력 협상이 알려준다 (BROWSER_RUNTIME_IDS).
    */
-  readonly maxRows: Readonly<Record<BrowserRuntimeId, RowLimit>>
+  readonly maxRows: Readonly<Record<DataType, Readonly<Record<BrowserRuntimeId, RowLimit>>>>
 }
 
 export interface RuntimeOption {
@@ -288,7 +294,10 @@ export function runtimeOptions(
     // 상한의 출처는 등록부의 **이 칸**이다. 전역은 **아직 재 보지 않은 칸의 기본값**일
     // 뿐이므로 칸의 값이 더 높아도 그대로 이긴다 - 더 작은 쪽을 고르면 재서 얻은 값을
     // 재지 않은 값이 덮는다 (open-decisions.md #13의 "역할이 뒤집힌다").
-    const maxRows = algorithm.maxRows[runtime.id] ?? browserRowLimit
+    // **데이터 종류를 여기서 가른다.** 사진 1,000장과 표 1,000행은 같은 비용이 아니고,
+    // 그 사실은 등록부의 칸에 적혀 있다 (AlgorithmSpec.maxRows). 화면이 종류를 보고
+    // 다른 값을 고르면 판정과 문장이 두 벌이 된다.
+    const maxRows = algorithm.maxRows[context.dataType][runtime.id] ?? browserRowLimit
     if (context.rowCount > maxRows) {
       return { runtime, enabled: false, reason: TOO_LARGE_REASON[context.dataType], maxRows }
     }
