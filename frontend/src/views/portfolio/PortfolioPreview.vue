@@ -14,6 +14,13 @@
  *
  * **문항마다 화면의 자리 이름을 받는다.** 목차가 데려가는 곳이 작성 화면과 완성본에서
  * 같아야 한다 — 안 주면 완성본에서 목차를 눌러도 아무 일도 안 일어난다.
+ *
+ * **카드 여럿이 아니라 한 장이다** (architecture.md §8.18). 이 화면이 보여주려는 것은
+ * 받는 사람이 볼 `portfolio.md`의 모양인데(§8.5), 문항마다 카드가 끊기면 그건 문서가
+ * 아니라 목록이다. **가르는 것은 여백뿐이다** — 줄을 그으면 다시 칸이 생긴다.
+ *
+ * **이전 문항의 답은 이 문서 밖이다.** 지금 양식의 문항이 아니므로(§8.4) 같은 장 안에
+ * 두면 받는 사람이 그것을 문항 하나로 읽는다.
  */
 
 import { useI18n } from 'vue-i18n'
@@ -37,21 +44,25 @@ const { t } = useI18n()
 
 <template>
   <div class="flex flex-col gap-5">
-    <AppCard
-      v-for="section in props.sections"
-      :id="props.anchorId(section.id)"
-      :key="section.id"
-      class="under-step-bar"
-    >
-      <h3 class="text-lg font-bold">{{ section.title }}</h3>
-      <p v-if="section.answer.trim() === ''" class="mt-2 text-ink-faint">
-        {{ t('portfolio.unanswered') }}
-      </p>
-      <p v-else class="mt-2 max-w-prose leading-relaxed whitespace-pre-line">
-        {{ section.answer.trim() }}
-      </p>
+    <AppCard>
+      <div class="flex flex-col gap-8">
+        <article
+          v-for="section in props.sections"
+          :id="props.anchorId(section.id)"
+          :key="section.id"
+          class="under-step-bar"
+        >
+          <h3 class="text-lg font-bold">{{ section.title }}</h3>
+          <p v-if="section.answer.trim() === ''" class="mt-2 text-ink-faint">
+            {{ t('portfolio.unanswered') }}
+          </p>
+          <p v-else class="mt-2 max-w-prose leading-relaxed whitespace-pre-line">
+            {{ section.answer.trim() }}
+          </p>
 
-      <PhotoCards class="mt-3" :photos="props.photosOf(section.id)" />
+          <PhotoCards class="mt-3" :photos="props.photosOf(section.id)" />
+        </article>
+      </div>
     </AppCard>
 
     <OrphanAnswers v-if="props.orphans.length > 0" :orphans="props.orphans" />
