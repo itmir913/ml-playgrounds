@@ -1159,6 +1159,46 @@ describe('단계 문구를 화면이 조립하지 않는다', () => {
 })
 
 /**
+ * **`v-html`은 한 자리에만 있다** (mlpx-spec.md §8.1).
+ *
+ * 남이 준 마크다운을 그리는 일이 이 앱에 하나 생겼고(문항 안내문), 그 살균은
+ * `renderGuidance` 한 곳이 한다. **`v-html`이 다른 자리에 하나만 더 생기면 그 자리가
+ * 곧 구멍이다** — 살균을 안 거친 글자가 그대로 DOM이 된다.
+ *
+ * **지금이 못 박기 가장 싼 시점이었다.** 이 규칙을 세울 때 소스 전체에 `v-html`이
+ * 정확히 하나였다.
+ */
+describe('v-html은 안내문 한 자리에만 있다', () => {
+  /** 살균을 거친 것만 넣는 자리. 늘리려면 그 자리도 `renderGuidance`를 지나야 한다. */
+  const ALLOWED = 'GuidanceText.vue'
+
+  /** 윈도와 POSIX를 함께 다룬다 - 경로 구분자가 갈린다. */
+  const PATH_SEPARATOR = new RegExp('[\\\\/]')
+
+  function usesVHtml(source: string): boolean {
+    return /\sv-html\s*=/.test(source)
+  }
+
+  it('검사기가 v-html을 잡는다', () => {
+    expect(usesVHtml('<div v-html="html" />')).toBe(true)
+    expect(usesVHtml('<div :inner="html" />')).toBe(false)
+  })
+
+  it('허용된 자리가 실제로 있다 - 없으면 아래가 조용히 통과한다', () => {
+    const users = vueFiles(SRC).filter((path) => usesVHtml(readFileSync(path, 'utf-8')))
+    expect(users.map((path) => path.split(PATH_SEPARATOR).pop())).toEqual([ALLOWED])
+  })
+
+  it('허용된 자리 밖에 v-html이 없다', () => {
+    const found = vueFiles(SRC)
+      .filter((path) => usesVHtml(readFileSync(path, 'utf-8')))
+      .filter((path) => path.split(PATH_SEPARATOR).pop() !== ALLOWED)
+      .map((path) => path.slice(SRC.length + 1))
+    expect(found).toEqual([])
+  })
+})
+
+/**
  * **머리의 맥락 자리에는 버튼이 없다** (architecture.md §8.9, 2026-08-13).
  *
  * `StepHeader`의 맥락 슬롯은 `<dl>`이다 — 이름-값 쌍이 들어가는 자리다. 데이터 화면이

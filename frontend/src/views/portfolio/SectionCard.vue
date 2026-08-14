@@ -10,8 +10,8 @@
  * 자리가 아니라 양식 만드는 자리로 읽힌다 - 여기서 대부분의 시간에 하는 일은 답을 쓰는
  * 것이다.
  *
- * **안내문은 글자 그대로 보여준다.** 목록·표·강조가 살아나는 것은 markdown-it이 오는
- * 다음 단계다 (`roadmap.md` V5).
+ * **안내문은 마크다운이다.** 목록·표·강조가 살아나고, 그리는 것과 살균은
+ * `GuidanceText`가 한다 (mlpx-spec.md §8.1).
  *
  * **값을 고쳐서 올려보내므로 되돌릴 거리가 있다** - 상한에 걸리면 부모가 거절하고,
  * 그때 화면이 파일과 다른 글자를 들고 있으면 안 된다. 그래서 요소를 함께 넘긴다
@@ -24,6 +24,7 @@ import { useI18n } from 'vue-i18n'
 import AppButton from '@/components/AppButton.vue'
 import AppCard from '@/components/AppCard.vue'
 import AppField from '@/components/AppField.vue'
+import GuidanceText from './GuidanceText.vue'
 import { ACTION_ICONS } from '@/icons'
 import type { PortfolioSection } from '@/project/portfolio'
 
@@ -129,13 +130,11 @@ function onDescription(event: Event): void {
         </AppField>
       </div>
 
-      <!-- 안내문은 읽는 것이다. 줄바꿈만 살린다 - 나머지는 다음 단계의 렌더러 몫이다. -->
-      <p
+      <!-- 안내문은 읽는 것이다. 살균은 `renderGuidance` 한 곳에서 한다 (§8.1). -->
+      <GuidanceText
         v-else-if="props.section.description !== undefined"
-        class="whitespace-pre-line leading-relaxed text-ink-soft"
-      >
-        {{ props.section.description }}
-      </p>
+        :markdown="props.section.description"
+      />
 
       <textarea
         :aria-labelledby="headingId"

@@ -194,6 +194,105 @@
   bottom: calc(var(--spacing-statusbar) + env(safe-area-inset-bottom));
 }
 
+/**
+ * 문항 안내문의 서식 (`views/portfolio/GuidanceText.vue`, mlpx-spec.md §8.1).
+ *
+ * **남이 쓴 마크다운이 여기서 살아난다** — 목록·표·강조가 그대로 보이되 우리 화면의
+ * 글자 크기와 색을 따른다. 브라우저 기본 서식은 `h1`을 크게 하고 목록을 들여쓰는데,
+ * 우리 화면에서는 그 크기가 카드 제목과 부딪힌다.
+ *
+ * **크기를 줄이는 규칙은 없다.** 가장 작은 글자가 `text-base`이고 안내문도 예외가
+ * 아니다 (CLAUDE.md §4) — 촘촘함은 글자를 줄여서가 아니라 여백으로 얻는다.
+ *
+ * 값이 `em`인 이유는 이 덩어리가 물려받은 글자 크기를 따라가야 하기 때문이다.
+ */
+@utility prose-guidance {
+  & > * + * {
+    margin-top: 0.75em;
+  }
+
+  /* 안내문 안의 제목은 문항 제목보다 작아야 한다 - 크기가 아니라 굵기로 말한다. */
+  & h1,
+  & h2,
+  & h3,
+  & h4 {
+    color: var(--color-ink);
+    font-weight: 700;
+  }
+
+  & ul,
+  & ol {
+    padding-left: 1.25em;
+  }
+
+  & ul {
+    list-style: disc;
+  }
+
+  & ol {
+    list-style: decimal;
+  }
+
+  & li + li {
+    margin-top: 0.25em;
+  }
+
+  & strong {
+    color: var(--color-ink);
+    font-weight: 700;
+  }
+
+  & em {
+    font-style: italic;
+  }
+
+  & a {
+    color: var(--color-brand);
+    text-decoration: underline;
+  }
+
+  & code {
+    background-color: var(--color-surface-sunken);
+    border-radius: 0.25rem;
+    padding: 0.1em 0.35em;
+  }
+
+  & pre {
+    background-color: var(--color-surface-sunken);
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    padding: 0.75em 1em;
+  }
+
+  & pre code {
+    background-color: transparent;
+    padding: 0;
+  }
+
+  & blockquote {
+    border-left: 3px solid var(--color-line-strong);
+    padding-left: 0.75em;
+  }
+
+  /* 표는 넓어질 수 있다. 카드를 넘치는 대신 자기 안에서 굴린다. */
+  & table {
+    display: block;
+    overflow-x: auto;
+    border-collapse: collapse;
+  }
+
+  & th,
+  & td {
+    border: 1px solid var(--color-line);
+    padding: 0.35em 0.6em;
+    text-align: left;
+  }
+
+  & hr {
+    border-top: 1px solid var(--color-line);
+  }
+}
+
 @utility data-table {
   & th {
     background-color: var(--color-surface-sunken);
