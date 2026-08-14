@@ -496,6 +496,7 @@
     "source": {
       "file": "Bring in from a file"
     },
+    "size": "Portfolio {used}MB / {limit}MB",
     "imported": "Added {count} questions.",
     "importedNone": "Nothing was added — the form already has these questions.",
     "firstSection": "What you did",

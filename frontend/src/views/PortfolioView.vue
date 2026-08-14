@@ -22,6 +22,7 @@ import AppButton from '@/components/AppButton.vue'
 import AppCard from '@/components/AppCard.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
+import AppPopover from '@/components/AppPopover.vue'
 import StepActionBar from '@/components/StepActionBar.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { ClientError } from '@/errors'
@@ -53,6 +54,7 @@ import OrphanAnswers from './portfolio/OrphanAnswers.vue'
 import PortfolioPreview from './portfolio/PortfolioPreview.vue'
 import SectionCard from './portfolio/SectionCard.vue'
 import SectionIndex from './portfolio/SectionIndex.vue'
+import SizeMeter from './portfolio/SizeMeter.vue'
 import TemplateSourceMenu from './portfolio/TemplateSourceMenu.vue'
 
 const { t } = useI18n()
@@ -71,6 +73,17 @@ const portfolio = computed<Portfolio>(() => project.file?.document.portfolio ?? 
 const sections = computed(() => portfolioSections(portfolio.value))
 const orphans = computed(() => orphanAnswers(portfolio.value))
 const started = computed(() => hasTemplate(portfolio.value))
+
+/**
+ * 지금 담긴 양. **상한을 거는 것과 같은 함수로 잰다** - 두 벌이면 게이지가 가득 차기 전에
+ * 거절당하거나 그 반대가 된다 (§8.6.1).
+ */
+const usedBytes = computed(() =>
+  portfolioBytes(portfolio.value, project.file?.attachments ?? new Map()),
+)
+
+/** 쓴 문항 수. 목차와 같은 판정이다 - 한 글자라도 썼는가가 아니라 답이 있는가다. */
+const written = computed(() => sections.value.filter((one) => one.answer.trim() !== '').length)
 
 /** 쓰는 화면과 받는 사람이 볼 화면. 나란히 두지 않는다 - 휴대폰이 기준이다. */
 const preview = ref(false)
@@ -104,8 +117,17 @@ function startEmpty(): void {
   apply(withSectionAdded(portfolio.value, { title: t('portfolio.firstSection') }))
 }
 
+/**
+ * 문항을 하나 더한다. **더한 곳으로 데려간다** - 새 문항은 맨 뒤에 붙으므로, 붙박이 바에서
+ * 누르면 **화면 밖에서 생긴다.** 눌렀는데 아무 일도 안 일어난 것으로 보인다.
+ */
 function addSection(): void {
+  const before = new Set(sections.value.map((one) => one.id))
   apply(withSectionAdded(portfolio.value, { title: t('portfolio.newSection') }))
+  void nextTick(() => {
+    const added = sections.value.find((one) => !before.has(one.id))
+    if (added !== undefined) goTo(added.id)
+  })
 }
 
 /**
@@ -336,12 +358,50 @@ function remove(): void {
     <StepHeader :title="t('steps.portfolio.label')" :purpose="t('steps.portfolio.purpose')" />
 
     <template v-if="started">
+      <!--
+        **바가 비어 있으면 안 된다** (architecture.md §8.18). 여기 오는 것 넷 - 가져오기,
+        문항 추가, 좁은 화면의 목차, 그리고 지금 어디까지 왔는지(문항 수와 담긴 양)다.
+      -->
       <StepActionBar>
         <TemplateSourceMenu
           :pick-file="pickFile"
           @pick="importMarkdown"
           @failed="toasts.pushError"
         />
+
+        <AppButton variant="secondary" @click="addSection">
+          <component :is="ACTION_ICONS.addSection" :size="18" aria-hidden="true" />
+          {{ t('portfolio.addSection') }}
+        </AppButton>
+
+        <!--
+          **좁은 화면에는 붙박이 목차가 없다** (§8.10.1). 열두 번째 문항에 가는 길이
+          굴리는 것뿐이라 같은 목차를 팝오버에 담는다 - 목록은 한 벌이다.
+        -->
+        <AppPopover class="md:hidden">
+          <template #trigger>
+            <AppButton variant="secondary">{{ t('portfolio.contents') }}</AppButton>
+          </template>
+          <template #default="{ close }">
+            <SectionIndex
+              bare
+              :sections="sections"
+              :active="active ?? undefined"
+              @pick="
+                (id) => {
+                  goTo(id)
+                  close()
+                }
+              "
+            />
+          </template>
+        </AppPopover>
+
+        <span class="text-ink-soft tabular-nums">
+          {{ t('portfolio.progress', { done: written, total: sections.length }) }}
+        </span>
+
+        <SizeMeter :used="usedBytes" :limit="MAX_PORTFOLIO_BYTES" />
 
         <template #end>
           <AppButton variant="secondary" @click="preview = !preview">
@@ -391,13 +451,6 @@ function remove(): void {
               @attach="(files) => attach(section.id, files)"
               @detach="(path) => detach(section.id, path)"
             />
-
-            <div class="flex justify-center">
-              <AppButton variant="secondary" @click="addSection">
-                <component :is="ACTION_ICONS.addSection" :size="18" aria-hidden="true" />
-                {{ t('portfolio.addSection') }}
-              </AppButton>
-            </div>
 
             <OrphanAnswers v-if="orphans.length > 0" :orphans="orphans" />
           </template>

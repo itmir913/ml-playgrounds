@@ -51,7 +51,29 @@ export const useToastStore = defineStore('toasts', () => {
     items.value = items.value.filter((toast) => toast.id !== id)
   }
 
+  /**
+   * 같은 알림이 이미 떠 있으면 하나로 둔다.
+   *
+   * **한 번의 동작이 알림 하나여야 한다는 규칙이 아니다** - 판정이 입력마다 도는 자리가
+   * 있어서다. 포트폴리오는 상한을 넘긴 상태에서 글을 치면 **글자마다** 거절이 뜬다
+   * (2026-08-15). 사라지지 않는 어조라 화면이 그대로 덮인다.
+   *
+   * **어조·키·파라미터가 전부 같을 때만 같은 알림이다.** 파일 이름이 다르면 다른 사실을
+   * 말하는 것이라 둘 다 떠야 한다.
+   */
+  function same(tone: ToastTone, key: string, params: Record<string, unknown>): Toast | undefined {
+    return items.value.find(
+      (toast) =>
+        toast.tone === tone &&
+        toast.key === key &&
+        JSON.stringify(toast.params) === JSON.stringify(params),
+    )
+  }
+
   function push(tone: ToastTone, key: string, params: Record<string, unknown> = {}): number {
+    const already = same(tone, key, params)
+    if (already !== undefined) return already.id
+
     lastId += 1
     const id = lastId
     items.value = [...items.value, { id, tone, key, params }]
