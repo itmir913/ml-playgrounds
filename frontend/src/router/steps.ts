@@ -223,13 +223,28 @@ export const KIND_SPECIFIC_STEP_TEXT: readonly {
 ]
 
 /**
- * 종류마다 다른 문구. **없으면 `tasks.{key}`가 기본이다.**
+ * **종류마다 이름이 갈리는 사실.** 나머지 여섯은 종류를 안 가린다(유형 고르기·모델
+ * 담기·학습하기…) — 갈리는 자리만 갈라야 공통 문장이 종류 수만큼 복제되지 않는다
+ * (`KIND_SPECIFIC_STEP_TEXT`와 같은 판단이다).
+ */
+export const KIND_SPECIFIC_TASK_LABELS = ['datasetReady', 'targetChosen'] as const
+
+type KindSpecificFact = (typeof KIND_SPECIFIC_TASK_LABELS)[number]
+
+/**
+ * 종류마다 다른 문구.
  *
  * 사실의 이름은 종류마다 안 가른다 — 가르면 같은 자리를 뜻하는 이름이 둘이 되고
  * 잠금표가 종류마다 갈린다. **갈리는 것은 문구뿐이다** (§8.10).
+ *
+ * **`Partial`이 아니다.** 비워 둘 수 있게 두었더니 그 자리가 조용히 공통 문장을
+ * 물려받는데, 공통 문장은 표를 두고 쓴 것이다("데이터 불러오기"·"타깃(Target)
+ * 선택하기"). 음성이 들어오는 날 그 둘을 안 채워도 화면이 멀쩡해 보이고 **아무것도
+ * 울지 않는다** — 조립된 키라 로케일 검사도 못 본다. 그래서 **칸을 비울 수 없게
+ * 타입으로 막는다.** 표가 공통 키를 가리키는 것은 빠뜨린 것이 아니라 선언이다.
  */
-const TASK_LABELS: Readonly<Record<DataType, Partial<Record<FactKey, string>>>> = {
-  tabular: {},
+const TASK_LABELS: Readonly<Record<DataType, Readonly<Record<KindSpecificFact, string>>>> = {
+  tabular: { datasetReady: 'tasks.datasetReady', targetChosen: 'tasks.targetChosen' },
   image: {
     datasetReady: 'tasks.image.datasetReady',
     // 이미지에는 타깃 열이 없다. 학생이 하는 일은 범주를 나누는 것이다.
@@ -257,8 +272,13 @@ export function factAppliesTo(
 }
 
 /** 이 사실을 이 종류에서 뭐라고 부르는가. */
+function isKindSpecificFact(fact: FactKey): fact is KindSpecificFact {
+  return (KIND_SPECIFIC_TASK_LABELS as readonly FactKey[]).includes(fact)
+}
+
 export function factLabelKey(fact: FactKey, dataType?: DataType | undefined): string {
-  return (dataType === undefined ? undefined : TASK_LABELS[dataType][fact]) ?? `tasks.${fact}`
+  if (dataType === undefined || !isKindSpecificFact(fact)) return `tasks.${fact}`
+  return TASK_LABELS[dataType][fact]
 }
 
 /** 체크리스트 한 줄. 문구는 `tasks.{key}` 로케일 키에서 온다. */

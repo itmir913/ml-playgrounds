@@ -85,7 +85,7 @@ describe('데이터 종류 등록부', () => {
    * 것으로 친다** — 그래서 오타 하나면 화면에 키 문자열이 그대로 뜨는데 관문은 초록이다.
    * 실제로 문구를 `steps.{단계}.{종류}` 아래로 옮긴 뒤 오타를 넣어 확인했다.
    */
-  it('등록부가 가리키는 단계 문구가 두 언어에 다 있다', () => {
+  it('등록부가 가리키는 문구가 두 언어에 다 있다', () => {
     const value = (locale: object, key: string): unknown =>
       key.split('.').reduce<unknown>((node, part) => {
         return typeof node === 'object' && node !== null
@@ -95,15 +95,18 @@ describe('데이터 종류 등록부', () => {
 
     for (const dataType of SUPPORTED_DATA_TYPES) {
       const kind = dataKindFor(dataType)
-      for (const [step, slots] of Object.entries(kind?.stepText ?? {})) {
-        for (const [slot, key] of Object.entries(slots)) {
-          expect(typeof value(ko, key), `ko에 ${key}가 없다 (${dataType} ${step}.${slot})`).toBe(
-            'string',
-          )
-          expect(typeof value(en, key), `en에 ${key}가 없다 (${dataType} ${step}.${slot})`).toBe(
-            'string',
-          )
-        }
+      // 등록부가 키로 들고 있는 것 전부 — 단계 문구, 종류 이름, 준비 진행 문구.
+      const named: [string, string][] = [
+        ['labelKey', kind?.labelKey ?? ''],
+        ...(kind?.preparingKey === undefined ? [] : [['preparingKey', kind.preparingKey]]),
+        ...Object.entries(kind?.stepText ?? {}).flatMap(([step, slots]) =>
+          Object.entries(slots).map(([slot, key]) => [`${step}.${slot}`, key]),
+        ),
+      ] as [string, string][]
+
+      for (const [where, key] of named) {
+        expect(typeof value(ko, key), `ko에 ${key}가 없다 (${dataType} ${where})`).toBe('string')
+        expect(typeof value(en, key), `en에 ${key}가 없다 (${dataType} ${where})`).toBe('string')
       }
     }
   })
