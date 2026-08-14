@@ -682,7 +682,6 @@
     "tallyLead": "Only classification answers are counted. Models that answered with the same category share a color.",
     "image": {
       "add": "Add photos",
-      "answerLead": "Each photo you added is fed into every trained model. Predictions can differ from model to model, and that is normal.",
       "clear": "Remove all photos",
       "clearDescription": "This removes the {count} photo you added for prediction. Your training photos stay. | This removes the {count} photos you added for prediction. Your training photos stay.",
       "clearTitle": "Remove all photos?",

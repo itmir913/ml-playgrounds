@@ -39,6 +39,7 @@ import {
   type Answer,
   type FilterAxisId,
   type PredictableModel,
+  showsClusterNames,
   type PredictFilter,
 } from '@/ml/predict'
 import { parsePreprocessor, transform, type Preprocessor } from '@/ml/preprocess'
@@ -545,6 +546,18 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       @toggle-all="toggleAll"
     />
 
+    <!--
+      **군집 번호의 뜻은 답을 읽기 전에 말한다** (open-decisions.md "머리글은 목록 밖에
+      선다"). 서로 다른 학습의 `2번 군집`은 같은 군집이 아닌데, 그걸 모르고 보면
+      **화면의 모든 비교가 틀린 비교가 된다** — 조용한 오독이라 스스로 못 알아챈다.
+
+      **필터 바로 아래인 이유는 이 문장이 "지금 보이는 모델들"에 대한 주석이기
+      때문이다.** 군집 모델을 걸러 낸 학생에게는 할 말이 없다.
+    -->
+    <p v-if="showsClusterNames(visible)" class="font-bold text-caution">
+      {{ t('predict.clusterAnswerNote') }}
+    </p>
+
     <div v-if="filteredOut" class="grid min-h-0 flex-1 place-items-center">
       <AppEmpty :reason="t('predict.filterEmptyReason')" :next="t('predict.filterEmptyNext')" />
     </div>
@@ -553,11 +566,18 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       **사진 하나가 표의 한 줄이다** (open-decisions.md "이미지 예측 화면"). 왼쪽 붙박이
       자리에 값 대신 사진이 뜨고, 오른쪽에 모델들의 답이 나란히 선다.
     -->
-    <ul v-else-if="photos.length > 0" class="flex flex-col gap-3">
+    <!--
+      **사진 줄은 카드가 아니라 구분선으로 나눈다** (open-decisions.md "머리글은 목록
+      밖에 선다"). 머리글이 빠진 뒤 이 줄에 남는 것은 사진과 모델 카드뿐인데, 그때
+      바깥 카드는 아무것도 안 담은 채 테두리만 두르는 상자가 된다 — **화면에서 카드는
+      모델 카드 하나여야** 갈림 색이 유일한 신호가 되어 눈이 답으로 간다.
+    -->
+    <ul v-else-if="photos.length > 0" class="flex flex-col">
       <li
-        v-for="photo in shown"
+        v-for="(photo, index) in shown"
         :key="photo.hash"
-        class="flex flex-col gap-3 rounded-panel border border-line bg-surface p-4 md:flex-row"
+        class="flex flex-col gap-3 py-5 md:flex-row"
+        :class="index > 0 ? 'border-t border-line' : ''"
       >
         <!--
           **좁은 화면에서는 사진과 [빼기]가 한 줄이다.** 축이 뒤집히면 같은 속성의 뜻도
@@ -601,7 +621,6 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
             :models="visible"
             :answers="answers.get(photo.hash) ?? new Map()"
             :experiment-names="experimentNames"
-            :lead="t('predict.image.answerLead')"
             :waiting="t('predict.image.waiting')"
           />
         </div>

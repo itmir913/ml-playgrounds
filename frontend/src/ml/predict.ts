@@ -560,6 +560,21 @@ export function answersInClusters(model: PredictableModel): boolean {
   return model.experiment.settings.taskType === 'clustering'
 }
 
+/**
+ * 보이는 모델 중에 **군집 번호로 답할 모델**이 있는가. 있으면 화면이 번호의 뜻을 한 줄로
+ * 말한다 (open-decisions.md "머리글은 목록 밖에 선다").
+ *
+ * **답을 보지 않는다.** 전에는 답이 실제로 나온 뒤에만 참이라 안내가 [예측] 뒤에 떴는데,
+ * 서로 다른 학습의 `2번 군집`이 같은 것이 아니라는 사실은 **답을 읽기 전에** 알아야
+ * 오독을 막는다. 조용한 오독이라 학생이 스스로 알아챌 방법이 없다.
+ *
+ * **필터를 지난 목록을 그대로 받는다** — 군집 모델을 걸러 낸 학생에게는 이 문장이
+ * 할 말이 없다.
+ */
+export function showsClusterNames(models: readonly PredictableModel[]): boolean {
+  return models.some((model) => answersInClusters(model))
+}
+
 /** 값 하나와 그 값을 낸 모델 수. */
 export interface AnswerCount {
   readonly value: Prediction

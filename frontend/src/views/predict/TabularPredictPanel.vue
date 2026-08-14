@@ -41,6 +41,7 @@ import {
   mergeFields,
   numericRanges,
   sampleRow,
+  showsClusterNames,
   predictableModels,
   trainingRowsFor,
   type Answer,
@@ -628,6 +629,18 @@ async function run(): Promise<void> {
       />
 
       <!--
+        **군집 번호의 뜻은 답을 읽기 전에 말한다** (open-decisions.md "머리글은 목록 밖에
+        선다"). 서로 다른 학습의 `2번 군집`은 같은 군집이 아닌데, 그걸 모르고 보면
+        **화면의 모든 비교가 틀린 비교가 된다** — 조용한 오독이라 스스로 못 알아챈다.
+
+        **필터 바로 아래인 이유는 이 문장이 "지금 보이는 모델들"에 대한 주석이기
+        때문이다.** 군집 모델을 걸러 낸 학생에게는 할 말이 없다.
+      -->
+      <p v-if="showsClusterNames(visible)" class="font-bold text-caution">
+        {{ t('predict.clusterAnswerNote') }}
+      </p>
+
+      <!--
         **필터가 전부 걸러 냈을 때다** (architecture.md §8.13.1). 모델이 없는 것과는
         다른 사유다 - 이유 없이 꺼진 것처럼 보이면 안 되므로 따로 문구를 준다.
       -->
@@ -673,11 +686,20 @@ async function run(): Promise<void> {
             같은 값에서 나온다(§8.13.1 "왼쪽은 붙박이다").
           -->
           <div ref="answerListEl" class="min-h-0 min-w-0 flex-1 overflow-y-auto under-step-bar">
+            <!--
+              **머리글은 목록 밖이다** (open-decisions.md "머리글은 목록 밖에 선다").
+              여기서는 목록이 정확히 하나라 한 번씩만 뜨지만, 사진 예측에서는 같은 셋이
+              사진 수만큼 찍혔다. 무엇을 모델에 넣는지는 화면마다 다르므로 호출부가 말한다.
+            -->
+            <div class="mb-5 flex flex-col gap-1.5">
+              <h3 class="text-lg font-bold">{{ t('predict.answerTitle') }}</h3>
+              <p class="text-ink-soft">{{ t('predict.tabular.answerLead') }}</p>
+            </div>
+
             <AnswerList
               :models="visible"
               :answers="answers"
               :experiment-names="experimentNames"
-              :lead="t('predict.tabular.answerLead')"
               :waiting="t('predict.tabular.waiting')"
             >
               <!--

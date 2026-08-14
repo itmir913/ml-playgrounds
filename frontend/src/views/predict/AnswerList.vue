@@ -8,6 +8,11 @@
  * **쓸 수 없는 모델은 지우지 않고 사유와 함께 끈다** (§8.2). 목록에서 사라지면 학생은
  * 그 모델이 있었다는 것조차 모르고, 이유 없이 회색이면 고장으로 본다.
  *
+ * **머리글은 여기 없다** (open-decisions.md "머리글은 목록 밖에 선다"). 표에서는 한
+ * 번씩 뜨던 제목·설명·군집 안내가 이미지에서는 사진 수만큼 찍혔다. 무엇을 넣는지는
+ * 호출부가 말하고, 이 목록은 **답만 그린다** — 대신 자기 이름은 `aria-label`로 계속
+ * 단다. 화면에서 제목을 뺀다고 영역의 이름까지 없애면 스크린리더에게 무명이 된다.
+ *
  * **집계와 강조는 이 목록이 받은 `models`를 그대로 본다.** 필터를 지난 것만 여기
  * 오르므로 (`architecture.md` 8.13.1 "답을 거르고 세어 본다"), 따로 필터를 다시 걸
  * 필요가 없다 — 표의 숫자가 화면의 카드와 저절로 맞아떨어진다.
@@ -40,13 +45,10 @@ const props = defineProps<{
   /** 실험 id -> 화면에 쓰는 이름. 결과 화면의 세로줄과 같은 이름이어야 한다. */
   experimentNames: ReadonlyMap<string, string>
   /**
-   * 무엇을 모델에 넣는지, 그리고 아직 안 눌렀을 때 무엇을 하면 되는지.
-   *
-   * **이미 번역된 채로 온다** (`PredictFilters`와 같은 규칙). 여기서 키를 고르면 이
-   * 목록이 데이터 종류를 알게 되고, 실제로 그래서 **사진 예측 화면에 "값을 채우고
-   * [예측]을 누르면"이 떴다** — 사진에는 채울 값이 없다.
+   * 아직 안 눌렀을 때 카드가 하는 말. **이미 번역된 채로 온다** (`PredictFilters`와 같은
+   * 규칙) — 여기서 키를 고르면 이 목록이 데이터 종류를 알게 되고, 실제로 그래서
+   * **사진 예측 화면에 "값을 채우고 [예측]을 누르면"이 떴다.**
    */
-  lead: string
   waiting: string
 }>()
 
@@ -80,16 +82,6 @@ function cardAnswer(model: PredictableModel): string | null {
   if (!answersInClusters(model)) return answerText(value)
   return t('results.clusterName', { index: Number(value) })
 }
-
-/**
- * 군집으로 답한 모델이 하나라도 있는가. **있으면 번호의 뜻을 한 줄로 말한다.**
- *
- * 서로 다른 학습의 `0번 군집`은 같은 군집이 아닌데, 카드 둘이 나란히 같은 글자를 달고
- * 있으면 학생은 "둘 다 같은 답"으로 읽는다.
- */
-const hasClusterAnswer = computed(() =>
-  props.models.some((model) => answersInClusters(model) && props.answers.has(model.run.id)),
-)
 
 const tally = computed(() => tallyClassificationAnswers(props.models, props.answers))
 const ranks = computed(() => rankAnswers(tally.value))
@@ -205,23 +197,7 @@ function bars(model: PredictableModel): ProbabilityBar[] {
     오른쪽 칸은 아직 482px이라 카드 하나가 147px이 된다. 사진 예측에서는 더 나쁘다(사진
     128px과 [빼기]를 뺀 나머지가 이 폭이다).
   -->
-  <div class="@container flex flex-col gap-5">
-    <div class="flex flex-col gap-1.5">
-      <h3 class="text-lg font-bold">{{ t('predict.answerTitle') }}</h3>
-      <p class="text-ink-soft">{{ props.lead }}</p>
-      <!--
-        **번호는 그 모델 안에서만 뜻이 있다** (§8.13.1). 갈림표가 군집을 안 세는 이유도
-        이것이다.
-
-        **경고로 세운다.** 이걸 모르고 보면 학생은 두 모델의 `2번 군집`을 같은 것으로
-        읽고, 그 순간 화면의 모든 비교가 틀린 비교가 된다 — 조용한 오독이라 스스로
-        알아챌 방법이 없다.
-      -->
-      <p v-if="hasClusterAnswer" class="font-bold text-caution">
-        {{ t('predict.clusterAnswerNote') }}
-      </p>
-    </div>
-
+  <section class="@container flex flex-col gap-5" :aria-label="t('predict.answerTitle')">
     <!--
       **분류 답만 집계한다** (`architecture.md` 8.13.1). 회귀는 연속값이라 정확히
       겹칠 일이 실질적으로 없다. **판정 도구가 아니라 관찰 도구다** — "얼마나
@@ -405,5 +381,5 @@ function bars(model: PredictableModel): ProbabilityBar[] {
       (`ClusterNeighbors`), 그것을 여기서 이름으로 알면 §9.1이 막으려던 분기가 생긴다.
     -->
     <slot name="detail" />
-  </div>
+  </section>
 </template>

@@ -17,6 +17,7 @@ import { loadModel, REFERENCE_FORMAT, type ProbaModel } from '../src/ml/models'
 import {
   answerRank,
   answersInClusters,
+  showsClusterNames,
   applyPredictFilter,
   assignAnswerColors,
   chosenProbability,
@@ -1211,5 +1212,26 @@ describe('군집의 답은 번호가 아니라 이름으로 쓴다', () => {
 
     expect(answersInClusters(clustering)).toBe(true)
     expect(answersInClusters(classification)).toBe(false)
+  })
+
+  /**
+   * **답을 보지 않는다.** 전에는 답이 실제로 나온 뒤에만 안내가 떴는데, 서로 다른
+   * 학습의 `2번 군집`이 같은 것이 아니라는 사실은 **답을 읽기 전에** 알아야 오독을
+   * 막는다 (open-decisions.md "머리글은 목록 밖에 선다").
+   */
+  it('번호의 뜻은 답이 나오기 전에 말한다', () => {
+    const clustering: PredictableModel = {
+      experiment: experiment([0], onehot, { taskType: 'clustering', target: undefined }),
+      run: runOf('r1', 'kmeans'),
+    }
+    const classification: PredictableModel = {
+      experiment: experiment([0], onehot),
+      run: runOf('r2'),
+    }
+
+    expect(showsClusterNames([classification, clustering])).toBe(true)
+    // 군집 모델을 걸러 낸 학생에게는 할 말이 없다.
+    expect(showsClusterNames([classification])).toBe(false)
+    expect(showsClusterNames([])).toBe(false)
   })
 })
