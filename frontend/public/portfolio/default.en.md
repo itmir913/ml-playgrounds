@@ -10,24 +10,24 @@ Write one or two sentences on what you set out to predict or group.
 
 ## Why I chose this topic {#motivation}
 
-Say what made you curious about it, and how you picked the data.
+Write what made you curious about it, and how you picked the data.
 
-## About the data I used {#data}
+## The data I used {#data}
 
-Where the data came from, how much of it there is, and what it holds.
+Write where the data came from, how much of it there is, and what it holds.
 
 ## How I prepared the data {#preprocessing}
 
-What you did about blanks, which features you chose, and why.
+Write what you did about blanks, which features you chose, and why.
 
 ## Why I chose this model {#model}
 
-Which models you added, and why you thought they suited this problem.
+Write which models you added, and why you thought they suited this problem.
 
 ## What the results show {#result}
 
-How the scores came out, and what the model got right and wrong.
+Write how the scores came out, and what the model got right and wrong.
 
 ## What I learned {#reflection}
 
-What was new to you, and what you would change if you did this again.
+Write what was new to you, and what you would change if you did this again.
