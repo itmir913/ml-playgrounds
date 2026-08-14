@@ -46,7 +46,7 @@ import {
   withSectionText,
 } from '@/project/portfolio'
 import type { Portfolio } from '@/project/schema'
-import { growToFit, stickyCover } from '@/screen'
+import { growToFit, nearestScrollport, stickyCover } from '@/screen'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import OrphanAnswers from './portfolio/OrphanAnswers.vue'
@@ -80,9 +80,6 @@ const started = computed(() => hasTemplate(portfolio.value))
 const usedBytes = computed(() =>
   portfolioBytes(portfolio.value, project.file?.attachments ?? new Map()),
 )
-
-/** 쓴 문항 수. 목차와 같은 판정이다 - 한 글자라도 썼는가가 아니라 답이 있는가다. */
-const written = computed(() => sections.value.filter((one) => one.answer.trim() !== '').length)
 
 /** 쓰는 화면과 받는 사람이 볼 화면. 나란히 두지 않는다 - 휴대폰이 기준이다. */
 const preview = ref(false)
@@ -212,58 +209,85 @@ function goTo(id: string): void {
 /**
  * 지금 보고 있는 문항. 목차가 이것을 표시한다.
  *
- * **화면에 조금이라도 보이는 문항 중 가장 위다.** 판정에 숫자를 넣지 않는 이유는
- * 근거 없는 임계값이 되기 때문이다 - "얼마나 보여야 지금 문항인가"에 답이 없다.
- * 순서는 양식이 갖는다.
+ * **판정선을 지난 문항 중 마지막이다.** 그 선은 `scrollIntoView`가 데려다 놓는 자리와
+ * 같은 선이고(`under-step-bar`), 값은 `stickyCover`가 요소에서 읽어 온다 - 여기서 따로
+ * 재면 두 선이 갈린다. **뒤엣것이 이기는 이유는 도착한 문항이 정확히 그 선에 얹히기
+ * 때문이다** - 앞 문항의 끝도 같은 선에 걸려 있을 수 있다.
  *
- * **다만 화면과 뷰포트가 같지 않다.** 붙박이 동작 바는 위를 덮을 뿐 뷰포트를 잘라내지
- * 않아서, 기본값 그대로 두면 **바에 가려 안 보이는 문항이 여전히 "보이는 것 중 가장
- * 위"가 된다** - 8번으로 데려다 놓고 목차는 7번을 표시했다 (2026-08-15, 사용자).
- * 그래서 기준 상자의 위를 그만큼 깎는다. 값은 `stickyCover`가 요소에서 읽어 온다 -
- * **스크롤이 멈추는 선과 같은 선이어야** 하고 그 선은 이미 `under-step-bar`에 있다.
+ * **`IntersectionObserver`로는 이 자리를 못 고친다** (2026-08-15, 두 번 틀린 뒤에 옮겼다).
+ * 그것은 **교차 상태가 바뀔 때만** 항목을 주는데, 완성본은 문항이 한 장 안에서 맞닿아
+ * 있어서 앞 문항이 "닿아 있는 채로" 남는다 - 상태가 안 바뀌니 항목이 아예 안 오고,
+ * 콜백 안에서 무엇을 걸러도 그 코드가 그 문항에는 돌지 않는다. 작성 화면은 카드 사이에
+ * 여백이 있어 이 병을 안 앓았을 뿐이다.
  *
- * **바의 높이가 변하면 다시 건다.** 좁은 화면에서 바가 두 줄로 접혔다 펴지면 그 값이
- * 달라지는데, `rootMargin`은 만들 때 한 번만 읽힌다.
+ * **화면과 뷰포트가 같지 않다는 것도 여기서 함께 걸린다.** 넓은 화면에서 굴리는 것은
+ * 문서가 아니라 `<main>`이라(`AppShell`) 스크롤 사건도 거기서 난다 - `window`에만 붙이면
+ * 아무 소리도 안 들린다. 그 상자는 `nearestScrollport`가 찾는다.
  *
- * **`IntersectionObserver`가 없으면 표시만 안 뜬다** (jsdom이 그렇다). 화면은 그대로
- * 돌고 목차도 그대로 눌린다.
+ * **한 픽셀 아래는 자리 차이가 아니다.** 소수점 좌표를 그대로 견주면 도착한 문항이
+ * `line + 0.4`에 서는 순간 앞 문항이 이긴다. 그래서 둘 다 픽셀로 반올림해 견준다 -
+ * 임의의 여유값이 아니라 **같은 픽셀이면 같은 자리**라는 말이다.
  */
 const active = ref<string | null>(null)
-const visible = new Set<string>()
-let spy: IntersectionObserver | null = null
+
+/** 다시 재기로 예약된 프레임. 스크롤마다 재면 한 번 굴릴 때 수십 번 잰다. */
+let scheduled = 0
+/** 스크롤 사건을 듣고 있는 상자. `window`일 수도 있고 `<main>`일 수도 있다. */
+let listening: EventTarget | null = null
+
+function measure(): void {
+  let line: number | null = null
+  let current: string | null = null
+
+  for (const section of sections.value) {
+    const element = document.getElementById(anchorId(section.id))
+    if (element === null) continue
+    // 선은 한 번만 읽는다. 문항들은 같은 규칙을 쓰므로 값이 같다.
+    line ??= stickyCover(element)
+    if (Math.round(element.getBoundingClientRect().top) > Math.round(line)) break
+    current = section.id
+  }
+
+  // 첫 문항이 아직 선 아래에 있으면(맨 위에서) 그것이 지금 문항이다.
+  active.value = current ?? sections.value[0]?.id ?? null
+}
+
+function schedule(): void {
+  if (typeof requestAnimationFrame === 'undefined') {
+    measure()
+    return
+  }
+  if (scheduled !== 0) return
+  scheduled = requestAnimationFrame(() => {
+    scheduled = 0
+    measure()
+  })
+}
+
+function stopListening(): void {
+  listening?.removeEventListener('scroll', schedule)
+  listening = null
+}
 
 function watchSections(): void {
-  spy?.disconnect()
-  visible.clear()
-  if (typeof IntersectionObserver === 'undefined') return
+  stopListening()
+  if (typeof window === 'undefined') return
 
-  const elements = sections.value
+  const first = sections.value
     .map((section) => document.getElementById(anchorId(section.id)))
-    .filter((element): element is HTMLElement => element !== null)
-  const [first] = elements
+    .find((element) => element !== null)
   if (first === undefined) return
 
-  const cover = stickyCover(first)
-  spy = new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) visible.add(entry.target.id)
-        else visible.delete(entry.target.id)
-      }
-      const top = sections.value.find((section) => visible.has(anchorId(section.id)))
-      // 아무것도 안 보이는 순간(전환 중)에 표시를 지우지 않는다 - 깜빡이는 것이 더 나쁘다.
-      if (top !== undefined) active.value = top.id
-    },
-    { rootMargin: `-${cover}px 0px 0px 0px` },
-  )
-
-  for (const element of elements) spy.observe(element)
+  // 굴리는 상자에서 사건이 난다. 없으면 문서가 굴리는 것이고 그때는 창이 듣는다.
+  listening = nearestScrollport(first) ?? window
+  listening.addEventListener('scroll', schedule, { passive: true })
+  measure()
 }
 
 // 문항이 늘거나 줄거나, 완성본으로 넘어가면 보고 있던 요소가 사라진다. 그려진 뒤에 다시 건다.
 watch([sections, preview], () => void nextTick(watchSections), { immediate: true })
 
-// 바가 두 줄로 접히거나 펴지면 덮는 만큼이 달라진다. 그 값은 만들 때 한 번만 읽힌다.
+// 바가 두 줄로 접히거나 펴지면 선이 내려온다. 굴리는 상자가 바뀌는 폭도 여기서 걸린다.
 function rewatch(): void {
   void nextTick(watchSections)
 }
@@ -272,7 +296,10 @@ if (typeof window !== 'undefined') window.addEventListener('resize', rewatch)
 
 onBeforeUnmount(() => {
   if (typeof window !== 'undefined') window.removeEventListener('resize', rewatch)
-  spy?.disconnect()
+  if (typeof requestAnimationFrame !== 'undefined' && scheduled !== 0) {
+    cancelAnimationFrame(scheduled)
+  }
+  stopListening()
 })
 
 /**
@@ -358,8 +385,8 @@ function remove(): void {
 
     <template v-if="started">
       <!--
-        **바가 비어 있으면 안 된다** (architecture.md §8.18). 넓은 화면에 오는 것 셋 -
-        가져오기, 문항 추가, 그리고 지금 어디까지 왔는지(문항 수와 담긴 양)다.
+        **바가 비어 있으면 안 된다** (architecture.md §8.18). 왼쪽은 누를 것(가져오기,
+        문항 추가), 오른쪽은 지금 무슨 일이 있는지(담긴 양)와 결론이다.
       -->
       <StepActionBar>
         <TemplateSourceMenu
@@ -374,18 +401,17 @@ function remove(): void {
         </AppButton>
 
         <!--
-          **알려 주는 것은 좁은 화면에서 빠진다** (§8.18). 바가 접히면서 먹는 세로가 곧
-          아래 글 칸의 높이다 - 누를 것이 없으면 화면이 멈추지만, 알려 주는 것이 없으면
-          굴려서 알 수 있다.
+          **진행은 목차가 말한다** (§8.18). 여기에도 같은 문장이 있었는데, 한 화면에서
+          같은 사실을 두 번 적으면 그중 하나는 언젠가 안 고쳐진다.
+
+          **담긴 양은 결론 옆에 선다.** 지금 무슨 일이 있는지를 말하는 것이라 누를 것들과
+          섞이면 안 읽힌다. **알려 주는 것은 좁은 화면에서 빠진다** - 바가 접히면서 먹는
+          세로가 곧 아래 글 칸의 높이다.
         -->
-        <span class="text-ink-soft tabular-nums max-md:hidden">
-          {{ t('portfolio.progress', { done: written, total: sections.length }) }}
-        </span>
-
-        <SizeMeter class="max-md:hidden" :used="usedBytes" :limit="MAX_PORTFOLIO_BYTES" />
-
-        <!-- 결론은 이 화면에서도 primary다 (§8.13.1) - 왼쪽의 거드는 단추들과 무게가 다르다. -->
         <template #end>
+          <SizeMeter class="max-md:hidden" :used="usedBytes" :limit="MAX_PORTFOLIO_BYTES" />
+
+          <!-- 결론은 이 화면에서도 primary다 (§8.13.1) - 왼쪽의 거드는 단추들과 무게가 다르다. -->
           <AppButton @click="preview = !preview">
             {{ preview ? t('portfolio.write') : t('portfolio.preview') }}
           </AppButton>
