@@ -162,6 +162,14 @@ export function withSectionMoved(portfolio: Portfolio, id: string, delta: number
 /**
  * 문항의 문구를 고친다. **id는 안 건드린다** - 제목을 다듬었다고 쓴 글이 떨어져
  * 나가면 아무도 제목을 못 고친다.
+ *
+ * **쓴 그대로 담는다. 여기서 다듬지 않는다** (2026-08-14에 고쳤다). 타자마다 `trim()`을
+ * 걸었더니 **안내문에 줄바꿈을 칠 수 없었다** - 끝에 친 `\n`이 잘려 저장된 값이 화면과
+ * 달라지고, Vue는 DOM의 지금 값과 새 값을 견주므로(`patchDOMProp`) 그때 칸을 다시
+ * 써서 방금 친 줄바꿈을 지운다. 제목 끝의 공백도 같은 이유로 안 지운다.
+ *
+ * **비어 있으면 자리 자체를 지운다.** 빈 문자열을 파일에 남기지 않는다 - 안내문이
+ * 없는 것과 빈 안내문이 있는 것은 같은 것이다.
  */
 export function withSectionText(
   portfolio: Portfolio,
@@ -171,13 +179,15 @@ export function withSectionText(
   const sections = portfolio.template.sections.map((section) => {
     if (section.id !== id) return section
     const description = patch.description ?? section.description
-    return draftToSection(
-      {
-        title: patch.title ?? section.title,
-        ...(description === undefined ? {} : { description }),
-      },
-      id,
-    )
+    const blank = description === undefined || description.trim() === ''
+    // **`description`을 먼저 떼어낸다.** 안 떼면 비웠을 때 옛 안내문이 그대로 남는다.
+    const { description: cleared, ...rest } = section
+    void cleared
+    return {
+      ...rest,
+      title: patch.title ?? section.title,
+      ...(blank ? {} : { description }),
+    }
   })
   return { ...portfolio, template: { ...portfolio.template, sections } }
 }

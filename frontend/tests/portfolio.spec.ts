@@ -141,6 +141,19 @@ describe('글이 사라지는 다른 경로는 없다', () => {
     expect(after.answers['a']).toBe('첫 글')
   })
 
+  it('안내문에 줄바꿈을 칠 수 있다 - 다듬는 것은 읽는 쪽이 한다', () => {
+    // 타자마다 trim을 걸었더니 끝에 친 줄바꿈이 잘려 저장됐고, Vue가 DOM의 지금 값과
+    // 새 값을 견주면서 칸을 다시 써 **줄바꿈이 안 쳐졌다** (2026-08-14).
+    const after = withSectionText(before, 'a', { description: '첫 줄\n' })
+    expect(after.template.sections[0]!.description).toBe('첫 줄\n')
+  })
+
+  it('제목 끝의 공백도 안 지운다 - 같은 이유다', () => {
+    expect(withSectionText(before, 'a', { title: '제목 ' }).template.sections[0]!.title).toBe(
+      '제목 ',
+    )
+  })
+
   it('안내문을 비우면 자리 자체가 사라진다 - 빈 문자열을 파일에 남기지 않는다', () => {
     const withNote = withSectionText(before, 'a', { description: '이렇게 쓰세요' })
     expect(withNote.template.sections[0]!.description).toBe('이렇게 쓰세요')

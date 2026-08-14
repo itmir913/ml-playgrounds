@@ -81,6 +81,28 @@ describe('목차는 어디까지 왔는지 말한다', () => {
   })
 })
 
+describe('안내문을 고칠 때 칸이 되돌아가지 않는다', () => {
+  it('줄바꿈을 쳐도 칸에 남는다', async () => {
+    // **실제로 안 쳐졌다** (2026-08-14, 사용자가 잡았다). 저장할 때 다듬으면 화면의
+    // 값과 달라지고, Vue는 DOM의 지금 값과 새 값을 견주므로 칸을 다시 써 버린다.
+    const view = mountView()
+    const start = view.findAll('button').find((button) => button.text() === '빈 양식에서 시작')
+    await start?.trigger('click')
+
+    const edit = view
+      .findAll('button')
+      .find((button) => button.attributes('aria-label') === '문항 고치기')
+    await edit?.trigger('click')
+
+    const guidance = view.findAll('textarea')[0]
+    const element = guidance?.element as HTMLTextAreaElement
+    element.value = '첫 줄\n'
+    await guidance?.trigger('input')
+
+    expect(element.value).toBe('첫 줄\n')
+  })
+})
+
 describe('상한에 걸리면 화면이 파일과 갈리지 않는다', () => {
   it('거절한 글이 칸에 남지 않는다', async () => {
     const view = mountView()
