@@ -15,7 +15,7 @@
  * 그것을 테스트하지 않는다.
  */
 
-import { computed, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
@@ -48,6 +48,7 @@ import { useToastStore } from '@/stores/toasts'
 import OrphanAnswers from './portfolio/OrphanAnswers.vue'
 import PortfolioPreview from './portfolio/PortfolioPreview.vue'
 import SectionCard from './portfolio/SectionCard.vue'
+import SectionIndex from './portfolio/SectionIndex.vue'
 import TemplateSourceMenu from './portfolio/TemplateSourceMenu.vue'
 
 const { t, locale } = useI18n()
@@ -139,6 +140,61 @@ function setDescription(id: string, text: string, element: HTMLTextAreaElement):
   })
 }
 
+/**
+ * 목차에서 고른 문항으로 데려간다.
+ *
+ * **도착 지점은 붙박이 바 아래에서 멈춘다** (`under-step-bar`). 여백이 없으면 목표가
+ * 화면 맨 위에 붙고 그 자리는 이미 동작 바가 덮고 있다 - 눌렀는데 아무 일도 안
+ * 일어난 것처럼 보인다.
+ */
+function anchorId(id: string): string {
+  return `portfolio-section-${id}`
+}
+
+function goTo(id: string): void {
+  document.getElementById(anchorId(id))?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+/**
+ * 지금 보고 있는 문항. 목차가 이것을 표시한다.
+ *
+ * **화면에 조금이라도 보이는 문항 중 가장 위다.** 판정에 숫자를 넣지 않는 이유는
+ * 근거 없는 임계값이 되기 때문이다 - "얼마나 보여야 지금 문항인가"에 답이 없다.
+ * 순서는 양식이 갖는다.
+ *
+ * **`IntersectionObserver`가 없으면 표시만 안 뜬다** (jsdom이 그렇다). 화면은 그대로
+ * 돌고 목차도 그대로 눌린다.
+ */
+const active = ref<string | null>(null)
+const visible = new Set<string>()
+let spy: IntersectionObserver | null = null
+
+function watchSections(): void {
+  spy?.disconnect()
+  visible.clear()
+  if (typeof IntersectionObserver === 'undefined') return
+
+  spy = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) visible.add(entry.target.id)
+      else visible.delete(entry.target.id)
+    }
+    const top = sections.value.find((section) => visible.has(anchorId(section.id)))
+    // 아무것도 안 보이는 순간(전환 중)에 표시를 지우지 않는다 - 깜빡이는 것이 더 나쁘다.
+    if (top !== undefined) active.value = top.id
+  })
+
+  for (const section of sections.value) {
+    const element = document.getElementById(anchorId(section.id))
+    if (element !== null) spy.observe(element)
+  }
+}
+
+// 문항이 늘거나 줄거나, 완성본으로 넘어가면 보고 있던 요소가 사라진다. 그려진 뒤에 다시 건다.
+watch([sections, preview], () => void nextTick(watchSections), { immediate: true })
+
+onBeforeUnmount(() => spy?.disconnect())
+
 function remove(): void {
   const id = removing.value
   removing.value = null
@@ -161,30 +217,49 @@ function remove(): void {
         </template>
       </StepActionBar>
 
-      <PortfolioPreview v-if="preview" :sections="sections" :orphans="orphans" />
-
-      <div v-else class="flex flex-col gap-5">
-        <SectionCard
-          v-for="(section, index) in sections"
-          :key="section.id"
-          :section="section"
-          :index="index"
-          :count="sections.length"
-          @answer="(text, element) => setAnswer(section.id, text, element)"
-          @title="(text, element) => setTitle(section.id, text, element)"
-          @description="(text, element) => setDescription(section.id, text, element)"
-          @move="(delta) => apply(withSectionMoved(portfolio, section.id, delta))"
-          @remove="removing = section.id"
-        />
-
-        <div class="flex justify-center">
-          <AppButton variant="secondary" @click="addSection">
-            <component :is="ACTION_ICONS.addSection" :size="18" aria-hidden="true" />
-            {{ t('portfolio.addSection') }}
-          </AppButton>
+      <!--
+        **3 대 7이다** (2026-08-14, 사용자). 왼쪽은 어디까지 왔는지를 말하는 목차이고
+        본체는 쓰는 자리라, 목차가 제목 한 줄을 담을 만큼만 가져간다. 기본 눈금
+        열을 쓴다 - 임의 값을 템플릿에 두지 않는다 (CLAUDE.md §4).
+      -->
+      <div class="grid gap-5 md:grid-cols-10">
+        <!--
+          **왼쪽은 붙박이다.** `self-start`가 없으면 격자 기본값(`stretch`)이 이 칸을
+          오른쪽만큼 늘려서 붙을 자리가 안 생긴다.
+        -->
+        <div class="self-start max-md:hidden md:sticky md:col-span-3 md:stick-under-step-bar">
+          <SectionIndex :sections="sections" :active="active ?? undefined" @pick="goTo" />
         </div>
 
-        <OrphanAnswers v-if="orphans.length > 0" :orphans="orphans" />
+        <div class="flex min-w-0 flex-col gap-5 md:col-span-7">
+          <PortfolioPreview v-if="preview" :sections="sections" :orphans="orphans" />
+
+          <template v-else>
+            <SectionCard
+              v-for="(section, index) in sections"
+              :id="anchorId(section.id)"
+              :key="section.id"
+              class="under-step-bar"
+              :section="section"
+              :index="index"
+              :count="sections.length"
+              @answer="(text, element) => setAnswer(section.id, text, element)"
+              @title="(text, element) => setTitle(section.id, text, element)"
+              @description="(text, element) => setDescription(section.id, text, element)"
+              @move="(delta) => apply(withSectionMoved(portfolio, section.id, delta))"
+              @remove="removing = section.id"
+            />
+
+            <div class="flex justify-center">
+              <AppButton variant="secondary" @click="addSection">
+                <component :is="ACTION_ICONS.addSection" :size="18" aria-hidden="true" />
+                {{ t('portfolio.addSection') }}
+              </AppButton>
+            </div>
+
+            <OrphanAnswers v-if="orphans.length > 0" :orphans="orphans" />
+          </template>
+        </div>
       </div>
     </template>
 

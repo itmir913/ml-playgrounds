@@ -485,6 +485,8 @@
     "IMAGE_CATEGORY_NAME_INVALID": "A folder here cannot be used as a category name. Rename the folder and compress it again. ({name})"
   },
   "portfolio": {
+    "contents": "Questions",
+    "progress": "Written {done} of {total}.",
     "orphanTitle": "Answers to earlier questions",
     "orphanLead": "These answers belong to questions the form no longer has.",
     "startReason": "There is no form yet.",

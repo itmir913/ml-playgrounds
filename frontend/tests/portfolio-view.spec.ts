@@ -67,6 +67,20 @@ describe('양식이 없어도 화면이 비지 않는다', () => {
   })
 })
 
+describe('목차는 어디까지 왔는지 말한다', () => {
+  it('진행과 문항 줄이 함께 뜬다', async () => {
+    const view = mountView()
+    const start = view.findAll('button').find((button) => button.text() === '빈 양식에서 시작')
+    await start?.trigger('click')
+
+    const index = view.findAll('ol > li')
+    expect(index).toHaveLength(1)
+    // 안 쓴 문항을 색으로만 말하지 않는다 - 읽어 주는 문장이 함께 있다.
+    expect(index[0]?.text()).toContain('아직 쓰지 않았습니다.')
+    expect(view.text()).toContain('1개 중 0개를 썼습니다.')
+  })
+})
+
 describe('상한에 걸리면 화면이 파일과 갈리지 않는다', () => {
   it('거절한 글이 칸에 남지 않는다', async () => {
     const view = mountView()

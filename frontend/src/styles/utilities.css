@@ -127,6 +127,20 @@
 }
 
 /**
+ * **붙박이 칸이 화면 안에 들어가는 최대 높이.** 넘치면 그 칸이 자기 안에서 스크롤한다 -
+ * 목록이 길어졌다고 붙박이가 화면 아래로 흘러나가면 아래쪽 항목에 닿을 방법이 없다.
+ *
+ * 빼는 것 넷: 도구 막대(`--shell-top`), 동작 바(`--step-bar-height`), 화면 위에 뜨는
+ * 것들이 덮는 아래쪽(`--overlay-bottom`), 그리고 위아래 한 칸씩(`gap-5` 두 번).
+ * **`dvh`인 이유는 휴대폰 주소창이 접혔다 펴지기 때문이다** - `vh`는 그때 안 따라온다.
+ */
+@utility fit-under-step-bar {
+  max-height: calc(
+    100dvh - var(--shell-top) - var(--step-bar-height, 5.25rem) - var(--overlay-bottom) - 2.5rem
+  );
+}
+
+/**
  * **셸이 가리는 안쪽에 붙는다.** `--shell-top`·`--shell-bottom`이 무엇인지는
  * `base.css`에 있다 — `md` 미만에서 문서가 스크롤하면서 도구 막대와 하단 바가
  * 화면 끝을 덮기 때문에 생긴 값이다.

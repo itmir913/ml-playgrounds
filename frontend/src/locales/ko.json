@@ -485,6 +485,8 @@
     "IMAGE_CATEGORY_NAME_INVALID": "범주 이름으로 쓸 수 없는 폴더가 있습니다. 폴더 이름을 바꾼 뒤 다시 압축해 주세요. ({name})"
   },
   "portfolio": {
+    "contents": "문항 목차",
+    "progress": "{total}개 중 {done}개를 썼습니다.",
     "orphanTitle": "이전 문항의 답",
     "orphanLead": "지금 양식에 없는 문항에 쓴 글입니다.",
     "startReason": "아직 양식이 없습니다.",
