@@ -128,11 +128,16 @@ function locked(summary: ProjectSummary): boolean {
             {{ format.bytes(summary.sizeBytes) }}
           </span>
 
+          <!--
+            **`action`이 아니라 `@click`이다.** 여기서 하는 일은 확인창을 여는 것뿐이라
+            기다릴 약속이 없다 — `action`으로 두면 즉시 끝나는 약속이라 잠금이 서지도
+            않으면서 **잠기는 것처럼 읽힌다.** 실제로 지우는 것은 그 창의 단추다.
+          -->
           <AppButton
             variant="ghost"
             :disabled="props.disabled"
             :label="t('projects.delete')"
-            :action="() => emit('remove', summary)"
+            @click="emit('remove', summary)"
           >
             <component :is="ACTION_ICONS.remove" :size="18" aria-hidden="true" />
           </AppButton>

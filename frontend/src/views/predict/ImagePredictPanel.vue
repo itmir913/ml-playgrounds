@@ -454,8 +454,12 @@ async function drop(hashes: readonly string[]): Promise<void> {
   }
 }
 
-function removeOne(hash: string): void {
-  void drop([hash])
+/**
+ * 한 장 빼기. **약속을 그대로 돌려준다** — `@click`으로 흘려보내면 `AppButton`이 기다릴
+ * 것이 없어 두 번 눌리는 것을 못 막는다 (CLAUDE.md §4).
+ */
+function removeOne(hash: string): Promise<void> {
+  return drop([hash])
 }
 
 function clearAll(): Promise<void> {
@@ -673,7 +677,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
             variant="ghost"
             class="self-start md:order-last"
             :disabled="busy"
-            @click="removeOne(photo.hash)"
+            :action="() => removeOne(photo.hash)"
           >
             {{ t('predict.image.remove') }}
           </AppButton>
