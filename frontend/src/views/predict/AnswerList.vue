@@ -364,7 +364,7 @@ function bars(model: PredictableModel): ProbabilityBar[] {
 
               위로 여는 이유는 손잡이 팝오버와 같다 — 아래가 전부 답이다.
             -->
-            <AppPopover v-if="evidenceOf(model)" side="top" size="square">
+            <AppPopover v-if="evidenceOf(model)" side="top" size="photos">
               <template #trigger="{ open }">
                 <!--
                   **아이콘을 안 단다** (2026-08-14, 사용자). 이 카드에는 실험 이름의 설명

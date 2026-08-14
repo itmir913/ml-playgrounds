@@ -14,6 +14,10 @@
  *
  * **열었을 때만 돈다.** 팝오버 안에서 지연 로딩되므로, 답 카드 스무 장이 서 있어도
  * 학생이 누른 그 군집의 사진만 디코딩된다.
+ *
+ * **먼저 서고, 그다음 찾는다** (2026-08-14, 사용자). 배정을 되계산하는 것은 사진 수백
+ * 장짜리 행렬을 훑는 일이라, 계산을 마친 뒤에 열면 **누른 것이 안 먹은 것처럼 보인다.**
+ * 상자를 먼저 세우고 "찾는 중"을 보여준 뒤에 계산한다 (`screen.ts`의 `yieldToScreen`).
  */
 
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
@@ -27,6 +31,7 @@ import { imageClusterGroups } from '@/ml/image-clusters'
 import { imageTrainingSource } from '@/ml/images'
 import { parsePreprocessor, transform } from '@/ml/preprocess'
 import { readEmbeddings } from '@/project/embeddings'
+import { yieldToScreen } from '@/screen'
 import { dataSnapshot } from '@/project/schema'
 import { useProjectStore } from '@/stores/project'
 
@@ -55,7 +60,7 @@ const preprocessor = computed(() => {
  * 하나라도 없으면 빈 배열이고, 그때 이 증거는 아무것도 안 그린다 — 이유를 이름으로
  * 말하지 않는다 (§9.2). 여는 단추 자체는 `hasData`가 이미 걸렀다.
  */
-const representatives = computed<readonly string[]>(() => {
+function findRepresentatives(): readonly string[] {
   const file = project.file
   const parsed = preprocessor.value
   if (!file || !parsed) return []
@@ -82,7 +87,24 @@ const representatives = computed<readonly string[]>(() => {
 
   const group = groups?.find((entry) => entry.cluster === props.input.value)
   return group ? group.hashes.slice(0, CLUSTER_REPRESENTATIVE_COUNT) : []
-})
+}
+
+const representatives = ref<readonly string[]>([])
+/** 아직 찾는 중인가. **상자가 먼저 서고 이 문구가 그 자리를 지킨다.** */
+const loading = ref(true)
+
+watch(
+  () => [project.file, props.input.run.id, props.input.value] as const,
+  async () => {
+    loading.value = true
+    // **여기서 비켜 주는 것이 이 화면의 전부다.** 안 비키면 팝오버가 계산이 끝난 뒤에야
+    // 그려지고, 학생에게는 누른 것이 늦게 먹은 것으로 보인다.
+    await yieldToScreen()
+    representatives.value = findRepresentatives()
+    loading.value = false
+  },
+  { immediate: true },
+)
 
 /**
  * 해시 -> 썸네일 주소. **만든 자리와 놓아주는 자리를 함께 둔다** — 안 놓아주면 팝오버를
@@ -119,7 +141,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="representatives.length > 0" class="flex h-full flex-col gap-2">
+  <!--
+    **찾는 동안에도 제목과 설명은 서 있다.** 상자가 통째로 비었다가 채워지면 그 순간
+    안의 것이 튀어 오른다 — 팝오버를 쓴 이유가 화면이 안 움직이게 하는 것이었다.
+  -->
+  <div v-if="loading || representatives.length > 0" class="flex flex-col gap-2">
     <h5 class="font-bold text-ink">
       {{
         t('predict.clusterEvidenceTitle', {
@@ -129,12 +155,15 @@ onBeforeUnmount(() => {
     </h5>
     <p class="text-ink-soft">{{ t('predict.clusterEvidenceNote') }}</p>
 
+    <p v-if="loading" class="text-ink-faint">{{ t('predict.clusterEvidenceLoading') }}</p>
+
     <!--
-      **3열 격자다.** 정본이 정사각형이라 상자와 맞물린다 (`popover-panel-square`).
-      열 수를 상수로 빼지 않는 이유는 이것이 장수가 아니라 **이 상자의 모양**이기
-      때문이다 (`limits.ts`의 `CLUSTER_REPRESENTATIVE_COUNT` 주석).
+      **3열 격자다.** 정본이 정사각형이라 격자도 정사각형이 되고, 상자는 그 위에 제목과
+      설명이 얹힌 만큼만 길어진다 (`popover-panel-photos`). 열 수를 상수로 빼지 않는
+      이유는 이것이 장수가 아니라 **격자의 모양**이기 때문이다
+      (`limits.ts`의 `CLUSTER_REPRESENTATIVE_COUNT` 주석).
     -->
-    <ul class="grid min-h-0 flex-1 grid-cols-3 gap-1.5 overflow-y-auto">
+    <ul v-else class="grid grid-cols-3 gap-1.5">
       <li v-for="hash in representatives" :key="hash">
         <img
           :src="urls.get(hash)"

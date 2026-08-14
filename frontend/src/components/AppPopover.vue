@@ -57,10 +57,10 @@ const props = withDefaults(
      * **불리언이었다가 셋이 되면서 이름이 바뀌었다** — `wide`는 "넓게"였지 "얼마나"가
      * 아니라서, 셋째가 생기는 순간 `wide && !medium` 같은 조합이 생길 자리였다.
      *
-     * `square`만 높이도 정한다. 정사각형 사진을 격자로 세우는 자리가 그렇다 — 상자가
-     * 내용을 따라 세로로만 길어지면 3×3이 아니라 줄줄이가 된다.
+     * **어느 것도 높이를 안 정한다.** 높이를 박으면 그 안의 내용이 눌려서 읽으려면
+     * 굴려야 하는 상자가 된다 — 사진 격자에서 실제로 그랬다 (2026-08-14).
      */
-    size?: 'default' | 'medium' | 'wide' | 'square'
+    size?: 'default' | 'medium' | 'wide' | 'photos'
   }>(),
   { align: 'left', side: 'bottom', size: 'default' },
 )
@@ -70,7 +70,7 @@ const WIDTHS: Readonly<Record<NonNullable<typeof props.size>, string>> = {
   default: '',
   medium: 'popover-panel-medium',
   wide: 'popover-panel-wide',
-  square: 'popover-panel-square',
+  photos: 'popover-panel-photos',
 }
 
 const open = ref(false)
