@@ -63,7 +63,16 @@ function onBackdrop(event: MouseEvent): void {
         <slot />
       </div>
 
-      <div class="mt-6 flex flex-wrap justify-end gap-3">
+      <!--
+        **고르는 것 둘의 너비가 같아야 한다** (2026-08-15, 사용자). `취소`와 `지우기`처럼
+        글자 수가 다른 짝에서 폭이 갈리면 **무게가 글자 수로 정해진다** - 무엇이 무거운
+        선택인지는 변종이 말해야 하고, 폭은 아무 말도 하면 안 된다.
+
+        `AppEmpty`가 나란한 단추를 세우는 것과 같은 방식이다 - 격자로 놓고 칸을 같은
+        너비로 나눈다(`auto-cols-fr`). 좁은 화면에서는 위아래로 쌓이고, 그때도 서로
+        같은 너비다.
+      -->
+      <div class="mt-6 ml-auto grid w-fit gap-3 sm:grid-flow-col sm:auto-cols-fr">
         <slot name="actions" />
       </div>
     </div>
