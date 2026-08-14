@@ -20,6 +20,10 @@
  * **도구는 손이 가 있을 때만 뜬다** (`tools-on-demand`). 문항이 열넷이면 도구 넷이
  * 열네 벌 늘 떠 있다. **터치 기기에서는 언제나 보인다** - 손가락에는 hover가 없다.
  *
+ * **다 썼다는 표시는 여기 없다** (2026-08-15, 사용자). 머리의 오른쪽은 도구의 자리이고,
+ * 도구가 숨은 동안 표시 하나만 거기 떠 있으면 **무엇에 딸린 것인지 알 수 없다.**
+ * 그 질문에 답하는 자리는 목차다 - 좁은 화면에서도 맨 위에 선다 (§8.18.1).
+ *
  * **값을 고쳐서 올려보내므로 되돌릴 거리가 있다** - 상한에 걸리면 부모가 거절하고,
  * 그때 화면이 파일과 다른 글자를 들고 있으면 안 된다. 그래서 요소를 함께 넘긴다
  * (architecture.md §8.15.1).
@@ -147,15 +151,6 @@ function onPaste(event: ClipboardEvent): void {
           {{ number }}
         </span>
         <h3 :id="headingId" class="min-w-0 flex-1 text-lg font-bold">{{ props.section.title }}</h3>
-
-        <!-- 굴리면서도 남은 문항이 보여야 한다. 목차는 좁은 화면에서 맨 위에만 있다. -->
-        <component
-          :is="ACTION_ICONS.written"
-          v-if="props.section.answer.trim() !== ''"
-          :size="18"
-          class="shrink-0 text-positive"
-          aria-hidden="true"
-        />
 
         <div
           class="flex shrink-0 items-center gap-1 tools-on-demand group-hover:opacity-100 group-focus-within:opacity-100"

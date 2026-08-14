@@ -487,6 +487,7 @@
   "portfolio": {
     "contents": "문항 목차",
     "progress": "{total}개 중 {done}개를 썼습니다.",
+    "progressCount": "{done} / {total}",
     "orphanTitle": "이전 문항의 답",
     "orphanLead": "지금 양식에 없는 문항에 쓴 글입니다.",
     "startReason": "아직 양식이 없습니다.",

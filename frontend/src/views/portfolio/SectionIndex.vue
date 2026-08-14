@@ -34,8 +34,9 @@
  * **제목은 줄을 안 바꾸고 `…`으로 줄인다.** 줄 높이가 항목마다 달라지면 훑는 눈이 걸리고,
  * 좁은 칸에서 두 줄이 되면 다섯 줄이 여덟 줄이 된다.
  *
- * **줄 사이는 띄운다.** 막대가 줄마다 서는데 줄이 붙어 있으면 그 막대들이 한 줄로
- * 이어진다 - 줄이 몇인지는 간격이 말한다.
+ * **줄 사이는 띄운다.** 붙여 두면 표시된 줄과 손이 올라간 줄의 옅은 면이 **위아래로
+ * 이어져 하나의 덩어리로 보이고**(2026-08-15, 사용자), 줄마다 서는 막대도 한 줄로
+ * 이어진다. 줄이 몇인지는 간격이 말한다.
  *
  * **표시한 문항을 자기 안으로 데려온다.** 문항이 열둘이면 목록이 자기 안에서 스크롤하고,
  * 그때 표시가 목록 밖에 있으면 **표시를 해 둔 것이 아무 일도 안 한 것과 같다**
@@ -90,13 +91,29 @@ watch(() => props.active, reveal)
 
 <template>
   <div class="flex flex-col rounded-panel border border-line bg-surface p-4 md:fit-under-step-bar">
-    <h2 class="font-bold">{{ t('portfolio.contents') }}</h2>
     <!--
-      **진행은 막대만 준다.** 문장은 동작 바가 이미 말하고, 줄마다 붙는 표시가 한 번 더
-      말한다 - 같은 사실을 세 번 적으면 그 판이 시끄러워진다. 읽어 줄 것은
-      `portfolio.progress`가 그쪽에서 갖는다.
+      **진행을 말하는 자리는 여기 하나다** (2026-08-15, 사용자). 동작 바에도 같은 문장이
+      있었는데, 한 화면에서 같은 사실을 두 번 적으면 그중 하나는 언젠가 안 고쳐진다.
+
+      **수에 이름표를 안 붙인다.** 제목 옆이고 바로 아래가 진행 막대라 무엇의 수인지는
+      자리가 말한다. **읽어 주는 문장은 막대가 갖는다** - 눈으로는 자리가 말해 주는 것을
+      귀로는 아무도 못 듣기 때문이다.
     -->
-    <div class="mt-2 h-1 w-full overflow-hidden rounded-pill bg-surface-sunken" aria-hidden="true">
+    <div class="flex items-baseline justify-between gap-2">
+      <h2 class="font-bold">{{ t('portfolio.contents') }}</h2>
+      <span class="tabular-nums text-ink-soft">
+        {{ t('portfolio.progressCount', { done, total: props.sections.length }) }}
+      </span>
+    </div>
+
+    <div
+      class="mt-2 h-1 w-full overflow-hidden rounded-pill bg-surface-sunken"
+      role="progressbar"
+      :aria-valuenow="done"
+      aria-valuemin="0"
+      :aria-valuemax="props.sections.length"
+      :aria-label="t('portfolio.progress', { done, total: props.sections.length })"
+    >
       <div class="h-full rounded-pill bg-brand transition-all" :style="{ width: donePercent }" />
     </div>
 
@@ -110,9 +127,9 @@ watch(() => props.active, reveal)
     >
       <li v-for="(section, index) in props.sections" :key="section.id">
         <!--
-          **말하는 것은 왼쪽 막대다** (2026-08-15, 사용자). 줄을 채우면 옅은 면이라도 흰 판
-          위에서 떠 있는 덩어리로 보이고, 줄이 열넷이면 그 덩어리가 열넷이다. 손이 올라간
-          줄은 막대가 옅게, 표시된 줄은 막대가 브랜드 색으로 서고 글자가 굵어진다.
+          **막대와 면이 함께 말한다** (2026-08-15, 사용자). 손이 올라간 줄은 막대가 옅게
+          서고 면이 깔리며, 표시된 줄은 막대가 브랜드 색이 되고 글자가 굵어진다. 면이
+          덩어리로 뭉쳐 보이던 것은 줄 사이 간격으로 풀었다(위 머리말).
 
           **막대는 언제나 자리를 차지한다.** 표시된 줄에만 테두리를 주면 그 줄의 글자가
           2px씩 밀린다 - 칸의 안쪽 폭이 상태에 따라 달라지면 안 된다(`AppButton`).
@@ -120,8 +137,8 @@ watch(() => props.active, reveal)
         <button
           type="button"
           :data-section="section.id"
-          class="flex w-full items-baseline gap-2 rounded-control border-l-2 border-transparent px-2 py-1.5 text-left transition-colors hover:border-line-strong"
-          :class="props.active === section.id ? 'border-brand font-bold' : ''"
+          class="flex w-full items-baseline gap-2 rounded-control border-l-2 border-transparent px-2 py-1.5 text-left transition-colors hover:border-line-strong hover:bg-surface-sunken"
+          :class="props.active === section.id ? 'border-brand bg-surface-sunken font-bold' : ''"
           :aria-current="props.active === section.id ? 'true' : undefined"
           @click="emit('pick', section.id)"
         >

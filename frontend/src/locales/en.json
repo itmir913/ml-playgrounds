@@ -487,6 +487,7 @@
   "portfolio": {
     "contents": "Contents",
     "progress": "{done} of {total} answered.",
+    "progressCount": "{done} / {total}",
     "orphanTitle": "Answers to earlier questions",
     "orphanLead": "These answers belong to questions the form no longer has.",
     "startReason": "There is no form yet.",

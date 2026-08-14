@@ -83,7 +83,17 @@ describe('목차는 어디까지 왔는지 말한다', () => {
     expect(index).toHaveLength(1)
     // 안 쓴 문항을 색으로만 말하지 않는다 - 읽어 주는 문장이 함께 있다.
     expect(index[0]?.text()).toContain('아직 쓰지 않았습니다.')
-    expect(view.text()).toContain('1개 중 0개를 썼습니다.')
+
+    // **눈에 보이는 것은 수뿐이다.** 무엇의 수인지는 자리가 말한다 (architecture.md §8.18).
+    expect(view.text()).toContain('0 / 1')
+
+    // **문장은 사라지지 않고 막대의 이름이 된다** - 자리가 말해 주는 것을 귀로는 못 듣는다.
+    // 막대는 한 화면에 둘이다(담긴 양·진행). 세는 것이 문항인 쪽을 고른다.
+    const progress = view
+      .findAll('[role="progressbar"]')
+      .find((bar) => bar.attributes('aria-valuemax') === '1')
+    expect(progress?.attributes('aria-label')).toBe('1개 중 0개를 썼습니다.')
+    expect(progress?.attributes('aria-valuenow')).toBe('0')
   })
 })
 
