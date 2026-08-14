@@ -236,8 +236,18 @@ defineExpose({ close })
 
 <template>
   <div ref="root" class="relative">
-    <!-- 트리거. 여는 것은 이 컴포넌트가 쥔다. -->
-    <div @click="open = !open">
+    <!--
+      트리거. 여는 것은 이 컴포넌트가 쥔다.
+
+      **격자다.** 안에 든 단추가 이 칸의 너비를 그대로 받게 하려는 것이다 - 격자 칸의
+      아이는 기본으로 늘어나므로, 맨 `AppButton`을 놓았을 때와 팝오버를 놓았을 때가
+      같아진다. 안 그러면 나란히 세운 둘의 폭이 갈린다 (architecture.md §8.19,
+      2026-08-15에 시작 화면에서 실제로 그랬다).
+
+      **줄 안에 설 때는 아무 일도 안 일어난다** - 그 자리에서는 이 상자가 내용 너비라
+      늘어날 자리가 없다.
+    -->
+    <div class="grid" @click="open = !open">
       <slot name="trigger" :open="open" />
     </div>
 
