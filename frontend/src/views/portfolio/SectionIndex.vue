@@ -34,6 +34,10 @@
  * **제목은 줄을 안 바꾸고 `…`으로 줄인다.** 줄 높이가 항목마다 달라지면 훑는 눈이 걸리고,
  * 좁은 칸에서 두 줄이 되면 다섯 줄이 여덟 줄이 된다.
  *
+ * **줄 사이는 띄운다.** 붙여 두면 표시된 줄과 손이 올라간 줄의 옅은 면이 **위아래로
+ * 이어져 하나의 덩어리로 보인다** (2026-08-15, 사용자). 면이 옅을수록 경계가 안 보여서
+ * 더 그렇다 - 줄이 몇인지는 간격이 말한다.
+ *
  * **표시한 문항을 자기 안으로 데려온다.** 문항이 열둘이면 목록이 자기 안에서 스크롤하고,
  * 그때 표시가 목록 밖에 있으면 **표시를 해 둔 것이 아무 일도 안 한 것과 같다**
  * (2026-08-15, 사용자 화면에서 실제로 그랬다). 굴리는 것은 이 목록뿐이다 -
@@ -103,7 +107,7 @@ watch(() => props.active, reveal)
     -->
     <ol
       ref="list"
-      class="mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-none max-md:max-h-48"
+      class="mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto scrollbar-none max-md:max-h-48"
     >
       <li v-for="(section, index) in props.sections" :key="section.id">
         <!--
