@@ -176,12 +176,17 @@ function onPaste(event: ClipboardEvent): void {
           >
             <component :is="ACTION_ICONS.moveDown" :size="18" aria-hidden="true" />
           </AppButton>
+          <!-- 고치는 중에는 같은 자리가 [마치기]가 된다. 나가는 길이 들어온 자리와 같아야 한다. -->
           <AppButton
             variant="ghost"
-            :label="t('portfolio.editSection')"
+            :label="editing ? t('portfolio.editDone') : t('portfolio.editSection')"
             @click="editing = !editing"
           >
-            <component :is="ACTION_ICONS.editSection" :size="18" aria-hidden="true" />
+            <component
+              :is="editing ? ACTION_ICONS.editDone : ACTION_ICONS.editSection"
+              :size="18"
+              aria-hidden="true"
+            />
           </AppButton>
           <AppButton variant="ghost" :label="t('portfolio.remove')" @click="emit('remove')">
             <component :is="ACTION_ICONS.remove" :size="18" aria-hidden="true" />

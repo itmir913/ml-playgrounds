@@ -72,6 +72,11 @@ export const ACTION_ICONS = {
   toDark: Moon,
   /** 포트폴리오 문항을 고치고 옮기고 더한다. 문항은 마음대로 고친다 (mlpx-spec.md §8.3). */
   editSection: Pencil,
+  /**
+   * 고치기를 마친다. **`written`과 같은 그림이지만 다른 이름이다** - 하나는 동작이고
+   * 하나는 상태라, 나중에 한쪽만 그림을 바꿀 수 있어야 한다.
+   */
+  editDone: Check,
   moveUp: ChevronUp,
   moveDown: ChevronDown,
   addSection: Plus,

@@ -502,6 +502,7 @@
     "firstSection": "What you did",
     "newSection": "New question",
     "editSection": "Edit this question",
+    "editDone": "Done editing",
     "addPhoto": "Attach photos",
     "removePhoto": "Delete this photo",
     "photoAlt": "Photo attached to the answer",

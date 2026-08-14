@@ -34,9 +34,8 @@
  * **제목은 줄을 안 바꾸고 `…`으로 줄인다.** 줄 높이가 항목마다 달라지면 훑는 눈이 걸리고,
  * 좁은 칸에서 두 줄이 되면 다섯 줄이 여덟 줄이 된다.
  *
- * **줄 사이는 띄운다.** 붙여 두면 표시된 줄과 손이 올라간 줄의 옅은 면이 **위아래로
- * 이어져 하나의 덩어리로 보인다** (2026-08-15, 사용자). 면이 옅을수록 경계가 안 보여서
- * 더 그렇다 - 줄이 몇인지는 간격이 말한다.
+ * **줄 사이는 띄운다.** 막대가 줄마다 서는데 줄이 붙어 있으면 그 막대들이 한 줄로
+ * 이어진다 - 줄이 몇인지는 간격이 말한다.
  *
  * **표시한 문항을 자기 안으로 데려온다.** 문항이 열둘이면 목록이 자기 안에서 스크롤하고,
  * 그때 표시가 목록 밖에 있으면 **표시를 해 둔 것이 아무 일도 안 한 것과 같다**
@@ -111,14 +110,18 @@ watch(() => props.active, reveal)
     >
       <li v-for="(section, index) in props.sections" :key="section.id">
         <!--
+          **말하는 것은 왼쪽 막대다** (2026-08-15, 사용자). 줄을 채우면 옅은 면이라도 흰 판
+          위에서 떠 있는 덩어리로 보이고, 줄이 열넷이면 그 덩어리가 열넷이다. 손이 올라간
+          줄은 막대가 옅게, 표시된 줄은 막대가 브랜드 색으로 서고 글자가 굵어진다.
+
           **막대는 언제나 자리를 차지한다.** 표시된 줄에만 테두리를 주면 그 줄의 글자가
           2px씩 밀린다 - 칸의 안쪽 폭이 상태에 따라 달라지면 안 된다(`AppButton`).
         -->
         <button
           type="button"
           :data-section="section.id"
-          class="flex w-full items-baseline gap-2 rounded-control border-l-2 border-transparent px-2 py-1.5 text-left transition-colors hover:bg-surface-sunken"
-          :class="props.active === section.id ? 'border-brand bg-surface-sunken font-bold' : ''"
+          class="flex w-full items-baseline gap-2 rounded-control border-l-2 border-transparent px-2 py-1.5 text-left transition-colors hover:border-line-strong"
+          :class="props.active === section.id ? 'border-brand font-bold' : ''"
           :aria-current="props.active === section.id ? 'true' : undefined"
           @click="emit('pick', section.id)"
         >
