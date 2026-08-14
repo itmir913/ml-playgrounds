@@ -45,14 +45,34 @@
   },
   "steps": {
     "data": {
-      "label": "Data"
+      "label": "Data",
+      "tabular": {
+        "purpose": "Load a data file and see what columns it has."
+      },
+      "image": {
+        "purpose": "Add the photos you want to train with."
+      }
     },
     "preprocess": {
-      "label": "Pre­pro­cess­ing"
+      "label": "Pre­pro­cess­ing",
+      "tabular": {
+        "purpose": "Shape the data so it is ready for training.",
+        "locked": "Load your data first."
+      },
+      "image": {
+        "purpose": "Set how much data to keep for scoring.",
+        "locked": "Add your photos first."
+      }
     },
     "train": {
       "label": "Train­ing",
-      "purpose": "Choose the task type and the models, then train them."
+      "purpose": "Choose the task type and the models, then train them.",
+      "tabular": {
+        "locked": "Choose the target and the features first."
+      },
+      "image": {
+        "locked": "Finish the tasks on the Data step first."
+      }
     },
     "results": {
       "label": "Results",
@@ -61,7 +81,13 @@
     },
     "predict": {
       "label": "Predict­ing",
-      "locked": "You need a trained model before you can predict."
+      "locked": "You need a trained model before you can predict.",
+      "tabular": {
+        "purpose": "Enter the values you want predicted and every model gives its answer."
+      },
+      "image": {
+        "purpose": "Add new photos and every model gives its answer."
+      }
     },
     "portfolio": {
       "label": "Port­folio",
@@ -100,7 +126,6 @@
       "pickAll": "Select all",
       "pickCategory": "Choose one",
       "preparing": "Preparing photos {done} of {total}",
-      "purpose": "Add the photos you want to train with.",
       "readTitle": "Read {count} file. | Read {count} files.",
       "removeCategory": "Delete category",
       "removeCategoryDescription": "The photos stay and move to [No category]. ({name})",
@@ -132,7 +157,6 @@
       "noHeaderNote": "There are no column names, so they are called A, B, C and so on.",
       "previewNote": "Showing the first {count} row. | Showing the first {count} rows.",
       "previewTitle": "Data preview",
-      "purpose": "Load a data file and see what columns it has.",
       "reading": "Reading…",
       "replaceConfirm": "Delete and replace",
       "replaceDescription": "The {count} experiment you have run so far goes with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows. | The {count} experiments you have run so far go with it. A model points at row numbers in the data, so keeping it would make it predict from the wrong rows.",
@@ -204,10 +228,6 @@
     "ordinal": "Ordinal encoding"
   },
   "preprocess": {
-    "image": {
-      "locked": "Add your photos first.",
-      "purpose": "Set how much data to keep for scoring."
-    },
     "emptyReason": "No data yet.",
     "emptyNext": "Load a file in the data step and you can choose what to predict here.",
     "summaryTitle": "Preprocessing summary",
@@ -223,8 +243,6 @@
     "reseedDescription": "The data will be split into training and test sets differently. Your earlier experiments stay in the project, but new scores come from different data, so you cannot line them up against the old ones.",
     "reseedConfirm": "Draw",
     "tabular": {
-      "locked": "Load your data first.",
-      "purpose": "Shape the data so it is ready for training.",
       "cleaningTitle": "Tidy the data",
       "clearAll": "Clear every feature",
       "columnsLead": "Pick one column to predict, and the columns to predict it from.",
@@ -296,9 +314,6 @@
     "emptyReason": "No project is open yet.",
     "failedHere": "Training failed. See why",
     "finished": "Training finished.",
-    "image": {
-      "locked": "Finish the tasks on the Data step first."
-    },
     "lastRun": "Last trained {at}",
     "lastRunFailed": "{count} model failed to train. | {count} models failed to train.",
     "leaveBody": "If you leave now, training stops and no result is kept. You will have to train again.",
@@ -328,9 +343,6 @@
     "start": "Train",
     "stop": "Stop",
     "stratifyOff": "The task type you chose has no categories to balance, so proportional splitting was turned off in the preprocess step.",
-    "tabular": {
-      "locked": "Choose the target and the features first."
-    },
     "taskChanged": "Some models were dropped from your list because they do not fit the task type you chose. ({names})",
     "taskTitle": "Task type",
     "tuning": "Change the hyperparameters"
@@ -672,7 +684,6 @@
       "emptyNext": "Add photos and every model gives its answer.",
       "emptyReason": "No photos yet.",
       "photo": "Photo to predict",
-      "purpose": "Add new photos and every model gives its answer.",
       "remove": "Remove",
       "waiting": "Add photos and press [Predict] to see the answers here."
     },
@@ -704,7 +715,6 @@
       "inputTitle": "New values",
       "pickOption": "Choose one",
       "probabilityColumn": "{model} probability",
-      "purpose": "Enter the values you want predicted and every model gives its answer.",
       "range": "Values for this feature: {min} to {max}",
       "rowNumber": "Row",
       "showFeatures": "Show feature values",

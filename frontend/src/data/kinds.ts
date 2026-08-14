@@ -79,10 +79,11 @@ export interface DataKind {
    *
    * **빠뜨리면 `tests/kinds.spec.ts`가 운다.** `Partial`이라 타입으로는 못 잡는다.
    *
-   * **키는 `steps.*` 아래가 아니라 그 화면의 이름 아래다** (`data.image.purpose`).
-   * `steps.*`에는 단계 id만 온다는 것을 `tests/locales.spec.ts`가 지키고 있고, 그
-   * 규칙이 맞다 — 여기 있는 것은 단계의 문구가 아니라 **그 화면이 이 종류에서 하는
-   * 말**이다.
+   * **키는 `steps.{단계}.{종류}.{자리}`다** (2026-08-14, `docs/i18n.md` 규칙 10).
+   * 화면 이름 아래(`data.image.purpose`) 두었더니 갈리는 자리 넷이 네 네임스페이스에
+   * 흩어졌고, 종류가 하나 늘 때 그 넷을 찾아다녀야 했다. **이 문장들은 화면의 문장이
+   * 아니라 단계 축의 문장이다** — 대시보드 줄·레일의 잠금 사유·화면 머리가 같은 것을
+   * 쓴다. 화면 본문의 종류별 문구는 여전히 그 화면 이름 아래다(`data.image.add`).
    */
   readonly stepText: Partial<Record<StepId, { purpose?: string; locked?: string }>>
   /**
@@ -136,10 +137,13 @@ export const DATA_KINDS: readonly DataKind[] = [
     // 그것이 기본값이 되었고, 그러면 다음에 들어오는 종류가 아무것도 안 써도 화면이
     // 멀쩡해 보인다 — 조용히 표의 말을 하면서 (docs/i18n.md 규칙 10).
     stepText: {
-      data: { purpose: 'data.tabular.purpose' },
-      preprocess: { purpose: 'preprocess.tabular.purpose', locked: 'preprocess.tabular.locked' },
-      predict: { purpose: 'predict.tabular.purpose' },
-      train: { locked: 'train.tabular.locked' },
+      data: { purpose: 'steps.data.tabular.purpose' },
+      preprocess: {
+        purpose: 'steps.preprocess.tabular.purpose',
+        locked: 'steps.preprocess.tabular.locked',
+      },
+      predict: { purpose: 'steps.predict.tabular.purpose' },
+      train: { locked: 'steps.train.tabular.locked' },
     },
     summaryRows: defineAsyncComponent(() => import('@/components/summary/TabularSummaryRows.vue')),
   },
@@ -154,14 +158,17 @@ export const DATA_KINDS: readonly DataKind[] = [
     predictPanel: defineAsyncComponent(() => import('@/views/predict/ImagePredictPanel.vue')),
     stepText: {
       // "어떤 열이 있는지"는 이미지에 없는 말이다.
-      data: { purpose: 'data.image.purpose' },
+      data: { purpose: 'steps.data.image.purpose' },
       // 다듬을 것이 없다 - 결측치도 인코딩도 스케일링도 이미지에는 없고, 여기서 하는
       // 일은 테스트 데이터를 정하는 것뿐이다. 잠금 이유의 "불러오기"도 같다.
-      preprocess: { purpose: 'preprocess.image.purpose', locked: 'preprocess.image.locked' },
+      preprocess: {
+        purpose: 'steps.preprocess.image.purpose',
+        locked: 'steps.preprocess.image.locked',
+      },
       // "표에 새 줄을 하나 넣으면"도 마찬가지다.
-      predict: { purpose: 'predict.image.purpose' },
+      predict: { purpose: 'steps.predict.image.purpose' },
       // 잠금 이유가 "타깃과 특성을 정해 주세요"인데 이미지에는 둘 다 없다.
-      train: { locked: 'train.image.locked' },
+      train: { locked: 'steps.train.image.locked' },
     },
     preparingKey: 'data.image.preparing',
     summaryRows: defineAsyncComponent(() => import('@/components/summary/ImageSummaryRows.vue')),

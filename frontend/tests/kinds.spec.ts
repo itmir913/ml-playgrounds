@@ -13,6 +13,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { dataKindFor, stepTextKey, SUPPORTED_DATA_TYPES } from '../src/data/kinds'
+import en from '../src/locales/en.json'
+import ko from '../src/locales/ko.json'
 import { DATA_TYPES } from '../src/project/schema'
 import { KIND_SPECIFIC_STEP_TEXT } from '../src/router/steps'
 
@@ -71,6 +73,37 @@ describe('데이터 종류 등록부', () => {
           stepTextKey(kind, step, slot),
           `${dataType}가 ${step}.${slot}의 문장을 안 갖는다 - 기본값이 없는 자리다`,
         ).not.toBe(`steps.${step}.${slot}`)
+      }
+    }
+  })
+
+  /**
+   * **등록부가 가리키는 문장이 실제로 있는가.**
+   *
+   * 이 자리는 다른 어떤 검사도 안 본다. 로케일의 "안 불리는 키" 검사는 `stepTextKey`의
+   * 기본값(`steps.${step}.${slot}`)을 조립 자리로 읽어 **`steps.` 아래 전부를 쓰인
+   * 것으로 친다** — 그래서 오타 하나면 화면에 키 문자열이 그대로 뜨는데 관문은 초록이다.
+   * 실제로 문구를 `steps.{단계}.{종류}` 아래로 옮긴 뒤 오타를 넣어 확인했다.
+   */
+  it('등록부가 가리키는 단계 문구가 두 언어에 다 있다', () => {
+    const value = (locale: object, key: string): unknown =>
+      key.split('.').reduce<unknown>((node, part) => {
+        return typeof node === 'object' && node !== null
+          ? (node as Record<string, unknown>)[part]
+          : undefined
+      }, locale)
+
+    for (const dataType of SUPPORTED_DATA_TYPES) {
+      const kind = dataKindFor(dataType)
+      for (const [step, slots] of Object.entries(kind?.stepText ?? {})) {
+        for (const [slot, key] of Object.entries(slots)) {
+          expect(typeof value(ko, key), `ko에 ${key}가 없다 (${dataType} ${step}.${slot})`).toBe(
+            'string',
+          )
+          expect(typeof value(en, key), `en에 ${key}가 없다 (${dataType} ${step}.${slot})`).toBe(
+            'string',
+          )
+        }
       }
     }
   })
