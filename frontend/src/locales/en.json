@@ -262,7 +262,7 @@
       "sampleSummary": "Using {used} of {usable} rows. The model never sees the remaining {rest}.",
       "sampleTitle": "How much data to use",
       "scaling": "Scaling",
-      "scalingNote": "Brings the value ranges of number columns closer together. Change it and train again to see how the score moves on the results screen.",
+      "scalingNote": "Brings the value ranges of number columns closer together. Change it and train again to see how the score moves in the results step.",
       "selectAll": "Select every feature",
       "targetRule": {
         "TARGET_NOT_NUMERIC": "Regression can only predict a number column."
@@ -526,7 +526,7 @@
     "countUnit": "{count}",
     "tabular": {
       "columns": "Columns",
-      "dataset": "Data",
+      "dataset": "Data file",
       "features": "Features",
       "rows": "Rows",
       "target": "Target"
