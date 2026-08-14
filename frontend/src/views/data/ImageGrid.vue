@@ -91,7 +91,7 @@ const shown = computed(() =>
   >
     <header class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
       <h3 class="min-w-0 truncate font-bold text-ink">{{ props.label }}</h3>
-      <AppBadge>{{ t('data.image.count', props.entries.length) }}</AppBadge>
+      <AppBadge>{{ t('meta.image.count', props.entries.length) }}</AppBadge>
 
       <!--
         **글자 버튼은 안쪽 여백을 되당긴다.** `AppButton`의 `px-4`가 그대로 서면 글자

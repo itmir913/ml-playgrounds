@@ -106,11 +106,7 @@
       "addFolder": "Add a folder",
       "addHere": "Add photos here",
       "added": "Added {count} photo. | Added {count} photos.",
-      "backbone": "Backbone",
-      "categories": "Categories",
       "categoryName": "Category name",
-      "count": "{count} photo | {count} photos",
-      "countUnit": "{count}",
       "createTitle": "New category",
       "deleteDescription": "This removes the {count} selected photo from the project. It cannot be undone. | This removes the {count} selected photos from the project. It cannot be undone.",
       "deletePhotos": "Delete photos",
@@ -125,11 +121,8 @@
       "nameHint": "Cannot start with _, and some special characters cannot be used.",
       "nameTaken": "A category with this name already exists.",
       "newCategory": "New category",
-      "photos": "Photos",
-      "photosPerCategory": "Photos per category",
       "pickAll": "Select all",
       "pickCategory": "Choose one",
-      "preparing": "Preparing photos {done} of {total}",
       "readTitle": "Read {count} file. | Read {count} files.",
       "removeCategory": "Delete category",
       "removeCategoryDescription": "The photos stay and move to [No category]. ({name})",
@@ -139,8 +132,6 @@
       "renameTitle": "Rename category",
       "selected": "{count} photo selected | {count} photos selected",
       "skipped": "Left out {count} file that could not be read. | Left out {count} files that could not be read.",
-      "unlabeled": "No category",
-      "unlabeledCount": "Photos with no category",
       "use": "Use these photos"
     },
     "tabular": {
@@ -541,6 +532,17 @@
       "features": "Features",
       "rows": "Rows",
       "target": "Target"
+    },
+    "image": {
+      "photos": "Photos",
+      "categories": "Categories",
+      "unlabeled": "No category",
+      "count": "{count} photo | {count} photos",
+      "countUnit": "{count}",
+      "photosPerCategory": "Photos per category",
+      "unlabeledCount": "Photos with no category",
+      "backbone": "Backbone",
+      "preparing": "Preparing photos {done} of {total}"
     }
   },
   "splitMethod": {

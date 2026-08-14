@@ -503,7 +503,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
         {{ t('predict.image.add') }}
       </AppButton>
       <span v-if="progress" class="tabular-nums font-bold" role="status">
-        {{ t('data.image.preparing', { done: progress.completed, total: progress.total }) }}
+        {{ t('meta.image.preparing', { done: progress.completed, total: progress.total }) }}
       </span>
       <!--
         **초기화 경로가 있어야 한다.** 잘못 올린 사진을 빼는 길이 없으면 학생이 할 수

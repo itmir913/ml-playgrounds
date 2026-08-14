@@ -135,7 +135,7 @@ function turn(cluster: number, step: number): void {
         <h3 class="font-bold text-ink">
           {{ t('results.clusterName', { index: group.cluster }) }}
         </h3>
-        <AppBadge>{{ t('data.image.count', group.hashes.length) }}</AppBadge>
+        <AppBadge>{{ t('meta.image.count', group.hashes.length) }}</AppBadge>
         <!--
           **대표 사진이 무엇인지 말한다.** 그냥 첫 칸에 두면 학생은 그것이 대표라는 것을
           모르고, 순서에 뜻이 있다는 것도 모른다.

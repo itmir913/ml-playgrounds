@@ -106,11 +106,7 @@
       "addFolder": "폴더에서 추가",
       "addHere": "여기에 사진 추가",
       "added": "사진 {count}장을 추가했습니다.",
-      "backbone": "백본(Backbone)",
-      "categories": "범주",
       "categoryName": "범주 이름",
-      "count": "{count}장",
-      "countUnit": "{count}장",
       "createTitle": "범주 만들기",
       "deleteDescription": "선택한 사진 {count}장을 프로젝트에서 지웁니다. 되돌릴 수 없습니다.",
       "deletePhotos": "사진 지우기",
@@ -125,11 +121,8 @@
       "nameHint": "밑줄(_)로 시작할 수 없고, 일부 특수문자는 사용할 수 없습니다.",
       "nameTaken": "같은 이름의 범주가 이미 있습니다.",
       "newCategory": "범주 만들기",
-      "photos": "사진",
-      "photosPerCategory": "범주별 사진 수",
       "pickAll": "전체 선택",
       "pickCategory": "고르세요",
-      "preparing": "사진 준비 중 {done}/{total}",
       "readTitle": "파일 {count}개를 읽었습니다.",
       "removeCategory": "범주 지우기",
       "removeCategoryDescription": "사진은 지워지지 않고 [범주 없음]으로 옮겨집니다. ({name})",
@@ -139,8 +132,6 @@
       "renameTitle": "범주 이름 바꾸기",
       "selected": "사진 {count}장 선택",
       "skipped": "읽을 수 없는 파일 {count}개는 추가하지 못했습니다.",
-      "unlabeled": "범주 없음",
-      "unlabeledCount": "범주 없는 사진 수",
       "use": "이 사진 사용"
     },
     "tabular": {
@@ -541,6 +532,17 @@
       "features": "특성(Feature)",
       "rows": "행",
       "target": "타깃(Target)"
+    },
+    "image": {
+      "photos": "사진",
+      "categories": "범주",
+      "unlabeled": "범주 없음",
+      "count": "{count}장",
+      "countUnit": "{count}장",
+      "photosPerCategory": "범주별 사진 수",
+      "unlabeledCount": "범주 없는 사진 수",
+      "backbone": "백본(Backbone)",
+      "preparing": "사진 준비 중 {done}/{total}"
     }
   },
   "splitMethod": {

@@ -92,8 +92,11 @@ export interface DataKind {
    * **없는 것이 정상이다** — 표는 학습 전에 준비할 것이 없어 이 자리가 한 번도 안 뜬다.
    * 이미지는 백본을 받고 사진을 통과시키는 시간이 앞에 붙는다.
    *
-   * **학습 화면이 이 문구를 직접 들고 있었다** — `t('data.image.preparing')`가
-   * 종류를 모르는 화면 안에 박혀 있었고, 그건 음성이 들어오는 날 `v-if`가 될 자리다.
+   * **학습 화면이 이 문구를 직접 들고 있었다** — 종류를 모르는 화면 안에 이미지의
+   * 키가 박혀 있었고, 그건 음성이 들어오는 날 `v-if`가 될 자리다.
+   *
+   * **문장은 `meta.{종류}.*`에 산다** (docs/i18n.md 규칙 10). 데이터·학습·예측 세
+   * 화면이 같은 것을 읽으므로 어느 한 화면의 문장이 아니다.
    */
   readonly preparingKey?: string
   /**
@@ -170,7 +173,7 @@ export const DATA_KINDS: readonly DataKind[] = [
       // 잠금 이유가 "타깃과 특성을 정해 주세요"인데 이미지에는 둘 다 없다.
       train: { locked: 'steps.train.image.locked' },
     },
-    preparingKey: 'data.image.preparing',
+    preparingKey: 'meta.image.preparing',
     summaryRows: defineAsyncComponent(() => import('@/components/summary/ImageSummaryRows.vue')),
   },
 ]

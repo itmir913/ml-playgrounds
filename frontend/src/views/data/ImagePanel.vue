@@ -140,7 +140,7 @@ onBeforeUnmount(() => {
 const summary = computed(() => (pending.value ? summarizeUpload(pending.value) : []))
 
 function labelOf(category: string): string {
-  return category === IMAGE_UNLABELED ? t('data.image.unlabeled') : category
+  return category === IMAGE_UNLABELED ? t('meta.image.unlabeled') : category
 }
 
 /** 꾸러미인가 사진인가. **학생에게 묻지 않는다** — 확장자가 이미 답을 갖고 있다. */
@@ -344,15 +344,15 @@ async function commitRemoveCategory(): Promise<void> {
         <template v-if="entries.length > 0">
           <div class="flex items-baseline gap-1.5">
             <dt>
-              <AppBadge>{{ t('data.image.photos') }}</AppBadge>
+              <AppBadge>{{ t('meta.image.photos') }}</AppBadge>
             </dt>
             <dd class="font-bold tabular-nums text-ink">
-              {{ t('data.image.countUnit', entries.length) }}
+              {{ t('meta.image.countUnit', entries.length) }}
             </dd>
           </div>
           <div class="flex items-baseline gap-1.5">
             <dt>
-              <AppBadge>{{ t('data.image.categories') }}</AppBadge>
+              <AppBadge>{{ t('meta.image.categories') }}</AppBadge>
             </dt>
             <dd class="font-bold tabular-nums text-ink">
               {{ t('meta.countUnit', categories.length) }}
@@ -419,7 +419,7 @@ async function commitRemoveCategory(): Promise<void> {
       <template #end>
         <template v-if="pending">
           <span v-if="progress" class="tabular-nums text-ink-soft">
-            {{ t('data.image.preparing', { done: progress.completed, total: progress.total }) }}
+            {{ t('meta.image.preparing', { done: progress.completed, total: progress.total }) }}
           </span>
           <AppButton variant="secondary" @click="progress ? running?.cancel() : (pending = null)">
             {{ t('common.cancel') }}
@@ -503,7 +503,7 @@ async function commitRemoveCategory(): Promise<void> {
       -->
       <ImageGrid
         v-if="(counts.get(IMAGE_UNLABELED) ?? 0) > 0"
-        :label="t('data.image.unlabeled')"
+        :label="t('meta.image.unlabeled')"
         :entries="unlabeled"
         :urls="urls"
         :selected="selected"
@@ -544,7 +544,7 @@ async function commitRemoveCategory(): Promise<void> {
           <option v-for="category in categories" :key="category" :value="category">
             {{ category }}
           </option>
-          <option :value="IMAGE_UNLABELED">{{ t('data.image.unlabeled') }}</option>
+          <option :value="IMAGE_UNLABELED">{{ t('meta.image.unlabeled') }}</option>
         </select>
       </label>
 

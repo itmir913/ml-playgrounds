@@ -180,11 +180,11 @@ const LABELS: Readonly<Record<string, { readonly labelKey: string; readonly desc
      * `categories`가 `listOf`인 이유는 특성 이름과 같다 — **학생이 지은 말이라 그대로
      * 읽힌다.** 무엇이 들고 났는지까지 펼쳐 볼 수 있어야 한다.
      */
-    categories: { labelKey: 'data.image.categories', describe: listOf },
-    categoryCounts: { labelKey: 'data.image.photosPerCategory', describe: joined },
-    unlabeledCount: { labelKey: 'data.image.unlabeledCount', describe: literal },
+    categories: { labelKey: 'meta.image.categories', describe: listOf },
+    categoryCounts: { labelKey: 'meta.image.photosPerCategory', describe: joined },
+    unlabeledCount: { labelKey: 'meta.image.unlabeledCount', describe: literal },
     // 고르게 하지 않으므로 사실상 안 뜬다. 옛 파일을 다시 학습할 때를 위해 둔다.
-    backboneId: { labelKey: 'data.image.backbone', describe: literal },
+    backboneId: { labelKey: 'meta.image.backbone', describe: literal },
   }
 
 /** 점 표기 경로로 값을 꺼낸다. 없으면 undefined다. */

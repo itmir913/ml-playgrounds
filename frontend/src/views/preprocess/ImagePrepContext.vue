@@ -24,13 +24,13 @@ const categories = computed(() => imageCategories(project.file).length)
 <template>
   <div class="flex items-baseline gap-1.5">
     <dt>
-      <AppBadge>{{ t('data.image.photos') }}</AppBadge>
+      <AppBadge>{{ t('meta.image.photos') }}</AppBadge>
     </dt>
-    <dd class="font-bold tabular-nums text-ink">{{ t('data.image.countUnit', photos) }}</dd>
+    <dd class="font-bold tabular-nums text-ink">{{ t('meta.image.countUnit', photos) }}</dd>
   </div>
   <div class="flex items-baseline gap-1.5">
     <dt>
-      <AppBadge>{{ t('data.image.categories') }}</AppBadge>
+      <AppBadge>{{ t('meta.image.categories') }}</AppBadge>
     </dt>
     <dd class="font-bold tabular-nums text-ink">{{ t('meta.countUnit', categories) }}</dd>
   </div>
