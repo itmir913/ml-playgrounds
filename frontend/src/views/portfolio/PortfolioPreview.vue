@@ -21,12 +21,15 @@ import { useI18n } from 'vue-i18n'
 import AppCard from '@/components/AppCard.vue'
 import type { OrphanAnswer, PortfolioSection } from '@/project/portfolio'
 import OrphanAnswers from './OrphanAnswers.vue'
+import PhotoCards from './PhotoCards.vue'
 
 const props = defineProps<{
   sections: readonly PortfolioSection[]
   orphans: readonly OrphanAnswer[]
   /** 문항 id로 화면의 자리 이름을 만든다. 작성 화면과 같은 함수가 온다. */
   anchorId: (id: string) => string
+  /** 문항에 붙은 사진. 작성 화면과 같은 것을 받는다 - 여기서는 뗄 수 없을 뿐이다. */
+  photosOf: (id: string) => { path: string; url: string }[]
 }>()
 
 const { t } = useI18n()
@@ -45,6 +48,8 @@ const { t } = useI18n()
         {{ t('portfolio.unanswered') }}
       </p>
       <p v-else class="mt-2 leading-relaxed whitespace-pre-line">{{ section.answer.trim() }}</p>
+
+      <PhotoCards class="mt-3" :photos="props.photosOf(section.id)" />
     </AppCard>
 
     <OrphanAnswers v-if="props.orphans.length > 0" :orphans="props.orphans" />

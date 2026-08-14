@@ -27,13 +27,18 @@ import StepHeader from '@/components/StepHeader.vue'
 import { ClientError } from '@/errors'
 import { ACTION_ICONS } from '@/icons'
 import { BYTES_PER_MB, MAX_PORTFOLIO_BYTES } from '@/limits'
+import { bakeAttachments } from '@/project/attachments'
 import { parsePortfolioForm } from '@/project/portfolio-form'
 import {
+  attachmentsOf,
   hasTemplate,
+  nextAttachmentPath,
   orphanAnswers,
+  portfolioBytes,
   portfolioSections,
-  portfolioTextBytes,
   withAnswer,
+  withAttachmentAdded,
+  withAttachmentRemoved,
   withImportedSections,
   withSectionAdded,
   withSectionMoved,
@@ -74,17 +79,18 @@ const removing = ref<string | null>(null)
  * 들고 있기 때문이다** (architecture.md §8.15.1). 값이 안 바뀌면 Vue는 DOM을 다시
  * 안 쓴다.
  */
-function apply(next: Portfolio, revert?: () => void): void {
+function apply(next: Portfolio, revert?: () => void, bytes?: Map<string, Uint8Array>): void {
   const file = project.file
   if (!file) return
-  if (portfolioTextBytes(next) > MAX_PORTFOLIO_BYTES) {
+  const attachments = bytes ?? file.attachments
+  if (portfolioBytes(next, attachments) > MAX_PORTFOLIO_BYTES) {
     revert?.()
     toasts.pushError(
       new ClientError('PORTFOLIO_TOO_LARGE', { limitMb: MAX_PORTFOLIO_BYTES / BYTES_PER_MB }),
     )
     return
   }
-  project.update({ ...file, document: { ...file.document, portfolio: next } })
+  project.update({ ...file, attachments, document: { ...file.document, portfolio: next } })
 }
 
 /** 문항 하나짜리 빈 양식. **코드가 만든다** - 파일도 연결도 필요 없다 (§8.3). */
@@ -214,6 +220,76 @@ watch([sections, preview], () => void nextTick(watchSections), { immediate: true
 
 onBeforeUnmount(() => spy?.disconnect())
 
+/**
+ * 사진을 붙인다. **굽고 나서 상한을 본다** - 구워 봐야 크기를 알기 때문이다.
+ *
+ * 여러 장이 한 번에 오면 **되는 데까지 붙인다.** 첫 장에서 멈추면 학생은 나머지가
+ * 왜 없는지 모르고, 통째로 거절하면 한 장 때문에 아홉 장을 다시 고르게 된다.
+ */
+async function attach(sectionId: string, files: readonly File[]): Promise<void> {
+  const file = project.file
+  if (!file || files.length === 0) return
+
+  try {
+    const baked = await bakeAttachments(files)
+    if (baked.length < files.length) {
+      toasts.push('caution', 'portfolio.photoSkipped', { count: files.length - baked.length })
+    }
+    for (const one of baked) {
+      const path = nextAttachmentPath(portfolio.value, one.extension)
+      const bytes = new Map(project.file?.attachments ?? [])
+      bytes.set(path, one.bytes)
+      apply(withAttachmentAdded(portfolio.value, sectionId, path), undefined, bytes)
+    }
+  } catch (error) {
+    toasts.pushError(error)
+  }
+}
+
+/** 사진을 뗀다. **바이트도 함께 놓는다** - 저장에서 빠지는 것과 별개로 지금 자리를 비운다. */
+function detach(sectionId: string, path: string): void {
+  const bytes = new Map(project.file?.attachments ?? [])
+  bytes.delete(path)
+  apply(withAttachmentRemoved(portfolio.value, sectionId, path), undefined, bytes)
+}
+
+/**
+ * 사진의 미리보기 주소. **살아 있는 것만 남기고 나머지는 놓아준다** - 안 놓으면 붙였다
+ * 뗀 사진의 바이트가 탭이 닫힐 때까지 메모리에 남는다.
+ */
+const urls = ref(new Map<string, string>())
+
+watch(
+  () => project.file?.attachments,
+  (current) => {
+    const alive = current ?? new Map<string, Uint8Array>()
+    const next = new Map<string, string>()
+    for (const [path, url] of urls.value) {
+      if (alive.has(path)) next.set(path, url)
+      else URL.revokeObjectURL(url)
+    }
+    for (const [path, bytes] of alive) {
+      if (next.has(path)) continue
+      // `Uint8Array`의 버퍼가 `SharedArrayBuffer`일 수도 있다고 보는 자리라 단언한다
+      // (`project/download.ts`가 같은 이유로 같은 모양이다).
+      next.set(path, URL.createObjectURL(new Blob([bytes as unknown as BlobPart])))
+    }
+    urls.value = next
+  },
+  { immediate: true, deep: false },
+)
+
+onBeforeUnmount(() => {
+  for (const url of urls.value.values()) URL.revokeObjectURL(url)
+})
+
+/** 문항 하나에 붙은 사진들. 화면이 그리는 모양으로 만들어 넘긴다. */
+function photosOf(sectionId: string): { path: string; url: string }[] {
+  return attachmentsOf(portfolio.value, sectionId)
+    .map((path) => ({ path, url: urls.value.get(path) ?? '' }))
+    .filter((one) => one.url !== '')
+}
+
 function remove(): void {
   const id = removing.value
   removing.value = null
@@ -260,6 +336,7 @@ function remove(): void {
             :sections="sections"
             :orphans="orphans"
             :anchor-id="anchorId"
+            :photos-of="photosOf"
           />
 
           <template v-else>
@@ -271,11 +348,14 @@ function remove(): void {
               :section="section"
               :index="index"
               :count="sections.length"
+              :photos="photosOf(section.id)"
               @answer="(text, element) => setAnswer(section.id, text, element)"
               @title="(text, element) => setTitle(section.id, text, element)"
               @description="(text, element) => setDescription(section.id, text, element)"
               @move="(delta) => apply(withSectionMoved(portfolio, section.id, delta))"
               @remove="removing = section.id"
+              @attach="(files) => attach(section.id, files)"
+              @detach="(path) => detach(section.id, path)"
             />
 
             <div class="flex justify-center">

@@ -1,6 +1,10 @@
 /**
- * 실제로 굽는 자리. **워커 안에서만 산다** — `createImageBitmap`과 `OffscreenCanvas`가
- * 필요하고, 둘 다 메인 스레드에서 쓰면 사진 100장에 화면이 멈춘다.
+ * 실제로 굽는 자리. **정본은 워커 안에서만 굽는다** — `createImageBitmap`과
+ * `OffscreenCanvas`가 필요하고, 둘 다 메인 스레드에서 쓰면 사진 100장에 화면이 멈춘다.
+ *
+ * **포트폴리오 첨부(`bakeAttachment`)는 예외다.** 한 번에 몇 장이고 학생이 누른 직후이며,
+ * 무엇보다 정본과 계약이 다르다 — 정사각형도 아니고 이름이 해시도 아니다. 그 한 장을
+ * 위해 워커 프로토콜을 갈래지게 만들지 않는다 (mlpx-spec.md §8.6.1).
  *
  * 개발 PC의 워커에서 셋 다 동작하는 것을 확인했다 (2026-08-12 실측). **아이패드와 학교
  * PC는 안 쟀다** — 도달하지 않는 경로를 미리 만들지 않는다 (open-decisions.md #25).
@@ -12,7 +16,7 @@
  * (open-decisions.md "정본은 WebP로 굽는다").
  */
 
-import { fitBox } from './canonical'
+import { fitBox, fitLongEdge } from './canonical'
 import { CANONICAL_FORMAT_IDS, CANONICAL_FORMATS, type CanonicalFormat } from './formats'
 
 /**
@@ -92,6 +96,45 @@ export async function bakeCanonical(
     // 어긋난 채로 통과하면 확장자와 내용이 다른 파일이 학생 파일에 담긴다.
     if (blob.type !== format.mime) {
       throw new Error(`정본 형식이 어긋났다: ${format.mime}를 요청했는데 ${blob.type}이 왔다`)
+    }
+    return new Uint8Array(await blob.arrayBuffer())
+  } finally {
+    bitmap.close()
+  }
+}
+
+/**
+ * 첨부 한 장을 굽는다. **긴 변만 줄이고 비율을 지킨다. 여백을 안 붙인다**
+ * (mlpx-spec.md §8.6.1). 못 읽는 파일이면 `null`이다.
+ *
+ * **형식과 품질은 정본과 같은 상수를 쓴다** — 갈리는 것은 크기 규칙뿐이다.
+ */
+export async function bakeAttachment(
+  file: File,
+  maxEdge: number,
+  format: CanonicalFormat,
+): Promise<Uint8Array<ArrayBuffer> | null> {
+  let bitmap: ImageBitmap
+  try {
+    bitmap = await createImageBitmap(file)
+  } catch {
+    return null
+  }
+
+  try {
+    const box = fitLongEdge(bitmap.width, bitmap.height, maxEdge)
+    const canvas = new OffscreenCanvas(box.width, box.height)
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('OffscreenCanvas의 2d 컨텍스트를 못 얻었다')
+
+    // **흰 바탕을 먼저 깐다.** 투명한 png를 jpg로 구우면 그 자리가 검게 나온다.
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, box.width, box.height)
+    context.drawImage(bitmap, 0, 0, box.width, box.height)
+
+    const blob = await canvas.convertToBlob({ type: format.mime, quality: format.quality })
+    if (blob.type !== format.mime) {
+      throw new Error(`첨부 형식이 어긋났다: ${format.mime}를 요청했는데 ${blob.type}이 왔다`)
     }
     return new Uint8Array(await blob.arrayBuffer())
   } finally {

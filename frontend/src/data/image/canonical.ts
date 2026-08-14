@@ -64,6 +64,30 @@ export function fitBox(sourceWidth: number, sourceHeight: number, size: number):
 }
 
 /**
+ * 긴 변을 상한에 맞춘 크기. **여백이 없다** - 비율을 지키고 남는 자리를 만들지 않는다.
+ *
+ * 포트폴리오 첨부가 쓰는 규칙이다 (mlpx-spec.md §8.6.1). 정본(`fitBox`)과 갈리는 이유는
+ * 저쪽이 백본이 요구하는 정사각형이기 때문이고, **여기는 사람이 보는 그림이다.**
+ *
+ * **작은 사진은 늘리지 않는다.** 상한이지 목표가 아니다 - 늘려 봐야 없는 화소를 지어낼
+ * 뿐이고, 파일만 커진다.
+ */
+export function fitLongEdge(
+  sourceWidth: number,
+  sourceHeight: number,
+  maxEdge: number,
+): { width: number; height: number } {
+  if (sourceWidth <= 0 || sourceHeight <= 0) {
+    throw new Error(`원본 크기가 이상하다: ${sourceWidth}x${sourceHeight}`)
+  }
+  const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight))
+  return {
+    width: Math.max(1, Math.round(sourceWidth * scale)),
+    height: Math.max(1, Math.round(sourceHeight * scale)),
+  }
+}
+
+/**
  * 범주 이름에 못 쓰는 문자. **경로 구분자와 윈도우 예약 문자다.**
  *
  * 범주 이름이 그대로 zip 엔트리 경로가 되므로, `개/고양이`라는 이름 하나가 폴더 두 겹이

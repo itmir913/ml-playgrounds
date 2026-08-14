@@ -26,7 +26,9 @@ import AppCard from '@/components/AppCard.vue'
 import AppField from '@/components/AppField.vue'
 import GuidanceText from './GuidanceText.vue'
 import { ACTION_ICONS } from '@/icons'
+import { imagesFromClipboard } from '@/project/attachments'
 import type { PortfolioSection } from '@/project/portfolio'
+import PhotoCards from './PhotoCards.vue'
 
 const props = defineProps<{
   section: PortfolioSection
@@ -34,6 +36,8 @@ const props = defineProps<{
   index: number
   /** 지금 양식의 문항 수. 끝에서 더 못 가는 것을 여기서 안다. */
   count: number
+  /** 이 문항에 붙은 사진. 미리보기 주소는 화면이 만들어 넘긴다. */
+  photos: readonly { readonly path: string; readonly url: string }[]
 }>()
 
 const emit = defineEmits<{
@@ -42,6 +46,8 @@ const emit = defineEmits<{
   description: [text: string, element: HTMLTextAreaElement]
   move: [delta: number]
   remove: []
+  attach: [files: readonly File[]]
+  detach: [path: string]
 }>()
 
 const { t } = useI18n()
@@ -64,6 +70,35 @@ function onTitle(event: Event): void {
 function onDescription(event: Event): void {
   const element = event.target as HTMLTextAreaElement
   emit('description', element.value, element)
+}
+
+/** 사진을 고르는 칸. 카드마다 하나다 - 어느 문항에 붙는지가 자리로 정해진다. */
+const photoInput = ref<HTMLInputElement | null>(null)
+
+function pickPhotos(): void {
+  const input = photoInput.value
+  if (input === null) return
+  // 같은 사진을 다시 골라도 `change`가 오게 한다.
+  input.value = ''
+  input.click()
+}
+
+function onPicked(event: Event): void {
+  const input = event.target as HTMLInputElement
+  emit('attach', [...(input.files ?? [])])
+}
+
+/**
+ * 글 칸에 붙여넣기. **캡처를 붙이는 것이 실제로 필요한 전부다.**
+ *
+ * 글을 붙여넣을 때는 아무 일도 일어나면 안 되므로 이미지가 하나라도 있을 때만
+ * 가로챈다 - 안 그러면 복사한 글이 칸에 안 들어간다.
+ */
+function onPaste(event: ClipboardEvent): void {
+  const images = imagesFromClipboard(event.clipboardData)
+  if (images.length === 0) return
+  event.preventDefault()
+  emit('attach', images)
 }
 </script>
 
@@ -143,7 +178,29 @@ function onDescription(event: Event): void {
         class="w-full rounded-field border border-line-strong bg-surface px-3 py-2 leading-relaxed"
         :value="props.section.answer"
         @input="onAnswer"
+        @paste="onPaste"
       />
+
+      <!--
+        **사진은 답 아래에 카드로 붙는다. 문단 중간에는 못 꽂는다** (mlpx-spec.md §8.3).
+        중간 삽입을 포기하면 글 편집기를 만들 일이 없어진다.
+      -->
+      <PhotoCards :photos="props.photos" removable @remove="(path) => emit('detach', path)" />
+
+      <div>
+        <AppButton variant="secondary" :action="() => pickPhotos()">
+          <component :is="ACTION_ICONS.addPhoto" :size="18" aria-hidden="true" />
+          {{ t('portfolio.addPhoto') }}
+        </AppButton>
+        <input
+          ref="photoInput"
+          type="file"
+          accept="image/*"
+          multiple
+          class="hidden"
+          @change="onPicked"
+        />
+      </div>
     </div>
   </AppCard>
 </template>

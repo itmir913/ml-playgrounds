@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 import {
   categoryOfEntry,
   fitBox,
+  fitLongEdge,
   imageEntryPath,
   isValidCategoryName,
 } from '../src/data/image/canonical'
@@ -23,6 +24,33 @@ const HASH = 'a'.repeat(64)
 /** 지금 굽는 형식. **경로 규칙은 형식을 받아서 쓴다** (mlpx-spec.md §1.2). */
 const WEBP = CANONICAL_FORMATS.webp
 const JPEG = CANONICAL_FORMATS.jpeg
+
+describe('긴 변만 줄이는 자리 - 포트폴리오 첨부', () => {
+  const EDGE = 1536
+
+  it('긴 변이 상한이 되고 비율은 그대로다', () => {
+    expect(fitLongEdge(4000, 3000, EDGE)).toEqual({ width: EDGE, height: 1152 })
+    expect(fitLongEdge(3000, 4000, EDGE)).toEqual({ width: 1152, height: EDGE })
+  })
+
+  it('작은 사진은 늘리지 않는다 - 상한이지 목표가 아니다', () => {
+    // 정본(`fitBox`)과 갈리는 자리다. 저쪽은 백본이 224를 요구해 채우지 않을 길이 없다.
+    expect(fitLongEdge(800, 600, EDGE)).toEqual({ width: 800, height: 600 })
+  })
+
+  it('여백이 없다 - 사람이 보는 그림이다', () => {
+    const box = fitLongEdge(4000, 3000, EDGE)
+    expect(box.width / box.height).toBeCloseTo(4 / 3, 2)
+  })
+
+  it('비율이 극단이어도 한 변이 0이 되지 않는다', () => {
+    expect(fitLongEdge(4000, 3, EDGE).height).toBe(1)
+  })
+
+  it('원본 크기가 이상하면 던진다', () => {
+    expect(() => fitLongEdge(0, 100, EDGE)).toThrow()
+  })
+})
 
 describe('정사각형 안에 넣는 자리', () => {
   it('가로가 긴 사진은 위아래에 여백이 남는다', () => {

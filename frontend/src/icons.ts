@@ -22,6 +22,7 @@ import {
   FlaskConical,
   CircleQuestionMark,
   FolderOpen,
+  ImagePlus,
   Info,
   LayoutDashboard,
   Library,
@@ -72,6 +73,7 @@ export const ACTION_ICONS = {
   moveUp: ChevronUp,
   moveDown: ChevronDown,
   addSection: Plus,
+  addPhoto: ImagePlus,
   remove: Trash2,
   dismiss: X,
 } as const satisfies Record<string, LucideIcon>
