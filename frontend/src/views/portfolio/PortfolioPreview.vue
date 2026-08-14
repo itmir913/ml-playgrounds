@@ -7,18 +7,26 @@
  * 강제력이 없다(압축을 풀면 풀린다). 없는 보증을 있는 것처럼 보이게 하지 않는다.
  *
  * **안 쓴 문항도 제목은 남긴다.** 빈 칸이 보이는 것과 문항이 사라지는 것은 다르다.
+ *
+ * **프로젝트 요약은 여기 없다** (§8.3, 2026-08-14에 사용자가 걷어내라고 했다). 도구
+ * 막대에 요약 버튼이 붙박이로 있어서 같은 것이 한 화면에 두 벌이 된다. **`portfolio.md`
+ * 머리에는 그대로 적는다** — 파일만 받은 사람은 그 버튼을 못 누른다 (§8.6).
+ *
+ * **문항마다 화면의 자리 이름을 받는다.** 목차가 데려가는 곳이 작성 화면과 완성본에서
+ * 같아야 한다 — 안 주면 완성본에서 목차를 눌러도 아무 일도 안 일어난다.
  */
 
 import { useI18n } from 'vue-i18n'
 
 import AppCard from '@/components/AppCard.vue'
-import ProjectSummary from '@/components/ProjectSummary.vue'
 import type { OrphanAnswer, PortfolioSection } from '@/project/portfolio'
 import OrphanAnswers from './OrphanAnswers.vue'
 
-defineProps<{
+const props = defineProps<{
   sections: readonly PortfolioSection[]
   orphans: readonly OrphanAnswer[]
+  /** 문항 id로 화면의 자리 이름을 만든다. 작성 화면과 같은 함수가 온다. */
+  anchorId: (id: string) => string
 }>()
 
 const { t } = useI18n()
@@ -26,15 +34,12 @@ const { t } = useI18n()
 
 <template>
   <div class="flex flex-col gap-5">
-    <!--
-      **프로젝트 요약을 새로 만들지 않는다** (§8.3). 도구 막대와 대시보드가 이미 같은
-      것을 보여준다 - 두 벌이면 한쪽만 고쳐진다.
-    -->
-    <AppCard>
-      <ProjectSummary />
-    </AppCard>
-
-    <AppCard v-for="section in sections" :key="section.id">
+    <AppCard
+      v-for="section in props.sections"
+      :id="props.anchorId(section.id)"
+      :key="section.id"
+      class="under-step-bar"
+    >
       <h3 class="text-lg font-bold">{{ section.title }}</h3>
       <p v-if="section.answer.trim() === ''" class="mt-2 text-ink-faint">
         {{ t('portfolio.unanswered') }}
@@ -42,6 +47,6 @@ const { t } = useI18n()
       <p v-else class="mt-2 leading-relaxed whitespace-pre-line">{{ section.answer.trim() }}</p>
     </AppCard>
 
-    <OrphanAnswers v-if="orphans.length > 0" :orphans="orphans" />
+    <OrphanAnswers v-if="props.orphans.length > 0" :orphans="props.orphans" />
   </div>
 </template>

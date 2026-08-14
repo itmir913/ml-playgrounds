@@ -81,6 +81,34 @@ describe('목차는 어디까지 왔는지 말한다', () => {
   })
 })
 
+describe('완성본에서도 목차가 데려간다', () => {
+  it('문항마다 같은 자리 이름을 갖는다', async () => {
+    // **작성 화면에만 이름이 있었다** (2026-08-14, 사용자가 잡았다). 완성본에서 목차를
+    // 눌러도 아무 일도 안 일어났다.
+    const view = mountView()
+    const start = view.findAll('button').find((button) => button.text() === '빈 양식에서 시작')
+    await start?.trigger('click')
+
+    const id = useProjectStore().file?.document.portfolio.template.sections[0]?.id ?? ''
+    expect(view.find(`#portfolio-section-${id}`).exists()).toBe(true)
+
+    const toPreview = view.findAll('button').find((button) => button.text() === '완성본 보기')
+    await toPreview?.trigger('click')
+
+    expect(view.find(`#portfolio-section-${id}`).exists()).toBe(true)
+  })
+
+  it('프로젝트 요약은 완성본에 없다 - 도구 막대에 이미 붙박이로 있다', async () => {
+    const view = mountView()
+    const start = view.findAll('button').find((button) => button.text() === '빈 양식에서 시작')
+    await start?.trigger('click')
+    const toPreview = view.findAll('button').find((button) => button.text() === '완성본 보기')
+    await toPreview?.trigger('click')
+
+    expect(view.text()).not.toContain('기계학습 유형')
+  })
+})
+
 describe('안내문을 고칠 때 칸이 되돌아가지 않는다', () => {
   it('줄바꿈을 쳐도 칸에 남는다', async () => {
     // **실제로 안 쳐졌다** (2026-08-14, 사용자가 잡았다). 저장할 때 다듬으면 화면의

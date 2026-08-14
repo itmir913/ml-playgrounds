@@ -255,7 +255,12 @@ function remove(): void {
         </div>
 
         <div class="flex min-w-0 flex-col gap-5 md:col-span-7">
-          <PortfolioPreview v-if="preview" :sections="sections" :orphans="orphans" />
+          <PortfolioPreview
+            v-if="preview"
+            :sections="sections"
+            :orphans="orphans"
+            :anchor-id="anchorId"
+          />
 
           <template v-else>
             <SectionCard
