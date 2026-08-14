@@ -31,6 +31,7 @@
 | §2 잠금은 gate 함수 하나, 이유 목록 반환 | `selection.spec.ts` · `ui-rules.spec.ts` |
 | §2 `randomState`는 항상 저장하고 항상 쓴다 | `split.spec.ts` · `experiment.spec.ts` · `sample.spec.ts` · `mljs-kmeans.spec.ts` |
 | §3 i18n 규칙 넷 전부 | `i18n-usage.spec.ts` · `locales.spec.ts` |
+| §3 지원 언어마다 내장 양식 파일이 있는가 | `portfolio-preset.spec.ts` — 없는 언어는 en으로 떨어지는데 **떨어진 것과 빠뜨린 것을 화면에서 구분할 수 없다.** 파일이 남았는데 언어가 없는 것도 함께 본다 |
 | §4 `any` 금지 | ESLint `@typescript-eslint/no-explicit-any` |
 | §4 Tailwind 임의 값 금지 | `ui-rules.spec.ts`의 `RULES` |
 | §4 가장 작은 글자가 `text-base` | `ui-rules.spec.ts`의 `RULES` |
