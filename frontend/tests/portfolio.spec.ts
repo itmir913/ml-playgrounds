@@ -448,4 +448,21 @@ describe('머리글은 부르는 쪽이 만든다', () => {
     expect(rows.map(([, value]) => value)).toContain('1-2-03')
     expect(portfolioMarkdownText({ ...manifest, student: {} }, label, 'ko').rows).toHaveLength(4)
   })
+
+  it('인적사항이 맨 위다 - 받은 사람이 제일 먼저 찾는 것이다', () => {
+    const withStudent = { ...manifest, student: { name: '김하늘', studentId: '1-2-03' } }
+    const rows = portfolioMarkdownText(withStudent, label, 'ko').rows
+    expect(rows.slice(0, 2)).toEqual([
+      ['[identity.studentId]', '1-2-03'],
+      ['[identity.studentName]', '김하늘'],
+    ])
+  })
+
+  it('이름만 적었으면 그 한 줄만 맨 위에 선다', () => {
+    const named = { ...manifest, student: { name: '김하늘' } }
+    expect(portfolioMarkdownText(named, label, 'ko').rows[0]).toEqual([
+      '[identity.studentName]',
+      '김하늘',
+    ])
+  })
 })

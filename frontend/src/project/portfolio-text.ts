@@ -26,7 +26,24 @@ export function portfolioMarkdownText(
   translate: Translate,
   locale: string,
 ): PortfolioMarkdownText {
-  const rows: [label: string, value: string][] = [
+  const rows: [label: string, value: string][] = []
+
+  /**
+   * **인적사항이 맨 위다** (mlpx-spec.md §8.6). 이 파일은 제출물이고 받은 사람이 제일
+   * 먼저 찾는 것이 학번과 이름이다.
+   *
+   * **적었을 때만 나온다.** 안 적은 사람의 자리에 빈 칸을 만들면 그것이 빠뜨린 것으로
+   * 보인다.
+   */
+  const student = manifest.student
+  if (student?.studentId !== undefined && student.studentId !== '') {
+    rows.push([translate('identity.studentId'), student.studentId])
+  }
+  if (student?.name !== undefined && student.name !== '') {
+    rows.push([translate('identity.studentName'), student.name])
+  }
+
+  rows.push(
     [translate('meta.created'), formatDateTime(locale, manifest.createdAt)],
     [translate('meta.updated'), formatDateTime(locale, manifest.updatedAt)],
     [translate('meta.dataType'), translate(`dataTypes.${manifest.dataType}`)],
@@ -37,16 +54,7 @@ export function portfolioMarkdownText(
         ? translate('meta.none')
         : translate(`taskTypes.${manifest.taskType}`),
     ],
-  ]
-
-  // 인적사항은 적었을 때만 나온다. 안 적은 사람의 자리에 빈 칸을 만들지 않는다.
-  const student = manifest.student
-  if (student?.studentId !== undefined && student.studentId !== '') {
-    rows.push([translate('identity.studentId'), student.studentId])
-  }
-  if (student?.name !== undefined && student.name !== '') {
-    rows.push([translate('identity.studentName'), student.name])
-  }
+  )
 
   return { title: manifest.name, rows, orphanTitle: translate('portfolio.orphanTitle') }
 }
