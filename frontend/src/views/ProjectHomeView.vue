@@ -101,7 +101,7 @@ function go(step: StepId): void {
     <StepHeader :title="t('project.dashboard')" :purpose="t('project.homeLead')">
       <template #actions>
         <AppButton v-if="now !== null" size="lg" @click="go(now.step)">
-          {{ t('project.resume', { task: t(`tasks.${now.key}`) }) }}
+          {{ t('project.resume', { task: t(now.labelKey) }) }}
         </AppButton>
       </template>
     </StepHeader>
@@ -171,7 +171,12 @@ function go(step: StepId): void {
                 :class="task.done ? 'text-ink-faint line-through' : 'text-ink-soft'"
               >
                 <span aria-hidden="true">{{ task.done ? '☑' : '☐' }}</span>
-                {{ t(`tasks.${task.key}`) }}
+                <!--
+                  **등록부가 준 키를 그대로 쓴다.** `tasks.{key}`를 조립하면 종류마다
+                  갈리는 문구(`tasks.image.*`)를 지나쳐, 이미지 프로젝트의 전처리 줄에
+                  `타깃(Target) 선택하기`가 떴다. 정적 키 검사는 조립한 키를 못 본다.
+                -->
+                {{ t(task.labelKey) }}
               </li>
             </ul>
 

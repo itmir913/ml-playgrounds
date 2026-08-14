@@ -14,6 +14,9 @@ import { dirname, join, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+/** 정규식과 예문 안에 그대로 못 적는다 - 이 파일 자신이 검사 대상이라 조립 자리로 읽힌다. */
+const BACKTICK = String.fromCharCode(96)
+
 const SRC = join(process.cwd(), 'src')
 if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
 
@@ -189,6 +192,34 @@ const RULES: readonly Rule[] = [
       '<AppTable class="min-h-full">',
       // 표가 아닌 것의 h-full은 상관없다.
       '<div class="h-full">',
+    ],
+  },
+  {
+    name: '종류마다 갈리는 문구의 키를 손으로 조립하지 않는다',
+    why:
+      '**조립한 키는 등록부를 지나치고, 정적 키 검사는 그것을 못 본다.** 대시보드가 ' +
+      '할 일 문구를 조립해서, 이미지 프로젝트의 전처리 줄에 `타깃(Target) 선택하기`가 ' +
+      '떴다 — 같은 목록이 데이터 화면 안에서는 `범주(Class) 나누기`였다. 두 언어의 키 ' +
+      '집합은 완벽히 맞으므로 로케일 검사도 초록이다. 문구 키는 `stepTasks`·' +
+      '`currentTask`·`stepTextKey`가 준 것을 그대로 `t()`에 넣는다.',
+    // `steps.{id}.label`은 종류를 안 가려서 조립해도 된다. purpose·locked만 본다.
+    pattern: new RegExp(
+      `t\\(${BACKTICK}(tasks\\.\\$\\{|steps\\.\\$\\{[^${BACKTICK}]*\\}\\.(purpose|locked)${BACKTICK})`,
+    ),
+    violations: [
+      `{{ t(${BACKTICK}tasks.\${task.key}${BACKTICK}) }}`,
+      `t('project.resume', { task: t(${BACKTICK}tasks.\${now.key}${BACKTICK}) })`,
+      `{{ t(${BACKTICK}steps.\${entry.step}.purpose${BACKTICK}) }}`,
+      `{{ t(${BACKTICK}steps.\${step}.locked${BACKTICK}) }}`,
+    ],
+    allowed: [
+      '{{ t(task.labelKey) }}',
+      '{{ t(now.labelKey) }}',
+      "{{ t(stepTextKey(kind, entry.step, 'purpose')) }}",
+      // 단계 이름은 종류를 안 가린다.
+      `{{ t(${BACKTICK}steps.\${entry.step}.label${BACKTICK}) }}`,
+      // 등록부 id로 이름을 찾는 것은 이 규칙과 무관하다.
+      `t(${BACKTICK}algorithms.\${one.algorithm}${BACKTICK})`,
     ],
   },
 ]
