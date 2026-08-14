@@ -1,0 +1,67 @@
+// @vitest-environment jsdom
+// 지원 언어 목록을 `i18n.ts`에서 가져오고, 그 파일에 DOM 부재 가드가 있다.
+/**
+ * 양식을 가져올 곳들의 등록부 (`project/portfolio-sources.ts`, mlpx-spec.md §8.3·§8.7).
+ *
+ * **여기서 보는 것은 줄이 어떻게 서는가다** - 무엇을 받아 오는지가 아니라. 무게를
+ * 등록부에 둔 이유가 "화면이 경로마다 다른 단추를 만들지 않는 것"이므로, 그 약속이
+ * 지켜지는지는 화면 없이 확인할 수 있어야 한다.
+ *
+ * **검사마다 모듈을 새로 들인다.** 프리셋 목록은 성공한 것을 기억하므로
+ * (`portfolio-presets.ts`의 `cached`), 앞 검사가 받아 둔 것이 뒤 검사에 그대로 남는다 -
+ * 그러면 "못 받았을 때"를 검사할 방법이 없어진다.
+ */
+
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { TemplateRow, TemplateSourceContext } from '../src/project/portfolio-sources'
+
+const DIRECTORY = join(process.cwd(), 'public', 'portfolio')
+if (!existsSync(DIRECTORY)) throw new Error(`프리셋 디렉터리를 찾지 못했다: ${DIRECTORY}`)
+
+const INDEX = readFileSync(join(DIRECTORY, 'index.json'), 'utf-8')
+
+const context: TemplateSourceContext = {
+  locale: 'ko',
+  translate: (key) => key,
+  pickFile: () => Promise.resolve(null),
+}
+
+/** 목록을 받아 오는 통로만 흉내 낸다. 받아 온 양식의 내용은 여기서 볼 것이 아니다. */
+async function rowsWith(
+  fetchImpl: () => Promise<Response>,
+): Promise<{ rows: TemplateRow[]; failures: unknown[] }> {
+  vi.resetModules()
+  vi.stubGlobal('fetch', fetchImpl)
+  const { templateRows } = await import('../src/project/portfolio-sources')
+  return await templateRows(context)
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
+describe('앞서는 줄은 하나뿐이다', () => {
+  it('파일에서 가져오기가 그 줄이다', async () => {
+    const { rows, failures } = await rowsWith(() => Promise.resolve(new Response(INDEX)))
+
+    expect(failures).toEqual([])
+    expect(rows.filter((row) => row.weight === 'lead').map((row) => row.key)).toEqual(['file'])
+    // 프리셋이 몇이든 나머지는 전부 같은 무게다 - 무게는 색이 아니라 순서다.
+    expect(rows.filter((row) => row.key !== 'file').every((row) => row.weight === 'normal')).toBe(
+      true,
+    )
+  })
+
+  it('프리셋 목록을 못 받아도 그 줄은 선다', async () => {
+    const { rows, failures } = await rowsWith(() => Promise.reject(new Error('학교망이 막았다')))
+
+    expect(rows.map((row) => row.key)).toEqual(['file'])
+    expect(rows[0]?.weight).toBe('lead')
+    // 실패는 삼키지 않는다 - 누른 사람은 무슨 일이 있었는지 알아야 한다.
+    expect(failures).toHaveLength(1)
+  })
+})

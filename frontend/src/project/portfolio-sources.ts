@@ -9,7 +9,7 @@
  * 줄이 하나 붙으면 화면이 저절로 그것을 보여준다. **출처 하나가 줄 여럿을 낼 수도
  * 있다** - 내장 프리셋이 그렇다.
  *
- * **지금 있는 것이 전부다** - 내장 프리셋과 파일 열기. 주소로 나누는 길은 재 보고
+ * **지금 있는 것이 전부다** - 내장 프리셋과 파일에서 가져오기. 주소로 나누는 길은 재 보고
  * 접었고(기본 양식 하나가 758자짜리 링크다), 짧은 코드는 서버가 있어야 성립해서
  * 자가호스팅 백엔드(V6)의 일로 갔다 (`open-decisions.md` "4단계는 접었다").
  *
@@ -39,11 +39,26 @@ export interface TemplateSourceContext {
   readonly pickFile: () => Promise<File | null>
 }
 
+/**
+ * 목록에서 이 줄이 갖는 무게 (mlpx-spec.md §8.3).
+ *
+ * **앞서는 줄은 하나뿐이다.** 둘이면 무게가 아니라 그냥 색이 된다.
+ */
+export type TemplateWeight = 'lead' | 'normal'
+
 export interface TemplateRow {
   /** 목록에서의 자리. 프리셋이 여럿이면 id마다 다르다. */
   readonly key: string
   /** 이미 번역된 이름. 프리셋은 `index.json`에서, 나머지는 로케일에서 온다. */
   readonly label: string
+  /**
+   * 목록에서의 무게. **화면이 아니라 여기가 정한다** (§8.3).
+   *
+   * 화면이 "파일 줄이면 파란색"으로 가르는 순간, 출처를 같은 모양으로 만들어 둔 것
+   * (§8.7)이 그 자리에서 깨진다. 줄이 자기 무게를 들고 오면 **줄이 하나 붙는 일이
+   * 여전히 등록부에 줄 하나 넣는 일**이다.
+   */
+  readonly weight: TemplateWeight
   /** 양식 마크다운. **`null`은 아무 일도 없었다는 뜻이다** - 파일 고르기를 닫았을 때. */
   readonly load: () => Promise<string | null>
 }
@@ -63,13 +78,17 @@ const preset: TemplateSource = {
     (await loadPresets()).map((entry) => ({
       key: `preset:${entry.id}`,
       label: presetName(entry, locale),
+      weight: 'normal',
       load: () => loadPresetForm(entry.id, locale),
     })),
 }
 
 /**
- * 파일에서 열기. **가장 확실하다** (§8.7) - 파일을 나르는 통로는 이미 있어야만 한다.
+ * 파일에서 가져오기. **가장 확실하다** (§8.7) - 파일을 나르는 통로는 이미 있어야만 한다.
  * 데이터를 나눌 수 없으면 이 도구 자체를 못 쓰기 때문이다.
+ *
+ * **그래서 앞서는 줄이기도 하다** (§8.3). 프리셋은 우리가 준비해 둔 것이고, 이 줄만이
+ * 누른 사람에게 무언가를 내놓으라고 한다.
  */
 const file: TemplateSource = {
   id: 'file',
@@ -78,6 +97,7 @@ const file: TemplateSource = {
       {
         key: 'file',
         label: translate('portfolio.source.file'),
+        weight: 'lead',
         load: async () => {
           const picked = await pickFile()
           // 고르지 않고 닫은 것은 실패가 아니다. 아무 말도 하지 않는다.
@@ -93,7 +113,7 @@ export const TEMPLATE_SOURCES: readonly TemplateSource[] = [preset, file]
  * 목록에 세울 줄 전부.
  *
  * **한 출처가 실패해도 나머지는 선다.** 프리셋 목록을 못 받는 것은 실재하는 상황이고
- * (오프라인, 학교망), 그때 파일 열기까지 사라지면 화면에 남는 것이 없다. 실패는
+ * (오프라인, 학교망), 그때 파일에서 가져오기까지 사라지면 화면에 남는 것이 없다. 실패는
  * 삼키지 않고 부르는 쪽에 넘긴다 - 누른 사람은 무슨 일이 있었는지 알아야 한다.
  */
 export async function templateRows(

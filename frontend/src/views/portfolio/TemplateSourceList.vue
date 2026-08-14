@@ -11,6 +11,15 @@
  * 실패는 조용히 넘기지 않는다 - 누른 사람은 무슨 일이 있었는지 알아야 한다.
  *
  * **오래 걸리는 것은 `action`으로 준다** - 받아 오는 동안 두 번 눌리면 안 된다.
+ *
+ * **무게를 단추 모양으로 옮기는 표가 여기 있는 전부다** (mlpx-spec.md §8.3). 어느 줄이
+ * 앞서는지는 등록부가 정한다 - 여기서 `if`로 가르면 출처를 같은 모양으로 만들어 둔
+ * 것(§8.7)이 그 자리에서 깨진다.
+ *
+ * **`subtle`이 아니라 `secondary`다.** 팝오버 패널이 흰 면이라, 면만 있고 테두리가 없는
+ * 옅은 회색 단추가 거기서는 **꺼진 것으로 읽힌다**(사용자가 겪었다). `AppButton`의
+ * `subtle`은 회색 바탕 위에서 secondary와 비중이 같아지는 것을 피하려고 있는 변종이라
+ * 흰 면에서는 역할이 뒤집힌다.
  */
 
 import { onMounted, ref } from 'vue'
@@ -20,6 +29,7 @@ import {
   templateRows,
   type TemplateRow,
   type TemplateSourceContext,
+  type TemplateWeight,
 } from '@/project/portfolio-sources'
 
 const props = defineProps<{ context: TemplateSourceContext }>()
@@ -29,6 +39,12 @@ const emit = defineEmits<{
   pick: [markdown: string | null]
   failed: [error: unknown]
 }>()
+
+/** 무게 -> 단추 모양. **표 하나다** - 변종을 고르는 `if`를 화면에 두지 않는다. */
+const VARIANTS: Readonly<Record<TemplateWeight, 'primary' | 'secondary'>> = {
+  lead: 'primary',
+  normal: 'secondary',
+}
 
 const rows = ref<TemplateRow[]>([])
 
@@ -49,7 +65,12 @@ async function choose(row: TemplateRow): Promise<void> {
 
 <template>
   <div class="flex flex-col gap-2">
-    <AppButton v-for="row in rows" :key="row.key" variant="subtle" :action="() => choose(row)">
+    <AppButton
+      v-for="row in rows"
+      :key="row.key"
+      :variant="VARIANTS[row.weight]"
+      :action="() => choose(row)"
+    >
       {{ row.label }}
     </AppButton>
   </div>
