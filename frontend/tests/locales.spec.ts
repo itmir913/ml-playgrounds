@@ -33,7 +33,6 @@ import { PER_CLASS_METRICS } from '../src/ml/results'
 import { COLUMN_KINDS } from '../src/ml/preprocess'
 import { FEATURE_NOTES, requiredTargetKind } from '../src/ml/selection'
 import { EXPORT_STATES } from '../src/project/export-state'
-import { TEMPLATE_SOURCES } from '../src/project/portfolio-sources'
 import {
   CATEGORICAL_ENCODINGS,
   DATA_TYPES,
@@ -354,7 +353,6 @@ describe('프런트엔드 전용 코드', () => {
       ['save', EXPORT_STATES],
       ['language', LOCALE_TAGS],
       ['dataTypes', DATA_TYPES],
-      ['portfolio.source', TEMPLATE_SOURCES.map((source) => source.id)],
     ] as const
 
     for (const [namespace, codes] of pairs) {
@@ -686,7 +684,6 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
     'save.', //   〃
     'language.', //   〃
     'dataTypes.', //   〃
-    'portfolio.source.', // 양식 출처마다 이름이 있다
     'portfolio.preset.', // 지원 언어마다 내장 양식 파일이 있다 (portfolio-preset.spec.ts)
     'metrics.', // 지표마다 이름과 설명이 있다
     'metricHelp.', //   〃

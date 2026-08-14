@@ -494,7 +494,7 @@
     "startEmpty": "Start from a blank form",
     "import": "Bring in a form",
     "source": {
-      "preset": "Bring in the built-in form"
+      "file": "Open from a file"
     },
     "imported": "Added {count} questions.",
     "importedNone": "Nothing was added - the form already has these questions.",

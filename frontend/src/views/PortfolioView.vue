@@ -27,9 +27,7 @@ import StepHeader from '@/components/StepHeader.vue'
 import { ClientError } from '@/errors'
 import { ACTION_ICONS } from '@/icons'
 import { BYTES_PER_MB, MAX_PORTFOLIO_BYTES } from '@/limits'
-import { FALLBACK_LOCALE, isSupportedLocale, type Locale } from '@/i18n'
 import { parsePortfolioForm } from '@/project/portfolio-form'
-import type { TemplateSource } from '@/project/portfolio-sources'
 import {
   hasTemplate,
   orphanAnswers,
@@ -51,7 +49,7 @@ import SectionCard from './portfolio/SectionCard.vue'
 import SectionIndex from './portfolio/SectionIndex.vue'
 import TemplateSourceMenu from './portfolio/TemplateSourceMenu.vue'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const project = useProjectStore()
 const toasts = useToastStore()
 
@@ -68,10 +66,6 @@ const preview = ref(false)
 
 /** 지울지 물어보고 있는 문항. 지우면 그 글도 함께 사라지므로 되돌릴 수 없다 (§8.4). */
 const removing = ref<string | null>(null)
-
-const current = computed<Locale>(() =>
-  isSupportedLocale(locale.value) ? locale.value : FALLBACK_LOCALE,
-)
 
 /**
  * 고친 결과를 문서에 넣는다. **상한을 여기 하나로 건다** (§8.6.1).
@@ -108,18 +102,43 @@ function addSection(): void {
  * 두 번 눌러도 문항이 안 불어나므로 "아무 일도 안 일어났다"가 정상인 경우가 있다.
  * 그때도 말해 준다 - 눌렀는데 화면이 그대로면 고장으로 읽힌다.
  */
-async function importFrom(source: TemplateSource): Promise<void> {
-  try {
-    const parsed = parsePortfolioForm(await source.load({ locale: current.value }))
-    const before = portfolio.value.template.sections.length
-    const next = withImportedSections(portfolio.value, parsed.sections)
-    apply(next)
-    const added = next.template.sections.length - before
-    if (added > 0) toasts.push('success', 'portfolio.imported', { count: added })
-    else toasts.push('caution', 'portfolio.importedNone')
-  } catch (error) {
-    toasts.pushError(error)
-  }
+function importMarkdown(markdown: string | null): void {
+  // 파일 고르기를 닫은 것은 실패가 아니다. 아무 말도 하지 않는다.
+  if (markdown === null) return
+
+  const parsed = parsePortfolioForm(markdown)
+  const before = portfolio.value.template.sections.length
+  const next = withImportedSections(portfolio.value, parsed.sections)
+  apply(next)
+  const added = next.template.sections.length - before
+  if (added > 0) toasts.push('success', 'portfolio.imported', { count: added })
+  else toasts.push('caution', 'portfolio.importedNone')
+}
+
+/**
+ * 파일 하나를 고르게 한다. **등록부에 넘겨줄 손이다** - DOM을 아는 것은 화면뿐이다.
+ *
+ * `value`를 비우는 이유는 **같은 파일을 다시 골라도 `change`가 오게** 하기 위해서다.
+ * 고르지 않고 닫으면 `cancel`이 온다 - 그것이 없는 옛 브라우저에서는 목록을 닫았다
+ * 다시 열면 풀린다(팝오버가 닫히면 그 줄이 통째로 사라진다).
+ */
+const fileInput = ref<HTMLInputElement | null>(null)
+let picking: ((file: File | null) => void) | null = null
+
+function pickFile(): Promise<File | null> {
+  const input = fileInput.value
+  if (input === null) return Promise.resolve(null)
+  input.value = ''
+  return new Promise((resolve) => {
+    picking = resolve
+    input.click()
+  })
+}
+
+function onPicked(): void {
+  const picked = fileInput.value?.files?.[0] ?? null
+  picking?.(picked)
+  picking = null
 }
 
 function setAnswer(id: string, text: string, element: HTMLTextAreaElement): void {
@@ -208,7 +227,11 @@ function remove(): void {
 
     <template v-if="started">
       <StepActionBar>
-        <TemplateSourceMenu :load="importFrom" />
+        <TemplateSourceMenu
+          :pick-file="pickFile"
+          @pick="importMarkdown"
+          @failed="toasts.pushError"
+        />
 
         <template #end>
           <AppButton variant="secondary" @click="preview = !preview">
@@ -267,9 +290,24 @@ function remove(): void {
       <AppEmpty :reason="t('portfolio.startReason')" :next="t('portfolio.startNext')">
         <AppButton size="lg" @click="startEmpty">{{ t('portfolio.startEmpty') }}</AppButton>
 
-        <TemplateSourceMenu size="lg" :load="importFrom" />
+        <TemplateSourceMenu
+          size="lg"
+          :pick-file="pickFile"
+          @pick="importMarkdown"
+          @failed="toasts.pushError"
+        />
       </AppEmpty>
     </AppCard>
+
+    <!-- 양식 파일을 고르는 자리. `.mlpx` 열기와 같은 관용구다. -->
+    <input
+      ref="fileInput"
+      type="file"
+      accept=".md,text/markdown"
+      class="hidden"
+      @change="onPicked"
+      @cancel="onPicked"
+    />
 
     <AppDialog
       :open="removing !== null"

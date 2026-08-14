@@ -494,7 +494,7 @@
     "startEmpty": "빈 양식에서 시작",
     "import": "양식 가져오기",
     "source": {
-      "preset": "기본 양식 가져오기"
+      "file": "파일에서 열기"
     },
     "imported": "문항 {count}개를 가져왔습니다.",
     "importedNone": "이미 있는 문항이라 더 붙이지 않았습니다.",

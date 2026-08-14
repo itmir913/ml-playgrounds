@@ -9,26 +9,41 @@
  *
  * **시작 화면과 동작 바가 같은 것을 쓴다.** 두 벌이면 한쪽만 고쳐진다.
  *
- * **오래 걸리는 것은 `action`으로 준다** - 프리셋은 네트워크를 타므로 두 번 눌릴 수
- * 있고, `@click`은 그것을 막지 못한다 (CLAUDE.md §4).
+ * **목록은 열 때 붙는다** (`AppPopover`의 패널이 `v-if`다). 그래서 받아 오는 일이
+ * 화면에 들어올 때가 아니라 누를 때 일어난다 - `TemplateSourceList`의 머리말에 있다.
  */
 
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
 import AppPopover from '@/components/AppPopover.vue'
-import { TEMPLATE_SOURCES, type TemplateSource } from '@/project/portfolio-sources'
+import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
+import type { TemplateSourceContext } from '@/project/portfolio-sources'
+import TemplateSourceList from './TemplateSourceList.vue'
 
 const props = defineProps<{
   /** 버튼 크기. 시작 화면에서는 옆에 선 [빈 양식에서 시작]과 같아야 한다. */
   size?: 'md' | 'lg'
-  load: (source: TemplateSource) => Promise<void>
+  /** 파일 하나를 고르게 한다. 화면이 준다 - 등록부도 여기도 DOM을 모른다. */
+  pickFile: () => Promise<File | null>
 }>()
 
-const { t } = useI18n()
+const emit = defineEmits<{
+  pick: [markdown: string | null]
+  failed: [error: unknown]
+}>()
 
-async function pick(source: TemplateSource, close: () => void): Promise<void> {
-  await props.load(source)
+const { t, locale } = useI18n()
+
+const context = computed<TemplateSourceContext>(() => ({
+  locale: isSupportedLocale(locale.value) ? locale.value : FALLBACK_LOCALE,
+  translate: (key: string) => t(key),
+  pickFile: props.pickFile,
+}))
+
+function onPick(markdown: string | null, close: () => void): void {
+  emit('pick', markdown)
   close()
 }
 </script>
@@ -42,16 +57,11 @@ async function pick(source: TemplateSource, close: () => void): Promise<void> {
     </template>
 
     <template #default="{ close }">
-      <div class="flex flex-col gap-2">
-        <AppButton
-          v-for="source in TEMPLATE_SOURCES"
-          :key="source.id"
-          variant="subtle"
-          :action="() => pick(source, close)"
-        >
-          {{ t(`portfolio.source.${source.id}`) }}
-        </AppButton>
-      </div>
+      <TemplateSourceList
+        :context="context"
+        @pick="(markdown) => onPick(markdown, close)"
+        @failed="(error) => emit('failed', error)"
+      />
     </template>
   </AppPopover>
 </template>
