@@ -71,6 +71,24 @@ describe('자란 만큼 다시 잰다', () => {
   })
 })
 
+/**
+ * **넘칠 때는 잘리는 대신 스크롤한다.** 뒤집기는 더 넓은 쪽으로 옮기는 것이지 들어간다는
+ * 보장이 아니라, 둘 다 모자란 화면에서는 천장만이 잘림을 막는다 (2026-08-14, 사용자).
+ */
+describe('고른 쪽에 남은 만큼이 천장이다', () => {
+  it('열면 남은 자리를 패널에 적어 준다', async () => {
+    const wrapper = openPopover()
+    await wrapper.find('button').trigger('click')
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
+
+    const panel = document.querySelector(PANEL) as HTMLElement | null
+    // 값 자체는 그 화면의 것이라 여기서 숫자를 고정하지 않는다. **적혔는지**를 본다 —
+    // 안 적히면 `popover-panel`의 `min()`이 화면 천장만 보고 머리가 잘린다.
+    expect(panel?.style.getPropertyValue('--popover-room')).toMatch(/px$/)
+  })
+})
+
 describe('스크롤과 닫힘', () => {
   it('패널 안을 굴려도 안 닫힌다', async () => {
     const wrapper = openPopover()

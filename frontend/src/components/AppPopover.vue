@@ -34,6 +34,10 @@
  * 정렬을 대신하는 것이 아니라 **모자란 만큼만 민다.** 들어가는 팝오버는 한 픽셀도
  * 안 움직이므로 "트리거에 붙어 있다"는 성질이 그대로 남는다.
  *
+ * **넘칠 때는 잘리는 대신 스크롤한다.** 자리를 고른 뒤 **그쪽에 남은 만큼**을 천장으로
+ * 걸어 준다(`--popover-room`) — 뒤집기는 더 넓은 쪽으로 옮기는 것이지 들어간다는
+ * 보장이 아니라서, 둘 다 모자란 화면에서는 이 천장만이 잘림을 막는다.
+ *
  * **한 번 재고 끝내지 않는다.** 안의 것이 나중에 채워지는 패널이 있다 — 군집 대표 사진은
  * 상자가 먼저 서고 그다음 찾는다. 열 때 잰 높이로 붙여 두면 **사진이 들어오면서 자란
  * 만큼 화면 위로 빠져나간다**(2026-08-14, 사용자가 겪었다). 그래서 크기가 바뀌면 다시
@@ -134,6 +138,15 @@ async function place(): Promise<void> {
     ? { bottom: `${window.innerHeight - trigger.top + GAP}px` }
     : { top: `${trigger.bottom + GAP}px` }
 
+  /**
+   * **고른 쪽에 남은 자리가 곧 천장이다** (`popover-panel`의 `--popover-room`).
+   *
+   * 뒤집기만으로는 모자란다 — 그건 "더 넓은 쪽으로 옮긴다"이지 "들어간다"가 아니다.
+   * 둘 다 모자라면 어느 쪽으로 가도 넘치고, 그때 **넘치는 대신 그 안에서 스크롤해야**
+   * 한다. 잘린 머리는 아무도 되돌릴 수 없지만 스크롤은 학생이 굴리면 된다.
+   */
+  const room = Math.max(0, useTop ? above : below)
+
   const start = props.align === 'right' ? trigger.right - rect.width : trigger.left
   // 가로도 모자란 만큼만 민다. 들어가는 팝오버는 정렬 그대로다.
   const left = Math.min(
@@ -141,7 +154,7 @@ async function place(): Promise<void> {
     Math.max(EDGE, window.innerWidth - EDGE - rect.width),
   )
 
-  style.value = { ...vertical, left: `${left}px` }
+  style.value = { ...vertical, left: `${left}px`, '--popover-room': `${room}px` }
 }
 
 function close(): void {

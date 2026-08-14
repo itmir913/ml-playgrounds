@@ -37,7 +37,15 @@
 @utility popover-panel {
   width: 22rem;
   max-width: calc(100vw - 1.5rem);
-  max-height: calc(100dvh - 7rem);
+  /*
+   * **화면이 아니라 "그쪽에 남은 자리"가 천장이다.** 위로 여는 패널이 화면 높이만큼
+   * 커질 수 있으면, 트리거가 화면 중간에 있을 때 그 위로 넘쳐 **머리가 잘린다**
+   * (2026-08-14, 군집 대표 사진에서 실제로 그랬다).
+   *
+   * 남은 자리는 열 때 재서 `--popover-room`으로 들어온다 (`AppPopover`의 `place`).
+   * 재기 전에는 값이 없으므로 화면 천장만 걸린다 — `min()`이라 **둘 중 낮은 쪽**이 이긴다.
+   */
+  max-height: min(calc(100dvh - 7rem), var(--popover-room, 100dvh));
   overflow-y: auto;
 }
 
