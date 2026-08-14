@@ -206,6 +206,12 @@ export const KIND_SPECIFIC_STEP_TEXT: readonly {
   { step: 'data', slot: 'purpose' },
   { step: 'predict', slot: 'purpose' },
   { step: 'train', slot: 'locked' },
+  // 전처리도 갈린다. 공통 자리에 있던 문장이 표의 말이었다 - 잠금 사유가 "데이터를
+  // 먼저 불러와 주세요"였는데 이미지에는 불러오는 것이 없고 사진을 추가한다.
+  // 설명문도 같다: 이미지에는 다듬을 것이 없고(결측치·인코딩·스케일링) 이 화면에서
+  // 하는 일은 테스트 데이터를 정하는 것뿐이다.
+  { step: 'preprocess', slot: 'purpose' },
+  { step: 'preprocess', slot: 'locked' },
 ]
 
 /**
@@ -282,13 +288,17 @@ export function currentTask(
   facts: ProjectFacts,
   taskType?: TaskType | undefined,
   dataType?: DataType | undefined,
-): { step: StepId; key: FactKey } | null {
+): { step: StepId; key: FactKey; labelKey: string } | null {
   for (const step of STEP_IDS) {
     if (!isStepUnlocked(step, facts, taskType, dataType)) continue
     const pending = STEPS[step].tasks.find(
       (key) => factAppliesTo(key, taskType, dataType) && !facts[key],
     )
-    if (pending !== undefined) return { step, key: pending }
+    // **문구 키를 함께 준다.** 부르는 쪽이 `tasks.{key}`를 조립하면 종류마다
+    // 갈리는 문구를 지나쳐 표의 말을 한다 - 대시보드의 [바로가기]가 실제로 그랬다.
+    if (pending !== undefined) {
+      return { step, key: pending, labelKey: factLabelKey(pending, dataType) }
+    }
   }
   return null
 }

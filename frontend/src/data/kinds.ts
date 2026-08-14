@@ -137,6 +137,7 @@ export const DATA_KINDS: readonly DataKind[] = [
     // 멀쩡해 보인다 — 조용히 표의 말을 하면서 (docs/i18n.md 규칙 10).
     stepText: {
       data: { purpose: 'data.tabular.purpose' },
+      preprocess: { purpose: 'preprocess.tabular.purpose', locked: 'preprocess.tabular.locked' },
       predict: { purpose: 'predict.tabular.purpose' },
       train: { locked: 'train.tabular.locked' },
     },
@@ -154,6 +155,9 @@ export const DATA_KINDS: readonly DataKind[] = [
     stepText: {
       // "어떤 열이 있는지"는 이미지에 없는 말이다.
       data: { purpose: 'data.image.purpose' },
+      // 다듬을 것이 없다 - 결측치도 인코딩도 스케일링도 이미지에는 없고, 여기서 하는
+      // 일은 테스트 데이터를 정하는 것뿐이다. 잠금 이유의 "불러오기"도 같다.
+      preprocess: { purpose: 'preprocess.image.purpose', locked: 'preprocess.image.locked' },
       // "표에 새 줄을 하나 넣으면"도 마찬가지다.
       predict: { purpose: 'predict.image.purpose' },
       // 잠금 이유가 "타깃과 특성을 정해 주세요"인데 이미지에는 둘 다 없다.

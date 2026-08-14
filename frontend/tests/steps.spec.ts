@@ -258,18 +258,30 @@ describe('기계학습 유형마다 할 일이 다르다', () => {
 
 describe('지금 할 일', () => {
   it('아무것도 없으면 표를 올리는 것부터다', () => {
-    expect(currentTask(NO_FACTS, TASK)).toEqual({ step: 'data', key: 'datasetReady' })
+    expect(currentTask(NO_FACTS, TASK)).toEqual({
+      step: 'data',
+      key: 'datasetReady',
+      labelKey: 'tasks.datasetReady',
+    })
   })
 
   it('앞 단계가 끝나면 다음 열린 단계로 넘어간다', () => {
     const uploaded = facts({ datasetReady: true })
-    expect(currentTask(uploaded, TASK)).toEqual({ step: 'preprocess', key: 'targetChosen' })
+    expect(currentTask(uploaded, TASK)).toEqual({
+      step: 'preprocess',
+      key: 'targetChosen',
+      labelKey: 'tasks.targetChosen',
+    })
   })
 
   it('전처리를 마치면 학습의 첫 일은 유형 고르기다', () => {
     // 모델 목록이 유형에서 나오므로 유형이 먼저다 (TrainView).
     const ready = facts({ datasetReady: true, targetChosen: true, featuresChosen: true })
-    expect(currentTask(ready, TASK)).toEqual({ step: 'train', key: 'taskTypeChosen' })
+    expect(currentTask(ready, TASK)).toEqual({
+      step: 'train',
+      key: 'taskTypeChosen',
+      labelKey: 'tasks.taskTypeChosen',
+    })
   })
 
   it('잠긴 단계의 할 일은 고르지 않는다', () => {
@@ -277,6 +289,12 @@ describe('지금 할 일', () => {
     const found = currentTask(facts({ datasetReady: true }), TASK)
     expect(found).not.toBeNull()
     if (found) expect(isStepUnlocked(found.step, facts({ datasetReady: true }))).toBe(true)
+  })
+
+  it('문구 키가 데이터 종류를 따라간다 - 대시보드의 [바로가기]가 이걸 쓴다', () => {
+    // 부르는 쪽이 `tasks.{key}`를 조립하면 이미지 프로젝트에 표의 말이 뜬다. 실제로 그랬다.
+    expect(currentTask(NO_FACTS, TASK, 'image')?.labelKey).toBe('tasks.image.datasetReady')
+    expect(currentTask(NO_FACTS, TASK, 'tabular')?.labelKey).toBe('tasks.datasetReady')
   })
 
   it('다 하면 null이다', () => {

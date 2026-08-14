@@ -387,7 +387,11 @@ async function commitRemoveCategory(): Promise<void> {
             <span class="max-w-40 truncate font-bold text-ink-soft">
               {{ labelOf(one.category) }}
             </span>
-            <span class="tabular-nums">{{ t('data.image.count', one.count) }}</span>
+            <!--
+              **여기서 세는 것은 사진이 아니라 파일이다** — 굽기 전이라 사진인지 아직
+              모른다(`data/image/upload.ts`). 그래서 `{count}장`이 아니라 `{count}개`다.
+            -->
+            <span class="tabular-nums">{{ t('meta.countUnit', one.count) }}</span>
           </li>
         </ul>
       </template>
@@ -546,7 +550,7 @@ async function commitRemoveCategory(): Promise<void> {
 
       <div class="ml-auto flex gap-2">
         <AppButton variant="secondary" @click="selected = new Set()">
-          {{ t('data.image.clearSelection') }}
+          {{ t('common.clearAll') }}
         </AppButton>
         <AppButton variant="danger" :disabled="busy" @click="deleting = true">
           {{ t('data.image.deletePhotos') }}
@@ -588,8 +592,15 @@ async function commitRemoveCategory(): Promise<void> {
 
       <template #actions>
         <AppButton variant="secondary" @click="naming = null">{{ t('common.cancel') }}</AppButton>
+        <!--
+          **버튼이 자기가 할 일을 이름으로 말한다** — 이 저장소의 대화상자 규칙이다
+          (`지우고 바꾸기`·`범주 없애기`). 창 하나가 둘을 겸하므로 제목과 같은 조건으로
+          고른다.
+        -->
         <AppButton :disabled="!canName" :action="commitName">
-          {{ t('data.image.nameConfirm') }}
+          {{
+            t(naming?.mode === 'rename' ? 'data.image.renameConfirm' : 'data.image.createConfirm')
+          }}
         </AppButton>
       </template>
     </AppDialog>

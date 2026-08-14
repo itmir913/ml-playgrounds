@@ -26,7 +26,7 @@
     "taskTypeChosen": "기계학습 유형 선택하기",
     "image": {
       "datasetReady": "사진 추가하기",
-      "targetChosen": "범주 나누기"
+      "targetChosen": "범주(Class) 나누기"
     }
   },
   "shell": {
@@ -48,9 +48,7 @@
       "label": "데이터"
     },
     "preprocess": {
-      "label": "전처리",
-      "locked": "데이터를 먼저 불러와 주세요.",
-      "purpose": "학습에 쓸 수 있게 데이터를 다듬습니다."
+      "label": "전처리"
     },
     "train": {
       "label": "학습",
@@ -81,41 +79,40 @@
       "backbone": "백본(Backbone)",
       "categories": "범주",
       "categoryName": "범주 이름",
-      "clearSelection": "선택 해제",
       "count": "{count}장",
       "countUnit": "{count}장",
       "createTitle": "범주 만들기",
       "deleteDescription": "선택한 사진 {count}장을 프로젝트에서 지웁니다. 되돌릴 수 없습니다.",
       "deletePhotos": "사진 지우기",
       "deleteTitle": "사진을 지울까요?",
-      "duplicates": "이미 있는 사진 {count}장은 넘어갔습니다.",
+      "duplicates": "이미 있는 사진 {count}장은 추가하지 않았습니다.",
       "emptyCategory": "이 범주에는 아직 사진이 없습니다. 사진 파일을 이곳에 끌어다 놓거나 [여기에 사진 추가]를 누르세요.",
-      "emptyNext": "개·고양이처럼 구분하고 싶은 이름을 만들고, 그 칸에 사진을 추가하면 됩니다. 사진을 먼저 추가하고 나중에 나눠도 됩니다.",
-      "emptyReason": "먼저 나눌 범주를 만들어 보세요.",
+      "emptyNext": "개·고양이처럼 구분하고 싶은 이름으로 범주를 만들고, 그 범주에 사진을 추가하세요. 사진을 먼저 추가하고 나중에 나눠도 됩니다.",
+      "emptyReason": "아직 추가한 사진이 없습니다.",
       "moveTo": "옮길 곳",
-      "nameConfirm": "확인",
-      "nameDescription": "사진을 나눌 이름입니다. 저장할 때 폴더 이름으로 사용됩니다.",
-      "nameHint": "_로 시작할 수 없고, 경로에 못 쓰는 문자는 넣을 수 없습니다.",
+      "createConfirm": "만들기",
+      "nameDescription": "사진을 나눌 이름입니다.",
+      "nameHint": "밑줄(_)로 시작할 수 없고, 일부 특수문자는 사용할 수 없습니다.",
       "nameTaken": "같은 이름의 범주가 이미 있습니다.",
       "newCategory": "범주 만들기",
-      "noUnlabeled": "라벨 없는 사진이 없습니다. 어느 범주에도 넣지 않은 사진이 여기로 옵니다.",
       "photos": "사진",
       "photosPerCategory": "범주별 사진 수",
       "pickAll": "전체 선택",
-      "pickCategory": "범주 선택",
+      "pickCategory": "고르세요",
       "preparing": "사진 준비 중 {done}/{total}",
-      "purpose": "구분하고 싶은 범주를 만들고, 각 범주마다 사진을 추가합니다.",
-      "readTitle": "사진 {count}장을 읽었습니다.",
-      "removeCategory": "범주 없애기",
-      "removeCategoryDescription": "사진은 지워지지 않고 라벨만 떨어집니다. ({name})",
-      "removeCategoryTitle": "범주를 없앨까요?",
+      "purpose": "학습에 쓸 사진을 추가합니다.",
+      "readTitle": "파일 {count}개를 읽었습니다.",
+      "removeCategory": "범주 지우기",
+      "removeCategoryDescription": "사진은 지워지지 않고 [범주 없음]으로 옮겨집니다. ({name})",
+      "removeCategoryTitle": "범주를 지울까요?",
       "rename": "이름 바꾸기",
+      "renameConfirm": "이름 바꾸기",
       "renameTitle": "범주 이름 바꾸기",
       "selected": "사진 {count}장 선택",
-      "skipped": "읽지 못한 파일 {count}개는 빼고 추가했습니다.",
-      "unlabeled": "라벨 없음",
-      "unlabeledCount": "라벨 없는 사진",
-      "use": "사용"
+      "skipped": "읽을 수 없는 파일 {count}개는 추가하지 못했습니다.",
+      "unlabeled": "범주 없음",
+      "unlabeledCount": "범주 없는 사진 수",
+      "use": "이 사진 사용"
     },
     "tabular": {
       "applied": "데이터를 불러왔습니다.",
@@ -207,6 +204,10 @@
     "ordinal": "순서 인코딩"
   },
   "preprocess": {
+    "image": {
+      "locked": "사진을 먼저 추가해 주세요.",
+      "purpose": "점수를 매길 테스트 데이터를 정합니다."
+    },
     "emptyReason": "아직 불러온 데이터가 없습니다.",
     "emptyNext": "데이터 단계에서 파일을 불러오면 여기에서 무엇을 예측할지 고를 수 있습니다.",
     "summaryTitle": "전처리 요약",
@@ -222,6 +223,8 @@
     "reseedDescription": "훈련 데이터와 테스트 데이터로 분할하는 방식이 바뀝니다. 지금까지 한 실험은 그대로 남지만, 앞으로 나오는 점수는 다른 데이터로 매긴 것이라 예전 점수와 나란히 놓고 비교할 수 없습니다.",
     "reseedConfirm": "다시 뽑기",
     "tabular": {
+      "locked": "데이터를 먼저 불러와 주세요.",
+      "purpose": "학습에 쓸 수 있게 데이터를 다듬습니다.",
       "cleaningTitle": "데이터 다듬기",
       "clearAll": "특성 전체 해제",
       "columnsLead": "예측할 열 하나를 타깃으로, 예측에 쓸 열들을 특성으로 고릅니다.",
@@ -294,7 +297,7 @@
     "failedHere": "학습에 실패했습니다. 이유 보기",
     "finished": "학습이 끝났습니다.",
     "image": {
-      "locked": "범주를 둘 이상 만들고 사진을 추가해 주세요."
+      "locked": "데이터 화면에서 할 일을 먼저 마쳐 주세요."
     },
     "lastRun": "마지막 학습 {at}",
     "lastRunFailed": "모델 {count}개가 학습에 실패했습니다.",
@@ -472,7 +475,7 @@
     "TEST_DATASET_NO_USABLE_ROWS": "테스트 데이터에 점수를 매길 수 있는 행이 하나도 없습니다.",
     "PREDICT_DATASET_COLUMN_MISSING": "예측할 파일에 지금 보이는 모델들이 쓰는 열이 없습니다. ({columns})",
     "IMAGE_ZIP_INVALID": "압축 파일을 열지 못했습니다. 사진 폴더를 다시 압축해 주세요.",
-    "IMAGE_ZIP_NO_IMAGES": "불러온 파일에 사진이 하나도 없습니다.",
+    "IMAGE_ZIP_NO_IMAGES": "압축 파일 안에 사진이 하나도 없습니다.",
     "IMAGE_CATEGORY_NAME_INVALID": "범주 이름으로 쓸 수 없는 폴더가 있습니다. 폴더 이름을 바꾼 뒤 다시 압축해 주세요. ({name})"
   },
   "portfolio": {
@@ -514,7 +517,7 @@
     "updated": "수정한 날짜",
     "size": "용량",
     "taskType": "기계학습 유형",
-    "algorithms": "선택한 모델",
+    "algorithms": "담은 모델",
     "runs": "학습한 모델",
     "none": "없음",
     "countUnit": "{count}개",

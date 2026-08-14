@@ -48,9 +48,7 @@
       "label": "Data"
     },
     "preprocess": {
-      "label": "Pre­pro­cess­ing",
-      "locked": "Load your data first.",
-      "purpose": "Shape the data so it is ready for training."
+      "label": "Pre­pro­cess­ing"
     },
     "train": {
       "label": "Train­ing",
@@ -81,41 +79,40 @@
       "backbone": "Backbone",
       "categories": "Categories",
       "categoryName": "Category name",
-      "clearSelection": "Clear selection",
       "count": "{count} photo | {count} photos",
       "countUnit": "{count}",
       "createTitle": "New category",
       "deleteDescription": "This removes the {count} selected photo from the project. It cannot be undone. | This removes the {count} selected photos from the project. It cannot be undone.",
       "deletePhotos": "Delete photos",
       "deleteTitle": "Delete these photos?",
-      "duplicates": "Skipped {count} photo you already have. | Skipped {count} photos you already have.",
+      "duplicates": "Did not add {count} photo you already have. | Did not add {count} photos you already have.",
       "emptyCategory": "No photos in this category yet. Drop photo files here, or use [Add photos here].",
-      "emptyNext": "Name what you want to tell apart — dog, cat — then add photos to that box. You can also add photos first and sort them later.",
-      "emptyReason": "Start by creating the categories you want to sort into.",
+      "emptyNext": "Name a category for what you want to tell apart — dog, cat — then add photos to that category. You can also add photos first and sort them later.",
+      "emptyReason": "No photos yet.",
       "moveTo": "Move to",
-      "nameConfirm": "OK",
-      "nameDescription": "This name groups your photos. It becomes the folder name when you save the project.",
-      "nameHint": "Cannot start with _ or contain characters that are not allowed in a path.",
+      "createConfirm": "Create",
+      "nameDescription": "This name groups your photos.",
+      "nameHint": "Cannot start with _, and some special characters cannot be used.",
       "nameTaken": "A category with this name already exists.",
       "newCategory": "New category",
-      "noUnlabeled": "No unlabeled photos. Photos you have not sorted into a category land here.",
       "photos": "Photos",
       "photosPerCategory": "Photos per category",
       "pickAll": "Select all",
-      "pickCategory": "Choose a category",
+      "pickCategory": "Choose one",
       "preparing": "Preparing photos {done} of {total}",
-      "purpose": "Create the categories you want to tell apart, then add photos to each one.",
-      "readTitle": "Read {count} photo. | Read {count} photos.",
+      "purpose": "Add the photos you want to train with.",
+      "readTitle": "Read {count} file. | Read {count} files.",
       "removeCategory": "Delete category",
-      "removeCategoryDescription": "The photos stay — only the label is removed. ({name})",
+      "removeCategoryDescription": "The photos stay and move to [No category]. ({name})",
       "removeCategoryTitle": "Delete this category?",
       "rename": "Rename",
+      "renameConfirm": "Rename",
       "renameTitle": "Rename category",
       "selected": "{count} photo selected | {count} photos selected",
       "skipped": "Left out {count} file that could not be read. | Left out {count} files that could not be read.",
-      "unlabeled": "Unlabeled",
-      "unlabeledCount": "Unlabeled photos",
-      "use": "Use these"
+      "unlabeled": "No category",
+      "unlabeledCount": "Photos with no category",
+      "use": "Use these photos"
     },
     "tabular": {
       "applied": "The data is loaded.",
@@ -207,6 +204,10 @@
     "ordinal": "Ordinal encoding"
   },
   "preprocess": {
+    "image": {
+      "locked": "Add your photos first.",
+      "purpose": "Set how much data to keep for scoring."
+    },
     "emptyReason": "No data yet.",
     "emptyNext": "Load a file in the data step and you can choose what to predict here.",
     "summaryTitle": "Preprocessing summary",
@@ -222,6 +223,8 @@
     "reseedDescription": "The data will be split into training and test sets differently. Your earlier experiments stay in the project, but new scores come from different data, so you cannot line them up against the old ones.",
     "reseedConfirm": "Draw",
     "tabular": {
+      "locked": "Load your data first.",
+      "purpose": "Shape the data so it is ready for training.",
       "cleaningTitle": "Tidy the data",
       "clearAll": "Clear every feature",
       "columnsLead": "Pick one column to predict, and the columns to predict it from.",
@@ -294,7 +297,7 @@
     "failedHere": "Training failed. See why",
     "finished": "Training finished.",
     "image": {
-      "locked": "Create at least two categories and add photos to them."
+      "locked": "Finish the tasks on the Data step first."
     },
     "lastRun": "Last trained {at}",
     "lastRunFailed": "{count} model failed to train. | {count} models failed to train.",
@@ -472,7 +475,7 @@
     "TEST_DATASET_NO_USABLE_ROWS": "The test data has no rows that can be scored.",
     "PREDICT_DATASET_COLUMN_MISSING": "The file to predict is missing columns the visible models use. ({columns})",
     "IMAGE_ZIP_INVALID": "Could not open the zip file. Try compressing your photo folder again.",
-    "IMAGE_ZIP_NO_IMAGES": "There are no photos in the file you loaded.",
+    "IMAGE_ZIP_NO_IMAGES": "There are no photos in this zip file.",
     "IMAGE_CATEGORY_NAME_INVALID": "A folder here cannot be used as a category name. Rename the folder and compress it again. ({name})"
   },
   "portfolio": {
@@ -514,7 +517,7 @@
     "updated": "Modified",
     "size": "Size",
     "taskType": "Task type",
-    "algorithms": "Selected models",
+    "algorithms": "Added models",
     "runs": "Trained models",
     "none": "None",
     "countUnit": "{count}",

@@ -134,6 +134,10 @@ const shown = computed(() =>
       **빈 칸에 높이를 준다.** 한 줄짜리 문장만 두면 떨어뜨릴 자리가 손가락만 해서
       끌어다 놓기가 사실상 못 하는 동작이 된다 — 이 칸은 안내문이 아니라 **과녁**이다.
       점선은 "여기가 받는 자리"라는 말이고, 사진이 들어오면 격자가 그 말을 대신한다.
+
+      **`범주 없음` 칸은 여기로 오지 않는다** — 판이 0장이면 그 칸을 아예 안 그린다.
+      그래서 이 자리에 그 칸을 위한 문장을 따로 두지 않는다. 두었더니 아무도 못 보는
+      문장이 두 언어에 남아 있었다.
       **사진 한 줄이 서는 높이만큼 준다** — 채워졌을 때와 비었을 때 칸 크기가 크게
       달라지면, 사진을 넣는 순간 옆 칸이 밀려 화면이 흔들린다.
     -->
@@ -141,10 +145,14 @@ const shown = computed(() =>
       v-if="props.entries.length === 0"
       class="grid min-h-64 place-items-center rounded-control border-2 border-dashed border-line px-4 py-6 text-center text-base text-ink-faint"
     >
-      {{ props.unlabeled ? t('data.image.noUnlabeled') : t('data.image.emptyCategory') }}
+      {{ t('data.image.emptyCategory') }}
     </div>
 
-    <ul v-else class="grid grid-cols-3 gap-2 sm:grid-cols-5">
+    <!--
+      **열 수를 여기서 세지 않는다** (`photo-grid`). 이 컴포넌트는 자기가 반쪽 칸으로
+      섰는지 온 칸으로 섰는지 모르고, 알 필요도 없다 — 폭을 보고 열이 정해진다.
+    -->
+    <ul v-else class="photo-grid grid gap-2">
       <li v-for="entry in shown" :key="entry.hash">
         <!--
           **테두리는 늘 있고 색만 바뀐다** (AppChoices와 같은 이유) — 고른 것만 테두리를

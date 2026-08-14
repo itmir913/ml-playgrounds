@@ -25,7 +25,7 @@ import AppEmpty from '@/components/AppEmpty.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { useFormat } from '@/composables/useFormat'
-import { dataKindFor } from '@/data/kinds'
+import { dataKindFor, stepTextKey } from '@/data/kinds'
 import { newRandomState } from '@/project/create'
 import { dataSettings, type ProjectDocument } from '@/project/schema'
 import { withRandomState, withSplit } from '@/project/settings'
@@ -47,6 +47,12 @@ const settings = computed(() => project.file?.document.settings ?? null)
  * 다루는 종류이고, 그때는 데이터 화면이 이미 그 사실을 말했다.
  */
 const kind = computed(() => dataKindFor(project.file?.document.manifest.dataType ?? ''))
+
+/**
+ * 이 단계의 설명문. **등록부가 준다** (architecture.md §8.10) — 공통 자리에 두었더니
+ * 표의 말("데이터를 다듬습니다")이 이미지 화면에도 떴다. 이미지에는 다듬을 것이 없다.
+ */
+const purpose = computed(() => stepTextKey(kind.value, 'preprocess', 'purpose'))
 
 /**
  * 정본이 앉았는가. **종류를 안 묻는다** — 세 종류가 다 `settings.data.dataset`을 갖고,
@@ -125,7 +131,7 @@ function reseed(): void {
 
 <template>
   <div v-if="settings && hasData" class="flex flex-col gap-5 p-4 sm:p-5">
-    <StepHeader :title="t('steps.preprocess.label')" :purpose="t('steps.preprocess.purpose')">
+    <StepHeader :title="t('steps.preprocess.label')" :purpose="t(purpose)">
       <!--
         **무엇을 셀지 이 화면이 모른다** (architecture.md §9.3.2). 여기 "열 수"가 박혀
         있었는데 이미지에는 열이 없다 — 종류별 문맥은 등록부가 갖는다.
