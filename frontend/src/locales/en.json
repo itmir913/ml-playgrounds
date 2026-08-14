@@ -687,11 +687,11 @@
       "clear": "Remove all photos",
       "clearDescription": "This removes the {count} photo you added for prediction. Your training photos stay. | This removes the {count} photos you added for prediction. Your training photos stay.",
       "clearTitle": "Remove all photos?",
-      "emptyNext": "Add photos and every model gives its answer.",
+      "emptyNext": "Drop photos here, or use [Add photos], and every model gives its answer.",
       "emptyReason": "No photos yet.",
       "photo": "Photo to predict",
       "remove": "Remove",
-      "waiting": "Add photos and press [Predict] to see the answers here."
+      "waiting": "Press [Predict] to see the answers here."
     },
     "tabular": {
       "answerLead": "Every model gets exactly the values you entered. Their answers can differ, and that is normal.",

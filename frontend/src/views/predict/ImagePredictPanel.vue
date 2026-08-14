@@ -60,6 +60,8 @@ const toasts = useToastStore()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const busy = ref(false)
+/** 사진을 끌고 판 위에 있는가. 빈 자리의 점선이 이걸 보고 색을 바꾼다. */
+const dragging = ref(false)
 const predicting = ref(false)
 /** 준비 진행. 백본을 받는 동안 화면이 할 말이 여기서 나온다. */
 const progress = ref<{ completed: number; total: number } | null>(null)
@@ -303,6 +305,12 @@ function onPick(event: Event): void {
   void readPicked(files)
 }
 
+/** 판에 떨어뜨린 것. **고르기와 같은 문으로 보낸다** — zip이든 사진이든 거기서 갈린다. */
+function onDrop(event: DragEvent): void {
+  dragging.value = false
+  void readPicked([...(event.dataTransfer?.files ?? [])])
+}
+
 /**
  * 예측한다. **없는 임베딩만 먼저 뽑는다** — 학습과 같은 규칙이다 (mlpx-spec.md §1.3).
  */
@@ -512,7 +520,17 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col gap-5">
+  <!--
+    **떨어뜨려서 올릴 수 있다** — 데이터 화면과 같은 문이다(`ImagePanel`). 여기만 단추로
+    고르게 하면 같은 일이 화면마다 다른 몸짓이 된다. 판 전체가 받는 이유도 거기와 같다:
+    떨어뜨릴 자리가 빈 상자 안으로 좁혀져 있으면 학생이 그 상자를 겨눠야 한다.
+  -->
+  <div
+    class="flex min-h-0 flex-1 flex-col gap-5"
+    @dragover.prevent="dragging = true"
+    @dragleave="dragging = false"
+    @drop.prevent="onDrop"
+  >
     <!--
       **`ImagePanel`의 선택 줄과 방향만 다르다.** 거기는 나타났다 사라지는 줄이라 흐름
       끝(`bottom-0`)이어야 했고, 여기는 늘 있는 줄이라 흐름 맨 앞에 그대로 둔 채 위에
@@ -549,7 +567,16 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       </template>
     </StepActionBar>
 
-    <div v-if="photos.length === 0" class="grid min-h-0 flex-1 place-items-center">
+    <!--
+      **빈 자리가 곧 드롭존이다** (`ImagePanel`의 첫 화면과 같은 모양). 점선과 끌고 왔을
+      때의 색이 "여기에 놓아도 된다"를 말한다 — 단추만 있으면 끌어다 놓아도 되는지를
+      학생이 시험해 봐야 안다.
+    -->
+    <div
+      v-if="photos.length === 0"
+      class="grid min-h-0 flex-1 place-items-center rounded-panel border-2 border-dashed transition-colors"
+      :class="dragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
+    >
       <AppEmpty :reason="t('predict.image.emptyReason')" :next="t('predict.image.emptyNext')">
         <AppButton size="lg" :disabled="busy" @click="fileInput?.click()">
           {{ t('predict.image.add') }}
