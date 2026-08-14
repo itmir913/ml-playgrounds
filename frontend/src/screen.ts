@@ -17,3 +17,40 @@
 export function yieldToScreen(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
+
+/** 팝오버가 설 자리를 고를 때 재는 것. 단위는 픽셀이다. */
+export interface SidePlacement {
+  /** 트리거 위에 남은 자리. */
+  readonly above: number
+  /** 트리거 아래에 남은 자리. */
+  readonly below: number
+  /** 패널의 지금 높이. */
+  readonly height: number
+  /** 부르는 쪽이 요청한 방향이 위인가. */
+  readonly wantsTop: boolean
+}
+
+/**
+ * 위로 열 것인가. **요청한 쪽이 원칙이고, 그쪽에 안 들어갈 때만 반대쪽을 본다.**
+ *
+ * **둘 다 모자라면 요청한 쪽으로 돌아온다** (2026-08-14, 사용자). 이유 둘이다.
+ *
+ * 1. **`side`는 취향이 아니라 사실에서 나온다** — "이 트리거 아래가 전부 답이다"라서
+ *    위로 여는 것이다. 모자라다고 아래로 뒤집으면 **읽으려고 연 것이 읽으려던 답을
+ *    가리면서 스크롤도 그대로 생긴다.** 둘 다 잃는다.
+ * 2. **더 넓은 쪽을 고르면 방향이 1픽셀에 뒤집힌다.** 위아래가 330 대 331인 자리가
+ *    실제로 흔하고(답 카드가 세로로 늘어선다), 그러면 같은 팝오버가 줄마다 위로 갔다
+ *    아래로 갔다 한다 — 학생 눈에는 아무 규칙이 없다.
+ *
+ * **대가는 요청한 쪽이 아주 좁을 때다.** 그때는 낮은 상자가 서고 그 안에서 스크롤한다 —
+ * 넘치는 것은 천장이 막으므로(`popover-panel`의 `--popover-room`) **잘리지는 않는다.**
+ * "아래가 뚜렷하게 넓으면 아래로"라는 단서를 달 수도 있지만, 그 '뚜렷하게'가 곧 근거
+ * 없는 상수다. 낮은 상자는 드물고 굴리면 복구되지만, 방향이 뒤집히는 것은 매번 일어나고
+ * 복구할 방법이 없다.
+ */
+export function prefersTop({ above, below, height, wantsTop }: SidePlacement): boolean {
+  const requested = wantsTop ? above : below
+  const other = wantsTop ? below : above
+  if (requested >= height) return wantsTop
+  return other >= height ? !wantsTop : wantsTop
+}

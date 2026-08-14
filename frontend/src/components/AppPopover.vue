@@ -46,6 +46,8 @@
 
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
+import { prefersTop } from '@/screen'
+
 const props = withDefaults(
   defineProps<{
     /** 패널이 트리거의 어느 쪽 끝에 맞춰 열리는가. */
@@ -126,13 +128,14 @@ async function place(): Promise<void> {
   const rect = panel.value?.getBoundingClientRect()
   if (!rect) return
 
-  // **모자라면 반대쪽으로 뒤집는다.** 표 머리글은 위로 열지만(§8.13 - 아래는 전부 값이라
-  // 가리면 안 된다) 그 표가 화면 맨 위에 있으면 위쪽에 자리가 없다. 요청한 쪽을 먼저
-  // 보고, 안 들어갈 때만 더 넓은 쪽으로 옮긴다.
+  // **안 들어갈 때만 반대쪽으로 뒤집는다.** 표 머리글은 위로 열지만(§8.13 - 아래는 전부
+  // 값이라 가리면 안 된다) 그 표가 화면 맨 위에 있으면 위쪽에 자리가 없다. 판정은
+  // 순수 함수가 한다 (`screen.ts`의 `prefersTop`) — **둘 다 모자라면 요청한 쪽으로
+  // 돌아오는 이유**가 거기 적혀 있다.
   const above = trigger.top - GAP - EDGE
   const below = window.innerHeight - trigger.bottom - GAP - EDGE
   const wanted = props.side === 'top'
-  const useTop = (wanted ? above : below) >= rect.height ? wanted : above > below
+  const useTop = prefersTop({ above, below, height: rect.height, wantsTop: wanted })
 
   const vertical = useTop
     ? { bottom: `${window.innerHeight - trigger.top + GAP}px` }
