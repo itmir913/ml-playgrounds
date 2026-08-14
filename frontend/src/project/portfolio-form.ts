@@ -2,9 +2,8 @@
  * 양식 마크다운을 문항으로 가른다 (mlpx-spec.md §8.1).
  *
  * **여기가 하는 일은 구조를 가르는 것뿐이다.** `#`은 문서 제목이고 `##`이 문항이며
- * 다음 `##`까지가 그 문항의 안내문이다. 안내문은 **글자 그대로 넘긴다** - 목록·표·
- * 강조가 살아나는 것과 살균은 markdown-it이 오는 다음 단계의 일이다
- * (`roadmap.md` V5, `open-decisions.md` "1단계도 마크다운을 읽는다").
+ * 다음 `##`까지가 그 문항의 안내문이다. 안내문을 그리는 것과 살균은
+ * `portfolio-markdown.ts`가 한다.
  *
  * **출처가 달라도 여기 하나를 지난다** (§8.7). 내장 프리셋이든 파일이든 주소든
  * 돌려주는 것은 마크다운 문자열 하나이고, 파싱과 문항 세우기는 한 벌이다 - 입구가
@@ -26,18 +25,34 @@ const SECTION_HEADING = /^##(?!#)\s*(.*)$/
 const DOCUMENT_HEADING = /^#(?!#)\s*(.*)$/
 
 /**
- * 우리가 내보낸 양식에 박혀 있는 문항 id (§8.2).
+ * 제목 줄에 적힌 문항 id (§8.2). `## 이 주제를 선택한 이유 {#topic}`
  *
- * **제목 바로 아래 줄에 있어야 읽는다.** 그래야 마크다운 → 문항 → 마크다운 왕복이
- * 무손실이고, 제목을 다듬어도 답이 붙어 있다. 맨손으로 쓴 양식에는 이 줄이 없고
- * 그때는 제목에서 슬러그를 만든다.
+ * **Pandoc 계열의 관행이다**(kramdown·MkDocs·Quarto가 같은 것을 쓴다). 우리가 내보낸
+ * 양식에는 이것이 있어서 제목을 다듬어도 답이 붙어 있고, 맨손으로 쓴 양식에는 없어서
+ * 제목에서 슬러그를 만든다 - **둘 다 열려야 한다.**
  */
-const ID_COMMENT = /^<!--\s*id:\s*(.+?)\s*-->$/
+const HEADING_ID = /\s*\{#([\w-]+)\}\s*$/
+
+/**
+ * HTML 주석. **양식을 읽을 때 통째로 걷어낸다** (§8.2).
+ *
+ * 그것은 양식을 쓴 사람의 메모이지 학생이 읽을 안내문이 아니다. 남겨 두면
+ * `html: false`인 렌더러가 그것을 **글자로** 보여준다 - `<!-- 여기 고칠 것 -->`이
+ * 학생 화면에 그대로 뜬다 (§8.1).
+ */
+const HTML_COMMENT = /<!--[\s\S]*?-->/g
 
 interface OpenSection {
-  id?: string
-  title: string
-  body: string[]
+  readonly id: string | undefined
+  readonly title: string
+  readonly body: string[]
+}
+
+/** 제목에서 id를 떼어낸다. 없으면 제목만 돌아온다. */
+function splitHeading(text: string): { title: string; id: string | undefined } {
+  const marked = HEADING_ID.exec(text)
+  if (marked === null) return { title: text.trim(), id: undefined }
+  return { title: text.replace(HEADING_ID, '').trim(), id: marked[1] }
 }
 
 function close(open: OpenSection): DraftSection {
@@ -57,7 +72,7 @@ function close(open: OpenSection): DraftSection {
  * 사라지지 않고, id는 순번으로 떨어진다 (`sectionIdFor`).
  */
 export function parsePortfolioForm(markdown: string): ParsedForm {
-  const lines = markdown.split(/\r?\n/)
+  const lines = markdown.replace(HTML_COMMENT, '').split(/\r?\n/)
   const sections: DraftSection[] = []
   let title: string | undefined
   let open: OpenSection | null = null
@@ -66,25 +81,16 @@ export function parsePortfolioForm(markdown: string): ParsedForm {
     const heading = SECTION_HEADING.exec(line)
     if (heading) {
       if (open) sections.push(close(open))
-      open = { title: (heading[1] ?? '').trim(), body: [] }
+      open = { ...splitHeading(heading[1] ?? ''), body: [] }
       continue
     }
 
     if (open === null) {
       const document = DOCUMENT_HEADING.exec(line)
-      if (document && title === undefined) title = (document[1] ?? '').trim()
+      if (document && title === undefined) title = splitHeading(document[1] ?? '').title
       continue
     }
 
-    // id 주석은 제목과 안내문 사이에서만 읽는다. 안내문이 시작된 뒤에 나오면 그건
-    // 안내문의 글자다 - 남이 쓴 양식 본문을 우리가 id로 가로채면 안 된다.
-    const beforeBody = open.body.every((earlier) => earlier.trim() === '')
-    const marked = beforeBody ? ID_COMMENT.exec(line.trim()) : null
-    const markedId = marked?.[1]
-    if (markedId !== undefined) {
-      open.id = markedId
-      continue
-    }
     open.body.push(line)
   }
   if (open) sections.push(close(open))

@@ -295,16 +295,24 @@ describe('양식 마크다운을 문항으로 가른다', () => {
     expect(parsed.sections[0]!.description).toBe('### 작은 제목')
   })
 
-  it('제목 아래의 id 주석을 읽는다 - 왕복이 무손실이어야 한다', () => {
-    const parsed = parsePortfolioForm('## 이 주제를 고른 까닭\n<!-- id: 동기 -->\n안내문')
-    expect(parsed.sections[0]!.id).toBe('동기')
+  it('제목 줄의 {#id}를 읽는다 - 왕복이 무손실이어야 한다', () => {
+    const parsed = parsePortfolioForm('## 이 주제를 고른 까닭 {#motivation}\n안내문')
+    expect(parsed.sections[0]!.id).toBe('motivation')
+    // **제목에는 표기가 안 남는다.** 남으면 학생 화면에 `{#motivation}`이 보인다.
+    expect(parsed.sections[0]!.title).toBe('이 주제를 고른 까닭')
     expect(parsed.sections[0]!.description).toBe('안내문')
   })
 
-  it('안내문이 시작된 뒤의 주석은 안내문의 글자다', () => {
-    const parsed = parsePortfolioForm('## 문항\n안내문\n<!-- id: 가로채기 -->')
-    expect(parsed.sections[0]!.id).toBeUndefined()
-    expect(parsed.sections[0]!.description).toContain('<!-- id: 가로채기 -->')
+  it('HTML 주석은 통째로 걷어낸다 - 양식을 쓴 사람의 메모다', () => {
+    // 남겨 두면 `html: false`인 렌더러가 그것을 글자로 보여준다 (§8.1·§8.2).
+    const parsed = parsePortfolioForm('## 문항\n안내문\n<!-- 여기 고칠 것 -->\n뒷줄')
+    expect(parsed.sections[0]!.description).toBe('안내문\n\n뒷줄')
+  })
+
+  it('여러 줄에 걸친 주석도 걷어낸다 - 양식 머리말이 그 모양이다', () => {
+    const parsed = parsePortfolioForm('<!--\n  메모\n  두 줄\n-->\n\n## 문항\n안내문')
+    expect(parsed.sections).toHaveLength(1)
+    expect(parsed.sections[0]!.description).toBe('안내문')
   })
 
   it('문항 앞의 글은 버린다 - 어느 문항의 것도 아니다', () => {
