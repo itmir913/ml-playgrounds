@@ -14,7 +14,7 @@ import { defineAsyncComponent, type Component } from 'vue'
 import { IMAGE_ACCEPT } from '@/data/image/upload'
 import { TABULAR_ACCEPT } from '@/data/table'
 import type { DataType } from '@/project/schema'
-import type { StepId } from '@/router/steps'
+import type { StepId, StepTextSlot } from '@/router/steps'
 
 export interface DataKind {
   readonly dataType: DataType
@@ -85,7 +85,7 @@ export interface DataKind {
    * 아니라 단계 축의 문장이다** — 대시보드 줄·레일의 잠금 사유·화면 머리가 같은 것을
    * 쓴다. 화면 본문의 종류별 문구는 여전히 그 화면 이름 아래다(`data.image.add`).
    */
-  readonly stepText: Partial<Record<StepId, { purpose?: string; locked?: string }>>
+  readonly stepText: Partial<Record<StepId, Partial<Record<StepTextSlot, string>>>>
   /**
    * 학습 앞에 붙는 **준비 진행 문구의 키.** `{done}`과 `{total}`을 받는다.
    *
@@ -111,11 +111,7 @@ export interface DataKind {
  * 종류가 늘 때 고칠 자리가 화면 수만큼이 되고, 그중 하나를 빠뜨린 것은 컴파일도
  * 검사도 못 잡는다 (§9.1).
  */
-export function stepTextKey(
-  kind: DataKind | undefined,
-  step: StepId,
-  slot: 'purpose' | 'locked',
-): string {
+export function stepTextKey(kind: DataKind | undefined, step: StepId, slot: StepTextSlot): string {
   return kind?.stepText[step]?.[slot] ?? `steps.${step}.${slot}`
 }
 
@@ -141,6 +137,8 @@ export const DATA_KINDS: readonly DataKind[] = [
       preprocess: {
         purpose: 'steps.preprocess.tabular.purpose',
         locked: 'steps.preprocess.tabular.locked',
+        emptyReason: 'steps.preprocess.tabular.emptyReason',
+        emptyNext: 'steps.preprocess.tabular.emptyNext',
       },
       predict: { purpose: 'steps.predict.tabular.purpose' },
       train: { locked: 'steps.train.tabular.locked' },
@@ -164,6 +162,8 @@ export const DATA_KINDS: readonly DataKind[] = [
       preprocess: {
         purpose: 'steps.preprocess.image.purpose',
         locked: 'steps.preprocess.image.locked',
+        emptyReason: 'steps.preprocess.image.emptyReason',
+        emptyNext: 'steps.preprocess.image.emptyNext',
       },
       // "표에 새 줄을 하나 넣으면"도 마찬가지다.
       predict: { purpose: 'steps.predict.image.purpose' },

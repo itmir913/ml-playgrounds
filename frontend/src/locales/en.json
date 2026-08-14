@@ -57,11 +57,15 @@
       "label": "Pre­pro­cess­ing",
       "tabular": {
         "purpose": "Shape the data so it is ready for training.",
-        "locked": "Load your data first."
+        "locked": "Load your data first.",
+        "emptyReason": "No data yet.",
+        "emptyNext": "Load a file in the data step and you can choose what to predict here."
       },
       "image": {
         "purpose": "Set how much data to keep for scoring.",
-        "locked": "Add your photos first."
+        "locked": "Add your photos first.",
+        "emptyReason": "No photos yet.",
+        "emptyNext": "Add photos in the data step and you can finish getting ready to train here."
       }
     },
     "train": {
@@ -228,8 +232,6 @@
     "ordinal": "Ordinal encoding"
   },
   "preprocess": {
-    "emptyReason": "No data yet.",
-    "emptyNext": "Load a file in the data step and you can choose what to predict here.",
     "summaryTitle": "Preprocessing summary",
     "testDataTitle": "Test Data",
     "testDataLead": "Choose the data used to score your trained models.",

@@ -182,6 +182,9 @@ const FACTS_NOT_IN_DATA_TYPE: Readonly<Record<DataType, readonly FactKey[]>> = {
   image: ['featuresChosen'],
 }
 
+/** 단계 문구의 자리. **빈 상태도 여기 있다** — 잠금 사유와 같은 것을 말한다. */
+export type StepTextSlot = 'purpose' | 'locked' | 'emptyReason' | 'emptyNext'
+
 /**
  * **단계 문구 중 데이터 종류를 가리는 자리** (architecture.md 8.10, docs/i18n.md 규칙 10).
  *
@@ -190,10 +193,10 @@ const FACTS_NOT_IN_DATA_TYPE: Readonly<Record<DataType, readonly FactKey[]>> = {
  *
  * **이 자리에는 기본값이 없다.** 표의 문장을 `steps.*`에 두었더니 그것이 기본값이
  * 되었고, 그러면 **다음 종류가 아무것도 안 써도 화면이 멀쩡해 보인다** - 조용히 표의
- * 말을 하면서. 그래서 표도 자기 것(`data.tabular.purpose`)을 선언한다.
+ * 말을 하면서. 그래서 표도 자기 것(`steps.data.tabular.purpose`)을 선언한다.
  *
- * **여기가 그 목록의 유일한 출처다.** `tests/kinds.spec.ts`는 "모든 종류가 이 셋을
- * 선언했는가"를, `tests/locales.spec.ts`는 "이 셋이 공통 자리에 되살아나지 않았는가"를
+ * **여기가 그 목록의 유일한 출처다.** `tests/kinds.spec.ts`는 "모든 종류가 이 자리들을
+ * 선언했는가"를, `tests/locales.spec.ts`는 "이 자리들이 공통 자리에 되살아나지 않았는가"를
  * 이 배열 하나를 보고 판정한다 - 둘이 각자 목록을 들면 한쪽만 늘어난다.
  *
  * **여기는 화면을 모른다.** 그래서 이 파일에 있다 - `data/kinds.ts`는 Vue 컴포넌트를
@@ -201,7 +204,7 @@ const FACTS_NOT_IN_DATA_TYPE: Readonly<Record<DataType, readonly FactKey[]>> = {
  */
 export const KIND_SPECIFIC_STEP_TEXT: readonly {
   readonly step: StepId
-  readonly slot: 'purpose' | 'locked'
+  readonly slot: StepTextSlot
 }[] = [
   { step: 'data', slot: 'purpose' },
   { step: 'predict', slot: 'purpose' },
@@ -212,6 +215,11 @@ export const KIND_SPECIFIC_STEP_TEXT: readonly {
   // 하는 일은 테스트 데이터를 정하는 것뿐이다.
   { step: 'preprocess', slot: 'purpose' },
   { step: 'preprocess', slot: 'locked' },
+  // 빈 상태도 갈린다. 공통 자리에 있던 문장이 "파일을 불러오면 무엇을 예측할지 고를
+  // 수 있습니다"였는데, 이미지에는 불러오기도 타깃 고르기도 없다. **빈 상태는 아직
+  // 그 단계에 들어올 수 없다는 말이라 잠금 사유와 같은 것을 말한다** (docs/i18n.md 규칙 10).
+  { step: 'preprocess', slot: 'emptyReason' },
+  { step: 'preprocess', slot: 'emptyNext' },
 ]
 
 /**

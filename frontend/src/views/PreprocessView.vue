@@ -55,6 +55,14 @@ const kind = computed(() => dataKindFor(project.file?.document.manifest.dataType
 const purpose = computed(() => stepTextKey(kind.value, 'preprocess', 'purpose'))
 
 /**
+ * 아직 데이터가 없을 때의 문장. **이것도 등록부가 준다** — 공통 자리에 두었더니
+ * 이미지 프로젝트에 "파일을 불러오면 무엇을 예측할지 고를 수 있습니다"가 떴다.
+ * 이미지에는 불러오기도 타깃 고르기도 없다.
+ */
+const emptyReason = computed(() => stepTextKey(kind.value, 'preprocess', 'emptyReason'))
+const emptyNext = computed(() => stepTextKey(kind.value, 'preprocess', 'emptyNext'))
+
+/**
  * 정본이 앉았는가. **종류를 안 묻는다** — 세 종류가 다 `settings.data.dataset`을 갖고,
  * 그것이 없으면 아직 전처리할 것이 없다는 뜻이 종류를 가리지 않고 같다.
  *
@@ -218,5 +226,5 @@ function reseed(): void {
     </AppDialog>
   </div>
 
-  <AppEmpty v-else :reason="t('preprocess.emptyReason')" :next="t('preprocess.emptyNext')" />
+  <AppEmpty v-else :reason="t(emptyReason)" :next="t(emptyNext)" />
 </template>

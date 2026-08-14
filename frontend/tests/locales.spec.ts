@@ -45,6 +45,7 @@ import {
   STEP_IDS,
   stepTasks,
   type StepId,
+  type StepTextSlot,
 } from '../src/router/steps'
 
 type Tree = { [key: string]: string | Tree }
@@ -444,7 +445,7 @@ describe('프런트엔드 전용 코드', () => {
    * 빠뜨려도 화면이 멀쩡해 보인다 — `kinds.spec`은 종류가 **선언했는지**만 보므로
    * 그 상태를 못 잡는다. 두 검사가 같은 배열 하나를 본다.
    */
-  const kindSpecific = (step: StepId, slot: 'purpose' | 'locked'): boolean =>
+  const kindSpecific = (step: StepId, slot: StepTextSlot): boolean =>
     KIND_SPECIFIC_STEP_TEXT.some((entry) => entry.step === step && entry.slot === slot)
 
   it('잠기는 단계에는 왜 못 가는지가 있다', () => {
