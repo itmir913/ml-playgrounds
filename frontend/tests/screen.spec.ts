@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { prefersTop, stickyCover } from '../src/screen'
+import { nearestScrollport, prefersTop, stickyCover } from '../src/screen'
 
 /** 패널 높이는 고정해 두고 위아래 여백만 바꾼다. */
 const HEIGHT = 400
@@ -85,12 +85,36 @@ describe('덮는 만큼은 요소에서 읽는다', () => {
     expect(stickyCover(element)).toBe(0)
   })
 
+  it('굴리는 상자를 찾는다 - 여백은 뷰포트 기준이고 여백값은 그 상자 기준이다', () => {
+    // AppShell의 모양이다: 바깥은 잘라내기만 하고(hidden), 굴리는 것은 <main>이다.
+    const outer = document.createElement('div')
+    outer.style.setProperty('overflow', 'hidden')
+    const scroller = document.createElement('div')
+    scroller.style.setProperty('overflow-y', 'auto')
+    const section = document.createElement('div')
+    outer.append(scroller)
+    scroller.append(section)
+    document.body.append(outer)
+
+    // 잘라내기만 하는 상자는 지나친다 - 그건 굴리지 않는다.
+    expect(nearestScrollport(section)).toBe(scroller)
+  })
+
+  it('굴리는 조상이 없으면 문서가 굴린다', () => {
+    const section = document.createElement('div')
+    document.body.append(section)
+
+    expect(nearestScrollport(section)).toBe(null)
+  })
+
   it('읽을 수 없는 값이 와도 판정이 죽지 않는다', () => {
     // 이 속성을 모르는 브라우저가 빈 문자열을 준다. NaN이 rootMargin에 들어가면 던진다.
-    const element = {} as unknown as Element
+    const element = document.createElement('div')
+    document.body.append(element)
     const original = globalThis.getComputedStyle
     globalThis.getComputedStyle = (() => ({
       scrollMarginTop: '',
+      overflowY: 'visible',
     })) as unknown as typeof getComputedStyle
     try {
       expect(stickyCover(element)).toBe(0)

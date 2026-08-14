@@ -56,8 +56,25 @@ export function prefersTop({ above, below, height, wantsTop }: SidePlacement): b
 }
 
 /**
- * **붙박이 바가 덮는 만큼**을 픽셀로 준다. 요소가 이미 갖고 있는 `scroll-margin-top`을
- * 읽을 뿐이다 (`styles/utilities.css`의 `under-step-bar`).
+ * 이 요소를 굴리는 상자. **없으면 `null`이고 그때 굴리는 것은 문서다.**
+ *
+ * `overflow`가 `auto`·`scroll`인 조상 중 가장 가까운 것을 찾는다. `hidden`은 아니다 -
+ * 그건 잘라낼 뿐 굴리지 않는다.
+ */
+export function nearestScrollport(element: Element): Element | null {
+  let current = element.parentElement
+  while (current !== null) {
+    const { overflowY } = getComputedStyle(current)
+    if (overflowY === 'auto' || overflowY === 'scroll') return current
+    current = current.parentElement
+  }
+  return null
+}
+
+/**
+ * **붙박이 바가 덮는 만큼**을 뷰포트 좌표의 픽셀로 준다. 요소가 이미 갖고 있는
+ * `scroll-margin-top`을 읽고, 그 값이 사는 좌표계를 뷰포트로 옮긴다
+ * (`styles/utilities.css`의 `under-step-bar`).
  *
  * 쓰는 곳은 "지금 보고 있는 것"을 판정하는 자리다. 뷰포트를 그대로 기준으로 삼으면
  * **바에 가려 안 보이는 것도 보이는 것으로 센다** — 붙박이 바는 화면을 덮을 뿐 뷰포트를
@@ -68,10 +85,20 @@ export function prefersTop({ above, below, height, wantsTop }: SidePlacement): b
  * 선이어야 하고, 그 값은 이미 요소에 붙어 있다. 여기서 따로 재면 그 순간 둘이 갈리고,
  * 바가 두 줄로 접히는 좁은 화면에서만 어긋난다.
  *
+ * **더하는 것은 좌표 변환뿐이다.** `scroll-margin-top`은 **굴리는 상자**의 기준이고
+ * `IntersectionObserver`의 여백은 **뷰포트** 기준이다. 넓은 화면에서 굴리는 것은 문서가
+ * 아니라 `<main>`이고(`AppShell`의 `md:overflow-auto`) 그 상자는 도구 막대 높이만큼
+ * 내려와 있다 — **한 번 고쳤는데도 넓은 화면에서만 여전히 어긋났던 이유가 이것이다.**
+ * 좁은 화면에서는 문서가 굴러서 두 좌표계가 같고, 그래서 거기서는 우연히 맞았다.
+ *
  * **읽을 수 없으면 0이다.** 이 속성을 모르는 브라우저는 빈 문자열을 주는데, 그때 판정이
  * `NaN`으로 죽는 것보다 **덮는 것이 없다고 보는 쪽**이 낫다 — 표시만 예전처럼 돌아간다.
  */
 export function stickyCover(element: Element): number {
-  const value = Number.parseFloat(getComputedStyle(element).scrollMarginTop)
-  return Number.isFinite(value) ? value : 0
+  const margin = Number.parseFloat(getComputedStyle(element).scrollMarginTop)
+  const scrollport = nearestScrollport(element)
+  return (
+    (Number.isFinite(margin) ? margin : 0) +
+    (scrollport === null ? 0 : scrollport.getBoundingClientRect().top)
+  )
 }

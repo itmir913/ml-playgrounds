@@ -20,9 +20,14 @@
  * 넘겨준다 - 여기는 받은 것을 그릴 뿐이다.
  *
  * **안 쓴 문항을 색으로만 말하지 않는다.** 옅은 글자 옆에 읽어 주는 문장을 함께 둔다.
+ *
+ * **표시한 문항을 자기 안으로 데려온다.** 문항이 열둘이면 목록이 자기 안에서 스크롤하고,
+ * 그때 표시가 목록 밖에 있으면 **표시를 해 둔 것이 아무 일도 안 한 것과 같다**
+ * (2026-08-15, 사용자 화면에서 실제로 그랬다). 굴리는 것은 이 목록뿐이다 -
+ * `scrollIntoView`는 조상을 전부 굴려서 **읽던 자리가 따라 움직인다.**
  */
 
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { PortfolioSection } from '@/project/portfolio'
@@ -38,6 +43,23 @@ const emit = defineEmits<{ pick: [id: string] }>()
 const { t } = useI18n()
 
 const done = computed(() => props.sections.filter((section) => section.answer.trim() !== '').length)
+
+const list = ref<HTMLElement | null>(null)
+
+/** 표시한 줄이 목록 밖이면 모자란 만큼만 민다. 들어와 있으면 한 픽셀도 안 움직인다. */
+function reveal(id: string | undefined): void {
+  const box = list.value
+  if (box === null || id === undefined) return
+  const item = box.querySelector(`[data-section="${CSS.escape(id)}"]`)
+  if (item === null) return
+
+  const outer = box.getBoundingClientRect()
+  const inner = item.getBoundingClientRect()
+  if (inner.top < outer.top) box.scrollTop -= outer.top - inner.top
+  else if (inner.bottom > outer.bottom) box.scrollTop += inner.bottom - outer.bottom
+}
+
+watch(() => props.active, reveal)
 </script>
 
 <template>
@@ -47,10 +69,11 @@ const done = computed(() => props.sections.filter((section) => section.answer.tr
       {{ t('portfolio.progress', { done, total: props.sections.length }) }}
     </p>
 
-    <ol class="mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto scroll-gutter-stable">
+    <ol ref="list" class="mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto scroll-gutter-stable">
       <li v-for="(section, index) in props.sections" :key="section.id">
         <button
           type="button"
+          :data-section="section.id"
           class="flex w-full items-baseline gap-2 rounded-control px-2 py-1.5 text-left transition-colors hover:bg-surface-sunken"
           :class="props.active === section.id ? 'bg-surface-sunken font-bold' : ''"
           :aria-current="props.active === section.id ? 'true' : undefined"
