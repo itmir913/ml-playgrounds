@@ -6,9 +6,11 @@
  * 것뿐이고, 그 함수가 살균의 유일한 문이다 - 다른 자리에서 `v-html`을 쓰면
  * `tests/ui-rules.spec.ts`가 운다.
  *
- * **읽기 전용이다.** 답 칸 위에 붙어서 무엇을 쓰라는 것인지만 말한다. **옅은 판에 담는
- * 이유는 읽을 것과 쓸 것을 가르기 위해서다** (architecture.md §8.18.1) - 안 담으면
- * 안내문과 답이 같은 흐름으로 읽혀서 어디까지가 남이 쓴 것인지 안 보인다.
+ * **읽기 전용이다.** 답 칸 위에 붙어서 무엇을 쓰라는 것인지만 말한다.
+ *
+ * **면을 깔지 않고 폭도 안 자른다** (architecture.md §8.18). 문항마다 회색 덩어리가 하나씩
+ * 생기면 카드 안이 다시 칸으로 쪼개지고, 폭을 자르면 카드 오른편이 빈다. 읽을 것과 쓸
+ * 것은 색이 가른다 - 여기는 `ink-soft`이고 답은 `ink`에 왼쪽 선이 붙는다.
  *
  * 서식은 `prose-guidance`가 준다 (`styles/utilities.css`) - 목록·표·강조가 살아나되
  * 우리 화면의 글자 크기와 색을 따른다. **가장 작은 글자가 `text-base`라는 규칙은 여기도
@@ -25,10 +27,6 @@ const html = computed(() => renderGuidance(props.markdown))
 </script>
 
 <template>
-  <!-- eslint-disable vue/no-v-html -- 살균은 renderGuidance가 한다 (위 머리말) -->
-  <div
-    class="max-w-prose rounded-panel bg-surface-sunken p-4 prose-guidance leading-relaxed text-ink-soft"
-    v-html="html"
-  />
-  <!-- eslint-enable vue/no-v-html -->
+  <!-- eslint-disable-next-line vue/no-v-html -- 살균은 renderGuidance가 한다 (위 머리말) -->
+  <div class="prose-guidance leading-relaxed text-ink-soft" v-html="html" />
 </template>

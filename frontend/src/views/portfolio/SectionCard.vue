@@ -230,7 +230,7 @@ function onPaste(event: ClipboardEvent): void {
         ref="answerBox"
         :aria-labelledby="headingId"
         :placeholder="t('portfolio.answerHint')"
-        class="w-full max-w-prose resize-none border-l-2 border-line bg-transparent py-1 pl-4 leading-relaxed min-h-16 focus:border-brand focus:outline-none"
+        class="w-full resize-none border-l-2 border-line bg-transparent py-1 pl-4 leading-relaxed min-h-16 focus:border-brand focus:outline-none"
         :value="props.section.answer"
         @input="onAnswer"
         @paste="onPaste"
