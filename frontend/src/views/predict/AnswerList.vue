@@ -255,7 +255,13 @@ function bars(model: PredictableModel): ProbabilityBar[] {
             **표 머리글의 설명과 같은 문법이다** (§8.13) — 평문에 아이콘이 붙고, 눌러야
             열린다. 다만 여는 것이 설명이 아니라 값이라 `TermPopover`가 아니다.
           -->
-          <AppPopover>
+          <!--
+            **위로 연다.** 이 트리거 바로 아래가 그 모델의 답이라, 아래로 열면 **왜 그
+            답이 나왔는지를 보려고 연 패널이 그 답을 가린다.** 표 머리글의 설명이 위로
+            열리는 것과 같은 이유다(`TermPopover`) — 트리거 아래가 전부 값인 자리다.
+            위쪽에 자리가 모자라면 `AppPopover`가 알아서 아래로 뒤집는다.
+          -->
+          <AppPopover side="top">
             <template #trigger="{ open }">
               <button
                 type="button"
