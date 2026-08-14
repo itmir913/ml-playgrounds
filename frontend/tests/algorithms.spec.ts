@@ -33,7 +33,7 @@ import { DATA_TYPES, TASK_TYPES } from '../src/project/schema'
 const tabularClassification: Selection = { dataType: 'tabular', taskType: 'classification' }
 
 function context(overrides: Partial<RuntimeContext> = {}): RuntimeContext {
-  return { serverStatus: 'unavailable', rowCount: 100, ...overrides }
+  return { serverStatus: 'unavailable', rowCount: 100, dataType: 'tabular', ...overrides }
 }
 
 const skReady: Record<string, EngineState> = { 'pyodide-sklearn': 'ready' }
@@ -168,7 +168,11 @@ describe('못 쓰는 이유가 쓸모 있어야 한다', () => {
   it('서버가 있으면 큰 데이터도 열린다', () => {
     const options = algorithmOptions(
       tabularClassification,
-      context({ serverStatus: 'available', rowCount: MLJS_DECISION_TREE_ROW_LIMIT + 1 }),
+      context({
+        serverStatus: 'available',
+        rowCount: MLJS_DECISION_TREE_ROW_LIMIT + 1,
+        dataType: 'tabular',
+      }),
     )
     expect(optionFor(options, 'decision_tree')?.enabled).toBe(true)
   })

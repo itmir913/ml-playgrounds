@@ -79,7 +79,7 @@ function inputFor(settings: Settings = settingsFor()): ExperimentInput {
     taskType: 'classification',
     dataType: 'tabular',
     settings,
-    context: { serverStatus: 'unavailable', rowCount: 30 },
+    context: { serverStatus: 'unavailable', rowCount: 30, dataType: 'tabular' },
     // 표에서는 설정에서 그대로 나온다. 갈리는 것은 이미지뿐이고 그건 어댑터가 짓는다.
     snapshot: dataSnapshot('tabular', settings),
   }

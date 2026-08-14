@@ -35,7 +35,11 @@ function runExperiment(
   return runExperimentRaw({ ...input, snapshot: dataSnapshot('tabular', input.settings) }, options)
 }
 
-const BROWSER_ONLY: RuntimeContext = { serverStatus: 'unavailable', rowCount: 30 }
+const BROWSER_ONLY: RuntimeContext = {
+  serverStatus: 'unavailable',
+  rowCount: 30,
+  dataType: 'tabular',
+}
 
 function inputFor(algorithms: string[]): Omit<ExperimentInput, 'snapshot'> {
   return {

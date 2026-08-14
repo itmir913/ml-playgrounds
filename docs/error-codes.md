@@ -93,8 +93,14 @@ QUEUED → VALIDATING → PREPROCESSING → TRAINING → EVALUATING → DONE
 **실행 위치**
 ```
 SERVER_UNAVAILABLE, ALGORITHM_NOT_AVAILABLE_HERE, DATASET_TOO_LARGE_FOR_BROWSER,
-ENGINE_NOT_READY
+IMAGE_TOO_LARGE_FOR_BROWSER, ENGINE_NOT_READY
 ```
+
+**상한에 걸린 사유가 종류마다 갈린다** (2026-08-14). 막힌 이유는 같지만 **학생이 할 일이
+다르다** — 표는 전처리에서 일부만 뽑고, 이미지는 데이터 단계에서 사진을 지운다. 한 문장으로
+쓰면 한쪽은 없는 카드를 찾게 되므로 코드를 가른다. 어느 것으로 말할지는
+`ml/backend.ts`의 `TOO_LARGE_REASON`이 정하고, `Record<DataType, …>`이라 **종류를
+더하는 사람은 칸을 채워야 한다.**
 
 **이미지 백본** — 가중치를 못 받았거나, 쓸 수 있는 TF.js 백엔드가 없거나, 워커가
 메모리로 죽었거나, 등록부에 없는 백본을 가리키는 파일이다. 넷을 한 코드로 두는 이유는

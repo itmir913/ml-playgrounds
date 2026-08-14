@@ -52,7 +52,7 @@ function trained(algorithms: string[]): Experiment {
       taskType: 'classification',
       dataType: 'tabular',
       settings: settingsFor(algorithms),
-      context: { serverStatus: 'unavailable', rowCount: 30 },
+      context: { serverStatus: 'unavailable', rowCount: 30, dataType: 'tabular' },
     },
     { now: () => '2026-08-06T00:00:00.000Z' },
   ).experiment

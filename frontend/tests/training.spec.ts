@@ -159,7 +159,7 @@ describe('스토어에서 온 값을 워커에 넘긴다', () => {
       input: {
         settings: store.value.settings,
         dataset: { columns: ['a'], rows: [['1']] },
-        context: { serverStatus: 'unavailable', rowCount: 1 },
+        context: { serverStatus: 'unavailable', rowCount: 1, dataType: 'tabular' },
       },
       history: store.value.runs,
     } as unknown as TrainRequest)

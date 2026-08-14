@@ -28,7 +28,11 @@ function runExperiment(
   return runExperimentRaw({ ...input, snapshot: dataSnapshot('tabular', input.settings) }, options)
 }
 
-const BROWSER_ONLY: RuntimeContext = { serverStatus: 'unavailable', rowCount: 30 }
+const BROWSER_ONLY: RuntimeContext = {
+  serverStatus: 'unavailable',
+  rowCount: 30,
+  dataType: 'tabular',
+}
 
 /**
  * **표의 설정은 `settings.data` 안이지만 여기서는 평평하게 받는다** (mlpx-spec.md §3).

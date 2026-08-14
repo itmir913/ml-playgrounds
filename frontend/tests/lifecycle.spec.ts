@@ -48,7 +48,7 @@ function runExperiment(
 }
 
 /** 서버도 없고 무거운 엔진도 없다. **공식 배포(GitHub Pages)의 기본 상태다.** */
-const OFFLINE = { serverStatus: 'unavailable' as const, rowCount: 30 }
+const OFFLINE = { serverStatus: 'unavailable' as const, rowCount: 30, dataType: 'tabular' as const }
 
 /** 분류에 쓸 표와, 같은 표를 회귀로 쓸 때의 대상 열. */
 const table = irisDataset()

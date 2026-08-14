@@ -450,6 +450,7 @@
     "SERVER_UNAVAILABLE": "No server is connected. For now you can only train on this computer.",
     "ALGORITHM_NOT_AVAILABLE_HERE": "This model cannot be trained here.",
     "DATASET_TOO_LARGE_FOR_BROWSER": "The data is too large to train on your computer. Use only part of it in the preprocess step and you can try this model too. (limit {limitRows} rows)",
+    "IMAGE_TOO_LARGE_FOR_BROWSER": "There are too many photos to train on your computer. Remove some in the data step and you can try this model too. (limit {limitRows} photos)",
     "ENGINE_NOT_READY": "Training here needs some setup to finish first.",
     "BACKBONE_UNAVAILABLE": "Could not finish getting ready for image training. Check your internet connection and try again. If your school network is blocking it, tell your teacher.",
     "PROJECT_FILE_NOT_ZIP": "This file is not a project file.",

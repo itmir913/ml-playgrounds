@@ -60,7 +60,11 @@ function runExperiment(
 const models = (...names: string[]) => names.map((algorithm) => ({ algorithm }))
 
 /** 서버도 무거운 엔진도 없는 상태. 공식 배포(GitHub Pages)가 정확히 이렇다. */
-const BROWSER_ONLY: RuntimeContext = { serverStatus: 'unavailable', rowCount: 30 }
+const BROWSER_ONLY: RuntimeContext = {
+  serverStatus: 'unavailable',
+  rowCount: 30,
+  dataType: 'tabular',
+}
 
 /**
  * **표의 설정은 `settings.data` 안이지만 여기서는 평평하게 받는다** (mlpx-spec.md §3).
@@ -606,7 +610,7 @@ describe('id와 changed', () => {
           split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
           selectedAlgorithms: models('linear_regression'),
         }),
-        context: { serverStatus: 'unavailable', rowCount: 10 },
+        context: { serverStatus: 'unavailable', rowCount: 10, dataType: 'tabular' },
       },
       { ...frozen, history },
     ).experiment
@@ -844,7 +848,7 @@ describe('회귀', () => {
         split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
         selectedAlgorithms: models('linear_regression'),
       }),
-      context: { serverStatus: 'unavailable', rowCount: 10 },
+      context: { serverStatus: 'unavailable', rowCount: 10, dataType: 'tabular' },
     },
     frozen,
   )
@@ -896,7 +900,7 @@ describe('회귀 + 범주형 타깃', () => {
           split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
           selectedAlgorithms: models(algorithm),
         }),
-        context: { serverStatus: 'unavailable', rowCount: grades.rows.length },
+        context: { serverStatus: 'unavailable', rowCount: grades.rows.length, dataType: 'tabular' },
       },
       frozen,
     )
@@ -942,7 +946,11 @@ describe('회귀 + 범주형 타깃', () => {
           split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
           selectedAlgorithms: models('linear_regression'),
         }),
-        context: { serverStatus: 'unavailable', rowCount: withGap.rows.length },
+        context: {
+          serverStatus: 'unavailable',
+          rowCount: withGap.rows.length,
+          dataType: 'tabular',
+        },
       },
       frozen,
     )
@@ -967,7 +975,11 @@ describe('회귀 + 범주형 타깃', () => {
             split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
             selectedAlgorithms: models('linear_regression'),
           }),
-          context: { serverStatus: 'unavailable', rowCount: withText.rows.length },
+          context: {
+            serverStatus: 'unavailable',
+            rowCount: withText.rows.length,
+            dataType: 'tabular',
+          },
         },
         frozen,
       )
@@ -1003,7 +1015,7 @@ describe('데이터 타입·과제 유형에 안 맞는 모델', () => {
           split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
           selectedAlgorithms: models('decision_tree'),
         }),
-        context: { serverStatus: 'unavailable', rowCount: line.rows.length },
+        context: { serverStatus: 'unavailable', rowCount: line.rows.length, dataType: 'tabular' },
         ...overrides,
       },
       algorithms ? { ...frozen, algorithms } : frozen,

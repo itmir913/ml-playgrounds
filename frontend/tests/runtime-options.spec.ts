@@ -50,7 +50,7 @@ const sklearnOnly: AlgorithmSpec = {
 }
 
 function context(overrides: Partial<RuntimeContext> = {}): RuntimeContext {
-  return { serverStatus: 'unavailable', rowCount: 100, ...overrides }
+  return { serverStatus: 'unavailable', rowCount: 100, dataType: 'tabular', ...overrides }
 }
 
 const ready: Record<string, EngineState> = { 'pyodide-sklearn': 'ready' }
@@ -93,7 +93,10 @@ describe('실행 방법 목록', () => {
     const cases = [
       runtimeOptions(anywhere, context({ rowCount: BROWSER_ROW_LIMIT + 1 })),
       runtimeOptions(serverOnly, context()),
-      runtimeOptions(sklearnOnly, context({ serverStatus: 'unknown', rowCount: 999999 })),
+      runtimeOptions(
+        sklearnOnly,
+        context({ serverStatus: 'unknown', rowCount: 999999, dataType: 'tabular' }),
+      ),
       runtimeOptions(anywhere, context({ serverStatus: 'available', engineStates: ready })),
     ]
     for (const options of cases) {
@@ -144,11 +147,28 @@ describe('데이터 크기', () => {
   it('브라우저가 감당 못 할 크기면 브라우저 항목이 전부 잠긴다', () => {
     const options = runtimeOptions(
       anywhere,
-      context({ serverStatus: 'available', rowCount: BROWSER_ROW_LIMIT + 1, engineStates: ready }),
+      context({
+        serverStatus: 'available',
+        rowCount: BROWSER_ROW_LIMIT + 1,
+        dataType: 'tabular',
+        engineStates: ready,
+      }),
     )
     expect(optionFor(options, 'mljs')?.reason).toBe('DATASET_TOO_LARGE_FOR_BROWSER')
     expect(optionFor(options, 'pyodide-sklearn')?.reason).toBe('DATASET_TOO_LARGE_FOR_BROWSER')
     expect(optionFor(options, 'server-sklearn')?.enabled).toBe(true)
+  })
+
+  /**
+   * **막힌 이유는 같지만 학생이 할 일이 다르다.** 표는 전처리에서 일부만 뽑고, 이미지는
+   * 데이터 단계에서 사진을 지운다 — 한 문장으로 쓰면 한쪽은 없는 카드를 찾는다.
+   */
+  it('이미지에서는 사진으로 말한다', () => {
+    const options = runtimeOptions(
+      anywhere,
+      context({ rowCount: BROWSER_ROW_LIMIT + 1, dataType: 'image' }),
+    )
+    expect(optionFor(options, 'mljs')?.reason).toBe('IMAGE_TOO_LARGE_FOR_BROWSER')
   })
 
   it('크기가 준비 상태보다 앞선다 - 엔진을 준비해도 소용없는 상황이다', () => {
@@ -190,7 +210,7 @@ describe('데이터 크기', () => {
     // 여기가 지킨다 (open-decisions.md "서버의 상한은 등록부에 없다").
     const options = runtimeOptions(
       anywhere,
-      context({ serverStatus: 'available', rowCount: 10_000_000 }),
+      context({ serverStatus: 'available', rowCount: 10_000_000, dataType: 'tabular' }),
     )
     const server = optionFor(options, 'server-sklearn')
     expect(server?.enabled).toBe(true)
@@ -225,7 +245,7 @@ describe('preferredRuntime', () => {
   it('브라우저가 안 되면 서버로 넘어간다', () => {
     const options = runtimeOptions(
       anywhere,
-      context({ serverStatus: 'available', rowCount: 999999 }),
+      context({ serverStatus: 'available', rowCount: 999999, dataType: 'tabular' }),
     )
     expect(preferredRuntime(options)?.id).toBe('server-sklearn')
   })

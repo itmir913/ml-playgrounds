@@ -191,8 +191,8 @@ describe('유형을 바꾸면 뜻을 잃는 모델', () => {
 })
 
 describe('세 축이 서로를 좁힌다', () => {
-  const OFFLINE: RuntimeContext = { serverStatus: 'unavailable', rowCount: 50 }
-  const ONLINE: RuntimeContext = { serverStatus: 'available', rowCount: 50 }
+  const OFFLINE: RuntimeContext = { serverStatus: 'unavailable', rowCount: 50, dataType: 'tabular' }
+  const ONLINE: RuntimeContext = { serverStatus: 'available', rowCount: 50, dataType: 'tabular' }
 
   function axes(
     overrides: Partial<Parameters<typeof modelAxes>[0]> = {},
@@ -541,7 +541,7 @@ describe('행 상한은 전처리 후 행 수로 잰다', () => {
     const svm = (rowCount: number): AlgorithmOption | undefined =>
       algorithmOptions(
         { dataType: 'tabular', taskType: 'classification' },
-        { serverStatus: 'unavailable', rowCount },
+        { serverStatus: 'unavailable', rowCount, dataType: 'tabular' },
       ).find((one) => one.algorithm.id === 'svm')
 
     expect(svm(usable)?.enabled).toBe(true)

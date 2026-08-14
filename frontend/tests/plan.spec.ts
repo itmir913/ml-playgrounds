@@ -20,7 +20,11 @@ import type { RuntimeContext } from '../src/ml/backend'
 import { dataSnapshot, type Settings, type TabularSettings } from '../src/project/schema'
 import { IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN, irisDataset } from './fixtures/iris'
 
-const BROWSER_ONLY: RuntimeContext = { serverStatus: 'unavailable', rowCount: 30 }
+const BROWSER_ONLY: RuntimeContext = {
+  serverStatus: 'unavailable',
+  rowCount: 30,
+  dataType: 'tabular',
+}
 
 const baseData: TabularSettings = {
   dataset: {

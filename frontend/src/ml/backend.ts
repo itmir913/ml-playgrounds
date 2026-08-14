@@ -22,6 +22,7 @@
  */
 
 import { BROWSER_ROW_LIMIT } from '../limits'
+import type { DataType } from '../project/schema'
 import { supports, type Axis } from './axes'
 
 /**
@@ -59,6 +60,7 @@ export const UNAVAILABLE_REASONS = [
   'SERVER_UNAVAILABLE',
   'ALGORITHM_NOT_AVAILABLE_HERE',
   'DATASET_TOO_LARGE_FOR_BROWSER',
+  'IMAGE_TOO_LARGE_FOR_BROWSER',
   'ENGINE_NOT_READY',
 ] as const
 
@@ -80,7 +82,7 @@ export function reasonParams(
    */
   limitRows: number = BROWSER_ROW_LIMIT,
 ): Record<string, number> {
-  return reason === 'DATASET_TOO_LARGE_FOR_BROWSER' ? { limitRows } : {}
+  return isTooLarge(reason) ? { limitRows } : {}
 }
 
 /**
@@ -221,6 +223,30 @@ export interface RuntimeContext {
    */
   engineStates?: Readonly<Partial<Record<RuntimeId, EngineState>>>
   rowCount: number
+  /**
+   * 무엇을 학습하는가. **상한에 걸렸을 때 학생이 할 일이 종류마다 다르다** — 표는
+   * 전처리에서 일부만 뽑고, 이미지는 데이터 단계에서 사진을 지운다. 사유 코드가
+   * 갈리는 자리가 여기 하나뿐이라 `RuntimeContext`가 종류를 든다.
+   *
+   * **선택 가능한 필드가 아니다.** 비워 둘 수 있게 하면 안 넘긴 자리가 조용히 표의
+   * 말을 하고, 그건 오늘까지 이 저장소가 계속 고쳐 온 종류의 결함이다.
+   */
+  dataType: DataType
+}
+
+/** 상한에 걸린 사유인가. 종류마다 코드가 다르므로 파라미터 판정을 한곳에 둔다. */
+function isTooLarge(reason: UnavailableReason): boolean {
+  return reason === 'DATASET_TOO_LARGE_FOR_BROWSER' || reason === 'IMAGE_TOO_LARGE_FOR_BROWSER'
+}
+
+/**
+ * 상한에 걸렸을 때 어느 사유로 말하나. **`Record<DataType, …>`이라 종류를 더하는
+ * 사람은 칸을 채워야 한다** — 소리 파일이 많아서 못 도는 것을 "행이 많다"고 말할 수는
+ * 없다.
+ */
+const TOO_LARGE_REASON: Readonly<Record<DataType, UnavailableReason>> = {
+  tabular: 'DATASET_TOO_LARGE_FOR_BROWSER',
+  image: 'IMAGE_TOO_LARGE_FOR_BROWSER',
 }
 
 /**
@@ -264,7 +290,7 @@ export function runtimeOptions(
     // 재지 않은 값이 덮는다 (open-decisions.md #13의 "역할이 뒤집힌다").
     const maxRows = algorithm.maxRows[runtime.id] ?? browserRowLimit
     if (context.rowCount > maxRows) {
-      return { runtime, enabled: false, reason: 'DATASET_TOO_LARGE_FOR_BROWSER', maxRows }
+      return { runtime, enabled: false, reason: TOO_LARGE_REASON[context.dataType], maxRows }
     }
     if (runtime.needsPreparation && !isReady(context, runtime.id)) {
       // 여기서 내려받게 하지 않는다. 준비는 상단 상태 점검 한 곳에서만 일어나야
