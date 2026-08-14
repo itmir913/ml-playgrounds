@@ -10,6 +10,10 @@
  * 흘러나가면 아래쪽 문항에는 닿을 방법이 없다. 그래서 카드가 아니라 판이다 - 안에서
  * 스크롤하려면 머리와 목록이 높이를 나눠 가져야 한다.
  *
+ * **막대는 숨긴다** (`scrollbar-none`). 좁고 늘 보이는 자리라 막대가 내용보다 자리를
+ * 먹고, **막대가 보인다는 것 자체가 무언가 잘못됐다는 신호로 읽힌다.** 자리를 비워 두는
+ * 것(`scroll-gutter-stable`)도 함께 걷는다 - 막대가 없으면 비켜설 자리도 없다.
+ *
  * **붙는 자리는 동작 바가 정한다** (`styles/utilities.css`의 `stick-under-step-bar`).
  * 숫자를 여기 적으면 좁은 화면에서 바가 두 줄이 되는 순간 바가 이 칸의 머리를 덮는다.
  *
@@ -84,7 +88,7 @@ watch(() => props.active, reveal)
       <div class="h-full rounded-pill bg-brand transition-all" :style="{ width: donePercent }" />
     </div>
 
-    <ol ref="list" class="mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto scroll-gutter-stable">
+    <ol ref="list" class="mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-none">
       <li v-for="(section, index) in props.sections" :key="section.id">
         <!--
           **막대는 언제나 자리를 차지한다.** 표시된 줄에만 테두리를 주면 그 줄의 글자가
