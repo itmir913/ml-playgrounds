@@ -37,6 +37,40 @@ afterEach(() => {
   for (const wrapper of mounted.splice(0)) wrapper.unmount()
 })
 
+/**
+ * **안의 것이 나중에 채워지는 패널이 있다** — 군집 대표 사진은 상자가 먼저 서고 그다음
+ * 찾는다. 열 때 잰 높이로 붙여 두면 **자란 만큼 화면 위로 빠져나간다**(2026-08-14,
+ * 사용자가 스크린샷으로 잡았다).
+ */
+describe('자란 만큼 다시 잰다', () => {
+  it('열리면 패널의 크기 변화를 지켜본다', async () => {
+    const observed: Element[] = []
+    const original = globalThis.ResizeObserver
+    // jsdom에는 없다. 배선을 보는 것이지 브라우저를 보는 것이 아니다.
+    globalThis.ResizeObserver = class {
+      constructor(private readonly callback: () => void) {}
+      observe(target: Element): void {
+        observed.push(target)
+        this.callback()
+      }
+      unobserve(): void {}
+      disconnect(): void {}
+    } as unknown as typeof ResizeObserver
+
+    try {
+      const wrapper = openPopover()
+      await wrapper.find('button').trigger('click')
+      await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick()
+
+      expect(observed).toHaveLength(1)
+      expect(observed[0]).toBe(document.querySelector(PANEL))
+    } finally {
+      globalThis.ResizeObserver = original
+    }
+  })
+})
+
 describe('스크롤과 닫힘', () => {
   it('패널 안을 굴려도 안 닫힌다', async () => {
     const wrapper = openPopover()

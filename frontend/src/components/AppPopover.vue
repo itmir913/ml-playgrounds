@@ -33,6 +33,11 @@
  *
  * 정렬을 대신하는 것이 아니라 **모자란 만큼만 민다.** 들어가는 팝오버는 한 픽셀도
  * 안 움직이므로 "트리거에 붙어 있다"는 성질이 그대로 남는다.
+ *
+ * **한 번 재고 끝내지 않는다.** 안의 것이 나중에 채워지는 패널이 있다 — 군집 대표 사진은
+ * 상자가 먼저 서고 그다음 찾는다. 열 때 잰 높이로 붙여 두면 **사진이 들어오면서 자란
+ * 만큼 화면 위로 빠져나간다**(2026-08-14, 사용자가 겪었다). 그래서 크기가 바뀌면 다시
+ * 잰다.
  */
 
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
@@ -77,6 +82,15 @@ const open = ref(false)
 const root = ref<HTMLElement | null>(null)
 const panel = ref<HTMLElement | null>(null)
 
+/**
+ * 패널이 자라는 것을 본다. **`place()`는 자리만 바꾸고 크기는 안 바꾸므로** 다시 재는
+ * 것이 또 다른 크기 변화를 부르지 않는다.
+ *
+ * 없으면 첫 값만 쓴다 — jsdom에 그것이 없어서, 안 막으면 이 컴포넌트에 닿는 스펙이
+ * 전부 죽는다 (`StepActionBar`와 같은 사정).
+ */
+let growth: ResizeObserver | null = null
+
 /** 화면 가장자리에서 띄울 간격. `styles/utilities.css`의 `popover-panel` 여백과 같다. */
 const EDGE = 12
 
@@ -98,8 +112,12 @@ async function place(): Promise<void> {
   const trigger = root.value?.getBoundingClientRect()
   if (!trigger) return
 
-  style.value = { top: '-9999px', left: '-9999px' }
-  await nextTick()
+  // **첫 자리잡기에서만 화면 밖에 숨긴다.** 이미 서 있는 패널을 숨겼다 옮기면 그
+  // 깜빡임이 그대로 보인다 — 자란 만큼 다시 잴 때가 그 경우다.
+  if (Object.keys(style.value).length === 0) {
+    style.value = { top: '-9999px', left: '-9999px' }
+    await nextTick()
+  }
 
   const rect = panel.value?.getBoundingClientRect()
   if (!rect) return
@@ -161,6 +179,22 @@ function onScroll(event: Event): void {
 
 // 열려 있는 동안만 문서를 듣는다. 닫힌 팝오버가 이벤트를 붙들고 있을 이유가 없다.
 // 화면 크기가 바뀌면 다시 잰다 - 가로로 눕히는 동안 열려 있을 수 있다.
+/** 패널이 자라면 다시 잰다. 닫히면 놓아준다. */
+async function watchGrowth(): Promise<void> {
+  await place()
+  const el = panel.value
+  if (!el || typeof ResizeObserver === 'undefined') return
+  growth = new ResizeObserver(() => void place())
+  growth.observe(el)
+}
+
+function stopGrowth(): void {
+  growth?.disconnect()
+  growth = null
+  // **다음에 열 때는 다시 숨기고 잰다.** 남겨 두면 옛 자리에 한 프레임 나타난다.
+  style.value = {}
+}
+
 watch(open, (isOpen) => {
   const method = isOpen ? 'addEventListener' : 'removeEventListener'
   document[method]('pointerdown', onPointerDown as EventListener)
@@ -168,11 +202,13 @@ watch(open, (isOpen) => {
   window[method]('resize', place as EventListener)
   // 캡처로 듣는다 - 표나 작업 공간처럼 **안쪽 상자가 스크롤할 때는 이벤트가 안 올라온다.**
   document[method]('scroll', onScroll as EventListener, true)
-  if (isOpen) void place()
+  if (isOpen) void watchGrowth()
+  else stopGrowth()
 })
 
 // 라우트가 바뀌며 열린 채로 사라질 수 있다. 리스너가 남으면 다음 클릭이 이상해진다.
 onBeforeUnmount(() => {
+  stopGrowth()
   document.removeEventListener('pointerdown', onPointerDown as EventListener)
   document.removeEventListener('keydown', onKeydown as EventListener)
   document.removeEventListener('scroll', onScroll as EventListener, true)
