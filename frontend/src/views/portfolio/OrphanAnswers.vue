@@ -23,7 +23,11 @@ const { t } = useI18n()
   <AppCard>
     <h3 class="text-lg font-bold">{{ t('portfolio.orphanTitle') }}</h3>
     <p class="mt-1 text-ink-soft">{{ t('portfolio.orphanLead') }}</p>
-    <p v-for="orphan in orphans" :key="orphan.id" class="mt-2 leading-relaxed whitespace-pre-line">
+    <p
+      v-for="orphan in orphans"
+      :key="orphan.id"
+      class="mt-2 max-w-prose leading-relaxed whitespace-pre-line"
+    >
       {{ orphan.answer.trim() }}
     </p>
   </AppCard>

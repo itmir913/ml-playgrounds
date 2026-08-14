@@ -46,7 +46,7 @@ import {
   withSectionText,
 } from '@/project/portfolio'
 import type { Portfolio } from '@/project/schema'
-import { stickyCover } from '@/screen'
+import { growToFit, stickyCover } from '@/screen'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import OrphanAnswers from './portfolio/OrphanAnswers.vue'
@@ -156,6 +156,8 @@ function onPicked(): void {
 function setAnswer(id: string, text: string, element: HTMLTextAreaElement): void {
   apply(withAnswer(portfolio.value, id, text), () => {
     element.value = portfolio.value.answers[id] ?? ''
+    // 되돌리면 글이 짧아진다. 값만 되돌리고 높이를 두면 칸이 늘어난 채로 남는다.
+    growToFit(element)
   })
 }
 

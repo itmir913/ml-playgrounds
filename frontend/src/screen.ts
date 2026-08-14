@@ -102,3 +102,18 @@ export function stickyCover(element: Element): number {
     (scrollport === null ? 0 : scrollport.getBoundingClientRect().top)
   )
 }
+
+/**
+ * 글 칸을 **내용만큼** 키운다 (architecture.md §8.18).
+ *
+ * 높이를 줄 수로 박으면 긴 답은 칸 안에서 굴러야 하고 — 쓴 글 전체를 한 번에 볼 수 없다 —
+ * 짧은 답 아래에는 빈 상자가 남는다. **최소 높이는 CSS가 갖는다**(`min-h-*`): `min-height`가
+ * 여기서 넣는 `height`를 이긴다.
+ *
+ * **먼저 `auto`로 풀고 잰다.** 안 풀면 `scrollHeight`가 지금 높이 아래로 안 내려가서
+ * **줄을 지워도 칸이 안 줄어든다.**
+ */
+export function growToFit(element: HTMLTextAreaElement): void {
+  element.style.height = 'auto'
+  element.style.height = `${element.scrollHeight}px`
+}

@@ -47,7 +47,9 @@ const { t } = useI18n()
       <p v-if="section.answer.trim() === ''" class="mt-2 text-ink-faint">
         {{ t('portfolio.unanswered') }}
       </p>
-      <p v-else class="mt-2 leading-relaxed whitespace-pre-line">{{ section.answer.trim() }}</p>
+      <p v-else class="mt-2 max-w-prose leading-relaxed whitespace-pre-line">
+        {{ section.answer.trim() }}
+      </p>
 
       <PhotoCards class="mt-3" :photos="props.photosOf(section.id)" />
     </AppCard>

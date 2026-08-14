@@ -24,5 +24,5 @@ const html = computed(() => renderGuidance(props.markdown))
 
 <template>
   <!-- eslint-disable-next-line vue/no-v-html -- 살균은 renderGuidance가 한다 (위 머리말) -->
-  <div class="prose-guidance leading-relaxed text-ink-soft" v-html="html" />
+  <div class="max-w-prose prose-guidance leading-relaxed text-ink-soft" v-html="html" />
 </template>

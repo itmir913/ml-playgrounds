@@ -18,7 +18,7 @@
  * (architecture.md §8.15.1).
  */
 
-import { ref, useId } from 'vue'
+import { nextTick, onMounted, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
@@ -27,6 +27,7 @@ import AppField from '@/components/AppField.vue'
 import GuidanceText from './GuidanceText.vue'
 import { ACTION_ICONS } from '@/icons'
 import { imagesFromClipboard } from '@/project/attachments'
+import { growToFit } from '@/screen'
 import type { PortfolioSection } from '@/project/portfolio'
 import PhotoCards from './PhotoCards.vue'
 
@@ -57,8 +58,29 @@ const headingId = useId()
 
 const editing = ref(false)
 
+/**
+ * 답 칸. **내용만큼 자란다** (architecture.md §8.18) - 그래서 높이를 여기서 만진다.
+ *
+ * 밖에서 값이 바뀌는 길이 둘이다: 다른 문항으로 갈려 이 카드가 다시 쓰일 때와, 상한에
+ * 걸려 부모가 되돌릴 때다. 앞은 프롭이 바뀌고 뒤는 DOM만 바뀌므로 **부모도 같은 함수를
+ * 부른다** (`PortfolioView`의 되돌리기).
+ */
+const answerBox = ref<HTMLTextAreaElement | null>(null)
+
+function fit(): void {
+  const element = answerBox.value
+  if (element !== null) growToFit(element)
+}
+
+onMounted(fit)
+watch(
+  () => props.section.answer,
+  () => void nextTick(fit),
+)
+
 function onAnswer(event: Event): void {
   const element = event.target as HTMLTextAreaElement
+  growToFit(element)
   emit('answer', element.value, element)
 }
 
@@ -171,11 +193,16 @@ function onPaste(event: ClipboardEvent): void {
         :markdown="props.section.description"
       />
 
+      <!--
+        **상자가 아니라 왼쪽 세로선이다** (architecture.md §8.18). 포커스가 오면 선이
+        굵어지고 브랜드 색이 되는데, **같은 만큼 왼쪽 여백을 줄여서 글자는 안 움직인다** -
+        칸의 안쪽 폭이 상태에 따라 달라지면 안 된다는 규칙의 변종이다(`AppButton`).
+      -->
       <textarea
+        ref="answerBox"
         :aria-labelledby="headingId"
         :placeholder="t('portfolio.answerHint')"
-        rows="6"
-        class="w-full rounded-field border border-line-strong bg-surface px-3 py-2 leading-relaxed"
+        class="w-full max-w-prose resize-none border-l-2 border-line bg-transparent py-1 pl-4 leading-relaxed min-h-24 focus:border-l-4 focus:border-brand focus:pl-3.5 focus:outline-none"
         :value="props.section.answer"
         @input="onAnswer"
         @paste="onPaste"
