@@ -54,3 +54,24 @@ export function prefersTop({ above, below, height, wantsTop }: SidePlacement): b
   if (requested >= height) return wantsTop
   return other >= height ? !wantsTop : wantsTop
 }
+
+/**
+ * **붙박이 바가 덮는 만큼**을 픽셀로 준다. 요소가 이미 갖고 있는 `scroll-margin-top`을
+ * 읽을 뿐이다 (`styles/utilities.css`의 `under-step-bar`).
+ *
+ * 쓰는 곳은 "지금 보고 있는 것"을 판정하는 자리다. 뷰포트를 그대로 기준으로 삼으면
+ * **바에 가려 안 보이는 것도 보이는 것으로 센다** — 붙박이 바는 화면을 덮을 뿐 뷰포트를
+ * 잘라내지 않기 때문이다. 목차에서 8번을 눌렀는데 7번이 표시되던 것이 그것이다
+ * (2026-08-15, 사용자).
+ *
+ * **숫자를 새로 만들지 않는다.** 스크롤이 멈추는 선과 "여기부터가 지금 것"인 선은 같은
+ * 선이어야 하고, 그 값은 이미 요소에 붙어 있다. 여기서 따로 재면 그 순간 둘이 갈리고,
+ * 바가 두 줄로 접히는 좁은 화면에서만 어긋난다.
+ *
+ * **읽을 수 없으면 0이다.** 이 속성을 모르는 브라우저는 빈 문자열을 주는데, 그때 판정이
+ * `NaN`으로 죽는 것보다 **덮는 것이 없다고 보는 쪽**이 낫다 — 표시만 예전처럼 돌아간다.
+ */
+export function stickyCover(element: Element): number {
+  const value = Number.parseFloat(getComputedStyle(element).scrollMarginTop)
+  return Number.isFinite(value) ? value : 0
+}

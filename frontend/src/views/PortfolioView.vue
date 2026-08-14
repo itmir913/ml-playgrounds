@@ -46,6 +46,7 @@ import {
   withSectionText,
 } from '@/project/portfolio'
 import type { Portfolio } from '@/project/schema'
+import { stickyCover } from '@/screen'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import OrphanAnswers from './portfolio/OrphanAnswers.vue'
@@ -192,6 +193,15 @@ function goTo(id: string): void {
  * 근거 없는 임계값이 되기 때문이다 - "얼마나 보여야 지금 문항인가"에 답이 없다.
  * 순서는 양식이 갖는다.
  *
+ * **다만 화면과 뷰포트가 같지 않다.** 붙박이 동작 바는 위를 덮을 뿐 뷰포트를 잘라내지
+ * 않아서, 기본값 그대로 두면 **바에 가려 안 보이는 문항이 여전히 "보이는 것 중 가장
+ * 위"가 된다** - 8번으로 데려다 놓고 목차는 7번을 표시했다 (2026-08-15, 사용자).
+ * 그래서 기준 상자의 위를 그만큼 깎는다. 값은 `stickyCover`가 요소에서 읽어 온다 -
+ * **스크롤이 멈추는 선과 같은 선이어야** 하고 그 선은 이미 `under-step-bar`에 있다.
+ *
+ * **바의 높이가 변하면 다시 건다.** 좁은 화면에서 바가 두 줄로 접혔다 펴지면 그 값이
+ * 달라지는데, `rootMargin`은 만들 때 한 번만 읽힌다.
+ *
  * **`IntersectionObserver`가 없으면 표시만 안 뜬다** (jsdom이 그렇다). 화면은 그대로
  * 돌고 목차도 그대로 눌린다.
  */
@@ -204,26 +214,43 @@ function watchSections(): void {
   visible.clear()
   if (typeof IntersectionObserver === 'undefined') return
 
-  spy = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (entry.isIntersecting) visible.add(entry.target.id)
-      else visible.delete(entry.target.id)
-    }
-    const top = sections.value.find((section) => visible.has(anchorId(section.id)))
-    // 아무것도 안 보이는 순간(전환 중)에 표시를 지우지 않는다 - 깜빡이는 것이 더 나쁘다.
-    if (top !== undefined) active.value = top.id
-  })
+  const elements = sections.value
+    .map((section) => document.getElementById(anchorId(section.id)))
+    .filter((element): element is HTMLElement => element !== null)
+  const [first] = elements
+  if (first === undefined) return
 
-  for (const section of sections.value) {
-    const element = document.getElementById(anchorId(section.id))
-    if (element !== null) spy.observe(element)
-  }
+  const cover = stickyCover(first)
+  spy = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) visible.add(entry.target.id)
+        else visible.delete(entry.target.id)
+      }
+      const top = sections.value.find((section) => visible.has(anchorId(section.id)))
+      // 아무것도 안 보이는 순간(전환 중)에 표시를 지우지 않는다 - 깜빡이는 것이 더 나쁘다.
+      if (top !== undefined) active.value = top.id
+    },
+    { rootMargin: `-${cover}px 0px 0px 0px` },
+  )
+
+  for (const element of elements) spy.observe(element)
 }
 
 // 문항이 늘거나 줄거나, 완성본으로 넘어가면 보고 있던 요소가 사라진다. 그려진 뒤에 다시 건다.
 watch([sections, preview], () => void nextTick(watchSections), { immediate: true })
 
-onBeforeUnmount(() => spy?.disconnect())
+// 바가 두 줄로 접히거나 펴지면 덮는 만큼이 달라진다. 그 값은 만들 때 한 번만 읽힌다.
+function rewatch(): void {
+  void nextTick(watchSections)
+}
+
+if (typeof window !== 'undefined') window.addEventListener('resize', rewatch)
+
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') window.removeEventListener('resize', rewatch)
+  spy?.disconnect()
+})
 
 /**
  * 사진을 붙인다. **굽고 나서 상한을 본다** - 구워 봐야 크기를 알기 때문이다.
