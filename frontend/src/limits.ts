@@ -36,18 +36,29 @@ export const MAX_DATASET_ROWS = 100_000
 export const MAX_IMAGE_COUNT = 5000
 
 /**
- * 정본 jpg의 품질 (mlpx-spec.md §1.2).
+ * 정본 webp의 품질. **기본 형식이 쓰는 값이다**
+ * (`data/image/canonical.ts`의 `CANONICAL_FORMATS`).
  *
- * **0.85는 실측에서 나왔다** (2026-08-12): 500×400 안팎의 사진 100장이 정본 1.05MB가
- * 됐다 — 장당 10.5kB다. 200장이면 2MB 남짓이고 임베딩(장당 5kB)까지 담아도 `.mlpx`가
- * 3MB를 안 넘는다.
+ * **0.65는 실측에서 나왔다** (2026-08-14): 224×224에서 jpeg q85가 장당 16.7kB인데
+ * webp q65가 11.3kB다(−32%). 임베딩(장당 5kB)까지 세면 장당 약 −25%이고, 사진 수
+ * 상한을 채운 프로젝트가 109MB와 81MB로 갈린다 — 근거는 open-decisions.md의
+ * "정본은 WebP로 굽는다"에 있다.
  *
- * **값을 바꿔도 옛 파일은 안 흔들린다** — 정본을 구운 품질이 그 파일의 `dataset`에
- * 적혀 있다 (`project/schema.ts`의 `imageDatasetRefSchema`). 그래야 "왜 이 프로젝트만
- * 흐린가"에 답할 수 있다.
+ * **값을 바꿔도 옛 파일은 안 흔들린다** — 정본을 구운 형식과 품질이 그 파일의
+ * `dataset`에 적혀 있다 (`project/schema.ts`의 `imageDatasetRefSchema`). 그래야 "왜 이
+ * 프로젝트만 흐린가"에 답할 수 있다.
  *
  * **정본의 크기는 여기 없다.** 그건 상한이 아니라 백본이 요구하는 값이라 백본 등록부가
  * 갖는다 (`ml/backbones.ts`의 `canonicalSize`).
+ */
+export const IMAGE_WEBP_QUALITY = 0.65
+
+/**
+ * 정본 jpg의 품질. **WebP를 인코딩하지 못하는 브라우저에서만 쓴다** — 선택지가
+ * 아니라 폴백이다 (open-decisions.md "정본은 WebP로 굽는다").
+ *
+ * **0.85도 실측에서 나왔다** (2026-08-12): 500×400 안팎의 사진 100장이 정본 1.05MB가
+ * 됐다 — 장당 10.5kB다.
  */
 export const IMAGE_JPEG_QUALITY = 0.85
 

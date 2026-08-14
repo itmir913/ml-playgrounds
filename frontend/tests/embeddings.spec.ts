@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { imageEntryPath } from '../src/data/image/canonical'
+import { CANONICAL_FORMATS } from '../src/data/image/formats'
 import { hashBytes } from '../src/hash'
 import {
   addEmbeddings,
@@ -51,7 +52,7 @@ function imageProject(seeds: readonly string[]): ProjectFile {
       const bytes = photo(seed)
       return { hash: hashBytes(bytes), bytes, category: '개' }
     }),
-    { canonicalSize: 224, now: NOW },
+    { canonicalSize: 224, now: NOW, format: 'webp' },
   ).project
 }
 
@@ -182,7 +183,9 @@ describe('.mlpx를 왕복한다', () => {
     const opened = await roundTrip(withVectors)
     expect([...opened.embeddings.keys()]).toEqual([embeddingPath(BACKBONE, only!.hash)])
     // 정본 사진과 이름이 같다 - 확장자만 다르다.
-    expect(opened.images.has(imageEntryPath('data', only!.hash, '개'))).toBe(true)
+    expect(
+      opened.images.has(imageEntryPath('data', only!.hash, '개', CANONICAL_FORMATS.webp)),
+    ).toBe(true)
   })
 
   /**

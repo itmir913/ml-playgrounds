@@ -24,6 +24,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { SOURCE_ENCODINGS } from '../src/data/encoding'
+import { CANONICAL_FORMAT_IDS } from '../src/data/image/formats'
 import { TRAINING_LOCATIONS } from '../src/ml/backend'
 import { MIGRATIONS } from '../src/project/migrate'
 import {
@@ -65,6 +66,7 @@ const CURRENT: Readonly<Record<string, readonly string[]>> = {
   MODEL_OMISSION_REASONS,
   SOURCE_ENCODINGS,
   TRAINING_LOCATIONS,
+  CANONICAL_FORMAT_IDS,
 }
 
 /**
@@ -86,6 +88,7 @@ const VOCABULARY_BY_VERSION: Readonly<Record<number, Readonly<Record<string, rea
       MODEL_OMISSION_REASONS: ['overBudget', 'tooLarge', 'engineUnsupported'],
       SOURCE_ENCODINGS: ['utf-8', 'cp949', 'utf-16le', 'utf-16be'],
       TRAINING_LOCATIONS: ['browser', 'server'],
+      CANONICAL_FORMAT_IDS: ['webp', 'jpeg'],
     },
   }
 

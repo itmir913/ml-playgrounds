@@ -11,12 +11,17 @@
  */
 
 import {
-  CANONICAL_EXTENSION,
   categoryOfEntry,
   imageEntryPath,
   isValidCategoryName,
   type ImageRole,
 } from '@/data/image/canonical'
+import {
+  CANONICAL_FORMATS,
+  canonicalFormatOfPath,
+  type CanonicalFormat,
+  type CanonicalFormatId,
+} from '@/data/image/formats'
 import { removeEmbeddings } from '@/project/embeddings'
 import {
   IMAGE_DATA_DIR,
@@ -25,7 +30,7 @@ import {
   IMAGE_UNLABELED,
   type ProjectFile,
 } from '@/project/format'
-import { IMAGE_JPEG_QUALITY, MAX_IMAGE_COUNT } from '@/limits'
+import { MAX_IMAGE_COUNT } from '@/limits'
 import { dataSettings, type Settings } from '@/project/schema'
 
 /** 프로젝트 안에 앉아 있는 정본 한 장. */
@@ -36,6 +41,12 @@ export interface ImageEntry {
   readonly category: string
   readonly path: string
   readonly bytes: Uint8Array
+  /**
+   * 이 한 장의 형식. **확장자가 갖는 사실이다** (mlpx-spec.md §1.2) — 화면이 Blob을
+   * 만들 때도, 임베딩이 디코딩할 때도 여기서 온다. `settings.data`의 `format`은 그
+   * 자리를 마지막으로 구운 조건이라 섞인 프로젝트에서 절반이 틀린다.
+   */
+  readonly format: CanonicalFormat
 }
 
 /**
@@ -52,10 +63,11 @@ export function readImages(
     left.localeCompare(right),
   )) {
     const category = categoryOfEntry(role, path)
-    if (category === null) continue
+    const format = canonicalFormatOfPath(path)
+    if (category === null || format === null) continue
     const name = path.slice(path.lastIndexOf('/') + 1)
-    const hash = name.slice(0, name.length - CANONICAL_EXTENSION.length)
-    entries.push({ hash, category, path, bytes })
+    const hash = name.slice(0, name.length - format.extension.length)
+    entries.push({ hash, category, path, bytes, format })
   }
   return entries
 }
@@ -211,6 +223,12 @@ export interface AddImagesOptions {
   /** ISO 8601. manifest.updatedAt에 찍는다. */
   readonly now: string
   /**
+   * 무엇으로 구웠는가. **워커가 정해서 결과와 함께 준다** (`data/image/client.ts`) —
+   * 여기서 다시 고르지 않는다. 브라우저가 WebP를 못 구우면 jpg로 내려간 그 사실이
+   * 경로의 확장자와 `settings.data`에 함께 적혀야 한다.
+   */
+  readonly format: CanonicalFormatId
+  /**
    * 어느 자리에 앉히나. 기본은 훈련 데이터다.
    *
    * **`predict`에는 라벨이 없다** (mlpx-spec.md §1.2) — 범주 폴더가 한 겹 없고, 그래서
@@ -234,6 +252,7 @@ export function addImages(
   options: AddImagesOptions,
 ): AddedImages {
   const role = options.role ?? 'data'
+  const format = CANONICAL_FORMATS[options.format]
   const previous = dataSettings('image', project.document.settings)
   const images = new Map(project.images)
   // **같은 자리 안에서만 같은 사진이다.** 훈련에 쓴 사진을 예측으로 올리는 것은
@@ -251,7 +270,7 @@ export function addImages(
     }
     known.add(image.hash)
     added += 1
-    images.set(imageEntryPath(role, image.hash, image.category), image.bytes)
+    images.set(imageEntryPath(role, image.hash, image.category, format), image.bytes)
     // 예측 자리에는 라벨이 없다. 범주 목록을 건드릴 일도 없다.
     if (
       role !== 'predict' &&
@@ -266,7 +285,8 @@ export function addImages(
   const reference = {
     path: ROLE_REFERENCE[role].path,
     canonicalSize: options.canonicalSize,
-    jpegQuality: IMAGE_JPEG_QUALITY,
+    format: format.id,
+    quality: format.quality,
   }
   const data = { ...previous, categories, [ROLE_REFERENCE[role].field]: reference }
   return { project: withImages(project, images, data, options.now), added, duplicates }
@@ -289,7 +309,9 @@ export function moveImages(
   for (const entry of readImages(project)) {
     if (!moving.has(entry.hash) || entry.category === to) continue
     images.delete(entry.path)
-    images.set(imageEntryPath('data', entry.hash, to), entry.bytes)
+    // **엔트리의 형식을 그대로 쓴다.** 옮기는 것은 폴더뿐이고 바이트는 손대지 않으므로,
+    // 여기서 지금의 기본 형식을 쓰면 jpg 정본이 `.webp` 이름을 뒤집어쓴다.
+    images.set(imageEntryPath('data', entry.hash, to, entry.format), entry.bytes)
   }
 
   const previous = dataSettings('image', project.document.settings)
@@ -368,7 +390,9 @@ export function renameCategory(
   for (const entry of readImages(project)) {
     if (entry.category !== from) continue
     images.delete(entry.path)
-    images.set(imageEntryPath('data', entry.hash, to), entry.bytes)
+    // **엔트리의 형식을 그대로 쓴다.** 옮기는 것은 폴더뿐이고 바이트는 손대지 않으므로,
+    // 여기서 지금의 기본 형식을 쓰면 jpg 정본이 `.webp` 이름을 뒤집어쓴다.
+    images.set(imageEntryPath('data', entry.hash, to, entry.format), entry.bytes)
   }
   const categories = previous.categories.map((category) => (category === from ? to : category))
   return withImages(project, images, { ...previous, categories }, now)

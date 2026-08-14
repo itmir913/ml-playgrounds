@@ -8,7 +8,7 @@
  */
 
 import { ClientError, failureDetail, toClientErrorCode } from '@/errors'
-import { IMAGE_JPEG_QUALITY } from '@/limits'
+import type { CanonicalFormatId } from './formats'
 import type {
   CanonicalImage,
   CanonicalizeMessage,
@@ -33,6 +33,11 @@ export interface CanonicalizeOptions {
 }
 
 export interface CanonicalizeResult {
+  /**
+   * 무엇으로 구웠는가. **부르는 쪽이 이 값을 `addImages`에 넘긴다** — 파일에 적히는
+   * `format`이 여기서 온다 (open-decisions.md "정본은 WebP로 굽는다").
+   */
+  readonly format: CanonicalFormatId
   readonly images: readonly CanonicalImage[]
   readonly skipped: readonly SkippedImage[]
 }
@@ -80,7 +85,9 @@ export function canonicalizeImages(
       return
     }
     if (message.type === 'done') {
-      settle(() => resolve({ images: message.images, skipped: message.skipped }))
+      settle(() =>
+        resolve({ format: message.format, images: message.images, skipped: message.skipped }),
+      )
       return
     }
     settle(() => reject(new ClientError(toClientErrorCode(message.code), message.params)))
@@ -98,12 +105,7 @@ export function canonicalizeImages(
   worker.onmessageerror = () =>
     settle(() => reject(new ClientError('UNEXPECTED_ERROR', failureDetail('messageerror'))))
 
-  worker.postMessage({
-    type: 'canonicalize',
-    files,
-    size: options.size,
-    quality: IMAGE_JPEG_QUALITY,
-  })
+  worker.postMessage({ type: 'canonicalize', files, size: options.size })
 
   return {
     result,

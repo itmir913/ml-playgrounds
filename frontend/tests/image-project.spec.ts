@@ -21,6 +21,7 @@ import {
   renameCategory,
 } from '../src/project/images'
 import type { ImageRole } from '../src/data/image/canonical'
+import { CANONICAL_FORMATS } from '../src/data/image/formats'
 import { MAX_IMAGE_COUNT } from '../src/limits'
 import { newProjectDocument } from '../src/project/create'
 import { IMAGE_UNLABELED, type ProjectFile } from '../src/project/format'
@@ -51,7 +52,7 @@ function withPhotos(...items: readonly { hash: string; category: string }[]): Pr
   return addImages(
     emptyProject(),
     items.map((item) => baked(item.hash, item.category)),
-    { canonicalSize: SIZE, now: NOW },
+    { canonicalSize: SIZE, now: NOW, format: 'webp' },
   ).project
 }
 
@@ -84,7 +85,10 @@ describe('사진을 프로젝트에 앉힌다', () => {
     const project = withPhotos({ hash: 'a', category: '개' })
     const { dataset } = dataSettings('image', project.document.settings)
     expect(dataset?.canonicalSize).toBe(SIZE)
-    expect(dataset?.jpegQuality).toBeGreaterThan(0)
+    // **형식과 품질이 함께 선다** — 품질만 있으면 "무엇으로 구웠나"에 답을 못 한다
+    // (open-decisions.md "정본은 WebP로 굽는다").
+    expect(dataset?.format).toBe('webp')
+    expect(dataset?.quality).toBeGreaterThan(0)
     // 폴더 참조는 슬래시로 끝나야 한다 - 안 그러면 파일 참조로 읽혀 저장이 어긋난다.
     expect(dataset?.path.endsWith('/')).toBe(true)
   })
@@ -100,6 +104,7 @@ describe('사진을 프로젝트에 앉힌다', () => {
     const again = addImages(first, [baked('a', '개'), baked('b', '개')], {
       canonicalSize: SIZE,
       now: NOW,
+      format: 'webp',
     })
     expect(again.added).toBe(1)
     expect(again.duplicates).toBe(1)
@@ -115,13 +120,14 @@ describe('사진을 프로젝트에 앉힌다', () => {
     const again = addImages(first, [baked('a', IMAGE_UNLABELED)], {
       canonicalSize: SIZE,
       now: NOW,
+      format: 'webp',
     }).project
     expect(readImages(again)[0]?.category).toBe('개')
   })
 
   it('앉히기 전의 프로젝트는 안 바뀐다', () => {
     const before = emptyProject()
-    addImages(before, [baked('a', '개')], { canonicalSize: SIZE, now: NOW })
+    addImages(before, [baked('a', '개')], { canonicalSize: SIZE, now: NOW, format: 'webp' })
     expect(before.images.size).toBe(0)
   })
 })
@@ -201,6 +207,7 @@ describe('범주를 옮기고 고친다', () => {
       canonicalSize: SIZE,
       now: NOW,
       role: 'predict',
+      format: 'webp',
     }).project
     const emptied = removeImages(project, ['a'], NOW, 'predict')
     expect(readImages(emptied, 'predict')).toEqual([])
@@ -214,6 +221,7 @@ describe('범주를 옮기고 고친다', () => {
       canonicalSize: SIZE,
       now: NOW,
       role: 'predict',
+      format: 'webp',
     }).project
     const left = removeImages(both, ['b'], NOW, 'predict')
     expect(readImages(left).map((entry) => entry.hash)).toEqual(['a'])
@@ -239,6 +247,7 @@ describe('범주를 옮기고 고친다', () => {
       canonicalSize: SIZE,
       now: NOW,
       role: 'predict',
+      format: 'webp',
     }).project
     expect(imageCategories(project)).toEqual([])
     expect(readImages(project, 'predict')).toHaveLength(1)
@@ -257,6 +266,7 @@ describe('범주를 옮기고 고친다', () => {
       canonicalSize: SIZE,
       now: NOW,
       role: 'predict',
+      format: 'webp',
     })
     expect(both.duplicates).toBe(0)
     expect(readImages(both.project, 'predict')).toHaveLength(1)
@@ -293,8 +303,9 @@ describe('사진 범위 고르기', () => {
   const entries = ['a', 'b', 'c', 'd'].map((hash) => ({
     hash,
     category: '개',
-    path: `dataset/train/개/${hash}.jpg`,
+    path: `dataset/train/개/${hash}.webp`,
     bytes: new Uint8Array([1]),
+    format: CANONICAL_FORMATS.webp,
   }))
 
   it('양끝을 포함한다', () => {
@@ -334,6 +345,51 @@ describe('사진 범위 고르기', () => {
 })
 
 /**
+ * **한 프로젝트에 두 형식이 섞인다.** 학교 PC에서 webp로 올리고 집 아이폰에서 jpg로
+ * 올린 경우다 (open-decisions.md "정본은 WebP로 굽는다").
+ */
+describe('형식이 섞인 프로젝트', () => {
+  /** jpg로 구운 정본 한 장이 이미 들어 있는 프로젝트. */
+  function withJpeg(): ProjectFile {
+    return addImages(emptyProject(), [baked('a', '개')], {
+      canonicalSize: SIZE,
+      now: NOW,
+      format: 'jpeg',
+    }).project
+  }
+
+  it('두 형식이 함께 읽힌다', () => {
+    const mixed = addImages(withJpeg(), [baked('b', '고양이')], {
+      canonicalSize: SIZE,
+      now: NOW,
+      format: 'webp',
+    }).project
+    expect(readImages(mixed).map((entry) => entry.format.id)).toEqual(['jpeg', 'webp'])
+  })
+
+  /**
+   * **옮기는 것은 폴더뿐이고 바이트는 손대지 않는다.** 지금의 기본 형식으로 경로를 다시
+   * 지으면 jpg 정본이 `.webp` 이름을 뒤집어쓴다 — 화면이 그 이름을 믿고 MIME을 붙인다.
+   */
+  it('범주를 옮겨도 그 사진의 확장자가 그대로다', () => {
+    const moved = moveImages(withJpeg(), ['a'], '고양이', NOW)
+    const [entry] = readImages(moved)
+    expect(entry?.category).toBe('고양이')
+    expect(entry?.path.endsWith('.jpg')).toBe(true)
+    expect(entry?.format.id).toBe('jpeg')
+  })
+
+  it('마지막에 구운 조건이 dataset에 적힌다', () => {
+    const mixed = addImages(withJpeg(), [baked('b', '개')], {
+      canonicalSize: SIZE,
+      now: NOW,
+      format: 'webp',
+    }).project
+    expect(dataSettings('image', mixed.document.settings).dataset?.format).toBe('webp')
+  })
+})
+
+/**
  * **막는 것은 학습이 아니라 업로드다** (open-decisions.md #13의 "이미지의 상한").
  * 여기서 안 막으면 5,000장을 굽고 임베딩까지 뽑은 뒤에야 카드가 잠긴다.
  */
@@ -343,7 +399,7 @@ describe('담을 수 있는 장수', () => {
     return addImages(
       emptyProject(),
       Array.from({ length: MAX_IMAGE_COUNT }, (_, index) => baked(`h${index}`, '개')),
-      { canonicalSize: SIZE, now: NOW, role },
+      { canonicalSize: SIZE, now: NOW, role, format: 'webp' },
     ).project
   }
 

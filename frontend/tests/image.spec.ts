@@ -9,16 +9,20 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  CANONICAL_EXTENSION,
   categoryOfEntry,
   fitBox,
   imageEntryPath,
   isValidCategoryName,
 } from '../src/data/image/canonical'
+import { CANONICAL_FORMATS, canonicalFormatOfPath } from '../src/data/image/formats'
 import { IMAGE_UNLABELED } from '../src/project/format'
 
 const SIZE = 224
 const HASH = 'a'.repeat(64)
+
+/** 지금 굽는 형식. **경로 규칙은 형식을 받아서 쓴다** (mlpx-spec.md §1.2). */
+const WEBP = CANONICAL_FORMATS.webp
+const JPEG = CANONICAL_FORMATS.jpeg
 
 describe('정사각형 안에 넣는 자리', () => {
   it('가로가 긴 사진은 위아래에 여백이 남는다', () => {
@@ -85,42 +89,69 @@ describe('범주 이름', () => {
 
 describe('정본의 자리', () => {
   it('범주가 폴더가 된다', () => {
-    expect(imageEntryPath('data', HASH, '고양이')).toBe(`dataset/data/고양이/${HASH}.jpg`)
-    expect(imageEntryPath('test', HASH, '개')).toBe(`dataset/test/개/${HASH}.jpg`)
+    expect(imageEntryPath('data', HASH, '고양이', WEBP)).toBe(`dataset/data/고양이/${HASH}.webp`)
+    expect(imageEntryPath('test', HASH, '개', WEBP)).toBe(`dataset/test/개/${HASH}.webp`)
   })
 
   it('범주가 없으면 예약된 폴더로 간다', () => {
-    expect(imageEntryPath('data', HASH)).toBe(`dataset/data/${IMAGE_UNLABELED}/${HASH}.jpg`)
-    expect(imageEntryPath('data', HASH, '')).toBe(`dataset/data/${IMAGE_UNLABELED}/${HASH}.jpg`)
+    expect(imageEntryPath('data', HASH, undefined, WEBP)).toBe(
+      `dataset/data/${IMAGE_UNLABELED}/${HASH}.webp`,
+    )
+    expect(imageEntryPath('data', HASH, '', WEBP)).toBe(
+      `dataset/data/${IMAGE_UNLABELED}/${HASH}.webp`,
+    )
   })
 
   it('예측 데이터는 라벨이 없어 한 겹이다', () => {
-    expect(imageEntryPath('predict', HASH)).toBe(`dataset/predict/${HASH}.jpg`)
+    expect(imageEntryPath('predict', HASH, undefined, WEBP)).toBe(`dataset/predict/${HASH}.webp`)
     // 범주를 줘도 무시한다 - 그 자리에 라벨이라는 것이 없다.
-    expect(imageEntryPath('predict', HASH, '개')).toBe(`dataset/predict/${HASH}.jpg`)
+    expect(imageEntryPath('predict', HASH, '개', WEBP)).toBe(`dataset/predict/${HASH}.webp`)
   })
 
-  it('확장자는 언제나 같다', () => {
-    expect(imageEntryPath('data', HASH, '개').endsWith(CANONICAL_EXTENSION)).toBe(true)
+  it('확장자는 형식이 정한다', () => {
+    expect(imageEntryPath('data', HASH, '개', WEBP).endsWith(WEBP.extension)).toBe(true)
+    // **jpg도 우리 모양이다** — WebP를 인코딩하지 못하는 브라우저에서 구운 정본이다
+    // (open-decisions.md "정본은 WebP로 굽는다").
+    expect(imageEntryPath('data', HASH, '개', JPEG)).toBe(`dataset/data/개/${HASH}.jpg`)
+  })
+
+  /**
+   * **한 프로젝트에 두 확장자가 섞인다.** 학교 PC에서 webp로 올리고 집 아이폰에서 jpg로
+   * 올린 경우다 — 한쪽만 읽으면 그 학생의 사진 절반이 화면에서 사라진다.
+   */
+  it('두 형식을 다 되읽는다', () => {
+    for (const format of [WEBP, JPEG]) {
+      const path = imageEntryPath('data', HASH, '개', format)
+      expect(categoryOfEntry('data', path)).toBe('개')
+      expect(canonicalFormatOfPath(path)).toBe(format)
+    }
+  })
+
+  it('우리 확장자가 아니면 형식이 없다', () => {
+    expect(canonicalFormatOfPath(`dataset/data/개/${HASH}.png`)).toBeNull()
   })
 })
 
 describe('경로에서 범주를 읽는다', () => {
   it('우리가 쓴 것을 그대로 되읽는다', () => {
     for (const category of ['개', '고양이', '산 사진']) {
-      expect(categoryOfEntry('data', imageEntryPath('data', HASH, category))).toBe(category)
+      expect(categoryOfEntry('data', imageEntryPath('data', HASH, category, WEBP))).toBe(category)
     }
-    expect(categoryOfEntry('data', imageEntryPath('data', HASH))).toBe(IMAGE_UNLABELED)
-    expect(categoryOfEntry('predict', imageEntryPath('predict', HASH))).toBe(IMAGE_UNLABELED)
+    expect(categoryOfEntry('data', imageEntryPath('data', HASH, undefined, WEBP))).toBe(
+      IMAGE_UNLABELED,
+    )
+    expect(categoryOfEntry('predict', imageEntryPath('predict', HASH, undefined, WEBP))).toBe(
+      IMAGE_UNLABELED,
+    )
   })
 
   it('우리 모양이 아니면 null이다 - 조용히 엉뚱한 라벨을 만들지 않는다', () => {
     // 역할이 다르다
-    expect(categoryOfEntry('test', imageEntryPath('data', HASH, '개'))).toBeNull()
+    expect(categoryOfEntry('test', imageEntryPath('data', HASH, '개', WEBP))).toBeNull()
     // 겹이 더 깊다 (사람이 zip을 고쳐 넣은 경우)
-    expect(categoryOfEntry('data', `dataset/data/개/새끼/${HASH}.jpg`)).toBeNull()
+    expect(categoryOfEntry('data', `dataset/data/개/새끼/${HASH}.webp`)).toBeNull()
     // 범주 겹이 없다
-    expect(categoryOfEntry('data', `dataset/data/${HASH}.jpg`)).toBeNull()
+    expect(categoryOfEntry('data', `dataset/data/${HASH}.webp`)).toBeNull()
     // 확장자가 다르다
     expect(categoryOfEntry('data', 'dataset/data/개/photo.png')).toBeNull()
     // 아예 다른 자리

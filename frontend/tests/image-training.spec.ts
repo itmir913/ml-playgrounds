@@ -51,7 +51,7 @@ function imageProject(items: readonly { seed: string; category: string }[]): Pro
       const bytes = photo(item.seed)
       return { hash: hashBytes(bytes), bytes, category: item.category }
     }),
-    { canonicalSize: BACKBONE.canonicalSize, now: NOW },
+    { canonicalSize: BACKBONE.canonicalSize, now: NOW, format: 'webp' },
   ).project
 }
 

@@ -6,6 +6,7 @@
  * 장으로 남는다. 셋 다 화면에서는 안 보이는 종류의 고장이라 검사가 본다.
  */
 
+import { canonicalFormatOfPath, type CanonicalFormat } from '@/data/image/formats'
 import { MAX_CATEGORY_NAME_LENGTH } from '@/limits'
 import {
   IMAGE_DATA_DIR,
@@ -13,9 +14,6 @@ import {
   IMAGE_TEST_DIR,
   IMAGE_UNLABELED,
 } from '@/project/format'
-
-/** 정본 파일 하나가 zip 안에서 갖는 확장자. 언제나 이것이다 (mlpx-spec.md §1.2). */
-export const CANONICAL_EXTENSION = '.jpg'
 
 /** 정본을 굽는 세 자리. 표의 `data.csv`·`test.csv`·`predict.csv`와 같은 역할 이름이다. */
 export const IMAGE_ROLES = ['data', 'test', 'predict'] as const
@@ -102,11 +100,16 @@ export function isValidCategoryName(name: string): boolean {
  *
  * `predict`에는 라벨이 없어 범주 겹이 없다.
  */
-export function imageEntryPath(role: ImageRole, hash: string, category?: string): string {
+export function imageEntryPath(
+  role: ImageRole,
+  hash: string,
+  category: string | undefined,
+  format: CanonicalFormat,
+): string {
   const directory = ROLE_DIR[role]
-  if (role === 'predict') return `${directory}${hash}${CANONICAL_EXTENSION}`
+  if (role === 'predict') return `${directory}${hash}${format.extension}`
   const folder = category === undefined || category === '' ? IMAGE_UNLABELED : category
-  return `${directory}${folder}/${hash}${CANONICAL_EXTENSION}`
+  return `${directory}${folder}/${hash}${format.extension}`
 }
 
 /**
@@ -118,7 +121,7 @@ export function imageEntryPath(role: ImageRole, hash: string, category?: string)
  */
 export function categoryOfEntry(role: ImageRole, path: string): string | null {
   const directory = ROLE_DIR[role]
-  if (!path.startsWith(directory) || !path.endsWith(CANONICAL_EXTENSION)) return null
+  if (!path.startsWith(directory) || canonicalFormatOfPath(path) === null) return null
   const rest = path.slice(directory.length)
   const parts = rest.split('/')
   if (role === 'predict') return parts.length === 1 ? IMAGE_UNLABELED : null

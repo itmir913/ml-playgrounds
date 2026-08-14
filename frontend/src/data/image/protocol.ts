@@ -5,6 +5,7 @@
  */
 
 import type { ClientErrorParams } from '@/errors'
+import type { CanonicalFormatId } from './formats'
 
 /**
  * 메인 → 워커. 학생이 올린 파일들을 정본으로 구워 달라는 것.
@@ -18,8 +19,6 @@ export interface CanonicalizeRequest {
   files: readonly File[]
   /** 정본 한 변. 백본 등록부가 준다 (`ml/backbones.ts`). */
   size: number
-  /** jpeg 품질. `limits.ts`가 준다. */
-  quality: number
 }
 
 /** 정본 한 장. **이름은 아직 안 붙는다** — 어느 범주에 넣을지는 부르는 쪽이 정한다. */
@@ -44,5 +43,15 @@ export interface SkippedImage {
 
 export type CanonicalizeMessage =
   | { type: 'progress'; completed: number; total: number }
-  | { type: 'done'; images: readonly CanonicalImage[]; skipped: readonly SkippedImage[] }
+  | {
+      type: 'done'
+      /**
+       * 무엇으로 구웠는가. **워커가 정하고 결과와 함께 돌려준다** — 브라우저가 WebP를
+       * 인코딩하지 못하면 jpg로 내려가고(open-decisions.md "정본은 WebP로 굽는다"),
+       * 그 사실이 `settings.data`에 적혀야 한다.
+       */
+      format: CanonicalFormatId
+      images: readonly CanonicalImage[]
+      skipped: readonly SkippedImage[]
+    }
   | { type: 'failed'; code: string; params: ClientErrorParams }

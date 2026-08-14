@@ -10,6 +10,7 @@ import { unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
 import { isValidCategoryName, imageEntryPath } from '../src/data/image/canonical'
+import { CANONICAL_FORMATS } from '../src/data/image/formats'
 import { hashBytes } from '../src/hash'
 import { isClientError } from '../src/errors'
 import {
@@ -30,7 +31,7 @@ const photo = (seed: string) => new TextEncoder().encode(`가짜jpg:${seed}`)
 /** 정본 한 장. **이름은 바이트의 해시다** — 실제 경로 규칙을 그대로 쓴다. */
 function entryFor(category: string, seed: string, role: 'data' | 'test' = 'data') {
   const bytes = photo(seed)
-  return [imageEntryPath(role, hashBytes(bytes), category), bytes] as const
+  return [imageEntryPath(role, hashBytes(bytes), category, CANONICAL_FORMATS.webp), bytes] as const
 }
 
 function imageProject(overrides: Partial<ProjectFile> = {}): ProjectFile {
@@ -51,7 +52,7 @@ function imageProject(overrides: Partial<ProjectFile> = {}): ProjectFile {
       settings: {
         data: {
           // **폴더 참조다.** `/`로 끝나는 것이 파일과 폴더를 가르는 표시다.
-          dataset: { path: IMAGE_DATA_DIR, canonicalSize: 224, jpegQuality: 0.85 },
+          dataset: { path: IMAGE_DATA_DIR, canonicalSize: 224, format: 'webp', quality: 0.65 },
           categories: ['개', '고양이'],
           backboneId: 'mobilenet-v2',
         },
@@ -132,7 +133,8 @@ describe('이미지 프로젝트의 왕복', () => {
     project.document.settings.data.testDataset = {
       path: IMAGE_TEST_DIR,
       canonicalSize: 224,
-      jpegQuality: 0.85,
+      format: 'webp',
+      quality: 0.65,
     }
     const { bytes } = await writeProject(project, markdown)
     const { project: after } = await readProject(bytes)

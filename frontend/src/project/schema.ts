@@ -20,6 +20,7 @@
 
 import { z } from 'zod'
 
+import { CANONICAL_FORMAT_IDS } from '../data/image/formats'
 import { SOURCE_ENCODINGS } from '../data/encoding'
 import { ClientError } from '../errors'
 import {
@@ -380,12 +381,20 @@ export const imageDatasetRefSchema = z.looseObject({
    */
   canonicalSize: z.int().positive(),
   /**
-   * 정본을 구울 때 쓴 jpeg 품질. 값 자체의 출처는 `limits.ts`다.
+   * 이 자리를 **마지막으로 구운** 형식 (`data/image/canonical.ts`의 등록부).
+   *
+   * **그 폴더 전체의 사실이 아니다.** 브라우저가 WebP를 인코딩하지 못하면 jpg로
+   * 내려가므로(open-decisions.md "정본은 WebP로 굽는다"), 학교에서 올리고 집에서 더
+   * 올린 프로젝트에는 두 형식이 섞인다 - **한 장의 형식은 그 엔트리의 확장자가 갖는다.**
+   */
+  format: z.enum(CANONICAL_FORMAT_IDS),
+  /**
+   * 정본을 구울 때 쓴 품질. 값 자체의 출처는 `limits.ts`다.
    *
    * 적어 두는 이유는 **나중에 값을 바꿔도 옛 파일에 그때의 사실이 남기** 때문이다 -
    * "왜 이 프로젝트만 흐린가"에 답할 수 있는 유일한 자리다.
    */
-  jpegQuality: z.number().gt(0).lte(1),
+  quality: z.number().gt(0).lte(1),
 })
 
 /**

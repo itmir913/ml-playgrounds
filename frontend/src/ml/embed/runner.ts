@@ -134,7 +134,11 @@ export function createTfjsRunner(): BackboneRunner {
       const pixels = new Float32Array(size * size * 3)
 
       for (let index = 0; index < images.length; index += 1) {
-        const bitmap = await createImageBitmap(new Blob([images[index]!], { type: 'image/jpeg' }))
+        // **형식을 안 적는다.** `createImageBitmap`은 바이트를 스니핑해서 형식을 가리고
+        // (HTML 명세의 image sniffing rules), 정본은 webp일 수도 jpg일 수도 있다
+        // (open-decisions.md "정본은 WebP로 굽는다"). 여기에 하나를 박으면 그 순간
+        // 절반이 거짓말이 된다.
+        const bitmap = await createImageBitmap(new Blob([images[index]!]))
         context.drawImage(bitmap, 0, 0)
         bitmap.close()
         packPixels(context.getImageData(0, 0, size, size).data, size, inputRange, pixels)

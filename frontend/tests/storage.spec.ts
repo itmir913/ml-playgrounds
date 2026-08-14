@@ -397,7 +397,7 @@ describe('이미지 프로젝트', () => {
         settings: {
           ...base.document.settings,
           data: {
-            dataset: { path: 'dataset/data/', canonicalSize: 224, jpegQuality: 0.85 },
+            dataset: { path: 'dataset/data/', canonicalSize: 224, format: 'webp', quality: 0.65 },
             categories: ['개'],
             backboneId: 'mobilenet-v2',
           },

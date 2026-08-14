@@ -42,6 +42,11 @@ interface Rule {
   readonly pattern: RegExp
   readonly violations: readonly string[]
   readonly allowed: readonly string[]
+  /**
+   * 이 규칙만 건너뛰는 파일. **값이 사는 그 한 곳이다** — 상한은 `limits.ts`라 아예
+   * 안 훑지만, 등록부처럼 자기 파일에 사는 값도 있다.
+   */
+  readonly source?: string
 }
 
 const RULES: readonly Rule[] = [
@@ -90,6 +95,23 @@ const RULES: readonly Rule[] = [
       // 두 자리 이상이어도 이름이면 안 걸린다.
       'if (found.length > PREVIEW_ROW_COUNT) found.length = PREVIEW_ROW_COUNT',
     ],
+  },
+  {
+    name: '정본 MIME을 소스에 박지 않는다',
+    why: '형식은 등록부가 갖는다 (`data/image/formats.ts`). 박아 두면 webp 프로젝트의 사진이 jpeg라고 말하는 Blob이 생기고, 객체 URL에서는 그 타입이 곧 그 자원의 MIME이다.',
+    // 정본이 될 수 있는 이미지 MIME 문자열. 등록부 파일에서만 쓴다.
+    pattern: /['"`]image\/(?:webp|jpeg|jpg|png)['"`]/,
+    violations: [
+      "const blob = new Blob([bytes], { type: 'image/jpeg' })",
+      'await canvas.convertToBlob({ type: "image/webp", quality })',
+    ],
+    allowed: [
+      'const blob = new Blob([bytes], { type: entry.format.mime })',
+      'await canvas.convertToBlob({ type: format.mime, quality: format.quality })',
+      // 파일 고르기의 accept는 형식을 고르는 것이 아니라 무엇을 받을지의 목록이다.
+      "export const IMAGE_ACCEPT = 'image/*,.zip'",
+    ],
+    source: join(SRC, 'data', 'image', 'formats.ts'),
   },
   {
     name: '기다리는 시간을 숫자로 쓰지 않는다',
@@ -201,6 +223,7 @@ describe('지금 소스에 위반이 없다', () => {
     it(rule.name, () => {
       const found: string[] = []
       for (const path of sourceFiles(SRC)) {
+        if (path === rule.source) continue
         withoutComments(readFileSync(path, 'utf-8')).forEach((line, index) => {
           if (rule.pattern.test(line)) {
             found.push(`${path.slice(SRC.length + 1)}:${index + 1}  ${line.trim()}`)

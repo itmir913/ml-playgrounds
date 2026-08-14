@@ -132,7 +132,7 @@ watch(
       if (next.has(entry.hash)) continue
       // `Uint8Array`의 버퍼 타입이 `SharedArrayBuffer`일 수도 있다고 보는 자리라
       // 단언한다 (`project/download.ts`가 같은 이유로 같은 모양이다).
-      const blob = new Blob([entry.bytes as unknown as BlobPart], { type: 'image/jpeg' })
+      const blob = new Blob([entry.bytes as unknown as BlobPart], { type: entry.format.mime })
       next.set(entry.hash, URL.createObjectURL(blob))
     }
     urls.value = next
@@ -240,7 +240,11 @@ async function bake(): Promise<void> {
         bytes: image.bytes,
         category: byPath.get(image.sourceName) ?? IMAGE_UNLABELED,
       })),
-      { canonicalSize: backbone.canonicalSize, now: new Date().toISOString() },
+      {
+        canonicalSize: backbone.canonicalSize,
+        now: new Date().toISOString(),
+        format: result.format,
+      },
     )
     await project.save(applied.project)
     pending.value = null

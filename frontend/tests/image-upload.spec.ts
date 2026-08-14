@@ -12,7 +12,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { canonicalizeImages, type CanonicalizeWorker } from '../src/data/image/client'
-import { handleCanonicalize, type Bake } from '../src/data/image/handler'
+import { CANONICAL_FORMATS } from '../src/data/image/formats'
+import { handleCanonicalize, type Bake, type DetectFormat } from '../src/data/image/handler'
 import type { CanonicalizeMessage, CanonicalizeRequest } from '../src/data/image/protocol'
 import { isClientError } from '../src/errors'
 import { hashBytes } from '../src/hash'
@@ -28,15 +29,20 @@ const bytesFor = (name: string): Uint8Array<ArrayBuffer> =>
 const fakeBake: Bake = (file) =>
   Promise.resolve(file.name.includes('깨진') ? null : bytesFor(file.name))
 
+/** 캔버스가 없는 곳이라 형식 판정도 가짜다. 여기서 보는 것은 판정이 아니라 전달이다. */
+const detectWebp: DetectFormat = () => Promise.resolve(CANONICAL_FORMATS.webp)
+
 async function collect(
   files: readonly File[],
   bake: Bake = fakeBake,
+  detect: DetectFormat = detectWebp,
 ): Promise<CanonicalizeMessage[]> {
   const messages: CanonicalizeMessage[] = []
   await handleCanonicalize(
-    { type: 'canonicalize', files, size: SIZE, quality: 0.85 },
+    { type: 'canonicalize', files, size: SIZE },
     (message) => messages.push(message),
     bake,
+    detect,
   )
   return messages
 }
@@ -76,7 +82,7 @@ describe('정본 변환 핸들러', () => {
   })
 
   it('파일이 하나도 없으면 빈 결과다 - 실패가 아니다', async () => {
-    expect(await collect([])).toEqual([{ type: 'done', images: [], skipped: [] }])
+    expect(await collect([])).toEqual([{ type: 'done', format: 'webp', images: [], skipped: [] }])
   })
 })
 
@@ -104,13 +110,49 @@ class FakeWorker implements CanonicalizeWorker {
   }
 }
 
+/**
+ * **형식은 요청마다 한 번 정하고, 결과와 함께 돌아온다** (open-decisions.md "정본은
+ * WebP로 굽는다"). 여기서 보는 것은 인코더가 아니라 그 전달이다 — 진짜 판정은
+ * `OffscreenCanvas`가 있는 곳에서만 할 수 있다.
+ */
+describe('정본 형식', () => {
+  it('고른 형식이 결과에 실려 온다', async () => {
+    const done = doneOf(await collect([fileOf('a.jpg')]))
+    expect(done.format).toBe('webp')
+  })
+
+  it('jpg로 내려간 브라우저에서는 jpg가 실려 온다', async () => {
+    const messages = await collect([fileOf('a.jpg')], fakeBake, () =>
+      Promise.resolve(CANONICAL_FORMATS.jpeg),
+    )
+    expect(doneOf(messages).format).toBe('jpeg')
+  })
+
+  it('한 요청 안에서 한 번만 잰다 - 장마다 다시 재면 같은 업로드가 두 확장자로 담긴다', async () => {
+    const detect = vi.fn(() => Promise.resolve(CANONICAL_FORMATS.webp))
+    await collect([fileOf('a.jpg'), fileOf('b.jpg'), fileOf('c.jpg')], fakeBake, detect)
+    expect(detect).toHaveBeenCalledTimes(1)
+  })
+
+  it('구울 형식이 하나도 없으면 실패로 끝난다 - 조용히 png를 담지 않는다', async () => {
+    const messages = await collect([fileOf('a.jpg')], fakeBake, () => {
+      throw new Error('정본으로 구울 수 있는 형식이 하나도 없다')
+    })
+    expect(messages.at(-1)?.type).toBe('failed')
+  })
+
+  it('고른 형식으로 굽는다 - 굽는 쪽이 다시 고르지 않는다', async () => {
+    const bake = vi.fn(fakeBake)
+    await collect([fileOf('a.jpg')], bake, () => Promise.resolve(CANONICAL_FORMATS.jpeg))
+    expect(bake).toHaveBeenCalledWith(expect.anything(), SIZE, CANONICAL_FORMATS.jpeg)
+  })
+})
+
 describe('정본 변환 클라이언트', () => {
-  it('정본 크기와 품질을 실어 보낸다', () => {
+  it('정본 크기를 실어 보낸다', () => {
     const worker = new FakeWorker()
     canonicalizeImages([fileOf('a.jpg')], { createWorker: () => worker, size: SIZE })
     expect(worker.posted[0]?.size).toBe(SIZE)
-    // 품질은 부르는 쪽이 못 정한다 - limits.ts가 유일한 출처다.
-    expect(worker.posted[0]?.quality).toBeGreaterThan(0)
   })
 
   it('진행을 흘리고 결과를 준 뒤 워커를 끝낸다', async () => {
@@ -122,9 +164,9 @@ describe('정본 변환 클라이언트', () => {
       onProgress,
     })
     worker.emit({ type: 'progress', completed: 1, total: 1 })
-    worker.emit({ type: 'done', images: [], skipped: [] })
+    worker.emit({ type: 'done', format: 'webp', images: [], skipped: [] })
 
-    await expect(result).resolves.toEqual({ images: [], skipped: [] })
+    await expect(result).resolves.toEqual({ format: 'webp', images: [], skipped: [] })
     expect(onProgress).toHaveBeenCalledWith(1, 1)
     expect(worker.terminated).toBe(1)
   })

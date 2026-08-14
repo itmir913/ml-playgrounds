@@ -275,7 +275,12 @@ async function readPicked(files: readonly File[]): Promise<void> {
         bytes: image.bytes,
         category: IMAGE_UNLABELED,
       })),
-      { canonicalSize: spec.canonicalSize, now: new Date().toISOString(), role: 'predict' },
+      {
+        canonicalSize: spec.canonicalSize,
+        now: new Date().toISOString(),
+        role: 'predict',
+        format: baked.format,
+      },
     )
     await project.save(applied.project)
     if (baked.skipped.length > 0) {
@@ -463,7 +468,7 @@ watch(
     }
     for (const entry of current) {
       if (next.has(entry.hash)) continue
-      const blob = new Blob([entry.bytes as unknown as BlobPart], { type: 'image/jpeg' })
+      const blob = new Blob([entry.bytes as unknown as BlobPart], { type: entry.format.mime })
       next.set(entry.hash, URL.createObjectURL(blob))
     }
     urls.value = next

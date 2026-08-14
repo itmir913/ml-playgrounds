@@ -17,6 +17,7 @@ import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
+import { canonicalFormatOfPath } from '@/data/image/formats'
 import { IMAGE_GRID_PAGE_SIZE } from '@/limits'
 import { backboneFor } from '@/ml/backbones'
 import { imageClusterGroups } from '@/ml/image-clusters'
@@ -83,9 +84,13 @@ watch(
     for (const [path, bytes] of images ?? []) {
       const name = path.slice(path.lastIndexOf('/') + 1)
       const hash = name.slice(0, name.lastIndexOf('.'))
+      // **형식은 확장자가 갖는다** (mlpx-spec.md §1.2). 객체 URL은 Blob의 타입이 그대로
+      // 그 자원의 MIME이 되므로, 한 형식을 박으면 섞인 프로젝트에서 절반이 틀린다.
+      const format = canonicalFormatOfPath(path)
+      if (!format) continue
       // `project/download.ts`가 같은 이유로 같은 모양이다 - 버퍼 타입이 공유일 수도
       // 있다고 보는 자리라 단언한다.
-      const blob = new Blob([bytes as unknown as BlobPart], { type: 'image/jpeg' })
+      const blob = new Blob([bytes as unknown as BlobPart], { type: format.mime })
       next.set(hash, URL.createObjectURL(blob))
     }
     urls.value = next

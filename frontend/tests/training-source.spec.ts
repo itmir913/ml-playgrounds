@@ -52,7 +52,7 @@ function imageProject(seeds: readonly string[]): ProjectFile {
       const bytes = photo(seed)
       return { hash: hashBytes(bytes), bytes, category: '개' }
     }),
-    { canonicalSize: BACKBONE.canonicalSize, now: NOW },
+    { canonicalSize: BACKBONE.canonicalSize, now: NOW, format: 'webp' },
   ).project
 }
 

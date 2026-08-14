@@ -10,7 +10,8 @@
 
 import { failureDetail, isClientError } from '@/errors'
 import { hashBytes } from '@/hash'
-import { bakeCanonical } from './bake'
+import { bakeCanonical, detectCanonicalFormat } from './bake'
+import type { CanonicalFormat } from './formats'
 import type {
   CanonicalImage,
   CanonicalizeMessage,
@@ -22,20 +23,28 @@ import type {
 export type Bake = (
   file: File,
   size: number,
-  quality: number,
+  format: CanonicalFormat,
 ) => Promise<Uint8Array<ArrayBuffer> | null>
+
+/** 이 브라우저가 쓸 형식을 고른다. 굽기 전에 **요청마다 한 번** 부른다. */
+export type DetectFormat = () => Promise<CanonicalFormat>
 
 export async function handleCanonicalize(
   request: CanonicalizeRequest,
   emit: (message: CanonicalizeMessage) => void,
   bake: Bake = bakeCanonical,
+  detectFormat: DetectFormat = detectCanonicalFormat,
 ): Promise<void> {
   const images: CanonicalImage[] = []
   const skipped: SkippedImage[] = []
 
   try {
+    // **형식은 굽기 전에 한 번 정한다** (open-decisions.md "정본은 WebP로 굽는다").
+    // 장마다 다시 재면 한 요청 안에서 형식이 갈릴 수 있고, 그러면 같은 업로드가
+    // 두 확장자로 담긴다.
+    const format = await detectFormat()
     for (const [index, file] of request.files.entries()) {
-      const bytes = await bake(file, request.size, request.quality)
+      const bytes = await bake(file, request.size, format)
       if (bytes === null) {
         skipped.push({ sourceName: file.name })
       } else {
@@ -45,7 +54,7 @@ export async function handleCanonicalize(
       }
       emit({ type: 'progress', completed: index + 1, total: request.files.length })
     }
-    emit({ type: 'done', images, skipped })
+    emit({ type: 'done', format: format.id, images, skipped })
   } catch (error) {
     emit(
       isClientError(error)
