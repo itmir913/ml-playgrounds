@@ -49,8 +49,13 @@ export interface ProjectFacts {
   readonly trainingDone: boolean
   /** 예측에 쓸 수 있는 모델이 실제로 담겨 있는가. 예산에서 밀리면 지표만 남는다. */
   readonly modelReady: boolean
-  /** 포트폴리오에 한 글자라도 썼는가. */
-  readonly portfolioWritten: boolean
+  /**
+   * **모든 문항에 답이 있는가** (mlpx-spec.md §8.3). 한 글자라도 썼는가가 아니다.
+   *
+   * 그래서 문항을 새로 추가하면 다시 풀린다 - 자기가 늘린 것이다. 양식을 아직
+   * 고르지 않았으면 완료가 아니고, 지금 양식에 없는 문항의 답은 안 센다.
+   */
+  readonly portfolioAnswered: boolean
 }
 
 export type FactKey = keyof ProjectFacts
@@ -64,7 +69,7 @@ export const NO_FACTS: ProjectFacts = {
   algorithmsChosen: false,
   trainingDone: false,
   modelReady: false,
-  portfolioWritten: false,
+  portfolioAnswered: false,
 }
 
 interface Step {
@@ -103,7 +108,7 @@ const STEPS: Readonly<Record<StepId, Step>> = {
   },
   results: { tasks: [], requires: ['trainingDone'] },
   predict: { tasks: [], requires: ['modelReady'] },
-  portfolio: { tasks: ['portfolioWritten'], requires: [] },
+  portfolio: { tasks: ['portfolioAnswered'], requires: [] },
 }
 
 export function isStepId(value: unknown): value is StepId {

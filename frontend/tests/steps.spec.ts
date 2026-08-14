@@ -36,7 +36,7 @@ const FLAGS: readonly FactKey[] = [
   'algorithmsChosen',
   'trainingDone',
   'modelReady',
-  'portfolioWritten',
+  'portfolioAnswered',
 ]
 
 /**
@@ -402,7 +402,31 @@ describe('프로젝트에서 사실을 뽑는다', () => {
   it('공백만 쓴 포트폴리오는 쓴 것이 아니다', () => {
     const base = projectFile()
     const portfolio = { ...base.document.portfolio, answers: { motivation: '   ' } }
-    expect(factsOf({ ...base, document: { ...base.document, portfolio } }).portfolioWritten).toBe(
+    expect(factsOf({ ...base, document: { ...base.document, portfolio } }).portfolioAnswered).toBe(
+      false,
+    )
+  })
+
+  it('문항이 하나라도 비어 있으면 완료가 아니다 - 한 글자라도가 아니다', () => {
+    const base = projectFile()
+    const portfolio = {
+      template: {
+        sections: [
+          { id: 'motivation', title: '이 주제를 선택한 이유' },
+          { id: 'reflection', title: '느낀 점' },
+        ],
+      },
+      answers: { motivation: '꽃이 좋아서' },
+    }
+    expect(factsOf({ ...base, document: { ...base.document, portfolio } }).portfolioAnswered).toBe(
+      false,
+    )
+  })
+
+  it('양식을 아직 고르지 않았으면 완료가 아니다', () => {
+    const base = projectFile()
+    const portfolio = { template: { sections: [] }, answers: {} }
+    expect(factsOf({ ...base, document: { ...base.document, portfolio } }).portfolioAnswered).toBe(
       false,
     )
   })

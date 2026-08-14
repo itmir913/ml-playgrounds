@@ -18,6 +18,7 @@ import {
   type ProjectFile,
 } from '@/project/format'
 import { dataFactsOf } from '@/project/facts'
+import { isPortfolioAnswered } from '@/project/portfolio'
 import { type DataType, type TaskType } from '@/project/schema'
 import {
   loadProject,
@@ -55,7 +56,9 @@ export function factsOf(file: ProjectFile | null): ProjectFacts {
     modelReady: experiments.some((experiment) =>
       experiment.runs.some((run) => run.model !== undefined),
     ),
-    portfolioWritten: Object.values(portfolio.answers).some((answer) => answer.trim() !== ''),
+    // **판정은 포트폴리오가 갖는다** (`project/portfolio.ts`). 여기서 한 번 더
+    // 세면 화면과 체크리스트가 갈릴 자리가 생긴다.
+    portfolioAnswered: isPortfolioAnswered(portfolio),
   }
 }
 
