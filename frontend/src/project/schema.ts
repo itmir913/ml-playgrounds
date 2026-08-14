@@ -182,14 +182,12 @@ export const studentSchema = z.looseObject({
   name: z.string().optional(),
 })
 
-/** 남의 파일에서 시작했을 때만 기록된다 (mlpx-spec.md 7.3). */
-export const derivedFromSchema = z.looseObject({
-  projectId: z.uuid(),
-  at: timestamp,
-  hadResults: z.boolean(),
-  hadPortfolio: z.boolean(),
-})
-
+/**
+ * **`projectId`는 파일을 열어도 새로 발급하지 않는다.** 파생 관계를 적는 자리(`derivedFrom`)를
+ * 두지 않는 것도 같은 이유다 - id가 유지된다는 것 자체가 표절 신호이고, 새 id를 발급하는
+ * 갈림은 그 신호를 끄는 스위치다 (mlpx-spec.md 6.3). 그래서 프로젝트 파일 자체를 여러
+ * 사람에게 나눠 주는 경로도 만들지 않는다 - 전부 같은 id가 되면 그 신호가 무력해진다.
+ */
 export const manifestSchema = z.looseObject({
   formatVersion: z.int().positive(),
   appVersion: z.string(),
@@ -198,7 +196,6 @@ export const manifestSchema = z.looseObject({
   createdAt: timestamp,
   updatedAt: timestamp,
   student: studentSchema.optional(),
-  derivedFrom: derivedFromSchema.optional(),
   /**
    * 이 프로젝트가 어떤 종류의 포트폴리오인가. **taskType·dataType보다 위의 축이다** -
    * 그 둘은 kind가 machineLearning일 때만 뜻을 갖는다 (mlpx-spec.md 2).
