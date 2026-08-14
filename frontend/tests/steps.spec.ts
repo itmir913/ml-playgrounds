@@ -24,7 +24,7 @@ import {
   type FactKey,
   type ProjectFacts,
 } from '../src/router/steps'
-import { TASK_TYPES } from '../src/project/schema'
+import { TASK_TYPES, type Portfolio } from '../src/project/schema'
 import { factsOf } from '../src/stores/project'
 import { experiment, emptyProjectFile, projectFile, run } from './fixtures/project'
 
@@ -416,9 +416,10 @@ describe('프로젝트에서 사실을 뽑는다', () => {
           { id: 'reflection', title: '느낀 점' },
         ],
       },
+      answerFormat: 'plain-v1',
       answers: { motivation: '꽃이 좋아서' },
       attachments: {},
-    }
+    } satisfies Portfolio
     expect(factsOf({ ...base, document: { ...base.document, portfolio } }).portfolioAnswered).toBe(
       false,
     )
@@ -426,7 +427,12 @@ describe('프로젝트에서 사실을 뽑는다', () => {
 
   it('양식을 아직 고르지 않았으면 완료가 아니다', () => {
     const base = projectFile()
-    const portfolio = { template: { sections: [] }, answers: {}, attachments: {} }
+    const portfolio = {
+      template: { sections: [] },
+      answerFormat: 'plain-v1',
+      answers: {},
+      attachments: {},
+    } satisfies Portfolio
     expect(factsOf({ ...base, document: { ...base.document, portfolio } }).portfolioAnswered).toBe(
       false,
     )

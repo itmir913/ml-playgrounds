@@ -62,7 +62,12 @@ function imageProject(overrides: Partial<ProjectFile> = {}): ProjectFile {
         hyperparameters: {},
       },
       runs: { experiments: [] },
-      portfolio: { template: { sections: [] }, answers: {}, attachments: {} },
+      portfolio: {
+        template: { sections: [] },
+        answerFormat: 'plain-v1',
+        answers: {},
+        attachments: {},
+      },
     },
     models: new Map(),
     images,

@@ -849,10 +849,31 @@ export const portfolioTemplateSchema = z.looseObject({
   sections: z.array(portfolioTemplateSectionSchema).default([]),
 })
 
+/**
+ * 답을 무엇으로 썼는가 (mlpx-spec.md §8.5).
+ *
+ * **`plain-v1`은 서식 없는 글이고 사진은 답 아래에 붙는다** - 글 중간에는 안 꽂힌다
+ * (§8.3). 지금 이 앱이 만드는 답은 전부 이것이다.
+ *
+ * **적어 두는 이유는 나중에 편집기를 바꿀 때다.** 형식이 달라지면 옛 답을 그대로 새
+ * 형식으로 읽는 순간 학생이 쓴 별표와 밑줄이 갑자기 서식이 된다 - 파일이 자기 형식을
+ * 말하고 있으면 마이그레이션이 붙잡을 수 있다.
+ *
+ * **이름에 버전이 들어간다** - 모델 형식 이름과 같은 규칙이다(CLAUDE.md §4). `2`는
+ * 무엇이 달랐는지 말하지 않지만 `plain-v1`은 말한다. 그리고 이 어휘가 늘어나는 순간
+ * `FORMAT_VERSION`과 마이그레이션이 강제된다 (`tests/schema-version.spec.ts`).
+ */
+export const PORTFOLIO_ANSWER_FORMATS = ['plain-v1'] as const
+
 export const portfolioSchema = z.looseObject({
   template: portfolioTemplateSchema,
   /** 문항 id -> 학생이 쓴 글. */
   answers: z.record(z.string(), z.string()).default({}),
+  /**
+   * 답을 무엇으로 썼는가. 없는 파일은 지금 형식으로 본다 - 이 필드가 생기기 전에
+   * 만들어진 파일이고, 그때 답은 전부 서식 없는 글이었다.
+   */
+  answerFormat: z.enum(PORTFOLIO_ANSWER_FORMATS).default('plain-v1'),
   /**
    * 문항 id -> 붙인 사진의 zip 경로들 (mlpx-spec.md §8.5).
    *

@@ -38,7 +38,7 @@ function portfolio(
   sections: { id: string; title: string; description?: string }[],
   answers: Record<string, string> = {},
 ): Portfolio {
-  return { template: { sections }, answers, attachments: {} }
+  return { template: { sections }, answerFormat: 'plain-v1', answers, attachments: {} }
 }
 
 const TEXT: PortfolioMarkdownText = {

@@ -33,6 +33,7 @@ import {
   FORMAT_VERSION,
   MISSING_STRATEGIES,
   MODEL_OMISSION_REASONS,
+  PORTFOLIO_ANSWER_FORMATS,
   RUN_STATUSES,
   SCALING_METHODS,
   SPLIT_METHODS,
@@ -64,6 +65,7 @@ const CURRENT: Readonly<Record<string, readonly string[]>> = {
   SPLIT_METHODS,
   RUN_STATUSES,
   MODEL_OMISSION_REASONS,
+  PORTFOLIO_ANSWER_FORMATS,
   SOURCE_ENCODINGS,
   TRAINING_LOCATIONS,
   CANONICAL_FORMAT_IDS,
@@ -89,6 +91,7 @@ const VOCABULARY_BY_VERSION: Readonly<Record<number, Readonly<Record<string, rea
       SOURCE_ENCODINGS: ['utf-8', 'cp949', 'utf-16le', 'utf-16be'],
       TRAINING_LOCATIONS: ['browser', 'server'],
       CANONICAL_FORMAT_IDS: ['webp', 'jpeg'],
+      PORTFOLIO_ANSWER_FORMATS: ['plain-v1'],
     },
   }
 

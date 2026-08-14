@@ -82,6 +82,26 @@ const document = {
  * 보려면 버전마다의 지문이 필요해서 파일을 나눴다.
  */
 
+describe('답을 무엇으로 썼는지가 파일에 적힌다', () => {
+  it('안 적힌 파일은 지금 형식으로 본다 - 이 필드가 생기기 전의 파일이다', () => {
+    // 그때 답은 전부 서식 없는 글이었다.
+    expect(parseProjectDocument(document).portfolio.answerFormat).toBe('plain-v1')
+  })
+
+  it('적힌 대로 읽는다', () => {
+    const written = {
+      ...document,
+      portfolio: { ...document.portfolio, answerFormat: 'plain-v1' },
+    }
+    expect(parseProjectDocument(written).portfolio.answerFormat).toBe('plain-v1')
+  })
+
+  it('모르는 형식은 거부한다 - 우리가 못 읽는 글을 읽은 척하지 않는다', () => {
+    const written = { ...document, portfolio: { ...document.portfolio, answerFormat: 'rich-v1' } }
+    expect(() => parseProjectDocument(written)).toThrow()
+  })
+})
+
 describe('모르는 필드', () => {
   it('최상위에서 살아남는다', () => {
     const parsed = manifestSchema.parse({ ...manifest, futureField: 'keep me' })

@@ -59,7 +59,12 @@ const project = useProjectStore()
 const toasts = useToastStore()
 
 /** 아직 아무 파일도 안 열렸을 때도 판정은 돌아야 한다. */
-const EMPTY: Portfolio = { template: { sections: [] }, answers: {}, attachments: {} }
+const EMPTY: Portfolio = {
+  template: { sections: [] },
+  answerFormat: 'plain-v1',
+  answers: {},
+  attachments: {},
+}
 
 const portfolio = computed<Portfolio>(() => project.file?.document.portfolio ?? EMPTY)
 const sections = computed(() => portfolioSections(portfolio.value))
