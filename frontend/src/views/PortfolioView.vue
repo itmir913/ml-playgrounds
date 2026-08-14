@@ -402,8 +402,17 @@ function remove(): void {
           **왼쪽은 붙박이다.** `self-start`가 없으면 격자 기본값(`stretch`)이 이 칸을
           오른쪽만큼 늘려서 붙을 자리가 안 생긴다.
         -->
-        <div class="self-start max-md:hidden md:sticky md:col-span-3 md:stick-under-step-bar">
-          <SectionIndex :sections="sections" :active="active ?? undefined" @pick="goTo" />
+        <!--
+          **좁은 화면에서는 붙박이를 풀고 맨 위에 선다** (§8.18.1). 거기서는 옆에 놓을
+          자리가 없고(§8.10.1), 붙박이로 두면 그 높이만큼 글 칸이 줄어든다.
+        -->
+        <div class="self-start md:sticky md:col-span-3 md:stick-under-step-bar">
+          <SectionIndex
+            :sections="sections"
+            :active="active ?? undefined"
+            :outline="preview"
+            @pick="goTo"
+          />
         </div>
 
         <div class="flex min-w-0 flex-col gap-5 md:col-span-7">

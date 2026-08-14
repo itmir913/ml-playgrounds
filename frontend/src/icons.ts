@@ -15,6 +15,7 @@
 import {
   ChartColumn,
   Check,
+  Circle,
   ChevronDown,
   ChevronUp,
   Shapes,
@@ -76,6 +77,8 @@ export const ACTION_ICONS = {
   addSection: Plus,
   /** 답을 쓴 문항. **색만으로 말하지 않기 위한 표시다** (architecture.md §8.18). */
   written: Check,
+  /** 아직 안 쓴 문항. **표시 없음과 미완료를 가른다** - 빈 자리는 아무 말도 안 한다. */
+  unwritten: Circle,
   addPhoto: ImagePlus,
   remove: Trash2,
   dismiss: X,

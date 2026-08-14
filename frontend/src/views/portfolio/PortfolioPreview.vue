@@ -17,7 +17,11 @@
  *
  * **카드 여럿이 아니라 한 장이다** (architecture.md §8.18). 이 화면이 보여주려는 것은
  * 받는 사람이 볼 `portfolio.md`의 모양인데(§8.5), 문항마다 카드가 끊기면 그건 문서가
- * 아니라 목록이다. **가르는 것은 여백뿐이다** — 줄을 그으면 다시 칸이 생긴다.
+ * 아니라 목록이다.
+ *
+ * **경계는 왼쪽 여백의 큰 번호와 옅은 가로선이 만든다** (§8.18.1). 번호 표기는 쓰는
+ * 화면의 배지와 같다 — 두 모드가 같은 문서라는 것을 그 표기가 말한다. 답에는 쓰는
+ * 화면의 왼쪽 선이 `brand-line`으로 옅게 남는다.
  *
  * **이전 문항의 답은 이 문서 밖이다.** 지금 양식의 문항이 아니므로(§8.4) 같은 장 안에
  * 두면 받는 사람이 그것을 문항 하나로 읽는다.
@@ -45,22 +49,36 @@ const { t } = useI18n()
 <template>
   <div class="flex flex-col gap-5">
     <AppCard>
-      <div class="flex flex-col gap-8">
+      <div class="flex flex-col">
         <article
-          v-for="section in props.sections"
+          v-for="(section, index) in props.sections"
           :id="props.anchorId(section.id)"
           :key="section.id"
-          class="under-step-bar"
+          class="grid gap-x-4 py-6 first:pt-0 last:pb-0 doc-gutter-grid under-step-bar"
+          :class="index > 0 ? 'border-t border-line' : ''"
         >
-          <h3 class="text-lg font-bold">{{ section.title }}</h3>
-          <p v-if="section.answer.trim() === ''" class="mt-2 text-ink-faint">
-            {{ t('portfolio.unanswered') }}
-          </p>
-          <p v-else class="mt-2 max-w-prose leading-relaxed whitespace-pre-line">
-            {{ section.answer.trim() }}
-          </p>
+          <!-- 조용하되 읽혀야 한다. 선 토큰은 글자로 쓰면 흰 바탕에서 대비가 안 난다. -->
+          <span class="text-2xl font-extrabold text-ink-faint tabular-nums">
+            {{ String(index + 1).padStart(2, '0') }}
+          </span>
 
-          <PhotoCards class="mt-3" :photos="props.photosOf(section.id)" />
+          <div class="min-w-0">
+            <h3 class="text-lg font-bold">{{ section.title }}</h3>
+            <p
+              v-if="section.answer.trim() === ''"
+              class="mt-2 border-l-2 border-line pl-4 text-ink-faint"
+            >
+              {{ t('portfolio.unanswered') }}
+            </p>
+            <p
+              v-else
+              class="mt-2 max-w-prose border-l-2 border-brand-line pl-4 leading-relaxed whitespace-pre-line"
+            >
+              {{ section.answer.trim() }}
+            </p>
+
+            <PhotoCards class="mt-3" :photos="props.photosOf(section.id)" />
+          </div>
         </article>
       </div>
     </AppCard>

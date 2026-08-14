@@ -364,3 +364,41 @@
 @utility step-row-grid {
   grid-template-columns: minmax(min-content, 1fr) 3fr 2fr;
 }
+
+/**
+ * 문항에 딸린 도구. **손이 가 있을 때만 뜬다** (architecture.md §8.18.1).
+ *
+ * 문항이 열넷이면 도구 넷이 열네 벌 늘 떠 있고, 그러면 화면이 글 쓰는 자리가 아니라
+ * 편집기 도구 모음으로 보인다.
+ *
+ * **손가락에는 hover가 없다.** 그래서 마우스가 있는 기기에서만 숨긴다 — 터치에서는
+ * 이 규칙이 통째로 안 걸려 **언제나 보인다.** 나타나게 하는 것은 붙는 쪽의
+ * `group-hover`·`group-focus-within`이다(둘 다 이보다 특이도가 높다). 키보드로 도달한
+ * 사람에게도 떠야 하므로 **`focus-within`이 반드시 짝이어야 한다.**
+ *
+ * Tailwind에 `hover: hover` 미디어 질의의 기본 변형이 없어서 여기 한 번만 두고 이름으로
+ * 쓴다 (CLAUDE.md §4).
+ */
+@utility tools-on-demand {
+  @media (hover: hover) and (pointer: fine) {
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+}
+
+/**
+ * 여백에 번호를 두는 문서 (`views/portfolio/PortfolioPreview.vue`, architecture.md §8.18.1).
+ *
+ * 완성본에는 카드가 없다. 문항의 경계를 만드는 것은 테두리가 아니라 **왼쪽 여백의 큰
+ * 번호와 옅은 가로선**이고, 그러려면 번호가 본문과 같은 줄에서 시작하되 **자리를 따로
+ * 차지해야** 한다.
+ *
+ * `3rem`은 두 자리 숫자(`01`)가 들어가는 폭이다. 세 자리가 되는 양식은 실물에 없다 -
+ * 문항이 백 개면 그건 포트폴리오가 아니다.
+ *
+ * Tailwind 기본 눈금으로는 칸마다 다른 폭을 줄 수 없어 여기 한 번만 두고 이름으로 쓴다
+ * (CLAUDE.md §4).
+ */
+@utility doc-gutter-grid {
+  grid-template-columns: 3rem 1fr;
+}

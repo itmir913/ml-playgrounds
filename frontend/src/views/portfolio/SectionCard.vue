@@ -13,12 +13,19 @@
  * **안내문은 마크다운이다.** 목록·표·강조가 살아나고, 그리는 것과 살균은
  * `GuidanceText`가 한다 (mlpx-spec.md §8.1).
  *
+ * **쓰는 중인 문항이 한 덩어리로 켜진다** (architecture.md §8.18.1). 조건은 스크롤이
+ * 아니라 **포커스**다 - 굴리기만 해도 켜지면 시끄럽고, 무엇보다 **보고 있는 것과 쓰고
+ * 있는 것은 다르다.** 색은 전부 토큰이다(`brand`·`brand-line`·`brand-soft`).
+ *
+ * **도구는 손이 가 있을 때만 뜬다** (`tools-on-demand`). 문항이 열넷이면 도구 넷이
+ * 열네 벌 늘 떠 있다. **터치 기기에서는 언제나 보인다** - 손가락에는 hover가 없다.
+ *
  * **값을 고쳐서 올려보내므로 되돌릴 거리가 있다** - 상한에 걸리면 부모가 거절하고,
  * 그때 화면이 파일과 다른 글자를 들고 있으면 안 된다. 그래서 요소를 함께 넘긴다
  * (architecture.md §8.15.1).
  */
 
-import { nextTick, onMounted, ref, useId, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
@@ -57,6 +64,9 @@ const { t } = useI18n()
 const headingId = useId()
 
 const editing = ref(false)
+
+/** 두 자리로 맞춘 번호. 읽기 화면의 여백 번호와 같은 표기다 (§8.18.1). */
+const number = computed(() => String(props.index + 1).padStart(2, '0'))
 
 /**
  * 답 칸. **내용만큼 자란다** (architecture.md §8.18) - 그래서 높이를 여기서 만진다.
@@ -125,21 +135,31 @@ function onPaste(event: ClipboardEvent): void {
 </script>
 
 <template>
-  <AppCard>
+  <AppCard
+    class="group transition-shadow focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-line"
+  >
     <div class="flex flex-col gap-3">
-      <header class="flex items-start gap-3">
-        <span class="mt-0.5 font-bold text-ink-faint tabular-nums">{{ props.index + 1 }}</span>
-        <!-- 굴리면서도 남은 문항이 보여야 한다. 목차는 좁은 화면에 없다. -->
+      <header class="flex items-center gap-3">
+        <!-- 번호는 배지다. 읽기 화면의 여백 번호와 같은 표기를 쓴다 (§8.18.1). -->
+        <span
+          class="inline-flex size-8 shrink-0 items-center justify-center rounded-control font-bold tabular-nums transition-colors bg-surface-sunken text-ink-soft group-focus-within:bg-brand-soft group-focus-within:text-brand"
+        >
+          {{ number }}
+        </span>
+        <h3 :id="headingId" class="min-w-0 flex-1 text-lg font-bold">{{ props.section.title }}</h3>
+
+        <!-- 굴리면서도 남은 문항이 보여야 한다. 목차는 좁은 화면에서 맨 위에만 있다. -->
         <component
           :is="ACTION_ICONS.written"
           v-if="props.section.answer.trim() !== ''"
           :size="18"
-          class="mt-1 shrink-0 text-positive"
+          class="shrink-0 text-positive"
           aria-hidden="true"
         />
-        <h3 :id="headingId" class="min-w-0 flex-1 text-lg font-bold">{{ props.section.title }}</h3>
 
-        <div class="flex shrink-0 items-center gap-1">
+        <div
+          class="flex shrink-0 items-center gap-1 tools-on-demand group-hover:opacity-100 group-focus-within:opacity-100"
+        >
           <AppButton
             variant="ghost"
             :label="t('portfolio.moveUp')"
@@ -202,15 +222,15 @@ function onPaste(event: ClipboardEvent): void {
       />
 
       <!--
-        **상자가 아니라 왼쪽 세로선이다** (architecture.md §8.18). 포커스가 오면 선이
-        굵어지고 브랜드 색이 되는데, **같은 만큼 왼쪽 여백을 줄여서 글자는 안 움직인다** -
-        칸의 안쪽 폭이 상태에 따라 달라지면 안 된다는 규칙의 변종이다(`AppButton`).
+        **상자가 아니라 왼쪽 세로선이다** (architecture.md §8.18). 포커스 표시는 카드가
+        통째로 갖는다(테두리 + 링) - 그래서 여기서는 **선의 색만** 바뀐다. 굵기를 건드리면
+        칸의 안쪽 폭이 상태에 따라 달라진다(`AppButton`의 같은 규칙).
       -->
       <textarea
         ref="answerBox"
         :aria-labelledby="headingId"
         :placeholder="t('portfolio.answerHint')"
-        class="w-full max-w-prose resize-none border-l-2 border-line bg-transparent py-1 pl-4 leading-relaxed min-h-24 focus:border-l-4 focus:border-brand focus:pl-3.5 focus:outline-none"
+        class="w-full max-w-prose resize-none border-l-2 border-line bg-transparent py-1 pl-4 leading-relaxed min-h-16 focus:border-brand focus:outline-none"
         :value="props.section.answer"
         @input="onAnswer"
         @paste="onPaste"

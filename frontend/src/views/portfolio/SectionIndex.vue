@@ -23,9 +23,16 @@
  * **지금 보고 있는 문항을 표시한다.** 어느 문항에 와 있는지는 판정하는 쪽(화면)이
  * 넘겨준다 - 여기는 받은 것을 그릴 뿐이다.
  *
- * **안 쓴 문항을 색으로만 말하지 않는다.** 옅은 글자 옆에 읽어 주는 문장을 함께 두고,
- * 쓴 문항에는 그림을 붙인다. 지금 보고 있는 문항도 같다 - 바탕색만이 아니라 **왼쪽에
- * 막대가 선다.**
+ * **안 쓴 문항을 색으로만 말하지 않는다.** 쓴 문항에는 체크, 안 쓴 문항에는 빈 동그라미가
+ * 붙고 읽어 주는 문장이 따라간다 - **표시가 없는 것과 안 쓴 것은 다르다.** 지금 보고 있는
+ * 문항도 같다: 바탕색만이 아니라 **왼쪽에 막대가 선다.**
+ *
+ * **읽는 화면에서는 답의 첫 줄을 함께 단다** (`outline`, architecture.md §8.18.1).
+ * 개요는 **답이 있어야 개요가 되므로** 쓰는 화면에서는 안 단다 - 거기서는 대부분 비어
+ * 있어 줄 높이만 두 배가 된다.
+ *
+ * **제목은 줄을 안 바꾸고 `…`으로 줄인다.** 줄 높이가 항목마다 달라지면 훑는 눈이 걸리고,
+ * 좁은 칸에서 두 줄이 되면 다섯 줄이 여덟 줄이 된다.
  *
  * **표시한 문항을 자기 안으로 데려온다.** 문항이 열둘이면 목록이 자기 안에서 스크롤하고,
  * 그때 표시가 목록 밖에 있으면 **표시를 해 둔 것이 아무 일도 안 한 것과 같다**
@@ -43,6 +50,8 @@ const props = defineProps<{
   sections: readonly PortfolioSection[]
   /** 지금 화면에 보이는 문항. 아직 판정 전이면 없다. */
   active?: string | undefined
+  /** 줄마다 답의 첫 줄을 단다. 읽는 화면에서만 켠다 (§8.18.1). */
+  outline?: boolean
 }>()
 
 const emit = defineEmits<{ pick: [id: string] }>()
@@ -77,18 +86,25 @@ watch(() => props.active, reveal)
 </script>
 
 <template>
-  <div class="flex flex-col rounded-panel border border-line bg-surface p-4 fit-under-step-bar">
+  <div class="flex flex-col rounded-panel border border-line bg-surface p-4 md:fit-under-step-bar">
     <h2 class="font-bold">{{ t('portfolio.contents') }}</h2>
-    <p class="mt-1 text-ink-soft tabular-nums">
-      {{ t('portfolio.progress', { done, total: props.sections.length }) }}
-    </p>
-
-    <!-- 문장이 이미 말한 것을 그림으로 한 번 더 준다. 그래서 읽어 줄 것이 없다. -->
+    <!--
+      **진행은 막대만 준다.** 문장은 동작 바가 이미 말하고, 줄마다 붙는 표시가 한 번 더
+      말한다 - 같은 사실을 세 번 적으면 그 판이 시끄러워진다. 읽어 줄 것은
+      `portfolio.progress`가 그쪽에서 갖는다.
+    -->
     <div class="mt-2 h-1 w-full overflow-hidden rounded-pill bg-surface-sunken" aria-hidden="true">
       <div class="h-full rounded-pill bg-brand transition-all" :style="{ width: donePercent }" />
     </div>
 
-    <ol ref="list" class="mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-none">
+    <!--
+      **좁은 화면에서는 다섯 줄 높이까지다** (§8.18.1). 목차가 맨 위에 서므로, 문항이
+      열넷이면 목록이 첫 문항을 화면 밖으로 밀어낸다.
+    -->
+    <ol
+      ref="list"
+      class="mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-none max-md:max-h-48"
+    >
       <li v-for="(section, index) in props.sections" :key="section.id">
         <!--
           **막대는 언제나 자리를 차지한다.** 표시된 줄에만 테두리를 주면 그 줄의 글자가
@@ -103,20 +119,28 @@ watch(() => props.active, reveal)
           @click="emit('pick', section.id)"
         >
           <span class="text-ink-faint tabular-nums">{{ index + 1 }}</span>
-          <span
-            class="min-w-0 flex-1 truncate"
-            :class="section.answer.trim() === '' ? 'text-ink-faint' : ''"
-          >
-            {{ section.title }}
+          <span class="flex min-w-0 flex-1 flex-col">
+            <span class="truncate" :class="section.answer.trim() === '' ? 'text-ink-faint' : ''">
+              {{ section.title }}
+            </span>
+            <!-- 답의 첫 줄. **잘리면 잘린 대로 둔다** - 개요는 훑는 것이지 읽는 것이 아니다. -->
+            <span
+              v-if="props.outline && section.answer.trim() !== ''"
+              class="truncate font-normal text-ink-faint"
+            >
+              {{ section.answer.trim() }}
+            </span>
           </span>
           <component
-            :is="ACTION_ICONS.written"
-            v-if="section.answer.trim() !== ''"
+            :is="section.answer.trim() === '' ? ACTION_ICONS.unwritten : ACTION_ICONS.written"
             :size="16"
-            class="shrink-0 self-center text-positive"
+            class="shrink-0 self-center"
+            :class="section.answer.trim() === '' ? 'text-ink-faint' : 'text-positive'"
             aria-hidden="true"
           />
-          <span v-else class="sr-only">{{ t('portfolio.unanswered') }}</span>
+          <span v-if="section.answer.trim() === ''" class="sr-only">
+            {{ t('portfolio.unanswered') }}
+          </span>
         </button>
       </li>
     </ol>
