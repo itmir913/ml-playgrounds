@@ -223,9 +223,9 @@
   "preprocess": {
     "summaryTitle": "Preprocessing summary",
     "testDataTitle": "Test Data",
-    "testDataLead": "Choose the data used to score your trained models.",
+    "testDataLead": "This is the data used to score your trained models.",
     "testSize": "Test data share",
-    "testSizeNote": "This share of the data you are using becomes the test data, and the rest is used for training.",
+    "testSizeNote": "This share becomes the test data, and the rest is used for training.",
     "stratify": "Keep the class proportions when splitting",
     "randomState": "Random seed",
     "randomStateNote": "Every random choice made with your data uses this value. Keeping it fixed means every training run works with the same data, so a change in your score can be traced to the model setting you changed.",
@@ -469,11 +469,11 @@
     "STORAGE_QUOTA_EXCEEDED": "There is not enough storage space on this computer. (needs {requiredMb}MB, {availableMb}MB free)",
     "UNEXPECTED_ERROR": "Something went wrong. Please try again.",
     "SPLIT_TOO_FEW_ROWS": "There is not enough data to split into training data and test data. (usable {actualRows}, needs at least {minRows})",
-    "SPLIT_STRATIFY_IMPOSSIBLE": "This value appears too few times to keep the same proportions in the split. Turn off proportional splitting, or collect more rows with this value. ({label}: has {count}, needs at least {minRows})",
-    "SPLIT_STRATIFY_TARGET_CONTINUOUS": "The target column holds {kinds} distinct values, and {lonely} of them appear only once. Almost every value differs, so the split cannot keep the same proportions — turn proportional splitting off.",
+    "SPLIT_STRATIFY_IMPOSSIBLE": "This class appears too few times to keep the same proportions in the split. Turn off proportional splitting, or collect more data for this class. ({label}: has {count}, needs at least {minRows})",
+    "SPLIT_STRATIFY_TARGET_CONTINUOUS": "Of the {kinds} distinct values, {lonely} appear only once, so the split cannot keep the same proportions. Turn proportional splitting off.",
     "SAMPLE_STRATIFY_IMPOSSIBLE": "You chose to use only {nSamples} rows, but the target has {labels} distinct values, so the sample cannot keep the same proportions. Use more rows, or turn off proportional splitting. (each value needs at least {minRows})",
     "STRATIFY_NOT_FOR_TASK_TYPE": "The task type you chose has no categories to balance, so proportional splitting is unavailable.",
-    "CLUSTER_TOO_FEW_ROWS": "There are only {rows} rows, so they cannot be grouped into {clusters} clusters. Lower the number of clusters, or collect more data.",
+    "CLUSTER_TOO_FEW_ROWS": "There are only {rows} samples, so they cannot be grouped into {clusters} clusters. Lower the number of clusters, or collect more data.",
     "TEST_DATASET_COLUMN_MISSING": "The test data file is missing columns from the training data. ({columns})",
     "TEST_DATASET_NO_USABLE_ROWS": "The test data has no rows that can be scored.",
     "PREDICT_DATASET_COLUMN_MISSING": "The file to predict is missing columns the visible models use. ({columns})",
@@ -628,7 +628,7 @@
     "firstRun": "First experiment",
     "image": {
       "clusterEmpty": "No photos in this cluster.",
-      "clusterRepresentative": "The first photo represents this cluster."
+      "clusterRepresentative": "Ordered by closeness to the center. The first one represents this cluster."
     },
     "label": "Class",
     "membersAdded": "Added",
