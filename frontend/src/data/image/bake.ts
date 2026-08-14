@@ -25,17 +25,31 @@ import { CANONICAL_FORMAT_IDS, CANONICAL_FORMATS, type CanonicalFormat } from '.
  */
 export async function detectCanonicalFormat(): Promise<CanonicalFormat> {
   const probe = new OffscreenCanvas(1, 1)
+  // **컨텍스트를 먼저 잡는다.** 컨텍스트가 없는 `OffscreenCanvas`는 그릴 비트맵이 없어서
+  // `convertToBlob`이 형식과 무관하게 `InvalidStateError`로 거절한다 — 그러면 이 함수가
+  // "구울 수 있는 형식이 하나도 없다"고 말하고, 실제로 그렇게 나갔다 (2026-08-14).
+  const context = probe.getContext('2d')
+  if (!context) throw new Error('OffscreenCanvas의 2d 컨텍스트를 못 얻었다')
+  // 화소 하나를 실제로 칠한다. 인코더에 따라 빈 비트맵을 거절할 수 있다.
+  context.fillStyle = '#ffffff'
+  context.fillRect(0, 0, 1, 1)
+
+  const failures: string[] = []
   for (const id of CANONICAL_FORMAT_IDS) {
     const format = CANONICAL_FORMATS[id]
     try {
       const blob = await probe.convertToBlob({ type: format.mime, quality: format.quality })
       if (blob.type === format.mime) return format
-    } catch {
+      failures.push(`${format.mime} -> ${blob.type || '(빈 타입)'}`)
+    } catch (error) {
       // 이 형식은 안 된다. 다음 것으로 내려간다.
+      failures.push(`${format.mime} -> ${error instanceof Error ? error.message : String(error)}`)
     }
   }
   // 등록부의 마지막(jpeg)까지 못 굽는 브라우저는 캔버스 인코딩 자체가 없는 것이다.
-  throw new Error('정본으로 구울 수 있는 형식이 하나도 없다')
+  // **무엇이 어떻게 거절했는지 함께 남긴다** — 이 문장만으로는 다음 사람이 브라우저를
+  // 의심할지 우리 코드를 의심할지 고를 수 없다.
+  throw new Error(`정본으로 구울 수 있는 형식이 하나도 없다: ${failures.join(' · ')}`)
 }
 
 /**
