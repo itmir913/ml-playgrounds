@@ -20,6 +20,11 @@
  *    탭을 남의 주소가 가져가면 안 된다.
  * 3. **그림은 그리지 않는다.** 원격 이미지는 우리 페이지가 남의 서버에 요청을 보내는
  *    것이고 추적 픽셀과 구분할 수 없다. 사진은 답에 붙는 것이고 파일 안에 담긴다.
+ * 4. **엔터는 줄바꿈이다**(`breaks: true`). CommonMark은 홑 개행을 공백으로 보는데,
+ *    이 화면에서 안내문을 고치는 사람은 마크다운을 모른다 - 엔터를 쳤는데 한 줄로
+ *    붙으면 그건 문법이 아니라 고장으로 읽힌다. **대가는 원본이 80칸에서 접혀 있을
+ *    때 접은 자리마다 줄이 바뀌는 것이고**, 그건 파일에 보이는 그대로 나오는 것이라
+ *    설명할 수 있다. 상호 변환을 접은 이유는 `open-decisions.md`에 있다.
  *
  * **우리가 주소를 링크로 만들지는 않는다**(`linkify`를 안 켠다). 글 안의 주소를 링크로
  * 바꾸는 것은 우리 판단이지 쓴 사람의 뜻이 아니다.
@@ -30,7 +35,7 @@ import MarkdownIt from 'markdown-it'
 /** 링크로 인정하는 프로토콜. 상대 경로도 여기서 떨어진다 - 우리 앱 안을 가리키게 두지 않는다. */
 const ALLOWED_LINK = /^https?:\/\//i
 
-const renderer = new MarkdownIt({ html: false, linkify: false, breaks: false })
+const renderer = new MarkdownIt({ html: false, linkify: false, breaks: true })
 
 renderer.validateLink = (url) => ALLOWED_LINK.test(url.trim())
 

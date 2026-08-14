@@ -27,6 +27,20 @@ describe('마크다운은 살아난다', () => {
   })
 })
 
+describe('엔터는 줄바꿈이다', () => {
+  it('세 줄을 치면 세 줄로 나온다 - 쓰는 사람은 마크다운을 모른다', () => {
+    const html = renderGuidance('첫번째\n두번째\n세번째')
+    expect(html.match(/<br>/g) ?? []).toHaveLength(2)
+    expect(html).toContain('첫번째')
+    expect(html).toContain('세번째')
+  })
+
+  it('빈 줄은 그대로 문단을 나눈다', () => {
+    const html = renderGuidance('첫 문단\n\n둘째 문단')
+    expect(html.match(/<p>/g) ?? []).toHaveLength(2)
+  })
+})
+
 describe('남이 준 글은 살균을 거친다', () => {
   it('raw HTML은 통과하지 못한다', () => {
     const html = renderGuidance('<script>alert(1)</script>\n\n<b>굵게</b>')
