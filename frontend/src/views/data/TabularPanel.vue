@@ -207,13 +207,13 @@ function kindOf(column: ColumnSummary): string {
           </div>
           <div class="flex items-baseline gap-1.5">
             <dt>
-              <AppBadge>{{ t('data.tabular.rows') }}</AppBadge>
+              <AppBadge>{{ t('meta.tabular.rows') }}</AppBadge>
             </dt>
             <dd class="font-bold tabular-nums text-ink">{{ saved.dataset.rows.length }}</dd>
           </div>
           <div class="flex items-baseline gap-1.5">
             <dt>
-              <AppBadge>{{ t('data.tabular.columns') }}</AppBadge>
+              <AppBadge>{{ t('meta.tabular.columns') }}</AppBadge>
             </dt>
             <dd class="font-bold tabular-nums text-ink">{{ saved.columns.length }}</dd>
           </div>

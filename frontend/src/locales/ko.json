@@ -139,7 +139,6 @@
       "change": "데이터 바꾸기",
       "choose": "파일 선택",
       "columnName": "열 이름",
-      "columns": "열 수",
       "dropHint": "여기에 CSV나 엑셀 파일을 끌어다 놓거나 [파일 선택]을 누르세요.",
       "droppedColumns": "새 데이터에 없는 열이라 선택에서 빠졌습니다. 전처리에서 다시 골라 주세요. ({names})",
       "emptyReason": "아직 불러온 데이터가 없습니다.",
@@ -156,7 +155,6 @@
       "replaceConfirm": "지우고 바꾸기",
       "replaceDescription": "지금까지 한 실험(Experiment) {count}개가 함께 사라집니다. 모델은 데이터의 행 번호를 가리키기 때문에, 남겨 두면 다른 행을 보고 예측하게 됩니다.",
       "replaceTitle": "데이터를 바꾸면 학습 결과가 지워집니다",
-      "rows": "행 수",
       "samples": "값 예시",
       "sheet": "시트 선택",
       "unique": "값 종류 수",
@@ -527,10 +525,10 @@
     "none": "없음",
     "countUnit": "{count}개",
     "tabular": {
-      "columns": "열",
+      "columns": "열 수",
       "dataset": "데이터 파일",
       "features": "특성(Feature)",
-      "rows": "행",
+      "rows": "행 수",
       "target": "타깃(Target)"
     },
     "image": {

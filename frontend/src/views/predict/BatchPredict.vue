@@ -562,7 +562,7 @@ defineExpose({
       </span>
       <!-- 이름은 배지, 값은 plaintext (§8.16). 파일 이름은 그 자체가 값이라 배지가 없다. -->
       <span class="flex items-baseline gap-1.5">
-        <AppBadge>{{ t('data.tabular.rows') }}</AppBadge>
+        <AppBadge>{{ t('meta.tabular.rows') }}</AppBadge>
         <span class="font-bold tabular-nums text-ink">{{ predictDataset?.rows.length ?? 0 }}</span>
       </span>
     </div>

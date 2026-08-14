@@ -811,9 +811,6 @@ describe('두 언어가 나란히 말한다', () => {
     ['categoricalEncoding.none', 'meta.none', 'scalingMethod.none'],
     // 체크리스트 항목만 `~하기`다. 영어는 항목도 버튼도 명령형이라 같아진다.
     ['data.image.add', 'predict.image.add', 'tasks.image.datasetReady'],
-    // 한국어는 세는 자리에 `수`가 붙는다. 영어는 열 이름이 곧 세는 것이다.
-    ['data.tabular.columns', 'meta.tabular.columns'],
-    ['data.tabular.rows', 'meta.tabular.rows'],
     // 단계 이름은 `데이터`, 요약이 가리키는 것은 그 파일이다.
     ['meta.tabular.dataset', 'steps.data.label'],
     // 병기는 그 화면에서 처음 마주치는 자리에만 붙는다(docs/copy.md §2). 영어에는

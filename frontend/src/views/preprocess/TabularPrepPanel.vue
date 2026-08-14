@@ -708,7 +708,7 @@ async function removeTest(): Promise<void> {
                   {{ data.testDataset.originalFileName }}
                 </span>
                 <span class="flex items-center gap-1.5 text-ink-soft">
-                  <span>{{ t('data.tabular.rows') }}</span>
+                  <span>{{ t('meta.tabular.rows') }}</span>
                   <span class="font-bold tabular-nums text-ink">
                     {{ testDataset?.rows.length ?? 0 }}
                   </span>
