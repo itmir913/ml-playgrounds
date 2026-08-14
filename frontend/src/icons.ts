@@ -20,6 +20,7 @@ import {
   ChevronUp,
   Shapes,
   Download,
+  FileInput,
   FileText,
   FlaskConical,
   CircleQuestionMark,
@@ -70,6 +71,8 @@ export const ACTION_ICONS = {
   // 스위치는 **바뀔 쪽**을 그린다. 지금 어두우면 해를 보여 준다 - 누르면 밝아진다는 뜻이다.
   toLight: Sun,
   toDark: Moon,
+  /** 양식을 가져온다. 좁은 화면에서는 이 그림만 남는다 (architecture.md §8.18). */
+  importForm: FileInput,
   /** 포트폴리오 문항을 고치고 옮기고 더한다. 문항은 마음대로 고친다 (mlpx-spec.md §8.3). */
   editSection: Pencil,
   /**

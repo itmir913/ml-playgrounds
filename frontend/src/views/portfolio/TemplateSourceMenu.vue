@@ -9,6 +9,10 @@
  *
  * **시작 화면과 동작 바가 같은 것을 쓴다.** 두 벌이면 한쪽만 고쳐진다.
  *
+ * **좁은 화면에서는 그림만 남는다**(`compact`). 동작 바가 두 줄이 되면 그만큼 아래 글
+ * 칸이 줄어드는데, 이 화면에서 그건 그냥 손해다 (architecture.md §8.18). 시작 화면에서는
+ * 안 켠다 - 거기서는 이 단추가 둘뿐인 갈림길의 한쪽이라 글자가 있어야 한다.
+ *
  * **목록은 열 때 붙는다** (`AppPopover`의 패널이 `v-if`다). 그래서 받아 오는 일이
  * 화면에 들어올 때가 아니라 누를 때 일어난다 - `TemplateSourceList`의 머리말에 있다.
  */
@@ -18,6 +22,7 @@ import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
 import AppPopover from '@/components/AppPopover.vue'
+import { ACTION_ICONS } from '@/icons'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import type { TemplateSourceContext } from '@/project/portfolio-sources'
 import TemplateSourceList from './TemplateSourceList.vue'
@@ -27,6 +32,8 @@ const props = defineProps<{
   size?: 'md' | 'lg'
   /** 파일 하나를 고르게 한다. 화면이 준다 - 등록부도 여기도 DOM을 모른다. */
   pickFile: () => Promise<File | null>
+  /** 좁은 화면에서 글자를 접고 그림만 남긴다. 동작 바에서만 켠다. */
+  compact?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -51,8 +58,14 @@ function onPick(markdown: string | null, close: () => void): void {
 <template>
   <AppPopover>
     <template #trigger>
-      <AppButton variant="secondary" :size="props.size ?? 'md'">
-        {{ t('portfolio.import') }}
+      <AppButton variant="secondary" :size="props.size ?? 'md'" :label="t('portfolio.import')">
+        <component
+          :is="ACTION_ICONS.importForm"
+          v-if="props.compact"
+          :size="18"
+          aria-hidden="true"
+        />
+        <span :class="props.compact ? 'max-md:hidden' : ''">{{ t('portfolio.import') }}</span>
       </AppButton>
     </template>
 

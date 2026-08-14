@@ -389,15 +389,20 @@ function remove(): void {
         문항 추가), 오른쪽은 지금 무슨 일이 있는지(담긴 양)와 결론이다.
       -->
       <StepActionBar>
+        <!--
+          **좁은 화면에서는 글자를 접고 그림만 남긴다** (§8.18). 바가 두 줄이 되면 그만큼
+          아래 글 칸이 줄어든다 - 읽을 이름은 `label`이 갖는다.
+        -->
         <TemplateSourceMenu
+          compact
           :pick-file="pickFile"
           @pick="importMarkdown"
           @failed="toasts.pushError"
         />
 
-        <AppButton variant="secondary" @click="addSection">
+        <AppButton variant="secondary" :label="t('portfolio.addSection')" @click="addSection">
           <component :is="ACTION_ICONS.addSection" :size="18" aria-hidden="true" />
-          {{ t('portfolio.addSection') }}
+          <span class="max-md:hidden">{{ t('portfolio.addSection') }}</span>
         </AppButton>
 
         <!--
