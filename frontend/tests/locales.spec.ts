@@ -681,6 +681,7 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
     'save.', //   〃
     'language.', //   〃
     'dataTypes.', //   〃
+    'portfolio.preset.', // 지원 언어마다 내장 양식 파일이 있다 (portfolio-preset.spec.ts)
     'metrics.', // 지표마다 이름과 설명이 있다
     'metricHelp.', //   〃
     'metricFormula.', // 수식은 있는 지표의 것만 있다
