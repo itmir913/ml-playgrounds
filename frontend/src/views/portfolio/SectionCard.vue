@@ -129,6 +129,14 @@ function onPaste(event: ClipboardEvent): void {
     <div class="flex flex-col gap-3">
       <header class="flex items-start gap-3">
         <span class="mt-0.5 font-bold text-ink-faint tabular-nums">{{ props.index + 1 }}</span>
+        <!-- 굴리면서도 남은 문항이 보여야 한다. 목차는 좁은 화면에 없다. -->
+        <component
+          :is="ACTION_ICONS.written"
+          v-if="props.section.answer.trim() !== ''"
+          :size="18"
+          class="mt-1 shrink-0 text-positive"
+          aria-hidden="true"
+        />
         <h3 :id="headingId" class="min-w-0 flex-1 text-lg font-bold">{{ props.section.title }}</h3>
 
         <div class="flex shrink-0 items-center gap-1">

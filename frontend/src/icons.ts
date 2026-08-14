@@ -14,6 +14,7 @@
 
 import {
   ChartColumn,
+  Check,
   ChevronDown,
   ChevronUp,
   Shapes,
@@ -73,6 +74,8 @@ export const ACTION_ICONS = {
   moveUp: ChevronUp,
   moveDown: ChevronDown,
   addSection: Plus,
+  /** 답을 쓴 문항. **색만으로 말하지 않기 위한 표시다** (architecture.md §8.18). */
+  written: Check,
   addPhoto: ImagePlus,
   remove: Trash2,
   dismiss: X,

@@ -19,7 +19,9 @@
  * **지금 보고 있는 문항을 표시한다.** 어느 문항에 와 있는지는 판정하는 쪽(화면)이
  * 넘겨준다 - 여기는 받은 것을 그릴 뿐이다.
  *
- * **안 쓴 문항을 색으로만 말하지 않는다.** 옅은 글자 옆에 읽어 주는 문장을 함께 둔다.
+ * **안 쓴 문항을 색으로만 말하지 않는다.** 옅은 글자 옆에 읽어 주는 문장을 함께 두고,
+ * 쓴 문항에는 그림을 붙인다. 지금 보고 있는 문항도 같다 - 바탕색만이 아니라 **왼쪽에
+ * 막대가 선다.**
  *
  * **좁은 화면에서는 같은 것이 팝오버 안에 선다** (`bare`). 판이 아니라 알맹이만 그리는
  * 것 하나가 다르다 - 팝오버가 이미 면과 테두리와 천장을 갖고 있어서, 두 벌이면 상자
@@ -34,6 +36,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { ACTION_ICONS } from '@/icons'
 import type { PortfolioSection } from '@/project/portfolio'
 
 const props = defineProps<{
@@ -49,6 +52,13 @@ const emit = defineEmits<{ pick: [id: string] }>()
 const { t } = useI18n()
 
 const done = computed(() => props.sections.filter((section) => section.answer.trim() !== '').length)
+
+/** 진행 막대의 너비. 문항이 없으면 0이다 - 나눗셈이 `NaN`이 되는 자리다. */
+const donePercent = computed(() =>
+  props.sections.length === 0
+    ? '0%'
+    : `${((done.value / props.sections.length) * 100).toFixed(2)}%`,
+)
 
 const list = ref<HTMLElement | null>(null)
 
@@ -82,17 +92,26 @@ onMounted(() => {
       {{ t('portfolio.progress', { done, total: props.sections.length }) }}
     </p>
 
+    <!-- 문장이 이미 말한 것을 그림으로 한 번 더 준다. 그래서 읽어 줄 것이 없다. -->
+    <div class="mt-2 h-1 w-full overflow-hidden rounded-pill bg-surface-sunken" aria-hidden="true">
+      <div class="h-full rounded-pill bg-brand transition-all" :style="{ width: donePercent }" />
+    </div>
+
     <ol
       ref="list"
       class="mt-3 flex flex-col"
       :class="props.bare ? '' : 'min-h-0 flex-1 overflow-y-auto scroll-gutter-stable'"
     >
       <li v-for="(section, index) in props.sections" :key="section.id">
+        <!--
+          **막대는 언제나 자리를 차지한다.** 표시된 줄에만 테두리를 주면 그 줄의 글자가
+          2px씩 밀린다 - 칸의 안쪽 폭이 상태에 따라 달라지면 안 된다(`AppButton`).
+        -->
         <button
           type="button"
           :data-section="section.id"
-          class="flex w-full items-baseline gap-2 rounded-control px-2 py-1.5 text-left transition-colors hover:bg-surface-sunken"
-          :class="props.active === section.id ? 'bg-surface-sunken font-bold' : ''"
+          class="flex w-full items-baseline gap-2 rounded-control border-l-2 border-transparent px-2 py-1.5 text-left transition-colors hover:bg-surface-sunken"
+          :class="props.active === section.id ? 'border-brand bg-surface-sunken font-bold' : ''"
           :aria-current="props.active === section.id ? 'true' : undefined"
           @click="emit('pick', section.id)"
         >
@@ -103,9 +122,14 @@ onMounted(() => {
           >
             {{ section.title }}
           </span>
-          <span v-if="section.answer.trim() === ''" class="sr-only">
-            {{ t('portfolio.unanswered') }}
-          </span>
+          <component
+            :is="ACTION_ICONS.written"
+            v-if="section.answer.trim() !== ''"
+            :size="16"
+            class="shrink-0 self-center text-positive"
+            aria-hidden="true"
+          />
+          <span v-else class="sr-only">{{ t('portfolio.unanswered') }}</span>
         </button>
       </li>
     </ol>
