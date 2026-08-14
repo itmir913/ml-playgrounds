@@ -32,7 +32,7 @@ import { FEATURE_NOTES, requiredTargetKind } from '../src/ml/selection'
 import { EXPORT_STATES } from '../src/project/export-state'
 import {
   CATEGORICAL_ENCODINGS,
-  DEFAULT_PORTFOLIO_SECTIONS,
+  DATA_TYPES,
   MISSING_STRATEGIES,
   MODEL_OMISSION_REASONS,
   SCALING_METHODS,
@@ -341,13 +341,15 @@ describe('프런트엔드 전용 코드', () => {
     expect([...new Set(used)].filter((name) => !names.has(name))).toEqual([])
   })
 
-  it('열 자료형·내보내기 상태·언어·포트폴리오 문항마다 이름이 있다', () => {
+  it('열 자료형·내보내기 상태·언어·데이터 종류마다 이름이 있다', () => {
     // 넷 다 화면이 값으로 키를 조립하는 자리다. 값을 늘리는 사람이 문구를 함께 넣게 한다.
+    // **포트폴리오 문항은 여기 없다.** 문구가 로케일을 떠나 `public/`의 프리셋 파일로
+    // 갔다 - 쓴 사람의 말이라 애초에 번역 대상이 아니다 (mlpx-spec.md §8.5).
     const pairs = [
       ['columnKind', COLUMN_KINDS],
       ['save', EXPORT_STATES],
       ['language', LOCALE_TAGS],
-      ['portfolio.template', DEFAULT_PORTFOLIO_SECTIONS],
+      ['dataTypes', DATA_TYPES],
     ] as const
 
     for (const [namespace, codes] of pairs) {
@@ -678,7 +680,7 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
     'columnKind.', // 열 자료형·내보내기 상태·언어·포트폴리오 문항마다 이름이 있다
     'save.', //   〃
     'language.', //   〃
-    'portfolio.template.', //   〃
+    'dataTypes.', //   〃
     'metrics.', // 지표마다 이름과 설명이 있다
     'metricHelp.', //   〃
     'metricFormula.', // 수식은 있는 지표의 것만 있다

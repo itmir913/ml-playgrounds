@@ -21,11 +21,12 @@ import { ACTION_ICONS } from '@/icons'
 import { MAX_STUDENT_ID_LENGTH, MAX_STUDENT_NAME_LENGTH } from '@/limits'
 import { projectFileName } from '@/project/format'
 import { renderPortfolioMarkdown } from '@/project/portfolio'
+import { portfolioMarkdownText } from '@/project/portfolio-text'
 import { identityOf, withIdentity } from '@/project/identity'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const project = useProjectStore()
 const toasts = useToastStore()
 
@@ -81,9 +82,8 @@ async function exportFile(close: () => void): Promise<void> {
     // portfolio.md는 파생물이지만 파일에 담는다 - 교사가 압축을 풀어 메모장으로
     // 열어도 학생이 무엇을 썼는지 보여야 한다 (CLAUDE.md §1.3).
     const markdown = renderPortfolioMarkdown(
-      file.document.manifest.name,
+      portfolioMarkdownText(file.document.manifest, (key) => t(key), locale.value),
       file.document.portfolio,
-      (key) => t(key),
     )
     const dropped = await project.exportFile(markdown)
     close()

@@ -48,7 +48,7 @@ const document = {
     hyperparameters: { decision_tree: { mljs: { maxDepth: 5 } } },
   },
   runs: { experiments: [] },
-  portfolio: { template: { id: 'default-v1' }, answers: {} },
+  portfolio: { template: { sections: [] }, answers: {} },
 }
 
 function codeOf(run: () => unknown): string {

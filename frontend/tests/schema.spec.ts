@@ -71,7 +71,7 @@ const document = {
   manifest,
   settings,
   runs: { experiments: [] },
-  portfolio: { template: { id: 'default-v1' }, answers: {} },
+  portfolio: { template: { sections: [] }, answers: {} },
 }
 
 /**

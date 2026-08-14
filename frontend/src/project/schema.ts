@@ -44,29 +44,6 @@ export const FORMAT_VERSION = 1
 export const PROJECT_KIND_ML = 'machineLearning'
 
 /** 과제 유형. 자동 판정하지 않는다 - 학생이 고른다 (mlpx-spec.md 1.1). */
-/**
- * 내장 포트폴리오 템플릿의 id. 문항 문구는 파일이 아니라 로케일에 있다
- * (mlpx-spec.md §8) - 그래야 교사가 어떤 언어로 열어도 읽힌다.
- */
-export const DEFAULT_PORTFOLIO_TEMPLATE_ID = 'default-v1'
-
-/**
- * 내장 템플릿의 문항과 **그 순서.**
- *
- * 순서가 여기 있는 이유는 로케일 파일이 순서를 보장하지 않기 때문이다. 학생이 쓴
- * 글은 문항 id로 저장되므로(`portfolio.answers`) 이 배열을 고쳐도 글은 안 사라지지만,
- * **id를 바꾸면 사라진다.** 이름을 바꾸고 싶으면 로케일 문구만 고쳐라.
- */
-export const DEFAULT_PORTFOLIO_SECTIONS = [
-  'topic',
-  'motivation',
-  'data',
-  'preprocessing',
-  'model',
-  'result',
-  'reflection',
-] as const
-
 export const TASK_TYPES = ['classification', 'regression', 'clustering'] as const
 
 /**
@@ -842,20 +819,34 @@ export const runsFileSchema = z.looseObject({
 /**
  * 문항 정의.
  *
- * 내장 템플릿은 id만 파일에 남기고 문구는 로케일에서 가져온다.
- * sections가 있는 것은 교사가 자기 문항을 쓴 경우이고, 그 문구는 애초에 번역 대상이
- * 아니므로 파일 안에 그대로 둔다 (mlpx-spec.md 8).
+ * **문항은 언제나 파일에 통째로 박힌다** (mlpx-spec.md §8.5). 내장 양식이라고 id만
+ * 남기지 않는다 - 문항을 하나라도 고치는 순간 그건 더 이상 내장 양식이 아니고, 그때
+ * 고친 문구가 저장될 곳이 없어진다.
+ *
+ * `id`는 제목에서 만든 슬러그다(§8.2). 답이 이 id로 저장되므로(`answers`) **제목을
+ * 고쳐도 id는 안 바뀐다.** 순서 번호로 하지 않는 이유는 순서를 바꾸는 순간 답이
+ * 엉뚱한 문항에 조용히 붙기 때문이다.
+ *
+ * `description`은 그 문항의 안내문이고 **마크다운이다** - 양식이 마크다운 파일로
+ * 들어오기 때문이다(§8.1). 답은 아니다. 답은 서식 없는 글이다.
+ */
+export const portfolioTemplateSectionSchema = z.looseObject({
+  id: z.string(),
+  title: userString,
+  description: userString.optional(),
+})
+
+/**
+ * 양식.
+ *
+ * **id가 없다** (mlpx-spec.md §8.5). 가져오기가 대체가 아니라 추가라서 내장에서
+ * 시작해 프리셋을 얹고 문항을 고친 양식은 어느 이름도 참이 아니다.
+ *
+ * **양식을 아직 고르지 않았다는 것은 `sections`가 비었다는 것이다.** 새 프로젝트가
+ * 그 상태고, 그때 화면은 시작 화면을 낸다(§8.3).
  */
 export const portfolioTemplateSchema = z.looseObject({
-  id: z.string(),
-  sections: z
-    .array(
-      z.looseObject({
-        id: z.string(),
-        title: userString,
-      }),
-    )
-    .optional(),
+  sections: z.array(portfolioTemplateSectionSchema).default([]),
 })
 
 export const portfolioSchema = z.looseObject({
@@ -932,6 +923,8 @@ export type ModelRef = z.infer<typeof modelRefSchema>
 export type Run = z.infer<typeof runSchema>
 export type Experiment = z.infer<typeof experimentSchema>
 export type RunsFile = z.infer<typeof runsFileSchema>
+export type PortfolioTemplateSection = z.infer<typeof portfolioTemplateSectionSchema>
+export type PortfolioTemplate = z.infer<typeof portfolioTemplateSchema>
 export type Portfolio = z.infer<typeof portfolioSchema>
 export type ProjectDocument = z.infer<typeof projectDocumentSchema>
 

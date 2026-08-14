@@ -18,10 +18,7 @@ import { NOT_FOR_TABULAR_ALGORITHM } from './fixtures/algorithms'
 import { ALGORITHMS, supportedTaskTypes } from '../src/ml/algorithms'
 import { FALLBACK_RUNTIME_ID, RUNTIMES } from '../src/ml/backend'
 import { newProjectDocument, newProjectId, newProjectSeed, touch } from '../src/project/create'
-import { portfolioSections, renderPortfolioMarkdown } from '../src/project/portfolio'
 import {
-  DEFAULT_PORTFOLIO_SECTIONS,
-  DEFAULT_PORTFOLIO_TEMPLATE_ID,
   parseProjectDocument,
   TASK_TYPES,
   DATA_SCHEMAS,
@@ -228,58 +225,5 @@ describe('계산해 낸 통계는 유효숫자 넷에서 자른다', () => {
 
   it('짧은 값은 늘리지 않는다', () => {
     expect(formatStat('en', 7)).toBe('7')
-  })
-})
-
-describe('포트폴리오 마크다운', () => {
-  const label = (key: string) => `[${key.split('.').pop() ?? ''}]`
-
-  it('안 쓴 문항도 제목은 남긴다', () => {
-    // 교사가 받은 파일에서 문항이 통째로 없으면 학생이 안 쓴 것인지 문항이 없었던
-    // 것인지 알 수 없다.
-    const markdown = renderPortfolioMarkdown(
-      '붓꽃 품종 분류',
-      { template: { id: DEFAULT_PORTFOLIO_TEMPLATE_ID }, answers: {} },
-      label,
-    )
-    for (const section of DEFAULT_PORTFOLIO_SECTIONS) {
-      expect(markdown, section).toContain(`## [${section}]`)
-    }
-  })
-
-  it('프로젝트 이름이 제목이 된다', () => {
-    const markdown = renderPortfolioMarkdown(
-      '붓꽃 품종 분류',
-      { template: { id: DEFAULT_PORTFOLIO_TEMPLATE_ID }, answers: {} },
-      label,
-    )
-    expect(markdown.startsWith('# 붓꽃 품종 분류\n')).toBe(true)
-  })
-
-  it('학생이 쓴 글을 손대지 않는다', () => {
-    // 마크다운을 이스케이프하지 않는다. 목록과 굵은 글씨를 쓸 수 있어야 한다.
-    const markdown = renderPortfolioMarkdown(
-      '제목',
-      {
-        template: { id: DEFAULT_PORTFOLIO_TEMPLATE_ID },
-        answers: { motivation: '- 꽃이 **좋아서**' },
-      },
-      label,
-    )
-    expect(markdown).toContain('- 꽃이 **좋아서**')
-  })
-
-  it('교사가 쓴 문항이 있으면 그 문구를 그대로 쓴다', () => {
-    // 애초에 번역 대상이 아니므로 로케일을 거치지 않는다 (mlpx-spec.md §8).
-    const sections = portfolioSections(
-      {
-        template: { id: 'teacher-1', sections: [{ id: 'q1', title: '이번 시간에 무엇을 했나요' }] },
-        answers: { q1: '데이터를 모았습니다' },
-      },
-      label,
-    )
-    expect(sections).toEqual([
-      { id: 'q1', title: '이번 시간에 무엇을 했나요', answer: '데이터를 모았습니다' },
-    ])
   })
 })

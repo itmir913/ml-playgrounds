@@ -484,15 +484,7 @@
     "IMAGE_CATEGORY_NAME_INVALID": "범주 이름으로 쓸 수 없는 폴더가 있습니다. 폴더 이름을 바꾼 뒤 다시 압축해 주세요. ({name})"
   },
   "portfolio": {
-    "template": {
-      "topic": "프로젝트 주제",
-      "motivation": "이 주제를 선택한 이유",
-      "data": "사용한 데이터 설명",
-      "preprocessing": "데이터를 어떻게 다듬었는가",
-      "model": "이 모델을 고른 이유",
-      "result": "결과 분석",
-      "reflection": "느낀 점"
-    }
+    "orphanTitle": "이전 문항의 답"
   },
   "project": {
     "export": "파일로 저장",
@@ -521,6 +513,7 @@
     "created": "만든 날짜",
     "updated": "수정한 날짜",
     "size": "용량",
+    "dataType": "데이터 종류",
     "taskType": "기계학습 유형",
     "algorithms": "담은 모델",
     "runs": "학습한 모델",

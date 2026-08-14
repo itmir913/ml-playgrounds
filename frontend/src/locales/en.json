@@ -484,15 +484,7 @@
     "IMAGE_CATEGORY_NAME_INVALID": "A folder here cannot be used as a category name. Rename the folder and compress it again. ({name})"
   },
   "portfolio": {
-    "template": {
-      "topic": "Project topic",
-      "motivation": "Why I chose this topic",
-      "data": "About the data I used",
-      "preprocessing": "How I prepared the data",
-      "model": "Why I chose this model",
-      "result": "What the results show",
-      "reflection": "What I learned"
-    }
+    "orphanTitle": "Answers to earlier questions"
   },
   "project": {
     "export": "Save to a file",
@@ -521,6 +513,7 @@
     "created": "Created",
     "updated": "Modified",
     "size": "Size",
+    "dataType": "Data type",
     "taskType": "Task type",
     "algorithms": "Added models",
     "runs": "Trained models",

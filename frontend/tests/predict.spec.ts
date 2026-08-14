@@ -520,7 +520,7 @@ describe('예측에 쓸 수 있는 모델', () => {
           },
         ],
       },
-      portfolio: { template: { id: 'default-v1' }, answers: {} },
+      portfolio: { template: { sections: [] }, answers: {} },
     }
   }
 

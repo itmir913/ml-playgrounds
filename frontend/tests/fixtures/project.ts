@@ -227,7 +227,7 @@ export function emptyProjectFile(): ProjectFile {
         selectedAlgorithms: [],
       },
       runs: { experiments: [] },
-      portfolio: { template: { id: 'default-v1' }, answers: {} },
+      portfolio: { template: { sections: [] }, answers: {} },
     },
     models: new Map(),
     images: new Map(),
@@ -241,7 +241,10 @@ export function projectFile(overrides: Partial<ProjectFile> = {}): ProjectFile {
       manifest: fresh(manifest),
       settings: fresh(settings),
       runs: { experiments: [experiment('experiment-1', [run('run-1')])] },
-      portfolio: { template: { id: 'default-v1' }, answers: { motivation: '꽃이 좋아서' } },
+      portfolio: {
+        template: { sections: [{ id: 'motivation', title: '이 주제를 선택한 이유' }] },
+        answers: { motivation: '꽃이 좋아서' },
+      },
     },
     dataset: fresh(dataset),
     models: new Map([
