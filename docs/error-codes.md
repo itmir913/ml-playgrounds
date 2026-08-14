@@ -176,7 +176,8 @@ PREDICT_DATASET_COLUMN_MISSING
 
 **사진 올리기** (`data/image/upload.ts`)
 ```
-IMAGE_ZIP_INVALID, IMAGE_ZIP_NO_IMAGES, IMAGE_CATEGORY_NAME_INVALID
+IMAGE_ZIP_INVALID, IMAGE_ZIP_NO_IMAGES, IMAGE_TOO_MANY_PHOTOS,
+IMAGE_CATEGORY_NAME_INVALID
 ```
 
 `IMAGE_ZIP_INVALID`가 `PROJECT_FILE_NOT_ZIP`과 나뉘는 이유는 **학생이 할 일이 다르기**
@@ -184,6 +185,10 @@ IMAGE_ZIP_INVALID, IMAGE_ZIP_NO_IMAGES, IMAGE_CATEGORY_NAME_INVALID
 맥·윈도가 넣는 부스러기만 남은 경우까지 포함한다("0장을 받았습니다"로 조용히 끝내면
 학생은 올린 줄 안다). `IMAGE_CATEGORY_NAME_INVALID`는 **이름을 다듬어 받지 않는다** —
 다듬으면 서로 다른 폴더 둘이 한 범주로 합쳐질 수 있고, 그건 라벨이 조용히 바뀌는 것이다.
+`IMAGE_TOO_MANY_PHOTOS`는 담을 수 있는 장수(`limits.ts`의 `MAX_IMAGE_COUNT`)를 넘긴
+것이고, **굽기 전에 판정한다**(`project/images.ts`의 `imageOverflow`) — 백본을 돌린 뒤에
+거절하면 학생은 기다린 시간을 통째로 버린다. **자리마다 따로 센다**: 훈련용과 예측용은
+표에서 훈련 파일과 테스트 파일이 각자 상한에 걸리는 것과 같다.
 
 **프로젝트 파일 열기**
 ```

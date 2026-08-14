@@ -480,6 +480,7 @@
     "PREDICT_DATASET_COLUMN_MISSING": "The file to predict is missing columns the visible models use. ({columns})",
     "IMAGE_ZIP_INVALID": "Could not open the zip file. Try compressing your photo folder again.",
     "IMAGE_ZIP_NO_IMAGES": "There are no photos in this zip file.",
+    "IMAGE_TOO_MANY_PHOTOS": "A project can hold up to {limit} photos. Remove some photos, or upload fewer at a time. (has {current}, adding {incoming})",
     "IMAGE_CATEGORY_NAME_INVALID": "A folder here cannot be used as a category name. Rename the folder and compress it again. ({name})"
   },
   "portfolio": {

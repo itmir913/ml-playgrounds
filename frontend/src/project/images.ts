@@ -25,7 +25,7 @@ import {
   IMAGE_UNLABELED,
   type ProjectFile,
 } from '@/project/format'
-import { IMAGE_JPEG_QUALITY } from '@/limits'
+import { IMAGE_JPEG_QUALITY, MAX_IMAGE_COUNT } from '@/limits'
 import { dataSettings, type Settings } from '@/project/schema'
 
 /** 프로젝트 안에 앉아 있는 정본 한 장. */
@@ -113,6 +113,39 @@ export function countByCategory(project: ProjectFile | null): ReadonlyMap<string
     counts.set(entry.category, (counts.get(entry.category) ?? 0) + 1)
   }
   return counts
+}
+
+/** 상한을 넘겼을 때 학생에게 말해야 하는 숫자들. 문장이 셋 다 쓴다. */
+export interface ImageOverflow {
+  /** 이 자리에 이미 있는 장수. */
+  readonly current: number
+  /** 이번에 넣으려는 장수. */
+  readonly incoming: number
+  readonly limit: number
+}
+
+/**
+ * 이만큼 더 담을 수 있는가. 담을 수 있으면 `null`이다.
+ *
+ * **막는 것은 학습이 아니라 업로드다** (open-decisions.md #13의 "이미지의 상한").
+ * 그래서 이 판정은 **굽기 전에** 불린다 — 5,000장을 넘긴 뒤에 알려 주면 백본이 이미
+ * 돌았고 학생은 몇 분을 버린 뒤 지우기부터 해야 한다.
+ *
+ * **자리마다 따로 센다** (`ImageRole`). 표에서 훈련 파일과 테스트 파일이 각자
+ * `MAX_DATASET_ROWS`에 걸리는 것과 같다 — 예측하러 올린 사진이 훈련용 자리를 깎으면,
+ * 학생은 안 건드린 데이터가 줄어든 것으로 읽는다.
+ *
+ * **중복은 못 뺀다.** 같은 사진인지는 정본 바이트의 해시라 굽고 나서야 안다. 상한은
+ * 굽기 전에 서는 것이고, 보수적으로 틀리는 쪽이 옳다.
+ */
+export function imageOverflow(
+  project: ProjectFile | null,
+  incoming: number,
+  role: ImageRole = 'data',
+  limit: number = MAX_IMAGE_COUNT,
+): ImageOverflow | null {
+  const current = readImages(project, role).length
+  return current + incoming > limit ? { current, incoming, limit } : null
 }
 
 /**

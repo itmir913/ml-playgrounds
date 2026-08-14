@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest'
 import {
   addCategory,
   addImages,
+  imageOverflow,
   countByCategory,
   hashesBetween,
   imageCategories,
@@ -19,6 +20,8 @@ import {
   removeImages,
   renameCategory,
 } from '../src/project/images'
+import type { ImageRole } from '../src/data/image/canonical'
+import { MAX_IMAGE_COUNT } from '../src/limits'
 import { newProjectDocument } from '../src/project/create'
 import { IMAGE_UNLABELED, type ProjectFile } from '../src/project/format'
 import { dataSettings, parseProjectDocument } from '../src/project/schema'
@@ -327,5 +330,54 @@ describe('사진 범위 고르기', () => {
       (entry) => entry !== undefined,
     )
     expect(hashesBetween(shuffled, 'c', 'd')).toEqual(['c', 'a', 'd'])
+  })
+})
+
+/**
+ * **막는 것은 학습이 아니라 업로드다** (open-decisions.md #13의 "이미지의 상한").
+ * 여기서 안 막으면 5,000장을 굽고 임베딩까지 뽑은 뒤에야 카드가 잠긴다.
+ */
+describe('담을 수 있는 장수', () => {
+  /** 상한만큼 이미 들어 있는 프로젝트. **값을 여기 적지 않는다** — limits.ts가 출처다. */
+  function full(role: ImageRole = 'data'): ProjectFile {
+    return addImages(
+      emptyProject(),
+      Array.from({ length: MAX_IMAGE_COUNT }, (_, index) => baked(`h${index}`, '개')),
+      { canonicalSize: SIZE, now: NOW, role },
+    ).project
+  }
+
+  it('상한까지는 받는다', () => {
+    expect(imageOverflow(emptyProject(), MAX_IMAGE_COUNT)).toBeNull()
+  })
+
+  it('한 장이라도 넘기면 거절하고, 학생에게 말할 숫자를 들려준다', () => {
+    expect(imageOverflow(emptyProject(), MAX_IMAGE_COUNT + 1)).toEqual({
+      current: 0,
+      incoming: MAX_IMAGE_COUNT + 1,
+      limit: MAX_IMAGE_COUNT,
+    })
+  })
+
+  it('이미 담은 것과 함께 센다 - 한 장씩 나눠 올려도 넘길 수 없다', () => {
+    expect(imageOverflow(full(), 1)).toEqual({
+      current: MAX_IMAGE_COUNT,
+      incoming: 1,
+      limit: MAX_IMAGE_COUNT,
+    })
+  })
+
+  /**
+   * **자리마다 따로 센다.** 표에서 훈련 파일과 테스트 파일이 각자 상한에 걸리는 것과
+   * 같다 — 예측하러 올린 사진이 훈련용 자리를 깎으면, 학생은 안 건드린 데이터가 줄어든
+   * 것으로 읽는다.
+   */
+  it('훈련용이 가득 차도 예측용은 받는다', () => {
+    expect(imageOverflow(full(), 1, 'predict')).toBeNull()
+    expect(imageOverflow(full('predict'), 1, 'predict')).not.toBeNull()
+  })
+
+  it('프로젝트가 없으면 빈 것으로 센다', () => {
+    expect(imageOverflow(null, 1)).toBeNull()
   })
 })

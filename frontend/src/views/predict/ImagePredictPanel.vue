@@ -24,7 +24,7 @@ import StepActionBar from '@/components/StepActionBar.vue'
 import { canonicalizeImages } from '@/data/image/client'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
 import { IMAGE_ACCEPT, readImageFiles, readImageZip } from '@/data/image/upload'
-import { isClientError } from '@/errors'
+import { ClientError, isClientError } from '@/errors'
 import { backboneFor } from '@/ml/backbones'
 import { embedImages } from '@/ml/embed/client'
 import { spawnEmbedWorker } from '@/ml/embed/spawn'
@@ -47,7 +47,7 @@ import { parsePreprocessor, transform, type Preprocessor } from '@/ml/preprocess
 import { addEmbeddings, readEmbeddings } from '@/project/embeddings'
 import { IMAGE_PREDICT_PAGE_SIZE } from '@/limits'
 import { IMAGE_UNLABELED } from '@/project/format'
-import { addImages, readImages, removeImages } from '@/project/images'
+import { addImages, imageOverflow, readImages, removeImages } from '@/project/images'
 import { dataSettings } from '@/project/schema'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
@@ -249,6 +249,11 @@ async function readPicked(files: readonly File[]): Promise<void> {
       files.length === 1 && only && only.name.toLowerCase().endsWith('.zip')
         ? await readImageZip(new Uint8Array(await only.arrayBuffer()))
         : readImageFiles(files)
+
+    // **굽기 전에 막는다** (project/images.ts의 imageOverflow). 백본을 돌린 뒤에
+    // 거절하면 학생은 기다린 시간을 통째로 버린다.
+    const overflow = imageOverflow(file, items.length, 'predict')
+    if (overflow) throw new ClientError('IMAGE_TOO_MANY_PHOTOS', { ...overflow })
 
     progress.value = { completed: 0, total: items.length }
     const baked = await canonicalizeImages(

@@ -42,6 +42,7 @@ import {
   countByCategory,
   hashesBetween,
   imageCategories,
+  imageOverflow,
   moveImages,
   readImages,
   removeCategory,
@@ -166,6 +167,10 @@ async function readPicked(files: readonly File[], into: string): Promise<void> {
       files.length === 1 && only && only.name.toLowerCase().endsWith('.zip')
         ? await readImageZip(new Uint8Array(await only.arrayBuffer()), into)
         : readImageFiles(files, into)
+    // **굽기 전에 막는다** (project/images.ts의 imageOverflow). 여기서 걸러야 백본이
+    // 안 돌고, 학생은 확인 판을 지나 기다린 뒤에 지우기부터 하는 일을 안 겪는다.
+    const overflow = imageOverflow(project.file, items.length)
+    if (overflow) throw new ClientError('IMAGE_TOO_MANY_PHOTOS', { ...overflow })
     pending.value = items
   } catch (error) {
     toasts.pushError(error)

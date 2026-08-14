@@ -42,6 +42,10 @@ export const CLIENT_ERROR_CODES = [
   // 꾸러미 안에 사진이 될 만한 파일이 하나도 없다. 맥/윈도가 넣는 부스러기만 남은
   // 경우도 여기다 - "0장을 받았습니다"로 조용히 끝내면 학생은 올린 줄 안다.
   'IMAGE_ZIP_NO_IMAGES',
+  // 담을 수 있는 장수를 넘겼다 (limits.ts의 MAX_IMAGE_COUNT, project/images.ts).
+  // **굽기 전에 판정한다** - 넘긴 채로 받아 두면 백본이 이미 돌았고 학생은 몇 분을
+  // 버린 뒤에야 지우기부터 하게 된다. 표의 데이터셋 상한과 같은 자리다.
+  'IMAGE_TOO_MANY_PHOTOS',
   // 폴더 이름을 범주로 쓸 수 없다 (data/image/canonical.ts의 isValidCategoryName).
   // **고쳐서 받지 않는다** - 이름을 다듬으면 서로 다른 폴더 둘이 한 범주로 합쳐질 수
   // 있고, 그건 라벨이 조용히 바뀌는 것이다.
