@@ -41,6 +41,7 @@ import { exportStateOf } from '@/project/export-state'
 import { useFormat } from '@/composables/useFormat'
 import { ACTION_ICONS } from '@/icons'
 import { setLocale, SUPPORTED_LOCALES, type Locale } from '@/i18n'
+import { totalBytes } from '@/project/storage'
 import { useProjectStore } from '@/stores/project'
 import { otherTheme, setTheme, theme } from '@/theme'
 
@@ -48,13 +49,15 @@ const { t, locale } = useI18n()
 const format = useFormat()
 const project = useProjectStore()
 
-const sizeBytes = computed(() => {
-  const file = project.file
-  if (!file) return 0
-  let total = file.dataset?.bytes.length ?? 0
-  for (const bytes of file.models.values()) total += bytes.length
-  return total
-})
+/**
+ * 이 프로젝트가 차지하는 자리. **저장이 세는 것과 같은 함수다** (`project/storage.ts`의
+ * `totalBytes`).
+ *
+ * 여기서 따로 세고 있었고 **사진과 임베딩이 빠져 있었다** — 사진 2,000장짜리 프로젝트가
+ * 요약에서는 18.9MB인데 이 줄에서는 829.5kB였다(2026-08-14 실측). 프로젝트 요약이
+ * 같은 이유로 같은 자리에서 이미 한 번 고쳐졌는데, 이 줄만 옛 계산을 들고 있었다.
+ */
+const sizeBytes = computed(() => (project.file === null ? 0 : totalBytes(project.file)))
 
 /**
  * 내보내기 상태. 셋으로 갈린다 — 안 내보냄 / 내보낸 뒤 고침 / 그대로.
