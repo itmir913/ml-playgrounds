@@ -647,7 +647,8 @@ async function run(): Promise<void> {
         **필터 바로 아래인 이유는 이 문장이 "지금 보이는 모델들"에 대한 주석이기
         때문이다.** 군집 모델을 걸러 낸 학생에게는 할 말이 없다.
       -->
-      <p v-if="showsClusterNames(visible)" class="font-bold text-caution">
+      <!-- 값 입력 줄은 언제나 있다. 이 화면에는 "답이 설 자리가 없는" 상태가 없다. -->
+      <p v-if="showsClusterNames(visible, true)" class="font-bold text-caution">
         {{ t('predict.clusterAnswerNote') }}
       </p>
 

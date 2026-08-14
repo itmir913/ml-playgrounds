@@ -577,9 +577,11 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       **화면의 모든 비교가 틀린 비교가 된다** — 조용한 오독이라 스스로 못 알아챈다.
 
       **필터 바로 아래인 이유는 이 문장이 "지금 보이는 모델들"에 대한 주석이기
-      때문이다.** 군집 모델을 걸러 낸 학생에게는 할 말이 없다.
+      때문이다.** 군집 모델을 걸러 낸 학생에게는 할 말이 없고, **사진이 하나도 없으면
+      답이 설 자리가 없어서** 역시 할 말이 없다 — 빈 화면 아래에 주의색 한 줄만 남으면
+      학생은 자기가 뭘 잘못한 줄 안다.
     -->
-    <p v-if="showsClusterNames(visible)" class="font-bold text-caution">
+    <p v-if="showsClusterNames(visible, photos.length > 0)" class="font-bold text-caution">
       {{ t('predict.clusterAnswerNote') }}
     </p>
 

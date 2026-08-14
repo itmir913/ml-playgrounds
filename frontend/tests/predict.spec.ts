@@ -1277,9 +1277,23 @@ describe('군집의 답은 번호가 아니라 이름으로 쓴다', () => {
       run: runOf('r2'),
     }
 
-    expect(showsClusterNames([classification, clustering])).toBe(true)
+    expect(showsClusterNames([classification, clustering], true)).toBe(true)
     // 군집 모델을 걸러 낸 학생에게는 할 말이 없다.
-    expect(showsClusterNames([classification])).toBe(false)
-    expect(showsClusterNames([])).toBe(false)
+    expect(showsClusterNames([classification], true)).toBe(false)
+    expect(showsClusterNames([], true)).toBe(false)
+  })
+
+  /**
+   * **답이 설 자리가 없으면 말하지 않는다.** 사진을 하나도 안 올린 이미지 예측 화면이
+   * 그렇다 — 빈 상태 아래에 주의색 한 줄만 떠 있으면 학생은 자기가 뭘 잘못한 줄 안다
+   * (2026-08-14, 사용자가 화면에서 봤다).
+   */
+  it('읽을 답이 설 자리가 없으면 말하지 않는다', () => {
+    const clustering: PredictableModel = {
+      experiment: experiment([0], onehot, { taskType: 'clustering', target: undefined }),
+      run: runOf('r1', 'kmeans'),
+    }
+
+    expect(showsClusterNames([clustering], false)).toBe(false)
   })
 })

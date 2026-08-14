@@ -570,9 +570,18 @@ export function answersInClusters(model: PredictableModel): boolean {
  *
  * **필터를 지난 목록을 그대로 받는다** — 군집 모델을 걸러 낸 학생에게는 이 문장이
  * 할 말이 없다.
+ *
+ * **그래도 답이 설 자리는 있어야 한다** (`hasAnswerArea`, 2026-08-14 사용자). 사진을
+ * 하나도 안 올린 예측 화면은 통째로 빈 상태인데, 그 아래에 주의색 한 줄만 떠 있으면
+ * 학생은 **자기가 뭘 잘못한 줄 안다** — 실제로 그렇게 보였다. 이 칸이 필수인 이유는
+ * 화면마다 답이 없는 모양이 다르기 때문이다: 표는 값 입력 줄이 언제나 있어서 참이고,
+ * 이미지는 사진이 있어야 참이다.
  */
-export function showsClusterNames(models: readonly PredictableModel[]): boolean {
-  return models.some((model) => answersInClusters(model))
+export function showsClusterNames(
+  models: readonly PredictableModel[],
+  hasAnswerArea: boolean,
+): boolean {
+  return hasAnswerArea && models.some((model) => answersInClusters(model))
 }
 
 /** 값 하나와 그 값을 낸 모델 수. */
