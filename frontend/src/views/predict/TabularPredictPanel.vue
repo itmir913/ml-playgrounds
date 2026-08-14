@@ -476,7 +476,7 @@ async function run(): Promise<void> {
       남의 파일을 열면 여기 도달할 수 있다.
     -->
     <div v-if="models.length === 0" class="grid min-h-0 flex-1 place-items-center">
-      <AppEmpty :reason="t('predict.emptyReason')" :next="t('predict.emptyNext')" />
+      <AppEmpty :reason="t('predict.tabular.emptyReason')" :next="t('predict.tabular.emptyNext')" />
     </div>
 
     <template v-else>

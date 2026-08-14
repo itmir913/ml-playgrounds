@@ -663,8 +663,6 @@
     "where": "Trained on"
   },
   "predict": {
-    "emptyReason": "This file has no model you can predict with.",
-    "emptyNext": "Train a model in the training step, and you can enter new values here.",
     "run": "Predict",
     "answerTitle": "What the models say",
     "clusterAnswerNote": "Cluster numbers are name tags each model assigns on its own. The same number from a different model is a different group.",
@@ -721,7 +719,9 @@
       "rowNumber": "Row",
       "showFeatures": "Show feature values",
       "tableTitle": "Prediction results",
-      "waiting": "Enter the values and press [Predict] to see the answers here."
+      "waiting": "Enter the values and press [Predict] to see the answers here.",
+      "emptyReason": "This file has no model you can predict with.",
+      "emptyNext": "Train a model in the training step, and you can enter new values here."
     }
   }
 }
