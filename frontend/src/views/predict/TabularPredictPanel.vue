@@ -502,7 +502,10 @@ async function run(): Promise<void> {
         </AppButton>
 
         <template #end>
-          <AppButton :disabled="cannotRun" :action="run">{{ t('predict.run') }}</AppButton>
+          <AppButton :disabled="cannotRun" :action="run">
+            {{ t('predict.run') }}
+            <template #pending>{{ t('predict.running') }}</template>
+          </AppButton>
         </template>
       </StepActionBar>
 

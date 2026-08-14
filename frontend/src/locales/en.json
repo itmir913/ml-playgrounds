@@ -670,6 +670,7 @@
   },
   "predict": {
     "run": "Predict",
+    "running": "Working…",
     "answerTitle": "What the models say",
     "clusterAnswerNote": "Cluster numbers are name tags each model assigns on its own. The same number from a different model is a different group.",
     "probability": "Probability by class",

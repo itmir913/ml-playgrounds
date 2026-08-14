@@ -542,7 +542,10 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       </AppButton>
 
       <template #end>
-        <AppButton :disabled="!canPredict" :action="run">{{ t('predict.run') }}</AppButton>
+        <AppButton :disabled="!canPredict" :action="run">
+          {{ t('predict.run') }}
+          <template #pending>{{ t('predict.running') }}</template>
+        </AppButton>
       </template>
     </StepActionBar>
 

@@ -13,6 +13,10 @@
  * 같은 프로젝트를 두 번 만드는 것은 **학생이 느리다고 생각해서 한 번 더 누르는 순간
  * 실제로 일어난다.** `@click`으로는 그 보장을 할 수 없다 — 리스너의 반환값을 Vue가
  * 기다려 주지 않는다.
+ *
+ * **꺼진 것만으로는 도는 중인지 모른다** (2026-08-14, 사용자). 회색 버튼은 "지금 하는
+ * 중"과 "아직 못 누름"이 같은 모양이라, 오래 걸리는 자리에는 `pending` 슬롯으로 도는
+ * 동안의 글자를 준다. 안 주면 원래 글자가 그대로 있는다.
  */
 
 import { computed, ref } from 'vue'
@@ -111,6 +115,11 @@ const SIZES: Readonly<Record<Size, string>> = {
     :class="[VARIANTS[variant], SIZES[size]]"
     @click="run"
   >
-    <slot />
+    <!--
+      **도는 동안 글자가 바뀐다.** `pending`을 안 준 버튼은 원래 글자를 그대로 쓴다 —
+      짧게 끝나는 자리까지 글자가 깜빡이면 그게 더 시끄럽다.
+    -->
+    <slot v-if="running" name="pending"><slot /></slot>
+    <slot v-else />
   </button>
 </template>
