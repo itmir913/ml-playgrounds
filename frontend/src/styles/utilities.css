@@ -122,9 +122,13 @@
 /**
  * 화면 아래에 뜨는 것(`fixed`)이 하단 바를 안 덮게 한다. 여백은 그 요소가 이미 가진
  * 안쪽 여백이 갖는다 — 알림 더미가 그렇다.
+ *
+ * **`--shell-bottom`이 아니라 `--overlay-bottom`이다** (`base.css`). 넓은 화면에서
+ * `--shell-bottom`은 0인데, 그건 작업 공간이 안 가려진다는 뜻이지 화면이 안 가려진다는
+ * 뜻이 아니다 — 상태 표시줄은 그 폭에서도 화면 맨 아래에 있다.
  */
 @utility above-shell {
-  bottom: var(--shell-bottom);
+  bottom: var(--overlay-bottom);
 }
 
 /** 셸 안쪽에서 멈추는 스크롤 도착 지점. 붙박이 바가 없는 화면(결과)이 쓴다. */

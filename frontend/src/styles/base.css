@@ -44,7 +44,12 @@
    * (`styles/utilities.css`의 `stick-below-shell` 계열이 이걸 쓴다).
    *
    * **`md` 이상에서는 0이다.** 거기서는 작업 공간이 스크롤 대상이라 도구 막대도
-   * 상태 표시줄도 그 바깥에 있어서 아무것도 안 가린다.
+   * 상태 표시줄도 그 바깥에 있어서 **작업 공간을** 안 가린다.
+   *
+   * **`--overlay-bottom`은 다르다.** 화면 위에 뜨는 것(`fixed`, 알림 더미가 그렇다)은
+   * 작업 공간이 아니라 **화면**을 기준으로 서므로, `md` 이상에서도 상태 표시줄이 화면
+   * 맨 아래에 있다 — 0으로 두면 알림이 그 줄을 덮는다(2026-08-14, 넓은 화면에서 실제로
+   * 그랬다). 그 아래에서는 가리는 것이 `--shell-bottom`과 같다.
    *
    * 레일 높이만 재서 받는다(`--rail-bar-height`, `StepRail`이 내놓는다) — 도구 막대와
    * 상태 표시줄은 높이가 토큰으로 고정인데 레일은 아이콘 줄이라 그렇지 않다.
@@ -52,6 +57,7 @@
   :root {
     --shell-top: 0px;
     --shell-bottom: 0px;
+    --overlay-bottom: var(--spacing-statusbar);
   }
 
   @media (width < theme(--breakpoint-md)) {
@@ -60,6 +66,7 @@
       --shell-bottom: calc(
         var(--rail-bar-height, 2.8125rem) + var(--spacing-statusbar) + env(safe-area-inset-bottom)
       );
+      --overlay-bottom: var(--shell-bottom);
     }
   }
 
