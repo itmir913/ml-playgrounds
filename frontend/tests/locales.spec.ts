@@ -816,7 +816,10 @@ describe('두 언어가 나란히 말한다', () => {
     // `없음`(값이 없다)이 다른 말이다.
     ['categoricalEncoding.none', 'meta.none', 'scalingMethod.none'],
     // 체크리스트 항목만 `~하기`다. 영어는 항목도 버튼도 명령형이라 같아진다.
-    ['data.image.add', 'portfolio.addPhoto', 'predict.image.add', 'tasks.image.datasetReady'],
+    ['data.image.add', 'predict.image.add', 'tasks.image.datasetReady'],
+    // 데이터 화면에서 지우는 것은 **고른 여러 장**이고 포트폴리오에서는 **그 한 장**이다.
+    // 한국어는 수를 표시하지 않아 한 낱말로 모인다.
+    ['data.image.deletePhotos', 'portfolio.removePhoto'],
     // 병기는 그 화면에서 처음 마주치는 자리에만 붙는다(docs/copy.md §2). 영어에는
     // 병기가 없으므로 짝이 하나로 모인다.
     ['meta.tabular.target', 'preprocess.tabular.roleTarget'],
