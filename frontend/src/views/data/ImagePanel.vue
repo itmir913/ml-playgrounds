@@ -482,27 +482,26 @@ async function commitRemoveCategory(): Promise<void> {
         군집만 하려는 학생에게는 범주가 아예 필요 없다.
       -->
       <AppEmpty :reason="t('data.image.emptyReason')" :next="t('data.image.emptyNext')">
-        <div class="flex flex-wrap justify-center gap-2">
-          <AppButton size="lg" @click="naming = { mode: 'create', from: '', value: '' }">
-            {{ t('data.image.newCategory') }}
-          </AppButton>
-          <AppButton
-            size="lg"
-            variant="secondary"
-            :disabled="busy"
-            @click="pickInto(IMAGE_UNLABELED, fileInput)"
-          >
-            {{ t('data.image.add') }}
-          </AppButton>
-          <AppButton
-            size="lg"
-            variant="secondary"
-            :disabled="busy"
-            @click="pickInto(IMAGE_UNLABELED, folderInput)"
-          >
-            {{ t('data.image.addFolder') }}
-          </AppButton>
-        </div>
+        <!-- 나란히 세우는 것도 너비를 맞추는 것도 `AppEmpty`가 한다. -->
+        <AppButton size="lg" @click="naming = { mode: 'create', from: '', value: '' }">
+          {{ t('data.image.newCategory') }}
+        </AppButton>
+        <AppButton
+          size="lg"
+          variant="secondary"
+          :disabled="busy"
+          @click="pickInto(IMAGE_UNLABELED, fileInput)"
+        >
+          {{ t('data.image.add') }}
+        </AppButton>
+        <AppButton
+          size="lg"
+          variant="secondary"
+          :disabled="busy"
+          @click="pickInto(IMAGE_UNLABELED, folderInput)"
+        >
+          {{ t('data.image.addFolder') }}
+        </AppButton>
       </AppEmpty>
     </div>
 

@@ -19,7 +19,16 @@ defineProps<{
   <div class="flex flex-col items-center gap-3 px-6 py-14 text-center">
     <p class="font-bold text-ink-soft">{{ reason }}</p>
     <p class="max-w-md text-base leading-relaxed text-ink-faint">{{ next }}</p>
-    <div v-if="$slots.default" class="mt-2">
+    <!--
+      **누를 것들의 너비를 가장 긴 것에 맞춘다** (2026-08-14, 사용자). 폭이 제각각이면
+      비어 있는 화면에서 셋이 계단처럼 보이고, 무엇이 보통의 길인지가 색이 아니라
+      길이로 읽힌다.
+
+      `w-fit` 안의 `fr` 트랙은 **가장 넓은 것의 너비로 모두 같아진다** — 고정 너비를
+      주는 것이 아니라서 영어에서 문장이 길어져도 그대로 맞는다 (docs/i18n.md 규칙 7).
+      좁은 화면에서는 한 줄에 하나씩 쌓이고, 그때도 너비는 같다.
+    -->
+    <div v-if="$slots.default" class="mt-2 grid w-fit gap-2 sm:grid-flow-col sm:auto-cols-fr">
       <slot />
     </div>
   </div>
