@@ -51,6 +51,7 @@ import {
 } from '@/ml/predict'
 import { parsePreprocessor, type Preprocessor } from '@/ml/preprocess'
 import { readDataset, readTestDataset } from '@/project/dataset'
+import { yieldToScreen } from '@/screen'
 import type { Experiment } from '@/project/schema'
 import { useProjectStore } from '@/stores/project'
 import AnswerList from './AnswerList.vue'
@@ -388,11 +389,6 @@ const hasPredictFile = computed(() => batch.value?.hasFile === true)
 /** 고르는 중인 파일. **그동안 바가 드는 것은 [파일 선택]이 아니라 [이 데이터 사용]이다.** */
 const picking = computed(() => batch.value?.opened ?? null)
 
-/** 화면에 한 프레임 양보한다. `setTimeout(0)`이 `requestAnimationFrame`보다 테스트 환경을 덜 가린다. */
-function yieldToScreen(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
-}
-
 /**
  * 지금 보이는(필터를 지난) 쓸 수 있는 모델에 같은 값을 넣는다.
  *
@@ -412,13 +408,17 @@ function yieldToScreen(): Promise<void> {
  */
 async function run(): Promise<void> {
   const file = project.file
-  if (!file) return
+  if (!file || predicting.value) return
 
   predicting.value = true
   void nextTick(() => {
     answerListEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   })
   try {
+    // **첫 모델을 돌리기 전에 한 번 양보한다** (`screen.ts`). 여기서 안 비켜 주면 첫
+    // 모델이 도는 동안 단추가 꺼진 적이 없는 상태라, 그 사이의 클릭이 그대로 들어온다.
+    await yieldToScreen()
+
     const next = new Map(answers.value)
     const contexts = new Map<string, LoadContext>()
 

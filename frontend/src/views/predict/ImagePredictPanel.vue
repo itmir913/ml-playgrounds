@@ -49,6 +49,7 @@ import { IMAGE_PREDICT_PAGE_SIZE } from '@/limits'
 import { IMAGE_UNLABELED } from '@/project/format'
 import { addImages, imageOverflow, readImages, removeImages } from '@/project/images'
 import { dataSettings } from '@/project/schema'
+import { yieldToScreen } from '@/screen'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import AnswerList from './AnswerList.vue'
@@ -321,6 +322,11 @@ async function run(): Promise<void> {
 
   predicting.value = true
   try {
+    // **무엇을 하기 전에 한 번 양보한다** (`screen.ts`). 임베딩이 이미 있으면 아래가
+    // 통째로 동기라, 여기서 안 비켜 주면 **단추가 한 번도 꺼진 적 없는 채로** 계산이
+    // 끝나고 그동안 쌓인 클릭이 전부 다시 돈다 — 연타하면 화면이 먹통이 된다.
+    await yieldToScreen()
+
     let current = file
     const known = readEmbeddings(current, spec.id, spec.embeddingDim)
     // **이 쪽의 사진만이다.** 200장을 한 번에 뽑으면 학생이 보지도 않을 사진 때문에
@@ -413,8 +419,11 @@ async function run(): Promise<void> {
         }
       }
       next.set(photo.hash, perRun)
+      // 사진 하나가 끝날 때마다 보여주고 비켜 준다 — 표 화면과 같은 규칙이다.
+      // 답 하나가 `사진 수 × 모델 수`라, 안 비켜 주면 그 곱만큼 화면이 멎는다.
+      answers.value = new Map(next)
+      await yieldToScreen()
     }
-    answers.value = next
     predicted.value = true
   } catch (error) {
     toasts.pushError(error)

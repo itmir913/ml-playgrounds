@@ -554,6 +554,37 @@ describe('검사기가 실제로 잡는다', () => {
 })
 
 /**
+ * **오래 도는 예측은 화면에 양보한다** (`screen.ts`의 `yieldToScreen`).
+ *
+ * 예측은 메인 스레드에서 돈다. 한 작업 안에서 동기로 끝나면 `AppButton`의 이중 실행
+ * 방지가 통째로 무력해진다 — 꺼짐이 화면에 서기 전에 풀려서, **연타한 만큼 계산이 다시
+ * 돌고 브라우저가 먹통이 된다**(2026-08-14, 이미지 예측 화면에서 실제로 그랬다).
+ *
+ * **눈으로는 "느리다"로만 보이는 결함이라** 검사가 본다. 예측 판이 하나 더 생기는 날
+ * (음성·텍스트) 같은 실수를 그대로 반복할 자리다.
+ */
+describe('예측 판은 화면에 양보한다', () => {
+  const PANELS = ['ImagePredictPanel.vue', 'TabularPredictPanel.vue']
+
+  /** 훑을 파일이 실제로 있어야 한다. 이름이 바뀌면 조용히 초록이 되는 것을 막는다. */
+  it('검사할 판을 실제로 찾는다', () => {
+    for (const name of PANELS) {
+      const path = join(SRC, 'views', 'predict', name)
+      expect(existsSync(path), path).toBe(true)
+    }
+  })
+
+  for (const name of PANELS) {
+    it(`${name}의 예측이 양보한다`, () => {
+      const source = readFileSync(join(SRC, 'views', 'predict', name), 'utf-8')
+      // 부르는 자리가 둘이어야 한다 — 시작하기 전에 한 번, 단위마다 한 번.
+      const calls = [...source.matchAll(/await yieldToScreen\(\)/g)]
+      expect(calls.length, `${name}: yieldToScreen을 부르는 자리`).toBeGreaterThanOrEqual(2)
+    })
+  }
+})
+
+/**
  * **모든 버튼 변종이 테두리를 갖는다. 보이든 안 보이든.**
  *
  * 테두리가 있는 변종만 2px 높아서 나란히 세우면 줄이 어긋난다. 실제로 첫 화면의 버튼
