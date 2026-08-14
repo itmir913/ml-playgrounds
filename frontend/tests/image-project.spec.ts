@@ -11,6 +11,7 @@ import {
   addCategory,
   addImages,
   countByCategory,
+  hashesBetween,
   imageCategories,
   moveImages,
   readImages,
@@ -276,5 +277,55 @@ describe('범주를 옮기고 고친다', () => {
       ]),
     }
     expect(imageCategories(smuggled)).toEqual(['개', '토끼'])
+  })
+})
+
+/**
+ * shift+클릭이 세는 범위 (`hashesBetween`).
+ *
+ * **화면 밖에 있어야 하는 계산이다.** 격자 안에 두면 이 규칙들을 아무도 못 보고,
+ * 틀려도 "고른 수가 좀 다르네"로만 보인다 — 그 상태로 [사진 지우기]를 누른다.
+ */
+describe('사진 범위 고르기', () => {
+  const entries = ['a', 'b', 'c', 'd'].map((hash) => ({
+    hash,
+    category: '개',
+    path: `dataset/train/개/${hash}.jpg`,
+    bytes: new Uint8Array([1]),
+  }))
+
+  it('양끝을 포함한다', () => {
+    expect(hashesBetween(entries, 'b', 'c')).toEqual(['b', 'c'])
+  })
+
+  it('거꾸로 눌러도 같다 - 학생은 아래에서 위로도 고른다', () => {
+    expect(hashesBetween(entries, 'd', 'b')).toEqual(['b', 'c', 'd'])
+  })
+
+  it('같은 것을 두 번 가리키면 그 한 장이다', () => {
+    expect(hashesBetween(entries, 'c', 'c')).toEqual(['c'])
+  })
+
+  /** 쪽은 보는 단위이지 고르는 단위가 아니다 - 넘겨받은 목록에 다 들어 있다. */
+  it('목록 전체를 훑는다 - 쪽을 넘는다', () => {
+    expect(hashesBetween(entries, 'a', 'd')).toHaveLength(4)
+  })
+
+  /**
+   * 기준점이 그새 지워졌거나 다른 범주로 옮겨진 자리다. **빈 배열이어야 부르는 쪽이
+   * 보통 클릭으로 떨어진다** — 여기서 하나라도 돌려주면 학생이 안 고른 사진이 골라진다.
+   */
+  it('한쪽이 목록에 없으면 아무것도 안 고른다', () => {
+    expect(hashesBetween(entries, '없는것', 'c')).toEqual([])
+    expect(hashesBetween(entries, 'b', '없는것')).toEqual([])
+    expect(hashesBetween([], 'b', 'c')).toEqual([])
+  })
+
+  /** 순서는 넘겨받은 목록이 정한다. 여기서 다시 정렬하면 화면과 다른 범위가 나온다. */
+  it('목록의 순서를 그대로 따른다', () => {
+    const shuffled = [entries[2], entries[0], entries[3], entries[1]].filter(
+      (entry) => entry !== undefined,
+    )
+    expect(hashesBetween(shuffled, 'c', 'd')).toEqual(['c', 'a', 'd'])
   })
 })

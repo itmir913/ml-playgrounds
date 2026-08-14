@@ -78,6 +78,32 @@ export function imageCategories(project: ProjectFile | null): readonly string[] 
   return [...listed, ...new Set(extra)]
 }
 
+/**
+ * 두 사진 **사이의 것 전부** (양끝 포함). 화면에서 shift+클릭이 부른다
+ * (open-decisions.md "Shift+클릭으로 범위를 고른다").
+ *
+ * **순서는 넘겨받은 목록이 정한다** — 그 목록이 곧 격자에 선 순서라, 여기서 다시
+ * 정렬하면 학생이 보는 것과 다른 범위가 나온다. 쪽 나눔은 보는 단위일 뿐이므로
+ * 넘어온 목록에 그대로 들어 있다.
+ *
+ * **둘 중 하나라도 목록에 없으면 빈 배열이다.** 사진이 지워지거나 다른 범주로 옮겨진
+ * 뒤에 옛 기준점으로 범위를 세면 **조용히 엉뚱한 묶음**이 나온다 — 그 자리는 부르는
+ * 쪽에서 기준점을 새로 잡는다.
+ *
+ * 어느 쪽을 먼저 눌렀는지는 상관없다. 학생은 위에서 아래로도, 아래에서 위로도 고른다.
+ */
+export function hashesBetween(
+  entries: readonly ImageEntry[],
+  from: string,
+  to: string,
+): readonly string[] {
+  const start = entries.findIndex((entry) => entry.hash === from)
+  const end = entries.findIndex((entry) => entry.hash === to)
+  if (start < 0 || end < 0) return []
+  const [first, last] = start <= end ? [start, end] : [end, start]
+  return entries.slice(first, last + 1).map((entry) => entry.hash)
+}
+
 /** 범주마다 몇 장인가. 라벨 없는 것도 센다 — 화면이 그 칸을 따로 그린다. */
 export function countByCategory(project: ProjectFile | null): ReadonlyMap<string, number> {
   const counts = new Map<string, number>()

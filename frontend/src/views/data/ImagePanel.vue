@@ -40,6 +40,7 @@ import {
   addCategory,
   addImages,
   countByCategory,
+  hashesBetween,
   imageCategories,
   moveImages,
   readImages,
@@ -86,6 +87,15 @@ const running = ref<CanonicalizeHandle | null>(null)
 /** 골라 둔 사진들. 옮기기·지우기의 대상이다. */
 const selected = ref(new Set<string>())
 
+/**
+ * shift+클릭이 어디서부터 셀지. **선택 집합과 같은 자리에 둔다** — 사진이 지워지거나
+ * 다른 범주로 옮겨지면 함께 정리해야 하고(아래 `watch`), 그 정리가 두 군데로 갈리면
+ * 없어진 사진을 기준으로 **조용히 엉뚱한 범위**가 나온다.
+ *
+ * 범주를 함께 든다. 범위는 같은 카드 안에서만이다 (open-decisions.md).
+ */
+const anchor = ref<{ category: string; hash: string } | null>(null)
+
 const naming = ref<{ mode: 'create' | 'rename'; from: string; value: string } | null>(null)
 const removingCategory = ref<string | null>(null)
 const deleting = ref(false)
@@ -127,6 +137,7 @@ watch(
     urls.value = next
     // 없어진 사진이 고른 채로 남으면 "3장 옮기기"가 거짓말이 된다.
     selected.value = new Set([...selected.value].filter((hash) => alive.has(hash)))
+    if (anchor.value && !alive.has(anchor.value.hash)) anchor.value = null
   },
   { immediate: true },
 )
@@ -259,10 +270,29 @@ async function save(next: ReturnType<typeof moveImages>): Promise<void> {
   }
 }
 
-function toggle(hash: string): void {
+/**
+ * 한 장을 고르거나 풀고, shift를 함께 눌렀으면 **기준점부터 여기까지 전부 고른다.**
+ *
+ * **더하기만 한다** (open-decisions.md) — 갈아치우면 앞서 고른 것이 말없이 사라지는데
+ * 되돌릴 단추가 없다. 기준점이 다른 카드에 있거나 없으면 보통 클릭으로 친다.
+ */
+function toggle(category: string, hash: string, extend: boolean): void {
+  const from = anchor.value
   const next = new Set(selected.value)
+
+  if (extend && from && from.category === category) {
+    const range = hashesBetween(entriesOf(category), from.hash, hash)
+    // 범위가 비면(기준점이 그새 사라졌다) 보통 클릭으로 떨어진다.
+    if (range.length > 0) {
+      for (const one of range) next.add(one)
+      selected.value = next
+      return
+    }
+  }
+
   if (!next.delete(hash)) next.add(hash)
   selected.value = next
+  anchor.value = { category, hash }
 }
 
 function pickAll(category: string): void {
@@ -487,7 +517,7 @@ async function commitRemoveCategory(): Promise<void> {
           :entries="entriesOf(category)"
           :urls="urls"
           :selected="selected"
-          @toggle="toggle"
+          @toggle="(hash, extend) => toggle(category, hash, extend)"
           @pick-all="pickAll(category)"
           @rename="naming = { mode: 'rename', from: category, value: category }"
           @remove="removingCategory = category"
@@ -508,7 +538,7 @@ async function commitRemoveCategory(): Promise<void> {
         :urls="urls"
         :selected="selected"
         unlabeled
-        @toggle="toggle"
+        @toggle="(hash, extend) => toggle(IMAGE_UNLABELED, hash, extend)"
         @pick-all="pickAll(IMAGE_UNLABELED)"
         @add="pickInto(IMAGE_UNLABELED, fileInput)"
         @drop="readPicked($event, IMAGE_UNLABELED)"

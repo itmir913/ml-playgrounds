@@ -30,7 +30,11 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  toggle: [hash: string]
+  /**
+   * 누른 사진과 **shift를 함께 눌렀는가.** 범위를 세는 것은 판이 한다 — 기준점이
+   * 선택 집합과 같은 자리에 있어야 사진이 없어질 때 함께 정리된다.
+   */
+  toggle: [hash: string, extend: boolean]
   pickAll: []
   rename: []
   remove: []
@@ -152,7 +156,11 @@ const shown = computed(() =>
       **열 수를 여기서 세지 않는다** (`photo-grid`). 이 컴포넌트는 자기가 반쪽 칸으로
       섰는지 온 칸으로 섰는지 모르고, 알 필요도 없다 — 폭을 보고 열이 정해진다.
     -->
-    <ul v-else class="photo-grid grid gap-2">
+    <!--
+      **`select-none`이 있어야 한다.** shift+클릭은 브라우저가 글자를 드래그 선택하는
+      동작이라, 없으면 사진을 이어 고를 때마다 판이 파랗게 번쩍인다.
+    -->
+    <ul v-else class="photo-grid grid gap-2 select-none">
       <li v-for="entry in shown" :key="entry.hash">
         <!--
           **테두리는 늘 있고 색만 바뀐다** (AppChoices와 같은 이유) — 고른 것만 테두리를
@@ -163,7 +171,7 @@ const shown = computed(() =>
           class="block w-full overflow-hidden rounded-control border-2 transition-colors"
           :class="props.selected.has(entry.hash) ? 'border-brand' : 'border-transparent'"
           :aria-pressed="props.selected.has(entry.hash)"
-          @click="emit('toggle', entry.hash)"
+          @click="emit('toggle', entry.hash, $event.shiftKey)"
         >
           <!--
             **`loading="lazy"`가 아니면 저사양 교실 PC가 멈춘다.** 사진 수백 장의 디코딩이
