@@ -115,14 +115,34 @@ describe('잠금 해제', () => {
     expect(ready.algorithmsChosen).toBe(false)
   })
 
-  it('군집화는 타깃 없이도 학습이 열린다 - 요구도 같은 필터를 지난다', () => {
+  it('군집화는 타깃 없이도 학습이 열린다 - 잠금은 다른 질문을 한다', () => {
     // **여기가 이 설계의 요점이다.** 할 일에서만 빼고 잠금에서 안 빼면 군집화 학생이
     // 영영 못 들어가는 단계를 보게 된다.
     const ready = facts({ datasetReady: true, featuresChosen: true })
     expect(isStepUnlocked('train', ready, 'clustering')).toBe(true)
     expect(isStepUnlocked('train', ready, 'classification')).toBe(false)
-    // 유형을 아직 안 골랐으면 전부 해당한다 - 지금 등록부의 유형은 둘 다 타깃이 필요하다.
-    expect(isStepUnlocked('train', ready)).toBe(false)
+  })
+
+  /**
+   * **한때 순환이었다** (2026-08-15). 유형은 학습 화면에서 고르는데 그 화면이 유형별
+   * 사실을 요구했다 - 타깃을 면제받는 군집화는 영원히 고를 수 없었다. 잠금이 묻는 것은
+   * "지금 유형에서 필요한가"가 아니라 **"어떤 유형으로도 못 하는가"**다.
+   */
+  it('유형을 고르기 전에는 한 유형이라도 면제하는 사실이 안 막는다', () => {
+    const ready = facts({ datasetReady: true, featuresChosen: true })
+    expect(isStepUnlocked('train', ready)).toBe(true)
+  })
+
+  /** 느슨해지는 것은 안 고른 동안뿐이다. 파일에 유형이 남으면 다시 묻는다. */
+  it('유형을 고른 뒤에는 다시 막힌다', () => {
+    const ready = facts({ datasetReady: true, featuresChosen: true })
+    expect(isStepUnlocked('train', ready, 'classification')).toBe(false)
+    expect(isStepUnlocked('train', ready, 'regression')).toBe(false)
+  })
+
+  /** 어느 유형도 면제하지 않는 사실은 유형이 없어도 그대로 막는다. */
+  it('모든 유형이 요구하는 사실은 유형 미정에도 막는다', () => {
+    expect(isStepUnlocked('train', facts({ targetChosen: true, featuresChosen: true }))).toBe(false)
   })
 
   it('학습은 설정만으로는 열리지 않는다', () => {
@@ -436,5 +456,51 @@ describe('프로젝트에서 사실을 뽑는다', () => {
     expect(factsOf({ ...base, document: { ...base.document, portfolio } }).portfolioAnswered).toBe(
       false,
     )
+  })
+})
+
+describe('할 일의 자리는 데이터 종류가 정한다', () => {
+  const photosOnly = facts({ datasetReady: true, featuresChosen: true })
+
+  /**
+   * **사진만 올린 학생이 갇혔다** (2026-08-15). 범주를 하나도 안 나눈 학생 - 즉 군집만
+   * 하고 싶은 학생 - 이 학습 단계에 영원히 못 들어갔다.
+   */
+  it('사진만 올려도 학습 단계에 들어간다', () => {
+    expect(isStepUnlocked('train', photosOnly, undefined, 'image')).toBe(true)
+  })
+
+  /**
+   * **용어가 아니라 자리가 틀렸다.** 범주 나누기는 데이터 화면에서 하는 일인데 전처리
+   * 화면이 그것을 할 일로 들고 서 있었다.
+   */
+  it('이미지에서 범주 나누기는 데이터 단계의 할 일이다', () => {
+    const dataTasks = stepTasks('data', photosOnly, undefined, 'image').map((one) => one.key)
+    expect(dataTasks).toEqual(['datasetReady', 'targetChosen'])
+  })
+
+  /**
+   * **비어 있는 것이 맞다.** 거기서 정하는 평가 데이터는 언제나 선택이라 할 일이 아니다
+   * (`open-decisions.md` - 평가용 zip이 와도 부활시키지 마라).
+   */
+  it('이미지 전처리에는 할 일이 없다', () => {
+    expect(stepTasks('preprocess', photosOnly, undefined, 'image')).toEqual([])
+  })
+
+  /** 표는 안 바뀐다 - 거기서는 타깃과 특성을 정말 전처리에서 고른다. */
+  it('표는 그대로 전처리에서 고른다', () => {
+    const tabular = stepTasks('preprocess', photosOnly, undefined, 'tabular').map((one) => one.key)
+    expect(tabular).toEqual(['targetChosen', 'featuresChosen'])
+    expect(stepTasks('data', photosOnly, undefined, 'tabular').map((one) => one.key)).toEqual([
+      'datasetReady',
+    ])
+  })
+
+  /** 옮겨도 사라지지 않는다 - 잠금 조건은 전부 어딘가의 할 일이어야 한다. */
+  it('옮긴 사실도 여전히 어느 단계의 할 일이다', () => {
+    const everywhere = STEP_IDS.flatMap((step) =>
+      stepTasks(step, photosOnly, undefined, 'image').map((one) => one.key),
+    )
+    expect(everywhere).toContain('targetChosen')
   })
 })

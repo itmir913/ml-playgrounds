@@ -12,6 +12,7 @@
  * 단계 순서는 **학생이 프로젝트를 만들어 가는 워크플로**다. 수행평가 진행 순서가 아니다.
  */
 
+import { TASK_TYPES } from '@/project/schema'
 import type { DataType, TaskType } from '@/project/schema'
 
 /** 화면에 나오는 순서 그대로다. 이 배열이 레일의 순서이자 되돌아갈 순서다. */
@@ -90,8 +91,13 @@ interface Step {
  * 모델 선정). 타깃과 특성은 유형과 무관하게 정해지므로 유형이 그 앞에 설 이유가 없다 —
  * 모델을 골라야 열을 고를 수 있다면 워크플로가 거꾸로 선다.
  *
- * `train`이 `targetChosen`을 요구해도 군집화가 막히지 않는다 — **잠금 조건도 할 일과
- * 같은 필터를 지나기 때문이다**(아래 `isStepUnlocked`). 예전에는 여기서 손으로 빼 두었다.
+ * `train`이 `targetChosen`을 요구해도 군집화가 막히지 않는다 — **잠금이 "어떤 유형으로도
+ * 못 하는가"를 묻기 때문이다**(아래 `isStepUnlocked`). 예전에는 여기서 손으로 빼 두었다.
+ *
+ * **한때 이 자리가 순환이었다** (2026-08-15에 고쳤다). 잠금이 할 일과 같은 필터를
+ * 지났고, 그 필터가 "유형을 아직 안 골랐으면 전부 해당한다"였다. 그런데 **유형을 고르는
+ * 자리가 바로 이 학습 화면**이라, 타깃을 면제받는 군집화는 영원히 고를 수 없었다.
+ * 사진만 올린 이미지 프로젝트가 실제로 그렇게 갇혔다.
  *
  * `results`와 `predict`에 할 일이 없는 것은 그 둘이 **보는 화면**이라서다. 빈 체크리스트는
  * 숨긴다 — 항목 없는 목록을 보여주면 무언가 빠진 것처럼 보인다.
@@ -118,12 +124,20 @@ export function isStepId(value: unknown): value is StepId {
 /**
  * 이 단계에 들어갈 수 있는가.
  *
- * **과제 유형에 해당하지 않는 사실은 요구에서도 빠진다.** 할 일 목록에서만 빼고 여기서
- * 안 빼면 "체크는 다 됐는데 잠겨 있다"가 생기고, 그건 학생이 고칠 방법이 없는 고장이다.
- * 군집화가 타깃 없이 학습에 들어가는 것이 이 필터 하나로 성립한다.
+ * **잠금은 할 일과 다른 질문을 한다** (architecture.md §8.10.0). 할 일은 "지금 유형에서
+ * 해야 하는가"이고 **잠금은 "어떤 유형으로도 못 하는가"**다. 유형을 고른 뒤에는 둘이
+ * 같은 답을 내고, **갈리는 것은 아직 안 골랐을 때뿐이다.**
  *
- * 유형을 아직 안 골랐으면 **전부 해당한다** - 무엇이 빠질지 아직 알 수 없고, 지금
- * 등록부에 있는 유형은 둘 다 타깃이 필요하다.
+ * **그 구간이 순환이 생기는 자리다.** 유형은 학습 화면에서 고르는데(§8.12) 그 화면이
+ * 유형별 사실을 요구하면, 그 사실을 면제받는 유형은 영원히 고를 수 없다. 그래서 유형이
+ * 없을 때는 **한 유형이라도 면제하는 사실을 안 막는다.**
+ *
+ * **느슨해지는 것은 안 고른 동안뿐이다.** `manifest.taskType`이 파일에 남으므로 분류로
+ * 정해 둔 프로젝트를 다시 열면 타깃 없이는 여전히 잠긴다. `requires`에서 그 사실을 아예
+ * 빼면 잠금이 통째로 사라진다 - 그래서 안 뺀다.
+ *
+ * **들어간 뒤는 카드가 맡는다.** 못 하는 유형은 이유와 함께 잠긴다(§9.4) - 화면 진입을
+ * 막는 것보다 학생이 무엇을 할 수 있는지 알게 된다.
  */
 export function isStepUnlocked(
   step: StepId,
@@ -131,9 +145,24 @@ export function isStepUnlocked(
   taskType?: TaskType | undefined,
   dataType?: DataType | undefined,
 ): boolean {
-  return STEPS[step].requires.every(
-    (fact) => !factAppliesTo(fact, taskType, dataType) || facts[fact],
-  )
+  return STEPS[step].requires.every((fact) => !factBlocks(fact, taskType, dataType) || facts[fact])
+}
+
+/**
+ * 이 사실이 이 단계를 막을 수 있는가. **`factAppliesTo`와 유형 축에서만 갈린다.**
+ *
+ * 종류 축은 갈리지 않는다 - 데이터 종류는 프로젝트를 만들 때 정해져 안 바뀌므로
+ * (`open-decisions.md`) "아직 모른다"가 없다.
+ */
+function factBlocks(
+  fact: FactKey,
+  taskType?: TaskType | undefined,
+  dataType?: DataType | undefined,
+): boolean {
+  if (dataType !== undefined && FACTS_NOT_IN_DATA_TYPE[dataType].includes(fact)) return false
+  if (taskType !== undefined) return !FACTS_NOT_IN_TASK[taskType].includes(fact)
+  // 유형 미정 - 어느 하나라도 이 사실 없이 성립하면 막지 않는다.
+  return !TASK_TYPES.some((type) => FACTS_NOT_IN_TASK[type].includes(fact))
 }
 
 /** 이 단계에 들어가려면 참이어야 하는 사실들. 검사가 표를 훑는 데 쓴다. */
@@ -179,6 +208,34 @@ const FACTS_NOT_IN_TASK: Readonly<Record<TaskType, readonly FactKey[]>> = {
  * **유형을 아직 안 골랐으면 전부 해당한다.** 없는 것을 미리 빼면 학생이 유형을 고르기도
  * 전에 화면에서 항목이 사라지고, 그 뒤에 분류를 고르면 다시 나타난다.
  */
+/**
+ * **이 사실을 어느 단계의 할 일로 세우는가** (architecture.md §8.10.0).
+ *
+ * `STEPS.tasks`는 표를 두고 쓴 표다 - 타깃과 특성을 정말 전처리에서 고르기 때문이다.
+ * **이미지는 그 표를 물려받으면 안 된다**: 범주 나누기는 데이터 화면에서 하는 일인데
+ * 전처리 화면이 그것을 할 일로 들고 서 있었다. **용어가 아니라 자리가 틀렸다.**
+ *
+ * 적지 않은 사실은 `STEPS.tasks`가 정한 자리에 그대로 선다.
+ */
+const FACT_STEP_IN_DATA_TYPE: Readonly<Record<DataType, Partial<Record<FactKey, StepId>>>> = {
+  tabular: {},
+  // **범주 나누기는 데이터 화면에서 한다.** 그래서 전처리의 할 일이 비고, 그것이 맞다 -
+  // 거기서 정하는 평가 데이터는 언제나 선택이라 할 일이 아니다 (§8.10.0의 인용).
+  image: { targetChosen: 'data' },
+}
+
+/** 이 종류에서 이 사실이 서는 단계. 안 옮겼으면 `STEPS.tasks`가 정한 자리다. */
+function factStep(fact: FactKey, home: StepId, dataType?: DataType | undefined): StepId {
+  return (dataType && FACT_STEP_IN_DATA_TYPE[dataType][fact]) || home
+}
+
+/** 이 단계가 이 종류에서 갖는 할 일들. **옮겨 온 것까지 센다.** */
+function tasksOf(step: StepId, dataType?: DataType | undefined): readonly FactKey[] {
+  return STEP_IDS.flatMap((home) =>
+    STEPS[home].tasks.filter((fact) => factStep(fact, home, dataType) === step),
+  )
+}
+
 const FACTS_NOT_IN_DATA_TYPE: Readonly<Record<DataType, readonly FactKey[]>> = {
   tabular: [],
   // **학생이 특성을 안 고른다. 백본이 만든다** (open-decisions.md "이미지에서 체크리스트
@@ -306,7 +363,7 @@ export function stepTasks(
   taskType?: TaskType | undefined,
   dataType?: DataType | undefined,
 ): StepTask[] {
-  return STEPS[step].tasks
+  return tasksOf(step, dataType)
     .filter((key) => factAppliesTo(key, taskType, dataType))
     .map((key) => ({ key, done: facts[key], labelKey: factLabelKey(key, dataType) }))
 }
@@ -324,7 +381,7 @@ export function currentTask(
 ): { step: StepId; key: FactKey; labelKey: string } | null {
   for (const step of STEP_IDS) {
     if (!isStepUnlocked(step, facts, taskType, dataType)) continue
-    const pending = STEPS[step].tasks.find(
+    const pending = tasksOf(step, dataType).find(
       (key) => factAppliesTo(key, taskType, dataType) && !facts[key],
     )
     // **문구 키를 함께 준다.** 부르는 쪽이 `tasks.{key}`를 조립하면 종류마다
