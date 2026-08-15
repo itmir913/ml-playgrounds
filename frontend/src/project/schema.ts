@@ -846,6 +846,17 @@ export const portfolioTemplateSectionSchema = z.looseObject({
  * 그 상태고, 그때 화면은 시작 화면을 낸다(§8.3).
  */
 export const portfolioTemplateSchema = z.looseObject({
+  /**
+   * 문항 제목·안내문의 언어 (mlpx-spec.md §8.5). **`manifest.locale`과 다르다** —
+   * 저쪽은 `.md` 머리글의 언어이고 내보낼 때마다 갱신되는데, 이쪽은 양식을 가져온
+   * 때에 정해지고 UI 언어를 바꿔도 안 따라간다. 이미 ko로 가져온 문항이 en으로
+   * 저절로 번역되지는 않기 때문이다.
+   *
+   * **아는 경우에만 있다.** 내장 프리셋은 파일 이름이 언어를 갖고 있어 확실히 알고,
+   * 밖에서 받은 `.md`는 모른다 — 그때는 없다. UI 언어를 대신 적으면 추측이 사실로
+   * 굳는다.
+   */
+  locale: z.string().optional(),
   sections: z.array(portfolioTemplateSectionSchema).default([]),
 })
 

@@ -146,10 +146,19 @@ const chartOptions = computed(() =>
 
 <template>
   <!--
-    **축이 둘 미만이면 이 자리가 통째로 없다** (§9.2). 수치 특성이 하나뿐이면 x·y를
-    세울 수 없는데, 제목과 설명만 남기면 화면이 없는 그림의 이름을 부른다.
+    **축이 둘 미만이면 그리는 대신 이유를 말한다** (§9.4, open-decisions.md "군집
+    산점도의 축"). 예전에는 이 자리가 통째로 없었는데, **요약표와 구성원 표는 뜨는데
+    그림만 없으니 교실에서 고장으로 읽혔다** — 실물 파일에서 그렇게 걸렸다.
+    잠기는 것에는 이유가 있어야 하고, 그것을 아는 자리가 여기다.
   -->
-  <div v-if="props.axes.length >= 2" class="flex min-w-0 flex-col gap-1.5">
+  <div v-if="props.axes.length < 2" class="flex min-w-0 flex-col gap-1.5">
+    <h4 class="font-bold">{{ props.title }}</h4>
+    <p class="text-ink-soft">
+      {{ t('results.tabular.clusterScatterNoAxes', { count: props.axes.length }) }}
+    </p>
+  </div>
+
+  <div v-else class="flex min-w-0 flex-col gap-1.5">
     <h4 class="font-bold">{{ props.title }}</h4>
     <p class="text-ink-soft">{{ props.lead }}</p>
 

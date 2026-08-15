@@ -516,3 +516,67 @@ describe('내보낼 문서와 그 마크다운은 같은 세대다', () => {
     expect(markdown).toContain('고양이와 개')
   })
 })
+
+describe('양식의 언어는 파일에 남는다', () => {
+  const drafts = [{ title: '프로젝트 주제', description: '무엇을 예측했나요' }]
+
+  it('처음 가져올 때 박힌다', () => {
+    const after = withImportedSections(portfolio([]), drafts, 'ko')
+    expect(after.template.locale).toBe('ko')
+  })
+
+  /** 밖에서 받은 `.md`는 언어를 모른다. UI 언어를 대신 적으면 추측이 사실로 굳는다. */
+  it('모르는 출처는 언어를 안 남긴다', () => {
+    const after = withImportedSections(portfolio([]), drafts)
+    expect(after.template.locale).toBeUndefined()
+    expect(after.template.sections).toHaveLength(1)
+  })
+
+  /** 가져오기가 추가라서 섞을 수 있다. 양식의 정체는 그것을 세운 첫 가져오기가 갖는다. */
+  it('두 번째 가져오기는 언어를 안 바꾼다', () => {
+    const first = withImportedSections(portfolio([]), drafts, 'ko')
+    const second = withImportedSections(first, [{ title: 'What I learned' }], 'en')
+    expect(second.template.sections).toHaveLength(2)
+    expect(second.template.locale).toBe('ko')
+  })
+
+  /** 더한 문항이 하나도 없으면 양식은 그대로다 — 언어도 안 생긴다. */
+  it('아무것도 안 늘면 아무것도 안 바뀐다', () => {
+    const first = withImportedSections(portfolio([]), drafts, 'ko')
+    expect(withImportedSections(first, drafts, 'en')).toBe(first)
+  })
+})
+
+describe('머리글의 언어가 manifest에 남는다', () => {
+  const label = (key: string) => `[${key}]`
+  const blank = newProjectDocument(
+    { name: '붓꽃 품종 분류', locale: 'ko', dataType: 'tabular' },
+    {
+      projectId: '550e8400-e29b-41d4-a716-446655440000',
+      createdAt: '2026-08-05T09:00:00Z',
+      randomState: 4242,
+    },
+  )
+  const identity = { name: '붓꽃 품종 분류', studentId: '', studentName: '' }
+
+  /**
+   * **실물 `.mlpx`가 잡았다** (2026-08-15). `locale: "en"`인데 머리글이 한국어인 파일이
+   * 나왔다 — 만들 때 한 번 박고 내보낼 때 갱신하지 않았다.
+   */
+  it('내보낼 때의 언어로 갱신된다', () => {
+    expect(blank.manifest.locale).toBe('ko')
+    const { document } = identifiedExport(blank, identity, '2026-08-15T07:00:00Z', label, 'en')
+    expect(document.manifest.locale).toBe('en')
+  })
+
+  /** 양식의 언어는 그것과 별개다 — 여기서 안 흔들린다. */
+  it('양식의 언어를 건드리지 않는다', () => {
+    const withForm = {
+      ...blank,
+      portfolio: withImportedSections(blank.portfolio, [{ title: '주제' }], 'ko'),
+    }
+    const { document } = identifiedExport(withForm, identity, '2026-08-15T07:00:00Z', label, 'en')
+    expect(document.manifest.locale).toBe('en')
+    expect(document.portfolio.template.locale).toBe('ko')
+  })
+})

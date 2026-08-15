@@ -689,6 +689,7 @@
       "clusterSample": "There are too many dots to draw them all, so only some are shown. ({drawn} of {total} rows)",
       "clusterScatter": "Cluster scatter plot",
       "clusterScatterLead": "Each dot is one row of data, and each ✕ marks the centroid of a cluster.",
+      "clusterScatterNoAxes": "A scatter plot needs at least two numeric columns. (now {count})",
       "clusterSize": "Samples",
       "clusterSummary": "What gathered in each cluster",
       "clusterSummaryLead": "Each cell is the average of the rows in that cluster. Select a row to see the data in that cluster."

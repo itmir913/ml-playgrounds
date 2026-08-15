@@ -59,6 +59,15 @@ export interface TemplateRow {
    * 여전히 등록부에 줄 하나 넣는 일**이다.
    */
   readonly weight: TemplateWeight
+  /**
+   * 이 줄이 내놓는 양식의 언어 (mlpx-spec.md §8.5). **모르면 없다.**
+   *
+   * 내장 프리셋은 언어별 파일이라 확실히 알고(§8.7), 밖에서 받은 `.md`는 알 수 없다.
+   * **줄이 자기 언어를 들고 오는 이유**는 그것을 아는 자리가 여기뿐이기 때문이다 —
+   * 화면이 "프리셋이면 UI 언어"라고 가르는 순간 출처를 같은 모양으로 만들어 둔 것이
+   * 깨진다.
+   */
+  readonly locale?: Locale
   /** 양식 마크다운. **`null`은 아무 일도 없었다는 뜻이다** - 파일 고르기를 닫았을 때. */
   readonly load: () => Promise<string | null>
 }
@@ -79,6 +88,7 @@ const preset: TemplateSource = {
       key: `preset:${entry.id}`,
       label: presetName(entry, locale),
       weight: 'normal',
+      locale,
       load: () => loadPresetForm(entry.id, locale),
     })),
 }

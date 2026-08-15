@@ -31,12 +31,18 @@ import {
   type TemplateSourceContext,
   type TemplateWeight,
 } from '@/project/portfolio-sources'
+import type { Locale } from '@/i18n'
 
 const props = defineProps<{ context: TemplateSourceContext }>()
 
 const emit = defineEmits<{
-  /** 받아 온 양식. `null`이면 아무 일도 없었다 - 파일 고르기를 닫았을 때다. */
-  pick: [markdown: string | null]
+  /**
+   * 받아 온 양식. `null`이면 아무 일도 없었다 - 파일 고르기를 닫았을 때다.
+   *
+   * **언어가 함께 온다** (mlpx-spec.md §8.5). 줄이 아는 것이고, 모르는 출처는
+   * `undefined`다 - 그때 양식에 언어가 안 박힌다.
+   */
+  pick: [markdown: string | null, locale?: Locale]
   failed: [error: unknown]
 }>()
 
@@ -56,7 +62,7 @@ onMounted(async () => {
 
 async function choose(row: TemplateRow): Promise<void> {
   try {
-    emit('pick', await row.load())
+    emit('pick', await row.load(), row.locale)
   } catch (error) {
     emit('failed', error)
   }

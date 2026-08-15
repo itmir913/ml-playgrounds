@@ -689,6 +689,7 @@
       "clusterSample": "점이 너무 많아 일부만 그렸습니다. (전체 {total}행 중 {drawn}행)",
       "clusterScatter": "군집 산점도",
       "clusterScatterLead": "점 하나가 데이터 한 행이고, ✕ 표시는 각 군집의 중심점입니다.",
+      "clusterScatterNoAxes": "산점도는 숫자로 된 열이 둘 이상 있어야 그릴 수 있습니다. (지금 {count}개)",
       "clusterSize": "데이터 수",
       "clusterSummary": "군집마다 어떤 값이 모였나",
       "clusterSummaryLead": "각 칸은 그 군집에 속한 데이터의 평균입니다. 행을 누르면 그 군집의 데이터를 볼 수 있습니다."

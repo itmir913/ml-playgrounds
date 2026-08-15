@@ -83,7 +83,17 @@ export function identifiedExport(
   translate: Translate,
   locale: string,
 ): IdentifiedExport {
-  const identified = withIdentity(document, identity, now)
+  /**
+   * **`manifest.locale`은 머리글이 그려진 언어다** (mlpx-spec.md §2). 여기서 함께
+   * 찍는 이유는 머리글을 그리는 언어를 아는 자리가 여기뿐이기 때문이다 — 따로
+   * 두면 갱신을 빠뜨리고, **실제로 빠뜨려서 `locale: "en"`인데 머리글이 한국어인
+   * 파일이 나왔다.**
+   */
+  const withIdentityApplied = withIdentity(document, identity, now)
+  const identified: ProjectDocument = {
+    ...withIdentityApplied,
+    manifest: { ...withIdentityApplied.manifest, locale },
+  }
   return {
     document: identified,
     markdown: renderPortfolioMarkdown(

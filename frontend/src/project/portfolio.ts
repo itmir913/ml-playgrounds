@@ -100,6 +100,7 @@ function draftToSection(draft: DraftSection, id: string): PortfolioTemplateSecti
 export function withImportedSections(
   portfolio: Portfolio,
   drafts: readonly DraftSection[],
+  locale?: string,
 ): Portfolio {
   const existing = new Set(portfolio.template.sections.map((section) => section.id))
   const added: PortfolioTemplateSection[] = []
@@ -110,9 +111,26 @@ export function withImportedSections(
     existing.add(natural)
   })
   if (added.length === 0) return portfolio
+
+  /**
+   * **양식의 언어는 처음 문항이 들어올 때 박고 그 뒤로 안 바뀐다** (mlpx-spec.md §8.5).
+   *
+   * 가져오기가 대체가 아니라 추가라서 언어가 섞인 양식을 만들 수는 있는데, 그때 참인
+   * 단일 값은 없다 — **양식의 정체는 그것을 세운 첫 가져오기가 갖는다.**
+   *
+   * `locale`이 없는 것은 빠뜨림이 아니라 **모른다**는 뜻이다 (밖에서 받은 `.md`).
+   * 그때 UI 언어를 대신 적으면 추측이 사실로 굳는다.
+   */
+  const first = portfolio.template.sections.length === 0
+  const stamped = first && locale !== undefined ? { locale } : {}
+
   return {
     ...portfolio,
-    template: { ...portfolio.template, sections: [...portfolio.template.sections, ...added] },
+    template: {
+      ...portfolio.template,
+      ...stamped,
+      sections: [...portfolio.template.sections, ...added],
+    },
   }
 }
 

@@ -25,6 +25,7 @@ import AppEmpty from '@/components/AppEmpty.vue'
 import StepActionBar from '@/components/StepActionBar.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { ClientError } from '@/errors'
+import type { Locale } from '@/i18n'
 import { ACTION_ICONS } from '@/icons'
 import { BYTES_PER_MB, MAX_PORTFOLIO_BYTES } from '@/limits'
 import { bakeAttachments } from '@/project/attachments'
@@ -132,13 +133,14 @@ function addSection(): void {
  * 두 번 눌러도 문항이 안 불어나므로 "아무 일도 안 일어났다"가 정상인 경우가 있다.
  * 그때도 말해 준다 - 눌렀는데 화면이 그대로면 고장으로 읽힌다.
  */
-function importMarkdown(markdown: string | null): void {
+function importMarkdown(markdown: string | null, locale?: Locale): void {
   // 파일 고르기를 닫은 것은 실패가 아니다. 아무 말도 하지 않는다.
   if (markdown === null) return
 
   const parsed = parsePortfolioForm(markdown)
   const before = portfolio.value.template.sections.length
-  const next = withImportedSections(portfolio.value, parsed.sections)
+  // **언어는 줄이 들고 온다** (§8.5). 모르는 출처는 안 넘기고, 그때 필드가 안 생긴다.
+  const next = withImportedSections(portfolio.value, parsed.sections, locale)
   apply(next)
   const added = next.template.sections.length - before
   if (added > 0) toasts.push('success', 'portfolio.imported', { count: added })
