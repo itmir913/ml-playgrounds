@@ -207,8 +207,12 @@ const neighborhood = computed<Neighborhood | null>(() => {
       size: summary.size,
       means: material.axes.map((axis, position) => ({
         name: axis.name,
-        // 지표가 아니라 학생의 데이터 단위다 (`useFormat.ts`의 `formatPrediction`).
-        value: format.stat(summary.means[position] ?? 0),
+        // **범주 축은 최빈 범주의 이름이다** (open-decisions.md "군집 산점도의 축").
+        // 번호를 그대로 보이면 학생이 그 수를 값으로 읽는다.
+        // 수치 축은 지표가 아니라 학생의 데이터 단위다 (`useFormat.ts`의 `formatPrediction`).
+        value: axis.categories
+          ? (axis.categories[Math.round(summary.means[position] ?? 0)] ?? t('meta.none'))
+          : format.stat(summary.means[position] ?? 0),
       })),
       columns: dataset.columns,
       rows: rows.map((row) => dataset.rows[row] ?? []),

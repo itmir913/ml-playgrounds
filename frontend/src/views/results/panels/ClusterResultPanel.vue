@@ -138,14 +138,34 @@ const overviews = computed(() => {
   return found ? axisOverviews(found.matrix, found.axes, found.columns) : []
 })
 
-/** 머리글 설명 한 문장. **키를 조립하지 않는다** (`TermPopover`의 머리말). */
+/**
+ * 머리글 설명 한 문장. **키를 조립하지 않는다** (`TermPopover`의 머리말).
+ *
+ * **범주 축은 다른 문장이다** — 평균과 범위가 뜻을 갖지 않는다. 칸에 뜨는 것도 평균이
+ * 아니라 그 군집에서 가장 많은 범주다 (`open-decisions.md` "군집 산점도의 축").
+ */
 function axisHelp(position: number): string {
+  const categories = axes.value[position]?.categories
+  if (categories) {
+    return t('results.tabular.clusterModeHelp', { count: categories.length })
+  }
   const overview = overviews.value[position]
   return t('results.tabular.clusterMeanHelp', {
     overall: format.stat(overview?.mean ?? 0),
     min: format.prediction(overview?.min ?? 0),
     max: format.prediction(overview?.max ?? 0),
   })
+}
+
+/**
+ * 칸에 적는 값. 수치 축은 평균이고 **범주 축은 최빈 범주의 이름**이다.
+ *
+ * 번호를 그대로 보이지 않는다 — 화면에 뜨는 순간 학생이 그 수를 값으로 읽는다.
+ */
+function cellText(position: number, value: number): string {
+  const categories = axes.value[position]?.categories
+  if (!categories) return format.stat(value)
+  return categories[Math.round(value)] ?? t('meta.none')
 }
 
 function clusterName(cluster: number): string {
@@ -202,7 +222,7 @@ function cellsOf(row: number): readonly string[] {
             <th class="text-left">{{ clusterName(summary.cluster) }}</th>
             <td class="tabular-nums">{{ summary.size }}</td>
             <td v-for="(mean, position) in summary.means" :key="position" class="tabular-nums">
-              {{ format.stat(mean) }}
+              {{ cellText(position, mean) }}
             </td>
           </tr>
         </tbody>

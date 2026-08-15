@@ -102,14 +102,30 @@ watch(
 const axisName = (position: number): string => props.axes[position]?.name ?? ''
 
 /**
+ * 고른 두 축이 범주 축인가. **그림의 눈금·흩뿌림·중심점이 전부 여기서 갈린다**
+ * (`open-decisions.md` "군집 산점도의 축").
+ */
+const scales = computed(() => ({
+  x: props.axes[xAxis.value]?.categories,
+  y: props.axes[yAxis.value]?.categories,
+}))
+
+/** 흩뿌린 그림인가. **그 사실을 화면이 말해야 한다** — 안 그러면 학생이 위치를 읽는다. */
+const jittered = computed(() => scales.value.x !== undefined || scales.value.y !== undefined)
+
+/**
  * 툴팁에 적는 좌표. **Chart.js는 좌표를 `null`일 수 있는 것으로 본다** — 빈 자리를 둘 수
  * 있는 차트 종류가 있어서다. 산점도에는 그런 점이 없지만 타입은 그것을 모른다.
  *
  * **지표 포맷터를 쓰지 마라** (`useFormat.ts`의 `formatPrediction` 머리말). 이 값은
  * 되돌린 좌표라 **학생의 데이터 단위**다.
  */
-function coordinate(value: number | null): string {
-  return value === null ? t('meta.none') : format.prediction(value)
+function coordinate(value: number | null, categories?: readonly string[]): string {
+  if (value === null) return t('meta.none')
+  // **범주 축은 이름으로 말한다.** 흩뿌린 만큼을 반올림으로 걷어내면 원래 칸이 나온다 -
+  // 흩뿌림이 반 칸을 못 넘기 때문이다 (`cluster-chart.ts`의 `JITTER_SPREAD`).
+  if (categories) return categories[Math.round(value)] ?? t('meta.none')
+  return format.prediction(value)
 }
 
 const tokens = computed(() => ({
@@ -131,16 +147,26 @@ const chartData = computed(() =>
       highlight: t('predict.tabular.clusterInputPoint'),
     },
     props.highlight,
+    scales.value,
   ),
 )
 
 const chartOptions = computed(() =>
-  clusterChartOptions(props.summaries.length, tokens.value, {
-    axisX: axisName(xAxis.value),
-    axisY: axisName(yAxis.value),
-    point: (name, x, y) =>
-      t('results.tabular.clusterPoint', { name, x: coordinate(x), y: coordinate(y) }),
-  }),
+  clusterChartOptions(
+    props.summaries.length,
+    tokens.value,
+    {
+      axisX: axisName(xAxis.value),
+      axisY: axisName(yAxis.value),
+      point: (name, x, y) =>
+        t('results.tabular.clusterPoint', {
+          name,
+          x: coordinate(x, scales.value.x),
+          y: coordinate(y, scales.value.y),
+        }),
+    },
+    scales.value,
+  ),
 )
 </script>
 
@@ -166,6 +192,12 @@ const chartOptions = computed(() =>
       **축 선택은 그림 위 왼쪽, 좁은 화면에서 세로로 쌓는다** (§8.10.1). 고를 것이
       둘뿐이면 자리 자체가 없다 — 없는 선택지를 회색으로 두면 학생이 고장으로 읽는다.
     -->
+    <!--
+      **흩뿌렸다는 것을 말한다** (open-decisions.md "군집 산점도의 축"). 범주 칸 안에서
+      점을 조금씩 옮겨 놓았으므로, 안 말하면 학생이 그 미세한 위치 차이를 데이터로 읽는다.
+    -->
+    <p v-if="jittered" class="text-ink-soft">{{ t('results.tabular.clusterJitter') }}</p>
+
     <div v-if="props.axes.length > 2" class="flex flex-col gap-2 sm:flex-row sm:gap-5">
       <label class="flex items-center gap-2">
         <span class="font-bold text-ink-soft">{{ t('results.tabular.clusterAxisX') }}</span>

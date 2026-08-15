@@ -16,6 +16,7 @@ import { isClientError } from '../src/errors'
 import {
   assignClusters,
   axisOverviews,
+  categoryIndexAt,
   clusterAxes,
   clusterMaterial,
   clusterMaterialFor,
@@ -97,23 +98,50 @@ function rawValue(row: number, column: string): number | null {
 }
 
 describe('축 후보', () => {
-  it('수치 칸만 남고 행렬 열 번호가 맞는다', () => {
+  /**
+   * **원본 열 하나가 축 하나다** (2026-08-15에 #28-2를 좁혔다). 원핫으로 늘어난 칸을
+   * 하나씩 주지는 않는다 — 0/1 두 값짜리 축은 읽을 것이 없다. 대신 그 칸들을 묶어
+   * 범주 축 하나가 된다.
+   */
+  it('범주 열은 묶여서 축 하나가 되고, 행렬 열 번호가 맞는다', () => {
     const { preprocessor } = fixture()
 
-    // 원핫이라 성별이 두 칸으로 늘어난다. 그 둘은 값이 0/1뿐이라 축이 아니다.
     expect(preprocessor.featureNames).toEqual(['성별=남', '성별=여', '키', '몸무게'])
     expect(clusterAxes(preprocessor, 'onehot')).toEqual([
-      { name: '키', index: 2 },
-      { name: '몸무게', index: 3 },
+      { name: '성별', index: 0, width: 2, categories: ['남', '여'] },
+      { name: '키', index: 2, width: 1 },
+      { name: '몸무게', index: 3, width: 1 },
     ])
   })
 
-  it('ordinal이면 범주 열이 한 칸이지만 여전히 축이 아니다', () => {
+  it('ordinal이면 범주 열이 한 칸이고 그 칸이 곧 축이다', () => {
     const options = preprocessing({ categoricalEncoding: 'ordinal' })
     const { preprocessor } = fixture(options)
 
     expect(preprocessor.featureNames).toEqual(['성별', '키', '몸무게'])
-    expect(clusterAxes(preprocessor, 'ordinal').map((axis) => axis.name)).toEqual(['키', '몸무게'])
+    expect(clusterAxes(preprocessor, 'ordinal')).toEqual([
+      { name: '성별', index: 0, width: 1, categories: ['남', '여'] },
+      { name: '키', index: 1, width: 1 },
+      { name: '몸무게', index: 2, width: 1 },
+    ])
+  })
+
+  /**
+   * **번호는 자리를 정하는 데만 쓴다.** 원핫에서는 1이 선 칸이고 ordinal에서는 값
+   * 그 자체인데, 어느 쪽이든 화면에 뜨는 것은 범주 **이름**이다.
+   */
+  it('범주 축의 좌표는 인코딩이 달라도 같은 범주 번호다', () => {
+    const onehot = fixture()
+    const ordinal = fixture(preprocessing({ categoricalEncoding: 'ordinal' }))
+
+    const axisOf = (kit: ReturnType<typeof fixture>, encoding: 'onehot' | 'ordinal') =>
+      clusterAxes(kit.preprocessor, encoding)[0]!
+
+    const a = axisOf(onehot, 'onehot')
+    const b = axisOf(ordinal, 'ordinal')
+    for (let row = 0; row < onehot.matrix.length; row += 1) {
+      expect(categoryIndexAt(onehot.matrix[row]!, a)).toBe(categoryIndexAt(ordinal.matrix[row]!, b))
+    }
   })
 
   it('fit 때와 다른 인코딩으로 부르면 시끄럽게 실패한다', () => {
@@ -228,10 +256,42 @@ describe('군집 요약', () => {
 
     for (const summary of summaries) {
       axes.forEach((axis, position) => {
+        // 범주 축은 평균이 아니라 최빈 범주다 - 아래 검사가 따로 본다.
+        if (axis.categories) return
         const mean = memberMean(matrix, assignment, columns, summary.cluster, axis.index)
         expect(summary.means[position]).toBeCloseTo(mean, 9)
       })
       expect(summary.size).toBe(assignment.counts[summary.cluster])
+    }
+  })
+
+  /**
+   * **범주 축의 칸은 최빈 범주다** (open-decisions.md "군집 산점도의 축"). 범주 번호를
+   * 더해 평균 내면 아무것도 아닌 수가 나오고, 그 수가 표에 뜨면 학생은 그것을 값으로
+   * 읽는다. 범주 축에서 ✕를 안 그리는 대신 이 칸이 답한다.
+   */
+  it('범주 축의 칸은 그 군집에서 가장 많은 범주다', () => {
+    const { preprocessor, matrix, rows, model, options } = fixture()
+    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
+    const axes = clusterAxes(preprocessor, options.categoricalEncoding)
+    const assignment = assignClusters(matrix, rows, model)
+    const summaries = clusterSummaries(assignment, axes, columns, matrix)
+
+    const position = axes.findIndex((axis) => axis.categories !== undefined)
+    const axis = axes[position]!
+
+    for (const summary of summaries) {
+      // 그 군집 구성원의 범주를 손으로 센다.
+      const tally = new Map<number, number>()
+      for (let i = 0; i < assignment.rows.length; i += 1) {
+        if (assignment.clusters[i] !== summary.cluster) continue
+        const category = categoryIndexAt(matrix[i]!, axis)
+        tally.set(category, (tally.get(category) ?? 0) + 1)
+      }
+      const best = [...tally.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]
+      if (!best) continue
+      expect(summary.means[position]).toBe(best[0])
+      expect(axis.categories![summary.means[position]!]).toBeTypeOf('string')
     }
   })
 
@@ -326,7 +386,7 @@ describe('축의 전체 모습', () => {
     const { preprocessor, matrix, options } = fixture()
     const columns = matrixColumns(preprocessor, options.categoricalEncoding)
     const axes = clusterAxes(preprocessor, options.categoricalEncoding)
-    const [height] = axisOverviews(matrix, axes, columns)
+    const height = axisOverviews(matrix, axes, columns).find((one) => one.name === '키')
 
     expect(height!.name).toBe('키')
     expect(height!.min).toBeCloseTo(150, 9)
@@ -613,11 +673,16 @@ describe('표본 뽑기', () => {
 
   it('점의 좌표는 축 순서를 따르고 되돌린 값이다', () => {
     const { preprocessor } = fixture()
+    const axes = clusterAxes(preprocessor, 'onehot')
     const scatter = scatterOf(preprocessor, 100)
     const first = scatter.points[0]!
 
-    expect(first.values).toHaveLength(2)
-    expect(first.values[0]).toBeCloseTo(rawValue(0, '키')!, 9)
-    expect(first.values[1]).toBeCloseTo(rawValue(0, '몸무게')!, 9)
+    // 축은 셋이다 - 범주 열 하나(성별)와 수치 열 둘.
+    expect(first.values).toHaveLength(3)
+    const at = (name: string) => first.values[axes.findIndex((axis) => axis.name === name)]!
+    expect(at('키')).toBeCloseTo(rawValue(0, '키')!, 9)
+    expect(at('몸무게')).toBeCloseTo(rawValue(0, '몸무게')!, 9)
+    // **범주 축은 되돌리지 않는다** - 값이 단위를 가진 수가 아니라 범주 번호다.
+    expect(at('성별')).toBe(0)
   })
 })

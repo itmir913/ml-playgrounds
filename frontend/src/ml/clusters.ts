@@ -38,14 +38,61 @@ export interface MatrixColumn {
 /**
  * 산점도의 축이 될 수 있는 칸.
  *
- * **수치 열뿐이다** (#28-2). 원핫으로 늘어난 범주 칸은 값이 0/1 둘뿐이라 산점도에서
- * 읽을 것이 없다. 목록에서 빼되 그 사실을 말하지는 않는다 — 학생에게는 고를 수 있는
- * 것만 보인다.
+ * **수치 열과 범주 열 둘 다다** (2026-08-15에 #28-2를 좁혔다 — `open-decisions.md`의
+ * "군집 산점도의 축"). 원래는 수치 열뿐이었는데, **숫자 열이 하나뿐인 데이터에서
+ * 산점도가 통째로 사라졌다.** #28-2가 세운 교육적 가치가 "학생이 어떤 특성끼리 보면
+ * 잘 나뉘는가를 바꿔 보는 것"인데 바꿔 볼 것 자체가 없었다.
+ *
+ * **원핫으로 늘어난 칸을 하나씩 주지는 않는다.** 0/1 두 값짜리 축은 여전히 읽을 것이
+ * 없다. 대신 **그 칸들을 묶어 원래 열 하나를 범주 축으로 준다** — 눈금에 범주 이름이
+ * 그대로 서고, 칸 사이 간격이 뜻을 갖지 않는다는 것이 눈에 보인다.
+ *
+ * **순서 인코딩으로 찍지 않는다.** `No(0)·Right(1)·Extensive(2)`로 찍으면 학생 눈에
+ * Right가 No와 Extensive의 **중간**으로 보인다 — 없는 순서와 없는 거리를 그림이
+ * 만들어 내고, 축을 바꿔 보며 배우라고 만든 그림이 틀린 것을 가르친다. 번호는 자리를
+ * 정하는 데만 쓰고 **화면에는 언제나 범주 이름이 뜬다.**
  */
 export interface ClusterAxis {
   readonly name: string
-  /** 학습 행렬의 열 번호. */
+  /** 학습 행렬의 열 번호. 범주 축이면 그 열이 차지하는 **첫 칸**이다. */
   readonly index: number
+  /**
+   * 이 축이 차지하는 행렬 칸 수. 수치 열과 순서 인코딩은 1이고, 원핫은 범주 수다.
+   */
+  readonly width: number
+  /**
+   * 범주 축이면 그 열의 범주들. **`FittedColumn.categories` 그대로라 순서가 곧 인코딩
+   * 순서다.** 수치 축에는 없다 — 그것이 두 종류를 가르는 유일한 표시다.
+   */
+  readonly categories?: readonly string[]
+}
+
+/**
+ * 이 행에서 그 범주 축이 가리키는 범주 번호.
+ *
+ * 원핫이면 **1이 선 칸**이고, 순서 인코딩이면 값 그 자체다. 학습셋에 없던 범주는
+ * 원핫에서 전부 0이고 순서 인코딩에서 -1인데(`ml/preprocess.ts`), 그때는 첫 범주로
+ * 떨어뜨리지 않고 **`-1`을 그대로 돌려준다** — 화면이 "모르는 값"으로 다룰 수 있어야
+ * 한다.
+ */
+export function categoryIndexAt(row: readonly number[], axis: ClusterAxis): number {
+  if (axis.width === 1) return Math.round(row[axis.index] ?? 0)
+
+  let best = -1
+  let bestValue = 0
+  for (let j = 0; j < axis.width; j += 1) {
+    const value = row[axis.index + j] ?? 0
+    if (value > bestValue) {
+      bestValue = value
+      best = j
+    }
+  }
+  return best
+}
+
+/** 이 축이 범주 축인가. **판정을 한 군데 둔다** — `categories`를 직접 보지 마라. */
+export function isCategoricalAxis(axis: ClusterAxis): boolean {
+  return axis.categories !== undefined
 }
 
 /**
@@ -80,15 +127,40 @@ export function matrixColumns(
   return columns
 }
 
-/** 축 후보. 수치 칸만 남긴다. */
+/**
+ * 축 후보. **원본 열 하나가 축 하나다** — 원핫으로 늘어난 칸을 하나씩 세지 않는다.
+ *
+ * `matrixColumns`와 같은 순서로 걷는다. 두 벌로 걸으면 어긋나는 날 **한 칸 밀린 축**으로
+ * 그림을 그린다 — `matrixColumns`가 `featureNames`와 대조해 시끄럽게 실패하는 것과 같은
+ * 사정이라, 여기서도 그 함수가 센 칸 수를 그대로 따라간다.
+ */
 export function clusterAxes(
   preprocessor: Preprocessor,
   encoding: Preprocessing['categoricalEncoding'],
 ): ClusterAxis[] {
-  return matrixColumns(preprocessor, encoding)
-    .map((entry, index) => ({ entry, index }))
-    .filter(({ entry }) => entry.column.kind === 'numeric')
-    .map(({ entry, index }) => ({ name: entry.name, index }))
+  // 어긋남을 여기서도 잡는다 — 이 함수만 부르는 화면이 있다 (#28-7의 목록 세우기).
+  matrixColumns(preprocessor, encoding)
+
+  const axes: ClusterAxis[] = []
+  let index = 0
+
+  for (const column of preprocessor.columns) {
+    if (column.kind === 'numeric') {
+      axes.push({ name: column.name, index, width: 1 })
+      index += 1
+      continue
+    }
+
+    const categories = column.categories ?? []
+    const width = encoding === 'onehot' ? categories.length : 1
+    // 범주가 하나도 없는 열은 축이 못 된다. 눈금이 설 자리가 없다.
+    if (categories.length > 0) {
+      axes.push({ name: column.name, index, width, categories })
+    }
+    index += width
+  }
+
+  return axes
 }
 
 /**
@@ -217,11 +289,31 @@ export function clusterSummaries(
 ): ClusterSummary[] {
   // 군집 × 축의 합계를 한 번에 모은다. 행을 군집마다 다시 훑으면 k배가 된다.
   const sums = assignment.centroids.map(() => new Float64Array(axes.length))
+  /**
+   * **범주 축은 합계가 뜻이 없다** — 범주 번호를 더하면 아무것도 아닌 수가 나온다.
+   * 그래서 세는 것이 다르다: 군집 × 축 × 범주의 **도수**이고, 거기서 최빈 범주가 나온다
+   * (`open-decisions.md` "군집 산점도의 축" — 범주 축에서는 ✕를 안 그리고 그 자리를
+   * 요약표가 답한다).
+   */
+  const tallies = assignment.centroids.map(() =>
+    axes.map((axis) =>
+      isCategoricalAxis(axis) ? new Int32Array(axis.categories?.length ?? 0) : null,
+    ),
+  )
+
   for (let i = 0; i < assignment.rows.length; i += 1) {
     const row = matrix[i]
-    const target = sums[assignment.clusters[i] ?? 0]
+    const cluster = assignment.clusters[i] ?? 0
+    const target = sums[cluster]
     if (!row || !target) continue
     axes.forEach((axis, position) => {
+      const tally = tallies[cluster]?.[position]
+      if (tally) {
+        const category = categoryIndexAt(row, axis)
+        // 학습셋에 없던 범주(-1)는 어느 칸에도 안 센다. 없는 범주에 표를 줄 수 없다.
+        if (category >= 0 && category < tally.length) tally[category]! += 1
+        return
+      }
       target[position]! += row[axis.index] ?? 0
     })
   }
@@ -229,19 +321,36 @@ export function clusterSummaries(
   return assignment.centroids.map((centroid, cluster) => {
     const size = assignment.counts[cluster] ?? 0
     const total = sums[cluster]
+
+    /** 중심점의 그 축 좌표. **범주 축에서는 가장 무거운 범주의 번호다.** */
     const centroidValues = axes.map((axis) =>
-      unscale(columns[axis.index]!.column, centroid[axis.index] ?? 0),
+      isCategoricalAxis(axis)
+        ? categoryIndexAt(centroid, axis)
+        : unscale(columns[axis.index]!.column, centroid[axis.index] ?? 0),
     )
 
     return {
       cluster,
       size,
-      means:
-        size === 0
-          ? centroidValues
-          : axes.map((axis, position) =>
-              unscale(columns[axis.index]!.column, (total?.[position] ?? 0) / size),
-            ),
+      means: axes.map((axis, position) => {
+        const tally = tallies[cluster]?.[position]
+        if (tally) {
+          // **빈 군집도 답을 갖는다** — 셀 것이 없으면 중심점이 가리키는 범주다.
+          if (size === 0) return centroidValues[position] ?? -1
+          let best = -1
+          let bestCount = 0
+          for (let c = 0; c < tally.length; c += 1) {
+            // 동점이면 범주 번호가 앞선 것이 이긴다 - 인코딩 순서가 곧 안정된 규칙이다.
+            if ((tally[c] ?? 0) > bestCount) {
+              bestCount = tally[c] ?? 0
+              best = c
+            }
+          }
+          return best
+        }
+        if (size === 0) return centroidValues[position] ?? 0
+        return unscale(columns[axis.index]!.column, (total?.[position] ?? 0) / size)
+      }),
       centroid: centroidValues,
     }
   })
@@ -258,7 +367,12 @@ export function axisValues(
   axes: readonly ClusterAxis[],
   columns: readonly MatrixColumn[],
 ): number[] {
-  return axes.map((axis) => unscale(columns[axis.index]!.column, row[axis.index] ?? 0))
+  return axes.map((axis) =>
+    // **범주 축은 되돌리지 않는다** — 값이 단위를 가진 수가 아니라 범주 번호다.
+    isCategoricalAxis(axis)
+      ? categoryIndexAt(row, axis)
+      : unscale(columns[axis.index]!.column, row[axis.index] ?? 0),
+  )
 }
 
 /** 축 하나를 전체 데이터에서 본 모습. 요약표 머리글의 설명이 이것을 쓴다 (#28-6). */
