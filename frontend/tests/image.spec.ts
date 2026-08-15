@@ -113,6 +113,42 @@ describe('범주 이름', () => {
     expect(isValidCategoryName(' 개')).toBe(false)
     expect(isValidCategoryName('개 ')).toBe(false)
   })
+
+  /**
+   * **실물 `.mlpx`가 잡았다** (2026-08-15). 아이패드 → PC → 아이패드 왕복 파일의 범주가
+   * `PC에서 또 추가함.`이었는데, 압축을 푼 윈도우에서 마침표가 조용히 떨어져 사진 48장의
+   * 경로가 `hashes.json`과 어긋났다. **파일도 앱도 멀쩡했고, 무너진 것은 도구 없이
+   * 대조하는 길이다.**
+   */
+  it('끝이 마침표인 이름은 막는다 - 윈도우가 조용히 떼어 낸다', () => {
+    expect(isValidCategoryName('PC에서 또 추가함.')).toBe(false)
+    expect(isValidCategoryName('개.')).toBe(false)
+  })
+
+  it('가운데 마침표는 막지 않는다 - 셋 어디서나 폴더 이름으로 선다', () => {
+    expect(isValidCategoryName('v1.2')).toBe(true)
+    expect(isValidCategoryName('개.고양이')).toBe(true)
+  })
+
+  /** 폴더로 만들 수조차 없다. 확장자가 붙어도 예약이고 대소문자를 안 가린다. */
+  it('윈도우 예약 장치 이름은 막는다', () => {
+    for (const name of ['CON', 'con', 'NUL', 'aux', 'COM1', 'LPT9', 'CON.txt']) {
+      expect(isValidCategoryName(name), name).toBe(false)
+    }
+  })
+
+  it('예약어를 닮았을 뿐인 이름은 통과한다', () => {
+    for (const name of ['CONS', 'COM', 'COM10', 'NULL', '콘']) {
+      expect(isValidCategoryName(name), name).toBe(true)
+    }
+  })
+
+  /** 붙여넣기로 섞여 들어오는 것이라 학생이 눈으로 못 본다. */
+  it('제어문자는 막는다', () => {
+    expect(isValidCategoryName('개\u0000고양이')).toBe(false)
+    expect(isValidCategoryName('개\u001b고양이')).toBe(false)
+    expect(isValidCategoryName('개\u007f')).toBe(false)
+  })
 })
 
 describe('정본의 자리', () => {

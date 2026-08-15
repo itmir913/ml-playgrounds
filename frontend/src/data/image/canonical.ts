@@ -88,15 +88,42 @@ export function fitLongEdge(
 }
 
 /**
- * 범주 이름에 못 쓰는 문자. **경로 구분자와 윈도우 예약 문자다.**
+ * 범주 이름에 못 쓰는 문자. **세 운영체제가 막는 것의 합집합이다.**
  *
  * 범주 이름이 그대로 zip 엔트리 경로가 되므로, `개/고양이`라는 이름 하나가 폴더 두 겹이
- * 되어 **파일이 조용히 다른 라벨로 담긴다.** 윈도우 예약 문자를 함께 막는 이유는 학생이
- * `.mlpx`를 풀어 보는 자리가 대부분 윈도우 탐색기이기 때문이다.
+ * 되어 **파일이 조용히 다른 라벨로 담긴다.** 나머지를 함께 막는 이유는 학생과 교사가
+ * `.mlpx`를 **풀어 보기 때문이다** — 앱은 zip 엔트리를 직접 읽어서 무엇이든 견디지만,
+ * 압축을 푼 자리에서 이름이 바뀌면 그때부터 `hashes.json`이 디스크와 안 맞는다.
+ *
+ * - **리눅스** — `/` 하나뿐이다.
+ * - **맥** — `/`, 그리고 `:`(파인더가 옛 경로 구분자로 보아 화면에서 바꿔 보여준다).
+ * - **윈도우** — 위 목록 전부와 제어문자, 끝의 마침표와 공백, 예약 장치 이름.
  *
  * **공백과 하이픈은 막지 않는다** — `산 사진`·`cat-dog`은 정상적인 이름이다.
+ * 가운데 마침표도 괜찮다 — `v1.2`는 세 운영체제 어디서나 폴더 이름으로 선다.
  */
 const FORBIDDEN_IN_NAME = ['/', '\\', ':', '*', '?', '"', '<', '>', '|']
+
+/**
+ * 제어문자. **윈도우가 이름에 못 쓰게 하고, 셋 어디서도 폴더 이름으로 뜻이 없다.**
+ * 붙여넣기로 섞여 들어오는 것이라 **학생이 눈으로 못 본다.**
+ */
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/
+
+/**
+ * 윈도우 예약 장치 이름. **폴더로 만들 수조차 없다.**
+ *
+ * 확장자가 붙어도 예약이다(`CON.txt`도 안 된다). 그래서 첫 마침표 앞을 보고,
+ * 대소문자는 안 가린다.
+ */
+const WINDOWS_RESERVED = new Set([
+  'CON',
+  'PRN',
+  'AUX',
+  'NUL',
+  ...Array.from({ length: 9 }, (_unused, index) => `COM${index + 1}`),
+  ...Array.from({ length: 9 }, (_unused, index) => `LPT${index + 1}`),
+])
 
 /**
  * 학생이 지을 수 있는 범주 이름인가.
@@ -112,6 +139,17 @@ export function isValidCategoryName(name: string): boolean {
   if (name.length > MAX_CATEGORY_NAME_LENGTH) return false
   if (name.startsWith('_')) return false
   if (name === '.' || name === '..') return false
+  /**
+   * **끝의 마침표는 윈도우가 조용히 떼어 낸다.** 실물 `.mlpx`가 그렇게 걸렸다
+   * (2026-08-15) — `PC에서 또 추가함.`에 담긴 사진 48장이 압축을 푼 자리에서는
+   * 마침표 없는 폴더에 앉아 **`hashes.json`의 경로와 어긋났다.** 파일도 앱도 멀쩡했다.
+   * 무너진 것은 **도구 없이 대조하는 길**이다 (mlpx-spec.md §7.2).
+   *
+   * 끝의 공백은 위 `trim` 비교가 이미 막는다.
+   */
+  if (name.endsWith('.')) return false
+  if (CONTROL_CHARACTERS.test(name)) return false
+  if (WINDOWS_RESERVED.has(name.split('.')[0]!.toUpperCase())) return false
   return !FORBIDDEN_IN_NAME.some((character) => name.includes(character))
 }
 
