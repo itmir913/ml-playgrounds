@@ -16,7 +16,6 @@ import { MAX_MODEL_BYTES } from '../src/limits'
 import { MLJS_ALGORITHMS, fit } from '../src/ml/engines/mljs'
 import {
   KMEANS_FORMAT,
-  LINEAR_FORMAT,
   LINEAR_V2_FORMAT,
   LINEAR_REGRESSION_FORMAT,
   NAIVE_BAYES_FORMAT,
@@ -27,7 +26,6 @@ import {
   knnPredict,
   loadModel,
   loadModelProba,
-  type LinearModel,
   type LinearModelV2,
   type LinearRegressionModel,
   type ModelInterpreter,
@@ -228,7 +226,7 @@ describe('크기', () => {
  */
 describe('학습 행이 필요한 형식', () => {
   it('자체 완결형은 요구하지 않고 참조형만 요구한다', () => {
-    for (const format of [TREE_FORMAT, LINEAR_FORMAT, LINEAR_V2_FORMAT, NAIVE_BAYES_FORMAT]) {
+    for (const format of [TREE_FORMAT, LINEAR_V2_FORMAT, NAIVE_BAYES_FORMAT]) {
       expect(interpreterFor(format)?.needsTrainingRows, format).toBe(false)
     }
     expect(interpreterFor(REFERENCE_FORMAT)?.needsTrainingRows).toBe(true)
@@ -257,16 +255,14 @@ describe('학습 행이 필요한 형식', () => {
 })
 
 /**
- * `mlpx-linear-v1`·`mlpx-linear-v2` (mlpx-spec.md §5.4·§5.4.1).
+ * `mlpx-linear-v2` (mlpx-spec.md §5.4.1).
  *
  * **이 형식의 요구는 하나다 — 저장했다가 다시 읽은 모델의 예측이 원본과 하나도 다르지
  * 않아야 한다.** 지표만 대조하면 어긋난 예측이 상쇄로 가려진다. 그리고 여기는 특히
- * 위험하다 — 예측이 `argmin`이라 부호 하나를 뒤집으면 **에러 없이 정확히 반대인 답**이
- * 나온다.
+ * 위험하다 — 부호 하나를 뒤집으면 **에러 없이 정확히 반대인 답**이 나온다.
  *
- * **엔진이 만드는 것은 v2다** (2026-08-10) — 내부 표준화를 접은 가중치에 절편이
- * 붙는다. v1은 손으로 만든 payload로 해석기만 검사한다 — 엔진이 더 이상 만들지 않아도
- * 해석기는 남기 때문이다(§5.4).
+ * **`mlpx-linear-v1`은 2026-08-15에 지웠다** (§5.4). 그쪽은 `argmin`이라 방향이 반대였고,
+ * 엔진이 안 만든 지 오래였으며 읽을 파일도 없었다.
  */
 describe('mlpx-linear-v2', () => {
   const trained = train('logistic_regression')
@@ -314,46 +310,6 @@ describe('mlpx-linear-v2', () => {
     )
   })
 
-  it('점수가 낮은 클래스가 이긴다 - 뒤집으면 정확히 반대 답이 나온다', () => {
-    // 0번 클래스에만 큰 음수 점수를 주는 가중치. argmin이면 0번, argmax면 마지막이다.
-    const model = loadModel({
-      format: LINEAR_FORMAT,
-      classes: ['a', 'b', 'c'],
-      featureCount: 1,
-      weights: [[-10], [0], [10]],
-    })
-    expect(model([[1]])).toEqual(['a'])
-  })
-
-  it('동점이면 번호가 작은 클래스가 이긴다 - 포화에서 실제로 갈린다', () => {
-    // 시그모이드가 전부 정확히 1.0으로 포화한다. 라이브러리가 엄격한 `<`로 갱신한다.
-    const model = loadModel({
-      format: LINEAR_FORMAT,
-      classes: ['a', 'b'],
-      featureCount: 1,
-      weights: [[1000], [1000]],
-    })
-    expect(model([[1]])).toEqual(['a'])
-  })
-
-  it('줄 수가 클래스 수와 다르면 거부한다', () => {
-    expectCode(
-      () =>
-        loadModel({ format: LINEAR_FORMAT, classes: ['a', 'b'], featureCount: 1, weights: [[1]] }),
-      'MODEL_FILE_INVALID',
-    )
-  })
-
-  it('특성 개수가 다른 입력은 거부한다 - 맞춰 읽으면 다른 열로 예측한다', () => {
-    const model = loadModel({
-      format: LINEAR_FORMAT,
-      classes: ['a'],
-      featureCount: 2,
-      weights: [[1, 1]],
-    })
-    expectCode(() => model([[1]]), 'MODEL_FILE_INVALID')
-  })
-
   /**
    * 확률 (mlpx-spec.md §5.4).
    *
@@ -363,7 +319,7 @@ describe('mlpx-linear-v2', () => {
    */
   describe('확률', () => {
     const file = roundTrip(trained.model)
-    const classes = (trained.model as LinearModel).classes
+    const classes = (trained.model as LinearModelV2).classes
 
     /** 확률이 가장 높은 칸. 화면이 하는 일과 같다. */
     function argmax(row: Float64Array): number {
@@ -395,40 +351,6 @@ describe('mlpx-linear-v2', () => {
         expect(row).not.toBeNull()
         if (row) expect(classes[argmax(row)]).toBe(labels[index])
       })
-    })
-
-    it('칸의 순서가 classes 순서다', () => {
-      // 점수 -10, 0, 10. 뒤집어 재므로 0번이 가장 높고 2번이 가장 낮다.
-      const rows =
-        loadModelProba({
-          format: LINEAR_FORMAT,
-          classes: ['a', 'b', 'c'],
-          featureCount: 1,
-          weights: [[-10], [0], [10]],
-        })?.predict([[1]]) ?? []
-
-      const row = rows[0]
-      expect(row).toBeDefined()
-      if (!row) return
-      expect(argmax(row)).toBe(0)
-      expect(row[0]).toBeGreaterThan(row[1] ?? 0)
-      expect(row[1]).toBeGreaterThan(row[2] ?? 0)
-    })
-
-    /**
-     * **균등분포로 채우지 않는다.** 일대다 판별기가 전부 "나는 아니다"라고 답한 것이지
-     * 모르겠다는 뜻이 아니라, 33.3%씩 보여주면 정반대의 거짓말이 된다.
-     */
-    it('전부 포화하면 확률이 없다 - 라벨은 그래도 나온다', () => {
-      const payload = {
-        format: LINEAR_FORMAT,
-        classes: ['a', 'b'],
-        featureCount: 1,
-        weights: [[1000], [1000]],
-      }
-      expect(loadModelProba(payload)?.predict([[1]])).toEqual([null])
-      // 동점이면 번호가 작은 쪽이라는 규칙은 확률이 없어도 그대로다.
-      expect(loadModel(payload)([[1]])).toEqual(['a'])
     })
 
     /**

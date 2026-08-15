@@ -47,14 +47,13 @@ const PINNED_ENGINES: Readonly<Record<string, string>> = {
 /**
  * 담긴 모델을 읽는 형식들. **계열마다 v1로 시작하고 배포 전에는 안 오른다.**
  *
- * `mlpx-linear`만 v1과 v2가 함께 있다 — 로지스틱 회귀가 절편을 갖게 되면서 늘었고
- * (`1610477`), **문서 커밋이 앞에 있어 승인된 변경이다**(`a94a23e`). v1은 그때 담긴
- * 파일을 읽으려고 남아 있다.
+ * `mlpx-linear`만 v2다 — 로지스틱 회귀가 절편을 갖게 되면서 새 이름을 받았고
+ * (`1610477`), **문서 커밋이 앞에 있어 승인된 변경이다**(`a94a23e`). **v1은 2026-08-15에
+ * 지웠다** — 엔진이 안 만든 지 오래였고 읽을 파일도 없었다 (`mlpx-spec.md` §5.4).
  */
 const PINNED_FORMATS: readonly string[] = [
   'mlpx-kmeans-v1',
   'mlpx-linear-regression-v1',
-  'mlpx-linear-v1',
   'mlpx-linear-v2',
   'mlpx-naive-bayes-v1',
   'mlpx-reference-v1',

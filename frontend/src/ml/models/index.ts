@@ -13,14 +13,7 @@ import { z } from 'zod'
 
 import { ClientError } from '../../errors'
 import { KMEANS_FORMAT, loadKMeansModel } from './kmeans'
-import {
-  LINEAR_FORMAT,
-  LINEAR_V2_FORMAT,
-  loadLinearModel,
-  loadLinearProba,
-  loadLinearV2Model,
-  loadLinearV2Proba,
-} from './linear'
+import { LINEAR_V2_FORMAT, loadLinearV2Model, loadLinearV2Proba } from './linear'
 import { LINEAR_REGRESSION_FORMAT, loadLinearRegressionModel } from './linear-regression'
 import { NAIVE_BAYES_FORMAT, loadNaiveBayesModel } from './naive-bayes'
 import { REFERENCE_FORMAT, loadReferenceModel } from './reference'
@@ -30,8 +23,8 @@ import type { LoadContext, ModelInterpreter, Predict, ProbaModel } from './types
 
 export { KMEANS_FORMAT, kmeansPredict, loadKMeansModel, parseKMeansModel } from './kmeans'
 export type { KMeansModel } from './kmeans'
-export { LINEAR_FORMAT, LINEAR_V2_FORMAT, loadLinearV2Model } from './linear'
-export type { LinearModel, LinearModelV2 } from './linear'
+export { LINEAR_V2_FORMAT, loadLinearV2Model } from './linear'
+export type { LinearModelV2 } from './linear'
 export { LINEAR_REGRESSION_FORMAT } from './linear-regression'
 export type { LinearRegressionModel } from './linear-regression'
 export { NAIVE_BAYES_FORMAT } from './naive-bayes'
@@ -57,14 +50,6 @@ const INTERPRETERS: readonly ModelInterpreter[] = [
     includesPreprocessing: false,
     needsTrainingRows: false,
     load: loadTreeModel,
-  },
-  {
-    // **엔진이 더 이상 만들지 않는 형식이다** (mlpx-spec.md 5.4). 해석기만 남는다.
-    format: LINEAR_FORMAT,
-    includesPreprocessing: false,
-    needsTrainingRows: false,
-    load: loadLinearModel,
-    loadProba: loadLinearProba,
   },
   {
     format: LINEAR_V2_FORMAT,
