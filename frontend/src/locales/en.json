@@ -72,7 +72,7 @@
       "label": "Train­ing",
       "purpose": "Choose the task type and the models, then train them.",
       "tabular": {
-        "locked": "Choose the target and the features first."
+        "locked": "Finish the tasks on the Preprocess step first."
       },
       "image": {
         "locked": "Finish the tasks on the Data step first."
