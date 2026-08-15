@@ -20,8 +20,7 @@ import AppPopover from '@/components/AppPopover.vue'
 import { ACTION_ICONS } from '@/icons'
 import { MAX_STUDENT_ID_LENGTH, MAX_STUDENT_NAME_LENGTH } from '@/limits'
 import { projectFileName } from '@/project/format'
-import { renderPortfolioMarkdown } from '@/project/portfolio'
-import { portfolioMarkdownText } from '@/project/portfolio-text'
+import { identifiedExport } from '@/project/portfolio-text'
 import { identityOf, withIdentity } from '@/project/identity'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
@@ -65,27 +64,27 @@ async function exportFile(close: () => void): Promise<void> {
   const file = project.file
   if (!file) return
   try {
-    // 적은 인적사항을 먼저 문서에 넣는다. 파일 이름이 그것으로 만들어져야 한다.
-    project.update({
-      ...file,
-      document: withIdentity(
-        file.document,
-        {
-          name: file.document.manifest.name,
-          studentId: studentId.value,
-          studentName: studentName.value,
-        },
-        new Date().toISOString(),
-      ),
-    })
-
+    // 적은 인적사항을 문서에 넣고, **그 문서로** 마크다운까지 만든다. 둘을 따로
+    // 부르면 마크다운이 갱신 전 manifest를 본다 (`identifiedExport`의 주석).
+    //
     // portfolio.md는 파생물이지만 파일에 담는다 - 교사가 압축을 풀어 메모장으로
     // 열어도 학생이 무엇을 썼는지 보여야 한다 (CLAUDE.md §1.3).
-    const markdown = renderPortfolioMarkdown(
-      portfolioMarkdownText(file.document.manifest, (key) => t(key), locale.value),
-      file.document.portfolio,
+    const exported = identifiedExport(
+      file.document,
+      {
+        name: file.document.manifest.name,
+        studentId: studentId.value,
+        studentName: studentName.value,
+      },
+      new Date().toISOString(),
+      (key) => t(key),
+      locale.value,
     )
-    const dropped = await project.exportFile(markdown)
+
+    // 파일 이름이 인적사항으로 만들어져야 하므로 문서를 먼저 넣는다.
+    project.update({ ...file, document: exported.document })
+
+    const dropped = await project.exportFile(exported.markdown)
     close()
 
     toasts.push('success', 'project.exportDone')

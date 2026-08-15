@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest'
 
 import { newProjectDocument } from '../src/project/create'
 import { parsePortfolioForm } from '../src/project/portfolio-form'
-import { portfolioMarkdownText } from '../src/project/portfolio-text'
+import { identifiedExport, portfolioMarkdownText } from '../src/project/portfolio-text'
 import {
   attachmentsOf,
   hasTemplate,
@@ -464,5 +464,55 @@ describe('머리글은 부르는 쪽이 만든다', () => {
       '[identity.studentName]',
       '김하늘',
     ])
+  })
+})
+
+describe('내보낼 문서와 그 마크다운은 같은 세대다', () => {
+  const label = (key: string) => `[${key}]`
+  const blank = newProjectDocument(
+    { name: '붓꽃 품종 분류', locale: 'ko', dataType: 'tabular' },
+    {
+      projectId: '550e8400-e29b-41d4-a716-446655440000',
+      createdAt: '2026-08-05T09:00:00Z',
+      randomState: 4242,
+    },
+  )
+  const identity = { name: '붓꽃 품종 분류', studentId: '1-2-03', studentName: '김하늘' }
+  const now = '2026-08-15T07:09:39.319Z'
+
+  /**
+   * **실물 `.mlpx`가 잡은 결함이다** (2026-08-15). 화면이 `withIdentity`의 반환을 버리고
+   * 갱신 전 manifest로 마크다운을 그려서, 학번과 이름을 처음 적고 내보낸 파일의
+   * `manifest.json`에는 인적사항이 있는데 `document.md` 머리글에는 없었다.
+   */
+  it('처음 적은 인적사항이 머리글에 들어간다 - 갱신 전 manifest를 보면 안 된다', () => {
+    expect(blank.manifest.student).toBeUndefined()
+
+    const { document, markdown } = identifiedExport(blank, identity, now, label, 'ko')
+
+    expect(document.manifest.student).toEqual({ studentId: '1-2-03', name: '김하늘' })
+    expect(markdown).toContain('1-2-03')
+    expect(markdown).toContain('김하늘')
+  })
+
+  /**
+   * 같은 결함의 둘째 증상이고 **이쪽이 결함군 전체를 막는다.** 머리글의 어느 줄이든
+   * 갱신 전 문서에서 나오면 여기서 걸린다.
+   */
+  it('머리글이 문서와 같은 updatedAt을 쓴다', () => {
+    const { document, markdown } = identifiedExport(blank, identity, now, label, 'ko')
+    const fromDocument = portfolioMarkdownText(document.manifest, label, 'ko')
+
+    expect(document.manifest.updatedAt).toBe(now)
+    expect(markdown).toBe(renderPortfolioMarkdown(fromDocument, document.portfolio))
+    expect(markdown).not.toBe(
+      renderPortfolioMarkdown(portfolioMarkdownText(blank.manifest, label, 'ko'), blank.portfolio),
+    )
+  })
+
+  it('답은 그대로 실려 나간다', () => {
+    const written = { ...blank, portfolio: withAnswer(blank.portfolio, 'topic', '고양이와 개') }
+    const { markdown } = identifiedExport(written, identity, now, label, 'ko')
+    expect(markdown).toContain('고양이와 개')
   })
 })

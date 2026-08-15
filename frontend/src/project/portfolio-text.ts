@@ -15,8 +15,11 @@
 
 import { formatDateTime } from '@/composables/useFormat'
 
+import { withIdentity } from './identity'
+import type { Identity } from './identity'
+import { renderPortfolioMarkdown } from './portfolio'
 import type { PortfolioMarkdownText } from './portfolio'
-import type { Manifest } from './schema'
+import type { Manifest, ProjectDocument } from './schema'
 
 /** 로케일 키를 문장으로 바꾸는 것. 화면은 `t`를, 검사는 가짜를 넘긴다. */
 export type Translate = (key: string) => string
@@ -57,4 +60,35 @@ export function portfolioMarkdownText(
   )
 
   return { title: manifest.name, rows, orphanTitle: translate('portfolio.orphanTitle') }
+}
+
+/** 내보낼 문서와, 그 문서에서 나온 마크다운. **둘은 언제나 같은 세대다.** */
+export interface IdentifiedExport {
+  readonly document: ProjectDocument
+  readonly markdown: string
+}
+
+/**
+ * 인적사항을 문서에 넣고, **그렇게 만들어진 문서로** `document.md`를 그린다.
+ *
+ * **둘을 한 함수가 만드는 것이 이 함수의 존재 이유다.** 화면에서 따로 부르면 마크다운이
+ * 갱신 전 manifest를 보게 되고, 그러면 zip 안에서 `manifest.json`과 `document.md`가
+ * 서로 다른 말을 한다 - 학번과 이름을 처음 적고 내보내는 그 한 번에 정확히 그랬다.
+ * 겉(파일 이름)은 맞고 속만 비어서 아무도 못 알아챈다.
+ */
+export function identifiedExport(
+  document: ProjectDocument,
+  identity: Identity,
+  now: string,
+  translate: Translate,
+  locale: string,
+): IdentifiedExport {
+  const identified = withIdentity(document, identity, now)
+  return {
+    document: identified,
+    markdown: renderPortfolioMarkdown(
+      portfolioMarkdownText(identified.manifest, translate, locale),
+      identified.portfolio,
+    ),
+  }
 }
