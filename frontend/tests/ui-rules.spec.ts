@@ -1268,3 +1268,29 @@ describe('머리의 맥락 자리에는 버튼이 없다', () => {
     expect(found).toEqual([])
   })
 })
+
+/**
+ * **양식을 나르는 부품이 인자를 흘리면 안 된다** (mlpx-spec.md §8.5).
+ *
+ * `TemplateSourceMenu`는 `TemplateSourceList`를 감싸 되보내기만 한다. 그런데 **선언을
+ * 손으로 두 벌 적어 두어서, 목록에 언어가 붙던 날 메뉴만 인자 하나짜리로 남았다** —
+ * 시작 화면(목록을 직접 쓴다)은 멀쩡하고 팝오버로 가져온 양식만 언어를 잃었다.
+ * 타입도 안 울었다. 되보내는 쪽이 덜 받는 것은 TypeScript에서 정상이기 때문이다.
+ *
+ * 아이패드에서 만든 실물 `.mlpx`가 잡았다 (2026-08-15).
+ */
+describe('되보내는 부품은 같은 것을 보낸다', () => {
+  const declarationOf = (file: string): string => {
+    const source = readFileSync(join(SRC, 'views', 'portfolio', file), 'utf-8')
+    // `pick: [...]` 한 줄. 주석은 안 본다.
+    const found = /^\s*pick: \[(.+)\]$/m.exec(source)
+    return found?.[1]?.trim() ?? ''
+  }
+
+  it('양식 목록과 그것을 감싼 메뉴가 같은 인자를 보낸다', () => {
+    const list = declarationOf('TemplateSourceList.vue')
+    // 선언을 실제로 찾았는지부터 본다 - 못 찾으면 아래가 빈 문자열끼리 통과한다.
+    expect(list).not.toBe('')
+    expect(declarationOf('TemplateSourceMenu.vue')).toBe(list)
+  })
+})

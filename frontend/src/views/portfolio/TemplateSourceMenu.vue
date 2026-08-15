@@ -24,6 +24,7 @@ import AppButton from '@/components/AppButton.vue'
 import AppPopover from '@/components/AppPopover.vue'
 import { ACTION_ICONS } from '@/icons'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
+import type { Locale } from '@/i18n'
 import type { TemplateSourceContext } from '@/project/portfolio-sources'
 import TemplateSourceList from './TemplateSourceList.vue'
 
@@ -37,7 +38,14 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  pick: [markdown: string | null]
+  /**
+   * 받아 온 양식과 **그 양식의 언어** (mlpx-spec.md §8.5). 모르는 출처는 `undefined`다.
+   *
+   * **언어를 여기서 흘리면 양식에 안 박힌다.** 실제로 그랬다 — 이 메뉴만 인자를 하나
+   * 받아 되보내고 있었고, 아이패드에서 만든 실물 파일에 `template.locale`이 없었다.
+   * 시작 화면(`TemplateSourceList`를 직접 쓴다)은 멀쩡했다.
+   */
+  pick: [markdown: string | null, locale?: Locale]
   failed: [error: unknown]
 }>()
 
@@ -49,8 +57,8 @@ const context = computed<TemplateSourceContext>(() => ({
   pickFile: props.pickFile,
 }))
 
-function onPick(markdown: string | null, close: () => void): void {
-  emit('pick', markdown)
+function onPick(markdown: string | null, formLocale: Locale | undefined, close: () => void): void {
+  emit('pick', markdown, formLocale)
   close()
 }
 </script>
@@ -72,7 +80,7 @@ function onPick(markdown: string | null, close: () => void): void {
     <template #default="{ close }">
       <TemplateSourceList
         :context="context"
-        @pick="(markdown) => onPick(markdown, close)"
+        @pick="(markdown, formLocale) => onPick(markdown, formLocale, close)"
         @failed="(error) => emit('failed', error)"
       />
     </template>
