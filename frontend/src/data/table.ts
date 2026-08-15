@@ -57,7 +57,7 @@ export interface ImportedTable {
   /**
    * 정본 바이트. 항상 UTF-8 CSV다.
    *
-   * 이 값이 IndexedDB에 들어가고, .mlpx의 dataset/이 되고, datasetHash의 대상이 되고,
+   * 이 값이 IndexedDB에 들어가고, .mlpx의 dataset/이 되고, 무결성 해시의 대상이 되고,
    * 서버로 간다. **여기서부터는 누구도 손대지 않는다** (mlpx-spec.md 7).
    */
   bytes: Uint8Array

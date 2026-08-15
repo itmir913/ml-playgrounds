@@ -5,12 +5,12 @@
  * 거쳐 같은 모양이 된다. 그래서 아래가 전부 한 가지만 알면 된다.
  *
  *   - .mlpx의 dataset/data.csv (mlpx-spec.md 1.1)
- *   - datasetHash 계산 대상 (mlpx-spec.md 7)
+ *   - 무결성 해시(hashes.json)의 대상 (mlpx-spec.md 7)
  *   - 서버로 보내는 바이트 (서버는 xlsx도 cp949도 모른다)
  *
  * **정규화는 import 시점에 딱 한 번 일어난다.** 여기서 나온 바이트가 그 프로젝트의
  * 원본이며, 이후로는 누구도 손대지 않는다 - 다시 인코딩하거나 줄바꿈을 바꾸면
- * datasetHash가 달라져 무결성 검증 전체가 무너진다(mlpx-spec.md 7).
+ * 해시가 달라져 무결성 검증 전체가 무너진다(mlpx-spec.md 7).
  */
 
 /** 정본 CSV의 구분자. 읽는 쪽도 이 값을 안다. */
