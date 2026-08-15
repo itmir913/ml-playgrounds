@@ -12,7 +12,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import type { LegendItem, TooltipItem } from 'chart.js'
+import type { ChartOptions, LegendItem, TooltipItem } from 'chart.js'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -24,6 +24,7 @@ import {
   clusterShape,
   haloIndex,
   POINT_SHAPES,
+  type ClusterAxisScales,
   type ClusterChartTokens,
 } from '../src/ml/cluster-chart'
 import type { ClusterSummary, ScatterData } from '../src/ml/clusters'
@@ -59,16 +60,33 @@ const TEXT = {
   highlight: '입력한 데이터',
 }
 
-function dataOf(count: number, highlight?: { values: number[]; cluster: number }) {
-  return clusterChartData(scatter(count), summaries(count), { x: 0, y: 1 }, TOKENS, TEXT, highlight)
+function dataOf(
+  count: number,
+  highlight?: { values: number[]; cluster: number },
+  scales?: ClusterAxisScales,
+) {
+  return clusterChartData(
+    scatter(count),
+    summaries(count),
+    { x: 0, y: 1 },
+    TOKENS,
+    TEXT,
+    highlight,
+    scales,
+  )
 }
 
-function optionsOf(count: number) {
-  return clusterChartOptions(count, TOKENS, {
-    axisX: '키',
-    axisY: '몸무게',
-    point: (name, x, y) => `${name} (${x}, ${y})`,
-  })
+function optionsOf(count: number, scales?: ClusterAxisScales) {
+  return clusterChartOptions(
+    count,
+    TOKENS,
+    {
+      axisX: '키',
+      axisY: '몸무게',
+      point: (name, x, y) => `${name} (${x}, ${y})`,
+    },
+    scales,
+  )
 }
 
 describe('그리는 차례', () => {
@@ -202,6 +220,123 @@ describe('색과 모양', () => {
   })
 })
 
+describe('범주 축', () => {
+  // **여기가 통째로 비어 있었다** (V7 감사). `placed()`·`categoryScale()`·`haloIndex(_, false)`에
+  // 돌연변이를 심어도 이 파일이 안 울었다 - `scales`를 넘기는 검사가 하나도 없었기 때문이다.
+  const CATEGORIES = ['서울', '부산', '대구']
+
+  /** 같은 칸(서울)에 두 점, 다른 칸(대구)에 한 점. */
+  function categorical(): ScatterData {
+    const points = [
+      { row: 0, cluster: 0, values: [0, 10] },
+      { row: 1, cluster: 0, values: [0, 12] },
+      { row: 2, cluster: 1, values: [2, 14] },
+    ]
+    return { points, drawn: points.length, total: points.length }
+  }
+
+  function categoricalData(scales: ClusterAxisScales) {
+    return clusterChartData(
+      categorical(),
+      summaries(2),
+      { x: 0, y: 1 },
+      TOKENS,
+      TEXT,
+      undefined,
+      scales,
+    )
+  }
+
+  /** Chart.js의 축 타입은 합집합이라 그대로는 못 읽는다. */
+  function scaleOf(options: ChartOptions<'scatter'>, axis: 'x' | 'y') {
+    return options.scales?.[axis] as {
+      min?: number
+      max?: number
+      ticks?: {
+        stepSize?: number
+        autoSkip?: boolean
+        callback?: (value: string | number) => string
+      }
+    }
+  }
+
+  it('같은 칸의 점들이 흩뿌려진다 - 안 그러면 한 점처럼 보인다', () => {
+    const [seoul] = categoricalData({ x: CATEGORIES }).datasets
+    const [first, second] = seoul!.data as { x: number; y: number }[]
+
+    expect(first!.x).not.toBe(second!.x)
+    expect(Math.abs(first!.x)).toBeLessThanOrEqual(0.3)
+    expect(Math.abs(second!.x)).toBeLessThanOrEqual(0.3)
+  })
+
+  it('반올림하면 원래 칸으로 돌아온다 - 툴팁이 참값을 말한다', () => {
+    const datasets = categoricalData({ x: CATEGORIES }).datasets
+    const drawn = datasets.flatMap((dataset) => dataset.data as { x: number; y: number }[])
+
+    // `+ 0`은 `-0`을 `0`으로 만든다 - 왼쪽으로 흩뿌린 점의 반올림이 `-0`이고,
+    // `toEqual`은 그 둘을 다르게 본다.
+    expect(drawn.map((point) => Math.round(point.x) + 0)).toEqual([0, 0, 2])
+  })
+
+  it('범주가 아닌 축은 안 흩뿌린다', () => {
+    const datasets = categoricalData({ x: CATEGORIES }).datasets
+    const drawn = datasets.flatMap((dataset) => dataset.data as { x: number; y: number }[])
+
+    expect(drawn.map((point) => point.y)).toEqual([10, 12, 14])
+  })
+
+  it('같은 파일이 같은 그림을 준다 - 흩뿌림은 행에 매여 있다', () => {
+    // 난수를 쓰면 학생이 어제 본 그림을 오늘 못 본다.
+    expect(categoricalData({ x: CATEGORIES })).toEqual(categoricalData({ x: CATEGORIES }))
+  })
+
+  it('범주 축에서는 중심점을 안 그린다 - 원핫 좌표를 칸에 올릴 수 없다', () => {
+    // 한 축만 범주여도 안 그린다. 그 자리는 군집 요약표가 최빈 범주로 답한다.
+    for (const scales of [{ x: CATEGORIES }, { y: CATEGORIES }, { x: CATEGORIES, y: CATEGORIES }]) {
+      expect(categoricalData(scales).datasets.map((dataset) => dataset.label)).toEqual([
+        '0번 군집',
+        '1번 군집',
+      ])
+    }
+  })
+
+  it('뺄 테두리가 없으므로 범례에서 아무 줄도 안 빠진다', () => {
+    // **`haloIndex`가 군집 수를 그대로 돌려주면 군집 하나가 대신 사라진다.**
+    expect(haloIndex(3, false)).toBe(-1)
+
+    const filter = optionsOf(3, { x: CATEGORIES }).plugins!.legend!.labels!.filter!
+    const kept = [0, 1, 2]
+      .map((datasetIndex) => ({ datasetIndex }) as LegendItem)
+      .filter((item) => filter(item, { datasets: [], labels: [] }))
+
+    expect(kept.map((item) => item.datasetIndex)).toEqual([0, 1, 2])
+  })
+
+  it('눈금이 칸마다 서고 이름을 붙인다', () => {
+    const scale = scaleOf(optionsOf(2, { x: CATEGORIES }), 'x')
+
+    // **반 칸씩 밖으로 나간다** - 양 끝 칸의 구름(±0.3)이 잘리지 않게.
+    expect(scale.min).toBe(-0.5)
+    expect(scale.max).toBe(CATEGORIES.length - 0.5)
+    expect(scale.ticks?.stepSize).toBe(1)
+    // 칸을 건너뛰면 이름 없는 칸에 점이 뜬다.
+    expect(scale.ticks?.autoSkip).toBe(false)
+    expect(scale.ticks?.callback?.(1)).toBe('부산')
+    // 흩뿌린 자리에서도 이름은 그 칸의 것이다.
+    expect(scale.ticks?.callback?.(1.3)).toBe('부산')
+    // 칸 밖에는 이름이 없다.
+    expect(scale.ticks?.callback?.(9)).toBe('')
+  })
+
+  it('범주가 아닌 축은 눈금 설정을 안 받는다 - 선형 축 그대로다', () => {
+    const scale = scaleOf(optionsOf(2, { x: CATEGORIES }), 'y')
+
+    expect(scale.min).toBeUndefined()
+    expect(scale.max).toBeUndefined()
+    expect(scale.ticks?.stepSize).toBeUndefined()
+  })
+})
+
 describe('토큰을 못 읽었을 때', () => {
   it('대체 색이 서로 다르다 - 한 색이면 군집이 안 갈린다', () => {
     // **그림은 멀쩡해 보이는데 군집이 안 갈리는 것**이 이 검사가 막는 상태다.
@@ -213,7 +348,7 @@ describe('토큰을 못 읽었을 때', () => {
     // 그건 아무도 안 본다.
     const css = readFileSync(join(process.cwd(), 'src', 'styles', 'theme.css'), 'utf-8')
     const declared = FALLBACK_PALETTE.map((_value, index) => {
-      const found = new RegExp(`--color-chart-${index + 1}:\s*([^;]+);`).exec(css)
+      const found = new RegExp(`--color-chart-${index + 1}:\\s*([^;]+);`).exec(css)
       return found?.[1]?.trim()
     })
 
