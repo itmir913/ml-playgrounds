@@ -4470,7 +4470,7 @@ UI에 **"검증됨"이라고 쓰지 않는다.** 도구가 보증할 수 있는 
 **업로드 형식과 인코딩은 import 시점에 딱 한 번 정규화되고, 그 뒤로는 아무도 모른다.**
 xlsx로 올렸든 CP949 CSV로 올렸든 `data/table.ts`의 `importTable()`을 지나면 같은
 UTF-8 CSV 바이트가 된다. 이 바이트가 IndexedDB에 들어가고, `.mlpx`의 `dataset/data.csv`가
-되고, `datasetHash`의 대상이 되고, 서버로 간다.
+되고, 무결성 해시의 대상이 되고, 서버로 간다.
 
 이유는 셋이다.
 
