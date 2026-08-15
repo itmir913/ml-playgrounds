@@ -20,6 +20,7 @@ import {
   writeProject,
   type ProjectFile,
 } from '../src/project/format'
+import { embeddingPath } from '../src/project/embeddings'
 import { readImages, removeImages } from '../src/project/images'
 import { parseHashes } from '../src/project/integrity'
 import { FORMAT_VERSION, PROJECT_KIND_ML } from '../src/project/schema'
@@ -117,6 +118,29 @@ describe('이미지 프로젝트의 왕복', () => {
       // 이름이 곧 내용이라는 규칙이 파일 안에서도 성립한다 (mlpx-spec.md §1.2).
       expect(hashes?.entries[path]).toBe(hashBytes(content))
     }
+  })
+
+  it('임베딩까지 대조 대상이다 - 읽는 쪽 allowlist가 쓰는 쪽을 따라잡는가', async () => {
+    // **쓰는 쪽과 읽는 쪽의 비대칭을 막는 트립와이어다** (integrity.spec.ts의 같은 자리).
+    // writeProject는 담을 엔트리를 통째로 해싱하지만 대조 대상은 allowlist로 고른다 -
+    // 임베딩을 거기 넣는 것을 잊으면 갓 저장한 파일이 학생 눈앞에서 MODIFIED가 된다.
+    const project = imageProject({
+      embeddings: new Map(
+        ['a', 'b'].map((seed) => [
+          embeddingPath('mobilenet-v2', hashBytes(photo(seed))),
+          new Uint8Array([1, 2, 3, 4]),
+        ]),
+      ),
+    })
+    const { bytes } = await writeProject(project, markdown)
+    const { integrity } = await readProject(bytes)
+
+    expect(integrity.status).toBe('UNCHANGED')
+    expect(integrity.entries.map((entry) => entry.path).sort()).toEqual(
+      Object.keys(unzipSync(bytes))
+        .filter((path) => path !== 'hashes.json')
+        .sort(),
+    )
   })
 
   it('사진 한 장만 바뀌어도 잡힌다', async () => {

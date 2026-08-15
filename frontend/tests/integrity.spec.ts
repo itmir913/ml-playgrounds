@@ -15,7 +15,13 @@ import { describe, expect, it } from 'vitest'
 import { hashBytes } from '../src/hash'
 import { ENTRY, readProject, writeProject, type ProjectFile } from '../src/project/format'
 import { checkHashes, parseHashes, type ProjectHashes } from '../src/project/integrity'
-import { datasetBytes, projectFile } from './fixtures/project'
+import { dataSettings } from '../src/project/schema'
+import {
+  datasetBytes,
+  predictDataset,
+  projectFile,
+  projectFileWithTestDataset,
+} from './fixtures/project'
 
 const markdown = '# 나의 AI 모델 정리\n'
 const DATASET_PATH = 'dataset/data.csv'
@@ -76,6 +82,72 @@ describe('저장할 때 남기는 것', () => {
     const first = await writeProject(projectFile(), markdown)
     const second = await writeProject(projectFile(), markdown)
     expect(second.contentHash).toBe(first.contentHash)
+  })
+})
+
+/**
+ * **쓰는 쪽과 읽는 쪽의 비대칭을 막는 트립와이어다.**
+ *
+ * writeProject는 담을 엔트리 맵을 통째로 buildHashes에 넘기므로 새 엔트리 종류를 더해도
+ * 저절로 해싱된다. 반면 대조 대상을 고르는 hashableEntries는 allowlist다 - 거기 넣는 것을
+ * 잊으면 갓 저장한 파일에서 그 엔트리가 **REMOVED로, 파일 전체가 MODIFIED로** 뜬다.
+ * 학생은 손댄 적이 없는데 화면이 고쳐졌다고 말한다.
+ *
+ * 종류가 더 늘어날 자리라(음성·텍스트) 사람이 기억하는 데 기대지 않는다. 이미지와
+ * 임베딩 쪽은 image-format.spec.ts가 같은 것을 지킨다.
+ */
+describe('엔트리 종류가 늘어도 빠지지 않는다', () => {
+  /** 평가·예측 데이터, 모델, 포트폴리오 첨부까지 한 프로젝트에 모은 것. */
+  function everything(): ProjectFile {
+    const base = projectFileWithTestDataset()
+    const attachment = 'portfolio/attachments/1.webp'
+    return {
+      ...base,
+      document: {
+        ...base.document,
+        settings: {
+          ...base.document.settings,
+          data: {
+            ...dataSettings('tabular', base.document.settings),
+            predictDataset: {
+              path: 'dataset/predict.csv',
+              originalFileName: 'iris_predict.csv',
+              hasHeader: true,
+              encoding: 'utf-8',
+            },
+          },
+        },
+        portfolio: {
+          ...base.document.portfolio,
+          attachments: { motivation: [attachment] },
+        },
+      },
+      predictDataset: structuredClone(predictDataset),
+      attachments: new Map([[attachment, new TextEncoder().encode('가짜webp')]]),
+    }
+  }
+
+  it('zip에 담긴 엔트리가 hashes.json에 하나도 빠짐없이 있다', async () => {
+    const entries = await written(everything())
+
+    for (const [path, content] of Object.entries(entries)) {
+      // 자기 자신만 예외다. 자기 해시를 자기 안에 담을 수 없다.
+      if (path === ENTRY.hashes) continue
+      expect([path, readHashes(entries).entries[path]]).toEqual([path, hashBytes(content)])
+    }
+  })
+
+  it('그 파일을 다시 열면 엔트리 전부가 대조 대상이 된다', async () => {
+    const { bytes } = await writeProject(everything(), markdown)
+    const { integrity } = await readProject(bytes)
+
+    expect(integrity.status).toBe('UNCHANGED')
+    // 읽는 쪽 allowlist가 쓰는 쪽을 따라잡지 못하면 여기서 개수가 어긋난다.
+    expect(integrity.entries.map((entry) => entry.path).sort()).toEqual(
+      Object.keys(unzipSync(bytes))
+        .filter((path) => path !== ENTRY.hashes)
+        .sort(),
+    )
   })
 })
 
