@@ -17,6 +17,7 @@ import type { TrainingRows } from '@/ml/predict'
 import { targetValues, transform, type Dataset, type Preprocessor } from '@/ml/preprocess'
 import type { BackboneSpec } from '@/ml/backbones'
 import { IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
+import type { ImageRole } from '@/data/image/canonical'
 import { countByCategory, imageCategories, readImages, type ImageEntry } from '@/project/images'
 import { dataSnapshot, type Experiment, type Settings, type TaskType } from '@/project/schema'
 
@@ -37,12 +38,58 @@ export function embeddingColumns(dim: number): string[] {
  * 아직 임베딩이 없는 사진들. **학습을 누를 때 이만큼만 뽑는다** (mlpx-spec.md §1.3).
  *
  * 사진을 올릴 때 뽑으면 학습을 한 번도 안 할 학생이 백본 12.4MB를 받고 기다린다.
+ *
+ * **`role`이 필수 인자다.** 기본값을 두었더니 예측 화면이 훈련 자리를 보고 있었고,
+ * 두 집합의 교집합이 언제나 비어서 **예측 사진의 임베딩을 한 장도 안 뽑았다**
+ * (V11 R1 감사 A-2). 자리를 안 밝히면 컴파일이 깨지는 편이 낫다 —
+ * `trainableRowCount`의 `nSamples`와 같은 이유다 (`docs/rule-coverage.md`).
  */
 export function pendingEmbeddings(
   project: ProjectFile | null,
   have: ReadonlySet<string>,
+  role: ImageRole,
 ): readonly ImageEntry[] {
-  return readImages(project).filter((entry) => !have.has(entry.hash))
+  return readImages(project, role).filter((entry) => !have.has(entry.hash))
+}
+
+/** 예측할 사진들을 모델에 넣을 표로 만든 것. */
+export interface ImagePredictTable {
+  /** 학습 때와 같은 열 이름이다 — 전처리기가 이름으로 찾는다. */
+  readonly columns: readonly string[]
+  /** `photos`와 **자리가 같다.** 벡터가 없는 사진은 빈 행이다 */
+  readonly rows: readonly (readonly string[])[]
+  /**
+   * 벡터가 없어 행을 못 지은 사진. **부르는 쪽은 이 사진들의 답을 내지 않는다.**
+   *
+   * 예전에는 없는 자리를 0 벡터로 메웠다. 그러면 사진이 몇 장이든 **모든 모델이 모든
+   * 사진에 같은 답**을 주고, 예외도 경고도 없이 "모델이 잘 못 배웠나 보다"로 읽힌다
+   * (V11 R1 감사 A-2). 없는 것은 없는 것으로 둔다.
+   */
+  readonly missing: ReadonlySet<string>
+}
+
+/**
+ * 예측할 사진들의 표. **학습과 같은 열 이름을 쓴다** — 좌표계가 갈릴 자리가 없다.
+ *
+ * 순수 함수로 둔 이유는 화면에 두면 "없는 벡터를 어떻게 다루는가"를 아무 검사도 안 보기
+ * 때문이다. 실제로 그 자리가 조용히 틀렸다.
+ */
+export function imagePredictTable(
+  photos: readonly ImageEntry[],
+  vectors: ReadonlyMap<string, Float32Array>,
+  backbone: BackboneSpec,
+): ImagePredictTable {
+  const missing = new Set<string>()
+  const rows = photos.map((photo) => {
+    const vector = vectors.get(photo.hash)
+    if (vector === undefined) {
+      missing.add(photo.hash)
+      return []
+    }
+    // 숫자를 문자열로 한 번 왕복한다 — `Dataset`의 칸이 문자열이다 (imageTrainingSource와 같다).
+    return Array.from(vector, (value) => String(value))
+  })
+  return { columns: embeddingColumns(backbone.embeddingDim), rows, missing }
 }
 
 export interface ImageTrainingSource {

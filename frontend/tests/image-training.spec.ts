@@ -13,6 +13,7 @@ import { backboneFor } from '../src/ml/backbones'
 import {
   embeddingColumns,
   IMAGE_LABEL_COLUMN,
+  imagePredictTable,
   imageTrainingSource,
   pendingEmbeddings,
 } from '../src/ml/images'
@@ -207,14 +208,77 @@ describe('아직 안 뽑은 사진', () => {
 
   it('없는 것만 준다', () => {
     const [first, second] = readImages(project)
-    expect(pendingEmbeddings(project, new Set([first!.hash])).map((one) => one.hash)).toEqual([
-      second!.hash,
-    ])
+    expect(
+      pendingEmbeddings(project, new Set([first!.hash]), 'data').map((one) => one.hash),
+    ).toEqual([second!.hash])
   })
 
   it('다 있으면 비어 있다', () => {
     const have = new Set(readImages(project).map((entry) => entry.hash))
-    expect(pendingEmbeddings(project, have)).toEqual([])
+    expect(pendingEmbeddings(project, have, 'data')).toEqual([])
+  })
+
+  /**
+   * **예측 화면이 이것을 못 물어서 임베딩을 한 장도 안 뽑았다** (V11 R1 감사 A-2).
+   * 훈련 자리만 보면 예측 사진과의 교집합이 언제나 비고, 화면은 그 자리를 0 벡터로
+   * 메워 **모든 사진에 같은 답**을 냈다.
+   */
+  it('예측 자리 사진도 아직 안 뽑은 것으로 센다', () => {
+    const withPredict = addImages(
+      project,
+      [{ hash: hashBytes(photo('p')), bytes: photo('p'), category: IMAGE_UNLABELED }],
+      { canonicalSize: BACKBONE.canonicalSize, now: NOW, format: 'webp', role: 'predict' },
+    ).project
+
+    const [predictPhoto] = readImages(withPredict, 'predict')
+    expect(predictPhoto).toBeDefined()
+    expect(pendingEmbeddings(withPredict, new Set(), 'predict').map((one) => one.hash)).toEqual([
+      predictPhoto!.hash,
+    ])
+    // 자리가 갈려 있다 — 훈련 쪽을 물으면 예측 사진이 안 나온다.
+    expect(pendingEmbeddings(withPredict, new Set(), 'data').map((one) => one.hash)).not.toContain(
+      predictPhoto!.hash,
+    )
+  })
+})
+
+describe('예측할 사진들의 표', () => {
+  const project = imageProject([
+    { seed: 'a', category: '개' },
+    { seed: 'b', category: '고양이' },
+  ])
+  const photos = readImages(project)
+
+  it('학습과 같은 열 이름을 쓴다', () => {
+    const table = imagePredictTable(photos, vectorsFor(project), BACKBONE)
+    expect(table.columns).toEqual(embeddingColumns(DIM))
+  })
+
+  it('벡터가 있으면 그 값이 그대로 행이 된다', () => {
+    const vectors = vectorsFor(project)
+    const table = imagePredictTable(photos, vectors, BACKBONE)
+    expect(table.missing.size).toBe(0)
+    expect(table.rows[0]).toEqual(Array.from(vectors.get(photos[0]!.hash)!, String))
+  })
+
+  /**
+   * **0으로 메우면 모든 사진이 같은 답을 받는다** (V11 R1 감사 A-2). 없는 것은 없는
+   * 것으로 두고, 부르는 쪽이 그 사진의 답을 안 낸다.
+   */
+  it('벡터가 없는 사진은 0으로 메우지 않는다', () => {
+    const vectors = vectorsFor(project)
+    vectors.delete(photos[1]!.hash)
+
+    const table = imagePredictTable(photos, vectors, BACKBONE)
+    expect(table.missing).toEqual(new Set([photos[1]!.hash]))
+    expect(table.rows[1]).toEqual([])
+    // 남은 사진은 멀쩡하다 — 한 장 때문에 전체가 막히지 않는다.
+    expect(table.rows[0]).toHaveLength(DIM)
+  })
+
+  it('행의 자리가 사진의 자리와 같다', () => {
+    const table = imagePredictTable(photos, new Map(), BACKBONE)
+    expect(table.rows).toHaveLength(photos.length)
   })
 })
 

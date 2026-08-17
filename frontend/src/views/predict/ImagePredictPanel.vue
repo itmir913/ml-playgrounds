@@ -28,7 +28,7 @@ import { ClientError, isClientError } from '@/errors'
 import { backboneFor } from '@/ml/backbones'
 import { embedImages } from '@/ml/embed/client'
 import { spawnEmbedWorker } from '@/ml/embed/spawn'
-import { imageTrainingRows, imageTrainingSource, pendingEmbeddings } from '@/ml/images'
+import { imagePredictTable, imageTrainingRows, pendingEmbeddings } from '@/ml/images'
 import { loadModel, loadModelProba, type LoadContext } from '@/ml/models'
 import {
   applyPredictFilter,
@@ -332,7 +332,7 @@ async function run(): Promise<void> {
     // **이 쪽의 사진만이다.** 200장을 한 번에 뽑으면 학생이 보지도 않을 사진 때문에
     // 기다린다 (limits.ts의 `IMAGE_PREDICT_PAGE_SIZE`).
     const wanted = new Set(shown.value.map((photo) => photo.hash))
-    const pending = pendingEmbeddings(current, new Set(known.keys())).filter((entry) =>
+    const pending = pendingEmbeddings(current, new Set(known.keys()), 'predict').filter((entry) =>
       wanted.has(entry.hash),
     )
 
@@ -359,13 +359,9 @@ async function run(): Promise<void> {
     }
     progress.value = null
 
-    // 예측할 사진들의 표. 학습과 같은 함수가 짓는다 — 좌표계가 갈릴 자리가 없다.
-    const table = {
-      columns: imageTrainingSource(current, known, spec, 'clustering').dataset.columns,
-      rows: photos.value.map((photo) =>
-        Array.from(known.get(photo.hash) ?? new Float32Array(spec.embeddingDim), String),
-      ),
-    }
+    // 예측할 사진들의 표. 학습과 같은 열 이름을 쓴다 — 좌표계가 갈릴 자리가 없다.
+    // **벡터가 없는 사진은 답을 안 낸다** — `table.missing`이 그것을 들고 있다.
+    const table = imagePredictTable(photos.value, known, spec)
 
     // **이미 낸 답은 그대로 둔다.** 쪽을 되돌아갔을 때 다시 계산하지 않는다.
     const next = new Map(answers.value)
@@ -373,6 +369,8 @@ async function run(): Promise<void> {
 
     for (const [index, photo] of photos.value.entries()) {
       if (!wanted.has(photo.hash)) continue
+      // 벡터가 없으면 답을 내지 않는다. 0으로 메우면 모든 사진이 같은 답을 받는다.
+      if (table.missing.has(photo.hash)) continue
       const perRun = new Map<string, Answer>()
       // **필터를 지난 것만 돈다.** 안 보이는 모델을 돌리면 사진 수만큼의 계산이 화면에
       // 뜨지도 않을 답을 위해 늘어난다.

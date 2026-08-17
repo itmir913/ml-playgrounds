@@ -98,7 +98,7 @@ export const TRAINING_SOURCES: Readonly<
     if (!backbone) throw new ClientError('BACKBONE_UNAVAILABLE')
 
     const known = readEmbeddings(project, backboneId, backbone.embeddingDim)
-    const pending = pendingEmbeddings(project, new Set(known.keys()))
+    const pending = pendingEmbeddings(project, new Set(known.keys()), 'data')
 
     let filled = project
     if (pending.length > 0) {
