@@ -1208,6 +1208,47 @@ describe('전처리와 분할을 끌 수 있다', () => {
     }
   })
 
+  /**
+   * **씨앗이 분할만이 아니라 `fit`까지 가야 한다** (CLAUDE.md §2). 배깅·SMO·K-평균
+   * 초기화가 그 값을 먹는다.
+   *
+   * **지금까지 이것을 무는 검사가 없었다** — `trainContext.randomState`를 `0`으로 못 박아도
+   * 저장소 전체 1,820개 검사가 통과했다 (V11 R2 감사 B-2). `experiment.spec.ts`가
+   * `randomState`로 하던 주장 둘은 **분할** 이야기였고, `rule-coverage.md`는 파수꾼으로
+   * `mljs-kmeans.spec.ts`를 적어 두었는데 그 파일에는 그 낱말이 한 글자도 없었다.
+   *
+   * **`provided`로 돌리는 것이 이 검사의 설계다.** 분할이 씨앗과 무관해지므로
+   * (`trainIndices`는 학습 표 전부, `testIndices`는 평가 표 전부) 모델이 갈리면 그 원인은
+   * `fit` 하나뿐이다. **지표가 아니라 모델을 견준다** — 30행 붓꽃은 너무 잘 갈려서 지표가
+   * 씨앗에 둔감하고, 그 둔함이 바로 예전 픽스처가 무뎠던 이유다.
+   */
+  it('씨앗이 분할만이 아니라 fit까지 간다 - 배깅이 그 값을 먹는다', () => {
+    const provided = {
+      selectedAlgorithms: models('random_forest'),
+      hyperparameters: { random_forest: { mljs: { nEstimators: 5 } } },
+    }
+    const forestFor = (randomState: number): string => {
+      const { models: fitted } = runExperiment(
+        inputFor({
+          testDataset: irisDataset(),
+          settings: settingsFor({
+            ...provided,
+            split: { method: 'provided', testSize: 0.3, stratify: true, randomState },
+          }),
+        }),
+        frozen,
+      )
+      const [model] = [...fitted.values()]
+      expect(model).toBeDefined()
+      return JSON.stringify(model)
+    }
+
+    // 같은 씨앗은 같은 숲이다 - 재현 가능성이 이 도구의 생명이다.
+    expect(forestFor(42)).toBe(forestFor(42))
+    // 다른 씨앗은 다른 숲이다. 같다면 그 값이 fit에 안 닿은 것이다.
+    expect(forestFor(42)).not.toBe(forestFor(7))
+  })
+
   it('평가 데이터가 전처리에서 통째로 걸러져도 같은 코드다', () => {
     // 타깃이 빈 행은 어떤 전략에서도 채점에 못 쓴다 - 전부 그러면 채점할 것이 없다.
     const empty = irisDataset()
@@ -1299,6 +1340,49 @@ describe('군집', () => {
 
   it('학습이 성공한다', () => {
     expect(experiment.runs[0]?.status).toBe('done')
+  })
+
+  /**
+   * **타깃으로 고른 열은 군집에 안 들어간다.** 붓꽃을 군집하는 표준 수업이 `품종`을 빼고
+   * 측정값으로 묶은 뒤 그 결과를 `품종`과 대조하는 것이기 때문이다 — sklearn에서도
+   * `X = df.drop(columns=['species'])`다. 넣으면 답을 보고 답을 맞히는 것이 된다.
+   *
+   * **규칙은 코드에도 주석에도 있었는데 무는 검사가 없었다** — 군집일 때 타깃 열을
+   * `fitPreprocessor`의 특성 목록에 얹는 돌연변이가 저장소 전체 1,820개 검사를 통과했다
+   * (V11 R2 감사 B-4). 위 픽스처에 타깃 열이 아예 없어 규칙을 말할 재료가 없었다.
+   *
+   * **오늘 무너지는 것이 아니라 되살아나는 것이 문제다.** 실루엣은 올라가므로 숫자만 보면
+   * 더 좋아 보인다.
+   */
+  it('타깃 열이 있어도 군집의 전처리기에는 안 들어간다', () => {
+    const labeled: Dataset = {
+      columns: [...clusters.columns, 'label'],
+      rows: clusters.rows.map((row, index) => [
+        ...row,
+        ['A', 'B', 'C'][Math.floor(index / 3)] ?? '',
+      ]),
+    }
+
+    const { preprocessor: fitted } = runExperiment(
+      {
+        dataset: labeled,
+        testDataset: null,
+        taskType: 'clustering',
+        dataType: 'tabular',
+        settings: clusterSettings({
+          data: {
+            ...clusterSettings().data,
+            // 학생이 앞 화면에서 골라 둔 타깃. 군집에서는 뜻이 없다.
+            target: 'label',
+          },
+        }),
+        context: BROWSER_ONLY,
+      },
+      frozen,
+    )
+
+    expect(fitted.columns.map((column) => column.name)).toEqual(['x', 'y'])
+    expect(fitted.featureNames).not.toContain('label')
   })
 
   it('실루엣 계수와 이너셔가 나온다', () => {
