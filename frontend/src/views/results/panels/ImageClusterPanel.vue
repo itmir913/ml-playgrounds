@@ -12,19 +12,20 @@
  * **계산은 전부 `ml/image-clusters.ts`에 있다.** 여기 있는 것은 그리기뿐이다 (§8.3).
  */
 
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
-import { canonicalFormatOfPath } from '@/data/image/formats'
 import { IMAGE_GRID_PAGE_SIZE } from '@/limits'
 import { backboneFor } from '@/ml/backbones'
 import { imageClusterGroups } from '@/ml/image-clusters'
 import { imageTrainingSource } from '@/ml/images'
 import type { PanelInput } from '@/ml/metric-panels'
 import { transform } from '@/ml/preprocess'
+import { useThumbnails } from '@/composables/useThumbnails'
 import { readEmbeddings } from '@/project/embeddings'
+import { readImages } from '@/project/images'
 import { dataSnapshot } from '@/project/schema'
 import { useProjectStore } from '@/stores/project'
 
@@ -71,36 +72,11 @@ const groups = computed(() => {
 })
 
 /**
- * 해시 -> 썸네일 주소. **만든 자리와 놓아주는 자리를 함께 둔다** — 안 놓아주면 사진
- * 수백 장이 탭을 닫을 때까지 남는다 (`views/data/ImagePanel.vue`와 같은 규칙).
+ * 해시 -> 썸네일 주소. **경로에서 해시를 다시 뽑지 않는다** — 그 규칙은
+ * `project/images.ts`가 갖는다. 여기서 다시 쓰면 두 표기가 생기고, 실제로 그랬다
+ * (V11 R5 C-2: `lastIndexOf('.')`와 `length - extension.length`가 같은 파일 안에서 갈렸다).
  */
-const urls = ref(new Map<string, string>())
-
-watch(
-  () => project.file?.images,
-  (images) => {
-    for (const url of urls.value.values()) URL.revokeObjectURL(url)
-    const next = new Map<string, string>()
-    for (const [path, bytes] of images ?? []) {
-      const name = path.slice(path.lastIndexOf('/') + 1)
-      const hash = name.slice(0, name.lastIndexOf('.'))
-      // **형식은 확장자가 갖는다** (mlpx-spec.md §1.2). 객체 URL은 Blob의 타입이 그대로
-      // 그 자원의 MIME이 되므로, 한 형식을 박으면 섞인 프로젝트에서 절반이 틀린다.
-      const format = canonicalFormatOfPath(path)
-      if (!format) continue
-      // `project/download.ts`가 같은 이유로 같은 모양이다 - 버퍼 타입이 공유일 수도
-      // 있다고 보는 자리라 단언한다.
-      const blob = new Blob([bytes as unknown as BlobPart], { type: format.mime })
-      next.set(hash, URL.createObjectURL(blob))
-    }
-    urls.value = next
-  },
-  { immediate: true },
-)
-
-onBeforeUnmount(() => {
-  for (const url of urls.value.values()) URL.revokeObjectURL(url)
-})
+const { urls } = useThumbnails(computed(() => readImages(project.file)))
 
 /**
  * 군집마다의 지금 쪽. **군집 하나가 200장일 수 있다** — 한 번에 다 그리면 그 군집

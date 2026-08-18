@@ -170,6 +170,12 @@ function evidenceOf(model: PredictableModel) {
   return found ? { panel: found.panel, value: cluster } : null
 }
 
+/**
+ * 카드마다 증거를 **한 번만** 센다. 템플릿에서 부르면 카드 하나에 네 번 돌고, 사진이
+ * 스물인 화면에서 곱해진다 (V11 R5 C-3).
+ */
+const cards = computed(() => props.models.map((model) => ({ model, evidence: evidenceOf(model) })))
+
 const tally = computed(() => tallyClassificationAnswers(props.models, props.answers))
 
 /** 갈림표는 많이 나온 답부터 늘어놓는다 - 카드 색의 1등이 표에서도 맨 앞이다. */
@@ -275,7 +281,7 @@ function bars(model: PredictableModel): ProbabilityBar[] {
     -->
     <ul class="grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4">
       <li
-        v-for="model in props.models"
+        v-for="{ model, evidence } in cards"
         :key="model.run.id"
         class="rounded-panel border p-4"
         :class="[cardClass(model), model.reason ? 'opacity-60' : '']"
@@ -352,7 +358,7 @@ function bars(model: PredictableModel): ProbabilityBar[] {
               옆에 아이콘을 하나 더 두면 한 카드에 여는 표시가 둘이 된다. 증거가 없는
               답은 지금까지처럼 그냥 글자다.
             -->
-            <p v-if="!evidenceOf(model)" class="text-xl font-bold tabular-nums text-brand-strong">
+            <p v-if="!evidence" class="text-xl font-bold tabular-nums text-brand-strong">
               {{ cardAnswer(model) }}
             </p>
 
@@ -366,7 +372,7 @@ function bars(model: PredictableModel): ProbabilityBar[] {
 
               위로 여는 이유는 손잡이 팝오버와 같다 — 아래가 전부 답이다.
             -->
-            <AppPopover v-if="evidenceOf(model)" side="top" size="photos">
+            <AppPopover v-if="evidence" side="top" size="photos">
               <template #trigger="{ open }">
                 <!--
                   **아이콘을 안 단다** (2026-08-14, 사용자). 이 카드에는 실험 이름의 설명
@@ -388,11 +394,11 @@ function bars(model: PredictableModel): ProbabilityBar[] {
               </template>
 
               <component
-                :is="evidenceOf(model)?.panel"
+                :is="evidence?.panel"
                 :input="{
                   experiment: model.experiment,
                   run: model.run,
-                  value: evidenceOf(model)?.value ?? 0,
+                  value: evidence?.value ?? 0,
                 }"
               />
             </AppPopover>

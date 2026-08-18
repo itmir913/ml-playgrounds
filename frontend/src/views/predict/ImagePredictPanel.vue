@@ -22,6 +22,7 @@ import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import StepActionBar from '@/components/StepActionBar.vue'
 import { canonicalizeImages } from '@/data/image/client'
+import { useThumbnails } from '@/composables/useThumbnails'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
 import { IMAGE_ACCEPT, readImageFiles, readImageZip } from '@/data/image/upload'
 import { ClientError, isClientError } from '@/errors'
@@ -472,34 +473,14 @@ watch(page, () => {
   if (predicted.value && missing) void run()
 })
 
-/** 해시 -> 썸네일 주소. 만든 자리와 놓아주는 자리를 함께 둔다. */
-const urls = ref(new Map<string, string>())
-
-watch(
-  photos,
-  (current) => {
-    const alive = new Set(current.map((entry) => entry.hash))
-    const next = new Map<string, string>()
-    for (const [hash, url] of urls.value) {
-      if (alive.has(hash)) next.set(hash, url)
-      else URL.revokeObjectURL(url)
-    }
-    for (const entry of current) {
-      if (next.has(entry.hash)) continue
-      const blob = new Blob([entry.bytes as unknown as BlobPart], { type: entry.format.mime })
-      next.set(entry.hash, URL.createObjectURL(blob))
-    }
-    urls.value = next
-  },
-  { immediate: true },
-)
+/** 해시 -> 썸네일 주소. 만들고 놓아주는 것은 `useThumbnails`가 한다 (V11 R5 C-2). */
+const { urls } = useThumbnails(photos)
 
 onBeforeUnmount(() => {
   // **떠날 때 끊는다.** 학습 화면은 onBeforeRouteLeave + training.cancel()로 이미
   // 막혀 있는데 여기만 안 막혀 있었다 (V11 R4 B-6).
   running.value?.cancel()
   running.value = null
-  for (const url of urls.value.values()) URL.revokeObjectURL(url)
 })
 
 const canPredict = computed(
@@ -520,7 +501,12 @@ const axes = computed<FilterAxis[]>(() => [
 
 /** 셈은 스크립트에서 만든다 (`TabularPredictPanel`과 같은 이유). */
 const filterCount = computed(() =>
-  t('predict.filterCount', { shown: visible.value.length, total: models.value.length }),
+  // **복수는 total이 정한다.** `{count}`가 없는 문장이라 vue-i18n이 스스로 못 고른다.
+  t(
+    'predict.filterCount',
+    { shown: visible.value.length, total: models.value.length },
+    models.value.length,
+  ),
 )
 
 /**

@@ -88,6 +88,12 @@ const preview = ref(false)
 
 /** 지울지 물어보고 있는 문항. 지우면 그 글도 함께 사라지므로 되돌릴 수 없다 (§8.4). */
 const removing = ref<string | null>(null)
+/**
+ * 지울지 물어보는 중인 사진. **확인을 세운 이유는 되돌릴 수 없기 때문이다** —
+ * `docs/copy.md`가 낱말을 "빼기"가 아니라 "지우기"로 고른 그 무게다. 데이터 화면은
+ * 같은 무게의 일에 이미 대화상자를 세우는데 여기만 즉시였다 (V11 R5 C-4).
+ */
+const detaching = ref<{ sectionId: string; path: string } | null>(null)
 
 /**
  * 고친 결과를 문서에 넣는다. **상한을 여기 하나로 건다** (§8.6.1).
@@ -340,10 +346,13 @@ async function attach(sectionId: string, files: readonly File[]): Promise<void> 
 }
 
 /** 사진을 뗀다. **바이트도 함께 놓는다** - 저장에서 빠지는 것과 별개로 지금 자리를 비운다. */
-function detach(sectionId: string, path: string): void {
+function detach(): void {
+  const target = detaching.value
+  detaching.value = null
+  if (!target) return
   const bytes = new Map(project.file?.attachments ?? [])
-  bytes.delete(path)
-  apply(withAttachmentRemoved(portfolio.value, sectionId, path), undefined, bytes)
+  bytes.delete(target.path)
+  apply(withAttachmentRemoved(portfolio.value, target.sectionId, target.path), undefined, bytes)
 }
 
 /**
@@ -482,7 +491,7 @@ function remove(): void {
               @move="(delta) => apply(withSectionMoved(portfolio, section.id, delta))"
               @remove="removing = section.id"
               @attach="(files) => attach(section.id, files)"
-              @detach="(path) => detach(section.id, path)"
+              @detach="(path) => (detaching = { sectionId: section.id, path })"
             />
 
             <OrphanAnswers v-if="orphans.length > 0" :orphans="orphans" />
@@ -513,6 +522,20 @@ function remove(): void {
       @change="onPicked"
       @cancel="onPicked"
     />
+
+    <AppDialog
+      :open="detaching !== null"
+      :title="t('portfolio.photoRemoveTitle')"
+      :description="t('portfolio.photoRemoveLead')"
+      @close="detaching = null"
+    >
+      <template #actions>
+        <AppButton variant="secondary" @click="detaching = null">{{
+          t('common.cancel')
+        }}</AppButton>
+        <AppButton variant="danger" @click="detach">{{ t('portfolio.removeConfirm') }}</AppButton>
+      </template>
+    </AppDialog>
 
     <AppDialog
       :open="removing !== null"

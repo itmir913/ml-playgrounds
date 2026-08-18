@@ -187,7 +187,12 @@ const ranks = computed(() => rankAnswersAcross(visible.value, [answers.value]))
 /** **셈은 스크립트에서 만든다** — `t()` 옆에 계산이 붙으면 문장을 조각내는 것과
  * 구별되지 않아 `tests/i18n-usage.spec.ts`가 잡는다 (`InputRow`와 같은 이유). */
 const filterCount = computed(() =>
-  t('predict.filterCount', { shown: visible.value.length, total: models.value.length }),
+  // **복수는 total이 정한다.** `{count}`가 없는 문장이라 vue-i18n이 스스로 못 고른다.
+  t(
+    'predict.filterCount',
+    { shown: visible.value.length, total: models.value.length },
+    models.value.length,
+  ),
 )
 const visibleUsable = computed(() => visible.value.filter((entry) => entry.reason === undefined))
 

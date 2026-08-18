@@ -13,6 +13,7 @@
  * **이름 그 자체**다. 값 쪽은 여전히 한 키다 — `{from} → {to}`를 셋으로 쪼개지 않는다.
  */
 
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
@@ -43,6 +44,12 @@ function membersOf(change: Change): ReturnType<typeof memberDiff> {
   if (diff === null) return null
   return diff.added.length + diff.removed.length === 0 ? null : diff
 }
+
+/**
+ * 줄마다 한 번만 센다. **템플릿에서 부르면 렌더마다 다시 돈다** — 한 변경에 네 번씩,
+ * 변경이 스물이면 여든 번이다 (V11 R5 C-3). 저사양 교실 PC가 기준 기기다.
+ */
+const rows = computed(() => props.changes.map((change) => ({ change, members: membersOf(change) })))
 </script>
 
 <template>
@@ -55,7 +62,7 @@ function membersOf(change: Change): ReturnType<typeof memberDiff> {
     사라진다 - 배치는 안쪽 상자가 맡는다.
   -->
   <ul class="flex list-outside list-disc flex-col gap-3 pl-5 marker:text-ink-faint">
-    <li v-for="change in props.changes" :key="change.path">
+    <li v-for="{ change, members } in rows" :key="change.path">
       <!--
         **가로 간격만 주면 접힌 줄이 붙는다.** 배지가 두 줄로 넘어가는 순간 세로 간격이
         0이라 배지들이 겹쳐 보였다 (좁은 화면, 2026-08-13). 그리고 **항목 사이가 항목
@@ -94,7 +101,7 @@ function membersOf(change: Change): ReturnType<typeof memberDiff> {
             **위로 연다.** 변경 이력은 실험 속의 맨 위에 있고 그 아래가 전부 지표라,
             아래로 열면 정작 견주려던 숫자들이 가려진다.
           -->
-          <AppPopover v-if="membersOf(change)" size="wide" side="top">
+          <AppPopover v-if="members" size="wide" side="top">
             <template #trigger="{ open }">
               <!--
                 **누를 수 있는 글자에는 점선 밑줄과 색을 준다.** 값들 사이에 낀 평문이라
@@ -122,8 +129,8 @@ function membersOf(change: Change): ReturnType<typeof memberDiff> {
             -->
             <div
               v-for="side in [
-                { key: 'added', names: membersOf(change)?.added ?? [] },
-                { key: 'removed', names: membersOf(change)?.removed ?? [] },
+                { key: 'added', names: members?.added ?? [] },
+                { key: 'removed', names: members?.removed ?? [] },
               ]"
               :key="side.key"
             >

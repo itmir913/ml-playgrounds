@@ -478,7 +478,13 @@ function leave(): void {
         -->
         <p v-if="preparing" class="min-w-0 font-bold" role="status">{{ preparingText }}</p>
         <p v-else-if="training.running.value" class="min-w-0 font-bold" role="status">
-          {{ t('train.progress', training.progress.value ?? { completed: 0, total: 0 }) }}
+          {{
+            t(
+              'train.progress',
+              training.progress.value ?? { completed: 0, total: 0 },
+              training.progress.value?.total ?? 0,
+            )
+          }}
         </p>
         <!-- 이유 없이 꺼진 버튼은 학생에게 고장으로 보인다. -->
         <p v-else-if="nothingToTrain" class="min-w-0 text-ink-soft">

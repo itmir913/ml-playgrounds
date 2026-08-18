@@ -89,7 +89,9 @@ const STATUS_TONE: Readonly<Record<ModelStatus, { accent: string; badge: string;
 const rows = computed(() =>
   props.chosen.map((row, index) => {
     const status = props.statuses[index]
-    return { row, index, tone: status ? STATUS_TONE[status] : null }
+    // **범위를 벗어난 손잡이를 줄마다 한 번만 센다.** 템플릿에서 부르면 손잡이 칸마다
+    // `outOfRange` 전체가 다시 돈다 — 모델이 스물이면 곱해진다 (V11 R5 C-3).
+    return { row, index, tone: status ? STATUS_TONE[status] : null, outOfRangeNames: violated(row) }
   }),
 )
 
@@ -181,7 +183,7 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
         색만 투명하게 한다 — 도는 순간 선이 생기면 목록 전체가 4px 밀린다.
       -->
       <li
-        v-for="{ row, index, tone } in rows"
+        v-for="{ row, index, tone, outOfRangeNames } in rows"
         :key="`${row.algorithm}:${row.runtime}:${index}`"
         class="min-w-0 border-l-4 p-3"
         :class="[
@@ -240,7 +242,7 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
               :key="spec.name"
               :label="t(`hyperparams.${spec.name}`)"
               :hint="t('train.range', { min: spec.min, max: spec.max })"
-              :error="violated(row).has(spec.name) ? t('train.outOfRange') : undefined"
+              :error="outOfRangeNames.has(spec.name) ? t('train.outOfRange') : undefined"
             >
               <template #default="field">
                 <input

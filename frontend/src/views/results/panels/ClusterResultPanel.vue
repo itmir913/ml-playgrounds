@@ -253,7 +253,13 @@ function cellsOf(row: number): readonly string[] {
       </AppTable>
 
       <p class="text-ink-faint">
-        {{ t('results.tabular.clusterMemberCount', { shown: members.length, total: memberTotal }) }}
+        {{
+          t(
+            'results.tabular.clusterMemberCount',
+            { shown: members.length, total: memberTotal },
+            memberTotal,
+          )
+        }}
       </p>
 
       <!-- 한 쪽뿐이면 넘길 것이 없다. 못 누르는 단추 둘을 두지 않는다. -->

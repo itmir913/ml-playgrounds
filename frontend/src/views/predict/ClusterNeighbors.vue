@@ -325,10 +325,11 @@ const neighborhood = computed<Neighborhood | null>(() => {
 
       <p class="text-ink-faint">
         {{
-          t('results.tabular.clusterMemberCount', {
-            shown: neighborhood.rows.length,
-            total: neighborhood.total,
-          })
+          t(
+            'results.tabular.clusterMemberCount',
+            { shown: neighborhood.rows.length, total: neighborhood.total },
+            neighborhood.total,
+          )
         }}
       </p>
     </div>

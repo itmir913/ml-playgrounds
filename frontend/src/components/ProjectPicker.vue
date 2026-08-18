@@ -68,8 +68,20 @@ defineExpose({ open })
  * 화면 코드 속으로 사라진다.
  */
 function locked(summary: ProjectSummary): boolean {
-  if (props.disabled === true) return true
-  return !summary.readable
+  return lockReason(summary) !== null
+}
+
+/**
+ * 못 누르는 **이유**. 누를 수 있으면 `null`이다.
+ *
+ * **boolean만 돌려주면 두 사유가 화면에서 다시 하나가 된다** (`CLAUDE.md` §2).
+ * 못 읽는 줄은 이름 자리가 바뀌어 이유가 보이는데, 파일을 여는 동안 잠긴 줄은
+ * **아무 말 없이 회색이었다** — `docs/copy.md` §4의 "이유 없는 회색은 학생에게
+ * 고장이다" (V11 R5 C-1). 몇 초뿐이라도 그 몇 초가 학생에게는 설명이 없다.
+ */
+function lockReason(summary: ProjectSummary): string | null {
+  if (props.disabled === true) return t('projects.opening')
+  return summary.readable ? null : t('projects.unreadable')
 }
 </script>
 
@@ -114,6 +126,7 @@ function locked(summary: ProjectSummary): boolean {
             class="min-w-0 flex-1 text-left"
             :disabled="locked(summary)"
             :class="summary.readable ? '' : 'cursor-not-allowed text-ink-faint'"
+            :title="lockReason(summary) ?? undefined"
             @click="emit('open', summary.projectId)"
           >
             <span class="block truncate font-bold">

@@ -30,6 +30,7 @@ import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { isValidCategoryName } from '@/data/image/canonical'
 import { canonicalizeImages, type CanonicalizeHandle } from '@/data/image/client'
+import { useThumbnails } from '@/composables/useThumbnails'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
 import { readImageFiles, readImageZip, summarizeUpload, type UploadItem } from '@/data/image/upload'
 import { ClientError } from '@/errors'
@@ -111,32 +112,17 @@ function entriesOf(category: string) {
 }
 
 /**
- * 해시 -> 썸네일 주소.
- *
- * **놓아주지 않으면 사진 수백 장이 탭을 닫을 때까지 남는다.** 그래서 만든 자리와
- * 놓아주는 자리를 한 곳에 둔다 — 격자 안에서 만들면 범주를 옮길 때마다 새로 생기고,
- * 없어진 것을 아무도 모른다.
+ * 해시 -> 썸네일 주소. **만들고 놓아주는 것은 `useThumbnails`가 한다** — 다섯 화면이
+ * 같은 모양을 각자 들고 있었고, 여섯 번째가 놓아주기를 빠뜨리면 그 사진의 바이트가
+ * 탭이 닫힐 때까지 남는다 (V11 R5 C-2).
  */
-const urls = ref(new Map<string, string>())
+const { urls } = useThumbnails(entries)
 
+/** 없어진 사진이 고른 채로 남으면 "3장 옮기기"가 거짓말이 된다. */
 watch(
   entries,
   (current) => {
     const alive = new Set(current.map((one) => one.hash))
-    const next = new Map<string, string>()
-    for (const [hash, url] of urls.value) {
-      if (alive.has(hash)) next.set(hash, url)
-      else URL.revokeObjectURL(url)
-    }
-    for (const entry of current) {
-      if (next.has(entry.hash)) continue
-      // `Uint8Array`의 버퍼 타입이 `SharedArrayBuffer`일 수도 있다고 보는 자리라
-      // 단언한다 (`project/download.ts`가 같은 이유로 같은 모양이다).
-      const blob = new Blob([entry.bytes as unknown as BlobPart], { type: entry.format.mime })
-      next.set(entry.hash, URL.createObjectURL(blob))
-    }
-    urls.value = next
-    // 없어진 사진이 고른 채로 남으면 "3장 옮기기"가 거짓말이 된다.
     selected.value = new Set([...selected.value].filter((hash) => alive.has(hash)))
     if (anchor.value && !alive.has(anchor.value.hash)) anchor.value = null
   },
@@ -144,7 +130,6 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  for (const url of urls.value.values()) URL.revokeObjectURL(url)
   running.value?.cancel()
 })
 

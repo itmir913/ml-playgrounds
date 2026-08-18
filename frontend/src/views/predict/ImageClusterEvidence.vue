@@ -20,17 +20,18 @@
  * 상자를 먼저 세우고 "찾는 중"을 보여준 뒤에 계산한다 (`screen.ts`의 `yieldToScreen`).
  */
 
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { canonicalFormatOfPath } from '@/data/image/formats'
 import { CLUSTER_REPRESENTATIVE_COUNT } from '@/limits'
 import type { AnswerEvidenceInput } from '@/ml/answer-evidence'
 import { backboneFor } from '@/ml/backbones'
 import { imageClusterGroups } from '@/ml/image-clusters'
 import { imageTrainingSource } from '@/ml/images'
 import { parsePreprocessor, transform } from '@/ml/preprocess'
+import { useThumbnails } from '@/composables/useThumbnails'
 import { readEmbeddings } from '@/project/embeddings'
+import { readImages } from '@/project/images'
 import { yieldToScreen } from '@/screen'
 import { dataSnapshot } from '@/project/schema'
 import { useProjectStore } from '@/stores/project'
@@ -107,37 +108,17 @@ watch(
 )
 
 /**
- * 해시 -> 썸네일 주소. **만든 자리와 놓아주는 자리를 함께 둔다** — 안 놓아주면 팝오버를
- * 열 때마다 아홉 장이 탭을 닫을 때까지 쌓인다.
+ * 해시 -> 썸네일 주소. **경로에서 해시를 다시 뽑지 않는다** — 그 규칙은
+ * `project/images.ts`가 갖는다 (V11 R5 C-2).
+ *
+ * 보여줄 것만 만든다. 군집 하나의 대표 아홉 장이라 전체를 만들 이유가 없다.
  */
-const urls = ref(new Map<string, string>())
-
-watch(
-  representatives,
-  (hashes) => {
-    for (const url of urls.value.values()) URL.revokeObjectURL(url)
-    const next = new Map<string, string>()
-    const wanted = new Set(hashes)
-    for (const [path, bytes] of project.file?.images ?? []) {
-      const name = path.slice(path.lastIndexOf('/') + 1)
-      // **형식은 확장자가 갖는다** (mlpx-spec.md §1.2). 객체 URL은 Blob의 타입이 그대로
-      // 그 자원의 MIME이 된다.
-      const format = canonicalFormatOfPath(path)
-      if (!format) continue
-      const hash = name.slice(0, name.length - format.extension.length)
-      if (!wanted.has(hash)) continue
-      // 버퍼 타입이 공유일 수도 있다고 보는 자리라 단언한다 (`project/download.ts`).
-      const blob = new Blob([bytes as unknown as BlobPart], { type: format.mime })
-      next.set(hash, URL.createObjectURL(blob))
-    }
-    urls.value = next
-  },
-  { immediate: true },
+const { urls } = useThumbnails(
+  computed(() => {
+    const wanted = new Set(representatives.value)
+    return readImages(project.file).filter((entry) => wanted.has(entry.hash))
+  }),
 )
-
-onBeforeUnmount(() => {
-  for (const url of urls.value.values()) URL.revokeObjectURL(url)
-})
 </script>
 
 <template>
