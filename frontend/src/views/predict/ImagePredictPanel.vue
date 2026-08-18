@@ -73,6 +73,12 @@ const predicting = ref(false)
 /** 준비 진행. 백본을 받는 동안 화면이 할 말이 여기서 나온다. */
 const progress = ref<{ completed: number; total: number } | null>(null)
 
+/**
+ * 지금 도는 워커의 손잡이. **끊을 수 있어야 한다** - 굽기와 임베딩이 차례로 도는 동안
+ * 학생이 떠날 수 있고, 그때 아무도 안 듣는 워커가 남으면 안 된다.
+ */
+const running = ref<{ cancel: () => void } | null>(null)
+
 /** 사진 해시 -> (run id -> 답). 사진 하나가 표의 한 줄이다. */
 const answers = ref(new Map<string, Map<string, Answer>>())
 
@@ -236,7 +242,10 @@ async function readPicked(files: readonly File[]): Promise<void> {
     if (overflow) throw new ClientError('IMAGE_TOO_MANY_PHOTOS', { ...overflow })
 
     progress.value = { completed: 0, total: items.length }
-    const baked = await canonicalizeImages(
+    // **핸들을 버리지 않는다.** 학생이 굽는 도중 다른 단계로 가면 아무도 안 듣는
+    // 워커가 계속 돈다 - 저사양 교실 PC가 기준이라는 전제에서 그건 그냥 비용이다
+    // (`views/data/ImagePanel.vue`가 같은 상황을 이미 이렇게 다룬다).
+    const baking = canonicalizeImages(
       items.map((item) => item.file),
       {
         createWorker: spawnCanonicalizeWorker,
@@ -245,7 +254,9 @@ async function readPicked(files: readonly File[]): Promise<void> {
           progress.value = { completed, total }
         },
       },
-    ).result
+    )
+    running.value = baking
+    const baked = await baking.result
 
     const applied = addImages(
       file,
@@ -271,6 +282,8 @@ async function readPicked(files: readonly File[]): Promise<void> {
   } catch (error) {
     toasts.pushError(error)
   } finally {
+    // 끝났으면 손잡이도 놓는다. 안 놓으면 다음 언마운트가 끝난 워커를 끊으려 든다.
+    running.value = null
     progress.value = null
     busy.value = false
   }
@@ -315,7 +328,8 @@ async function run(): Promise<void> {
 
     if (pending.length > 0) {
       progress.value = { completed: 0, total: pending.length }
-      const { vectors, dim } = await embedImages(
+      // 백본을 받는 중에 떠나도 워커가 끊긴다. 12.4MB짜리 내려받기가 뒤에 남으면 안 된다.
+      const embedding = embedImages(
         spec.id,
         pending.map((entry) => entry.bytes as Uint8Array<ArrayBuffer>),
         {
@@ -324,7 +338,9 @@ async function run(): Promise<void> {
             progress.value = { completed, total }
           },
         },
-      ).result
+      )
+      running.value = embedding
+      const { vectors, dim } = await embedding.result
 
       const fresh = new Map<string, Float32Array>()
       for (const [index, entry] of pending.entries()) {
@@ -403,6 +419,7 @@ async function run(): Promise<void> {
   } catch (error) {
     toasts.pushError(error)
   } finally {
+    running.value = null
     progress.value = null
     predicting.value = false
   }
@@ -473,6 +490,10 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  // **떠날 때 끊는다.** 학습 화면은 onBeforeRouteLeave + training.cancel()로 이미
+  // 막혀 있는데 여기만 안 막혀 있었다 (V11 R4 B-6).
+  running.value?.cancel()
+  running.value = null
   for (const url of urls.value.values()) URL.revokeObjectURL(url)
 })
 

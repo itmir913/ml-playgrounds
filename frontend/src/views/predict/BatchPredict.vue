@@ -19,7 +19,7 @@ import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
 import AppTable from '@/components/AppTable.vue'
 import { useFormat } from '@/composables/useFormat'
-import { importTable, openTable, type TableDocument } from '@/data/table'
+import { importTable, openTable, TABULAR_ACCEPT, type TableDocument } from '@/data/table'
 import { toCanonicalCsv } from '@/data/serialize'
 import { PREDICT_PAGE_SIZE } from '@/limits'
 import type { Prediction } from '@/ml/metrics'
@@ -51,9 +51,6 @@ import { yieldToScreen } from '@/screen'
 import { MLPX_EXTENSION, projectFileName } from '@/project/format'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
-
-/** 예측용 파일이 받아들이는 형식. 데이터 화면·평가 데이터와 같다 (data/kinds.ts). */
-const PREDICT_FILE_ACCEPT = '.csv,.xlsx'
 
 const props = defineProps<{
   /** 지금 보이는(필터를 지난) 쓸 수 있는 모델들. */
@@ -596,13 +593,7 @@ defineExpose({
       </div>
     </template>
 
-    <input
-      ref="fileInput"
-      type="file"
-      :accept="PREDICT_FILE_ACCEPT"
-      class="hidden"
-      @change="onPick"
-    />
+    <input ref="fileInput" type="file" :accept="TABULAR_ACCEPT" class="hidden" @change="onPick" />
 
     <!-- 아직 파일이 없다. -->
     <div v-if="!predictDataset" class="rounded-panel border border-line bg-surface-sunken p-4">

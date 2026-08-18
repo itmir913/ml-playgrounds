@@ -31,6 +31,12 @@ const RETIRED: readonly (readonly [string, string])[] = [
   ['portfolio/images/', 'portfolio/attachments/'],
 ]
 
+/** 줄 나누기. **정규식 리터럴로 둔다** - 문자열로 적으면 이스케이프가 한 겹 더 든다. */
+const NEWLINE = /\r?\n/
+
+/** `'.csv,.xlsx'`처럼 확장자를 쉼표로 이어 붙인 리터럴. */
+const ACCEPT_LITERAL = /['"`]\.[a-z0-9]+(?:,\.[a-z0-9]+)+['"`]/
+
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory).flatMap((entry) => {
     const path = join(directory, entry)
@@ -43,7 +49,7 @@ describe('엔트리 이름', () => {
   it('은퇴한 이름이 소스 어디에도 없다', () => {
     const found: string[] = []
     for (const path of sourceFiles(SRC)) {
-      const lines = readFileSync(path, 'utf8').split(/\r?\n/)
+      const lines = readFileSync(path, 'utf8').split(NEWLINE)
       lines.forEach((line, index) => {
         for (const [old, now] of RETIRED) {
           // `portfolio/document.json`은 `portfolio.json`을 안 품는다. 부분 일치로 충분하다.
@@ -92,7 +98,7 @@ describe('확장자', () => {
     for (const path of sourceFiles(SRC)) {
       if (path === source) continue
       readFileSync(path, 'utf8')
-        .split(/\r?\n/)
+        .split(NEWLINE)
         .forEach((line, index) => {
           if (line.includes(MLPX_EXTENSION) && !isComment(line)) {
             found.push(`${path.slice(SRC.length + 1)}:${index + 1}  ${line.trim()}`)
@@ -106,5 +112,38 @@ describe('확장자', () => {
     // 쪼개 두지 않으면 이 줄이 스스로 걸린다.
     const bait = `const accept = '` + `.mlpx'`
     expect(bait.includes(MLPX_EXTENSION) && !isComment(bait)).toBe(true)
+  })
+})
+
+/**
+ * 파일 고르기의 `accept` 문자열도 상수 하나다.
+ *
+ * **`architecture.md` §9.1.1이 이미 한 번 지운 모양이다** — 등록부에 있는 값을 화면이
+ * 베껴 오는 자리. 한쪽이 늘면 학생은 같은 앱에서 **어떤 파일은 되고 어떤 파일은 안
+ * 되는 자리**를 만난다. `BatchPredict.vue`가 실제로 그렇게 두 벌이었다 (V11 R4 B-5).
+ */
+describe('파일 고르기의 accept', () => {
+  /** 등록부. 값이 사는 자리라 훑기에서 뺀다. */
+  const REGISTRIES = [join(SRC, 'data', 'table.ts'), join(SRC, 'data', 'image', 'upload.ts')]
+
+  it('확장자 목록을 화면이 직접 적지 않는다', () => {
+    const found: string[] = []
+    for (const path of sourceFiles(SRC)) {
+      if (REGISTRIES.includes(path)) continue
+      readFileSync(path, 'utf8')
+        .split(NEWLINE)
+        .forEach((line, index) => {
+          // `'.csv,.xlsx'` 처럼 확장자를 쉼표로 이어 붙인 리터럴.
+          if (ACCEPT_LITERAL.test(line)) {
+            found.push(`${path.slice(SRC.length + 1)}:${index + 1}  ${line.trim()}`)
+          }
+        })
+    }
+    expect(found, 'accept 문자열을 직접 적은 자리').toEqual([])
+  })
+
+  it('검사기가 실제로 잡는다', () => {
+    expect(ACCEPT_LITERAL.test(`const a = '` + `.csv,.xlsx'`)).toBe(true)
+    expect(ACCEPT_LITERAL.test('const a = TABULAR_ACCEPT')).toBe(false)
   })
 })
