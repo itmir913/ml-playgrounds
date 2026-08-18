@@ -507,6 +507,30 @@ describe('참조와 본체가 어긋난 레코드', () => {
 })
 
 /**
+ * `hash`는 나중에 생긴 필드다. 없는 레코드에서 다시 계산하지 않으면 무결성 대조와
+ * 재실행 대조가 정본을 못 짚는다. **그 자리는 옛 레코드에서만 도므로 새로 저장하는
+ * 검사로는 영영 안 닿는다.**
+ */
+describe('해시가 없던 시절의 레코드', () => {
+  it('열 때 정본 해시를 다시 계산한다', async () => {
+    const project = projectFile()
+    await saveProject(project)
+    closeStorage()
+
+    // 레코드에서 hash 칸만 걷어낸다. 이 필드가 생기기 전의 모양이다.
+    const database = await openDB(DB_NAME, DB_VERSION)
+    const record = await database.get('datasets', manifest.projectId)
+    delete (record as { hash?: string }).hash
+    await database.put('datasets', record)
+    database.close()
+    closeStorage()
+
+    const loaded = await loadProject(manifest.projectId)
+    expect(loaded?.dataset?.hash).toBe(hashBytes(project.dataset!.bytes))
+  })
+})
+
+/**
  * 표도 사진도 없지만 포트폴리오에 사진을 붙인 프로젝트가 있다. **레코드를 지우면 그
  * 사진이 새로고침에 사라진다** - 주석이 그 시나리오를 들어 두고도 검사가 없었다.
  */
