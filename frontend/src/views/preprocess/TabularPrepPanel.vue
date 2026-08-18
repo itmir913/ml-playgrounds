@@ -430,12 +430,16 @@ function onTestDrop(event: DragEvent): void {
 }
 
 /** 붙이기 요청. 지울 실험이 있으면 먼저 물어본다 (mlpx-spec.md §1.1 "따라오는 것 넷"). */
-function requestApplyTest(): void {
+/**
+ * 확인이 필요하면 물어보고 끝난다. 아닐 때는 **기다린다** - `AppButton`의 `action`이
+ * 그동안 버튼을 꺼 둘 수 있어야 두 번 눌리지 않는다 (CLAUDE.md §4).
+ */
+async function requestApplyTest(): Promise<void> {
   if (experimentCount.value > 0) {
     testAttaching.value = true
     return
   }
-  void applyTest()
+  await applyTest()
 }
 
 async function applyTest(): Promise<void> {
@@ -465,12 +469,16 @@ async function applyTest(): Promise<void> {
 }
 
 /** 떼기 요청. 지울 실험이 있으면 먼저 물어본다. */
-function requestRemoveTest(): void {
+/**
+ * 확인이 필요하면 물어보고 끝난다. 아닐 때는 **기다린다** - `AppButton`의 `action`이
+ * 그동안 버튼을 꺼 둘 수 있어야 두 번 눌리지 않는다 (CLAUDE.md §4).
+ */
+async function requestRemoveTest(): Promise<void> {
   if (experimentCount.value > 0) {
     testRemoving.value = true
     return
   }
-  void removeTest()
+  await removeTest()
 }
 
 async function removeTest(): Promise<void> {
@@ -716,7 +724,7 @@ async function removeTest(): Promise<void> {
                 <AppButton variant="secondary" :disabled="testBusy" @click="testFileInput?.click()">
                   {{ t('data.tabular.change') }}
                 </AppButton>
-                <AppButton variant="secondary" :disabled="testBusy" @click="requestRemoveTest">
+                <AppButton variant="secondary" :disabled="testBusy" :action="requestRemoveTest">
                   {{ t('preprocess.tabular.testDataRemove') }}
                 </AppButton>
               </div>
@@ -769,7 +777,7 @@ async function removeTest(): Promise<void> {
                     <AppButton variant="secondary" @click="openedTest = null">
                       {{ t('common.cancel') }}
                     </AppButton>
-                    <AppButton :disabled="testBusy" @click="requestApplyTest">
+                    <AppButton :disabled="testBusy" :action="requestApplyTest">
                       {{ t('data.tabular.use') }}
                     </AppButton>
                   </div>

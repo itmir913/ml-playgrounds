@@ -47,6 +47,7 @@ import type { Dataset, Preprocessor } from '@/ml/preprocess'
 import { whereTrainedKeyOf } from '@/ml/results'
 import { applyPredictDataset, readPredictDataset, removePredictDataset } from '@/project/dataset'
 import { downloadBytes } from '@/project/download'
+import { yieldToScreen } from '@/screen'
 import { MLPX_EXTENSION, projectFileName } from '@/project/format'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
@@ -358,6 +359,10 @@ async function goToPage(index: number): Promise<void> {
   computing.value = true
   try {
     page.value = index
+    // **켜 놓은 `computing`이 화면에 서고 나서 계산한다** (`screen.ts`). `ensurePage`는
+    // 안에 `await`가 하나도 없고 `predictPage`도 완전한 동기 함수라, 양보하지 않으면
+    // 꺼짐이 그려지기 전에 계산이 끝난다 - 그동안 쌓인 클릭이 전부 한 번씩 더 돈다.
+    await yieldToScreen()
     await ensurePage(index)
   } finally {
     computing.value = false
@@ -470,9 +475,13 @@ function cellText(answer: Answer | undefined): string {
 async function downloadAction(): Promise<void> {
   computing.value = true
   try {
+    // 여기는 **전체 쪽**을 돈다. 쪽마다 비켜 주지 않으면 500행짜리 파일에서 화면이
+    // 통째로 멎고, 학생은 도구가 멈춘 것으로 읽는다.
+    await yieldToScreen()
     const answers: Answer[][] = []
     for (let index = 0; index < totalPages.value; index += 1) {
       answers.push(...(await ensurePage(index)))
+      await yieldToScreen()
     }
 
     // **확률 열은 실제로 확률을 낸 모델에만 선다.** 캐시는 위 ensurePage가 이미 채웠다.

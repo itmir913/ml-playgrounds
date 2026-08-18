@@ -229,7 +229,12 @@ function hits(rule: Rule, line: string): boolean {
 }
 
 /**
- * `<AppButton ... @click="이름">`인데 그 `이름`이 같은 파일의 `async function`인 경우.
+ * `<AppButton ... @click="이름">`인데 그 `이름`이 **기다려야 하는 일**인 경우.
+ *
+ * **`async function`만이 아니다.** `const 이름 = async (` 꼴과, 동기 함수가 안에서
+ * `void 오래걸리는것()`을 부르는 래퍼도 같은 것이다 — 예전에는 그 둘이 검사를 그대로
+ * 통과했다 (V11 R4 B-9). 지금 그런 자리 둘은 안쪽에 `busy` 가드가 있어 아무것도 안
+ * 무너지는데, **문제는 다음 사람이 그 가드를 안 넣어도 초록이라는 것**이다.
  *
  * **오래 걸리는 일은 `action`으로 줘야 버튼이 스스로 꺼진다**(CLAUDE.md §4).
  * `@click`은 리스너의 반환값을 기다려 주지 않으므로 두 번 눌리는 것을 못 막는다.
@@ -238,6 +243,19 @@ function unguardedButtons(source: string): string[] {
   const asyncNames = new Set(
     [...source.matchAll(/async function (\w+)/g)].map((match) => match[1] ?? ''),
   )
+  // `const 이름 = async (` 꼴도 같다. 선언 방식으로 규칙을 빠져나갈 수 있으면 안 된다.
+  for (const match of source.matchAll(/const (\w+)\s*=\s*async\s*\(/g)) {
+    asyncNames.add(match[1] ?? '')
+  }
+  // 동기 래퍼: `function 이름(…) { … void 비동기것(…) … }`. **한 겹만 따라간다** —
+  // 두 겹부터는 이 검사가 아니라 사람이 볼 자리다 (V11 R4 B-9).
+  for (const match of source.matchAll(/function (\w+)\s*\([^)]*\)[^{]*\{/g)) {
+    const name = match[1] ?? ''
+    if (asyncNames.has(name)) continue
+    const body = source.slice(match.index ?? 0, (match.index ?? 0) + 600)
+    const called = [...body.matchAll(/void (\w+)\(/g)].map((one) => one[1] ?? '')
+    if (called.some((one) => asyncNames.has(one))) asyncNames.add(name)
+  }
   const template = source.slice(source.indexOf('<template>'))
   return [...template.matchAll(/<AppButton[^>]*?@click="(\w+)"/gs)]
     .map((match) => match[1] ?? '')
@@ -564,14 +582,31 @@ describe('검사기가 실제로 잡는다', () => {
  * (음성·텍스트) 같은 실수를 그대로 반복할 자리다.
  */
 describe('예측 판은 화면에 양보한다', () => {
-  const PANELS = ['ImagePredictPanel.vue', 'TabularPredictPanel.vue']
+  const PREDICT_DIR = join(SRC, 'views', 'predict')
 
-  /** 훑을 파일이 실제로 있어야 한다. 이름이 바뀌면 조용히 초록이 되는 것을 막는다. */
+  /**
+   * **손으로 적지 않는다.** 예전에는 판 이름 둘을 배열에 박아 두었는데, 그러면
+   * **빠진 판을 아무도 못 본다** — `BatchPredict.vue`가 실제로 그렇게 빠져 있었고
+   * (V11 R4 B-1) 그 파일이 예측 경로에서 가장 무거운 고리를 돈다. 판이 하나 더
+   * 생기는 날(음성·텍스트) 같은 실수를 반복할 자리이기도 하다.
+   *
+   * 판정 기준은 **무거운 계산을 부르는가**다. 목록을 부르지 않는 표시용 부품
+   * (`InputRow`·`PredictFilters` 따위)은 여기 해당하지 않는다.
+   *
+   * **정규식을 안 쓴다.** 상태가 없어야 하고, 이 파일에 정규식으로 적어 넣다가
+   * 제어문자가 박혀 **조용히 아무것도 안 잡은 적이 있다** (2026-08-18).
+   */
+  const HEAVY = ['predictPage', 'loadModel']
+  const PANELS = readdirSync(PREDICT_DIR)
+    .filter((name) => name.endsWith('.vue'))
+    .filter((name) => {
+      const source = readFileSync(join(PREDICT_DIR, name), 'utf-8')
+      return HEAVY.some((call) => source.includes(call))
+    })
+
+  /** 훑을 파일이 실제로 있어야 한다. 0개면 판정이 썩은 것이지 규칙이 지켜진 게 아니다. */
   it('검사할 판을 실제로 찾는다', () => {
-    for (const name of PANELS) {
-      const path = join(SRC, 'views', 'predict', name)
-      expect(existsSync(path), path).toBe(true)
-    }
+    expect(PANELS.length, `${PREDICT_DIR}에서 무거운 계산을 부르는 판`).toBeGreaterThanOrEqual(3)
   })
 
   for (const name of PANELS) {

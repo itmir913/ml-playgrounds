@@ -135,12 +135,16 @@ function onDrop(event: DragEvent): void {
 }
 
 /** 확정 요청. 지울 실험이 있으면 먼저 물어본다 (mlpx-spec.md §4.3). */
-function requestApply(): void {
+/**
+ * 확인이 필요하면 물어보고 끝난다. 아닐 때는 **기다린다** - `AppButton`의 `action`이
+ * 그동안 버튼을 꺼 둘 수 있어야 두 번 눌리지 않는다 (CLAUDE.md §4).
+ */
+async function requestApply(): Promise<void> {
   if (experimentCount.value > 0) {
     confirming.value = true
     return
   }
-  void apply()
+  await apply()
 }
 
 async function apply(): Promise<void> {
@@ -271,7 +275,7 @@ function kindOf(column: ColumnSummary): string {
           <AppButton variant="secondary" @click="opened = null">
             {{ t('common.cancel') }}
           </AppButton>
-          <AppButton :disabled="busy" @click="requestApply">{{ t('data.tabular.use') }}</AppButton>
+          <AppButton :disabled="busy" :action="requestApply">{{ t('data.tabular.use') }}</AppButton>
         </template>
       </template>
     </StepActionBar>
