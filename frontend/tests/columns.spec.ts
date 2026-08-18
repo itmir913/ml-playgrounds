@@ -104,6 +104,22 @@ describe('열 이름', () => {
     expect(new Set(names).size).toBe(names.length)
   })
 
+  /**
+   * **붙여서 만든 이름이 진짜 머리글과 겹치는 자리다.** 겹치면 두 번째 열은
+   * `columns.indexOf(name)`에 영영 안 잡히고, 학생이 그 열을 골라도 말없이 첫 번째
+   * 열로 학습한다. 엑셀식 이름과 글자 그대로 같은 머리글은 실제로 있다.
+   */
+  it('만든 이름이 진짜 머리글과 겹쳐도 서로 다르다', () => {
+    const names = columnNames([['(B)', '', '점수']], true)
+    expect(new Set(names).size).toBe(names.length)
+    expect(names[0]).toBe('(B)')
+  })
+
+  it('겹치는 것이 여럿이어도 전부 다르다', () => {
+    const names = columnNames([['(B)', '', '(C)', '', '(B)']], true)
+    expect(new Set(names).size).toBe(names.length)
+  })
+
   it('줄마다 칸 수가 달라도 가장 넓은 줄을 따른다', () => {
     expect(columnNames([['a'], ['1', '2', '3']], true)).toEqual(['a', '(B)', '(C)'])
   })

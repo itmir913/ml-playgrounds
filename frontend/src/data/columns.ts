@@ -40,6 +40,10 @@ export function spreadsheetName(index: number): string {
  *
  * 겹치거나 비어 있으면 엑셀식 이름을 괄호로 붙인다 — `점수 (D)`. 어느 열인지
  * 학생이 화면에서 바로 짚을 수 있는 표시여야 한다.
+ *
+ * **붙여서 만든 이름도 겹칠 수 있다.** 앞 열의 진짜 머리글이 `(B)`이고 B열이 비어 있으면
+ * 둘 다 `(B)`가 된다 — 엑셀식 이름과 글자 그대로 같은 머리글이 실제로 있다. 그래서
+ * 만든 이름까지 확인하고, 그래도 겹치면 번호를 붙인다 (portfolio.ts의 uniqueId와 같다).
  */
 export function columnNames(grid: TableGrid, hasHeader: boolean): string[] {
   const width = grid.reduce((widest, row) => Math.max(widest, row.length), 0)
@@ -50,7 +54,11 @@ export function columnNames(grid: TableGrid, hasHeader: boolean): string[] {
   for (let index = 0; index < width; index += 1) {
     const letter = spreadsheetName(index)
     const raw = (header[index] ?? '').trim()
-    const name = raw === '' || taken.has(raw) ? `${raw === '' ? '' : `${raw} `}(${letter})` : raw
+    const labeled = raw === '' || taken.has(raw) ? `${raw === '' ? '' : `${raw} `}(${letter})` : raw
+    let name = labeled
+    for (let n = 2; taken.has(name); n += 1) {
+      name = `${labeled} (${n})`
+    }
     names.push(name)
     taken.add(name)
   }
