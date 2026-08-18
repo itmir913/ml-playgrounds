@@ -17,6 +17,7 @@ import {
 } from 'vue-router'
 
 import { useProjectStore } from '@/stores/project'
+import { useToastStore } from '@/stores/toasts'
 import { isStepId, resolveStep, STEP_IDS, type StepId } from './steps'
 
 /** 프로젝트 목록. 단계가 아니므로 STEP_IDS에 없다. */
@@ -80,7 +81,21 @@ export const router = createRouter({
 router.beforeEach(async (to) => {
   const project = useProjectStore()
   // 미뤄 둔 자동 저장을 끝내고 나간다. 화면을 옮기는 사이에 잃는 것이 없어야 한다.
-  await project.flush()
+  //
+  // **여기서 잡지 않으면 아무 일도 안 일어난다.** flush()는 STORAGE_QUOTA_EXCEEDED를
+  // 되던지는데(storage.ts의 ensureRoom, 그리고 실제 쓰기의 QuotaExceededError) 가드가
+  // 던지면 vue-router는 이동을 취소하고, 우리에게는 router.onError도 전역 errorHandler도
+  // 없다 - 학생은 [다음]을 눌렀는데 화면이 안 바뀌는 것만 본다.
+  // storage.ts 머리말이 "저장 실패는 삼키지 않는다. 화면이 반드시 알아야 한다"고 적은
+  // 자리이고, 다른 두 경로(update()의 타이머, 화면의 save())는 그 약속을 지킨다.
+  //
+  // **막지는 않는다.** 같은 프로젝트 안에서는 값이 메모리에 그대로 있고 dirty도 그대로라
+  // 다음 저장이 다시 시도한다. 못 나가게 붙들면 저장이 안 되는 학생이 갇힌다.
+  try {
+    await project.flush()
+  } catch (error) {
+    useToastStore().pushError(error)
+  }
 
   const { projectId } = to.params
   if (typeof projectId !== 'string') {

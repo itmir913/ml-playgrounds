@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ROUTE_PROJECT_HOME, ROUTE_PROJECTS, router } from '../src/router'
 import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
+import { useToastStore } from '../src/stores/toasts'
 import { experiment, emptyProjectFile, manifest, projectFile, run } from './fixtures/project'
 
 async function deleteDatabase(): Promise<void> {
@@ -40,6 +41,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
   await deleteDatabase()
 })
@@ -127,5 +129,45 @@ describe('라우터', { timeout: 20_000 }, () => {
     // 같은 객체여야 한다. 단계를 옮길 때마다 IndexedDB를 다시 읽으면
     // 50MB 데이터셋을 든 프로젝트에서 탭 하나 누를 때마다 화면이 멈춘다.
     expect(project.file).toBe(opened)
+  })
+
+  /**
+   * 가드는 이동하기 전에 미뤄 둔 저장을 끝낸다. **그것이 실패했을 때가 문제였다** -
+   * 던지면 vue-router가 이동을 취소하는데 router.onError도 전역 errorHandler도 없어서
+   * 학생은 [다음]을 눌렀는데 화면이 안 바뀌는 것만 봤다. storage.ts 머리말이 "저장
+   * 실패는 삼키지 않는다"고 적은 자리다.
+   */
+  it('저장이 실패해도 화면이 알고, 갇히지 않는다', async () => {
+    await saveProject(projectFile())
+    await router.push(`/project/${manifest.projectId}/data`)
+
+    const project = useProjectStore()
+    const toasts = useToastStore()
+    const current = project.file
+    expect(current).not.toBeNull()
+    project.update({
+      ...current!,
+      document: {
+        ...current!.document,
+        manifest: { ...current!.document.manifest, name: '고친 이름' },
+      },
+    })
+
+    // 이 시점부터 저장이 실패한다. 자동 저장 타이머는 아직 안 돌았고 dirty는 켜져 있다.
+    Object.defineProperty(navigator, 'storage', {
+      configurable: true,
+      value: { estimate: () => Promise.resolve({ quota: 1, usage: 1 }) },
+    })
+
+    await router.push(`/project/${manifest.projectId}/results`)
+
+    // 이동은 됐고 - 못 나가게 붙들면 저장이 안 되는 학생이 갇힌다 -
+    expect(router.currentRoute.value.name).toBe('results')
+    // 학생은 왜 안 됐는지 듣는다.
+    const shown = toasts.items.at(-1)
+    expect(shown?.tone).toBe('danger')
+    expect(shown?.key).toContain('STORAGE_QUOTA_EXCEEDED')
+    // 그리고 값은 아직 메모리에 있다. 다음 저장이 다시 시도한다.
+    expect(project.dirty).toBe(true)
   })
 })
