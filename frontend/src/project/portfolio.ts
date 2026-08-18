@@ -383,10 +383,10 @@ function oneLine(value: string): string {
 }
 
 /**
- * 포트폴리오를 사람이 읽는 마크다운으로 만든다. **`.mlpx` 안의 `portfolio.md`가
+ * 포트폴리오를 사람이 읽는 마크다운으로 만든다. **`.mlpx` 안의 `portfolio/document.md`가
  * 이것이다.**
  *
- * 원본은 `portfolio.json`이고 이건 파생물인데, 그래도 파일에 담는 이유는 **우리 앱
+ * 원본은 `portfolio/document.json`이고 이건 파생물인데, 그래도 파일에 담는 이유는 **우리 앱
  * 없이도 읽혀야 하기 때문이다** - 교사가 압축을 풀어 메모장으로 열어도 학생이 무엇을
  * 썼는지 보여야 한다 (CLAUDE.md §1.3).
  *

@@ -158,7 +158,7 @@ describe('왕복', () => {
     expect(reopened.document.manifest.futureField).toBe('keep me')
   })
 
-  it('portfolio.md가 파일에 들어간다 - 도구 없이 받은 사람도 읽는다', async () => {
+  it('portfolio/document.md가 파일에 들어간다 - 도구 없이 받은 사람도 읽는다', async () => {
     const { bytes } = await writeProject(projectFile(), markdown)
     const entries = unzipSync(bytes)
     expect(new TextDecoder().decode(entries[ENTRY.portfolioMarkdown])).toBe(markdown)

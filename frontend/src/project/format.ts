@@ -53,7 +53,7 @@ export const DIR = {
   portfolio: 'portfolio/',
   /**
    * 포트폴리오에 붙인 사진 (mlpx-spec.md §8.5). **`portfolio/` 아래인 것이 핵심이다** -
-   * `portfolio.md`가 `attachments/3.webp`이라는 상대 경로로 가리키고, 압축을 푼 자리에서
+   * `portfolio/document.md`가 `attachments/3.webp`이라는 상대 경로로 가리키고, 압축을 푼 자리에서
    * 그대로 맞아야 한다.
    */
   attachments: 'portfolio/attachments/',
@@ -119,7 +119,7 @@ export const IMAGE_UNLABELED = '_unlabeled'
  * 없으면 파일을 열 수 없는 엔트리는 manifest / settings / runs / portfolio 넷이다.
  * readProject의 required()가 그 자리에서 확인한다.
  *
- * portfolio.md는 필수가 아니다 - portfolio.json이 원본이고 .md는 파생물이다.
+ * portfolio/document.md는 필수가 아니다 - portfolio/document.json이 원본이고 .md는 파생물이다.
  * model/ 아래도 아니다 - 모델이 빠진 파일은 지표만 남은 정상적인 파일이다.
  * hashes.json도 아니다 - 옛 파일에는 아예 없고, 없으면 "확인할 수 없음"일 뿐이다.
  */
@@ -565,7 +565,6 @@ function requirePathUnder(path: string, directory: string, field: string): void 
   }
 }
 
-/** 문서가 가리키는 모든 zip 경로를 검사한다. 하나라도 어긋나면 파일을 열지 않는다. */
 /**
  * 참조와 실제 바이트가 **함께 있는지** 확인하고, 있으면 담을 것을 돌려준다.
  *
@@ -794,7 +793,7 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
  *
  * portfolioMarkdown을 **필수 인자로 받는다.** 렌더링에는 t()가 필요한데 포맷 계층에
  * i18n을 끌어들이면 zip 왕복 테스트마다 번역을 부팅해야 한다. 선택 인자로 두면
- * 언젠가 portfolio.md 없는 파일이 나가고, 그건 "파일 하나만 열면 다 본다"는
+ * 언젠가 portfolio/document.md 없는 파일이 나가고, 그건 "파일 하나만 열면 다 본다"는
  * 약속을 깨면서도 아무도 모른다 (CLAUDE.md 1.3).
  */
 export async function writeProject(

@@ -1,5 +1,5 @@
 /**
- * `portfolio.md`의 머리글을 만든다 (mlpx-spec.md §8.6).
+ * `portfolio/document.md`의 머리글을 만든다 (mlpx-spec.md §8.6).
  *
  * **화면에서는 `ProjectSummary`가 하는 일이다.** 파일만 받은 사람은 그 화면을 못 보므로
  * 언제 만든 것이고 무슨 데이터로 무엇을 했는지가 첫 줄에 있어야 한다.

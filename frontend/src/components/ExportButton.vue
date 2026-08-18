@@ -67,7 +67,7 @@ async function exportFile(close: () => void): Promise<void> {
     // 적은 인적사항을 문서에 넣고, **그 문서로** 마크다운까지 만든다. 둘을 따로
     // 부르면 마크다운이 갱신 전 manifest를 본다 (`identifiedExport`의 주석).
     //
-    // portfolio.md는 파생물이지만 파일에 담는다 - 교사가 압축을 풀어 메모장으로
+    // portfolio/document.md는 파생물이지만 파일에 담는다 - 교사가 압축을 풀어 메모장으로
     // 열어도 학생이 무엇을 썼는지 보여야 한다 (CLAUDE.md §1.3).
     const exported = identifiedExport(
       file.document,

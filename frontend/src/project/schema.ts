@@ -503,10 +503,9 @@ export const DATA_SCHEMAS = {
 /**
  * 등록부의 스키마들을 하나로 묶는다.
  *
- * **종류가 하나뿐인 동안은 유니온이 아니라 그 하나다.** 그래서 지금 `settings.data`의
- * 타입은 정확히 표의 것이고, 읽는 자리들이 좁히기 없이 그대로 쓴다. **이미지가 등록되는
- * 날 이 타입은 유니온이 되고, 좁히지 않은 자리가 전부 컴파일에서 깨진다** - 그게 이
- * 리팩터의 목적이다.
+ * **종류가 하나뿐이면 유니온이 아니라 그 하나다.** 지금은 표와 이미지 둘이라 유니온이고,
+ * 그래서 `settings.data`를 읽는 자리는 `dataSettings`로 좁혀야 한다 - 안 좁힌 자리는
+ * 컴파일에서 깨진다. 종류가 늘어도 이 함수는 그대로다.
  */
 function oneOf<Schema extends z.ZodTypeAny>(schemas: readonly Schema[]): Schema {
   const [first, ...rest] = schemas
