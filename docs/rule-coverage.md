@@ -29,7 +29,7 @@
 | §2 알고리즘 선택에 `if/elif` 금지 | `algorithms.spec.ts`("분기 없이 늘어난다") |
 | §2 "X는 Y에서만"은 X의 등록부에 | `algorithms.spec.ts` · `metric-panels.spec.ts` · `kinds.spec.ts` |
 | §2 잠금은 gate 함수 하나, 이유 목록 반환 | `selection.spec.ts` · `ui-rules.spec.ts` |
-| §2 `randomState`는 항상 저장하고 항상 쓴다 | `split.spec.ts` · `experiment.spec.ts` · `sample.spec.ts` · `mljs-kmeans.spec.ts` |
+| §2 `randomState`를 항상 **저장하고 분할·뽑기에 쓴다** | `split.spec.ts` · `experiment.spec.ts` · `sample.spec.ts` — **`fit`까지 도달하는지는 아래 "사람이 지킨다"에 있다** |
 | §3 i18n 규칙 넷 전부 | `i18n-usage.spec.ts` · `locales.spec.ts` |
 | §3 지원 언어마다 내장 양식 파일이 있는가 | `portfolio-preset.spec.ts` — 없는 언어는 en으로 떨어지는데 **떨어진 것과 빠뜨린 것을 화면에서 구분할 수 없다.** 파일이 남았는데 언어가 없는 것도 함께 본다 |
 | §4 `any` 금지 | ESLint `@typescript-eslint/no-explicit-any` |
@@ -103,6 +103,7 @@
 |---|---|---|
 | §4 벤더링 머리말 셋(출처·라이선스·바꾼 것) | `svm-smo.ts` 하나뿐이고 잘 적혀 있다. **다음 파일을 강제하는 것이 없다** | `ml/engines/`에서 우리가 안 쓴 의존성을 들인 파일을 찾아 머리말 세 줄을 요구 |
 | §4 커밋 규칙(GPG · 경로 명시 · 도구 표기 금지) | 전적으로 기억에 의존 | `commit-msg`·`pre-commit` 훅 |
+| §2 `randomState`가 **`fit`까지 도달하는가** | **아무것도 안 막는다.** `experiment.ts`의 그 줄을 `0`으로 못 박아도 검사 1,820개가 전부 통과한다 (V11 R2, 돌연변이 M22). 저장과 **분할**은 막히는데 배깅·SMO·K-평균 초기화로 가는 길은 안 막힌다 | 씨앗만 다르고 분할이 같은 두 실험을 세워 랜덤포레스트 지표가 달라지는지 본다. **못 박은 값이 씨앗에 둔감하면 안 된다** — 지금 픽스처(30행 붓꽃)가 그래서 무디다 |
 
 **`limits.ts` 유일 출처는 2026-08-12에 검사가 됐다** (`limits-rules.spec.ts`). 여기서
 빠진 이유이자 남겨 둘 교훈 — **검사가 못 보는 자리를 그 파일 머리말이 스스로 밝힌다.**

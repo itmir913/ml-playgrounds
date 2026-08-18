@@ -290,8 +290,10 @@ sklearn 0.9000 / 우리 0.9667). **틀린 것이 아니라 분할이 다른 별�
 
 **스키마 관점에서는 `trainIndices`에 전체 행이, `testIndices`는 빈 배열이다.**
 `split` 설정은 군집일 때 무시된다 — 분할 방법에 별도 값을 추가하는 대신
-실험 실행 경로(`ml/experiment.ts`)가 `taskType === 'clustering'`일 때 분할을
-건너뛴다.
+학습 계획(`ml/plan.ts`의 `planRun`)이 `taskType === 'clustering'`일 때 분할을
+건너뛴다. (2026-08-13에 `planRun`이 `experiment.ts`에서 떨어져 나오면서 이 분기도
+함께 옮겨졌다. `experiment.ts`에 남은 `isClustering`은 평가 표와 타깃 배열을 가르는
+몫뿐이다.)
 
 **이건 등록이 아니라 분기다** (2026-08-11에 고쳐 적는다). 예전에 "이 조합에 등록된
 분할기가 없다는 사실"이라고 적혀 있었는데 `SPLIT_BY_METHOD` 등록부는 그대로이고
@@ -2720,7 +2722,8 @@ function trainGate(facts: ProjectFacts, selection: SelectionResult, runtime: Run
 - **화면 코드가 `dataType`·`taskType`을 문자열 리터럴과 비교하면 위반이다** (§9.1).
   **`=== undefined`는 뺀다** — 그건 "어느 종류인가"가 아니라 "아직 안 골랐는가"이고,
   안 고른 상태는 등록부가 답할 수 있는 것이 아니다. 잡힌 것을 옮길 자리는 화면 밖의
-  순수 함수다 (`ml/predict.ts`의 `answerTone`이 그렇게 옮겨졌다).
+  순수 함수다 (`ml/images.ts`의 `imagePredictTable`이 그렇게 옮겨졌다 — 화면이 없는
+  임베딩을 0으로 메우던 계산이다).
 - 검사기 자체를 먼저 검사한다 — 정규식이 아무것도 안 잡으면서 초록색이 되는 것이
   제일 나쁜 상태다. 기존 규칙들이 `violations`/`allowed` 예시를 갖는 이유가 그것이다.
 

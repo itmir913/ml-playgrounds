@@ -93,8 +93,9 @@ export function trainingRowsFor(
  * 것과 같은 판단이다 (open-decisions.md "전처리도 분할도 끌 수 있다").
  *
  * **여기서 "열이 없다"를 말하지는 않는다.** 이 함수가 받는 것은 표가 아니라 값 하나짜리
- * 사전이고, **한 줄 입력에서는 아직 안 건드린 칸이 아예 키가 없다**(`PredictView.vue`의
- * `values`는 빈 객체에서 시작한다) - 여기서 `undefined`를 "열이 없다"로 읽으면 학생이
+ * 사전이고, **한 줄 입력에서는 아직 안 건드린 칸이 아예 키가 없다**
+ * (`views/predict/TabularPredictPanel.vue`의 `values`는 빈 객체에서 시작한다.
+ * 판이 갈리면서 `PredictView.vue`에서 옮겨 왔다) - 여기서 `undefined`를 "열이 없다"로 읽으면 학생이
  * 칸 하나를 비워 둔 것을 파일 탓으로 돌린다. 그 판정은 표를 아는 `predictPage`가 한다.
  *
  * 학습 때 못 본 범주가 오면 `transform`의 규칙을 그대로 따른다(onehot은 전부 0, ordinal은
