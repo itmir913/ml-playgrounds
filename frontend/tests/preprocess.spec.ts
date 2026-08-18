@@ -263,3 +263,54 @@ describe('targetValues', () => {
     expect(codeOf(() => targetValues(dataset, [0], '없는열'))).toBe('COLUMN_NOT_FOUND')
   })
 })
+
+/**
+ * **사분위의 선형 보간을 무는 검사.**
+ *
+ * `quantile`의 보간을 지우고 `lower`만 돌려줘도 저장소 전체 1,820개 검사가 통과했다
+ * (V11 R2 감사 B-6). 원인 둘 다 픽스처가 무뎌서다 — 위 `median` 검사는 값이 셋(40·50·70)이라
+ * 중앙값이 정확히 가운뎃값에 떨어져 보간이 안 돌고, `robust`는 **수치를 못 박은 검사가 아예
+ * 없었다.** `lifecycle.spec.ts`가 `robust`로 왕복을 돌지만 그건 같은 함수로 fit하고 같은
+ * 함수로 transform하므로 사분위 정의가 무엇이든 자기 자신과는 언제나 맞는다.
+ *
+ * **기대값은 numpy·pandas의 기본(`linear`)에서 나왔다** — 그 주장이 `quantile`의 주석에 있고
+ * `CLAUDE.md` §2("파이썬 관행을 따른다")가 걸리는 자리다.
+ * `np.percentile([1,2,3,4], [25,50,75]) == [1.75, 2.5, 3.25]`.
+ */
+describe('사분위 - 짝수 개에서 보간이 돈다', () => {
+  const four: Dataset = {
+    columns: ['값'],
+    rows: [['1'], ['2'], ['3'], ['4']],
+  }
+  const all = [0, 1, 2, 3]
+
+  it('median 대체값이 두 값 사이로 간다 - 2.5이지 2가 아니다', () => {
+    const fitted = fitPreprocessor(four, all, ['값'], preprocessing({ missing: 'median' }))
+    expect(fitted.columns[0]?.fill).toBeCloseTo(2.5, 10)
+  })
+
+  it('robust의 중심은 중앙값, 폭은 사분위 범위다 - numpy와 같은 값이다', () => {
+    const fitted = fitPreprocessor(
+      four,
+      all,
+      ['값'],
+      preprocessing({ missing: 'mean', scaling: 'robust' }),
+    )
+    // center = q50 = 2.5, spread = q75 - q25 = 3.25 - 1.75 = 1.5
+    expect(fitted.columns[0]?.scale?.center).toBeCloseTo(2.5, 10)
+    expect(fitted.columns[0]?.scale?.spread).toBeCloseTo(1.5, 10)
+  })
+
+  it('그 값으로 실제 행이 옮겨진다', () => {
+    const fitted = fitPreprocessor(
+      four,
+      all,
+      ['값'],
+      preprocessing({ missing: 'mean', scaling: 'robust' }),
+    )
+    const moved = transform(fitted, four, all, 'onehot')
+    // (1-2.5)/1.5 = -1, (4-2.5)/1.5 = 1. 보간이 죽으면 둘 다 다른 값이 된다.
+    expect(moved[0]?.[0]).toBeCloseTo(-1, 10)
+    expect(moved[3]?.[0]).toBeCloseTo(1, 10)
+  })
+})

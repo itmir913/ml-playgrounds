@@ -263,3 +263,50 @@ describe('평가 데이터가 파일로 온 분할', () => {
     expect(trainIndices.filter((index) => testIndices.includes(index))).toEqual([])
   })
 })
+
+/**
+ * **반올림이 실제로 갈리는 자리를 준다.**
+ *
+ * `testCountFor`의 `Math.round`를 `Math.floor`로 바꿔도 저장소 전체 1,820개 검사가
+ * 통과했다 (V11 R2 감사 B-5). 이 파일의 층화 픽스처가 전부 몫이 정확히 떨어져서다 —
+ * 150×0.2=30.0 · 100×0.3=30.0 · 90:10×0.2=18.0/2.0 · 20×0.2=4.0. 경계 검사 둘
+ * (`4행 × 0.01`·`4행 × 0.99`)은 클램프가 답을 정하므로 `floor`·`ceil`·`round`가 셋 다 같다.
+ *
+ * **같은 병을 뽑기 쪽은 2026-08-12에 고쳤는데 분할 쪽은 그대로였다.**
+ * `sample.spec.ts`가 그때 `['A',7]·['B',11]·['C',13]` 같은 날카로운 픽스처를 얻었다.
+ *
+ * **`round`가 맞는지는 여기서 다투지 않는다** — sklearn은 `ceil`이고 그 차이는
+ * `open-decisions.md`가 다룰 결정이다. 이 검사가 지키는 것은 **지금 규칙이 무엇인지가
+ * 코드 밖에 적혀 있다**는 것뿐이다.
+ */
+describe('평가셋 개수의 반올림', () => {
+  const countOf = (total: number, testSize: number): number =>
+    holdoutSplit({ rows: rows(total) }, split({ testSize })).testIndices.length
+
+  it('소수부가 절반을 넘으면 올린다 - 7행의 25%는 2행이다', () => {
+    // 1.75 → round 2 / floor 1. 두 함수가 갈리는 자리다.
+    expect(countOf(7, 0.25)).toBe(2)
+  })
+
+  it('소수부가 정확히 절반이면 올린다 - 10행의 25%는 3행이다', () => {
+    // 2.5 → round 3 / floor 2 / trunc 2.
+    expect(countOf(10, 0.25)).toBe(3)
+  })
+
+  it('소수부가 절반에 못 미치면 내린다 - 9행의 25%는 2행이다', () => {
+    // 2.25 → round 2. 위 둘과 함께 봐야 "언제나 올린다"가 아님이 드러난다.
+    expect(countOf(9, 0.25)).toBe(2)
+  })
+
+  it('층화에서도 같은 규칙이다 - 라벨마다 따로 센다', () => {
+    // A가 7개(1.75→2), B가 9개(2.25→2). 둘을 합쳐 세면 16×0.25=4.0이라
+    // 소수부가 사라져 아무것도 안 갈린다 - 라벨마다 세는지가 여기서 드러난다.
+    const labels = [...Array<string>(7).fill('A'), ...Array<string>(9).fill('B')]
+    const { testIndices } = holdoutSplit(
+      { rows: rows(16), labels },
+      split({ testSize: 0.25, stratify: true }),
+    )
+    expect(testIndices.filter((index) => index < 7)).toHaveLength(2)
+    expect(testIndices.filter((index) => index >= 7)).toHaveLength(2)
+  })
+})
