@@ -236,16 +236,40 @@ export const useProjectStore = defineStore('project', () => {
    * 담지 못한 모델을 돌려주므로 화면이 경고할 수 있다.
    */
   async function exportFile(portfolioMarkdown: string): Promise<DroppedModel[]> {
-    await flush()
+    // **저장이 실패해도 내보내기는 계속한다.** 라우터 가드와 같은 처방이다
+    // (router/index.ts) - 잡아서 알리되 막지 않는다.
+    //
+    // 막으면 무슨 일이 나는지가 이 try의 이유다. flush()는 저장소가 모자라면
+    // STORAGE_QUOTA_EXCEEDED를 던지는데, 그것을 그대로 올려보내면 아래 writeProject도
+    // downloadBytes도 한 줄을 못 돈다 - **파일을 만들 재료가 전부 메모리에 있고
+    // 저장소를 한 바이트도 안 쓰는 작업인데도 그렇다.** 게다가 write()는 실패해도
+    // dirty를 안 내리므로 그 뒤의 모든 내보내기가 같은 자리에서 죽는다.
+    // 서버가 없고 결과물이 파일 하나인 도구에서 그것은 **학생이 작업을 기기 밖으로
+    // 꺼낼 길이 없어진다**는 뜻이다 (CLAUDE.md §1.1·§1.3).
+    //
+    // 미뤄 둔 저장을 먼저 끝내려는 의도 자체는 옳다 - 방금 쓴 글이 빠진 파일이 나가면
+    // 안 된다. 그래서 버리지 않고 **알린 뒤 있는 값으로 내보낸다.**
+    try {
+      await flush()
+    } catch (error) {
+      useToastStore().pushError(error)
+    }
     const current = file.value
     if (current === null) return []
 
     const { bytes, dropped } = await writeProject(current, portfolioMarkdown)
     downloadBytes(bytes, projectFileName(current.document.manifest))
 
+    // **여기서부터는 파일이 이미 나갔다.** markExported는 IndexedDB에 쓰므로 저장소가
+    // 모자라면 던지는데, 그것을 올려보내면 화면이 성공한 내보내기를 실패로 말한다.
+    // 내보낸 시각은 이 기기의 곁가지 정보이고(storage.ts) 파일 안에는 없다.
     const at = new Date().toISOString()
-    await markExported(current.document.manifest.projectId, at)
-    exportedAt.value = at
+    try {
+      await markExported(current.document.manifest.projectId, at)
+      exportedAt.value = at
+    } catch (error) {
+      useToastStore().pushError(error)
+    }
     return dropped
   }
 

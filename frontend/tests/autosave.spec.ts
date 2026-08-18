@@ -21,6 +21,7 @@ import { AUTOSAVE_DELAY_MS } from '../src/limits'
 import { exportStateOf } from '../src/project/export-state'
 import { closeStorage, DB_NAME, loadProject, readExportedAt } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
+import { useToastStore } from '../src/stores/toasts'
 import { emptyProjectFile, manifest, projectFile } from './fixtures/project'
 import { hashBytes } from '../src/hash'
 import type { ProjectFile } from '../src/project/format'
@@ -40,6 +41,14 @@ async function deleteDatabase(): Promise<void> {
     request.onsuccess = () => resolve()
     request.onerror = () => resolve()
     request.onblocked = () => resolve()
+  })
+}
+
+/** 저장소 여유를 흉내낸다. 되돌리는 것은 afterEach가 한다. */
+function stubEstimate(quota: number, usage: number): void {
+  Object.defineProperty(navigator, 'storage', {
+    configurable: true,
+    value: { estimate: () => Promise.resolve({ quota, usage }) },
   })
 }
 
@@ -63,6 +72,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   vi.useRealTimers()
   closeStorage()
   await deleteDatabase()
@@ -144,6 +154,35 @@ describe('자동 저장', () => {
   })
 })
 
+/**
+ * **쓰기가 도는 동안 학생이 또 바꾸는 것은 흔한 일이다** — 슬라이더를 끌거나 글을 쓰면
+ * 800ms 타이머가 도는 사이에도 값이 계속 바뀐다. 그때 `dirty`를 그냥 내리면 그 변경분이
+ * 덮이고, 다음 `write()`는 조기 반환에 걸려 **아무것도 안 쓴다.** 학생이 거기서 손을
+ * 떼면 그 편집은 IndexedDB에 영영 안 들어간다.
+ */
+describe('쓰는 동안 또 바뀐 것', () => {
+  it('다시 쓸 것으로 남는다', async () => {
+    const project = useProjectStore()
+    // 저장이 IndexedDB에서 기다리는 사이에 끼어든다.
+    const writing = project.save(projectFile())
+    project.update(renamed('쓰는 동안 고친 이름'))
+    await writing
+
+    expect(project.dirty).toBe(true)
+
+    await project.flush()
+    expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe(
+      '쓰는 동안 고친 이름',
+    )
+  })
+
+  it('안 바뀌었으면 다시 안 쓴다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+    expect(project.dirty).toBe(false)
+  })
+})
+
 describe('내보내기', () => {
   const markdown = '# 나의 AI 모델 정리\n'
 
@@ -192,6 +231,42 @@ describe('내보내기', () => {
     await project.save(renamed('그 뒤에 고친 이름'))
 
     expect(await readExportedAt(manifest.projectId)).toBe(at)
+  })
+
+  /**
+   * **학생이 작업을 기기 밖으로 꺼내는 유일한 길이다** (CLAUDE.md §1.1). 저장소가
+   * 모자라 자동 저장이 실패한 학생이 "그럼 파일로 저장해야지"라며 누르는 것이 바로
+   * 이 버튼인데, 저장 실패가 여기까지 올라오면 그 순간 꺼낼 길이 없어진다 —
+   * 파일을 만들 재료는 전부 메모리에 있고 저장소를 한 바이트도 안 쓰는데도.
+   */
+  it('저장이 실패해도 파일은 나간다 - 꺼낼 길이 없어지면 안 된다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+    project.update(renamed('저장은 못 하지만 내보내야 하는 이름'))
+
+    // 여기서부터 저장소가 모자라다.
+    stubEstimate(1024, 2048)
+    const toasts = useToastStore()
+
+    await project.exportFile(markdown)
+
+    expect(downloads).toHaveLength(1)
+    // 그리고 저장이 실패했다는 사실은 학생에게 도달한다.
+    expect(toasts.items.at(-1)?.tone).toBe('danger')
+    expect(toasts.items.at(-1)?.key).toContain('STORAGE_QUOTA_EXCEEDED')
+  })
+
+  it('저장이 한 번 실패해도 다음 내보내기가 막히지 않는다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+    project.update(renamed('고친 이름'))
+
+    stubEstimate(1024, 2048)
+    await project.exportFile(markdown)
+    await project.exportFile(markdown)
+
+    // write()가 실패해도 dirty를 안 내리므로, 막는 구조였다면 둘째도 죽는다.
+    expect(downloads).toHaveLength(2)
   })
 
   it('프로젝트가 없으면 아무것도 내려보내지 않는다', async () => {
