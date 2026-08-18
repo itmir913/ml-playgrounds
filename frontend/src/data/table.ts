@@ -174,3 +174,17 @@ export function importTable(document: TableDocument, sheetName?: string): Import
   if (sheetName !== undefined) imported.sheetName = sheetName
   return imported
 }
+
+/**
+ * 표를 잘라서 보여주고 있으면 **그린 줄 수**, 안 잘랐으면 0.
+ *
+ * **화면에서 뺀 이유가 규칙이 하나 있기 때문이다.** 상수를 그대로 문구에 넘기면
+ * 10줄짜리 파일에도 "처음 20줄만 보여 줍니다"가 떠서 도구가 거짓말을 한다. 그 규칙이
+ * 화면 안 `computed`에 있으면 검사가 못 잡는다 (architecture.md §9.1).
+ *
+ * @param shown 지금 그린 줄 수
+ * @param total 표 전체의 줄 수
+ */
+export function previewNote(shown: number, total: number): number {
+  return total > shown ? shown : 0
+}

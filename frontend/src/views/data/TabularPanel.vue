@@ -31,7 +31,7 @@ import StepActionBar from '@/components/StepActionBar.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { summarizeColumns, toDataset, type ColumnSummary } from '@/data/columns'
-import { importTable, openTable, previewTable, type TableDocument } from '@/data/table'
+import { importTable, openTable, previewNote, previewTable, type TableDocument } from '@/data/table'
 import ColumnInspector from './ColumnInspector.vue'
 import { PREVIEW_ROW_COUNT } from '@/limits'
 import { applyDataset, readDataset } from '@/project/dataset'
@@ -97,17 +97,13 @@ const shown = computed(() => {
   return null
 })
 
-/**
- * 표를 잘라서 보여주고 있으면 그린 줄 수. 안 잘랐으면 0이다.
- *
- * **상수를 그대로 문구에 넘기면 안 된다.** 10줄짜리 파일에도 "처음 20줄만 보여 줍니다"가
- * 떠서 도구가 거짓말을 한다.
- */
-const truncated = computed(() => {
-  const rows = shown.value?.dataset.rows.length ?? 0
-  const total = opened.value ? previewRows.value.length : (saved.value?.dataset.rows.length ?? 0)
-  return total > rows ? rows : 0
-})
+/** 표를 잘라서 보여주고 있으면 그린 줄 수. 판정은 `previewNote`가 한다. */
+const truncated = computed(() =>
+  previewNote(
+    shown.value?.dataset.rows.length ?? 0,
+    opened.value ? previewRows.value.length : (saved.value?.dataset.rows.length ?? 0),
+  ),
+)
 
 async function readFile(file: File): Promise<void> {
   busy.value = true

@@ -3,10 +3,16 @@ import { describe, expect, it } from 'vitest'
 
 import { parseCsvText } from '../src/data/csv'
 import { decodeText, detectEncoding } from '../src/data/encoding'
-import { importTable, openTable, previewTable, sourceFromFileName } from '../src/data/table'
+import {
+  importTable,
+  openTable,
+  previewNote,
+  previewTable,
+  sourceFromFileName,
+} from '../src/data/table'
 import { isClientError } from '../src/errors'
 import { hashBytes } from '../src/hash'
-import { MAX_DATASET_COLUMNS, MAX_DATASET_ROWS } from '../src/limits'
+import { MAX_DATASET_COLUMNS, MAX_DATASET_ROWS, PREVIEW_ROW_COUNT } from '../src/limits'
 
 /** '이름,나이\n가나다,10'을 CP949로 인코딩한 바이트. */
 const CP949_CSV = new Uint8Array([
@@ -220,5 +226,23 @@ describe('importTable - 상한', () => {
         expect(error.params.limitColumns).toBe(MAX_DATASET_COLUMNS)
       }
     }
+  })
+})
+
+/**
+ * **화면에서 뺀 판정이다** (V11 R3 감사 C-5). 화면 안 `computed`에 있으면 이 규칙을
+ * 검사가 못 잡는데, 어기면 도구가 학생에게 거짓말을 한다.
+ */
+describe('앞부분만 보여준다는 안내', () => {
+  it('안 잘랐으면 0이다 - 10줄짜리 파일에 "처음 20줄만"이 뜨면 안 된다', () => {
+    expect(previewNote(10, 10)).toBe(0)
+  })
+
+  it('정확히 상한만큼이어도 안 잘린 것이다', () => {
+    expect(previewNote(PREVIEW_ROW_COUNT, PREVIEW_ROW_COUNT)).toBe(0)
+  })
+
+  it('잘랐으면 그린 줄 수를 준다 - 전체 줄 수가 아니다', () => {
+    expect(previewNote(PREVIEW_ROW_COUNT, 5000)).toBe(PREVIEW_ROW_COUNT)
   })
 })
