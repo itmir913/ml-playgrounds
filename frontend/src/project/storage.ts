@@ -19,7 +19,7 @@ import { hashBytes } from '../hash'
 import { BYTES_PER_MB, STORAGE_SAFETY_FACTOR } from '../limits'
 import { detachMissingAttachments, pointsToFile, type ProjectFile } from './format'
 import { migrateProjectDocument } from './migrate'
-import type { ProjectDocument, TaskType } from './schema'
+import { TASK_TYPES, type ProjectDocument, type TaskType } from './schema'
 
 export const DB_NAME = 'ml-playgrounds'
 export const DB_VERSION = 2
@@ -63,16 +63,6 @@ interface DatasetRecord {
    */
   hash?: string
   /**
-   * 평가 데이터(`test.csv`)와 예측 데이터(`predict.csv`).
-   *
-   * **레코드 안에 곁들인다.** 키(`projectId`)를 복합 키로 바꾸면 DB 버전을 올리고
-   * 기존 레코드를 옮겨야 하는데, 여기 붙는 것은 언제나 학습 정본과 **함께 있고 함께
-   * 없다** - 평가 데이터는 타깃이 정해진 뒤에만 받을 수 있고 타깃은 표가 있어야 정해진다
-   * (mlpx-spec.md §1.1). 그래서 학습 정본이 없으면 이 레코드 자체가 없다.
-   *
-   * 없는 것이 정상이다. 이 필드가 생기기 전에 저장된 레코드에도 없다.
-   */
-  /**
    * 정본 사진들. zip 경로 -> 바이트로, `.mlpx` 안의 모양과 같다 (mlpx-spec.md §1.2).
    *
    * **새 object store를 안 만든다.** 그러려면 `DB_VERSION`을 올려야 하는데 그건 지시
@@ -93,6 +83,16 @@ interface DatasetRecord {
    * 있는데 일부만 있는 것도 정상이다 — 없는 것만 다시 뽑는다.
    */
   embeddings?: Map<string, Uint8Array>
+  /**
+   * 평가 데이터(`test.csv`)와 예측 데이터(`predict.csv`).
+   *
+   * **레코드 안에 곁들인다.** 키(`projectId`)를 복합 키로 바꾸면 DB 버전을 올리고
+   * 기존 레코드를 옮겨야 하는데, 여기 붙는 것은 언제나 학습 정본과 **함께 있고 함께
+   * 없다** - 평가 데이터는 타깃이 정해진 뒤에만 받을 수 있고 타깃은 표가 있어야 정해진다
+   * (mlpx-spec.md §1.1). 그래서 학습 정본이 없으면 이 레코드 자체가 없다.
+   *
+   * 없는 것이 정상이다. 이 필드가 생기기 전에 저장된 레코드에도 없다.
+   */
   test?: { bytes: Uint8Array; hash: string }
   predict?: { bytes: Uint8Array; hash: string }
 }
@@ -422,6 +422,11 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
   }
 }
 
+/** 어휘에 있는 값일 때만 돌려준다. 목록이 zod를 안 지나므로 여기서 한 번 거른다. */
+function taskTypeOf(value: unknown): TaskType | undefined {
+  return TASK_TYPES.includes(value as TaskType) ? (value as TaskType) : undefined
+}
+
 /**
  * 최근에 손댄 것부터 나열한다.
  *
@@ -446,7 +451,10 @@ export async function listProjects(): Promise<ProjectSummary[]> {
     return {
       projectId: record.projectId,
       name: readable ? (manifest as { name: string }).name : '',
-      taskType: record.document?.manifest?.taskType,
+      // **어휘에 있는 것만 내보낸다.** 목록은 일부러 zod를 안 돌리는데(빠르기 위해서다)
+      // 그러면 손상된 레코드의 아무 문자열이 TaskType이라고 선언된 채 화면으로 흘러가고,
+      // 화면은 그것으로 문구 키를 조립한다.
+      taskType: taskTypeOf(record.document?.manifest?.taskType),
       updatedAt: record.updatedAt,
       sizeBytes: record.sizeBytes,
       readable,

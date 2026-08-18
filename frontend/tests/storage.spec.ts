@@ -372,6 +372,25 @@ describe('읽는 경로가 .mlpx와 같은 문을 지난다', () => {
     expect(found?.readable).toBe(true)
   })
 
+  /**
+   * 목록은 일부러 zod를 안 돌린다(빠르기 위해서다). 그러면 레코드에 든 아무 문자열이
+   * `TaskType`이라고 선언된 채 나가고, 화면이 그것으로 문구 키를 조립한다.
+   */
+  it('어휘에 없는 taskType은 내보내지 않는다', async () => {
+    await plant({ manifest: { name: '이상한 것', taskType: '없는유형' } })
+
+    const found = (await listProjects()).find((one) => one.projectId === 'planted')
+    expect(found?.readable).toBe(true)
+    expect(found?.taskType).toBeUndefined()
+  })
+
+  it('어휘에 있는 taskType은 그대로 나간다', async () => {
+    await plant({ manifest: { name: '멀쩡한 것', taskType: 'clustering' } })
+
+    const found = (await listProjects()).find((one) => one.projectId === 'planted')
+    expect(found?.taskType).toBe('clustering')
+  })
+
   it('manifest조차 없으면 열 수 없는 것으로 표시한다', async () => {
     await plant({ runs: {} })
 
