@@ -36,6 +36,9 @@ if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
 /** 상한이 사는 곳. 여기만 숫자를 직접 쓴다. */
 const LIMITS = join(SRC, 'limits.ts')
 
+/** 줄 나누기. 정규식 리터럴로 둔다 - 문자열로 적으면 이스케이프가 한 겹 더 든다. */
+const NEWLINE = /\r?\n/
+
 interface Rule {
   readonly name: string
   readonly why: string
@@ -265,5 +268,48 @@ describe('상한은 전부 읽힌다', () => {
       (name) => !readers.some((source) => new RegExp(`\\b${name}\\b`).test(source)),
     )
     expect(orphans, '아무 데서도 안 읽히는 상한').toEqual([])
+  })
+})
+
+/**
+ * **화면과 상한을 잇는 줄이 끊겨도 아무것도 안 울었다** (V11 R5 B-4).
+ * `CLUSTER_SCATTER_POINT_LIMIT`에는 근거가 촘촘히 붙어 있다 — 개발 PC 실측, 감사자의
+ * 독립 재측정, `animation: false`가 화면에 실제로 있어야 그 숫자가 화면의 숫자라는 못까지.
+ * 그런데 `clusters.spec.ts`는 `scatterPoints`를 **인자로 받은 상한**으로 검사하므로,
+ * 화면이 그 상수를 안 넘겨도 초록이다.
+ *
+ * **못 잡는 것을 밝혀 둔다** — 이 검사는 *줄이 이어져 있는가*만 본다. **상수의 값 자체가
+ * 바뀌는 것은 어떤 검사도 못 잡는다.** 자기를 기준으로 쓴 검사는 값을 따라 커지기
+ * 때문이다. 값을 못 박는 것은 `versions.spec.ts`가 포맷 버전에 하는 일인데, 실측으로
+ * 고른 조율 상수에까지 그것을 하지는 않는다 — 근거는 그 상수의 주석이 갖는다.
+ */
+describe('산점도 상한이 화면까지 이어진다', () => {
+  // 정의한 파일은 부르는 쪽이 아니다 - 상한을 인자로 받는 것이 그 함수의 계약이다.
+  const CALLERS = sourceFiles(SRC).filter((path) => {
+    const source = readFileSync(path, 'utf-8')
+    return source.includes('scatterPoints(') && !source.includes('export function scatterPoints')
+  })
+
+  it('부르는 화면을 실제로 찾는다', () => {
+    // 0개면 이름이 바뀐 것이지 규칙이 지켜진 게 아니다.
+    expect(CALLERS.length).toBeGreaterThanOrEqual(2)
+  })
+
+  /**
+   * **`import` 줄은 빼고 본다.** 안 빼면 상수를 들여오기만 하고 안 쓰는 파일이 통과한다 —
+   * 실제로 이 검사를 처음 썼을 때 그렇게 조용히 초록이었다.
+   */
+  function bodyOf(path: string): string {
+    return readFileSync(path, 'utf-8')
+      .split(NEWLINE)
+      .filter((line) => !line.trimStart().startsWith('import'))
+      .join('\n')
+  }
+
+  it('상한을 손으로 안 적고 상수를 넘긴다', () => {
+    const missing = CALLERS.filter(
+      (path) => !bodyOf(path).includes('CLUSTER_SCATTER_POINT_LIMIT'),
+    ).map((path) => path.slice(SRC.length + 1))
+    expect(missing, 'scatterPoints를 부르면서 상수를 안 넘기는 자리').toEqual([])
   })
 })

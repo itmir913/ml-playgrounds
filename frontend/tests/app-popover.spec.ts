@@ -115,3 +115,59 @@ describe('스크롤과 닫힘', () => {
     expect(document.querySelector(PANEL)).toBeNull()
   })
 })
+
+/**
+ * **여는 것과 닫는 것 자체에 검사가 없었다** (V11 R5 B-2). `onPointerDown`의 `close()`를
+ * 지워도 이 파일의 검사 넷이 전부 통과했고 저장소 전체 1,917개도 통과했다.
+ *
+ * 이 파일의 머리말이 존재 이유를 이렇게 적어 두었다 — *"바깥 클릭과 Esc는 여기서 한 번만
+ * 처리한다. 쓰는 쪽마다 다시 짜면 어딘가는 빠진다."* **여덟 자리가 이 부품을 쓴다**:
+ * 상태 표시줄 · 프로젝트 요약 · 용어 설명 · 혼동 행렬의 칸 · 변경 목록 · 예측 카드 ·
+ * 군집 증거 · 양식 가져오기.
+ */
+describe('바깥을 누르거나 Esc를 치면 닫힌다', () => {
+  /** 패널이 지금 떠 있는가. body로 텔레포트되므로 문서 전체에서 찾는다. */
+  function isOpen(): boolean {
+    return document.querySelector('.content') !== null
+  }
+
+  it('열린다', async () => {
+    const wrapper = openPopover()
+    await wrapper.find('button').trigger('click')
+    expect(isOpen()).toBe(true)
+  })
+
+  it('바깥을 누르면 닫힌다', async () => {
+    const wrapper = openPopover()
+    await wrapper.find('button').trigger('click')
+    expect(isOpen()).toBe(true)
+
+    document.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+    await wrapper.vm.$nextTick()
+
+    expect(isOpen()).toBe(false)
+  })
+
+  /** 패널 안의 글자를 드래그해 고르는 동안 닫히면 안 된다 - 머리말이 든 함정이다. */
+  it('패널 안을 누르면 안 닫힌다', async () => {
+    const wrapper = openPopover()
+    await wrapper.find('button').trigger('click')
+
+    const inside = document.querySelector('.content')
+    inside?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+    await wrapper.vm.$nextTick()
+
+    expect(isOpen()).toBe(true)
+  })
+
+  it('Esc를 치면 닫힌다', async () => {
+    const wrapper = openPopover()
+    await wrapper.find('button').trigger('click')
+    expect(isOpen()).toBe(true)
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await wrapper.vm.$nextTick()
+
+    expect(isOpen()).toBe(false)
+  })
+})
