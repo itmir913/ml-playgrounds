@@ -170,7 +170,9 @@ export function applyDataset(
       models: new Map(),
       // 표 프로젝트라 사진이 없다. 빈 맵이 정상이다.
       images: new Map(),
-      attachments: new Map(),
+      // **첨부는 데이터 종류와 무관하다** - 표 프로젝트에도 있다 (mlpx-spec.md §8.6.1).
+      // 여기서 버리면 문서의 참조만 남아 학생이 포트폴리오에 붙인 사진이 조용히 사라진다.
+      attachments: project.attachments,
       embeddings: new Map(),
     },
     droppedExperiments: document.runs.experiments.length,
@@ -252,7 +254,9 @@ export function applyTestDataset(
       models: new Map(),
       // 표 프로젝트라 사진이 없다. 빈 맵이 정상이다.
       images: new Map(),
-      attachments: new Map(),
+      // **첨부는 데이터 종류와 무관하다** - 표 프로젝트에도 있다 (mlpx-spec.md §8.6.1).
+      // 여기서 버리면 문서의 참조만 남아 학생이 포트폴리오에 붙인 사진이 조용히 사라진다.
+      attachments: project.attachments,
       embeddings: new Map(),
     },
     droppedExperiments: document.runs.experiments.length,
@@ -406,7 +410,9 @@ export function removeTestDataset(project: ProjectFile, now: string): AppliedTes
       models: new Map(),
       // 표 프로젝트라 사진이 없다. 빈 맵이 정상이다.
       images: new Map(),
-      attachments: new Map(),
+      // **첨부는 데이터 종류와 무관하다** - 표 프로젝트에도 있다 (mlpx-spec.md §8.6.1).
+      // 여기서 버리면 문서의 참조만 남아 학생이 포트폴리오에 붙인 사진이 조용히 사라진다.
+      attachments: project.attachments,
       embeddings: new Map(),
     },
     droppedExperiments: document.runs.experiments.length,

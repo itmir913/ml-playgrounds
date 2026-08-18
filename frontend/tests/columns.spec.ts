@@ -551,6 +551,65 @@ describe('평가 데이터를 프로젝트에 붙이기', () => {
     expect(removed.droppedExperiments).toBe(0)
     expect(removed.project).toBe(before)
   })
+  /**
+   * **포트폴리오 첨부는 데이터 종류와 무관하다** (mlpx-spec.md §8.6.1). 표를 갈아 끼우는
+   * 일과 학생이 글에 붙인 사진은 아무 관계가 없는데, 세 함수가 한때 그것을 함께 버렸다 -
+   * 참조는 문서에 남고 본체만 사라져서 파일이 자기 자신에 대해 거짓말을 했고, 무결성
+   * 대조까지 "그대로"라고 답했다. **오타 하나 고치려고 CSV를 다시 올리는 것은 교실에서
+   * 가장 흔한 동작이다.**
+   */
+  describe('표를 갈아 끼워도 포트폴리오 첨부는 살아남는다', () => {
+    const attachmentPath = 'portfolio/attachments/1.webp'
+
+    /** 문항 하나에 사진 하나가 붙은 프로젝트. 참조와 본체가 짝을 이룬다. */
+    function withAttachment(base: ProjectFile): ProjectFile {
+      return {
+        ...base,
+        document: {
+          ...base.document,
+          portfolio: {
+            ...base.document.portfolio,
+            template: { sections: [{ id: 'motivation', title: '이 주제를 선택한 이유' }] },
+            attachments: { motivation: [attachmentPath] },
+          },
+        },
+        attachments: new Map([[attachmentPath, new Uint8Array([82, 73, 70, 70])]]),
+      }
+    }
+
+    /** 참조가 가리키는 사진이 전부 본체에 있는가. 한쪽만 남는 것이 이 결함의 모양이다. */
+    function paired(project: ProjectFile): boolean {
+      return Object.values(project.document.portfolio.attachments)
+        .flat()
+        .every((path) => project.attachments.has(path))
+    }
+
+    it('표를 다시 올려도 그대로다', () => {
+      const applied = applyDataset(withAttachment(projectFile()), imported(), options)
+
+      expect([...applied.project.attachments.keys()]).toEqual([attachmentPath])
+      expect(paired(applied.project)).toBe(true)
+    })
+
+    it('평가 데이터를 붙여도 그대로다', () => {
+      const applied = applyTestDataset(withAttachment(withCanonicalDataset()), testTable(), options)
+
+      expect([...applied.project.attachments.keys()]).toEqual([attachmentPath])
+      expect(paired(applied.project)).toBe(true)
+    })
+
+    it('평가 데이터를 떼도 그대로다', () => {
+      const attached = applyTestDataset(
+        withAttachment(withCanonicalDataset()),
+        testTable(),
+        options,
+      ).project
+      const removed = removeTestDataset(attached, now)
+
+      expect([...removed.project.attachments.keys()]).toEqual([attachmentPath])
+      expect(paired(removed.project)).toBe(true)
+    })
+  })
 })
 
 describe('예측 데이터를 프로젝트에 붙이기', () => {
