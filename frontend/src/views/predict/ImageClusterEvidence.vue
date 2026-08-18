@@ -167,7 +167,7 @@ onBeforeUnmount(() => {
       <li v-for="hash in representatives" :key="hash">
         <img
           :src="urls.get(hash)"
-          :alt="t('predict.image.photo')"
+          :alt="t('results.image.trainingPhoto')"
           loading="lazy"
           class="aspect-square w-full rounded-control object-cover"
         />

@@ -595,8 +595,6 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
     'fileHash.',
     'entryHash.',
     'reproduction.',
-    // 모델이 파일에 안 담긴 사유. 지금은 담긴 개수만 말하고 사유는 아무 데도 안 뜬다.
-    'modelOmission.',
     // 나누기 방식의 이름. 요약이 아직 이 축을 안 보인다.
     'splitMethod.',
     // 프로젝트 정보 화면의 제목. 지금은 대화상자 안에 항목만 있다.
@@ -676,6 +674,7 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
     'client.', // 클라이언트 전용 코드는 client.* 에서 찾는다
     'execution.', // 실행 위치마다 이름이 있다
     'engineState.', // 무결성 어휘가 로케일과 양방향으로 일치한다
+    'modelOmission.', // 모델이 안 담긴 사유마다 문구가 있다 (위 어휘 짝 검사)
     'missingStrategy.', // 전처리 설정의 어휘가 로케일과 양방향으로 일치한다
     'scalingMethod.', //   〃
     'scalingBasis.', // 스케일링 방식마다 기준을 읽는 말이 있다 (none만 없다)

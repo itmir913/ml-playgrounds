@@ -17,7 +17,13 @@
  */
 
 import { ClientError, isClientError, type ClientErrorCode } from '../errors'
-import { dataSnapshot, type Experiment, type ProjectDocument, type Run } from '../project/schema'
+import {
+  dataSnapshot,
+  type Experiment,
+  type ModelOmissionReason,
+  type ProjectDocument,
+  type Run,
+} from '../project/schema'
 import type { Prediction } from './metrics'
 import { interpreterFor, type LoadContext, type Predict, type ProbaModel } from './models'
 import {
@@ -357,6 +363,20 @@ export interface PredictableModel {
   readonly run: Run
   /** 못 쓰면 그 사유. 있으면 화면이 이 줄을 끄고 이유를 함께 보여준다 (§8.2). */
   readonly reason?: ClientErrorCode
+  /**
+   * 그 사유의 문장에 채울 값. **사유를 만드는 자리가 함께 만든다** — 화면이 사유만 받고
+   * 파라미터를 안 받으면 `({format})`이 빈 괄호로 뜬다 (V11 R5 B-6).
+   */
+  readonly reasonParams?: Readonly<Record<string, unknown>>
+  /**
+   * 모델이 파일에 안 담긴 run에서, **왜 안 담겼는지** (`mlpx-spec.md` §4.2).
+   *
+   * **`reason`과 다른 사실이다.** `MODEL_FILE_INVALID`는 "이 줄로는 예측할 수 없다"까지만
+   * 말하는데, 그 문구는 "다시 학습하면 쓸 수 있습니다"로 끝난다 — **`tooLarge`에는
+   * 정반대의 조언이다**(앱 자신이 `modelOmission.tooLarge`에서 "다시 학습해도 같다"고
+   * 적었다). 화면이 이 값을 보면 맞는 말을 고를 수 있다 (V11 R5 B-7).
+   */
+  readonly omitted?: ModelOmissionReason
 }
 
 /**
@@ -388,13 +408,26 @@ export function predictableModels(
       const model = run.model
       // 지표만 남은 run이다. 왜 안 담겼는지는 run.modelOmitted가 들고 있다.
       if (!model) {
-        list.push({ experiment, run, reason: 'MODEL_FILE_INVALID' })
+        // 지표만 남은 run이다. **왜 안 담겼는지는 run.modelOmitted가 들고 있고**,
+        // 그 사실을 함께 넘긴다 - 사유마다 학생이 할 일이 다르다.
+        list.push({
+          experiment,
+          run,
+          reason: 'MODEL_FILE_INVALID',
+          ...(run.modelOmitted === undefined ? {} : { omitted: run.modelOmitted }),
+        })
         continue
       }
 
       const interpreter = interpreterFor(model.format)
       if (!interpreter) {
-        list.push({ experiment, run, reason: 'MODEL_FORMAT_UNSUPPORTED' })
+        // 무엇이 문제인지 괄호에 적는다 (docs/i18n.md 규칙 5). 안 넘기면 빈 괄호가 뜬다.
+        list.push({
+          experiment,
+          run,
+          reason: 'MODEL_FORMAT_UNSUPPORTED',
+          reasonParams: { format: model.format },
+        })
         continue
       }
       if (interpreter.needsTrainingRows && !hasDataset) {

@@ -558,6 +558,7 @@
       "columns": "Columns",
       "dataset": "Data file",
       "features": "Features",
+      "usableFeatures": "Features used",
       "rows": "Rows",
       "target": "Target"
     },
@@ -661,6 +662,7 @@
     "failureDetail": "Technical details",
     "firstRun": "First experiment",
     "image": {
+      "trainingPhoto": "Training photo",
       "clusterEmpty": "No photos in this cluster.",
       "clusterRepresentative": "Ordered by closeness to the center. The first one represents this cluster."
     },

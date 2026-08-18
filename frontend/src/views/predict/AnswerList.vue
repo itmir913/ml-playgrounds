@@ -123,6 +123,19 @@ function reasonText(code: ClientErrorCode, params: Record<string, unknown> = {})
   return t(errorMessageKey(code), { ...params })
 }
 
+/**
+ * 이 카드가 왜 못 쓰는지. **사유마다 학생이 할 일이 다르다.**
+ *
+ * 모델이 파일에 안 담긴 run에는 `MODEL_FILE_INVALID`("다시 학습하면 쓸 수 있습니다")가
+ * 붙는데, **`tooLarge`에는 정반대다** — 앱 자신이 `modelOmission.tooLarge`에서 "다시
+ * 학습해도 같으니 모델을 키우는 설정을 줄여 보세요"라고 적었다 (V11 R5 B-7).
+ * 왜 안 담겼는지를 아는 run에서는 그 말을 고른다.
+ */
+function unusableText(model: PredictableModel): string {
+  if (model.omitted !== undefined) return t(`modelOmission.${model.omitted}`)
+  return reasonText(model.reason ?? 'MODEL_FILE_INVALID', { ...model.reasonParams })
+}
+
 /** 회귀의 답은 수치다. 부동소수의 잡음을 걷어내고 언어에 맞게 쓴다. */
 function answerText(value: Prediction | undefined): string | null {
   if (value === undefined) return null
@@ -431,8 +444,8 @@ function bars(model: PredictableModel): ProbabilityBar[] {
           </ul>
         </section>
 
-        <!-- 쓸 수 없는 사유. 셋이 전부 다른 말이고 학생이 할 수 있는 일이 다르다. -->
-        <p v-if="model.reason" class="mt-1 text-ink-soft">{{ reasonText(model.reason) }}</p>
+        <!-- 쓸 수 없는 사유. 전부 다른 말이고 학생이 할 수 있는 일이 다르다. -->
+        <p v-if="model.reason" class="mt-1 text-ink-soft">{{ unusableText(model) }}</p>
 
         <!-- 이 모델에서만 난 실패. 나머지 모델의 답은 그대로 나온다. -->
         <p

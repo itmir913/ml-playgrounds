@@ -51,7 +51,9 @@ const usableFeatures = computed(() => {
   </div>
   <div class="flex items-baseline gap-1.5">
     <dt>
-      <AppBadge>{{ t('meta.tabular.features') }}</AppBadge>
+      <!-- **프로젝트 요약과 다른 수다.** 저기는 고른 수, 여기는 학습에 들어가는 수라
+           같은 이름표를 쓰면 학생은 하나가 어디로 갔는지 알 수 없다 (V11 R5 B-5). -->
+      <AppBadge>{{ t('meta.tabular.usableFeatures') }}</AppBadge>
     </dt>
     <dd class="font-bold tabular-nums text-ink">{{ t('meta.countUnit', usableFeatures) }}</dd>
   </div>

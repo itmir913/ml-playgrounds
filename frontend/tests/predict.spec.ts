@@ -1484,6 +1484,72 @@ describe('예측 판이 함께 쓰는 계산', () => {
 })
 
 /**
+ * **사유는 학생이 할 일이 다르면 갈라야 한다** (`errors.ts`가 여러 번 적어 둔 규칙).
+ *
+ * `MODEL_FILE_INVALID`의 문구는 "다시 학습하면 쓸 수 있습니다"로 끝나는데, 모델이 커서
+ * 안 담긴 run에는 **정반대의 조언**이다 — 앱 자신이 `modelOmission.tooLarge`에서 "다시
+ * 학습해도 같다"고 적었다 (V11 R5 B-7). 그리고 `MODEL_FORMAT_UNSUPPORTED`의 문구는
+ * `({format})`으로 끝나는데 값이 안 오면 **빈 괄호**가 뜬다 (B-6).
+ */
+describe('못 쓰는 사유는 화면이 맞는 말을 고를 수 있게 온다', () => {
+  const base = experiment([0, 1, 2], onehot)
+
+  function documentOf(run: Run): ProjectDocument {
+    const withRun = { ...base, runs: [run] }
+    return {
+      manifest: {
+        formatVersion: 1,
+        appVersion: '0.0.0',
+        projectId: '11111111-1111-4111-8111-111111111111',
+        name: '테스트',
+        createdAt: '2026-08-06T00:00:00.000Z',
+        updatedAt: '2026-08-06T00:00:00.000Z',
+        kind: 'machineLearning',
+        dataType: 'tabular',
+        locale: 'ko',
+      },
+      settings: {
+        data: { features, target: '품종', preprocessing: onehot },
+        split: base.settings.split,
+        runtime: 'mljs',
+        selectedAlgorithms: [],
+        hyperparameters: {},
+      },
+      runs: { experiments: [withRun] },
+      portfolio: {
+        template: { sections: [] },
+        answerFormat: 'plain-v1',
+        answers: {},
+        attachments: {},
+      },
+    }
+  }
+
+  it('모르는 형식에는 그 형식 이름이 함께 온다 - 빈 괄호가 뜨면 안 된다', () => {
+    const run = { ...runOf('r1'), model: { path: 'model/r1.json', format: '없는형식-v9' } }
+    const [entry] = predictableModels(documentOf(run as Run), true)
+
+    expect(entry?.reason).toBe('MODEL_FORMAT_UNSUPPORTED')
+    expect(entry?.reasonParams).toEqual({ format: '없는형식-v9' })
+  })
+
+  it('안 담긴 모델에는 왜 안 담겼는지가 함께 온다', () => {
+    const run = { ...runOf('r1'), modelOmitted: 'tooLarge' }
+    const [entry] = predictableModels(documentOf(run as Run), true)
+
+    expect(entry?.reason).toBe('MODEL_FILE_INVALID')
+    expect(entry?.omitted).toBe('tooLarge')
+  })
+
+  it('왜 안 담겼는지 모르면 그 칸은 없다 - 추측해서 채우지 않는다', () => {
+    const [entry] = predictableModels(documentOf(runOf('r1')), true)
+
+    expect(entry?.reason).toBe('MODEL_FILE_INVALID')
+    expect(entry?.omitted).toBeUndefined()
+  })
+})
+
+/**
  * 네 곳이 같은 번호를 써야 한다 — 결과 목록, 실험 상세, 예측 판 둘. 학생이 결과
  * 화면에서 본 "실험 2"와 예측 화면의 "실험 2"가 다른 것을 가리키면 그 화면들은
  * 서로 다른 도구가 된다 (V11 R4 B-8).
