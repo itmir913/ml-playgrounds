@@ -29,14 +29,12 @@ import { dataKindFor, stepTextKey } from '@/data/kinds'
 import { newRandomState } from '@/project/create'
 import { dataSettings, type ProjectDocument } from '@/project/schema'
 import { withRandomState, withSplit } from '@/project/settings'
+import { TEST_SIZE_RANGE } from '@/limits'
 import { useProjectStore } from '@/stores/project'
 
 const { t } = useI18n()
 const format = useFormat()
 const project = useProjectStore()
-
-/** 평가용 비율 슬라이더의 눈금. 스키마는 0과 1 사이면 받는다. */
-const TEST_SIZE = { min: 0.05, max: 0.5, step: 0.05 }
 
 const settings = computed(() => project.file?.document.settings ?? null)
 
@@ -178,9 +176,9 @@ function reseed(): void {
           <input
             type="range"
             class="mt-1.5 w-full accent-brand"
-            :min="TEST_SIZE.min"
-            :max="TEST_SIZE.max"
-            :step="TEST_SIZE.step"
+            :min="TEST_SIZE_RANGE.min"
+            :max="TEST_SIZE_RANGE.max"
+            :step="TEST_SIZE_RANGE.step"
             :value="shownTestSize"
             :aria-label="t('preprocess.testSize')"
             @input="onTestSizeInput"

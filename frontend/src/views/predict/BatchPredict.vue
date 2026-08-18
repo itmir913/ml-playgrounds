@@ -34,6 +34,7 @@ import {
 import {
   assignAnswerColors,
   cellColorIndex,
+  shuffled,
   chosenProbability,
   predictDownloadGrid,
   predictPage,
@@ -361,21 +362,12 @@ async function goToPage(index: number): Promise<void> {
     // 꺼짐이 그려지기 전에 계산이 끝난다 - 그동안 쌓인 클릭이 전부 한 번씩 더 돈다.
     await yieldToScreen()
     await ensurePage(index)
+  } catch (error) {
+    // 쪽을 넘기다 터지면 화면이 그 자리에 멈춘다. 무엇이 잘못됐는지는 말해야 한다.
+    toasts.pushError(error)
   } finally {
     computing.value = false
   }
-}
-
-/** 한 번 섞은 새 배열. 제자리에서 안 바꾼다 - 원본을 공유하는 곳이 있으면 그쪽이 놀란다. */
-function shuffled<T>(items: readonly T[]): T[] {
-  const copy = [...items]
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    const temp = copy[i]!
-    copy[i] = copy[j]!
-    copy[j] = temp
-  }
-  return copy
 }
 
 /**
@@ -506,6 +498,11 @@ async function downloadAction(): Promise<void> {
     const name =
       exported === null ? 'predict.csv' : `${exported.slice(0, -MLPX_EXTENSION.length)}.csv`
     downloadBytes(toCanonicalCsv(grid), name)
+  } catch (error) {
+    // **전역 오류 손잡이가 없다** (`main.ts`에 `errorHandler`도 `onError`도 없다).
+    // 여기서 안 잡으면 던진 것이 아무 데도 안 가고, 학생은 [내려받기]를 눌렀는데
+    // 아무 일도 안 일어나는 것만 본다 (V11 R4 C-4).
+    toasts.pushError(error)
   } finally {
     computing.value = false
   }

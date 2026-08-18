@@ -389,7 +389,12 @@ async function run(): Promise<void> {
             contexts.set(entry.experiment.id, context)
           }
 
-          const vector = transform(preprocessor, table, [index], 'onehot')[0] ?? []
+          // **빈 벡터로는 답을 안 낸다.** `?? []`로 메우면 아무 값도 안 든 벡터가
+          // 모델에 들어가고, 이 파일 자신의 주석이 "0으로 메우면 모든 사진이 같은
+          // 답을 받는다"고 금지한 바로 그 모양이 된다 (V11 R4 C-6). 위의
+          // `table.missing` 가드 덕에 지금은 안 닿지만, 닿으면 조용히 틀린다.
+          const vector = transform(preprocessor, table, [index], 'onehot')[0]
+          if (vector === undefined || vector.length === 0) continue
           const value = loadModel(payload, context)([vector])[0]
           // **확률을 내는 모델만 확률이 있다** (mlpx-spec.md §5.4). 라벨은 위에서 이미
           // 나왔다 — **확률로 다시 구하지 않는다.** 포화 구간에서 둘이 갈린다.

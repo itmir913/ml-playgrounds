@@ -458,6 +458,26 @@ export interface PredictFilter {
   readonly algorithms: ReadonlySet<string>
 }
 
+/**
+ * 한 번 섞은 새 배열. **제자리에서 안 바꾼다** - 원본을 공유하는 곳이 있으면 그쪽이 놀란다.
+ *
+ * 색 팔레트를 섞는 데 쓴다 (architecture.md §8.13.1). 등수와 색의 대응을 고정하면
+ * 분류가 대개 두세 갈래라 앞의 두 색만 늘 쓰이고 나머지가 안 쓰인 채로 남는다.
+ *
+ * **두 화면이 글자까지 같은 사본을 들고 있었다** (V11 R4 C-2). 팔레트를 안 나누는
+ * 결정은 문서가 있지만 함수까지 복제할 이유는 없다.
+ */
+export function shuffled<T>(items: readonly T[]): T[] {
+  const copy = [...items]
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const pick = Math.floor(Math.random() * (index + 1))
+    const held = copy[index]!
+    copy[index] = copy[pick]!
+    copy[pick] = held
+  }
+  return copy
+}
+
 /** 필터 한 축의 선택지. **화면 부품이 아니라 여기서 만든다** (아래 두 함수). */
 export interface FilterOption {
   readonly id: string

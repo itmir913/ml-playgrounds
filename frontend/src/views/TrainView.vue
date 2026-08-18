@@ -427,9 +427,17 @@ function leave(): void {
   leaving = true
   training.cancel()
   if (to) {
-    void router.push(to.fullPath).catch(() => {
-      leaving = false
-    })
+    // **중단·리다이렉트는 거부가 아니라 `NavigationFailure`로 이행한다.** `catch`만
+    // 두면 그 경로에서 `leaving`이 참으로 남는다 (V11 R4 C-5). 지금은 그 시점에
+    // 학습이 이미 취소된 뒤라 아무 일도 안 나지만, 남겨 두면 다음 가드가 그것을 믿는다.
+    void router
+      .push(to.fullPath)
+      .then((failure) => {
+        if (failure) leaving = false
+      })
+      .catch(() => {
+        leaving = false
+      })
   }
 }
 </script>

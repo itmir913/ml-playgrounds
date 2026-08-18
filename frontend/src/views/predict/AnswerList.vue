@@ -17,18 +17,6 @@ import type { Answer } from '@/ml/predict'
  */
 export type { Answer }
 
-/** 한 번 섞은 새 배열. 제자리에서 안 바꾼다 - 원본을 공유하는 곳이 있으면 그쪽이 놀란다. */
-function shuffled<T>(items: readonly T[]): T[] {
-  const copy = [...items]
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    const temp = copy[i]!
-    copy[i] = copy[j]!
-    copy[j] = temp
-  }
-  return copy
-}
-
 /**
  * 값마다 다른 색. **7개까지만 있다.** 값 종류가 이보다 늘면 8등부터는 전부 같은
  * 회색이다 - 갈림표는 "값별로 다른 색"이 필요하지 "무한히 다른 색"이 필요하지 않고,
@@ -86,6 +74,7 @@ import type { Prediction } from '@/ml/metrics'
 import {
   answerRank,
   answersInClusters,
+  shuffled,
   clusterNumberOf,
   tallyClassificationAnswers,
   type PredictableModel,

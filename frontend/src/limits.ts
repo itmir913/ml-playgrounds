@@ -367,6 +367,17 @@ export const MAX_DATASET_COLUMNS = 1_000
 export const MIN_SPLIT_ROWS = 2
 
 /**
+ * 평가용 비율 슬라이더의 눈금. **스키마는 0과 1 사이면 받는다** — 이건 화면이
+ * 고를 수 있게 열어 두는 범위다.
+ *
+ * **여기 있는 이유는 상한이기 때문이다** (`CLAUDE.md` §1.5). 화면 안에 있으면
+ * `limits-rules.spec.ts`가 못 본다 — 그 검사는 이름으로 잡는데 `TEST_SIZE` 같은
+ * 이름은 상한처럼 안 생겼다. 그 파일 머리말이 밝힌 사각에 정확히 들어가 있었다
+ * (V11 R4 C-1).
+ */
+export const TEST_SIZE_RANGE = { min: 0.05, max: 0.5, step: 0.05 } as const
+
+/**
  * 저장 전 여유 공간 검사의 안전 계수.
  *
  * 브라우저가 보고하는 여유 공간은 근사값이고, 압축·인덱스 때문에 실제 점유는 더 크다.
