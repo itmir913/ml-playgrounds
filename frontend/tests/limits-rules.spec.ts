@@ -234,3 +234,36 @@ describe('지금 소스에 위반이 없다', () => {
     })
   }
 })
+
+/**
+ * **`limits.ts`가 내보내는 이름은 전부 어딘가에서 읽힌다.**
+ *
+ * 아무도 안 읽는 상한은 거짓말이다. 값이 무엇이든 아무 일도 안 일어나므로 **고쳐도
+ * 아무것도 안 울고**, 더 나쁜 것은 문서가 그것을 돌고 있는 장치로 인용하는 것이다 —
+ * `PROJECT_FILE_WARN_BYTES`가 실제로 그랬다(V11 R5 B-3, `open-decisions.md` 세 곳).
+ * R1이 `canonicalSize`에서 찾은 것과 같은 모양이고, **두 번 나왔으므로 검사로 만든다.**
+ *
+ * `locales.spec.ts`의 "아무 데서도 안 불리는 키가 없다"와 같은 방향이다.
+ */
+describe('상한은 전부 읽힌다', () => {
+  /** `export const NAME` 의 이름들. 타입·함수는 대상이 아니다. */
+  function exportedNames(source: string): string[] {
+    return [...source.matchAll(/^export const (\w+)/gm)].map((match) => match[1] ?? '')
+  }
+
+  const NAMES = exportedNames(readFileSync(LIMITS, 'utf-8'))
+
+  it('내보내는 상한을 실제로 찾는다', () => {
+    // 0개면 정규식이 썩은 것이지 규칙이 지켜진 게 아니다.
+    expect(NAMES.length).toBeGreaterThan(20)
+  })
+
+  it('아무도 안 읽는 상한이 없다', () => {
+    // `limits.ts` 자신은 뺀다 - 상한이 상한을 부르는 것은 정상이다(MLJS_*_ROW_LIMIT).
+    const readers = sourceFiles(SRC).map((path) => readFileSync(path, 'utf-8'))
+    const orphans = NAMES.filter(
+      (name) => !readers.some((source) => new RegExp(`\\b${name}\\b`).test(source)),
+    )
+    expect(orphans, '아무 데서도 안 읽히는 상한').toEqual([])
+  })
+})

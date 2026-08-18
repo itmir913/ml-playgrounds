@@ -251,14 +251,6 @@ export const MAX_MODEL_BYTES = 5 * MB
 export const MODEL_BUDGET_BYTES = 20 * MB
 
 /**
- * 프로젝트 파일이 이 크기를 넘으면 경고한다. **막지는 않는다.**
- *
- * 하드 캡으로 두면 데이터셋 하나만으로 상한을 넘는 경우에 저장이 실패한다.
- * 실제로 내용을 버리는 것은 모델 예산뿐이다.
- */
-export const PROJECT_FILE_WARN_BYTES = 50 * MB
-
-/**
  * 포트폴리오가 차지할 수 있는 최대 크기. **글과 첨부를 합쳐서 하나다**
  * (mlpx-spec.md §8.6.1).
  *
