@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
+import { MIN_SPLIT_ROWS } from '../src/limits'
 import {
   DATA_COMPARABLE_KEYS,
   DATA_SCHEMAS,
@@ -81,6 +82,16 @@ const document = {
  * 진짜 위험이고, 배포 전에 버전을 올리는 것은 그 반대 방향의 낭비다. 두 방향을 함께
  * 보려면 버전마다의 지문이 필요해서 파일을 나눴다.
  */
+
+/** 던진 ClientError의 코드. 안 던지거나 다른 오류면 그대로 드러난다. */
+function codeOf(run: () => unknown): string | undefined {
+  try {
+    run()
+  } catch (error) {
+    return isClientError(error) ? error.code : `not a ClientError: ${String(error)}`
+  }
+  return undefined
+}
 
 describe('답을 무엇으로 썼는지가 파일에 적힌다', () => {
   it('안 적힌 파일은 지금 형식으로 본다 - 이 필드가 생기기 전의 파일이다', () => {
@@ -350,6 +361,43 @@ describe('parseProjectDocument', () => {
       settings: { ...settings, data: DATA_SCHEMAS.image.initial() },
     }
     expect(parseProjectDocument(image).manifest.dataType).toBe('image')
+  })
+})
+
+/**
+ * **읽는 문에서 거부할 수 있는 것을 뒤로 미루지 않는다** (mlpx-spec.md §10의 경계).
+ * 여기를 통과시키면 손으로 고친 파일이 열리기는 하고 나중에 다른 자리에서 죽는다.
+ */
+describe('스키마가 무는 경계', () => {
+  it('nSamples의 바닥은 MIN_SPLIT_ROWS다 - 1이 아니다', () => {
+    const at = (n: number) => ({ ...document, settings: { ...settings, nSamples: n } })
+
+    expect(() => parseProjectDocument(at(MIN_SPLIT_ROWS))).not.toThrow()
+    expect(codeOf(() => parseProjectDocument(at(MIN_SPLIT_ROWS - 1)))).toBe('PROJECT_FILE_INVALID')
+  })
+
+  /**
+   * **그 슬래시가 하중을 받는다.** 파일 계층이 "이 참조가 파일을 가리키는가"를 그 모양으로
+   * 판정하고(`pointsToFile`), 임베딩 접두사도 같은 규약으로 백본을 가른다. 빠지면
+   * 폴더 참조가 파일 참조로 읽혀 저장이 조용히 어긋난다.
+   */
+  it('이미지 폴더 참조는 슬래시로 끝나야 한다', () => {
+    const withPath = (path: string) => ({
+      ...document,
+      manifest: { ...manifest, dataType: 'image' },
+      settings: {
+        ...settings,
+        data: {
+          ...DATA_SCHEMAS.image.initial(),
+          dataset: { path, canonicalSize: 224, format: 'webp', quality: 0.65 },
+        },
+      },
+    })
+
+    expect(() => parseProjectDocument(withPath('dataset/data/'))).not.toThrow()
+    expect(codeOf(() => parseProjectDocument(withPath('dataset/data')))).toBe(
+      'PROJECT_FILE_INVALID',
+    )
   })
 })
 

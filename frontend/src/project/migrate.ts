@@ -53,6 +53,12 @@ export function readFormatVersion(document: unknown): number | null {
  *
  * migrations를 인자로 받는 이유는 테스트 때문이다. 전역 등록부를 건드리지 않고
  * 가짜 체인으로 순서와 누락 처리를 확인할 수 있어야 한다.
+ *
+ * **입력을 먼저 복제한다.** 변환 함수는 새 객체를 만들어 돌려주는 것이 규칙이지만
+ * 중첩된 자리를 제자리에서 고치는 실수는 `{ ...raw }`로 얕게 복사하는 순간 생기고,
+ * 그러면 부르는 쪽이 들고 있던 원본이 함께 바뀐다 - readProject는 파싱한 JSON을,
+ * loadProject는 IndexedDB 레코드를 넘긴다. **복제를 여기서 하는 이유**는 남의 함수에
+ * 원본을 넘기는 자리가 여기이기 때문이다. 올릴 것이 없으면 복제도 안 한다.
  */
 export function applyMigrations(
   document: RawDocument,
@@ -60,7 +66,7 @@ export function applyMigrations(
   to: number,
   migrations: Record<number, Migration> = MIGRATIONS,
 ): RawDocument {
-  let current = document
+  let current = from < to ? structuredClone(document) : document
   for (let version = from; version < to; version += 1) {
     const migrate = migrations[version]
     if (!migrate) {
@@ -117,5 +123,5 @@ export function migrateProjectDocument(document: unknown): ProjectDocument {
 
   const version = requireSupportedVersion(raw.manifest)
 
-  return parseProjectDocument(applyMigrations(structuredClone(raw), version, FORMAT_VERSION))
+  return parseProjectDocument(applyMigrations(raw, version, FORMAT_VERSION))
 }

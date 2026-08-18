@@ -6,7 +6,7 @@ import { decodeText, detectEncoding } from '../src/data/encoding'
 import { importTable, openTable, previewTable, sourceFromFileName } from '../src/data/table'
 import { isClientError } from '../src/errors'
 import { hashBytes } from '../src/hash'
-import { MAX_DATASET_COLUMNS } from '../src/limits'
+import { MAX_DATASET_COLUMNS, MAX_DATASET_ROWS } from '../src/limits'
 
 /** '이름,나이\n가나다,10'을 CP949로 인코딩한 바이트. */
 const CP949_CSV = new Uint8Array([
@@ -180,6 +180,31 @@ describe('importTable - 상한', () => {
       expect(isClientError(error)).toBe(true)
       if (isClientError(error)) expect(error.code).toBe('DATASET_EMPTY')
     }
+  })
+
+  /**
+   * **행 상한에 검사가 하나도 없었다.** rule-coverage.md는 §1.5를 table.spec.ts가
+   * 막는다고 적어 두었는데, 여기 있는 것은 열과 빈 표뿐이었다.
+   */
+  it('행이 상한을 넘으면 DATASET_TOO_MANY_ROWS로 거부한다', async () => {
+    const rows = ['a', ...Array.from({ length: MAX_DATASET_ROWS }, (_, i) => String(i))]
+    const document = await openTable(new TextEncoder().encode(rows.join('\n')), 'data.csv')
+    try {
+      importTable(document)
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error)).toBe(true)
+      if (isClientError(error)) {
+        expect(error.code).toBe('DATASET_TOO_MANY_ROWS')
+        expect(error.params.limitRows).toBe(MAX_DATASET_ROWS)
+      }
+    }
+  })
+
+  it('상한과 같으면 받는다 - 경계에서 한 줄 차이로 거부하면 안 된다', async () => {
+    const rows = ['a', ...Array.from({ length: MAX_DATASET_ROWS - 1 }, (_, i) => String(i))]
+    const document = await openTable(new TextEncoder().encode(rows.join('\n')), 'data.csv')
+    expect(importTable(document).grid).toHaveLength(MAX_DATASET_ROWS)
   })
 
   it('컬럼이 상한을 넘으면 DATASET_TOO_MANY_COLUMNS로 거부한다', async () => {

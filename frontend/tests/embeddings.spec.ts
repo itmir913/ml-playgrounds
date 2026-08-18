@@ -113,6 +113,28 @@ describe('프로젝트에 앉는다', () => {
   })
 
   /**
+   * **개정한 백본의 것도 안 보여야 한다.** 우리가 백본을 고치는 방법은 id에 접미사를
+   * 붙이는 것이고(`mobilenet-v2` -> `mobilenet-v2-r2`), 그러면 옛 id가 새 id의
+   * **접두사**가 된다. 거르는 접두사가 `.../`로 끝나는 것이 그 둘을 가르는 유일한
+   * 장치다 - 떼면 옛 백본이 새 좌표계의 벡터를 자기 것으로 읽고 조용히 틀린다
+   * (open-decisions.md "백본 입력 범위가 그래프의 계약과 어긋났다").
+   *
+   * 위 검사는 글자가 아예 다른 이름을 쓰므로 이 축을 안 가른다.
+   */
+  it('개정한 백본의 것도 안 보인다 - 접두사가 아니라 폴더로 가른다', () => {
+    const project = imageProject(['a'])
+    const [only] = readImages(project)
+    const withVectors = addEmbeddings(
+      project,
+      `${BACKBONE}-r2`,
+      new Map([[only!.hash, new Float32Array([1, 2, 3, 4])]]),
+    )
+
+    expect(readEmbeddings(withVectors, BACKBONE, DIM).size).toBe(0)
+    expect(readEmbeddings(withVectors, `${BACKBONE}-r2`, DIM).size).toBe(1)
+  })
+
+  /**
    * 학생이 무엇을 바꾼 것이 아니라 우리가 계산을 캐시한 것이다. 여기서 시각이 움직이면
    * 파일을 받은 교사가 학생이 뭔가 한 줄로 읽는다.
    */

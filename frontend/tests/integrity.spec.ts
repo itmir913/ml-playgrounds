@@ -235,6 +235,26 @@ describe('열 때 하는 대조', () => {
     expect((await readProject(repacked)).integrity.computedContentHash).toBe(original)
   })
 
+  /**
+   * **엔트리 순서까지 뒤집어야 정렬 규칙을 가른다.** 순서를 그대로 두고 되말면 정렬을
+   * 하든 말든 결과가 같아서, 위 검사는 `contentHashOf`의 `.sort()`를 한 번도 안 물었다.
+   * 순서 보존은 zip 도구가 보장하는 성질이 아니다 - 맥·윈도우 탐색기·7-Zip이 각자 다르다.
+   */
+  it('엔트리 순서가 뒤집혀도 contentHash는 그대로다', async () => {
+    const { bytes } = await writeProject(projectFile(), markdown)
+    const original = (await readProject(bytes)).integrity.computedContentHash
+
+    const unzipped = unzipSync(bytes)
+    const reversed: Record<string, Uint8Array> = {}
+    for (const path of Object.keys(unzipped).reverse()) {
+      reversed[path] = unzipped[path]!
+    }
+
+    const { integrity } = await readProject(zipSync(reversed))
+    expect(integrity.computedContentHash).toBe(original)
+    expect(integrity.status).toBe('UNCHANGED')
+  })
+
   it('데이터셋 해시를 파일에서 다시 계산한다 - 적힌 값을 믿지 않는다', async () => {
     const { project } = await readProject((await writeProject(projectFile(), markdown)).bytes)
     expect(project.dataset?.hash).toBe(hashBytes(datasetBytes))

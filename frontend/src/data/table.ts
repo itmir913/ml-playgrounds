@@ -157,7 +157,10 @@ function checkLimits(grid: TableGrid): void {
  * 여기를 지나면 업로드 형식과 인코딩은 잊어도 된다.
  */
 export function importTable(document: TableDocument, sheetName?: string): ImportedTable {
-  const grid = document.read(sheetName)
+  // **상한 + 1까지만 읽는다.** 상한을 넘는지 판정하는 데 그 이상은 필요 없고, 다 파싱한
+  // 뒤에 거부하면 거부할 파일에 메모리를 그만큼 쓴다 (9MB CSV에서 heap 171MB를 쟀다).
+  // 새 임계값이 아니라 이미 있는 상수를 한 번 더 쓰는 것이다.
+  const grid = document.read(sheetName, MAX_DATASET_ROWS + 1)
   checkLimits(grid)
 
   const bytes = toCanonicalCsv(grid)

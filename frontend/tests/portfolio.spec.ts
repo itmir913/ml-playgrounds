@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest'
 
 import { newProjectDocument } from '../src/project/create'
 import { parsePortfolioForm } from '../src/project/portfolio-form'
+import { withIdentity } from '../src/project/identity'
 import { identifiedExport, portfolioMarkdownText } from '../src/project/portfolio-text'
 import {
   attachmentsOf,
@@ -514,6 +515,25 @@ describe('내보낼 문서와 그 마크다운은 같은 세대다', () => {
     const written = { ...blank, portfolio: withAnswer(blank.portfolio, 'topic', '고양이와 개') }
     const { markdown } = identifiedExport(written, identity, now, label, 'ko')
     expect(markdown).toContain('고양이와 개')
+  })
+
+  /**
+   * **프로젝트에 이름이 없는 상태를 만들지 않는다.** 빈 이름을 그대로 저장하면
+   * `projectFileName`이 projectId 앞 8자로 떨어져서, 수거 폴더에서 누구 것인지 알 수
+   * 없는 파일이 나온다.
+   */
+  it('이름을 지우고 저장해도 옛 이름을 지킨다', () => {
+    const named = withIdentity(blank, identity, now)
+    const cleared = withIdentity(named, { ...identity, name: '   ' }, now)
+
+    expect(cleared.manifest.name).toBe('붓꽃 품종 분류')
+  })
+
+  it('빈 학번과 이름은 지운다 - "안 적음"과 "빈칸을 적음"이 같아 보이면 안 된다', () => {
+    const named = withIdentity(blank, identity, now)
+    const cleared = withIdentity(named, { name: '이름', studentId: '', studentName: '' }, now)
+
+    expect(cleared.manifest.student).toBeUndefined()
   })
 })
 

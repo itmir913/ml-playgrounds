@@ -121,6 +121,29 @@ describe('applyMigrations', () => {
     expect(applyMigrations(raw, 2, 2, chain)).toBe(raw)
   })
 
+  /**
+   * **가짜 체인이 진짜와 같은 모양이어야 한다.** 얕게 더하기만 하는 변환은 원본을 안
+   * 건드리므로 복제 여부를 못 가른다. 곧 올 진짜 마이그레이션(백본 개명)은
+   * `settings.data.backboneId`와 실험 스냅샷마다의 `backboneId`를 고치는 일이라
+   * **중첩된 객체를 다시 쓰는 모양**이고, 거기서 안쪽을 제자리에서 고치는 실수가
+   * 정확히 이 복제가 막는 실수다.
+   */
+  it('제자리에서 고치는 변환이 있어도 입력을 안 건드린다', () => {
+    const inPlace: Record<number, Migration> = {
+      1: (raw) => {
+        const settings = raw.settings as { data: { backboneId: string } }
+        settings.data.backboneId = '바뀐백본'
+        return raw
+      },
+    }
+    const raw = { manifest: { formatVersion: 1 }, settings: { data: { backboneId: '원래백본' } } }
+
+    const result = applyMigrations(raw, 1, 2, inPlace)
+
+    expect((result.settings as { data: { backboneId: string } }).data.backboneId).toBe('바뀐백본')
+    expect(raw.settings.data.backboneId).toBe('원래백본')
+  })
+
   it('중간 단계가 비어 있으면 거부한다', () => {
     const broken: Record<number, Migration> = { 1: (raw) => raw }
     expect(codeOf(() => applyMigrations({ manifest: {} }, 1, 3, broken))).toBe(
