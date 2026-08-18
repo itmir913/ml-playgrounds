@@ -38,12 +38,18 @@ import {
   rankAnswers,
   sampleRow,
   predictableModels,
+  algorithmFilterOptions,
+  experimentFilterOptions,
+  filterAxisSignature,
+  readPreprocessors,
+  withPreprocessorReason,
   tallyClassificationAnswers,
   trainingRowsFor,
   type Answer,
   type PredictableModel,
 } from '../src/ml/predict'
 import type { Prediction } from '../src/ml/metrics'
+import { experimentNames, experimentOrder } from '../src/ml/results'
 import {
   fitPreprocessor,
   parsePreprocessor,
@@ -1354,5 +1360,158 @@ describe('군집의 답은 번호가 아니라 이름으로 쓴다', () => {
     }
 
     expect(showsClusterNames([clustering], false)).toBe(false)
+  })
+})
+
+/**
+ * **두 예측 판이 이 계산을 각자 들고 있었고 이미 어긋나 있었다** (V11 R4 B-7).
+ * 표 판만 사유 층을 갖고 이미지 판은 안 가져서, 못 읽는 전처리기를 가진 모델이
+ * 이미지 화면에서 조용히 건너뛰어지고 카드가 "계산 중"에 영원히 머물렀다(B-3).
+ * 올려 두면 두 판이 같은 함수를 부르고 여기 검사가 둘 다 덮는다.
+ */
+describe('예측 판이 함께 쓰는 계산', () => {
+  const subject = experiment([0, 1, 2], onehot)
+  const models: PredictableModel[] = [
+    { experiment: subject, run: runOf('r1') },
+    { experiment: subject, run: runOf('r2', 'knn') },
+  ]
+
+  /** 전처리기 JSON을 담은 파일 맵. 실제 저장 모양과 같다. */
+  function filesWith(json: unknown): Map<string, Uint8Array> {
+    return new Map([
+      ['model/preprocessor-experiment-1.json', new TextEncoder().encode(JSON.stringify(json))],
+    ])
+  }
+
+  function documentWith(): ProjectDocument {
+    return {
+      manifest: {
+        formatVersion: 1,
+        appVersion: '0.0.0',
+        projectId: '11111111-1111-4111-8111-111111111111',
+        name: '테스트',
+        createdAt: '2026-08-06T00:00:00.000Z',
+        updatedAt: '2026-08-06T00:00:00.000Z',
+        kind: 'machineLearning',
+        dataType: 'tabular',
+        locale: 'ko',
+      },
+      settings: {
+        data: { features, target: '품종', preprocessing: onehot },
+        split: subject.settings.split,
+        runtime: 'mljs',
+        selectedAlgorithms: [],
+        hyperparameters: {},
+      },
+      runs: {
+        experiments: [
+          {
+            ...subject,
+            preprocessor: {
+              path: 'model/preprocessor-experiment-1.json',
+              format: PREPROCESSOR_FORMAT,
+            },
+          },
+        ],
+      },
+      portfolio: {
+        template: { sections: [] },
+        answerFormat: 'plain-v1',
+        answers: {},
+        attachments: {},
+      },
+    }
+  }
+
+  it('읽을 수 있는 전처리기를 실험 id로 준다', () => {
+    const fitted = fitFor(subject)
+    const found = readPreprocessors(documentWith(), filesWith(fitted))
+    expect(found.has('experiment-1')).toBe(true)
+  })
+
+  it('못 읽는 전처리기는 빠진다 - 남이 손으로 고친 파일에서 온다', () => {
+    const found = readPreprocessors(documentWith(), filesWith({ 이건: '전처리기가 아니다' }))
+    expect(found.size).toBe(0)
+  })
+
+  it('파일에 아예 없어도 던지지 않는다', () => {
+    expect(readPreprocessors(documentWith(), new Map()).size).toBe(0)
+  })
+
+  it('전처리기가 없는 모델에 사유를 붙인다 - 조용히 건너뛰면 안 된다', () => {
+    const found = withPreprocessorReason(models, new Map())
+    expect(found.map((entry) => entry.reason)).toEqual(['MODEL_FILE_INVALID', 'MODEL_FILE_INVALID'])
+  })
+
+  it('전처리기가 있으면 사유를 안 붙인다', () => {
+    const found = withPreprocessorReason(models, new Map([['experiment-1', fitFor(subject)]]))
+    expect(found.map((entry) => entry.reason)).toEqual([undefined, undefined])
+  })
+
+  it('이미 사유가 있는 카드는 안 덮는다 - 먼저 든 사유가 더 정확하다', () => {
+    const already: PredictableModel[] = [
+      { experiment: subject, run: runOf('r1'), reason: 'MODEL_FORMAT_UNSUPPORTED' },
+    ]
+    expect(withPreprocessorReason(already, new Map())[0]?.reason).toBe('MODEL_FORMAT_UNSUPPORTED')
+  })
+
+  it('지문은 실험·알고리즘 집합이 같으면 같다 - 순서가 달라도 그렇다', () => {
+    const flipped = [...models].reverse()
+    expect(filterAxisSignature(flipped)).toBe(filterAxisSignature(models))
+  })
+
+  it('지문은 알고리즘이 하나 늘면 달라진다', () => {
+    const more = [...models, { experiment: subject, run: runOf('r3', 'svm') }]
+    expect(filterAxisSignature(more)).not.toBe(filterAxisSignature(models))
+  })
+
+  it('실험 축은 중복 없이 목록 순서를 지킨다', () => {
+    const options = experimentFilterOptions(models, new Map([['experiment-1', '1번째 실험']]))
+    expect(options).toEqual([{ id: 'experiment-1', label: '1번째 실험' }])
+  })
+
+  it('이름이 없으면 id를 그대로 쓴다 - 빈 칸을 그리지 않는다', () => {
+    expect(experimentFilterOptions(models, new Map())[0]?.label).toBe('experiment-1')
+  })
+
+  it('알고리즘 축은 중복 없이 등록부 문구를 쓴다', () => {
+    const options = algorithmFilterOptions(models, (algorithm) => `[${algorithm}]`)
+    expect(options).toEqual([
+      { id: 'decision_tree', label: '[decision_tree]' },
+      { id: 'knn', label: '[knn]' },
+    ])
+  })
+})
+
+/**
+ * 네 곳이 같은 번호를 써야 한다 — 결과 목록, 실험 상세, 예측 판 둘. 학생이 결과
+ * 화면에서 본 "실험 2"와 예측 화면의 "실험 2"가 다른 것을 가리키면 그 화면들은
+ * 서로 다른 도구가 된다 (V11 R4 B-8).
+ */
+describe('실험 번호', () => {
+  const three = [
+    { ...experiment([0], onehot), id: 'a' },
+    { ...experiment([0], onehot), id: 'b' },
+    { ...experiment([0], onehot), id: 'c' },
+  ]
+
+  it('파일 순서 + 1이다', () => {
+    expect([...experimentOrder(three)]).toEqual([
+      ['a', 1],
+      ['b', 2],
+      ['c', 3],
+    ])
+  })
+
+  it('목록을 뒤집어도 번호는 안 따라간다', () => {
+    const reversed = [...three].reverse()
+    expect(experimentOrder(reversed).get('a')).toBe(3)
+    // 뒤집힌 배열을 넘기면 번호도 뒤집힌다 - 그래서 **부르는 쪽이 뒤집기 전에 부른다.**
+    expect(experimentOrder(three).get('a')).toBe(1)
+  })
+
+  it('이름은 부르는 쪽의 t()로 만든다', () => {
+    const names = experimentNames(three, (index) => `${index}번째 실험`)
+    expect(names.get('b')).toBe('2번째 실험')
   })
 })

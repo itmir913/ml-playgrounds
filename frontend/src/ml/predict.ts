@@ -21,6 +21,7 @@ import { dataSnapshot, type Experiment, type ProjectDocument, type Run } from '.
 import type { Prediction } from './metrics'
 import { interpreterFor, type LoadContext, type Predict, type ProbaModel } from './models'
 import {
+  parsePreprocessor,
   targetValues,
   transform,
   type ColumnKind,
@@ -455,6 +456,106 @@ export interface Answer {
 export interface PredictFilter {
   readonly experimentIds: ReadonlySet<string>
   readonly algorithms: ReadonlySet<string>
+}
+
+/** 필터 한 축의 선택지. **화면 부품이 아니라 여기서 만든다** (아래 두 함수). */
+export interface FilterOption {
+  readonly id: string
+  readonly label: string
+}
+
+/**
+ * 실험 id -> 전처리기. **파일에서 실제로 읽어 봐야 아는 것이라 순수 판정이 못 한다.**
+ *
+ * 못 읽는 것은 그냥 빠진다 — 남이 손으로 고친 파일에서 올 수 있고, 그 실험의 모델은
+ * 좌표계를 못 세운다. 그 사실을 화면에 말하는 것은 `withPreprocessorReason`이다.
+ *
+ * **두 예측 판이 이 계산을 각자 들고 있었다** (V11 R4 B-7). 두 벌이면 반드시 어긋나고,
+ * 실제로 어긋나 있었다 — 표 판만 아래 사유 층을 갖고 이미지 판은 안 가졌다.
+ */
+export function readPreprocessors(
+  document: ProjectDocument,
+  files: ReadonlyMap<string, Uint8Array>,
+): Map<string, Preprocessor> {
+  const found = new Map<string, Preprocessor>()
+  for (const experiment of document.runs.experiments) {
+    const path = experiment.preprocessor?.path
+    const bytes = path === undefined ? undefined : files.get(path)
+    if (bytes === undefined) continue
+    try {
+      found.set(experiment.id, parsePreprocessor(JSON.parse(new TextDecoder().decode(bytes))))
+    } catch {
+      // 못 읽은 전처리기다. 사유는 withPreprocessorReason이 붙인다.
+    }
+  }
+  return found
+}
+
+/**
+ * 전처리기를 못 읽는 모델에 사유를 붙인다. `predictableModels` 위에 한 겹 더 얹는 것이다.
+ *
+ * **전처리기가 필요한지는 모델이 말한다** (mlpx-spec.md §5). 전처리를 그래프에 담는
+ * 형식은 혼자 서므로 이 겹에 안 걸린다 — 형식 이름을 보고 가르면 등록부가 있는 이유가
+ * 없어진다.
+ *
+ * **이 겹이 없으면 카드가 "계산 중"에 영원히 머문다.** 이미지 판이 그랬다 — 답을 못
+ * 내는 run을 조용히 건너뛰어서, 학생 눈에는 계산 중인지 고장인지 구별이 안 됐다.
+ */
+export function withPreprocessorReason(
+  models: readonly PredictableModel[],
+  preprocessors: ReadonlyMap<string, Preprocessor>,
+): PredictableModel[] {
+  return models.map((entry) => {
+    if (entry.reason) return entry
+    const standalone = interpreterFor(entry.run.model?.format ?? '')?.includesPreprocessing === true
+    const ready = standalone || preprocessors.has(entry.experiment.id)
+    return ready ? entry : { ...entry, reason: 'MODEL_FILE_INVALID' as ClientErrorCode }
+  })
+}
+
+/**
+ * 지금 있는 실험·알고리즘의 지문. **이게 바뀔 때만 필터를 다시 연다.**
+ *
+ * 없어진 것을 선택한 채로 두면 아무것도 안 보이는 필터가 조용히 생기고, 매번 다시
+ * 열면 학생이 고른 것이 계속 풀린다. 그 사이를 이 문자열이 가른다.
+ */
+export function filterAxisSignature(models: readonly PredictableModel[]): string {
+  const experiments = [...new Set(models.map((entry) => entry.experiment.id))].sort()
+  const algorithms = [...new Set(models.map((entry) => entry.run.algorithm))].sort()
+  return `${experiments.join(',')}|${algorithms.join(',')}`
+}
+
+/** 실험 축의 선택지. **모델 목록에 나오는 순서**를 지킨다 - 화면의 세로줄과 같다. */
+export function experimentFilterOptions(
+  models: readonly PredictableModel[],
+  names: ReadonlyMap<string, string>,
+): FilterOption[] {
+  const seen = new Set<string>()
+  const list: FilterOption[] = []
+  for (const entry of models) {
+    if (seen.has(entry.experiment.id)) continue
+    seen.add(entry.experiment.id)
+    list.push({
+      id: entry.experiment.id,
+      label: names.get(entry.experiment.id) ?? entry.experiment.id,
+    })
+  }
+  return list
+}
+
+/** 알고리즘 축의 선택지. `label`이 등록부 문구를 번역한다 (docs/i18n.md). */
+export function algorithmFilterOptions(
+  models: readonly PredictableModel[],
+  label: (algorithm: string) => string,
+): FilterOption[] {
+  const seen = new Set<string>()
+  const list: FilterOption[] = []
+  for (const entry of models) {
+    if (seen.has(entry.run.algorithm)) continue
+    seen.add(entry.run.algorithm)
+    list.push({ id: entry.run.algorithm, label: label(entry.run.algorithm) })
+  }
+  return list
 }
 
 /** 필터의 기본값 — **지금 있는 모델이 전부 보이는 상태**다 (architecture.md 8.13.1). */

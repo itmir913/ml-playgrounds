@@ -14,7 +14,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useFormat } from '@/composables/useFormat'
-import { headlineOf } from '@/ml/results'
+import { experimentOrder, headlineOf } from '@/ml/results'
 import type { Experiment } from '@/project/schema'
 
 const props = defineProps<{
@@ -32,15 +32,16 @@ const format = useFormat()
  * 최신이 위. **번호는 파일 순서에서 오므로 뒤집기 전에 매긴다** — 목록을 뒤집었다고
  * 첫 학습이 마지막 번호가 되면 안 된다.
  */
-const rows = computed(() =>
-  props.experiments
-    .map((experiment, index) => ({
+const rows = computed(() => {
+  const order = experimentOrder(props.experiments)
+  return props.experiments
+    .map((experiment) => ({
       experiment,
-      index: index + 1,
+      index: order.get(experiment.id) ?? 0,
       headline: headlineOf(experiment),
     }))
-    .reverse(),
-)
+    .reverse()
+})
 </script>
 
 <template>

@@ -31,9 +31,14 @@ import { spawnEmbedWorker } from '@/ml/embed/spawn'
 import { imagePredictTable, imageTrainingRows, pendingEmbeddings } from '@/ml/images'
 import { loadModel, loadModelProba, type LoadContext } from '@/ml/models'
 import {
+  algorithmFilterOptions,
   applyPredictFilter,
   defaultFilter,
+  experimentFilterOptions,
+  filterAxisSignature,
   predictableModels,
+  readPreprocessors,
+  withPreprocessorReason,
   toggleAllFilter,
   toggleFilter,
   type Answer,
@@ -43,7 +48,8 @@ import {
   showsClusterNames,
   type PredictFilter,
 } from '@/ml/predict'
-import { parsePreprocessor, transform, type Preprocessor } from '@/ml/preprocess'
+import { transform, type Preprocessor } from '@/ml/preprocess'
+import { experimentNames as experimentNamesOf } from '@/ml/results'
 import { addEmbeddings, readEmbeddings } from '@/project/embeddings'
 import { IMAGE_PREDICT_PAGE_SIZE } from '@/limits'
 import { IMAGE_UNLABELED } from '@/project/format'
@@ -53,7 +59,7 @@ import { yieldToScreen } from '@/screen'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import AnswerList from './AnswerList.vue'
-import PredictFilters, { type FilterAxis, type FilterOption } from './PredictFilters.vue'
+import PredictFilters, { type FilterAxis } from './PredictFilters.vue'
 
 const { t } = useI18n()
 const project = useProjectStore()
@@ -119,37 +125,29 @@ const atLastPage = computed(() => predicting.value || page.value >= totalPages.v
 
 const models = computed<readonly PredictableModel[]>(() => {
   const file = project.file
+  if (!file) return []
   // **사진이 곧 데이터다.** 참조형 모델이 실제로 학습 행을 되세울 수 있는지는 그때 본다 —
   // 못 세우면 그 모델의 답이 사유와 함께 실패한다.
-  return file ? predictableModels(file.document, photos.value.length > 0) : []
+  //
+  // **전처리기까지 본다.** 표 판만 이 겹을 갖고 여기는 안 가져서, 못 읽는 전처리기를
+  // 가진 모델이 조용히 건너뛰어지고 카드가 "계산 중"에 영원히 머물렀다 (V11 R4 B-3).
+  return withPreprocessorReason(
+    predictableModels(file.document, photos.value.length > 0),
+    preprocessors.value,
+  )
 })
 
 /** **결과 화면의 세로줄과 같은 이름이어야** 학생이 같은 것을 같은 것으로 읽는다. */
-const experimentNames = computed(() => {
-  const names = new Map<string, string>()
-  const experiments = project.file?.document.runs.experiments ?? []
-  experiments.forEach((experiment, index) => {
-    names.set(experiment.id, t('results.experimentName', { index: index + 1 }))
-  })
-  return names
-})
+const experimentNames = computed(() =>
+  experimentNamesOf(project.file?.document.runs.experiments ?? [], (index) =>
+    t('results.experimentName', { index }),
+  ),
+)
 
 /** 실험 id -> 전처리기. 못 읽으면 그 실험의 모델은 답을 못 낸다. */
 const preprocessors = computed(() => {
-  const found = new Map<string, Preprocessor>()
   const file = project.file
-  if (!file) return found
-  for (const experiment of file.document.runs.experiments) {
-    const path = experiment.preprocessor?.path
-    const bytes = path === undefined ? undefined : file.models.get(path)
-    if (!bytes) continue
-    try {
-      found.set(experiment.id, parsePreprocessor(JSON.parse(new TextDecoder().decode(bytes))))
-    } catch {
-      // 남이 편집한 파일이다. 그 실험의 모델은 아래에서 사유와 함께 실패한다.
-    }
-  }
-  return found
+  return file ? readPreprocessors(file.document, file.models) : new Map<string, Preprocessor>()
 })
 
 /**
@@ -163,11 +161,7 @@ const preprocessors = computed(() => {
 const filter = ref<PredictFilter>({ experimentIds: new Set(), algorithms: new Set() })
 
 /** 지금 있는 실험·알고리즘의 집합. 이게 바뀔 때만 필터를 다시 연다. */
-const availableIds = computed(() => {
-  const experiments = [...new Set(models.value.map((entry) => entry.experiment.id))].sort()
-  const algorithms = [...new Set(models.value.map((entry) => entry.run.algorithm))].sort()
-  return `${experiments.join(',')}|${algorithms.join(',')}`
-})
+const availableIds = computed(() => filterAxisSignature(models.value))
 
 watch(
   availableIds,
@@ -177,30 +171,13 @@ watch(
   { immediate: true },
 )
 
-const experimentOptions = computed<FilterOption[]>(() => {
-  const seen = new Set<string>()
-  const list: FilterOption[] = []
-  for (const entry of models.value) {
-    if (seen.has(entry.experiment.id)) continue
-    seen.add(entry.experiment.id)
-    list.push({
-      id: entry.experiment.id,
-      label: experimentNames.value.get(entry.experiment.id) ?? entry.experiment.id,
-    })
-  }
-  return list
-})
+const experimentOptions = computed(() =>
+  experimentFilterOptions(models.value, experimentNames.value),
+)
 
-const algorithmOptions = computed<FilterOption[]>(() => {
-  const seen = new Set<string>()
-  const list: FilterOption[] = []
-  for (const entry of models.value) {
-    if (seen.has(entry.run.algorithm)) continue
-    seen.add(entry.run.algorithm)
-    list.push({ id: entry.run.algorithm, label: t(`algorithms.${entry.run.algorithm}`) })
-  }
-  return list
-})
+const algorithmOptions = computed(() =>
+  algorithmFilterOptions(models.value, (algorithm) => t(`algorithms.${algorithm}`)),
+)
 
 /** 필터를 지난 모델. 사유가 있는 카드도 포함한다 — 꺼진 이유는 필터와 별개다. */
 const visible = computed(() => applyPredictFilter(models.value, filter.value))

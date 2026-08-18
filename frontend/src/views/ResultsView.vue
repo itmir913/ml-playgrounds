@@ -16,6 +16,7 @@ import AppBadge from '@/components/AppBadge.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { parsePreprocessor, type Preprocessor } from '@/ml/preprocess'
+import { experimentOrder } from '@/ml/results'
 import { readDataset } from '@/project/dataset'
 import { useProjectStore } from '@/stores/project'
 import ExperimentDetail from './results/ExperimentDetail.vue'
@@ -66,6 +67,8 @@ const index = computed(() =>
   experiments.value.findIndex((experiment) => experiment.id === selected.value),
 )
 const current = computed(() => experiments.value[index.value])
+/** 번호는 목록·상세·예측 판이 같아야 한다 (ml/results.ts의 experimentOrder). */
+const order = computed(() => experimentOrder(experiments.value))
 const previous = computed(() => (index.value > 0 ? experiments.value[index.value - 1] : undefined))
 
 /**
@@ -160,7 +163,7 @@ const models = computed<ReadonlyMap<string, Uint8Array>>(
           <ExperimentDetail
             v-if="current"
             :experiment="current"
-            :order="index + 1"
+            :order="order.get(current.id) ?? 0"
             :previous="previous"
             :data-type="dataType"
             :dataset="dataset"

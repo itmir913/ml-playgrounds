@@ -14,6 +14,39 @@ import type { Experiment, PerClass, Run } from '../project/schema'
 import { parametersFor } from './hyperparams'
 import { bestOf, metricsOf, type MetricDisplay } from './metrics'
 
+/**
+ * 실험의 번호. **파일 순서 + 1이고, 목록을 뒤집기 전에 매긴다** — 목록을 뒤집었다고
+ * 첫 학습이 마지막 번호가 되면 안 된다.
+ *
+ * **화면 밖에 두는 이유는 네 곳이 같은 번호를 써야 하기 때문이다** (결과 목록, 실험
+ * 상세, 그리고 예측 판 둘). 학생이 결과 화면에서 본 "실험 2"와 예측 화면의 "실험 2"가
+ * 다른 것을 가리키면 그 화면들은 서로 다른 도구가 된다. 손으로 네 번 적으면 정렬을
+ * 바꾸는 날 한 곳이 안 따라온다 (V11 R4 B-8).
+ */
+export function experimentOrder(experiments: readonly Experiment[]): Map<string, number> {
+  const order = new Map<string, number>()
+  experiments.forEach((experiment, index) => {
+    order.set(experiment.id, index + 1)
+  })
+  return order
+}
+
+/**
+ * 실험 id -> 화면에 쓸 이름. `label`이 `results.experimentName`을 번역한다.
+ *
+ * 문구 키를 여기서 조립하지 않는다 — 부르는 쪽이 `t()`를 들고 온다 (docs/i18n.md).
+ */
+export function experimentNames(
+  experiments: readonly Experiment[],
+  label: (index: number) => string,
+): Map<string, string> {
+  const names = new Map<string, string>()
+  for (const [id, index] of experimentOrder(experiments)) {
+    names.set(id, label(index))
+  }
+  return names
+}
+
 /** 범주별 점수표에서 강조할 지표들. `support`는 점수가 아니라 여기 없다. */
 /**
  * 범주별 표의 열. **내보내는 이유는 로케일과 짝지어 보기 위해서다** — 이 이름들이

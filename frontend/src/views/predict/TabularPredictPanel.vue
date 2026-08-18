@@ -28,11 +28,16 @@ import { useI18n } from 'vue-i18n'
 import AppButton from '@/components/AppButton.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import StepActionBar from '@/components/StepActionBar.vue'
-import { isClientError, type ClientErrorCode } from '@/errors'
+import { isClientError } from '@/errors'
 import { interpreterFor, loadModel, loadModelProba, type LoadContext } from '@/ml/models'
 import {
+  algorithmFilterOptions,
   applyPredictFilter,
   defaultFilter,
+  experimentFilterOptions,
+  filterAxisSignature,
+  readPreprocessors,
+  withPreprocessorReason,
   toggleAllFilter,
   toggleFilter,
   type FilterAxisId,
@@ -49,16 +54,17 @@ import {
   type PredictableModel,
   type PredictFilter,
 } from '@/ml/predict'
-import { parsePreprocessor, type Preprocessor } from '@/ml/preprocess'
+import type { Preprocessor } from '@/ml/preprocess'
 import { readDataset, readTestDataset } from '@/project/dataset'
 import { yieldToScreen } from '@/screen'
 import type { Experiment } from '@/project/schema'
+import { experimentNames as experimentNamesOf } from '@/ml/results'
 import { useProjectStore } from '@/stores/project'
 import AnswerList from './AnswerList.vue'
 import ClusterNeighbors from './ClusterNeighbors.vue'
 import BatchPredict from './BatchPredict.vue'
 import InputRow from './InputRow.vue'
-import PredictFilters, { type FilterAxis, type FilterOption } from './PredictFilters.vue'
+import PredictFilters, { type FilterAxis } from './PredictFilters.vue'
 
 const { t } = useI18n()
 const project = useProjectStore()
@@ -87,21 +93,8 @@ const modelFiles = computed<ReadonlyMap<string, Uint8Array>>(
 )
 
 const preprocessors = computed(() => {
-  const parsed = new Map<string, Preprocessor>()
   const file = project.file
-  if (!file) return parsed
-
-  for (const experiment of file.document.runs.experiments) {
-    const path = experiment.preprocessor?.path
-    const bytes = path === undefined ? undefined : file.models.get(path)
-    if (bytes === undefined) continue
-    try {
-      parsed.set(experiment.id, parsePreprocessor(JSON.parse(new TextDecoder().decode(bytes))))
-    } catch {
-      // 못 읽은 전처리기다. 남의 파일에서 올 수 있고, 그 실험의 모델은 좌표계를 못 세운다.
-    }
-  }
-  return parsed
+  return file ? readPreprocessors(file.document, file.models) : new Map<string, Preprocessor>()
 })
 
 /**
@@ -114,23 +107,18 @@ const models = computed<PredictableModel[]>(() => {
   const file = project.file
   if (!file) return []
 
-  return predictableModels(file.document, dataset.value !== null).map((entry) => {
-    if (entry.reason) return entry
-    const standalone = interpreterFor(entry.run.model?.format ?? '')?.includesPreprocessing === true
-    const ready = standalone || preprocessors.value.has(entry.experiment.id)
-    return ready ? entry : { ...entry, reason: 'MODEL_FILE_INVALID' as ClientErrorCode }
-  })
+  return withPreprocessorReason(
+    predictableModels(file.document, dataset.value !== null),
+    preprocessors.value,
+  )
 })
 
 /** 실험 이름. **결과 화면의 세로줄과 같은 이름이어야** 학생이 같은 것을 같은 것으로 읽는다. */
-const experimentNames = computed(() => {
-  const names = new Map<string, string>()
-  const experiments = project.file?.document.runs.experiments ?? []
-  experiments.forEach((experiment, index) => {
-    names.set(experiment.id, t('results.experimentName', { index: index + 1 }))
-  })
-  return names
-})
+const experimentNames = computed(() =>
+  experimentNamesOf(project.file?.document.runs.experiments ?? [], (index) =>
+    t('results.experimentName', { index }),
+  ),
+)
 
 /**
  * 필터 — 실험 × 알고리즘의 다중 선택이다 (architecture.md §8.13.1 "답을 거르고
@@ -141,11 +129,7 @@ const experimentNames = computed(() => {
 const filter = ref<PredictFilter>({ experimentIds: new Set(), algorithms: new Set() })
 
 /** 지금 있는 실험·알고리즘의 집합. 이게 바뀔 때만 필터를 다시 연다. */
-const availableIds = computed(() => {
-  const experiments = [...new Set(models.value.map((entry) => entry.experiment.id))].sort()
-  const algorithms = [...new Set(models.value.map((entry) => entry.run.algorithm))].sort()
-  return `${experiments.join(',')}|${algorithms.join(',')}`
-})
+const availableIds = computed(() => filterAxisSignature(models.value))
 
 watch(
   availableIds,
@@ -156,30 +140,13 @@ watch(
 )
 
 /** 필터 칸에 쓸 이름표. 실험은 결과 화면과 같은 이름, 알고리즘은 등록부 문구다. */
-const experimentOptions = computed<FilterOption[]>(() => {
-  const seen = new Set<string>()
-  const list: FilterOption[] = []
-  for (const entry of models.value) {
-    if (seen.has(entry.experiment.id)) continue
-    seen.add(entry.experiment.id)
-    list.push({
-      id: entry.experiment.id,
-      label: experimentNames.value.get(entry.experiment.id) ?? entry.experiment.id,
-    })
-  }
-  return list
-})
+const experimentOptions = computed(() =>
+  experimentFilterOptions(models.value, experimentNames.value),
+)
 
-const algorithmOptions = computed<FilterOption[]>(() => {
-  const seen = new Set<string>()
-  const list: FilterOption[] = []
-  for (const entry of models.value) {
-    if (seen.has(entry.run.algorithm)) continue
-    seen.add(entry.run.algorithm)
-    list.push({ id: entry.run.algorithm, label: t(`algorithms.${entry.run.algorithm}`) })
-  }
-  return list
-})
+const algorithmOptions = computed(() =>
+  algorithmFilterOptions(models.value, (algorithm) => t(`algorithms.${algorithm}`)),
+)
 
 /** 필터에 그릴 축. **배열이라 셋째 축이 생겨도 화면 코드가 안 바뀐다.** */
 const axes = computed<FilterAxis[]>(() => [

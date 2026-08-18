@@ -26,16 +26,13 @@ import { useI18n } from 'vue-i18n'
 import AppButton from '@/components/AppButton.vue'
 import { isAllSelected, type FilterAxisId, type PredictFilter } from '@/ml/predict'
 
-export interface FilterOption {
-  readonly id: string
-  readonly label: string
-}
+export type { FilterOption } from '@/ml/predict'
 
 export interface FilterAxis {
   readonly id: FilterAxisId
   /** 이미 번역된 축 이름. */
   readonly label: string
-  readonly options: readonly FilterOption[]
+  readonly options: readonly import('@/ml/predict').FilterOption[]
 }
 
 const props = defineProps<{
