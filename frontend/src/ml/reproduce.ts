@@ -23,7 +23,7 @@ import { ClientError, isClientError, type ReproductionStatus } from '../errors'
 import { dataSnapshot, type Experiment, type Run } from '../project/schema'
 import { RUNTIMES } from './backend'
 import { engineFor, type TrainingEngine } from './engines'
-import { evaluate } from './metrics'
+import { evaluate, evaluateCluster } from './metrics'
 import { fitPreprocessor, targetValues, transform, type Dataset } from './preprocess'
 
 /** run 하나의 대조 결과. **판정이 아니라 사실이다.** */
@@ -107,6 +107,13 @@ export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
   const { settings } = experiment
   // 재실행 대조는 표에만 있다 — 이미지는 임베딩이 파일에 담겨 경로가 따로 선다.
   const target = dataSnapshot('tabular', settings).target ?? ''
+  /**
+   * **군집은 정답도 평가셋도 없다** (architecture.md §3.6·§3.7). 학습 때와 같은 갈래를
+   * 여기서도 세운다 — 안 세우면 `targetValues(dataset, …, '')`가 `COLUMN_NOT_FOUND`로
+   * 던지고 아래 `try`가 그것을 삼켜, **모든 군집 run이 "대조할 수 없음(엔진 없음)"으로
+   * 나온다.** 엔진은 바로 거기 있는데도 그렇다 (V11 R2 감사 B-3).
+   */
+  const isClustering = settings.taskType === 'clustering'
 
   const done = experiment.runs.filter((run) => run.status === 'done')
   if (done.length === 0) return []
@@ -114,7 +121,12 @@ export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
   // provided면 testIndices는 dataset이 아니라 testDataset의 행 번호다
   // (mlpx-spec.md §1.1) — 학습 때와 같은 판정이다 (ml/experiment.ts).
   // 없으면 대조 자체가 불가능하다 — shared를 null로 만들어 아래에서 잡는다.
-  const testSource = settings.split.method === 'provided' ? testDataset : dataset
+  // 군집에는 평가셋이 없으므로 학습 표가 곧 채점 대상이다 (§3.6).
+  const testSource = isClustering
+    ? dataset
+    : settings.split.method === 'provided'
+      ? testDataset
+      : dataset
 
   // 전처리기는 실험 전체가 공유한다. **학습 때와 같은 인자로 같은 자리에서 만든다** —
   // 파일에 담긴 전처리기를 읽지 않는 이유는, 그것도 대조 대상이기 때문이다. 설정에서
@@ -139,8 +151,9 @@ export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
           settings.testIndices,
           categoricalEncoding,
         ),
-        trainTarget: targetValues(dataset, settings.trainIndices, target),
-        testTarget: targetValues(testSource, settings.testIndices, target),
+        // 군집에는 타깃이 없다 — 학습 경로가 빈 배열을 넣는 것과 같다 (ml/experiment.ts).
+        trainTarget: isClustering ? [] : targetValues(dataset, settings.trainIndices, target),
+        testTarget: isClustering ? [] : targetValues(testSource, settings.testIndices, target),
       }
     } catch {
       return null
@@ -166,7 +179,7 @@ export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
     }
 
     try {
-      const { predict } = engine.fit(run.algorithm, {
+      const { predict, clusterResult } = engine.fit(run.algorithm, {
         features: shared.trainFeatures,
         rowIndices: settings.trainIndices,
         target: shared.trainTarget,
@@ -176,11 +189,25 @@ export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
         randomState: settings.split.randomState,
       })
 
-      const again = evaluate(
-        settings.taskType,
-        shared.testTarget,
-        predict(shared.testFeatures),
-      ).metrics
+      // **군집은 시그니처가 다르다** (architecture.md §3.7) — 학습 경로와 같은 갈래다.
+      const again = isClustering
+        ? clusterResult
+          ? evaluateCluster(
+              shared.trainFeatures,
+              clusterResult.assignments,
+              clusterResult.centroids,
+            ).metrics
+          : null
+        : evaluate(settings.taskType, shared.testTarget, predict(shared.testFeatures)).metrics
+
+      // 군집 엔진이 배정을 안 돌려줬다. 대조를 못 한 것이지 어긋난 것이 아니다.
+      if (!again) {
+        return {
+          ...base,
+          status: 'ENGINE_UNAVAILABLE',
+          ...(run.engine ? { engine: run.engine } : {}),
+        }
+      }
 
       const deltas: Record<string, number> = {}
       for (const [name, value] of Object.entries(again)) {

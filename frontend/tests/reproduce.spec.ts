@@ -211,3 +211,82 @@ describe('대조의 전처리기도 학습셋에서만 나온다', () => {
     expect(Object.values(found?.deltas ?? {}).every((delta) => delta === 0)).toBe(true)
   })
 })
+
+/**
+ * **군집도 대조된다.**
+ *
+ * 예전에는 `target`이 없으면 `''`로 떨어지고 `targetValues(dataset, …, '')`가
+ * `COLUMN_NOT_FOUND`로 던졌으며, 그 예외를 `shared`의 `try`가 삼켜 **모든 군집 run이
+ * `ENGINE_UNAVAILABLE`로 나왔다** — 엔진은 바로 거기 있는데도 그랬다 (V11 R2 감사 B-3).
+ * 설령 그 자리를 고쳐도 `evaluate('clustering', …)`이 등록부에 없어 던졌다. 군집은
+ * `evaluateCluster(data, assignments, centroids)`라는 다른 시그니처를 쓴다
+ * (architecture.md §3.7).
+ *
+ * 이 파일의 픽스처가 분류 하나뿐이라 그 상태를 아무것도 안 봤다.
+ */
+describe('군집도 대조한다', () => {
+  const clusters: Dataset = {
+    columns: ['x', 'y'],
+    rows: [
+      ['0', '0'],
+      ['1', '0'],
+      ['0', '1'],
+      ['10', '10'],
+      ['11', '10'],
+      ['10', '11'],
+      ['20', '20'],
+      ['21', '20'],
+      ['20', '21'],
+    ],
+  }
+
+  const clusterSettings: Settings = {
+    data: {
+      features: ['x', 'y'],
+      preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
+    },
+    split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: 42 },
+    runtime: 'mljs',
+    selectedAlgorithms: [{ algorithm: 'k_means' }],
+    hyperparameters: {},
+  }
+
+  function clusterExperiment(): Experiment {
+    return runExperiment(
+      {
+        dataset: clusters,
+        testDataset: null,
+        taskType: 'clustering',
+        dataType: 'tabular',
+        settings: clusterSettings,
+        context: { serverStatus: 'unavailable', rowCount: 9, dataType: 'tabular' },
+      },
+      { now: () => '2026-08-06T00:00:00.000Z' },
+    ).experiment
+  }
+
+  it('엔진이 없다고 하지 않는다 - 엔진은 거기 있다', () => {
+    const [found] = reproduceExperiment({
+      experiment: clusterExperiment(),
+      dataset: clusters,
+      testDataset: null,
+    })
+    expect(found?.status).toBe('REPRODUCED')
+    expect(found?.again?.['silhouette']).toBeDefined()
+    expect(found?.again?.['inertia']).toBeDefined()
+  })
+
+  it('군집 지표를 고친 파일도 잡는다', () => {
+    const experiment = clusterExperiment()
+    const tampered = withRun(experiment, 0, {
+      metrics: { ...experiment.runs[0]?.metrics, silhouette: 0.1 },
+    })
+    const [found] = reproduceExperiment({
+      experiment: tampered,
+      dataset: clusters,
+      testDataset: null,
+    })
+    expect(found?.status).toBe('NOT_REPRODUCED')
+    expect(found?.deltas?.['silhouette']).not.toBe(0)
+  })
+})
