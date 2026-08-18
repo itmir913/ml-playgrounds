@@ -18,6 +18,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AUTOSAVE_DELAY_MS } from '../src/limits'
+import { exportStateOf } from '../src/project/export-state'
 import { closeStorage, DB_NAME, loadProject, readExportedAt } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { emptyProjectFile, manifest, projectFile } from './fixtures/project'
@@ -351,5 +352,37 @@ describe('저장소를 지우지 말아 달라고 청한다', () => {
     const project = useProjectStore()
     await project.save(projectFile())
     expect(asked).toBe(0)
+  })
+})
+
+/**
+ * 상태 표시줄이 읽는 판정 (`AppStatusBar`). **가운데("저장했지만 파일은 옛것")가
+ * 이 함수가 화면에서 빠져나온 이유다** — 그것만 검사가 못 닿는 자리에 있었다.
+ */
+describe('내보낸 파일이 지금 작업과 얼마나 어긋나 있는가', () => {
+  it('한 번도 안 내보냈으면 notExported다', () => {
+    expect(exportStateOf('2026-08-18T10:00:00.000Z', null)).toBe('notExported')
+    expect(exportStateOf(null, null)).toBe('notExported')
+  })
+
+  it('내보낸 뒤로 저장한 적이 없으면 exported다', () => {
+    expect(exportStateOf('2026-08-18T09:00:00.000Z', '2026-08-18T10:00:00.000Z')).toBe('exported')
+    expect(exportStateOf(null, '2026-08-18T10:00:00.000Z')).toBe('exported')
+  })
+
+  it('내보낸 뒤에 또 작업했으면 stale이다 - 여기서 안 알리면 학생이 안심하고 끈다', () => {
+    expect(exportStateOf('2026-08-18T11:00:00.000Z', '2026-08-18T10:00:00.000Z')).toBe('stale')
+  })
+
+  /**
+   * `savedAt`은 파일을 열었을 때 `manifest.updatedAt`에서 온다. 스키마가 받는 것은
+   * `z.iso.datetime({ offset: true })`라 우리가 안 쓴 표기가 들어올 수 있고, 사전순으로
+   * 재면 실제 시각과 순서가 어긋난다.
+   */
+  it('오프셋이 든 시각도 실제 시각으로 잰다', () => {
+    // 05:00-09:00 = 14:00Z 저장 > 10:00Z 내보냄. 사전순이면 '05' < '10'이라 뒤집힌다.
+    expect(exportStateOf('2026-08-18T05:00:00-09:00', '2026-08-18T10:00:00.000Z')).toBe('stale')
+    // 다음 날 05:00+09:00 = 20:00Z 저장 < 21:00Z 내보냄. 사전순이면 날짜가 커서 뒤집힌다.
+    expect(exportStateOf('2026-08-19T05:00:00+09:00', '2026-08-18T21:00:00.000Z')).toBe('exported')
   })
 })
