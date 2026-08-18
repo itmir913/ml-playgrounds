@@ -308,6 +308,49 @@ describe('parseProjectDocument', () => {
       expect(error.params.path).toBe('settings.split.testSize')
     }
   })
+
+  /**
+   * **`settings.data`는 판별 필드가 없는 유니온이다** - 어느 쪽으로 읽을지는
+   * `manifest.dataType`이 정하는데(mlpx-spec.md §3) 그건 설정 밖에 있다. 그래서 zod
+   * 혼자서는 어긋난 짝을 못 잡고, 통과시키면 파일이 열린 다음에 `dataSettings`가
+   * 날것의 ZodError를 던져 화면이 선다. 우리 앱이 만들 수 없는 파일이다.
+   */
+  it('표라고 적고 이미지 설정을 넣으면 거부한다', () => {
+    const broken = {
+      ...document,
+      settings: { ...settings, data: DATA_SCHEMAS.image.initial() },
+    }
+    try {
+      parseProjectDocument(broken)
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error)).toBe(true)
+      if (!isClientError(error)) return
+      expect(error.code).toBe('PROJECT_FILE_INVALID')
+      expect(String(error.params.path)).toMatch(/^settings\.data/)
+    }
+  })
+
+  it('이미지라고 적고 표 설정을 넣으면 거부한다', () => {
+    const broken = { ...document, manifest: { ...manifest, dataType: 'image' } }
+    try {
+      parseProjectDocument(broken)
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error)).toBe(true)
+      if (!isClientError(error)) return
+      expect(error.code).toBe('PROJECT_FILE_INVALID')
+    }
+  })
+
+  it('짝이 맞으면 통과한다 - 이미지도 마찬가지다', () => {
+    const image = {
+      ...document,
+      manifest: { ...manifest, dataType: 'image' },
+      settings: { ...settings, data: DATA_SCHEMAS.image.initial() },
+    }
+    expect(parseProjectDocument(image).manifest.dataType).toBe('image')
+  })
 })
 
 describe('폼 입력은 엄격하다', () => {

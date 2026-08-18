@@ -916,18 +916,34 @@ export const projectDocumentSchema = z.looseObject({
  *
  * **마이그레이션을 마친 뒤에 부른다.** 구버전 파일은 현재 스키마를 만족하지 않는 것이
  * 당연하고, 순서를 뒤집으면 올려서 열 수 있는 파일이 전부 여기서 거부된다.
+ *
+ * **매니페스트와 설정의 종류가 맞는지도 여기서 본다.** `settings.data`는 판별 필드가
+ * 없는 유니온이고(판별하는 것은 `manifest.dataType`이라 설정 안에 없다, mlpx-spec.md §3)
+ * zod 혼자서는 어느 쪽으로 읽어야 하는지 모른다. 그래서 표라고 적힌 파일에 이미지 설정이
+ * 들어 있어도 통과했고, **그 파일은 열린 다음에 `dataSettings`가 날것의 ZodError를 던져
+ * 화면을 세웠다** - 우리가 만들 수 없는 파일이므로 여는 문에서 거부하는 것이 맞다.
  */
 export function parseProjectDocument(value: unknown): ProjectDocument {
   const result = projectDocumentSchema.safeParse(value)
-  if (result.success) {
-    return result.data
+  if (!result.success) {
+    // 어느 필드가 왜 잘못됐는지 위치를 준다. 화면은 이 경로를 그대로 보여준다.
+    const first = result.error.issues[0]
+    throw new ClientError('PROJECT_FILE_INVALID', {
+      path: first?.path.join('.') ?? '',
+      issues: result.error.issues.length,
+    })
   }
-  // 어느 필드가 왜 잘못됐는지 위치를 준다. 화면은 이 경로를 그대로 보여준다.
-  const first = result.error.issues[0]
-  throw new ClientError('PROJECT_FILE_INVALID', {
-    path: first?.path.join('.') ?? '',
-    issues: result.error.issues.length,
-  })
+
+  const document = result.data
+  const kind = DATA_SCHEMAS[document.manifest.dataType].settings.safeParse(document.settings.data)
+  if (!kind.success) {
+    const first = kind.error.issues[0]
+    throw new ClientError('PROJECT_FILE_INVALID', {
+      path: ['settings', 'data', ...(first?.path ?? [])].join('.'),
+      issues: kind.error.issues.length,
+    })
+  }
+  return document
 }
 
 // ------------------------------------------------------------- 폼 입력 전용
