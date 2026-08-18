@@ -204,3 +204,100 @@ describe('migrateProjectDocument', () => {
     expect(JSON.stringify(document)).toBe(before)
   })
 })
+
+/**
+ * **v1 -> v2: 백본 id 개정** (mlpx-spec.md §9.1).
+ *
+ * 첫 마이그레이션이다. 지키는 것은 어휘가 아니라 **같은 문자열이 뜻하는 좌표계**다 —
+ * v1의 `mobilenet-v2`로 뽑은 벡터는 화소를 `[-3,1]`로 밀어 넣은 것이라 새 것과 섞이면
+ * 안 된다 (open-decisions.md "백본 입력 범위가 그래프의 계약과 어긋났다").
+ *
+ * **진짜 입구로 태운다** — `migrateProjectDocument`는 파일을 여는 길이 실제로 부르는
+ * 함수이고, zod 검증까지 지나야 통과다.
+ */
+describe('v1 -> v2 백본 id 개정', () => {
+  const V1_ID = 'mobilenet-v2'
+  const V2_ID = 'mobilenet-v2-r2'
+
+  /** v1이 만든 이미지 프로젝트. **실험 하나가 들어 있다** - 스냅샷이 이 검사의 절반이다. */
+  function imageV1(backboneId: string): RawDocument {
+    return {
+      manifest: {
+        ...document.manifest,
+        formatVersion: 1,
+        taskType: 'classification',
+        dataType: 'image',
+      },
+      settings: {
+        data: { categories: ['개', '고양이'], backboneId },
+        split: { method: 'holdout', testSize: 0.2, stratify: true, randomState: 42 },
+        runtime: 'mljs',
+        selectedAlgorithms: [{ algorithm: 'knn' }],
+        hyperparameters: {},
+      },
+      runs: {
+        experiments: [
+          {
+            id: 'experiment-1',
+            startedAt: '2026-08-14T09:00:00Z',
+            settings: {
+              taskType: 'classification',
+              runtime: 'mljs',
+              selectedAlgorithms: [{ algorithm: 'knn', runtime: 'mljs' }],
+              data: {
+                categories: ['개', '고양이'],
+                backboneId,
+                categoryCounts: [2, 2],
+                unlabeledCount: 0,
+              },
+              split: { method: 'holdout', testSize: 0.5, stratify: true, randomState: 42 },
+              nSamples: 4,
+              trainIndices: [0, 1],
+              testIndices: [2, 3],
+            },
+            runs: [],
+          },
+        ],
+      },
+      portfolio: document.portfolio,
+    }
+  }
+
+  function backbonesOf(raw: RawDocument): readonly unknown[] {
+    const opened = migrateProjectDocument(raw)
+    const settings = opened.settings.data as { backboneId?: unknown }
+    return [
+      settings.backboneId,
+      ...opened.runs.experiments.map(
+        (experiment) => (experiment.settings.data as { backboneId?: unknown }).backboneId,
+      ),
+    ]
+  }
+
+  it('지금 설정과 모든 실험 스냅샷이 함께 올라온다', () => {
+    // 스냅샷을 빼먹으면 결과 화면이 옛 id로 임베딩을 찾다가 빈손이 된다.
+    expect(backbonesOf(imageV1(V1_ID))).toEqual([V2_ID, V2_ID])
+  })
+
+  it('모르는 id는 그대로 둔다 - 우리가 안 만든 값을 우리 이름으로 덮지 않는다', () => {
+    expect(backbonesOf(imageV1('someone-elses-backbone'))).toEqual([
+      'someone-elses-backbone',
+      'someone-elses-backbone',
+    ])
+  })
+
+  it('표 프로젝트는 안 건드린다 - 그 자리에 백본이 없다', () => {
+    const v1 = { ...document, manifest: { ...document.manifest, formatVersion: 1 } }
+    const opened = migrateProjectDocument(v1)
+    expect(opened.settings.data).toEqual(document.settings.data)
+  })
+
+  /**
+   * **등록부를 안 읽고 글자를 박은 이유가 이것이다.** `DEFAULT_BACKBONE_ID`를 읽으면
+   * 셋째 백본이 등록되는 날 옛 파일이 그 백본의 것으로 둔갑한다 - 벡터는 한 번도 거기서
+   * 나온 적이 없는데도.
+   */
+  it('올라가는 곳이 등록부의 기본값이 아니라 못 박힌 v2 id다', () => {
+    expect(backbonesOf(imageV1(V1_ID))[0]).toBe('mobilenet-v2-r2')
+  })
+})

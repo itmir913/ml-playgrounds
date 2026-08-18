@@ -11,6 +11,8 @@ import 'fake-indexeddb/auto'
 import { openDB } from 'idb'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
+import { embeddingPath } from '../src/project/embeddings'
 import { isClientError } from '../src/errors'
 import {
   DB_NAME,
@@ -588,7 +590,7 @@ describe('이미지 프로젝트', () => {
           data: {
             dataset: { path: 'dataset/data/', canonicalSize: 224, format: 'webp', quality: 0.65 },
             categories: ['개'],
-            backboneId: 'mobilenet-v2',
+            backboneId: DEFAULT_BACKBONE_ID,
           },
         },
       },
@@ -615,7 +617,7 @@ describe('이미지 프로젝트', () => {
     const vector = new Uint8Array(16)
     const withVectors = {
       ...project,
-      embeddings: new Map([['embeddings/mobilenet-v2/abc.bin', vector]]),
+      embeddings: new Map([[embeddingPath(DEFAULT_BACKBONE_ID, 'abc'), vector]]),
     }
     expect(totalBytes(withVectors)).toBe(totalBytes(project) + vector.length)
   })
@@ -623,12 +625,35 @@ describe('이미지 프로젝트', () => {
   /** `.mlpx` 쪽에는 있는 왕복이 IndexedDB 쪽에는 없었다. 없으면 학습이 매번 다시 뽑는다. */
   it('임베딩이 저장되고 돌아온다', async () => {
     const project = imageProjectFile()
-    const path = 'embeddings/mobilenet-v2/abc.bin'
+    const path = embeddingPath(DEFAULT_BACKBONE_ID, 'abc')
     const vector = new Uint8Array([1, 2, 3, 4])
     await saveProject({ ...project, embeddings: new Map([[path, vector]]) })
 
     const loaded = await loadProject(project.document.manifest.projectId)
     expect(loaded?.embeddings.get(path)).toEqual(vector)
+  })
+
+  /**
+   * **개정 전 좌표계는 여는 자리에서 떨어진다** (mlpx-spec.md §1.3 규칙 2).
+   *
+   * 파일에서만 떨어뜨리면 IndexedDB에는 새 벡터와 옛 벡터가 나란히 남고, `totalBytes`가
+   * 그것까지 세므로 **새로 뽑은 학생이 자기 프로젝트를 저장하지 못하게 된다.**
+   */
+  it('등록부에 없는 백본의 임베딩은 열 때 떨어진다', async () => {
+    const project = imageProjectFile()
+    const kept = embeddingPath(DEFAULT_BACKBONE_ID, 'abc')
+    const stale = 'embeddings/mobilenet-v2/abc.bin'
+    const vector = new Uint8Array([1, 2, 3, 4])
+    await saveProject({
+      ...project,
+      embeddings: new Map([
+        [stale, vector],
+        [kept, vector],
+      ]),
+    })
+
+    const loaded = await loadProject(project.document.manifest.projectId)
+    expect([...(loaded?.embeddings.keys() ?? [])]).toEqual([kept])
   })
 
   it('사진만 있는 프로젝트가 저장되고 돌아온다', async () => {
@@ -651,7 +676,7 @@ describe('이미지 프로젝트', () => {
         ...project.document,
         settings: {
           ...project.document.settings,
-          data: { categories: [], backboneId: 'mobilenet-v2' },
+          data: { categories: [], backboneId: DEFAULT_BACKBONE_ID },
         },
       },
       images: new Map(),

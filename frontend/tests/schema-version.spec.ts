@@ -91,6 +91,31 @@ const VOCABULARY_BY_VERSION: Readonly<Record<number, Readonly<Record<string, rea
       CANONICAL_FORMAT_IDS: ['webp', 'jpeg'],
       PORTFOLIO_ANSWER_FORMATS: ['plain-v1'],
     },
+    /**
+     * **v1과 글자 하나 다르지 않다. 그게 맞다** (2026-08-19).
+     *
+     * v2가 바꾼 것은 백본 id이고 `backboneId`는 `z.string()`이라 §10의 "어휘"가 아니다.
+     * **그래도 버전이 오른 이유는 지키는 대상이 다르기 때문이다** — 어휘가 아니라 **같은
+     * 문자열이 뜻하는 좌표계**다. 구버전 앱이 새 파일을 조용히 열면 옛 범위로 벡터를
+     * 뽑는다 (mlpx-spec.md §9.1).
+     *
+     * 그래서 아래 "지금 어휘가 기록과 같다"는 v2에서 아무것도 새로 안 막는다. 이 줄이
+     * 하는 일은 **다음 사람이 v2의 어휘를 물었을 때 답하는 것**이다.
+     */
+    2: {
+      TASK_TYPES: ['classification', 'regression', 'clustering'],
+      DATA_TYPES: ['tabular', 'image'],
+      MISSING_STRATEGIES: ['none', 'drop', 'mean', 'median', 'mostFrequent', 'zero'],
+      SCALING_METHODS: ['none', 'standard', 'minmax', 'robust'],
+      CATEGORICAL_ENCODINGS: ['none', 'onehot', 'ordinal'],
+      SPLIT_METHODS: ['holdout', 'provided'],
+      RUN_STATUSES: ['done', 'failed'],
+      MODEL_OMISSION_REASONS: ['overBudget', 'tooLarge', 'engineUnsupported'],
+      SOURCE_ENCODINGS: ['utf-8', 'cp949', 'utf-16le', 'utf-16be'],
+      TRAINING_LOCATIONS: ['browser', 'server'],
+      CANONICAL_FORMAT_IDS: ['webp', 'jpeg'],
+      PORTFOLIO_ANSWER_FORMATS: ['plain-v1'],
+    },
   }
 
 const recorded = VOCABULARY_BY_VERSION[FORMAT_VERSION]

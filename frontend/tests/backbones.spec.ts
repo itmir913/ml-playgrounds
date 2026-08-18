@@ -26,10 +26,18 @@ interface GraphNode {
   }
 }
 
+interface WeightEntry {
+  readonly name: string
+  readonly shape: readonly number[]
+  readonly dtype?: string
+}
+
 interface ModelJson {
   readonly modelTopology: { readonly node: readonly GraphNode[] }
   readonly weightsManifest: readonly {
-    readonly weights: readonly { readonly name: string; readonly shape: readonly number[] }[]
+    /** 이 묶음의 값이 순서대로 이어 붙어 있는 샤드들. */
+    readonly paths?: readonly string[]
+    readonly weights: readonly WeightEntry[]
   }[]
 }
 
@@ -51,6 +59,75 @@ function readModelJson(id: string): ModelJson {
 
 /** 소스에 안 보이는 바이트를 남기지 않으려고 이름을 붙인다 (`tests/kinds.spec.ts`와 같다). */
 const NEWLINE = String.fromCharCode(10)
+
+/** 값 하나가 몇 바이트인가. **모르는 것은 세지 않는다** — 틀리게 세면 뒤가 전부 밀린다. */
+const BYTES_PER_VALUE: Readonly<Record<string, number>> = {
+  float32: 4,
+  int32: 4,
+  bool: 1,
+  uint8: 1,
+  float16: 2,
+}
+
+/**
+ * 모듈이 자기 안에서 하는 전처리의 상수 둘.
+ *
+ * **TF-Hub 모듈은 화소 전처리를 그래프에 들고 있다** — `hub_input/Mul`과 `hub_input/Sub`가
+ * 그것이고, 우리가 넣은 값이 컨볼루션에 닿기 전에 `x*Mul - Sub`로 한 번 더 옮겨진다.
+ * 그 사실을 등록부가 몰라서 실제 입력이 `[-3,1]`이 된 것이 V11 R1 A-1이다.
+ *
+ * **값은 `model.json`에 없고 샤드 안에 있다.** `weightsManifest`의 순서대로 크기를 더해
+ * 오프셋을 세면 나온다 — 누적 합이 샤드 총합과 정확히 맞는 것이 이 셈이 옳다는 증거다.
+ */
+function hubInputConstants(id: string): { readonly mul: number; readonly sub: number } {
+  const model = readModelJson(id)
+  const constants = new Map<string, number>()
+
+  for (const group of model.weightsManifest) {
+    const shards = (group.paths ?? []).map((name) => {
+      const path = fileURLToPath(new URL(`../.cache/backbones/${id}/${name}`, import.meta.url))
+      if (!existsSync(path)) {
+        throw new Error(`샤드가 없다: ${id}/${name}. \`npm run backbones\`로 받아라.`)
+      }
+      return readFileSync(path)
+    })
+    const blob = Buffer.concat(shards)
+
+    let offset = 0
+    for (const weight of group.weights) {
+      const dtype = weight.dtype ?? 'float32'
+      const width = BYTES_PER_VALUE[dtype]
+      if (width === undefined) throw new Error(`모르는 dtype이다: ${dtype} (${weight.name})`)
+      const count = weight.shape.reduce((product, size) => product * size, 1)
+
+      if (weight.name.endsWith('/hub_input/Mul/y') || weight.name.endsWith('/hub_input/Sub/y')) {
+        expect(dtype, `${weight.name}이 float32가 아니다`).toBe('float32')
+        expect(count, `${weight.name}이 스칼라가 아니다`).toBe(1)
+        constants.set(
+          weight.name.slice(weight.name.lastIndexOf('/hub_input/')),
+          blob.readFloatLE(offset),
+        )
+      }
+      offset += count * width
+    }
+
+    // 셈이 맞는지 스스로 확인한다. 한 칸이라도 밀리면 위에서 읽은 값이 남의 가중치다.
+    expect(offset, `${id}: 가중치 크기의 합이 샤드 총합과 다르다`).toBe(blob.length)
+  }
+
+  const mul = constants.get('/hub_input/Mul/y')
+  const sub = constants.get('/hub_input/Sub/y')
+  if (mul === undefined || sub === undefined) {
+    throw new Error(
+      [
+        `${id}: 그래프에 hub_input 전처리가 없다.`,
+        '전처리를 그래프가 안 들고 있는 백본은 그 자체가 갈래다 — 규칙을 다시 정하고',
+        'open-decisions.md "백본 입력 범위가 그래프의 계약과 어긋났다"에 적어라.',
+      ].join(NEWLINE),
+    )
+  }
+  return { mul, sub }
+}
 
 describe('백본 등록부', () => {
   it('id마다 명세가 하나씩 있다', () => {
@@ -88,7 +165,26 @@ describe('백본 등록부', () => {
         '  3. 임베딩은 백본마다 따로 쌓인다 - 바꿀 때 다시 뽑는 비용을 화면이 말해야 한다',
         '정하고 나서 이 검사를 고쳐라.',
       ].join(NEWLINE),
-    ).toEqual(['mobilenet-v2'])
+    ).toEqual(['mobilenet-v2-r2'])
+  })
+
+  /**
+   * **캐시 디렉터리 이름이 우리 id다.** 그래서 `scripts/fetch-backbone.mjs`의 목록이
+   * 등록부와 갈리면, 아래 "명세는 model.json과 맞는다"가 **받아 놓은 가중치를 못 찾고**
+   * "`npm run backbones`로 받아라"라고 말한다 — 이미 받아 둔 사람에게 거짓말이다.
+   *
+   * 이름 하나에 출처가 둘인 자리이고(V11이 남긴 결함 패턴), 그 둘을 여기서 묶는다.
+   * 스크립트는 최상위에서 네트워크를 타므로 import가 아니라 **글자로 읽는다.**
+   */
+  it('받는 스크립트와 등록부가 같은 백본을 말한다', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('../scripts/fetch-backbone.mjs', import.meta.url)),
+      'utf-8',
+    )
+    const ids = [...source.matchAll(/^\s+id: '([^']+)',$/gm)].map((match) => match[1])
+
+    expect(ids, 'fetch-backbone.mjs에서 id를 하나도 못 읽었다 - 정규식이 죽었다').not.toEqual([])
+    expect(ids).toEqual([...BACKBONE_IDS])
   })
 
   /**
@@ -166,5 +262,25 @@ describe('백본 명세는 model.json과 맞는다', () => {
     )
     expect(classifier, '분류기 가중치를 못 찾았다').toBeDefined()
     expect(classifier?.shape[2]).toBe(backbone.embeddingDim)
+  })
+})
+
+/**
+ * **`inputRange`가 모듈 전처리의 역함수인가.**
+ *
+ * 이 값이 틀리면 **아무 데서도 안 터지고 성적만 조용히 나빠진다.** 예외도 경고도 없고,
+ * 그 임베딩이 그대로 학생 파일에 담겨 교사에게 간다 (V11 R1 A-1).
+ *
+ * **감사 시점에는 이 값을 아무것도 안 봤다** — 감사자가 `[-1,1]` → `[0,1]` 돌연변이를
+ * 심고 저장소 전체 검사 1,817개를 돌렸는데 하나도 안 울었다. 여기가 그 자리다.
+ */
+describe('inputRange가 그래프 전처리의 역함수다', () => {
+  it.each(BACKBONES.map((backbone) => [backbone.id, backbone] as const))('%s', (id, backbone) => {
+    const { mul, sub } = hubInputConstants(id)
+    const [low, high] = backbone.inputRange
+
+    // 우리가 넣은 양 끝이 모듈을 통과하면 정확히 [-1, 1]이어야 한다.
+    expect(low * mul - sub, `${id}: 아래 끝이 -1로 안 간다`).toBeCloseTo(-1, 6)
+    expect(high * mul - sub, `${id}: 위 끝이 1로 안 간다`).toBeCloseTo(1, 6)
   })
 })

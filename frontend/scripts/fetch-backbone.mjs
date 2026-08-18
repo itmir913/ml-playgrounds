@@ -33,10 +33,15 @@ const OUT_ROOT = join(HERE, '..', '.cache', 'backbones')
 /**
  * 받을 것들. **`ml/backbones.ts`의 `modelUrl`과 같은 원본을 가리켜야 한다** — 갈리면
  * 우리는 A를 감시하고 학생은 B를 받는다.
+ *
+ * **`id`도 그쪽과 같아야 한다.** 그 값이 캐시 디렉터리 이름이고
+ * `tests/backbones.spec.ts`가 등록부의 id로 그 디렉터리를 연다 — 갈리면 검사가 없는
+ * 폴더를 열고 "가중치를 받아라"라고 말한다. 실제로 받아 놓았는데도 그렇다.
+ * **두 목록이 같은 말을 하는지는 그 검사가 문다** (2026-08-19).
  */
 const BACKBONES = [
   {
-    id: 'mobilenet-v2',
+    id: 'mobilenet-v2-r2',
     baseUrl: 'https://storage.googleapis.com/tfjs-models/savedmodel/mobilenet_v2_1.0_224/',
     files: {
       'model.json': '12e180771864a87473ae06988b8564d9fd077b11c1854030e90509917203cf6f',

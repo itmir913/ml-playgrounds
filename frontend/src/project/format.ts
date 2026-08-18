@@ -19,6 +19,7 @@ import { unzip, zip, type Unzipped } from 'fflate'
 import { ClientError } from '../errors'
 import { hashBytes } from '../hash'
 import { MAX_FILE_NAME_LENGTH, MAX_MODEL_BYTES, MODEL_BUDGET_BYTES } from '../limits'
+import { backboneFor } from '../ml/backbones'
 import {
   buildHashes,
   checkHashes,
@@ -228,6 +229,40 @@ function hashOfEntry(path: string): string {
   const name = path.slice(path.lastIndexOf('/') + 1)
   const dot = name.lastIndexOf('.')
   return dot < 0 ? name : name.slice(0, dot)
+}
+
+/**
+ * 이 임베딩이 어느 백본의 것인가. **경로 한 겹이 답이다** (mlpx-spec.md §1.3 규칙 2).
+ *
+ * `embeddings/{백본id}/{해시}.bin`에서 가운데 한 겹만 떼어 온다. 겹이 모자란 경로는
+ * 우리가 만든 것이 아니므로 `null`이고, 부르는 쪽에서 보면 "모르는 백본"과 같다.
+ */
+function backboneOfEmbedding(path: string): string | null {
+  const rest = path.slice(DIR.embeddings.length)
+  const slash = rest.indexOf('/')
+  return slash <= 0 ? null : rest.slice(0, slash)
+}
+
+/**
+ * 등록부에 없는 백본의 임베딩을 떨어뜨린다 (mlpx-spec.md §1.3 규칙 2).
+ *
+ * **백본을 개정하면(`-rN`) 옛 좌표계의 벡터는 다시 뽑힐 것들이다.** 아무도 안 읽는데
+ * (`readEmbeddings`가 새 경로만 본다) 자리는 그대로 차지한다 — 장당 5KB이고 사진 상한을
+ * 채운 프로젝트면 25MB다.
+ *
+ * **파일과 브라우저 저장소 양쪽에서 부른다.** 파일에서만 떨어뜨리면 IndexedDB에는 새
+ * 벡터와 옛 벡터가 나란히 남고, `ensureRoom`이 그것까지 세어서 **학생이 자기 프로젝트를
+ * 저장하지 못하게 된다.**
+ */
+export function dropUnknownBackbones(
+  embeddings: ReadonlyMap<string, Uint8Array>,
+): Map<string, Uint8Array> {
+  const kept = new Map<string, Uint8Array>()
+  for (const [path, content] of embeddings) {
+    const backboneId = backboneOfEmbedding(path)
+    if (backboneId !== null && backboneFor(backboneId) !== undefined) kept.set(path, content)
+  }
+  return kept
 }
 
 /**
@@ -866,8 +901,11 @@ export async function writeProject(
 
   // **짝 없는 임베딩은 버린다.** 사진을 지우면 그 임베딩은 아무 사진의 것도 아니고,
   // 들고 다니면 파일이 지운 사진 수만큼 계속 자란다 (mlpx-spec.md §1.3).
+  //
+  // **등록부에 없는 백본의 것도 같이 버린다.** 사진이 살아 있는 한 짝은 맞으므로 위
+  // 규칙만으로는 안 걸린다 (`dropUnknownBackbones`).
   const photoHashes = new Set([...project.images.keys()].map(hashOfEntry))
-  for (const [path, content] of project.embeddings) {
+  for (const [path, content] of dropUnknownBackbones(project.embeddings)) {
     if (photoHashes.has(hashOfEntry(path))) entries[path] = content
   }
 

@@ -21,7 +21,18 @@
 
 import type { TaskType } from '../project/schema'
 
-export const BACKBONE_IDS = ['mobilenet-v2'] as const
+/**
+ * **id는 가중치가 아니라 우리 쪽 계약을 가리킨다** (mlpx-spec.md §1.3 규칙 2).
+ *
+ * 가중치가 그대로여도 우리가 무엇을 먹이는지가 바뀌면 **같은 사진의 벡터가 다른
+ * 좌표계에 앉는다.** 그것을 가르는 유일한 장치가 `embeddings/{id}/` 경로라, 그럴 때는
+ * 접미사 `-rN`으로 개정한다. `-r2`가 그 첫 사례다 (2026-08-19, open-decisions.md
+ * "백본 입력 범위가 그래프의 계약과 어긋났다").
+ *
+ * **옛 id는 여기 남기지 않는다.** 남기면 그 프로젝트가 영원히 틀린 범위로 돌고,
+ * 마이그레이션이 옛 파일을 새 id로 올려 주므로 남길 이유도 없다 (project/migrate.ts).
+ */
+export const BACKBONE_IDS = ['mobilenet-v2-r2'] as const
 
 export type BackboneId = (typeof BACKBONE_IDS)[number]
 
@@ -58,6 +69,11 @@ export interface BackboneSpec {
   /**
    * 화소값을 이 범위로 옮겨 넣는다. 백본마다 다르고, **틀리면 조용히 성적만 나빠진다** —
    * 예외가 안 난다.
+   *
+   * **그래프가 무엇을 기대하는지이지, 컨볼루션이 무엇을 받는지가 아니다.** TF-Hub
+   * 모듈은 전처리를 자기 안에 들고 있어서, 우리가 `[-1,1]`을 넣으면 모듈이 한 번 더
+   * 옮겨 `[-3,1]`이 된다. 그래서 이 값은 **모듈의 전처리를 역함수로 되돌린 것**이고,
+   * `tests/backbones.spec.ts`가 샤드에서 그 상수를 직접 읽어 대조한다 (2026-08-19).
    */
   readonly inputRange: readonly [number, number]
   /**
@@ -81,13 +97,17 @@ export interface BackboneSpec {
  */
 export const BACKBONES: readonly BackboneSpec[] = [
   {
-    id: 'mobilenet-v2',
+    id: 'mobilenet-v2-r2',
     canonicalSize: 224,
     embeddingDim: 1280,
     embeddingNode: 'module_apply_default/MobilenetV2/Logits/AvgPool',
     modelUrl:
       'https://storage.googleapis.com/tfjs-models/savedmodel/mobilenet_v2_1.0_224/model.json',
-    inputRange: [-1, 1],
+    /**
+     * **모듈이 안에서 `x*2-1`을 한다** — 그래서 우리가 넣을 것은 `[0,1]`이다.
+     * `[-1,1]`로 두었던 것이 V11 R1 A-1이고, 실제 입력이 `[-3,1]`이 됐다.
+     */
+    inputRange: [0, 1],
     tasks: ['classification', 'clustering'],
   },
 ]
@@ -103,4 +123,4 @@ export function backboneFor(id: string): BackboneSpec | undefined {
  * **고르게 하지 않는다.** 손잡이가 하나 늘면 재현 필드와 화면이 같이 늘고, V4는 이미
  * 크다. 둘째 백본이 등록되는 날 그때 고르게 할지 정한다.
  */
-export const DEFAULT_BACKBONE_ID: BackboneId = 'mobilenet-v2'
+export const DEFAULT_BACKBONE_ID: BackboneId = 'mobilenet-v2-r2'

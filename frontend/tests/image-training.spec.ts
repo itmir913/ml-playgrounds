@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { hashBytes } from '../src/hash'
-import { backboneFor } from '../src/ml/backbones'
+import { DEFAULT_BACKBONE_ID, backboneFor } from '../src/ml/backbones'
 import {
   embeddingColumns,
   IMAGE_LABEL_COLUMN,
@@ -23,7 +23,7 @@ import { addCategory, addImages, readImages } from '../src/project/images'
 import { dataSettings } from '../src/project/schema'
 
 const NOW = '2026-08-12T09:00:00.000Z'
-const BACKBONE = backboneFor('mobilenet-v2')!
+const BACKBONE = backboneFor(DEFAULT_BACKBONE_ID)!
 const DIM = BACKBONE.embeddingDim
 
 function photo(seed: string): Uint8Array {

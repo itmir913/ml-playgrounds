@@ -1,6 +1,6 @@
 /**
  * formatVersion 마이그레이션 체인.
- * 지금은 v1뿐이지만 구조를 먼저 잡는다. 스키마를 바꾸면 같은 커밋에 함수를 추가한다.
+ * 스키마를 바꾸면 같은 커밋에 함수를 추가한다.
  *
  * 규칙은 넷이다 (docs/mlpx-spec.md 9).
  *
@@ -26,15 +26,74 @@ export type Migration = (document: RawDocument) => RawDocument
 /**
  * 버전 n -> n+1 변환의 등록부.
  *
- * 예: FORMAT_VERSION을 2로 올린다면 { 1: (document) => ... } 를 여기 추가한다.
+ * 예: FORMAT_VERSION을 3으로 올린다면 { 2: (document) => ... } 를 여기 추가한다.
  * 빠뜨리면 tests/migrate.spec.ts가 잡는다.
  */
-export const MIGRATIONS: Record<number, Migration> = {}
+export const MIGRATIONS: Record<number, Migration> = { 1: migrateV1ToV2 }
 
 function asRecord(value: unknown): RawDocument | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as RawDocument)
     : null
+}
+
+/**
+ * v1이 쓰던 백본 id와 그 자리를 이어받은 id (mlpx-spec.md §9.1).
+ *
+ * **등록부를 안 읽고 글자를 박는다.** 마이그레이션은 역사이지 지금의 설정이 아니다 —
+ * `DEFAULT_BACKBONE_ID`를 읽으면 셋째 백본이 등록되는 날 **옛 파일이 그 백본의 것으로
+ * 둔갑한다.** 벡터는 한 번도 그 백본에서 나온 적이 없는데도 그렇다.
+ */
+const V1_BACKBONE_ID = 'mobilenet-v2'
+const V2_BACKBONE_ID = 'mobilenet-v2-r2'
+
+/**
+ * `settings.data`의 백본 id를 개정판으로 옮긴다.
+ *
+ * **옛 id일 때만 바꾼다.** 표 프로젝트에는 이 필드가 아예 없고, 모르는 id는 우리가
+ * 만들지 않은 값이라 그대로 지나간다 — 우리 이름으로 덮으면 그 파일은 자기가 어디서
+ * 왔는지 말할 수 없게 된다.
+ */
+function renameBackbone(data: unknown): unknown {
+  const record = asRecord(data)
+  if (!record || record.backboneId !== V1_BACKBONE_ID) return data
+  return { ...record, backboneId: V2_BACKBONE_ID }
+}
+
+/**
+ * v1 -> v2. **백본 id 개정** (mlpx-spec.md §9.1).
+ *
+ * 바꾸는 자리는 둘이다 — 지금 설정과 **모든 실험 스냅샷.** 스냅샷을 빼먹으면 결과
+ * 화면이 옛 id로 임베딩을 찾다가 못 찾고, 학생이 이미 본 실험이 빈손이 된다.
+ *
+ * **임베딩은 안 만진다.** 마이그레이션이 받는 것은 JSON 넷뿐이라 엔트리를 만질 자리가
+ * 없고(§9), 만질 필요도 없다 — 문서가 새 id를 가리키는 순간 옛 디렉터리는 아무도 안
+ * 보는 것이 되고 다음 저장에서 `writeProject`가 떨어뜨린다 (format.ts).
+ */
+function migrateV1ToV2(document: RawDocument): RawDocument {
+  const next: RawDocument = { ...document }
+
+  const settings = asRecord(document.settings)
+  if (settings) next.settings = { ...settings, data: renameBackbone(settings.data) }
+
+  const runs = asRecord(document.runs)
+  const experiments = runs?.experiments
+  if (runs && Array.isArray(experiments)) {
+    next.runs = {
+      ...runs,
+      experiments: experiments.map((experiment) => {
+        const record = asRecord(experiment)
+        const experimentSettings = asRecord(record?.settings)
+        if (!record || !experimentSettings) return experiment
+        return {
+          ...record,
+          settings: { ...experimentSettings, data: renameBackbone(experimentSettings.data) },
+        }
+      }),
+    }
+  }
+
+  return next
 }
 
 /**

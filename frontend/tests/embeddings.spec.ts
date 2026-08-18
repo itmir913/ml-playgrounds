@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest'
 import { imageEntryPath } from '../src/data/image/canonical'
 import { CANONICAL_FORMATS } from '../src/data/image/formats'
 import { hashBytes } from '../src/hash'
+import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import {
   addEmbeddings,
   decodeVector,
@@ -23,7 +24,11 @@ import { readProject, writeProject, type ProjectFile } from '../src/project/form
 import { addImages, readImages, removeImages } from '../src/project/images'
 
 const NOW = '2026-08-12T09:00:00.000Z'
-const BACKBONE = 'mobilenet-v2'
+/**
+ * **등록부에서 읽는다.** 글자를 박으면 백본을 개정한 날 이 파일이 통째로 "등록부에 없는
+ * 백본"을 검사하게 되고, 왕복이 초록인 채로 뜻만 바뀐다 (mlpx-spec.md §1.3 규칙 2).
+ */
+const BACKBONE: string = DEFAULT_BACKBONE_ID
 const DIM = 4
 
 function photo(seed: string): Uint8Array {
@@ -224,6 +229,30 @@ describe('.mlpx를 왕복한다', () => {
       ]),
     }
     expect((await roundTrip(orphan)).embeddings.size).toBe(0)
+  })
+
+  /**
+   * **개정한 백본이 남긴 것도 버린다** (mlpx-spec.md §1.3 규칙 2).
+   *
+   * 위 그물은 **짝**을 본다. 백본을 개정하면 사진은 그대로라 짝이 맞고, 그래서 옛
+   * 좌표계의 벡터가 사진이 살아 있는 한 계속 실려 다닌다 — 장당 5KB이고 사진 상한을
+   * 채운 프로젝트면 25MB다. **다시 뽑힐 것들이라 실어 나를 이유가 없다.**
+   */
+  it('등록부에 없는 백본의 임베딩은 저장할 때 버린다 - 짝은 맞아도 버린다', async () => {
+    const project = imageProject(['a'])
+    const [only] = readImages(project)
+    const vector = encodeVector(new Float32Array([1, 2, 3, 4]))
+    const stale: ProjectFile = {
+      ...project,
+      embeddings: new Map([
+        // 짝이 되는 사진이 **있다.** 이 축을 안 가르면 위 검사가 이것을 대신 잡는다.
+        [embeddingPath('mobilenet-v2', only!.hash), vector],
+        [embeddingPath(BACKBONE, only!.hash), vector],
+      ]),
+    }
+
+    const opened = await roundTrip(stale)
+    expect([...opened.embeddings.keys()]).toEqual([embeddingPath(BACKBONE, only!.hash)])
   })
 
   /** 파생물이라 통째로 없는 파일이 정상이다. */

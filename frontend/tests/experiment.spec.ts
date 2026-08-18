@@ -14,6 +14,7 @@
 
 import { describe, expect, it } from 'vitest'
 
+import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { isClientError } from '../src/errors'
 import type { Algorithm } from '../src/ml/algorithms'
 import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/ml/experiment'
@@ -721,7 +722,7 @@ describe('id와 changed', () => {
      */
     const IMAGE_SNAPSHOT = {
       categories: ['개', '고양이'],
-      backboneId: 'mobilenet-v2',
+      backboneId: DEFAULT_BACKBONE_ID,
       categoryCounts: [2, 2],
       unlabeledCount: 0,
     }

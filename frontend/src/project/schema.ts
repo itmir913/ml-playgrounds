@@ -32,8 +32,14 @@ import {
 import { DEFAULT_BACKBONE_ID } from '../ml/backbones'
 import { TRAINING_LOCATIONS } from '../ml/backend'
 
-/** 이 앱이 읽고 쓰는 포맷 버전. 마이그레이션 체인의 종착점이다. */
-export const FORMAT_VERSION = 1
+/**
+ * 이 앱이 읽고 쓰는 포맷 버전. 마이그레이션 체인의 종착점이다.
+ *
+ * **2로 올린 것은 백본 id 개정이다** (2026-08-19, mlpx-spec.md §9.1). 지시 없이
+ * 움직이는 숫자가 아니다 — 무엇이 함께 와야 하는지는 `project/migrate.ts`와
+ * `tests/versions.spec.ts`가 말한다.
+ */
+export const FORMAT_VERSION = 2
 
 /**
  * 이 앱이 만드는 프로젝트의 종류. **manifest.kind의 값이고 지금은 이것 하나뿐이다.**

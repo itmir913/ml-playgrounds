@@ -17,7 +17,12 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { ClientError } from '../errors'
 import { hashBytes } from '../hash'
 import { BYTES_PER_MB, STORAGE_SAFETY_FACTOR } from '../limits'
-import { detachMissingAttachments, pointsToFile, type ProjectFile } from './format'
+import {
+  detachMissingAttachments,
+  dropUnknownBackbones,
+  pointsToFile,
+  type ProjectFile,
+} from './format'
 import { migrateProjectDocument } from './migrate'
 import { TASK_TYPES, type ProjectDocument, type TaskType } from './schema'
 
@@ -361,7 +366,14 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
   const dataset = await transaction.objectStore(DATASETS_STORE).get(projectId)
   const images = dataset?.images ?? new Map<string, Uint8Array>()
   const attachments = dataset?.attachments ?? new Map<string, Uint8Array>()
-  const embeddings = dataset?.embeddings ?? new Map<string, Uint8Array>()
+  /**
+   * **여는 자리에서 옛 좌표계를 떨어뜨린다** (mlpx-spec.md §1.3 규칙 2).
+   *
+   * 바로 위에서 문서가 새 백본 id로 올라왔으므로(`migrateProjectDocument`) 옛 디렉터리의
+   * 벡터는 그 순간부터 아무도 안 읽는다. 그런데 `ensureRoom`은 그것까지 세므로, 놔두면
+   * **새 벡터를 뽑은 학생이 자기 프로젝트를 저장하지 못한다.**
+   */
+  const embeddings = dropUnknownBackbones(dataset?.embeddings ?? new Map<string, Uint8Array>())
 
   /**
    * 참조와 본체가 함께 있는가. **파일 참조와 폴더 참조를 나눠 본다** — 폴더는 파일 하나를

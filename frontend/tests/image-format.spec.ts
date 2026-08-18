@@ -9,6 +9,7 @@
 import { unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
+import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { isValidCategoryName, imageEntryPath } from '../src/data/image/canonical'
 import { CANONICAL_FORMATS } from '../src/data/image/formats'
 import { hashBytes } from '../src/hash'
@@ -55,7 +56,7 @@ function imageProject(overrides: Partial<ProjectFile> = {}): ProjectFile {
           // **폴더 참조다.** `/`로 끝나는 것이 파일과 폴더를 가르는 표시다.
           dataset: { path: IMAGE_DATA_DIR, canonicalSize: 224, format: 'webp', quality: 0.65 },
           categories: ['개', '고양이'],
-          backboneId: 'mobilenet-v2',
+          backboneId: DEFAULT_BACKBONE_ID,
         },
         split: { method: 'holdout', testSize: 0.2, stratify: true, randomState: 42 },
         runtime: 'mljs',
@@ -127,7 +128,7 @@ describe('이미지 프로젝트의 왕복', () => {
     const project = imageProject({
       embeddings: new Map(
         ['a', 'b'].map((seed) => [
-          embeddingPath('mobilenet-v2', hashBytes(photo(seed))),
+          embeddingPath(DEFAULT_BACKBONE_ID, hashBytes(photo(seed))),
           new Uint8Array([1, 2, 3, 4]),
         ]),
       ),

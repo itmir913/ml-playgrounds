@@ -14,7 +14,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { hashBytes } from '../src/hash'
-import { backboneFor } from '../src/ml/backbones'
+import { DEFAULT_BACKBONE_ID, backboneFor } from '../src/ml/backbones'
 import type { EmbedMessage, EmbedRequest } from '../src/ml/embed/protocol'
 import type { EmbedWorker } from '../src/ml/embed/client'
 import { trainingSourceOf } from '../src/ml/training-source'
@@ -24,7 +24,7 @@ import { type ProjectFile } from '../src/project/format'
 import { addImages, readImages } from '../src/project/images'
 
 const NOW = '2026-08-12T09:00:00.000Z'
-const BACKBONE = backboneFor('mobilenet-v2')!
+const BACKBONE = backboneFor(DEFAULT_BACKBONE_ID)!
 const DIM = BACKBONE.embeddingDim
 
 function photo(seed: string): Uint8Array {

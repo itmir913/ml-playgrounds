@@ -17,6 +17,7 @@ import 'fake-indexeddb/auto'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { AUTOSAVE_DELAY_MS } from '../src/limits'
 import { exportStateOf } from '../src/project/export-state'
 import { closeStorage, DB_NAME, loadProject, readExportedAt } from '../src/project/storage'
@@ -324,7 +325,7 @@ function imageProjectFile(): ProjectFile {
         data: {
           dataset: { path: 'dataset/data/', canonicalSize: 224, format: 'webp', quality: 0.65 },
           categories: ['개'],
-          backboneId: 'mobilenet-v2',
+          backboneId: DEFAULT_BACKBONE_ID,
         },
       },
     },
