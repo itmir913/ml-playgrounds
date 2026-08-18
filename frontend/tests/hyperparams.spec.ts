@@ -108,6 +108,21 @@ describe('눈금 밖을 가려낸다', () => {
     ])
   })
 
+  /**
+   * **위쪽도 본다.** 범위 밖을 시험하는 검사가 전부 아래쪽(0)만 보고 있어서,
+   * `|| value > spec.max`를 통째로 지워도 이 파일과 experiment.spec.ts가 전부 통과했다
+   * (V11 R2 감사 B-7). 포함 경계(500)는 확인하면서 넘어가는 값이 하나도 없었다.
+   *
+   * 이 줄이 죽으면 큰 nEstimators가 그대로 엔진으로 내려간다 — limits.ts의 행 상한은
+   * 행 수만 보므로 그 경로를 안 막는다.
+   */
+  it('위쪽으로 넘어가도 걸린다 - 아래쪽만 보고 있었다', () => {
+    expect(outOfRange([TREES], { nEstimators: 501 })).toEqual([
+      { name: 'nEstimators', min: 1, max: 500, actual: 501 },
+    ])
+    expect(() => assertInRange([TREES], { nEstimators: 501 })).toThrow()
+  })
+
   it('서술에 없는 키는 판정하지 않는다 - 우리가 범위를 모르는 값이다', () => {
     expect(outOfRange([TREES], { criterion: 'entropy', nEstimators: 5 })).toEqual([])
   })

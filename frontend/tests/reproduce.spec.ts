@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest'
 import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/ml/experiment'
 import { dataSnapshot } from '../src/project/schema'
 import { reproduceExperiment } from '../src/ml/reproduce'
+import type { Dataset } from '../src/ml/preprocess'
 import type { Experiment, Run, Settings } from '../src/project/schema'
 import { irisDataset, IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN } from './fixtures/iris'
 
@@ -134,5 +135,79 @@ describe('재실행 대조', () => {
     // 깊이 1로 다시 돌리면 붓꽃 세 품종을 못 가르므로 파일의 지표와 어긋난다.
     expect(found?.status).toBe('NOT_REPRODUCED')
     expect(found?.again?.['accuracy']).toBeLessThan(experiment.runs[0]?.metrics?.['accuracy'] ?? 1)
+  })
+})
+
+/**
+ * **대조도 학습셋에서만 전처리기를 fit해야 한다.**
+ *
+ * `settings.trainIndices` 대신 표 전체로 fit해도 이 파일과 `lifecycle.spec.ts`가 전부
+ * 통과했다 (V11 R2 감사 B-8). 붓꽃 30행 + `standard`에서는 새는 것이 정확도를 못 움직여서다 —
+ * 트리는 단조 변환에 불변이고 KNN도 그 정도 여유에서는 라벨이 안 뒤집힌다.
+ * **정확도라는 눈금이 너무 굵었다.**
+ *
+ * 새면 위조 탐지가 **양쪽으로** 무너진다. 정직한 학생의 지표가 재현되지 않고(학습은
+ * 학습셋으로 fit했으니까), 반대로 평가셋을 섞어 부풀린 지표가 대조를 통과할 수 있다.
+ *
+ * **평가 쪽에만 극단값을 둔다.** 그 행이 fit에 섞이면 `standard`의 폭이 통째로 달라져
+ * 학습 행들의 좌표가 눌리고, KNN의 이웃이 바뀐다.
+ */
+/**
+ * **대조도 학습셋에서만 전처리기를 fit해야 한다.**
+ *
+ * `settings.trainIndices` 대신 표 전체로 fit해도 이 파일과 `lifecycle.spec.ts`가 전부
+ * 통과했다 (V11 R2 감사 B-8). 붓꽃 30행 + `standard`에서는 새는 것이 정확도를 못 움직여서다 —
+ * 트리는 단조 변환에 불변이고 KNN도 그 정도 여유에서는 라벨이 안 뒤집힌다.
+ * **정확도라는 눈금이 너무 굵었다.**
+ *
+ * 새면 위조 탐지가 **양쪽으로** 무너진다. 정직한 학생의 지표가 재현되지 않고(학습은
+ * 학습셋으로 fit했으니까), 반대로 평가셋을 섞어 부풀린 지표가 대조를 통과할 수 있다.
+ *
+ * **평가로 갈 네 자리에만 극단값을 둔다.** 씨앗 7의 분할이 `[3,4,10,13]`을 평가로 보내므로
+ * (`split.spec.ts`가 그 결정성을 지킨다) 그 행들이 fit에 섞이면 `a`의 폭이 통째로 달라져
+ * 학습 행들의 좌표가 눌리고, `k=1`인 KNN의 이웃이 다른 무리로 넘어간다.
+ */
+describe('대조의 전처리기도 학습셋에서만 나온다', () => {
+  const TEST_ROWS = new Set([3, 4, 10, 13])
+  /** 평가 자리는 극단값, 학습 자리는 두 무리. `a`가 가르고 `b`는 반대로 끈다. */
+  const skewed: Dataset = {
+    columns: ['a', 'b', 'label'],
+    rows: Array.from({ length: 16 }, (_, index) => {
+      if (TEST_ROWS.has(index)) return ['1000', '0', 'y']
+      return index % 2 === 0 ? ['0', '0', 'x'] : ['1', '10', 'y']
+    }),
+  }
+
+  const skewedSettings: Settings = {
+    data: {
+      features: ['a', 'b'],
+      target: 'label',
+      preprocessing: { missing: 'mean', scaling: 'standard', categoricalEncoding: 'onehot' },
+    },
+    split: { method: 'holdout', testSize: 0.25, stratify: false, randomState: 7 },
+    runtime: 'mljs',
+    selectedAlgorithms: [{ algorithm: 'knn' }],
+    hyperparameters: { knn: { mljs: { k: 1 } } },
+  }
+
+  it('학습한 그대로 대조하면 어긋나는 곳이 없다', () => {
+    const experiment = runExperiment(
+      {
+        dataset: skewed,
+        testDataset: null,
+        taskType: 'classification',
+        dataType: 'tabular',
+        settings: skewedSettings,
+        context: { serverStatus: 'unavailable', rowCount: 16, dataType: 'tabular' },
+      },
+      { now: () => '2026-08-06T00:00:00.000Z' },
+    ).experiment
+
+    // 평가 자리가 정말 극단값 행인지 먼저 못 박는다 - 분할이 바뀌면 이 검사가 무뎌진다.
+    expect([...experiment.settings.testIndices].sort((a, b) => a - b)).toEqual([3, 4, 10, 13])
+
+    const [found] = reproduceExperiment({ experiment, dataset: skewed, testDataset: null })
+    expect(found?.status).toBe('REPRODUCED')
+    expect(Object.values(found?.deltas ?? {}).every((delta) => delta === 0)).toBe(true)
   })
 })
