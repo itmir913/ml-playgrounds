@@ -47,7 +47,7 @@
     "ml-random-forest": "^2.1.0",
     "ml-regression-multivariate-linear": "^2.0.4",
     "papaparse": "^5.5.4",
-    "pinia": "^4.0.2",
+    "pinia": "^4.0.3",
     "pure-rand": "^8.4.2",
     "vue": "^3.5.0",
     "vue-chartjs": "^5.3.4",
