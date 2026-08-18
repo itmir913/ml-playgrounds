@@ -18,6 +18,7 @@ import {
   isStepUnlocked,
   NO_FACTS,
   resolveStep,
+  stepBlockers,
   stepRequires,
   stepTasks,
   STEP_IDS,
@@ -502,5 +503,49 @@ describe('할 일의 자리는 데이터 종류가 정한다', () => {
       stepTasks(step, photosOnly, undefined, 'image').map((one) => one.key),
     )
     expect(everywhere).toContain('targetChosen')
+  })
+})
+
+/**
+ * **잠금은 boolean이 아니라 이유 목록이다** (`CLAUDE.md` §2).
+ *
+ * 화면이 "잠겼다"만 알면 할 말이 단계마다 하나뿐이고, 그 하나가 틀릴 수 있다 — 실제로
+ * 그랬다: 새 표 프로젝트에서 학습 단계가 *"전처리 단계에서 할 일을 먼저 마쳐 주세요"*라고
+ * 말하는데 **전처리도 잠겨 있었고**, 막고 있던 것은 데이터였다 (V11 R5 B-10).
+ */
+describe('무엇이 이 단계를 막는가', () => {
+  it('새 표 프로젝트에서 학습을 막는 것은 데이터다 - 전처리가 아니다', () => {
+    const blockers = stepBlockers('train', NO_FACTS, undefined, 'tabular')
+
+    expect(blockers[0]).toBe('datasetReady')
+    // 전처리도 잠겨 있으므로 "전처리에서 마쳐라"는 갈 수 없는 곳을 가리킨다.
+    expect(isStepUnlocked('preprocess', NO_FACTS, undefined, 'tabular')).toBe(false)
+  })
+
+  it('데이터가 들어오면 다음 사실로 넘어간다', () => {
+    const blockers = stepBlockers(
+      'train',
+      { ...NO_FACTS, datasetReady: true },
+      'classification',
+      'tabular',
+    )
+    expect(blockers).not.toContain('datasetReady')
+    expect(blockers.length).toBeGreaterThan(0)
+  })
+
+  it('안 막히면 빈 배열이다 - 그리고 그때만 열린다', () => {
+    const done = { ...NO_FACTS }
+    for (const key of Object.keys(done) as FactKey[]) done[key] = true
+    for (const step of STEP_IDS) {
+      expect(stepBlockers(step, done, 'classification', 'tabular'), step).toEqual([])
+      expect(isStepUnlocked(step, done, 'classification', 'tabular'), step).toBe(true)
+    }
+  })
+
+  it('잠긴 단계에는 반드시 막는 사실이 있다 - 이유 없는 회색은 고장으로 보인다', () => {
+    for (const step of STEP_IDS) {
+      if (isStepUnlocked(step, NO_FACTS, undefined, 'tabular')) continue
+      expect(stepBlockers(step, NO_FACTS, undefined, 'tabular').length, step).toBeGreaterThan(0)
+    }
   })
 })

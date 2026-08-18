@@ -145,7 +145,12 @@ function turn(cluster: number, step: number): void {
           **대표 사진이 무엇인지 말한다.** 그냥 첫 칸에 두면 학생은 그것이 대표라는 것을
           모르고, 순서에 뜻이 있다는 것도 모른다.
         -->
-        <span v-if="group.representative" class="text-ink-soft">
+        <!--
+          **1쪽에서만 참인 문장이다.** 대표 표시(테두리)가 `pageOf === 0`일 때만 붙으므로,
+          쪽을 넘긴 뒤에도 "맨 앞이 대표"라고 말하면 거짓이 된다 (V11 R5 B-8).
+          군집 하나가 30장을 넘는 것은 사진 상한이 5,000장인 여기서 흔한 쪽이다.
+        -->
+        <span v-if="group.representative && pageOf(group.cluster) === 0" class="text-ink-soft">
           {{ t('results.image.clusterRepresentative') }}
         </span>
       </header>

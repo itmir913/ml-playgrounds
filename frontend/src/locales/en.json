@@ -23,6 +23,7 @@
     "portfolioAnswered": "Write the portfolio",
     "title": "To do",
     "allDone": "Everything in this step is done.",
+    "lockedBy": "There is something to finish first. ({task})",
     "taskTypeChosen": "Select the task type",
     "image": {
       "datasetReady": "Add photos",
@@ -70,13 +71,7 @@
     },
     "train": {
       "label": "Train­ing",
-      "purpose": "Choose the task type and the models, then train them.",
-      "tabular": {
-        "locked": "Finish the tasks on the Preprocess step first."
-      },
-      "image": {
-        "locked": "Finish the tasks on the Data step first."
-      }
+      "purpose": "Choose the task type and the models, then train them."
     },
     "results": {
       "label": "Results",

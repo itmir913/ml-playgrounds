@@ -43,6 +43,7 @@ import {
 } from '../src/project/schema'
 import {
   isStepUnlocked,
+  DERIVED_LOCK_TEXT,
   KIND_SPECIFIC_STEP_TEXT,
   NO_FACTS,
   STEP_IDS,
@@ -457,7 +458,11 @@ describe('프런트엔드 전용 코드', () => {
     // 이유 없이 회색으로 죽어 있는 것은 학생에게 고장으로 보인다 (architecture.md §7.3).
     // data와 portfolio는 잠기지 않으므로 이유가 없는 것이 맞다.
     for (const step of STEP_IDS) {
-      const locks = !isStepUnlocked(step, NO_FACTS) && !kindSpecific(step, 'locked')
+      // 손으로 쓴 문장이 있어야 하는 단계는 **잠기고, 종류가 안 가리고, 뽑지도 않는** 것뿐이다.
+      const locks =
+        !isStepUnlocked(step, NO_FACTS) &&
+        !kindSpecific(step, 'locked') &&
+        !DERIVED_LOCK_TEXT.includes(step)
       expect(english.has(`steps.${step}.locked`), step).toBe(locks)
       expect(korean.has(`steps.${step}.locked`), step).toBe(locks)
     }

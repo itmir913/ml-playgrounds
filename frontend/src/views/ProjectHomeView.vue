@@ -29,9 +29,16 @@ import { useRouter } from 'vue-router'
 import AppButton from '@/components/AppButton.vue'
 import ProjectSummary from '@/components/ProjectSummary.vue'
 import StepHeader from '@/components/StepHeader.vue'
-import { dataKindFor, stepTextKey } from '@/data/kinds'
+import { dataKindFor, lockedTextFor, stepTextKey } from '@/data/kinds'
 import { STEP_ICONS } from '@/icons'
-import { currentTask, isStepUnlocked, stepTasks, STEP_IDS, type StepId } from '@/router/steps'
+import {
+  currentTask,
+  isStepUnlocked,
+  stepBlockers,
+  stepTasks,
+  STEP_IDS,
+  type StepId,
+} from '@/router/steps'
 import { useProjectStore } from '@/stores/project'
 
 const { t } = useI18n()
@@ -87,6 +94,17 @@ const steps = computed(() =>
 
 function go(step: StepId): void {
   void router.push({ name: step, params: { projectId: project.projectId } })
+}
+/** 잠긴 줄에 할 말. 막는 사실을 가리킨다 (V11 R5 B-10). */
+function lockedText(step: StepId): string {
+  const text = lockedTextFor(
+    kind.value,
+    step,
+    stepBlockers(step, project.facts, project.taskType, project.dataType),
+    project.dataType,
+  )
+  const task = text.params?.task
+  return task === undefined ? t(text.key) : t(text.key, { task: t(task) })
 }
 </script>
 
@@ -215,7 +233,7 @@ function go(step: StepId): void {
                 좁은 화면에서는 칸이 왼쪽부터 시작하므로 그대로 왼쪽 정렬이 맞다.
               -->
               <span v-else class="block text-ink-soft sm:text-right">{{
-                t(stepTextKey(kind, entry.step, 'locked'))
+                lockedText(entry.step)
               }}</span>
             </div>
           </li>

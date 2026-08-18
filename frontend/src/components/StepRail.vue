@@ -44,8 +44,8 @@ import { type RouteLocationRaw, useRoute } from 'vue-router'
 
 import { HOME_ICON, STEP_ICONS } from '@/icons'
 import { ROUTE_PROJECT_HOME } from '@/router'
-import { dataKindFor, stepTextKey } from '@/data/kinds'
-import { isStepUnlocked, STEP_IDS, type StepId } from '@/router/steps'
+import { dataKindFor, lockedTextFor } from '@/data/kinds'
+import { isStepUnlocked, STEP_IDS, stepBlockers, type StepId } from '@/router/steps'
 import { useProjectStore } from '@/stores/project'
 
 const { t } = useI18n()
@@ -123,7 +123,16 @@ function reason(step: StepId): string {
   if (project.projectId === null) return t('shell.noProject')
   // **잠금 이유도 종류가 준다** (architecture.md §8.10) — 표의 "타깃과 특성을 먼저
   // 정해 주세요"는 이미지에서 학생이 할 수 없는 일을 하라는 말이 된다.
-  return t(stepTextKey(dataKindFor(project.dataType ?? ''), step, 'locked'))
+  // **막는 사실을 가리킨다.** 단계마다 문장 하나로는 못 말하는 자리가 있었다 —
+  // 학습이 "전처리 단계에서 할 일을…"이라고 하는데 전처리도 잠겨 있었다 (V11 R5 B-10).
+  const text = lockedTextFor(
+    dataKindFor(project.dataType ?? ''),
+    step,
+    stepBlockers(step, project.facts, project.taskType, project.dataType),
+    project.dataType,
+  )
+  const task = text.params?.task
+  return task === undefined ? t(text.key) : t(text.key, { task: t(task) })
 }
 
 /**

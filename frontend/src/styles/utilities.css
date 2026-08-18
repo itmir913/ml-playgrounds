@@ -157,15 +157,25 @@
 }
 
 /**
- * 화면 아래에 뜨는 것(`fixed`)이 하단 바를 안 덮게 한다. 여백은 그 요소가 이미 가진
- * 안쪽 여백이 갖는다 — 알림 더미가 그렇다.
+ * 알림 더미가 **화면 밖으로 안 자란다.**
+ *
+ * 더미는 아래에서 위로 자라는데 위쪽에 아무 제한이 없어서, 안 사라지는 알림
+ * (`danger`·`caution`·`info`는 저절로 안 사라진다)이 열 개쯤 쌓이면 **오래된 것이
+ * 화면 위로 빠져나가 읽을 수도 닫을 수도 없었다** (V11 R5 B-9).
+ *
+ * **개수로 안 막는다.** 몇 개까지 둘지는 근거 없는 숫자다 — 화면에 남는 만큼이
+ * 곧 상한이다. 스크롤은 알림 자체가 `pointer-events`를 갖고 있으므로 그 위에서
+ * 굴리면 이 상자로 이어진다(스크롤 체이닝).
  *
  * **`--shell-bottom`이 아니라 `--overlay-bottom`이다** (`base.css`). 넓은 화면에서
  * `--shell-bottom`은 0인데, 그건 작업 공간이 안 가려진다는 뜻이지 화면이 안 가려진다는
  * 뜻이 아니다 — 상태 표시줄은 그 폭에서도 화면 맨 아래에 있다.
  */
-@utility above-shell {
+@utility toast-stack {
   bottom: var(--overlay-bottom);
+  max-height: calc(100dvh - var(--overlay-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /** 셸 안쪽에서 멈추는 스크롤 도착 지점. 붙박이 바가 없는 화면(결과)이 쓴다. */

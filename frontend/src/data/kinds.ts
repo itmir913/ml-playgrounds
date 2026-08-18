@@ -15,7 +15,7 @@ import { IMAGE_ACCEPT } from '@/data/image/upload'
 import { TABULAR_ACCEPT } from '@/data/table'
 import type { DataType } from '@/project/schema'
 import type { EngineState } from '@/ml/backend'
-import type { StepId, StepTextSlot } from '@/router/steps'
+import { factLabelKey, type FactKey, type StepId, type StepTextSlot } from '@/router/steps'
 
 export interface DataKind {
   readonly dataType: DataType
@@ -131,6 +131,33 @@ export function stepTextKey(kind: DataKind | undefined, step: StepId, slot: Step
 }
 
 /**
+ * 잠긴 단계에 할 말. **문구 키와 채울 값을 함께 준다** — `t()`는 화면이 부른다.
+ *
+ * **손으로 쓴 문장이 있으면 그것이 이긴다.** 대부분의 단계는 막는 사실이 하나뿐이라
+ * ("학습을 한 번 마치면 열립니다") 사람이 쓴 쪽이 더 잘 읽힌다.
+ *
+ * **없으면 막고 있는 일의 이름을 댄다.** 학습 단계가 그 자리다 — 막을 수 있는 사실이
+ * 셋인데 문장이 하나여서, 새 표 프로젝트에서 *"전처리 단계에서 할 일을 먼저 마쳐
+ * 주세요"*라고 말하면서 **전처리도 잠겨 있었다** (V11 R5 B-10). 실제로 막는 것은
+ * 데이터였다. 이제 `stepBlockers`가 그 사실을 주므로 화면이 맞는 일을 가리킨다.
+ */
+export function lockedTextFor(
+  kind: DataKind | undefined,
+  step: StepId,
+  blockers: readonly FactKey[],
+  dataType?: DataType | undefined,
+): { key: string; params?: Record<string, string> } {
+  const own = kind?.stepText[step]?.locked
+  if (own !== undefined) return { key: own }
+  // **손으로 쓴 문장이 없으면 막는 일의 이름을 댄다.** 여기서 `steps.{step}.locked`로
+  // 물러서지 않는다 - 그 키는 없고, 조립한 단계 문구는 `ui-rules`가 막는다.
+  return {
+    key: 'tasks.lockedBy',
+    params: { task: factLabelKey(blockers[0] ?? 'datasetReady', dataType) },
+  }
+}
+
+/**
  * 등록된 판들. **새 프로젝트 화면이 고를 것을 여기서 만든다** — 종류 목록과 그 이름이
  * 같은 줄에서 나와야 한 쪽만 늘어나는 일이 없다.
  */
@@ -156,7 +183,6 @@ export const DATA_KINDS: readonly DataKind[] = [
         emptyNext: 'steps.preprocess.tabular.emptyNext',
       },
       predict: { purpose: 'steps.predict.tabular.purpose' },
-      train: { locked: 'steps.train.tabular.locked' },
     },
     summaryRows: defineAsyncComponent(() => import('@/components/summary/TabularSummaryRows.vue')),
   },
@@ -183,7 +209,6 @@ export const DATA_KINDS: readonly DataKind[] = [
       // "표에 새 줄을 하나 넣으면"도 마찬가지다.
       predict: { purpose: 'steps.predict.image.purpose' },
       // 잠금 이유가 "타깃과 특성을 정해 주세요"인데 이미지에는 둘 다 없다.
-      train: { locked: 'steps.train.image.locked' },
     },
     preparingKey: 'meta.image.preparing',
     engineStateKeys: {

@@ -145,7 +145,27 @@ export function isStepUnlocked(
   taskType?: TaskType | undefined,
   dataType?: DataType | undefined,
 ): boolean {
-  return STEPS[step].requires.every((fact) => !factBlocks(fact, taskType, dataType) || facts[fact])
+  return stepBlockers(step, facts, taskType, dataType).length === 0
+}
+
+/**
+ * 이 단계를 **무엇이** 막고 있는가. 안 막히면 빈 배열이다.
+ *
+ * **boolean이 아니라 이유 목록이다** (`CLAUDE.md` §2). 화면이 "잠겼다"만 알면 학생에게
+ * 할 말이 단계마다 하나뿐이고, 그 하나가 틀릴 수 있다 — 실제로 그랬다: 새 표 프로젝트에서
+ * 학습 단계가 *"전처리 단계에서 할 일을 먼저 마쳐 주세요"*라고 말하는데 **전처리도 잠겨
+ * 있었다.** 막고 있는 것은 `datasetReady`였다 (V11 R5 B-10).
+ *
+ * **순서는 `requires`의 순서다.** 화면이 첫 번째를 집으면 학생이 지금 할 수 있는 일이
+ * 나온다 — 뒤엣것은 앞엣것을 마쳐야 할 수 있기 때문이다.
+ */
+export function stepBlockers(
+  step: StepId,
+  facts: ProjectFacts,
+  taskType?: TaskType | undefined,
+  dataType?: DataType | undefined,
+): FactKey[] {
+  return STEPS[step].requires.filter((fact) => factBlocks(fact, taskType, dataType) && !facts[fact])
 }
 
 /**
@@ -264,13 +284,29 @@ export type StepTextSlot = 'purpose' | 'locked' | 'emptyReason' | 'emptyNext'
  * **여기는 화면을 모른다.** 그래서 이 파일에 있다 - `data/kinds.ts`는 Vue 컴포넌트를
  * 물고 있어서 node 환경의 검사가 못 읽는다.
  */
+/**
+ * **잠금 사유를 손으로 안 쓰고 막는 사실에서 뽑는 단계** (`data/kinds.ts`의 `lockedTextFor`).
+ *
+ * 막을 수 있는 사실이 **둘 이상**인 단계가 여기 온다. 문장 하나로는 무엇이 막는지 못
+ * 말하고, 못 말하면 틀린다 — 학습이 *"전처리 단계에서 할 일을 먼저 마쳐 주세요"*라고
+ * 하는데 **전처리도 잠겨 있던** 것이 그 예다 (V11 R5 B-10).
+ *
+ * **여기 있는 단계는 `steps.{단계}.locked`를 갖지 않는다.** `tests/locales.spec.ts`가
+ * 그 짝을 이 목록으로 판정한다 — 손으로 쓴 문장과 뽑은 문장이 둘 다 있으면 어느 것이
+ * 뜨는지 읽는 사람이 알 수 없다.
+ */
+export const DERIVED_LOCK_TEXT: readonly StepId[] = ['train']
+
 export const KIND_SPECIFIC_STEP_TEXT: readonly {
   readonly step: StepId
   readonly slot: StepTextSlot
 }[] = [
   { step: 'data', slot: 'purpose' },
   { step: 'predict', slot: 'purpose' },
-  { step: 'train', slot: 'locked' },
+  // **학습의 잠금은 여기 없다.** 막을 수 있는 사실이 셋이라 종류마다 문장 하나로는
+  // 못 말한다 — 새 표 프로젝트에서 "전처리 단계에서 할 일을 먼저 마쳐 주세요"라고
+  // 하면서 전처리도 잠겨 있었다 (V11 R5 B-10). 지금은 `lockedTextFor`가
+  // `stepBlockers`가 준 사실의 이름을 댄다.
   // 전처리도 갈린다. 공통 자리에 있던 문장이 표의 말이었다 - 잠금 사유가 "데이터를
   // 먼저 불러와 주세요"였는데 이미지에는 불러오는 것이 없고 사진을 추가한다.
   // 설명문도 같다: 이미지에는 다듬을 것이 없고(결측치·인코딩·스케일링) 이 화면에서

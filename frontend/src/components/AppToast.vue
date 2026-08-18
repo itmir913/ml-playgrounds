@@ -41,7 +41,7 @@ const BARS: Readonly<Record<ToastTone, string>> = {
     `md` 이상에서는 `--shell-bottom`이 0이라 예전과 같은 자리다.
   -->
   <div
-    class="pointer-events-none fixed inset-x-0 z-50 flex flex-col items-center gap-3 p-4 above-shell sm:items-end sm:p-6"
+    class="pointer-events-none fixed inset-x-0 z-50 flex flex-col items-center gap-3 p-4 toast-stack sm:items-end sm:p-6"
     aria-live="polite"
   >
     <div
