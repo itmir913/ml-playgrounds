@@ -23,7 +23,7 @@ import type { Preprocessing, TaskType } from '../project/schema'
 import { ALGORITHMS, type Algorithm, type AlgorithmOption } from './algorithms'
 import { supports } from './axes'
 import type { UnavailableReason } from './backend'
-import { usableRows, type Dataset } from './preprocess'
+import { targetValues, usableRows, type Dataset } from './preprocess'
 import type { ColumnKind } from './preprocess'
 
 /**
@@ -456,6 +456,17 @@ export function stratifyBlockFor(
  *
  * **학습이 보는 것과 같은 행을 센다** (`usableRows`). 결측 처리에서 빠질 행을 함께 세면
  * 화면은 멀쩡한데 학습이 거부한다.
+ *
+ * **라벨을 뽑는 것도 학습과 같은 함수여야 한다** (`targetValues`). 예전에는 여기서
+ * `String(cell)`로 직접 뽑았는데 그쪽은 다듬지 않아서 `" a"`와 `"a"`가 **화면에서는 두
+ * 라벨, 학습에서는 한 라벨**이었다 — CSV는 셀을 안 다듬는다. 그러면 화면이 *"' a' 값이
+ * 1개뿐이라 비율을 맞춰 나눌 수 없습니다"*라고 말하는데 학습은 멀쩡히 돈다. 이 파일
+ * 머리말이 금지한 상태 그대로다(**학습이 안 막는 것을 에러처럼 보여주면 도구가 거짓말을
+ * 한다**). 게다가 그 거짓말을 따라 층화를 끄면 `stratifyLocked`가 참이 되어 **다시 켤 수도
+ * 없다.** (V11 R2 감사 B-9)
+ *
+ * 같은 줄에 `String(undefined)`가 `"undefined"`라는 라벨을 만드는 길도 있었는데 그쪽은
+ * `usableRows`가 앞에서 막고 있었다 — **도달하지 않는 것을 검사로 만들지 않는다.**
  */
 export function stratifyBlock(input: StratifyInput): StratifyBlock | null {
   const { dataset, target } = input
@@ -468,11 +479,7 @@ export function stratifyBlock(input: StratifyInput): StratifyBlock | null {
   if (column < 0) return stratifyBlockFor(input.taskType, [], input.nSamples)
 
   const rows = usableRows(dataset, input.features, target, input.preprocessing.missing)
-  return stratifyBlockFor(
-    input.taskType,
-    rows.map((row) => String(dataset.rows[row]?.[column])),
-    input.nSamples,
-  )
+  return stratifyBlockFor(input.taskType, targetValues(dataset, rows, target), input.nSamples)
 }
 
 /** 1개뿐인 값들을 어떤 이유로 말할지. **위 판정이 걸린 뒤에만 부른다.** */
