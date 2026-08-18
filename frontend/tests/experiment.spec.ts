@@ -39,6 +39,7 @@ import {
   IRIS_TARGET_COLUMN,
   irisDataset,
   IRIS_FEATURES,
+  IRIS_LABELS,
 } from './fixtures/iris'
 
 /**
@@ -1129,8 +1130,33 @@ describe('전처리와 분할을 끌 수 있다', () => {
     ).toThrow()
   })
 
-  it('평가 데이터가 파일로 오면 나누지 않고 그 데이터 전부로 채점한다', () => {
-    const testDataset = irisDataset()
+  /**
+   * **평가 표의 라벨을 한 칸씩 밀어 두었다.** 그래서 올바른 표로 채점하면 정확도가 **0**이고,
+   * 실수로 `data.csv`를 되짚으면 그 여섯 줄은 전부 setosa라 **1**이 나온다. 두 답이 양 끝이라
+   * 이 검사는 어느 표를 봤는지를 확실히 가른다.
+   *
+   * **예전 픽스처는 평가 데이터로 학습 데이터의 사본을 썼다.** 두 표가 같으니 어느 쪽을 봐도
+   * 숫자가 같았고, 확인하는 것도 길이 둘뿐인데 그 둘마저 같은 값이었다 — `testSource`를
+   * `dataset`으로 바꾸는 돌연변이가 **저장소 전체 1,820개 검사를 통과했다**
+   * (V11 R2 감사 B-1). `provided`가 두 표를 가리킨다는 것이 이 포맷의 유일한 자리인데
+   * (mlpx-spec.md §1.1) 그것을 무는 검사가 하나도 없었다.
+   */
+  it('평가 데이터가 파일로 오면 그 표로 채점한다 - 학습 표를 되짚지 않는다', () => {
+    // 특성은 붓꽃에서 가져오되 라벨을 한 품종씩 민다. 모델이 맞히면 라벨과 어긋난다.
+    const SHIFTED: Record<string, string> = {
+      setosa: 'versicolor',
+      versicolor: 'virginica',
+      virginica: 'setosa',
+    }
+    const picked = [0, 1, 10, 11, 20, 21]
+    const testDataset = {
+      columns: [...IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN],
+      rows: picked.map((row) => [
+        ...(IRIS_FEATURES[row] ?? []).map(String),
+        SHIFTED[IRIS_LABELS[row] ?? ''] ?? '',
+      ]),
+    }
+
     const { experiment } = runExperiment(
       inputFor({
         testDataset,
@@ -1147,7 +1173,12 @@ describe('전처리와 분할을 끌 수 있다', () => {
     // 전부다 - 두 배열이 서로 다른 표를 가리킨다 (mlpx-spec.md §1.1).
     expect(trainIndices.length).toBe(IRIS_FEATURES.length)
     expect(testIndices.length).toBe(testDataset.rows.length)
+    // **행 수부터 다르다.** 사본을 쓰면 이 둘이 같아져서 뒤바뀐 것을 못 본다.
+    expect(testIndices.length).not.toBe(trainIndices.length)
     expect(experiment.runs[0]?.status).toBe('done')
+
+    // 여기가 이 검사의 알맹이다. 밀어 둔 라벨이라 맞힐수록 0에 가깝다.
+    expect(experiment.runs[0]?.metrics?.accuracy).toBe(0)
   })
 
   /**
