@@ -38,7 +38,9 @@
 | §4 오래 걸리는 버튼은 `action` | `ui-rules.spec.ts`("버튼이 두 번 눌리지 않는다") |
 | §4 화면 규칙 나머지 | `ui-rules.spec.ts` — 무엇을 막는지는 그 파일이 답한다 |
 | §1.5 상한은 `limits.ts`가 유일한 출처 | `limits-rules.spec.ts` — **못 보는 것을 그 파일 머리말이 밝힌다** |
-| §4 배포 전 버전 동결 | `versions.spec.ts` · `schema-version.spec.ts` |
+| §4 버전은 지시 없이 안 움직인다 | `versions.spec.ts` · `schema-version.spec.ts` — **배포 전에는 "동결"이었고 2026-08-15에 뜻이 바뀌었다.** 어휘나 좌표계가 바뀌면 이제 **반드시** 올라가야 하고, 지문 한 줄과 마이그레이션 함수가 같은 커밋에 온다 |
+| 백본에 넣는 화소 범위가 그래프의 계약과 맞는가 | `backbones.spec.ts`("inputRange가 그래프 전처리의 역함수다") — 샤드에서 `hub_input`의 `Mul`·`Sub`를 오프셋을 세어 직접 읽는다. **틀려도 예외가 안 나고 성적만 나빠진다**(V11 R1 A-1). 감사 시점에는 검사 1,817개가 전부 침묵했다 |
+| 받는 스크립트와 백본 등록부가 같은 id를 말하는가 | `backbones.spec.ts` — 캐시 디렉터리 이름이 우리 id다. 갈리면 위 검사가 **받아 놓은 가중치를 못 찾고** "받아라"라고 말한다 |
 | §4 DOM 필요한 스펙은 스스로 밝힌다 | `ui-rules.spec.ts` |
 | §4 무결성 해시 · 재실행 대조 | `integrity.spec.ts` · `reproduce.spec.ts` · `lifecycle.spec.ts` — **재실행 대조는 표만 덮는다.** 분류·회귀·군집은 되고 **이미지는 아예 안 돈다**(V11 R1 B-3. `dataSnapshot('tabular', …)`로 못 박혀 `ZodError`로 던진다) |
 | 엔진 수치 정확성 | `sklearn-parity.spec.ts` — 옛 코드를 넣으면 빨개진다 |
