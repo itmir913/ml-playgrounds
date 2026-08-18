@@ -21,6 +21,8 @@ import { AUTOSAVE_DELAY_MS } from '../src/limits'
 import { closeStorage, DB_NAME, loadProject, readExportedAt } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { emptyProjectFile, manifest, projectFile } from './fixtures/project'
+import { hashBytes } from '../src/hash'
+import type { ProjectFile } from '../src/project/format'
 
 const downloads: { fileName: string; bytes: Uint8Array }[] = []
 
@@ -207,6 +209,31 @@ describe('내보내기', () => {
  * 여기서 보는 것 셋. **셋 다 "언제 부르는가"이지 "허락받았는가"가 아니다** — 허락은
  * 브라우저가 정하고 우리가 할 수 있는 일이 없다.
  */
+/**
+ * 사진이 든 이미지 프로젝트. **표의 정본 칸(`dataset`)은 비어 있는 것이 정상이다** —
+ * 사진은 `images` 맵에 산다 (`tests/image-format.spec.ts`가 그것을 못 박아 두었다).
+ */
+function imageProjectFile(): ProjectFile {
+  const base = emptyProjectFile()
+  const bytes = new TextEncoder().encode('가짜webp')
+  return {
+    ...base,
+    document: {
+      ...base.document,
+      manifest: { ...base.document.manifest, dataType: 'image' },
+      settings: {
+        ...base.document.settings,
+        data: {
+          dataset: { path: 'dataset/data/', canonicalSize: 224, format: 'webp', quality: 0.65 },
+          categories: ['개'],
+          backboneId: 'mobilenet-v2',
+        },
+      },
+    },
+    images: new Map([[`dataset/data/개/${hashBytes(bytes)}.webp`, bytes]]),
+  }
+}
+
 describe('저장소를 지우지 말아 달라고 청한다', () => {
   let asked = 0
 
@@ -290,6 +317,24 @@ describe('저장소를 지우지 말아 달라고 청한다', () => {
     const project = useProjectStore()
     await expect(project.save(projectFile())).resolves.toBeUndefined()
     expect(await loadProject(manifest.projectId)).not.toBeNull()
+  })
+
+  /**
+   * **"올린 것이 있는가"는 종류가 답한다.** 예전에는 `saved.dataset !== undefined`로 물었는데
+   * 그 칸은 표의 정본 한 자리라 **이미지 프로젝트에서는 언제나 비어 있었고, 그래서 한 번도
+   * 안 청했다** (V11 R1 감사 B-11). 이미지가 이 앱에서 제일 큰 프로젝트다 — 사진 5,000장이면
+   * 80~100MB이고 그것이 계속 "지워도 되는 데이터"로 남았다.
+   */
+  it('사진이 들어간 저장에서도 청한다 - 표만 보지 않는다', async () => {
+    const project = useProjectStore()
+    await project.save(imageProjectFile())
+    expect(asked).toBe(1)
+  })
+
+  it('사진도 표도 없으면 안 청한다 - 종류와 무관하다', async () => {
+    const project = useProjectStore()
+    await project.save({ ...imageProjectFile(), images: new Map() })
+    expect(asked).toBe(0)
   })
 
   it('이미 허락받았으면 다시 묻지 않는다', async () => {

@@ -181,8 +181,18 @@ export const useProjectStore = defineStore('project', () => {
    * 요청일 뿐이라 거절당해도 학생이 할 일이 없다. `write()`가 이것 때문에 느려지거나
    * 실패하면 안 된다.
    */
+  /**
+   * **"올린 것이 있는가"는 종류가 답한다** (`project/facts.ts`의 `datasetReady`).
+   *
+   * 예전에는 `saved.dataset !== undefined`로 물었는데 그 칸은 **표의 정본 한 자리**다.
+   * 이미지 프로젝트는 사진을 `images` 맵에 들고 그 칸이 언제나 비어 있어서
+   * **조건이 항상 참이 되어 한 번도 안 청했다** (V11 R1 감사 B-11). 그리고 이미지가
+   * 이 앱에서 제일 큰 프로젝트다 — 사진 5,000장이면 80~100MB이고, 그것이 계속
+   * "지워도 되는 데이터"로 남아 iOS 사파리의 기간 만료 삭제와 용량 압박 삭제의 첫
+   * 대상이 된다. 종류가 답하게 두면 음성이 오는 날에도 안 샌다.
+   */
   function askToKeep(saved: ProjectFile): void {
-    if (askedToKeep || saved.dataset === undefined) return
+    if (askedToKeep || !dataFactsOf(saved).datasetReady) return
     askedToKeep = true
     void requestPersistence()
   }
