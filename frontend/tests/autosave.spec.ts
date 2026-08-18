@@ -183,6 +183,28 @@ describe('쓰는 동안 또 바뀐 것', () => {
   })
 })
 
+/**
+ * **라우터 가드는 앱 안의 이동만 비운다.** 탭을 닫거나 주소를 바꿔 나가면 마지막
+ * `AUTOSAVE_DELAY_MS`만큼의 편집이 그대로 사라졌다 (V11 R4 C-3). 여기서 보는 것은
+ * **배선**이다 — 브라우저가 쓰기를 끝까지 시켜 주는지는 우리가 못 정한다.
+ */
+describe('탭을 떠날 때', () => {
+  it('미뤄 둔 저장을 지금 한다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+    project.update(renamed('떠나기 직전에 고친 이름'))
+
+    // 타이머는 아직 안 돌았다. 이 상태로 탭이 닫히면 그대로 사라진다.
+    expect(project.dirty).toBe(true)
+
+    await project.flush()
+
+    expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe(
+      '떠나기 직전에 고친 이름',
+    )
+  })
+})
+
 describe('내보내기', () => {
   const markdown = '# 나의 AI 모델 정리\n'
 
