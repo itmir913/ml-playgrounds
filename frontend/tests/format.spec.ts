@@ -725,4 +725,44 @@ describe('포트폴리오 첨부', () => {
     const { integrity } = await readProject(zipSync(entries))
     expect(integrity.status).not.toBe('verified')
   })
+
+  /**
+   * **정본 셋과 반대 방향이다.** 저 셋은 참조만 남으면 저장을 거부하는데, 첨부는 떼어낸다
+   * (open-decisions.md "본체 없는 첨부는 저장을 막지 않고 참조를 떼어낸다"). 던지면 이미
+   * 사진을 잃은 프로젝트가 제출물을 저장도 내보내기도 못 한다.
+   */
+  it('가리키는 사진이 없으면 참조를 떼고 저장한다 - 거부하지 않는다', async () => {
+    const project: ProjectFile = { ...withAttachment(), attachments: new Map() }
+
+    const reopened = await roundTrip(project)
+    expect(reopened.document.portfolio.attachments).toEqual({})
+    expect(reopened.attachments.size).toBe(0)
+  })
+
+  it('한 장만 없어지면 그 한 장만 뗀다', async () => {
+    const other = 'portfolio/attachments/2.webp'
+    const base = withAttachment()
+    const project: ProjectFile = {
+      ...base,
+      document: {
+        ...base.document,
+        portfolio: {
+          ...base.document.portfolio,
+          attachments: { motivation: [path, other] },
+        },
+      },
+    }
+
+    const reopened = await roundTrip(project)
+    expect(reopened.document.portfolio.attachments).toEqual({ motivation: [path] })
+  })
+
+  it('참조만 남은 파일을 열면 그 자리에서 짝이 맞는다', async () => {
+    const { bytes: file } = await writeProject(withAttachment(), markdown)
+    const entries = unzipSync(file)
+    delete entries[path]
+
+    const { project } = await readProject(zipSync(entries))
+    expect(project.document.portfolio.attachments).toEqual({})
+  })
 })

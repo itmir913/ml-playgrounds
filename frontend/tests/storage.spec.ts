@@ -380,6 +380,44 @@ describe('읽는 경로가 .mlpx와 같은 문을 지난다', () => {
   })
 })
 
+/**
+ * A-1이 나가 있는 동안 만들어진 상태다 - 문서는 사진을 가리키는데 레코드에는 없다.
+ * **여기서 참조를 안 떼면** 화면이 없는 사진의 자리를 그리고, 내보낼 때 `document.md`에
+ * 깨진 그림이 적힌다 (open-decisions.md "본체 없는 첨부는 저장을 막지 않고 참조를 떼어낸다").
+ */
+describe('본체 없는 첨부 참조', () => {
+  const path = 'portfolio/attachments/1.webp'
+
+  /** 참조만 있고 본체가 없는 프로젝트. 지금은 만들 수 없고, 옛 버그가 남긴 모양이다. */
+  function damaged(): ProjectFile {
+    const project = projectFile()
+    return {
+      ...project,
+      document: {
+        ...project.document,
+        portfolio: { ...project.document.portfolio, attachments: { motivation: [path] } },
+      },
+      attachments: new Map(),
+    }
+  }
+
+  it('열 때 떼어낸다', async () => {
+    await saveProject(damaged())
+
+    const loaded = await loadProject(manifest.projectId)
+    expect(loaded?.document.portfolio.attachments).toEqual({})
+  })
+
+  it('짝이 맞으면 아무것도 안 뗀다', async () => {
+    const project = damaged()
+    await saveProject({ ...project, attachments: new Map([[path, new Uint8Array([1, 2])]]) })
+
+    const loaded = await loadProject(manifest.projectId)
+    expect(loaded?.document.portfolio.attachments).toEqual({ motivation: [path] })
+    expect(loaded?.attachments.get(path)).toEqual(new Uint8Array([1, 2]))
+  })
+})
+
 describe('이미지 프로젝트', () => {
   /**
    * **표 정본이 없는 프로젝트다.** `datasets` 레코드가 사진만 들고 있어야 하고,

@@ -17,7 +17,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { ClientError } from '../errors'
 import { hashBytes } from '../hash'
 import { BYTES_PER_MB, STORAGE_SAFETY_FACTOR } from '../limits'
-import { pointsToFile, type ProjectFile } from './format'
+import { detachMissingAttachments, pointsToFile, type ProjectFile } from './format'
 import { migrateProjectDocument } from './migrate'
 import type { ProjectDocument, TaskType } from './schema'
 
@@ -389,7 +389,10 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
   }
 
   return {
-    document,
+    // **여기서도 짝을 맞춘다.** 본체 없는 첨부 참조를 들고 화면에 올리면 포트폴리오가
+    // 없는 사진의 자리를 그리고, 내보낼 때 document.md에 깨진 그림이 적힌다
+    // (open-decisions.md "본체 없는 첨부는 저장을 막지 않고 참조를 떼어낸다").
+    document: detachMissingAttachments(document, attachments),
     // hash가 없는 것은 이 필드가 생기기 전에 저장된 레코드다. 그때만 계산한다.
     dataset:
       dataset?.bytes === undefined

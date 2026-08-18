@@ -380,6 +380,36 @@ function detachMissingModels(
 }
 
 /**
+ * 본체가 없는 첨부 참조를 문서에서 떼어낸다.
+ *
+ * **정본 셋과 달리 던지지 않는다** (open-decisions.md "본체 없는 첨부는 저장을 막지 않고
+ * 참조를 떼어낸다"). 정본이 없으면 프로젝트가 성립하지 않지만 첨부는 여럿 중 하나이고,
+ * 던지면 **이미 사진을 잃은 프로젝트가 저장도 내보내기도 못 하게 된다** - 사진 한 장을
+ * 잃은 것보다 나쁘다. detachMissingModels가 담지 못한 모델에 하는 일과 같은 손잡이다.
+ *
+ * 사유는 안 적는다. modelOmitted가 사유를 갖는 이유는 화면이 "다시 학습하세요"와 "다시
+ * 학습해도 소용없습니다"를 갈라 말해야 하기 때문인데 (mlpx-spec.md 4.2), 없어진 사진에
+ * 대해 학생이 할 수 있는 일은 없다.
+ *
+ * **정상 경로로는 아무것도 안 뗀다.** 여기가 무언가를 떼면 그건 우리 버그의 자국이다.
+ */
+export function detachMissingAttachments(
+  document: ProjectDocument,
+  present: ReadonlyMap<string, Uint8Array>,
+): ProjectDocument {
+  const attachments: Record<string, string[]> = {}
+  let missing = false
+  for (const [sectionId, paths] of Object.entries(document.portfolio.attachments)) {
+    const kept = paths.filter((path) => present.has(path))
+    if (kept.length !== paths.length) missing = true
+    // 마지막 한 장이 없어지면 그 문항의 자리도 없앤다 (withAttachmentRemoved와 같다).
+    if (kept.length > 0) attachments[sectionId] = kept
+  }
+  if (!missing) return document
+  return { ...document, portfolio: { ...document.portfolio, attachments } }
+}
+
+/**
  * 크기 예산에 맞춰 담을 모델을 고른다 (mlpx-spec.md 5.1).
  *
  * 최신 실험부터 채운다. 계수 몇 개짜리 모델은 여러 회차가 남고, 랜덤 포레스트는
@@ -728,7 +758,10 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
 
   return {
     project: {
-      document: detachMissingModels(document, new Set(models.keys())),
+      document: detachMissingAttachments(
+        detachMissingModels(document, new Set(models.keys())),
+        attachments,
+      ),
       dataset:
         datasetPath === undefined || datasetBytes === undefined
           ? undefined
@@ -773,7 +806,13 @@ export async function writeProject(
   // **여기서는 왜 뺐는지를 안다.** 그 사유가 파일에 남아야 화면이 학생에게 무엇을 할 수
   // 있는지 말한다 - "다시 학습하세요"와 "다시 학습해도 소용없습니다"는 다른 답이다.
   const reasons = new Map(dropped.map((model) => [model.path, omissionReason(model.reason)]))
-  const document = detachMissingModels(project.document, kept, (path) => reasons.get(path))
+  // 가리키는 사진이 없는 첨부 참조도 함께 뗀다. **나가는 .mlpx는 언제나 참조와 본체가
+  // 짝이다** - 아래 반복문이 반대 방향(아무도 안 가리키는 본체)만 보기 때문에, 이 줄이
+  // 없으면 참조만 남은 파일이 조용히 나간다.
+  const document = detachMissingAttachments(
+    detachMissingModels(project.document, kept, (path) => reasons.get(path)),
+    project.attachments,
+  )
 
   const entries: Record<string, Uint8Array> = {
     [ENTRY.manifest]: encodeJson(document.manifest),
