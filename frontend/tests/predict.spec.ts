@@ -22,6 +22,7 @@ import {
   showsClusterNames,
   applyPredictFilter,
   assignAnswerColors,
+  cellColorIndex,
   chosenProbability,
   defaultFilter,
   inputFields,
@@ -42,6 +43,7 @@ import {
   type Answer,
   type PredictableModel,
 } from '../src/ml/predict'
+import type { Prediction } from '../src/ml/metrics'
 import {
   fitPreprocessor,
   parsePreprocessor,
@@ -904,6 +906,33 @@ describe('일괄 예측 표의 값별 색 배정 - 등수가 아니라 처음 �
     const rows: Answer[][] = [[{ value: 'a' }]]
 
     expect(assignAnswerColors(models, rows, existing, 7)).toBe(existing)
+  })
+
+  /**
+   * **칠하는 쪽에도 같은 주장이 있어야 한다.** 배정은 회귀를 건너뛰는데 칠하기가 안
+   * 건너뛰면, 배정된 색과 우연히 같은 수치를 낸 회귀 열에 분류 색이 칠해진다 - 일괄
+   * 예측 표는 여러 실험의 모델이 열로 섞여 서므로(architecture.md §8.13.1) 유형은
+   * 모델(열)마다 봐야 한다.
+   */
+  it('회귀 열에는 색을 안 칠한다', () => {
+    const classification = experiment([0], onehot)
+    const regression = experiment([0], onehot, { taskType: 'regression' })
+    const colors = new Map<Prediction, number>([
+      ['a', 0],
+      [3.14, 1],
+    ])
+
+    expect(cellColorIndex({ experiment: classification, run: runOf('r1') }, 'a', colors)).toBe(0)
+    expect(cellColorIndex({ experiment: regression, run: runOf('r2') }, 3.14, colors)).toBeNull()
+  })
+
+  it('값이 없는 칸에도 색이 없다', () => {
+    const classification = experiment([0], onehot)
+    const colors = new Map<Prediction, number>([['a', 0]])
+
+    expect(
+      cellColorIndex({ experiment: classification, run: runOf('r1') }, undefined, colors),
+    ).toBeNull()
   })
 })
 

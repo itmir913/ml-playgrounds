@@ -815,6 +815,29 @@ describe('id와 changed', () => {
         expect(hit, `${field}가 변경 이력에서 빠졌다: ${JSON.stringify(next.changed)}`).toBe(true)
       })
     }
+
+    /**
+     * **위 표가 못 가르는 축이다.** `selectedAlgorithms` 항목은 알고리즘 자체를 바꾸므로
+     * (`models('knn')`) "목록이 달라졌다"만 확인한다. `comparable`이 알고리즘을
+     * `알고리즘:실행방법`으로 눕히는 이유는 **알고리즘은 그대로인데 엔진만 바꾼 것도
+     * 학생이 한 변경이고, 숫자가 움직이는 가장 흔한 이유**여서다. 그 표본이 없었다.
+     */
+    it('알고리즘은 그대로고 실행 방법만 바꿔도 changed에 뜬다', () => {
+      const base = runExperiment(
+        inputFor({ settings: settingsFor({ selectedAlgorithms: models('decision_tree') }) }),
+        frozen,
+      ).experiment
+      const next = runExperiment(
+        inputFor({
+          settings: settingsFor({
+            selectedAlgorithms: [{ algorithm: 'decision_tree', runtime: 'server-sklearn' }],
+          }),
+        }),
+        { ...frozen, history: { experiments: [base] } },
+      ).experiment
+
+      expect(next.changed).toContain('algorithms')
+    })
   })
 
   it('뽑기를 껐다 켜는 것도 잡는다 - 없다가 생긴 것이 변경이 아닐 수 없다', () => {
