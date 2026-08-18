@@ -42,6 +42,28 @@ export interface UploadItem {
  * 맥에서 압축하면 `__MACOSX/`가 반드시 생기고, 그걸 폴더로 읽으면 뜻 모를 범주가 하나
  * 뜬다. 학생은 자기가 만들지 않은 이름을 보고 무엇을 잘못했는지 찾게 된다.
  */
+/**
+ * 꾸러미가 준 경로를 **우리 규칙 하나로** 맞춘다. **입구에서 한 번만 한다** —
+ * 아래 함수들이 각자 다듬으면 반드시 한쪽만 고쳐진다.
+ *
+ * 둘을 맞춘다 (V11 R1 감사 B-6·B-8).
+ *
+ * - **구분자.** zip 규격은 `/`를 요구하지만 그렇게 안 만드는 도구가 있다. `\`가 오면
+ *   경로에 폴더가 없는 것으로 읽혀 **범주가 통째로 사라지고 사진이 전부 라벨 없음으로
+ *   떨어졌다.**
+ * - **유니코드 정규화.** 맥이 만든 zip은 한글 이름을 NFD(자모 분해)로 넣는다. 그러면
+ *   **화면에 똑같이 보이는 범주가 둘** 생기고, `.mlpx` 안에 `dataset/data/강아지/`가 두 벌
+ *   담긴다 — 윈도우 탐색기에서 풀면 하나로 합쳐지며 `hashes.json`이 디스크와 어긋난다.
+ *   2026-08-15에 실물 파일이 물어 온 "끝이 마침표인 범주"와 **같은 실패 가족**이다.
+ *   길이 상한도 NFD로는 같은 이름이 두 배로 세어져 51자 이상의 한글 범주가 통째로 거부됐다.
+ *
+ * **NFC를 고르는 이유는 그것이 파일 이름의 표준 형태이기 때문이다** — 윈도우·리눅스가
+ * 그렇게 쓰고, 파이썬의 `ImageFolder`가 읽는 것도 디스크에 앉은 그 이름이다.
+ */
+function normalizePath(path: string): string {
+  return path.replaceAll('\\', '/').normalize('NFC')
+}
+
 function isJunk(path: string): boolean {
   const segments = path.split('/')
   if (segments.includes('__MACOSX')) return true
@@ -128,11 +150,15 @@ export async function readImageZip(
   fallbackCategory: string = IMAGE_UNLABELED,
 ): Promise<readonly UploadItem[]> {
   const unzipped = await unzipAsync(bytes)
-  const entries = Object.entries(unzipped).filter(
-    // 디렉터리 엔트리는 내용이 없다. 빈 폴더는 범주가 되지 않는다 - 범주 목록은
-    // settings가 따로 갖는다 (open-decisions.md "범주는 폴더가 갖고…").
-    ([path, content]) => !path.endsWith('/') && content.length > 0 && !isJunk(path),
-  )
+  const entries = Object.entries(unzipped)
+    // **경로를 먼저 우리 규칙으로 맞춘다.** 부스러기 판정도 정규화된 경로로 해야
+    // `__MACOSX\`처럼 구분자가 다른 것을 놓치지 않는다.
+    .map(([path, content]) => [normalizePath(path), content] as const)
+    .filter(
+      // 디렉터리 엔트리는 내용이 없다. 빈 폴더는 범주가 되지 않는다 - 범주 목록은
+      // settings가 따로 갖는다 (open-decisions.md "범주는 폴더가 갖고…").
+      ([path, content]) => !path.endsWith('/') && content.length > 0 && !isJunk(path),
+    )
   if (entries.length === 0) throw new ClientError('IMAGE_ZIP_NO_IMAGES')
 
   const paths = unwrapOnce(entries.map(([path]) => path))
@@ -162,7 +188,8 @@ export function readImageFiles(
   fallbackCategory: string = IMAGE_UNLABELED,
 ): readonly UploadItem[] {
   // 폴더로 안 고른 파일에는 이 값이 빈 문자열이고, 브라우저 밖(검사)에서는 아예 없다.
-  const relative = (file: File): string => file.webkitRelativePath || file.name
+  // **zip과 같은 규칙으로 맞춘다** — 맥에서 폴더를 끌어다 놓으면 여기도 NFD로 온다.
+  const relative = (file: File): string => normalizePath(file.webkitRelativePath || file.name)
   const paths = unwrapOnce(files.map(relative).filter((path) => !isJunk(path)))
   const kept = files.filter((file) => !isJunk(relative(file)))
 

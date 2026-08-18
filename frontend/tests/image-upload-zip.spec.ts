@@ -206,3 +206,53 @@ describe('굽기 전에 보여줄 요약', () => {
     ])
   })
 })
+
+/**
+ * **꾸러미가 준 경로를 입구에서 한 번만 우리 규칙으로 맞춘다** (V11 R1 감사 B-6·B-8).
+ *
+ * 둘 다 실물 교실에서 오는 모양이다 — 맥이 만든 zip은 한글 이름을 NFD(자모 분해)로 넣고,
+ * zip 규격이 `/`를 요구하는데도 `\\`로 만드는 도구가 있다.
+ */
+describe('꾸러미가 준 경로를 우리 규칙으로 맞춘다', () => {
+  /** NFD로 쓴 `강아지`. 코드 포인트가 일곱이고 화면에는 똑같이 보인다. */
+  const NFD = '강아지'.normalize('NFD')
+
+  it('정규화만 다른 폴더는 한 범주다', async () => {
+    expect(NFD).not.toBe('강아지')
+    const items = await readImageZip(makeZip(['강아지/1.jpg', `${NFD}/2.jpg`]))
+    expect(summarizeUpload(items)).toEqual([{ category: '강아지', count: 2 }])
+  })
+
+  /**
+   * NFD로는 같은 이름이 두 배로 세어져, 51자 이상의 한글 범주가 든 맥 zip이
+   * `IMAGE_CATEGORY_NAME_INVALID`로 **통째로** 거부됐다.
+   */
+  it('길이도 정규화한 뒤에 잰다', async () => {
+    const long = '가'.repeat(60)
+    const items = await readImageZip(makeZip([`${long.normalize('NFD')}/1.jpg`]))
+    expect(items.map((item) => item.category)).toEqual([long])
+  })
+
+  it('역슬래시로 만든 꾸러미도 폴더를 읽는다', async () => {
+    const items = await readImageZip(makeZip(['개\\1.jpg', '개\\2.jpg', '고양이\\3.jpg']))
+    expect(summarizeUpload(items)).toEqual([
+      { category: '개', count: 2 },
+      { category: '고양이', count: 1 },
+    ])
+  })
+
+  it('역슬래시로 온 부스러기도 버린다', async () => {
+    const items = await readImageZip(makeZip(['개\\1.jpg', '__MACOSX\\개\\._1.jpg']))
+    expect(items.map((item) => item.path)).toEqual(['개/1.jpg'])
+  })
+
+  it('폴더 고르기 쪽 입구도 같은 규칙이다', () => {
+    const pickNfd = (path: string): File => {
+      const file = new File([new Uint8Array([1])], path.slice(path.lastIndexOf('/') + 1))
+      Object.defineProperty(file, 'webkitRelativePath', { value: path })
+      return file
+    }
+    const items = readImageFiles([pickNfd('강아지/1.jpg'), pickNfd(`${NFD}/2.jpg`)])
+    expect(summarizeUpload(items)).toEqual([{ category: '강아지', count: 2 }])
+  })
+})
