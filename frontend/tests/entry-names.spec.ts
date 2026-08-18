@@ -19,7 +19,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { ENTRY } from '../src/project/format'
+import { ENTRY, MLPX_EXTENSION } from '../src/project/format'
 
 const SRC = join(process.cwd(), 'src')
 if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
@@ -61,5 +61,50 @@ describe('엔트리 이름', () => {
     // 스스로를 잡는데, 그건 검사기가 도는 증거가 아니라 검사기가 자기를 무는 것이다.
     const bait = `portfolio` + `.json`
     expect(RETIRED.some(([old]) => bait.includes(old))).toBe(true)
+  })
+})
+
+/**
+ * 확장자 문자열은 상수 하나다 (`CLAUDE.md` §1.3, `format.ts`의 `MLPX_EXTENSION`).
+ *
+ * **주석은 통과시킨다.** 이 저장소의 주석은 `.mlpx`를 쉰 번 넘게 부르고 그게 값이다 —
+ * 규약이 금지한 것은 "코드 안에서 직접 쓰는 것"이다. 그래서 **`.mlpx`가 든 줄은 전부
+ * 주석 줄이어야 한다**로 검사한다.
+ *
+ * **일부러 관대하지 않게 짰다.** 코드 줄 끝에 달린 주석에 `.mlpx`가 있으면 이 검사는
+ * 그것도 잡는다(가짜 빨강). 반대 방향(놓치는 것)보다 낫다 — 놓치면 조용히 초록이 된다.
+ */
+describe('확장자', () => {
+  /** 주석으로 시작하는 줄인가. 블록 주석의 몸통(` * …`)까지 센다. */
+  function isComment(line: string): boolean {
+    const trimmed = line.trimStart()
+    return (
+      trimmed.startsWith('*') ||
+      trimmed.startsWith('//') ||
+      trimmed.startsWith('/*') ||
+      trimmed.startsWith('<!--')
+    )
+  }
+
+  it('코드가 확장자를 직접 쓰지 않는다', () => {
+    const source = join(SRC, 'project', 'format.ts')
+    const found: string[] = []
+    for (const path of sourceFiles(SRC)) {
+      if (path === source) continue
+      readFileSync(path, 'utf8')
+        .split(/\r?\n/)
+        .forEach((line, index) => {
+          if (line.includes(MLPX_EXTENSION) && !isComment(line)) {
+            found.push(`${path.slice(SRC.length + 1)}:${index + 1}  ${line.trim()}`)
+          }
+        })
+    }
+    expect(found, 'MLPX_EXTENSION을 쓰지 않고 확장자를 직접 적은 자리').toEqual([])
+  })
+
+  it('검사기가 실제로 잡는다', () => {
+    // 쪼개 두지 않으면 이 줄이 스스로 걸린다.
+    const bait = `const accept = '` + `.mlpx'`
+    expect(bait.includes(MLPX_EXTENSION) && !isComment(bait)).toBe(true)
   })
 })

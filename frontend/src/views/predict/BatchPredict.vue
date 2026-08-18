@@ -47,7 +47,7 @@ import type { Dataset, Preprocessor } from '@/ml/preprocess'
 import { whereTrainedKeyOf } from '@/ml/results'
 import { applyPredictDataset, readPredictDataset, removePredictDataset } from '@/project/dataset'
 import { downloadBytes } from '@/project/download'
-import { projectFileName } from '@/project/format'
+import { MLPX_EXTENSION, projectFileName } from '@/project/format'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 
@@ -494,9 +494,11 @@ async function downloadAction(): Promise<void> {
       showFeatures.value,
       (value) => (typeof value === 'number' ? format.prediction(value) : value),
     )
-    const name = project.file
-      ? projectFileName(project.file.document.manifest).replace(/\.mlpx$/, '.csv')
-      : 'predict.csv'
+    // 확장자만 갈아 끼운다. 문자열을 손으로 쓰면 확장자가 바뀌는 날 여기가 안 따라와
+    // `프로젝트.mlpx.csv`가 나간다 (format.ts의 MLPX_EXTENSION).
+    const exported = project.file ? projectFileName(project.file.document.manifest) : null
+    const name =
+      exported === null ? 'predict.csv' : `${exported.slice(0, -MLPX_EXTENSION.length)}.csv`
     downloadBytes(toCanonicalCsv(grid), name)
   } finally {
     computing.value = false

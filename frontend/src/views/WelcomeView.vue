@@ -29,7 +29,7 @@ import { MAX_FILE_NAME_LENGTH } from '@/limits'
 import { newProjectDocument, newProjectSeed } from '@/project/create'
 import type { DataType } from '@/project/schema'
 import { readFileBytes } from '@/project/download'
-import { readProject } from '@/project/format'
+import { MLPX_EXTENSION, readProject } from '@/project/format'
 import { deleteProject, listProjects, saveProject, type ProjectSummary } from '@/project/storage'
 import { useToastStore } from '@/stores/toasts'
 
@@ -243,7 +243,13 @@ onMounted(refresh)
         />
       </div>
 
-      <input ref="openInput" type="file" accept=".mlpx" class="hidden" @change="openFile" />
+      <input
+        ref="openInput"
+        type="file"
+        :accept="MLPX_EXTENSION"
+        class="hidden"
+        @change="openFile"
+      />
 
       <AppDialog
         :open="creating"
