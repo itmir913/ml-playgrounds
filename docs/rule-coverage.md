@@ -40,7 +40,7 @@
 | §1.5 상한은 `limits.ts`가 유일한 출처 | `limits-rules.spec.ts` — **못 보는 것을 그 파일 머리말이 밝힌다** |
 | §4 배포 전 버전 동결 | `versions.spec.ts` · `schema-version.spec.ts` |
 | §4 DOM 필요한 스펙은 스스로 밝힌다 | `ui-rules.spec.ts` |
-| §4 무결성 해시 · 재실행 대조 | `integrity.spec.ts` · `reproduce.spec.ts` · `lifecycle.spec.ts` |
+| §4 무결성 해시 · 재실행 대조 | `integrity.spec.ts` · `reproduce.spec.ts` · `lifecycle.spec.ts` — **재실행 대조는 표만 덮는다.** 분류·회귀·군집은 되고 **이미지는 아예 안 돈다**(V11 R1 B-3. `dataSnapshot('tabular', …)`로 못 박혀 `ZodError`로 던진다) |
 | 엔진 수치 정확성 | `sklearn-parity.spec.ts` — 옛 코드를 넣으면 빨개진다 |
 | 에러 코드가 `error-codes.md`에 있는가 | `locales.spec.ts` — **등장 여부만 본다.** 설명이 맞는지는 기계가 모른다 |
 | §4 import 빠진 컴포넌트가 평문이 되는 것 | ESLint `vue/no-undef-components` — 등록 안 된 태그는 슬롯만 흘리고 props도 이벤트도 안 걸린다 |
