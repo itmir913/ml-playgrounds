@@ -29,6 +29,19 @@ const props = defineProps<{
   unlabeled?: boolean
 }>()
 
+/**
+ * 이 범주의 사진이 전부 골라져 있는가. **이름표가 이것을 따라간다.**
+ *
+ * 핸들러(`ImagePanel.pickAll`)는 토글인데 이름표가 상수여서, 서른 장을 고른 학생이
+ * "다 골랐나?" 하고 한 번 더 누르면 **선택이 통째로 풀렸다** (V11 R5 A-2).
+ * `PredictFilters`가 바로 옆에서 하고 있던 모양을 그대로 쓴다.
+ *
+ * 빈 칸에서는 `every`가 참이라 따로 막는다 — 고를 것이 없는데 "전체 해제"가 뜨면 안 된다.
+ */
+const everyPicked = computed(
+  () => props.entries.length > 0 && props.entries.every((entry) => props.selected.has(entry.hash)),
+)
+
 const emit = defineEmits<{
   /**
    * 누른 사진과 **shift를 함께 눌렀는가.** 범위를 세는 것은 판이 한다 — 기준점이
@@ -117,7 +130,7 @@ const shown = computed(() =>
           class="-mx-2 -my-2.5"
           @click="emit('pickAll')"
         >
-          {{ t('data.image.pickAll') }}
+          {{ everyPicked ? t('common.clearAll') : t('common.selectAll') }}
         </AppButton>
         <template v-if="!props.unlabeled">
           <AppButton variant="ghost" class="-mx-2 -my-2.5" @click="emit('rename')">

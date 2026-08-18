@@ -170,3 +170,50 @@ describe('상한에 걸리면 화면이 파일과 갈리지 않는다', () => {
     expect((textarea.element as HTMLTextAreaElement).value).toBe('짧은 글')
   })
 })
+
+/**
+ * **포트폴리오를 쓴 것도 프로젝트를 고친 것이다** (코드 소유자 판정, 2026-08-18).
+ *
+ * 프로젝트를 고치는 열두 자리 중 여기만 `manifest.updatedAt`을 안 찍고 있었다
+ * (V11 R5 A-1). 그러면 화면의 "수정한 날짜"가 지난 차시로 남고, 목록이 `updatedAt`
+ * 인덱스로 정렬하므로 **한 시간을 쓴 프로젝트가 아무것도 안 한 프로젝트 아래로
+ * 가라앉는다.** 값이 틀린 것이 아니라 **안 움직이는 것**이라 어느 검사도 안 봤다.
+ */
+describe('포트폴리오를 고치면 수정 시각이 움직인다', () => {
+  it('빈 양식으로 시작하는 것도 고친 것이다', async () => {
+    const store = useProjectStore()
+    const view = mountView()
+    const before = store.file?.document.manifest.updatedAt
+
+    await view
+      .findAll('button')
+      .find((one) => one.text().includes('빈 양식'))
+      ?.trigger('click')
+
+    const after = store.file?.document.manifest.updatedAt
+    expect(after).toBeDefined()
+    expect(Date.parse(after!)).toBeGreaterThan(Date.parse(before!))
+  })
+
+  it('답을 쓰는 것도 고친 것이다', async () => {
+    const store = useProjectStore()
+    const view = mountView()
+    await view
+      .findAll('button')
+      .find((one) => one.text().includes('빈 양식'))
+      ?.trigger('click')
+    const before = store.file?.document.manifest.updatedAt
+
+    // 픽스처가 만들어진 시각. 답을 쓰면 여기서 떠나 있어야 한다.
+    const created = project().document.manifest.createdAt
+
+    const box = view.find('textarea')
+    await box.setValue('오늘 한 시간 동안 쓴 글이다')
+    await box.trigger('input')
+
+    const after = store.file?.document.manifest.updatedAt
+    expect(store.file?.document.portfolio.answers).not.toEqual({})
+    expect(after).not.toBe(created)
+    expect(Date.parse(after!)).toBeGreaterThanOrEqual(Date.parse(before!))
+  })
+})

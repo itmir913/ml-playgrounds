@@ -121,7 +121,6 @@
       "nameHint": "밑줄(_)로 시작할 수 없고, 일부 특수문자는 사용할 수 없습니다.",
       "nameTaken": "같은 이름의 범주가 이미 있습니다.",
       "newCategory": "범주 만들기",
-      "pickAll": "전체 선택",
       "pickCategory": "고르세요",
       "readTitle": "파일 {count}개를 읽었습니다.",
       "removeCategory": "범주 지우기",

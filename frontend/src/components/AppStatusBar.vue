@@ -93,8 +93,12 @@ const facts = computed(() => {
  */
 const details = computed(() => {
   const rows: { label: string; value: string }[] = []
-  if (project.savedAt !== null) {
-    rows.push({ label: t('meta.updated'), value: format.dateTime(project.savedAt) })
+  // **요약 화면과 같은 값을 그린다.** 이름표가 `meta.updated`("수정한 날짜")인데
+  // 여기만 `savedAt`(브라우저에 쓴 시각)을 보고 있었다 - 같은 이름 두 값이다
+  // (V11 R5 A-1). 저장했는지는 바로 위 `save.*` 줄이 이미 말한다.
+  const updatedAt = project.file?.document.manifest.updatedAt
+  if (updatedAt !== undefined) {
+    rows.push({ label: t('meta.updated'), value: format.dateTime(updatedAt) })
   }
   if (sizeBytes.value > 0) {
     rows.push({ label: t('meta.size'), value: format.bytes(sizeBytes.value) })

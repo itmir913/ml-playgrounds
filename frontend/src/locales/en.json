@@ -121,7 +121,6 @@
       "nameHint": "Cannot start with _, and some special characters cannot be used.",
       "nameTaken": "A category with this name already exists.",
       "newCategory": "New category",
-      "pickAll": "Select all",
       "pickCategory": "Choose one",
       "readTitle": "Read {count} file. | Read {count} files.",
       "removeCategory": "Delete category",
