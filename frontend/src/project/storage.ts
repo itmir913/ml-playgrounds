@@ -290,40 +290,39 @@ export async function saveProject(project: ProjectFile): Promise<void> {
       sizeBytes: size,
       ...(before?.exportedAt === undefined ? {} : { exportedAt: before.exportedAt }),
     })
+    const datasets = transaction.objectStore(DATASETS_STORE)
+    // 평가·예측 데이터가 함께 실린다. 없으면 그 키를 아예 안 넣는다 - undefined를
+    // 넣어 두면 "없음"과 "값이 undefined"가 섞인다.
+    const record: DatasetRecord = {
+      projectId,
+      ...(project.dataset === undefined
+        ? {}
+        : { bytes: project.dataset.bytes, hash: project.dataset.hash }),
+      ...(project.images.size === 0 ? {} : { images: project.images }),
+      ...(project.attachments.size === 0 ? {} : { attachments: project.attachments }),
+      ...(project.embeddings.size === 0 ? {} : { embeddings: project.embeddings }),
+      ...(project.testDataset === undefined
+        ? {}
+        : { test: { bytes: project.testDataset.bytes, hash: project.testDataset.hash } }),
+      ...(project.predictDataset === undefined
+        ? {}
+        : {
+            predict: {
+              bytes: project.predictDataset.bytes,
+              hash: project.predictDataset.hash,
+            },
+          }),
+    }
     // 데이터셋이 없는 프로젝트가 정상이다. 그때는 **남아 있던 레코드를 지운다** -
     // 데이터를 바꾸는 도중의 상태가 옛 표와 새 설정으로 남으면 안 된다.
-    const datasets = transaction.objectStore(DATASETS_STORE)
-    // **첨부도 이 레코드에 산다.** 표도 사진도 없지만 포트폴리오에 사진을 붙인
-    // 프로젝트가 있고, 여기서 레코드를 지우면 그 사진이 새로고침에 사라진다.
-    if (
-      project.dataset === undefined &&
-      project.images.size === 0 &&
-      project.attachments.size === 0
-    ) {
+    //
+    // **무엇이 들었는지 세지 않고 만든 레코드에 물어본다.** 세는 쪽으로 쓰면 칸이 하나
+    // 늘 때마다 두 자리를 함께 고쳐야 하고, 안 따라오면 아직 데이터가 있는 레코드를
+    // 지운다 - 첨부만 있는 프로젝트에서 그 사진이 새로고침에 사라지는 식이다.
+    if (Object.keys(record).length === 1) {
       await datasets.delete(projectId)
     } else {
-      // 평가·예측 데이터가 함께 실린다. 없으면 그 키를 아예 안 넣는다 - undefined를
-      // 넣어 두면 "없음"과 "값이 undefined"가 섞인다.
-      await datasets.put({
-        projectId,
-        ...(project.dataset === undefined
-          ? {}
-          : { bytes: project.dataset.bytes, hash: project.dataset.hash }),
-        ...(project.images.size === 0 ? {} : { images: project.images }),
-        ...(project.attachments.size === 0 ? {} : { attachments: project.attachments }),
-        ...(project.embeddings.size === 0 ? {} : { embeddings: project.embeddings }),
-        ...(project.testDataset === undefined
-          ? {}
-          : { test: { bytes: project.testDataset.bytes, hash: project.testDataset.hash } }),
-        ...(project.predictDataset === undefined
-          ? {}
-          : {
-              predict: {
-                bytes: project.predictDataset.bytes,
-                hash: project.predictDataset.hash,
-              },
-            }),
-      })
+      await datasets.put(record)
     }
 
     const models = transaction.objectStore(MODELS_STORE)
@@ -358,7 +357,7 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
   const document = migrateProjectDocument(record.document)
 
   // 문서가 데이터셋을 가리키면 본체가 있어야 한다. 둘은 함께 있고 함께 없다
-  // (mlpx-spec.md §1). 어긋난 것은 우리가 고칠 수 없으므로 없는 것으로 다룬다.
+  // (mlpx-spec.md §1).
   const dataset = await transaction.objectStore(DATASETS_STORE).get(projectId)
   const images = dataset?.images ?? new Map<string, Uint8Array>()
   const attachments = dataset?.attachments ?? new Map<string, Uint8Array>()
@@ -375,12 +374,28 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
     return [...images.keys()].some((path) => path.startsWith(ref.path))
   }
 
-  if (!paired(document.settings.data.dataset, dataset?.bytes)) return null
-  // 평가·예측 데이터도 같은 규칙이다. 참조만 남은 채로 열어 주면 **그 프로젝트는
-  // 저장도 내보내기도 못 하는 상태**가 되고(writeProject가 거부한다) 학생은 왜인지
-  // 모른 채 다음 차시에 그걸 안다.
-  if (!paired(document.settings.data.testDataset, dataset?.test)) return null
-  if (!paired(document.settings.data.predictDataset, dataset?.predict)) return null
+  /**
+   * **던진다. null이 아니다.** 이 함수 머리말의 규칙 그대로다 - null은 "없다"는 뜻이고
+   * 여기는 "있는데 못 읽는다"이다. null로 뭉개면 화면이 아무 말 없이 목록으로 되돌리고,
+   * 그 줄은 목록에서 멀쩡해 보여서(매니페스트에 이름이 있다) 누를 때마다 같은 일이
+   * 반복된다 - architecture.md §8.10.2가 "못 읽는 것을 열 수 없음이라 말한다"고 한
+   * 설계가 거기서 성립하지 않는다. 던지면 스토어의 open()이 잡아 알린다.
+   *
+   * 참조만 남은 채로 열어 주는 것도 답이 아니다. **그 프로젝트는 저장도 내보내기도 못
+   * 하는 상태**가 되고(writeProject가 거부한다) 학생은 왜인지 모른 채 다음 차시에 그걸 안다.
+   */
+  const requirePaired = (ref: { path: string } | undefined, body: unknown, field: string): void => {
+    if (paired(ref, body)) return
+    throw new ClientError('PROJECT_FILE_INVALID', { path: field, issues: 1 })
+  }
+
+  requirePaired(document.settings.data.dataset, dataset?.bytes, 'settings.data.dataset')
+  requirePaired(document.settings.data.testDataset, dataset?.test, 'settings.data.testDataset')
+  requirePaired(
+    document.settings.data.predictDataset,
+    dataset?.predict,
+    'settings.data.predictDataset',
+  )
 
   const stored = await transaction.objectStore(MODELS_STORE).getAll(modelKeyRange(projectId))
   const models = new Map<string, Uint8Array>()

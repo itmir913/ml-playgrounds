@@ -21,6 +21,7 @@ import {
   loadProject,
   readPreferredLocale,
   saveProject,
+  totalBytes,
   writePreferredLocale,
 } from '../src/project/storage'
 import { hashBytes } from '../src/hash'
@@ -418,6 +419,113 @@ describe('본체 없는 첨부 참조', () => {
   })
 })
 
+/**
+ * **참조와 본체가 어긋난 레코드는 열어 주지 않는다** (storage.ts의 `paired`). 열어 주면
+ * 그 프로젝트는 저장도 내보내기도 못 하는 상태가 되고(writeProject가 거부한다) 학생은
+ * 왜인지 모른 채 다음 차시에 그걸 안다. 정상 경로로는 안 생긴다 - 저장이 한 트랜잭션이다.
+ */
+describe('참조와 본체가 어긋난 레코드', () => {
+  /** 문서만 심는다. datasets 레코드는 안 만든다 - 참조만 남은 모양이다. */
+  async function plantWithoutBody(document: unknown): Promise<void> {
+    await saveProject(emptyProjectFile())
+    closeStorage()
+
+    const database = await openDB(DB_NAME, DB_VERSION)
+    await database.put('projects', {
+      projectId: 'dangling',
+      document,
+      updatedAt: '2026-08-05T00:00:00.000Z',
+      sizeBytes: 0,
+    })
+    database.close()
+    closeStorage()
+  }
+
+  it('정본 참조만 남았으면 던진다 - null은 "없다"는 뜻이라 화면이 잘못 말한다', async () => {
+    await plantWithoutBody(projectFile().document)
+    await expect(loadProject('dangling')).rejects.toSatisfy(isClientError)
+  })
+
+  it('평가 데이터 참조만 남았으면 던진다', async () => {
+    const base = emptyProjectFile().document
+    await plantWithoutBody({
+      ...base,
+      settings: {
+        ...base.settings,
+        data: {
+          ...dataSettings('tabular', base.settings),
+          testDataset: {
+            path: 'dataset/test.csv',
+            originalFileName: 't.csv',
+            hasHeader: true,
+            encoding: 'utf-8',
+          },
+        },
+      },
+    })
+    await expect(loadProject('dangling')).rejects.toSatisfy(isClientError)
+  })
+
+  it('예측 데이터 참조만 남았으면 던진다', async () => {
+    const base = emptyProjectFile().document
+    await plantWithoutBody({
+      ...base,
+      settings: {
+        ...base.settings,
+        data: {
+          ...dataSettings('tabular', base.settings),
+          predictDataset: {
+            path: 'dataset/predict.csv',
+            originalFileName: 'p.csv',
+            hasHeader: true,
+            encoding: 'utf-8',
+          },
+        },
+      },
+    })
+    await expect(loadProject('dangling')).rejects.toSatisfy(isClientError)
+  })
+})
+
+/**
+ * 표도 사진도 없지만 포트폴리오에 사진을 붙인 프로젝트가 있다. **레코드를 지우면 그
+ * 사진이 새로고침에 사라진다** - 주석이 그 시나리오를 들어 두고도 검사가 없었다.
+ */
+describe('첨부만 있는 프로젝트', () => {
+  const path = 'portfolio/attachments/1.webp'
+
+  it('저장했다 열면 사진이 있다', async () => {
+    const base = emptyProjectFile()
+    const project: ProjectFile = {
+      ...base,
+      document: {
+        ...base.document,
+        portfolio: {
+          ...base.document.portfolio,
+          template: { sections: [{ id: 'motivation', title: '이유' }] },
+          attachments: { motivation: [path] },
+        },
+      },
+      attachments: new Map([[path, new Uint8Array([1, 2, 3])]]),
+    }
+    await saveProject(project)
+
+    const loaded = await loadProject(base.document.manifest.projectId)
+    expect(loaded?.attachments.get(path)).toEqual(new Uint8Array([1, 2, 3]))
+  })
+
+  it('아무것도 없으면 레코드가 사라진다', async () => {
+    await saveProject(projectFile())
+    await saveProject(emptyProjectFile())
+
+    closeStorage()
+    const database = await openDB(DB_NAME, DB_VERSION)
+    const record = await database.get('datasets', manifest.projectId)
+    database.close()
+    expect(record).toBeUndefined()
+  })
+})
+
 describe('이미지 프로젝트', () => {
   /**
    * **표 정본이 없는 프로젝트다.** `datasets` 레코드가 사진만 들고 있어야 하고,
@@ -444,6 +552,41 @@ describe('이미지 프로젝트', () => {
       images: new Map([[`dataset/data/개/${hashBytes(bytes)}.jpg`, bytes]]),
     }
   }
+
+  /**
+   * **여유 공간 검사와 화면의 "용량"이 같은 것을 센다.** 이미지 프로젝트에서는 그 값이
+   * 사실상 전부 사진이라(사진 5,000장 = 80~100MB) 사진 몫이 빠지면 ensureRoom이 0으로
+   * 검사하고 목록이 0byte라고 말한다.
+   */
+  it('용량이 사진 바이트를 센다', () => {
+    const project = imageProjectFile()
+    const photos = [...project.images.values()].reduce((sum, bytes) => sum + bytes.length, 0)
+
+    expect(photos).toBeGreaterThan(0)
+    expect(totalBytes(project)).toBeGreaterThanOrEqual(photos)
+    expect(totalBytes({ ...project, images: new Map() })).toBe(totalBytes(project) - photos)
+  })
+
+  it('임베딩도 용량에 든다', () => {
+    const project = imageProjectFile()
+    const vector = new Uint8Array(16)
+    const withVectors = {
+      ...project,
+      embeddings: new Map([['embeddings/mobilenet-v2/abc.bin', vector]]),
+    }
+    expect(totalBytes(withVectors)).toBe(totalBytes(project) + vector.length)
+  })
+
+  /** `.mlpx` 쪽에는 있는 왕복이 IndexedDB 쪽에는 없었다. 없으면 학습이 매번 다시 뽑는다. */
+  it('임베딩이 저장되고 돌아온다', async () => {
+    const project = imageProjectFile()
+    const path = 'embeddings/mobilenet-v2/abc.bin'
+    const vector = new Uint8Array([1, 2, 3, 4])
+    await saveProject({ ...project, embeddings: new Map([[path, vector]]) })
+
+    const loaded = await loadProject(project.document.manifest.projectId)
+    expect(loaded?.embeddings.get(path)).toEqual(vector)
+  })
 
   it('사진만 있는 프로젝트가 저장되고 돌아온다', async () => {
     const project = imageProjectFile()
