@@ -16,6 +16,7 @@ import {
   isValidCategoryName,
 } from '../src/data/image/canonical'
 import { CANONICAL_FORMATS, canonicalFormatOfPath } from '../src/data/image/formats'
+import { MAX_CATEGORY_NAME_LENGTH } from '../src/limits'
 import { IMAGE_UNLABELED } from '../src/project/format'
 
 const SIZE = 224
@@ -95,6 +96,18 @@ describe('범주 이름', () => {
     for (const name of ['개', '고양이', 'cat-dog', '산 사진', 'a.b', '1']) {
       expect(isValidCategoryName(name), name).toBe(true)
     }
+  })
+
+  /**
+   * **길이 상한을 무는 검사가 하나도 없었다** (V11 R1 감사 B-9) — 상한을 100배로 키우는
+   * 돌연변이가 저장소 전체 검사를 통과했다.
+   *
+   * 자르지 않고 거부하는 자리다. 범주 이름이 그대로 zip 안의 폴더가 되고 그 아래 64자
+   * 해시가 붙어서, 윈도우 탐색기가 260자를 넘는 순간 **압축이 조용히 반만 풀린다.**
+   */
+  it('상한을 넘는 이름은 거부한다 - 자르지 않는다', () => {
+    expect(isValidCategoryName('가'.repeat(MAX_CATEGORY_NAME_LENGTH))).toBe(true)
+    expect(isValidCategoryName('가'.repeat(MAX_CATEGORY_NAME_LENGTH + 1))).toBe(false)
   })
 
   it('밑줄로 시작하는 이름은 막는다 - 예약된 자리다', () => {
