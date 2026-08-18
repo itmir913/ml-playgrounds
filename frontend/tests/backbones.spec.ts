@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
+import { ALGORITHMS } from '@/ml/algorithms'
 import { BACKBONES, BACKBONE_IDS, DEFAULT_BACKBONE_ID, backboneFor } from '@/ml/backbones'
 import { TASK_TYPES } from '@/project/schema'
 
@@ -88,6 +89,36 @@ describe('백본 등록부', () => {
         '정하고 나서 이 검사를 고쳐라.',
       ].join(NEWLINE),
     ).toEqual(['mobilenet-v2'])
+  })
+
+  /**
+   * **두 등록부가 같은 말을 하는가.**
+   *
+   * `open-decisions.md`와 `backbones.ts`의 주석이 입을 모아 *"이미지 회귀가 막히는 것은
+   * 화면의 `v-if`가 아니라 여기 과제 목록이 짧기 때문"*이라고 적는다. **그런데
+   * `BackboneSpec.tasks`를 읽는 코드가 저장소에 없다** (V11 R1 감사 B-4) — 실제로 막는 것은
+   * 알고리즘 등록부의 `dataTypes.image`다. 아무도 안 읽는 필드를 지키는 초록불이 서 있었다.
+   *
+   * **오늘은 화면이 옳게 동작한다. 문제는 다음 사람이다** — `image: true`인 회귀 알고리즘을
+   * 한 줄 더하면 이미지 회귀가 열리는데 백본 쪽은 아무 말도 안 한다. 그래서 **둘의 교집합을
+   * 여기서 못 박는다.** 지금 상태에서 초록이고, 둘이 갈리는 날 운다.
+   */
+  it('알고리즘 등록부가 이미지에서 여는 과제는 백본도 할 줄 안다', () => {
+    const openedByAlgorithms = new Set(
+      TASK_TYPES.filter((task) =>
+        ALGORITHMS.some((algorithm) => algorithm.dataTypes.image && algorithm.taskTypes[task]),
+      ),
+    )
+    for (const backbone of BACKBONES) {
+      expect(
+        [...openedByAlgorithms].filter((task) => !backbone.tasks.includes(task)),
+        [
+          `${backbone.id}의 tasks가 알고리즘 등록부보다 짧다.`,
+          '  이미지에서 열린 과제인데 백본이 못 한다고 적혀 있다.',
+          '  둘 중 하나를 고쳐라 - 알고리즘의 dataTypes.image를 닫거나, 백본의 tasks를 늘리거나.',
+        ].join(NEWLINE),
+      ).toEqual([])
+    }
   })
 
   it.each(BACKBONES.map((backbone) => [backbone.id, backbone] as const))(
