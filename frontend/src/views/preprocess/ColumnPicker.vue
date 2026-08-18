@@ -190,11 +190,17 @@ function onFeature(name: string, event: Event): void {
       <tbody>
         <tr v-for="column in props.plan.columns" :key="column.summary.name">
           <td>
+            <!--
+              **잠그지 않는다. 사유는 고른 뒤에 줄이 말한다** (open-decisions.md "타깃의
+              자료형 문제는 고르는 것을 막지 않고 말한다"). 잠그면 회귀 + 수치 열 0개인
+              표에서 학생이 갇힌다 — 타깃을 못 고르고, 그래서 학습 화면이 안 열리고,
+              유형을 바꿀 곳은 그 학습 화면뿐이다 (V11 R2 감사 A-1).
+              거부는 학습이 한다 — `planRun`이 `TARGET_NOT_NUMERIC`으로 계획에서 막는다.
+            -->
             <input
               type="radio"
               class="size-4 accent-brand"
               :checked="column.role === 'target'"
-              :disabled="column.targetIssue !== undefined"
               :aria-label="column.summary.name"
               @change="emit('pickTarget', column.summary.name)"
             />
@@ -225,7 +231,10 @@ function onFeature(name: string, event: Event): void {
       </tbody>
     </AppTable>
 
-    <!-- 왜 어떤 줄의 타깃 칸이 꺼져 있는지. 줄마다 붙이면 표가 사유로 뒤덮인다. -->
+    <!--
+      이 유형이 타깃에 요구하는 것. 줄마다 붙이면 표가 사유로 뒤덮인다.
+      **잠그는 대신 여기서 미리 말한다** — 고르기 전에 읽고, 고른 뒤에는 그 줄이 말한다.
+    -->
     <p v-if="props.targetRule" class="text-base text-ink-soft">
       {{ t(`preprocess.tabular.targetRule.${props.targetRule}`) }}
     </p>
