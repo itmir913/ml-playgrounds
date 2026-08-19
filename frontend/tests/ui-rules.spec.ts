@@ -14,6 +14,8 @@ import { dirname, join, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { withoutComments } from './fixtures/source'
+
 /** 정규식과 예문 안에 그대로 못 적는다 - 이 파일 자신이 검사 대상이라 조립 자리로 읽힌다. */
 const BACKTICK = String.fromCharCode(96)
 
@@ -451,15 +453,6 @@ function vueFiles(directory: string): string[] {
 }
 
 /**
- * 주석을 걷어낸 줄들. 규칙을 설명하려면 금지된 모양을 주석에 적어야 하는데,
- * 그것까지 걸리면 문서를 못 쓴다. `.vue`에는 HTML 주석과 JS 주석이 함께 있다.
- */
-function withoutComments(source: string): string[] {
-  const stripped = source.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
-  return stripped.split(/\r?\n/).map((line) => line.replace(/\/\/.*$/, ''))
-}
-
-/**
  * **DOM 부재를 판정하는 유일하게 허용된 표기.**
  *
  * 표기가 여럿이면 아래 `reachesDomGuard`가 못 보는 가드가 생기고, 그 순간 이 규칙
@@ -568,6 +561,27 @@ describe('검사기가 실제로 잡는다', () => {
       '// text-xs 금지',
     ].join('\n')
     expect(withoutComments(source).join('').trim()).toBe('')
+  })
+
+  it('여러 줄 HTML 주석도 걷어내고 줄 수는 그대로다', () => {
+    const source = ['<!--', 'text-sm 은 금지다', '-->', '<p class="text-base">x</p>'].join('\n')
+    const lines = withoutComments(source)
+    expect(lines).toHaveLength(4)
+    expect(lines.slice(0, 3).join('').trim()).toBe('')
+    expect(lines[3]).toContain('text-base')
+  })
+
+  /**
+   * **URL 안의 `//`는 주석이 아니다.**
+   *
+   * 이 파일은 한때 `line.replace(/\/\/.*$/, '')` 한 줄로 주석을 걷었다. 그래서
+   * `href="https://…"`가 앞에 붙은 줄은 **그 지점부터 끝까지가 소스에서 사라졌고**,
+   * 줄 단위로 도는 규칙 전부가 그 한 줄에서 통째로 꺼졌다 (R8 감사 A-1).
+   * `class="text-xs"`도 `w-[327px]`도 조립한 단계 문구도 아무것도 안 잡혔다.
+   */
+  it('따옴표 안의 //는 주석이 아니다 - 링크가 든 줄에서도 규칙이 산다', () => {
+    const line = '<a href="https://example.org" class="text-xs">x</a>'
+    expect(withoutComments(line)[0]).toContain('text-xs')
   })
 })
 

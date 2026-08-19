@@ -32,6 +32,8 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { withoutComments } from './fixtures/source'
+
 const SRC = join(process.cwd(), 'src')
 if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
 
@@ -77,46 +79,6 @@ function sourceFiles(directory: string): string[] {
     const path = join(directory, entry)
     if (statSync(path).isDirectory()) return sourceFiles(path)
     return /\.(ts|vue)$/.test(entry) && !/\.spec\.ts$/.test(entry) ? [path] : []
-  })
-}
-
-/**
- * 주석을 걷어낸 줄들. **막으려는 것은 코드이지 설명이 아니다** — 왜 안 쓰는지를 적은
- * 주석에는 그 이름이 반드시 나온다(`hash.ts`·`project/create.ts`가 그렇다).
- */
-function withoutComments(source: string): string[] {
-  let inBlock = false
-  return source.split(/\r?\n/).map((line) => {
-    let kept = ''
-    let quote = ''
-    for (let i = 0; i < line.length; i += 1) {
-      const two = line.slice(i, i + 2)
-      if (inBlock) {
-        if (two === '*/') {
-          inBlock = false
-          i += 1
-        }
-        continue
-      }
-      const char = line[i] ?? ''
-      if (quote) {
-        kept += char
-        if (char === '\\') {
-          kept += line[i + 1] ?? ''
-          i += 1
-        } else if (char === quote) quote = ''
-        continue
-      }
-      if (char === "'" || char === '"' || char === '`') {
-        quote = char
-        kept += char
-      } else if (two === '//') return kept
-      else if (two === '/*') {
-        inBlock = true
-        i += 1
-      } else kept += char
-    }
-    return kept
   })
 }
 

@@ -22,6 +22,8 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { withoutComments } from './fixtures/source'
+
 // jsdom 환경에서는 import.meta.url이 file: 스킴이 아니라 URL 계산을 못 한다.
 // vitest는 vite.config.ts가 있는 곳에서 도므로 cwd가 frontend/ 다.
 const SRC = join(process.cwd(), 'src')
@@ -93,53 +95,6 @@ function sourceFiles(directory: string): string[] {
     const path = join(directory, entry)
     if (statSync(path).isDirectory()) return sourceFiles(path)
     return /\.(ts|vue)$/.test(entry) && !/\.spec\.ts$/.test(entry) ? [path] : []
-  })
-}
-
-/**
- * 주석을 걷어낸 줄들. **막으려는 것은 코드이지 설명이 아니다** - 백엔드의 한글 리터럴
- * 검사가 주석과 docstring을 예외로 두는 것과 같은 이유다. 규칙을 설명하려면 금지된
- * 모양을 주석에 적어야 하는데, 그것까지 걸리면 문서를 못 쓴다.
- *
- * 따옴표 안의 `//`는 주석이 아니다(URL이 그렇다). 문자열 상태를 따라가며 자른다.
- *
- * 줄을 넘기는 템플릿 리터럴은 따라가지 않는다 - 그 안의 `//`를 주석으로 볼 수 있다.
- * 실제로 그런 자리에 규칙 위반이 들어갈 일은 없어서 감수한다.
- */
-function withoutComments(source: string): string[] {
-  let inBlock = false
-  return source.split(/\r?\n/).map((line) => {
-    let kept = ''
-    let quote = ''
-    for (let i = 0; i < line.length; i += 1) {
-      const two = line.slice(i, i + 2)
-      if (inBlock) {
-        // 한 줄에서 열고 닫는 주석이 있다. 닫은 뒤의 코드는 살려야 한다.
-        if (two === '*/') {
-          inBlock = false
-          i += 1
-        }
-        continue
-      }
-      const char = line[i] ?? ''
-      if (quote) {
-        kept += char
-        if (char === '\\') {
-          kept += line[i + 1] ?? ''
-          i += 1
-        } else if (char === quote) quote = ''
-        continue
-      }
-      if (char === "'" || char === '"' || char === '`') {
-        quote = char
-        kept += char
-      } else if (two === '//') return kept
-      else if (two === '/*') {
-        inBlock = true
-        i += 1
-      } else kept += char
-    }
-    return kept
   })
 }
 
