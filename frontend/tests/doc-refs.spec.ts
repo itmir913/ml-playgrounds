@@ -126,8 +126,20 @@ interface Family {
   readonly flattened: string
 }
 
+/**
+ * 표제 줄들. **울타리 친 코드 블록 안은 빼고 본다** — `mlpx-spec.md` §8이
+ * 포트폴리오 양식의 예시로 `## 이 주제를 고른 이유`를 코드 블록에 담고 있는데,
+ * 그것은 문서의 절이 아니라 **문서가 인용한 남의 마크다운**이다.
+ */
 function headingsOf(text: string): string[] {
-  return text.split(NEWLINE).filter((line) => /^#{1,6}\s/.test(line))
+  let fenced = false
+  return text.split(NEWLINE).filter((line) => {
+    if (/^\s*(?:```|~~~)/.test(line)) {
+      fenced = !fenced
+      return false
+    }
+    return !fenced && /^#{1,6}\s/.test(line)
+  })
 }
 
 /**
