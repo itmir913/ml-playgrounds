@@ -48,13 +48,13 @@ function noisy(rows: number): { features: number[][]; labels: number[] } {
   return { features, labels }
 }
 
-function train(hyperparameters: Record<string, unknown> = {}) {
+function train(hyperparameters: Record<string, unknown> = {}, randomState = 42) {
   return fit('svm', {
     features: IRIS_FEATURES,
     rowIndices: IRIS_FEATURES.map((_, index) => index),
     target: IRIS_LABELS,
     hyperparameters,
-    randomState: 42,
+    randomState,
   })
 }
 
@@ -253,5 +253,17 @@ describe('mljs 엔진의 svm', () => {
 
   it('같은 randomState면 같은 모델이다', () => {
     expect(JSON.stringify(train().model)).toBe(JSON.stringify(train().model))
+  })
+
+  /**
+   * **씨앗이 SMO 안까지 닿는가.**
+   *
+   * 위 검사만으로는 못 본다 — 같은 씨앗을 두 번 쓰므로 씨앗을 버려도 참이다.
+   * 실제로 `seededRandom(input.randomState)`를 상수로 바꿔도 **저장소 전체
+   * 2028개가 전부 초록이었다** (R9 감사 A-4). SMO의 쌍 고르기가 그 값을 먹는다.
+   */
+  it('다른 randomState면 모델이 갈린다 - 씨앗이 안 쓰이면 여기가 빨개진다', () => {
+    const models = [42, 7, 29].map((seed) => JSON.stringify(train({}, seed).model))
+    expect(new Set(models).size, '씨앗이 SMO 안까지 안 닿았다').toBeGreaterThan(1)
   })
 })

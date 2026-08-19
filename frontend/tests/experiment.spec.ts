@@ -1240,7 +1240,8 @@ describe('전처리와 분할을 끌 수 있다', () => {
 
   /**
    * **씨앗이 분할만이 아니라 `fit`까지 가야 한다** (CLAUDE.md §2). 배깅·SMO·K-평균
-   * 초기화가 그 값을 먹는다.
+   * 초기화가 그 값을 먹는다. **여기서 도는 것은 앞의 둘이다** — K-평균은 타깃이 없어
+   * 이 하니스에 못 올라가고 `mljs-kmeans.spec.ts`가 맡는다.
    *
    * **지금까지 이것을 무는 검사가 없었다** — `trainContext.randomState`를 `0`으로 못 박아도
    * 저장소 전체 1,820개 검사가 통과했다 (V11 R2 감사 B-2). `experiment.spec.ts`가
@@ -1252,32 +1253,42 @@ describe('전처리와 분할을 끌 수 있다', () => {
    * `fit` 하나뿐이다. **지표가 아니라 모델을 견준다** — 30행 붓꽃은 너무 잘 갈려서 지표가
    * 씨앗에 둔감하고, 그 둔함이 바로 예전 픽스처가 무뎠던 이유다.
    */
-  it('씨앗이 분할만이 아니라 fit까지 간다 - 배깅이 그 값을 먹는다', () => {
-    const provided = {
-      selectedAlgorithms: models('random_forest'),
-      hyperparameters: { random_forest: { mljs: { nEstimators: 5 } } },
-    }
-    const forestFor = (randomState: number): string => {
-      const { models: fitted } = runExperiment(
-        inputFor({
-          testDataset: irisDataset(),
-          settings: settingsFor({
-            ...provided,
-            split: { method: 'provided', testSize: 0.3, stratify: true, randomState },
+  /**
+   * **머리말이 셋을 호명하면 셋을 돌아야 한다.**
+   *
+   * 한때 배깅 하나만 돌았고, 그래서 SMO의 씨앗을 상수로 못 박아도 저장소 전체가
+   * 초록이었다 (R9 감사 A-4·§7). K-평균 초기화는 여기서 못 돈다 — 군집화에는 타깃이
+   * 없어 `provided` 분할 자체가 안 선다. **그쪽 축은 `mljs-kmeans.spec.ts`의
+   * "다른 씨앗이면 초기화가 갈린다"가 잡는다.**
+   */
+  for (const [algorithm, hyperparameters] of [
+    ['random_forest', { random_forest: { mljs: { nEstimators: 5 } } }],
+    ['svm', {}],
+  ] as const) {
+    it(`씨앗이 분할만이 아니라 fit까지 간다 - ${algorithm}이 그 값을 먹는다`, () => {
+      const modelFor = (randomState: number): string => {
+        const { models: fitted } = runExperiment(
+          inputFor({
+            testDataset: irisDataset(),
+            settings: settingsFor({
+              selectedAlgorithms: models(algorithm),
+              hyperparameters,
+              split: { method: 'provided', testSize: 0.3, stratify: true, randomState },
+            }),
           }),
-        }),
-        frozen,
-      )
-      const [model] = [...fitted.values()]
-      expect(model).toBeDefined()
-      return JSON.stringify(model)
-    }
+          frozen,
+        )
+        const [model] = [...fitted.values()]
+        expect(model).toBeDefined()
+        return JSON.stringify(model)
+      }
 
-    // 같은 씨앗은 같은 숲이다 - 재현 가능성이 이 도구의 생명이다.
-    expect(forestFor(42)).toBe(forestFor(42))
-    // 다른 씨앗은 다른 숲이다. 같다면 그 값이 fit에 안 닿은 것이다.
-    expect(forestFor(42)).not.toBe(forestFor(7))
-  })
+      // 같은 씨앗은 같은 모델이다 - 재현 가능성이 이 도구의 생명이다.
+      expect(modelFor(42)).toBe(modelFor(42))
+      // 다른 씨앗은 다른 모델이다. 같다면 그 값이 fit에 안 닿은 것이다.
+      expect(modelFor(42)).not.toBe(modelFor(7))
+    })
+  }
 
   it('평가 데이터가 전처리에서 통째로 걸러져도 같은 코드다', () => {
     // 타깃이 빈 행은 어떤 전략에서도 채점에 못 쓴다 - 전부 그러면 채점할 것이 없다.

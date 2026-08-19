@@ -20,6 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { AUTOSAVE_DELAY_MS } from '../src/limits'
 import { exportStateOf } from '../src/project/export-state'
+import { readProject } from '../src/project/format'
 import { closeStorage, DB_NAME, loadProject, readExportedAt } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
@@ -230,6 +231,38 @@ describe('내보내기', () => {
     expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe(
       '마지막 순간에 고친 이름',
     )
+  })
+
+  /**
+   * **나간 바이트를 실제로 다시 연다.**
+   *
+   * 위 검사들이 보는 것은 `downloads`의 개수·파일 이름·길이가 0보다 큰가, 그리고
+   * **IndexedDB**다. 그런데 `exportFile`은 IndexedDB가 아니라 메모리의 `file.value`로
+   * 파일을 만든다 — 그래서 저 단언들은 `flush()`를 검사할 뿐 **나간 바이트에 대해
+   * 아무 말도 하지 않았다.** 나가는 바이트를 4바이트로 잘라도 `npm run ci`가
+   * 통째로 초록이었다 (R9 감사 A-1).
+   *
+   * **이것이 마지막 한 걸음이다.** `CLAUDE.md` §1.3이 "교사는 이 파일 하나만 열면
+   * 재학습 없이 모든 것을 볼 수 있어야 한다"고 못 박았고, 브라우저에만 있는
+   * 프로젝트는 제출을 못 하니 죽은 것이다.
+   */
+  it('나간 파일을 다시 열면 지금 작업이 그대로 있다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+    project.update(renamed('나간 파일에 담겨야 하는 이름'))
+
+    await project.exportFile(markdown)
+
+    const bytes = downloads[0]?.bytes
+    expect(bytes, '내려보낸 바이트').toBeDefined()
+
+    // 여는 것 자체가 zip과 필수 엔트리를 다 요구한다. 그 위에 무게가 있는 것 둘을 본다 -
+    // 미뤄 둔 저장이 반영된 이름과, 표가 통째로 실려 나갔는가.
+    const { project: reopened, integrity } = await readProject(bytes as Uint8Array)
+    expect(reopened.document.manifest.name).toBe('나간 파일에 담겨야 하는 이름')
+    expect(reopened.dataset?.bytes).toEqual(projectFile().dataset?.bytes)
+    expect(reopened.models.size).toBe(projectFile().models.size)
+    expect(integrity.status).toBe('UNCHANGED')
   })
 
   it('내보낸 시각을 남긴다', async () => {

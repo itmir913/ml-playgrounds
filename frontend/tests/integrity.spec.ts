@@ -285,6 +285,44 @@ describe('무결성 정보가 없거나 깨진 파일', () => {
     expect(integrity.entries).toEqual([])
   })
 
+  /**
+   * **값 자체를 못 박는다. 밖에서 계산한 SHA-256이다.**
+   *
+   * `contentHash`는 쓸 때도 읽을 때도 **같은 함수**가 만든다. 그래서 조립 규칙을
+   * 바꿔도 대조는 언제나 자기 자신과 맞는다 — 실제로 구분자 `\n` 둘을 지워도 무결성
+   * 계열 191개가 전부 초록이었다 (R9 감사 A-3). 길이가 64인지만 보는 단언으로는
+   * 이 축을 못 잡는다.
+   *
+   * **조용히 달라지면 무슨 일이 나는가.** 그 전에 나간 학생 파일을 새 앱으로 열었을 때
+   * 엔트리는 전부 맞는데 `contentHash`만 어긋나 **손댄 적 없는 파일이 "고쳐졌음"으로
+   * 뜬다.** 이 파일이 스스로 최악이라고 적어 둔 상태다. 게다가 구분자를 없애면
+   * `{a: 'bc'}`와 `{ab: 'c'}`가 같은 해시를 갖는다.
+   *
+   * 기대값은 파이썬 `hashlib`으로 따로 계산했다 —
+   * `sha256("a.json\naa\nb.json\nbb\n")`. 여기서 다시 조립하면 구현으로 구현을 검사하는
+   * 것이 된다.
+   */
+  it('contentHash는 경로로 정렬해 "경로\\n해시\\n"를 이어 붙인 SHA-256이다', () => {
+    // 정렬을 함께 본다 - 넣는 순서를 뒤집어도 같은 값이어야 한다.
+    const present = new Map([
+      ['b.json', 'bb'],
+      ['a.json', 'aa'],
+    ])
+    expect(checkHashes(present, null).computedContentHash).toBe(
+      '0452937fce9f5b55a9037a59e281ea773a1f65e3e155df4a23cf895bbfd22d01',
+    )
+  })
+
+  /**
+   * **파일에 `"algorithm": "sha256"`이라고 적어 내보낸다.** 교사가 밖에서 계산해
+   * 대조할 수 있다는 공개 주장이고, 그 주장이 참인지를 보는 줄이 저장소에 없었다.
+   */
+  it('hashBytes가 실제로 SHA-256이다 - 파일에 그렇게 적어 내보낸다', () => {
+    expect(hashBytes(new TextEncoder().encode('abc'))).toBe(
+      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+    )
+  })
+
   it('hashes.json이 깨져 있어도 파일은 열린다', async () => {
     const entries = await written()
     entries[ENTRY.hashes] = new TextEncoder().encode('{ broken')

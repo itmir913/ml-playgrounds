@@ -194,12 +194,36 @@ describe('엣지 케이스', () => {
   })
 })
 
+/**
+ * **덩어리가 없는 데이터. 씨앗이 답을 가른다.**
+ *
+ * `TWO_BLOBS`는 이 파일이 스스로 "어떤 초기화에서도 답이 같다"고 적어 둔 데이터라
+ * 씨앗 축을 **가를 수 없다.** 여기 줄 위에 흩뿌린 점들은 K-평균++의 뽑기가 초기
+ * 중심점을 실제로 가르고, 씨앗 다섯이 서로 다른 답 다섯을 낸다(실측).
+ */
+const SPREAD = Array.from({ length: 24 }, (_, index) => [index, (index * 7) % 5])
+
 describe('재현 가능성', () => {
   it('같은 씨앗이면 같은 답이다', () => {
-    const first = fitKMeans(TWO_BLOBS, 3, 11)
-    const second = fitKMeans(TWO_BLOBS, 3, 11)
+    const first = fitKMeans(SPREAD, 3, 11)
+    const second = fitKMeans(SPREAD, 3, 11)
     expect(second.centroids).toEqual(first.centroids)
     expect([...second.assignments]).toEqual([...first.assignments])
     expect(second.inertia).toBe(first.inertia)
+  })
+
+  /**
+   * **씨앗이 `fitKMeans` 안까지 닿는가.**
+   *
+   * 위 검사만으로는 못 본다 — `fitKMeans`는 결정적 함수라 같은 인자로 두 번 부르면
+   * 씨앗을 쓰든 버리든 언제나 같다. 실제로 초기화의 씨앗을 상수로 못 박아도
+   * **저장소 전체 2028개가 전부 초록이었다** (R9 감사 A-4).
+   *
+   * `CLAUDE.md` §2가 절대 원칙으로 적은 자리다 — "`randomState`는 항상 저장하고
+   * 항상 사용한다. 재현 가능성이 교육용 도구의 생명이다."
+   */
+  it('다른 씨앗이면 초기화가 갈린다 - 씨앗이 안 쓰이면 여기가 빨개진다', () => {
+    const answers = [3, 11, 29].map((seed) => JSON.stringify(fitKMeans(SPREAD, 3, seed).centroids))
+    expect(new Set(answers).size, '씨앗이 fitKMeans 안까지 안 닿았다').toBeGreaterThan(1)
   })
 })
