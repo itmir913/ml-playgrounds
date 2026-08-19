@@ -130,6 +130,23 @@ describe('결측 대체', () => {
     expect(fitted.columns.find((column) => column.name === '지역')?.fill).toBe('서울')
   })
 
+  /**
+   * **동점이면 먼저 나온 값이 이긴다** (R7 감사 B-7). 소스가 그 규약을 적어 두었는데
+   * (*"Map이 삽입 순서를 지키므로 결정적이다"*) `>`를 `>=`로 바꿔 뒤엣것이 이기게 해도
+   * 저장소 전체가 침묵했다.
+   *
+   * **결측 대체값이 조용히 다른 범주로 바뀌는 자리다.** 어느 쪽이 이기든 상관없는 것이
+   * 아니라, **정해져 있어야** 같은 파일이 같은 답을 낸다.
+   */
+  it('최빈값이 동점이면 먼저 나온 값이 이긴다', () => {
+    const tied: Dataset = {
+      columns: ['지역'],
+      rows: [['서울'], ['부산'], ['서울'], ['부산'], ['']],
+    }
+    const fitted = fitPreprocessor(tied, [0, 1, 2, 3, 4], ['지역'], preprocessing())
+    expect(fitted.columns[0]?.fill).toBe('서울')
+  })
+
   it('빈 칸만 결측이다 - N/A 같은 문자열은 값으로 둔다', () => {
     const withNa: Dataset = { columns: ['지역'], rows: [['N/A'], ['서울'], ['N/A']] }
     const fitted = fitPreprocessor(withNa, [0, 1, 2], ['지역'], preprocessing())
@@ -156,12 +173,19 @@ describe('스케일링', () => {
     expect(matrix.map((row) => row[0])).toEqual([0, 0.25, 0.5, 0.75, 1])
   })
 
-  it('값이 하나뿐인 열에서 0으로 나누지 않는다 - 행렬 전체가 NaN이 된다', () => {
-    const flat: Dataset = { columns: ['x'], rows: [['5'], ['5'], ['5']] }
-    const fitted = fitPreprocessor(flat, [0, 1, 2], ['x'], preprocessing({ scaling: 'standard' }))
-    const matrix = transform(fitted, flat, [0, 1, 2], 'onehot')
-    expect(matrix.flat().every((value) => Number.isFinite(value))).toBe(true)
-  })
+  /**
+   * **셋 다 본다** (R7 감사 B-6). 제목이 일반 명제인데 `standard` 하나만 돌리고 있었고,
+   * `minmax`·`robust`의 `|| 1`을 지워도 저장소 전체가 침묵했다. 소스의 머리말도
+   * `SCALE_BY_METHOD` 전체에 대해 말한다.
+   */
+  for (const scaling of ['standard', 'minmax', 'robust'] as const) {
+    it(`값이 하나뿐인 열에서 0으로 나누지 않는다 - ${scaling}`, () => {
+      const flat: Dataset = { columns: ['x'], rows: [['5'], ['5'], ['5']] }
+      const fitted = fitPreprocessor(flat, [0, 1, 2], ['x'], preprocessing({ scaling }))
+      const matrix = transform(fitted, flat, [0, 1, 2], 'onehot')
+      expect(matrix.flat().every((value) => Number.isFinite(value))).toBe(true)
+    })
+  }
 
   it("scaling이 'none'이면 값을 그대로 둔다", () => {
     const fitted = fitPreprocessor(numbers, all, ['x'], preprocessing({ scaling: 'none' }))

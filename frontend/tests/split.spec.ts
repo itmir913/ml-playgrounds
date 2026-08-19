@@ -106,8 +106,13 @@ describe('testSize', () => {
     expect(testIndices).toHaveLength(30)
   })
 
-  it('반올림해서 0이 나와도 평가셋에 하나는 남는다', () => {
-    // 4행 x 0.01 = 0.04 -> 반올림하면 0이다. 평가할 것이 없으면 지표가 의미를 잃는다.
+  /**
+   * **`ceil`이라 0이 나올 수 없다.** 전에는 이 자리가 *"반올림해서 0이 나와도 하나는
+   * 남는다"*였고 `Math.max(…, 1)` 클램프를 겨눴는데, `round`에서 `ceil`로 옮긴 뒤로
+   * 그 클램프가 **도달 불가능해졌다** — 스키마가 `testSize`를 `gt(0)`으로 막으므로
+   * 양수 × 양수의 올림은 언제나 1 이상이다. 그래서 클램프를 지웠다 (R7 감사 B-1).
+   */
+  it('아주 작은 비율에서도 평가셋에 하나는 남는다 - 올림이 그것을 준다', () => {
     const { trainIndices, testIndices } = holdoutSplit({ rows: rows(4) }, split({ testSize: 0.01 }))
     expect(testIndices).toHaveLength(1)
     expect(trainIndices).toHaveLength(3)
@@ -221,6 +226,21 @@ describe('평가 데이터가 파일로 온 분할', () => {
     expect(testIndices).toEqual([0, 1, 2])
   })
 
+  /**
+   * **오름차순은 여기서도 지켜야 한다** (R7 감사 B-3). holdout 쪽에만 검사가 있었고,
+   * 이 묶음이 넘기던 행이 전부 이미 오름차순이라 `.sort()` 둘을 지워도 침묵했다.
+   *
+   * 학생이 압축을 풀어 `runs.json`을 들여다보는 것은 교육적으로 좋은 일이고, 그때
+   * 뒤죽박죽인 번호는 읽을 것이 못 된다.
+   */
+  it('오름차순으로 나온다 - 넘어온 순서가 뒤죽박죽이어도', () => {
+    const { trainIndices, testIndices } = splitRows({ rows: [9, 2, 5] }, provided, {
+      rows: [4, 1],
+    })
+    expect(trainIndices).toEqual([2, 5, 9])
+    expect(testIndices).toEqual([1, 4])
+  })
+
   it('원본 행 번호를 그대로 쓴다 - 걸러낸 뒤 다시 세지 않는다', () => {
     // 참조형 모델이 trainIndices로 dataset/data.csv를 가리킨다 (mlpx-spec.md 5.1).
     expect(splitRows({ rows: [2, 5, 9] }, provided, { rows: [1, 4] }).trainIndices).toEqual([
@@ -265,25 +285,14 @@ describe('평가 데이터가 파일로 온 분할', () => {
 })
 
 /**
- * **반올림이 실제로 갈리는 자리를 준다.**
- *
- * `testCountFor`의 `Math.round`를 `Math.floor`로 바꿔도 저장소 전체 1,820개 검사가
- * 통과했다 (V11 R2 감사 B-5). 이 파일의 층화 픽스처가 전부 몫이 정확히 떨어져서다 —
- * 150×0.2=30.0 · 100×0.3=30.0 · 90:10×0.2=18.0/2.0 · 20×0.2=4.0. 경계 검사 둘
- * (`4행 × 0.01`·`4행 × 0.99`)은 클램프가 답을 정하므로 `floor`·`ceil`·`round`가 셋 다 같다.
- *
- * **같은 병을 뽑기 쪽은 2026-08-12에 고쳤는데 분할 쪽은 그대로였다.**
- * `sample.spec.ts`가 그때 `['A',7]·['B',11]·['C',13]` 같은 날카로운 픽스처를 얻었다.
- *
- * **`round`가 맞는지는 여기서 다투지 않는다** — sklearn은 `ceil`이고 그 차이는
- * `open-decisions.md`가 다룰 결정이다. 이 검사가 지키는 것은 **지금 규칙이 무엇인지가
- * 코드 밖에 적혀 있다**는 것뿐이다.
- */
-/**
  * **sklearn `train_test_split`과 같은 함수여야 한다** — `n_test = ceil(n * test_size)`
  * (`CLAUDE.md` §2 · open-decisions.md #31, 2026-08-19에 `round`에서 옮겼다).
  *
  * 여기서 익힌 20%가 scikit-learn에서 다른 20%면 이 도구는 발판이 아니다.
+ *
+ * **픽스처가 몫이 떨어지면 이 축을 못 가른다.** `round`이던 시절 `floor`로 바꿔도 저장소
+ * 전체가 통과한 적이 있다(V11 R2 B-5) — 층화 픽스처가 전부 `150×0.2=30.0`처럼 정확히
+ * 떨어졌기 때문이다. **소수부가 남는 표본을 골라라.**
  */
 describe('평가셋 개수는 sklearn과 같은 함수로 센다', () => {
   const countOf = (total: number, testSize: number): number =>
@@ -358,6 +367,34 @@ describe('평가셋 개수는 sklearn과 같은 함수로 센다', () => {
       expect(Object.values(tally).filter((count) => count === 1)).toHaveLength(8)
     })
 
+    /**
+     * **동점을 씨앗으로 가르는지** (R7 감사 B-4). 위 검사는 *어느* 반인지를 일부러 안
+     * 보므로, 섞는 것을 벗겨 등장 순서 그대로 나눠 줘도 초록이었다.
+     *
+     * 소스가 그 이유를 적어 두었다 — *"늘 앞자리부터 주면 데이터에 먼저 나온 라벨이
+     * 언제나 한 장을 더 받는다."* **어느 반인지를 고정하지 않으면서** 씨앗 의존성만
+     * 잡으려면 씨앗 둘을 견주면 된다.
+     */
+    it('씨앗이 다르면 한 장을 더 받는 반이 갈린다 - 앞자리 편향이 아니다', () => {
+      const labels = Array.from({ length: 120 }, (_, index) => `C${index % 10}`)
+      const twoFor = (randomState: number): string[] =>
+        Object.entries(
+          holdoutSplit(
+            { rows: rows(labels.length), labels },
+            { method: 'holdout', testSize: 0.1, stratify: true, randomState },
+          ).testIndices.reduce<Record<string, number>>((tally, index) => {
+            const label = labels[index]!
+            return { ...tally, [label]: (tally[label] ?? 0) + 1 }
+          }, {}),
+        )
+          .filter(([, count]) => count === 2)
+          .map(([label]) => label)
+          .sort()
+
+      expect(twoFor(42)).toHaveLength(2)
+      expect(twoFor(7)).not.toEqual(twoFor(42))
+    })
+
     /** 씨앗이 같으면 우리끼리는 언제나 같은 답이다 - 재현 가능성이 먼저다. */
     it('같은 씨앗이면 같은 답이다', () => {
       const labels = Array.from({ length: 120 }, (_, index) => `C${index % 10}`)
@@ -365,12 +402,15 @@ describe('평가셋 개수는 sklearn과 같은 함수로 센다', () => {
     })
   })
 
-  /** 양끝은 sklearn과 다르다 - 저쪽은 던지고 우리는 하나를 남긴다. */
+  /**
+   * **위쪽 클램프만 살아 있다.** sklearn은 여기서 던지고 우리는 하나를 남긴다 —
+   * 교실에서 멈추는 것보다 낫다. 아래쪽(`Math.max(…, 1)`)은 `ceil`이 대신하므로 없다.
+   */
   it('전부 가져가지 않는다 - 학습할 것이 남는다', () => {
     expect(countOf(2, 1)).toBe(1)
   })
 
-  it('0으로 내려가지 않는다 - 평가할 것이 남는다', () => {
+  it('아주 작은 비율도 올림이라 1이다 - 클램프가 아니라', () => {
     expect(countOf(100, 0.001)).toBe(1)
   })
 })

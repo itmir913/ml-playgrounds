@@ -95,12 +95,16 @@ function approximateMode(counts: readonly number[], draws: number, seed: number)
  * **층화에서는 이 함수가 전체 개수만 센다.** 반별로 나누는 것은 `approximateMode`이고,
  * 라벨마다 여기를 부르면 총 개수가 sklearn과 갈린다 (R6 감사 B-1).
  *
- * **양쪽 모두 최소 하나는 남긴다.** 0이 나오면 평가할 것이 없고 전부 가져가면 학습할
- * 것이 없다. sklearn은 그 자리에서 던지는데 **우리는 하나를 남긴다** — 교실에서 멈추는
- * 것보다 낫다.
+ * **학습셋에 하나는 남긴다.** 전부 가져가면 학습할 것이 없다. sklearn은 그 자리에서
+ * 던지는데 **우리는 하나를 남긴다** — 교실에서 멈추는 것보다 낫다.
+ *
+ * **아래쪽 클램프는 없다.** 예전에는 `Math.max(…, 1)`이 있었는데 `ceil`로 옮긴 뒤
+ * **도달 불가능해졌다** — 스키마가 `testSize`를 `gt(0).lt(1)`로 막으므로(`schema.ts`)
+ * 양수의 올림은 언제나 1 이상이다. **검사 둘이 그 죽은 가지를 지킨다고 말하고 있었다**
+ * (R7 감사 B-1).
  */
 function testCountFor(total: number, testSize: number): number {
-  return Math.min(Math.max(Math.ceil(total * testSize), 1), total - 1)
+  return Math.min(Math.ceil(total * testSize), total - 1)
 }
 
 /**
