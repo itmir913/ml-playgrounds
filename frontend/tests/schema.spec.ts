@@ -12,6 +12,7 @@ import { isClientError } from '../src/errors'
 import { MIN_SPLIT_ROWS } from '../src/limits'
 import {
   DATA_COMPARABLE_KEYS,
+  SNAPSHOT_NOT_COMPARED,
   DATA_SCHEMAS,
   DATA_TYPES,
   FORMAT_VERSION,
@@ -451,8 +452,28 @@ describe('데이터 종류별 설정', () => {
   })
 
   it('스냅샷 필드가 전부 비교 목록에 있다 - 빠지면 그 변경이 안 뜬다', () => {
-    const missing = kindFields('snapshot').filter((key) => !DATA_COMPARABLE_KEYS.includes(key))
-    expect(missing).toEqual([])
+    const missing = kindFields('snapshot').filter(
+      (key) => !DATA_COMPARABLE_KEYS.includes(key) && !SNAPSHOT_NOT_COMPARED.includes(key),
+    )
+    expect(
+      missing,
+      '스냅샷에 있는데 이력에도 안 뜨고 제외 목록에도 없다. 둘 중 하나를 골라라.',
+    ).toEqual([])
+  })
+
+  /**
+   * **오타는 조용히 아무것도 안 뺀다.** 제외 목록의 이름이 실재하지 않으면 그 필드는
+   * 그대로 비교되고, 목록은 "뺐다"고 말한 채로 초록이다.
+   */
+  it('제외 목록의 이름이 실재하는 스냅샷 필드다', () => {
+    const fields = new Set(kindFields('snapshot'))
+    const ghosts = SNAPSHOT_NOT_COMPARED.filter((key) => !fields.has(key))
+    expect(ghosts, '스냅샷에 없는 이름을 제외 목록이 들고 있다').toEqual([])
+  })
+
+  it('제외한 것은 실제로 비교 목록에 없다', () => {
+    const leaked = SNAPSHOT_NOT_COMPARED.filter((key) => DATA_COMPARABLE_KEYS.includes(key))
+    expect(leaked).toEqual([])
   })
 
   /**

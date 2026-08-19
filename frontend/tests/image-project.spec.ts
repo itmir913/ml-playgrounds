@@ -443,3 +443,41 @@ describe('담을 수 있는 장수', () => {
     expect(imageOverflow(null, 1)).toBeNull()
   })
 })
+
+/**
+ * **행 순서는 좌표계다** (mlpx-spec.md §5.1). 참조형 모델의 `trainIndices`가 가리키는
+ * 자리이고, 그것이 브라우저 설정에 딸려 있으면 같은 파일이 기기마다 다른 뜻을 갖는다.
+ *
+ * **`localeCompare`를 쓰던 자리다** (V11 R1 감사 B-5). 인자 없이 부르면 그 런타임의 기본
+ * 로케일을 쓰는데, 체코에서 `ch`는 한 글자이고 스웨덴에서 `Ä`는 `z` 뒤다. 그때는
+ * **정렬을 통째로 지워도 검사 1,817개가 전부 초록이었다.**
+ */
+describe('사진의 순서는 로케일이 아니라 코드 단위로 정한다', () => {
+  /**
+   * **대문자와 소문자가 이 축을 가른다.** 코드 단위로는 `B`(0x42)가 `a`(0x61)보다
+   * 앞이고, 로케일 비교는 알파벳 순서라 `a`를 앞에 둔다 — 학생이 범주를 `a`와 `B`로
+   * 지으면 실제로 갈린다.
+   */
+  it('대문자 범주가 소문자 범주보다 앞이다 - 로케일 비교는 반대로 답한다', () => {
+    const project = withPhotos(
+      { hash: 'aa'.repeat(32), category: 'a' },
+      { hash: 'bb'.repeat(32), category: 'B' },
+    )
+
+    // 이 표본이 실제로 두 규칙을 가르는지부터 확인한다. 안 갈리면 아래가 헛돈다.
+    expect('B'.localeCompare('a')).toBeGreaterThan(0)
+    expect('B' < 'a').toBe(true)
+
+    expect(readImages(project).map((entry) => entry.category)).toEqual(['B', 'a'])
+  })
+
+  it('경로의 코드 단위 오름차순과 같다', () => {
+    const project = withPhotos(
+      { hash: 'cc'.repeat(32), category: '개' },
+      { hash: 'aa'.repeat(32), category: 'Zebra' },
+      { hash: 'bb'.repeat(32), category: 'apple' },
+    )
+    const paths = readImages(project).map((entry) => entry.path)
+    expect(paths).toEqual([...paths].sort((left, right) => (left < right ? -1 : 1)))
+  })
+})

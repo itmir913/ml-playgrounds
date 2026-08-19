@@ -709,6 +709,14 @@ describe('id와 changed', () => {
       testDataset: '바꾸면 기존 실험이 지워진다',
       // 예측 화면에서만 쓴다. 학습에 안 들어가므로 지표를 움직이지 않는다.
       predictDataset: '학습에 들어가지 않는다',
+      /**
+       * 행 순서의 지문 (mlpx-spec.md §5.1). **학생이 고른 값이 아니라 기계가 남긴
+       * 기록이라** 이력에 뜨면 64자 16진수가 그대로 보인다. 데이터가 달라진 것은
+       * 위 `categories`·`categoryCounts`·`unlabeledCount`가 말한다.
+       *
+       * 빼는 자리는 소스에도 있다 — `schema.ts`의 `SNAPSHOT_NOT_COMPARED`.
+       */
+      rowsHash: '학생이 고른 값이 아니라 기계가 남긴 지문이다',
     }
 
     /**

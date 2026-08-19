@@ -457,6 +457,22 @@ export const imageSnapshotSchema = z.looseObject({
    * 사이에서 데이터가 달라진 것이 안 잡힌다.
    */
   unlabeledCount: z.int().nonnegative(),
+  /**
+   * 학습에 쓴 **행 순서**의 지문 (mlpx-spec.md §5.1). 사진 해시를 순서대로 이어 해싱한
+   * 값 하나다.
+   *
+   * **이미지에는 `dataset/data.csv`가 없어서 행 번호가 표의 자리를 가리킨다.** 그 표는
+   * 예측할 때마다 지금 사진들로 다시 세워지므로, 순서가 달라지면 `trainIndices`가
+   * 가리키는 사진이 통째로 바뀐다.
+   *
+   * **위의 장수로는 두 방향 이동을 못 잡는다** (V11 R1 감사 B-1). A를 개→고양이로,
+   * B를 고양이→개로 옮기면 **범주별 장수가 하나도 안 변하는데** 경로가 바뀌어 순서는
+   * 바뀐다. 그러면 이웃이 다른 사진이 된 채로 답만 멀쩡히 나온다.
+   *
+   * **선택 항목이다** — 이 필드가 생기기 전 파일에는 없다. 없으면 장수만 보고, 그 파일의
+   * 구멍은 그대로 남는다. **닫을 방법이 없는 구멍이다**(그 순서를 아무도 안 적어 뒀다).
+   */
+  rowsHash: z.string().optional(),
 })
 
 /** 한 데이터 종류가 선언하는 것 — 스키마 둘과 시작값 하나. */
@@ -569,9 +585,25 @@ export function dataSnapshot<Kind extends DataType>(
  * (`split`·`nSamples`·`runtime`·`algorithms`·`taskType`·`hyperparameters`)와 겹치면 안
  * 된다** — 평평하게 편 자리에서 하나가 다른 하나를 덮는다. `tests/schema.spec.ts`가 막는다.
  */
+/**
+ * 스냅샷에 있지만 **변경 이력에서는 빼는 것.**
+ *
+ * **학생이 고른 값이 아니라 기계가 남긴 지문일 때만 여기 넣는다.** 이력이 답하는 질문은
+ * *"내가 무엇을 바꿨나"*이고, 그 답에 64자 16진수가 뜨면 학생은 읽을 것이 없다
+ * (`ml/changes.ts`는 등록부에 없는 경로를 `labelKey: null`로 그대로 흘린다).
+ *
+ * **비운 채로 두는 것이 기본이다.** 여기 이름을 더하는 것은 "이 변경은 학생에게 안
+ * 보인다"고 정하는 일이라, 그 값이 무엇을 지키는지 함께 적어라. `tests/schema.spec.ts`가
+ * 이 목록의 이름이 실재하는 스냅샷 필드인지 본다 — 오타는 조용히 아무것도 안 뺀다.
+ */
+export const SNAPSHOT_NOT_COMPARED: readonly string[] = [
+  // 행 순서의 지문. 데이터가 달라진 것은 categories·categoryCounts·unlabeledCount가 말한다.
+  'rowsHash',
+]
+
 export const DATA_COMPARABLE_KEYS: readonly string[] = [
   ...new Set(DATA_TYPES.flatMap((dataType) => Object.keys(DATA_SCHEMAS[dataType].snapshot.shape))),
-]
+].filter((key) => !SNAPSHOT_NOT_COMPARED.includes(key))
 
 export const settingsSchema = z.looseObject({
   /**

@@ -52,6 +52,14 @@ export interface ImageEntry {
 /**
  * 그 자리에 있는 사진들. **순서는 경로순이라 열 때마다 같다** — 격자가 열 때마다 다르게
  * 서면 학생은 사진이 바뀌었다고 읽는다.
+ *
+ * **코드 단위로 비교한다. `localeCompare`를 쓰지 마라** (V11 R1 감사 B-5). 그쪽은 인자
+ * 없이 부르면 **그 런타임의 기본 로케일**을 쓰는데, 체코에서 `ch`는 한 글자이고
+ * 스웨덴에서 `Ä`는 `z` 뒤다. 이 순서는 사람에게 보여주는 정렬이 아니라 **좌표계**다 —
+ * 참조형 모델의 `trainIndices`가 가리키는 자리이고(mlpx-spec.md §5.1), 그것이 브라우저
+ * 설정에 딸려 있으면 같은 파일이 기기마다 다른 뜻을 갖는다.
+ *
+ * 범주를 화면에 세우는 순서는 여기서 안 온다 — `settings.data.categories`가 갖는다.
  */
 export function readImages(
   project: ProjectFile | null,
@@ -60,7 +68,7 @@ export function readImages(
   if (!project) return []
   const entries: ImageEntry[] = []
   for (const [path, bytes] of [...project.images].sort(([left], [right]) =>
-    left.localeCompare(right),
+    left < right ? -1 : left > right ? 1 : 0,
   )) {
     const category = categoryOfEntry(role, path)
     const format = canonicalFormatOfPath(path)

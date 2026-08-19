@@ -14,9 +14,12 @@ import {
   embeddingColumns,
   IMAGE_LABEL_COLUMN,
   imagePredictTable,
+  imageTrainingRows,
   imageTrainingSource,
   pendingEmbeddings,
+  rowsHashOf,
 } from '../src/ml/images'
+import { fitPreprocessor } from '../src/ml/preprocess'
 import { newProjectDocument } from '../src/project/create'
 import { IMAGE_UNLABELED, type ProjectFile } from '../src/project/format'
 import { addCategory, addImages, readImages } from '../src/project/images'
@@ -285,5 +288,152 @@ describe('예측할 사진들의 표', () => {
 describe('열 이름', () => {
   it('0부터 센다 - 파이썬 관행이다', () => {
     expect(embeddingColumns(3)).toEqual(['f0', 'f1', 'f2'])
+  })
+})
+
+/**
+ * **참조형 모델의 학습 행을 되세우는 자리** (`imageTrainingRows`, mlpx-spec.md §5.0).
+ *
+ * 이미지에는 `dataset/data.csv`가 없어서 `trainIndices`는 **임베딩 표의 행 번호**이고,
+ * 그 표는 예측할 때마다 지금 사진들로 다시 세워진다. **행 번호가 다른 사진을 가리키게
+ * 되면 이웃이 바뀐 채로 답만 멀쩡히 나온다.**
+ *
+ * **이 함수는 검사가 하나도 없었다** (V11 R1 감사 B-1). 방어선 둘을 각각 무력화하는
+ * 돌연변이를 심고 저장소 전체 1,817개를 돌렸는데 하나도 안 울었다.
+ */
+describe('학습 행을 되세운다', () => {
+  const ITEMS = [
+    { seed: 'a', category: '개' },
+    { seed: 'b', category: '개' },
+    { seed: 'c', category: '고양이' },
+    { seed: 'd', category: '고양이' },
+  ] as const
+
+  /** 진짜 입구로 짓는다 — 스냅샷을 손으로 조립하면 `rowsHash`가 진짜 순서와 무관해진다. */
+  function trained(project: ProjectFile) {
+    const vectors = vectorsFor(project)
+    const source = imageTrainingSource(project, vectors, BACKBONE, 'classification')
+    const trainIndices = source.dataset.rows.map((_, index) => index)
+    const preprocessor = fitPreprocessor(
+      source.dataset,
+      trainIndices,
+      // 계산용 설정의 `data`는 스냅샷이 아니라 표의 모양이다 - 특성은 임베딩 열이다.
+      embeddingColumns(DIM),
+      { missing: 'none', scaling: 'none', categoricalEncoding: 'onehot' },
+    )
+    const experiment = {
+      id: 'experiment-1',
+      startedAt: NOW,
+      settings: {
+        taskType: 'classification' as const,
+        runtime: 'mljs',
+        selectedAlgorithms: [{ algorithm: 'knn', runtime: 'mljs' }],
+        data: source.snapshot,
+        split: { method: 'holdout' as const, testSize: 0.5, stratify: true, randomState: 42 },
+        nSamples: source.dataset.rows.length,
+        trainIndices,
+        testIndices: [],
+      },
+      runs: [],
+    }
+    return { experiment, preprocessor, vectors }
+  }
+
+  function rowsOf(project: ProjectFile, trainedOn: ProjectFile = project) {
+    const { experiment, preprocessor } = trained(trainedOn)
+    return imageTrainingRows(
+      project,
+      experiment,
+      preprocessor,
+      BACKBONE,
+      vectorsFor(project),
+      'classification',
+    )
+  }
+
+  it('그대로면 행을 내준다', () => {
+    const project = imageProject(ITEMS)
+    expect(rowsOf(project)?.indices).toEqual([0, 1, 2, 3])
+  })
+
+  /**
+   * **B-1이 지적한 구멍이다.** 두 사진의 범주를 서로 맞바꾸면 **범주별 장수가 하나도 안
+   * 변한다.** 그런데 경로가 바뀌므로 행 순서는 바뀌고, `trainIndices`가 가리키는 사진이
+   * 통째로 달라진다. 교실에서 흔한 편집이다 — "이거 둘이 서로 바뀌었네".
+   */
+  it('라벨을 맞바꾸면 장수가 같아도 행을 안 내준다', () => {
+    const before = imageProject(ITEMS)
+    const swapped = imageProject([
+      { seed: 'a', category: '고양이' },
+      { seed: 'b', category: '개' },
+      { seed: 'c', category: '개' },
+      { seed: 'd', category: '고양이' },
+    ])
+
+    // 장수는 정말로 같다 - 이 축이 안 갈리는 것이 이 검사의 전제다.
+    const countsOf = (project: ProjectFile) =>
+      dataSettings('image', project.document.settings).categories.map(
+        (category) => readImages(project).filter((entry) => entry.category === category).length,
+      )
+    expect(countsOf(swapped)).toEqual(countsOf(before))
+
+    expect(rowsOf(swapped, before)).toBeNull()
+  })
+
+  it('사진이 늘면 행을 안 내준다 - 장수가 갈린다', () => {
+    const before = imageProject(ITEMS)
+    const more = imageProject([...ITEMS, { seed: 'e', category: '개' }])
+    expect(rowsOf(more, before)).toBeNull()
+  })
+
+  /**
+   * **옛 파일에는 `rowsHash`가 없다.** 그때는 장수만 보므로 맞바꾸기가 통과한다 —
+   * 닫을 방법이 없는 구멍이고, 그 사실을 여기 못 박아 둔다 (mlpx-spec.md §5.1).
+   */
+  it('지문이 없는 옛 실험은 장수만 본다', () => {
+    const before = imageProject(ITEMS)
+    const swapped = imageProject([
+      { seed: 'a', category: '고양이' },
+      { seed: 'b', category: '개' },
+      { seed: 'c', category: '개' },
+      { seed: 'd', category: '고양이' },
+    ])
+    const { experiment, preprocessor } = trained(before)
+
+    // 옛 파일은 이 필드가 **아예 없다.** `undefined`를 넣는 것과 구분해서 진짜로 지운다.
+    const older = structuredClone(experiment)
+    const data = older.settings.data as { rowsHash?: string }
+    expect(data.rowsHash, '지문을 실제로 떼어냈는지부터 확인한다').toBeDefined()
+    delete data.rowsHash
+
+    expect(
+      imageTrainingRows(
+        swapped,
+        older,
+        preprocessor,
+        BACKBONE,
+        vectorsFor(swapped),
+        'classification',
+      ),
+    ).not.toBeNull()
+  })
+})
+
+/**
+ * **지문은 순서에 민감해야 한다.** 같은 사진들이라도 자리가 바뀌면 다른 값이어야 위
+ * 대조가 성립한다.
+ */
+describe('행 순서의 지문', () => {
+  it('순서가 다르면 값이 다르다', () => {
+    expect(rowsHashOf(['aa', 'bb'])).not.toBe(rowsHashOf(['bb', 'aa']))
+  })
+
+  it('같은 순서면 같은 값이다', () => {
+    expect(rowsHashOf(['aa', 'bb'])).toBe(rowsHashOf(['aa', 'bb']))
+  })
+
+  /** 구분자가 없으면 `["ab","cd"]`와 `["abc","d"]`가 같은 글자가 된다. */
+  it('경계를 지운 조합과 갈린다', () => {
+    expect(rowsHashOf(['ab', 'cd'])).not.toBe(rowsHashOf(['abc', 'd']))
   })
 })

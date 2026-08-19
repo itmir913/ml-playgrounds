@@ -18,6 +18,7 @@ import { targetValues, transform, type Dataset, type Preprocessor } from '@/ml/p
 import type { BackboneSpec } from '@/ml/backbones'
 import { IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
 import type { ImageRole } from '@/data/image/canonical'
+import { hashText } from '@/hash'
 import { countByCategory, imageCategories, readImages, type ImageEntry } from '@/project/images'
 import { dataSnapshot, type Experiment, type Settings, type TaskType } from '@/project/schema'
 
@@ -111,6 +112,20 @@ export interface ImageTrainingSource {
 }
 
 /**
+ * 행 순서의 지문 (mlpx-spec.md §5.1). **순서에 민감해야 한다** — 같은 사진들이라도
+ * 자리가 바뀌면 다른 값이어야 그 변화를 잡는다.
+ *
+ * **구분자를 넣는다.** 그냥 이어 붙이면 `["ab","cd"]`와 `["abc","d"]`가 같은 글자가
+ * 된다. 지금은 길이가 고정된 16진수라 안 겹치지만, 겹치는 날 조용히 틀린다.
+ */
+export function rowsHashOf(hashes: readonly string[]): string {
+  return hashText(hashes.join(SEPARATOR))
+}
+
+/** 지문을 만들 때 해시 사이에 넣는 글자. 해시에는 안 나오는 문자라야 한다. */
+const SEPARATOR = '\n'
+
+/**
  * 학습에 넘길 것을 짓는다.
  *
  * **분류는 라벨 붙은 사진만 쓴다.** 라벨 없는 사진은 학습에 안 들어가고, 그건 표에서
@@ -171,6 +186,9 @@ export function imageTrainingSource(
       // 장수가 바뀌었다고 말한다.
       categoryCounts: categories.map((category) => counts.get(category) ?? 0),
       unlabeledCount: counts.get(IMAGE_UNLABELED) ?? 0,
+      // **행 번호가 무엇을 가리키는지의 기록이다** (mlpx-spec.md §5.1). 장수는 두 방향
+      // 이동을 못 잡는다 - 되세울 때 이 값을 다시 계산해 대조한다.
+      rowsHash: rowsHashOf(entries.map((entry) => entry.hash)),
     },
     hashes: entries.map((entry) => entry.hash),
   }
@@ -184,8 +202,13 @@ export function imageTrainingSource(
  * 그 상태를 잡는 것이 스냅샷의 장수다 — 그 값이 있어야 하는 이유가 여기서 한 번 더 선다
  * (open-decisions.md "장수가 스냅샷에 있어야 하는 이유").
  *
- * **남는 구멍은 같은 수를 지우고 더한 경우 하나다.** 그 경우까지 닫으려면 엔트리 목록의
- * 해시가 필요하고, 그건 학생이 읽을 수 없는 값이라 미뤄 두었다.
+ * **장수만으로는 원리적으로 못 가르는 것이 있다** (V11 R1 감사 B-1). 사진 A를
+ * 개→고양이로, B를 고양이→개로 옮기면 **범주별 장수가 하나도 안 변하는데** 경로가 바뀌어
+ * 행 순서는 바뀐다. 그래서 스냅샷의 `rowsHash`를 다시 계산해 대조한다 — **두 방향 이동은
+ * 교실에서 흔하다**("이거 둘이 서로 바뀌었네").
+ *
+ * **옛 파일에는 `rowsHash`가 없다.** 그때는 장수만 본다. 그 구멍은 닫을 방법이 없다 —
+ * 그 순서를 아무도 안 적어 두었다 (mlpx-spec.md §5.1).
  */
 export function imageTrainingRows(
   project: ProjectFile,
@@ -206,6 +229,12 @@ export function imageTrainingRows(
   if (!sameCounts) return null
 
   const source = imageTrainingSource(project, vectors, backbone, taskType)
+
+  // **적혀 있으면 순서까지 본다.** 장수가 같아도 자리가 바뀌었으면 행 번호의 뜻이 달라진다.
+  if (snapshot.rowsHash !== undefined && snapshot.rowsHash !== rowsHashOf(source.hashes)) {
+    return null
+  }
+
   const { trainIndices } = experiment.settings
   if (trainIndices.some((index) => index >= source.dataset.rows.length)) return null
 
