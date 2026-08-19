@@ -99,6 +99,23 @@ describe('하이퍼파라미터가 Python 소스로 나갈 때', () => {
     // 기본값(sklearn의 5)으로 돌아간 값이 들어간다.
     expect(source).toContain('n_neighbors=5')
   })
+
+  /**
+   * 위 검사의 주석이 *"문자열은 따옴표째 소스가 된다"*라고 적어 두었는데 **표본이
+   * boolean 하나뿐이었다** (R8 감사 C-5). 문자열은 boolean과 다른 길로 샌다 —
+   * 따옴표가 없으면 이름으로, 있으면 값으로 들어가고 둘 다 우리가 안 정한 소스다.
+   */
+  it('문자열도 들어가지 않는다', () => {
+    const { proxy, sources } = fakePyodide()
+    setPyodide(proxy)
+
+    fit('knn', input({ n_neighbors: '7' }))
+
+    const source = sources.join('\n')
+    expect(source).not.toContain("n_neighbors='7'")
+    expect(source).not.toContain('n_neighbors=7')
+    expect(source).toContain('n_neighbors=5')
+  })
 })
 
 describe('준비되지 않은 엔진', () => {

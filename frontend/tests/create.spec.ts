@@ -54,6 +54,23 @@ describe('새 프로젝트', () => {
     }
   })
 
+  /**
+   * **위 검사는 기대값을 구현으로 다시 만든다** — 종류가 어긋나는 것은 잡지만
+   * *초기값이 무엇인가*는 안 본다 (R8 감사 C-4). 한 종류만이라도 손으로 적어 둔다.
+   *
+   * 특히 `scaling: 'none'`이 그렇다. 켜진 채로 시작하면 **학생이 켰을 때 숫자가
+   * 달라지는 장면 자체가 없어지는데**, 그건 어떤 스키마 검사에도 안 걸린다.
+   */
+  it('표 프로젝트의 초기 설정은 이것이다', () => {
+    const document = newProjectDocument({ ...input, dataType: 'tabular' }, seed)
+    expect(document.settings.data).toEqual({
+      dataset: undefined,
+      features: [],
+      target: undefined,
+      preprocessing: { missing: 'drop', scaling: 'none', categoricalEncoding: 'onehot' },
+    })
+  })
+
   it('기계학습 유형이 없는 상태로 시작한다', () => {
     // **기본값을 두면 학생이 고른 분류와 아무도 안 고른 분류가 파일에서 구분되지 않는다**
     // (open-decisions.md "기계학습 유형은 모델을 고르는 자리에서 고른다").

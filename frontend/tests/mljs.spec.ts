@@ -89,19 +89,24 @@ describe('엔진 버전이 의존성에 묶여 있다', () => {
   })
 })
 
+/**
+ * **여기서 보는 것은 "두 번 돌려도 같다"까지다.**
+ *
+ * 이 축은 씨앗을 엔진 안에 상수로 못 박아도 통과한다 — 두 번 다 같은 상수로 도니까.
+ * 한때 `랜덤포레스트는 시드가 다르면 모델도 다를 수 있다`라는 검사가 여기 있었는데,
+ * 몸통은 **같은 씨앗으로 두 번** 돌려 같은지 보고 있었다. 위의 루프와 글자만 다른
+ * 같은 검사였고, 제목과 주석만 더 많은 것을 주장했다 (R8 감사 A-2·C-6).
+ *
+ * **씨앗이 라이브러리까지 가는지는 여기가 아니다** — `experiment.spec.ts`("씨앗이
+ * 분할만이 아니라 fit까지 간다")와 `sklearn-parity.spec.ts`가 그 고리를 잡는다.
+ * 붓꽃 30행은 씨앗에 둔감해서 이 파일의 픽스처로는 애초에 못 가른다.
+ */
 describe('재현 가능성', () => {
   for (const algorithm of ['decision_tree', 'knn', 'random_forest', 'naive_bayes']) {
     it(`${algorithm}은 두 번 돌려도 같은 결과다`, () => {
       expect(run(algorithm).metrics).toEqual(run(algorithm).metrics)
     })
   }
-
-  it('랜덤포레스트는 시드가 다르면 모델도 다를 수 있다', () => {
-    // 시드를 안 넘기면 매번 다르다. 넘긴다는 것 자체가 여기서 확인된다.
-    const first = run('random_forest')
-    const second = run('random_forest')
-    expect(second.metrics).toEqual(first.metrics)
-  })
 
   /**
    * **나무를 적게 잡아도 학습된다.**

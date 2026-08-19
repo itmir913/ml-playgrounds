@@ -404,11 +404,18 @@ function unsyncedLockedInputs(source: string): string[] {
  *
  * **`sr-only`인 이름은 안 잡는다.** 값 자체가 무엇인지 말하고 있어 이름을 숨겨 둔 자리이고
  * (파일 이름, 실험 개수), 안 보이는 것에 배지를 씌울 수도 없다.
+ *
+ * **`class`가 첫 속성이 아니어도 본다.** 한때 `<div class="flex…gap-1.5">`로 못 박혀 있어
+ * `<div v-if="…" class="…">`도 `class="… gap-1.5 shrink-0"`도 통째로 빠져나갔다 —
+ * 앞의 모양은 이 저장소에 이미 있다(`ClusterScatter.vue`). 규칙이 자기 모양의 가장 흔한
+ * 변형에서 꺼지고 있었다 (R8 감사 B-1).
  */
 function unbadgedMetaNames(source: string): string[] {
   const template = source.slice(source.indexOf('<template>'))
   const groups = [
-    ...template.matchAll(/<div class="flex[^"]*gap-1\.5">\s*(<dt[^>]*>[\s\S]*?<\/dt>)/g),
+    ...template.matchAll(
+      /<div\b[^>]*\bclass="[^"]*\bflex\b[^"]*\bgap-1\.5\b[^"]*"[^>]*>\s*(<dt[^>]*>[\s\S]*?<\/dt>)/g,
+    ),
   ]
   return groups
     .map((match) => match[1] ?? '')
@@ -604,31 +611,62 @@ describe('예측 판은 화면에 양보한다', () => {
    * (V11 R4 B-1) 그 파일이 예측 경로에서 가장 무거운 고리를 돈다. 판이 하나 더
    * 생기는 날(음성·텍스트) 같은 실수를 반복할 자리이기도 하다.
    *
-   * 판정 기준은 **무거운 계산을 부르는가**다. 목록을 부르지 않는 표시용 부품
-   * (`InputRow`·`PredictFilters` 따위)은 여기 해당하지 않는다.
+   * 판정 기준은 **무거운 계산을 부르거나, 스스로 양보를 부르거나**다. 목록을 부르지 않는
+   * 표시용 부품(`InputRow`·`PredictFilters` 따위)은 여기 해당하지 않는다.
+   *
+   * **뒤엣것이 빠져 있었다.** 기준이 호출 이름 둘뿐이라 `ImageClusterEvidence.vue`가
+   * 검사 밖이었다 — **스스로 `yieldToScreen`을 부르는 판인데** 그 유일한 호출을 지워도
+   * 아무도 안 울었다 (R8 감사 B-2). 무겁다고 스스로 선언한 판이 판정 밖에 있으면
+   * 이 머리말의 "빠진 판을 아무도 못 본다"가 그대로 다시 일어난다.
    *
    * **정규식을 안 쓴다.** 상태가 없어야 하고, 이 파일에 정규식으로 적어 넣다가
    * 제어문자가 박혀 **조용히 아무것도 안 잡은 적이 있다** (2026-08-18).
    */
-  const HEAVY = ['predictPage', 'loadModel']
+  const HEAVY = ['predictPage', 'loadModel', 'yieldToScreen']
   const PANELS = readdirSync(PREDICT_DIR)
     .filter((name) => name.endsWith('.vue'))
     .filter((name) => {
-      const source = readFileSync(join(PREDICT_DIR, name), 'utf-8')
+      const source = withoutComments(readFileSync(join(PREDICT_DIR, name), 'utf-8')).join('\n')
       return HEAVY.some((call) => source.includes(call))
     })
 
+  /**
+   * **요구가 판마다 다르다.**
+   *
+   * 단위를 돌며 계산하는 판은 **시작하기 전에 한 번, 단위마다 한 번**이라 둘이다.
+   * 한 덩어리로 끝나는 판(`ImageClusterEvidence` — 군집 하나의 대표를 찾는다)은
+   * 나눌 단위가 없으므로 **상자를 먼저 세우는 한 번**이 요구의 전부다. 거기에 둘을
+   * 요구하면 지킬 수 없는 규칙이 되고, 하나로 낮추면 도는 판에서 하나가 사라져도
+   * 안 울게 된다. 그래서 가른다.
+   *
+   * 가르는 기준은 **`for`가 있는가**다. 문자열로 본다 — 정규식을 안 쓰는 이유는 위와 같다.
+   */
+  function loopsOverUnits(source: string): boolean {
+    return withoutComments(source).some((line) => line.includes('for ('))
+  }
+
   /** 훑을 파일이 실제로 있어야 한다. 0개면 판정이 썩은 것이지 규칙이 지켜진 게 아니다. */
   it('검사할 판을 실제로 찾는다', () => {
-    expect(PANELS.length, `${PREDICT_DIR}에서 무거운 계산을 부르는 판`).toBeGreaterThanOrEqual(3)
+    expect(PANELS.length, `${PREDICT_DIR}에서 무거운 계산을 부르는 판`).toBeGreaterThanOrEqual(4)
+  })
+
+  /** **양쪽 갈래가 다 비어 있지 않아야 한다.** 한쪽이 0이면 그 갈래는 아무것도 안 지킨다. */
+  it('두 갈래가 다 서 있다', () => {
+    const sources = PANELS.map((name) => readFileSync(join(PREDICT_DIR, name), 'utf-8'))
+    expect(sources.filter(loopsOverUnits)).not.toHaveLength(0)
+    expect(sources.filter((source) => !loopsOverUnits(source))).not.toHaveLength(0)
   })
 
   for (const name of PANELS) {
     it(`${name}의 예측이 양보한다`, () => {
-      const source = readFileSync(join(SRC, 'views', 'predict', name), 'utf-8')
-      // 부르는 자리가 둘이어야 한다 — 시작하기 전에 한 번, 단위마다 한 번.
-      const calls = [...source.matchAll(/await yieldToScreen\(\)/g)]
-      expect(calls.length, `${name}: yieldToScreen을 부르는 자리`).toBeGreaterThanOrEqual(2)
+      const source = readFileSync(join(PREDICT_DIR, name), 'utf-8')
+      const calls = [
+        ...withoutComments(source)
+          .join('\n')
+          .matchAll(/await yieldToScreen\(\)/g),
+      ]
+      const least = loopsOverUnits(source) ? 2 : 1
+      expect(calls.length, `${name}: yieldToScreen을 부르는 자리`).toBeGreaterThanOrEqual(least)
     })
   }
 })
@@ -950,6 +988,28 @@ describe('나열에서 이름은 배지, 값은 plaintext다', () => {
       '</template>',
     ].join(NEWLINE)
     expect(unbadgedMetaNames(source)).toEqual([])
+  })
+
+  it('class가 첫 속성이 아니어도 잡는다', () => {
+    const source = [
+      '<template>',
+      '<dl>',
+      '  <div v-if="ok" class="flex items-baseline gap-1.5"><dt>a</dt><dd>1</dd></div>',
+      '</dl>',
+      '</template>',
+    ].join(NEWLINE)
+    expect(unbadgedMetaNames(source)).toEqual(['<dt>a</dt>'])
+  })
+
+  it('gap-1.5 뒤에 클래스가 더 붙어도 잡는다', () => {
+    const source = [
+      '<template>',
+      '<dl>',
+      '  <div class="flex items-baseline gap-1.5 shrink-0"><dt>a</dt><dd>1</dd></div>',
+      '</dl>',
+      '</template>',
+    ].join(NEWLINE)
+    expect(unbadgedMetaNames(source)).toEqual(['<dt>a</dt>'])
   })
 
   it('숨긴 이름은 안 잡는다 - 값 자체가 무엇인지 말하는 자리다', () => {

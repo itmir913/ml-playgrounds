@@ -522,6 +522,22 @@ describe('무엇이 이 단계를 막는가', () => {
     expect(isStepUnlocked('preprocess', NO_FACTS, undefined, 'tabular')).toBe(false)
   })
 
+  /**
+   * **목록이 전부여야 한다.** 위의 검사들은 첫 칸과 개수만 봐서 `.slice(0, 1)`을 붙여도
+   * 전부 통과했다 (R8 감사 C-3). 지금은 `lockedTextFor`가 `blockers[0]`만 쓰니 무해하지만,
+   * `CLAUDE.md` §2가 요구한 것은 **boolean이 아니라 이유 목록**이다 — 화면이 이유를
+   * 둘 이상 말하기로 하는 날 조용히 하나만 나온다.
+   *
+   * **순서도 함께 못 박는다.** `requires`의 순서이고, 앞엣것이 지금 할 수 있는 일이다.
+   */
+  it('막는 사실을 전부, 순서대로 준다', () => {
+    expect(stepBlockers('train', NO_FACTS, 'classification', 'tabular')).toEqual([
+      'datasetReady',
+      'targetChosen',
+      'featuresChosen',
+    ])
+  })
+
   it('데이터가 들어오면 다음 사실로 넘어간다', () => {
     const blockers = stepBlockers(
       'train',

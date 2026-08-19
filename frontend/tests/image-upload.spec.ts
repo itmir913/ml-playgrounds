@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// 가짜 Worker와 File이 DOM 쪽 전역을 쓴다.
+// 가짜 Worker가 `new ErrorEvent`를 쓰는데 node에는 그 전역이 없다.
 /**
  * 사진을 받아 정본으로 굽는 경로의 계약.
  *

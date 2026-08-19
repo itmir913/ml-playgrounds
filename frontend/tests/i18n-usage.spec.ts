@@ -70,10 +70,18 @@ const RULES: readonly Rule[] = [
   },
   {
     name: '한 텍스트 노드에 mustache를 둘 이상 두지 않는다',
-    pattern: /\{\{[^}]*\}\}[^<>]*\{\{/,
+    // **중괄호가 든 mustache도 본다.** 한때 `[^}]*`여서 보간 인자를 넘기는 호출
+    // (`{{ t('a', { n }) }}`)에서는 매칭이 시작조차 안 됐다 — 이 규칙이 겨눈
+    // "문장 + 수치"의 가장 흔한 모양이 바로 그것이다 (R8 감사 B-3).
+    // `[^<>]`로 묶어 **한 텍스트 노드 안**으로 가둔다. 규칙이 말하는 것이 그것이다.
+    pattern: /\{\{[^<>]*?\}\}[^<>]*\{\{/,
     // 적어도 한쪽이 번역이어야 한다. "3 / 10" 같은 수치 표시는 문장이 아니다.
     only: (line) => /\$?\bt\(/.test(line),
-    violations: ['<p>{{ t("train.done") }} {{ count }}</p>', '<p>{{ count }}{{ t("models") }}</p>'],
+    violations: [
+      '<p>{{ t("train.done") }} {{ count }}</p>',
+      '<p>{{ count }}{{ t("models") }}</p>',
+      "<p>{{ t('meta.runs', { n: 1 }) }} {{ done }}</p>",
+    ],
     allowed: [
       '<p>{{ t("train.done", { count }) }}</p>',
       // 태그로 나뉜 것은 각자 완결된 문장이다.
@@ -192,8 +200,15 @@ describe('로케일 문장', () => {
  * 사유 파라미터를 통째로 펴 넘기는 자리가 실제로 있다.
  */
 describe('자리표시자를 다 넘긴다', () => {
-  /** `t('a.b', { x: 1, y: z })` — 중첩 없는 객체 리터럴만 본다. 나머지는 넘긴다. */
-  const CALL = /\$?\bt\(\s*'([\w.]+)'\s*,\s*\{([^{}]*)\}/g
+  /**
+   * `t('a.b', { x: 1, y: z })` — 중첩 없는 객체 리터럴만 본다. 나머지는 넘긴다.
+   *
+   * **따옴표 두 벌을 다 본다.** 지금은 Prettier가 큰따옴표를 정규화해서 관문을
+   * 먼저 막지만, 그건 이 검사가 넓어서가 아니라 포맷터가 앞에 서 있어서다.
+   * 같은 것을 보는 `locales.spec.ts`의 정적 키 추출기는 처음부터 둘 다 봤다 —
+   * **형제끼리 폭이 다르면 어느 쪽이 기준인지 다음 사람이 모른다** (R8 감사 A-3).
+   */
+  const CALL = /\$?\bt\(\s*['"]([\w.]+)['"]\s*,\s*\{([^{}]*)\}/g
 
   function placeholdersOf(text: string): string[] {
     return [...new Set([...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1] ?? ''))]
@@ -242,6 +257,8 @@ describe('자리표시자를 다 넘긴다', () => {
     // **줄임 표기를 위반으로 잡으면 안 된다.** 실제로 그렇게 쓰는 자리가 있다.
     expect(missingIn("t('a.b', { fileName })", { a: { b: '({fileName})' } })).toEqual([])
     expect(missingIn("t('a.b', { name, x: 1 })", { a: { b: '{name} {x}' } })).toEqual([])
+    // 큰따옴표로 부른 것도 같다.
+    expect(missingIn('t("a.b", { wrong: 1 })', { a: { b: '{count}장' } })).toEqual(['a.b <- count'])
   })
 
   it('지금 소스에 빠진 자리표시자가 없다', () => {
