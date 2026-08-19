@@ -3,9 +3,35 @@
  *
  * 숫자를 코드 안에 직접 쓰지 마라 (CLAUDE.md 1.5). 여기 상수 하나만 바꾸면
  * 전부 반영돼야 한다. 이미지 데이터가 들어올 때 값이 크게 달라진다.
+ *
+ * ---
+ *
+ * **상수마다 `분류:`가 달려 있다. 안 달면 `limits-rules.spec.ts`가 운다.**
+ *
+ * 묻는 것은 **"이 숫자를 정한 것이 누구인가"** 하나다 (open-decisions.md
+ * "상한은 누가 정했느냐로 갈리고, 우리 기기가 정한 것은 끌 수 있다", 2026-08-19).
+ *
+ * | 분류 | 끄면 무슨 일이 나나 | 끌 수 있나 |
+ * |---|---|---|
+ * | **우리 기기가 정했다** | 느려지거나 안 끝나거나 탭이 죽는다. **그 판정이 기기마다 다르다** | **끈다** |
+ * | **남의 시스템이 정했다** | 우리 기기가 아무리 빨라도 저쪽이 안 받는다 | 못 끈다 |
+ * | **계산 자체가 요구한다** | 계산이 성립하지 않는다. 기기와 무관하다 | 못 끈다 |
+ * | **사람이 골랐다** | 자원과 무관하다. 넘는 값이 든 남의 파일은 그대로 열린다 | 못 끈다 |
+ * | **상한이 아니다** | 표시 분량·가공 규격·동작 시간·계수. 스위치의 대상이 아니다 | — |
+ *
+ * **첫 줄이 거의 전부라는 것이 이 분류의 요점이다.** `MLJS_*_ROW_LIMIT`은 구현의
+ * 천장처럼 보이지만 근거가 전부 **개발 PC 한 대**(i5-1135G7 · RAM 7.7GB)에서 잰
+ * 시간과 메모리다 — 두 배 빠른 기기에서는 그만큼 근거를 잃는다.
+ *
+ * **마지막 줄이 있는 이유는 이 파일이 상한만 사는 곳이 아니어서다.** webp 품질과
+ * 알림 시간이 여기 함께 산다. 스위치를 "이 파일 전부"로 정의하면 그것들까지 꺼진다.
  */
 
-/** 바이트를 사람이 읽는 MB로 바꿀 때 쓴다. 상한이 아니라 단위다. */
+/**
+ * 바이트를 사람이 읽는 MB로 바꿀 때 쓴다. 상한이 아니라 단위다.
+ *
+ * **분류: 상한이 아니다.**
+ */
 export const BYTES_PER_MB = 1024 * 1024
 
 const MB = BYTES_PER_MB
@@ -19,6 +45,8 @@ const MB = BYTES_PER_MB
  * 자기 상한으로 쓴다 (아래 MLJS_LINEAR_REGRESSION_ROW_LIMIT).
  *
  * 잠정값이다. 서버의 MAX_ROWS가 정해지면 함께 맞춘다 (open-decisions.md #13).
+ *
+ * **분류: 우리 기기가 정했다.**
  */
 export const MAX_DATASET_ROWS = 100_000
 
@@ -32,6 +60,8 @@ export const MAX_DATASET_ROWS = 100_000
  *
  * **5,000장은 코드 소유자가 정했다** (2026-08-14). 가벼운 알고리즘 다섯이 개발 PC에서
  * 4,000장까지 문제없이 도는 것을 실측한 위에서 고른 값이다.
+ *
+ * **분류: 우리 기기가 정했다.**
  */
 export const MAX_IMAGE_COUNT = 5000
 
@@ -50,6 +80,8 @@ export const MAX_IMAGE_COUNT = 5000
  *
  * **정본의 크기는 여기 없다.** 그건 상한이 아니라 백본이 요구하는 값이라 백본 등록부가
  * 갖는다 (`ml/backbones.ts`의 `canonicalSize`).
+ *
+ * **분류: 상한이 아니다.**
  */
 export const IMAGE_WEBP_QUALITY = 0.65
 
@@ -59,6 +91,8 @@ export const IMAGE_WEBP_QUALITY = 0.65
  *
  * **0.85도 실측에서 나왔다** (2026-08-12): 500×400 안팎의 사진 100장이 정본 1.05MB가
  * 됐다 — 장당 10.5kB다.
+ *
+ * **분류: 상한이 아니다.**
  */
 export const IMAGE_JPEG_QUALITY = 0.85
 
@@ -72,6 +106,8 @@ export const IMAGE_JPEG_QUALITY = 0.85
  * **코드 소유자가 정한 값이다** (2026-08-12). 표의 `PREDICT_PAGE_SIZE`·
  * `CLUSTER_MEMBER_PAGE_SIZE`와 값을 공유하지 않는 이유도 같다 — 한 쪽에 담을 양은 그
  * 화면이 무엇을 훑게 하느냐가 정하고, 사진은 줄이 아니라 격자다.
+ *
+ * **분류: 상한이 아니다.**
  */
 export const IMAGE_GRID_PAGE_SIZE = 30
 
@@ -85,6 +121,8 @@ export const IMAGE_GRID_PAGE_SIZE = 30
  *
  * **격자의 열 수와 값을 나눠 갖지 않는다.** 열이 셋인 것은 격자의 모양이고, 아홉은
  * 보여줄 장수다 — 상자가 넓어지는 날 둘이 갈린다.
+ *
+ * **분류: 상한이 아니다.**
  */
 export const CLUSTER_REPRESENTATIVE_COUNT = 9
 
@@ -99,6 +137,8 @@ export const CLUSTER_REPRESENTATIVE_COUNT = 9
  * **위 격자보다 작다.** 격자 한 칸은 썸네일 하나지만 여기 한 줄은 사진 + 모델 카드
  * 여러 장이라, 같은 수를 세워도 세로가 훨씬 길다. 코드 소유자가 준 범위(20~30)의
  * 아래쪽을 골랐다 (2026-08-12).
+ *
+ * **분류: 상한이 아니다.**
  */
 export const IMAGE_PREDICT_PAGE_SIZE = 20
 
@@ -112,6 +152,8 @@ export const IMAGE_PREDICT_PAGE_SIZE = 20
  * 그래서 **등록부 값이 이 값보다 높은 것이 정상이다.** 여기 남은 일은 `UNMEASURED`로
  * 적힌 칸 - 즉 아직 아무도 재지 않은 것 - 을 보수적으로 받는 것뿐이다. 새 알고리즘이나
  * 새 엔진을 넣을 때 여기 얹지 말고 **재서 그 칸에 자기 값을 적어라.**
+ *
+ * **분류: 우리 기기가 정했다.**
  */
 export const BROWSER_ROW_LIMIT = 5000
 
@@ -129,10 +171,18 @@ export const BROWSER_ROW_LIMIT = 5000
  * **`pyodide-sklearn`은 아직 아무것도 재지 않았다** - 그 칸은 등록부에서 `UNMEASURED`다.
  */
 
-/** 선형 회귀. 10만 행 0.3초다 - 브라우저 상한을 둘 이유가 없어 데이터셋 천장을 그대로 쓴다. */
+/**
+ * 선형 회귀. 10만 행 0.3초다 - 브라우저 상한을 둘 이유가 없어 데이터셋 천장을 그대로 쓴다.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
 export const MLJS_LINEAR_REGRESSION_ROW_LIMIT = MAX_DATASET_ROWS
 
-/** 나이브 베이즈. 10만 행 0.1초. 데이터를 한 번 훑는다. */
+/**
+ * 나이브 베이즈. 10만 행 0.1초. 데이터를 한 번 훑는다.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
 export const MLJS_NAIVE_BAYES_ROW_LIMIT = MAX_DATASET_ROWS
 
 /**
@@ -142,10 +192,16 @@ export const MLJS_NAIVE_BAYES_ROW_LIMIT = MAX_DATASET_ROWS
  * 것이었다. L-BFGS(ml/engines/logistic.ts) 실측 - 수렴하면 2만 행 52ms · 10만 행
  * 0.2초, maxIter(기본 100)에 걸리면 10만 행 최악 9.5초 + 경고. **시간의 천장은 행이
  * 아니라 maxIter가 쥔다.** 힙 +2~17MB, RSS 최대 +45MB - 데이터셋 천장이 그대로 상한이다.
+ *
+ * **분류: 우리 기기가 정했다.**
  */
 export const MLJS_LOGISTIC_REGRESSION_ROW_LIMIT = MAX_DATASET_ROWS
 
-/** 결정 트리. 20000행 22초, 50000행 91초. 분할 탐색이 노드마다 O(특성 × 행²)이다. */
+/**
+ * 결정 트리. 20000행 22초, 50000행 91초. 분할 탐색이 노드마다 O(특성 × 행²)이다.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
 export const MLJS_DECISION_TREE_ROW_LIMIT = 20_000
 
 /**
@@ -154,6 +210,8 @@ export const MLJS_DECISION_TREE_ROW_LIMIT = 20_000
  * 비용은 예측에 있고, **그 비용은 한 번이 아니다.** 평가 예측이 10000행에서 1.4초,
  * 20000행에서 8.7초인데 예측 화면은 학생이 올리는 행마다 학습셋 전체와의 거리를 다시
  * 계산한다 (PREDICT_PAGE_SIZE가 경고하는 자리).
+ *
+ * **분류: 우리 기기가 정했다.**
  */
 export const MLJS_KNN_ROW_LIMIT = 10_000
 
@@ -162,6 +220,8 @@ export const MLJS_KNN_ROW_LIMIT = 10_000
  *
  * 5000행 100그루가 약 7분이다 (open-decisions.md #19). 전역 기본값에 얹어 두면 다음에
  * 전역을 올리는 사람이 이 7분짜리 학습을 대신 허락하게 된다.
+ *
+ * **분류: 우리 기기가 정했다.**
  */
 export const MLJS_RANDOM_FOREST_ROW_LIMIT = 5000
 
@@ -172,6 +232,8 @@ export const MLJS_RANDOM_FOREST_ROW_LIMIT = 5000
  * (open-decisions.md "순수 JS 서포트 벡터 머신을 넣는다"의 "다시 쟀더니").
  * 5000행은 커널 행렬만 200MB라 저사양 학교 PC와 휴대폰에서 위험하기도 하다 -
  * SMO는 학습 시작에 N×N을 통째로 만든다.
+ *
+ * **분류: 우리 기기가 정했다.**
  */
 export const MLJS_SVM_ROW_LIMIT = 3000
 
@@ -192,6 +254,8 @@ export const MLJS_SVM_ROW_LIMIT = 3000
  * 여덟 배 차이다. 300회를 강제로 다 돌린 값도 5.15초로 위 추정(17초)보다 짧다.
  * **위에 적힌 쪽이 보수적이라 그대로 둔다.** 이 칸을 다시 잴 사람은 숫자보다 생성기를
  * 먼저 맞춰야 한다.
+ *
+ * **분류: 우리 기기가 정했다.**
  */
 export const MLJS_KMEANS_ROW_LIMIT = MAX_DATASET_ROWS
 
@@ -209,10 +273,18 @@ export const MLJS_KMEANS_ROW_LIMIT = MAX_DATASET_ROWS
  * 값의 약 1.4배다** (Vue와 워커 왕복). 정한 값은 그 보정을 안 뒤에 고른 것이다.
  */
 
-/** 이미지 결정 트리. **1,000장 58.7초 · 1,500장 136.3초** — 4,000장이면 약 16분이다. */
+/**
+ * 이미지 결정 트리. **1,000장 58.7초 · 1,500장 136.3초** — 4,000장이면 약 16분이다.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
 export const MLJS_IMAGE_DECISION_TREE_ROW_LIMIT = 1000
 
-/** 이미지 랜덤포레스트. **500장 113초 · 1,000장 521.7초** — 4,000장이면 약 2.5시간이다. */
+/**
+ * 이미지 랜덤포레스트. **500장 113초 · 1,000장 521.7초** — 4,000장이면 약 2.5시간이다.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
 export const MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT = 500
 
 /**
@@ -220,25 +292,45 @@ export const MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT = 500
  *
  * SMO가 학습 시작에 N×N 커널을 통째로 만드는데 5,000행이면 200MB다. **특성이 늘어도
  * 커널 크기는 그대로라** 표에서 고른 것과 같은 값이 되지만, 근거를 이 칸이 따로 든다.
+ *
+ * **분류: 우리 기기가 정했다.**
  */
 export const MLJS_IMAGE_SVM_ROW_LIMIT = 3000
 
-/** 이미지 KNN. 학습 0초 · 4,000장 학습셋에서 50장 예측이 0.6초다. */
+/**
+ * 이미지 KNN. 학습 0초 · 4,000장 학습셋에서 50장 예측이 0.6초다.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
 export const MLJS_IMAGE_KNN_ROW_LIMIT = MAX_IMAGE_COUNT
 
-/** 이미지 나이브 베이즈. 4,000장 0.7초 · 6,000장 1.1초. 데이터를 한 번 훑는다. */
+/**
+ * 이미지 나이브 베이즈. 4,000장 0.7초 · 6,000장 1.1초. 데이터를 한 번 훑는다.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
 export const MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT = MAX_IMAGE_COUNT
 
-/** 이미지 로지스틱 회귀. 3,000장 9.1초 · 4,000장 16.6초. L-BFGS가 maxIter에 갇힌다. */
+/**
+ * 이미지 로지스틱 회귀. 3,000장 9.1초 · 4,000장 16.6초. L-BFGS가 maxIter에 갇힌다.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
 export const MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT = MAX_IMAGE_COUNT
 
-/** 이미지 K-평균. 4,000장 0.9초. 반복마다 선형이다. */
+/**
+ * 이미지 K-평균. 4,000장 0.9초. 반복마다 선형이다.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
 export const MLJS_IMAGE_KMEANS_ROW_LIMIT = MAX_IMAGE_COUNT
 
 /**
  * 모델 하나를 .mlpx에 담을 수 있는 최대 크기.
  *
  * 이걸 넘는 모델은 담지 않고 지표만 남긴다. 저장 자체는 성공한다.
+ *
+ * **분류: 우리 기기가 정했다.**
  */
 export const MAX_MODEL_BYTES = 5 * MB
 
@@ -254,6 +346,8 @@ export const MAX_MODEL_BYTES = 5 * MB
  * 갈리고, 우리 기기가 정한 것은 끌 수 있다"의 3절 — 100MB).
  *
  * 실측 최대가 272KB라 이 예산에 닿는 표 데이터 모델은 없다 (#19).
+ *
+ * **분류: 우리 기기가 정했다.**
  */
 export const MODEL_BUDGET_BYTES = 20 * MB
 
@@ -267,6 +361,8 @@ export const MODEL_BUDGET_BYTES = 20 * MB
  * "저장이 안 됩니다"로만 보인다.
  *
  * 문항마다 나누지 않는다. 나누면 어느 칸이 얼마인지를 설명해야 한다.
+ *
+ * **분류: 우리 기기가 정했다.**
  */
 export const MAX_PORTFOLIO_BYTES = 5 * MB
 
@@ -280,6 +376,8 @@ export const MAX_PORTFOLIO_BYTES = 5 * MB
  * **학습용 정본과 다른 값이고 다른 규칙이다.** 저쪽은 백본이 요구하는 정사각형이라
  * 레터박스로 여백을 채우는데, 여기는 사람이 보는 그림이라 비율을 지키고 여백을 안 붙인다.
  * 형식과 품질은 같은 상수를 쓴다 (`data/image/formats.ts`).
+ *
+ * **분류: 상한이 아니다.**
  */
 export const MAX_ATTACHMENT_EDGE = 1536
 
@@ -287,6 +385,8 @@ export const MAX_ATTACHMENT_EDGE = 1536
  * 표 파일(CSV/엑셀) 훑어보기 단계에서 보여줄 행 수.
  *
  * 시트 전체를 파싱하지 않고 이 수만큼만 보여준다 (docs/open-decisions.md #14).
+ *
+ * **분류: 상한이 아니다.**
  */
 export const PREVIEW_ROW_COUNT = 20
 
@@ -312,6 +412,8 @@ export const PREVIEW_ROW_COUNT = 20
  *
  * **이 상한은 그리는 점에만 걸린다** (#28-6). 군집 배정·군집 크기·구성원 표는 전체
  * 행에서 나온다 — 표본 안에서 고르면 "그 군집의 구성원"이 거짓말이 된다.
+ *
+ * **분류: 우리 기기가 정했다.**
  */
 export const CLUSTER_SCATTER_POINT_LIMIT = 10_000
 
@@ -334,6 +436,8 @@ export const CLUSTER_SCATTER_POINT_LIMIT = 10_000
  * 담는 양은 표의 폭이 정하고, 그 폭이 두 화면에서 다르다.
  *
  * 전체 몇 행 중 몇 행인지는 화면이 함께 말한다.
+ *
+ * **분류: 상한이 아니다.**
  */
 export const CLUSTER_MEMBER_PAGE_SIZE = 20
 
@@ -346,6 +450,8 @@ export const CLUSTER_MEMBER_PAGE_SIZE = 20
  *
  * **그래서 여기는 페이지를 안 붙인다.** 이웃은 목록이 아니라 답이고, 백 줄로 답하면
  * "가장 비슷한 것"이라는 말 자체가 뜻을 잃는다.
+ *
+ * **분류: 상한이 아니다.**
  */
 export const CLUSTER_NEIGHBOR_ROW_COUNT = 5
 
@@ -354,6 +460,8 @@ export const CLUSTER_NEIGHBOR_ROW_COUNT = 5
  *
  * 교실 데이터가 여기 닿는 일은 없다. 병적으로 넓은 파일에서 화면과 메모리를
  * 지키기 위한 방어선이다.
+ *
+ * **분류: 우리 기기가 정했다.**
  */
 export const MAX_DATASET_COLUMNS = 1_000
 
@@ -362,6 +470,8 @@ export const MAX_DATASET_COLUMNS = 1_000
  *
  * 양쪽에 하나씩은 가야 지표가 의미를 갖는다. 층화할 때는 **라벨마다** 이만큼 필요하다 -
  * 어떤 품종이 한 줄뿐이면 그 품종은 학습셋과 평가셋 중 한쪽에만 들어간다.
+ *
+ * **분류: 계산 자체가 요구한다.**
  */
 export const MIN_SPLIT_ROWS = 2
 
@@ -373,6 +483,8 @@ export const MIN_SPLIT_ROWS = 2
  * `limits-rules.spec.ts`가 못 본다 — 그 검사는 이름으로 잡는데 `TEST_SIZE` 같은
  * 이름은 상한처럼 안 생겼다. 그 파일 머리말이 밝힌 사각에 정확히 들어가 있었다
  * (V11 R4 C-1).
+ *
+ * **분류: 계산 자체가 요구한다.**
  */
 export const TEST_SIZE_RANGE = { min: 0.05, max: 0.5, step: 0.05 } as const
 
@@ -380,10 +492,16 @@ export const TEST_SIZE_RANGE = { min: 0.05, max: 0.5, step: 0.05 } as const
  * 저장 전 여유 공간 검사의 안전 계수.
  *
  * 브라우저가 보고하는 여유 공간은 근사값이고, 압축·인덱스 때문에 실제 점유는 더 크다.
+ *
+ * **분류: 상한이 아니다.**
  */
 export const STORAGE_SAFETY_FACTOR = 1.5
 
-/** 저장 파일명의 최대 길이(확장자 제외). 긴 이름을 거부하지 않고 잘라 쓴다. */
+/**
+ * 저장 파일명의 최대 길이(확장자 제외). 긴 이름을 거부하지 않고 잘라 쓴다.
+ *
+ * **분류: 남의 시스템이 정했다.**
+ */
 export const MAX_FILE_NAME_LENGTH = 100
 
 /**
@@ -401,6 +519,8 @@ export const MAX_FILE_NAME_LENGTH = 100
  * 하나는 **잘라 쓰고** 하나는 **거부하며**, 한쪽을 옮길 이유(파일 시스템의 이름 길이)와
  * 다른 쪽을 옮길 이유(윈도우의 260자 경로)가 서로 무관하다. 지금 두 값이 같은 것은
  * 우연이다.
+ *
+ * **분류: 남의 시스템이 정했다.**
  */
 export const MAX_CATEGORY_NAME_LENGTH = 100
 
@@ -408,6 +528,8 @@ export const MAX_CATEGORY_NAME_LENGTH = 100
  * 일괄 예측 결과 표를 끊어 보여주는 줄 수. **화면을 위한 것이 아니라 계산을 위한 것이다**
  * (architecture.md §8.13.1) - 5천 줄 × 모델 5개면 2만 5천 번이고 참조형이면 그 한
  * 번마다 학습셋 전체와의 거리 계산이라, 저사양 학교 PC를 얼릴 수 있다.
+ *
+ * **분류: 우리 기기가 정했다.**
  */
 export const PREDICT_PAGE_SIZE = 100
 
@@ -416,6 +538,8 @@ export const PREDICT_PAGE_SIZE = 100
  *
  * 남의 라이브러리가 던진 원문이라 길이도 내용도 우리 통제 밖이다. 자르지 않으면
  * 스택 전체가 `.mlpx` 안으로 들어가고, 그건 학생 파일에 우리 코드 구조를 흘리는 것이다.
+ *
+ * **분류: 남의 시스템이 정했다.**
  */
 export const MAX_FAILURE_DETAIL_LENGTH = 200
 
@@ -424,6 +548,8 @@ export const MAX_FAILURE_DETAIL_LENGTH = 200
  *
  * 실패 알림은 여기 해당하지 않는다 - 학생이 읽고 닫는다 (stores/toasts.ts).
  * 한 문장을 읽을 시간이 기준이고, 한국어보다 30% 정도 긴 영어 문장에 맞춘다.
+ *
+ * **분류: 상한이 아니다.**
  */
 export const TOAST_DURATION_MS = 6000
 
@@ -433,11 +559,21 @@ export const TOAST_DURATION_MS = 6000
  * **짧게 잡는다.** 학교 컴퓨터실 PC는 전원을 끄면 디스크가 되돌아가므로 브라우저
  * 저장이 지켜 주는 것은 새로고침과 크래시까지인데, 그 둘은 예고 없이 온다.
  * 슬라이더를 끌 때마다 수십 MB를 쓰지 않을 만큼만 미룬다.
+ *
+ * **분류: 상한이 아니다.**
  */
 export const AUTOSAVE_DELAY_MS = 800
 
-/** 학번 입력 상한. 자유 문자열이다 - 1-2-03 같은 체계가 실재한다 (mlpx-spec.md 7). */
+/**
+ * 학번 입력 상한. 자유 문자열이다 - 1-2-03 같은 체계가 실재한다 (mlpx-spec.md 7).
+ *
+ * **분류: 사람이 골랐다.**
+ */
 export const MAX_STUDENT_ID_LENGTH = 20
 
-/** 이름 입력 상한. */
+/**
+ * 이름 입력 상한.
+ *
+ * **분류: 사람이 골랐다.**
+ */
 export const MAX_STUDENT_NAME_LENGTH = 30

@@ -313,3 +313,101 @@ describe('산점도 상한이 화면까지 이어진다', () => {
     expect(missing, 'scatterPoints를 부르면서 상수를 안 넘기는 자리').toEqual([])
   })
 })
+
+/**
+ * **상한마다 "누가 정했나"가 달려 있는가** (open-decisions.md "상한은 누가 정했느냐로
+ * 갈리고, 우리 기기가 정한 것은 끌 수 있다", 2026-08-19).
+ *
+ * off 스위치가 끄는 것은 **우리 기기가 정한 줄 하나**다. 그 줄을 코드가 스스로 말하지
+ * 않으면 다음에 상한을 더하는 사람이 어느 줄인지 안 밝히고, **스위치가 조용히 셋째
+ * 줄까지 끈다** — 분할이 깨지고 윈도우에서 압축이 반만 풀린다.
+ *
+ * **분류는 값이 아니라 근거를 따라간다.** `PREDICT_PAGE_SIZE`는 페이지처럼 생겼지만
+ * 자기 주석이 *"화면을 위한 것이 아니라 계산을 위한 것"*이라 기기 줄이고,
+ * `CLUSTER_MEMBER_PAGE_SIZE`는 값이 스무 줄로 비슷해도 근거가 *"훑기 좋은가"*라
+ * 상한이 아니다. **그래서 기계가 대신 골라 줄 수 없다** — 여기서는 "달려 있는가"만 본다.
+ */
+describe('상한마다 분류가 달려 있다', () => {
+  /** 결정문이 세운 다섯. **늘리려면 결정문을 먼저 고쳐라.** */
+  const CLASSES = [
+    '우리 기기가 정했다',
+    '남의 시스템이 정했다',
+    '계산 자체가 요구한다',
+    '사람이 골랐다',
+    '상한이 아니다',
+  ] as const
+
+  /**
+   * 줄 나누기. **위의 `NEWLINE`은 나누는 정규식이라 잇는 데 못 쓴다** — 그걸 `join`에
+   * 넘기면 메시지에 `/\r?\n/`이라는 글자가 박히고, 검사는 그대로 초록이다.
+   */
+  const LINE_BREAK = String.fromCharCode(10)
+
+  /**
+   * 상수 바로 앞 주석에 달린 분류. 없으면 `null`이다.
+   *
+   * **바로 앞만 본다** — 멀리 있는 주석까지 인정하면 남의 분류가 이 상수의 것으로
+   * 읽힌다(상수가 줄줄이 붙어 있는 파일이라 실제로 일어난다).
+   */
+  function classOf(source: string, name: string): string | null {
+    const at = source.search(new RegExp(`^export const ${name}\\b`, 'm'))
+    if (at < 0) return null
+    const before = source.slice(0, at)
+    const comment = before.slice(before.lastIndexOf('/**'))
+    const found = comment.match(/\*\*분류: (.+?)\.\*\*/)
+    return found?.[1] ?? null
+  }
+
+  const SOURCE = readFileSync(LIMITS, 'utf-8')
+  const NAMES = [...SOURCE.matchAll(/^export const (\w+)/gm)].map((match) => match[1] ?? '')
+
+  it('훑을 상한을 실제로 찾는다', () => {
+    // 0개면 정규식이 썩은 것이지 규칙이 지켜진 게 아니다.
+    expect(NAMES.length).toBeGreaterThan(20)
+  })
+
+  it('분류가 없는 상한이 없다', () => {
+    const missing = NAMES.filter((name) => classOf(SOURCE, name) === null)
+    expect(
+      missing,
+      [
+        '분류가 안 달린 상한이 있다. 주석에 `**분류: …**` 한 줄을 더해라.',
+        `  고를 것: ${CLASSES.join(' · ')}`,
+        '  뜻과 근거는 limits.ts 머리말과 open-decisions.md의 결정문에 있다.',
+        '  **"우리 기기가 정했다"만 off 스위치가 끈다** - 잘못 달면 분할이 깨진다.',
+      ].join(LINE_BREAK),
+    ).toEqual([])
+  })
+
+  it('결정문에 없는 분류를 쓰지 않는다', () => {
+    const unknown = NAMES.map((name) => classOf(SOURCE, name)).filter(
+      (value) => value !== null && !CLASSES.includes(value as (typeof CLASSES)[number]),
+    )
+    expect(unknown, '결정문이 세운 다섯 밖의 분류').toEqual([])
+  })
+
+  /** **검사기를 먼저 검사한다.** 아무것도 안 잡으면서 초록인 것이 제일 나쁘다. */
+  it('분류를 떼면 잡는다', () => {
+    const fake = ['/**', ' * 무엇을 막는지.', ' */', 'export const MAX_FAKE = 1', ''].join(
+      LINE_BREAK,
+    )
+    expect(classOf(fake, 'MAX_FAKE')).toBeNull()
+  })
+
+  it('남의 분류를 이 상수의 것으로 읽지 않는다', () => {
+    const fake = [
+      '/**',
+      ' * 앞 상수.',
+      ' *',
+      ' * **분류: 계산 자체가 요구한다.**',
+      ' */',
+      'export const MAX_BEFORE = 1',
+      '',
+      '/** 주석은 있는데 분류가 없다. */',
+      'export const MAX_AFTER = 2',
+      '',
+    ].join(LINE_BREAK)
+    expect(classOf(fake, 'MAX_BEFORE')).toBe('계산 자체가 요구한다')
+    expect(classOf(fake, 'MAX_AFTER')).toBeNull()
+  })
+})
