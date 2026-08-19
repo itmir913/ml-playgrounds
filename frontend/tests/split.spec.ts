@@ -304,16 +304,65 @@ describe('평가셋 개수는 sklearn과 같은 함수로 센다', () => {
     expect(countOf(8, 0.25)).toBe(2)
   })
 
-  it('층화에서도 같은 규칙이다 - 라벨마다 따로 센다', () => {
-    // A가 7개(1.75→2), B가 9개(2.25→3). 둘을 합쳐 세면 16×0.25=4.0이라
-    // 소수부가 사라져 아무것도 안 갈린다 - 라벨마다 세는지가 여기서 드러난다.
-    const labels = [...Array<string>(7).fill('A'), ...Array<string>(9).fill('B')]
-    const { testIndices } = holdoutSplit(
-      { rows: rows(16), labels },
-      split({ testSize: 0.25, stratify: true }),
-    )
-    expect(testIndices.filter((index) => index < 7)).toHaveLength(2)
-    expect(testIndices.filter((index) => index >= 7)).toHaveLength(3)
+  /**
+   * **층화도 sklearn과 같은 순서로 센다** (2026-08-19, R6 감사 B-1).
+   *
+   * 전에는 라벨마다 따로 `ceil`을 해서 **총 개수가 갈렸다** — 아래 표본에서 저쪽은 4행,
+   * 여기는 5행이었다. sklearn은 전체에서 `n_test`를 먼저 세고 그 몫을 반별로 나눈다
+   * (`_approximate_mode`).
+   *
+   * **아래 기대값은 저장소의 `backend/.venv`(sklearn 1.9.0)로 실제로 재서 넣었다.**
+   * 옮겨 적은 것이 아니다.
+   */
+  describe('층화는 sklearn과 같은 개수를 준다', () => {
+    function countsOf(labels: readonly string[], testSize: number): Record<string, number> {
+      const { testIndices } = holdoutSplit(
+        { rows: rows(labels.length), labels },
+        split({ testSize, stratify: true }),
+      )
+      const tally: Record<string, number> = {}
+      for (const index of testIndices) tally[labels[index]!] = (tally[labels[index]!] ?? 0) + 1
+      return tally
+    }
+
+    /** 옛 규칙(라벨마다 ceil)이면 A 2 · B 3으로 다섯이 된다. */
+    it('A 7개 · B 9개에서 25%는 넷이다 - 라벨마다 세면 다섯이 된다', () => {
+      const labels = [...Array<string>(7).fill('A'), ...Array<string>(9).fill('B')]
+      expect(countsOf(labels, 0.25)).toEqual({ A: 2, B: 2 })
+    })
+
+    it('쏠린 데이터에서도 비율을 지킨다', () => {
+      const labels = [...Array<string>(10).fill('A'), ...Array<string>(90).fill('B')]
+      expect(countsOf(labels, 0.3)).toEqual({ A: 3, B: 27 })
+    })
+
+    it('반이 셋이어도 총합이 맞는다', () => {
+      const labels = [
+        ...Array<string>(3).fill('A'),
+        ...Array<string>(4).fill('B'),
+        ...Array<string>(5).fill('C'),
+      ]
+      expect(countsOf(labels, 0.34)).toEqual({ A: 1, B: 2, C: 2 })
+    })
+
+    /**
+     * **동점에서는 sklearn과 갈린다.** 열 반의 소수부가 전부 같으면 누구에게 한 장을 더
+     * 줄지가 난수로 정해지는데, 우리 난수는 numpy의 것이 아니다. **총 개수와 "여덟 반이
+     * 한 장, 두 반이 두 장"이라는 모양까지는 같고 어느 두 반인지만 갈린다.**
+     */
+    it('동점이면 총 개수와 모양은 같고 어느 반인지만 갈린다', () => {
+      const labels = Array.from({ length: 120 }, (_, index) => `C${index % 10}`)
+      const tally = countsOf(labels, 0.1)
+      expect(Object.values(tally).reduce((sum, count) => sum + count, 0)).toBe(12)
+      expect(Object.values(tally).filter((count) => count === 2)).toHaveLength(2)
+      expect(Object.values(tally).filter((count) => count === 1)).toHaveLength(8)
+    })
+
+    /** 씨앗이 같으면 우리끼리는 언제나 같은 답이다 - 재현 가능성이 먼저다. */
+    it('같은 씨앗이면 같은 답이다', () => {
+      const labels = Array.from({ length: 120 }, (_, index) => `C${index % 10}`)
+      expect(countsOf(labels, 0.1)).toEqual(countsOf(labels, 0.1))
+    })
   })
 
   /** 양끝은 sklearn과 다르다 - 저쪽은 던지고 우리는 하나를 남긴다. */

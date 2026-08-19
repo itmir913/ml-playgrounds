@@ -40,12 +40,60 @@ export interface SplitInput {
 }
 
 /**
+ * 몫을 개수로 나눈다 — sklearn `_approximate_mode`와 같은 규칙이다.
+ *
+ * 비율대로 나눈 뒤 **내리고**, 모자란 만큼을 **소수부가 큰 쪽부터** 하나씩 얹는다.
+ * 그래서 총합이 정확히 `draws`가 된다 — 칸마다 따로 올림하면 총합이 넘친다.
+ *
+ * **소수부가 같은 칸이 여럿이면 씨앗으로 섞어 고른다.** sklearn이 이 자리를 난수로
+ * 가르는 이유는 **편향 때문이다** — 늘 앞자리부터 주면 데이터에 먼저 나온 라벨이
+ * 언제나 한 장을 더 받는다. 씨앗을 쓰므로 `randomState`가 같으면 우리끼리는 언제나
+ * 같은 답이다.
+ *
+ * **sklearn과 행 단위로 같지는 않다.** 저쪽 난수는 numpy의 것이고 우리 것이 아니다 —
+ * 여기서 주장하는 것은 **개수를 세는 규칙**이지 어느 행이 뽑히느냐가 아니고, 동점이
+ * 생기면 반별 개수도 갈릴 수 있다.
+ */
+function approximateMode(counts: readonly number[], draws: number, seed: number): number[] {
+  const total = counts.reduce((sum, count) => sum + count, 0)
+  if (total === 0) return counts.map(() => 0)
+
+  const exact = counts.map((count) => (count / total) * draws)
+  const floored = exact.map((value) => Math.floor(value))
+  let missing = draws - floored.reduce((sum, value) => sum + value, 0)
+  if (missing <= 0) return floored
+
+  // 소수부마다 그 값을 가진 칸들. 같은 값끼리가 곧 동점이다.
+  const tied = new Map<number, number[]>()
+  for (const [index, value] of exact.entries()) {
+    const remainder = value - floored[index]!
+    tied.set(remainder, [...(tied.get(remainder) ?? []), index])
+  }
+
+  for (const remainder of [...tied.keys()].sort((left, right) => right - left)) {
+    if (missing === 0) break
+    // 동점끼리는 씨앗으로 섞는다 - 앞자리부터 주면 먼저 나온 라벨로 편향된다.
+    for (const index of shuffled(tied.get(remainder) ?? [], labelSeed(seed, String(remainder)))) {
+      if (missing === 0) break
+      // 그 반이 가진 것보다 많이 가져갈 수는 없다.
+      if (floored[index]! >= counts[index]!) continue
+      floored[index]! += 1
+      missing -= 1
+    }
+  }
+  return floored
+}
+
+/**
  * 한 덩어리에서 평가셋으로 보낼 개수.
  *
- * **`ceil`이다 — sklearn `train_test_split`과 같은 함수다** (`n_test = ceil(n * test_size)`,
+ * **`ceil`이다 — sklearn `train_test_split`과 같다** (`n_test = ceil(n * test_size)`,
  * 2026-08-19에 `round`에서 옮겼다). 이 도구는 종착지가 아니라 scikit-learn으로 가는
  * 발판이고, 여기서 익힌 20%가 거기서 다른 20%면 발판이 아니다 (`CLAUDE.md` §2).
  * 7행에서 20%를 고르면 `round`는 1행, `ceil`은 2행을 평가로 보낸다.
+ *
+ * **층화에서는 이 함수가 전체 개수만 센다.** 반별로 나누는 것은 `approximateMode`이고,
+ * 라벨마다 여기를 부르면 총 개수가 sklearn과 갈린다 (R6 감사 B-1).
  *
  * **양쪽 모두 최소 하나는 남긴다.** 0이 나오면 평가할 것이 없고 전부 가져가면 학습할
  * 것이 없다. sklearn은 그 자리에서 던지는데 **우리는 하나를 남긴다** — 교실에서 멈추는
@@ -102,11 +150,29 @@ export function holdoutSplit(input: SplitInput, split: Split): SplitIndices {
         minRows: MIN_SPLIT_ROWS,
       })
     }
-    for (const [label, group] of groups) {
+    /**
+     * **sklearn `StratifiedShuffleSplit`과 같은 순서로 센다** (2026-08-19, R6 감사 B-1).
+     *
+     * 전에는 라벨마다 따로 `ceil`을 했다. 그러면 **총 개수가 sklearn과 달라진다** —
+     * A 7개·B 9개에서 25%를 고르면 저쪽은 4행, 여기는 5행이었다. 범주가 많고 각각 작을수록
+     * 벌어져서, 10범주 × 12장에서 10%면 저쪽 12장·여기 20장이다.
+     */
+    const counts = [...groups.values()].map((group) => group.length)
+    const total = rows.length
+    const testCount = testCountFor(total, split.testSize)
+    // **학습 몫을 먼저 나누고 남은 것에서 평가 몫을 나눈다.** 순서가 sklearn과 같아야 한다.
+    const trainPerClass = approximateMode(counts, total - testCount, split.randomState)
+    const testPerClass = approximateMode(
+      counts.map((count, index) => count - (trainPerClass[index] ?? 0)),
+      testCount,
+      split.randomState,
+    )
+
+    for (const [index, [label, group]] of [...groups].entries()) {
       const order = shuffled(group, labelSeed(split.randomState, label))
-      const testCount = testCountFor(order.length, split.testSize)
-      testIndices.push(...order.slice(0, testCount))
-      trainIndices.push(...order.slice(testCount))
+      const take = testPerClass[index] ?? 0
+      testIndices.push(...order.slice(0, take))
+      trainIndices.push(...order.slice(take))
     }
   } else {
     const order = shuffled(rows, split.randomState)
