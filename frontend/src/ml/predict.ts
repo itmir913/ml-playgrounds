@@ -454,6 +454,30 @@ export function predictableModels(
  * **컴포넌트가 아니라 여기서 정의한다.** 필터·집계·강조가 전부 이 모양을 놓고 판정하는
  * 순수 함수이고, 화면 파일에 두면 화면이 아닌 코드가 화면 파일에 기대게 된다.
  */
+/**
+ * 칸 하나가 어떤 상태인가. **표가 넷을 같은 빈 칸으로 그리던 자리다** (V11 R2 감사 B-10).
+ *
+ * 그전에는 `answer.value`만 봤다. 그래서 **사유로 꺼진 모델**·**빈 값이 있어 못 푼 행**·
+ * **모델이 보는 열이 파일에 없는 칸**·**모델이 답을 안 낸 칸**이 화면에서 글자 하나 다르지
+ * 않았고, 500행 중 세 줄이 왜 비었는지 학생이 알 방법이 없었다.
+ *
+ * **화면 밖에 두는 이유는 검사 때문이다.** 칸에 무엇이 그려지는지는 눈으로 봐야 하지만,
+ * **무엇이 실패이고 무엇이 없음인가**는 순수 함수라 검사가 물 수 있다.
+ */
+export type AnswerState = 'value' | 'failed' | 'none'
+
+/**
+ * **실패와 없음을 가른다.** `value`가 있으면 답이고, 없는데 `failure`가 있으면 실패이며,
+ * 둘 다 없으면 아직 아무 일도 안 일어난 칸이다(계산 안 한 쪽·필터 밖).
+ *
+ * `value`를 먼저 보는 것이 중요하다 — 값이 나왔는데 부수적인 실패가 함께 담긴 칸은
+ * **답이 있는 칸**이다.
+ */
+export function answerState(answer: Answer | undefined): AnswerState {
+  if (answer?.value !== undefined) return 'value'
+  return answer?.failure === undefined ? 'none' : 'failed'
+}
+
 export interface Answer {
   /**
    * 모델이 낸 값. 실패했으면 없다.

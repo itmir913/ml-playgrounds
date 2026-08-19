@@ -741,6 +741,7 @@
       "clusterScatterTitle": "Where your input sits",
       "computing": "Computing.",
       "download": "Download predictions as CSV",
+      "failedCellsLead": "Cells with no answer show —. The reasons are listed below.",
       "fileApplied": "Attached the file to predict.",
       "fileEmptyNext": "Each row of the file becomes one line of answers, one column per model.",
       "fileEmptyReason": "No file to predict has been loaded yet.",

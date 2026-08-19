@@ -27,6 +27,7 @@ import {
   defaultFilter,
   inputFields,
   isAllSelected,
+  answerState,
   mergeFields,
   inputVector,
   numericRanges,
@@ -1579,5 +1580,43 @@ describe('실험 번호', () => {
   it('이름은 부르는 쪽의 t()로 만든다', () => {
     const names = experimentNames(three, (index) => `${index}번째 실험`)
     expect(names.get('b')).toBe('2번째 실험')
+  })
+})
+
+/**
+ * **실패한 칸과 빈 칸을 가른다** (V11 R2 감사 B-10).
+ *
+ * 일괄 예측 표가 `answer.value`만 봐서 넷을 같은 빈 칸으로 그렸다 — 사유로 꺼진 모델,
+ * 빈 값이 있어 못 푼 행, 모델이 보는 열이 파일에 없는 칸, 답을 안 낸 칸. 500행 중 세
+ * 줄이 왜 비었는지 학생이 알 방법이 없었다.
+ *
+ * **칸에 무엇이 그려지는지는 화면이지만, 무엇이 실패인가는 순수 함수다.**
+ */
+describe('칸의 상태를 가른다', () => {
+  it('값이 있으면 답이다', () => {
+    expect(answerState({ value: 'setosa' })).toBe('value')
+  })
+
+  it('값이 없고 사유가 있으면 실패다', () => {
+    expect(answerState({ failure: { code: 'PREDICTION_INPUT_INCOMPLETE', params: {} } })).toBe(
+      'failed',
+    )
+  })
+
+  it('둘 다 없으면 아무 일도 안 일어난 칸이다', () => {
+    expect(answerState({})).toBe('none')
+    expect(answerState(undefined)).toBe('none')
+  })
+
+  /** 값이 나온 칸은 부수적인 사유가 함께 담겨 있어도 **답이 있는 칸**이다. */
+  it('값이 있으면 사유가 있어도 답이다', () => {
+    expect(
+      answerState({ value: 'setosa', failure: { code: 'MODEL_FILE_INVALID', params: {} } }),
+    ).toBe('value')
+  })
+
+  /** 회귀는 0을 답으로 낸다. `!value`로 보면 그 칸이 통째로 사라진다. */
+  it('0도 답이다', () => {
+    expect(answerState({ value: 0 })).toBe('value')
   })
 })

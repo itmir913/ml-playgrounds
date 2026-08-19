@@ -19,6 +19,7 @@ import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
 import AppTable from '@/components/AppTable.vue'
 import { useFormat } from '@/composables/useFormat'
+import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { importTable, openTable, TABULAR_ACCEPT, type TableDocument } from '@/data/table'
 import { toCanonicalCsv } from '@/data/serialize'
 import { PREDICT_PAGE_SIZE } from '@/limits'
@@ -35,6 +36,7 @@ import {
   assignAnswerColors,
   cellColorIndex,
   shuffled,
+  answerState,
   chosenProbability,
   predictDownloadGrid,
   predictPage,
@@ -446,9 +448,35 @@ function cellColorClass(model: PredictableModel, value: Prediction | undefined):
  *
  * 붙는 숫자는 **답으로 나온 범주의 확률**이지 최댓값이 아니다 (`chosenProbability`).
  */
+/** 답을 못 낸 칸에 두는 글자. **빈 칸과 눈으로 갈려야 한다.** */
+const FAILED_CELL = '—'
+
+/**
+ * 지금 쪽에서 실제로 난 실패 사유들. **같은 코드는 한 줄로 모은다** — 500행 중 300행이
+ * 같은 이유면 그 문장이 300번 서는 것은 설명이 아니라 벽이다.
+ *
+ * 문장은 에러 코드의 것을 그대로 쓴다 (`errorMessageKey`). 한 줄 예측이 쓰는 것과 같은
+ * 문장이라, **같은 실패가 경로에 따라 다르게 보이지 않는다.**
+ */
+const failureReasons = computed(() => {
+  const seen = new Map<ClientErrorCode, Record<string, unknown>>()
+  for (const row of currentAnswers.value) {
+    for (const answer of row) {
+      if (answerState(answer) !== 'failed' || !answer?.failure) continue
+      if (!seen.has(answer.failure.code)) seen.set(answer.failure.code, answer.failure.params)
+    }
+  }
+  return [...seen].map(([code, params]) => t(errorMessageKey(code), { ...params }))
+})
+
 function cellText(answer: Answer | undefined): string {
   const value = answer?.value
-  if (value === undefined) return ''
+  /**
+   * **실패한 칸과 빈 칸을 가른다** (V11 R2 감사 B-10). 전에는 넷이 같은 빈 칸이었다 —
+   * 사유로 꺼진 모델, 빈 값이 있어 못 푼 행, 열이 없어 못 푼 칸, 답을 안 낸 칸.
+   * 이유는 표 아래가 말한다 (`failureReasons`).
+   */
+  if (value === undefined) return answerState(answer) === 'failed' ? FAILED_CELL : ''
   const text = typeof value === 'number' ? format.prediction(value) : value
 
   const ratio = chosenProbability(answer)
@@ -665,6 +693,17 @@ defineExpose({
           </tr>
         </tbody>
       </AppTable>
+
+      <!--
+        **답을 못 낸 칸의 이유.** 칸에는 —만 두고 문장은 여기 한 번씩 선다 (V11 R2 B-10).
+        같은 이유가 300줄에서 났다고 문장이 300번 서면 그건 설명이 아니라 벽이다.
+      -->
+      <div v-if="failureReasons.length > 0" class="grid gap-1">
+        <p class="text-base text-ink-soft">{{ t('predict.tabular.failedCellsLead') }}</p>
+        <p v-for="reason in failureReasons" :key="reason" class="text-base font-medium text-danger">
+          {{ reason }}
+        </p>
+      </div>
 
       <div class="flex items-center justify-between gap-4">
         <AppButton variant="secondary" :disabled="atFirstPage" :action="() => goToPage(page - 1)">

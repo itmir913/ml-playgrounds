@@ -741,6 +741,7 @@
       "clusterScatterTitle": "입력한 값의 자리",
       "computing": "계산하는 중입니다.",
       "download": "CSV로 내려받기",
+      "failedCellsLead": "답을 못 낸 칸은 —로 둡니다. 이유는 아래에 있습니다.",
       "fileApplied": "예측할 파일을 붙였습니다.",
       "fileEmptyNext": "행마다 모델들의 답이 한 줄로 섭니다.",
       "fileEmptyReason": "아직 예측할 파일을 불러오지 않았습니다.",
