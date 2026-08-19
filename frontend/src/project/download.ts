@@ -8,9 +8,19 @@
  * 전원을 끄면 디스크가 되돌아가므로, 차시를 넘기는 것은 여기서 나가는 파일뿐이다.
  */
 
-/** 바이트를 파일로 내려보낸다. */
+/**
+ * 바이트를 파일로 내려보낸다.
+ *
+ * **여기 있던 "복사하지 않으므로 50MB에도 싸다"는 검증된 적 없는 낙관이었다**
+ * (2026-08-19에 지웠다). 그 50MB도 §1.1이 없앤 서버 업로드 상한의 잔재다.
+ *
+ * **지금 peak는 프로젝트 크기의 2~3배다** — `loadProject`가 전부 메모리에 올리고,
+ * `zipAsync`가 `Uint8Array`를 하나 더 만들고, `Blob`이 또 붙든다. **내보내기 실패는
+ * 회복 가능한 실패가 아니라 프로젝트의 죽음이라**(브라우저 밖으로 못 나간 것은 제출을
+ * 못 한다) 방향은 **출력 스트리밍**이다 — open-decisions.md "상한은 누가 정했느냐로
+ * 갈리고, 우리 기기가 정한 것은 끌 수 있다"의 4절.
+ */
 export function downloadBytes(bytes: Uint8Array, fileName: string): void {
-  // Blob은 ArrayBuffer 조각을 그대로 받는다. 복사하지 않으므로 50MB에도 싸다.
   const blob = new Blob([bytes as unknown as BlobPart], { type: 'application/zip' })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
