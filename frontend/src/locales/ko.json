@@ -566,6 +566,7 @@
       "unlabeled": "범주 없음",
       "count": "{count}장",
       "countUnit": "{count}장",
+      "photoOrder": "사진 배치",
       "photosPerCategory": "범주별 사진 수",
       "unlabeledCount": "범주 없는 사진 수",
       "backbone": "백본(Backbone)",

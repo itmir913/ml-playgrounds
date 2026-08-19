@@ -108,6 +108,17 @@ const listOf: Describe = (value) => ({
  * **범주 수**이고 학생이 알고 싶은 것은 **사진 수**다. 바로 윗줄의 범주 목록과 같은
  * 순서라 나란히 읽힌다.
  */
+/**
+ * 해시의 앞자리. **읽으라고 보이는 것이 아니라 갈렸다는 표시다.**
+ *
+ * 64자를 통째로 보이면 그 줄이 화면을 덮고, 안 보이면 무엇이 달라졌는지 말할 자리가
+ * 없어진다. 앞 여덟 자면 두 값이 다르다는 것이 눈에 들어온다.
+ */
+const shortHash: Describe = (value) => {
+  if (typeof value !== 'string' || value === '') return { kind: 'absent' }
+  return { kind: 'literal', text: value.slice(0, 8) }
+}
+
 const joined: Describe = (value) => {
   if (!Array.isArray(value) || value.length === 0) return { kind: 'absent' }
   return { kind: 'literal', text: value.map(String).join(' · ') }
@@ -185,6 +196,17 @@ const LABELS: Readonly<Record<string, { readonly labelKey: string; readonly desc
     unlabeledCount: { labelKey: 'meta.image.unlabeledCount', describe: literal },
     // 고르게 하지 않으므로 사실상 안 뜬다. 옛 파일을 다시 학습할 때를 위해 둔다.
     backboneId: { labelKey: 'meta.image.backbone', describe: literal },
+    /**
+     * 행 순서의 지문 (mlpx-spec.md §5.1).
+     *
+     * **이 줄이 없으면 라벨 맞바꾸기가 이력에서 통째로 사라진다** — 장수도 범주도 그대로라
+     * 다른 칸이 하나도 안 움직이고, 화면은 "설정을 바꾸지 않고 다시 학습했습니다"라고
+     * 말한다 (R6 감사 A-1).
+     *
+     * **앞자리만 보인다.** 학생이 읽을 것은 값이 아니라 **배지의 이름**이다 — 무엇이
+     * 달라졌는지는 이름이 말하고, 값은 `backboneId`처럼 그저 서로 다르다는 표시다.
+     */
+    rowsHash: { labelKey: 'meta.image.photoOrder', describe: shortHash },
   }
 
 /** 점 표기 경로로 값을 꺼낸다. 없으면 undefined다. */

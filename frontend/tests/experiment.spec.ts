@@ -709,14 +709,6 @@ describe('id와 changed', () => {
       testDataset: '바꾸면 기존 실험이 지워진다',
       // 예측 화면에서만 쓴다. 학습에 안 들어가므로 지표를 움직이지 않는다.
       predictDataset: '학습에 들어가지 않는다',
-      /**
-       * 행 순서의 지문 (mlpx-spec.md §5.1). **학생이 고른 값이 아니라 기계가 남긴
-       * 기록이라** 이력에 뜨면 64자 16진수가 그대로 보인다. 데이터가 달라진 것은
-       * 위 `categories`·`categoryCounts`·`unlabeledCount`가 말한다.
-       *
-       * 빼는 자리는 소스에도 있다 — `schema.ts`의 `SNAPSHOT_NOT_COMPARED`.
-       */
-      rowsHash: '학생이 고른 값이 아니라 기계가 남긴 지문이다',
     }
 
     /**
@@ -743,6 +735,12 @@ describe('id와 changed', () => {
       // 사진을 더하고 빼고 옮긴 것이 여기서 잡힌다.
       categoryCounts: { categoryCounts: [3, 1] },
       unlabeledCount: { unlabeledCount: 5 },
+      /**
+       * **라벨 맞바꾸기가 걸리는 유일한 칸이다** (R6 감사 A-1). 위 셋은 두 방향 이동에서
+       * 하나도 안 움직인다 — 이 칸을 이력에서 빼면 학습 데이터가 달라졌는데 화면이
+       * "설정을 바꾸지 않고 다시 학습했습니다"라고 말한다.
+       */
+      rowsHash: { rowsHash: 'deadbeefdeadbeef' },
     }
 
     /**

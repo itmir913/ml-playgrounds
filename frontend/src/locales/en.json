@@ -566,6 +566,7 @@
       "unlabeled": "No category",
       "count": "{count} photo | {count} photos",
       "countUnit": "{count}",
+      "photoOrder": "Photo order",
       "photosPerCategory": "Photos per category",
       "unlabeledCount": "Photos with no category",
       "backbone": "Backbone",

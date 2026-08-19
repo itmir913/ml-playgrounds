@@ -597,14 +597,19 @@ export function dataSnapshot<Kind extends DataType>(
  * *"내가 무엇을 바꿨나"*이고, 그 답에 64자 16진수가 뜨면 학생은 읽을 것이 없다
  * (`ml/changes.ts`는 등록부에 없는 경로를 `labelKey: null`로 그대로 흘린다).
  *
- * **비운 채로 두는 것이 기본이다.** 여기 이름을 더하는 것은 "이 변경은 학생에게 안
- * 보인다"고 정하는 일이라, 그 값이 무엇을 지키는지 함께 적어라. `tests/schema.spec.ts`가
- * 이 목록의 이름이 실재하는 스냅샷 필드인지 본다 — 오타는 조용히 아무것도 안 뺀다.
+ * **비운 채로 두는 것이 기본이고, 지금 비어 있다.**
+ *
+ * **한 번 채웠다가 되돌렸다** (2026-08-19). `rowsHash`가 읽기 어려운 값이라 여기 넣었는데,
+ * **표시를 고치려다 탐지를 지웠다** — 라벨 두 장을 맞바꾸면 장수도 범주도 그대로라
+ * 이 목록에서 빠지는 순간 두 실험의 비교 대상이 **바이트 단위로 같아지고**, 결과 화면이
+ * *"설정을 바꾸지 않고 다시 학습했습니다"*라고 말한다. 학습 데이터는 실제로 달라졌는데도
+ * 그렇다 (R6 감사 A-1). 읽기 어려운 값은 `ml/changes.ts`의 `describe`가 다룰 일이다.
+ *
+ * 여기 이름을 더하는 것은 **"이 변경은 학생에게 안 보인다"**가 아니라 **"이 변경은
+ * 일어나지 않은 것으로 친다"**고 정하는 일이다. `tests/schema.spec.ts`가 이 목록의
+ * 이름이 실재하는 스냅샷 필드인지 본다 — 오타는 조용히 아무것도 안 뺀다.
  */
-export const SNAPSHOT_NOT_COMPARED: readonly string[] = [
-  // 행 순서의 지문. 데이터가 달라진 것은 categories·categoryCounts·unlabeledCount가 말한다.
-  'rowsHash',
-]
+export const SNAPSHOT_NOT_COMPARED: readonly string[] = []
 
 export const DATA_COMPARABLE_KEYS: readonly string[] = [
   ...new Set(DATA_TYPES.flatMap((dataType) => Object.keys(DATA_SCHEMAS[dataType].snapshot.shape))),

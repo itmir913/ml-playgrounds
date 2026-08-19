@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest'
 
 import { hashBytes } from '../src/hash'
 import { DEFAULT_BACKBONE_ID, backboneFor } from '../src/ml/backbones'
+import { comparablePair } from '../src/ml/experiment'
 import {
   embeddingColumns,
   IMAGE_LABEL_COLUMN,
@@ -18,11 +19,12 @@ import {
   imageTrainingSource,
   pendingEmbeddings,
   rowsHashOf,
+  type ImageTrainingSource,
 } from '../src/ml/images'
 import { fitPreprocessor } from '../src/ml/preprocess'
 import { newProjectDocument } from '../src/project/create'
 import { IMAGE_UNLABELED, type ProjectFile } from '../src/project/format'
-import { addCategory, addImages, readImages } from '../src/project/images'
+import { addCategory, addImages, moveImages, readImages } from '../src/project/images'
 import { dataSettings } from '../src/project/schema'
 
 const NOW = '2026-08-12T09:00:00.000Z'
@@ -435,5 +437,75 @@ describe('행 순서의 지문', () => {
   /** 구분자가 없으면 `["ab","cd"]`와 `["abc","d"]`가 같은 글자가 된다. */
   it('경계를 지운 조합과 갈린다', () => {
     expect(rowsHashOf(['ab', 'cd'])).not.toBe(rowsHashOf(['abc', 'd']))
+  })
+})
+
+/**
+ * **라벨 맞바꾸기가 변경 이력에 뜨는가** (R6 감사 A-1).
+ *
+ * 두 방향 이동(A 개→고양이, B 고양이→개)은 `categories`·`categoryCounts`·`unlabeledCount`가
+ * **하나도 안 움직인다.** 그래서 `rowsHash`가 비교 목록에서 빠지는 순간 두 실험의 비교
+ * 대상이 **바이트 단위로 같아지고**, 결과 화면이 *"설정을 바꾸지 않고 다시 학습했습니다"*
+ * 라고 말한다 — 학습 데이터는 실제로 달라졌는데도.
+ *
+ * **한 번 그렇게 만들었다가 되돌렸다.** 읽기 어려운 값이라 이력에서 뺐는데, 그것은
+ * 표시의 문제였고 뺀 것은 탐지였다.
+ */
+describe('라벨을 맞바꾸면 이력이 말한다', () => {
+  const ITEMS = [
+    { seed: 'a', category: '개' },
+    { seed: 'b', category: '개' },
+    { seed: 'c', category: '고양이' },
+    { seed: 'd', category: '고양이' },
+  ] as const
+
+  function snapshotOf(project: ProjectFile) {
+    return imageTrainingSource(project, vectorsFor(project), BACKBONE, 'classification')
+  }
+
+  function settingsOf(data: ImageTrainingSource['snapshot']) {
+    return {
+      taskType: 'classification' as const,
+      runtime: 'mljs',
+      selectedAlgorithms: [{ algorithm: 'knn', runtime: 'mljs' }],
+      data,
+      split: { method: 'holdout' as const, testSize: 0.5, stratify: true, randomState: 42 },
+      nSamples: 4,
+      trainIndices: [0, 1],
+      testIndices: [2, 3],
+    }
+  }
+
+  it('장수가 그대로여도 견줄 값이 갈린다', () => {
+    const before = imageProject(ITEMS)
+    /**
+     * **같은 프로젝트를 옮겨야 한다.** 두 프로젝트를 따로 지으면 `categories`가
+     * 만든 순서로 등록돼 그 칸이 먼저 갈리고, 이 검사가 **다른 이유로 통과한다**
+     * (처음에 그렇게 썼고 돌연변이가 안 울어서 잡았다).
+     */
+    const swapped = moveImages(
+      moveImages(before, [hashBytes(photo('a'))], '고양이', NOW),
+      [hashBytes(photo('c'))],
+      '개',
+      NOW,
+    )
+
+    const first = snapshotOf(before)
+    const second = snapshotOf(swapped)
+
+    // 전제 둘 - 이 축이 실제로 안 갈리는 것이 이 검사의 이유다.
+    expect(second.snapshot.categoryCounts).toEqual(first.snapshot.categoryCounts)
+    expect(second.snapshot.unlabeledCount).toBe(first.snapshot.unlabeledCount)
+    // 그런데 어느 사진이 어느 줄에 앉는가는 바뀌었다.
+    expect(second.hashes).not.toEqual(first.hashes)
+
+    const { before: left, after: right } = comparablePair(
+      { settings: settingsOf(first.snapshot), runs: [] },
+      { settings: settingsOf(second.snapshot), runs: [] },
+    )
+    expect(
+      right,
+      '라벨을 맞바꿨는데 견줄 값이 같다 - 결과 화면이 "설정을 바꾸지 않았다"고 말한다',
+    ).not.toEqual(left)
   })
 })
