@@ -29,7 +29,8 @@
 | §2 알고리즘 선택에 `if/elif` 금지 | `algorithms.spec.ts`("분기 없이 늘어난다") |
 | §2 "X는 Y에서만"은 X의 등록부에 | `algorithms.spec.ts` · `metric-panels.spec.ts` · `kinds.spec.ts` |
 | §2 잠금은 gate 함수 하나, 이유 목록 반환 | `selection.spec.ts` · `ui-rules.spec.ts` · `steps.spec.ts` — **저 둘이 덮는 것은 모델 고르기 축이다.** 단계 게이트는 2026-08-19까지 boolean을 돌려줬고(V11 R5 B-10) 지금은 `stepBlockers`가 사실 목록을 준다 |
-| §2 `randomState`를 항상 **저장하고 분할·뽑기에 쓴다** | `split.spec.ts` · `experiment.spec.ts` · `sample.spec.ts` — **`fit`까지 도달하는지는 아래 "사람이 지킨다"에 있다** |
+| §2 `randomState`를 항상 **저장하고 분할·뽑기에 쓴다** | `split.spec.ts` · `experiment.spec.ts` · `sample.spec.ts` |
+| §2 `randomState`가 **`fit`까지 도달하는가** | `experiment.spec.ts`(학습) · `reproduce.spec.ts`(대조) — **한때 둘 다 안 막았고 대조 쪽은 2026-08-19까지 그랬다**(R7 감사 A-2). **씨앗에 둔감한 픽스처로는 못 잡는다** — 붓꽃 30행은 씨앗을 바꿔도 같은 지표를 내서, 대조 쪽 검사는 잡음 섞인 120행을 따로 짓는다 |
 | §3 i18n 규칙 넷 전부 | `i18n-usage.spec.ts` · `locales.spec.ts` |
 | §3 지원 언어마다 내장 양식 파일이 있는가 | `portfolio-preset.spec.ts` — 없는 언어는 en으로 떨어지는데 **떨어진 것과 빠뜨린 것을 화면에서 구분할 수 없다.** 파일이 남았는데 언어가 없는 것도 함께 본다 |
 | §4 `any` 금지 | ESLint `@typescript-eslint/no-explicit-any` |
@@ -84,10 +85,15 @@
 타입이 안 운다**), 끝이 마침표인 범주 이름은 윈도우가 압축을 풀 때 조용히 떼어 내
 `hashes.json`이 디스크와 어긋났다.
 
-**소스 전체를 훑는 검사가 여덟이다** — `ui-rules` · `i18n-usage` · `locales` ·
-`versions` · `schema-version` · `kinds` · `limits-rules` · `secure-context-rules`.
+**소스 전체를 훑는 검사가 일곱이다** — `ui-rules` · `i18n-usage` · `locales` ·
+`limits-rules` · `secure-context-rules` · `entry-names` · `settings-rules`.
 그래서 "내가 만진 파일의 검사"라는 것이 없고,
 `CLAUDE.md` §4가 **커밋마다 전부 돌리라**고 적은 이유가 이것이다.
+
+> **이 목록이 양쪽으로 틀려 있었다** (2026-08-19, R7 감사 6-2). `versions`·`schema-version`·
+> `kinds`는 등록부를 **읽을** 뿐 파일을 안 훑는데 들어 있었고, 실제로 훑는 `entry-names`·
+> `settings-rules`는 빠져 있었다. **판정은 `readdirSync`로 소스 트리를 걷는가다** —
+> `portfolio-preset`은 양식 디렉터리 하나만 보므로 여기 아니다.
 
 ## 타입이 막는다
 
@@ -113,7 +119,6 @@
 |---|---|---|
 | §4 벤더링 머리말 셋(출처·라이선스·바꾼 것) | `svm-smo.ts` 하나뿐이고 잘 적혀 있다. **다음 파일을 강제하는 것이 없다** | `ml/engines/`에서 우리가 안 쓴 의존성을 들인 파일을 찾아 머리말 세 줄을 요구 |
 | §4 커밋 규칙(GPG · 경로 명시 · 도구 표기 금지) | 전적으로 기억에 의존 | `commit-msg`·`pre-commit` 훅 |
-| §2 `randomState`가 **`fit`까지 도달하는가** | **아무것도 안 막는다.** `experiment.ts`의 그 줄을 `0`으로 못 박아도 검사 1,820개가 전부 통과한다 (V11 R2, 돌연변이 M22). 저장과 **분할**은 막히는데 배깅·SMO·K-평균 초기화로 가는 길은 안 막힌다 | 씨앗만 다르고 분할이 같은 두 실험을 세워 랜덤포레스트 지표가 달라지는지 본다. **못 박은 값이 씨앗에 둔감하면 안 된다** — 지금 픽스처(30행 붓꽃)가 그래서 무디다 |
 
 **`limits.ts` 유일 출처는 2026-08-12에 검사가 됐다** (`limits-rules.spec.ts`). 여기서
 빠진 이유이자 남겨 둘 교훈 — **검사가 못 보는 자리를 그 파일 머리말이 스스로 밝힌다.**
