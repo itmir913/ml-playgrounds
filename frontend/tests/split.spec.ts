@@ -279,27 +279,33 @@ describe('평가 데이터가 파일로 온 분할', () => {
  * `open-decisions.md`가 다룰 결정이다. 이 검사가 지키는 것은 **지금 규칙이 무엇인지가
  * 코드 밖에 적혀 있다**는 것뿐이다.
  */
-describe('평가셋 개수의 반올림', () => {
+/**
+ * **sklearn `train_test_split`과 같은 함수여야 한다** — `n_test = ceil(n * test_size)`
+ * (`CLAUDE.md` §2 · open-decisions.md #31, 2026-08-19에 `round`에서 옮겼다).
+ *
+ * 여기서 익힌 20%가 scikit-learn에서 다른 20%면 이 도구는 발판이 아니다.
+ */
+describe('평가셋 개수는 sklearn과 같은 함수로 센다', () => {
   const countOf = (total: number, testSize: number): number =>
     holdoutSplit({ rows: rows(total) }, split({ testSize })).testIndices.length
 
-  it('소수부가 절반을 넘으면 올린다 - 7행의 25%는 2행이다', () => {
-    // 1.75 → round 2 / floor 1. 두 함수가 갈리는 자리다.
+  it('소수부가 있으면 올린다 - 7행의 25%는 2행이다', () => {
+    // 1.75 → ceil 2 / round 2 / floor 1.
     expect(countOf(7, 0.25)).toBe(2)
   })
 
-  it('소수부가 정확히 절반이면 올린다 - 10행의 25%는 3행이다', () => {
-    // 2.5 → round 3 / floor 2 / trunc 2.
-    expect(countOf(10, 0.25)).toBe(3)
+  it('소수부가 절반에 못 미쳐도 올린다 - 9행의 25%는 3행이다', () => {
+    // 2.25 → **ceil 3 / round 2.** round와 갈리는 자리가 정확히 여기다.
+    expect(countOf(9, 0.25)).toBe(3)
   })
 
-  it('소수부가 절반에 못 미치면 내린다 - 9행의 25%는 2행이다', () => {
-    // 2.25 → round 2. 위 둘과 함께 봐야 "언제나 올린다"가 아님이 드러난다.
-    expect(countOf(9, 0.25)).toBe(2)
+  it('나누어떨어지면 그대로다 - 8행의 25%는 2행이다', () => {
+    // 2.0. 올림이 "언제나 하나 더"가 아님이 여기서 드러난다.
+    expect(countOf(8, 0.25)).toBe(2)
   })
 
   it('층화에서도 같은 규칙이다 - 라벨마다 따로 센다', () => {
-    // A가 7개(1.75→2), B가 9개(2.25→2). 둘을 합쳐 세면 16×0.25=4.0이라
+    // A가 7개(1.75→2), B가 9개(2.25→3). 둘을 합쳐 세면 16×0.25=4.0이라
     // 소수부가 사라져 아무것도 안 갈린다 - 라벨마다 세는지가 여기서 드러난다.
     const labels = [...Array<string>(7).fill('A'), ...Array<string>(9).fill('B')]
     const { testIndices } = holdoutSplit(
@@ -307,6 +313,15 @@ describe('평가셋 개수의 반올림', () => {
       split({ testSize: 0.25, stratify: true }),
     )
     expect(testIndices.filter((index) => index < 7)).toHaveLength(2)
-    expect(testIndices.filter((index) => index >= 7)).toHaveLength(2)
+    expect(testIndices.filter((index) => index >= 7)).toHaveLength(3)
+  })
+
+  /** 양끝은 sklearn과 다르다 - 저쪽은 던지고 우리는 하나를 남긴다. */
+  it('전부 가져가지 않는다 - 학습할 것이 남는다', () => {
+    expect(countOf(2, 1)).toBe(1)
+  })
+
+  it('0으로 내려가지 않는다 - 평가할 것이 남는다', () => {
+    expect(countOf(100, 0.001)).toBe(1)
   })
 })

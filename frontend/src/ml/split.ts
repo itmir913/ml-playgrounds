@@ -42,11 +42,17 @@ export interface SplitInput {
 /**
  * 한 덩어리에서 평가셋으로 보낼 개수.
  *
- * **양쪽 모두 최소 하나는 남긴다.** 반올림해서 0이 나오면 평가할 것이 없고,
- * 전부 가져가면 학습할 것이 없다. 어느 쪽이든 지표가 의미를 잃는다.
+ * **`ceil`이다 — sklearn `train_test_split`과 같은 함수다** (`n_test = ceil(n * test_size)`,
+ * 2026-08-19에 `round`에서 옮겼다). 이 도구는 종착지가 아니라 scikit-learn으로 가는
+ * 발판이고, 여기서 익힌 20%가 거기서 다른 20%면 발판이 아니다 (`CLAUDE.md` §2).
+ * 7행에서 20%를 고르면 `round`는 1행, `ceil`은 2행을 평가로 보낸다.
+ *
+ * **양쪽 모두 최소 하나는 남긴다.** 0이 나오면 평가할 것이 없고 전부 가져가면 학습할
+ * 것이 없다. sklearn은 그 자리에서 던지는데 **우리는 하나를 남긴다** — 교실에서 멈추는
+ * 것보다 낫다.
  */
 function testCountFor(total: number, testSize: number): number {
-  return Math.min(Math.max(Math.round(total * testSize), 1), total - 1)
+  return Math.min(Math.max(Math.ceil(total * testSize), 1), total - 1)
 }
 
 /**
