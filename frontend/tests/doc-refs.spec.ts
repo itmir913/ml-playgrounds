@@ -324,11 +324,18 @@ describe('문서 참조', () => {
   })
 
   it('스포크의 표제가 허브 색인에 다 있다', () => {
+    // **허브 아무 데나 있으면 되는 것이 아니다.** 색인은 목록이므로 글머리 기호나
+    // 표제로 적힌 줄에서만 찾는다 — 본문이 그 제목을 인용하고 있는 것으로는 안 된다.
+    // (실제로 `"모바일에서도 동작한다"`가 허브 머리말에 인용되어 있어서, 색인에서
+    // 그 줄을 지워도 검사가 안 울었다.)
     const unlisted: string[] = []
     for (const [name, family] of FAMILIES) {
+      const listed = family.hubText.split(NEWLINE).filter((line) => /^\s*(?:[-*]\s|#)/.test(line))
       for (const heading of family.spokeHeadings) {
         const key = indexKey(heading)
-        if (key !== '' && !family.hubText.includes(key)) unlisted.push(`${name}  ${key}`)
+        if (key !== '' && !listed.some((line) => line.includes(key))) {
+          unlisted.push(`${name}  ${key}`)
+        }
       }
     }
     expect(unlisted, '색인에 없는 스포크 표제').toEqual([])
