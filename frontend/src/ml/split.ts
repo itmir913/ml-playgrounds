@@ -75,7 +75,13 @@ function approximateMode(counts: readonly number[], draws: number, seed: number)
     // 동점끼리는 씨앗으로 섞는다 - 앞자리부터 주면 먼저 나온 라벨로 편향된다.
     for (const index of shuffled(tied.get(remainder) ?? [], labelSeed(seed, String(remainder)))) {
       if (missing === 0) break
-      // 그 반이 가진 것보다 많이 가져갈 수는 없다.
+      /**
+       * 그 반이 가진 것보다 많이 가져갈 수는 없다.
+       *
+       * **지금은 도달하지 않는다** (R7 감사). `floored`는 비율을 내린 값이라 언제나
+       * `counts` 이하이고, 한 번에 하나씩만 얹기 때문이다. **남기는 이유는 이 함수가
+       * `draws > total`로 불릴 수 있어서다** — 그때는 여기가 유일한 방어선이다.
+       */
       if (floored[index]! >= counts[index]!) continue
       floored[index]! += 1
       missing -= 1
@@ -164,7 +170,9 @@ export function holdoutSplit(input: SplitInput, split: Split): SplitIndices {
     const counts = [...groups.values()].map((group) => group.length)
     const total = rows.length
     const testCount = testCountFor(total, split.testSize)
-    // **학습 몫을 먼저 나누고 남은 것에서 평가 몫을 나눈다.** 순서가 sklearn과 같아야 한다.
+    // **학습 몫을 먼저 나누고 남은 것에서 평가 몫을 나눈다** — sklearn과 같은 순서다.
+    // **동점 밖에서는 두 순서가 같은 답을 준다**(R7 감사). 같은 순서로 두는 이유는
+    // 결과가 달라서가 아니라, 저쪽 코드를 옆에 놓고 읽을 수 있어야 하기 때문이다.
     const trainPerClass = approximateMode(counts, total - testCount, split.randomState)
     const testPerClass = approximateMode(
       counts.map((count, index) => count - (trainPerClass[index] ?? 0)),
