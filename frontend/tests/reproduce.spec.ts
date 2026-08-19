@@ -15,7 +15,13 @@ import { dataSnapshot } from '../src/project/schema'
 import { reproduceExperiment } from '../src/ml/reproduce'
 import type { Dataset } from '../src/ml/preprocess'
 import type { Experiment, Run, Settings } from '../src/project/schema'
-import { irisDataset, IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN } from './fixtures/iris'
+import {
+  IRIS_FEATURES,
+  IRIS_FEATURE_COLUMNS,
+  IRIS_LABELS,
+  IRIS_TARGET_COLUMN,
+  irisDataset,
+} from './fixtures/iris'
 
 /**
  * 스냅샷은 **표에서는 설정에서 그대로 나온다** (open-decisions.md "이미지 학습은 표
@@ -288,5 +294,156 @@ describe('군집도 대조한다', () => {
     })
     expect(found?.status).toBe('NOT_REPRODUCED')
     expect(found?.deltas?.['silhouette']).not.toBe(0)
+  })
+})
+
+/**
+ * **평가 파일이 따로 온 실험도 대조된다** (R7 감사 A-1).
+ *
+ * `provided`면 `testIndices`가 학습 정본이 아니라 **평가 정본**의 행 번호다
+ * (mlpx-spec.md §1.1). 이 갈래를 지나는 검사가 하나도 없어서, `reproduce.ts`의 그
+ * 삼항을 통째로 `dataset`으로 뭉개도 저장소 전체 1,996개가 초록이었다.
+ *
+ * **깨지면 학생이 지는 쪽으로 깨진다** — 손대지 않은 제출물이 `NOT_REPRODUCED`가 되고,
+ * 교사 화면에서 그것은 "고쳤다"는 뜻이다.
+ */
+describe('평가 파일이 따로 온 실험', () => {
+  /** 학습 정본과 **다른 표**다. 두 표를 바꿔치기하면 지표가 달라지도록 라벨을 뒤집는다. */
+  function testTable(): Dataset {
+    return {
+      columns: [...IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN],
+      rows: IRIS_FEATURES.slice(0, 12).map((values, row) => [
+        ...values.map(String),
+        IRIS_LABELS[IRIS_LABELS.length - 1 - row] ?? '',
+      ]),
+    }
+  }
+
+  function providedExperiment(): { experiment: Experiment; testDataset: Dataset } {
+    const testDataset = testTable()
+    const settings = settingsFor(['decision_tree', 'knn'])
+    const experiment = runExperiment(
+      {
+        dataset,
+        testDataset,
+        taskType: 'classification',
+        dataType: 'tabular',
+        settings: {
+          ...settings,
+          split: { ...settings.split, method: 'provided' },
+        },
+        context: { serverStatus: 'unavailable', rowCount: 30, dataType: 'tabular' },
+      },
+      { now: () => '2026-08-06T00:00:00.000Z' },
+    ).experiment
+    return { experiment, testDataset }
+  }
+
+  it('방금 학습한 것이 그대로 재현된다', () => {
+    const { experiment, testDataset } = providedExperiment()
+    const found = reproduceExperiment({ experiment, dataset, testDataset })
+
+    expect(found).toHaveLength(2)
+    for (const one of found) expect(one.status, one.algorithm).toBe('REPRODUCED')
+  })
+
+  /**
+   * **이 검사가 이 묶음의 이유다.** 채점 대상을 학습 정본으로 바꿔치기하면 지표가
+   * 달라져야 한다 — 안 달라지면 `provided` 갈래가 아무 일도 안 하고 있는 것이다.
+   */
+  it('채점 대상이 학습 정본으로 바뀌면 재현되지 않는다', () => {
+    const { experiment } = providedExperiment()
+    const found = reproduceExperiment({ experiment, dataset, testDataset: dataset })
+
+    expect(found.some((one) => one.status !== 'REPRODUCED')).toBe(true)
+  })
+
+  /** 평가 정본이 없으면 대조 자체가 불가능하다 - 없는 것을 있는 척하지 않는다. */
+  it('평가 정본이 없으면 대조할 수 없다고 말한다', () => {
+    const { experiment } = providedExperiment()
+    const found = reproduceExperiment({ experiment, dataset, testDataset: null })
+
+    for (const one of found) expect(one.status, one.algorithm).not.toBe('REPRODUCED')
+  })
+})
+
+/**
+ * **씨앗이 대조의 `fit`까지 닿는가** (R7 감사 A-2).
+ *
+ * 학습 경로(`ml/experiment.ts`)는 2026-08-18에 검사가 붙었는데 **대조 경로는 무방비였다** —
+ * `reproduce.ts`의 `randomState`를 `0`으로 못 박아도 저장소 전체가 초록이었다.
+ *
+ * **씨앗에 민감한 모델이라야 잡힌다.** 랜덤포레스트는 배깅이 씨앗을 먹으므로 다른 씨앗이면
+ * 다른 나무가 서고 지표가 갈린다 — 결정트리로는 이 축을 못 가른다.
+ */
+describe('대조도 파일에 적힌 씨앗으로 돌린다', () => {
+  /**
+   * **붓꽃 30행으로는 이 축을 못 가른다.** 씨앗을 바꿔도 랜덤포레스트가 같은 지표를 낸다 —
+   * `rule-coverage.md`가 *"지금 픽스처가 그래서 무디다"*라고 적어 둔 자리다. 그래서 여기서만
+   * 쓰는 표를 짓는다: **행이 많고 라벨에 잡음이 섞여** 배깅이 씨앗마다 다른 나무를 세운다.
+   */
+  const NOISY_COLUMNS = ['x0', 'x1', 'x2', 'y'] as const
+
+  function noisyTable(): Dataset {
+    const rows: string[][] = []
+    // 결정적 의사난수. 씨앗이 아니라 **데이터**를 만드는 자리라 값이 고정이어야 한다.
+    let state = 12345
+    const next = (): number => {
+      state = (state * 1103515245 + 12345) % 2147483648
+      return state / 2147483648
+    }
+    for (let index = 0; index < 120; index += 1) {
+      const x0 = next()
+      const x1 = next()
+      const x2 = next()
+      const clean = x0 + x1 > 1 ? 'A' : 'B'
+      // 라벨 20%를 뒤집는다. 갈리지 않는 데이터일수록 나무가 씨앗을 크게 탄다.
+      const label = next() < 0.2 ? (clean === 'A' ? 'B' : 'A') : clean
+      rows.push([x0.toFixed(4), x1.toFixed(4), x2.toFixed(4), label])
+    }
+    return { columns: [...NOISY_COLUMNS], rows }
+  }
+
+  const noisy = noisyTable()
+
+  function forestWith(randomState: number): Experiment {
+    return runExperiment(
+      {
+        dataset: noisy,
+        testDataset: null,
+        taskType: 'classification',
+        dataType: 'tabular',
+        settings: {
+          data: {
+            features: ['x0', 'x1', 'x2'],
+            target: 'y',
+            preprocessing: { missing: 'mean', scaling: 'standard', categoricalEncoding: 'onehot' },
+          },
+          split: { method: 'holdout', testSize: 0.3, stratify: true, randomState },
+          runtime: 'mljs',
+          selectedAlgorithms: [{ algorithm: 'random_forest' }],
+          hyperparameters: {},
+        },
+        context: { serverStatus: 'unavailable', rowCount: noisy.rows.length, dataType: 'tabular' },
+      },
+      { now: () => '2026-08-06T00:00:00.000Z' },
+    ).experiment
+  }
+
+  /**
+   * **전제부터 확인한다.** 두 씨앗이 실제로 다른 지표를 내야 아래 검사가 뜻을 갖는다 —
+   * 안 갈리면 픽스처가 무딘 것이지 코드가 옳은 것이 아니다.
+   */
+  it('씨앗이 다르면 지표가 갈린다 - 이 픽스처가 그 축을 가른다', () => {
+    const left = forestWith(42).runs[0]?.metrics
+    const right = forestWith(7).runs[0]?.metrics
+    expect(left).toBeDefined()
+    expect(right).not.toEqual(left)
+  })
+
+  it('파일의 씨앗으로 다시 돌린다 - 못 박힌 값이 아니라', () => {
+    const experiment = forestWith(7)
+    const [found] = reproduceExperiment({ experiment, dataset: noisy, testDataset: null })
+    expect(found?.status).toBe('REPRODUCED')
   })
 })

@@ -487,6 +487,31 @@ describe('참조와 본체가 어긋난 레코드', () => {
     await expect(loadProject('dangling')).rejects.toSatisfy(isClientError)
   })
 
+  /**
+   * **폴더 참조는 파일 참조와 판정이 다르다** (R7 감사 A-3). 위 셋은 전부 파일 참조라,
+   * `paired`의 폴더 갈래(`그 아래 한 장이라도 있는가`)를 `return true`로 뭉개도 저장소
+   * 전체 1,996개가 초록이었다.
+   *
+   * **사진이 날아간 이미지 프로젝트가 "열리는" 것이 그 결과다.** 그 프로젝트는 저장도
+   * 내보내기도 못 하고(`writeProject`가 거부한다), 학생은 왜인지 모른 채 다음 차시에 안다.
+   */
+  it('사진 폴더 참조만 남았으면 던진다 - 폴더는 그 아래 한 장이라도 있어야 한다', async () => {
+    const base = emptyProjectFile().document
+    await plantWithoutBody({
+      ...base,
+      manifest: { ...base.manifest, dataType: 'image' },
+      settings: {
+        ...base.settings,
+        data: {
+          dataset: { path: 'dataset/data/', canonicalSize: 224, format: 'webp', quality: 0.65 },
+          categories: ['개'],
+          backboneId: DEFAULT_BACKBONE_ID,
+        },
+      },
+    })
+    await expect(loadProject('dangling')).rejects.toSatisfy(isClientError)
+  })
+
   it('예측 데이터 참조만 남았으면 던진다', async () => {
     const base = emptyProjectFile().document
     await plantWithoutBody({
