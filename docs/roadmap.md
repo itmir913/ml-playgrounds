@@ -146,7 +146,7 @@ R7~R9는 소스가 옳은데 **검사가 없던** 자리만 잡았다. 돌연변
 **끝난 것** (2026-08-11, 감사와 그 수정까지 포함):
 
 - **엔진** — 직접 짰다(`ml/engines/mljs-kmeans.ts`). K-Means++ 초기화 + Lloyd 반복이고,
-  빈 군집은 sklearn처럼 재배치한다. 근거는 `open-decisions.md` "군집화의 핵심 결정 넷"
+  빈 군집은 sklearn처럼 재배치한다. 근거는 `open-decisions.md` "군집화(K-Means)의 핵심 결정 넷"
 - **군집 지표** — 실루엣 계수와 이너셔. 시그니처가 달라 `EVALUATORS`가 아니라
   `CLUSTER_EVALUATOR`가 따로 산다(`architecture.md` §3.7)
 - **모델 형식** `mlpx-kmeans-v1` + 해석기 등록 (여덟 번째 형식, `mlpx-spec.md` §5.10)

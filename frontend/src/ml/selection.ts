@@ -178,7 +178,7 @@ export interface AxisChoice {
  *
  * `alreadyAdded`만 성질이 다르다 - 학습이 거부하는 것이 아니라 **같은 쌍을 두 줄 담아 봐야
  * 하이퍼파라미터가 공유되어 똑같은 줄이 둘 생기기 때문**이다
- * (open-decisions.md "실행 방법은 하나의 목록이다").
+ * (open-decisions.md "실행 방법은 (위치 × 엔진)이 아니라 하나의 목록이다").
  */
 export type AddBlocked = UnavailableReason | 'alreadyAdded'
 

@@ -32,7 +32,7 @@ export const SKLEARN_ONLY_ALGORITHM: Algorithm = {
  * **표 데이터에서는 안 서는 알고리즘.** 데이터 타입 사유를 확인할 때 쓴다.
  *
  * 예전에는 `dataType: 'image'`를 넘겨서 확인했다. **어휘에서 뺐다** - 안 만든 종류를
- * `DATA_TYPES`에 미리 넣어 두면 등록부가 거짓말을 한다(open-decisions.md "어휘에는 지금
+ * `DATA_TYPES`에 미리 넣어 두면 등록부가 거짓말을 한다(open-decisions.md "`DATA_TYPES`에는 지금
  * 되는 것만 넣는다"). 그래서 표본을 여기서 만든다.
  *
  * **이미지가 들어온 날 그대로 됐다** (2026-08-12). 검사는 한 줄도 안 고쳤다 -

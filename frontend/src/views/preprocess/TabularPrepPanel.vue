@@ -633,7 +633,7 @@ async function removeTest(): Promise<void> {
         <p class="mt-1 text-ink-soft">{{ t('preprocess.testDataLead') }}</p>
 
         <!-- 양자택일이다 - 세 번째 상태가 없어야 학습 데이터로 채점하는 길이 막힌다
-             (open-decisions.md "`분할 안 함`을 없앱니다 - 그 자리가 양자택일이 된다"). -->
+             (open-decisions.md "`분할 안 함`을 없앱니다 — 그 자리가 양자택일이 된다"). -->
         <div class="mt-3 flex flex-col gap-4">
           <div>
             <label class="flex cursor-pointer items-start gap-2">

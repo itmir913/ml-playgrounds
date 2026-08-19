@@ -42,7 +42,7 @@ export type WorkerMessage =
    * 들어올 수 있어(schema.ts) 이름은 키가 못 된다.
    *
    * `runtime`을 싣는 이유는 **학생이 고른 것과 실제로 도는 것이 다를 수 있어서다** -
-   * 자동으로 넘어간 경우(open-decisions.md "실행 방법은 하나의 목록이다") 지금 도는 것을
+   * 자동으로 넘어간 경우(open-decisions.md "실행 방법은 (위치 × 엔진)이 아니라 하나의 목록이다") 지금 도는 것을
    * 말하는 자리에서 그걸 틀리게 말하면 안 된다.
    */
   | { type: 'started'; index: number; algorithm: string; runtime: string; total: number }

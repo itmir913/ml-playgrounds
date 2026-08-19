@@ -462,7 +462,7 @@ async function run(): Promise<void> {
 
     <template v-else>
       <!--
-        **누르는 것은 전부 바에 모인다** (architecture.md §8.13.1 "동작 바는 세 경로가
+        **누르는 것은 전부 바에 모인다** (architecture.md §8.13.1 "동작 바는 화면들이
         함께 쓴다"). 이미지 경로와 같은 컴포넌트이고 같은 자리다.
       -->
       <StepActionBar v-if="inputMode === 'value'">

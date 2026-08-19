@@ -156,7 +156,7 @@ export async function readImageZip(
     .map(([path, content]) => [normalizePath(path), content] as const)
     .filter(
       // 디렉터리 엔트리는 내용이 없다. 빈 폴더는 범주가 되지 않는다 - 범주 목록은
-      // settings가 따로 갖는다 (open-decisions.md "범주는 폴더가 갖고…").
+      // settings가 따로 갖는다 (open-decisions.md "범주는 폴더가 갖고").
       ([path, content]) => !path.endsWith('/') && content.length > 0 && !isJunk(path),
     )
   if (entries.length === 0) throw new ClientError('IMAGE_ZIP_NO_IMAGES')

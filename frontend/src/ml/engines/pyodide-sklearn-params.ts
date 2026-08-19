@@ -7,7 +7,7 @@
  * **이름은 sklearn의 것이다.** 같은 결정트리라도 ml.js는 `maxDepth`, sklearn은
  * `max_depth`이다. 이것이 하이퍼파라미터 키를 (알고리즘, 실행 방법)으로 만든 이유다
  * (architecture.md §3.3, mlpx-spec.md §3). 학생이 sklearn으로 갈아타는 것이 이 도구의
- * 목적이고, 여기서 익힌 이름이 거기서 그대로 통해야 한다 (CLAUDE.md "파이썬 관행").
+ * 목적이고, 여기서 익힌 이름이 거기서 그대로 통해야 한다 (CLAUDE.md "파이썬 생태계의 관행").
  *
  * **기본값은 sklearn의 기본값 그대로다.** mljs 엔진은 교실에 맞춰 기본값을 조정했지만
  * (예: 랜덤포레스트 10그루) sklearn 엔진은 sklearn 그대로 쓴다 — 학생이 sklearn으로

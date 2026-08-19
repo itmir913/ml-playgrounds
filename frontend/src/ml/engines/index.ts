@@ -8,7 +8,7 @@
  * 등록부의 키는 **실행 방법 id**다 (ml/backend.ts의 RUNTIMES). 알고리즘 이름이 아니다 -
  * 같은 결정트리라도 ml.js는 `maxDepth`, sklearn은 `max_depth`를 받으므로 하이퍼파라미터
  * 어휘가 실행 방법마다 다르고, 그래서 짝이 (알고리즘, 실행 방법)이어야 한다
- * (open-decisions.md "실행 방법은 하나의 목록이다").
+ * (open-decisions.md "실행 방법은 (위치 × 엔진)이 아니라 하나의 목록이다").
  *
  * **여기 있는 것은 브라우저에서 도는 엔진뿐이다.** 서버 학습은 같은 모양의 비동기
  * 메시지 인터페이스를 갖지만 구현이 다르다 (ml/server.ts, architecture.md 3.4).
