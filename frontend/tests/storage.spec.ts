@@ -27,6 +27,7 @@ import {
   writePreferredLocale,
 } from '../src/project/storage'
 import { hashBytes } from '../src/hash'
+import { STORAGE_SAFETY_FACTOR } from '../src/limits'
 import type { ProjectFile } from '../src/project/format'
 import { dataSettings } from '../src/project/schema'
 import {
@@ -284,6 +285,28 @@ describe('프로젝트 삭제', () => {
 })
 
 describe('여유 공간', () => {
+  /**
+   * **안전계수가 실제로 곱해지는가** (R7 감사 B-9). 기존 셋은 여유가 아주 많거나 아주
+   * 적은 값만 줘서, `STORAGE_SAFETY_FACTOR`를 통째로 무시해도 전체가 침묵했다.
+   *
+   * 브라우저가 보고하는 여유는 근사값이고 압축·인덱스가 더 먹는다 — 그래서 계수만큼
+   * 더 요구한다. **필요량과 여유를 계수 사이에 놓으면** 그 곱셈이 있을 때만 거부된다.
+   */
+  it('여유가 실제 크기보다는 크고 안전계수보다는 작으면 거부한다', async () => {
+    const project = projectFile()
+    const size = totalBytes(project)
+    // 계수가 1보다 크다는 전제 자체를 먼저 세운다.
+    expect(STORAGE_SAFETY_FACTOR).toBeGreaterThan(1)
+    const available = Math.floor(size * ((1 + STORAGE_SAFETY_FACTOR) / 2))
+    stubEstimate(available * 4, available * 3)
+
+    try {
+      await expect(saveProject(project)).rejects.toSatisfy(isClientError)
+    } finally {
+      clearEstimate()
+    }
+  })
+
   it('부족하면 저장을 거부하고 얼마나 필요한지 알려준다', async () => {
     stubEstimate(1024 * 1024, 1024 * 1024 - 10)
     try {
@@ -636,6 +659,27 @@ describe('이미지 프로젝트', () => {
     expect(totalBytes(project)).toBeGreaterThanOrEqual(photos)
     expect(totalBytes({ ...project, images: new Map() })).toBe(totalBytes(project) - photos)
   })
+
+  /**
+   * **항마다 따로 본다** (R7 감사 B-8). 목록의 용량 검사가 기대값을 **구현의 일부로 다시
+   * 만들고 있었고**(`dataset + models`), 픽스처에 평가·예측 정본도 첨부도 없어서
+   * 그 셋을 구현에서 빼도 양쪽이 같이 0이었다.
+   *
+   * 소스가 실패를 직접 적어 두었다 — *"학습 정본만 세면 여유 공간 검사가 실제로 쓸 양보다
+   * 적게 잡고, 그러면 사전 검사를 통과한 뒤 실제 쓰기에서 터진다."*
+   */
+  for (const term of ['testDataset', 'predictDataset', 'attachments'] as const) {
+    it(`용량이 ${term}을 센다`, () => {
+      const bytes = new Uint8Array(24)
+      const base = projectFile()
+      const withTerm =
+        term === 'attachments'
+          ? { ...base, attachments: new Map([['portfolio/attachments/1.webp', bytes]]) }
+          : { ...base, [term]: { bytes, hash: 'deadbeef' } }
+
+      expect(totalBytes(withTerm)).toBe(totalBytes(base) + bytes.length)
+    })
+  }
 
   it('임베딩도 용량에 든다', () => {
     const project = imageProjectFile()

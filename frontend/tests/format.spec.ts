@@ -641,6 +641,22 @@ describe('경로가 어긋난 파일', () => {
     )
   })
 
+  /**
+   * **역슬래시도 막는다** (R7 감사 B-15). 위 검사는 `..` 갈래만 지나서, 역슬래시 판정을
+   * 지워도 저장소 전체가 침묵했다.
+   *
+   * **윈도우 압축 해제기가 역슬래시를 구분자로 읽는 것이 이 방어의 이유다** — 디렉터리
+   * 안에 얌전히 있는 이름이라도 그쪽에서 풀면 경로가 갈라진다.
+   */
+  it('역슬래시가 든 경로를 거부한다 - 윈도우가 구분자로 읽는다', async () => {
+    await rejectsAt(
+      await withSettings((settings) => {
+        settings.data.dataset.path = 'dataset/a\\b.csv'
+      }),
+      'settings.data.dataset.path',
+    )
+  })
+
   it('디렉터리 이름 자체는 파일이 아니다', async () => {
     await rejectsAt(
       await withSettings((settings) => {
