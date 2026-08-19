@@ -477,6 +477,7 @@
     "IMAGE_ZIP_INVALID": "압축 파일을 열지 못했습니다. 사진 폴더를 다시 압축해 주세요.",
     "IMAGE_ZIP_NO_IMAGES": "압축 파일 안에 사진이 하나도 없습니다.",
     "IMAGE_TOO_MANY_PHOTOS": "사진은 최대 {limit}장까지 담을 수 있습니다. 담은 사진을 지우거나 한 번에 올리는 수를 줄여 주세요. (지금 {current}장, 더 올리려는 사진 {incoming}장)",
+    "IMAGE_CANONICAL_SIZE_MISMATCH": "사진 크기가 이 백본(Backbone)이 요구하는 것과 다릅니다. 다른 곳에서 만들었거나 손으로 고친 파일일 수 있습니다. ({found}, 필요한 크기 {expected})",
     "IMAGE_CATEGORY_NAME_INVALID": "범주 이름으로 쓸 수 없는 폴더가 있습니다. 폴더 이름을 바꾼 뒤 다시 압축해 주세요. ({name})"
   },
   "portfolio": {

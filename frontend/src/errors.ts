@@ -34,6 +34,15 @@ export const CLIENT_ERROR_CODES = [
   // 때문이다** - 다시 시도하는 것뿐이고, 무엇이 달랐는지는 교사가 읽을 기술 원문에 있다.
   // 등록부에 없는 백본을 가리키는 옛 파일도 여기로 온다.
   'BACKBONE_UNAVAILABLE',
+  /**
+   * 정본이 백본이 요구하는 크기가 아니다.
+   *
+   * **`BACKBONE_UNAVAILABLE`과 나누는 이유는 학생이 할 일이 다르기 때문이다** (R6 감사
+   * B-10). 저쪽 문구는 *"인터넷 연결을 확인하세요"*인데 여기 원인은 사진이라 **다시
+   * 시도해도 영원히 같은 자리에서 죽는다.** 정상 경로로는 안 나오고, 남이 만든 zip이나
+   * 손으로 고친 파일에서 온다.
+   */
+  'IMAGE_CANONICAL_SIZE_MISMATCH',
 
   // 사진 올리기 - data/image/upload.ts
   // zip이 아니거나 깨졌다. PROJECT_FILE_NOT_ZIP과 나누는 이유는 학생이 할 일이 다르기

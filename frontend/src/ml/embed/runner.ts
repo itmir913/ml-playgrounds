@@ -10,6 +10,7 @@
  * 개발 PC에서 사진 100장이 WebGPU 1.96초 · WebGL 2.24초 · wasm 4.59초였다.
  */
 
+import { ClientError } from '../../errors'
 import type { BackboneSpec } from '../backbones'
 import type { EngineState } from '../backend'
 import { packPixels } from './pixels'
@@ -149,8 +150,17 @@ export function createTfjsRunner(): BackboneRunner {
          * (open-decisions.md #4).
          */
         if (bitmap.width !== size || bitmap.height !== size) {
+          const found = `${bitmap.width}×${bitmap.height}`
           bitmap.close()
-          throw new Error(`정본 크기가 백본과 다르다: ${bitmap.width}×${bitmap.height} ≠ ${size}`)
+          /**
+           * **전용 코드로 던진다** (R6 감사 B-10). 그냥 `Error`로 던지면 핸들러가
+           * `BACKBONE_UNAVAILABLE`로 바꾸고, 학생은 원인이 사진인데 *"인터넷 연결을
+           * 확인하세요"*를 본다 — 다시 시도해도 영원히 같은 자리에서 죽는다.
+           *
+           * `failureDetail`도 안 쓴다. 그쪽은 **남의 라이브러리가 던진 영어 원문**을 위한
+           * 자리라(`errors.ts`) 우리가 쓴 한국어를 실어 보내면 en/ja 사용자가 한국어를 본다.
+           */
+          throw new ClientError('IMAGE_CANONICAL_SIZE_MISMATCH', { found, expected: size })
         }
 
         /**

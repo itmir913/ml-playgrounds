@@ -114,6 +114,13 @@ IMAGE_TOO_LARGE_FOR_BROWSER, ENGINE_NOT_READY
 BACKBONE_UNAVAILABLE
 ```
 
+**정본 크기가 백본과 다른 것은 여기서 나눈다** (2026-08-19, R6 감사 B-10). 원인이 사진이라
+**다시 시도해도 영원히 같은 자리에서 죽고**, 그 상태에서 "인터넷 연결을 확인하세요"는
+거짓말이다. 정상 경로로는 안 나온다 — 남이 만든 zip이나 손으로 고친 파일에서 온다.
+```
+IMAGE_CANONICAL_SIZE_MISMATCH
+```
+
 **이 모델을 이 데이터·과제에 쓸 수 없다**
 ```
 ALGORITHM_NOT_FOR_DATA_TYPE, ALGORITHM_NOT_FOR_TASK_TYPE
