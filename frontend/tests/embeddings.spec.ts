@@ -7,6 +7,8 @@
 
 import { describe, expect, it } from 'vitest'
 
+import { unzip, zip } from 'fflate'
+
 import { imageEntryPath } from '../src/data/image/canonical'
 import { CANONICAL_FORMATS } from '../src/data/image/formats'
 import { hashBytes } from '../src/hash'
@@ -22,6 +24,25 @@ import {
 import { newProjectDocument } from '../src/project/create'
 import { readProject, writeProject, type ProjectFile } from '../src/project/format'
 import { addImages, readImages, removeImages } from '../src/project/images'
+
+/**
+ * zip에 엔트리 하나를 더해 다시 묶는다. **우리 코드가 못 만드는 파일을 만드는 자리다** —
+ * 남이 만든 `.mlpx`나 옛 빌드가 만든 파일이 그 모양이다.
+ */
+async function addRawEntry(
+  bytes: Uint8Array,
+  path: string,
+  content: Uint8Array,
+): Promise<Uint8Array> {
+  const entries = await new Promise<Record<string, Uint8Array>>((resolve, reject) => {
+    unzip(bytes, (error, result) => (error ? reject(error) : resolve(result)))
+  })
+  return new Promise<Uint8Array>((resolve, reject) => {
+    zip({ ...entries, [path]: content }, (error, result) =>
+      error ? reject(error) : resolve(result),
+    )
+  })
+}
 
 const NOW = '2026-08-12T09:00:00.000Z'
 /**
@@ -260,5 +281,34 @@ describe('.mlpx를 왕복한다', () => {
     const opened = await roundTrip(imageProject(['a']))
     expect(opened.embeddings.size).toBe(0)
     expect(opened.images.size).toBe(1)
+  })
+})
+
+/**
+ * **여는 자리에서도 떨어뜨린다** (R6 감사 B-2).
+ *
+ * `openFile`이 `readProject` 결과를 곧장 `saveProject`로 넘긴다. 여기를 안 걸러 두면
+ * **옛 좌표계의 벡터가 브라우저 저장소에 눌러앉는다** — 아무도 안 읽는데 용량 계산은
+ * 세므로, 사진 상한을 채운 프로젝트면 25MB가 쿼터를 먹고 **다른 프로젝트의 저장까지
+ * 막는다**(쿼터는 오리진 공용이다).
+ */
+describe('열 때 등록부에 없는 백본을 떨어뜨린다', () => {
+  it('옛 백본의 벡터는 열린 프로젝트에 없다', async () => {
+    const project = imageProject(['a'])
+    const [only] = readImages(project)
+    const vector = encodeVector(new Float32Array([1, 2, 3, 4]))
+
+    /**
+     * **파일을 손으로 짓는다.** 우리 `writeProject`는 옛 백본의 임베딩을 담아 주지
+     * 않으므로(그쪽도 떨어뜨린다) 그 zip을 만들 다른 길이 없다.
+     */
+    const { bytes } = await writeProject(
+      { ...project, embeddings: new Map([[embeddingPath(BACKBONE, only!.hash), vector]]) },
+      '',
+    )
+    const withStale = await addRawEntry(bytes, embeddingPath('mobilenet-v2', only!.hash), vector)
+
+    const opened = await readProject(withStale)
+    expect([...opened.project.embeddings.keys()]).toEqual([embeddingPath(BACKBONE, only!.hash)])
   })
 })

@@ -1077,6 +1077,44 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
       expect(grid[0]).toEqual(['번호', '결정 트리 · 내 컴퓨터'])
     })
 
+    /**
+     * **파일에서도 실패와 없음이 갈려야 한다** (R6 감사 B-3). 화면은 `—`를 두고 문장을
+     * 아래에 세우는데 여기까지 안 오면, 학생이 **제출하는 파일에서는** 둘이 다시 같은
+     * 빈 칸이 된다.
+     *
+     * **문장이 아니라 코드다.** 여기는 눈이 아니라 데이터다 (`CLAUDE.md` §1.4).
+     */
+    it('실패한 칸에는 사유 코드가 들어간다', () => {
+      const failed = [[{ failure: { code: 'PREDICTION_INPUT_INCOMPLETE' as const, params: {} } }]]
+      const grid = predictDownloadGrid(
+        [model],
+        ['결정 트리'],
+        [null],
+        '번호',
+        [cellsOf(0)],
+        featureNames,
+        failed,
+        false,
+        format,
+      )
+      expect(grid[1]).toEqual(['1', 'PREDICTION_INPUT_INCOMPLETE'])
+    })
+
+    it('아무 일도 안 일어난 칸은 비어 있다 - 실패와 갈린다', () => {
+      const grid = predictDownloadGrid(
+        [model],
+        ['결정 트리'],
+        [null],
+        '번호',
+        [cellsOf(0)],
+        featureNames,
+        [[{}]],
+        false,
+        format,
+      )
+      expect(grid[1]).toEqual(['1', ''])
+    })
+
     it('토글을 켜면 특성 열이 행 번호와 모델 사이에 낀다', () => {
       const grid = predictDownloadGrid(
         [model],
@@ -1093,7 +1131,17 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
       expect(grid[1]).toEqual(['1', '150', '40', '서울', 'a'])
     })
 
-    it('답을 못 낸 칸은 빈 칸이다 - 사람이 읽는 문장을 데이터에 넣지 않는다', () => {
+    /**
+     * **못을 옮겼다** (2026-08-19, R6 감사 B-3). 전에는 이 자리가 `['1', '']`을 고정하고
+     * 제목이 *"사람이 읽는 문장을 데이터에 넣지 않는다"*였다. **그 원칙은 그대로다** —
+     * 지금 들어가는 것은 문장이 아니라 **에러 코드**이고, 실험 기록이 실패를
+     * `failure.code`로 담는 것과 같은 규약이다.
+     *
+     * 옮긴 이유는 화면만 고치면 **제출물에서 약속이 깨지기** 때문이다. 화면은 실패한
+     * 칸에 `—`를 두고 사유를 아래에 세우는데, 파일에서는 실패한 칸과 계산 안 한 칸이
+     * 다시 같은 빈 칸이었다. 500행 중 세 줄이 왜 비었는지 교사가 받는 것은 파일이다.
+     */
+    it('진짜 입구로 태워도 실패한 칸에 사유 코드가 들어간다', () => {
       const incomplete = [{ 키: '160' }]
       const page = predictPage([model], incomplete, preprocessors, predictors, noProba, fileColumns)
       const grid = predictDownloadGrid(
@@ -1107,7 +1155,7 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
         false,
         format,
       )
-      expect(grid[1]).toEqual(['1', ''])
+      expect(grid[1]).toEqual(['1', 'PREDICTION_INPUT_INCOMPLETE'])
     })
   })
 

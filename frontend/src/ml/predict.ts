@@ -1121,7 +1121,21 @@ export function predictDownloadGrid(
       ...models.flatMap((_model, modelIndex) => {
         const answer = answerRow[modelIndex]
         const value = answer?.value
-        const cell = value === undefined ? '' : formatValue(value)
+        /**
+         * **실패한 칸에는 사유 코드를 적는다** (R6 감사 B-3). 화면은 `—`를 두고 문장을
+         * 아래에 세우는데, 여기까지 안 오면 학생이 제출하는 **파일에서는** 실패한 칸과
+         * 계산 안 한 칸이 다시 같은 빈 칸이 된다.
+         *
+         * **문장이 아니라 코드다.** 여기는 눈이 아니라 데이터이고, 사람이 읽는 문자열을
+         * 파일에 넣지 않는다 (`CLAUDE.md` §1.4 · `architecture.md` §8.13.1). 실험 기록이
+         * 실패를 `failure.code`로 담는 것과 같은 규약이다.
+         */
+        const cell =
+          value !== undefined
+            ? formatValue(value)
+            : answerState(answer) === 'failed'
+              ? (answer?.failure?.code ?? '')
+              : ''
         if (probabilityNames[modelIndex] == null) return [cell]
 
         // 열은 있는데 이 행만 확률이 없을 수 있다 - 포화했거나 그 행에서 실패했거나다.

@@ -817,7 +817,16 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
       models,
       images,
       attachments,
-      embeddings,
+      /**
+       * **여는 자리에서도 떨어뜨린다** (R6 감사 B-2). 여기를 안 걸러 두면 `openFile`이
+       * 곧장 `saveProject`로 넘겨 **옛 좌표계의 벡터가 브라우저 저장소에 눌러앉는다** —
+       * 아무도 안 읽는데 `totalBytes`는 세므로, 사진 상한을 채운 프로젝트면 25MB가
+       * 쿼터를 먹고 **다른 프로젝트의 저장까지 막는다**(쿼터는 오리진 공용이다).
+       *
+       * **무결성 대조 뒤다.** 위 `checkHashes`는 zip에 있던 그대로를 봐야 한다 —
+       * 우리가 버릴 것을 먼저 버리면 파일이 변조됐는지 판정할 근거가 사라진다.
+       */
+      embeddings: dropUnknownBackbones(embeddings),
     },
     integrity,
   }
