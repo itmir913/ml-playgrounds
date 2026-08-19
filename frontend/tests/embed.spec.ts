@@ -10,6 +10,9 @@
  * 진짜 백본이 도는지는 사용자가 자기 브라우저에서 본다 (CLAUDE.md §4).
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import { isClientError } from '../src/errors'
@@ -273,5 +276,37 @@ describe('임베딩 클라이언트', () => {
     )
     expect(onProgress).not.toHaveBeenCalled()
     expect(worker.terminated).toBe(1)
+  })
+})
+
+/**
+ * **캔버스에 남은 앞 사진의 화소를 막는다** (V11 R1 감사 B-2).
+ *
+ * `runner.ts`는 `OffscreenCanvas`를 요구해서 node에서 못 돌린다. 그래서 여기서는
+ * **소스를 글자로 본다** — `ui-rules.spec.ts`와 같은 계열이고, 같은 한계를 갖는다:
+ * **줄이 거기 있는지만 보지 그 줄이 실제로 도는지는 못 본다.**
+ *
+ * 무엇을 지키려는 것인가 — 캔버스를 한 번 만들어 사진마다 다시 쓰는데 `drawImage`는
+ * 원본 크기로 그린다. 작은 정본이 오면 남는 자리에 **직전 사진의 화소가 그대로 남고**,
+ * 두 사진이 섞인 벡터가 예외 없이 파일에 담긴다.
+ */
+describe('임베딩 캔버스가 앞 사진을 안 물려준다', () => {
+  // `import.meta.url`이 file: 스킴이 아닌 환경이 있어 cwd에서 잡는다 (다른 소스 검사와 같다).
+  const SOURCE = readFileSync(join(process.cwd(), 'src', 'ml', 'embed', 'runner.ts'), 'utf-8')
+
+  it('훑을 소스를 실제로 찾는다', () => {
+    expect(SOURCE).toContain('drawImage')
+  })
+
+  it('그리기 전에 지운다', () => {
+    const clear = SOURCE.indexOf('clearRect(')
+    const draw = SOURCE.indexOf('drawImage(')
+    expect(clear, 'clearRect가 없다').toBeGreaterThan(-1)
+    expect(clear, 'clearRect가 drawImage보다 뒤에 있다').toBeLessThan(draw)
+  })
+
+  it('정본 크기가 백본과 다르면 멈춘다', () => {
+    // 지우기만으로는 부족하다 - 작은 정본은 검은 여백을 얻고 그 벡터도 틀린 값이다.
+    expect(SOURCE).toMatch(/bitmap\.width !== size \|\| bitmap\.height !== size/)
   })
 })

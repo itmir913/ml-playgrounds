@@ -139,6 +139,22 @@ export function createTfjsRunner(): BackboneRunner {
         // (open-decisions.md "정본은 WebP로 굽는다"). 여기에 하나를 박으면 그 순간
         // 절반이 거짓말이 된다.
         const bitmap = await createImageBitmap(new Blob([images[index]!]))
+
+        /**
+         * **정본이 백본이 요구하는 크기인가** (V11 R1 감사 B-2).
+         *
+         * `drawImage`는 원본 크기 그대로 그리므로 작은 정본이 오면 캔버스의 남는 자리가
+         * **직전 사진의 화소로 남는다.** 두 사진이 섞인 벡터가 나오는데 예외도 경고도
+         * 없다. 늘려서 맞추지 않는 것은 결정이다 — 없는 화소를 만들지 않는다
+         * (open-decisions.md #4).
+         */
+        if (bitmap.width !== size || bitmap.height !== size) {
+          bitmap.close()
+          throw new Error(`정본 크기가 백본과 다르다: ${bitmap.width}×${bitmap.height} ≠ ${size}`)
+        }
+
+        // 크기가 맞아도 지운다. 투명한 화소가 섞인 정본이면 아래가 비쳐 보인다.
+        context.clearRect(0, 0, size, size)
         context.drawImage(bitmap, 0, 0)
         bitmap.close()
         packPixels(context.getImageData(0, 0, size, size).data, size, inputRange, pixels)
