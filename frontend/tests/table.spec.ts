@@ -227,6 +227,17 @@ describe('importTable - 상한', () => {
       }
     }
   })
+
+  /**
+   * **행에 있는 경계가 열에는 없었다.** 넘는 쪽만 보고 있어서 비교를 `>=`로 바꿔도
+   * 저장소 전체가 초록이었다 (R9 감사 B-7). 위 209줄이 행에 대해 스스로 필요하다고
+   * 판단한 것과 같은 검사다 — 상한과 **같은** 표는 받아야 한다.
+   */
+  it('컬럼이 상한과 같으면 받는다 - 행과 같은 경계 규칙이다', async () => {
+    const header = Array.from({ length: MAX_DATASET_COLUMNS }, (_, i) => `c${i}`).join(',')
+    const document = await openTable(new TextEncoder().encode(header), 'data.csv')
+    expect(importTable(document).grid[0]).toHaveLength(MAX_DATASET_COLUMNS)
+  })
 })
 
 /**

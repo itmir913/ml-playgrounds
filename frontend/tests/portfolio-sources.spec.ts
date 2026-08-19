@@ -50,10 +50,15 @@ describe('앞서는 줄은 하나뿐이다', () => {
 
     expect(failures).toEqual([])
     expect(rows.filter((row) => row.weight === 'lead').map((row) => row.key)).toEqual(['file'])
-    // 프리셋이 몇이든 나머지는 전부 같은 무게다 - 무게는 색이 아니라 순서다.
+    // 프리셋이 몇이든 나머지는 전부 같은 무게다.
     expect(rows.filter((row) => row.key !== 'file').every((row) => row.weight === 'normal')).toBe(
       true,
     )
+    // **무게는 단추 모양이 되고, 순서는 등록부의 순서다** (mlpx-spec.md §8.3).
+    // `TemplateSourceList.vue`의 VARIANTS가 lead를 primary로 옮긴다. 한때 이 자리에
+    // "무게는 색이 아니라 순서다"라고 명세와 반대로 적혀 있었다 (R9 감사 B-8).
+    // 그리고 그 순서를 못 박는 단언이 없어서 등록부를 뒤집어도 안 울었다.
+    expect(rows.at(-1)?.key, '앞서는 줄이 목록 맨 아래다').toBe('file')
   })
 
   it('프리셋 목록을 못 받아도 그 줄은 선다', async () => {

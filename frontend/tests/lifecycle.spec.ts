@@ -296,9 +296,15 @@ describe('학습한 파일을 다시 열어 예측한다', () => {
     }
   })
 
-  // 'provided'(평가 데이터가 파일로 옴)의 왕복 재현은 .mlpx가 test.csv를 담게 되는
-  // 화면 작업(전처리 화면의 평가 데이터 섹션)과 함께 다룬다 - 지금 project/format.ts는
-  // 아직 testDataset을 저장하지 않는다.
+  // 여기 다섯은 전부 'holdout'이다. 'provided'(평가 데이터가 파일로 옴)의 왕복 재현은
+  // 아직 없다.
+  //
+  // **근거를 고쳐 적는다.** 오래도록 "format.ts가 아직 testDataset을 저장하지 않는다"고
+  // 적혀 있었는데 **지금은 저장한다** - writeProject가 담고, readProject가 읽고,
+  // hashableEntries가 무결성 대조에 넣고, projectFileWithTestDataset() 픽스처를
+  // integrity.spec.ts가 쓴다 (R9 감사 B-2). 남은 것은 이 파일에 'provided' 왕복이
+  // 없다는 사실 하나뿐이고, 틀린 조건("format.ts를 고치면 그때")이 붙어 있으면
+  // 다음 사람이 안 오는 날을 기다린다.
 
   /**
    * **검사기 자체를 검사한다** (tests/ui-rules.spec.ts와 같은 이유다).

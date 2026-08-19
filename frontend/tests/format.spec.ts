@@ -350,6 +350,22 @@ describe('모델 참조가 어긋난 파일', () => {
     expect([...kept]).toEqual(['model/run-1.json'])
     expect(dropped).toEqual([])
   })
+
+  /**
+   * **예산을 정확히 채우는 모델은 담긴다.** 비교를 `>=`로 바꿔도 저장소 전체가
+   * 초록이었다 (R9 감사 B-9). 표 상한이 "상한과 같으면 받는다"를 못 박아 둔 것과
+   * 같은 경계 규칙이고, 어긋나면 학생 화면에 "담지 못했습니다"가 뜬다.
+   */
+  it('예산을 정확히 채우면 담긴다 - 경계에서 한 바이트 차이로 빼지 않는다', () => {
+    const project = projectFile()
+    const target = project.document.runs.experiments[0]?.runs[0]
+    if (target?.model) target.model = { ...target.model, includesPreprocessing: true }
+    project.models = new Map([['model/run-1.json', filler(40)]])
+
+    const { kept, dropped } = selectModels(project.document, project.models, 40, 60)
+    expect([...kept]).toEqual(['model/run-1.json'])
+    expect(dropped).toEqual([])
+  })
 })
 
 describe('크기 예산', () => {

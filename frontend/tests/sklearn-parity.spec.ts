@@ -103,6 +103,50 @@ function relativeGap(ours: readonly number[], sklearn: readonly number[]): numbe
   return worst
 }
 
+/**
+ * **검사의 수가 픽스처에서 나온다. 그래서 픽스처가 얇아지면 검사가 조용히 사라진다.**
+ *
+ * 실제로 `expected.json`에서 데이터셋 하나와 알고리즘 하나를 지우니 **49개가 42개로
+ * 줄고 그대로 초록**이었다 (R9 감사 B-5). 이 파일은 이 저장소의 수치 정확성 **마지막
+ * 그물**이라 — 엔진 안에서 씨앗을 상수로 못 박았을 때 우는 두 파일 중 하나다 —
+ * 그물이 몇 칸인지를 자기가 세야 한다.
+ *
+ * **재생성 대조(`generate_sklearn_fixtures.py --check`)는 이것을 잡지만 `npm run ci`에
+ * 없다.** 파이썬이 필요해서 관문 밖에 있고, `CLAUDE.md`는 관문이 명령 하나라고 못 박았다.
+ */
+describe('대조가 줄어들지 않았다', () => {
+  it('데이터셋 아홉이 그대로 있다', () => {
+    expect(Object.keys(document.datasets).sort()).toEqual([
+      'categorical',
+      'iris',
+      'missing',
+      'multi',
+      'origin',
+      'overlap',
+      'regress',
+      'scale',
+      'sum120',
+    ])
+  })
+
+  it('분류 데이터셋마다 알고리즘 여섯을 다 견준다', () => {
+    for (const [name, entry] of Object.entries(document.datasets)) {
+      if (entry.meta.taskType === 'regression') {
+        expect(Object.keys(entry.sklearn), name).toEqual(['linear_regression'])
+        continue
+      }
+      expect(Object.keys(entry.sklearn).sort(), name).toEqual([
+        'decision_tree',
+        'knn',
+        'logistic_regression',
+        'naive_bayes',
+        'random_forest',
+        'svm',
+      ])
+    }
+  })
+})
+
 for (const [name, entry] of Object.entries(document.datasets)) {
   describe(`sklearn 대조 · ${name}`, () => {
     const dataset = readCsv(name)
@@ -127,6 +171,9 @@ for (const [name, entry] of Object.entries(document.datasets)) {
           randomState: entry.randomState,
         })
         const coefficients = (model as LinearRegressionModel).coefficients
+        // **선택 필드라 없으면 forEach가 한 번도 안 돈다** - 단언이 조용히 사라진다
+        // (R9 감사 C-2). 픽스처가 주기로 한 것을 주는지를 먼저 본다.
+        expect(expected?.coefficients, `${name}: 계수 기준값`).toBeDefined()
         expected?.coefficients?.forEach((value, index) => {
           expect(Math.abs((coefficients[index] ?? 0) - value)).toBeLessThan(LSTSQ_TOLERANCE)
         })

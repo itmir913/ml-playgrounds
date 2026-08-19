@@ -25,12 +25,12 @@
  *   "크기·개수·시간 상한"을 말한다).
  */
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { withoutComments } from './fixtures/source'
+import { sourceFiles, withoutComments } from './fixtures/source'
 
 const SRC = join(process.cwd(), 'src')
 if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
@@ -139,13 +139,9 @@ const RULES: readonly Rule[] = [
   },
 ]
 
-function sourceFiles(directory: string): string[] {
-  return readdirSync(directory).flatMap((entry) => {
-    const path = join(directory, entry)
-    if (statSync(path).isDirectory()) return sourceFiles(path)
-    if (path === LIMITS) return []
-    return /\.(ts|vue)$/.test(entry) && !/\.spec\.ts$/.test(entry) ? [path] : []
-  })
+/** 공용 걷기에서 **`limits.ts` 자신만 뻐다** - 유일한 출처가 자기를 위반할 수는 없다. */
+function scanned(directory: string): string[] {
+  return sourceFiles(directory).filter((path) => path !== LIMITS)
 }
 
 describe('검사기가 실제로 잡는다', () => {
@@ -178,7 +174,7 @@ describe('지금 소스에 위반이 없다', () => {
    * 0개가 되고, 그러면 아래 검사가 영원히 초록이 된다.
    */
   it('훑을 파일을 실제로 찾는다', () => {
-    const files = sourceFiles(SRC)
+    const files = scanned(SRC)
     expect(files.length).toBeGreaterThan(0)
     // limits.ts 자신은 빠져 있어야 한다. 거기는 숫자를 쓰는 유일한 곳이다.
     expect(files).not.toContain(LIMITS)
@@ -187,7 +183,7 @@ describe('지금 소스에 위반이 없다', () => {
   for (const rule of RULES) {
     it(rule.name, () => {
       const found: string[] = []
-      for (const path of sourceFiles(SRC)) {
+      for (const path of scanned(SRC)) {
         if (path === rule.source) continue
         withoutComments(readFileSync(path, 'utf-8')).forEach((line, index) => {
           if (rule.pattern.test(line)) {
@@ -225,7 +221,7 @@ describe('상한은 전부 읽힌다', () => {
 
   it('아무도 안 읽는 상한이 없다', () => {
     // `limits.ts` 자신은 뺀다 - 상한이 상한을 부르는 것은 정상이다(MLJS_*_ROW_LIMIT).
-    const readers = sourceFiles(SRC).map((path) => readFileSync(path, 'utf-8'))
+    const readers = scanned(SRC).map((path) => readFileSync(path, 'utf-8'))
     const orphans = NAMES.filter(
       (name) => !readers.some((source) => new RegExp(`\\b${name}\\b`).test(source)),
     )
@@ -247,7 +243,7 @@ describe('상한은 전부 읽힌다', () => {
  */
 describe('산점도 상한이 화면까지 이어진다', () => {
   // 정의한 파일은 부르는 쪽이 아니다 - 상한을 인자로 받는 것이 그 함수의 계약이다.
-  const CALLERS = sourceFiles(SRC).filter((path) => {
+  const CALLERS = scanned(SRC).filter((path) => {
     const source = readFileSync(path, 'utf-8')
     return source.includes('scatterPoints(') && !source.includes('export function scatterPoints')
   })

@@ -14,10 +14,12 @@
  * 그때의 이름이 그때는 맞았고, 그것까지 고치면 결정문이 무엇을 결정했는지가 흐려진다.
  */
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+
+import { sourceFiles } from './fixtures/source'
 
 import { ENTRY, MLPX_EXTENSION } from '../src/project/format'
 
@@ -36,14 +38,6 @@ const NEWLINE = /\r?\n/
 
 /** `'.csv,.xlsx'`처럼 확장자를 쉼표로 이어 붙인 리터럴. */
 const ACCEPT_LITERAL = /['"`]\.[a-z0-9]+(?:,\.[a-z0-9]+)+['"`]/
-
-function sourceFiles(directory: string): string[] {
-  return readdirSync(directory).flatMap((entry) => {
-    const path = join(directory, entry)
-    if (statSync(path).isDirectory()) return sourceFiles(path)
-    return /\.(ts|vue)$/.test(entry) ? [path] : []
-  })
-}
 
 describe('엔트리 이름', () => {
   it('은퇴한 이름이 소스 어디에도 없다', () => {

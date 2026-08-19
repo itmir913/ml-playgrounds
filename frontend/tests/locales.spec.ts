@@ -11,10 +11,12 @@
  * CI 스크립트가 errors.py까지 포함해 같은 검사를 하지만, 개발 중에 즉시 잡히도록 여기도 둔다.
  */
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+
+import { sourceFiles } from './fixtures/source'
 
 import {
   CLIENT_ERROR_CODES,
@@ -98,14 +100,6 @@ if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
 const LOCALE_TAGS = readdirSync(join(SRC, 'locales'))
   .filter((entry) => entry.endsWith('.json'))
   .map((entry) => entry.replace(/\.json$/, ''))
-
-function sourceFiles(directory: string): string[] {
-  return readdirSync(directory).flatMap((entry) => {
-    const path = join(directory, entry)
-    if (statSync(path).isDirectory()) return sourceFiles(path)
-    return /\.(ts|vue)$/.test(entry) ? [path] : []
-  })
-}
 
 describe('로케일 파일', () => {
   it('키 집합이 완전히 같다', () => {

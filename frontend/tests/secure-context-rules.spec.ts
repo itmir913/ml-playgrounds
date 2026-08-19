@@ -27,12 +27,12 @@
  *   건너뛸 뿐 저장은 그대로 된다.
  */
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { withoutComments } from './fixtures/source'
+import { sourceFiles, withoutComments } from './fixtures/source'
 
 const SRC = join(process.cwd(), 'src')
 if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
@@ -73,14 +73,6 @@ const RULES: readonly Rule[] = [
     ],
   },
 ]
-
-function sourceFiles(directory: string): string[] {
-  return readdirSync(directory).flatMap((entry) => {
-    const path = join(directory, entry)
-    if (statSync(path).isDirectory()) return sourceFiles(path)
-    return /\.(ts|vue)$/.test(entry) && !/\.spec\.ts$/.test(entry) ? [path] : []
-  })
-}
 
 describe('검사기가 실제로 잡는다', () => {
   for (const rule of RULES) {

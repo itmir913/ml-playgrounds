@@ -17,12 +17,12 @@
  * 미리 만들어 두면 규칙이 아니라 권고가 된다.
  */
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { withoutComments } from './fixtures/source'
+import { sourceFiles, withoutComments } from './fixtures/source'
 
 // jsdom 환경에서는 import.meta.url이 file: 스킴이 아니라 URL 계산을 못 한다.
 // vitest는 vite.config.ts가 있는 곳에서 도므로 cwd가 frontend/ 다.
@@ -97,14 +97,6 @@ const RULES: readonly Rule[] = [
     allowed: ['new Intl.NumberFormat(locale.value)', "const tag = 'ko'", "if (x === 'en') return"],
   },
 ]
-
-function sourceFiles(directory: string): string[] {
-  return readdirSync(directory).flatMap((entry) => {
-    const path = join(directory, entry)
-    if (statSync(path).isDirectory()) return sourceFiles(path)
-    return /\.(ts|vue)$/.test(entry) && !/\.spec\.ts$/.test(entry) ? [path] : []
-  })
-}
 
 function hits(rule: Rule, line: string): boolean {
   return rule.pattern.test(line) && (rule.only?.(line) ?? true)

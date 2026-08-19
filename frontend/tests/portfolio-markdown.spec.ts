@@ -71,6 +71,22 @@ describe('남이 준 글은 살균을 거친다', () => {
   it('상대 경로도 링크가 아니다 - 우리 앱 안을 가리키게 두지 않는다', () => {
     expect(renderGuidance('[안으로](/project/1)')).not.toContain('href')
   })
+
+  /**
+   * **허용 목록이 앵커로 시작하는지를 본다.**
+   *
+   * 위 세 페이로드에는 `https://`가 글자로 하나도 안 들어 있어서, 정규식에서
+   * 앵커(`^`)를 지워도 셋 다 그대로 막혔다 — 즉 검사들이 "프로토콜이 **앞에**
+   * 있는가"가 아니라 "이 특정 세 문자열이 안 지나가는가"만 봤다 (R9 감사 A-2).
+   * 앵커를 지운 상태로 실제 렌더링하면 `href="javascript:…"`가 나간다.
+   *
+   * 양식은 **파일에서 가져오기**로 남이 준 `.md`가 그대로 들어오고, 그 결과가
+   * `v-html`에 들어간다. 저장소에서 스크립트 주입 표면이 여기 하나다.
+   */
+  it('허용 프로토콜이 뒤에 섞여 있어도 링크가 아니다', () => {
+    expect(renderGuidance("[x](javascript:fetch('https://a.example'))")).not.toContain('href')
+    expect(renderGuidance('[x](data:text/html,https://a.example)')).not.toContain('href')
+  })
 })
 
 describe('링크는 누를 수 있되 조건이 붙는다', () => {

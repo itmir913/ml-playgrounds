@@ -7,7 +7,7 @@
  * 새로 고칠 때마다 되돌아가고, 그건 고장으로 보인다.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   FALLBACK_THEME,
@@ -58,6 +58,13 @@ describe('반대쪽 배색', () => {
       expect(otherTheme(otherTheme(theme))).toBe(theme)
     }
   })
+})
+
+// **스텅을 되돌린다.** 지금은 뒤따르는 describe가 matchMedia를 안 봐서 무해하고
+// vitest가 파일마다 격리하므로 다른 파일로도 안 샐다. **다음 검사가 밟을 자리라 닫아 둔다**
+// (R9 감사 C-1).
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 /** 기기가 어두운 배색을 선호한다고 답하게 한다. jsdom에는 matchMedia가 없다. */

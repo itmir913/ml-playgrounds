@@ -1,3 +1,6 @@
+import { readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+
 /**
  * 소스를 **글자로 보는 검사**들이 함께 쓰는 것.
  *
@@ -63,5 +66,23 @@ export function withoutComments(source: string): string[] {
       } else kept += char
     }
     return kept
+  })
+}
+
+/**
+ * `src/` 아래의 `.ts`·`.vue` 전부. **줄 단위로 소스를 훑는 검사들이 나눠 쓴다.**
+ *
+ * 한때 다섯 스펙이 각자 이 함수를 갖고 있었고, 그중 셋만 `.spec.ts`를 걸렀다.
+ * 다섯 다 `src/`만 훑고 **`src/`에는 `.spec.ts`가 하나도 없어서** 그 차이는
+ * 아무 일도 안 했다 — 갈라 둔 값이 없는 갈림이었다.
+ *
+ * **캐시하지 않는다.** 걷기 31ms + 읽기 52ms이고, 검사 시간의 대부분은 vitest의
+ * 파일당 import·environment라 캐시가 못 건드린다 (R8 감사 C-2의 실측).
+ */
+export function sourceFiles(directory: string): string[] {
+  return readdirSync(directory).flatMap((entry) => {
+    const path = join(directory, entry)
+    if (statSync(path).isDirectory()) return sourceFiles(path)
+    return /\.(ts|vue)$/.test(entry) ? [path] : []
   })
 }

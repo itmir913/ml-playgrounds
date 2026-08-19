@@ -23,6 +23,8 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { sourceFiles } from './fixtures/source'
+
 import { SOURCE_ENCODINGS } from '../src/data/encoding'
 import { CANONICAL_FORMAT_IDS } from '../src/data/image/formats'
 import { TRAINING_LOCATIONS } from '../src/ml/backend'
@@ -147,15 +149,27 @@ describe('어휘와 버전', () => {
     expect(CURRENT, guidance).toEqual(recorded)
   })
 
-  it('빠뜨린 어휘가 없다 - 소스의 z.enum을 전부 훑는다', () => {
-    // **손으로 적은 목록은 새 어휘를 놓친다.** 스키마에 z.enum이 하나 늘어도 위 표에
-    // 안 적으면 아무 검사도 안 걸린다. 그래서 소스를 직접 본다.
-    const source = readFileSync(join(process.cwd(), 'src', 'project', 'schema.ts'), 'utf-8')
-    const used = [...source.matchAll(/z\.enum\(\s*([A-Z][A-Z0-9_]*)\s*\)/g)].map(
-      (match) => match[1] ?? '',
+  /**
+   * **손으로 적은 목록은 새 어휘를 놓친다.** `z.enum`이 하나 늘어도 위 표에 안 적으면
+   * 아무 검사도 안 걸린다. 그래서 소스를 직접 본다.
+   *
+   * **`src/` 전체를 훑는다.** 한때 `project/schema.ts` 한 파일만 읽으면서 제목은
+   * "소스의 z.enum을 전부 훑는다"고 말했다 (R9 감사 B-4).
+   *
+   * **못 보는 것을 밝혀 둔다 — 배열 리터럴로 적은 어휘.** 정규식이 잡는 것은 이름 있는
+   * 상수뿐이다. 지금 그런 자리가 하나 있는데(`ml/preprocess.ts`의
+   * `z.enum(['numeric', 'categorical'])`) **그것은 `formatVersion`의 어휘가 아니다** —
+   * 전처리기 파일의 어휘는 `mlpx-preprocess-v1`이라는 형식 이름이 진다. 어휘를 이름 있는
+   * 상수로 두는 것이 이 저장소의 관행이고, 그 관행을 어기면 여기가 못 본다.
+   */
+  it('빠뜨린 어휘가 없다 - src의 이름 있는 z.enum을 전부 훑는다', () => {
+    const used = sourceFiles(join(process.cwd(), 'src')).flatMap((path) =>
+      [...readFileSync(path, 'utf-8').matchAll(/z\.enum\(\s*([A-Z][A-Z0-9_]*)\s*\)/g)].map(
+        (match) => match[1] ?? '',
+      ),
     )
 
-    expect(used.length, '스키마에서 z.enum을 하나도 못 찾았다. 정규식이 낡았다.').toBeGreaterThan(0)
+    expect(used.length, '소스에서 z.enum을 하나도 못 찾았다. 정규식이 낡았다.').toBeGreaterThan(0)
     expect(
       [...new Set(used)].filter((name) => !(name in CURRENT)).sort(),
       '스키마가 막는 어휘인데 지문에 없다. CURRENT와 VOCABULARY_BY_VERSION에 함께 추가하라.',

@@ -25,12 +25,12 @@
 |---|---|
 | §1.2 브라우저가 저장소다 | `storage.spec.ts` · `autosave.spec.ts` |
 | §1.3 `.mlpx` 왕복 무손실 · 마이그레이션 | `format.spec.ts` · `migrate.spec.ts` · `lifecycle.spec.ts` |
-| §1.5 상한 초과 시 올바른 에러 코드 | `table.spec.ts` · `storage.spec.ts` · `format.spec.ts` — **행 상한은 2026-08-18에야 덮였다**(V11 R3 B-4. 그전에는 이 칸이 안 막는 것을 막는다고 말했다) |
+| §1.5 상한 초과 시 올바른 에러 코드 | `table.spec.ts` · `storage.spec.ts` · `format.spec.ts` — **행 상한은 2026-08-18에야 덮였다**(V11 R3 B-4. 그전에는 이 칸이 안 막는 것을 막는다고 말했다). **열 상한의 포함 경계는 2026-08-19에야 덮였다** — 넘는 쪽만 보고 있어 비교를 `>=`로 바꿔도 저장소 전체가 초록이었다 (R9 감사 B-7) |
 | §2 알고리즘 선택에 `if/elif` 금지 | `algorithms.spec.ts`("분기 없이 늘어난다") |
 | §2 "X는 Y에서만"은 X의 등록부에 | `algorithms.spec.ts` · `metric-panels.spec.ts` · `kinds.spec.ts` |
 | §2 잠금은 gate 함수 하나, 이유 목록 반환 | `selection.spec.ts` · `ui-rules.spec.ts` · `steps.spec.ts` — **저 둘이 덮는 것은 모델 고르기 축이다.** 단계 게이트는 2026-08-19까지 boolean을 돌려줬고(V11 R5 B-10) 지금은 `stepBlockers`가 사실 목록을 준다 |
 | §2 `randomState`를 항상 **저장하고 분할·뽑기에 쓴다** | `split.spec.ts` · `experiment.spec.ts` · `sample.spec.ts` |
-| §2 `fit` 입력의 씨앗이 **라이브러리까지 닿는가** | `experiment.spec.ts`("씨앗이 분할만이 아니라 fit까지 간다") · `sklearn-parity.spec.ts` — 엔진 안에서 씨앗을 상수로 못 박으면 이 둘이 운다. **`mljs`·`svm`·`mljs-kmeans`는 안 운다** — 그쪽은 두 번 돌려 같은지만 보고, 붓꽃 30행은 씨앗에 둔감해서 애초 못 가른다 (R8 감사 A-2) |
+| §2 `fit` 입력의 씨앗이 **라이브러리까지 닿는가** | `experiment.spec.ts`("씨앗이 분할만이 아니라 fit까지 간다" — 배깅과 SMO) · `mljs-kmeans.spec.ts`("다른 씨앗이면 초기화가 갈린다") · `svm.spec.ts` — **이 칸이 2026-08-19까지 틀리게 적혀 있었다**: "씨앗을 상수로 못 박으면 `experiment`와 `sklearn-parity`가 운다"는 **`random_forest`에서만 참**이었고, K-평균과 SMO는 씨앗을 통째로 버려도 저장소 전체가 초록이었다 (R9 감사 A-4·§7). **씨앗에 둔감한 픽스처로는 못 잡는다** — 두 덩어리가 멀리 떨어진 군집 데이터는 어떤 초기화에서도 답이 같다 |
 | §2 **대조가 파일에 적힌 씨앗으로 도는가** | `reproduce.spec.ts` — **위와 다른 고리다.** 이쪽은 `reproduce.ts` → `fit` 입력을 보고, 위는 `fit` 입력 → 라이브러리를 본다. 한이름으로 묶어 두어 표가 한 번 틀렸다(R8 감사 B-5). **씨앗에 둔감한 픽스처로는 못 잡아** 잡음 섞인 120행을 따로 짓는다 |
 | §3 규칙 1 백엔드는 코드와 파라미터만 | 백엔드의 `test_no_korean_literals.py` — **프런트엔드 검사가 아니다.** 한때 이 칸이 넷을 한데 묶어 `i18n-usage`에게 넣어 두었다 |
 | §3 규칙 2 컴포넌트 안의 자연어 리터럴 | `i18n-usage.spec.ts`("컴포넌트에 한글 리터럴이 없다") — **2026-08-19까지 아무것도 안 막았다**(R8 감사 A-4). **`.vue`의 한글만 본다** — `.ts`의 `throw new Error`는 개발자에게 가는 사실이라 대상이 아니고, 영어 리터럴은 식별자와 같은 글자라 기계가 못 가른다 |
@@ -47,7 +47,7 @@
 | 백본에 넣는 화소 범위가 그래프의 계약과 맞는가 | `backbones.spec.ts`("inputRange가 그래프 전처리의 역함수다") — 샤드에서 `hub_input`의 `Mul`·`Sub`를 오프셋을 세어 직접 읽는다. **틀려도 예외가 안 나고 성적만 나빠진다**(V11 R1 A-1). 감사 시점에는 검사 1,817개가 전부 침묵했다 |
 | 받는 스크립트와 백본 등록부가 같은 id를 말하는가 | `backbones.spec.ts` — 캐시 디렉터리 이름이 우리 id다. 갈리면 위 검사가 **받아 놓은 가중치를 못 찾고** "받아라"라고 말한다 |
 | §4 DOM 필요한 스펙은 스스로 밝힌다 | `ui-rules.spec.ts` |
-| §4 무결성 해시 · 재실행 대조 | `integrity.spec.ts` · `reproduce.spec.ts` · `lifecycle.spec.ts` — **재실행 대조는 표만 덮는다.** 분류·회귀·군집은 되고 **이미지는 아예 안 돈다**(V11 R1 B-3. `dataSnapshot('tabular', …)`로 못 박혀 `ZodError`로 던진다) |
+| §4 무결성 해시 · 재실행 대조 | `integrity.spec.ts` · `reproduce.spec.ts` · `lifecycle.spec.ts` — **변조 탐지는 튼튼하고, 해시 값 자체는 2026-08-19에야 덮였다**(R9 감사 A-3. 쓸 때도 읽을 때도 같은 함수가 만들어 대조가 언제나 자기 자신과 맞았다 — 지금은 밖에서 계산한 SHA-256 둘을 박아 둔다). **재실행 대조는 표만 덮는다.** 분류·회귀·군집은 되고 **이미지는 아예 안 돈다**(V11 R1 B-3. `dataSnapshot('tabular', …)`로 못 박혀 `ZodError`로 던진다) |
 | 엔진 수치 정확성 | `sklearn-parity.spec.ts` — 옛 코드를 넣으면 빨개진다 |
 | 에러 코드가 `error-codes.md`에 있는가 | `locales.spec.ts` — **등장 여부만 본다.** 설명이 맞는지는 기계가 모른다 |
 | §4 import 빠진 컴포넌트가 평문이 되는 것 | ESLint `vue/no-undef-components` — 등록 안 된 태그는 슬롯만 흘리고 props도 이벤트도 안 걸린다 |
