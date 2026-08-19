@@ -295,6 +295,68 @@ describe('군집 요약', () => {
     }
   })
 
+  /**
+   * **학습셋에 없던 범주는 어느 칸에도 안 센다** (R7 감사 B-16). 인코딩은 학습 행으로
+   * 맞춰지므로, 평가 행에만 있는 범주는 `categoryIndexAt`이 `-1`을 준다. 그것을 0번
+   * 칸으로 밀어 넣어도 저장소 전체가 침묵했다 — 표에 **틀린 범주 이름**이 뜨는 자리다.
+   */
+  it('학습셋에 없던 범주는 최빈 계산에 안 든다', () => {
+    const { preprocessor, matrix, rows, model, options } = fixture()
+    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
+    const axes = clusterAxes(preprocessor, options.categoricalEncoding)
+    const position = axes.findIndex((axis) => axis.categories !== undefined)
+    const axis = axes[position]!
+
+    // 그 축의 원핫을 전부 0으로 만든다 = 학습셋에 없던 범주다(-1).
+    const unknown = matrix.map((row) => {
+      const copy = [...row]
+      for (let index = 0; index < axis.categories!.length; index += 1) copy[axis.index + index] = 0
+      return copy
+    })
+    expect(categoryIndexAt(unknown[0]!, axis)).toBe(-1)
+
+    const assignment = assignClusters(unknown, rows, model)
+    const summaries = clusterSummaries(assignment, axes, columns, unknown)
+
+    // 아무도 안 셌으므로 최빈 범주가 없다. 0번 칸으로 밀어 넣으면 0이 나온다.
+    for (const summary of summaries) {
+      if (summary.size === 0) continue
+      expect(summary.means[position]).toBe(-1)
+    }
+  })
+
+  /**
+   * **빈 군집도 답을 갖는다** (R7 감사 B-16). 셀 것이 없으면 중심점이 가리키는 범주다 —
+   * `0`으로 뭉개도 침묵했고, 그러면 **첫 범주 이름이 아무 근거 없이 표에 뜬다.**
+   *
+   * 구성원이 하나도 없는 군집을 손으로 만든다 — 중심점을 하나 더 붙이고 그 좌표가
+   * **1번 범주**를 가리키게 둔다. `0`으로 뭉개는 돌연변이와 갈리는 값이라야 한다.
+   */
+  it('빈 군집의 범주 칸은 중심점이 가리키는 범주다', () => {
+    const { preprocessor, matrix, rows, model, options } = fixture()
+    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
+    const axes = clusterAxes(preprocessor, options.categoricalEncoding)
+    const position = axes.findIndex((axis) => axis.categories !== undefined)
+    const axis = axes[position]!
+    expect(axis.categories!.length).toBeGreaterThan(1)
+
+    const assignment = assignClusters(matrix, rows, model)
+
+    // 아무 행도 안 가는 중심점 하나. 그 축의 원핫만 1번 범주로 세운다.
+    const blank = Array.from({ length: assignment.centroids[0]!.length }, () => 0)
+    blank[axis.index + 1] = 1
+    const widened = {
+      ...assignment,
+      centroids: [...assignment.centroids, blank],
+      counts: Int32Array.from([...assignment.counts, 0]),
+    }
+
+    const summaries = clusterSummaries(widened, axes, columns, matrix)
+    const empty = summaries[summaries.length - 1]!
+    expect(empty.size).toBe(0)
+    expect(empty.means[position]).toBe(1)
+  })
+
   it('수렴하면 평균과 중심점이 같다', () => {
     const { preprocessor, matrix, rows, model, options } = fixture()
     const columns = matrixColumns(preprocessor, options.categoricalEncoding)

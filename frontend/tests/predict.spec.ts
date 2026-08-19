@@ -814,6 +814,13 @@ describe('답 값별 등수 - 갈림표 칩과 카드가 같은 색을 쓰기 �
     expect(rankAnswers([])).toBeNull()
   })
 
+  /**
+   * **두 모델이 `taskType`에서만 갈려야 한다** (R7 감사 B-11). 회귀 쪽 답을 `3.14`로
+   * 두었더니 **답 값이 `ranks`에 있는지도 함께 갈려서**, `taskType` 검사를 통째로 지워도
+   * `ranks.get(3.14) ?? null`이 `null`을 주어 초록이었다.
+   *
+   * 답을 분류와 같은 `'b'`로 두면 남는 축이 하나다.
+   */
   it('모델의 답 등수는 분류에만, 등수가 있을 때만 있다', () => {
     const classification = experiment([0], onehot)
     const regression = experiment([0], onehot, { taskType: 'regression' })
@@ -823,7 +830,7 @@ describe('답 값별 등수 - 갈림표 칩과 카드가 같은 색을 쓰기 �
     ]
     const answers = new Map<string, Answer>([
       ['r1', { value: 'b' }],
-      ['r2', { value: 3.14 }],
+      ['r2', { value: 'b' }],
     ])
     const ranks = rankAnswers([
       { value: 'a', count: 3 },
@@ -1310,6 +1317,29 @@ describe('색은 화면 전체에서 한 번 정한다', () => {
     expect(ranks).not.toBeNull()
     // 두 벌을 합치면 둘 다 2개씩이고, 어느 쪽이 1등이든 **하나의 답이 하나의 등수**다.
     expect(new Set(ranks?.values()).size).toBe(2)
+  })
+
+  /**
+   * **누적이 순서를 바꾸는 입력** (R7 감사 B-12). 위 검사는 등수가 **둘로 갈리는지**만
+   * 보므로, 벌마다 덮어쓰기로 바꿔도 서로 다른 등수 둘은 그대로 나와 초록이었다 —
+   * 소스가 고쳤다고 적은 결함이 정작 무검사였다.
+   *
+   * 여기서는 **누가 1등인지**를 본다. 합치면 `몰루 3 : 0 1`이라 `몰루`가 1등이고,
+   * 덮어쓰면 마지막 벌만 남아 `1 : 1` 동점이 된다.
+   */
+  it('벌마다 덮어쓰지 않고 합친다 - 합쳐야 1등이 정해진다', () => {
+    /**
+     * **덮어쓰기와 갈리는 입력이라야 한다.** 합치면 `몰루 5 : 0 3`이라 몰루가 1등이고,
+     * 벌마다 덮어쓰면 몰루의 마지막 벌은 셋째(1개)·0의 마지막 벌은 넷째(2개)라
+     * **0이 1등이 된다.** 동점으로 끝나는 입력은 삽입 순서가 답을 정해서 이 축을 못 가른다.
+     */
+    const ranks = rankAnswersAcross(models, [
+      answersOf('몰루', '몰루'),
+      answersOf('몰루', '몰루'),
+      answersOf('몰루', '0'),
+      answersOf('0', '0'),
+    ])
+    expect(ranks?.get('몰루')).toBe(0)
   })
 
   /**
