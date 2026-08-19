@@ -187,6 +187,53 @@ describe('로케일 문장', () => {
 })
 
 /**
+ * **컴포넌트 안에 자연어 문자열 리터럴 금지** (`CLAUDE.md` §3 규칙 2).
+ *
+ * **이 규칙은 2026-08-19까지 아무것도 안 막았다.** `.vue`의 루트 안쪽에
+ * `<p>학습을 시작합니다</p>` 한 줄을 심고 검사를 전부 돌려도 초록이었다. 그런데
+ * `rule-coverage.md`는 "§3 i18n 규칙 넷 전부"를 막는다고 적어 두었다 (R8 감사 A-4).
+ *
+ * **`.vue`만 본다.** 규칙이 말하는 것이 *컴포넌트*이고, 컴포넌트가 `.vue`다. 지금
+ * `src/`의 `.ts`에는 한글이 열아홉 줄 있는데 **전부 `throw new Error`와 기술 정보다** —
+ * 학생에게 문장으로 가는 것이 아니라 개발자에게 가는 사실이라 `t()`의 대상이 아니다.
+ * 그것까지 여기서 막으면 예외 목록이 자라고, 자란 목록은 곧 아무도 안 읽는다.
+ *
+ * **한글만 본다.** 영어 리터럴은 못 가린다 — 클래스 이름·속성·식별자와 같은 글자라
+ * 기계가 문장인지 모른다. **못 보는 것을 여기 적어 둔다.**
+ */
+describe('컴포넌트에 한글 리터럴이 없다', () => {
+  const HANGUL = /[가-힣]/
+
+  function hangulLines(source: string): string[] {
+    return withoutComments(source)
+      .map((line, index) => `${index + 1}  ${line.trim()}`)
+      .filter((line) => HANGUL.test(line))
+  }
+
+  it('검사기가 주석은 안 잡고 코드는 잡는다', () => {
+    expect(hangulLines('<!-- 한글 주석이다 -->')).toEqual([])
+    expect(hangulLines('// 한글 주석이다')).toEqual([])
+    expect(hangulLines('<p>학습을 시작합니다</p>')).toEqual(['1  <p>학습을 시작합니다</p>'])
+    expect(hangulLines("<p>{{ t('train.done') }}</p>")).toEqual([])
+  })
+
+  it('훑을 파일을 실제로 찾는다', () => {
+    expect(sourceFiles(SRC).filter((path) => path.endsWith('.vue')).length).toBeGreaterThan(0)
+  })
+
+  it('지금 컴포넌트에 한글 리터럴이 없다', () => {
+    const found: string[] = []
+    for (const path of sourceFiles(SRC)) {
+      if (!path.endsWith('.vue')) continue
+      for (const line of hangulLines(readFileSync(path, 'utf-8'))) {
+        found.push(`${path.slice(SRC.length + 1)}:${line}`)
+      }
+    }
+    expect(found).toEqual([])
+  })
+})
+
+/**
  * **부른 자리가 로케일이 요구하는 자리표시자를 다 넘기는가.**
  *
  * vue-i18n은 못 채운 자리표시자를 **조용히 지운다.** 실제로 그렇게 새 나갔다 —
