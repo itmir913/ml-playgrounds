@@ -30,6 +30,8 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { withoutComments } from './fixtures/source'
+
 const SRC = join(process.cwd(), 'src')
 if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
 
@@ -143,46 +145,6 @@ function sourceFiles(directory: string): string[] {
     if (statSync(path).isDirectory()) return sourceFiles(path)
     if (path === LIMITS) return []
     return /\.(ts|vue)$/.test(entry) && !/\.spec\.ts$/.test(entry) ? [path] : []
-  })
-}
-
-/**
- * 주석을 걷어낸 줄들. **막으려는 것은 코드이지 설명이 아니다** — `limits.ts`를 가리키는
- * 주석에는 숫자가 자주 나온다(`// 5000행 100그루가 약 7분이다`).
- */
-function withoutComments(source: string): string[] {
-  let inBlock = false
-  return source.split(/\r?\n/).map((line) => {
-    let kept = ''
-    let quote = ''
-    for (let i = 0; i < line.length; i += 1) {
-      const two = line.slice(i, i + 2)
-      if (inBlock) {
-        if (two === '*/') {
-          inBlock = false
-          i += 1
-        }
-        continue
-      }
-      const char = line[i] ?? ''
-      if (quote) {
-        kept += char
-        if (char === '\\') {
-          kept += line[i + 1] ?? ''
-          i += 1
-        } else if (char === quote) quote = ''
-        continue
-      }
-      if (char === "'" || char === '"' || char === '`') {
-        quote = char
-        kept += char
-      } else if (two === '//') return kept
-      else if (two === '/*') {
-        inBlock = true
-        i += 1
-      } else kept += char
-    }
-    return kept
   })
 }
 
@@ -344,16 +306,24 @@ describe('상한마다 분류가 달려 있다', () => {
   const LINE_BREAK = String.fromCharCode(10)
 
   /**
-   * 상수 바로 앞 주석에 달린 분류. 없으면 `null`이다.
+   * 상수 **바로 앞에 붙은** 주석에 달린 분류. 없으면 `null`이다.
    *
-   * **바로 앞만 본다** — 멀리 있는 주석까지 인정하면 남의 분류가 이 상수의 것으로
-   * 읽힌다(상수가 줄줄이 붙어 있는 파일이라 실제로 일어난다).
+   * **"바로 앞"을 글자로 확인한다.** 마지막 `/**`부터 잘라 오는 것만으로는 모자랐다 —
+   * 상수에 주석이 **아예 없으면** 그 조각이 앞 상수의 주석이 되고, 거기 달린 분류가
+   * 이 상수의 것으로 읽힌다 (R6 감사 B-4). `우리 기기가 정했다`가 스물넷으로 가장
+   * 흔하므로 주석을 안 붙인 새 상한은 **off 스위치가 끄는 줄로 빨려 들어간다.**
+   *
+   * 그래서 잘라 온 조각이 `*∕`로 닫히고 그 뒤에 공백만 있는지 본다. 사이에 다른 코드
+   * 줄이 있으면 그 주석은 이 상수의 것이 아니다.
    */
   function classOf(source: string, name: string): string | null {
     const at = source.search(new RegExp(`^export const ${name}\\b`, 'm'))
     if (at < 0) return null
     const before = source.slice(0, at)
-    const comment = before.slice(before.lastIndexOf('/**'))
+    const opened = before.lastIndexOf('/**')
+    if (opened < 0) return null
+    const comment = before.slice(opened)
+    if (!/\*\/\s*$/.test(comment)) return null
     const found = comment.match(/\*\*분류: (.+?)\.\*\*/)
     return found?.[1] ?? null
   }
@@ -392,6 +362,23 @@ describe('상한마다 분류가 달려 있다', () => {
       LINE_BREAK,
     )
     expect(classOf(fake, 'MAX_FAKE')).toBeNull()
+  })
+
+  /** **주석을 아예 안 붙인 상수가 앞 분류를 물려받지 않는다** (R6 감사 B-4). */
+  it('주석이 없으면 앞 상수의 분류를 안 물려받는다', () => {
+    const fake = [
+      '/**',
+      ' * 앞 상수.',
+      ' *',
+      ' * **분류: 계산 자체가 요구한다.**',
+      ' */',
+      'export const MAX_BEFORE = 1',
+      '',
+      'export const MAX_BARE = 2',
+      '',
+    ].join(LINE_BREAK)
+    expect(classOf(fake, 'MAX_BEFORE')).toBe('계산 자체가 요구한다')
+    expect(classOf(fake, 'MAX_BARE')).toBeNull()
   })
 
   it('남의 분류를 이 상수의 것으로 읽지 않는다', () => {

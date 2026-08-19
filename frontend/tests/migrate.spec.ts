@@ -5,7 +5,12 @@
  * 집에서 만든 파일을 학교 PC에서 열었을 때 조용히 깨지는 일이 없어야 한다.
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
+
+import { withoutComments } from './fixtures/source'
 
 import { isClientError } from '../src/errors'
 import {
@@ -299,5 +304,39 @@ describe('v1 -> v2 백본 id 개정', () => {
    */
   it('올라가는 곳이 등록부의 기본값이 아니라 못 박힌 v2 id다', () => {
     expect(backbonesOf(imageV1(V1_ID))[0]).toBe('mobilenet-v2-r2')
+  })
+})
+
+/**
+ * **마이그레이션은 등록부를 안 읽는다** (R6 감사 B-5).
+ *
+ * `V2_BACKBONE_ID`를 `DEFAULT_BACKBONE_ID`로 바꿔도 **오늘은 같은 값이라 아무 검사도
+ * 안 운다.** 그런데 셋째 백본이 등록되는 날 그 한 줄이 **옛 파일을 그 백본의 것으로
+ * 둔갑시킨다** — 벡터는 한 번도 거기서 나온 적이 없는데도.
+ *
+ * 값으로는 못 가르므로 **글자로 본다.** `backbones.spec.ts`가 `fetch-backbone.mjs`를
+ * 읽는 것과 같은 방식이고, 같은 한계를 갖는다 — 줄이 거기 있는지만 본다.
+ */
+describe('마이그레이션은 지금의 등록부에 기대지 않는다', () => {
+  const SOURCE = withoutComments(
+    readFileSync(join(process.cwd(), 'src', 'project', 'migrate.ts'), 'utf-8'),
+  ).join(String.fromCharCode(10))
+
+  it('훑을 소스를 실제로 찾는다', () => {
+    expect(SOURCE).toContain('MIGRATIONS')
+  })
+
+  it('백본 등록부를 import하지 않는다', () => {
+    expect(
+      SOURCE,
+      [
+        '마이그레이션이 등록부를 읽으면 옛 파일이 "지금의 기본 백본"으로 올라간다.',
+        '  마이그레이션은 역사다 - 그때 무엇이었는지는 글자로 박아라.',
+      ].join(String.fromCharCode(10)),
+    ).not.toMatch(/from '.*ml\/backbones'/)
+  })
+
+  it('올라가는 id가 글자로 박혀 있다', () => {
+    expect(SOURCE).toContain("'mobilenet-v2-r2'")
   })
 })

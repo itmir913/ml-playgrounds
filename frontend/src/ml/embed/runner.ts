@@ -153,8 +153,20 @@ export function createTfjsRunner(): BackboneRunner {
           throw new Error(`정본 크기가 백본과 다르다: ${bitmap.width}×${bitmap.height} ≠ ${size}`)
         }
 
-        // 크기가 맞아도 지운다. 투명한 화소가 섞인 정본이면 아래가 비쳐 보인다.
-        context.clearRect(0, 0, size, size)
+        /**
+         * **흰색으로 깐다** (R6 감사 B-11). 전에는 `clearRect`였는데 그것이 까는 바탕은
+         * **투명 검정**이고, 알파를 버리는 `packPixels`는 그 자리를 **검정**으로 읽는다.
+         * 파이프라인 나머지가 전부 "여백은 흰색"으로 서 있다 — 굽는 자리가 그렇게 하고
+         * (`data/image/bake.ts`), 레터박스도 그렇다. 여기서만 검정이면 그 사진의 벡터가
+         * 조용히 다른 값이 된다.
+         *
+         * **크기 검사가 위에 있으므로 이 줄이 막는 것은 잔상이 아니다.** 크기가 같으면
+         * `drawImage`가 캔버스를 통째로 덮는다. 이 줄은 **투명 화소가 섞인 정본**을 위한
+         * 것이고, 우리가 굽는 정본에는 그런 화소가 없다(`packPixels`의 머리말) — 남이
+         * 만든 zip에서만 닿는다.
+         */
+        context.fillStyle = '#ffffff'
+        context.fillRect(0, 0, size, size)
         context.drawImage(bitmap, 0, 0)
         bitmap.close()
         packPixels(context.getImageData(0, 0, size, size).data, size, inputRange, pixels)

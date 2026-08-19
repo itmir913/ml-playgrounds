@@ -15,6 +15,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it, vi } from 'vitest'
 
+import { withoutComments } from './fixtures/source'
 import { isClientError } from '../src/errors'
 import { BACKBONES, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { embedImages, type EmbedWorker } from '../src/ml/embed/client'
@@ -292,21 +293,39 @@ describe('임베딩 클라이언트', () => {
  */
 describe('임베딩 캔버스가 앞 사진을 안 물려준다', () => {
   // `import.meta.url`이 file: 스킴이 아닌 환경이 있어 cwd에서 잡는다 (다른 소스 검사와 같다).
-  const SOURCE = readFileSync(join(process.cwd(), 'src', 'ml', 'embed', 'runner.ts'), 'utf-8')
+  const RAW = readFileSync(join(process.cwd(), 'src', 'ml', 'embed', 'runner.ts'), 'utf-8')
+
+  /**
+   * **주석을 걷어내고 본다** (R6 감사 B-12). 걷어내기 전에는 `clearRect(`를 주석 안으로
+   * 옮긴 돌연변이에 이 검사가 그대로 통과했다 — 막으려는 것은 코드이지 설명이 아니다.
+   */
+  const SOURCE = withoutComments(RAW).join(String.fromCharCode(10))
 
   it('훑을 소스를 실제로 찾는다', () => {
     expect(SOURCE).toContain('drawImage')
   })
 
-  it('그리기 전에 지운다', () => {
-    const clear = SOURCE.indexOf('clearRect(')
+  it('주석은 걷어낸다 - 설명에 적힌 이름에 속지 않는다', () => {
+    // 그 이름이 원문에는 있고 걷어낸 뒤에는 없어야 이 검사가 실제로 도는 것이다.
+    expect(RAW).toContain('clearRect')
+    expect(SOURCE).not.toContain('clearRect')
+  })
+
+  /**
+   * **흰색으로 깐다.** `clearRect`가 까는 것은 투명 검정이고, 알파를 버리는
+   * `packPixels`는 그 자리를 검정으로 읽는다 — 파이프라인 나머지는 전부 흰 여백이다
+   * (`data/image/bake.ts`).
+   */
+  it('그리기 전에 흰색으로 깐다', () => {
+    const fill = SOURCE.indexOf('fillRect(')
     const draw = SOURCE.indexOf('drawImage(')
-    expect(clear, 'clearRect가 없다').toBeGreaterThan(-1)
-    expect(clear, 'clearRect가 drawImage보다 뒤에 있다').toBeLessThan(draw)
+    expect(fill, 'fillRect가 없다').toBeGreaterThan(-1)
+    expect(fill, 'fillRect가 drawImage보다 뒤에 있다').toBeLessThan(draw)
+    expect(SOURCE, '깔개가 흰색이 아니다').toContain("fillStyle = '#ffffff'")
   })
 
   it('정본 크기가 백본과 다르면 멈춘다', () => {
-    // 지우기만으로는 부족하다 - 작은 정본은 검은 여백을 얻고 그 벡터도 틀린 값이다.
+    // 깔기만으로는 부족하다 - 작은 정본은 여백을 얻고 그 벡터도 틀린 값이다.
     expect(SOURCE).toMatch(/bitmap\.width !== size \|\| bitmap\.height !== size/)
   })
 })
