@@ -13,6 +13,10 @@
  *    것이고, exceljs를 올리면 안의 내용물이 바뀐다. 이름이 갈리는 순간 우리는
  *    **안 실린 것을 고지하고 실린 것을 빠뜨린다.**
  *
+ * **허용 목록도 여기서 본다** (`open-decisions.md` "들어오는 라이선스는 허용 목록이
+ * 막고, 나가는 PR은 템플릿이 묻는다"). 산출물에 실린 것을 실제로 세는 일은 빌드가
+ * 하고, 여기가 보는 것은 **판정 자체**와 **목록의 모양**이다.
+ *
  * **못 보는 것: SPDX 표기가 실제 전문과 맞는지.** `package.json`이 MIT이라 적고
  * LICENSE에 다른 것이 들어 있어도 기계는 모른다. 사람이 볼 자리다.
  */
@@ -23,6 +27,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import {
+  ALLOWED_SPDX,
   BUNDLED_INSIDE,
   MODELS,
   SUPPLIED,
@@ -30,6 +35,7 @@ import {
   packageFromId,
   readShipped,
   renderNotices,
+  unallowed,
   type Shipped,
 } from '../scripts/notices'
 import { BACKBONES } from '../src/ml/backbones'
@@ -113,6 +119,36 @@ describe('베낀 모델 목록', () => {
         url: backbone.modelUrl,
       })).sort((a, b) => a.id.localeCompare(b.id)),
     )
+  })
+})
+
+describe('허용 목록', () => {
+  function one(spdx: string | null): Shipped {
+    return { name: 'somebody-elses-code', version: '1.0.0', spdx, text: 'license text' }
+  }
+
+  it('목록 안의 표기는 통과한다', () => {
+    expect(unallowed([...ALLOWED_SPDX].map(one))).toEqual([])
+  })
+
+  it('표기가 없으면 걸린다 — 이름만 적고 넘어가지 않는다', () => {
+    expect(unallowed([one(null)])).toHaveLength(1)
+  })
+
+  it('이중 라이선스 표현식은 걸린다 — 고르는 것은 사람의 결정이다', () => {
+    expect(unallowed([one('(MIT OR GPL-3.0-or-later)')])).toHaveLength(1)
+    expect(unallowed([one('MIT AND Zlib')])).toHaveLength(1)
+  })
+
+  it('목록에 카피레프트가 없다', () => {
+    for (const id of ALLOWED_SPDX) {
+      expect(id, id).not.toMatch(/GPL|MPL|EPL|CDDL|SSPL|CC-BY-SA/)
+    }
+  })
+
+  it('저장소가 손으로 붙든 패키지들도 목록 안이다', () => {
+    const names = [...Object.keys(SUPPLIED), ...Object.keys(BUNDLED_INSIDE)]
+    expect(unallowed(names.map(readShipped)).map((shipped) => shipped.name)).toEqual([])
   })
 })
 

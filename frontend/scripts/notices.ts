@@ -22,6 +22,10 @@
  *
  * **전문을 못 찾으면 빌드가 선다.** 조용히 빠지는 길을 두지 않는다.
  *
+ * **전문이 있는 것만으로는 안 된다 — 표기도 본다.** 허용 목록(`ALLOWED_SPDX`) 밖의
+ * SPDX가 산출물에 들어와도 빌드가 선다 (`open-decisions.md` "들어오는 라이선스는 허용
+ * 목록이 막고, 나가는 PR은 템플릿이 묻는다").
+ *
  * **워커도 센다.** `embed.worker`는 별도의 rollup 빌드라 본 빌드의 그래프에 없는데,
  * 하필 TensorFlow.js가 통째로 거기 있다. `worker.plugins`에도 같은 수집기를 걸고
  * (`vite.config.ts`), 본 빌드의 `generateBundle`에서 합쳐 굽는다 — 워커 빌드는 그것을
@@ -171,6 +175,44 @@ export function readShipped(name: string): Shipped {
   return { name, version, spdx, text: tidy(text) }
 }
 
+/**
+ * **실어도 되는 라이선스.** 여기 없는 표기가 산출물에 들어오면 **빌드가 선다.**
+ *
+ * **지금 싣고 있는 다섯으로 시작했고, 일부러 안 넓혔다.** 넓은 목록은 아무것도 안
+ * 묻는다 — 한 줄을 더하려면 사람이 그 라이선스를 실제로 읽어야 하고, 그 한 줄이
+ * PR에 글로 남는다. 비싼 것은 목록을 고치는 일이 아니라 **아무도 안 읽고 지나가는
+ * 초록불이다.**
+ *
+ * - MIT · ISC · BSD-2-Clause — 저작권 표시와 허가문을 사본에 넣을 것. 고지 파일이 한다.
+ * - Apache-2.0 — 라이선스 사본 동봉. 같은 파일이 한다.
+ * - OFL-1.1 — 글꼴(Pretendard). **글꼴과 함께** 라이선스를 동봉할 것을 요구하고,
+ *   글꼴만 따로 파는 것을 막는다. 우리는 앱과 함께 싣는다.
+ *
+ * **이중 라이선스 표현식은 여기 넣지 마라.** `(MIT OR GPL-3.0-or-later)`에서 MIT을
+ * 고르는 것은 사람의 결정이고, 그 결정은 PR에 적혀야 한다.
+ */
+export const ALLOWED_SPDX: ReadonlySet<string> = new Set([
+  'MIT',
+  'ISC',
+  'Apache-2.0',
+  'BSD-2-Clause',
+  'OFL-1.1',
+])
+
+/**
+ * 허용 목록 밖의 것들. 빈 배열이면 통과다.
+ *
+ * **정확히 같은 글자만 통과시킨다.** 표기가 없는 것(`null`)도, 표현식도 걸린다 —
+ * 파싱해서 통과시키는 순간 **사람이 안 보게 된다.**
+ *
+ * **못 보는 것 셋.** `exceljs`처럼 미리 빌드된 번들이 구워 넣은 것들은 모듈 그래프에
+ * 없어서 세지도 못하고, 표기가 실제 전문과 같은지는 기계가 못 읽으며, 백엔드는
+ * 지금 재배포되지 않아 아예 대상이 아니다.
+ */
+export function unallowed(shipped: readonly Shipped[]): readonly Shipped[] {
+  return shipped.filter((one) => one.spdx === null || !ALLOWED_SPDX.has(one.spdx))
+}
+
 const RULE = '='.repeat(80)
 const THIN = '-'.repeat(80)
 
@@ -279,6 +321,18 @@ export function thirdPartyNotices(): Notices {
       generateBundle(_options, bundle) {
         for (const name of namesIn(bundle)) seen.add(name)
         const shipped = [...seen].map(readShipped)
+        const rejected = unallowed(shipped)
+        if (rejected.length > 0) {
+          const names = rejected
+            .map((one) => `${one.name} (${one.spdx ?? 'no license id declared'})`)
+            .join(', ')
+          throw new Error(
+            `Not on the license allowlist: ${names}. Read the actual license text. ` +
+              `If it may ship inside an MIT-licensed build, add the id to ALLOWED_SPDX ` +
+              `(frontend/scripts/notices.ts) and say why in the pull request. ` +
+              `Dual-license expressions stop here on purpose — picking one is a decision.`,
+          )
+        }
         const extras = [...seen]
           .sort()
           .map((name) => BUNDLED_INSIDE[name])
