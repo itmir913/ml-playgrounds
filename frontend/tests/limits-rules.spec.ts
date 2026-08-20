@@ -32,6 +32,8 @@ import { describe, expect, it } from 'vitest'
 
 import { sourceFiles, withoutComments } from './fixtures/source'
 
+import { BYTES_PER_MB } from '../src/limits'
+
 const SRC = join(process.cwd(), 'src')
 if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
 
@@ -285,6 +287,40 @@ describe('산점도 상한이 화면까지 이어진다', () => {
  * `CLUSTER_MEMBER_PAGE_SIZE`는 값이 스무 줄로 비슷해도 근거가 *"훑기 좋은가"*라
  * 상한이 아니다. **그래서 기계가 대신 골라 줄 수 없다** — 여기서는 "달려 있는가"만 본다.
  */
+describe('MB는 십진이다', () => {
+  /**
+   * **되돌리면 알림이 있으나 마나가 된다.**
+   *
+   * 이 저장소가 밖에서 가져온 유일한 크기 기준이 십진이다 — LMS 첨부 100MB
+   * (`open-decisions.md` "MB는 십진 백만이다"). 이진으로 두면 우리가 "100MB"라고 적은
+   * 문턱이 실제로는 104.9MB가 되어 **LMS가 거절할 파일에 아무 말도 안 한다.**
+   *
+   * `1024 * 1024`는 눈으로 보면 옳아 보이고 타입도 안 운다. 그래서 여기서 문다.
+   */
+  it('BYTES_PER_MB가 백만이다', () => {
+    expect(BYTES_PER_MB).toBe(1_000_000)
+  })
+
+  /**
+   * **크기를 MB로 바꾸는 자리가 이 상수를 지나는가.**
+   *
+   * 새 화면이 `bytes / (1024 * 1024)`를 손으로 적으면 그 화면만 다른 단위로 말하고,
+   * 같은 파일이 두 화면에서 다른 수로 읽힌다 — 실제로 문서와 화면 사이에서 그렇게
+   * 갈려 있었다.
+   */
+  it('소스가 1024로 MB를 만들지 않는다', () => {
+    const found: string[] = []
+    for (const path of sourceFiles(SRC)) {
+      withoutComments(readFileSync(path, 'utf8')).forEach((line, index) => {
+        if (/1024\s*\*\s*1024/.test(line)) {
+          found.push(`${path.slice(SRC.length + 1).replace(/\\/g, '/')}:${index + 1}`)
+        }
+      })
+    }
+    expect(found, '손으로 MB를 만드는 자리').toEqual([])
+  })
+})
+
 describe('상한마다 분류가 달려 있다', () => {
   /** 결정문이 세운 여섯. **늘리려면 결정문을 먼저 고쳐라.** */
   const CLASSES = [

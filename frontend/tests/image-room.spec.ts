@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest'
 
 import { CANONICAL_FORMATS } from '../src/data/image/formats'
 import {
+  BYTES_PER_MB,
   IMAGE_JPEG_ESTIMATED_BYTES,
   IMAGE_WEBP_ESTIMATED_BYTES,
   MAX_IMAGE_COUNT,
@@ -27,8 +28,8 @@ import { join } from 'node:path'
 import { readFileSync } from 'node:fs'
 
 const SRC = join(process.cwd(), 'src')
-/** LMS 첨부 상한이 세는 단위. 코드의 `BYTES_PER_MB`(1024²)와 다른 축이다. */
-const DECIMAL_MB = 1_000_000
+/** 결정문의 100MB도 화면 문구도 이 단위다 (open-decisions.md "MB는 십진 백만이다"). */
+const MB = BYTES_PER_MB
 const backbone = backboneFor(DEFAULT_BACKBONE_ID)
 if (!backbone) throw new Error(`기본 백본을 등록부에서 못 찾았다: ${DEFAULT_BACKBONE_ID}`)
 
@@ -62,10 +63,9 @@ describe('사진이 들어갈 자리', () => {
    * 경고가 뜬다는 것이 그 결정의 이유였다. 이 산수가 흔들리면 **그 결정문의 근거가
    * 함께 흔들린다.**
    *
-   * **단위가 두 벌이라 여기서 못 박는다.** LMS 첨부 상한은 십진 MB이고 §3의 100MB도
-   * 그 축이다. 그런데 코드의 `BYTES_PER_MB`는 `1024 × 1024`이고 화면 문구도 그 값을
-   * "MB"라 부른다 — **같은 파일이 문서에서 109MB, 화면에서 104MB로 읽힌다.**
-   * 아래는 결정이 선 축(십진)으로 잰다.
+   * **단위가 두 벌이던 것은 2026-08-20에 닫았다** (위 "MB는 십진 백만이다"). 그전에는
+   * 코드의 `BYTES_PER_MB`가 `1024 × 1024`라 **같은 파일이 문서에서 109MB, 화면에서
+   * 104MB로 읽혔다.** 지금은 한 축이고, 아래가 그것을 쓴다.
    *
    * **문서의 "81"과 1.5MB 차이가 나는 것은 문서가 반올림했기 때문이다** — 임베딩
    * 5,120바이트를 "5kB"로 적어 장당 16.3kB로 셌다. 실제 장당은 16,420바이트다.
@@ -74,13 +74,13 @@ describe('사진이 들어갈 자리', () => {
     const webp = estimatedImageBytes(MAX_IMAGE_COUNT, CANONICAL_FORMATS.webp, backbone.embeddingDim)
     const jpeg = estimatedImageBytes(MAX_IMAGE_COUNT, CANONICAL_FORMATS.jpeg, backbone.embeddingDim)
 
-    expect(Math.round(webp / DECIMAL_MB)).toBe(82)
-    expect(Math.round(jpeg / DECIMAL_MB)).toBe(109)
+    expect(Math.round(webp / MB)).toBe(82)
+    expect(Math.round(jpeg / MB)).toBe(109)
 
     // **webp가 100MB 아래이고 jpg는 위다.** §3이 문턱을 100MB로 고른 자리이고,
     // 로드맵이 "최악의 경로는 WebP를 못 굽는 기기다"라고 적은 자리다.
-    expect(webp).toBeLessThan(100 * DECIMAL_MB)
-    expect(jpeg).toBeGreaterThan(100 * DECIMAL_MB)
+    expect(webp).toBeLessThan(100 * MB)
+    expect(jpeg).toBeGreaterThan(100 * MB)
   })
 
   /**
