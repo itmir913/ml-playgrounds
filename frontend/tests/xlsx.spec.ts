@@ -1,9 +1,15 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import ExcelJS from 'exceljs'
+import { unzipSync, zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
-import * as XLSX from 'xlsx'
 
 import { openXlsx, previewSheets } from '../src/data/xlsx'
 import { isClientError } from '../src/errors'
+
+/** 픽스처의 B2를 갈아 끼울 값. 엑셀의 General 서식이 지수 표기로 넘어가는 열두 자리다. */
+const BIG_CELL = '<x:c r="B2"><x:v>123456789012</x:v></x:c>'
 
 async function buildWorkbook(sheets: Record<string, (string | number)[][]>): Promise<Uint8Array> {
   const workbook = new ExcelJS.Workbook()
@@ -111,24 +117,67 @@ describe('openXlsx', { timeout: 20_000 }, () => {
 
 // 타임아웃을 늘린 이유는 위 describe에 있다.
 describe('폴백', { timeout: 20_000 }, () => {
-  it('ExcelJS가 못 읽는 파일을 SheetJS가 읽어낸다', async () => {
-    // SheetJS로 쓴 xlsx. ExcelJS가 이걸 읽지 못하더라도 폴백이 살려내야 한다.
-    // 한셀 등 비표준 생성기에서 실제로 겪은 실패의 대역이다.
-    const sheet = XLSX.utils.aoa_to_sheet([
-      ['이름', '나이'],
-      ['가나다', 10],
-    ])
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, sheet, '데이터')
-    const bytes = new Uint8Array(XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }))
+  /**
+   * **한셀이 저장한 진짜 xlsx다** (2026-08-21, open-decisions.md #17이 기다리던 파일).
+   * `docProps/app.xml`이 `<ep:Application>Cell</ep:Application>`이라 출처가 분명하다.
+   *
+   * **이 파일이 있기 전까지 이 자리의 검사는 폴백을 한 번도 안 지나갔다.** SheetJS로
+   * 쓴 xlsx를 넣었는데 **ExcelJS가 그걸 잘 읽어서** 첫 파서에서 끝났다. 검사 이름은
+   * 폴백을 말하는데 실제로 도는 것은 본진이었고, 그래서 폴백의 `raw` 결함이 살아남았다.
+   */
+  const hancell = new Uint8Array(readFileSync(join(process.cwd(), 'tests/fixtures/hancell.xlsx')))
 
-    const document = await openXlsx(bytes)
+  /**
+   * 그 파일의 `money` 첫 칸만 열두 자리로 바꾼 것. **나머지는 한셀이 쓴 그대로라
+   * ExcelJS는 여전히 같은 자리에서 던진다** — 폴백을 진짜로 태우면서 큰 수를 넣는
+   * 유일한 방법이다. 모킹은 안 쓴다: 첫 파서를 가짜로 세우면 그 파서가 실제로
+   * 실패하는지까지 같이 가짜가 된다.
+   */
+  function withBigNumber(bytes: Uint8Array): Uint8Array {
+    const files = unzipSync(bytes)
+    const path = 'xl/worksheets/sheet1.xml'
+    const sheet = files[path]
+    if (sheet === undefined) throw new Error(`${path}가 픽스처에 없다`)
+    const xml = new TextDecoder().decode(sheet)
+    const patched = xml.replace('<x:c r="B2"><x:v>100</x:v></x:c>', BIG_CELL)
+    // 못 바꿨는데 통과하면 이 검사는 아무것도 안 지킨다.
+    if (patched === xml) throw new Error('픽스처의 B2를 못 찾았다')
+    files[path] = new TextEncoder().encode(patched)
+    return zipSync(files)
+  }
 
-    expect(document.sheetNames).toEqual(['데이터'])
-    expect(document.readSheet('데이터')).toEqual([
-      ['이름', '나이'],
-      ['가나다', '10'],
+  it('한셀이 만든 파일은 ExcelJS가 던진다 - 폴백이 발동하는 조건이다', async () => {
+    // 폴백 조건은 "예외 또는 시트 0개"뿐이다. 예외 없이 이상한 값을 주면 발동하지
+    // 않으므로, 이 파일이 정말 던지는지가 아래 검사들의 전제다 (#17의 첫 물음).
+    const workbook = new ExcelJS.Workbook()
+    await expect(workbook.xlsx.load(hancell as never)).rejects.toThrow()
+  })
+
+  it('그 파일을 SheetJS가 읽어낸다', async () => {
+    const document = await openXlsx(hancell)
+
+    expect(document.sheetNames).toEqual(['Sheet1'])
+    expect(document.readSheet('Sheet1')).toEqual([
+      ['id', 'money', 'good'],
+      ['1', '100', 'Bad'],
+      ['2', '200', 'Bad'],
+      ['3', '300', 'Good'],
     ])
+  })
+
+  /**
+   * **폴백이 값을 주는가, 엑셀이 그려 준 글자를 주는가** (2026-08-21).
+   *
+   * `raw: false`였을 때 `123456789012`가 `"1.23457E+11"`이 됐다 — 엑셀의 General
+   * 서식이 열두 자리부터 지수 표기로 넘어가기 때문이고 **예외가 안 난다.**
+   *
+   * **입구는 `openXlsx` 그대로다.** 한셀 실물에는 큰 수가 없어서 그 칸 하나만
+   * 열두 자리로 갈아 끼운다 — 파일의 나머지는 한셀이 쓴 그대로다.
+   */
+  it('큰 수가 표시 문자열로 뭉개지지 않는다', async () => {
+    const document = await openXlsx(withBigNumber(hancell))
+
+    expect(document.readSheet('Sheet1')[1]).toEqual(['1', '123456789012', 'Bad'])
   })
 
   it('zip이 아닌 바이트는 파서에 넘기지도 않는다', async () => {

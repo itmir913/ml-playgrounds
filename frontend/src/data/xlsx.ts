@@ -7,17 +7,20 @@
  *   2. SheetJS      폴백. 한셀 등 비표준 xlsx가 1에서 깨질 때만 쓴다
  *   3. 둘 다 실패   DATASET_PARSE_FAILED
  *
- * 폴백이 필요한 이유는 추측이 아니라 경험이다 - 한셀로 저장한 xlsx가 ExcelJS에서
- * 열리지 않는 사례가 실제로 있었다. 교실에서 한컴오피스는 드물지 않고, 파일이
- * 안 열리면 그 학생의 45분은 거기서 끝난다.
+ * 폴백이 필요한 이유는 추측이 아니라 실물이다 - 한셀로 저장한 xlsx는 ExcelJS에서
+ * `TypeError`로 죽는다(2026-08-21에 재현하고 `tests/fixtures/hancell.xlsx`로 고정했다).
+ * 한셀이 `docProps/app.xml`에 네임스페이스 접두사를 붙여 쓰는데 ExcelJS는 접두사 없는
+ * 태그만 안다. 교실에서 한컴오피스는 드물지 않고, 파일이 안 열리면 그 학생의 45분은
+ * 거기서 끝난다.
  *
  * 파서는 PARSERS 배열에 등록만 하면 늘어난다. if/else 분기를 만들지 마라.
  *
  * 시트 하나를 고르기 위해 파일을 두 번 읽지 않는다. openXlsx()가 한 번 읽어
  * 핸들을 주고, 미리보기와 본 읽기가 같은 핸들을 쓴다.
  *
- * 날짜 셀은 이번 범위 밖이다(open-decisions.md #14). ExcelJS 경로는 ISO 문자열을,
- * SheetJS 경로는 엑셀 표시 문자열을 준다 - 폴백이 도는 드문 경우에만 갈린다.
+ * 날짜 셀은 이번 범위 밖이다(open-decisions.md #14). 두 경로 모두 ISO 문자열을 주고,
+ * 남은 차이는 시간대 하나다 - ExcelJS는 직렬값을 UTC로 읽고 SheetJS는 로컬 시간대를
+ * 적용한다. 폴백이 도는 드문 경우에만 갈린다(open-decisions.md #18).
  */
 
 import { ClientError } from '../errors'
@@ -94,7 +97,8 @@ const parseWithExcelJs: XlsxParser = async (bytes) => {
 /** 파서 2 - SheetJS. 한셀 등 비표준 xlsx를 위한 폴백이다. */
 const parseWithSheetJs: XlsxParser = async (bytes) => {
   const XLSX = await import('xlsx')
-  const workbook = XLSX.read(bytes, { type: 'array' })
+  // 날짜 셀을 Date로 받는다. 아래 raw와 짝이다 - raw만 켜면 날짜가 직렬 숫자로 온다.
+  const workbook = XLSX.read(bytes, { type: 'array', cellDates: true })
 
   if (workbook.SheetNames.length === 0) throw new Error('no worksheets')
 
@@ -108,8 +112,20 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
         header: 1,
         // 빈 셀도 자리를 지킨다. 없으면 컬럼 인덱스가 행마다 밀린다.
         defval: '',
-        // 셀 서식이 적용된 표시 문자열을 받는다.
-        raw: false,
+        /**
+         * **값을 받는다. 엑셀이 그려 준 글자가 아니다** (2026-08-21).
+         *
+         * `false`였고, 그러면 셀의 값이 아니라 **화면에 그려질 문자열**이 온다.
+         * 실측하니 `123456789012`가 `"1.23457E+11"`이 됐다 - 엑셀의 General 서식이
+         * 열두 자리부터 지수 표기로 넘어가기 때문이고, **예외 없이 여섯 자리로
+         * 뭉개진다.** 원화로 적은 예산·거래액이 정확히 그 대역이다.
+         * 불리언은 `"TRUE"`, 날짜는 `"8/21/26"`이었다.
+         *
+         * 이 도구가 열에서 원하는 것은 **값**이므로 서식 문자열을 잃는 것은 손해가
+         * 아니다. 이제 ExcelJS 경로와 값이 같다 - 남은 차이는 날짜의 시간대
+         * 하나이고 그건 open-decisions.md #18이 갖는다.
+         */
+        raw: true,
       })
 
       const grid: TableGrid = []
