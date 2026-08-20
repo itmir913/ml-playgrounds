@@ -98,18 +98,29 @@ export function headingNumber(heading: string): string | null {
   return match ? match[1]! : null
 }
 
+/** 표제가 "이 미결정을 닫았다"고 선언하는 낱말. 둘 다 쓰인다. */
+const CLOSING = /마무리|종결/
+
 /**
  * 표제 하나가 받아 주는 번호들.
  *
  * 자기가 이고 있는 번호에 더해, **자기가 닫은 미결정 번호**도 받는다 —
  * `### 인코딩 판정과 지원 목록 (2026-08-04) — #15 마무리`가 그 모양이다. 미결정이
  * 결정됨으로 넘어가면 번호를 잃고 제목을 얻는데, **번호로 가리키던 참조는 그대로
- * 남는다.** 닫은 자리에 `#N 마무리`를 적어 두는 것이 이 저장소의 표기이고,
- * 그것이 곧 옛 번호의 전달 주소다.
+ * 남는다.** 닫은 자리에 닫힘을 적어 두는 것이 이 저장소의 표기이고, 그것이 곧 옛
+ * 번호의 전달 주소다.
+ *
+ * **표기가 한 모양이 아니다.** 낱말이 둘(`마무리`·`종결`)이고, 번호와 낱말 사이에
+ * 다른 글자가 끼기도 한다 — `#25 ① 마무리`, `#21의 마지막 줄 마무리`. 그래서
+ * `#N 마무리`를 붙여서 찾지 않고, **닫힘을 선언한 표제 안의 `#N`을 전부** 받는다.
+ * 처음에는 `#N 마무리` 한 모양만 봤고, 그것 때문에 `#23 종결`이 안 잡혀 실제로
+ * 참조 넷이 끊어졌다 (2026-08-20).
  */
 export function headingAnchors(heading: string): string[] {
   const own = headingNumber(heading)
-  const closed = [...heading.matchAll(/#(\d+(?:-\d+)?)\s*마무리/g)].map((match) => match[1]!)
+  const closed = CLOSING.test(heading)
+    ? [...heading.matchAll(/#(\d+(?:-\d+)?)/g)].map((match) => match[1]!)
+    : []
   return own === null ? closed : [own, ...closed]
 }
 
@@ -384,8 +395,16 @@ describe('문서 참조', () => {
     expect(headingNumber('## 8. 프런트엔드 셸')).toBe('8')
     expect(headingNumber('### 모바일에서도 동작한다 (2026-08-04)')).toBeNull()
 
-    // 닫힌 미결정 번호는 닫은 표제가 받는다.
+    // 닫힌 미결정 번호는 닫은 표제가 받는다. 낱말도 자리도 한 모양이 아니다.
     expect(headingAnchors('### 인코딩 판정과 지원 목록 (2026-08-04) — #15 마무리')).toEqual(['15'])
+    expect(headingAnchors('### 포트폴리오 — 답은 글이다 (V5, 2026-08-14) — #23 종결')).toEqual([
+      '23',
+    ])
+    expect(headingAnchors('### 백본 추론은 TF.js가 돌린다 (2026-08-12) — #25 ① 마무리')).toEqual([
+      '25',
+    ])
+    // 닫힘을 선언하지 않은 표제의 `#N`은 남의 번호를 가리키는 본문일 뿐이다.
+    expect(headingAnchors('### 군집 산점도의 축 (2026-08-15) — #28-2를 좁힌다')).toEqual([])
 
     // 원문이 두 줄에 걸쳐 있어도, 따옴표 종류가 달라도 같은 글자다.
     expect(flatten('파일 계층은 "파일 참조인가"를\n묻는다')).toBe(
