@@ -206,26 +206,42 @@ export function totalBytes(project: ProjectFile): number {
   return total
 }
 
+/** 이만큼이 모자란다. 화면이 두 수를 함께 말한다. */
+export interface RoomShortfall {
+  readonly requiredMb: number
+  readonly availableMb: number
+}
+
 /**
- * 쓰기 전에 여유 공간을 확인한다.
+ * 이만큼을 쓸 자리가 있는가. 있으면 `null`, 없으면 얼마가 모자란지.
  *
- * estimate()가 없는 브라우저에서는 검사를 건너뛴다. 그때는 실제 쓰기에서 나는
- * QuotaExceededError가 같은 코드로 바뀐다.
+ * **부르는 자리가 둘이고 구현은 하나여야 한다.** 쓰기 직전(`ensureRoom`)과 **사진을
+ * 굽기 전**(`views/data/ImagePanel.vue`)이고, 뒤엣것이
+ * `open-decisions.md` "이미지가 들어갈 자리는 굽기 전에 묻는다"가 세운 자리다.
+ * 갈라 두면 안전 계수나 반올림이 한쪽에서만 고쳐진다.
+ *
+ * **estimate()가 없는 브라우저에서는 `null`이다** — 물을 방법이 없으면 통과시킨다.
+ * 그때는 실제 쓰기에서 나는 QuotaExceededError가 같은 코드로 바뀐다.
  */
-async function ensureRoom(bytes: number): Promise<void> {
+export async function roomShortfall(bytes: number): Promise<RoomShortfall | null> {
   const estimate = await navigator.storage?.estimate?.().catch(() => null)
   const quota = estimate?.quota ?? 0
-  if (quota === 0) return
+  if (quota === 0) return null
 
   const available = quota - (estimate?.usage ?? 0)
   // 브라우저가 보고하는 여유 공간은 근사값이고 인덱스가 차지하는 몫도 있다.
   const required = bytes * STORAGE_SAFETY_FACTOR
-  if (available < required) {
-    throw new ClientError('STORAGE_QUOTA_EXCEEDED', {
-      requiredMb: Math.ceil(required / BYTES_PER_MB),
-      availableMb: Math.max(0, Math.floor(available / BYTES_PER_MB)),
-    })
+  if (available >= required) return null
+  return {
+    requiredMb: Math.ceil(required / BYTES_PER_MB),
+    availableMb: Math.max(0, Math.floor(available / BYTES_PER_MB)),
   }
+}
+
+/** 쓰기 전에 여유 공간을 확인한다. 모자라면 던진다. */
+async function ensureRoom(bytes: number): Promise<void> {
+  const shortfall = await roomShortfall(bytes)
+  if (shortfall) throw new ClientError('STORAGE_QUOTA_EXCEEDED', { ...shortfall })
 }
 
 /**

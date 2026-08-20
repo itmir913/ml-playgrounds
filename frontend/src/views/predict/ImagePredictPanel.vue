@@ -54,6 +54,7 @@ import { experimentNames as experimentNamesOf } from '@/ml/results'
 import { addEmbeddings, readEmbeddings } from '@/project/embeddings'
 import { IMAGE_PREDICT_PAGE_SIZE } from '@/limits'
 import { IMAGE_UNLABELED } from '@/project/format'
+import { imageRoomShortfall } from '@/data/image/room'
 import { addImages, imageOverflow, readImages, removeImages } from '@/project/images'
 import { dataSettings } from '@/project/schema'
 import { yieldToScreen } from '@/screen'
@@ -241,6 +242,12 @@ async function readPicked(files: readonly File[]): Promise<void> {
     // 거절하면 학생은 기다린 시간을 통째로 버린다.
     const overflow = imageOverflow(file, items.length, 'predict')
     if (overflow) throw new ClientError('IMAGE_TOO_MANY_PHOTOS', { ...overflow })
+
+    // **자리도 같은 시점에 묻는다** (open-decisions.md "이미지가 들어갈 자리는 굽기
+    // 전에 묻는다"). 장수와 다른 축이다 — 위는 이 앱이 정한 수이고 이건 그 기기의
+    // 남은 자리다.
+    const shortfall = await imageRoomShortfall(file, items.length, spec)
+    if (shortfall) throw new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall })
 
     progress.value = { completed: 0, total: items.length }
     // **핸들을 버리지 않는다.** 학생이 굽는 도중 다른 단계로 가면 아무도 안 듣는

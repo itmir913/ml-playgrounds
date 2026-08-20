@@ -184,7 +184,7 @@ PREDICT_DATASET_COLUMN_MISSING
 **사진 올리기** (`data/image/upload.ts`)
 ```
 IMAGE_ZIP_INVALID, IMAGE_ZIP_NO_IMAGES, IMAGE_TOO_MANY_PHOTOS,
-IMAGE_CATEGORY_NAME_INVALID
+IMAGE_PHOTOS_EXCEED_STORAGE, IMAGE_CATEGORY_NAME_INVALID
 ```
 
 `IMAGE_ZIP_INVALID`가 `PROJECT_FILE_NOT_ZIP`과 나뉘는 이유는 **학생이 할 일이 다르기**
@@ -196,6 +196,20 @@ IMAGE_CATEGORY_NAME_INVALID
 것이고, **굽기 전에 판정한다**(`project/images.ts`의 `imageOverflow`) — 백본을 돌린 뒤에
 거절하면 학생은 기다린 시간을 통째로 버린다. **자리마다 따로 센다**: 훈련용과 예측용은
 표에서 훈련 파일과 테스트 파일이 각자 상한에 걸리는 것과 같다.
+
+`IMAGE_PHOTOS_EXCEED_STORAGE`는 **그 기기에 자리가 없는 것**이고 같은 자리에서 함께
+판정한다 (`open-decisions.md` "이미지가 들어갈 자리는 굽기 전에 묻는다"). 셋이 서로
+나뉘는 이유는 전부 **학생이 할 일이 다르기** 때문이다.
+
+| 코드 | 무엇이 모자란가 | 학생이 할 일 |
+|---|---|---|
+| `IMAGE_TOO_MANY_PHOTOS` | 이 앱이 정한 장수. **어느 기기에서나 같다** | 올리는 수를 줄인다 |
+| `IMAGE_PHOTOS_EXCEED_STORAGE` | **그 기기의 남은 자리.** 학생마다 다르다 | 사진을 줄이거나 담은 것을 지운다 |
+| `STORAGE_QUOTA_EXCEEDED` | 같은 자리인데 **저장을 누른 뒤**다 | 자리를 비운다 |
+
+**예상으로 판정한다** — 정본은 아직 안 구웠으므로 장수 × 장당(형식 등록부의
+`estimatedBytes` + 백본의 `embeddingDim` × 4)이다. 판정하는 문턱은 우리 상수가 아니라
+**브라우저가 보고하는 쿼터**다.
 
 **프로젝트 파일 열기**
 ```

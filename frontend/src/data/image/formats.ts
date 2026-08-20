@@ -5,7 +5,12 @@
  * 깨졌다). 여기는 `limits.ts` 말고 아무것도 안 부른다.
  */
 
-import { IMAGE_JPEG_QUALITY, IMAGE_WEBP_QUALITY } from '@/limits'
+import {
+  IMAGE_JPEG_ESTIMATED_BYTES,
+  IMAGE_JPEG_QUALITY,
+  IMAGE_WEBP_ESTIMATED_BYTES,
+  IMAGE_WEBP_QUALITY,
+} from '@/limits'
 
 /**
  * 정본을 구울 수 있는 형식. **순서가 곧 우선순위다** — 앞의 것부터 시도한다
@@ -30,6 +35,14 @@ export interface CanonicalFormat {
   readonly mime: string
   /** 구울 때 쓰는 품질. 값의 출처는 limits.ts다. */
   readonly quality: number
+  /**
+   * 이 형식으로 구운 정본 한 장의 예상 바이트. **굽기 전에 자리를 묻는 데 쓴다**
+   * (open-decisions.md "이미지가 들어갈 자리는 굽기 전에 묻는다").
+   *
+   * **여기 있는 이유는 형식마다 다르기 때문이다** — `quality`와 같은 자리다. 셋째
+   * 형식이 생기면 그 줄이 자기 값을 들고 온다. 값의 출처는 limits.ts다.
+   */
+  readonly estimatedBytes: number
 }
 
 /**
@@ -37,8 +50,20 @@ export interface CanonicalFormat {
  * 는다 (CLAUDE.md §2, architecture.md §9).
  */
 export const CANONICAL_FORMATS: Readonly<Record<CanonicalFormatId, CanonicalFormat>> = {
-  webp: { id: 'webp', extension: '.webp', mime: 'image/webp', quality: IMAGE_WEBP_QUALITY },
-  jpeg: { id: 'jpeg', extension: '.jpg', mime: 'image/jpeg', quality: IMAGE_JPEG_QUALITY },
+  webp: {
+    id: 'webp',
+    extension: '.webp',
+    mime: 'image/webp',
+    quality: IMAGE_WEBP_QUALITY,
+    estimatedBytes: IMAGE_WEBP_ESTIMATED_BYTES,
+  },
+  jpeg: {
+    id: 'jpeg',
+    extension: '.jpg',
+    mime: 'image/jpeg',
+    quality: IMAGE_JPEG_QUALITY,
+    estimatedBytes: IMAGE_JPEG_ESTIMATED_BYTES,
+  },
 }
 
 /** 될 때 쓰는 형식. 이것으로 못 구우면 뒤의 것으로 내려간다. */

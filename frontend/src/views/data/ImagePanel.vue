@@ -35,8 +35,9 @@ import { spawnCanonicalizeWorker } from '@/data/image/spawn'
 import { readImageFiles, readImageZip, summarizeUpload, type UploadItem } from '@/data/image/upload'
 import { ClientError } from '@/errors'
 import { MAX_CATEGORY_NAME_LENGTH } from '@/limits'
-import { backboneFor } from '@/ml/backbones'
-import { IMAGE_UNLABELED } from '@/project/format'
+import { backboneFor, type BackboneSpec } from '@/ml/backbones'
+import { imageRoomShortfall } from '@/data/image/room'
+import { IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
 import {
   addCategory,
   addImages,
@@ -140,6 +141,12 @@ function labelOf(category: string): string {
   return category === IMAGE_UNLABELED ? t('meta.image.unlabeled') : category
 }
 
+/** 이 프로젝트가 쓰는 백본. **자리를 묻는 데도 굽는 데도 같은 것이 필요하다.** */
+function backboneOf(file: ProjectFile | null): BackboneSpec | undefined {
+  if (!file) return undefined
+  return backboneFor(dataSettings('image', file.document.settings).backboneId)
+}
+
 /** 꾸러미인가 사진인가. **학생에게 묻지 않는다** — 확장자가 이미 답을 갖고 있다. */
 async function readPicked(files: readonly File[], into: string): Promise<void> {
   if (files.length === 0) return
@@ -156,6 +163,15 @@ async function readPicked(files: readonly File[], into: string): Promise<void> {
     // 안 돌고, 학생은 확인 판을 지나 기다린 뒤에 지우기부터 하는 일을 안 겪는다.
     const overflow = imageOverflow(project.file, items.length)
     if (overflow) throw new ClientError('IMAGE_TOO_MANY_PHOTOS', { ...overflow })
+
+    // **자리도 같은 시점에 묻는다** (open-decisions.md "이미지가 들어갈 자리는 굽기
+    // 전에 묻는다"). 장수와 다른 축이다 — 위는 이 앱이 정한 수이고 이건 그 기기의
+    // 남은 자리다. 백본을 모르면 임베딩 몫을 못 세므로 그때는 묻지 않는다.
+    const spec = backboneOf(project.file)
+    if (spec) {
+      const shortfall = await imageRoomShortfall(project.file, items.length, spec)
+      if (shortfall) throw new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall })
+    }
     pending.value = items
   } catch (error) {
     toasts.pushError(error)
@@ -193,8 +209,7 @@ async function bake(): Promise<void> {
   const file = project.file
   if (!items || !file || busy.value) return
 
-  const backboneId = dataSettings('image', file.document.settings).backboneId
-  const backbone = backboneFor(backboneId)
+  const backbone = backboneOf(file)
   if (!backbone) {
     toasts.pushError(new ClientError('BACKBONE_UNAVAILABLE'))
     return

@@ -55,6 +55,19 @@ export const CLIENT_ERROR_CODES = [
   // **굽기 전에 판정한다** - 넘긴 채로 받아 두면 백본이 이미 돌았고 학생은 몇 분을
   // 버린 뒤에야 지우기부터 하게 된다. 표의 데이터셋 상한과 같은 자리다.
   'IMAGE_TOO_MANY_PHOTOS',
+  /**
+   * 이만큼은 이 기기에 안 들어간다 (project/storage.ts의 `roomShortfall`,
+   * open-decisions.md "이미지가 들어갈 자리는 굽기 전에 묻는다").
+   *
+   * **`STORAGE_QUOTA_EXCEEDED`와 나누는 이유는 학생이 할 일이 다르기 때문이다.**
+   * 저쪽은 저장을 누른 뒤에 나고 할 일이 "자리를 비워라"인데, 여기는 **아직 아무것도
+   * 안 구운 시점**이고 할 일이 **"올릴 사진을 줄여라"**다.
+   *
+   * **위 `IMAGE_TOO_MANY_PHOTOS`와도 다르다** — 그쪽은 이 앱이 정한 장수이고 어느
+   * 기기에서나 같다. 이쪽은 **그 기기의 남은 자리**라 학생마다 다르고, 사진을 지우면
+   * 늘어난다.
+   */
+  'IMAGE_PHOTOS_EXCEED_STORAGE',
   // 폴더 이름을 범주로 쓸 수 없다 (data/image/canonical.ts의 isValidCategoryName).
   // **고쳐서 받지 않는다** - 이름을 다듬으면 서로 다른 폴더 둘이 한 범주로 합쳐질 수
   // 있고, 그건 라벨이 조용히 바뀌는 것이다.

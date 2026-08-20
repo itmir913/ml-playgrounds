@@ -169,6 +169,31 @@ export function imageOverflow(
 }
 
 /**
+ * 사진 몇 장이 자리를 얼마나 차지할지의 예상. **굽기 전에 쿼터를 묻는 데 쓴다**
+ * (open-decisions.md "이미지가 들어갈 자리는 굽기 전에 묻는다").
+ *
+ * **장수 × 장당으로 센다.** 원본 파일 크기 합은 안 쓴다 — 정본이 원본보다 대개 훨씬
+ * 작아서 **될 것도 막는다.**
+ *
+ * **장당은 정본 + 임베딩이다.** 둘 다 저장소에 실제로 앉는다(`totalBytes`가 둘 다 센다).
+ *
+ * **임베딩 몫은 상수가 아니라 유도다** — `embeddingDim × Float32Array`의 원소 크기다.
+ * 백본을 바꾸면 차원이 바뀌므로, 숫자로 적어 두면 그날 조용히 틀린다.
+ * 정본 몫은 형식마다 달라 형식 등록부가 갖는다(`data/image/formats.ts`).
+ *
+ * **형식은 받는다. 여기서 고르지 않는다** — 고르는 것은 요청마다 한 번이고
+ * (`data/image/bake.ts`의 `detectCanonicalFormat`), 한 요청 안의 사진들은 같은 형식이다.
+ */
+export function estimatedImageBytes(
+  incoming: number,
+  format: CanonicalFormat,
+  embeddingDim: number,
+): number {
+  const perImage = format.estimatedBytes + embeddingDim * Float32Array.BYTES_PER_ELEMENT
+  return incoming * perImage
+}
+
+/**
  * 설정과 사진을 함께 바꾼 새 프로젝트. **원본을 고치지 않는다** — 확정 전에 되돌릴 것이
  * 있어야 한다.
  */
