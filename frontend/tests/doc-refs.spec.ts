@@ -45,6 +45,7 @@ const SCANNED: readonly string[] = [
   'frontend/src',
   'frontend/tests',
   'frontend/vite.config.ts',
+  'frontend/scripts',
   'backend/app',
   'backend/tests',
   'backend/scripts',

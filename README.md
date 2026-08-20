@@ -66,3 +66,12 @@ Design notes live in [docs/](docs/) and are written in Korean.
 ## License
 
 [MIT](LICENSE)
+
+This app ships third-party code, and their notices ship with it. Every build
+writes `third-party-notices.txt` next to `index.html`, so any deployed copy
+serves it alongside the app — for the official one, that is
+<https://luminousky.com/ml-playgrounds/third-party-notices.txt>.
+
+The build generates that file from the modules that actually ended up in the
+output, and stops if it cannot find a license text for one of them. Nothing in
+it applies to ML Playgrounds itself.

@@ -6,9 +6,23 @@ import vue from '@vitejs/plugin-vue'
 import pkg from './package.json' with { type: 'json' }
 import tailwindcss from '@tailwindcss/vite'
 
+// 확장자를 붙인다. vite 설정이 물고 들어가는 상대 경로는 `configLoader: 'native'`가
+// 확장자를 요구하고, 없으면 빌드마다 경고 한 덩이가 붙는다.
+import { thirdPartyNotices } from './scripts/notices.js'
+
+/**
+ * **남의 고지를 산출물에 굽는 플러그인.** 왜 필요한지는 `scripts/notices.ts`에 있다.
+ *
+ * **둘로 갈라 거는 이유.** 워커는 별도의 rollup 빌드라 본 빌드의 모듈 그래프에 없는데
+ * TensorFlow.js가 통째로 거기 있다. `worker.plugins`에 수집기를 걸어 그쪽도 세고,
+ * 굽는 것은 본 빌드 한 곳에서만 한다.
+ */
+const notices = thirdPartyNotices()
+
 // Tailwind v4는 설정 파일이 없다. 테마는 src/styles/theme.css 안에서 정의한다.
 export default defineConfig({
-  plugins: [vue(), tailwindcss()],
+  plugins: [vue(), tailwindcss(), notices.emit],
+  worker: { plugins: () => [notices.collect] },
   /**
    * **배포 경로가 둘이라 base를 상대 경로로 고정한다.**
    *

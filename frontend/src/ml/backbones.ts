@@ -84,6 +84,18 @@ export interface BackboneSpec {
    * (open-decisions.md "이미지 학습의 모양").
    */
   readonly tasks: readonly TaskType[]
+  /**
+   * 고지에 적는 출처. **재배포하지 않아도 적는다** — 우리가 서빙하지 않는다는 것과
+   * 학생이 무엇 위에서 학습하는지는 다른 질문이다.
+   *
+   * **"이 백본이 누구 것인가"는 등록부의 이 칸이다.** 고지 파일이 여기서 읽어 가므로
+   * (`scripts/notices.ts`) 줄이 하나 늘면 고지가 저절로 따라온다.
+   */
+  readonly credit: {
+    readonly holder: string
+    /** SPDX 표기. */
+    readonly license: string
+  }
 }
 
 /**
@@ -109,6 +121,7 @@ export const BACKBONES: readonly BackboneSpec[] = [
      */
     inputRange: [0, 1],
     tasks: ['classification', 'clustering'],
+    credit: { holder: 'Google LLC (tfjs-models)', license: 'Apache-2.0' },
   },
 ]
 

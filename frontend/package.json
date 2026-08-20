@@ -14,9 +14,9 @@
     "test": "vitest run",
     "ci": "npm run backbones && npm run lint:check && npm run typecheck && npm run test && npm run build",
     "test:watch": "vitest",
-    "lint": "eslint . --fix && prettier --write src/ tests/",
-    "lint:check": "eslint . --cache && prettier --check src/ tests/ --cache",
-    "format": "prettier --write src/ tests/",
+    "lint": "eslint . --fix && prettier --write src/ tests/ scripts/",
+    "lint:check": "eslint . --cache && prettier --check src/ tests/ scripts/ --cache",
+    "format": "prettier --write src/ tests/ scripts/",
     "typecheck": "vue-tsc --build"
   },
   "comment:lint-check": "고치는 것과 확인하는 것을 나눈 이유. 전에는 CI가 `npm run lint -- --no-fix`를 불렀는데, npm은 `--` 뒤의 인자를 스크립트 문자열 **끝**에 붙인다. lint는 `&&`로 이어진 두 명령이라 `--no-fix`가 eslint가 아니라 prettier에 붙었고, prettier는 모르는 옵션이라며 경고만 내고 넘어갔다(eslint에는 `--no-fix`라는 옵션 자체가 없다). 그래서 **CI의 lint 단계가 `eslint . --fix`로 돌았다** - 자동 수정되는 위반은 러너에서 조용히 고쳐져 통과하고, 그 수정은 러너와 함께 버려져 저장소에는 그대로 남았다. 게이트가 이빨이 없었다. 확인 전용 스크립트를 따로 두어 인자를 덧붙일 일이 없게 한다.",
