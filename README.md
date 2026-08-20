@@ -63,6 +63,12 @@ scripts/    Checks that span both sides
 Design notes live in [docs/](docs/) and are written in Korean.
 [CLAUDE.md](CLAUDE.md) states the principles this repository refuses to break.
 
+## Contributing
+
+[CONTRIBUTING.md](CONTRIBUTING.md) has the setup, the one command that is the
+gate, and what a pull request has to be true about — including the licensing of
+what you add.
+
 ## License
 
 [MIT](LICENSE)

@@ -42,6 +42,8 @@ const SCANNED: readonly string[] = [
   'docs',
   'CLAUDE.md',
   'README.md',
+  'CONTRIBUTING.md',
+  '.github',
   'frontend/src',
   'frontend/tests',
   'frontend/vite.config.ts',
