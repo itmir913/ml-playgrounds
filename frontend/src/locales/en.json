@@ -557,6 +557,7 @@
     "title": "Project summary",
     "created": "Created",
     "updated": "Modified",
+    "sizeWarning": "The file is larger than {limit}, so some places you submit to may refuse it.",
     "size": "Size",
     "dataType": "Data type",
     "taskType": "Task type",

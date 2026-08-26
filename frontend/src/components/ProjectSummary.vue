@@ -16,6 +16,8 @@ import { useI18n } from 'vue-i18n'
 
 import { useFormat } from '@/composables/useFormat'
 import { dataKindFor } from '@/data/kinds'
+import { needsSizeWarning } from '@/project/file-size'
+import { PROJECT_FILE_WARN_BYTES } from '@/limits'
 import { totalBytes } from '@/project/storage'
 import { useProjectStore } from '@/stores/project'
 
@@ -110,8 +112,18 @@ const info = computed(() => {
       </div>
       <div class="flex justify-between gap-4">
         <dt class="font-bold text-ink-soft">{{ t('meta.size') }}</dt>
-        <dd>{{ format.bytes(info.bytes) }}</dd>
+        <dd :class="needsSizeWarning(info.bytes) ? 'font-bold text-caution' : ''">
+          {{ format.bytes(info.bytes) }}
+        </dd>
       </div>
     </dl>
+
+    <!--
+      **상태 표시줄 팝오버와 같은 문장이다.** 두 화면이 같은 사실을 다르게 말하면 학생은
+      자리마다 다른 프로젝트를 보게 된다 (이 파일 머리말).
+    -->
+    <p v-if="needsSizeWarning(info.bytes)" class="mt-3 leading-relaxed text-caution">
+      {{ t('meta.sizeWarning', { limit: format.bytes(PROJECT_FILE_WARN_BYTES) }) }}
+    </p>
   </div>
 </template>

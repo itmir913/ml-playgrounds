@@ -38,6 +38,8 @@ import { useI18n } from 'vue-i18n'
 
 import AppPopover from '@/components/AppPopover.vue'
 import { exportStateOf } from '@/project/export-state'
+import { needsSizeWarning } from '@/project/file-size'
+import { PROJECT_FILE_WARN_BYTES } from '@/limits'
 import { useFormat } from '@/composables/useFormat'
 import { ACTION_ICONS } from '@/icons'
 import { setLocale, SUPPORTED_LOCALES, type Locale } from '@/i18n'
@@ -58,6 +60,14 @@ const project = useProjectStore()
  * 같은 이유로 같은 자리에서 이미 한 번 고쳐졌는데, 이 줄만 옛 계산을 들고 있었다.
  */
 const sizeBytes = computed(() => (project.file === null ? 0 : totalBytes(project.file)))
+
+/**
+ * 제출을 막을 만큼 커졌는가. **막지 않고 알린다** (`project/file-size.ts`).
+ *
+ * **내보내기 순간이 아니라 그 전이다** — 사진을 줄이거나 나눌 수 있는 시점은 [파일로
+ * 저장]을 누르기 전이다.
+ */
+const oversized = computed(() => needsSizeWarning(sizeBytes.value))
 
 /**
  * 내보내기 상태. 셋으로 갈린다 — 안 내보냄 / 내보낸 뒤 고침 / 그대로.
@@ -194,6 +204,14 @@ const themeLabel = computed(() =>
           <dd class="tabular-nums">{{ row.value }}</dd>
         </div>
       </dl>
+
+      <!--
+        **막는 것이 아니라 알리는 것이다** (open-decisions.md #32). 그래서 경고색이 아니라
+        주의색이고, 여기서 할 수 있는 일은 없다 - 줄이는 자리는 데이터 화면이다.
+      -->
+      <p v-if="oversized" class="mt-3 border-t border-line pt-3 leading-relaxed text-caution">
+        {{ t('meta.sizeWarning', { limit: format.bytes(PROJECT_FILE_WARN_BYTES) }) }}
+      </p>
     </AppPopover>
 
     <span v-else class="min-w-0 flex-1 truncate">{{ t('shell.noProject') }}</span>
