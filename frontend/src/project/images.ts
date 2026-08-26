@@ -219,6 +219,69 @@ function withImages(
 }
 
 /**
+ * 평가용 사진을 붙인다. **`addImages`에 두 가지를 더한다** — 분할을 `provided`로 돌리고
+ * **지금까지의 실험을 전부 지운다.**
+ *
+ * **표의 `applyTestDataset`과 같은 처방이다** (`project/dataset.ts`). 평가셋이 바뀌면
+ * 그 위의 점수가 전부 **다른 것을 잰 값**이 되고, 나란히 놓인 비교표가 거짓말을 한다.
+ * 모델도 함께 버린다 — run이 사라지면 그 모델은 아무도 안 가리키는 본체가 되어 어차피
+ * `writeProject`가 떨어뜨린다.
+ *
+ * **받아도 되는지는 여기서 안 본다.** 범주 대조는 화면 밖의 순수 함수가 하고
+ * (`data/image/test-set.ts`), 화면이 그 이유를 보여준 뒤에만 여기로 온다.
+ */
+export function applyTestImages(
+  project: ProjectFile,
+  baked: readonly BakedImage[],
+  options: AddImagesOptions,
+): AddedImages & { readonly droppedExperiments: number } {
+  const added = addImages(project, baked, { ...options, role: 'test' })
+  const { document } = added.project
+  return {
+    ...added,
+    droppedExperiments: document.runs.experiments.length,
+    project: {
+      ...added.project,
+      document: {
+        ...document,
+        settings: {
+          ...document.settings,
+          split: { ...document.settings.split, method: 'provided' },
+        },
+        runs: { ...document.runs, experiments: [] },
+      },
+      models: new Map(),
+    },
+  }
+}
+
+/**
+ * 평가용 사진을 전부 떼고 분할을 되돌린다. **위의 거울상이다.**
+ *
+ * **되돌릴 길이 없으면 올리는 것 자체가 덫이다** — 표에서 [②]를 골랐다가 [①]로 되돌아갈
+ * 수 있는 것과 같다 (`views/preprocess/TabularPrepPanel.vue`의 `chooseHoldout`).
+ *
+ * 참조는 `removeImages`가 마지막 한 장이 사라질 때 스스로 뗀다. 여기서 더하는 것은
+ * **분할을 `holdout`으로 돌리는 것 하나**다 — 안 돌리면 평가 사진이 없는 `provided`가
+ * 남아 학습이 채점할 것을 못 찾는다.
+ */
+export function clearTestImages(project: ProjectFile, now: string): ProjectFile {
+  const hashes = readImages(project, 'test').map((entry) => entry.hash)
+  const removed = removeImages(project, hashes, now, 'test')
+  const { document } = removed
+  return {
+    ...removed,
+    document: {
+      ...document,
+      settings: {
+        ...document.settings,
+        split: { ...document.settings.split, method: 'holdout' },
+      },
+    },
+  }
+}
+
+/**
  * 자리마다 짝이 되는 참조 필드와 폴더 경로 (mlpx-spec.md §1.2).
  *
  * **참조와 본체는 함께 있고 함께 없다** — 사진을 앉히면서 참조를 안 세우면

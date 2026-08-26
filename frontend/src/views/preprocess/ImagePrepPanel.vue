@@ -12,17 +12,28 @@
  * **같은 함수**에 넘긴다.
  */
 
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AppButton from '@/components/AppButton.vue'
+import { canonicalizeImages } from '@/data/image/client'
+import { spawnCanonicalizeWorker } from '@/data/image/spawn'
+import { testSetBlockFor, testZipBlockFor } from '@/data/image/test-set'
+import { IMAGE_ACCEPT, readImageFiles, readImageZip, type UploadItem } from '@/data/image/upload'
+import { ClientError } from '@/errors'
+import { backboneFor } from '@/ml/backbones'
 import { stratifyBlockFor, stratifyLocked } from '@/ml/selection'
 import { IMAGE_UNLABELED } from '@/project/format'
-import { readImages } from '@/project/images'
+import { dataSettings } from '@/project/schema'
+import { imageRoomShortfall } from '@/data/image/room'
+import { applyTestImages, clearTestImages, imageOverflow, readImages } from '@/project/images'
 import { withSplit } from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
+import { useToastStore } from '@/stores/toasts'
 
 const { t } = useI18n()
 const project = useProjectStore()
+const toasts = useToastStore()
 
 const settings = computed(() => project.file?.document.settings ?? null)
 
@@ -54,6 +65,128 @@ const stratifyDisabled = computed(() =>
   stratifyLocked(stratifyBlockNow.value, settings.value?.split.stratify ?? false),
 )
 
+/** 이 프로젝트의 범주. 평가용 꾸러미를 대조할 목록이다. */
+const categories = computed(() =>
+  settings.value === null ? [] : dataSettings('image', settings.value).categories,
+)
+
+/** 이미 올라온 평가용 사진. 있으면 올리는 자리 대신 지우는 자리가 선다. */
+const testPhotos = computed(() => readImages(project.file, 'test').length)
+
+/**
+ * 자리 자체의 잠금. **판정은 화면 밖에 있다** (`data/image/test-set.ts`) —
+ * 규칙은 `open-decisions.md` "평가용 zip (`split.method = 'provided'`)"이 갖는다.
+ */
+const testBlock = computed(() => testSetBlockFor(categories.value))
+
+const testReason = computed(() => {
+  const block = testBlock.value
+  return block === null ? null : t(`client.${block.code}`, block.params ?? {})
+})
+
+const busy = ref(false)
+
+/**
+ * 꾸러미를 받는 자리가 잠겼는가. **템플릿에서 조립하지 않는다** (architecture.md §10) —
+ * 조건이 둘이 되는 순간이 이름을 붙일 순간이다. 이유는 위 `testReason`이 따로 말한다.
+ */
+const testDisabled = computed(() => testBlock.value !== null || busy.value)
+
+/**
+ * 평가용 꾸러미를 받는다.
+ *
+ * **범주를 먼저 대조하고 그다음에 굽는다.** 굽고 나서 거절하면 학생은 기다린 시간을
+ * 통째로 버린다 — 장수·자리 상한을 굽기 전에 묻는 것과 같은 이유다.
+ */
+async function takeTest(items: readonly UploadItem[]): Promise<void> {
+  const file = project.file
+  if (!file || busy.value || items.length === 0) return
+
+  busy.value = true
+  try {
+    const block = testZipBlockFor(
+      categories.value,
+      items.map((item) => item.category),
+    )
+    if (block) {
+      toasts.push('caution', `client.${block.code}`, block.params ?? {})
+      return
+    }
+
+    const backbone = backboneFor(dataSettings('image', file.document.settings).backboneId)
+    if (!backbone) throw new ClientError('BACKBONE_UNAVAILABLE')
+
+    const overflow = imageOverflow(file, items.length, 'test')
+    if (overflow) throw new ClientError('IMAGE_TOO_MANY_PHOTOS', { ...overflow })
+
+    const shortfall = await imageRoomShortfall(file, items.length, backbone)
+    if (shortfall) throw new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall })
+
+    const baked = await canonicalizeImages(
+      items.map((item) => item.file),
+      { createWorker: spawnCanonicalizeWorker, size: backbone.canonicalSize },
+    ).result
+
+    const byPath = new Map(items.map((item) => [item.path, item.category]))
+    const applied = applyTestImages(
+      file,
+      baked.images.map((image) => ({
+        hash: image.hash,
+        bytes: image.bytes,
+        category: byPath.get(image.sourceName) ?? IMAGE_UNLABELED,
+      })),
+      {
+        canonicalSize: backbone.canonicalSize,
+        now: new Date().toISOString(),
+        format: baked.format,
+      },
+    )
+    await project.save(applied.project)
+
+    toasts.push('success', 'preprocess.testImagesAdded', { count: applied.added })
+    // **조용히 지우지 않는다.** 평가셋이 바뀌면 그 위의 점수는 다른 것을 잰 값이다.
+    if (applied.droppedExperiments > 0) {
+      toasts.push('caution', 'preprocess.testImagesDropped', {
+        count: applied.droppedExperiments,
+      })
+    }
+    if (baked.skipped.length > 0) {
+      toasts.push('caution', 'data.image.skipped', { count: baked.skipped.length })
+    }
+  } catch (error) {
+    toasts.pushError(error)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function onTestPick(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const files = [...(input.files ?? [])]
+  // 같은 것을 다시 고를 수 있어야 한다. 값을 비우지 않으면 change가 다시 안 뜬다.
+  input.value = ''
+  if (files.length === 0) return
+
+  try {
+    const single = files[0]
+    // **꾸러미와 사진 파일을 같은 입구로 받는다** (`data/image/upload.ts`의 IMAGE_ACCEPT).
+    const items =
+      files.length === 1 && single && single.name.toLowerCase().endsWith('.zip')
+        ? await readImageZip(new Uint8Array(await single.arrayBuffer()))
+        : readImageFiles(files)
+    await takeTest(items)
+  } catch (error) {
+    toasts.pushError(error)
+  }
+}
+
+/** 평가용 사진을 전부 떼고 분할로 되돌린다. */
+async function removeTest(): Promise<void> {
+  const file = project.file
+  if (!file) return
+  await project.save(clearTestImages(file, new Date().toISOString()))
+}
+
 /**
  * 체크박스는 **DOM을 파일 값으로 다시 쓴다** (architecture.md §8.15.1). 눌린 것이
  * 곧 값이 아니라, 값이 바뀐 결과가 눌린 상태다.
@@ -79,9 +212,13 @@ function onStratify(event: Event): void {
   <div v-if="settings" class="flex flex-col gap-5">
     <!--
       **평가 데이터를 어디서 받나는 종류별이다** (architecture.md §9.1.1).
-      **지금은 갈래가 하나뿐이라 고르게 하지 않는다** — 사진 꾸러미로 평가 데이터를 받는
-      길은 V4의 마지막에 붙는다 (open-decisions.md "평가용 zip"). 선택지가 하나면 묻지
-      않는 것이 이 저장소의 규칙이고, 라디오 하나짜리 양자택일은 고르는 시늉일 뿐이다.
+      표는 라디오로 갈래를 묻지만 여기는 안 묻는다 — **꾸러미를 올리면 그것이 곧 선택이고,
+      지우면 분할로 돌아온다.** 라디오를 두면 "②를 골랐지만 아직 안 올림"이라는 상태가
+      하나 더 생기는데, 사진에는 표의 미리보기·머리글 같은 중간 단계가 없다.
+
+      **할 일 목록에는 안 올린다** (open-decisions.md "이미지 전처리의 할 일은 없다,
+      그리고 평가용 zip이 와도 안 생긴다). 평가 데이터는 언제나 선택이라 언제나 체크된
+      항목이 되고, 그건 학생에게 아무것도 안 알려 준다.
     -->
     <section class="rounded-panel border border-line bg-surface p-4">
       <h2 class="font-bold">{{ t('preprocess.testDataTitle') }}</h2>
@@ -103,6 +240,38 @@ function onStratify(event: Event): void {
           </label>
           <!-- 이유 없이 회색이면 고장으로 보이고, 켜진 채 걸린 것은 학생이 꺼야 한다. -->
           <p v-if="stratifyReason" class="mt-1 ml-6 text-caution">{{ stratifyReason }}</p>
+        </div>
+
+        <!--
+          **잠기는 자리에는 이유가 함께 있다** (architecture.md §9.4). 범주가 서기 전에는
+          대조할 목록이 없어서 어떤 꾸러미도 판정할 수 없다.
+        -->
+        <div class="border-t border-line pt-4">
+          <h3 class="font-bold">{{ t('preprocess.testImagesTitle') }}</h3>
+
+          <template v-if="testPhotos > 0">
+            <p class="mt-1 text-ink-soft">
+              {{ t('preprocess.testImagesUsing', { count: testPhotos }) }}
+            </p>
+            <AppButton variant="secondary" class="mt-3" :action="removeTest">
+              {{ t('preprocess.testImagesRemove') }}
+            </AppButton>
+          </template>
+
+          <template v-else>
+            <p class="mt-1 text-ink-soft">{{ t('preprocess.testImagesLead') }}</p>
+            <p v-if="testReason" class="mt-1 text-caution">{{ testReason }}</p>
+            <label class="mt-3 inline-flex">
+              <input
+                type="file"
+                multiple
+                class="max-w-full"
+                :accept="IMAGE_ACCEPT"
+                :disabled="testDisabled"
+                @change="onTestPick"
+              />
+            </label>
+          </template>
         </div>
 
         <slot />

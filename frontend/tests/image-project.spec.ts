@@ -10,6 +10,8 @@ import { describe, expect, it } from 'vitest'
 import {
   addCategory,
   addImages,
+  applyTestImages,
+  clearTestImages,
   imageOverflow,
   countByCategory,
   hashesBetween,
@@ -61,6 +63,67 @@ function withPhotos(...items: readonly { hash: string; category: string }[]): Pr
     { canonicalSize: SIZE, now: NOW, format: 'webp' },
   ).project
 }
+
+describe('평가용 사진을 붙이고 뗀다', () => {
+  /** 실험 하나가 든 프로젝트. 평가셋이 바뀌면 이것이 사라져야 한다. */
+  function withExperiment(project: ProjectFile): ProjectFile {
+    return {
+      ...project,
+      document: {
+        ...project.document,
+        runs: {
+          ...project.document.runs,
+          experiments: [
+            { id: 'experiment-1', startedAt: NOW, settings: {}, runs: [] },
+          ] as unknown as ProjectFile['document']['runs']['experiments'],
+        },
+      },
+    }
+  }
+
+  function withTestPhotos(project: ProjectFile) {
+    return applyTestImages(project, [baked('t1', '개'), baked('t2', '고양이')], {
+      canonicalSize: SIZE,
+      now: NOW,
+      format: 'webp',
+    })
+  }
+
+  it('평가 자리에 앉고 학습 자리는 안 건드린다', () => {
+    const base = withPhotos({ hash: 'a', category: '개' }, { hash: 'b', category: '고양이' })
+    const applied = withTestPhotos(base)
+
+    expect(readImages(applied.project, 'test').map((entry) => entry.hash)).toEqual(['t1', 't2'])
+    expect(readImages(applied.project).map((entry) => entry.hash)).toEqual(['a', 'b'])
+  })
+
+  it('분할이 provided로 넘어간다 - 안 넘기면 올려 두고도 비율로 채점한다', () => {
+    const applied = withTestPhotos(withPhotos({ hash: 'a', category: '개' }))
+    expect(applied.project.document.settings.split.method).toBe('provided')
+  })
+
+  it('지금까지의 실험을 지운다 - 평가셋이 바뀌면 그 위의 점수는 다른 것을 잰 값이다', () => {
+    const base = withExperiment(withPhotos({ hash: 'a', category: '개' }))
+    const applied = withTestPhotos(base)
+
+    expect(applied.droppedExperiments).toBe(1)
+    expect(applied.project.document.runs.experiments).toHaveLength(0)
+    // run이 사라지면 그 모델은 아무도 안 가리키는 본체가 된다.
+    expect(applied.project.models.size).toBe(0)
+  })
+
+  it('떼면 분할로 돌아온다 - 되돌릴 길이 없으면 올리는 것 자체가 덫이다', () => {
+    const applied = withTestPhotos(withPhotos({ hash: 'a', category: '개' }))
+    const cleared = clearTestImages(applied.project, NOW)
+
+    expect(readImages(cleared, 'test')).toHaveLength(0)
+    expect(cleared.document.settings.split.method).toBe('holdout')
+    // 참조도 함께 사라져야 저장이 막히지 않는다 (mlpx-spec.md §1.2).
+    expect(dataSettings('image', cleared.document.settings).testDataset).toBeUndefined()
+    // 학습용 사진은 그대로다.
+    expect(readImages(cleared).map((entry) => entry.hash)).toEqual(['a'])
+  })
+})
 
 describe('사진을 프로젝트에 앉힌다', () => {
   it('폴더가 라벨이 된다', () => {

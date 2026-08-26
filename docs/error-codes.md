@@ -181,6 +181,22 @@ PREDICT_DATASET_COLUMN_MISSING
 합집합이라 `TEST_DATASET_COLUMN_MISSING`과 다른 코드이고, **파일을 받을 때와 예측
 직전 두 자리**에서 잡힌다(`open-decisions.md` "붙일 때 본 것을 예측 직전에 다시 본다").
 
+**평가용 사진 꾸러미 받기** (`data/image/test-set.ts`)
+```
+TEST_IMAGES_NEED_CATEGORIES, TEST_IMAGES_CATEGORY_MISSING,
+TEST_IMAGES_CATEGORY_UNKNOWN, TEST_IMAGES_UNLABELED
+```
+
+**던지는 코드가 아니라 화면의 잠금·거절 이유다** — `STRATIFY_NOT_FOR_TASK_TYPE`과 같은
+자리이고, 같은 목록에 두는 이유도 같다(이유 문장이 사는 곳이 `client.*` 하나여야 한다).
+규칙은 `open-decisions.md` "평가용 zip (`split.method = 'provided'`)"이 갖는다 —
+**관용적으로 받지 않고 예측 가능하게 거부한다.** 모르는 범주는 채점할 수 없고 빠진
+범주는 재현율이 정의되지 않는다.
+
+`TEST_IMAGES_NEED_CATEGORIES`는 **자리 자체의 잠금**이다(대조할 목록이 없다).
+나머지 셋은 **학생이 할 일로 나뉜다** — 빠진 범주는 "그 폴더를 채워라", 모르는 범주는
+"그 폴더를 빼라", 폴더 없는 사진은 "폴더로 묶어라".
+
 **사진 올리기** (`data/image/upload.ts`)
 ```
 IMAGE_ZIP_INVALID, IMAGE_ZIP_NO_IMAGES, IMAGE_TOO_MANY_PHOTOS,

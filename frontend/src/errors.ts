@@ -145,6 +145,22 @@ export const CLIENT_ERROR_CODES = [
   // 말과 나눈다** - 같은 코드로 뭉치면 학생이 멀쩡한 학습 데이터를 들여다본다.
   'TEST_DATASET_NO_USABLE_ROWS',
 
+  // 평가용 사진 꾸러미 받기 - data/image/test-set.ts
+  // (open-decisions.md "평가용 zip (`split.method = 'provided'`)").
+  // **던지는 코드가 아니라 화면의 잠금·거절 이유다** - STRATIFY_NOT_FOR_TASK_TYPE과 같은
+  // 자리이고, 같은 목록에 두는 이유도 같다: 이유 문장이 사는 곳이 client.* 하나여야 한다.
+  //
+  // 범주가 아직 없어 대조할 목록이 없다. **자리 자체가 잠긴다** - 열어 두면 학생이
+  // 올린 뒤에야 거절당한다.
+  'TEST_IMAGES_NEED_CATEGORIES',
+  // 아래 둘은 **어긋난 방향마다 나눈다** - 빠진 범주는 "그 폴더를 채워라"이고 모르는
+  // 범주는 "그 폴더를 빼라"라 학생이 할 일이 다르다. 뭉치면 고칠 수 있는 것을 못 고친다.
+  'TEST_IMAGES_CATEGORY_MISSING',
+  'TEST_IMAGES_CATEGORY_UNKNOWN',
+  // 폴더 없이 담긴 사진이 섞여 있다. 정답이 없으므로 채점이 성립하지 않는다.
+  // **위 둘과 나누는 이유는 할 일이 "폴더로 묶어라"이기 때문이다.**
+  'TEST_IMAGES_UNLABELED',
+
   // 예측 데이터(predict.csv) 받기 - data/columns.ts, 그리고 예측 직전 - ml/predict.ts
   // 요구하는 열이 정본 열 전체가 아니라 특성 열의 합집합이라 TEST_DATASET_COLUMN_MISSING과
   // 다른 코드다 (open-decisions.md "일괄 예측은 `행 × 모델` 매트릭스다").
