@@ -12,7 +12,7 @@
 
 import type { ClientErrorParams } from '../../errors'
 import type { Experiment, Run, RunsFile } from '../../project/schema'
-import type { ExperimentInput } from '../experiment'
+import type { ExperimentInput, ExperimentPrelude } from '../experiment'
 import type { ModelFile } from '../models'
 import type { Preprocessor } from '../preprocess'
 
@@ -51,7 +51,27 @@ export type WorkerMessage =
    * "끝난 개수 - 1"로 되짚지 않게 하려고 싣는다. 그 되짚기는 **순차 실행일 때만 맞는
    * 추론**이고, 서버 학습이나 병렬 실행이 붙는 날 조용히 틀린다 (architecture.md §8.17).
    */
-  | { type: 'progress'; run: Run; index: number; completed: number; total: number }
+  | {
+      type: 'progress'
+      run: Run
+      index: number
+      completed: number
+      total: number
+      /**
+       * 방금 담은 모델. **없는 것이 정상이다** — 실패한 run과 직렬화기가 없는 알고리즘은
+       * 지표만 남는다 (mlpx-spec.md §4.2).
+       *
+       * **여기 실리지 않으면 취소가 아무것도 못 건진다.** 모델은 `done`에 몰려 가는데
+       * terminate하면 워커와 함께 사라진다 (open-decisions.md "멈추기가 끝난 것을
+       * 남긴다" §2). 총 전송량은 같고 시점만 앞당겨진다.
+       */
+      model?: ModelFile
+    }
+  /**
+   * 모델 루프에 들어가기 전에 한 번. **취소가 부분 실험을 조립할 재료다**
+   * (같은 결정문 §3). 성공 경로는 이것을 안 쓴다 — `done`이 완성품을 싣는다.
+   */
+  | { type: 'prelude'; prelude: ExperimentPrelude }
   // 모델은 Map으로 간다. 구조화 복제가 Map을 그대로 넘기므로 평평하게 펼 이유가 없다.
   | {
       type: 'done'

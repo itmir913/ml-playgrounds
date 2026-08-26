@@ -22,8 +22,11 @@ export function handleTrain(request: TrainRequest, emit: (message: WorkerMessage
       ...(request.history ? { history: request.history } : {}),
       onRunStart: ({ index, algorithm, runtime }, total) =>
         emit({ type: 'started', index, algorithm, runtime, total }),
-      onRun: (run, completed, total, index) =>
-        emit({ type: 'progress', run, index, completed, total }),
+      // 모델을 함께 싣는다. 이것이 없으면 취소가 지표만 건지고 모델은 워커와 함께
+      // 사라진다 (open-decisions.md "멈추기가 끝난 것을 남긴다" §2).
+      onRun: (run, completed, total, index, model) =>
+        emit({ type: 'progress', run, index, completed, total, ...(model ? { model } : {}) }),
+      onPrelude: (prelude) => emit({ type: 'prelude', prelude }),
     })
     emit({ type: 'done', experiment, preprocessor, models })
   } catch (error) {

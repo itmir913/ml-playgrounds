@@ -334,6 +334,9 @@ async function startTraining(): Promise<void> {
 
   // 지난 실패는 지운다. 새로 돌리는 순간 그건 더 이상 지금의 사실이 아니다.
   failure.value = null
+  // 지난번에 멈춘 것도 마찬가지다. 안 되돌리면 두 번째 학습이 멈춘 적 없이 끝나도
+  // "멈췄습니다"라고 말한다.
+  stopped = false
 
   try {
     /**
@@ -378,7 +381,9 @@ async function startTraining(): Promise<void> {
 
     // 학습하는 동안 학생이 다른 것을 고쳤을 수 있다. 그때의 파일이 아니라 지금 것에 앉힌다.
     project.update(applyExperiment(project.file ?? source.project, result, now()))
-    toasts.push('success', 'train.finished')
+    // **멈춘 것을 "끝났습니다"라고 부르지 않는다.** 학생이 스스로 누른 것이고, 모달이
+    // 약속한 것("끝난 것은 남습니다")을 여기서 확인해 주는 자리다.
+    toasts.push('success', stopped ? 'train.stopped' : 'train.finished')
   } catch (error) {
     // 같은 실패를 알림과 상태 줄 둘 다에 보인다. 알림은 눈에 띄고 상태 줄은 남는다.
     failure.value = toMessage(error)
@@ -386,6 +391,38 @@ async function startTraining(): Promise<void> {
   } finally {
     preparing.value = null
   }
+}
+
+/**
+ * [멈추기]를 눌렀는가. **바로 멈추지 않고 한 번 묻는다**
+ * (open-decisions.md "멈추기가 끝난 것을 남긴다" §5).
+ *
+ * **묻는 순간의 개수를 붙든다.** 학생이 답하는 사이에 하나가 더 끝날 수 있는데, 그때
+ * 남는 것은 말한 것보다 **더** 많다 — 학생이 손해를 보는 방향이 아니다. 반대는
+ * 일어나지 않는다(끝난 것이 줄지 않는다).
+ */
+const stopping = ref<number | null>(null)
+
+/**
+ * 이번 학습이 학생의 [멈추기]로 끝났는가. **알림 문구만 가른다.**
+ *
+ * `ref`가 아니다 - 화면이 읽지 않고 `startTraining` 안에서만 산다. 반응형으로 두면
+ * 읽는 곳이 없는 상태가 하나 더 생긴다.
+ */
+let stopped = false
+
+function askStop(): void {
+  stopping.value = training.progress.value?.completed ?? 0
+}
+
+function keepTraining(): void {
+  stopping.value = null
+}
+
+function confirmStop(): void {
+  stopping.value = null
+  stopped = true
+  training.cancel()
 }
 
 function goResults(): void {
@@ -425,6 +462,7 @@ function leave(): void {
   const to = leavingTo.value
   leavingTo.value = null
   leaving = true
+  stopped = true
   training.cancel()
   if (to) {
     // **중단·리다이렉트는 거부가 아니라 `NavigationFailure`로 이행한다.** `catch`만
@@ -545,7 +583,7 @@ function leave(): void {
           {{ t('train.seeResults') }}
         </AppButton>
 
-        <AppButton v-if="training.running.value" variant="secondary" @click="training.cancel">
+        <AppButton v-if="training.running.value" variant="secondary" @click="askStop">
           {{ t('train.stop') }}
         </AppButton>
         <AppButton v-else :disabled="nothingToTrain" :action="startTraining">
@@ -644,6 +682,22 @@ function leave(): void {
       **이 화면 안에 있어야 한다.** 밖에 두면 루트가 둘이 되고, 그러면 라우트 전환의
       `<Transition>`이 받을 수 없어 작업 공간이 통째로 비어 버린다 (App.vue).
     -->
+    <!--
+      **문구가 끝난 개수로 갈린다. 조립하지 않는다** (CLAUDE.md §3 규칙 3) -
+      0개일 때 "완료된 모델은 기록됩니다"는 거짓이다.
+    -->
+    <AppDialog
+      :open="stopping !== null"
+      :title="t('train.stopTitle')"
+      :description="stopping ? t('train.stopKeeps', { count: stopping }) : t('train.stopNothing')"
+      @close="keepTraining"
+    >
+      <template #actions>
+        <AppButton variant="secondary" @click="keepTraining">{{ t('train.stopStay') }}</AppButton>
+        <AppButton variant="danger" @click="confirmStop">{{ t('train.stopGo') }}</AppButton>
+      </template>
+    </AppDialog>
+
     <AppDialog
       :open="leavingTo !== null"
       :title="t('train.leaveTitle')"

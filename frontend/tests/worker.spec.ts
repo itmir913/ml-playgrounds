@@ -147,6 +147,9 @@ describe('워커 안의 처리', () => {
   it('모델마다 시작과 끝을 보내고 마지막에 결과를 보낸다', () => {
     const messages = collect(requestFor())
     expect(messages.map((message) => message.type)).toEqual([
+      // **첫 모델보다 먼저다.** 취소가 조립할 재료이므로 루프 안에 있으면 늦다
+      // (open-decisions.md "멈추기가 끝난 것을 남긴다" §3).
+      'prelude',
       'started',
       'progress',
       'started',
@@ -155,8 +158,30 @@ describe('워커 안의 처리', () => {
     ])
   })
 
+  it('머리말이 runs 말고 전부 들고 온다 - 취소가 이것으로 조립한다', () => {
+    const first = collect(requestFor())[0]
+    expect(first?.type).toBe('prelude')
+    if (first?.type === 'prelude') {
+      expect(first.prelude.id).toBe('experiment-1')
+      expect(first.prelude.settings.selectedAlgorithms).toHaveLength(2)
+      expect(first.prelude.preprocessor).toBeDefined()
+    }
+  })
+
+  it('끝 보고가 방금 담은 모델을 싣는다 - 취소하면 워커와 함께 사라진다', () => {
+    const finished = collect(requestFor()).filter((message) => message.type === 'progress')
+    expect(finished).not.toHaveLength(0)
+    // 담기는 알고리즘이 하나라도 있으면 그 자리에 모델이 실린다. 직렬화기가 없는
+    // 알고리즘은 지표만 남는 것이 정상이다 (mlpx-spec.md §4.2).
+    const carried = finished.filter(
+      (message) => message.type === 'progress' && message.model !== undefined,
+    )
+    expect(carried.length).toBeGreaterThan(0)
+  })
+
   it('시작 보고가 무엇이 도는지 말한다 - 끝난 개수로는 알 수 없다', () => {
-    const [first] = collect(requestFor())
+    const started = collect(requestFor()).find((message) => message.type === 'started')
+    const first = started
     expect(first?.type).toBe('started')
     if (first?.type === 'started') {
       expect(first.index).toBe(0)

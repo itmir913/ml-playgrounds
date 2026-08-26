@@ -107,7 +107,28 @@ export interface ExperimentOptions {
    * **`index`는 `onRunStart`와 같은 자리다.** 받는 쪽이 "끝난 개수 - 1"로 되짚으면
    * 순차 실행을 가정하는 셈이라, 세는 쪽이 아니라 도는 쪽이 말한다.
    */
-  onRun?: (run: Run, completed: number, total: number, index: number) => void
+  onRun?: (
+    run: Run,
+    completed: number,
+    total: number,
+    index: number,
+    /**
+     * 방금 담은 모델. **없는 것이 정상이다** — 실패한 run과 직렬화기가 없는 알고리즘은
+     * 지표만 남는다 (아래 `ExperimentResult.models`).
+     *
+     * **여기서 함께 넘기지 않으면 취소가 아무것도 못 건진다.** 모델은 `done`에서 한꺼번에
+     * 가는데, terminate하면 워커와 함께 사라진다 (open-decisions.md "멈추기가 끝난 것을
+     * 남긴다" §2).
+     */
+    model: ModelFile | undefined,
+  ) => void
+  /**
+   * 모델 루프에 들어가기 직전에 한 번. **취소가 조립할 재료다** (같은 결정문 §3).
+   *
+   * 성공 경로만 보면 없어도 되는 콜백이다 — `done`이 완성품을 싣기 때문이다. 이것이
+   * 있는 이유는 **끝을 못 보는 경로**이고, 그래서 루프보다 앞이어야 한다.
+   */
+  onPrelude?: (prelude: ExperimentPrelude) => void
   /**
    * 볼 알고리즘 등록부. 없으면 진짜 등록부다.
    *
@@ -116,6 +137,20 @@ export interface ExperimentOptions {
    * 아니라 오늘의 사실이라 그것만 보고 검사를 짜면 규칙이 안 지켜진다.
    */
   algorithms?: readonly Algorithm[]
+}
+
+/**
+ * 실험이 **돌기 전에** 이미 정해져 있는 것 전부. `runs`만 빠져 있다.
+ *
+ * 워커가 루프에 들어가기 전에 이것을 보내면, 취소된 학습도 메인 스레드에서 같은
+ * `assembleExperiment()`로 조립된다 (open-decisions.md "멈추기가 끝난 것을 남긴다" §3).
+ */
+export interface ExperimentPrelude {
+  readonly id: string
+  readonly startedAt: string
+  readonly settings: Experiment['settings']
+  /** 학습된 전처리기. 부분 실험에도 그대로 딸려 간다 — 아래 `ExperimentResult`와 같다. */
+  readonly preprocessor: Preprocessor
 }
 
 export interface ExperimentResult {
@@ -332,6 +367,33 @@ function changedSince(
   return changedPaths(before, after)
 }
 
+/**
+ * 실험을 조립한다. **성공도 취소도 이 함수를 부른다** (open-decisions.md "멈추기가 끝난
+ * 것을 남긴다" §3).
+ *
+ * 취소는 워커를 terminate하므로 부분 실험을 **메인 스레드가** 조립한다. 그때 성공 경로와
+ * 조립이 갈리면 반드시 어긋나고, **어긋난 쪽이 파일로 나간다.** 그래서 한 곳이다.
+ *
+ * `runs` 말고는 전부 모델 루프보다 앞에서 확정되므로, 워커는 루프에 들어가기 전에
+ * 그것들을 한 번 보내고(`prelude`) 메인 스레드는 쌓인 `runs`를 얹기만 하면 된다.
+ */
+export function assembleExperiment(input: {
+  readonly prelude: ExperimentPrelude
+  /** 직전 실험. 없으면 이것이 첫 실험이다. */
+  readonly previous: Experiment | undefined
+  readonly runs: readonly Run[]
+}): Experiment {
+  const { prelude, previous, runs } = input
+  return {
+    id: prelude.id,
+    startedAt: prelude.startedAt,
+    // 첫 실험에는 직전이 없다. 빈 배열은 "아무것도 안 바꿨다"라는 다른 뜻이 된다.
+    ...(previous ? { changed: changedSince(previous, prelude.settings, runs) } : {}),
+    settings: prelude.settings,
+    runs: [...runs],
+  }
+}
+
 /** `experiment-3` 같은 id에서 다음 번호. 번호는 프로젝트 전역이다 (mlpx-spec.md 4). */
 function nextSequence(prefix: string, ids: Iterable<string>): number {
   let highest = 0
@@ -516,6 +578,46 @@ export function runExperiment(
     explicit: selection.runtime !== undefined,
   }))
 
+  /**
+   * **모델보다 먼저 확정한다.** 여기 있는 것 중 루프가 정하는 값이 하나도 없으므로
+   * 앞으로 끌어올 수 있고, 그래야 취소된 학습도 조립할 재료를 갖는다
+   * (open-decisions.md "멈추기가 끝난 것을 남긴다" §3).
+   */
+  const experimentSettings: Experiment['settings'] = {
+    taskType,
+    runtime: settings.runtime,
+    // explicit은 요청을 만드는 동안만 쓰는 값이라 파일에 남기지 않는다.
+    // 스냅샷에는 결과적으로 무엇을 요청했는지만 있으면 된다.
+    selectedAlgorithms: requested.map(({ algorithm, runtime }) => ({ algorithm, runtime })),
+    // 데이터 종류별 스냅샷 (mlpx-spec.md §4). **부르는 쪽이 지어서 준다** — 정본 참조가
+    // 여기 없는 것과 같은 이유이고(실험이 보장하는 것은 같은 데이터·전처리·분할이다),
+    // 이미지는 계산에 쓴 표가 아니라 범주와 백본이 기록이다.
+    data: snapshot,
+    split: settings.split,
+    // 선택 항목이다 - 안 뽑은 실험에는 아예 없다 (schema.ts). undefined를 그대로 넣으면
+    // 그 키가 파일에 `null`로 남거나 사라지는 것이 직렬화에 달리게 된다.
+    ...(settings.nSamples === undefined ? {} : { nSamples: settings.nSamples }),
+    // **사본을 남긴다.** 계획이 들고 있는 배열을 그대로 넣으면 파일에 적힌 것과
+    // 도는 것이 같은 객체가 된다.
+    trainIndices: [...split.trainIndices],
+    testIndices: [...split.testIndices],
+  }
+
+  const previous = experiments[experiments.length - 1]
+
+  const prelude: ExperimentPrelude = {
+    id: `experiment-${nextSequence(
+      'experiment',
+      experiments.map((experiment) => experiment.id),
+    )}`,
+    startedAt,
+    settings: experimentSettings,
+    preprocessor,
+  }
+
+  // **루프 앞이다.** 끝을 못 보는 경로가 이것을 재료로 쓴다.
+  options.onPrelude?.(prelude)
+
   const runs: Run[] = []
   const models = new Map<string, ModelFile>()
   for (const [index, { algorithm, runtime: wanted, explicit }] of requested.entries()) {
@@ -573,43 +675,13 @@ export function runExperiment(
     }
 
     const finished = runs[runs.length - 1]
-    if (finished) options.onRun?.(finished, runs.length, total, index)
+    if (finished) {
+      options.onRun?.(finished, runs.length, total, index, models.get(finished.id))
+    }
   }
-
-  const experimentSettings: Experiment['settings'] = {
-    taskType,
-    runtime: settings.runtime,
-    // explicit은 요청을 만드는 동안만 쓰는 값이라 파일에 남기지 않는다.
-    // 스냅샷에는 결과적으로 무엇을 요청했는지만 있으면 된다.
-    selectedAlgorithms: requested.map(({ algorithm, runtime }) => ({ algorithm, runtime })),
-    // 데이터 종류별 스냅샷 (mlpx-spec.md §4). **부르는 쪽이 지어서 준다** — 정본 참조가
-    // 여기 없는 것과 같은 이유이고(실험이 보장하는 것은 같은 데이터·전처리·분할이다),
-    // 이미지는 계산에 쓴 표가 아니라 범주와 백본이 기록이다.
-    data: snapshot,
-    split: settings.split,
-    // 선택 항목이다 - 안 뽑은 실험에는 아예 없다 (schema.ts). undefined를 그대로 넣으면
-    // 그 키가 파일에 `null`로 남거나 사라지는 것이 직렬화에 달리게 된다.
-    ...(settings.nSamples === undefined ? {} : { nSamples: settings.nSamples }),
-    // **사본을 남긴다.** 계획이 들고 있는 배열을 그대로 넣으면 파일에 적힌 것과
-    // 도는 것이 같은 객체가 된다.
-    trainIndices: [...split.trainIndices],
-    testIndices: [...split.testIndices],
-  }
-
-  const previous = experiments[experiments.length - 1]
 
   return {
-    experiment: {
-      id: `experiment-${nextSequence(
-        'experiment',
-        experiments.map((experiment) => experiment.id),
-      )}`,
-      startedAt,
-      // 첫 실험에는 직전이 없다. 빈 배열은 "아무것도 안 바꿨다"라는 다른 뜻이 된다.
-      ...(previous ? { changed: changedSince(previous, experimentSettings, runs) } : {}),
-      settings: experimentSettings,
-      runs,
-    },
+    experiment: assembleExperiment({ prelude, previous, runs }),
     preprocessor,
     models,
   }

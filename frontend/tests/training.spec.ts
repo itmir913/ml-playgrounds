@@ -73,6 +73,30 @@ const DONE = {
   models: new Map(),
 } as unknown as WorkerMessage
 
+/**
+ * 모델 루프에 들어가기 전에 오는 머리말. **취소가 이것으로 조립한다**
+ * (open-decisions.md "멈추기가 끝난 것을 남긴다" §3).
+ */
+const PRELUDE = {
+  type: 'prelude',
+  prelude: {
+    id: 'experiment-7',
+    startedAt: '2026-08-05T09:00:00Z',
+    settings: { selectedAlgorithms: [{ algorithm: 'decision_tree', runtime: 'mljs' }] },
+    preprocessor: { format: 'x' },
+  },
+} as unknown as WorkerMessage
+
+/** 담긴 모델 하나를 실은 끝 보고. */
+const PROGRESS_WITH_MODEL = {
+  type: 'progress',
+  run: RUN,
+  index: 0,
+  completed: 1,
+  total: 3,
+  model: { format: 'y' },
+} as unknown as WorkerMessage
+
 function requestFor(count: number): TrainRequest {
   const selectedAlgorithms = Array.from({ length: count }, () => ({ algorithm: 'decision_tree' }))
   return { type: 'train', input: { settings: { selectedAlgorithms } } } as unknown as TrainRequest
@@ -201,6 +225,48 @@ describe('끝나는 길', () => {
     expect(latest()?.terminated).toBe(1)
     // 다음 학습을 바로 시작할 수 있어야 한다.
     expect(training.running.value).toBe(false)
+  })
+
+  it('멈추면 끝난 것이 남는다 - 담은 다섯 중 셋이 끝났으면 셋을 건넨다', async () => {
+    const { training, latest } = harness()
+    const done = training.run(requestFor(3))
+
+    latest()?.emit(PRELUDE)
+    latest()?.emit(PROGRESS_WITH_MODEL)
+    training.cancel()
+
+    const result = await done
+    // **null이 아니다.** 이 한 줄이 이 변경의 전부다.
+    expect(result?.experiment.id).toBe('experiment-7')
+    expect(result?.experiment.runs).toHaveLength(1)
+    // 지표만 건지면 소용이 없다 - 모델이 없으면 예측도 재현도 못 한다.
+    expect(result?.models.get('run-1')).toBeDefined()
+    expect(latest()?.terminated).toBe(1)
+    expect(training.running.value).toBe(false)
+  })
+
+  it('끝난 것이 없으면 아무것도 안 남긴다 - 잘못 누른 흔적을 쌓지 않는다', async () => {
+    const { training, latest } = harness()
+    const done = training.run(requestFor(3))
+
+    // 머리말은 왔지만 첫 모델이 아직 안 끝났다.
+    latest()?.emit(PRELUDE)
+    training.cancel()
+
+    expect(await done).toBeNull()
+  })
+
+  it('취소한 뒤에 도착한 보고는 안 쌓인다 - terminate가 즉시 조용해지지 않는다', async () => {
+    const { training, latest } = harness()
+    const done = training.run(requestFor(3))
+
+    latest()?.emit(PRELUDE)
+    latest()?.emit(PROGRESS_WITH_MODEL)
+    training.cancel()
+    // 이미 정해진 뒤다. 여기서 쌓이면 결과가 나중에 바뀐다.
+    latest()?.emit(PROGRESS_WITH_MODEL)
+
+    expect((await done)?.experiment.runs).toHaveLength(1)
   })
 
   it('나머지 실패는 그대로 올라간다 - 알림은 화면이 띄운다', async () => {

@@ -15,7 +15,8 @@
 
 import { ClientError, failureDetail, toClientErrorCode } from '../../errors'
 import type { Run } from '../../project/schema'
-import type { ExperimentResult } from '../experiment'
+import { assembleExperiment, type ExperimentPrelude, type ExperimentResult } from '../experiment'
+import type { ModelFile } from '../models'
 import type { TrainRequest, WorkerMessage } from './protocol'
 
 /**
@@ -93,8 +94,21 @@ export function train(request: TrainRequest, options: TrainOptions): TrainHandle
     act()
   }
 
+  /**
+   * 취소가 조립할 재료. **모으는 이유는 끝을 못 보는 경로 하나뿐이다**
+   * (open-decisions.md "멈추기가 끝난 것을 남긴다" §3). 성공하면 `done`이 완성품을
+   * 싣고 오므로 아래 셋은 쓰이지 않는다.
+   */
+  let prelude: ExperimentPrelude | null = null
+  const runs: Run[] = []
+  const models = new Map<string, ModelFile>()
+
   worker.onmessage = (event) => {
     const message = event.data
+    if (message.type === 'prelude') {
+      if (!finished) prelude = message.prelude
+      return
+    }
     if (message.type === 'started') {
       // 취소한 뒤에 도착한 보고는 버린다 - progress와 같은 이유다.
       if (!finished) {
@@ -105,8 +119,11 @@ export function train(request: TrainRequest, options: TrainOptions): TrainHandle
     }
     if (message.type === 'progress') {
       // 취소한 뒤에 도착한 보고는 버린다. terminate가 즉시 조용해지지는 않는다.
-      if (!finished)
+      if (!finished) {
+        runs.push(message.run)
+        if (message.model) models.set(message.run.id, message.model)
         options.onProgress?.(message.run, message.completed, message.total, message.index)
+      }
       return
     }
     if (message.type === 'done') {
@@ -148,6 +165,33 @@ export function train(request: TrainRequest, options: TrainOptions): TrainHandle
 
   return {
     result,
-    cancel: () => settle(() => reject(new ClientError('JOB_CANCELLED'))),
+    /**
+     * 멈춘다. **끝난 모델이 하나라도 있으면 그것을 실험으로 돌려준다**
+     * (open-decisions.md "멈추기가 끝난 것을 남긴다" §4).
+     *
+     * **0개면 지금까지처럼 JOB_CANCELLED다.** 남길 것이 없는데 빈 실험을 만들면 학생이
+     * 잘못 누른 흔적만 목록에 쌓인다. 그 규칙이 "잘못 눌러서"와 "오래 걸려서 그만"을
+     * 자동으로 가른다.
+     *
+     * `prelude`가 없으면 첫 모델도 시작하기 전이므로 runs도 비어 있다 — 둘을 함께
+     * 보는 것은 타입을 위한 것이지 다른 경우를 위한 것이 아니다.
+     */
+    cancel: () =>
+      settle(() => {
+        if (prelude === null || runs.length === 0) {
+          reject(new ClientError('JOB_CANCELLED'))
+          return
+        }
+        resolve({
+          experiment: assembleExperiment({
+            prelude,
+            // 직전 실험. 워커가 성공 경로에서 보는 것과 같은 자리다.
+            previous: request.history?.experiments?.at(-1),
+            runs,
+          }),
+          preprocessor: prelude.preprocessor,
+          models,
+        })
+      }),
   }
 }
