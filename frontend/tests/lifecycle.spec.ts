@@ -24,7 +24,8 @@ import { inputVector, predictableModels, trainingRowsFor } from '../src/ml/predi
 import { interpreterFor, loadModel } from '../src/ml/models'
 import { parsePreprocessor, targetValues, type Dataset } from '../src/ml/preprocess'
 import { applyExperiment } from '../src/project/attach'
-import { readProject, writeProject, type ProjectFile } from '../src/project/format'
+import { readProject, type ProjectFile } from '../src/project/format'
+import { writeProjectBytes } from './fixtures/write'
 import { readDataset } from '../src/project/dataset'
 import {
   dataSnapshot,
@@ -148,7 +149,7 @@ async function trainAndReopen(
     '2026-08-06T00:00:00.000Z',
   )
 
-  const { bytes } = await writeProject(applied, '# 정리\n')
+  const { bytes } = await writeProjectBytes(applied, '# 정리\n')
   return (await readProject(bytes)).project
 }
 

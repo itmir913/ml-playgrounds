@@ -22,7 +22,8 @@ import {
   removeEmbeddings,
 } from '../src/project/embeddings'
 import { newProjectDocument } from '../src/project/create'
-import { readProject, writeProject, type ProjectFile } from '../src/project/format'
+import { readProject, type ProjectFile } from '../src/project/format'
+import { writeProjectBytes } from './fixtures/write'
 import { addImages, readImages, removeImages } from '../src/project/images'
 
 /**
@@ -210,7 +211,7 @@ describe('프로젝트에 앉는다', () => {
 
 describe('.mlpx를 왕복한다', () => {
   async function roundTrip(project: ProjectFile): Promise<ProjectFile> {
-    const { bytes } = await writeProject(project, '# 포트폴리오')
+    const { bytes } = await writeProjectBytes(project, '# 포트폴리오')
     const { project: opened } = await readProject(bytes)
     return opened
   }
@@ -304,10 +305,10 @@ describe('열 때 등록부에 없는 백본을 떨어뜨린다', () => {
     const vector = encodeVector(new Float32Array([1, 2, 3, 4]))
 
     /**
-     * **파일을 손으로 짓는다.** 우리 `writeProject`는 옛 백본의 임베딩을 담아 주지
+     * **파일을 손으로 짓는다.** 우리 `writeProjectBytes`는 옛 백본의 임베딩을 담아 주지
      * 않으므로(그쪽도 떨어뜨린다) 그 zip을 만들 다른 길이 없다.
      */
-    const { bytes } = await writeProject(
+    const { bytes } = await writeProjectBytes(
       { ...project, embeddings: new Map([[embeddingPath(BACKBONE, only!.hash), vector]]) },
       '',
     )

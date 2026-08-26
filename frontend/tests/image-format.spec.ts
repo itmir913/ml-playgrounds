@@ -18,9 +18,9 @@ import {
   IMAGE_DATA_DIR,
   IMAGE_TEST_DIR,
   readProject,
-  writeProject,
   type ProjectFile,
 } from '../src/project/format'
+import { writeProjectBytes } from './fixtures/write'
 import { embeddingPath } from '../src/project/embeddings'
 import { readImages, removeImages } from '../src/project/images'
 import { parseHashes } from '../src/project/integrity'
@@ -82,7 +82,7 @@ function imageProject(overrides: Partial<ProjectFile> = {}): ProjectFile {
 describe('이미지 프로젝트의 왕복', () => {
   it('사진이 그대로 돌아온다', async () => {
     const before = imageProject()
-    const { bytes } = await writeProject(before, markdown)
+    const { bytes } = await writeProjectBytes(before, markdown)
     const { project: after, integrity } = await readProject(bytes)
 
     expect([...after.images.keys()].sort()).toEqual([...before.images.keys()].sort())
@@ -96,7 +96,7 @@ describe('이미지 프로젝트의 왕복', () => {
   })
 
   it('라벨은 폴더가 갖는다 - zip 경로가 그대로 범주다', async () => {
-    const { bytes } = await writeProject(imageProject(), markdown)
+    const { bytes } = await writeProjectBytes(imageProject(), markdown)
     const paths = Object.keys(unzipSync(bytes)).filter((path) => path.startsWith(IMAGE_DATA_DIR))
 
     expect(paths).toHaveLength(2)
@@ -109,7 +109,7 @@ describe('이미지 프로젝트의 왕복', () => {
 
   it('사진 한 장마다 해시 항목이 있다', async () => {
     const project = imageProject()
-    const { bytes } = await writeProject(project, markdown)
+    const { bytes } = await writeProjectBytes(project, markdown)
     const hashes = parseHashes(
       JSON.parse(new TextDecoder().decode(unzipSync(bytes)['hashes.json'])),
     )
@@ -133,7 +133,7 @@ describe('이미지 프로젝트의 왕복', () => {
         ]),
       ),
     })
-    const { bytes } = await writeProject(project, markdown)
+    const { bytes } = await writeProjectBytes(project, markdown)
     const { integrity } = await readProject(bytes)
 
     expect(integrity.status).toBe('UNCHANGED')
@@ -145,7 +145,7 @@ describe('이미지 프로젝트의 왕복', () => {
   })
 
   it('사진 한 장만 바뀌어도 잡힌다', async () => {
-    const { bytes } = await writeProject(imageProject(), markdown)
+    const { bytes } = await writeProjectBytes(imageProject(), markdown)
     const entries = unzipSync(bytes)
     const target = Object.keys(entries).find((path) => path.startsWith(IMAGE_DATA_DIR))
     // 파일 이름은 그대로 두고 바이트만 바꾼다. **이름이 해시라 원래는 있을 수 없는 상태**이고,
@@ -167,7 +167,7 @@ describe('이미지 프로젝트의 왕복', () => {
       format: 'webp',
       quality: 0.65,
     }
-    const { bytes } = await writeProject(project, markdown)
+    const { bytes } = await writeProjectBytes(project, markdown)
     const { project: after } = await readProject(bytes)
 
     expect([...after.images.keys()].filter((path) => path.startsWith(IMAGE_TEST_DIR))).toHaveLength(
@@ -183,7 +183,7 @@ describe('참조와 본체는 함께 있고 함께 없다', () => {
       attachments: new Map(),
       embeddings: new Map(),
     })
-    await expect(writeProject(project, markdown)).rejects.toSatisfy(
+    await expect(writeProjectBytes(project, markdown)).rejects.toSatisfy(
       (error: unknown) => isClientError(error) && error.code === 'PROJECT_FILE_INVALID',
     )
   })
@@ -191,14 +191,14 @@ describe('참조와 본체는 함께 있고 함께 없다', () => {
   it('사진은 있는데 참조가 없으면 저장이 거부된다', async () => {
     const project = imageProject()
     delete project.document.settings.data.dataset
-    await expect(writeProject(project, markdown)).rejects.toSatisfy(
+    await expect(writeProjectBytes(project, markdown)).rejects.toSatisfy(
       (error: unknown) => isClientError(error) && error.code === 'PROJECT_FILE_INVALID',
     )
   })
 
   it('참조만 남은 파일은 열 때 거부된다', async () => {
     const project = imageProject()
-    const { bytes } = await writeProject(project, markdown)
+    const { bytes } = await writeProjectBytes(project, markdown)
     // 누군가 zip에서 사진만 빼냈다. 열어 주면 저장도 내보내기도 못 하는 상태가 된다.
     const entries = unzipSync(bytes)
     for (const path of Object.keys(entries)) {
@@ -225,7 +225,7 @@ describe('사진을 다 지운 프로젝트도 저장된다', () => {
       '2026-08-12T10:00:00.000Z',
     )
 
-    const { bytes } = await writeProject(emptied, markdown)
+    const { bytes } = await writeProjectBytes(emptied, markdown)
     const { project: opened } = await readProject(bytes)
     expect(opened.images.size).toBe(0)
     expect(opened.document.settings.data.dataset).toBeUndefined()

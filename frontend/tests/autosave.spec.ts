@@ -28,14 +28,22 @@ import { emptyProjectFile, manifest, projectFile } from './fixtures/project'
 import { hashBytes } from '../src/hash'
 import type { ProjectFile } from '../src/project/format'
 
-const downloads: { fileName: string; bytes: Uint8Array }[] = []
+const downloads: { fileName: string; blob: Blob }[] = []
 
 vi.mock('../src/project/download', () => ({
-  downloadBytes: (bytes: Uint8Array, fileName: string) => {
-    downloads.push({ bytes, fileName })
+  // 나가는 것은 이제 Blob이다 - 완성된 배열을 만들지 않는다 (project/format.ts의 zipToBlob).
+  downloadBlob: (blob: Blob, fileName: string) => {
+    downloads.push({ blob, fileName })
   },
   readFileBytes: async (file: File) => new Uint8Array(await file.arrayBuffer()),
 }))
+
+/** 내려간 파일의 바이트. **여기서만 전체를 편다** - 나가는 경로는 안 그런다. */
+async function downloadedBytes(index: number): Promise<Uint8Array> {
+  const entry = downloads[index]
+  if (entry === undefined) throw new Error(`내려간 파일이 없다: ${index}`)
+  return new Uint8Array(await entry.blob.arrayBuffer())
+}
 
 async function deleteDatabase(): Promise<void> {
   await new Promise<void>((resolve) => {
@@ -217,7 +225,7 @@ describe('내보내기', () => {
 
     expect(downloads).toHaveLength(1)
     expect(downloads[0]?.fileName.endsWith('.mlpx')).toBe(true)
-    expect((downloads[0]?.bytes.length ?? 0) > 0).toBe(true)
+    expect((downloads[0]?.blob.size ?? 0) > 0).toBe(true)
   })
 
   it('미뤄 둔 저장을 먼저 끝낸다 - 방금 쓴 글이 빠진 파일이 나가면 안 된다', async () => {
@@ -253,12 +261,12 @@ describe('내보내기', () => {
 
     await project.exportFile(markdown)
 
-    const bytes = downloads[0]?.bytes
-    expect(bytes, '내려보낸 바이트').toBeDefined()
+    expect(downloads[0]?.blob, '내려보낸 파일').toBeDefined()
+    const bytes = await downloadedBytes(0)
 
     // 여는 것 자체가 zip과 필수 엔트리를 다 요구한다. 그 위에 무게가 있는 것 둘을 본다 -
     // 미뤄 둔 저장이 반영된 이름과, 표가 통째로 실려 나갔는가.
-    const { project: reopened, integrity } = await readProject(bytes as Uint8Array)
+    const { project: reopened, integrity } = await readProject(bytes)
     expect(reopened.document.manifest.name).toBe('나간 파일에 담겨야 하는 이름')
     expect(reopened.dataset?.bytes).toEqual(projectFile().dataset?.bytes)
     expect(reopened.models.size).toBe(projectFile().models.size)

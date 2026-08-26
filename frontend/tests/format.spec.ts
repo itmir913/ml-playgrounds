@@ -20,6 +20,7 @@ import {
   selectModels,
   writeProject,
 } from '../src/project/format'
+import { writeProjectBytes } from './fixtures/write'
 import { FORMAT_VERSION } from '../src/project/schema'
 import {
   experiment,
@@ -37,7 +38,7 @@ import {
 const markdown = '# 나의 AI 모델 정리\n'
 
 async function roundTrip(project: ProjectFile): Promise<ProjectFile> {
-  const { bytes } = await writeProject(project, markdown)
+  const { bytes } = await writeProjectBytes(project, markdown)
   return (await readProject(bytes)).project
 }
 
@@ -60,13 +61,13 @@ describe('표를 아직 안 올린 프로젝트', () => {
   })
 
   it('zip 안에 dataset/이 아예 없다', async () => {
-    const { bytes } = await writeProject(emptyProjectFile(), markdown)
+    const { bytes } = await writeProjectBytes(emptyProjectFile(), markdown)
     const paths = Object.keys(unzipSync(bytes))
     expect(paths.filter((path) => path.startsWith('dataset/'))).toEqual([])
   })
 
   it('그래도 hashes.json은 나온다 - 나머지 엔트리는 대조할 수 있다', async () => {
-    const { bytes, contentHash } = await writeProject(emptyProjectFile(), markdown)
+    const { bytes, contentHash } = await writeProjectBytes(emptyProjectFile(), markdown)
     expect(contentHash).not.toBe('')
     expect(Object.keys(unzipSync(bytes))).toContain(ENTRY.hashes)
   })
@@ -76,13 +77,43 @@ describe('표를 아직 안 올린 프로젝트', () => {
     const broken = emptyProjectFile()
     broken.document.settings.data.dataset = projectFile().document.settings.data.dataset
 
-    await expect(writeProject(broken, markdown)).rejects.toSatisfy(isClientError)
+    await expect(writeProjectBytes(broken, markdown)).rejects.toSatisfy(isClientError)
   })
 
   it('본체만 있고 참조가 없어도 저장을 거부한다', async () => {
     const broken = { ...emptyProjectFile(), dataset: projectFile().dataset }
 
-    await expect(writeProject(broken, markdown)).rejects.toSatisfy(isClientError)
+    await expect(writeProjectBytes(broken, markdown)).rejects.toSatisfy(isClientError)
+  })
+})
+
+describe('내보내는 길', () => {
+  it('나가는 것은 Blob이다 - 완성된 배열을 만들지 않는다', async () => {
+    const { blob } = await writeProject(projectFile(), markdown)
+    expect(blob).toBeInstanceOf(Blob)
+    expect(blob.size).toBeGreaterThan(0)
+  })
+
+  it('내보내도 원본이 살아 있다 - 두 번째 내보내기가 죽지 않는다', async () => {
+    // **비동기 압축기는 넘겨준 버퍼를 워커로 transfer한다.** 원본을 그대로 넘기면
+    // 열려 있는 프로젝트의 데이터셋이 그 자리에서 detach되고, 두 번째 내보내기는
+    // DataCloneError로 죽는다. 그 사이 화면이 읽는 바이트도 함께 사라진다.
+    const project = projectFile()
+    const before = project.dataset?.bytes
+    expect(before, '검사 자체가 표 있는 프로젝트를 봐야 한다').toBeDefined()
+    const length = before?.length ?? 0
+    expect(length).toBeGreaterThan(0)
+
+    const first = await writeProject(project, markdown)
+    // 원본이 그대로다. detach되면 length가 0이 된다.
+    expect(project.dataset?.bytes.length).toBe(length)
+
+    const second = await writeProject(project, markdown)
+    expect(second.blob.size).toBe(first.blob.size)
+
+    // 두 번째로 나간 것도 멀쩡히 열린다.
+    const reopened = await open(new Uint8Array(await second.blob.arrayBuffer()))
+    expect(reopened.dataset?.bytes).toEqual(before)
   })
 })
 
@@ -159,7 +190,7 @@ describe('왕복', () => {
   })
 
   it('portfolio/document.md가 파일에 들어간다 - 도구 없이 받은 사람도 읽는다', async () => {
-    const { bytes } = await writeProject(projectFile(), markdown)
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
     const entries = unzipSync(bytes)
     expect(new TextDecoder().decode(entries[ENTRY.portfolioMarkdown])).toBe(markdown)
   })
@@ -167,7 +198,7 @@ describe('왕복', () => {
 
 describe('평가 데이터(test.csv)', () => {
   it('holdout이면 zip에 test.csv가 없다', async () => {
-    const { bytes } = await writeProject(projectFile(), markdown)
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
     expect(Object.keys(unzipSync(bytes))).not.toContain('dataset/test.csv')
   })
 
@@ -179,7 +210,7 @@ describe('평가 데이터(test.csv)', () => {
 
   it('참조만 있고 본체가 없으면 저장을 거부한다', async () => {
     const broken = { ...projectFileWithTestDataset(), testDataset: undefined }
-    await expect(writeProject(broken, markdown)).rejects.toSatisfy(isClientError)
+    await expect(writeProjectBytes(broken, markdown)).rejects.toSatisfy(isClientError)
   })
 
   it('본체만 있고 참조가 없어도 저장을 거부한다', async () => {
@@ -188,11 +219,11 @@ describe('평가 데이터(test.csv)', () => {
       ...projectFile(),
       testDataset: withTest.testDataset,
     }
-    await expect(writeProject(broken, markdown)).rejects.toSatisfy(isClientError)
+    await expect(writeProjectBytes(broken, markdown)).rejects.toSatisfy(isClientError)
   })
 
   it('test.csv가 없으면 열기를 거부한다 - 재현도 재학습도 못 한다', async () => {
-    const { bytes } = await writeProject(projectFileWithTestDataset(), markdown)
+    const { bytes } = await writeProjectBytes(projectFileWithTestDataset(), markdown)
     const entries = unzipSync(bytes)
     delete entries['dataset/test.csv']
 
@@ -207,7 +238,7 @@ describe('평가 데이터(test.csv)', () => {
 
 describe('예측 데이터(predict.csv)', () => {
   it('안 올렸으면 zip에 predict.csv가 없다', async () => {
-    const { bytes } = await writeProject(projectFile(), markdown)
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
     expect(Object.keys(unzipSync(bytes))).not.toContain('dataset/predict.csv')
   })
 
@@ -226,7 +257,7 @@ describe('예측 데이터(predict.csv)', () => {
 
   it('참조만 있고 본체가 없으면 저장을 거부한다', async () => {
     const broken = { ...projectFileWithPredictDataset(), predictDataset: undefined }
-    await expect(writeProject(broken, markdown)).rejects.toSatisfy(isClientError)
+    await expect(writeProjectBytes(broken, markdown)).rejects.toSatisfy(isClientError)
   })
 
   it('본체만 있고 참조가 없어도 저장을 거부한다', async () => {
@@ -235,11 +266,11 @@ describe('예측 데이터(predict.csv)', () => {
       ...projectFile(),
       predictDataset: withPredict.predictDataset,
     }
-    await expect(writeProject(broken, markdown)).rejects.toSatisfy(isClientError)
+    await expect(writeProjectBytes(broken, markdown)).rejects.toSatisfy(isClientError)
   })
 
   it('predict.csv가 없으면 열기를 거부한다', async () => {
-    const { bytes } = await writeProject(projectFileWithPredictDataset(), markdown)
+    const { bytes } = await writeProjectBytes(projectFileWithPredictDataset(), markdown)
     const entries = unzipSync(bytes)
     delete entries['dataset/predict.csv']
 
@@ -254,19 +285,19 @@ describe('예측 데이터(predict.csv)', () => {
 
 describe('모르는 엔트리', () => {
   it('쓰레기 엔트리는 다시 저장할 때 사라진다', async () => {
-    const { bytes } = await writeProject(projectFile(), markdown)
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
     const entries = unzipSync(bytes)
     entries['__MACOSX/._manifest.json'] = new Uint8Array([1, 2, 3])
     entries['.DS_Store'] = new Uint8Array([4, 5])
 
     const reopened = await open(zipSync(entries))
-    const written = unzipSync((await writeProject(reopened, markdown)).bytes)
+    const written = unzipSync((await writeProjectBytes(reopened, markdown)).bytes)
     expect(Object.keys(written)).not.toContain('__MACOSX/._manifest.json')
     expect(Object.keys(written)).not.toContain('.DS_Store')
   })
 
   it('아무도 가리키지 않는 고아 모델이 청소된다', async () => {
-    const { bytes } = await writeProject(projectFile(), markdown)
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
     const entries = unzipSync(bytes)
     entries['model/run-9.json'] = new TextEncoder().encode('{"orphan":true}')
 
@@ -277,7 +308,7 @@ describe('모르는 엔트리', () => {
 
 describe('모델 참조가 어긋난 파일', () => {
   it('모델 파일이 없으면 지표만 남기고 파일은 열린다', async () => {
-    const { bytes } = await writeProject(projectFile(), markdown)
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
     const entries = unzipSync(bytes)
     delete entries['model/run-1.json']
 
@@ -288,7 +319,7 @@ describe('모델 참조가 어긋난 파일', () => {
   })
 
   it('전처리기가 없으면 그 실험의 모델도 쓸 수 없다', async () => {
-    const { bytes } = await writeProject(projectFile(), markdown)
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
     const entries = unzipSync(bytes)
     delete entries['model/preprocessor-experiment-1.json']
 
@@ -305,7 +336,7 @@ describe('모델 참조가 어긋난 파일', () => {
     const target = project.document.runs.experiments[0]?.runs[0]
     if (target?.model) target.model = { ...target.model, includesPreprocessing: true }
 
-    const { bytes } = await writeProject(project, markdown)
+    const { bytes } = await writeProjectBytes(project, markdown)
     const entries = unzipSync(bytes)
     delete entries['model/preprocessor-experiment-1.json']
 
@@ -373,7 +404,7 @@ describe('크기 예산', () => {
     const project = projectFile()
     project.models.set('model/run-1.json', filler(MAX_MODEL_BYTES + 1))
 
-    const result = await writeProject(project, markdown)
+    const result = await writeProjectBytes(project, markdown)
     expect(result.dropped).toHaveLength(1)
     expect(result.dropped[0]?.reason).toBe('tooLarge')
     expect(result.bytes.length).toBeGreaterThan(0)
@@ -425,7 +456,7 @@ describe('크기 예산', () => {
     const project = projectFile()
     project.models.set('model/run-1.json', filler(MAX_MODEL_BYTES + 1))
 
-    const written = unzipSync((await writeProject(project, markdown)).bytes)
+    const written = unzipSync((await writeProjectBytes(project, markdown)).bytes)
     expect(Object.keys(written)).not.toContain('model/preprocessor-experiment-1.json')
   })
 })
@@ -435,7 +466,7 @@ describe('모델을 왜 뺐는지 파일에 남는다', () => {
     const project = projectFile()
     project.models.set('model/run-1.json', filler(MAX_MODEL_BYTES + 1))
 
-    const reopened = await open((await writeProject(project, markdown)).bytes)
+    const reopened = await open((await writeProjectBytes(project, markdown)).bytes)
     expect(reopened.document.runs.experiments[0]?.runs[0]?.modelOmitted).toBe('tooLarge')
   })
 
@@ -464,14 +495,14 @@ describe('모델을 왜 뺐는지 파일에 남는다', () => {
     // 지난번 저장에서 밀렸다가, 이번에는 예산에 여유가 생겨 담기는 상황이다.
     if (first) first.modelOmitted = 'overBudget'
 
-    const reopened = await open((await writeProject(project, markdown)).bytes)
+    const reopened = await open((await writeProjectBytes(project, markdown)).bytes)
     expect(reopened.document.runs.experiments[0]?.runs[0]?.model).toBeDefined()
     expect(reopened.document.runs.experiments[0]?.runs[0]?.modelOmitted).toBeUndefined()
   })
 
   it('파일에 모델이 없어서 뗀 것에는 사유를 지어내지 않는다', async () => {
     // 읽을 때는 왜 없는지 모른다. 파일에 적혀 있던 것이 그 답이고, 없으면 없는 것이다.
-    const { bytes } = await writeProject(projectFile(), markdown)
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
     const entries = unzipSync(bytes)
     delete entries['model/run-1.json']
 
@@ -490,7 +521,7 @@ describe('열 수 없는 파일', () => {
   })
 
   it('필수 엔트리가 없으면 무엇이 없는지 알려준다', async () => {
-    const { bytes } = await writeProject(projectFile(), markdown)
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
     const entries = unzipSync(bytes)
     delete entries[ENTRY.manifest]
 
@@ -503,7 +534,7 @@ describe('열 수 없는 파일', () => {
   })
 
   it('데이터셋이 없으면 거부한다 - 재학습도 해시 재계산도 불가능하다', async () => {
-    const { bytes } = await writeProject(projectFile(), markdown)
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
     const entries = unzipSync(bytes)
     delete entries['dataset/data.csv']
 
@@ -516,7 +547,7 @@ describe('열 수 없는 파일', () => {
   })
 
   it('JSON이 깨졌으면 어느 엔트리인지 알려준다', async () => {
-    const { bytes } = await writeProject(projectFile(), markdown)
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
     const entries = unzipSync(bytes)
     entries[ENTRY.settings] = new TextEncoder().encode('{ broken')
 
@@ -534,7 +565,7 @@ describe('열 수 없는 파일', () => {
       ...project.document,
       manifest: { ...manifest, formatVersion: FORMAT_VERSION + 1 },
     }
-    const { bytes } = await writeProject(project, markdown)
+    const { bytes } = await writeProjectBytes(project, markdown)
 
     await expect(readProject(bytes)).rejects.toSatisfy(
       (error: unknown) => isClientError(error) && error.code === 'PROJECT_FILE_VERSION_TOO_NEW',
@@ -550,7 +581,7 @@ describe('열 수 없는 파일', () => {
       ...project.document,
       manifest: { ...manifest, formatVersion: FORMAT_VERSION + 1 },
     }
-    const { bytes } = await writeProject(project, markdown)
+    const { bytes } = await writeProjectBytes(project, markdown)
     const entries = unzipSync(bytes)
     delete entries[ENTRY.portfolio]
 
@@ -563,7 +594,7 @@ describe('열 수 없는 파일', () => {
 describe('경로가 어긋난 파일', () => {
   /** settings.json을 손으로 고친 파일을 만든다. */
   async function withSettings(mutate: (settings: { data: { dataset: { path: string } } }) => void) {
-    const { bytes } = await writeProject(projectFile(), markdown)
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
     const entries = unzipSync(bytes)
     const settings = JSON.parse(new TextDecoder().decode(entries[ENTRY.settings])) as {
       data: { dataset: { path: string } }
@@ -579,7 +610,7 @@ describe('경로가 어긋난 파일', () => {
       experiments: { preprocessor?: { path: string }; runs: { model?: { path: string } }[] }[]
     }) => void,
   ) {
-    const { bytes } = await writeProject(projectFile(), markdown)
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
     const entries = unzipSync(bytes)
     const runs = JSON.parse(new TextDecoder().decode(entries[ENTRY.runs])) as {
       experiments: { preprocessor?: { path: string }; runs: { model?: { path: string } }[] }[]
@@ -750,7 +781,7 @@ describe('포트폴리오 첨부', () => {
   })
 
   it('무결성 대조가 사진을 본다 - 바꿔치기하면 잡힌다', async () => {
-    const { bytes: file } = await writeProject(withAttachment(), markdown)
+    const { bytes: file } = await writeProjectBytes(withAttachment(), markdown)
     const entries = unzipSync(file)
     entries[path] = new Uint8Array([9, 9, 9, 9])
 
@@ -790,7 +821,7 @@ describe('포트폴리오 첨부', () => {
   })
 
   it('참조만 남은 파일을 열면 그 자리에서 짝이 맞는다', async () => {
-    const { bytes: file } = await writeProject(withAttachment(), markdown)
+    const { bytes: file } = await writeProjectBytes(withAttachment(), markdown)
     const entries = unzipSync(file)
     delete entries[path]
 

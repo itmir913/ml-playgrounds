@@ -14,7 +14,7 @@
  * 아무도 가리키지 않는 고아 모델이다. 실어 나를 이유가 없다.
  */
 
-import { unzip, zip, type Unzipped } from 'fflate'
+import { AsyncZipDeflate, unzip, Zip, type Unzipped } from 'fflate'
 
 import { ClientError } from '../errors'
 import { hashBytes } from '../hash'
@@ -285,7 +285,16 @@ export interface DroppedModel {
 }
 
 export interface WriteResult {
-  bytes: Uint8Array
+  /**
+   * 나갈 파일. **`Uint8Array`가 아니다** — 완성된 배열을 만들면 그 크기만큼이 자바스크립트
+   * 힙에 그대로 앉고, `Blob`이 그것을 또 붙든다. `Blob`은 브라우저가 관리해서 디스크로
+   * 내려갈 수 있다 (open-decisions.md "상한은 누가 정했느냐로 갈리고, 우리 기기가 정한
+   * 것은 끌 수 있다" §4).
+   *
+   * 바이트가 필요한 검사는 `blob.arrayBuffer()`로 편다 — 그 자리에서만 전체가 메모리에
+   * 올라오고, 나가는 경로는 안 그런다.
+   */
+  blob: Blob
   /** 예산 때문에 담지 못한 모델. 화면은 이걸 경고로 보여준다. */
   dropped: DroppedModel[]
   /** 방금 쓴 파일의 내용 해시. 저장 화면이 학생에게 보여주고 교사가 수거 시점에 적어둔다. */
@@ -330,13 +339,64 @@ async function unzipAsync(bytes: Uint8Array): Promise<Unzipped> {
   })
 }
 
-async function zipAsync(entries: Record<string, Uint8Array>): Promise<Uint8Array> {
+/**
+ * 엔트리를 zip으로 **흘려 담는다.** 완성된 `Uint8Array`를 만들지 않는다.
+ *
+ * **내보내기의 OOM만이 우리 몫이다** (open-decisions.md "상한은 누가 정했느냐로 갈리고,
+ * 우리 기기가 정한 것은 끌 수 있다" §4). 탭이 죽으면 회복이 없고, 서버가 없어 이 파일이
+ * 학생의 유일한 반출 경로다.
+ *
+ * 예전에는 `zip()`이 전체를 담은 배열 하나를 만들어 주고 `Blob`이 그것을 또 붙들었다.
+ * 지금은 청크가 나오는 대로 모아 `new Blob(parts)`로 넘긴다 — **`Blob`은 브라우저가
+ * 관리해서 디스크로 내려갈 수 있고, `Uint8Array`는 자바스크립트 힙에 그대로 남는다.**
+ *
+ * **입력 스트리밍은 여기서 안 한다.** 그건 `ProjectFile` 모양 자체의 재설계라 같은
+ * 결정문이 범위 밖으로 두었다. `showSaveFilePicker`도 마찬가지로 점진적 향상이다 —
+ * 파이어폭스·사파리·iOS에 없고, `http://192.168.x.x`로 띄운 자가호스팅 학교에서는
+ * 보안 컨텍스트가 아니라 아예 없다.
+ */
+async function zipToBlob(entries: Record<string, Uint8Array>): Promise<Blob> {
   return new Promise((resolve, reject) => {
-    // 비동기 API를 쓴다. 동기 API는 큰 CSV에서 저사양 PC의 화면을 몇 초씩 얼린다.
-    zip(entries, { level: 6 }, (error, bytes) => {
-      if (error) reject(error)
-      else resolve(bytes)
+    const parts: Uint8Array[] = []
+    let settled = false
+
+    const stream = new Zip((error, chunk, final) => {
+      if (settled) return
+      if (error) {
+        settled = true
+        reject(error)
+        return
+      }
+      // **사본을 뜬다.** fflate는 내부 버퍼를 돌려 쓸 수 있어서, 그대로 붙들면 다음
+      // 청크가 앞의 것을 덮어쓴다. 여기서 뜨는 사본은 청크 하나 크기다.
+      parts.push(chunk.slice())
+      if (final) {
+        settled = true
+        resolve(new Blob(parts as unknown as BlobPart[], { type: 'application/zip' }))
+      }
     })
+
+    try {
+      for (const [path, bytes] of Object.entries(entries)) {
+        // 비동기 압축이다. 동기로 하면 큰 CSV에서 저사양 PC의 화면이 몇 초씩 언다.
+        const file = new AsyncZipDeflate(path, { level: 6 })
+        stream.add(file)
+        // **사본을 넘긴다. 원본을 넘기면 그 자리에서 파괴된다.** 비동기 압축기는 버퍼를
+        // 워커로 transfer하는데, 여기 오는 것은 열려 있는 프로젝트가 **지금 쓰고 있는**
+        // 데이터셋과 사진이다. 그대로 넘기면 첫 내보내기 뒤 원본이 detach되어 두 번째
+        // 내보내기가 DataCloneError로 죽고, 그 사이 화면이 읽는 바이트도 사라진다.
+        //
+        // 사본은 **엔트리 하나 크기**다. 사진은 장마다 엔트리가 갈려서 작고, 큰 것은
+        // 표 하나뿐이라 예전의 "전체 zip을 배열로 한 벌 더"와는 자릿수가 다르다.
+        file.push(bytes.slice(), true)
+      }
+      stream.end()
+    } catch (error) {
+      if (!settled) {
+        settled = true
+        reject(error)
+      }
+    }
   })
 }
 
@@ -925,7 +985,7 @@ export async function writeProject(
   )
   entries[ENTRY.hashes] = encodeJson(hashes)
 
-  return { bytes: await zipAsync(entries), dropped, contentHash: hashes.contentHash }
+  return { blob: await zipToBlob(entries), dropped, contentHash: hashes.contentHash }
 }
 
 function sanitizeSegment(value: string): string {

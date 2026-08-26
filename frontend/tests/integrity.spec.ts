@@ -13,7 +13,8 @@ import { unzipSync, zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
 import { hashBytes } from '../src/hash'
-import { ENTRY, readProject, writeProject, type ProjectFile } from '../src/project/format'
+import { ENTRY, readProject, type ProjectFile } from '../src/project/format'
+import { writeProjectBytes } from './fixtures/write'
 import { checkHashes, parseHashes, type ProjectHashes } from '../src/project/integrity'
 import { dataSettings } from '../src/project/schema'
 import {
@@ -27,7 +28,7 @@ const markdown = '# 나의 AI 모델 정리\n'
 const DATASET_PATH = 'dataset/data.csv'
 
 async function written(project: ProjectFile = projectFile()): Promise<Record<string, Uint8Array>> {
-  const { bytes } = await writeProject(project, markdown)
+  const { bytes } = await writeProjectBytes(project, markdown)
   return unzipSync(bytes)
 }
 
@@ -66,7 +67,7 @@ describe('저장할 때 남기는 것', () => {
   })
 
   it('저장 결과가 contentHash를 돌려준다 - 교사가 수거 시점에 적어둘 값이다', async () => {
-    const result = await writeProject(projectFile(), markdown)
+    const result = await writeProjectBytes(projectFile(), markdown)
     expect(result.contentHash).toBe(readHashes(unzipSync(result.bytes)).contentHash)
   })
 
@@ -79,8 +80,8 @@ describe('저장할 때 남기는 것', () => {
   })
 
   it('내용이 같으면 contentHash가 같다 - 제출물을 가로질러 보는 신호가 된다', async () => {
-    const first = await writeProject(projectFile(), markdown)
-    const second = await writeProject(projectFile(), markdown)
+    const first = await writeProjectBytes(projectFile(), markdown)
+    const second = await writeProjectBytes(projectFile(), markdown)
     expect(second.contentHash).toBe(first.contentHash)
   })
 })
@@ -138,7 +139,7 @@ describe('엔트리 종류가 늘어도 빠지지 않는다', () => {
   })
 
   it('그 파일을 다시 열면 엔트리 전부가 대조 대상이 된다', async () => {
-    const { bytes } = await writeProject(everything(), markdown)
+    const { bytes } = await writeProjectBytes(everything(), markdown)
     const { integrity } = await readProject(bytes)
 
     expect(integrity.status).toBe('UNCHANGED')
@@ -153,7 +154,7 @@ describe('엔트리 종류가 늘어도 빠지지 않는다', () => {
 
 describe('열 때 하는 대조', () => {
   it('손대지 않은 파일은 고쳐진 흔적이 없다', async () => {
-    const { bytes } = await writeProject(projectFile(), markdown)
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
     const { integrity } = await readProject(bytes)
 
     expect(integrity.status).toBe('UNCHANGED')
@@ -227,7 +228,7 @@ describe('열 때 하는 대조', () => {
   })
 
   it('다시 압축해도 contentHash는 그대로다 - zip 바이트가 아니라 내용의 해시다', async () => {
-    const { bytes } = await writeProject(projectFile(), markdown)
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
     const original = (await readProject(bytes)).integrity.computedContentHash
 
     const repacked = zipSync(unzipSync(bytes), { level: 0 })
@@ -241,7 +242,7 @@ describe('열 때 하는 대조', () => {
    * 순서 보존은 zip 도구가 보장하는 성질이 아니다 - 맥·윈도우 탐색기·7-Zip이 각자 다르다.
    */
   it('엔트리 순서가 뒤집혀도 contentHash는 그대로다', async () => {
-    const { bytes } = await writeProject(projectFile(), markdown)
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
     const original = (await readProject(bytes)).integrity.computedContentHash
 
     const unzipped = unzipSync(bytes)
@@ -256,7 +257,7 @@ describe('열 때 하는 대조', () => {
   })
 
   it('데이터셋 해시를 파일에서 다시 계산한다 - 적힌 값을 믿지 않는다', async () => {
-    const { project } = await readProject((await writeProject(projectFile(), markdown)).bytes)
+    const { project } = await readProject((await writeProjectBytes(projectFile(), markdown)).bytes)
     expect(project.dataset?.hash).toBe(hashBytes(datasetBytes))
   })
 })
@@ -348,7 +349,7 @@ describe('무결성 정보가 없거나 깨진 파일', () => {
     delete entries[ENTRY.hashes]
 
     const { project } = await readProject(zipSync(entries))
-    const { integrity } = await readProject((await writeProject(project, markdown)).bytes)
+    const { integrity } = await readProject((await writeProjectBytes(project, markdown)).bytes)
     expect(integrity.status).toBe('UNCHANGED')
   })
 })

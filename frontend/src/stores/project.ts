@@ -10,7 +10,7 @@ import { computed, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 
 import { AUTOSAVE_DELAY_MS } from '@/limits'
-import { downloadBytes } from '@/project/download'
+import { downloadBlob } from '@/project/download'
 import {
   projectFileName,
   writeProject,
@@ -241,7 +241,7 @@ export const useProjectStore = defineStore('project', () => {
     //
     // 막으면 무슨 일이 나는지가 이 try의 이유다. flush()는 저장소가 모자라면
     // STORAGE_QUOTA_EXCEEDED를 던지는데, 그것을 그대로 올려보내면 아래 writeProject도
-    // downloadBytes도 한 줄을 못 돈다 - **파일을 만들 재료가 전부 메모리에 있고
+    // downloadBlob도 한 줄을 못 돈다 - **파일을 만들 재료가 전부 메모리에 있고
     // 저장소를 한 바이트도 안 쓰는 작업인데도 그렇다.** 게다가 write()는 실패해도
     // dirty를 안 내리므로 그 뒤의 모든 내보내기가 같은 자리에서 죽는다.
     // 서버가 없고 결과물이 파일 하나인 도구에서 그것은 **학생이 작업을 기기 밖으로
@@ -257,8 +257,8 @@ export const useProjectStore = defineStore('project', () => {
     const current = file.value
     if (current === null) return []
 
-    const { bytes, dropped } = await writeProject(current, portfolioMarkdown)
-    downloadBytes(bytes, projectFileName(current.document.manifest))
+    const { blob, dropped } = await writeProject(current, portfolioMarkdown)
+    downloadBlob(blob, projectFileName(current.document.manifest))
 
     // **여기서부터는 파일이 이미 나갔다.** markExported는 IndexedDB에 쓰므로 저장소가
     // 모자라면 던지는데, 그것을 올려보내면 화면이 성공한 내보내기를 실패로 말한다.
