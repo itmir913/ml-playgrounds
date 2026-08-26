@@ -114,7 +114,7 @@
             color: var(--ink-faint);
         }
 
-        footer a { color: var(--brand); }
+        footer a { color: var(--brand); margin-right: 1rem; }
     </style>
 </head>
 <body>
@@ -137,6 +137,12 @@
 </main>
 
 <footer>
+    <!--
+      **소개 페이지만 절대 주소다.** 다른 링크는 전부 상대 경로여서 학교가 직접 띄운
+      자가호스팅을 따라가지만, 소개 페이지는 배포 위치와 무관하게 한 곳에만 있다.
+      고치지 마라 - 상대 경로로 바꾸면 자가호스팅에서 없는 주소를 가리킨다.
+    -->
+    <a href="https://luminousky.com/teacher-utility-kit/ml-playgrounds/" id="about"></a>
     <a href="../" id="back"></a>
 </footer>
 
@@ -155,6 +161,7 @@
     "noticesTitle": "Open source licenses",
     "noticesBody": "The open source this app ships and the permission notices that come with it.",
     "noticesNote": "Provided in English only.",
+    "about": "About this app",
     "back": "Back to the app"
   },
   "ko": {
@@ -166,6 +173,7 @@
     "noticesTitle": "오픈소스 라이선스",
     "noticesBody": "이 앱이 함께 싣고 있는 오픈소스와 그 허가문.",
     "noticesNote": "영어로만 제공됩니다.",
+    "about": "소개 페이지",
     "back": "앱으로 돌아가기"
   }
 }
@@ -206,6 +214,12 @@
         document.getElementById('notices-body').textContent = dict.noticesBody
         document.getElementById('notices-note').textContent = dict.noticesNote
         document.getElementById('back').textContent = dict.back
+
+        // 소개 페이지는 ?lang= 을 읽는다. 여기서 고른 언어를 그대로 넘겨
+        // 두 페이지가 서로 다른 언어로 열리지 않게 한다.
+        var about = document.getElementById('about')
+        about.textContent = dict.about
+        about.href = 'https://luminousky.com/teacher-utility-kit/ml-playgrounds/?lang=' + locale
 
         // **방침은 한 장만 가리킨다.** 고른 언어의 것이다.
         document.getElementById('privacy').href = './privacy.' + locale + '.html'
