@@ -25,6 +25,8 @@ import ProjectPicker from '@/components/ProjectPicker.vue'
 import { DATA_KINDS, DEFAULT_DATA_TYPE } from '@/data/kinds'
 import { ROUTE_PROJECT_HOME } from '@/router'
 import { ACTION_ICONS } from '@/icons'
+import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
+import { NOTICES_PATH, privacyPath } from '@/legal'
 import { MAX_FILE_NAME_LENGTH } from '@/limits'
 import { newProjectDocument, newProjectSeed } from '@/project/create'
 import type { DataType } from '@/project/schema'
@@ -36,6 +38,14 @@ import { useToastStore } from '@/stores/toasts'
 const { t, locale } = useI18n()
 const router = useRouter()
 const toasts = useToastStore()
+
+/**
+ * 지금 언어의 개인정보 처리방침. **vue-i18n의 `locale`은 문자열이라 한 번 좁힌다** -
+ * 없는 언어의 주소를 만들면 학생이 404를 보고, 그것은 링크가 없는 것보다 나쁘다.
+ */
+const privacyHref = computed(() =>
+  privacyPath(isSupportedLocale(locale.value) ? locale.value : FALLBACK_LOCALE),
+)
 
 const summaries = ref<ProjectSummary[]>([])
 
@@ -209,8 +219,11 @@ onMounted(refresh)
     저장된 것이 있을 때만 아래에 조용히 붙는다 - 가정 PC에서는 남아 있고, 그때는
     이어서 하는 것이 필요하다.
   -->
-  <div class="flex min-h-full items-center justify-center p-6">
-    <div v-if="ready" class="flex w-full max-w-xl flex-col items-center gap-8">
+  <div class="flex min-h-full flex-col p-6">
+    <div
+      v-if="ready"
+      class="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center gap-8"
+    >
       <div class="text-center">
         <h2 class="text-3xl font-black tracking-tight">{{ t('app.name') }}</h2>
         <p class="mt-3 leading-relaxed text-ink-soft">{{ t('app.tagline') }}</p>
@@ -309,5 +322,33 @@ onMounted(refresh)
         </template>
       </AppDialog>
     </div>
+
+    <!--
+      **규정으로 나가는 유일한 문이다.** 고지는 산출물에 구워지는데 여기가 없으면
+      앱 주소만 받은 사람은 도달할 길이 없다 — 랜딩 푸터는 다른 저장소의 페이지다
+      (`open-decisions.md` "바깥에 내놓는 규정은 앱이 데리고 간다").
+
+      **첫 화면에만 둔다.** 작업 중에 상시 보이면 셸이 넷을 넘는다
+      (`architecture.md` §8.6). 아래에 붙이므로 가운데 정렬을 흔들지 않는다.
+    -->
+    <footer
+      v-if="ready"
+      class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 pt-8 text-ink-faint"
+    >
+      <a
+        :href="privacyHref"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="rounded-control transition-colors hover:text-ink-soft hover:underline"
+        >{{ t('legal.privacy') }}</a
+      >
+      <a
+        :href="NOTICES_PATH"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="rounded-control transition-colors hover:text-ink-soft hover:underline"
+        >{{ t('legal.notices') }}</a
+      >
+    </footer>
   </div>
 </template>

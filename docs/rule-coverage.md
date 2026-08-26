@@ -44,6 +44,7 @@
 | §3 규칙 3·4 한 문장은 한 키 · 사용자 데이터는 괄호로 | `i18n-usage.spec.ts` · `locales.spec.ts` |
 | §3 지원 언어마다 내장 양식 파일이 있는가 | `portfolio-preset.spec.ts` — 없는 언어는 en으로 떨어지는데 **떨어진 것과 빠뜨린 것을 화면에서 구분할 수 없다.** 파일이 남았는데 언어가 없는 것도 함께 본다 |
 | §4 `any` 금지 | ESLint `@typescript-eslint/no-explicit-any` |
+| §3 지원 언어마다 **바깥에 내놓는 처리방침**이 있는가 | `legal.spec.ts` — `public/legal/`은 앱 번들 밖이라 **`src/`를 훑는 검사도 타입도 린트도 안 온다.** 언어를 늘리는 것은 `SUPPORTED_LOCALES` 한 줄인데 서랍은 안 따라오고, 그러면 그 언어를 고른 학생이 404를 본다. 조 번호가 얼려 있는지와 조문이 로케일 JSON으로 샜는지도 같은 파일이 본다 — **번호는 학교가 제출한 체크리스트의 증빙 칸이 인용하는 주소다** |
 | §4 Tailwind 임의 값 금지 | `ui-rules.spec.ts`의 `RULES` |
 | §4 가장 작은 글자가 `text-base` | `ui-rules.spec.ts`의 `RULES` |
 | §4 오래 걸리는 버튼은 `action` | `ui-rules.spec.ts`("버튼이 두 번 눌리지 않는다") |

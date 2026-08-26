@@ -3,6 +3,10 @@
     "name": "Machine Learning Playgrounds",
     "tagline": "별도의 프로그램 설치 없이 인공지능을 자유롭게 즐겨 보세요. 데이터만 있으면 누구나 기계학습 모델을 만들고, 그 과정을 하나의 프로젝트로 남길 수 있습니다."
   },
+  "legal": {
+    "privacy": "개인정보 처리방침",
+    "notices": "오픈소스 라이선스"
+  },
   "nav": {},
   "dataTypes": {
     "image": "이미지 데이터",

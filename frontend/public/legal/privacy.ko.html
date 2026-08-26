@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<!--
+  개인정보 처리방침 — **바깥에 내놓는 정본이다.**
+
+  왜 랜딩이 아니라 여기 있는지, 왜 앱 안에 전문을 안 넣는지는
+  `docs/open-decisions.md` "바깥에 내놓는 규정은 앱이 데리고 간다"에 있다.
+  우리끼리 보는 정책과 이 문서의 관계는 `docs/privacy.md`가 갖는다.
+
+  **조 번호를 다시 매기지 마라.** 학교가 제출한 필수기준 체크리스트의 증빙 칸이
+  조문이 아니라 번호를 적는다 — 번호를 바꾸면 이미 나간 서류가 살아 있는 채로
+  엉뚱한 곳을 가리킨다. `frontend/tests/legal.spec.ts`가 막는다.
+
+  **로케일마다 한 장씩 있어야 한다.** 파일 이름의 접미사가 `i18n.ts`의
+  `SUPPORTED_LOCALES`와 맞물리고, 앱이 그 이름으로 직접 링크한다 —
+  언어를 늘리고 이 서랍을 안 채우면 학생이 404를 본다. 같은 검사가 막는다.
+
+  앱 번들 밖이라 Tailwind가 없다. 스타일은 이 파일이 전부 갖는다.
+-->
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>개인정보 처리방침 | Machine Learning Playgrounds</title>
+    <style>
+        :root {
+            --ink: #1f2937;
+            --ink-soft: #4b5563;
+            --ink-faint: #6b7280;
+            --surface: #ffffff;
+            --canvas: #f8fafc;
+            --line: #e2e8f0;
+            --brand: #4f46e5;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --ink: #e5e7eb;
+                --ink-soft: #cbd5e1;
+                --ink-faint: #94a3b8;
+                --surface: #111827;
+                --canvas: #0b1120;
+                --line: #1f2937;
+                --brand: #a5b4fc;
+            }
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 2.5rem 1.25rem 5rem;
+            background: var(--canvas);
+            color: var(--ink);
+            /* 학교 PC에 없는 글꼴을 요구하지 않는다. 이 문서는 인쇄되기도 한다. */
+            font-family: "Pretendard Variable", Pretendard, -apple-system, "Segoe UI",
+                         "Malgun Gothic", sans-serif;
+            /* 가장 작은 글자가 16px이다. 읽는 사람이 교사와 학운위 위원이다. */
+            font-size: 1rem;
+            line-height: 1.75;
+            word-break: keep-all;
+            overflow-wrap: break-word;
+        }
+
+        main {
+            max-width: 46rem;
+            margin: 0 auto;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 1rem;
+            padding: 2.5rem 2rem;
+        }
+
+        h1 { font-size: 1.75rem; line-height: 1.4; margin: 0 0 0.5rem; }
+
+        h2 {
+            font-size: 1.125rem;
+            margin: 2.5rem 0 0.75rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--line);
+        }
+
+        h2:first-of-type { border-top: 0; padding-top: 0; }
+
+        p, li { color: var(--ink-soft); margin: 0.75rem 0; }
+        ul { padding-left: 1.25rem; }
+        strong { color: var(--ink); }
+        a { color: var(--brand); }
+
+        .lead { color: var(--ink-faint); margin-bottom: 2rem; }
+
+        .scope {
+            background: var(--canvas);
+            border: 1px solid var(--line);
+            border-radius: 0.75rem;
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0 0;
+        }
+
+        .scope p { margin: 0.4rem 0; }
+
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+
+        th, td {
+            border: 1px solid var(--line);
+            padding: 0.6rem 0.75rem;
+            text-align: left;
+            vertical-align: top;
+            color: var(--ink-soft);
+        }
+
+        th { background: var(--canvas); color: var(--ink); font-weight: 700; }
+
+        footer {
+            max-width: 46rem;
+            margin: 1.5rem auto 0;
+            color: var(--ink-faint);
+            font-size: 0.95rem;
+        }
+
+        footer a { margin-right: 1rem; }
+
+        @media print {
+            body { background: #fff; color: #000; padding: 0; }
+            main { border: 0; padding: 0; max-width: none; }
+            footer { display: none; }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <h1>개인정보 처리방침</h1>
+    <p class="lead">Machine Learning Playgrounds · 시행일 2026년 8월 15일</p>
+
+    <p>
+        Machine Learning Playgrounds(이하 &ldquo;이 앱&rdquo;)는 <strong>이용자의 개인정보를
+        수집하지 않습니다.</strong> 이 앱은 서버 없이 이용자의 웹브라우저 안에서만 동작하며,
+        데이터 업로드·학습·예측·저장이 모두 이용자의 기기에서 이루어집니다. 이 방침은 그
+        사실과 그로부터 따라 나오는 것들을 밝히기 위한 문서입니다.
+    </p>
+
+    <div class="scope">
+        <p><strong>이 방침이 적용되는 범위</strong></p>
+        <p>
+            <code>https://luminousky.com/ml-playgrounds/</code> 에서 제공되는 이 앱과, 같은
+            소스로 학교가 직접 설치해 운영하는 경우에 적용됩니다.
+        </p>
+        <p>
+            이 앱을 소개하는 별도의 안내 페이지와, 이 앱으로 만든 결과물을 이용자가 제출·공유하는
+            다른 서비스는 이 방침의 적용 대상이 아닙니다.
+        </p>
+    </div>
+
+    <h2 id="article-1">제1조 (처리하는 개인정보의 항목, 목적, 보유기간)</h2>
+    <p>
+        이 앱은 개인정보를 <strong>수집하지 않습니다.</strong> 회원가입과 로그인 절차가 없으며,
+        이름·학번·학교·연락처를 포함한 어떠한 인적사항도 입력받아 전송하거나 저장하지 않습니다.
+        따라서 수집 항목과 보유기간이 존재하지 않습니다.
+    </p>
+    <p>
+        다만 이용자가 프로젝트를 <strong>파일로 내보낼 때</strong>, 제출물에 표시할 목적으로
+        학번과 이름을 직접 입력할 수 있습니다. 이는 선택 사항이며, <strong>입력한 값은 이용자의
+        기기에 저장되는 프로젝트 파일 안에만 기록됩니다.</strong> 이 앱은 그 값을 전송하지도,
+        별도로 보관하지도 않습니다. 해당 파일의 보관·제출·삭제는 전적으로 이용자가 관리합니다.
+    </p>
+
+    <h2 id="article-2">제2조 (개인정보의 제3자 제공)</h2>
+    <p>
+        이 앱은 개인정보를 수집하지 않으므로 <strong>제3자에게 제공하는 개인정보가
+        없습니다.</strong> 이용자가 업로드한 데이터와 학습 결과는 이용자의 브라우저를 벗어나지
+        않습니다.
+    </p>
+
+    <h2 id="article-3">제3조 (개인정보 처리의 위탁)</h2>
+    <p>
+        이 앱은 개인정보를 수집하지 않으므로 <strong>처리를 위탁하는 개인정보가 없습니다.</strong>
+        이 앱을 인터넷에 게시하기 위해 이용하는 호스팅 서비스에 대해서는 제7조에 밝힙니다.
+    </p>
+
+    <h2 id="article-4">제4조 (개인정보의 파기)</h2>
+    <p>
+        이 앱이 보관하는 개인정보가 없으므로 <strong>파기 대상이 존재하지 않습니다.</strong>
+        이용자가 작업 중인 프로젝트는 이용자 기기의 브라우저 저장소(IndexedDB)에 보관되며, 이는
+        이용자가 언제든지 직접 삭제할 수 있습니다. 삭제 방법은 제5조에 있습니다.
+    </p>
+
+    <h2 id="article-5">제5조 (이용자의 권리와 행사 방법)</h2>
+    <p>
+        이 앱이 보관하는 개인정보가 없으므로 열람·정정·삭제·처리정지를 요구할 대상이 없습니다.
+        이용자가 만든 자료는 처음부터 끝까지 <strong>이용자 자신의 기기 안에 있으며, 직접
+        확인하고 지울 수 있습니다.</strong>
+    </p>
+    <ul>
+        <li><strong>프로젝트 삭제</strong> — 앱의 첫 화면에서 프로젝트 목록을 열고 삭제합니다.</li>
+        <li><strong>브라우저에 남은 것 전부 삭제</strong> — 브라우저의 &ldquo;인터넷 사용 기록
+            삭제&rdquo;에서 이 사이트의 저장 데이터(쿠키 및 기타 사이트 데이터)를 지웁니다.</li>
+        <li><strong>내보낸 파일 삭제</strong> — 이용자가 내려받은 프로젝트 파일을 기기에서 직접
+            삭제합니다. 학번·이름을 입력했다면 그 값은 이 파일 안에만 있습니다.</li>
+    </ul>
+
+    <h2 id="article-6">제6조 (개인정보의 안전성 확보 조치)</h2>
+    <p>
+        이 앱은 개인정보를 수집하지 않는 방식 자체를 가장 우선한 안전조치로 삼습니다. 아울러
+        다음을 유지합니다.
+    </p>
+    <ul>
+        <li><strong>전송하지 않습니다.</strong> 업로드한 데이터, 학습 결과, 입력한 학번·이름은
+            네트워크로 전송되지 않습니다.</li>
+        <li><strong>보관하지 않습니다.</strong> 이 앱을 제공하기 위한 서버가 없으며, 이용자별
+            자료를 담는 데이터베이스를 운영하지 않습니다.</li>
+        <li><strong>암호화된 연결로 제공합니다.</strong> 이 앱은 HTTPS로만 제공됩니다.</li>
+        <li><strong>소스 코드를 공개합니다.</strong> 위 내용은 누구나 소스 코드에서 직접 확인할
+            수 있습니다.</li>
+    </ul>
+    <p>
+        학교가 이 앱을 직접 설치해 운영하는 경우, 서버는 계산만 수행하며 이용자의 자료를 영구
+        저장하지 않습니다. 그 서버의 운영과 관리 책임은 설치한 기관에 있습니다.
+    </p>
+
+    <h2 id="article-7">제7조 (자동 수집 장치와 외부 자원)</h2>
+    <p>
+        이 앱은 <strong>이용자를 식별하거나 분석하기 위한 쿠키를 사용하지 않으며, 접속 통계
+        도구나 광고 도구를 설치하지 않습니다.</strong> 브라우저 저장소(IndexedDB)를 사용하지만
+        이는 이용자의 작업물을 이용자 기기에 보관하기 위한 것이며 외부로 전송되지 않습니다.
+    </p>
+    <p>다만 다음 두 가지는 성질상 이용자의 접속 정보가 외부에 남을 수 있어 밝힙니다.</p>
+    <table>
+        <tr>
+            <th>무엇</th>
+            <th>왜</th>
+            <th>무엇이 오가나</th>
+        </tr>
+        <tr>
+            <td>이미지 분석용 모델 파일 내려받기 (Google 저장소)</td>
+            <td>이미지 프로젝트에서 사진의 특징을 뽑는 데 필요합니다. 파일이 커서 이 앱이 직접
+                제공하지 않고 원본에서 내려받습니다.</td>
+            <td><strong>내려받기 한 방향뿐입니다.</strong> 이용자의 사진과 데이터는 전송되지
+                않습니다. 내려받는 과정에서 접속 기록(IP 주소 등)이 해당 서비스에 남을 수
+                있습니다.</td>
+        </tr>
+        <tr>
+            <td>웹사이트 호스팅 (GitHub Pages, Cloudflare)</td>
+            <td>이 앱의 파일을 인터넷에 게시하기 위해 사용합니다.</td>
+            <td>접속 기록이 해당 서비스에 남을 수 있습니다. <strong>운영자는 그 기록에 접근하지
+                않습니다.</strong></td>
+        </tr>
+    </table>
+
+    <h2 id="article-8">제8조 (만 14세 미만 아동의 개인정보 보호)</h2>
+    <p>
+        이 앱은 연령과 무관하게 개인정보를 수집하지 않으므로, <strong>만 14세 미만 아동의
+        개인정보를 수집하거나 법정대리인의 동의를 받아야 하는 경우가 발생하지 않습니다.</strong>
+        회원가입 절차가 없어 아동이 인적사항을 입력하게 되는 화면 자체가 없습니다.
+    </p>
+
+    <h2 id="article-9">제9조 (개인정보 보호책임자와 문의처)</h2>
+    <p>이 앱에 관한 개인정보 관련 문의는 아래로 보내 주시기 바랍니다.</p>
+    <table>
+        <tr>
+            <th>구분</th>
+            <th>내용</th>
+        </tr>
+        <tr>
+            <td>개인정보 보호책임자</td>
+            <td>Machine Learning Playgrounds 운영자</td>
+        </tr>
+        <tr>
+            <td>연락처</td>
+            <td><a href="mailto:hello@luminousky.com">hello@luminousky.com</a></td>
+        </tr>
+    </table>
+
+    <h2 id="article-10">제10조 (권익침해 구제 방법)</h2>
+    <p>
+        개인정보 침해로 인한 상담과 피해 구제가 필요한 경우 아래 기관에 문의하실 수 있습니다.
+    </p>
+    <ul>
+        <li>개인정보분쟁조정위원회 — 1833-6972 (www.kopico.go.kr)</li>
+        <li>개인정보침해신고센터 — 118 (privacy.kisa.or.kr)</li>
+        <li>대검찰청 사이버수사과 — 1301 (www.spo.go.kr)</li>
+        <li>경찰청 사이버수사국 — 182 (ecrm.police.go.kr)</li>
+    </ul>
+
+    <h2 id="article-11">제11조 (처리방침의 변경)</h2>
+    <p>
+        이 방침의 내용이 변경되는 경우 변경된 방침을 이 페이지에 게시하고 시행일을 함께
+        표시합니다. 이 앱의 동작이 바뀌어 처리하는 정보가 달라지는 경우, <strong>변경된 앱이
+        공개되는 시점에 이 방침도 함께 갱신됩니다.</strong>
+    </p>
+    <p>
+        이 방침의 정본은 한국어이며, 다른 언어로 제공되는 번역본과 내용이 다른 경우 한국어
+        방침이 우선합니다.
+    </p>
+</main>
+
+<footer>
+    <a href="./">규정 문서</a>
+    <a href="../">앱으로 돌아가기</a>
+</footer>
+</body>
+</html>

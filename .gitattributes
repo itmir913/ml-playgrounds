@@ -15,6 +15,7 @@
 *.wasm binary
 *.zip  binary
 *.xlsx binary
+*.pdf   binary
 *.mlproj binary
 
 # 락파일은 diff 노이즈를 줄인다
