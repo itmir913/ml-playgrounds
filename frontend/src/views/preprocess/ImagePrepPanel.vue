@@ -74,6 +74,15 @@ const categories = computed(() =>
 const testPhotos = computed(() => readImages(project.file, 'test').length)
 
 /**
+ * 평가 데이터를 꾸러미가 대고 있는가. **표와 같은 갈림이다** —
+ * `TabularPrepPanel`은 `testChoice === 'holdout'`일 때만 비율과 층화를 보여준다.
+ *
+ * 꾸러미가 있으면 **나눌 것이 없어서 그 둘이 아무 일도 안 한다.** 남겨 두면 학생은
+ * 돌려 놓은 비율이 채점에 쓰인다고 읽는다.
+ */
+const usingProvidedTest = computed(() => testPhotos.value > 0)
+
+/**
  * 자리 자체의 잠금. **판정은 화면 밖에 있다** (`data/image/test-set.ts`) —
  * 규칙은 `open-decisions.md` "평가용 zip (`split.method = 'provided'`)"이 갖는다.
  */
@@ -225,22 +234,25 @@ function onStratify(event: Event): void {
       <p class="mt-1 text-ink-soft">{{ t('preprocess.testDataLead') }}</p>
 
       <div class="mt-3 flex flex-col gap-4">
-        <slot name="split-ratio" />
+        <!-- 꾸러미가 대고 있으면 나눌 것이 없다. 표도 같은 자리에서 같은 것을 감춘다. -->
+        <template v-if="!usingProvidedTest">
+          <slot name="split-ratio" />
 
-        <div>
-          <label class="flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              class="size-4 accent-brand"
-              :checked="settings.split.stratify"
-              :disabled="stratifyDisabled"
-              @change="onStratify"
-            />
-            <span class="font-bold">{{ t('preprocess.stratify') }}</span>
-          </label>
-          <!-- 이유 없이 회색이면 고장으로 보이고, 켜진 채 걸린 것은 학생이 꺼야 한다. -->
-          <p v-if="stratifyReason" class="mt-1 ml-6 text-caution">{{ stratifyReason }}</p>
-        </div>
+          <div>
+            <label class="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                class="size-4 accent-brand"
+                :checked="settings.split.stratify"
+                :disabled="stratifyDisabled"
+                @change="onStratify"
+              />
+              <span class="font-bold">{{ t('preprocess.stratify') }}</span>
+            </label>
+            <!-- 이유 없이 회색이면 고장으로 보이고, 켜진 채 걸린 것은 학생이 꺼야 한다. -->
+            <p v-if="stratifyReason" class="mt-1 ml-6 text-caution">{{ stratifyReason }}</p>
+          </div>
+        </template>
 
         <!--
           **잠기는 자리에는 이유가 함께 있다** (architecture.md §9.4). 범주가 서기 전에는
