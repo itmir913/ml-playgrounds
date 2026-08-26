@@ -27,7 +27,7 @@
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { basename, join, relative } from 'node:path'
+import { basename, join, relative, sep } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -413,5 +413,65 @@ describe('문서 참조', () => {
     expect(flatten('파일 계층은 "파일 참조인가"를\n묻는다')).toBe(
       flatten("파일 계층은 '파일 참조인가'를 묻는다"),
     )
+  })
+})
+
+/**
+ * **주석이 "저 파일의 이 심볼"이라고 가리킬 때 그것이 거기 있는가.**
+ *
+ * 이 저장소의 주석은 `project/storage.ts`의 `totalBytes` 같은 모양으로 남의 파일을
+ * 가리킨다. 위의 문서 참조와 같은 종류의 주소이고, 같은 방식으로 썩는다 — 심볼이
+ * 옮겨 가거나 이름이 바뀌면 **주석만 남는다.** 실제로 둘이 그 상태였다 (2026-08-27):
+ * `CANONICAL_FORMATS`가 `canonical.ts`에서 `formats.ts`로 옮겨 갔고,
+ * `ClusterResultPanel.vue`는 아예 없는 파일이었다.
+ *
+ * **못 보는 것 하나** — 이름이 같은 파일이 여럿이면 그중 하나에만 있어도 통과한다.
+ * 경로를 다 적은 참조는 그 경로로 좁혀지므로, 좁힐 수 없는 것은 파일 이름만 적은 쪽이다.
+ */
+describe('주석이 가리키는 심볼', () => {
+  /**
+   * 우리 저장소 밖을 가리키는 인용. **벤더링한 코드가 원본을 가리키는 자리다**
+   * (CLAUDE.md §4 — 출처를 파일 머리에 적는다). 여기 있는 것은 scikit-learn의 소스다.
+   */
+  const EXTERNAL = new Set(['_kmeans.py'])
+
+  const SYMBOL_REF = /`([A-Za-z0-9_./-]+\.(?:ts|vue|py))`\s*의\s*`([A-Za-z_][A-Za-z0-9_]*)/g
+
+  function sourceFiles(): string[] {
+    return SCANNED.flatMap((target) => walk(join(ROOT, target))).filter((path) =>
+      /\.(ts|vue|py)$/.test(path),
+    )
+  }
+
+  it('가리키는 곳에 그 심볼이 있다', () => {
+    const files = sourceFiles()
+    // **아무것도 안 훑고 초록이 되는 것을 막는다.** 뿌리가 어긋나면 그냥 0건이 된다.
+    expect(files.length).toBeGreaterThan(100)
+
+    const text = new Map(files.map((path) => [path, readFileSync(path, 'utf-8')]))
+    const dead: string[] = []
+
+    for (const [path, body] of text) {
+      for (const match of body.matchAll(SYMBOL_REF)) {
+        const target = match[1] ?? ''
+        const symbol = match[2] ?? ''
+        const base = target.split('/').at(-1) ?? target
+        if (EXTERNAL.has(base)) continue
+
+        const candidates = files.filter((candidate) =>
+          candidate.split(sep).join('/').endsWith(`/${target}`),
+        )
+        if (candidates.length === 0) {
+          dead.push(`${inRepo(path)} -> ${target} (그런 파일이 없다)`)
+          continue
+        }
+        const found = candidates.some((candidate) =>
+          new RegExp(String.raw`\b${symbol}\b`).test(text.get(candidate) ?? ''),
+        )
+        if (!found) dead.push(`${inRepo(path)} -> ${target}의 ${symbol}`)
+      }
+    }
+
+    expect(dead, '가리키는 곳에 없는 심볼').toEqual([])
   })
 })

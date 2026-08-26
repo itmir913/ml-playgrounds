@@ -88,7 +88,7 @@ export const MAX_IMAGE_COUNT = 5000
 
 /**
  * 정본 webp의 품질. **기본 형식이 쓰는 값이다**
- * (`data/image/canonical.ts`의 `CANONICAL_FORMATS`).
+ * (`data/image/formats.ts`의 `CANONICAL_FORMATS`).
  *
  * **0.65는 실측에서 나왔다** (2026-08-14): 224×224에서 jpeg q85가 장당 16.7kB인데
  * webp q65가 11.3kB다(−32%). 임베딩(장당 5kB)까지 세면 장당 약 −25%이고, 사진 수
@@ -467,7 +467,7 @@ export const PREVIEW_ROW_COUNT = 20
  * **쟀다 (2026-08-11).** 개발 PC · Chromium · 캔버스 800×420 · 군집 5개 ·
  * **`animation: false`**다. 그 옵션이 화면에 실제로 있어야 이 숫자가 화면의 숫자다 —
  * 처음에는 하네스에만 있고 화면에 없었고(감사가 잡았다) 그때 축 한 번 바꾸기가 1만 점에서
- * 799ms였다. `ClusterResultPanel.vue`의 `animation: false`가 이 칸에 매여 있다.
+ * 799ms였다. `ml/cluster-chart.ts`의 `animation: false`가 이 칸에 매여 있다.
  *
  * **보는 것은 다시 그리기 시간이다** — 첫 그리기는 패널을 열 때 한 번이지만 다시 그리기는
  * **학생이 축을 바꿀 때마다** 돈다.
