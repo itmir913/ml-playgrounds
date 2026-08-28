@@ -32,7 +32,13 @@ import { isValidCategoryName } from '@/data/image/canonical'
 import { canonicalizeImages, type CanonicalizeHandle } from '@/data/image/client'
 import { useThumbnails } from '@/composables/useThumbnails'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
-import { readImageFiles, readImageZip, summarizeUpload, type UploadItem } from '@/data/image/upload'
+import {
+  readImageFiles,
+  readImageZip,
+  summarizeUpload,
+  type UploadItem,
+  ZIP_EXTENSION,
+} from '@/data/image/upload'
 import { ClientError } from '@/errors'
 import { MAX_CATEGORY_NAME_LENGTH } from '@/limits'
 import { backboneFor, type BackboneSpec } from '@/ml/backbones'
@@ -156,7 +162,7 @@ async function readPicked(files: readonly File[], into: string): Promise<void> {
     // **구조가 있으면 구조가 이긴다.** 폴더나 zip이 라벨을 들고 있으면 그것이 답이고,
     // `into`는 구조가 없는 사진이 떨어질 자리다 (open-decisions.md "zip 읽기 규칙 다섯").
     const items =
-      files.length === 1 && only && only.name.toLowerCase().endsWith('.zip')
+      files.length === 1 && only && only.name.toLowerCase().endsWith(ZIP_EXTENSION)
         ? await readImageZip(new Uint8Array(await only.arrayBuffer()), into)
         : readImageFiles(files, into)
     // **굽기 전에 막는다** (project/images.ts의 imageOverflow). 여기서 걸러야 백본이

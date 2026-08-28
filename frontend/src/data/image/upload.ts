@@ -209,10 +209,16 @@ export function readImageFiles(
 }
 
 /**
- * 사진 받는 자리가 받는 것. **꾸러미(zip)와 사진 파일을 같은 입구로 받는다** — 학생이
+ * 압축 파일의 확장자. **한 곳에서만 적는다** — 받는 자리의 `accept`와 "이게 압축
+ * 파일인가"를 가르는 판정이 갈리면, 고를 수는 있는데 안 열리는 파일이 생긴다.
+ */
+export const ZIP_EXTENSION = '.zip'
+
+/**
+ * 사진 받는 자리가 받는 것. **압축 파일과 사진 파일을 같은 입구로 받는다** — 학생이
  * 둘 중 무엇을 들고 오는지 미리 정할 수 없다.
  */
-export const IMAGE_ACCEPT = 'image/*,.zip'
+export const IMAGE_ACCEPT = `image/*,${ZIP_EXTENSION}`
 
 /** 범주 하나에 몇 장이 들어오는가. */
 export interface UploadCount {
