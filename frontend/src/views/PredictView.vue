@@ -30,9 +30,15 @@ const purpose = computed(() => stepTextKey(kind.value, 'predict', 'purpose'))
 <template>
   <!-- `min-h-full`인 이유는 `views/data/TabularPanel.vue`에 적어 두었다. -->
   <div class="flex min-h-full flex-col gap-5 p-4 sm:p-5">
-    <StepHeader :title="t('steps.predict.label')" :purpose="t(purpose)" />
-
-    <component :is="kind.predictPanel" v-if="kind" />
+    <!--
+      **머리도 종류를 안다.** 설명문이 종류마다 갈리므로(`KIND_SPECIFIC_STEP_TEXT`)
+      등록부에 줄이 없으면 부를 문장이 없다 - 밖에 두었더니 종류를 모르는 동안
+      `steps.predict.purpose`라는 없는 열쇠를 불렀다.
+    -->
+    <template v-if="kind">
+      <StepHeader :title="t('steps.predict.label')" :purpose="t(purpose)" />
+      <component :is="kind.predictPanel" />
+    </template>
     <AppEmpty v-else :reason="t('data.unsupportedKind')" :next="t('data.unsupportedKindNext')" />
   </div>
 </template>

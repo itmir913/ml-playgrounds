@@ -120,6 +120,37 @@ describe('데이터 종류 등록부', () => {
   })
 
   /**
+   * **종류를 모를 때의 기본값은 막다른 길이다. 그러니 화면이 그것을 부르면 안 된다.**
+   *
+   * `stepTextKey(undefined, ...)`는 `steps.{단계}.{자리}`를 준다. 종류마다 갈리는
+   * 자리에는 그 열쇠를 **일부러 안 두었다** — 공통 자리에 문장을 두면 표의 말이 이미지
+   * 화면에 뜨고, 그 사실이 컴파일에서도 검사에서도 안 드러난다 (`KIND_SPECIFIC_STEP_TEXT`).
+   *
+   * **그래서 화면은 종류를 모르는 동안 그 문장을 안 그린다** — `PreprocessView`·
+   * `PredictView`·`ProjectHomeView`가 `kind`로 잠근다. 그 잠금이 풀리면 학생이 화면에서
+   * `steps.preprocess.emptyReason`이라는 글자를 본다 (2026-08-29에 실제로 그랬다).
+   *
+   * **이 검사는 전제를 잠근다.** 누군가 "없는 열쇠니까 만들면 되지"로 고치면 여기가
+   * 빨개진다 — 그건 고친 것이 아니라 종류를 안 가리는 문장을 되살리는 것이다.
+   * **못 보는 것: 화면에서 잠금이 빠지는 것** — 그건 사람이 본다.
+   */
+  it('종류를 모를 때의 기본값 열쇠는 로케일에 없다', () => {
+    const value = (locale: object, key: string): unknown =>
+      key.split('.').reduce<unknown>((node, part) => {
+        return typeof node === 'object' && node !== null
+          ? (node as Record<string, unknown>)[part]
+          : undefined
+      }, locale)
+
+    for (const { step, slot } of KIND_SPECIFIC_STEP_TEXT) {
+      const fallback = stepTextKey(undefined, step, slot)
+      expect(fallback, `${step}.${slot}`).toBe(`steps.${step}.${slot}`)
+      expect(value(ko, fallback), `ko에 ${fallback}이 있으면 안 된다`).toBeUndefined()
+      expect(value(en, fallback), `en에 ${fallback}이 있으면 안 된다`).toBeUndefined()
+    }
+  })
+
+  /**
    * **준비가 있는 종류는 문구 두 벌을 다 갖는다.** 세는 단계(`preparingKey`)만 있고
    * 그전 단계가 없으면, 화면이 공통 어휘로 떨어져 "준비되지 않음"이라고만 말한다 —
    * 무엇이 준비되지 않았는지가 없다. 학생이 이 화면에서 가장 오래 기다리는 자리다.

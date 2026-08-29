@@ -210,7 +210,11 @@ function lockedText(step: StepId): string {
               어디였는지 알려주는 순서**다. 넓은 화면의 자리는 위·아래에서 못 박아
               두었으므로 여기서 순서를 바꿔도 격자는 안 움직인다.
             -->
-            <p v-if="entry.explains" class="text-ink-soft" :class="entry.explainSpan">
+            <!--
+              **종류를 모르면 설명문이 없다.** `stepTextKey`가 `steps.{단계}.purpose`로
+              떨어지는데 그 열쇠는 로케일에 없다 - 줄마다 키 문자열이 뜬다.
+            -->
+            <p v-if="entry.explains && kind" class="text-ink-soft" :class="entry.explainSpan">
               {{ t(stepTextKey(kind, entry.step, 'purpose')) }}
             </p>
 

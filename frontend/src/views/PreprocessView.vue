@@ -136,7 +136,7 @@ function reseed(): void {
 </script>
 
 <template>
-  <div v-if="settings && hasData" class="flex flex-col gap-5 p-4 sm:p-5">
+  <div v-if="kind && settings && hasData" class="flex flex-col gap-5 p-4 sm:p-5">
     <StepHeader :title="t('steps.preprocess.label')" :purpose="t(purpose)">
       <!--
         **무엇을 셀지 이 화면이 모른다** (architecture.md §9.3.2). 여기 "열 수"가 박혀
@@ -224,5 +224,16 @@ function reseed(): void {
     </AppDialog>
   </div>
 
-  <AppEmpty v-else :reason="t(emptyReason)" :next="t(emptyNext)" />
+  <AppEmpty v-else-if="kind" :reason="t(emptyReason)" :next="t(emptyNext)" />
+
+  <!--
+    **종류를 모르면 종류별 문구를 안 부른다.** `stepTextKey`는 등록부에 줄이 없을 때
+    `steps.preprocess.emptyReason`으로 떨어지는데 **그 열쇠는 로케일에 없다** - 화면에
+    키 문자열이 그대로 뜨고 콘솔이 빨개진다. 종류마다 갈리는 문구라 공통 자리에 기본값을
+    두지 않기로 한 것이 그 이유다 (`router/steps.ts`의 `KIND_SPECIFIC_STEP_TEXT`).
+
+    **데이터·예측 화면과 같은 문장으로 떨어진다.** 여기만 아무 말도 안 하면 학생은
+    빈 화면을 보고 자기가 뭘 잘못한 줄 안다.
+  -->
+  <AppEmpty v-else :reason="t('data.unsupportedKind')" :next="t('data.unsupportedKindNext')" />
 </template>
