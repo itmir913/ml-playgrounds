@@ -93,8 +93,14 @@ QUEUED → VALIDATING → PREPROCESSING → TRAINING → EVALUATING → DONE
 **실행 위치**
 ```
 SERVER_UNAVAILABLE, ALGORITHM_NOT_AVAILABLE_HERE, DATASET_TOO_LARGE_FOR_BROWSER,
-IMAGE_TOO_LARGE_FOR_BROWSER, ENGINE_NOT_READY
+IMAGE_TOO_LARGE_FOR_BROWSER, ENGINE_NOT_READY, ENGINE_NOT_WIRED
 ```
+
+**마지막 둘은 갈라 놓은 한 쌍이다** (2026-08-29). `ENGINE_NOT_READY`는 "준비하면 된다"는
+뜻인데, 준비를 켤 자리가 아직 없는 엔진에도 그 문장이 나가고 있었다 — 학생이 눌러도 갈
+곳이 없는 문을 가리켰다. 어느 것으로 말할지는 `RuntimeSpec.preparable`이 정한다.
+**`ENGINE_NOT_WIRED`는 한시적이다** — 그 엔진에 배선이 붙는 날 `preparable`을 참으로
+바꾸고 이 코드를 지운다 (`roadmap/01-v1-v5.md`).
 
 **상한에 걸린 사유가 종류마다 갈린다** (2026-08-14). 막힌 이유는 같지만 **학생이 할 일이
 다르다** — 표는 전처리에서 일부만 뽑고, 이미지는 데이터 단계에서 사진을 지운다. 한 문장으로
