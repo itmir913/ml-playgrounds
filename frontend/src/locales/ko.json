@@ -357,7 +357,7 @@
     "outOfRange": "넣을 수 있는 범위를 벗어난 값이라 이대로는 학습에 실패합니다.",
     "pickModel": "모델",
     "pickRuntime": "학습할 곳",
-    "pickRuntimeHint": "ml.js와 scikit-learn은 같은 모델을 각각 구현해 둔 서로 다른 라이브러리입니다. 같은 모델을 선택해도 어디서 학습하느냐에 따라 점수가 다를 수 있습니다.",
+    "pickRuntimeHint": "ml.js와 scikit-learn은 이름이 같은 모델을 각각 따로 구현한 라이브러리입니다. 계산하는 방법이 조금씩 달라서 같은 데이터로 학습해도 점수가 다를 수 있습니다.",
     "progress": "모델 {total}개 중 {completed}개를 학습했습니다.",
     "range": "{min} ~ {max}",
     "removeModel": "제거",

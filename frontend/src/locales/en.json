@@ -357,7 +357,7 @@
     "outOfRange": "This is outside the range you can enter, so training will fail.",
     "pickModel": "Model",
     "pickRuntime": "Where to train",
-    "pickRuntimeHint": "ml.js and scikit-learn are different libraries, each with its own implementation of the same models. Even with the same model, the scores can differ depending on where you train it.",
+    "pickRuntimeHint": "ml.js and scikit-learn are separate libraries, each with its own implementation of the models that share a name. They compute a little differently, so the same data can give different scores.",
     "progress": "{completed} of {total} model trained. | {completed} of {total} models trained.",
     "range": "{min} – {max}",
     "removeModel": "Remove",
