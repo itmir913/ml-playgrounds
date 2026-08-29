@@ -132,7 +132,13 @@ function lockedText(step: StepId): string {
     <div class="grid gap-5 md:grid-cols-5">
       <!-- 왼쪽: 지금 하는 일 -->
       <div class="flex min-w-0 flex-col gap-4 md:col-span-3">
-        <ul class="flex flex-col rounded-panel border border-line bg-surface">
+        <!--
+          **`overflow-hidden`이 있어야 모서리가 둥근 채로 남는다.** 줄마다 배경을
+          칠하는데(`bg-brand-soft`) 그 배경은 네모라, 지금 하는 일이 첫 줄이나 마지막
+          줄이면 네 귀퉁이가 테두리 밖으로 삐져나온다. 밝은 화면에서는 배경 차이가
+          작아 잘 안 보이고 어두운 화면에서만 드러난다.
+        -->
+        <ul class="flex flex-col overflow-hidden rounded-panel border border-line bg-surface">
           <!--
             **줄마다 칸이 같은 자리에서 시작한다.** flex로 두면 단계 이름의 글자 수만큼
             할 일이 밀려서 여섯 줄의 시작점이 제각각이 되고, 눈이 훑을 기준선이 없어진다
