@@ -1,5 +1,5 @@
 /**
- * 사진 꾸러미 읽기 (`data/image/upload.ts`).
+ * 사진 압축 파일 읽기 (`data/image/upload.ts`).
  *
  * **규칙 하나하나가 교실에서 실제로 나오는 zip의 모양이다** (open-decisions.md
  * "zip 읽기 규칙 다섯"). 여기가 틀리면 사진이 다른 라벨로 학습되고, 화면에는 아무것도
@@ -25,7 +25,7 @@ async function categoriesOf(paths: readonly string[]): Promise<readonly string[]
   return items.map((item) => item.category)
 }
 
-describe('사진 꾸러미의 구조가 라벨이다', () => {
+describe('사진 압축 파일의 구조가 라벨이다', () => {
   it('루트 바로 아래 폴더가 범주다', async () => {
     expect(await categoriesOf(['개/1.jpg', '개/2.jpg', '고양이/3.jpg'])).toEqual([
       '개',
@@ -38,15 +38,15 @@ describe('사진 꾸러미의 구조가 라벨이다', () => {
    * **윈도우 탐색기에서 폴더를 우클릭해 압축하면 반드시 이 모양이다.** 교실에서 가장
    * 흔한 zip이라, 여기서 막히면 학생이 아는 방법이 통째로 막힌다.
    */
-  it('한 겹 감싸진 꾸러미는 벗긴다', async () => {
+  it('한 겹 감싸진 압축 파일은 벗긴다', async () => {
     expect(await categoriesOf(['사진/개/1.jpg', '사진/고양이/2.jpg'])).toEqual(['개', '고양이'])
   })
 
   /**
    * **감싼 폴더와 범주 폴더는 겉보기가 같다.** 벗긴 뒤에 폴더가 안 남으면 그건 범주가
-   * 하나뿐인 정상적인 꾸러미이지 감싸진 것이 아니다.
+   * 하나뿐인 정상적인 압축 파일이지 감싸진 것이 아니다.
    */
-  it('범주가 하나뿐인 꾸러미를 감싼 것으로 오해하지 않는다', async () => {
+  it('범주가 하나뿐인 압축 파일을 감싼 것으로 오해하지 않는다', async () => {
     expect(await categoriesOf(['개/1.jpg', '개/2.jpg'])).toEqual(['개', '개'])
   })
 
@@ -104,7 +104,7 @@ describe('사진 꾸러미의 구조가 라벨이다', () => {
 
   /**
    * 부스러기를 먼저 버려야 `__MACOSX/`가 "루트의 폴더"로 세어지지 않는다. 순서가
-   * 뒤집히면 감싸진 꾸러미가 폴더 둘로 보여 안 벗겨진다.
+   * 뒤집히면 감싸진 압축 파일이 폴더 둘로 보여 안 벗겨진다.
    */
   it('부스러기 때문에 감싼 겹을 못 벗기는 일이 없다', async () => {
     expect(await categoriesOf(['__MACOSX/._사진', '사진/개/1.jpg', '사진/고양이/2.jpg'])).toEqual([
@@ -125,7 +125,7 @@ describe('사진 꾸러미의 구조가 라벨이다', () => {
   })
 })
 
-describe('받지 않는 꾸러미', () => {
+describe('받지 않는 압축 파일', () => {
   it('zip이 아니면 거부한다', async () => {
     const error = await readImageZip(new Uint8Array([0, 1, 2, 3])).catch(
       (reason: unknown) => reason,
@@ -134,7 +134,7 @@ describe('받지 않는 꾸러미', () => {
   })
 
   /** "0장을 받았습니다"로 조용히 끝내면 학생은 올린 줄 안다. */
-  it('부스러기만 든 꾸러미는 사진이 없다고 말한다', async () => {
+  it('부스러기만 든 압축 파일은 사진이 없다고 말한다', async () => {
     const error = await readImageZip(makeZip(['__MACOSX/._x', '.DS_Store'])).catch(
       (reason: unknown) => reason,
     )
@@ -153,7 +153,7 @@ describe('받지 않는 꾸러미', () => {
     expect(isClientError(error) && error.params).toEqual({ name: '_숨김' })
   })
 
-  /** `_unlabeled`는 우리가 쓰는 이름이라 예외다. 내보낸 꾸러미를 다시 올리는 길이다. */
+  /** `_unlabeled`는 우리가 쓰는 이름이라 예외다. 내보낸 압축 파일을 다시 올리는 길이다. */
   it('라벨 없음 폴더는 그대로 받는다', async () => {
     expect(await categoriesOf([`${IMAGE_UNLABELED}/1.jpg`, '개/2.jpg'])).toEqual([
       IMAGE_UNLABELED,
@@ -208,12 +208,12 @@ describe('굽기 전에 보여줄 요약', () => {
 })
 
 /**
- * **꾸러미가 준 경로를 입구에서 한 번만 우리 규칙으로 맞춘다** (V11 R1 감사 B-6·B-8).
+ * **압축 파일이 준 경로를 입구에서 한 번만 우리 규칙으로 맞춘다** (V11 R1 감사 B-6·B-8).
  *
  * 둘 다 실물 교실에서 오는 모양이다 — 맥이 만든 zip은 한글 이름을 NFD(자모 분해)로 넣고,
  * zip 규격이 `/`를 요구하는데도 `\\`로 만드는 도구가 있다.
  */
-describe('꾸러미가 준 경로를 우리 규칙으로 맞춘다', () => {
+describe('압축 파일이 준 경로를 우리 규칙으로 맞춘다', () => {
   /** NFD로 쓴 `강아지`. 코드 포인트가 일곱이고 화면에는 똑같이 보인다. */
   const NFD = '강아지'.normalize('NFD')
 
@@ -233,7 +233,7 @@ describe('꾸러미가 준 경로를 우리 규칙으로 맞춘다', () => {
     expect(items.map((item) => item.category)).toEqual([long])
   })
 
-  it('역슬래시로 만든 꾸러미도 폴더를 읽는다', async () => {
+  it('역슬래시로 만든 압축 파일도 폴더를 읽는다', async () => {
     const items = await readImageZip(makeZip(['개\\1.jpg', '개\\2.jpg', '고양이\\3.jpg']))
     expect(summarizeUpload(items)).toEqual([
       { category: '개', count: 2 },

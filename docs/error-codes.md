@@ -181,7 +181,7 @@ PREDICT_DATASET_COLUMN_MISSING
 합집합이라 `TEST_DATASET_COLUMN_MISSING`과 다른 코드이고, **파일을 받을 때와 예측
 직전 두 자리**에서 잡힌다(`open-decisions.md` "붙일 때 본 것을 예측 직전에 다시 본다").
 
-**평가용 사진 꾸러미 받기** (`data/image/test-set.ts`)
+**테스트용 사진 받기** (`data/image/test-set.ts`)
 ```
 TEST_IMAGES_NEED_CATEGORIES, TEST_IMAGES_CATEGORY_MISSING,
 TEST_IMAGES_CATEGORY_UNKNOWN, TEST_IMAGES_UNLABELED
@@ -204,7 +204,7 @@ IMAGE_PHOTOS_EXCEED_STORAGE, IMAGE_CATEGORY_NAME_INVALID
 ```
 
 `IMAGE_ZIP_INVALID`가 `PROJECT_FILE_NOT_ZIP`과 나뉘는 이유는 **학생이 할 일이 다르기**
-때문이다 — 그쪽은 프로젝트 파일이고 이쪽은 방금 만든 사진 꾸러미다. `IMAGE_ZIP_NO_IMAGES`는
+때문이다 — 그쪽은 프로젝트 파일이고 이쪽은 방금 만든 사진 압축 파일이다. `IMAGE_ZIP_NO_IMAGES`는
 맥·윈도가 넣는 부스러기만 남은 경우까지 포함한다("0장을 받았습니다"로 조용히 끝내면
 학생은 올린 줄 안다). `IMAGE_CATEGORY_NAME_INVALID`는 **이름을 다듬어 받지 않는다** —
 다듬으면 서로 다른 폴더 둘이 한 범주로 합쳐질 수 있고, 그건 라벨이 조용히 바뀌는 것이다.

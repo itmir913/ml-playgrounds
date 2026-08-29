@@ -169,7 +169,7 @@ describe('이미지는 없는 것만 뽑는다', () => {
     expect(readEmbeddings(source.project, BACKBONE.id, DIM).size).toBe(2)
   })
 
-  /** 사진 꾸러미로 평가 데이터를 받는 길은 아직 없다. */
+  /** 압축 파일로 테스트 데이터를 받는 길은 아직 없다. */
   it('평가 데이터는 아직 없다', async () => {
     const seen = { requests: [] as EmbedRequest[] }
     const source = await trainingSourceOf({

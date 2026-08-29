@@ -46,9 +46,9 @@ export const CLIENT_ERROR_CODES = [
 
   // 사진 올리기 - data/image/upload.ts
   // zip이 아니거나 깨졌다. PROJECT_FILE_NOT_ZIP과 나누는 이유는 학생이 할 일이 다르기
-  // 때문이다 - 그쪽은 프로젝트 파일이고 이쪽은 방금 만든 사진 꾸러미다.
+  // 때문이다 - 그쪽은 프로젝트 파일이고 이쪽은 방금 만든 사진 압축 파일이다.
   'IMAGE_ZIP_INVALID',
-  // 꾸러미 안에 사진이 될 만한 파일이 하나도 없다. 맥/윈도가 넣는 부스러기만 남은
+  // 압축 파일 안에 사진이 될 만한 파일이 하나도 없다. 맥/윈도가 넣는 부스러기만 남은
   // 경우도 여기다 - "0장을 받았습니다"로 조용히 끝내면 학생은 올린 줄 안다.
   'IMAGE_ZIP_NO_IMAGES',
   // 담을 수 있는 장수를 넘겼다 (limits.ts의 MAX_IMAGE_COUNT, project/images.ts).
@@ -145,7 +145,7 @@ export const CLIENT_ERROR_CODES = [
   // 말과 나눈다** - 같은 코드로 뭉치면 학생이 멀쩡한 학습 데이터를 들여다본다.
   'TEST_DATASET_NO_USABLE_ROWS',
 
-  // 평가용 사진 꾸러미 받기 - data/image/test-set.ts
+  // 테스트용 사진 받기 - data/image/test-set.ts
   // (open-decisions.md "평가용 zip (`split.method = 'provided'`)").
   // **던지는 코드가 아니라 화면의 잠금·거절 이유다** - STRATIFY_NOT_FOR_TASK_TYPE과 같은
   // 자리이고, 같은 목록에 두는 이유도 같다: 이유 문장이 사는 곳이 client.* 하나여야 한다.

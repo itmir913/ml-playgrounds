@@ -1,5 +1,5 @@
 /**
- * **평가용 사진 꾸러미를 받는 규칙** (`data/image/test-set.ts`, `project/images.ts`).
+ * **테스트용 사진을 받는 규칙** (`data/image/test-set.ts`, `project/images.ts`).
  *
  * 규칙은 `open-decisions.md` "평가용 zip (`split.method = 'provided'`)"이 갖는다.
  * 여기서 보는 것은 **관용적으로 받지 않는다**는 태도가 실제로 서 있는가다 — 모르는
@@ -22,12 +22,12 @@ describe('자리 자체의 잠금', () => {
     expect(testSetBlockFor(CATEGORIES)).toBeNull()
   })
 
-  it('꾸러미 판정도 그 잠금을 먼저 지난다 - 열어 두면 올린 뒤에야 거절당한다', () => {
+  it('올린 사진 판정도 그 잠금을 먼저 지난다 - 열어 두면 올린 뒤에야 거절당한다', () => {
     expect(testZipBlockFor([], ['개'])).toEqual({ code: 'TEST_IMAGES_NEED_CATEGORIES' })
   })
 })
 
-describe('꾸러미 대조', () => {
+describe('올린 사진 대조', () => {
   it('집합이 정확히 같으면 받는다', () => {
     expect(testZipBlockFor(CATEGORIES, ['고양이', '개', '개'])).toBeNull()
   })

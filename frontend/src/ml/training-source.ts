@@ -128,7 +128,7 @@ export const TRAINING_SOURCES: Readonly<
     return {
       project: filled,
       dataset: source.dataset,
-      // 사진 꾸러미로 평가 데이터를 받는 길은 아직 없다 (open-decisions.md "평가용 zip").
+      // 압축 파일로 테스트 데이터를 받는 길은 아직 없다 (open-decisions.md "평가용 zip").
       testDataset: null,
       settings: source.settings,
       snapshot: source.snapshot,

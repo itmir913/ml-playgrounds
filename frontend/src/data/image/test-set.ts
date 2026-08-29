@@ -1,5 +1,5 @@
 /**
- * **사진 꾸러미로 평가 데이터를 받는 자리의 판정.**
+ * **압축 파일이나 폴더로 테스트 데이터를 받는 자리의 판정.**
  *
  * 규칙은 `open-decisions.md` "평가용 zip (`split.method = 'provided'`)"이 갖는다.
  * 여기 있는 것은 그 규칙을 **화면 밖의 순수 함수**로 옮긴 것뿐이다 — 잠기는 것에는
@@ -22,9 +22,9 @@ export interface TestSetBlock {
 }
 
 /**
- * 지금 이 프로젝트가 평가용 꾸러미를 받을 수 있는가. **자리 자체의 잠금이다.**
+ * 지금 이 프로젝트가 테스트용 사진을 받을 수 있는가. **자리 자체의 잠금이다.**
  *
- * **범주가 서기 전에는 잠긴다** — 대조할 목록이 없으면 어떤 꾸러미도 판정할 수 없고,
+ * **범주가 서기 전에는 잠긴다** — 대조할 목록이 없으면 어떤 사진도 판정할 수 없고,
  * 그 상태에서 열어 두면 학생은 올린 뒤에야 거절당한다. 순서가 강제되는 자리다.
  */
 export function testSetBlockFor(categories: readonly string[]): TestSetBlock | null {
@@ -32,7 +32,7 @@ export function testSetBlockFor(categories: readonly string[]): TestSetBlock | n
 }
 
 /**
- * 올린 꾸러미를 받아도 되는가.
+ * 올린 사진을 받아도 되는가.
  *
  * **집합이 정확히 같아야 한다.** 어긋난 방향마다 코드를 나눈다 — 빠진 범주는 "그 폴더를
  * 채워라"이고 모르는 범주는 "그 폴더를 빼라"라 **학생이 할 일이 다르다**(`errors.ts`가
@@ -42,7 +42,7 @@ export function testSetBlockFor(categories: readonly string[]): TestSetBlock | n
  * 어느 폴더를 고쳐야 하는지 모른다.
  *
  * @param categories 프로젝트의 범주. `settings.data.categories`가 갖는 순서다.
- * @param uploaded   꾸러미에서 읽어낸 범주. 폴더 이름이 그대로 온다.
+ * @param uploaded   올린 사진에서 읽어낸 범주. 폴더 이름이 그대로 온다.
  */
 export function testZipBlockFor(
   categories: readonly string[],
@@ -58,7 +58,7 @@ export function testZipBlockFor(
   // 학생이 할 일이 다르다.
   if (found.has(IMAGE_UNLABELED)) return { code: 'TEST_IMAGES_UNLABELED' }
 
-  // **빠진 쪽을 먼저 본다.** 둘 다 어긋난 꾸러미에서 학생이 먼저 할 일은 없는 폴더를
+  // **빠진 쪽을 먼저 본다.** 둘 다 어긋난 사진에서 학생이 먼저 할 일은 없는 폴더를
   // 만드는 것이고, 모르는 폴더는 그 과정에서 함께 정리되는 경우가 많다.
   const missing = categories.filter((category) => !found.has(category))
   if (missing.length > 0) {

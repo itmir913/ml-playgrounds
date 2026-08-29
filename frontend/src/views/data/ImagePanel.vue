@@ -10,7 +10,7 @@
  * 화면"). 라벨을 붙이는 자리가 여기이고, 유형은 학습 화면에서 고른다 — 업로드에서 못
  * 박으면 군집으로 시작한 학생이 분류로 갈 때 사진을 다시 올려야 한다.
  *
- * **읽기·굽기·앉히기는 전부 이 파일 밖에 있다** — 꾸러미를 읽는 것은
+ * **읽기·굽기·앉히기는 전부 이 파일 밖에 있다** — 압축 파일을 읽는 것은
  * `data/image/upload.ts`, 굽는 것은 워커(`data/image/client.ts`), 프로젝트에 앉히는 것은
  * `project/images.ts`다. 여기 있는 것은 순서와 화면뿐이다.
  */
@@ -153,7 +153,7 @@ function backboneOf(file: ProjectFile | null): BackboneSpec | undefined {
   return backboneFor(dataSettings('image', file.document.settings).backboneId)
 }
 
-/** 꾸러미인가 사진인가. **학생에게 묻지 않는다** — 확장자가 이미 답을 갖고 있다. */
+/** 압축 파일인가 사진인가. **학생에게 묻지 않는다** — 확장자가 이미 답을 갖고 있다. */
 async function readPicked(files: readonly File[], into: string): Promise<void> {
   if (files.length === 0) return
   busy.value = true
@@ -240,7 +240,7 @@ async function bake(): Promise<void> {
     const result = await handle.result
     const applied = addImages(
       file,
-      // 워커는 이름으로만 대답한다. 그 이름이 곧 꾸러미 안의 경로라 범주를 되찾을 수 있다.
+      // 워커는 이름으로만 대답한다. 그 이름이 곧 압축 파일 안의 경로라 범주를 되찾을 수 있다.
       result.images.map((image) => ({
         hash: image.hash,
         bytes: image.bytes,
