@@ -139,6 +139,25 @@ const overviews = computed(() => {
 })
 
 /**
+ * 표 위 머리말. **범주형 열이 섞여 있으면 다른 문장이다.**
+ *
+ * `각 칸은 … 평균입니다` 하나만 두던 때에는 **범주형 칸이 그 문장을 정면으로 반박했다** —
+ * 거기 앉는 것은 평균이 아니라 최빈 범주이고(`open-decisions.md` "군집 산점도의 축"),
+ * 학생이 보는 칸에는 `체육`이라고 적혀 있었다 (2026-08-29 전 경로 감사).
+ *
+ * **아래 열 머리 도움말은 이미 이렇게 갈라져 있다**(`clusterMeanHelp`/`clusterModeHelp`).
+ * 갈리지 않은 것은 모두가 읽는 이 한 줄뿐이었다.
+ *
+ * **없는 것을 이름으로 말하지 않는다** (§9.2) — 범주형 열이 없는 표에서는 그 문장을
+ * 안 꺼낸다.
+ */
+const summaryLead = computed(() =>
+  axes.value.some((axis) => axis.categories)
+    ? t('results.tabular.clusterSummaryLeadMixed')
+    : t('results.tabular.clusterSummaryLead'),
+)
+
+/**
  * 머리글 설명 한 문장. **키를 조립하지 않는다** (`TermPopover`의 머리말).
  *
  * **범주 축은 다른 문장이다** — 평균과 범위가 뜻을 갖지 않는다. 칸에 뜨는 것도 평균이
@@ -195,7 +214,7 @@ function cellsOf(row: number): readonly string[] {
     -->
     <div class="flex min-w-0 flex-col gap-1.5">
       <h4 class="font-bold">{{ t('results.tabular.clusterSummary') }}</h4>
-      <p class="text-ink-soft">{{ t('results.tabular.clusterSummaryLead') }}</p>
+      <p class="text-ink-soft">{{ summaryLead }}</p>
 
       <AppTable>
         <thead>

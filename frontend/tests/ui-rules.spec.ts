@@ -1202,6 +1202,48 @@ describe('전처리 판은 붙일 때도 뗄 때도 묻는다', () => {
   })
 })
 
+/**
+ * **표를 덮는 한 줄은 그 표에 실제로 있는 것만 말해야 한다.**
+ *
+ * 군집 요약표의 머리말이 `각 칸은 … 평균입니다` 하나였는데, 범주형 열의 칸에 앉는 것은
+ * 평균이 아니라 최빈 범주다 — 학생이 보는 칸에는 `체육`이라고 적혀 있었다
+ * (2026-08-29 전 경로 감사). **바로 아래 열 머리 도움말은 이미 갈라져 있었고**
+ * (`clusterMeanHelp`/`clusterModeHelp`) 갈리지 않은 것은 모두가 읽는 그 한 줄뿐이었다.
+ */
+describe('군집 요약표는 평균과 최빈을 갈라 말한다', () => {
+  const PANEL = join(SRC, 'views', 'results', 'panels', 'ClusterResultPanel.vue')
+
+  /** 이 파일이 실제로 부르는 로케일 키들. 주석에 적어 둔 것은 안 센다. */
+  function keysIn(source: string): string[] {
+    return [
+      ...withoutComments(source)
+        .join('\n')
+        .matchAll(/'(results\.tabular\.cluster\w+)'/g),
+    ].map((hit) => hit[1] ?? '')
+  }
+
+  it('주석에 적힌 키는 안 센다', () => {
+    expect(keysIn("// t('results.tabular.clusterModeHelp')를 붙여야 한다")).toEqual([])
+  })
+
+  it('부르는 키를 전부 센다', () => {
+    expect(keysIn("t('results.tabular.clusterMeanHelp', x)")).toEqual([
+      'results.tabular.clusterMeanHelp',
+    ])
+  })
+
+  it('머리말도 도움말도 두 갈래를 다 든다', () => {
+    const keys = keysIn(readFileSync(PANEL, 'utf-8'))
+
+    for (const pair of [
+      ['results.tabular.clusterMeanHelp', 'results.tabular.clusterModeHelp'],
+      ['results.tabular.clusterSummaryLead', 'results.tabular.clusterSummaryLeadMixed'],
+    ]) {
+      for (const key of pair) expect(keys, `${key}가 없다`).toContain(key)
+    }
+  })
+})
+
 describe('상세 패널은 프롭을 하나만 선언한다', () => {
   const PANELS = join(SRC, 'views', 'results', 'panels')
 

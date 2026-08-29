@@ -741,7 +741,8 @@
       "clusterScatterNoAxes": "A scatter plot needs at least two numeric columns. (now {count})",
       "clusterSize": "Samples",
       "clusterSummary": "What gathered in each cluster",
-      "clusterSummaryLead": "Each cell is the average of the rows in that cluster. Select a row to see the data in that cluster."
+      "clusterSummaryLead": "Each cell is the average of the rows in that cluster. Select a row to see the data in that cluster.",
+      "clusterSummaryLeadMixed": "Each cell is the average of the rows in that cluster. Categorical columns have no average, so they show the most common category. Select a row to see the data in that cluster."
     },
     "unknownChange": "An unrecognised setting changed. ({path})",
     "whatChanged": "What changed",

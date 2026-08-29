@@ -741,7 +741,8 @@
       "clusterScatterNoAxes": "산점도는 숫자로 된 열이 둘 이상 있어야 그릴 수 있습니다. (지금 {count}개)",
       "clusterSize": "데이터 수",
       "clusterSummary": "군집마다 어떤 값이 모였나",
-      "clusterSummaryLead": "각 칸은 그 군집에 속한 데이터의 평균입니다. 행을 누르면 그 군집의 데이터를 볼 수 있습니다."
+      "clusterSummaryLead": "각 칸은 그 군집에 속한 데이터의 평균입니다. 행을 누르면 그 군집의 데이터를 볼 수 있습니다.",
+      "clusterSummaryLeadMixed": "각 칸은 그 군집에 속한 데이터의 평균입니다. 범주형 열에는 평균이 없어 가장 많은 범주를 적습니다. 행을 누르면 그 군집의 데이터를 볼 수 있습니다."
     },
     "unknownChange": "알 수 없는 설정이 바뀌었습니다. ({path})",
     "whatChanged": "무엇이 바뀌었나",

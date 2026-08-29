@@ -65,7 +65,14 @@ interface Neighborhood {
   readonly experimentName: string
   readonly cluster: number
   readonly size: number
-  /** 축 이름과 그 군집의 평균. 되돌린 중심점이다 (#28-6). */
+  /**
+   * 축 이름과 그 군집의 값. **중심점이 아니라 그 군집에 담긴 행들의 평균이다** (#28-6) —
+   * 둘은 수렴하지 못한 학습에서 갈리고, 그림의 ✕가 중심점 쪽이다. 아래 markup의 주석이
+   * 처음부터 그렇게 적고 있었는데 여기만 반대로 적혀 있었다 (2026-08-29 전 경로 감사).
+   *
+   * **범주형 축에서는 평균이 아니라 최빈 범주의 이름이다.** 이름이 `means`인 것은 수치
+   * 축이 다수라서이고, 값을 만드는 자리가 그 갈림을 안다.
+   */
   readonly means: readonly { readonly name: string; readonly value: string }[]
   readonly columns: readonly string[]
   /** 원본 표의 줄들. **학습에 안 쓴 열도 그대로 보인다.** */
