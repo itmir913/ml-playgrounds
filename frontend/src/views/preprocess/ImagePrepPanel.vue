@@ -334,6 +334,16 @@ function onStratify(event: Event): void {
             </AppButton>
           </template>
 
+          <!--
+            **군집이면 권유하지 않는다** (R11 감사 B-3). 문구만 갈라 두었더니, 군집을
+            이미 고른 학생이 "채점합니다"를 읽고 굽는 시간을 다 쓴 **뒤에야** 안 쓰인다는
+            말을 들었다 — 이 파일의 `takeTest`가 "굽고 나서 거절하면 학생은 기다린 시간을
+            통째로 버린다"고 적어 둔 그 자리다.
+          -->
+          <p v-else-if="!scored" class="mt-1 text-ink-soft">
+            {{ t('preprocess.testImagesClustering') }}
+          </p>
+
           <template v-else>
             <p class="mt-1 text-ink-soft">{{ t('preprocess.testImagesLead') }}</p>
             <!--

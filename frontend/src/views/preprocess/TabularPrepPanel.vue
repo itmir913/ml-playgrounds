@@ -112,6 +112,23 @@ const runPlan = computed(() => {
  * **새로 도는 것은 다섯 행짜리 `transform` 하나다.** 전처리기는 위 `runPlan`이 이미
  * 지은 것을 그대로 받으므로, 비율 슬라이더를 끄는 동안 다시 적합하지 않는다.
  */
+/**
+ * 미리보기가 비었을 때 **왜 비었는지**. 요약 카드가 세 상태를 갖는 것과 같은 사정이다
+ * (open-decisions.md "전처리 요약 카드") — 유형을 안 골라 계획이 `pending`인 것과
+ * 타깃·특성을 안 고른 것은 **학생이 할 일이 다르다.**
+ *
+ * **한 문장으로 뭉쳐 두었더니 거짓말이 됐다** (R11 감사 B-1). 타깃과 특성을 다 골라도
+ * 유형이 비면 "타깃과 특성을 고르면"이라고 말했고, 바로 위 요약 카드는 같은 상태에서
+ * "유형을 고르면 정해집니다"라고 옳게 말하고 있었다.
+ */
+const previewEmptyKey = computed(() => {
+  const current = runPlan.value
+  if (current !== null && !current.ok && current.reason.kind === 'pending') {
+    return 'preprocess.previewPending'
+  }
+  return 'preprocess.previewEmpty'
+})
+
 const preview = computed(() => {
   const current = runPlan.value
   const table = dataset.value
@@ -913,7 +930,7 @@ async function removeTest(): Promise<void> {
       숫자로 말한 것을 표로 확인하는 순서다 — 반대로 두면 학생이 표를 먼저 읽고 나서
       "그래서 몇 행이 남았지"를 다시 찾는다.
     -->
-    <TabularPrepPreview :preview="preview" />
+    <TabularPrepPreview :preview="preview" :empty-key="previewEmptyKey" />
   </div>
 
   <!--

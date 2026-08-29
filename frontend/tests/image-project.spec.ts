@@ -102,6 +102,22 @@ describe('테스트용 사진을 붙이고 뗀다', () => {
     expect(applied.project.document.settings.split.method).toBe('provided')
   })
 
+  /**
+   * **떼도 실험이 지워진다** (R11 감사 B-5). 안 지우면 provided로 채점한 점수와
+   * holdout으로 채점한 점수가 한 비교표에 나란히 서는데, **그 둘은 서로 다른 것을 잰
+   * 값이다** — 붙일 때 지우는 이유와 같은 이유다. 표의 `removeTestDataset`은 이미
+   * 그렇게 하고 있었고 이미지 쪽만 안 하고 있었다.
+   */
+  it('떼도 실험을 지운다 - 안 지우면 다른 것을 잰 점수가 나란히 선다', () => {
+    const base = withExperiment(withPhotos({ hash: 'a', category: '개' }))
+    const applied = withTestPhotos(base)
+    // 붙이면서 이미 지워지므로, 뗄 때를 재려면 실험을 다시 심는다.
+    const cleared = clearTestImages(withExperiment(applied.project), NOW)
+
+    expect(cleared.document.runs.experiments).toHaveLength(0)
+    expect(cleared.models.size).toBe(0)
+  })
+
   it('지금까지의 실험을 지운다 - 테스트 데이터가 바뀌면 그 위의 점수는 다른 것을 잰 값이다', () => {
     const base = withExperiment(withPhotos({ hash: 'a', category: '개' }))
     const applied = withTestPhotos(base)

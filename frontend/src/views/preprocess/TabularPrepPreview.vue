@@ -22,6 +22,11 @@ import type { PreprocessPreview } from '@/ml/preview'
 const props = defineProps<{
   /** 판이 한 번만 지어서 내려준다. 계획이 못 섰으면 `null`이다. */
   preview: PreprocessPreview | null
+  /**
+   * 비었을 때 무엇을 말할지. **판이 정한다** — 왜 비었는지는 계획이 알고 화면은 모른다.
+   * 요약 카드가 세 상태를 갖는 것과 같은 사정이다 (R11 감사 B-1).
+   */
+  emptyKey: string
 }>()
 
 const { t } = useI18n()
@@ -50,7 +55,7 @@ function spanOf(column: PreprocessPreview['columns'][number]): number {
     </div>
     <p class="mt-1 text-ink-soft">{{ t('preprocess.previewLead') }}</p>
 
-    <p v-if="!props.preview" class="mt-3 text-ink-soft">{{ t('preprocess.previewEmpty') }}</p>
+    <p v-if="!props.preview" class="mt-3 text-ink-soft">{{ t(props.emptyKey) }}</p>
 
     <AppTable v-else class="mt-3">
       <thead>
@@ -99,6 +104,14 @@ function spanOf(column: PreprocessPreview['columns'][number]): number {
             <td class="border-l border-line" :class="column.excluded ? 'text-ink-faint' : ''">
               {{ column.before[row] }}
             </td>
+            <!--
+              **`stat`이 아니라 `prediction`이다** (R11 감사 B-4를 여기서 닫는다).
+              `formatStat`은 유효숫자 넷으로 줄이는데, 이 칸에는 **스케일링을 안 건
+              원값이 그대로 지나간다** — 12345가 12,350으로 그려지면 미리보기가 원본을
+              거짓으로 보이게 된다. 여기 오는 값은 통계량이 아니라 **모델이 받는 그
+              데이터**이고, `formatPrediction`의 유효숫자 12는 부동소수 잡음만 걷어낸다.
+              표준화한 칸이 길게 보이는 것은 그 값이 실제로 그렇기 때문이다.
+            -->
             <td v-for="feature in column.features" :key="feature.name" class="tabular-nums">
               {{ format.prediction(feature.values[row] ?? 0) }}
             </td>

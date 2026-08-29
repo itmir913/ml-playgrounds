@@ -262,8 +262,13 @@ export function applyTestImages(
  * 수 있는 것과 같다 (`views/preprocess/TabularPrepPanel.vue`의 `chooseHoldout`).
  *
  * 참조는 `removeImages`가 마지막 한 장이 사라질 때 스스로 뗀다. 여기서 더하는 것은
- * **분할을 `holdout`으로 돌리는 것 하나**다 — 안 돌리면 테스트 사진이 없는 `provided`가
- * 남아 학습이 채점할 것을 못 찾는다.
+ * **분할을 `holdout`으로 돌리는 것**과 **실험을 지우는 것** 둘이다 — 앞엣것을 안 하면
+ * 테스트 사진이 없는 `provided`가 남아 학습이 채점할 것을 못 찾는다.
+ *
+ * **떼도 실험을 전부 지운다** (R11 감사 B-5, 2026-08-28). `applyTestImages`와 같은
+ * 사유이고 표의 `removeTestDataset`이 이미 그렇게 하고 있었다 — **이 함수만 안 하고
+ * 있었다.** 안 지우면 provided로 채점한 점수와 holdout으로 채점한 점수가 한 비교표에
+ * 나란히 서고, 그건 서로 다른 것을 잰 값이다.
  */
 export function clearTestImages(project: ProjectFile, now: string): ProjectFile {
   const hashes = readImages(project, 'test').map((entry) => entry.hash)
@@ -277,7 +282,9 @@ export function clearTestImages(project: ProjectFile, now: string): ProjectFile 
         ...document.settings,
         split: { ...document.settings.split, method: 'holdout' },
       },
+      runs: { ...document.runs, experiments: [] },
     },
+    models: new Map(),
   }
 }
 

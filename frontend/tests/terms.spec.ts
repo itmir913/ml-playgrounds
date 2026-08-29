@@ -116,9 +116,21 @@ describe('데이터 이름이 하나다', () => {
    * **0건을 훑고 통과하는 것이 이 검사의 가장 나쁜 실패다.** 훑는 목록이 조용히 비면
    * 초록불이 "깨끗하다"가 아니라 "안 봤다"를 뜻하는데 둘이 화면에서 똑같이 생겼다.
    * `doc-refs.spec.ts`가 같은 가드를 두는 이유와 같다.
+   *
+   * **합계 하나로는 못 지킨다** (R11 감사 C-2). `src`와 `tests`만으로 295개라, 나중에
+   * 넓힌 세 트리(`public/portfolio`·`docs`·`scripts`)가 **통째로 비어도 합계 문턱은 안
+   * 운다** — 그런데 조용히 비기 쉬운 쪽이 바로 그 작은 트리들이다(확장자가 바뀌거나
+   * 디렉터리 이름이 바뀌면 그만이다. 지우면 `readdirSync`가 시끄럽게 죽는다).
    */
-  it('훑는 파일이 실제로 있다', () => {
-    expect(targets.length).toBeGreaterThan(200)
+  it('트리마다 훑는 파일이 실제로 있다', () => {
+    const counted = (prefix: string): number =>
+      targets.filter((path) => relative(ROOT, path).replaceAll(sep, '/').startsWith(prefix)).length
+
+    expect(counted('frontend/src/')).toBeGreaterThan(100)
+    expect(counted('frontend/tests/')).toBeGreaterThan(50)
+    expect(counted('frontend/public/portfolio/')).toBeGreaterThan(0)
+    expect(counted('docs/')).toBeGreaterThan(10)
+    expect(counted('scripts/')).toBeGreaterThan(0)
   })
 
   it('물러난 데이터 이름을 쓰는 자리가 없다', () => {
