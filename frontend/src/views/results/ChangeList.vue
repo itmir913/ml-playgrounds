@@ -20,7 +20,7 @@ import AppBadge from '@/components/AppBadge.vue'
 import AppPopover from '@/components/AppPopover.vue'
 import { useFormat } from '@/composables/useFormat'
 import { ACTION_ICONS } from '@/icons'
-import { memberDiff, type Change, type ChangeValue } from '@/ml/changes'
+import { memberDiff, type Change, type ChangeItemKind, type ChangeValue } from '@/ml/changes'
 
 const props = defineProps<{ changes: readonly Change[] }>()
 
@@ -34,6 +34,26 @@ function valueText(value: ChangeValue): string {
   if (value.kind === 'literal') return value.text
   if (value.kind === 'ratio') return format.percent(value.value)
   return t('meta.none')
+}
+
+/**
+ * 목록 항목 하나를 사람이 읽는 이름으로.
+ *
+ * **`path`로 갈라지지 않는다** — 어떻게 읽을지는 값이 `itemKind`로 들고 온다
+ * (`ml/changes.ts`). 열 이름은 학생의 낱말이라 그대로 두고, 모델은
+ * `decision_tree:mljs` 꼴의 식별자라 여기서 로케일을 찾는다.
+ *
+ * **모르는 식별자는 그대로 보인다.** 남의 파일이나 나중 버전에서 올 수 있고,
+ * 모르는 것을 아는 척하는 것보다 정직하다 (`labelKey`가 없을 때와 같은 규칙).
+ */
+function itemText(kind: ChangeItemKind, item: string): string {
+  if (kind !== 'model') return item
+  const [algorithm, runtime] = item.split(':')
+  if (!algorithm || !runtime) return item
+  return t('predict.modelName', {
+    algorithm: t(`algorithms.${algorithm}`),
+    runtime: t(`runtimes.${runtime}`),
+  })
 }
 
 /**
@@ -132,8 +152,18 @@ const rows = computed(() => props.changes.map((change) => ({ change, members: me
             -->
             <div
               v-for="side in [
-                { key: 'added', names: members?.added ?? [] },
-                { key: 'removed', names: members?.removed ?? [] },
+                {
+                  key: 'added',
+                  names: (members?.added ?? []).map((name) =>
+                    itemText(members?.itemKind ?? 'text', name),
+                  ),
+                },
+                {
+                  key: 'removed',
+                  names: (members?.removed ?? []).map((name) =>
+                    itemText(members?.itemKind ?? 'text', name),
+                  ),
+                },
               ]"
               :key="side.key"
             >

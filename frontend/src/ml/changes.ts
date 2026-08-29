@@ -29,7 +29,18 @@ export type ChangeValue =
    * 줄에 쓰는 것은 여전히 개수뿐이다 — 특성 스무 개가 열여덟 개가 된 것을 이름으로
    * 늘어놓으면 그 줄이 화면을 덮는다. `items`는 **학생이 눌러서 열 때** 쓴다.
    */
-  | { readonly kind: 'count'; readonly count: number; readonly items?: readonly string[] }
+  | {
+      readonly kind: 'count'
+      readonly count: number
+      readonly items?: readonly string[]
+      /**
+       * `items`를 화면이 어떻게 읽어야 하는가. **없으면 글자 그대로다.**
+       *
+       * **경로가 아니라 값이 들고 다닌다.** 화면이 `path === 'algorithms'`로 갈라지면
+       * 목록이 하나 늘 때마다 그 갈래가 늘고, 등록부를 둔 뜻이 사라진다.
+       */
+      readonly itemKind?: ChangeItemKind
+    }
   /**
    * 비율. **0과 1 사이의 값 그대로 오고, 화면이 백분율로 읽는다.**
    *
@@ -40,6 +51,14 @@ export type ChangeValue =
    */
   | { readonly kind: 'ratio'; readonly value: number }
   | { readonly kind: 'absent' }
+
+/**
+ * 목록 항목을 화면이 읽는 방식.
+ *
+ * - `text` — 학생의 낱말이다(열 이름). 그대로 보인다.
+ * - `model` — `의사결정트리:mljs` 꼴의 식별자다. **화면이 로케일에서 이름을 찾는다.**
+ */
+export type ChangeItemKind = 'text' | 'model'
 
 export interface Change {
   /** 설정 경로. 화면의 키가 아니라 우리끼리 쓰는 식별자다. */
@@ -92,28 +111,33 @@ const onOff: Describe = (value) => ({
 })
 
 /**
- * 목록. **개수만 말한다.**
- *
- * 특성 스무 개가 열여덟 개가 된 것을 이름으로 늘어놓으면 그 줄이 화면을 덮는다.
- * 무엇이 빠졌는지는 전처리 화면에 그대로 있다.
- */
-const countOf: Describe = (value) => ({
-  kind: 'count',
-  count: Array.isArray(value) ? value.length : 0,
-})
-
-/**
  * 목록. **개수를 말하되 무엇이었는지도 들고 있는다.**
  *
- * `countOf`와 나누는 이유는 **이름을 그대로 보여도 되는 목록에만 쓰기 때문**이다.
- * 특성 이름은 학생의 CSV 컬럼명이라 그대로 읽히지만, 알고리즘 목록은 `knn:mljs` 같은
- * 식별자라 화면이 로케일을 찾아야 한다 — 그건 여기가 아니라 그 화면의 일이고, 지금
- * 필요하지 않다.
+ * **줄에 쓰는 것은 여전히 개수뿐이다** — 특성 스무 개가 열여덟 개가 된 것을 이름으로
+ * 늘어놓으면 그 줄이 화면을 덮는다. `items`는 학생이 눌러서 열 때 쓴다.
+ *
+ * **항목이 그대로 읽히는 목록에 쓴다.** 특성 이름은 학생의 CSV 컬럼명이라 그대로
+ * 읽힌다. 식별자를 담는 목록은 `modelListOf`처럼 읽는 방식을 함께 실어 보낸다.
  */
 const listOf: Describe = (value) => ({
   kind: 'count',
   count: Array.isArray(value) ? value.length : 0,
   items: Array.isArray(value) ? value.map(String) : [],
+})
+
+/**
+ * 담은 모델 목록. **개수만 세던 자리다.**
+ *
+ * 개수가 같은 채로 구성만 바뀌면 이력이 `1개 → 1개`라고 적었다 — 그 실험에서 가장 크게
+ * 바뀐 것이 아무 말도 안 하는 줄이 됐다 (2026-08-29 전 경로 감사).
+ *
+ * **여기서 이름을 만들지 않는다.** 항목은 `decision_tree:mljs` 꼴의 식별자이고, 그것을
+ * 사람이 읽는 이름으로 바꾸는 것은 로케일을 아는 화면의 일이다 — `itemKind`가 그
+ * 사실만 실어 보낸다.
+ */
+const modelListOf: Describe = (value) => ({
+  ...(listOf(value) as { kind: 'count'; count: number; items: readonly string[] }),
+  itemKind: 'model',
 })
 
 /**
@@ -142,6 +166,8 @@ const joined: Describe = (value) => {
 export interface MemberDiff {
   readonly added: readonly string[]
   readonly removed: readonly string[]
+  /** 이름을 어떻게 읽는가. **값이 들고 온 것을 그대로 넘긴다** (`ChangeValue`). */
+  readonly itemKind: ChangeItemKind
 }
 
 /**
@@ -162,6 +188,8 @@ export function memberDiff(from: ChangeValue, to: ChangeValue): MemberDiff | nul
   return {
     added: to.items.filter((name) => !before.has(name)),
     removed: from.items.filter((name) => !after.has(name)),
+    // 양쪽이 같은 목록이므로 어느 쪽에서 읽어도 같다. 없으면 글자 그대로다.
+    itemKind: to.itemKind ?? from.itemKind ?? 'text',
   }
 }
 
@@ -179,7 +207,7 @@ const LABELS: Readonly<Record<string, { readonly labelKey: string; readonly desc
     // **특성만 `listOf`다.** 학생이 가장 자주 만지는 목록이고, 개수만 보고는 무엇을
     // 뺐는지 알 수 없어서 화면이 눌러 여는 자리를 준다 (results/ChangeList.vue).
     features: { labelKey: 'preprocess.tabular.roleFeature', describe: listOf },
-    algorithms: { labelKey: 'train.chosenTitle', describe: countOf },
+    algorithms: { labelKey: 'train.chosenTitle', describe: modelListOf },
     'preprocessing.missing': {
       labelKey: 'preprocess.tabular.missing',
       describe: vocabulary('missingStrategy'),

@@ -167,12 +167,20 @@ describe('바뀐 값을 전후로 보여준다', () => {
     expect(features?.to).toMatchObject({ items: [IRIS_FEATURE_COLUMNS[0]] })
   })
 
-  it('모델 목록은 이름을 안 들고 있다 - 식별자라 화면이 로케일을 찾아야 한다', () => {
+  /**
+   * **개수만 세던 자리다.** 개수가 같은 채로 구성만 바뀌면 이력이 `1개 → 1개`라고 적어서,
+   * 그 실험에서 가장 크게 바뀐 것이 아무 말도 안 하는 줄이 됐다 (2026-08-29 전 경로 감사).
+   *
+   * **이름은 여기서 만들지 않는다** — 항목은 `knn:mljs` 꼴의 식별자이고, 사람이 읽는
+   * 이름으로 바꾸는 것은 로케일을 아는 화면의 일이다. `itemKind`가 그 사실만 실어 보낸다.
+   */
+  it('모델 목록은 식별자를 들고 있고, 어떻게 읽을지를 함께 말한다', () => {
     const changes = changesOf({ selectedAlgorithms: [{ algorithm: 'knn' }] })
     const algorithms = changes.find((change) => change.path === 'algorithms')
 
-    expect(algorithms?.from.kind).toBe('count')
-    expect(algorithms?.from).not.toHaveProperty('items')
+    expect(algorithms?.to).toMatchObject({ kind: 'count', itemKind: 'model' })
+    // 실행 방법이 없으면 실험 기본을 따르므로, 저장된 꼴 그대로 온다.
+    expect(algorithms?.to).toHaveProperty('items')
   })
 
   it('분할 방식이 바뀌면 잡힌다', () => {
@@ -199,6 +207,7 @@ describe('목록의 들고 남', () => {
     expect(memberDiff(list('키', '몸무게', '나이'), list('키', '성별'))).toEqual({
       added: ['성별'],
       removed: ['몸무게', '나이'],
+      itemKind: 'text',
     })
   })
 
@@ -206,6 +215,7 @@ describe('목록의 들고 남', () => {
     expect(memberDiff(list('a', 'b', 'c'), list('c', 'z', 'a', 'y'))).toEqual({
       added: ['z', 'y'],
       removed: ['b'],
+      itemKind: 'text',
     })
   })
 
@@ -213,6 +223,18 @@ describe('목록의 들고 남', () => {
     expect(memberDiff(list('키', '몸무게'), list('키', '나이'))).toEqual({
       added: ['나이'],
       removed: ['몸무게'],
+      itemKind: 'text',
+    })
+  })
+
+  /** 읽는 방식은 값이 들고 온다. 화면이 경로로 갈라지지 않게 하는 것이 이 값의 일이다. */
+  it('모델 목록은 읽는 방식을 함께 넘긴다', () => {
+    const models = (...items: string[]) => ({ ...list(...items), itemKind: 'model' as const })
+
+    expect(memberDiff(models('knn:mljs'), models('decision_tree:mljs'))).toEqual({
+      added: ['decision_tree:mljs'],
+      removed: ['knn:mljs'],
+      itemKind: 'model',
     })
   })
 
