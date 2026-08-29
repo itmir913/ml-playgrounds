@@ -823,9 +823,15 @@ describe('두 언어가 나란히 말한다', () => {
     // 자체라 배지가 이미 말한 낱말이 된다. 혼자 서는 배지는 낱말이 있어야 하고
     // (`1001 photos`), 이름 옆의 값은 숫자만 남아야 한다 (`Photos 1001`).
     ['meta.image.count', 'meta.image.countUnit'],
-    // 프로젝트와 포트폴리오 문항은 영구히 없애는 것(Delete)이고 파일은 떼는 것
-    // (Remove)이다. 한국어는 셋 다 `지우기`로 굳어 있다.
-    ['portfolio.removeConfirm', 'predict.tabular.fileRemove', 'projects.delete'],
+    // 프로젝트와 포트폴리오 문항은 영구히 없애는 것(Delete)이고 파일과 사진은 떼는 것
+    // (Remove)이다. 한국어는 넷 다 `지우기`로 굳어 있다 — **영어가 결을 하나 더 가진
+    // 자리이고, 그 결을 한국어에 억지로 만들지 않는다** (`copy.md` §3).
+    [
+      'portfolio.removeConfirm',
+      'predict.image.remove',
+      'predict.tabular.fileRemove',
+      'projects.delete',
+    ],
     // 레일의 단계 이름에는 줄바꿈 자리를 심어 두었다(`StepRail`). 같은 낱말이지만
     // 글자가 다르다.
     ['preprocess.tabular.effect', 'steps.preprocess.label'],
@@ -845,7 +851,15 @@ describe('두 언어가 나란히 말한다', () => {
     // 자리**(`Experiments 3`)라 복수이고, 예측 필터의 축 이름은 **무엇으로 거르는지**를
     // 가리키는 자리라 옆의 `Model`과 같이 단수다.
     ['predict.filterExperiments', 'results.experiment'],
-    // 담은 모델과 예측할 사진에서는 `빼기`, 불러온 파일은 `지우기`다.
+    /**
+     * 영어는 셋 다 `Remove`인데 한국어가 갈린다 — 담은 모델은 `빼기`, 예측할 사진과
+     * 불러온 파일은 `지우기`다.
+     *
+     * **예측 화면의 사진이 한때 `빼기`였다.** 같은 화면의 `사진 전부 지우기`와 동사가
+     * 갈려 있었고(2026-08-29 화면 실측 B-6), `copy.md`가 포트폴리오에서 *"되돌릴 수
+     * 없으므로 `빼기`처럼 가벼운 말을 쓰지 않는다"*로 이미 내린 판단을 그대로 받았다.
+     * **담은 모델의 `빼기`는 그대로다** — 거기는 되돌릴 수 있고 그 화면에 `지우기`가 없다.
+     */
     ['predict.image.remove', 'predict.tabular.fileRemove', 'train.removeModel'],
   ]
 
