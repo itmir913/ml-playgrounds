@@ -67,7 +67,7 @@
         "emptyNext": "Load a file in the data step and you can choose what to predict here."
       },
       "image": {
-        "purpose": "Set how much data to keep for scoring.",
+        "purpose": "Decide how your photos are used for training.",
         "locked": "Add your photos first.",
         "emptyReason": "No photos yet.",
         "emptyNext": "Add photos in the data step and you can finish getting ready to train here."
@@ -286,7 +286,7 @@
       "targetRule": {
         "TARGET_NOT_NUMERIC": "Regression can only predict a number column."
       },
-      "summaryClustering": "You chose clustering, so these split settings are not used. The data is not split and all of it goes into training.",
+      "summaryClustering": "Clustering does not split, so every usable row goes into training.",
       "summaryEncoded": "Features after encoding",
       "summaryExcluded": "Columns left out",
       "summaryFeatureUnit": "{count} feature | {count} features",

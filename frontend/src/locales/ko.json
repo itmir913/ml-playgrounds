@@ -67,7 +67,7 @@
         "emptyNext": "데이터 단계에서 파일을 불러오면 여기에서 무엇을 예측할지 고를 수 있습니다."
       },
       "image": {
-        "purpose": "점수를 매길 테스트 데이터를 얼마나 둘지 정합니다.",
+        "purpose": "올린 사진을 학습에 어떻게 쓸지 정합니다.",
         "locked": "사진을 먼저 추가해 주세요.",
         "emptyReason": "아직 추가한 사진이 없습니다.",
         "emptyNext": "데이터 단계에서 사진을 추가하면 여기에서 학습 준비를 마칠 수 있습니다."
@@ -286,7 +286,7 @@
       "targetRule": {
         "TARGET_NOT_NUMERIC": "회귀는 숫자 열만 타깃으로 고를 수 있습니다."
       },
-      "summaryClustering": "군집화를 골랐으므로 이 분할 설정은 쓰이지 않습니다. 분할하지 않고 전체로 학습합니다.",
+      "summaryClustering": "군집화는 나누지 않으므로 쓸 수 있는 행 전부가 학습에 들어갑니다.",
       "summaryEncoded": "인코딩 뒤 특성",
       "summaryExcluded": "빠진 열",
       "summaryFeatureUnit": "{count}개",
