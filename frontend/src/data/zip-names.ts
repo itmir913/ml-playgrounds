@@ -116,20 +116,28 @@ function readAll(
 }
 
 /**
- * 경로를 이름 조각으로 가른다. **첫 조각만 보지 않는다** — 한 겹 감싸진 압축 파일
- * (`사진/개/1.jpg`)에서는 범주가 둘째 조각이다.
+ * 맞댈 수 있는 것 전부 — **온전한 경로와 그 조각들**.
+ *
+ * 부르는 자리가 둘이고 쥔 것이 다르다. 사진을 올리는 자리는 **범주 이름**(조각)을
+ * 갖고, `.mlpx`를 읽는 자리는 `hashes.json`에 적힌 **온전한 경로**를 갖는다. 둘 다
+ * 증거이므로 둘 다 본다.
+ *
+ * **첫 조각만 보지 않는다** — 한 겹 감싸인 압축 파일(`사진/개/1.jpg`)에서는 범주가
+ * 둘째 조각이다.
  *
  * 맥이 만든 zip은 한글을 NFD로 넣으므로 맞대기 전에 NFC로 모은다 (`upload.ts`의
  * `normalizePath`와 같은 이유이고, 그쪽은 이 함수가 정한 뒤에 돈다).
  */
-function segmentsOf(names: readonly string[]): ReadonlySet<string> {
-  const segments = new Set<string>()
+function comparableOf(names: readonly string[]): ReadonlySet<string> {
+  const found = new Set<string>()
   for (const name of names) {
-    for (const segment of name.split(/[\\/]/)) {
-      if (segment !== '') segments.add(segment.normalize('NFC'))
+    const path = name.replaceAll('\\', '/').normalize('NFC')
+    found.add(path)
+    for (const segment of path.split('/')) {
+      if (segment !== '') found.add(segment)
     }
   }
-  return segments
+  return found
 }
 
 /**
@@ -166,8 +174,8 @@ export function decodeZipNames(
     )
     for (const texts of [utf8, ...[...charsets].map((cs) => readAll(names, recovered, cs))]) {
       if (!texts) continue
-      const segments = segmentsOf(texts)
-      if ([...expected].some((name) => segments.has(name))) return texts
+      const comparable = comparableOf(texts)
+      if ([...expected].some((name) => comparable.has(name))) return texts
     }
   }
 

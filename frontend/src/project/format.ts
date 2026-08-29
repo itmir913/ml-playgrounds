@@ -16,6 +16,7 @@
 
 import { AsyncZipDeflate, unzip, Zip, type Unzipped } from 'fflate'
 
+import { decodeZipNames } from '../data/zip-names'
 import { ClientError } from '../errors'
 import { hashBytes } from '../hash'
 import { MAX_FILE_NAME_LENGTH, MAX_MODEL_BYTES, MODEL_BUDGET_BYTES } from '../limits'
@@ -757,13 +758,43 @@ function recordedHashes(bytes: Uint8Array | undefined): ProjectHashes | null {
 }
 
 /**
+ * **압축 프로그램이 인코딩을 안 적었으면 엔트리 이름을 되살린다** (`data/zip-names.ts`).
+ *
+ * 근거는 `open-decisions.md` "압축 파일의 폴더 이름은 UTF-8이 아닐 수 있다"이고, 여기는
+ * 그 결정문이 "그때 부르는 자리만 늘면 된다"고 적어 둔 그 자리다.
+ *
+ * **우리가 쓴 `.mlpx`는 멀쩡하다** — `fflate`가 UTF-8 플래그를 세운다. 깨지는 것은
+ * **교사가 압축을 풀어 들여다보고 탐색기로 다시 압축한 파일**이고, 그건 `mlpx-spec.md`
+ * §7.2가 약속한 "도구 없이 여는 길"을 실제로 걸어 본 사람에게 일어난다.
+ *
+ * **정답표를 파일이 들고 있다.** `hashes.json`에 적힌 경로가 원래 이름이고, 그 이름은
+ * ASCII 경로에 담겨 있어 인코딩과 무관하게 읽힌다. 그래서 **추측이 0이다** — 언어도
+ * 데이터 종류도 안 묻는다.
+ *
+ * **무결성이 무뎌지지 않는다.** 되살리는 것은 **이름뿐**이고 내용 해시는 그대로 대조된다.
+ * 이름이 기록과 맞아떨어지지 않으면 아무 후보도 안 뽑히므로, 진짜로 손을 탄 파일은
+ * 지금처럼 `MODIFIED`로 나온다. 오히려 지금은 **이름만 깨진 멀쩡한 파일이 사진 수만큼
+ * `REMOVED`+`ADDED`로 떠서** 변조로 보인다.
+ */
+function rekeyByRecordedPaths(
+  raw: readonly (readonly [string, Uint8Array])[],
+): readonly (readonly [string, Uint8Array])[] {
+  const recorded = recordedHashes(raw.find(([path]) => path === ENTRY.hashes)?.[1])
+  const decoded = decodeZipNames(
+    raw.map(([path]) => path),
+    { expect: recorded ? Object.keys(recorded.entries) : [] },
+  )
+  return raw.map(([, content], index) => [decoded[index]!, content] as const)
+}
+
+/**
  * .mlpx 바이트를 읽어 프로젝트로 만든다.
  *
  * 순서를 지켜야 한다 - 압축 해제 -> JSON 파싱 -> **버전 확인과 마이그레이션** -> 검증.
  */
 export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
   const unzipped = await unzipAsync(bytes)
-  const entries = new Map<string, Uint8Array>(Object.entries(unzipped))
+  const entries = new Map<string, Uint8Array>(rekeyByRecordedPaths(Object.entries(unzipped)))
 
   const required = (entry: string): Uint8Array => {
     const content = entries.get(entry)

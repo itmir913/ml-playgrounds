@@ -6,7 +6,7 @@
  * 여기서 새면 학생이 사진을 넣은 프로젝트가 **저장은 되는데 다시 안 열린다.**
  */
 
-import { unzipSync } from 'fflate'
+import { unzipSync, zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
 import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
@@ -229,5 +229,69 @@ describe('사진을 다 지운 프로젝트도 저장된다', () => {
     const { project: opened } = await readProject(bytes)
     expect(opened.images.size).toBe(0)
     expect(opened.document.settings.data.dataset).toBeUndefined()
+  })
+})
+
+/**
+ * **압축을 풀어 보고 다시 압축한 `.mlpx`도 열린다.**
+ *
+ * `mlpx-spec.md` §7.2가 "도구 없이 여는 길"을 약속했으므로 이것은 교사가 실제로 하는
+ * 일이다. 그런데 윈도 탐색기는 압축할 때 UTF-8 플래그를 안 세우고 이름을 ANSI 코드
+ * 페이지로 적는다 — 그러면 `fflate`가 Latin-1로 읽어 **범주 폴더 이름이 깨진다**
+ * (`open-decisions.md` "압축 파일의 폴더 이름은 UTF-8이 아닐 수 있다").
+ *
+ * 고치기 전에는 사진이 선언된 범주 아래 없는 것이 되고, **무결성이 사진 수만큼
+ * `REMOVED`+`ADDED`를 뱉어 멀쩡한 파일이 변조로 보였다.**
+ */
+describe('탐색기로 다시 압축한 .mlpx', () => {
+  /**
+   * 그 범주 이름의 CP949 바이트. 2026-08-29에 윈도 11(ANSI 949)에서 쟀다.
+   * `fflate`는 플래그가 없으면 Latin-1로 읽으므로 **바이트 하나가 글자 하나**가 된다 —
+   * 검사도 같은 방식으로 그 문자열을 만든다.
+   */
+  const CP949: Record<string, readonly number[]> = {
+    개: [0xb0, 0xb3],
+    고양이: [0xb0, 0xed, 0xbe, 0xe7, 0xc0, 0xcc],
+  }
+
+  /** 우리가 쓴 `.mlpx`를 **인코딩만 잃은** 것으로 바꾼다. 내용은 한 바이트도 안 건드린다. */
+  function asRezippedByExplorer(bytes: Uint8Array): Uint8Array {
+    const mangled: Record<string, Uint8Array> = {}
+    for (const [path, content] of Object.entries(unzipSync(bytes))) {
+      const broken = path.replace(/[^/]+/g, (segment) =>
+        CP949[segment] ? String.fromCharCode(...CP949[segment]) : segment,
+      )
+      mangled[broken] = content
+    }
+    return zipSync(mangled)
+  }
+
+  it('이름이 깨진 채로 와도 범주가 돌아온다', async () => {
+    const before = imageProject()
+    const { bytes } = await writeProjectBytes(before, markdown)
+    const rezipped = asRezippedByExplorer(bytes)
+
+    // 정말로 깨뜨렸는지 먼저 확인한다 — 안 그러면 아래가 조용히 통과한다.
+    const brokenPaths = Object.keys(unzipSync(rezipped))
+    expect(brokenPaths.some((path) => path.includes('°³'))).toBe(true)
+    expect(brokenPaths.some((path) => path.includes('개'))).toBe(false)
+
+    const { project: after, integrity } = await readProject(rezipped)
+    expect([...after.images.keys()].sort()).toEqual([...before.images.keys()].sort())
+    expect(integrity.status).toBe('UNCHANGED')
+  })
+
+  /**
+   * **정답표가 없으면 되살리지 않는다.** `hashes.json`이 그 표이고, 그것이 이 자리에서
+   * 추측을 0으로 만든다 — 없으면 맞댈 것이 없으므로 받은 그대로 둔다.
+   */
+  it('hashes.json이 없으면 깨진 이름 그대로 열린다', async () => {
+    const { bytes } = await writeProjectBytes(imageProject(), markdown)
+    const entries = unzipSync(asRezippedByExplorer(bytes))
+    delete entries['hashes.json']
+
+    const { project: after, integrity } = await readProject(zipSync(entries))
+    expect([...after.images.keys()].some((path) => path.includes('개'))).toBe(false)
+    expect(integrity.status).toBe('UNKNOWN')
   })
 })
