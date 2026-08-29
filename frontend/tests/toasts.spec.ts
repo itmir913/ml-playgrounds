@@ -101,3 +101,37 @@ describe('같은 알림을 두 번 쌓지 않는다', () => {
     expect(toasts.items).toHaveLength(2)
   })
 })
+
+/**
+ * **떠나는 화면의 알림만 걷는다** (2026-08-29 화면 실측 B-8).
+ *
+ * 라우터가 `afterEach`에서 수위선을 들고 부른다 (`router/index.ts`). 통째로 지우면
+ * **이동 도중에 뜬 알림**(가드의 flush 실패)이 새 화면에 닿기도 전에 사라진다.
+ */
+describe('화면을 옮기면 그 화면의 알림을 걷는다', () => {
+  it('수위선 이하만 지운다', () => {
+    const toasts = useToastStore()
+    const before = toasts.push('danger', 'client.A')
+    const mark = toasts.highWaterMark()
+    const during = toasts.push('danger', 'client.B')
+
+    toasts.dismissUpTo(mark)
+
+    expect(toasts.items.map((toast) => toast.id)).toEqual([during])
+    expect(before).toBeLessThanOrEqual(mark)
+  })
+
+  /** 이동이 끝나면 수위선을 다시 잡으므로, 살아남은 것도 **다음 이동 때는** 걷힌다. */
+  it('살아남은 알림도 그다음 이동에서는 걷힌다', () => {
+    const toasts = useToastStore()
+    toasts.push('danger', 'client.A')
+    toasts.dismissUpTo(toasts.highWaterMark())
+    expect(toasts.items).toHaveLength(0)
+  })
+
+  it('아무것도 없으면 아무 일도 안 한다', () => {
+    const toasts = useToastStore()
+    expect(() => toasts.dismissUpTo(toasts.highWaterMark())).not.toThrow()
+    expect(toasts.items).toHaveLength(0)
+  })
+})

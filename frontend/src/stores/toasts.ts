@@ -100,5 +100,29 @@ export const useToastStore = defineStore('toasts', () => {
     items.value = []
   }
 
-  return { items, push, pushError, dismiss, clear }
+  /**
+   * **떠나는 화면의 알림만 걷는다.** `id`가 `after` 이하인 것을 지운다.
+   *
+   * 화면을 옮기면 그 화면에서 뜬 오류가 따라와 **다음 화면의 첫 선택지를 덮었다**
+   * (2026-08-29 화면 실측 B-8). 전처리에서 오류 둘을 내고 레일로 학습에 가면 기계학습
+   * 유형 버튼 줄이 가려진다.
+   *
+   * **통째로 지우면 안 되는 이유**가 하나 있다 — 라우터 가드가 **이동하는 도중에도**
+   * 알림을 민다(`router/index.ts`의 flush 실패). 그건 방금 일어난 일이라 새 화면에서
+   * 읽혀야 한다. 그래서 수위선을 넘긴다.
+   *
+   * **스토어의 원칙과 부딪히는 것은 사실이다** — 위 `AUTO_DISMISS`는 "성공만 사라진다"
+   * 이고, 학생이 못 읽은 알림은 흔적을 안 남긴다. 다만 **떠난 화면의 오류는 맥락도 함께
+   * 떠난 것**이고, 그 자리에 머무는 동안에는 그대로 남는다.
+   */
+  function dismissUpTo(after: number): void {
+    items.value = items.value.filter((toast) => toast.id > after)
+  }
+
+  /** 지금까지 나간 마지막 id. 수위선을 잡는 쪽이 읽는다. */
+  function highWaterMark(): number {
+    return lastId
+  }
+
+  return { items, push, pushError, dismiss, clear, dismissUpTo, highWaterMark }
 })

@@ -78,7 +78,20 @@ export const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 })
 
+/**
+ * 이동이 **시작될 때** 떠 있던 알림의 수위선 (2026-08-29 화면 실측 B-8). 아래
+ * `afterEach`가 이것 이하를 걷는다 — 자세한 이유는 그쪽 주석에 있다.
+ *
+ * **가드의 맨 앞에서 잡는다.** 이 가드가 곧이어 flush 실패 알림을 밀기 때문에, 그보다
+ * 뒤에서 잡으면 방금 민 것까지 걷어 갈 대상이 된다.
+ *
+ * **리다이렉트로 가드가 다시 돌 때는 안 잡는다.** 두 번째 통과에서 다시 잡으면 첫
+ * 통과가 민 알림이 수위선 아래로 들어간다.
+ */
+let toastWatermark: number | null = null
+
 router.beforeEach(async (to) => {
+  if (toastWatermark === null) toastWatermark = useToastStore().highWaterMark()
   const project = useProjectStore()
   // 미뤄 둔 자동 저장을 끝내고 나간다. 화면을 옮기는 사이에 잃는 것이 없어야 한다.
   //
@@ -116,4 +129,23 @@ router.beforeEach(async (to) => {
   }
   const allowed = resolveStep(to.name, project.facts, project.taskType, project.dataType)
   return allowed === to.name ? true : { name: allowed, params: to.params }
+})
+
+/**
+ * **떠나는 화면의 알림을 걷는다** (2026-08-29 화면 실측 B-8).
+ *
+ * 오류 알림은 스스로 사라지지 않는다(`stores/toasts.ts`의 `AUTO_DISMISS`) - 학생이
+ * 읽어야 하는 것이라 그게 맞다. 그런데 **자기 화면을 벗어나서까지 남아** 다음 단계의
+ * 첫 선택지를 덮고 있었다. 전처리에서 오류 둘을 내고 레일로 학습에 가면 기계학습 유형
+ * 버튼 줄이 가려졌다.
+ *
+ * **통째로 지우지 않고 수위선 이하만 걷는다.** 이 가드가 **이동 도중에도** 알림을
+ * 밀기 때문이다(위 flush 실패) - 그건 방금 일어난 일이라 새 화면에서 읽혀야 한다.
+ *
+ * **`beforeEach`가 아니라 `afterEach`다.** 리다이렉트가 걸리면 `beforeEach`는 다시
+ * 돌지만 `afterEach`는 다 풀린 뒤 한 번만 돈다.
+ */
+router.afterEach(() => {
+  useToastStore().dismissUpTo(toastWatermark ?? 0)
+  toastWatermark = null
 })
