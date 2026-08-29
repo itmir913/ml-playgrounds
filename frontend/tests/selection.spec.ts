@@ -246,7 +246,7 @@ describe('세 축이 서로를 좁힌다', () => {
       OFFLINE,
       withSklearnOnly(ALGORITHMS),
     )
-    expect(choice(axes({ options }).algorithms, 'sklearn_only')?.reason).toBe('ENGINE_NOT_READY')
+    expect(choice(axes({ options }).algorithms, 'sklearn_only')?.reason).toBe('ENGINE_NOT_WIRED')
   })
 
   it('과제 유형이 먼저다 - 회귀에서는 분류 모델이 유형 사유로 꺼진다', () => {
@@ -274,7 +274,8 @@ describe('세 축이 서로를 좁힌다', () => {
     const { runtimes } = axes()
     expect(runtimes.map((one) => one.id)).toEqual(['mljs', 'pyodide-sklearn', 'server-sklearn'])
     expect(choice(runtimes, 'server-sklearn')?.reason).toBe('SERVER_UNAVAILABLE')
-    expect(choice(runtimes, 'pyodide-sklearn')?.reason).toBe('ENGINE_NOT_READY')
+    // 켤 자리가 아직 없어서 `ENGINE_NOT_READY`가 아니다 (`ml/backend.ts`의 `notReadyReason`).
+    expect(choice(runtimes, 'pyodide-sklearn')?.reason).toBe('ENGINE_NOT_WIRED')
   })
 
   it('같은 쌍은 두 번 못 담고, 실행 방법이 다르면 담을 수 있다', () => {

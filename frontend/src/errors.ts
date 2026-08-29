@@ -27,6 +27,10 @@ export const CLIENT_ERROR_CODES = [
   'DATASET_TOO_LARGE_FOR_BROWSER',
   'IMAGE_TOO_LARGE_FOR_BROWSER',
   'ENGINE_NOT_READY',
+  // **`ENGINE_NOT_READY`와 갈라 놓은 한시적인 짝이다** (docs/error-codes.md).
+  // 앞엣것은 "준비하면 된다"는 뜻인데, 준비를 켤 자리가 아직 없는 엔진에도 그 문장이
+  // 나가고 있었다. 배선이 붙는 날 `RuntimeSpec.preparable`을 참으로 바꾸고 이것을 지운다.
+  'ENGINE_NOT_WIRED',
 
   // 이미지 백본 - ml/embed/*
   // 백본을 준비하지 못했다: 가중치를 못 받았거나, 쓸 수 있는 TF.js 백엔드가 없거나,

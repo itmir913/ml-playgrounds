@@ -110,16 +110,35 @@ describe('실행 방법 목록', () => {
   })
 })
 
+/**
+ * 켜는 자리가 화면에 있는 등록부. **지금 실제 등록부에는 그런 칸이 없다** —
+ * `pyodide-sklearn`의 배선이 아직 없어서다 (`roadmap/01-v1-v5.md`). 그래서
+ * `ENGINE_NOT_READY`("준비하면 된다") 쪽 규칙은 이 판으로 확인한다. 배선이 붙는 날
+ * 등록부가 이 모양이 되고, 이 픽스처는 사라진다.
+ */
+const preparableRuntimes = RUNTIMES.map((runtime) =>
+  runtime.id === 'pyodide-sklearn' ? { ...runtime, preparable: true } : runtime,
+)
+
 describe('엔진 준비 상태', () => {
-  it('준비되지 않은 엔진은 ENGINE_NOT_READY로 잠긴다', () => {
+  /**
+   * **켤 자리가 없으면 "준비하면 된다"고 말하지 않는다** (2026-08-29 전 경로 감사).
+   * 그 문장은 학생을 없는 문으로 보낸다.
+   */
+  it('켜는 자리가 없는 엔진은 ENGINE_NOT_WIRED로 잠긴다', () => {
     const options = runtimeOptions(anywhere, context())
     expect(optionFor(options, 'pyodide-sklearn')).toEqual({
       runtime: RUNTIMES[1],
       enabled: false,
-      reason: 'ENGINE_NOT_READY',
+      reason: 'ENGINE_NOT_WIRED',
       // 잠긴 칸에도 상한이 붙는다 - "얼마까지 되나"는 잠기기 전에도 묻는 질문이다.
       maxRows: BROWSER_ROW_LIMIT,
     })
+  })
+
+  it('켜는 자리가 있으면 ENGINE_NOT_READY로 잠긴다', () => {
+    const options = runtimeOptions(anywhere, context(), preparableRuntimes)
+    expect(optionFor(options, 'pyodide-sklearn')?.reason).toBe('ENGINE_NOT_READY')
   })
 
   it('준비되면 열린다', () => {
@@ -129,7 +148,7 @@ describe('엔진 준비 상태', () => {
 
   it('내려받기만 끝난 상태는 아직 준비가 아니다 - 시동 15초가 남아 있다', () => {
     const states: Record<string, EngineState> = { 'pyodide-sklearn': 'downloaded' }
-    const options = runtimeOptions(anywhere, context({ engineStates: states }))
+    const options = runtimeOptions(anywhere, context({ engineStates: states }), preparableRuntimes)
     expect(optionFor(options, 'pyodide-sklearn')?.reason).toBe('ENGINE_NOT_READY')
   })
 

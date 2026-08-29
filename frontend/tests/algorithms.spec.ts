@@ -124,7 +124,7 @@ describe('등록부', () => {
     const options = algorithmOptions(tabularClassification, context(), [SKLEARN_ONLY_ALGORITHM])
     expect(options).toHaveLength(1)
     expect(options[0]?.enabled).toBe(false)
-    expect(options[0]?.reason).toBe('ENGINE_NOT_READY')
+    expect(options[0]?.reason).toBe('ENGINE_NOT_WIRED')
   })
 })
 
@@ -169,9 +169,11 @@ describe('세 축으로 고른다', () => {
 describe('못 쓰는 이유가 쓸모 있어야 한다', () => {
   it('지원하지도 않는 실행 방법의 이유를 보여주지 않는다', () => {
     // 이 모델은 mljs를 아예 지원하지 않는다. "여기서 실행할 수 없습니다"라고만 하면
-    // 학생은 무엇을 해야 하는지 모른다. 엔진을 준비하면 된다고 말해줘야 한다.
+    // 학생은 무엇을 해야 하는지 모른다. **엔진 쪽 사유까지 내려가야 한다** - 지금은
+    // 켤 자리가 없어서 그 사유가 `ENGINE_NOT_WIRED`이고, 배선이 붙으면
+    // `ENGINE_NOT_READY`("준비하면 된다")로 돌아온다.
     const options = algorithmOptions(tabularClassification, context(), [SKLEARN_ONLY_ALGORITHM])
-    expect(options[0]?.reason).toBe('ENGINE_NOT_READY')
+    expect(options[0]?.reason).toBe('ENGINE_NOT_WIRED')
   })
 
   it('엔진을 준비하면 sklearn 전용 모델이 열린다', () => {

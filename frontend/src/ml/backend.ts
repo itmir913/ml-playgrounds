@@ -62,9 +62,24 @@ export const UNAVAILABLE_REASONS = [
   'DATASET_TOO_LARGE_FOR_BROWSER',
   'IMAGE_TOO_LARGE_FOR_BROWSER',
   'ENGINE_NOT_READY',
+  'ENGINE_NOT_WIRED',
 ] as const
 
 export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number]
+
+/**
+ * 준비가 안 된 엔진의 사유. **등록부가 고른다.**
+ *
+ * `ENGINE_NOT_READY`는 "준비하면 된다"는 뜻이고, 그 문장은 **켜는 자리가 화면에 있을
+ * 때만 참이다.** 없는데도 그것을 주면 학생이 눌러도 갈 곳이 없는 문을 가리킨다
+ * (2026-08-29 전 경로 감사, `roadmap/01-v1-v5.md`).
+ *
+ * **`if (runtime.id === 'pyodide-sklearn')`을 쓰지 않는다** — 배선이 붙는 날 고칠 곳이
+ * 등록부 한 줄이어야 한다.
+ */
+function notReadyReason(runtime: RuntimeSpec): UnavailableReason {
+  return runtime.preparable ? 'ENGINE_NOT_READY' : 'ENGINE_NOT_WIRED'
+}
 
 /**
  * 사유별로 로케일 문장이 요구하는 값. 나머지는 빈 파라미터다.
@@ -137,6 +152,17 @@ export interface RuntimeSpec {
   readonly engineKind: string
   /** 쓰기 전에 내려받고 시동해야 하는가. 순수 JS는 번들에 이미 있다. */
   readonly needsPreparation: boolean
+  /**
+   * **준비를 켤 자리가 화면에 있는가.** 사유가 이 값으로 갈린다 —
+   * 참이면 `ENGINE_NOT_READY`("준비하면 된다"), 거짓이면 `ENGINE_NOT_WIRED`다.
+   *
+   * `needsPreparation`과 따로인 이유는 **다른 사실이어서다.** 앞엣것은 엔진의 성질이고
+   * (무겁다), 이것은 **우리 화면의 상태**다(그 엔진을 켜는 단추를 아직 안 만들었다).
+   * 하나로 합치면 배선이 붙는 날 어느 뜻으로 쓰이던 값인지 갈린다.
+   *
+   * **준비가 필요 없는 엔진에서는 아무 일도 안 한다.** 그때는 판정 자체를 안 지난다.
+   */
+  readonly preparable: boolean
 }
 
 /**
@@ -158,14 +184,28 @@ export const FALLBACK_RUNTIME_ID: RuntimeId = 'mljs'
  * 화면에서 통째로 사라진다. 타입은 이걸 못 잡으므로 검사가 본다 (§9.3.2).
  */
 export const RUNTIMES: readonly RuntimeSpec[] = [
-  { id: 'mljs', location: 'browser', engineKind: 'mljs', needsPreparation: false },
+  {
+    id: 'mljs',
+    location: 'browser',
+    engineKind: 'mljs',
+    needsPreparation: false,
+    preparable: false,
+  },
   {
     id: 'pyodide-sklearn',
     location: 'browser',
     engineKind: 'pyodide-sklearn',
     needsPreparation: true,
+    // **아직 켜는 자리가 없다** (roadmap/01-v1-v5.md). 배선이 붙는 날 참으로 바꾼다.
+    preparable: false,
   },
-  { id: 'server-sklearn', location: 'server', engineKind: 'sklearn', needsPreparation: false },
+  {
+    id: 'server-sklearn',
+    location: 'server',
+    engineKind: 'sklearn',
+    needsPreparation: false,
+    preparable: false,
+  },
 ]
 
 export interface AlgorithmSpec {
@@ -286,7 +326,7 @@ export function runtimeOptions(
     // 대신 정하면 GPU 서버를 띄운 학교의 상한을 우리 상수가 깎는다 (open-decisions.md #13).
     if (!isBrowserRuntimeId(runtime.id)) {
       if (runtime.needsPreparation && !isReady(context, runtime.id)) {
-        return { runtime, enabled: false, reason: 'ENGINE_NOT_READY' }
+        return { runtime, enabled: false, reason: notReadyReason(runtime) }
       }
       return { runtime, enabled: true }
     }
@@ -304,7 +344,7 @@ export function runtimeOptions(
     if (runtime.needsPreparation && !isReady(context, runtime.id)) {
       // 여기서 내려받게 하지 않는다. 준비는 상단 상태 점검 한 곳에서만 일어나야
       // 교사가 "다 같이 지금 눌러라"로 부하 타이밍을 쥘 수 있다.
-      return { runtime, enabled: false, reason: 'ENGINE_NOT_READY', maxRows }
+      return { runtime, enabled: false, reason: notReadyReason(runtime), maxRows }
     }
     return { runtime, enabled: true, maxRows }
   })

@@ -373,7 +373,7 @@ describe('일부만 실패한다', () => {
     // 줄 세 개가 나오고, 비교하려던 것이 사라진다. 대신 사유가 각각 다르다.
     expect(experiment.runs.map((run) => run.failure?.code)).toEqual([
       undefined, // 순수 JS는 돈다 - 벤더링한 SMO가 여기 있다
-      'ENGINE_NOT_READY', // pyodide를 아직 안 켰다
+      'ENGINE_NOT_WIRED', // pyodide는 켤 자리조차 아직 없다
       'SERVER_UNAVAILABLE', // 학교 서버가 없다
     ])
   })
