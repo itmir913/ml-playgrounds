@@ -195,6 +195,42 @@ export function imageTrainingSource(
 }
 
 /**
+ * 테스트용 사진의 표. **훈련 표와 같은 열 이름을 쓴다** — 전처리기가 이름으로 찾는다.
+ *
+ * **`split.method`가 `provided`일 때만 뜻이 있다.** 그 어휘를 세우는 것은
+ * `applyTestImages`이고(project/images.ts), 떼면 `clearTestImages`가 `holdout`으로
+ * 되돌린다. 그래서 여기서 그 어휘를 다시 보지 않는다 — 두 곳이 판정하면 갈린다.
+ *
+ * **군집화에는 없다.** 나누지 않으므로 채점할 자리가 없다 (architecture.md §3.6).
+ * 표도 같다 — `plan.ts`의 `testFromProvided`가 `!isClustering`을 달고 있다.
+ *
+ * **비어 있으면 `null`이다.** 사진은 있는데 임베딩이 없는 경우가 여기 걸리는데,
+ * 그때 빈 표를 주면 학습이 0행으로 채점하고 지표가 NaN인 채 끝난다. `null`이면
+ * `TEST_DATASET_NO_USABLE_ROWS`로 곱게 선다.
+ */
+export function imageTestDataset(
+  project: ProjectFile,
+  vectors: ReadonlyMap<string, Float32Array>,
+  backbone: BackboneSpec,
+  taskType: TaskType,
+): Dataset | null {
+  if (taskType === 'clustering') return null
+
+  const rows: string[][] = []
+  for (const entry of readImages(project, 'test')) {
+    // 라벨 없는 사진은 채점할 정답이 없다. 입구가 이미 막지만(data/image/test-set.ts)
+    // 여기서도 세지 않는다 - 훈련 표가 같은 자리에서 같은 것을 뺀다.
+    if (entry.category === IMAGE_UNLABELED) continue
+    const vector = vectors.get(entry.hash)
+    if (vector === undefined) continue
+    rows.push([...Array.from(vector, (value) => String(value)), entry.category])
+  }
+
+  if (rows.length === 0) return null
+  return { columns: [...embeddingColumns(backbone.embeddingDim), IMAGE_LABEL_COLUMN], rows }
+}
+
+/**
  * 참조형 모델(KNN)이 요구하는 훈련 행을 이미지에서 되세운다 (mlpx-spec.md §5.0).
  *
  * **못 세우면 `null`이다.** 사진이 학습 뒤에 늘거나 줄었으면 `trainIndices`가 가리키는

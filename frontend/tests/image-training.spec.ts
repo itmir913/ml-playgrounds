@@ -15,16 +15,26 @@ import {
   embeddingColumns,
   IMAGE_LABEL_COLUMN,
   imagePredictTable,
+  imageTestDataset,
   imageTrainingRows,
   imageTrainingSource,
   pendingEmbeddings,
   rowsHashOf,
   type ImageTrainingSource,
 } from '../src/ml/images'
+import { planRun } from '../src/ml/plan'
+import { TRAINING_SOURCES } from '../src/ml/training-source'
+import { addEmbeddings } from '../src/project/embeddings'
 import { fitPreprocessor } from '../src/ml/preprocess'
 import { newProjectDocument } from '../src/project/create'
 import { IMAGE_UNLABELED, type ProjectFile } from '../src/project/format'
-import { addCategory, addImages, moveImages, readImages } from '../src/project/images'
+import {
+  addCategory,
+  addImages,
+  applyTestImages,
+  moveImages,
+  readImages,
+} from '../src/project/images'
 import { dataSettings } from '../src/project/schema'
 
 const NOW = '2026-08-12T09:00:00.000Z'
@@ -507,5 +517,91 @@ describe('라벨을 맞바꾸면 이력이 말한다', () => {
       right,
       '라벨을 맞바꿨는데 견줄 값이 같다 - 결과 화면이 "설정을 바꾸지 않았다"고 말한다',
     ).not.toEqual(left)
+  })
+})
+
+/**
+ * **테스트용 사진을 올린 실험이 끝까지 서는가** (R10 감사 A-1).
+ *
+ * 이 자리가 한 번 통째로 죽어 있었다 — 입구(`applyTestImages`)는 분할을 `provided`로
+ * 돌리는데 어댑터가 `testDataset: null`을 못 박아, **학생은 사진을 올리고 초록 화면을 본
+ * 다음 [학습하기]에서 "채점할 행이 하나도 없습니다"를 봤다.** 멀쩡한 사진을 올렸는데
+ * 사진을 탓하는 문장이다.
+ *
+ * **진짜 입구로 잰다** — `applyTestImages`가 세우는 어휘와 어댑터가 읽는 어휘가 같은지가
+ * 이 결함의 전부였으므로, 표를 손으로 조립하면 그 고리를 건너뛴다.
+ */
+describe('테스트용 사진으로 채점한다', () => {
+  const NOW_TEST = '2026-08-28T09:00:00.000Z'
+
+  /** 훈련 사진 둘, 테스트 사진 둘. 넷 다 임베딩이 이미 있다 — 워커를 안 띄운다. */
+  function projectWithTestPhotos(): ProjectFile {
+    const base = imageProject([
+      { seed: 'a', category: '개' },
+      { seed: 'b', category: '고양이' },
+    ])
+    const applied = applyTestImages(
+      base,
+      [
+        { hash: hashBytes(photo('t1')), bytes: photo('t1'), category: '개' },
+        { hash: hashBytes(photo('t2')), bytes: photo('t2'), category: '고양이' },
+      ],
+      { canonicalSize: BACKBONE.canonicalSize, now: NOW_TEST, format: 'webp' },
+    )
+
+    const vectors = new Map<string, Float32Array>()
+    for (const role of ['data', 'test'] as const) {
+      for (const [index, entry] of readImages(applied.project, role).entries()) {
+        vectors.set(entry.hash, new Float32Array(DIM).fill(role === 'data' ? index + 1 : index + 9))
+      }
+    }
+    return addEmbeddings(applied.project, BACKBONE.id, vectors)
+  }
+
+  it('어댑터가 테스트 표를 건넨다 - null이면 채점할 것이 없다', async () => {
+    const source = await TRAINING_SOURCES.image({
+      project: projectWithTestPhotos(),
+      taskType: 'classification',
+    })
+
+    expect(source.testDataset, '테스트 사진을 올렸는데 어댑터가 null을 준다').not.toBeNull()
+    expect(source.testDataset?.rows).toHaveLength(2)
+    // 훈련 표와 같은 열 이름이어야 전처리기가 이름으로 찾는다.
+    expect(source.testDataset?.columns).toEqual(source.dataset.columns)
+  })
+
+  it('계획이 서고 testIndices가 올린 사진을 가리킨다', async () => {
+    const source = await TRAINING_SOURCES.image({
+      project: projectWithTestPhotos(),
+      taskType: 'classification',
+    })
+    const plan = planRun({
+      dataset: source.dataset,
+      testDataset: source.testDataset,
+      settings: source.settings,
+      taskType: 'classification',
+    })
+
+    expect('reason' in plan ? plan.reason : null, '계획이 막혔다').toBeNull()
+    if ('reason' in plan) return
+    expect(plan.split.testIndices).toHaveLength(2)
+    // 훈련 사진은 하나도 채점으로 안 간다 - 나누지 않고 통째로 학습에 쓴다.
+    expect(plan.split.trainIndices).toHaveLength(2)
+  })
+
+  /** 군집은 나누지 않는다 (architecture.md §3.6). 올려 두었어도 채점할 자리가 없다. */
+  it('군집화에는 테스트 표를 안 만든다', () => {
+    const project = projectWithTestPhotos()
+    const vectors = new Map<string, Float32Array>()
+    for (const entry of readImages(project, 'test')) {
+      vectors.set(entry.hash, new Float32Array(DIM).fill(1))
+    }
+    expect(imageTestDataset(project, vectors, BACKBONE, 'clustering')).toBeNull()
+  })
+
+  /** 사진은 있는데 임베딩이 없으면 빈 표가 아니라 `null`이다. */
+  it('임베딩이 없으면 빈 표 대신 null이다', () => {
+    const project = projectWithTestPhotos()
+    expect(imageTestDataset(project, new Map(), BACKBONE, 'classification')).toBeNull()
   })
 })

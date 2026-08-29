@@ -15,7 +15,7 @@ import type { EngineState } from '@/ml/backend'
 import { backboneFor } from '@/ml/backbones'
 import { embedImages, type EmbedWorker } from '@/ml/embed/client'
 import { spawnEmbedWorker } from '@/ml/embed/spawn'
-import { imageTrainingSource, pendingEmbeddings } from '@/ml/images'
+import { imageTestDataset, imageTrainingSource, pendingEmbeddings } from '@/ml/images'
 import type { Dataset } from '@/ml/preprocess'
 import { trainableRowCount } from '@/ml/selection'
 import { readDataset, readTestDataset } from '@/project/dataset'
@@ -98,7 +98,23 @@ export const TRAINING_SOURCES: Readonly<
     if (!backbone) throw new ClientError('BACKBONE_UNAVAILABLE')
 
     const known = readEmbeddings(project, backboneId, backbone.embeddingDim)
-    const pending = pendingEmbeddings(project, new Set(known.keys()), 'data')
+    const have = new Set(known.keys())
+
+    /**
+     * **훈련 사진과 테스트 사진을 함께 뽑는다.** 테스트 사진을 빼면 `provided`인 실험이
+     * 채점할 것을 못 찾아 `TEST_DATASET_NO_USABLE_ROWS`로 선다 — 학생은 멀쩡한 사진을
+     * 올리고 사진을 탓하는 문장을 본다 (R10 감사 A-1).
+     *
+     * **`provided`가 아니면 테스트 자리를 안 본다.** 사진이 남아 있을 수 없는 상태이고
+     * (`clearTestImages`가 함께 뗀다), 군집화는 나누지 않아 채점할 자리가 없다.
+     * 있지도 않을 것을 뽑으려 들면 그만큼 백본을 더 돌린다.
+     */
+    const scored =
+      taskType !== 'clustering' && project.document.settings.split.method === 'provided'
+    const pending = [
+      ...pendingEmbeddings(project, have, 'data'),
+      ...(scored ? pendingEmbeddings(project, have, 'test') : []),
+    ]
 
     let filled = project
     if (pending.length > 0) {
@@ -128,8 +144,9 @@ export const TRAINING_SOURCES: Readonly<
     return {
       project: filled,
       dataset: source.dataset,
-      // 압축 파일로 테스트 데이터를 받는 길은 아직 없다 (open-decisions.md "테스트용 zip").
-      testDataset: null,
+      // **훈련 표와 같은 열 이름을 쓴다** (ml/images.ts). `provided`가 아니면 `null`이고
+      // 그때는 splitRows가 아예 보지 않는다 (open-decisions.md "테스트용 zip").
+      testDataset: scored ? imageTestDataset(filled, known, backbone, taskType) : null,
       settings: source.settings,
       snapshot: source.snapshot,
       rowKeys: source.hashes,
