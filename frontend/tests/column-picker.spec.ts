@@ -37,7 +37,7 @@ function planFor(taskType: 'regression' | 'classification') {
 
 function pickerFor(taskType: 'regression' | 'classification') {
   return mount(ColumnPicker, {
-    props: { plan: planFor(taskType), scaling: 'none' as const },
+    props: { plan: planFor(taskType), scaling: 'none' as const, encoding: 'onehot' as const },
     global: {
       plugins: [createI18n({ legacy: false, locale: 'ko', messages: { ko: {} } })],
     },

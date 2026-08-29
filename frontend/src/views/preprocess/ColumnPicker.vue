@@ -48,6 +48,14 @@ const props = defineProps<{
    * 화면이 틀렸다고 여긴다 — **둘이 같아지면 그때가 데이터 누수다.**
    */
   scaling: Preprocessing['scaling']
+  /**
+   * 문자 열을 무엇으로 바꾸는가. **`scaling`과 같은 이유로 받는다** — 칸에 적을 문장이
+   * 방식마다 다르고(`encodingBasis.*`), 이 부품은 설정을 직접 읽지 않는다.
+   *
+   * `none`은 여기 안 온다 — 그 설정에서 문자 열은 전처리기에 아예 안 담기고
+   * (`fitPreprocessor`의 `excludedColumns`), 그 사실은 줄의 사유가 따로 말한다.
+   */
+  encoding: Preprocessing['categoricalEncoding']
 }>()
 
 const emit = defineEmits<{
@@ -80,6 +88,23 @@ function effectOf(column: ColumnPlan['columns'][number]): string[] {
         center: format.stat(fitted.scale.center),
         spread: format.stat(fitted.scale.spread),
       }),
+    )
+  }
+  /**
+   * **인코딩도 이 열에 실제로 일어나는 일이다.** 스케일링 기준만 적고 이 줄을 빼 두어,
+   * 미리보기에는 `동아리=음악`처럼 늘어난 열이 보이는데 그 열의 `전처리` 칸은 비어
+   * 있었다 (2026-08-29 전 경로 감사).
+   *
+   * **원-핫은 열이 몇 개가 되는지가 학생이 알아야 하는 값이다** — 범주가 많은 열
+   * 하나가 표를 수십 열로 불린다. 그 수는 훈련 데이터에서 본 범주 수와 같다
+   * (`fitPreprocessor`).
+   */
+  if (fitted.categories) {
+    const categories = fitted.categories
+    parts.push(
+      props.encoding === 'ordinal'
+        ? t('encodingBasis.ordinal', { last: categories.length - 1 })
+        : t('encodingBasis.onehot', { count: categories.length }),
     )
   }
   return parts

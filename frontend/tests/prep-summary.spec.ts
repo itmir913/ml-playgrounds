@@ -173,6 +173,7 @@ describe('열 표의 전처리 칸', () => {
         }),
         fitted: new Map(plan.preprocessor.columns.map((column) => [column.name, column])),
         scaling: data.preprocessing.scaling,
+        encoding: data.preprocessing.categoricalEncoding,
       },
       global: { plugins: [i18n] },
     })
@@ -189,6 +190,35 @@ describe('열 표의 전처리 칸', () => {
     const text = pickerFor({ ...file, document }).text()
     // 채울 것이 있는 열에만 뜬다. 빈 칸이 없는 열에 값을 보여주면 거기도 비어 보인다.
     expect(text).toContain('빈 칸 →')
+  })
+
+  /**
+   * **인코딩도 이 열에 일어나는 일이다.** 스케일링 기준만 적던 때에는, 미리보기에
+   * `반=A`처럼 늘어난 열이 보이는데 그 열의 `전처리` 칸이 비어 있었다
+   * (2026-08-29 전 경로 감사).
+   */
+  it('원-핫은 열이 몇 개로 늘어나는지 말한다', () => {
+    const text = pickerFor(chosen({ categoricalEncoding: 'onehot' })).text()
+
+    expect(text).toContain('원-핫 인코딩')
+    // `반`은 A와 B 둘이라 열이 둘이 된다.
+    expect(text).toContain('2개')
+    expect(text).not.toMatch(/encodingBasis[.]\w+/)
+  })
+
+  it('순서 인코딩은 번호가 어디까지 가는지 말한다', () => {
+    const text = pickerFor(chosen({ categoricalEncoding: 'ordinal' })).text()
+
+    expect(text).toContain('순서 인코딩')
+    // 범주 둘이면 0과 1이다.
+    expect(text).toContain('0 ~ 1')
+  })
+
+  /** 수치 열에는 인코딩이 없다. 문자 열 하나뿐이므로 문장도 하나뿐이어야 한다. */
+  it('수치 열에는 인코딩을 안 말한다', () => {
+    const text = pickerFor(chosen({ categoricalEncoding: 'onehot' })).text()
+
+    expect(text.match(/인코딩/g)).toHaveLength(1)
   })
 
   it('스케일링 기준을 방식의 말로 읽는다', () => {

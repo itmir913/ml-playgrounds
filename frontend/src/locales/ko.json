@@ -214,6 +214,10 @@
     "minmax": "정규화(Normalization)",
     "robust": "로버스트(Robust)"
   },
+  "encodingBasis": {
+    "onehot": "원-핫 인코딩 → 열 {count}개",
+    "ordinal": "순서 인코딩 → 0 ~ {last}"
+  },
   "categoricalEncoding": {
     "none": "하지 않음",
     "onehot": "원-핫 인코딩",

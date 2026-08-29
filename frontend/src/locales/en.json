@@ -214,6 +214,10 @@
     "minmax": "Min-max",
     "robust": "Robust"
   },
+  "encodingBasis": {
+    "onehot": "One-hot encoding → {count} column | One-hot encoding → {count} columns",
+    "ordinal": "Ordinal encoding → 0 to {last}"
+  },
   "categoricalEncoding": {
     "none": "None",
     "onehot": "One-hot encoding",

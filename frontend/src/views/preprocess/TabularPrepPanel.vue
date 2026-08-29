@@ -589,6 +589,7 @@ async function removeTest(): Promise<void> {
           :target-rule="targetRule"
           :fitted="fittedColumns"
           :scaling="data.preprocessing.scaling"
+          :encoding="data.preprocessing.categoricalEncoding"
           @pick-target="pickTarget"
           @toggle-feature="toggleFeature"
           @set-all-features="setAllFeatures"
