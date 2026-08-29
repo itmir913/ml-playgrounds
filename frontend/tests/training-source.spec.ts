@@ -20,7 +20,7 @@ import { trainingSourceOf } from '../src/ml/training-source'
 import { newProjectDocument } from '../src/project/create'
 import { addEmbeddings, readEmbeddings } from '../src/project/embeddings'
 import { type ProjectFile } from '../src/project/format'
-import { addImages, readImages } from '../src/project/images'
+import { addImages, applyTestImages, readImages } from '../src/project/images'
 
 const NOW = '2026-08-12T09:00:00.000Z'
 const BACKBONE = backboneFor(DEFAULT_BACKBONE_ID)!
@@ -169,8 +169,8 @@ describe('이미지는 없는 것만 뽑는다', () => {
     expect(readEmbeddings(source.project, BACKBONE.id, DIM).size).toBe(2)
   })
 
-  /** 압축 파일로 테스트 데이터를 받는 길은 아직 없다. */
-  it('테스트 데이터는 아직 없다', async () => {
+  /** 테스트 사진을 안 올렸으면 나눌 것도 채점할 것도 파일에서 안 온다. */
+  it('테스트 사진이 없으면 테스트 표도 없다', async () => {
     const seen = { requests: [] as EmbedRequest[] }
     const source = await trainingSourceOf({
       project: imageProject(['a']),
@@ -190,5 +190,104 @@ describe('이미지는 없는 것만 뽑는다', () => {
       createEmbedWorker: () => fakeWorker(seen),
     })
     expect(source.rowKeys).toEqual(readImages(project).map((entry) => entry.hash))
+  })
+})
+
+/**
+ * **테스트용 사진이 학습까지 닿는가** (R11 감사 A-1·A-2).
+ *
+ * **임베딩을 미리 채우지 않는다.** 그것이 이 블록의 전부다 — 미리 채운 픽스처는 뽑는
+ * 경로를 한 번도 안 지나가므로, **테스트 사진의 임베딩을 안 뽑는 돌연변이가 초록으로
+ * 살아남았다.** 그 돌연변이가 만드는 동작이 정확히 R10 A-1(배포되어 나갔던 결함)이다.
+ *
+ * 사진마다 첫 바이트를 달리 준다 — 가짜 워커가 그 값을 벡터에 채우므로 **어느 사진의
+ * 벡터가 어느 줄에 앉았는지**를 값만 보고 가를 수 있다.
+ */
+describe('테스트용 사진이 학습까지 닿는다', () => {
+  const SIZE = BACKBONE.canonicalSize
+
+  function baked(mark: number, category: string) {
+    const bytes = new Uint8Array([mark, 2, 3])
+    return { hash: hashBytes(bytes), bytes, category }
+  }
+
+  /** 훈련 둘·테스트 둘. **임베딩은 하나도 없다** — 실물에서 막 올린 상태다. */
+  function project(): ProjectFile {
+    const document = newProjectDocument(
+      { name: '개와 고양이', locale: 'ko', dataType: 'image' },
+      {
+        projectId: '550e8400-e29b-41d4-a716-446655440000',
+        createdAt: '2026-08-12T08:00:00.000Z',
+        randomState: 42,
+      },
+    )
+    const empty: ProjectFile = {
+      document,
+      models: new Map(),
+      images: new Map(),
+      attachments: new Map(),
+      embeddings: new Map(),
+    }
+    const base = addImages(empty, [baked(1, '개'), baked(2, '고양이')], {
+      canonicalSize: SIZE,
+      now: NOW,
+      format: 'webp',
+    }).project
+    return applyTestImages(base, [baked(3, '개'), baked(4, '고양이')], {
+      canonicalSize: SIZE,
+      now: NOW,
+      format: 'webp',
+    }).project
+  }
+
+  it('테스트 사진의 임베딩도 함께 뽑는다 - 안 뽑으면 채점할 것이 없다', async () => {
+    const seen = { requests: [] as EmbedRequest[] }
+    const source = await trainingSourceOf({
+      project: project(),
+      taskType: 'classification',
+      createEmbedWorker: () => fakeWorker(seen),
+    })
+
+    // 넷 다 뽑혀야 한다. 훈련 둘만 뽑으면 아래 표가 비고 학습이 곱게 선다.
+    expect(seen.requests[0]?.images).toHaveLength(4)
+    expect(source.testDataset, '테스트 사진을 올렸는데 표가 없다').not.toBeNull()
+    expect(source.testDataset?.rows).toHaveLength(2)
+  })
+
+  /**
+   * **값이 옳은 자리에 앉는가.** 열 이름과 줄 수만 보면 라벨을 앞에 붙여도 통과한다 —
+   * 그 상태에서 학습은 예외 없이 끝까지 돌고 **정확도만 바닥으로 나온다.**
+   */
+  it('테스트 표는 벡터 뒤에 라벨이다', async () => {
+    const seen = { requests: [] as EmbedRequest[] }
+    const source = await trainingSourceOf({
+      project: project(),
+      taskType: 'classification',
+      createEmbedWorker: () => fakeWorker(seen),
+    })
+
+    const rows = source.testDataset?.rows ?? []
+    for (const row of rows) {
+      // 마지막 칸이 라벨, 나머지가 벡터다.
+      expect(row).toHaveLength(DIM + 1)
+      expect(row[DIM], '마지막 칸이 라벨이 아니다').toMatch(/개|고양이/)
+      expect(Number(row[0]), '첫 칸이 벡터가 아니다').toBeGreaterThan(0)
+    }
+    // 3번 사진이 개, 4번이 고양이 - 벡터 값과 라벨이 짝을 지켜야 한다.
+    expect(rows.map((row) => [row[0], row[DIM]])).toEqual([
+      ['3', '개'],
+      ['4', '고양이'],
+    ])
+  })
+
+  /** 훈련 표에는 테스트 사진이 섞이지 않는다. 섞이면 점수가 자기 답을 다시 맞힌 값이 된다. */
+  it('훈련 표에는 테스트 사진이 없다', async () => {
+    const seen = { requests: [] as EmbedRequest[] }
+    const source = await trainingSourceOf({
+      project: project(),
+      taskType: 'classification',
+      createEmbedWorker: () => fakeWorker(seen),
+    })
+    expect(source.dataset.rows.map((row) => row[0])).toEqual(['1', '2'])
   })
 })
