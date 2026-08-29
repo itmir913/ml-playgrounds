@@ -16,6 +16,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
+import AppDialog from '@/components/AppDialog.vue'
 import { canonicalizeImages } from '@/data/image/client'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
 import { scoresWithTestImages, testSetBlockFor, testZipBlockFor } from '@/data/image/test-set'
@@ -29,6 +30,7 @@ import {
 import { ClientError } from '@/errors'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { backboneFor } from '@/ml/backbones'
+import { useRadioGroupGuard } from '@/composables/useRadioGroupGuard'
 import { splitsData, stratifyBlockFor, stratifyLocked } from '@/ml/selection'
 import { IMAGE_UNLABELED } from '@/project/format'
 import { dataSettings } from '@/project/schema'
@@ -105,7 +107,62 @@ const scored = computed(() => scoresWithTestImages(project.taskType))
  * 안 나눈다(`architecture.md` §3.6). 둘 다 **나눌 것이 없어서 비율과 층화가 아무 일도
  * 안 한다.** 조건에 앞엣것만 있어서 군집화에서는 손잡이가 켜진 채 거짓말을 하고 있었다.
  */
-const splitsByRatio = computed(() => splitsData(project.taskType) && !usingProvidedTest.value)
+const splitsByRatio = computed(() => splitsData(project.taskType) && testChoice.value === 'holdout')
+
+/**
+ * 화면이 지금 보여주는 선택. **커밋 전 임시 선택이 실제 값을 덮는다** —
+ * `TabularPrepPanel`이 쓰는 그 방식이다.
+ *
+ * "②를 골랐지만 아직 안 올림"은 파일에 없는 상태다. 그건 사진을 실제로 구워 앉혀야
+ * 생긴다. 그 사이를 이 값이 메운다.
+ *
+ * **한때 이 판은 라디오를 안 뒀다.** 사진을 올리는 것이 곧 선택이라는 이유였는데,
+ * 그러면 **같은 질문을 표와 이미지가 다른 문법으로 묻는다** (2026-08-29, 코드 소유자).
+ * 걱정했던 "중간 상태"는 표가 이미 이 방식으로 풀어 두었다.
+ */
+const manualTestChoice = ref<'holdout' | 'provided' | null>(null)
+const testChoice = computed<'holdout' | 'provided'>(
+  () => manualTestChoice.value ?? (usingProvidedTest.value ? 'provided' : 'holdout'),
+)
+
+/** "①"/"②" 라디오 그룹의 되돌리기 (`architecture.md` §8.15). */
+const testChoiceRadios = useRadioGroupGuard<'holdout' | 'provided'>()
+
+/** 지울 실험 수. 되돌릴 때 무엇이 사라지는지 학생에게 말해야 한다. */
+const experimentCount = computed(() => project.file?.document.runs.experiments.length ?? 0)
+
+/** 확인 모달이 떠 있는가. */
+const testRemoving = ref(false)
+
+/**
+ * "①"을 고른다. **올려 둔 사진이 있으면 그것을 지우는 일이다** — 실험까지 함께
+ * 사라지므로 먼저 묻는다. 표가 같은 자리에서 같은 것을 묻는다.
+ *
+ * **취소하면 그룹을 직접 되돌린다** (`architecture.md` §8.15) — 확인을 거치는 동안
+ * `testChoice`는 그대로 `'provided'`라 Vue가 다시 그려도 라디오의 `checked`를 안 써 준다.
+ */
+function chooseHoldout(): void {
+  if (usingProvidedTest.value) {
+    testChoiceRadios.resync('provided')
+    void requestRemoveTest()
+  } else {
+    manualTestChoice.value = 'holdout'
+  }
+}
+
+/** "②"를 고른다. **아직 아무 일도 하지 않는다** — 올리는 자리를 펼칠 뿐이다. */
+function chooseProvided(): void {
+  manualTestChoice.value = 'provided'
+}
+
+/** 되돌리기 요청. 지울 실험이 있으면 먼저 물어본다. */
+async function requestRemoveTest(): Promise<void> {
+  if (experimentCount.value > 0) {
+    testRemoving.value = true
+    return
+  }
+  await removeTest()
+}
 
 /**
  * 자리 자체의 잠금. **판정은 화면 밖에 있다** (`data/image/test-set.ts`) —
@@ -256,6 +313,8 @@ async function removeTest(): Promise<void> {
   const file = project.file
   if (!file) return
   await project.save(clearTestImages(file, new Date().toISOString()))
+  testRemoving.value = false
+  manualTestChoice.value = 'holdout'
 }
 
 /**
@@ -308,131 +367,152 @@ function onStratify(event: Event): void {
       </p>
 
       <!--
-        **넓은 화면에서는 두 열이고 가르는 것은 점선이다** (architecture.md §8.12).
-        비율로 나누는 것과 사진을 따로 올리는 것은 **같은 자리를 두고 갈리는 두 갈래**라,
-        학습 화면·결과 화면이 쓰는 그 문법을 그대로 쓴다. 선 좌우 여백은 카드 안쪽
-        여백과 같은 4다.
+        **양자택일이고 라디오로 묻는다** — 표와 같은 문법이다 (`TabularPrepPanel`).
 
-        **나눌 것이 없으면 왼쪽이 통째로 사라지고 한 열이 된다** — 사진이 대고 있거나
-        군집화이거나이고, 둘 다 비율과 층화가 아무 일도 안 한다(표도 같은 자리에서 같은
-        것을 감춘다). 가를 것이 하나뿐이므로 점선도 함께 걷는다.
+        한때 여기는 안 물었다. 사진을 올리는 것이 곧 선택이고 지우면 분할로 돌아오니
+        라디오가 군더더기라는 이유였는데, **그러면 같은 질문을 두 종류가 다른 문법으로
+        묻는다** (2026-08-29, 코드 소유자). 걱정했던 "②를 골랐지만 아직 안 올림"이라는
+        중간 상태는 표가 이미 `manualTestChoice`로 풀어 두었다.
+
+        **군집화면 이 갈래 자체가 없다** — 나누지 않으므로 어느 쪽도 뜻이 없고, 그
+        사실은 위 머리말이 말한다.
       -->
-      <div class="mt-3 grid gap-4" :class="splitsByRatio ? 'md:grid-cols-2' : ''">
-        <div v-if="splitsByRatio" class="flex flex-col gap-4">
-          <slot name="split-ratio" />
+      <div v-if="scored" class="mt-3 flex flex-col gap-4">
+        <div>
+          <label class="flex cursor-pointer items-start gap-2">
+            <input
+              :ref="testChoiceRadios.register('holdout')"
+              type="radio"
+              name="image-test-data-choice"
+              class="mt-1 size-4 accent-brand"
+              :checked="testChoice === 'holdout'"
+              @change="chooseHoldout"
+            />
+            <span class="flex flex-col">
+              <span class="font-bold">{{ t('preprocess.testDataHoldout') }}</span>
+              <span class="text-ink-faint">{{ t('preprocess.testDataImageHoldoutNote') }}</span>
+            </span>
+          </label>
 
-          <div>
-            <label class="flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
-                class="size-4 accent-brand"
-                :checked="settings.split.stratify"
-                :disabled="stratifyDisabled"
-                @change="onStratify"
-              />
-              <span class="font-bold">{{ t('preprocess.stratify') }}</span>
-            </label>
-            <!-- 이유 없이 회색이면 고장으로 보이고, 켜진 채 걸린 것은 학생이 꺼야 한다. -->
-            <p v-if="stratifyReason" class="mt-1 ml-6 text-caution">{{ stratifyReason }}</p>
+          <div v-if="splitsByRatio" class="mt-3 ml-6 flex flex-col gap-4">
+            <slot name="split-ratio" />
+
+            <div>
+              <label class="flex cursor-pointer items-center gap-2">
+                <input
+                  type="checkbox"
+                  class="size-4 accent-brand"
+                  :checked="settings.split.stratify"
+                  :disabled="stratifyDisabled"
+                  @change="onStratify"
+                />
+                <span class="font-bold">{{ t('preprocess.stratify') }}</span>
+              </label>
+              <!-- 이유 없이 회색이면 고장으로 보이고, 켜진 채 걸린 것은 학생이 꺼야 한다. -->
+              <p v-if="stratifyReason" class="mt-1 ml-6 text-caution">{{ stratifyReason }}</p>
+            </div>
           </div>
         </div>
 
-        <!--
-          **군집화이고 사진도 없으면 이 판 자체가 없다.** 예전에는 여기서
-          `이 사진들은 쓰이지 않습니다`를 말했는데 **가리킬 사진이 없었다** — 있는 것을
-          부정하는 문장과 애초에 없는 상태는 다른 문장이다. 나누지 않는다는 말은 위
-          머리말이 이미 한다.
-        -->
-        <div
-          v-if="scored || testPhotos > 0"
-          :class="
-            splitsByRatio
-              ? 'border-t border-dashed border-line pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-4'
-              : ''
-          "
-        >
-          <h3 class="font-bold">{{ t('preprocess.testImagesTitle') }}</h3>
-
-          <template v-if="testPhotos > 0">
-            <!--
-              **군집은 나누지 않으므로 이 사진이 안 쓰인다** (architecture.md §3.6).
-              그런데도 "채점합니다"라고 말하고 있었다 — 표의 요약 카드는 같은 상황에서
-              참을 말한다(`summaryClustering`).
-            -->
-            <p class="mt-1 text-ink-soft">
-              {{
-                scored
-                  ? t('preprocess.testImagesUsing', { count: testPhotos })
-                  : t('preprocess.testImagesClustering')
-              }}
-            </p>
-            <AppButton variant="secondary" class="mt-3" :action="removeTest">
-              {{ t('preprocess.testImagesRemove') }}
-            </AppButton>
-          </template>
-
-          <!--
-            **군집이면 권유하지 않는다** (R11 감사 B-3). 문구만 갈라 두었더니, 군집을
-            이미 고른 학생이 "채점합니다"를 읽고 굽는 시간을 다 쓴 **뒤에야** 안 쓰인다는
-            말을 들었다 — 이 파일의 `takeTest`가 "굽고 나서 거절하면 학생은 기다린 시간을
-            통째로 버린다"고 적어 둔 그 자리다. 지금은 판 자체가 위에서 사라지므로
-            여기 올 때는 언제나 `scored`다.
-          -->
-          <template v-else>
-            <p class="mt-1 text-ink-soft">{{ t('preprocess.testImagesLead') }}</p>
-            <!--
-              **잠기는 자리에는 이유가 함께 있다** (architecture.md §9.4). 범주가 서기
-              전에는 대조할 목록이 없어서 어떤 사진도 판정할 수 없다.
-            -->
-            <p v-if="testReason" class="mt-1 text-caution">{{ testReason }}</p>
-
-            <!--
-              **데이터 화면과 같은 드롭존이다** (`views/data/ImagePanel.vue`). 파일
-              입력을 날것으로 두면 브라우저마다 다른 회색 버튼이 나오고, 학생이 이미
-              데이터 화면에서 익힌 "끌어다 놓으면 된다"가 여기서만 안 통한다.
-            -->
-            <div
-              class="mt-3 grid place-items-center gap-3 rounded-panel border-2 border-dashed px-4 py-6 text-center transition-colors"
-              :class="dragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
-              @dragover.prevent="dragging = true"
-              @dragleave="dragging = false"
-              @drop.prevent="onTestDrop"
-            >
-              <div>
-                <p class="font-bold">{{ t('preprocess.testImagesDrop') }}</p>
-                <p class="mt-1 text-ink-soft">{{ t('preprocess.testImagesDropNote') }}</p>
-              </div>
-              <div class="flex flex-wrap justify-center gap-2">
-                <AppButton variant="secondary" :disabled="testDisabled" @click="pick(folderInput)">
-                  {{ t('preprocess.testImagesAddFolder') }}
-                </AppButton>
-                <AppButton variant="secondary" :disabled="testDisabled" @click="pick(zipInput)">
-                  {{ t('preprocess.testImagesAdd') }}
-                </AppButton>
-              </div>
-            </div>
-
+        <div>
+          <label class="flex cursor-pointer items-start gap-2">
             <input
-              ref="zipInput"
-              type="file"
-              class="hidden"
-              :accept="ZIP_EXTENSION"
-              @change="onTestPick"
+              :ref="testChoiceRadios.register('provided')"
+              type="radio"
+              name="image-test-data-choice"
+              class="mt-1 size-4 accent-brand"
+              :checked="testChoice === 'provided'"
+              @change="chooseProvided"
             />
-            <!--
-              **폴더째 고르는 입구를 따로 둔다** — 데이터 화면과 같은 이유다. 같은
-              input에 `webkitdirectory`를 걸면 파일 하나만 고르는 길이 사라진다.
-            -->
-            <input
-              ref="folderInput"
-              type="file"
-              webkitdirectory
-              class="hidden"
-              :accept="IMAGE_ACCEPT"
-              @change="onTestPick"
-            />
-          </template>
+            <span class="flex flex-col">
+              <span class="font-bold">{{ t('preprocess.testDataImageProvided') }}</span>
+              <span class="text-ink-faint">{{ t('preprocess.testDataImageProvidedNote') }}</span>
+            </span>
+          </label>
+
+          <div v-if="testChoice === 'provided'" class="mt-3 ml-6">
+            <template v-if="testPhotos > 0">
+              <p class="text-ink-soft">
+                {{ t('preprocess.testImagesUsing', { count: testPhotos }) }}
+              </p>
+              <!-- **되돌리는 것도 먼저 묻는다** — 실험이 함께 사라진다. -->
+              <AppButton variant="secondary" class="mt-3" :action="requestRemoveTest">
+                {{ t('preprocess.testImagesRemove') }}
+              </AppButton>
+            </template>
+
+            <template v-else>
+              <!--
+                **잠기는 자리에는 이유가 함께 있다** (architecture.md §9.4). 범주가 서기
+                전에는 대조할 목록이 없어서 어떤 사진도 판정할 수 없다.
+              -->
+              <p v-if="testReason" class="text-caution">{{ testReason }}</p>
+
+              <!--
+                **데이터 화면과 같은 드롭존이다** (`views/data/ImagePanel.vue`). 파일
+                입력을 날것으로 두면 브라우저마다 다른 회색 버튼이 나오고, 학생이 이미
+                데이터 화면에서 익힌 "끌어다 놓으면 된다"가 여기서만 안 통한다.
+              -->
+              <div
+                class="mt-3 grid place-items-center gap-3 rounded-panel border-2 border-dashed px-4 py-6 text-center transition-colors"
+                :class="dragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
+                @dragover.prevent="dragging = true"
+                @dragleave="dragging = false"
+                @drop.prevent="onTestDrop"
+              >
+                <div>
+                  <p class="font-bold">{{ t('preprocess.testImagesDrop') }}</p>
+                  <p class="mt-1 text-ink-soft">{{ t('preprocess.testImagesDropNote') }}</p>
+                </div>
+                <div class="flex flex-wrap justify-center gap-2">
+                  <AppButton
+                    variant="secondary"
+                    :disabled="testDisabled"
+                    @click="pick(folderInput)"
+                  >
+                    {{ t('preprocess.testImagesAddFolder') }}
+                  </AppButton>
+                  <AppButton variant="secondary" :disabled="testDisabled" @click="pick(zipInput)">
+                    {{ t('preprocess.testImagesAdd') }}
+                  </AppButton>
+                </div>
+              </div>
+
+              <input
+                ref="zipInput"
+                type="file"
+                class="hidden"
+                :accept="ZIP_EXTENSION"
+                @change="onTestPick"
+              />
+              <!--
+                **폴더째 고르는 입구를 따로 둔다** — 데이터 화면과 같은 이유다. 같은
+                input에 `webkitdirectory`를 걸면 파일 하나만 고르는 길이 사라진다.
+              -->
+              <input
+                ref="folderInput"
+                type="file"
+                webkitdirectory
+                class="hidden"
+                :accept="IMAGE_ACCEPT"
+                @change="onTestPick"
+              />
+            </template>
+          </div>
         </div>
+      </div>
+
+      <!--
+        **군집화인데 사진이 올라와 있으면 지울 길이 있어야 한다.** 위 갈래가 통째로
+        사라지므로, 여기가 없으면 학생은 안 쓰이는 사진을 안은 채 뺄 방법이 없다
+        (R11 감사 B-3이 "권유하지 않는다"로 정한 것은 **없을 때** 이야기다).
+      -->
+      <div v-else-if="testPhotos > 0" class="mt-3">
+        <h3 class="font-bold">{{ t('preprocess.testImagesTitle') }}</h3>
+        <p class="mt-1 text-ink-soft">{{ t('preprocess.testImagesClustering') }}</p>
+        <AppButton variant="secondary" class="mt-3" :action="requestRemoveTest">
+          {{ t('preprocess.testImagesRemove') }}
+        </AppButton>
       </div>
 
       <div class="mt-4">
@@ -440,4 +520,26 @@ function onStratify(event: Event): void {
       </div>
     </section>
   </div>
+
+  <!--
+    **되돌리면 실험이 함께 사라진다.** 표가 같은 자리에서 같은 것을 묻는다
+    (`TabularPrepPanel`의 `testDataRemoveTitle`). 라디오로 바꾸면서 필요해졌다 —
+    예전에는 `테스트용 사진 지우기`라는 이름 붙은 버튼이 유일한 길이었지만, 이제는
+    ①을 누르는 것이 곧 지우는 일이다.
+  -->
+  <AppDialog
+    :open="testRemoving"
+    :title="t('preprocess.testImagesRemoveTitle')"
+    :description="t('preprocess.testDataRemoveDescription', experimentCount)"
+    @close="testRemoving = false"
+  >
+    <template #actions>
+      <AppButton variant="secondary" @click="testRemoving = false">
+        {{ t('common.cancel') }}
+      </AppButton>
+      <AppButton variant="danger" :disabled="busy" :action="removeTest">
+        {{ t('preprocess.testImagesRemoveConfirm') }}
+      </AppButton>
+    </template>
+  </AppDialog>
 </template>

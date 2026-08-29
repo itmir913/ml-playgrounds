@@ -708,7 +708,7 @@ async function removeTest(): Promise<void> {
                 @change="chooseHoldout"
               />
               <span class="flex flex-col">
-                <span class="font-bold">{{ t('preprocess.tabular.testDataHoldout') }}</span>
+                <span class="font-bold">{{ t('preprocess.testDataHoldout') }}</span>
                 <span class="text-ink-faint">{{
                   t('preprocess.tabular.testDataHoldoutNote')
                 }}</span>
@@ -978,7 +978,7 @@ async function removeTest(): Promise<void> {
   <AppDialog
     :open="testRemoving"
     :title="t('preprocess.tabular.testDataRemoveTitle')"
-    :description="t('preprocess.tabular.testDataRemoveDescription', experimentCount)"
+    :description="t('preprocess.testDataRemoveDescription', experimentCount)"
     @close="testRemoving = false"
   >
     <template #actions>
