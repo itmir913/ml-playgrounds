@@ -17,6 +17,7 @@ import AppEmpty from '@/components/AppEmpty.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { parsePreprocessor, type Preprocessor } from '@/ml/preprocess'
 import { experimentOrder } from '@/ml/results'
+import { readFlag, writeFlag } from '@/prefs'
 import { readDataset } from '@/project/dataset'
 import { useProjectStore } from '@/stores/project'
 import ExperimentDetail from './results/ExperimentDetail.vue'
@@ -100,6 +101,37 @@ const preprocessor = computed<Preprocessor | null>(() => {
   }
 })
 
+/**
+ * `실험 기록`이 펼쳐져 있는가 (8.13.3). **기본은 펼침**이고, 화면 크기마다 다르게 두지
+ * 않는다 - 같은 학생이 교실 PC와 휴대폰에서 다른 화면을 보면 교사가 둘을 따로 설명해야
+ * 한다. 고른 뒤 스스로 접지도 않는다.
+ */
+const historyOpen = ref(readFlag('resultsHistoryOpen', true))
+
+/**
+ * `<details>`가 스스로 여닫으므로 **DOM이 먼저 바뀌고 우리가 따라간다.** 눌러서 바뀐
+ * 것만 남기면 되고, `:open`을 되돌릴 일은 없다.
+ */
+function onHistoryToggle(event: Event): void {
+  const next = (event.target as HTMLDetailsElement).open
+  if (next === historyOpen.value) return
+  historyOpen.value = next
+  writeFlag('resultsHistoryOpen', next)
+}
+
+/**
+ * 상세를 가르는 선. **접히면 두 열이 한 열이 되므로 세로선이 뜻을 잃는다** (8.12) -
+ * 좁은 화면에서 가로선이 되는 것과 같은 이유다.
+ *
+ * **템플릿에서 조립하지 않는다** (§10.1). 조건이 하나 더 붙는 날 마크업이 길어지고,
+ * 그 조건을 아무도 안 본다.
+ */
+const detailDivider = computed(() =>
+  historyOpen.value
+    ? 'border-t border-dashed border-line-strong pt-5 md:border-t-0 md:border-l md:pt-0 md:pl-5'
+    : 'border-t border-dashed border-line-strong pt-5',
+)
+
 /** 모델 경로 → 바이트. 어느 run의 것을 꺼낼지는 `ExperimentDetail`이 정한다. */
 const models = computed<ReadonlyMap<string, Uint8Array>>(
   () => project.file?.models ?? new Map<string, Uint8Array>(),
@@ -138,19 +170,46 @@ const models = computed<ReadonlyMap<string, Uint8Array>>(
       <AppEmpty :reason="t('results.emptyReason')" :next="t('results.emptyNext')" />
     </div>
 
-    <div v-else class="flex min-h-96 flex-1 flex-col gap-5 md:flex-row">
-      <div class="min-h-0 shrink-0 overflow-y-auto md:w-80">
+    <div
+      v-else
+      class="flex min-h-96 flex-1 flex-col gap-5"
+      :class="historyOpen ? 'md:flex-row' : ''"
+    >
+      <!--
+        **접으면 상세가 전폭이 된다** (8.13.3). 넓은 화면에서는 왼쪽 320px이 상세로
+        넘어가고, 좁은 화면에서는 목록을 다 지나야 상세에 닿던 세로가 한 줄로 준다.
+        요구는 다르지만 **같은 규칙의 두 모양**이라 설명이 하나다.
+
+        **`<details>`인 이유는 키보드가 공짜로 따라오기 때문이다.** 키보드 지원은 배포
+        뒤로 미뤄 둔 항목이고, 이 앱에는 이미 선례가 둘 있다 (`data/TabularPanel.vue`의
+        좁은 화면 열 정보, `ExperimentDetail.vue`의 실패한 run).
+      -->
+      <details
+        class="min-h-0 shrink-0 overflow-y-auto"
+        :class="historyOpen ? 'md:w-80' : ''"
+        :open="historyOpen"
+        @toggle="onHistoryToggle"
+      >
+        <!--
+          **접혔을 때 무엇을 보고 있는지를 이 줄이 말한다** (8.13.3). 접었다는 표시만
+          남기면 좁은 화면에서 상세만 남고, 그것이 몇 번째 실험의 것인지 확인할 길이
+          화면에서 사라진다. 펼쳐져 있으면 아래 목록이 이미 말하므로 붙이지 않는다.
+        -->
+        <summary class="cursor-pointer pb-1.5 font-bold text-ink-soft">
+          {{ t('results.experimentTitle') }}
+          <span v-if="!historyOpen && current" class="ml-1 text-ink">
+            {{ t('results.experimentName', { index: order.get(current.id) ?? 0 }) }}
+          </span>
+        </summary>
         <ExperimentList :experiments="experiments" :selected="selected" @pick="pick" />
-      </div>
+      </details>
 
       <!--
         **두 열 사이를 점선으로 가른다** (§8.12). 왼쪽이 고르는 자리, 오른쪽이 고른 것의
         속이라 학습 화면의 두 열과 같은 관계다 - 같은 선으로 갈라야 같은 문법으로 읽힌다.
         한 열로 접히면 세로선이 뜻을 잃으므로 가로선이 된다.
       -->
-      <div
-        class="min-h-0 min-w-0 flex-1 overflow-y-auto border-t border-dashed border-line-strong pt-5 md:border-t-0 md:border-l md:pt-0 md:pl-5"
-      >
+      <div class="min-h-0 min-w-0 flex-1 overflow-y-auto" :class="detailDivider">
         <!--
           **스크롤 대상은 이 안쪽이지 바깥 상자가 아니다.** 바깥(`overflow-y-auto`)에
           `scrollIntoView`를 걸면 그 상자를 화면 안으로 들이기만 하고 **상자 안의 스크롤은

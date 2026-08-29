@@ -45,8 +45,11 @@ const rows = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-1.5">
-    <h3 class="font-bold text-ink-soft">{{ t('results.experimentTitle') }}</h3>
+  <!--
+    **제목이 여기 없다** (2026-08-29). `실험 기록`은 접는 손잡이(`<summary>`)가 되었고,
+    `<details>`의 손잡이는 그 안에 있을 수 없다 - `ResultsView`가 갖는다 (8.13.3).
+  -->
+  <div class="flex flex-col">
     <ul class="flex flex-col gap-2">
       <li v-for="row in rows" :key="row.experiment.id">
         <!--
