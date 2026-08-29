@@ -33,9 +33,24 @@ const { t } = useI18n()
 
     <AppTable>
       <thead>
+        <!--
+          **축 이름이 표 안에 선다** (2026-08-29 화면 실측 C-5). 예전에는 모서리 칸에만
+          `실제 값`이 있고 그 오른쪽에 값 이름들이 나란히 있어서, 머리 줄이
+          `실제 값 | 불합격 | 합격`으로 읽혔다 — **뒤의 둘은 예측한 값인데** 학생은 셋 다
+          실제 값으로 훑는다.
+
+          바로 위 설명문이 옳게 말하고 있지만 그건 **읽어서 머리에서 조합해야** 하고,
+          §8.13이 둔 팝오버는 **누를 때만** 답한다. 표 머리는 안 물어도 보인다.
+
+          모서리는 비운다 — 두 축이 만나는 칸이라 어느 쪽 이름도 그 자리의 것이 아니다.
+        -->
         <tr>
-          <!-- 모서리 칸. 세로축이 실제이고 가로축이 예측이라는 것을 여기서 말한다. -->
-          <th>{{ t('results.actual') }}</th>
+          <th :rowspan="2" class="align-bottom">{{ t('results.actual') }}</th>
+          <th :colspan="run.confusionMatrix.labels.length" class="text-center">
+            {{ t('results.cellPredicted') }}
+          </th>
+        </tr>
+        <tr>
           <th v-for="label in run.confusionMatrix.labels" :key="label">{{ label }}</th>
         </tr>
       </thead>
@@ -46,6 +61,12 @@ const { t } = useI18n()
             **맞힌 칸(대각선)은 굵기와 배경을 함께 준다.** 굵기만으로는 표를 눈으로
             훑을 때 잘 안 걸린다 — 배경색이 먼저 눈에 들어와야 어디를 봐야 하는지가
             읽기 전에 이미 보인다.
+
+            **다만 0이면 굵기를 뺀다** (2026-08-29 화면 실측 C-5). 둘이 하는 일이
+            다르다 — 배경은 **어디를 볼지**를, 굵기는 **이 숫자를 보라**를 말한다. 한
+            번도 못 맞힌 범주의 초록 `0`이 굵게까지 서면 "잘했다"로 읽히고, 바로 아래
+            `범주별 점수`는 같은 사실을 주황 `0%`로 칠한다. **배경은 남긴다** — 빼면
+            대각선이 끊겨 표가 읽기 어려워지고, 그게 배경이 있는 이유다.
           -->
           <!--
             **칸을 누르면 그 칸이 무엇인지 말한다** (§8.13). 세로가 실제, 가로가 예측이라는
@@ -58,7 +79,10 @@ const { t } = useI18n()
           <td
             v-for="(count, column) in row"
             :key="column"
-            :class="index === column ? 'bg-positive-soft font-bold' : ''"
+            :class="[
+              index === column ? 'bg-positive-soft' : '',
+              index === column && count > 0 ? 'font-bold' : '',
+            ]"
           >
             <AppPopover size="wide">
               <template #trigger="{ open }">
