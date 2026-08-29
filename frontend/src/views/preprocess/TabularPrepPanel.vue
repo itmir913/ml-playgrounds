@@ -36,6 +36,7 @@ import {
   trainableRowCount,
 } from '@/ml/selection'
 import { planRun } from '@/ml/plan'
+import { preprocessPreview } from '@/ml/preview'
 import {
   applyTestDataset,
   readDataset,
@@ -62,6 +63,7 @@ import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import ColumnPicker from './ColumnPicker.vue'
 import TabularPrepSummary from './TabularPrepSummary.vue'
+import TabularPrepPreview from './TabularPrepPreview.vue'
 
 const { t } = useI18n()
 const project = useProjectStore()
@@ -101,6 +103,28 @@ const runPlan = computed(() => {
     settings: file.document.settings,
     taskType: project.taskType,
   })
+})
+
+/**
+ * 다듬기가 표를 어떻게 바꾸는가 (`ml/preview.ts`). **판이 지어서 내려준다** — 카드가
+ * 스스로 부르면 같은 설정에서 `transform`이 두 번 돈다.
+ *
+ * **새로 도는 것은 다섯 행짜리 `transform` 하나다.** 전처리기는 위 `runPlan`이 이미
+ * 지은 것을 그대로 받으므로, 비율 슬라이더를 끄는 동안 다시 적합하지 않는다.
+ */
+const preview = computed(() => {
+  const current = runPlan.value
+  const table = dataset.value
+  // **종류별 설정은 `tabularDataOf`를 이미 지났다** (settings-rules.spec.ts). 이름을
+  // `settings`로 두면 그 규칙을 어긴 것처럼 읽히고, 실제로 검사가 그렇게 읽었다.
+  const tabular = data.value
+  if (current === null || !current.ok || !table || !tabular) return null
+  return preprocessPreview(
+    table,
+    current.preprocessor,
+    current.split.trainIndices,
+    tabular.preprocessing.categoricalEncoding,
+  )
 })
 
 /** 열마다의 전처리 값. 계획이 못 섰으면 없다 — 그때 표의 그 칸은 빈다. */
@@ -883,6 +907,13 @@ async function removeTest(): Promise<void> {
       8개면 오른쪽이 길다. 카드 안에서 다시 두 열로 갈라 넓은 화면을 쓴다.
     -->
     <TabularPrepSummary :plan="runPlan" />
+
+    <!--
+      **미리보기는 요약 아래에 온다** (open-decisions.md "전처리 미리보기"). 요약이
+      숫자로 말한 것을 표로 확인하는 순서다 — 반대로 두면 학생이 표를 먼저 읽고 나서
+      "그래서 몇 행이 남았지"를 다시 찾는다.
+    -->
+    <TabularPrepPreview :preview="preview" />
   </div>
 
   <!--
