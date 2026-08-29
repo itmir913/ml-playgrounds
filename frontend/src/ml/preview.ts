@@ -15,12 +15,26 @@ import type { Preprocessing } from '@/project/schema'
 /** 미리보기가 보여주는 줄 수. **상한이 아니라 표시 분량이다** (limits.ts의 분류). */
 export const PREVIEW_ROWS = 5
 
+/**
+ * 이 칸에 앉은 값이 **무엇인가.** 화면이 자릿수를 어떻게 줄지가 이것으로 갈린다.
+ *
+ * - `raw` — 학생의 자료가 그대로 지나갔다. **우리가 자를 자리가 아니다.**
+ * - `scaled` — `(x-중심)/폭`. 계산해 낸 통계라 유효숫자를 줄인다.
+ * - `code` — 원-핫의 0/1이거나 순서 인코딩의 번호. 언제나 정수다.
+ *
+ * **화면에서 세지 않는 이유는 여기가 검사할 수 있는 전부이기 때문이다** — `scale`이
+ * 붙었는지는 전처리기가 알고, 그걸 화면이 다시 알아내면 규칙이 두 벌이 된다.
+ */
+export type PreviewValueKind = 'raw' | 'scaled' | 'code'
+
 /** 원본 열 하나가 만들어 낸 특성 하나. */
 export interface PreviewFeature {
   /** 전처리기가 붙인 이름. 원-핫이면 `지역=서울`이다. */
   readonly name: string
   /** 행마다의 값. `rowNumbers`와 자리가 같다. */
   readonly values: readonly number[]
+  /** 그 값이 무엇인가. 한 특성 안에서는 행마다 같다. */
+  readonly kind: PreviewValueKind
 }
 
 /**
@@ -67,6 +81,16 @@ function widthOf(
 }
 
 /**
+ * 이 열에서 나온 값이 무엇인가. **`transform`이 실제로 하는 일을 그대로 읽는다**
+ * (`ml/preprocess.ts`) — 범주 열은 원-핫이든 순서든 정수를 밀고, 수치 열은 `scale`이
+ * 붙었을 때만 나눗셈을 지난다.
+ */
+function valueKindOf(column: Preprocessor['columns'][number]): PreviewValueKind {
+  if (column.kind !== 'numeric') return 'code'
+  return column.scale ? 'scaled' : 'raw'
+}
+
+/**
  * 훈련 데이터의 앞 몇 줄이 전처리를 지나면 어떻게 되는가.
  *
  * **훈련 자리에서 가져오는 이유는 전처리기가 거기서만 적합되기 때문이다** — 보여주는
@@ -95,6 +119,7 @@ export function preprocessPreview(
       features: Array.from({ length: width }, (_, offset) => ({
         name: preprocessor.featureNames[at + offset] ?? '',
         values: matrix.map((row) => row[at + offset] ?? 0),
+        kind: valueKindOf(fitted),
       })),
       excluded: false,
     })

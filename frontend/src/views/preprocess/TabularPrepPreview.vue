@@ -40,6 +40,21 @@ const format = useFormat()
 function spanOf(column: PreprocessPreview['columns'][number]): number {
   return 1 + column.features.length
 }
+
+/**
+ * 이 칸을 어떤 글자로 그릴까. **무엇인가는 `ml/preview.ts`가 정하고 여기는 고르기만 한다.**
+ *
+ * @param before 같은 행의 원본 칸. 비어 있으면 지나간 값이 아니라 **채운 값**이다.
+ */
+function cellText(
+  feature: PreprocessPreview['columns'][number]['features'][number],
+  before: string,
+  value: number,
+): string {
+  if (feature.kind === 'code') return String(value)
+  if (feature.kind === 'scaled' || before.trim() === '') return format.stat(value)
+  return format.rawCell(value)
+}
 </script>
 
 <template>
@@ -64,7 +79,19 @@ function spanOf(column: PreprocessPreview['columns'][number]): number {
           "표가 어떻게 생겼나"가 아니다.
         -->
         <tr>
-          <th rowspan="2" class="min-w-16">{{ t('preprocess.previewRowNumber') }}</th>
+          <!--
+            **행 번호는 옆으로 굴려도 남는다** (2026-08-29 화면 실측 B-3). 열이 서른
+            개인 데이터에서 표가 9,205px가 되는데, 그때 지금 보는 칸이 몇 번째 줄인지가
+            사라졌다. 하위 열 머리는 `지역=서울`처럼 원본 열 이름을 이미 달고 있어서
+            **잃는 것이 행 앵커 하나였다.**
+
+            바탕이 불투명해야 한다 — 조금이라도 비치면 그 틈으로 옆 칸이 지나간다
+            (§8.9가 머리글 고정에서 밟은 것과 같다). 줄무늬가 `tr`에 걸려 있어
+            `bg-inherit`이면 홀짝이 그대로 따라온다.
+          -->
+          <th rowspan="2" class="sticky left-0 z-10 min-w-16 bg-surface-sunken">
+            {{ t('preprocess.previewRowNumber') }}
+          </th>
           <th
             v-for="column in props.preview.columns"
             :key="column.name"
@@ -99,21 +126,31 @@ function spanOf(column: PreprocessPreview['columns'][number]): number {
           :key="number"
           class="odd:bg-surface even:bg-surface-sunken"
         >
-          <td class="text-ink-faint tabular-nums">{{ number }}</td>
+          <td class="sticky left-0 z-10 bg-inherit text-ink-faint tabular-nums">{{ number }}</td>
           <template v-for="column in props.preview.columns" :key="column.name">
             <td class="border-l border-line" :class="column.excluded ? 'text-ink-faint' : ''">
               {{ column.before[row] }}
             </td>
             <!--
-              **`stat`이 아니라 `prediction`이다** (R11 감사 B-4를 여기서 닫는다).
-              `formatStat`은 유효숫자 넷으로 줄이는데, 이 칸에는 **스케일링을 안 건
-              원값이 그대로 지나간다** — 12345가 12,350으로 그려지면 미리보기가 원본을
-              거짓으로 보이게 된다. 여기 오는 값은 통계량이 아니라 **모델이 받는 그
-              데이터**이고, `formatPrediction`의 유효숫자 12는 부동소수 잡음만 걷어낸다.
-              표준화한 칸이 길게 보이는 것은 그 값이 실제로 그렇기 때문이다.
+              **칸의 종류마다 다르게 그린다** (`ml/preview.ts`의 `kind`).
+
+              한때 여기가 전부 `prediction`이었다. "스케일링을 안 건 원값이 그대로
+              지나가므로 12345를 12,350으로 만들면 안 된다"가 그 근거였는데 **맞는 말이고,
+              그런데 그 전제가 이미 깨져 있었다** — 안 건 칸도 `Intl`을 지나 `2001`이
+              `2,001`로 그려졌다 (2026-08-29 화면 실측 B-2). 그래서 자르느냐 마느냐가
+              아니라 칸을 갈랐다.
+
+              - 지나가는 값은 **옆 칸의 원문과 같은 글자로** (`rawCell`).
+              - 스케일된 값은 계산해 낸 통계라 유효숫자 넷 (`stat`) — 요약 카드가
+                `스케일링 기준`에 이미 쓰는 눈금이다. 특성 다섯 개짜리 표가 1,502px에서
+                1,204px로 내려와 1366 화면에 들어간다.
+              - 원-핫·순서 인코딩은 정수다.
+
+              **빈 칸이었으면 지나간 값이 아니라 채운 값이다** — 그건 훈련 데이터에서
+              구한 통계라 `stat`으로 간다.
             -->
             <td v-for="feature in column.features" :key="feature.name" class="tabular-nums">
-              {{ format.prediction(feature.values[row] ?? 0) }}
+              {{ cellText(feature, column.before[row] ?? '', feature.values[row] ?? 0) }}
             </td>
           </template>
         </tr>

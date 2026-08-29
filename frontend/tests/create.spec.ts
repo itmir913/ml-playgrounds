@@ -12,6 +12,7 @@ import {
   formatDateTime,
   formatPercent,
   formatPrediction,
+  formatRawCell,
   formatStat,
 } from '../src/composables/useFormat'
 import { NOT_FOR_TABULAR_ALGORITHM } from './fixtures/algorithms'
@@ -242,5 +243,36 @@ describe('계산해 낸 통계는 유효숫자 넷에서 자른다', () => {
 
   it('짧은 값은 늘리지 않는다', () => {
     expect(formatStat('en', 7)).toBe('7')
+  })
+})
+
+/**
+ * **지나가는 칸은 옆의 원문과 같은 글자여야 한다** (2026-08-29 화면 실측 B-2).
+ *
+ * 전처리 미리보기에서 변환이 아무 일도 안 한 자리다. `Intl`을 지나면 자리 구분 기호가
+ * 붙어서, 옆 칸의 `원래 값`이 `2001`인데 결과가 `2,001`이 된다 — **안 바뀐 것이 바뀐
+ * 것처럼 보인다.**
+ */
+describe('지나가는 값은 자리 구분 기호를 안 붙인다', () => {
+  it('네 자리 이상에서 옆 칸과 같은 글자다', () => {
+    expect(formatRawCell(2001)).toBe('2001')
+    expect(formatRawCell(12345)).toBe('12345')
+  })
+
+  it('소수와 음수도 원문 그대로다', () => {
+    expect(formatRawCell(5.2)).toBe('5.2')
+    expect(formatRawCell(-50)).toBe('-50')
+  })
+
+  /** 부동소수의 잡음만 걷는다 - 그건 우리 계산기의 사정이지 학생의 자료가 아니다. */
+  it('부동소수 잡음은 걷어낸다', () => {
+    expect(formatRawCell(0.1 + 0.2)).toBe('0.3')
+    expect(formatRawCell(3.4000000000000004)).toBe('3.4')
+  })
+
+  /** **언어를 안 탄다.** 원문을 그대로 보이는 것이므로 로케일이 낄 자리가 없다. */
+  it('언어가 달라도 같은 글자다', () => {
+    expect(formatRawCell(1250000)).toBe('1250000')
+    expect(formatPrediction('de', 1250000)).not.toBe(formatRawCell(1250000))
   })
 })

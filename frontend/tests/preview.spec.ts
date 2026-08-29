@@ -131,3 +131,53 @@ describe('바뀐 표를 다섯 줄로 보인다', () => {
     expect(previewOf(ONEHOT).columns.map((column) => column.name)).not.toContain('이름')
   })
 })
+
+/**
+ * **칸마다 값이 무엇인지 함께 내려준다** (2026-08-29 화면 실측 B-2·C-1).
+ *
+ * 화면이 자릿수를 어떻게 줄지가 이것으로 갈린다. 화면에서 다시 알아내면 규칙이 두 벌이
+ * 되고, `scale`이 붙었는지는 전처리기만 안다.
+ */
+describe('그 칸의 값이 무엇인가', () => {
+  it('스케일링을 안 걸면 수치는 그대로 지나간다', () => {
+    const preview = previewOf(ONEHOT)
+    const height = preview.columns.find((column) => column.name === '키')
+
+    expect(height?.features[0]?.kind).toBe('raw')
+    // 지나간 값이므로 원본과 같은 수다 - 화면은 이 칸을 원문과 같은 글자로 그린다.
+    expect(height?.features[0]?.values[0]).toBe(170)
+  })
+
+  it('스케일링을 걸면 계산해 낸 값이 된다', () => {
+    const preview = previewOf({ ...ONEHOT, scaling: 'standard' })
+    const height = preview.columns.find((column) => column.name === '키')
+
+    expect(height?.features[0]?.kind).toBe('scaled')
+  })
+
+  it('원-핫은 정수다', () => {
+    const preview = previewOf(ONEHOT)
+    const region = preview.columns.find((column) => column.name === '지역')
+
+    expect(region?.features.length).toBeGreaterThan(1)
+    for (const feature of region?.features ?? []) expect(feature.kind).toBe('code')
+  })
+
+  it('순서 인코딩도 정수다', () => {
+    const preview = previewOf({ ...ONEHOT, categoricalEncoding: 'ordinal' })
+    const region = preview.columns.find((column) => column.name === '지역')
+
+    expect(region?.features[0]?.kind).toBe('code')
+  })
+
+  /**
+   * **스케일링은 범주 열을 안 지난다** (`ml/preprocess.ts`의 `transform`). 여기가
+   * 뒤집히면 원-핫의 0/1이 소수로 그려진다.
+   */
+  it('스케일링을 걸어도 범주 열은 정수 그대로다', () => {
+    const preview = previewOf({ ...ONEHOT, scaling: 'standard' })
+    const region = preview.columns.find((column) => column.name === '지역')
+
+    for (const feature of region?.features ?? []) expect(feature.kind).toBe('code')
+  })
+})

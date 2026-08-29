@@ -111,6 +111,22 @@ export function formatStat(locale: string, value: number): string {
 }
 
 /**
+ * **학생의 자료가 그대로 지나간 칸.** 전처리 미리보기에서 변환이 아무 일도 안 한 자리다
+ * (`ml/preview.ts`의 `raw`).
+ *
+ * **자리 구분 기호를 안 넣는 것이 요점이다.** 옆 칸의 `원래 값`은 원문 그대로 그리는데
+ * 이쪽만 `Intl`을 지나면 **아무것도 안 바뀐 열에서 `2001`이 `2,001`로 달라 보인다** —
+ * 그 카드가 존재하는 이유가 "무엇이 어떻게 바뀌는지"인데 안 바뀐 것을 바뀐 것으로
+ * 보여주게 된다 (2026-08-29 화면 실측 B-2).
+ *
+ * 유효숫자 12로 한 번 걷는 것은 `formatPrediction`과 같다 — 부동소수의 잡음만 사라진다.
+ */
+export function formatRawCell(value: number): string {
+  if (!Number.isFinite(value)) return String(value)
+  return String(Number(value.toPrecision(12)))
+}
+
+/**
  * 화면에서 쓰는 포맷터들.
  *
  * 평범한 함수를 돌려준다. 템플릿에서 부르면 그리는 동안 `locale.value`를 읽으므로
@@ -124,6 +140,7 @@ export function useFormat() {
     dateTime: (iso: string) => formatDateTime(locale.value, iso),
     percent: (ratio: number) => formatPercent(locale.value, ratio),
     prediction: (value: number) => formatPrediction(locale.value, value),
+    rawCell: (value: number) => formatRawCell(value),
     stat: (value: number) => formatStat(locale.value, value),
     metric: (value: number, format: 'percent' | 'number') =>
       formatMetric(locale.value, value, format),
