@@ -14,6 +14,7 @@ import { unzip, type Unzipped } from 'fflate'
 
 import { ClientError } from '@/errors'
 import { IMAGE_UNLABELED } from '@/project/format'
+import { decodeZipNames, type ZipNameOptions } from '../zip-names'
 import { isValidCategoryName } from './canonical'
 
 /** 구울 후보 한 장. 아직 사진인지 아닌지는 모른다 — 그건 구워 봐야 안다. */
@@ -148,12 +149,23 @@ function unzipAsync(bytes: Uint8Array): Promise<Unzipped> {
 export async function readImageZip(
   bytes: Uint8Array,
   fallbackCategory: string = IMAGE_UNLABELED,
+  names: ZipNameOptions = {},
 ): Promise<readonly UploadItem[]> {
   const unzipped = await unzipAsync(bytes)
-  const entries = Object.entries(unzipped)
+  const raw = Object.entries(unzipped)
+  /**
+   * **이름을 먼저 되살린다** (`data/zip-names.ts`). 윈도 탐색기가 만든 압축 파일은
+   * 인코딩을 안 적어서 한글 폴더 이름이 `»¡°£³×¸ð`로 온다 — 그대로 두면 아래
+   * `requireValidCategories`가 저 글자들을 **통과시켜** 깨진 이름의 범주가 생긴다.
+   */
+  const decoded = decodeZipNames(
+    raw.map(([path]) => path),
+    names,
+  )
+  const entries = raw
     // **경로를 먼저 우리 규칙으로 맞춘다.** 부스러기 판정도 정규화된 경로로 해야
     // `__MACOSX\`처럼 구분자가 다른 것을 놓치지 않는다.
-    .map(([path, content]) => [normalizePath(path), content] as const)
+    .map(([, content], index) => [normalizePath(decoded[index]!), content] as const)
     .filter(
       // 디렉터리 엔트리는 내용이 없다. 빈 폴더는 범주가 되지 않는다 - 범주 목록은
       // settings가 따로 갖는다 (open-decisions.md "범주는 폴더가 갖고").

@@ -40,6 +40,7 @@ import {
   ZIP_EXTENSION,
 } from '@/data/image/upload'
 import { ClientError } from '@/errors'
+import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { MAX_CATEGORY_NAME_LENGTH } from '@/limits'
 import { backboneFor, type BackboneSpec } from '@/ml/backbones'
 import { imageRoomShortfall } from '@/data/image/room'
@@ -64,7 +65,13 @@ import ImageGrid from './ImageGrid.vue'
 
 defineProps<{ accept: string }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+
+/**
+ * 압축 파일 이름을 되살릴 때 쓰는 언어 (`data/zip-names.ts`).
+ * **vue-i18n의 `locale`은 문자열이라 한 번 좁힌다** — `WelcomeView`가 같은 것을 한다.
+ */
+const uiLocale = computed(() => (isSupportedLocale(locale.value) ? locale.value : FALLBACK_LOCALE))
 
 /**
  * 이 단계의 설명문. **등록부가 준다** (architecture.md §8.10) — `steps.data.purpose`를
@@ -163,7 +170,11 @@ async function readPicked(files: readonly File[], into: string): Promise<void> {
     // `into`는 구조가 없는 사진이 떨어질 자리다 (open-decisions.md "zip 읽기 규칙 다섯").
     const items =
       files.length === 1 && only && only.name.toLowerCase().endsWith(ZIP_EXTENSION)
-        ? await readImageZip(new Uint8Array(await only.arrayBuffer()), into)
+        ? await readImageZip(new Uint8Array(await only.arrayBuffer()), into, {
+            locale: uiLocale.value,
+            // **이미 있는 범주가 대조표다.** 겹치면 그 인코딩이 답이라는 것이 증명된다.
+            expect: categories.value,
+          })
         : readImageFiles(files, into)
     // **굽기 전에 막는다** (project/images.ts의 imageOverflow). 여기서 걸러야 백본이
     // 안 돌고, 학생은 확인 판을 지나 기다린 뒤에 지우기부터 하는 일을 안 겪는다.

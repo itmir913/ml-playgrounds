@@ -27,6 +27,7 @@ import {
   ZIP_EXTENSION,
 } from '@/data/image/upload'
 import { ClientError } from '@/errors'
+import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { backboneFor } from '@/ml/backbones'
 import { stratifyBlockFor, stratifyLocked } from '@/ml/selection'
 import { IMAGE_UNLABELED } from '@/project/format'
@@ -37,7 +38,10 @@ import { withSplit } from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+
+/** 압축 파일 이름을 되살릴 때 쓰는 언어 (`data/zip-names.ts`). */
+const uiLocale = computed(() => (isSupportedLocale(locale.value) ? locale.value : FALLBACK_LOCALE))
 const project = useProjectStore()
 const toasts = useToastStore()
 
@@ -193,7 +197,12 @@ async function readTest(files: readonly File[]): Promise<void> {
     // **압축 파일과 사진 파일을 같은 함수가 가른다** (`data/image/upload.ts`의 IMAGE_ACCEPT).
     const items =
       files.length === 1 && single && single.name.toLowerCase().endsWith(ZIP_EXTENSION)
-        ? await readImageZip(new Uint8Array(await single.arrayBuffer()))
+        ? await readImageZip(new Uint8Array(await single.arrayBuffer()), IMAGE_UNLABELED, {
+            locale: uiLocale.value,
+            // **여기서는 추측이 0이다.** 채점하려면 어차피 범주가 정확히 같아야 하므로
+            // (`test-set.ts`), 그 목록이 곧 어느 인코딩인지의 증거다.
+            expect: categories.value,
+          })
         : readImageFiles(files)
     await takeTest(items)
   } catch (error) {

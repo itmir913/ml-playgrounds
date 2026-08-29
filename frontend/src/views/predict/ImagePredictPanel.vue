@@ -26,6 +26,7 @@ import { useThumbnails } from '@/composables/useThumbnails'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
 import { IMAGE_ACCEPT, readImageFiles, readImageZip, ZIP_EXTENSION } from '@/data/image/upload'
 import { ClientError, isClientError } from '@/errors'
+import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { backboneFor } from '@/ml/backbones'
 import { embedImages } from '@/ml/embed/client'
 import { spawnEmbedWorker } from '@/ml/embed/spawn'
@@ -63,7 +64,10 @@ import { useToastStore } from '@/stores/toasts'
 import AnswerList from './AnswerList.vue'
 import PredictFilters, { type FilterAxis } from './PredictFilters.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+
+/** 압축 파일 이름을 되살릴 때 쓰는 언어 (`data/zip-names.ts`). */
+const uiLocale = computed(() => (isSupportedLocale(locale.value) ? locale.value : FALLBACK_LOCALE))
 const project = useProjectStore()
 const toasts = useToastStore()
 
@@ -235,7 +239,11 @@ async function readPicked(files: readonly File[]): Promise<void> {
     const [only] = files
     const items =
       files.length === 1 && only && only.name.toLowerCase().endsWith(ZIP_EXTENSION)
-        ? await readImageZip(new Uint8Array(await only.arrayBuffer()))
+        ? await readImageZip(new Uint8Array(await only.arrayBuffer()), IMAGE_UNLABELED, {
+            // **예측에는 라벨이 없어 대조할 목록도 없다** (`canonical.ts`의 `predict`).
+            // 그래도 이름은 되살린다 — 그것이 구운 결과를 되찾는 열쇠이기 때문이다.
+            locale: uiLocale.value,
+          })
         : readImageFiles(files)
 
     // **굽기 전에 막는다** (project/images.ts의 imageOverflow). 백본을 돌린 뒤에
