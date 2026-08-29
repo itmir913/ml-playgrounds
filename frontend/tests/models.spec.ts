@@ -87,7 +87,7 @@ describe('라운드트립 — 예측이 원본과 하나도 다르지 않다', (
       expect(model).toBeDefined()
 
       const reloaded = loadModel(roundTrip(model))
-      // 학습에 쓴 행 전부로 본다. 평가셋만 보면 지나는 잎이 얼마 안 되고,
+      // 학습에 쓴 행 전부로 본다. 테스트 데이터만 보면 지나는 잎이 얼마 안 되고,
       // 그러면 잘못 옮긴 가지가 있어도 아무도 그 길로 안 지나간다.
       expect(reloaded(IRIS_FEATURES)).toEqual(predict(IRIS_FEATURES))
     })
@@ -224,7 +224,7 @@ describe('크기', () => {
  * **축 하나가 형식 이름을 대신한다** (mlpx-spec.md §5.0). 화면은 "이 모델을 쓸 수 있나"를
  * `needsTrainingRows` 불리언으로 판정하고, 형식이 늘어도 그 판정은 안 바뀐다.
  */
-describe('학습 행이 필요한 형식', () => {
+describe('훈련 행이 필요한 형식', () => {
   it('자체 완결형은 요구하지 않고 참조형만 요구한다', () => {
     for (const format of [TREE_FORMAT, LINEAR_V2_FORMAT, NAIVE_BAYES_FORMAT]) {
       expect(interpreterFor(format)?.needsTrainingRows, format).toBe(false)
@@ -232,7 +232,7 @@ describe('학습 행이 필요한 형식', () => {
     expect(interpreterFor(REFERENCE_FORMAT)?.needsTrainingRows).toBe(true)
   })
 
-  it('요구하는데 안 주면 던진다 - 빈 학습셋으로 그럴듯한 답을 내지 않는다', () => {
+  it('요구하는데 안 주면 던진다 - 빈 훈련 데이터로 그럴듯한 답을 내지 않는다', () => {
     const needy: ModelInterpreter = {
       format: 'test-reference',
       includesPreprocessing: false,
@@ -505,7 +505,7 @@ describe('mlpx-reference-v1', () => {
     const model = trained.model as ReferenceModel
     expect(model.format).toBe(REFERENCE_FORMAT)
     expect(model.trainIndices).toEqual(indices)
-    // 학습 행렬이 통째로 들어가면 안 된다.
+    // 훈련 행렬이 통째로 들어가면 안 된다.
     expect(JSON.stringify(model)).not.toContain(String(IRIS_FEATURES[0]?.[0]))
   })
 
@@ -582,7 +582,7 @@ describe('mlpx-reference-v1', () => {
     expect(predict([[0]])).toEqual(['near'])
   })
 
-  it('이웃 수가 학습 행보다 많으면 있는 만큼만 본다', () => {
+  it('이웃 수가 훈련 행보다 많으면 있는 만큼만 본다', () => {
     const predict = knnPredict({
       k: 99,
       featureCount: 1,

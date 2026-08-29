@@ -93,14 +93,14 @@ export const CATEGORICAL_ENCODINGS = ['none', 'onehot', 'ordinal'] as const
 /**
  * 분할 방식.
  *
- * `provided`는 **평가 데이터가 파일로 따로 왔다는 뜻이다** - `test.csv`가 정본이고
+ * `provided`는 **테스트 데이터가 파일로 따로 왔다는 뜻이다** - `test.csv`가 정본이고
  * (mlpx-spec.md §1.1), 나누지 않는다. 그 데이터셋의 usableRows 전부가 testIndices다.
  * **trainIndices는 언제나 `data.csv`를 가리키고 testIndices는 `test.csv`를 가리킨다** -
  * 두 배열이 서로 다른 정본을 가리키는 유일한 경우다. 참조형 모델이 보는 것은
  * trainIndices뿐이라 그쪽은 흔들리지 않는다.
  *
  * `none`(안 나누고 같은 데이터로 채점)은 어휘에서 뺐다 (open-decisions.md
- * "학습용과 평가용 파일이 따로일 수 있다", 2026-08-06) - 배포 전이라 마이그레이션은 없다.
+ * "훈련용과 테스트용 파일이 따로일 수 있다", 2026-08-06) - 배포 전이라 마이그레이션은 없다.
  *
  * kfold는 여기 없다. 폴드마다 학습·평가가 생기면 trainIndices/testIndices의 모양 자체가
  * 달라져서 어차피 구조 변경이다.
@@ -283,8 +283,8 @@ export const tabularSettingsSchema = z.looseObject({
    */
   dataset: datasetRefSchema.optional(),
   /**
-   * 평가 데이터. **점수를 매기는 데 쓴다** (mlpx-spec.md §1.1). `split.method`가
-   * `provided`일 때만 있다 - `holdout`이면 학습 데이터에서 나눠 쓰므로 없다.
+   * 테스트 데이터. **점수를 매기는 데 쓴다** (mlpx-spec.md §1.1). `split.method`가
+   * `provided`일 때만 있다 - `holdout`이면 훈련 데이터에서 나눠 쓰므로 없다.
    *
    * `dataset`과 같은 규칙이다 - zip 안의 `dataset/test.csv` 본체와 **함께 있고
    * 함께 없다.**
@@ -602,7 +602,7 @@ export function dataSnapshot<Kind extends DataType>(
  * **한 번 채웠다가 되돌렸다** (2026-08-19). `rowsHash`가 읽기 어려운 값이라 여기 넣었는데,
  * **표시를 고치려다 탐지를 지웠다** — 라벨 두 장을 맞바꾸면 장수도 범주도 그대로라
  * 이 목록에서 빠지는 순간 두 실험의 비교 대상이 **바이트 단위로 같아지고**, 결과 화면이
- * *"설정을 바꾸지 않고 다시 학습했습니다"*라고 말한다. 학습 데이터는 실제로 달라졌는데도
+ * *"설정을 바꾸지 않고 다시 학습했습니다"*라고 말한다. 훈련 데이터는 실제로 달라졌는데도
  * 그렇다 (R6 감사 A-1). 읽기 어려운 값은 `ml/changes.ts`의 `describe`가 다룰 일이다.
  *
  * 여기 이름을 더하는 것은 **"이 변경은 학생에게 안 보인다"**가 아니라 **"이 변경은

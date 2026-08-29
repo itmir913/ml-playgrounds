@@ -90,7 +90,7 @@ const usingProvidedTest = computed(() => testPhotos.value > 0)
 
 /**
  * 자리 자체의 잠금. **판정은 화면 밖에 있다** (`data/image/test-set.ts`) —
- * 규칙은 `open-decisions.md` "평가용 zip (`split.method = 'provided'`)"이 갖는다.
+ * 규칙은 `open-decisions.md` "테스트용 zip (`split.method = 'provided'`)"이 갖는다.
  */
 const testBlock = computed(() => testSetBlockFor(categories.value))
 
@@ -159,7 +159,7 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
     await project.save(applied.project)
 
     toasts.push('success', 'preprocess.testImagesAdded', { count: applied.added })
-    // **조용히 지우지 않는다.** 평가셋이 바뀌면 그 위의 점수는 다른 것을 잰 값이다.
+    // **조용히 지우지 않는다.** 테스트 데이터가 바뀌면 그 위의 점수는 다른 것을 잰 값이다.
     if (applied.droppedExperiments > 0) {
       toasts.push('caution', 'preprocess.testImagesDropped', {
         count: applied.droppedExperiments,
@@ -264,7 +264,7 @@ function onStratify(event: Event): void {
       하나 더 생기는데, 사진에는 표의 미리보기·머리글 같은 중간 단계가 없다.
 
       **할 일 목록에는 안 올린다** (open-decisions.md "이미지 전처리의 할 일은 없다,
-      그리고 평가용 zip이 와도 안 생긴다). 테스트 데이터는 언제나 선택이라 언제나 체크된
+      그리고 테스트용 zip이 와도 안 생긴다). 테스트 데이터는 언제나 선택이라 언제나 체크된
       항목이 되고, 그건 학생에게 아무것도 안 알려 준다.
     -->
     <section class="rounded-panel border border-line bg-surface p-4">

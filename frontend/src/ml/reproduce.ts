@@ -51,7 +51,7 @@ export interface ReproduceInput {
   /** 정본 표. `dataset/`이 없는 파일에서는 대조 자체가 불가능하다. */
   readonly dataset: Dataset
   /**
-   * 평가 데이터. **`experiment.settings.split.method`가 `provided`일 때만 쓴다.**
+   * 테스트 데이터. **`experiment.settings.split.method`가 `provided`일 때만 쓴다.**
    *
    * 그때 `testIndices`는 `dataset`이 아니라 이 표의 행 번호다 (mlpx-spec.md §1.1,
    * ml/split.ts) - 없으면 대조를 못 한다.
@@ -108,7 +108,7 @@ export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
   // 재실행 대조는 표에만 있다 — 이미지는 임베딩이 파일에 담겨 경로가 따로 선다.
   const target = dataSnapshot('tabular', settings).target ?? ''
   /**
-   * **군집은 정답도 평가셋도 없다** (architecture.md §3.6·§3.7). 학습 때와 같은 갈래를
+   * **군집은 정답도 테스트 데이터도 없다** (architecture.md §3.6·§3.7). 학습 때와 같은 갈래를
    * 여기서도 세운다 — 안 세우면 `targetValues(dataset, …, '')`가 `COLUMN_NOT_FOUND`로
    * 던지고 아래 `try`가 그것을 삼켜, **모든 군집 run이 "대조할 수 없음(엔진 없음)"으로
    * 나온다.** 엔진은 바로 거기 있는데도 그렇다 (V11 R2 감사 B-3).
@@ -121,7 +121,7 @@ export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
   // provided면 testIndices는 dataset이 아니라 testDataset의 행 번호다
   // (mlpx-spec.md §1.1) — 학습 때와 같은 판정이다 (ml/experiment.ts).
   // 없으면 대조 자체가 불가능하다 — shared를 null로 만들어 아래에서 잡는다.
-  // 군집에는 평가셋이 없으므로 학습 표가 곧 채점 대상이다 (§3.6).
+  // 군집에는 테스트 데이터가 없으므로 훈련 표가 곧 채점 대상이다 (§3.6).
   const testSource = isClustering
     ? dataset
     : settings.split.method === 'provided'

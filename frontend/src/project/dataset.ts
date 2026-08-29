@@ -71,11 +71,11 @@ export function readPredictDataset(project: ProjectFile | null): Dataset | null 
   return table
 }
 
-/** readDataset과 같은 캐시 규칙, 평가 데이터(test.csv)를 위한 것. */
+/** readDataset과 같은 캐시 규칙, 테스트 데이터(test.csv)를 위한 것. */
 const parsedTest = new WeakMap<StoredDataset, Dataset>()
 
 /**
- * 평가 데이터를 학습 계층이 쓰는 표로 읽는다. `split.method`가 `provided`가 아니면
+ * 테스트 데이터를 학습 계층이 쓰는 표로 읽는다. `split.method`가 `provided`가 아니면
  * `null`이다 - 정상 상태다.
  */
 export function readTestDataset(project: ProjectFile | null): Dataset | null {
@@ -139,7 +139,7 @@ export function applyDataset(
     ...(imported.sourceEncoding === null ? {} : { sourceEncoding: imported.sourceEncoding }),
   }
 
-  // **평가·예측 데이터도 함께 뗀다.** 참조만 남고 본체가 없으면 writeProject가 거부해
+  // **테스트·예측 데이터도 함께 뗀다.** 참조만 남고 본체가 없으면 writeProject가 거부해
   // **그 프로젝트를 저장도 내보내기도 못 하게 된다** (mlpx-spec.md §1 "함께 있고 함께
   // 없다"). 그리고 정본 열이 통째로 바뀐 마당에 옛 test.csv는 어차피 대조를 다시
   // 통과해야 하는 파일이라, 들고 있어 봐야 학습이 시작된 뒤에 터진다.
@@ -150,7 +150,7 @@ export function applyDataset(
   const settings = {
     ...document.settings,
     data,
-    // 평가 데이터가 없어졌으므로 분할 방식도 되돌아간다 - provided인 채로 두면
+    // 테스트 데이터가 없어졌으므로 분할 방식도 되돌아간다 - provided인 채로 두면
     // 학습이 평가할 것을 못 찾는다 (ml/split.ts).
     split: { ...document.settings.split, method: 'holdout' as const },
   }
@@ -196,7 +196,7 @@ export interface ApplyTestOptions {
 }
 
 /**
- * 평가 데이터를 프로젝트에 붙인다. **정본(`data.csv`)의 열 전체와 이름으로 대조한다**
+ * 테스트 데이터를 프로젝트에 붙인다. **정본(`data.csv`)의 열 전체와 이름으로 대조한다**
  * (`alignTestDataset`, mlpx-spec.md §1.1) - 특성만 대조하면 특성이 나중에 늘 때마다
  * 받아 둔 파일이 조용히 무효가 진다.
  *
@@ -204,9 +204,9 @@ export interface ApplyTestOptions {
  * 재배열하므로, 여기서부터 나가는 test.csv는 항상 머리글이 있고 data.csv와 같은
  * 열 순서를 갖는다.
  *
- * **붙이면 지금까지의 실험을 전부 지운다** - `applyDataset`과 같은 사유다. 평가셋이
+ * **붙이면 지금까지의 실험을 전부 지운다** - `applyDataset`과 같은 사유다. 테스트 데이터가
  * 바뀌면 그 위의 점수가 전부 다른 것을 잰 값이 된다
- * (open-decisions.md "학습용과 평가용 파일이 따로일 수 있다").
+ * (open-decisions.md "훈련용과 테스트용 파일이 따로일 수 있다").
  *
  * 정본이 아직 없거나 타깃이 안 정해졌으면 부르면 안 된다 - 화면이 그 전에 막는다
  * (타깃이 있어야 정본 열 목록에 뜻이 생긴다).
@@ -376,7 +376,7 @@ export function removePredictDataset(project: ProjectFile, now: string): Applied
 }
 
 /**
- * 평가 데이터를 뗀다. `split.method`를 `holdout`으로 되돌린다.
+ * 테스트 데이터를 뗀다. `split.method`를 `holdout`으로 되돌린다.
  *
  * **떼도 실험을 전부 지운다** - `applyTestDataset`과 같은 사유다.
  */

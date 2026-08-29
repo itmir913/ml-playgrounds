@@ -89,12 +89,12 @@ interface DatasetRecord {
    */
   embeddings?: Map<string, Uint8Array>
   /**
-   * 평가 데이터(`test.csv`)와 예측 데이터(`predict.csv`).
+   * 테스트 데이터(`test.csv`)와 예측 데이터(`predict.csv`).
    *
    * **레코드 안에 곁들인다.** 키(`projectId`)를 복합 키로 바꾸면 DB 버전을 올리고
-   * 기존 레코드를 옮겨야 하는데, 여기 붙는 것은 언제나 학습 정본과 **함께 있고 함께
-   * 없다** - 평가 데이터는 타깃이 정해진 뒤에만 받을 수 있고 타깃은 표가 있어야 정해진다
-   * (mlpx-spec.md §1.1). 그래서 학습 정본이 없으면 이 레코드 자체가 없다.
+   * 기존 레코드를 옮겨야 하는데, 여기 붙는 것은 언제나 훈련 정본과 **함께 있고 함께
+   * 없다** - 테스트 데이터는 타깃이 정해진 뒤에만 받을 수 있고 타깃은 표가 있어야 정해진다
+   * (mlpx-spec.md §1.1). 그래서 훈련 정본이 없으면 이 레코드 자체가 없다.
    *
    * 없는 것이 정상이다. 이 필드가 생기기 전에 저장된 레코드에도 없다.
    */
@@ -190,7 +190,7 @@ function modelKeyRange(projectId: string): IDBKeyRange {
  * 센다** — 두 벌이면 요약이 0byte라고 말하는 동안 저장은 1MB를 쓴다.
  */
 export function totalBytes(project: ProjectFile): number {
-  // 정본 셋이 전부 자리를 차지한다 (mlpx-spec.md §1.1). 학습 정본만 세면 여유 공간
+  // 정본 셋이 전부 자리를 차지한다 (mlpx-spec.md §1.1). 훈련 정본만 세면 여유 공간
   // 검사가 실제로 쓸 양보다 적게 잡고, 그러면 사전 검사를 통과한 뒤 실제 쓰기에서
   // 터진다.
   let total = project.dataset?.bytes.length ?? 0
@@ -312,7 +312,7 @@ export async function saveProject(project: ProjectFile): Promise<void> {
       ...(before?.exportedAt === undefined ? {} : { exportedAt: before.exportedAt }),
     })
     const datasets = transaction.objectStore(DATASETS_STORE)
-    // 평가·예측 데이터가 함께 실린다. 없으면 그 키를 아예 안 넣는다 - undefined를
+    // 테스트·예측 데이터가 함께 실린다. 없으면 그 키를 아예 안 넣는다 - undefined를
     // 넣어 두면 "없음"과 "값이 undefined"가 섞인다.
     const record: DatasetRecord = {
       projectId,

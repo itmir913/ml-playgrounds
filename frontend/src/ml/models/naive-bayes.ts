@@ -80,7 +80,7 @@ export function loadNaiveBayesModel(file: unknown): Predict {
       logPriors.forEach((prior, index) => {
         let score = prior
         for (let column = 0; column < featureCount; column += 1) {
-          // **분산이 0 이하인 열은 건너뛴다.** 평활이 0을 막지만 학습셋 전체가 상수인
+          // **분산이 0 이하인 열은 건너뛴다.** 평활이 0을 막지만 훈련 데이터 전체가 상수인
           // 극단이 남고, 0으로 나누면 모든 클래스가 NaN이 되어 비교가 통째로 무너진다.
           const variance = varianceRows[index]?.[column] ?? 0
           if (variance <= 0) continue

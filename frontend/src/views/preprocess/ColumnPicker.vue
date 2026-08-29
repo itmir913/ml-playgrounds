@@ -32,7 +32,7 @@ const props = defineProps<{
    */
   targetRule?: 'TARGET_NOT_NUMERIC' | undefined
   /**
-   * 학습셋에서 구한 열별 전처리 값 — 무엇으로 채우고 무엇을 기준으로 스케일링하는가.
+   * 훈련 데이터에서 구한 열별 전처리 값 — 무엇으로 채우고 무엇을 기준으로 스케일링하는가.
    *
    * **여기서 계산하지 않는다.** `planRun`이 학습과 같은 함수로 구한 것을 받아 적기만
    * 한다 (architecture.md §9.1.3). 계획이 아직 못 섰으면 비어 있고, 그때는 이 칸이
@@ -181,7 +181,7 @@ function onFeature(name: string, event: Event): void {
           <th>
             <TermPopover :title="t('data.tabular.unique')" :body="t('columnHelp.unique')" />
           </th>
-          <!-- 학습셋에서 구한 값이라 계획이 서야 채워진다. 그전에는 빈 칸이다. -->
+          <!-- 훈련 데이터에서 구한 값이라 계획이 서야 채워진다. 그전에는 빈 칸이다. -->
           <th class="whitespace-nowrap">
             <TermPopover :title="t('preprocess.tabular.effect')" :body="t('columnHelp.effect')" />
           </th>

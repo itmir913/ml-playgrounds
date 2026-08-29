@@ -481,8 +481,8 @@ describe('할 일의 자리는 데이터 종류가 정한다', () => {
   })
 
   /**
-   * **비어 있는 것이 맞다.** 거기서 정하는 평가 데이터는 언제나 선택이라 할 일이 아니다
-   * (`open-decisions.md` - 평가용 zip이 와도 부활시키지 마라).
+   * **비어 있는 것이 맞다.** 거기서 정하는 테스트 데이터는 언제나 선택이라 할 일이 아니다
+   * (`open-decisions.md` - 테스트용 zip이 와도 부활시키지 마라).
    */
   it('이미지 전처리에는 할 일이 없다', () => {
     expect(stepTasks('preprocess', photosOnly, undefined, 'image')).toEqual([])

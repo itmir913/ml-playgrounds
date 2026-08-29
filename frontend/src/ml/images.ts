@@ -195,7 +195,7 @@ export function imageTrainingSource(
 }
 
 /**
- * 참조형 모델(KNN)이 요구하는 학습 행을 이미지에서 되세운다 (mlpx-spec.md §5.0).
+ * 참조형 모델(KNN)이 요구하는 훈련 행을 이미지에서 되세운다 (mlpx-spec.md §5.0).
  *
  * **못 세우면 `null`이다.** 사진이 학습 뒤에 늘거나 줄었으면 `trainIndices`가 가리키는
  * 자리가 다른 사진이 되고, 그러면 **이웃이 한 장씩 밀린 채로 답만 멀쩡히 나온다.**

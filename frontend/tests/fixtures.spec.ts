@@ -82,7 +82,7 @@ describe('나머지 팩토리도 같다', () => {
    * readonly 속성이어도 그 안의 칸은 그대로 쓰인다. 왕복 검사가 비트 단위로 비교하는
    * 바로 그 배열이라, 여기가 공유되면 **무결성 검사가 자기가 오염시킨 값을 본다.**
    */
-  it('평가 데이터를 붙인 것', () => {
+  it('테스트 데이터를 붙인 것', () => {
     const poisoned = projectFileWithTestDataset()
     poisoned.testDataset!.bytes[0] = 0
     expect(projectFileWithTestDataset().testDataset?.bytes[0]).not.toBe(0)
@@ -94,7 +94,7 @@ describe('나머지 팩토리도 같다', () => {
     expect(projectFileWithPredictDataset().predictDataset?.bytes[0]).not.toBe(0)
   })
 
-  it('학습 데이터도 같다 - 무결성 검사가 보는 바로 그 배열이다', () => {
+  it('훈련 데이터도 같다 - 무결성 검사가 보는 바로 그 배열이다', () => {
     const poisoned = projectFile()
     poisoned.dataset!.bytes[0] = 0
     expect(projectFile().dataset?.bytes[0]).not.toBe(0)

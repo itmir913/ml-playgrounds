@@ -113,10 +113,10 @@ describe('프로젝트 저장', () => {
 
   /**
    * **정본 셋이 다 살아남아야 한다** (mlpx-spec.md §1.1). 브라우저가 저장소이므로
-   * (CLAUDE.md §1.2) 여기서 빠지면 새로고침 한 번에 평가 데이터가 사라지고, 참조만
+   * (CLAUDE.md §1.2) 여기서 빠지면 새로고침 한 번에 테스트 데이터가 사라지고, 참조만
    * 남은 프로젝트는 **저장도 내보내기도 안 된다**(writeProject가 거부한다).
    */
-  it('평가 데이터가 왕복한다', async () => {
+  it('테스트 데이터가 왕복한다', async () => {
     const project = projectFileWithTestDataset()
     await saveProject(project)
 
@@ -155,7 +155,7 @@ describe('프로젝트 저장', () => {
     expect(Array.from(loaded?.predictDataset?.bytes ?? [])).toEqual(Array.from(bytes))
   })
 
-  it('평가 데이터를 떼면 남아 있던 것도 함께 사라진다', async () => {
+  it('테스트 데이터를 떼면 남아 있던 것도 함께 사라진다', async () => {
     await saveProject(projectFileWithTestDataset())
     await saveProject(projectFile())
 
@@ -490,7 +490,7 @@ describe('참조와 본체가 어긋난 레코드', () => {
     await expect(loadProject('dangling')).rejects.toSatisfy(isClientError)
   })
 
-  it('평가 데이터 참조만 남았으면 던진다', async () => {
+  it('테스트 데이터 참조만 남았으면 던진다', async () => {
     const base = emptyProjectFile().document
     await plantWithoutBody({
       ...base,
@@ -662,10 +662,10 @@ describe('이미지 프로젝트', () => {
 
   /**
    * **항마다 따로 본다** (R7 감사 B-8). 목록의 용량 검사가 기대값을 **구현의 일부로 다시
-   * 만들고 있었고**(`dataset + models`), 픽스처에 평가·예측 정본도 첨부도 없어서
+   * 만들고 있었고**(`dataset + models`), 픽스처에 테스트·예측 정본도 첨부도 없어서
    * 그 셋을 구현에서 빼도 양쪽이 같이 0이었다.
    *
-   * 소스가 실패를 직접 적어 두었다 — *"학습 정본만 세면 여유 공간 검사가 실제로 쓸 양보다
+   * 소스가 실패를 직접 적어 두었다 — *"훈련 정본만 세면 여유 공간 검사가 실제로 쓸 양보다
    * 적게 잡고, 그러면 사전 검사를 통과한 뒤 실제 쓰기에서 터진다."*
    */
   for (const term of ['testDataset', 'predictDataset', 'attachments'] as const) {

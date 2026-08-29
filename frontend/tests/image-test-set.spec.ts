@@ -1,7 +1,7 @@
 /**
  * **테스트용 사진을 받는 규칙** (`data/image/test-set.ts`, `project/images.ts`).
  *
- * 규칙은 `open-decisions.md` "평가용 zip (`split.method = 'provided'`)"이 갖는다.
+ * 규칙은 `open-decisions.md` "테스트용 zip (`split.method = 'provided'`)"이 갖는다.
  * 여기서 보는 것은 **관용적으로 받지 않는다**는 태도가 실제로 서 있는가다 — 모르는
  * 범주는 채점할 수 없고, 빠진 범주는 재현율이 정의되지 않는다.
  */

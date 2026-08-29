@@ -128,7 +128,7 @@ export const TRAINING_SOURCES: Readonly<
     return {
       project: filled,
       dataset: source.dataset,
-      // 압축 파일로 테스트 데이터를 받는 길은 아직 없다 (open-decisions.md "평가용 zip").
+      // 압축 파일로 테스트 데이터를 받는 길은 아직 없다 (open-decisions.md "테스트용 zip").
       testDataset: null,
       settings: source.settings,
       snapshot: source.snapshot,
@@ -166,7 +166,7 @@ export const TRAINING_ROW_COUNTS: Readonly<
     ).length,
 }
 
-/** 이 프로젝트의 종류가 세는 학습 행 수. */
+/** 이 프로젝트의 종류가 세는 훈련 행 수. */
 export function trainableRowsOf(project: ProjectFile, taskType: TaskType | undefined): number {
   return TRAINING_ROW_COUNTS[project.document.manifest.dataType](project, taskType)
 }

@@ -25,7 +25,7 @@ import { KMEANS_FORMAT, kmeansPredict, parseKMeansModel, type KMeansModel } from
 import { transform, type Dataset, type FittedColumn, type Preprocessor } from './preprocess'
 
 /**
- * 학습 행렬의 열 하나. **전처리기의 열과 행렬의 열은 1:1이 아니다** — 원핫이면 열
+ * 훈련 행렬의 열 하나. **전처리기의 열과 행렬의 열은 1:1이 아니다** — 원핫이면 열
  * 하나가 범주 수만큼 늘어난다 (`ml/preprocess.ts`의 `featureNames`).
  */
 export interface MatrixColumn {
@@ -54,7 +54,7 @@ export interface MatrixColumn {
  */
 export interface ClusterAxis {
   readonly name: string
-  /** 학습 행렬의 열 번호. 범주 축이면 그 열이 차지하는 **첫 칸**이다. */
+  /** 훈련 행렬의 열 번호. 범주 축이면 그 열이 차지하는 **첫 칸**이다. */
   readonly index: number
   /**
    * 이 축이 차지하는 행렬 칸 수. 수치 열과 순서 인코딩은 1이고, 원핫은 범주 수다.
@@ -70,7 +70,7 @@ export interface ClusterAxis {
 /**
  * 이 행에서 그 범주 축이 가리키는 범주 번호.
  *
- * 원핫이면 **1이 선 칸**이고, 순서 인코딩이면 값 그 자체다. 학습셋에 없던 범주는
+ * 원핫이면 **1이 선 칸**이고, 순서 인코딩이면 값 그 자체다. 훈련 데이터에 없던 범주는
  * 원핫에서 전부 0이고 순서 인코딩에서 -1인데(`ml/preprocess.ts`), 그때는 첫 범주로
  * 떨어뜨리지 않고 **`-1`을 그대로 돌려준다** — 화면이 "모르는 값"으로 다룰 수 있어야
  * 한다.
@@ -192,7 +192,7 @@ export interface ClusterAssignment {
 }
 
 /**
- * 학습 행렬에 모델을 돌려 배정을 되계산한다.
+ * 훈련 행렬에 모델을 돌려 배정을 되계산한다.
  *
  * **예측 루프를 다시 짜지 않는다.** 배정은 `kmeansPredict`가 준 것을 그대로 쓰고,
  * 여기서 따로 구하는 것은 **이미 정해진 자기 중심점까지의 거리** 하나뿐이다 — 가장
@@ -310,7 +310,7 @@ export function clusterSummaries(
       const tally = tallies[cluster]?.[position]
       if (tally) {
         const category = categoryIndexAt(row, axis)
-        // 학습셋에 없던 범주(-1)는 어느 칸에도 안 센다. 없는 범주에 표를 줄 수 없다.
+        // 훈련 데이터에 없던 범주(-1)는 어느 칸에도 안 센다. 없는 범주에 표를 줄 수 없다.
         if (category >= 0 && category < tally.length) tally[category]! += 1
         return
       }
@@ -464,7 +464,7 @@ export function clusterMembers(
 export interface ClusterMaterial {
   readonly columns: readonly MatrixColumn[]
   readonly axes: readonly ClusterAxis[]
-  /** 학습 행렬. 전처리된 값이다 — 되돌리기 전이다. */
+  /** 훈련 행렬. 전처리된 값이다 — 되돌리기 전이다. */
   readonly matrix: readonly (readonly number[])[]
   readonly assignment: ClusterAssignment
 }
@@ -509,7 +509,7 @@ const CLUSTER_FORMATS: readonly string[] = [KMEANS_FORMAT]
 /**
  * 이 형식이 답을 무리로 설명할 수 있는가. **재료를 만들지 않고 답한다.**
  *
- * 화면이 "무엇을 고를 수 있는가"를 세우는 데는 이것이면 되고, **학습 행렬은 고른
+ * 화면이 "무엇을 고를 수 있는가"를 세우는 데는 이것이면 되고, **훈련 행렬은 고른
  * 하나에만 필요하다** (#28-7). 목록을 세우려고 행렬을 스무 개 만들면 그 목록에서
  * 하나를 고르는 의미가 없어진다.
  */

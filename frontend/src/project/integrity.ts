@@ -71,7 +71,7 @@ function contentHashOf(entries: Record<string, string>): string {
  * 시점에 한 번만 해싱하고 그 뒤로 불변이다 (open-decisions.md "정본 데이터셋은 언제나
  * UTF-8 CSV다"). 여기서 다시 계산하면 자동 저장이 돌 때마다 수십 MB를 해싱하게 된다.
  *
- * 표를 아직 올리지 않았거나 평가 데이터가 파일로 없는 프로젝트에는 그만큼 없다.
+ * 표를 아직 올리지 않았거나 테스트 데이터가 파일로 없는 프로젝트에는 그만큼 없다.
  * 그러면 대조 대상에서 빠질 뿐이다.
  */
 export function buildHashes(

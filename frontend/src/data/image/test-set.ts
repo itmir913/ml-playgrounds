@@ -1,7 +1,7 @@
 /**
  * **압축 파일이나 폴더로 테스트 데이터를 받는 자리의 판정.**
  *
- * 규칙은 `open-decisions.md` "평가용 zip (`split.method = 'provided'`)"이 갖는다.
+ * 규칙은 `open-decisions.md` "테스트용 zip (`split.method = 'provided'`)"이 갖는다.
  * 여기 있는 것은 그 규칙을 **화면 밖의 순수 함수**로 옮긴 것뿐이다 — 잠기는 것에는
  * gate 함수가 하나 있고 **boolean이 아니라 이유를 돌려준다** (CLAUDE.md §2).
  *

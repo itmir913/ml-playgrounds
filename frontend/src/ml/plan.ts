@@ -42,7 +42,7 @@ import { splitRows } from './split'
 export interface PlanInput {
   /** 정본 CSV를 읽은 표. 행 번호가 곧 분할 인덱스다. */
   dataset: Dataset
-  /** 평가 데이터. `split.method`가 `provided`일 때만 본다. 없으면 `null`이다. */
+  /** 테스트 데이터. `split.method`가 `provided`일 때만 본다. 없으면 `null`이다. */
   testDataset: Dataset | null
   settings: Settings
   /**
@@ -77,7 +77,7 @@ export interface PlanFacts {
    * `trainIndices`와 서로 다른 정본을 가리킨다 (mlpx-spec.md §1.1).
    */
   testFromProvided: boolean
-  /** 학습셋에서 구한 전처리기. 채움값·스케일 기준·범주 목록이 여기 있다. */
+  /** 훈련 데이터에서 구한 전처리기. 채움값·스케일 기준·범주 목록이 여기 있다. */
   preprocessor: Preprocessor
   /** 뽑힌 행의 타깃 값. 군집이면 빈 배열이다. */
   labels: readonly string[]
@@ -118,9 +118,9 @@ export function planRun(input: PlanInput): RunPlan {
     return blocked('TARGET_NOT_SELECTED')
   }
 
-  // provided일 때만 쓰는 평가 데이터셋의 usableRows. holdout이면 undefined다 -
+  // provided일 때만 쓰는 테스트 데이터셋의 usableRows. holdout이면 undefined다 -
   // splitRows가 그때는 아예 보지 않는다 (ml/split.ts).
-  // 군집화에는 평가 데이터셋이 없다 — 전체 데이터로 학습한다.
+  // 군집화에는 테스트 데이터셋이 없다 — 전체 데이터로 학습한다.
   const testFromProvided = !isClustering && settings.split.method === 'provided' && !!testDataset
   const providedTestRows = testFromProvided
     ? usableRows(testDataset!, data.features, target!, data.preprocessing.missing)
@@ -152,7 +152,7 @@ export function planRun(input: PlanInput): RunPlan {
   // **"아무것도 안 함"은 빈 칸이 있으면 거부한다.** 조용히 두는 길이 없어서다 - 수치
   // 열의 빈 칸은 결국 0이 되고, 그러면 그 이름으로 0 채우기를 하는 셈이 된다
   // (open-decisions.md "전처리도 분할도 끌 수 있다"). **전체**를 본다 - provided면
-  // 평가 데이터셋도 같은 전처리를 받으므로(mlpx-spec.md §1.1) 거기도 봐야 한다.
+  // 테스트 데이터셋도 같은 전처리를 받으므로(mlpx-spec.md §1.1) 거기도 봐야 한다.
   // 군집화에는 타깃이 없으므로 특성만 본다.
   if (data.preprocessing.missing === 'none') {
     const checked = isClustering ? [...data.features] : [...data.features, target!]

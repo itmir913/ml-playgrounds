@@ -68,7 +68,7 @@ function preprocessing(overrides: Partial<Preprocessing> = {}): Preprocessing {
   return { missing: 'mean', scaling: 'standard', categoricalEncoding: 'onehot', ...overrides }
 }
 
-/** 전처리기 · 학습 행렬 · 학습된 모델까지 실제 경로로 만든다. */
+/** 전처리기 · 훈련 행렬 · 학습된 모델까지 실제 경로로 만든다. */
 function fixture(options: Preprocessing = preprocessing(), k = 2) {
   const rows = usableRows(DATASET, FEATURES, undefined, options.missing)
   const preprocessor = fitPreprocessor(DATASET, rows, FEATURES, options)
@@ -296,18 +296,18 @@ describe('군집 요약', () => {
   })
 
   /**
-   * **학습셋에 없던 범주는 어느 칸에도 안 센다** (R7 감사 B-16). 인코딩은 학습 행으로
-   * 맞춰지므로, 평가 행에만 있는 범주는 `categoryIndexAt`이 `-1`을 준다. 그것을 0번
+   * **훈련 데이터에 없던 범주는 어느 칸에도 안 센다** (R7 감사 B-16). 인코딩은 훈련 행으로
+   * 맞춰지므로, 테스트 행에만 있는 범주는 `categoryIndexAt`이 `-1`을 준다. 그것을 0번
    * 칸으로 밀어 넣어도 저장소 전체가 침묵했다 — 표에 **틀린 범주 이름**이 뜨는 자리다.
    */
-  it('학습셋에 없던 범주는 최빈 계산에 안 든다', () => {
+  it('훈련 데이터에 없던 범주는 최빈 계산에 안 든다', () => {
     const { preprocessor, matrix, rows, model, options } = fixture()
     const columns = matrixColumns(preprocessor, options.categoricalEncoding)
     const axes = clusterAxes(preprocessor, options.categoricalEncoding)
     const position = axes.findIndex((axis) => axis.categories !== undefined)
     const axis = axes[position]!
 
-    // 그 축의 원핫을 전부 0으로 만든다 = 학습셋에 없던 범주다(-1).
+    // 그 축의 원핫을 전부 0으로 만든다 = 훈련 데이터에 없던 범주다(-1).
     const unknown = matrix.map((row) => {
       const copy = [...row]
       for (let index = 0; index < axis.categories!.length; index += 1) copy[axis.index + index] = 0
@@ -545,7 +545,7 @@ describe('재료를 꺼내는 문', () => {
 
   it('형식만 보고도 답한다 - 목록을 세우는 데 행렬이 필요하지 않다', () => {
     // 화면이 "무엇을 고를 수 있는가"를 세울 때 쓴다 (#28-7). 이것이 없으면 목록을
-    // 세우려고 학습 행렬을 모델 수만큼 만들게 되고, 그러면 하나를 고르는 의미가 없다.
+    // 세우려고 훈련 행렬을 모델 수만큼 만들게 되고, 그러면 하나를 고르는 의미가 없다.
     expect(explainsAsClusters(KMEANS_FORMAT)).toBe(true)
     expect(explainsAsClusters('mlpx-tree-v1')).toBe(false)
     expect(explainsAsClusters(undefined)).toBe(false)

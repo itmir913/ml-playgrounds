@@ -1,5 +1,5 @@
 /**
- * 학습셋/평가셋 분할. **엔진보다 앞에 있고 엔진과 무관하다.**
+ * 훈련 데이터/테스트 데이터 분할. **엔진보다 앞에 있고 엔진과 무관하다.**
  *
  * 여기서 나온 인덱스가 .mlpx의 experiment.settings.trainIndices / testIndices가 되고,
  * 서버로 학습을 보낼 때도 함께 간다. **양쪽이 각자 분할을 계산하면 라이브러리 버전 차이로
@@ -91,7 +91,7 @@ function approximateMode(counts: readonly number[], draws: number, seed: number)
 }
 
 /**
- * 한 덩어리에서 평가셋으로 보낼 개수.
+ * 한 덩어리에서 테스트 데이터로 보낼 개수.
  *
  * **`ceil`이다 — sklearn `train_test_split`과 같다** (`n_test = ceil(n * test_size)`,
  * 2026-08-19에 `round`에서 옮겼다). 이 도구는 종착지가 아니라 scikit-learn으로 가는
@@ -101,7 +101,7 @@ function approximateMode(counts: readonly number[], draws: number, seed: number)
  * **층화에서는 이 함수가 전체 개수만 센다.** 반별로 나누는 것은 `approximateMode`이고,
  * 라벨마다 여기를 부르면 총 개수가 sklearn과 갈린다 (R6 감사 B-1).
  *
- * **학습셋에 하나는 남긴다.** 전부 가져가면 학습할 것이 없다. sklearn은 그 자리에서
+ * **훈련 데이터에 하나는 남긴다.** 전부 가져가면 학습할 것이 없다. sklearn은 그 자리에서
  * 던지는데 **우리는 하나를 남긴다** — 교실에서 멈추는 것보다 낫다.
  *
  * **아래쪽 클램프는 없다.** 예전에는 `Math.max(…, 1)`이 있었는데 `ceil`로 옮긴 뒤
@@ -117,9 +117,9 @@ function testCountFor(total: number, testSize: number): number {
  * holdout 분할. kfold는 없다 - 폴드마다 학습·평가가 생기면 인덱스의 모양 자체가 달라져
  * 어차피 formatVersion이 올라가는 변경이다 (project/schema.ts).
  *
- * 층화(stratify)는 라벨 비율을 학습셋과 평가셋에 똑같이 유지한다. 붓꽃처럼 클래스가
+ * 층화(stratify)는 라벨 비율을 훈련 데이터와 테스트 데이터에 똑같이 유지한다. 붓꽃처럼 클래스가
  * 고르면 티가 안 나지만, 교실 데이터는 대개 한쪽으로 쏠려 있어서 층화가 없으면
- * 평가셋에 특정 클래스가 통째로 빠지는 일이 실제로 생긴다.
+ * 테스트 데이터에 특정 클래스가 통째로 빠지는 일이 실제로 생긴다.
  *
  * 결과는 **오름차순으로 정렬해서** 돌려준다. 셔플 순서를 그대로 남길 이유가 없고,
  * 학생이 압축을 풀어 runs.json을 들여다보는 것은 교육적으로 좋은 일이다.
@@ -170,7 +170,7 @@ export function holdoutSplit(input: SplitInput, split: Split): SplitIndices {
     const counts = [...groups.values()].map((group) => group.length)
     const total = rows.length
     const testCount = testCountFor(total, split.testSize)
-    // **학습 몫을 먼저 나누고 남은 것에서 평가 몫을 나눈다** — sklearn과 같은 순서다.
+    // **훈련 몫을 먼저 나누고 남은 것에서 테스트 몫을 나눈다** — sklearn과 같은 순서다.
     // **동점 밖에서는 두 순서가 같은 답을 준다**(R7 감사). 같은 순서로 두는 이유는
     // 결과가 달라서가 아니라, 저쪽 코드를 옆에 놓고 읽을 수 있어야 하기 때문이다.
     const trainPerClass = approximateMode(counts, total - testCount, split.randomState)
@@ -198,24 +198,24 @@ export function holdoutSplit(input: SplitInput, split: Split): SplitIndices {
 }
 
 /**
- * 평가 데이터가 파일로 왔을 때. **나누지 않는다** - 학습 데이터는 전부 학습에 쓰고,
- * 평가 데이터셋의 usableRows 전부가 testIndices다 (mlpx-spec.md §1.1,
- * open-decisions.md "학습용과 평가용 파일이 따로일 수 있다").
+ * 테스트 데이터가 파일로 왔을 때. **나누지 않는다** - 훈련 데이터는 전부 학습에 쓰고,
+ * 테스트 데이터셋의 usableRows 전부가 testIndices다 (mlpx-spec.md §1.1,
+ * open-decisions.md "훈련용과 테스트용 파일이 따로일 수 있다").
  *
  * **`testIndices`는 `input.rows`와 다른 정본을 가리킨다.** trainIndices는 언제나
  * `data.csv`이고 testIndices는 `test.csv`다 - 두 배열이 서로 다른 표를 가리키는
  * 유일한 경우다. 참조형 모델이 보는 것은 trainIndices뿐이라 그쪽은 흔들리지 않는다.
  *
  * `testInput`이 없는 것은 부르는 쪽 버그다 - `split.method`가 `provided`이면
- * 평가 데이터셋이 확정된 뒤에만 이 함수가 불려야 한다 (전처리 화면이 그 순서를 보장한다).
+ * 테스트 데이터셋이 확정된 뒤에만 이 함수가 불려야 한다 (전처리 화면이 그 순서를 보장한다).
  */
 function providedSplit(input: SplitInput, testInput: SplitInput | undefined): SplitIndices {
   if (input.rows.length === 0) {
     throw new ClientError('SPLIT_TOO_FEW_ROWS', { minRows: 1, actualRows: 0 })
   }
-  // **평가 데이터가 없는 것은 학습 데이터가 없는 것과 다른 실패다.** 같은 코드로 뭉치면
-  // 평가 파일이 문제인데 "학습에 쓸 수 있는 데이터가 0줄"이라고 말하게 되고, 학생은
-  // 멀쩡한 학습 데이터를 들여다본다.
+  // **테스트 데이터가 없는 것은 훈련 데이터가 없는 것과 다른 실패다.** 같은 코드로 뭉치면
+  // 테스트 파일이 문제인데 "학습에 쓸 수 있는 데이터가 0줄"이라고 말하게 되고, 학생은
+  // 멀쩡한 훈련 데이터를 들여다본다.
   if (!testInput || testInput.rows.length === 0) {
     throw new ClientError('TEST_DATASET_NO_USABLE_ROWS')
   }
@@ -244,7 +244,7 @@ const SPLIT_BY_METHOD: Record<
 /**
  * 설정이 고른 방식으로 나눈다. 실험 실행이 부르는 유일한 입구다.
  *
- * `testInput`은 `provided`일 때만 쓴다 - 평가 데이터셋의 usableRows다 (라벨은
+ * `testInput`은 `provided`일 때만 쓴다 - 테스트 데이터셋의 usableRows다 (라벨은
  * 필요 없다. 나누지 않으므로 층화가 없다).
  */
 export function splitRows(input: SplitInput, split: Split, testInput?: SplitInput): SplitIndices {

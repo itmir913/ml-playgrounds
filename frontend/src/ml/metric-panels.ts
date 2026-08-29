@@ -42,7 +42,7 @@ import type { Dataset, Preprocessor } from './preprocess'
  */
 export interface PanelInput {
   readonly run: Run
-  /** 이 run이 속한 실험. 전처리 설정(인코딩)과 학습 행 번호가 여기서 나온다. */
+  /** 이 run이 속한 실험. 전처리 설정(인코딩)과 훈련 행 번호가 여기서 나온다. */
   readonly experiment: Experiment
   /** 정본 데이터. **없을 수 있다** — 데이터를 뺀 채로 받은 파일이 그렇다. */
   readonly dataset: Dataset | null

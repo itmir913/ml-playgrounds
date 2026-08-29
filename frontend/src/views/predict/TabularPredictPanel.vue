@@ -71,13 +71,13 @@ const project = useProjectStore()
 
 /**
  * 왼쪽 입력이 양자택일이다 - 한 줄이거나 파일이거나 (architecture.md §8.13.1 "입력은
- * 양자택일이다", `PreprocessView.vue`의 평가 데이터 라디오와 같은 모양이다).
+ * 양자택일이다", `PreprocessView.vue`의 테스트 데이터 라디오와 같은 모양이다).
  */
 const inputMode = ref<'value' | 'file'>('value')
 
 const dataset = computed(() => readDataset(project.file))
 
-/** 평가 정본. `split.method`가 `provided`인 프로젝트에만 있다 (mlpx-spec.md §1.1). */
+/** 테스트 정본. `split.method`가 `provided`인 프로젝트에만 있다 (mlpx-spec.md §1.1). */
 const testDataset = computed(() => readTestDataset(project.file))
 
 /**
@@ -226,7 +226,7 @@ const ranges = computed(() =>
 const values = ref<Record<string, string>>({})
 const sampled = ref<number | null>(null)
 /**
- * 아직 안 채운 칸. **하나라도 있으면 [예측]이 멈춘다** — 비워 두고 누르면 학습셋의
+ * 아직 안 채운 칸. **하나라도 있으면 [예측]이 멈춘다** — 비워 두고 누르면 훈련 데이터의
  * 대체값으로 예측되는데, 학생은 자기가 넣은 값으로 예측했다고 믿는다.
  */
 const blank = computed(() =>
@@ -252,7 +252,7 @@ function clear(): void {
 watch(() => project.projectId, clear)
 
 /**
- * [데이터에서 한 줄 가져오기]. 평가에 쓴 행 중에서 무작위로 하나 준다.
+ * [데이터에서 한 줄 가져오기]. 테스트에 쓴 행 중에서 무작위로 하나 준다.
  *
  * **보이는 것 중 첫 모델의 실험을 쓴다** (architecture.md §8.13.1). `usable`을 쓰면
  * 그 실험이 필터에 걸려 안 보일 때 화면에 없는 실험의 분할을 따라 행을 주게 된다.
@@ -264,7 +264,7 @@ function sample(): void {
   const experiment = visibleUsable.value[0]?.experiment
   if (!table || !experiment) return
 
-  // **두 표를 다 넘긴다.** 평가 행이 어느 표의 번호인지는 그 실험의 split.method가
+  // **두 표를 다 넘긴다.** 테스트 행이 어느 표의 번호인지는 그 실험의 split.method가
   // 정하므로(mlpx-spec.md §1.1) 여기서 고르면 조용히 다른 줄이 채워진다.
   const row = sampleRow(
     experiment,
@@ -288,8 +288,8 @@ function sample(): void {
 /**
  * 이 모델의 해석기가 요구하는 것을 갖춰 준다.
  *
- * **학습 행은 필요할 때만 만든다** — 참조형만 쓰는데(mlpx-spec.md §5.0) 그 계산이
- * 학습셋 전체의 전처리라 값싸지 않다. 실험마다 한 번만 만들고 나눠 쓴다.
+ * **훈련 행은 필요할 때만 만든다** — 참조형만 쓰는데(mlpx-spec.md §5.0) 그 계산이
+ * 훈련 데이터 전체의 전처리라 값싸지 않다. 실험마다 한 번만 만들고 나눠 쓴다.
  */
 function contextFor(
   experiment: Experiment,
@@ -371,7 +371,7 @@ const picking = computed(() => batch.value?.opened ?? null)
  * **필터를 못 바꾸게 계산 중에는 `predicting`을 켠다** (architecture.md §8.13.1). 도는
  * 동안 대상이 바뀌면 어느 집합에 대한 답인지 흐려진다. 그러려면 이 함수가 메인
  * 스레드를 계속 붙잡고 있으면 안 되므로, 모델 하나를 마칠 때마다 화면에 양보한다 —
- * 참조형이 낀 파일에서는 이게 실제로 뜻이 있다(학습셋 전체를 매번 전처리한다).
+ * 참조형이 낀 파일에서는 이게 실제로 뜻이 있다(훈련 데이터 전체를 매번 전처리한다).
  *
  * **이미 답이 있는 모델은 다시 안 돈다.** 필터·입력값이 바뀌면 `answers`가 통째로
  * 지워지므로(아래 `toggleExperiment` 등) 실제로는 매번 전부 다시 도는 것과 같지만,

@@ -210,7 +210,7 @@ describe('세는 것이 실제 학습과 같다', () => {
       expect(experiment.settings.testIndices, `nSamples=${nSamples}`).toEqual([
         ...plan.split.testIndices,
       ])
-      // 전처리기도 같은 것이어야 한다 - 채움값과 스케일 기준이 훈련셋에서 나온다.
+      // 전처리기도 같은 것이어야 한다 - 채움값과 스케일 기준이 훈련 데이터에서 나온다.
       expect(experiment.settings.trainIndices.length).toBe(plan.split.trainIndices.length)
     }
   })

@@ -158,7 +158,7 @@ describe('이미지 프로젝트의 왕복', () => {
     expect(integrity.entries.find((entry) => entry.path === target)?.state).toBe('MODIFIED')
   })
 
-  it('평가 폴더도 같은 규칙이다', async () => {
+  it('테스트 폴더도 같은 규칙이다', async () => {
     const project = imageProject()
     project.images.set(...entryFor('개', 'c', 'test'))
     project.document.settings.data.testDataset = {

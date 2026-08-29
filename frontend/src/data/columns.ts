@@ -116,12 +116,12 @@ export function summarizeColumns(dataset: Dataset): ColumnSummary[] {
 }
 
 /**
- * 평가 데이터(`test.csv`)를 받을 때 한 번 하는 검사 (mlpx-spec.md §1.1,
- * open-decisions.md "학습용과 평가용 파일이 따로일 수 있다").
+ * 테스트 데이터(`test.csv`)를 받을 때 한 번 하는 검사 (mlpx-spec.md §1.1,
+ * open-decisions.md "훈련용과 테스트용 파일이 따로일 수 있다").
  *
  * **정본(`data.csv`)의 열 전체와 대조한다.** 학습에 쓴 특성 열과만 대조하면, 특성이
  * `{A,B}`일 때 받아 둔 파일이 나중에 `C`를 추가하는 순간 무효가 된다 - 그 실패가
- * [학습하기]를 누른 뒤에야 터진다. 정본 열 전체와 대조하면 `특성 ⊆ 정본 열 ⊆ 평가 데이터 열`이
+ * [학습하기]를 누른 뒤에야 터진다. 정본 열 전체와 대조하면 `특성 ⊆ 정본 열 ⊆ 테스트 데이터 열`이
  * **항상** 참이라 늦은 실패가 구조적으로 불가능해진다. `data.csv`는 언제나 타깃 열을
  * 포함하므로 이 대조가 타깃 열도 함께 요구한다 - 정답이 없으면 채점을 못 한다.
  *
@@ -162,7 +162,7 @@ export function alignTestDataset(
  * 합쳐 이 목록을 만든다.
  *
  * **하나라도 없으면 거부하고 어느 열이 없는지 말한다.** `PREDICT_DATASET_COLUMN_MISSING` -
- * `TEST_DATASET_COLUMN_MISSING`과 다른 코드다. 학생이 할 일이 같지 않다(평가 데이터는
+ * `TEST_DATASET_COLUMN_MISSING`과 다른 코드다. 학생이 할 일이 같지 않다(테스트 데이터는
  * 정본과 짝을 맞춰야 하고, 예측 데이터는 지금 보이는 모델들이 보는 열만 맞으면 된다).
  *
  * **통과하면 올린 열을 전부 돌려준다 - `alignTestDataset`과 결정적으로 다르다**

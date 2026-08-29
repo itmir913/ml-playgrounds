@@ -64,8 +64,8 @@ function withPhotos(...items: readonly { hash: string; category: string }[]): Pr
   ).project
 }
 
-describe('평가용 사진을 붙이고 뗀다', () => {
-  /** 실험 하나가 든 프로젝트. 평가셋이 바뀌면 이것이 사라져야 한다. */
+describe('테스트용 사진을 붙이고 뗀다', () => {
+  /** 실험 하나가 든 프로젝트. 테스트 데이터가 바뀌면 이것이 사라져야 한다. */
   function withExperiment(project: ProjectFile): ProjectFile {
     return {
       ...project,
@@ -89,7 +89,7 @@ describe('평가용 사진을 붙이고 뗀다', () => {
     })
   }
 
-  it('평가 자리에 앉고 학습 자리는 안 건드린다', () => {
+  it('테스트 자리에 앉고 훈련 자리는 안 건드린다', () => {
     const base = withPhotos({ hash: 'a', category: '개' }, { hash: 'b', category: '고양이' })
     const applied = withTestPhotos(base)
 
@@ -102,7 +102,7 @@ describe('평가용 사진을 붙이고 뗀다', () => {
     expect(applied.project.document.settings.split.method).toBe('provided')
   })
 
-  it('지금까지의 실험을 지운다 - 평가셋이 바뀌면 그 위의 점수는 다른 것을 잰 값이다', () => {
+  it('지금까지의 실험을 지운다 - 테스트 데이터가 바뀌면 그 위의 점수는 다른 것을 잰 값이다', () => {
     const base = withExperiment(withPhotos({ hash: 'a', category: '개' }))
     const applied = withTestPhotos(base)
 
@@ -120,7 +120,7 @@ describe('평가용 사진을 붙이고 뗀다', () => {
     expect(cleared.document.settings.split.method).toBe('holdout')
     // 참조도 함께 사라져야 저장이 막히지 않는다 (mlpx-spec.md §1.2).
     expect(dataSettings('image', cleared.document.settings).testDataset).toBeUndefined()
-    // 학습용 사진은 그대로다.
+    // 훈련용 사진은 그대로다.
     expect(readImages(cleared).map((entry) => entry.hash)).toEqual(['a'])
   })
 })

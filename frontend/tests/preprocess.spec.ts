@@ -1,7 +1,7 @@
 /**
  * 전처리.
  *
- * 제일 중요한 것은 **파라미터가 학습셋에서만 나오는가**다. 평가셋이 섞이면 지표가
+ * 제일 중요한 것은 **파라미터가 훈련 데이터에서만 나오는가**다. 테스트 데이터가 섞이면 지표가
  * 조용히 부풀고, 학생은 그 숫자로 "이 모델이 제일 좋다"고 포트폴리오를 쓴다.
  * 화면에는 아무 이상도 안 보인다.
  */
@@ -64,15 +64,15 @@ describe('usableRows', () => {
   })
 })
 
-describe('학습셋에서만 파라미터를 구한다', () => {
-  it('평가셋의 값이 평균에 섞이지 않는다', () => {
-    // 4번 행의 키는 1000이다. 전체 평균은 332지만 학습셋(0~2) 평균은 160이어야 한다.
+describe('훈련 데이터에서만 파라미터를 구한다', () => {
+  it('테스트 데이터의 값이 평균에 섞이지 않는다', () => {
+    // 4번 행의 키는 1000이다. 전체 평균은 332지만 훈련 데이터(0~2) 평균은 160이어야 한다.
     const fitted = fitPreprocessor(dataset, [0, 1, 2], features, preprocessing())
     const height = fitted.columns.find((column) => column.name === '키')
     expect(height?.fill).toBe(160)
   })
 
-  it('평가셋의 값이 스케일에 섞이지 않는다', () => {
+  it('테스트 데이터의 값이 스케일에 섞이지 않는다', () => {
     const fitted = fitPreprocessor(
       dataset,
       [0, 1, 2],
@@ -80,11 +80,11 @@ describe('학습셋에서만 파라미터를 구한다', () => {
       preprocessing({ scaling: 'minmax' }),
     )
     const height = fitted.columns.find((column) => column.name === '키')
-    // 학습셋의 최소 150, 최대 170.
+    // 훈련 데이터의 최소 150, 최대 170.
     expect(height?.scale).toEqual({ center: 150, spread: 20 })
   })
 
-  it('평가셋에만 있는 범주는 학습 범주에 들어가지 않는다', () => {
+  it('테스트 데이터에만 있는 범주는 학습 범주에 들어가지 않는다', () => {
     const fitted = fitPreprocessor(dataset, [0, 1, 2], features, preprocessing())
     const region = fitted.columns.find((column) => column.name === '지역')
     expect(region?.categories).toEqual(['서울', '부산'])
@@ -103,7 +103,7 @@ describe('자료형 판정', () => {
 })
 
 describe('결측 대체', () => {
-  // 학습셋을 0·1·3행으로 잡으면 몸무게는 40·50·70이다.
+  // 훈련 데이터를 0·1·3행으로 잡으면 몸무게는 40·50·70이다.
   const strategies: [Preprocessing['missing'], number][] = [
     ['mean', 160 / 3],
     ['median', 50],
@@ -210,13 +210,13 @@ describe('범주 인코딩', () => {
     expect(transform(fitted, dataset, [0, 1], 'ordinal').map((row) => row[2])).toEqual([0, 1])
   })
 
-  it('학습셋에 없던 범주는 onehot에서 전부 0이다', () => {
+  it('훈련 데이터에 없던 범주는 onehot에서 전부 0이다', () => {
     const fitted = fitPreprocessor(dataset, [0, 1, 2], features, preprocessing())
-    // 4번 행의 지역은 '대구'로 학습셋에 없다.
+    // 4번 행의 지역은 '대구'로 훈련 데이터에 없다.
     expect(transform(fitted, dataset, [4], 'onehot')[0]?.slice(2)).toEqual([0, 0])
   })
 
-  it('학습셋에 없던 범주는 ordinal에서 -1이다', () => {
+  it('훈련 데이터에 없던 범주는 ordinal에서 -1이다', () => {
     const options = preprocessing({ categoricalEncoding: 'ordinal' })
     const fitted = fitPreprocessor(dataset, [0, 1, 2], features, options)
     expect(transform(fitted, dataset, [4], 'ordinal')[0]?.[2]).toBe(-1)
@@ -266,7 +266,7 @@ describe('쓸 수 없는 열', () => {
     expect(code).toBe('COLUMN_NOT_FOUND')
   })
 
-  it('학습셋에서 통째로 빈 열은 FEATURE_ALL_MISSING', () => {
+  it('훈련 데이터에서 통째로 빈 열은 FEATURE_ALL_MISSING', () => {
     const code = codeOf(() => fitPreprocessor(dataset, [2], ['몸무게'], preprocessing()))
     expect(code).toBe('FEATURE_ALL_MISSING')
   })

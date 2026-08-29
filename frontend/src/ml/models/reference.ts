@@ -46,7 +46,7 @@ function invalid(field: string): never {
 export interface NeighborhoodInput {
   readonly k: number
   readonly featureCount: number
-  /** 전처리를 마친 학습 행렬. */
+  /** 전처리를 마친 훈련 행렬. */
   readonly rows: readonly (readonly number[])[]
   /** rows와 같은 순서의 정답. */
   readonly labels: readonly string[]
@@ -83,7 +83,7 @@ export function knnPredict(input: NeighborhoodInput): Predict {
     if (row.length !== featureCount) invalid('featureCount')
     return Float64Array.from(row)
   })
-  // 이웃 수가 학습 행보다 많을 수는 없다. 있는 만큼만 본다.
+  // 이웃 수가 훈련 행보다 많을 수는 없다. 있는 만큼만 본다.
   const neighbors = Math.min(k, matrix.length)
 
   return (features) =>
@@ -173,9 +173,9 @@ export function knnPredict(input: NeighborhoodInput): Predict {
 }
 
 /**
- * 파일을 예측 함수로. **원본 학습 행이 있어야 한다** (mlpx-spec.md 5.0).
+ * 파일을 예측 함수로. **원본 훈련 행이 있어야 한다** (mlpx-spec.md 5.0).
  *
- * 행을 고르는 것은 여기다 - 부르는 쪽은 그 실험의 학습 행을 통째로 주고, 이 모델이
+ * 행을 고르는 것은 여기다 - 부르는 쪽은 그 실험의 훈련 행을 통째로 주고, 이 모델이
  * 그중 어느 것을 쓰는지는 `trainIndices`가 안다. 그래서 부르는 쪽에 형식 지식이 없다.
  */
 export function loadReferenceModel(file: unknown, context: LoadContext): Predict {

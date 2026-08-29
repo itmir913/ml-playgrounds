@@ -92,7 +92,7 @@ export const CLIENT_ERROR_CODES = [
 
   // 예측 입력 - ml/predict.ts
   // 채우지 않은 칸이 있다. **전처리기의 대체값으로 조용히 채우지 않는다** - 학생은
-  // 자기가 넣은 값으로 예측했다고 믿는데 실제로는 학습셋의 평균이 들어간다.
+  // 자기가 넣은 값으로 예측했다고 믿는데 실제로는 훈련 데이터의 평균이 들어간다.
   // 예측은 브라우저에서만 하므로(mlpx-spec.md 0.2) 이 코드는 서버에 없다.
   'PREDICTION_INPUT_INCOMPLETE',
 
@@ -108,7 +108,7 @@ export const CLIENT_ERROR_CODES = [
   // "학습에 실패했습니다"가 뜨면 학생은 엉뚱한 것을 다시 한다.
   'UNEXPECTED_ERROR',
 
-  // 학습셋/평가셋 분할 - ml/split.ts
+  // 훈련 데이터/테스트 데이터 분할 - ml/split.ts
   // 분할은 클라이언트만 계산한다(mlpx-spec.md 0.3). 서버는 인덱스를 받기만 하므로
   // 이 둘은 backend/app/errors.py 에 없다.
   'SPLIT_TOO_FEW_ROWS',
@@ -136,17 +136,17 @@ export const CLIENT_ERROR_CODES = [
   // 옮겨 간다 (아래 CLIENT_WARNING_CODES의 사정과 같다).
   'CLUSTER_TOO_FEW_ROWS',
 
-  // 평가 데이터(test.csv) 받기 - data/columns.ts
+  // 테스트 데이터(test.csv) 받기 - data/columns.ts
   // 정본 열과의 대조는 브라우저에서만 한다(mlpx-spec.md 0.3의 분할과 같은 이유 -
   // 서버는 이미 확정된 정본과 분할 인덱스만 받는다).
   'TEST_DATASET_COLUMN_MISSING',
-  // 평가 데이터로 채점할 행이 하나도 없다 - ml/split.ts. 전처리(결측 규칙)가 전부
-  // 걸러냈거나 평가 데이터가 아예 없는 채로 provided인 경우다. **학습 데이터가 비었다는
-  // 말과 나눈다** - 같은 코드로 뭉치면 학생이 멀쩡한 학습 데이터를 들여다본다.
+  // 테스트 데이터로 채점할 행이 하나도 없다 - ml/split.ts. 전처리(결측 규칙)가 전부
+  // 걸러냈거나 테스트 데이터가 아예 없는 채로 provided인 경우다. **훈련 데이터가 비었다는
+  // 말과 나눈다** - 같은 코드로 뭉치면 학생이 멀쩡한 훈련 데이터를 들여다본다.
   'TEST_DATASET_NO_USABLE_ROWS',
 
   // 테스트용 사진 받기 - data/image/test-set.ts
-  // (open-decisions.md "평가용 zip (`split.method = 'provided'`)").
+  // (open-decisions.md "테스트용 zip (`split.method = 'provided'`)").
   // **던지는 코드가 아니라 화면의 잠금·거절 이유다** - STRATIFY_NOT_FOR_TASK_TYPE과 같은
   // 자리이고, 같은 목록에 두는 이유도 같다: 이유 문장이 사는 곳이 client.* 하나여야 한다.
   //

@@ -240,7 +240,7 @@ const FACTS_NOT_IN_TASK: Readonly<Record<TaskType, readonly FactKey[]>> = {
 const FACT_STEP_IN_DATA_TYPE: Readonly<Record<DataType, Partial<Record<FactKey, StepId>>>> = {
   tabular: {},
   // **범주 나누기는 데이터 화면에서 한다.** 그래서 전처리의 할 일이 비고, 그것이 맞다 -
-  // 거기서 정하는 평가 데이터는 언제나 선택이라 할 일이 아니다 (§8.10.0의 인용).
+  // 거기서 정하는 테스트 데이터는 언제나 선택이라 할 일이 아니다 (§8.10.0의 인용).
   image: { targetChosen: 'data' },
 }
 

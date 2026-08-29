@@ -44,7 +44,7 @@ export interface ExperimentInput {
   /** 정본 CSV를 읽은 표. 헤더는 rows에 없다 - 행 번호가 곧 분할 인덱스다. */
   dataset: Dataset
   /**
-   * 평가 데이터. **`settings.split.method`가 `provided`일 때만 쓴다.**
+   * 테스트 데이터. **`settings.split.method`가 `provided`일 때만 쓴다.**
    *
    * `testIndices`는 이 표의 행 번호다 - `dataset`(=data.csv)과는 다른 정본이라
    * `trainIndices`와 같은 표로 섞으면 안 된다 (mlpx-spec.md §1.1, ml/split.ts).
@@ -456,8 +456,8 @@ function trainOne(
     )
 
     // **군집은 시그니처가 다르다** (architecture.md §3.7). 정답이 없으므로
-    // (actual, predicted)를 쓸 수 없고, 학습 데이터·할당·중심점으로 지표를 낸다.
-    // 분류·회귀는 평가셋으로 채점하고, 군집은 전체 데이터로 채점한다 (§3.6).
+    // (actual, predicted)를 쓸 수 없고, 훈련 데이터·할당·중심점으로 지표를 낸다.
+    // 분류·회귀는 테스트 데이터로 채점하고, 군집은 전체 데이터로 채점한다 (§3.6).
     let evaluation: Evaluation
     if (context.taskType === 'clustering') {
       if (!clusterResult) throw new ClientError('JOB_FAILED', { taskType: 'clustering' })
@@ -546,7 +546,7 @@ export function runExperiment(
     taskType,
     trainFeatures: transform(preprocessor, dataset, split.trainIndices, categoricalEncoding),
     trainRowIndices: split.trainIndices,
-    // 군집화에는 평가셋이 없다 — testIndices가 빈 배열이므로 빈 행렬이 나온다.
+    // 군집화에는 테스트 데이터가 없다 — testIndices가 빈 배열이므로 빈 행렬이 나온다.
     testFeatures: transform(preprocessor, testSource, split.testIndices, categoricalEncoding),
     // 군집화에는 타깃이 없다 — 빈 배열이 들어가고, 트레이너가 무시한다.
     trainTarget: isClustering ? [] : targetValues(dataset, split.trainIndices, target!),

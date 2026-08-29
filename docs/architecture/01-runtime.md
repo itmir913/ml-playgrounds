@@ -267,7 +267,7 @@ sklearn 0.9000 / 우리 0.9667). **틀린 것이 아니라 분할이 다른 별�
 `split` 설정은 군집일 때 무시된다 — 분할 방법에 별도 값을 추가하는 대신
 학습 계획(`ml/plan.ts`의 `planRun`)이 `taskType === 'clustering'`일 때 분할을
 건너뛴다. (2026-08-13에 `planRun`이 `experiment.ts`에서 떨어져 나오면서 이 분기도
-함께 옮겨졌다. `experiment.ts`에 남은 `isClustering`은 평가 표와 타깃 배열을 가르는
+함께 옮겨졌다. `experiment.ts`에 남은 `isClustering`은 테스트 표와 타깃 배열을 가르는
 몫뿐이다.)
 
 **이건 등록이 아니라 분기다** (2026-08-11에 고쳐 적는다). 예전에 "이 조합에 등록된

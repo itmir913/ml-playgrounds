@@ -138,7 +138,7 @@ export function trainLinearSvm(
   const m = features.length
   const width = features[0]?.length ?? 0
 
-  // 정규화한 학습 행렬. 원본은 옵션이지만 여기서는 언제나 한다 - 끄면 단위가 큰 열
+  // 정규화한 훈련 행렬. 원본은 옵션이지만 여기서는 언제나 한다 - 끄면 단위가 큰 열
   // (원, 밀리미터)이 하나만 있어도 SMO가 사실상 수렴하지 못한다.
   const { min, range } = minMaxOf(features, width)
   const X = features.map((row) =>

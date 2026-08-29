@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 표 데이터의 전처리 작업 공간 — 열 고르기, 정리하기, 뽑기, 그리고 **평가 데이터 받기.**
+ * 표 데이터의 전처리 작업 공간 — 열 고르기, 정리하기, 뽑기, 그리고 **테스트 데이터 받기.**
  *
  * **이 화면이 표 전용이라는 사실은 `data/kinds.ts`에 있다** (architecture.md §9.1).
  * `PreprocessView`는 종류를 모른 채 판을 하나 그리고, 이미지가 들어오면 여기가 아니라
@@ -10,7 +10,7 @@
  * 전혀 다른 모양이 된다.
  *
  * **슬롯으로 받는 것은 "얼마나 나눌 것인가"뿐이다** (§9.1.1). 비율·층화·씨앗은
- * `settings.split`이라 모든 종류에 공통이고, **"평가 데이터를 무엇으로 어디서 받나"는
+ * `settings.split`이라 모든 종류에 공통이고, **"테스트 데이터를 무엇으로 어디서 받나"는
  * 종류마다 다르다** — 표는 CSV·엑셀 파일 하나이고 이미지는 폴더나 zip이 된다.
  * 그래서 파일 받기와 시트 고르기가 이 파일에 있다.
  *
@@ -329,9 +329,9 @@ const stratifyDisabled = computed(() =>
   stratifyLocked(stratifyBlockNow.value, settings.value?.split.stratify ?? false),
 )
 
-// ------------------------------------------------------------ 평가 데이터 받기
+// ------------------------------------------------------------ 테스트 데이터 받기
 
-/** 평가 데이터를 파싱한 표. `split.method`가 `provided`가 아니면 없다. */
+/** 테스트 데이터를 파싱한 표. `split.method`가 `provided`가 아니면 없다. */
 const testDataset = computed(() => readTestDataset(project.file))
 
 /** 순수 함수는 ml/selection.ts에 있다 - 컴포넌트 밖에서 테스트한다. */
@@ -348,7 +348,7 @@ const testRowUsage = computed(() => {
 
 const experimentCount = computed(() => project.file?.document.runs.experiments.length ?? 0)
 
-/** 타깃이 정해진 뒤에만 평가용 파일을 받을 수 있다 (mlpx-spec.md §1.1). */
+/** 타깃이 정해진 뒤에만 테스트용 파일을 받을 수 있다 (mlpx-spec.md §1.1). */
 const targetChosen = computed(() => data.value?.target !== undefined)
 
 /**
@@ -369,7 +369,7 @@ const testFileInput = ref<HTMLInputElement | null>(null)
 const testChoiceRadios = useRadioGroupGuard<'holdout' | 'provided'>()
 const testDragging = ref(false)
 const testBusy = ref(false)
-/** 아직 확정하지 않은 평가용 파일. 확정하면 비운다. */
+/** 아직 확정하지 않은 테스트용 파일. 확정하면 비운다. */
 const openedTest = ref<{ document: TableDocument; fileName: string } | null>(null)
 const testSheetName = ref<string | undefined>(undefined)
 const testHasHeader = ref(true)
@@ -377,7 +377,7 @@ const testAttaching = ref(false)
 const testRemoving = ref(false)
 
 /**
- * "①"을 고른다. 이미 붙어 있던 평가 데이터가 있으면 뗀다(경고를 거친다).
+ * "①"을 고른다. 이미 붙어 있던 테스트 데이터가 있으면 뗀다(경고를 거친다).
  *
  * **취소하면 그룹을 직접 되돌린다** (`architecture.md` §8.15) - 확인을 거치는 동안
  * `testChoice`는 그대로 `'provided'`라 Vue가 다시 렌더링해도 라디오의 `checked`를
@@ -625,14 +625,14 @@ async function removeTest(): Promise<void> {
       </section>
 
       <!--
-      **평가 데이터를 어디서 받나는 종류별이다** (architecture.md 9.1.1). 표는 파일
+      **테스트 데이터를 어디서 받나는 종류별이다** (architecture.md 9.1.1). 표는 파일
       하나이고 이미지는 폴더나 zip이 된다. 얼마나 나눌 것인가만 공통이라 슬롯으로 온다.
     -->
       <section class="rounded-panel border border-line bg-surface p-4">
         <h2 class="font-bold">{{ t('preprocess.testDataTitle') }}</h2>
         <p class="mt-1 text-ink-soft">{{ t('preprocess.testDataLead') }}</p>
 
-        <!-- 양자택일이다 - 세 번째 상태가 없어야 학습 데이터로 채점하는 길이 막힌다
+        <!-- 양자택일이다 - 세 번째 상태가 없어야 훈련 데이터로 채점하는 길이 막힌다
              (open-decisions.md "`분할 안 함`을 없앱니다 — 그 자리가 양자택일이 된다"). -->
         <div class="mt-3 flex flex-col gap-4">
           <div>
@@ -886,8 +886,8 @@ async function removeTest(): Promise<void> {
   </div>
 
   <!--
-    **붙이거나 떼면 지금까지의 실험이 지워진다** - 평가셋이 바뀌면 그 위의 점수가
-    전부 다른 것을 잰 값이 된다 (open-decisions.md "학습용과 평가용 파일이 따로일
+    **붙이거나 떼면 지금까지의 실험이 지워진다** - 테스트 데이터가 바뀌면 그 위의 점수가
+    전부 다른 것을 잰 값이 된다 (open-decisions.md "훈련용과 테스트용 파일이 따로일
     수 있다"). data.replaceTitle과 같은 사유·같은 경고다.
   -->
   <AppDialog

@@ -1,5 +1,5 @@
 /**
- * 학습셋/평가셋 분할.
+ * 훈련 데이터/테스트 데이터 분할.
  *
  * 여기가 틀리면 **그 위의 전부가 조용히 틀린다.** 지표는 멀쩡해 보이는데 다른 행으로
  * 학습된 것이고, 아무도 눈치채지 못한다. 그래서 확인하는 것 셋.
@@ -85,7 +85,7 @@ describe('인덱스가 원본 행 번호다', () => {
     expect([...trainIndices, ...testIndices].sort((a, b) => a - b)).toEqual(usable)
   })
 
-  it('학습셋과 평가셋이 겹치지 않고 합치면 전체가 된다', () => {
+  it('훈련 데이터와 테스트 데이터가 겹치지 않고 합치면 전체가 된다', () => {
     const { trainIndices, testIndices } = holdoutSplit({ rows: rows(100) }, split())
 
     expect(new Set([...trainIndices, ...testIndices]).size).toBe(100)
@@ -101,7 +101,7 @@ describe('인덱스가 원본 행 번호다', () => {
 })
 
 describe('testSize', () => {
-  it('비율만큼 평가셋으로 간다', () => {
+  it('비율만큼 테스트 데이터로 간다', () => {
     const { testIndices } = holdoutSplit({ rows: rows(100) }, split({ testSize: 0.3 }))
     expect(testIndices).toHaveLength(30)
   })
@@ -112,13 +112,13 @@ describe('testSize', () => {
    * 그 클램프가 **도달 불가능해졌다** — 스키마가 `testSize`를 `gt(0)`으로 막으므로
    * 양수 × 양수의 올림은 언제나 1 이상이다. 그래서 클램프를 지웠다 (R7 감사 B-1).
    */
-  it('아주 작은 비율에서도 평가셋에 하나는 남는다 - 올림이 그것을 준다', () => {
+  it('아주 작은 비율에서도 테스트 데이터에 하나는 남는다 - 올림이 그것을 준다', () => {
     const { trainIndices, testIndices } = holdoutSplit({ rows: rows(4) }, split({ testSize: 0.01 }))
     expect(testIndices).toHaveLength(1)
     expect(trainIndices).toHaveLength(3)
   })
 
-  it('거의 전부를 평가셋으로 보내도 학습셋에 하나는 남는다', () => {
+  it('거의 전부를 테스트 데이터로 보내도 훈련 데이터에 하나는 남는다', () => {
     const { trainIndices, testIndices } = holdoutSplit({ rows: rows(4) }, split({ testSize: 0.99 }))
     expect(trainIndices).toHaveLength(1)
     expect(testIndices).toHaveLength(3)
@@ -145,8 +145,8 @@ describe('층화', () => {
     expect(countByLabel(trainIndices)).toEqual({ setosa: 40, versicolor: 40, virginica: 40 })
   })
 
-  it('쏠린 데이터에서도 드문 라벨이 평가셋에서 통째로 빠지지 않는다', () => {
-    // 90 대 10. 층화가 없으면 평가셋 20개에 rare가 하나도 안 들어가는 일이 실제로 생긴다.
+  it('쏠린 데이터에서도 드문 라벨이 테스트 데이터에서 통째로 빠지지 않는다', () => {
+    // 90 대 10. 층화가 없으면 테스트 데이터 20개에 rare가 하나도 안 들어가는 일이 실제로 생긴다.
     const labels = [...Array(100)].map((_, i) => (i < 90 ? 'common' : 'rare'))
     const { testIndices } = holdoutSplit({ rows: rows(100), labels }, split({ stratify: true }))
 
@@ -209,16 +209,16 @@ describe('나눌 수 없는 데이터', () => {
   })
 })
 
-describe('평가 데이터가 파일로 온 분할', () => {
+describe('테스트 데이터가 파일로 온 분할', () => {
   /**
-   * **나누지 않는다.** 학습 데이터는 전부 학습에 쓰고, 평가 데이터셋의 usableRows
+   * **나누지 않는다.** 훈련 데이터는 전부 학습에 쓰고, 테스트 데이터셋의 usableRows
    * 전부가 testIndices다 (mlpx-spec.md §1.1). `testIndices`는 `input.rows`와 다른
    * 정본(test.csv)의 행 번호이므로 `trainIndices`와 겹칠 수 있다 - 서로 다른 표라
    * 겹치는 것이 이상하지 않다.
    */
   const provided = { method: 'provided', testSize: 0.2, stratify: true, randomState: 42 } as const
 
-  it('trainIndices는 학습 데이터 전부, testIndices는 평가 데이터 전부다', () => {
+  it('trainIndices는 훈련 데이터 전부, testIndices는 테스트 데이터 전부다', () => {
     const { trainIndices, testIndices } = splitRows({ rows: [0, 1, 2, 3] }, provided, {
       rows: [0, 1, 2],
     })
@@ -255,23 +255,23 @@ describe('평가 데이터가 파일로 온 분할', () => {
     )
   })
 
-  it('학습 데이터가 하나도 없으면 시끄럽게 실패한다', () => {
+  it('훈련 데이터가 하나도 없으면 시끄럽게 실패한다', () => {
     expect(() => splitRows({ rows: [] }, provided, { rows: [0] })).toThrow()
   })
 
-  it('평가 데이터가 하나도 없으면 평가 데이터를 가리켜 실패한다', () => {
-    // 학습 데이터를 탓하는 SPLIT_TOO_FEW_ROWS가 아니어야 한다 - 같은 코드로 뭉치면
-    // 평가 파일이 문제인데 학생이 멀쩡한 학습 데이터를 들여다본다.
+  it('테스트 데이터가 하나도 없으면 테스트 데이터를 가리켜 실패한다', () => {
+    // 훈련 데이터를 탓하는 SPLIT_TOO_FEW_ROWS가 아니어야 한다 - 같은 코드로 뭉치면
+    // 테스트 파일이 문제인데 학생이 멀쩡한 훈련 데이터를 들여다본다.
     expect(codeOf(() => splitRows({ rows: [0, 1] }, provided, { rows: [] }))).toBe(
       'TEST_DATASET_NO_USABLE_ROWS',
     )
   })
 
-  it('평가 데이터셋 자체가 없어도 같은 코드다 - 부르는 쪽 버그다', () => {
+  it('테스트 데이터셋 자체가 없어도 같은 코드다 - 부르는 쪽 버그다', () => {
     expect(codeOf(() => splitRows({ rows: [0, 1] }, provided))).toBe('TEST_DATASET_NO_USABLE_ROWS')
   })
 
-  it('학습 데이터가 비면 그때는 학습 데이터를 가리킨다', () => {
+  it('훈련 데이터가 비면 그때는 훈련 데이터를 가리킨다', () => {
     expect(codeOf(() => splitRows({ rows: [] }, provided, { rows: [0] }))).toBe(
       'SPLIT_TOO_FEW_ROWS',
     )
@@ -294,7 +294,7 @@ describe('평가 데이터가 파일로 온 분할', () => {
  * 전체가 통과한 적이 있다(V11 R2 B-5) — 층화 픽스처가 전부 `150×0.2=30.0`처럼 정확히
  * 떨어졌기 때문이다. **소수부가 남는 표본을 골라라.**
  */
-describe('평가셋 개수는 sklearn과 같은 함수로 센다', () => {
+describe('테스트 데이터 개수는 sklearn과 같은 함수로 센다', () => {
   const countOf = (total: number, testSize: number): number =>
     holdoutSplit({ rows: rows(total) }, split({ testSize })).testIndices.length
 

@@ -138,13 +138,13 @@ export const datasetBytes = new TextEncoder().encode('﻿꽃받침,품종\r\n5.1
 
 export const dataset: Dataset = { bytes: datasetBytes, hash: hashBytes(datasetBytes) }
 
-/** 평가 데이터(test.csv). data.csv와 같은 열이다 - 정본 열 전체와 대조해 받은 뒤다. */
+/** 테스트 데이터(test.csv). data.csv와 같은 열이다 - 정본 열 전체와 대조해 받은 뒤다. */
 export const testDatasetBytes = new TextEncoder().encode('﻿꽃받침,품종\r\n6.0,virginica\r\n')
 
 export const testDataset: Dataset = { bytes: testDatasetBytes, hash: hashBytes(testDatasetBytes) }
 
 /**
- * `projectFile()`에 평가 데이터를 붙인 것. `split.method`를 `provided`로 바꾸고
+ * `projectFile()`에 테스트 데이터를 붙인 것. `split.method`를 `provided`로 바꾸고
  * `settings.data.testDataset`과 zip 본체를 함께 채운다 - 한쪽만 있으면 우리 버그다.
  */
 export function projectFileWithTestDataset(overrides: Partial<ProjectFile> = {}): ProjectFile {

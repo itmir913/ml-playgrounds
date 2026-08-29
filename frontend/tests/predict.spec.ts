@@ -138,7 +138,7 @@ function codeOf(action: () => unknown): string {
   throw new Error('던지지 않았다')
 }
 
-describe('① 학습 행 만들기', () => {
+describe('① 훈련 행 만들기', () => {
   it('행 번호를 그대로 넘긴다 - 다시 매기면 참조형이 다른 행을 가리킨다', () => {
     const subject = experiment([0, 2, 4], onehot)
     const rows = trainingRowsFor(subject, fitFor(subject), dataset)
@@ -148,11 +148,11 @@ describe('① 학습 행 만들기', () => {
     expect(rows.target).toEqual(['a', 'a', 'a'])
   })
 
-  it('그 실험의 전처리기로 변환한다 - 학습셋에서만 파라미터가 나온다', () => {
+  it('그 실험의 전처리기로 변환한다 - 훈련 데이터에서만 파라미터가 나온다', () => {
     const subject = experiment([0, 1], scaled)
     const rows = trainingRowsFor(subject, fitFor(subject), dataset)
 
-    // 학습셋이 키 150·160이므로 평균 155, 표준편차 5. 전체(150~190)로 맞췄다면 값이 다르다.
+    // 훈련 데이터가 키 150·160이므로 평균 155, 표준편차 5. 전체(150~190)로 맞췄다면 값이 다르다.
     expect(rows.features[0]?.[0]).toBeCloseTo(-1, 10)
     expect(rows.features[1]?.[0]).toBeCloseTo(1, 10)
   })
@@ -162,7 +162,7 @@ describe('① 학습 행 만들기', () => {
     const preprocessor = fitFor(subject)
     const rows = trainingRowsFor(subject, preprocessor, dataset)
 
-    // 키·몸무게 + 학습셋에서 본 지역 셋(서울·부산·대구)
+    // 키·몸무게 + 훈련 데이터에서 본 지역 셋(서울·부산·대구)
     expect(preprocessor.featureNames).toEqual([
       '키',
       '몸무게',
@@ -215,7 +215,7 @@ describe('② 입력 한 줄을 특성 벡터로', () => {
   it('원-핫 열의 순서가 featureNames의 순서다', () => {
     const subject = experiment([0, 1, 3], onehot)
     const preprocessor = fitFor(subject)
-    // 학습셋에서 본 순서가 서울·부산·대구다. 부산이면 두 번째 자리만 1이다.
+    // 훈련 데이터에서 본 순서가 서울·부산·대구다. 부산이면 두 번째 자리만 1이다.
     const vector = inputVector(subject, preprocessor, {
       키: '160',
       몸무게: '50',
@@ -296,7 +296,7 @@ describe('전처리기 파서', () => {
 })
 
 describe('참조형 모델과 이어 붙이기', () => {
-  it('① 이 만든 행으로 KNN이 학습 행을 그대로 맞힌다', () => {
+  it('① 이 만든 행으로 KNN이 훈련 행을 그대로 맞힌다', () => {
     const subject = experiment([0, 1, 2, 3, 4], onehot)
     const preprocessor = fitFor(subject)
     const trainingRows = trainingRowsFor(subject, preprocessor, dataset)
@@ -312,13 +312,13 @@ describe('참조형 모델과 이어 붙이기', () => {
       { trainingRows },
     )
 
-    // 이웃이 하나면 자기 자신이므로 학습 행의 답은 그 행의 라벨이다. ② 로 만든 벡터를
+    // 이웃이 하나면 자기 자신이므로 훈련 행의 답은 그 행의 라벨이다. ② 로 만든 벡터를
     // 넣어도 같아야 한다 - 두 이음매가 어긋나면 여기서 답이 갈린다.
     const vectors = dataset.rows.map((_, row) => inputVector(subject, preprocessor, cellsOf(row)))
     expect(predict(vectors)).toEqual(['a', 'b', 'a', 'b', 'a'])
   })
 
-  it('학습 행이 없으면 참조형만 못 쓴다 - 파일이 깨진 것이 아니다', () => {
+  it('훈련 행이 없으면 참조형만 못 쓴다 - 파일이 깨진 것이 아니다', () => {
     expect(
       codeOf(() =>
         loadModel({
@@ -360,11 +360,11 @@ describe('표에서 한 줄 가져오기', () => {
   /** 뽑을 후보 중 `position`번째를 고르는 난수원. 어느 줄을 뽑는지 확인할 수 있다. */
   const picks = (position: number) => () => position / 100
 
-  it('평가에 쓴 행에서 뽑는다 - 학습한 행을 다시 맞히는 장면은 아무것도 안 가르친다', () => {
+  it('테스트에 쓴 행에서 뽑는다 - 학습한 행을 다시 맞히는 장면은 아무것도 안 가르친다', () => {
     const subject = experiment([0, 1, 3], onehot, { testIndices: [2, 4] })
     const fields = inputFields(fitFor(subject))
 
-    // 난수를 어느 쪽으로 돌려도 평가 행 밖으로는 안 나간다.
+    // 난수를 어느 쪽으로 돌려도 테스트 행 밖으로는 안 나간다.
     expect(sampleRow(subject, fields, { dataset }, undefined, () => 0)?.index).toBe(2)
     expect(sampleRow(subject, fields, { dataset }, undefined, () => 0.99)?.index).toBe(4)
   })
@@ -400,7 +400,7 @@ describe('표에서 한 줄 가져오기', () => {
     expect(sampleRow(subject, fields, { dataset }, undefined, () => 1)?.index).toBe(4)
   })
 
-  it('평가 행이 없으면 학습 행뿐이다 - 없는 것을 지어내지 않는다', () => {
+  it('테스트 행이 없으면 훈련 행뿐이다 - 없는 것을 지어내지 않는다', () => {
     const subject = experiment([0, 1], onehot, { testIndices: [] })
     const fields = inputFields(fitFor(subject))
 
@@ -419,7 +419,7 @@ describe('표에서 한 줄 가져오기', () => {
    * 열 이름과 순서는 양쪽이 같으므로(정본 순서로 재배열해 저장한다) 잘못된 표에서 뽑아도
    * 값이 그럴듯하게 채워지고 **화면에는 틀린 티가 전혀 안 난다.** 그래서 여기서 못 박는다.
    */
-  describe('평가 데이터가 파일로 온 실험', () => {
+  describe('테스트 데이터가 파일로 온 실험', () => {
     const testDataset: Dataset = {
       columns: ['키', '몸무게', '지역', '품종'],
       rows: [
@@ -435,23 +435,23 @@ describe('표에서 한 줄 가져오기', () => {
         testIndices: [0, 1, 2],
       })
 
-    it('평가 표에서 뽑는다 - 학습 표에서 뽑으면 모델이 외운 행을 준다', () => {
+    it('테스트 표에서 뽑는다 - 훈련 표에서 뽑으면 모델이 외운 행을 준다', () => {
       const subject = providedExperiment()
       const fields = inputFields(fitFor(subject))
       const sample = sampleRow(subject, fields, { dataset, testDataset }, undefined, picks(0))
 
-      // 학습 표의 0번은 키 150이다. 평가 표의 0번이 나와야 한다.
+      // 훈련 표의 0번은 키 150이다. 테스트 표의 0번이 나와야 한다.
       expect(sample?.values).toEqual({ 키: '101', 몸무게: '11', 지역: '서울' })
     })
 
-    it('평가 표가 학습 표보다 길어도 뽑는다 - 학습 표를 보면 여기서 조용히 null이 된다', () => {
+    it('테스트 표가 훈련 표보다 길어도 뽑는다 - 훈련 표를 보면 여기서 조용히 null이 된다', () => {
       const longer: Dataset = {
         columns: testDataset.columns,
         rows: [...testDataset.rows, ['104', '14', '서울', 'b'], ['105', '15', '부산', 'a']],
       }
       const subject = experiment([0, 1], onehot, {
         split: { method: 'provided', testSize: 0.3, stratify: true, randomState: 42 },
-        // 학습 표는 5행뿐이라 이 번호들은 그쪽에서 못 찾는다.
+        // 훈련 표는 5행뿐이라 이 번호들은 그쪽에서 못 찾는다.
         testIndices: [3, 4],
       })
       const fields = inputFields(fitFor(subject))
@@ -461,14 +461,14 @@ describe('표에서 한 줄 가져오기', () => {
       ).toBe(3)
     })
 
-    it('평가 표가 없으면 null이다 - 학습 표로 조용히 떨어지지 않는다', () => {
+    it('테스트 표가 없으면 null이다 - 훈련 표로 조용히 떨어지지 않는다', () => {
       const subject = providedExperiment()
       const fields = inputFields(fitFor(subject))
 
       expect(sampleRow(subject, fields, { dataset }, undefined, picks(0))).toBeNull()
     })
 
-    it('학습 행으로 떨어질 때는 학습 표를 본다 - trainIndices는 언제나 data.csv다', () => {
+    it('훈련 행으로 떨어질 때는 훈련 표를 본다 - trainIndices는 언제나 data.csv다', () => {
       const subject = experiment([0, 1], onehot, {
         split: { method: 'provided', testSize: 0.3, stratify: true, randomState: 42 },
         testIndices: [],
@@ -610,7 +610,7 @@ describe('여러 실험의 칸을 합친다', () => {
     expect(mergeFields([narrow, wide]).map((field) => field.name)).toEqual(['키', '몸무게', '지역'])
   })
 
-  it('범주 목록도 합친다 - 학습셋이 달라 못 본 값이 있다', () => {
+  it('범주 목록도 합친다 - 훈련 데이터가 달라 못 본 값이 있다', () => {
     const seoulBusan = inputFields(fitFor(experiment([0, 1], onehot)))
     const daegu = inputFields(fitFor(experiment([3], onehot)))
     const merged = mergeFields([seoulBusan, daegu])
@@ -634,12 +634,12 @@ describe('수치 칸의 값 범위', () => {
     const subject = experiment([0, 1], onehot)
     const ranges = numericRanges([dataset], inputFields(fitFor(subject)))
 
-    // 학습셋은 150~160뿐이지만 표에는 150~190이 있다.
+    // 훈련 데이터는 150~160뿐이지만 표에는 150~190이 있다.
     expect(ranges.get('키')).toEqual({ min: 150, max: 190 })
     expect(ranges.get('몸무게')).toEqual({ min: 40, max: 80 })
   })
 
-  it('평가 파일까지 함께 본다 - 가져온 값이 힌트 범위 밖에 있으면 안 된다', () => {
+  it('테스트 파일까지 함께 본다 - 가져온 값이 힌트 범위 밖에 있으면 안 된다', () => {
     const subject = experiment([0, 1], onehot)
     const provided: Dataset = {
       columns: ['키', '몸무게', '지역'],

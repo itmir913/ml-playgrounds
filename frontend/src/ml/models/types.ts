@@ -60,7 +60,7 @@ export interface ModelFile {
  */
 export interface LoadContext {
   /**
-   * 전처리를 마친 학습 행렬과 그 정답. **참조형만 쓴다.**
+   * 전처리를 마친 훈련 행렬과 그 정답. **참조형만 쓴다.**
    *
    * needsTrainingRows가 false인 해석기는 이 값을 쳐다보지 않는다. 인자를 두 벌로
    * 나누거나 2단계 로딩으로 만들지 않는 이유는, 부르는 쪽이 형식마다 다른 호출 방법을
@@ -71,7 +71,7 @@ export interface LoadContext {
      * `features[i]`의 **원본 행 번호** (`dataset/data.csv` 기준, 헤더 제외 0부터).
      *
      * 이것이 있어야 참조형이 자기 `trainIndices`로 필요한 행만 고를 수 있다. 부르는 쪽은
-     * 그 실험의 학습 행을 통째로 주기만 하므로 **형식 지식을 갖지 않는다** (mlpx-spec.md 5.0).
+     * 그 실험의 훈련 행을 통째로 주기만 하므로 **형식 지식을 갖지 않는다** (mlpx-spec.md 5.0).
      */
     readonly indices: readonly number[]
     readonly features: readonly (readonly number[])[]
@@ -91,7 +91,7 @@ export interface ModelInterpreter {
    */
   readonly includesPreprocessing: boolean
   /**
-   * 원본 학습 행이 있어야 예측하는가 (mlpx-spec.md 5.0).
+   * 원본 훈련 행이 있어야 예측하는가 (mlpx-spec.md 5.0).
    *
    * **`includesPreprocessing`과 나란한 축이다.** 참조형(KNN·SVM)은 모델이 사실상 학습
    * 데이터라 행 번호만 담고(mlpx-spec.md 5.1), 그 행은 `dataset/`에 있다. 그래서

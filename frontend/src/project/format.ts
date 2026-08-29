@@ -76,7 +76,7 @@ export const DIR = {
 export const TABULAR_DATASET_PATH = `${DIR.dataset}data.csv`
 
 /**
- * 평가 데이터의 정본 경로 (mlpx-spec.md §1.1).
+ * 테스트 데이터의 정본 경로 (mlpx-spec.md §1.1).
  *
  * `split.method`가 `provided`일 때만 있다. `data.csv`와 같은 규칙 - 언제나 UTF-8 CSV고,
  * 가져오기 시점에 한 번 정규화된다.
@@ -162,7 +162,7 @@ export interface ProjectFile {
    */
   dataset?: Dataset | undefined
   /**
-   * 평가 데이터. `split.method`가 `provided`일 때만 있다.
+   * 테스트 데이터. `split.method`가 `provided`일 때만 있다.
    *
    * `document.settings.data.testDataset`과 **함께 있고 함께 없다** - `dataset`과 같은 규칙이다
    * (mlpx-spec.md §1.1).
@@ -189,7 +189,7 @@ export interface ProjectFile {
    * zip 경로 -> 포트폴리오에 붙인 사진. **`images`와 같은 모양이다** - 새 개념이 아니라
    * 있는 길을 한 번 더 쓴다.
    *
-   * **학습용 정본과 섞이지 않는다.** 저쪽은 백본이 먹는 정사각형이고 이쪽은 사람이 보는
+   * **훈련용 정본과 섞이지 않는다.** 저쪽은 백본이 먹는 정사각형이고 이쪽은 사람이 보는
    * 그림이라, 크기 규칙도 사는 자리도 다르다 (mlpx-spec.md §8.6.1).
    */
   attachments: Map<string, Uint8Array>
@@ -613,7 +613,7 @@ function hashableEntries(
     ENTRY.portfolioMarkdown,
   ])
   // 없는 것이 정상이다. 그러면 대조 대상에서 빠질 뿐이다 - 표를 아직 안 올렸거나
-  // (datasetPath) holdout이라 평가 데이터가 파일로 없거나(testDatasetPath) 예측 데이터를
+  // (datasetPath) holdout이라 테스트 데이터가 파일로 없거나(testDatasetPath) 예측 데이터를
   // 아직 안 올렸다(predictDatasetPath).
   if (datasetPath !== undefined) known.add(datasetPath)
   if (testDatasetPath !== undefined) known.add(testDatasetPath)
@@ -796,7 +796,7 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
     throw new ClientError('PROJECT_FILE_ENTRY_MISSING', { entry: datasetPath })
   }
 
-  // 평가 데이터도 같은 규칙이다 - split.method가 provided인데 test.csv가 없으면
+  // 테스트 데이터도 같은 규칙이다 - split.method가 provided인데 test.csv가 없으면
   // 재현도 재학습도 못 한다 (mlpx-spec.md §1.1).
   const testDatasetRef = document.settings.data.testDataset
   const testDatasetPath = pointsToFile(testDatasetRef) ? testDatasetRef?.path : undefined

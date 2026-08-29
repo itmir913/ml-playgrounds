@@ -59,7 +59,7 @@ const props = defineProps<{
   /** 지금 보이는(필터를 지난) 쓸 수 있는 모델들. */
   models: readonly PredictableModel[]
   preprocessors: ReadonlyMap<string, Preprocessor>
-  /** 참조형 모델의 학습 행을 만드는 데 필요한 학습 정본. 없으면 참조형만 못 쓴다. */
+  /** 참조형 모델의 훈련 행을 만드는 데 필요한 훈련 정본. 없으면 참조형만 못 쓴다. */
   dataset: Dataset | null
   /** 채워야 하는 칸 - 여러 실험의 합집합이다 (§8.13.1 "칸은 실험들의 합집합이다"). */
   fields: readonly PredictionField[]
@@ -80,7 +80,7 @@ const hasFile = computed(() => predictDataset.value !== null)
 const fileInput = shallowRef<HTMLInputElement | null>(null)
 const dragging = shallowRef(false)
 const busy = shallowRef(false)
-/** 아직 확정하지 않은 파일. 확정하면 비운다 - 데이터 화면·평가 데이터와 같은 모양이다. */
+/** 아직 확정하지 않은 파일. 확정하면 비운다 - 데이터 화면·테스트 데이터와 같은 모양이다. */
 const opened = shallowRef<{ document: TableDocument; fileName: string } | null>(null)
 const sheetName = shallowRef<string | undefined>(undefined)
 const hasHeader = shallowRef(true)
@@ -250,7 +250,7 @@ const signature = computed(() =>
 )
 
 /**
- * 참조형 모델의 학습 행. **실험당 한 번만 만든다** - 페이지를 넘길 때마다 학습셋
+ * 참조형 모델의 훈련 행. **실험당 한 번만 만든다** - 페이지를 넘길 때마다 훈련 데이터
  * 전체를 다시 전처리하면 저사양 학교 PC에서 느껴질 정도로 비싸다. 서명이 바뀌면
  * (모델 선택이 바뀌면) 함께 버린다 - 유효하지 않은 실험을 계속 들고 있을 이유가 없다.
  */
@@ -395,7 +395,7 @@ const CHART_CLASSES = shuffled([
 const colorAssignments = shallowRef<ReadonlyMap<Prediction, number>>(new Map())
 
 /**
- * 서명이 바뀌면(파일이 바뀌거나 보이는 모델이 바뀌면) 캐시와 학습 행 캐시를 버리고
+ * 서명이 바뀌면(파일이 바뀌거나 보이는 모델이 바뀌면) 캐시와 훈련 행 캐시를 버리고
  * 첫 페이지를 다시 계산한다. **처음 보일 때도 돈다** (`immediate`) - 그래야 파일이
  * 이미 붙어 있는 프로젝트를 열었을 때도 표가 비어 있지 않다.
  *

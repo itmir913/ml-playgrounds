@@ -41,7 +41,7 @@ const svmModelSchema = z.looseObject({
   format: z.literal(SVM_FORMAT),
   classes: z.array(z.string()).min(1),
   featureCount: z.number(),
-  // **비어 있을 수 있다** - 학습셋에 클래스가 하나뿐이면 가를 쌍이 없다.
+  // **비어 있을 수 있다** - 훈련 데이터에 클래스가 하나뿐이면 가를 쌍이 없다.
   // 그 경우가 정상인지는 classes의 길이가 정한다 (svmPredict의 검사).
   classifiers: z.array(
     z.looseObject({
@@ -76,7 +76,7 @@ export function svmPredict(input: VotingInput): Predict {
   const { classes, featureCount, classifiers } = input
   if (!Number.isInteger(featureCount) || featureCount <= 0) invalid('featureCount')
   // 클래스가 여럿인데 가르는 쌍이 하나도 없으면 **전부 첫 클래스로 답한다.** 조용히 틀린
-  // 답이라 여기서 막는다. 클래스가 하나뿐인 학습셋은 정상이고, 그때는 답도 하나뿐이다.
+  // 답이라 여기서 막는다. 클래스가 하나뿐인 훈련 데이터는 정상이고, 그때는 답도 하나뿐이다.
   if (classes.length > 1 && classifiers.length === 0) invalid('classifiers')
 
   for (const pair of classifiers) {
@@ -127,7 +127,7 @@ export function svmPredict(input: VotingInput): Predict {
     })
 }
 
-/** 파일을 예측 함수로. **학습 행이 필요 없다** - 가중치뿐이라 자체 완결이다. */
+/** 파일을 예측 함수로. **훈련 행이 필요 없다** - 가중치뿐이라 자체 완결이다. */
 export function loadSvmModel(file: unknown): Predict {
   const parsed = svmModelSchema.safeParse(file)
   if (!parsed.success) invalid('payload')

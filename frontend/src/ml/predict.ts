@@ -53,7 +53,7 @@ function assertWidth(preprocessor: Preprocessor, row: readonly number[]): void {
 }
 
 /**
- * ① 이 실험의 학습 행을 만든다. **참조형 모델이 없으면 부를 이유가 없다**
+ * ① 이 실험의 훈련 행을 만든다. **참조형 모델이 없으면 부를 이유가 없다**
  * (`needsTrainingRows`, mlpx-spec.md 5.0).
  *
  * `trainIndices`는 `dataset/data.csv`의 행 번호이고 **헤더를 뺀 데이터 행 기준으로 0부터**
@@ -96,7 +96,7 @@ export function trainingRowsFor(
  * 벡터가 같은 좌표계에 선다.
  *
  * **빈 칸은 시끄럽게 거부한다.** 전처리기의 대체값으로 조용히 채우면 학생은 자기가 넣은
- * 값으로 예측했다고 믿는데 실제로는 학습셋의 평균이 들어간다. 결측 전략 `none`을 거부하는
+ * 값으로 예측했다고 믿는데 실제로는 훈련 데이터의 평균이 들어간다. 결측 전략 `none`을 거부하는
  * 것과 같은 판단이다 (open-decisions.md "전처리도 분할도 끌 수 있다").
  *
  * **여기서 "열이 없다"를 말하지는 않는다.** 이 함수가 받는 것은 표가 아니라 값 하나짜리
@@ -177,7 +177,7 @@ export function inputFields(preprocessor: Preprocessor): PredictionField[] {
  * 그러면 "같은 값인데 모델마다 답이 다르다"를 보여줄 수가 없다 (architecture.md 8.13.1).
  *
  * 어느 실험이 그 칸을 실제로 보는지는 **각자의 전처리기가 정한다** - 안 쓰는 칸은
- * `inputVector`가 그냥 지나친다. 범주 목록도 합친다: 학습셋이 달라 못 본 범주가 있을 수
+ * `inputVector`가 그냥 지나친다. 범주 목록도 합친다: 훈련 데이터가 달라 못 본 범주가 있을 수
  * 있고, 그 값을 고른 학생에게 그 모델은 미지의 범주로 답한다(그게 `transform`의 규칙이다).
  *
  * **순서는 먼저 나온 것이 앞이다.** 최신 실험이 앞에 오도록 넘기면 화면의 칸 순서가
@@ -218,21 +218,21 @@ export function mergeFields(groups: readonly (readonly PredictionField[])[]): Pr
  * 것뿐이다.
  *
  * **막지 않는다** (open-decisions.md "하이퍼파라미터는 눈금을 주되 막지 않는다"와 같은
- * 판단이다). 범위 밖 값을 넣어 보는 것은 이 도구에서 **해 볼 만한 일**이다 — 학습 데이터
+ * 판단이다). 범위 밖 값을 넣어 보는 것은 이 도구에서 **해 볼 만한 일**이다 — 훈련 데이터
  * 밖에서 모델이 어떻게 구는지가 수업에서 가장 좋은 장면 중 하나다.
  *
- * **전체 행을 본다.** 학습셋만 보면 화면이 말하는 범위와 학생이 표에서 본 범위가 달라진다.
+ * **전체 행을 본다.** 훈련 데이터만 보면 화면이 말하는 범위와 학생이 표에서 본 범위가 달라진다.
  */
 /**
  * 수치 칸에 붙는 힌트의 범위. **가진 표를 전부 훑는다.**
  *
  * **한 표만 보면 화면이 자기모순에 빠진다.** [랜덤으로 하나 가져오기]가 주는 행은 그
- * 실험의 평가 몫이고, 평가 데이터를 파일로 따로 붙였으면 그 행은 `test.csv`에서 온다
+ * 실험의 테스트 몫이고, 테스트 데이터를 파일로 따로 붙였으면 그 행은 `test.csv`에서 온다
  * (mlpx-spec.md §1.1). `data.csv`만 보고 범위를 적으면 **화면이 스스로 채워 넣은 값이
  * 그 범위 밖에** 있게 된다.
  *
  * **실험과 무관해야 한다.** 칸은 하나인데 실험은 여럿이고 분할도 저마다 다르므로, 어느
- * 실험의 평가 몫인지를 화면이 정할 수 없다. 그래서 분할 이전의 원본을 본다.
+ * 실험의 테스트 몫인지를 화면이 정할 수 없다. 그래서 분할 이전의 원본을 본다.
  *
  * 표마다 열 순서가 다를 수 있어 이름으로 다시 찾는다.
  */
@@ -271,7 +271,7 @@ export interface SampleRow {
   /**
    * 뽑아 온 행의 번호. 화면이 "몇 번째 줄을 가져왔다"를 말할 수 있다.
    *
-   * **어느 표의 번호인지는 그 실험이 정한다** - 평가 행을 준 것이면 `provided`에서
+   * **어느 표의 번호인지는 그 실험이 정한다** - 테스트 행을 준 것이면 `provided`에서
    * `test.csv`이고 그 밖에는 `data.csv`다 (`sampleRow`).
    */
   readonly index: number
@@ -283,17 +283,17 @@ export interface SampleRow {
  * `sampleRow`가 뒤질 표들. **둘을 함께 받는 이유는 어느 쪽인지를 실험이 정하기 때문이다.**
  */
 export interface SampleTables {
-  /** 학습 정본 `dataset/data.csv`. `trainIndices`는 언제나 이 표의 행 번호다. */
+  /** 훈련 정본 `dataset/data.csv`. `trainIndices`는 언제나 이 표의 행 번호다. */
   readonly dataset: Dataset
-  /** 평가 정본 `dataset/test.csv`. `split.method`가 `provided`인 실험에만 있다. */
+  /** 테스트 정본 `dataset/test.csv`. `split.method`가 `provided`인 실험에만 있다. */
   readonly testDataset?: Dataset | null | undefined
 }
 
 /**
- * 표에서 한 줄을 가져온다. **평가에 쓴 행을 먼저 준다.**
+ * 표에서 한 줄을 가져온다. **테스트에 쓴 행을 먼저 준다.**
  *
  * 학생이 [예측]으로 보게 되는 것이 **자기가 학습에 쓴 행을 다시 맞히는 장면**이면
- * 아무것도 가르치지 않는다 (architecture.md 8.13.1). 평가셋 행은 모델이 학습 때 못 본
+ * 아무것도 가르치지 않는다 (architecture.md 8.13.1). 테스트 데이터 행은 모델이 학습 때 못 본
  * 행이라 그 장면이 아니다.
  *
  * **어느 표에서 찾는지는 그 실험의 `split.method`가 정한다** (mlpx-spec.md 1.1).
@@ -301,8 +301,8 @@ export interface SampleTables {
  * 번호다. 표를 부르는 쪽이 정하게 두면 **조용히 다른 줄을 채운다** - 열 이름과 순서는
  * 양쪽이 같으므로(정본 순서로 재배열해 저장한다) 화면에 틀린 티가 전혀 안 난다.
  *
- * **`provided`인데 평가 표가 없으면 학습 표로 떨어지지 않는다.** 그건 참조와 본체가
- * 한쪽만 있는 상태이고(mlpx-spec.md 1) 그때 학습 행을 주면 이 함수가 막으려던 바로 그
+ * **`provided`인데 테스트 표가 없으면 훈련 표로 떨어지지 않는다.** 그건 참조와 본체가
+ * 한쪽만 있는 상태이고(mlpx-spec.md 1) 그때 훈련 행을 주면 이 함수가 막으려던 바로 그
  * 장면 - 모델이 외운 답 - 을 준다. 아무것도 안 주는 편이 낫다.
  *
  * **무작위로 뽑는다** (architecture.md 8.13.1, 2026-08-06에 순차에서 뒤집었다).
@@ -326,7 +326,7 @@ export function sampleRow(
 ): SampleRow | null {
   const { testIndices, trainIndices } = experiment.settings
 
-  // 평가 행이 있으면 그쪽이고, 없으면 학습 행이다. **그 선택이 표까지 함께 고른다** -
+  // 테스트 행이 있으면 그쪽이고, 없으면 훈련 행이다. **그 선택이 표까지 함께 고른다** -
   // trainIndices는 어느 방식에서든 data.csv이고, testIndices만 방식에 따라 갈린다.
   const useTest = testIndices.length > 0
   const candidates = useTest ? testIndices : trainIndices
@@ -356,7 +356,7 @@ export function sampleRow(
  * 예측 화면의 한 줄. **모델이 아니라 (실험, run) 쌍이다** (architecture.md 8.13.1).
  *
  * 화면은 "모델 목록"으로 보이지만 각 줄이 매달려 있는 것은 그 실험이다 - 전처리기도
- * 학습 행도 거기서 나온다.
+ * 훈련 행도 거기서 나온다.
  */
 export interface PredictableModel {
   readonly experiment: Experiment

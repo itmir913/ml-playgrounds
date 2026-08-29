@@ -233,7 +233,7 @@ function labelCodec(target: readonly Prediction[]): {
 /**
  * 분산에 더하는 하한. sklearn의 `var_smoothing` 기본값과 같은 규칙이다.
  *
- * 값이 하나뿐인 클래스는 분산이 0이라 그대로 두면 0으로 나눈다. 전체 학습셋 분산의
+ * 값이 하나뿐인 클래스는 분산이 0이라 그대로 두면 0으로 나눈다. 전체 훈련 데이터 분산의
  * 최댓값에 이 비율을 곱해 더한다 - 절대값으로 두면 열의 단위(cm와 원)에 따라 효과가
  * 달라진다.
  */
@@ -299,7 +299,7 @@ function gaussianNaiveBayes(): NaiveBayesPredictor {
         groups[label]?.push(features[row] ?? [])
       })
 
-      // 전체 학습셋의 열 분산 최댓값. 클래스별이 아니라 전체에서 구한다 (sklearn과 같다).
+      // 전체 훈련 데이터의 열 분산 최댓값. 클래스별이 아니라 전체에서 구한다 (sklearn과 같다).
       const overallMeans = columnMeans(features, width)
       const smoothing =
         VAR_SMOOTHING * Math.max(0, ...columnVariances(features, overallMeans, width))
@@ -319,7 +319,7 @@ function gaussianNaiveBayes(): NaiveBayesPredictor {
         priors.forEach((prior, c) => {
           let score = prior
           for (let j = 0; j < width; j += 1) {
-            // 분산이 0이면 그 열은 정보를 주지 않는다. smoothing이 0을 막지만 학습셋 전체가
+            // 분산이 0이면 그 열은 정보를 주지 않는다. smoothing이 0을 막지만 훈련 데이터 전체가
             // 상수인 극단은 남으므로 여기서도 건너뛴다 - 0으로 나누면 전부 NaN이 된다.
             const variance = variances[c]?.[j] ?? 0
             if (variance <= 0) continue
@@ -436,7 +436,7 @@ const TRAINERS: Record<string, Trainer> = {
       useSampleBagging: true,
       // **OOB 계산을 끈다. 안 끄면 나무를 적게 잡은 학습이 통째로 실패한다.**
       //
-      // ml.js는 학습 끝에 out-of-bag 예측을 모으는데, 어떤 행이 모든 나무의 학습 표본에
+      // ml.js는 학습 끝에 out-of-bag 예측을 모으는데, 어떤 행이 모든 나무의 훈련 표본에
       // 들어가면 그 행의 표가 빈 배열이 되고 거기서 던진다(ml-array-mode: "input must not
       // be empty"). 한 행이 그렇게 될 확률이 나무 하나당 약 0.632이므로 나무가 10그루면
       // 행마다 1%, 즉 수백 행짜리 데이터에서는 사실상 반드시 터진다. 100그루(기본값)에서는

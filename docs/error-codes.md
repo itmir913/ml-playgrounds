@@ -167,7 +167,7 @@ CLUSTER_TOO_FEW_ROWS
 함께 있다. 군집화는 아직 브라우저에만 있어 `client.*`이고, 서버가 군집을 학습하게
 되면(V6) 같은 판정을 서버도 하므로 `backend/app/errors.py` 쪽으로 옮겨 간다.
 
-**평가·예측 데이터 받기** (`data/columns.ts`, `ml/split.ts`, `ml/predict.ts`)
+**테스트·예측 데이터 받기** (`data/columns.ts`, `ml/split.ts`, `ml/predict.ts`)
 ```
 TEST_DATASET_COLUMN_MISSING, TEST_DATASET_NO_USABLE_ROWS,
 PREDICT_DATASET_COLUMN_MISSING
@@ -189,7 +189,7 @@ TEST_IMAGES_CATEGORY_UNKNOWN, TEST_IMAGES_UNLABELED
 
 **던지는 코드가 아니라 화면의 잠금·거절 이유다** — `STRATIFY_NOT_FOR_TASK_TYPE`과 같은
 자리이고, 같은 목록에 두는 이유도 같다(이유 문장이 사는 곳이 `client.*` 하나여야 한다).
-규칙은 `open-decisions.md` "평가용 zip (`split.method = 'provided'`)"이 갖는다 —
+규칙은 `open-decisions.md` "테스트용 zip (`split.method = 'provided'`)"이 갖는다 —
 **관용적으로 받지 않고 예측 가능하게 거부한다.** 모르는 범주는 채점할 수 없고 빠진
 범주는 재현율이 정의되지 않는다.
 
@@ -248,7 +248,7 @@ PREDICTION_INPUT_INCOMPLETE
 ```
 
 채우지 않은 칸이 있는 채로 [예측]을 눌렀다. **전처리기의 대체값으로 조용히 채우지
-않는다** — 학생은 자기가 넣은 값으로 예측했다고 믿는데 실제로는 학습셋의 평균이 들어간다.
+않는다** — 학생은 자기가 넣은 값으로 예측했다고 믿는데 실제로는 훈련 데이터의 평균이 들어간다.
 결측 전략 `none`을 시끄럽게 거부하는 것과 같은 판단이다. 예측은 언제나 브라우저에서만
 하므로(`mlpx-spec.md` §0.2) 서버에는 이 코드가 없다.
 

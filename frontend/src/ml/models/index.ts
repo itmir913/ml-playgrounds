@@ -82,13 +82,13 @@ const INTERPRETERS: readonly ModelInterpreter[] = [
   {
     format: REFERENCE_FORMAT,
     includesPreprocessing: false,
-    // **첫 true다.** 모델이 사실상 학습 데이터라 행 번호만 담는다 (mlpx-spec.md 5.1).
+    // **첫 true다.** 모델이 사실상 훈련 데이터라 행 번호만 담는다 (mlpx-spec.md 5.1).
     needsTrainingRows: true,
     load: loadReferenceModel,
   },
   {
     // **군집화 모델은 중심점뿐이다.** 예측은 입력과 각 중심점의 거리를 재서 가장
-    // 가까운 것을 고르는 것이 전부라, 학습 데이터도 전처리기도 필요 없다.
+    // 가까운 것을 고르는 것이 전부라, 훈련 데이터도 전처리기도 필요 없다.
     format: KMEANS_FORMAT,
     includesPreprocessing: false,
     needsTrainingRows: false,
@@ -112,7 +112,7 @@ const formatSchema = z.looseObject({ format: z.string() })
  * 이 해석기가 요구하는 것이 갖춰졌는가.
  *
  * **화면이 먼저 판정해 그 모델을 꺼 두지만**(mlpx-spec.md 5.0) 남의 파일이나 직접 부르는
- * 경로가 이 아래로 들어올 수 있다. 그냥 흘려보내면 해석기가 **빈 학습셋으로 그럴듯한
+ * 경로가 이 아래로 들어올 수 있다. 그냥 흘려보내면 해석기가 **빈 훈련 데이터로 그럴듯한
  * 답**을 내놓는다 - 이 저장소가 규정한 최악이 정확히 그것이다.
  *
  * 등록부에 없는 형식으로는 여기 도달할 수 없어서, 검사가 **해석기를 직접 받는다.**

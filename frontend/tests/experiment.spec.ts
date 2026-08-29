@@ -201,8 +201,8 @@ describe('실험 전체가 같은 분할과 전처리를 쓴다', () => {
     expect(trainIndices.filter((index) => testIndices.includes(index))).toEqual([])
   })
 
-  it('전처리 파라미터가 학습셋에서만 나온다', () => {
-    // 평가셋이 섞이면 지표가 조용히 부풀고, 학생은 자기 모델이 실제보다 좋다고 믿는다.
+  it('전처리 파라미터가 훈련 데이터에서만 나온다', () => {
+    // 테스트 데이터가 섞이면 지표가 조용히 부풀고, 학생은 자기 모델이 실제보다 좋다고 믿는다.
     const { experiment, preprocessor } = runExperiment(
       inputFor({
         settings: settingsFor({
@@ -216,7 +216,7 @@ describe('실험 전체가 같은 분할과 전처리를 쓴다', () => {
     const expected = trainOnly.reduce((sum, value) => sum + value, 0) / trainOnly.length
     expect(preprocessor.columns[0]?.scale?.center).toBeCloseTo(expected, 10)
 
-    // 전체 평균과 달라야 한다. 같으면 학습셋만 봤다는 증거가 되지 못한다.
+    // 전체 평균과 달라야 한다. 같으면 훈련 데이터만 봤다는 증거가 되지 못한다.
     const all = IRIS_FEATURES.map((values) => values[0] ?? 0)
     expect(expected).not.toBeCloseTo(all.reduce((sum, v) => sum + v, 0) / all.length, 10)
   })
@@ -737,7 +737,7 @@ describe('id와 changed', () => {
       unlabeledCount: { unlabeledCount: 5 },
       /**
        * **라벨 맞바꾸기가 걸리는 유일한 칸이다** (R6 감사 A-1). 위 셋은 두 방향 이동에서
-       * 하나도 안 움직인다 — 이 칸을 이력에서 빼면 학습 데이터가 달라졌는데 화면이
+       * 하나도 안 움직인다 — 이 칸을 이력에서 빼면 훈련 데이터가 달라졌는데 화면이
        * "설정을 바꾸지 않고 다시 학습했습니다"라고 말한다.
        */
       rowsHash: { rowsHash: 'deadbeefdeadbeef' },
@@ -1142,10 +1142,10 @@ describe('전처리와 분할을 끌 수 있다', () => {
     }
   })
 
-  it('평가셋의 빈 칸도 잡는다 - 학습셋만 보면 조용히 0이 되어 지나간다', () => {
+  it('테스트 데이터의 빈 칸도 잡는다 - 훈련 데이터만 보면 조용히 0이 되어 지나간다', () => {
     const holed = irisDataset()
     const rows = holed.rows.map((row) => [...row])
-    // 어느 행이 평가셋으로 가든 하나는 걸린다. 전체를 보므로 분할과 무관하다.
+    // 어느 행이 테스트 데이터로 가든 하나는 걸린다. 전체를 보므로 분할과 무관하다.
     const testRow = runExperiment(inputFor(), frozen).experiment.settings.testIndices[0] ?? 0
     rows[testRow] = (rows[testRow] ?? []).map((cell, column) => (column === 0 ? '' : cell))
 
@@ -1161,17 +1161,17 @@ describe('전처리와 분할을 끌 수 있다', () => {
   })
 
   /**
-   * **평가 표의 라벨을 한 칸씩 밀어 두었다.** 그래서 올바른 표로 채점하면 정확도가 **0**이고,
+   * **테스트 표의 라벨을 한 칸씩 밀어 두었다.** 그래서 올바른 표로 채점하면 정확도가 **0**이고,
    * 실수로 `data.csv`를 되짚으면 그 여섯 줄은 전부 setosa라 **1**이 나온다. 두 답이 양 끝이라
    * 이 검사는 어느 표를 봤는지를 확실히 가른다.
    *
-   * **예전 픽스처는 평가 데이터로 학습 데이터의 사본을 썼다.** 두 표가 같으니 어느 쪽을 봐도
+   * **예전 픽스처는 테스트 데이터로 훈련 데이터의 사본을 썼다.** 두 표가 같으니 어느 쪽을 봐도
    * 숫자가 같았고, 확인하는 것도 길이 둘뿐인데 그 둘마저 같은 값이었다 — `testSource`를
    * `dataset`으로 바꾸는 돌연변이가 **저장소 전체 1,820개 검사를 통과했다**
    * (V11 R2 감사 B-1). `provided`가 두 표를 가리킨다는 것이 이 포맷의 유일한 자리인데
    * (mlpx-spec.md §1.1) 그것을 무는 검사가 하나도 없었다.
    */
-  it('평가 데이터가 파일로 오면 그 표로 채점한다 - 학습 표를 되짚지 않는다', () => {
+  it('테스트 데이터가 파일로 오면 그 표로 채점한다 - 훈련 표를 되짚지 않는다', () => {
     // 특성은 붓꽃에서 가져오되 라벨을 한 품종씩 민다. 모델이 맞히면 라벨과 어긋난다.
     const SHIFTED: Record<string, string> = {
       setosa: 'versicolor',
@@ -1199,7 +1199,7 @@ describe('전처리와 분할을 끌 수 있다', () => {
     )
 
     const { trainIndices, testIndices } = experiment.settings
-    // trainIndices는 학습 데이터(dataset) 전부, testIndices는 평가 데이터(testDataset)
+    // trainIndices는 훈련 데이터(dataset) 전부, testIndices는 테스트 데이터(testDataset)
     // 전부다 - 두 배열이 서로 다른 표를 가리킨다 (mlpx-spec.md §1.1).
     expect(trainIndices.length).toBe(IRIS_FEATURES.length)
     expect(testIndices.length).toBe(testDataset.rows.length)
@@ -1212,13 +1212,13 @@ describe('전처리와 분할을 끌 수 있다', () => {
   })
 
   /**
-   * **평가 데이터를 안 넘긴 것과 학습 데이터가 빈 것은 다른 실패다.**
+   * **테스트 데이터를 안 넘긴 것과 훈련 데이터가 빈 것은 다른 실패다.**
    *
    * 화면이 `testDataset`을 안 넘겨서 실제로 났던 고장이다 - 그때 학생이 본 문장은
-   * "학습에 쓸 수 있는 데이터가 0줄뿐"이었고, 멀쩡한 학습 데이터를 들여다보게 만들었다.
+   * "학습에 쓸 수 있는 데이터가 0줄뿐"이었고, 멀쩡한 훈련 데이터를 들여다보게 만들었다.
    * 인자를 필수로 바꿔 그 경로는 타입이 막지만, 손으로 고친 파일에서는 여전히 올 수 있다.
    */
-  it('평가 데이터 없이 provided로 돌리면 평가 데이터를 가리켜 실패한다', () => {
+  it('테스트 데이터 없이 provided로 돌리면 테스트 데이터를 가리켜 실패한다', () => {
     try {
       runExperiment(
         inputFor({
@@ -1233,7 +1233,7 @@ describe('전처리와 분할을 끌 수 있다', () => {
       expect.unreachable()
     } catch (error) {
       expect(isClientError(error)).toBe(true)
-      // 학습 데이터를 탓하는 SPLIT_TOO_FEW_ROWS가 아니어야 한다.
+      // 훈련 데이터를 탓하는 SPLIT_TOO_FEW_ROWS가 아니어야 한다.
       if (isClientError(error)) expect(error.code).toBe('TEST_DATASET_NO_USABLE_ROWS')
     }
   })
@@ -1249,7 +1249,7 @@ describe('전처리와 분할을 끌 수 있다', () => {
    * `mljs-kmeans.spec.ts`를 적어 두었는데 그 파일에는 그 낱말이 한 글자도 없었다.
    *
    * **`provided`로 돌리는 것이 이 검사의 설계다.** 분할이 씨앗과 무관해지므로
-   * (`trainIndices`는 학습 표 전부, `testIndices`는 평가 표 전부) 모델이 갈리면 그 원인은
+   * (`trainIndices`는 훈련 표 전부, `testIndices`는 테스트 표 전부) 모델이 갈리면 그 원인은
    * `fit` 하나뿐이다. **지표가 아니라 모델을 견준다** — 30행 붓꽃은 너무 잘 갈려서 지표가
    * 씨앗에 둔감하고, 그 둔함이 바로 예전 픽스처가 무뎠던 이유다.
    */
@@ -1290,7 +1290,7 @@ describe('전처리와 분할을 끌 수 있다', () => {
     })
   }
 
-  it('평가 데이터가 전처리에서 통째로 걸러져도 같은 코드다', () => {
+  it('테스트 데이터가 전처리에서 통째로 걸러져도 같은 코드다', () => {
     // 타깃이 빈 행은 어떤 전략에서도 채점에 못 쓴다 - 전부 그러면 채점할 것이 없다.
     const empty = irisDataset()
     const blanked = {
@@ -1445,7 +1445,7 @@ describe('군집', () => {
     expect(experiment.settings.data.target).toBeUndefined()
   })
 
-  it('전체 데이터로 학습하고 평가셋은 비어 있다', () => {
+  it('전체 데이터로 학습하고 테스트 데이터는 비어 있다', () => {
     // architecture.md §3.6: 군집화는 나누지 않는다.
     expect(experiment.settings.trainIndices).toEqual([...clusters.rows.keys()])
     expect(experiment.settings.testIndices).toEqual([])

@@ -98,7 +98,7 @@ describe('저장할 때 남기는 것', () => {
  * 임베딩 쪽은 image-format.spec.ts가 같은 것을 지킨다.
  */
 describe('엔트리 종류가 늘어도 빠지지 않는다', () => {
-  /** 평가·예측 데이터, 모델, 포트폴리오 첨부까지 한 프로젝트에 모은 것. */
+  /** 테스트·예측 데이터, 모델, 포트폴리오 첨부까지 한 프로젝트에 모은 것. */
   function everything(): ProjectFile {
     const base = projectFileWithTestDataset()
     const attachment = 'portfolio/attachments/1.webp'

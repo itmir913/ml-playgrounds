@@ -364,7 +364,7 @@ async function startTraining(): Promise<void> {
       type: 'train',
       input: {
         dataset: source.dataset,
-        // **평가 데이터가 파일로 온 실험은 이것 없이는 채점할 것이 없다**
+        // **테스트 데이터가 파일로 온 실험은 이것 없이는 채점할 것이 없다**
         // (mlpx-spec.md §1.1). holdout이면 null이고 splitRows가 아예 보지 않는다.
         testDataset: source.testDataset,
         taskType,

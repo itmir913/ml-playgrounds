@@ -159,7 +159,7 @@ describe('열 요약', () => {
   })
 })
 
-describe('평가 데이터 받기', () => {
+describe('테스트 데이터 받기', () => {
   // 정본(data.csv). 열 순서는 이름, 점수, 반이고 타깃은 반이라 하자.
   const canonical = ['이름', '점수', '반']
 
@@ -367,19 +367,19 @@ describe('프로젝트에 붙이기', () => {
   })
 
   /**
-   * **학습 데이터를 바꾸면 평가·예측 데이터도 함께 떨어진다.**
+   * **훈련 데이터를 바꾸면 테스트·예측 데이터도 함께 떨어진다.**
    *
    * 참조만 남고 본체가 없으면 `writeProject`가 거부해 **그 프로젝트를 저장도 내보내기도
    * 못 하게 된다** (mlpx-spec.md §1 "함께 있고 함께 없다"). 그리고 정본 열이 통째로
    * 바뀐 마당에 옛 `test.csv`는 어차피 대조를 다시 통과해야 하는 파일이다.
    */
-  it('평가 데이터도 함께 뗀다 - 참조만 남으면 저장이 막힌다', () => {
+  it('테스트 데이터도 함께 뗀다 - 참조만 남으면 저장이 막힌다', () => {
     const before = projectFileWithTestDataset()
     const applied = applyDataset(before, imported(), options)
 
     expect(applied.project.document.settings.data.testDataset).toBeUndefined()
     expect(applied.project.testDataset).toBeUndefined()
-    // 평가 데이터가 없어졌으므로 분할 방식도 되돌아간다 - provided인 채로 두면
+    // 테스트 데이터가 없어졌으므로 분할 방식도 되돌아간다 - provided인 채로 두면
     // 학습이 평가할 것을 못 찾는다.
     expect(applied.project.document.settings.split.method).toBe('holdout')
   })
@@ -409,7 +409,7 @@ describe('프로젝트에 붙이기', () => {
   })
 })
 
-describe('평가 데이터를 프로젝트에 붙이기', () => {
+describe('테스트 데이터를 프로젝트에 붙이기', () => {
   const now = '2026-08-06T02:00:00Z'
   const options = { fileName: 'test.csv', hasHeader: true, now }
 
@@ -527,7 +527,7 @@ describe('평가 데이터를 프로젝트에 붙이기', () => {
   })
 
   /**
-   * **예측 데이터는 점수와 무관하므로 평가 데이터를 붙이거나 떼도 그대로 있어야 한다.**
+   * **예측 데이터는 점수와 무관하므로 테스트 데이터를 붙이거나 떼도 그대로 있어야 한다.**
    * 여기서 떨어뜨리면 참조만 남아 저장이 막힌다 (mlpx-spec.md §1).
    */
   it('붙이고 떼는 동안 예측 데이터는 그대로 있다', () => {
@@ -607,14 +607,14 @@ describe('평가 데이터를 프로젝트에 붙이기', () => {
       expect(paired(applied.project)).toBe(true)
     })
 
-    it('평가 데이터를 붙여도 그대로다', () => {
+    it('테스트 데이터를 붙여도 그대로다', () => {
       const applied = applyTestDataset(withAttachment(withCanonicalDataset()), testTable(), options)
 
       expect([...applied.project.attachments.keys()]).toEqual([attachmentPath])
       expect(paired(applied.project)).toBe(true)
     })
 
-    it('평가 데이터를 떼도 그대로다', () => {
+    it('테스트 데이터를 떼도 그대로다', () => {
       const attached = applyTestDataset(
         withAttachment(withCanonicalDataset()),
         testTable(),

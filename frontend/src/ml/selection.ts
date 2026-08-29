@@ -125,7 +125,7 @@ export function columnPlan(input: ColumnPlanInput): ColumnPlan {
     const role: ColumnRole =
       summary.name === input.target ? 'target' : chosen.has(summary.name) ? 'feature' : 'unused'
 
-    // 값이 전부 비었으면 전처리가 던진다. 학습셋만 비어도 던지지만 그건 분할을 해 봐야
+    // 값이 전부 비었으면 전처리가 던진다. 훈련 데이터만 비어도 던지지만 그건 분할을 해 봐야
     // 알고, 열 전체가 빈 것은 지금 알 수 있다 - 알 수 있는 것을 나중으로 미루지 않는다.
     //
     // "그대로 두기"는 빈 칸이 하나만 있어도 거부한다 - 빈 칸을 그대로 모델에 넣을
@@ -331,7 +331,7 @@ export interface StratifyBlock {
 /**
  * 값이 1개뿐인 타깃 값들. **층화가 성립하려면 비어 있어야 한다.**
  *
- * 층화는 값 종류마다 학습셋과 평가셋에 하나씩 보내므로 그 종류의 행이 하나면 한쪽이 빈다
+ * 층화는 값 종류마다 훈련 데이터와 테스트 데이터에 하나씩 보내므로 그 종류의 행이 하나면 한쪽이 빈다
  * (limits.ts의 MIN_SPLIT_ROWS).
  */
 function lonelyValues(values: readonly string[]): { labels: string[]; kinds: number } {
@@ -551,7 +551,7 @@ export type RowUsage = {
  * 굳이 하지 않는다
  * (open-decisions.md "몇 행으로 학습하고 몇 행으로 채점하는지 말한다").
  *
- * **학습 데이터와 평가 데이터가 같은 함수를 본다.** `usableRows` 하나이므로 두 화면이
+ * **훈련 데이터와 테스트 데이터가 같은 함수를 본다.** `usableRows` 하나이므로 두 화면이
  * 어긋나지 않는다 - 따로 세면 반드시 어긋난다.
  *
  * **`nSamples`는 일부러 안 센다.** 이 줄이 답하는 질문은 "올린 것 중 몇 행이 **쓸 수

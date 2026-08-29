@@ -196,7 +196,7 @@ describe('왕복', () => {
   })
 })
 
-describe('평가 데이터(test.csv)', () => {
+describe('테스트 데이터(test.csv)', () => {
   it('holdout이면 zip에 test.csv가 없다', async () => {
     const { bytes } = await writeProjectBytes(projectFile(), markdown)
     expect(Object.keys(unzipSync(bytes))).not.toContain('dataset/test.csv')

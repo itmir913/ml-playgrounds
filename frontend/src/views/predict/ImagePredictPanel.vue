@@ -134,7 +134,7 @@ const atLastPage = computed(() => predicting.value || page.value >= totalPages.v
 const models = computed<readonly PredictableModel[]>(() => {
   const file = project.file
   if (!file) return []
-  // **사진이 곧 데이터다.** 참조형 모델이 실제로 학습 행을 되세울 수 있는지는 그때 본다 —
+  // **사진이 곧 데이터다.** 참조형 모델이 실제로 훈련 행을 되세울 수 있는지는 그때 본다 —
   // 못 세우면 그 모델의 답이 사유와 함께 실패한다.
   //
   // **전처리기까지 본다.** 표 판만 이 겹을 갖고 여기는 안 가져서, 못 읽는 전처리기를
