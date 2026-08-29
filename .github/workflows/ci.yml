@@ -41,23 +41,9 @@ jobs:
       # (아래 `npm run ci` 옆의 주석).
       - run: uv run python scripts/ci.py
 
-  # sklearn 대조 픽스처가 낡지 않았는지. 기본 관문(vitest의 sklearn-parity.spec.ts)은
-  # frontend 잡 안에서 파이썬 없이 돌고, 이 잡은 픽스처의 기대값 자체를 sklearn으로
-  # 재계산해 커밋된 것과 대조한다 (open-decisions.md "sklearn 대조 픽스처가 CI 관문에
-  # 들어간다"). sklearn 버전은 backend/uv.lock이 못박는다.
-  ml-fixtures:
-    name: ML fixtures (sklearn parity)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-          cache-dependency-glob: backend/uv.lock
-      - run: uv sync --frozen
-        working-directory: backend
-      - name: fixtures up to date
-        run: uv run --project backend python scripts/generate_sklearn_fixtures.py --check
+  # sklearn 대조 픽스처의 낡음 검사는 **여기 따로 있지 않다** (2026-08-28). `npm run ci`
+  # 안으로 들어갔다 — 정의가 둘이면 하나만 고쳐진다 (open-decisions.md "sklearn 대조
+  # 픽스처가 CI 관문에 들어간다"의 2026-08-28 각주). 그래서 아래 frontend 잡에 uv가 있다.
 
   frontend:
     name: Frontend
@@ -76,6 +62,14 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      # `npm run ci`가 sklearn 픽스처 낡음 검사를 부른다. 없으면 관문이 선다 —
+      # 건너뛰게 만들지 않는다(조용한 초록이 그 검사가 막으려는 실패다).
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --frozen
+        working-directory: backend
       # 관문의 정의는 `package.json`의 `ci` 스크립트 하나다 — backbones · lint:check ·
       # typecheck · vitest · build. 여기서 단계를 하나씩 풀어 쓰고 있었는데, 그러면
       # 스크립트에 검사를 더한 사람이 이 파일을 안 고쳤을 때 **push 관문에서만 조용히

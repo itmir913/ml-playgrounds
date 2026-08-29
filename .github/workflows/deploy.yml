@@ -32,16 +32,23 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       # This gates the deploy: backbone weights, eslint, prettier, vue-tsc,
-      # vitest, build. ci.yml calls the same one line, so the gate has a single
-      # definition (package.json's `ci` script).
+      # vitest, sklearn fixture freshness, build. ci.yml calls the same one line,
+      # so the gate has a single definition (package.json's `ci` script).
       # ci.yml checks the same commit, but reading this file alone must tell you
       # what has to pass before anything ships (docs/open-decisions.md #10-1).
       #
-      # One check in ci.yml is deliberately NOT here: the ml-fixtures job, which
-      # regenerates the sklearn parity fixtures and fails if they drifted. That
-      # needs Python, and it answers "did sklearn change?" - not "did we break?".
-      # Our side is already gated, because tests/sklearn-parity.spec.ts compares
-      # against the committed fixtures inside vitest below.
+      # The fixture check moved into `npm run ci` on 2026-08-28, so it now gates
+      # the deploy too and this job needs Python. It cannot fail because of the
+      # outside world: backend/uv.lock pins scikit-learn and `uv sync --frozen`
+      # installs exactly that, so it only goes red when we changed the fixtures
+      # or the script (docs/open-decisions.md "sklearn 대조 픽스처가 CI 관문에
+      # 들어간다").
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --frozen
+        working-directory: backend
       - run: npm run ci
       - uses: actions/upload-pages-artifact@v5
         with:
