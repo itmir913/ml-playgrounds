@@ -224,6 +224,28 @@ const RULES: readonly Rule[] = [
       `t(${BACKTICK}algorithms.\${one.algorithm}${BACKTICK})`,
     ],
   },
+  {
+    name: '배색을 `data-theme` 속성에서 직접 읽지 않는다',
+    why:
+      '**속성 읽기는 반응형 원본이 아니라서 감시자가 안 깨어난다.** `ClusterScatter.vue`가 ' +
+      '배색을 따라가려고 그 속성을 게터로 읽었는데 **한 번도 안 돌았고**, 배색을 바꾼 ' +
+      '학생의 산점도는 이전 배색의 값을 그대로 들고 있었다 — 밝은 화면에 어두운 배색의 ' +
+      '선이 검게 그려졌다 (2026-08-29 전 경로 감사). 화면이 볼 원본은 `theme.ts`의 ' +
+      '`theme` ref 하나이고, 속성을 쓰는 것은 그 파일뿐이다.',
+    pattern: /dataset(\.theme\b|\[['"]theme['"]\])|getAttribute\(['"]data-theme['"]\)/,
+    violations: [
+      "watch(() => document.documentElement.dataset['theme'], readTokens)",
+      'const now = document.documentElement.dataset.theme',
+      "if (root.getAttribute('data-theme') === 'dark') return",
+    ],
+    allowed: [
+      'watch(theme, readTokens)',
+      "const dark = theme.value === 'dark'",
+      // 데이터셋의 다른 열쇠는 이 규칙과 무관하다.
+      'const id = element.dataset.themeIndependent',
+      "element.getAttribute('data-open')",
+    ],
+  },
 ]
 
 function hits(rule: Rule, line: string): boolean {

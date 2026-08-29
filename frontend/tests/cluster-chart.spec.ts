@@ -337,6 +337,32 @@ describe('범주 축', () => {
   })
 })
 
+describe('축 선의 색', () => {
+  function lineOf(options: ReturnType<typeof optionsOf>, axis: 'x' | 'y') {
+    return options.scales?.[axis] as {
+      grid?: { color?: string }
+      border?: { color?: string }
+    }
+  }
+
+  /**
+   * **안 주면 Chart.js의 기본값(`rgba(0,0,0,0.1)`)이 축 선을 그린다.** 그 색은 배색을
+   * 안 따라가므로 어두운 배색에서는 안 보이고, 밝은 배색에서는 격자와 다른 회색이 된다.
+   */
+  it('축 선과 격자가 같은 토큰을 쓴다', () => {
+    for (const axis of ['x', 'y'] as const) {
+      const scale = lineOf(optionsOf(3), axis)
+      expect(scale.grid?.color).toBe(TOKENS.line)
+      expect(scale.border?.color).toBe(TOKENS.line)
+    }
+  })
+
+  // 범주 설정은 축 설정 **뒤에** 펼쳐진다. 거기에 같은 열쇠가 생기면 조용히 덮인다.
+  it('범주 축이 되어도 선 색이 안 지워진다', () => {
+    expect(lineOf(optionsOf(2, { x: ['서울', '부산'] }), 'x').border?.color).toBe(TOKENS.line)
+  })
+})
+
 describe('토큰을 못 읽었을 때', () => {
   it('대체 색이 서로 다르다 - 한 색이면 군집이 안 갈린다', () => {
     // **그림은 멀쩡해 보이는데 군집이 안 갈리는 것**이 이 검사가 막는 상태다.

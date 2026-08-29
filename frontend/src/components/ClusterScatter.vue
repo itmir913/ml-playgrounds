@@ -26,6 +26,7 @@ import {
   type ClusterHighlight,
 } from '@/ml/cluster-chart'
 import type { ClusterAxis, ClusterSummary, ScatterData } from '@/ml/clusters'
+import { theme } from '@/theme'
 
 Chart.register(ScatterController, PointElement, LinearScale, Tooltip, Legend)
 
@@ -91,13 +92,17 @@ onMounted(readTokens)
 /**
  * 배색이 바뀌면 다시 읽는다.
  *
- * **`theme` ref를 직접 보지 않고 `data-theme`을 본다** — 이 부품은 배색을 고르는 장치를
- * 알 필요가 없고, 값이 실제로 바뀌는 자리는 그 속성이다.
+ * **`theme` ref를 본다.** 한때 `data-theme` 속성을 게터로 읽었는데, 그것은 반응형
+ * 원본이 없는 DOM 읽기라 **감시자가 한 번도 안 깨어났다** — 배색을 바꾼 학생의
+ * 산점도는 이전 배색의 값을 그대로 들고 있었고, 밝은 화면에 어두운 배색의 선이
+ * 검게 그려졌다 (2026-08-29 전 경로 감사).
+ *
+ * **부품이 배색을 고르는 장치를 아는 것은 대가가 아니다.** 그 값이 바뀌는 것을
+ * 아는 자리가 거기 하나뿐이고, 모르는 척하면 이 감시자처럼 조용히 죽는다.
+ * `applyTheme`이 `theme.value`와 `data-theme`을 한 번에 쓰고 감시자는 그 뒤에
+ * 도므로, 여기서 읽는 계산값은 이미 새 배색의 것이다.
  */
-watch(
-  () => (typeof document === 'undefined' ? '' : (document.documentElement.dataset['theme'] ?? '')),
-  readTokens,
-)
+watch(theme, readTokens)
 
 const axisName = (position: number): string => props.axes[position]?.name ?? ''
 

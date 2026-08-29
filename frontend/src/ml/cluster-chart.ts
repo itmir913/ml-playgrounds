@@ -339,17 +339,24 @@ export function clusterChartOptions(
     maintainAspectRatio: false,
     animation: false,
     interaction: { mode: 'nearest', intersect: true },
+    /**
+     * **축 선도 격자와 같은 색을 쓴다.** 안 주면 Chart.js가 자기 기본값
+     * (`rgba(0,0,0,0.1)`)으로 그리는데, 그 색은 배색을 안 따라간다 — 어두운 배색에서는
+     * 안 보이고 밝은 배색에서는 격자와 다른 회색이 된다. 우리 선 색은 토큰 하나뿐이다.
+     */
     scales: {
       x: {
         title: { display: true, text: text.axisX, color: tokens.ink },
         ticks: { color: tokens.ink },
         grid: { color: tokens.line },
+        border: { color: tokens.line },
         ...(scales.x ? categoryScale(scales.x) : {}),
       },
       y: {
         title: { display: true, text: text.axisY, color: tokens.ink },
         ticks: { color: tokens.ink },
         grid: { color: tokens.line },
+        border: { color: tokens.line },
         ...(scales.y ? categoryScale(scales.y) : {}),
       },
     },
