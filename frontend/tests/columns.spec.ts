@@ -201,19 +201,24 @@ describe('테스트 데이터 받기', () => {
       expect(isClientError(error)).toBe(true)
       if (isClientError(error)) {
         expect(error.code).toBe('TEST_DATASET_COLUMN_MISSING')
-        expect(error.params.columns).toEqual(['반'])
+        expect(error.params.columns).toBe('반')
       }
     }
   })
 
-  it('없는 열을 전부 말해 준다', () => {
+  /**
+   * **문장에 그대로 들어갈 꼴로 온다.** 배열을 그대로 넘기던 때에는 Vue가 그것을
+   * `JSON.stringify(값, null, 2)`로 펴서, 학생이 대괄호와 따옴표와 줄바꿈이 든 문장을
+   * 받았다 (2026-08-29 전 경로 감사). 여럿일 때가 그 실패가 드러나는 자리다.
+   */
+  it('없는 열을 전부, 이어 붙여서 말해 준다', () => {
     const missingTwo = [['이름'], ['가']]
     try {
       alignTestDataset(missingTwo, true, canonical)
       expect.unreachable()
     } catch (error) {
       expect(isClientError(error)).toBe(true)
-      if (isClientError(error)) expect(error.params.columns).toEqual(['점수', '반'])
+      if (isClientError(error)) expect(error.params.columns).toBe('점수, 반')
     }
   })
 })
@@ -251,7 +256,7 @@ describe('예측 데이터 받기', () => {
       expect(isClientError(error)).toBe(true)
       if (isClientError(error)) {
         expect(error.code).toBe('PREDICT_DATASET_COLUMN_MISSING')
-        expect(error.params.columns).toEqual(['점수'])
+        expect(error.params.columns).toBe('점수')
       }
     }
   })

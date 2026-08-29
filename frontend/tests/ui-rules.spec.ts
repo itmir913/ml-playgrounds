@@ -225,6 +225,26 @@ const RULES: readonly Rule[] = [
     ],
   },
   {
+    name: '로케일 파라미터에 이름 목록을 배열째 넘기지 않는다',
+    why:
+      '**Vue가 배열을 `JSON.stringify(값, null, 2)`로 편다.** 일괄 예측 화면이 없는 열을 ' +
+      '배열째 넘겨서, 학생이 받은 문장이 대괄호와 따옴표와 줄바꿈이 든 것이었다 ' +
+      '(2026-08-29 전 경로 감사). 던지는 쪽이 `nameList`로 이어 붙여서 준다 — ' +
+      '`ClientErrorParams`는 스칼라만 받으므로 던지는 자리는 타입이 막지만, ' +
+      '`t()`를 직접 부르는 이 자리는 타입이 못 본다.',
+    pattern: /\bt\(.*\{[^}]*\b(columns|names|features|categories)\s*:\s*[A-Za-z_$][\w$.]*\s*[,}]/,
+    violations: [
+      "{{ t('client.PREDICT_DATASET_COLUMN_MISSING', { columns: missingColumns }) }}",
+      "t('data.tabular.droppedColumns', { names: dropped })",
+    ],
+    allowed: [
+      "{{ t('client.PREDICT_DATASET_COLUMN_MISSING', { columns: nameList(missingColumns) }) }}",
+      "t('data.tabular.droppedColumns', { names: dropped.join(', ') })",
+      // 세는 값은 목록이 아니다.
+      "t('data.tabular.tooManyColumns', { columns: 20 })",
+    ],
+  },
+  {
     name: '배색을 `data-theme` 속성에서 직접 읽지 않는다',
     why:
       '**속성 읽기는 반응형 원본이 아니라서 감시자가 안 깨어난다.** `ClusterScatter.vue`가 ' +

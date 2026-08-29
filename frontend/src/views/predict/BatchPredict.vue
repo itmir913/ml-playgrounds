@@ -20,6 +20,7 @@ import AppButton from '@/components/AppButton.vue'
 import AppTable from '@/components/AppTable.vue'
 import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
+import { nameList } from '@/data/columns'
 import { importTable, openTable, TABULAR_ACCEPT, type TableDocument } from '@/data/table'
 import { toCanonicalCsv } from '@/data/serialize'
 import { PREDICT_PAGE_SIZE } from '@/limits'
@@ -638,7 +639,7 @@ defineExpose({
         v-if="missingColumns.length > 0"
         class="rounded-panel border border-danger/30 bg-danger-soft p-3 font-bold text-ink"
       >
-        {{ t('client.PREDICT_DATASET_COLUMN_MISSING', { columns: missingColumns }) }}
+        {{ t('client.PREDICT_DATASET_COLUMN_MISSING', { columns: nameList(missingColumns) }) }}
       </p>
 
       <!--

@@ -78,6 +78,20 @@ export function toDataset(grid: TableGrid, hasHeader: boolean): Dataset {
   }
 }
 
+/**
+ * 이름 여럿을 **문장에 넣을 꼴로** 잇는다.
+ *
+ * **로케일 파라미터에 배열을 그대로 넘기지 않는다** (`errors.ts`의 `ClientErrorParams`).
+ * 넘기면 Vue가 `JSON.stringify(값, null, 2)`로 펴서, 학생이 대괄호와 따옴표와 줄바꿈이
+ * 든 문장을 받는다 (2026-08-29 전 경로 감사).
+ *
+ * 쉼표로 잇는 것은 이 저장소가 빠진 열을 알릴 때 이미 쓰는 꼴이고, 지원하는 세 언어가
+ * 모두 목록을 쉼표로 잇는다.
+ */
+export function nameList(names: readonly string[]): string {
+  return names.join(', ')
+}
+
 /** 화면이 열 하나를 설명할 때 필요한 것들. */
 export interface ColumnSummary {
   readonly name: string
@@ -143,7 +157,7 @@ export function alignTestDataset(
 
   const missing = canonicalColumns.filter((_name, index) => positions[index] === -1)
   if (missing.length > 0) {
-    throw new ClientError('TEST_DATASET_COLUMN_MISSING', { columns: missing })
+    throw new ClientError('TEST_DATASET_COLUMN_MISSING', { columns: nameList(missing) })
   }
 
   return {
@@ -183,7 +197,7 @@ export function acceptPredictDataset(
 
   const missing = requiredColumns.filter((name) => !dataset.columns.includes(name))
   if (missing.length > 0) {
-    throw new ClientError('PREDICT_DATASET_COLUMN_MISSING', { columns: missing })
+    throw new ClientError('PREDICT_DATASET_COLUMN_MISSING', { columns: nameList(missing) })
   }
 
   return dataset

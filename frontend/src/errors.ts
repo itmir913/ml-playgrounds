@@ -285,8 +285,19 @@ export type ClientOnlyErrorCode = (typeof CLIENT_ERROR_CODES)[number]
 export type SharedErrorCode = (typeof SHARED_ERROR_CODES)[number]
 export type ClientErrorCode = ClientOnlyErrorCode | SharedErrorCode
 
-/** 로케일 문장에 보간되는 값. 백엔드의 ParamValue와 같은 규칙이다. */
-export type ClientErrorParams = Record<string, string | number | boolean | string[]>
+/**
+ * 로케일 문장에 보간되는 값.
+ *
+ * **스칼라만 받는다.** 한때 `string[]`도 받았는데, 그 배열을 문장에 넣는 자리가
+ * 아무 데도 없어서 Vue가 `JSON.stringify(값, null, 2)`로 폈다 — 학생이 받은 문장이
+ * `테스트 데이터 파일에 훈련 데이터의 열이 없습니다. ([\n  "수면시간"\n])`였다
+ * (2026-08-29 전 경로 감사). **목록은 던지는 쪽이 이어 붙여서 준다** — 무엇으로
+ * 잇는지는 그 문장이 아는 것이고, 이 계층은 문장을 모른다.
+ *
+ * 백엔드의 `ParamValue`는 `list[str]`도 보낸다. 그것을 받는 날 **여기가 아니라
+ * 그 응답을 푸는 자리에서 문자열로 바꾼다** — 안 그러면 같은 실패가 다시 난다.
+ */
+export type ClientErrorParams = Record<string, string | number | boolean>
 
 function isSharedErrorCode(code: ClientErrorCode): code is SharedErrorCode {
   return (SHARED_ERROR_CODES as readonly string[]).includes(code)
