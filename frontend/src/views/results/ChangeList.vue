@@ -18,18 +18,21 @@ import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
 import AppPopover from '@/components/AppPopover.vue'
+import { useFormat } from '@/composables/useFormat'
 import { ACTION_ICONS } from '@/icons'
 import { memberDiff, type Change, type ChangeValue } from '@/ml/changes'
 
 const props = defineProps<{ changes: readonly Change[] }>()
 
 const { t } = useI18n()
+const format = useFormat()
 
 /** 값 하나를 문자열로. 어휘는 로케일에서, 개수는 단위와 함께. */
 function valueText(value: ChangeValue): string {
   if (value.kind === 'locale') return t(value.key)
   if (value.kind === 'count') return t('meta.countUnit', { count: value.count })
   if (value.kind === 'literal') return value.text
+  if (value.kind === 'ratio') return format.percent(value.value)
   return t('meta.none')
 }
 

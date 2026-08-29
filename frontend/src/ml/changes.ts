@@ -30,6 +30,15 @@ export type ChangeValue =
    * 늘어놓으면 그 줄이 화면을 덮는다. `items`는 **학생이 눌러서 열 때** 쓴다.
    */
   | { readonly kind: 'count'; readonly count: number; readonly items?: readonly string[] }
+  /**
+   * 비율. **0과 1 사이의 값 그대로 오고, 화면이 백분율로 읽는다.**
+   *
+   * `literal`로 두면 이력만 `0.2 → 0.3`이라고 적는다 — 학생이 만진 손잡이는 `20%`
+   * 라고 쓰여 있는데(`PreprocessView`의 `format.percent`) 결과 화면이 다른 말을 했다
+   * (2026-08-29 전 경로 감사). **여기서 문자열로 만들지 않는다** — 자릿수와 기호는
+   * 언어가 정하고, 이 계층은 언어를 모른다.
+   */
+  | { readonly kind: 'ratio'; readonly value: number }
   | { readonly kind: 'absent' }
 
 export interface Change {
@@ -60,6 +69,12 @@ type Describe = (value: unknown) => ChangeValue
 function literal(value: unknown): ChangeValue {
   if (value === null || value === undefined || value === '') return { kind: 'absent' }
   return { kind: 'literal', text: String(value) }
+}
+
+/** 비율. 손잡이가 백분율로 쓰므로 이력도 백분율로 읽어야 한다. */
+const ratio: Describe = (value) => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return { kind: 'absent' }
+  return { kind: 'ratio', value }
 }
 
 /** 어휘 값. `standard`가 `scalingMethod.standard`가 된다. */
@@ -178,7 +193,7 @@ const LABELS: Readonly<Record<string, { readonly labelKey: string; readonly desc
       describe: vocabulary('categoricalEncoding'),
     },
     'split.method': { labelKey: 'preprocess.testDataTitle', describe: vocabulary('splitMethod') },
-    'split.testSize': { labelKey: 'preprocess.testSize', describe: literal },
+    'split.testSize': { labelKey: 'preprocess.testSize', describe: ratio },
     'split.stratify': { labelKey: 'preprocess.stratify', describe: onOff },
     'split.randomState': { labelKey: 'preprocess.randomState', describe: literal },
     // 뽑기를 껐을 때는 `null`이고 `literal`이 그것을 `absent`로 편다 — 그래서

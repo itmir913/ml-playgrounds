@@ -119,7 +119,12 @@ describe('바뀐 값을 전후로 보여준다', () => {
     ])
   })
 
-  it('수치는 그대로 온다', () => {
+  /**
+   * **비율은 비율로 온다.** `literal`이던 때에는 이력만 `0.2 → 0.3`이라고 적었다 —
+   * 학생이 만진 손잡이에는 `20%`라고 쓰여 있는데 결과 화면이 다른 말을 했다
+   * (2026-08-29 전 경로 감사). 백분율로 읽는 것은 화면의 일이고, 여기는 값만 준다.
+   */
+  it('비율은 백분율로 읽을 값으로 온다', () => {
     const changes = changesOf({
       split: { method: 'holdout', testSize: 0.5, stratify: true, randomState: 42 },
     })
@@ -128,8 +133,8 @@ describe('바뀐 값을 전후로 보여준다', () => {
       {
         path: 'split.testSize',
         labelKey: 'preprocess.testSize',
-        from: { kind: 'literal', text: '0.3' },
-        to: { kind: 'literal', text: '0.5' },
+        from: { kind: 'ratio', value: 0.3 },
+        to: { kind: 'ratio', value: 0.5 },
       },
     ])
   })
