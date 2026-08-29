@@ -22,7 +22,7 @@
  * 꺼내 그 함수들에 넘기고 결과를 그리는 것까지다.
  */
 
-import { computed, nextTick, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
@@ -311,6 +311,17 @@ function contextFor(
 const predicting = ref(false)
 
 /**
+ * 아직 이 화면에 있는가. **답 루프는 화면에 보이려고 도는 것이라 떠나면 멈춘다** -
+ * 매 모델 `yieldToScreen()`으로 비켜 줄 뿐 멈출 자리가 없어서, 다른 단계로 넘어가도
+ * 아무도 안 보는 답을 끝까지 계산했다. 이미지 판이 같은 결함을 가지고 있었다.
+ */
+let alive = true
+
+onBeforeUnmount(() => {
+  alive = false
+})
+
+/**
  * 답 목록의 DOM. **[예측]을 누르면 여기로 스스로 스크롤한다** - 왼쪽은 붙박이지만
  * (architecture.md §8.13.1 "왼쪽은 붙박이다") 넓은 화면에서는 오른쪽 답 목록이 화면
  * 위쪽에 있어, 표를 내려 보다가 눌렀으면 다시 올려다봐야 한다. `ExperimentDetail.vue`가
@@ -442,6 +453,7 @@ async function run(): Promise<void> {
       // 답이 나올 때마다 바로 보여준다 - 화면이 멎지 않았다는 것을 눈으로 알 수 있다.
       answers.value = new Map(next)
       await yieldToScreen()
+      if (!alive) return
     }
   } finally {
     predicting.value = false

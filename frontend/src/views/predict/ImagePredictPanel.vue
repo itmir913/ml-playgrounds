@@ -85,6 +85,15 @@ const progress = ref<{ completed: number; total: number } | null>(null)
  */
 const running = ref<{ cancel: () => void } | null>(null)
 
+/**
+ * 아직 이 화면에 있는가. **`running`이 끊는 것은 임베딩 워커뿐이다** - 그 뒤의
+ * `사진 × 모델` 루프는 매 장 `yieldToScreen()`으로 비켜 줄 뿐 멈출 자리가 없어서,
+ * 학생이 다른 단계로 넘어가도 아무도 안 보는 답을 끝까지 계산했다.
+ *
+ * **반응형일 필요가 없다** - 읽는 곳이 async 함수 안뿐이고 화면은 이 값을 안 그린다.
+ */
+let alive = true
+
 /** 사진 해시 -> (run id -> 답). 사진 하나가 표의 한 줄이다. */
 const answers = ref(new Map<string, Map<string, Answer>>())
 
@@ -357,6 +366,7 @@ async function run(): Promise<void> {
       )
       running.value = embedding
       const { vectors, dim } = await embedding.result
+      if (!alive) return
 
       const fresh = new Map<string, Float32Array>()
       for (const [index, entry] of pending.entries()) {
@@ -365,6 +375,7 @@ async function run(): Promise<void> {
       for (const [hash, vector] of fresh) known.set(hash, vector)
       current = addEmbeddings(current, spec.id, fresh)
       await project.save(current)
+      if (!alive) return
     }
     progress.value = null
 
@@ -435,10 +446,16 @@ async function run(): Promise<void> {
       // 답 하나가 `사진 수 × 모델 수`라, 안 비켜 주면 그 곱만큼 화면이 멎는다.
       answers.value = new Map(next)
       await yieldToScreen()
+      if (!alive) return
     }
     predicted.value = true
   } catch (error) {
-    toasts.pushError(error)
+    // **떠나서 끊긴 것은 실패가 아니다.** `cancel()`이 `JOB_CANCELLED`로 끊는데 그대로
+    // 띄우면 이미 넘어간 다음 화면에 에러가 뜬다 - `useTraining`과 `ImagePanel`이
+    // 같은 코드를 삼키는 이유가 그것이다.
+    if (alive && !(isClientError(error) && error.code === 'JOB_CANCELLED')) {
+      toasts.pushError(error)
+    }
   } finally {
     running.value = null
     progress.value = null
@@ -494,6 +511,10 @@ const { urls } = useThumbnails(photos)
 onBeforeUnmount(() => {
   // **떠날 때 끊는다.** 학습 화면은 onBeforeRouteLeave + training.cancel()로 이미
   // 막혀 있는데 여기만 안 막혀 있었다 (V11 R4 B-6).
+  //
+  // **워커를 끊는 것만으로는 절반이다** - 임베딩 뒤의 답 루프는 워커가 아니라 이
+  // 함수 안에서 돌기 때문에 `alive`를 봐야 멈춘다.
+  alive = false
   running.value?.cancel()
   running.value = null
 })
@@ -501,6 +522,20 @@ onBeforeUnmount(() => {
 const canPredict = computed(
   () => photos.value.length > 0 && visibleUsable.value.length > 0 && !busy.value,
 )
+
+/**
+ * 사진을 늘리거나 지우는 버튼이 잠기는가. **`busy`만으로는 모자랐다** - `busy`는 사진을
+ * 굽는 동안이고 예측은 `predicting`을 켜므로, 예측이 도는 내내 이 버튼들이 열려 있었다
+ * (2026-08-29 사용자 지적).
+ *
+ * **미관이 아니라 어긋남을 막는다.** 예측 중에 사진이 나가면 둘이 깨진다 - 임베딩 단계의
+ * `project.save(current)`는 예측을 시작할 때의 스냅샷이라 **지운 사진을 되살리고**, 답
+ * 루프는 삭제 전에 뜬 `next` 사본을 매 장 `answers`에 다시 써서 **지운 사진의 답을
+ * 되돌려 놓는다.**
+ *
+ * 표 판은 이미 `predicting`으로 잠그고 있었다 - 이미지 판만 갈려 있었다.
+ */
+const photosLocked = computed(() => busy.value || predicting.value)
 
 /**
  * 필터 칸을 보이는가. 각 축이 둘 이상일 때만 그 축을 그리는 판정은 `PredictFilters`가
@@ -564,7 +599,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       <AppButton
         v-if="photos.length > 0"
         variant="secondary"
-        :disabled="busy"
+        :disabled="photosLocked"
         @click="fileInput?.click()"
       >
         {{ t('predict.image.add') }}
@@ -579,7 +614,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       <AppButton
         v-if="photos.length > 0"
         variant="secondary"
-        :disabled="busy"
+        :disabled="photosLocked"
         @click="clearing = true"
       >
         {{ t('predict.image.clear') }}
@@ -689,7 +724,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
           <AppButton
             variant="ghost"
             class="self-start md:order-last"
-            :disabled="busy"
+            :disabled="photosLocked"
             :action="() => removeOne(photo.hash)"
           >
             {{ t('predict.image.remove') }}

@@ -12,7 +12,7 @@
  * 맡긴다.
  */
 
-import { computed, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
@@ -320,6 +320,18 @@ function loadPredictors(): LoadedModels {
 const computing = shallowRef(false)
 
 /**
+ * 아직 이 화면에 있는가. **가름은 그 계산이 무엇을 내놓느냐다** - 화면에 보이려고 도는
+ * 것(`goToPage`)은 떠나면 멈추고, **파일로 나가려고 도는 것(`downloadAction`)은 끝까지
+ * 간다.** 학생이 [내려받기]를 눌렀는데 조용히 아무 파일도 안 나오면 그건 버튼이 고장난
+ * 것으로 읽힌다 (같은 이유로 아래 catch가 오류를 삼키지 않는다).
+ */
+let alive = true
+
+onBeforeUnmount(() => {
+  alive = false
+})
+
+/**
  * 쪽 넘김 버튼의 잠금. **조합은 여기서 한다** (architecture.md §10.1) — 템플릿에서
  * 조립하면 조건이 늘 때마다 마크업이 길어지고 그 조건을 아무도 테스트하지 않는다.
  */
@@ -364,6 +376,7 @@ async function goToPage(index: number): Promise<void> {
     // 안에 `await`가 하나도 없고 `predictPage`도 완전한 동기 함수라, 양보하지 않으면
     // 꺼짐이 그려지기 전에 계산이 끝난다 - 그동안 쌓인 클릭이 전부 한 번씩 더 돈다.
     await yieldToScreen()
+    if (!alive) return
     await ensurePage(index)
   } catch (error) {
     // 쪽을 넘기다 터지면 화면이 그 자리에 멈춘다. 무엇이 잘못됐는지는 말해야 한다.

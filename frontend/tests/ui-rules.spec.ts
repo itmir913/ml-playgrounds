@@ -711,6 +711,71 @@ describe('예측 판은 화면에 양보한다', () => {
       expect(calls.length, `${name}: yieldToScreen을 부르는 자리`).toBeGreaterThanOrEqual(least)
     })
   }
+
+  /**
+   * **양보하는 것과 멈추는 것은 다른 일이다.** `yieldToScreen()`은 화면에 그릴 틈을 줄
+   * 뿐이고, 학생이 다른 단계로 넘어가도 그 틈마다 계산이 다시 이어진다 — 아무도 안 보는
+   * 답을 위해 `사진 × 모델`이 끝까지 돈다.
+   *
+   * **워커를 끊는 것으로는 절반이다.** `ImagePredictPanel`은 임베딩 워커를 끊고 있었고
+   * 주석도 *"떠날 때 끊는다"*라고 말했는데, 그 뒤의 답 루프는 워커가 아니라 컴포넌트
+   * 안에서 돌아 그대로 남아 있었다 (2026-08-29 사용자 지적).
+   *
+   * **도는 판만 본다.** 한 덩어리로 끝나는 판은 중간에 끊을 자리가 없다 — 위의 양보
+   * 규칙이 갈래를 가르는 이유와 같다.
+   *
+   * **파일을 내놓는 계산은 예외다** — `BatchPredict`의 내려받기는 떠나도 끝까지 간다.
+   * 학생이 누른 버튼이 조용히 아무 파일도 안 내놓으면 그건 고장으로 읽힌다. 그래서 판
+   * 하나에 **막는 자리 하나**만 있으면 통과다.
+   */
+  describe('도는 판은 떠나면 멈춘다', () => {
+    function stopsOnLeave(source: string): boolean {
+      const lines = withoutComments(source)
+      return (
+        lines.some((line) => line.includes('onBeforeUnmount')) &&
+        lines.some((line) => line.includes('if (!alive)'))
+      )
+    }
+
+    it('검사기가 안 멈추는 판을 잡는다', () => {
+      expect(stopsOnLeave('for (const x of xs) { await yieldToScreen() }')).toBe(false)
+    })
+
+    it('검사기가 워커만 끊는 판을 잡는다 - 루프는 그대로 돌아간다', () => {
+      const half = [
+        'onBeforeUnmount(() => {',
+        '  running.value?.cancel()',
+        '})',
+        'for (const x of xs) { await yieldToScreen() }',
+      ].join('\n')
+      expect(stopsOnLeave(half)).toBe(false)
+    })
+
+    it('검사기가 주석 속의 표시는 안 센다', () => {
+      const commented = ['// if (!alive) return', 'onBeforeUnmount(() => {})'].join('\n')
+      expect(stopsOnLeave(commented)).toBe(false)
+    })
+
+    it('검사기가 둘 다 갖춘 판은 안 잡는다', () => {
+      const whole = ['onBeforeUnmount(() => {})', 'if (!alive) return'].join('\n')
+      expect(stopsOnLeave(whole)).toBe(true)
+    })
+
+    const LOOPING = PANELS.filter((name) =>
+      loopsOverUnits(readFileSync(join(PREDICT_DIR, name), 'utf-8')),
+    )
+
+    /** 0개면 판정이 썩은 것이지 규칙이 지켜진 게 아니다. 위의 양보 규칙과 같은 이유다. */
+    it('검사할 판을 실제로 찾는다', () => {
+      expect(LOOPING.length, '단위를 도는 판').toBeGreaterThanOrEqual(3)
+    })
+
+    for (const name of LOOPING) {
+      it(`${name}이 떠나면 멈춘다`, () => {
+        expect(stopsOnLeave(readFileSync(join(PREDICT_DIR, name), 'utf-8')), name).toBe(true)
+      })
+    }
+  })
 })
 
 /**
