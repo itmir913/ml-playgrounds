@@ -25,6 +25,7 @@ import {
   stratifyLocked,
   splitsData,
   trainableRowCount,
+  usesTarget,
   type AxisChoice,
 } from '../src/ml/selection'
 import { scoresWithTestImages } from '../src/data/image/test-set'
@@ -574,6 +575,47 @@ describe('행 상한은 전처리 후 행 수로 잰다', () => {
  * 손잡이를 감추고 **군집화는 안 보고 있었고**, 표 판은 아예 안 보고 있었다 —
  * 군집화에서 비율 슬라이더가 켜진 채 아무 일도 안 했다 (2026-08-29 화면 실측 A-2·B-1).
  */
+describe('타깃을 쓰는 유형인가', () => {
+  it('군집화는 안 쓴다', () => {
+    expect(usesTarget('clustering')).toBe(false)
+  })
+
+  it('나머지 유형은 쓴다', () => {
+    expect(usesTarget('classification')).toBe(true)
+    expect(usesTarget('regression')).toBe(true)
+  })
+
+  /** `splitsData`와 같은 이유다 — 유형은 학습 화면에서 고른다. */
+  it('아직 안 골랐으면 쓴다고 본다', () => {
+    expect(usesTarget(undefined)).toBe(true)
+  })
+
+  /**
+   * **잠금이 아니라 역할이 사라져야 한다.** 이름만 비교하던 때에는 군집화에서도
+   * `등급`이 타깃으로 남아, `ColumnPicker`가 그 열의 특성 체크박스를 계속 잠갔다 —
+   * 학생은 그 열을 특성으로 못 쓰고 이유도 못 들었다 (2026-08-29 전 경로 감사).
+   */
+  it('군집화에서는 저장된 타깃이 어떤 열도 타깃으로 안 만든다', () => {
+    const plan = planFor({ taskType: 'clustering' })
+
+    expect(plan.usesTarget).toBe(false)
+    expect(plan.columns.map((one) => one.role)).toEqual(['feature', 'feature', 'unused'])
+  })
+
+  /** 그 열을 특성으로 고르는 길이 열려 있어야 한다. */
+  it('군집화에서는 그 열도 특성이 된다', () => {
+    const plan = planFor({ taskType: 'clustering', features: ['점수', '키', '등급'] })
+
+    expect(plan.columns.map((one) => one.role)).toEqual(['feature', 'feature', 'feature'])
+    expect(plan.usableFeatures).toBe(3)
+  })
+
+  /** **값은 안 지운다.** 분류로 되돌리면 고르던 타깃이 그대로 돌아온다. */
+  it('분류로 되돌리면 타깃이 그대로 돌아온다', () => {
+    expect(planFor({ taskType: 'classification' }).columns[2]?.role).toBe('target')
+  })
+})
+
 describe('데이터를 나누는 유형인가', () => {
   it('군집화는 안 나눈다', () => {
     expect(splitsData('clustering')).toBe(false)

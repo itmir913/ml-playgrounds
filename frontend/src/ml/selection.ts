@@ -103,6 +103,14 @@ export interface ColumnPlanInput {
 export interface ColumnPlan {
   readonly columns: readonly ColumnChoice[]
   /**
+   * 이 유형이 타깃을 쓰는가. **화면이 타깃 칸을 그릴지 말지가 이 값이다**
+   * (`architecture.md` §8.9).
+   *
+   * **판정을 여기 실어 보내는 이유는 화면이 과제 유형을 직접 비교하지 않게 하려는
+   * 것이다** (`CLAUDE.md` §2). 표는 이미 이 계획을 받고 있으므로 프롭이 늘지 않는다.
+   */
+  readonly usesTarget: boolean
+  /**
    * 실제로 행렬에 들어갈 특성의 수. **고른 수와 다를 수 있다** - 인코딩이 꺼져 있으면
    * 문자 열이 빠진다. 0이면 fitPreprocessor가 FEATURE_NOT_SELECTED로 던진다.
    */
@@ -119,11 +127,21 @@ export function columnPlan(input: ColumnPlanInput): ColumnPlan {
   const chosen = new Set(input.features)
   const required = requiredTargetKind(input.taskType)
   const encodes = input.preprocessing.categoricalEncoding !== 'none'
+  /**
+   * **군집화에서는 저장된 타깃이 어떤 열도 타깃으로 만들지 않는다.** 이름만 비교하던
+   * 때에는 그 열의 특성 체크박스가 계속 잠겨 있었다 (`architecture.md` §8.9).
+   * 값 자체는 안 지운다 — 분류로 되돌리면 그대로 돌아와야 한다.
+   */
+  const wantsTarget = usesTarget(input.taskType)
 
   let usableFeatures = 0
   const columns = input.columns.map((summary): ColumnChoice => {
     const role: ColumnRole =
-      summary.name === input.target ? 'target' : chosen.has(summary.name) ? 'feature' : 'unused'
+      wantsTarget && summary.name === input.target
+        ? 'target'
+        : chosen.has(summary.name)
+          ? 'feature'
+          : 'unused'
 
     // 값이 전부 비었으면 전처리가 던진다. 훈련 데이터만 비어도 던지지만 그건 분할을 해 봐야
     // 알고, 열 전체가 빈 것은 지금 알 수 있다 - 알 수 있는 것을 나중으로 미루지 않는다.
@@ -155,7 +173,7 @@ export function columnPlan(input: ColumnPlanInput): ColumnPlan {
     }
   })
 
-  return { columns, usableFeatures }
+  return { columns, usableFeatures, usesTarget: wantsTarget }
 }
 
 /** 축의 칸 하나. **꺼진 칸도 목록에 남고 왜 꺼졌는지를 함께 든다** (architecture.md 8.12). */
@@ -318,6 +336,28 @@ const STRATIFY_MEANINGLESS: Partial<Record<TaskType, true>> = {
  */
 const SPLIT_MEANINGLESS: Partial<Record<TaskType, true>> = {
   clustering: true,
+}
+
+/**
+ * 타깃이 뜻을 잃는 과제 유형. **군집화가 그것이다** (`architecture.md` §3.6) —
+ * 정답 열 없이 묶는 것이 그 일이고, `planRun`도 그 값을 통째로 무시한다.
+ */
+const TARGET_MEANINGLESS: Partial<Record<TaskType, true>> = {
+  clustering: true,
+}
+
+/**
+ * 이 유형이 **타깃을 쓰는가.**
+ *
+ * 안 쓰면 화면은 타깃 칸을 **잠그는 것이 아니라 안 그린다** (`architecture.md` §8.9).
+ * 잠그기만 하면 남아 있는 라디오가 "군집화에도 타깃이 있다"고 가르치고, 그냥 두면
+ * 이름이 같은 열의 특성 체크박스가 계속 잠긴다 — 실제로 그 상태였다(전 경로 감사).
+ *
+ * **아직 안 골랐으면 참이다** — `splitsData`와 같은 이유다. 유형은 학습 화면에서
+ * 고르므로 전처리에서 비어 있는 것이 정상이고, 그때 감추면 고르지도 않은 것을 단정한다.
+ */
+export function usesTarget(taskType: TaskType | undefined): boolean {
+  return taskType === undefined || !TARGET_MEANINGLESS[taskType]
 }
 
 /**

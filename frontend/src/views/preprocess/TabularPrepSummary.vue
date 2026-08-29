@@ -20,6 +20,7 @@ import { useI18n } from 'vue-i18n'
 
 import { errorMessageKey } from '@/errors'
 import type { RunPlan } from '@/ml/plan'
+import { usesTarget } from '@/ml/selection'
 import { readDataset } from '@/project/dataset'
 import { tabularDataOf } from '@/project/schema'
 import { useProjectStore } from '@/stores/project'
@@ -43,6 +44,13 @@ const data = computed(() => tabularDataOf(project.file?.document))
 const dataset = computed(() => readDataset(project.file))
 
 const plan = computed(() => props.plan)
+
+/**
+ * 타깃 줄을 그리는가. **판정은 `usesTarget` 하나다** — 열 표가 타깃 칸을 그리는
+ * 기준과 같아야 한다 (`architecture.md` §8.9). 여기서 유형을 직접 비교하면 두 자리가
+ * 갈린다.
+ */
+const showsTarget = computed(() => usesTarget(project.taskType))
 
 /** 계획이 섰을 때의 사실들. 막혔거나 아직이면 `null`이다. */
 const facts = computed(() => {
@@ -104,7 +112,11 @@ const unused = computed(() => {
     -->
     <div class="mt-3 grid gap-x-4 gap-y-5 md:grid-cols-2">
       <dl class="flex flex-col gap-1.5">
-        <div class="flex justify-between gap-4">
+        <!--
+          **타깃을 안 쓰는 유형에서는 이 줄이 없다** (§8.9). 저장된 값은 남아 있지만
+          군집화에서는 아무 일도 안 하므로, 적으면 안 쓰는 값을 설정으로 읽게 된다.
+        -->
+        <div v-if="showsTarget" class="flex justify-between gap-4">
           <dt class="font-bold text-ink-soft">{{ t('preprocess.tabular.roleTarget') }}</dt>
           <dd class="truncate">{{ data.target ?? t('meta.none') }}</dd>
         </div>

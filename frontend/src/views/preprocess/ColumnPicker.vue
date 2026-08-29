@@ -155,7 +155,12 @@ function onFeature(name: string, event: Event): void {
           붙이면 머리글 일곱이 전부 눌리는 것이 되어 정작 설명이 필요한 칸이 묻힌다.
         -->
         <tr>
-          <th>
+          <!--
+            **타깃을 안 쓰는 유형에서는 이 칸이 통째로 없다** (§8.9). 잠그기만 하면
+            남아 있는 라디오가 "군집화에도 타깃이 있다"고 가르친다. 판정은 계획이
+            들고 온다 — 이 표는 과제 유형을 모른다.
+          -->
+          <th v-if="props.plan.usesTarget">
             <TermPopover
               :title="t('preprocess.tabular.roleTarget')"
               :body="t('columnHelp.target')"
@@ -189,7 +194,7 @@ function onFeature(name: string, event: Event): void {
       </thead>
       <tbody>
         <tr v-for="column in props.plan.columns" :key="column.summary.name">
-          <td>
+          <td v-if="props.plan.usesTarget">
             <!--
               **잠그지 않는다. 사유는 고른 뒤에 줄이 말한다** (open-decisions.md "타깃의
               자료형 문제는 고르는 것을 막지 않고 말한다"). 잠그면 회귀 + 수치 열 0개인
