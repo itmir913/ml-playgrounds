@@ -93,7 +93,7 @@ def matrices_for(
 ) -> tuple[np.ndarray, np.ndarray]:
     """JS 전처리(스케일링 none, onehot)와 같은 행렬을 만든다.
 
-    수치 열은 값 그대로, 범주 열은 **학습셋 등장 순서**의 원-핫이다 - ml/preprocess.ts의
+    수치 열은 값 그대로, 범주 열은 **훈련 데이터 등장 순서**의 원-핫이다 - ml/preprocess.ts의
     규약과 같아야 같은 행렬 위에서 대조가 성립한다 (감사에서 최대차 1e-15로 확인했다).
     """
     cols = {c: i for i, c in enumerate(header)}

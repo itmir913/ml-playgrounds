@@ -556,7 +556,7 @@ async function run(): Promise<void> {
 
       <!--
         **입력은 양자택일이다 - 한 줄이거나 파일이거나**
-        (architecture.md §8.13.1 "입력은 양자택일이다"). `PreprocessView.vue`의 평가
+        (architecture.md §8.13.1 "입력은 양자택일이다"). `TabularPrepPanel.vue`의 테스트
         데이터 라디오와 같은 모양이다 - 묻는 것이 하나("이 모델들에 무엇을 넣을까")인데
         답하는 길이 둘이다.
 

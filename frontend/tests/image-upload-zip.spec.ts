@@ -9,7 +9,13 @@
 import { zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
-import { readImageFiles, readImageZip, summarizeUpload } from '../src/data/image/upload'
+import {
+  IMAGE_ACCEPT,
+  readImageFiles,
+  readImageZip,
+  summarizeUpload,
+  ZIP_EXTENSION,
+} from '../src/data/image/upload'
 import { isClientError } from '../src/errors'
 import { IMAGE_UNLABELED } from '../src/project/format'
 
@@ -254,5 +260,28 @@ describe('압축 파일이 준 경로를 우리 규칙으로 맞춘다', () => {
     }
     const items = readImageFiles([pickNfd('강아지/1.jpg'), pickNfd(`${NFD}/2.jpg`)])
     expect(summarizeUpload(items)).toEqual([{ category: '강아지', count: 2 }])
+  })
+})
+
+/**
+ * **고를 수 있는 것과 열 수 있는 것이 같아야 한다** (R10 감사 C-4).
+ *
+ * 받는 자리의 `accept`와 "이게 압축 파일인가"를 가르는 판정이 갈리면, **고를 수는 있는데
+ * 안 열리는 파일**이 생긴다. 상수를 하나로 모은 이유가 그것인데 아무도 안 물고 있었다 —
+ * 인라인으로 되돌려도 저장소가 초록이었다.
+ */
+describe('압축 파일을 가르는 값이 하나다', () => {
+  it('받는 자리가 그 확장자를 받는다', () => {
+    expect(IMAGE_ACCEPT).toContain(ZIP_EXTENSION)
+  })
+
+  /**
+   * 화면의 판정은 `name.toLowerCase().endsWith(ZIP_EXTENSION)`이다
+   * (`views/preprocess/ImagePrepPanel.vue`·`views/data/ImagePanel.vue`). 상수 자체가
+   * 소문자가 아니면 그 판정이 **어떤 파일도 압축 파일로 안 본다.**
+   */
+  it('상수가 소문자다 - 판정이 소문자로 내려서 견준다', () => {
+    expect(ZIP_EXTENSION).toBe(ZIP_EXTENSION.toLowerCase())
+    expect('사진모음.ZIP'.toLowerCase().endsWith(ZIP_EXTENSION)).toBe(true)
   })
 })

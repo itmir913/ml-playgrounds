@@ -264,7 +264,7 @@ function onStratify(event: Event): void {
       하나 더 생기는데, 사진에는 표의 미리보기·머리글 같은 중간 단계가 없다.
 
       **할 일 목록에는 안 올린다** (open-decisions.md "이미지 전처리의 할 일은 없다,
-      그리고 테스트용 zip이 와도 안 생긴다). 테스트 데이터는 언제나 선택이라 언제나 체크된
+      그리고 테스트용 zip이 와도 안 생긴다"). 테스트 데이터는 언제나 선택이라 언제나 체크된
       항목이 되고, 그건 학생에게 아무것도 안 알려 준다.
     -->
     <section class="rounded-panel border border-line bg-surface p-4">

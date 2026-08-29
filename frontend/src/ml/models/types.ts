@@ -93,7 +93,7 @@ export interface ModelInterpreter {
   /**
    * 원본 훈련 행이 있어야 예측하는가 (mlpx-spec.md 5.0).
    *
-   * **`includesPreprocessing`과 나란한 축이다.** 참조형(KNN·SVM)은 모델이 사실상 학습
+   * **`includesPreprocessing`과 나란한 축이다.** 참조형(KNN·SVM)은 모델이 사실상 훈련
    * 데이터라 행 번호만 담고(mlpx-spec.md 5.1), 그 행은 `dataset/`에 있다. 그래서
    * `dataset/`이 없는 파일에서는 그 모델만 못 쓴다 - 화면이 형식 이름을 보지 않고
    * 이 불리언 하나로 판정한다.

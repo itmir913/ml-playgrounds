@@ -22,6 +22,10 @@ import { describe, expect, it } from 'vitest'
 /**
  * 물러난 데이터 이름. **쓰이던 것만 담는다** — 후보를 미리 채우면 쓸 수 있는 말까지
  * 막고, 그러면 다음 사람이 목록을 안 믿는다 (`locales.spec.ts`의 조어 목록과 같은 규칙).
+ *
+ * **부분 문자열로 문다.** 한국어에는 낱말 경계가 없어서 `수행평가용`이라고 쓰는 날
+ * `평가용`이 걸린다 (R10 감사 C-1). 근본 해결은 없으니, 그날 만나는 사람이 목록을
+ * 불신하는 대신 **표현을 고치거나 여기에 예외를 적도록** 이 함정을 밝혀 둔다.
  */
 const RETIRED = ['평가 데이터', '평가셋', '학습셋', '훈련셋', '학습 데이터', '평가용', '학습용']
 
@@ -61,20 +65,74 @@ export function retiredNamesIn(lines: readonly string[]): { line: number; name: 
   return found
 }
 
+/**
+ * **줄바꿈으로 쪼개진 옛 이름.** `학습⏎데이터`처럼 두 줄에 걸친 것은 위의 줄 단위
+ * 훑기가 원리적으로 못 본다.
+ *
+ * **이 구멍이 실제로 다섯을 놓쳤다** (R10 감사 A-2). 낱말을 옮긴 스크립트도 줄 단위였고
+ * 검사도 줄 단위라 **둘이 같은 사각을 공유했다** — 치환이 못 본 자리를 검사도 못 봤고,
+ * `rule-coverage.md`는 "전체에서 막는다"고 적고 있었다.
+ *
+ * **자리는 파일까지만 짚는다.** 공백을 접으면 줄 번호가 사라지는데, 되살리려고 원문에
+ * 다시 맞추는 것은 이 검사가 잡는 것(다섯 줄)에 비해 비싸다.
+ *
+ * **인용 예외는 창으로 본다.** 접힌 글에는 줄이 없으므로 맞은 자리 앞뒤를 보고 그
+ * 안에 인용 표기가 있으면 넘긴다. 줄 단위보다 무딘 근사이고, 그래서 이쪽은
+ * **줄 단위가 이미 잡은 이름은 빼고** 보고한다.
+ */
+export function retiredNamesAcrossLines(text: string): string[] {
+  // 공백을 하나로 접으면 `학습⏎데이터`도 `학습 데이터`가 되어 그냥 찾힌다.
+  // 주석 기호(`*`)와 목록 기호(`-`)는 줄머리에서 낱말 사이로 들어오므로 함께 지운다.
+  const collapsed = text.replace(/\s+[*\-#>]+\s+/g, ' ').replace(/\s+/g, ' ')
+  const found: string[] = []
+  for (const name of RETIRED) {
+    let at = collapsed.indexOf(name)
+    while (at !== -1) {
+      const window = collapsed.slice(Math.max(0, at - 120), at + name.length + 120)
+      if (!QUOTED.some((quote) => window.includes(quote))) {
+        found.push(name)
+        break
+      }
+      at = collapsed.indexOf(name, at + name.length)
+    }
+  }
+  return found
+}
+
 describe('데이터 이름이 하나다', () => {
   const targets = [
     ...filesUnder(join(process.cwd(), 'src'), ['.ts', '.vue', '.json']),
     ...filesUnder(join(process.cwd(), 'tests'), ['.ts']),
+    // **학생이 읽는 표면이 주석보다 뒤에 있으면 안 된다** (R10 감사 B-1). 내장 양식은
+    // 번들 밖이라 `src/`를 훑는 검사가 안 오는데, 학생이 가장 확실히 읽는 글이다.
+    ...filesUnder(join(process.cwd(), 'public', 'portfolio'), ['.md']),
     ...filesUnder(join(ROOT, 'docs'), ['.md']),
+    // 픽스처 생성기의 주석도 다음 사람이 낱말을 배우는 자리다 (R10 감사 B-2).
+    ...filesUnder(join(ROOT, 'scripts'), ['.py', '.ts']),
     join(ROOT, 'CLAUDE.md'),
   ].filter((path) => !EXEMPT.includes(relative(ROOT, path).replaceAll(sep, '/')))
+
+  /**
+   * **0건을 훑고 통과하는 것이 이 검사의 가장 나쁜 실패다.** 훑는 목록이 조용히 비면
+   * 초록불이 "깨끗하다"가 아니라 "안 봤다"를 뜻하는데 둘이 화면에서 똑같이 생겼다.
+   * `doc-refs.spec.ts`가 같은 가드를 두는 이유와 같다.
+   */
+  it('훑는 파일이 실제로 있다', () => {
+    expect(targets.length).toBeGreaterThan(200)
+  })
 
   it('물러난 데이터 이름을 쓰는 자리가 없다', () => {
     const offenders: string[] = []
     for (const path of targets) {
       const where = relative(ROOT, path).replaceAll(sep, '/')
-      for (const hit of retiredNamesIn(readFileSync(path, 'utf-8').split(/\r?\n/))) {
-        offenders.push(`${where}:${hit.line} '${hit.name}'`)
+      const text = readFileSync(path, 'utf-8')
+      const byLine = retiredNamesIn(text.split(/\r?\n/))
+      for (const hit of byLine) offenders.push(`${where}:${hit.line} '${hit.name}'`)
+
+      // 줄바꿈에 쪼개진 것. 줄 단위가 이미 잡은 이름은 다시 안 센다.
+      const seen = new Set(byLine.map((hit) => hit.name))
+      for (const name of retiredNamesAcrossLines(text)) {
+        if (!seen.has(name)) offenders.push(`${where} '${name}' (줄바꿈에 쪼개져 있다)`)
       }
     }
     expect(offenders).toEqual([])
@@ -90,5 +148,23 @@ describe('데이터 이름이 하나다', () => {
 
   it('검사기가 행위를 가리키는 평가는 안 잡는다', () => {
     expect(retiredNamesIn(['평가 중', '학습과 평가에 들어갑니다', '평가 지표'])).toEqual([])
+  })
+
+  it('검사기가 줄바꿈에 쪼개진 이름을 잡는다', () => {
+    expect(retiredNamesAcrossLines('세 번째 상태가 없으므로 학습\n데이터로 채점한다')).toEqual([
+      '학습 데이터',
+    ])
+  })
+
+  it('검사기가 주석 기호를 건너뛴다 - 줄머리의 *는 낱말 사이가 아니다', () => {
+    expect(retiredNamesAcrossLines('   * 모델이 사실상 학습\n   * 데이터라')).toEqual([
+      '학습 데이터',
+    ])
+  })
+
+  it('쪼개진 것도 인용이면 안 잡는다', () => {
+    expect(retiredNamesAcrossLines('국문이 `평가\n데이터`에서 `테스트 데이터`로 바뀌었다')).toEqual(
+      [],
+    )
   })
 })
