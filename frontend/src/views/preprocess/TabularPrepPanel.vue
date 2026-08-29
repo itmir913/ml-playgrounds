@@ -508,7 +508,7 @@ async function applyTest(): Promise<void> {
     })
     await project.save(applied.project)
 
-    testAttaching.value = false
+    // 이 셋은 성공했을 때만이다 — 실패하면 고른 파일이 그대로 남아 있어야 다시 누른다.
     openedTest.value = null
     manualTestChoice.value = null
     toasts.push('success', 'preprocess.tabular.testDataApplied')
@@ -516,6 +516,12 @@ async function applyTest(): Promise<void> {
     toasts.pushError(error)
   } finally {
     testBusy.value = false
+    /**
+     * **창은 성공하든 실패하든 닫는다.** 닫는 줄이 `try` 안에 있으면, 실패했을 때
+     * "실험 N개가 사라집니다"라고 적힌 경고창이 열린 채로 남고 그 아래에 실패 토스트가
+     * 뜬다 — 학생은 방금 무슨 일이 났는지 못 읽는다 (2026-08-29 전 경로 감사).
+     */
+    testAttaching.value = false
   }
 }
 
@@ -540,12 +546,13 @@ async function removeTest(): Promise<void> {
   try {
     const removed = removeTestDataset(file, new Date().toISOString())
     await project.save(removed.project)
-    testRemoving.value = false
     manualTestChoice.value = 'holdout'
   } catch (error) {
     toasts.pushError(error)
   } finally {
     testBusy.value = false
+    // 창을 닫는 이유는 `applyTest`와 같다.
+    testRemoving.value = false
   }
 }
 </script>

@@ -349,13 +349,27 @@ function onTestDrop(event: DragEvent): void {
   void readTest([...(event.dataTransfer?.files ?? [])])
 }
 
-/** 테스트용 사진을 전부 떼고 분할로 되돌린다. */
+/**
+ * 테스트용 사진을 전부 떼고 분할로 되돌린다.
+ *
+ * **실패를 삼키지 않는다.** 여기만 `try`가 없어서, 저장이 실패하면 아무것도 안 뜨는
+ * 채로 경고창이 열려 있었다 — 표 쪽 셋과 같은 모양으로 맞춘다 (전 경로 감사).
+ */
 async function removeTest(): Promise<void> {
   const file = project.file
   if (!file) return
-  await project.save(clearTestImages(file, new Date().toISOString()))
-  testRemoving.value = false
-  manualTestChoice.value = 'holdout'
+
+  busy.value = true
+  try {
+    await project.save(clearTestImages(file, new Date().toISOString()))
+    manualTestChoice.value = 'holdout'
+  } catch (error) {
+    toasts.pushError(error)
+  } finally {
+    busy.value = false
+    // **창은 성공하든 실패하든 닫는다.** 이유는 `TabularPrepPanel`의 `applyTest`와 같다.
+    testRemoving.value = false
+  }
 }
 
 /**

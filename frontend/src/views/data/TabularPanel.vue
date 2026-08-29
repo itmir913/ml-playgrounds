@@ -162,7 +162,6 @@ async function apply(): Promise<void> {
     })
     await project.save(applied.project)
 
-    confirming.value = false
     opened.value = null
     toasts.push('success', 'data.tabular.applied')
     if (applied.droppedColumns.length > 0) {
@@ -175,6 +174,12 @@ async function apply(): Promise<void> {
     toasts.pushError(error)
   } finally {
     busy.value = false
+    /**
+     * **창은 성공하든 실패하든 닫는다.** 닫는 줄이 `try` 안에 있으면, 실패했을 때
+     * "실험 N개가 사라집니다"라고 적힌 경고창이 열린 채로 남고 그 아래에 실패 토스트가
+     * 뜬다 — 학생은 방금 무슨 일이 났는지 못 읽는다 (2026-08-29 전 경로 감사).
+     */
+    confirming.value = false
   }
 }
 
