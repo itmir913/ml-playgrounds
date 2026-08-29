@@ -11,6 +11,7 @@
  */
 
 import { IMAGE_UNLABELED } from '@/project/format'
+import type { TaskType } from '@/project/schema'
 
 export interface TestSetBlock {
   readonly code:
@@ -19,6 +20,25 @@ export interface TestSetBlock {
     | 'TEST_IMAGES_CATEGORY_UNKNOWN'
     | 'TEST_IMAGES_UNLABELED'
   readonly params?: Record<string, string | number>
+}
+
+/**
+ * 올린 테스트용 사진이 **실제로 채점에 쓰이는가.**
+ *
+ * **군집화는 나누지 않는다** (architecture.md §3.6) — 그러면 올린 사진이 아무 데도 안
+ * 쓰이는데, 화면은 "N장으로 채점합니다"라고 말하고 있었다. 표 경로는 같은 상황에서
+ * 참을 말한다(요약 카드의 `summaryClustering`), 그래서 **같은 상황에서 두 화면이 다른
+ * 말을 했다.**
+ *
+ * **판정이 화면 밖에 있는 이유는 규칙이다** — 화면에서 과제 유형을 직접 비교하지 않는다
+ * (CLAUDE.md §2, `ui-rules.spec.ts`). 표의 요약 카드가 `facts.isClustering`을 받아 쓰는
+ * 것과 같은 모양이다.
+ *
+ * **아직 안 골랐으면 `true`다.** 유형은 학습 화면에서 고르므로 전처리에서는 비어 있는
+ * 것이 정상이고, 그때 "안 쓰인다"고 말하면 고르지도 않은 것을 단정하게 된다.
+ */
+export function scoresWithTestImages(taskType: TaskType | undefined): boolean {
+  return taskType !== 'clustering'
 }
 
 /**

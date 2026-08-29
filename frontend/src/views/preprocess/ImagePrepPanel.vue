@@ -18,7 +18,7 @@ import { useI18n } from 'vue-i18n'
 import AppButton from '@/components/AppButton.vue'
 import { canonicalizeImages } from '@/data/image/client'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
-import { testSetBlockFor, testZipBlockFor } from '@/data/image/test-set'
+import { scoresWithTestImages, testSetBlockFor, testZipBlockFor } from '@/data/image/test-set'
 import {
   IMAGE_ACCEPT,
   readImageFiles,
@@ -87,6 +87,12 @@ const testPhotos = computed(() => readImages(project.file, 'test').length)
  * 돌려 놓은 비율이 채점에 쓰인다고 읽는다.
  */
 const usingProvidedTest = computed(() => testPhotos.value > 0)
+
+/**
+ * 올린 사진이 실제로 채점에 쓰이는가. **판정은 화면 밖이다** (`data/image/test-set.ts`) —
+ * 화면에서 과제 유형을 직접 비교하지 않는다 (architecture.md §8.10).
+ */
+const scored = computed(() => scoresWithTestImages(project.taskType))
 
 /**
  * 자리 자체의 잠금. **판정은 화면 밖에 있다** (`data/image/test-set.ts`) —
@@ -311,8 +317,17 @@ function onStratify(event: Event): void {
           <h3 class="font-bold">{{ t('preprocess.testImagesTitle') }}</h3>
 
           <template v-if="testPhotos > 0">
+            <!--
+              **군집은 나누지 않으므로 이 사진이 안 쓰인다** (architecture.md §3.6).
+              그런데도 "채점합니다"라고 말하고 있었다 — 표의 요약 카드는 같은 상황에서
+              참을 말한다(`summaryClustering`).
+            -->
             <p class="mt-1 text-ink-soft">
-              {{ t('preprocess.testImagesUsing', { count: testPhotos }) }}
+              {{
+                scored
+                  ? t('preprocess.testImagesUsing', { count: testPhotos })
+                  : t('preprocess.testImagesClustering')
+              }}
             </p>
             <AppButton variant="secondary" class="mt-3" :action="removeTest">
               {{ t('preprocess.testImagesRemove') }}

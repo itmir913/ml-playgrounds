@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { testSetBlockFor, testZipBlockFor } from '../src/data/image/test-set'
+import { testSetBlockFor, testZipBlockFor, scoresWithTestImages } from '../src/data/image/test-set'
 import { IMAGE_UNLABELED } from '../src/project/format'
 
 const CATEGORIES = ['개', '고양이']
@@ -58,5 +58,26 @@ describe('올린 사진 대조', () => {
       code: 'TEST_IMAGES_CATEGORY_MISSING',
       params: { categories: '고양이' },
     })
+  })
+})
+
+/**
+ * **화면이 참을 말하는가.** 군집은 나누지 않으므로(architecture.md §3.6) 올린 사진이
+ * 아무 데도 안 쓰이는데, 이미지 전처리 화면은 그래도 "N장으로 채점합니다"라고 말하고
+ * 있었다 — 표의 요약 카드는 같은 상황에서 참을 말한다.
+ */
+describe('올린 사진이 채점에 쓰이는가', () => {
+  it('군집화에서는 안 쓰인다 - 나누지 않으므로 채점할 자리가 없다', () => {
+    expect(scoresWithTestImages('clustering')).toBe(false)
+  })
+
+  it('분류와 회귀에서는 쓰인다', () => {
+    expect(scoresWithTestImages('classification')).toBe(true)
+    expect(scoresWithTestImages('regression')).toBe(true)
+  })
+
+  /** 유형은 학습 화면에서 고른다. 전처리에서 비어 있는 것이 정상이고, 그때 단정하지 않는다. */
+  it('아직 안 골랐으면 쓰인다고 본다', () => {
+    expect(scoresWithTestImages(undefined)).toBe(true)
   })
 })

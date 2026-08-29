@@ -237,6 +237,7 @@
     "testImagesAddFolder": "폴더에서 추가",
     "testImagesAdd": "압축 파일 선택",
     "testImagesUsing": "테스트용 사진 {count}장으로 채점합니다.",
+    "testImagesClustering": "군집화를 골랐으므로 이 사진들은 채점에 쓰이지 않습니다. 나누지 않고 전체로 학습합니다.",
     "testImagesRemove": "테스트용 사진 지우기",
     "testImagesAdded": "테스트용 사진 {count}장을 올렸습니다.",
     "testImagesDropped": "테스트 데이터가 바뀌어서 지금까지의 실험 {count}개를 지웠습니다.",

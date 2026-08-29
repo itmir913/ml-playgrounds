@@ -237,6 +237,7 @@
     "testImagesAddFolder": "Add a folder",
     "testImagesAdd": "Choose zip file",
     "testImagesUsing": "Scoring with {count} test photos.",
+    "testImagesClustering": "You chose clustering, so these photos are not used for scoring. Training uses all the photos without splitting.",
     "testImagesRemove": "Remove test photos",
     "testImagesAdded": "Added {count} test photos.",
     "testImagesDropped": "The test data changed, so {count} earlier experiments were removed.",
