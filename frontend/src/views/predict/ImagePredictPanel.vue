@@ -24,7 +24,7 @@ import StepActionBar from '@/components/StepActionBar.vue'
 import { canonicalizeImages } from '@/data/image/client'
 import { useThumbnails } from '@/composables/useThumbnails'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
-import { IMAGE_ACCEPT, readImageFiles, readImageZip } from '@/data/image/upload'
+import { IMAGE_ACCEPT, readImageFiles, readImageZip, ZIP_EXTENSION } from '@/data/image/upload'
 import { ClientError, isClientError } from '@/errors'
 import { backboneFor } from '@/ml/backbones'
 import { embedImages } from '@/ml/embed/client'
@@ -234,7 +234,7 @@ async function readPicked(files: readonly File[]): Promise<void> {
   try {
     const [only] = files
     const items =
-      files.length === 1 && only && only.name.toLowerCase().endsWith('.zip')
+      files.length === 1 && only && only.name.toLowerCase().endsWith(ZIP_EXTENSION)
         ? await readImageZip(new Uint8Array(await only.arrayBuffer()))
         : readImageFiles(files)
 

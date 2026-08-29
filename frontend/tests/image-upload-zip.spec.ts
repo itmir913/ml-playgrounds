@@ -6,8 +6,13 @@
  * 안 보인 채 정확도만 낮게 나온다 — 학생이 원인을 찾을 수 있는 종류가 아니다.
  */
 
+import { readFileSync } from 'node:fs'
+import { join, relative } from 'node:path'
+
 import { zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
+
+import { sourceFiles, withoutComments } from './fixtures/source'
 
 import {
   IMAGE_ACCEPT,
@@ -283,5 +288,24 @@ describe('압축 파일을 가르는 값이 하나다', () => {
   it('상수가 소문자다 - 판정이 소문자로 내려서 견준다', () => {
     expect(ZIP_EXTENSION).toBe(ZIP_EXTENSION.toLowerCase())
     expect('사진모음.ZIP'.toLowerCase().endsWith(ZIP_EXTENSION)).toBe(true)
+  })
+
+  /**
+   * **상수가 있어도 아무도 안 쓰면 뜻이 없다** (R11 감사 C-5). 위 둘은 상수의 성질만
+   * 물어서, 화면이 상수를 버리고 `.zip`을 도로 박아 넣어도 저장소가 초록이었다 —
+   * 상수를 만든 이유가 바로 그 되돌림을 막는 것이었는데.
+   *
+   * **선언한 자리 하나는 빼고 본다.** 거기가 그 글자가 있어야 할 유일한 자리다.
+   */
+  it('확장자를 손으로 적은 자리가 없다', () => {
+    const offenders = sourceFiles(join(process.cwd(), 'src'))
+      .filter((path) => !path.endsWith(join('data', 'image', 'upload.ts')))
+      .flatMap((path) =>
+        withoutComments(readFileSync(path, 'utf-8'))
+          .map((line, index) => ({ line, at: index + 1, path }))
+          .filter((row) => /['"`]\.zip['"`]/i.test(row.line))
+          .map((row) => `${relative(process.cwd(), row.path)}:${row.at}`),
+      )
+    expect(offenders, 'ZIP_EXTENSION을 쓰지 않고 확장자를 적었다').toEqual([])
   })
 })
