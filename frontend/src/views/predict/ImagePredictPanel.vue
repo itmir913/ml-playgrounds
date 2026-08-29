@@ -555,7 +555,18 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       (`StepActionBar` 주석).
     -->
     <StepActionBar>
-      <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">
+      <!--
+        **빈 상태에서는 이 버튼이 없다** (architecture.md §8.9). 화면 가운데 빈 상태가
+        이미 같은 버튼을 들고 있고, **그것이 그 동작의 유일한 출처여야** 학생이 "둘이
+        같은 것인가"를 묻지 않는다. 데이터 화면이 같은 것을 잡히고 세운 규칙인데
+        예측 화면만 어긋나 있었다 (2026-08-29 화면 실측 B-5).
+      -->
+      <AppButton
+        v-if="photos.length > 0"
+        variant="secondary"
+        :disabled="busy"
+        @click="fileInput?.click()"
+      >
         {{ t('predict.image.add') }}
       </AppButton>
       <span v-if="progress" class="tabular-nums font-bold" role="status">
