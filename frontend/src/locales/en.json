@@ -230,6 +230,7 @@
     "previewEmpty": "Choose a target and features and the changed table appears here.",
     "previewPending": "Choose a task type and the changed table appears here.",
     "testDataTitle": "Test Data",
+    "testDataClustering": "Clustering does not split the data. All of it goes into training.",
     "testDataLead": "This is the data used to score your trained models.",
     "testImagesTitle": "Test photos",
     "testImagesLead": "Upload the photos to be scored and they are used instead of splitting by ratio.",

@@ -29,7 +29,7 @@ import {
 import { ClientError } from '@/errors'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { backboneFor } from '@/ml/backbones'
-import { stratifyBlockFor, stratifyLocked } from '@/ml/selection'
+import { splitsData, stratifyBlockFor, stratifyLocked } from '@/ml/selection'
 import { IMAGE_UNLABELED } from '@/project/format'
 import { dataSettings } from '@/project/schema'
 import { imageRoomShortfall } from '@/data/image/room'
@@ -97,6 +97,15 @@ const usingProvidedTest = computed(() => testPhotos.value > 0)
  * 화면에서 과제 유형을 직접 비교하지 않는다 (architecture.md §8.10).
  */
 const scored = computed(() => scoresWithTestImages(project.taskType))
+
+/**
+ * 비율로 나누는 일이 **실제로 일어나는가.** 손잡이(비율·층화)를 보일지가 이 하나로 갈린다.
+ *
+ * 갈래가 둘인데 이유는 하나다 — 사진을 따로 올렸으면 그걸로 채점하고, 군집화면 아예
+ * 안 나눈다(`architecture.md` §3.6). 둘 다 **나눌 것이 없어서 비율과 층화가 아무 일도
+ * 안 한다.** 조건에 앞엣것만 있어서 군집화에서는 손잡이가 켜진 채 거짓말을 하고 있었다.
+ */
+const splitsByRatio = computed(() => splitsData(project.taskType) && !usingProvidedTest.value)
 
 /**
  * 자리 자체의 잠금. **판정은 화면 밖에 있다** (`data/image/test-set.ts`) —
@@ -284,7 +293,19 @@ function onStratify(event: Event): void {
     -->
     <section class="rounded-panel border border-line bg-surface p-4">
       <h2 class="font-bold">{{ t('preprocess.testDataTitle') }}</h2>
-      <p class="mt-1 text-ink-soft">{{ t('preprocess.testDataLead') }}</p>
+      <!--
+        **머리말이 상태를 따라간다.** 군집화는 나누지 않으므로(architecture.md §3.6)
+        "점수는 이 데이터로 매깁니다"가 그 자리에서 거짓이 된다.
+      -->
+      <p class="mt-1 text-ink-soft">
+        {{
+          t(
+            splitsData(project.taskType)
+              ? 'preprocess.testDataLead'
+              : 'preprocess.testDataClustering',
+          )
+        }}
+      </p>
 
       <!--
         **넓은 화면에서는 두 열이고 가르는 것은 점선이다** (architecture.md §8.12).
@@ -292,12 +313,12 @@ function onStratify(event: Event): void {
         학습 화면·결과 화면이 쓰는 그 문법을 그대로 쓴다. 선 좌우 여백은 카드 안쪽
         여백과 같은 4다.
 
-        **사진이 대고 있으면 왼쪽이 통째로 사라지고 한 열이 된다** — 나눌 것이 없어서
-        비율과 층화가 아무 일도 안 하기 때문이고(표도 같은 자리에서 같은 것을 감춘다),
-        가를 것이 하나뿐이므로 점선도 함께 걷는다.
+        **나눌 것이 없으면 왼쪽이 통째로 사라지고 한 열이 된다** — 사진이 대고 있거나
+        군집화이거나이고, 둘 다 비율과 층화가 아무 일도 안 한다(표도 같은 자리에서 같은
+        것을 감춘다). 가를 것이 하나뿐이므로 점선도 함께 걷는다.
       -->
-      <div class="mt-3 grid gap-4" :class="usingProvidedTest ? '' : 'md:grid-cols-2'">
-        <div v-if="!usingProvidedTest" class="flex flex-col gap-4">
+      <div class="mt-3 grid gap-4" :class="splitsByRatio ? 'md:grid-cols-2' : ''">
+        <div v-if="splitsByRatio" class="flex flex-col gap-4">
           <slot name="split-ratio" />
 
           <div>
@@ -316,11 +337,18 @@ function onStratify(event: Event): void {
           </div>
         </div>
 
+        <!--
+          **군집화이고 사진도 없으면 이 판 자체가 없다.** 예전에는 여기서
+          `이 사진들은 쓰이지 않습니다`를 말했는데 **가리킬 사진이 없었다** — 있는 것을
+          부정하는 문장과 애초에 없는 상태는 다른 문장이다. 나누지 않는다는 말은 위
+          머리말이 이미 한다.
+        -->
         <div
+          v-if="scored || testPhotos > 0"
           :class="
-            usingProvidedTest
-              ? ''
-              : 'border-t border-dashed border-line pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-4'
+            splitsByRatio
+              ? 'border-t border-dashed border-line pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-4'
+              : ''
           "
         >
           <h3 class="font-bold">{{ t('preprocess.testImagesTitle') }}</h3>
@@ -347,12 +375,9 @@ function onStratify(event: Event): void {
             **군집이면 권유하지 않는다** (R11 감사 B-3). 문구만 갈라 두었더니, 군집을
             이미 고른 학생이 "채점합니다"를 읽고 굽는 시간을 다 쓴 **뒤에야** 안 쓰인다는
             말을 들었다 — 이 파일의 `takeTest`가 "굽고 나서 거절하면 학생은 기다린 시간을
-            통째로 버린다"고 적어 둔 그 자리다.
+            통째로 버린다"고 적어 둔 그 자리다. 지금은 판 자체가 위에서 사라지므로
+            여기 올 때는 언제나 `scored`다.
           -->
-          <p v-else-if="!scored" class="mt-1 text-ink-soft">
-            {{ t('preprocess.testImagesClustering') }}
-          </p>
-
           <template v-else>
             <p class="mt-1 text-ink-soft">{{ t('preprocess.testImagesLead') }}</p>
             <!--

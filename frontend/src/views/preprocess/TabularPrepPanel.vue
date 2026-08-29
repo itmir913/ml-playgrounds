@@ -31,6 +31,7 @@ import {
   columnPlan,
   requiredTargetKind,
   rowUsage,
+  splitsData,
   stratifyBlock,
   stratifyLocked,
   trainableRowCount,
@@ -375,6 +376,15 @@ const stratifyDisabled = computed(() =>
 /** 테스트 데이터를 파싱한 표. `split.method`가 `provided`가 아니면 없다. */
 const testDataset = computed(() => readTestDataset(project.file))
 
+/**
+ * 나누는 일이 이 프로젝트에서 **실제로 일어나는가.** 안 일어나면 이 카드의 갈래와
+ * 손잡이가 통째로 뜻을 잃는다.
+ *
+ * **판정은 화면 밖이다** (`ml/selection.ts`의 `splitsData`) — 화면에서 과제 유형을 직접
+ * 비교하지 않는다 (`architecture.md` §8.10). 이미지 판이 같은 함수를 본다.
+ */
+const splitsHere = computed(() => splitsData(project.taskType))
+
 /** 순수 함수는 ml/selection.ts에 있다 - 컴포넌트 밖에서 테스트한다. */
 const testRowUsage = computed(() => {
   const current = data.value
@@ -671,11 +681,22 @@ async function removeTest(): Promise<void> {
     -->
       <section class="rounded-panel border border-line bg-surface p-4">
         <h2 class="font-bold">{{ t('preprocess.testDataTitle') }}</h2>
-        <p class="mt-1 text-ink-soft">{{ t('preprocess.testDataLead') }}</p>
+        <!--
+          **머리말이 상태를 따라간다.** 군집화는 나누지 않으므로(architecture.md §3.6)
+          "점수는 이 데이터로 매깁니다"가 그 자리에서 거짓이 된다. 이미지 판이 같은 것을
+          같은 키로 한다.
+        -->
+        <p class="mt-1 text-ink-soft">
+          {{ t(splitsHere ? 'preprocess.testDataLead' : 'preprocess.testDataClustering') }}
+        </p>
 
         <!-- 양자택일이다 - 세 번째 상태가 없어야 훈련 데이터로 채점하는 길이 막힌다
-             (open-decisions.md "`분할 안 함`을 없앱니다 — 그 자리가 양자택일이 된다"). -->
-        <div class="mt-3 flex flex-col gap-4">
+             (open-decisions.md "`분할 안 함`을 없앱니다 — 그 자리가 양자택일이 된다").
+
+             **군집화면 갈래 자체가 없다** — 나누지 않으므로 비율도 층화도 별도 파일도
+             아무 일을 안 한다. 요약 카드가 같은 사실을 한 번 더 말하지만, 그건 두 칸
+             아래라 여기서 켜진 손잡이가 먼저 거짓말을 하고 있었다. -->
+        <div v-if="splitsHere" class="mt-3 flex flex-col gap-4">
           <div>
             <label class="flex cursor-pointer items-start gap-2">
               <input

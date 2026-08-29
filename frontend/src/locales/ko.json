@@ -230,6 +230,7 @@
     "previewEmpty": "타깃과 특성을 고르면 여기에 바뀐 표가 나옵니다.",
     "previewPending": "기계학습 유형을 고르면 여기에 바뀐 표가 나옵니다.",
     "testDataTitle": "테스트 데이터(Test Data)",
+    "testDataClustering": "군집화는 데이터를 나누지 않습니다. 전체를 학습에 씁니다.",
     "testDataLead": "학습을 마친 모델의 점수는 이 데이터로 매깁니다.",
     "testImagesTitle": "테스트용 사진",
     "testImagesLead": "점수를 매길 사진을 따로 올리면 비율로 나누지 않고 이 사진으로 채점합니다.",

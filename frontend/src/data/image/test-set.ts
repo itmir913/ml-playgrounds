@@ -10,6 +10,7 @@
  * **예측 가능하게 거부한다**("상위 버전 파일은 거부한다"와 같은 태도다).
  */
 
+import { splitsData } from '@/ml/selection'
 import { IMAGE_UNLABELED } from '@/project/format'
 import type { TaskType } from '@/project/schema'
 
@@ -38,7 +39,9 @@ export interface TestSetBlock {
  * 것이 정상이고, 그때 "안 쓰인다"고 말하면 고르지도 않은 것을 단정하게 된다.
  */
 export function scoresWithTestImages(taskType: TaskType | undefined): boolean {
-  return taskType !== 'clustering'
+  // **사실은 하나다** — 나누지 않는 유형이면 올린 사진도 쓰이지 않는다. 그 판정을
+  // 여기 한 번 더 적으면 표 판과 갈린다 (`ml/selection.ts`의 `splitsData`).
+  return splitsData(taskType)
 }
 
 /**

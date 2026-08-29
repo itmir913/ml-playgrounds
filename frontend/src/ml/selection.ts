@@ -312,6 +312,30 @@ const STRATIFY_MEANINGLESS: Partial<Record<TaskType, true>> = {
 }
 
 /**
+ * 데이터를 나누지 않는 과제 유형. **군집화가 그것이다** (`architecture.md` §3.6).
+ *
+ * `if (taskType === 'clustering')`을 안 쓰는 이유는 위 `STRATIFY_MEANINGLESS`와 같다.
+ */
+const SPLIT_MEANINGLESS: Partial<Record<TaskType, true>> = {
+  clustering: true,
+}
+
+/**
+ * 이 유형이 **데이터를 나누는가.** 나누지 않으면 비율도 층화도 아무 일을 안 한다.
+ *
+ * **화면이 과제 유형을 직접 비교하지 않게 하려고 여기 있다** (`CLAUDE.md` §2,
+ * `ui-rules.spec.ts`). 판이 둘인데 사실은 하나라서, 전처리의 표 판과 이미지 판이 같은
+ * 이 함수를 본다 — 갈라 두면 한쪽만 고쳐진다.
+ *
+ * **아직 안 골랐으면 참이다.** 유형은 학습 화면에서 고르므로 전처리에서는 비어 있는
+ * 것이 정상이고, 그때 "안 나눈다"고 말하면 고르지도 않은 것을 단정하게 된다
+ * (`data/image/test-set.ts`의 `scoresWithTestImages`가 같은 이유로 같은 답을 낸다).
+ */
+export function splitsData(taskType: TaskType | undefined): boolean {
+  return taskType === undefined || !SPLIT_MEANINGLESS[taskType]
+}
+
+/**
  * 층화를 걸 수 없는 이유. **없으면 null이다.**
  *
  * 코드는 `CLIENT_ERROR_CODES`에 있고 화면이 `client.*`로 문장을 만든다

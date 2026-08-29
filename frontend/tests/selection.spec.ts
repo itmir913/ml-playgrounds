@@ -23,11 +23,14 @@ import {
   rowUsage,
   stratifyBlock,
   stratifyLocked,
+  splitsData,
   trainableRowCount,
   type AxisChoice,
 } from '../src/ml/selection'
+import { scoresWithTestImages } from '../src/data/image/test-set'
 import { isClientError } from '../src/errors'
 import { MIN_SPLIT_ROWS, MLJS_SVM_ROW_LIMIT } from '../src/limits'
+import { TASK_TYPES } from '../src/project/schema'
 import { sampleRows } from '../src/ml/sample'
 import type { Preprocessing, Split } from '../src/project/schema'
 import { SKLEARN_ONLY_ALGORITHM, withSklearnOnly } from './fixtures/algorithms'
@@ -561,5 +564,42 @@ describe('행 상한은 전처리 후 행 수로 잰다', () => {
     expect(svm(usable)?.enabled).toBe(true)
     // 같은 데이터를 파일의 행 수로 재면 잠긴다. 고친 것이 정확히 이 차이다.
     expect(svm(big.rows.length)?.reason).toBe('DATASET_TOO_LARGE_FOR_BROWSER')
+  })
+})
+
+/**
+ * **나누는 유형인가** — 전처리의 두 판이 같은 함수를 본다.
+ *
+ * 이 판정이 갈리면 한쪽 화면만 고쳐진다. 실제로 이미지 판이 사진이 올라왔을 때만
+ * 손잡이를 감추고 **군집화는 안 보고 있었고**, 표 판은 아예 안 보고 있었다 —
+ * 군집화에서 비율 슬라이더가 켜진 채 아무 일도 안 했다 (2026-08-29 화면 실측 A-2·B-1).
+ */
+describe('데이터를 나누는 유형인가', () => {
+  it('군집화는 안 나눈다', () => {
+    expect(splitsData('clustering')).toBe(false)
+  })
+
+  it('나머지 유형은 나눈다', () => {
+    expect(splitsData('classification')).toBe(true)
+    expect(splitsData('regression')).toBe(true)
+  })
+
+  /**
+   * **아직 안 골랐으면 참이다.** 유형은 학습 화면에서 고르므로 전처리에서는 비어 있는
+   * 것이 정상이고, 그때 손잡이를 감추면 고르지도 않은 것을 단정하게 된다.
+   */
+  it('아직 안 골랐으면 나눈다고 본다', () => {
+    expect(splitsData(undefined)).toBe(true)
+  })
+
+  /**
+   * **사실이 하나라는 것을 못으로 박는다.** 이미지 쪽 이름(`scoresWithTestImages`)은
+   * "올린 사진이 채점에 쓰이는가"를 묻지만, 그 답은 "나누는가"와 같은 사실에서 나온다.
+   * 한쪽만 고치면 표와 이미지가 다른 말을 한다.
+   */
+  it('테스트용 사진이 쓰이는가와 같은 답이다', () => {
+    for (const taskType of [...TASK_TYPES, undefined]) {
+      expect(scoresWithTestImages(taskType), taskType ?? '미정').toBe(splitsData(taskType))
+    }
   })
 })
