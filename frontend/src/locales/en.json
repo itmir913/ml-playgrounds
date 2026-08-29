@@ -148,6 +148,7 @@
       "missing": "Missing values",
       "noHeaderNote": "There are no column names, so they are called A, B, C and so on.",
       "previewNote": "Showing the first {count} row. | Showing the first {count} rows.",
+      "previewProbeNote": "Only the first {count} row has been read. The numbers in [Data summary] count that row, so they can change when you press [Use this data]. | Only the first {count} rows have been read. The numbers in [Data summary] count those rows, so they can change when you press [Use this data].",
       "previewTitle": "Data preview",
       "reading": "Reading…",
       "replaceConfirm": "Delete and replace",

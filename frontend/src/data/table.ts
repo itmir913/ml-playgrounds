@@ -188,3 +188,32 @@ export function importTable(document: TableDocument, sheetName?: string): Import
 export function previewNote(shown: number, total: number): number {
   return total > shown ? shown : 0
 }
+
+/**
+ * 확정 전에 읽어 둘 줄 수. **보여줄 것보다 하나 더 읽는다.**
+ *
+ * 캡만큼만 읽으면 **"딱 그만큼인 파일"과 "더 있는 파일"이 구별되지 않는다** — 그래서
+ * 20줄짜리 파일에도 잘렸다고 말하게 된다. 한 줄을 더 읽으면 그 질문이 딱 떨어진다
+ * (architecture.md §8.9).
+ */
+export const PREVIEW_PROBE_ROWS = PREVIEW_ROW_COUNT + 1
+
+/**
+ * **확정 전** 표 아래에 적을 줄 수. 파일에 더 있으면 지금 그린 줄 수, 아니면 0.
+ *
+ * `previewNote`와 나누는 이유는 **재는 것이 다르기 때문이다.** 저쪽은 "가진 것 중
+ * 얼마를 그렸나"인데, 확정 전에는 **가진 것이 얼마인지 앱도 모른다** — 앞부분만
+ * 파싱했으므로 전체 행 수라는 값 자체가 없다. 그래서 여기서 보는 것은 총량이 아니라
+ * **캡을 넘겨 읽혔는가**다.
+ *
+ * **하나로 합치면 반드시 한쪽이 거짓이 된다.** 실제로 그랬다 — 화면이 머리글을 뺀
+ * 줄 수와 머리글을 포함한 줄 수를 견주고 있어서, 머리글을 쓰는 **모든** 파일에서
+ * 안내가 떴다. 다섯 줄짜리 파일이 다섯 줄을 다 보여주면서 `처음 5행만 보여 줍니다`
+ * 라고 적었다 (2026-08-29 전 경로 감사).
+ *
+ * @param shown 지금 그린 줄 수(머리글은 뺀 것)
+ * @param read 파일에서 실제로 읽어 온 줄 수(머리글을 포함한 것)
+ */
+export function probeNote(shown: number, read: number, cap: number = PREVIEW_ROW_COUNT): number {
+  return read > cap ? shown : 0
+}

@@ -6,8 +6,10 @@ import { decodeText, detectEncoding } from '../src/data/encoding'
 import {
   importTable,
   openTable,
+  PREVIEW_PROBE_ROWS,
   previewNote,
   previewTable,
+  probeNote,
   sourceFromFileName,
 } from '../src/data/table'
 import { isClientError } from '../src/errors'
@@ -255,5 +257,35 @@ describe('앞부분만 보여준다는 안내', () => {
 
   it('잘랐으면 그린 줄 수를 준다 - 전체 줄 수가 아니다', () => {
     expect(previewNote(PREVIEW_ROW_COUNT, 5000)).toBe(PREVIEW_ROW_COUNT)
+  })
+})
+
+/**
+ * **확정 전에는 재는 것이 다르다.** 전체 행 수라는 값이 없으므로(앞부분만 파싱했다)
+ * 볼 수 있는 것은 **캡을 넘겨 읽혔는가**뿐이다 (architecture.md §8.9).
+ *
+ * 한때 화면이 `previewNote`에 **머리글을 뺀 줄 수와 머리글을 포함한 줄 수**를 견주고
+ * 있었다. 둘은 머리글을 쓰면 언제나 하나 차이라 **모든 파일에서 안내가 떴다** —
+ * 다섯 줄짜리 파일이 다섯 줄을 다 보여주면서 "처음 5행만 보여 줍니다"라고 적었다
+ * (2026-08-29 전 경로 감사).
+ */
+describe('확정 전 안내', () => {
+  it('한 줄 더 읽어 둔다 - 그래야 "딱 그만큼인 파일"과 갈린다', () => {
+    expect(PREVIEW_PROBE_ROWS).toBe(PREVIEW_ROW_COUNT + 1)
+  })
+
+  it('캡만큼만 읽혔으면 0이다 - 파일이 거기서 끝났다', () => {
+    expect(probeNote(PREVIEW_ROW_COUNT, PREVIEW_ROW_COUNT)).toBe(0)
+  })
+
+  it('캡보다 적게 읽혔으면 0이다 - 머리글 한 줄 차이로 뜨면 안 된다', () => {
+    // 다섯 줄 + 머리글을 읽어 다섯 행을 그린 자리. 전부 보여주고 있다.
+    expect(probeNote(5, 6)).toBe(0)
+  })
+
+  it('캡을 넘겨 읽혔으면 그린 줄 수를 준다 - 읽은 줄 수가 아니다', () => {
+    expect(probeNote(PREVIEW_ROW_COUNT, PREVIEW_PROBE_ROWS)).toBe(PREVIEW_ROW_COUNT)
+    // 머리글을 쓰면 그린 줄이 하나 적고, 문장에 들어갈 것은 그 수다.
+    expect(probeNote(PREVIEW_ROW_COUNT - 1, PREVIEW_PROBE_ROWS)).toBe(PREVIEW_ROW_COUNT - 1)
   })
 })

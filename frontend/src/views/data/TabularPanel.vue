@@ -31,7 +31,15 @@ import StepActionBar from '@/components/StepActionBar.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { summarizeColumns, toDataset, type ColumnSummary } from '@/data/columns'
-import { importTable, openTable, previewNote, previewTable, type TableDocument } from '@/data/table'
+import {
+  importTable,
+  openTable,
+  previewNote,
+  PREVIEW_PROBE_ROWS,
+  previewTable,
+  probeNote,
+  type TableDocument,
+} from '@/data/table'
 import ColumnInspector from './ColumnInspector.vue'
 import { PREVIEW_ROW_COUNT } from '@/limits'
 import { applyDataset, readDataset } from '@/project/dataset'
@@ -64,10 +72,14 @@ const inspecting = ref(false)
 
 const experimentCount = computed(() => project.file?.document.runs.experiments.length ?? 0)
 
+/**
+ * 파일에서 읽어 온 줄. **그릴 것보다 한 줄 더 읽는다** (`PREVIEW_PROBE_ROWS`) —
+ * 더 있는지를 그 한 줄이 답한다.
+ */
 const previewRows = computed(() => {
   const document = opened.value?.document
   if (!document) return []
-  const sheets = previewTable(document)
+  const sheets = previewTable(document, PREVIEW_PROBE_ROWS)
   return sheets.find((sheet) => sheet.sheetName === sheetName.value)?.rows ?? sheets[0]?.rows ?? []
 })
 
@@ -82,7 +94,8 @@ const saved = computed(() => {
 /** 지금 화면에 그릴 표. 파일을 고르는 중이면 그쪽이 이긴다. */
 const shown = computed(() => {
   if (opened.value) {
-    const dataset = toDataset(previewRows.value, hasHeader.value)
+    // **재려고 읽은 마지막 줄은 안 그린다.** 그리면 캡보다 한 줄 많은 표가 된다.
+    const dataset = toDataset(previewRows.value.slice(0, PREVIEW_ROW_COUNT), hasHeader.value)
     return { dataset, columns: summarizeColumns(dataset), draft: true }
   }
   if (saved.value) {
@@ -97,13 +110,25 @@ const shown = computed(() => {
   return null
 })
 
-/** 표를 잘라서 보여주고 있으면 그린 줄 수. 판정은 `previewNote`가 한다. */
-const truncated = computed(() =>
-  previewNote(
-    shown.value?.dataset.rows.length ?? 0,
-    opened.value ? previewRows.value.length : (saved.value?.dataset.rows.length ?? 0),
-  ),
-)
+/**
+ * 표 아래 한 줄. **확정 전과 뒤가 다른 말이다** (architecture.md §8.9).
+ *
+ * 확정 전에는 앞부분만 파싱했으므로 전체 행 수라는 값이 없다 — 말할 수 있는 것은
+ * *여기까지만 읽었고 옆의 숫자는 이것을 센 값이다*뿐이다. 확정 뒤에야 *전체 중 앞
+ * N행을 그렸다*가 성립한다.
+ *
+ * **판정은 둘 다 화면 밖이다** (`data/table.ts`). 여기 `computed`에 두면 검사가 못
+ * 잡고, 실제로 그래서 한 번 거짓말했다.
+ */
+const previewCaption = computed<{ key: string; count: number } | null>(() => {
+  const rows = shown.value?.dataset.rows.length ?? 0
+  if (opened.value) {
+    const count = probeNote(rows, previewRows.value.length)
+    return count === 0 ? null : { key: 'data.tabular.previewProbeNote', count }
+  }
+  const count = previewNote(rows, saved.value?.dataset.rows.length ?? 0)
+  return count === 0 ? null : { key: 'data.tabular.previewNote', count }
+})
 
 async function readFile(file: File): Promise<void> {
   busy.value = true
@@ -356,9 +381,12 @@ function kindOf(column: ColumnSummary): string {
       </aside>
     </div>
 
-    <!-- **자른 경우에만 말한다.** 20줄짜리 파일에 "처음 20줄만"은 거짓말이다. -->
-    <p v-if="truncated" class="shrink-0 text-base text-ink-faint">
-      {{ t('data.tabular.previewNote', truncated) }}
+    <!--
+      **자른 경우에만 말한다.** 20줄짜리 파일에 "처음 20줄만"은 거짓말이다.
+      어느 문장인지는 `previewCaption`이 고른다 — 확정 전과 뒤가 다른 말이다.
+    -->
+    <p v-if="previewCaption" class="shrink-0 text-base text-ink-faint">
+      {{ t(previewCaption.key, previewCaption.count) }}
     </p>
 
     <!--
