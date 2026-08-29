@@ -136,7 +136,11 @@ const shown = computed(() =>
           <AppButton variant="ghost" class="-mx-2 -my-2.5" @click="emit('rename')">
             {{ t('data.image.rename') }}
           </AppButton>
-          <AppButton variant="ghost" class="-mx-2 -my-2.5" @click="emit('remove')">
+          <!--
+            **셋 중 이것만 되돌릴 수 없다.** 같은 무게로 서면 손이 미끄러지는 자리라
+            색으로 가른다 (2026-08-29 화면 실측 C-7).
+          -->
+          <AppButton variant="ghost-danger" class="-mx-2 -my-2.5" @click="emit('remove')">
             {{ t('data.image.removeCategory') }}
           </AppButton>
         </template>
@@ -189,12 +193,16 @@ const shown = computed(() =>
           <!--
             **`loading="lazy"`가 아니면 저사양 교실 PC가 멈춘다.** 사진 수백 장의 디코딩이
             한 번에 몰린다. `aspect-square`인 이유는 정본이 정사각형이기 때문이다.
+
+            **테두리를 준다** (2026-08-29 화면 실측 C-7). 배경이 흰 사진은 카드 바탕과
+            이어져 **경계가 사라지고, 그러면 몇 장인지도 안 보인다.** 종이에 그린 것을
+            찍어 올리는 수업에서 그게 흔한 모양이다.
           -->
           <img
             :src="props.urls.get(entry.hash)"
             :alt="props.label"
             loading="lazy"
-            class="aspect-square w-full bg-surface-sunken object-cover"
+            class="aspect-square w-full rounded-control border border-line bg-surface-sunken object-cover"
           />
         </button>
       </li>

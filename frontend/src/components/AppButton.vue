@@ -26,7 +26,7 @@
 
 import { computed, ref } from 'vue'
 
-type Variant = 'primary' | 'secondary' | 'subtle' | 'ghost' | 'danger'
+type Variant = 'primary' | 'secondary' | 'subtle' | 'ghost' | 'ghost-danger' | 'danger'
 type Size = 'md' | 'lg'
 
 const props = withDefaults(
@@ -102,6 +102,13 @@ const VARIANTS: Readonly<Record<Variant, string>> = {
   ghost:
     'border border-transparent text-ink-soft underline decoration-1 underline-offset-4 hover:bg-surface-sunken hover:text-ink',
   danger: 'border border-danger bg-danger text-ink-invert shadow-card hover:brightness-95',
+  /**
+   * **되돌릴 수 없는 것이 줄에 섞여 설 때** (2026-08-29 화면 실측 C-7). 범주 머리 줄의
+   * `범주 지우기`가 `이름 바꾸기`와 같은 무게로 서 있었다 — 셋을 채운 버튼으로 바꾸면
+   * 머리 줄이 무거워지므로(그래서 `ghost`다) **색으로만 가른다.**
+   */
+  'ghost-danger':
+    'border border-transparent text-danger underline decoration-1 underline-offset-4 hover:bg-danger-soft',
 }
 
 const SIZES: Readonly<Record<Size, string>> = {
