@@ -962,7 +962,7 @@ async function removeTest(): Promise<void> {
   <AppDialog
     :open="testAttaching"
     :title="t('preprocess.tabular.testDataAttachTitle')"
-    :description="t('preprocess.tabular.testDataAttachDescription', experimentCount)"
+    :description="t('preprocess.testDataAttachDescription', experimentCount)"
     @close="testAttaching = false"
   >
     <template #actions>

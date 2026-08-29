@@ -133,6 +133,15 @@ const experimentCount = computed(() => project.file?.document.runs.experiments.l
 
 /** 확인 모달이 떠 있는가. */
 const testRemoving = ref(false)
+const testAttaching = ref(false)
+
+/**
+ * 물어보는 동안 들고 있는 사진들. **확인을 받으면 이것을 굽는다.**
+ *
+ * 굽기 전에 묻는 이유는 `takeTest`의 머리말과 같다 — 굽고 나서 거절당하면 학생은
+ * 기다린 시간을 통째로 버린다.
+ */
+const pendingTest = ref<readonly UploadItem[] | null>(null)
 
 /**
  * "①"을 고른다. **올려 둔 사진이 있으면 그것을 지우는 일이다** — 실험까지 함께
@@ -153,6 +162,38 @@ function chooseHoldout(): void {
 /** "②"를 고른다. **아직 아무 일도 하지 않는다** — 올리는 자리를 펼칠 뿐이다. */
 function chooseProvided(): void {
   manualTestChoice.value = 'provided'
+}
+
+/**
+ * 올리기 요청. **지울 실험이 있으면 먼저 물어본다** — 표가 같은 자리에서 같은 것을
+ * 묻는다 (`TabularPrepPanel`의 `requestApplyTest`).
+ *
+ * 전에는 여기만 안 묻고 올린 뒤에 "지웠습니다"라고 알렸다. 같은 판의 [지우기]는
+ * 묻는데 [올리기]는 안 묻는 상태였다 (2026-08-29 전 경로 감사).
+ */
+async function requestTakeTest(items: readonly UploadItem[]): Promise<void> {
+  if (items.length === 0) return
+  if (experimentCount.value > 0) {
+    pendingTest.value = items
+    testAttaching.value = true
+    return
+  }
+  await takeTest(items)
+}
+
+/** 취소. **들고 있던 것을 놓는다** — 사진 파일을 계속 붙들고 있을 이유가 없다. */
+function cancelTakeTest(): void {
+  testAttaching.value = false
+  pendingTest.value = null
+}
+
+/** 확인을 받았다. 들고 있던 것을 굽는다. */
+async function confirmTakeTest(): Promise<void> {
+  const items = pendingTest.value
+  if (!items) return
+  testAttaching.value = false
+  pendingTest.value = null
+  await takeTest(items)
 }
 
 /** 되돌리기 요청. 지울 실험이 있으면 먼저 물어본다. */
@@ -270,7 +311,7 @@ async function readTest(files: readonly File[]): Promise<void> {
             expect: categories.value,
           })
         : readImageFiles(files)
-    await takeTest(items)
+    await requestTakeTest(items)
   } catch (error) {
     toasts.pushError(error)
   }
@@ -520,6 +561,28 @@ function onStratify(event: Event): void {
       </div>
     </section>
   </div>
+
+  <!--
+    **올릴 때도 실험이 함께 사라진다.** 전에는 이 자리만 안 묻고 올린 뒤에 알렸다 —
+    같은 판의 [지우기]는 묻는데 [올리기]는 안 묻는 상태였다(전 경로 감사). 설명문은
+    표와 같은 것을 쓴다(`preprocess.testDataAttachDescription`) — 사라지는 것도
+    사라지는 이유도 종류를 안 가린다.
+  -->
+  <AppDialog
+    :open="testAttaching"
+    :title="t('preprocess.testImagesAttachTitle')"
+    :description="t('preprocess.testDataAttachDescription', experimentCount)"
+    @close="cancelTakeTest"
+  >
+    <template #actions>
+      <AppButton variant="secondary" @click="cancelTakeTest">
+        {{ t('common.cancel') }}
+      </AppButton>
+      <AppButton variant="danger" :disabled="busy" :action="confirmTakeTest">
+        {{ t('preprocess.testImagesAttachConfirm') }}
+      </AppButton>
+    </template>
+  </AppDialog>
 
   <!--
     **되돌리면 실험이 함께 사라진다.** 표가 같은 자리에서 같은 것을 묻는다

@@ -1091,6 +1091,56 @@ describe('나열에서 이름은 배지, 값은 plaintext다', () => {
   })
 })
 
+/**
+ * **테스트 데이터를 바꾸는 일은 실험을 지운다. 판이 둘이어도 계약은 하나여야 한다.**
+ *
+ * 이미지 판은 붙일 때만 안 묻고 올린 뒤에 "지웠습니다"라고 알렸다 — 같은 판의
+ * [지우기]는 묻는데 [올리기]는 안 묻는 상태였다 (2026-08-29 전 경로 감사).
+ * **조각마다 초록인데 잇는 검사가 없던 자리다.**
+ */
+describe('전처리 판은 붙일 때도 뗄 때도 묻는다', () => {
+  const PANELS = ['preprocess/TabularPrepPanel.vue', 'preprocess/ImagePrepPanel.vue']
+
+  /** 확인 대화상자가 실험 수를 세어 말하는가. 세는 자리가 곧 묻는 자리다. */
+  function asksBeforeLosingExperiments(source: string): {
+    counts: boolean
+    attach: boolean
+    remove: boolean
+  } {
+    const code = withoutComments(source).join('\n')
+    return {
+      counts: /experimentCount\.value > 0/.test(code),
+      attach: /Attach(Title|Confirm)'\)/.test(code),
+      remove: /Remove(Title|Confirm)'\)/.test(code),
+    }
+  }
+
+  it('묻지 않는 판을 잡는다', () => {
+    const source = ["t('preprocess.testImagesRemoveTitle')", 'if (count > 0) return'].join('\n')
+    expect(asksBeforeLosingExperiments(source)).toEqual({
+      counts: false,
+      attach: false,
+      remove: true,
+    })
+  })
+
+  it('주석으로만 적어 둔 것은 안 센다', () => {
+    const source = "// t('preprocess.testImagesAttachTitle')를 붙여야 한다"
+    expect(asksBeforeLosingExperiments(source).attach).toBe(false)
+  })
+
+  it('지금 두 판이 둘 다 묻는다', () => {
+    const found = PANELS.map((name) => ({
+      name,
+      asks: asksBeforeLosingExperiments(readFileSync(join(SRC, 'views', name), 'utf-8')),
+    }))
+      .filter((entry) => !entry.asks.counts || !entry.asks.attach || !entry.asks.remove)
+      .map((entry) => `${entry.name}  ${JSON.stringify(entry.asks)}`)
+
+    expect(found).toEqual([])
+  })
+})
+
 describe('상세 패널은 프롭을 하나만 선언한다', () => {
   const PANELS = join(SRC, 'views', 'results', 'panels')
 
