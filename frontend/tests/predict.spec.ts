@@ -119,7 +119,7 @@ function fitFor(subject: Experiment) {
   )
 }
 
-/** 원본 행을 그대로 칸에 넣은 것. 학생이 [데이터에서 한 줄 가져오기]를 누른 상태다. */
+/** 원본 행을 그대로 칸에 넣은 것. 학생이 [무작위로 하나 가져오기]를 누른 상태다. */
 function cellsOf(row: number): Record<string, string> {
   const values: Record<string, string> = {}
   dataset.columns.forEach((name, column) => {

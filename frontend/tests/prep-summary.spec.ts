@@ -114,7 +114,7 @@ describe('전처리 요약', () => {
 
     // 전체 행 수는 계획이 못 서도 안다 - 정본을 읽은 것이 곧 그 숫자다.
     expect(text).toContain('4행')
-    expect(text).toContain('기계학습 유형을 고르면 정해집니다.')
+    expect(text).toContain('기계학습 유형을 선택하면 정해집니다.')
     // 로케일 키가 그대로 뜨는 것까지 막는다 (대시보드 검사와 같은 그물이다).
     expect(text).not.toMatch(/preprocess[.]\w+/)
   })
@@ -127,7 +127,7 @@ describe('전처리 요약', () => {
     expect(text).toContain('훈련 데이터')
     expect(text).toContain('3행')
     expect(text).toContain('1행')
-    expect(text).toContain('채운 값과 스케일링 기준은 훈련 데이터에서만 구합니다.')
+    expect(text).toContain('대체한 값과 스케일링 기준은 훈련 데이터에서만 구합니다.')
   })
 
   /**
@@ -143,7 +143,7 @@ describe('전처리 요약', () => {
     document = withPreprocessing(document, { missing: 'none' }, NOW)
 
     const text = mountSummary({ ...file, document }).text()
-    expect(text).toContain('빈 칸')
+    expect(text).toContain('결측치')
     expect(text).not.toMatch(/errors[.]\w+/)
   })
 })
@@ -188,8 +188,8 @@ describe('열 표의 전처리 칸', () => {
     document = withPreprocessing(document, { missing: 'median' }, NOW)
 
     const text = pickerFor({ ...file, document }).text()
-    // 채울 것이 있는 열에만 뜬다. 빈 칸이 없는 열에 값을 보여주면 거기도 비어 보인다.
-    expect(text).toContain('빈 칸 →')
+    // 대체할 것이 있는 열에만 뜬다. 결측치가 없는 열에 값을 보여주면 거기도 비어 보인다.
+    expect(text).toContain('결측치 →')
   })
 
   /**

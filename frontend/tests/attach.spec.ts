@@ -289,7 +289,7 @@ describe('끝난 실험을 프로젝트에 앉힌다', () => {
       'experiment-1',
       'experiment-2',
     ])
-    // 먼저 담은 모델이 그대로 있다. 새 엔트리가 옛것을 밀어내지 않는다.
+    // 먼저 추가한 모델이 그대로 있다. 새 엔트리가 옛것을 밀어내지 않는다.
     expect(next.models.size).toBeGreaterThan(started.models.size)
     for (const path of started.models.keys()) expect(next.models.has(path)).toBe(true)
   })

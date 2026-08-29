@@ -328,7 +328,7 @@ describe('모델 참조가 어긋난 파일', () => {
     expect(reopened.document.runs.experiments[0]?.runs[0]?.model).toBeUndefined()
   })
 
-  it('전처리를 자기 안에 담은 모델은 전처리기가 없어도 남는다', async () => {
+  it('전처리를 자기 안에 포함한 모델은 전처리기가 없어도 남는다', async () => {
     // 지금 형식은 전부 includesPreprocessing: false라 이 경로가 안 돌지만, mlpx-spec.md 5의
     // onnx-v1은 "전처리 그래프에 포함"이다. 규칙이 없으면 V5에서 멀쩡한 모델이 조용히
     // 떨어지고 아무도 이유를 모른다. 형식 이름이 아니라 모델이 든 불리언이 정한다.

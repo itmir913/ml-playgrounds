@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 담은 모델들. **(모델, 실행 방법) 쌍으로 쌓인다** (mlpx-spec.md §3).
+ * 추가한 모델들. **(모델, 실행 방법) 쌍으로 쌓인다** (mlpx-spec.md §3).
  *
  * 체크박스 목록이 아닌 이유는 **같은 모델을 실행 방법만 바꿔 여러 번 담을 수 있어야
  * 하기 때문이다.** "순수 JS 결정 트리 + scikit-learn 결정 트리"를 한 실험에 나란히 놓고
@@ -162,7 +162,7 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
     <h3 class="font-bold text-ink-soft">{{ t('train.chosenTitle') }}</h3>
 
     <!--
-      **제목 바로 아래다.** 목록 끝에 두었더니 담은 모델이 많을 때 세는 말이 화면 밖으로
+      **제목 바로 아래다.** 목록 끝에 두었더니 추가한 모델이 많을 때 세는 말이 화면 밖으로
       나가, 정작 몇 개인지 궁금한 순간에 안 보였다. 왼쪽 축의 `제목 + 힌트`와도 같은
       리듬이 된다(`AppChoices`).
     -->

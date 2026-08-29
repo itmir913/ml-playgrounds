@@ -168,7 +168,7 @@ describe('워커 안의 처리', () => {
     }
   })
 
-  it('끝 보고가 방금 담은 모델을 싣는다 - 취소하면 워커와 함께 사라진다', () => {
+  it('끝 보고가 방금 추가한 모델을 싣는다 - 취소하면 워커와 함께 사라진다', () => {
     const finished = collect(requestFor()).filter((message) => message.type === 'progress')
     expect(finished).not.toHaveLength(0)
     // 담기는 알고리즘이 하나라도 있으면 그 자리에 모델이 실린다. 직렬화기가 없는

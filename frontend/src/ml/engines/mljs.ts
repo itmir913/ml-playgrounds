@@ -589,7 +589,7 @@ const TRAINERS: Record<string, Trainer> = {
    * multinomial(softmax), 이진은 binomial로 풀어 ±절반 두 줄로 담는다 (mlpx-spec.md
    * 5.4.1). maxIter에 닿으면 sklearn의 ConvergenceWarning 자리에서 경고가 붙는다.
    *
-   * **예측은 담은 모델의 해석기를 그대로 쓴다** - KNN·SVM과 같은 방식이고, 그래서
+   * **예측은 추가한 모델의 해석기를 그대로 쓴다** - KNN·SVM과 같은 방식이고, 그래서
    * 저장했다 읽은 모델의 예측이 원본과 같은 것이 구조로 보장된다.
    */
   logistic_regression: (input) => {
@@ -647,7 +647,7 @@ const TRAINERS: Record<string, Trainer> = {
    * 인터페이스에 있는 이유는 분류·회귀와 같은 시그니처를 쓰기 위해서이고,
    * 여기서 target을 읽지 않는 것이 그 사실을 드러낸다.
    *
-   * **예측은 담은 모델의 해석기를 그대로 쓴다** — KNN·SVM·로지스틱과 같은 방식이고,
+   * **예측은 추가한 모델의 해석기를 그대로 쓴다** — KNN·SVM·로지스틱과 같은 방식이고,
    * 그래서 저장했다 읽은 모델의 예측이 원본과 같은 것이 구조로 보장된다. 같은 규칙을
    * 두 번 적으면 동점 처리나 featureCount 취급이 한쪽만 바뀌었을 때 저장 전후 예측이
    * 갈라지고, 그 어긋남은 파일을 다시 열어야 보인다.

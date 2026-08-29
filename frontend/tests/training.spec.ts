@@ -129,7 +129,7 @@ describe('학습이 도는 동안', () => {
     expect(training.progress.value).toBeNull()
   })
 
-  it('담은 모델마다 상태를 들고 있다 - 끝난 개수로는 누가 오래 걸리는지 모른다', async () => {
+  it('추가한 모델마다 상태를 들고 있다 - 끝난 개수로는 누가 오래 걸리는지 모른다', async () => {
     const { training, latest } = harness()
     const done = training.run(requestFor(3))
 

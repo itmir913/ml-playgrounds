@@ -58,7 +58,7 @@ export type WorkerMessage =
       completed: number
       total: number
       /**
-       * 방금 담은 모델. **없는 것이 정상이다** — 실패한 run과 직렬화기가 없는 알고리즘은
+       * 방금 추가한 모델. **없는 것이 정상이다** — 실패한 run과 직렬화기가 없는 알고리즘은
        * 지표만 남는다 (mlpx-spec.md §4.2).
        *
        * **여기 실리지 않으면 취소가 아무것도 못 건진다.** 모델은 `done`에 몰려 가는데

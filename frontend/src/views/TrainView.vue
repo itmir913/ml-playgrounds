@@ -330,7 +330,7 @@ const preparing = ref<{
   fraction?: number
 } | null>(null)
 
-/** 담은 모델이 없으면 돌릴 것이 없다. 나머지 실패는 학습이 사유와 함께 돌려준다. */
+/** 추가한 모델이 없으면 돌릴 것이 없다. 나머지 실패는 학습이 사유와 함께 돌려준다. */
 const nothingToTrain = computed(() => chosen.value.length === 0)
 
 /**

@@ -113,7 +113,7 @@ export interface ExperimentOptions {
     total: number,
     index: number,
     /**
-     * 방금 담은 모델. **없는 것이 정상이다** — 실패한 run과 직렬화기가 없는 알고리즘은
+     * 방금 추가한 모델. **없는 것이 정상이다** — 실패한 run과 직렬화기가 없는 알고리즘은
      * 지표만 남는다 (아래 `ExperimentResult.models`).
      *
      * **여기서 함께 넘기지 않으면 취소가 아무것도 못 건진다.** 모델은 `done`에서 한꺼번에
@@ -162,7 +162,7 @@ export interface ExperimentResult {
    */
   preprocessor: Preprocessor
   /**
-   * run id -> 우리 형식으로 담은 모델. **전처리기와 같은 이유로 따로 돌려준다.**
+   * run id -> 우리 형식으로 추가한 모델. **전처리기와 같은 이유로 따로 돌려준다.**
    *
    * 여기 없는 run이 있는 것이 정상이다 - 직렬화기가 없는 알고리즘은 지표만 남고,
    * 그 사유는 run.modelOmitted에 적혀 있다 (mlpx-spec.md 4.2).

@@ -65,7 +65,7 @@ export function useTraining(createWorker: () => TrainWorker) {
   const running = computed(() => progress.value !== null)
 
   /**
-   * 담은 모델마다의 상태 (architecture.md §8.17). **자리는 `selectedAlgorithms`와 같다.**
+   * 추가한 모델마다의 상태 (architecture.md §8.17). **자리는 `selectedAlgorithms`와 같다.**
    *
    * **학습이 끝나면 비운다.** 결과는 결과 화면이 말하는 것이고, 학습 화면에 남겨 두면
    * 같은 사실을 두 화면이 각자 들고 있게 된다. 이 목록이 말하는 것은 지금 도는 학습이다.

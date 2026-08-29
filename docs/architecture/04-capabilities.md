@@ -502,7 +502,7 @@ function trainGate(facts: ProjectFacts, selection: SelectionResult, runtime: Run
 
 **아직 `trainGate`는 없다 (2026-08-07).** 만들지 않았고, 그것이 맞다.
 
-세어 보니 `[학습하기]` 버튼이 지금 보는 조건은 **하나뿐이다** — 담은 모델이 0개인가
+세어 보니 `[학습하기]` 버튼이 지금 보는 조건은 **하나뿐이다** — 추가한 모델이 0개인가
 (`nothingToTrain`). 나머지는 이미 다른 자리에 흩어져 있고 **그게 옳은 자리다.**
 
 - 데이터·타깃·특성이 없으면 **단계가 잠겨 이 화면에 못 온다** (`router/steps.ts`).

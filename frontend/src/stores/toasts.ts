@@ -38,7 +38,7 @@ export interface Toast {
  *
  * 나머지 셋은 전부 **학생이 모르면 다음 판단이 틀어지는 것**이다. 실패(`danger`)는
  * 무엇이 왜 안 됐는지이고, `caution`은 **몰래 빠진 것**이다 — 읽지 못한 파일, 선택에서
- * 빠진 열, 담지 못한 모델, 꺼진 비율 맞추기. `info`도 지금 하나뿐인데 같은 성질이다
+ * 빠진 열, 저장하지 못한 모델, 꺼진 범주 비율 유지. `info`도 지금 하나뿐인데 같은 성질이다
  * ("이미 있는 사진 {count}장은 넘어갔습니다" — 40장을 올렸는데 12장만 늘어난 이유).
  */
 const AUTO_DISMISS: ReadonlySet<ToastTone> = new Set<ToastTone>(['success'])
