@@ -55,7 +55,7 @@ export interface TrainingSourceInput {
   readonly project: ProjectFile
   readonly taskType: TaskType
   /** 준비 단계가 넘어갈 때마다. 백본을 받는 동안 화면이 할 말이 여기서 나온다. */
-  readonly onPrepare?: (state: EngineState) => void
+  readonly onPrepare?: (state: EngineState, fraction?: number) => void
   /** 사진 하나가 끝날 때마다. 백분율은 받는 쪽이 만든다. */
   readonly onProgress?: (completed: number, total: number) => void
   /**

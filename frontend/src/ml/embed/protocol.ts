@@ -43,7 +43,15 @@ export interface EmbedRequest {
  */
 export type EmbedMessage =
   /** 준비 단계가 넘어갔다. `absent → downloading → downloaded → ready` (ml/backend.ts). */
-  | { type: 'preparing'; state: EngineState }
+  | {
+      type: 'preparing'
+      state: EngineState
+      /**
+       * 내려받은 비율(0~1). **`downloading`에서만 오고, 그때도 올 때만 온다** —
+       * TF.js가 `onProgress`를 부르기 전에는 아직 아무것도 모른다.
+       */
+      fraction?: number
+    }
   /** 사진 하나가 끝났다. 백분율은 받는 쪽이 만든다 — 학습 워커와 같은 규칙이다. */
   | { type: 'progress'; completed: number; total: number }
   /**

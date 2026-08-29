@@ -329,3 +329,40 @@ describe('임베딩 캔버스가 앞 사진을 안 물려준다', () => {
     expect(SOURCE).toMatch(/bitmap\.width !== size \|\| bitmap\.height !== size/)
   })
 })
+
+/**
+ * **백본을 받는 동안 얼마나 왔는지 흘린다** (2026-08-29 화면 실측 C-7).
+ *
+ * 12.4MB라 학교 회선에서는 이 구간이 몇십 초를 덮는데, 화면이 문장 하나로 서 있으면
+ * 학생은 멈춘 줄 안다. TF.js의 `onProgress`가 주는 값이 여기까지 와야 화면이 말할 수
+ * 있다 — **주는 쪽과 받는 쪽 사이에 자리가 넷이라, 하나만 빠져도 조용히 안 온다.**
+ */
+describe('내려받는 비율이 화면까지 온다', () => {
+  it('핸들러가 비율을 그대로 흘린다', async () => {
+    const messages = await collect(
+      requestFor(1),
+      fakeRunner({
+        prepare: async (_target, onState) => {
+          onState('downloading')
+          onState('downloading', 0.42)
+          onState('ready')
+        },
+      }),
+    )
+    const preparing = messages.filter((message) => message.type === 'preparing')
+
+    expect(preparing.map((message) => message.fraction)).toEqual([undefined, 0.42, undefined])
+  })
+
+  /**
+   * **비율이 없는 것과 0인 것은 다르다.** 아직 아무것도 모르는 상태를 0%로 그리면
+   * 학생은 멈췄다고 읽는다 — `protocol.ts`가 이 필드를 선택으로 둔 이유다.
+   */
+  it('안 주면 필드가 아예 없다', async () => {
+    const messages = await collect(requestFor(1))
+    const preparing = messages.filter((message) => message.type === 'preparing')
+
+    expect(preparing.length).toBeGreaterThan(0)
+    for (const message of preparing) expect('fraction' in message).toBe(false)
+  })
+})

@@ -23,7 +23,10 @@ export interface RunnerTarget {
 
 export interface BackboneRunner {
   /** 내려받고 백엔드를 띄운다. 단계가 넘어갈 때마다 알린다. */
-  prepare(target: RunnerTarget, onState: (state: EngineState) => void): Promise<void>
+  prepare(
+    target: RunnerTarget,
+    onState: (state: EngineState, fraction?: number) => void,
+  ): Promise<void>
   /** 사진 하나마다 벡터 하나. 결과는 이어 붙인 배열 하나다. */
   embed(
     target: RunnerTarget,
@@ -107,7 +110,12 @@ export function createTfjsRunner(): BackboneRunner {
       }
       if (!chosen) throw new Error('이 브라우저에서 쓸 수 있는 TF.js 백엔드가 없다')
 
-      model = await converter.loadGraphModel(target.modelUrl)
+      // **받는 동안 얼마나 왔는지 말한다** (2026-08-29 화면 실측 C-7). 백본이
+      // 12.4MB라 학교 회선에서는 이 한 줄이 몇십 초를 덮고, 그동안 화면이 문장
+      // 하나로 서 있으면 학생은 멈춘 줄 안다.
+      model = await converter.loadGraphModel(target.modelUrl, {
+        onProgress: (fraction) => onState('downloading', fraction),
+      })
       onState('downloaded')
 
       // 워밍업. WebGL은 셰이더를 여기서 컴파일하고, 실측에서 6.4초가 들었다.

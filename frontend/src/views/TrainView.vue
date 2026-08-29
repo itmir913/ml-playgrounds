@@ -90,9 +90,16 @@ const preparingText = computed(() => {
   const now = preparing.value
   if (!now) return ''
   const key = kind.value?.preparingKey
-  return now.total > 0 && key !== undefined
-    ? t(key, { done: now.completed, total: now.total })
-    : t(kind.value?.engineStateKeys?.[now.state] ?? `engineState.${now.state}`)
+  if (now.total > 0 && key !== undefined) {
+    return t(key, { done: now.completed, total: now.total })
+  }
+  // **비율을 아는 동안에는 그것도 말한다** (2026-08-29 화면 실측 C-7). 문구 키는
+  // 종류가 갖는다 — 이 화면은 무엇을 받는 중인지 모른다.
+  const percentKey = kind.value?.engineDownloadingWithPercent
+  if (now.fraction !== undefined && percentKey !== undefined) {
+    return t(percentKey, { percent: format.percent(now.fraction) })
+  }
+  return t(kind.value?.engineStateKeys?.[now.state] ?? `engineState.${now.state}`)
 })
 
 const dataset = computed(() => readDataset(project.file))
@@ -315,7 +322,13 @@ const failureDetailText = computed(() => {
  * 이미지는 백본을 받고(12.4MB) 사진을 한 장씩 통과시키는 동안 아무 일도 안 일어나는
  * 것처럼 보인다. 그 시간을 진행률 0%로 두면 학생은 멈춘 줄 알고 새로고침을 누른다.
  */
-const preparing = ref<{ state: EngineState; completed: number; total: number } | null>(null)
+const preparing = ref<{
+  state: EngineState
+  completed: number
+  total: number
+  /** 내려받은 비율(0~1). TF.js가 알려 줄 때만 있다. */
+  fraction?: number
+} | null>(null)
 
 /** 담은 모델이 없으면 돌릴 것이 없다. 나머지 실패는 학습이 사유와 함께 돌려준다. */
 const nothingToTrain = computed(() => chosen.value.length === 0)
@@ -347,8 +360,13 @@ async function startTraining(): Promise<void> {
     const source = await trainingSourceOf({
       project: file,
       taskType,
-      onPrepare: (state) => {
-        preparing.value = { state, completed: 0, total: 0 }
+      onPrepare: (state, fraction) => {
+        preparing.value = {
+          state,
+          completed: 0,
+          total: 0,
+          ...(fraction === undefined ? {} : { fraction }),
+        }
       },
       onProgress: (completed, total) => {
         preparing.value = { state: 'ready', completed, total }

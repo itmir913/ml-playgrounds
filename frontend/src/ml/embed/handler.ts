@@ -32,7 +32,9 @@ export async function handleEmbed(
   const runner = createRunner()
   const target = { spec, modelUrl: request.modelUrl }
   try {
-    await runner.prepare(target, (state) => emit({ type: 'preparing', state }))
+    await runner.prepare(target, (state, fraction) =>
+      emit({ type: 'preparing', state, ...(fraction === undefined ? {} : { fraction }) }),
+    )
     const vectors = await runner.embed(target, request.images, (completed) =>
       emit({ type: 'progress', completed, total: request.images.length }),
     )

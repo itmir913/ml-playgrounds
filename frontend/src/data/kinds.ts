@@ -112,6 +112,13 @@ export interface DataKind {
    */
   readonly engineStateKeys?: Readonly<Record<EngineState, string>>
   /**
+   * 내려받은 비율을 아는 동안 쓸 문구. **`engineStateKeys.downloading`을 대신한다.**
+   *
+   * 상태만 말하는 문장은 몇십 초를 덮는 동안 아무것도 안 바뀐다 — 학생은 멈춘 줄
+   * 안다 (2026-08-29 화면 실측 C-7). 비율은 TF.js가 줄 때만 오므로 **문구도 둘이다.**
+   */
+  readonly engineDownloadingWithPercent?: string
+  /**
    * 프로젝트 요약에서 **이 종류만 답할 수 있는 줄들** (`components/ProjectSummary.vue`).
    *
    * 표는 파일 이름·행·열·타깃·특성이고 이미지는 사진 수·범주 수다. 요약 화면이 그걸
@@ -218,6 +225,7 @@ export const DATA_KINDS: readonly DataKind[] = [
       // 받아 놓은 뒤 사진을 통과시키기 시작하는 순간이다. 곧 세는 문구로 바뀐다.
       ready: 'meta.image.engineReady',
     },
+    engineDownloadingWithPercent: 'meta.image.engineDownloadingPercent',
     summaryRows: defineAsyncComponent(() => import('@/components/summary/ImageSummaryRows.vue')),
   },
 ]

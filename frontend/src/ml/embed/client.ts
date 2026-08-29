@@ -28,7 +28,7 @@ export interface EmbedWorker {
 export interface EmbedOptions {
   createWorker: () => EmbedWorker
   /** 준비 단계가 넘어갈 때마다. 12.4MB를 받는 동안 화면이 할 말이 여기서 나온다. */
-  onState?: (state: EngineState) => void
+  onState?: (state: EngineState, fraction?: number) => void
   /** 사진 하나가 끝날 때마다. 백분율은 받는 쪽이 만든다. */
   onProgress?: (completed: number, total: number) => void
 }
@@ -79,7 +79,7 @@ export function embedImages(
   worker.onmessage = (event) => {
     const message = event.data
     if (message.type === 'preparing') {
-      if (!finished) options.onState?.(message.state)
+      if (!finished) options.onState?.(message.state, message.fraction)
       return
     }
     if (message.type === 'progress') {
