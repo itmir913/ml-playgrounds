@@ -327,6 +327,44 @@ function hits(rule: Rule, line: string): boolean {
 }
 
 /**
+ * **prettier가 편 위반이 줄 하나씩 보는 훑기를 통과한다.**
+ *
+ * `printWidth`가 100이라 긴 `t(...)`나 긴 `class="..."`를 이 저장소의 포매터가 스스로
+ * 여러 줄로 편다. 그 모양은 어느 한 줄에도 패턴이 통째로 안 남아 **저장소가 아무 말도
+ * 안 했다** (R13-5 감사 A-2). 같은 병을 `i18n-usage.spec.ts`에서 먼저 고쳤다.
+ *
+ * **규칙을 "여러 줄에 걸리나"로 가르지 않는다.** 그 분류가 곧 낡는다 — 지금 한 줄인
+ * 패턴도 다음 사람이 인자를 하나 더 넣으면 펴진다. 전부 창으로 본다.
+ *
+ * **창을 좁게 잡는다.** prettier가 한 구문을 펴는 폭이고, 넓히면 무관한 두 구문이 붙어
+ * 거짓 빨강이 난다. 지금 이 저장소는 이 폭에서 위반이 0이다.
+ */
+const WRAP_WINDOW = 6
+
+/** 규칙 하나가 이 파일에서 잡은 자리들. 줄 단위로 보고, 못 보면 창으로 한 번 더 본다. */
+function ruleHits(rule: Rule, source: string, label: string): string[] {
+  const lines = withoutComments(source)
+  const found: string[] = []
+  let reportedAt = -WRAP_WINDOW
+
+  lines.forEach((line, index) => {
+    if (hits(rule, line)) {
+      found.push(`${label}:${index + 1}  ${line.trim()}`)
+      reportedAt = index
+      return
+    }
+    // 이미 이 창 안에서 하나 적었으면 같은 위반을 두 번 세지 않는다.
+    if (index - reportedAt < WRAP_WINDOW) return
+    const joined = lines.slice(index, index + WRAP_WINDOW).join(' ')
+    if (hits(rule, joined)) {
+      found.push(`${label}:${index + 1}  (여러 줄) ${joined.trim().slice(0, 90)}`)
+      reportedAt = index
+    }
+  })
+  return found
+}
+
+/**
  * `<AppButton ... @click="이름">`인데 그 `이름`이 **기다려야 하는 일**인 경우.
  *
  * **`async function`만이 아니다.** `const 이름 = async (` 꼴과, 동기 함수가 안에서
@@ -361,6 +399,32 @@ function unguardedButtons(source: string): string[] {
 }
 
 /**
+ * 최상위 선언들의 `이름 · 인자 · 몸통`. **`function` 선언과 화살표 const를 둘 다 본다.**
+ *
+ * `function`만 보던 때는 `const chooseHoldout = (): void => {…}`가 목록에서 빠졌고,
+ * 그러면 그 라디오 그룹이 "확인 모달이 안 걸린 그룹"으로 분류되어 **`register` 검사
+ * 자체가 건너뛰어졌다** (R13-5 감사 A-3). **선언 방식으로 규칙을 빠져나갈 수 있으면
+ * 안 된다** — 같은 파일의 `unguardedButtons`가 이미 그 교훈을 적어 두었다.
+ *
+ * 몸통의 끝은 **들여쓰기 없는 닫는 중괄호**다. prettier가 최상위 선언을 그렇게 둔다.
+ *
+ * **구현이 하나여야 한다** — 세 검사가 각자 같은 정규식을 들고 있었고, 그래서 한 자리를
+ * 고치면 둘이 안 고쳐졌다 (`tests/fixtures/source.ts` 머리말과 같은 이야기다).
+ */
+function topLevelDeclarations(script: string): { name: string; params: string; body: string }[] {
+  const opens = String.raw`(?:function (\w+)\(([^)]*)\)[^{]*|const (\w+)\s*=\s*(?:async\s*)?\(([^)]*)\)[^{]*=>\s*)`
+  // 몸통의 끝은 들여쓰기 없는 닫는 중괄호다. 줄바꿈을 정규식 리터럴에 못 적으므로
+  // 문자열로 조립한다.
+  const nl = String.fromCharCode(10)
+  const pattern = new RegExp(`${opens}\\{${nl}([\\s\\S]*?)${nl}\\}`, 'g')
+  return [...script.matchAll(pattern)].map((match) => ({
+    name: match[1] ?? match[3] ?? '',
+    params: match[2] ?? match[4] ?? '',
+    body: match[5] ?? '',
+  }))
+}
+
+/**
  * 확인 모달(`request*`)이 걸린 라디오 그룹인데, 그룹의 노드 중 하나라도
  * `useRadioGroupGuard`로 등록돼 있지 않은 경우 (`architecture.md` §8.15).
  *
@@ -391,9 +455,9 @@ function unguardedConfirmRadios(source: string): string[] {
   // 들여쓰기 없이 새 줄에 둔다 - 그 모양만 몸통으로 본다.
   const script = source.slice(0, source.indexOf('<template>'))
   const gatedFunctions = new Set(
-    [...script.matchAll(/function (\w+)\([^)]*\)[^{]*\{\n([\s\S]*?)\n\}/g)]
-      .filter((match) => /\brequest[A-Z]\w*\(/.test(match[2] ?? ''))
-      .map((match) => match[1] ?? ''),
+    topLevelDeclarations(script)
+      .filter((one) => /\brequest[A-Z]\w*\(/.test(one.body))
+      .map((one) => one.name),
   )
 
   const violations: string[] = []
@@ -440,23 +504,21 @@ function unsyncedLockedInputs(source: string): string[] {
   // 되돌린다고 판정한다 - 이르게 `return`하는 갈래 하나가 빠진 것은 이 검사가 못 잡는다.
   // 위 `.checked` 규칙도 같은 굵기이고, 갈래를 세려면 파서가 필요하다.
   const resyncing = new Set(
-    [...script.matchAll(/function (\w+)\(([^)]*)\)[^{]*\{\n([\s\S]*?)\n\}/g)]
-      .filter((match) => {
-        const params = match[2] ?? ''
-        const body = match[3] ?? ''
+    topLevelDeclarations(script)
+      .filter(({ params, body }) => {
         if (/\.checked\s*=|\.resync\(/.test(body)) return true
         // 인자로 받든(`input: HTMLInputElement`) 몸통에서 캐스팅하든
         // (`event.target as HTMLInputElement`) 둘 다 요소를 손에 쥔 것이다.
         return /HTMLInputElement/.test(params + body) && /\.value\s*=/.test(body)
       })
-      .map((match) => match[1] ?? ''),
+      .map((one) => one.name),
   )
 
   // 몸통이 `emit(...)` 하나뿐인 함수들. 값을 고치지 않고 그대로 올려보내는 자리다.
   const forwarding = new Set(
-    [...script.matchAll(/function (\w+)\(([^)]*)\)[^{]*\{\n([\s\S]*?)\n\}/g)]
-      .filter((match) => /^\s*emit\([^;]*\)\s*$/.test(match[3] ?? ''))
-      .map((match) => match[1] ?? ''),
+    topLevelDeclarations(script)
+      .filter((one) => /^\s*emit\([^;]*\)\s*$/.test(one.body))
+      .map((one) => one.name),
   )
 
   return (
@@ -1434,14 +1496,9 @@ const props = defineProps<{ run: Run; dataset: Dataset | null }>()
 describe('지금 화면 코드에 위반이 없다', () => {
   for (const rule of RULES) {
     it(`${rule.name} — ${rule.why}`, () => {
-      const found: string[] = []
-      for (const path of vueFiles(SRC)) {
-        withoutComments(readFileSync(path, 'utf-8')).forEach((line, index) => {
-          if (hits(rule, line)) {
-            found.push(`${path.slice(SRC.length + 1)}:${index + 1}  ${line.trim()}`)
-          }
-        })
-      }
+      const found = vueFiles(SRC).flatMap((path) =>
+        ruleHits(rule, readFileSync(path, 'utf-8'), path.slice(SRC.length + 1)),
+      )
       expect(found).toEqual([])
     })
   }
