@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Rules this repository will not break
+    url: https://github.com/itmir913/ml-playgrounds/blob/main/CONTRIBUTING.md
+    about: Read this before proposing a change to how the app is deployed or stores data.
