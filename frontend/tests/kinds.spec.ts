@@ -16,7 +16,13 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { dataKindFor, stepTextKey, SUPPORTED_DATA_TYPES } from '../src/data/kinds'
+import {
+  dataKindFor,
+  lockedSentence,
+  lockedTextFor,
+  stepTextKey,
+  SUPPORTED_DATA_TYPES,
+} from '../src/data/kinds'
 import en from '../src/locales/en.json'
 import ko from '../src/locales/ko.json'
 import { DATA_TYPES } from '../src/project/schema'
@@ -175,5 +181,46 @@ describe('데이터 종류 등록부', () => {
         }
       }
     }
+  })
+})
+
+/**
+ * 잠긴 줄의 문장 (`lockedSentence`).
+ *
+ * **자리표시자를 채우는 두 줄이 화면 둘에 똑같이 복사돼 있었고 아무도 안 태웠다**
+ * (2026-08-31 검증 감사 C-3). 안 넘기면 `vue-i18n`이 빈 문자열로 그려서 예외도 안 나고
+ * 키도 안 뜨고 **막는 일의 이름만 조용히 사라진다** — `ml/selection.ts`의 `columnNote`가
+ * 같은 병으로 A였다.
+ *
+ * `task`는 값이 아니라 **또 다른 로케일 키**라 한 번 더 번역해서 넣는다.
+ */
+describe('잠긴 줄에 세울 문장', () => {
+  /** 키를 그대로 돌려주되 자리표시자를 실제로 채운다. 진짜 `t()`가 하는 일이다. */
+  const translate = (key: string, params?: Record<string, string>) =>
+    params === undefined ? key : `${key}(${Object.values(params).join(',')})`
+
+  it('자리표시자가 있으면 채운다', () => {
+    const text = { key: 'tasks.lockedBy', params: { task: 'tasks.pickTarget' } }
+    expect(lockedSentence(text, translate)).toBe('tasks.lockedBy(tasks.pickTarget)')
+  })
+
+  it('넣는 값도 한 번 더 번역한다 - 그것도 키다', () => {
+    const seen: string[] = []
+    lockedSentence({ key: 'tasks.lockedBy', params: { task: 'tasks.pickTarget' } }, (key) => {
+      seen.push(key)
+      return key
+    })
+    expect(seen).toContain('tasks.pickTarget')
+  })
+
+  it('자리표시자가 없으면 그냥 그 문장이다', () => {
+    expect(lockedSentence({ key: 'steps.train.locked' }, translate)).toBe('steps.train.locked')
+  })
+
+  it('막는 일이 있는 잠금은 그 이름을 데려간다', () => {
+    const text = lockedTextFor(dataKindFor('tabular'), 'train', ['targetChosen'], 'tabular')
+    // 등록부가 손으로 쓴 문장을 안 갖고 있으면 막는 일의 이름을 댄다.
+    if (text.params === undefined) return
+    expect(lockedSentence(text, translate)).toContain(text.params.task)
   })
 })

@@ -16,7 +16,7 @@
     "ci": "npm run backbones && npm run lint:check && npm run typecheck && npm run test && npm run fixtures:check && npm run build",
     "test:watch": "vitest",
     "lint": "eslint . --fix && prettier --write src/ tests/ scripts/",
-    "lint:check": "eslint . --cache && prettier --check src/ tests/ scripts/ --cache",
+    "lint:check": "eslint . --cache --max-warnings 0 && prettier --check src/ tests/ scripts/ --cache",
     "format": "prettier --write src/ tests/ scripts/",
     "typecheck": "vue-tsc --build"
   },

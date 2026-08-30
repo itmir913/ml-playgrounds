@@ -44,7 +44,7 @@ import { type RouteLocationRaw, useRoute } from 'vue-router'
 
 import { HOME_ICON, STEP_ICONS } from '@/icons'
 import { ROUTE_PROJECT_HOME } from '@/router'
-import { dataKindFor, lockedTextFor } from '@/data/kinds'
+import { dataKindFor, lockedSentence, lockedTextFor } from '@/data/kinds'
 import { isStepUnlocked, STEP_IDS, stepBlockers, type StepId } from '@/router/steps'
 import { useProjectStore } from '@/stores/project'
 
@@ -131,8 +131,9 @@ function reason(step: StepId): string {
     stepBlockers(step, project.facts, project.taskType, project.dataType),
     project.dataType,
   )
-  const task = text.params?.task
-  return task === undefined ? t(text.key) : t(text.key, { task: t(task) })
+  // **판정은 여기서 하지 않는다** (`data/kinds.ts`의 `lockedSentence`). 화면 둘이
+  // 이 두 줄을 똑같이 복사해 갖고 있었고 아무도 안 태웠다 (2026-08-31 검증 감사 C-3).
+  return lockedSentence(text, t)
 }
 
 /**

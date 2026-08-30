@@ -164,6 +164,30 @@ export function lockedTextFor(
   }
 }
 
+/** 잠금 문장에 든 것들. 값은 **또 다른 로케일 키**라 부르는 쪽이 한 번 더 번역한다. */
+export interface LockedText {
+  readonly key: string
+  readonly params?: Record<string, string>
+}
+
+/** 키 하나를 문장으로 바꾸는 것. 이 층은 `t()`를 모른다 (`CLAUDE.md` §1.4·§3). */
+export type Translate = (key: string, params?: Record<string, string>) => string
+
+/**
+ * 잠긴 줄에 세울 문장.
+ *
+ * **자리표시자를 채우는 것이 판정의 일부다.** 화면 둘이 이 두 줄을 똑같이 복사해
+ * 갖고 있었고, 어느 스펙도 그 자리를 안 지나갔다 — 안 넘기면 `vue-i18n`이 **빈
+ * 문자열로 그려서** 예외도 안 나고 키도 안 뜨고 **막는 일의 이름만 조용히 사라진다**
+ * (2026-08-31 검증 감사 C-3, `ml/selection.ts`의 `columnNote`와 같은 병이다).
+ *
+ * `task`는 값이 아니라 **로케일 키**라 한 번 더 번역해서 넣는다.
+ */
+export function lockedSentence(text: LockedText, translate: Translate): string {
+  const task = text.params?.task
+  return task === undefined ? translate(text.key) : translate(text.key, { task: translate(task) })
+}
+
 /**
  * 등록된 판들. **새 프로젝트 화면이 고를 것을 여기서 만든다** — 종류 목록과 그 이름이
  * 같은 줄에서 나와야 한 쪽만 늘어나는 일이 없다.
