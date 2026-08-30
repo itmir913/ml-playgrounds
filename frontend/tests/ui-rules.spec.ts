@@ -258,8 +258,15 @@ const RULES: readonly Rule[] = [
       '작든 그만큼 따라 줄어들어** 머리만 남고 줄이 하나도 안 보인다. 자리는 부모가 ' +
       'flex로 주고 표는 `min-h-0 flex-1`로 받는다 — 그래야 최소 높이가 부모 쪽 한 군데에 ' +
       '모인다.',
-    pattern: /<AppTable[^>]*\sclass="[^"]*(?<![\w-])h-full\b/,
-    violations: ['<AppTable class="h-full">', '<AppTable v-if="shown" class="mt-2 h-full">'],
+    // 속성을 건너뛰는 조각은 `ATTRS`다. `[^>]*`를 옮기면서 **RULES 안의 이 한 자리를
+    // 빠뜨렸고**, 그러면 앞에 `>`를 품은 속성이 하나만 놓여도 규칙이 통째로 꺼진다
+    // (2026-08-31 사각 감사 A-1). 아래 위반 표본의 셋째가 그 모양이다.
+    pattern: new RegExp(String.raw`<AppTable${ATTRS}\sclass="[^"]*(?<![\w-])h-full\b`),
+    violations: [
+      '<AppTable class="h-full">',
+      '<AppTable v-if="shown" class="mt-2 h-full">',
+      '<AppTable v-if="rows.length > 0" class="h-full">',
+    ],
     allowed: [
       '<AppTable class="min-h-0 flex-1">',
       '<AppTable>',
@@ -354,6 +361,21 @@ const RULES: readonly Rule[] = [
       'const id = element.dataset.themeIndependent',
       "element.getAttribute('data-open')",
     ],
+  },
+  {
+    name: '아이콘 세트를 화면이 직접 들여오지 않는다',
+    why:
+      '`icons.ts`가 등록부다 - 아이콘을 바꾸려면 거기 한 줄만 고치면 되고, 무엇을 ' +
+      '쓰고 있는지가 한눈에 보이며, 세트를 갈아치울 때 화면을 안 건드린다. 그 파일 ' +
+      '머리말이 그렇게 선언해 두었는데 **무엇도 그것을 안 지켰다** - 화면에서 직접 ' +
+      '들여와도 검사도 타입도 eslint도 조용했다 (2026-08-31 사각 감사 A-3). ' +
+      '`icons.ts` 자신과 검사는 대상이 아니다(등록부와 그 대조가 사는 자리다).',
+    pattern: /from\s*['"]lucide-vue-next['"]/,
+    violations: [
+      "import { Plus } from 'lucide-vue-next'",
+      'import { Check } from "lucide-vue-next"',
+    ],
+    allowed: ["import { ACTION_ICONS } from '@/icons'", "import { STEP_ICONS } from '@/icons'"],
   },
 ]
 
@@ -1037,7 +1059,10 @@ describe('화면의 루트가 하나다', () => {
     const block = source
       .slice(start, source.lastIndexOf('</template>'))
       .replace(/<!--[\s\S]*?-->/g, '')
-    return [...block.matchAll(/^ {2}<([A-Za-z][\w-]*)([^>]*)>/gm)].map((match) => ({
+    // 여기도 `ATTRS`다. 루트 태그가 `<div v-if="rows.length > 0">`이면 `[^>]*`에서
+    // 잘려 **그 화면의 루트를 하나 덜 세고**, 루트가 둘인 것을 못 본다.
+    const rootTag = new RegExp(String.raw`^ {2}<([A-Za-z][\w-]*)(${ATTRS})>`, 'gm')
+    return [...block.matchAll(rootTag)].map((match) => ({
       tag: match[1] ?? '',
       attrs: match[2] ?? '',
     }))
