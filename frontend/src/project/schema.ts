@@ -982,12 +982,33 @@ export function parseProjectDocument(value: unknown): ProjectDocument {
   }
 
   const document = result.data
-  const kind = DATA_SCHEMAS[document.manifest.dataType].settings.safeParse(document.settings.data)
+  const schemas = DATA_SCHEMAS[document.manifest.dataType]
+  const kind = schemas.settings.safeParse(document.settings.data)
   if (!kind.success) {
     const first = kind.error.issues[0]
     throw new ClientError('PROJECT_FILE_INVALID', {
       path: ['settings', 'data', ...(first?.path ?? [])].join('.'),
       issues: kind.error.issues.length,
+    })
+  }
+
+  /**
+   * **실험이 들고 있는 스냅샷도 같은 종류여야 한다.**
+   *
+   * 위 검사와 같은 이유다 — `experiment.settings.data`도 판별 필드가 없는 유니온이라
+   * zod 혼자서는 어느 쪽으로 읽을지 모른다. 여는 문이 안 보면 어긋난 짝이 그대로
+   * 들어오고, `dataSnapshot`이 **`ClientError`가 아니라 날것의 ZodError**를 던져
+   * 화면을 세운다. 이 앱에는 `errorHandler`도 `onError`도 없다.
+   *
+   * 부르는 자리가 아홉인데 `try`로 감싸인 것은 하나뿐이라, 막을 자리는 여기다.
+   */
+  for (const [index, experiment] of document.runs.experiments.entries()) {
+    const snapshot = schemas.snapshot.safeParse(experiment.settings.data)
+    if (snapshot.success) continue
+    const first = snapshot.error.issues[0]
+    throw new ClientError('PROJECT_FILE_INVALID', {
+      path: ['runs', 'experiments', index, 'settings', 'data', ...(first?.path ?? [])].join('.'),
+      issues: snapshot.error.issues.length,
     })
   }
   return document

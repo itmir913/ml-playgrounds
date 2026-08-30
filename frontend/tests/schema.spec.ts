@@ -363,6 +363,69 @@ describe('parseProjectDocument', () => {
     }
     expect(parseProjectDocument(image).manifest.dataType).toBe('image')
   })
+
+  /**
+   * **실험이 든 스냅샷도 같은 유니온이다.** 위 둘이 `settings.data`만 보던 동안
+   * 실험 쪽은 그대로 새어 들어왔고, 읽는 자리 아홉 중 여덟이 `dataSnapshot`을
+   * `try` 없이 부른다 - 거기서 나오는 것은 `ClientError`가 아니라 날것의 ZodError라
+   * 화면이 선다 (R14-4 감사 A-1).
+   */
+  const experimentWith = (data: unknown) => ({
+    id: 'experiment-1',
+    startedAt: '2026-08-04T10:30:00Z',
+    settings: {
+      taskType: 'classification',
+      runtime: 'mljs',
+      selectedAlgorithms: [{ algorithm: 'decision_tree', runtime: 'mljs' }],
+      data,
+      split: settings.split,
+      nSamples: 150,
+      trainIndices: [0, 1, 2],
+      testIndices: [3],
+    },
+    runs: [run],
+  })
+
+  /**
+   * **스냅샷은 그 종류로 읽었을 때 성립하는 것이어야 한다.** 아무 말이나 넣으면
+   * 유니온이 양쪽에서 다 떨어져 **기반 스키마가 대신 거부하고**, 그러면 이 검사는
+   * 여는 문의 종류 판정을 한 번도 안 지나간 채 초록이 된다 (R14-4 A-1의 처방을
+   * 실측했더니 실제로 그랬다).
+   */
+  const imageSnapshot = {
+    categories: ['개', '고양이'],
+    backboneId: 'mobilenet-v3-small',
+    categoryCounts: [3, 4],
+    unlabeledCount: 0,
+  }
+
+  it('표라고 적고 실험에 이미지 스냅샷을 넣으면 거부한다', () => {
+    const broken = { ...document, runs: { experiments: [experimentWith(imageSnapshot)] } }
+    try {
+      parseProjectDocument(broken)
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error)).toBe(true)
+      if (!isClientError(error)) return
+      expect(error.code).toBe('PROJECT_FILE_INVALID')
+      expect(String(error.params.path)).toMatch(/^runs\.experiments\.0\.settings\.data/)
+    }
+  })
+
+  it('이미지라고 적고 실험에 표 스냅샷을 넣으면 거부한다', () => {
+    const broken = {
+      ...document,
+      manifest: { ...manifest, dataType: 'image' },
+      settings: { ...settings, data: DATA_SCHEMAS.image.initial() },
+      runs: { experiments: [experimentWith(settings.data)] },
+    }
+    expect(codeOf(() => parseProjectDocument(broken))).toBe('PROJECT_FILE_INVALID')
+  })
+
+  it('짝이 맞는 실험은 통과한다', () => {
+    const fine = { ...document, runs: { experiments: [experimentWith(settings.data)] } }
+    expect(parseProjectDocument(fine).runs.experiments).toHaveLength(1)
+  })
 })
 
 /**
