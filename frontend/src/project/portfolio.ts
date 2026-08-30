@@ -376,22 +376,73 @@ const LINE_LEADING_HASH = /^(\s{0,3})(#+)/
 const SETEXT_UNDERLINE = /^(\s{0,3})(-+|=+)\s*$/
 
 /**
+ * 코드 울타리 줄. 뒤에 언어 이름이 올 수 있는 것이 여는 줄이다 (CommonMark).
+ *
+ * 닫으려면 **같은 글자로 그만큼 이상** 길어야 한다.
+ */
+const FENCE = /^(\s{0,3})(`{3,}|~{3,})(.*)$/
+
+/** 답 안에서 열린 채 끝난 HTML 주석. 닫지 않으면 뒤가 전부 주석이 된다. */
+const COMMENT_OPEN = '<!--'
+const COMMENT_CLOSE = '-->'
+
+/**
  * 답을 `.md`에 담을 수 있게 만든다.
  *
  * **읽기 좋은 것이 기준이다** (mlpx-spec.md §8.6). 전부 이스케이프하면 안전하기는
  * 한데 읽으라고 만든 파일을 읽기 나쁘게 만든다 - 메모장으로 열면 `\#`이 보인다.
  * 막을 것은 **문항 구조를 깨는 것뿐**이고, 답에 목록이나 강조가 들어가 그대로
  * 살아나는 것은 사고가 아니라 잘 된 것이다.
+ *
+ * **열어 놓고 안 닫은 것은 여기서 닫는다.** 코드 울타리와 HTML 주석은 여는 줄
+ * 하나가 **뒤따르는 문항을 전부 삼킨다** - 정보 수업 포트폴리오에서 코드를
+ * 붙여넣는 것은 흔한 일이고, 백틱 셋을 열고 안 닫는 것도 흔하다. 닫는 자리가
+ * 답의 끝인 이유가 그것이다: 문항 경계가 거기서 되살아난다.
+ *
+ * **울타리 안에서는 이스케이프하지 않는다.** 거기서는 `#`이 제목을 못 만들고,
+ * 학생이 쓴 파이썬 주석이 `\#`으로 보이면 그건 읽기 나쁘게 만든 것이다.
  */
 function escapeAnswer(answer: string): string {
-  return answer
-    .split('\n')
-    .map((line) =>
+  const lines: string[] = []
+  let fence: string | undefined
+  let open = 0
+
+  for (const line of answer.split('\n')) {
+    if (fence !== undefined) {
+      lines.push(line)
+      const closing = FENCE.exec(line)
+      // 닫는 줄에는 언어 이름을 못 붙인다. 그래서 뒤가 비어 있어야 한다.
+      const closes =
+        closing !== null &&
+        closing[2]!.startsWith(fence[0]!) &&
+        closing[2]!.length >= fence.length &&
+        closing[3]!.trim() === ''
+      if (closes) fence = undefined
+      continue
+    }
+
+    lines.push(
       line
         .replace(LINE_LEADING_HASH, '$1\\$2')
         .replace(SETEXT_UNDERLINE, (_match, indent: string, rule: string) => `${indent}\\${rule}`),
     )
-    .join('\n')
+
+    const opening = FENCE.exec(line)
+    if (opening !== null) {
+      fence = opening[2]!
+      continue
+    }
+    // 0 아래로 안 내린다. 닫는 것만 있는 답 뒤에 진짜 여는 것이 오면 그것을 놓친다.
+    open = Math.max(0, open + countOf(line, COMMENT_OPEN) - countOf(line, COMMENT_CLOSE))
+  }
+
+  if (fence !== undefined) lines.push(fence)
+  for (let n = 0; n < open; n += 1) lines.push(COMMENT_CLOSE)
+  return lines.join('\n')
+}
+
+function countOf(line: string, token: string): number {
+  return line.split(token).length - 1
 }
 
 /** 머리글 값은 한 줄에 담긴다. 줄바꿈이 들어오면 목록이 깨진다. */

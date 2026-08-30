@@ -366,6 +366,63 @@ describe('마크다운으로 옮긴다', () => {
     expect(headings).toEqual(['h1:붓꽃 품종 분류', 'h2:동기'])
   })
 
+  /**
+   * **여는 줄 하나가 뒤따르는 문항을 전부 삼킨다.** 정보 수업에서 코드를 붙여넣는
+   * 것은 흔한 일이고, 백틱 셋을 열고 안 닫는 것도 흔하다 - 그러면 교사가 여는
+   * `document.md`에서 그 아래 문항이 통째로 사라진다 (R14-1 감사 B-1).
+   *
+   * **문항이 몇 개 살아남는지를 센다.** 글자를 찾는 단언으로는 못 본다 - 삼켜진
+   * 문항의 글자는 코드 블록 안에 그대로 남아 있기 때문이다.
+   */
+  const titlesIn = (markdown: string) =>
+    [...new MarkdownIt().render(markdown).matchAll(/<h2>([^<]*)</g)].map(([, title]) => title)
+
+  it('안 닫은 코드 울타리가 뒤 문항을 안 삼킨다', () => {
+    const markdown = renderPortfolioMarkdown(
+      TEXT,
+      portfolio(
+        [
+          { id: 'a', title: '동기' },
+          { id: 'b', title: '느낀 점' },
+        ],
+        {
+          a: '```python\nprint(1)',
+          b: '잘 됐다',
+        },
+      ),
+    )
+    expect(titlesIn(markdown)).toEqual(['동기', '느낀 점'])
+  })
+
+  it('안 닫은 물결 울타리와 HTML 주석도 마찬가지다', () => {
+    const markdown = renderPortfolioMarkdown(
+      TEXT,
+      portfolio(
+        [
+          { id: 'a', title: '동기' },
+          { id: 'b', title: '방법' },
+          { id: 'c', title: '느낀 점' },
+        ],
+        {
+          a: '~~~\n표',
+          b: '<!-- 메모',
+          c: '끝',
+        },
+      ),
+    )
+    expect(titlesIn(markdown)).toEqual(['동기', '방법', '느낀 점'])
+  })
+
+  it('제대로 닫은 코드 블록은 안 건드린다 - 안의 #도 그대로다', () => {
+    const markdown = renderPortfolioMarkdown(
+      TEXT,
+      portfolio([{ id: 'a', title: '동기' }], { a: '```python\n# 주석\nprint(1)\n```' }),
+    )
+    expect(markdown).toContain('# 주석')
+    expect(markdown).not.toContain('\\# 주석')
+    expect(new MarkdownIt().render(markdown)).toContain('<code')
+  })
+
   it('학생이 일부러 쓴 목록은 그대로 산다', () => {
     const markdown = renderPortfolioMarkdown(
       TEXT,
