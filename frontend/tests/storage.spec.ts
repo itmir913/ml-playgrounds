@@ -29,7 +29,7 @@ import {
 import { hashBytes } from '../src/hash'
 import { STORAGE_SAFETY_FACTOR } from '../src/limits'
 import type { ProjectFile } from '../src/project/format'
-import { dataSettings } from '../src/project/schema'
+import { dataSettings, FORMAT_VERSION } from '../src/project/schema'
 import {
   experiment,
   datasetBytes,
@@ -372,6 +372,33 @@ describe('읽는 경로가 .mlpx와 같은 문을 지난다', () => {
     database.close()
     closeStorage()
   }
+
+  /**
+   * **저장소도 파일과 같은 문을 지나야 한다** (mlpx-spec.md §9).
+   *
+   * `migrate.spec.ts`가 하는 것은 `migrateProjectDocument`를 **직접 부르는 것**이라,
+   * `loadProject`가 그것을 부르는지는 안 본다. 실제로 이 자리에서 마이그레이션을
+   * 무력화해도 저장소 전체가 초록이었다 (R13-1 감사 A-1). 파일 쪽 짝은
+   * `image-format.spec.ts`에 있다.
+   *
+   * **여기가 파일 쪽보다 아프다.** 안 올라오면 `loadProject`가 곧장 옛 id의 임베딩을
+   * 버리고, 학습을 누르면 `BACKBONE_UNAVAILABLE`로 선다 — 다시 뽑을 길도 없다.
+   */
+  it('v1 레코드를 열면 백본 id가 올라온다', async () => {
+    // v1이 쓰던 백본 id (mlpx-spec.md §9.1). **등록부를 안 읽고 글자를 박는다** -
+    // `migrate.ts`와 같은 이유다. 셋째 백본이 등록돼도 이 값은 안 움직인다.
+    const base = emptyProjectFile().document
+    await plant({
+      ...base,
+      manifest: { ...base.manifest, formatVersion: 1, dataType: 'image' },
+      settings: { ...base.settings, data: { categories: ['개'], backboneId: 'mobilenet-v2' } },
+    })
+
+    const loaded = await loadProject('planted')
+
+    expect(loaded?.document.manifest.formatVersion).toBe(FORMAT_VERSION)
+    expect(dataSettings('image', loaded!.document.settings).backboneId).toBe('mobilenet-v2-r2')
+  })
 
   it('옛 모양이 저장돼 있어도 스키마 기본값으로 살아난다', async () => {
     // 리네임 전에는 runs가 batches를 들고 있었다. experiments가 없으면 화면이

@@ -6,7 +6,7 @@
  * 여기서 새면 학생이 사진을 넣은 프로젝트가 **저장은 되는데 다시 안 열린다.**
  */
 
-import { unzipSync, zipSync } from 'fflate'
+import { unzipSync, zipSync, type Unzipped } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
 import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
@@ -15,6 +15,7 @@ import { CANONICAL_FORMATS } from '../src/data/image/formats'
 import { hashBytes } from '../src/hash'
 import { isClientError } from '../src/errors'
 import {
+  ENTRY,
   IMAGE_DATA_DIR,
   IMAGE_PREDICT_DIR,
   IMAGE_TEST_DIR,
@@ -338,5 +339,62 @@ describe('탐색기로 다시 압축한 .mlpx', () => {
     const { project: after, integrity } = await readProject(zipSync(entries))
     expect([...after.images.keys()].some((path) => path.includes('개'))).toBe(false)
     expect(integrity.status).toBe('UNKNOWN')
+  })
+})
+
+/**
+ * **진짜 입구로 태운다** (mlpx-spec.md §9).
+ *
+ * `migrate.spec.ts`가 하는 것은 `migrateProjectDocument`를 **직접 부르는 것**이고, 그건
+ * 마이그레이션 함수가 맞는지를 보지 **입구가 그것을 부르는지**를 안 본다. 실제로 두
+ * 입구(`readProject`·`loadProject`)에서 마이그레이션을 통째로 없애도 저장소 전체가
+ * 초록이었다 (R13-1 감사 A-1). 저장소 쪽 짝은 `storage.spec.ts`에 있다.
+ */
+describe('v1 파일이 지금 앱에서 열린다', () => {
+  /**
+   * v1이 쓰던 백본 id (mlpx-spec.md §9.1).
+   *
+   * **등록부를 안 읽고 글자를 박는다** — `migrate.ts`가 같은 이유로 그렇게 한다.
+   * `DEFAULT_BACKBONE_ID`로 적으면 셋째 백본이 등록되는 날 이 검사가 **옛 파일이 그
+   * 백본으로 올라가는 것**을 통과시킨다.
+   */
+  const V1_BACKBONE_ID = 'mobilenet-v2'
+  const V2_BACKBONE_ID = 'mobilenet-v2-r2'
+
+  /** zip 안의 JSON 하나를 고쳐 넣는다. */
+  function patch(
+    entries: Unzipped,
+    path: string,
+    edit: (value: Record<string, unknown>) => void,
+  ): void {
+    const value = JSON.parse(new TextDecoder().decode(entries[path])) as Record<string, unknown>
+    edit(value)
+    entries[path] = new TextEncoder().encode(JSON.stringify(value))
+  }
+
+  /** 지금 앱이 쓴 파일을 v1로 되돌린다. 옛 앱이 구운 것과 같은 모양이다. */
+  async function v1FileBytes(): Promise<Uint8Array> {
+    const { bytes } = await writeProjectBytes(imageProject(), markdown)
+    const entries = unzipSync(bytes)
+    patch(entries, ENTRY.manifest, (value) => {
+      value.formatVersion = 1
+    })
+    patch(entries, ENTRY.settings, (value) => {
+      const data = value.data as Record<string, unknown>
+      data.backboneId = V1_BACKBONE_ID
+    })
+    return zipSync(entries)
+  }
+
+  it('백본 id가 올라온다 - 안 올라오면 임베딩이 통째로 버려진다', async () => {
+    const { project } = await readProject(await v1FileBytes())
+
+    expect(project.document.settings.data.backboneId).toBe(V2_BACKBONE_ID)
+  })
+
+  it('formatVersion이 지금 것이 된다', async () => {
+    const { project } = await readProject(await v1FileBytes())
+
+    expect(project.document.manifest.formatVersion).toBe(FORMAT_VERSION)
   })
 })
