@@ -20,6 +20,7 @@ import { ALGORITHMS, supportedTaskTypes } from '../src/ml/algorithms'
 import { FALLBACK_RUNTIME_ID, RUNTIMES } from '../src/ml/backend'
 import { newProjectDocument, newProjectId, newProjectSeed, touch } from '../src/project/create'
 import {
+  FORMAT_VERSION,
   parseProjectDocument,
   TASK_TYPES,
   DATA_SCHEMAS,
@@ -38,6 +39,17 @@ const input = { name: '붓꽃 품종 분류', locale: 'ko', dataType: 'tabular' 
 describe('새 프로젝트', () => {
   it('스키마를 통과한다', () => {
     expect(() => parseProjectDocument(newProjectDocument(input, seed))).not.toThrow()
+  })
+
+  /**
+   * **상수가 아니라 찍히는 값을 본다.** `versions.spec.ts`가 잠그는 것은 `FORMAT_VERSION`
+   * 자체이고, 여기서 `1`을 박아도 여섯 스펙이 전부 초록이었다 (R13-1 감사 C-7).
+   *
+   * 지금은 v1→v2가 표에서 무해해 안 보이지만, 다음 마이그레이션이 값을 실제로 바꾸는
+   * 것이면 **새로 만든 프로젝트가 만들자마자 한 번 마이그레이션된다.**
+   */
+  it('만든 프로젝트에 지금 포맷 버전이 찍힌다', () => {
+    expect(newProjectDocument(input, seed).manifest.formatVersion).toBe(FORMAT_VERSION)
   })
 
   /**

@@ -489,6 +489,28 @@ describe('모델을 왜 뺐는지 파일에 남는다', () => {
     expect(dropped.map((model) => model.reason)).toEqual(['overBudget'])
   })
 
+  /**
+   * **셋째 갈래다.** 위 둘은 사유를 적고 이쪽은 안 적는데, 그 `undefined`를
+   * `'overBudget'`으로 바꿔도 저장소 전체가 초록이었다 (R13-1 감사 C-3).
+   *
+   * `preprocessorMissing`이 어휘에 없는 이유를 `format.ts`가 적어 두었다 — 그건
+   * "모델을 왜 안 담았나"가 아니라 **"이 파일이 어긋나 있다"는 다른 축**이다.
+   * `overBudget`으로 새면 파일에 *"다시 학습하면 되살아납니다"*가 적히는데,
+   * 실제로는 다시 학습해도 소용이 없다.
+   */
+  it('전처리기 본체가 없어 빠진 모델에는 사유를 안 적는다 - 다른 축이다', async () => {
+    const project = projectFile({
+      // 전처리기 참조는 문서에 남아 있는데 본체가 없다. 손으로 고친 파일의 모양이다.
+      models: new Map([['model/run-1.json', new TextEncoder().encode('{"tree":[]}')]]),
+    })
+
+    const { dropped } = selectModels(project.document, project.models)
+    expect(dropped.map((model) => model.reason)).toEqual(['preprocessorMissing'])
+
+    const reopened = await open((await writeProjectBytes(project, markdown)).bytes)
+    expect(reopened.document.runs.experiments[0]?.runs[0]?.modelOmitted).toBeUndefined()
+  })
+
   it('모델이 담기면 옛 사유가 지워진다 - 담긴 모델 옆에 "담지 못했습니다"가 뜨면 안 된다', async () => {
     const project = projectFile()
     const first = project.document.runs.experiments[0]?.runs[0]
