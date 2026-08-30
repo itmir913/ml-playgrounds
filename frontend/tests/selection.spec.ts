@@ -450,6 +450,49 @@ describe('층화를 걸 수 있는가', () => {
     it('쓸 수 있는 행보다 크면 뽑기가 없는 것과 같다', () => {
       expect(blockFor({ dataset: tenLabels, nSamples: 999 })).toBeNull()
     })
+
+    /**
+     * **라벨 크기를 고르지 않게 세운 짝.**
+     *
+     * 위의 `tenLabels`는 라벨마다 **정확히 2줄**이고 `MIN_SPLIT_ROWS`가 2라서
+     * `Math.min(size, MIN_SPLIT_ROWS)`가 **항등**이다 — 그 클램프를 통째로 지워도 위
+     * 루프가 안 운다 (2026-08-30 R12 감사 A-2). 클램프가 하는 일(`sample.ts`의
+     * `floorFor`, *"가진 것보다 많이 요구하지 않는다"*)은 **라벨 하나가 바닥보다 클 때만**
+     * 드러난다.
+     *
+     * A가 10줄, B와 C가 2줄이면 바닥의 합은 `2+2+2 = 6`이다. 클램프를 잃으면 `10+2+2 = 14`가
+     * 되어 **nSamples=6에서 화면은 막고 뽑기는 통과한다** — 화면이 [학습하기]보다 엄격해지는,
+     * `selection.ts` 머리말이 금지한 그 상태다. 뽑기는 잠긴 카드를 여는 유일한 손잡이라
+     * (`open-decisions.md` #22) 학생이 고칠 방법 없이 그것을 잃는다.
+     */
+    const UNEVEN: string[] = [...(Array(10).fill('A') as string[]), 'B', 'B', 'C', 'C']
+    const uneven = dataset(UNEVEN)
+
+    it('라벨이 바닥보다 크면 가진 것만큼이 아니라 바닥만큼만 요구한다', () => {
+      // 바닥의 합은 6이다. 클램프를 잃으면 14가 되어 6도 7도 막힌다.
+      expect(blockFor({ dataset: uneven, nSamples: 6 })).toBeNull()
+      expect(blockFor({ dataset: uneven, nSamples: 5 })?.code).toBe('SAMPLE_STRATIFY_IMPOSSIBLE')
+    })
+
+    it('라벨 크기가 고르지 않아도 화면과 뽑기의 경계가 같다', () => {
+      for (const nSamples of [4, 5, 6, 7, 8, 13, 14]) {
+        const blocked = blockFor({ dataset: uneven, nSamples })?.code
+        const threw = codeOf(() =>
+          sampleRows(
+            { rows: [...Array(UNEVEN.length).keys()], labels: [...UNEVEN] },
+            split,
+            nSamples,
+          ),
+        )
+        expect(
+          { nSamples, blocked: blocked ?? null },
+          `nSamples=${nSamples}에서 화면과 뽑기가 갈렸다`,
+        ).toEqual({
+          nSamples,
+          blocked: threw === 'SAMPLE_STRATIFY_IMPOSSIBLE' ? 'SAMPLE_STRATIFY_IMPOSSIBLE' : null,
+        })
+      }
+    })
   })
 
   it('1개뿐인 값이 하나면 그 값을 알려준다 - 더 모으면 풀린다', () => {
