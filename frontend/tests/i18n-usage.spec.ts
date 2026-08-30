@@ -185,10 +185,17 @@ describe('로케일 문장', () => {
  * `<p>학습을 시작합니다</p>` 한 줄을 심고 검사를 전부 돌려도 초록이었다. 그런데
  * `rule-coverage.md`는 "§3 i18n 규칙 넷 전부"를 막는다고 적어 두었다 (R8 감사 A-4).
  *
- * **`.vue`만 본다.** 규칙이 말하는 것이 *컴포넌트*이고, 컴포넌트가 `.vue`다. 지금
- * `src/`의 `.ts`에는 한글이 열아홉 줄 있는데 **전부 `throw new Error`와 기술 정보다** —
- * 학생에게 문장으로 가는 것이 아니라 개발자에게 가는 사실이라 `t()`의 대상이 아니다.
- * 그것까지 여기서 막으면 예외 목록이 자라고, 자란 목록은 곧 아무도 안 읽는다.
+ * **`.vue`만 본다.** 규칙이 말하는 것이 *컴포넌트*이고, 컴포넌트가 `.vue`다.
+ * `src/`의 `.ts`에 남은 한글은 **`throw new Error`와 정규식과 기술 정보다** — 학생에게
+ * 문장으로 가는 것이 아니라 개발자에게 가는 사실이라 `t()`의 대상이 아니다. 그것까지
+ * 여기서 막으면 예외 목록이 자라고, 자란 목록은 곧 아무도 안 읽는다.
+ *
+ * **한때 그 근거가 참이 아니었다** (2026-08-30, R12 감사 B-1). `ml/embed`의 두 자리가
+ * 우리가 쓴 한국어를 `failureDetail`에 실었는데, 그 통로는 **남의 라이브러리가 던진
+ * 영어**를 기술 정보로 붙이는 자리라 번역되지 않는다 — 영어 로케일을 고른 학생에게
+ * 한국어가 그대로 붙었다. 지금은 `backboneId`를 파라미터로 싣는다. **줄 수를 여기
+ * 적지 않는 이유가 이것이다** — 세어 적은 수는 다음 커밋에 낡고, 낡은 수는 근거가
+ * 아직 참인지를 아무도 다시 안 묻게 만든다.
  *
  * **한글만 본다.** 영어 리터럴은 못 가린다 — 클래스 이름·속성·식별자와 같은 글자라
  * 기계가 문장인지 모른다. **못 보는 것을 여기 적어 둔다.**
@@ -308,5 +315,48 @@ describe('자리표시자를 다 넘긴다', () => {
       }
     }
     expect(found).toEqual([])
+  })
+})
+
+/**
+ * **`failureDetail`에 우리 문장을 싣지 않는다** (`CLAUDE.md` §1.4).
+ *
+ * 그 통로의 계약은 `errors.ts`에 못 박혀 있다 — *"남의 라이브러리가 던진 영어 문장이라
+ * 번역되지 않고, 화면은 `t()`로 만든 문장을 먼저 보여준 뒤 이것을 기술 정보로 따로
+ * 붙여야 한다."* 우리가 쓴 한국어를 거기 실으면 **영어 로케일을 고른 학생에게 번역되지
+ * 않는 한국어가 토스트에 붙는다.**
+ *
+ * `ml/embed`의 두 자리가 실제로 그랬다 (2026-08-30, R12 감사 B-1). 위의
+ * `컴포넌트에 한글 리터럴이 없다`는 `.vue`만 보므로 이 자리를 못 봤고, 그 근거로 적힌
+ * *"`.ts`의 한글은 전부 개발자에게 가는 사실이다"*가 **참이 아니게 되어 있었다.**
+ *
+ * **못 보는 것: 변수를 거쳐 들어가는 문장.** `failureDetail(message)`처럼 한 다리
+ * 건너면 이 줄에는 한글이 없다. 같은 줄에 적는 것만 막는다.
+ */
+describe('기술 정보 통로에 우리 문장을 싣지 않는다', () => {
+  const HANGUL_IN_DETAIL = /failureDetail\([^)]*[가-힣]/
+
+  it('검사기가 잡는다', () => {
+    expect(HANGUL_IN_DETAIL.test('failureDetail(`알 수 없는 백본: ${id}`)')).toBe(true)
+    expect(HANGUL_IN_DETAIL.test("failureDetail('준비 실패')")).toBe(true)
+  })
+
+  it('검사기가 안 잡는다', () => {
+    expect(HANGUL_IN_DETAIL.test('failureDetail(error)')).toBe(false)
+    expect(HANGUL_IN_DETAIL.test("failureDetail('messageerror')")).toBe(false)
+    // 주석에 그 이름이 나오는 것은 위반이 아니다 - 훑기 전에 주석을 걷어낸다.
+    expect(HANGUL_IN_DETAIL.test('const detail = failureDetail(event.message)')).toBe(false)
+  })
+
+  it('지금 소스에 그런 자리가 없다', () => {
+    const found: string[] = []
+    for (const path of sourceFiles(SRC)) {
+      withoutComments(readFileSync(path, 'utf-8')).forEach((line, index) => {
+        if (HANGUL_IN_DETAIL.test(line)) {
+          found.push(`${path.slice(SRC.length + 1)}:${index + 1}  ${line.trim()}`)
+        }
+      })
+    }
+    expect(found, '기술 정보 통로는 코드와 파라미터만 나른다').toEqual([])
   })
 })

@@ -21,10 +21,12 @@ export async function handleEmbed(
   const spec = backboneFor(request.backboneId)
   if (!spec) {
     // 등록부에 없는 백본이다. 옛 파일이 지금 앱에 없는 백본을 가리킬 때 여기로 온다.
+    // **id는 파라미터로 싣는다** (CLAUDE.md 1.4). failureDetail은 남의 라이브러리가 던진
+    // 영어를 기술 정보로 붙이는 통로라 번역되지 않는다 - 우리 문장이 거기 가면 안 된다.
     emit({
       type: 'failed',
       code: 'BACKBONE_UNAVAILABLE',
-      params: failureDetail(`알 수 없는 백본: ${request.backboneId}`),
+      params: { backboneId: request.backboneId },
     })
     return
   }

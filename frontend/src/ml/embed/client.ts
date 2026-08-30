@@ -113,11 +113,10 @@ export function embedImages(
 
   const spec = backboneFor(backboneId)
   if (!spec) {
-    settle(() =>
-      reject(
-        new ClientError('BACKBONE_UNAVAILABLE', failureDetail(`알 수 없는 백본: ${backboneId}`)),
-      ),
-    )
+    // **우리 문장을 failureDetail에 싣지 않는다** (CLAUDE.md 1.4). 그 통로는 남의
+    // 라이브러리가 던진 영어를 기술 정보로 붙이는 자리라 번역되지 않는다 - 우리가 쓴
+    // 한국어를 거기 실으면 영어 로케일 학생에게 한국어가 그대로 뜬다. id는 파라미터다.
+    settle(() => reject(new ClientError('BACKBONE_UNAVAILABLE', { backboneId })))
     return { result, cancel: () => {} }
   }
 
