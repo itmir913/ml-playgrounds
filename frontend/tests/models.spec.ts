@@ -16,6 +16,7 @@ import { MAX_MODEL_BYTES } from '../src/limits'
 import { MLJS_ALGORITHMS, fit } from '../src/ml/engines/mljs'
 import {
   KMEANS_FORMAT,
+  SUPPORTED_MODEL_FORMATS,
   LINEAR_V2_FORMAT,
   LINEAR_REGRESSION_FORMAT,
   NAIVE_BAYES_FORMAT,
@@ -225,11 +226,22 @@ describe('크기', () => {
  * `needsTrainingRows` 불리언으로 판정하고, 형식이 늘어도 그 판정은 안 바뀐다.
  */
 describe('훈련 행이 필요한 형식', () => {
-  it('자체 완결형은 요구하지 않고 참조형만 요구한다', () => {
-    for (const format of [TREE_FORMAT, LINEAR_V2_FORMAT, NAIVE_BAYES_FORMAT]) {
-      expect(interpreterFor(format)?.needsTrainingRows, format).toBe(false)
-    }
-    expect(interpreterFor(REFERENCE_FORMAT)?.needsTrainingRows).toBe(true)
+  /**
+   * **등록부를 돈다. 목록을 손으로 적지 않는다.**
+   *
+   * 예전에는 형식 셋을 배열에 박아 두었는데 등록부에는 일곱이 있었다 - SVM 항목의 축을
+   * 뒤집어도 이 파일은 안 울었고(`svm.spec.ts`가 잡았다), 그래서 **이 describe가 스스로
+   * 내건 "축 하나가 형식 이름을 대신한다"를 정작 이 검사가 안 지키고 있었다**
+   * (2026-08-30, R12 감사 C-4). 형식이 늘면 이 검사도 저절로 는다.
+   */
+  it('참조형만 훈련 행을 요구하고 나머지는 전부 자체 완결형이다', () => {
+    // 0개를 돌고 통과하는 것을 막는 바닥. 등록부가 비면 아래 루프가 공허해진다.
+    expect(SUPPORTED_MODEL_FORMATS.length).toBeGreaterThanOrEqual(7)
+
+    const needy = SUPPORTED_MODEL_FORMATS.filter(
+      (format) => interpreterFor(format)?.needsTrainingRows === true,
+    )
+    expect(needy).toEqual([REFERENCE_FORMAT])
   })
 
   it('요구하는데 안 주면 던진다 - 빈 훈련 데이터로 그럴듯한 답을 내지 않는다', () => {
@@ -347,6 +359,9 @@ describe('mlpx-linear-v2', () => {
       const labels = loadModel(file)(IRIS_FEATURES)
       const rows = loadModelProba(file)?.predict(IRIS_FEATURES) ?? []
 
+      // **길이 바닥.** 빈 배열이 오면 아래 forEach가 0회 돌고 조용히 통과한다
+      // (2026-08-30, R12 감사 C-3). 형제 검사의 바닥에 얹혀 있던 것을 스스로 세운다.
+      expect(rows).toHaveLength(IRIS_FEATURES.length)
       rows.forEach((row, index) => {
         expect(row).not.toBeNull()
         if (row) expect(classes[argmax(row)]).toBe(labels[index])

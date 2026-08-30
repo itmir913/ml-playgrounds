@@ -132,9 +132,20 @@ function noteOf(column: ColumnPlan['columns'][number]): string | null {
   return null
 }
 
+/**
+ * 그 한 줄의 색. **`noteOf`가 고른 것과 같은 조건이어야 한다** — 색이 문장보다 넓게
+ * 잡히면 회색으로 말할 것을 빨강으로 말한다.
+ *
+ * `columnPlan`은 `targetIssue`를 **역할과 무관하게 모든 열에** 채운다. 그래서 여기서
+ * 역할을 안 거르면, 회귀에서 범주 특성이 `notEncodable`(고르는 것 자체는 막지 않는
+ * **주의**)을 달고도 빨갛게 나온다 — 같은 사실이 분류에서는 회색, 회귀에서는 빨강이
+ * 된다 (2026-08-30, R12 감사 C-1). 이 저장소에서 빨강은 "학습이 거부한다"는 뜻이다.
+ */
 function toneOf(column: ColumnPlan['columns'][number]): string {
-  const bad = column.featureIssue !== undefined || column.targetIssue !== undefined
-  return bad && column.role !== 'unused' ? 'text-danger' : 'text-ink-soft'
+  const issue =
+    column.featureIssue !== undefined ||
+    (column.role === 'target' && column.targetIssue !== undefined)
+  return issue && column.role !== 'unused' ? 'text-danger' : 'text-ink-soft'
 }
 
 /** 특성으로 고를 수 없는 열. 값이 통째로 비어 있으면 전처리가 던진다. */

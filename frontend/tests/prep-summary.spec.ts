@@ -296,4 +296,25 @@ describe('열 표의 전처리 칸', () => {
   it('결측이 없는 열에는 채움값을 안 적는다', () => {
     expect(pickerFor(chosen({ missing: 'mean' })).text()).not.toContain('결측치 →')
   })
+
+  /**
+   * **색이 문장보다 넓게 잡히면 안 된다.**
+   *
+   * `columnPlan`은 `targetIssue`를 역할과 무관하게 모든 열에 채운다. `noteOf`는
+   * `role === 'target'`으로 거르는데 `toneOf`는 안 걸러서, **회귀에서 범주 특성이
+   * 빨갛게 나왔다** — 그 줄이 실제로 말하는 것은 `notEncodable`이고, 그건
+   * *"고르는 것 자체는 막지 않는다"*고 `selection.spec.ts`가 못 박은 **주의**다.
+   * 같은 사실이 분류에서는 회색, 회귀에서는 빨강이었다 (2026-08-30, R12 감사 C-1).
+   */
+  it('회귀에서 범주 특성의 주의를 빨강으로 칠하지 않는다', () => {
+    // 회귀 · 타깃 점수(수치) · 특성에 반(범주) · 인코딩 없음.
+    const picker = pickerFor(chosen({ categoricalEncoding: 'none' }))
+    const rows = picker.findAll('tbody tr')
+    const grade = rows.find((row) => row.text().includes('반'))
+
+    const note = grade?.find('span.block:not(.font-bold)')
+    expect(note?.text()).toContain('학습에서 빠집니다')
+    expect(note?.classes()).toContain('text-ink-soft')
+    expect(note?.classes()).not.toContain('text-danger')
+  })
 })

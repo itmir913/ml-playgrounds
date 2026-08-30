@@ -398,11 +398,19 @@ export interface StratifyBlock {
  * 층화는 값 종류마다 훈련 데이터와 테스트 데이터에 하나씩 보내므로 그 종류의 행이 하나면 한쪽이 빈다
  * (limits.ts의 MIN_SPLIT_ROWS).
  */
-function lonelyValues(values: readonly string[]): { labels: string[]; kinds: number } {
+function lonelyValues(values: readonly string[]): {
+  lonely: { label: string; count: number }[]
+  kinds: number
+} {
   const counts = new Map<string, number>()
   for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1)
   return {
-    labels: [...counts].filter(([, count]) => count < MIN_SPLIT_ROWS).map(([label]) => label),
+    // **개수를 함께 돌려준다.** 문구가 그 수를 그대로 그리는데 예전에는 부르는 쪽이
+    // `1`을 박아 넣었다 — `MIN_SPLIT_ROWS`가 2인 지금은 맞지만, 그 상수가 움직이는
+    // 순간 화면이 "1개뿐이라"라고 **거짓말한다** (2026-08-30, R12 감사 C-2).
+    lonely: [...counts]
+      .filter(([, count]) => count < MIN_SPLIT_ROWS)
+      .map(([label, count]) => ({ label, count })),
     kinds: counts.size,
   }
 }
@@ -510,7 +518,7 @@ export function stratifyBlockFor(
   const tooFewToSample = sampleStratifyBlock(labels, nSamples)
   if (tooFewToSample) return tooFewToSample
 
-  const { labels: lonely, kinds } = lonelyValues(labels)
+  const { lonely, kinds } = lonelyValues(labels)
   if (lonely.length === 0) return null
   return blockFor(lonely, kinds)
 }
@@ -547,16 +555,21 @@ export function stratifyBlock(input: StratifyInput): StratifyBlock | null {
 }
 
 /** 1개뿐인 값들을 어떤 이유로 말할지. **위 판정이 걸린 뒤에만 부른다.** */
-function blockFor(labels: readonly string[], kinds: number): StratifyBlock {
+function blockFor(
+  lonely: readonly { label: string; count: number }[],
+  kinds: number,
+): StratifyBlock {
+  const only = lonely[0]
   // 값 하나만 부족한 것과 값이 거의 다 다른 것은 학생이 할 일이 정반대다.
-  return labels.length === 1
+  return lonely.length === 1 && only
     ? {
         code: 'SPLIT_STRATIFY_IMPOSSIBLE',
-        params: { label: labels[0] as string, count: 1, minRows: MIN_SPLIT_ROWS },
+        // **센 값을 그대로 싣는다.** 박아 넣으면 MIN_SPLIT_ROWS가 움직이는 날 거짓말이 된다.
+        params: { label: only.label, count: only.count, minRows: MIN_SPLIT_ROWS },
       }
     : {
         code: 'SPLIT_STRATIFY_TARGET_CONTINUOUS',
-        params: { kinds, lonely: labels.length },
+        params: { kinds, lonely: lonely.length },
       }
 }
 

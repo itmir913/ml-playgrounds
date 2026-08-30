@@ -153,6 +153,21 @@ describe('열 요약', () => {
     expect(summary[2]?.samples).toEqual(['A', 'B'])
   })
 
+  /**
+   * **경계를 밟는다.** 위 픽스처는 값 종류가 둘뿐이라 `SAMPLE_COUNT`를 3에서 100으로
+   * 바꿔도 아무도 안 울었다 (2026-08-30, R12 감사 C-5). 표시 개수는 화면이 그 칸에
+   * 몇 글자를 넣을지를 정하므로 조용히 늘면 좁은 칸이 무너진다.
+   */
+  it('표본은 세 개까지만 보여준다 - 값이 더 많아도', () => {
+    const many = summarizeColumns({
+      columns: ['등급'],
+      rows: [['A'], ['B'], ['C'], ['D'], ['E']],
+    })
+    expect(many[0]?.samples).toEqual(['A', 'B', 'C'])
+    // 종류 수는 다 센다. 잘리는 것은 보여주는 쪽뿐이다.
+    expect(many[0]?.unique).toBe(5)
+  })
+
   it('값이 하나도 없는 열은 범주로 떨어진다', () => {
     // 수치라고 우기면 스케일링이 NaN을 만든다.
     expect(summarizeColumns({ columns: ['x'], rows: [[''], ['']] })[0]?.kind).toBe('categorical')
