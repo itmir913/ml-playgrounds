@@ -349,22 +349,47 @@ describe('테스트용 사진이 학습까지 닿는다', () => {
  */
 describe('실행 방법 판정에 넘기는 것', () => {
   it('이미지 프로젝트는 이미지 종류로 넘어간다', () => {
-    const context = runtimeContextFor(imageProject(['a', 'b']), 'classification', 'tabular')
+    const context = runtimeContextFor(imageProject(['a', 'b']), 'tabular')
 
     expect(context.dataType).toBe('image')
   })
 
   it('사진 수를 센다 - 파일의 행 수가 아니다', () => {
-    const project = imageProject(['a', 'b', 'c'])
+    // **`trainableRowsOf`와 견주지 않는다** — 같은 함수를 두 번 부르는 자기 대조라
+    // 둘이 함께 틀리면 언제나 맞는다 (R13-5 감사). 손으로 적은 수와 견준다.
+    expect(runtimeContextFor(imageProject(['a', 'b', 'c']), 'tabular').rowCount).toBe(3)
+  })
 
-    expect(runtimeContextFor(project, 'classification', 'tabular').rowCount).toBe(
-      trainableRowsOf(project, 'classification'),
-    )
-    expect(runtimeContextFor(project, 'classification', 'tabular').rowCount).toBe(3)
+  /**
+   * **과제 유형도 파일에서 뽑는다.** 화면이 넘기게 두었을 때 그 인자가 검사 밖이었고,
+   * `undefined`로 고정해도 저장소 전체가 초록이었다 (R13-5 감사 A-6).
+   *
+   * 틀리면 군집화 이미지 프로젝트의 사진 수가 **라벨 붙은 것만으로 줄어든다.** 그러면
+   * 500장이 상한인 이미지 랜덤포레스트 카드가 열린 채로 서고, 학생이 누르면 700장으로
+   * 학습이 돈다 — `limits.ts`가 그 자리를 막으려고 세운 값이 지나간다.
+   */
+  it('군집이면 라벨 없는 사진도 센다 - 유형을 파일에서 뽑는다', () => {
+    const bytes = photo('unlabeled')
+    const base = addImages(
+      imageProject(['a', 'b']),
+      [{ hash: hashBytes(bytes), bytes, category: IMAGE_UNLABELED }],
+      { canonicalSize: BACKBONE.canonicalSize, now: NOW, format: 'webp' },
+    ).project
+
+    const withTask = (taskType: 'classification' | 'clustering'): ProjectFile => ({
+      ...base,
+      document: {
+        ...base.document,
+        manifest: { ...base.document.manifest, taskType },
+      },
+    })
+
+    expect(runtimeContextFor(withTask('clustering'), 'tabular').rowCount).toBe(3)
+    expect(runtimeContextFor(withTask('classification'), 'tabular').rowCount).toBe(2)
   })
 
   it('프로젝트가 없으면 0행이고 서버 상태는 모른다', () => {
-    const context = runtimeContextFor(null, undefined, 'tabular')
+    const context = runtimeContextFor(null, 'tabular')
 
     expect(context.rowCount).toBe(0)
     expect(context.serverStatus).toBe('unknown')

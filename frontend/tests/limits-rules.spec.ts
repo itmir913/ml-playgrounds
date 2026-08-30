@@ -33,7 +33,19 @@ import { describe, expect, it } from 'vitest'
 import { sourceFiles, withoutComments } from './fixtures/source'
 
 import { formatBytes } from '../src/composables/useFormat'
-import { BYTES_PER_KB, BYTES_PER_MB, PROJECT_FILE_WARN_BYTES } from '../src/limits'
+import {
+  BYTES_PER_KB,
+  BYTES_PER_MB,
+  MAX_IMAGE_COUNT,
+  MLJS_IMAGE_DECISION_TREE_ROW_LIMIT,
+  MLJS_IMAGE_KMEANS_ROW_LIMIT,
+  MLJS_IMAGE_KNN_ROW_LIMIT,
+  MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT,
+  MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT,
+  MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT,
+  MLJS_IMAGE_SVM_ROW_LIMIT,
+  PROJECT_FILE_WARN_BYTES,
+} from '../src/limits'
 
 const SRC = join(process.cwd(), 'src')
 if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
@@ -310,6 +322,36 @@ describe('산점도 상한이 화면까지 이어진다', () => {
  * `CLUSTER_MEMBER_PAGE_SIZE`는 값이 스무 줄로 비슷해도 근거가 *"훑기 좋은가"*라
  * 상한이 아니다. **그래서 기계가 대신 골라 줄 수 없다** — 여기서는 "달려 있는가"만 본다.
  */
+/**
+ * **이미지 행 상한들의 순서.**
+ *
+ * `algorithms.spec.ts`의 `행 상한 칸에 제 이름의 상수가 온다`는 등록부의 칸에 **어느
+ * 이름**이 오는지만 본다. 그래서 같은 맞바꿈을 `limits.ts`의 **값**에서 하면 학생이
+ * 겪는 일이 글자 하나 안 다른데 저장소가 조용했다 (R13-5 감사 A-4).
+ *
+ * **값을 여기 옮겨 적지 않는다** — 그러면 상한이 두 곳에 살고, 이 파일이 스스로 금지한
+ * 것이 그것이다. 대신 **순서**를 못 박는다. 순서는 실측이 정한 사실이고 값이 바뀌어도
+ * 안 뒤집힌다 — 뒤집히면 그건 새 실측이라 이 줄을 함께 고칠 자리다.
+ *
+ * 근거는 각 상수의 주석에 있는 2026-08-14 실측이다. 랜덤포레스트가 500장 113초인데
+ * 결정 트리는 1,000장 58.7초다 — **무거운 쪽이 더 낮아야 한다.**
+ */
+describe('이미지 행 상한은 무거운 순서다', () => {
+  it('무거운 둘이 가벼운 것보다 낮다', () => {
+    expect(MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT).toBeLessThan(MLJS_IMAGE_DECISION_TREE_ROW_LIMIT)
+    expect(MLJS_IMAGE_DECISION_TREE_ROW_LIMIT).toBeLessThan(MLJS_IMAGE_SVM_ROW_LIMIT)
+    expect(MLJS_IMAGE_SVM_ROW_LIMIT).toBeLessThan(MLJS_IMAGE_KNN_ROW_LIMIT)
+  })
+
+  /** 재 보니 상한을 둘 이유가 없던 넷. 사진 수 천장을 그대로 쓴다. */
+  it('가벼운 넷은 사진 수 천장을 그대로 쓴다', () => {
+    expect(MLJS_IMAGE_KNN_ROW_LIMIT).toBe(MAX_IMAGE_COUNT)
+    expect(MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT).toBe(MAX_IMAGE_COUNT)
+    expect(MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT).toBe(MAX_IMAGE_COUNT)
+    expect(MLJS_IMAGE_KMEANS_ROW_LIMIT).toBe(MAX_IMAGE_COUNT)
+  })
+})
+
 describe('MB는 십진이다', () => {
   /**
    * **되돌리면 알림이 있으나 마나가 된다.**

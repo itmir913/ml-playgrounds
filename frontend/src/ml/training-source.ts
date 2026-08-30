@@ -205,7 +205,6 @@ export function trainableRowsOf(project: ProjectFile, taskType: TaskType | undef
  */
 export function runtimeContextFor(
   project: ProjectFile | null,
-  taskType: TaskType | undefined,
   /**
    * 프로젝트가 없을 때 쓸 종류. **화면이 준다** — 그 값은 판 등록부(`data/kinds.ts`)의
    * 첫 판이고, 거기는 비동기 컴포넌트를 들고 있어 ML 층이 임포트하면 화면이 이 층의
@@ -221,7 +220,11 @@ export function runtimeContextFor(
     engineStates: {},
     // **종류가 센다.** 표는 전처리와 뽑기에서 빠질 행을 뺀 수이고, 이미지는 학습에
     // 들어갈 사진 수다.
-    rowCount: project === null ? 0 : trainableRowsOf(project, taskType),
+    // **과제 유형도 파일에서 뽑는다.** 화면이 넘기게 두었더니 그 인자가 검사 밖이었고,
+    // 틀리면 군집화 이미지 프로젝트의 사진 수가 라벨 붙은 것만으로 줄어든다 —
+    // 그러면 500장이 상한인 카드가 열린 채로 서고 학생이 누르면 700장으로 학습이 돈다
+    // (R13-5 감사 A-6). **화면이 고를 수 없게 만든다** — 셋째 인자와 같은 판단이다.
+    rowCount: project === null ? 0 : trainableRowsOf(project, project.document.manifest.taskType),
     dataType: project?.document.manifest.dataType ?? fallbackDataType,
   }
 }

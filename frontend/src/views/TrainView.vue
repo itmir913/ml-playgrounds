@@ -118,9 +118,7 @@ const columns = computed(() => (dataset.value ? summarizeColumns(dataset.value) 
  * **`nSamples`를 빠뜨리면 같은 거짓말이 다시 생긴다** — 학생이 3,000행만 쓰기로 했는데
  * 카드는 1만 행으로 재서 잠긴 채로 있고, 그러면 그 손잡이가 아무 일도 안 한다.
  */
-const context = computed<RuntimeContext>(() =>
-  runtimeContextFor(project.file, project.taskType, DEFAULT_DATA_TYPE),
-)
+const context = computed<RuntimeContext>(() => runtimeContextFor(project.file, DEFAULT_DATA_TYPE))
 
 /**
  * 고를 수 있는 유형. **데이터 종류가 좁힌다** - 이미지에 회귀는 성립하지 않는다.
