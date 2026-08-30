@@ -7,6 +7,9 @@
 
 import { describe, expect, it } from 'vitest'
 
+/** 임베딩이 앉는 백본. 어느 것이든 상관없고 읽는 쪽과 같기만 하면 된다. */
+const BACKBONE = DEFAULT_BACKBONE_ID
+
 import {
   addCategory,
   addImages,
@@ -25,7 +28,9 @@ import {
 import type { ImageRole } from '../src/data/image/canonical'
 import { CANONICAL_FORMATS } from '../src/data/image/formats'
 import { MAX_IMAGE_COUNT } from '../src/limits'
+import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { newProjectDocument } from '../src/project/create'
+import { addEmbeddings, readEmbeddings } from '../src/project/embeddings'
 import { IMAGE_UNLABELED, type ProjectFile } from '../src/project/format'
 import { dataSettings, parseProjectDocument } from '../src/project/schema'
 
@@ -373,6 +378,42 @@ describe('범주를 옮기고 고친다', () => {
     expect(both.duplicates).toBe(0)
     expect(readImages(both.project, 'predict')).toHaveLength(1)
     expect(readImages(both.project)).toHaveLength(1)
+  })
+
+  /**
+   * **자리를 지우는 것이 다른 자리의 임베딩을 데려가면 안 된다.**
+   *
+   * 위 검사가 세운 것("같은 사진이 두 자리에 설 수 있다")과 짝이다. 임베딩을 해시로만
+   * 지우던 때는 **예측 자리에서 한 장을 지우면 훈련 자리에 그대로 앉아 있는 사진의
+   * 벡터가 함께 나갔다** (2026-08-31 사각 감사 A-1).
+   *
+   * 그러면 `imageTrainingSource`가 벡터 없는 사진을 행에서 빼므로 군집 결과의 사진
+   * 격자에서 그 장이 조용히 없어지고, 참조형 모델은 `rowsHash`가 어긋나 답을 안 낸다.
+   */
+  it('예측 자리에서 지워도 훈련 사진의 임베딩은 남는다', () => {
+    const first = withPhotos({ hash: 'a', category: '개' })
+    const both = addImages(first, [baked('a', '개')], {
+      canonicalSize: SIZE,
+      now: NOW,
+      role: 'predict',
+      format: 'webp',
+    }).project
+    const withVectors = addEmbeddings(both, BACKBONE, new Map([['a', new Float32Array([1, 2])]]))
+
+    const after = removeImages(withVectors, ['a'], NOW, 'predict')
+
+    expect(readImages(after), '훈련 사진은 그대로다').toHaveLength(1)
+    expect(readEmbeddings(after, BACKBONE, 2).size, '그 사진의 벡터도 그대로다').toBe(1)
+  })
+
+  it('마지막 자리에서 지우면 임베딩도 나간다 - 아무도 안 가리키는 벡터를 남기지 않는다', () => {
+    const project = withPhotos({ hash: 'a', category: '개' })
+    const withVectors = addEmbeddings(project, BACKBONE, new Map([['a', new Float32Array([1, 2])]]))
+
+    const after = removeImages(withVectors, ['a'], NOW)
+
+    expect(readImages(after)).toHaveLength(0)
+    expect(readEmbeddings(after, BACKBONE, 2).size).toBe(0)
   })
 
   /**

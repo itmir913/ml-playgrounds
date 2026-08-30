@@ -11,7 +11,7 @@
  * `ui-rules.spec.ts`가 따로 훑는다.
  */
 
-import { ChevronDown, ChevronUp, Moon, Sun } from 'lucide-vue-next'
+import { Check, ChevronDown, ChevronUp, Circle, Moon, Sun } from 'lucide-vue-next'
 import { describe, expect, it } from 'vitest'
 
 import { ACTION_ICONS, STEP_ICONS } from '../src/icons'
@@ -34,6 +34,16 @@ describe('방향과 뜻이 그림에 실린 것들', () => {
   it('배색 스위치는 바뀔 쪽을 그린다', () => {
     expect(ACTION_ICONS.toLight).toBe(Sun)
     expect(ACTION_ICONS.toDark).toBe(Moon)
+  })
+
+  /**
+   * **색만으로 말하지 않기 위한 표시다** (`architecture.md` §8.18) — 답을 쓴 문항과
+   * 아직 안 쓴 문항을 그림으로도 가른다. 맞바꾸면 그 접근성 장치가 정확히 반대로
+   * 말한다 (2026-08-31 사각 감사 B-1).
+   */
+  it('쓴 문항과 안 쓴 문항이 다른 그림이다', () => {
+    expect(ACTION_ICONS.written).toBe(Check)
+    expect(ACTION_ICONS.unwritten).toBe(Circle)
   })
 })
 

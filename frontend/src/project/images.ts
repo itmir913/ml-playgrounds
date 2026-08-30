@@ -12,6 +12,7 @@
 
 import {
   categoryOfEntry,
+  IMAGE_ROLES,
   imageEntryPath,
   isValidCategoryName,
   type ImageRole,
@@ -459,9 +460,25 @@ export function removeImages(
   const left = [...images.keys()].some((path) => path.startsWith(ROLE_REFERENCE[role].path))
   if (!left) delete data[field]
 
-  // 임베딩은 그 사진의 것이라 함께 나간다 (mlpx-spec.md §1.3). 안 지우면 IndexedDB에
-  // 아무 사진의 것도 아닌 벡터가 계속 쌓인다.
-  const pruned = removeEmbeddings(project, hashes)
+  /**
+   * 임베딩은 그 사진의 것이라 함께 나간다 (mlpx-spec.md §1.3). 안 지우면 IndexedDB에
+   * 아무 사진의 것도 아닌 벡터가 계속 쌓인다.
+   *
+   * **다만 자리를 넘어 지우면 안 된다.** 같은 해시가 두 자리에 사는 것은 정상이고
+   * 이 모듈이 그렇게 적어 두었다 — *"훈련에 쓴 사진을 예측으로 올리는 것은 학생이
+   * 일부러 하는 일이다."* 해시로만 지우던 때는 **예측 자리에서 한 장을 지우면
+   * 훈련 자리에 그대로 앉아 있는 사진의 벡터가 함께 나갔다.**
+   *
+   * 그러면 `imageTrainingSource`가 벡터 없는 사진을 행에서 빼므로 **군집 결과의
+   * 사진 격자에서 그 장이 조용히 없어지고**, 참조형 모델은 `rowsHash`가 어긋나
+   * 답을 안 낸다 — 학생 눈에는 멀쩡한 모델이 갑자기 침묵한다 (2026-08-31 사각 감사 A-1).
+   */
+  const remaining = { ...project, images }
+  const stillUsed = new Set(
+    IMAGE_ROLES.flatMap((one) => readImages(remaining, one).map((entry) => entry.hash)),
+  )
+  const orphaned = hashes.filter((hash) => !stillUsed.has(hash))
+  const pruned = removeEmbeddings(project, orphaned)
   return withImages({ ...pruned, images }, images, data, now)
 }
 

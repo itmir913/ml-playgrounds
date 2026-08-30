@@ -112,8 +112,19 @@ export type AxisCell =
  * `체육` 자리에 `1.02`가, `78.4` 자리에 `없음`이 뜬다 (2026-08-31 사각 감사 A-3).
  */
 export function axisCell(axis: ClusterAxis, value: number): AxisCell {
-  if (!isCategoricalAxis(axis)) return { kind: 'number', value }
-  const name = axis.categories?.[Math.round(value)]
+  return axisCellOf(axis.categories, value)
+}
+
+/**
+ * 축을 안 들고 **범주 목록만** 든 자리를 위한 같은 판정. 산점도의 좌표 글자가
+ * 그렇다 — 거기서는 그림에 넘긴 눈금 목록이 곧 그 축이다.
+ *
+ * **반올림이 이 판정의 전부다.** 흩뿌린 만큼을 걷어내면 원래 칸이 나온다
+ * (`cluster-chart.ts`의 `JITTER_SPREAD`가 반 칸을 못 넘는다).
+ */
+export function axisCellOf(categories: readonly string[] | undefined, value: number): AxisCell {
+  if (categories === undefined) return { kind: 'number', value }
+  const name = categories[Math.round(value)]
   return name === undefined ? { kind: 'unknownCategory' } : { kind: 'category', name }
 }
 

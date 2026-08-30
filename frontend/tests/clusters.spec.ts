@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest'
 import { isClientError } from '../src/errors'
 import {
   axisCell,
+  axisCellOf,
   assignClusters,
   axisOverviews,
   categoryIndexAt,
@@ -805,5 +806,20 @@ describe('축의 한 칸이 무엇으로 읽히나', () => {
   it('범주가 빈 배열이어도 수치로 읽지 않는다', () => {
     const empty: ClusterAxis = { name: '반', index: 1, width: 0, categories: [] }
     expect(axisCell(empty, 0)).toEqual({ kind: 'unknownCategory' })
+  })
+
+  /**
+   * 산점도의 좌표 글자는 축이 아니라 **그림에 넘긴 눈금 목록**을 든다. 그 자리가
+   * 세 번째 손벌이었다 (2026-08-31 사각 감사 A-2).
+   */
+  it('범주 목록만 들고도 같은 판정이다', () => {
+    expect(axisCellOf(undefined, 1.02)).toEqual({ kind: 'number', value: 1.02 })
+    expect(axisCellOf(['A', 'B'], 0.6)).toEqual({ kind: 'category', name: 'B' })
+    expect(axisCellOf(['A', 'B'], 9)).toEqual({ kind: 'unknownCategory' })
+  })
+
+  it('축을 든 쪽과 목록만 든 쪽이 같은 답을 낸다', () => {
+    expect(axisCell(categorical, 0)).toEqual(axisCellOf(categorical.categories, 0))
+    expect(axisCell(numeric, 3)).toEqual(axisCellOf(numeric.categories, 3))
   })
 })

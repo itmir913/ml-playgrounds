@@ -25,7 +25,7 @@ import {
   clusterChartOptions,
   type ClusterHighlight,
 } from '@/ml/cluster-chart'
-import type { ClusterAxis, ClusterSummary, ScatterData } from '@/ml/clusters'
+import { axisCellOf, type ClusterAxis, type ClusterSummary, type ScatterData } from '@/ml/clusters'
 import { theme } from '@/theme'
 
 Chart.register(ScatterController, PointElement, LinearScale, Tooltip, Legend)
@@ -127,10 +127,12 @@ const jittered = computed(() => scales.value.x !== undefined || scales.value.y !
  */
 function coordinate(value: number | null, categories?: readonly string[]): string {
   if (value === null) return t('meta.none')
-  // **범주 축은 이름으로 말한다.** 흩뿌린 만큼을 반올림으로 걷어내면 원래 칸이 나온다 -
-  // 흩뿌림이 반 칸을 못 넘기 때문이다 (`cluster-chart.ts`의 `JITTER_SPREAD`).
-  if (categories) return categories[Math.round(value)] ?? t('meta.none')
-  return format.prediction(value)
+  // **판정은 여기서 하지 않는다** (`ml/clusters.ts`의 `axisCellOf`). 화면 셋이 같은
+  // 규칙을 손으로 세 벌 쓰고 있었고, 갈래를 뒤집어도 조용했다 (2026-08-31 사각 감사 A-2).
+  const cell = axisCellOf(categories, value)
+  if (cell.kind === 'category') return cell.name
+  if (cell.kind === 'unknownCategory') return t('meta.none')
+  return format.prediction(cell.value)
 }
 
 const tokens = computed(() => ({
