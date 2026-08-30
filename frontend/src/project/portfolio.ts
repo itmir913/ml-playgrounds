@@ -104,6 +104,8 @@ export function withImportedSections(
 ): Portfolio {
   const before = new Set(portfolio.template.sections.map((section) => section.id))
   const taken = new Set(before)
+  /** 이 묶음 안에서 그 자연 id가 몇 번째로 나왔나. 이름은 등장 순번이 정한다. */
+  const seen = new Map<string, number>()
   const added: PortfolioTemplateSection[] = []
   drafts.forEach((draft, index) => {
     const natural = draft.id ?? sectionIdFor(draft.title, index)
@@ -114,9 +116,17 @@ export function withImportedSections(
      * *"겹치면 뒤에 번호를 붙이고"*라고 정한 자리다 - 건너뛰면 **교사가 준 양식의
      * 문항이 안내문째 말없이 빠진다.** 제목이 눈에 다르게 보여도 슬러그가 같으면
      * 충돌한다(`결과`와 `결과?`).
+     *
+     * **이름을 묶음 안의 등장 순번으로 정한다.** `taken`으로 번호를 붙이면
+     * 가져올 때마다 하나씩 밀려 **같은 양식의 사본이 쌓인다.** 순번으로 정해야
+     * 둘째 `느낀 점`이 언제나 `느낀-점-2`이고, 그것이 밖에 이미 있으면 건너뛴다 —
+     * 밖에 `느낀-점`만 있을 때 둘째가 사라지던 자리다 (2026-08-31 사각 감사 A-2).
      */
-    if (before.has(natural)) return
-    const id = uniqueId(natural, taken)
+    const nth = (seen.get(natural) ?? 0) + 1
+    seen.set(natural, nth)
+    const candidate = nth === 1 ? natural : `${natural}-${nth}`
+    if (before.has(candidate)) return
+    const id = uniqueId(candidate, taken)
     added.push(draftToSection(draft, id))
     taken.add(id)
   })
@@ -363,7 +373,7 @@ export interface PortfolioMarkdownText {
 }
 
 /** 줄머리의 `#`. 앞의 여백까지 함께 본다 - 세 칸까지 들여쓴 제목도 제목으로 읽힌다. */
-const LINE_LEADING_HASH = /^(\s{0,3})(#+)/
+const LINE_LEADING_HASH = /^( {0,3})(#+)/
 
 /**
  * 단독으로 서면 앞줄을 제목으로 만드는 줄.
@@ -378,13 +388,44 @@ const SETEXT_UNDERLINE = /^(\s{0,3})(-+|=+)\s*$/
 /**
  * 코드 울타리 줄. 뒤에 언어 이름이 올 수 있는 것이 여는 줄이다 (CommonMark).
  *
- * 닫으려면 **같은 글자로 그만큼 이상** 길어야 한다.
+ * 닫으려면 **같은 글자로 그만큼 이상** 길어야 하고, 닫는 줄에는 언어 이름을 못 붙인다.
+ *
+ * **들여쓰기는 공백 셋까지다 — 탭이 아니다.** CommonMark에서 탭은 네 칸이라 탭으로
+ * 들여쓴 줄은 울타리가 아니라 **들여쓴 글**이다. `\s{0,3}`으로 세던 때는 그 줄을
+ * 울타리로 읽고 답 끝에 닫는 줄을 더했는데, **더한 그 줄이 진짜 여는 울타리가 되어
+ * 뒤따르는 문항을 삼켰다** (2026-08-31 사각 감사 A-1).
  */
-const FENCE = /^(\s{0,3})(`{3,}|~{3,})(.*)$/
+const FENCE = /^( {0,3})(`{3,}|~{3,})(.*)$/
 
 /** 답 안에서 열린 채 끝난 HTML 주석. 닫지 않으면 뒤가 전부 주석이 된다. */
 const COMMENT_OPEN = '<!--'
 const COMMENT_CLOSE = '-->'
+
+/** 코드 스팬. 그 안의 글자는 값이지 마크업이 아니다. */
+const CODE_SPAN = /`+[^`]*`+/g
+
+/**
+ * 이 줄을 지난 뒤에도 주석이 열려 있는가. **세지 않고 훑는다.**
+ *
+ * 세기만 하면 두 가지를 놓친다 — 한 줄에서 `-->`가 `<!--`보다 **앞설 때**(그러면
+ * 합이 0이라 열린 것을 못 본다), 그리고 **코드 스팬 안의 `<!--`**(정보 수업에서
+ * *"HTML 주석은 `<!--`로 시작한다"*는 흔한 문장이고, 세면 짝이 없는 `-->`가
+ * 제출물에 한 줄 붙는다). 둘 다 2026-08-31 사각 감사가 실측했다 (C-5·C-6).
+ *
+ * HTML 주석은 겹치지 않으므로 상태는 불리언 하나면 된다.
+ */
+function commentOpenAfter(line: string, open: boolean): boolean {
+  const text = line.replace(CODE_SPAN, '')
+  let inside = open
+  let at = 0
+  for (;;) {
+    const token = inside ? COMMENT_CLOSE : COMMENT_OPEN
+    const found = text.indexOf(token, at)
+    if (found === -1) return inside
+    inside = !inside
+    at = found + token.length
+  }
+}
 
 /**
  * 답을 `.md`에 담을 수 있게 만든다.
@@ -405,7 +446,13 @@ const COMMENT_CLOSE = '-->'
 function escapeAnswer(answer: string): string {
   const lines: string[] = []
   let fence: string | undefined
-  let open = 0
+  /**
+   * 여는 줄의 들여쓰기. **닫는 줄에 그대로 붙인다** — 목록 안에 들여쓴 울타리는
+   * 0열의 줄로 안 닫히고, 그러면 더한 줄까지 코드 블록 안으로 들어가 문항이 계속
+   * 사라진다 (2026-08-31 사각 감사 A-1).
+   */
+  let fenceIndent = ''
+  let open = false
 
   for (const line of answer.split('\n')) {
     if (fence !== undefined) {
@@ -428,21 +475,20 @@ function escapeAnswer(answer: string): string {
     )
 
     const opening = FENCE.exec(line)
-    if (opening !== null) {
-      fence = opening[2]!
+    // **백틱 울타리의 언어 자리에는 백틱이 못 온다** (CommonMark). 그 줄은 울타리가
+    // 아니라 코드 스팬이 든 글이다 - 울타리로 읽으면 없던 것을 닫으려 든다.
+    const opens = opening !== null && !(opening[2]!.startsWith('`') && opening[3]!.includes('`'))
+    if (opens) {
+      fence = opening![2]!
+      fenceIndent = opening![1]!
       continue
     }
-    // 0 아래로 안 내린다. 닫는 것만 있는 답 뒤에 진짜 여는 것이 오면 그것을 놓친다.
-    open = Math.max(0, open + countOf(line, COMMENT_OPEN) - countOf(line, COMMENT_CLOSE))
+    open = commentOpenAfter(line, open)
   }
 
-  if (fence !== undefined) lines.push(fence)
-  for (let n = 0; n < open; n += 1) lines.push(COMMENT_CLOSE)
+  if (fence !== undefined) lines.push(`${fenceIndent}${fence}`)
+  if (open) lines.push(COMMENT_CLOSE)
   return lines.join('\n')
-}
-
-function countOf(line: string, token: string): number {
-  return line.split(token).length - 1
 }
 
 /** 머리글 값은 한 줄에 담긴다. 줄바꿈이 들어오면 목록이 깨진다. */

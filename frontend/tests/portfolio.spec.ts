@@ -126,6 +126,36 @@ describe('가져오기는 대체가 아니라 추가다', () => {
     const once = withImportedSections(portfolio([]), drafts)
     expect(withImportedSections(once, drafts)).toBe(once)
   })
+
+  /**
+   * **빈 포트폴리오에서만 가져오는 픽스처는 이 갈래를 안 지나간다.** 처음 고쳤을 때
+   * 그래서 절반만 닫혔다 — 밖에 이미 `느낀-점`이 있으면 양식 안의 둘째 `## 느낀 점`이
+   * 여전히 안내문째 사라졌다 (2026-08-31 사각 감사 A-2).
+   *
+   * 이름을 **묶음 안의 등장 순번**으로 정해야 둘째가 언제나 `느낀-점-2`이고,
+   * 그래야 세 번을 가져와도 사본이 안 쌓인다.
+   */
+  it('밖에 이미 있는 제목과 겹쳐도 둘째 문항이 산다', () => {
+    const before = portfolio([{ id: '느낀-점', title: '느낀 점' }], { '느낀-점': '내 글' })
+    const after = withImportedSections(before, [
+      { title: '느낀 점', description: '첫 안내문' },
+      { title: '느낀 점', description: '둘째 안내문' },
+    ])
+    expect(after.template.sections.map((section) => section.id)).toEqual(['느낀-점', '느낀-점-2'])
+    expect(after.answers['느낀-점'], '쓰던 글은 그대로다').toBe('내 글')
+  })
+
+  it('세 번 가져와도 사본이 안 쌓인다 - 번호는 등장 순번이지 남은 자리가 아니다', () => {
+    const drafts = [{ title: '느낀 점' }, { title: '다른 것' }, { title: '느낀 점' }]
+    let portfolioFile = withImportedSections(portfolio([]), drafts)
+    portfolioFile = withImportedSections(portfolioFile, drafts)
+    portfolioFile = withImportedSections(portfolioFile, drafts)
+    expect(portfolioFile.template.sections.map((section) => section.id)).toEqual([
+      '느낀-점',
+      '다른-것',
+      '느낀-점-2',
+    ])
+  })
 })
 
 describe('사람이 더하는 것은 건너뛰지 않는다', () => {
@@ -374,8 +404,16 @@ describe('마크다운으로 옮긴다', () => {
    * **문항이 몇 개 살아남는지를 센다.** 글자를 찾는 단언으로는 못 본다 - 삼켜진
    * 문항의 글자는 코드 블록 안에 그대로 남아 있기 때문이다.
    */
+  /**
+   * **`html: true`로 렌더링한다.** 기본값은 `html: false`라 `<!--`가 애초에 주석이
+   * 안 되고, 그러면 HTML 주석 검사가 **울타리 절반만 보면서 초록**이 된다
+   * (2026-08-31 사각 감사 C-6). 이 파일이 나가는 곳은 GitHub·VS Code처럼
+   * HTML을 켜 두고 여는 뷰어다.
+   */
   const titlesIn = (markdown: string) =>
-    [...new MarkdownIt().render(markdown).matchAll(/<h2>([^<]*)</g)].map(([, title]) => title)
+    [...new MarkdownIt({ html: true }).render(markdown).matchAll(/<h2>([^<]*)</g)].map(
+      ([, title]) => title,
+    )
 
   it('안 닫은 코드 울타리가 뒤 문항을 안 삼킨다', () => {
     const markdown = renderPortfolioMarkdown(
@@ -411,6 +449,98 @@ describe('마크다운으로 옮긴다', () => {
       ),
     )
     expect(titlesIn(markdown)).toEqual(['동기', '방법', '느낀 점'])
+  })
+
+  /**
+   * **닫아 주는 줄이 여는 줄이 될 수 있다.** 처음 고쳤을 때 픽스처가 0열의 백틱
+   * 셋뿐이라 아래 셋을 한 번도 안 지나갔고, 그 셋에서는 **고치기 전보다 나빠졌다**
+   * (2026-08-31 사각 감사 A-1).
+   *
+   * - **탭으로 들여쓴 줄은 울타리가 아니다** (CommonMark에서 탭은 네 칸이다).
+   *   울타리로 읽으면 없던 것을 닫으려다 진짜 울타리를 연다.
+   * - **목록 안 울타리는 0열로 안 닫힌다.** 닫는 줄이 여는 줄의 들여쓰기를 따라야 한다.
+   * - **백틱 울타리의 언어 자리에는 백틱이 못 온다.** 그 줄은 코드 스팬이 든 글이다.
+   */
+  const answersKeepTitles = (answer: string) =>
+    titlesIn(
+      renderPortfolioMarkdown(
+        TEXT,
+        portfolio(
+          [
+            { id: 'a', title: '동기' },
+            { id: 'b', title: '방법' },
+          ],
+          { a: answer, b: '잘 됐다' },
+        ),
+      ),
+    )
+
+  it('탭으로 들여쓴 백틱은 울타리가 아니다 - 닫아 주면 안 된다', () => {
+    expect(answersKeepTitles(['설명', '\t```', 'print(1)'].join('\n'))).toEqual(['동기', '방법'])
+  })
+
+  /**
+   * 울타리로 잘못 읽으면 **그 뒤가 이스케이프를 안 거친다** — 울타리 안에서는
+   * 안 하기 때문이다. 그러면 학생이 쓴 `##`이 진짜 문항이 된다.
+   */
+  it('탭 뒤의 ##도 문항이 되지 않는다', () => {
+    expect(answersKeepTitles(['설명', '\t```', '## 가짜 문항'].join('\n'))).toEqual([
+      '동기',
+      '방법',
+    ])
+  })
+
+  it('목록 안에 들여쓴 울타리는 그 들여쓰기로 닫는다', () => {
+    expect(answersKeepTitles(['- 코드:', '  ```python', '  print(1)'].join('\n'))).toEqual([
+      '동기',
+      '방법',
+    ])
+  })
+
+  it('언어 자리에 백틱이 있으면 울타리가 아니다 - 코드 스팬이 든 글이다', () => {
+    expect(answersKeepTitles(['```js `x`', 'print(1)'].join('\n'))).toEqual(['동기', '방법'])
+  })
+
+  it('그 글 안의 ##도 문항이 되지 않는다', () => {
+    expect(answersKeepTitles(['```js `x`', '## 가짜 문항', '내용'].join('\n'))).toEqual([
+      '동기',
+      '방법',
+    ])
+  })
+
+  it('세 칸까지 들여쓴 #도 막는다 - 거기까지는 진짜 제목이다', () => {
+    expect(answersKeepTitles(['   ## 가짜 문항', '내용'].join('\n'))).toEqual(['동기', '방법'])
+  })
+
+  /**
+   * **주석은 세지 않고 훑는다.** 세기만 하면 코드 스팬 안의 `<!--`에 짝이 붙어
+   * 제출물에 `-->`가 한 줄 더 생기고, 같은 줄에서 `-->`가 앞설 때는 열린 주석을
+   * 놓친다 (2026-08-31 사각 감사 C-5·C-6).
+   */
+  it('코드 스팬 안의 여는 주석에는 짝을 안 붙인다', () => {
+    const markdown = renderPortfolioMarkdown(
+      TEXT,
+      portfolio([{ id: 'a', title: '동기' }], { a: 'HTML 주석은 `<!--` 로 시작한다.' }),
+    )
+    expect(markdown).not.toContain('-->')
+  })
+
+  it('같은 줄에서 닫는 것이 앞서도 열린 주석을 본다', () => {
+    // HTML을 켜 두고 여는 뷰어(GitHub·VS Code)에서 뒤 문항이 통째로 사라지던 자리다.
+    const markdown = renderPortfolioMarkdown(
+      TEXT,
+      portfolio(
+        [
+          { id: 'a', title: '동기' },
+          { id: 'b', title: '방법' },
+        ],
+        { a: '입력 --> 출력 <!-- 메모', b: '잘 됐다' },
+      ),
+    )
+    const titles = [
+      ...new MarkdownIt({ html: true }).render(markdown).matchAll(/<h2>([^<]*)</g),
+    ].map(([, title]) => title)
+    expect(titles).toEqual(['동기', '방법'])
   })
 
   it('제대로 닫은 코드 블록은 안 건드린다 - 안의 #도 그대로다', () => {
