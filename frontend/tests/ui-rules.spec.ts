@@ -34,6 +34,23 @@ interface Rule {
 
 const RULES: readonly Rule[] = [
   {
+    name: '범주 목록을 settings에서 직접 읽지 않는다',
+    why:
+      '범주는 폴더가 갖고 목록과 순서는 settings가 갖는다 - 둘이 갈리면 폴더가 이긴다. ' +
+      '그 병합은 imageCategories 하나가 한다. 화면이 settings만 보면 있는 범주를 ' +
+      '"모르는 범주"라 부르고, 학생이 그 말대로 빼면 그 범주가 없는 테스트셋으로 ' +
+      '채점한다 - 잠금이 막으려던 바로 그 상태다 (2026-08-30 R12 감사 A-2).',
+    pattern: /dataSettings\([^)]*\)\.categories/,
+    violations: [
+      "  settings.value === null ? [] : dataSettings('image', settings.value).categories,",
+      'return dataSettings(kind, document.settings).categories',
+    ],
+    allowed: [
+      'const categories = computed(() => imageCategories(project.file))',
+      "return backboneFor(dataSettings('image', file.document.settings).backboneId)",
+    ],
+  },
+  {
     name: 'text-base보다 작은 글씨를 쓰지 않는다',
     why: '중고등학생이 교실 모니터로 본다. 촘촘함은 글자를 줄여서가 아니라 여백으로 얻는다.',
     pattern: /\btext-(xs|sm)\b/,

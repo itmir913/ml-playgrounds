@@ -35,7 +35,13 @@ import { splitsData, stratifyBlockFor, stratifyLocked } from '@/ml/selection'
 import { IMAGE_UNLABELED } from '@/project/format'
 import { dataSettings } from '@/project/schema'
 import { imageRoomShortfall } from '@/data/image/room'
-import { applyTestImages, clearTestImages, imageOverflow, readImages } from '@/project/images'
+import {
+  applyTestImages,
+  clearTestImages,
+  imageCategories,
+  imageOverflow,
+  readImages,
+} from '@/project/images'
 import { withSplit } from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
@@ -77,10 +83,19 @@ const stratifyDisabled = computed(() =>
   stratifyLocked(stratifyBlockNow.value, settings.value?.split.stratify ?? false),
 )
 
-/** 이 프로젝트의 범주. 올라온 사진을 대조할 목록이다. */
-const categories = computed(() =>
-  settings.value === null ? [] : dataSettings('image', settings.value).categories,
-)
+/**
+ * 이 프로젝트의 범주. 올라온 사진을 대조할 목록이다.
+ *
+ * **`imageCategories`가 유일한 출처다.** 범주는 폴더가 갖고 목록과 순서는 `settings`가
+ * 갖는데, 둘이 갈리면 폴더가 이긴다 (`open-decisions.md` "범주는 폴더가 갖고, 목록과
+ * 순서는 settings가 갖는다"). 그 병합이 `imageCategories`다.
+ *
+ * **여기서 `settings`만 보면 있는 범주를 "모르는 범주"라 부른다.** 학생이 그 말대로
+ * 그 범주를 빼면 통과하는데, 그러면 **그 범주가 하나도 없는 테스트셋으로 채점한다** -
+ * 이 자리의 잠금이 막으려던 바로 그 상태다. 게다가 데이터 화면에서 그 이름을 새로
+ * 만들려 하면 이미 있다고 막혀서 빠져나갈 길이 없다 (2026-08-30 R12 감사 A-2).
+ */
+const categories = computed(() => imageCategories(project.file))
 
 /** 이미 올라온 테스트용 사진. 있으면 올리는 자리 대신 지우는 자리가 선다. */
 const testPhotos = computed(() => readImages(project.file, 'test').length)
