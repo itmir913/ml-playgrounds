@@ -9,7 +9,7 @@
 import 'fake-indexeddb/auto'
 
 import { openDB } from 'idb'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { embeddingPath } from '../src/project/embeddings'
@@ -21,7 +21,10 @@ import {
   deleteProject,
   listProjects,
   loadProject,
+  markExported,
+  readExportedAt,
   readPreferredLocale,
+  roomShortfall,
   saveProject,
   totalBytes,
   writePreferredLocale,
@@ -782,5 +785,57 @@ describe('이미지 프로젝트', () => {
 
     const loaded = await loadProject(project.document.manifest.projectId)
     expect(loaded?.images.size).toBe(0)
+  })
+})
+
+/**
+ * **주석이 "이걸 안 하면 이렇게 망가진다"고 적어 둔 자리들이다.** 셋 다 뭉개도 저장소가
+ * 조용했다 (R13-4 감사 C-2). 정상 경로로는 안 지나가므로 여기서 따로 태운다.
+ */
+describe('저장소의 방어 갈래', () => {
+  /**
+   * 브라우저가 보고하는 `usage`가 `quota`를 넘는 기기가 있다. 걷어내면 화면이
+   * **"남은 공간 -1MB"**라고 말한다.
+   */
+  it('쓴 것이 할당량을 넘어도 남은 공간을 음수로 말하지 않는다', async () => {
+    stubEstimate(1_000_000, 3_000_000)
+
+    const shortfall = await roomShortfall(1)
+
+    expect(shortfall?.availableMb).toBe(0)
+  })
+
+  /**
+   * `roomShortfall`의 머리말이 이 자리를 명시적으로 약속한다 — *"estimate()가 없는
+   * 브라우저에서는 `null`이다 … 그때는 실제 쓰기에서 나는 QuotaExceededError가 같은
+   * 코드로 바뀐다."* 안 바뀌면 로케일에 없는 원문이 토스트로 간다.
+   */
+  it('실제 쓰기에서 나는 쿼터 오류도 우리 코드가 된다', async () => {
+    const quota = new DOMException('quota', 'QuotaExceededError')
+    const put = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
+      throw quota
+    })
+
+    try {
+      const thrown: unknown = await saveProject(projectFile()).catch((error: unknown) => error)
+      expect(isClientError(thrown) && thrown.code).toBe('STORAGE_QUOTA_EXCEEDED')
+    } finally {
+      put.mockRestore()
+    }
+  })
+
+  /**
+   * 주석: *"없는 프로젝트에는 아무것도 하지 않는다 - 지워진 프로젝트를 되살리면 안 된다."*
+   * 학생이 지운 프로젝트가 목록에 되살아나면 지우기가 안 먹은 것으로 보인다.
+   */
+  it('없는 프로젝트를 내보낸 것으로 적어도 되살아나지 않는다', async () => {
+    await saveProject(projectFile())
+    await deleteProject(manifest.projectId)
+
+    await markExported(manifest.projectId, '2026-08-30T00:00:00.000Z')
+
+    expect(await loadProject(manifest.projectId)).toBeNull()
+    expect(await readExportedAt(manifest.projectId)).toBeNull()
+    expect(await listProjects()).toEqual([])
   })
 })
