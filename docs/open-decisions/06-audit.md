@@ -872,16 +872,17 @@ off 스위치 범위 · `.mlpx` 크기를 하드 블록으로 막지 않는 이�
 **여섯째 줄이 있는 이유는 이 파일이 상한만 사는 곳이 아니어서다.** webp 품질과 알림 시간이
 여기 함께 산다. 스위치를 "이 파일 전부"로 정의하면 그것들까지 꺼진다.
 
-**전수 분류 (44개).** 값은 여기 옮겨 적지 않는다 — 코드가 출처다.
+**전수 분류 (52개, 2026-08-30 기준).** 값은 여기 옮겨 적지 않는다 — 코드가 출처다.
+**이 표는 손으로 세는 것이라 낡는다** — 실제로 한 번 낡았다(44 → 52).
 
 | 분류 | 상수 |
 |---|---|
-| **우리 기기가 정했다** (22) | `MAX_DATASET_ROWS` · `MAX_IMAGE_COUNT` · `MAX_DATASET_COLUMNS` · `BROWSER_ROW_LIMIT` · `MLJS_*_ROW_LIMIT` 여덟(표) · `MLJS_IMAGE_*_ROW_LIMIT` 일곱 · `CLUSTER_SCATTER_POINT_LIMIT` · `PREDICT_PAGE_SIZE` · `MAX_PORTFOLIO_BYTES` |
+| **우리 기기가 정했다** (23) | `MAX_DATASET_ROWS` · `MAX_IMAGE_COUNT` · `MAX_DATASET_COLUMNS` · `BROWSER_ROW_LIMIT` · `MLJS_*_ROW_LIMIT` 여덟(표) · `MLJS_IMAGE_*_ROW_LIMIT` 일곱 · `CLUSTER_SCATTER_POINT_LIMIT` · `PREDICT_PAGE_SIZE` · `IMAGE_PREDICT_PAGE_SIZE` · `MAX_PORTFOLIO_BYTES` |
 | **파일이 나간 뒤가 요구한다** (4) | `MAX_CATEGORY_NAME_LENGTH`(윈도우 260자 경로) · `MAX_FILE_NAME_LENGTH`(파일 시스템) · `MAX_MODEL_BYTES` · `MODEL_BUDGET_BYTES` |
 | **계산 자체가 요구한다** (1) | `MIN_SPLIT_ROWS` |
 | **교실을 보고 골랐다** (3) | `MAX_STUDENT_ID_LENGTH` · `MAX_STUDENT_NAME_LENGTH` · `TEST_SIZE_RANGE` |
 | **알림이다** (1) | `PROJECT_FILE_WARN_BYTES` — §3의 100MB 경고 (2026-08-27) |
-| **상한이 아니다** (14) | 표시 분량 여섯(`IMAGE_GRID_PAGE_SIZE`·`IMAGE_PREDICT_PAGE_SIZE`·`PREVIEW_ROW_COUNT`·`CLUSTER_MEMBER_PAGE_SIZE`·`CLUSTER_NEIGHBOR_ROW_COUNT`·`CLUSTER_REPRESENTATIVE_COUNT`) · 가공 규격 넷(`IMAGE_WEBP_QUALITY`·`IMAGE_JPEG_QUALITY`·`MAX_ATTACHMENT_EDGE`·`MAX_FAILURE_DETAIL_LENGTH`) · 동작 시간 둘(`TOAST_DURATION_MS`·`AUTOSAVE_DELAY_MS`) · 계수와 단위 둘(`STORAGE_SAFETY_FACTOR`·`BYTES_PER_MB`) |
+| **상한이 아니다** (20) | 표시 분량 여덟(`IMAGE_GRID_PAGE_SIZE`·`TABLE_PREVIEW_ROW_COUNT`·`PREP_PREVIEW_ROW_COUNT`·`CLUSTER_MEMBER_PAGE_SIZE`·`CLUSTER_NEIGHBOR_ROW_COUNT`·`CLUSTER_REPRESENTATIVE_COUNT`·`COLUMN_SAMPLE_COUNT`·`HASH_PREVIEW_LENGTH`) · 가공 규격 여섯(`IMAGE_WEBP_QUALITY`·`IMAGE_JPEG_QUALITY`·`IMAGE_WEBP_ESTIMATED_BYTES`·`IMAGE_JPEG_ESTIMATED_BYTES`·`MAX_ATTACHMENT_EDGE`·`MAX_FAILURE_DETAIL_LENGTH`) · 동작 시간 셋(`TOAST_DURATION_MS`·`AUTOSAVE_DELAY_MS`·`SCROLL_TOP_DURATION_MS`) · 계수와 단위 셋(`STORAGE_SAFETY_FACTOR`·`BYTES_PER_KB`·`BYTES_PER_MB`) |
 
 #### 1.1 초안에서 넷을 옮기고 이름 하나를 고쳤다 (R6 감사)
 
@@ -924,6 +925,20 @@ off 스위치 범위 · `.mlpx` 크기를 하드 블록으로 막지 않는 이�
   이라고 밝힌다. 생긴 모양이 아니라 **근거가 무엇이었나**로 갈라야 이 둘이 제자리에 간다.
 - **`CLUSTER_MEMBER_PAGE_SIZE`는 반대다.** 값이 스무 줄로 같아도 근거가 *"훑기 좋은가"*라
   기기와 무관하다. 그 파일이 이미 *"상한이 아니라 페이지 크기다"*라고 적어 두었다.
+
+#### 1.2 `IMAGE_PREDICT_PAGE_SIZE`를 기기 줄로 옮겼다 (2026-08-30, R13-3 감사 C-1)
+
+**위 §1.1이 세운 판별자를 이 상수에만 안 적용했다.** 그 절이 *"생긴 모양이 아니라 근거가
+무엇이었나로 갈라야 `PREDICT_PAGE_SIZE`가 제자리에 간다"*고 적고 그것을 기기 줄에 넣었는데,
+**이미지 쪽 짝은 표시 분량으로 묶여 있었다** — 이름이 `PAGE_SIZE`로 끝나서다.
+
+**그 상수의 주석이 같은 문장을 쓴다** — *"화면을 위한 것이 아니라 계산을 위한 것이다
+(`PREDICT_PAGE_SIZE`와 같은 사정)"*. 답 하나가 `사진 수 × 모델 수`이고 참조형이면 그 한
+번마다 훈련 데이터 전체와의 거리 계산이라, **판정이 기기마다 다르다.** 근거가 같다고
+스스로 적은 둘이 다른 칸에 있을 이유가 없다.
+
+**끄면 무슨 일이 나나** — 예측 화면이 사진을 한 번에 다 세운다. 빠른 기기에서는 되고
+저사양 교실 PC에서는 그동안 멈춘다. 그것이 이 분류의 정의이고, 표 쪽에서 이미 그렇게 두었다.
 
 #### 2. off 스위치는 **우리 기기가 정한 것 전부**를 끈다
 
