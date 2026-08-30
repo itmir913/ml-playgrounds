@@ -534,11 +534,18 @@ describe('라벨을 맞바꾸면 이력이 말한다', () => {
 describe('테스트용 사진으로 채점한다', () => {
   const NOW_TEST = '2026-08-28T09:00:00.000Z'
 
-  /** 훈련 사진 둘, 테스트 사진 둘. 넷 다 임베딩이 이미 있다 — 워커를 안 띄운다. */
+  /**
+   * 훈련 사진 **셋**, 테스트 사진 둘. 다섯 다 임베딩이 이미 있다 — 워커를 안 띄운다.
+   *
+   * **장수를 일부러 갈라 둔다.** 둘·둘이던 때에는 테스트 표를 **훈련 사진으로 지어도**
+   * `toHaveLength(2)`가 그대로 통과했다 (2026-08-30, R12 감사 C-1). 벡터도 역할마다
+   * 다른 값(`index + 1` / `index + 9`)으로 채워 두었는데 아무도 안 봤다.
+   */
   function projectWithTestPhotos(): ProjectFile {
     const base = imageProject([
       { seed: 'a', category: '개' },
       { seed: 'b', category: '고양이' },
+      { seed: 'c', category: '개' },
     ])
     const applied = applyTestImages(
       base,
@@ -565,9 +572,14 @@ describe('테스트용 사진으로 채점한다', () => {
     })
 
     expect(source.testDataset, '테스트 사진을 올렸는데 어댑터가 null을 준다').not.toBeNull()
+    // 훈련은 셋, 테스트는 둘이다. 장수가 같으면 훈련 사진으로 지어도 안 걸린다.
+    expect(source.dataset.rows).toHaveLength(3)
     expect(source.testDataset?.rows).toHaveLength(2)
     // 훈련 표와 같은 열 이름이어야 전처리기가 이름으로 찾는다.
     expect(source.testDataset?.columns).toEqual(source.dataset.columns)
+    // **값이 테스트 벡터인가.** 테스트 임베딩은 9부터, 훈련은 1부터 채워 두었다.
+    expect(source.testDataset?.rows.map((row) => row[0])).toEqual(['9', '10'])
+    expect(source.dataset.rows.map((row) => row[0])).toEqual(['1', '2', '3'])
   })
 
   it('계획이 서고 testIndices가 올린 사진을 가리킨다', async () => {
@@ -585,8 +597,8 @@ describe('테스트용 사진으로 채점한다', () => {
     expect('reason' in plan ? plan.reason : null, '계획이 막혔다').toBeNull()
     if ('reason' in plan) return
     expect(plan.split.testIndices).toHaveLength(2)
-    // 훈련 사진은 하나도 채점으로 안 간다 - 나누지 않고 통째로 학습에 쓴다.
-    expect(plan.split.trainIndices).toHaveLength(2)
+    // 훈련 사진은 하나도 채점으로 안 간다 - 나누지 않고 통째로 학습에 쓴다. 셋이다.
+    expect(plan.split.trainIndices).toHaveLength(3)
   })
 
   /** 군집은 나누지 않는다 (architecture.md §3.6). 올려 두었어도 채점할 자리가 없다. */
@@ -597,6 +609,36 @@ describe('테스트용 사진으로 채점한다', () => {
       vectors.set(entry.hash, new Float32Array(DIM).fill(1))
     }
     expect(imageTestDataset(project, vectors, BACKBONE, 'clustering')).toBeNull()
+  })
+
+  /**
+   * **라벨 없는 테스트 사진은 채점에 안 들어간다** (2026-08-30, R12 감사 C-4).
+   *
+   * 소스가 *"입구가 이미 막지만 여기서도 세지 않는다"*고 적은 두 번째 방어선인데
+   * 검사가 없었다. 그 자리에 사진이 앉는 길이 실재한다 — `applyTestImages`가
+   * 워커가 돌려준 이름이 안 맞으면 `_unlabeled`로 떨어뜨린다. 빠지면 그 이름이
+   * **범주 하나로 채점에 들어가** 모델이 한 번도 못 본 라벨이 되고 성적이 조용히 내려간다.
+   */
+  it('라벨 없는 테스트 사진은 표에 안 들어간다', () => {
+    const base = projectWithTestPhotos()
+    const orphan = photo('t9')
+    const applied = applyTestImages(
+      base,
+      [
+        { hash: hashBytes(photo('t1')), bytes: photo('t1'), category: '개' },
+        { hash: hashBytes(photo('t2')), bytes: photo('t2'), category: '고양이' },
+        { hash: hashBytes(orphan), bytes: orphan, category: IMAGE_UNLABELED },
+      ],
+      { canonicalSize: BACKBONE.canonicalSize, now: NOW_TEST, format: 'webp' },
+    ).project
+
+    const vectors = new Map<string, Float32Array>()
+    for (const entry of readImages(applied, 'test')) {
+      vectors.set(entry.hash, new Float32Array(DIM).fill(9))
+    }
+
+    const table = imageTestDataset(applied, vectors, BACKBONE, 'classification')
+    expect(table?.rows).toHaveLength(2)
   })
 
   /** 사진은 있는데 임베딩이 없으면 빈 표가 아니라 `null`이다. */

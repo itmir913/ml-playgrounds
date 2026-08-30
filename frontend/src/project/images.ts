@@ -497,7 +497,12 @@ export function renameCategory(
     // 여기서 지금의 기본 형식을 쓰면 jpg 정본이 `.webp` 이름을 뒤집어쓴다.
     images.set(imageEntryPath('data', entry.hash, to, entry.format), entry.bytes)
   }
-  const categories = previous.categories.map((category) => (category === from ? to : category))
+  const renamed = previous.categories.map((category) => (category === from ? to : category))
+  // **같은 이름이 두 벌 서지 않는다.** `to`가 이미 목록에 있으면 두 범주가 합쳐지는
+  // 것이고, 그때 이름이 둘이면 스냅샷의 `categoryCounts`에도 같은 칸이 둘 생긴다.
+  // `addCategory`와 `moveImages`는 이미 `includes`로 막는데 여기만 안 막고 있었다
+  // (2026-08-30, R12 감사 C-2). 화면의 `nameTaken`이 유일한 방어선이었다.
+  const categories = renamed.filter((category, index) => renamed.indexOf(category) === index)
   return withImages(project, images, { ...previous, categories }, now)
 }
 

@@ -246,6 +246,23 @@ describe('범주를 옮기고 고친다', () => {
   })
 
   /**
+   * **이미 있는 이름으로 바꾸면 두 범주가 합쳐진다. 목록에 두 벌이 서면 안 된다.**
+   *
+   * `addCategory`와 `moveImages`는 `includes`로 막는데 `renameCategory`만 안 막아서,
+   * `map`이 그대로 두 벌을 만들었다 (2026-08-30, R12 감사 C-2). 화면의 `nameTaken`이
+   * 유일한 방어선이었고 순수 함수 쪽에는 검사도 없었다. 두 벌이 되면 스냅샷의
+   * `categoryCounts`에도 같은 범주가 두 칸을 차지한다.
+   */
+  it('이미 있는 이름으로 바꾸면 합쳐지고 목록은 한 벌이다', () => {
+    const project = withPhotos({ hash: 'a', category: '개' }, { hash: 'b', category: '고양이' })
+    const merged = renameCategory(project, '개', '고양이', NOW)
+
+    expect(imageCategories(merged)).toEqual(['고양이'])
+    expect(readImages(merged).every((entry) => entry.category === '고양이')).toBe(true)
+    expect(readImages(merged)).toHaveLength(2)
+  })
+
+  /**
    * 지우는 것으로 만들면 잘못 누른 한 번에 40장이 사라지고, 되돌릴 방법이 다시
    * 올리는 것뿐이다.
    */
@@ -388,7 +405,9 @@ describe('사진 범위 고르기', () => {
   const entries = ['a', 'b', 'c', 'd'].map((hash) => ({
     hash,
     category: '개',
-    path: `dataset/train/개/${hash}.webp`,
+    // 실제 레이아웃은 `dataset/data/`다 (mlpx-spec.md 1.2). 값이 계산에 안 쓰여
+    // 통과하고 있었는데, 다음 사람이 이 경로를 보고 따라 쓴다 (R12 감사 C-5).
+    path: `dataset/data/개/${hash}.webp`,
     bytes: new Uint8Array([1]),
     format: CANONICAL_FORMATS.webp,
   }))

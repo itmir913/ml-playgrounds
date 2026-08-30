@@ -16,6 +16,7 @@ import { hashBytes } from '../src/hash'
 import { isClientError } from '../src/errors'
 import {
   IMAGE_DATA_DIR,
+  IMAGE_PREDICT_DIR,
   IMAGE_TEST_DIR,
   readProject,
   type ProjectFile,
@@ -31,7 +32,7 @@ const markdown = '# 포트폴리오'
 const photo = (seed: string) => new TextEncoder().encode(`가짜jpg:${seed}`)
 
 /** 정본 한 장. **이름은 바이트의 해시다** — 실제 경로 규칙을 그대로 쓴다. */
-function entryFor(category: string, seed: string, role: 'data' | 'test' = 'data') {
+function entryFor(category: string, seed: string, role: 'data' | 'test' | 'predict' = 'data') {
   const bytes = photo(seed)
   return [imageEntryPath(role, hashBytes(bytes), category, CANONICAL_FORMATS.webp), bytes] as const
 }
@@ -174,6 +175,31 @@ describe('이미지 프로젝트의 왕복', () => {
       1,
     )
   })
+
+  /**
+   * **예측 폴더도 같은 규칙이다** (2026-08-30, R12 감사 C-3).
+   *
+   * 이 파일은 `data/`와 `test/`만 왕복시켰다. 그래서 `IMAGE_DIRS`에서 예측 폴더를 빼도,
+   * `requireFolderBodies`에서 예측 줄을 빼도 검사 129개가 전부 초록이었다. 빠지면
+   * **예측 사진이 든 파일이 `PROJECT_FILE_ENTRY_MISSING`으로 아예 안 열린다** —
+   * 학생이 예측까지 해 둔 프로젝트가 통째로 죽는다.
+   */
+  it('예측 폴더도 같은 규칙이다', async () => {
+    const project = imageProject()
+    project.images.set(...entryFor('', 'p', 'predict'))
+    project.document.settings.data.predictDataset = {
+      path: IMAGE_PREDICT_DIR,
+      canonicalSize: 224,
+      format: 'webp',
+      quality: 0.65,
+    }
+    const { bytes } = await writeProjectBytes(project, markdown)
+    const { project: after } = await readProject(bytes)
+
+    expect(
+      [...after.images.keys()].filter((path) => path.startsWith(IMAGE_PREDICT_DIR)),
+    ).toHaveLength(1)
+  })
 })
 
 describe('참조와 본체는 함께 있고 함께 없다', () => {
@@ -183,6 +209,25 @@ describe('참조와 본체는 함께 있고 함께 없다', () => {
       attachments: new Map(),
       embeddings: new Map(),
     })
+    await expect(writeProjectBytes(project, markdown)).rejects.toSatisfy(
+      (error: unknown) => isClientError(error) && error.code === 'PROJECT_FILE_INVALID',
+    )
+  })
+
+  /**
+   * **예측 폴더도 같은 짝이다** (2026-08-30, R12 감사 C-3). `requireFolderBodies`의
+   * 예측 줄을 빼도 저장소가 초록이었다 — 그 줄이 없으면 참조만 남은 파일이 저장되고,
+   * 다시 열 때 `PROJECT_FILE_ENTRY_MISSING`으로 **아예 안 열린다.**
+   */
+  it('예측 참조는 있는데 사진이 없으면 저장이 거부된다', async () => {
+    const project = imageProject()
+    project.document.settings.data.predictDataset = {
+      path: IMAGE_PREDICT_DIR,
+      canonicalSize: 224,
+      format: 'webp',
+      quality: 0.65,
+    }
+    // 예측 사진은 한 장도 안 넣는다. 참조만 있는 상태다.
     await expect(writeProjectBytes(project, markdown)).rejects.toSatisfy(
       (error: unknown) => isClientError(error) && error.code === 'PROJECT_FILE_INVALID',
     )
