@@ -241,8 +241,14 @@ PROJECT_FILE_VERSION_TOO_NEW, PROJECT_FILE_VERSION_UNSUPPORTED
 
 **모델 실행 / 저장소**
 ```
-MODEL_FORMAT_UNSUPPORTED, MODEL_FILE_INVALID, MODEL_NEEDS_DATASET, STORAGE_QUOTA_EXCEEDED
+MODEL_FORMAT_UNSUPPORTED, MODEL_FILE_INVALID, MODEL_NEEDS_DATASET, STORAGE_QUOTA_EXCEEDED,
+STORAGE_VERSION_TOO_NEW
 ```
+
+`STORAGE_VERSION_TOO_NEW`는 **`PROJECT_FILE_VERSION_TOO_NEW`의 저장소 판이다** — 배포를
+되돌렸을 때 디스크의 IndexedDB가 이 앱보다 높은 경우이고, 학생이 할 일이 같다(앱을 최신으로
+올린다). **데이터는 그대로 있고 우리가 못 여는 것뿐이라** 문구가 그것을 말한다
+(open-decisions.md "저장소가 미래에서 온 것도 예측 가능하게 거부한다").
 
 앞의 셋은 전부 **파일은 멀쩡히 열리고 그 모델로 예측만 못 하는** 경우이고, 셋으로 나눈
 이유는 학생이 할 일이 다르기 때문이다 — 앱을 최신으로 바꾼다 / 다시 학습한다 /

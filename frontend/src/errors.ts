@@ -106,6 +106,15 @@ export const CLIENT_ERROR_CODES = [
 
   // 브라우저 저장소 - project/storage.ts
   'STORAGE_QUOTA_EXCEEDED',
+  /**
+   * 이 브라우저에 담긴 저장소가 이 앱보다 새 것이다 (open-decisions.md "저장소가
+   * 미래에서 온 것도 예측 가능하게 거부한다").
+   *
+   * **`PROJECT_FILE_VERSION_TOO_NEW`의 저장소 판이다** — 학생이 할 일이 같다. 앱을
+   * 최신으로 올리는 것뿐이고, **그 사이 데이터는 그대로 있다.** 배포를 되돌리면
+   * 그 교실 전원이 이것을 만나므로, 어휘 없이 두면 영어 원문과 **빈 목록**이 뜬다.
+   */
+  'STORAGE_VERSION_TOO_NEW',
 
   // 우리가 코드로 만들어 두지 않은 실패의 마지막 그물.
   // JOB_FAILED와 나누는 이유는 그건 학습에 대한 말이기 때문이다 - 저장이 실패했는데

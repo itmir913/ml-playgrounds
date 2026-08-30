@@ -352,6 +352,38 @@ describe('DB 업그레이드', () => {
     await saveProject(projectFile())
     expect(await loadProject(manifest.projectId)).not.toBeNull()
   })
+
+  /**
+   * **반대 방향이다** (open-decisions.md "저장소가 미래에서 온 것도 예측 가능하게
+   * 거부한다"). 배포를 되돌리면 디스크의 DB가 앱보다 높고, `idb`는 `VersionError`를
+   * 던진다. 어휘가 없으면 `UNEXPECTED_ERROR`와 **영어 원문**이 뜨고 목록이 빈 채로
+   * 선다 — `architecture.md` §8.10.2가 막으려던 바로 그 장면이다.
+   */
+  it('디스크의 저장소가 더 새 것이면 우리 코드로 거절한다', async () => {
+    const ahead = await openDB(DB_NAME, DB_VERSION + 1)
+    ahead.close()
+    closeStorage()
+
+    const thrown: unknown = await listProjects().catch((error: unknown) => error)
+
+    expect(isClientError(thrown) && thrown.code).toBe('STORAGE_VERSION_TOO_NEW')
+  })
+
+  /**
+   * **실패한 약속을 붙들지 않는다.** `connection ??=`이 거절된 약속을 캐시하면 그 세션의
+   * 저장소 접근이 전부 죽어, 되돌린 배포를 다시 올려도 새로고침 전까지 안 산다.
+   */
+  it('한 번 실패해도 그 세션이 통째로 죽지 않는다', async () => {
+    const ahead = await openDB(DB_NAME, DB_VERSION + 1)
+    ahead.close()
+    closeStorage()
+    await expect(listProjects()).rejects.toSatisfy(isClientError)
+
+    // 되돌렸던 배포를 다시 올린 자리다. closeStorage()를 부르지 않는 것이 요점이다.
+    await deleteDatabase()
+
+    await expect(listProjects()).resolves.toEqual([])
+  })
 })
 
 describe('읽는 경로가 .mlpx와 같은 문을 지난다', () => {

@@ -151,8 +151,26 @@ function db(): Promise<IDBPDatabase<PlaygroundDB>> {
         database.createObjectStore(MODELS_STORE, { keyPath: ['projectId', 'path'] })
       }
     },
+  }).catch((error: unknown) => {
+    // **실패한 약속을 붙들지 않는다.** 그대로 캐시하면 그 세션의 저장소 접근이 전부
+    // 죽고, 되돌린 배포를 다시 올려도 새로고침 전까지 안 산다.
+    connection = null
+    throw asOpenError(error)
   })
   return connection
+}
+
+/**
+ * 디스크의 저장소가 이 앱보다 새 것이다 (open-decisions.md "저장소가 미래에서 온 것도
+ * 예측 가능하게 거부한다").
+ *
+ * `idb`는 여기서 `VersionError`를 던지는데, 그건 우리 코드가 아니라서
+ * `UNEXPECTED_ERROR`로 떨어지고 **영어 원문이 토스트에 붙고 목록이 빈 채로 뜬다.**
+ * 파일 쪽 `PROJECT_FILE_VERSION_TOO_NEW`와 같은 자리를 저장소에도 세운다.
+ */
+function asOpenError(error: unknown): unknown {
+  const name = error instanceof Error ? error.name : ''
+  return name === 'VersionError' ? new ClientError('STORAGE_VERSION_TOO_NEW') : error
 }
 
 /**
