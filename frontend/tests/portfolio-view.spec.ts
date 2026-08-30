@@ -13,7 +13,7 @@
 
 import { createPinia, setActivePinia } from 'pinia'
 import { mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import PortfolioView from '../src/views/PortfolioView.vue'
 import TemplateSourceList from '../src/views/portfolio/TemplateSourceList.vue'
@@ -21,6 +21,7 @@ import TemplateSourceMenu from '../src/views/portfolio/TemplateSourceMenu.vue'
 import { i18n, setLocale } from '../src/i18n'
 import { MAX_PORTFOLIO_BYTES } from '../src/limits'
 import { newProjectDocument } from '../src/project/create'
+import { portfolioTextBytes, withImportedSections } from '../src/project/portfolio'
 import type { ProjectFile } from '../src/project/format'
 import { useProjectStore } from '../src/stores/project'
 
@@ -171,6 +172,31 @@ describe('상한에 걸리면 화면이 파일과 갈리지 않는다', () => {
     expect(store.file?.document.portfolio.answers[id]).toBe('짧은 글')
     expect((textarea.element as HTMLTextAreaElement).value).toBe('짧은 글')
   })
+
+  /**
+   * **정확히 상한인 글은 받아들인다.** 검사가 쓰는 값이 언제나 `MAX + 1`이라
+   * `>`를 `>=`로 바꿔도 조용했다 — 경계에서 어느 쪽인지를 아무도 안 정했다
+   * (2026-08-31 사각 감사 C-2).
+   */
+  it('정확히 상한인 글은 받아들인다', async () => {
+    const store = useProjectStore()
+    const view = mountView()
+    await view
+      .findAll('button')
+      .find((one) => one.text().includes('빈 양식'))
+      ?.trigger('click')
+
+    const id = store.file?.document.portfolio.template.sections[0]?.id ?? ''
+    const textarea = view.find('textarea')
+    // 답 말고 다른 것이 몇 바이트 더 있으므로, 상한에 딱 맞는 답의 길이를 되짚어 만든다.
+    const room = MAX_PORTFOLIO_BYTES - portfolioTextBytes(store.file!.document.portfolio)
+    const exact = 'a'.repeat(room)
+    ;(textarea.element as HTMLTextAreaElement).value = exact
+    await textarea.trigger('input')
+
+    expect(portfolioTextBytes(store.file!.document.portfolio)).toBe(MAX_PORTFOLIO_BYTES)
+    expect(store.file?.document.portfolio.answers[id]).toBe(exact)
+  })
 })
 
 /**
@@ -243,5 +269,112 @@ describe('양식 메뉴는 받은 것을 그대로 되보낸다', () => {
     await menu.vm.$nextTick()
 
     expect(menu.emitted('pick')).toEqual([['## 주제\n안내문\n', 'ko']])
+  })
+})
+
+/**
+ * 목차가 "지금 여기"를 말하는 판정 (`measure()` · `active` · `SectionIndex`).
+ *
+ * **잴 수 없다고 보고 접혔던 자리다.** jsdom에서 `getBoundingClientRect`가 0을
+ * 돌려주는 것은 **스텁을 안 줘서지 못 줘서가 아니다** — `screen.spec.ts`가
+ * `getComputedStyle`을 갈아 끼워 같은 결의 판정을 이미 잰다 (2026-08-31 사각 감사 A-3).
+ *
+ * `grep -rn "aria-current" tests/`가 0건이었다. 이 자리는 **이미 한 번 사용자에게
+ * 잡혔다** — *"목차에서 8번을 눌렀는데 7번이 표시되던 것"*(2026-08-15).
+ */
+describe('목차는 지금 보고 있는 문항을 가리킨다', () => {
+  /**
+   * 앵커마다 `top`을 준다. 나머지 요소는 0을 그대로 준다.
+   *
+   * **`DOMRect`를 스프레드로 복사하면 빈 객체가 된다** - 값이 전부 프로토타입의
+   * 게터라서다. 그러면 `top`이 `undefined`가 되고 비교가 `NaN`이 되어 **판정이
+   * 언제나 한쪽으로 기운다.** 여기서 실제로 한 번 그렇게 헛돌았다.
+   */
+  function pretendScroll(tops: Record<string, number>): () => void {
+    const original = Element.prototype.getBoundingClientRect
+    Element.prototype.getBoundingClientRect = function stub(this: Element): DOMRect {
+      const top = tops[this.id] ?? 0
+      return {
+        top,
+        bottom: top + 100,
+        left: 0,
+        right: 0,
+        width: 0,
+        height: 100,
+        x: 0,
+        y: top,
+        toJSON: () => ({}),
+      }
+    }
+    return () => {
+      Element.prototype.getBoundingClientRect = original
+    }
+  }
+
+  /**
+   * 문항 하나짜리 양식을 세우고, 준 `top`으로 다시 재게 한 뒤 목차가 몇을
+   * 가리키는지 센다.
+   *
+   * 둘을 조심해야 한다. **문서에 붙여야** `measure()`의 `getElementById`가 앵커를
+   * 찾고, **프레임을 비워야** 스크롤이 실제로 다시 잰다 — `schedule()`이
+   * `requestAnimationFrame`으로 미루므로 `nextTick`만으로는 마운트 때의 값이 남는다.
+   */
+  async function withSections(tops: (ids: string[]) => Record<string, number>) {
+    const frames: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback)
+      return frames.length
+    })
+    vi.stubGlobal('cancelAnimationFrame', () => {})
+
+    // **문항이 셋이어야 순회가 뜻을 갖는다.** 하나면 비교 방향을 뒤집어도 결과가 같다.
+    const file = project()
+    const store = useProjectStore()
+    store.file = {
+      ...file,
+      document: {
+        ...file.document,
+        portfolio: withImportedSections(file.document.portfolio, [
+          { title: '첫 문항' },
+          { title: '둘째 문항' },
+          { title: '셋째 문항' },
+        ]),
+      },
+    }
+    const view = mount(PortfolioView, { global: { plugins: [i18n] }, attachTo: document.body })
+
+    const sections = store.file!.document.portfolio.template.sections
+    expect(sections.length, '문항 셋으로 시작한다').toBe(3)
+    const ids = sections.map((section) => `portfolio-section-${section.id}`)
+
+    const restore = pretendScroll(tops(ids))
+    try {
+      window.dispatchEvent(new Event('scroll'))
+      for (const frame of frames.splice(0)) frame(0)
+      await view.vm.$nextTick()
+      // 목차 줄은 번호와 상태를 함께 담는다. 어느 문항인가만 본다.
+      return view.findAll('[aria-current]').map((one) => /[가-힣]+ 문항/.exec(one.text())?.[0])
+    } finally {
+      restore()
+      vi.unstubAllGlobals()
+    }
+  }
+
+  it('맨 위에서는 첫 문항을 가리킨다 - 아무것도 안 가리키면 안 된다', async () => {
+    // 문항이 전부 선보다 아래다 - 순회가 곧장 멈춰 `current`가 `null`로 남는다.
+    // 떨어지는 갈래가 없으면 목차가 아무것도 안 가리킨다.
+    expect(await withSections((ids) => Object.fromEntries(ids.map((id) => [id, 5000])))).toEqual([
+      '첫 문항',
+    ])
+  })
+
+  it('선을 지난 마지막 문항을 가리킨다 - 그 아래는 아직 안 왔다', async () => {
+    // 첫째와 둘째는 선 위로 지나갔고 셋째는 아직 아래다. 지금 보는 것은 둘째다.
+    const active = await withSections((ids) => ({
+      [ids[0]!]: -600,
+      [ids[1]!]: -20,
+      [ids[2]!]: 400,
+    }))
+    expect(active).toEqual(['둘째 문항'])
   })
 })

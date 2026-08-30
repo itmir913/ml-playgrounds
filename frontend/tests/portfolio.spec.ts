@@ -35,6 +35,9 @@ import {
   type PortfolioMarkdownText,
 } from '../src/project/portfolio'
 import type { Portfolio } from '../src/project/schema'
+import { DIR, readProject, type ProjectFile } from '../src/project/format'
+import { writeProjectBytes } from './fixtures/write'
+import { unzipSync } from 'fflate'
 
 function portfolio(
   sections: { id: string; title: string; description?: string }[],
@@ -786,6 +789,53 @@ describe('내보낼 문서와 그 마크다운은 같은 세대다', () => {
     const written = { ...blank, portfolio: withAnswer(blank.portfolio, 'topic', '고양이와 개') }
     const { markdown } = identifiedExport(written, identity, now, label, 'ko')
     expect(markdown).toContain('고양이와 개')
+  })
+
+  /**
+   * **여기까지가 함수 층이고, 파일까지 가는 것을 잇는 검사가 저장소에 없었다**
+   * (2026-08-31 사각 감사 C-7). `format.spec.ts`는 `document.md` 자리에 박은
+   * 문자열을 넣고 왕복시키므로 **엔트리는 보지만 내용은 안 본다.**
+   *
+   * `.mlpx`가 곧 수행평가 제출물이다 (`CLAUDE.md` §1.3). 겹치는 제목이 든 양식과
+   * 안 닫은 울타리가 **파일에서** 어떻게 보이는지가 이 검사의 몫이다.
+   */
+  it('그린 마크다운이 파일 안의 document.md로 그대로 간다', async () => {
+    const imported = withImportedSections(blank.portfolio, [
+      { title: '느낀 점' },
+      { title: '느낀 점' },
+    ])
+    const answered = withAnswer(
+      withAnswer(imported, '느낀-점', ['```python', 'print(1)'].join('\n')),
+      '느낀-점-2',
+      '둘째 답',
+    )
+    const { document, markdown } = identifiedExport(
+      { ...blank, portfolio: answered },
+      identity,
+      now,
+      label,
+      'ko',
+    )
+
+    const file: ProjectFile = {
+      document,
+      models: new Map(),
+      images: new Map(),
+      attachments: new Map(),
+      embeddings: new Map(),
+    }
+    const { bytes } = await writeProjectBytes(file, markdown)
+    const { project: opened } = await readProject(bytes)
+
+    // 파일에서 꺼낸 글이 그린 글과 같고, 문항 둘이 살아 있다.
+    const inFile = new TextDecoder().decode(unzipSync(bytes)[`${DIR.portfolio}document.md`]!)
+    expect(inFile).toBe(markdown)
+    expect(
+      [...new MarkdownIt({ html: true }).render(inFile).matchAll(/<h2>([^<]*)</g)].map(
+        ([, title]) => title,
+      ),
+    ).toEqual(['느낀 점', '느낀 점'])
+    expect(opened.document.portfolio.template.sections).toHaveLength(2)
   })
 
   /**
