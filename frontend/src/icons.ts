@@ -20,6 +20,7 @@ import {
   ChevronUp,
   Shapes,
   Download,
+  ExternalLink,
   FileInput,
   FileText,
   FlaskConical,
@@ -64,6 +65,8 @@ export const ACTION_ICONS = {
   newProject: Plus,
   openFile: FolderOpen,
   savedProjects: Library,
+  /** 앱 밖으로 나가는 링크. **새 탭이 열린다는 것을 이 그림이 말한다.** */
+  externalLink: ExternalLink,
   exportFile: Download,
   showSummary: Info,
   /** 용어 설명을 여는 물음표. 눌러야 나온다는 것을 이 그림이 말한다 (§8.13). */

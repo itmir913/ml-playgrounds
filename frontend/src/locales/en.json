@@ -3,6 +3,9 @@
     "name": "Machine Learning Playgrounds",
     "tagline": "Nothing to install — play freely with AI right in your browser. With just your own data, anyone can build a machine learning model and keep the whole process in a single project."
   },
+  "datasets": {
+    "demo": "No data yet? Try a demo dataset"
+  },
   "legal": {
     "privacy": "Privacy policy",
     "notices": "Open source licenses"

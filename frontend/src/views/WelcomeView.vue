@@ -27,6 +27,7 @@ import { ROUTE_PROJECT_HOME } from '@/router'
 import { ACTION_ICONS } from '@/icons'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { NOTICES_PATH, privacyPath } from '@/legal'
+import { DEMO_DATASETS_URL } from '@/links'
 import { MAX_FILE_NAME_LENGTH } from '@/limits'
 import { newProjectDocument, newProjectSeed } from '@/project/create'
 import type { DataType } from '@/project/schema'
@@ -268,6 +269,30 @@ onMounted(refresh)
           @remove="removing = $event"
         />
       </div>
+
+      <!--
+        **올릴 데이터가 없는 학생이 막히는 자리다.** [새 프로젝트]를 누르면 곧바로
+        파일을 올리라는 화면인데, 수업에 쓸 표나 사진을 아직 안 가진 학생은 거기서
+        할 수 있는 일이 없다.
+
+        **단추 아래이지 푸터가 아니다.** 아래 둘은 규정이고 성격이 다르며, 흐린
+        글씨라 눈에 안 들어온다. 네 번째 단추도 아니다 — 예시를 받는 것은 주 동작이
+        아니라 **그것을 하러 가기 전의 준비**다.
+
+        **프로젝트를 만들 때 이미 표인지 이미지인지 정한다.** 그러므로 고르기 전에
+        무엇이 있는지 볼 수 있어야 하고, 그 자리는 여기뿐이다.
+
+        근거는 `open-decisions.md` "예시 데이터셋은 바깥에 있고, 앱은 주소만 갖는다".
+      -->
+      <a
+        :href="DEMO_DATASETS_URL"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-2 rounded-control text-ink-soft transition-colors hover:text-brand hover:underline"
+      >
+        {{ t('datasets.demo') }}
+        <component :is="ACTION_ICONS.externalLink" :size="18" aria-hidden="true" />
+      </a>
 
       <input
         ref="openInput"
