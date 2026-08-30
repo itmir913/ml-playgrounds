@@ -37,7 +37,13 @@ const ROOT = join(process.cwd(), '..')
 /** 줄 나누기. **정규식 리터럴로 둔다** - 문자열로 적으면 이스케이프가 한 겹 더 든다. */
 const NEWLINE = /\r?\n/
 
-/** 참조를 훑을 곳. 문서와 소스와 검사 전부다. */
+/**
+ * 참조를 훑을 곳. 문서·소스·검사와 진입 HTML이다.
+ *
+ * **`frontend/public/`은 아직 밖이다** - 거기 처리방침 HTML이 있고 넓히면 새로 걸리는
+ * 것부터 봐야 한다. 뿌리 `scripts/`와 `frontend/index.html`은 2026-08-30에 들어왔다
+ * (R12 감사) - `index.html`이 죽은 주소를 이고 있었는데 아무도 안 훑고 있었다.
+ */
 const SCANNED: readonly string[] = [
   'docs',
   'CLAUDE.md',
@@ -48,16 +54,18 @@ const SCANNED: readonly string[] = [
   'frontend/tests',
   'frontend/vite.config.ts',
   'frontend/scripts',
+  'frontend/index.html',
   'backend/app',
   'backend/tests',
   'backend/scripts',
+  'scripts',
 ]
 
 /** 걷지 않는 디렉터리. 남의 코드와 산출물이다. */
 const SKIPPED = new Set(['node_modules', 'dist', '.venv', '__pycache__', '.git', 'coverage'])
 
 /** 참조가 들어 있을 수 있는 확장자. */
-const SCANNABLE = /\.(md|ts|vue|py)$/
+const SCANNABLE = /\.(md|ts|vue|py|html)$/
 
 function walk(path: string): string[] {
   const stat = statSync(path)
