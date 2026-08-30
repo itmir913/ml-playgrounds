@@ -18,6 +18,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { ImageEntry } from '../src/project/images'
 import ImageGrid from '../src/views/data/ImageGrid.vue'
 import { i18n, setLocale } from '../src/i18n'
+import { IMAGE_GRID_PAGE_SIZE } from '../src/limits'
 
 const ENTRIES = [
   { hash: 'a', path: 'dataset/data/개/a.jpg', category: '개' },
@@ -69,5 +70,43 @@ describe('[전체 선택]은 이름과 동작이 같은 판정을 본다', () =>
     expect(pickAllLabel(render([], []))).toBe('')
     // 사진이 하나라도 생기면 곧장 "전체 선택"이다.
     expect(pickAllLabel(render(ENTRIES.slice(0, 1), []))).toBe('전체 선택')
+  })
+})
+
+/**
+ * **쪽 나눔이 통째로 무검사였다.** 위 픽스처는 언제나 두 장인데 한 쪽은 서른 장이라,
+ * `totalPages`도 `shown`도 되당김 `watch`도 한 번도 안 돌았다 — 상수와 픽스처가
+ * 우연히 맞아 그 연산이 사라진 자리다 (공통 §2.2, R14-5 감사 A-3).
+ *
+ * 되당김이 없으면 **사진을 옮겨 장수가 줄었을 때 격자가 빈 칸이 되고**, 그 자리에
+ * 붙은 주석이 *"학생은 사진이 다 사라진 줄 안다"*고 적어 둔 것이 그 상태다.
+ */
+describe('쪽을 넘긴다', () => {
+  const many = (count: number) =>
+    Array.from({ length: count }, (_unused, index) => ({
+      hash: `h${index}`,
+      path: `dataset/data/개/${index}.jpg`,
+      category: '개',
+    })) as unknown as ImageEntry[]
+
+  it('한 쪽에 서른 장까지다', () => {
+    expect(render(many(40), []).findAll('li')).toHaveLength(IMAGE_GRID_PAGE_SIZE)
+  })
+
+  it('사진이 한 쪽에 들어가면 쪽 단추가 없다', () => {
+    const view = render(many(5), [])
+    expect(view.findAll('button').some((one) => one.text() === '다음')).toBe(false)
+  })
+
+  it('장수가 줄면 지금 쪽을 되당긴다 - 빈 격자를 보이지 않는다', async () => {
+    const view = render(many(40), [])
+    await view
+      .findAll('button')
+      .find((one) => one.text() === '다음')
+      ?.trigger('click')
+    expect(view.findAll('li'), '둘째 쪽에는 열 장이 남는다').toHaveLength(10)
+
+    await view.setProps({ entries: many(5) })
+    expect(view.findAll('li'), '되당기지 않으면 여기가 0장이 된다').toHaveLength(5)
   })
 })

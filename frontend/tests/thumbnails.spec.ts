@@ -91,6 +91,26 @@ describe('만들고 놓아준다', () => {
     expect(state.urls.has('b')).toBe(false)
   })
 
+  /**
+   * **놓아준 것과 안 놓아준 것을 함께 본다.** 위 검사는 `toContain`이라 **있는지**만
+   * 보고(공통 §2.1), 그 위의 검사는 주소가 같은 문자열인지만 본다 - 그 문자열이 이미
+   * 놓아준 것인지는 아무도 안 봤다.
+   *
+   * 그 상태가 되면 맵에 든 주소가 전부 죽은 주소라, **범주를 하나 옮기거나 사진 한 장을
+   * 지우는 순간 그 화면의 썸네일이 통째로 빈 칸이 된다** (R14-5 감사 A-2).
+   */
+  it('살아남은 사진의 주소는 안 놓아준다', async () => {
+    const entries = ref([photo('a'), photo('b')])
+    const { state } = host(entries)
+    const kept = state.urls.get('a')!
+
+    entries.value = [photo('a'), photo('c')]
+    await Promise.resolve()
+
+    expect(revoked).not.toContain(kept)
+    expect(state.urls.get('a')).toBe(kept)
+  })
+
   it('떠날 때 남은 것을 전부 놓아준다 - 여기서 빠뜨리면 탭이 닫힐 때까지 남는다', () => {
     const { wrapper, state } = host(ref([photo('a'), photo('b')]))
     const all = [...state.urls.values()]

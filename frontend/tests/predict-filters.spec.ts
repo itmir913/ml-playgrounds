@@ -102,3 +102,30 @@ describe('전체 버튼은 이름과 동작이 같은 판정을 본다', () => {
     expect(wrapper.emitted('toggleAll')).toEqual([['experiment']])
   })
 })
+
+/**
+ * **두 축을 비대칭으로 준다.** 위의 `render`는 기본 필터를 두 축 모두 전부 켜진
+ * 상태로 만들고, 비대칭을 주는 검사 하나는 결과를 `toContain`으로만 봤다 — 두 축의
+ * 버튼이 같은 HTML 안에 있으므로 **한쪽만 맞아도 통과한다**(공통 §2.1).
+ *
+ * 그래서 축을 통째로 맞바꾸는 회귀가 전부 빠져나갔다 (R14-5 감사 A-4). 그 상태는
+ * V11 R5 A-2와 같은 실패 모양이다 — **이름표와 동작이 갈린다.**
+ */
+describe('두 축은 각자의 상태를 본다', () => {
+  const asymmetric = () =>
+    render(TWO, TWO, { experimentIds: new Set(['a']), algorithms: new Set(['a', 'b']) })
+
+  it('전체 버튼의 이름표가 축마다 다르다', () => {
+    const labels = asymmetric()
+      .findAll('button')
+      .map((one) => one.text())
+      .filter((text) => text === '전체 선택' || text === '전체 해제')
+    // 실험 축은 하나만 켜져 있으니 [전체 선택], 모델 축은 다 켜져 있으니 [전체 해제].
+    expect(labels).toEqual(['전체 선택', '전체 해제'])
+  })
+
+  it('칩의 눌림이 자기 축의 집합을 따라간다', () => {
+    const pressed = chipsOf(asymmetric()).map((one) => one.attributes('aria-pressed'))
+    expect(pressed).toEqual(['true', 'false', 'true', 'true'])
+  })
+})
