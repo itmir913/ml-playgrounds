@@ -16,6 +16,8 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import PortfolioView from '../src/views/PortfolioView.vue'
+import TemplateSourceList from '../src/views/portfolio/TemplateSourceList.vue'
+import TemplateSourceMenu from '../src/views/portfolio/TemplateSourceMenu.vue'
 import { i18n, setLocale } from '../src/i18n'
 import { MAX_PORTFOLIO_BYTES } from '../src/limits'
 import { newProjectDocument } from '../src/project/create'
@@ -215,5 +217,31 @@ describe('포트폴리오를 고치면 수정 시각이 움직인다', () => {
     expect(store.file?.document.portfolio.answers).not.toEqual({})
     expect(after).not.toBe(created)
     expect(Date.parse(after!)).toBeGreaterThanOrEqual(Date.parse(before!))
+  })
+})
+
+/**
+ * **되보내는 부품이 같은 것을 보내는가** (mlpx-spec.md §8.5).
+ *
+ * `ui-rules.spec.ts`가 두 부품의 `pick` **선언**을 견주고 있는데, 선언을 그대로 두고
+ * **되보내는 값만** 떨어뜨리면 저장소가 조용했다 - 그리고 그 결과는 2026-08-15에
+ * 아이패드에서 만든 실물 파일이 `template.locale`을 잃은 것과 똑같다 (R14-1 감사 A-3).
+ *
+ * 그래서 여기서는 선언이 아니라 **실제로 흘려보낸 값**을 본다.
+ */
+describe('양식 메뉴는 받은 것을 그대로 되보낸다', () => {
+  it('언어까지 함께 간다', async () => {
+    const menu = mount(TemplateSourceMenu, {
+      props: { pickFile: () => Promise.resolve(null) },
+      global: { plugins: [i18n] },
+    })
+    await menu.find('button').trigger('click')
+
+    const list = menu.findComponent(TemplateSourceList)
+    expect(list.exists(), '팝오버를 열면 목록이 붙는다').toBe(true)
+    list.vm.$emit('pick', '## 주제\n안내문\n', 'ko')
+    await menu.vm.$nextTick()
+
+    expect(menu.emitted('pick')).toEqual([['## 주제\n안내문\n', 'ko']])
   })
 })

@@ -61,6 +61,23 @@ describe('앞서는 줄은 하나뿐이다', () => {
     expect(rows.at(-1)?.key, '앞서는 줄이 목록 맨 아래다').toBe('file')
   })
 
+  /**
+   * **프리셋 줄은 자기 언어를 들고 온다** (mlpx-spec.md §8.5). 이 값이 없으면 양식에
+   * `template.locale`이 안 박히고, 그건 2026-08-15에 실물 파일로 한 번 터진 자리다.
+   *
+   * `TemplateRow.locale`이 옵셔널이라 **타입도 안 운다** - 등록부에서 그 칸을 지워도
+   * 저장소 전체가 조용했다 (R14-1 감사 A-3).
+   */
+  it('프리셋 줄은 자기 언어를 들고 온다 - 파일에서 온 것은 모른다', async () => {
+    const { rows } = await rowsWith(() => Promise.resolve(new Response(INDEX)))
+
+    const presets = rows.filter((row) => row.key !== 'file')
+    expect(presets.length, '프리셋이 하나는 있어야 이 검사가 돈다').toBeGreaterThan(0)
+    expect(presets.every((row) => row.locale === 'ko')).toBe(true)
+    // 밖에서 받은 `.md`는 언어를 **모른다**. 빠뜨림이 아니라 모른다는 뜻이다.
+    expect(rows.find((row) => row.key === 'file')?.locale).toBeUndefined()
+  })
+
   it('프리셋 목록을 못 받아도 그 줄은 선다', async () => {
     const { rows, failures } = await rowsWith(() => Promise.reject(new Error('학교망이 막았다')))
 
