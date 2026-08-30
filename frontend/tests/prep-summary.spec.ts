@@ -95,9 +95,26 @@ beforeEach(async () => {
   await setLocale('ko')
 })
 
+/**
+ * 카드의 `<dt>`와 그 짝 `<dd>`. **이름과 숫자를 짝지어 읽는다.**
+ *
+ * 카드 글 전체에서 `toContain('3행')`만 보던 때에는 **훈련과 테스트 자리를 통째로
+ * 맞바꿔도** 글자열이 한 자도 안 변해서 저장소 2,254개가 전부 초록이었다
+ * (2026-08-30 R12 감사 A-1).
+ */
+function labelled(wrapper: ReturnType<typeof mountSummary>): Record<string, string> {
+  const pairs: Record<string, string> = {}
+  for (const row of wrapper.findAll('dl div')) {
+    const name = row.find('dt')
+    const value = row.find('dd')
+    if (name.exists() && value.exists()) pairs[name.text()] = value.text()
+  }
+  return pairs
+}
+
 /** 타깃·특성·유형까지 고른 프로젝트. 여기까지 와야 계획이 선다. */
-function chosen(preprocessing?: Partial<Preprocessing>): ProjectFile {
-  const file = projectWith()
+function chosen(preprocessing?: Partial<Preprocessing>, csv = CSV): ProjectFile {
+  const file = projectWith(csv)
   let document = withTarget(file.document, '점수', NOW)
   document = withFeatures(document, ['키', '반'], NOW)
   document = withTaskType(document, 'regression', [], NOW)
@@ -128,6 +145,25 @@ describe('전처리 요약', () => {
     expect(text).toContain('3행')
     expect(text).toContain('1행')
     expect(text).toContain('대체한 값과 스케일링 기준은 훈련 데이터에서만 구합니다.')
+  })
+
+  /**
+   * **네 숫자가 제 이름 옆에 앉는지 본다.**
+   *
+   * 위의 검사는 카드 글 전체에서 숫자가 **있는지**만 보므로 자리를 바꿔도 안 운다.
+   * 게다가 `chosen()`의 표는 4행에 결측이 없어 `전체`와 `쓸 수 있는 행`이 **같은 값**
+   * 이라 그 축이 아예 안 갈린다. 그래서 여기서는 **넷이 다 다른** 표를 쓴다 —
+   * 빈 칸이 하나 있는 표에 `drop`을 걸면 4 · 3 · 2 · 1이 된다.
+   */
+  it('네 숫자가 제 이름 옆에 앉는다', () => {
+    const pairs = labelled(mountSummary(chosen({ missing: 'drop' }, CSV_WITH_BLANK)))
+
+    expect(pairs).toMatchObject({
+      전체: '4행',
+      '쓸 수 있는 행': '3행',
+      '훈련 데이터': '2행',
+      '테스트 데이터': '1행',
+    })
   })
 
   /**
@@ -228,5 +264,36 @@ describe('열 표의 전처리 칸', () => {
     expect(text).toContain('평균')
     expect(text).toContain('표준편차')
     expect(text).not.toMatch(/scalingBasis[.]\w+/)
+  })
+
+  /**
+   * **숫자까지 못 박는다.** 낱말만 보면 `center`와 `spread`를 **서로 맞바꿔도** 안 운다 —
+   * 화면이 `평균 12.47 · 표준편차 163.3`이라 적어도 `평균`과 `표준편차`는 둘 다 있다
+   * (2026-08-30 R12 감사 A-3). 방식 셋을 나란히 두면 방식을 하나로 못 박는 돌연변이도
+   * 함께 걸린다.
+   *
+   * 값은 **훈련 데이터에서만** 나온다(4행 중 3행). 여기 적은 숫자는 화면이 실제로 그린
+   * 것이고, 계산을 검사가 다시 하지 않는다 — 같은 함수로 기대값을 만들면 규칙을 바꿔도
+   * 대조는 언제나 맞는다.
+   */
+  const BASES: [Preprocessing['scaling'], string][] = [
+    ['standard', '평균 163.3 · 표준편차 12.47'],
+    ['minmax', '최솟값 150 · 범위 30'],
+    ['robust', '중앙값 160 · 사분위 범위 15'],
+  ]
+
+  for (const [scaling, expected] of BASES) {
+    it(`${scaling}의 기준값이 제 이름 옆에 앉는다`, () => {
+      expect(pickerFor(chosen({ scaling })).text()).toContain(expected)
+    })
+  }
+
+  /**
+   * **채울 것이 없으면 채움값을 안 보여준다.** 소스가 머리말에 적어 둔 조건인데
+   * (`column.summary.missing > 0`), 떼도 아무도 안 울었다. 있음(`toContain`)만 보고
+   * 없음을 안 봤기 때문이다. 이 표에는 빈 칸이 하나도 없다.
+   */
+  it('결측이 없는 열에는 채움값을 안 적는다', () => {
+    expect(pickerFor(chosen({ missing: 'mean' })).text()).not.toContain('결측치 →')
   })
 })
