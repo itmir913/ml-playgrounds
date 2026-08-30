@@ -16,11 +16,13 @@ import { hashBytes } from '../src/hash'
 import { DEFAULT_BACKBONE_ID, backboneFor } from '../src/ml/backbones'
 import type { EmbedMessage, EmbedRequest } from '../src/ml/embed/protocol'
 import type { EmbedWorker } from '../src/ml/embed/client'
-import { trainingSourceOf } from '../src/ml/training-source'
+import { trainableRowsOf, trainingSourceOf } from '../src/ml/training-source'
 import { newProjectDocument } from '../src/project/create'
 import { addEmbeddings, readEmbeddings } from '../src/project/embeddings'
 import { type ProjectFile } from '../src/project/format'
 import { addImages, applyTestImages, readImages } from '../src/project/images'
+import { withSplit } from '../src/project/settings'
+import { IMAGE_UNLABELED } from '../src/project/format'
 
 const NOW = '2026-08-12T09:00:00.000Z'
 const BACKBONE = backboneFor(DEFAULT_BACKBONE_ID)!
@@ -252,6 +254,51 @@ describe('테스트용 사진이 학습까지 닿는다', () => {
     expect(seen.requests[0]?.images).toHaveLength(4)
     expect(source.testDataset, '테스트 사진을 올렸는데 표가 없다').not.toBeNull()
     expect(source.testDataset?.rows).toHaveLength(2)
+  })
+
+  /**
+   * **채점할 자리가 없으면 안 뽑는다** (2026-08-30, R12 감사 C-5).
+   *
+   * `scored`의 `split.method === 'provided'` 조건을 떼도 저장소 전체가 초록이었다.
+   * 떼면 holdout 분류에서도 테스트 자리를 훑어 **백본을 그만큼 더 돌린다** — 사진이
+   * 많은 프로젝트에서 그것이 곧 학생이 기다리는 시간이다. 점수가 틀려지지는 않는다
+   * (`experiment.ts`의 `testSource`가 같은 조건을 한 번 더 본다).
+   */
+  it('holdout이면 테스트 사진의 임베딩을 안 뽑는다', async () => {
+    const base = project()
+    const holdout: ProjectFile = {
+      ...base,
+      document: withSplit(base.document, { method: 'holdout' }, NOW),
+    }
+    const seen = { requests: [] as EmbedRequest[] }
+
+    await trainingSourceOf({
+      project: holdout,
+      taskType: 'classification',
+      createEmbedWorker: () => fakeWorker(seen),
+    })
+
+    // 훈련 둘만이다. 넷이면 테스트 자리까지 훑은 것이다.
+    expect(seen.requests[0]?.images).toHaveLength(2)
+  })
+
+  /**
+   * **라벨 없는 사진은 분류의 훈련 행이 아니다** (2026-08-30, R12 감사 C-5).
+   *
+   * 이 수가 `ml/backend.ts`의 실행 위치·상한 판정으로 간다 — R12-4 A-1이 잡은 것과
+   * 같은 계통이라 **틀려도 예외가 안 나고 카드의 숫자만 조용히 어긋난다.**
+   * 군집화에는 라벨이 없으므로 그때는 전부 센다.
+   */
+  it('라벨 없는 사진을 분류는 안 세고 군집은 센다', () => {
+    const base = project()
+    const withUnlabeled = addImages(base, [baked(9, IMAGE_UNLABELED)], {
+      canonicalSize: SIZE,
+      now: NOW,
+      format: 'webp',
+    }).project
+
+    expect(trainableRowsOf(withUnlabeled, 'classification')).toBe(2)
+    expect(trainableRowsOf(withUnlabeled, 'clustering')).toBe(3)
   })
 
   /**

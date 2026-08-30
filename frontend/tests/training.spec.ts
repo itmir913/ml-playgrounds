@@ -172,21 +172,30 @@ describe('스토어에서 온 값을 워커에 넘긴다', () => {
    * DataCloneError를 던진다. 겪은 고장이라 테스트로 박아 둔다.
    */
   it('반응형 상태로 만든 요청도 넘어간다', async () => {
+    // **여섯 조각을 다 반응형으로 만든다.** 예전에는 `settings`와 `runs`만 `ref` 아래였고
+    // `dataset`·`context`·`testDataset`·`input` 자신은 평범한 객체 리터럴이라, `plain()`에서
+    // 그 넷의 `toRaw`를 빼도 아무도 안 울었다 (2026-08-30, R12 감사 C-4). 그 파일 머리말이
+    // *"조각마다 한 번씩 벗기면 거기서 끝난다"*고 여섯을 세어 두었는데 둘만 시험했다.
     const store = ref({
       settings: { selectedAlgorithms: [{ algorithm: 'decision_tree' }], features: ['a'] },
       runs: { experiments: [] },
+      dataset: { columns: ['a'], rows: [['1']] },
+      testDataset: { columns: ['a'], rows: [['2']] },
+      context: { serverStatus: 'unavailable', rowCount: 1, dataType: 'tabular' },
     })
-    const { training, latest } = harness()
-
-    const done = training.run({
+    const request = ref({
       type: 'train',
       input: {
         settings: store.value.settings,
-        dataset: { columns: ['a'], rows: [['1']] },
-        context: { serverStatus: 'unavailable', rowCount: 1, dataType: 'tabular' },
+        dataset: store.value.dataset,
+        testDataset: store.value.testDataset,
+        context: store.value.context,
       },
       history: store.value.runs,
-    } as unknown as TrainRequest)
+    })
+    const { training, latest } = harness()
+
+    const done = training.run(request.value as unknown as TrainRequest)
 
     latest()?.emit(DONE)
     await expect(done).resolves.not.toBeNull()

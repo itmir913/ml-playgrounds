@@ -5,7 +5,7 @@ import ExcelJS from 'exceljs'
 import { unzipSync, zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
-import { openXlsx, previewSheets } from '../src/data/xlsx'
+import { PARSER_ORDER, openXlsx, previewSheets } from '../src/data/xlsx'
 import { isClientError } from '../src/errors'
 
 /** 픽스처의 B2를 갈아 끼울 값. 엑셀의 General 서식이 지수 표기로 넘어가는 열두 자리다. */
@@ -216,6 +216,15 @@ describe('폴백', { timeout: 20_000 }, () => {
     return zipSync(files)
   }
 
+  /**
+   * **순서를 못 박는다.** `PARSERS`를 뒤집어도 저장소가 초록이었다 (2026-08-30, R12 감사 C-2).
+   * 뒤집히면 **폴백이 본진이 되고 아무도 모른다** — 날짜 시간대가 통째로 갈리고
+   * (open-decisions.md #18), 2026-08-21에 실측한 `raw`의 함정이 기본 경로로 올라온다.
+   */
+  it('본진이 먼저고 폴백이 나중이다', () => {
+    expect(PARSER_ORDER).toEqual(['parseWithExcelJs', 'parseWithSheetJs'])
+  })
+
   it('한셀이 만든 파일은 ExcelJS가 던진다 - 폴백이 발동하는 조건이다', async () => {
     // 폴백 조건은 "예외 또는 시트 0개"뿐이다. 예외 없이 이상한 값을 주면 발동하지
     // 않으므로, 이 파일이 정말 던지는지가 아래 검사들의 전제다 (#17의 첫 물음).
@@ -248,6 +257,35 @@ describe('폴백', { timeout: 20_000 }, () => {
     const document = await openXlsx(withBigNumber(hancell))
 
     expect(document.readSheet('Sheet1')[1]).toEqual(['1', '123456789012', 'Bad'])
+  })
+
+  /**
+   * **폴백도 maxRows를 지킨다** (2026-08-30, R12 감사 C-1). 폴백을 지나가는 검사는
+   * 넷뿐이었고 **전부 `maxRows` 없이 정상 시트 하나를 읽었다** — 그래서 폴백이
+   * `maxRows`를 통째로 무시해도, 빈 행을 남겨도, 시트 없음을 `ClientError` 아닌 것으로
+   * 던져도 초록이었다.
+   *
+   * **못 보는 것 둘:** 폴백의 `padGrid`와 빈 행 버리기. 한셀 실물에는 짧은 행도 빈 행도
+   * 없고, 그것을 넣으려면 픽스처의 XML을 더 깊이 손봐야 한다 — 안 했다.
+   */
+  it('폴백도 maxRows만큼만 준다', async () => {
+    const document = await openXlsx(hancell)
+    expect(document.readSheet('Sheet1', 2)).toEqual([
+      ['id', 'money', 'good'],
+      ['1', '100', 'Bad'],
+    ])
+  })
+
+  it('폴백에서 없는 시트를 고르면 코드로 말한다', async () => {
+    const document = await openXlsx(hancell)
+    try {
+      document.readSheet('없는시트')
+      expect.unreachable()
+    } catch (error) {
+      // 정체 불명의 예외가 올라가면 학생은 DATASET_SHEET_NOT_FOUND 대신 그것을 본다.
+      expect(isClientError(error)).toBe(true)
+      if (isClientError(error)) expect(error.code).toBe('DATASET_SHEET_NOT_FOUND')
+    }
   })
 
   it('zip이 아닌 바이트는 파서에 넘기지도 않는다', async () => {

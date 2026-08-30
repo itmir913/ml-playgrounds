@@ -152,6 +152,13 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
 const PARSERS: XlsxParser[] = [parseWithExcelJs, parseWithSheetJs]
 
 /**
+ * 시도 순서의 이름. **검사가 이 순서를 못 박는다** — 뒤집으면 폴백이 본진이 되고
+ * 아무도 모른다 (2026-08-30, R12 감사 C-2). 날짜 시간대가 통째로 갈리고
+ * (open-decisions.md #18), 2026-08-21에 실측한 `raw`의 함정이 기본 경로로 올라온다.
+ */
+export const PARSER_ORDER: readonly string[] = PARSERS.map((parse) => parse.name)
+
+/**
  * xlsx는 zip이므로 반드시 로컬 파일 헤더로 시작한다.
  *
  * **이 검사가 없으면 폴백이 위험해진다.** SheetJS는 형식을 스스로 추정해서 아무

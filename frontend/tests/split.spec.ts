@@ -85,6 +85,31 @@ describe('인덱스가 원본 행 번호다', () => {
     expect([...trainIndices, ...testIndices].sort((a, b) => a - b)).toEqual(usable)
   })
 
+  /**
+   * **라벨은 `rows`의 위치로 읽는다. 행 번호로 읽지 않는다.**
+   *
+   * `plan.ts`가 `targetValues(dataset, sampled, target)`로 만들어 넘기므로 `labels`는
+   * **남은 행의 순서대로** 채워진 배열이고, `rows[i]`의 라벨은 `labels[i]`다.
+   * 그런데 이 파일의 층화 검사가 전부 `rows[i] === i`인 표를 써서
+   * `labels[position]`을 `labels[row]`로 바꿔도 안 울었다 (2026-08-30, R12 감사 C-3).
+   * **실물에서는 결측·뽑기로 걸러진 뒤라 절대 그렇지 않다.**
+   */
+  it('행 번호가 0부터가 아니어도 라벨을 제자리에서 읽는다', () => {
+    // 앞쪽 100행이 결측으로 빠진 모양. 라벨 열 종류 x 두 줄이고 라벨은 rows 순서다.
+    const usable = [...Array(20).keys()].map((index) => index + 100)
+    const labels = [...Array(20).keys()].map((index) => `L${index % 10}`)
+    const labelOf = (index: number): string => labels[usable.indexOf(index)] as string
+
+    const { testIndices } = holdoutSplit({ rows: usable, labels }, split({ stratify: true }))
+
+    // **산출을 그대로 못 박는다.** 층화는 라벨마다 다른 씨앗을 쓰므로(`labelSeed`),
+    // 라벨을 행 번호로 읽으면 열 종류가 빈 문자열 하나로 뭉개지고 **씨앗이 통째로
+    // 달라져 다른 행이 뽑힌다.** 라벨 구성만 보면 씨앗 운으로 우연히 맞을 수 있어
+    // 축이 안 갈린다 - 이 파일이 재현 가능성을 보는 자리이므로 값을 적는다.
+    expect(testIndices).toEqual([103, 109, 115, 117])
+    expect(new Set(testIndices.map(labelOf)).size).toBe(4)
+  })
+
   it('훈련 데이터와 테스트 데이터가 겹치지 않고 합치면 전체가 된다', () => {
     const { trainIndices, testIndices } = holdoutSplit({ rows: rows(100) }, split())
 
