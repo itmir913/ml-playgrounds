@@ -330,8 +330,14 @@ describe('자리표시자를 다 넘긴다', () => {
  * `컴포넌트에 한글 리터럴이 없다`는 `.vue`만 보므로 이 자리를 못 봤고, 그 근거로 적힌
  * *"`.ts`의 한글은 전부 개발자에게 가는 사실이다"*가 **참이 아니게 되어 있었다.**
  *
- * **못 보는 것: 변수를 거쳐 들어가는 문장.** `failureDetail(message)`처럼 한 다리
- * 건너면 이 줄에는 한글이 없다. 같은 줄에 적는 것만 막는다.
+ * **그 사각으로 실제로 샜다** (2026-08-30, R13-4 감사 A-2). 진짜 통로는
+ * `failureDetail(error)` → `error.message`라 이 줄에는 한글이 없고, 우리 소스가 던지던
+ * 한국어 `Error` **열다섯 개**가 워커 핸들러의 catch를 지나 토스트로 갔다. 그래서 아래
+ * `던지는 원문에 한글을 쓰지 않는다`를 함께 세운다.
+ *
+ * **원문은 영어다.** 이 통로는 번역되지 않으므로 한 언어여야 하고, `errors.ts`의
+ * `BACKBONE_UNAVAILABLE`이 그것을 *"교사가 읽을 기술 원문"*이라 부른다. 학생이 읽고
+ * 행동할 문장은 코드에서 오고, 여기 실리는 것은 그 코드가 못 담는 사실이다.
  */
 describe('기술 정보 통로에 우리 문장을 싣지 않는다', () => {
   const HANGUL_IN_DETAIL = /failureDetail\([^)]*[가-힣]/
@@ -346,6 +352,42 @@ describe('기술 정보 통로에 우리 문장을 싣지 않는다', () => {
     expect(HANGUL_IN_DETAIL.test("failureDetail('messageerror')")).toBe(false)
     // 주석에 그 이름이 나오는 것은 위반이 아니다 - 훑기 전에 주석을 걷어낸다.
     expect(HANGUL_IN_DETAIL.test('const detail = failureDetail(event.message)')).toBe(false)
+  })
+
+  /**
+   * **던지는 쪽을 막는다.** 위 검사는 `failureDetail(...)`이라 적힌 줄만 보는데, 실제로
+   * 새던 길은 `throw new Error('한국어')` → 워커 핸들러의 catch → `failureDetail(error)`
+   * → `error.message`였다. 그 길에 열다섯 개가 있었다 (R13-4 감사 A-2).
+   *
+   * `ml/embed`·`data/image`·`ml/worker`·`experiment.ts`가 전부 catch에서 `failureDetail`을
+   * 부르므로 **`src`의 `throw new Error`는 모두 그 통로 위에 있다고 본다.**
+   */
+  const HANGUL_IN_THROWN = /throw new Error\(.*[가-힣]/
+
+  it('던지는 원문 검사기가 잡는다', () => {
+    expect(HANGUL_IN_THROWN.test("throw new Error('prepare를 먼저 불러야 한다')")).toBe(true)
+    expect(HANGUL_IN_THROWN.test('throw new Error(`크기가 이상하다: ${w}x${h}`)')).toBe(true)
+  })
+
+  it('던지는 원문 검사기가 안 잡는다', () => {
+    expect(HANGUL_IN_THROWN.test("throw new Error('prepare() must run first')")).toBe(false)
+    // ClientError는 코드와 파라미터를 나르므로 이 규칙의 대상이 아니다.
+    expect(HANGUL_IN_THROWN.test("throw new ClientError('JOB_FAILED', { name: '개' })")).toBe(false)
+  })
+
+  it('던지는 원문에 한글을 쓰지 않는다', () => {
+    const found: string[] = []
+    for (const path of sourceFiles(SRC)) {
+      withoutComments(readFileSync(path, 'utf-8')).forEach((line, index) => {
+        if (HANGUL_IN_THROWN.test(line)) {
+          found.push(`${path.slice(SRC.length + 1)}:${index + 1}  ${line.trim()}`)
+        }
+      })
+    }
+    expect(
+      found,
+      '던진 문장은 error.message로 failureDetail을 지나 토스트에 그대로 붙는다',
+    ).toEqual([])
   })
 
   it('지금 소스에 그런 자리가 없다', () => {

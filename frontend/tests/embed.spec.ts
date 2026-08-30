@@ -60,8 +60,10 @@ describe('화소를 백본이 먹는 숫자로 옮긴다', () => {
   })
 
   it('자리가 모자라면 조용히 자르지 않고 던진다', () => {
-    expect(() => packPixels(rgba([1, 2, 3]), 2, [0, 1], new Float32Array(12))).toThrow(/화소/)
-    expect(() => packPixels(rgba([1, 2, 3]), 1, [0, 1], new Float32Array(2))).toThrow(/자리/)
+    // 원문은 영어다 - 이 통로는 번역되지 않으므로 한 언어여야 한다
+    // (i18n-usage.spec.ts "던지는 원문에 한글을 쓰지 않는다").
+    expect(() => packPixels(rgba([1, 2, 3]), 2, [0, 1], new Float32Array(12))).toThrow(/pixels/)
+    expect(() => packPixels(rgba([1, 2, 3]), 1, [0, 1], new Float32Array(2))).toThrow(/output/)
   })
 })
 

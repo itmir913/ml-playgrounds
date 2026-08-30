@@ -230,5 +230,5 @@ export function planRunOrThrow(input: PlanInput & { taskType: TaskType }): PlanF
   const plan = planRun(input)
   if (plan.ok) return plan
   if (plan.reason.kind === 'error') throw new ClientError(plan.reason.code, plan.reason.params)
-  throw new Error(`planRun이 유형을 받고도 pending을 돌려줬다: ${plan.reason.missing}`)
+  throw new Error(`planRun returned pending for a known task type: ${plan.reason.missing}`)
 }

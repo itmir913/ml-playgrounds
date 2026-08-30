@@ -108,7 +108,7 @@ export function createTfjsRunner(): BackboneRunner {
           break
         }
       }
-      if (!chosen) throw new Error('이 브라우저에서 쓸 수 있는 TF.js 백엔드가 없다')
+      if (!chosen) throw new Error('no usable TF.js backend in this browser')
 
       // **받는 동안 얼마나 왔는지 말한다** (2026-08-29 화면 실측 C-7). 백본이
       // 12.4MB라 학교 회선에서는 이 한 줄이 몇십 초를 덮고, 그동안 화면이 문장
@@ -126,18 +126,18 @@ export function createTfjsRunner(): BackboneRunner {
       warmTensor.dispose()
       if (got !== embeddingDim) {
         // 등록부와 모델이 어긋났다. 조용히 넘어가면 파일에 틀린 길이의 벡터가 담긴다.
-        throw new Error(`임베딩 차원이 등록부와 다르다: ${got} ≠ ${embeddingDim}`)
+        throw new Error(`embedding dim differs from registry: ${got} != ${embeddingDim}`)
       }
       onState('ready')
     },
 
     async embed(target, images, onProgress) {
-      if (!tf || !model) throw new Error('prepare를 먼저 불러야 한다')
+      if (!tf || !model) throw new Error('prepare() must run first')
       const { canonicalSize: size, embeddingDim: dim, embeddingNode, inputRange } = target.spec
 
       const canvas = new OffscreenCanvas(size, size)
       const context = canvas.getContext('2d', { willReadFrequently: true })
-      if (!context) throw new Error('OffscreenCanvas의 2d 컨텍스트를 못 얻었다')
+      if (!context) throw new Error('OffscreenCanvas 2d context unavailable')
 
       const out = new Float32Array(images.length * dim)
       const pixels = new Float32Array(size * size * 3)

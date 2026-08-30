@@ -50,7 +50,7 @@ export interface FitBox {
  */
 export function fitBox(sourceWidth: number, sourceHeight: number, size: number): FitBox {
   if (sourceWidth <= 0 || sourceHeight <= 0) {
-    throw new Error(`원본 크기가 이상하다: ${sourceWidth}x${sourceHeight}`)
+    throw new Error(`invalid source size: ${sourceWidth}x${sourceHeight}`)
   }
   const scale = Math.min(size / sourceWidth, size / sourceHeight)
   const width = Math.max(1, Math.round(sourceWidth * scale))
@@ -78,7 +78,7 @@ export function fitLongEdge(
   maxEdge: number,
 ): { width: number; height: number } {
   if (sourceWidth <= 0 || sourceHeight <= 0) {
-    throw new Error(`원본 크기가 이상하다: ${sourceWidth}x${sourceHeight}`)
+    throw new Error(`invalid source size: ${sourceWidth}x${sourceHeight}`)
   }
   const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight))
   return {

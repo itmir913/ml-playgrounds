@@ -35,7 +35,7 @@ export async function detectCanonicalFormat(): Promise<CanonicalFormat> {
   // `convertToBlob`이 형식과 무관하게 `InvalidStateError`로 거절한다 — 그러면 이 함수가
   // "구울 수 있는 형식이 하나도 없다"고 말하고, 실제로 그렇게 나갔다 (2026-08-14).
   const context = probe.getContext('2d')
-  if (!context) throw new Error('OffscreenCanvas의 2d 컨텍스트를 못 얻었다')
+  if (!context) throw new Error('OffscreenCanvas 2d context unavailable')
   // 화소 하나를 실제로 칠한다. 인코더에 따라 빈 비트맵을 거절할 수 있다.
   context.fillStyle = '#ffffff'
   context.fillRect(0, 0, 1, 1)
@@ -55,7 +55,7 @@ export async function detectCanonicalFormat(): Promise<CanonicalFormat> {
   // 등록부의 마지막(jpeg)까지 못 굽는 브라우저는 캔버스 인코딩 자체가 없는 것이다.
   // **무엇이 어떻게 거절했는지 함께 남긴다** — 이 문장만으로는 다음 사람이 브라우저를
   // 의심할지 우리 코드를 의심할지 고를 수 없다.
-  throw new Error(`정본으로 구울 수 있는 형식이 하나도 없다: ${failures.join(' · ')}`)
+  throw new Error(`no canonical format could be encoded: ${failures.join(' · ')}`)
 }
 
 /**
@@ -84,7 +84,7 @@ export async function bakeCanonical(
   try {
     const canvas = new OffscreenCanvas(size, size)
     const context = canvas.getContext('2d')
-    if (!context) throw new Error('OffscreenCanvas의 2d 컨텍스트를 못 얻었다')
+    if (!context) throw new Error('OffscreenCanvas 2d context unavailable')
 
     const box = fitBox(bitmap.width, bitmap.height, size)
     context.fillStyle = '#ffffff'
@@ -95,7 +95,7 @@ export async function bakeCanonical(
     // **재 보고 골랐어도 여기서 다시 본다.** 형식 판정은 1×1이었고, 이건 실제 정본이다 —
     // 어긋난 채로 통과하면 확장자와 내용이 다른 파일이 학생 파일에 담긴다.
     if (blob.type !== format.mime) {
-      throw new Error(`정본 형식이 어긋났다: ${format.mime}를 요청했는데 ${blob.type}이 왔다`)
+      throw new Error(`canonical format mismatch: asked ${format.mime}, got ${blob.type}`)
     }
     return new Uint8Array(await blob.arrayBuffer())
   } finally {
@@ -125,7 +125,7 @@ export async function bakeAttachment(
     const box = fitLongEdge(bitmap.width, bitmap.height, maxEdge)
     const canvas = new OffscreenCanvas(box.width, box.height)
     const context = canvas.getContext('2d')
-    if (!context) throw new Error('OffscreenCanvas의 2d 컨텍스트를 못 얻었다')
+    if (!context) throw new Error('OffscreenCanvas 2d context unavailable')
 
     // **흰 바탕을 먼저 깐다.** 투명한 png를 jpg로 구우면 그 자리가 검게 나온다.
     context.fillStyle = '#ffffff'
@@ -134,7 +134,7 @@ export async function bakeAttachment(
 
     const blob = await canvas.convertToBlob({ type: format.mime, quality: format.quality })
     if (blob.type !== format.mime) {
-      throw new Error(`첨부 형식이 어긋났다: ${format.mime}를 요청했는데 ${blob.type}이 왔다`)
+      throw new Error(`attachment format mismatch: asked ${format.mime}, got ${blob.type}`)
     }
     return new Uint8Array(await blob.arrayBuffer())
   } finally {

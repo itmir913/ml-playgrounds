@@ -31,10 +31,10 @@ export function packPixels(
 ): void {
   const pixels = size * size
   if (rgba.length < pixels * RGBA) {
-    throw new Error(`화소가 모자란다: ${rgba.length} < ${pixels * RGBA}`)
+    throw new Error(`not enough pixels: ${rgba.length} < ${pixels * RGBA}`)
   }
   if (out.length < offset + pixels * 3) {
-    throw new Error(`받을 자리가 모자란다: ${out.length} < ${offset + pixels * 3}`)
+    throw new Error(`output too small: ${out.length} < ${offset + pixels * 3}`)
   }
 
   const [low, high] = range
