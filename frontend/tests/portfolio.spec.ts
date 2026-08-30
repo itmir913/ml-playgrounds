@@ -6,6 +6,7 @@
  * 어느 것도 답을 건드리면 안 된다.
  */
 
+import MarkdownIt from 'markdown-it'
 import { describe, expect, it } from 'vitest'
 
 import { newProjectDocument } from '../src/project/create'
@@ -96,6 +97,34 @@ describe('가져오기는 대체가 아니라 추가다', () => {
       { id: '동기', title: '이 주제를 고른 까닭' },
     ])
     expect(after.template.sections[0]!.id).toBe('동기')
+  })
+
+  /**
+   * **밖에 이미 있던 것과 이번 묶음 안의 충돌은 다른 일이다** (§8.2 대 §8.3).
+   *
+   * 건너뛰기가 둘 다에 걸려 있어서 **교사가 준 양식의 문항이 안내문째 말없이
+   * 빠졌다.** 화면은 그때도 "가져왔습니다"라고 정상 보고한다 (R14-1 감사 A-1).
+   */
+  it('한 양식 안에서 제목이 겹치면 번호를 붙인다 - 뒤엣것이 사라지지 않는다', () => {
+    const after = withImportedSections(portfolio([]), [
+      { title: '느낀 점', description: '첫 안내문' },
+      { title: '느낀 점', description: '둘째 안내문' },
+    ])
+    expect(after.template.sections).toEqual([
+      { id: '느낀-점', title: '느낀 점', description: '첫 안내문' },
+      { id: '느낀-점-2', title: '느낀 점', description: '둘째 안내문' },
+    ])
+  })
+
+  it('슬러그가 같아지는 제목도 겹침이다 - 눈에는 다르게 보인다', () => {
+    const after = withImportedSections(portfolio([]), [{ title: '결과' }, { title: '결과?' }])
+    expect(after.template.sections.map((section) => section.id)).toEqual(['결과', '결과-2'])
+  })
+
+  it('겹치는 문항이 든 양식도 두 번 가져오면 안 불어난다', () => {
+    const drafts = [{ title: '느낀 점' }, { title: '느낀 점' }]
+    const once = withImportedSections(portfolio([]), drafts)
+    expect(withImportedSections(once, drafts)).toBe(once)
   })
 })
 
@@ -317,6 +346,32 @@ describe('마크다운으로 옮긴다', () => {
     )
     expect(markdown).toContain('\\---')
     expect(markdown).toContain('\\===')
+  })
+
+  /**
+   * **밖에서 렌더링해서 잰다.** 위 검사처럼 `toContain('\\---')`으로 보면 **글자가
+   * 있는지**만 알 뿐 **제목이 생겼는지**는 못 본다. 그래서 홑 `-` 하나가 앞줄을
+   * `<h2>`로 만드는 것을 저장소가 한 번도 못 봤다 (R14-1 감사 A-4).
+   *
+   * 학생이 목록을 치다 남긴 **빈 항목(`- `)**이 바로 이 모양이다.
+   */
+  it('홑 -와 =도 막는다 - setext 밑줄에는 최소 길이가 없다', () => {
+    const markdown = renderPortfolioMarkdown(
+      TEXT,
+      portfolio([{ id: 'a', title: '동기' }], { a: '앞줄\n-\n다음\n=\n목록 뒤\n- ' }),
+    )
+    const headings = [...new MarkdownIt().render(markdown).matchAll(/<h([12])>([^<]*)</g)].map(
+      ([, level, text]) => `h${level}:${text}`,
+    )
+    expect(headings).toEqual(['h1:붓꽃 품종 분류', 'h2:동기'])
+  })
+
+  it('학생이 일부러 쓴 목록은 그대로 산다', () => {
+    const markdown = renderPortfolioMarkdown(
+      TEXT,
+      portfolio([{ id: 'a', title: '동기' }], { a: '- 고양이\n- 개' }),
+    )
+    expect(new MarkdownIt().render(markdown)).toContain('<li>고양이</li>')
   })
 
   it('사진은 상대 경로로 적는다 - 압축을 푼 자리에서 그대로 맞는다', () => {

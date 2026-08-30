@@ -102,13 +102,23 @@ export function withImportedSections(
   drafts: readonly DraftSection[],
   locale?: string,
 ): Portfolio {
-  const existing = new Set(portfolio.template.sections.map((section) => section.id))
+  const before = new Set(portfolio.template.sections.map((section) => section.id))
+  const taken = new Set(before)
   const added: PortfolioTemplateSection[] = []
   drafts.forEach((draft, index) => {
     const natural = draft.id ?? sectionIdFor(draft.title, index)
-    if (existing.has(natural)) return
-    added.push(draftToSection(draft, natural))
-    existing.add(natural)
+    /**
+     * **밖에 이미 있던 것과 이번 묶음 안의 충돌은 다른 일이다.**
+     *
+     * 앞엣것은 건너뛴다(위 머리말 - 두 번 눌러도 안 불어난다). 뒤엣것은 §8.2가
+     * *"겹치면 뒤에 번호를 붙이고"*라고 정한 자리다 - 건너뛰면 **교사가 준 양식의
+     * 문항이 안내문째 말없이 빠진다.** 제목이 눈에 다르게 보여도 슬러그가 같으면
+     * 충돌한다(`결과`와 `결과?`).
+     */
+    if (before.has(natural)) return
+    const id = uniqueId(natural, taken)
+    added.push(draftToSection(draft, id))
+    taken.add(id)
   })
   if (added.length === 0) return portfolio
 
@@ -355,8 +365,15 @@ export interface PortfolioMarkdownText {
 /** 줄머리의 `#`. 앞의 여백까지 함께 본다 - 세 칸까지 들여쓴 제목도 제목으로 읽힌다. */
 const LINE_LEADING_HASH = /^(\s{0,3})(#+)/
 
-/** 단독으로 서면 앞줄을 제목으로 만드는 줄. */
-const SETEXT_UNDERLINE = /^(\s{0,3})(-{2,}|={2,})\s*$/
+/**
+ * 단독으로 서면 앞줄을 제목으로 만드는 줄.
+ *
+ * **한 글자도 성립한다.** CommonMark의 setext 밑줄에는 최소 길이가 없어서
+ * `앞줄` 다음 줄의 `-` 하나가 `<h2>`를, `=` 하나가 `<h1>`을 만든다. 학생이 목록을
+ * 치다 남긴 **빈 항목(`- `)**이 정확히 그 모양이다. 막을 것은 글자 수가 아니라
+ * 성질이다 (`mlpx-spec.md` §8.6).
+ */
+const SETEXT_UNDERLINE = /^(\s{0,3})(-+|=+)\s*$/
 
 /**
  * 답을 `.md`에 담을 수 있게 만든다.
