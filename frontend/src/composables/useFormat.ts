@@ -9,20 +9,27 @@
 
 import { useI18n } from 'vue-i18n'
 
-/** 1024로 나눈 단위들. Intl에 이 단위계가 없어서 우리가 고른다. */
+import { BYTES_PER_KB } from '../limits'
+
+/** 올라가는 단위들. Intl에 이 단위계가 없어서 우리가 고른다. */
 const UNITS = ['byte', 'kilobyte', 'megabyte', 'gigabyte'] as const
 
 /**
  * 바이트를 사람이 읽는 크기로. 단위 이름은 Intl이 언어에 맞게 붙인다.
  *
- * 1024 기준인 것을 KB로 적는 것은 흔한 관행이고, 여기서 1000으로 바꾸면 브라우저가
- * 보고하는 저장 공간과 어긋나 학생이 두 숫자를 비교할 수 없다.
+ * **십진이다** (open-decisions.md "MB는 십진 백만이다"). 배수를 `limits.ts`에서
+ * 가져오는 것이 요점이다 — 여기서만 1024로 나누면 `PROJECT_FILE_WARN_BYTES`가
+ * **`100MB`로 적혀 화면에서 `95.4MB`로 읽힌다.** 실제로 그렇게 갈려 있었고, 그때
+ * 학생이 본 수는 상한도 LMS의 100MB도 아닌 아무 데도 없는 값이었다 (R13-4 감사 A-1).
+ *
+ * 이진 쪽 근거였던 "브라우저가 보고하는 저장 공간과 맞춘다"는 지금 성립하지 않는다 —
+ * `estimate()`가 화면에 닿는 유일한 자리(`STORAGE_QUOTA_EXCEEDED`)가 이미 십진이다.
  */
 export function formatBytes(locale: string, bytes: number): string {
   let value = Math.max(0, bytes)
   let unit = 0
-  while (value >= 1024 && unit < UNITS.length - 1) {
-    value /= 1024
+  while (value >= BYTES_PER_KB && unit < UNITS.length - 1) {
+    value /= BYTES_PER_KB
     unit += 1
   }
   return new Intl.NumberFormat(locale, {

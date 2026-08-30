@@ -32,7 +32,8 @@ import { describe, expect, it } from 'vitest'
 
 import { sourceFiles, withoutComments } from './fixtures/source'
 
-import { BYTES_PER_MB } from '../src/limits'
+import { formatBytes } from '../src/composables/useFormat'
+import { BYTES_PER_KB, BYTES_PER_MB, PROJECT_FILE_WARN_BYTES } from '../src/limits'
 
 const SRC = join(process.cwd(), 'src')
 if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
@@ -312,12 +313,27 @@ describe('MB는 십진이다', () => {
     const found: string[] = []
     for (const path of sourceFiles(SRC)) {
       withoutComments(readFileSync(path, 'utf8')).forEach((line, index) => {
-        if (/1024\s*\*\s*1024/.test(line)) {
+        // **곱셈만 보면 안 된다.** 화면 쪽은 곱하지 않고 `>= 1024`로 재며 `/= 1024`로
+        // 나눠 올라갔고, 그래서 이 검사가 그 자리를 영원히 못 봤다 (R13-4 감사 A-1).
+        if (/(?:\*|\/|>=?|<=?)=?\s*1024\b/.test(line)) {
           found.push(`${path.slice(SRC.length + 1).replace(/\\/g, '/')}:${index + 1}`)
         }
       })
     }
     expect(found, '손으로 MB를 만드는 자리').toEqual([])
+  })
+
+  /**
+   * **글자를 훑는 것만으로는 못 잡는다.** 위 검사는 `1024`라는 글자를 찾을 뿐이라,
+   * 다른 수로 같은 잘못을 하면 조용하다. 화면에 실제로 나가는 문자열을 본다.
+   *
+   * `PROJECT_FILE_WARN_BYTES`가 특히 중요하다 — 이 값이 그대로 경고 문장의 `{limit}`에
+   * 들어가므로, 여기가 어긋나면 **학생이 "95.4MB보다 크면 못 낸다"를 읽는다.**
+   */
+  it('화면에 나가는 크기도 십진이다', () => {
+    expect(formatBytes('en', BYTES_PER_MB)).toBe('1 MB')
+    expect(formatBytes('en', PROJECT_FILE_WARN_BYTES)).toBe('100 MB')
+    expect(formatBytes('en', BYTES_PER_KB)).toBe('1 kB')
   })
 })
 

@@ -200,8 +200,13 @@ describe('화면 표시 포맷', () => {
   })
 
   it('바이트는 단위를 올려가며 보여준다', () => {
-    expect(formatBytes('en', 512)).toContain('512')
-    expect(formatBytes('en', 1024 * 1024)).toContain('1')
+    // **단위까지 본다.** 숫자가 들어 있는지만 보면 단위 승격을 통째로 꺼도 초록이다 -
+    // `toContain('1')`은 `1,048,576 byte`도 통과시켰다 (R13-4 감사 C-3).
+    expect(formatBytes('en', 512)).toBe('512 byte')
+    expect(formatBytes('en', 999)).toBe('999 byte')
+    expect(formatBytes('en', 1_000)).toBe('1 kB')
+    expect(formatBytes('en', 1_000_000)).toBe('1 MB')
+    expect(formatBytes('en', 1_000_000_000)).toBe('1 GB')
     // 바이트 단위에서는 소수점이 의미가 없다.
     expect(formatBytes('en', 900)).not.toContain('.')
   })
