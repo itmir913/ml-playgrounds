@@ -236,7 +236,17 @@ describe('.mlpx를 왕복한다', () => {
       new Map([[only!.hash, new Float32Array([1, 2, 3, 4])]]),
     )
     const opened = await roundTrip(withVectors)
-    expect([...opened.embeddings.keys()]).toEqual([embeddingPath(BACKBONE, only!.hash)])
+    /**
+     * **기대값을 밖에서 만든다.** `embeddingPath(…)`를 그대로 견주면 쓰는 쪽과 읽는
+     * 쪽이 같은 함수라 **왕복은 언제나 맞는다** (공통 §2.6) — 확장자를 `.f32`로
+     * 바꿔도 저장소 전체가 조용했다 (R14-4 감사 A-2). 그러면 옛 빌드가 저장한
+     * `.bin`이 열리기는 하는데 임베딩만 통째로 사라지고, 교실 PC가 사진 수백 장을
+     * 다시 뽑는다. `formatVersion`은 안 오른다.
+     *
+     * 그 모양은 `mlpx-spec.md` §1.3이 정한 계약이다.
+     */
+    expect([...opened.embeddings.keys()]).toEqual([`embeddings/${BACKBONE}/${only!.hash}.bin`])
+    expect(embeddingPath('b', 'h'), '경로를 짓는 함수도 그 모양이다').toBe('embeddings/b/h.bin')
     // 정본 사진과 이름이 같다 - 확장자만 다르다.
     expect(
       opened.images.has(imageEntryPath('data', only!.hash, '개', CANONICAL_FORMATS.webp)),

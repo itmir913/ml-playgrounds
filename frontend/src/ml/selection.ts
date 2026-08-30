@@ -176,6 +176,58 @@ export function columnPlan(input: ColumnPlanInput): ColumnPlan {
   return { columns, usableFeatures, usesTarget: wantsTarget }
 }
 
+/**
+ * 그 줄에 적을 사유. **순서가 곧 우선순위다** — 위엣것이 이긴다.
+ *
+ * **문구가 아니라 키를 돌려준다.** 이 층은 `t()`를 모른다 (`CLAUDE.md` §1.4).
+ *
+ * **화면에 두었을 때 이 넷의 순서를 통째로 뒤집어도 저장소가 조용했다**
+ * (R14-4 감사 A-4). 그때 값이 한 종류뿐이면서 수치가 아닌 열을 회귀 타깃으로 고르면
+ * `TARGET_NOT_NUMERIC`(학습이 거부한다) 대신 `값이 한 종류입니다`(주의)가 뜬다 —
+ * **학생이 읽는 것이 고쳐야 할 것이 아니라 안 고쳐도 되는 것이 된다.**
+ */
+export function columnNote(
+  column: ColumnChoice,
+): { key: string; param?: 'feature' | 'target' } | null {
+  if (column.featureIssue !== undefined) {
+    return { key: `errors.${column.featureIssue}`, param: 'feature' }
+  }
+  if (column.role === 'target' && column.targetIssue !== undefined) {
+    return { key: `errors.${column.targetIssue}`, param: 'target' }
+  }
+  if (column.role === 'feature' && column.featureNote !== undefined) {
+    return { key: `preprocess.tabular.${column.featureNote}` }
+  }
+  if (column.role === 'target' && column.targetCaution !== undefined) {
+    return { key: 'preprocess.tabular.targetSingleValue' }
+  }
+  return null
+}
+
+/**
+ * 그 줄이 **학습이 거부하는 것**을 말하고 있는가. 화면은 이때만 빨강을 쓴다.
+ *
+ * **`columnNote`가 고른 것과 같은 조건이어야 한다** — 색이 문장보다 넓게 잡히면
+ * 회색으로 말할 것을 빨강으로 말한다. `columnPlan`은 `targetIssue`를 역할과 무관하게
+ * 모든 열에 채우므로 역할을 안 거르면 **안 고른 열이 빨개진다** (R14-4 감사 A-4).
+ */
+export function columnBlocks(column: ColumnChoice): boolean {
+  const issue =
+    column.featureIssue !== undefined ||
+    (column.role === 'target' && column.targetIssue !== undefined)
+  return issue && column.role !== 'unused'
+}
+
+/**
+ * 특성 체크박스를 잠글 열인가.
+ *
+ * 타깃을 거르는 것이 여기 있어야 **눌러도 아무 일도 안 일어나는 체크박스**가 안 생긴다
+ * (`project/settings.ts`의 `withFeatures`가 둘째 방어선으로 다시 거른다).
+ */
+export function featureLocked(column: ColumnChoice): boolean {
+  return column.role === 'target' || column.featureIssue !== undefined
+}
+
 /** 축의 칸 하나. **꺼진 칸도 목록에 남고 왜 꺼졌는지를 함께 든다** (architecture.md 8.12). */
 export interface AxisChoice {
   readonly id: string

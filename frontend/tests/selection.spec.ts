@@ -17,7 +17,10 @@ import { reasonParams, type RuntimeContext, type UnavailableReason } from '../sr
 import type { Dataset } from '../src/ml/preprocess'
 import {
   algorithmsLosingMeaning,
+  columnBlocks,
+  columnNote,
   columnPlan,
+  featureLocked,
   modelAxes,
   requiredTargetKind,
   rowUsage,
@@ -749,5 +752,74 @@ describe('데이터를 나누는 유형인가', () => {
     for (const taskType of [...TASK_TYPES, undefined]) {
       expect(scoresWithTestImages(taskType), taskType ?? '미정').toBe(splitsData(taskType))
     }
+  })
+})
+
+/**
+ * 열 표의 한 줄이 무엇을 말하고 어느 세기로 말하는가 (`ColumnPicker.vue`가 쓴다).
+ *
+ * **셋 다 화면 안에 있었고 아무도 안 봤다** (R14-4 감사 A-4). `column-picker.spec.ts`가
+ * 64줄로 보는 것은 라디오가 잠기지 않는가뿐이고, 사유·색·잠금은 어느 파일에서도
+ * 안 태워졌다. 그래서 우선순위를 통째로 뒤집어도, 색을 넓게 잡아도 초록이었다.
+ */
+describe('열 한 줄이 말하는 것', () => {
+  /** 그 한 열만 뽑는다. 이름으로 찾아야 순서가 바뀌어도 안 흔들린다. */
+  const columnNamed = (plan: ReturnType<typeof planFor>, name: string) =>
+    plan.columns.find((one) => one.summary.name === name)!
+
+  it('학습이 거부하는 것이 주의보다 먼저다 - 순서가 곧 우선순위다', () => {
+    // 값이 한 종류(주의)이면서 수치가 아닌(거부) 열을 회귀 타깃으로 골랐다.
+    const plan = planFor({
+      taskType: 'regression',
+      columns: [column({ name: '반', kind: 'categorical', unique: 1 })],
+      target: '반',
+      features: [],
+    })
+    expect(columnNote(columnNamed(plan, '반'))).toEqual({
+      key: 'errors.TARGET_NOT_NUMERIC',
+      param: 'target',
+    })
+  })
+
+  it('고를 수 없는 특성이 가장 먼저다', () => {
+    const plan = planFor({
+      columns: [column({ name: '메모', kind: 'categorical', missing: 10, unique: 0 })],
+      target: undefined,
+      features: ['메모'],
+    })
+    expect(columnNote(columnNamed(plan, '메모'))?.key).toBe('errors.FEATURE_ALL_MISSING')
+  })
+
+  it('걸리는 것이 없으면 아무 말도 안 한다', () => {
+    expect(columnNote(columnNamed(planFor(), '점수'))).toBeNull()
+  })
+
+  it('빨강은 학습이 거부할 때만이다 - 안 고른 열은 회색이다', () => {
+    /**
+     * `columnPlan`은 `targetIssue`를 **역할과 무관하게 모든 열에** 채운다. 그래서
+     * 역할을 안 거르면 **안 고른 범주 열이 빨개진다** — 학생은 안 고쳐도 되는 것을
+     * 고치려 든다. 같은 사실이 타깃 자리에서는 진짜로 빨강이어야 한다.
+     */
+    const chosen = planFor({
+      taskType: 'regression',
+      columns: [SCORE, GRADE],
+      target: '등급',
+      features: [],
+    })
+    expect(columnBlocks(columnNamed(chosen, '등급')), '타깃으로 골랐으면 빨강이다').toBe(true)
+
+    // 값이 통째로 빈 열은 **고르면** 학습이 거부한다. 안 골랐으면 아무 일도 안 난다.
+    const empty = column({ name: '메모', missing: 10, unique: 0 })
+    const picked = planFor({ columns: [SCORE, empty], target: undefined, features: ['메모'] })
+    expect(columnBlocks(columnNamed(picked, '메모')), '고른 열은 빨강이다').toBe(true)
+
+    const skipped = planFor({ columns: [SCORE, empty], target: undefined, features: ['점수'] })
+    expect(columnBlocks(columnNamed(skipped, '메모')), '안 고른 열은 회색이다').toBe(false)
+  })
+
+  it('타깃으로 쓰는 열은 특성 칸이 잠긴다', () => {
+    const plan = planFor()
+    expect(featureLocked(columnNamed(plan, '등급'))).toBe(true)
+    expect(featureLocked(columnNamed(plan, '점수'))).toBe(false)
   })
 })

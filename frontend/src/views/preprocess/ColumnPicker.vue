@@ -19,7 +19,7 @@ import AppTable from '@/components/AppTable.vue'
 import TermPopover from '@/components/TermPopover.vue'
 import { useFormat } from '@/composables/useFormat'
 import type { FittedColumn } from '@/ml/preprocess'
-import type { ColumnPlan } from '@/ml/selection'
+import { columnBlocks, columnNote, featureLocked, type ColumnPlan } from '@/ml/selection'
 import type { Preprocessing } from '@/project/schema'
 
 const props = defineProps<{
@@ -113,44 +113,21 @@ function effectOf(column: ColumnPlan['columns'][number]): string[] {
 /**
  * 이 줄에 붙일 한 줄. **하나만 붙인다** — 세 줄이 겹치면 아무것도 안 읽힌다.
  *
- * 순서가 곧 우선순위다. 학습이 거부하는 것이 먼저고, 그다음이 이 설정에서 빠지는 것,
- * 마지막이 골라도 되지만 알아야 하는 것이다.
+ * **판정은 여기서 하지 않는다** (`ml/selection.ts`의 `columnNote`). 화면에 두었을 때
+ * 우선순위를 통째로 뒤집어도 저장소가 조용했다 (R14-4 감사 A-4). 여기 남은 것은
+ * 키를 문구로 바꾸는 일뿐이다.
  */
 function noteOf(column: ColumnPlan['columns'][number]): string | null {
-  if (column.featureIssue !== undefined) {
-    return t(`errors.${column.featureIssue}`, { feature: column.summary.name })
-  }
-  if (column.role === 'target' && column.targetIssue !== undefined) {
-    return t(`errors.${column.targetIssue}`, { target: column.summary.name })
-  }
-  if (column.role === 'feature' && column.featureNote !== undefined) {
-    return t(`preprocess.tabular.${column.featureNote}`)
-  }
-  if (column.role === 'target' && column.targetCaution !== undefined) {
-    return t('preprocess.tabular.targetSingleValue')
-  }
-  return null
+  const note = columnNote(column)
+  if (note === null) return null
+  if (note.param === 'feature') return t(note.key, { feature: column.summary.name })
+  if (note.param === 'target') return t(note.key, { target: column.summary.name })
+  return t(note.key)
 }
 
-/**
- * 그 한 줄의 색. **`noteOf`가 고른 것과 같은 조건이어야 한다** — 색이 문장보다 넓게
- * 잡히면 회색으로 말할 것을 빨강으로 말한다.
- *
- * `columnPlan`은 `targetIssue`를 **역할과 무관하게 모든 열에** 채운다. 그래서 여기서
- * 역할을 안 거르면, 회귀에서 범주 특성이 `notEncodable`(고르는 것 자체는 막지 않는
- * **주의**)을 달고도 빨갛게 나온다 — 같은 사실이 분류에서는 회색, 회귀에서는 빨강이
- * 된다 (2026-08-30, R12 감사 C-1). 이 저장소에서 빨강은 "학습이 거부한다"는 뜻이다.
- */
+/** 그 한 줄의 색. 빨강은 "학습이 거부한다"는 뜻이다 (`columnBlocks`가 정한다). */
 function toneOf(column: ColumnPlan['columns'][number]): string {
-  const issue =
-    column.featureIssue !== undefined ||
-    (column.role === 'target' && column.targetIssue !== undefined)
-  return issue && column.role !== 'unused' ? 'text-danger' : 'text-ink-soft'
-}
-
-/** 특성으로 고를 수 없는 열. 값이 통째로 비어 있으면 전처리가 던진다. */
-function featureBlocked(column: ColumnPlan['columns'][number]): boolean {
-  return column.role === 'target' || column.featureIssue !== undefined
+  return columnBlocks(column) ? 'text-danger' : 'text-ink-soft'
 }
 
 function onFeature(name: string, event: Event): void {
@@ -251,7 +228,7 @@ function onFeature(name: string, event: Event): void {
               type="checkbox"
               class="size-4 accent-brand"
               :checked="column.role === 'feature'"
-              :disabled="featureBlocked(column)"
+              :disabled="featureLocked(column)"
               :aria-label="column.summary.name"
               @change="onFeature(column.summary.name, $event)"
             />
