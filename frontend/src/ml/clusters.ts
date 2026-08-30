@@ -103,6 +103,21 @@ export function isCategoricalAxis(axis: ClusterAxis): boolean {
  * 어긋나는 유일한 경로가 인코딩이다(fit 시점과 다른 `categoricalEncoding`으로 부르면
  * 폭이 달라진다). 조용히 지나가면 **한 칸 밀린 축**으로 그림을 그린다.
  */
+/**
+ * 군집 요약표의 머리 문장 키. **범주 축이 하나라도 있으면 다른 문장이다** — 그 표의
+ * 칸에 뜨는 것이 평균이 아니라 그 군집에서 가장 많은 범주이기 때문이다.
+ *
+ * **화면에서 삼항으로 조립하지 않는다** (`CLAUDE.md` §4 "검증 가능한 로직을 컴포넌트
+ * 밖으로 빼라"). 두 갈래를 서로 바꿔도 `ui-rules` 162개가 전부 통과했다 — 범주형 열이
+ * 있는 표에 평균 문장이, 없는 표에 최빈 문장이 떴다 (2026-08-30, R12 감사 C-2).
+ * 2026-08-29 전 경로 감사가 잡은 결함의 거울상이다.
+ */
+export function clusterSummaryLeadKey(axes: readonly ClusterAxis[]): string {
+  return axes.some(isCategoricalAxis)
+    ? 'results.tabular.clusterSummaryLeadMixed'
+    : 'results.tabular.clusterSummaryLead'
+}
+
 export function matrixColumns(
   preprocessor: Preprocessor,
   encoding: Preprocessing['categoricalEncoding'],

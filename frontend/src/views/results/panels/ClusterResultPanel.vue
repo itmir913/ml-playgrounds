@@ -28,6 +28,7 @@ import {
   clusterMaterialFor,
   clusterMembers,
   clusterSummaries,
+  clusterSummaryLeadKey,
   scatterPoints,
 } from '@/ml/clusters'
 import type { PanelInput } from '@/ml/metric-panels'
@@ -151,11 +152,7 @@ const overviews = computed(() => {
  * **없는 것을 이름으로 말하지 않는다** (§9.2) — 범주형 열이 없는 표에서는 그 문장을
  * 안 꺼낸다.
  */
-const summaryLead = computed(() =>
-  axes.value.some((axis) => axis.categories)
-    ? t('results.tabular.clusterSummaryLeadMixed')
-    : t('results.tabular.clusterSummaryLead'),
-)
+const summaryLead = computed(() => t(clusterSummaryLeadKey(axes.value)))
 
 /**
  * 머리글 설명 한 문장. **키를 조립하지 않는다** (`TermPopover`의 머리말).

@@ -63,6 +63,21 @@ const RULES: readonly Rule[] = [
     ],
   },
   {
+    name: '바인딩 안의 문자열에도 임의 값을 쓰지 않는다',
+    why:
+      '아래 규칙은 정적 class만 본다 - 바인딩 안의 대괄호는 코드라서 일부러 뺐다. ' +
+      '그런데 배열이나 객체 안의 문자열 리터럴은 코드가 아니라 클래스다. ' +
+      '지금 0건이고, 0건일 때 세워 두는 것이 값싸다 (2026-08-30 R12 감사 C-5).',
+    pattern: /:class="[^"]*'[^']*[a-z]-\[/,
+    violations: [':class="[CELL, \'w-[327px]\']"', ':class="{ \'text-[0.625rem]\': small }"'],
+    allowed: [
+      ":class=\"[CELL, active ? 'bg-brand' : '']\"",
+      ':class="toneOf(column)"',
+      // 정적 class의 임의 값은 아래 규칙이 잡는다. 두 번 잡지 않는다.
+      '<div class="w-[327px]">',
+    ],
+  },
+  {
     name: 'Tailwind 임의 값을 쓰지 않는다',
     why: '기본 클래스만 쓴다. 임의 값이 흩뿌려지면 눈금이 사라지고 디자인 교체가 전수 조사가 된다.',
     // class 속성 안의 `[...]`만 본다. :class 바인딩의 배열·객체는 자바스크립트다.
@@ -1282,6 +1297,37 @@ describe('전처리 판은 붙일 때도 뗄 때도 묻는다', () => {
 
     expect(found).toEqual([])
   })
+
+  /**
+   * **새 확인 대화상자가 생기면 여기가 운다.**
+   *
+   * 위 `CLOSERS`는 손으로 적은 목록이라 대화상자가 하나 더 생겨도 조용하다
+   * (2026-08-30, R12 감사 C-3) — 같은 파일이 위에서 *"손으로 적지 않는다. 그러면 빠진
+   * 판을 아무도 못 본다"*고 못 박아 두었는데 여기만 그 모양이었다.
+   *
+   * **무엇이 대상인지는 사람이 판단해야 한다** — 일하기 전에 닫는 것도 있고
+   * (`ImagePrepPanel`의 붙이기 경로) 실패를 안 잡는 것도 있다. 그래서 목록을 자동으로
+   * 만들지 않고 **이름을 못 박아** 판단을 부른다. 늘었으면 그 화면이 `CLOSERS`에
+   * 들어가는지 보고, 아니면 왜 아닌지를 이 주석에 적어라.
+   */
+  it('AppDialog를 쓰는 화면이 그대로다 - 늘었으면 CLOSERS를 다시 보라', () => {
+    const screens = vueFiles(SRC)
+      .filter((path) => readFileSync(path, 'utf-8').includes('AppDialog'))
+      .map((path) => path.slice(SRC.length + 1).replace(/\\/g, '/'))
+      .sort()
+
+    expect(screens).toEqual([
+      'views/PortfolioView.vue',
+      'views/PreprocessView.vue',
+      'views/TrainView.vue',
+      'views/WelcomeView.vue',
+      'views/data/ImagePanel.vue',
+      'views/data/TabularPanel.vue',
+      'views/predict/ImagePredictPanel.vue',
+      'views/preprocess/ImagePrepPanel.vue',
+      'views/preprocess/TabularPrepPanel.vue',
+    ])
+  })
 })
 
 /**
@@ -1314,8 +1360,16 @@ describe('군집 요약표는 평균과 최빈을 갈라 말한다', () => {
     ])
   })
 
+  /**
+   * **머리 문장의 두 갈래는 이제 판이 아니라 `ml/clusters.ts`가 든다** (2026-08-30,
+   * R12 감사 C-2). 화면에서 삼항으로 조립하던 때에는 두 갈래를 서로 바꿔도 아무도 안
+   * 울어서, 판정을 밖으로 뺐다 — 열 머리 도움말 둘은 그대로 판이 든다.
+   */
   it('머리말도 도움말도 두 갈래를 다 든다', () => {
-    const keys = keysIn(readFileSync(PANEL, 'utf-8'))
+    const keys = [
+      ...keysIn(readFileSync(PANEL, 'utf-8')),
+      ...keysIn(readFileSync(join(SRC, 'ml', 'clusters.ts'), 'utf-8')),
+    ]
 
     for (const pair of [
       ['results.tabular.clusterMeanHelp', 'results.tabular.clusterModeHelp'],

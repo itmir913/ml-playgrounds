@@ -22,11 +22,13 @@ import {
   clusterMaterialFor,
   clusterMembers,
   clusterSummaries,
+  clusterSummaryLeadKey,
   explainsAsClusters,
   matrixColumns,
   nearestMembers,
   scatterPoints,
   unscale,
+  type ClusterAxis,
 } from '../src/ml/clusters'
 import { fitKMeans } from '../src/ml/engines/mljs-kmeans'
 import { KMEANS_FORMAT, kmeansPredict, type KMeansModel } from '../src/ml/models'
@@ -746,5 +748,29 @@ describe('표본 뽑기', () => {
     expect(at('몸무게')).toBeCloseTo(rawValue(0, '몸무게')!, 9)
     // **범주 축은 되돌리지 않는다** - 값이 단위를 가진 수가 아니라 범주 번호다.
     expect(at('성별')).toBe(0)
+  })
+})
+
+/**
+ * **군집 요약표의 머리 문장.** 범주 축이 하나라도 있으면 그 표의 칸은 평균이 아니라
+ * 최빈값이라 문장이 갈린다. 화면에서 삼항으로 조립하던 때에는 **두 갈래를 서로 바꿔도**
+ * `ui-rules` 162개가 전부 통과했다 (2026-08-30, R12 감사 C-2).
+ */
+describe('군집 요약표의 머리 문장', () => {
+  const numeric: ClusterAxis = { name: '키', index: 0, width: 1 }
+  const categorical: ClusterAxis = { name: '반', index: 1, width: 2, categories: ['A', 'B'] }
+
+  it('수치 축뿐이면 평균 문장이다', () => {
+    expect(clusterSummaryLeadKey([numeric])).toBe('results.tabular.clusterSummaryLead')
+  })
+
+  it('범주 축이 섞이면 다른 문장이다', () => {
+    expect(clusterSummaryLeadKey([numeric, categorical])).toBe(
+      'results.tabular.clusterSummaryLeadMixed',
+    )
+  })
+
+  it('축이 없으면 평균 문장이다 - 없는 것을 이름으로 말하지 않는다', () => {
+    expect(clusterSummaryLeadKey([])).toBe('results.tabular.clusterSummaryLead')
   })
 })
