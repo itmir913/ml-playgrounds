@@ -340,11 +340,46 @@ describe('자리표시자를 다 넘긴다', () => {
  * 행동할 문장은 코드에서 오고, 여기 실리는 것은 그 코드가 못 담는 사실이다.
  */
 describe('기술 정보 통로에 우리 문장을 싣지 않는다', () => {
-  const HANGUL_IN_DETAIL = /failureDetail\([^)]*[가-힣]/
+  /**
+   * **한 줄이 아니라 파일 전체를 본다.** 줄 단위로 훑으면 여는 괄호와 문장이 다른 줄에
+   * 있을 때 못 보는데, **그 줄바꿈을 만드는 것이 이 저장소의 prettier 자신이다** —
+   * `printWidth`가 100이라 긴 한국어 메시지를 알아서 편다 (R13-2 감사 A-1).
+   *
+   * 따옴표를 넘지 않는 것이 안전장치다(`[^`'"]*`). 그래서 `throw new Error(x)` 다음 줄에
+   * 한글이 있는 무관한 코드를 잘못 잡지 않는다.
+   */
+  function hits(pattern: RegExp): string[] {
+    const found: string[] = []
+    for (const path of sourceFiles(SRC)) {
+      const text = withoutComments(readFileSync(path, 'utf-8')).join(String.fromCharCode(10))
+      for (const match of text.matchAll(new RegExp(pattern.source, 'g'))) {
+        const line = text.slice(0, match.index).split(String.fromCharCode(10)).length
+        found.push(`${path.slice(SRC.length + 1)}:${line}`)
+      }
+    }
+    return found
+  }
+
+  const HANGUL_IN_DETAIL = /failureDetail\(\s*[`'"][^`'"]*[가-힣]/
+  const HANGUL_IN_THROWN = /throw new [A-Za-z]*Error\(\s*[`'"][^`'"]*[가-힣]/
+
+  /** prettier가 실제로 만드는 모양. **이 표본이 없어서 사각이 생겼다.** */
+  const WRAPPED_THROW = [
+    'throw new Error(',
+    '  `planRun이 유형을 받고도 pending을 돌려줬다: ${missing}`,',
+    ')',
+  ].join(String.fromCharCode(10))
+
+  const WRAPPED_DETAIL = [
+    'const params = failureDetail(',
+    '  `정본으로 구울 수 있는 형식이 하나도 없다: ${failures}`,',
+    ')',
+  ].join(String.fromCharCode(10))
 
   it('검사기가 잡는다', () => {
     expect(HANGUL_IN_DETAIL.test('failureDetail(`알 수 없는 백본: ${id}`)')).toBe(true)
     expect(HANGUL_IN_DETAIL.test("failureDetail('준비 실패')")).toBe(true)
+    expect(HANGUL_IN_DETAIL.test(WRAPPED_DETAIL)).toBe(true)
   })
 
   it('검사기가 안 잡는다', () => {
@@ -355,50 +390,41 @@ describe('기술 정보 통로에 우리 문장을 싣지 않는다', () => {
   })
 
   /**
-   * **던지는 쪽을 막는다.** 위 검사는 `failureDetail(...)`이라 적힌 줄만 보는데, 실제로
+   * **던지는 쪽을 막는다.** 위 검사는 `failureDetail(...)`이라 적힌 자리만 보는데, 실제로
    * 새던 길은 `throw new Error('한국어')` → 워커 핸들러의 catch → `failureDetail(error)`
    * → `error.message`였다. 그 길에 열다섯 개가 있었다 (R13-4 감사 A-2).
    *
    * `ml/embed`·`data/image`·`ml/worker`·`experiment.ts`가 전부 catch에서 `failureDetail`을
-   * 부르므로 **`src`의 `throw new Error`는 모두 그 통로 위에 있다고 본다.**
+   * 부르므로 **`src`의 `throw`는 모두 그 통로 위에 있다고 본다.**
    */
-  const HANGUL_IN_THROWN = /throw new Error\(.*[가-힣]/
-
   it('던지는 원문 검사기가 잡는다', () => {
     expect(HANGUL_IN_THROWN.test("throw new Error('prepare를 먼저 불러야 한다')")).toBe(true)
     expect(HANGUL_IN_THROWN.test('throw new Error(`크기가 이상하다: ${w}x${h}`)')).toBe(true)
+    expect(HANGUL_IN_THROWN.test(WRAPPED_THROW)).toBe(true)
+    // Error 말고 다른 것을 던져도 message는 같은 길로 간다.
+    expect(HANGUL_IN_THROWN.test("throw new TypeError('자리가 모자란다')")).toBe(true)
   })
 
   it('던지는 원문 검사기가 안 잡는다', () => {
     expect(HANGUL_IN_THROWN.test("throw new Error('prepare() must run first')")).toBe(false)
     // ClientError는 코드와 파라미터를 나르므로 이 규칙의 대상이 아니다.
     expect(HANGUL_IN_THROWN.test("throw new ClientError('JOB_FAILED', { name: '개' })")).toBe(false)
+    // 따옴표를 안 넘는다 - 다음 줄의 무관한 한글에 속지 않는다.
+    expect(
+      HANGUL_IN_THROWN.test(
+        ['throw new Error(reason)', "const label = '개와 고양이'"].join(String.fromCharCode(10)),
+      ),
+    ).toBe(false)
   })
 
   it('던지는 원문에 한글을 쓰지 않는다', () => {
-    const found: string[] = []
-    for (const path of sourceFiles(SRC)) {
-      withoutComments(readFileSync(path, 'utf-8')).forEach((line, index) => {
-        if (HANGUL_IN_THROWN.test(line)) {
-          found.push(`${path.slice(SRC.length + 1)}:${index + 1}  ${line.trim()}`)
-        }
-      })
-    }
     expect(
-      found,
+      hits(HANGUL_IN_THROWN),
       '던진 문장은 error.message로 failureDetail을 지나 토스트에 그대로 붙는다',
     ).toEqual([])
   })
 
   it('지금 소스에 그런 자리가 없다', () => {
-    const found: string[] = []
-    for (const path of sourceFiles(SRC)) {
-      withoutComments(readFileSync(path, 'utf-8')).forEach((line, index) => {
-        if (HANGUL_IN_DETAIL.test(line)) {
-          found.push(`${path.slice(SRC.length + 1)}:${index + 1}  ${line.trim()}`)
-        }
-      })
-    }
-    expect(found, '기술 정보 통로는 코드와 파라미터만 나른다').toEqual([])
+    expect(hits(HANGUL_IN_DETAIL), '기술 정보 통로는 코드와 파라미터만 나른다').toEqual([])
   })
 })

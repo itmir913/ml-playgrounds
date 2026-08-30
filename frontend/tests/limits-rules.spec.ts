@@ -140,6 +140,28 @@ const RULES: readonly Rule[] = [
       'return new Promise((resolve) => setTimeout(resolve, 0))',
     ],
   },
+  {
+    name: '1024로 크기를 재지 않는다',
+    why: '십진 MB를 쓰기로 했는데(open-decisions.md "MB는 십진 백만이다") 한 화면만 이진으로 재면 학생이 읽는 수가 상한과 다르다. 실제로 100MB 경고가 화면에서 `95.4MB`라고 말했다.',
+    // **연산자를 안 본다.** 곱셈만 보던 때는 나눗셈으로 올라가던 화면을 놓쳤고(R13-4 A-1),
+    // 연산자를 넣은 뒤에도 `const KIB = 1024`로 이름을 붙이면 빠져나갔다(R13-3 A-3).
+    // 배수는 `limits.ts`의 `BYTES_PER_KB` 하나이고, 그 파일은 이 걷기에서 빠져 있다.
+    pattern: /\b1_?024\b/,
+    violations: [
+      'const KIB = 1024',
+      '  while (value >= 1024) {',
+      '    value /= 1024',
+      'const bytes = mb * 1024 * 1024',
+      'const step = 1_024',
+    ],
+    allowed: [
+      'while (value >= BYTES_PER_KB) {',
+      'const bytes = megabytes * BYTES_PER_MB',
+      // 자리 경계를 본다 - 다른 수 안에 든 1024는 이 규칙의 대상이 아니다.
+      'const size = 10240',
+      'const half = 512',
+    ],
+  },
 ]
 
 /** 공용 걷기에서 **`limits.ts` 자신만 뻐다** - 유일한 출처가 자기를 위반할 수는 없다. */
@@ -300,27 +322,6 @@ describe('MB는 십진이다', () => {
    */
   it('BYTES_PER_MB가 백만이다', () => {
     expect(BYTES_PER_MB).toBe(1_000_000)
-  })
-
-  /**
-   * **크기를 MB로 바꾸는 자리가 이 상수를 지나는가.**
-   *
-   * 새 화면이 `bytes / (1024 * 1024)`를 손으로 적으면 그 화면만 다른 단위로 말하고,
-   * 같은 파일이 두 화면에서 다른 수로 읽힌다 — 실제로 문서와 화면 사이에서 그렇게
-   * 갈려 있었다.
-   */
-  it('소스가 1024로 MB를 만들지 않는다', () => {
-    const found: string[] = []
-    for (const path of sourceFiles(SRC)) {
-      withoutComments(readFileSync(path, 'utf8')).forEach((line, index) => {
-        // **곱셈만 보면 안 된다.** 화면 쪽은 곱하지 않고 `>= 1024`로 재며 `/= 1024`로
-        // 나눠 올라갔고, 그래서 이 검사가 그 자리를 영원히 못 봤다 (R13-4 감사 A-1).
-        if (/(?:\*|\/|>=?|<=?)=?\s*1024\b/.test(line)) {
-          found.push(`${path.slice(SRC.length + 1).replace(/\\/g, '/')}:${index + 1}`)
-        }
-      })
-    }
-    expect(found, '손으로 MB를 만드는 자리').toEqual([])
   })
 
   /**
