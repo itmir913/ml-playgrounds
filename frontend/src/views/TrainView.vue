@@ -37,7 +37,7 @@ import {
   stratifyBlock,
   type ChosenModel,
 } from '@/ml/selection'
-import { trainableRowsOf, trainingSourceOf } from '@/ml/training-source'
+import { runtimeContextFor, trainingSourceOf } from '@/ml/training-source'
 import { failedRuns } from '@/ml/results'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
 import { applyExperiment } from '@/project/attach'
@@ -118,18 +118,9 @@ const columns = computed(() => (dataset.value ? summarizeColumns(dataset.value) 
  * **`nSamples`를 빠뜨리면 같은 거짓말이 다시 생긴다** — 학생이 3,000행만 쓰기로 했는데
  * 카드는 1만 행으로 재서 잠긴 채로 있고, 그러면 그 손잡이가 아무 일도 안 한다.
  */
-const context = computed<RuntimeContext>(() => {
-  return {
-    serverStatus: 'unknown',
-    engineStates: {},
-    // **종류가 센다** (`ml/training-source.ts`). 표는 전처리와 뽑기에서 빠질 행을 뺀
-    // 수이고, 이미지는 학습에 들어갈 사진 수다.
-    rowCount: project.file === null ? 0 : trainableRowsOf(project.file, project.taskType),
-    // **상한에 걸렸을 때 할 일이 종류마다 다르다** (`ml/backend.ts`). 프로젝트가 없으면
-    // 이 화면은 빈 상태라 사유가 뜰 자리도 없다 — 그때 값은 기본 종류로 둔다.
-    dataType: project.dataType ?? DEFAULT_DATA_TYPE,
-  }
-})
+const context = computed<RuntimeContext>(() =>
+  runtimeContextFor(project.file, project.taskType, DEFAULT_DATA_TYPE),
+)
 
 /**
  * 고를 수 있는 유형. **데이터 종류가 좁힌다** - 이미지에 회귀는 성립하지 않는다.

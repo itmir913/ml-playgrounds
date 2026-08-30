@@ -9,6 +9,9 @@
  *      이미지 데이터에 회귀를 고른 학생에게 "서버가 없습니다"는 도움이 안 된다
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import { CLIENT_ERROR_CODES } from '../src/errors'
@@ -288,4 +291,60 @@ describe('enabledAlgorithms', () => {
       'svm',
     ])
   })
+})
+
+/**
+ * **어느 상수가 어느 칸에 오는가.**
+ *
+ * 기존 검사 셋은 값의 *성질*만 본다 — 숫자인가, 데이터셋 천장 이하인가, 이미지 칸이 표
+ * 칸보다 낮은가. 그래서 `decision_tree`와 `random_forest`의 이미지 칸을 **통째로
+ * 맞바꿔도** 저장소 전체도 `vue-tsc`도 조용했다 (R13-3 감사 A-1). 맞바꾸면 사진
+ * 1,000장에 랜덤포레스트가 열리는데 `limits.ts`의 실측이 그 자리를 521.7초라고 적는다.
+ *
+ * **값을 `limits.ts`에서 가져와 견주면 안 된다** — 자기 자신과 대조하는 것이라 맞바꿈을
+ * 여전히 못 본다. 그래서 **소스를 글자로 읽어 상수의 이름**이 알고리즘 id와 맞는지 본다.
+ */
+describe('행 상한 칸에 제 이름의 상수가 온다', () => {
+  const SOURCE = readFileSync(join(process.cwd(), 'src', 'ml', 'algorithms.ts'), 'utf-8')
+
+  /** 알고리즘 id -> { tabular, image } 의 mljs 상수 이름. 소스에서 글자로 읽는다. */
+  function cells(): Map<string, { tabular: string | undefined; image: string | undefined }> {
+    const found = new Map<string, { tabular: string | undefined; image: string | undefined }>()
+    // **id로 자른다.** 한 조각이 알고리즘 하나이므로 조각 안에서 찾은 칸은 그 알고리즘의
+    // 것이다 - 블록의 끝을 정규식으로 맞히려 들면 들여쓰기에 매달린다.
+    const chunks = SOURCE.split(/id: '/).slice(1)
+    for (const chunk of chunks) {
+      const id = /^([a-z_]+)'/.exec(chunk)?.[1]
+      if (id === undefined) continue
+      found.set(id, {
+        tabular: /tabular: \{ mljs: (\w+)/.exec(chunk)?.[1],
+        image: /image: \{ mljs: (\w+)/.exec(chunk)?.[1],
+      })
+    }
+    return found
+  }
+
+  /** `k_means` -> `KMEANS`, `decision_tree` -> `DECISIONTREE`. 밑줄은 이름마다 달라 접는다. */
+  const core = (text: string) => text.toUpperCase().replace(/_/g, '')
+
+  it('읽을 칸을 실제로 찾는다', () => {
+    // 정규식이 썩으면 0개가 되고 아래 검사가 영원히 초록이 된다.
+    expect(cells().size).toBe(ALGORITHMS.length)
+  })
+
+  for (const dataType of DATA_TYPES) {
+    it(`${dataType} 칸의 상수 이름이 알고리즘과 맞는다`, () => {
+      const wrong: string[] = []
+      for (const algorithm of ALGORITHMS) {
+        if (!algorithm.dataTypes[dataType]) continue
+        const name = cells().get(algorithm.id)?.[dataType]
+        const prefix = dataType === 'image' ? 'MLJS_IMAGE_' : 'MLJS_'
+        const expected = core(`${prefix}${algorithm.id}_ROW_LIMIT`)
+        if (name === undefined || core(name) !== expected) {
+          wrong.push(`${algorithm.id}.${dataType} = ${name ?? '(없다)'}`)
+        }
+      }
+      expect(wrong, '맞바꾸면 학생이 못 도는 크기로 학습을 시작한다').toEqual([])
+    })
+  }
 })

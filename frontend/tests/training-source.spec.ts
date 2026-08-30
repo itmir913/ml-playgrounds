@@ -16,7 +16,7 @@ import { hashBytes } from '../src/hash'
 import { DEFAULT_BACKBONE_ID, backboneFor } from '../src/ml/backbones'
 import type { EmbedMessage, EmbedRequest } from '../src/ml/embed/protocol'
 import type { EmbedWorker } from '../src/ml/embed/client'
-import { trainableRowsOf, trainingSourceOf } from '../src/ml/training-source'
+import { runtimeContextFor, trainableRowsOf, trainingSourceOf } from '../src/ml/training-source'
 import { newProjectDocument } from '../src/project/create'
 import { addEmbeddings, readEmbeddings } from '../src/project/embeddings'
 import { type ProjectFile } from '../src/project/format'
@@ -336,5 +336,37 @@ describe('테스트용 사진이 학습까지 닿는다', () => {
       createEmbedWorker: () => fakeWorker(seen),
     })
     expect(source.dataset.rows.map((row) => row[0])).toEqual(['1', '2'])
+  })
+})
+
+/**
+ * **화면이 등록부에 넘기는 것.**
+ *
+ * 학습 화면 안의 computed로 있던 동안 `dataType`을 기본 종류로 고정해도 저장소 전체가
+ * 초록이었고 타입도 조용했다 (R13-3 감사 A-2). 타입이 필수로 만들어 두어 빠뜨릴 수는
+ * 없지만 **틀린 값을 넣는 것은 아무도 안 봤다** — 그러면 사진 프로젝트가 표의 상한
+ * 칸으로 재어지고, 사유 코드가 갈려 사진을 지워야 할 학생이 "행을 줄이라"를 읽는다.
+ */
+describe('실행 방법 판정에 넘기는 것', () => {
+  it('이미지 프로젝트는 이미지 종류로 넘어간다', () => {
+    const context = runtimeContextFor(imageProject(['a', 'b']), 'classification', 'tabular')
+
+    expect(context.dataType).toBe('image')
+  })
+
+  it('사진 수를 센다 - 파일의 행 수가 아니다', () => {
+    const project = imageProject(['a', 'b', 'c'])
+
+    expect(runtimeContextFor(project, 'classification', 'tabular').rowCount).toBe(
+      trainableRowsOf(project, 'classification'),
+    )
+    expect(runtimeContextFor(project, 'classification', 'tabular').rowCount).toBe(3)
+  })
+
+  it('프로젝트가 없으면 0행이고 서버 상태는 모른다', () => {
+    const context = runtimeContextFor(null, undefined, 'tabular')
+
+    expect(context.rowCount).toBe(0)
+    expect(context.serverStatus).toBe('unknown')
   })
 })

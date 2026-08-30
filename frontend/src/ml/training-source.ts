@@ -11,7 +11,7 @@
  */
 
 import { ClientError } from '@/errors'
-import type { EngineState } from '@/ml/backend'
+import type { EngineState, RuntimeContext } from '@/ml/backend'
 import { backboneFor } from '@/ml/backbones'
 import { embedImages, type EmbedWorker } from '@/ml/embed/client'
 import { spawnEmbedWorker } from '@/ml/embed/spawn'
@@ -186,6 +186,44 @@ export const TRAINING_ROW_COUNTS: Readonly<
 /** 이 프로젝트의 종류가 세는 훈련 행 수. */
 export function trainableRowsOf(project: ProjectFile, taskType: TaskType | undefined): number {
   return TRAINING_ROW_COUNTS[project.document.manifest.dataType](project, taskType)
+}
+
+/**
+ * 학습 화면이 실행 방법 판정에 넘기는 것들.
+ *
+ * **컴포넌트 밖에 둔다** (`CLAUDE.md` §4). 화면 안의 computed로 두었을 때
+ * `dataType: project.dataType ?? DEFAULT_DATA_TYPE`을 `DEFAULT_DATA_TYPE`으로 고정해도
+ * 저장소 전체 2,347개가 초록이고 `vue-tsc`도 조용했다 (R13-3 감사 A-2). 타입이 필수로
+ * 만들어 두어 **빠뜨릴 수는 없지만 틀린 값을 넣는 것은 아무도 안 봤다.**
+ *
+ * 그때 사진 프로젝트가 **표의 상한 칸**으로 재어진다 — 랜덤포레스트가 500장이 아니라
+ * 5,000장까지 열리고(`MAX_IMAGE_COUNT`가 5,000이라 상한을 채운 프로젝트에서도 열린다),
+ * 사유 코드가 `DATASET_TOO_LARGE_FOR_BROWSER`가 되어 **사진을 지워야 하는 학생이
+ * "전처리에서 행을 줄이라"를 읽는다.**
+ *
+ * `serverStatus`는 아직 아는 곳이 없어 `unknown`이다 (`architecture.md` §7.3).
+ */
+export function runtimeContextFor(
+  project: ProjectFile | null,
+  taskType: TaskType | undefined,
+  /**
+   * 프로젝트가 없을 때 쓸 종류. **화면이 준다** — 그 값은 판 등록부(`data/kinds.ts`)의
+   * 첫 판이고, 거기는 비동기 컴포넌트를 들고 있어 ML 층이 임포트하면 화면이 이 층의
+   * 모듈 그래프로 딸려 온다(`ui-rules.spec.ts`가 그걸 잡는다).
+   *
+   * **이 인자는 무해한 쪽이다.** 프로젝트가 없으면 이 화면은 빈 상태라 사유가 뜰 자리도
+   * 없다. 위험한 쪽 — 열린 프로젝트의 종류를 쓰는가 — 은 아래 한 줄이고 검사가 문다.
+   */
+  fallbackDataType: DataType,
+): RuntimeContext {
+  return {
+    serverStatus: 'unknown',
+    engineStates: {},
+    // **종류가 센다.** 표는 전처리와 뽑기에서 빠질 행을 뺀 수이고, 이미지는 학습에
+    // 들어갈 사진 수다.
+    rowCount: project === null ? 0 : trainableRowsOf(project, taskType),
+    dataType: project?.document.manifest.dataType ?? fallbackDataType,
+  }
 }
 
 /** 이 프로젝트의 종류가 준비하는 학습 입력. */
