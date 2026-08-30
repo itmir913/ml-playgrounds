@@ -100,6 +100,32 @@ describe('openXlsx', { timeout: 20_000 }, () => {
     })
   })
 
+  /**
+   * **maxRows는 남긴 행을 센다** (`open-decisions.md` "미리보기 N행은 훑은 행이 아니라
+   * 남긴 행이다").
+   *
+   * 2026-08-30까지 이 경로만 **훑은 행**을 셌다 — `min(maxRows, rowCount)`까지 읽고
+   * **그다음에** 빈 행을 버려서, 빈 행이 하나 낀 시트에서 세 줄을 청하면 두 줄이 왔다.
+   * CSV와 폴백은 처음부터 남긴 행을 셌으므로 셋 중 이쪽만 갈려 있었고, **그 사실을
+   * 아무 검사도 안 봤다** (R12 감사 B-1).
+   */
+  it('maxRows는 훑은 행이 아니라 남긴 행을 센다', async () => {
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('S')
+    sheet.addRow(['a', 'b'])
+    sheet.addRow(['1', '2'])
+    sheet.addRow([]) // 가운데가 비었다
+    sheet.addRow(['3', '4'])
+    sheet.addRow(['5', '6'])
+    const bytes = new Uint8Array(await workbook.xlsx.writeBuffer())
+
+    expect((await openXlsx(bytes)).readSheet('S', 3)).toEqual([
+      ['a', 'b'],
+      ['1', '2'],
+      ['3', '4'],
+    ])
+  })
+
   it('후행 빈 셀이 있어도 모든 행의 길이가 같다', async () => {
     // 엑셀은 후행 빈 셀을 저장하지 않는다. 그대로 두면 세 번째 행이 2칸짜리가 되고
     // 전처리가 note 컬럼 자리에서 다른 값을 읽는다.

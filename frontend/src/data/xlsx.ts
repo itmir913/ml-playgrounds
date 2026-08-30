@@ -21,6 +21,11 @@
  * 날짜 셀은 이번 범위 밖이다(open-decisions.md #14). 두 경로 모두 ISO 문자열을 주고,
  * 남은 차이는 시간대 하나다 - ExcelJS는 직렬값을 UTC로 읽고 SheetJS는 로컬 시간대를
  * 적용한다. 폴백이 도는 드문 경우에만 갈린다(open-decisions.md #18).
+ *
+ * **maxRows는 두 경로 모두 남긴 행을 센다** (open-decisions.md "미리보기 N행은 훑은
+ * 행이 아니라 남긴 행이다"). 2026-08-30까지 그렇지 않았다 - ExcelJS 쪽만 훑은 행을
+ * 셌고, **그때 위 문장이 "남은 차이는 시간대 하나"라고 적혀 있어 그 두 번째 차이를
+ * 덮고 있었다.** 실측 문장은 새 차이가 생기면 함께 늙는다.
  */
 
 import { ClientError } from '../errors'
@@ -78,10 +83,14 @@ const parseWithExcelJs: XlsxParser = async (bytes) => {
       // columnCount는 시트 전체에서 가장 넓은 행의 폭이다. 이걸 폭으로 고정하면
       // 엑셀이 저장하지 않은 후행 빈 셀이 처음부터 자리를 갖는다.
       const width = sheet.columnCount
-      const lastRow = maxRows === undefined ? sheet.rowCount : Math.min(maxRows, sheet.rowCount)
 
       const grid: TableGrid = []
-      for (let rowNumber = 1; rowNumber <= lastRow; rowNumber += 1) {
+      for (let rowNumber = 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
+        // **maxRows는 남긴 행을 센다** (open-decisions.md "미리보기 N행은 훑은 행이
+        // 아니라 남긴 행이다"). 예전에는 `min(maxRows, rowCount)`까지 훑고 **그다음에**
+        // 빈 행을 버려서, 빈 행이 낀 시트에서 세 줄을 청하면 두 줄이 왔다. CSV와 폴백은
+        // 처음부터 남긴 행을 셌으므로 셋 중 이쪽만 갈려 있었다.
+        if (maxRows !== undefined && grid.length >= maxRows) break
         const row = sheet.getRow(rowNumber)
         const cells: string[] = []
         for (let column = 1; column <= width; column += 1) {
