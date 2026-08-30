@@ -198,6 +198,52 @@ describe('쓰는 동안 또 바뀐 것', () => {
  * `AUTOSAVE_DELAY_MS`만큼의 편집이 그대로 사라졌다 (V11 R4 C-3). 여기서 보는 것은
  * **배선**이다 — 브라우저가 쓰기를 끝까지 시켜 주는지는 우리가 못 정한다.
  */
+/**
+ * **저장이 거절돼도 화면은 새 값을 들고 있는다**
+ * (`open-decisions.md` "저장은 화면을 먼저 바꾸고, 실패는 알림과 상태 표시줄이 말한다").
+ *
+ * `save()`의 머리말이 2026-08-30까지 **반대로** 적혀 있었고(*"던지면 아무것도 바꾸지
+ * 않는다"*), 어느 쪽이 참인지 말하는 검사가 하나도 없었다 (R12 감사 B-1). 코드는 처음부터
+ * 화면을 먼저 바꿨다.
+ *
+ * **되돌리는 쪽을 안 택한 이유는 내보내기다.** 이 경로가 실제로 던지는 가장 흔한 자리가
+ * 사진 저장인데(다 굽고 나서 쿼터에 걸린다), 되돌리면 방금 구운 것이 화면에서도 사라져
+ * **그 세션에 제출할 길이 없어진다.**
+ *
+ * **진짜 입구로 던지게 한다** — 여유를 없애면 `saveProject`의 `ensureRoom`이 실제로
+ * `STORAGE_QUOTA_EXCEEDED`를 낸다. 스토어를 흉내 내지 않는다.
+ */
+describe('저장이 거절됐을 때', () => {
+  it('화면은 새 값을 들고 있고 dirty가 남는다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+    expect(project.dirty).toBe(false)
+
+    stubEstimate(1, 1)
+    await expect(project.save(renamed('굽고 나서 거절당함'))).rejects.toThrow()
+
+    // 화면은 새 값이다. 되돌리지 않는다.
+    expect(project.name).toBe('굽고 나서 거절당함')
+    // 상태 표시줄이 계속 말하도록 dirty가 남는다. 이것이 위 결정의 짝이다.
+    expect(project.dirty).toBe(true)
+  })
+
+  it('저장 못 한 값이 그대로 내보내진다 - 제출을 못 하면 그 프로젝트는 죽은 것이다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+
+    stubEstimate(1, 1)
+    await expect(project.save(renamed('굽고 나서 거절당함'))).rejects.toThrow()
+
+    // exportFile은 flush의 실패를 잡아 알리고 있는 값으로 계속한다.
+    await project.exportFile('# 정리\n')
+
+    expect(downloads).toHaveLength(1)
+    const { project: reopened } = await readProject(await downloadedBytes(0))
+    expect(reopened.document.manifest.name).toBe('굽고 나서 거절당함')
+  })
+})
+
 describe('탭을 떠날 때', () => {
   it('미뤄 둔 저장을 지금 한다', async () => {
     const project = useProjectStore()
