@@ -14,13 +14,17 @@
 import { describe, expect, it } from 'vitest'
 
 import { CANONICAL_FORMATS } from '../src/data/image/formats'
+import { imageRoomShortfall } from '../src/data/image/room'
 import {
   BYTES_PER_MB,
   IMAGE_JPEG_ESTIMATED_BYTES,
   IMAGE_WEBP_ESTIMATED_BYTES,
   MAX_IMAGE_COUNT,
+  STORAGE_SAFETY_FACTOR,
 } from '../src/limits'
 import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
+import { newProjectDocument } from '../src/project/create'
+import type { ProjectFile } from '../src/project/format'
 import { estimatedImageBytes } from '../src/project/images'
 import { sourceFiles, withoutComments } from './fixtures/source'
 
@@ -111,5 +115,97 @@ describe('사진이 들어갈 자리', () => {
         withoutComments(readFileSync(path, 'utf8')).join('\n').includes('canonicalizeImages('),
     )
     expect(bakers.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+/**
+ * **판정 함수를 실제로 부른다.**
+ *
+ * 위의 검사들은 굽는 화면이 `imageRoomShortfall`이라는 **이름**을 부르는지 소스로 훑고,
+ * 그 위는 `estimatedImageBytes`라는 **산수**만 본다. 그래서 그 산수를 **어떤 인자로
+ * 부르는지**는 저장소 어디도 안 봤다 — `backbone.embeddingDim`을 `backbone.canonicalSize`로
+ * 바꾸는 낱말 하나짜리 오타에 장당 추정이 26% 줄어드는데 검사 129개와 `tsc`가 전부
+ * 조용했다 (2026-08-30 R12 감사 A-1). 그러면 굽기 전 관문이 통과시키고, 학생은 5,000장을
+ * 다 구운 뒤 `saveProject`에서 거절당한다 — 이 결정문이 없애려던 실패 그대로다.
+ *
+ * 브라우저 둘을 세워 둔다 — 형식 프로브(`OffscreenCanvas`)와 쿼터
+ * (`navigator.storage.estimate`). **세우는 것은 그 둘뿐이고 판정은 진짜 함수가 한다.**
+ */
+describe('굽기 전에 묻는 판정', () => {
+  class ProbeCanvas {
+    getContext(): { fillStyle: string; fillRect: () => void } {
+      return { fillStyle: '', fillRect: (): void => {} }
+    }
+    convertToBlob({ type }: { type: string }): Promise<{ type: string }> {
+      return Promise.resolve({ type })
+    }
+  }
+
+  function withBrowser(quota: number, usage = 0): () => void {
+    const heldNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+    Object.defineProperty(globalThis, 'OffscreenCanvas', {
+      value: ProbeCanvas,
+      configurable: true,
+    })
+    Object.defineProperty(globalThis, 'navigator', {
+      value: {
+        storage: { estimate: (): Promise<StorageEstimate> => Promise.resolve({ quota, usage }) },
+      },
+      configurable: true,
+    })
+    return () => {
+      Reflect.deleteProperty(globalThis, 'OffscreenCanvas')
+      if (heldNavigator) Object.defineProperty(globalThis, 'navigator', heldNavigator)
+      else Reflect.deleteProperty(globalThis, 'navigator')
+    }
+  }
+
+  function projectOf(...imageSizes: number[]): ProjectFile {
+    const document = newProjectDocument(
+      { name: '사진', locale: 'ko', dataType: 'image' },
+      {
+        projectId: '550e8400-e29b-41d4-a716-446655440000',
+        createdAt: '2026-08-30T00:00:00.000Z',
+        randomState: 42,
+      },
+    )
+    const images = new Map<string, Uint8Array>()
+    imageSizes.forEach((size, index) => images.set(`p${index}.webp`, new Uint8Array(size)))
+    return { document, models: new Map(), images, attachments: new Map(), embeddings: new Map() }
+  }
+
+  const INCOMING = 1000
+  const incomingBytes = estimatedImageBytes(INCOMING, CANONICAL_FORMATS.webp, backbone.embeddingDim)
+  const asMb = (bytes: number): number => Math.ceil((bytes * STORAGE_SAFETY_FACTOR) / MB)
+
+  it('프로젝트가 없으면 묻지 않는다 - 담을 곳이 아직 없다', async () => {
+    const restore = withBrowser(1)
+    await expect(imageRoomShortfall(null, INCOMING, backbone)).resolves.toBeNull()
+    restore()
+  })
+
+  it('브라우저가 쿼터를 모르면 막지 않는다', async () => {
+    const restore = withBrowser(0)
+    await expect(imageRoomShortfall(projectOf(), INCOMING, backbone)).resolves.toBeNull()
+    restore()
+  })
+
+  it('장당 추정에 임베딩이 들어간다', async () => {
+    const restore = withBrowser(1)
+    const shortfall = await imageRoomShortfall(projectOf(), INCOMING, backbone)
+    restore()
+    // 차원을 다른 값으로 바꿔 부르면 이 숫자가 어긋난다.
+    expect(shortfall?.requiredMb).toBe(asMb(incomingBytes))
+  })
+
+  it('이미 든 사진의 바이트를 함께 센다', async () => {
+    const held = 40 * MB
+    const restore = withBrowser(50 * MB)
+    const empty = await imageRoomShortfall(projectOf(), INCOMING, backbone)
+    const loaded = await imageRoomShortfall(projectOf(held), INCOMING, backbone)
+    restore()
+    // 새로 들어올 몫만 세면 든 것이 40MB든 0이든 똑같이 통과한다.
+    expect(empty).toBeNull()
+    expect(loaded?.requiredMb).toBe(asMb(held + incomingBytes))
   })
 })
