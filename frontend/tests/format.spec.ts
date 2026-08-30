@@ -786,7 +786,10 @@ describe('포트폴리오 첨부', () => {
     entries[path] = new Uint8Array([9, 9, 9, 9])
 
     const { integrity } = await readProject(zipSync(entries))
-    expect(integrity.status).not.toBe('verified')
+    expect(integrity.status).toBe('MODIFIED')
+    // **엔트리까지 본다.** 파일 전체 상태만 보면 첨부가 대조 대상에서 통째로 빠져도
+    // (그때 그 엔트리는 REMOVED다) 똑같이 MODIFIED라서 초록이 나온다.
+    expect(integrity.entries).toContainEqual({ path, state: 'MODIFIED' })
   })
 
   /**

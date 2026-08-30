@@ -46,6 +46,9 @@ describe('새 프로젝트', () => {
    * 만들 때 고르고, 그 뒤로 안 바뀐다").
    */
   it('데이터 종류는 부르는 쪽이 고른 것이 그대로 박힌다', () => {
+    // 순회의 바닥. 지금은 목록이 비면 이 파일이 아예 안 실려 먼저 빨개지지만,
+    // 그건 다른 곳의 사정이라 여기서 한 번 더 못 박는다.
+    expect(DATA_TYPES).not.toHaveLength(0)
     for (const dataType of DATA_TYPES) {
       const document = newProjectDocument({ ...input, dataType }, seed)
       expect(document.manifest.dataType, dataType).toBe(dataType)
@@ -150,6 +153,8 @@ describe('새 프로젝트', () => {
 describe('고를 수 있는 과제 유형', () => {
   it('알고리즘이 하나도 없는 유형은 빠진다', () => {
     // 고르게 하면 학생이 아무것도 못 하는 프로젝트를 만든다.
+    // 목록이 비면 아래 순회가 0회 돌고 초록이다.
+    expect(supportedTaskTypes()).not.toHaveLength(0)
     for (const taskType of supportedTaskTypes()) {
       expect(
         ALGORITHMS.some((one) => one.taskTypes[taskType]),

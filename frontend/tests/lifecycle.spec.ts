@@ -289,7 +289,12 @@ describe('학습한 파일을 다시 열어 예측한다', () => {
       })
       const reopened = await trainAndReopen(table, settings, 'classification')
 
-      for (const one of reproduceMetrics(reopened)) {
+      // **바닥을 깐다.** 이 순회는 대조할 것이 하나도 없으면 0회 돌고 초록이다 -
+      // 고른 알고리즘 둘이 그대로 돌아왔는지부터 본다.
+      const found = reproduceMetrics(reopened)
+      expect(found, `${preprocessing.scaling}에서 대조할 모델이 없다`).toHaveLength(2)
+
+      for (const one of found) {
         expect(one.again, `${preprocessing.scaling}에서 ${one.algorithm}이 어긋났다`).toEqual(
           one.stored,
         )
