@@ -11,7 +11,9 @@ import { describe, expect, it } from 'vitest'
 import { isClientError } from '../src/errors'
 import {
   PREPROCESSOR_FORMAT,
+  detectKind,
   fitPreprocessor,
+  missingColumns,
   targetValues,
   transform,
   usableRows,
@@ -151,6 +153,43 @@ describe('결측 대체', () => {
     const withNa: Dataset = { columns: ['지역'], rows: [['N/A'], ['서울'], ['N/A']] }
     const fitted = fitPreprocessor(withNa, [0, 1, 2], ['지역'], preprocessing())
     expect(fitted.columns[0]?.categories).toEqual(['N/A', '서울'])
+  })
+
+  /**
+   * **공백만 든 칸도 빈 칸이다** (`isMissing`의 `trim()`).
+   *
+   * 위의 검사는 **반대 방향만** 못 박는다 - 값이 값으로 남는지는 보고, 공백이 결측으로
+   * 가는지는 안 봤다. 그래서 `trim()` 한 낱말을 떼도 저장소 2,254개가 전부 초록이었다
+   * (2026-08-30 R12 감사 A-2). **엑셀·한셀이 만든 표에서 공백 칸은 드물지 않다.**
+   *
+   * 그 한 낱말에 갈래 넷이 달려 있어서 넷을 다 본다. 떼면 공백이 값이 되어 ①수치 열이
+   * 범주로 뒤집히고(회귀 타깃이면 `TARGET_NOT_NUMERIC`) ②대체값이 오염되고
+   * ③`missing: 'none'`이 더는 안 막고 ④그 행이 안 버려진다.
+   */
+  describe('공백만 든 칸도 결측이다', () => {
+    const spaced: Dataset = { columns: ['점수'], rows: [['10'], ['  '], ['20'], ['30']] }
+
+    it('수치 열이 공백 하나 때문에 범주로 뒤집히지 않는다', () => {
+      expect(detectKind(['10', '  ', '20'])).toBe('numeric')
+    })
+
+    it('대체값이 공백을 뺀 나머지의 평균이다', () => {
+      const fitted = fitPreprocessor(spaced, [0, 1, 2, 3], ['점수'], preprocessing())
+      expect(fitted.columns[0]?.kind).toBe('numeric')
+      expect(fitted.columns[0]?.fill).toBeCloseTo(20, 10)
+    })
+
+    it('missingColumns가 공백 칸을 센다 - none 전략이 여기 달려 있다', () => {
+      expect(missingColumns(spaced, ['점수'])).toEqual([{ name: '점수', count: 1 }])
+    })
+
+    it("'drop'이 공백만 든 행을 버린다", () => {
+      expect(usableRows(spaced, ['점수'], undefined, 'drop')).toEqual([0, 2, 3])
+    })
+
+    it('타깃이 공백이면 어떤 전략이든 그 행을 못 쓴다', () => {
+      expect(usableRows(spaced, [], '점수', 'mean')).toEqual([0, 2, 3])
+    })
   })
 })
 
