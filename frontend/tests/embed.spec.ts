@@ -193,6 +193,10 @@ class FakeWorker implements EmbedWorker {
   crash(message = '', filename = '', lineno = 0): void {
     this.onerror?.(new ErrorEvent('error', { message, filename, lineno }))
   }
+
+  garble(): void {
+    this.onmessageerror?.({} as MessageEvent<unknown>)
+  }
 }
 
 /** 진짜 워커처럼 비동기로 답한다. 동기로 답하면 client가 못 잡는 순서를 놓친다. */
@@ -261,6 +265,69 @@ describe('임베딩 클라이언트', () => {
       return true
     })
     expect(worker.terminated).toBe(1)
+  })
+
+  /**
+   * 아래 넷은 **학습 워커에는 있는데 여기에는 없던 것들이다**
+   * (`worker.spec.ts`의 같은 이름들, R13-4 감사 C-1). 넷 다 뭉개도 저장소가 조용했다.
+   */
+  async function rejectionCode(result: Promise<unknown>): Promise<string | undefined> {
+    const thrown: unknown = await result.catch((error: unknown) => error)
+    return isClientError(thrown) ? thrown.code : undefined
+  }
+
+  it('failed는 ClientError로 다시 세워진다', async () => {
+    const worker = new FakeWorker()
+    const { result } = embedImages(DEFAULT_BACKBONE_ID, images(1), {
+      createWorker: () => worker,
+    })
+    worker.emit({ type: 'failed', code: 'IMAGE_CANONICAL_SIZE_MISMATCH', params: {} })
+
+    await expect(rejectionCode(result)).resolves.toBe('IMAGE_CANONICAL_SIZE_MISMATCH')
+  })
+
+  it('모르는 코드는 JOB_FAILED로 좁혀진다 - 로케일에 없는 키를 화면에 흘리지 않는다', async () => {
+    const worker = new FakeWorker()
+    const { result } = embedImages(DEFAULT_BACKBONE_ID, images(1), {
+      createWorker: () => worker,
+    })
+    worker.emit({
+      type: 'failed',
+      code: 'WHAT_IS_THIS',
+      params: {},
+    } as unknown as EmbedMessage)
+
+    await expect(rejectionCode(result)).resolves.toBe('JOB_FAILED')
+  })
+
+  /**
+   * 여기서 안 끊으면 **아무 일도 안 일어난 것처럼 보인다** - 결과도 실패도 안 오고
+   * Promise가 영영 안 풀려 버튼이 꺼진 채로 남는다 (`worker.spec.ts`의 같은 자리).
+   */
+  it('복원하지 못한 메시지도 실패로 끊는다', async () => {
+    const worker = new FakeWorker()
+    const { result } = embedImages(DEFAULT_BACKBONE_ID, images(1), {
+      createWorker: () => worker,
+    })
+    worker.garble()
+
+    await expect(rejectionCode(result)).resolves.toBe('BACKBONE_UNAVAILABLE')
+  })
+
+  /**
+   * **워커를 띄우기도 전에 거절한다.** 옛 파일이 등록부에 없는 백본을 가리킬 때다.
+   * id는 파라미터로 싣는다 (CLAUDE.md §1.4) - 문장으로 만들면 번역이 안 된다.
+   */
+  it('등록부에 없는 백본은 코드와 파라미터로 거절한다', async () => {
+    const worker = new FakeWorker()
+    const { result } = embedImages('no-such-backbone' as typeof DEFAULT_BACKBONE_ID, images(1), {
+      createWorker: () => worker,
+    })
+
+    const thrown: unknown = await result.catch((error: unknown) => error)
+    expect(isClientError(thrown) && thrown.code).toBe('BACKBONE_UNAVAILABLE')
+    expect(isClientError(thrown) && thrown.params).toEqual({ backboneId: 'no-such-backbone' })
+    expect(worker.posted).toEqual([])
   })
 
   it('취소하면 워커가 끝나고 이후 메시지는 버린다', async () => {
@@ -360,6 +427,31 @@ describe('내려받는 비율이 화면까지 온다', () => {
    * **비율이 없는 것과 0인 것은 다르다.** 아직 아무것도 모르는 상태를 0%로 그리면
    * 학생은 멈췄다고 읽는다 — `protocol.ts`가 이 필드를 선택으로 둔 이유다.
    */
+  /**
+   * **둘째 다리다.** 위 검사는 핸들러까지만 보고, 클라이언트가 그 값을 `onState`로
+   * 넘기는지는 아무도 안 봤다 - `, message.fraction`을 지워도 저장소 전체가 초록이었다
+   * (R13-4 감사 A-3). 타입도 안 운다, 선택 인자라서.
+   */
+  it('클라이언트가 그 값을 화면 쪽으로 넘긴다', async () => {
+    const seen: (number | undefined)[] = []
+    const { result } = embedImages(DEFAULT_BACKBONE_ID, images(1), {
+      createWorker: () =>
+        new HandlerWorker(
+          fakeRunner({
+            prepare: async (_target, onState) => {
+              onState('downloading')
+              onState('downloading', 0.42)
+              onState('ready')
+            },
+          }),
+        ),
+      onState: (_state, fraction) => seen.push(fraction),
+    })
+    await result
+
+    expect(seen).toContain(0.42)
+  })
+
   it('안 주면 필드가 아예 없다', async () => {
     const messages = await collect(requestFor(1))
     const preparing = messages.filter((message) => message.type === 'preparing')

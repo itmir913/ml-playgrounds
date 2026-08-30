@@ -108,6 +108,10 @@ class FakeWorker implements CanonicalizeWorker {
   crash(message = ''): void {
     this.onerror?.(new ErrorEvent('error', { message }))
   }
+
+  garble(): void {
+    this.onmessageerror?.({} as MessageEvent<unknown>)
+  }
 }
 
 /**
@@ -183,6 +187,56 @@ describe('정본 변환 클라이언트', () => {
       (error: unknown) => isClientError(error) && error.code === 'UNEXPECTED_ERROR',
     )
     expect(worker.terminated).toBe(1)
+  })
+
+  /**
+   * 아래 둘은 **학습 워커에는 있는데 여기에는 없던 것들이다**
+   * (`worker.spec.ts`의 같은 이름들, R13-4 감사 C-1). 둘 다 뭉개도 저장소가 조용했다.
+   */
+  async function rejectionCode(result: Promise<unknown>): Promise<string | undefined> {
+    const thrown: unknown = await result.catch((error: unknown) => error)
+    return isClientError(thrown) ? thrown.code : undefined
+  }
+
+  it('failed는 그 코드 그대로 ClientError가 된다', async () => {
+    const worker = new FakeWorker()
+    const { result } = canonicalizeImages([fileOf('a.jpg')], {
+      createWorker: () => worker,
+      size: SIZE,
+    })
+    worker.emit({ type: 'failed', code: 'IMAGE_CANONICAL_SIZE_MISMATCH', params: {} })
+
+    await expect(rejectionCode(result)).resolves.toBe('IMAGE_CANONICAL_SIZE_MISMATCH')
+  })
+
+  it('모르는 코드는 JOB_FAILED로 좁혀진다 - 로케일에 없는 키를 화면에 흘리지 않는다', async () => {
+    const worker = new FakeWorker()
+    const { result } = canonicalizeImages([fileOf('a.jpg')], {
+      createWorker: () => worker,
+      size: SIZE,
+    })
+    worker.emit({
+      type: 'failed',
+      code: 'WHAT_IS_THIS',
+      params: {},
+    } as unknown as CanonicalizeMessage)
+
+    await expect(rejectionCode(result)).resolves.toBe('JOB_FAILED')
+  })
+
+  /**
+   * 여기서 안 끊으면 **아무 일도 안 일어난 것처럼 보인다** - 결과도 실패도 안 오고
+   * Promise가 영영 안 풀려 버튼이 꺼진 채로 남는다 (`worker.spec.ts`의 같은 자리).
+   */
+  it('복원하지 못한 메시지도 실패로 끊는다', async () => {
+    const worker = new FakeWorker()
+    const { result } = canonicalizeImages([fileOf('a.jpg')], {
+      createWorker: () => worker,
+      size: SIZE,
+    })
+    worker.garble()
+
+    await expect(rejectionCode(result)).resolves.toBe('UNEXPECTED_ERROR')
   })
 
   it('취소하면 워커가 끝나고 이후 보고는 버린다', async () => {
