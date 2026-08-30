@@ -14,7 +14,7 @@ import {
 } from '../src/data/table'
 import { isClientError } from '../src/errors'
 import { hashBytes } from '../src/hash'
-import { MAX_DATASET_COLUMNS, MAX_DATASET_ROWS, PREVIEW_ROW_COUNT } from '../src/limits'
+import { MAX_DATASET_COLUMNS, MAX_DATASET_ROWS, TABLE_PREVIEW_ROW_COUNT } from '../src/limits'
 
 /** '이름,나이\n가나다,10'을 CP949로 인코딩한 바이트. */
 const CP949_CSV = new Uint8Array([
@@ -252,11 +252,11 @@ describe('앞부분만 보여준다는 안내', () => {
   })
 
   it('정확히 상한만큼이어도 안 잘린 것이다', () => {
-    expect(previewNote(PREVIEW_ROW_COUNT, PREVIEW_ROW_COUNT)).toBe(0)
+    expect(previewNote(TABLE_PREVIEW_ROW_COUNT, TABLE_PREVIEW_ROW_COUNT)).toBe(0)
   })
 
   it('잘랐으면 그린 줄 수를 준다 - 전체 줄 수가 아니다', () => {
-    expect(previewNote(PREVIEW_ROW_COUNT, 5000)).toBe(PREVIEW_ROW_COUNT)
+    expect(previewNote(TABLE_PREVIEW_ROW_COUNT, 5000)).toBe(TABLE_PREVIEW_ROW_COUNT)
   })
 })
 
@@ -271,11 +271,11 @@ describe('앞부분만 보여준다는 안내', () => {
  */
 describe('확정 전 안내', () => {
   it('한 줄 더 읽어 둔다 - 그래야 "딱 그만큼인 파일"과 갈린다', () => {
-    expect(PREVIEW_PROBE_ROWS).toBe(PREVIEW_ROW_COUNT + 1)
+    expect(PREVIEW_PROBE_ROWS).toBe(TABLE_PREVIEW_ROW_COUNT + 1)
   })
 
   it('캡만큼만 읽혔으면 0이다 - 파일이 거기서 끝났다', () => {
-    expect(probeNote(PREVIEW_ROW_COUNT, PREVIEW_ROW_COUNT)).toBe(0)
+    expect(probeNote(TABLE_PREVIEW_ROW_COUNT, TABLE_PREVIEW_ROW_COUNT)).toBe(0)
   })
 
   it('캡보다 적게 읽혔으면 0이다 - 머리글 한 줄 차이로 뜨면 안 된다', () => {
@@ -284,8 +284,10 @@ describe('확정 전 안내', () => {
   })
 
   it('캡을 넘겨 읽혔으면 그린 줄 수를 준다 - 읽은 줄 수가 아니다', () => {
-    expect(probeNote(PREVIEW_ROW_COUNT, PREVIEW_PROBE_ROWS)).toBe(PREVIEW_ROW_COUNT)
+    expect(probeNote(TABLE_PREVIEW_ROW_COUNT, PREVIEW_PROBE_ROWS)).toBe(TABLE_PREVIEW_ROW_COUNT)
     // 머리글을 쓰면 그린 줄이 하나 적고, 문장에 들어갈 것은 그 수다.
-    expect(probeNote(PREVIEW_ROW_COUNT - 1, PREVIEW_PROBE_ROWS)).toBe(PREVIEW_ROW_COUNT - 1)
+    expect(probeNote(TABLE_PREVIEW_ROW_COUNT - 1, PREVIEW_PROBE_ROWS)).toBe(
+      TABLE_PREVIEW_ROW_COUNT - 1,
+    )
   })
 })

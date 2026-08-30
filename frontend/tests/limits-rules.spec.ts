@@ -100,7 +100,7 @@ const RULES: readonly Rule[] = [
       'if (rows.length > MAX_DATASET_ROWS) throw',
       'if (rows.length < MIN_SPLIT_ROWS) throw',
       // 두 자리 이상이어도 이름이면 안 걸린다.
-      'if (found.length > PREVIEW_ROW_COUNT) found.length = PREVIEW_ROW_COUNT',
+      'if (found.length > TABLE_PREVIEW_ROW_COUNT) found.length = TABLE_PREVIEW_ROW_COUNT',
     ],
   },
   {

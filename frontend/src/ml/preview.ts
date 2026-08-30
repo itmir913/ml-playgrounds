@@ -10,10 +10,8 @@
  */
 
 import { transform, type Dataset, type Preprocessor } from './preprocess'
+import { PREP_PREVIEW_ROW_COUNT } from '@/limits'
 import type { Preprocessing } from '@/project/schema'
-
-/** 미리보기가 보여주는 줄 수. **상한이 아니라 표시 분량이다** (limits.ts의 분류). */
-export const PREVIEW_ROWS = 5
 
 /**
  * 이 칸에 앉은 값이 **무엇인가.** 화면이 자릿수를 어떻게 줄지가 이것으로 갈린다.
@@ -103,7 +101,7 @@ export function preprocessPreview(
   preprocessor: Preprocessor,
   trainIndices: readonly number[],
   encoding: Preprocessing['categoricalEncoding'],
-  limit: number = PREVIEW_ROWS,
+  limit: number = PREP_PREVIEW_ROW_COUNT,
 ): PreprocessPreview {
   const shown = trainIndices.slice(0, limit)
   const matrix = transform(preprocessor, dataset, shown, encoding)

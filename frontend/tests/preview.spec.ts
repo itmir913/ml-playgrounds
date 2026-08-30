@@ -11,7 +11,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { fitPreprocessor, type Dataset } from '../src/ml/preprocess'
-import { PREVIEW_ROWS, preprocessPreview } from '../src/ml/preview'
+import { PREP_PREVIEW_ROW_COUNT } from '../src/limits'
+import { preprocessPreview } from '../src/ml/preview'
 import type { Preprocessing } from '../src/project/schema'
 
 const ONEHOT: Preprocessing = { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' }
@@ -40,17 +41,30 @@ function previewOf(preprocessing: Preprocessing, train: readonly number[] = TRAI
     preprocessor,
     train,
     preprocessing.categoricalEncoding,
-    limit ?? PREVIEW_ROWS,
+    limit ?? PREP_PREVIEW_ROW_COUNT,
   )
 }
 
 describe('바뀐 표를 다섯 줄로 보인다', () => {
+  /**
+   * **값을 여기 적는 유일한 자리다.**
+   *
+   * 아래 단언들은 기대값을 전부 이 상수 자신으로 만들기 때문에, 5를 3으로 바꿔도 열넷이
+   * 전부 통과했다 (2026-08-30, R12 감사 C-1). 그런데 `open-decisions.md`의 결정문은
+   * 제목에 **"다섯 줄"**을 글자로 적는다 — 값이 조용히 움직이면 그 문서가 거짓이 된다.
+   * `file-size.spec.ts`가 같은 이유로 같은 줄을 갖고 있다.
+   */
+  it('다섯 줄이다 - 결정문이 제목에 그 수를 적었다', () => {
+    expect(PREP_PREVIEW_ROW_COUNT).toBe(5)
+  })
+
   it('다섯 줄만 준다 - 표를 훑는 자리는 데이터 화면이다', () => {
     const preview = previewOf(ONEHOT)
-    expect(preview.rowNumbers).toHaveLength(PREVIEW_ROWS)
+    expect(preview.rowNumbers).toHaveLength(PREP_PREVIEW_ROW_COUNT)
     for (const column of preview.columns) {
-      expect(column.before).toHaveLength(PREVIEW_ROWS)
-      for (const feature of column.features) expect(feature.values).toHaveLength(PREVIEW_ROWS)
+      expect(column.before).toHaveLength(PREP_PREVIEW_ROW_COUNT)
+      for (const feature of column.features)
+        expect(feature.values).toHaveLength(PREP_PREVIEW_ROW_COUNT)
     }
   })
 

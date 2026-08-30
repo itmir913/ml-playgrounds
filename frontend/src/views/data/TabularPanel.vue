@@ -41,7 +41,7 @@ import {
   type TableDocument,
 } from '@/data/table'
 import ColumnInspector from './ColumnInspector.vue'
-import { PREVIEW_ROW_COUNT } from '@/limits'
+import { TABLE_PREVIEW_ROW_COUNT } from '@/limits'
 import { applyDataset, readDataset } from '@/project/dataset'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
@@ -95,14 +95,14 @@ const saved = computed(() => {
 const shown = computed(() => {
   if (opened.value) {
     // **재려고 읽은 마지막 줄은 안 그린다.** 그리면 캡보다 한 줄 많은 표가 된다.
-    const dataset = toDataset(previewRows.value.slice(0, PREVIEW_ROW_COUNT), hasHeader.value)
+    const dataset = toDataset(previewRows.value.slice(0, TABLE_PREVIEW_ROW_COUNT), hasHeader.value)
     return { dataset, columns: summarizeColumns(dataset), draft: true }
   }
   if (saved.value) {
     // 저장된 표는 앞부분만 보여준다. 5천 줄을 DOM에 그리면 교실 PC가 멈춘다.
     const { dataset, columns } = saved.value
     return {
-      dataset: { columns: dataset.columns, rows: dataset.rows.slice(0, PREVIEW_ROW_COUNT) },
+      dataset: { columns: dataset.columns, rows: dataset.rows.slice(0, TABLE_PREVIEW_ROW_COUNT) },
       columns,
       draft: false,
     }

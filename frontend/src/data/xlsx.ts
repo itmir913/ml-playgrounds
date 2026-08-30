@@ -29,7 +29,7 @@
  */
 
 import { ClientError } from '../errors'
-import { PREVIEW_ROW_COUNT } from '../limits'
+import { TABLE_PREVIEW_ROW_COUNT } from '../limits'
 import { isEmptyRow, padGrid, type TableGrid } from './grid'
 
 /** 열린 워크북. 파서가 무엇이었는지는 이 뒤로 드러나지 않는다. */
@@ -188,7 +188,7 @@ export async function openXlsx(bytes: Uint8Array): Promise<XlsxDocument> {
 /** 모든 시트의 이름과 앞 몇 행. 고르기 전에 보여주는 것이다. */
 export function previewSheets(
   document: XlsxDocument,
-  maxRows: number = PREVIEW_ROW_COUNT,
+  maxRows: number = TABLE_PREVIEW_ROW_COUNT,
 ): { name: string; rows: TableGrid }[] {
   return document.sheetNames.map((name) => ({
     name,

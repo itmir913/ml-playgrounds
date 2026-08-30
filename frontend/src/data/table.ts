@@ -18,7 +18,7 @@
 
 import { ClientError } from '../errors'
 import { hashBytes } from '../hash'
-import { MAX_DATASET_COLUMNS, MAX_DATASET_ROWS, PREVIEW_ROW_COUNT } from '../limits'
+import { MAX_DATASET_COLUMNS, MAX_DATASET_ROWS, TABLE_PREVIEW_ROW_COUNT } from '../limits'
 import { parseCsvText } from './csv'
 import { decodeText, detectEncoding, type SourceEncoding } from './encoding'
 import type { TableGrid } from './grid'
@@ -121,7 +121,7 @@ export async function openTable(bytes: Uint8Array, fileName: string): Promise<Ta
 /** 고르기 전에 보여줄 것. CSV는 항목 하나, 엑셀은 시트마다 하나다. */
 export function previewTable(
   document: TableDocument,
-  maxRows: number = PREVIEW_ROW_COUNT,
+  maxRows: number = TABLE_PREVIEW_ROW_COUNT,
 ): { sheetName?: string; rows: TableGrid }[] {
   if (document.sheetNames.length === 0) {
     return [{ rows: document.read(undefined, maxRows) }]
@@ -196,7 +196,7 @@ export function previewNote(shown: number, total: number): number {
  * 20줄짜리 파일에도 잘렸다고 말하게 된다. 한 줄을 더 읽으면 그 질문이 딱 떨어진다
  * (architecture.md §8.9).
  */
-export const PREVIEW_PROBE_ROWS = PREVIEW_ROW_COUNT + 1
+export const PREVIEW_PROBE_ROWS = TABLE_PREVIEW_ROW_COUNT + 1
 
 /**
  * **확정 전** 표 아래에 적을 줄 수. 파일에 더 있으면 지금 그린 줄 수, 아니면 0.
@@ -214,6 +214,10 @@ export const PREVIEW_PROBE_ROWS = PREVIEW_ROW_COUNT + 1
  * @param shown 지금 그린 줄 수(머리글은 뺀 것)
  * @param read 파일에서 실제로 읽어 온 줄 수(머리글을 포함한 것)
  */
-export function probeNote(shown: number, read: number, cap: number = PREVIEW_ROW_COUNT): number {
+export function probeNote(
+  shown: number,
+  read: number,
+  cap: number = TABLE_PREVIEW_ROW_COUNT,
+): number {
   return read > cap ? shown : 0
 }

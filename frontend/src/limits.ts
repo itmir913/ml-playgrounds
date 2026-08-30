@@ -453,13 +453,29 @@ export const PROJECT_FILE_WARN_BYTES = 100 * MB
 export const MAX_ATTACHMENT_EDGE = 1536
 
 /**
- * 표 파일(CSV/엑셀) 훑어보기 단계에서 보여줄 행 수.
+ * 표 파일(CSV/엑셀) **훑어보기** 단계에서 보여줄 행 수.
  *
  * 시트 전체를 파싱하지 않고 이 수만큼만 보여준다 (docs/open-decisions.md #14).
+ * **빈 행을 버린 뒤 남은 행을 센다** — 세 갈래가 같은 규칙이다
+ * (open-decisions.md "미리보기 N행은 훑은 행이 아니라 남긴 행이다").
+ *
+ * **아래 `PREP_PREVIEW_ROW_COUNT`와 다른 값이다.** 이름을 `PREVIEW_ROW_COUNT` ·
+ * `PREVIEW_ROWS`로 두었더니 다른 파일에 살면서 같은 낱말을 써서, 다음 사람이 둘을
+ * 헷갈리는 자리가 됐다 (2026-08-30, R12 감사 B-1).
  *
  * **분류: 상한이 아니다.**
  */
-export const PREVIEW_ROW_COUNT = 20
+export const TABLE_PREVIEW_ROW_COUNT = 20
+
+/**
+ * **전처리** 미리보기가 보여줄 줄 수. 전처리 전후를 나란히 그리는 표다.
+ *
+ * 위의 훑어보기와 다른 화면이고 다른 값이다 — 저쪽은 파일을 처음 열 때, 이쪽은
+ * 설정을 바꿔 가며 결과를 볼 때다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const PREP_PREVIEW_ROW_COUNT = 5
 
 /**
  * 군집 산점도에 찍는 점의 최대 개수 (open-decisions.md #28-5).
