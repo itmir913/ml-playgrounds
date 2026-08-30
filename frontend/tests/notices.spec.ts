@@ -30,6 +30,7 @@ import {
   ALLOWED_SPDX,
   BUNDLED_INSIDE,
   MODELS,
+  REQUIRED,
   SUPPLIED,
   SUPPLIED_DIR,
   packageFromId,
@@ -63,6 +64,23 @@ describe('저장소가 채운 전문', () => {
 
   it('가리키는 패키지가 설치되어 있다', () => {
     for (const name of [...Object.keys(SUPPLIED), ...Object.keys(BUNDLED_INSIDE)]) {
+      expect(existsSync(join(NODE_MODULES, ...name.split('/'))), name).toBe(true)
+    }
+  })
+
+  /**
+   * **빌드의 바닥이 가리키는 이름들이 아직 실재하는가.**
+   *
+   * `REQUIRED`는 수집이 통째로 실패했을 때 빌드를 세우는 목록이다. 그 이름이 저장소를
+   * 떠나면 바닥이 **언제나 던지게** 되어 빌드가 못 돌고, 그러면 사람이 목록을 지우고
+   * 싶어진다 — 지우면 바닥이 사라진다. 여기서 미리 운다.
+   *
+   * **산출물을 보지는 않는다.** 그건 이 파일이 안 하기로 한 일이고(머리말), 실제로
+   * 실렸는지는 빌드가 센다.
+   */
+  it('빌드가 요구하는 이름들이 아직 설치되어 있다', () => {
+    expect(REQUIRED.length).toBeGreaterThan(0)
+    for (const name of REQUIRED) {
       expect(existsSync(join(NODE_MODULES, ...name.split('/'))), name).toBe(true)
     }
   })

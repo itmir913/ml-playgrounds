@@ -306,6 +306,32 @@ export interface Notices {
   readonly emit: Plugin
 }
 
+/**
+ * **반드시 실려야 하는 이름들. 없으면 빌드를 세운다.**
+ *
+ * 이 장치의 방어선 둘(전문이 없으면 던진다 · 허용 목록 밖이면 선다)은 **그 모듈을 봤을
+ * 때만** 작동한다. 못 본 것에 대해서는 둘 다 침묵한다 — `unallowed([])`는 빈 배열이고
+ * `renderNotices([])`는 **패키지 목록만 빈 정상적인 파일**을 만든다. 그래서 수집이
+ * 실패하면 빌드가 초록으로 0개짜리 고지를 싣는다 (2026-08-30 R12 감사 A-1).
+ *
+ * **가정이 아니다.** `vite.config.ts`의 `worker.plugins` 한 줄을 떼자 패키지 여덟이
+ * 조용히 빠지고 빌드가 exit 0으로 끝났다 — 그중 여섯이 Apache-2.0인 TensorFlow.js이고
+ * 하나는 저장소가 전문을 손으로 찾아다 채워 둔 `seedrandom`이다. 이 파일 머리말이 적어
+ * 둔 글꼴 사고(Pretendard가 통째로 빠졌는데 *"목록은 조용히 48개로 맞아 보였다"*)와
+ * 같은 모양이다.
+ *
+ * **개수 문턱이 아니라 이름 목록인 이유**는 그때 49개가 41개가 됐기 때문이다 — 어지간한
+ * 문턱은 그냥 지나간다. 아래 넷은 **서로 다른 수집 경로**를 하나씩 대표한다:
+ * 본 빌드(`vue`), **워커 빌드만 거치는 것**(`@tensorflow/tfjs-core`·`seedrandom`),
+ * 그리고 전문을 `SUPPLIED`가 채우는 자산(`pretendard`).
+ */
+export const REQUIRED: readonly string[] = [
+  'vue',
+  'pretendard',
+  '@tensorflow/tfjs-core',
+  'seedrandom',
+]
+
 export function thirdPartyNotices(): Notices {
   const seen = new Set<string>()
 
@@ -320,6 +346,19 @@ export function thirdPartyNotices(): Notices {
       name: 'ml-playgrounds:notices',
       generateBundle(_options, bundle) {
         for (const name of namesIn(bundle)) seen.add(name)
+        // **바닥이 먼저다.** 아래 두 방어선은 본 것만 검사하므로, 못 봤을 때는 둘 다 침묵한다.
+        const absent = REQUIRED.filter((name) => !seen.has(name))
+        if (absent.length > 0) {
+          throw new Error(
+            `Third-party notices are missing packages that always ship: ${absent.join(', ')}. ` +
+              `The collector saw ${String(seen.size)} package(s), which means it is not reading ` +
+              `the module graph it should — an empty or short list makes this file silently wrong ` +
+              `while the build still succeeds. Check that vite.config.ts still wires ` +
+              `worker.plugins to notices.collect: removing that one line drops every package that ` +
+              `only the worker imports (TensorFlow.js and seedrandom). ` +
+              `If a dependency genuinely went away, update REQUIRED (frontend/scripts/notices.ts).`,
+          )
+        }
         const shipped = [...seen].map(readShipped)
         const rejected = unallowed(shipped)
         if (rejected.length > 0) {
