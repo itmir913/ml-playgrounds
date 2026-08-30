@@ -487,9 +487,16 @@ function unguardedConfirmRadios(source: string): string[] {
 
   const violations: string[] = []
   for (const tags of groups.values()) {
+    /**
+     * **닫는 따옴표를 요구하지 않는다.** `@change="chooseHoldout()"`처럼 호출 꼴로
+     * 적는 것은 Vue에서 완전히 합법인데, 그때 이름이 안 뽑혀 그 그룹이 통째로
+     * "확인 모달이 안 걸린 그룹"으로 분류됐다 — `register`가 하나도 없어도 위반이
+     * 0건이 되는 조용한 건너뜀이다 (R14-2 감사 A-4). 형제인
+     * `unsyncedLockedInputs`는 같은 이유로 이미 열려 있었고 여기만 안 받았다.
+     */
     const changeHandlers = tags
-      .map((tag) => /@change="(\w+)"/.exec(tag)?.[1])
-      .filter((name): name is string => !!name)
+      .flatMap((tag) => [...(/@change="([^"]*)"/.exec(tag)?.[1] ?? '').matchAll(/[\w$]+/g)])
+      .map((match) => match[0])
     if (!changeHandlers.some((name) => gatedFunctions.has(name))) continue
     for (const tag of tags) {
       if (!/:ref="[^"]*\.register\(/.test(tag)) violations.push(tag)

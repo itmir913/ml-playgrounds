@@ -40,6 +40,17 @@ const classified = run({
   perClass: [{ label: 'a', precision: 1, recall: 1, f1: 1, support: 1 }],
 })
 
+/** 군집 실행 하나. 두 군집 판이 다 `model`을 요구한다 (배정은 파일에 안 담긴다). */
+const clustered = run({
+  algorithm: 'kmeans',
+  model: {
+    format: 'mljs-kmeans-v1',
+    path: 'model/run-1.json',
+    includesPreprocessing: true,
+    sizeBytes: 128,
+  },
+})
+
 describe('상세 패널 등록부', () => {
   it('id가 겹치지 않는다', () => {
     expect(new Set(METRIC_PANELS.map((panel) => panel.id)).size).toBe(METRIC_PANELS.length)
@@ -88,6 +99,29 @@ describe('상세 패널 등록부', () => {
       (panel) => panel.id,
     )
     expect(ids).toEqual(['per-class'])
+  })
+
+  /**
+   * **군집 조합을 한 번도 안 태웠다.** 위 검사들이 전부 `('tabular', 'classification')`과
+   * `('tabular', 'regression')`이라, 두 군집 판의 `dataTypes`를 통째로 맞바꿔도 조용했다
+   * (R14-5 감사 A-5). 그 순간 **이미지 군집 결과 화면에 1,280차원을 2차원으로 누른
+   * 산점도가 서고**, 표 군집 결과 화면에는 사진 격자가 선다.
+   *
+   * 남은 검사가 왜 못 무는가: `아무 데서도 안 서는 줄이 없다`는 줄마다 참이 하나라도
+   * 있는지만 보므로 맞바꿔도 참이고, `데이터 종류가 안 맞으면 안 선다`는 **모든 판의
+   * `dataTypes`를 덮어쓴 뒤** 재므로 등록부의 실제 값을 안 본다 (공통 §2.8).
+   *
+   * **바로 옆의 `answer-evidence.spec.ts`는 이 축을 문다.** 같은 짜임의 등록부 둘 중
+   * 하나만 축이 안 박혀 있었다.
+   */
+  it('표 군집에는 산점도 판이 선다', () => {
+    const ids = metricPanelsFor('tabular', 'clustering', clustered).map((panel) => panel.id)
+    expect(ids).toEqual(['cluster-result'])
+  })
+
+  it('이미지 군집에는 사진 판이 선다 - 산점도는 안 그린다', () => {
+    const ids = metricPanelsFor('image', 'clustering', clustered).map((panel) => panel.id)
+    expect(ids).toEqual(['image-cluster-result'])
   })
 
   it('데이터 종류가 안 맞으면 안 선다', () => {

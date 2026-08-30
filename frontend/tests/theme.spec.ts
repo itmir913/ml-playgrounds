@@ -68,12 +68,29 @@ afterEach(() => {
 })
 
 /** 기기가 어두운 배색을 선호한다고 답하게 한다. jsdom에는 matchMedia가 없다. */
+/**
+ * 기기 설정을 흉내 낸다.
+ *
+ * **붙는 리스너를 붙들어 둔다.** 빈 함수로 두던 때는 `initTheme`이 거는 구독 안이
+ * 한 번도 안 돌았고, 그래서 `if (!chosenByUser)`를 뒤집어도 저장소가 조용했다
+ * (R14-5 감사 A-3). 그 구독이 이 모듈에서 `resolveTheme`이 안 하는 유일한 일이다.
+ */
 function pretendSystem(prefersDark: boolean): void {
+  listeners.length = 0
   vi.stubGlobal('matchMedia', (query: string) => ({
     matches: prefersDark && query.includes('dark'),
-    addEventListener: () => {},
+    addEventListener: (_type: string, listener: (event: { matches: boolean }) => void) => {
+      listeners.push(listener)
+    },
     removeEventListener: () => {},
   }))
+}
+
+const listeners: ((event: { matches: boolean }) => void)[] = []
+
+/** 기기 설정이 바뀐 것처럼 알린다. */
+function systemChangesTo(prefersDark: boolean): void {
+  for (const listener of listeners) listener({ matches: prefersDark })
 }
 
 describe('선택이 새로 고침을 넘어 남는다', () => {
@@ -117,5 +134,37 @@ describe('배색 이름을 알아본다', () => {
     for (const value of ['sepia', '', null, undefined, 0, {}]) {
       expect(isTheme(value), String(value)).toBe(false)
     }
+  })
+})
+
+/**
+ * **사람이 고른 것이 기기 설정을 이긴다** — 이 파일의 머리말이 자기 주제로 내세운 것인데,
+ * 실제로 태우던 것은 불러올 때의 갈래뿐이었다. 구독 안은 한 번도 안 돌았다.
+ *
+ * 뒤집히면 학생이 겪는 일이 둘이다. 배색을 고른 학생은 밤에 OS가 다크로 넘어가는 순간
+ * 골라 둔 화면이 뒤집히고(소스가 *"고장으로 보인다"*고 적은 그것), 한 번도 안 고른
+ * 학생은 OS가 바뀌어도 안 따라간다.
+ */
+describe('기기 설정이 바뀔 때', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    document.documentElement.removeAttribute('data-theme')
+  })
+
+  it('안 골랐으면 따라간다', () => {
+    pretendSystem(false)
+    expect(initTheme()).toBe('light')
+
+    systemChangesTo(true)
+    expect(document.documentElement.dataset.theme).toBe('dark')
+  })
+
+  it('고른 뒤에는 안 따라간다 - 고른 화면이 혼자 뒤집히면 고장으로 보인다', () => {
+    pretendSystem(false)
+    initTheme()
+    setTheme('light')
+
+    systemChangesTo(true)
+    expect(document.documentElement.dataset.theme).toBe('light')
   })
 })
