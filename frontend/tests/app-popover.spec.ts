@@ -11,6 +11,9 @@
  * **눈으로만 보이는 결함이라** 여기서 못 박는다.
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -169,5 +172,50 @@ describe('바깥을 누르거나 Esc를 치면 닫힌다', () => {
     await wrapper.vm.$nextTick()
 
     expect(isOpen()).toBe(false)
+  })
+})
+
+/**
+ * 이름 → 폭 유틸리티 표 (`WIDTHS`).
+ *
+ * **넷을 전부 빈 문자열로 만들어도 저장소 전체가 초록이었다** (2026-08-31 사각 감사 A-3).
+ * 그러면 팝오버 여섯 자리가 전부 기본 폭으로 서고 **사진 격자는 한 줄로 눌린다.**
+ *
+ * **이름을 손으로 적지 않는다** — 프롭 유니온에서 뽑아 개수를 맞춘다. `AppButton`의
+ * 변종 표가 같은 모양이고, 그 검사가 따옴표 열쇠 하나를 실제로 잡았다.
+ */
+describe('팝오버 폭은 이름이 정한다', () => {
+  const SOURCE = readFileSync(join(process.cwd(), 'src', 'components', 'AppPopover.vue'), 'utf-8')
+
+  /** `size?: 'a' | 'b' | …`의 항들. 표가 몇 줄이어야 하는지의 유일한 출처다. */
+  const declared = [...(/size\?: ([^\n]+)/.exec(SOURCE)?.[1] ?? '').matchAll(/'([\w-]+)'/g)].map(
+    (match) => match[1]!,
+  )
+
+  /** **마지막에 연 판이다.** 여럿이 동시에 떠 있으면 `querySelector`는 첫 판을 준다. */
+  const lastPanel = () => [...document.querySelectorAll(PANEL)].at(-1)?.className ?? ''
+
+  it('프롭이 이름 넷을 말한다', () => {
+    expect(declared.length).toBeGreaterThan(1)
+  })
+
+  it('기본이 아닌 이름마다 자기 클래스가 붙는다', async () => {
+    for (const size of declared) {
+      const wrapper = openPopover()
+      // 소스에서 뽑은 이름이라 타입이 그 유니온인 것을 모른다. 프롭 타입이 곧 그 목록이고,
+      // 개수가 안 맞으면 위 검사가 먼저 운다.
+      await wrapper.setProps({ size: size as 'default' })
+      await wrapper.find('button').trigger('click')
+      // 기본은 `popover-panel`이 이미 갖고 있어 더할 것이 없다.
+      if (size === 'default') continue
+      expect(lastPanel(), size).toContain(`popover-panel-${size}`)
+    }
+  })
+
+  it('이름을 안 주면 기본 폭이다', async () => {
+    const wrapper = openPopover()
+    await wrapper.find('button').trigger('click')
+    expect(lastPanel()).toContain('popover-panel')
+    expect(lastPanel()).not.toMatch(/popover-panel-/)
   })
 })

@@ -115,3 +115,37 @@ describe('언어 바꾸기', () => {
     expect(document.documentElement.lang).toBe('ko')
   })
 })
+
+/**
+ * 붙박이 바가 자기 높이를 문서 루트에 내놓고 **떠날 때 지운다**.
+ *
+ * 소스 주석이 *"화면 하나에 바는 하나뿐이고 떠날 때 지운다"*고 그 정리를 못 박아
+ * 두었는데, `removeProperty` 한 줄을 지워도 저장소 전체가 조용했다 —
+ * **`shell.spec.ts`가 이 부품을 실제로 마운트하는데도** 그랬다
+ * (2026-08-31 사각 감사 A-4).
+ *
+ * 안 지우면 그 값이 문서에 남아 **다음 화면의 바닥 여백이 그만큼 밀린다.**
+ * 눈으로만 보이는 종류라 더 나쁘다.
+ */
+describe('붙박이 바의 높이는 떠날 때 치운다', () => {
+  const VAR = '--rail-bar-height'
+  const value = () => document.documentElement.style.getPropertyValue(VAR)
+
+  beforeEach(() => {
+    document.documentElement.style.removeProperty(VAR)
+  })
+
+  it('서면 자기 높이를 내놓는다', async () => {
+    await mountRail()
+    expect(value()).not.toBe('')
+  })
+
+  it('떠나면 지운다 - 남으면 다음 화면이 그만큼 밀린다', async () => {
+    const view = await mountRail()
+    expect(value()).not.toBe('')
+
+    view.unmount()
+
+    expect(value()).toBe('')
+  })
+})

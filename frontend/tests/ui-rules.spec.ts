@@ -19,6 +19,16 @@ import { windowedHits, withoutComments } from './fixtures/source'
 /** 정규식과 예문 안에 그대로 못 적는다 - 이 파일 자신이 검사 대상이라 조립 자리로 읽힌다. */
 const BACKTICK = String.fromCharCode(96)
 
+/**
+ * 여는 태그 안의 속성들. **따옴표 안의 `>`를 태그 끝으로 안 읽는다.**
+ *
+ * `[^>]*`로 자르던 때는 `:disabled="page >= total - 1"`이나
+ * `v-if="entries.length > 0"`이 **앞에 놓이기만 해도** 그 태그가 통째로 안 보였다.
+ * 코드는 그대로인데 **속성 순서만 바꿔도 검사를 빠져나간다** (2026-08-31 사각 감사 A-1).
+ * 템플릿에서 속성값에 `>`를 품은 줄이 마흔 곳이 넘으므로, 만나는 것은 시간 문제다.
+ */
+const ATTRS = String.raw`(?:"[^"]*"|'[^']*'|[^>"'])*`
+
 const SRC = join(process.cwd(), 'src')
 if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
 
@@ -415,7 +425,8 @@ function unguardedButtons(source: string): string[] {
    */
   const template = source.slice(source.indexOf('<template>'))
   const found: string[] = []
-  for (const match of template.matchAll(/<(?:AppButton|button)\b[^>]*?@click="([^"]+)"/gs)) {
+  const clickable = new RegExp(String.raw`<(?:AppButton|button)\b${ATTRS}?@click="([^"]+)"`, 'gs')
+  for (const match of template.matchAll(clickable)) {
     const handler = match[1] ?? ''
     const names = [...handler.matchAll(/[A-Za-z_$][\w$]*/g)].map((one) => one[0])
     found.push(...names.filter((name) => asyncNames.has(name)))
@@ -464,9 +475,8 @@ function topLevelDeclarations(script: string): { name: string; params: string; b
  */
 function unguardedConfirmRadios(source: string): string[] {
   const template = source.slice(source.indexOf('<template>'))
-  const radios = [...template.matchAll(/<input\b[^>]*\btype="radio"[^>]*\/?>/gs)].map(
-    (match) => match[0],
-  )
+  const radioTag = new RegExp(String.raw`<input\b${ATTRS}\btype="radio"${ATTRS}/?>`, 'gs')
+  const radios = [...template.matchAll(radioTag)].map((match) => match[0])
   if (radios.length === 0) return []
 
   const groups = new Map<string, string[]>()
@@ -554,7 +564,7 @@ function unsyncedLockedInputs(source: string): string[] {
   )
 
   return (
-    [...template.matchAll(/<input\b[^>]*>/gs)]
+    [...template.matchAll(new RegExp(String.raw`<input\b${ATTRS}>`, 'gs'))]
       .map((match) => match[0])
       // **숫자 칸은 잠기지 않아도 본다.** 아래 "한 번 더 누르면 맞아진다"는 라디오와
       // 체크박스 이야기다 - 그것들은 상태가 둘뿐이라 학생이 다시 누르면 맞아진다.
@@ -602,11 +612,13 @@ function unsyncedLockedInputs(source: string): string[] {
  */
 function unbadgedMetaNames(source: string): string[] {
   const template = source.slice(source.indexOf('<template>'))
-  const groups = [
-    ...template.matchAll(
-      /<div\b[^>]*\bclass="[^"]*\bflex\b[^"]*\bgap-1\.5\b[^"]*"[^>]*>\s*(<dt[^>]*>[\s\S]*?<\/dt>)/g,
-    ),
-  ]
+  // 이 훑기는 **지금도 눈이 멀어 있었다** — 근거로 든 `ClusterScatter.vue`의 실물 태그가
+  // `<div v-if="props.axes.length > 2" class="…">`라 `[^>]*`에서 잘렸다 (사각 감사 A-1).
+  const metaGroup = new RegExp(
+    String.raw`<div\b${ATTRS}\bclass="[^"]*\bflex\b[^"]*\bgap-1\.5\b[^"]*"${ATTRS}>\s*(<dt${ATTRS}>[\s\S]*?</dt>)`,
+    'g',
+  )
+  const groups = [...template.matchAll(metaGroup)]
   return groups
     .map((match) => match[1] ?? '')
     .filter((tag) => !tag.includes('sr-only') && !tag.includes('<AppBadge'))
@@ -620,9 +632,8 @@ function unbadgedMetaNames(source: string): string[] {
  * 요약이고, **높이를 늘릴 수 없어 배지가 설 자리가 없기 때문이다.**
  */
 function strayDotSeparators(source: string): string[] {
-  return [...source.matchAll(/<span[^>]*aria-hidden="true">\s*·\s*<\/span>/g)].map(
-    (match) => match[0],
-  )
+  const dot = new RegExp(String.raw`<span${ATTRS}aria-hidden="true">\s*·\s*</span>`, 'g')
+  return [...source.matchAll(dot)].map((match) => match[0])
 }
 
 /**
@@ -1182,6 +1193,27 @@ describe('확인 모달이 걸린 라디오는 그룹째 되돌린다', () => {
       ),
     )
     expect(found).toEqual([])
+  })
+
+  /**
+   * **층이 하나 더 있다.** 위 검사는 `register(`가 적혀 있는지만 보고, 훅 안은
+   * `radio-guard.spec.ts`가 태운다. 그 사이에 **되돌리기를 실제로 부르는 한 줄**이
+   * 있는데 그것을 아무도 안 봤다 — 지워도 저장소 전체가 조용했다
+   * (2026-08-31 사각 감사 A-5).
+   *
+   * 그때 학생이 겪는 일: 취소했는데 **라디오가 방금 누른 것에 머문다.** 값은 안
+   * 바뀌었으므로 Vue는 DOM을 다시 안 쓰고, 브라우저는 이미 옮겨 둔 뒤다.
+   */
+  it('가드를 만든 화면은 되돌리기를 실제로 부른다', () => {
+    const owners = vueFiles(SRC)
+      .map((path) => ({ path, source: readFileSync(path, 'utf-8') }))
+      .filter(({ source }) => source.includes('useRadioGroupGuard<'))
+
+    expect(owners.length, '가드를 쓰는 화면이 있어야 이 검사가 돈다').toBeGreaterThan(0)
+    const silent = owners
+      .filter(({ source }) => !/\.resync\(/.test(source))
+      .map(({ path }) => path.slice(SRC.length + 1))
+    expect(silent).toEqual([])
   })
 })
 
