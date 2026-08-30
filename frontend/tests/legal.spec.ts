@@ -59,10 +59,17 @@ function anchors(html: string): number[] {
   return [...html.matchAll(/id="article-(\d+)"/g)].map((match) => Number(match[1]))
 }
 
-/** 그 조의 제목 줄. 번호가 제목 안에도 적혀 있는지 보려고 통째로 가져온다. */
+/**
+ * 그 조의 제목 줄. 번호가 제목 안에도 적혀 있는지 보려고 통째로 가져온다.
+ *
+ * **속성이 끼어도 잡는다.** 예전에는 `<h2 id="article-N">`를 글자 그대로 찾아서
+ * `class` 하나만 붙어도 이 Map이 통째로 비었고, 그러면 **제목 검사가 0회 돌고
+ * 초록**이었다 (2026-08-30 R12 감사 A-2). 조가 다 있다는 검사는 그때도 통과했다 -
+ * `anchors`는 `id`만 보기 때문이다. 그래서 부르는 쪽에 **개수 바닥**을 함께 둔다.
+ */
 function headings(html: string): Map<number, string> {
   const found = new Map<number, string>()
-  for (const match of html.matchAll(/<h2 id="article-(\d+)">([\s\S]*?)<\/h2>/g)) {
+  for (const match of html.matchAll(/<h2\b[^>]*\sid="article-(\d+)"[^>]*>([\s\S]*?)<\/h2>/g)) {
     found.set(Number(match[1]), match[2] ?? '')
   }
   return found
@@ -153,9 +160,17 @@ describe('조 번호가 얼려 있다', () => {
   it.each([...SUPPORTED_LOCALES])('%s 방침의 제목이 제 번호를 달고 있다', (locale) => {
     // **언어별 분기를 두지 않는다** - `제3조`든 `Article 3`이든 숫자는 숫자다.
     // 앵커만 보면 제목을 통째로 밀어 놓고 id만 남겨도 통과한다.
-    for (const [number, heading] of headings(readPolicy(locale))) {
+    const found = headings(readPolicy(locale))
+    // **바닥.** 서식이 바뀌어 하나도 못 잡으면 아래 루프가 0회 돌고 조용히 통과한다.
+    expect(found.size, '제목을 하나도 못 잡았다').toBe(ARTICLE_COUNT)
+    for (const [number, heading] of found) {
       expect(heading).toMatch(new RegExp(`(?<!\\d)${number}(?!\\d)`))
     }
+  })
+
+  it('검사기가 속성이 낀 제목도 잡는다', () => {
+    const decorated = headings('<h2 class="x" id="article-3" data-k="v">제3조 (가)</h2>')
+    expect([...decorated.keys()]).toEqual([3])
   })
 
   it('검사기가 번호가 어긋난 제목을 잡는다', () => {
