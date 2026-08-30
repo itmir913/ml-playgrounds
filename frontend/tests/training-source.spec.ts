@@ -16,7 +16,12 @@ import { hashBytes } from '../src/hash'
 import { DEFAULT_BACKBONE_ID, backboneFor } from '../src/ml/backbones'
 import type { EmbedMessage, EmbedRequest } from '../src/ml/embed/protocol'
 import type { EmbedWorker } from '../src/ml/embed/client'
-import { runtimeContextFor, trainableRowsOf, trainingSourceOf } from '../src/ml/training-source'
+import {
+  algorithmSelectionFor,
+  runtimeContextFor,
+  trainableRowsOf,
+  trainingSourceOf,
+} from '../src/ml/training-source'
 import { newProjectDocument } from '../src/project/create'
 import { addEmbeddings, readEmbeddings } from '../src/project/embeddings'
 import { type ProjectFile } from '../src/project/format'
@@ -393,5 +398,39 @@ describe('실행 방법 판정에 넘기는 것', () => {
 
     expect(context.rowCount).toBe(0)
     expect(context.serverStatus).toBe('unknown')
+  })
+})
+
+/**
+ * **모델 목록을 고르는 축도 화면 몫이 아니다.**
+ *
+ * `runtimeContextFor`를 밖으로 뺀 뒤에도 **같은 호출의 첫째 인자가 화면에 남아 검사
+ * 밖이었다** (R14-3 감사 A-4). 종류가 틀리면 `supports(algorithm.dataTypes, …)`가
+ * 뒤집혀 이미지 프로젝트에 표 전용 알고리즘 카드가 켜진 채로 선다.
+ *
+ * **종류를 뽑는 자리가 `runtimeContextFor`와 같은지도 함께 본다** — 둘이 갈리면
+ * 카드가 열리는 판정과 그 카드의 상한이 서로 다른 종류를 본다.
+ */
+describe('모델 목록에 넘기는 선택 축', () => {
+  it('열린 프로젝트의 종류를 쓴다', () => {
+    const project = imageProject(['a'])
+    expect(algorithmSelectionFor(project, 'classification', 'tabular')).toEqual({
+      dataType: 'image',
+      taskType: 'classification',
+    })
+  })
+
+  it('프로젝트가 없으면 화면이 준 것으로 떨어진다', () => {
+    expect(algorithmSelectionFor(null, 'clustering', 'tabular')).toEqual({
+      dataType: 'tabular',
+      taskType: 'clustering',
+    })
+  })
+
+  it('실행 방법 판정과 같은 종류를 본다', () => {
+    const project = imageProject(['a'])
+    expect(algorithmSelectionFor(project, 'classification', 'tabular').dataType).toBe(
+      runtimeContextFor(project, 'tabular').dataType,
+    )
   })
 })

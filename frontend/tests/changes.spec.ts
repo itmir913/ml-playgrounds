@@ -345,6 +345,40 @@ describe('이미지 설정의 변경도 말한다', () => {
     expect(changes[0]?.to).toEqual({ kind: 'literal', text: '3 · 9' })
     expect(changes[3]?.to).toEqual({ kind: 'literal', text: 'mobilenet-v2' })
   })
+
+  /**
+   * **라벨만 보면 값 서술이 통째로 바뀌어도 조용하다** (공통 §2.8 — 위험한 열쇠 옆의
+   * 안전한 열쇠). `categories`의 `describe`를 `joined`로 바꾸면 `memberDiff`가 `null`을
+   * 돌려주므로 **[펼쳐 보기]가 사라지고** 줄에는 `개 · 고양이 · 토끼`가 그대로 인쇄된다
+   * — `listOf` 주석이 *"이름으로 늘어놓으면 그 줄이 화면을 덮는다"*고 막으려던 그
+   * 상태다 (R14-3 감사 A-3).
+   */
+  it('범주 목록은 세어서 말하고 무엇이 들고 났는지 펼칠 수 있다', () => {
+    const changes = describeChanges(
+      imageSource(BEFORE),
+      imageSource({ ...BEFORE, categories: ['개', '고양이', '토끼'] }),
+      ['categories'],
+    )
+
+    const [categories] = changes
+    expect(categories?.to).toEqual({ kind: 'count', count: 3, items: ['개', '고양이', '토끼'] })
+    expect(memberDiff(categories!.from, categories!.to)).toMatchObject({
+      added: ['토끼'],
+      removed: [],
+    })
+  })
+
+  it('라벨 없는 장수는 수 하나로 말한다 - 펼칠 것이 없다', () => {
+    const changes = describeChanges(
+      imageSource(BEFORE),
+      imageSource({ ...BEFORE, unlabeledCount: 0 }),
+      ['unlabeledCount'],
+    )
+
+    expect(changes[0]?.from).toEqual({ kind: 'literal', text: '1' })
+    expect(changes[0]?.to).toEqual({ kind: 'literal', text: '0' })
+    expect(memberDiff(changes[0]!.from, changes[0]!.to)).toBeNull()
+  })
 })
 
 describe('모르는 경로도 버리지 않는다', () => {

@@ -37,7 +37,7 @@ import {
   stratifyBlock,
   type ChosenModel,
 } from '@/ml/selection'
-import { runtimeContextFor, trainingSourceOf } from '@/ml/training-source'
+import { algorithmSelectionFor, runtimeContextFor, trainingSourceOf } from '@/ml/training-source'
 import { failedRuns } from '@/ml/results'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
 import { applyExperiment } from '@/project/attach'
@@ -137,7 +137,7 @@ const options = computed(() => {
   const taskType = project.taskType
   if (taskType === undefined) return []
   return algorithmOptions(
-    { dataType: project.file?.document.manifest.dataType ?? 'tabular', taskType },
+    algorithmSelectionFor(project.file, taskType, DEFAULT_DATA_TYPE),
     context.value,
   )
 })

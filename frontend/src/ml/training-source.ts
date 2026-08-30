@@ -223,10 +223,35 @@ export function runtimeContextFor(
     // **과제 유형도 파일에서 뽑는다.** 화면이 넘기게 두었더니 그 인자가 검사 밖이었고,
     // 틀리면 군집화 이미지 프로젝트의 사진 수가 라벨 붙은 것만으로 줄어든다 —
     // 그러면 500장이 상한인 카드가 열린 채로 서고 학생이 누르면 700장으로 학습이 돈다
-    // (R13-5 감사 A-6). **화면이 고를 수 없게 만든다** — 셋째 인자와 같은 판단이다.
+    // (R13-5 감사 A-6). **화면이 고를 수 없게 만든다** — 아래 `algorithmSelectionFor`와 같은 판단이다.
     rowCount: project === null ? 0 : trainableRowsOf(project, project.document.manifest.taskType),
-    dataType: project?.document.manifest.dataType ?? fallbackDataType,
+    dataType: dataTypeOf(project, fallbackDataType),
   }
+}
+
+/** 열린 프로젝트의 종류. 없으면 화면이 준 것으로 떨어진다. */
+function dataTypeOf(project: ProjectFile | null, fallbackDataType: DataType): DataType {
+  return project?.document.manifest.dataType ?? fallbackDataType
+}
+
+/**
+ * 모델 목록을 고를 때 등록부에 넘기는 선택 축 (`ml/algorithms.ts`의 `algorithmOptions`).
+ *
+ * **`runtimeContextFor`와 같은 이유로 여기 산다.** 그 함수를 화면 밖으로 뺀 뒤에도
+ * **같은 호출의 첫째 인자가 화면에 남아 검사 밖이었다** (R14-3 감사 A-4). 종류가
+ * 틀리면 `supports(algorithm.dataTypes, …)`가 뒤집혀 **이미지 프로젝트에 표 전용
+ * 알고리즘 카드가 켜진 채로 선다** — 상한 칸이 어긋나던 R13-3 A-2의 한 칸 옆이고,
+ * 그쪽은 검사가 생겼는데 이쪽은 안 생겼다.
+ *
+ * **종류를 뽑는 자리는 `runtimeContextFor`와 같은 한 줄이다.** 둘이 갈리면 카드가
+ * 열리는 판정과 그 카드의 상한이 서로 다른 종류를 보게 된다.
+ */
+export function algorithmSelectionFor(
+  project: ProjectFile | null,
+  taskType: TaskType,
+  fallbackDataType: DataType,
+): { dataType: DataType; taskType: TaskType } {
+  return { dataType: dataTypeOf(project, fallbackDataType), taskType }
 }
 
 /** 이 프로젝트의 종류가 준비하는 학습 입력. */
