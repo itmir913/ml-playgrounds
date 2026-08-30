@@ -170,4 +170,51 @@ describe('라우터', { timeout: 20_000 }, () => {
     // 그리고 값은 아직 메모리에 있다. 다음 저장이 다시 시도한다.
     expect(project.dirty).toBe(true)
   })
+
+  /**
+   * **저장 실패와 리다이렉트를 겹친 갈래가 없었다** (R14-5 감사 A-7).
+   *
+   * 위 검사는 리다이렉트가 없는 이동이고, `잠긴 단계를 요청하면…`은 저장이 성공하는
+   * 이동이다. 둘을 겹치면 수위선이 두 번 잡히는지가 걸리는데 아무도 안 태웠다 —
+   * 그래서 `if (toastWatermark === null)` 가드를 지워도 조용했다.
+   *
+   * 그때 학생이 겪는 일: [다음]을 눌렀고 화면은 다른 단계로 갔는데, **저장이
+   * 실패했다는 말을 한 번도 못 본다.** `afterEach`의 `dismissUpTo`가 방금 민 알림을
+   * 걷어 가기 때문이다. `storage.ts` 머리말의 *"저장 실패는 삼키지 않는다"*가
+   * 리다이렉트 갈래에서만 조용히 깨진다.
+   */
+  it('리다이렉트로 떨어져도 저장 실패 알림이 남는다', async () => {
+    // 모델이 예산에서 밀린 프로젝트 - 예측을 요청하면 결과로 떨어진다.
+    const base = projectFile()
+    const omitted = run('run-1', { model: undefined, modelOmitted: 'overBudget' })
+    await saveProject({
+      ...base,
+      document: {
+        ...base.document,
+        runs: { experiments: [experiment('experiment-1', [omitted])] },
+      },
+    })
+    await router.push(`/project/${manifest.projectId}/data`)
+
+    const project = useProjectStore()
+    const toasts = useToastStore()
+    const current = project.file!
+    project.update({
+      ...current,
+      document: {
+        ...current.document,
+        manifest: { ...current.document.manifest, name: '고친 이름' },
+      },
+    })
+
+    Object.defineProperty(navigator, 'storage', {
+      configurable: true,
+      value: { estimate: () => Promise.resolve({ quota: 1, usage: 1 }) },
+    })
+
+    await router.push(`/project/${manifest.projectId}/predict`)
+
+    expect(router.currentRoute.value.name, '잠긴 단계라 결과로 떨어진다').toBe('results')
+    expect(toasts.items.map((one) => one.key)).toContain('client.STORAGE_QUOTA_EXCEEDED')
+  })
 })

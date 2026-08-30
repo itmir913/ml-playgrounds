@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { nearestScrollport, prefersTop, stickyCover } from '../src/screen'
+import { nearestScrollport, prefersTop, stickyCover, yieldToScreen } from '../src/screen'
 
 /** 패널 높이는 고정해 두고 위아래 여백만 바꾼다. */
 const HEIGHT = 400
@@ -121,5 +121,32 @@ describe('덮는 만큼은 요소에서 읽는다', () => {
     } finally {
       globalThis.getComputedStyle = original
     }
+  })
+})
+
+/**
+ * **양보가 실제로 작업 경계를 넘는가** (`yieldToScreen`).
+ *
+ * 이 파일의 머리말이 *"이것이 없으면 [예측] 같은 단추의 이중 실행 방지가 통째로
+ * 무력해진다 … 연타하면 브라우저가 먹통이 된다(2026-08-14, 사용자가 이미지 예측
+ * 화면에서 겪었다)"*고 적어 둔 자리다.
+ *
+ * 그런데 무는 것이 없어서 `Promise.resolve()`로 바꿔도 조용했다 (R14-5 감사 A-6).
+ * `ui-rules.spec.ts`는 **부르는 자리의 수**만 세고, **부른 것이 무엇을 하는지**는
+ * 아무도 안 봤다. 마이크로태스크만 비우면 렌더가 안 끼어들어 꺼짐이 한 번도
+ * 안 그려지고, 그 사이 쌓인 클릭이 전부 한 번씩 더 돈다.
+ */
+describe('화면에 자리를 내준다', () => {
+  it('마이크로태스크만으로는 안 끝난다 - 그래야 꺼짐이 그려진다', async () => {
+    let done = false
+    const settled = yieldToScreen().then(() => {
+      done = true
+    })
+
+    for (let round = 0; round < 10; round += 1) await Promise.resolve()
+    expect(done, '마이크로태스크를 열 번 비웠는데 벌써 끝났다').toBe(false)
+
+    await settled
+    expect(done).toBe(true)
   })
 })
