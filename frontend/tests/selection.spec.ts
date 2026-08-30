@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { ColumnSummary } from '../src/data/columns'
 import { ALGORITHMS, algorithmOptions, type AlgorithmOption } from '../src/ml/algorithms'
-import type { RuntimeContext } from '../src/ml/backend'
+import { reasonParams, type RuntimeContext, type UnavailableReason } from '../src/ml/backend'
 import type { Dataset } from '../src/ml/preprocess'
 import {
   algorithmsLosingMeaning,
@@ -219,6 +219,58 @@ describe('세 축이 서로를 좁힌다', () => {
   function choice(list: readonly AxisChoice[], id: string): AxisChoice | undefined {
     return list.find((one) => one.id === id)
   }
+
+  /**
+   * **카드는 사유만이 아니라 그 칸의 상한도 싣는다** (`AxisChoice.maxRows`).
+   *
+   * 화면이 그 값을 `reasonParams(reason, choice.maxRows)`로 넘겨 문장의 `{limitRows}`를
+   * 채우는데, **안 넘기면 기본값 `BROWSER_ROW_LIMIT`(5000)이 들어간다.** 그러면 SVM
+   * 카드가 3000에서 꺼지면서 "5000행까지"라고 말한다. 저장소가 이 실패를 `backend.ts`와
+   * `ModelAxes.vue` 두 곳에 글자로 적어 두었는데 **전달 줄을 지워도 2,254개가 전부
+   * 초록이었다** (2026-08-30 R12 감사 A-1) — 사유는 덮고 숫자는 안 덮고 있었다.
+   */
+  describe('상한이 따로 있는 알고리즘은 그 숫자를 카드에 싣는다', () => {
+    const TIGHT: RuntimeContext = {
+      serverStatus: 'unavailable',
+      rowCount: MLJS_SVM_ROW_LIMIT + 1,
+      dataType: 'tabular',
+    }
+
+    function tightAxes(): ReturnType<typeof modelAxes> {
+      return axes({
+        options: algorithmOptions(
+          { dataType: 'tabular', taskType: 'classification' },
+          TIGHT,
+          ALGORITHMS,
+        ),
+        algorithm: 'svm',
+        runtime: 'mljs',
+      })
+    }
+
+    it('모델 축이 자기 상한을 싣는다 - 브라우저 상한이 아니다', () => {
+      expect(choice(tightAxes().algorithms, 'svm')).toEqual({
+        id: 'svm',
+        enabled: false,
+        reason: 'DATASET_TOO_LARGE_FOR_BROWSER',
+        maxRows: MLJS_SVM_ROW_LIMIT,
+      })
+    })
+
+    it('실행 방법 축도 같은 숫자를 싣는다', () => {
+      expect(choice(tightAxes().runtimes, 'mljs')).toMatchObject({
+        enabled: false,
+        maxRows: MLJS_SVM_ROW_LIMIT,
+      })
+    })
+
+    it('화면이 그 숫자로 문장을 채운다 - 안 실으면 5000이라 말한다', () => {
+      const card = choice(tightAxes().algorithms, 'svm')
+      expect(reasonParams(card?.reason as UnavailableReason, card?.maxRows)).toEqual({
+        limitRows: MLJS_SVM_ROW_LIMIT,
+      })
+    })
+  })
 
   it('실행 방법이 모델을 좁힌다 - 순수 JS에 없는 모델은 순수 JS 축에서 꺼진다', () => {
     const options = algorithmOptions(
