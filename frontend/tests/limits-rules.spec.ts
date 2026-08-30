@@ -30,7 +30,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { sourceFiles, withoutComments } from './fixtures/source'
+import { sourceFiles, windowedHits, withoutComments } from './fixtures/source'
 
 import { formatBytes } from '../src/composables/useFormat'
 import {
@@ -222,11 +222,13 @@ describe('지금 소스에 위반이 없다', () => {
       const found: string[] = []
       for (const path of scanned(SRC)) {
         if (path === rule.source) continue
-        withoutComments(readFileSync(path, 'utf-8')).forEach((line, index) => {
-          if (rule.pattern.test(line)) {
-            found.push(`${path.slice(SRC.length + 1)}:${index + 1}  ${line.trim()}`)
-          }
-        })
+        found.push(
+          ...windowedHits(
+            (text) => rule.pattern.test(text),
+            readFileSync(path, 'utf-8'),
+            path.slice(SRC.length + 1),
+          ),
+        )
       }
       expect(found).toEqual([])
     })

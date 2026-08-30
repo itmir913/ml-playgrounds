@@ -86,3 +86,52 @@ export function sourceFiles(directory: string): string[] {
     return /\.(ts|vue)$/.test(entry) ? [path] : []
   })
 }
+
+/**
+ * 창 하나가 덮는 줄 수.
+ *
+ * **prettier가 편 위반이 줄 하나씩 보는 훑기를 통과한다.** `printWidth`가 100이라
+ * 긴 `t(...)`나 긴 `class="..."`를 이 저장소의 포매터가 스스로 여러 줄로 펴고, 그
+ * 모양은 어느 한 줄에도 패턴이 통째로 안 남는다 (R13-5 감사 A-2 · R14-5 감사 A-1).
+ *
+ * **규칙을 "여러 줄에 걸리나"로 가르지 않는다.** 그 분류가 곧 낡는다 — 지금 한 줄인
+ * 패턴도 다음 사람이 인자를 하나 더 넣으면 펴진다. 전부 창으로 본다.
+ *
+ * **창을 좁게 잡는다.** prettier가 한 구문을 펴는 폭이고, 넓히면 무관한 두 구문이
+ * 붙어 거짓 빨강이 난다.
+ */
+export const WRAP_WINDOW = 6
+
+/**
+ * 한 파일에서 패턴이 걸린 자리들. 줄 단위로 보고, 못 보면 창으로 한 번 더 본다.
+ *
+ * **줄을 잇는 것만으로는 안 닫힌다.** `' '`로 이으면 **없던 공백이 생기고** `''`로
+ * 이으면 **있던 공백이 사라져**, 어느 쪽으로 정해도 패턴 하나가 샌다. 그래서 막는
+ * 쪽은 패턴이다 — `architecture.md` §9.3.1이 규약 둘을 갖는다:
+ * **토큰 사이에 `\s*`를 두고, 자기검사 표본에 prettier가 실제로 펴는 모양을 넣는다.**
+ */
+export function windowedHits(
+  matches: (text: string) => boolean,
+  source: string,
+  label: string,
+): string[] {
+  const lines = withoutComments(source)
+  const found: string[] = []
+  let reportedAt = -WRAP_WINDOW
+
+  lines.forEach((line, index) => {
+    if (matches(line)) {
+      found.push(`${label}:${index + 1}  ${line.trim()}`)
+      reportedAt = index
+      return
+    }
+    // 이미 이 창 안에서 하나 적었으면 같은 위반을 두 번 세지 않는다.
+    if (index - reportedAt < WRAP_WINDOW) return
+    const joined = lines.slice(index, index + WRAP_WINDOW).join(' ')
+    if (matches(joined)) {
+      found.push(`${label}:${index + 1}  (여러 줄) ${joined.trim().slice(0, 90)}`)
+      reportedAt = index
+    }
+  })
+  return found
+}

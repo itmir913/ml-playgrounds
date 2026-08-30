@@ -14,7 +14,7 @@ import { dirname, join, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { withoutComments } from './fixtures/source'
+import { windowedHits, withoutComments } from './fixtures/source'
 
 /** 정규식과 예문 안에 그대로 못 적는다 - 이 파일 자신이 검사 대상이라 조립 자리로 읽힌다. */
 const BACKTICK = String.fromCharCode(96)
@@ -26,10 +26,18 @@ interface Rule {
   readonly name: string
   readonly why: string
   readonly pattern: RegExp
-  /** 패턴이 걸린 뒤 한 번 더 거르는 조건. 없으면 패턴이 곧 위반이다. */
-  readonly only?: (line: string) => boolean
+  /** 패턴이 걸린 뒤 한 번 더 거르는 조건. **넘어오는 것은 줄이 아니라 매치다** (`hits`). */
+  readonly only?: (match: string) => boolean
   readonly violations: readonly string[]
   readonly allowed: readonly string[]
+  /**
+   * **prettier가 실제로 편 위반.** 여러 줄짜리 한 덩어리로 적는다.
+   *
+   * 한 줄짜리 표본만 두면 그 규칙은 "한 줄로 쓴 위반"만 지킨다고 말하는 셈이다
+   * (`architecture.md` §9.3.1의 규약 2). **지어내지 말고 포매터에 넣어 나온 것을
+   * 쓴다** — `npx prettier --stdin-filepath probe.ts`.
+   */
+  readonly wrapped?: readonly string[]
 }
 
 const RULES: readonly Rule[] = [
@@ -40,7 +48,8 @@ const RULES: readonly Rule[] = [
       '그 병합은 imageCategories 하나가 한다. 화면이 settings만 보면 있는 범주를 ' +
       '"모르는 범주"라 부르고, 학생이 그 말대로 빼면 그 범주가 없는 테스트셋으로 ' +
       '채점한다 - 잠금이 막으려던 바로 그 상태다 (2026-08-30 R12 감사 A-2).',
-    pattern: /dataSettings\([^)]*\)\.categories/,
+    // 멤버 체인은 prettier가 끊는다. 토큰 사이의 `\s*`는 규약이다 (architecture.md §9.3.1).
+    pattern: /dataSettings\([^)]*\)\s*\.\s*categories/,
     violations: [
       "  settings.value === null ? [] : dataSettings('image', settings.value).categories,",
       'return dataSettings(kind, document.settings).categories',
@@ -259,8 +268,10 @@ const RULES: readonly Rule[] = [
       '집합은 완벽히 맞으므로 로케일 검사도 초록이다. 문구 키는 `stepTasks`·' +
       '`currentTask`·`stepTextKey`가 준 것을 그대로 `t()`에 넣는다.',
     // `steps.{id}.label`은 종류를 안 가려서 조립해도 된다. purpose·locked만 본다.
+    // `t(` 다음의 `\s*`는 규약이다 (architecture.md §9.3.1). 인자가 셋이면 prettier가
+    // **정확히 그 자리에서** 줄을 바꾸고, 그러면 창으로 이어도 공백 하나 때문에 샌다.
     pattern: new RegExp(
-      `t\\(${BACKTICK}(tasks\\.\\$\\{|steps\\.\\$\\{[^${BACKTICK}]*\\}\\.(purpose|locked)${BACKTICK})`,
+      `t\\(\\s*${BACKTICK}(tasks\\.\\$\\{|steps\\.\\$\\{[^${BACKTICK}]*\\}\\.(purpose|locked)${BACKTICK})`,
     ),
     violations: [
       `{{ t(${BACKTICK}tasks.\${task.key}${BACKTICK}) }}`,
@@ -276,6 +287,17 @@ const RULES: readonly Rule[] = [
       `{{ t(${BACKTICK}steps.\${entry.step}.label${BACKTICK}) }}`,
       // 등록부 id로 이름을 찾는 것은 이 규칙과 무관하다.
       `t(${BACKTICK}algorithms.\${one.algorithm}${BACKTICK})`,
+    ],
+    // `npx prettier`에 넣어 받은 출력 그대로다. 인자가 셋이면 포매터가 **`t(` 바로
+    // 뒤에서** 줄을 바꾸고, 그 자리가 이 패턴이 인접을 요구하던 곳이다.
+    wrapped: [
+      [
+        'const a = t(',
+        `  ${BACKTICK}tasks.\${entryWithARatherLongName.stepAndMoreAndMore}${BACKTICK},`,
+        '  fallbackValueWithLongName,',
+        '  third,',
+        ')',
+      ].join('\n'),
     ],
   },
   {
@@ -306,7 +328,10 @@ const RULES: readonly Rule[] = [
       '학생의 산점도는 이전 배색의 값을 그대로 들고 있었다 — 밝은 화면에 어두운 배색의 ' +
       '선이 검게 그려졌다 (2026-08-29 전 경로 감사). 화면이 볼 원본은 `theme.ts`의 ' +
       '`theme` ref 하나이고, 속성을 쓰는 것은 그 파일뿐이다.',
-    pattern: /dataset(\.theme\b|\[['"]theme['"]\])|getAttribute\(['"]data-theme['"]\)/,
+    // 토큰 사이의 `\s*`는 규약이다 (architecture.md §9.3.1). 지금은 인자가 짧아
+    // prettier가 `getAttribute(` 뒤에서 안 꺾지만, 그 사실이 규칙의 근거가 되면 안 된다.
+    pattern:
+      /dataset\s*(\.\s*theme\b|\[\s*['"]theme['"]\s*\])|getAttribute\(\s*['"]data-theme['"]\s*\)/,
     violations: [
       "watch(() => document.documentElement.dataset['theme'], readTokens)",
       'const now = document.documentElement.dataset.theme',
@@ -322,46 +347,29 @@ const RULES: readonly Rule[] = [
   },
 ]
 
-function hits(rule: Rule, line: string): boolean {
-  return rule.pattern.test(line) && (rule.only?.(line) ?? true)
+/**
+ * **`only`는 매치가 본 것만 본다.**
+ *
+ * 창으로 여러 줄을 이으면서 갈린 자리다 — 넘긴 것이 줄이면 `only`가 **창 안의 무관한
+ * 줄**을 보고 판정이 뒤집힌다. 실제로 그랬다: 쪽 넘김의 `{{ page + 1 }} / {{ total }}`이
+ * 여섯 줄 옆의 `t('common.prevPage')` 때문에 "번역이 섞였다"로 잡혔다 (R14-5 감사 A-1을
+ * 고치면서 나왔다). 그래서 `only`가 넓은 문맥을 봐야 하는 규칙은 **패턴이 그 문맥까지
+ * 잡아야 한다** — `class="…"` 규칙 둘이 그 모양이다.
+ */
+function hits(rule: Rule, text: string): boolean {
+  const match = rule.pattern.exec(text)
+  return match !== null && (rule.only?.(match[0]) ?? true)
 }
 
 /**
- * **prettier가 편 위반이 줄 하나씩 보는 훑기를 통과한다.**
+ * 규칙 하나가 이 파일에서 잡은 자리들.
  *
- * `printWidth`가 100이라 긴 `t(...)`나 긴 `class="..."`를 이 저장소의 포매터가 스스로
- * 여러 줄로 편다. 그 모양은 어느 한 줄에도 패턴이 통째로 안 남아 **저장소가 아무 말도
- * 안 했다** (R13-5 감사 A-2). 같은 병을 `i18n-usage.spec.ts`에서 먼저 고쳤다.
- *
- * **규칙을 "여러 줄에 걸리나"로 가르지 않는다.** 그 분류가 곧 낡는다 — 지금 한 줄인
- * 패턴도 다음 사람이 인자를 하나 더 넣으면 펴진다. 전부 창으로 본다.
- *
- * **창을 좁게 잡는다.** prettier가 한 구문을 펴는 폭이고, 넓히면 무관한 두 구문이 붙어
- * 거짓 빨강이 난다. 지금 이 저장소는 이 폭에서 위반이 0이다.
+ * **훑기 구현은 `fixtures/source.ts` 하나다** — 이 파일만 창을 갖고 있던 동안
+ * `i18n-usage`의 RULES와 `secure-context-rules`는 여전히 줄 하나씩 보고 있었다
+ * (R14-5 감사 A-1). 갈라 두면 셋이 고쳐질 때 하나가 안 고쳐진다.
  */
-const WRAP_WINDOW = 6
-
-/** 규칙 하나가 이 파일에서 잡은 자리들. 줄 단위로 보고, 못 보면 창으로 한 번 더 본다. */
 function ruleHits(rule: Rule, source: string, label: string): string[] {
-  const lines = withoutComments(source)
-  const found: string[] = []
-  let reportedAt = -WRAP_WINDOW
-
-  lines.forEach((line, index) => {
-    if (hits(rule, line)) {
-      found.push(`${label}:${index + 1}  ${line.trim()}`)
-      reportedAt = index
-      return
-    }
-    // 이미 이 창 안에서 하나 적었으면 같은 위반을 두 번 세지 않는다.
-    if (index - reportedAt < WRAP_WINDOW) return
-    const joined = lines.slice(index, index + WRAP_WINDOW).join(' ')
-    if (hits(rule, joined)) {
-      found.push(`${label}:${index + 1}  (여러 줄) ${joined.trim().slice(0, 90)}`)
-      reportedAt = index
-    }
-  })
-  return found
+  return windowedHits((text) => hits(rule, text), source, label)
 }
 
 /**
@@ -714,6 +722,21 @@ describe('검사기가 실제로 잡는다', () => {
       for (const line of rule.allowed) {
         it(`정상을 안 잡는다: ${line}`, () => {
           expect(hits(rule, line)).toBe(false)
+        })
+      }
+      for (const [index, source] of (rule.wrapped ?? []).entries()) {
+        /**
+         * **줄이 펴져도 잡는가** (`architecture.md` §9.3.1의 규약 2).
+         *
+         * 한 줄짜리 표본만으로는 이 축을 한 번도 안 태운다 — 그래서 창을 세우고도
+         * 규칙 하나가 새어 나갔다 (R14-5 감사 A-1).
+         */
+        it(`prettier가 편 위반도 잡는다 (${index + 1})`, () => {
+          // 표본이 진짜로 여러 줄인지부터 본다 - 한 줄에 다 있으면 이 검사는 아무것도
+          // 안 재는 것이 된다.
+          const perLine = source.split('\n').filter((line) => hits(rule, line))
+          expect(perLine, '줄 하나씩 보면 안 잡히는 모양이어야 한다').toEqual([])
+          expect(windowedHits((text) => hits(rule, text), source, 'wrapped')).toHaveLength(1)
         })
       }
     })

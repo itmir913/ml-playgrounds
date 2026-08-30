@@ -22,7 +22,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { sourceFiles, withoutComments } from './fixtures/source'
+import { sourceFiles, windowedHits, withoutComments } from './fixtures/source'
 
 // jsdom 환경에서는 import.meta.url이 file: 스킴이 아니라 URL 계산을 못 한다.
 // vitest는 vite.config.ts가 있는 곳에서 도므로 cwd가 frontend/ 다.
@@ -74,9 +74,11 @@ const RULES: readonly Rule[] = [
     // (`{{ t('a', { n }) }}`)에서는 매칭이 시작조차 안 됐다 — 이 규칙이 겨눈
     // "문장 + 수치"의 가장 흔한 모양이 바로 그것이다 (R8 감사 B-3).
     // `[^<>]`로 묶어 **한 텍스트 노드 안**으로 가둔다. 규칙이 말하는 것이 그것이다.
-    pattern: /\{\{[^<>]*?\}\}[^<>]*\{\{/,
+    // **둘째 mustache의 닫는 괄호까지 잡는다.** `only`가 매치만 보므로(아래 `hits`),
+    // 여기서 안 잡으면 `{{ count }}{{ t("models") }}`의 `t(`가 매치 밖으로 나간다.
+    pattern: /\{\{[^<>]*?\}\}[^<>]*\{\{[^<>]*?\}\}/,
     // 적어도 한쪽이 번역이어야 한다. "3 / 10" 같은 수치 표시는 문장이 아니다.
-    only: (line) => /\$?\bt\(/.test(line),
+    only: (match) => /\$?\bt\(/.test(match),
     violations: [
       '<p>{{ t("train.done") }} {{ count }}</p>',
       '<p>{{ count }}{{ t("models") }}</p>',
@@ -98,8 +100,18 @@ const RULES: readonly Rule[] = [
   },
 ]
 
-function hits(rule: Rule, line: string): boolean {
-  return rule.pattern.test(line) && (rule.only?.(line) ?? true)
+/**
+ * **`only`는 매치가 본 것만 본다.**
+ *
+ * 창으로 여러 줄을 이으면서 갈린 자리다 — 넘긴 것이 줄이면 `only`가 **창 안의 무관한
+ * 줄**을 보고 판정이 뒤집힌다. 실제로 그랬다: 쪽 넘김의 `{{ page + 1 }} / {{ total }}`이
+ * 여섯 줄 옆의 `t('common.prevPage')` 때문에 "번역이 섞였다"로 잡혔다 (R14-5 감사 A-1을
+ * 고치면서 나왔다). 그래서 `only`가 넓은 문맥을 봐야 하는 규칙은 **패턴이 그 문맥까지
+ * 잡아야 한다** — `class="…"` 규칙 둘이 그 모양이다.
+ */
+function hits(rule: Rule, text: string): boolean {
+  const match = rule.pattern.exec(text)
+  return match !== null && (rule.only?.(match[0]) ?? true)
 }
 
 describe('검사기가 실제로 잡는다', () => {
@@ -144,11 +156,13 @@ describe('지금 소스에 위반이 없다', () => {
     it(rule.name, () => {
       const found: string[] = []
       for (const path of sourceFiles(SRC)) {
-        withoutComments(readFileSync(path, 'utf-8')).forEach((line, index) => {
-          if (hits(rule, line)) {
-            found.push(`${path.slice(SRC.length + 1)}:${index + 1}  ${line.trim()}`)
-          }
-        })
+        found.push(
+          ...windowedHits(
+            (text) => hits(rule, text),
+            readFileSync(path, 'utf-8'),
+            path.slice(SRC.length + 1),
+          ),
+        )
       }
       expect(found).toEqual([])
     })
