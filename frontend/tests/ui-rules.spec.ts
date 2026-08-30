@@ -1481,14 +1481,53 @@ describe('종류를 모르는 화면은 종류를 모른다', () => {
    * 그것을 부르는 것이 곧 "종류를 모른 채 그린다"는 뜻이다 — 막으면 규칙이 자기 장치를
    * 금지하는 셈이 된다.
    */
-  const KIND_AWARE = /from '@\/(data|ml)\/(?!kinds')|from '@\/project\/(dataset|images)'/
+  /**
+   * **별칭과 상대 경로를 둘 다 본다.** 예전에는 `@/`만 봐서
+   * `from '../project/dataset'`가 한 글자도 안 걸렸다 (2026-08-30 R12 감사 A-2).
+   * 지금 이 두 화면은 상대 경로를 안 쓰지만 `src/`의 `.ts`에는 118곳이 있고,
+   * `.vue`에서 그 표기를 막는 린트 규칙은 없다 - **표기 하나가 규칙을 통째로 끈다.**
+   */
+  const KIND_AWARE =
+    /from '(?:@\/|(?:\.\.\/)+)(?:(?:data|ml)\/(?!kinds')|project\/(?:dataset|images)')/
+
+  /**
+   * 예문은 **조립해서 만든다.** 이 파일도 import 훑기의 대상이라, 예문을 그대로 적으면
+   * `ui-rules.spec.ts`가 진짜로 그 모듈을 부르는 것으로 읽힌다 - 실제로 그렇게 읽혀서
+   * DOM 가드 도달성 검사가 울었다. 위의 `BACKTICK`이 같은 이유로 서 있다.
+   */
+  const QUOTE = String.fromCharCode(39)
+  const imported = (spec: string): string => `import { x } from ${QUOTE}${spec}${QUOTE}`
+
+  const KIND_AWARE_HITS = [
+    '@/project/dataset',
+    '../project/dataset',
+    '../../project/images',
+    '../ml/selection',
+    '@/data/columns',
+  ].map(imported)
+
+  const KIND_AWARE_MISSES = [
+    '@/data/kinds',
+    '../data/kinds',
+    '@/stores/project',
+    '@/components/AppEmpty.vue',
+    '@/project/settings',
+  ].map(imported)
+
+  it.each(KIND_AWARE_HITS)('검사기가 잡는다: %s', (line) => {
+    expect(KIND_AWARE.test(line)).toBe(true)
+  })
+
+  it.each(KIND_AWARE_MISSES)('검사기가 안 잡는다: %s', (line) => {
+    expect(KIND_AWARE.test(line)).toBe(false)
+  })
 
   it('목록의 화면이 실제로 있다 - 없으면 아래가 조용히 통과한다', () => {
     const names = vueFiles(SRC).map((path) => path.split(SEPARATOR).pop())
     for (const screen of KIND_AGNOSTIC) expect(names, screen).toContain(screen)
   })
 
-  it('종류를 아는 계층(@/data/*, @/ml/*, @/project/dataset, @/project/images)을 import하지 않는다', () => {
+  it('종류를 아는 계층(data/*, ml/*, project/dataset, project/images)을 별칭으로도 상대 경로로도 import하지 않는다', () => {
     const found = vueFiles(SRC)
       .filter((path) => KIND_AGNOSTIC.includes(path.split(SEPARATOR).pop() ?? ''))
       .flatMap((path) =>
