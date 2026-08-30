@@ -127,6 +127,39 @@ describe('뽑는 경우', () => {
 })
 
 describe('층화', () => {
+  /**
+   * **행 번호가 0부터가 아니어도 라벨을 제자리에서 읽는다.**
+   *
+   * 이 묶음의 다른 검사는 전부 `rows(n) = [0…n-1]`을 쓰는데, **실물은 절대 그 모양이
+   * 아니다** — 결측 제거와 앞선 뽑기로 걸러진 뒤라 행 번호가 듬성하다. 그러면
+   * `labels[position]`과 `labels[row]`가 갈리는데, `sample.ts`만 축을 바꿔도 저장소
+   * 전체가 초록이었다 (R13-2 감사 C-1). 지금은 `groupByLabel` 구현이 하나뿐이라
+   * `split.spec.ts`가 받쳐 주지만, **`sample.ts`가 자기 안에서 무리를 짓게 되는 날
+   * 그 받침이 사라진다.**
+   */
+  it('행 번호가 듬성해도 라벨을 제자리에서 읽는다', () => {
+    // 라벨은 행 번호가 아니라 **위치**로 읽어야 한다. 100번 행이 'A'다.
+    const sparse = [100, 200, 300, 400, 500, 600, 700, 800]
+    const labels = ['A', 'A', 'A', 'A', 'B', 'B', 'B', 'B']
+    const byRow = new Map(sparse.map((row, at) => [row, labels[at] as string]))
+
+    const picked = sampleRows({ rows: sparse, labels }, split({ stratify: true }), 4)
+
+    // **뽑힌 행을 통째로 못 박는다.** 라벨 비율만 보면 축이 뒤집혀 한 무리로 뭉쳐도
+    // 넷 중 둘씩이 우연히 나올 수 있다 - 실제로 그렇게 통과했다. `sampleRows`는
+    // 씨앗으로 결정적이므로 축이 바뀌면 무리도 씨앗도 달라져 이 배열이 달라진다.
+    expect(picked).toEqual([100, 400, 700, 800])
+
+    // 그 배열이 뜻하는 것: A에서 둘, B에서 둘.
+    const counts = new Map<string, number>()
+    for (const row of picked) {
+      const label = byRow.get(row) as string
+      counts.set(label, (counts.get(label) ?? 0) + 1)
+    }
+    expect(counts.get('A')).toBe(2)
+    expect(counts.get('B')).toBe(2)
+  })
+
   it('라벨 비율을 지킨다', () => {
     const { rows: all, labels } = skewed()
     const byRow = new Map(all.map((row, i) => [row, labels[i] as string]))

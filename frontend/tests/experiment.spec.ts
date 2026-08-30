@@ -176,6 +176,8 @@ describe('실험이 실제로 학습한다', () => {
   })
 
   it('무엇으로 만들었는지 남는다 - 재실행 대조가 엔진을 넘지 않는다', () => {
+    // 바닥. 목록이 비면 아래 순회가 0회 돌고 초록이다.
+    expect(experiment.runs).not.toHaveLength(0)
     for (const run of experiment.runs) {
       expect(run.engine, run.algorithm).toEqual({ kind: 'mljs', version: '2' })
       expect(run.computedBy, run.algorithm).toBe('browser')
@@ -1570,6 +1572,8 @@ describe('표본 뽑기', () => {
   it('뽑은 실험도 끝까지 돈다 - 세는 것만 맞고 학습이 죽으면 소용없다', () => {
     const settings = settingsFor({ nSamples: 12 })
     const { experiment } = runExperiment(inputFor({ settings }), frozen)
+    // 바닥. run이 하나도 안 나오면 "끝까지 돈다"가 공허하게 참이 된다.
+    expect(experiment.runs).not.toHaveLength(0)
     for (const run of experiment.runs) expect(run.status).toBe('done')
   })
 
@@ -1599,6 +1603,8 @@ describe('표본 뽑기', () => {
       frozen,
     )
     const used = [...experiment.settings.trainIndices, ...experiment.settings.testIndices]
+    // **바닥이 특히 중요한 자리다.** 두 인덱스가 둘 다 비는 것이 곧 통과가 된다.
+    expect(used).toHaveLength(12)
     for (const row of used) {
       expect(row).toBeGreaterThanOrEqual(0)
       expect(row).toBeLessThan(irisDataset().rows.length)
