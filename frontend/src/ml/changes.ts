@@ -11,6 +11,7 @@
  * (CLAUDE.md 1.4와 같은 정신이다 - 여기서 문장을 지으면 그 자리는 영원히 한국어다).
  */
 
+import { HASH_PREVIEW_LENGTH } from '../limits'
 import { comparablePair, type ComparableSource } from './experiment'
 
 /**
@@ -155,7 +156,7 @@ const modelListOf: Describe = (value) => ({
  */
 const shortHash: Describe = (value) => {
   if (typeof value !== 'string' || value === '') return { kind: 'absent' }
-  return { kind: 'literal', text: value.slice(0, 8) }
+  return { kind: 'literal', text: value.slice(0, HASH_PREVIEW_LENGTH) }
 }
 
 const joined: Describe = (value) => {

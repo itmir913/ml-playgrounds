@@ -466,6 +466,42 @@ export const PROJECT_FILE_WARN_BYTES = 100 * MB
 export const MAX_ATTACHMENT_EDGE = 1536
 
 /**
+ * 열 요약이 보여줄 **서로 다른 값**의 최대 개수 (`data/columns.ts`).
+ *
+ * 상한이 아니라 표시 개수다 — 이 수를 넘겨도 아무것도 거부하지 않고 카드가 덜 보여줄
+ * 뿐이다. **그래도 여기 산다** (`CLAUDE.md` §1.5): 표시 분량도 이 파일이 갖고, 위
+ * `TABLE_PREVIEW_ROW_COUNT`·아래 `CLUSTER_REPRESENTATIVE_COUNT`와 같은 칸이다.
+ * 밖에 두었더니 상한처럼 안 생긴 이름이라 훑는 검사 둘 다 못 봤다
+ * (2026-08-30, R13-3 감사 C-4).
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const COLUMN_SAMPLE_COUNT = 3
+
+/**
+ * 값이 길 때 이력에 보여줄 앞 글자 수 (`ml/changes.ts`의 `shortHash`).
+ *
+ * 해시는 64자다. 통째로 보이면 그 줄이 화면을 덮고, 안 보이면 무엇이 달라졌는지 말할
+ * 자리가 없어진다. **앞 여덟 자면 두 값이 다르다는 것이 눈에 들어온다.**
+ *
+ * 근거를 가진 표시 분량이라 여기 산다. 밖에서는 이름조차 없이 `slice(0, 8)`이었다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const HASH_PREVIEW_LENGTH = 8
+
+/**
+ * 화면 꼭대기로 되돌아가는 데 걸리는 시간 (`components/AppShell.vue`).
+ *
+ * 동작 시간이라 아래 `TOAST_DURATION_MS`·`AUTOSAVE_DELAY_MS`와 같은 칸이다.
+ * `기다리는 시간을 숫자로 쓰지 않는다` 규칙은 `setTimeout`·`setInterval`만 보는데
+ * 이 자리는 `requestAnimationFrame`이라 안 걸렸다 (2026-08-30, R13-3 감사 C-4).
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const SCROLL_TOP_DURATION_MS = 220
+
+/**
  * 표 파일(CSV/엑셀) **훑어보기** 단계에서 보여줄 행 수.
  *
  * 시트 전체를 파싱하지 않고 이 수만큼만 보여준다 (docs/open-decisions.md #14).
@@ -478,6 +514,7 @@ export const MAX_ATTACHMENT_EDGE = 1536
  *
  * **분류: 상한이 아니다.**
  */
+
 export const TABLE_PREVIEW_ROW_COUNT = 20
 
 /**

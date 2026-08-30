@@ -20,6 +20,7 @@
 import { ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
+import { SCROLL_TOP_DURATION_MS } from '@/limits'
 import AppStatusBar from '@/components/AppStatusBar.vue'
 import AppToolbar from '@/components/AppToolbar.vue'
 import StepRail from '@/components/StepRail.vue'
@@ -39,8 +40,6 @@ import StepRail from '@/components/StepRail.vue'
  */
 const route = useRoute()
 const mainEl = ref<HTMLElement | null>(null)
-
-const SCROLL_TOP_DURATION_MS = 220
 
 function easeOutCubic(t: number): number {
   return 1 - (1 - t) ** 3

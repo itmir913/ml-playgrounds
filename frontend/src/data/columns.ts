@@ -12,6 +12,7 @@
  */
 
 import { ClientError } from '@/errors'
+import { COLUMN_SAMPLE_COUNT } from '@/limits'
 import { detectKind, type ColumnKind } from '@/ml/preprocess'
 import type { Dataset } from '@/ml/preprocess'
 import type { TableGrid } from './grid'
@@ -104,9 +105,6 @@ export interface ColumnSummary {
   readonly samples: readonly string[]
 }
 
-/** 표본으로 보여줄 서로 다른 값의 최대 개수. 상한이 아니라 표시 개수다. */
-const SAMPLE_COUNT = 3
-
 /**
  * 열마다 요약을 만든다. **화면에 분기를 남기지 않으려고 순수 함수로 둔다.**
  *
@@ -124,7 +122,7 @@ export function summarizeColumns(dataset: Dataset): ColumnSummary[] {
       kind: detectKind(values),
       missing: values.length - present.length,
       unique: distinct.size,
-      samples: [...distinct].slice(0, SAMPLE_COUNT),
+      samples: [...distinct].slice(0, COLUMN_SAMPLE_COUNT),
     }
   })
 }
