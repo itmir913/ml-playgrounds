@@ -229,8 +229,21 @@ onMounted(refresh)
         <p class="mt-3 leading-relaxed text-ink-soft">{{ t('app.tagline') }}</p>
       </div>
 
-      <!-- 둘의 너비를 맞춘다. 나란한 두 선택지의 크기가 다르면 하나가 더 옳아 보인다. -->
-      <div class="grid w-full max-w-xs gap-3">
+      <!--
+        둘의 너비를 맞춘다. 나란한 두 선택지의 크기가 다르면 하나가 더 옳아 보인다.
+
+        **폭은 가장 긴 이름표가 정한다.** 여기 들어가는 것은 짧은 동사가 아니라
+        "이 컴퓨터의 프로젝트" 같은 구절이고, 영어는 같은 뜻이 30% 정도 길다
+        (`i18n.md` 규칙 7). `max-w-xs`에서는 그것이 두 줄로 접혀 **한국어와 영어의
+        단추 높이가 달랐다.**
+
+        **한 판의 여백만 줄이지 않는다.** 높이는 맞출 수 있어도 세로로 붙은 판들의
+        안쪽 여백이 하나만 좁아지고, `size="lg"`가 뜻하는 것이 흐려진다.
+
+        **좁은 화면에서는 이것으로 안 풀린다** — 화면이 이 폭보다 좁으면 상한이
+        걸리지 않는다. 거기서는 접히는 것을 감수한다.
+      -->
+      <div class="grid w-full max-w-sm gap-3">
         <AppButton size="lg" :disabled="busy" class="w-full" @click="openCreate">
           <component :is="ACTION_ICONS.newProject" :size="20" aria-hidden="true" />
           {{ t('projects.new') }}
