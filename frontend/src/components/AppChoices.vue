@@ -110,7 +110,18 @@ const cells = computed(() =>
 </script>
 
 <template>
-  <div class="min-w-0">
+  <!--
+    **재는 것은 창이 아니라 이 축이 받은 폭이다**(`@container`). 이 컴포넌트는 자기가
+    어디에 놓일지 모른다 - 학습 화면에서는 넓은 판이고, 새 프로젝트에서는 `max-w-lg`인
+    대화상자 안이다. `sm:`으로 쓰면 **창이 640px을 넘었다는 이유로 폭 448px짜리
+    대화상자 안에서 열이 셋으로 갈린다** (2026-08-30, 같은 실수를 대화상자 단추에서
+    먼저 겪었다).
+
+    **자기 폭은 부모에게서 받아야 한다.** 컨테이너는 내용으로 폭을 정하지 않으므로,
+    폭이 내용에 달린 자리(가로 flex 칸)에 놓으면 0으로 접힌다. 지금 쓰는 세 곳은
+    전부 세로 flex라 폭이 부모에게서 온다.
+  -->
+  <div class="min-w-0 @container">
     <h3 class="font-bold text-ink-soft">{{ label }}</h3>
     <!-- 여백은 `AppField`와 같다 — 나란히 선 두 칸의 리듬이 다르면 한쪽이 밀린 것처럼 보인다. -->
     <p v-if="props.hint" class="mt-1.5 text-ink-faint">{{ props.hint }}</p>
@@ -121,9 +132,13 @@ const cells = computed(() =>
       행도 다른 행과 같은 높이로 선다.
 
       id로 잇지 않는다 — 라벨은 번역된 문장이라 공백이 들어가고, id에는 공백을 못 쓴다.
+
+      **열 셋의 문턱은 안 쪼개지는 낱말 덩어리에서 나온다.** 칸의 좌우 여백이 24px이고
+      가장 긴 덩어리가 `(Classification)`(16px 기준 약 120px)이라 한 칸이 144px,
+      셋에 간격 8px 둘을 더하면 448px이다. 그게 `@md`(28rem)다.
     -->
     <div
-      class="mt-1.5 grid auto-rows-fr grid-cols-2 gap-2 sm:grid-cols-3"
+      class="mt-1.5 grid auto-rows-fr grid-cols-2 gap-2 @md:grid-cols-3"
       role="group"
       :aria-label="label"
     >
