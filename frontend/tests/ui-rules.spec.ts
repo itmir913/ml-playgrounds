@@ -187,6 +187,28 @@ const RULES: readonly Rule[] = [
     ],
   },
   {
+    name: '나란한 단추가 줄을 바꾸는 자리를 창 폭으로 정하지 않는다',
+    why:
+      '**나란한 단추(`grid-flow-col auto-cols-fr`)가 사는 곳은 창이 아니라 대화상자이거나 ' +
+      '두 칸 중 한 칸이다.** `sm:`으로 갈랐더니 `max-w-lg`인 대화상자가 창 640px을 ' +
+      '영영 못 넘어 **휴대폰에서는 `취소`와 `만들기`까지 언제나 세로로 쌓였다** ' +
+      '(2026-08-30, 사용자가 겪었다). 반대쪽도 같다 - 창만 넓으면 좁은 칸에서도 셋이 ' +
+      '나란히 눌린다. 재야 하는 것은 **그 줄에 남은 자리**이므로 `@container`로 옮긴다.',
+    // 창 접두사가 붙은 것만 잡는다. `@sm:`·`@3xs:`는 컨테이너 질의라 통과한다 -
+    // 낱말 경계 앞의 `@`를 빼먹으면 고쳐 놓은 자리를 검사기가 다시 잡는다.
+    pattern: /(?<![\w@-])(sm|md|lg|xl):(grid-flow-col|auto-cols-fr)\b/,
+    violations: [
+      '<div class="mt-6 ml-auto grid w-fit gap-3 sm:grid-flow-col sm:auto-cols-fr">',
+      '<div class="grid w-fit gap-2 md:auto-cols-fr">',
+    ],
+    allowed: [
+      '<div class="ml-auto grid w-fit gap-3 @3xs:grid-flow-col @3xs:auto-cols-fr">',
+      '<div class="mx-auto grid w-fit gap-2 @sm:grid-flow-col @sm:auto-cols-fr">',
+      // 창 폭이 정말 기준인 자리는 상관없다 - 셸이 그렇다.
+      '<div class="flex min-h-0 flex-1 flex-col md:flex-row">',
+    ],
+  },
+  {
     name: '테두리 토큰을 글자색으로 쓰지 않는다',
     why:
       '**구분자도 글자다.** 상태바의 가운뎃점이 `text-line-strong`이었는데 흰 바탕에서 ' +

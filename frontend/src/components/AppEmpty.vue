@@ -26,10 +26,21 @@ defineProps<{
 
       `w-fit` 안의 `fr` 트랙은 **가장 넓은 것의 너비로 모두 같아진다** — 고정 너비를
       주는 것이 아니라서 영어에서 문장이 길어져도 그대로 맞는다 (docs/i18n.md 규칙 7).
-      좁은 화면에서는 한 줄에 하나씩 쌓이고, 그때도 너비는 같다.
+      자리가 없으면 한 줄에 하나씩 쌓이고, 그때도 너비는 같다.
+
+      **재는 것은 창이 아니라 이 빈 상태가 받은 폭이다**(`@container`, 대화상자와 같다).
+      빈 상태는 화면 전체일 때도 있고 두 칸 중 한 칸일 때도 있어서 **창 폭은 여기 남은
+      자리를 말해 주지 못한다** — `sm:`으로 쓰면 좁은 칸에서 셋이 나란히 눌리고, 휴대폰
+      에서는 반대로 언제나 쌓인다.
+
+      문턱은 **안 쪼개지는 낱말 덩어리**에서 나온다 - lg 단추는 좌우 여백이 48px이고
+      가장 긴 덩어리가 `폴더에서`(4글자, 18px 기준 72px)라 한 칸이 120px, 셋에 간격
+      8px 둘을 더하면 376px이다. 그 위의 첫 눈금이 `@sm`(24rem)이다.
     -->
-    <div v-if="$slots.default" class="mt-2 grid w-fit gap-2 sm:grid-flow-col sm:auto-cols-fr">
-      <slot />
+    <div v-if="$slots.default" class="mt-2 w-full @container">
+      <div class="mx-auto grid w-fit gap-2 @sm:grid-flow-col @sm:auto-cols-fr">
+        <slot />
+      </div>
     </div>
   </div>
 </template>

@@ -69,11 +69,22 @@ function onBackdrop(event: MouseEvent): void {
         선택인지는 변종이 말해야 하고, 폭은 아무 말도 하면 안 된다.
 
         `AppEmpty`가 나란한 단추를 세우는 것과 같은 방식이다 - 격자로 놓고 칸을 같은
-        너비로 나눈다(`auto-cols-fr`). 좁은 화면에서는 위아래로 쌓이고, 그때도 서로
+        너비로 나눈다(`auto-cols-fr`). 자리가 없으면 위아래로 쌓이고, 그때도 서로
         같은 너비다.
+
+        **재는 것은 창이 아니라 이 대화상자다**(`@container`). `sm:`으로 쓰면 창이
+        640px을 넘어야 나란히 서는데, **대화상자는 `max-w-lg`라 애초에 그보다 좁게
+        산다** - 그래서 휴대폰에서는 `취소`와 `만들기`처럼 짧은 짝까지 언제나 세로로
+        쌓였다 (2026-08-30, 사용자가 겪었다). 창은 이 줄에 남은 자리를 모른다.
+
+        문턱은 **안 쪼개지는 낱말 덩어리**에서 나온다 - md 단추는 좌우 여백이 32px이고
+        가장 긴 덩어리가 `training`(8자, 약 64px)이라 한 칸이 96px, 둘에 간격 12px을
+        더하면 204px이다. 그 위의 첫 눈금이 `@3xs`(16rem)다.
       -->
-      <div class="mt-6 ml-auto grid w-fit gap-3 sm:grid-flow-col sm:auto-cols-fr">
-        <slot name="actions" />
+      <div class="mt-6 @container">
+        <div class="ml-auto grid w-fit gap-3 @3xs:grid-flow-col @3xs:auto-cols-fr">
+          <slot name="actions" />
+        </div>
       </div>
     </div>
   </dialog>
