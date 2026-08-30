@@ -404,27 +404,29 @@ const COMMENT_CLOSE = '-->'
 /** 코드 스팬. 그 안의 글자는 값이지 마크업이 아니다. */
 const CODE_SPAN = /`+[^`]*`+/g
 
+/** 줄 머리에서 여는 HTML 주석. 공백 셋까지는 들여써도 블록이 열린다 (CommonMark). */
+const COMMENT_BLOCK_OPEN = /^ {0,3}<!--/
+
 /**
- * 이 줄을 지난 뒤에도 주석이 열려 있는가. **세지 않고 훑는다.**
+ * 이 줄을 지난 뒤에도 주석이 **뒤 문항을 삼키고 있는가**.
  *
- * 세기만 하면 두 가지를 놓친다 — 한 줄에서 `-->`가 `<!--`보다 **앞설 때**(그러면
- * 합이 0이라 열린 것을 못 본다), 그리고 **코드 스팬 안의 `<!--`**(정보 수업에서
- * *"HTML 주석은 `<!--`로 시작한다"*는 흔한 문장이고, 세면 짝이 없는 `-->`가
- * 제출물에 한 줄 붙는다). 둘 다 2026-08-31 사각 감사가 실측했다 (C-5·C-6).
+ * **줄 머리의 `<!--`만 센다.** 삼킴을 만드는 것은 HTML 블록이고, 그것은 줄 머리에서만
+ * 열린다 (CommonMark). 줄 가운데의 `<!--`는 인라인 원시 HTML이라 `-->`가 없으면
+ * **그냥 글자로 남는다** — 거기에 짝을 붙여 주면 오히려 **학생이 쓴 글이 진짜 주석이
+ * 되어 뷰어에서 사라진다.** 세는 방식에서 훑는 방식으로 옮기면서 그 손실을 새로
+ * 만들었다 (2026-08-31 사각 감사 A-1).
+ *
+ * **코드 스팬은 걷어낸다.** 정보 수업에서 *"HTML 주석은 `<!--`로 시작한다"*는 흔한
+ * 문장이고, 그것을 세면 짝이 없는 `-->`가 제출물에 한 줄 붙는다 (C-5).
  *
  * HTML 주석은 겹치지 않으므로 상태는 불리언 하나면 된다.
  */
 function commentOpenAfter(line: string, open: boolean): boolean {
   const text = line.replace(CODE_SPAN, '')
-  let inside = open
-  let at = 0
-  for (;;) {
-    const token = inside ? COMMENT_CLOSE : COMMENT_OPEN
-    const found = text.indexOf(token, at)
-    if (found === -1) return inside
-    inside = !inside
-    at = found + token.length
-  }
+  if (open) return !text.includes(COMMENT_CLOSE)
+  if (!COMMENT_BLOCK_OPEN.test(text)) return false
+  // 같은 줄에서 닫으면 삼키지 않는다. 여는 자리 뒤에서만 찾는다.
+  return !text.includes(COMMENT_CLOSE, text.indexOf(COMMENT_OPEN) + COMMENT_OPEN.length)
 }
 
 /**

@@ -528,8 +528,25 @@ describe('마크다운으로 옮긴다', () => {
     expect(markdown).not.toContain('-->')
   })
 
-  it('같은 줄에서 닫는 것이 앞서도 열린 주석을 본다', () => {
-    // HTML을 켜 두고 여는 뷰어(GitHub·VS Code)에서 뒤 문항이 통째로 사라지던 자리다.
+  /**
+   * **줄 가운데의 `<!--`는 삼키지 않는다.** 삼킴을 만드는 것은 줄 머리에서 열리는
+   * HTML 블록이고, 줄 가운데 것은 `-->`가 없으면 그냥 글자로 남는다. 거기에 짝을
+   * 붙여 주면 **학생이 쓴 글이 진짜 주석이 되어 뷰어에서 사라진다**
+   * (2026-08-31 사각 감사 A-1).
+   *
+   * **제목을 세는 것으로는 이 축이 안 갈린다** — 두 방식 모두에서 제목은 살아 있다.
+   * 붙는 줄을 직접 본다.
+   */
+  it('줄 가운데의 여는 주석에는 짝을 안 붙인다 - 붙이면 그 글이 사라진다', () => {
+    const markdown = renderPortfolioMarkdown(
+      TEXT,
+      portfolio([{ id: 'a', title: '동기' }], { a: '입력 --> 출력 <!-- 메모' }),
+    )
+    expect(markdown).not.toContain(['-->', ''].join('\n'))
+    expect(new MarkdownIt({ html: true }).render(markdown)).toContain('메모')
+  })
+
+  it('줄 머리의 여는 주석에는 짝을 붙인다 - 그것만이 뒤를 삼킨다', () => {
     const markdown = renderPortfolioMarkdown(
       TEXT,
       portfolio(
@@ -537,13 +554,19 @@ describe('마크다운으로 옮긴다', () => {
           { id: 'a', title: '동기' },
           { id: 'b', title: '방법' },
         ],
-        { a: '입력 --> 출력 <!-- 메모', b: '잘 됐다' },
+        { a: '<!-- 메모', b: '잘 됐다' },
       ),
     )
-    const titles = [
-      ...new MarkdownIt({ html: true }).render(markdown).matchAll(/<h2>([^<]*)</g),
-    ].map(([, title]) => title)
-    expect(titles).toEqual(['동기', '방법'])
+    expect(markdown).toContain('-->')
+    expect(titlesIn(markdown)).toEqual(['동기', '방법'])
+  })
+
+  it('같은 줄에서 열고 닫은 주석에는 안 붙인다', () => {
+    const markdown = renderPortfolioMarkdown(
+      TEXT,
+      portfolio([{ id: 'a', title: '동기' }], { a: '<!-- 메모 --> 그리고 글' }),
+    )
+    expect(markdown.match(/-->/g)).toHaveLength(1)
   })
 
   it('제대로 닫은 코드 블록은 안 건드린다 - 안의 #도 그대로다', () => {
