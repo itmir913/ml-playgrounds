@@ -56,6 +56,50 @@ describe('openXlsx', { timeout: 20_000 }, () => {
     ])
   })
 
+  /**
+   * **셀 값이 문자열이 아니라 객체로 오는 갈래 넷.** ExcelJS는 수식·서식·날짜·오류 칸을
+   * 객체로 준다(`cellToString`). 네 가지 중 어느 것도 저장소가 한 번도 안 지나가서,
+   * 수식 가지를 죽여도 2,254개가 전부 초록이었다 (2026-08-30 R12 감사 A-4).
+   * `formula`·`richText`라는 낱말이 `tests/` 전체에 0건이었다.
+   *
+   * **교실 엑셀에서 합계·평균 열은 기본값에 가깝다.** 수식 칸이 빈 문자열이 되면 그 열이
+   * 통째로 비어 학습이 거부되거나(FEATURE_ALL_MISSING), 타깃이면 모든 행이 빠진다
+   * (SPLIT_TOO_FEW_ROWS). **2026-08-21의 폴백 사고와 같은 병이다** — 갈래를 세어야 한다.
+   */
+  describe('객체로 오는 셀', () => {
+    async function oneRow(value: unknown): Promise<string[][]> {
+      const workbook = new ExcelJS.Workbook()
+      const sheet = workbook.addWorksheet('S')
+      sheet.addRow(['머리글'])
+      sheet.addRow([value])
+      const bytes = new Uint8Array(await workbook.xlsx.writeBuffer())
+      return (await openXlsx(bytes)).readSheet('S')
+    }
+
+    it('수식 셀은 캐시된 결과를 읽는다', async () => {
+      expect(await oneRow({ formula: 'A1+1', result: 3 })).toEqual([['머리글'], ['3']])
+    })
+
+    it('서식이 섞인 셀은 조각을 이어 붙인다', async () => {
+      const rich = { richText: [{ text: '김' }, { text: '민수' }] }
+      expect(await oneRow(rich)).toEqual([['머리글'], ['김민수']])
+    })
+
+    it('오류 셀은 오류 글자를 그대로 준다', async () => {
+      expect(await oneRow({ error: '#DIV/0!' })).toEqual([['머리글'], ['#DIV/0!']])
+    })
+
+    /**
+     * **시간대까지는 안 못 박는다.** 두 파서가 시간대에서 갈리는 것이 이미 알려진 자리라
+     * (`data/xlsx.ts` 머리말), 여기서 보는 것은 **날짜 가지가 돌았는가**다. 안 돌면
+     * 빈 문자열이 되므로 ISO 모양 하나로 충분히 갈린다.
+     */
+    it('날짜 셀은 ISO 문자열이 된다', async () => {
+      const grid = await oneRow(new Date(Date.UTC(2026, 0, 2, 3, 4, 5)))
+      expect(grid[1]?.[0]).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    })
+  })
+
   it('후행 빈 셀이 있어도 모든 행의 길이가 같다', async () => {
     // 엑셀은 후행 빈 셀을 저장하지 않는다. 그대로 두면 세 번째 행이 2칸짜리가 되고
     // 전처리가 note 컬럼 자리에서 다른 값을 읽는다.
