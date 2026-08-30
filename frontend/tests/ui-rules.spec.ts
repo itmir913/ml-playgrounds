@@ -393,17 +393,34 @@ function unguardedButtons(source: string): string[] {
   }
   // 동기 래퍼: `function 이름(…) { … void 비동기것(…) … }`. **한 겹만 따라간다** —
   // 두 겹부터는 이 검사가 아니라 사람이 볼 자리다 (V11 R4 B-9).
-  for (const match of source.matchAll(/function (\w+)\s*\([^)]*\)[^{]*\{/g)) {
-    const name = match[1] ?? ''
-    if (asyncNames.has(name)) continue
-    const body = source.slice(match.index ?? 0, (match.index ?? 0) + 600)
-    const called = [...body.matchAll(/void (\w+)\(/g)].map((one) => one[1] ?? '')
-    if (called.some((one) => asyncNames.has(one))) asyncNames.add(name)
+  //
+  // **몸통은 `topLevelDeclarations`가 자른다.** 600자 창으로 자르던 때는 **뒤따르는
+  // 다른 함수의 몸통을 같이 읽었고**, 반대로 `void 비동기것(`이 600자 뒤에 있으면
+  // 그 래퍼를 놓쳤다 (R14-2 감사 C-1).
+  for (const declaration of topLevelDeclarations(source)) {
+    if (asyncNames.has(declaration.name)) continue
+    const called = [...declaration.body.matchAll(/void (\w+)\(/g)].map((one) => one[1] ?? '')
+    if (called.some((one) => asyncNames.has(one))) asyncNames.add(declaration.name)
   }
+
+  /**
+   * **`<AppButton>`만도 아니고 식별자 하나만도 아니다.**
+   *
+   * `<AppButton @click="이름">`만 보던 때는 저장소의 `@click` 93개 중 **15개**만
+   * 검사했다 — 맨 `<button>`도, `@click="fn(a)"`·`@click="() => fn()"`도 전부
+   * 빠져나갔다. 그런데 그 `it`의 이름은 `지금 소스에 안 막힌 버튼이 없다`였다
+   * (R14-2 감사 A-2).
+   *
+   * 핸들러 식에서 **불리는 이름을 전부 뽑아** 비동기 목록과 견준다.
+   */
   const template = source.slice(source.indexOf('<template>'))
-  return [...template.matchAll(/<AppButton[^>]*?@click="(\w+)"/gs)]
-    .map((match) => match[1] ?? '')
-    .filter((name) => asyncNames.has(name))
+  const found: string[] = []
+  for (const match of template.matchAll(/<(?:AppButton|button)\b[^>]*?@click="([^"]+)"/gs)) {
+    const handler = match[1] ?? ''
+    const names = [...handler.matchAll(/[A-Za-z_$][\w$]*/g)].map((one) => one[0])
+    found.push(...names.filter((name) => asyncNames.has(name)))
+  }
+  return found
 }
 
 /**
@@ -927,19 +944,40 @@ describe('예측 판은 화면에 양보한다', () => {
 describe('버튼의 상자가 변종마다 같다', () => {
   const SOURCE = readFileSync(join(SRC, 'components', 'AppButton.vue'), 'utf-8')
 
-  /** VARIANTS 표의 `이름: '클래스들'` 줄만 뽑는다. */
+  /**
+   * VARIANTS 표의 `이름: '클래스들'` 줄만 뽑는다.
+   *
+   * **따옴표로 감싼 열쇠도 읽는다.** `(\w+):`였을 때 `'ghost-danger':` 하나가 통째로
+   * 안 뽑혀 **여섯 중 다섯만 검사됐다** (R14-2 감사 A-1). 하이픈이 든 이름은 열쇠에
+   * 따옴표가 필요하므로, 이름을 늘리는 사람이 그 사실을 알 길이 없다.
+   */
   function variantClasses(source: string): [string, string][] {
     const table = source.slice(source.indexOf('const VARIANTS'))
-    return [...table.slice(0, table.indexOf('}')).matchAll(/(\w+):\s*'([^']*)'/g)].map((match) => [
-      match[1] ?? '',
-      match[2] ?? '',
-    ])
+    return [...table.slice(0, table.indexOf('}')).matchAll(/'?([\w-]+)'?:\s*'([^']*)'/g)].map(
+      (match) => [match[1] ?? '', match[2] ?? ''],
+    )
   }
 
-  it('검사기가 표를 실제로 읽는다', () => {
+  /** `type Variant = 'a' | 'b' | …`의 항들. 표가 몇 줄이어야 하는지의 유일한 출처다. */
+  function declaredVariants(source: string): string[] {
+    const line = /type Variant = ([^\n]+)/.exec(source)?.[1] ?? ''
+    return [...line.matchAll(/'([\w-]+)'/g)].map((match) => match[1] ?? '')
+  }
+
+  /**
+   * **이름 둘을 `toContain`으로 보는 것으로는 부족하다.** 그 둘이 하필 따옴표 없는
+   * 안전한 열쇠였고, 표에 몇이 들어왔는지는 아무도 안 셌다 (공통 §2.8).
+   */
+  it('검사기가 표를 통째로 읽는다 - 타입이 말하는 수만큼', () => {
     const names = variantClasses(SOURCE).map(([name]) => name)
-    expect(names).toContain('primary')
-    expect(names).toContain('ghost')
+    const declared = declaredVariants(SOURCE)
+    expect(declared.length, '변종 유니온을 읽어야 이 검사가 돈다').toBeGreaterThan(1)
+    expect([...names].sort()).toEqual([...declared].sort())
+  })
+
+  it('검사기가 따옴표로 감싼 열쇠도 읽는다', () => {
+    const table = "const VARIANTS = {\n  'ghost-danger': 'text-danger',\n}"
+    expect(variantClasses(table)).toEqual([['ghost-danger', 'text-danger']])
   })
 
   it('검사기가 테두리 없는 변종을 잡는다', () => {
@@ -1038,13 +1076,48 @@ describe('버튼이 두 번 눌리지 않는다', () => {
     expect(unguardedButtons(source)).toEqual([])
   })
 
+  /**
+   * **기다리는 것이 다음 틱뿐인 둘.** 규칙이 지키려는 것은 "오래 걸리는 일"이고,
+   * 이 둘은 두 번 눌려도 같은 자리에 머문다. **파일과 이름을 함께 못 박는다** —
+   * 이름만 적으면 다른 화면의 같은 이름이 조용히 함께 빠져나간다.
+   */
+  const ALLOWED = new Set([
+    // 가드 자신이다. 이 함수가 `blocked`를 보고 두 번째 클릭을 버린다.
+    'components/AppButton.vue  run',
+    // `await nextTick()` 뒤에 `select()`뿐이다. 두 번 누르면 글자가 두 번 선택된다.
+    'components/ProjectName.vue  start',
+  ])
+
   it('지금 소스에 안 막힌 버튼이 없다', () => {
     const found = vueFiles(SRC).flatMap((path) =>
       unguardedButtons(readFileSync(path, 'utf-8')).map(
-        (name) => `${path.slice(SRC.length + 1)}  ${name}`,
+        (name) =>
+          `${path
+            .slice(SRC.length + 1)
+            .split('\\')
+            .join('/')}  ${name}`,
       ),
     )
-    expect(found).toEqual([])
+    expect(found.filter((one) => !ALLOWED.has(one))).toEqual([])
+  })
+
+  /**
+   * **허용 목록이 실재하는 자리를 가리키는가.** 안 그러면 다음 사람이 그 파일을
+   * 고치거나 지웠을 때 목록만 남아 "여기는 봤다"고 거짓말한다.
+   */
+  it('허용한 둘이 실제로 그 자리에 있다', () => {
+    const found = new Set(
+      vueFiles(SRC).flatMap((path) =>
+        unguardedButtons(readFileSync(path, 'utf-8')).map(
+          (name) =>
+            `${path
+              .slice(SRC.length + 1)
+              .split('\\')
+              .join('/')}  ${name}`,
+        ),
+      ),
+    )
+    expect([...ALLOWED].filter((one) => !found.has(one))).toEqual([])
   })
 })
 
