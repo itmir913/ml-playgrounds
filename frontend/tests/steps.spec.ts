@@ -330,6 +330,34 @@ describe('지금 할 일', () => {
       expect(state[found.key]).toBe(false)
     }
   })
+
+  /**
+   * **바닥에 난 구멍을 막는다.** 위 검사는 전수를 돌지만 단언이 한 방향뿐이라 —
+   * "돌려준 것이 옳은가"만 보고 "돌려줘야 하는데 안 돌려준 것이 없는가"는 안 본다.
+   * `null`이 늘어나는 회귀는 256조합 전부에서 `continue`로 빠져나간다. 실제로
+   * `currentTask`의 `continue`를 `break`로 바꿔도 저장소 전체가 초록이었다
+   * (R13-5 감사 A-5).
+   *
+   * **지어낸 상태가 아니다.** 모델이 예산에서 밀려 `modelReady`가 거짓인 프로젝트가
+   * 정확히 그 모양이고(`mlpx-spec.md` §4.2), 그때 예측 단계는 영구히 잠긴다. 그래도
+   * 포트폴리오는 열려 있으므로 대시보드가 할 일을 내놓아야 한다 — 안 내놓으면 학생은
+   * 쓸 수 있는 것이 있는데 화면이 아무 말도 안 한다.
+   */
+  it('열린 단계에 남은 일이 있으면 반드시 돌려준다', () => {
+    for (const state of everyCombination()) {
+      const remaining = STEP_IDS.filter(
+        (step) =>
+          isStepUnlocked(step, state) && stepTasks(step, state, TASK).some((task) => !task.done),
+      )
+      const found = currentTask(state, TASK)
+
+      if (remaining.length === 0) {
+        expect(found, JSON.stringify(state)).toBeNull()
+        continue
+      }
+      expect(found, JSON.stringify(state)).not.toBeNull()
+    }
+  })
 })
 
 describe('잠긴 단계를 요청했을 때', () => {

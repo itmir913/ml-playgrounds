@@ -342,6 +342,7 @@ describe('축 선의 색', () => {
     return options.scales?.[axis] as {
       grid?: { color?: string }
       border?: { color?: string }
+      ticks?: { color?: string }
     }
   }
 
@@ -357,9 +358,23 @@ describe('축 선의 색', () => {
     }
   })
 
-  // 범주 설정은 축 설정 **뒤에** 펼쳐진다. 거기에 같은 열쇠가 생기면 조용히 덮인다.
-  it('범주 축이 되어도 선 색이 안 지워진다', () => {
-    expect(lineOf(optionsOf(2, { x: ['서울', '부산'] }), 'x').border?.color).toBe(TOKENS.line)
+  /**
+   * 범주 설정은 축 설정 **뒤에** 펼쳐진다. 거기에 같은 열쇠가 생기면 조용히 덮인다.
+   *
+   * **덮이는 열쇠는 `ticks` 하나다.** `categoryScale`이 돌려주는 것은 `min`·`max`·`ticks`
+   * 셋뿐이라 `grid`도 `border`도 안 건드린다 — 그래서 저 둘만 보던 단언은 **어떤
+   * 회귀에서도 빨개질 수 없었다**(R13-5 감사 A-1). 정작 사라지는 것은 눈금 글자색이고,
+   * 없으면 Chart.js 기본 회색이 되어 어두운 배색에서 범주 이름이 거의 안 보인다.
+   */
+  it('범주 축이 되어도 눈금 글자색이 안 지워진다', () => {
+    expect(lineOf(optionsOf(2, { x: ['서울', '부산'] }), 'x').ticks?.color).toBe(TOKENS.ink)
+  })
+
+  /** 위와 짝이다 — 이 둘은 덮이지 않는다는 사실을 못 박아 둔다. */
+  it('범주 축이 되어도 축 선과 격자는 그대로다', () => {
+    const line = lineOf(optionsOf(2, { x: ['서울', '부산'] }), 'x')
+    expect(line.border?.color).toBe(TOKENS.line)
+    expect(line.grid?.color).toBe(TOKENS.line)
   })
 })
 
