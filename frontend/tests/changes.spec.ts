@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { describeChanges, memberDiff } from '../src/ml/changes'
+import type { ComparableSource } from '../src/ml/experiment'
 import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/ml/experiment'
 import { dataSnapshot } from '../src/project/schema'
 import type { RuntimeContext } from '../src/ml/backend'
@@ -211,6 +212,24 @@ describe('목록의 들고 남', () => {
     })
   })
 
+  /**
+   * **어느 쪽에서 읽어도 같다는 말이 검사로 서 있지 않았다.** 검사가 쓰는 두 목록이
+   * 언제나 `itemKind`를 함께 갖거나 함께 안 가져서, 가운데 폴백을 지워도 조용했다
+   * (R13-5 감사 C-7). 지운 목록에만 종류가 붙은 상태가 그 자리다.
+   */
+  it('종류가 한쪽에만 있어도 읽는다', () => {
+    const withKind = {
+      kind: 'count' as const,
+      count: 1,
+      items: ['개'],
+      itemKind: 'model' as const,
+    }
+    const without = { kind: 'count' as const, count: 1, items: ['고양이'] }
+
+    expect(memberDiff(withKind, without)?.itemKind).toBe('model')
+    expect(memberDiff(without, withKind)?.itemKind).toBe('model')
+  })
+
   it('원본 순서를 지킨다 - 학생이 고른 순서가 곧 표의 순서다', () => {
     expect(memberDiff(list('a', 'b', 'c'), list('c', 'z', 'a', 'y'))).toEqual({
       added: ['z', 'y'],
@@ -262,6 +281,69 @@ describe('하이퍼파라미터는 어느 모델의 것인지를 함께 준다',
   it('경로가 파일에 적힌 그대로다 - 우리가 다시 계산하지 않는다', () => {
     const { second } = twice({ hyperparameters: { decision_tree: { mljs: { maxDepth: 3 } } } })
     expect(second.changed).toContain('hyperparameters.decision_tree:mljs.maxDepth')
+  })
+})
+
+/**
+ * **이미지 다섯은 `describeChanges`를 한 번도 안 지났다** (R13-5 감사 C-4).
+ *
+ * 이 파일이 태우는 경로는 전부 표 설정이라, 등록부의 이미지 줄 다섯이 실행되지 않았다.
+ * `shortHash`의 자르기를 빼도 `joined`의 구분자를 바꿔도 조용했다.
+ *
+ * `rowsHash`는 **R6 감사 A-1이 "없으면 라벨 맞바꾸기가 이력에서 통째로 사라진다"고 적어
+ * 둔 줄**이다 — 사진을 그대로 두고 라벨만 옮기면 장수도 범주 목록도 안 바뀌므로,
+ * 그 해시가 이력의 유일한 신호다.
+ */
+describe('이미지 설정의 변경도 말한다', () => {
+  const imageSource = (data: Record<string, unknown>): ComparableSource => {
+    const { first } = twice({})
+    return {
+      ...first,
+      settings: { ...first.settings, data: data as never },
+    }
+  }
+
+  const BEFORE = {
+    categories: ['개', '고양이'],
+    categoryCounts: [3, 4],
+    unlabeledCount: 1,
+    backboneId: 'mobilenet-v2-r2',
+    rowsHash: 'aaaaaaaabbbbbbbbcccccccc',
+  }
+
+  it('사진 차례가 바뀌면 앞 여덟 자로 말한다 - 라벨만 옮긴 것이 여기로 온다', () => {
+    const changes = describeChanges(
+      imageSource(BEFORE),
+      imageSource({ ...BEFORE, rowsHash: 'zzzzzzzzyyyyyyyyxxxxxxxx' }),
+      ['rowsHash'],
+    )
+
+    expect(changes[0]?.labelKey).toBe('meta.image.photoOrder')
+    expect(changes[0]?.from).toEqual({ kind: 'literal', text: 'aaaaaaaa' })
+    expect(changes[0]?.to).toEqual({ kind: 'literal', text: 'zzzzzzzz' })
+  })
+
+  it('범주별 장수와 범주 목록과 라벨 없는 장수와 백본을 말한다', () => {
+    const changes = describeChanges(
+      imageSource(BEFORE),
+      imageSource({
+        ...BEFORE,
+        categoryCounts: [3, 9],
+        categories: ['개', '고양이', '토끼'],
+        unlabeledCount: 0,
+        backboneId: 'mobilenet-v2',
+      }),
+      ['categoryCounts', 'categories', 'unlabeledCount', 'backboneId'],
+    )
+
+    expect(changes.map((one) => one.labelKey)).toEqual([
+      'meta.image.photosPerCategory',
+      'meta.image.categories',
+      'meta.image.unlabeledCount',
+      'meta.image.backbone',
+    ])
+    expect(changes[0]?.to).toEqual({ kind: 'literal', text: '3 · 9' })
+    expect(changes[3]?.to).toEqual({ kind: 'literal', text: 'mobilenet-v2' })
   })
 })
 

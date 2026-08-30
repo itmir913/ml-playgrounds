@@ -34,6 +34,7 @@ import {
   predictDownloadGrid,
   predictPage,
   predictPageSignature,
+  shuffled,
   toggleAllFilter,
   toggleFilter,
   rankAnswers,
@@ -557,6 +558,28 @@ describe('예측에 쓸 수 있는 모델', () => {
     expect(list[0]?.reason).toBeUndefined()
   })
 
+  /**
+   * **최신 실험이 위다.** `.reverse()` 한 줄에 화면 셋이 매여 있다 — 예측 목록의 순서,
+   * 필터 칩의 순서(`experimentFilterOptions`가 "모델 목록에 나오는 순서"를 지킨다고
+   * 적는다), 그리고 입력 칸의 순서(`mergeFields`가 "최신 실험이 앞에 오도록 넘기면
+   * 화면의 칸 순서가 지금 설정과 같아진다"고 적는다).
+   *
+   * 그 줄을 지워도 `lifecycle.spec.ts`를 포함해 저장소 전체가 초록이었다
+   * (R13-5 감사 C-2).
+   */
+  it('최신 실험이 위다 - 화면 셋의 순서가 이 줄에 매여 있다', () => {
+    const document = documentWith([base])
+    const older = document.runs.experiments[0]!
+    document.runs.experiments = [
+      { ...older, id: 'experiment-old', runs: [{ ...base, id: 'run-old' }] },
+      { ...older, id: 'experiment-new', runs: [{ ...base, id: 'run-new' }] },
+    ]
+
+    const list = predictableModels(document, true)
+
+    expect(list.map((one) => one.experiment.id)).toEqual(['experiment-new', 'experiment-old'])
+  })
+
   it('실패한 run은 목록에 없다 - 지표조차 없는 줄이다', () => {
     const failed: Run = {
       ...base,
@@ -614,6 +637,22 @@ describe('여러 실험의 칸을 합친다', () => {
     const seoulBusan = inputFields(fitFor(experiment([0, 1], onehot)))
     const daegu = inputFields(fitFor(experiment([3], onehot)))
     const merged = mergeFields([seoulBusan, daegu])
+
+    expect(merged.find((field) => field.name === '지역')?.options).toEqual(['서울', '부산', '대구'])
+  })
+
+  /**
+   * **겹치는 값이 있어야 중복 제거가 일을 한다.** 위 검사의 두 목록은 겹치는 값이 하나도
+   * 없어 `includes` 가드가 항등이었고, 지워도 저장소 전체가 초록이었다 (R13-5 감사 C-1).
+   *
+   * **실물은 겹치는 것이 정상이다** — 같은 데이터로 여러 번 학습한 실험들이라 범주가
+   * 거의 같다. 그때 예측 화면의 드롭다운이 `서울 · 부산 · 서울 · 부산 · 대구`가 된다.
+   */
+  it('겹치는 범주를 두 번 담지 않는다', () => {
+    const seoulBusan = inputFields(fitFor(experiment([0, 1], onehot)))
+    const all = inputFields(fitFor(experiment([0, 1, 3], onehot)))
+
+    const merged = mergeFields([seoulBusan, all])
 
     expect(merged.find((field) => field.name === '지역')?.options).toEqual(['서울', '부산', '대구'])
   })
@@ -851,6 +890,15 @@ describe('답 값별 등수 - 갈림표 칩과 카드가 같은 색을 쓰기 �
 
     expect(answerRank(model, new Map(), ranks)).toBeNull()
   })
+
+  /** 셀 것이 없으면 등수도 없다. `rankAnswers`가 `null`을 주는 자리와 짝이다. */
+  it('등수표가 없으면 등수도 없다', () => {
+    const subject = experiment([0], onehot)
+    const model: PredictableModel = { experiment: subject, run: runOf('r1') }
+    const answers = new Map([['r1', { value: 'a', kind: 'label' } as Answer]])
+
+    expect(answerRank(model, answers, null)).toBeNull()
+  })
 })
 
 describe('일괄 예측 표의 값별 색 배정 - 등수가 아니라 처음 본 순서다 (architecture.md 8.13.1)', () => {
@@ -1038,6 +1086,19 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
   it('전처리기나 predictor가 없으면 화면 쪽 버그로 취급해 실패 칸을 준다', () => {
     const page = predictPage([model], [cellsOf(0)], new Map(), new Map(), noProba, fileColumns)
     expect(page[0]?.[0]?.failure?.code).toBe('MODEL_FILE_INVALID')
+  })
+
+  /**
+   * **모델 순서가 바뀌었다고 다시 계산하지 않는다.** 서명이 순서에 흔들리면 목록을 다시
+   * 세울 때마다 캐시가 통째로 버려지고, 저사양 교실 PC가 이미 한 예측을 또 한다.
+   * `.sort()`를 지워도 저장소가 조용했다 (R13-5 감사 C-5).
+   */
+  it('서명은 모델 순서에 안 흔들린다', () => {
+    const second: PredictableModel = { ...model, run: runOf('r2') }
+
+    expect(predictPageSignature('hash-1', [second, model])).toBe(
+      predictPageSignature('hash-1', [model, second]),
+    )
   })
 
   it('서명은 파일 해시·모델·전처리 설정이 바뀌면 달라진다', () => {
@@ -1425,6 +1486,9 @@ describe('군집의 답은 번호가 아니라 이름으로 쓴다', () => {
     expect(clusterNumberOf(classification, '3')).toBeNull()
     // 범주 이름이 답인 군집은 없다 - 숫자로 안 읽히면 그릴 것이 없다.
     expect(clusterNumberOf(clustering, '개')).toBeNull()
+    // **`Number()`가 아니라 정수인지까지 본다.** 소스가 그렇게 적어 두었는데 검사의
+    // 입력에 소수가 하나도 없었다 (R13-5 감사 C-5). 군집 번호는 정수다.
+    expect(clusterNumberOf(clustering, '1.5')).toBeNull()
   })
 
   /**
@@ -1696,5 +1760,22 @@ describe('칸의 상태를 가른다', () => {
   /** 회귀는 0을 답으로 낸다. `!value`로 보면 그 칸이 통째로 사라진다. */
   it('0도 답이다', () => {
     expect(answerState({ value: 0 })).toBe('value')
+  })
+})
+
+/**
+ * **제자리에서 안 바꾼다.** 그 함수의 주석이 *"원본을 공유하는 곳이 있으면 그쪽이
+ * 놀란다"*고 적는데, `[...items]`를 지워도 검사도 타입도 조용했다 (R13-5 감사 C-3).
+ * 지금 부르는 두 곳이 배열 리터럴을 넘겨서 해가 없을 뿐이다.
+ */
+describe('섞기', () => {
+  it('원본을 안 건드리고 같은 원소를 돌려준다', () => {
+    const items = [1, 2, 3, 4, 5, 6, 7, 8]
+    const before = [...items]
+
+    const mixed = shuffled(items)
+
+    expect(items, '원본이 제자리에서 바뀌었다').toEqual(before)
+    expect([...mixed].sort((a, b) => a - b)).toEqual(before)
   })
 })

@@ -1493,6 +1493,11 @@ const props = defineProps<{ run: Run; dataset: Dataset | null }>()
   })
 })
 
+/**
+ * **`.vue`만 본다.** 이름 그대로 화면 코드의 규칙이라 의도한 범위다. `.ts`에서 파라미터를
+ * 넘겨 `t()`를 부르는 자리는 지금 없지만, 생기면 이 훑기가 못 본다
+ * (R13-5 감사 C-8). `src/composables/`에는 `useI18n()`을 쓰는 `.ts`가 이미 있다.
+ */
 describe('지금 화면 코드에 위반이 없다', () => {
   for (const rule of RULES) {
     it(`${rule.name} — ${rule.why}`, () => {

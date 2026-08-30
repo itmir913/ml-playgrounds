@@ -491,4 +491,56 @@ describe('상한마다 분류가 달려 있다', () => {
     expect(classOf(fake, 'MAX_BEFORE')).toBe('계산 자체가 요구한다')
     expect(classOf(fake, 'MAX_AFTER')).toBeNull()
   })
+
+  /**
+   * **결정문의 전수 목록과 소스의 태그가 같은 수를 센다.**
+   *
+   * 위 `분류가 없는 상한이 없다`는 태그가 **달려 있는가**와 **여섯 중 하나인가**만 본다.
+   * 어느 상수가 어느 칸인지는 결정문의 표에만 있고 **그 표는 손으로 센다** — 실제로
+   * 한 번 낡았다(44개라 적혀 있는데 52개였다, R13-5 감사 C-6). 그 표가 낡으면 다음 사람이
+   * off 스위치가 무엇을 끄는지를 틀린 목록에서 읽는다.
+   *
+   * **개수만 본다.** 결정문이 이름을 줄여 적기 때문이다(`MLJS_*_ROW_LIMIT` 여덟). 그래서
+   * **못 보는 것: 두 상수가 칸을 맞바꾸는 것** — 그때는 개수가 그대로다. 그건 사람이 볼
+   * 자리이고, 이 검사가 잡는 것은 **더 흔한 쪽**인 "상수를 더하거나 옮기고 표를 안 고쳤다"다.
+   */
+  describe('분류 목록이 결정문과 같은 수를 센다', () => {
+    const DECISION = join(process.cwd(), '..', 'docs', 'open-decisions', '06-audit.md')
+
+    /** 결정문 표의 `| **분류** (N) | …` 줄들. */
+    function documented(): Map<string, number> {
+      const text = readFileSync(DECISION, 'utf-8')
+      const found = new Map<string, number>()
+      for (const match of text.matchAll(/^\| \*\*(.+?)\*\*(?: \((\d+)\))? \|/gm)) {
+        const count = match[2]
+        if (count !== undefined) found.set(match[1] ?? '', Number(count))
+      }
+      return found
+    }
+
+    /** 소스의 태그별 개수. `분류가 없는 상한이 없다`와 같은 `classOf`를 쓴다. */
+    function counted(): Map<string, number> {
+      const found = new Map<string, number>()
+      for (const name of NAMES) {
+        const cls = classOf(SOURCE, name)
+        if (cls !== null) found.set(cls, (found.get(cls) ?? 0) + 1)
+      }
+      return found
+    }
+
+    it('읽을 표를 실제로 찾는다', () => {
+      // 문서가 옮겨 가거나 표 모양이 바뀌면 0개가 되고 아래 검사가 영원히 초록이 된다.
+      expect(existsSync(DECISION)).toBe(true)
+      expect(documented().size).toBe(CLASSES.length)
+    })
+
+    it('분류마다 개수가 같다', () => {
+      const doc = documented()
+      const source = counted()
+      const wrong = CLASSES.filter((cls) => (doc.get(cls) ?? 0) !== (source.get(cls) ?? 0)).map(
+        (cls) => `${cls}: 결정문 ${doc.get(cls) ?? 0} · 소스 ${source.get(cls) ?? 0}`,
+      )
+      expect(wrong, '결정문의 전수 목록을 함께 고쳐라 (open-decisions/06-audit.md)').toEqual([])
+    })
+  })
 })
