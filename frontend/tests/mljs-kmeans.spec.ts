@@ -18,6 +18,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
+import { engineFor } from '../src/ml/engines'
 import { fitKMeans } from '../src/ml/engines/mljs-kmeans'
 import { CLUSTER_EVALUATOR } from '../src/ml/metrics'
 
@@ -225,5 +226,36 @@ describe('재현 가능성', () => {
   it('다른 씨앗이면 초기화가 갈린다 - 씨앗이 안 쓰이면 여기가 빨개진다', () => {
     const answers = [3, 11, 29].map((seed) => JSON.stringify(fitKMeans(SPREAD, 3, seed).centroids))
     expect(new Set(answers).size, '씨앗이 fitKMeans 안까지 안 닿았다').toBeGreaterThan(1)
+  })
+
+  /**
+   * **한 홉을 더 간다.** 위 검사는 `fitKMeans`를 **직접 부르므로** 그 함수가 받은 씨앗을
+   * 쓰는지만 본다. 실험이 실제로 지나는 길은 `engineFor('mljs').fit('k_means', input)`이고,
+   * 그 어댑터가 `input.randomState`를 안 넘겨도 아무도 안 울었다 (R13-2 감사 A-3).
+   *
+   * **분류·회귀에는 이 이음매 검사가 이미 있다** — `experiment.spec.ts`가 `provided`
+   * 하니스로 SVM과 배깅을 태운다. 군집은 **타깃이 없어 `provided`가 안 서서** 그 하니스에
+   * 못 올라가고, 그래서 여기가 그 자리다.
+   *
+   * R9 감사 A-4가 잡았던 것과 같은 자리다 — 그때 고침이 직접 호출 검사만 세워
+   * 어댑터 한 홉을 남겼다.
+   */
+  it('어댑터도 씨앗을 넘긴다 - 엔진 등록부를 지나서 본다', () => {
+    const engine = engineFor('mljs')
+    expect(engine, 'mljs 엔진이 등록부에 있어야 한다').toBeDefined()
+
+    const answers = [3, 11, 29].map((seed) =>
+      JSON.stringify(
+        engine!.fit('k_means', {
+          features: SPREAD,
+          rowIndices: SPREAD.map((_, index) => index),
+          target: [],
+          hyperparameters: { nClusters: 3 },
+          randomState: seed,
+        }).clusterResult?.centroids,
+      ),
+    )
+
+    expect(new Set(answers).size, '씨앗이 어댑터에서 끊겼다').toBeGreaterThan(1)
   })
 })

@@ -72,6 +72,25 @@ function withRun(experiment: Experiment, index: number, overrides: Partial<Run>)
 }
 
 describe('재실행 대조', () => {
+  /**
+   * **견줄 것이 하나도 없으면 재현됐다고 말하지 않는다.**
+   *
+   * `same`의 `Object.keys(deltas).length > 0` 가드를 지우면 `every`가 공허하게 참이 되어
+   * **아무것도 안 견주고 `REPRODUCED`**를 낸다. 지워도 저장소 전체가 초록이었다
+   * (R13-2 감사 A-4).
+   *
+   * **도달한다.** `metrics`는 `z.record(...).optional()`이라 `"metrics": {}`인 `done` run은
+   * 스키마를 통과하는 정상 `.mlpx`이고, 그런 파일이 이 층의 위협 모형 자체다 —
+   * 학생이 학습 전에 `runs.json`을 고치고 저장하면 해시는 멀쩡하다.
+   */
+  it('견줄 지표가 없으면 재현됐다고 말하지 않는다', () => {
+    const experiment = withRun(trained(['decision_tree']), 0, { metrics: {} })
+    const found = reproduceExperiment({ experiment, dataset, testDataset: null })
+
+    expect(found).toHaveLength(1)
+    expect(found[0]?.status).not.toBe('REPRODUCED')
+  })
+
   it('방금 학습한 실험은 그대로 재현된다', () => {
     const experiment = trained(['decision_tree', 'knn', 'naive_bayes', 'svm'])
     const found = reproduceExperiment({ experiment, dataset, testDataset: null })
@@ -363,6 +382,10 @@ describe('테스트 파일이 따로 온 실험', () => {
     const { experiment } = providedExperiment()
     const found = reproduceExperiment({ experiment, dataset, testDataset: null })
 
+    // **바닥이다.** 없으면 이 순회가 0회 돌고 초록이라, 지키는 것이 "말한다"가 아니라
+    // "적어도 거짓말은 안 한다"까지로 줄어든다. 실제로 앞에 `return []` 한 줄을 끼워도
+    // 저장소 전체가 초록이었다 (R13-2 감사 A-5). 그때 교사는 아무 줄도 못 본다.
+    expect(found).toHaveLength(2)
     for (const one of found) expect(one.status, one.algorithm).not.toBe('REPRODUCED')
   })
 })
