@@ -24,6 +24,7 @@ import { useFormat } from '@/composables/useFormat'
 import { CLUSTER_NEIGHBOR_ROW_COUNT, CLUSTER_SCATTER_POINT_LIMIT } from '@/limits'
 import type { ClusterHighlight } from '@/ml/cluster-chart'
 import {
+  axisCell,
   axisValues,
   clusterMaterialFor,
   explainsAsClusters,
@@ -56,6 +57,18 @@ const props = defineProps<{
 const ClusterScatter = defineAsyncComponent(() => import('@/components/ClusterScatter.vue'))
 
 const { t } = useI18n()
+
+/**
+ * 축의 한 칸을 글자로. **판정은 여기서 하지 않는다** (`ml/clusters.ts`의 `axisCell`) —
+ * 결과 화면이 같은 규칙을 손으로 한 벌 더 쓰고 있었고 두 갈래를 맞바꿔도 조용했다
+ * (2026-08-31 사각 감사 A-3).
+ */
+function cellText(axis: ClusterAxis, value: number): string {
+  const cell = axisCell(axis, value)
+  if (cell.kind === 'category') return cell.name
+  if (cell.kind === 'unknownCategory') return t('meta.none')
+  return format.stat(cell.value)
+}
 const format = useFormat()
 
 interface Neighborhood {
@@ -217,9 +230,7 @@ const neighborhood = computed<Neighborhood | null>(() => {
         // **범주 축은 최빈 범주의 이름이다** (open-decisions.md "군집 산점도의 축").
         // 번호를 그대로 보이면 학생이 그 수를 값으로 읽는다.
         // 수치 축은 지표가 아니라 학생의 데이터 단위다 (`useFormat.ts`의 `formatPrediction`).
-        value: axis.categories
-          ? (axis.categories[Math.round(summary.means[position] ?? 0)] ?? t('meta.none'))
-          : format.stat(summary.means[position] ?? 0),
+        value: cellText(axis, summary.means[position] ?? 0),
       })),
       columns: dataset.columns,
       rows: rows.map((row) => dataset.rows[row] ?? []),

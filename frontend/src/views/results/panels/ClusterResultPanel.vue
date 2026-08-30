@@ -24,6 +24,7 @@ import TermPopover from '@/components/TermPopover.vue'
 import { useFormat } from '@/composables/useFormat'
 import { CLUSTER_MEMBER_PAGE_SIZE, CLUSTER_SCATTER_POINT_LIMIT } from '@/limits'
 import {
+  axisCell,
   axisOverviews,
   clusterMaterialFor,
   clusterMembers,
@@ -179,9 +180,14 @@ function axisHelp(position: number): string {
  * 번호를 그대로 보이지 않는다 — 화면에 뜨는 순간 학생이 그 수를 값으로 읽는다.
  */
 function cellText(position: number, value: number): string {
-  const categories = axes.value[position]?.categories
-  if (!categories) return format.stat(value)
-  return categories[Math.round(value)] ?? t('meta.none')
+  const axis = axes.value[position]
+  if (!axis) return format.stat(value)
+  // **판정은 여기서 하지 않는다** (`ml/clusters.ts`의 `axisCell`). 화면 둘이 같은
+  // 규칙을 손으로 다시 쓰고 있었다 (2026-08-31 사각 감사 A-3).
+  const cell = axisCell(axis, value)
+  if (cell.kind === 'category') return cell.name
+  if (cell.kind === 'unknownCategory') return t('meta.none')
+  return format.stat(cell.value)
 }
 
 function clusterName(cluster: number): string {

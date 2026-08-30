@@ -95,6 +95,28 @@ export function isCategoricalAxis(axis: ClusterAxis): boolean {
   return axis.categories !== undefined
 }
 
+/** 축의 한 칸이 무엇으로 읽히는가. 화면은 이 결과를 글자로만 바꾼다. */
+export type AxisCell =
+  | { readonly kind: 'category'; readonly name: string }
+  /** 범주 축인데 그 번호에 이름이 없다. 화면이 "없음"이라고 말한다. */
+  | { readonly kind: 'unknownCategory' }
+  | { readonly kind: 'number'; readonly value: number }
+
+/**
+ * 축의 값 하나를 무엇으로 읽을지. **범주 축은 최빈 범주의 이름이다**
+ * (`open-decisions.md` "군집 산점도의 축") — 번호를 그대로 보이면 학생이 그 수를
+ * 값으로 읽는다.
+ *
+ * **판정을 한 군데 둔다** (위 `isCategoricalAxis`와 같은 이유). 화면 둘이 이 규칙을
+ * 손으로 다시 쓰고 있었고, 두 갈래를 맞바꿔도 저장소가 조용했다 — 그때 화면에는
+ * `체육` 자리에 `1.02`가, `78.4` 자리에 `없음`이 뜬다 (2026-08-31 사각 감사 A-3).
+ */
+export function axisCell(axis: ClusterAxis, value: number): AxisCell {
+  if (!isCategoricalAxis(axis)) return { kind: 'number', value }
+  const name = axis.categories?.[Math.round(value)]
+  return name === undefined ? { kind: 'unknownCategory' } : { kind: 'category', name }
+}
+
 /**
  * 전처리기가 만드는 행렬의 열 순서를 되짚는다.
  *

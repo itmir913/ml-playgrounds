@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
 import {
+  axisCell,
   assignClusters,
   axisOverviews,
   categoryIndexAt,
@@ -772,5 +773,37 @@ describe('군집 요약표의 머리 문장', () => {
 
   it('축이 없으면 평균 문장이다 - 없는 것을 이름으로 말하지 않는다', () => {
     expect(clusterSummaryLeadKey([])).toBe('results.tabular.clusterSummaryLead')
+  })
+})
+
+/**
+ * 축의 한 칸을 무엇으로 읽는가 (`axisCell`).
+ *
+ * **화면 둘이 이 규칙을 손으로 다시 쓰고 있었다** (2026-08-31 사각 감사 A-3).
+ * `ml/clusters.ts`가 *"판정을 한 군데 둔다 — `categories`를 직접 보지 마라"*고
+ * 적어 두었는데도 그랬고, 두 갈래를 맞바꿔도 저장소가 조용했다 — 그때 화면에는
+ * **`체육` 자리에 `1.02`가, `78.4` 자리에 `없음`이 뜬다.**
+ */
+describe('축의 한 칸이 무엇으로 읽히나', () => {
+  const numeric: ClusterAxis = { name: '키', index: 0, width: 1 }
+  const categorical: ClusterAxis = { name: '반', index: 1, width: 2, categories: ['A', 'B'] }
+
+  it('수치 축은 수 그대로다', () => {
+    expect(axisCell(numeric, 1.02)).toEqual({ kind: 'number', value: 1.02 })
+  })
+
+  it('범주 축은 최빈 범주의 이름이다 - 번호를 보이면 학생이 값으로 읽는다', () => {
+    expect(axisCell(categorical, 0)).toEqual({ kind: 'category', name: 'A' })
+    // 소수는 반올림한다. 평균이 0.6이면 그 군집의 최빈은 두 번째다.
+    expect(axisCell(categorical, 0.6)).toEqual({ kind: 'category', name: 'B' })
+  })
+
+  it('범주 축인데 그 번호에 이름이 없으면 없음이다', () => {
+    expect(axisCell(categorical, 9)).toEqual({ kind: 'unknownCategory' })
+  })
+
+  it('범주가 빈 배열이어도 수치로 읽지 않는다', () => {
+    const empty: ClusterAxis = { name: '반', index: 1, width: 0, categories: [] }
+    expect(axisCell(empty, 0)).toEqual({ kind: 'unknownCategory' })
   })
 })

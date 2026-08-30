@@ -426,6 +426,32 @@ describe('parseProjectDocument', () => {
     const fine = { ...document, runs: { experiments: [experimentWith(settings.data)] } }
     expect(parseProjectDocument(fine).runs.experiments).toHaveLength(1)
   })
+
+  /**
+   * **실험이 하나뿐인 픽스처는 자리를 안 가른다** — `index`를 `0`으로 박아도 조용했다
+   * (2026-08-31 사각 감사 C-1). 화면은 이 경로를 그대로 보여주므로, 어느 실험이
+   * 어긋났는지가 틀리면 학생과 교사가 엉뚱한 자리를 본다.
+   */
+  it('어긋난 실험이 몇 번째인지 경로가 말한다', () => {
+    const broken = {
+      ...document,
+      runs: {
+        experiments: [
+          experimentWith(settings.data),
+          experimentWith(settings.data),
+          experimentWith(imageSnapshot),
+        ],
+      },
+    }
+    try {
+      parseProjectDocument(broken)
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error)).toBe(true)
+      if (!isClientError(error)) return
+      expect(String(error.params.path)).toMatch(/^runs\.experiments\.2\.settings\.data/)
+    }
+  })
 })
 
 /**
