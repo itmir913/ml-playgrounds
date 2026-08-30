@@ -222,6 +222,61 @@ describe('로지스틱 수렴 경고 (mlpx-spec.md 5.9)', () => {
     })
     expect(warning).toBeUndefined()
   })
+
+  /**
+   * **스케일이 갈린 데이터에서는 반복을 늘려도 안 된다** (2026-08-31, 실물 `.mlpx`).
+   *
+   * 경고문이 `maxIter`를 늘리라고만 말하던 것이 막다른 길이었다 — 기압과 기온이 함께
+   * 있는 3,652행에서 20,000회를 돌려도 기울기가 소수점까지 같았고, 표준화하면 41회에
+   * 수렴했다. 여기서는 같은 병을 작은 합성 데이터로 못 박는다: 한 열의 규모만 1,000배
+   * 키운다 (`open-decisions.md` "로지스틱 회귀 솔버를 sklearn과 같은 구조로 바꾼다"의
+   * "실물이 꺼낸 것").
+   */
+  describe('스케일이 갈리면 반복을 늘려도 안 되고, 표준화하면 수렴한다', () => {
+    const ROWS = 240
+    // 두 열은 같은 신호를 담고 규모만 다르다. 결정적이라 난수가 없다.
+    const raw: number[][] = []
+    const labels: string[] = []
+    for (let i = 0; i < ROWS; i += 1) {
+      const t = (i % 40) - 20 + (i % 7) * 0.3
+      raw.push([t, 1000 * t + 1_000_000])
+      labels.push(t > 0 ? 'yes' : 'no')
+    }
+    const standardized = raw.map(([small, large]) => [
+      small as number,
+      ((large as number) - 1_000_000) / 1000,
+    ])
+    const rowIndices = raw.map((_, index) => index)
+
+    it('스케일이 갈리면 반복을 스무 배 줘도 같은 자리에 선다', () => {
+      const at = (maxIter: number) =>
+        fit('logistic_regression', {
+          features: raw,
+          rowIndices,
+          target: labels,
+          hyperparameters: { maxIter },
+          randomState: 42,
+        })
+      const few = at(100)
+      const many = at(2000)
+      expect(few.warning?.code).toBe('LOGISTIC_NOT_CONVERGED')
+      expect(many.warning?.code).toBe('LOGISTIC_NOT_CONVERGED')
+      // **경고 유무만 보면 이 사실이 안 잡힌다** - 반복을 늘리면 조금이라도 나아진다는
+      // 기대가 여기서 깨진다. 두 모델의 계수가 같은 자리다.
+      expect(many.model).toEqual(few.model)
+    })
+
+    it('표준화하면 같은 데이터가 기본값 안에서 수렴한다', () => {
+      const { warning } = fit('logistic_regression', {
+        features: standardized,
+        rowIndices,
+        target: labels,
+        hyperparameters: {},
+        randomState: 42,
+      })
+      expect(warning).toBeUndefined()
+    })
+  })
 })
 
 describe('로지스틱 목적함수 - 기울기가 유한차분과 맞는다', () => {

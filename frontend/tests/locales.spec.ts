@@ -1064,3 +1064,40 @@ describe('번역이 빠진 값이 없다', () => {
     expect(hasWords('Done')).toBe(true)
   })
 })
+
+/**
+ * **수렴하지 않았다는 경고는 스케일링을 가리킨다** (2026-08-31).
+ *
+ * `LOGISTIC_NOT_CONVERGED`가 `maxIter`를 늘리라고만 말하고 있었다. 실물 `.mlpx`에서
+ * 그 처방이 **막다른 길**이었다 — 기압(986~1033)과 기온(−19.6~36.3)이 함께 있는
+ * 3,652행에서 반복을 20배(20,000회)로 늘려도 기울기가 소수점까지 같았고, 눈금의 위쪽
+ * 끝(1000)을 넘겨 3000을 넣은 run은 `HYPERPARAM_OUT_OF_RANGE`로 실패했다. 표준화하면
+ * 같은 데이터가 41회·11밀리초에 수렴한다
+ * (`open-decisions.md` "로지스틱 회귀 솔버를 sklearn과 같은 구조로 바꾼다"의 "실물이
+ * 꺼낸 것").
+ *
+ * **세 경고를 함께 본다.** SVM·K-평균은 처음부터 스케일링을 말하고 있었고, 로지스틱만
+ * 빠져 있었다 — 한 자리만 고치고 이웃을 안 보면 다음에 또 갈린다.
+ */
+describe('수렴 경고는 전처리 스케일링을 가리킨다', () => {
+  const NOT_CONVERGED = CLIENT_WARNING_CODES.filter((code) => code.endsWith('_NOT_CONVERGED'))
+
+  it('경고 코드가 셋 다 여기 걸린다', () => {
+    // 새 엔진이 같은 종류의 경고를 들고 오면 이 검사가 그것도 본다.
+    expect(NOT_CONVERGED.length).toBe(3)
+  })
+
+  it('한국어가 스케일링을 말한다', () => {
+    const silent = NOT_CONVERGED.filter(
+      (code) => !(korean.get(`client.${code}`) ?? '').includes('스케일링'),
+    )
+    expect(silent).toEqual([])
+  })
+
+  it('영어가 스케일링을 말한다', () => {
+    const silent = NOT_CONVERGED.filter(
+      (code) => !(english.get(`client.${code}`) ?? '').includes('Scaling'),
+    )
+    expect(silent).toEqual([])
+  })
+})
