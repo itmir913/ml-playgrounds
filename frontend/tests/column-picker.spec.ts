@@ -40,7 +40,25 @@ function pickerFor(taskType: 'regression' | 'classification') {
   return mount(ColumnPicker, {
     props: { plan: planFor(taskType), scaling: 'none' as const, encoding: 'onehot' as const },
     global: {
-      plugins: [createI18n({ legacy: false, locale: 'ko', messages: { ko: {} } })],
+      /**
+       * **문구가 빈 i18n이다.** 여기서 보는 것은 라디오가 눌리는가와 그 사실이 위로
+       * 올라가는가뿐이라, 진짜 문구를 물리면 검사가 화면 글자에 매인다.
+       *
+       * **경고는 끈다.** 안 끄면 `t()` 한 번마다 stderr에 한 줄씩 쌓여 관문 로그가
+       * 수십 줄 덮인다 — **진짜 경고가 그 사이에 묻힌다** (2026-08-31, 사용자가
+       * 관문 로그에서 잡았다). 로케일 키가 실제로 있는지는 이 파일이 아니라
+       * `prep-summary.spec.ts`가 본다: 거기는 진짜 `i18n`으로 띄워서, **그리는 것만으로**
+       * 없는 키가 그물에 걸린다.
+       */
+      plugins: [
+        createI18n({
+          legacy: false,
+          locale: 'ko',
+          messages: { ko: {} },
+          missingWarn: false,
+          fallbackWarn: false,
+        }),
+      ],
     },
   })
 }
