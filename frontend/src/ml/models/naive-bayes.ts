@@ -58,7 +58,23 @@ function matrix(
   })
 }
 
-export function loadNaiveBayesModel(file: unknown): Predict {
+/** 검증을 마친 모델. **`load`와 화면이 같은 것을 본다.** */
+export interface ParsedNaiveBayes {
+  readonly classes: readonly string[]
+  readonly featureCount: number
+  readonly logPriors: readonly number[]
+  readonly means: readonly Float64Array[]
+  readonly variances: readonly Float64Array[]
+}
+
+/**
+ * 파일에서 읽은 JSON을 검증해 꺼낸다.
+ *
+ * **예측만 쓰던 것을 밖으로 냈다** (2026-08-31) — 클래스별 평균과 분산이 화면에 쓰인다
+ * (`ml/parameters.ts`, `open-decisions.md` "모델이 무엇을 배웠는지 화면이 보여준다").
+ * 검증을 두 벌로 만들지 않으려고 여기 하나만 둔다 (`parseKMeansModel`과 같은 이유).
+ */
+export function parseNaiveBayes(file: unknown): ParsedNaiveBayes {
   const parsed = naiveBayesModelSchema.safeParse(file)
   if (!parsed.success) invalid('payload')
 
@@ -67,8 +83,23 @@ export function loadNaiveBayesModel(file: unknown): Predict {
   if (logPriors.length !== classes.length) invalid('logPriors')
   if (!logPriors.every((value) => Number.isFinite(value))) invalid('logPriors')
 
-  const meanRows = matrix(means, classes.length, featureCount, 'means')
-  const varianceRows = matrix(variances, classes.length, featureCount, 'variances')
+  return {
+    classes,
+    featureCount,
+    logPriors,
+    means: matrix(means, classes.length, featureCount, 'means'),
+    variances: matrix(variances, classes.length, featureCount, 'variances'),
+  }
+}
+
+export function loadNaiveBayesModel(file: unknown): Predict {
+  const {
+    classes,
+    featureCount,
+    logPriors,
+    means: meanRows,
+    variances: varianceRows,
+  } = parseNaiveBayes(file)
 
   return (features) =>
     features.map((input) => {

@@ -22,6 +22,7 @@ import { defineAsyncComponent, type Component } from 'vue'
 
 import type { DataType, Experiment, Run, TaskType } from '../project/schema'
 import { supports, type Axis } from './axes'
+import { showsParameters } from './parameters'
 import type { Dataset, Preprocessor } from './preprocess'
 
 /**
@@ -84,6 +85,24 @@ const PANELS: readonly MetricPanel[] = [
     taskTypes: { classification: true, regression: false, clustering: false },
     hasData: (run) => run.perClass !== undefined,
     panel: defineAsyncComponent(() => import('@/views/results/panels/PerClassPanel.vue')),
+  },
+  {
+    /**
+     * **모델이 배운 값** (`open-decisions.md` "모델이 무엇을 배웠는지 화면이 보여준다").
+     *
+     * **표 데이터에서만이다.** 이미지 임베딩은 1,280차원이고 이름이 `emb_0`이라 계수를
+     * 늘어놓아도 학생에게 뜻이 없다 — 이 사실이 사는 자리가 여기다 (§9.1).
+     *
+     * **회귀와 분류 양쪽에 선다.** 선형 회귀의 계수와 로지스틱·나이브베이즈의 값이 같은
+     * 패널이고, 어느 형식이 무엇을 보여주는지는 `ml/parameters.ts`가 안다.
+     */
+    id: 'parameters',
+    dataTypes: { tabular: true, image: false },
+    taskTypes: { classification: true, regression: true, clustering: false },
+    // **형식으로 판정한다. 알고리즘 이름이 아니다** — 같은 알고리즘이 다른 형식으로
+    // 담길 수 있고(옛 파일), 우리가 읽을 수 있는지는 형식이 답한다.
+    hasData: (run) => showsParameters(run.model?.format),
+    panel: defineAsyncComponent(() => import('@/views/results/panels/ParameterPanel.vue')),
   },
   {
     id: 'cluster-result',

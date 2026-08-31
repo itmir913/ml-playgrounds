@@ -38,7 +38,20 @@ function invalid(field: string): never {
   throw new ClientError('MODEL_FILE_INVALID', { field })
 }
 
-export function loadLinearRegressionModel(file: unknown): Predict {
+/** 검증을 마친 모델. **`load`와 화면이 같은 것을 본다.** */
+export interface ParsedLinearRegression {
+  readonly featureCount: number
+  readonly coefficients: readonly number[]
+  readonly intercept: number
+}
+
+/**
+ * 파일에서 읽은 JSON을 검증해 꺼낸다.
+ *
+ * **예측만 쓰던 것을 밖으로 냈다** (2026-08-31) — 계수 자체가 화면에 쓰인다
+ * (`ml/parameters.ts`, `open-decisions.md` "모델이 무엇을 배웠는지 화면이 보여준다").
+ */
+export function parseLinearRegression(file: unknown): ParsedLinearRegression {
   const parsed = linearRegressionSchema.safeParse(file)
   if (!parsed.success) invalid('payload')
 
@@ -48,6 +61,12 @@ export function loadLinearRegressionModel(file: unknown): Predict {
   if (coefficients.length !== featureCount) invalid('coefficients')
   if (!coefficients.every((value) => Number.isFinite(value))) invalid('coefficients')
   if (!Number.isFinite(intercept)) invalid('intercept')
+
+  return { featureCount, coefficients, intercept }
+}
+
+export function loadLinearRegressionModel(file: unknown): Predict {
+  const { featureCount, coefficients, intercept } = parseLinearRegression(file)
 
   const weights = Float64Array.from(coefficients)
 

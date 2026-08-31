@@ -43,7 +43,7 @@ function invalid(field: string): never {
 }
 
 /** 검증을 마친 모델. **`load`와 `loadProba`가 같은 것을 본다.** */
-interface ParsedLinear {
+export interface ParsedLinear {
   readonly classes: readonly string[]
   readonly featureCount: number
   readonly rows: readonly Float64Array[]
@@ -70,8 +70,12 @@ function weightRows(
 /**
  * 파일 내용을 확인해 꺼낸다. **검증은 읽을 때 한 번 하고 예측 루프에서는 아무것도 안
  * 본다** (tree.ts와 같은 이유다).
+ *
+ * **예측만 쓰던 것을 밖으로 냈다** (2026-08-31) — 계수 자체가 화면에 쓰인다
+ * (`ml/parameters.ts`, `open-decisions.md` "모델이 무엇을 배웠는지 화면이 보여준다").
+ * `parseKMeansModel`과 같은 이유다: 검증을 두 벌로 만들지 않는다.
  */
-function parseLinearV2(file: unknown): ParsedLinear {
+export function parseLinearV2(file: unknown): ParsedLinear {
   const parsed = linearV2ModelSchema.safeParse(file)
   if (!parsed.success) invalid('payload')
 
