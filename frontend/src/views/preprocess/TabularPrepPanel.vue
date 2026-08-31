@@ -21,6 +21,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import TermPopover from '@/components/TermPopover.vue'
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import { useRadioGroupGuard } from '@/composables/useRadioGroupGuard'
@@ -555,6 +556,34 @@ async function removeTest(): Promise<void> {
     testRemoving.value = false
   }
 }
+/**
+ * 팝오버가 그릴 선택지 목록. **어휘 배열을 그대로 돈다** — 선택지가 하나 늘면 이 목록도
+ * 늘고, 그때 설명 문구가 없으면 `locales.spec.ts`가 운다
+ * (`architecture.md` §8.13 "목록과 설명은 1:1이고 검사가 문다").
+ *
+ * **손으로 적은 배열을 두지 않는다.** 그러면 어휘가 늘어도 목록은 그대로라 화면이
+ * 조용히 낡는다 — 검사가 무는 것도 로케일뿐이라 아무도 못 본다.
+ */
+const missingHelp = computed(() =>
+  MISSING_STRATEGIES.map((strategy) => ({
+    term: t(`missingStrategy.${strategy}`),
+    body: t(`missingHelp.${strategy}`),
+  })),
+)
+
+const scalingHelp = computed(() =>
+  SCALING_METHODS.map((method) => ({
+    term: t(`scalingMethod.${method}`),
+    body: t(`scalingHelp.${method}`),
+  })),
+)
+
+const encodingHelp = computed(() =>
+  CATEGORICAL_ENCODINGS.map((encoding) => ({
+    term: t(`categoricalEncoding.${encoding}`),
+    body: t(`encodingHelp.${encoding}`),
+  })),
+)
 </script>
 
 <template>
@@ -875,7 +904,13 @@ async function removeTest(): Promise<void> {
 
         <div class="mt-3 flex flex-col gap-4">
           <div>
-            <h3 class="font-bold text-ink-soft">{{ t('preprocess.tabular.missing') }}</h3>
+            <h3 class="font-bold text-ink-soft">
+              <TermPopover
+                :title="t('preprocess.tabular.missing')"
+                :body="t('preprocess.tabular.missingSummary')"
+                :items="missingHelp"
+              />
+            </h3>
             <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
               <label
                 v-for="strategy in MISSING_STRATEGIES"
@@ -896,7 +931,13 @@ async function removeTest(): Promise<void> {
           </div>
 
           <div>
-            <h3 class="font-bold text-ink-soft">{{ t('preprocess.tabular.scaling') }}</h3>
+            <h3 class="font-bold text-ink-soft">
+              <TermPopover
+                :title="t('preprocess.tabular.scaling')"
+                :body="t('preprocess.tabular.scalingSummary')"
+                :items="scalingHelp"
+              />
+            </h3>
             <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
               <label
                 v-for="method in SCALING_METHODS"
@@ -913,11 +954,16 @@ async function removeTest(): Promise<void> {
                 {{ t(`scalingMethod.${method}`) }}
               </label>
             </div>
-            <p class="mt-1 text-ink-faint">{{ t('preprocess.tabular.scalingNote') }}</p>
           </div>
 
           <div>
-            <h3 class="font-bold text-ink-soft">{{ t('preprocess.tabular.encoding') }}</h3>
+            <h3 class="font-bold text-ink-soft">
+              <TermPopover
+                :title="t('preprocess.tabular.encoding')"
+                :body="t('preprocess.tabular.encodingSummary')"
+                :items="encodingHelp"
+              />
+            </h3>
             <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
               <label
                 v-for="encoding in CATEGORICAL_ENCODINGS"
@@ -934,7 +980,6 @@ async function removeTest(): Promise<void> {
                 {{ t(`categoricalEncoding.${encoding}`) }}
               </label>
             </div>
-            <p class="mt-1 text-ink-faint">{{ t('preprocess.tabular.encodingNote') }}</p>
           </div>
         </div>
       </section>

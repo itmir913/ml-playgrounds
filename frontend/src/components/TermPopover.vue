@@ -22,6 +22,16 @@ defineProps<{
   /** 두세 줄 설명. */
   body: string
   /**
+   * 이 묶음이 가진 선택지들. **있으면 설명 아래에 목록으로 붙는다**
+   * (`architecture.md` §8.13 "고르는 묶음도 같은 자리를 쓴다").
+   *
+   * 고르는 축의 머리글이 트리거일 때 쓴다 — 학생이 묻는 것이 "스케일링이 뭐냐"에서
+   * 곧바로 "표준화랑 정규화랑 뭐가 다르냐"로 이어지므로, 그 둘이 한 판에 있어야 한다.
+   *
+   * **문자열은 이미 번역돼서 온다.** 여기서 키를 조립하지 않는 이유는 위와 같다.
+   */
+  items?: readonly { readonly term: string; readonly body: string }[]
+  /**
    * 수식의 분자·분모. **둘 다 있을 때만 수식을 그린다** - 셀 수 없는 것(실제 데이터
    * 수)에는 수식이 없다.
    *
@@ -86,5 +96,19 @@ defineProps<{
     </div>
 
     <p class="mt-2 text-ink-soft">{{ body }}</p>
+
+    <!--
+      **선택지 목록.** 이름은 진하게, 설명은 그 아래 한 단 들여서 — 여섯 개가 늘어서도
+      훑을 수 있어야 한다. 화면을 넘으면 `popover-panel`이 스크롤한다.
+
+      `<dl>`인 이유는 이것이 **이름과 뜻의 짝**이기 때문이다. 읽어 주는 기계에 그렇게
+      들리고, `<ul>`로 두면 열세 줄이 그냥 목록이 된다.
+    -->
+    <dl v-if="items && items.length > 0" class="mt-3 flex flex-col gap-2 border-t border-line pt-3">
+      <div v-for="item in items" :key="item.term">
+        <dt class="font-bold text-ink">{{ item.term }}</dt>
+        <dd class="text-ink-soft">{{ item.body }}</dd>
+      </div>
+    </dl>
   </AppPopover>
 </template>

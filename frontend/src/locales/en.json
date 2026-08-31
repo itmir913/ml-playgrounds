@@ -206,6 +206,14 @@
     "mostFrequent": "Fill with the most common value",
     "zero": "Fill with zero"
   },
+  "missingHelp": {
+    "none": "Leaves blanks as they are. A column with even one blank cannot be used for training.",
+    "drop": "Removes the whole row when any cell is blank. You end up with less data.",
+    "mean": "Fills blanks with the column's average. In a lopsided column the average can sit far from the real values.",
+    "median": "Fills blanks with the middle value when the column is sorted by size. Unusually large or small values move it less.",
+    "mostFrequent": "Fills blanks with the value that appears most often. It also works on text columns.",
+    "zero": "Fills blanks with 0. If 0 already means something in that column, the fills mix in with the real zeros."
+  },
   "scalingBasis": {
     "standard": "training mean {center} · SD {spread}",
     "minmax": "training min {center} · range {spread}",
@@ -217,6 +225,12 @@
     "minmax": "Min-max",
     "robust": "Robust"
   },
+  "scalingHelp": {
+    "none": "Uses the values as they are. When columns have different units, the one with bigger numbers counts for more. Height in cm next to weight in kg is such a case.",
+    "standard": "Subtracts the mean and divides by the standard deviation, giving mean 0 and variance 1. It fits bell-shaped values and is the most widely used.",
+    "minmax": "Maps values into 0 to 1 using the smallest and largest value. Good when the range is fixed, but one unusual value squashes the rest.",
+    "robust": "Uses the median and the interquartile range. Unusually large or small values move it less."
+  },
   "encodingBasis": {
     "onehot": "One-hot encoding → {count} column | One-hot encoding → {count} columns",
     "ordinal": "Ordinal encoding → 0 to {last}"
@@ -225,6 +239,11 @@
     "none": "None",
     "onehot": "One-hot encoding",
     "ordinal": "Ordinal encoding"
+  },
+  "encodingHelp": {
+    "none": "Leaves text values alone. Models take numbers only, so text columns are left out of training.",
+    "onehot": "Makes one column per distinct value and puts 1 in the matching one. Use it when the values have no order. Many distinct values means that many new columns.",
+    "ordinal": "Numbers the distinct values 0, 1, 2 and so on. No new columns, but the model reads those numbers as sizes, so use it only when the values have an order."
   },
   "preprocess": {
     "previewBasis": "From the training data",
@@ -251,12 +270,13 @@
       "columnsTitle": "Target and features",
       "effect": "Preprocessing",
       "encoding": "Category encoding",
-      "encodingNote": "How text values become numbers. With it off, text columns are left out.",
+      "encodingSummary": "How text values become numbers.",
       "featureSummary": "{count} feature goes into training. | {count} features go into training.",
       "featureSummaryPartial": "{usable} of the {chosen} feature you chose goes into training. | {usable} of the {chosen} features you chose go into training.",
       "fillWith": "Blanks → {value}",
       "missing": "Missing value handling",
       "missingNote": "Text columns have no mean or median, so the most common value fills them.",
+      "missingSummary": "Decides what to do with blank cells.",
       "noFeatureChosen": "No feature chosen yet.",
       "noUsableFeature": "No feature goes into training at all.",
       "notEncodable": "This column holds text, so your current settings leave it out of training.",
@@ -273,7 +293,7 @@
       "sampleSummary": "Using {used} of {usable} rows. The model never sees the remaining {rest}.",
       "sampleTitle": "How much data to use",
       "scaling": "Scaling",
-      "scalingNote": "Brings the value ranges of number columns closer together. Change it and train again to see how the score moves in the results step.",
+      "scalingSummary": "Brings the value ranges of number columns closer together. Change it and train again to see how the score moves in the results step.",
       "selectAll": "Select every feature",
       "summaryClustering": "Clustering does not split, so every usable row goes into training.",
       "summaryEncoded": "Features after encoding",

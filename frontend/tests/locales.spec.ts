@@ -390,6 +390,17 @@ describe('프런트엔드 전용 코드', () => {
       ['missingStrategy', MISSING_STRATEGIES],
       ['scalingMethod', SCALING_METHODS],
       ['categoricalEncoding', CATEGORICAL_ENCODINGS],
+      /**
+       * **설명도 같은 배열에 매인다** (`architecture.md` §8.13 "목록과 설명은 1:1이고
+       * 검사가 문다"). 선택지가 여섯에서 일곱이 되면 팝오버는 **화면에서 아무 일도 안
+       * 일어난 채 한 줄이 모자란다** — 조용히 낡는 자리라 사람이 못 본다.
+       *
+       * **개수가 아니라 집합을 본다.** 개수만 세면 하나를 빼고 하나를 더한 날, 또는
+       * 이름이 바뀐 날 그대로 통과한다.
+       */
+      ['missingHelp', MISSING_STRATEGIES],
+      ['scalingHelp', SCALING_METHODS],
+      ['encodingHelp', CATEGORICAL_ENCODINGS],
     ] as const
 
     /**
@@ -806,6 +817,9 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
     'engineState.', // 무결성 어휘가 로케일과 양방향으로 일치한다
     'modelOmission.', // 모델이 안 담긴 사유마다 문구가 있다 (위 어휘 짝 검사)
     'missingStrategy.', // 전처리 설정의 어휘가 로케일과 양방향으로 일치한다
+    'missingHelp.', //     〃 (선택지마다의 설명. 아래 같은 검사가 개수까지 맞춘다)
+    'scalingHelp.', //     〃
+    'encodingHelp.', //    〃
     'scalingMethod.', //   〃
     'scalingBasis.', // 스케일링 방식마다 기준을 읽는 말이 있다 (none만 없다)
     'categoricalEncoding.', //   〃
