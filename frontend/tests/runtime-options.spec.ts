@@ -15,6 +15,7 @@ import {
   BROWSER_RUNTIME_IDS,
   RUNTIMES,
   UNMEASURED,
+  UNMEASURED_BASELINE,
   type AlgorithmSpec,
   type EngineState,
   type RuntimeContext,
@@ -32,7 +33,7 @@ const unmeasured = {
 } as const
 
 /** 표본은 시간도 안 쟀다. 빈 표는 예상을 못 낸다는 뜻이다. */
-const noBaseline = { ms: [], columns: 'flat' } as const
+const noBaseline = { tabular: UNMEASURED_BASELINE, image: UNMEASURED_BASELINE } as const
 
 /** 셋 다 도는 알고리즘. 결정트리가 그렇다. */
 const anywhere: AlgorithmSpec = {

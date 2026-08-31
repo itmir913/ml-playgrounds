@@ -249,9 +249,19 @@ export interface AlgorithmSpec {
    *
    * **서버 칸이 없다.** 우리가 모르는 기기에서 도는 것이라 예상을 못 낸다 — 그 자리는
    * 화면이 `알 수 없음`이라고 적는다.
+   *
+   * **종류 축이 있는 이유는 `maxRows`와 같다** — 사진 한 장이 1,280차원이라 같은 행 수가
+   * 같은 시간을 뜻하지 않는다. 이미지는 아직 안 쟀고, 안 잰 칸에는 `UNMEASURED_BASELINE`이
+   * 들어간다. **화면이 종류를 비교해서 끄지 않는다** (architecture.md §9.1).
    */
-  readonly baseline: Baseline
+  readonly baseline: Readonly<Record<DataType, Baseline>>
 }
+
+/**
+ * **안 잰 칸.** `UNMEASURED`와 같은 자리다 — 빈 표는 "0초"가 아니라 "못 낸다"는 뜻이고,
+ * 예상은 그 자리에 `알 수 없음`을 남긴다. 숫자를 지어 넣으면 재 본 값처럼 보인다.
+ */
+export const UNMEASURED_BASELINE: Baseline = { ms: [], columns: 'flat' }
 
 /** 기준표 한 줄. **곱하는 축이 알고리즘마다 다르므로 표만으로는 부족하다.** */
 export interface Baseline {

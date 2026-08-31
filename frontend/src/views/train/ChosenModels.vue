@@ -24,6 +24,7 @@ import AppButton from '@/components/AppButton.vue'
 import AppField from '@/components/AppField.vue'
 import { outOfRange, parametersFor, type HyperparameterSpec } from '@/ml/hyperparams'
 import type { ChosenModel } from '@/ml/selection'
+import type { Estimate } from '@/ml/estimate'
 import type { ModelStatus } from '@/ml/training-status'
 import type { Settings } from '@/project/schema'
 
@@ -35,6 +36,13 @@ const props = defineProps<{
    * 줄에도 상태가 안 붙는다.
    */
   statuses: readonly ModelStatus[]
+  /**
+   * 줄마다의 학습 예상 시간. **자리가 `chosen`과 같다** (`ml/estimate.ts`).
+   *
+   * 누르기 **전에** 알아야 하는 값이라 결과 화면이 아니라 여기 있다. 학생이 알아야 하는
+   * 것은 "몇 초인가"가 아니라 **"지금 눌러도 되는 일인가"**다.
+   */
+  estimates: readonly Estimate[]
   /** 학습이 도는 중인가. 도는 동안에는 이 목록을 못 고친다 (TrainView의 같은 판단). */
   running: boolean
 }>()
@@ -91,9 +99,30 @@ const rows = computed(() =>
     const status = props.statuses[index]
     // **범위를 벗어난 손잡이를 줄마다 한 번만 센다.** 템플릿에서 부르면 손잡이 칸마다
     // `outOfRange` 전체가 다시 돈다 — 모델이 스물이면 곱해진다 (V11 R5 C-3).
-    return { row, index, tone: status ? STATUS_TONE[status] : null, outOfRangeNames: violated(row) }
+    return {
+      row,
+      index,
+      tone: status ? STATUS_TONE[status] : null,
+      outOfRangeNames: violated(row),
+      estimateText: estimateTextOf(props.estimates[index] ?? { kind: 'unknown' }),
+    }
   }),
 )
+
+/**
+ * 예상 시간을 문장으로. **키를 조립하지 않는다** — 종류 이름을 키 뒤에 이어 붙이면
+ * 어느 키가 실제로 불리는지 검사가 못 세고, 안 불리는 키가 남아도 아무도 모른다
+ * (`locales.spec.ts`의 짝 규칙).
+ *
+ * **없으면 `null`이다.** 짧아서 안 적는 자리와 못 재는 자리는 다른 상태이므로 문장이
+ * 다르고, 짧은 쪽은 아무것도 안 적는다.
+ */
+function estimateTextOf(estimate: Estimate): string | null {
+  if (estimate.kind === 'none') return null
+  if (estimate.kind === 'unknown') return t('train.estimateUnknown')
+  const key = estimate.kind === 'minutes' ? 'train.estimate.minutes' : 'train.estimate.seconds'
+  return t(key, { value: estimate.value })
+}
 
 /**
  * 칸에 보일 값. **저장된 값이 없으면 기본값을 보여준다.**
@@ -183,7 +212,7 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
         색만 투명하게 한다 — 도는 순간 선이 생기면 목록 전체가 4px 밀린다.
       -->
       <li
-        v-for="{ row, index, tone, outOfRangeNames } in rows"
+        v-for="{ row, index, tone, outOfRangeNames, estimateText } in rows"
         :key="`${row.algorithm}:${row.runtime}:${index}`"
         class="min-w-0 border-l-4 p-3"
         :class="[
@@ -204,6 +233,17 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
 
             <span v-if="tone" class="rounded-field px-2 py-0.5" :class="tone.badge">
               {{ t(tone.key) }}
+            </span>
+
+            <!--
+              **학습이 도는 동안에는 안 보인다.** 그때 이 자리가 말할 것은 예상이 아니라
+              지금 무엇이 도는가이고, 둘이 나란히 있으면 끝난 줄에도 "약 3분"이 남는다.
+
+              **짧으면 아무것도 안 적는다.** `약 0초`는 소음이고, 그 자리는 원래 안내가
+              필요 없는 자리다.
+            -->
+            <span v-if="!props.running && estimateText" class="text-ink-soft">
+              {{ estimateText }}
             </span>
           </div>
 

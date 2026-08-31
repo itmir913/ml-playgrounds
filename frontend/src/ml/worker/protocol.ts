@@ -25,6 +25,18 @@ export interface TrainRequest {
 }
 
 /**
+ * 메인 -> 워커. **이 기기가 개발 PC보다 몇 배 느린지 재 달라는 것.**
+ *
+ * 학습 예상 시간의 기준표는 개발 PC에서 쟀고, 다른 기기는 배수를 곱해야 한다
+ * (`ml/calibration.ts`). **메인 스레드에서 재면 그동안 화면이 멈춘다.**
+ */
+export interface CalibrateRequest {
+  type: 'calibrate'
+}
+
+export type WorkerRequest = TrainRequest | CalibrateRequest
+
+/**
  * 워커 -> 메인.
  *
  * **진행은 모델 단위다** (mlpx-spec.md 0.3). 실험 전체 진행률은 받는 쪽이 센다 -
@@ -80,3 +92,5 @@ export type WorkerMessage =
       models: Map<string, ModelFile>
     }
   | { type: 'failed'; code: string; params: ClientErrorParams }
+  /** 교정 일감이 걸린 시간. **배수로 바꾸는 것은 받는 쪽이다** (`ml/calibration.ts`). */
+  | { type: 'calibrated'; elapsedMs: number }

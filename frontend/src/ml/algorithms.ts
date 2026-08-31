@@ -55,6 +55,7 @@ import {
   type RuntimeContext,
   type RuntimeOption,
   UNMEASURED,
+  UNMEASURED_BASELINE,
   type UnavailableReason,
 } from './backend'
 
@@ -102,7 +103,10 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { mljs: MLJS_DECISION_TREE_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
       image: { mljs: MLJS_IMAGE_DECISION_TREE_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
     },
-    baseline: { ms: MLJS_DECISION_TREE_BASELINE_MS, columns: 'linear' },
+    baseline: {
+      tabular: { ms: MLJS_DECISION_TREE_BASELINE_MS, columns: 'linear' },
+      image: UNMEASURED_BASELINE,
+    },
   },
   {
     id: 'knn',
@@ -114,7 +118,10 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { mljs: MLJS_KNN_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
       image: { mljs: MLJS_IMAGE_KNN_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
     },
-    baseline: { ms: MLJS_KNN_BASELINE_MS, columns: 'flat' },
+    baseline: {
+      tabular: { ms: MLJS_KNN_BASELINE_MS, columns: 'flat' },
+      image: UNMEASURED_BASELINE,
+    },
   },
   {
     id: 'logistic_regression',
@@ -126,7 +133,10 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { mljs: MLJS_LOGISTIC_REGRESSION_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
       image: { mljs: MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
     },
-    baseline: { ms: MLJS_LOGISTIC_REGRESSION_BASELINE_MS, columns: 'flat' },
+    baseline: {
+      tabular: { ms: MLJS_LOGISTIC_REGRESSION_BASELINE_MS, columns: 'flat' },
+      image: UNMEASURED_BASELINE,
+    },
   },
   {
     id: 'random_forest',
@@ -139,7 +149,10 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { mljs: MLJS_RANDOM_FOREST_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
       image: { mljs: MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
     },
-    baseline: { ms: MLJS_RANDOM_FOREST_BASELINE_MS, columns: 'linear' },
+    baseline: {
+      tabular: { ms: MLJS_RANDOM_FOREST_BASELINE_MS, columns: 'linear' },
+      image: UNMEASURED_BASELINE,
+    },
   },
   {
     id: 'naive_bayes',
@@ -151,7 +164,10 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { mljs: MLJS_NAIVE_BAYES_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
       image: { mljs: MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
     },
-    baseline: { ms: MLJS_NAIVE_BAYES_BASELINE_MS, columns: 'linear' },
+    baseline: {
+      tabular: { ms: MLJS_NAIVE_BAYES_BASELINE_MS, columns: 'linear' },
+      image: UNMEASURED_BASELINE,
+    },
   },
   {
     id: 'svm',
@@ -165,7 +181,10 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { mljs: MLJS_SVM_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
       image: { mljs: MLJS_IMAGE_SVM_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
     },
-    baseline: { ms: MLJS_SVM_BASELINE_MS, columns: 'linear' },
+    baseline: {
+      tabular: { ms: MLJS_SVM_BASELINE_MS, columns: 'linear' },
+      image: UNMEASURED_BASELINE,
+    },
   },
   {
     id: 'linear_regression',
@@ -179,7 +198,10 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { mljs: MLJS_LINEAR_REGRESSION_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
       image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
     },
-    baseline: { ms: MLJS_LINEAR_REGRESSION_BASELINE_MS, columns: 'linear' },
+    baseline: {
+      tabular: { ms: MLJS_LINEAR_REGRESSION_BASELINE_MS, columns: 'linear' },
+      image: UNMEASURED_BASELINE,
+    },
   },
   {
     id: 'k_means',
@@ -191,7 +213,10 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { mljs: MLJS_KMEANS_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
       image: { mljs: MLJS_IMAGE_KMEANS_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
     },
-    baseline: { ms: MLJS_KMEANS_BASELINE_MS, columns: 'flat' },
+    baseline: {
+      tabular: { ms: MLJS_KMEANS_BASELINE_MS, columns: 'flat' },
+      image: UNMEASURED_BASELINE,
+    },
   },
 ]
 

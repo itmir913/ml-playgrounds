@@ -336,6 +336,11 @@
     "chosenTitle": "추가한 모델",
     "emptyNext": "프로젝트를 열면 여기에서 무엇으로 학습할지 선택할 수 있습니다.",
     "emptyReason": "아직 프로젝트를 열지 않았습니다.",
+    "estimate": {
+      "minutes": "약 {value}분",
+      "seconds": "약 {value}초"
+    },
+    "estimateUnknown": "알 수 없음",
     "failedHere": "학습에 실패했습니다. 이유 보기",
     "stopped": "학습을 멈췄습니다. 지금까지 학습을 마친 모델은 [결과 보기]에 남아 있습니다.",
     "finished": "학습이 끝났습니다. [결과 보기]를 누르면 이번 실험의 점수가 나옵니다.",

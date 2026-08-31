@@ -12,7 +12,7 @@
  */
 
 import type { Algorithm } from '../../src/ml/algorithms'
-import { UNMEASURED } from '../../src/ml/backend'
+import { UNMEASURED, UNMEASURED_BASELINE } from '../../src/ml/backend'
 
 /** 표본은 상한을 재지 않았다. 확인하는 것이 상한이 아니라 판정 규칙이다. */
 const UNMEASURED_ROWS = {
@@ -24,7 +24,7 @@ const UNMEASURED_ROWS = {
  * 표본은 시간도 안 쟀다. **빈 표는 예상을 못 낸다**는 뜻이고, 그것이 여기서 맞는 상태다
  * (`ml/estimate.ts`가 그 자리에 `알 수 없음`을 남긴다).
  */
-const NO_BASELINE = { ms: [], columns: 'flat' } as const
+const NO_BASELINE = { tabular: UNMEASURED_BASELINE, image: UNMEASURED_BASELINE } as const
 
 export const SKLEARN_ONLY_ALGORITHM: Algorithm = {
   id: 'sklearn_only',

@@ -5,8 +5,8 @@
  * 덮이지 않는 곳에는 틀릴 수 있는 것을 두지 않는다.
  */
 
-import { handleTrain } from './handler'
-import type { TrainRequest, WorkerMessage } from './protocol'
+import { handleRequest } from './handler'
+import type { WorkerMessage, WorkerRequest } from './protocol'
 
 /**
  * 우리가 워커 전역에서 쓰는 것 전부.
@@ -15,12 +15,12 @@ import type { TrainRequest, WorkerMessage } from './protocol'
  * DOM으로 검사한다. 워커 하나 때문에 tsconfig를 쪼개는 대신 필요한 두 개만 적는다.
  */
 interface WorkerScope {
-  onmessage: ((event: MessageEvent<TrainRequest>) => void) | null
+  onmessage: ((event: MessageEvent<WorkerRequest>) => void) | null
   postMessage(message: WorkerMessage): void
 }
 
 const scope = self as unknown as WorkerScope
 
 scope.onmessage = (event) => {
-  handleTrain(event.data, (message) => scope.postMessage(message))
+  handleRequest(event.data, (message) => scope.postMessage(message))
 }

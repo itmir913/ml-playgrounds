@@ -15,11 +15,13 @@ import { describe as group, expect, it } from 'vitest'
 
 import { BASELINE_COLUMNS, MLJS_DECISION_TREE_BASELINE_MS } from '../src/limits'
 import { ALGORITHMS } from '../src/ml/algorithms'
+import { summarizeColumns } from '../src/data/columns'
 import { baselineMs, describe, estimateMs, interpolate } from '../src/ml/estimate'
+import { estimatedFeatureWidth, fitPreprocessor } from '../src/ml/preprocess'
 
 /** 손잡이를 안 건드린 기본 상태. 기준표를 잰 모양 그대로다. */
 function input(algorithm: string, rows: number, columns = BASELINE_COLUMNS) {
-  return { algorithm, rows, columns, hyperparameters: {} }
+  return { algorithm, dataType: 'tabular' as const, rows, columns, hyperparameters: {} }
 }
 
 group('보간', () => {
@@ -37,7 +39,7 @@ group('보간', () => {
 
   it('표 아래로는 첫 점의 값을 쓴다 - 아래로 외삽하면 값이 되레 커지는 표가 있다', () => {
     // 나이브 베이즈는 1,000행 6ms · 5,000행 5ms라 기울기가 음수다.
-    const naive = ALGORITHMS.find((entry) => entry.id === 'naive_bayes')?.baseline.ms ?? []
+    const naive = ALGORITHMS.find((entry) => entry.id === 'naive_bayes')?.baseline.tabular.ms ?? []
     expect(interpolate(naive, 10)).toBe(naive[0]?.[1])
     expect(interpolate(MLJS_DECISION_TREE_BASELINE_MS, 10)).toBe(32)
   })
@@ -117,7 +119,9 @@ group('화면이 적을 것', () => {
   it('짧으면 아무것도 안 적는다', () => {
     expect(describe(0).kind).toBe('none')
     expect(describe(4999).kind).toBe('none')
-    expect(describe(null).kind).toBe('none')
+    // `null`은 "짧다"가 아니라 "못 낸다"다.
+    expect(describe(null).kind).toBe('unknown')
+    expect(describe(Number.NaN).kind).toBe('unknown')
   })
 
   it('올림한다 - 길게 틀리기로 했다', () => {
@@ -135,15 +139,53 @@ group('화면이 적을 것', () => {
 group('등록부', () => {
   it('모든 알고리즘이 기준표를 든다 - 새 알고리즘이 빈칸으로 들어오지 않는다', () => {
     for (const algorithm of ALGORITHMS) {
-      expect(algorithm.baseline.ms.length, algorithm.id).toBeGreaterThan(1)
-      expect(['linear', 'flat'], algorithm.id).toContain(algorithm.baseline.columns)
+      expect(algorithm.baseline.tabular.ms.length, algorithm.id).toBeGreaterThan(1)
+      expect(['linear', 'flat'], algorithm.id).toContain(algorithm.baseline.tabular.columns)
+      // **이미지는 아직 안 쟀다.** 안 잰 칸이 조용히 숫자를 갖지 않는다.
+      expect(algorithm.baseline.image.ms, algorithm.id).toEqual([])
     }
   })
 
   it('기준표의 행 수가 오름차순이다 - 보간이 그것을 전제한다', () => {
     for (const algorithm of ALGORITHMS) {
-      const rows = algorithm.baseline.ms.map(([value]) => value)
+      const rows = algorithm.baseline.tabular.ms.map(([value]) => value)
       expect(rows, algorithm.id).toEqual([...rows].sort((a, b) => a - b))
     }
+  })
+})
+
+group('전처리 뒤의 특성 수', () => {
+  /**
+   * **`fitPreprocessor`와 같은 수를 내야 한다.** 예상은 열 요약의 `unique`로 세고 학습은
+   * 데이터를 훑는데, 원핫 규칙이 한쪽만 바뀌면 **예상 시간이 조용히 몇 배 틀린다** —
+   * 트리 계열은 특성 수에 선형이라 그대로 배수가 된다.
+   */
+  const DATASET = {
+    columns: ['키', '지역', '결과'],
+    rows: [
+      ['150', '서울', '가'],
+      ['160', '부산', '가'],
+      ['170', '대구', '나'],
+      ['180', '서울', '나'],
+    ],
+  }
+  const FEATURES = ['키', '지역']
+  const ROWS = DATASET.rows.map((_, index) => index)
+
+  for (const encoding of ['onehot', 'ordinal'] as const) {
+    it(`${encoding} — 학습이 세는 수와 같다`, () => {
+      const preprocessing = {
+        missing: 'drop',
+        scaling: 'none',
+        categoricalEncoding: encoding,
+      } as const
+      const fitted = fitPreprocessor(DATASET, ROWS, FEATURES, preprocessing)
+      const guessed = estimatedFeatureWidth(summarizeColumns(DATASET), FEATURES, encoding)
+      expect(guessed).toBe(fitted.featureNames.length)
+    })
+  }
+
+  it('부호화를 안 하면 범주 열은 통째로 빠진다', () => {
+    expect(estimatedFeatureWidth(summarizeColumns(DATASET), FEATURES, 'none')).toBe(1)
   })
 })

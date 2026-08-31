@@ -17,7 +17,7 @@ import { ClientError, failureDetail, toClientErrorCode } from '../../errors'
 import type { Run } from '../../project/schema'
 import { assembleExperiment, type ExperimentPrelude, type ExperimentResult } from '../experiment'
 import type { ModelFile } from '../models'
-import type { TrainRequest, WorkerMessage } from './protocol'
+import type { WorkerMessage, WorkerRequest } from './protocol'
 
 /**
  * 우리가 워커에게 요구하는 것 전부. **`Worker`보다 좁다** - 테스트가 흉내낼 수 있어야
@@ -33,7 +33,7 @@ export interface TrainWorker {
    * 안 풀려서 [학습하기] 버튼이 꺼진 채로 남는다.
    */
   onmessageerror?: ((event: MessageEvent<unknown>) => void) | null
-  postMessage(message: TrainRequest): void
+  postMessage(message: WorkerRequest): void
   terminate(): void
 }
 
@@ -71,7 +71,10 @@ export interface TrainHandle {
  * 어떤 경로로 끝나든 워커는 반드시 종료된다 - 성공·실패·취소·워커 자체의 오류.
  * 남겨 두면 학생이 설정을 바꿔가며 열 번 돌리는 사이에 워커가 열 개 쌓인다.
  */
-export function train(request: TrainRequest, options: TrainOptions): TrainHandle {
+export function train(
+  request: WorkerRequest & { type: 'train' },
+  options: TrainOptions,
+): TrainHandle {
   const worker = options.createWorker()
 
   // Promise 생성자는 동기로 실행되므로 아래 두 개는 반드시 채워진다.
@@ -136,6 +139,13 @@ export function train(request: TrainRequest, options: TrainOptions): TrainHandle
       )
       return
     }
+    // **`calibrated`는 학습 경로로 안 온다.** 그래도 남겨 두는 것이 조용히 무시하는 것보다
+    // 낫다 - 오면 프로토콜이 어긋난 것이고, 그때 Promise가 안 풀리면 [학습하기]가 꺼진
+    // 채로 남는다.
+    if (message.type === 'calibrated') {
+      settle(() => reject(new ClientError('JOB_FAILED', {})))
+      return
+    }
     settle(() => reject(new ClientError(toClientErrorCode(message.code), message.params)))
   }
 
@@ -194,4 +204,46 @@ export function train(request: TrainRequest, options: TrainOptions): TrainHandle
         })
       }),
   }
+}
+
+/**
+ * **이 기기가 개발 PC보다 몇 배 느린지 잰다** (open-decisions.md "학습 예상 시간은
+ * 실측표에 기기 배수를 곱해 낸다").
+ *
+ * **학습과 같은 워커 모듈에서 돈다.** 학습이 실제로 도는 환경을 재는 것이 되고, 청크도
+ * 이미 필요한 그것 하나뿐이다.
+ *
+ * **못 재면 `null`이다.** 예상 시간 하나 때문에 학습 화면이 죽으면 안 되고, 못 잰 것을
+ * 배수 1로 미는 것은 "길게 틀린다"의 반대편이다 — 화면은 그 자리에 `알 수 없음`을 적는다.
+ */
+export function calibrateDevice(createWorker: () => TrainWorker): Promise<number | null> {
+  return new Promise((resolve) => {
+    let worker: TrainWorker
+    try {
+      worker = createWorker()
+    } catch {
+      resolve(null)
+      return
+    }
+
+    let settled = false
+    const settle = (value: number | null): void => {
+      if (settled) return
+      settled = true
+      worker.onmessage = null
+      worker.onerror = null
+      worker.onmessageerror = null
+      worker.terminate()
+      resolve(value)
+    }
+
+    worker.onmessage = (event) => {
+      const message = event.data
+      settle(message.type === 'calibrated' ? message.elapsedMs : null)
+    }
+    // 워커가 죽거나 못 알아들은 것을 보내도 끝난다 - 안 그러면 Promise가 영영 안 풀린다.
+    worker.onerror = () => settle(null)
+    worker.onmessageerror = () => settle(null)
+    worker.postMessage({ type: 'calibrate' })
+  })
 }

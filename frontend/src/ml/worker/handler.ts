@@ -7,8 +7,9 @@
  */
 
 import { failureDetail, isClientError } from '../../errors'
+import { runCalibration } from '../calibration'
 import { runExperiment } from '../experiment'
-import type { TrainRequest, WorkerMessage } from './protocol'
+import type { TrainRequest, WorkerMessage, WorkerRequest } from './protocol'
 
 /**
  * 실험을 돌리고 메시지를 내보낸다. **던지지 않는다.**
@@ -36,4 +37,26 @@ export function handleTrain(request: TrainRequest, emit: (message: WorkerMessage
         : { type: 'failed', code: 'JOB_FAILED', params: failureDetail(error) },
     )
   }
+}
+
+/**
+ * 요청 하나를 처리한다. **워커 파일이 아는 것은 이 함수 하나다.**
+ *
+ * 교정도 여기로 온다 — 학습과 같은 워커에서 돌아야 **학습이 실제로 도는 환경**을
+ * 재는 것이 된다 (open-decisions.md "언제 재는가").
+ */
+export function handleRequest(
+  request: WorkerRequest,
+  emit: (message: WorkerMessage) => void,
+): void {
+  if (request.type === 'calibrate') {
+    try {
+      emit({ type: 'calibrated', elapsedMs: runCalibration() })
+    } catch (error) {
+      // **예상 시간 하나 때문에 학습 화면이 죽으면 안 된다.** 못 재면 못 재는 것이다.
+      emit({ type: 'failed', code: 'JOB_FAILED', params: failureDetail(error) })
+    }
+    return
+  }
+  handleTrain(request, emit)
 }

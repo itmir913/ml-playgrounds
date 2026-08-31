@@ -292,6 +292,39 @@ export function fitPreprocessor(
   return { format: PREPROCESSOR_FORMAT, columns, featureNames, excludedColumns }
 }
 
+/**
+ * 전처리를 지나면 특성이 **몇 개가 되는가**. 학습 예상 시간이 이것으로 곱한다
+ * (`ml/estimate.ts`).
+ *
+ * **`fitPreprocessor`를 안 부른다.** 저것은 데이터를 통째로 훑는데, 여기가 필요한
+ * 순간은 학생이 모델을 고르는 동안이라 값이 바뀔 때마다 훑을 수 없다. 열 요약
+ * (`data/columns.ts`)이 이미 들고 있는 `unique`로 센다.
+ *
+ * **그래서 어긋날 수 있고, 검사가 그것을 막는다** — 같은 데이터에서 이 함수와
+ * `fitPreprocessor().featureNames.length`가 같은 수를 내는지 본다. 원핫 규칙이 한쪽만
+ * 바뀌면 예상 시간이 조용히 몇 배 틀린다.
+ */
+export function estimatedFeatureWidth(
+  summaries: readonly { name: string; kind: ColumnKind; unique: number }[],
+  features: readonly string[],
+  encoding: Preprocessing['categoricalEncoding'],
+): number {
+  let width = 0
+  for (const name of features) {
+    const summary = summaries.find((entry) => entry.name === name)
+    if (summary === undefined) continue
+    if (summary.kind !== 'categorical') {
+      width += 1
+    } else if (encoding === 'onehot') {
+      width += summary.unique
+    } else if (encoding !== 'none') {
+      width += 1
+    }
+    // `none`이면 그 열은 통째로 빠진다 (위 `notEncodable`).
+  }
+  return width
+}
+
 const fittedColumnSchema = z.looseObject({
   name: z.string(),
   kind: z.enum(['numeric', 'categorical']),

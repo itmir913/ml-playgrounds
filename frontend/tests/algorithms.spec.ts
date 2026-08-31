@@ -28,6 +28,7 @@ import {
   BROWSER_RUNTIME_IDS,
   RUNTIME_IDS,
   UNMEASURED,
+  UNMEASURED_BASELINE,
   type EngineState,
   type RuntimeContext,
 } from '../src/ml/backend'
@@ -266,7 +267,7 @@ describe('분기 없이 늘어난다', () => {
           tabular: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
           image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
         },
-        baseline: { ms: [], columns: 'flat' },
+        baseline: { tabular: UNMEASURED_BASELINE, image: UNMEASURED_BASELINE },
       },
     ]
     const options = algorithmOptions(

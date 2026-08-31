@@ -14,7 +14,7 @@
  * 끝났다는 것과 [결과 보기]가 버튼 자리에 남는다.
  */
 
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter, type RouteLocationNormalized } from 'vue-router'
 
@@ -30,6 +30,11 @@ import { useTraining } from '@/composables/useTraining'
 import { summarizeColumns } from '@/data/columns'
 import { toMessage } from '@/errors'
 import { algorithmOptions, supportedTaskTypes } from '@/ml/algorithms'
+import { calibrateDevice } from '@/ml/worker/client'
+import { factorFrom, readFactor, writeFactor } from '@/ml/calibration'
+import { describe as describeEstimate, estimateMs, type Estimate } from '@/ml/estimate'
+import { estimatedFeatureWidth } from '@/ml/preprocess'
+import { trainableRowsOf } from '@/ml/training-source'
 import type { EngineState, RuntimeContext } from '@/ml/backend'
 import {
   algorithmsLosingMeaning,
@@ -156,6 +161,76 @@ const chosen = computed<ChosenModel[]>(() => {
     algorithm: one.algorithm,
     runtime: one.runtime ?? current.runtime,
   }))
+})
+
+/**
+ * **이 기기가 개발 PC보다 몇 배 느린가** (open-decisions.md "언제 재는가").
+ *
+ * 화면이 뜨자마자 워커에서 잰다. **[추가]를 누르기까지 몇 초가 있으므로** 예상이 필요한
+ * 순간에는 이미 값이 있고, 워커에서 돌아 메인 스레드는 안 멈춘다.
+ *
+ * **브라우저당 한 번이다** — `localStorage`에 남는다. 컴퓨터실 PC는 리셋을 전제라
+ * 차시마다 다시 재는데, 그게 70ms다.
+ */
+const deviceFactor = ref<number | null>(readFactor())
+
+onMounted(() => {
+  if (deviceFactor.value !== null) return
+  void calibrateDevice(spawnTrainingWorker).then((elapsed) => {
+    const factor = elapsed === null ? null : factorFrom(elapsed)
+    if (factor === null) return
+    deviceFactor.value = factor
+    writeFactor(factor)
+  })
+})
+
+/**
+ * 예상 시간이 곱할 특성 수. **원핫으로 늘어난 열이 그대로 센다** — 지역 열 하나가 17개
+ * 열이 되는 일이 예사고, 트리 계열에서 그것은 그대로 17배다.
+ */
+const featureWidth = computed(() => {
+  const data = project.file ? tabularDataOf(project.file.document) : null
+  if (!data) return 0
+  return estimatedFeatureWidth(columns.value, data.features, data.preprocessing.categoricalEncoding)
+})
+
+/** 학습에 실제로 들어가는 행 수. **시험 몫을 뺀 것이다.** */
+const trainingRows = computed(() => {
+  const file = project.file
+  if (!file) return 0
+  const usable = trainableRowsOf(file, project.taskType)
+  return Math.max(Math.round(usable * (1 - file.document.settings.split.testSize)), 0)
+})
+
+/**
+ * 줄마다의 예상 시간. **자리가 `chosen`과 같다.**
+ *
+ * **`알 수 없음`인 자리가 셋이다** — 아직 못 잰 기기, 표 데이터가 아닌 프로젝트(사진은
+ * 특성이 1,280개라 이 표가 말할 수 있는 것이 아니다), 그리고 브라우저 밖에서 도는 줄
+ * (우리가 모르는 기기다). **지어내지 않는다.**
+ */
+const estimates = computed<Estimate[]>(() => {
+  const factor = deviceFactor.value
+  const dataType = project.file?.document.manifest.dataType
+  const values = settings.value?.hyperparameters ?? {}
+  return chosen.value.map((row) => {
+    // **브라우저에서 도는 줄만 안다.** 서버는 우리가 모르는 기기다.
+    if (factor === null || dataType === undefined || row.runtime !== 'mljs') {
+      return { kind: 'unknown' }
+    }
+    return describeEstimate(
+      estimateMs(
+        {
+          algorithm: row.algorithm,
+          dataType,
+          rows: trainingRows.value,
+          columns: featureWidth.value,
+          hyperparameters: values[row.algorithm]?.[row.runtime] ?? {},
+        },
+        factor,
+      ),
+    )
+  })
 })
 
 /**
@@ -674,6 +749,7 @@ function leave(): void {
             :chosen="chosen"
             :values="settings.hyperparameters"
             :statuses="training.statuses.value"
+            :estimates="estimates"
             :running="training.running.value"
             @remove="removeModel"
             @set-param="setParam"

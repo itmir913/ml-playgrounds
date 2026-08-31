@@ -18,6 +18,8 @@ import {
   TRAINING_ESTIMATE_FLOOR_MS,
 } from '../limits'
 
+import type { DataType } from '../project/schema'
+
 import { ALGORITHMS } from './algorithms'
 import type { Baseline } from './backend'
 
@@ -60,6 +62,11 @@ export function interpolate(ladder: Ladder, x: number): number {
 
 export interface EstimateInput {
   readonly algorithm: string
+  /**
+   * 데이터 종류. **화면이 종류를 비교해서 끄지 않는다** — 어느 종류를 쟀는지는 등록부가
+   * 안다 (architecture.md §9.1). 사진은 아직 안 쟀고, 그 자리는 `알 수 없음`이 된다.
+   */
+  readonly dataType: DataType
   /** 학습에 실제로 들어가는 행 수. **전체 행이 아니라 훈련 몫이다.** */
   readonly rows: number
   /** **전처리 뒤의** 특성 수. 원핫으로 늘어난 열이 그대로 셈에 든다. */
@@ -107,8 +114,10 @@ function handleFactor(algorithm: string, hyperparameters: Record<string, unknown
   return 1
 }
 
-function baselineOf(algorithm: string): Baseline | null {
-  return ALGORITHMS.find((entry) => entry.id === algorithm)?.baseline ?? null
+function baselineOf(algorithm: string, dataType: DataType): Baseline | null {
+  const found = ALGORITHMS.find((entry) => entry.id === algorithm)?.baseline[dataType]
+  // 빈 표는 "0초"가 아니라 **안 쟀다**는 뜻이다 (`UNMEASURED_BASELINE`).
+  return found === undefined || found.ms.length === 0 ? null : found
 }
 
 /**
@@ -116,7 +125,7 @@ function baselineOf(algorithm: string): Baseline | null {
  * 그렇고, 지어내지 않는다.
  */
 export function baselineMs(input: EstimateInput): number | null {
-  const baseline = baselineOf(input.algorithm)
+  const baseline = baselineOf(input.algorithm, input.dataType)
   if (baseline === null) return null
 
   const rows = interpolate(baseline.ms, Math.max(input.rows, 1))
@@ -139,7 +148,14 @@ export function estimateMs(input: EstimateInput, factor: number): number | null 
  * 필요 없는 자리다.
  */
 export type Estimate =
+  /** 적을 것이 없다. 짧아서다. */
   | { readonly kind: 'none' }
+  /**
+   * **못 낸다.** 서버에서 학습하는 경우가 그렇다(우리가 모르는 기기다). 배수를 아직 못
+   * 잰 것과는 다르다 — "아직"과 "못"은 다른 상태이고, 화면이 그 둘을 같은 말로 적으면
+   * 학생은 기다리면 될 것을 안 된다고 읽는다.
+   */
+  | { readonly kind: 'unknown' }
   | { readonly kind: 'seconds'; readonly value: number }
   | { readonly kind: 'minutes'; readonly value: number }
 
@@ -150,9 +166,8 @@ export type Estimate =
  * 그 자릿수는 우리가 그만큼 정확한 것처럼 보이게 한다.
  */
 export function describe(ms: number | null): Estimate {
-  if (ms === null || !Number.isFinite(ms) || ms < TRAINING_ESTIMATE_FLOOR_MS) {
-    return { kind: 'none' }
-  }
+  if (ms === null || !Number.isFinite(ms)) return { kind: 'unknown' }
+  if (ms < TRAINING_ESTIMATE_FLOOR_MS) return { kind: 'none' }
   const seconds = ms / 1000
   if (seconds < 60) return { kind: 'seconds', value: Math.ceil(seconds / 5) * 5 }
   return { kind: 'minutes', value: Math.ceil(seconds / 60) }
