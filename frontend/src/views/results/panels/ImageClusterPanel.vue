@@ -110,12 +110,18 @@ function turn(cluster: number, step: number): void {
 </script>
 
 <template>
-  <div v-if="groups" class="flex flex-col gap-4">
-    <section v-for="group in groups" :key="group.cluster" class="flex flex-col gap-2">
+  <!--
+    **판의 리듬은 다른 판과 같다** (2026-08-31 여백 감사) — 덩어리는 `gap-5`, 덩어리 안의
+    제목과 내용은 `gap-1.5`다. 여기만 `4`와 `2`였고, 군집이 여럿일 때 그 차이가 결과
+    카드 안에서 층으로 보였다.
+  -->
+  <div v-if="groups" class="flex flex-col gap-5">
+    <section v-for="group in groups" :key="group.cluster" class="flex flex-col gap-1.5">
       <header class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <h3 class="font-bold text-ink">
+        <!-- **`h4`다.** 카드 제목이 이미 `h3`라, 판이 또 `h3`를 쓰면 문서 구조가 어긋난다. -->
+        <h4 class="font-bold text-ink">
           {{ t('results.clusterName', { index: group.cluster }) }}
-        </h3>
+        </h4>
         <AppBadge>{{ t('meta.image.count', group.hashes.length) }}</AppBadge>
         <!--
           **대표 사진이 무엇인지 말한다.** 그냥 첫 칸에 두면 학생은 그것이 대표라는 것을

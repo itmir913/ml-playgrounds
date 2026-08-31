@@ -1651,6 +1651,40 @@ const props = defineProps<{ run: Run; dataset: Dataset | null }>()
   it('패널이 하나라도 있다 - 빈 디렉터리에서 조용히 통과하지 않는다', () => {
     expect(vueFiles(PANELS).length).toBeGreaterThan(0)
   })
+
+  /**
+   * **판의 세로 리듬은 둘뿐이다** (2026-08-31 여백 감사) — 덩어리 사이는 `gap-5`,
+   * 덩어리 안의 제목과 내용은 `gap-1.5`다. 결과 카드 본문이 `gap-5`이고
+   * `ClusterResultPanel`이 그 안에서 같은 리듬을 쓴다.
+   *
+   * **어긋나면 카드 안에 층이 생긴다.** 실제로 둘이 그랬다 — 새 판이 덩어리 여럿을
+   * 전부 `gap-1.5`로 붙여 표 제목이 설명문에 달라붙었고(사용자가 화면에서 봤다),
+   * `ImageClusterPanel`은 저 혼자 `4`와 `2`였다. **눈으로만 지키면 다음 판에서 또 갈린다.**
+   *
+   * **세로 스택만 본다.** 가로줄(`flex items-center gap-4`)과 격자(`grid gap-2`)는
+   * 리듬이 아니라 그 부품의 내부 간격이라 대상이 아니다.
+   */
+  const verticalGaps = (source: string): string[] =>
+    [...source.matchAll(/class="([^"]*\bflex-col\b[^"]*)"/g)]
+      .flatMap((match) => [...(match[1] ?? '').matchAll(/(?<![\w-])gap-([\d.]+)/g)])
+      .map((match) => match[1] ?? '')
+
+  it('세로 간격을 골라낸다', () => {
+    expect(verticalGaps('<div class="flex flex-col gap-4">')).toEqual(['4'])
+    // 가로 간격만 있는 줄은 세로 리듬이 아니다.
+    expect(verticalGaps('<div class="flex items-center gap-4">')).toEqual([])
+    // `gap-x-3`은 다른 클래스다 - 앞의 경계가 없으면 이것까지 잡는다.
+    expect(verticalGaps('<div class="flex flex-col gap-x-3 gap-1.5">')).toEqual(['1.5'])
+  })
+
+  it('지금 판이 전부 gap-1.5 아니면 gap-5다', () => {
+    const found = vueFiles(PANELS).flatMap((path) =>
+      verticalGaps(readFileSync(path, 'utf-8'))
+        .filter((gap) => gap !== '1.5' && gap !== '5')
+        .map((gap) => `${path.slice(SRC.length + 1)}  gap-${gap}`),
+    )
+    expect(found).toEqual([])
+  })
 })
 
 /**

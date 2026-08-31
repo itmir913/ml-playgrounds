@@ -35,16 +35,27 @@ const table = computed(() => {
 </script>
 
 <template>
-  <section v-if="table" class="flex flex-col gap-1.5">
-    <h4 class="font-bold">{{ t('results.parametersTitle') }}</h4>
-    <p class="text-muted">{{ t('results.parametersLead') }}</p>
+  <section v-if="table" class="flex min-w-0 flex-col gap-5">
     <!--
+      **머리와 표는 다른 덩어리다.** 카드 본문이 덩어리를 `gap-5`로 떼고 덩어리 안에서
+      제목과 내용을 `gap-1.5`로 붙인다(`RunDetail`·`ClusterResultPanel`). 처음에 전부
+      `gap-1.5`로 두었더니 표 제목이 설명문에 붙어 어느 쪽에 속한 줄인지 흐려졌다.
+    -->
+    <div class="flex flex-col gap-1.5">
+      <h4 class="font-bold">{{ t('results.parametersTitle') }}</h4>
+      <p class="text-muted">{{ t('results.parametersLead') }}</p>
+      <!--
       **스케일링을 켰으면 안 뜬다.** 계수의 크기를 견줄 수 있는지가 거기서 갈리고,
       켠 학생에게까지 띄우면 맞는 말을 못 믿게 만든다.
     -->
-    <p v-if="!table.scaled" class="text-caution">{{ t('results.parametersScaleCaution') }}</p>
+      <p v-if="!table.scaled" class="text-caution">{{ t('results.parametersScaleCaution') }}</p>
+    </div>
 
-    <div v-for="section in table.sections" :key="section.kind" class="flex flex-col gap-1.5">
+    <div
+      v-for="section in table.sections"
+      :key="section.kind"
+      class="flex min-w-0 flex-col gap-1.5"
+    >
       <h5 class="font-bold">{{ t(PARAMETER_TITLE_KEYS[section.kind]) }}</h5>
 
       <AppTable>
