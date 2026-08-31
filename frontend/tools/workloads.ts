@@ -11,6 +11,8 @@
 
 import { CALIBRATION_JOBS, syntheticData } from '../src/ml/calibration'
 import { fit } from '../src/ml/engines/mljs'
+import { fitKMeans } from '../src/ml/engines/mljs-kmeans'
+import { evaluate, evaluateCluster } from '../src/ml/metrics'
 
 /** 기본 특성 수. **특성 축은 알고리즘마다 따로 훑는다**(아래 `*_columns` 사다리들). */
 const FEATURES = 8
@@ -41,6 +43,14 @@ export interface Job {
  * **예측까지 지나간다.** KNN은 학습이 0초이고 값이 예측에 있는데, 학생이 기다리는 것은
  * [학습하기]를 누르고 결과가 나올 때까지다.
  */
+/**
+ * **평가까지 지나간다** (2026-09-01). 앱의 [학습하기]는 `fit` 뒤에 지표를 낸다
+ * (`ml/experiment.ts`). 그 단계를 빼고 재던 표는 전부 조금씩 짧았고, **군집화는 그것이
+ * 지배적인 비용**이라 표가 두 자릿수로 틀렸다 — 실루엣이 `O(행² × 특성)`이다.
+ *
+ * 분류·회귀의 지표는 `O(행)`이라 빠뜨려도 티가 안 났지만, **티가 안 나는 것과 안 재는
+ * 것은 다르다.**
+ */
 export function measure(job: Job): number {
   const { features, target } = syntheticData(
     job.rows,
@@ -56,7 +66,10 @@ export function measure(job: Job): number {
     hyperparameters: job.hyperparameters ?? {},
     randomState: 42,
   })
-  predict(features.slice(0, Math.max(1, Math.round(job.rows * PREDICT_RATIO))))
+  const shown = Math.max(1, Math.round(job.rows * PREDICT_RATIO))
+  const predictions = predict(features.slice(0, shown))
+  // 앱이 시험 몫으로 채점하는 그 자리다.
+  evaluate(job.regression ? 'regression' : 'classification', target.slice(0, shown), predictions)
   return Math.round(performance.now() - started)
 }
 
@@ -91,16 +104,12 @@ function uniformData(rows: number, columns: number): { features: number[][]; tar
 
 /** 위 데이터로 K-평균 한 번. **`measure`를 안 쓰는 이유는 데이터가 다르기 때문이다.** */
 function measureKMeans(rows: number, clusters: number): number {
-  const { features, target } = uniformData(rows, FEATURES)
-  const rowIndices = features.map((_, index) => index)
+  const { features } = uniformData(rows, FEATURES)
   const started = performance.now()
-  fit('k_means', {
-    features,
-    rowIndices,
-    target,
-    hyperparameters: { nClusters: clusters },
-    randomState: 42,
-  })
+  // **엔진을 직접 부른다.** 평가에 배정과 중심점이 필요한데 `fit`은 그것을 안 돌려준다.
+  const result = fitKMeans(features, clusters, 42)
+  // **여기가 군집화의 진짜 비용이다** (`open-decisions.md` "실루엣 계수는 표본으로 낸다").
+  evaluateCluster(features, result.assignments, result.centroids, 42)
   return Math.round(performance.now() - started)
 }
 

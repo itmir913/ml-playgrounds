@@ -287,15 +287,22 @@ function evaluateClustering(
      *
      * `randomState`로 뽑으므로 **같은 파일을 다시 열어도 같은 값이 나온다.**
      */
-    const sample = size >= n ? null : new Set(shuffled(indices, randomState).slice(0, size))
-    const inSample = (index: number): boolean => sample === null || sample.has(index)
-    const counted = sample === null ? n : size
+    /**
+     * **표본만 남긴 군집 목록을 미리 만든다.** 전체를 돌면서 걸러 내면 거리 계산만
+     * 줄고 **고리는 여전히 `행²`**이라, 20,000행에서 2초짜리가 7초가 됐다
+     * (2026-09-01에 재서 잡았다).
+     */
+    const picked = size >= n ? indices : shuffled(indices, randomState).slice(0, size)
+    const inSample = new Set(picked)
+    const members: number[][] = clusters.map((cluster) =>
+      size >= n ? [...cluster] : cluster.filter((index) => inSample.has(index)),
+    )
+    const counted = picked.length
 
     let totalSilhouette = 0
-    for (let i = 0; i < n; i += 1) {
-      if (!inSample(i)) continue
+    for (const i of picked) {
       const ci = assignments[i]!
-      const myCluster = clusters[ci]!
+      const myCluster = members[ci]!
 
       // a(i): 같은 군집 내 다른 데이터까지 평균 거리
       let ai: number
@@ -303,28 +310,20 @@ function evaluateClustering(
         ai = 0
       } else {
         let sum = 0
-        let seen = 0
         for (const j of myCluster) {
-          if (j === i || !inSample(j)) continue
-          sum += euclideanDistance(data[i]!, data[j]!)
-          seen += 1
+          if (j !== i) sum += euclideanDistance(data[i]!, data[j]!)
         }
-        ai = seen === 0 ? 0 : sum / seen
+        ai = sum / (myCluster.length - 1)
       }
 
       // b(i): 가장 가까운 다른 군집까지 평균 거리
       let bi = Number.POSITIVE_INFINITY
       for (let c = 0; c < k; c += 1) {
-        if (c === ci || clusters[c]!.length === 0) continue
-        let sum = 0
-        let seen = 0
-        for (const j of clusters[c]!) {
-          if (!inSample(j)) continue
-          sum += euclideanDistance(data[i]!, data[j]!)
-          seen += 1
-        }
         // 표본에 그 군집의 점이 하나도 안 뽑혔으면 비교 상대가 아니다.
-        if (seen > 0) bi = Math.min(bi, sum / seen)
+        if (c === ci || members[c]!.length === 0) continue
+        let sum = 0
+        for (const j of members[c]!) sum += euclideanDistance(data[i]!, data[j]!)
+        bi = Math.min(bi, sum / members[c]!.length)
       }
 
       // 다른 군집이 전부 비어서 bi가 갱신되지 않은 경우. 위의 filled 가드가 이미
