@@ -17,8 +17,10 @@ import {
   bestOf,
   evaluate,
   metricsOf,
+  silhouetteSampleSize,
   type MetricDisplay,
 } from '../src/ml/metrics'
+import { MIN_SILHOUETTE_SAMPLE } from '../src/limits'
 import { TASK_TYPES, type TaskType } from '../src/project/schema'
 
 describe('등록부끼리 어긋나지 않는다', () => {
@@ -43,6 +45,7 @@ describe('등록부끼리 어긋나지 않는다', () => {
           [0.5, 0],
           [10.5, 10],
         ],
+        42,
       ).metrics,
     )
 
@@ -88,6 +91,7 @@ describe('등록부끼리 어긋나지 않는다', () => {
             [0.5, 0],
             [10.5, 10],
           ],
+          42,
         ).metrics,
     }
 
@@ -298,7 +302,7 @@ describe('군집', () => {
   ]
 
   it('이너셔는 각 데이터와 자기 중심점까지 거리의 제곱합이다', () => {
-    const { metrics } = CLUSTER_EVALUATOR(data, assignments, centroids)
+    const { metrics } = CLUSTER_EVALUATOR(data, assignments, centroids, 42)
     // (0-0.5)² + (0-0)² = 0.25
     // (1-0.5)² + (0-0)² = 0.25
     // (10-10.5)² + (10-10)² = 0.25
@@ -308,7 +312,7 @@ describe('군집', () => {
   })
 
   it('깔끔하게 갈리면 실루엣 계수가 1에 가깝다', () => {
-    const { metrics } = CLUSTER_EVALUATOR(data, assignments, centroids)
+    const { metrics } = CLUSTER_EVALUATOR(data, assignments, centroids, 42)
     expect(metrics.silhouette).toBeGreaterThan(0.9)
   })
 
@@ -341,6 +345,7 @@ describe('군집', () => {
         [10.5, 0],
         [50.5, 0],
       ],
+      42,
     )
 
     // a(i)는 어느 점이든 1이다. b(i)는 이웃 군집까지의 평균 거리다.
@@ -355,12 +360,12 @@ describe('군집', () => {
       [5, 5],
       [6, 5],
     ]
-    const { metrics } = CLUSTER_EVALUATOR(data, badAssignments, badCentroids)
+    const { metrics } = CLUSTER_EVALUATOR(data, badAssignments, badCentroids, 42)
     expect(metrics.silhouette).toBeLessThan(0)
   })
 
   it('k=1이면 실루엣 계수가 0이다', () => {
-    const { metrics } = CLUSTER_EVALUATOR(data, [0, 0, 0, 0], [[5.5, 5]])
+    const { metrics } = CLUSTER_EVALUATOR(data, [0, 0, 0, 0], [[5.5, 5]], 42)
     expect(metrics.silhouette).toBe(0)
   })
 
@@ -376,12 +381,13 @@ describe('군집', () => {
         [100, 100],
         [200, 200],
       ],
+      42,
     )
     expect(metrics.silhouette).toBe(0)
   })
 
   it('혼동 행렬도 클래스별 지표도 없다 - 비지도학습이다', () => {
-    const result = CLUSTER_EVALUATOR(data, assignments, centroids)
+    const result = CLUSTER_EVALUATOR(data, assignments, centroids, 42)
     expect(result.confusionMatrix).toBeUndefined()
     expect(result.perClass).toBeUndefined()
   })
@@ -392,7 +398,7 @@ describe('군집', () => {
   })
 
   it('반올림하지 않는다 - 자릿수는 화면이 줄인다', () => {
-    const { metrics } = CLUSTER_EVALUATOR(data, assignments, centroids)
+    const { metrics } = CLUSTER_EVALUATOR(data, assignments, centroids, 42)
     // 이너셔가 정확히 1.0인 경우는 반올림이 필요 없다. 실루엣은 무리수다.
     expect(Number.isFinite(metrics.silhouette)).toBe(true)
     expect(Number.isFinite(metrics.inertia)).toBe(true)
@@ -413,6 +419,7 @@ describe('군집', () => {
         [5, 5],
         [5, 5],
       ],
+      42,
     )
     expect(Number.isFinite(metrics.silhouette)).toBe(true)
     expect(Number.isFinite(metrics.inertia)).toBe(true)
@@ -476,5 +483,73 @@ describe('조용히 흡수하지 않는다', () => {
 
   it('멀쩡한 값은 그대로 통과한다', () => {
     expect(evaluate('regression', [1, 2, 3], [1, 2, 3]).metrics.r2).toBe(1)
+  })
+})
+
+/**
+ * **실루엣 계수를 표본으로 낸다** (`open-decisions.md` "실루엣 계수는 표본으로 낸다").
+ *
+ * 전수는 `O(행² × 특성)`이라 K-평균 상한(10만 행)에서 **6분 반**이다 — 학습은 0.5초에
+ * 끝나 있다. 여기서 지키는 것은 셋이다: **작으면 전수 그대로**, **크면 줄어든다**,
+ * 그리고 **같은 씨앗이면 같은 값**이 나온다.
+ */
+describe('실루엣 표본', () => {
+  function blobs(rows: number, columns: number): number[][] {
+    let state = 7
+    const random = (): number => {
+      state = (state * 1664525 + 1013904223) >>> 0
+      return state / 4294967296
+    }
+    return Array.from({ length: rows }, (_, row) =>
+      Array.from({ length: columns }, () => (row % 2) * 10 + random()),
+    )
+  }
+
+  it('예산 안에 들면 전수다 - 문턱을 따로 두지 않는다', () => {
+    expect(silhouetteSampleSize(500, 8)).toBe(500)
+  })
+
+  it('크면 줄어든다', () => {
+    const size = silhouetteSampleSize(100_000, 8)
+    expect(size).toBeLessThan(100_000)
+    expect(size).toBeGreaterThan(MIN_SILHOUETTE_SAMPLE)
+  })
+
+  it('특성이 많으면 더 줄어든다 - 비용이 쌍 × 특성이다', () => {
+    expect(silhouetteSampleSize(100_000, 3652)).toBeLessThan(silhouetteSampleSize(100_000, 8))
+  })
+
+  it('하한 아래로는 안 내려간다 - 뜻 없는 숫자를 빨리 내지 않는다', () => {
+    expect(silhouetteSampleSize(100_000, 10_000_000)).toBe(MIN_SILHOUETTE_SAMPLE)
+  })
+
+  it('행이 하한보다 적으면 행 수가 곧 표본이다', () => {
+    expect(silhouetteSampleSize(30, 8)).toBe(30)
+  })
+
+  /**
+   * **재현된다.** 씨앗이 같으면 같은 표본이 뽑히므로 같은 `.mlpx`를 다시 열어 재실행해도
+   * 지표가 그대로다 (`reproduce.ts`가 학습이 쓴 씨앗을 그대로 넘긴다).
+   *
+   * **표본이 걸린 계산으로 확인하지 않는다.** 표본 크기가 예산에서 나오므로 **표본이
+   * 걸리는 순간 그 한 번이 2초**다 — 설계가 그렇다(`SILHOUETTE_BUDGET_MS`). 관문에
+   * 그걸 두 번 넣을 이유가 없다. 뽑기 자체의 결정성은 `shuffled`가 갖고 있고
+   * (`shuffle.spec.ts`), 여기서는 **씨앗이 실제로 지표까지 이어지는지**만 본다.
+   */
+  it('같은 씨앗이면 같은 값이다', () => {
+    const data = blobs(200, 8)
+    const assignments = data.map((_, index) => index % 2)
+    const centroids = [
+      [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
+      [10.5, 10.5, 10.5, 10.5, 10.5, 10.5, 10.5, 10.5],
+    ]
+    const first = CLUSTER_EVALUATOR(data, assignments, centroids, 42).metrics
+    const again = CLUSTER_EVALUATOR(data, assignments, centroids, 42).metrics
+    expect(again.silhouette).toBe(first.silhouette)
+    // 이너셔는 표본을 안 쓴다 - 전수라 씨앗과 무관하게 같다.
+    expect(CLUSTER_EVALUATOR(data, assignments, centroids, 1).metrics.inertia).toBeCloseTo(
+      first.inertia ?? 0,
+      10,
+    )
   })
 })

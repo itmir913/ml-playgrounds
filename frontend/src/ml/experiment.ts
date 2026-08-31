@@ -465,6 +465,8 @@ function trainOne(
         context.trainFeatures,
         clusterResult.assignments,
         clusterResult.centroids,
+        // 실루엣 표본이 이 씨앗으로 뽑힌다. 분할과 같은 값이라 파일 하나로 재현된다.
+        context.randomState,
       )
     } else {
       evaluation = evaluate(context.taskType, context.testTarget, predict(context.testFeatures))

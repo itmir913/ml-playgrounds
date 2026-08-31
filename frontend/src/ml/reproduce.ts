@@ -196,6 +196,7 @@ export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
               shared.trainFeatures,
               clusterResult.assignments,
               clusterResult.centroids,
+              settings.split.randomState,
             ).metrics
           : null
         : evaluate(settings.taskType, shared.testTarget, predict(shared.testFeatures)).metrics

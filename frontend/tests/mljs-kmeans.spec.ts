@@ -137,7 +137,7 @@ describe('돌려주는 값이 서로 맞는다', () => {
     // 그렇다면 두 값이 같은지는 어디선가 봐야 하고, 그 자리가 검사다 - 예전에는
     // "검증을 위해"라고 주석만 있고 대조하는 코드가 없었다.
     const result = fitKMeans(TWO_BLOBS, 2, 42)
-    const { metrics } = CLUSTER_EVALUATOR(TWO_BLOBS, result.assignments, result.centroids)
+    const { metrics } = CLUSTER_EVALUATOR(TWO_BLOBS, result.assignments, result.centroids, 42)
     expect(metrics.inertia).toBeCloseTo(result.inertia, 10)
   })
 })

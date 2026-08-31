@@ -13,7 +13,14 @@
  * NaN을 파일에 쓰면 JSON에서 null이 되고, 그 null이 어디서 왔는지 아무도 모른다.
  */
 
+import {
+  MIN_SILHOUETTE_SAMPLE,
+  SILHOUETTE_BUDGET_MS,
+  SILHOUETTE_MS_PER_PAIR_FEATURE,
+} from '../limits'
+
 import { ClientError } from '../errors'
+import { shuffled } from './shuffle'
 import type { ConfusionMatrix, PerClass, TaskType } from '../project/schema'
 
 /**
@@ -171,6 +178,7 @@ export type ClusterEvaluator = (
   data: readonly (readonly number[])[],
   assignments: readonly number[],
   centroids: readonly (readonly number[])[],
+  randomState: number,
 ) => Evaluation
 
 /** 유클리드 거리. */
@@ -209,10 +217,32 @@ function euclideanDistance(a: readonly number[], b: readonly number[]): number {
  * tests/mljs-kmeans.spec.ts가 대조한다** - 예전 주석은 "검증을 위해 여기서도
  * 계산한다"고 적어 놓고 아무 데서도 대조하지 않았다.
  */
+/**
+ * 실루엣 계수를 **몇 행으로** 낼 것인가 (`open-decisions.md` "실루엣 계수는 표본으로
+ * 낸다"). `행 수 === 표본`이면 전수다.
+ *
+ * **비용이 `쌍 × 특성`이라 표본이 시간에서 나온다** — `표본² × 특성 ≤ 예산 / 계수`.
+ * 특성이 많으면 표본이 저절로 작아진다. sklearn의 `silhouette_score(sample_size=…)`와
+ * 같은 손잡이이고, 다른 점은 **우리가 그 값을 시간으로 계산한다**는 것뿐이다.
+ *
+ * **화면도 이 함수를 부른다** — 표본으로 낸 값인지 밝히려면 같은 판정을 써야 하고,
+ * 두 벌이 되면 화면이 "전수"라 적는데 실제로는 표본인 날이 온다.
+ */
+export function silhouetteSampleSize(rows: number, features: number): number {
+  if (rows <= 0) return 0
+  const width = Math.max(features, 1)
+  const affordable = Math.floor(
+    Math.sqrt(SILHOUETTE_BUDGET_MS / (SILHOUETTE_MS_PER_PAIR_FEATURE * width)),
+  )
+  // 예산이 하한 아래를 가리켜도 하한은 지킨다. 그래도 행 수는 못 넘는다.
+  return Math.min(rows, Math.max(affordable, MIN_SILHOUETTE_SAMPLE))
+}
+
 function evaluateClustering(
   data: readonly (readonly number[])[],
   assignments: readonly number[],
   centroids: readonly (readonly number[])[],
+  randomState: number,
 ): Evaluation {
   const n = data.length
   const k = centroids.length
@@ -238,6 +268,8 @@ function evaluateClustering(
   // 모든 점에서 s = (0 − a)/a = −1이 나온다 - "가장 나쁜 군집화"를 뜻하는 값을 조용히
   // 돌려주는 것이다. 학생은 k를 올렸는데 점수가 −1로 떨어지는 표를 보게 된다.
   const filled = clusters.reduce((count, cluster) => count + (cluster.length > 0 ? 1 : 0), 0)
+  const size = silhouetteSampleSize(n, data[0]?.length ?? 0)
+  const indices = Array.from({ length: n }, (_, index) => index)
 
   // 실루엣 계수
   let silhouette: number
@@ -246,8 +278,22 @@ function evaluateClustering(
     // k≥n이면 군집마다 점이 하나뿐이라 a(i)=0이고 b(i)=0이다 — sklearn도 0을 돌려준다.
     silhouette = 0
   } else {
+    /**
+     * **표본으로 낸다** (`open-decisions.md` "실루엣 계수는 표본으로 낸다"). 전수는
+     * `O(행² × 특성)`이라 상한 근처에서 몇 분이 된다.
+     *
+     * **뽑는 것도 비교 상대도 표본 안이다.** sklearn이 `sample_size`에서 하는 것과
+     * 같다 — 표본 밖의 점까지 상대로 쓰면 비용이 다시 `표본 × 행`이 된다.
+     *
+     * `randomState`로 뽑으므로 **같은 파일을 다시 열어도 같은 값이 나온다.**
+     */
+    const sample = size >= n ? null : new Set(shuffled(indices, randomState).slice(0, size))
+    const inSample = (index: number): boolean => sample === null || sample.has(index)
+    const counted = sample === null ? n : size
+
     let totalSilhouette = 0
     for (let i = 0; i < n; i += 1) {
+      if (!inSample(i)) continue
       const ci = assignments[i]!
       const myCluster = clusters[ci]!
 
@@ -257,10 +303,13 @@ function evaluateClustering(
         ai = 0
       } else {
         let sum = 0
+        let seen = 0
         for (const j of myCluster) {
-          if (j !== i) sum += euclideanDistance(data[i]!, data[j]!)
+          if (j === i || !inSample(j)) continue
+          sum += euclideanDistance(data[i]!, data[j]!)
+          seen += 1
         }
-        ai = sum / (myCluster.length - 1)
+        ai = seen === 0 ? 0 : sum / seen
       }
 
       // b(i): 가장 가까운 다른 군집까지 평균 거리
@@ -268,10 +317,14 @@ function evaluateClustering(
       for (let c = 0; c < k; c += 1) {
         if (c === ci || clusters[c]!.length === 0) continue
         let sum = 0
+        let seen = 0
         for (const j of clusters[c]!) {
+          if (!inSample(j)) continue
           sum += euclideanDistance(data[i]!, data[j]!)
+          seen += 1
         }
-        bi = Math.min(bi, sum / clusters[c]!.length)
+        // 표본에 그 군집의 점이 하나도 안 뽑혔으면 비교 상대가 아니다.
+        if (seen > 0) bi = Math.min(bi, sum / seen)
       }
 
       // 다른 군집이 전부 비어서 bi가 갱신되지 않은 경우. 위의 filled 가드가 이미
@@ -282,7 +335,7 @@ function evaluateClustering(
       totalSilhouette += maxAB === 0 ? 0 : (bi - ai) / maxAB
     }
 
-    silhouette = totalSilhouette / n
+    silhouette = totalSilhouette / counted
   }
 
   return { metrics: { silhouette, inertia } }
@@ -438,6 +491,8 @@ export function evaluateCluster(
   data: readonly (readonly number[])[],
   assignments: readonly number[],
   centroids: readonly (readonly number[])[],
+  /** 실루엣 표본을 뽑는 씨앗. **학습이 쓴 그 값이어야 재실행 대조가 성립한다.** */
+  randomState: number,
 ): Evaluation {
   if (data.length !== assignments.length) {
     throw new ClientError('JOB_FAILED', {
@@ -446,7 +501,7 @@ export function evaluateCluster(
     })
   }
 
-  const evaluation = CLUSTER_EVALUATOR(data, assignments, centroids)
+  const evaluation = CLUSTER_EVALUATOR(data, assignments, centroids, randomState)
 
   for (const [metric, value] of Object.entries(evaluation.metrics)) {
     if (!Number.isFinite(value)) throw new ClientError('JOB_FAILED', { metric })
