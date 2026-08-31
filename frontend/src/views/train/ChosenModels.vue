@@ -260,11 +260,16 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
           <span v-if="!props.running" class="shrink-0 text-ink-soft">{{ estimateText }}</span>
 
           <!--
-            **세로 여백을 되당기지 않는다.** 전에는 `-my-2.5`로 버튼의 `py-2.5`를
-            상쇄했다 — 줄이 한 줄뿐일 때는 버튼이 줄 높이를 46px로 키워 이름이 가운데로
-            밀렸기 때문이다. **실행 방법이 아랫줄로 내려가면서 그 전제가 깨졌다**:
-            왼쪽 칸이 두 줄이라 이미 더 높고, 버튼은 줄 높이를 안 키운다. 되당기는 것만
-            남으면 **기준선 정렬을 그만큼 밀어 올린다.**
+            **세로 여백을 되당긴다. 기준선 정렬과 둘 다 필요하다.**
+
+            기준선으로 맞추면 브라우저는 버튼의 **글자**를 이름의 글자에 맞추는데, 버튼의
+            상자는 그 글자보다 `py-2.5`+테두리만큼 위로 더 뻗는다. 그만큼 줄이 위로
+            자라서 **안쪽 여백은 사방이 12px인데 위만 23px로 보인다.** 되당기면 상자가
+            차지하는 자리만 줄고 글자의 기준선은 그대로다 — 남는 것은 테두리 1px이다.
+
+            **둘 중 하나만으로는 안 된다** (2026-08-31에 둘 다 한 번씩 틀렸다).
+            되당기기만 하면 상자가 맞고 글자가 어긋나고, 기준선만 쓰면 글자가 맞고
+            여백이 어긋난다. 누를 자리는 어느 쪽이든 그대로다.
 
             **도는 동안에는 뺄 수 없다.** 실험은 [학습하기]를 누른 순간의 스냅샷으로 도므로
             지금 빼도 도는 것은 안 바뀐다 - 뺄 수 있게 두면 화면이 지금 무엇이 도는지에
@@ -273,7 +278,7 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
           <AppButton
             v-if="!props.running"
             variant="ghost"
-            class="shrink-0"
+            class="-my-2.5 shrink-0"
             @click="emit('remove', index)"
           >
             {{ t('train.removeModel') }}
