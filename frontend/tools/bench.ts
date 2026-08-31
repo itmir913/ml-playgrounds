@@ -121,7 +121,7 @@ app.innerHTML = `
   <main style="font-family: system-ui, sans-serif; font-size: 16px; line-height: 1.6; padding: 16px; max-width: 720px; margin: 0 auto;">
     <h1 style="font-size: 20px;">기기 배수 실측</h1>
     <p>같은 일감을 이 기기에서 돌려 걸린 시간을 잽니다. 개발 PC의 값과 나눈 것이 계층 상수가 됩니다.</p>
-    <p><b>돌리는 동안 이 탭을 그대로 두세요.</b> 다른 탭으로 가면 브라우저가 계산을 늦춥니다.</p>
+    <p><b>개발자 도구를 닫고, 돌리는 동안 이 탭을 그대로 두세요.</b> 개발자 도구가 열려 있으면 JIT가 꺼져 열 배 넘게 느려지고, 다른 탭으로 가면 브라우저가 계산을 늦춥니다.</p>
     <button id="run" style="font-size: 16px; padding: 8px 16px;">재기</button>
     <p id="status"></p>
     <table id="result" style="border-collapse: collapse; width: 100%;"></table>
@@ -138,30 +138,56 @@ const json = document.getElementById('json') as HTMLTextAreaElement
 /** 한 프레임 쉰다. 안 쉬면 진행 표시가 안 그려지고 화면이 멈춘 것처럼 보인다. */
 const breathe = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 50))
 
+/**
+ * **탭이 한 번이라도 뒤로 갔는지 기억한다.** 브라우저는 안 보이는 탭의 계산을 늦추고,
+ * 그렇게 나온 값은 그 기기가 아니라 **그때의 사정**을 잰 것이다. 값만 남으면 그 사정이
+ * 조용히 계층 상수로 굳으므로 결과에 함께 싣는다.
+ */
+let wentHidden = false
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') wentHidden = true
+})
+
+const elapsedOf = (workload: Workload): number => {
+  const started = performance.now()
+  workload.run()
+  return Math.round(performance.now() - started)
+}
+
 button.addEventListener('click', () => {
   void (async () => {
     button.disabled = true
     table.innerHTML = ''
+    wentHidden = document.visibilityState === 'hidden'
     const measured: Record<string, number> = {}
+    const firstPass: Record<string, number> = {}
 
     for (const [index, workload] of WORKLOADS.entries()) {
       status.textContent = `${index + 1} / ${WORKLOADS.length} — ${workload.label}`
       await breathe()
 
-      // **한 번만 잰다.** 여러 번 재서 중앙값을 내면 느린 기기에서 몇 분이 되고,
-      // 우리가 원하는 정밀도는 "몇 배"이지 "몇 퍼센트"가 아니다.
-      const started = performance.now()
-      workload.run()
-      const elapsed = Math.round(performance.now() - started)
+      /**
+       * **두 번 재고 둘 다 남긴다.** 중앙값을 내려는 것이 아니다 — 우리가 원하는 정밀도는
+       * "몇 배"이지 "몇 퍼센트"다.
+       *
+       * 한 번만 재던 것을 바꾼 이유는 **2026-08-31 개발 PC 실측이 아이폰보다 4~18배
+       * 느리게 나왔기 때문이다.** 값 하나로는 그것이 기기인지 그때의 사정인지 가릴 수
+       * 없었다. 둘이 크게 어긋나면 그 실측은 버린다.
+       */
+      firstPass[workload.id] = elapsedOf(workload)
+      await breathe()
+      const elapsed = elapsedOf(workload)
       measured[workload.id] = elapsed
 
       const row = document.createElement('tr')
-      row.innerHTML = `<td style="border-bottom: 1px solid #ddd; padding: 6px;">${workload.label}</td><td style="border-bottom: 1px solid #ddd; padding: 6px; text-align: right;"><b>${elapsed}</b> ms</td>`
+      row.innerHTML = `<td style="border-bottom: 1px solid #ddd; padding: 6px;">${workload.label}</td><td style="border-bottom: 1px solid #ddd; padding: 6px; text-align: right;"><b>${elapsed}</b> ms<span style="color: #666;"> (첫 회 ${firstPass[workload.id]})</span></td>`
       table.append(row)
     }
 
-    status.textContent = '끝났습니다. 아래 상자를 통째로 복사해 주세요.'
-    json.value = JSON.stringify({ device: device(), measured }, null, 2)
+    status.textContent = wentHidden
+      ? '탭이 뒤로 간 적이 있습니다. 이 값은 쓸 수 없으니 다시 재 주세요.'
+      : '끝났습니다. 아래 상자를 통째로 복사해 주세요.'
+    json.value = JSON.stringify({ device: device(), wentHidden, measured, firstPass }, null, 2)
     button.disabled = false
   })()
 })
