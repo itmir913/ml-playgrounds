@@ -244,14 +244,54 @@ def expectations_for(name: str, entry: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def close(a: Any, b: Any, rel: float = 1e-9) -> bool:
+# 반복 솔버가 낸 값의 허용차. **닫힌 식과 같은 자를 쓸 수 없다** (2026-08-31).
+#
+# 로지스틱 계수는 L-BFGS가 걸어가서 멈춘 자리라 **플랫폼(BLAS·스레드)마다 마지막 자리가
+# 다르다.** 실제로 이 값을 픽스처에 넣은 날 리눅스 CI가 `Stale fixtures: iris`로 섰다 -
+# iris는 sklearn이 83회에 아슬아슬하게 수렴하는 벌이라 가장 먼저 흔들린다.
+#
+# **값은 스펙의 허용차와 같다** (`sklearn-parity.spec.ts`의 `PARAM_ABS_TOLERANCE`·
+# `PARAM_REL_TOLERANCE`). 그 안에서 흔들리는 픽스처는 스펙의 판정을 못 바꾸므로 낡은 것이
+# 아니고, 그보다 크게 움직였으면 그때는 정말로 다시 만들어야 한다. **둘을 따로 고르면
+# 한쪽만 움직였을 때 아무도 안 운다.**
+SOLVER_ABS = 5e-3
+SOLVER_REL = 5e-3
+
+
+def close(a: Any, b: Any, rel: float = 1e-9, atol: float = 1e-12, path: str = "") -> bool:
     if isinstance(a, float) or isinstance(b, float):
-        return bool(np.isclose(float(a), float(b), rtol=rel, atol=1e-12))
+        if bool(np.isclose(float(a), float(b), rtol=rel, atol=atol)):
+            return True
+        # **어디가 어긋났는지 적는다.** 이름만 부르면 다음 사람이 재현부터 다시 짠다.
+        print(f"  {path or '(root)'}: {a} != {b}")
+        return False
     if isinstance(a, list) and isinstance(b, list):
-        return len(a) == len(b) and all(close(x, y, rel) for x, y in zip(a, b))
+        if len(a) != len(b):
+            print(f"  {path or '(root)'}: 길이 {len(a)} != {len(b)}")
+            return False
+        return all(
+            close(x, y, rel, atol, f"{path}[{i}]") for i, (x, y) in enumerate(zip(a, b))
+        )
     if isinstance(a, dict) and isinstance(b, dict):
-        return a.keys() == b.keys() and all(close(a[k], b[k], rel) for k in a)
-    return bool(a == b)
+        if a.keys() != b.keys():
+            print(f"  {path or '(root)'}: 키가 다르다 {sorted(a)} != {sorted(b)}")
+            return False
+        return all(
+            # **반복 솔버가 낸 값만 자가 다르다.** 나이브베이즈 파라미터는 닫힌 식이라
+            # 그대로 1e-9이고, 여기서 넓히면 그쪽 대조가 함께 무뎌진다.
+            close(
+                a[k],
+                b[k],
+                SOLVER_REL if k == "params" and "coef" in (a[k] or {}) else rel,
+                SOLVER_ABS if k == "params" and "coef" in (a[k] or {}) else atol,
+                f"{path}.{k}" if path else k,
+            )
+            for k in a
+        )
+    if bool(a == b):
+        return True
+    print(f"  {path or '(root)'}: {a!r} != {b!r}")
+    return False
 
 
 def main() -> int:
