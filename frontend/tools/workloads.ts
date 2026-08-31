@@ -185,12 +185,53 @@ export const LADDERS: readonly Ladder[] = [
     points: [250, 500, 1000, 2000, 5000, 10_000, 20_000],
     job: (rows) => ({ algorithm: 'decision_tree', rows }),
   },
+  /**
+   * **특성 축은 알고리즘마다 따로 잰다.**
+   *
+   * 이론으로는 넷 다 특성 수에 선형이다 — 트리의 분할 탐색도, 로지스틱의 행렬곱도,
+   * KNN의 거리 계산도, SVM의 커널도 특성 하나가 늘면 그만큼 일이 는다. **그래도 잰다.**
+   * 이 저장소는 재 보지 않은 칸에 숫자를 넣지 않고(`limits.ts`의 `UNMEASURED`),
+   * "이론상 선형"과 "재 보니 선형"은 다음 사람에게 다른 문장이다.
+   */
   {
     id: 'decision_tree_columns',
     label: '의사결정트리 · 특성 수 (2,000행)',
     axis: 'columns',
     points: [4, 8, 16, 32],
     job: (columns) => ({ algorithm: 'decision_tree', rows: 2000, columns }),
+  },
+  {
+    id: 'logistic_regression_columns',
+    label: '로지스틱 회귀 · 특성 수 (2,000행)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({
+      algorithm: 'logistic_regression',
+      rows: 2000,
+      columns,
+      hyperparameters: LOGISTIC_CEILING,
+    }),
+  },
+  {
+    id: 'knn_columns',
+    label: 'KNN · 특성 수 (5,000행)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({ algorithm: 'knn', rows: 5000, columns }),
+  },
+  {
+    id: 'svm_columns',
+    label: 'SVM · 특성 수 (1,000행)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({ algorithm: 'svm', rows: 1000, columns }),
+  },
+  {
+    id: 'random_forest_columns',
+    label: '랜덤 포레스트 · 특성 수 (500행)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({ algorithm: 'random_forest', rows: 500, columns }),
   },
   {
     id: 'svm',
