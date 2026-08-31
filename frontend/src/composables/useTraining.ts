@@ -60,7 +60,24 @@ function plain(request: TrainRequest): TrainRequest {
   }
 }
 
-export function useTraining(createWorker: () => TrainWorker) {
+/** 모델 하나가 실제로 걸린 시간. **학습 뒤 배수 보정이 받는 것이다.** */
+export interface TimedModel {
+  readonly algorithm: string
+  readonly runtime: string
+  readonly elapsedMs: number
+}
+
+export interface TrainingOptions {
+  /**
+   * 모델 하나가 끝날 때마다 그 시간을 알린다.
+   *
+   * **선택 인자다** — 이 시계를 안 쓰는 화면이 있을 수 있고, 없다고 학습이 달라지지
+   * 않는다.
+   */
+  readonly onModelTimed?: (timed: TimedModel) => void
+}
+
+export function useTraining(createWorker: () => TrainWorker, options?: TrainingOptions) {
   const progress = ref<TrainingProgress | null>(null)
   const running = computed(() => progress.value !== null)
 
@@ -93,13 +110,31 @@ export function useTraining(createWorker: () => TrainWorker) {
     // **train은 반드시 try 안에 있어야 한다.** postMessage는 동기로 던질 수 있고
     // (아래 plain 참조), 밖에 두면 그때 finally가 안 돌아 progress가 남는다.
     // 그러면 화면이 "학습 중"에 영구히 갇히고 [학습하기] 버튼은 그 가지에 없다.
+    /**
+     * 모델마다 언제 시작했나. **학습 뒤 배수 보정이 이 시계를 쓴다**
+     * (`ml/calibration.ts`의 `factorFromRun`).
+     *
+     * **워커가 보고하는 두 시점 사이를 잰다** — 메인 스레드에서 재지만 그 사이에 메인이
+     * 하는 일이 없다(화면은 상태 배지만 바꾼다). 학생이 실제로 기다리는 시간이 이것이다.
+     */
+    const startedAt = new Map<number, { at: number; algorithm: string; runtime: string }>()
+
     try {
       const started = train(plain(request), {
         createWorker,
-        onStarted: ({ index }) => {
+        onStarted: ({ index, algorithm, runtime }) => {
+          startedAt.set(index, { at: performance.now(), algorithm, runtime })
           statuses.value = withStarted(statuses.value, index)
         },
         onProgress: (run, completed, count, index) => {
+          const begun = startedAt.get(index)
+          if (begun !== undefined) {
+            options?.onModelTimed?.({
+              algorithm: begun.algorithm,
+              runtime: begun.runtime,
+              elapsedMs: performance.now() - begun.at,
+            })
+          }
           progress.value = { completed, total: count }
           statuses.value = withFinished(statuses.value, index, run)
         },

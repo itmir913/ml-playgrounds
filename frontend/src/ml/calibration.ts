@@ -27,6 +27,16 @@ import { fit } from './engines/mljs'
  */
 const STORAGE_KEY = 'ml-playgrounds:device-factor'
 
+/**
+ * 알고리즘마다의 배수. **교정 일감이 낸 기기 배수를 덮어쓴다.**
+ *
+ * **하나로 두면 오염된다.** 기준표가 어느 한 알고리즘에서 크게 틀리면(K-평균이 그랬다)
+ * 그 학습으로 기기 배수를 고치는 순간 **다른 알고리즘의 예상까지 그만큼 밀린다.**
+ * 기기가 느린 것과 표가 틀린 것을 한 값이 구분하지 못한다. 알고리즘마다 두면 둘 다
+ * 그 자리에서 교정된다.
+ */
+const MODEL_STORAGE_KEY = 'ml-playgrounds:model-factors'
+
 const CLASSES = 3
 const NOISE = 0.15
 
@@ -144,5 +154,51 @@ export function writeFactor(factor: number): void {
     window.localStorage.setItem(STORAGE_KEY, String(factor))
   } catch {
     // 저장에 실패해도 이번 세션의 배수는 이미 메모리에 있다 (`prefs.ts`와 같다).
+  }
+}
+
+/**
+ * 학습 한 번이 남긴 배수. **실제 걸린 시간을 기준표가 말한 시간으로 나눈 것이다**
+ * (`open-decisions.md`의 "그다음 학습이 배수를 다듬는다").
+ *
+ * **평활 계수를 두지 않는다.** 지수 이동 평균은 근거 없는 상수(α)를 하나 만들고,
+ * 한 번 튄 값은 **다음 학습이 바로 고친다** — 같은 학생이 같은 기기에서 설정만 바꿔
+ * 되풀이하는 것이 이 도구의 핵심 활동이라 관측이 자주 온다.
+ */
+export function factorFromRun(elapsedMs: number, expectedMs: number): number | null {
+  if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) return null
+  if (!Number.isFinite(expectedMs) || expectedMs <= 0) return null
+  return elapsedMs / expectedMs
+}
+
+/** 저장된 알고리즘별 배수 전부. **못 읽거나 깨졌으면 빈 것이다.** */
+export function readModelFactors(): Record<string, number> {
+  let stored: string | null = null
+  try {
+    stored = window.localStorage.getItem(MODEL_STORAGE_KEY)
+  } catch {
+    return {}
+  }
+  if (stored === null) return {}
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(stored)
+  } catch {
+    // 남이 손으로 넣어 둔 값이나 옛 형식. 지어내지 않고 없는 것으로 본다.
+    return {}
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
+  const factors: Record<string, number> = {}
+  for (const [algorithm, value] of Object.entries(parsed as Record<string, unknown>)) {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) factors[algorithm] = value
+  }
+  return factors
+}
+
+export function writeModelFactors(factors: Record<string, number>): void {
+  try {
+    window.localStorage.setItem(MODEL_STORAGE_KEY, JSON.stringify(factors))
+  } catch {
+    // 저장에 실패해도 이번 세션의 값은 이미 메모리에 있다 (`writeFactor`와 같다).
   }
 }

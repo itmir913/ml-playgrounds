@@ -31,8 +31,15 @@ import { summarizeColumns } from '@/data/columns'
 import { toMessage } from '@/errors'
 import { algorithmOptions, supportedTaskTypes } from '@/ml/algorithms'
 import { calibrateDevice } from '@/ml/worker/client'
-import { factorFrom, readFactor, writeFactor } from '@/ml/calibration'
-import { describe as describeEstimate, estimateMs, type Estimate } from '@/ml/estimate'
+import {
+  factorFrom,
+  factorFromRun,
+  readFactor,
+  readModelFactors,
+  writeFactor,
+  writeModelFactors,
+} from '@/ml/calibration'
+import { baselineMs, describe as describeEstimate, estimateMs, type Estimate } from '@/ml/estimate'
 import { estimatedFeatureWidth } from '@/ml/preprocess'
 import { trainableRowsOf } from '@/ml/training-source'
 import type { EngineState, RuntimeContext } from '@/ml/backend'
@@ -60,7 +67,32 @@ const format = useFormat()
 const router = useRouter()
 const project = useProjectStore()
 const toasts = useToastStore()
-const training = useTraining(spawnTrainingWorker)
+/**
+ * **학습이 끝날 때마다 그 알고리즘의 배수를 다듬는다** (`open-decisions.md`의 "그다음
+ * 학습이 배수를 다듬는다"). 교정 일감이 낸 기기 배수는 **첫 학습 전까지의 어림**이고,
+ * 진짜 값은 학생의 데이터로 실제로 돌아 본 이 시간이다.
+ *
+ * **알고리즘마다 따로 둔다.** 하나로 두면 기준표가 크게 틀린 알고리즘(K-평균이 그랬다)의
+ * 오차가 다른 알고리즘의 예상으로 옮는다.
+ */
+const training = useTraining(spawnTrainingWorker, {
+  onModelTimed: ({ algorithm, runtime, elapsedMs }) => {
+    const dataType = project.file?.document.manifest.dataType
+    // 브라우저에서 돈 것만 안다. 서버는 우리가 모르는 기기다.
+    if (runtime !== 'mljs' || dataType === undefined) return
+    const expected = baselineMs({
+      algorithm,
+      dataType,
+      rows: trainingRows.value,
+      columns: featureWidth.value,
+      hyperparameters: settings.value?.hyperparameters[algorithm]?.[runtime] ?? {},
+    })
+    const factor = expected === null ? null : factorFromRun(elapsedMs, expected)
+    if (factor === null) return
+    modelFactors.value = { ...modelFactors.value, [algorithm]: factor }
+    writeModelFactors(modelFactors.value)
+  },
+})
 
 const settings = computed(() => project.file?.document.settings ?? null)
 /**
@@ -168,6 +200,12 @@ const chosen = computed<ChosenModel[]>(() => {
  */
 const deviceFactor = ref<number | null>(readFactor())
 
+/**
+ * 알고리즘마다 실제로 돌아 본 배수. **있으면 기기 배수보다 이쪽을 쓴다** — 합성 일감이
+ * 아니라 학생의 데이터로 잰 값이고, 기준표의 오차까지 함께 담고 있다.
+ */
+const modelFactors = ref<Record<string, number>>(readModelFactors())
+
 onMounted(() => {
   if (deviceFactor.value !== null) return
   void calibrateDevice(spawnTrainingWorker).then((elapsed) => {
@@ -212,6 +250,8 @@ const estimates = computed<Estimate[]>(() => {
     if (factor === null || dataType === undefined || row.runtime !== 'mljs') {
       return { kind: 'unknown' }
     }
+    // 그 알고리즘을 한 번이라도 돌려 봤으면 그때 잰 값이 이긴다.
+    const measured = modelFactors.value[row.algorithm] ?? factor
     return describeEstimate(
       estimateMs(
         {
@@ -221,7 +261,7 @@ const estimates = computed<Estimate[]>(() => {
           columns: featureWidth.value,
           hyperparameters: values[row.algorithm]?.[row.runtime] ?? {},
         },
-        factor,
+        measured,
       ),
     )
   })

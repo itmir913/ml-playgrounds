@@ -15,6 +15,9 @@ import { CALIBRATION_BASELINE_MS } from '../src/limits'
 import {
   CALIBRATION_JOBS,
   factorFrom,
+  factorFromRun,
+  readModelFactors,
+  writeModelFactors,
   readFactor,
   runCalibration,
   syntheticData,
@@ -78,5 +81,65 @@ describe('기기 배수', () => {
     const algorithms = CALIBRATION_JOBS.map((job) => job.algorithm)
     expect(algorithms).toContain('decision_tree')
     expect(algorithms).toContain('logistic_regression')
+  })
+})
+
+/**
+ * **학습이 끝날 때마다 배수를 다듬는다** (`open-decisions.md`의 "그다음 학습이 배수를
+ * 다듬는다"). 교정 일감이 낸 값은 **첫 학습 전까지의 어림**이고, 진짜 값은 학생의
+ * 데이터로 실제로 돌아 본 시간이다.
+ */
+describe('학습 뒤 배수 보정', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  it('실제를 예상으로 나눈 것이 새 배수다', () => {
+    expect(factorFromRun(300, 100)).toBeCloseTo(3, 12)
+    // 예상보다 빨랐으면 1보다 작다. 그것도 사실이다.
+    expect(factorFromRun(50, 100)).toBeCloseTo(0.5, 12)
+  })
+
+  it('0과 음수와 NaN은 배수가 아니다', () => {
+    expect(factorFromRun(0, 100)).toBeNull()
+    expect(factorFromRun(100, 0)).toBeNull()
+    expect(factorFromRun(Number.NaN, 100)).toBeNull()
+    expect(factorFromRun(100, Number.POSITIVE_INFINITY)).toBeNull()
+  })
+
+  it('저장했다 읽으면 같은 값이다', () => {
+    writeModelFactors({ decision_tree: 2.5, k_means: 0.5 })
+    expect(readModelFactors()).toEqual({ decision_tree: 2.5, k_means: 0.5 })
+  })
+
+  it('없거나 깨졌으면 빈 것이다 - 지어내지 않는다', () => {
+    expect(readModelFactors()).toEqual({})
+    for (const junk of ['', '{', 'null', '[]', '"fast"', '3']) {
+      window.localStorage.setItem('ml-playgrounds:model-factors', junk)
+      expect(readModelFactors(), junk).toEqual({})
+    }
+  })
+
+  /**
+   * **깨진 항목만 버린다.** 하나가 이상하다고 전부 버리면, 손으로 한 줄을 망가뜨린
+   * 학생이 그 기기에서 잰 나머지를 통째로 잃는다.
+   */
+  it('이상한 항목만 걷어낸다', () => {
+    window.localStorage.setItem(
+      'ml-playgrounds:model-factors',
+      JSON.stringify({ decision_tree: 2, knn: 0, svm: -1, k_means: 'fast', naive_bayes: 1.5 }),
+    )
+    expect(readModelFactors()).toEqual({ decision_tree: 2, naive_bayes: 1.5 })
+  })
+
+  /**
+   * **알고리즘마다 따로 두는 것이 요점이다.** 하나로 두면 기준표가 크게 틀린
+   * 알고리즘의 오차가 다른 알고리즘의 예상으로 옮는다 — K-평균이 실제로 그랬다.
+   */
+  it('한 알고리즘의 보정이 다른 알고리즘을 안 건드린다', () => {
+    writeModelFactors({ ...readModelFactors(), k_means: 70 })
+    expect(readModelFactors().decision_tree).toBeUndefined()
+    writeModelFactors({ ...readModelFactors(), decision_tree: 1.2 })
+    expect(readModelFactors()).toEqual({ k_means: 70, decision_tree: 1.2 })
   })
 })
