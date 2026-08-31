@@ -38,7 +38,9 @@ const format = useFormat()
  * 빠진 열도 원래 값 한 칸은 갖는다 — 자리를 지우면 학생이 방금 무엇을 잃었는지 안 보인다.
  */
 function spanOf(column: PreprocessPreview['columns'][number]): number {
-  return 1 + column.features.length
+  // **`외 N개` 칸도 센다.** 안 세면 원본 열 이름 줄이 한 칸씩 밀려, 열 이름이 옆 열의
+  // 값 위에 선다 (2026-08-31, 사용자가 화면에서 잡았다).
+  return 1 + column.features.length + (column.hiddenFeatures > 0 ? 1 : 0)
 }
 
 /**
