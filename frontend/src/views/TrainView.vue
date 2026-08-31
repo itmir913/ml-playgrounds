@@ -250,7 +250,6 @@ const targetIssue = computed(() => {
   return t(`errors.${required.code}`, { target })
 })
 
-/** 지금 설정으로 학습에 들어갈 특성 수. 0이면 전처리로 돌아가야 한다. */
 function apply(next: ProjectDocument): void {
   const file = project.file
   if (file) project.update({ ...file, document: next })

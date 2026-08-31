@@ -97,7 +97,8 @@ export const ALGORITHMS: readonly Algorithm[] = [
     dataTypes: { tabular: true, image: true },
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
-    // 20000행 22초. 분할 탐색이 노드마다 O(특성 × 행²)이다. **이미지에서 가장 크게
+    // 20,000행이 최악 145.6초다(2026-08-31 재실측, limits.ts). 분할 탐색이 노드마다
+    // O(특성 × 행²)이고, 데이터가 잘 갈릴수록 얕게 끝난다. **이미지에서 가장 크게
     // 갈린다** - 1,000장 58.7초이고 1,500장이면 136초다.
     maxRows: {
       tabular: { mljs: MLJS_DECISION_TREE_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
