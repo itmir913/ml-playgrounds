@@ -10,7 +10,7 @@
  */
 
 import { transform, type Dataset, type Preprocessor } from './preprocess'
-import { PREP_PREVIEW_ROW_COUNT } from '@/limits'
+import { PREP_PREVIEW_FEATURE_COUNT, PREP_PREVIEW_ROW_COUNT } from '@/limits'
 import type { Preprocessing } from '@/project/schema'
 
 /**
@@ -53,6 +53,15 @@ export interface PreviewColumn {
    * 때문이다. 표에서 지우면 그 열은 애초에 없었던 것처럼 보인다.
    */
   readonly features: readonly PreviewFeature[]
+  /**
+   * 자리가 모자라 안 보여준 특성의 수. **0이면 다 보여준 것이다.**
+   *
+   * 원-핫이 열 하나를 범주 수만큼 늘리는데, 그것을 다 그리면 화면이 멈춘다
+   * (`limits.ts`의 `PREP_PREVIEW_FEATURE_COUNT`). **숨긴 개수를 함께 들려보내는 이유는
+   * 화면이 그것을 말해야 하기 때문이다** — 말없이 자르면 학생은 열이 다섯 개만 생긴
+   * 줄 안다.
+   */
+  readonly hiddenFeatures: number
   /** 학습에서 빠졌는가. `features`가 비는 유일한 이유다. */
   readonly excluded: boolean
 }
@@ -114,11 +123,15 @@ export function preprocessPreview(
     columns.push({
       name: fitted.name,
       before: shown.map((row) => dataset.rows[row]?.[sourceIndex] ?? ''),
-      features: Array.from({ length: width }, (_, offset) => ({
-        name: preprocessor.featureNames[at + offset] ?? '',
-        values: matrix.map((row) => row[at + offset] ?? 0),
-        kind: valueKindOf(fitted),
-      })),
+      features: Array.from(
+        { length: Math.min(width, PREP_PREVIEW_FEATURE_COUNT) },
+        (_, offset) => ({
+          name: preprocessor.featureNames[at + offset] ?? '',
+          values: matrix.map((row) => row[at + offset] ?? 0),
+          kind: valueKindOf(fitted),
+        }),
+      ),
+      hiddenFeatures: Math.max(width - PREP_PREVIEW_FEATURE_COUNT, 0),
       excluded: false,
     })
     at += width
@@ -132,6 +145,7 @@ export function preprocessPreview(
       name: excluded.name,
       before: shown.map((row) => dataset.rows[row]?.[sourceIndex] ?? ''),
       features: [],
+      hiddenFeatures: 0,
       excluded: true,
     })
   }

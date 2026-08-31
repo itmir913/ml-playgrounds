@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { fitPreprocessor, type Dataset } from '../src/ml/preprocess'
-import { PREP_PREVIEW_ROW_COUNT } from '../src/limits'
+import { PREP_PREVIEW_FEATURE_COUNT, PREP_PREVIEW_ROW_COUNT } from '../src/limits'
 import { preprocessPreview } from '../src/ml/preview'
 import type { Preprocessing } from '../src/project/schema'
 
@@ -193,5 +193,63 @@ describe('그 칸의 값이 무엇인가', () => {
     const region = preview.columns.find((column) => column.name === '지역')
 
     for (const feature of region?.features ?? []) expect(feature.kind).toBe('code')
+  })
+})
+
+/**
+ * **원-핫이 미리보기를 폭발시키지 않는다** (2026-08-31, 사용자).
+ *
+ * 값 종류가 수천 개인 열을 특성으로 켰더니 표가 3,138칸 × 여섯 줄이 되어 **입력 지연
+ * 4.8초**로 화면이 멈췄다. 계산은 10ms였다 — 막힌 것은 DOM이라 **자르는 자리도 화면이
+ * 아니라 여기다.** 화면에서 자르면 다음 표가 같은 함수를 쓰면서 같은 일을 다시 겪는다.
+ */
+describe('넓은 범주 열이 미리보기를 폭발시키지 않는다', () => {
+  const KINDS = 300
+
+  function wide(): Dataset {
+    return {
+      columns: ['id', 'label'],
+      rows: Array.from({ length: KINDS }, (_, row) => [`v-${row}`, row % 2 === 0 ? 'a' : 'b']),
+    }
+  }
+
+  it('한 열이 보여주는 특성 칸에 천장이 있다', () => {
+    const table = wide()
+    const rows = table.rows.map((_, index) => index)
+    const options: Preprocessing = {
+      missing: 'drop',
+      scaling: 'none',
+      categoricalEncoding: 'onehot',
+    }
+    const preprocessor = fitPreprocessor(table, rows, ['id'], options)
+    const preview = preprocessPreview(table, preprocessor, rows, 'onehot')
+
+    const column = preview.columns.find((one) => one.name === 'id')
+    // 전처리기는 여전히 전부 만든다 — 자르는 것은 보여주는 쪽뿐이다.
+    expect(preprocessor.featureNames.length).toBe(KINDS)
+    expect(column?.features.length).toBe(PREP_PREVIEW_FEATURE_COUNT)
+    // **숨긴 개수를 들려보낸다.** 말없이 자르면 학생은 열이 다섯 개만 생긴 줄 안다.
+    expect(column?.hiddenFeatures).toBe(KINDS - PREP_PREVIEW_FEATURE_COUNT)
+  })
+
+  it('천장 아래면 아무것도 안 숨긴다', () => {
+    const table: Dataset = {
+      columns: ['kind', 'label'],
+      rows: [
+        ['가', 'a'],
+        ['나', 'b'],
+        ['가', 'a'],
+      ],
+    }
+    const rows = table.rows.map((_, index) => index)
+    const options: Preprocessing = {
+      missing: 'drop',
+      scaling: 'none',
+      categoricalEncoding: 'onehot',
+    }
+    const preprocessor = fitPreprocessor(table, rows, ['kind'], options)
+    const preview = preprocessPreview(table, preprocessor, rows, 'onehot')
+    expect(preview.columns[0]?.features.length).toBe(2)
+    expect(preview.columns[0]?.hiddenFeatures).toBe(0)
   })
 })

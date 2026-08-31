@@ -251,6 +251,7 @@
     "previewEmpty": "Choose a target and features and the changed table appears here.",
     "previewExcluded": "Not used",
     "previewLead": "Shows how your settings change the table, using five rows of the training data.",
+    "previewMoreFeatures": "{count} more",
     "previewOriginal": "Original",
     "previewPending": "Choose a task type in the Training step and the changed table appears here.",
     "previewRowNumber": "Row",

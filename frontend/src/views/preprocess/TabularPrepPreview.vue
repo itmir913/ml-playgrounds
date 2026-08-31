@@ -117,6 +117,18 @@ function cellText(
             >
               {{ feature.name }}
             </th>
+            <!--
+              **자른 자리에 몇 개를 안 보여줬는지 적는다.** 원-핫이 열 하나를 범주
+              수만큼 늘리는데 그걸 다 그리면 화면이 멈춘다(`limits.ts`의
+              `PREP_PREVIEW_FEATURE_COUNT`). **말없이 자르면 학생은 열이 다섯 개만
+              생긴 줄 안다.**
+            -->
+            <th
+              v-if="column.hiddenFeatures > 0"
+              class="text-left font-normal whitespace-nowrap text-ink-faint"
+            >
+              {{ t('preprocess.previewMoreFeatures', { count: column.hiddenFeatures }) }}
+            </th>
           </template>
         </tr>
       </thead>
@@ -152,6 +164,8 @@ function cellText(
             <td v-for="feature in column.features" :key="feature.name" class="tabular-nums">
               {{ cellText(feature, column.before[row] ?? '', feature.values[row] ?? 0) }}
             </td>
+            <!-- 머리글의 `외 N개` 칸과 자리를 맞춘다. 값은 없다. -->
+            <td v-if="column.hiddenFeatures > 0" class="text-ink-faint">…</td>
           </template>
         </tr>
       </tbody>
