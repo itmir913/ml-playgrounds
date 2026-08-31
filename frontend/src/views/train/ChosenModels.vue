@@ -114,11 +114,10 @@ const rows = computed(() =>
  * 어느 키가 실제로 불리는지 검사가 못 세고, 안 불리는 키가 남아도 아무도 모른다
  * (`locales.spec.ts`의 짝 규칙).
  *
- * **없으면 `null`이다.** 짧아서 안 적는 자리와 못 재는 자리는 다른 상태이므로 문장이
- * 다르고, 짧은 쪽은 아무것도 안 적는다.
+ * **짧아도 빈칸으로 두지 않는다.** 빈칸이면 "빠른 것"과 "못 재는 것"이 화면에서 같은
+ * 모양이 되고, 학생은 그 자리를 보고 어느 쪽인지 알 수 없다.
  */
-function estimateTextOf(estimate: Estimate): string | null {
-  if (estimate.kind === 'none') return null
+function estimateTextOf(estimate: Estimate): string {
   if (estimate.kind === 'unknown') return t('train.estimateUnknown')
   const key = estimate.kind === 'minutes' ? 'train.estimate.minutes' : 'train.estimate.seconds'
   return t(key, { value: estimate.value })
@@ -242,7 +241,7 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
               **짧으면 아무것도 안 적는다.** `약 0초`는 소음이고, 그 자리는 원래 안내가
               필요 없는 자리다.
             -->
-            <span v-if="!props.running && estimateText" class="text-ink-soft">
+            <span v-if="!props.running" class="text-ink-soft">
               {{ estimateText }}
             </span>
           </div>

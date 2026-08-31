@@ -116,18 +116,30 @@ group('기기 배수', () => {
 })
 
 group('화면이 적을 것', () => {
-  it('짧으면 아무것도 안 적는다', () => {
-    expect(describe(0).kind).toBe('none')
-    expect(describe(4999).kind).toBe('none')
-    // `null`은 "짧다"가 아니라 "못 낸다"다.
+  /**
+   * **빈칸을 안 남긴다** (2026-08-31, 사용자). 5초 미만을 안 적기로 했었는데, 그러면
+   * 화면에서 **빠른 것과 못 재는 것이 같은 모양**이 됐다.
+   */
+  it('짧아도 적는다 - 빈칸은 빠른 것과 못 재는 것을 못 가린다', () => {
+    expect(describe(0)).toEqual({ kind: 'seconds', value: 1 })
+    expect(describe(200)).toEqual({ kind: 'seconds', value: 1 })
+    expect(describe(4999)).toEqual({ kind: 'seconds', value: 5 })
+  })
+
+  it('못 재는 것만 모른다고 한다', () => {
     expect(describe(null).kind).toBe('unknown')
     expect(describe(Number.NaN).kind).toBe('unknown')
   })
 
   it('올림한다 - 길게 틀리기로 했다', () => {
-    expect(describe(5000)).toEqual({ kind: 'seconds', value: 5 })
-    expect(describe(6001)).toEqual({ kind: 'seconds', value: 10 })
+    expect(describe(3200)).toEqual({ kind: 'seconds', value: 4 })
     expect(describe(61_000)).toEqual({ kind: 'minutes', value: 2 })
+  })
+
+  it('짧은 쪽은 1초 단위, 긴 쪽은 5초 단위다 - 같은 단위가 짧은 쪽에서 크게 틀린다', () => {
+    expect(describe(9400)).toEqual({ kind: 'seconds', value: 10 })
+    expect(describe(10_100)).toEqual({ kind: 'seconds', value: 15 })
+    expect(describe(27_000)).toEqual({ kind: 'seconds', value: 30 })
   })
 
   it('1분부터는 분으로 적는다', () => {

@@ -15,7 +15,8 @@ import {
   MLJS_LOGISTIC_REGRESSION_BASELINE_MAX_ITER,
   MLJS_LOGISTIC_REGRESSION_MAX_ITER_MS,
   MLJS_RANDOM_FOREST_BASELINE_TREES,
-  TRAINING_ESTIMATE_FLOOR_MS,
+  TRAINING_ESTIMATE_COARSE_FROM_SECONDS,
+  TRAINING_ESTIMATE_COARSE_STEP_SECONDS,
 } from '../limits'
 
 import type { DataType } from '../project/schema'
@@ -148,8 +149,6 @@ export function estimateMs(input: EstimateInput, factor: number): number | null 
  * 필요 없는 자리다.
  */
 export type Estimate =
-  /** 적을 것이 없다. 짧아서다. */
-  | { readonly kind: 'none' }
   /**
    * **못 낸다.** 서버에서 학습하는 경우가 그렇다(우리가 모르는 기기다). 배수를 아직 못
    * 잰 것과는 다르다 — "아직"과 "못"은 다른 상태이고, 화면이 그 둘을 같은 말로 적으면
@@ -162,13 +161,22 @@ export type Estimate =
 /**
  * **올림한다.** 길게 틀리기로 했으므로 내림도 반올림도 아니다.
  *
- * 초는 5초 단위로 올린다 — `약 7초`와 `약 8초`가 학생에게 다른 정보를 주지 않는데,
- * 그 자릿수는 우리가 그만큼 정확한 것처럼 보이게 한다.
+ * **짧아도 적는다** (2026-08-31, 사용자). 5초 미만은 안 적기로 했었는데, 화면에서
+ * **아무것도 없는 것과 모르는 것이 같은 모양이 됐다** — 학생은 그 자리를 보고 "빠른
+ * 건가 못 재는 건가"를 알 수 없다. `약 1초`가 소음이라고 봤지만, 없는 칸이 주는
+ * 물음표가 더 나쁘다.
+ *
+ * **1초 아래로는 안 내려간다.** `약 0초`는 시간이 아니라 부정이다.
  */
 export function describe(ms: number | null): Estimate {
   if (ms === null || !Number.isFinite(ms)) return { kind: 'unknown' }
-  if (ms < TRAINING_ESTIMATE_FLOOR_MS) return { kind: 'none' }
   const seconds = ms / 1000
-  if (seconds < 60) return { kind: 'seconds', value: Math.ceil(seconds / 5) * 5 }
+  if (seconds < TRAINING_ESTIMATE_COARSE_FROM_SECONDS) {
+    return { kind: 'seconds', value: Math.max(Math.ceil(seconds), 1) }
+  }
+  if (seconds < 60) {
+    const step = TRAINING_ESTIMATE_COARSE_STEP_SECONDS
+    return { kind: 'seconds', value: Math.ceil(seconds / step) * step }
+  }
   return { kind: 'minutes', value: Math.ceil(seconds / 60) }
 }

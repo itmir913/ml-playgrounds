@@ -884,11 +884,19 @@ export const MLJS_LOGISTIC_REGRESSION_MAX_ITER_MS = [
 export const CALIBRATION_BASELINE_MS = 70
 
 /**
- * 이보다 짧으면 예상 시간을 안 적는다.
+ * 초를 이 값 미만이면 1초 단위로, 넘으면 아래 `..._STEP_SECONDS` 단위로 올린다.
  *
- * `약 0초`는 소음이고, 그 자리는 원래 안내가 필요 없는 자리다. 학생이 알아야 하는 것은
- * "몇 초인가"가 아니라 **"지금 눌러도 되는 일인가"**다.
+ * **한 자리는 남기려는 것이다.** 12초를 5초 단위로 올리면 `약 15초`가 되어 25%를
+ * 부풀리는데, 27초에서의 같은 올림은 11%다. 짧은 쪽일수록 같은 단위가 크게 틀린다.
  *
  * **분류: 상한이 아니다.**
  */
-export const TRAINING_ESTIMATE_FLOOR_MS = 5000
+export const TRAINING_ESTIMATE_COARSE_FROM_SECONDS = 10
+
+/**
+ * 긴 쪽에서 초를 올리는 단위. **`약 27초`와 `약 28초`는 학생에게 같은 말이고**, 그
+ * 자릿수는 우리가 그만큼 정확한 것처럼 보이게 한다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const TRAINING_ESTIMATE_COARSE_STEP_SECONDS = 5
