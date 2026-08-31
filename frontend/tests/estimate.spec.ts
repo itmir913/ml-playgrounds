@@ -33,21 +33,21 @@ group('보간', () => {
 
   it('두 점 사이는 그 사이 값이다', () => {
     const between = interpolate(MLJS_DECISION_TREE_BASELINE_MS, 1500)
-    expect(between).toBeGreaterThan(330)
-    expect(between).toBeLessThan(1222)
+    expect(between).toBeGreaterThan(378)
+    expect(between).toBeLessThan(1649)
   })
 
   it('표 아래로는 첫 점의 값을 쓴다 - 아래로 외삽하면 값이 되레 커지는 표가 있다', () => {
-    // 나이브 베이즈는 1,000행 6ms · 5,000행 5ms라 기울기가 음수다.
+    // 선형 회귀는 1,000행과 5,000행이 둘 다 23ms라 기울기가 0이다.
     const naive = ALGORITHMS.find((entry) => entry.id === 'naive_bayes')?.baseline.tabular.ms ?? []
     expect(interpolate(naive, 10)).toBe(naive[0]?.[1])
-    expect(interpolate(MLJS_DECISION_TREE_BASELINE_MS, 10)).toBe(32)
+    expect(interpolate(MLJS_DECISION_TREE_BASELINE_MS, 10)).toBe(49)
   })
 
   it('표 위로는 가장 가파른 구간으로 늘린다 - 마지막 구간만 보면 짧게 틀린다', () => {
     const last = MLJS_DECISION_TREE_BASELINE_MS[MLJS_DECISION_TREE_BASELINE_MS.length - 1]
     const [lastRows, lastMs] = last as readonly [number, number]
-    const lastSlope = Math.log(31_896 / 7842) / Math.log(10_000 / 5000) // 마지막 구간의 기울기
+    const lastSlope = Math.log(34_567 / 8457) / Math.log(10_000 / 5000) // 마지막 구간의 기울기
     const doubled = interpolate(MLJS_DECISION_TREE_BASELINE_MS, lastRows * 2)
     expect(doubled).toBeGreaterThan(lastMs * Math.pow(2, lastSlope))
   })
@@ -89,9 +89,10 @@ group('곱하는 축', () => {
         ...input('logistic_regression', 5000),
         hyperparameters: { maxIter: 1000 },
       }) ?? 0
+    // 평가까지 넣어 다시 재니 26.5배다 (전에는 19.2배). **곧은 선이 아니라는 것이 요점이다.**
     const factor = thousand / hundred
     expect(factor).toBeGreaterThan(15)
-    expect(factor).toBeLessThan(25)
+    expect(factor).toBeLessThan(35)
   })
 
   it('maxIter를 100 아래로 내려도 예상은 안 줄어든다 - 초반 구간이 유난히 싸다', () => {
