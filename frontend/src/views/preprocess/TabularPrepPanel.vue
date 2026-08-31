@@ -909,6 +909,7 @@ const encodingHelp = computed(() =>
                 :title="t('preprocess.tabular.missing')"
                 :body="t('preprocess.tabular.missingSummary')"
                 :items="missingHelp"
+                side="bottom"
               />
             </h3>
             <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
@@ -936,6 +937,7 @@ const encodingHelp = computed(() =>
                 :title="t('preprocess.tabular.scaling')"
                 :body="t('preprocess.tabular.scalingSummary')"
                 :items="scalingHelp"
+                side="bottom"
               />
             </h3>
             <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
@@ -962,6 +964,7 @@ const encodingHelp = computed(() =>
                 :title="t('preprocess.tabular.encoding')"
                 :body="t('preprocess.tabular.encodingSummary')"
                 :items="encodingHelp"
+                side="bottom"
               />
             </h3>
             <div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
