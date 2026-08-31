@@ -377,7 +377,7 @@
     "stopStay": "계속 학습",
     "stopGo": "멈추기",
     "stop": "멈추기",
-    "taskChanged": "바꾼 기계학습 유형에서는 쓸 수 없어 목록에서 제거된 모델이 있습니다. ({names})",
+    "taskChanged": "바꾼 기계학습 유형에서 쓸 수 없는 모델을 목록에서 제거했습니다. ({names})",
     "taskTitle": "기계학습 유형(Task Type)",
     "tuning": "하이퍼파라미터(Hyperparameter) 바꾸기"
   },

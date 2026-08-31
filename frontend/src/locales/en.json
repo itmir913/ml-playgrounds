@@ -377,7 +377,7 @@
     "stopStay": "Keep training",
     "stopGo": "Stop",
     "stop": "Stop",
-    "taskChanged": "Some models were dropped from your list because they do not fit the task type you chose. ({names})",
+    "taskChanged": "Removed the models that do not fit the task type you chose. ({names})",
     "taskTitle": "Task type",
     "tuning": "Change the hyperparameters"
   },

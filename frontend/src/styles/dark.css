@@ -43,6 +43,8 @@
   --color-positive: #34d399;
   --color-positive-soft: #052e26;
   --color-caution: #fbbf24;
+  /* 어두운 배색에서는 글자용이 이미 밝다. 면도 같은 값을 쓴다 (theme.css의 설명). */
+  --color-caution-vivid: #fbbf24;
   --color-caution-soft: #3a2606;
   --color-danger: #fb7185;
   --color-danger-soft: #4c0519;

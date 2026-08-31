@@ -25,10 +25,15 @@ const TONES: Readonly<Record<ToastTone, string>> = {
   danger: 'border-danger/30 bg-danger-soft text-ink',
 }
 
+/**
+ * 왼쪽 막대. **면이라 글자와 다른 값을 쓴다** — 주황이 그렇다(`styles/theme.css`의
+ * `--color-caution-vivid`). 글자로 쓸 만큼 진한 주황은 6px 막대에서 갈색으로 읽혀
+ * 빨강과 안 갈렸다.
+ */
 const BARS: Readonly<Record<ToastTone, string>> = {
   info: 'bg-info',
   success: 'bg-positive',
-  caution: 'bg-caution',
+  caution: 'bg-caution-vivid',
   danger: 'bg-danger',
 }
 </script>
