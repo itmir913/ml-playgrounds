@@ -78,16 +78,7 @@ const steps = computed(() =>
        *
        * **잠겨 있을 때는 사유가 그 자리를 채우므로** 설명까지 겹치지 않는다.
        */
-      explains: here || (unlocked && tasks.length === 0),
-      /**
-       * 설명문이 차지하는 칸 수. **할 일이 없는 줄에서는 줄 전체를 쓴다** — 그 줄의
-       * 가운데 칸은 어차피 비어 있고, 좁게 두면 두 문장짜리 설명(결과)이 두 줄로
-       * 접히면서 빈자리는 빈자리대로 남는다.
-       *
-       * 항목이 있는 줄에서는 버튼 칸을 침범하지 않는다 — 거기서는 버튼이 두 줄에
-       * 걸쳐 가운데 서 있다(`sm:row-span-2`).
-       */
-      explainSpan: tasks.length === 0 ? 'sm:col-span-3' : 'sm:col-span-2',
+      explains: (here || (unlocked && tasks.length === 0)) && kind.value !== null,
     }
   }),
 )
@@ -214,8 +205,17 @@ function lockedText(step: StepId): string {
             <!--
               **종류를 모르면 설명문이 없다.** `stepTextKey`가 `steps.{단계}.purpose`로
               떨어지는데 그 열쇠는 로케일에 없다 - 줄마다 키 문자열이 뜬다.
+
+              **자리를 못 박는다.** 할 일이 없는 줄에서는 줄 전체(`col-span-3`)를 쓰게
+              두었는데, 버튼이 두 줄에 걸치면서 **셋째 칸이 늘 차 있게 됐다** — 세 칸이
+              연속으로 빈 줄을 찾다가 설명문이 **셋째 줄로 밀려나고 둘째 줄이 통째로
+              비었다** (2026-08-31). 버튼 칸을 안 침범하면 그 일이 없고, 그 칸은 이제
+              비어 있지도 않다.
             -->
-            <p v-if="entry.explains && kind" class="text-ink-soft" :class="entry.explainSpan">
+            <p
+              v-if="entry.explains"
+              class="text-ink-soft sm:col-span-2 sm:col-start-1 sm:row-start-2"
+            >
               {{ t(stepTextKey(kind, entry.step, 'purpose')) }}
             </p>
 
@@ -229,10 +229,16 @@ function lockedText(step: StepId): string {
               **칸과 줄을 둘 다 못 박는다.** 할 일이 없는 줄은 가운데 칸을 안 그리고,
               설명문은 DOM에서 이 칸보다 앞에 있다 — 자동 배치에 맡기면 버튼이 빈 가운데
               칸이나 둘째 줄로 흘러간다.
+
+              **걸치는 조건은 "설명문이 있는가"다. "지금 여기인가"가 아니다.**
+              버튼(46px)이 단계 이름(24px)보다 높아서, 첫 줄에만 매달리면 그 줄이
+              버튼만큼 부풀고 `items-center`가 이름을 가운데로 내린다 — **줄의 위
+              여백만 11px 더 두꺼워 보인다.** 조건을 `here`로 두었더니 현재 단계만
+              멀쩡하고 나머지가 전부 그 모양이었다 (2026-08-31).
             -->
             <div
               class="min-w-0 sm:col-start-3 sm:row-start-1 sm:justify-self-end"
-              :class="entry.here ? 'sm:row-span-2' : ''"
+              :class="entry.explains ? 'sm:row-span-2' : ''"
             >
               <AppButton v-if="entry.unlocked" variant="secondary" @click="go(entry.step)">
                 {{ t('project.openStep') }}
