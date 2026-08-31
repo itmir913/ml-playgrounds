@@ -226,6 +226,20 @@ def expectations_for(name: str, entry: dict[str, Any]) -> dict[str, Any]:
                 "var": model.var_.tolist(),
                 "classLogPrior": np.log(model.class_prior_).tolist(),
             }
+        if algorithm == "logistic_regression":
+            # 계수와 절편을 굳힌다 (2026-08-31). 화면이 이 값을 학생에게 보여주기로 했고
+            # (open-decisions.md "모델이 무엇을 배웠는지 화면이 보여준다"), 보여주는 숫자는
+            # 대조되고 있어야 한다. L2가 최적점을 유일하게 만들므로 양쪽이 수렴하면 계수
+            # 자체가 같아야 한다 - 라벨 일치보다 강한 판정이다.
+            #
+            # **이진은 sklearn이 한 줄, 우리는 +-절반 두 줄이다** (mlpx-spec.md 5.4.1).
+            # 여기는 sklearn의 모양 그대로 담고, 견주는 쪽(sklearn-parity.spec.ts)이 우리
+            # 두 줄을 합쳐 맞춘다 - 픽스처는 sklearn이 말한 것을 적는 자리이지 우리 형식으로
+            # 번역하는 자리가 아니다.
+            record["params"] = {
+                "coef": model.coef_.tolist(),
+                "intercept": model.intercept_.tolist(),
+            }
         out[algorithm] = record
     return out
 

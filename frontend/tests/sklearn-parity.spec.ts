@@ -24,7 +24,7 @@ import { describe, expect, it } from 'vitest'
 
 import { fit } from '../src/ml/engines/mljs'
 import { evaluate } from '../src/ml/metrics'
-import type { LinearRegressionModel, NaiveBayesModel } from '../src/ml/models'
+import type { LinearModelV2, LinearRegressionModel, NaiveBayesModel } from '../src/ml/models'
 import { fitPreprocessor, targetValues, transform, type Dataset } from '../src/ml/preprocess'
 
 const FIXTURES = path.join(__dirname, 'fixtures', 'sklearn')
@@ -43,7 +43,19 @@ interface FixtureEntry {
       /** 로지스틱만. sklearn이 수렴했는가 - 라벨 완전 일치 관문의 전제다 (1단계-C). */
       converged?: boolean
       nIter?: number
-      params?: { theta: number[][]; var: number[][]; classLogPrior: number[] }
+      /**
+       * 알고리즘마다 담는 것이 다르다 — 나이브베이즈는 `theta`·`var`·`classLogPrior`,
+       * 로지스틱은 `coef`·`intercept`다. **각 필드가 선택인 이유가 그것이고, 읽는 쪽은
+       * 자기 알고리즘의 필드가 실제로 왔는지를 먼저 단언한다** — 없는 필드를 조용히
+       * 건너뛰면 단언이 사라진다 (R9 감사 C-2와 같은 자리).
+       */
+      params?: {
+        theta?: number[][]
+        var?: number[][]
+        classLogPrior?: number[]
+        coef?: number[][]
+        intercept?: number[]
+      }
       coefficients?: number[]
       intercept?: number
       r2?: number
@@ -81,6 +93,23 @@ const CONVERGENCE_MISMATCH_EXCEPTIONS: Readonly<Record<string, 'ours-warns'>> = 
 }
 /** 닫힌 식 파라미터의 허용 상대차. 실측은 비트 일치였다 — 여유는 플랫폼 몫이다. */
 const PARAM_RELATIVE_TOLERANCE = 1e-9
+
+/**
+ * 로지스틱 계수의 허용차. **절대와 상대를 함께 쓴다** (`|ours − sk| ≤ 절대 + 상대·|sk|`).
+ *
+ * **어느 하나로는 못 잡는다** — 계수가 큰 벌(`sum120`)은 절대차가 6.8e-3인데 상대차는
+ * 4.8e-5이고, 계수가 0에 가까운 벌(`missing`)은 절대차가 4.0e-4인데 상대차가 7.3e-3이다.
+ * 하나만 쓰면 둘 중 한쪽에서 근거 없이 빡빡하거나 근거 없이 헐렁해진다.
+ *
+ * 값은 **수렴한 일곱 벌의 실측(절대 최대 9.98e-4 · 상대 최대 7.3e-3)의 다섯 배 여유**다.
+ * 우리 솔버가 기울기 `tol`(1e-4)에서 멈추므로 계수의 마지막 자리는 원래 이만큼 흔들린다.
+ *
+ * **처음에 1e-2로 잡았다가 좁혔다.** 트립와이어(이진 계수에 2%를 태우는 것)가 그 값에서
+ * **안 물었다** — 상대 여유가 곧 "몇 %까지 봐준다"라서, 1e-2는 1% 오차를 정의상 통과시킨다.
+ * 지금 값은 실측에 다섯 배 여유를 두면서 **1% 오차부터 문다.**
+ */
+const PARAM_ABS_TOLERANCE = 5e-3
+const PARAM_REL_TOLERANCE = 5e-3
 /** 최소제곱 해석해의 허용 절대차. 실측은 1e-11 이하였다. */
 const LSTSQ_TOLERANCE = 1e-6
 
@@ -257,6 +286,7 @@ for (const [name, entry] of Object.entries(document.datasets)) {
         }
 
         if (algorithm === 'naive_bayes' && expected.params) {
+          expect(expected.params.theta, `${name}: 나이브베이즈 기준값`).toBeDefined()
           const { model } = fit('naive_bayes', {
             features: trainFeatures,
             rowIndices: entry.trainIndices,
@@ -266,18 +296,64 @@ for (const [name, entry] of Object.entries(document.datasets)) {
           })
           const trained = model as NaiveBayesModel
           trained.means.forEach((row, index) => {
-            expect(relativeGap(row, expected.params?.theta[index] ?? [])).toBeLessThan(
+            expect(relativeGap(row, expected.params?.theta?.[index] ?? [])).toBeLessThan(
               PARAM_RELATIVE_TOLERANCE,
             )
           })
           trained.variances.forEach((row, index) => {
-            expect(relativeGap(row, expected.params?.var[index] ?? [])).toBeLessThan(
+            expect(relativeGap(row, expected.params?.var?.[index] ?? [])).toBeLessThan(
               PARAM_RELATIVE_TOLERANCE,
             )
           })
-          expect(relativeGap(trained.logPriors, expected.params.classLogPrior)).toBeLessThan(
+          expect(relativeGap(trained.logPriors, expected.params.classLogPrior ?? [])).toBeLessThan(
             PARAM_RELATIVE_TOLERANCE,
           )
+        }
+
+        /**
+         * **로지스틱 계수를 sklearn과 견준다** (2026-08-31). 화면이 이 값을 학생에게
+         * 보여주기로 했으므로(`open-decisions.md` "모델이 무엇을 배웠는지 화면이 보여준다")
+         * 보여주는 숫자가 대조 밑에 있어야 한다.
+         *
+         * **양쪽이 수렴했을 때만이다.** 갈래 (2)에서는 둘이 경로 중간의 서로 다른 점이라
+         * 계수가 3배까지 갈리고(1단계-C), 그건 결함이 아니다 — 라벨 판정과 같은 전제다.
+         *
+         * **이진은 우리가 ±절반 두 줄로 담는다** (`mlpx-spec.md` §5.4.1). 위쪽 줄을 두 배
+         * 하면 sklearn의 한 줄이다. 픽스처는 sklearn의 모양 그대로 갖고, 맞추는 일은
+         * 여기서 한다.
+         */
+        if (algorithm === 'logistic_regression' && expected.params && bothConverged) {
+          expect(expected.params.coef, `${name}: 로지스틱 계수 기준값`).toBeDefined()
+          const { model } = fit('logistic_regression', {
+            features: trainFeatures,
+            rowIndices: entry.trainIndices,
+            target: trainTarget,
+            hyperparameters: {},
+            randomState: entry.randomState,
+          })
+          const trained = model as LinearModelV2
+          const coef = expected.params.coef ?? []
+          const intercept = expected.params.intercept ?? []
+          const binary = coef.length === 1
+          const ourCoef = binary
+            ? [(trained.weights[1] ?? []).map((value) => value * 2)]
+            : trained.weights
+          const ourIntercept = binary ? [(trained.intercepts[1] ?? 0) * 2] : trained.intercepts
+          coef.forEach((row, index) => {
+            row.forEach((reference, position) => {
+              const ours = (ourCoef[index] ?? [])[position] ?? 0
+              expect(
+                Math.abs(ours - reference),
+                `${name} 계수 [${index}][${position}]`,
+              ).toBeLessThanOrEqual(PARAM_ABS_TOLERANCE + PARAM_REL_TOLERANCE * Math.abs(reference))
+            })
+          })
+          intercept.forEach((reference, index) => {
+            expect(
+              Math.abs((ourIntercept[index] ?? 0) - reference),
+              `${name} 절편 [${index}]`,
+            ).toBeLessThanOrEqual(PARAM_ABS_TOLERANCE + PARAM_REL_TOLERANCE * Math.abs(reference))
+          })
         }
       })
     }
