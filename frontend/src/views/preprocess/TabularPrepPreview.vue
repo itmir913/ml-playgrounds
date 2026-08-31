@@ -43,6 +43,37 @@ function spanOf(column: PreprocessPreview['columns'][number]): number {
 }
 
 /**
+ * 바뀐 값 칸의 머리글. **열 하나가 특성 하나가 될 때는 이름을 다시 안 쓴다.**
+ *
+ * 수치 열은 전처리기가 붙이는 이름이 원본 열 이름과 **같다.** 그대로 그리면
+ * `평균기온` 아래에 `원래 값` / `평균기온`이 서서, 오른쪽 칸이 무엇인지 말해 주는
+ * 대신 같은 말을 두 번 한다 (2026-08-31, 사용자).
+ *
+ * **원-핫만 이름을 쓴다.** 거기서는 `지역=서울`처럼 이름이 **어느 범주인지**를 말하고,
+ * 그건 모델 파일과 특성 중요도가 쓰는 바로 그 글자다.
+ *
+ * 나머지는 **무엇이 되었는지**를 적는다. 방식 이름(`표준화`)을 안 쓰는 이유는 그것이
+ * 바로 위 [데이터 정제]에 한 번만 서 있는 전역 설정이라, 열마다 되풀이하면 소음이
+ * 되기 때문이다.
+ */
+const VALUE_KIND_KEYS: Readonly<
+  Record<PreprocessPreview['columns'][number]['features'][number]['kind'], string>
+> = {
+  raw: 'preprocess.previewValueRaw',
+  scaled: 'preprocess.previewValueScaled',
+  code: 'preprocess.previewValueCode',
+}
+
+function featureHeader(
+  column: PreprocessPreview['columns'][number],
+  feature: PreprocessPreview['columns'][number]['features'][number],
+): string {
+  // 열 하나가 여럿이 되는 경우에만 이름이 정보를 갖는다.
+  const many = column.features.length + column.hiddenFeatures > 1
+  return many ? feature.name : t(VALUE_KIND_KEYS[feature.kind])
+}
+
+/**
  * 이 칸을 어떤 글자로 그릴까. **무엇인가는 `ml/preview.ts`가 정하고 여기는 고르기만 한다.**
  *
  * @param before 같은 행의 원본 칸. 비어 있으면 지나간 값이 아니라 **채운 값**이다.
@@ -124,7 +155,7 @@ function cellText(
               :key="feature.name"
               class="text-left font-normal text-ink-soft"
             >
-              {{ feature.name }}
+              {{ featureHeader(column, feature) }}
             </th>
             <!--
               **자른 자리에 몇 개를 안 보여줬는지 적는다.** 원-핫이 열 하나를 범주

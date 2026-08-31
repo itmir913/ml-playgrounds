@@ -1063,6 +1063,8 @@ describe('번역이 빠진 값이 없다', () => {
     // 언어 이름은 그 언어로 적는다 - 한국어 화면에서도 English를 찾을 수 있어야 한다.
     'language.en',
     'language.ko',
+    // 서비스 이름. `ml.js`·`scikit-learn`을 로마자로 적는 것과 같다 (`runtimes.*`).
+    'legal.source',
   ]
 
   it('한국어 값에 한글이 있다', () => {

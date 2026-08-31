@@ -8,6 +8,7 @@
   },
   "legal": {
     "privacy": "Privacy policy",
+    "source": "GitHub",
     "notices": "Open source licenses"
   },
   "nav": {},
@@ -256,6 +257,9 @@
     "previewPending": "Choose a task type in the Training step and the changed table appears here.",
     "previewRowNumber": "Row",
     "previewTitle": "Preprocessing preview",
+    "previewValueCode": "As a number",
+    "previewValueRaw": "Used as is",
+    "previewValueScaled": "Scaled",
     "randomState": "Random seed",
     "randomStateNote": "Every random choice made with your data uses this value. Keeping it fixed means every training run works with the same data, so a change in your score can be traced to the model setting you changed.",
     "reseed": "Draw a new seed",
