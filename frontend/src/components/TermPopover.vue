@@ -98,16 +98,24 @@ defineProps<{
     <p class="mt-2 text-ink-soft">{{ body }}</p>
 
     <!--
-      **선택지 목록.** 이름은 진하게, 설명은 그 아래 한 단 들여서 — 여섯 개가 늘어서도
-      훑을 수 있어야 한다. 화면을 넘으면 `popover-panel`이 스크롤한다.
+      **이름과 설명이 한 줄에서 이어진다**(run-in). 이름을 줄로 띄우면 항목마다 두 줄을
+      먼저 쓰고 시작해서, 여섯 개짜리 결측치 목록이 화면 한 판을 넘었다 (2026-08-31).
+      **줄 수가 절반 가까이 준다.**
+
+      **불릿을 안 쓴다.** 왼쪽 여백을 먹으면서 줄 수는 그대로이고, 이름이 이미 굵어서
+      항목이 어디서 시작하는지는 그것으로 보인다.
 
       `<dl>`인 이유는 이것이 **이름과 뜻의 짝**이기 때문이다. 읽어 주는 기계에 그렇게
-      들리고, `<ul>`로 두면 열세 줄이 그냥 목록이 된다.
+      들리고, `<ul>`로 두면 열세 줄이 그냥 목록이 된다. 짝을 `inline`으로 눕혀도 그
+      관계는 그대로 남는다.
+
+      **사이 여백은 `ml-1`이다.** 요소 사이의 공백은 여백 정리가 지워 버리므로
+      (`AppChoices`가 같은 자리에서 겪었다) 글자로 넣지 않고 여백으로 준다.
     -->
     <dl v-if="items && items.length > 0" class="mt-3 flex flex-col gap-2 border-t border-line pt-3">
       <div v-for="item in items" :key="item.term">
-        <dt class="font-bold text-ink">{{ item.term }}</dt>
-        <dd class="text-ink-soft">{{ item.body }}</dd>
+        <dt class="inline font-bold text-ink">{{ item.term }}</dt>
+        <dd class="ml-1 inline text-ink-soft">{{ item.body }}</dd>
       </div>
     </dl>
   </AppPopover>
