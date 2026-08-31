@@ -138,8 +138,13 @@ describe('거부 사유를 던지지 않고 돌려준다', () => {
   })
 
   /**
-   * **분할이 던지는 것도 사유가 된다.** 회귀 타깃에 층화를 켜면 값이 하나뿐인 무리가
-   * 쏟아진다 - 학생이 화면에서 만들 수 있는 상태이고, 그때 카드가 예외로 죽으면 안 된다.
+   * **분할이 던지는 것도 사유가 된다.** 값이 거의 다 다른 열을 타깃으로 삼고 층화를 켜면
+   * 하나뿐인 무리가 쏟아진다 - 학생이 화면에서 만들 수 있는 상태이고, 그때 카드가
+   * 예외로 죽으면 안 된다.
+   *
+   * **유형이 분류인 것이 중요하다.** 회귀에서는 이제 학습이 층화를 무시하므로(아래
+   * describe) 이 경로를 안 지나간다 — 유형을 회귀로 두면 이 검사가 **아무것도 안 지킨
+   * 채로 초록**이 된다.
    */
   it('층화할 수 없는 타깃이다', () => {
     const plan = planRun({
@@ -150,7 +155,7 @@ describe('거부 사유를 던지지 않고 돌려준다', () => {
         target: 'b',
         preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
       }),
-      taskType: 'regression',
+      taskType: 'classification',
     })
     expect(reasonOf(plan)).toBe('SPLIT_STRATIFY_TARGET_CONTINUOUS')
   })
@@ -213,5 +218,62 @@ describe('세는 것이 실제 학습과 같다', () => {
       // 전처리기도 같은 것이어야 한다 - 채움값과 스케일 기준이 훈련 데이터에서 나온다.
       expect(experiment.settings.trainIndices.length).toBe(plan.split.trainIndices.length)
     }
+  })
+})
+
+/**
+ * **유형이 뜻을 지우면 학습이 층화를 무시한다** (`open-decisions.md` "값을 내리지 않는다.
+ * 학습이 무시하고 화면이 잠근다").
+ *
+ * **진짜 입구로 확인한다.** `stratifyApplies`를 따로 부르는 것은 이 결함을 안 잡는다 —
+ * 고쳐야 했던 것은 `planRun`이 `sampleRows`와 `splitRows`에 **무엇을 넘기는가**이고,
+ * 넘기는 자리를 하나라도 빠뜨리면 거기서 다시 거부한다.
+ */
+describe('뜻이 없는 유형에서는 층화를 무시한다', () => {
+  /** 타깃이 연속이라 층화하면 `SPLIT_STRATIFY_TARGET_CONTINUOUS`로 막히던 표. */
+  function continuous(): Dataset {
+    return {
+      columns: ['a', 'value'],
+      rows: Array.from({ length: 12 }, (_, index) => [String(index), String(index * 1.5 + 0.25)]),
+    }
+  }
+
+  const data: Partial<TabularSettings> = {
+    features: ['a'],
+    target: 'value',
+    preprocessing: { missing: 'drop', scaling: 'none', categoricalEncoding: 'onehot' },
+  }
+
+  it('회귀는 stratify가 켜져 있어도 학습이 선다', () => {
+    const plan = planRun({
+      dataset: continuous(),
+      testDataset: null,
+      settings: settingsFor(data),
+      taskType: 'regression',
+    })
+    expect(plan.ok).toBe(true)
+  })
+
+  it('파일의 값은 그대로 있다 - 분류로 돌아오면 살아난다', () => {
+    // 계획은 값을 고쳐 쓰지 않는다. 고쳐 쓰면 자동 저장이 그것을 파일에 적고,
+    // 유형을 되돌려도 안 돌아오던 옛 동작이 이름만 바꿔 되살아난다.
+    const settings = settingsFor(data)
+    planRun({
+      dataset: continuous(),
+      testDataset: null,
+      settings,
+      taskType: 'regression',
+    })
+    expect(settings.split.stratify).toBe(true)
+  })
+
+  it('분류에서는 여전히 막는다 - 무시하는 것은 유형이 지운 경우뿐이다', () => {
+    const plan = planRun({
+      dataset: continuous(),
+      testDataset: null,
+      settings: settingsFor(data),
+      taskType: 'classification',
+    })
+    expect(plan.ok).toBe(false)
   })
 })

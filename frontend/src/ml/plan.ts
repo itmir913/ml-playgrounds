@@ -38,7 +38,7 @@ import {
 } from './preprocess'
 import { sampleRows } from './sample'
 // 전처리 화면이 [학습하기] 전에 같은 판정을 한다. 표가 두 벌이면 화면과 학습이 갈린다.
-import { requiredTargetKind } from './selection'
+import { requiredTargetKind, stratifyApplies } from './selection'
 import { splitRows } from './split'
 
 export interface PlanInput {
@@ -173,13 +173,26 @@ export function planRun(input: PlanInput): RunPlan {
    * 삼키는 자리를 여기 하나로 모은다. 부르는 쪽마다 `try`를 두면 무엇을 삼킬지가
    * 자리마다 갈리고, 그러면 화면과 학습이 다른 목록을 본다.
    */
+  /**
+   * **뜻이 없는 유형에서는 층화를 무시한다. 파일의 값은 안 건드린다**
+   * (`open-decisions.md` "값을 내리지 않는다. 학습이 무시하고 화면이 잠근다").
+   *
+   * **무시하는 자리가 여기 하나다.** 화면마다 무시하면 화면과 학습이 다른 것을 돌린다.
+   * `ml/split.ts`의 거부는 그대로 남는다 — 남의 `.mlpx`를 열어 다시 돌리는 경로에는
+   * 우리 화면이 없다.
+   */
+  const splitSettings = {
+    ...settings.split,
+    stratify: stratifyApplies(taskType, settings.split.stratify),
+  }
+
   try {
     // **뽑고 나서 나눈다** (open-decisions.md #22). 뽑힌 행만 분할되므로 trainIndices와
     // testIndices의 뜻은 그대로이고, **뽑히지 않은 행은 그 둘의 여집합**이라 따로 적지
     // 않는다. nSamples가 없으면 usable을 그대로 돌려주므로 지금까지의 동작과 같다.
     const sampled = sampleRows(
       { rows: usable, ...(isClustering ? {} : { labels: usableLabels }) },
-      settings.split,
+      splitSettings,
       settings.nSamples,
     )
     // 뽑힌 행의 정답이다. usableLabels를 잘라 쓰지 않는 이유는 sampleRows가 원본 행
@@ -194,7 +207,7 @@ export function planRun(input: PlanInput): RunPlan {
       ? { trainIndices: sampled, testIndices: [] as number[] }
       : splitRows(
           { rows: sampled, labels },
-          settings.split,
+          splitSettings,
           providedTestRows ? { rows: providedTestRows } : undefined,
         )
 

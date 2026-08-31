@@ -25,6 +25,7 @@ import {
   requiredTargetKind,
   rowUsage,
   stratifyBlock,
+  stratifyApplies,
   stratifyLocked,
   splitsData,
   trainableRowCount,
@@ -550,16 +551,28 @@ describe('층화를 걸 수 있는가', () => {
 
 describe('층화 체크박스를 잠그는 조건', () => {
   const block = { code: 'STRATIFY_NOT_FOR_TASK_TYPE' } as const
+  /** 끄는 것이 학생이 할 수 있는 유일한 일인 사유. 옛 규칙이 그대로 걸린다. */
+  const lonely = { code: 'SPLIT_STRATIFY_IMPOSSIBLE', label: '가', count: 1, minRows: 2 } as const
 
   it('켜진 채로는 절대 잠기지 않는다 - 영구 차단을 막는 조건이다', () => {
-    // **이 한 줄이 이 describe의 이유다.** 파일에 true로 적힌 채 뜻을 잃은 상태는
-    // 기본값이 켜짐이라 실재한다. 여기서 잠그면 학생은 이유를 읽고도 끌 수 없고,
-    // 학습은 계속 거부한다 - 화면에서 빠져나갈 문이 없다.
-    expect(stratifyLocked(block, true)).toBe(false)
+    // **이 한 줄이 이 describe의 이유다.** 파일에 true로 적힌 채 막힌 상태는 기본값이
+    // 켜짐이라 실재한다. 여기서 잠그면 학생은 이유를 읽고도 끌 수 없고, 학습은 계속
+    // 거부한다 - 화면에서 빠져나갈 문이 없다.
+    expect(stratifyLocked(lonely, true)).toBe(false)
   })
 
   it('꺼져 있고 뜻이 없으면 잠근다 - 켤 수 없는 것을 켜게 두지 않는다', () => {
     expect(stratifyLocked(block, false)).toBe(true)
+    expect(stratifyLocked(lonely, false)).toBe(true)
+  })
+
+  /**
+   * **유형이 사유일 때만 켜져 있어도 잠근다** (`open-decisions.md` "값을 내리지 않는다.
+   * 학습이 무시하고 화면이 잠근다"). 거기서는 학습이 무시하므로 끄는 것이 탈출구가
+   * 아니고, 끄게 두면 **유형을 되돌렸을 때 켜 두었던 것이 사라진다.**
+   */
+  it('유형이 사유면 켜져 있어도 잠근다 - 학습이 무시하므로 끌 이유가 없다', () => {
+    expect(stratifyLocked(block, true)).toBe(true)
   })
 
   it('걸리는 것이 없으면 꺼져 있어도 잠기지 않는다', () => {
@@ -821,5 +834,26 @@ describe('열 한 줄이 말하는 것', () => {
     const plan = planFor()
     expect(featureLocked(columnNamed(plan, '등급'))).toBe(true)
     expect(featureLocked(columnNamed(plan, '점수'))).toBe(false)
+  })
+})
+
+/**
+ * **유형이 뜻을 지우면 학습이 무시한다. 파일의 값은 안 건드린다**
+ * (`open-decisions.md` "값을 내리지 않는다. 학습이 무시하고 화면이 잠근다").
+ *
+ * 전에는 유형을 바꿀 때 값을 `false`로 내렸고, **분류로 되돌려도 안 돌아왔다.**
+ */
+describe('층화가 실제로 걸리는가', () => {
+  it('회귀에서는 켜져 있어도 안 걸린다', () => {
+    expect(stratifyApplies('regression', true)).toBe(false)
+  })
+
+  it('분류로 돌아오면 켜 두었던 대로 살아난다', () => {
+    expect(stratifyApplies('classification', true)).toBe(true)
+    expect(stratifyApplies('classification', false)).toBe(false)
+  })
+
+  it('유형을 아직 모르면 값을 그대로 본다', () => {
+    expect(stratifyApplies(undefined, true)).toBe(true)
   })
 })

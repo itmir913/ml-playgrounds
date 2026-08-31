@@ -468,21 +468,42 @@ function lonelyValues(values: readonly string[]): {
 }
 
 /**
+ * 이 유형에서 층화가 실제로 걸리는가. **파일의 값은 안 건드린다** (`open-decisions.md`
+ * "값을 내리지 않는다. 학습이 무시하고 화면이 잠근다").
+ *
+ * 회귀에서 켜 두면 학습이 통째로 거부했고, 그래서 유형을 바꿀 때 값을 내렸다. 그러면
+ * **분류로 되돌려도 안 돌아와서** 학생이 전처리 화면까지 다시 걸어가야 했다. 이제
+ * 학습이 무시하고, 값은 그대로 있다가 유형이 돌아오면 살아난다.
+ *
+ * **무시하는 자리는 학습 계획 하나다** (`ml/plan.ts`). 화면마다 무시하면 화면과 학습이
+ * 다른 것을 돌린다.
+ */
+export function stratifyApplies(taskType: TaskType | undefined, stratify: boolean): boolean {
+  return stratify && !(taskType !== undefined && STRATIFY_MEANINGLESS[taskType])
+}
+
+/**
  * 층화 체크박스를 잠글 것인가.
  *
- * **켜져 있으면 절대 잠그지 않는다. 이 한 조건이 이 함수가 있는 이유다.**
+ * **잠그는 조건이 사유마다 갈린다. 그 갈림이 이 함수가 있는 이유다.**
  *
- * 파일에 `stratify: true`로 적힌 채 뜻을 잃은 상태가 실재한다 - 기본값이 켜짐이기 때문이다
- * (`project/create.ts`). 그 상태에서 잠그면 **학생은 이유를 읽고도 끌 수 없고, 학습은 계속
- * 거부한다.** 화면에서 빠져나갈 문이 없는 영구 차단이고, 파일을 손으로 고치는 것 말고는
- * 방법이 없다. 꺼져 있을 때 잠그는 것은 아무것도 막지 않는다 - 이미 학습이 도는 상태다.
+ * 값이 1개뿐이거나 타깃이 연속이면 **켜져 있을 때 절대 잠그지 않는다.** 파일에
+ * `stratify: true`로 적힌 채 막힌 상태가 실재하는데(기본값이 켜짐이다 —
+ * `project/create.ts`), 그 상태에서 잠그면 **학생은 이유를 읽고도 끌 수 없고, 학습은 계속
+ * 거부한다.** 화면에서 빠져나갈 문이 없는 영구 차단이다. 꺼져 있을 때 잠그는 것은
+ * 아무것도 막지 않는다 - 이미 학습이 도는 상태다.
+ *
+ * **유형이 사유일 때는 켜져 있어도 잠근다.** 거기서는 학습이 무시하므로(위
+ * `stratifyApplies`) 끄는 것이 탈출구가 아니고, 끄게 두면 **유형을 되돌렸을 때 켜 두었던
+ * 것이 사라진다.** 옛 규칙이 막으려던 영구 차단이 여기서는 성립하지 않는다.
  *
  * **화면의 computed로 두지 않고 여기 둔 이유가 그것이다.** `block !== null`로 "단순화"하면
  * 그 영구 차단이 되살아나는데 화면 코드만으로는 아무도 그걸 못 잡는다
  * (tests/selection.spec.ts가 이 함수를 지킨다).
  */
 export function stratifyLocked(block: StratifyBlock | null, stratify: boolean): boolean {
-  return block !== null && !stratify
+  if (block === null) return false
+  return block.code === 'STRATIFY_NOT_FOR_TASK_TYPE' || !stratify
 }
 
 export interface StratifyInput {

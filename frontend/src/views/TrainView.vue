@@ -36,12 +36,7 @@ import { describe as describeEstimate, estimateMs, type Estimate } from '@/ml/es
 import { estimatedFeatureWidth } from '@/ml/preprocess'
 import { trainableRowsOf } from '@/ml/training-source'
 import type { EngineState, RuntimeContext } from '@/ml/backend'
-import {
-  algorithmsLosingMeaning,
-  requiredTargetKind,
-  stratifyBlock,
-  type ChosenModel,
-} from '@/ml/selection'
+import { algorithmsLosingMeaning, requiredTargetKind, type ChosenModel } from '@/ml/selection'
 import { algorithmSelectionFor, runtimeContextFor, trainingSourceOf } from '@/ml/training-source'
 import { failedRuns } from '@/ml/results'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
@@ -53,7 +48,6 @@ import {
   withHyperparameter,
   withRuntime,
   withSelectedAlgorithms,
-  withSplit,
   withTaskType,
 } from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
@@ -273,31 +267,22 @@ function pickTaskType(taskType: TaskType): void {
   const dropped = algorithmsLosingMeaning(file.document.settings.selectedAlgorithms, taskType)
   const changed = withTaskType(file.document, taskType, dropped, now())
 
-  // **층화도 뜻을 잃으면 내린다.** 회귀에서 켜 두면 [학습하기]가 통째로 거부하는데, 그 문구가
-  // "이 값의 데이터를 2개 이상 모아 주세요"라 학생이 할 수 있는 일이 없다
-  // (open-decisions.md "층화는 갈리는 값에서만 뜻이 있다"). 위의 모델 선택과 같은 처리다 -
-  // 뜻을 잃은 것은 지우고 알린다.
-  const changedData = tabularDataOf(changed)
-  const stratifyOff =
-    changed.settings.split.stratify &&
-    changedData !== null &&
-    stratifyBlock({
-      dataset: dataset.value,
-      taskType,
-      target: changedData.target,
-      features: changedData.features,
-      preprocessing: changedData.preprocessing,
-      nSamples: changed.settings.nSamples,
-    })?.code === 'STRATIFY_NOT_FOR_TASK_TYPE'
-
-  apply(stratifyOff ? withSplit(changed, { stratify: false }, now()) : changed)
+  /**
+   * **층화는 안 건드린다** (`open-decisions.md` "값을 내리지 않는다. 학습이 무시하고
+   * 화면이 잠근다"). 전에는 회귀로 바꿀 때 값을 내렸는데, **분류로 되돌려도 안
+   * 돌아와서** 학생이 전처리 화면까지 다시 걸어가야 했다. 뜻이 없는 동안은 학습이
+   * 무시하고(`ml/plan.ts`) 전처리 화면이 잠근다.
+   *
+   * **모델 선택과는 처리가 다르다.** 뜻을 잃은 모델은 지우고 알린다 — 그쪽은 무시할
+   * 자리가 없다: 목록에 남아 있으면 학습이 실패한 run으로 만든다.
+   */
+  apply(changed)
 
   if (dropped.length > 0) {
     toasts.push('caution', 'train.taskChanged', {
       names: dropped.map((id) => t(`algorithms.${id}`)).join(', '),
     })
   }
-  if (stratifyOff) toasts.push('caution', 'train.stratifyOff')
 }
 
 /**
