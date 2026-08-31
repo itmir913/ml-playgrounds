@@ -729,7 +729,7 @@
     "noSuccessNext": "아래에서 실패한 사유를 보고 설정을 바꿔 다시 학습해 보세요.",
     "parametersTitle": "모델이 배운 값",
     "parametersLead": "훈련에서 모델이 스스로 얻은 값입니다. 예측은 이 값으로 계산합니다.",
-    "parametersScaleCaution": "스케일링(Scaling)을 켜지 않아서 계수의 크기를 서로 견줄 수 없습니다. 단위가 큰 열일수록 계수가 작게 나옵니다.",
+    "parametersScaleCaution": "스케일링(Scaling)을 켜지 않아서 계수의 크기를 서로 비교할 수 없습니다. 단위가 큰 열일수록 계수가 작게 나옵니다.",
     "parametersCoefficients": "계수(Coefficient)",
     "parametersMeans": "범주별 평균",
     "parametersVariances": "범주별 분산",
