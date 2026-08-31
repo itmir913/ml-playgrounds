@@ -305,6 +305,10 @@ describe('열 표의 전처리 칸', () => {
    * 빨갛게 나왔다** — 그 줄이 실제로 말하는 것은 `notEncodable`이고, 그건
    * *"고르는 것 자체는 막지 않는다"*고 `selection.spec.ts`가 못 박은 **주의**다.
    * 같은 사실이 분류에서는 회색, 회귀에서는 빨강이었다 (2026-08-30, R12 감사 C-1).
+   *
+   * **회색이 주의 색으로 바뀌었다** (2026-08-31, 사용자). **지키는 것은 그대로다** —
+   * 거부가 아닌 것을 빨강으로 칠하지 않는다. 어느 색인지가 아니라 **빨강이 아닌 것**이
+   * 이 검사의 요점이고, 그 자리가 회색이든 주황이든 같은 말을 한다.
    */
   it('회귀에서 범주 특성의 주의를 빨강으로 칠하지 않는다', () => {
     // 회귀 · 타깃 점수(수치) · 특성에 반(범주) · 인코딩 없음.
@@ -314,7 +318,7 @@ describe('열 표의 전처리 칸', () => {
 
     const note = grade?.find('span.block:not(.font-bold)')
     expect(note?.text()).toContain('학습에서 빠집니다')
-    expect(note?.classes()).toContain('text-ink-soft')
+    expect(note?.classes()).toContain('text-caution')
     expect(note?.classes()).not.toContain('text-danger')
   })
 })

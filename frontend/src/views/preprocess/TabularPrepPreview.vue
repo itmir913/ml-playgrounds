@@ -13,7 +13,6 @@
 
 import { useI18n } from 'vue-i18n'
 
-import AppBadge from '@/components/AppBadge.vue'
 import AppTable from '@/components/AppTable.vue'
 import TermPopover from '@/components/TermPopover.vue'
 import { useFormat } from '@/composables/useFormat'
@@ -100,9 +99,17 @@ function cellText(
             :colspan="spanOf(column)"
             class="border-l border-line text-left"
           >
+            <!--
+              **알약이 아니라 주의 색 글자다.** 회색 알약은 접힐 때 안쪽 여백(`px-2`)만큼
+              들여쓰기로 남아 열 이름과 왼쪽 끝이 안 맞았다 (2026-08-31, 사용자). 그리고
+              이건 이름이 아니라 **경고**다 — 열 표에서 같은 사실을 말하는 문장
+              (`문자 값이 든 열이라 …`)과 같은 색으로 둔다.
+            -->
             <span class="flex flex-wrap items-baseline gap-x-2">
               {{ column.name }}
-              <AppBadge v-if="column.excluded">{{ t('preprocess.previewExcluded') }}</AppBadge>
+              <span v-if="column.excluded" class="font-normal text-caution">
+                {{ t('preprocess.previewExcluded') }}
+              </span>
             </span>
           </th>
         </tr>

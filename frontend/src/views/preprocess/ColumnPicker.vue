@@ -125,9 +125,16 @@ function noteOf(column: ColumnPlan['columns'][number]): string | null {
   return t(note.key)
 }
 
-/** 그 한 줄의 색. 빨강은 "학습이 거부한다"는 뜻이다 (`columnBlocks`가 정한다). */
+/**
+ * 그 한 줄의 색. **빨강은 "학습이 거부한다"는 뜻이다** (`columnBlocks`가 정한다).
+ *
+ * **나머지는 회색이 아니라 주의 색이다** (2026-08-31, 사용자). `columnNote`는 할 말이
+ * 있을 때만 문장을 내주는데, 그 말은 전부 **거부이거나 주의**다 — *"문자 값이 든 열이라
+ * 지금 설정에서는 학습에서 빠집니다"*는 학습을 막지는 않지만 **그 열이 통째로 빠진다는
+ * 사실**이라 회색으로 말할 것이 아니다. 층화가 잠긴 이유를 말하는 문장과 같은 색이다.
+ */
 function toneOf(column: ColumnPlan['columns'][number]): string {
-  return columnBlocks(column) ? 'text-danger' : 'text-ink-soft'
+  return columnBlocks(column) ? 'text-danger' : 'text-caution'
 }
 
 function onFeature(name: string, event: Event): void {
