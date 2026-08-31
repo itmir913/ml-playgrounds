@@ -225,7 +225,13 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
           **모델 이름 밑에 혼자 놓인다** - 무엇을 빼는 버튼인지가 그때 흐려진다.
           그래서 바깥은 안 접히는 두 칸(글자 / 버튼)이고, 접히는 것은 왼쪽 안에서다.
         -->
-        <div class="flex items-start gap-x-3">
+        <!--
+          **글자의 기준선으로 맞춘다.** 이름·예상 시간·[제거]가 서로 다른 상자에
+          들어 있는데(하나는 두 줄짜리 칸, 하나는 맨 글자, 하나는 안쪽 여백과 테두리를
+          가진 버튼) `items-start`로 맞추면 **상자의 위끝**이 맞고 글자는 안 맞는다.
+          `items-baseline`은 상자가 아니라 글자를 맞춘다.
+        -->
+        <div class="flex items-baseline gap-x-3">
           <!--
             **실행 방법은 이름 아래로 내린다.** 고르는 순간에 읽는 값이 아니라 이미 고른
             값이고, 이름과 같은 줄에 두면 좁은 칸에서 예상 시간까지 셋이 접힌다.
@@ -254,11 +260,11 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
           <span v-if="!props.running" class="shrink-0 text-ink-soft">{{ estimateText }}</span>
 
           <!--
-            **줄 안의 버튼이 줄 높이를 키우면 안 된다.** ghost도 다른 변종과 같은
-            `py-2.5`를 갖는데(그래야 나란히 설 때 줄이 안 어긋난다), 그대로 두면 이
-            줄만 46px이 되어 모델 이름이 가운데로 밀린다. 그러면 안쪽 여백은 사방이
-            12px인데 **위 여백만 23px로 보인다.** 세로 여백만큼 되당겨 글자 줄에
-            맞춘다 — 누를 자리는 그대로다.
+            **세로 여백을 되당기지 않는다.** 전에는 `-my-2.5`로 버튼의 `py-2.5`를
+            상쇄했다 — 줄이 한 줄뿐일 때는 버튼이 줄 높이를 46px로 키워 이름이 가운데로
+            밀렸기 때문이다. **실행 방법이 아랫줄로 내려가면서 그 전제가 깨졌다**:
+            왼쪽 칸이 두 줄이라 이미 더 높고, 버튼은 줄 높이를 안 키운다. 되당기는 것만
+            남으면 **기준선 정렬을 그만큼 밀어 올린다.**
 
             **도는 동안에는 뺄 수 없다.** 실험은 [학습하기]를 누른 순간의 스냅샷으로 도므로
             지금 빼도 도는 것은 안 바뀐다 - 뺄 수 있게 두면 화면이 지금 무엇이 도는지에
@@ -267,7 +273,7 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
           <AppButton
             v-if="!props.running"
             variant="ghost"
-            class="-my-2.5 shrink-0"
+            class="shrink-0"
             @click="emit('remove', index)"
           >
             {{ t('train.removeModel') }}
