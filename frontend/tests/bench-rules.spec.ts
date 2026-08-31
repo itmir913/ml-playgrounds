@@ -23,6 +23,11 @@ import { sourceFiles } from './fixtures/source'
 const ROOT = join(__dirname, '..')
 const SRC = join(ROOT, 'src')
 
+/** 주석을 걷어낸다. 규칙이 보려는 것은 코드이지 그것을 설명하는 글이 아니다. */
+function withoutComments(source: string): string {
+  return source.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/\/\/.*/g, '')
+}
+
 describe('실측 하니스는 배포본에 안 들어간다', () => {
   it('하니스가 제자리에 있다 - 파일이 사라지면 이 검사가 조용히 통과하지 않는다', () => {
     expect(readFileSync(join(ROOT, 'tools', 'bench.html'), 'utf-8')).toContain('./bench.ts')
@@ -34,10 +39,27 @@ describe('실측 하니스는 배포본에 안 들어간다', () => {
     expect(config).not.toMatch(/\binput\s*:/)
   })
 
+  /**
+   * **주석은 안 본다.** 앱 코드가 하니스를 **가리키는** 것은 옳은 일이다 — 기준표를
+   * 고치려면 그것을 돌려야 한다고 `limits.ts`가 적어 두는 자리가 그렇다. 막으려는 것은
+   * 산출물에 하니스를 끌어들이는 **코드**다.
+   *
+   * 글자만 보던 규칙이 그 주석을 물었고(2026-08-31), 그때 넓히지 않고 좁혔다.
+   */
   it('앱에서 하니스로 가는 길이 없다', () => {
     const reached = sourceFiles(SRC)
-      .filter((path) => /bench/i.test(readFileSync(path, 'utf-8')))
+      .filter((path) =>
+        /(?:from|import|URL)\s*\(?\s*['"`][^'"`]*(?:tools\/|bench)/i.test(
+          withoutComments(readFileSync(path, 'utf-8')),
+        ),
+      )
       .map((path) => path.slice(SRC.length + 1))
     expect(reached).toEqual([])
+  })
+
+  it('그 규칙이 실제로 문다 - 주석만 보고 통과하지 않는다', () => {
+    expect(withoutComments("import { x } from '../tools/workloads'")).toContain('tools/')
+    expect(withoutComments('/* tools/bench.html */')).not.toContain('bench')
+    expect(withoutComments('// tools/bench.html')).not.toContain('bench')
   })
 })

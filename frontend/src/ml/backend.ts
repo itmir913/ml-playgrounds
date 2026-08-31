@@ -240,6 +240,32 @@ export interface AlgorithmSpec {
    * 상한은 능력 협상이 알려준다 (BROWSER_RUNTIME_IDS).
    */
   readonly maxRows: Readonly<Record<DataType, Readonly<Record<BrowserRuntimeId, RowLimit>>>>
+  /**
+   * 학습 예상 시간이 보간하는 **기준표**. 개발 PC 크롬에서 잰 브라우저 구현의 값이다
+   * (open-decisions.md "학습 예상 시간은 실측표에 기기 배수를 곱해 낸다").
+   *
+   * **`maxRows`와 같은 자리다** — 알고리즘의 성질이 아니라 **그 구현의** 성질이라
+   * 등록부가 알고리즘마다 선언하고 값은 limits.ts가 갖는다.
+   *
+   * **서버 칸이 없다.** 우리가 모르는 기기에서 도는 것이라 예상을 못 낸다 — 그 자리는
+   * 화면이 `알 수 없음`이라고 적는다.
+   */
+  readonly baseline: Baseline
+}
+
+/** 기준표 한 줄. **곱하는 축이 알고리즘마다 다르므로 표만으로는 부족하다.** */
+export interface Baseline {
+  /** `[행 수, ms]`. 학습부터 20% 예측까지 지나간 시간이다. */
+  readonly ms: readonly (readonly [number, number])[]
+  /**
+   * 특성 수에 선형인가. **재 보고 적는다.**
+   *
+   * 이론으로는 넷 다 선형이어야 하는데 **재 보니 둘만 그랬다** (2026-08-31) — KNN은
+   * 특성 4에서 32로 1.5배뿐이고(거리 계산보다 정렬이 크다), 로지스틱은 오히려 빨라졌다
+   * (특성이 많으면 클래스가 잘 갈려 선 탐색이 덜 헤맨다). `'linear'`를 이론으로 적으면
+   * 그 둘에서 네 배 넘게 틀린다.
+   */
+  readonly columns: 'linear' | 'flat'
 }
 
 export interface RuntimeOption {

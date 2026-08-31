@@ -9,12 +9,11 @@
  * 그것을 지킨다.
  */
 
+import { CALIBRATION_JOBS, syntheticData } from '../src/ml/calibration'
 import { fit } from '../src/ml/engines/mljs'
 
-/** 기본 특성 수. **특성 축은 따로 훑는다**(아래 `FEATURE_SWEEP`). */
+/** 기본 특성 수. **특성 축은 알고리즘마다 따로 훑는다**(아래 `*_columns` 사다리들). */
 const FEATURES = 8
-const CLASSES = 3
-const NOISE = 0.15
 
 /** 예측에 쓰는 비율. 앱의 평가가 시험 몫으로 지나가는 그 자리다. */
 const PREDICT_RATIO = 0.2
@@ -27,41 +26,6 @@ export const CEILING_MS = 20_000
 
 /** **다음 점이 이보다 오래 걸릴 것 같으면 아예 시작하지 않는다.** 마지막 점의 증가율로 본다. */
 export const PROJECTION_MS = 60_000
-
-/** 결정적 난수. **기기마다 같은 데이터를 봐야 배수가 데이터 차이를 안 담는다.** */
-function lcg(seed: number): () => number {
-  let state = seed >>> 0
-  return () => {
-    state = (state * 1664525 + 1013904223) >>> 0
-    return state / 4294967296
-  }
-}
-
-interface Data {
-  readonly features: number[][]
-  readonly target: string[]
-}
-
-function synthetic(rows: number, columns: number, regression: boolean): Data {
-  const random = lcg(42)
-  const features: number[][] = []
-  const target: string[] = []
-  for (let row = 0; row < rows; row += 1) {
-    const cluster = row % CLASSES
-    const values: number[] = []
-    for (let column = 0; column < columns; column += 1) values.push(cluster + random() * 2 - 1)
-    features.push(values)
-    if (regression) {
-      // 회귀는 타깃이 수치다. 특성의 합에 잡음을 얹는다.
-      target.push(String(values.reduce((sum, value) => sum + value, 0) + random()))
-    } else {
-      // 라벨의 15%를 흔든다. 완전히 분리되는 데이터는 솔버가 너무 쉽게 끝난다.
-      const flipped = random() < NOISE ? (cluster + 1) % CLASSES : cluster
-      target.push(String.fromCharCode(97 + flipped))
-    }
-  }
-  return { features, target }
-}
 
 export interface Job {
   readonly algorithm: string
@@ -78,7 +42,11 @@ export interface Job {
  * [학습하기]를 누르고 결과가 나올 때까지다.
  */
 export function measure(job: Job): number {
-  const { features, target } = synthetic(job.rows, job.columns ?? FEATURES, job.regression ?? false)
+  const { features, target } = syntheticData(
+    job.rows,
+    job.columns ?? FEATURES,
+    job.regression ?? false,
+  )
   const rowIndices = features.map((_, index) => index)
   const started = performance.now()
   const { predict } = fit(job.algorithm, {
@@ -227,6 +195,32 @@ export const LADDERS: readonly Ladder[] = [
     job: (columns) => ({ algorithm: 'svm', rows: 1000, columns }),
   },
   {
+    id: 'naive_bayes_columns',
+    label: '나이브 베이즈 · 특성 수 (50,000행)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({ algorithm: 'naive_bayes', rows: 50_000, columns }),
+  },
+  {
+    id: 'linear_regression_columns',
+    label: '선형 회귀 · 특성 수 (50,000행)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({ algorithm: 'linear_regression', rows: 50_000, columns, regression: true }),
+  },
+  {
+    id: 'k_means_columns',
+    label: 'K-평균 · 특성 수 (50,000행)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({
+      algorithm: 'k_means',
+      rows: 50_000,
+      columns,
+      hyperparameters: { nClusters: 3 },
+    }),
+  },
+  {
     id: 'random_forest_columns',
     label: '랜덤 포레스트 · 특성 수 (500행)',
     axis: 'columns',
@@ -261,18 +255,10 @@ export const LADDERS: readonly Ladder[] = [
 ]
 
 /**
- * **교정 일감** — 앱이 학습 화면에서 배수를 내려고 돌릴 일감이다.
+ * **교정 일감은 앱의 정의를 그대로 쓴다.**
  *
- * **두 종류를 섞는다.** 트리는 분할 탐색이고 로지스틱은 행렬과 경사다 — 한쪽만 재면
- * 다른 쪽이 다른 배수를 갖는 기기에서 어긋난다. 실제로 2026-08-31의 Edge가 일감마다
- * 12.3 · 5.5 · 5.1 · 9.1배로 갈렸다.
- *
- * **개발 PC에서 둘을 합쳐 100ms 안쪽이어야 한다.** 12배 느린 환경에서도 1초대이고,
- * 학생이 알고리즘을 골라 [추가]를 누르기까지의 시간 안에 끝난다(결정문 "언제 재는가").
+ * 기준값(`limits.ts`의 `CALIBRATION_BASELINE_MS`)을 잰 일감과 앱이 실제로 도는 일감이
+ * 갈리면 배수가 통째로 어긋나는데, **그 어긋남은 아무 데서도 안 보인다.** 그래서 여기서
+ * 다시 정의하지 않고 가져온다.
  */
-export const CALIBRATION: readonly Job[] = [
-  { algorithm: 'decision_tree', rows: 300 },
-  // **여기서는 `maxIter`를 25로 낮춘다.** 천장(100)이면 이 행 수에서 1초가 넘는데,
-  // 재려는 것은 절대 시간이 아니라 배수라 짧아도 된다.
-  { algorithm: 'logistic_regression', rows: 5000, hyperparameters: { tol: 0, maxIter: 25 } },
-]
+export const CALIBRATION = CALIBRATION_JOBS

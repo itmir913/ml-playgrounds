@@ -31,11 +31,15 @@ const unmeasured = {
   image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
 } as const
 
+/** 표본은 시간도 안 쟀다. 빈 표는 예상을 못 낸다는 뜻이다. */
+const noBaseline = { ms: [], columns: 'flat' } as const
+
 /** 셋 다 도는 알고리즘. 결정트리가 그렇다. */
 const anywhere: AlgorithmSpec = {
   id: 'decision_tree',
   runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
   maxRows: unmeasured,
+  baseline: noBaseline,
 }
 
 /** 무거워서 서버에서만 도는 것. */
@@ -43,6 +47,7 @@ const serverOnly: AlgorithmSpec = {
   id: 'gradient_boosting',
   runtimes: { mljs: false, 'pyodide-sklearn': false, 'server-sklearn': true },
   maxRows: unmeasured,
+  baseline: noBaseline,
 }
 
 /** 순수 JS 구현이 없어 sklearn에서만 도는 것. */
@@ -50,6 +55,7 @@ const sklearnOnly: AlgorithmSpec = {
   id: 'svm',
   runtimes: { mljs: false, 'pyodide-sklearn': true, 'server-sklearn': true },
   maxRows: unmeasured,
+  baseline: noBaseline,
 }
 
 function context(overrides: Partial<RuntimeContext> = {}): RuntimeContext {

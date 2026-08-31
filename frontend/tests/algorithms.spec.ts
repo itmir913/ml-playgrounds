@@ -266,6 +266,7 @@ describe('분기 없이 늘어난다', () => {
           tabular: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
           image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
         },
+        baseline: { ms: [], columns: 'flat' },
       },
     ]
     const options = algorithmOptions(

@@ -20,12 +20,19 @@ const UNMEASURED_ROWS = {
   image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
 } as const
 
+/**
+ * 표본은 시간도 안 쟀다. **빈 표는 예상을 못 낸다**는 뜻이고, 그것이 여기서 맞는 상태다
+ * (`ml/estimate.ts`가 그 자리에 `알 수 없음`을 남긴다).
+ */
+const NO_BASELINE = { ms: [], columns: 'flat' } as const
+
 export const SKLEARN_ONLY_ALGORITHM: Algorithm = {
   id: 'sklearn_only',
   dataTypes: { tabular: true, image: false },
   taskTypes: { classification: true, regression: false, clustering: false },
   runtimes: { mljs: false, 'pyodide-sklearn': true, 'server-sklearn': true },
   maxRows: UNMEASURED_ROWS,
+  baseline: NO_BASELINE,
 }
 
 /**
@@ -44,6 +51,7 @@ export const NOT_FOR_TABULAR_ALGORITHM: Algorithm = {
   taskTypes: { classification: true, regression: false, clustering: false },
   runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
   maxRows: UNMEASURED_ROWS,
+  baseline: NO_BASELINE,
 }
 
 /** 등록부에 그 알고리즘 하나가 더 있는 세상. */
