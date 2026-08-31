@@ -58,9 +58,15 @@
    * 된다. 어두운 배색의 `#34d399`는 이미 충분해서 안 건드린다.
    */
   --color-positive: #047857;
-  --color-positive-soft: #ecfdf5;
+  /*
+   * **한 단계 진하다** (2026-08-31, 사용자). `#ecfdf5`(emerald-50)는 흰 바탕에서 거의
+   * 안 보여서, 혼동 행렬의 맞힌 칸과 범주별 점수의 약한 칸이 **칠해졌는지 아닌지**를
+   * 모르겠는 상태였다. 면으로 뜻을 말하는 자리라 글자 대비 규칙(위)이 아니라 인접색
+   * 3 : 1이 기준이고, 그 위의 `--color-ink`는 그대로 쓸 수 있다.
+   */
+  --color-positive-soft: #d1fae5;
   --color-caution: #b45309;
-  --color-caution-soft: #fffbeb;
+  --color-caution-soft: #fef3c7; /* 위 `positive-soft`와 같은 이유로 한 단계 진하다. */
   /*
    * **면으로 쓰는 주의색.** 글자용(`--color-caution`)과 갈라 둔다.
    *
@@ -75,7 +81,7 @@
    */
   --color-caution-vivid: #d97706;
   --color-danger: #e11d48;
-  --color-danger-soft: #fff1f2;
+  --color-danger-soft: #ffe4e6; /*   〃 */
   --color-info: #2563eb;
   --color-info-soft: #eff6ff;
 
