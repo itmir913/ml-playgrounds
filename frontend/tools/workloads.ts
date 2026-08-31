@@ -154,13 +154,6 @@ export const LADDERS: readonly Ladder[] = [
     job: (rows) => ({ algorithm: 'linear_regression', rows, regression: true }),
   },
   {
-    id: 'k_means',
-    label: 'K-평균 · 행 수 (k=3)',
-    axis: 'rows',
-    points: [1000, 5000, 20_000, 50_000, 100_000],
-    job: (rows) => ({ algorithm: 'k_means', rows, hyperparameters: { nClusters: 3 } }),
-  },
-  {
     /**
      * **군집이 없는 데이터에서의 행 수.** 지금 기준표는 군집이 갈린 데이터라 몇 번 만에
      * 수렴하는데, 학생 데이터가 늘 그렇지는 않다. 이쪽이 "길게 틀린다"에 맞는 쪽이다.
