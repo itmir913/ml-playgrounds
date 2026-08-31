@@ -44,7 +44,7 @@ const LEGAL = join(PUBLIC, 'legal')
 const ARTICLE_COUNT = 11
 
 /** 로케일 JSON의 `legal` 아래에 있어도 되는 것. **링크에 쓰는 낱말뿐이다.** */
-const ALLOWED_LEGAL_KEYS = ['notices', 'privacy']
+const ALLOWED_LEGAL_KEYS = ['notices', 'privacy', 'source']
 
 /** 조문이 로케일로 샌 흔적. `제3조`와 `Article 3`을 함께 잡는다. */
 const ARTICLE_MARKER = /제\s*\d+\s*조|Article\s+\d+/

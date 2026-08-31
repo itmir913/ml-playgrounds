@@ -27,6 +27,7 @@ import { ROUTE_PROJECT_HOME } from '@/router'
 import { ACTION_ICONS } from '@/icons'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { NOTICES_PATH, privacyPath } from '@/legal'
+import { REPOSITORY_URL } from '@/links'
 import { DEMO_DATASETS_URL } from '@/links'
 import { MAX_FILE_NAME_LENGTH } from '@/limits'
 import { newProjectDocument, newProjectSeed } from '@/project/create'
@@ -386,6 +387,22 @@ onMounted(refresh)
         rel="noopener noreferrer"
         class="rounded-control transition-colors hover:text-ink-soft hover:underline"
         >{{ t('legal.notices') }}</a
+      >
+      <!--
+        **아이콘이 아니라 글자다.** 옆의 둘과 같은 위계라 같은 모양이어야 하고, 로고를
+        번들에 넣으면 상표와 벤더링 규약이 함께 따라온다(CLAUDE.md §4). 그리고 이 도구를
+        쓰는 사람은 중고등학생이다 — **모양만으로 말하지 않는다.**
+
+        **이름이 `소스 코드`가 아닌 이유**는 바로 옆이 `오픈소스 라이선스`라서다. 두
+        링크의 목적지가 정반대인데(남의 코드 고지 대 우리 코드) 낱말이 겹치면 같은 것으로
+        읽힌다. 그리고 밖으로 나가는 링크는 **어디로 가는지**를 말해야 한다.
+      -->
+      <a
+        :href="REPOSITORY_URL"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="rounded-control transition-colors hover:text-ink-soft hover:underline"
+        >{{ t('legal.source') }}</a
       >
     </footer>
   </div>
