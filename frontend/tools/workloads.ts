@@ -60,13 +60,64 @@ export function measure(job: Job): number {
   return Math.round(performance.now() - started)
 }
 
+/**
+ * **군집 구조가 없는 데이터.** K-평균의 반복 횟수를 데이터가 정하기 때문에 따로 만든다.
+ *
+ * `syntheticData`는 군집이 이미 갈려 있어 **몇 번 만에 수렴한다** — 그래서 기준표에
+ * `1,000행 4ms`가 적혔고, 학생 화면이 `약 1초`라 말하는데 실제로는 훨씬 오래 걸렸다
+ * (2026-08-31, 사용자). 여기는 값을 고르게 흩뿌려 **중심점이 자리를 못 잡게** 한다.
+ * 천장은 `KMEANS_DEFAULTS.maxIter`(300)이다.
+ *
+ * **앱 쪽(`ml/calibration.ts`)에 안 두는 이유**는 교정 일감이 이 데이터를 안 쓰기
+ * 때문이다. 저기 두면 앱 번들에 안 쓰는 생성기가 하나 들어간다.
+ */
+function uniformData(rows: number, columns: number): { features: number[][]; target: string[] } {
+  let state = 42
+  const random = (): number => {
+    state = (state * 1664525 + 1013904223) >>> 0
+    return state / 4294967296
+  }
+  const features: number[][] = []
+  const target: string[] = []
+  for (let row = 0; row < rows; row += 1) {
+    const values: number[] = []
+    for (let column = 0; column < columns; column += 1) values.push(random())
+    features.push(values)
+    // 군집화는 타깃을 안 본다. 자리만 채운다.
+    target.push('')
+  }
+  return { features, target }
+}
+
+/** 위 데이터로 K-평균 한 번. **`measure`를 안 쓰는 이유는 데이터가 다르기 때문이다.** */
+function measureKMeans(rows: number, clusters: number): number {
+  const { features, target } = uniformData(rows, FEATURES)
+  const rowIndices = features.map((_, index) => index)
+  const started = performance.now()
+  fit('k_means', {
+    features,
+    rowIndices,
+    target,
+    hyperparameters: { nClusters: clusters },
+    randomState: 42,
+  })
+  return Math.round(performance.now() - started)
+}
+
 /** 사다리 하나. `points`가 무엇을 바꾸는지는 `axis`가 말한다. */
 export interface Ladder {
   readonly id: string
   readonly label: string
-  readonly axis: 'rows' | 'nEstimators' | 'maxIter' | 'columns'
+  readonly axis: 'rows' | 'nEstimators' | 'maxIter' | 'columns' | 'nClusters'
   readonly points: readonly number[]
   readonly job: (point: number) => Job
+  /**
+   * 이 사다리가 **자기 데이터로** 재는가. 없으면 `measure(job(point))`를 쓴다.
+   *
+   * K-평균만 이것을 갖는다 — 반복 횟수를 데이터가 정하는데 공용 생성기는 군집이
+   * 이미 갈려 있어 즉시 수렴한다(위 `uniformData`).
+   */
+  readonly run?: (point: number) => number
 }
 
 /**
@@ -99,6 +150,35 @@ export const LADDERS: readonly Ladder[] = [
     axis: 'rows',
     points: [1000, 5000, 20_000, 50_000, 100_000],
     job: (rows) => ({ algorithm: 'k_means', rows, hyperparameters: { nClusters: 3 } }),
+  },
+  {
+    /**
+     * **군집이 없는 데이터에서의 행 수.** 지금 기준표는 군집이 갈린 데이터라 몇 번 만에
+     * 수렴하는데, 학생 데이터가 늘 그렇지는 않다. 이쪽이 "길게 틀린다"에 맞는 쪽이다.
+     */
+    id: 'k_means_hard',
+    label: 'K-평균 · 행 수 (군집 없는 데이터, k=3)',
+    axis: 'rows',
+    points: [1000, 5000, 20_000, 50_000, 100_000],
+    job: (rows) => ({ algorithm: 'k_means', rows, hyperparameters: { nClusters: 3 } }),
+    run: (rows) => measureKMeans(rows, 3),
+  },
+  {
+    /**
+     * **`k`는 지배적인 손잡이다.** 비용이 `O(행 × k × 특성 × 반복)`이라 `k`에 선형인데,
+     * 결정문이 `k`를 "시간을 크게 안 바꾸는 나머지"로 묶어 두었다 — **그게 틀렸다.**
+     * 손잡이가 2에서 20까지 열려 있으니 그것만으로 열 배다.
+     */
+    id: 'k_means_clusters',
+    label: 'K-평균 · 군집 수 (군집 없는 데이터, 20,000행)',
+    axis: 'nClusters',
+    points: [2, 5, 10, 20],
+    job: (clusters) => ({
+      algorithm: 'k_means',
+      rows: 20_000,
+      hyperparameters: { nClusters: clusters },
+    }),
+    run: (clusters) => measureKMeans(20_000, clusters),
   },
   {
     id: 'logistic_regression',

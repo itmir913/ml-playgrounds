@@ -111,7 +111,7 @@ async function runLadder(ladder: Ladder): Promise<void> {
 
     status.textContent = `${ladder.label} — ${ladder.axis} ${point.toLocaleString()}`
     await breathe()
-    const elapsed = measure(ladder.job(point))
+    const elapsed = ladder.run ? ladder.run(point) : measure(ladder.job(point))
     results[String(point)] = elapsed
     previous = { point, elapsed }
     addRow(ladder.label, point.toLocaleString(), elapsed)
