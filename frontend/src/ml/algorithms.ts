@@ -215,7 +215,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
       image: { mljs: MLJS_IMAGE_KMEANS_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
     },
     baseline: {
-      tabular: { ms: MLJS_KMEANS_BASELINE_MS, columns: 'flat' },
+      tabular: { ms: MLJS_KMEANS_BASELINE_MS, columns: 'linear' },
       image: UNMEASURED_BASELINE,
     },
   },

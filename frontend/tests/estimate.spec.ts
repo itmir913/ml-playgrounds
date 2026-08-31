@@ -201,3 +201,32 @@ group('전처리 뒤의 특성 수', () => {
     expect(estimatedFeatureWidth(summarizeColumns(DATASET), FEATURES, 'none')).toBe(1)
   })
 })
+
+/**
+ * **K-평균의 군집 수는 지배적인 손잡이다** (2026-09-01 재실측).
+ *
+ * 처음에는 `C`·최대 깊이와 함께 *"시간을 크게 안 바꾸는 나머지"*로 묶여 있었다.
+ * **재 보니 2에서 20 사이가 8배가 넘는다** — 비용이 `행 × k × 특성 × 반복`이라 `k`가
+ * 곧바로 붙는다. 누가 그 줄로 되돌리면 이 검사가 운다.
+ */
+group('K-평균의 군집 수', () => {
+  function withClusters(clusters: number): number {
+    return (
+      baselineMs({ ...input('k_means', 20_000), hyperparameters: { nClusters: clusters } }) ?? 0
+    )
+  }
+
+  it('군집 수를 올리면 예상이 그만큼 는다 - 무시하면 여덟 배 짧게 말한다', () => {
+    const factor = withClusters(20) / withClusters(2)
+    expect(factor).toBeGreaterThan(5)
+  })
+
+  it('기본값에서는 배수가 1이다 - 기준표를 그 값으로 쟀다', () => {
+    expect(withClusters(3)).toBeCloseTo(baselineMs(input('k_means', 20_000)) ?? 0, 6)
+  })
+
+  it('특성 수에도 붙는다 - 거리 계산이 특성마다 돈다', () => {
+    const wide = baselineMs(input('k_means', 20_000, 32)) ?? 0
+    expect(wide).toBeCloseTo(withClusters(3) * 4, 6)
+  })
+})

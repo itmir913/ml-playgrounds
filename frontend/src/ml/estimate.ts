@@ -12,6 +12,8 @@
 
 import {
   BASELINE_COLUMNS,
+  MLJS_KMEANS_BASELINE_CLUSTERS,
+  MLJS_KMEANS_CLUSTERS_MS,
   MLJS_LOGISTIC_REGRESSION_BASELINE_MAX_ITER,
   MLJS_LOGISTIC_REGRESSION_MAX_ITER_MS,
   MLJS_RANDOM_FOREST_BASELINE_TREES,
@@ -82,9 +84,13 @@ function numberOr(source: Record<string, unknown>, name: string, fallback: numbe
 }
 
 /**
- * **지배적인 손잡이 둘만 곱한다** — 랜덤포레스트의 그루 수와 로지스틱의 `maxIter`다.
- * 기기 배수로는 못 덮는다: 나무를 10에서 500으로 올리면 50배이고, 정확한 예상이 가장
- * 필요한 순간이 바로 그 순간이다. 나머지(`k`·`C`·최대 깊이)는 시간을 크게 안 바꾼다.
+ * **지배적인 손잡이 셋만 곱한다** — 랜덤포레스트의 그루 수, 로지스틱의 `maxIter`,
+ * K-평균의 군집 수다. 기기 배수로는 못 덮는다: 나무를 10에서 500으로 올리면 50배이고,
+ * 정확한 예상이 가장 필요한 순간이 바로 그 순간이다.
+ *
+ * **`k`는 처음에 "나머지"로 묶여 있었다** — `C`·최대 깊이와 함께 시간을 크게 안 바꾼다고
+ * 봤는데, **재 보니 8.4배였다** (2026-09-01). 비용이 `행 × k × 특성 × 반복`이라 `k`가
+ * 곧바로 붙는다. 남은 둘(`C`·최대 깊이)은 그대로 무시한다.
  */
 function handleFactor(algorithm: string, hyperparameters: Record<string, unknown>): number {
   if (algorithm === 'random_forest') {
@@ -111,6 +117,12 @@ function handleFactor(algorithm: string, hyperparameters: Record<string, unknown
       MLJS_LOGISTIC_REGRESSION_BASELINE_MAX_ITER,
     )
     return interpolate(MLJS_LOGISTIC_REGRESSION_MAX_ITER_MS, clamped) / ceiling
+  }
+  if (algorithm === 'k_means') {
+    const clusters = numberOr(hyperparameters, 'nClusters', MLJS_KMEANS_BASELINE_CLUSTERS)
+    // 반복 횟수가 `k`마다 달라 곧은 선이 아니다. 잰 표를 보간한다.
+    const baseline = interpolate(MLJS_KMEANS_CLUSTERS_MS, MLJS_KMEANS_BASELINE_CLUSTERS)
+    return interpolate(MLJS_KMEANS_CLUSTERS_MS, Math.max(clusters, 1)) / baseline
   }
   return 1
 }
