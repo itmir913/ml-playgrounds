@@ -226,25 +226,32 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
           그래서 바깥은 안 접히는 두 칸(글자 / 버튼)이고, 접히는 것은 왼쪽 안에서다.
         -->
         <div class="flex items-start gap-x-3">
-          <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-            <span class="font-bold">{{ t(`algorithms.${row.algorithm}`) }}</span>
-            <span class="text-ink-soft">{{ t(`runtimes.${row.runtime}`) }}</span>
+          <!--
+            **실행 방법은 이름 아래로 내린다.** 고르는 순간에 읽는 값이 아니라 이미 고른
+            값이고, 이름과 같은 줄에 두면 좁은 칸에서 예상 시간까지 셋이 접힌다.
+          -->
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span class="font-bold">{{ t(`algorithms.${row.algorithm}`) }}</span>
 
-            <span v-if="tone" class="rounded-field px-2 py-0.5" :class="tone.badge">
-              {{ t(tone.key) }}
-            </span>
+              <span v-if="tone" class="rounded-field px-2 py-0.5" :class="tone.badge">
+                {{ t(tone.key) }}
+              </span>
+            </div>
 
-            <!--
-              **학습이 도는 동안에는 안 보인다.** 그때 이 자리가 말할 것은 예상이 아니라
-              지금 무엇이 도는가이고, 둘이 나란히 있으면 끝난 줄에도 "약 3분"이 남는다.
-
-              **짧으면 아무것도 안 적는다.** `약 0초`는 소음이고, 그 자리는 원래 안내가
-              필요 없는 자리다.
-            -->
-            <span v-if="!props.running" class="text-ink-soft">
-              {{ estimateText }}
-            </span>
+            <p class="mt-1 text-ink-soft">{{ t(`runtimes.${row.runtime}`) }}</p>
           </div>
+
+          <!--
+            **예상 시간은 [제거] 왼편에 못 박힌다.** 모델 이름 옆에 두었더니 이름 길이가
+            줄마다 달라 숫자가 들쑥날쑥해 보였다 — 훑을 때 알고 싶은 것이 "어느 것이 오래
+            걸리나"인데, 그러려면 숫자가 한 줄로 서야 한다.
+
+            **학습이 도는 동안에는 안 보인다.** 그때 말할 것은 예상이 아니라 지금 무엇이
+            도는가이고, 그건 이름 옆의 상태가 말한다 — 둘이 나란히 있으면 끝난 줄에도
+            "약 3분"이 남는다.
+          -->
+          <span v-if="!props.running" class="shrink-0 text-ink-soft">{{ estimateText }}</span>
 
           <!--
             **줄 안의 버튼이 줄 높이를 키우면 안 된다.** ghost도 다른 변종과 같은
