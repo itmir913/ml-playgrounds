@@ -17,6 +17,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import AppStatusBar from '../src/components/AppStatusBar.vue'
 import { i18n, setLocale } from '../src/i18n'
 import { applyLimitsOff } from '../src/limits-switch'
+import type { DataType } from '../src/project/schema'
+import { useProjectStore } from '../src/stores/project'
+import { emptyProjectFile } from './fixtures/project'
 
 /**
  * 팝오버를 열고 그 안의 글을 돌려준다. 트리거는 상한 아이콘이 든 단추다.
@@ -100,6 +103,54 @@ describe('상한 팝오버는 상태마다 다른 말을 한다', () => {
    */
   it('두 상태의 글이 서로 다르다', async () => {
     expect(await panelText(false)).not.toBe(await panelText(true))
+  })
+})
+
+/**
+ * **예상 시간 줄이 프로젝트의 종류를 본다** (2026-09-01 R17 감사 A-2).
+ *
+ * 조각은 둘 다 검사를 갖고 있었다 — `estimate.spec.ts`가 `hasEstimates`를 재고 이
+ * 파일이 팝오버를 쟀다. **그런데 그 둘을 잇는 것이 하나도 없어서**, 조건을 통째로
+ * 뒤집어 사진과 표를 뒤바꿔 말하게 해도 **2675개가 전부 초록이었다**(돌연변이 M3).
+ * 사진 학생은 *"학습 화면의 예상 시간이 말해 줍니다"*를 읽고 그 화면에 가서 **모든
+ * 줄이 `알 수 없음`인 것**을 본다. 이 저장소가 R10에서 이미 이름 붙인 병이다.
+ */
+describe('예상 시간 줄이 데이터 종류를 본다', () => {
+  async function estimateLine(dataType: DataType | undefined): Promise<string> {
+    const store = useProjectStore()
+    if (dataType === undefined) store.file = null
+    else {
+      const file = emptyProjectFile()
+      file.document.manifest.dataType = dataType
+      store.file = file
+    }
+    return panelText(true)
+  }
+
+  it('사진은 아직 못 잰다고 말한다', async () => {
+    const text = await estimateLine('image')
+    expect(text).toContain(i18n.global.t('shell.limitsEstimateImage'))
+    expect(text).not.toContain(i18n.global.t('shell.limitsEstimate'))
+  })
+
+  it('표는 학습 화면을 가리킨다', async () => {
+    const text = await estimateLine('tabular')
+    expect(text).toContain(i18n.global.t('shell.limitsEstimate'))
+    expect(text).not.toContain(i18n.global.t('shell.limitsEstimateImage'))
+  })
+
+  /** 프로젝트가 없으면 아직 무엇을 학습할지도 안 정해졌다. 표 쪽 문장이 맞다. */
+  it('프로젝트가 없으면 표 쪽으로 말한다', async () => {
+    expect(await estimateLine(undefined)).toContain(i18n.global.t('shell.limitsEstimate'))
+  })
+
+  /**
+   * **종류마다 다른 말을 하는가.** 위 둘이 키를 하나씩 짚는다면 이것은 **두 종류의
+   * 글이 실제로 갈리는가**를 본다 — 등록부가 사진 기준표를 채우는 날 이 검사가
+   * 빨개지고, 그때 지울 것은 검사가 아니라 갈림 자체다.
+   */
+  it('사진과 표의 글이 서로 다르다', async () => {
+    expect(await estimateLine('image')).not.toBe(await estimateLine('tabular'))
   })
 })
 

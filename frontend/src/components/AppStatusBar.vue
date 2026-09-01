@@ -162,7 +162,9 @@ const limitsLabel = computed(() =>
  * 맞다 — 그때는 아직 무엇을 학습할지도 안 정해졌다.
  */
 const estimateKey = computed(() => {
-  const dataType = project.file?.document.manifest.dataType
+  // **스토어에 묻는다.** `file?.document.manifest.dataType`을 여기서 다시 조립하면
+  // 스토어가 이미 갖고 있는 `dataType`과 두 벌이 된다.
+  const dataType = project.dataType
   // **화면이 종류를 비교하지 않는다** (`architecture.md` §9.1). 등록부에 묻는다 —
   // 기준표가 채워지는 날 이 문구가 저절로 바뀐다.
   return dataType === undefined || hasEstimates(dataType)

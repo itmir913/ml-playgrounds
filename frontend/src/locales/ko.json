@@ -812,7 +812,7 @@
     "run": "예측하기",
     "running": "진행 중…",
     "answerTitle": "모델들의 답",
-    "clusterEvidenceOpen": "대표 사진 보기 (군집 {answer})",
+    "clusterEvidenceOpen": "대표 사진 보기 ({answer})",
     "clusterEvidenceTitle": "{name}의 대표 사진",
     "clusterEvidenceLoading": "사진을 찾는 중…",
     "clusterEvidenceNote": "군집 중심에 가까운 사진부터 보여줍니다.",

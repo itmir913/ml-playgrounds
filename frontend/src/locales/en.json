@@ -812,7 +812,7 @@
     "run": "Predict",
     "running": "Working…",
     "answerTitle": "What the models say",
-    "clusterEvidenceOpen": "See typical photos (cluster {answer})",
+    "clusterEvidenceOpen": "See typical photos ({answer})",
     "clusterEvidenceTitle": "Typical photos in {name}",
     "clusterEvidenceLoading": "Finding photos…",
     "clusterEvidenceNote": "Photos closest to the center of the cluster come first.",
