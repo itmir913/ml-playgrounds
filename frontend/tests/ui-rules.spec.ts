@@ -839,7 +839,23 @@ describe('검사기가 실제로 잡는다', () => {
           expect(perLine, 'the shape must be one that line-by-line reading cannot catch').toEqual(
             [],
           )
-          expect(windowedHits((text) => hits(rule, text), source, 'wrapped')).toHaveLength(1)
+          const found = windowedHits((text) => hits(rule, text), source, 'wrapped')
+          expect(found).toHaveLength(1)
+
+          /**
+           * **적힌 자리를 열면 위반이 거기 있어야 한다** (2026-09-01 R17 감사 C-1).
+           *
+           * 개수만 세던 동안은 **창 좁히기를 통째로 지워도 336개가 전부 초록**이었다
+           * (돌연변이 M7). 좁히기를 넣은 이유가 *"그 줄을 열면 위반이 없었다"*는 것이라
+           * (감사자가 76행에 심은 것을 71행이라 보고했다), **개수는 그 이유를 하나도
+           * 안 지킨다.**
+           */
+          const where = /^wrapped:(\d+)(?:-(\d+))?\s/.exec(found[0] ?? '')
+          expect(where, 'the hit must name where it is').not.toBeNull()
+          const from = Number(where?.[1])
+          const to = Number(where?.[2] ?? where?.[1])
+          const named = source.split('\n').slice(from - 1, to)
+          expect(hits(rule, named.join(' ')), `${found[0]} must hit when read alone`).toBe(true)
         })
       }
     })

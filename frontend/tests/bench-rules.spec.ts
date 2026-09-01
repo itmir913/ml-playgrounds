@@ -20,6 +20,7 @@ import { describe, expect, it } from 'vitest'
 
 import { ALGORITHMS } from '../src/ml/algorithms'
 import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
+import { silhouetteSampleSize } from '../src/ml/metrics'
 import type { DataType } from '../src/project/schema'
 import {
   ALL_LADDERS,
@@ -36,6 +37,7 @@ import {
   stopReason,
   STOP_WHY,
   stopsBefore,
+  type Ladder,
 } from '../tools/workloads'
 
 import { sourceFiles, withoutComments as stripComments } from './fixtures/source'
@@ -290,6 +292,41 @@ describe('사다리 판정', () => {
       (ladder) => ladder.id,
     )
     expect(strayed).toEqual([])
+  })
+
+  /**
+   * **K-평균 특성 사다리 둘이 정말 다른 국면을 잰다** (2026-09-01 R17 감사 C-2).
+   *
+   * 실루엣이 예산으로 잘리기 때문에(`SILHOUETTE_BUDGET_MS`) 같은 알고리즘도 **전수로
+   * 보는 국면**과 **표본으로 보는 국면**이 다른 곡선을 그린다. 그래서 사다리를 둘로
+   * 나눴는데, **`전수`/`표본`은 라벨에 손으로 적은 글자였다** — 행 수를 50,000으로
+   * 올려 둘을 같은 국면으로 만들어도 24개가 전부 초록이고 라벨은 그대로 `전수`라고
+   * 말했다(돌연변이 M8).
+   *
+   * **행 수를 일감에서 읽는다.** 여기 다시 적으면 그것이 세 번째 집이 된다.
+   */
+  describe('K-평균 특성 사다리 둘이 다른 국면을 잰다', () => {
+    function ladderOf(id: string): Ladder {
+      const found = ALL_LADDERS.find((ladder) => ladder.id === id)
+      expect(found, `the ladder ${id} must exist`).toBeDefined()
+      return found as Ladder
+    }
+
+    it('전수 사다리는 어느 점에서도 안 자른다', () => {
+      const ladder = ladderOf('k_means_columns_full')
+      for (const columns of ladder.points) {
+        const rows = ladder.job(columns).rows
+        expect(silhouetteSampleSize(rows, columns), `columns=${columns}`).toBe(rows)
+      }
+    })
+
+    it('표본 사다리는 모든 점에서 자른다', () => {
+      const ladder = ladderOf('k_means_columns')
+      for (const columns of ladder.points) {
+        const rows = ladder.job(columns).rows
+        expect(silhouetteSampleSize(rows, columns), `columns=${columns}`).toBeLessThan(rows)
+      }
+    })
   })
 
   it('모르는 사다리는 던진다 - 조용한 0은 그대로 기준표가 된다', () => {

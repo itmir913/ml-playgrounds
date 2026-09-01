@@ -262,7 +262,29 @@ const SPLIT_BY_METHOD: Record<
  * (`tests/limits-rules.spec.ts`의 `행 규모 배열을 인자로 펼치지 않는다`).
  */
 export function appendAll<T>(target: T[], source: readonly T[], from: number, to: number): void {
-  for (let index = from; index < to; index += 1) target.push(source[index] as T)
+  /**
+   * **음수는 던진다** (2026-09-01 R17 감사 C-6).
+   *
+   * `slice`는 음수를 **뒤에서부터**로 읽는다 — `[1,2,3].slice(-1, 3)`이 `[3]`이다. 그건
+   * 인덱스 범위를 받는 이 함수에 맞는 뜻이 아니고, 그렇다고 0으로 자르면 **조용히 다른
+   * 것을 잇는다.** 여기 음수가 오는 것은 부르는 쪽의 버그이고, 버그는 시끄러워야 한다.
+   *
+   * **끝은 `slice`처럼 자른다.** `to`가 길이를 넘는 것은 *"있는 만큼"*이라는 뜻으로
+   * 읽히는 흔한 자리다. 자르지 않던 때는 `[1,2,3]`을 `[0,5)`로 부르면
+   * `[1,2,3,undefined,undefined]`가 나왔다 — **인덱스 배열에 구멍이 섞이는 것**이고,
+   * 그러면 그 뒤가 전부 조용히 틀린다.
+   *
+   * **그 차이를 `as T`가 가리고 있었다.** `noUncheckedIndexedAccess`가 딱 이 경우를
+   * 잡으라고 켜 둔 것인데 캐스트가 껐다. 자른 뒤로는 캐스트가 **참이다** — `[from, end)`가
+   * 배열 안이므로 `source[index]`는 실제로 `T`다.
+   *
+   * **부르는 다섯 자리는 이 계약 안에 있다.** `sample.ts`의 `take`는 `floorFor(size) =
+   * min(size, MIN_SPLIT_ROWS)`와 `Math.min(group.length, …)`으로 **구조적으로**
+   * `group.length` 이하이고, `split.ts`의 `to`는 `order.length` 아니면 그 이하다.
+   */
+  if (from < 0 || to < 0) throw new Error(`appendAll needs a non-negative range: [${from}, ${to})`)
+  const end = Math.min(to, source.length)
+  for (let index = from; index < end; index += 1) target.push(source[index] as T)
 }
 
 /**

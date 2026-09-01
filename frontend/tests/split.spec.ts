@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
 import { MIN_SPLIT_ROWS } from '../src/limits'
-import { holdoutSplit, splitRows } from '../src/ml/split'
+import { appendAll, holdoutSplit, splitRows } from '../src/ml/split'
 import type { Split } from '../src/project/schema'
 
 const split = (overrides: Partial<Split> = {}): Split => ({
@@ -437,5 +437,72 @@ describe('테스트 데이터 개수는 sklearn과 같은 함수로 센다', () 
 
   it('아주 작은 비율도 올림이라 1이다 - 클램프가 아니라', () => {
     expect(countOf(100, 0.001)).toBe(1)
+  })
+})
+
+/**
+ * **`push(...배열)`을 대신하는 헬퍼** (2026-09-01 R17 감사 C-6).
+ *
+ * 스프레드는 행 규모 배열에서 스택을 넘기므로 이 저장소가 다섯 자리를 이것으로 바꿨다.
+ * **그런데 대신하는 것과 경계에서 달랐고, 그것을 `as T` 캐스트가 가리고 있었다** —
+ * `noUncheckedIndexedAccess`가 딱 이 경우를 잡으라고 켜 둔 것인데 껐던 셈이다.
+ *
+ * **지금 부르는 다섯 자리는 전부 범위 안이라 값은 안 갈렸다.** 여기서 막는 것은
+ * **다음에 이 헬퍼를 범위 밖으로 부르는 사람**이다 — 내보낸 범용 함수다.
+ */
+describe('appendAll이 `push(...slice)`와 같은 것을 한다', () => {
+  /** 대신하는 그 표현. **기대값을 손으로 적지 않는다** — 같아야 할 상대가 이것이다. */
+  function spread<T>(source: readonly T[], from: number, to: number): T[] {
+    const target: T[] = []
+    target.push(...source.slice(from, to))
+    return target
+  }
+
+  function appended<T>(source: readonly T[], from: number, to: number): T[] {
+    const target: T[] = []
+    appendAll(target, source, from, to)
+    return target
+  }
+
+  const source = [1, 2, 3]
+
+  it.each([
+    ['범위 안', 0, 3],
+    ['앞부분', 0, 2],
+    ['뒷부분', 1, 3],
+    ['빈 범위', 2, 2],
+    ['거꾸로 된 범위', 3, 1],
+    ['끝을 넘긴다', 0, 5],
+    ['시작도 끝도 넘긴다', 5, 9],
+  ])('%s (%i, %i)', (_label, from, to) => {
+    expect(appended(source, from, to)).toEqual(spread(source, from, to))
+  })
+
+  /**
+   * **음수만 갈린다. 일부러 그렇다.** `slice`는 음수를 뒤에서부터로 읽어
+   * `[1,2,3].slice(-1, 3)`이 `[3]`인데, 인덱스 범위를 받는 함수에 그 뜻은 안 맞는다.
+   * 0으로 자르면 조용히 다른 것을 잇게 되므로 **던진다.**
+   */
+  it.each([
+    ['시작이 음수', -1, 3],
+    ['끝이 음수', 0, -1],
+    ['둘 다 음수', -2, -1],
+  ])('%s (%i, %i)는 던진다', (_label, from, to) => {
+    expect(() => appended(source, from, to)).toThrow()
+  })
+
+  it('이미 든 것 뒤에 잇는다 - 덮어쓰지 않는다', () => {
+    const target = [9]
+    appendAll(target, source, 0, 2)
+    expect(target).toEqual([9, 1, 2])
+  })
+
+  /** **구멍을 만들지 않는다.** 인덱스 배열에 `undefined`가 섞이면 그 뒤가 전부 조용히 틀린다. */
+  it('어떤 범위로 불러도 `undefined`가 안 섞인다', () => {
+    for (let from = 0; from <= 5; from += 1) {
+      for (let to = 0; to <= 6; to += 1) {
+        expect(appended(source, from, to), `[${from}, ${to})`).not.toContain(undefined)
+      }
+    }
   })
 })
