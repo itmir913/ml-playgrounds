@@ -153,15 +153,29 @@ function uniformData(rows: number, columns: number): { features: number[][]; tar
   return { features, target }
 }
 
+/** 점 하나의 결과. **반복 횟수는 K-평균만 답한다.** */
+export interface LadderResult {
+  readonly elapsed: number
+  /**
+   * Lloyd 반복이 몇 번 돌았나. **데이터가 정하는 값이라 손잡이가 아니다.**
+   *
+   * **이게 없으면 특성 축을 못 읽는다** (2026-09-01 R17 감사 C-3). K-평균 한 번의 비용은
+   * `O(행 × k × 특성 × 반복)`이라 **반복 하나의 비용은 특성에 선형이어야 하는데**,
+   * 잰 사다리는 특성이 늘수록 내려간다. 내려간 것이 열 비용인지 반복 횟수인지는 ms
+   * 하나로 절대 안 갈리고, **엔진은 이미 이 수를 세고 있다**(`mljs-kmeans.ts`).
+   */
+  readonly iterations?: number
+}
+
 /** 위 데이터로 K-평균 한 번. **`measure`를 안 쓰는 이유는 데이터가 다르기 때문이다.** */
-function measureKMeans(rows: number, clusters: number, columns: number = FEATURES): number {
+function measureKMeans(rows: number, clusters: number, columns: number = FEATURES): LadderResult {
   const { features } = uniformData(rows, columns)
   const started = performance.now()
   // **엔진을 직접 부른다.** 평가에 배정과 중심점이 필요한데 `fit`은 그것을 안 돌려준다.
   const result = fitKMeans(features, clusters, 42)
   // **여기가 군집화의 진짜 비용이다** (`open-decisions.md` "실루엣 계수는 표본으로 낸다").
   evaluateCluster(features, result.assignments, result.centroids, 42)
-  return Math.round(performance.now() - started)
+  return { elapsed: Math.round(performance.now() - started), iterations: result.iterations }
 }
 
 /**
@@ -187,7 +201,7 @@ export interface Ladder {
    * K-평균만 이것을 갖는다 — 반복 횟수를 데이터가 정하는데 공용 생성기는 군집이
    * 이미 갈려 있어 즉시 수렴한다(위 `uniformData`).
    */
-  readonly run?: (point: number) => number
+  readonly run?: (point: number) => LadderResult
   /**
    * **상한을 찾는 사다리인가.** 기준표를 만드는 사다리와 목적이 다르다.
    *
@@ -377,8 +391,19 @@ export const LADDERS: readonly Ladder[] = [
      * | 20,000 | ×1.00 | 표본 |
      * | 50,000 | ×0.51 | 표본 |
      *
-     * **그래서 사다리가 둘이다.** 하나로는 한 국면만 보게 되고, 등록부의
-     * `columns: 'linear'`(특성 32에서 ×4.0)가 표본 국면에서 **7.8배 부푼다.**
+     * **표본 국면의 수는 한 번 잰 것이라 흔들린다** (2026-09-01 R17 감사 C-3). 감사자가
+     * 같은 축을 다시 재니 50,000행이 ×0.88, 20,000행이 ×1.27이었다 — **바로 아래 문단이
+     * *"실측 한 번으로 사다리 배치를 정하지 마라"*고 적어 놓고 위 표를 단정으로 실었다.**
+     * 방향(표본 국면에서 완만하거나 내려간다)은 두 번 다 같았고, **배수는 못 믿는다.**
+     *
+     * **그래서 사다리가 둘이다.** 하나로는 한 국면만 보게 된다.
+     *
+     * **그런데 이 표가 재는 것이 열 비용이 아닐 수 있다.** `uniformData`는 군집이 없는
+     * 균일 난수라 차원이 오르면 거리가 몰려(거리 집중) **Lloyd 반복이 더 일찍 멈춘다** —
+     * 그러면 내려간 것은 열당 비용이 아니라 반복 횟수다. **두 사다리 다 같은 생성기를
+     * 쓰므로 다시 돌려도 이 질문에는 답이 안 나온다.** 그래서 하니스가 점마다 **반복
+     * 횟수를 ms 옆에 싣는다**(`bench.ts`의 `iterations`) — `ms / 반복`이 그 답이다.
+     * 등록부(`ml/algorithms.ts`의 `k_means`)가 그 판단을 갖는다.
      */
     id: 'k_means_columns_full',
     label: 'K-평균 · 특성 수 (군집 없는 데이터, 2,000행 · 전수)',
@@ -613,10 +638,10 @@ const LIMIT_LADDERS: readonly Ladder[] = [
  * **워커 파일이 아니라 여기 사는 이유**는 저쪽이 모듈 꼭대기에서 `self`를 만져 검사가
  * 들여올 수 없기 때문이다. 판단은 검사가 닿는 곳에 둔다.
  */
-export function ladderPoint(ladderId: string, point: number): number {
+export function ladderPoint(ladderId: string, point: number): LadderResult {
   const ladder = ALL_LADDERS.find((one) => one.id === ladderId)
   if (ladder === undefined) throw new Error(`unknown ladder: ${ladderId}`)
-  return ladder.run ? ladder.run(point) : measure(ladder.job(point))
+  return ladder.run ? ladder.run(point) : { elapsed: measure(ladder.job(point)) }
 }
 
 /**
@@ -627,28 +652,31 @@ export function ladderPoint(ladderId: string, point: number): number {
  * `elapsed: 0` 성공으로 바꿔도 아무것도 안 울었다** — 0ms는 기준표에 들어갈 뿐 아니라
  * `stopsBefore`의 `previous`가 되어 **그 사다리를 맨 위까지 전부 돌게 한다.**
  */
+type Outcome =
+  ({ readonly ok: true } & LadderResult) | { readonly ok: false; readonly error: string }
+
 export function benchOutcome(request: {
   readonly kind: 'ladder'
   readonly ladderId: string
   readonly point: number
-}): { readonly ok: true; readonly elapsed: number } | { readonly ok: false; readonly error: string }
+}): Outcome
 export function benchOutcome(request: {
   readonly kind: 'calibration'
   readonly job: CalibrationJob
-}): { readonly ok: true; readonly elapsed: number } | { readonly ok: false; readonly error: string }
+}): Outcome
 export function benchOutcome(request: {
   readonly kind: 'ladder' | 'calibration'
   readonly ladderId?: string
   readonly point?: number
   readonly job?: CalibrationJob
-}):
-  { readonly ok: true; readonly elapsed: number } | { readonly ok: false; readonly error: string } {
+}): Outcome {
   try {
-    const elapsed =
+    // **교정 일감은 반복 횟수를 안 답한다.** K-평균이 아니라 그런 수가 없다.
+    const result: LadderResult =
       request.kind === 'calibration'
-        ? measureCalibration(request.job as CalibrationJob)
+        ? { elapsed: measureCalibration(request.job as CalibrationJob) }
         : ladderPoint(request.ladderId as string, request.point as number)
-    return { ok: true, elapsed }
+    return { ok: true, ...result }
   } catch (error) {
     return { ok: false, error: String(error) }
   }

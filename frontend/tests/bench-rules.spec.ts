@@ -405,6 +405,42 @@ describe('사다리와 워커의 계약', () => {
   })
 
   /**
+   * **K-평균은 반복 횟수도 답한다** (2026-09-01 R17 감사 C-3).
+   *
+   * 특성 축의 곡선이 내려가는 것이 **열 비용**인지 **반복 횟수**인지는 ms 하나로 절대
+   * 안 갈린다. `uniformData`는 군집 없는 균일 난수라 차원이 오르면 거리가 몰려 Lloyd가
+   * 더 일찍 멈추는데, 그러면 **재는 것이 열 비용이 아니다.** 엔진이 이미 세고 있는 수를
+   * 나란히 실어 읽는 사람이 나눠 볼 수 있게 한다.
+   */
+  it('K-평균은 반복 횟수를 함께 답한다', () => {
+    const outcome = benchOutcome({ kind: 'ladder', ladderId: 'k_means_columns_full', point: 4 })
+    expect(outcome.ok).toBe(true)
+    if (outcome.ok) {
+      // **0이면 답이 아니다.** 한 번도 안 돌았다는 뜻이 되고, 그러면 나눗셈이 무한이다.
+      expect(outcome.iterations).toBeGreaterThan(0)
+    }
+  })
+
+  /**
+   * **없는 칸은 아예 안 싣는다.** `0`을 실으면 *"한 번도 안 돌았다"*로 읽히고, JSON을
+   * 읽는 사람이 **안 재는 사다리**와 구분하지 못한다.
+   */
+  it('K-평균이 아닌 사다리는 반복 횟수 칸이 없다', () => {
+    const outcome = benchOutcome({ kind: 'ladder', ladderId: 'naive_bayes', point: 100 })
+    expect(outcome.ok).toBe(true)
+    if (outcome.ok) expect(outcome.iterations).toBeUndefined()
+  })
+
+  /** 교정 일감은 K-평균이 아니라 그 수가 없다. */
+  it('교정 일감도 반복 횟수 칸이 없다', () => {
+    const job = CALIBRATION[0]
+    expect(job).toBeDefined()
+    const outcome = benchOutcome({ kind: 'calibration', job: job as (typeof CALIBRATION)[number] })
+    expect(outcome.ok).toBe(true)
+    if (outcome.ok) expect(outcome.iterations).toBeUndefined()
+  })
+
+  /**
    * **사다리도 앱의 절차로 잰다** (R16-B-4). R15가 교정 경로만 고쳤더니 병이 사다리로
    * 옮겨 갔다 — `evaluate`를 지우거나 예측 비율을 0.01로 해도 안 울었다.
    */

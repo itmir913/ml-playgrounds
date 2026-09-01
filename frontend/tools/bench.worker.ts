@@ -50,6 +50,13 @@ export type BenchReply =
       readonly heapBeforeMb: number | null
       readonly heapMb: number | null
       readonly heapSource: HeapSource
+      /**
+       * K-평균의 Lloyd 반복 횟수. **다른 사다리는 안 싣는다.**
+       *
+       * 특성 축의 곡선이 내려가는 것이 **열 비용**인지 **반복 횟수**인지를 ms 하나로는
+       * 못 가른다 (2026-09-01 R17 감사 C-3). 나눠 보라고 함께 보낸다.
+       */
+      readonly iterations?: number
     }
   | { readonly ok: false; readonly error: string }
 
@@ -105,5 +112,12 @@ scope.onmessage = (event) => {
     return
   }
   // **시계가 멈춘 뒤에 다시 묻는다.** 힙을 재느라 걸린 시간이 그 점의 값에 섞이면 안 된다.
-  scope.postMessage({ ok: true, elapsed: outcome.elapsed, heapBeforeMb, ...heapNow() })
+  scope.postMessage({
+    ok: true,
+    elapsed: outcome.elapsed,
+    // **없는 칸은 아예 안 싣는다.** `0`을 실으면 *"한 번도 안 돌았다"*로 읽힌다.
+    ...(outcome.iterations === undefined ? {} : { iterations: outcome.iterations }),
+    heapBeforeMb,
+    ...heapNow(),
+  })
 }

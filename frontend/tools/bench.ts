@@ -111,12 +111,27 @@ type Outcome =
       readonly heapMb: number | null
       /** **워커가 쓰는 것과 같은 타입이다** — `string`으로 받으면 모르는 출처가 새 온다. */
       readonly heapSource: HeapSource
+      /** K-평균의 Lloyd 반복 횟수. 다른 사다리는 없다. */
+      readonly iterations?: number
     }
   | ({
       readonly ok: false
     } & Failure)
 
 const measured: Record<string, Record<string, number>> = {}
+/**
+ * K-평균 사다리의 **점마다 Lloyd 반복 횟수.**
+ *
+ * **ms 옆에 나란히 둔다** (2026-09-01 R17 감사 C-3). K-평균 한 번의 비용이
+ * `O(행 × k × 특성 × 반복)`이라 **반복 하나의 비용은 특성에 선형이어야 하는데**, 잰
+ * 사다리는 특성이 늘수록 내려간다(8→32에서 ×0.51 · 다시 재니 ×0.88). 내려간 것이
+ * **열 비용**인지 **반복 횟수**인지는 ms 하나로 절대 안 갈린다 — `uniformData`는 군집이
+ * 없는 균일 난수라 차원이 오르면 거리가 몰려 Lloyd가 더 일찍 멈춘다.
+ *
+ * **나눗셈은 여기서 안 한다.** 원값 둘을 남기면 읽는 사람이 자기 눈으로 나눈다. 비율만
+ * 남기면 그 비율이 무엇에서 나왔는지가 사라진다.
+ */
+const iterations: Record<string, Record<string, number>> = {}
 const calibration: Record<string, number[]> = {}
 /**
  * 시작도 안 한 점. **왜 안 했는지를 함께 적는다** (2026-09-01 감사 C-1) — 천장을 넘겨서인지
@@ -185,6 +200,7 @@ function snapshot(): Record<string, unknown> {
     stopped,
     failed,
     measured,
+    iterations,
     calibration,
   }
 }
@@ -301,6 +317,11 @@ async function runLadder(ladder: Ladder): Promise<void> {
       source: outcome.heapSource,
     }
     results[String(point)] = elapsed
+    if (outcome.iterations !== undefined) {
+      // **답한 사다리만 칸을 얻는다.** 안 답한 사다리에 빈 칸을 만들면 JSON을 읽는
+      // 사람이 *"0번 돌았다"*와 *"안 잰다"*를 구분 못 한다.
+      iterations[ladder.id] = { ...iterations[ladder.id], [String(point)]: outcome.iterations }
+    }
     previous = { point, elapsed }
     addRow(ladder.label, point.toLocaleString(), elapsed)
     publish()

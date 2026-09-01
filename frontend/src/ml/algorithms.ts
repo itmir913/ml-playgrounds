@@ -214,6 +214,27 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { mljs: MLJS_KMEANS_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
       image: { mljs: MLJS_IMAGE_KMEANS_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
     },
+    /**
+     * **`'linear'`인데 잰 사다리는 내려간다** (2026-09-01 R17 감사 C-3). 그래도 안 바꾼다.
+     *
+     * `tools/`의 특성 사다리가 50,000행에서 특성 8→32일 때 **×0.51**(다시 재니 ×0.88)로
+     * 나온다. 그런데 **그것이 열 비용을 잰 것이 아니다.** K-평균 한 번의 비용은
+     * `O(행 × k × 특성 × 반복)`이라 반복 하나는 특성에 선형이어야 하고, 내려간 것은
+     * **반복 횟수**로 보인다 — 사다리의 `uniformData`가 군집 없는 균일 난수라 차원이
+     * 오르면 거리가 몰려(거리 집중) Lloyd가 더 일찍 멈춘다. 학생이 K-평균에 가져오는
+     * 데이터는 군집이 있는 쪽이다.
+     *
+     * **그래서 값을 안 바꾸고 나눠 잴 수 있게 했다.** 하니스가 이제 점마다 반복 횟수를
+     * ms 옆에 싣는다(`tools/bench.ts`의 `iterations`). `ms / 반복`이 선형이면 `'linear'`이
+     * 맞고 내리막은 픽스처로 전부 설명되며, 아니면 **그때는 바꿀 실측 숫자가 손에 있다.**
+     * 지금은 없다.
+     *
+     * **틀리는 방향은 안전하다.** `'linear'`은 50,000×32에서 길게 말하고, 예상 시간은
+     * 경고라 길게 틀리는 쪽이 이 저장소가 정한 방향이다.
+     *
+     * **군집 있는 생성기를 새로 만드는 안은 접었다** — 진짜 군집 수와 퍼짐 정도가 전부
+     * 임의 상수라 근거가 없다. 반복 횟수는 엔진이 이미 세고 있는 값이다.
+     */
     baseline: {
       tabular: { ms: MLJS_KMEANS_BASELINE_MS, columns: 'linear' },
       image: UNMEASURED_BASELINE,

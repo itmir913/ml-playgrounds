@@ -43,6 +43,11 @@ const NEWLINE = /\r?\n/
  * **`frontend/public/`은 아직 밖이다** - 거기 처리방침 HTML이 있고 넓히면 새로 걸리는
  * 것부터 봐야 한다. 뿌리 `scripts/`와 `frontend/index.html`은 2026-08-30에 들어왔다
  * (R12 감사) - `index.html`이 죽은 주소를 이고 있었는데 아무도 안 훑고 있었다.
+ *
+ * **`frontend/tools/`는 2026-09-01에 들어왔다** (R17 감사 C-3을 고치다 드러났다).
+ * 실측 하니스는 배포본 밖이지만 **문서와 소스를 가장 많이 가리키는 파일들**이고,
+ * 훑기 밖이라 거기서 `tools/bench.ts`를 가리키는 것조차 확인되지 않았다. 넣으니
+ * 새로 걸리는 것은 없었다.
  */
 const SCANNED: readonly string[] = [
   'docs',
@@ -54,6 +59,7 @@ const SCANNED: readonly string[] = [
   'frontend/tests',
   'frontend/vite.config.ts',
   'frontend/scripts',
+  'frontend/tools',
   'frontend/index.html',
   'backend/app',
   'backend/tests',
