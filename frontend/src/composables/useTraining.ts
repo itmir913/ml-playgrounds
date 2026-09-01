@@ -18,6 +18,7 @@
 import { computed, readonly, ref, shallowRef, toRaw } from 'vue'
 
 import { isClientError } from '../errors'
+import { succeeded } from '../ml/results'
 import { TRAINING_ELAPSED_TICK_MS } from '../limits'
 import type { ExperimentResult } from '../ml/experiment'
 import { waitingStatuses, withFinished, withStarted, type ModelStatus } from '../ml/training-status'
@@ -172,7 +173,15 @@ export function useTraining(createWorker: () => TrainWorker, options?: TrainingO
         },
         onProgress: (run, completed, count, index) => {
           const begun = begunAt.get(index)
-          if (begun !== undefined) {
+          /**
+           * **성공한 것만 시계를 내놓는다** (2026-09-01, 코드 소유자).
+           *
+           * 실패한 실행도 시간을 갖는다 — 다만 그것은 **학습에 걸린 시간이 아니라
+           * 튕기는 데 걸린 시간**이다. 데이터가 상한을 넘어 곧바로 거절된 실행의 몇
+           * 밀리초가 그대로 그 알고리즘의 기기 배수가 되면, **다음 예상이 `약 1초`**가
+           * 된다. 그러면 예상이 없는 것보다 나쁘다 — 학생은 그 수를 믿는다.
+           */
+          if (begun !== undefined && succeeded(run)) {
             options?.onModelTimed?.({
               algorithm: begun.algorithm,
               runtime: begun.runtime,

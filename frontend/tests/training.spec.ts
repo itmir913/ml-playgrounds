@@ -15,7 +15,7 @@
 import { describe, expect, it } from 'vitest'
 import { ref } from 'vue'
 
-import { useTraining } from '../src/composables/useTraining'
+import { useTraining, type TrainingOptions } from '../src/composables/useTraining'
 import { ClientError } from '../src/errors'
 import type { TrainWorker } from '../src/ml/worker/client'
 import type { TrainRequest, WorkerMessage } from '../src/ml/worker/protocol'
@@ -102,13 +102,13 @@ function requestFor(count: number): TrainRequest {
   return { type: 'train', input: { settings: { selectedAlgorithms } } } as unknown as TrainRequest
 }
 
-function harness() {
+function harness(options?: TrainingOptions) {
   const workers: FakeWorker[] = []
   const training = useTraining(() => {
     const worker = new FakeWorker()
     workers.push(worker)
     return worker
-  })
+  }, options)
   return { training, workers, latest: () => workers[workers.length - 1] }
 }
 
@@ -151,6 +151,37 @@ describe('학습이 도는 동안', () => {
     await done
     // 끝나면 비운다 - 결과는 결과 화면이 말한다.
     expect(training.statuses.value).toEqual([])
+  })
+
+  /**
+   * **실패한 학습은 배수를 갱신하면 안 된다** (2026-09-01, 코드 소유자).
+   *
+   * 실패한 실행도 시간을 갖는다 — 다만 그것은 **학습에 걸린 시간이 아니라 튕기는 데
+   * 걸린 시간**이다. 데이터가 상한을 넘어 곧바로 거절된 실행의 몇 밀리초가 그대로 그
+   * 알고리즘의 기기 배수가 되어, **다음 예상이 `약 1초`**로 떴다. 예상이 없는 것보다
+   * 나쁘다 — 학생은 그 수를 믿는다.
+   */
+  it('성공한 모델만 시계를 내놓는다', async () => {
+    const timed: string[] = []
+    const { training, latest } = harness({ onModelTimed: ({ algorithm }) => timed.push(algorithm) })
+
+    const done = training.run(requestFor(2))
+    latest()?.emit({
+      type: 'started',
+      index: 0,
+      algorithm: 'decision_tree',
+      runtime: 'mljs',
+      total: 2,
+    })
+    latest()?.emit({ type: 'progress', run: FAILED_RUN, index: 0, completed: 1, total: 2 })
+    latest()?.emit({ type: 'started', index: 1, algorithm: 'knn', runtime: 'mljs', total: 2 })
+    latest()?.emit({ type: 'progress', run: RUN, index: 1, completed: 2, total: 2 })
+
+    // 실패한 자리는 안 내놓고, 성공한 자리만 내놓는다.
+    expect(timed).toEqual(['knn'])
+
+    latest()?.emit(DONE)
+    await done
   })
 
   it('두 번 눌러도 워커는 하나다', async () => {

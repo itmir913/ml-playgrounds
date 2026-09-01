@@ -62,9 +62,23 @@ export interface Headline {
   readonly value: number
 }
 
+/**
+ * 이 실행이 **성공했나.** 판정은 여기 하나다.
+ *
+ * **세 자리가 각자 `run.status === 'done'`을 적고 있었다** (2026-09-01, 코드 소유자).
+ * 결과 목록·학습 화면의 상태 배지·**학습 뒤 배수 보정**이고, 셋째가 그 비교를 아예
+ * 안 해서 **실패한 학습이 기기 배수를 갱신했다** — 데이터가 너무 많아 곧바로 튕긴
+ * 실행의 몇 밀리초가 그 알고리즘의 배수가 되어, 다음 예상이 `약 1초`가 됐다.
+ *
+ * **성공의 뜻이 바뀌는 날 한 곳만 고치면 된다.**
+ */
+export function succeeded(run: Run): boolean {
+  return run.status === 'done'
+}
+
 /** 점수가 나온 run들. 실패한 것은 지표가 없다 (schema.ts가 강제한다). */
 export function doneRuns(experiment: Experiment): readonly Run[] {
-  return experiment.runs.filter((run) => run.status === 'done')
+  return experiment.runs.filter(succeeded)
 }
 
 export function failedRuns(experiment: Experiment): readonly Run[] {

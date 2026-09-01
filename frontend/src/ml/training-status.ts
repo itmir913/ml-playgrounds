@@ -12,6 +12,7 @@
  */
 
 import type { Run } from '../project/schema'
+import { succeeded } from './results'
 
 /**
  * 추가한 모델 한 줄의 상태.
@@ -59,5 +60,5 @@ export function withFinished(
   index: number,
   run: Run,
 ): ModelStatus[] {
-  return replaced(statuses, index, run.status === 'done' ? 'done' : 'failed')
+  return replaced(statuses, index, succeeded(run) ? 'done' : 'failed')
 }
