@@ -73,7 +73,33 @@ function specsOf(row: ChosenModel): readonly HyperparameterSpec[] {
  * 것은 언제나 글자다 — 색각 이상이 있는 학생과 흑백으로 인쇄한 교사에게 색은 아무 말도
  * 안 한다.
  */
+/**
+ * 상태 하나의 색. **왼쪽 띠와 배지가 짝이다** (`architecture.md` §8.17).
+ *
+ * **배지는 옅은 면(`*-soft`)이 아니라 진한 면에 반전 글자다** (2026-09-01, 코드 소유자).
+ *
+ * **옅은 면으로는 두 배색 다 안 보였다.** 어두운 쪽에서 `brand-soft`는 카드 면과 대비가
+ * **1.09**였다 — `학습 중`이 사실상 안 읽혔다. 밝은 쪽도 옅기는 마찬가지였다.
+ *
+ * **`*-soft`를 진하게 만드는 것으로는 못 고친다** (한 번 그렇게 고쳤다가 되돌렸다).
+ * 그 토큰은 **여러 자리가 함께 쓴다** — 끌어다 놓는 자리의 강조, 고른 실험 카드, 고른
+ * 표 줄, 결과 판의 머리. 배지 하나를 위해 올리면 **그 전부가 함께 물든다.**
+ *
+ * **실측** (면-표면 대비 / 글자 대비):
+ *
+ * | | 밝은 배색 | 어두운 배색 |
+ * |---|---|---|
+ * | `brand` | 6.29 / 6.29 | 4.90 / 5.98 |
+ * | `positive` | 5.48 / 5.48 | 7.61 / 9.29 |
+ * | `danger` | 4.70 / 4.70 | 5.44 / 6.63 |
+ *
+ * 여섯 칸이 전부 4.5를 넘는다 — **옅은 면으로는 어느 쪽도 그 근처에 못 갔다.**
+ */
 const STATUS_TONE: Readonly<Record<ModelStatus, { accent: string; badge: string; key: string }>> = {
+  /**
+   * **대기만 조용하다.** 아무 일도 안 일어난 상태라 물러나 있는 것이 맞다 — 넷이 다
+   * 진하면 무엇이 지금 도는지가 안 보인다.
+   */
   waiting: {
     accent: 'border-l-line-strong',
     badge: 'bg-surface-sunken text-ink-soft',
@@ -81,17 +107,17 @@ const STATUS_TONE: Readonly<Record<ModelStatus, { accent: string; badge: string;
   },
   running: {
     accent: 'border-l-brand',
-    badge: 'bg-brand-soft text-ink',
+    badge: 'bg-brand text-ink-invert',
     key: 'train.modelRunning',
   },
   done: {
     accent: 'border-l-positive',
-    badge: 'bg-positive-soft text-ink',
+    badge: 'bg-positive text-ink-invert',
     key: 'train.modelDone',
   },
   failed: {
     accent: 'border-l-danger',
-    badge: 'bg-danger-soft text-ink',
+    badge: 'bg-danger text-ink-invert',
     key: 'train.modelFailed',
   },
 }
@@ -255,39 +281,53 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
             값이고, 이름과 같은 줄에 두면 좁은 칸에서 예상 시간까지 셋이 접힌다.
           -->
           <div class="min-w-0 flex-1">
-            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <!--
+              **이름·상태·숫자가 한 줄에서 함께 접힌다** (2026-09-01, 코드 소유자).
+
+              전에는 숫자 둘이 이 칸 **바깥에서 `shrink-0`**이었다. 그러면 좁아질 때 그
+              폭을 통째로 가져가고 **이름 칸이 0에 가깝게 눌린다** — 영어에서
+              `this computer`가 `comp`/`uter`로 쪼개졌고, 한국어에서도 이름이 반으로
+              꺾인 채 숫자가 그 옆에 붙었다. 안으로 들이면 좁아질 때 **줄이 늘 뿐 칸이
+              안 죽는다.**
+
+              **`ml-auto`가 숫자를 오른쪽으로 민다.** 자리가 남으면 예상 시간이 줄마다
+              같은 자리에 서고(아래 그 성질을 적어 둔 주석), 모자라면 제 줄로 내려가
+              거기서 오른쪽에 선다 — **접힌 자리가 뜻을 갖는다.**
+            -->
+            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span class="font-bold">{{ t(`algorithms.${row.algorithm}`) }}</span>
 
               <span v-if="tone" class="rounded-field px-2 py-0.5" :class="tone.badge">
                 {{ t(tone.key) }}
               </span>
+
+              <!--
+                **예상 시간은 줄마다 같은 자리에 선다.** 모델 이름 옆에 흘려 두었더니
+                이름 길이가 줄마다 달라 숫자가 들쑥날쑥해 보였다 — 훑을 때 알고 싶은
+                것이 "어느 것이 오래 걸리나"인데, 그러려면 숫자가 한 줄로 서야 한다.
+
+                **끝난 줄에서만 사라진다** (2026-09-01, 코드 소유자). 전에는 학습이 도는
+                동안 통째로 숨겼는데, **학생이 지금 기다리는 그 순간에 얼마나 더 기다릴지를
+                못 봤다.** 원래 걱정은 *"끝난 줄에도 약 3분이 남는다"*였고 그건 끝난 줄의
+                문제라, 거기서만 빼면 둘 다 지켜진다.
+
+                **경과 시간이 그 왼쪽에 선다.** 도는 줄에만, 그리고 문턱을 넘긴 뒤에만
+                나온다 — 올라가는 숫자가 곧 *"안 멈췄다"*는 신호다 (`limits.ts`의
+                `TRAINING_ELAPSED_VISIBLE_AFTER_MS`).
+              -->
+              <span
+                v-if="elapsed.kind === 'shown' || showsEstimate"
+                class="ml-auto flex items-baseline gap-x-3 text-ink-soft"
+              >
+                <span v-if="elapsed.kind === 'shown'" class="tabular-nums" aria-live="off">
+                  {{ t('train.elapsed', { minutes: elapsed.minutes, seconds: elapsed.seconds }) }}
+                </span>
+                <span v-if="showsEstimate">{{ estimateText }}</span>
+              </span>
             </div>
 
             <p class="mt-1 text-ink-soft">{{ t(`runtimes.${row.runtime}`) }}</p>
           </div>
-
-          <!--
-            **예상 시간은 [제거] 왼편에 못 박힌다.** 모델 이름 옆에 두었더니 이름 길이가
-            줄마다 달라 숫자가 들쑥날쑥해 보였다 — 훑을 때 알고 싶은 것이 "어느 것이 오래
-            걸리나"인데, 그러려면 숫자가 한 줄로 서야 한다.
-
-            **끝난 줄에서만 사라진다** (2026-09-01, 코드 소유자). 전에는 학습이 도는 동안
-            통째로 숨겼는데, **학생이 지금 기다리는 그 순간에 얼마나 더 기다릴지를 못
-            봤다.** 원래 걱정은 *"끝난 줄에도 약 3분이 남는다"*였고 그건 끝난 줄의
-            문제라, 거기서만 빼면 둘 다 지켜진다.
-
-            **경과 시간이 그 왼쪽에 선다.** 도는 줄에만, 그리고 문턱을 넘긴 뒤에만
-            나온다 — 올라가는 숫자가 곧 *"안 멈췄다"*는 신호다 (`limits.ts`의
-            `TRAINING_ELAPSED_VISIBLE_AFTER_MS`).
-          -->
-          <span
-            v-if="elapsed.kind === 'shown'"
-            class="shrink-0 tabular-nums text-ink-soft"
-            aria-live="off"
-          >
-            {{ t('train.elapsed', { minutes: elapsed.minutes, seconds: elapsed.seconds }) }}
-          </span>
-          <span v-if="showsEstimate" class="shrink-0 text-ink-soft">{{ estimateText }}</span>
 
           <!--
             **세로 여백을 되당긴다. 기준선 정렬과 둘 다 필요하다.**
