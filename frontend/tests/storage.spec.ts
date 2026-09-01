@@ -129,9 +129,21 @@ describe('상한 해제 저장', () => {
   /**
    * **`true`가 아니면 꺼진 것이다.** 손으로 넣어 둔 값이나 옛 형식을 참으로 읽으면
    * 학생이 켠 적 없는 상태로 앱이 뜬다 — 상한이 조용히 풀린 채로 시작한다.
+   *
+   * **같은 열쇠에 직접 넣어야 재는 것이 있다** (2026-09-01 감사 A-2). 처음에는 **언어
+   * 열쇠**에 쓰고 상한 열쇠를 읽었는데, 두 열쇠가 다르다는 것은 바로 아래 검사가 스스로
+   * 단언한다 — 읽히는 값이 늘 `undefined`라 위 `저장한 적이 없으면 꺼진 것이다`와 **똑같은
+   * 것을 재고 있었다.** 그래서 `=== true`를 `Boolean(...)`으로 풀어도 통과했다.
+   *
+   * **`writeLimitsOff`를 먼저 부르는 이유**는 앱이 store를 만들게 하기 위해서다. 생
+   * 연결로 먼저 열면 store 없는 빈 DB가 서서 `NotFoundError`가 난다.
    */
-  it('참이 아닌 값은 켠 것으로 안 읽는다', async () => {
-    await writePreferredLocale('ko')
+  it('같은 열쇠의 참 아닌 값을 켠 것으로 안 읽는다', async () => {
+    await writeLimitsOff(true)
+    const raw = await openDB(DB_NAME, DB_VERSION)
+    // 옛 형식이 문자열이었다면 이렇게 남아 있다.
+    await raw.put('preferences', 'true', 'limitsOff')
+    raw.close()
     await expect(readLimitsOff()).resolves.toBe(false)
   })
 

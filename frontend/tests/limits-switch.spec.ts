@@ -12,6 +12,7 @@ import 'fake-indexeddb/auto'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { runtimeContextFor } from '../src/ml/training-source'
 import { writeLimitsOff } from '../src/project/storage'
 
 import {
@@ -172,6 +173,39 @@ describe('선택은 이 기기에 남는다', () => {
 
     expect(module.limitsOff.value).toBe(true)
     vi.doUnmock('../src/project/storage')
+  })
+
+  /**
+   * **모듈을 원래대로 돌려놓고 나간다** (2026-09-01 감사 C-3). 위 검사들이 남긴
+   * `resetModules`를 안 치우면 **뒤에 붙는 검사가 동적 `import`로 다른 인스턴스를 받는다**
+   * — 감사자가 실제로 그렇게 넘어졌고, 깨끗한 소스에서 난 빨강이라 "코드가 틀렸다"로
+   * 읽힌다. 되돌리기는 마지막 검사의 본문이 아니라 여기 있어야 한다(그 검사가 깨져도 돈다).
+   */
+  afterEach(() => {
+    vi.doUnmock('../src/project/storage')
     vi.resetModules()
+  })
+})
+
+/**
+ * **스위치를 화면에서 판정으로 잇는 유일한 자리** (2026-09-01 감사 A-1).
+ *
+ * `runtimeContextFor`가 `limitsOff`를 싣는 한 줄이 끊기면 **기능이 통째로 죽는다** —
+ * 상태 바는 "상한을 해제했습니다"라고 말하는데 카드도 업로드도 그대로 막힌다. 그런데
+ * 그 줄을 `false`로 고정해도 저장소 359개가 전부 초록이었다.
+ *
+ * **같은 함수가 이미 같은 병을 앓았다.** `training-source.ts`의 머리말이 R13-3 A-2를
+ * 두고 *"타입이 필수로 만들어 두어 빠뜨릴 수는 없지만 틀린 값을 넣는 것은 아무도 안
+ * 봤다"*고 적는다. 나머지 필드 셋에는 그때 검사가 섰고, **넷째만 그 줄에서 빠졌다.**
+ *
+ * **정적으로 들여온다** — 위 describe가 모듈을 갈아 끼우므로 동적 `import`로 받으면
+ * 다른 인스턴스의 `limitsOff`를 보게 된다.
+ */
+describe('맥락이 스위치를 싣는다', () => {
+  it('runtimeContextFor가 지금 선택을 그대로 넘긴다', () => {
+    applyLimitsOff(true)
+    expect(runtimeContextFor(null, 'tabular').limitsOff).toBe(true)
+    applyLimitsOff(false)
+    expect(runtimeContextFor(null, 'tabular').limitsOff).toBe(false)
   })
 })

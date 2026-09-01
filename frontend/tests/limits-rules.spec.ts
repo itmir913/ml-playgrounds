@@ -414,7 +414,7 @@ describe('상한마다 분류가 달려 있다', () => {
    *
    * **"바로 앞"을 글자로 확인한다.** 마지막 `/**`부터 잘라 오는 것만으로는 모자랐다 —
    * 상수에 주석이 **아예 없으면** 그 조각이 앞 상수의 주석이 되고, 거기 달린 분류가
-   * 이 상수의 것으로 읽힌다 (R6 감사 B-4). `우리 기기가 정했다`가 스물넷으로 가장
+   * 이 상수의 것으로 읽힌다 (R6 감사 B-4). `우리 기기가 정했다`가 스물셋으로 가장
    * 흔하므로 주석을 안 붙인 새 상한은 **off 스위치가 끄는 줄로 빨려 들어간다.**
    *
    * 그래서 잘라 온 조각이 `*∕`로 닫히고 그 뒤에 공백만 있는지 본다. 사이에 다른 코드
@@ -544,6 +544,22 @@ describe('상한마다 분류가 달려 있다', () => {
       expect(documented().size).toBe(CLASSES.length)
     })
 
+    /**
+     * **머리글의 총계도 센다** (2026-09-01 감사 C-1). 아래 검사는 칸마다의 수만 보므로,
+     * 분류를 옮기면서 칸 둘을 고치고 총계 줄을 안 고치면 **조용히 낡는다** — 실제로
+     * 그렇게 두 번 낡았다(44 → 52 → 73). 이 검사가 선 이유가 그 낡음이었는데 정작
+     * 총계는 안 보고 있었다.
+     */
+    it('머리글의 총계가 칸의 합과 같다', () => {
+      const text = readFileSync(DECISION, 'utf-8')
+      const header = /[*][*]전수 분류 [(](\d+)개/.exec(text)
+      expect(header, 'the full-list header moved or changed shape').not.toBeNull()
+      const sum = [...documented().values()].reduce((total, count) => total + count, 0)
+      expect(Number(header?.[1])).toBe(sum)
+      // 소스가 출처다. 표가 세는 것이 실제로 `limits.ts`가 내보내는 상수 전부인가.
+      expect(sum).toBe(NAMES.length)
+    })
+
     it('분류마다 개수가 같다', () => {
       const doc = documented()
       const source = counted()
@@ -623,6 +639,52 @@ describe('끌 수 있는 상한은 스위치를 거친다', () => {
       )
       .map((path) => path.slice(SRC.length + 1))
     expect(compared).toEqual([join('ml', 'backend.ts')])
+  })
+
+  /**
+   * **이름 축과 등록부 축을 함께 둔다** (2026-09-01 감사 B-2).
+   *
+   * 위 규칙은 `rowCount`라는 **식별자**를 쓴 비교만 본다 — 순서를 뒤집거나(`max < rows`)
+   * 변수에 담거나 헬퍼로 감싸면 빠져나간다. 감사자가 `ml/selection.ts`에 둘째 게이트를
+   * 넣어 그것을 확인했다(안 울었다).
+   *
+   * 이쪽은 **값을 어디서 읽는가**를 본다. 끄는 일은 판정하는 코드가 하므로, 등록부의
+   * 행 상한을 읽는 자리가 둘이 되면 그중 하나는 스위치를 안 듣는다. 두 규칙이 서로 다른
+   * 회피를 막는다.
+   */
+  it('등록부의 행 상한을 읽는 자리가 한 곳뿐이다', () => {
+    const readers = sourceFiles(SRC)
+      .filter((path) =>
+        /\.maxRows\s*\[/.test(withoutComments(readFileSync(path, 'utf-8')).join('\n')),
+      )
+      .map((path) => path.slice(SRC.length + 1))
+    expect(readers).toEqual([join('ml', 'backend.ts')])
+  })
+
+  /**
+   * **`Infinity`를 판 크기로 그대로 쓰면 첫 판이 통째로 빈다** (2026-09-01 감사 B-1).
+   *
+   * `0 * Infinity`가 `NaN`이고 `slice(NaN, NaN)`은 빈 배열이다 — **아무 오류도 안 난다.**
+   * `pageSizeOf`의 머리말이 *"컴포넌트 밖에 있는 이유는 그것이 검사할 수 있는 유일한
+   * 자리이기 때문"*이라고 적는데, 정작 **화면이 그것을 거치는지는 아무도 안 봤다.**
+   *
+   * 위 `산점도 상한이 화면까지 이어진다`와 같은 모양이다.
+   */
+  it('판 크기를 `pageSizeOf`로 감싼다', () => {
+    const callers = sourceFiles(SRC).filter((path) =>
+      /\b(?:predictPageSize|imagePredictPageSize)\s*\(/.test(
+        withoutComments(readFileSync(path, 'utf-8')).join('\n'),
+      ),
+    )
+    // 0개면 이름이 바뀐 것이지 규칙이 지켜진 게 아니다.
+    expect(callers.length).toBeGreaterThanOrEqual(2)
+
+    const unwrapped = callers
+      .filter(
+        (path) => !withoutComments(readFileSync(path, 'utf-8')).join('\n').includes('pageSizeOf('),
+      )
+      .map((path) => path.slice(SRC.length + 1))
+    expect(unwrapped, 'wrap it with pageSizeOf - Infinity leaks into slice()').toEqual([])
   })
 
   it('집 셋 밖에서는 기기 줄 상수를 직접 안 읽는다', () => {
