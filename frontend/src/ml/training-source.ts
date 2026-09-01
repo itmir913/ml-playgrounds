@@ -11,6 +11,7 @@
  */
 
 import { ClientError } from '@/errors'
+import { limitsOff } from '@/limits-switch'
 import type { EngineState, RuntimeContext } from '@/ml/backend'
 import { backboneFor } from '@/ml/backbones'
 import { embedImages, type EmbedWorker } from '@/ml/embed/client'
@@ -226,6 +227,11 @@ export function runtimeContextFor(
     // (R13-5 감사 A-6). **화면이 고를 수 없게 만든다** — 아래 `algorithmSelectionFor`와 같은 판단이다.
     rowCount: project === null ? 0 : trainableRowsOf(project, project.document.manifest.taskType),
     dataType: dataTypeOf(project, fallbackDataType),
+    // **화면이 넘기게 두지 않는다.** 위 `dataType`과 같은 판단이다 — 넘기는 인자가 되면
+    // 그 자리가 검사 밖이 되고, 학습 화면과 전처리 화면이 서로 다른 답을 낼 수 있다.
+    // 이 모듈은 화면 쪽에서만 불리므로(`views/`가 유일한 임포터) vue를 물어도 워커
+    // 번들에는 안 들어간다 (`limits-switch.ts`의 머리글).
+    limitsOff: limitsOff.value,
   }
 }
 

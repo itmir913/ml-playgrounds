@@ -60,7 +60,13 @@ const sklearnOnly: AlgorithmSpec = {
 }
 
 function context(overrides: Partial<RuntimeContext> = {}): RuntimeContext {
-  return { serverStatus: 'unavailable', rowCount: 100, dataType: 'tabular', ...overrides }
+  return {
+    serverStatus: 'unavailable',
+    rowCount: 100,
+    dataType: 'tabular',
+    limitsOff: false,
+    ...overrides,
+  }
 }
 
 const ready: Record<string, EngineState> = { 'pyodide-sklearn': 'ready' }
@@ -178,6 +184,7 @@ describe('데이터 크기', () => {
       anywhere,
       context({
         serverStatus: 'available',
+        limitsOff: false,
         rowCount: BROWSER_ROW_LIMIT + 1,
         dataType: 'tabular',
         engineStates: ready,
@@ -322,5 +329,59 @@ describe('파일에 남는 값', () => {
 
   it('id가 겹치지 않는다', () => {
     expect(new Set(RUNTIMES.map((runtime) => runtime.id)).size).toBe(RUNTIMES.length)
+  })
+})
+
+/**
+ * **상한을 끄면 이 한 곳이 연다** (`limits-switch.ts`, `open-decisions.md` "상한은 누가
+ * 정했느냐" §2).
+ *
+ * 등록부의 값을 `Infinity`로 바꾸는 대신 **판정하는 자리에서** 끄기로 했다. 그래서
+ * 여기서 볼 것이 셋이다 — 열리는가, **다른 잠금까지 열지는 않는가**, 그리고 상한이 몇인지
+ * 여전히 말하는가.
+ *
+ * **이 판정은 워커에서도 돈다** (`ml/experiment.ts`). 그래서 스위치가 모듈이 아니라
+ * `RuntimeContext`의 값으로 실려 온다 — 메인만 풀면 카드는 열리는데 워커가 그 자리에서
+ * 실패시킨다.
+ */
+describe('상한을 끄면 행 상한만 열린다', () => {
+  const tooBig = { rowCount: BROWSER_ROW_LIMIT * 10, dataType: 'tabular' } as const
+
+  it('꺼져 있으면 그대로 막는다 - 기본값이 안전한 쪽이다', () => {
+    const options = runtimeOptions(anywhere, context({ ...tooBig, limitsOff: false }))
+    expect(optionFor(options, 'mljs')?.reason).toBe('DATASET_TOO_LARGE_FOR_BROWSER')
+  })
+
+  it('켜면 상한을 넘겨도 열린다', () => {
+    const options = runtimeOptions(anywhere, context({ ...tooBig, limitsOff: true }))
+    expect(optionFor(options, 'mljs')?.enabled).toBe(true)
+  })
+
+  /**
+   * **상한을 껐다고 상한이 사라지지는 않는다.** 화면은 여전히 "이 알고리즘은 N행까지"를
+   * 말할 수 있어야 한다 — 등록부의 값을 `Infinity`로 바꾸지 않고 판정만 건너뛰는 이유가
+   * 이것이다.
+   */
+  it('켜도 그 칸의 상한은 그대로 말한다', () => {
+    const options = runtimeOptions(anywhere, context({ ...tooBig, limitsOff: true }))
+    expect(optionFor(options, 'mljs')?.maxRows).toBe(BROWSER_ROW_LIMIT)
+  })
+
+  /**
+   * **스위치가 여는 것은 우리 기기가 정한 줄뿐이다** (결정문 §2). 엔진이 안 왔거나 서버가
+   * 없는 것은 기기가 빨라져도 안 바뀌는 사실이라, 켠다고 열리면 안 된다.
+   */
+  it('엔진이 안 왔으면 켜도 안 열린다', () => {
+    const options = runtimeOptions(anywhere, context({ ...tooBig, limitsOff: true }))
+    expect(optionFor(options, 'pyodide-sklearn')?.enabled).toBe(false)
+    expect(optionFor(options, 'pyodide-sklearn')?.reason).not.toBe('DATASET_TOO_LARGE_FOR_BROWSER')
+  })
+
+  it('서버가 없으면 켜도 안 열린다', () => {
+    const options = runtimeOptions(
+      anywhere,
+      context({ ...tooBig, limitsOff: true, serverStatus: 'unavailable' }),
+    )
+    expect(optionFor(options, 'server-sklearn')?.reason).toBe('SERVER_UNAVAILABLE')
   })
 })

@@ -324,6 +324,23 @@ export interface RuntimeContext {
    * 말을 하고, 그건 오늘까지 이 저장소가 계속 고쳐 온 종류의 결함이다.
    */
   dataType: DataType
+  /**
+   * 학생이 상한을 껐는가 (`limits-switch.ts`, `open-decisions.md` "상한은 누가
+   * 정했느냐" §2).
+   *
+   * **여기 있는 이유는 이 판정이 워커에서도 돌기 때문이다.** 학습은 워커에서 도는데
+   * 거기서도 등록부의 행 상한을 보고 run을 거절한다(`ml/experiment.ts`). 메인 스레드의
+   * 스위치만 풀면 **카드는 열리는데 워커가 그 자리에서 실패시킨다** — 학생이 보는 것은
+   * "상한을 껐는데 학습이 실패한다"이고, 결정문이 *"설명할 말이 없다"*고 한 그 상태다.
+   * `ExperimentInput.context`가 그대로 실려 건너가므로 값이 함께 간다.
+   *
+   * **`dataType`과 같은 이유로 선택 가능한 필드가 아니다.** 비워 둘 수 있게 하면 안 넘긴
+   * 자리가 조용히 "안 껐다"고 말하고, 그 자리만 스위치를 안 듣는다.
+   *
+   * **기기의 설정이라 `.mlpx`에는 안 적힌다.** 파일에 적히는 숫자를 바꾸는 상한은 애초에
+   * 이 스위치의 것이 아니다 (결정문 §1.3).
+   */
+  limitsOff: boolean
 }
 
 /** 상한에 걸린 사유인가. 종류마다 코드가 다르므로 파라미터 판정을 한곳에 둔다. */
@@ -384,7 +401,10 @@ export function runtimeOptions(
     // 그 사실은 등록부의 칸에 적혀 있다 (AlgorithmSpec.maxRows). 화면이 종류를 보고
     // 다른 값을 고르면 판정과 문장이 두 벌이 된다.
     const maxRows = algorithm.maxRows[context.dataType][runtime.id] ?? browserRowLimit
-    if (context.rowCount > maxRows) {
+    // **끄는 일은 여기 한 곳에서 한다** (`limits-switch.ts`, 결정문 §2). 등록부의 값은
+    // 그대로 둔다 — 꺼도 "이 알고리즘은 3,000행까지"는 여전히 말할 거리이고, 값을
+    // `Infinity`로 바꾸면 화면이 **무제한 행까지**라고 말하게 된다.
+    if (!context.limitsOff && context.rowCount > maxRows) {
       return { runtime, enabled: false, reason: TOO_LARGE_REASON[context.dataType], maxRows }
     }
     if (runtime.needsPreparation && !isReady(context, runtime.id)) {

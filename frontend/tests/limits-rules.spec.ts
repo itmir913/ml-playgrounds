@@ -608,6 +608,23 @@ describe('끌 수 있는 상한은 스위치를 거친다', () => {
     expect(existsSync(SWITCH)).toBe(true)
   })
 
+  /**
+   * **행 상한을 재는 자리가 둘이 되면 스위치는 그중 하나만 연다.**
+   *
+   * 등록부의 값은 `Infinity`가 되지 않으므로(위 참조) 끄는 일은 **판정하는 코드**가
+   * 한다. 그 코드가 한 곳뿐이라는 것이 지금의 전제이고, 어딘가에 `rowCount > …`가
+   * 하나 더 생기면 그 자리는 스위치를 안 듣는다 — 화면은 열렸다고 하는데 거기서만
+   * 막히고, **아무 오류도 안 난다.**
+   */
+  it('행 수를 상한과 견주는 자리가 한 곳뿐이다', () => {
+    const compared = sourceFiles(SRC)
+      .filter((path) =>
+        /\browCount\s*[<>]=?/.test(withoutComments(readFileSync(path, 'utf-8')).join('\n')),
+      )
+      .map((path) => path.slice(SRC.length + 1))
+    expect(compared).toEqual([join('ml', 'backend.ts')])
+  })
+
   it('집 셋 밖에서는 기기 줄 상수를 직접 안 읽는다', () => {
     const wrong: string[] = []
     for (const path of sourceFiles(SRC)) {

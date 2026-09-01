@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest'
 
 import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { isClientError } from '../src/errors'
-import type { Algorithm } from '../src/ml/algorithms'
+import { ALGORITHMS, type Algorithm } from '../src/ml/algorithms'
 import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/ml/experiment'
 import { dataSnapshot } from '../src/project/schema'
 import { trainableRowCount } from '../src/ml/selection'
@@ -64,6 +64,7 @@ const models = (...names: string[]) => names.map((algorithm) => ({ algorithm }))
 /** 서버도 무거운 엔진도 없는 상태. 공식 배포(GitHub Pages)가 정확히 이렇다. */
 const BROWSER_ONLY: RuntimeContext = {
   serverStatus: 'unavailable',
+  limitsOff: false,
   rowCount: 30,
   dataType: 'tabular',
 }
@@ -614,7 +615,12 @@ describe('id와 changed', () => {
           split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
           selectedAlgorithms: models('linear_regression'),
         }),
-        context: { serverStatus: 'unavailable', rowCount: 10, dataType: 'tabular' },
+        context: {
+          limitsOff: false,
+          serverStatus: 'unavailable',
+          rowCount: 10,
+          dataType: 'tabular',
+        },
       },
       { ...frozen, history },
     ).experiment
@@ -884,7 +890,7 @@ describe('회귀', () => {
         split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
         selectedAlgorithms: models('linear_regression'),
       }),
-      context: { serverStatus: 'unavailable', rowCount: 10, dataType: 'tabular' },
+      context: { limitsOff: false, serverStatus: 'unavailable', rowCount: 10, dataType: 'tabular' },
     },
     frozen,
   )
@@ -936,7 +942,12 @@ describe('회귀 + 범주형 타깃', () => {
           split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
           selectedAlgorithms: models(algorithm),
         }),
-        context: { serverStatus: 'unavailable', rowCount: grades.rows.length, dataType: 'tabular' },
+        context: {
+          limitsOff: false,
+          serverStatus: 'unavailable',
+          rowCount: grades.rows.length,
+          dataType: 'tabular',
+        },
       },
       frozen,
     )
@@ -984,6 +995,7 @@ describe('회귀 + 범주형 타깃', () => {
         }),
         context: {
           serverStatus: 'unavailable',
+          limitsOff: false,
           rowCount: withGap.rows.length,
           dataType: 'tabular',
         },
@@ -1013,6 +1025,7 @@ describe('회귀 + 범주형 타깃', () => {
           }),
           context: {
             serverStatus: 'unavailable',
+            limitsOff: false,
             rowCount: withText.rows.length,
             dataType: 'tabular',
           },
@@ -1051,7 +1064,12 @@ describe('데이터 타입·과제 유형에 안 맞는 모델', () => {
           split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
           selectedAlgorithms: models('decision_tree'),
         }),
-        context: { serverStatus: 'unavailable', rowCount: line.rows.length, dataType: 'tabular' },
+        context: {
+          limitsOff: false,
+          serverStatus: 'unavailable',
+          rowCount: line.rows.length,
+          dataType: 'tabular',
+        },
         ...overrides,
       },
       algorithms ? { ...frozen, algorithms } : frozen,
@@ -1612,5 +1630,68 @@ describe('표본 뽑기', () => {
       expect(row).toBeGreaterThanOrEqual(0)
       expect(row).toBeLessThan(irisDataset().rows.length)
     }
+  })
+})
+
+/**
+ * **스위치는 워커까지 간다** (`limits-switch.ts`, `open-decisions.md` "상한은 누가
+ * 정했느냐" §2).
+ *
+ * 상한 판정은 화면에만 있는 것이 아니라 **이 함수 안에도 있다** — 워커에서 도는 쪽이
+ * 여기다. 메인 스레드의 스위치만 풀면 카드는 열리는데 여기서 run이 실패로 끝나고,
+ * 학생이 보는 것은 "상한을 껐는데 학습이 실패한다"가 된다.
+ */
+describe('상한 off 스위치가 학습까지 간다', () => {
+  const line: Dataset = {
+    columns: ['x', 'y'],
+    rows: [...Array(10).keys()].map((x) => [String(x), String(2 * x + 1)]),
+  }
+
+  /** **상한이 작은 가짜 등록부.** 진짜 값(수만 행)으로는 검사가 못 도는 크기다. */
+  function tinyLimit(rows: number): readonly Algorithm[] {
+    const entry = ALGORITHMS.find((one) => one.id === 'linear_regression')
+    if (!entry) throw new Error('linear_regression missing from the registry')
+    return [
+      {
+        ...entry,
+        maxRows: { ...entry.maxRows, tabular: { ...entry.maxRows.tabular, mljs: rows } },
+      },
+    ]
+  }
+
+  function run(limitsOff: boolean) {
+    return runExperiment(
+      {
+        dataset: line,
+        testDataset: null,
+        taskType: 'regression',
+        dataType: 'tabular',
+        settings: settingsFor({
+          features: ['x'],
+          target: 'y',
+          split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+          selectedAlgorithms: models('linear_regression'),
+        }),
+        context: {
+          serverStatus: 'unavailable',
+          limitsOff,
+          rowCount: line.rows.length,
+          dataType: 'tabular',
+        },
+      },
+      { ...frozen, algorithms: tinyLimit(1) },
+    ).experiment
+  }
+
+  it('켠 채로는 그 run이 실패한다', () => {
+    const experiment = run(false)
+    expect(experiment.runs[0]?.status).toBe('failed')
+    expect(experiment.runs[0]?.failure?.code).toBe('DATASET_TOO_LARGE_FOR_BROWSER')
+  })
+
+  it('끄면 같은 데이터가 학습된다 - 값이 워커까지 실려 온다', () => {
+    const experiment = run(true)
+    expect(experiment.runs[0]?.status).toBe('done')
+    expect(experiment.runs[0]?.failure).toBeUndefined()
   })
 })

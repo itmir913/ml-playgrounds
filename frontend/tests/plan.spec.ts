@@ -22,6 +22,7 @@ import { IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN, irisDataset } from './fixture
 
 const BROWSER_ONLY: RuntimeContext = {
   serverStatus: 'unavailable',
+  limitsOff: false,
   rowCount: 30,
   dataType: 'tabular',
 }

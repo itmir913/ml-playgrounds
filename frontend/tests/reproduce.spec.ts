@@ -59,7 +59,7 @@ function trained(algorithms: string[]): Experiment {
       taskType: 'classification',
       dataType: 'tabular',
       settings: settingsFor(algorithms),
-      context: { serverStatus: 'unavailable', rowCount: 30, dataType: 'tabular' },
+      context: { limitsOff: false, serverStatus: 'unavailable', rowCount: 30, dataType: 'tabular' },
     },
     { now: () => '2026-08-06T00:00:00.000Z' },
   ).experiment
@@ -209,7 +209,12 @@ describe('대조의 전처리기도 훈련 데이터에서만 나온다', () => 
         taskType: 'classification',
         dataType: 'tabular',
         settings: skewedSettings,
-        context: { serverStatus: 'unavailable', rowCount: 16, dataType: 'tabular' },
+        context: {
+          limitsOff: false,
+          serverStatus: 'unavailable',
+          rowCount: 16,
+          dataType: 'tabular',
+        },
       },
       { now: () => '2026-08-06T00:00:00.000Z' },
     ).experiment
@@ -270,7 +275,12 @@ describe('군집도 대조한다', () => {
         taskType: 'clustering',
         dataType: 'tabular',
         settings: clusterSettings,
-        context: { serverStatus: 'unavailable', rowCount: 9, dataType: 'tabular' },
+        context: {
+          limitsOff: false,
+          serverStatus: 'unavailable',
+          rowCount: 9,
+          dataType: 'tabular',
+        },
       },
       { now: () => '2026-08-06T00:00:00.000Z' },
     ).experiment
@@ -337,7 +347,12 @@ describe('테스트 파일이 따로 온 실험', () => {
           ...settings,
           split: { ...settings.split, method: 'provided' },
         },
-        context: { serverStatus: 'unavailable', rowCount: 30, dataType: 'tabular' },
+        context: {
+          limitsOff: false,
+          serverStatus: 'unavailable',
+          rowCount: 30,
+          dataType: 'tabular',
+        },
       },
       { now: () => '2026-08-06T00:00:00.000Z' },
     ).experiment
@@ -433,7 +448,12 @@ describe('대조도 파일에 적힌 씨앗으로 돌린다', () => {
           selectedAlgorithms: [{ algorithm: 'random_forest' }],
           hyperparameters: {},
         },
-        context: { serverStatus: 'unavailable', rowCount: noisy.rows.length, dataType: 'tabular' },
+        context: {
+          limitsOff: false,
+          serverStatus: 'unavailable',
+          rowCount: noisy.rows.length,
+          dataType: 'tabular',
+        },
       },
       { now: () => '2026-08-06T00:00:00.000Z' },
     ).experiment

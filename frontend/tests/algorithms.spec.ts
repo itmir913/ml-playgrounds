@@ -37,7 +37,13 @@ import { DATA_TYPES, TASK_TYPES, type DataType } from '../src/project/schema'
 const tabularClassification: Selection = { dataType: 'tabular', taskType: 'classification' }
 
 function context(overrides: Partial<RuntimeContext> = {}): RuntimeContext {
-  return { serverStatus: 'unavailable', rowCount: 100, dataType: 'tabular', ...overrides }
+  return {
+    serverStatus: 'unavailable',
+    rowCount: 100,
+    dataType: 'tabular',
+    limitsOff: false,
+    ...overrides,
+  }
 }
 
 const skReady: Record<string, EngineState> = { 'pyodide-sklearn': 'ready' }
@@ -202,6 +208,7 @@ describe('못 쓰는 이유가 쓸모 있어야 한다', () => {
       tabularClassification,
       context({
         serverStatus: 'available',
+        limitsOff: false,
         rowCount: MLJS_DECISION_TREE_ROW_LIMIT + 1,
         dataType: 'tabular',
       }),

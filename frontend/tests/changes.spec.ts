@@ -31,6 +31,7 @@ function runExperiment(
 
 const BROWSER_ONLY: RuntimeContext = {
   serverStatus: 'unavailable',
+  limitsOff: false,
   rowCount: 30,
   dataType: 'tabular',
 }

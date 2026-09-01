@@ -181,7 +181,7 @@ describe('스토어에서 온 값을 워커에 넘긴다', () => {
       runs: { experiments: [] },
       dataset: { columns: ['a'], rows: [['1']] },
       testDataset: { columns: ['a'], rows: [['2']] },
-      context: { serverStatus: 'unavailable', rowCount: 1, dataType: 'tabular' },
+      context: { limitsOff: false, serverStatus: 'unavailable', rowCount: 1, dataType: 'tabular' },
     })
     const request = ref({
       type: 'train',

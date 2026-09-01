@@ -199,8 +199,18 @@ describe('유형을 바꾸면 뜻을 잃는 모델', () => {
 })
 
 describe('세 축이 서로를 좁힌다', () => {
-  const OFFLINE: RuntimeContext = { serverStatus: 'unavailable', rowCount: 50, dataType: 'tabular' }
-  const ONLINE: RuntimeContext = { serverStatus: 'available', rowCount: 50, dataType: 'tabular' }
+  const OFFLINE: RuntimeContext = {
+    limitsOff: false,
+    serverStatus: 'unavailable',
+    rowCount: 50,
+    dataType: 'tabular',
+  }
+  const ONLINE: RuntimeContext = {
+    limitsOff: false,
+    serverStatus: 'available',
+    rowCount: 50,
+    dataType: 'tabular',
+  }
 
   function axes(
     overrides: Partial<Parameters<typeof modelAxes>[0]> = {},
@@ -236,6 +246,7 @@ describe('세 축이 서로를 좁힌다', () => {
   describe('상한이 따로 있는 알고리즘은 그 숫자를 카드에 싣는다', () => {
     const TIGHT: RuntimeContext = {
       serverStatus: 'unavailable',
+      limitsOff: false,
       rowCount: MLJS_SVM_ROW_LIMIT + 1,
       dataType: 'tabular',
     }
@@ -681,7 +692,7 @@ describe('행 상한은 전처리 후 행 수로 잰다', () => {
     const svm = (rowCount: number): AlgorithmOption | undefined =>
       algorithmOptions(
         { dataType: 'tabular', taskType: 'classification' },
-        { serverStatus: 'unavailable', rowCount, dataType: 'tabular' },
+        { limitsOff: false, serverStatus: 'unavailable', rowCount, dataType: 'tabular' },
       ).find((one) => one.algorithm.id === 'svm')
 
     expect(svm(usable)?.enabled).toBe(true)
