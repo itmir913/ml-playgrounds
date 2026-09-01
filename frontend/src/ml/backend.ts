@@ -260,6 +260,16 @@ export interface AlgorithmSpec {
 /**
  * **안 잰 칸.** `UNMEASURED`와 같은 자리다 — 빈 표는 "0초"가 아니라 "못 낸다"는 뜻이고,
  * 예상은 그 자리에 `알 수 없음`을 남긴다. 숫자를 지어 넣으면 재 본 값처럼 보인다.
+ *
+ * **이미지 칸을 채울 때 `columns`는 `'flat'`이다.** 사진 프로젝트의 특성 수는 백본이
+ * 정해 늘 같고(`backbones.ts`의 `embeddingDim`), 표가 애초에 그 차원에서 재어진다 —
+ * `'linear'`로 넣으면 이미 들어 있는 차원을 한 번 더 곱한다. **게다가 그 곱은 1보다
+ * 작다**: 학습 화면이 넘기는 `columns`가 사진에서는 **0**이고(`TrainView.vue`의
+ * `featureWidth`가 `tabularDataOf`를 읽어 이미지면 0이다), `baselineMs`가 그것을 1로
+ * 올린 뒤 `BASELINE_COLUMNS`(8)로 나눠 **8배 짧게** 말하게 된다.
+ *
+ * **백본이 하나 더 생기면 그 표는 다시 재야 한다.** 차원이 바뀌면 표의 전제가 바뀌는데
+ * `'flat'`은 그것을 안 알려 준다. 재는 도구는 `tools/bench.html`의 `[사진]` 사다리들이다.
  */
 export const UNMEASURED_BASELINE: Baseline = { ms: [], columns: 'flat' }
 
