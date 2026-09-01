@@ -23,8 +23,13 @@ import type { CalibrationJob } from '../src/ml/calibration'
 /** 점 하나를 시키는 말. **함수는 못 건넌다** — 사다리는 `id`로 가리키고 워커가 찾는다. */
 export type BenchRequest =
   | { readonly kind: 'ladder'; readonly ladderId: string; readonly point: number }
-  /** 교정 일감. **앱의 `measureJob`으로 잰다** — 사다리와 절차가 다르다 (감사 B-4). */
+  /** 교정 일감 하나. **앱의 `measureJob`으로 잰다** — 사다리와 절차가 다르다 (감사 B-4). */
   | { readonly kind: 'calibration'; readonly job: CalibrationJob }
+  /**
+   * 교정 일감 **전부를 한 번**. `CALIBRATION_BASELINE_MS`가 정의된 양이 이것이다 —
+   * 앱은 새 워커 하나에서 일감 둘을 이어 돌린다(`ml/worker/handler.ts`).
+   */
+  | { readonly kind: 'calibration-set' }
 
 /**
  * 그 점의 답. **던진 것도 답이다** — 메모리가 모자라면 그렇게 오고, 그 자리가 상한이다.
@@ -85,9 +90,18 @@ interface WorkerScope {
  * **그래서 `heapSource: null`의 뜻이 하나다 — 이 브라우저에서는 힙을 못 잰다.**
  * `heapMb`가 `null`인 것을 *"힙이 안 늘었다"*로 읽으면 안 된다.
  *
- * **워커에 `performance.memory`가 있는지는 아직 아무도 안 쟀다** — 크로미움 IDL이
- * 창에만 열어 두었을 수 있다. [교정 일감만]을 한 번 돌려 `heap[...].source`를 보면
- * 즉시 답이 나온다.
+ * **쟀다: 워커는 안 답한다** (2026-09-01, Edge 152 / Windows). [교정 일감만]을 돌린
+ * JSON의 두 점이 **둘 다 `source: null`**이었다. 크로미움이 `performance.memory`를 창에만
+ * 열어 두었을 가능성이 크고, 그러면 이 가지는 **워커에서 구조적으로 못 돈다** — 이
+ * 저장소가 COOP/COEP 폴백에서 이미 한 번 밟은 모양이다.
+ *
+ * **아직 안 지운다. 갈래가 둘로 남아 있기 때문이다** — ① 크로미움이 창에만 연 것(그러면
+ * 워커에서 영영 죽은 가지다), ② 이 브라우저가 아예 안 여는 것(그러면 다른 데서는 산다).
+ * **`device()`가 이제 메인 스레드의 힙을 함께 싣는다**(`heapWindowMb`) — 창은 답하는데
+ * 워커가 `null`이면 ①이 확정이고, 그때 이 가지를 지운다.
+ *
+ * **그동안 메모리를 답하는 것은 힙이 아니라 워커의 죽음이다** — `failed[…].how`가
+ * `'워커가 죽었다'`인 자리가 곧 상한이고, 그것이 이 하니스가 원래 찾던 것이다.
  */
 function heapNow(): { heapMb: number | null; heapSource: HeapSource } {
   const memory = (performance as { memory?: { usedJSHeapSize: number } }).memory
@@ -104,9 +118,11 @@ scope.onmessage = (event) => {
   const { heapMb: heapBeforeMb } = heapNow()
   // **판단은 `workloads.ts`가 한다** — 여기 두면 검사가 못 닿는다(감사 B-2).
   const outcome =
-    request.kind === 'calibration'
-      ? benchOutcome({ kind: 'calibration', job: request.job })
-      : benchOutcome({ kind: 'ladder', ladderId: request.ladderId, point: request.point })
+    request.kind === 'calibration-set'
+      ? benchOutcome({ kind: 'calibration-set' })
+      : request.kind === 'calibration'
+        ? benchOutcome({ kind: 'calibration', job: request.job })
+        : benchOutcome({ kind: 'ladder', ladderId: request.ladderId, point: request.point })
   if (!outcome.ok) {
     scope.postMessage({ ok: false, error: outcome.error })
     return

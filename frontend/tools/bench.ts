@@ -51,6 +51,20 @@ function device(): Record<string, unknown> {
     platform: data?.platform ?? null,
     touchPoints: navigator.maxTouchPoints,
     userAgent: navigator.userAgent,
+    /**
+     * **메인 스레드의 힙.** 값이 아니라 **갈래를 가르려고** 싣는다 (2026-09-01).
+     *
+     * 워커의 `heap[…].source`가 전부 `null`로 나왔는데, 그것만으로는 *"크로미움이
+     * `performance.memory`를 창에만 열었다"*와 *"이 브라우저가 아예 안 연다"*가 안
+     * 갈린다. **여기가 숫자면 앞이고, 여기도 `null`이면 뒤다.**
+     */
+    heapWindowMb:
+      (performance as { memory?: { usedJSHeapSize: number } }).memory === undefined
+        ? null
+        : Math.round(
+            (performance as unknown as { memory: { usedJSHeapSize: number } }).memory
+              .usedJSHeapSize / 1_000_000,
+          ),
   }
 }
 
@@ -134,6 +148,18 @@ const measured: Record<string, Record<string, number>> = {}
 const iterations: Record<string, Record<string, number>> = {}
 const calibration: Record<string, number[]> = {}
 /**
+ * **앱과 같은 모양으로 잰 교정 시간.** `CALIBRATION_BASELINE_MS`를 고칠 때 볼 값이 이것이다.
+ *
+ * 위 `calibration`은 **일감마다 새 워커**라 차가운 시작을 일감 수만큼 문다. 앱은 새 워커
+ * **하나**에서 일감 둘을 이어 돌리므로(`ml/worker/handler.ts`) 두 번째는 따뜻하다.
+ * 2026-09-01에 그 차이를 실제로 봤다 — 일감별로 66·72ms인데 더하면 138ms이고, 그것은
+ * 앱이 잴 값이 아니다.
+ *
+ * **판마다 새 워커를 띄운다.** 앱은 이 일을 **차가운 워커에서 한 번** 하므로, 따뜻한
+ * 되풀이의 최솟값을 고르면 그 순간을 다시 못 만든다 (`limits.ts`의 그 상수 주석).
+ */
+const calibrationSet: number[] = []
+/**
  * 시작도 안 한 점. **왜 안 했는지를 함께 적는다** (2026-09-01 감사 C-1) — 천장을 넘겨서인지
  * 다음 점의 어림이 커서인지가 안 남으면, 표가 짧은 이유를 다음 사람이 못 읽는다.
  */
@@ -202,6 +228,7 @@ function snapshot(): Record<string, unknown> {
     measured,
     iterations,
     calibration,
+    calibrationSet,
   }
 }
 
@@ -362,6 +389,24 @@ async function runCalibration(): Promise<void> {
     }
     calibration[id] = times
     addRow('교정 일감', id, Math.min(...times))
+    publish()
+  }
+
+  /**
+   * **그리고 앱이 실제로 재는 모양으로 세 번.** 판마다 새 워커라 셋 다 차가운 시작이고,
+   * 앱이 만나는 그 순간과 같다. **평균도 최솟값도 여기서 안 고른다** — 셋을 그대로 남기면
+   * 흔들리는 폭이 보이고, 기준값을 고를 때 그 폭을 보고 고를 수 있다.
+   */
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    status.textContent = `교정 일감 — 전부 한 번에 (${attempt + 1}/3)`
+    await breathe()
+    const outcome = await runInWorker('calibration/set', { kind: 'calibration-set' })
+    if (!outcome.ok) {
+      failed['calibration/set'] = { how: outcome.how, detail: outcome.detail }
+      break
+    }
+    calibrationSet.push(outcome.elapsed)
+    addRow('교정 일감', '전부 한 번에', outcome.elapsed)
     publish()
   }
 }

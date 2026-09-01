@@ -1017,6 +1017,12 @@ export const MLJS_LOGISTIC_REGRESSION_MAX_ITER_MS = [
  * 모양이 됐으므로, [교정 일감만]을 한 번 돌려 나온 값으로 바꾸고 **그때도 모양을 여기
  * 함께 적어라** — 출처가 없으면 다음 사람이 기준값 대신 하니스를 고친다.
  *
+ * **볼 칸은 `calibrationSet`이지 `calibration`이 아니다** (2026-09-01, 한 번 헛짚었다).
+ * 저쪽은 **일감마다 새 워커**로 재므로 그 값들을 더하면 차가운 시작을 일감 수만큼 물어
+ * **앱보다 크다** — 개발 PC Edge 152에서 일감별 66ms·72ms인데 앱이 재는 것은 그 합이
+ * 아니다. 앱은 새 워커 **하나**에서 일감 둘을 이어 돌리므로(`ml/worker/handler.ts`)
+ * 두 번째가 따뜻하다. `calibrationSet`이 그 모양을 세 번 잰 값이다.
+ *
  * **분류: 상한이 아니다.**
  */
 export const CALIBRATION_BASELINE_MS = 70

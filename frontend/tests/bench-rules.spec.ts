@@ -441,6 +441,37 @@ describe('사다리와 워커의 계약', () => {
   })
 
   /**
+   * **기준값을 재는 갈래가 앱의 절차 그대로여야 한다** (2026-09-01 실측).
+   *
+   * `CALIBRATION_BASELINE_MS`는 **일감 전부를 한 워커에서 이어 돌린 값**으로 정의돼
+   * 있는데(`ml/worker/handler.ts`가 `runCalibration()`을 그렇게 부른다), 하니스에는
+   * **일감마다 새 워커**로 재는 갈래밖에 없었다. 그것들을 더하면 차가운 시작을 일감 수만큼
+   * 물어 **앱보다 크다** — 개발 PC에서 66+72 = 138ms인데 상수는 70이다.
+   *
+   * **그 어긋남은 아무 데서도 안 보인다.** 나눗셈의 두 항이 다른 것을 재는 것이라
+   * 배수가 통째로 틀리는데 값은 멀쩡해 보인다.
+   */
+  it('전부 한 번에 재는 갈래가 앱의 절차를 부른다', () => {
+    const outcome = benchOutcome({ kind: 'calibration-set' })
+    expect(outcome.ok).toBe(true)
+    if (outcome.ok) expect(outcome.elapsed).toBeGreaterThan(0)
+  })
+
+  /**
+   * **둘이 같은 것을 재면 갈래를 나눈 뜻이 없다.** 전부 한 번에 잰 것은 일감 **전부**를
+   * 지나가므로 일감 하나보다 반드시 길다.
+   */
+  it('전부 한 번에 잰 것이 일감 하나보다 길다', () => {
+    const job = CALIBRATION[0]
+    expect(job).toBeDefined()
+    expect(CALIBRATION.length).toBeGreaterThanOrEqual(2)
+    const one = benchOutcome({ kind: 'calibration', job: job as (typeof CALIBRATION)[number] })
+    const all = benchOutcome({ kind: 'calibration-set' })
+    expect(one.ok && all.ok).toBe(true)
+    if (one.ok && all.ok) expect(all.elapsed).toBeGreaterThan(one.elapsed)
+  })
+
+  /**
    * **사다리도 앱의 절차로 잰다** (R16-B-4). R15가 교정 경로만 고쳤더니 병이 사다리로
    * 옮겨 갔다 — `evaluate`를 지우거나 예측 비율을 0.01로 해도 안 울었다.
    */

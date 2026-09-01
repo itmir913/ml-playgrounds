@@ -22,6 +22,7 @@ import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import {
   CALIBRATION_JOBS,
   measureJob,
+  runCalibration,
   syntheticData,
   type CalibrationJob,
 } from '../src/ml/calibration'
@@ -664,8 +665,9 @@ export function benchOutcome(request: {
   readonly kind: 'calibration'
   readonly job: CalibrationJob
 }): Outcome
+export function benchOutcome(request: { readonly kind: 'calibration-set' }): Outcome
 export function benchOutcome(request: {
-  readonly kind: 'ladder' | 'calibration'
+  readonly kind: 'ladder' | 'calibration' | 'calibration-set'
   readonly ladderId?: string
   readonly point?: number
   readonly job?: CalibrationJob
@@ -673,9 +675,11 @@ export function benchOutcome(request: {
   try {
     // **교정 일감은 반복 횟수를 안 답한다.** K-평균이 아니라 그런 수가 없다.
     const result: LadderResult =
-      request.kind === 'calibration'
-        ? { elapsed: measureCalibration(request.job as CalibrationJob) }
-        : ladderPoint(request.ladderId as string, request.point as number)
+      request.kind === 'calibration-set'
+        ? { elapsed: measureCalibrationSet() }
+        : request.kind === 'calibration'
+          ? { elapsed: measureCalibration(request.job as CalibrationJob) }
+          : ladderPoint(request.ladderId as string, request.point as number)
     return { ok: true, ...result }
   } catch (error) {
     return { ok: false, error: String(error) }
@@ -793,4 +797,19 @@ export const CALIBRATION = CALIBRATION_JOBS
  */
 export function measureCalibration(job: CalibrationJob): number {
   return Math.round(measureJob(job))
+}
+
+/**
+ * **일감 전부를 앱과 같은 모양으로 한 번 잰다** (`ml/calibration.ts`의 `runCalibration`).
+ *
+ * **`CALIBRATION_BASELINE_MS`가 정의된 양이 바로 이것이다** — 일감마다 잰 값을 더한 것이
+ * 아니다. 앱은 새 워커 하나에서 일감 둘을 **이어서** 돌리므로 **두 번째 일감은 따뜻하다.**
+ * 위 `measureCalibration`은 일감마다 새 워커라 차가운 시작을 두 번 무는데, 그 값들을
+ * 더하면 **앱보다 크게 나온다** (2026-09-01 실측: 66+72 = 138ms).
+ *
+ * **그래서 기준값을 이 함수로 잰다.** 위 갈래는 *"어느 일감이 얼마를 먹나"*를 보는 것이고,
+ * 이쪽이 *"앱이 잴 값이 얼마인가"*다. 둘을 한 함수로 합치면 그 구분이 사라진다.
+ */
+export function measureCalibrationSet(): number {
+  return Math.round(runCalibration())
 }
