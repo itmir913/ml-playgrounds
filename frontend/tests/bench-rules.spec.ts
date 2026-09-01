@@ -23,6 +23,7 @@ import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import type { DataType } from '../src/project/schema'
 import {
   ALL_LADDERS,
+  benchOutcome,
   CALIBRATION,
   CEILING_MS,
   FAILURE_CEILING_MS,
@@ -267,5 +268,105 @@ describe('교정은 앱의 함수로 잰다', () => {
     const elapsed = measureCalibration(job!)
     expect(Number.isFinite(elapsed)).toBe(true)
     expect(elapsed).toBeGreaterThanOrEqual(0)
+  })
+})
+
+/**
+ * **R16-B가 안 울린 자리들** (2026-09-01). 전부 "한 줄 지우면 앞 라운드가 잡은 결함이
+ * 그대로 돌아온다"는 모양이다.
+ */
+describe('사다리와 워커의 계약', () => {
+  /**
+   * **K-평균은 자기 데이터로 재야 한다** (R15-A-1이 잡은 결함, R16-B-1이 되돌아오는 것을
+   * 보였다). `run`이 없으면 `measure()`로 가고, 그것은 **군집이 이미 갈린 데이터**에
+   * **분류 지표**를 얹는다 — 앱이 하는 일도 기준표를 잰 방식도 아니다.
+   *
+   * **등록부의 사실이 아니라 일감으로 판정한다.**
+   */
+  it('K-평균 사다리는 전부 자기 데이터로 잰다', () => {
+    const withoutRun = ALL_LADDERS.filter((ladder) => {
+      const first = ladder.points[0]
+      return (
+        first !== undefined && ladder.job(first).algorithm === 'k_means' && ladder.run === undefined
+      )
+    }).map((ladder) => ladder.id)
+    expect(withoutRun, 'k_means ladders must measure with their own data').toEqual([])
+  })
+
+  /**
+   * **던진 것은 성공으로 안 나간다** (R16-B-2). 워커 안에 있던 동안은 `elapsed: 0`으로
+   * 바꿔도 아무것도 안 울었다 — 0ms는 기준표에 들어갈 뿐 아니라 `stopsBefore`의
+   * `previous`가 되어 **그 사다리를 맨 위까지 전부 돌게 한다.**
+   */
+  it('모르는 사다리는 실패로 나간다 - 0ms 성공이 아니다', () => {
+    const outcome = benchOutcome({ kind: 'ladder', ladderId: 'no_such_ladder', point: 1 })
+    expect(outcome.ok).toBe(false)
+    if (!outcome.ok) expect(outcome.error).toContain('no_such_ladder')
+  })
+
+  it('아는 사다리는 시간을 준다', () => {
+    const outcome = benchOutcome({ kind: 'ladder', ladderId: 'naive_bayes', point: 100 })
+    expect(outcome.ok).toBe(true)
+    if (outcome.ok) expect(outcome.elapsed).toBeGreaterThanOrEqual(0)
+  })
+
+  /**
+   * **사다리도 앱의 절차로 잰다** (R16-B-4). R15가 교정 경로만 고쳤더니 병이 사다리로
+   * 옮겨 갔다 — `evaluate`를 지우거나 예측 비율을 0.01로 해도 안 울었다.
+   */
+  it('`measure`가 학습·예측·평가를 다 지나간다', () => {
+    const source = readFileSync(join(ROOT, 'tools', 'workloads.ts'), 'utf-8')
+    const body =
+      /export function measure\(job: Job\): number \{[\s\S]*?\n\}/.exec(source)?.[0] ?? ''
+    expect(body, 'measure() not found').not.toBe('')
+    expect(body).toMatch(/\bfit\(/)
+    expect(body).toMatch(/\bpredict\(/)
+    expect(body).toMatch(/\bevaluate\(/)
+    expect(body).toContain('PREDICT_RATIO')
+  })
+
+  /**
+   * **천장 셋의 순서가 규칙이다.** `CEILING_MS`는 기준표용, `PROJECTION_MS`는 다음 점의
+   * 어림, `FAILURE_CEILING_MS`는 상한 사다리의 폭주 방지다. 순서가 뒤집히면 각자의 뜻이
+   * 사라진다 — 값 자체는 조율이라 못 박지 않는다 (R16-B-C6).
+   */
+  it('천장 셋의 순서가 뜻과 맞는다', () => {
+    expect(CEILING_MS).toBeLessThan(PROJECTION_MS)
+    expect(PROJECTION_MS).toBeLessThan(FAILURE_CEILING_MS)
+  })
+
+  /**
+   * **점은 오름차순이다** (R16-B-C3). 내려가는 점이 섞이면 증가율이 1보다 작아져 어림이
+   * 조용히 무력해지고, 첫 점이 0이면 증가율이 `Infinity`다.
+   */
+  it('사다리의 점이 오름차순이고 0이 없다', () => {
+    const wrong = ALL_LADDERS.filter((ladder) =>
+      ladder.points.some(
+        (point, index) => point <= 0 || (index > 0 && point <= (ladder.points[index - 1] ?? 0)),
+      ),
+    ).map((ladder) => ladder.id)
+    expect(wrong).toEqual([])
+  })
+
+  /**
+   * **[상한 찾기]의 라벨이 지금 상한을 말한다** (R16-B-3). 사다리가 난 뒤 상한 셋이
+   * 올랐는데 라벨은 옛 수를 들고 있었다 — **화면을 보고 "올리면" 실제로는 내리는 것**이다.
+   */
+  it('상한 사다리의 라벨이 등록부와 같은 수를 말한다', () => {
+    const wrong: string[] = []
+    for (const ladder of ALL_LADDERS.filter((one) => one.findsLimit)) {
+      const said = /지금 ([\d,]+)/.exec(ladder.label)?.[1]?.replaceAll(',', '')
+      const first = ladder.points[0]
+      if (said === undefined || first === undefined) {
+        wrong.push(`${ladder.id}: 라벨에 상한이 없다`)
+        continue
+      }
+      const job = ladder.job(first)
+      const dataType =
+        job.columns === backboneFor(DEFAULT_BACKBONE_ID)?.embeddingDim ? 'image' : 'tabular'
+      const limit = ALGORITHMS.find((one) => one.id === job.algorithm)?.maxRows[dataType].mljs
+      if (Number(said) !== limit) wrong.push(`${ladder.id}: 라벨 ${said} · 등록부 ${limit}`)
+    }
+    expect(wrong).toEqual([])
   })
 })

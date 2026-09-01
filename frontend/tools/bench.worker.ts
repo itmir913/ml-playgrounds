@@ -17,7 +17,7 @@
  * (`ml/worker/train.worker.ts`와 같은 이유).
  */
 
-import { ladderPoint, measureCalibration } from './workloads'
+import { benchOutcome } from './workloads'
 import type { CalibrationJob } from '../src/ml/calibration'
 
 /** 점 하나를 시키는 말. **함수는 못 건넌다** — 사다리는 `id`로 가리키고 워커가 찾는다. */
@@ -33,7 +33,7 @@ export type BenchRequest =
  * `onerror`와 침묵으로 읽는다.
  */
 /** 힙을 **무엇이** 답했나. `null`이면 아무도 안 답했다는 뜻이다. */
-export type HeapSource = 'performance.memory' | 'measureUserAgentSpecificMemory' | null
+export type HeapSource = 'performance.memory' | null
 
 export type BenchReply =
   | {
@@ -63,38 +63,30 @@ interface WorkerScope {
 }
 
 /**
- * 힙을 **둘 중 답하는 쪽에** 묻는다.
+ * 힙을 묻는다. **크로미움의 `performance.memory` 하나뿐이다.**
  *
- * `performance.memory`는 크로미움의 비표준 확장이고 **창에만 열려 있을 수 있다** — 그러면
- * 워커로 옮긴 뒤 힙이 통째로 `null`이 되고, 상한을 정할 때 쓰던 증거가 사라진다
- * (`limits.ts`의 SVM 칸이 *"8,000행이면 512MB"*를 그렇게 적었다).
+ * **표준 쪽 폴백을 지웠다** (2026-09-01 R16-B-5). `measureUserAgentSpecificMemory`는
+ * `crossOriginIsolated`를 요구하고 그것은 **COOP + COEP 헤더**가 있어야 서는데, 감사자가
+ * 개발 서버의 응답을 직접 받아 보니 **두 헤더가 다 없다.** 즉 그 가지는 **한 번도 지나갈
+ * 수 없었다** — 이 저장소가 xlsx 폴백에서 이미 한 번 밟은 모양이다
+ * (`xlsx-fallback-was-untested`). **있지만 안 도는 가지가 가장 나쁘다**: 힙 칸이 비었을 때
+ * 다음 사람이 폴백을 믿고 딴 데를 뒤진다.
  *
- * 그래서 표준 쪽(`measureUserAgentSpecificMemory`)도 물어본다. 이쪽은
- * `crossOriginIsolated`가 아니면 던지므로 **되면 좋고 안 되면 `null`이다.**
+ * **헤더를 붙이는 쪽은 안 골랐다** — COEP `require-corp`는 백본을 CDN에서 받는 경로를
+ * 막을 수 있어 앱 쪽 확인이 함께 필요하다 (`pages-traffic-budget`).
  *
- * **누가 답했는지를 함께 싣는다.** 안 그러면 다음에 이 JSON을 읽는 사람이 `null`을
- * *"힙이 안 늘었다"*로 읽는다.
+ * **그래서 `heapSource: null`의 뜻이 하나다 — 이 브라우저에서는 힙을 못 잰다.**
+ * `heapMb`가 `null`인 것을 *"힙이 안 늘었다"*로 읽으면 안 된다.
+ *
+ * **워커에 `performance.memory`가 있는지는 아직 아무도 안 쟀다** — 크로미움 IDL이
+ * 창에만 열어 두었을 수 있다. [교정 일감만]을 한 번 돌려 `heap[...].source`를 보면
+ * 즉시 답이 나온다.
  */
-async function heapNow(): Promise<{ heapMb: number | null; heapSource: HeapSource }> {
+function heapNow(): { heapMb: number | null; heapSource: HeapSource } {
   const memory = (performance as { memory?: { usedJSHeapSize: number } }).memory
-  if (memory) {
-    return {
-      heapMb: Math.round(memory.usedJSHeapSize / 1_000_000),
-      heapSource: 'performance.memory',
-    }
-  }
-  const standard = (
-    performance as { measureUserAgentSpecificMemory?: () => Promise<{ bytes: number }> }
-  ).measureUserAgentSpecificMemory
-  if (typeof standard === 'function') {
-    try {
-      const { bytes } = await standard.call(performance)
-      return { heapMb: Math.round(bytes / 1_000_000), heapSource: 'measureUserAgentSpecificMemory' }
-    } catch {
-      // 격리되지 않은 문서에서는 던진다. 그러면 답한 것이 없다.
-    }
-  }
-  return { heapMb: null, heapSource: null }
+  return memory
+    ? { heapMb: Math.round(memory.usedJSHeapSize / 1_000_000), heapSource: 'performance.memory' }
+    : { heapMb: null, heapSource: null }
 }
 
 const scope = self as unknown as WorkerScope
@@ -102,20 +94,16 @@ const scope = self as unknown as WorkerScope
 scope.onmessage = (event) => {
   const request = event.data
   // **일을 시작하기 전에 한 번 묻는다.** 시계 밖이고, 이 값이 이 isolate의 바닥이다.
-  void heapNow().then(({ heapMb: heapBeforeMb }) => {
-    let elapsed: number
-    try {
-      elapsed =
-        request.kind === 'calibration'
-          ? measureCalibration(request.job)
-          : ladderPoint(request.ladderId, request.point)
-    } catch (error) {
-      scope.postMessage({ ok: false, error: String(error) })
-      return
-    }
-    // **시계가 멈춘 뒤에 다시 묻는다.** 힙을 재느라 걸린 시간이 그 점의 값에 섞이면 안 된다.
-    void heapNow().then((heap) => {
-      scope.postMessage({ ok: true, elapsed, heapBeforeMb, ...heap })
-    })
-  })
+  const { heapMb: heapBeforeMb } = heapNow()
+  // **판단은 `workloads.ts`가 한다** — 여기 두면 검사가 못 닿는다(감사 B-2).
+  const outcome =
+    request.kind === 'calibration'
+      ? benchOutcome({ kind: 'calibration', job: request.job })
+      : benchOutcome({ kind: 'ladder', ladderId: request.ladderId, point: request.point })
+  if (!outcome.ok) {
+    scope.postMessage({ ok: false, error: outcome.error })
+    return
+  }
+  // **시계가 멈춘 뒤에 다시 묻는다.** 힙을 재느라 걸린 시간이 그 점의 값에 섞이면 안 된다.
+  scope.postMessage({ ok: true, elapsed: outcome.elapsed, heapBeforeMb, ...heapNow() })
 }

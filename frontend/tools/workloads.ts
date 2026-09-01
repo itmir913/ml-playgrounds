@@ -9,6 +9,15 @@
  * 그것을 지킨다.
  */
 
+import {
+  MLJS_DECISION_TREE_ROW_LIMIT,
+  MLJS_IMAGE_DECISION_TREE_ROW_LIMIT,
+  MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT,
+  MLJS_IMAGE_SVM_ROW_LIMIT,
+  MLJS_KNN_ROW_LIMIT,
+  MLJS_RANDOM_FOREST_ROW_LIMIT,
+  MLJS_SVM_ROW_LIMIT,
+} from '../src/limits'
 import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import {
   CALIBRATION_JOBS,
@@ -346,24 +355,60 @@ export const LADDERS: readonly Ladder[] = [
      *
      * `run`이 없으면 `measure()`로 가고, 그것은 **군집이 이미 갈린 데이터**에 **분류
      * 지표**를 얹는다 — 앱이 하는 일도, `MLJS_KMEANS_BASELINE_MS`를 잰 방식도 아니다.
-     * **크기만 틀린 것이 아니라 기울기의 부호가 뒤집혔다**: 감사자 실측으로 특성 4→32가
-     * 지금 방식에서는 ×3.1인데 실제로는 **×0.37**이다. 실루엣 표본이 `1/√특성`으로
-     * 줄어(`ml/metrics.ts`) 지배적인 비용이 특성이 늘수록 **줄기** 때문이다.
      *
-     * **행 수를 50,000에서 20,000으로 내렸다.** 고친 방식으로는 첫 점이 13.5초(Node)라,
-     * 그대로 두면 `PROJECTION_MS`가 둘째 점을 막아 표가 한 점에서 끝난다.
+     * **특성 축의 방향이 행 수에서 뒤집힌다** (2026-09-01 R16-B 실측). 실루엣 표본이
+     * `1/√특성`으로 줄어(`ml/metrics.ts`), **표본이 행 수보다 작아지는 순간부터 특성이
+     * 늘수록 총 시간이 준다.** 경계는 특성 4에서 12,500행이다.
+     *
+     * | 행 | 특성 8 → 32 | 어느 국면 |
+     * |---|---|---|
+     * | 2,000 | ×2.9 | 전수 |
+     * | 4,000 | ×3.4 | 전수 |
+     * | 20,000 | ×1.00 | 표본 |
+     * | 50,000 | ×0.51 | 표본 |
+     *
+     * **그래서 사다리가 둘이다.** 하나로는 한 국면만 보게 되고, 등록부의
+     * `columns: 'linear'`(특성 32에서 ×4.0)가 표본 국면에서 **7.8배 부푼다.**
      */
-    id: 'k_means_columns',
-    label: 'K-평균 · 특성 수 (군집 없는 데이터, 20,000행)',
+    id: 'k_means_columns_full',
+    label: 'K-평균 · 특성 수 (군집 없는 데이터, 2,000행 · 전수)',
     axis: 'columns',
     points: [4, 8, 16, 32],
     job: (columns) => ({
       algorithm: 'k_means',
-      rows: 20_000,
+      rows: 2000,
       columns,
       hyperparameters: { nClusters: 3 },
     }),
-    run: (columns) => measureKMeans(20_000, 3, columns),
+    run: (columns) => measureKMeans(2000, 3, columns),
+  },
+  {
+    /**
+     * 위 사다리의 표본 국면 짝. **행 수를 50,000으로 되돌렸다** (2026-09-01 R16-B).
+     *
+     * 20,000으로 내렸던 근거가 *"첫 점이 13.5초라 `PROJECTION_MS`가 둘째 점을 막는다"*
+     * 였는데 **산술이 틀렸다** — 막으려면 15,000ms를 넘어야 했고, 축 지수를 선형으로
+     * 바꾼 지금은 30,000ms다. 실측으로 50,000행 네 점이 전부 남는다
+     * (10,977 · 7,203 · 4,269 · 3,664ms).
+     *
+     * **같은 점이 3배 흔들린다는 것도 그때 드러났다**(20,000×4가 7,577 / 3,805 / 2,505 /
+     * 7,501ms). **실측 한 번으로 사다리 배치를 정하지 마라** — 하니스는 사다리 점을 한
+     * 번만 잰다.
+     *
+     * 50,000행이면 `naive_bayes_columns`·`linear_regression_columns`와 같은 자리라
+     * 특성 축을 알고리즘끼리 견줄 수 있다.
+     */
+    id: 'k_means_columns',
+    label: 'K-평균 · 특성 수 (군집 없는 데이터, 50,000행 · 표본)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({
+      algorithm: 'k_means',
+      rows: 50_000,
+      columns,
+      hyperparameters: { nClusters: 3 },
+    }),
+    run: (columns) => measureKMeans(50_000, 3, columns),
   },
   {
     id: 'random_forest_columns',
@@ -472,30 +517,30 @@ export const LADDERS: readonly Ladder[] = [
 const LIMIT_LADDERS: readonly Ladder[] = [
   {
     id: 'limit_svm',
-    label: '상한 찾기 · SVM (지금 3,000)',
+    label: `상한 찾기 · SVM (지금 ${MLJS_SVM_ROW_LIMIT.toLocaleString()})`,
     axis: 'rows',
-    points: [3000, 5000, 8000, 12_000, 20_000],
+    points: [8000, 12_000, 20_000],
     job: (rows) => ({ algorithm: 'svm', rows }),
   },
   {
     id: 'limit_random_forest',
-    label: '상한 찾기 · 랜덤 포레스트 (지금 5,000)',
+    label: `상한 찾기 · 랜덤 포레스트 (지금 ${MLJS_RANDOM_FOREST_ROW_LIMIT.toLocaleString()})`,
     axis: 'rows',
     points: [5000, 10_000, 20_000, 50_000, 100_000],
     job: (rows) => ({ algorithm: 'random_forest', rows }),
   },
   {
     id: 'limit_knn',
-    label: '상한 찾기 · KNN (지금 10,000)',
+    label: `상한 찾기 · KNN (지금 ${MLJS_KNN_ROW_LIMIT.toLocaleString()})`,
     axis: 'rows',
-    points: [10_000, 20_000, 50_000, 100_000],
+    points: [50_000, 100_000],
     job: (rows) => ({ algorithm: 'knn', rows }),
   },
   {
     id: 'limit_decision_tree',
-    label: '상한 찾기 · 의사결정트리 (지금 20,000)',
+    label: `상한 찾기 · 의사결정트리 (지금 ${MLJS_DECISION_TREE_ROW_LIMIT.toLocaleString()})`,
     axis: 'rows',
-    points: [20_000, 50_000, 100_000],
+    points: [50_000, 100_000],
     job: (rows) => ({ algorithm: 'decision_tree', rows }),
   },
   /**
@@ -516,21 +561,21 @@ const LIMIT_LADDERS: readonly Ladder[] = [
    */
   {
     id: 'limit_image_decision_tree',
-    label: '상한 찾기 · [사진] 의사결정트리 (지금 1,000)',
+    label: `상한 찾기 · [사진] 의사결정트리 (지금 ${MLJS_IMAGE_DECISION_TREE_ROW_LIMIT.toLocaleString()})`,
     axis: 'rows',
     points: [250, 500, 1000, 2000, 5000],
     job: (rows) => ({ algorithm: 'decision_tree', rows, columns: IMAGE_FEATURES }),
   },
   {
     id: 'limit_image_random_forest',
-    label: '상한 찾기 · [사진] 랜덤 포레스트 (지금 500)',
+    label: `상한 찾기 · [사진] 랜덤 포레스트 (지금 ${MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT.toLocaleString()})`,
     axis: 'rows',
     points: [100, 250, 500, 1000, 2000, 5000],
     job: (rows) => ({ algorithm: 'random_forest', rows, columns: IMAGE_FEATURES }),
   },
   {
     id: 'limit_image_svm',
-    label: '상한 찾기 · [사진] SVM (지금 3,000)',
+    label: `상한 찾기 · [사진] SVM (지금 ${MLJS_IMAGE_SVM_ROW_LIMIT.toLocaleString()})`,
     axis: 'rows',
     points: [500, 1000, 2000, 3000, 5000],
     job: (rows) => ({ algorithm: 'svm', rows, columns: IMAGE_FEATURES }),
@@ -558,6 +603,41 @@ export function ladderPoint(ladderId: string, point: number): number {
   const ladder = ALL_LADDERS.find((one) => one.id === ladderId)
   if (ladder === undefined) throw new Error(`unknown ladder: ${ladderId}`)
   return ladder.run ? ladder.run(point) : measure(ladder.job(point))
+}
+
+/**
+ * 워커가 돌려줄 것을 만든다. **`ladderPoint`가 던지면 그것도 답이다.**
+ *
+ * **워커 파일이 아니라 여기 있는 이유**는 저쪽이 모듈 꼭대기에서 `self`를 만져 검사가
+ * 못 들여오기 때문이다 (2026-09-01 감사 B-2). 그 안에 있던 동안은 **던진 것을
+ * `elapsed: 0` 성공으로 바꿔도 아무것도 안 울었다** — 0ms는 기준표에 들어갈 뿐 아니라
+ * `stopsBefore`의 `previous`가 되어 **그 사다리를 맨 위까지 전부 돌게 한다.**
+ */
+export function benchOutcome(request: {
+  readonly kind: 'ladder'
+  readonly ladderId: string
+  readonly point: number
+}): { readonly ok: true; readonly elapsed: number } | { readonly ok: false; readonly error: string }
+export function benchOutcome(request: {
+  readonly kind: 'calibration'
+  readonly job: CalibrationJob
+}): { readonly ok: true; readonly elapsed: number } | { readonly ok: false; readonly error: string }
+export function benchOutcome(request: {
+  readonly kind: 'ladder' | 'calibration'
+  readonly ladderId?: string
+  readonly point?: number
+  readonly job?: CalibrationJob
+}):
+  { readonly ok: true; readonly elapsed: number } | { readonly ok: false; readonly error: string } {
+  try {
+    const elapsed =
+      request.kind === 'calibration'
+        ? measureCalibration(request.job as CalibrationJob)
+        : ladderPoint(request.ladderId as string, request.point as number)
+    return { ok: true, elapsed }
+  } catch (error) {
+    return { ok: false, error: String(error) }
+  }
 }
 
 /**

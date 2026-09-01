@@ -32,6 +32,7 @@ import {
   CEILING_MS,
   FAILURE_CEILING_MS,
   LADDERS,
+  PROJECTION_MS,
   stopsBefore,
   type Ladder,
 } from './workloads'
@@ -114,7 +115,11 @@ type Outcome =
 
 const measured: Record<string, Record<string, number>> = {}
 const calibration: Record<string, number[]> = {}
-const stopped: string[] = []
+/**
+ * 시작도 안 한 점. **왜 안 했는지를 함께 적는다** (2026-09-01 감사 C-1) — 천장을 넘겨서인지
+ * 다음 점의 어림이 커서인지가 안 남으면, 표가 짧은 이유를 다음 사람이 못 읽는다.
+ */
+const stopped: { at: string; why: '앞 점이 천장을 넘겼다' | '다음 점의 어림이 크다' }[] = []
 /**
  * 못 끝낸 자리. **여기가 곧 상한이다** — 메모리 부족이 이렇게 온다.
  *
@@ -161,6 +166,13 @@ function snapshot(): Record<string, unknown> {
     device: device(),
     wentHidden,
     ceilingMs: CEILING_MS,
+    /**
+     * **판정에 쓴 규칙을 함께 남긴다** (2026-09-01 감사 C-1). 어림의 지수가 축마다
+     * 갈리게 바뀐 날, **바뀌기 전에 나온 JSON과 뒤에 나온 것이 구분되지 않았다.**
+     * 값만 남기면 다음 사람이 두 표를 같은 규칙에서 나온 것으로 읽는다.
+     */
+    projectionMs: PROJECTION_MS,
+    projectionRule: 'rows: growth^2 · else: growth',
     failureCeilingMs: FAILURE_CEILING_MS,
     running,
     heap,
@@ -245,7 +257,14 @@ async function runLadder(ladder: Ladder): Promise<void> {
   for (const point of ladder.points) {
     // **판정은 `workloads.ts`가 한다** — 여기 있으면 검사가 못 닿는다(감사 돌연변이 9).
     if (stopsBefore(ladder, previous, point)) {
-      stopped.push(`${ladder.id}@${point}`)
+      stopped.push({
+        at: `${ladder.id}@${point}`,
+        why:
+          previous !== null &&
+          previous.elapsed > (ladder.findsLimit ? FAILURE_CEILING_MS : CEILING_MS)
+            ? '앞 점이 천장을 넘겼다'
+            : '다음 점의 어림이 크다',
+      })
       break
     }
 
