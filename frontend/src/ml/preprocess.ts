@@ -160,8 +160,16 @@ const SCALE_BY_METHOD: Record<
     return { center, spread: Math.sqrt(variance) || 1 }
   },
   minmax: (values) => {
-    const low = Math.min(...values)
-    return { center: low, spread: Math.max(...values) - low || 1 }
+    // **인자로 펼치지 않는다** (2026-09-01 감사 A-1). `Math.min(...값)`은 값 배열을
+    // 통째로 인자로 만들어 12만 개 언저리에서 `RangeError`가 난다 — 여기 오는 것은
+    // **열 하나의 모든 행**이라 상한을 끄면 곧장 닿는다.
+    let low = Number.POSITIVE_INFINITY
+    let high = Number.NEGATIVE_INFINITY
+    for (const value of values) {
+      if (value < low) low = value
+      if (value > high) high = value
+    }
+    return { center: low, spread: high - low || 1 }
   },
   robust: (values) => {
     const sorted = [...values].sort((a, b) => a - b)
@@ -278,7 +286,10 @@ export function fitPreprocessor(
       fitted.categories = categories
       if (preprocessing.categoricalEncoding === 'onehot') {
         // 열 하나가 범주 수만큼 늘어난다. 이름에 범주를 붙여야 featureImportance를 읽을 수 있다.
-        featureNames.push(...categories.map((category) => `${name}=${category}`))
+        // **여기도 펼치지 않는다.** 범주 수는 행 수보다 작지만 **값 종류가 3,652개인
+        // 열이 실재했고**(`limits.ts`의 `PREP_PREVIEW_FEATURE_COUNT`), 상한을 끄면 그
+        // 위가 열린다. 같은 절벽이다 (`ml/split.ts`의 `appendAll`).
+        for (const category of categories) featureNames.push(`${name}=${category}`)
       } else {
         featureNames.push(name)
       }

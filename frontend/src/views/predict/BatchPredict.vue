@@ -524,7 +524,10 @@ async function downloadAction(): Promise<void> {
     await yieldToScreen()
     const answers: Answer[][] = []
     for (let index = 0; index < totalPages.value; index += 1) {
-      answers.push(...(await ensurePage(index)))
+      // **인자로 펼치지 않는다** (2026-09-01 감사 A-2). 상한을 끄면 판 크기가 곧 행
+      // 수라 이 한 줄이 파일 전체를 함수 인자로 만든다 — 12만 행 언저리에서 `RangeError`가
+      // 나고, 학생이 보는 것은 영어 원문이 붙은 알림이다 (`ml/split.ts`의 `appendAll`).
+      for (const row of await ensurePage(index)) answers.push(row)
       await yieldToScreen()
     }
 

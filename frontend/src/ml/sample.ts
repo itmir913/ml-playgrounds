@@ -19,6 +19,7 @@
 
 import { ClientError } from '../errors'
 import { MIN_SPLIT_ROWS } from '../limits'
+import { appendAll } from './split'
 import type { Split } from '../project/schema'
 import { groupByLabel, labelSeed, shuffled } from './shuffle'
 
@@ -153,7 +154,8 @@ export function sampleRows(
     for (const [label, group] of groups) {
       // 분할과 **같은 씨앗으로 같은 함수**를 부른다 (ml/shuffle.ts).
       const order = shuffled(group, labelSeed(split.randomState, label))
-      picked.push(...order.slice(0, takes.get(label) ?? 0))
+      // **인자로 펼치지 않는다** (`ml/split.ts`의 `appendAll`과 같은 이유).
+      appendAll(picked, order, 0, takes.get(label) ?? 0)
     }
     return picked.sort(ascending)
   }

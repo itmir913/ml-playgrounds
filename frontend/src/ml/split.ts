@@ -183,14 +183,17 @@ export function holdoutSplit(input: SplitInput, split: Split): SplitIndices {
     for (const [index, [label, group]] of [...groups].entries()) {
       const order = shuffled(group, labelSeed(split.randomState, label))
       const take = testPerClass[index] ?? 0
-      testIndices.push(...order.slice(0, take))
-      trainIndices.push(...order.slice(take))
+      // **인자로 펼치지 않는다** (2026-09-01 감사 A-1). `push(...배열)`은 배열을 통째로
+      // 함수 인자로 만들고, V8은 스택이 허락하는 만큼만 받는다 — 브라우저 주 스레드에서
+      // 12만 개 언저리가 절벽이고 그 위는 `RangeError`다. 상한을 끄면 그 자리에 닿는다.
+      appendAll(testIndices, order, 0, take)
+      appendAll(trainIndices, order, take, order.length)
     }
   } else {
     const order = shuffled(rows, split.randomState)
     const testCount = testCountFor(order.length, split.testSize)
-    testIndices.push(...order.slice(0, testCount))
-    trainIndices.push(...order.slice(testCount))
+    appendAll(testIndices, order, 0, testCount)
+    appendAll(trainIndices, order, testCount, order.length)
   }
 
   const ascending = (a: number, b: number): number => a - b
@@ -239,6 +242,32 @@ const SPLIT_BY_METHOD: Record<
 > = {
   holdout: holdoutSplit,
   provided: (input, _split, testInput) => providedSplit(input, testInput),
+}
+
+/**
+ * `source[from…to)`를 `target` 뒤에 잇는다. **`push(...배열)`을 대신한다.**
+ *
+ * **스프레드는 배열을 함수 인자로 만든다** (2026-09-01 감사 A-1). V8이 받는 인자 수는
+ * 스택 크기가 정하고, 브라우저 주 스레드(약 1MB)에서는 **12만 개 언저리가 절벽**이다.
+ * 그 위는 `RangeError: Maximum call stack size exceeded`이고, 이 저장소에서는 그것이
+ * Vue `computed` 안에서 터져 **사유 없는 죽은 화면**이 된다(`ml/plan.ts`의 `catch`는
+ * `ClientError`만 사유로 바꾼다).
+ *
+ * **상한을 끄면 곧장 닿는다** (`limits-switch.ts`). 켜 두어도 멀지 않다 — 데이터셋 천장이
+ * 10만이고 `testSize`를 0.05로 두면 훈련 몫이 9만5천이다. **그리고 임계값은 호출 스택이
+ * 깊을수록 낮아진다.**
+ *
+ * **검사가 이것을 못 잡는다** — vitest가 `pool: 'threads'`라 워커 스택이 4MB이고, 같은
+ * 코드가 러너에서는 30만 행까지 멀쩡하다. 그래서 값이 아니라 **표기**를 규칙으로 막는다
+ * (`tests/limits-rules.spec.ts`의 `행 규모 배열을 인자로 펼치지 않는다`).
+ */
+export function appendAll<T>(
+  target: T[],
+  source: readonly T[],
+  from: number,
+  to: number,
+): void {
+  for (let index = from; index < to; index += 1) target.push(source[index] as T)
 }
 
 /**
