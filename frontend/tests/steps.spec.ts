@@ -26,6 +26,8 @@ import {
   type ProjectFacts,
 } from '../src/router/steps'
 import { TASK_TYPES, type Portfolio } from '../src/project/schema'
+import { PREFERRED_CANONICAL_FORMAT } from '../src/data/image/formats'
+import { imageEntryPath } from '../src/data/image/canonical'
 import { factsOf } from '../src/stores/project'
 import { experiment, emptyProjectFile, projectFile, run } from './fixtures/project'
 
@@ -416,6 +418,70 @@ describe('프로젝트에서 사실을 뽑는다', () => {
   it('데이터는 참조가 아니라 실제 바이트로 판정한다', () => {
     const base = projectFile()
     expect(factsOf({ ...base, dataset: undefined }).datasetReady).toBe(false)
+  })
+
+  /**
+   * **사진 갈래를 아무도 안 재고 있었다** (2026-09-02 R19 감사 — 검사가 없던 자리).
+   *
+   * 위 검사들은 전부 **표 픽스처**다. `DATA_FACTS.image`의 범주 경계를 옮겨도 2,738개가
+   * 전부 초록이었다.
+   *
+   * **틀리면 양쪽으로 다친다.** 느슨해지면 갈릴 것이 없는 사진 프로젝트에 학습 단계가
+   * 열려 학생이 엔진 실패를 만나고, 조여지면 **정상 프로젝트가 영구히 잠긴다.**
+   *
+   * **경로를 손으로 안 짓는다** — `imageEntryPath`가 짜야 `readImages`의 판정
+   * (`categoryOfEntry` · `canonicalFormatOfPath`)을 실제로 지나간다.
+   */
+  describe('사진 프로젝트의 사실', () => {
+    function withPhotos(categories: readonly (string | undefined)[]) {
+      const file = emptyProjectFile()
+      file.document.manifest.dataType = 'image'
+      categories.forEach((category, index) => {
+        const path = imageEntryPath('data', `hash${index}`, category, PREFERRED_CANONICAL_FORMAT)
+        file.images.set(path, new Uint8Array([1, 2, 3]))
+      })
+      return file
+    }
+
+    it('사진이 없으면 데이터가 없는 것이다', () => {
+      expect(factsOf(withPhotos([])).datasetReady).toBe(false)
+    })
+
+    it('사진이 있으면 데이터는 준비된 것이다', () => {
+      expect(factsOf(withPhotos(['개'])).datasetReady).toBe(true)
+    })
+
+    /** **갈릴 것이 없다.** 범주가 하나면 분류가 성립하지 않는다. */
+    it('범주가 하나면 타깃이 안 정해진 것이다', () => {
+      expect(factsOf(withPhotos(['개', '개'])).targetChosen).toBe(false)
+    })
+
+    it('범주가 둘이면 타깃이 정해진 것이다', () => {
+      expect(factsOf(withPhotos(['개', '고양이'])).targetChosen).toBe(true)
+    })
+
+    /**
+     * **`_unlabeled`는 범주가 아니라 상태다.** 그 사진들은 분류 학습에 안 들어가므로
+     * 세면 안 된다 — 세면 `개` 하나짜리 프로젝트가 둘로 보여 학습이 열린다.
+     */
+    it('아직 범주가 없는 사진은 안 센다', () => {
+      const facts = factsOf(withPhotos(['개', undefined, undefined]))
+      expect(facts.datasetReady).toBe(true)
+      expect(facts.targetChosen).toBe(false)
+    })
+
+    it('범주 없는 사진만 있으면 타깃이 안 정해진 것이다', () => {
+      expect(factsOf(withPhotos([undefined, undefined])).targetChosen).toBe(false)
+    })
+
+    /**
+     * **학생이 특성을 안 고른다. 백본이 만든다.** 여기서 `false`를 주면 사진 프로젝트가
+     * 학습 단계에 **영원히 못 들어간다** — 체크리스트에서 빼는 일은 종류 축이 한다.
+     */
+    it('특성은 언제나 갖춰진 것으로 본다 - 백본이 만든다', () => {
+      expect(factsOf(withPhotos([])).featuresChosen).toBe(true)
+      expect(factsOf(withPhotos(['개', '고양이'])).featuresChosen).toBe(true)
+    })
   })
 
   it('특성과 알고리즘은 따로 본다', () => {

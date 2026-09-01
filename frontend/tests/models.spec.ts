@@ -94,6 +94,62 @@ describe('라운드트립 — 예측이 원본과 하나도 다르지 않다', (
     })
   }
 
+  /**
+   * **동점 잎에서도 같은 답이어야 한다** (2026-09-02 R19 감사 — 검사가 없던 자리).
+   *
+   * ml.js는 잎의 분포에 `maxRowIndex`를 걸어 고르고, 그건 `>` 비교라 **동점이면 번호가
+   * 작은 쪽이 이긴다.** `mljs-serialize.ts`의 `leafClass`가 그 규칙을 미리 접어 두는데,
+   * **그 비교를 `>=`로 바꿔도 아무것도 안 울었다** — 붓꽃 픽스처의 잎에 동점 분포가
+   * 하나도 없어서다.
+   *
+   * **틀리면 학생 파일 속 모델이 학습 직후와 다른 답을 낸다.** 그리고 **지표가 그대로일
+   * 수 있어 재실행 대조도 표본에 따라 통과한다** — 조용히 틀리는 자리다.
+   *
+   * **동점을 억지로 만들지 않고 데이터로 만든다.** 같은 특성에 두 클래스가 같은 수로
+   * 있으면 어떤 분할도 이득이 없어 뿌리가 그대로 잎이 되고, 그 잎의 분포가 `[2, 2]`다.
+   */
+  describe('동점 잎', () => {
+    const features = [[0], [0], [1], [1]]
+    const target = ['a', 'b', 'a', 'b']
+
+    function trained() {
+      return fit('decision_tree', {
+        features,
+        rowIndices: features.map((_, index) => index),
+        target,
+        hyperparameters: {},
+        randomState: 42,
+      })
+    }
+
+    /**
+     * **픽스처가 실제로 동점인지부터 못 박는다.** 안 그러면 이 검사는 아무것도 안 재면서
+     * 초록으로 남는다 — R12 A-2가 *"상수와 픽스처가 우연히 같으면 그 연산은 사라진다"*로
+     * 이름 붙인 병이다.
+     */
+    it('픽스처가 잎 하나짜리 나무를 만든다 - 동점이라 나눌 이득이 없다', () => {
+      const { model } = trained()
+      const tree = model as TreeModel
+      expect(tree.trees).toHaveLength(1)
+      // 잎 하나뿐. 두 클래스가 같은 수이므로 그 잎의 분포가 동점이다.
+      expect(tree.trees[0]?.nodes).toHaveLength(1)
+      expect(target.filter((one) => one === 'a')).toHaveLength(2)
+      expect(target.filter((one) => one === 'b')).toHaveLength(2)
+    })
+
+    it('동점이면 번호가 작은 쪽이다 - ml.js의 `>` 비교와 같은 규칙', () => {
+      const { predict } = trained()
+      // 클래스 배열은 등장 순이라 'a'가 0번이다.
+      expect(predict(features)).toEqual(['a', 'a', 'a', 'a'])
+    })
+
+    it('파일로 갔다 온 모델도 같은 답을 낸다', () => {
+      const { predict, model } = trained()
+      const reloaded = loadModel(roundTrip(model))
+      expect(reloaded(features)).toEqual(predict(features))
+    })
+  })
+
   it('결정트리는 나무가 한 그루다 — 그래서 해석기에 알고리즘 분기가 없다', () => {
     const { model } = train('decision_tree')
     expect((model as TreeModel).trees).toHaveLength(1)

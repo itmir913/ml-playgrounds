@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   formatBytes,
+  formatMetric,
   formatDateTime,
   formatPercent,
   formatPrediction,
@@ -230,6 +231,29 @@ describe('화면 표시 포맷', () => {
 
   it('비율은 백분율로 바뀐다', () => {
     expect(formatPercent('en', 0.9333)).toContain('93')
+  })
+
+  /**
+   * **지표 자릿수를 값으로 고정한다** (2026-09-02 R19 감사 — 검사가 없던 자리).
+   *
+   * `formatMetric`은 소비가 화면 템플릿의 `metric()` 하나뿐이라 **자릿수를 바꿔도
+   * 아무것도 안 울었다.** 옆의 `formatBytes`는 값으로 고정돼 있었다.
+   *
+   * **틀리면 결과 화면이 차이를 숨긴다.** 학생이 견주는 것은 실험 사이의 0.1%p인데,
+   * 자릿수가 줄면 두 실험이 **같은 수로 보인다** — 무엇을 바꿔서 무엇이 달라졌는지가
+   * 이 화면의 존재 이유다(`architecture.md` §8.13).
+   *
+   * **`toContain`을 안 쓴다.** 자리를 안 보므로 자릿수가 바뀌어도 통과한다
+   * (R13-4 감사 C-3이 `formatBytes`에서 같은 것을 지적했다).
+   */
+  it('지표는 자릿수가 고정이다 - 견주는 화면에서 차이가 숨으면 안 된다', () => {
+    // 백분율은 소수 한 자리. 0.1%p가 살아야 한다.
+    expect(formatMetric('en', 0.93336, 'percent')).toBe('93.3%')
+    expect(formatMetric('en', 0.93436, 'percent')).toBe('93.4%')
+    // 수치는 소수 셋째 자리까지. 짧아도 채운다 - 표에서 소수점이 한 줄로 선다.
+    expect(formatMetric('en', 0.5, 'number')).toBe('0.500')
+    expect(formatMetric('en', 0.123456, 'number')).toBe('0.123')
+    expect(formatMetric('en', 2, 'number')).toBe('2.000')
   })
 
   it('예측한 수치에서 부동소수의 잡음을 걷어낸다', () => {
