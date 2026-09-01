@@ -23,6 +23,7 @@ import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import type { DataType } from '../src/project/schema'
 import {
   ALL_LADDERS,
+  AXES,
   benchOutcome,
   CALIBRATION,
   CEILING_MS,
@@ -30,6 +31,10 @@ import {
   ladderPoint,
   measureCalibration,
   PROJECTION_MS,
+  projectionExponent,
+  projectionRule,
+  stopReason,
+  STOP_WHY,
   stopsBefore,
 } from '../tools/workloads'
 
@@ -233,6 +238,58 @@ describe('사다리 판정', () => {
     // 2배 지점: 행 축이면 4배(넘는다), 특성 축이면 2배(안 넘는다).
     expect(stopsBefore(rows(), previous, 2)).toBe(true)
     expect(stopsBefore({ ...rows(), axis: 'columns' }, previous, 2)).toBe(false)
+  })
+
+  /**
+   * **사유도 판정의 일부다** (2026-09-01 R17 감사 B-5).
+   *
+   * 위 검사들은 *"멈추나"*만 본다. 한때 **왜인지는 `bench.ts`가 손으로 다시 계산했고**,
+   * 거기서 두 천장을 맞바꿔도 2675개가 전부 초록이었다(돌연변이 M1) — 저장된 JSON의
+   * `why`가 통째로 거꾸로 적히는데도. 사유가 거꾸로면 **사다리를 왜 짧게 끊었는지를
+   * 다음 사람이 정반대로 읽는다.**
+   */
+  it('멈춘 이유가 두 갈래로 갈린다', () => {
+    expect(stopReason(rows(), null, 1)).toBeNull()
+    // 같은 점을 다시 재면 어림이 앞 점 그대로라, 갈리는 것은 천장 하나다.
+    expect(stopReason(rows(), { point: 1, elapsed: CEILING_MS + 1 }, 1)).toBe('ceiling')
+    // 2배 지점의 행 축은 4배로 어림한다. 천장은 안 넘겼는데 어림이 넘는 자리다.
+    expect(stopReason(rows(), { point: 1, elapsed: PROJECTION_MS / 3 }, 2)).toBe('projection')
+    // 상한 사다리는 20초를 안 쓴다 — 한 시간 천장만 있다.
+    expect(stopReason(rows(true), { point: 1, elapsed: CEILING_MS * 10 }, 2)).toBeNull()
+    expect(stopReason(rows(true), { point: 1, elapsed: FAILURE_CEILING_MS + 1 }, 2)).toBe('ceiling')
+  })
+
+  /**
+   * **사유의 말도 판정과 같은 집에 산다** (R17 감사 B-5). 화면 쪽에 있던 동안은 검사가
+   * 못 닿아 두 말을 맞바꿔도 조용했다.
+   */
+  it('사유마다 다른 말이 붙는다', () => {
+    expect(STOP_WHY.ceiling).not.toBe(STOP_WHY.projection)
+    expect(STOP_WHY.ceiling).toContain('천장')
+    expect(STOP_WHY.projection).toContain('어림')
+  })
+
+  /**
+   * **결과 JSON의 `projectionRule`이 코드를 읽는다** (2026-09-01 R17 감사 C-4).
+   *
+   * 손으로 적은 글자였을 때는 **지수를 다른 축으로 옮겨도 그 문자열만 조용히 거짓**이
+   * 됐다 — 이 필드를 넣은 이유가 *"규칙이 바뀐 것을 JSON에서 구분하려고"*였으니 그러면
+   * 넣은 뜻이 없다.
+   */
+  it('어림 규칙이 스스로 자기를 적는다', () => {
+    const rule = projectionRule()
+    for (const axis of AXES) expect(rule).toContain(`${axis}^${projectionExponent(axis)}`)
+    // 행 축만 제곱이다. **그 사실이 글자에도 값에도 같이 있어야 한다.**
+    expect(projectionExponent('rows')).toBe(2)
+    expect(AXES.filter((axis) => projectionExponent(axis) === 2)).toEqual(['rows'])
+  })
+
+  /** 사다리가 목록에 없는 축을 쓰면 어림이 조용히 선형이 된다. */
+  it('모든 사다리의 축이 목록 안에 있다', () => {
+    const strayed = ALL_LADDERS.filter((ladder) => !AXES.includes(ladder.axis)).map(
+      (ladder) => ladder.id,
+    )
+    expect(strayed).toEqual([])
   })
 
   it('모르는 사다리는 던진다 - 조용한 0은 그대로 기준표가 된다', () => {

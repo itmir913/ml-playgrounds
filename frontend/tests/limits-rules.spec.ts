@@ -769,6 +769,17 @@ describe('워커는 스위치를 안 문다', () => {
   }
 
   it('훑을 워커를 실제로 찾는다', () => {
+    /**
+     * **0개면 필터가 썩은 것이지 규칙이 지켜진 게 아니다** (2026-09-01 R17 감사 B-4).
+     * 손 목록을 파생으로 바꾼 것은 옳았는데 **그 짝인 가드가 안 따라왔다** — 아래
+     * `for`문 하나뿐이라 목록이 비면 공허하게 통과하고, 그러면 이 describe의 규칙 둘이
+     * 통째로 무음이 된다. 필터를 `.worker.tsx`로 썩혀 목록을 0개로 만들어도 73개가
+     * 전부 초록이었다(돌연변이 M6).
+     *
+     * **같은 커밋의 다른 두 자리는 이 가드를 갖고 있었다** — `limits-switch.spec.ts`의
+     * `readers`와 `pageSizeOf` 규칙의 부르는 쪽 세기. 파생으로 바꾼 자리만 빠졌다.
+     */
+    expect(WORKERS.length, 'the worker sweep must actually find workers').toBeGreaterThanOrEqual(3)
     for (const worker of WORKERS) expect(existsSync(join(SRC, worker))).toBe(true)
   })
 

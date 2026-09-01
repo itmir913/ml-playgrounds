@@ -88,6 +88,32 @@ export function sourceFiles(directory: string): string[] {
 }
 
 /**
+ * `open` 자리의 `{`부터 **짝이 맞는 `}`까지**의 본문. 바깥 중괄호는 빼고 준다.
+ *
+ * **정규식으로 자르면 안 된다.** `\{([^}]*)\}`는 첫 `}`에서 끊기므로 **본문에 객체
+ * 리터럴이 하나만 있어도 나머지를 잃는다.** 그러면 그 뒤를 보는 필터가 함수를 통째로
+ * 놓치고, 검사는 "찾을 게 없었다"며 초록으로 남는다 (2026-09-01 R17 감사 B-1 —
+ * 스위치를 안 거치는 리더를 심어도 88개가 전부 초록이었다).
+ *
+ * **문자열과 주석은 부르는 쪽이 미리 걷는다** (`withoutComments`). 여기서 다시 세면
+ * 상태 기계가 두 벌이 된다.
+ *
+ * @param open 여는 `{`의 자리
+ */
+export function bodyAt(source: string, open: number): string {
+  let depth = 0
+  for (let index = open; index < source.length; index += 1) {
+    if (source[index] === '{') depth += 1
+    else if (source[index] === '}') {
+      depth -= 1
+      if (depth === 0) return source.slice(open + 1, index)
+    }
+  }
+  // 짝이 안 맞으면 끝까지. **빈 문자열을 주면 "본문에 아무것도 없다"가 되어 조용해진다.**
+  return source.slice(open + 1)
+}
+
+/**
  * 창 하나가 덮는 줄 수.
  *
  * **prettier가 편 위반이 줄 하나씩 보는 훑기를 통과한다.** `printWidth`가 100이라

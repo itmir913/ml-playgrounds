@@ -164,11 +164,21 @@ function measureKMeans(rows: number, clusters: number, columns: number = FEATURE
   return Math.round(performance.now() - started)
 }
 
+/**
+ * 사다리가 흔드는 축들. **어림의 지수를 이 목록이 정한다**(`projectionExponent`).
+ *
+ * **타입이 아니라 값이다** (2026-09-01 R17 감사 C-4). 타입만 있으면 축을 훑는 코드가
+ * 목록을 손으로 다시 적어야 하고, 그 목록은 축이 늘어도 안 는다.
+ */
+export const AXES = ['rows', 'nEstimators', 'maxIter', 'columns', 'nClusters'] as const
+
+export type Axis = (typeof AXES)[number]
+
 /** 사다리 하나. `points`가 무엇을 바꾸는지는 `axis`가 말한다. */
 export interface Ladder {
   readonly id: string
   readonly label: string
-  readonly axis: 'rows' | 'nEstimators' | 'maxIter' | 'columns' | 'nClusters'
+  readonly axis: Axis
   readonly points: readonly number[]
   readonly job: (point: number) => Job
   /**
@@ -641,7 +651,45 @@ export function benchOutcome(request: {
 }
 
 /**
- * **이 점을 시작할 것인가.** 앞 점의 시간으로 판정한다.
+ * 다음 점을 어림할 때 증가율에 얹는 지수. **행 축만 제곱이다.**
+ *
+ * 행 축은 트리의 분할 탐색처럼 제곱으로 붙지만, 나머지 축은 실측이 선형이거나 그보다
+ * 완만하다 — `algorithms.ts`의 `columns: 'linear'`가 특성 축을 그렇게 적고,
+ * `MLJS_KMEANS_CLUSTERS_MS`는 `k`가 2에서 20으로 열 배 늘 때 1.5배다.
+ */
+export function projectionExponent(axis: Axis): number {
+  return axis === 'rows' ? 2 : 1
+}
+
+/**
+ * 어림 규칙을 사람이 읽는 한 줄로. **결과 JSON에 함께 실린다.**
+ *
+ * **손으로 적지 않는다** (2026-09-01 R17 감사 C-4). 한때 `'rows: growth^2 · else:
+ * growth'`라는 글자가 `bench.ts`에 박혀 있었는데, **그 글자가 규칙을 안 읽어서** 지수를
+ * 다른 축으로 옮겨도 문자열만 조용히 거짓이 됐다. 이 필드를 넣은 이유가 *"규칙이 바뀐
+ * 것을 JSON에서 구분하려고"*였으니 그러면 넣은 뜻이 없다.
+ */
+export function projectionRule(): string {
+  return AXES.map((axis) => `${axis}^${projectionExponent(axis)}`).join(' · ')
+}
+
+/** 멈춘 이유. **`null`이면 안 멈춘다.** */
+export type StopReason = 'ceiling' | 'projection'
+
+/**
+ * 사유를 사람이 읽는 말로. **판정과 같은 집에 둔다.**
+ *
+ * 화면 쪽에 있던 동안은 검사가 못 닿았고, 그래서 두 말을 맞바꿔도 아무것도 안 울었다
+ * (R17 감사 B-5). **이 파일은 앱이 아니라 하니스라** 한국어 문자열이 있어도 §1.4에
+ * 걸리지 않는다 — 사다리 라벨이 이미 그렇다.
+ */
+export const STOP_WHY = {
+  ceiling: '앞 점이 천장을 넘겼다',
+  projection: '다음 점의 어림이 크다',
+} as const satisfies Record<StopReason, string>
+
+/**
+ * **이 점을 멈출 것인가, 그리고 왜.** 앞 점의 시간으로 판정한다.
  *
  * 갈래가 둘이다. **상한을 찾는 사다리**는 오래 걸리는 것이 답의 일부라 20초에서 안 멈추고
  * `FAILURE_CEILING_MS`(한 시간)만 폭주를 막는다. **기준표 사다리**는 20초를 넘겼거나
@@ -655,18 +703,32 @@ export function benchOutcome(request: {
  *
  * **검사가 닿게 하려고 밖에 있다.** 화면 안에 있을 때는 두 천장을 맞바꿔도 아무것도
  * 안 울었다 (2026-09-01 감사, 돌연변이 9).
+ *
+ * **사유까지 여기서 낸다** (2026-09-01 R17 감사 B-5). 한때 `bench.ts`가 *"천장을
+ * 넘겼나"*를 손으로 한 번 더 적었고, 그래서 **거기서 두 천장을 맞바꿔도 2675개가 전부
+ * 초록**이었다(돌연변이 M1) — 저장된 JSON의 `why`가 통째로 거꾸로 적히는데도. 같은
+ * 판정을 이 함수에서 바꾸면 즉시 빨개진다. **사유는 판정의 일부이지 표시가 아니다.**
  */
+export function stopReason(
+  ladder: Ladder,
+  previous: { readonly point: number; readonly elapsed: number } | null,
+  point: number,
+): StopReason | null {
+  if (previous === null) return null
+  if (ladder.findsLimit) return previous.elapsed > FAILURE_CEILING_MS ? 'ceiling' : null
+  if (previous.elapsed > CEILING_MS) return 'ceiling'
+  const growth = point / previous.point
+  const projected = previous.elapsed * growth ** projectionExponent(ladder.axis)
+  return projected > PROJECTION_MS ? 'projection' : null
+}
+
+/** 위와 같은 판정. **사유가 필요 없는 자리가 쓴다.** */
 export function stopsBefore(
   ladder: Ladder,
   previous: { readonly point: number; readonly elapsed: number } | null,
   point: number,
 ): boolean {
-  if (previous === null) return false
-  if (ladder.findsLimit) return previous.elapsed > FAILURE_CEILING_MS
-  if (previous.elapsed > CEILING_MS) return true
-  const growth = point / previous.point
-  const projected = previous.elapsed * (ladder.axis === 'rows' ? growth * growth : growth)
-  return projected > PROJECTION_MS
+  return stopReason(ladder, previous, point) !== null
 }
 
 export const ALL_LADDERS: readonly Ladder[] = [

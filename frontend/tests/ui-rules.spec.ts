@@ -433,8 +433,19 @@ function unguardedButtons(
   if (resolveImport) {
     for (const match of source.matchAll(/import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"]/g)) {
       const from = match[2] ?? ''
-      const module = resolveImport(from)
-      if (module === null) continue
+      const resolved = resolveImport(from)
+      if (resolved === null) continue
+      /**
+       * **주석을 걷고 본다** (2026-09-01 R17 감사 B-2). 이 저장소는 머리글에 **옛 서명을
+       * 그대로 인용**하는 것이 관행이라(*"예전에는 `export async function save` 였다"*),
+       * 날것으로 훑으면 동기 함수가 async로 잡혀 **멀쩡한 화면이 `:action`으로 바꾸라는
+       * 빨강을 받는다.** 거짓 빨강은 관문을 세우고, 다음 사람은 규칙이 아니라 화면을 고친다.
+       *
+       * **해결기가 아니라 여기서 걷는다.** 아래 짝들이 해결기를 세워서 넘기므로
+       * (`() => '...'`) 저쪽에서 걷으면 **짝이 그 자리를 한 번도 안 지나간다.**
+       * 받는 쪽이 자기가 쓸 모양으로 만드는 것이 맞다.
+       */
+      const module = withoutComments(resolved).join('\n')
       for (const raw of (match[1] ?? '').split(',')) {
         /**
          * **`x as y`는 이름이 둘이다** — 저쪽이 내보낸 것은 `x`이고 화면이 부르는 것은
@@ -1189,6 +1200,8 @@ describe('버튼이 두 번 눌리지 않는다', () => {
         : null
     if (base === null) return null
     for (const suffix of ['.ts', '.vue', '/index.ts']) {
+      // 날것으로 준다. **주석을 걷는 것은 받는 쪽(`unguardedButtons`)의 일이다** —
+      // 여기서 걷으면 해결기를 세워 넘기는 짝들이 그 자리를 안 지나간다 (R17 감사 B-2).
       if (existsSync(`${base}${suffix}`)) return readFileSync(`${base}${suffix}`, 'utf-8')
     }
     return null
@@ -1237,6 +1250,47 @@ ${button}`,
           () => null,
         ),
       ).toEqual([])
+    })
+
+    /**
+     * **주석의 옛 서명에 안 속는다** (2026-09-01 R17 감사 B-2). 이 저장소는 머리글에
+     * 옛 서명을 그대로 인용하는 것이 관행이고, 날것으로 읽던 때는 그것이 **거짓 빨강**이
+     * 됐다. 지금 저장소에 그 조합은 없다 — **다음 사람이 밟는다.**
+     */
+    it('주석에만 있는 async 서명에 안 속는다', () => {
+      const found = unguardedButtons(
+        `import { save } from '@/x'
+${button}`,
+        () => `/** 예전에는 export async function save 였다. 지금은 동기다. */
+export function save(): void {}`,
+      )
+      expect(found).toEqual([])
+    })
+  })
+
+  /**
+   * **`moduleSource` 자체를 잰다** (2026-09-01 R17 감사 B-3).
+   *
+   * 위 짝들은 전부 해결기를 **세워서**(`() => '...'`) 넘기므로 `moduleSource`를 한 번도
+   * 안 지나간다. 그리고 실소스 훑기는 `@/`뿐이라, **상대 경로 갈래를 통째로 지워도
+   * 206개가 전부 초록이었다**(돌연변이 M5). 그 갈래를 넣은 근거가 *"`@/`면 울고 `../`면
+   * 안 운다"*는 실물 재현이었는데 짝이 안 따라왔다.
+   */
+  describe('`moduleSource`가 두 표기를 다 푼다', () => {
+    // 실제로 있는 파일로 잰다. **없는 파일로 재면 `null`끼리 같아서 늘 통과한다.**
+    const viaAlias = moduleSource('@/limits')
+
+    it('별칭을 푼다', () => {
+      expect(viaAlias).not.toBeNull()
+      expect(viaAlias).toContain('MAX_DATASET_ROWS')
+    })
+
+    it('상대 경로를 푼다 - 같은 파일에 닿는다', () => {
+      expect(moduleSource('../limits', join(SRC, 'ml', 'backend.ts'))).toBe(viaAlias)
+    })
+
+    it('기준 파일이 없으면 상대 경로는 안 푼다', () => {
+      expect(moduleSource('../limits')).toBeNull()
     })
   })
 

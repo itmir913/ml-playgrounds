@@ -33,8 +33,11 @@ import {
   FAILURE_CEILING_MS,
   LADDERS,
   PROJECTION_MS,
-  stopsBefore,
+  projectionRule,
+  stopReason,
+  STOP_WHY,
   type Ladder,
+  type StopReason,
 } from './workloads'
 
 /** 이 기기가 스스로 말해 주는 것 전부. **이름은 없다 — 성질만 있다.** */
@@ -119,7 +122,9 @@ const calibration: Record<string, number[]> = {}
  * 시작도 안 한 점. **왜 안 했는지를 함께 적는다** (2026-09-01 감사 C-1) — 천장을 넘겨서인지
  * 다음 점의 어림이 커서인지가 안 남으면, 표가 짧은 이유를 다음 사람이 못 읽는다.
  */
-const stopped: { at: string; why: '앞 점이 천장을 넘겼다' | '다음 점의 어림이 크다' }[] = []
+// **말도 `workloads.ts`가 갖는다** (R17 감사 B-5). 여기 손으로 적어 두면 그것이 곧
+// 두 번째 집이 되고, 판정을 옮긴 뜻이 없어진다.
+const stopped: { at: string; why: (typeof STOP_WHY)[StopReason] }[] = []
 /**
  * 못 끝낸 자리. **여기가 곧 상한이다** — 메모리 부족이 이렇게 온다.
  *
@@ -172,7 +177,8 @@ function snapshot(): Record<string, unknown> {
      * 값만 남기면 다음 사람이 두 표를 같은 규칙에서 나온 것으로 읽는다.
      */
     projectionMs: PROJECTION_MS,
-    projectionRule: 'rows: growth^2 · else: growth',
+    // **글자를 손으로 적지 않는다** (R17 감사 C-4). 규칙이 스스로 자기를 적는다.
+    projectionRule: projectionRule(),
     failureCeilingMs: FAILURE_CEILING_MS,
     running,
     heap,
@@ -255,16 +261,11 @@ async function runLadder(ladder: Ladder): Promise<void> {
   let previous: { point: number; elapsed: number } | null = null
 
   for (const point of ladder.points) {
-    // **판정은 `workloads.ts`가 한다** — 여기 있으면 검사가 못 닿는다(감사 돌연변이 9).
-    if (stopsBefore(ladder, previous, point)) {
-      stopped.push({
-        at: `${ladder.id}@${point}`,
-        why:
-          previous !== null &&
-          previous.elapsed > (ladder.findsLimit ? FAILURE_CEILING_MS : CEILING_MS)
-            ? '앞 점이 천장을 넘겼다'
-            : '다음 점의 어림이 크다',
-      })
+    // **판정도 사유도 `workloads.ts`가 한다** — 여기 있으면 검사가 못 닿는다
+    // (감사 돌연변이 9, 그리고 사유를 여기서 다시 조립하던 것이 R17 감사 B-5).
+    const reason = stopReason(ladder, previous, point)
+    if (reason !== null) {
+      stopped.push({ at: `${ladder.id}@${point}`, why: STOP_WHY[reason] })
       break
     }
 

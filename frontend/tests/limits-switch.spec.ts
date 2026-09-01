@@ -15,7 +15,7 @@ import 'fake-indexeddb/auto'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { withoutComments } from './fixtures/source'
+import { bodyAt, withoutComments } from './fixtures/source'
 
 import { runtimeContextFor } from '../src/ml/training-source'
 import { writeLimitsOff } from '../src/project/storage'
@@ -242,9 +242,18 @@ describe('내보내는 읽기 함수가 전부 스위치를 거친다', () => {
    * `maxDatasetRowsFor(scale: number)` 같은 여덟째가 아예 안 보였다. 그렇다고 인자를
    * 받는 것을 다 넣으면 `pageSizeOf(limit, total)`이 걸리는데, **저건 상한을 받는
    * 함수이지 읽는 함수가 아니다** — 스위치를 거칠 것이 없다.
+   *
+   * **본문은 중괄호 짝으로 자른다** (2026-09-01 R17 감사 B-1). `\{([^}]*)\}`로 자르던
+   * 때는 **본문에 객체 리터럴이 하나만 있어도 첫 `}`에서 끊겨** 상수가 본문 밖으로
+   * 밀려났고, 그러면 바로 위에서 더한 상수 필터가 그 함수를 `readers`에서 **통째로
+   * 지웠다.** 넓히려던 변경이 원래 잡던 것을 놓친 것이다 — 스위치를 안 거치는 리더를
+   * 심어도 88개가 전부 초록이었다(돌연변이 M9).
    */
-  const readers = [...SOURCE.matchAll(/export function (\w+)\([^)]*\)\s*:\s*number\s*\{([^}]*)\}/g)]
-    .map((match) => ({ name: match[1] ?? '', body: match[2] ?? '' }))
+  const readers = [...SOURCE.matchAll(/export function (\w+)\([^)]*\)\s*:\s*number\s*\{/g)]
+    .map((match) => ({
+      name: match[1] ?? '',
+      body: bodyAt(SOURCE, (match.index ?? 0) + match[0].length - 1),
+    }))
     .filter((one) => /\b[A-Z][A-Z0-9_]{3,}\b/.test(one.body))
 
   it('뽑을 것을 실제로 찾는다', () => {
