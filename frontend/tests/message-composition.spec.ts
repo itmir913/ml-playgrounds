@@ -70,12 +70,25 @@ function messageAt(locale: string, key: string): string {
  * 문구에서 **칸을 뺀 글자**의 낱말들.
  *
  * **한 글자는 안 센다.** 조사(`의`)와 단위(`번`)는 우연히 겹치는데 그것은 겹쳐 읽히는
- * 병이 아니다. 이 병이 만드는 것은 내용어이고, 한국어에서 두 글자 이상, 영어에서 세
- * 글자 이상이다.
+ * 병이 아니다. 이 병이 만드는 것은 내용어다.
+ *
+ * **문턱이 문자마다 다르다** (2026-09-01 R18 감사 C-3). 한글은 두 글자면 내용어인데
+ * 라틴 문자는 `of`·`in`·`to` 같은 기능어가 두 글자다 — 하나로 두면 **바깥 문구와 안쪽
+ * 문구가 `of`를 함께 쓴다는 이유로 거짓 빨강**이 난다. 한때 주석은 *"영어에서 세 글자
+ * 이상"*이라 적어 놓고 코드는 전부 `{2,}`였다.
+ *
+ * **거짓 빨강은 거짓 초록만큼 나쁘다** — 관문을 세우고, 다음 사람은 규칙이 아니라
+ * 문구를 고친다.
  */
 function words(message: string): Set<string> {
-  const frame = message.replace(/\{[^}]*\}/g, ' ')
-  return new Set(frame.toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) ?? [])
+  const frame = message.replace(/\{[^}]*\}/g, ' ').toLowerCase()
+  const found = new Set<string>()
+  for (const word of frame.match(/[\p{L}\p{N}]+/gu) ?? []) {
+    // 한글·한자·가나는 두 글자부터, 라틴과 숫자는 세 글자부터.
+    const short = /^[\p{Script=Latin}\p{N}]+$/u.test(word)
+    if (word.length >= (short ? 3 : 2)) found.add(word)
+  }
+  return found
 }
 
 describe('문구 안에 문구를 넣는 자리', () => {

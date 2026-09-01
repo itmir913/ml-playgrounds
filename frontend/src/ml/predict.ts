@@ -26,6 +26,7 @@ import {
 } from '../project/schema'
 import type { Prediction } from './metrics'
 import { interpreterFor, type LoadContext, type Predict, type ProbaModel } from './models'
+import { succeeded } from './results'
 import {
   parsePreprocessor,
   targetValues,
@@ -403,7 +404,7 @@ export function predictableModels(
   // 찾는다 (architecture.md 8.13).
   for (const experiment of [...document.runs.experiments].reverse()) {
     for (const run of experiment.runs) {
-      if (run.status !== 'done') continue
+      if (!succeeded(run)) continue
 
       const model = run.model
       // 지표만 남은 run이다. 왜 안 담겼는지는 run.modelOmitted가 들고 있다.

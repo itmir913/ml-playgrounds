@@ -369,6 +369,18 @@ function busy(disabled: boolean): void {
 function start(work: () => Promise<void>): void {
   void (async () => {
     busy(true)
+    /**
+     * **한 실행의 것만 남긴다** (2026-09-01 R18 감사 C-6). 안 비우면 [교정 일감만]을
+     * 두 번 누를 때 여섯 판이 한 배열에 섞여 **어느 판이 어느 실행인지 안 갈린다.**
+     * 멈춘 자리도 같다 — 앞 실행에서 멈춘 사다리가 이번 표에 그대로 남는다.
+     *
+     * **`measured`·`heap`·`failed`는 열쇠가 있어 덮어써진다.** 배열 둘만 자리가 없다.
+     *
+     * **비우는 자리가 여기 하나인 이유**는 세 단추가 전부 이 입구를 지나기 때문이다.
+     * 단추마다 적으면 넷째 단추가 생기는 날 그것만 빠진다.
+     */
+    calibrationSet.length = 0
+    stopped.length = 0
     wentHidden = document.visibilityState === 'hidden'
     await work()
     status.textContent = wentHidden

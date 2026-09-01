@@ -25,6 +25,7 @@ import { RUNTIMES } from './backend'
 import { engineFor, type TrainingEngine } from './engines'
 import { evaluate, evaluateCluster } from './metrics'
 import { fitPreprocessor, targetValues, transform, type Dataset } from './preprocess'
+import { succeeded } from './results'
 
 /** run 하나의 대조 결과. **판정이 아니라 사실이다.** */
 export interface Reproduction {
@@ -115,7 +116,7 @@ export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
    */
   const isClustering = settings.taskType === 'clustering'
 
-  const done = experiment.runs.filter((run) => run.status === 'done')
+  const done = experiment.runs.filter(succeeded)
   if (done.length === 0) return []
 
   // provided면 testIndices는 dataset이 아니라 testDataset의 행 번호다

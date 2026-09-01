@@ -142,11 +142,6 @@ const rows = computed(() =>
        * 이것이었다(2026-09-01에 그 규칙을 좁혔다).
        */
       showsEstimate: status !== 'done' && status !== 'failed',
-      /** 도는 줄에서만 흐른다. 문턱 아래면 `hidden`이다. */
-      elapsed: elapsedOf(
-        status === 'running' ? (props.startedAt[index] ?? null) : null,
-        props.now,
-      ) satisfies Elapsed,
       outOfRangeNames: violated(row),
       estimateText: estimateTextOf(props.estimates[index] ?? { kind: 'unknown' }),
     }
@@ -161,6 +156,25 @@ const rows = computed(() =>
  * **짧아도 빈칸으로 두지 않는다.** 빈칸이면 "빠른 것"과 "못 재는 것"이 화면에서 같은
  * 모양이 되고, 학생은 그 자리를 보고 어느 쪽인지 알 수 없다.
  */
+/**
+ * 줄마다의 경과 시간. **`rows`와 나눠 둔다** (2026-09-01 R18 감사 C-4).
+ *
+ * 시계는 250ms마다 흐르는데, 이것이 `rows` 안에 있으면 **그때마다 `violated()`(손잡이
+ * 범위 전수)와 예상 시간 문구까지 통째로 다시 돈다** — 바로 그 자리에 *"줄마다 한 번만
+ * 센다"*는 최적화 주석이 있다(V11 R5 C-3). 갈라 두면 시계가 흔드는 것은 산술 몇 줄뿐이다.
+ *
+ * **도는 줄에서만 흐른다.** 끝난 줄과 대기 줄은 `hidden`이다.
+ */
+const clocks = computed<readonly ({ minutes: string; seconds: string } | null)[]>(() =>
+  props.chosen.map((_row, index) => {
+    const startedAt = props.statuses[index] === 'running' ? (props.startedAt[index] ?? null) : null
+    const shown: Elapsed = elapsedOf(startedAt, props.now)
+    // **화면이 쓸 모양으로 준다.** `Elapsed`를 그대로 내보내면 템플릿이 갈래를 좁히지
+    // 못해 캐스트가 생긴다 — 좁히는 일은 좁힐 수 있는 곳에서 한다.
+    return shown.kind === 'shown' ? { minutes: shown.minutes, seconds: shown.seconds } : null
+  }),
+)
+
 function estimateTextOf(estimate: Estimate): string {
   if (estimate.kind === 'unknown') return t('train.estimateUnknown')
   const key = estimate.kind === 'minutes' ? 'train.estimate.minutes' : 'train.estimate.seconds'
@@ -255,7 +269,7 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
         색만 투명하게 한다 — 도는 순간 선이 생기면 목록 전체가 4px 밀린다.
       -->
       <li
-        v-for="{ row, index, tone, outOfRangeNames, estimateText, showsEstimate, elapsed } in rows"
+        v-for="{ row, index, tone, outOfRangeNames, estimateText, showsEstimate } in rows"
         :key="`${row.algorithm}:${row.runtime}:${index}`"
         class="min-w-0 border-l-4 p-3"
         :class="[
@@ -316,11 +330,11 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
                 `TRAINING_ELAPSED_VISIBLE_AFTER_MS`).
               -->
               <span
-                v-if="elapsed.kind === 'shown' || showsEstimate"
+                v-if="clocks[index] !== null || showsEstimate"
                 class="ml-auto flex items-baseline gap-x-3 text-ink-soft"
               >
-                <span v-if="elapsed.kind === 'shown'" class="tabular-nums" aria-live="off">
-                  {{ t('train.elapsed', { minutes: elapsed.minutes, seconds: elapsed.seconds }) }}
+                <span v-if="clocks[index]" class="tabular-nums" aria-live="off">
+                  {{ t('train.elapsed', clocks[index]!) }}
                 </span>
                 <span v-if="showsEstimate">{{ estimateText }}</span>
               </span>

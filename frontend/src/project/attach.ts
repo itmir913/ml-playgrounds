@@ -16,6 +16,7 @@ import type { ExperimentResult } from '../ml/experiment'
 import { interpreterFor, type ModelFile } from '../ml/models'
 import { DIR, type ProjectFile } from './format'
 import type { Experiment, Run } from './schema'
+import { succeeded } from '../ml/results'
 
 export interface AttachedExperiment {
   /** 경로와 크기가 채워진 실험. runs.json에 그대로 들어간다. */
@@ -101,7 +102,7 @@ function attach(run: Run, model: ModelFile | undefined, entries: Map<string, Uin
   // 예측할 수 없는 무게만 얻는다. 저장을 실패시키지는 않는다 (mlpx-spec.md 4.2).
   const interpreter = model ? interpreterFor(model.format) : undefined
   if (!model || !interpreter) {
-    if (run.status !== 'done' || run.modelOmitted !== undefined) return run
+    if (!succeeded(run) || run.modelOmitted !== undefined) return run
     return { ...run, modelOmitted: 'engineUnsupported' }
   }
 
