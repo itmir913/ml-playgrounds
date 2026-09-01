@@ -53,6 +53,7 @@
     "limitsEstimate": "얼마나 걸릴지는 학습 화면의 예상 시간이 말해 줍니다. 아직 시간을 재 보지 않은 조합은 그 예상도 나오지 않습니다.",
     "limitsDevice": "이 설정은 이 컴퓨터에만 저장되고 프로젝트 파일에는 들어가지 않습니다.",
     "limitsRelease": "상한 해제",
+    "limitsOff": "상한 해제됨",
     "limitsRestore": "상한 적용"
   },
   "save": {

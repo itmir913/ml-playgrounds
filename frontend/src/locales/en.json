@@ -53,6 +53,7 @@
     "limitsEstimate": "The training screen tells you how long it should take. Combinations nobody has measured yet have no estimate at all.",
     "limitsDevice": "This setting is stored on this computer only and never goes into the project file.",
     "limitsRelease": "Turn limits off",
+    "limitsOff": "Limits off",
     "limitsRestore": "Turn limits on"
   },
   "save": {

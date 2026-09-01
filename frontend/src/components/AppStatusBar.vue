@@ -273,8 +273,13 @@ const limitsLabel = computed(() =>
             여전히 높이를 정하고, 두 상태의 버튼이 같은 크기가 된다.
 
             **글자 크기는 안 건드린다** — 가장 작은 것이 `text-base`다 (`base.css`).
+
+            **이 자리는 상태이지 동작이 아니다** (2026-09-01, 사용자). 처음에는 팝오버 안
+            단추의 이름(`limitsRelease`)을 그대로 썼는데, 그건 **누르면 일어날 일**의
+            이름이다 — 줄에 붙는 것은 **지금 어떤 상태인가**여야 한다. 영어에서 더 나빴다:
+            상태 표시 자리에 `Turn limits off`라는 **명령문**이 떠 있었다.
           -->
-          <span v-if="limitsOff" class="leading-none">{{ t('shell.limitsRelease') }}</span>
+          <span v-if="limitsOff" class="leading-none">{{ t('shell.limitsOff') }}</span>
         </button>
       </template>
 
