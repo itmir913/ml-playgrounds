@@ -299,6 +299,9 @@ async function runCalibration(): Promise<void> {
         break
       }
       times.push(outcome.elapsed)
+      // **여기서도 힙을 적는다.** 교정은 10초면 끝나므로, 이 기기에서 힙을 **누가
+      // 답하는지**를 몇 시간짜리 사다리를 걸기 전에 알 수 있는 유일한 자리다.
+      heap[`calibration/${id}`] = { mb: outcome.heapMb, source: outcome.heapSource }
     }
     if (times.length === 0) {
       addRow('교정 일감', id, -1)
