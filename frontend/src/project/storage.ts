@@ -35,6 +35,8 @@ const DATASETS_STORE = 'datasets'
 const MODELS_STORE = 'models'
 const UPDATED_AT_INDEX = 'updatedAt'
 const LOCALE_KEY = 'locale'
+/** 상한 해제. **언어와 같은 store에 산다** — 아래 `readLimitsOff`가 이유를 든다. */
+const LIMITS_OFF_KEY = 'limitsOff'
 
 interface ProjectRecord {
   projectId: string
@@ -109,7 +111,15 @@ interface ModelRecord {
 }
 
 interface PlaygroundDB extends DBSchema {
-  [PREFERENCES_STORE]: { key: string; value: string }
+  /**
+   * 기기의 설정. **값의 종류가 열쇠마다 다르다** — 언어는 문자열이고 상한 해제는
+   * 참·거짓이다. 읽는 쪽이 저마다 확인하므로(옛 값이나 손으로 넣은 값이 올 수 있다)
+   * 여기서는 넓게 두고 판정을 읽는 곳에 맡긴다.
+   *
+   * **`DB_VERSION`과는 무관하다.** IndexedDB는 값의 모양을 강제하지 않는다 — 이 타입은
+   * 우리끼리의 약속이고, 열쇠를 하나 더 두는 것으로 store가 바뀌지는 않는다.
+   */
+  [PREFERENCES_STORE]: { key: string; value: string | boolean }
   [PROJECTS_STORE]: { key: string; value: ProjectRecord; indexes: { updatedAt: string } }
   [DATASETS_STORE]: { key: string; value: DatasetRecord }
   [MODELS_STORE]: { key: [string, string]; value: ModelRecord }
@@ -195,6 +205,34 @@ export async function writePreferredLocale(locale: string): Promise<void> {
     await (await db()).put(PREFERENCES_STORE, locale, LOCALE_KEY)
   } catch {
     // 저장에 실패해도 이번 세션의 선택은 이미 화면에 반영돼 있다.
+  }
+}
+
+/**
+ * 상한을 껐는가 (`limits-switch.ts`, `open-decisions.md` "상한은 누가 정했느냐" §2).
+ *
+ * **언어 선택 옆에 산다.** 기기의 설정이지 프로젝트의 내용이 아니라서다 — 같은 파일을
+ * 학교 PC에서 열든 집 PC에서 열든 **그 기기의 판단이 이겨야 한다.** 새 store를 만들면
+ * `DB_VERSION`이 오르고, 그건 지시 없이 올릴 값이 아니다 (`tests/versions.spec.ts`).
+ *
+ * **`true`가 아니면 꺼진 것으로 본다.** 손으로 넣어 둔 값이나 옛 형식을 참으로 읽으면
+ * 학생이 켠 적 없는 상태로 앱이 뜬다 (`prefs.ts`와 같은 판단).
+ */
+export async function readLimitsOff(): Promise<boolean> {
+  try {
+    return (await (await db()).get(PREFERENCES_STORE, LIMITS_OFF_KEY)) === true
+  } catch {
+    // 저장소를 못 쓰면 상한이 살아 있는 쪽이다. 안전한 쪽으로 떨어진다.
+    return false
+  }
+}
+
+/** 상한 해제 여부를 저장한다. 실패해도 이번 세션의 선택은 이미 반영돼 있다. */
+export async function writeLimitsOff(value: boolean): Promise<void> {
+  try {
+    await (await db()).put(PREFERENCES_STORE, value, LIMITS_OFF_KEY)
+  } catch {
+    // 언어와 같다 — 저장 실패가 화면을 막지 않는다.
   }
 }
 

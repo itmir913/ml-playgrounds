@@ -23,10 +23,12 @@ import {
   loadProject,
   markExported,
   readExportedAt,
+  readLimitsOff,
   readPreferredLocale,
   roomShortfall,
   saveProject,
   totalBytes,
+  writeLimitsOff,
   writePreferredLocale,
 } from '../src/project/storage'
 import { hashBytes } from '../src/hash'
@@ -93,6 +95,51 @@ describe('언어 선택 저장', () => {
     await writePreferredLocale('ko')
     closeStorage()
     await expect(readPreferredLocale()).resolves.toBe('ko')
+  })
+})
+
+/**
+ * 상한 해제 (`limits-switch.ts`, `open-decisions.md` "상한은 누가 정했느냐" §2).
+ *
+ * **언어와 같은 store에 산다** — 기기의 설정이라서다. 새 store를 만들면 `DB_VERSION`이
+ * 오르고 그건 지시 없이 올릴 값이 아니다 (`tests/versions.spec.ts`).
+ */
+describe('상한 해제 저장', () => {
+  it('저장한 적이 없으면 꺼진 것이다 - 안전한 쪽이 기본이다', async () => {
+    await expect(readLimitsOff()).resolves.toBe(false)
+  })
+
+  it('켠 것을 다시 읽을 수 있다', async () => {
+    await writeLimitsOff(true)
+    await expect(readLimitsOff()).resolves.toBe(true)
+  })
+
+  it('껐던 것으로 되돌아온다', async () => {
+    await writeLimitsOff(true)
+    await writeLimitsOff(false)
+    await expect(readLimitsOff()).resolves.toBe(false)
+  })
+
+  it('연결을 닫았다 열어도 값이 남아 있다', async () => {
+    await writeLimitsOff(true)
+    closeStorage()
+    await expect(readLimitsOff()).resolves.toBe(true)
+  })
+
+  /**
+   * **`true`가 아니면 꺼진 것이다.** 손으로 넣어 둔 값이나 옛 형식을 참으로 읽으면
+   * 학생이 켠 적 없는 상태로 앱이 뜬다 — 상한이 조용히 풀린 채로 시작한다.
+   */
+  it('참이 아닌 값은 켠 것으로 안 읽는다', async () => {
+    await writePreferredLocale('ko')
+    await expect(readLimitsOff()).resolves.toBe(false)
+  })
+
+  it('언어와 서로를 덮어쓰지 않는다 - 열쇠가 다르다', async () => {
+    await writePreferredLocale('ko')
+    await writeLimitsOff(true)
+    await expect(readPreferredLocale()).resolves.toBe('ko')
+    await expect(readLimitsOff()).resolves.toBe(true)
   })
 })
 

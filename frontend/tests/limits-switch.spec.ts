@@ -8,7 +8,11 @@
  * `0 * Infinity = NaN`으로 통째로 비는데, **아무 오류도 안 나고 화면만 빈다.**
  */
 
-import { afterEach, describe, expect, it } from 'vitest'
+import 'fake-indexeddb/auto'
+
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { writeLimitsOff } from '../src/project/storage'
 
 import {
   MAX_DATASET_COLUMNS,
@@ -105,5 +109,69 @@ describe('판 크기는 `Infinity`가 아니라 전체 개수가 된다', () => 
   it('`Infinity`를 그대로 쓰면 실제로 빈다 - 위 검사가 무엇을 막는지', () => {
     const start = 0 * Number.POSITIVE_INFINITY
     expect([1, 2, 3].slice(start, start + Number.POSITIVE_INFINITY)).toEqual([])
+  })
+})
+
+/**
+ * **선택은 이 기기에 남는다** (`project/storage.ts`의 preferences, 언어 선택 옆).
+ *
+ * **모듈을 다시 들여와서 잰다.** 스위치는 모듈 하나가 들고 있는 상태라, 같은 인스턴스로
+ * 두 번 재면 앞 검사가 남긴 "사람이 골랐다"가 뒤 검사의 답을 바꾼다
+ * ([[shared-test-fixtures]]와 같은 종류의 함정이다).
+ */
+describe('선택은 이 기기에 남는다', () => {
+  async function freshModule(): Promise<typeof import('../src/limits-switch')> {
+    vi.resetModules()
+    return import('../src/limits-switch')
+  }
+
+  it('앱이 뜰 때 저장된 값을 반영한다', async () => {
+    await writeLimitsOff(true)
+    const module = await freshModule()
+    expect(module.limitsOff.value).toBe(false)
+    await module.initLimitsOff()
+    expect(module.limitsOff.value).toBe(true)
+    await writeLimitsOff(false)
+  })
+
+  it('켠 것이 저장된다', async () => {
+    const module = await freshModule()
+    await module.setLimitsOff(true)
+    const next = await freshModule()
+    await next.initLimitsOff()
+    expect(next.limitsOff.value).toBe(true)
+    await writeLimitsOff(false)
+  })
+
+  /**
+   * **나중에 온 것이 아니라 사람이 고른 것이 이긴다** (`i18n.ts`의 `chosenByUser`와 같은
+   * 자리). 저장된 값을 읽는 것은 비동기라, 느린 기기에서는 그 사이에 학생이 스위치를
+   * 만질 수 있다. 뒤늦게 도착한 옛 값이 그 선택을 되돌리면 화면이 혼자 되돌아간다.
+   *
+   * **저장소를 세워 놓고 잰다.** 진짜 IndexedDB로는 이 순서를 못 만든다 — 먼저 시작한
+   * 읽기가 나중에 끝나는 그 창을 우리가 열어야 하고, 안 그러면 **가드를 지워도 초록인**
+   * 검사가 된다 (실제로 처음엔 그랬다).
+   */
+  it('읽는 중에 학생이 고르면 그 선택이 이긴다', async () => {
+    let deliver: (value: boolean) => void = () => {}
+    vi.resetModules()
+    vi.doMock('../src/project/storage', () => ({
+      readLimitsOff: () =>
+        new Promise<boolean>((resolve) => {
+          deliver = resolve
+        }),
+      writeLimitsOff: () => Promise.resolve(),
+    }))
+    const module = await import('../src/limits-switch')
+
+    const arriving = module.initLimitsOff()
+    await module.setLimitsOff(true)
+    // 저장소가 이제야 옛 값을 들고 도착한다.
+    deliver(false)
+    await arriving
+
+    expect(module.limitsOff.value).toBe(true)
+    vi.doUnmock('../src/project/storage')
+    vi.resetModules()
   })
 })

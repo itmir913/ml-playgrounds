@@ -36,6 +36,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AppButton from '@/components/AppButton.vue'
 import AppPopover from '@/components/AppPopover.vue'
 import { exportStateOf } from '@/project/export-state'
 import { needsSizeWarning } from '@/project/file-size'
@@ -43,6 +44,7 @@ import { PROJECT_FILE_WARN_BYTES } from '@/limits'
 import { useFormat } from '@/composables/useFormat'
 import { ACTION_ICONS } from '@/icons'
 import { setLocale, SUPPORTED_LOCALES, type Locale } from '@/i18n'
+import { limitsOff, setLimitsOff } from '@/limits-switch'
 import { totalBytes } from '@/project/storage'
 import { useProjectStore } from '@/stores/project'
 import { otherTheme, setTheme, theme } from '@/theme'
@@ -135,6 +137,17 @@ const nextTheme = computed(() => otherTheme(theme.value))
 const themeLabel = computed(() =>
   nextTheme.value === 'dark' ? t('shell.toDark') : t('shell.toLight'),
 )
+
+/**
+ * **상한을 푼 상태는 줄에 남는다** (`limits-switch.ts`).
+ *
+ * 켜 둔 것을 잊은 학생은 탭이 멈췄을 때 **그것이 자기가 고른 결과라는 것을 모른다.**
+ * 그래서 이 상태만 글자를 얻는다 — 색으로만 말하면 좁은 화면과 색각 이상에서 사라진다
+ * (`architecture.md` §8.18).
+ */
+const limitsLabel = computed(() =>
+  limitsOff.value ? t('shell.limitsReleased') : t('shell.limitsApplied'),
+)
 </script>
 
 <template>
@@ -226,6 +239,50 @@ const themeLabel = computed(() =>
         {{ t(`language.${tag}`) }}
       </option>
     </select>
+
+    <!--
+      이 기기의 상한 (`limits-switch.ts`). **팝오버인 이유는 바꾸는 것이 무엇인지 그
+      자리에서 말해야 하기 때문이다** (open-decisions.md "상한은 누가 정했느냐" §2) —
+      학생이 에러를 없애려고 켤 수 있고, 그때 만나는 것이 "더 큰 데이터"가 아니라
+      "안 끝나는 학습"일 수 있다.
+
+      **푼 상태에서만 글자가 붙는다.** 평소에는 아이콘 하나로 폭을 아끼고, 켜 둔 것을
+      잊었을 때만 줄이 그 사실을 말한다.
+    -->
+    <AppPopover side="top" align="right" size="medium" class="shrink-0">
+      <template #trigger="{ open }">
+        <button
+          type="button"
+          :aria-expanded="open"
+          :aria-label="t('shell.limits')"
+          :title="limitsLabel"
+          class="flex items-center gap-1 rounded-control p-1 transition-colors hover:bg-surface-sunken hover:text-ink"
+          :class="limitsOff ? 'text-caution' : ''"
+        >
+          <component :is="ACTION_ICONS.limits" :size="18" aria-hidden="true" />
+          <span v-if="limitsOff">{{ t('shell.limitsRelease') }}</span>
+        </button>
+      </template>
+
+      <p :class="limitsOff ? 'font-bold text-caution' : 'font-bold'">{{ limitsLabel }}</p>
+      <p class="mt-1 leading-relaxed text-ink-soft">
+        {{ limitsOff ? t('shell.limitsEstimate') : t('shell.limitsWhy') }}
+      </p>
+      <p class="mt-1 leading-relaxed text-ink-soft">{{ t('shell.limitsRisk') }}</p>
+      <p class="mt-1 leading-relaxed text-ink-faint">{{ t('shell.limitsDevice') }}</p>
+
+      <!--
+        **`action`으로 준다.** 저장이 IndexedDB를 지나므로 `@click`으로 두면 Vue가
+        기다려 주지 않아 두 번 눌리는 것을 못 막는다 (CLAUDE.md §4).
+      -->
+      <AppButton
+        class="mt-3"
+        :variant="limitsOff ? 'secondary' : 'danger'"
+        :action="() => setLimitsOff(!limitsOff)"
+      >
+        {{ limitsOff ? t('shell.limitsRestore') : t('shell.limitsRelease') }}
+      </AppButton>
+    </AppPopover>
 
     <!--
       배색 스위치. **글자 없이 아이콘 하나다** - 상태 표시줄은 좁고, 여기서 폭을 먹으면

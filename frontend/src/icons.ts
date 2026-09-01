@@ -26,6 +26,7 @@ import {
   FlaskConical,
   CircleQuestionMark,
   FolderOpen,
+  Gauge,
   ImagePlus,
   Info,
   LayoutDashboard,
@@ -93,4 +94,11 @@ export const ACTION_ICONS = {
   addPhoto: ImagePlus,
   remove: Trash2,
   dismiss: X,
+  /**
+   * 이 기기의 상한을 여는 자리 (`limits-switch.ts`). **눈금이 곧 상한이다.**
+   *
+   * **배색 스위치와 달리 바뀔 쪽을 그리지 않는다** — 누르면 바로 바뀌는 것이 아니라
+   * 설명이 딸린 팝오버가 열리기 때문이다. 그림은 동작이 아니라 대상을 가리킨다.
+   */
+  limits: Gauge,
 } as const satisfies Record<string, LucideIcon>

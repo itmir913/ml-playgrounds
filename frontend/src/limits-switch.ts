@@ -25,6 +25,8 @@
 
 import { ref } from 'vue'
 
+import { readLimitsOff, writeLimitsOff } from './project/storage'
+
 import {
   CLUSTER_SCATTER_POINT_LIMIT,
   IMAGE_PREDICT_PAGE_SIZE,
@@ -43,9 +45,32 @@ import {
  */
 export const limitsOff = ref(false)
 
-/** 저장된 선택을 앱이 뜰 때 넣는다. **읽는 곳은 `project/storage.ts`다** (언어 선택 옆). */
+/** 화면에만 반영한다. 저장은 안 한다 — 검사와 아래 둘이 쓴다. */
 export function applyLimitsOff(next: boolean): void {
   limitsOff.value = next
+}
+
+/**
+ * 학생이 이번에 직접 골랐는가.
+ *
+ * **시작할 때 저장된 값을 읽는 것은 비동기다** (`i18n.ts`의 `chosenByUser`와 같은 자리).
+ * IndexedDB가 느린 기기에서는 그 사이에 학생이 스위치를 만질 수 있고, 뒤늦게 도착한 옛
+ * 값이 그 선택을 되돌리면 화면이 혼자 되돌아간 것처럼 보인다. **나중에 온 것이 아니라
+ * 사람이 고른 것이 이긴다.**
+ */
+let chosenByUser = false
+
+/** 앱 시작 시 한 번 부른다. 저장된 선택을 반영한다. */
+export async function initLimitsOff(): Promise<void> {
+  const stored = await readLimitsOff()
+  if (!chosenByUser) applyLimitsOff(stored)
+}
+
+/** 학생이 스위치를 만질 때 부른다. 화면에 즉시 반영하고 선택을 저장한다. */
+export async function setLimitsOff(next: boolean): Promise<void> {
+  chosenByUser = true
+  applyLimitsOff(next)
+  await writeLimitsOff(next)
 }
 
 /**
