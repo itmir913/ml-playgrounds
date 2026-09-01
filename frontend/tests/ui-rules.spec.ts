@@ -436,13 +436,19 @@ function unguardedButtons(
       const module = resolveImport(from)
       if (module === null) continue
       for (const raw of (match[1] ?? '').split(',')) {
-        // `x as y`로 들여오면 화면이 부르는 이름은 뒤쪽이다.
-        const name = (raw.split(/\s+as\s+/).pop() ?? '').trim()
-        if (name === '') continue
+        /**
+         * **`x as y`는 이름이 둘이다** — 저쪽이 내보낸 것은 `x`이고 화면이 부르는 것은
+         * `y`다. 하나로 뭉치던 때는 별칭 임포트가 통째로 빠져나갔고, **이 파일의
+         * 자기검사가 그것을 잡았다** (2026-09-01).
+         */
+        const [exportedName, localName] = raw.split(/\s+as\s+/).map((one) => one.trim())
+        const outside = exportedName ?? ''
+        const inside = localName ?? outside
+        if (outside === '') continue
         const exported = new RegExp(
-          `export (?:async function ${name}\\b|const ${name}\\s*=\\s*async)`,
+          `export (?:async function ${outside}\\b|const ${outside}\\s*=\\s*async)`,
         )
-        if (exported.test(module)) asyncNames.add(name)
+        if (exported.test(module)) asyncNames.add(inside)
       }
     }
   }
@@ -1167,18 +1173,76 @@ describe('버튼이 두 번 눌리지 않는다', () => {
    * `@/…` 임포트를 소스로 바꿔 준다. **`unguardedButtons`가 임포트를 한 겹 따라갈 때 쓴다**
    * (2026-09-01 감사 B-3). 없는 파일이면 `null`이고, 그때는 따라가지 않는다.
    */
-  function moduleSource(specifier: string): string | null {
-    if (!specifier.startsWith('@/')) return null
+  function moduleSource(specifier: string, from?: string): string | null {
+    /**
+     * **별칭과 상대 경로를 다 푼다** (2026-09-01 감사 B-1). `@/`만 풀던 때는 **같은 파일을
+     * `../`로 들여오면** 규칙이 그 async 함수를 몰랐다 — 감사자가 실물로 재현했다(`@/`면
+     * 울고 `../`면 안 운다). 지금 그런 자리는 0건이지만 **막는 것이 아무것도 없었다.**
+     *
+     * **재수출은 안 따라간다** (`export * from`). 한 겹만 본다는 뜻이고, 지금 저장소의
+     * 재수출 인덱스 아래에는 async 함수가 하나도 없다.
+     */
+    const base = specifier.startsWith('@/')
+      ? join(SRC, specifier.slice(2))
+      : specifier.startsWith('.') && from !== undefined
+        ? join(dirname(from), specifier)
+        : null
+    if (base === null) return null
     for (const suffix of ['.ts', '.vue', '/index.ts']) {
-      const path = join(SRC, `${specifier.slice(2)}${suffix}`)
-      if (existsSync(path)) return readFileSync(path, 'utf-8')
+      if (existsSync(`${base}${suffix}`)) return readFileSync(`${base}${suffix}`, 'utf-8')
     }
     return null
   }
 
+  /**
+   * **검사기 자체를 검사한다** (2026-09-01 감사 B-2). 임포트 한 겹 따라가기는 이번에
+   * 새로 생긴 능력인데 **그 짝이 없었다** — `moduleSource`를 통째로 `null`로 죽여도
+   * 202개가 초록이었다. 이 파일의 다른 검사기 열둘은 전부 합성 소스로 물리는 짝을 갖는다.
+   */
+  describe('임포트를 한 겹 따라간다', () => {
+    // **`<template>`부터 본다** — 검사기가 그 뒤만 훑는다. 합성 소스도 같아야 한다.
+    const button = '<template><AppButton @click="save">저장</AppButton></template>'
+
+    it('들여온 async 함수를 잡는다', () => {
+      const found = unguardedButtons(
+        `import { save } from '@/x'
+${button}`,
+        () => 'export async function save(): Promise<void> {}',
+      )
+      expect(found).toEqual(['save'])
+    })
+
+    it('들여온 동기 함수는 안 잡는다', () => {
+      const found = unguardedButtons(
+        `import { save } from '@/x'
+${button}`,
+        () => 'export function save(): void {}',
+      )
+      expect(found).toEqual([])
+    })
+
+    it('이름을 바꿔 들여와도 잡는다', () => {
+      const source = `import { store as save } from '@/x'
+${button}`
+      expect(
+        unguardedButtons(source, () => 'export async function store(): Promise<void> {}'),
+      ).toEqual(['save'])
+    })
+
+    it('따라갈 것이 없으면 안 잡는다 - 이 능력이 죽으면 여기가 아니라 위가 운다', () => {
+      expect(
+        unguardedButtons(
+          `import { save } from '@/x'
+${button}`,
+          () => null,
+        ),
+      ).toEqual([])
+    })
+  })
+
   it('지금 소스에 안 막힌 버튼이 없다', () => {
     const found = vueFiles(SRC).flatMap((path) =>
-      unguardedButtons(readFileSync(path, 'utf-8'), moduleSource).map(
+      unguardedButtons(readFileSync(path, 'utf-8'), (spec) => moduleSource(spec, path)).map(
         (name) =>
           `${path
             .slice(SRC.length + 1)
@@ -1196,7 +1260,7 @@ describe('버튼이 두 번 눌리지 않는다', () => {
   it('허용한 둘이 실제로 그 자리에 있다', () => {
     const found = new Set(
       vueFiles(SRC).flatMap((path) =>
-        unguardedButtons(readFileSync(path, 'utf-8'), moduleSource).map(
+        unguardedButtons(readFileSync(path, 'utf-8'), (spec) => moduleSource(spec, path)).map(
           (name) =>
             `${path
               .slice(SRC.length + 1)

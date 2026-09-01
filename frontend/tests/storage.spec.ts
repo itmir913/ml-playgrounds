@@ -930,3 +930,52 @@ describe('저장소의 방어 갈래', () => {
     expect(await listProjects()).toEqual([])
   })
 })
+
+/**
+ * **저장소를 못 쓰는 기기** (2026-09-01 감사 B-5).
+ *
+ * 사파리의 사생활 보호 모드처럼 IndexedDB 접근 자체가 던지는 환경이 있다. 두 읽기 함수의
+ * 주석이 *"저장소를 못 쓰면 … 안전한 쪽으로 떨어진다"*고 단정하는데, **그 단정을 아무도
+ * 안 쟀다** — `catch { return false }`를 `true`로 바꿔도 75개가 초록이었다. 그러면
+ * **학생이 켠 적 없는데 상한이 풀린 채로 앱이 뜬다.**
+ */
+describe('저장소가 던져도 안전한 쪽으로 떨어진다', () => {
+  /** `openDB`가 던지게 만든다. **모듈을 다시 들여와야 그 모의가 걸린다.** */
+  async function withBrokenStorage<T>(
+    read: (module: typeof import('../src/project/storage')) => Promise<T>,
+  ): Promise<T> {
+    vi.resetModules()
+    vi.doMock('idb', () => ({
+      openDB: () => {
+        throw new Error('storage is unavailable')
+      },
+    }))
+    try {
+      return await read(await import('../src/project/storage'))
+    } finally {
+      vi.doUnmock('idb')
+      vi.resetModules()
+    }
+  }
+
+  it('상한 해제는 꺼진 것으로 읽는다', async () => {
+    await expect(withBrokenStorage((module) => module.readLimitsOff())).resolves.toBe(false)
+  })
+
+  it('언어는 고른 적 없는 것으로 읽는다', async () => {
+    await expect(withBrokenStorage((module) => module.readPreferredLocale())).resolves.toBeNull()
+  })
+
+  /**
+   * **던지는 것과 엉뚱한 값이 든 것은 다른 경로다** (2026-09-01 감사 B-5). 위 둘은
+   * `catch`를 재고, 이것은 **타입 가드**를 잰다 — 같은 store에 이제 문자열과 참·거짓이
+   * 함께 살므로(`string | boolean`) 두 가드가 처음으로 서로 다른 타입을 만난다.
+   */
+  it('언어 열쇠에 참·거짓이 들어 있으면 고른 적 없는 것으로 읽는다', async () => {
+    await writePreferredLocale('ko')
+    const raw = await openDB(DB_NAME, DB_VERSION)
+    await raw.put('preferences', true, 'locale')
+    raw.close()
+    await expect(readPreferredLocale()).resolves.toBeNull()
+  })
+})

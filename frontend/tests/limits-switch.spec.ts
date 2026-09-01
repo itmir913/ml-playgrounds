@@ -15,6 +15,8 @@ import 'fake-indexeddb/auto'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { withoutComments } from './fixtures/source'
+
 import { runtimeContextFor } from '../src/ml/training-source'
 import { writeLimitsOff } from '../src/project/storage'
 
@@ -224,12 +226,26 @@ describe('맥락이 스위치를 싣는다', () => {
  * `limits-rules.spec.ts`의 `SWITCHABLE`이 분류 태그를 소스에서 읽는다.
  */
 describe('내보내는 읽기 함수가 전부 스위치를 거친다', () => {
-  const SOURCE = readFileSync(join(process.cwd(), 'src', 'limits-switch.ts'), 'utf-8')
+  /**
+   * **주석을 걷고 본다** (2026-09-01 감사 B-3). 날것으로 읽던 때는 `open(`이 **주석에만**
+   * 있어도 통과했다 — `tests/fixtures/source.ts`가 존재하는 이유가 정확히 그 함정이다.
+   */
+  const SOURCE = withoutComments(
+    readFileSync(join(process.cwd(), 'src', 'limits-switch.ts'), 'utf-8'),
+  ).join('\n')
 
-  /** 인자 없이 수를 돌려주는 것들. 상한을 읽어 내보내는 자리가 그 모양이다. */
-  const readers = [...SOURCE.matchAll(/export function (\w+)\(\)\s*:\s*number\s*\{([^}]*)\}/g)].map(
-    (match) => ({ name: match[1] ?? '', body: match[2] ?? '' }),
-  )
+  /**
+   * **상한을 읽어 내보내는 함수들.** 판별자는 인자 수가 아니라 **본문이 `limits.ts`의
+   * 상수를 읽는가**다.
+   *
+   * **인자 수로 가르던 것을 바꿨다** (2026-09-01 감사 B-3). `\(\)`만 보던 때는
+   * `maxDatasetRowsFor(scale: number)` 같은 여덟째가 아예 안 보였다. 그렇다고 인자를
+   * 받는 것을 다 넣으면 `pageSizeOf(limit, total)`이 걸리는데, **저건 상한을 받는
+   * 함수이지 읽는 함수가 아니다** — 스위치를 거칠 것이 없다.
+   */
+  const readers = [...SOURCE.matchAll(/export function (\w+)\([^)]*\)\s*:\s*number\s*\{([^}]*)\}/g)]
+    .map((match) => ({ name: match[1] ?? '', body: match[2] ?? '' }))
+    .filter((one) => /\b[A-Z][A-Z0-9_]{3,}\b/.test(one.body))
 
   it('뽑을 것을 실제로 찾는다', () => {
     // 0개면 정규식이 썩은 것이지 규칙이 지켜진 게 아니다.

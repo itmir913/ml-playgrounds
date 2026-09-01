@@ -18,6 +18,10 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { applyLimitsOff, maxPortfolioBytes } from '../src/limits-switch'
 import SizeMeter from '../src/views/portfolio/SizeMeter.vue'
 import { i18n, setLocale } from '../src/i18n'
 
@@ -94,5 +98,35 @@ describe('상한이 없으면 상한을 말하지 않는다', () => {
     const bar = barOf(open())
     expect(bar.attributes('style')).toContain('width: 0%')
     expect(bar.classes()).not.toContain('bg-danger')
+  })
+})
+
+/**
+ * **부품과 화면을 잇는 줄** (2026-09-01 감사 B-3).
+ *
+ * 위 검사들은 프롭을 **손으로** 넣는다. 그래서 화면이 `:used`와 `:limit`을 **뒤바꿔
+ * 넘겨도** 226개가 초록이었다 — 상한을 끈 상태에서 그 뒤바뀜은 화면에
+ * `포트폴리오 InfinityMB / 0.3MB`를 띄운다.
+ *
+ * `limits-switch.ts`가 *"`Infinity`가 그대로 안 통하는 자리 셋"*이라 적었고, 페이지 크기
+ * 둘은 `limits-rules.spec.ts`가 소스로 문다. **눈금 하나만 그 이음매가 비어 있었다.**
+ */
+describe('화면이 넘기는 것이 상한이다', () => {
+  it('`PortfolioView`가 눈금의 상한으로 스위치를 거친 값을 넘긴다', () => {
+    const view = readFileSync(join(process.cwd(), 'src', 'views', 'PortfolioView.vue'), 'utf-8')
+    expect(view).toMatch(/<SizeMeter[^>]*:limit="maxPortfolioBytes\(\)"/s)
+    expect(view).toMatch(/<SizeMeter[^>]*:used="usedBytes"/s)
+  })
+
+  /** **진짜 입구로 한 번 지나간다** — 손으로 만든 `Infinity`가 아니라 스위치가 낸 값이다. */
+  it('스위치를 켜면 눈금이 상한을 말하지 않는다', () => {
+    applyLimitsOff(true)
+    try {
+      const view = render(0.3 * MB, maxPortfolioBytes())
+      expect(view.text()).not.toContain('Infinity')
+      expect(view.text()).toContain('0.3')
+    } finally {
+      applyLimitsOff(false)
+    }
   })
 })

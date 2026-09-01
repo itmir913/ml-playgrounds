@@ -670,19 +670,31 @@ describe('끌 수 있는 상한은 스위치를 거친다', () => {
    * 위 `산점도 상한이 화면까지 이어진다`와 같은 모양이다.
    */
   it('판 크기를 `pageSizeOf`로 감싼다', () => {
-    const callers = sourceFiles(SRC).filter((path) =>
-      /\b(?:predictPageSize|imagePredictPageSize)\s*\(/.test(
-        withoutComments(readFileSync(path, 'utf-8')).join('\n'),
-      ),
+    // **정의한 파일은 부르는 쪽이 아니다** (산점도 규칙과 같은 판단).
+    const callers = sourceFiles(SRC).filter(
+      (path) =>
+        path !== SWITCH &&
+        /\b(?:predictPageSize|imagePredictPageSize)\s*\(/.test(
+          withoutComments(readFileSync(path, 'utf-8')).join('\n'),
+        ),
     )
     // 0개면 이름이 바뀐 것이지 규칙이 지켜진 게 아니다.
     expect(callers.length).toBeGreaterThanOrEqual(2)
 
-    const unwrapped = callers
-      .filter(
-        (path) => !withoutComments(readFileSync(path, 'utf-8')).join('\n').includes('pageSizeOf('),
-      )
-      .map((path) => path.slice(SRC.length + 1))
+    /**
+     * **창으로 본다** (2026-09-01 감사 C-1). 파일에 `pageSizeOf(`가 **어딘가** 있으면
+     * 통과하던 때는, 감싼 호출 옆에 **감싸지 않은 호출을 하나 더** 넣어도 초록이었다.
+     * `windowedHits`가 이 저장소의 창 훑기이고 규칙 열몇이 이미 그것을 쓴다.
+     */
+    const unwrapped = callers.flatMap((path) =>
+      windowedHits(
+        (text) =>
+          /\b(?:predictPageSize|imagePredictPageSize)\s*\(/.test(text) &&
+          !text.includes('pageSizeOf('),
+        readFileSync(path, 'utf-8'),
+        path.slice(SRC.length + 1),
+      ),
+    )
     expect(unwrapped, 'wrap it with pageSizeOf - Infinity leaks into slice()').toEqual([])
   })
 
@@ -712,16 +724,34 @@ describe('끌 수 있는 상한은 스위치를 거친다', () => {
  * **그래서 임포트를 따라간다.** `src/` 안의 상대·별칭 임포트를 한 겹씩 넓혀 가며 훑는다.
  */
 describe('워커는 스위치를 안 문다', () => {
-  const WORKERS = [
-    'ml/worker/train.worker.ts',
-    'ml/embed/embed.worker.ts',
-    'data/image/canonicalize.worker.ts',
-  ]
+  /**
+   * **목록을 손으로 적지 않는다** (2026-09-01 감사 B-2). 손 목록이던 때는 **새
+   * `*.worker.ts`를 만들어 스위치를 들여와도** 아무것도 안 울었다.
+   */
+  const WORKERS = sourceFiles(SRC)
+    .filter((path) => path.endsWith('.worker.ts'))
+    .map((path) =>
+      path
+        .slice(SRC.length + 1)
+        .split('\\')
+        .join('/'),
+    )
 
-  /** 이 파일이 직접 들여오는 `src/` 안의 모듈들. 밖(라이브러리)은 이름 그대로 돌려준다. */
+  /**
+   * 이 파일이 직접 들여오는 `src/` 안의 모듈들. 밖(라이브러리)은 이름 그대로 돌려준다.
+   *
+   * **세 모양을 다 본다** (2026-09-01 감사 B-2). `from '…'`만 보던 때는 **부작용
+   * 임포트**(`import '…'`)와 **동적 `import(…)`**로 샜다. 부작용 임포트는 실제로 번들에
+   * 들어간다 — `limits-switch.ts`가 모듈 꼭대기에서 `ref()`를 만들어 부작용이 있으므로
+   * 흔들어 떨 수 없다.
+   */
   function importsOf(path: string): string[] {
     const source = withoutComments(readFileSync(path, 'utf-8')).join(String.fromCharCode(10))
-    return [...source.matchAll(/from\s*['"]([^'"]+)['"]/g)].map((match) => match[1] ?? '')
+    return [
+      ...source.matchAll(/from\s*['"]([^'"]+)['"]/g),
+      ...source.matchAll(/import\s+['"]([^'"]+)['"]/g),
+      ...source.matchAll(/import\s*\(\s*['"]([^'"]+)['"]/g),
+    ].map((match) => match[1] ?? '')
   }
 
   function resolve(specifier: string, from: string): string | null {
@@ -752,7 +782,12 @@ describe('워커는 스위치를 안 문다', () => {
         if (seen.has(current)) continue
         seen.add(current)
         for (const specifier of importsOf(current)) {
-          if (specifier === 'vue' || specifier === 'idb') {
+          /**
+           * **바깥 이름을 넓게 본다** (2026-09-01 감사 B-2). `vue`와 `idb` 두 글자만
+           * 보던 때는 `@vue/reactivity`를 직접 들여와도 안 울었다 — 그 이름이 바로
+           * `limits-switch.ts`의 머리글이 걱정한 것이다.
+           */
+          if (/^(?:vue$|@vue\/|idb$|pinia$|vue-i18n$)/.test(specifier)) {
             reached.push(`${worker} -> ${current.slice(SRC.length + 1)} -> ${specifier}`)
             continue
           }
@@ -781,9 +816,18 @@ describe('앱이 뜰 때 되살린다', () => {
     String.fromCharCode(10),
   )
 
-  it('저장된 것을 읽는 셋을 전부 부른다', () => {
-    for (const call of ['initLocale()', 'initTheme()', 'initLimitsOff()']) {
-      expect(MAIN, `main.ts must call ${call}`).toContain(call)
+  /**
+   * **함수 안에 숨어 있으면 안 부르는 것이다** (2026-09-01 감사 C-2). 글자만 보던 때는
+   * `export const restoreLimits = () => { void initLimitsOff() }`처럼 **아무도 안 부르는
+   * 함수**로 감싸도 통과했다 — 이 저장소가 이미 이름 붙인 병이고(`toContain`은 자리를
+   * 안 본다), 그러면 학생의 선택이 새로 고칠 때마다 사라진다.
+   *
+   * **모듈 꼭대기에서 불리는가**를 본다: 그 줄이 들여쓰기 없이 시작해야 한다.
+   */
+  it('저장된 것을 읽는 셋을 모듈 꼭대기에서 부른다', () => {
+    for (const call of ['initLocale', 'initTheme', 'initLimitsOff']) {
+      const atTopLevel = new RegExp(`^(?:void )?${call}\\(\\)`, 'm')
+      expect(atTopLevel.test(MAIN), `main.ts must call ${call}() at module top level`).toBe(true)
     }
   })
 })
