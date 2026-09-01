@@ -369,23 +369,39 @@ onMounted(refresh)
 
       **첫 화면에만 둔다.** 작업 중에 상시 보이면 셸이 넷을 넘는다
       (`architecture.md` §8.6). 아래에 붙이므로 가운데 정렬을 흔들지 않는다.
+
+      **휴대폰에서 링크로 안 보였다** (2026-09-01, 코드 소유자). 표시가 `hover:underline`
+      하나뿐이었는데 **휴대폰에는 hover가 없다** — 그러면 셋은 화면 아래 떠 있는 흐린
+      글자일 뿐이고, 누를 수 있다는 것을 아무것도 말하지 않는다. **이 저장소가 이미
+      진단해 둔 병이다**: `AppButton`의 ghost가 *"면도 테두리도 없어서 가만히 있을 때는
+      버튼인 줄 모르고, hover로는 못 알린다"*는 이유로 **상시 밑줄**을 얻었다. 여기만
+      그 규칙 밖에 있었다.
+
+      **그래서 ghost의 처방을 그대로 쓴다** — 실선 1px, `underline-offset-4`. 실선인
+      것에도 뜻이 있다: 점선 밑줄은 눌러도 설명만 펼쳐지는 것의 표기다(`TermPopover`).
+
+      **안쪽 여백은 누를 자리를 만드는 것이다.** 맨 글자는 손가락에 24px짜리 과녁인데
+      이 셋은 휴대폰에서 만나는 자리다.
+
+      **좁을 때는 쌓는다.** 셋을 한 줄에 늘어놓으면 375px에서 2+1로 접혀 마지막 하나가
+      혼자 남는다 — 접힌 자리가 뜻을 갖지 않으면 그냥 흐트러진 것으로 보인다.
     -->
     <footer
       v-if="ready"
-      class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 pt-8 text-ink-faint"
+      class="mt-8 flex flex-col items-center gap-1 border-t border-line pt-4 text-ink-faint sm:flex-row sm:justify-center sm:gap-2"
     >
       <a
         :href="privacyHref"
         target="_blank"
         rel="noopener noreferrer"
-        class="rounded-control transition-colors hover:text-ink-soft hover:underline"
+        class="rounded-control px-3 py-2 underline decoration-1 underline-offset-4 transition-colors hover:bg-surface-sunken hover:text-ink-soft"
         >{{ t('legal.privacy') }}</a
       >
       <a
         :href="NOTICES_PATH"
         target="_blank"
         rel="noopener noreferrer"
-        class="rounded-control transition-colors hover:text-ink-soft hover:underline"
+        class="rounded-control px-3 py-2 underline decoration-1 underline-offset-4 transition-colors hover:bg-surface-sunken hover:text-ink-soft"
         >{{ t('legal.notices') }}</a
       >
       <!--
@@ -401,7 +417,7 @@ onMounted(refresh)
         :href="REPOSITORY_URL"
         target="_blank"
         rel="noopener noreferrer"
-        class="rounded-control transition-colors hover:text-ink-soft hover:underline"
+        class="rounded-control px-3 py-2 underline decoration-1 underline-offset-4 transition-colors hover:bg-surface-sunken hover:text-ink-soft"
         >{{ t('legal.source') }}</a
       >
     </footer>
