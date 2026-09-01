@@ -28,9 +28,15 @@ async function panelText(off: boolean): Promise<string> {
   applyLimitsOff(off)
   document.body.innerHTML = ''
   const view = mount(AppStatusBar, { global: { plugins: [i18n] }, attachTo: document.body })
+  /**
+   * **이름으로 찾되 두 이름을 다 받는다** (2026-09-01 감사 B-4). 해제 상태의 접근 가능한
+   * 이름에 **상태가 들어갔기 때문이다** — `aria-label`이 안의 글자를 덮어쓰므로, 그 이름이
+   * 상태를 안 말하면 보조기술 사용자는 해제된 것을 모른다.
+   */
+  const names = [i18n.global.t('shell.limits'), i18n.global.t('shell.limitsOpenName')]
   const trigger = view
     .findAll('button')
-    .find((one) => one.attributes('aria-label') === i18n.global.t('shell.limits'))
+    .find((one) => names.includes(one.attributes('aria-label') ?? ''))
   expect(trigger, 'the limits trigger must exist').toBeDefined()
   await trigger!.trigger('click')
   const panel = document.querySelector('.popover-panel')
@@ -76,5 +82,35 @@ describe('상한 팝오버는 상태마다 다른 말을 한다', () => {
    */
   it('두 상태의 글이 서로 다르다', async () => {
     expect(await panelText(false)).not.toBe(await panelText(true))
+  })
+})
+
+/**
+ * **해제 상태가 보조기술에도 간다** (2026-09-01 감사 B-4).
+ *
+ * `aria-label`은 **안의 글자를 덮어쓴다.** 그래서 `이 기기의 상한` 하나만 달아 두었을
+ * 때는 화면에 `상한 해제됨`이 보이는데도 **스크린 리더는 그 상태를 한 번도 말하지
+ * 않았다.** 색과 글자로만 말하는 셈이라, 그 글자를 붙인 근거(§8.18)와 정면으로 어긋났다.
+ */
+describe('상한 칩의 이름이 상태를 말한다', () => {
+  async function triggerLabel(off: boolean): Promise<string> {
+    applyLimitsOff(off)
+    document.body.innerHTML = ''
+    const view = mount(AppStatusBar, { global: { plugins: [i18n] }, attachTo: document.body })
+    const names = [i18n.global.t('shell.limits'), i18n.global.t('shell.limitsOpenName')]
+    const trigger = view
+      .findAll('button')
+      .find((one) => names.includes(one.attributes('aria-label') ?? ''))
+    return trigger?.attributes('aria-label') ?? ''
+  }
+
+  it('켜기 전에는 무엇인지만 말한다', async () => {
+    expect(await triggerLabel(false)).toBe(i18n.global.t('shell.limits'))
+  })
+
+  it('켠 뒤에는 이름이 해제됐다고 말한다', async () => {
+    const label = await triggerLabel(true)
+    expect(label).toBe(i18n.global.t('shell.limitsOpenName'))
+    expect(label).not.toBe(i18n.global.t('shell.limits'))
   })
 })

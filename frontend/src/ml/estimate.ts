@@ -147,6 +147,20 @@ export function baselineMs(input: EstimateInput): number | null {
   return rows * columns * handleFactor(input.algorithm, input.hyperparameters)
 }
 
+/**
+ * 이 종류에 **예상이 나오기는 하는가.** 등록부에 기준표가 하나라도 있으면 참이다.
+ *
+ * **화면이 종류를 비교하지 않게 하려고 있다** (`architecture.md` §9.1). 사진 기준표
+ * 여덟이 전부 비어 있어 사진 프로젝트의 예상 칸은 **모든 줄에서 `알 수 없음`**인데,
+ * 그 사실을 화면이 `dataType === 'image'`로 알면 **기준표를 채우는 날 그 화면도 함께
+ * 고쳐야 한다** — 그리고 빠뜨린 것은 컴파일도 검사도 못 잡는다.
+ *
+ * **여기 물으면 실측이 들어오는 순간 문구가 저절로 바뀐다.**
+ */
+export function hasEstimates(dataType: DataType, algorithms = ALGORITHMS): boolean {
+  return algorithms.some((entry) => entry.baseline[dataType].ms.length > 0)
+}
+
 /** 이 기기에서 몇 ms 걸릴 일인가. `factor`는 `ml/calibration.ts`가 잰 배수다. */
 export function estimateMs(input: EstimateInput, factor: number): number | null {
   const baseline = baselineMs(input)

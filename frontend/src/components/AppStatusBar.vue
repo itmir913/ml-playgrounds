@@ -43,6 +43,7 @@ import { needsSizeWarning } from '@/project/file-size'
 import { PROJECT_FILE_WARN_BYTES } from '@/limits'
 import { useFormat } from '@/composables/useFormat'
 import { ACTION_ICONS } from '@/icons'
+import { hasEstimates } from '@/ml/estimate'
 import { setLocale, SUPPORTED_LOCALES, type Locale } from '@/i18n'
 import { limitsOff, setLimitsOff } from '@/limits-switch'
 import { totalBytes } from '@/project/storage'
@@ -148,6 +149,26 @@ const themeLabel = computed(() =>
 const limitsLabel = computed(() =>
   limitsOff.value ? t('shell.limitsReleased') : t('shell.limitsApplied'),
 )
+
+/**
+ * **사진 프로젝트에는 예상 시간이 없다** (2026-09-01 감사 B-5).
+ *
+ * 등록부의 이미지 기준표 여덟이 전부 비어 있어(`UNMEASURED_BASELINE`) 학습 화면의 그
+ * 칸은 **모든 줄에서 `알 수 없음`**이다. 그런데 팝오버는 *"학습 화면의 예상 시간이 말해
+ * 줍니다"*라고 안내했다 — **상한을 푸는 전형이 사진 학생**이고, 등록부 주석이 사진
+ * 1,000장에 521.7초라고 적는 그 자리다.
+ *
+ * **종류로 문구를 가른다** (`docs/i18n.md`의 종류별 키). 프로젝트가 없으면 표 쪽 문장이
+ * 맞다 — 그때는 아직 무엇을 학습할지도 안 정해졌다.
+ */
+const estimateKey = computed(() => {
+  const dataType = project.file?.document.manifest.dataType
+  // **화면이 종류를 비교하지 않는다** (`architecture.md` §9.1). 등록부에 묻는다 —
+  // 기준표가 채워지는 날 이 문구가 저절로 바뀐다.
+  return dataType === undefined || hasEstimates(dataType)
+    ? 'shell.limitsEstimate'
+    : 'shell.limitsEstimateImage'
+})
 </script>
 
 <template>
@@ -254,7 +275,7 @@ const limitsLabel = computed(() =>
         <button
           type="button"
           :aria-expanded="open"
-          :aria-label="t('shell.limits')"
+          :aria-label="limitsOff ? t('shell.limitsOpenName') : t('shell.limits')"
           :title="limitsLabel"
           class="flex items-center gap-1 rounded-control p-1 transition-colors hover:bg-surface-sunken hover:text-ink"
           :class="limitsOff ? 'text-caution' : ''"
@@ -278,8 +299,20 @@ const limitsLabel = computed(() =>
             단추의 이름(`limitsRelease`)을 그대로 썼는데, 그건 **누르면 일어날 일**의
             이름이다 — 줄에 붙는 것은 **지금 어떤 상태인가**여야 한다. 영어에서 더 나빴다:
             상태 표시 자리에 `Turn limits off`라는 **명령문**이 떠 있었다.
+
+            **`md` 미만에서는 글자를 접는다** (2026-09-01 감사 B-6). 375px에서 이 글자가
+            내보내기 상태의 폭을 **194px에서 106px로** 깎는데, §8.8이 *"내보내기 상태는
+            어떤 폭에서도 살아남는다"*고 못 박았다. 이 줄의 다른 곁가지도 전부 그 폭에서
+            사라진다(`facts` 스팬 · `ExportButton` · `ProjectStatus`).
+
+            **그 폭에서 색만 남는 것은 아니다** — 위 `aria-label`이 상태를 이름에 담고,
+            팝오버가 문장으로 말한다. 그래도 **시각적으로는 색이 유일한 신호**이므로,
+            좁은 화면에서 이 상태를 더 크게 알려야 한다면 그건 이 줄이 아니라 학습 화면이
+            할 일이다.
           -->
-          <span v-if="limitsOff" class="leading-none">{{ t('shell.limitsOff') }}</span>
+          <span v-if="limitsOff" class="leading-none max-md:hidden">{{
+            t('shell.limitsOff')
+          }}</span>
         </button>
       </template>
 
@@ -296,7 +329,7 @@ const limitsLabel = computed(() =>
         {{ limitsOff ? t('shell.limitsRiskOn') : t('shell.limitsWhy') }}
       </p>
       <p class="mt-1 leading-relaxed text-ink-soft">
-        {{ limitsOff ? t('shell.limitsEstimate') : t('shell.limitsRisk') }}
+        {{ limitsOff ? t(estimateKey) : t('shell.limitsRisk') }}
       </p>
       <p class="mt-1 leading-relaxed text-ink-faint">{{ t('shell.limitsDevice') }}</p>
 

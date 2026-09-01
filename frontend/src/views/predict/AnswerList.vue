@@ -382,11 +382,16 @@ function bars(model: PredictableModel): ProbabilityBar[] {
                   **점선 밑줄은 이 앱에서 이미 "눌러도 아무 일이 안 일어나고 설명만
                   펼쳐진다"는 뜻이다** (`AppButton` 주석의 표기 규칙). 실선은 실제로
                   무언가를 하는 것(ghost 버튼)이라 둘이 안 헷갈린다.
+
+                  **이름에 답을 넣는다** (2026-09-01 감사 B-4). `aria-label`은 안의 글자를
+                  **덮어쓴다** — 그래서 보조기술 사용자에게는 이 카드에서 학생이 보러 온
+                  그 한 낱말이 **아예 안 들렸다.** 바로 위 주석이 *"답은 크게 쓴다. 이
+                  화면에서 학생이 보러 온 것이 이 한 낱말이다"*라고 적어 둔 자리다.
                 -->
                 <button
                   type="button"
                   :aria-expanded="open"
-                  :aria-label="t('predict.clusterEvidenceOpen')"
+                  :aria-label="t('predict.clusterEvidenceOpen', { answer: cardAnswer(model) })"
                   class="rounded-control text-xl font-bold tabular-nums text-brand-strong underline decoration-dotted decoration-1 underline-offset-4 transition-colors hover:text-brand"
                 >
                   {{ cardAnswer(model) }}

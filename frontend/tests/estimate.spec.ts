@@ -16,7 +16,7 @@ import { describe as group, expect, it } from 'vitest'
 import { BASELINE_COLUMNS, MLJS_DECISION_TREE_BASELINE_MS } from '../src/limits'
 import { ALGORITHMS } from '../src/ml/algorithms'
 import { summarizeColumns } from '../src/data/columns'
-import { baselineMs, describe, estimateMs, interpolate } from '../src/ml/estimate'
+import { baselineMs, describe, estimateMs, hasEstimates, interpolate } from '../src/ml/estimate'
 import { estimatedFeatureWidth, fitPreprocessor } from '../src/ml/preprocess'
 
 /** 손잡이를 안 건드린 기본 상태. 기준표를 잰 모양 그대로다. */
@@ -235,5 +235,36 @@ group('K-평균의 군집 수', () => {
   it('특성 수에도 붙는다 - 거리 계산이 특성마다 돈다', () => {
     const wide = baselineMs(input('k_means', 20_000, 32)) ?? 0
     expect(wide).toBeCloseTo(withClusters(3) * 4, 6)
+  })
+})
+
+/**
+ * **이 종류에 예상이 나오기는 하는가** (2026-09-01 감사 B-5).
+ *
+ * 상한 팝오버가 *"학습 화면의 예상 시간이 말해 줍니다"*라고 안내하는데, **사진에서는
+ * 모든 줄이 `알 수 없음`**이다 — 등록부의 이미지 기준표 여덟이 전부 비어 있다. 화면이
+ * 그 사실을 `dataType === 'image'`로 알면 **기준표를 채우는 날 그 화면도 함께 고쳐야
+ * 하고**, 빠뜨린 것은 컴파일도 검사도 못 잡는다 (`architecture.md` §9.1).
+ */
+group('예상이 나오는 종류인가', () => {
+  it('표는 기준표가 있어 예상이 나온다', () => {
+    expect(hasEstimates('tabular')).toBe(true)
+  })
+
+  it('사진은 아직 안 나온다 - 등록부가 비어 있다', () => {
+    expect(hasEstimates('image')).toBe(false)
+  })
+
+  /**
+   * **기준표가 들어오면 저절로 바뀐다.** 이 검사가 지키는 것이 그 성질이다 — 값이 아니라
+   * **등록부를 보고 답한다**는 것.
+   */
+  it('그 칸이 채워지면 참이 된다', () => {
+    const filled = ALGORITHMS.map((entry) =>
+      entry.id === 'naive_bayes'
+        ? { ...entry, baseline: { ...entry.baseline, image: { ms: [[100, 5]], columns: 'flat' } } }
+        : entry,
+    ) as typeof ALGORITHMS
+    expect(hasEstimates('image', filled)).toBe(true)
   })
 })
