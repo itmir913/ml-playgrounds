@@ -22,12 +22,24 @@ const PREDICT_RATIO = 0.2
 
 /**
  * **한 점이 이보다 오래 걸리면 그 사다리를 멈춘다.** 상한까지 다 재려다 랜덤포레스트
- * 하나에 7분을 태울 이유가 없다 — 표는 보간용이고, 큰 쪽은 기울기로 잇는다.
+ * 하나에 7분을 태울 이유가 없다 — 기준표는 보간용이고, 큰 쪽은 기울기로 잇는다.
+ *
+ * **상한을 재는 사다리는 이 천장을 안 쓴다** (`FAILURE_CEILING_MS`). 거기서는 오래
+ * 걸리는 것이 답의 일부다.
  */
 export const CEILING_MS = 20_000
 
 /** **다음 점이 이보다 오래 걸릴 것 같으면 아예 시작하지 않는다.** 마지막 점의 증가율로 본다. */
 export const PROJECTION_MS = 60_000
+
+/**
+ * **상한을 재는 사다리의 천장.** 폭주만 막는다 — **앱의 상한이 아니다**
+ * (`open-decisions.md` "그러면 상한은 시간으로 정하는 것이 아니다").
+ *
+ * 여기서 찾는 것은 **반드시 실패하는 지점**(메모리 부족·탭이 죽는 곳)이고, 느린 것은
+ * 상한이 아니라 예상 시간이 말할 몫이다. 그래서 한 시간까지 기다린다.
+ */
+export const FAILURE_CEILING_MS = 60 * 60 * 1000
 
 export interface Job {
   readonly algorithm: string
@@ -127,6 +139,14 @@ export interface Ladder {
    * 이미 갈려 있어 즉시 수렴한다(위 `uniformData`).
    */
   readonly run?: (point: number) => number
+  /**
+   * **상한을 찾는 사다리인가.** 기준표를 만드는 사다리와 목적이 다르다.
+   *
+   * - 20초 천장을 안 쓴다. **오래 걸리는 것이 답의 일부다**(`FAILURE_CEILING_MS`).
+   * - [전부 훑기]에 안 들어간다. 몇 시간짜리라 따로 돌린다.
+   * - 던지면 그 자리가 답이다 — 메모리 부족이 그렇게 온다.
+   */
+  readonly findsLimit?: true
 }
 
 /**
@@ -335,6 +355,54 @@ export const LADDERS: readonly Ladder[] = [
     }),
   },
 ]
+
+/**
+ * **상한을 찾는 사다리 넷.** 지금 상한에서 시작해 데이터셋 천장(10만 행)까지 민다
+ * (`open-decisions.md` "그러면 상한은 시간으로 정하는 것이 아니다").
+ *
+ * **넷뿐인 이유**는 나머지 넷이 이미 `MAX_DATASET_ROWS`에 붙어 있어서다 — 그 위는
+ * 이 앱이 데이터로 받지도 않는다.
+ *
+ * **찾는 것은 느린 지점이 아니라 깨지는 지점이다.** SVM은 N×N 커널이라 메모리에서
+ * 먼저 죽을 것이고, 그게 상한이다. 나머지는 오래 걸릴 뿐일 수 있는데 **그건 상한이
+ * 아니다** — 예상 시간이 말하고 학생이 정한다.
+ */
+const LIMIT_LADDERS: readonly Ladder[] = [
+  {
+    id: 'limit_svm',
+    label: '상한 찾기 · SVM (지금 3,000)',
+    axis: 'rows',
+    points: [3000, 5000, 8000, 12_000, 20_000],
+    job: (rows) => ({ algorithm: 'svm', rows }),
+    findsLimit: true,
+  },
+  {
+    id: 'limit_random_forest',
+    label: '상한 찾기 · 랜덤 포레스트 (지금 5,000)',
+    axis: 'rows',
+    points: [5000, 10_000, 20_000, 50_000, 100_000],
+    job: (rows) => ({ algorithm: 'random_forest', rows }),
+    findsLimit: true,
+  },
+  {
+    id: 'limit_knn',
+    label: '상한 찾기 · KNN (지금 10,000)',
+    axis: 'rows',
+    points: [10_000, 20_000, 50_000, 100_000],
+    job: (rows) => ({ algorithm: 'knn', rows }),
+    findsLimit: true,
+  },
+  {
+    id: 'limit_decision_tree',
+    label: '상한 찾기 · 의사결정트리 (지금 20,000)',
+    axis: 'rows',
+    points: [20_000, 50_000, 100_000],
+    job: (rows) => ({ algorithm: 'decision_tree', rows }),
+    findsLimit: true,
+  },
+]
+
+export const ALL_LADDERS: readonly Ladder[] = [...LADDERS, ...LIMIT_LADDERS]
 
 /**
  * **교정 일감은 앱의 정의를 그대로 쓴다.**

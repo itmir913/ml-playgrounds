@@ -19,7 +19,16 @@
  * 학생에게 나가는 화면이고, 이 페이지는 코드 소유자만 연다.
  */
 
-import { CALIBRATION, CEILING_MS, LADDERS, PROJECTION_MS, measure, type Ladder } from './workloads'
+import {
+  ALL_LADDERS,
+  CALIBRATION,
+  CEILING_MS,
+  FAILURE_CEILING_MS,
+  LADDERS,
+  PROJECTION_MS,
+  measure,
+  type Ladder,
+} from './workloads'
 
 /** 이 기기가 스스로 말해 주는 것 전부. **이름은 없다 — 성질만 있다.** */
 function device(): Record<string, unknown> {
@@ -42,7 +51,9 @@ app.innerHTML = `
     <p><b>개발자 도구를 닫고, 돌리는 동안 이 탭을 그대로 두세요.</b> 개발자 도구가 열려 있으면 JIT가 꺼져 열 배 넘게 느려지고, 다른 탭으로 가면 브라우저가 계산을 늦춥니다.</p>
     <p id="controls"></p>
     <p><button id="all" style="font-size: 16px; padding: 8px 16px;">전부 훑기</button>
+       <button id="limits" style="font-size: 16px; padding: 8px 16px;">상한 찾기 (몇 시간)</button>
        <button id="calibrate" style="font-size: 16px; padding: 8px 16px;">교정 일감만</button></p>
+    <p style="color: #666;">[상한 찾기]는 <b>깨지는 지점을 찾는 것</b>이라 탭이 죽을 수 있습니다. 점을 하나 잴 때마다 저장하므로, 죽었으면 이 페이지를 다시 열어 아래 상자를 확인하세요.</p>
     <p id="status"></p>
     <table id="result" style="border-collapse: collapse; width: 100%;"></table>
     <h2 style="font-size: 18px;">붙여넣을 것</h2>
@@ -52,6 +63,7 @@ app.innerHTML = `
 
 const controls = document.getElementById('controls') as HTMLElement
 const allButton = document.getElementById('all') as HTMLButtonElement
+const limitsButton = document.getElementById('limits') as HTMLButtonElement
 const calibrateButton = document.getElementById('calibrate') as HTMLButtonElement
 const status = document.getElementById('status') as HTMLElement
 const table = document.getElementById('result') as HTMLElement
@@ -73,13 +85,46 @@ document.addEventListener('visibilitychange', () => {
 const measured: Record<string, Record<string, number>> = {}
 const calibration: Record<string, number[]> = {}
 const stopped: string[] = []
+/** 던진 자리. **여기가 곧 상한이다** — 메모리 부족이 이렇게 온다. */
+const failed: Record<string, string> = {}
+
+/**
+ * **점을 하나 잴 때마다 남기는 자리.**
+ *
+ * [상한 찾기]는 **탭이 죽는 것이 답인** 실측이라, 죽으면 잰 것이 통째로 사라지면 안 된다
+ * (`open-decisions.md` "그러면 상한은 시간으로 정하는 것이 아니다"). 페이지를 다시 열면
+ * 여기서 되살린다.
+ */
+const SAVE_KEY = 'ml-playgrounds:bench'
+
+/** 크로미움만 준다. 없으면 없는 대로 둔다 — 지어내지 않는다. */
+function heapMb(): number | null {
+  const memory = (performance as { memory?: { usedJSHeapSize: number } }).memory
+  return memory ? Math.round(memory.usedJSHeapSize / 1_000_000) : null
+}
+
+function snapshot(): Record<string, unknown> {
+  return {
+    device: device(),
+    wentHidden,
+    ceilingMs: CEILING_MS,
+    failureCeilingMs: FAILURE_CEILING_MS,
+    heapMb: heapMb(),
+    stopped,
+    failed,
+    measured,
+    calibration,
+  }
+}
 
 function publish(): void {
-  json.value = JSON.stringify(
-    { device: device(), wentHidden, ceilingMs: CEILING_MS, stopped, measured, calibration },
-    null,
-    2,
-  )
+  const text = JSON.stringify(snapshot(), null, 2)
+  json.value = text
+  try {
+    window.localStorage.setItem(SAVE_KEY, text)
+  } catch {
+    // 저장에 실패해도 상자에는 있다. 탭이 죽었을 때만 잃는다.
+  }
 }
 
 function addRow(label: string, point: string, elapsed: number): void {
@@ -96,9 +141,11 @@ async function runLadder(ladder: Ladder): Promise<void> {
   const results: Record<string, number> = {}
   measured[ladder.id] = results
   let previous: { point: number; elapsed: number } | null = null
+  // 상한을 찾는 사다리는 오래 걸리는 것이 답의 일부라 20초에서 안 멈춘다.
+  const ceiling = ladder.findsLimit ? FAILURE_CEILING_MS : CEILING_MS
 
   for (const point of ladder.points) {
-    if (previous !== null) {
+    if (previous !== null && !ladder.findsLimit) {
       // **다음 점을 시작하기 전에 얼마나 걸릴지 어림한다.** 마지막 두 점의 증가율을 쓰고,
       // 첫 점 뒤에는 아직 기울기를 모르니 마지막 값만 본다.
       const growth = point / previous.point
@@ -108,10 +155,28 @@ async function runLadder(ladder: Ladder): Promise<void> {
         break
       }
     }
+    if (previous !== null && ladder.findsLimit && previous.elapsed > ceiling) {
+      stopped.push(`${ladder.id}@${point}`)
+      break
+    }
 
     status.textContent = `${ladder.label} — ${ladder.axis} ${point.toLocaleString()}`
     await breathe()
-    const elapsed = ladder.run ? ladder.run(point) : measure(ladder.job(point))
+
+    /**
+     * **던지는 것이 답인 사다리가 있다.** 메모리가 모자라면 여기서 오고, 그 자리가 곧
+     * 상한이다. 삼키지 않고 **적고 멈춘다** — 그 위를 더 재 봐야 같은 실패다.
+     */
+    let elapsed: number
+    try {
+      elapsed = ladder.run ? ladder.run(point) : measure(ladder.job(point))
+    } catch (error) {
+      failed[`${ladder.id}@${point}`] = String(error)
+      addRow(ladder.label, point.toLocaleString(), -1)
+      publish()
+      break
+    }
+
     results[String(point)] = elapsed
     previous = { point, elapsed }
     addRow(ladder.label, point.toLocaleString(), elapsed)
@@ -134,6 +199,7 @@ async function runCalibration(): Promise<void> {
 
 function busy(disabled: boolean): void {
   allButton.disabled = disabled
+  limitsButton.disabled = disabled
   calibrateButton.disabled = disabled
   for (const node of controls.querySelectorAll('button')) node.disabled = disabled
 }
@@ -151,7 +217,7 @@ function start(work: () => Promise<void>): void {
   })()
 }
 
-for (const ladder of LADDERS) {
+for (const ladder of ALL_LADDERS) {
   const button = document.createElement('button')
   button.textContent = ladder.label
   button.style.cssText = 'font-size: 14px; padding: 6px 10px; margin: 0 6px 6px 0;'
@@ -159,10 +225,17 @@ for (const ladder of LADDERS) {
   controls.append(button)
 }
 
+// **[전부 훑기]에 상한 사다리는 안 들어간다.** 몇 시간짜리라 따로 돌린다.
 allButton.addEventListener('click', () =>
   start(async () => {
     for (const ladder of LADDERS) await runLadder(ladder)
     await runCalibration()
+  }),
+)
+
+limitsButton.addEventListener('click', () =>
+  start(async () => {
+    for (const ladder of ALL_LADDERS.filter((one) => one.findsLimit)) await runLadder(ladder)
   }),
 )
 
