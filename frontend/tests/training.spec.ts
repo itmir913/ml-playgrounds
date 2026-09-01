@@ -12,7 +12,7 @@
  * 진짜 Worker는 안 띄운다 (tests/worker.spec.ts와 같은 이유다).
  */
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
 import { useTraining, type TrainingOptions } from '../src/composables/useTraining'
@@ -43,6 +43,11 @@ class FakeWorker implements TrainWorker {
 
   emit(message: WorkerMessage): void {
     this.onmessage?.({ data: message } as MessageEvent<WorkerMessage>)
+  }
+
+  /** 워커가 통째로 죽는 갈래. **`run()`이 던지는 길이라 `finally`가 도는지를 이걸로 본다.** */
+  fail(message: string): void {
+    this.onerror?.({ message } as ErrorEvent)
   }
 }
 
@@ -316,5 +321,98 @@ describe('끝나는 길', () => {
 
     await expect(done).rejects.toBeInstanceOf(ClientError)
     expect(training.running.value).toBe(false)
+  })
+})
+
+/**
+ * **경과 시계의 수명** (2026-09-01 R18 감사 B-1).
+ *
+ * 시계를 세운 커밋이 검사한 것은 순수 함수 `elapsedOf` 하나뿐이었고, **배관은 통째로
+ * 무검사였다** — `finally`의 `stopClock()`을 지워도, 자리 밖 가드를 지워도 12개가 전부
+ * 초록이었다(돌연변이 M1·M20).
+ *
+ * **그것이 왜 위험한가**: 다음 리팩터가 `finally`를 건드리면 학습이 끝나도 250ms 타이머가
+ * 영원히 돌고, 다음 학습에서 `ticking`이 덮여 **영영 못 끄는 interval이 쌓인다.**
+ * 아무것도 안 빨개진 채로.
+ */
+describe('경과 시계의 수명', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('학습이 끝나면 시계가 멈춘다', async () => {
+    const { training, latest } = harness()
+    const done = training.run(requestFor(1))
+    expect(vi.getTimerCount()).toBeGreaterThan(0)
+
+    latest()?.emit(DONE)
+    await done
+    expect(vi.getTimerCount(), 'the clock must stop when training ends').toBe(0)
+  })
+
+  /** **실패로 끝나도 멈춘다.** `finally`가 도는 것이 이 갈래의 전부다. */
+  it('학습이 실패해도 시계가 멈춘다', async () => {
+    const { training, latest } = harness()
+    const done = training.run(requestFor(1)).catch(() => null)
+    latest()?.fail('boom')
+    await done
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('도는 동안에는 시계가 흐른다', async () => {
+    const { training, latest } = harness()
+    const done = training.run(requestFor(1))
+    const before = training.now.value
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(training.now.value).toBeGreaterThan(before)
+
+    latest()?.emit(DONE)
+    await done
+  })
+
+  /**
+   * **두 번 돌려도 타이머가 둘이 되지 않는다.** 앞의 것을 안 끄고 또 켜면 그 순간부터
+   * 아무도 못 끄는 interval이 하나 생긴다.
+   */
+  it('연달아 두 번 돌려도 타이머가 하나뿐이다', async () => {
+    const { training, latest } = harness()
+    const first = training.run(requestFor(1))
+    latest()?.emit(DONE)
+    await first
+
+    const second = training.run(requestFor(1))
+    expect(vi.getTimerCount()).toBe(1)
+    latest()?.emit(DONE)
+    await second
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  /**
+   * **자리 밖 보고는 배열을 안 늘린다** (`ml/training-status.ts`의 `replaced`와 같은 규칙).
+   * 늘리면 **없는 모델에 시작 시각이 생기고**, 화면이 그 자리를 도는 줄로 읽는다.
+   */
+  it('자리 밖 시작 보고는 시작 시각 배열을 안 늘린다', async () => {
+    const { training, latest } = harness()
+    const done = training.run(requestFor(2))
+
+    latest()?.emit({ type: 'started', index: 9, algorithm: 'knn', runtime: 'mljs', total: 2 })
+    expect(training.startedAt.value).toHaveLength(2)
+    expect(training.startedAt.value).toEqual([null, null])
+
+    latest()?.emit(DONE)
+    await done
+  })
+
+  it('시작한 자리에만 시작 시각이 선다', async () => {
+    const { training, latest } = harness()
+    const done = training.run(requestFor(2))
+
+    latest()?.emit({ type: 'started', index: 1, algorithm: 'knn', runtime: 'mljs', total: 2 })
+    expect(training.startedAt.value[0]).toBeNull()
+    expect(training.startedAt.value[1]).toBeTypeOf('number')
+
+    latest()?.emit(DONE)
+    await done
+    // 끝나면 비운다 - 상태 목록과 같은 수명이다.
+    expect(training.startedAt.value).toEqual([])
   })
 })
