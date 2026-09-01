@@ -345,3 +345,90 @@ R14의 다섯 라운드가 **자기 사각**(못 읽었다·안 쟀다)을 정�
    그 방어선을 통째로 건너뛴다.
 
 **그래서 감사가 필요하고, 그래서 실제 수업 테스트가 아무것도 대체되지 않는다.**
+
+---
+
+## 검사가 없는 자리의 지도 (2026-09-02)
+
+위 표들이 *"이 규칙을 무엇이 지키는가"*의 답이라면, 여기는 그 **역**이다 — 어떤 검사도
+구조적으로 지키지 않는 판정·계산·상태 전이가 어디 있는가. 감사 요청서의 겨냥점과
+검사를 새로 세울 자리를 고를 때 이 절부터 본다.
+
+**어떻게 쟀는가.** 스펙 115개가 `src/`를 임포트하는 그래프를 기계로 세우고(직접 0인
+파일 86, **간접으로도 0인 파일 52**), 수출 심볼이 `tests/` 전문에 안 나오는 것을
+후보로 뽑은 뒤, 표본 여섯 자리에 돌연변이를 심어 전체 스위트(2,738개)로 실측했다.
+**심볼 스캔은 거짓 양성이 많다** — 래퍼·등록부·템플릿 경유 소비를 못 본다. 그래서
+아래의 "물림/구멍" 판정은 **돌연변이를 심은 여섯에 대해서만 실측**이고, 나머지는
+읽고 추적한 판단이다. 확인 못 한 것은 끝에 따로 적었다.
+
+### 조용히 틀리는 것 — 돌연변이가 조용했던 자리 셋
+
+셋 다 심고 전체를 돌려도 **초록이었다** (2026-09-02, 되돌렸다).
+
+| 자리 | 틀리면 학생에게 | 지금 지키는 것 | 만든다면 |
+|---|---|---|---|
+| `project/facts.ts`의 이미지 갈래 (`DATA_FACTS.image`) | 범주 경계 판정이 틀려도 아무도 모른다 — 갈릴 것이 없는 사진 프로젝트에 학습 단계가 열려 엔진 실패를 만나거나, 반대 방향이면 정상 프로젝트가 영구히 잠긴다 | **없음.** `dataFactsOf`를 부르는 스펙이 0 — `steps.spec.ts`의 `factsOf` 검사는 전부 표 픽스처다 | `factsOf`에 이미지 픽스처를 먹인다 — 범주 0·1·2개, `_unlabeled`만 있는 것 |
+| `ml/engines/mljs-serialize.ts`의 `leafClass` 동점 규칙 | 파일에 담긴 트리 모델의 예측이 학습 직후와 동점 잎에서 어긋난다. 지표가 그대로일 수 있어 재실행 대조도 표본에 따라 통과한다 | **없음.** 픽스처의 잎에 동점 분포가 없다 — R12 A-2가 말한 "상수와 픽스처가 우연히 같으면 그 연산은 사라진다"의 이웃 | 동점 잎을 실제로 만드는 픽스처 — 같은 수의 두 클래스에 깊이를 짧게 잡으면 나온다. ml.js `maxRowIndex`와 같은 답인지까지 |
+| `composables/useFormat.ts`의 `formatMetric` | 지표 표시 자릿수가 바뀌어도 아무도 모른다 — 0.1%p를 견주는 결과 화면이 그 차이를 숨긴다 | **없음.** 소비가 화면 템플릿의 `metric()`뿐이다. 같은 파일의 `formatBytes`는 검사가 있다 | `formatBytes`처럼 값을 고정한다 |
+
+### 어떤 스펙도 간접으로도 못 닿는 로직 (52파일 중 로직 쪽)
+
+- **`ml/browser.ts` · `ml/server.ts`** — 지금은 문서 주석뿐이라 무해하다. 코드가 생기는 날 이 줄을 지워라.
+- **워커 진입점 셋과 `spawn` 셋** — 머리말이 스스로 밝힌다: *"덮이지 않는 곳에는 틀릴 수 있는 것을 두지 않는다."* 얇음이 방어다. **알고 남긴 것.**
+- **`main.ts`** — 초기화 순서 판정 셋(Pinia가 라우터보다 먼저 · 테마가 마운트보다 먼저 · 로케일/상한 읽기는 비동기)을 **사람만** 지킨다. 주석이 이유를 들고 있다.
+- **`project/download.ts`** — **유일한 반출 경로 전체가 무검사다.** `downloadBlob`의 revoke 타이밍은 브라우저 몫이라 검사가 아니라 **실기기가 답할 자리**다(위 "실기기로만 보이는 것"). `downloadBytes`의 소비자는 `BatchPredict.vue` 하나다.
+
+### 판정 핵은 물리는데 배선은 못 무는 자리
+
+검사가 순수 함수는 무는데, **그 함수를 부르는 곳이 무검사 화면뿐**이라 인자 조립이 밖에 있다.
+R15 A-1(그물이 앞 절반만 있던 상한 스위치)과 같은 모양이다.
+
+- `ml/worker/client.ts`의 `calibrateDevice` → `TrainView.vue` 배선. 교정 순수 함수는 `calibration.spec.ts`가 문다. **재야 할 것 넷째(R18 B-3)와 같은 자리다.**
+- `ml/selection.ts`의 `stratifyBlockFor` **이미지 쪽 배선** — `ImagePrepPanel.vue`가 직접 부른다. 표 쪽은 `stratifyBlock` 경유로 물린다.
+- `project/identity.ts`의 `identityOf` → `ExportButton.vue`·`ProjectName.vue`. **내보내기 사슬의 최종 배선**(인적사항 → `identifiedExport` → `exportFile`)이 무도달 컴포넌트 안이다 — 스토어의 `exportFile` 자체는 물린다.
+- `project/portfolio-presets.ts`의 `presetUrl`·`loadPresets` — **fetch 경로와 `BASE_URL` 조립이 무검사다.** `portfolio-preset.spec.ts`는 디스크에서 직접 읽는다. 틀리면 Pages 배포에서 내장 양식이 404인데, 바닥이 빈 양식이라 죽지는 않는다(그 파일 머리말).
+- `TrainView.vue`의 예상 시간 인자 조립 — `baselineMs`·`estimateMs`는 물리는데 `trainingRows`(시험 몫 빼기)와 `featureWidth`를 화면이 계산해 넘긴다. R13-3 A-2·R14-3 A-4가 두 자리를 밖으로 뺐지만 **같은 모양이 여기 남아 있다.**
+
+### 화면 층 — 무도달 43판의 공통 모양
+
+큰 판 다섯(`TrainView` · `TabularPredictPanel` · `ImagePredictPanel` · `BatchPredict` ·
+`TabularPrepPanel`)을 전량 읽고 나머지는 계산 냄새(`Math.`·`reduce`·`sort`)로 훑었다.
+**판정·계산은 화면 밖에 있다는 규약은 잘 지켜지고 있다.** 화면 안에 남아 무검사인 것은
+다섯 갈래로 반복된다:
+
+1. **캐시·무효화 배선.** `BatchPredict`의 서명→판 캐시·predictor 캐시·색 배정 비우기,
+   두 예측 판의 `answers` 지우기 여섯 자리. **한 자리를 빼먹으면 옛 답이 새 입력 옆에
+   선다** — 조용히 틀리는 종류이고, 서명 계산 자체(`predictPageSignature`)만 물린다.
+2. **DOM↔파일 재동기** (architecture.md §8.15.1) — `onStratify` · `setSampleRows` ·
+   `startSampling`. 라디오 그룹만 `radio-guard.spec.ts`가 물고 숫자 칸·체크박스는 사람이다.
+3. **잠금·버튼 상태 조립** — `photosLocked`(**예측 중 사진 삭제가 저장 스냅샷에 지운
+   사진을 되살리는 경합의 유일한 방어다** — `ImagePredictPanel.vue`의 주석이 경합을
+   정확히 적어 두고, 그 방어를 무는 검사는 없다) · `cannotRun` · 쪽 계산 다섯 판.
+4. **상태기계** — `TrainView`의 멈추기/나가기(`stopped`·`stopping`·`leaving` — V11 R4
+   C-5의 고침이 무검사로 서 있다), 테스트 데이터 받기의 `manualTestChoice` 덮어쓰기.
+5. **표시 분기** — `featureSummary`의 네 상태, `previewEmptyKey`, `AnswerList.bars()`의
+   "굵은 막대는 argmax가 아니라 답과 대조"(mlpx-spec.md §5.4의 규칙인데 화면 쪽 이행은
+   무검사다).
+
+그리고 **전역 오류 손잡이가 없다는 결정**(`errorHandler`도 `onError`도 없다 —
+`project/schema.ts`와 `BatchPredict.vue`의 주석이 근거를 들고 있다)의 짝: **모든 async
+핸들러가 스스로 `pushError`를 불러야 하는데, 그 규율을 무는 검사가 없다.** 안 잡은
+throw는 아무 데도 안 간다.
+
+### 물려 있음을 실측으로 확인한 것 — 다시 파지 마라
+
+심볼 스캔이 후보로 올렸지만 **돌연변이가 울었다** (2026-09-02):
+
+- `ml/shuffle.ts`의 `labelSeed` — 라벨을 무시하게 해도 `split.spec.ts`의 전용 검사 둘("크기가 같은 두 라벨이 같은 자리에서 뽑히지 않는다")에 붓꽃 정확도까지 운다.
+- `stores/project.ts`의 `askToKeep` — 무력화하면 `autosave.spec.ts` 넷이 운다. **사진 프로젝트 갈래까지 물려 있다** (V11 R1 B-11의 검사가 실재한다).
+- `ml/engines/mljs-params.ts`의 기본값 — KNN을 움직이면 `mljs.spec.ts`의 resolve 셋과 `sklearn-parity.spec.ts` 넷이 운다. 머리말의 "고정한다"가 참이다.
+
+돌연변이 없이 추적으로 확인한 거짓 양성: `selectModels` 예산(주입 인자로 물린다),
+`TRAINING_ROW_COUNTS`·`factAppliesTo`(래퍼 경유), 모델 해석기들(등록부 왕복 경유).
+
+### 이 지도가 확인 못 한 것
+
+- 돌연변이는 여섯뿐이다. "물림" 실측도 그 여섯에 대해서다 — **다른 자리의 "검사 있음"은 이 지도가 보증하지 않는다.**
+- 무도달 화면 중 전량 읽은 것은 다섯 판과 `AnswerList`·`ExportButton` 일부다. 나머지(결과 패널들 · 데이터 판들 · 셸 부품들)는 계산 냄새 훑기까지만 했다 — **거기서 다섯 갈래 밖의 것이 나올 수 있다.**
+- `ml/models/*.ts` 해석기의 갈래별(형식별 파싱 실패 경로) 커버리지 폭은 안 쟀다.
+- import 그래프는 2026-09-02의 것이다. **세는 칸은 세는 사람이 사라지면 곧바로 낡는다** — 위 머리말의 그 경고가 이 절에도 그대로 적용된다.
