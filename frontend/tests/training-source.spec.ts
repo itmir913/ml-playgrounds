@@ -257,7 +257,7 @@ describe('테스트용 사진이 학습까지 닿는다', () => {
 
     // 넷 다 뽑혀야 한다. 훈련 둘만 뽑으면 아래 표가 비고 학습이 곱게 선다.
     expect(seen.requests[0]?.images).toHaveLength(4)
-    expect(source.testDataset, '테스트 사진을 올렸는데 표가 없다').not.toBeNull()
+    expect(source.testDataset, 'test photos were added but there is no table').not.toBeNull()
     expect(source.testDataset?.rows).toHaveLength(2)
   })
 
@@ -322,8 +322,8 @@ describe('테스트용 사진이 학습까지 닿는다', () => {
     for (const row of rows) {
       // 마지막 칸이 라벨, 나머지가 벡터다.
       expect(row).toHaveLength(DIM + 1)
-      expect(row[DIM], '마지막 칸이 라벨이 아니다').toMatch(/개|고양이/)
-      expect(Number(row[0]), '첫 칸이 벡터가 아니다').toBeGreaterThan(0)
+      expect(row[DIM], 'the last cell is not the label').toMatch(/개|고양이/)
+      expect(Number(row[0]), 'the first cell is not the vector').toBeGreaterThan(0)
     }
     // 3번 사진이 개, 4번이 고양이 - 벡터 값과 라벨이 짝을 지켜야 한다.
     expect(rows.map((row) => [row[0], row[DIM]])).toEqual([

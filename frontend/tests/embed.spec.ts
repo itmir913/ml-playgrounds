@@ -388,9 +388,9 @@ describe('임베딩 캔버스가 앞 사진을 안 물려준다', () => {
   it('그리기 전에 흰색으로 깐다', () => {
     const fill = SOURCE.indexOf('fillRect(')
     const draw = SOURCE.indexOf('drawImage(')
-    expect(fill, 'fillRect가 없다').toBeGreaterThan(-1)
-    expect(fill, 'fillRect가 drawImage보다 뒤에 있다').toBeLessThan(draw)
-    expect(SOURCE, '깔개가 흰색이 아니다').toContain("fillStyle = '#ffffff'")
+    expect(fill, 'no fillRect').toBeGreaterThan(-1)
+    expect(fill, 'fillRect comes after drawImage').toBeLessThan(draw)
+    expect(SOURCE, 'the backdrop is not white').toContain("fillStyle = '#ffffff'")
   })
 
   it('정본 크기가 백본과 다르면 멈춘다', () => {

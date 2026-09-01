@@ -439,7 +439,7 @@ describe('층화를 걸 수 있는가', () => {
         )
         expect(
           { nSamples, blocked: blocked ?? null },
-          `nSamples=${nSamples}에서 화면과 뽑기가 갈렸다`,
+          `the screen and the sampling diverged at nSamples=${nSamples}`,
         ).toEqual({
           nSamples,
           blocked: threw === 'SAMPLE_STRATIFY_IMPOSSIBLE' ? 'SAMPLE_STRATIFY_IMPOSSIBLE' : null,
@@ -490,7 +490,7 @@ describe('층화를 걸 수 있는가', () => {
         )
         expect(
           { nSamples, blocked: blocked ?? null },
-          `nSamples=${nSamples}에서 화면과 뽑기가 갈렸다`,
+          `the screen and the sampling diverged at nSamples=${nSamples}`,
         ).toEqual({
           nSamples,
           blocked: threw === 'SAMPLE_STRATIFY_IMPOSSIBLE' ? 'SAMPLE_STRATIFY_IMPOSSIBLE' : null,
@@ -819,15 +819,17 @@ describe('열 한 줄이 말하는 것', () => {
       target: '등급',
       features: [],
     })
-    expect(columnBlocks(columnNamed(chosen, '등급')), '타깃으로 골랐으면 빨강이다').toBe(true)
+    expect(columnBlocks(columnNamed(chosen, '등급')), 'a column chosen as the target is red').toBe(
+      true,
+    )
 
     // 값이 통째로 빈 열은 **고르면** 학습이 거부한다. 안 골랐으면 아무 일도 안 난다.
     const empty = column({ name: '메모', missing: 10, unique: 0 })
     const picked = planFor({ columns: [SCORE, empty], target: undefined, features: ['메모'] })
-    expect(columnBlocks(columnNamed(picked, '메모')), '고른 열은 빨강이다').toBe(true)
+    expect(columnBlocks(columnNamed(picked, '메모')), 'a chosen column is red').toBe(true)
 
     const skipped = planFor({ columns: [SCORE, empty], target: undefined, features: ['점수'] })
-    expect(columnBlocks(columnNamed(skipped, '메모')), '안 고른 열은 회색이다').toBe(false)
+    expect(columnBlocks(columnNamed(skipped, '메모')), 'an unchosen column is grey').toBe(false)
   })
 
   it('타깃으로 쓰는 열은 특성 칸이 잠긴다', () => {

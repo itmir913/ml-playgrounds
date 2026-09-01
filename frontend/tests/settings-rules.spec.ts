@@ -38,7 +38,7 @@ import { describe, expect, it } from 'vitest'
 import { DATA_SCHEMAS, DATA_TYPES } from '../src/project/schema'
 
 const SRC = join(process.cwd(), 'src')
-if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
+if (!existsSync(SRC)) throw new Error(`src not found: ${SRC}`)
 
 /** 종류별 필드 이름 전부. 등록부가 출처다 (`project/schema.ts`의 `DATA_SCHEMAS`). */
 const KIND_FIELDS = [
@@ -143,7 +143,7 @@ describe('종류별 설정은 settings.data를 거친다', () => {
     const found = sourceFiles(SRC).flatMap((path) =>
       leaks(readFileSync(path, 'utf-8')).map((line) => `${path.slice(SRC.length + 1)}  ${line}`),
     )
-    expect(found, '종류별 필드는 settings.data를 거쳐 읽어라').toEqual([])
+    expect(found, 'read per-kind fields through settings.data').toEqual([])
   })
 
   /**
@@ -174,6 +174,6 @@ describe('종류별 설정은 settings.data를 거친다', () => {
         (line) => `${path.slice(SRC.length + 1)}  ${line}`,
       ),
     )
-    expect(found, 'settings를 담은 변수도 .data를 거쳐 읽어라').toEqual([])
+    expect(found, 'a variable holding settings must also read through .data').toEqual([])
   })
 })

@@ -49,7 +49,7 @@ function codeOf(run: () => unknown): string {
     if (isClientError(error)) return error.code
     throw error
   }
-  throw new Error('던지지 않았다')
+  throw new Error('it did not throw')
 }
 
 describe('usableRows', () => {

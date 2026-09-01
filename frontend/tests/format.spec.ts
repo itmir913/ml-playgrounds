@@ -100,7 +100,7 @@ describe('내보내는 길', () => {
     // DataCloneError로 죽는다. 그 사이 화면이 읽는 바이트도 함께 사라진다.
     const project = projectFile()
     const before = project.dataset?.bytes
-    expect(before, '검사 자체가 표 있는 프로젝트를 봐야 한다').toBeDefined()
+    expect(before, 'the check itself must look at a project that has a table').toBeDefined()
     const length = before?.length ?? 0
     expect(length).toBeGreaterThan(0)
 

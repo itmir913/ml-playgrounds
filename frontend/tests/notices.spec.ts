@@ -58,7 +58,7 @@ describe('저장소가 채운 전문', () => {
 
   it('아직 필요하다 — 패키지가 스스로 들고 오기 시작하면 죽은 줄이다', () => {
     for (const name of Object.keys(SUPPLIED)) {
-      expect(ownLicenseFile(name), `${name}이(가) 이제 스스로 전문을 들고 온다`).toBeUndefined()
+      expect(ownLicenseFile(name), `${name} now carries its own full text`).toBeUndefined()
     }
   })
 
@@ -108,7 +108,7 @@ describe('미리 빌드된 번들이 업고 오는 것', () => {
    */
   function listedInBundleFile(): Set<string> {
     const file = BUNDLED_INSIDE.exceljs
-    if (file === undefined) throw new Error('exceljs가 BUNDLED_INSIDE에서 사라졌다')
+    if (file === undefined) throw new Error('exceljs vanished from BUNDLED_INSIDE')
     const rule = '-'.repeat(80)
     const lines = readFileSync(join(SUPPLIED_DIR, file), 'utf8').split('\n')
     const names = new Set<string>()

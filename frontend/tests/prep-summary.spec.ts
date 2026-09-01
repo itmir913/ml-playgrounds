@@ -188,14 +188,14 @@ describe('열 표의 전처리 칸', () => {
   /** 카드와 같은 계획에서 나온다. 표는 받아 적기만 한다. */
   function pickerFor(file: ProjectFile) {
     const dataset = readDataset(file)
-    if (dataset === null) throw new Error('정본이 없다')
+    if (dataset === null) throw new Error('no canonical table')
     const plan = planRun({
       dataset,
       testDataset: readTestDataset(file),
       settings: file.document.settings,
       taskType: file.document.manifest.taskType,
     })
-    if (!plan.ok) throw new Error('계획이 서야 하는 자리다')
+    if (!plan.ok) throw new Error('the plan must stand here')
     const data = tabularDataOf(file.document)!
     return mount(ColumnPicker, {
       props: {

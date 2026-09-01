@@ -313,7 +313,7 @@ describe('로지스틱 목적함수 - 기울기가 유한차분과 맞는다', (
         bumped[j] = (bumped[j] as number) - 2 * h
         const backward = objective.evaluate(bumped, scratch)
         const numeric = (forward - backward) / (2 * h)
-        expect(Math.abs((gradient[j] as number) - numeric), `성분 ${j}`).toBeLessThan(1e-5)
+        expect(Math.abs((gradient[j] as number) - numeric), `component ${j}`).toBeLessThan(1e-5)
       }
     })
   }

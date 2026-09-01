@@ -214,7 +214,9 @@ describe('라우터', { timeout: 20_000 }, () => {
 
     await router.push(`/project/${manifest.projectId}/predict`)
 
-    expect(router.currentRoute.value.name, '잠긴 단계라 결과로 떨어진다').toBe('results')
+    expect(router.currentRoute.value.name, 'a locked step falls through to the results').toBe(
+      'results',
+    )
     expect(toasts.items.map((one) => one.key)).toContain('client.STORAGE_QUOTA_EXCEEDED')
   })
 })

@@ -97,7 +97,7 @@ describe('등록부끼리 어긋나지 않는다', () => {
 
     for (const [taskType, displays] of Object.entries(METRIC_DISPLAY)) {
       const computed = samples[taskType]
-      expect(computed, `${taskType} 표본이 없다`).toBeDefined()
+      expect(computed, `no sample for ${taskType}`).toBeDefined()
       const keys = Object.keys(computed?.() ?? {})
       expect(displays?.map((display) => display.name).sort(), taskType).toEqual(keys.sort())
     }

@@ -176,17 +176,17 @@ function reproduceMetrics(
   again: Record<string, number>
 }[] {
   const table = readDataset(reopened)
-  if (!table) throw new Error('정본 표를 다시 못 읽었다')
+  if (!table) throw new Error('could not read the canonical table again')
 
   const found: ReturnType<typeof reproduceMetrics> = []
 
   for (const entry of predictableModels(reopened.document, true)) {
-    expect(entry.reason, `${entry.run.id}가 쓸 수 없는 상태로 돌아왔다`).toBeUndefined()
+    expect(entry.reason, `${entry.run.id} came back unusable`).toBeUndefined()
 
     const { experiment, run } = entry
     const preprocessorBytes = reopened.models.get(experiment.preprocessor?.path ?? '')
     const modelBytes = reopened.models.get(run.model?.path ?? '')
-    if (!preprocessorBytes || !modelBytes) throw new Error(`${run.id}의 엔트리가 없다`)
+    if (!preprocessorBytes || !modelBytes) throw new Error(`no entry for ${run.id}`)
 
     const preprocessor = parsePreprocessor(
       JSON.parse(new TextDecoder().decode(preprocessorBytes)) as unknown,
@@ -250,7 +250,7 @@ describe('학습한 파일을 다시 열어 예측한다', () => {
     for (const one of found) {
       // **소수점을 깎지 않고 견준다.** 한 행만 어긋나도 정확도가 움직이고,
       // 근사로 비교하면 그 한 행이 가려진다.
-      expect(one.again, `${one.algorithm}의 지표가 재현되지 않았다`).toEqual(one.stored)
+      expect(one.again, `metrics for ${one.algorithm} did not reproduce`).toEqual(one.stored)
     }
   })
 
@@ -292,10 +292,10 @@ describe('학습한 파일을 다시 열어 예측한다', () => {
       // **바닥을 깐다.** 이 순회는 대조할 것이 하나도 없으면 0회 돌고 초록이다 -
       // 고른 알고리즘 둘이 그대로 돌아왔는지부터 본다.
       const found = reproduceMetrics(reopened)
-      expect(found, `${preprocessing.scaling}에서 대조할 모델이 없다`).toHaveLength(2)
+      expect(found, `no model to compare under ${preprocessing.scaling}`).toHaveLength(2)
 
       for (const one of found) {
-        expect(one.again, `${preprocessing.scaling}에서 ${one.algorithm}이 어긋났다`).toEqual(
+        expect(one.again, `${one.algorithm} diverged under ${preprocessing.scaling}`).toEqual(
           one.stored,
         )
       }

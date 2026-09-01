@@ -81,7 +81,7 @@ describe('데이터 종류 등록부', () => {
       for (const { step, slot } of KIND_SPECIFIC_STEP_TEXT) {
         expect(
           stepTextKey(kind, step, slot),
-          `${dataType}가 ${step}.${slot}의 문장을 안 갖는다 - 기본값이 없는 자리다`,
+          `${dataType} has no sentence for ${step}.${slot} - this slot has no default`,
         ).not.toBe(`steps.${step}.${slot}`)
       }
     }
@@ -119,8 +119,8 @@ describe('데이터 종류 등록부', () => {
       ] as [string, string][]
 
       for (const [where, key] of named) {
-        expect(typeof value(ko, key), `ko에 ${key}가 없다 (${dataType} ${where})`).toBe('string')
-        expect(typeof value(en, key), `en에 ${key}가 없다 (${dataType} ${where})`).toBe('string')
+        expect(typeof value(ko, key), `ko is missing ${key} (${dataType} ${where})`).toBe('string')
+        expect(typeof value(en, key), `en is missing ${key} (${dataType} ${where})`).toBe('string')
       }
     }
   })
@@ -151,8 +151,8 @@ describe('데이터 종류 등록부', () => {
     for (const { step, slot } of KIND_SPECIFIC_STEP_TEXT) {
       const fallback = stepTextKey(undefined, step, slot)
       expect(fallback, `${step}.${slot}`).toBe(`steps.${step}.${slot}`)
-      expect(value(ko, fallback), `ko에 ${fallback}이 있으면 안 된다`).toBeUndefined()
-      expect(value(en, fallback), `en에 ${fallback}이 있으면 안 된다`).toBeUndefined()
+      expect(value(ko, fallback), `ko must not have ${fallback}`).toBeUndefined()
+      expect(value(en, fallback), `en must not have ${fallback}`).toBeUndefined()
     }
   })
 
@@ -175,7 +175,7 @@ describe('데이터 종류 등록부', () => {
       const kind = dataKindFor(dataType)
       for (const [step, slots] of Object.entries(kind?.stepText ?? {})) {
         for (const slot of Object.keys(slots)) {
-          expect(specific, `${dataType}의 ${step}.${slot}은 갈릴 이유가 없다`).toContain(
+          expect(specific, `${step}.${slot} has no reason to differ for ${dataType}`).toContain(
             `${step}.${slot}`,
           )
         }

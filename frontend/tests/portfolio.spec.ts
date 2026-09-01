@@ -145,7 +145,7 @@ describe('가져오기는 대체가 아니라 추가다', () => {
       { title: '느낀 점', description: '둘째 안내문' },
     ])
     expect(after.template.sections.map((section) => section.id)).toEqual(['느낀-점', '느낀-점-2'])
-    expect(after.answers['느낀-점'], '쓰던 글은 그대로다').toBe('내 글')
+    expect(after.answers['느낀-점'], 'the text being written is unchanged').toBe('내 글')
   })
 
   it('세 번 가져와도 사본이 안 쌓인다 - 번호는 등장 순번이지 남은 자리가 아니다', () => {

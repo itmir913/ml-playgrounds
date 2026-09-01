@@ -126,7 +126,7 @@ describe('어휘와 버전', () => {
   it('지금 버전의 어휘가 기록돼 있다', () => {
     expect(
       recorded,
-      `formatVersion ${FORMAT_VERSION}의 지문이 없다. VOCABULARY_BY_VERSION에 추가하라.`,
+      `no fingerprint for formatVersion ${FORMAT_VERSION}. Add it to VOCABULARY_BY_VERSION.`,
     ).toBeDefined()
   })
 
@@ -169,10 +169,10 @@ describe('어휘와 버전', () => {
       ),
     )
 
-    expect(used.length, '소스에서 z.enum을 하나도 못 찾았다. 정규식이 낡았다.').toBeGreaterThan(0)
+    expect(used.length, 'found no z.enum in the source. The regex is stale.').toBeGreaterThan(0)
     expect(
       [...new Set(used)].filter((name) => !(name in CURRENT)).sort(),
-      '스키마가 막는 어휘인데 지문에 없다. CURRENT와 VOCABULARY_BY_VERSION에 함께 추가하라.',
+      'the schema gates this vocabulary but the fingerprint lacks it. Add it to both CURRENT and VOCABULARY_BY_VERSION.',
     ).toEqual([])
   })
 })
@@ -182,9 +182,10 @@ describe('배포 전에는 버전이 안 올라간다', () => {
     // **이 검사가 이 파일의 절반이다.** 배포 전에 버전을 올리는 것은 아무도 안 겪을
     // 상황을 위해 변환 함수와 왕복 테스트를 영구히 지고 가는 일이다 (mlpx-spec.md §9).
     // 어휘를 바꿨다면 위의 지문만 고치면 된다.
-    expect(FORMAT_VERSION, '배포 전에는 버전을 올리지 않는다. 어휘를 바꿨다면 지문만 고쳐라.').toBe(
-      1,
-    )
+    expect(
+      FORMAT_VERSION,
+      'do not raise the version before release. If the vocabulary changed, fix the fingerprint only.',
+    ).toBe(1)
   })
 
   it.skipIf(RELEASED)('지문이 한 벌뿐이다 - 역사가 아직 없다', () => {
@@ -210,6 +211,6 @@ describe('배포 뒤에는 역사가 남는다', () => {
     for (let version = 1; version < FORMAT_VERSION; version += 1) {
       if (!MIGRATIONS[version]) missing.push(version)
     }
-    expect(missing, '버전을 올렸으면 그 버전으로 가는 마이그레이션도 있어야 한다.').toEqual([])
+    expect(missing, 'a raised version needs a migration into it.').toEqual([])
   })
 })

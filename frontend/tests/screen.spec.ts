@@ -144,7 +144,7 @@ describe('화면에 자리를 내준다', () => {
     })
 
     for (let round = 0; round < 10; round += 1) await Promise.resolve()
-    expect(done, '마이크로태스크를 열 번 비웠는데 벌써 끝났다').toBe(false)
+    expect(done, 'already finished after draining microtasks ten times').toBe(false)
 
     await settled
     expect(done).toBe(true)

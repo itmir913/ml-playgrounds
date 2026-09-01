@@ -84,7 +84,7 @@ describe('배색이 바뀌면 색을 다시 읽는다', () => {
   it('마운트할 때 토큰을 읽는다', () => {
     pretendTokens('#111111')
     render()
-    expect(reads, '색 토큰을 한 번은 읽어야 한다').toBeGreaterThan(0)
+    expect(reads, 'the colour token must be read at least once').toBeGreaterThan(0)
   })
 
   it('배색을 바꾸면 다시 읽는다', async () => {
@@ -97,7 +97,7 @@ describe('배색이 바뀌면 색을 다시 읽는다', () => {
     theme.value = 'dark'
     await view.vm.$nextTick()
 
-    expect(reads, '감시자가 죽으면 여기서 안 늘어난다').toBeGreaterThan(atMount)
+    expect(reads, 'this does not grow when the observer is dead').toBeGreaterThan(atMount)
   })
 
   it('배색이 그대로면 다시 안 읽는다 - 그리기는 비싸다', async () => {

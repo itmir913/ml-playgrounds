@@ -537,7 +537,7 @@ describe('데이터 종류별 설정', () => {
     const clashes = [...kindFields('settings'), ...kindFields('snapshot')].filter((key) =>
       common.has(key),
     )
-    expect(clashes, '종류별 필드 이름이 공통 필드와 겹친다').toEqual([])
+    expect(clashes, 'a per-kind field name collides with a shared field').toEqual([])
   })
 
   it('스냅샷 필드가 전부 비교 목록에 있다 - 빠지면 그 변경이 안 뜬다', () => {
@@ -546,7 +546,7 @@ describe('데이터 종류별 설정', () => {
     )
     expect(
       missing,
-      '스냅샷에 있는데 이력에도 안 뜨고 제외 목록에도 없다. 둘 중 하나를 골라라.',
+      'in the snapshot but neither in the history nor in the exclusion list. Pick one.',
     ).toEqual([])
   })
 
@@ -557,7 +557,7 @@ describe('데이터 종류별 설정', () => {
   it('제외 목록의 이름이 실재하는 스냅샷 필드다', () => {
     const fields = new Set(kindFields('snapshot'))
     const ghosts = SNAPSHOT_NOT_COMPARED.filter((key) => !fields.has(key))
-    expect(ghosts, '스냅샷에 없는 이름을 제외 목록이 들고 있다').toEqual([])
+    expect(ghosts, 'the exclusion list holds a name that is not in the snapshot').toEqual([])
   })
 
   it('제외한 것은 실제로 비교 목록에 없다', () => {

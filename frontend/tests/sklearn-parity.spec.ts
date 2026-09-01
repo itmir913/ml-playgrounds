@@ -202,7 +202,7 @@ for (const [name, entry] of Object.entries(document.datasets)) {
         const coefficients = (model as LinearRegressionModel).coefficients
         // **선택 필드라 없으면 forEach가 한 번도 안 돈다** - 단언이 조용히 사라진다
         // (R9 감사 C-2). 픽스처가 주기로 한 것을 주는지를 먼저 본다.
-        expect(expected?.coefficients, `${name}: 계수 기준값`).toBeDefined()
+        expect(expected?.coefficients, `${name}: coefficient reference`).toBeDefined()
         expected?.coefficients?.forEach((value, index) => {
           expect(Math.abs((coefficients[index] ?? 0) - value)).toBeLessThan(LSTSQ_TOLERANCE)
         })
@@ -233,7 +233,7 @@ for (const [name, entry] of Object.entries(document.datasets)) {
 
         // **기준선 검사가 이 파일의 핵심이다.** 다수 클래스로 전부 찍는 것보다 못한
         // 모델이 조용히 지나가는 일이 다시는 없어야 한다.
-        expect(accuracy, `${name}/${algorithm} 기준선`).toBeGreaterThan(entry.baseline ?? 0)
+        expect(accuracy, `${name}/${algorithm} baseline`).toBeGreaterThan(entry.baseline ?? 0)
 
         // **경고 발화 자체가 관문이다** (1단계-C). 우리 run.warning의 유무가 sklearn의
         // 수렴 실패 여부와 같아야 한다 — 11벌 + 독립 2벌에서 같은 자리에 떴다는 것이
@@ -242,10 +242,10 @@ for (const [name, entry] of Object.entries(document.datasets)) {
         if (algorithm === 'logistic_regression') {
           if (CONVERGENCE_MISMATCH_EXCEPTIONS[name] === 'ours-warns') {
             // 기록된 예외 — 우리가 보수적인 쪽. 이 상태가 바뀌는 것도 알아야 한다.
-            expect(ourWarned, `${name} 예외: 우리만 경고`).toBe(true)
-            expect(expected.converged, `${name} 예외: sklearn은 수렴`).toBe(true)
+            expect(ourWarned, `${name} exception: only we warn`).toBe(true)
+            expect(expected.converged, `${name} exception: sklearn converges`).toBe(true)
           } else {
-            expect(ourWarned, `${name} 경고 발화가 sklearn과 같다`).toBe(
+            expect(ourWarned, `${name} warns exactly where sklearn does`).toBe(
               expected.converged === false,
             )
           }
@@ -265,19 +265,20 @@ for (const [name, entry] of Object.entries(document.datasets)) {
           // 생성기가 라벨을 굳히지 않았다. 그 행만 건너뛴다.
           expected.labels.forEach((label, index) => {
             if (label === null) return
-            expect(predicted[index], `${name}/${algorithm} 라벨 ${index}행`).toBe(label)
+            expect(predicted[index], `${name}/${algorithm} label row ${index}`).toBe(label)
           })
         } else if (expected.labels) {
           // 비수렴 로지스틱: 정확도·기준선에 더해 라벨 일치율을 판정에 남긴다.
           const agreement =
             expected.labels.filter((label, index) => label === null || predicted[index] === label)
               .length / expected.labels.length
-          expect(accuracy, `${name}/${algorithm} (비수렴) vs sklearn`).toBeGreaterThanOrEqual(
-            (expected.accuracy ?? 0) - TREE_FAMILY_TOLERANCE,
-          )
+          expect(
+            accuracy,
+            `${name}/${algorithm} (not converged) vs sklearn`,
+          ).toBeGreaterThanOrEqual((expected.accuracy ?? 0) - TREE_FAMILY_TOLERANCE)
           expect(
             agreement,
-            `${name}/${algorithm} (비수렴) 라벨 일치율 ${agreement.toFixed(4)}`,
+            `${name}/${algorithm} (not converged) label agreement ${agreement.toFixed(4)}`,
           ).toBeGreaterThanOrEqual(1 - TREE_FAMILY_TOLERANCE)
         } else {
           expect(accuracy, `${name}/${algorithm} vs sklearn`).toBeGreaterThanOrEqual(
@@ -286,7 +287,7 @@ for (const [name, entry] of Object.entries(document.datasets)) {
         }
 
         if (algorithm === 'naive_bayes' && expected.params) {
-          expect(expected.params.theta, `${name}: 나이브베이즈 기준값`).toBeDefined()
+          expect(expected.params.theta, `${name}: naive bayes reference`).toBeDefined()
           const { model } = fit('naive_bayes', {
             features: trainFeatures,
             rowIndices: entry.trainIndices,
@@ -323,7 +324,7 @@ for (const [name, entry] of Object.entries(document.datasets)) {
          * 여기서 한다.
          */
         if (algorithm === 'logistic_regression' && expected.params && bothConverged) {
-          expect(expected.params.coef, `${name}: 로지스틱 계수 기준값`).toBeDefined()
+          expect(expected.params.coef, `${name}: logistic coefficient reference`).toBeDefined()
           const { model } = fit('logistic_regression', {
             features: trainFeatures,
             rowIndices: entry.trainIndices,
@@ -344,14 +345,14 @@ for (const [name, entry] of Object.entries(document.datasets)) {
               const ours = (ourCoef[index] ?? [])[position] ?? 0
               expect(
                 Math.abs(ours - reference),
-                `${name} 계수 [${index}][${position}]`,
+                `${name} coefficient [${index}][${position}]`,
               ).toBeLessThanOrEqual(PARAM_ABS_TOLERANCE + PARAM_REL_TOLERANCE * Math.abs(reference))
             })
           })
           intercept.forEach((reference, index) => {
             expect(
               Math.abs((ourIntercept[index] ?? 0) - reference),
-              `${name} 절편 [${index}]`,
+              `${name} intercept [${index}]`,
             ).toBeLessThanOrEqual(PARAM_ABS_TOLERANCE + PARAM_REL_TOLERANCE * Math.abs(reference))
           })
         }

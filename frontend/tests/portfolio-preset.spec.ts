@@ -22,7 +22,7 @@ import { parsePortfolioForm } from '../src/project/portfolio-form'
 import { parsePresetIndex, presetFileName, presetName } from '../src/project/portfolio-presets'
 
 const DIRECTORY = join(process.cwd(), 'public', 'portfolio')
-if (!existsSync(DIRECTORY)) throw new Error(`프리셋 디렉터리를 찾지 못했다: ${DIRECTORY}`)
+if (!existsSync(DIRECTORY)) throw new Error(`preset directory not found: ${DIRECTORY}`)
 
 const PRESETS = parsePresetIndex(readFileSync(join(DIRECTORY, 'index.json'), 'utf-8'))
 const FILES = readdirSync(DIRECTORY).filter((name) => name.endsWith('.md'))

@@ -41,7 +41,7 @@ vi.mock('../src/project/download', () => ({
 /** 내려간 파일의 바이트. **여기서만 전체를 편다** - 나가는 경로는 안 그런다. */
 async function downloadedBytes(index: number): Promise<Uint8Array> {
   const entry = downloads[index]
-  if (entry === undefined) throw new Error(`내려간 파일이 없다: ${index}`)
+  if (entry === undefined) throw new Error(`no file was handed down: ${index}`)
   return new Uint8Array(await entry.blob.arrayBuffer())
 }
 
@@ -307,7 +307,7 @@ describe('내보내기', () => {
 
     await project.exportFile(markdown)
 
-    expect(downloads[0]?.blob, '내려보낸 파일').toBeDefined()
+    expect(downloads[0]?.blob, 'the file handed down').toBeDefined()
     const bytes = await downloadedBytes(0)
 
     // 여는 것 자체가 zip과 필수 엔트리를 다 요구한다. 그 위에 무게가 있는 것 둘을 본다 -
@@ -496,7 +496,7 @@ describe('저장소를 지우지 말아 달라고 청한다', () => {
       storage: {
         persisted: async () => false,
         persist: async () => {
-          throw new Error('사용자가 거부했다')
+          throw new Error('the user declined')
         },
       },
     })

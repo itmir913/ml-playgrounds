@@ -162,7 +162,7 @@ describe('조 번호가 얼려 있다', () => {
     // 앵커만 보면 제목을 통째로 밀어 놓고 id만 남겨도 통과한다.
     const found = headings(readPolicy(locale))
     // **바닥.** 서식이 바뀌어 하나도 못 잡으면 아래 루프가 0회 돌고 조용히 통과한다.
-    expect(found.size, '제목을 하나도 못 잡았다').toBe(ARTICLE_COUNT)
+    expect(found.size, 'caught no headings at all').toBe(ARTICLE_COUNT)
     for (const [number, heading] of found) {
       expect(heading).toMatch(new RegExp(`(?<!\\d)${number}(?!\\d)`))
     }

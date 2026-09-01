@@ -97,7 +97,7 @@ describe('스크롤과 닫힘', () => {
     const wrapper = openPopover()
     await wrapper.find('button').trigger('click')
     const panel = document.querySelector(PANEL)
-    expect(panel, '패널이 열려 있어야 한다').not.toBeNull()
+    expect(panel, 'the panel should be open').not.toBeNull()
 
     // **패널 안에서 난 스크롤이다.** 캡처로 문서까지 올라오지만 자리를 안 움직인다.
     panel?.dispatchEvent(new Event('scroll', { bubbles: true }))

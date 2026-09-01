@@ -225,7 +225,7 @@ describe('재현 가능성', () => {
    */
   it('다른 씨앗이면 초기화가 갈린다 - 씨앗이 안 쓰이면 여기가 빨개진다', () => {
     const answers = [3, 11, 29].map((seed) => JSON.stringify(fitKMeans(SPREAD, 3, seed).centroids))
-    expect(new Set(answers).size, '씨앗이 fitKMeans 안까지 안 닿았다').toBeGreaterThan(1)
+    expect(new Set(answers).size, 'the seed did not reach inside fitKMeans').toBeGreaterThan(1)
   })
 
   /**
@@ -242,7 +242,7 @@ describe('재현 가능성', () => {
    */
   it('어댑터도 씨앗을 넘긴다 - 엔진 등록부를 지나서 본다', () => {
     const engine = engineFor('mljs')
-    expect(engine, 'mljs 엔진이 등록부에 있어야 한다').toBeDefined()
+    expect(engine, 'the mljs engine must be in the registry').toBeDefined()
 
     const answers = [3, 11, 29].map((seed) =>
       JSON.stringify(
@@ -256,6 +256,6 @@ describe('재현 가능성', () => {
       ),
     )
 
-    expect(new Set(answers).size, '씨앗이 어댑터에서 끊겼다').toBeGreaterThan(1)
+    expect(new Set(answers).size, 'the seed was cut off at the adapter').toBeGreaterThan(1)
   })
 })

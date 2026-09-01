@@ -20,7 +20,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { TemplateRow, TemplateSourceContext } from '../src/project/portfolio-sources'
 
 const DIRECTORY = join(process.cwd(), 'public', 'portfolio')
-if (!existsSync(DIRECTORY)) throw new Error(`프리셋 디렉터리를 찾지 못했다: ${DIRECTORY}`)
+if (!existsSync(DIRECTORY)) throw new Error(`preset directory not found: ${DIRECTORY}`)
 
 const INDEX = readFileSync(join(DIRECTORY, 'index.json'), 'utf-8')
 
@@ -58,7 +58,7 @@ describe('앞서는 줄은 하나뿐이다', () => {
     // `TemplateSourceList.vue`의 VARIANTS가 lead를 primary로 옮긴다. 한때 이 자리에
     // "무게는 색이 아니라 순서다"라고 명세와 반대로 적혀 있었다 (R9 감사 B-8).
     // 그리고 그 순서를 못 박는 단언이 없어서 등록부를 뒤집어도 안 울었다.
-    expect(rows.at(-1)?.key, '앞서는 줄이 목록 맨 아래다').toBe('file')
+    expect(rows.at(-1)?.key, 'the leading row sits at the bottom of the list').toBe('file')
   })
 
   /**
@@ -72,7 +72,7 @@ describe('앞서는 줄은 하나뿐이다', () => {
     const { rows } = await rowsWith(() => Promise.resolve(new Response(INDEX)))
 
     const presets = rows.filter((row) => row.key !== 'file')
-    expect(presets.length, '프리셋이 하나는 있어야 이 검사가 돈다').toBeGreaterThan(0)
+    expect(presets.length, 'this check needs at least one preset').toBeGreaterThan(0)
     expect(presets.every((row) => row.locale === 'ko')).toBe(true)
     // 밖에서 받은 `.md`는 언어를 **모른다**. 빠뜨림이 아니라 모른다는 뜻이다.
     expect(rows.find((row) => row.key === 'file')?.locale).toBeUndefined()

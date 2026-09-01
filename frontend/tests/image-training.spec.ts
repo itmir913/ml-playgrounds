@@ -415,7 +415,7 @@ describe('훈련 행을 되세운다', () => {
     // 옛 파일은 이 필드가 **아예 없다.** `undefined`를 넣는 것과 구분해서 진짜로 지운다.
     const older = structuredClone(experiment)
     const data = older.settings.data as { rowsHash?: string }
-    expect(data.rowsHash, '지문을 실제로 떼어냈는지부터 확인한다').toBeDefined()
+    expect(data.rowsHash, 'check first that the fingerprint was really taken').toBeDefined()
     delete data.rowsHash
 
     expect(
@@ -515,7 +515,7 @@ describe('라벨을 맞바꾸면 이력이 말한다', () => {
     )
     expect(
       right,
-      '라벨을 맞바꿨는데 견줄 값이 같다 - 결과 화면이 "설정을 바꾸지 않았다"고 말한다',
+      'labels were swapped yet the compared value is the same - the results screen says nothing changed',
     ).not.toEqual(left)
   })
 })
@@ -571,7 +571,7 @@ describe('테스트용 사진으로 채점한다', () => {
       taskType: 'classification',
     })
 
-    expect(source.testDataset, '테스트 사진을 올렸는데 어댑터가 null을 준다').not.toBeNull()
+    expect(source.testDataset, 'test photos were added but the adapter returns null').not.toBeNull()
     // 훈련은 셋, 테스트는 둘이다. 장수가 같으면 훈련 사진으로 지어도 안 걸린다.
     expect(source.dataset.rows).toHaveLength(3)
     expect(source.testDataset?.rows).toHaveLength(2)
@@ -594,7 +594,7 @@ describe('테스트용 사진으로 채점한다', () => {
       taskType: 'classification',
     })
 
-    expect('reason' in plan ? plan.reason : null, '계획이 막혔다').toBeNull()
+    expect('reason' in plan ? plan.reason : null, 'the plan is blocked').toBeNull()
     if ('reason' in plan) return
     expect(plan.split.testIndices).toHaveLength(2)
     // 훈련 사진은 하나도 채점으로 안 간다 - 나누지 않고 통째로 학습에 쓴다. 셋이다.

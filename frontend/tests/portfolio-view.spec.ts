@@ -264,7 +264,7 @@ describe('양식 메뉴는 받은 것을 그대로 되보낸다', () => {
     await menu.find('button').trigger('click')
 
     const list = menu.findComponent(TemplateSourceList)
-    expect(list.exists(), '팝오버를 열면 목록이 붙는다').toBe(true)
+    expect(list.exists(), 'opening the popover attaches the list').toBe(true)
     list.vm.$emit('pick', '## 주제\n안내문\n', 'ko')
     await menu.vm.$nextTick()
 
@@ -344,7 +344,7 @@ describe('목차는 지금 보고 있는 문항을 가리킨다', () => {
     const view = mount(PortfolioView, { global: { plugins: [i18n] }, attachTo: document.body })
 
     const sections = store.file!.document.portfolio.template.sections
-    expect(sections.length, '문항 셋으로 시작한다').toBe(3)
+    expect(sections.length, 'starts with three questions').toBe(3)
     const ids = sections.map((section) => `portfolio-section-${section.id}`)
 
     /**
@@ -361,7 +361,7 @@ describe('목차는 지금 보고 있는 문항을 가리킨다', () => {
     try {
       // 여기부터가 스크롤 경로다 — 사건을 쏘고 프레임을 비워야 다시 잰다.
       window.dispatchEvent(new Event('scroll'))
-      expect(frames.length, '스크롤이 프레임을 예약해야 한다').toBeGreaterThan(0)
+      expect(frames.length, 'scrolling must schedule a frame').toBeGreaterThan(0)
       for (const frame of frames.splice(0)) frame(0)
       await view.vm.$nextTick()
       // 목차 줄은 번호와 상태를 함께 담는다. 어느 문항인가만 본다.

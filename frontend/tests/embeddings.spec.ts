@@ -246,7 +246,9 @@ describe('.mlpx를 왕복한다', () => {
      * 그 모양은 `mlpx-spec.md` §1.3이 정한 계약이다.
      */
     expect([...opened.embeddings.keys()]).toEqual([`embeddings/${BACKBONE}/${only!.hash}.bin`])
-    expect(embeddingPath('b', 'h'), '경로를 짓는 함수도 그 모양이다').toBe('embeddings/b/h.bin')
+    expect(embeddingPath('b', 'h'), 'the path builder has the same shape').toBe(
+      'embeddings/b/h.bin',
+    )
     // 정본 사진과 이름이 같다 - 확장자만 다르다.
     expect(
       opened.images.has(imageEntryPath('data', only!.hash, '개', CANONICAL_FORMATS.webp)),

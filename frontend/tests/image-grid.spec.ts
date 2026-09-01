@@ -104,9 +104,9 @@ describe('쪽을 넘긴다', () => {
       .findAll('button')
       .find((one) => one.text() === '다음')
       ?.trigger('click')
-    expect(view.findAll('li'), '둘째 쪽에는 열 장이 남는다').toHaveLength(10)
+    expect(view.findAll('li'), 'ten photos are left on the second page').toHaveLength(10)
 
     await view.setProps({ entries: many(5) })
-    expect(view.findAll('li'), '되당기지 않으면 여기가 0장이 된다').toHaveLength(5)
+    expect(view.findAll('li'), 'without the pull-back this becomes zero photos').toHaveLength(5)
   })
 })

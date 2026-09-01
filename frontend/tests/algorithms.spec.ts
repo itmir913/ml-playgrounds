@@ -346,7 +346,7 @@ describe('행 상한 칸에 제 이름의 상수가 온다', () => {
           wrong.push(`${algorithm.id}.${dataType} = ${name ?? '(없다)'}`)
         }
       }
-      expect(wrong, '맞바꾸면 학생이 못 도는 크기로 학습을 시작한다').toEqual([])
+      expect(wrong, 'swapping these starts training at a size the student cannot run').toEqual([])
     })
   }
 })

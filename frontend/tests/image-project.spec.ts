@@ -402,8 +402,11 @@ describe('범주를 옮기고 고친다', () => {
 
     const after = removeImages(withVectors, ['a'], NOW, 'predict')
 
-    expect(readImages(after), '훈련 사진은 그대로다').toHaveLength(1)
-    expect(readEmbeddings(after, BACKBONE, 2).size, '그 사진의 벡터도 그대로다').toBe(1)
+    expect(readImages(after), 'the training photos are unchanged').toHaveLength(1)
+    expect(
+      readEmbeddings(after, BACKBONE, 2).size,
+      'the vector for that photo is unchanged too',
+    ).toBe(1)
   })
 
   it('마지막 자리에서 지우면 임베딩도 나간다 - 아무도 안 가리키는 벡터를 남기지 않는다', () => {

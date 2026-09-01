@@ -93,7 +93,7 @@ const SRC = join(process.cwd(), 'src')
 
 /** 내장 양식이 사는 곳. 학생이 읽는 한국어가 로케일 JSON 밖에도 있다. */
 const PORTFOLIO = join(process.cwd(), 'public', 'portfolio')
-if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
+if (!existsSync(SRC)) throw new Error(`src not found: ${SRC}`)
 
 /**
  * 실제로 실어 보내는 언어들. **`src/i18n.ts`에서 가져오지 않는다** — 그 모듈은 화면
@@ -356,7 +356,7 @@ describe('프런트엔드 전용 코드', () => {
   it('동작의 이름에 순우리말을 쓰지 않는다', () => {
     for (const [key, value] of korean) {
       for (const word of RETIRED) {
-        expect(value, `${key} 가 '${word}'를 쓴다`).not.toContain(word)
+        expect(value, `${key} uses '${word}'`).not.toContain(word)
       }
     }
   })
@@ -373,12 +373,12 @@ describe('프런트엔드 전용 코드', () => {
    */
   it('내장 양식의 안내문도 동작의 이름에 순우리말을 안 쓴다', () => {
     const forms = readdirSync(PORTFOLIO).filter((name) => name.endsWith('.ko.md'))
-    expect(forms.length, '훑을 양식이 있어야 이 검사가 돈다').toBeGreaterThan(0)
+    expect(forms.length, 'this check needs at least one form to scan').toBeGreaterThan(0)
 
     for (const name of forms) {
       const text = readFileSync(join(PORTFOLIO, name), 'utf-8').replace(/<!--[\s\S]*?-->/g, '')
       for (const word of RETIRED) {
-        expect(text, `${name} 이 '${word}'를 쓴다`).not.toContain(word)
+        expect(text, `${name} uses '${word}'`).not.toContain(word)
       }
     }
   })

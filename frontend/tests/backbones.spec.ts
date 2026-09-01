@@ -50,8 +50,8 @@ function readModelJson(id: string): ModelJson {
   const path = fileURLToPath(new URL(`../.cache/backbones/${id}/model.json`, import.meta.url))
   if (!existsSync(path)) {
     throw new Error(
-      `백본 가중치가 없다: ${id}\n` +
-        `저장소에 두지 않는 파일이다. \`npm run backbones\`로 받아라.`,
+      `backbone weights missing: ${id}\n` +
+        `This file is not kept in the repository. Fetch it with \`npm run backbones\`.`,
     )
   }
   return JSON.parse(readFileSync(path, 'utf-8')) as ModelJson
@@ -87,7 +87,7 @@ function hubInputConstants(id: string): { readonly mul: number; readonly sub: nu
     const shards = (group.paths ?? []).map((name) => {
       const path = fileURLToPath(new URL(`../.cache/backbones/${id}/${name}`, import.meta.url))
       if (!existsSync(path)) {
-        throw new Error(`샤드가 없다: ${id}/${name}. \`npm run backbones\`로 받아라.`)
+        throw new Error(`shard missing: ${id}/${name}. Fetch it with \`npm run backbones\`.`)
       }
       return readFileSync(path)
     })
@@ -97,12 +97,12 @@ function hubInputConstants(id: string): { readonly mul: number; readonly sub: nu
     for (const weight of group.weights) {
       const dtype = weight.dtype ?? 'float32'
       const width = BYTES_PER_VALUE[dtype]
-      if (width === undefined) throw new Error(`모르는 dtype이다: ${dtype} (${weight.name})`)
+      if (width === undefined) throw new Error(`unknown dtype: ${dtype} (${weight.name})`)
       const count = weight.shape.reduce((product, size) => product * size, 1)
 
       if (weight.name.endsWith('/hub_input/Mul/y') || weight.name.endsWith('/hub_input/Sub/y')) {
-        expect(dtype, `${weight.name}이 float32가 아니다`).toBe('float32')
-        expect(count, `${weight.name}이 스칼라가 아니다`).toBe(1)
+        expect(dtype, `${weight.name} is not float32`).toBe('float32')
+        expect(count, `${weight.name} is not a scalar`).toBe(1)
         constants.set(
           weight.name.slice(weight.name.lastIndexOf('/hub_input/')),
           blob.readFloatLE(offset),
@@ -112,7 +112,7 @@ function hubInputConstants(id: string): { readonly mul: number; readonly sub: nu
     }
 
     // 셈이 맞는지 스스로 확인한다. 한 칸이라도 밀리면 위에서 읽은 값이 남의 가중치다.
-    expect(offset, `${id}: 가중치 크기의 합이 샤드 총합과 다르다`).toBe(blob.length)
+    expect(offset, `${id}: weight sizes do not add up to the shard total`).toBe(blob.length)
   }
 
   const mul = constants.get('/hub_input/Mul/y')
@@ -120,9 +120,9 @@ function hubInputConstants(id: string): { readonly mul: number; readonly sub: nu
   if (mul === undefined || sub === undefined) {
     throw new Error(
       [
-        `${id}: 그래프에 hub_input 전처리가 없다.`,
-        '전처리를 그래프가 안 들고 있는 백본은 그 자체가 갈래다 — 규칙을 다시 정하고',
-        'open-decisions.md "백본 입력 범위가 그래프의 계약과 어긋났다"에 적어라.',
+        `${id}: the graph has no hub_input preprocessing.`,
+        'A backbone whose graph does not carry the preprocessing is a branch of its own -',
+        'settle the rule again and write it into open-decisions.md.',
       ].join(NEWLINE),
     )
   }
@@ -183,7 +183,7 @@ describe('백본 등록부', () => {
     )
     const ids = [...source.matchAll(/^\s+id: '([^']+)',$/gm)].map((match) => match[1])
 
-    expect(ids, 'fetch-backbone.mjs에서 id를 하나도 못 읽었다 - 정규식이 죽었다').not.toEqual([])
+    expect(ids, 'read no id from fetch-backbone.mjs - the regex is dead').not.toEqual([])
     expect(ids).toEqual([...BACKBONE_IDS])
   })
 
@@ -235,7 +235,7 @@ describe('백본 명세는 model.json과 맞는다', () => {
 
     // 입력 크기 — 정본을 이 크기로 굽는다.
     const input = nodes.find((node) => node.op === 'Placeholder')
-    expect(input, '입력 노드가 없다').toBeDefined()
+    expect(input, 'no input node').toBeDefined()
     const dims = input?.attr?.shape?.shape?.dim ?? []
     expect(dims.map((dim) => Number(dim.size))).toEqual([
       -1,
@@ -247,7 +247,7 @@ describe('백본 명세는 model.json과 맞는다', () => {
     // 임베딩을 뽑을 노드 — 이름이 틀리면 execute가 터진다.
     expect(
       nodes.some((node) => node.name === backbone.embeddingNode),
-      `${backbone.embeddingNode} 노드가 그래프에 없다`,
+      `node ${backbone.embeddingNode} is not in the graph`,
     ).toBe(true)
 
     /**
@@ -260,7 +260,7 @@ describe('백본 명세는 model.json과 맞는다', () => {
     const classifier = weights.find(
       (weight) => weight.name.includes('Logits') && weight.shape.length === 4,
     )
-    expect(classifier, '분류기 가중치를 못 찾았다').toBeDefined()
+    expect(classifier, 'classifier weights not found').toBeDefined()
     expect(classifier?.shape[2]).toBe(backbone.embeddingDim)
   })
 })
@@ -280,7 +280,7 @@ describe('inputRange가 그래프 전처리의 역함수다', () => {
     const [low, high] = backbone.inputRange
 
     // 우리가 넣은 양 끝이 모듈을 통과하면 정확히 [-1, 1]이어야 한다.
-    expect(low * mul - sub, `${id}: 아래 끝이 -1로 안 간다`).toBeCloseTo(-1, 6)
-    expect(high * mul - sub, `${id}: 위 끝이 1로 안 간다`).toBeCloseTo(1, 6)
+    expect(low * mul - sub, `${id}: the lower end does not reach -1`).toBeCloseTo(-1, 6)
+    expect(high * mul - sub, `${id}: the upper end does not reach 1`).toBeCloseTo(1, 6)
   })
 })

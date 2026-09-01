@@ -50,7 +50,7 @@ async function collect(
 /** 마지막 메시지가 `done`인지 확인하고 좁힌다. 캐스팅으로 넘기면 검사가 거짓말을 한다. */
 function doneOf(messages: readonly CanonicalizeMessage[]) {
   const last = messages.at(-1)
-  if (last?.type !== 'done') throw new Error(`done이 안 왔다: ${last?.type}`)
+  if (last?.type !== 'done') throw new Error(`done never arrived: ${last?.type}`)
   return last
 }
 
@@ -140,7 +140,7 @@ describe('정본 형식', () => {
 
   it('구울 형식이 하나도 없으면 실패로 끝난다 - 조용히 png를 담지 않는다', async () => {
     const messages = await collect([fileOf('a.jpg')], fakeBake, () => {
-      throw new Error('정본으로 구울 수 있는 형식이 하나도 없다')
+      throw new Error('no format can be baked as canonical')
     })
     expect(messages.at(-1)?.type).toBe('failed')
   })

@@ -264,6 +264,6 @@ describe('mljs 엔진의 svm', () => {
    */
   it('다른 randomState면 모델이 갈린다 - 씨앗이 안 쓰이면 여기가 빨개진다', () => {
     const models = [42, 7, 29].map((seed) => JSON.stringify(train({}, seed).model))
-    expect(new Set(models).size, '씨앗이 SMO 안까지 안 닿았다').toBeGreaterThan(1)
+    expect(new Set(models).size, 'the seed did not reach inside SMO').toBeGreaterThan(1)
   })
 })

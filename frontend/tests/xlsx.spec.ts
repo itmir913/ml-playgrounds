@@ -207,11 +207,11 @@ describe('폴백', { timeout: 20_000 }, () => {
     const files = unzipSync(bytes)
     const path = 'xl/worksheets/sheet1.xml'
     const sheet = files[path]
-    if (sheet === undefined) throw new Error(`${path}가 픽스처에 없다`)
+    if (sheet === undefined) throw new Error(`${path} is not in the fixture`)
     const xml = new TextDecoder().decode(sheet)
     const patched = xml.replace('<x:c r="B2"><x:v>100</x:v></x:c>', BIG_CELL)
     // 못 바꿨는데 통과하면 이 검사는 아무것도 안 지킨다.
-    if (patched === xml) throw new Error('픽스처의 B2를 못 찾았다')
+    if (patched === xml) throw new Error('B2 not found in the fixture')
     files[path] = new TextEncoder().encode(patched)
     return zipSync(files)
   }

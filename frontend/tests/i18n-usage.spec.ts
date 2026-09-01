@@ -27,7 +27,7 @@ import { sourceFiles, windowedHits, withoutComments } from './fixtures/source'
 // jsdom 환경에서는 import.meta.url이 file: 스킴이 아니라 URL 계산을 못 한다.
 // vitest는 vite.config.ts가 있는 곳에서 도므로 cwd가 frontend/ 다.
 const SRC = join(process.cwd(), 'src')
-if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
+if (!existsSync(SRC)) throw new Error(`src not found: ${SRC}`)
 
 interface Rule {
   /** 실패했을 때 무엇을 어겼는지. */
@@ -434,11 +434,14 @@ describe('기술 정보 통로에 우리 문장을 싣지 않는다', () => {
   it('던지는 원문에 한글을 쓰지 않는다', () => {
     expect(
       hits(HANGUL_IN_THROWN),
-      '던진 문장은 error.message로 failureDetail을 지나 토스트에 그대로 붙는다',
+      'the thrown sentence reaches the toast verbatim through failureDetail as error.message',
     ).toEqual([])
   })
 
   it('지금 소스에 그런 자리가 없다', () => {
-    expect(hits(HANGUL_IN_DETAIL), '기술 정보 통로는 코드와 파라미터만 나른다').toEqual([])
+    expect(
+      hits(HANGUL_IN_DETAIL),
+      'the technical channel carries codes and parameters only',
+    ).toEqual([])
   })
 })

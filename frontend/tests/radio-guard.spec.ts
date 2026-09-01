@@ -77,7 +77,7 @@ describe('그룹째 되돌린다', () => {
 
     guard.resync('a')
 
-    expect(stateOf(nodes), '등록이 지워진 것은 안 건드린다').toEqual([true, true])
+    expect(stateOf(nodes), 'an unregistered entry is left alone').toEqual([true, true])
   })
 
   it('아무것도 등록 안 됐으면 아무 일도 안 일어난다', () => {

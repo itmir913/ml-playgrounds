@@ -315,7 +315,7 @@ describe('문서 참조', () => {
           })
       }
     }
-    expect([...missing].sort(), '없는 문서를 가리키는 자리').toEqual([])
+    expect([...missing].sort(), 'points at a document that does not exist').toEqual([])
   })
 
   it('가리키는 절 번호가 실제로 있다', () => {
@@ -328,7 +328,7 @@ describe('문서 참조', () => {
         dangling.push(`${reference.where}  ${reference.doc} §${reference.section}`)
       }
     }
-    expect(dangling, '없는 절을 가리키는 자리').toEqual([])
+    expect(dangling, 'points at a section that does not exist').toEqual([])
   })
 
   it('인용한 글자가 그 문서에 실제로 있다', () => {
@@ -343,7 +343,7 @@ describe('문서 참조', () => {
         dangling.push(`${reference.where}  ${reference.doc} "${reference.title}"`)
       }
     }
-    expect(dangling, '그 문서에 없는 글자를 인용한 자리').toEqual([])
+    expect(dangling, 'quotes text that is not in that document').toEqual([])
   })
 
   it('가리키는 i18n 규칙 번호가 실제로 있다', () => {
@@ -354,7 +354,7 @@ describe('문서 참조', () => {
         reference.doc === 'i18n.md' &&
         (reference.rule < 1 || reference.rule > highest),
     ).map((reference) => `${reference.where}  규칙 ${reference.rule} (1..${highest})`)
-    expect(dangling, '없는 규칙을 가리키는 자리').toEqual([])
+    expect(dangling, 'points at a rule that does not exist').toEqual([])
   })
 
   it('스포크의 표제가 허브 색인에 다 있다', () => {
@@ -372,7 +372,7 @@ describe('문서 참조', () => {
         }
       }
     }
-    expect(unlisted, '색인에 없는 스포크 표제').toEqual([])
+    expect(unlisted, 'spoke heading missing from the index').toEqual([])
   })
 
   it('검사기가 실제로 잡는다', () => {
@@ -480,6 +480,6 @@ describe('주석이 가리키는 심볼', () => {
       }
     }
 
-    expect(dead, '가리키는 곳에 없는 심볼').toEqual([])
+    expect(dead, 'symbol missing where it points').toEqual([])
   })
 })

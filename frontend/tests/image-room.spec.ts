@@ -35,7 +35,7 @@ const SRC = join(process.cwd(), 'src')
 /** 결정문의 100MB도 화면 문구도 이 단위다 (open-decisions.md "MB는 십진 백만이다"). */
 const MB = BYTES_PER_MB
 const backbone = backboneFor(DEFAULT_BACKBONE_ID)
-if (!backbone) throw new Error(`기본 백본을 등록부에서 못 찾았다: ${DEFAULT_BACKBONE_ID}`)
+if (!backbone) throw new Error(`default backbone not in the registry: ${DEFAULT_BACKBONE_ID}`)
 
 describe('사진이 들어갈 자리', () => {
   it('장당은 정본과 임베딩을 더한 것이다', () => {
@@ -104,7 +104,7 @@ describe('사진이 들어갈 자리', () => {
         missing.push(path.slice(SRC.length + 1).replace(/\\/g, '/'))
       }
     }
-    expect(missing, '굽기 전에 자리를 안 묻는 화면').toEqual([])
+    expect(missing, 'a screen that bakes without asking where to put it').toEqual([])
   })
 
   it('검사기가 실제로 잡는다', () => {

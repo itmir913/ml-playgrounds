@@ -30,7 +30,7 @@ const BACKTICK = String.fromCharCode(96)
 const ATTRS = String.raw`(?:"[^"]*"|'[^']*'|[^>"'])*`
 
 const SRC = join(process.cwd(), 'src')
-if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
+if (!existsSync(SRC)) throw new Error(`src not found: ${SRC}`)
 
 interface Rule {
   readonly name: string
@@ -792,7 +792,9 @@ describe('검사기가 실제로 잡는다', () => {
           // 표본이 진짜로 여러 줄인지부터 본다 - 한 줄에 다 있으면 이 검사는 아무것도
           // 안 재는 것이 된다.
           const perLine = source.split('\n').filter((line) => hits(rule, line))
-          expect(perLine, '줄 하나씩 보면 안 잡히는 모양이어야 한다').toEqual([])
+          expect(perLine, 'the shape must be one that line-by-line reading cannot catch').toEqual(
+            [],
+          )
           expect(windowedHits((text) => hits(rule, text), source, 'wrapped')).toHaveLength(1)
         })
       }
@@ -885,7 +887,10 @@ describe('예측 판은 화면에 양보한다', () => {
 
   /** 훑을 파일이 실제로 있어야 한다. 0개면 판정이 썩은 것이지 규칙이 지켜진 게 아니다. */
   it('검사할 판을 실제로 찾는다', () => {
-    expect(PANELS.length, `${PREDICT_DIR}에서 무거운 계산을 부르는 판`).toBeGreaterThanOrEqual(4)
+    expect(
+      PANELS.length,
+      `a panel under ${PREDICT_DIR} that calls heavy work`,
+    ).toBeGreaterThanOrEqual(4)
   })
 
   /** **양쪽 갈래가 다 비어 있지 않아야 한다.** 한쪽이 0이면 그 갈래는 아무것도 안 지킨다. */
@@ -904,7 +909,7 @@ describe('예측 판은 화면에 양보한다', () => {
           .matchAll(/await yieldToScreen\(\)/g),
       ]
       const least = loopsOverUnits(source) ? 2 : 1
-      expect(calls.length, `${name}: yieldToScreen을 부르는 자리`).toBeGreaterThanOrEqual(least)
+      expect(calls.length, `${name}: calls yieldToScreen`).toBeGreaterThanOrEqual(least)
     })
   }
 
@@ -963,7 +968,7 @@ describe('예측 판은 화면에 양보한다', () => {
 
     /** 0개면 판정이 썩은 것이지 규칙이 지켜진 게 아니다. 위의 양보 규칙과 같은 이유다. */
     it('검사할 판을 실제로 찾는다', () => {
-      expect(LOOPING.length, '단위를 도는 판').toBeGreaterThanOrEqual(3)
+      expect(LOOPING.length, 'a panel that loops over units').toBeGreaterThanOrEqual(3)
     })
 
     for (const name of LOOPING) {
@@ -1011,7 +1016,7 @@ describe('버튼의 상자가 변종마다 같다', () => {
   it('검사기가 표를 통째로 읽는다 - 타입이 말하는 수만큼', () => {
     const names = variantClasses(SOURCE).map(([name]) => name)
     const declared = declaredVariants(SOURCE)
-    expect(declared.length, '변종 유니온을 읽어야 이 검사가 돈다').toBeGreaterThan(1)
+    expect(declared.length, 'this check needs the variant union to be read').toBeGreaterThan(1)
     expect([...names].sort()).toEqual([...declared].sort())
   })
 
@@ -1234,7 +1239,7 @@ describe('확인 모달이 걸린 라디오는 그룹째 되돌린다', () => {
       .map((path) => ({ path, source: readFileSync(path, 'utf-8') }))
       .filter(({ source }) => source.includes('useRadioGroupGuard<'))
 
-    expect(owners.length, '가드를 쓰는 화면이 있어야 이 검사가 돈다').toBeGreaterThan(0)
+    expect(owners.length, 'this check needs a screen that uses the guard').toBeGreaterThan(0)
     const silent = owners
       .filter(({ source }) => !/\.resync\(/.test(source))
       .map(({ path }) => path.slice(SRC.length + 1))
@@ -1619,7 +1624,7 @@ describe('군집 요약표는 평균과 최빈을 갈라 말한다', () => {
       ['results.tabular.clusterMeanHelp', 'results.tabular.clusterModeHelp'],
       ['results.tabular.clusterSummaryLead', 'results.tabular.clusterSummaryLeadMixed'],
     ]) {
-      for (const key of pair) expect(keys, `${key}가 없다`).toContain(key)
+      for (const key of pair) expect(keys, `${key} is missing`).toContain(key)
     }
   })
 })
@@ -1868,7 +1873,10 @@ describe('종류를 모르는 화면은 종류를 모른다', () => {
           .filter((line) => KIND_AWARE.test(line))
           .map((line) => `${path.slice(SRC.length + 1)}  ${line.trim()}`),
       )
-    expect(found, '종류를 아는 계층은 등록부에서 꺼낸 판이 부른다').toEqual([])
+    expect(
+      found,
+      'the layer that knows the kind is called by the panel taken from the registry',
+    ).toEqual([])
   })
 })
 

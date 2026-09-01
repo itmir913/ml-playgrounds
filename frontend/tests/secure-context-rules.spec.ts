@@ -35,7 +35,7 @@ import { describe, expect, it } from 'vitest'
 import { sourceFiles, windowedHits, withoutComments } from './fixtures/source'
 
 const SRC = join(process.cwd(), 'src')
-if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
+if (!existsSync(SRC)) throw new Error(`src not found: ${SRC}`)
 
 interface Rule {
   readonly name: string

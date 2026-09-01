@@ -188,6 +188,6 @@ describe('부르는 자리가 언어를 넘긴다', () => {
           )
           .map((row) => `${relative(process.cwd(), path)}:${row.index + 1}`)
       })
-    expect(offenders, 'readImageZip을 부르며 locale을 안 넘겼다').toEqual([])
+    expect(offenders, 'calls readImageZip without passing locale').toEqual([])
   })
 })

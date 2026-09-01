@@ -306,6 +306,6 @@ describe('압축 파일을 가르는 값이 하나다', () => {
           .filter((row) => /['"`]\.zip['"`]/i.test(row.line))
           .map((row) => `${relative(process.cwd(), row.path)}:${row.at}`),
       )
-    expect(offenders, 'ZIP_EXTENSION을 쓰지 않고 확장자를 적었다').toEqual([])
+    expect(offenders, 'writes the extension instead of ZIP_EXTENSION').toEqual([])
   })
 })

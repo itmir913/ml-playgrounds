@@ -56,8 +56,8 @@ describe('미리보기 표의 칸 수가 줄마다 맞는다', () => {
       const headRows = wrapper.findAll('thead tr')
       const first = headRows[0]
       const second = headRows[1]
-      expect(first, '머리글 첫 줄').toBeDefined()
-      expect(second, '머리글 둘째 줄').toBeDefined()
+      expect(first, 'first header row').toBeDefined()
+      expect(second, 'second header row').toBeDefined()
 
       // 첫 줄은 행 번호 칸(rowspan)과 열마다의 colspan으로 선다.
       const spans = (first?.findAll('th') ?? []).map((cell) =>

@@ -136,7 +136,7 @@ function codeOf(action: () => unknown): string {
     if (isClientError(error)) return error.code
     throw error
   }
-  throw new Error('던지지 않았다')
+  throw new Error('it did not throw')
 }
 
 describe('① 훈련 행 만들기', () => {
@@ -1775,7 +1775,7 @@ describe('섞기', () => {
 
     const mixed = shuffled(items)
 
-    expect(items, '원본이 제자리에서 바뀌었다').toEqual(before)
+    expect(items, 'the original was mutated in place').toEqual(before)
     expect([...mixed].sort((a, b) => a - b)).toEqual(before)
   })
 })

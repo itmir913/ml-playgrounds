@@ -48,7 +48,7 @@ import {
 } from '../src/limits'
 
 const SRC = join(process.cwd(), 'src')
-if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
+if (!existsSync(SRC)) throw new Error(`src not found: ${SRC}`)
 
 /** 상한이 사는 곳. 여기만 숫자를 직접 쓴다. */
 const LIMITS = join(SRC, 'limits.ts')
@@ -264,7 +264,7 @@ describe('상한은 전부 읽힌다', () => {
     const orphans = NAMES.filter(
       (name) => !readers.some((source) => new RegExp(`\\b${name}\\b`).test(source)),
     )
-    expect(orphans, '아무 데서도 안 읽히는 상한').toEqual([])
+    expect(orphans, 'a limit nothing reads').toEqual([])
   })
 })
 
@@ -307,7 +307,7 @@ describe('산점도 상한이 화면까지 이어진다', () => {
     const missing = CALLERS.filter(
       (path) => !bodyOf(path).includes('CLUSTER_SCATTER_POINT_LIMIT'),
     ).map((path) => path.slice(SRC.length + 1))
-    expect(missing, 'scatterPoints를 부르면서 상수를 안 넘기는 자리').toEqual([])
+    expect(missing, 'calls scatterPoints without passing the constant').toEqual([])
   })
 })
 
@@ -449,7 +449,7 @@ describe('상한마다 분류가 달려 있다', () => {
     const unknown = NAMES.map((name) => classOf(SOURCE, name)).filter(
       (value) => value !== null && !CLASSES.includes(value as (typeof CLASSES)[number]),
     )
-    expect(unknown, '결정문이 세운 여섯 밖의 분류').toEqual([])
+    expect(unknown, 'a class outside the six the decision set').toEqual([])
   })
 
   /** **검사기를 먼저 검사한다.** 아무것도 안 잡으면서 초록인 것이 제일 나쁘다. */
@@ -542,7 +542,10 @@ describe('상한마다 분류가 달려 있다', () => {
       const wrong = CLASSES.filter((cls) => (doc.get(cls) ?? 0) !== (source.get(cls) ?? 0)).map(
         (cls) => `${cls}: 결정문 ${doc.get(cls) ?? 0} · 소스 ${source.get(cls) ?? 0}`,
       )
-      expect(wrong, '결정문의 전수 목록을 함께 고쳐라 (open-decisions/06-audit.md)').toEqual([])
+      expect(
+        wrong,
+        'update the full list in the decision too (open-decisions/06-audit.md)',
+      ).toEqual([])
     })
   })
 })

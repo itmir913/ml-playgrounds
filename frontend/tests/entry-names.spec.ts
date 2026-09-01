@@ -24,7 +24,7 @@ import { sourceFiles } from './fixtures/source'
 import { ENTRY, MLPX_EXTENSION } from '../src/project/format'
 
 const SRC = join(process.cwd(), 'src')
-if (!existsSync(SRC)) throw new Error(`src를 찾지 못했다: ${SRC}`)
+if (!existsSync(SRC)) throw new Error(`src not found: ${SRC}`)
 
 /** 은퇴한 이름 -> 지금 이름. 엔트리를 옮기면 여기에 한 줄 더한다. */
 const RETIRED: readonly (readonly [string, string])[] = [
@@ -53,7 +53,7 @@ describe('엔트리 이름', () => {
         }
       })
     }
-    expect(found, '옛 엔트리 이름을 부르는 자리').toEqual([])
+    expect(found, 'uses an old entry name').toEqual([])
   })
 
   it('검사기가 실제로 잡는다', () => {
@@ -99,7 +99,7 @@ describe('확장자', () => {
           }
         })
     }
-    expect(found, 'MLPX_EXTENSION을 쓰지 않고 확장자를 직접 적은 자리').toEqual([])
+    expect(found, 'writes the extension directly instead of MLPX_EXTENSION').toEqual([])
   })
 
   it('검사기가 실제로 잡는다', () => {
@@ -133,7 +133,7 @@ describe('파일 고르기의 accept', () => {
           }
         })
     }
-    expect(found, 'accept 문자열을 직접 적은 자리').toEqual([])
+    expect(found, 'writes the accept string directly').toEqual([])
   })
 
   it('검사기가 실제로 잡는다', () => {

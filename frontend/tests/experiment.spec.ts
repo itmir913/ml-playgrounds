@@ -769,7 +769,7 @@ describe('id와 changed', () => {
         ...Object.keys(NOT_COMPARED),
       ])
       const missing = FIELDS.filter((key) => !declared.has(key))
-      expect(missing, '새 설정 필드는 MUTATIONS나 NOT_COMPARED에 넣어라').toEqual([])
+      expect(missing, 'put a new settings field in MUTATIONS or NOT_COMPARED').toEqual([])
     })
 
     it('적힌 것 말고 다른 것이 없다 - 필드가 사라지면 표도 따라간다', () => {
@@ -808,7 +808,7 @@ describe('id와 changed', () => {
 
         expect(
           next.changed,
-          `${field}가 변경 이력에서 빠졌다: ${JSON.stringify(next.changed)}`,
+          `${field} is missing from the change list: ${JSON.stringify(next.changed)}`,
         ).toContain(field)
       })
     }
@@ -821,7 +821,10 @@ describe('id와 changed', () => {
           history: { experiments: [base] },
         }).experiment
         const hit = (next.changed ?? []).some((one) => one === path || one.startsWith(`${path}.`))
-        expect(hit, `${field}가 변경 이력에서 빠졌다: ${JSON.stringify(next.changed)}`).toBe(true)
+        expect(
+          hit,
+          `${field} is missing from the change list: ${JSON.stringify(next.changed)}`,
+        ).toBe(true)
       })
     }
 
