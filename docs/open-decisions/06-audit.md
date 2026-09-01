@@ -879,8 +879,8 @@ off 스위치 범위 · `.mlpx` 크기를 하드 블록으로 막지 않는 이�
 
 | 분류 | 상수 |
 |---|---|
-| **우리 기기가 정했다** (24) | `SILHOUETTE_BUDGET_MS` · `MAX_DATASET_ROWS` · `MAX_IMAGE_COUNT` · `MAX_DATASET_COLUMNS` · `BROWSER_ROW_LIMIT` · `MLJS_*_ROW_LIMIT` 여덟(표) · `MLJS_IMAGE_*_ROW_LIMIT` 일곱 · `CLUSTER_SCATTER_POINT_LIMIT` · `PREDICT_PAGE_SIZE` · `IMAGE_PREDICT_PAGE_SIZE` · `MAX_PORTFOLIO_BYTES` |
-| **파일이 나간 뒤가 요구한다** (4) | `MAX_CATEGORY_NAME_LENGTH`(윈도우 260자 경로) · `MAX_FILE_NAME_LENGTH`(파일 시스템) · `MAX_MODEL_BYTES` · `MODEL_BUDGET_BYTES` |
+| **우리 기기가 정했다** (23) | `MAX_DATASET_ROWS` · `MAX_IMAGE_COUNT` · `MAX_DATASET_COLUMNS` · `BROWSER_ROW_LIMIT` · `MLJS_*_ROW_LIMIT` 여덟(표) · `MLJS_IMAGE_*_ROW_LIMIT` 일곱 · `CLUSTER_SCATTER_POINT_LIMIT` · `PREDICT_PAGE_SIZE` · `IMAGE_PREDICT_PAGE_SIZE` · `MAX_PORTFOLIO_BYTES` |
+| **파일이 나간 뒤가 요구한다** (5) | `MAX_CATEGORY_NAME_LENGTH`(윈도우 260자 경로) · `MAX_FILE_NAME_LENGTH`(파일 시스템) · `MAX_MODEL_BYTES` · `MODEL_BUDGET_BYTES` · `SILHOUETTE_BUDGET_MS`(§1.3) |
 | **계산 자체가 요구한다** (2) | `MIN_SPLIT_ROWS` · `MIN_SILHOUETTE_SAMPLE` |
 | **교실을 보고 골랐다** (3) | `MAX_STUDENT_ID_LENGTH` · `MAX_STUDENT_NAME_LENGTH` · `TEST_SIZE_RANGE` |
 | **알림이다** (1) | `PROJECT_FILE_WARN_BYTES` — §3의 100MB 경고 (2026-08-27) |
@@ -941,6 +941,41 @@ off 스위치 범위 · `.mlpx` 크기를 하드 블록으로 막지 않는 이�
 
 **끄면 무슨 일이 나나** — 예측 화면이 사진을 한 번에 다 세운다. 빠른 기기에서는 되고
 저사양 교실 PC에서는 그동안 멈춘다. 그것이 이 분류의 정의이고, 표 쪽에서 이미 그렇게 두었다.
+
+#### 1.3 `SILHOUETTE_BUDGET_MS`를 파일 줄로 옮겼다 (2026-09-01, 코드 소유자)
+
+**스물넷 중 이것 하나만 `.mlpx`에 적히는 숫자를 바꾼다.** 나머지 스물셋은 막느냐 마느냐
+(행 상한 · 업로드 · 포트폴리오)이거나 한 번에 얼마나 그리느냐(산점도 · 예측 판)인데, 이
+상수는 `silhouetteSampleSize()`를 거쳐 **`runs.json`에 적히는 실루엣 값 자체**를 바꾼다.
+
+**그래서 끄면 재실행 대조가 어긋난다.** 학생이 켠 기기에서 학습하면 전수, 교사가 끈
+기기에서 대조하면 표본이라 `ml/reproduce.ts`의 delta가 0이 아니다. 그 파일이 엔진을 넘지
+않는 이유로 적어 둔 문장이 그대로 걸린다 — *"무고한 학생이 위조를 의심받는다."*
+
+**판별자를 한 줄로 줄이면 이렇다 — 상한 해제는 그 기기에만 들어간다** (2026-09-01, 코드
+소유자). 스위치는 `preferences`에 살고 `.mlpx`에는 안 적히므로(§2), **그 기기 밖으로
+나가는 것에 손대는 상수는 애초에 이 스위치의 것이 아니다.** 실루엣 예산이 바꾸는 것은
+파일에 적혀 남의 기기에서 읽히는 숫자이고, 그러면 "그 기기에만"이라는 전제가 깨진다.
+
+**`우리 기기` 칸의 정의가 말하는 실패도 아니다.** 그 칸은 *"느려지거나 안 끝나거나 탭이
+죽는다"*이고, 여기서 일어나는 일은 **파일이 밖에서 다르게 읽히는 것**이다. 그 자리는
+`파일이 나간 뒤가 요구한다`이고, §1.1이 `MAX_MODEL_BYTES`·`MODEL_BUDGET_BYTES`를 옮길 때
+쓴 판별자와 같다 — **스위치가 켜지면 §4가 없애기로 한 실패가 우리 몫으로 돌아오는가.**
+
+**남는 값은 예산 그대로다.** 10만 행 실루엣이 6분 반이던 것을 2초로 자른 그 예산이고
+(`open-decisions.md` "실루엣 계수는 표본으로 낸다"), 기기가 빨라져도 **파일이 갈리는 것은
+안 바뀌므로** 끄지 않는다. 더 정확한 실루엣이 필요하면 그건 스위치가 아니라 **예산을
+올리는 결정**이고, 그때는 모두의 파일이 함께 움직인다.
+
+**표본 크기를 파일에 적어 대조를 살리는 안은 탈락이다** (2026-09-01, 코드 소유자).
+*"`.mlpx`에 들어가는 값은 바꾸면 안 된다 — 스키마 마이그레이션을 굳이 할 이유가 없다."*
+`runs.json`에 칸을 하나 더하면 `FORMAT_VERSION` 증가와 마이그레이션이 따라오고
+(`roadmap.md`의 `schema-version.spec.ts` 문단), 이미 학생 손에 나가 있는 파일이 전부
+그 길을 지난다. **스위치 하나 때문에 치를 값이 아니다.** 이 상수를 안 끄면 그 문제가
+애초에 안 생긴다.
+
+**부분만 끄는 스위치가 아니다** (§2). 첫 줄 전부를 끈다는 규칙은 그대로이고, 바뀐 것은
+**이 상수가 첫 줄이 아니라는 판정**이다.
 
 #### 2. off 스위치는 **우리 기기가 정한 것 전부**를 끈다
 
