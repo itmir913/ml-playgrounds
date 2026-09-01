@@ -112,6 +112,16 @@ describe('등록부의 칸마다 사다리가 있다', () => {
     expect(IMAGE_FEATURES).toBeTypeOf('number')
   })
 
+  /**
+   * **`id`가 겹치면 워커가 다른 것을 잰다.** `bench.worker.ts`는 `id`로 `find`하므로
+   * 앞의 것만 돌고, 결과는 **겹친 이름 아래 덮여** 마지막 것만 남는다
+   * (`measured[ladder.id]`). 둘 다 조용해서 표만 보고는 못 알아챈다.
+   */
+  it('사다리 이름이 겹치지 않는다', () => {
+    const ids = ALL_LADDERS.map((ladder) => ladder.id)
+    expect(ids).toHaveLength(new Set(ids).size)
+  })
+
   it('등록부가 쓸 수 있다고 한 (알고리즘 × 종류)에 사다리가 있다', () => {
     const missing: string[] = []
     for (const algorithm of ALGORITHMS) {

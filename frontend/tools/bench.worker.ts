@@ -31,7 +31,13 @@ export type BenchRequest =
  * `onerror`와 침묵으로 읽는다.
  */
 export type BenchReply =
-  | { readonly ok: true; readonly elapsed: number; readonly heapMb: number | null }
+  | {
+      readonly ok: true
+      readonly elapsed: number
+      readonly heapMb: number | null
+      /** 힙을 **무엇이** 답했나. `null`이면 아무도 안 답했다는 뜻이다. */
+      readonly heapSource: 'performance.memory' | 'measureUserAgentSpecificMemory' | null
+    }
   | { readonly ok: false; readonly error: string }
 
 /**
@@ -44,27 +50,61 @@ interface WorkerScope {
 }
 
 /**
- * 크로미움이 주면 준다. **워커에도 있는지는 재 보고 적을 일이다** — 없으면 `null`이고,
- * 그것도 사실이다. 지어내지 않는다.
+ * 힙을 **둘 중 답하는 쪽에** 묻는다.
+ *
+ * `performance.memory`는 크로미움의 비표준 확장이고 **창에만 열려 있을 수 있다** — 그러면
+ * 워커로 옮긴 뒤 힙이 통째로 `null`이 되고, 상한을 정할 때 쓰던 증거가 사라진다
+ * (`limits.ts`의 SVM 칸이 *"8,000행이면 512MB"*를 그렇게 적었다).
+ *
+ * 그래서 표준 쪽(`measureUserAgentSpecificMemory`)도 물어본다. 이쪽은
+ * `crossOriginIsolated`가 아니면 던지므로 **되면 좋고 안 되면 `null`이다.**
+ *
+ * **누가 답했는지를 함께 싣는다.** 안 그러면 다음에 이 JSON을 읽는 사람이 `null`을
+ * *"힙이 안 늘었다"*로 읽는다.
  */
-function heapMb(): number | null {
+async function heapNow(): Promise<{
+  heapMb: number | null
+  heapSource: 'performance.memory' | 'measureUserAgentSpecificMemory' | null
+}> {
   const memory = (performance as { memory?: { usedJSHeapSize: number } }).memory
-  return memory ? Math.round(memory.usedJSHeapSize / 1_000_000) : null
+  if (memory) {
+    return {
+      heapMb: Math.round(memory.usedJSHeapSize / 1_000_000),
+      heapSource: 'performance.memory',
+    }
+  }
+  const standard = (
+    performance as { measureUserAgentSpecificMemory?: () => Promise<{ bytes: number }> }
+  ).measureUserAgentSpecificMemory
+  if (typeof standard === 'function') {
+    try {
+      const { bytes } = await standard.call(performance)
+      return { heapMb: Math.round(bytes / 1_000_000), heapSource: 'measureUserAgentSpecificMemory' }
+    } catch {
+      // 격리되지 않은 문서에서는 던진다. 그러면 답한 것이 없다.
+    }
+  }
+  return { heapMb: null, heapSource: null }
 }
 
 const scope = self as unknown as WorkerScope
 
 scope.onmessage = (event) => {
   const request = event.data
+  let elapsed: number
   try {
-    const elapsed =
+    elapsed =
       request.kind === 'job'
         ? measure(request.job)
         : runLadderPoint(request.ladderId, request.point)
-    scope.postMessage({ ok: true, elapsed, heapMb: heapMb() })
   } catch (error) {
     scope.postMessage({ ok: false, error: String(error) })
+    return
   }
+  // **시계가 멈춘 뒤에 묻는다.** 힙을 재느라 걸린 시간이 그 점의 값에 섞이면 안 된다.
+  void heapNow().then((heap) => {
+    scope.postMessage({ ok: true, elapsed, ...heap })
+  })
 }
 
 /** 사다리 하나의 한 점. **없는 `id`는 던진다** — 조용히 0ms를 적으면 그게 기준표가 된다. */

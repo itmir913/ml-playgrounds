@@ -100,7 +100,12 @@ interface Failure {
 
 /** 점 하나의 결말. 워커가 보낸 것(`BenchReply`)에 **워커의 죽음**을 더한 것이다. */
 type Outcome =
-  | { readonly ok: true; readonly elapsed: number; readonly heapMb: number | null }
+  | {
+      readonly ok: true
+      readonly elapsed: number
+      readonly heapMb: number | null
+      readonly heapSource: string | null
+    }
   | ({
       readonly ok: false
     } & Failure)
@@ -120,10 +125,22 @@ const failed: Record<string, Failure> = {}
  * 점마다 **워커가 스스로 말한** 힙. 메인 스레드의 힙은 이제 아무것도 안 잰다 — 계산이
  * 저쪽 isolate에서 돌기 때문이다.
  *
- * **워커에 `performance.memory`가 있는지는 재 보고 적을 일이다.** 없으면 `null`이 줄줄이
- * 적힐 것이고, 그러면 힙은 다른 방법으로 봐야 한다.
+ * **누가 답했는지를 함께 적는다** (`source`). `performance.memory`는 창에만 열려 있을 수
+ * 있어서, 워커로 옮긴 뒤 이 칸이 통째로 `null`이 될 수 있다 — 그때 `null`을 *"힙이 안
+ * 늘었다"*로 읽으면 상한을 잘못 정한다. 무엇이 답했는지는 `bench.worker.ts`가 고른다.
  */
-const heap: Record<string, number | null> = {}
+const heap: Record<string, { mb: number | null; source: string | null }> = {}
+/**
+ * **지금 돌리고 있는 점.** 끝나면 지워진다.
+ *
+ * **말없이 죽는 경우가 있기 때문에 있다.** 브라우저가 메모리 부족으로 워커를 거두면
+ * `onerror`가 안 올 수 있고, 그러면 `failed`에도 `measured`에도 아무것도 안 남는다 —
+ * 저장된 JSON이 **"앞 점에서 그냥 끝난 사다리"와 똑같이 생긴다.** 워커로 옮겨 갈라낸
+ * 그 구분이 거기서 도로 사라진다.
+ *
+ * 시작할 때 여기 적고 저장해 두면, 다시 열었을 때 **어디서 멎었는지**가 남는다.
+ */
+let running: string | null = null
 
 /**
  * **점을 하나 잴 때마다 남기는 자리.**
@@ -140,6 +157,7 @@ function snapshot(): Record<string, unknown> {
     wentHidden,
     ceilingMs: CEILING_MS,
     failureCeilingMs: FAILURE_CEILING_MS,
+    running,
     heap,
     stopped,
     failed,
@@ -159,11 +177,15 @@ function snapshot(): Record<string, unknown> {
  * 찾는 사다리에서 오래 걸리는 것은 정상이고(`FAILURE_CEILING_MS`), 화면이 살아 있으니
  * 몇 초째인지가 보인다. 진짜로 죽으면 `onerror`나 침묵으로 온다.
  */
-function runInWorker(request: BenchRequest): Promise<Outcome> {
+function runInWorker(id: string, request: BenchRequest): Promise<Outcome> {
   const worker = new Worker(new URL('./bench.worker.ts', import.meta.url), { type: 'module' })
+  // **시작을 먼저 적고 저장한다.** 말없이 죽으면 이 줄만 남고, 그 줄이 곧 답이다.
+  running = id
+  publish()
   return new Promise<Outcome>((resolve) => {
     const settle = (outcome: Outcome): void => {
       worker.terminate()
+      running = null
       resolve(outcome)
     }
     worker.onmessage = (event: MessageEvent<BenchReply>) => {
@@ -243,9 +265,9 @@ async function runLadder(ladder: Ladder): Promise<void> {
      * **계산이 던진 것과 워커가 죽은 것을 갈라 적는다.** 둘 다 상한이지만 같은 사건이
      * 아니고, 메인 스레드에서 재던 동안은 그 구분이 아예 없었다.
      */
-    const outcome = await runInWorker({ kind: 'ladder', ladderId: ladder.id, point })
-    stopTicking()
     const id = `${ladder.id}@${point}`
+    const outcome = await runInWorker(id, { kind: 'ladder', ladderId: ladder.id, point })
+    stopTicking()
     if (!outcome.ok) {
       failed[id] = { how: outcome.how, detail: outcome.detail }
       addRow(ladder.label, point.toLocaleString(), -1)
@@ -254,7 +276,7 @@ async function runLadder(ladder: Ladder): Promise<void> {
     }
 
     const elapsed = outcome.elapsed
-    heap[id] = outcome.heapMb
+    heap[id] = { mb: outcome.heapMb, source: outcome.heapSource }
     results[String(point)] = elapsed
     previous = { point, elapsed }
     addRow(ladder.label, point.toLocaleString(), elapsed)
@@ -271,7 +293,7 @@ async function runCalibration(): Promise<void> {
     // **워커에서 잰다** — 앱의 교정도 워커에서 돈다 (`ml/worker/handler.ts`).
     const times: number[] = []
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const outcome = await runInWorker({ kind: 'job', job })
+      const outcome = await runInWorker(`calibration/${id}`, { kind: 'job', job })
       if (!outcome.ok) {
         failed[`calibration/${id}`] = { how: outcome.how, detail: outcome.detail }
         break
