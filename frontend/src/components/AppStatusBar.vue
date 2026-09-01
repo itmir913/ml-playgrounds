@@ -260,7 +260,21 @@ const limitsLabel = computed(() =>
           :class="limitsOff ? 'text-caution' : ''"
         >
           <component :is="ACTION_ICONS.limits" :size="18" aria-hidden="true" />
-          <span v-if="limitsOff">{{ t('shell.limitsRelease') }}</span>
+          <!--
+            **글줄 높이를 아이콘 아래로 낮춘다** (2026-09-01, 사용자가 화면에서 잡았다).
+
+            팝오버는 **트리거의 위쪽 끝**에 붙는다 — `AppPopover`가 패널의 아래를
+            `innerHeight - trigger.top + GAP`으로 잡는다. 그래서 **트리거가 커지면 패널이
+            그만큼 위로 밀리고**, 상태 표시줄과의 여백이 상태마다 달라진다.
+
+            글자를 그대로 두면 줄 상자가 24px(`text-base` × 1.5)이라 18px 아이콘보다 커서
+            버튼이 26px에서 32px이 된다 — 트리거가 가운데 정렬이라 위쪽 끝이 3px 올라가고,
+            **여백이 딱 그만큼 벌어진다.** `leading-none`이면 줄 상자가 16px이라 아이콘이
+            여전히 높이를 정하고, 두 상태의 버튼이 같은 크기가 된다.
+
+            **글자 크기는 안 건드린다** — 가장 작은 것이 `text-base`다 (`base.css`).
+          -->
+          <span v-if="limitsOff" class="leading-none">{{ t('shell.limitsRelease') }}</span>
         </button>
       </template>
 
