@@ -163,8 +163,13 @@ export function importTable(document: TableDocument, sheetName?: string): Import
   // **상한 + 1까지만 읽는다.** 상한을 넘는지 판정하는 데 그 이상은 필요 없고, 다 파싱한
   // 뒤에 거부하면 거부할 파일에 메모리를 그만큼 쓴다 (9MB CSV에서 heap 171MB를 쟀다).
   // 새 임계값이 아니라 이미 있는 상수를 한 번 더 쓰는 것이다.
-  // **상한을 끄면 `Infinity + 1`이라 전부 읽는다.** 파서 둘 다 `>= maxRows`로 비교하므로
-  // 그대로 통한다 (`data/csv.ts` · `data/xlsx.ts`) — 끈 사람이 원한 것이 그것이다.
+  // **상한을 끄면 `Infinity + 1`이라 전부 읽는다.** 읽는 자리는 **셋**이고 전부
+  // `>= maxRows`로 비교하므로 그대로 통한다 — `data/csv.ts`, 그리고 `data/xlsx.ts`의
+  // **두 파서**(ExcelJS와 SheetJS)다. 끈 사람이 원한 것이 그것이다.
+  //
+  // **켠 상태로 지나가는 검사는 csv 하나뿐이다** (2026-09-01 감사 C-4). xlsx 두 갈래는
+  // 소스로만 확인했다 — 이 저장소가 「폴백 검사가 폴백을 안 지나갔다」로 한 번 앓은
+  // 자리가 바로 그 파일이다.
   const grid = document.read(sheetName, maxDatasetRows() + 1)
   checkLimits(grid)
 

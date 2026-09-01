@@ -100,6 +100,14 @@ export default defineConfig({
      * 보는 상태다. 그 길은 `tests/ui-rules.spec.ts`의 "DOM이 필요한 검사는 스스로
      * 밝힌다"가 막는다 - 가드가 있는 모듈에 닿는 스펙은 밝히지 않으면 거기서 걸린다.
      */
+    /**
+     * **워커 스택이 브라우저의 네 배라는 것도 함께 안다** (2026-09-01 감사 C-5).
+     * Node worker_thread의 기본 스택은 4MB이고 브라우저 주 스레드는 약 1MB다 — 그래서
+     * **스택을 태우는 병은 이 관문이 구조적으로 못 본다.** 같은 코드가 여기서는 30만
+     * 행까지 초록이고 `--pool=forks`에서는 18만에서 빨강이었다.
+     *
+     * 그래서 그런 병은 값이 아니라 **표기**로 막는다 (`tests/spread-rules.spec.ts`).
+     */
     pool: 'threads',
     environment: 'node',
     include: ['tests/**/*.spec.ts', 'src/**/*.spec.ts'],

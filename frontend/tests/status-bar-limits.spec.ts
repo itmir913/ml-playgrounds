@@ -24,10 +24,22 @@ import { applyLimitsOff } from '../src/limits-switch'
  * **패널은 `body`로 옮겨 뜬다**(`AppPopover`의 `Teleport`). 그래서 컴포넌트의 글이
  * 아니라 문서의 글을 본다 — 처음에 `view.text()`를 봤다가 빈 손으로 통과할 뻔했다.
  */
+/** 마운트한 것들. **끝나면 걷어낸다** — 안 그러면 `document` 리스너가 호출마다 쌓인다. */
+const mounted: { unmount: () => void }[] = []
+
+afterEach(() => {
+  // **`document.body`를 비우는 것으로는 부족하다** (2026-09-01 감사 C-3). 인스턴스와
+  // `pointerdown`·`keydown`·`scroll` 캡처가 남아, 순서가 조금만 바뀌면 다음 호출이
+  // **옛 패널을 집는다.**
+  for (const view of mounted.splice(0)) view.unmount()
+  document.body.innerHTML = ''
+})
+
 async function panelText(off: boolean): Promise<string> {
   applyLimitsOff(off)
   document.body.innerHTML = ''
   const view = mount(AppStatusBar, { global: { plugins: [i18n] }, attachTo: document.body })
+  mounted.push(view)
   /**
    * **이름으로 찾되 두 이름을 다 받는다** (2026-09-01 감사 B-4). 해제 상태의 접근 가능한
    * 이름에 **상태가 들어갔기 때문이다** — `aria-label`이 안의 글자를 덮어쓰므로, 그 이름이
@@ -44,6 +56,12 @@ async function panelText(off: boolean): Promise<string> {
   return panel?.textContent ?? ''
 }
 
+/**
+ * **`setLocale`이 여기서 보장하는 것은 하나뿐이다** (2026-09-01 감사 C-1) — 로케일이
+ * **정해져 있다는 것.** 아래 단언은 전부 `i18n.global.t(...)`로 기대값을 만들므로 어느
+ * 언어든 자기 자신과 맞는다. 이 검사가 잡는 것은 **어느 상태에서 어느 키를 고르는가**이고,
+ * 그건 스펙 머리말이 선언한 목적 그대로다. **말이 옳은지는 `locales.spec.ts`가 본다.**
+ */
 beforeEach(async () => {
   setActivePinia(createPinia())
   await setLocale('ko')
@@ -97,6 +115,7 @@ describe('상한 칩의 이름이 상태를 말한다', () => {
     applyLimitsOff(off)
     document.body.innerHTML = ''
     const view = mount(AppStatusBar, { global: { plugins: [i18n] }, attachTo: document.body })
+    mounted.push(view)
     const names = [i18n.global.t('shell.limits'), i18n.global.t('shell.limitsOpenName')]
     const trigger = view
       .findAll('button')
@@ -113,4 +132,24 @@ describe('상한 칩의 이름이 상태를 말한다', () => {
     expect(label).toBe(i18n.global.t('shell.limitsOpenName'))
     expect(label).not.toBe(i18n.global.t('shell.limits'))
   })
+})
+
+/**
+ * **두 문장이 서로의 부분이 아니어야 위 검사가 성립한다** (2026-09-01 감사 C-2).
+ *
+ * 판 전체를 `toContain`/`not.toContain`으로 훑으므로, `limitsRiskOn`에서 **앞 두 글자만
+ * 떨어져 나가면** 그것이 `limitsRisk`의 부분 문자열이 되고 **코드가 옳은데도 빨개진다.**
+ * 기대는 옳고 도구가 자리를 안 보는 것이라, 그 전제를 여기서 한 줄로 못 박는다.
+ */
+describe('두 위험 문장이 서로의 부분이 아니다', () => {
+  for (const tag of ['ko', 'en'] as const) {
+    it(`${tag}에서 서로를 안 품는다`, async () => {
+      await setLocale(tag)
+      const risk = i18n.global.t('shell.limitsRisk')
+      const riskOn = i18n.global.t('shell.limitsRiskOn')
+      expect(risk).not.toContain(riskOn)
+      expect(riskOn).not.toContain(risk)
+      await setLocale('ko')
+    })
+  }
 })

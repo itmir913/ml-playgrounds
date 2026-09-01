@@ -129,7 +129,20 @@ export function windowedHits(
     if (index - reportedAt < WRAP_WINDOW) return
     const joined = lines.slice(index, index + WRAP_WINDOW).join(' ')
     if (matches(joined)) {
-      found.push(`${label}:${index + 1}  (여러 줄) ${joined.trim().slice(0, 90)}`)
+      /**
+       * **창을 좁혀 적는다** (2026-09-01 감사 C-6). 창의 **시작 줄**을 적던 때는 사람이
+       * 그 줄을 열면 위반이 없었다 — 감사자가 76행에 심은 것을 71행이라 보고했다.
+       * 앞뒤를 한 줄씩 잘라 보며 **여전히 걸리는 가장 좁은 범위**를 찾는다.
+       */
+      let from = index
+      const last = Math.min(index + WRAP_WINDOW, lines.length)
+      while (from + 1 < last && matches(lines.slice(from + 1, last).join(' '))) from += 1
+      let to = last
+      while (to - 1 > from && matches(lines.slice(from, to - 1).join(' '))) to -= 1
+      const where = from + 1 === to ? `${from + 1}` : `${from + 1}-${to}`
+      found.push(
+        `${label}:${where}  (여러 줄) ${lines.slice(from, to).join(' ').trim().slice(0, 90)}`,
+      )
       reportedAt = index
     }
   })
