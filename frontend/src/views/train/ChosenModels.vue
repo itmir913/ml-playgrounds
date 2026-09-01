@@ -24,7 +24,7 @@ import AppButton from '@/components/AppButton.vue'
 import AppField from '@/components/AppField.vue'
 import { outOfRange, parametersFor, type HyperparameterSpec } from '@/ml/hyperparams'
 import type { ChosenModel } from '@/ml/selection'
-import type { Estimate } from '@/ml/estimate'
+import { elapsedOf, type Elapsed, type Estimate } from '@/ml/estimate'
 import type { ModelStatus } from '@/ml/training-status'
 import type { Settings } from '@/project/schema'
 
@@ -45,6 +45,13 @@ const props = defineProps<{
   estimates: readonly Estimate[]
   /** 학습이 도는 중인가. 도는 동안에는 이 목록을 못 고친다 (TrainView의 같은 판단). */
   running: boolean
+  /**
+   * 모델마다 언제 시작했나(`performance.now()`). **자리가 `chosen`과 같다.**
+   * 안 시작했으면 `null`이다 (`composables/useTraining.ts`).
+   */
+  startedAt: readonly (number | null)[]
+  /** 같은 시계의 지금. **도는 동안에만 흐른다.** */
+  now: number
 }>()
 
 const emit = defineEmits<{
@@ -103,6 +110,17 @@ const rows = computed(() =>
       row,
       index,
       tone: status ? STATUS_TONE[status] : null,
+      /**
+       * **끝난 줄에는 안 적는다.** 예상은 앞으로 걸릴 시간인데 이미 끝난 줄에 남아
+       * 있으면 그 자리가 거짓말을 한다 — 학습 중에 예상을 통째로 숨겼던 원래 이유가
+       * 이것이었다(2026-09-01에 그 규칙을 좁혔다).
+       */
+      showsEstimate: status !== 'done' && status !== 'failed',
+      /** 도는 줄에서만 흐른다. 문턱 아래면 `hidden`이다. */
+      elapsed: elapsedOf(
+        status === 'running' ? (props.startedAt[index] ?? null) : null,
+        props.now,
+      ) satisfies Elapsed,
       outOfRangeNames: violated(row),
       estimateText: estimateTextOf(props.estimates[index] ?? { kind: 'unknown' }),
     }
@@ -204,14 +222,14 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
 
     <ul
       v-if="props.chosen.length > 0"
-      class="mt-1.5 flex flex-col rounded-panel border border-line"
+      class="mt-1.5 flex flex-col overflow-hidden rounded-panel border border-line"
     >
       <!--
         **왼쪽 굵은 선이 상태다** (§8.17). 학습이 안 도는 동안에도 두께는 그대로 두고
         색만 투명하게 한다 — 도는 순간 선이 생기면 목록 전체가 4px 밀린다.
       -->
       <li
-        v-for="{ row, index, tone, outOfRangeNames, estimateText } in rows"
+        v-for="{ row, index, tone, outOfRangeNames, estimateText, showsEstimate, elapsed } in rows"
         :key="`${row.algorithm}:${row.runtime}:${index}`"
         class="min-w-0 border-l-4 p-3"
         :class="[
@@ -253,11 +271,23 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
             줄마다 달라 숫자가 들쑥날쑥해 보였다 — 훑을 때 알고 싶은 것이 "어느 것이 오래
             걸리나"인데, 그러려면 숫자가 한 줄로 서야 한다.
 
-            **학습이 도는 동안에는 안 보인다.** 그때 말할 것은 예상이 아니라 지금 무엇이
-            도는가이고, 그건 이름 옆의 상태가 말한다 — 둘이 나란히 있으면 끝난 줄에도
-            "약 3분"이 남는다.
+            **끝난 줄에서만 사라진다** (2026-09-01, 코드 소유자). 전에는 학습이 도는 동안
+            통째로 숨겼는데, **학생이 지금 기다리는 그 순간에 얼마나 더 기다릴지를 못
+            봤다.** 원래 걱정은 *"끝난 줄에도 약 3분이 남는다"*였고 그건 끝난 줄의
+            문제라, 거기서만 빼면 둘 다 지켜진다.
+
+            **경과 시간이 그 왼쪽에 선다.** 도는 줄에만, 그리고 문턱을 넘긴 뒤에만
+            나온다 — 올라가는 숫자가 곧 *"안 멈췄다"*는 신호다 (`limits.ts`의
+            `TRAINING_ELAPSED_VISIBLE_AFTER_MS`).
           -->
-          <span v-if="!props.running" class="shrink-0 text-ink-soft">{{ estimateText }}</span>
+          <span
+            v-if="elapsed.kind === 'shown'"
+            class="shrink-0 tabular-nums text-ink-soft"
+            aria-live="off"
+          >
+            {{ t('train.elapsed', { minutes: elapsed.minutes, seconds: elapsed.seconds }) }}
+          </span>
+          <span v-if="showsEstimate" class="shrink-0 text-ink-soft">{{ estimateText }}</span>
 
           <!--
             **세로 여백을 되당긴다. 기준선 정렬과 둘 다 필요하다.**

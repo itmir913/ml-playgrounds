@@ -18,6 +18,7 @@
 import { computed, readonly, ref, shallowRef, toRaw } from 'vue'
 
 import { isClientError } from '../errors'
+import { TRAINING_ELAPSED_TICK_MS } from '../limits'
 import type { ExperimentResult } from '../ml/experiment'
 import { waitingStatuses, withFinished, withStarted, type ModelStatus } from '../ml/training-status'
 import { train, type TrainWorker } from '../ml/worker/client'
@@ -89,6 +90,40 @@ export function useTraining(createWorker: () => TrainWorker, options?: TrainingO
    */
   const statuses = shallowRef<readonly ModelStatus[]>([])
 
+  /**
+   * 모델마다 **언제 시작했나**(`performance.now()`). 안 돌았으면 `null`이다.
+   *
+   * **자리는 `statuses`와 같다.** 화면은 `statuses[i] === 'running'`인 줄에서만 이 값을
+   * 읽으므로, 끝난 줄에 시작 시각이 남아 있어도 시계가 다시 뜨지 않는다.
+   *
+   * **제자리에서 안 바꾼다** — `shallowRef`라 같은 배열을 고치면 다시 안 그려진다
+   * (`ml/training-status.ts`의 같은 판단).
+   */
+  const startedAt = shallowRef<readonly (number | null)[]>([])
+
+  /**
+   * 시계. **도는 동안에만 흐른다.**
+   *
+   * **화면이 아니라 여기 있는 이유**는 시작과 끝을 아는 것이 여기뿐이기 때문이다.
+   * 컴포넌트에 두면 `running`을 지켜보다 켜고 끄는 `watch`가 하나 더 생기고, 그 watch가
+   * 어긋나면 **학습이 끝난 뒤에도 타이머가 영원히 돈다.** 여기서는 `finally`가 끈다.
+   */
+  const now = ref(0)
+  let ticking: ReturnType<typeof setInterval> | null = null
+
+  function startClock(): void {
+    now.value = performance.now()
+    // **간격은 `limits.ts`가 갖는다** — 왜 1초가 아닌지도 거기 적혀 있다.
+    ticking = setInterval(() => {
+      now.value = performance.now()
+    }, TRAINING_ELAPSED_TICK_MS)
+  }
+
+  function stopClock(): void {
+    if (ticking !== null) clearInterval(ticking)
+    ticking = null
+  }
+
   /** 지금 도는 학습을 멈추는 손잡이. 안 돌면 null이다. */
   let handle: { cancel: () => void } | null = null
 
@@ -106,6 +141,8 @@ export function useTraining(createWorker: () => TrainWorker, options?: TrainingO
     const total = request.input.settings.selectedAlgorithms.length
     progress.value = { completed: 0, total }
     statuses.value = waitingStatuses(total)
+    startedAt.value = Array.from({ length: total }, () => null)
+    startClock()
 
     // **train은 반드시 try 안에 있어야 한다.** postMessage는 동기로 던질 수 있고
     // (아래 plain 참조), 밖에 두면 그때 finally가 안 돌아 progress가 남는다.
@@ -117,17 +154,24 @@ export function useTraining(createWorker: () => TrainWorker, options?: TrainingO
      * **워커가 보고하는 두 시점 사이를 잰다** — 메인 스레드에서 재지만 그 사이에 메인이
      * 하는 일이 없다(화면은 상태 배지만 바꾼다). 학생이 실제로 기다리는 시간이 이것이다.
      */
-    const startedAt = new Map<number, { at: number; algorithm: string; runtime: string }>()
+    const begunAt = new Map<number, { at: number; algorithm: string; runtime: string }>()
 
     try {
       const started = train(plain(request), {
         createWorker,
         onStarted: ({ index, algorithm, runtime }) => {
-          startedAt.set(index, { at: performance.now(), algorithm, runtime })
+          const at = performance.now()
+          begunAt.set(index, { at, algorithm, runtime })
+          // **자리 밖이면 무시한다** (`training-status.ts`의 `replaced`와 같은 이유).
+          if (index >= 0 && index < startedAt.value.length) {
+            const next = [...startedAt.value]
+            next[index] = at
+            startedAt.value = next
+          }
           statuses.value = withStarted(statuses.value, index)
         },
         onProgress: (run, completed, count, index) => {
-          const begun = startedAt.get(index)
+          const begun = begunAt.get(index)
           if (begun !== undefined) {
             options?.onModelTimed?.({
               algorithm: begun.algorithm,
@@ -146,8 +190,10 @@ export function useTraining(createWorker: () => TrainWorker, options?: TrainingO
       throw error
     } finally {
       handle = null
+      stopClock()
       progress.value = null
       statuses.value = []
+      startedAt.value = []
     }
   }
 
@@ -156,5 +202,13 @@ export function useTraining(createWorker: () => TrainWorker, options?: TrainingO
     handle?.cancel()
   }
 
-  return { progress: readonly(progress), statuses: readonly(statuses), running, run, cancel }
+  return {
+    progress: readonly(progress),
+    statuses: readonly(statuses),
+    startedAt: readonly(startedAt),
+    now: readonly(now),
+    running,
+    run,
+    cancel,
+  }
 }

@@ -17,6 +17,7 @@ import {
   MLJS_LOGISTIC_REGRESSION_BASELINE_MAX_ITER,
   MLJS_LOGISTIC_REGRESSION_MAX_ITER_MS,
   MLJS_RANDOM_FOREST_BASELINE_TREES,
+  TRAINING_ELAPSED_VISIBLE_AFTER_MS,
   TRAINING_ESTIMATE_COARSE_FROM_SECONDS,
   TRAINING_ESTIMATE_COARSE_STEP_SECONDS,
 } from '../limits'
@@ -205,4 +206,43 @@ export function describe(ms: number | null): Estimate {
     return { kind: 'seconds', value: Math.ceil(seconds / step) * step }
   }
   return { kind: 'minutes', value: Math.ceil(seconds / 60) }
+}
+
+/**
+ * 지금까지 얼마나 걸렸나. **예상과 나란히 서는 값이라 여기 산다.**
+ *
+ * **`hidden`은 아직 말 걸 때가 아니라는 뜻이다** — 값이 없는 것도, 못 재는 것도 아니다.
+ * 위 `Estimate`의 `unknown`과 헷갈리면 안 된다: 저쪽은 **영영 못 낸다**이고 이쪽은
+ * **아직 이르다**이다.
+ */
+export type Elapsed =
+  | { readonly kind: 'hidden' }
+  /** 두 칸 다 **글자다.** `9`가 아니라 `09` — 숫자로 넘기면 앞의 0이 사라진다. */
+  | { readonly kind: 'shown'; readonly minutes: string; readonly seconds: string }
+
+/**
+ * 경과 시간을 화면이 적을 모양으로.
+ *
+ * **`mm:ss`로 굳힌다. 시간 단위는 안 만든다** — 한 시간을 넘기는 학습은 상한이 막고,
+ * 상한을 푼 학생에게는 `72:30`이 `1:12:30`보다 낫다. **자리 수가 흔들리면 숫자가
+ * 줄마다 들쑥날쑥해 보인다**(예상 시간을 [제거] 왼편에 못 박은 것과 같은 이유).
+ *
+ * **안 시작했으면 안 띄운다.** `startedAt`이 `null`인 줄은 아직 대기이거나 이미 끝났다.
+ *
+ * **뒤로 가는 시계를 안 만든다.** `performance.now()`는 단조라 음수가 안 나오지만,
+ * 두 값이 다른 시계에서 오면 나올 수 있고 그때 `-1:-30`을 적으면 화면이 고장으로 보인다.
+ *
+ * @param startedAt `performance.now()`로 찍은 시작 시각. 안 돌고 있으면 `null`
+ * @param now 같은 시계의 지금
+ */
+export function elapsedOf(startedAt: number | null, now: number): Elapsed {
+  if (startedAt === null) return { kind: 'hidden' }
+  const ms = now - startedAt
+  if (!Number.isFinite(ms) || ms < TRAINING_ELAPSED_VISIBLE_AFTER_MS) return { kind: 'hidden' }
+  const total = Math.floor(ms / 1000)
+  return {
+    kind: 'shown',
+    minutes: String(Math.floor(total / 60)).padStart(2, '0'),
+    seconds: String(total % 60).padStart(2, '0'),
+  }
 }

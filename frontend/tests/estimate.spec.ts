@@ -13,10 +13,21 @@
 
 import { describe as group, expect, it } from 'vitest'
 
-import { BASELINE_COLUMNS, MLJS_DECISION_TREE_BASELINE_MS } from '../src/limits'
+import {
+  BASELINE_COLUMNS,
+  MLJS_DECISION_TREE_BASELINE_MS,
+  TRAINING_ELAPSED_VISIBLE_AFTER_MS,
+} from '../src/limits'
 import { ALGORITHMS } from '../src/ml/algorithms'
 import { summarizeColumns } from '../src/data/columns'
-import { baselineMs, describe, estimateMs, hasEstimates, interpolate } from '../src/ml/estimate'
+import {
+  baselineMs,
+  describe,
+  elapsedOf,
+  estimateMs,
+  hasEstimates,
+  interpolate,
+} from '../src/ml/estimate'
 import { estimatedFeatureWidth, fitPreprocessor } from '../src/ml/preprocess'
 
 /** 손잡이를 안 건드린 기본 상태. 기준표를 잰 모양 그대로다. */
@@ -266,5 +277,62 @@ group('예상이 나오는 종류인가', () => {
         : entry,
     ) as typeof ALGORITHMS
     expect(hasEstimates('image', filled)).toBe(true)
+  })
+})
+
+/**
+ * **경과 시간** (`elapsedOf`).
+ *
+ * 학습이 도는 동안 화면에 움직이는 것이 하나도 없어서 **오래 걸리는 학습과 멈춘 탭이
+ * 같은 화면**이었다 (2026-09-01, 코드 소유자). 올라가는 숫자가 곧 신호다.
+ *
+ * **`hidden`이 두 뜻을 겸하지 않게 본다** — 안 돌고 있는 것과 아직 이른 것.
+ */
+group('경과 시간', () => {
+  const after = TRAINING_ELAPSED_VISIBLE_AFTER_MS
+
+  it('안 돌고 있으면 안 띄운다', () => {
+    expect(elapsedOf(null, 10_000)).toEqual({ kind: 'hidden' })
+  })
+
+  /** 짧은 학습에 떴다 사라지면 읽기 전에 없어지고 여섯 줄이 깜빡인다. */
+  it('문턱 아래는 안 띄운다', () => {
+    expect(elapsedOf(0, after - 1)).toEqual({ kind: 'hidden' })
+  })
+
+  it('문턱에 닿으면 띄운다', () => {
+    expect(elapsedOf(0, after)).toEqual({ kind: 'shown', minutes: '00', seconds: '05' })
+  })
+
+  /** **앞의 0을 남긴다.** 숫자로 넘기면 `0:5`가 되고 줄마다 폭이 흔들린다. */
+  it('두 자리로 채운다', () => {
+    expect(elapsedOf(0, 65_000)).toEqual({ kind: 'shown', minutes: '01', seconds: '05' })
+    expect(elapsedOf(0, 600_000)).toEqual({ kind: 'shown', minutes: '10', seconds: '00' })
+  })
+
+  /** **내림이다.** 5.9초에 `00:06`을 적으면 아직 안 지난 시간을 말하는 것이다. */
+  it('초는 내린다 - 아직 안 지난 시간을 안 적는다', () => {
+    expect(elapsedOf(0, 5_999)).toEqual({ kind: 'shown', minutes: '00', seconds: '05' })
+  })
+
+  /** **시간 단위를 안 만든다.** 상한을 푼 학생에게는 `72:30`이 `1:12:30`보다 낫다. */
+  it('한 시간을 넘겨도 분으로 센다', () => {
+    expect(elapsedOf(0, 72 * 60_000 + 30_000)).toEqual({
+      kind: 'shown',
+      minutes: '72',
+      seconds: '30',
+    })
+  })
+
+  /**
+   * **뒤로 가는 시계를 안 만든다.** `performance.now()`는 단조라 여기 안 오지만, 두 값이
+   * 다른 시계에서 오면 온다 — 그때 `-1:-30`을 적으면 화면이 고장으로 보인다.
+   */
+  it('시작보다 이른 지금은 안 띄운다', () => {
+    expect(elapsedOf(10_000, 0)).toEqual({ kind: 'hidden' })
+  })
+
+  it('숫자가 아니면 안 띄운다', () => {
+    expect(elapsedOf(0, Number.NaN)).toEqual({ kind: 'hidden' })
   })
 })

@@ -378,6 +378,7 @@
       "minutes": "About {value} minutes",
       "seconds": "About {value} seconds"
     },
+    "elapsed": "{minutes}:{seconds}",
     "estimateUnknown": "Unknown",
     "failedHere": "Training failed. See why",
     "stopped": "Training stopped. The models that finished are kept under [See results].",

@@ -774,6 +774,8 @@ function leave(): void {
             :values="settings.hyperparameters"
             :statuses="training.statuses.value"
             :estimates="estimates"
+            :started-at="training.startedAt.value"
+            :now="training.now.value"
             :running="training.running.value"
             @remove="removeModel"
             @set-param="setParam"

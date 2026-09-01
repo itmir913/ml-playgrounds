@@ -378,6 +378,7 @@
       "minutes": "약 {value}분",
       "seconds": "약 {value}초"
     },
+    "elapsed": "{minutes}:{seconds}",
     "estimateUnknown": "알 수 없음",
     "failedHere": "학습에 실패했습니다. 이유 보기",
     "stopped": "학습을 멈췄습니다. 지금까지 학습을 마친 모델은 [결과 보기]에 남아 있습니다.",
@@ -856,7 +857,7 @@
       "fileEmptyReason": "아직 예측할 파일을 불러오지 않았습니다.",
       "fileRemove": "삭제",
       "fileChange": "파일 교체",
-      "fromData": "무작위로 하나 가져오기",
+      "fromData": "무작위로 가져오기",
       "fromDataDone": "{index}번째 행을 가져왔습니다. 값을 바꿔 가며 다시 예측해 보세요.",
       "inputChoiceFile": "파일로 한 번에 예측합니다",
       "inputChoiceFileNote": "파일을 불러오면 그 안의 모든 행을 한 번에 예측합니다.",
