@@ -240,3 +240,21 @@ limitsButton.addEventListener('click', () =>
 )
 
 calibrateButton.addEventListener('click', () => start(runCalibration))
+
+/**
+ * **죽은 뒤 되살린다.** 저장만 하고 되살리지 않으면 그 저장이 쓸모가 없다 — [상한 찾기]는
+ * **탭이 죽는 것이 답인** 실측이라, 다시 열었을 때 어디까지 살아 있었는지가 상자에
+ * 있어야 한다.
+ *
+ * **덮어쓰지 않는다.** 새로 돌리면 `publish()`가 그 위에 쓴다. 여기서 하는 일은
+ * 빈 상자를 채우는 것뿐이다.
+ */
+try {
+  const saved = window.localStorage.getItem(SAVE_KEY)
+  if (saved !== null) {
+    json.value = saved
+    status.textContent = '지난 실측이 남아 있습니다. 새로 돌리면 덮어씁니다.'
+  }
+} catch {
+  // 못 읽으면 빈 상자다. 그것도 사실이다.
+}
