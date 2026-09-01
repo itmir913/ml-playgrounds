@@ -10,7 +10,12 @@
  */
 
 import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
-import { CALIBRATION_JOBS, syntheticData } from '../src/ml/calibration'
+import {
+  CALIBRATION_JOBS,
+  measureJob,
+  syntheticData,
+  type CalibrationJob,
+} from '../src/ml/calibration'
 import { fit } from '../src/ml/engines/mljs'
 import { fitKMeans } from '../src/ml/engines/mljs-kmeans'
 import { evaluate, evaluateCluster } from '../src/ml/metrics'
@@ -71,14 +76,22 @@ export interface Job {
  *
  * **예측까지 지나간다.** KNN은 학습이 0초이고 값이 예측에 있는데, 학생이 기다리는 것은
  * [학습하기]를 누르고 결과가 나올 때까지다.
- */
-/**
- * **평가까지 지나간다** (2026-09-01). 앱의 [학습하기]는 `fit` 뒤에 지표를 낸다
- * (`ml/experiment.ts`). 그 단계를 빼고 재던 표는 전부 조금씩 짧았고, **군집화는 그것이
- * 지배적인 비용**이라 표가 두 자릿수로 틀렸다 — 실루엣이 `O(행² × 특성)`이다.
  *
- * 분류·회귀의 지표는 `O(행)`이라 빠뜨려도 티가 안 났지만, **티가 안 나는 것과 안 재는
- * 것은 다르다.**
+ * **평가까지 지나간다** (2026-09-01). 앱의 [학습하기]는 `fit` 뒤에 지표를 낸다. 그 단계를
+ * 빼고 재던 표는 전부 조금씩 짧았고, **군집화는 그것이 지배적인 비용**이라 표가 두
+ * 자릿수로 틀렸다 — 실루엣이 `O(행² × 특성)`이다. 분류·회귀의 지표는 `O(행)`이라 빠뜨려도
+ * 티가 안 났지만, **티가 안 나는 것과 안 재는 것은 다르다.**
+ *
+ * **시계 밖에 남은 것이 있다** (2026-09-01 감사 A-2). 앱의 `runExperiment`는 `fit` 앞에
+ * `fitPreprocessor`와 `transform`을 지나고, 사진은 그 앞에 임베딩의 문자열 왕복까지 있다
+ * (`ml/images.ts`). 감사자 실측으로 **사진 5,000장에서 시계 안 1,504ms · 시계 밖 5,868ms**,
+ * 표 10만 행 나이브 베이즈에서 156ms 대 415ms다. 즉 **싼 알고리즘일수록 이 표가 짧게
+ * 틀린다.**
+ *
+ * **무엇을 예상하기로 했는지가 먼저 정해져야 고칠 수 있다** — 엔진만 재고 고정 비용을
+ * `estimate.ts`가 따로 더할지, 전처리까지 시계 안에 넣을지. 결정 전까지 이 표는
+ * **엔진의 시간**이고, 그 사실이 여기 적혀 있어야 다음 사람이 표를 오해하지 않는다
+ * (`open-decisions.md` "학습 예상 시간은 실측표에 기기 배수를 곱해 낸다").
  */
 export function measure(job: Job): number {
   const { features, target } = syntheticData(
@@ -532,16 +545,78 @@ const LIMIT_LADDERS: readonly Ladder[] = [
  * 걸러내기에도 안 걸린다. 개별 버튼으로만 돌고 그때는 20초 천장이 붙어 상한을 못 찾는다.
  * **검사로 막는 대신 빠질 수 없게 만든다.**
  */
+/**
+ * 사다리 하나의 한 점을 돌린다. **워커가 부르는 자리다** (`bench.worker.ts`).
+ *
+ * **없는 `id`는 던진다** — 조용히 `0`을 돌려주면 그게 기준표가 된다. 2026-09-01 감사가
+ * 그 `throw`를 `return 0`으로 바꿔도 아무것도 안 우는 것을 보였다(돌연변이 15).
+ *
+ * **워커 파일이 아니라 여기 사는 이유**는 저쪽이 모듈 꼭대기에서 `self`를 만져 검사가
+ * 들여올 수 없기 때문이다. 판단은 검사가 닿는 곳에 둔다.
+ */
+export function ladderPoint(ladderId: string, point: number): number {
+  const ladder = ALL_LADDERS.find((one) => one.id === ladderId)
+  if (ladder === undefined) throw new Error(`unknown ladder: ${ladderId}`)
+  return ladder.run ? ladder.run(point) : measure(ladder.job(point))
+}
+
+/**
+ * **이 점을 시작할 것인가.** 앞 점의 시간으로 판정한다.
+ *
+ * 갈래가 둘이다. **상한을 찾는 사다리**는 오래 걸리는 것이 답의 일부라 20초에서 안 멈추고
+ * `FAILURE_CEILING_MS`(한 시간)만 폭주를 막는다. **기준표 사다리**는 20초를 넘겼거나
+ * 다음 점의 어림이 `PROJECTION_MS`를 넘으면 멈춘다 — 표는 보간용이고 큰 쪽은 기울기로 잇는다.
+ *
+ * **어림의 지수를 축이 정한다** (2026-09-01 감사 C-3). 행 축은 트리의 분할 탐색처럼
+ * 제곱으로 붙지만, 나머지 축은 실측이 선형이거나 그보다 완만하다 — `limits.ts`의
+ * `columns: 'linear'`가 특성 축을 그렇게 적고, `MLJS_KMEANS_CLUSTERS_MS`는 `k`가 2에서
+ * 20으로 열 배 늘 때 1.5배다. 전부 제곱으로 어림하면 **폭주는 안 나지만 표가 조용히
+ * 짧아진다.**
+ *
+ * **검사가 닿게 하려고 밖에 있다.** 화면 안에 있을 때는 두 천장을 맞바꿔도 아무것도
+ * 안 울었다 (2026-09-01 감사, 돌연변이 9).
+ */
+export function stopsBefore(
+  ladder: Ladder,
+  previous: { readonly point: number; readonly elapsed: number } | null,
+  point: number,
+): boolean {
+  if (previous === null) return false
+  if (ladder.findsLimit) return previous.elapsed > FAILURE_CEILING_MS
+  if (previous.elapsed > CEILING_MS) return true
+  const growth = point / previous.point
+  const projected = previous.elapsed * (ladder.axis === 'rows' ? growth * growth : growth)
+  return projected > PROJECTION_MS
+}
+
 export const ALL_LADDERS: readonly Ladder[] = [
   ...LADDERS,
   ...LIMIT_LADDERS.map((ladder) => ({ ...ladder, findsLimit: true as const })),
 ]
 
 /**
- * **교정 일감은 앱의 정의를 그대로 쓴다.**
+ * **교정 일감은 앱의 정의를 그대로 쓴다 — 목록도 절차도.**
  *
- * 기준값(`limits.ts`의 `CALIBRATION_BASELINE_MS`)을 잰 일감과 앱이 실제로 도는 일감이
- * 갈리면 배수가 통째로 어긋나는데, **그 어긋남은 아무 데서도 안 보인다.** 그래서 여기서
- * 다시 정의하지 않고 가져온다.
+ * 기준값(`limits.ts`의 `CALIBRATION_BASELINE_MS`)을 잰 것과 앱이 실제로 도는 것이 갈리면
+ * 배수가 통째로 어긋나는데, **그 어긋남은 아무 데서도 안 보인다.**
+ *
+ * **한동안 목록만 같고 절차가 갈려 있었다** (2026-09-01 감사 B-4에서 드러났다). 지금은
+ * 아래 `measureCalibration`이 앱의 `measureJob`을 그대로 부른다.
  */
 export const CALIBRATION = CALIBRATION_JOBS
+
+/**
+ * 교정 일감 하나를 **앱의 함수로** 잰다 (`ml/calibration.ts`의 `measureJob`).
+ *
+ * **위 `measure`를 안 쓴다** (2026-09-01 감사 B-4). 둘은 목록만 같고 절차가 갈려 있었다 —
+ * `measure`는 평가까지 지나가고 `PREDICT_RATIO`를 자기 상수로 들고 있는데, 앱의 교정은
+ * `fit` + 예측까지만이다. 감사자가 `PREDICT_RATIO`를 0.2에서 0.01로 바꾸고 `evaluate`를
+ * 지워도 **아무것도 안 우는 것**을 보였다.
+ *
+ * 그 갈라짐은 **기기 배수를 통째로 어긋나게 한다** — 기준값(`CALIBRATION_BASELINE_MS`)을
+ * 잰 절차와 앱이 도는 절차가 다르면 나눗셈의 두 항이 다른 것을 재는 것이다. 그래서 여기서
+ * 다시 정의하지 않고 **가져와 부른다.**
+ */
+export function measureCalibration(job: CalibrationJob): number {
+  return Math.round(measureJob(job))
+}

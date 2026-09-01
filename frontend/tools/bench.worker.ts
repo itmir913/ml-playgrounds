@@ -17,12 +17,14 @@
  * (`ml/worker/train.worker.ts`와 같은 이유).
  */
 
-import { ALL_LADDERS, measure, type Job } from './workloads'
+import { ladderPoint, measureCalibration } from './workloads'
+import type { CalibrationJob } from '../src/ml/calibration'
 
 /** 점 하나를 시키는 말. **함수는 못 건넌다** — 사다리는 `id`로 가리키고 워커가 찾는다. */
 export type BenchRequest =
   | { readonly kind: 'ladder'; readonly ladderId: string; readonly point: number }
-  | { readonly kind: 'job'; readonly job: Job }
+  /** 교정 일감. **앱의 `measureJob`으로 잰다** — 사다리와 절차가 다르다 (감사 B-4). */
+  | { readonly kind: 'calibration'; readonly job: CalibrationJob }
 
 /**
  * 그 점의 답. **던진 것도 답이다** — 메모리가 모자라면 그렇게 오고, 그 자리가 상한이다.
@@ -30,13 +32,24 @@ export type BenchRequest =
  * **워커가 통째로 죽는 경우는 여기 없다.** 그건 메시지가 아니라 `bench.ts`가
  * `onerror`와 침묵으로 읽는다.
  */
+/** 힙을 **무엇이** 답했나. `null`이면 아무도 안 답했다는 뜻이다. */
+export type HeapSource = 'performance.memory' | 'measureUserAgentSpecificMemory' | null
+
 export type BenchReply =
   | {
       readonly ok: true
       readonly elapsed: number
+      /**
+       * 일을 **시작하기 전**의 힙. 점마다 워커가 새로 뜨므로 이것이 그 isolate의 바닥이고,
+       * 아래 `heapMb`에서 이 값을 빼야 **이 점이 얼마나 늘렸는지**가 나온다.
+       *
+       * **워커로 옮기며 잃었던 것이 그 증가분이다** (2026-09-01 감사 B-2). 메인에서 재던
+       * 동안은 힙이 점을 넘어 자라서 증가가 보였고, `limits.ts`의 SVM 칸이 *"8,000행이면
+       * 512MB"*를 그 모양으로 적었다. 절대값만으로는 그 문장을 다시 못 쓴다.
+       */
+      readonly heapBeforeMb: number | null
       readonly heapMb: number | null
-      /** 힙을 **무엇이** 답했나. `null`이면 아무도 안 답했다는 뜻이다. */
-      readonly heapSource: 'performance.memory' | 'measureUserAgentSpecificMemory' | null
+      readonly heapSource: HeapSource
     }
   | { readonly ok: false; readonly error: string }
 
@@ -62,10 +75,7 @@ interface WorkerScope {
  * **누가 답했는지를 함께 싣는다.** 안 그러면 다음에 이 JSON을 읽는 사람이 `null`을
  * *"힙이 안 늘었다"*로 읽는다.
  */
-async function heapNow(): Promise<{
-  heapMb: number | null
-  heapSource: 'performance.memory' | 'measureUserAgentSpecificMemory' | null
-}> {
+async function heapNow(): Promise<{ heapMb: number | null; heapSource: HeapSource }> {
   const memory = (performance as { memory?: { usedJSHeapSize: number } }).memory
   if (memory) {
     return {
@@ -91,25 +101,21 @@ const scope = self as unknown as WorkerScope
 
 scope.onmessage = (event) => {
   const request = event.data
-  let elapsed: number
-  try {
-    elapsed =
-      request.kind === 'job'
-        ? measure(request.job)
-        : runLadderPoint(request.ladderId, request.point)
-  } catch (error) {
-    scope.postMessage({ ok: false, error: String(error) })
-    return
-  }
-  // **시계가 멈춘 뒤에 묻는다.** 힙을 재느라 걸린 시간이 그 점의 값에 섞이면 안 된다.
-  void heapNow().then((heap) => {
-    scope.postMessage({ ok: true, elapsed, ...heap })
+  // **일을 시작하기 전에 한 번 묻는다.** 시계 밖이고, 이 값이 이 isolate의 바닥이다.
+  void heapNow().then(({ heapMb: heapBeforeMb }) => {
+    let elapsed: number
+    try {
+      elapsed =
+        request.kind === 'calibration'
+          ? measureCalibration(request.job)
+          : ladderPoint(request.ladderId, request.point)
+    } catch (error) {
+      scope.postMessage({ ok: false, error: String(error) })
+      return
+    }
+    // **시계가 멈춘 뒤에 다시 묻는다.** 힙을 재느라 걸린 시간이 그 점의 값에 섞이면 안 된다.
+    void heapNow().then((heap) => {
+      scope.postMessage({ ok: true, elapsed, heapBeforeMb, ...heap })
+    })
   })
-}
-
-/** 사다리 하나의 한 점. **없는 `id`는 던진다** — 조용히 0ms를 적으면 그게 기준표가 된다. */
-function runLadderPoint(ladderId: string, point: number): number {
-  const ladder = ALL_LADDERS.find((one) => one.id === ladderId)
-  if (ladder === undefined) throw new Error(`모르는 사다리: ${ladderId}`)
-  return ladder.run ? ladder.run(point) : measure(ladder.job(point))
 }

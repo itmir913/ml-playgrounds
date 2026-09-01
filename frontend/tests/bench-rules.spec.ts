@@ -21,7 +21,16 @@ import { describe, expect, it } from 'vitest'
 import { ALGORITHMS } from '../src/ml/algorithms'
 import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import type { DataType } from '../src/project/schema'
-import { ALL_LADDERS } from '../tools/workloads'
+import {
+  ALL_LADDERS,
+  CALIBRATION,
+  CEILING_MS,
+  FAILURE_CEILING_MS,
+  ladderPoint,
+  measureCalibration,
+  PROJECTION_MS,
+  stopsBefore,
+} from '../tools/workloads'
 
 import { sourceFiles, withoutComments as stripComments } from './fixtures/source'
 
@@ -164,5 +173,94 @@ describe('등록부의 칸마다 사다리가 있다', () => {
   it('그 규칙이 실제로 문다 - 없는 칸을 있다고 하지 않는다', () => {
     expect(covers('없는_알고리즘', 'tabular')).toBe(false)
     expect(covers('linear_regression', 'image')).toBe(false)
+  })
+})
+
+/**
+ * **하니스의 판정** (2026-09-01 감사 C-3·C-4, 돌연변이 9·15).
+ *
+ * 화면 안에 있을 때는 **두 천장을 맞바꿔도, 없는 사다리에 0ms를 적어도 아무것도 안
+ * 울었다.** 여기서 재는 것은 값이 아니라 **어느 점을 돌리고 어디서 멈추는가**이고,
+ * 그것이 틀리면 기준표가 조용히 짧아지거나 상한을 아예 못 찾는다.
+ */
+describe('사다리 판정', () => {
+  const rows = (findsLimit?: true) =>
+    ({
+      id: 'probe',
+      label: 'probe',
+      axis: 'rows',
+      points: [1, 2],
+      job: (point: number) => ({ algorithm: 'naive_bayes', rows: point }),
+      ...(findsLimit ? { findsLimit } : {}),
+    }) as const
+
+  it('첫 점은 언제나 돈다 - 앞 점이 없으면 판정할 것이 없다', () => {
+    expect(stopsBefore(rows(), null, 1)).toBe(false)
+  })
+
+  /**
+   * **같은 점을 다시 재는 것으로 어림을 뺀다.** 증가율이 1이면 어림이 앞 점의 시간
+   * 그대로라, 여기서 갈리는 것은 20초 천장 하나다 — 안 그러면 두 갈래가 같은 검사에
+   * 섞여 무엇이 물었는지 모른다.
+   */
+  it('기준표 사다리는 20초를 넘긴 뒤에 멈춘다', () => {
+    expect(stopsBefore(rows(), { point: 1, elapsed: CEILING_MS - 1 }, 1)).toBe(false)
+    expect(stopsBefore(rows(), { point: 1, elapsed: CEILING_MS + 1 }, 1)).toBe(true)
+  })
+
+  /**
+   * **상한을 찾는 사다리는 그 천장을 안 쓴다.** 오래 걸리는 것이 답의 일부다 — 이것이
+   * 뒤집히면 [상한 찾기]가 20초에서 멈춰 **깨지는 지점을 영영 못 만난다.**
+   */
+  it('상한 사다리는 20초에서 안 멈춘다', () => {
+    expect(stopsBefore(rows(true), { point: 1, elapsed: CEILING_MS * 10 }, 2)).toBe(false)
+    expect(stopsBefore(rows(true), { point: 1, elapsed: FAILURE_CEILING_MS + 1 }, 2)).toBe(true)
+  })
+
+  /**
+   * **어림의 지수를 축이 정한다.** 행 축만 제곱이고 나머지는 선형이다 — 전부 제곱으로
+   * 어림하면 폭주는 안 나지만 **표가 조용히 짧아진다.**
+   */
+  it('행 축은 제곱으로, 다른 축은 선형으로 어림한다', () => {
+    const elapsed = PROJECTION_MS / 3
+    const previous = { point: 1, elapsed }
+    // 2배 지점: 행 축이면 4배(넘는다), 특성 축이면 2배(안 넘는다).
+    expect(stopsBefore(rows(), previous, 2)).toBe(true)
+    expect(stopsBefore({ ...rows(), axis: 'columns' }, previous, 2)).toBe(false)
+  })
+
+  it('모르는 사다리는 던진다 - 조용한 0은 그대로 기준표가 된다', () => {
+    expect(() => ladderPoint('no_such_ladder', 100)).toThrow()
+  })
+
+  it('상한 사다리는 전부 그 표시를 달고 온다', () => {
+    const limits = ALL_LADDERS.filter((ladder) => ladder.id.startsWith('limit_'))
+    expect(limits.length).toBeGreaterThan(0)
+    expect(limits.every((ladder) => ladder.findsLimit === true)).toBe(true)
+  })
+})
+
+/**
+ * **하니스가 앱과 같은 절차로 잰다** (2026-09-01 감사 B-4).
+ *
+ * 한동안 일감 **목록**만 앱 것이고 **재는 절차**는 두 벌이었다 — 감사자가 하니스의
+ * `PREDICT_RATIO`를 0.2에서 0.01로 바꾸고 `evaluate`를 지워도 아무것도 안 우는 것을
+ * 보였다. 그 갈라짐은 **기기 배수를 통째로 어긋나게 한다**: 기준값을 잰 절차와 앱이
+ * 도는 절차가 다르면 나눗셈의 두 항이 다른 것을 잰다.
+ */
+describe('교정은 앱의 함수로 잰다', () => {
+  it('하니스가 앱의 `measureJob`을 그대로 부른다', () => {
+    const harness = withoutComments(readFileSync(join(ROOT, 'tools', 'workloads.ts'), 'utf-8'))
+    expect(harness).toContain('measureJob(job)')
+    // 사다리용 `measure`로 교정을 재면 절차가 다시 갈린다.
+    expect(harness).not.toMatch(/measureCalibration[\s\S]{0,200}?\bmeasure\(/)
+  })
+
+  it('실제로 돌고 숫자를 준다', () => {
+    const job = CALIBRATION[0]
+    expect(job).toBeDefined()
+    const elapsed = measureCalibration(job!)
+    expect(Number.isFinite(elapsed)).toBe(true)
+    expect(elapsed).toBeGreaterThanOrEqual(0)
   })
 })

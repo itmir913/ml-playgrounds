@@ -25,14 +25,14 @@
  * 학생에게 나가는 화면이고, 이 페이지는 코드 소유자만 연다.
  */
 
-import type { BenchReply, BenchRequest } from './bench.worker'
+import type { BenchReply, BenchRequest, HeapSource } from './bench.worker'
 import {
   ALL_LADDERS,
   CALIBRATION,
   CEILING_MS,
   FAILURE_CEILING_MS,
   LADDERS,
-  PROJECTION_MS,
+  stopsBefore,
   type Ladder,
 } from './workloads'
 
@@ -103,8 +103,10 @@ type Outcome =
   | {
       readonly ok: true
       readonly elapsed: number
+      readonly heapBeforeMb: number | null
       readonly heapMb: number | null
-      readonly heapSource: string | null
+      /** **워커가 쓰는 것과 같은 타입이다** — `string`으로 받으면 모르는 출처가 새 온다. */
+      readonly heapSource: HeapSource
     }
   | ({
       readonly ok: false
@@ -129,7 +131,10 @@ const failed: Record<string, Failure> = {}
  * 있어서, 워커로 옮긴 뒤 이 칸이 통째로 `null`이 될 수 있다 — 그때 `null`을 *"힙이 안
  * 늘었다"*로 읽으면 상한을 잘못 정한다. 무엇이 답했는지는 `bench.worker.ts`가 고른다.
  */
-const heap: Record<string, { mb: number | null; source: string | null }> = {}
+const heap: Record<
+  string,
+  { before: number | null; after: number | null; grewMb: number | null; source: HeapSource }
+> = {}
 /**
  * **지금 돌리고 있는 점.** 끝나면 지워진다.
  *
@@ -236,21 +241,10 @@ async function runLadder(ladder: Ladder): Promise<void> {
   const results: Record<string, number> = {}
   measured[ladder.id] = results
   let previous: { point: number; elapsed: number } | null = null
-  // 상한을 찾는 사다리는 오래 걸리는 것이 답의 일부라 20초에서 안 멈춘다.
-  const ceiling = ladder.findsLimit ? FAILURE_CEILING_MS : CEILING_MS
 
   for (const point of ladder.points) {
-    if (previous !== null && !ladder.findsLimit) {
-      // **다음 점을 시작하기 전에 얼마나 걸릴지 어림한다.** 마지막 두 점의 증가율을 쓰고,
-      // 첫 점 뒤에는 아직 기울기를 모르니 마지막 값만 본다.
-      const growth = point / previous.point
-      const projected = previous.elapsed * growth * growth
-      if (previous.elapsed > CEILING_MS || projected > PROJECTION_MS) {
-        stopped.push(`${ladder.id}@${point}`)
-        break
-      }
-    }
-    if (previous !== null && ladder.findsLimit && previous.elapsed > ceiling) {
+    // **판정은 `workloads.ts`가 한다** — 여기 있으면 검사가 못 닿는다(감사 돌연변이 9).
+    if (stopsBefore(ladder, previous, point)) {
       stopped.push(`${ladder.id}@${point}`)
       break
     }
@@ -276,7 +270,16 @@ async function runLadder(ladder: Ladder): Promise<void> {
     }
 
     const elapsed = outcome.elapsed
-    heap[id] = { mb: outcome.heapMb, source: outcome.heapSource }
+    heap[id] = {
+      before: outcome.heapBeforeMb,
+      after: outcome.heapMb,
+      // **이 점이 얼마나 늘렸나.** 상한의 근거로 쓰이던 것이 절대값이 아니라 이쪽이다.
+      grewMb:
+        outcome.heapMb !== null && outcome.heapBeforeMb !== null
+          ? outcome.heapMb - outcome.heapBeforeMb
+          : null,
+      source: outcome.heapSource,
+    }
     results[String(point)] = elapsed
     previous = { point, elapsed }
     addRow(ladder.label, point.toLocaleString(), elapsed)
@@ -293,7 +296,7 @@ async function runCalibration(): Promise<void> {
     // **워커에서 잰다** — 앱의 교정도 워커에서 돈다 (`ml/worker/handler.ts`).
     const times: number[] = []
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const outcome = await runInWorker(`calibration/${id}`, { kind: 'job', job })
+      const outcome = await runInWorker(`calibration/${id}`, { kind: 'calibration', job })
       if (!outcome.ok) {
         failed[`calibration/${id}`] = { how: outcome.how, detail: outcome.detail }
         break
@@ -301,7 +304,15 @@ async function runCalibration(): Promise<void> {
       times.push(outcome.elapsed)
       // **여기서도 힙을 적는다.** 교정은 10초면 끝나므로, 이 기기에서 힙을 **누가
       // 답하는지**를 몇 시간짜리 사다리를 걸기 전에 알 수 있는 유일한 자리다.
-      heap[`calibration/${id}`] = { mb: outcome.heapMb, source: outcome.heapSource }
+      heap[`calibration/${id}`] = {
+        before: outcome.heapBeforeMb,
+        after: outcome.heapMb,
+        grewMb:
+          outcome.heapMb !== null && outcome.heapBeforeMb !== null
+            ? outcome.heapMb - outcome.heapBeforeMb
+            : null,
+        source: outcome.heapSource,
+      }
     }
     if (times.length === 0) {
       addRow('교정 일감', id, -1)
