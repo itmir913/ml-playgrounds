@@ -49,6 +49,7 @@
     "limitsReleased": "Limits are off.",
     "limitsWhy": "The limits come from measurements on a single development machine, so a faster computer is held back more than it needs to be.",
     "limitsRisk": "Turning them off lets you train on larger data, but training may take a very long time or freeze the browser tab.",
+    "limitsRiskOn": "Training may now take a very long time or freeze the browser tab.",
     "limitsEstimate": "The training screen tells you how long it should take. Combinations nobody has measured yet have no estimate at all.",
     "limitsDevice": "This setting is stored on this computer only and never goes into the project file.",
     "limitsRelease": "Turn limits off",

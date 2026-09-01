@@ -264,11 +264,21 @@ const limitsLabel = computed(() =>
         </button>
       </template>
 
+      <!--
+        **네 줄이 각자 한 가지만 말한다** — 지금 어떤 상태인가 · 그 상태가 뜻하는 것 ·
+        다음에 볼 곳 · 이 설정이 미치는 범위.
+
+        **가운데 둘은 상태마다 다른 문장이다** (2026-09-01, 사용자). 켠 뒤에도 *"해제하면"*
+        이라고 적고 있었는데, **이미 해제한 사람에게 가정법으로 말하는 것**이라 그 줄만
+        화면과 어긋났다. 키를 조립하지 않고 둘 중 하나를 고른다 (배색 스위치와 같은 모양).
+      -->
       <p :class="limitsOff ? 'font-bold text-caution' : 'font-bold'">{{ limitsLabel }}</p>
       <p class="mt-1 leading-relaxed text-ink-soft">
-        {{ limitsOff ? t('shell.limitsEstimate') : t('shell.limitsWhy') }}
+        {{ limitsOff ? t('shell.limitsRiskOn') : t('shell.limitsWhy') }}
       </p>
-      <p class="mt-1 leading-relaxed text-ink-soft">{{ t('shell.limitsRisk') }}</p>
+      <p class="mt-1 leading-relaxed text-ink-soft">
+        {{ limitsOff ? t('shell.limitsEstimate') : t('shell.limitsRisk') }}
+      </p>
       <p class="mt-1 leading-relaxed text-ink-faint">{{ t('shell.limitsDevice') }}</p>
 
       <!--
