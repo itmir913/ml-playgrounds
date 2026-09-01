@@ -33,6 +33,21 @@ describe('실측 하니스는 배포본에 안 들어간다', () => {
     expect(readFileSync(join(ROOT, 'tools', 'bench.html'), 'utf-8')).toContain('./bench.ts')
   })
 
+  /**
+   * **계산은 워커가 한다** (2026-09-01). 메인 스레드에서 재면 *"오래 걸린다"*와
+   * *"탭이 죽는다"*가 똑같이 멈춘 화면으로 보이는데, **앞은 상한이 아니고 뒤는 상한이다**
+   * (`open-decisions.md` "그러면 상한은 시간으로 정하는 것이 아니다").
+   *
+   * **되돌리기 쉬운 종류의 변경이라 검사가 있다** — `measure(job)` 한 줄이면 화면이 다시
+   * 메인에서 돌고, 결과 JSON은 똑같이 생겼다. 틀린 것이 값이 아니라 **구분**이라 안 보인다.
+   */
+  it('하니스가 계산을 워커에서 돌린다', () => {
+    const harness = withoutComments(readFileSync(join(ROOT, 'tools', 'bench.ts'), 'utf-8'))
+    expect(harness).toContain('./bench.worker.ts')
+    // 워커를 띄워 놓고 옆에서 메인으로도 재면 그 점만 조용히 다른 것을 잰다.
+    expect(harness).not.toMatch(/\bmeasure\s*\(/)
+  })
+
   it('빌드 입력이 index.html 하나뿐이다', () => {
     const config = readFileSync(join(ROOT, 'vite.config.ts'), 'utf-8')
     // `rollupOptions.input`이 생기는 순간 페이지가 여럿이 된다.

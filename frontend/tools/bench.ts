@@ -12,6 +12,12 @@
  *
  * **일감 정의는 `workloads.ts`에 있다** — DOM 없이도 같은 사다리를 돌릴 수 있어야 한다.
  *
+ * **계산은 워커가 한다** (2026-09-01, `bench.worker.ts`). 이 파일은 시키고 그리고
+ * 적기만 한다. 메인에서 돌리면 **상한이 안 갈린다** — 오래 걸리는 것과 탭을 죽이는 것이
+ * 똑같이 *"멈췄다"*로 보이는데, 앞은 상한이 아니고 뒤는 상한이다. 그리고 앱의 학습과
+ * 교정 일감이 이미 워커에서 도므로(`ml/worker/handler.ts`), 메인에서 잰 값은 애초에
+ * 학생이 만나는 값이 아니었다.
+ *
  * **배포되지 않는다.** vite의 build 입력이 `index.html` 하나뿐이라 `dist/`에 안 들어가고,
  * `tests/bench-rules.spec.ts`가 그 사실을 지킨다. 앱과 링크로 이어지지도 않는다.
  *
@@ -19,6 +25,7 @@
  * 학생에게 나가는 화면이고, 이 페이지는 코드 소유자만 연다.
  */
 
+import type { BenchReply, BenchRequest } from './bench.worker'
 import {
   ALL_LADDERS,
   CALIBRATION,
@@ -26,7 +33,6 @@ import {
   FAILURE_CEILING_MS,
   LADDERS,
   PROJECTION_MS,
-  measure,
   type Ladder,
 } from './workloads'
 
@@ -82,11 +88,42 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') wentHidden = true
 })
 
+/**
+ * **못 끝낸 방식.** 셋이 다른 사건이다 — 계산이 던진 것(메모리 부족이 이렇게도 온다),
+ * 워커가 통째로 죽은 것, 답이 왔는데 못 읽은 것. 메인 스레드에서 재던 동안은 셋이
+ * 전부 *"탭이 멈췄다"*였다.
+ */
+interface Failure {
+  readonly how: '던졌다' | '워커가 죽었다' | '못 읽었다'
+  readonly detail: string
+}
+
+/** 점 하나의 결말. 워커가 보낸 것(`BenchReply`)에 **워커의 죽음**을 더한 것이다. */
+type Outcome =
+  | { readonly ok: true; readonly elapsed: number; readonly heapMb: number | null }
+  | ({
+      readonly ok: false
+    } & Failure)
+
 const measured: Record<string, Record<string, number>> = {}
 const calibration: Record<string, number[]> = {}
 const stopped: string[] = []
-/** 던진 자리. **여기가 곧 상한이다** — 메모리 부족이 이렇게 온다. */
-const failed: Record<string, string> = {}
+/**
+ * 못 끝낸 자리. **여기가 곧 상한이다** — 메모리 부족이 이렇게 온다.
+ *
+ * **어떻게 못 끝냈는지를 함께 적는다** (2026-09-01). 계산이 던진 것과 워커가 통째로
+ * 죽은 것은 다른 사건이고, 워커로 옮긴 뒤에야 그 둘이 갈렸다. 문자열 하나로 뭉치면
+ * 다음에 이 JSON을 읽는 사람이 그 구분을 다시 잃는다.
+ */
+const failed: Record<string, Failure> = {}
+/**
+ * 점마다 **워커가 스스로 말한** 힙. 메인 스레드의 힙은 이제 아무것도 안 잰다 — 계산이
+ * 저쪽 isolate에서 돌기 때문이다.
+ *
+ * **워커에 `performance.memory`가 있는지는 재 보고 적을 일이다.** 없으면 `null`이 줄줄이
+ * 적힐 것이고, 그러면 힙은 다른 방법으로 봐야 한다.
+ */
+const heap: Record<string, number | null> = {}
 
 /**
  * **점을 하나 잴 때마다 남기는 자리.**
@@ -97,24 +134,60 @@ const failed: Record<string, string> = {}
  */
 const SAVE_KEY = 'ml-playgrounds:bench'
 
-/** 크로미움만 준다. 없으면 없는 대로 둔다 — 지어내지 않는다. */
-function heapMb(): number | null {
-  const memory = (performance as { memory?: { usedJSHeapSize: number } }).memory
-  return memory ? Math.round(memory.usedJSHeapSize / 1_000_000) : null
-}
-
 function snapshot(): Record<string, unknown> {
   return {
     device: device(),
     wentHidden,
     ceilingMs: CEILING_MS,
     failureCeilingMs: FAILURE_CEILING_MS,
-    heapMb: heapMb(),
+    heap,
     stopped,
     failed,
     measured,
     calibration,
   }
+}
+
+/**
+ * **점 하나마다 워커를 새로 띄우고, 끝나면 죽인다.**
+ *
+ * 앞 점이 남긴 메모리를 안고 다음 점을 재면 **상한을 잘못 읽는다** — 20,000행이
+ * 죽었는지 10,000행의 찌꺼기가 죽인 것인지 갈리지 않는다. 앱도 학습마다 워커를
+ * 새로 띄운다 (`ml/worker/client.ts`).
+ *
+ * **답이 안 오는 것도 답이다.** 여기서는 기다리기만 하고 시간을 안 자른다 — 상한을
+ * 찾는 사다리에서 오래 걸리는 것은 정상이고(`FAILURE_CEILING_MS`), 화면이 살아 있으니
+ * 몇 초째인지가 보인다. 진짜로 죽으면 `onerror`나 침묵으로 온다.
+ */
+function runInWorker(request: BenchRequest): Promise<Outcome> {
+  const worker = new Worker(new URL('./bench.worker.ts', import.meta.url), { type: 'module' })
+  return new Promise<Outcome>((resolve) => {
+    const settle = (outcome: Outcome): void => {
+      worker.terminate()
+      resolve(outcome)
+    }
+    worker.onmessage = (event: MessageEvent<BenchReply>) => {
+      const reply = event.data
+      settle(reply.ok ? reply : { ok: false, how: '던졌다', detail: reply.error })
+    }
+    // **워커가 죽는 것이 답인 실측이다.** 메모리 부족이 이렇게 오고, 그 자리가 상한이다.
+    worker.onerror = (event) => settle({ ok: false, how: '워커가 죽었다', detail: event.message })
+    worker.onmessageerror = () =>
+      settle({ ok: false, how: '못 읽었다', detail: '워커가 보낸 것을 복원하지 못했다' })
+    worker.postMessage(request)
+  })
+}
+
+/** 지금 재는 점이 몇 초째인지 상태 줄에 흘린다. **메인이 비었으니 이제 이게 보인다.** */
+function ticking(label: string): () => void {
+  const started = performance.now()
+  const paint = (): void => {
+    const seconds = Math.round((performance.now() - started) / 1000)
+    status.textContent = seconds > 0 ? `${label} — ${seconds}초째` : label
+  }
+  paint()
+  const timer = window.setInterval(paint, 1000)
+  return () => window.clearInterval(timer)
 }
 
 function publish(): void {
@@ -160,23 +233,28 @@ async function runLadder(ladder: Ladder): Promise<void> {
       break
     }
 
-    status.textContent = `${ladder.label} — ${ladder.axis} ${point.toLocaleString()}`
     await breathe()
+    const stopTicking = ticking(`${ladder.label} — ${ladder.axis} ${point.toLocaleString()}`)
 
     /**
-     * **던지는 것이 답인 사다리가 있다.** 메모리가 모자라면 여기서 오고, 그 자리가 곧
+     * **못 끝내는 것이 답인 사다리가 있다.** 메모리가 모자라면 여기서 오고, 그 자리가 곧
      * 상한이다. 삼키지 않고 **적고 멈춘다** — 그 위를 더 재 봐야 같은 실패다.
+     *
+     * **계산이 던진 것과 워커가 죽은 것을 갈라 적는다.** 둘 다 상한이지만 같은 사건이
+     * 아니고, 메인 스레드에서 재던 동안은 그 구분이 아예 없었다.
      */
-    let elapsed: number
-    try {
-      elapsed = ladder.run ? ladder.run(point) : measure(ladder.job(point))
-    } catch (error) {
-      failed[`${ladder.id}@${point}`] = String(error)
+    const outcome = await runInWorker({ kind: 'ladder', ladderId: ladder.id, point })
+    stopTicking()
+    const id = `${ladder.id}@${point}`
+    if (!outcome.ok) {
+      failed[id] = { how: outcome.how, detail: outcome.detail }
       addRow(ladder.label, point.toLocaleString(), -1)
       publish()
       break
     }
 
+    const elapsed = outcome.elapsed
+    heap[id] = outcome.heapMb
     results[String(point)] = elapsed
     previous = { point, elapsed }
     addRow(ladder.label, point.toLocaleString(), elapsed)
@@ -190,7 +268,21 @@ async function runCalibration(): Promise<void> {
     status.textContent = `교정 일감 — ${id}`
     await breathe()
     // **세 번 잰다.** 앱이 실제로 쓸 값이라 흔들리면 배수가 흔들린다. 짧으니 싸다.
-    const times = [measure(job), measure(job), measure(job)]
+    // **워커에서 잰다** — 앱의 교정도 워커에서 돈다 (`ml/worker/handler.ts`).
+    const times: number[] = []
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const outcome = await runInWorker({ kind: 'job', job })
+      if (!outcome.ok) {
+        failed[`calibration/${id}`] = { how: outcome.how, detail: outcome.detail }
+        break
+      }
+      times.push(outcome.elapsed)
+    }
+    if (times.length === 0) {
+      addRow('교정 일감', id, -1)
+      publish()
+      continue
+    }
     calibration[id] = times
     addRow('교정 일감', id, Math.min(...times))
     publish()
