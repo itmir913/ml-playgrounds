@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import { parseCsvText } from '../src/data/csv'
 import { decodeText, detectEncoding } from '../src/data/encoding'
@@ -13,6 +13,7 @@ import {
   sourceFromFileName,
 } from '../src/data/table'
 import { isClientError } from '../src/errors'
+import { applyLimitsOff } from '../src/limits-switch'
 import { hashBytes } from '../src/hash'
 import { MAX_DATASET_COLUMNS, MAX_DATASET_ROWS, TABLE_PREVIEW_ROW_COUNT } from '../src/limits'
 
@@ -289,5 +290,44 @@ describe('확정 전 안내', () => {
     expect(probeNote(TABLE_PREVIEW_ROW_COUNT - 1, PREVIEW_PROBE_ROWS)).toBe(
       TABLE_PREVIEW_ROW_COUNT - 1,
     )
+  })
+})
+
+/**
+ * **상한을 껐을 때 진짜 입구를 지난다** (2026-09-01 감사 B-5, `limits-switch.ts`).
+ *
+ * 스위치 스펙은 `Infinity`와의 비교를 **손으로 옮겨 적어** 재고 있었다 — 그것은
+ * `Infinity`의 성질을 재는 것이지 **파서가 그 비교를 하고 있다는 것을 재는 것이 아니다.**
+ * `data/csv.ts`의 `>= maxRows`가 다른 모양으로 바뀌면 그 검사는 초록인 채로 잘린 표가
+ * 들어온다. 그리고 `data/table.ts`의 주석이 *"상한을 끄면 전부 읽는다"*고 단정하는데
+ * **잰 적이 없었다.**
+ */
+describe('importTable - 상한을 껐을 때', () => {
+  afterEach(() => applyLimitsOff(false))
+
+  const csvOf = (rows: number) =>
+    ['a', ...Array.from({ length: rows }, (_, index) => String(index))].join('\n')
+
+  it('상한을 넘겨도 안 거부하고, 행이 잘리지도 않는다', async () => {
+    applyLimitsOff(true)
+    const rows = MAX_DATASET_ROWS + 5
+    const document = await openTable(new TextEncoder().encode(csvOf(rows)), 'data.csv')
+    // 머리글까지 세면 `rows + 1`이다. **`상한 + 1까지만 읽는다`가 안 잘랐는지가 요점이다.**
+    expect(importTable(document).grid).toHaveLength(rows + 1)
+  })
+
+  it('끄면 열 상한도 함께 열린다', async () => {
+    applyLimitsOff(true)
+    const header = Array.from({ length: MAX_DATASET_COLUMNS + 3 }, (_, i) => `c${i}`).join(',')
+    const row = Array.from({ length: MAX_DATASET_COLUMNS + 3 }, () => '1').join(',')
+    const document = await openTable(new TextEncoder().encode(`${header}\n${row}`), 'data.csv')
+    expect(importTable(document).grid[0]).toHaveLength(MAX_DATASET_COLUMNS + 3)
+  })
+
+  it('다시 켜면 그대로 거부한다 - 스위치가 한 방향으로만 열리면 안 된다', async () => {
+    applyLimitsOff(true)
+    applyLimitsOff(false)
+    const document = await openTable(new TextEncoder().encode(csvOf(MAX_DATASET_ROWS)), 'data.csv')
+    expect(() => importTable(document)).toThrow()
   })
 })

@@ -8,6 +8,9 @@
  * `0 * Infinity = NaN`으로 통째로 비는데, **아무 오류도 안 나고 화면만 빈다.**
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import 'fake-indexeddb/auto'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -207,5 +210,34 @@ describe('맥락이 스위치를 싣는다', () => {
     expect(runtimeContextFor(null, 'tabular').limitsOff).toBe(true)
     applyLimitsOff(false)
     expect(runtimeContextFor(null, 'tabular').limitsOff).toBe(false)
+  })
+})
+
+/**
+ * **목록을 손으로 적지 않는다** (2026-09-01 감사 B-2).
+ *
+ * 위 `일곱이 전부 열린다`는 이름을 손으로 열거하므로, **여덟째가 `open()`을 안 거치고
+ * 들어오면 아무 일도 안 일어난다** — 그 검사의 주석이 막겠다고 적은 바로 그 경우다.
+ * 단정이 자기 목록을 근거로 하면 안 된다.
+ *
+ * 그래서 **소스에서 뽑는다.** 같은 저장소가 이미 옳은 모양을 갖고 있다 —
+ * `limits-rules.spec.ts`의 `SWITCHABLE`이 분류 태그를 소스에서 읽는다.
+ */
+describe('내보내는 읽기 함수가 전부 스위치를 거친다', () => {
+  const SOURCE = readFileSync(join(process.cwd(), 'src', 'limits-switch.ts'), 'utf-8')
+
+  /** 인자 없이 수를 돌려주는 것들. 상한을 읽어 내보내는 자리가 그 모양이다. */
+  const readers = [...SOURCE.matchAll(/export function (\w+)\(\)\s*:\s*number\s*\{([^}]*)\}/g)].map(
+    (match) => ({ name: match[1] ?? '', body: match[2] ?? '' }),
+  )
+
+  it('뽑을 것을 실제로 찾는다', () => {
+    // 0개면 정규식이 썩은 것이지 규칙이 지켜진 게 아니다.
+    expect(readers.length).toBeGreaterThanOrEqual(7)
+  })
+
+  it('하나도 빠짐없이 `open()`을 거친다', () => {
+    const bare = readers.filter((one) => !one.body.includes('open(')).map((one) => one.name)
+    expect(bare, 'read it through open() or the switch will not reach it').toEqual([])
   })
 })

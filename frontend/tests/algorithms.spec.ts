@@ -208,7 +208,6 @@ describe('못 쓰는 이유가 쓸모 있어야 한다', () => {
       tabularClassification,
       context({
         serverStatus: 'available',
-        limitsOff: false,
         rowCount: MLJS_DECISION_TREE_ROW_LIMIT + 1,
         dataType: 'tabular',
       }),

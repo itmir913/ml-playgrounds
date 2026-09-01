@@ -1132,7 +1132,9 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
     const base = predictPageSignature('hash-1', [model], 100)
 
     expect(predictPageSignature('hash-1', [model], 250)).not.toBe(base)
-    expect(predictPageSignature('hash-1', [model], Number.POSITIVE_INFINITY)).not.toBe(base)
+    // **`Infinity`는 안 잰다** (2026-09-01 감사 C-7). 부르는 쪽이 언제나 `pageSizeOf`를
+    // 거쳐 유한한 수를 넘기므로 그 입력은 만들어질 수 없다 — 그것을 막는 것은
+    // `limits-rules.spec.ts`의 `판 크기를 pageSizeOf로 감싼다`다.
   })
 
   it('서명은 같은 입력에서 같다', () => {

@@ -170,9 +170,14 @@ describe('등록부의 칸마다 사다리가 있다', () => {
     expect(missing).toEqual([])
   })
 
+  /**
+   * **자기검사는 등록부의 사실에 안 매달린다** (2026-09-01 감사 C-6). `linear_regression`이
+   * 사진에서 안 열린다는 것은 **오늘의 사실**이라, 언젠가 정당하게 열리면 이 검사가 먼저
+   * 빨개진다 — 규칙이 아니라 사실이 바뀐 것인데 규칙이 우는 꼴이다.
+   */
   it('그 규칙이 실제로 문다 - 없는 칸을 있다고 하지 않는다', () => {
     expect(covers('없는_알고리즘', 'tabular')).toBe(false)
-    expect(covers('linear_regression', 'image')).toBe(false)
+    expect(covers('없는_알고리즘', 'image')).toBe(false)
   })
 })
 

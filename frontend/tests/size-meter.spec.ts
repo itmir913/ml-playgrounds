@@ -64,3 +64,35 @@ describe('막대는 상자를 안 넘는다', () => {
     expect(barOf(render(30 * MB)).attributes('style')).toContain('100%')
   })
 })
+
+/**
+ * **상한을 껐을 때** (2026-09-01, `limits-switch.ts`).
+ *
+ * `Infinity`를 그대로 넘기면 막대는 `(used/Infinity)*100 = 0`이라 멀쩡해 보이고 **글자만
+ * `0.3MB / InfinityMB`가 된다** — 감사가 이 가지를 아무도 안 지나간다고 짚은 자리다.
+ */
+describe('상한이 없으면 상한을 말하지 않는다', () => {
+  const open = () => render(0.3 * MB, Number.POSITIVE_INFINITY)
+
+  it('`Infinity`라는 글자가 화면에 안 뜬다', () => {
+    const text = open().text()
+    expect(text).not.toContain('Infinity')
+    expect(text).not.toContain('NaN')
+  })
+
+  it('담긴 양은 그대로 말한다 - 상한이 없어도 볼 거리다', () => {
+    expect(open().text()).toContain('0.3')
+  })
+
+  /** 끝을 모르는 막대에 `aria-valuemax`를 적으면 읽는 기계가 비율을 지어낸다. */
+  it('끝이 없으면 `aria-valuemax`를 안 적는다', () => {
+    const box = open().find('[role="progressbar"]')
+    expect(box.attributes('aria-valuemax')).toBeUndefined()
+  })
+
+  it('막대는 비어 있고 넘긴 색이 아니다', () => {
+    const bar = barOf(open())
+    expect(bar.attributes('style')).toContain('width: 0%')
+    expect(bar.classes()).not.toContain('bg-danger')
+  })
+})

@@ -415,10 +415,37 @@ function ruleHits(rule: Rule, source: string, label: string): string[] {
  * **오래 걸리는 일은 `action`으로 줘야 버튼이 스스로 꺼진다**(CLAUDE.md §4).
  * `@click`은 리스너의 반환값을 기다려 주지 않으므로 두 번 눌리는 것을 못 막는다.
  */
-function unguardedButtons(source: string): string[] {
+function unguardedButtons(
+  source: string,
+  resolveImport?: (name: string) => string | null,
+): string[] {
   const asyncNames = new Set(
     [...source.matchAll(/async function (\w+)/g)].map((match) => match[1] ?? ''),
   )
+  /**
+   * **다른 모듈에서 온 것도 본다** (2026-09-01 감사 B-3). 이 파일 안의 선언만 모으던
+   * 동안은 `import { setLimitsOff } from '@/limits-switch'`처럼 **들여온 async 함수**를
+   * `@click`에 그대로 써도 안 걸렸다 — 감사자가 상태 표시줄의 `:action`을 `@click`으로
+   * 바꿔 확인했다(안 울었다). 이 저장소가 그런 함수를 화면에 들여온 것이 그때가 처음이다.
+   *
+   * **한 겹만 따라간다.** 들여온 모듈이 또 어디선가 들여온 것까지는 사람이 볼 자리다.
+   */
+  if (resolveImport) {
+    for (const match of source.matchAll(/import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"]/g)) {
+      const from = match[2] ?? ''
+      const module = resolveImport(from)
+      if (module === null) continue
+      for (const raw of (match[1] ?? '').split(',')) {
+        // `x as y`로 들여오면 화면이 부르는 이름은 뒤쪽이다.
+        const name = (raw.split(/\s+as\s+/).pop() ?? '').trim()
+        if (name === '') continue
+        const exported = new RegExp(
+          `export (?:async function ${name}\\b|const ${name}\\s*=\\s*async)`,
+        )
+        if (exported.test(module)) asyncNames.add(name)
+      }
+    }
+  }
   // `const 이름 = async (` 꼴도 같다. 선언 방식으로 규칙을 빠져나갈 수 있으면 안 된다.
   for (const match of source.matchAll(/const (\w+)\s*=\s*async\s*\(/g)) {
     asyncNames.add(match[1] ?? '')
@@ -1136,9 +1163,22 @@ describe('버튼이 두 번 눌리지 않는다', () => {
     'components/ProjectName.vue  start',
   ])
 
+  /**
+   * `@/…` 임포트를 소스로 바꿔 준다. **`unguardedButtons`가 임포트를 한 겹 따라갈 때 쓴다**
+   * (2026-09-01 감사 B-3). 없는 파일이면 `null`이고, 그때는 따라가지 않는다.
+   */
+  function moduleSource(specifier: string): string | null {
+    if (!specifier.startsWith('@/')) return null
+    for (const suffix of ['.ts', '.vue', '/index.ts']) {
+      const path = join(SRC, `${specifier.slice(2)}${suffix}`)
+      if (existsSync(path)) return readFileSync(path, 'utf-8')
+    }
+    return null
+  }
+
   it('지금 소스에 안 막힌 버튼이 없다', () => {
     const found = vueFiles(SRC).flatMap((path) =>
-      unguardedButtons(readFileSync(path, 'utf-8')).map(
+      unguardedButtons(readFileSync(path, 'utf-8'), moduleSource).map(
         (name) =>
           `${path
             .slice(SRC.length + 1)
@@ -1156,7 +1196,7 @@ describe('버튼이 두 번 눌리지 않는다', () => {
   it('허용한 둘이 실제로 그 자리에 있다', () => {
     const found = new Set(
       vueFiles(SRC).flatMap((path) =>
-        unguardedButtons(readFileSync(path, 'utf-8')).map(
+        unguardedButtons(readFileSync(path, 'utf-8'), moduleSource).map(
           (name) =>
             `${path
               .slice(SRC.length + 1)

@@ -26,7 +26,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -49,6 +49,29 @@ import {
 
 const SRC = join(process.cwd(), 'src')
 if (!existsSync(SRC)) throw new Error(`src not found: ${SRC}`)
+
+/**
+ * 상수 **바로 앞에 붙은** 주석에 달린 분류. 없으면 `null`이다.
+ *
+ * **"바로 앞"을 글자로 확인한다.** 마지막 `/**`부터 잘라 오는 것만으로는 모자랐다 —
+ * 상수에 주석이 **아예 없으면** 그 조각이 앞 상수의 주석이 되고, 거기 달린 분류가
+ * 이 상수의 것으로 읽힌다 (R6 감사 B-4). `우리 기기가 정했다`가 스물셋으로 가장
+ * 흔하므로 주석을 안 붙인 새 상한은 **off 스위치가 끄는 줄로 빨려 들어간다.**
+ *
+ * 그래서 잘라 온 조각이 `*∕`로 닫히고 그 뒤에 공백만 있는지 본다. 사이에 다른 코드
+ * 줄이 있으면 그 주석은 이 상수의 것이 아니다.
+ */
+function classOf(source: string, name: string): string | null {
+  const at = source.search(new RegExp(`^export const ${name}\\b`, 'm'))
+  if (at < 0) return null
+  const before = source.slice(0, at)
+  const opened = before.lastIndexOf('/**')
+  if (opened < 0) return null
+  const comment = before.slice(opened)
+  if (!/\*\/\s*$/.test(comment)) return null
+  const found = comment.match(/\*\*분류: (.+?)\.\*\*/)
+  return found?.[1] ?? null
+}
 
 /** 상한이 사는 곳. 여기만 숫자를 직접 쓴다. */
 const LIMITS = join(SRC, 'limits.ts')
@@ -409,29 +432,6 @@ describe('상한마다 분류가 달려 있다', () => {
    */
   const LINE_BREAK = String.fromCharCode(10)
 
-  /**
-   * 상수 **바로 앞에 붙은** 주석에 달린 분류. 없으면 `null`이다.
-   *
-   * **"바로 앞"을 글자로 확인한다.** 마지막 `/**`부터 잘라 오는 것만으로는 모자랐다 —
-   * 상수에 주석이 **아예 없으면** 그 조각이 앞 상수의 주석이 되고, 거기 달린 분류가
-   * 이 상수의 것으로 읽힌다 (R6 감사 B-4). `우리 기기가 정했다`가 스물셋으로 가장
-   * 흔하므로 주석을 안 붙인 새 상한은 **off 스위치가 끄는 줄로 빨려 들어간다.**
-   *
-   * 그래서 잘라 온 조각이 `*∕`로 닫히고 그 뒤에 공백만 있는지 본다. 사이에 다른 코드
-   * 줄이 있으면 그 주석은 이 상수의 것이 아니다.
-   */
-  function classOf(source: string, name: string): string | null {
-    const at = source.search(new RegExp(`^export const ${name}\\b`, 'm'))
-    if (at < 0) return null
-    const before = source.slice(0, at)
-    const opened = before.lastIndexOf('/**')
-    if (opened < 0) return null
-    const comment = before.slice(opened)
-    if (!/\*\/\s*$/.test(comment)) return null
-    const found = comment.match(/\*\*분류: (.+?)\.\*\*/)
-    return found?.[1] ?? null
-  }
-
   const SOURCE = readFileSync(LIMITS, 'utf-8')
   const NAMES = [...SOURCE.matchAll(/^export const (\w+)/gm)].map((match) => match[1] ?? '')
 
@@ -603,13 +603,12 @@ describe('끌 수 있는 상한은 스위치를 거친다', () => {
   /** `우리 기기가 정했다`가 달린 상수들. 분류를 옮기면 이 목록이 저절로 따라온다. */
   const SWITCHABLE = (() => {
     const source = readFileSync(LIMITS, 'utf-8')
+    // **판정을 다시 쓰지 않는다** (2026-09-01 감사 C-2). 손으로 옮겨 적었을 때는 위
+    // `classOf`가 가진 R6 B-4 가드(주석이 `*/`로 닫혔는가)가 빠져, 주석이 아예 없는
+    // 상수가 앞 상수의 분류를 물려받았다. 구현이 둘이면 그중 하나만 고쳐진다.
     return [...source.matchAll(/^export const (\w+)/gm)]
       .map((match) => match[1] ?? '')
-      .filter((name) => {
-        const at = source.search(new RegExp(`^export const ${name}\\b`, 'm'))
-        const opened = source.slice(0, at).lastIndexOf('/**')
-        return opened >= 0 && /\*\*분류: 우리 기기가 정했다\.\*\*/.test(source.slice(opened, at))
-      })
+      .filter((name) => classOf(source, name) === '우리 기기가 정했다')
   })()
 
   it('끌 수 있는 상한을 실제로 찾는다', () => {
@@ -687,7 +686,7 @@ describe('끌 수 있는 상한은 스위치를 거친다', () => {
     expect(unwrapped, 'wrap it with pageSizeOf - Infinity leaks into slice()').toEqual([])
   })
 
-  it('집 셋 밖에서는 기기 줄 상수를 직접 안 읽는다', () => {
+  it('값이 사는 곳과 집 셋 밖에서는 기기 줄 상수를 직접 안 읽는다', () => {
     const wrong: string[] = []
     for (const path of sourceFiles(SRC)) {
       const where = path.slice(SRC.length + 1)
@@ -698,5 +697,93 @@ describe('끌 수 있는 상한은 스위치를 거친다', () => {
       }
     }
     expect(wrong, 'read it through limits-switch.ts instead').toEqual([])
+  })
+})
+
+/**
+ * **스위치는 워커 번들에 안 들어간다** (2026-09-01 감사 B-6).
+ *
+ * `limits-switch.ts`는 `vue`와 `project/storage`(→ `idb`)를 문다. 워커 셋은 지금 그
+ * 어느 것도 안 무는데(감사자가 임포트 그래프를 직접 훑어 확인했다), **그 사실을 지키는
+ * 것이 아무것도 없었다** — 워커 쪽이 언젠가 `data/table.ts`의 파서 하나를 들여오는 날
+ * 조용히 따라 들어간다. 전국 배포에 교실 PC는 캐시가 차시마다 지워지므로(`pages-traffic`
+ * 판단) 워커가 무거워지는 것은 공짜가 아니다.
+ *
+ * **그래서 임포트를 따라간다.** `src/` 안의 상대·별칭 임포트를 한 겹씩 넓혀 가며 훑는다.
+ */
+describe('워커는 스위치를 안 문다', () => {
+  const WORKERS = [
+    'ml/worker/train.worker.ts',
+    'ml/embed/embed.worker.ts',
+    'data/image/canonicalize.worker.ts',
+  ]
+
+  /** 이 파일이 직접 들여오는 `src/` 안의 모듈들. 밖(라이브러리)은 이름 그대로 돌려준다. */
+  function importsOf(path: string): string[] {
+    const source = withoutComments(readFileSync(path, 'utf-8')).join(String.fromCharCode(10))
+    return [...source.matchAll(/from\s*['"]([^'"]+)['"]/g)].map((match) => match[1] ?? '')
+  }
+
+  function resolve(specifier: string, from: string): string | null {
+    const base = specifier.startsWith('@/')
+      ? join(SRC, specifier.slice(2))
+      : specifier.startsWith('.')
+        ? join(dirname(from), specifier)
+        : null
+    if (base === null) return null
+    for (const suffix of ['.ts', '/index.ts', '']) {
+      const candidate = `${base}${suffix}`
+      if (existsSync(candidate) && candidate.endsWith('.ts')) return candidate
+    }
+    return null
+  }
+
+  it('훑을 워커를 실제로 찾는다', () => {
+    for (const worker of WORKERS) expect(existsSync(join(SRC, worker))).toBe(true)
+  })
+
+  it('어느 워커도 `limits-switch`·`vue`·`idb`에 안 닿는다', () => {
+    const reached: string[] = []
+    for (const worker of WORKERS) {
+      const seen = new Set<string>()
+      const queue = [join(SRC, worker)]
+      while (queue.length > 0) {
+        const current = queue.pop()!
+        if (seen.has(current)) continue
+        seen.add(current)
+        for (const specifier of importsOf(current)) {
+          if (specifier === 'vue' || specifier === 'idb') {
+            reached.push(`${worker} -> ${current.slice(SRC.length + 1)} -> ${specifier}`)
+            continue
+          }
+          const next = resolve(specifier, current)
+          if (next === null) continue
+          if (next.endsWith('limits-switch.ts')) {
+            reached.push(`${worker} -> ${current.slice(SRC.length + 1)} -> limits-switch`)
+          }
+          queue.push(next)
+        }
+      }
+    }
+    expect(reached, 'the switch pulls vue and idb into the worker bundle').toEqual([])
+  })
+})
+
+/**
+ * **저장된 선택을 앱이 뜰 때 되살리는가** (2026-09-01 감사 C-4).
+ *
+ * `main.ts`의 그 한 줄을 지우면 학생의 선택이 **새로 고칠 때마다 사라진다**(늘 "상한
+ * 적용"으로 뜬다). 그런데 아무 검사도 안 울었다 — 옆의 `initLocale`·`initTheme`도 같은
+ * 처지라 이번에 생긴 병은 아니지만, **셋 다 한 줄로 기능이 죽는 자리**다.
+ */
+describe('앱이 뜰 때 되살린다', () => {
+  const MAIN = withoutComments(readFileSync(join(SRC, 'main.ts'), 'utf-8')).join(
+    String.fromCharCode(10),
+  )
+
+  it('저장된 것을 읽는 셋을 전부 부른다', () => {
+    for (const call of ['initLocale()', 'initTheme()', 'initLimitsOff()']) {
+      expect(MAIN, `main.ts must call ${call}`).toContain(call)
+    }
   })
 })

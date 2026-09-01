@@ -184,7 +184,6 @@ describe('데이터 크기', () => {
       anywhere,
       context({
         serverStatus: 'available',
-        limitsOff: false,
         rowCount: BROWSER_ROW_LIMIT + 1,
         dataType: 'tabular',
         engineStates: ready,

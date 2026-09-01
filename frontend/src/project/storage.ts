@@ -216,7 +216,12 @@ export async function writePreferredLocale(locale: string): Promise<void> {
  * `DB_VERSION`이 오르고, 그건 지시 없이 올릴 값이 아니다 (`tests/versions.spec.ts`).
  *
  * **`true`가 아니면 꺼진 것으로 본다.** 손으로 넣어 둔 값이나 옛 형식을 참으로 읽으면
- * 학생이 켠 적 없는 상태로 앱이 뜬다 (`prefs.ts`와 같은 판단).
+ * 학생이 켠 적 없는 상태로 앱이 뜬다.
+ *
+ * **`prefs.ts`의 `readFlag`와 같은 판단은 아니다** (2026-09-01 감사 C-2). 저쪽은 세
+ * 갈래다 — `'true'`면 참, `'false'`면 거짓, **그 밖은 부르는 쪽이 준 기본값**이라 참일
+ * 수도 있다. 여기는 두 갈래이고 모르는 값은 전부 거짓이다. **상한은 안전한 쪽이 꺼짐이라
+ * 기본값을 받을 자리가 없다.**
  */
 export async function readLimitsOff(): Promise<boolean> {
   try {
