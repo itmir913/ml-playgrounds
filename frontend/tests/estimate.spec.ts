@@ -38,7 +38,8 @@ group('보간', () => {
   })
 
   it('표 아래로는 첫 점의 값을 쓴다 - 아래로 외삽하면 값이 되레 커지는 표가 있다', () => {
-    // 선형 회귀는 1,000행과 5,000행이 둘 다 23ms라 기울기가 0이다.
+    // **아래로 외삽하면 안 되는 이유가 표마다 다르다.** 선형 회귀는 1,000행과 5,000행이
+    // 둘 다 23ms라 기울기가 0이고, 그런 표에서 아래로 늘리면 값이 안 줄거나 되레 커진다.
     const naive = ALGORITHMS.find((entry) => entry.id === 'naive_bayes')?.baseline.tabular.ms ?? []
     expect(interpolate(naive, 10)).toBe(naive[0]?.[1])
     expect(interpolate(MLJS_DECISION_TREE_BASELINE_MS, 10)).toBe(49)
