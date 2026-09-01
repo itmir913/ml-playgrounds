@@ -261,12 +261,7 @@ const SPLIT_BY_METHOD: Record<
  * 코드가 러너에서는 30만 행까지 멀쩡하다. 그래서 값이 아니라 **표기**를 규칙으로 막는다
  * (`tests/limits-rules.spec.ts`의 `행 규모 배열을 인자로 펼치지 않는다`).
  */
-export function appendAll<T>(
-  target: T[],
-  source: readonly T[],
-  from: number,
-  to: number,
-): void {
+export function appendAll<T>(target: T[], source: readonly T[], from: number, to: number): void {
   for (let index = from; index < to; index += 1) target.push(source[index] as T)
 }
 
