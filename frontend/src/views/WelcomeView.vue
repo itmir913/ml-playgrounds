@@ -377,31 +377,37 @@ onMounted(refresh)
       버튼인 줄 모르고, hover로는 못 알린다"*는 이유로 **상시 밑줄**을 얻었다. 여기만
       그 규칙 밖에 있었다.
 
-      **그래서 ghost의 처방을 그대로 쓴다** — 실선 1px, `underline-offset-4`. 실선인
-      것에도 뜻이 있다: 점선 밑줄은 눌러도 설명만 펼쳐지는 것의 표기다(`TermPopover`).
+      **알리는 것은 색이다. 밑줄이 아니다** (2026-09-01, 두 번째 고침).
+
+      처음에는 ghost처럼 상시 밑줄을 줬는데, **휴대폰에서는 셋이 세로로 쌓여 밑줄 세 줄이
+      나란히 놓인다** — 잉크가 글자만큼 무거워져 푸터가 본문처럼 읽혔다. ghost가 밑줄을
+      고른 이유는 **면도 테두리도 색도 없어서**였고, 여기는 색을 쓸 수 있다.
+
+      **`brand`가 링크의 관습색이다.** 학생이 다른 데서 만나는 그 신호이고, hover 없이
+      가만히 있을 때 말한다 — 그것이 애초에 고쳐야 했던 것이다.
 
       **안쪽 여백은 누를 자리를 만드는 것이다.** 맨 글자는 손가락에 24px짜리 과녁인데
-      이 셋은 휴대폰에서 만나는 자리다.
+      이 셋은 휴대폰에서 만나는 자리다. 세로는 좁게 준다 — 과녁은 가로로 넓다.
 
-      **좁을 때는 쌓는다.** 셋을 한 줄에 늘어놓으면 375px에서 2+1로 접혀 마지막 하나가
-      혼자 남는다 — 접힌 자리가 뜻을 갖지 않으면 그냥 흐트러진 것으로 보인다.
+      **접히게 둔다. 쌓지 않는다.** 375px에서 둘이 한 줄에 서고 `GitHub`만 내려간다.
+      세로로 셋을 쌓으면 목록처럼 보이고, 푸터가 차지할 높이가 아니다.
     -->
     <footer
       v-if="ready"
-      class="mt-8 flex flex-col items-center gap-1 border-t border-line pt-4 text-ink-faint sm:flex-row sm:justify-center sm:gap-2"
+      class="mt-8 flex flex-wrap items-center justify-center gap-x-1 border-t border-line pt-3"
     >
       <a
         :href="privacyHref"
         target="_blank"
         rel="noopener noreferrer"
-        class="rounded-control px-3 py-2 underline decoration-1 underline-offset-4 transition-colors hover:bg-surface-sunken hover:text-ink-soft"
+        class="rounded-control px-3 py-1.5 text-brand transition-colors hover:bg-surface-sunken hover:text-brand-strong"
         >{{ t('legal.privacy') }}</a
       >
       <a
         :href="NOTICES_PATH"
         target="_blank"
         rel="noopener noreferrer"
-        class="rounded-control px-3 py-2 underline decoration-1 underline-offset-4 transition-colors hover:bg-surface-sunken hover:text-ink-soft"
+        class="rounded-control px-3 py-1.5 text-brand transition-colors hover:bg-surface-sunken hover:text-brand-strong"
         >{{ t('legal.notices') }}</a
       >
       <!--
@@ -417,7 +423,7 @@ onMounted(refresh)
         :href="REPOSITORY_URL"
         target="_blank"
         rel="noopener noreferrer"
-        class="rounded-control px-3 py-2 underline decoration-1 underline-offset-4 transition-colors hover:bg-surface-sunken hover:text-ink-soft"
+        class="rounded-control px-3 py-1.5 text-brand transition-colors hover:bg-surface-sunken hover:text-brand-strong"
         >{{ t('legal.source') }}</a
       >
     </footer>
