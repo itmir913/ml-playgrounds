@@ -303,9 +303,17 @@ describe('산점도 상한이 화면까지 이어진다', () => {
       .join('\n')
   }
 
+  /**
+   * **스위치를 거친 이름도 같은 줄이다** (2026-09-01). 화면은 이제 상수를 직접 안 읽고
+   * `clusterScatterPointLimit()`을 부른다 — 그 함수가 `limits-switch.ts`에서 이 상수를
+   * 읽으므로 줄은 그대로 이어져 있고, **끊긴 것과 거쳐 간 것을 여기서 갈라야 한다.**
+   * 상수 이름만 보던 이 검사는 그 이사에서 울었고, 그것이 이 검사가 하는 일이다.
+   */
   it('상한을 손으로 안 적고 상수를 넘긴다', () => {
     const missing = CALLERS.filter(
-      (path) => !bodyOf(path).includes('CLUSTER_SCATTER_POINT_LIMIT'),
+      (path) =>
+        !bodyOf(path).includes('CLUSTER_SCATTER_POINT_LIMIT') &&
+        !bodyOf(path).includes('clusterScatterPointLimit('),
     ).map((path) => path.slice(SRC.length + 1))
     expect(missing, 'calls scatterPoints without passing the constant').toEqual([])
   })
@@ -547,5 +555,69 @@ describe('상한마다 분류가 달려 있다', () => {
         'update the full list in the decision too (open-decisions/06-audit.md)',
       ).toEqual([])
     })
+  })
+})
+
+/**
+ * **끌 수 있는 상한은 스위치를 거쳐서만 읽는다** (`limits-switch.ts`,
+ * `open-decisions.md` "상한은 누가 정했느냐" §2).
+ *
+ * **결정문이 걱정한 것은 파일이 둘인 것이 아니라 닿지 않는 자리가 생기는 것이다** —
+ * *"태그가 없으면 다음에 상한을 더하는 사람이 어느 줄인지 안 밝히고, 그러면 스위치가
+ * 조용히 셋째 줄까지 꺼진다."* 그 반대편이 이 검사다: **기기 줄의 상수를 `limits.ts`에서
+ * 곧장 읽어 쓰면 그 자리만 스위치를 안 듣는다.** 화면은 카드가 열렸다고 하는데 그 한
+ * 자리만 옛 상한으로 막는 상태이고, 아무 오류도 안 난다.
+ *
+ * **집이 셋인 이유.**
+ * - `limits-switch.ts` — 값을 걸러 내보내는 곳. 여기가 읽는 것은 당연하다.
+ * - `ml/algorithms.ts` — 등록부. 행 상한 열여섯은 **값이 화면에 그대로 나가므로**
+ *   (`이 알고리즘은 3,000행까지`) `Infinity`로 바뀌면 안 된다. 끄는 일은 판정하는
+ *   한 곳(`ml/backend.ts`의 `runtimeOptions`)이 한다.
+ * - `ml/backend.ts` — 그 판정하는 곳. 못 잰 칸의 기본값(`BROWSER_ROW_LIMIT`)을 든다.
+ */
+describe('끌 수 있는 상한은 스위치를 거친다', () => {
+  const SWITCH = join(SRC, 'limits-switch.ts')
+  const HOMES = [
+    'limits.ts',
+    'limits-switch.ts',
+    join('ml', 'algorithms.ts'),
+    join('ml', 'backend.ts'),
+  ]
+
+  /** `우리 기기가 정했다`가 달린 상수들. 분류를 옮기면 이 목록이 저절로 따라온다. */
+  const SWITCHABLE = (() => {
+    const source = readFileSync(LIMITS, 'utf-8')
+    return [...source.matchAll(/^export const (\w+)/gm)]
+      .map((match) => match[1] ?? '')
+      .filter((name) => {
+        const at = source.search(new RegExp(`^export const ${name}\\b`, 'm'))
+        const opened = source.slice(0, at).lastIndexOf('/**')
+        return opened >= 0 && /\*\*분류: 우리 기기가 정했다\.\*\*/.test(source.slice(opened, at))
+      })
+  })()
+
+  it('끌 수 있는 상한을 실제로 찾는다', () => {
+    // 0개면 위 정규식이 썩은 것이지 규칙이 지켜진 게 아니다.
+    expect(SWITCHABLE.length).toBeGreaterThan(20)
+    expect(SWITCHABLE).toContain('MAX_DATASET_ROWS')
+    // 옮겨 간 것은 여기 없어야 한다 (결정문 §1.3).
+    expect(SWITCHABLE).not.toContain('SILHOUETTE_BUDGET_MS')
+  })
+
+  it('스위치가 제자리에 있다', () => {
+    expect(existsSync(SWITCH)).toBe(true)
+  })
+
+  it('집 셋 밖에서는 기기 줄 상수를 직접 안 읽는다', () => {
+    const wrong: string[] = []
+    for (const path of sourceFiles(SRC)) {
+      const where = path.slice(SRC.length + 1)
+      if (HOMES.some((home) => where === home)) continue
+      const code = withoutComments(readFileSync(path, 'utf-8')).join('\n')
+      for (const name of SWITCHABLE) {
+        if (new RegExp(`\\b${name}\\b`).test(code)) wrong.push(`${where}: ${name}`)
+      }
+    }
+    expect(wrong, 'read it through limits-switch.ts instead').toEqual([])
   })
 })

@@ -41,8 +41,18 @@ function mb(bytes: number, roundUp = false): string {
 
 const over = computed(() => props.used > props.limit)
 const width = computed(() => `${Math.min(100, (props.used / props.limit) * 100).toFixed(2)}%`)
+
+/**
+ * **상한을 껐으면 상한을 말하지 않는다** (`limits-switch.ts`). `Infinity`를 그대로 넣으면
+ * 이 자리가 `0.3MB / InfinityMB`가 된다 — 막대는 0%로 멀쩡해 보이고 글자만 틀린다.
+ *
+ * **막대는 그대로 둔다.** 담긴 양을 보여주는 것이 이 부품의 일이고, 그건 상한이 없어도
+ * 볼 거리다 (`architecture.md` §8.18) — 다만 채울 선이 없으니 늘 비어 있다.
+ */
 const label = computed(() =>
-  t('portfolio.size', { used: mb(props.used, over.value), limit: mb(props.limit) }),
+  Number.isFinite(props.limit)
+    ? t('portfolio.size', { used: mb(props.used, over.value), limit: mb(props.limit) })
+    : t('portfolio.sizeOpen', { used: mb(props.used) }),
 )
 </script>
 
@@ -53,7 +63,7 @@ const label = computed(() =>
       role="progressbar"
       :aria-valuenow="props.used"
       aria-valuemin="0"
-      :aria-valuemax="props.limit"
+      :aria-valuemax="Number.isFinite(props.limit) ? props.limit : undefined"
       :aria-label="label"
     >
       <div

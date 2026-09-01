@@ -31,7 +31,7 @@ import {
   IMAGE_UNLABELED,
   type ProjectFile,
 } from '@/project/format'
-import { MAX_IMAGE_COUNT } from '@/limits'
+import { maxImageCount } from '@/limits-switch'
 import { dataSettings, type Settings } from '@/project/schema'
 
 /** 프로젝트 안에 앉아 있는 정본 한 장. */
@@ -163,7 +163,7 @@ export function imageOverflow(
   project: ProjectFile | null,
   incoming: number,
   role: ImageRole = 'data',
-  limit: number = MAX_IMAGE_COUNT,
+  limit: number = maxImageCount(),
 ): ImageOverflow | null {
   const current = readImages(project, role).length
   return current + incoming > limit ? { current, incoming, limit } : null

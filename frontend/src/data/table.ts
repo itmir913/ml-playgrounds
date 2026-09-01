@@ -18,7 +18,8 @@
 
 import { ClientError } from '../errors'
 import { hashBytes } from '../hash'
-import { MAX_DATASET_COLUMNS, MAX_DATASET_ROWS, TABLE_PREVIEW_ROW_COUNT } from '../limits'
+import { maxDatasetColumns, maxDatasetRows } from '../limits-switch'
+import { TABLE_PREVIEW_ROW_COUNT } from '../limits'
 import { parseCsvText } from './csv'
 import { decodeText, detectEncoding, type SourceEncoding } from './encoding'
 import type { TableGrid } from './grid'
@@ -133,16 +134,18 @@ export function previewTable(
 }
 
 function checkLimits(grid: TableGrid): void {
-  if (grid.length > MAX_DATASET_ROWS) {
+  const rowLimit = maxDatasetRows()
+  if (grid.length > rowLimit) {
     throw new ClientError('DATASET_TOO_MANY_ROWS', {
-      limitRows: MAX_DATASET_ROWS,
+      limitRows: rowLimit,
       actualRows: grid.length,
     })
   }
   const columns = grid[0]?.length ?? 0
-  if (columns > MAX_DATASET_COLUMNS) {
+  const columnLimit = maxDatasetColumns()
+  if (columns > columnLimit) {
     throw new ClientError('DATASET_TOO_MANY_COLUMNS', {
-      limitColumns: MAX_DATASET_COLUMNS,
+      limitColumns: columnLimit,
       actualColumns: columns,
     })
   }
@@ -160,7 +163,9 @@ export function importTable(document: TableDocument, sheetName?: string): Import
   // **상한 + 1까지만 읽는다.** 상한을 넘는지 판정하는 데 그 이상은 필요 없고, 다 파싱한
   // 뒤에 거부하면 거부할 파일에 메모리를 그만큼 쓴다 (9MB CSV에서 heap 171MB를 쟀다).
   // 새 임계값이 아니라 이미 있는 상수를 한 번 더 쓰는 것이다.
-  const grid = document.read(sheetName, MAX_DATASET_ROWS + 1)
+  // **상한을 끄면 `Infinity + 1`이라 전부 읽는다.** 파서 둘 다 `>= maxRows`로 비교하므로
+  // 그대로 통한다 (`data/csv.ts` · `data/xlsx.ts`) — 끈 사람이 원한 것이 그것이다.
+  const grid = document.read(sheetName, maxDatasetRows() + 1)
   checkLimits(grid)
 
   const bytes = toCanonicalCsv(grid)

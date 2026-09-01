@@ -53,7 +53,7 @@ import {
 import { transform, type Preprocessor } from '@/ml/preprocess'
 import { experimentNames as experimentNamesOf } from '@/ml/results'
 import { addEmbeddings, readEmbeddings } from '@/project/embeddings'
-import { IMAGE_PREDICT_PAGE_SIZE } from '@/limits'
+import { imagePredictPageSize, pageSizeOf } from '@/limits-switch'
 import { IMAGE_UNLABELED } from '@/project/format'
 import { imageRoomShortfall } from '@/data/image/room'
 import { addImages, imageOverflow, readImages, removeImages } from '@/project/images'
@@ -112,9 +112,10 @@ const photos = computed(() => readImages(project.file, 'predict'))
  */
 const page = ref(0)
 
-const totalPages = computed(() =>
-  Math.max(1, Math.ceil(photos.value.length / IMAGE_PREDICT_PAGE_SIZE)),
-)
+/** 한 판에 세울 사진 수. **상한을 껐으면 한 판에 전부다** (`limits-switch.ts`). */
+const pageSize = computed(() => pageSizeOf(imagePredictPageSize(), photos.value.length))
+
+const totalPages = computed(() => Math.max(1, Math.ceil(photos.value.length / pageSize.value)))
 
 /** 사진이 줄면 지금 쪽이 빈 쪽이 될 수 있다. 그때 빈 화면을 보이면 다 사라진 줄 안다. */
 watch(totalPages, (count) => {
@@ -123,10 +124,7 @@ watch(totalPages, (count) => {
 
 /** 이 쪽에 세울 사진들. **뽑는 것도 예측하는 것도 이만큼이다.** */
 const shown = computed(() =>
-  photos.value.slice(
-    page.value * IMAGE_PREDICT_PAGE_SIZE,
-    (page.value + 1) * IMAGE_PREDICT_PAGE_SIZE,
-  ),
+  photos.value.slice(page.value * pageSize.value, (page.value + 1) * pageSize.value),
 )
 
 /**

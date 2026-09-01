@@ -575,6 +575,7 @@
       "file": "파일에서 가져오기"
     },
     "size": "포트폴리오 {used}MB / {limit}MB",
+    "sizeOpen": "포트폴리오 {used}MB (상한 해제)",
     "imported": "문항 {count}개를 가져왔습니다.",
     "importedNone": "이미 있는 문항이라 새로 가져온 것이 없습니다.",
     "firstSection": "무엇을 했나요",

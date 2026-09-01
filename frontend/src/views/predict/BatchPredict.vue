@@ -23,7 +23,7 @@ import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { nameList } from '@/data/columns'
 import { importTable, openTable, TABULAR_ACCEPT, type TableDocument } from '@/data/table'
 import { toCanonicalCsv } from '@/data/serialize'
-import { PREDICT_PAGE_SIZE } from '@/limits'
+import { pageSizeOf, predictPageSize } from '@/limits-switch'
 import type { Prediction } from '@/ml/metrics'
 import {
   interpreterFor,
@@ -183,12 +183,20 @@ const rows = computed<Record<string, string>[]>(() => {
   })
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / PREDICT_PAGE_SIZE)))
+/**
+ * 한 판에 세울 행 수. **상한을 껐으면 한 판에 전부다** (`limits-switch.ts`).
+ *
+ * 판을 나눈 이유가 보기 좋으라고가 아니라 **연산 억제**라, 끄기로 한 사람에게는
+ * 나눌 이유가 사라진다.
+ */
+const pageSize = computed(() => pageSizeOf(predictPageSize(), rows.value.length))
+
+const totalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / pageSize.value)))
 const page = shallowRef(0)
 
 const pageRows = computed(() => {
-  const start = page.value * PREDICT_PAGE_SIZE
-  return rows.value.slice(start, start + PREDICT_PAGE_SIZE)
+  const start = page.value * pageSize.value
+  return rows.value.slice(start, start + pageSize.value)
 })
 
 const showFeatures = shallowRef(false)
@@ -346,8 +354,8 @@ async function ensurePage(index: number): Promise<Answer[][]> {
   const cached = pageCache.value.pages.get(index)
   if (cached) return cached
 
-  const start = index * PREDICT_PAGE_SIZE
-  const slice = rows.value.slice(start, start + PREDICT_PAGE_SIZE)
+  const start = index * pageSize.value
+  const slice = rows.value.slice(start, start + pageSize.value)
   if (slice.length === 0) return []
 
   // 열 목록을 함께 넘긴다 - 행의 키로는 "열이 없다"와 "값이 다 비었다"가 안 갈린다.
@@ -689,10 +697,10 @@ defineExpose({
         <tbody>
           <tr
             v-for="(row, rowIndex) in pageRows"
-            :key="page * PREDICT_PAGE_SIZE + rowIndex"
+            :key="page * pageSize + rowIndex"
             class="odd:bg-surface even:bg-surface-sunken"
           >
-            <td class="text-ink-faint">{{ page * PREDICT_PAGE_SIZE + rowIndex + 1 }}</td>
+            <td class="text-ink-faint">{{ page * pageSize + rowIndex + 1 }}</td>
             <template v-if="showFeatures">
               <td v-for="field in props.fields" :key="field.name">{{ row[field.name] ?? '' }}</td>
             </template>

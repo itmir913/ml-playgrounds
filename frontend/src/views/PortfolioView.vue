@@ -27,7 +27,8 @@ import StepHeader from '@/components/StepHeader.vue'
 import { ClientError } from '@/errors'
 import type { Locale } from '@/i18n'
 import { ACTION_ICONS } from '@/icons'
-import { BYTES_PER_MB, MAX_PORTFOLIO_BYTES } from '@/limits'
+import { maxPortfolioBytes } from '@/limits-switch'
+import { BYTES_PER_MB } from '@/limits'
 import { bakeAttachments } from '@/project/attachments'
 import { touch } from '@/project/create'
 import { parsePortfolioForm } from '@/project/portfolio-form'
@@ -106,11 +107,10 @@ function apply(next: Portfolio, revert?: () => void, bytes?: Map<string, Uint8Ar
   const file = project.file
   if (!file) return
   const attachments = bytes ?? file.attachments
-  if (portfolioBytes(next, attachments) > MAX_PORTFOLIO_BYTES) {
+  const limit = maxPortfolioBytes()
+  if (portfolioBytes(next, attachments) > limit) {
     revert?.()
-    toasts.pushError(
-      new ClientError('PORTFOLIO_TOO_LARGE', { limitMb: MAX_PORTFOLIO_BYTES / BYTES_PER_MB }),
-    )
+    toasts.pushError(new ClientError('PORTFOLIO_TOO_LARGE', { limitMb: limit / BYTES_PER_MB }))
     return
   }
   // **포트폴리오를 쓴 것도 프로젝트를 고친 것이다.** 안 찍으면 화면의 "수정한 날짜"가
@@ -434,7 +434,7 @@ function remove(): void {
           세로가 곧 아래 글 칸의 높이다.
         -->
         <template #end>
-          <SizeMeter class="max-md:hidden" :used="usedBytes" :limit="MAX_PORTFOLIO_BYTES" />
+          <SizeMeter class="max-md:hidden" :used="usedBytes" :limit="maxPortfolioBytes()" />
 
           <!-- 결론은 이 화면에서도 primary다 (§8.13.1) - 왼쪽의 거드는 단추들과 무게가 다르다. -->
           <AppButton @click="preview = !preview">

@@ -22,7 +22,8 @@ import AppButton from '@/components/AppButton.vue'
 import AppTable from '@/components/AppTable.vue'
 import TermPopover from '@/components/TermPopover.vue'
 import { useFormat } from '@/composables/useFormat'
-import { CLUSTER_MEMBER_PAGE_SIZE, CLUSTER_SCATTER_POINT_LIMIT } from '@/limits'
+import { clusterScatterPointLimit } from '@/limits-switch'
+import { CLUSTER_MEMBER_PAGE_SIZE } from '@/limits'
 import {
   axisCell,
   axisOverviews,
@@ -100,7 +101,7 @@ const scatter = computed(() => {
     found.axes,
     found.columns,
     found.matrix,
-    CLUSTER_SCATTER_POINT_LIMIT,
+    clusterScatterPointLimit(),
     props.input.experiment.settings.split.randomState,
   )
 })

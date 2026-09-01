@@ -575,6 +575,7 @@
       "file": "Bring in from a file"
     },
     "size": "Portfolio {used}MB / {limit}MB",
+    "sizeOpen": "Portfolio {used}MB (limits off)",
     "imported": "Added {count} question. | Added {count} questions.",
     "importedNone": "Nothing was added — the form already has these questions.",
     "firstSection": "What you did",
