@@ -18,6 +18,11 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { ALGORITHMS } from '../src/ml/algorithms'
+import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
+import type { DataType } from '../src/project/schema'
+import { ALL_LADDERS } from '../tools/workloads'
+
 import { sourceFiles } from './fixtures/source'
 
 const ROOT = join(__dirname, '..')
@@ -76,5 +81,50 @@ describe('실측 하니스는 배포본에 안 들어간다', () => {
     expect(withoutComments("import { x } from '../tools/workloads'")).toContain('tools/')
     expect(withoutComments('/* tools/bench.html */')).not.toContain('bench')
     expect(withoutComments('// tools/bench.html')).not.toContain('bench')
+  })
+})
+
+/**
+ * **재는 도구에 칸이 없으면 그 칸은 안 재진다.**
+ *
+ * 사진 칸 일곱이 그렇게 2026-08-14의 근거로 남았다 — 2026-09-01에 표 쪽 상한을 다시
+ * 재면서 사진은 손대지 않았는데, **하니스에 사진 사다리가 하나도 없었기 때문이다.**
+ * 재려면 먼저 코드를 써야 하고, 그 자리에서는 그게 "지금 할 일"로 안 보인다.
+ *
+ * 그래서 **등록부가 이 도구의 목록을 정한다.** 알고리즘이나 데이터 종류가 하나 늘면
+ * 여기가 먼저 운다.
+ */
+describe('등록부의 칸마다 사다리가 있다', () => {
+  const IMAGE_FEATURES = backboneFor(DEFAULT_BACKBONE_ID)?.embeddingDim
+
+  /** 사다리가 실제로 만드는 일감으로 판정한다. **이름이 아니라 일감이 무엇을 재는가다.** */
+  function covers(algorithm: string, dataType: DataType): boolean {
+    return ALL_LADDERS.some((ladder) => {
+      const first = ladder.points[0]
+      if (first === undefined) return false
+      const job = ladder.job(first)
+      if (job.algorithm !== algorithm) return false
+      return dataType === 'image' ? job.columns === IMAGE_FEATURES : job.columns !== IMAGE_FEATURES
+    })
+  }
+
+  it('백본의 특성 수를 읽었다 - 못 읽으면 위 판정이 통째로 헐거워진다', () => {
+    expect(IMAGE_FEATURES).toBeTypeOf('number')
+  })
+
+  it('등록부가 쓸 수 있다고 한 (알고리즘 × 종류)에 사다리가 있다', () => {
+    const missing: string[] = []
+    for (const algorithm of ALGORITHMS) {
+      for (const dataType of ['tabular', 'image'] as const) {
+        if (!algorithm.dataTypes[dataType]) continue
+        if (!covers(algorithm.id, dataType)) missing.push(`${algorithm.id}/${dataType}`)
+      }
+    }
+    expect(missing).toEqual([])
+  })
+
+  it('그 규칙이 실제로 문다 - 없는 칸을 있다고 하지 않는다', () => {
+    expect(covers('없는_알고리즘', 'tabular')).toBe(false)
+    expect(covers('linear_regression', 'image')).toBe(false)
   })
 })

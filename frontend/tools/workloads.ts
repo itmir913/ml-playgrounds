@@ -9,6 +9,7 @@
  * 그것을 지킨다.
  */
 
+import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { CALIBRATION_JOBS, syntheticData } from '../src/ml/calibration'
 import { fit } from '../src/ml/engines/mljs'
 import { fitKMeans } from '../src/ml/engines/mljs-kmeans'
@@ -16,6 +17,22 @@ import { evaluate, evaluateCluster } from '../src/ml/metrics'
 
 /** 기본 특성 수. **특성 축은 알고리즘마다 따로 훑는다**(아래 `*_columns` 사다리들). */
 const FEATURES = 8
+
+/**
+ * 사진 한 장의 특성 수. **백본에서 꺼낸다** — 여기 `1280`이라고 적으면 백본이 바뀌는 날
+ * 이 사다리가 조용히 다른 것을 재게 된다.
+ *
+ * **임베딩이 아니라 합성 데이터다.** 재려는 것은 (행 수 × 이 차원)에서 엔진이 무엇을
+ * 하느냐이고, 진짜 임베딩을 뽑으려면 사진 수천 장과 TF.js가 먼저 필요하다. **트리 계열은
+ * 데이터의 난이도에 시간이 갈리므로**(`limits.ts`의 결정 트리 칸 — 같은 행 수에서 3배)
+ * 여기서 나온 값은 그 축에서 정확하지 않다. 상한(깨지는 지점)에는 그것이 안 걸리고,
+ * 기준표에는 걸린다.
+ */
+const IMAGE_FEATURES = ((): number => {
+  const backbone = backboneFor(DEFAULT_BACKBONE_ID)
+  if (backbone === undefined) throw new Error(`백본이 없다: ${DEFAULT_BACKBONE_ID}`)
+  return backbone.embeddingDim
+})()
 
 /** 예측에 쓰는 비율. 앱의 평가가 시험 몫으로 지나가는 그 자리다. */
 const PREDICT_RATIO = 0.2
@@ -115,8 +132,8 @@ function uniformData(rows: number, columns: number): { features: number[][]; tar
 }
 
 /** 위 데이터로 K-평균 한 번. **`measure`를 안 쓰는 이유는 데이터가 다르기 때문이다.** */
-function measureKMeans(rows: number, clusters: number): number {
-  const { features } = uniformData(rows, FEATURES)
+function measureKMeans(rows: number, clusters: number, columns: number = FEATURES): number {
+  const { features } = uniformData(rows, columns)
   const started = performance.now()
   // **엔진을 직접 부른다.** 평가에 배정과 중심점이 필요한데 `fit`은 그것을 안 돌려준다.
   const result = fitKMeans(features, clusters, 42)
@@ -343,6 +360,64 @@ export const LADDERS: readonly Ladder[] = [
     points: [250, 500, 1000, 2000, 5000],
     job: (rows) => ({ algorithm: 'random_forest', rows }),
   },
+  /**
+   * **사진 쪽 기준표 — 넷은 여기서 다 찬다** (2026-09-01).
+   *
+   * **지금 등록부의 이미지 칸은 일곱이 전부 `UNMEASURED_BASELINE`이라, 사진 프로젝트는
+   * 학습 예상 시간을 아예 못 낸다** (`ml/algorithms.ts`, `estimate.ts`가 그 자리에
+   * `알 수 없음`을 남긴다). 상한을 끄는 스위치가 오면 예상이 그 짝인데
+   * (`open-decisions.md` "상한은 누가 정했느냐" §2), **사진에는 짝이 될 것이 없다.**
+   *
+   * **표에서 쓰던 특성 배수로는 못 메운다.** 예상은 표 기준표(특성 8개)에 `특성/8`을
+   * 곱하는데(`estimate.ts`), 1,280차원은 그 160배 자리라 재 보지 않은 외삽이다.
+   * 게다가 KNN과 로지스틱은 특성에 곱하지도 않는다(`columns: 'flat'`) — 사진에서 그
+   * 판정이 그대로일 이유가 없다. **그래서 사진은 사진으로 잰다.**
+   *
+   * **여기 넷은 상한이 이미 `MAX_IMAGE_COUNT`에 붙어 있는 것들이다.** 남은 셋(트리 ·
+   * 랜덤 포레스트 · SVM)은 상한 사다리가 같은 점을 훨씬 위까지 재므로 그쪽이 기준표도
+   * 겸한다 — 같은 일을 두 번 시키지 않는다.
+   */
+  {
+    id: 'image_naive_bayes',
+    label: '[사진] 나이브 베이즈 · 장 수',
+    axis: 'rows',
+    points: [250, 500, 1000, 2000, 4000, 5000],
+    job: (rows) => ({ algorithm: 'naive_bayes', rows, columns: IMAGE_FEATURES }),
+  },
+  {
+    id: 'image_logistic_regression',
+    label: '[사진] 로지스틱 회귀 · 장 수 (maxIter 100 천장)',
+    axis: 'rows',
+    points: [250, 500, 1000, 2000, 4000, 5000],
+    job: (rows) => ({
+      algorithm: 'logistic_regression',
+      rows,
+      columns: IMAGE_FEATURES,
+      hyperparameters: LOGISTIC_CEILING,
+    }),
+  },
+  {
+    /** **값이 예측에 있다.** 표 쪽과 같은 이유로 학습만 재면 0초로 보인다. */
+    id: 'image_knn',
+    label: '[사진] KNN · 장 수 (학습 + 20% 예측)',
+    axis: 'rows',
+    points: [250, 500, 1000, 2000, 4000, 5000],
+    job: (rows) => ({ algorithm: 'knn', rows, columns: IMAGE_FEATURES }),
+  },
+  {
+    /** **군집이 없는 데이터로 잰다.** 표 쪽에서 옛 기준표를 두 자릿수로 틀리게 한 그 축이다. */
+    id: 'image_k_means',
+    label: '[사진] K-평균 · 장 수 (군집 없는 데이터, k=3)',
+    axis: 'rows',
+    points: [250, 500, 1000, 2000, 4000, 5000],
+    job: (rows) => ({
+      algorithm: 'k_means',
+      rows,
+      columns: IMAGE_FEATURES,
+      hyperparameters: { nClusters: 3 },
+    }),
+    run: (rows) => measureKMeans(rows, 3, IMAGE_FEATURES),
+  },
   {
     id: 'random_forest_trees',
     label: '랜덤 포레스트 · 그루 수 (1,000행)',
@@ -357,11 +432,12 @@ export const LADDERS: readonly Ladder[] = [
 ]
 
 /**
- * **상한을 찾는 사다리 넷.** 지금 상한에서 시작해 데이터셋 천장(10만 행)까지 민다
- * (`open-decisions.md` "그러면 상한은 시간으로 정하는 것이 아니다").
+ * **상한을 찾는 사다리.** 지금 상한에서 시작해 그 종류의 천장(표는 10만 행, 사진은
+ * `MAX_IMAGE_COUNT`)까지 민다 (`open-decisions.md` "그러면 상한은 시간으로 정하는 것이
+ * 아니다").
  *
- * **넷뿐인 이유**는 나머지 넷이 이미 `MAX_DATASET_ROWS`에 붙어 있어서다 — 그 위는
- * 이 앱이 데이터로 받지도 않는다.
+ * **표 쪽이 넷뿐인 이유**는 나머지 넷이 이미 `MAX_DATASET_ROWS`에 붙어 있어서다 — 그
+ * 위는 이 앱이 데이터로 받지도 않는다. **사진 쪽도 같은 셈으로 셋이다.**
  *
  * **찾는 것은 느린 지점이 아니라 깨지는 지점이다.** SVM은 N×N 커널이라 메모리에서
  * 먼저 죽을 것이고, 그게 상한이다. 나머지는 오래 걸릴 뿐일 수 있는데 **그건 상한이
@@ -398,6 +474,46 @@ const LIMIT_LADDERS: readonly Ladder[] = [
     axis: 'rows',
     points: [20_000, 50_000, 100_000],
     job: (rows) => ({ algorithm: 'decision_tree', rows }),
+    findsLimit: true,
+  },
+  /**
+   * **사진 쪽 셋.** 2026-09-01에 표 쪽 상한을 다시 재면서 사진 칸은 손대지 않았고,
+   * 그래서 일곱이 **2026-08-14의 근거 그대로** 남았다 (`limits.ts`의 `MLJS_IMAGE_*`).
+   *
+   * **그 근거가 시간이다** — *"500장 113초"* · *"1,000장 58.7초"*. 표 쪽에서 그것이
+   * 상한의 근거가 아니라고 정했으므로(위 결정문), 사진 쪽도 같은 질문을 다시 받아야 한다:
+   * **어디서 깨지는가.**
+   *
+   * **작은 점부터 시작하는 이유는 기준표를 겸하기 때문이다.** 이 셋은 사진 기준표도
+   * 비어 있어(`UNMEASURED_BASELINE`), 상한을 찾는 김에 그 표를 함께 채운다. 20초
+   * 천장에 안 걸리는 사다리라야 큰 점까지 남는다.
+   *
+   * **SVM은 메모리가 먼저 올 것이다** — N×N 커널이 5,000장이면 200MB이고, 표 쪽에서
+   * 8,000행(512MB)이 살아 있는 것은 봤다. 커널을 **만드는** 비용은 `N² × 특성`이라
+   * 1,280차원에서는 같은 행 수가 전혀 다른 시간이다.
+   */
+  {
+    id: 'limit_image_decision_tree',
+    label: '상한 찾기 · [사진] 의사결정트리 (지금 1,000)',
+    axis: 'rows',
+    points: [250, 500, 1000, 2000, 5000],
+    job: (rows) => ({ algorithm: 'decision_tree', rows, columns: IMAGE_FEATURES }),
+    findsLimit: true,
+  },
+  {
+    id: 'limit_image_random_forest',
+    label: '상한 찾기 · [사진] 랜덤 포레스트 (지금 500)',
+    axis: 'rows',
+    points: [100, 250, 500, 1000, 2000, 5000],
+    job: (rows) => ({ algorithm: 'random_forest', rows, columns: IMAGE_FEATURES }),
+    findsLimit: true,
+  },
+  {
+    id: 'limit_image_svm',
+    label: '상한 찾기 · [사진] SVM (지금 3,000)',
+    axis: 'rows',
+    points: [500, 1000, 2000, 3000, 5000],
+    job: (rows) => ({ algorithm: 'svm', rows, columns: IMAGE_FEATURES }),
     findsLimit: true,
   },
 ]
