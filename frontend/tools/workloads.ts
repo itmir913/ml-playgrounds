@@ -328,16 +328,29 @@ export const LADDERS: readonly Ladder[] = [
     job: (columns) => ({ algorithm: 'linear_regression', rows: 50_000, columns, regression: true }),
   },
   {
+    /**
+     * **넷 중 이 사다리만 `run`이 없어 다른 것을 재고 있었다** (2026-09-01 감사 A-1).
+     *
+     * `run`이 없으면 `measure()`로 가고, 그것은 **군집이 이미 갈린 데이터**에 **분류
+     * 지표**를 얹는다 — 앱이 하는 일도, `MLJS_KMEANS_BASELINE_MS`를 잰 방식도 아니다.
+     * **크기만 틀린 것이 아니라 기울기의 부호가 뒤집혔다**: 감사자 실측으로 특성 4→32가
+     * 지금 방식에서는 ×3.1인데 실제로는 **×0.37**이다. 실루엣 표본이 `1/√특성`으로
+     * 줄어(`ml/metrics.ts`) 지배적인 비용이 특성이 늘수록 **줄기** 때문이다.
+     *
+     * **행 수를 50,000에서 20,000으로 내렸다.** 고친 방식으로는 첫 점이 13.5초(Node)라,
+     * 그대로 두면 `PROJECTION_MS`가 둘째 점을 막아 표가 한 점에서 끝난다.
+     */
     id: 'k_means_columns',
-    label: 'K-평균 · 특성 수 (50,000행)',
+    label: 'K-평균 · 특성 수 (군집 없는 데이터, 20,000행)',
     axis: 'columns',
     points: [4, 8, 16, 32],
     job: (columns) => ({
       algorithm: 'k_means',
-      rows: 50_000,
+      rows: 20_000,
       columns,
       hyperparameters: { nClusters: 3 },
     }),
+    run: (columns) => measureKMeans(20_000, 3, columns),
   },
   {
     id: 'random_forest_columns',
@@ -450,7 +463,6 @@ const LIMIT_LADDERS: readonly Ladder[] = [
     axis: 'rows',
     points: [3000, 5000, 8000, 12_000, 20_000],
     job: (rows) => ({ algorithm: 'svm', rows }),
-    findsLimit: true,
   },
   {
     id: 'limit_random_forest',
@@ -458,7 +470,6 @@ const LIMIT_LADDERS: readonly Ladder[] = [
     axis: 'rows',
     points: [5000, 10_000, 20_000, 50_000, 100_000],
     job: (rows) => ({ algorithm: 'random_forest', rows }),
-    findsLimit: true,
   },
   {
     id: 'limit_knn',
@@ -466,7 +477,6 @@ const LIMIT_LADDERS: readonly Ladder[] = [
     axis: 'rows',
     points: [10_000, 20_000, 50_000, 100_000],
     job: (rows) => ({ algorithm: 'knn', rows }),
-    findsLimit: true,
   },
   {
     id: 'limit_decision_tree',
@@ -474,7 +484,6 @@ const LIMIT_LADDERS: readonly Ladder[] = [
     axis: 'rows',
     points: [20_000, 50_000, 100_000],
     job: (rows) => ({ algorithm: 'decision_tree', rows }),
-    findsLimit: true,
   },
   /**
    * **사진 쪽 셋.** 2026-09-01에 표 쪽 상한을 다시 재면서 사진 칸은 손대지 않았고,
@@ -498,7 +507,6 @@ const LIMIT_LADDERS: readonly Ladder[] = [
     axis: 'rows',
     points: [250, 500, 1000, 2000, 5000],
     job: (rows) => ({ algorithm: 'decision_tree', rows, columns: IMAGE_FEATURES }),
-    findsLimit: true,
   },
   {
     id: 'limit_image_random_forest',
@@ -506,7 +514,6 @@ const LIMIT_LADDERS: readonly Ladder[] = [
     axis: 'rows',
     points: [100, 250, 500, 1000, 2000, 5000],
     job: (rows) => ({ algorithm: 'random_forest', rows, columns: IMAGE_FEATURES }),
-    findsLimit: true,
   },
   {
     id: 'limit_image_svm',
@@ -514,11 +521,21 @@ const LIMIT_LADDERS: readonly Ladder[] = [
     axis: 'rows',
     points: [500, 1000, 2000, 3000, 5000],
     job: (rows) => ({ algorithm: 'svm', rows, columns: IMAGE_FEATURES }),
-    findsLimit: true,
   },
 ]
 
-export const ALL_LADDERS: readonly Ladder[] = [...LADDERS, ...LIMIT_LADDERS]
+/**
+ * **`findsLimit`은 배열이 정한다** (2026-09-01 감사 B-1).
+ *
+ * 항목마다 손으로 달던 때는 그 한 줄이 빠지면 **양쪽 버튼 어디에도 안 뜨는** 사다리가
+ * 됐다 — `LIMIT_LADDERS`는 [전부 훑기]에 안 들어가고, `findsLimit`이 없으면 [상한 찾기]의
+ * 걸러내기에도 안 걸린다. 개별 버튼으로만 돌고 그때는 20초 천장이 붙어 상한을 못 찾는다.
+ * **검사로 막는 대신 빠질 수 없게 만든다.**
+ */
+export const ALL_LADDERS: readonly Ladder[] = [
+  ...LADDERS,
+  ...LIMIT_LADDERS.map((ladder) => ({ ...ladder, findsLimit: true as const })),
+]
 
 /**
  * **교정 일감은 앱의 정의를 그대로 쓴다.**

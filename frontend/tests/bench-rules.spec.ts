@@ -23,19 +23,38 @@ import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import type { DataType } from '../src/project/schema'
 import { ALL_LADDERS } from '../tools/workloads'
 
-import { sourceFiles } from './fixtures/source'
+import { sourceFiles, withoutComments as stripComments } from './fixtures/source'
 
 const ROOT = join(__dirname, '..')
 const SRC = join(ROOT, 'src')
 
-/** 주석을 걷어낸다. 규칙이 보려는 것은 코드이지 그것을 설명하는 글이 아니다. */
+/**
+ * 주석을 걷어낸다. 규칙이 보려는 것은 코드이지 그것을 설명하는 글이 아니다.
+ *
+ * **공유 구현을 쓴다** (2026-09-01 감사 A-3). 여기 정규식 두 줄짜리 복사본이 있었는데,
+ * 그것은 **문자열 안의 `/*`를 블록 주석의 시작으로 읽어** 다음 `*` `/`까지를 통째로
+ * 삼켰다 — 감사자가 실제 소스 여섯에서 코드가 사라지는 것을 확인했고, 그중 둘에서는
+ * 아래 "앱에서 하니스로 가는 길이 없다"가 심어 둔 위반을 못 봤다.
+ *
+ * **`fixtures/source.ts`가 그 사고에 이름을 붙여 두었다** (R8 감사 A-1) — 한 줄짜리
+ * 복사본이 `https://`가 든 줄에서 화면 규칙 열둘을 껐던 일이다. 구현은 하나여야 한다.
+ */
 function withoutComments(source: string): string {
-  return source.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/\/\/.*/g, '')
+  return stripComments(source).join('\n')
 }
 
 describe('실측 하니스는 배포본에 안 들어간다', () => {
+  /**
+   * **주석을 걷고 본다** (2026-09-01 감사, 돌연변이 18). 이 파일의 머리에는 여는 방법을
+   * 적은 HTML 주석이 있고 거기 `./bench.ts`가 글자로 들어 있다 — 걷지 않으면 `<script>`가
+   * 다른 파일을 가리켜도 **주석만 보고 통과한다.**
+   */
   it('하니스가 제자리에 있다 - 파일이 사라지면 이 검사가 조용히 통과하지 않는다', () => {
-    expect(readFileSync(join(ROOT, 'tools', 'bench.html'), 'utf-8')).toContain('./bench.ts')
+    const html = readFileSync(join(ROOT, 'tools', 'bench.html'), 'utf-8').replaceAll(
+      /<!--[\s\S]*?-->/g,
+      '',
+    )
+    expect(html).toContain('./bench.ts')
   })
 
   /**
@@ -51,6 +70,13 @@ describe('실측 하니스는 배포본에 안 들어간다', () => {
     expect(harness).toContain('./bench.worker.ts')
     // 워커를 띄워 놓고 옆에서 메인으로도 재면 그 점만 조용히 다른 것을 잰다.
     expect(harness).not.toMatch(/\bmeasure\s*\(/)
+    /**
+     * **이름을 바꿔 들여와도 막는다** (2026-09-01 감사, 돌연변이 17).
+     * `import { measure as runHere }` 한 줄이면 위 규칙을 그대로 비껴간다 — 이름이 아니라
+     * **일감을 재는 함수를 들여왔는가**를 봐야 한다. `workloads`에서 오는 것 중 화면이
+     * 부를 일이 없는 것은 `measure` 하나뿐이다.
+     */
+    expect(harness).not.toMatch(/\bmeasure\s+as\s+\w+/)
   })
 
   it('빌드 입력이 index.html 하나뿐이다', () => {
@@ -99,13 +125,15 @@ describe('등록부의 칸마다 사다리가 있다', () => {
 
   /** 사다리가 실제로 만드는 일감으로 판정한다. **이름이 아니라 일감이 무엇을 재는가다.** */
   function covers(algorithm: string, dataType: DataType): boolean {
-    return ALL_LADDERS.some((ladder) => {
-      const first = ladder.points[0]
-      if (first === undefined) return false
-      const job = ladder.job(first)
-      if (job.algorithm !== algorithm) return false
-      return dataType === 'image' ? job.columns === IMAGE_FEATURES : job.columns !== IMAGE_FEATURES
-    })
+    return ALL_LADDERS.some((ladder) =>
+      ladder.points.some((point) => {
+        const job = ladder.job(point)
+        if (job.algorithm !== algorithm) return false
+        return dataType === 'image'
+          ? job.columns === IMAGE_FEATURES
+          : job.columns !== IMAGE_FEATURES
+      }),
+    )
   }
 
   it('백본의 특성 수를 읽었다 - 못 읽으면 위 판정이 통째로 헐거워진다', () => {
