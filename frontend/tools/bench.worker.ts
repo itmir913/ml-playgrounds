@@ -37,24 +37,10 @@ export type BenchRequest =
  * **워커가 통째로 죽는 경우는 여기 없다.** 그건 메시지가 아니라 `bench.ts`가
  * `onerror`와 침묵으로 읽는다.
  */
-/** 힙을 **무엇이** 답했나. `null`이면 아무도 안 답했다는 뜻이다. */
-export type HeapSource = 'performance.memory' | null
-
 export type BenchReply =
   | {
       readonly ok: true
       readonly elapsed: number
-      /**
-       * 일을 **시작하기 전**의 힙. 점마다 워커가 새로 뜨므로 이것이 그 isolate의 바닥이고,
-       * 아래 `heapMb`에서 이 값을 빼야 **이 점이 얼마나 늘렸는지**가 나온다.
-       *
-       * **워커로 옮기며 잃었던 것이 그 증가분이다** (2026-09-01 감사 B-2). 메인에서 재던
-       * 동안은 힙이 점을 넘어 자라서 증가가 보였고, `limits.ts`의 SVM 칸이 *"8,000행이면
-       * 512MB"*를 그 모양으로 적었다. 절대값만으로는 그 문장을 다시 못 쓴다.
-       */
-      readonly heapBeforeMb: number | null
-      readonly heapMb: number | null
-      readonly heapSource: HeapSource
       /**
        * K-평균의 Lloyd 반복 횟수. **다른 사다리는 안 싣는다.**
        *
@@ -75,47 +61,30 @@ interface WorkerScope {
 }
 
 /**
- * 힙을 묻는다. **크로미움의 `performance.memory` 하나뿐이다.**
+ * **힙은 여기서 안 잰다. 워커가 못 보기 때문이다** (2026-09-01 실측, Edge 152 / Windows).
  *
- * **표준 쪽 폴백을 지웠다** (2026-09-01 R16-B-5). `measureUserAgentSpecificMemory`는
- * `crossOriginIsolated`를 요구하고 그것은 **COOP + COEP 헤더**가 있어야 서는데, 감사자가
- * 개발 서버의 응답을 직접 받아 보니 **두 헤더가 다 없다.** 즉 그 가지는 **한 번도 지나갈
- * 수 없었다** — 이 저장소가 xlsx 폴백에서 이미 한 번 밟은 모양이다
- * (`xlsx-fallback-was-untested`). **있지만 안 도는 가지가 가장 나쁘다**: 힙 칸이 비었을 때
- * 다음 사람이 폴백을 믿고 딴 데를 뒤진다.
+ * 한때 `performance.memory`를 묻는 `heapNow()`가 있었고 점마다 `heapBeforeMb`·`heapMb`·
+ * `heapSource`를 실었다. **한 번도 답한 적이 없다** — [교정 일감만]을 돌리니 두 점 다
+ * `source: null`인데 **같은 실행의 메인 스레드는 58MB를 답했다**(`bench.ts`의 `device()`).
+ * 즉 크로미움이 이것을 **창에만** 열어 두었고, 워커에서는 **구조적으로 못 돈다.**
  *
- * **헤더를 붙이는 쪽은 안 골랐다** — COEP `require-corp`는 백본을 CDN에서 받는 경로를
- * 막을 수 있어 앱 쪽 확인이 함께 필요하다 (`pages-traffic-budget`).
+ * **그래서 지웠다. 있지만 안 도는 가지가 가장 나쁘다** — 이 저장소가 COOP/COEP 폴백에서
+ * 이미 한 번 밟은 모양이고(`xlsx-fallback-was-untested`), 남겨 두면 `grewMb: null`을
+ * *"힙이 안 늘었다"*로 읽어 **상한을 그 위에 세우게 된다.**
  *
- * **그래서 `heapSource: null`의 뜻이 하나다 — 이 브라우저에서는 힙을 못 잰다.**
- * `heapMb`가 `null`인 것을 *"힙이 안 늘었다"*로 읽으면 안 된다.
+ * **다시 넣지 마라 — 계산이 워커에 있는 한 답이 안 온다.** 넣으려면 계산을 메인으로
+ * 되돌려야 하는데, 그러면 이 파일이 존재하는 이유(오래 걸리는 것과 죽는 것을 가르는 것)가
+ * 사라진다.
  *
- * **쟀다: 워커는 안 답한다** (2026-09-01, Edge 152 / Windows). [교정 일감만]을 돌린
- * JSON의 두 점이 **둘 다 `source: null`**이었다. 크로미움이 `performance.memory`를 창에만
- * 열어 두었을 가능성이 크고, 그러면 이 가지는 **워커에서 구조적으로 못 돈다** — 이
- * 저장소가 COOP/COEP 폴백에서 이미 한 번 밟은 모양이다.
- *
- * **아직 안 지운다. 갈래가 둘로 남아 있기 때문이다** — ① 크로미움이 창에만 연 것(그러면
- * 워커에서 영영 죽은 가지다), ② 이 브라우저가 아예 안 여는 것(그러면 다른 데서는 산다).
- * **`device()`가 이제 메인 스레드의 힙을 함께 싣는다**(`heapWindowMb`) — 창은 답하는데
- * 워커가 `null`이면 ①이 확정이고, 그때 이 가지를 지운다.
- *
- * **그동안 메모리를 답하는 것은 힙이 아니라 워커의 죽음이다** — `failed[…].how`가
- * `'워커가 죽었다'`인 자리가 곧 상한이고, 그것이 이 하니스가 원래 찾던 것이다.
+ * **지금 메모리를 답하는 것은 워커의 죽음이다.** `bench.ts`의 `failed[…].how`가
+ * `'워커가 죽었다'`인 자리가 곧 상한이고, 그것이 이 하니스가 원래 찾던 것이다. 절대값이
+ * 필요하면 개발자 도구의 메모리 패널을 쓴다.
  */
-function heapNow(): { heapMb: number | null; heapSource: HeapSource } {
-  const memory = (performance as { memory?: { usedJSHeapSize: number } }).memory
-  return memory
-    ? { heapMb: Math.round(memory.usedJSHeapSize / 1_000_000), heapSource: 'performance.memory' }
-    : { heapMb: null, heapSource: null }
-}
 
 const scope = self as unknown as WorkerScope
 
 scope.onmessage = (event) => {
   const request = event.data
-  // **일을 시작하기 전에 한 번 묻는다.** 시계 밖이고, 이 값이 이 isolate의 바닥이다.
-  const { heapMb: heapBeforeMb } = heapNow()
   // **판단은 `workloads.ts`가 한다** — 여기 두면 검사가 못 닿는다(감사 B-2).
   const outcome =
     request.kind === 'calibration-set'
@@ -127,13 +96,10 @@ scope.onmessage = (event) => {
     scope.postMessage({ ok: false, error: outcome.error })
     return
   }
-  // **시계가 멈춘 뒤에 다시 묻는다.** 힙을 재느라 걸린 시간이 그 점의 값에 섞이면 안 된다.
   scope.postMessage({
     ok: true,
     elapsed: outcome.elapsed,
     // **없는 칸은 아예 안 싣는다.** `0`을 실으면 *"한 번도 안 돌았다"*로 읽힌다.
     ...(outcome.iterations === undefined ? {} : { iterations: outcome.iterations }),
-    heapBeforeMb,
-    ...heapNow(),
   })
 }

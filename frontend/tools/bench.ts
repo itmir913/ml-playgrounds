@@ -25,7 +25,7 @@
  * 학생에게 나가는 화면이고, 이 페이지는 코드 소유자만 연다.
  */
 
-import type { BenchReply, BenchRequest, HeapSource } from './bench.worker'
+import type { BenchReply, BenchRequest } from './bench.worker'
 import {
   ALL_LADDERS,
   CALIBRATION,
@@ -51,20 +51,6 @@ function device(): Record<string, unknown> {
     platform: data?.platform ?? null,
     touchPoints: navigator.maxTouchPoints,
     userAgent: navigator.userAgent,
-    /**
-     * **메인 스레드의 힙.** 값이 아니라 **갈래를 가르려고** 싣는다 (2026-09-01).
-     *
-     * 워커의 `heap[…].source`가 전부 `null`로 나왔는데, 그것만으로는 *"크로미움이
-     * `performance.memory`를 창에만 열었다"*와 *"이 브라우저가 아예 안 연다"*가 안
-     * 갈린다. **여기가 숫자면 앞이고, 여기도 `null`이면 뒤다.**
-     */
-    heapWindowMb:
-      (performance as { memory?: { usedJSHeapSize: number } }).memory === undefined
-        ? null
-        : Math.round(
-            (performance as unknown as { memory: { usedJSHeapSize: number } }).memory
-              .usedJSHeapSize / 1_000_000,
-          ),
   }
 }
 
@@ -121,10 +107,6 @@ type Outcome =
   | {
       readonly ok: true
       readonly elapsed: number
-      readonly heapBeforeMb: number | null
-      readonly heapMb: number | null
-      /** **워커가 쓰는 것과 같은 타입이다** — `string`으로 받으면 모르는 출처가 새 온다. */
-      readonly heapSource: HeapSource
       /** K-평균의 Lloyd 반복 횟수. 다른 사다리는 없다. */
       readonly iterations?: number
     }
@@ -175,18 +157,6 @@ const stopped: { at: string; why: (typeof STOP_WHY)[StopReason] }[] = []
  */
 const failed: Record<string, Failure> = {}
 /**
- * 점마다 **워커가 스스로 말한** 힙. 메인 스레드의 힙은 이제 아무것도 안 잰다 — 계산이
- * 저쪽 isolate에서 돌기 때문이다.
- *
- * **누가 답했는지를 함께 적는다** (`source`). `performance.memory`는 창에만 열려 있을 수
- * 있어서, 워커로 옮긴 뒤 이 칸이 통째로 `null`이 될 수 있다 — 그때 `null`을 *"힙이 안
- * 늘었다"*로 읽으면 상한을 잘못 정한다. 무엇이 답했는지는 `bench.worker.ts`가 고른다.
- */
-const heap: Record<
-  string,
-  { before: number | null; after: number | null; grewMb: number | null; source: HeapSource }
-> = {}
-/**
  * **지금 돌리고 있는 점.** 끝나면 지워진다.
  *
  * **말없이 죽는 경우가 있기 때문에 있다.** 브라우저가 메모리 부족으로 워커를 거두면
@@ -222,7 +192,6 @@ function snapshot(): Record<string, unknown> {
     projectionRule: projectionRule(),
     failureCeilingMs: FAILURE_CEILING_MS,
     running,
-    heap,
     stopped,
     failed,
     measured,
@@ -333,16 +302,6 @@ async function runLadder(ladder: Ladder): Promise<void> {
     }
 
     const elapsed = outcome.elapsed
-    heap[id] = {
-      before: outcome.heapBeforeMb,
-      after: outcome.heapMb,
-      // **이 점이 얼마나 늘렸나.** 상한의 근거로 쓰이던 것이 절대값이 아니라 이쪽이다.
-      grewMb:
-        outcome.heapMb !== null && outcome.heapBeforeMb !== null
-          ? outcome.heapMb - outcome.heapBeforeMb
-          : null,
-      source: outcome.heapSource,
-    }
     results[String(point)] = elapsed
     if (outcome.iterations !== undefined) {
       // **답한 사다리만 칸을 얻는다.** 안 답한 사다리에 빈 칸을 만들면 JSON을 읽는
@@ -370,17 +329,6 @@ async function runCalibration(): Promise<void> {
         break
       }
       times.push(outcome.elapsed)
-      // **여기서도 힙을 적는다.** 교정은 10초면 끝나므로, 이 기기에서 힙을 **누가
-      // 답하는지**를 몇 시간짜리 사다리를 걸기 전에 알 수 있는 유일한 자리다.
-      heap[`calibration/${id}`] = {
-        before: outcome.heapBeforeMb,
-        after: outcome.heapMb,
-        grewMb:
-          outcome.heapMb !== null && outcome.heapBeforeMb !== null
-            ? outcome.heapMb - outcome.heapBeforeMb
-            : null,
-        source: outcome.heapSource,
-      }
     }
     if (times.length === 0) {
       addRow('교정 일감', id, -1)
