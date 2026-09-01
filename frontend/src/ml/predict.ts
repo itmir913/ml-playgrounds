@@ -1034,25 +1034,31 @@ export function predictPage(
 /**
  * 페이지 캐시 무효화용 서명 (architecture.md §8.13.1 "한 번 계산한 페이지는 캐시").
  *
- * **들어가는 것 셋 - 예측 파일의 해시, 보이는 모델 목록, 전처리 설정.** 셋 중 하나라도
- * 바뀌면 이전 페이지의 답은 다른 것을 잰 값이므로 화면이 캐시를 통째로 버려야 한다.
- * 순수 문자열 비교면 되므로 해시는 안 쓴다 - 굳이 압축할 만큼 크지 않다.
+ * **들어가는 것 넷 - 예측 파일의 해시, 보이는 모델 목록, 전처리 설정, 그리고 판 크기.**
+ * 하나라도 바뀌면 이전 페이지의 답은 다른 것을 잰 값이므로 화면이 캐시를 통째로 버려야
+ * 한다. 순수 문자열 비교면 되므로 해시는 안 쓴다 - 굳이 압축할 만큼 크지 않다.
  *
  * **모델마다 자기 실험의 전처리 설정을 함께 싣는다.** 실험은 지울 수 없고 전처리기는
  * 학습 시점에 확정되어 안 바뀌지만(mlpx-spec.md §4), "보이는 모델 목록"만으로는 같은
  * run id가 가리키는 설정이 달라졌는지까지는 말해 주지 않는다 - 여기서 명시적으로 함께
  * 싣어 둔다.
+ *
+ * **판 크기가 넷째로 들어온 것은 상한 해제 때문이다** (2026-09-01, `limits-switch.ts`).
+ * 캐시의 열쇠가 **쪽 번호**라 판 크기가 바뀌면 같은 번호가 다른 행을 가리킨다 — 학생이
+ * 마지막 쪽에서 상한을 풀면 쪽 수가 1로 줄어드는데 쪽 번호는 2에 남아 **표가 통째로
+ * 비었다.** 인자로 받는 이유는 여기다 — 빠뜨릴 수 없어야 한다.
  */
 export function predictPageSignature(
   predictDatasetHash: string,
   models: readonly PredictableModel[],
+  pageSize: number,
 ): string {
   const parts = models
     .map(
       (model) => `${model.run.id}:${JSON.stringify(model.experiment.settings.data.preprocessing)}`,
     )
     .sort()
-  return `${predictDatasetHash}|${parts.join(',')}`
+  return `${predictDatasetHash}|${parts.join(',')}|${pageSize}`
 }
 
 /**

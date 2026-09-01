@@ -1096,16 +1096,16 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
   it('서명은 모델 순서에 안 흔들린다', () => {
     const second: PredictableModel = { ...model, run: runOf('r2') }
 
-    expect(predictPageSignature('hash-1', [second, model])).toBe(
-      predictPageSignature('hash-1', [model, second]),
+    expect(predictPageSignature('hash-1', [second, model], 100)).toBe(
+      predictPageSignature('hash-1', [model, second], 100),
     )
   })
 
   it('서명은 파일 해시·모델·전처리 설정이 바뀌면 달라진다', () => {
-    const base = predictPageSignature('hash-1', [model])
+    const base = predictPageSignature('hash-1', [model], 100)
 
-    expect(predictPageSignature('hash-2', [model])).not.toBe(base)
-    expect(predictPageSignature('hash-1', [])).not.toBe(base)
+    expect(predictPageSignature('hash-2', [model], 100)).not.toBe(base)
+    expect(predictPageSignature('hash-1', [], 100)).not.toBe(base)
 
     const changed: PredictableModel = {
       ...model,
@@ -1117,11 +1117,28 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
         },
       },
     }
-    expect(predictPageSignature('hash-1', [changed])).not.toBe(base)
+    expect(predictPageSignature('hash-1', [changed], 100)).not.toBe(base)
+  })
+
+  /**
+   * **판 크기가 바뀌면 캐시를 버려야 한다** (2026-09-01, 상한 해제).
+   *
+   * 캐시의 열쇠가 **쪽 번호**라 판 크기가 바뀌면 같은 번호가 다른 행을 가리킨다.
+   * 학생이 마지막 쪽에서 상한을 풀면 쪽 수가 1로 줄어드는데 쪽 번호는 2에 남고,
+   * **표가 통째로 빈다** — 아무 오류도 안 난다. 화면이 이 서명을 보고 첫 쪽으로
+   * 되돌아간다.
+   */
+  it('서명은 판 크기가 바뀌면 달라진다', () => {
+    const base = predictPageSignature('hash-1', [model], 100)
+
+    expect(predictPageSignature('hash-1', [model], 250)).not.toBe(base)
+    expect(predictPageSignature('hash-1', [model], Number.POSITIVE_INFINITY)).not.toBe(base)
   })
 
   it('서명은 같은 입력에서 같다', () => {
-    expect(predictPageSignature('hash-1', [model])).toBe(predictPageSignature('hash-1', [model]))
+    expect(predictPageSignature('hash-1', [model], 100)).toBe(
+      predictPageSignature('hash-1', [model], 100),
+    )
   })
 
   describe('내려받을 CSV 격자', () => {

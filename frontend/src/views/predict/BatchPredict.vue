@@ -254,8 +254,13 @@ const pageCache = shallowRef<{ signature: string; pages: Map<number, Answer[][]>
   pages: new Map(),
 })
 
+/**
+ * 캐시를 버려야 하는 조건. **판 크기가 여기 들어 있다** — 상한을 풀면 판 크기가 바뀌고,
+ * 캐시의 열쇠가 쪽 번호라 같은 번호가 다른 행을 가리킨다. 아래 감시자가 이 서명이
+ * 바뀔 때 캐시를 버리고 첫 쪽으로 보낸다 — **쪽 번호도 그때 함께 되돌아간다.**
+ */
 const signature = computed(() =>
-  predictPageSignature(project.file?.predictDataset?.hash ?? '', props.models),
+  predictPageSignature(project.file?.predictDataset?.hash ?? '', props.models, pageSize.value),
 )
 
 /**
