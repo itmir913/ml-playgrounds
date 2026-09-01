@@ -79,8 +79,16 @@ function approximateMode(counts: readonly number[], draws: number, seed: number)
        * 그 반이 가진 것보다 많이 가져갈 수는 없다.
        *
        * **지금은 도달하지 않는다** (R7 감사). `floored`는 비율을 내린 값이라 언제나
-       * `counts` 이하이고, 한 번에 하나씩만 얹기 때문이다. **남기는 이유는 이 함수가
-       * `draws > total`로 불릴 수 있어서다** — 그때는 여기가 유일한 방어선이다.
+       * `counts` 이하이고, 한 번에 하나씩만 얹기 때문이다.
+       *
+       * **`draws > total`의 방어선은 아니다** (2026-09-01 R18 감사 C-7). 한때 그렇게
+       * 적혀 있었는데 **틀렸다** — 그 입력에서는 내림값 자체가 이미 `counts`를 넘어서
+       * (`counts [2,2]`·`draws 6` → `floored [3,3]`) `missing`이 0이 되고, **이 루프가
+       * 아예 안 돈다.** 즉 그 입력에는 방어선이 없고 결과도 틀린다.
+       *
+       * **막는 자리는 부르는 쪽이다.** 두 호출처 모두 `draws ≤ total`을 구조적으로
+       * 지킨다 — `holdoutSplit`은 `testCountFor`가 `total - 1`로 자르고, `sampleRows`는
+       * `allocate`가 바닥의 합을 먼저 확인한다.
        */
       if (floored[index]! >= counts[index]!) continue
       floored[index]! += 1
@@ -170,6 +178,31 @@ export function holdoutSplit(input: SplitInput, split: Split): SplitIndices {
     const counts = [...groups.values()].map((group) => group.length)
     const total = rows.length
     const testCount = testCountFor(total, split.testSize)
+    /**
+     * **몫이 범주 수보다 적으면 층화가 성립하지 않는다** (2026-09-01 R18 감사 B-4).
+     *
+     * sklearn `StratifiedShuffleSplit`이 던지는 그 자리다 —
+     * `The test_size = N should be greater or equal to the number of classes = K`.
+     * 우리는 안 던지고 계산을 계속했다: **10범주 × 12장을 5%로 나누면 시험이 6장**이라
+     * 최소 네 범주가 시험에서 통째로 빠지는데, 그것이 조용히 지나갔다. 이 파일의 머리말이
+     * *"층화가 없으면 시험 데이터에 특정 클래스가 통째로 빠지는 일이 생긴다"*고 적어 둔
+     * 바로 그 일을 **층화를 켠 채로** 하고 있었다.
+     *
+     * **양쪽을 다 본다.** `testSize`가 너무 작으면 시험이, 너무 크면 훈련이 모자란다 —
+     * 저쪽도 두 가드를 갖는다.
+     *
+     * **여기서 막는 것은 딱 이 조건이다.** 몫이 범주 수보다 많은데도 범주 하나가 빠지는
+     * 경우(2/98을 5%로 나누는 것)는 **sklearn도 똑같이 빠뜨린다** — 같은 감사에서
+     * sklearn 1.9로 대조했다. 거기서 우리만 던지면 §2를 우리가 어긴다.
+     */
+    const trainCount = total - testCount
+    if (testCount < groups.size || trainCount < groups.size) {
+      throw new ClientError('SPLIT_STRATIFY_SHARE_TOO_SMALL', {
+        labels: groups.size,
+        testRows: testCount,
+        trainRows: trainCount,
+      })
+    }
     // **훈련 몫을 먼저 나누고 남은 것에서 테스트 몫을 나눈다** — sklearn과 같은 순서다.
     // **동점 밖에서는 두 순서가 같은 답을 준다**(R7 감사). 같은 순서로 두는 이유는
     // 결과가 달라서가 아니라, 저쪽 코드를 옆에 놓고 읽을 수 있어야 하기 때문이다.

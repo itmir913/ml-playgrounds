@@ -140,13 +140,23 @@ ALGORITHM_NOT_FOR_DATA_TYPE, ALGORITHM_NOT_FOR_TASK_TYPE
 **분할·층화** (`ml/split.ts`, `ml/sample.ts`, `ml/selection.ts`)
 ```
 SPLIT_TOO_FEW_ROWS, SPLIT_STRATIFY_IMPOSSIBLE,
-SPLIT_STRATIFY_TARGET_CONTINUOUS, STRATIFY_NOT_FOR_TASK_TYPE,
-SAMPLE_STRATIFY_IMPOSSIBLE
+SPLIT_STRATIFY_TARGET_CONTINUOUS, SPLIT_STRATIFY_SHARE_TOO_SMALL,
+STRATIFY_NOT_FOR_TASK_TYPE, SAMPLE_STRATIFY_IMPOSSIBLE
 ```
 
 앞 둘은 백엔드의 `SPLIT_INVALID`와 나뉜다. 저쪽은 **설정이 말이 안 되는 것**이고 이
 둘은 **설정은 멀쩡한데 이 데이터로는 못 나누는 것**이다 — 학생이 고칠 자리가 설정이
 아니라 데이터거나 비율이다.
+
+`SPLIT_STRATIFY_SHARE_TOO_SMALL`은 **몫이 범주 수보다 적은 것**이다 (2026-09-01 R18 감사
+B-4). sklearn `StratifiedShuffleSplit`이 던지는 그 자리이고
+(`The test_size = N should be greater or equal to the number of classes = K`),
+학생이 할 일이 또 다르다 — **방금 움직인 비율을 되돌리는 것**이다.
+
+**범주 하나가 몫에서 빠지는 것 자체는 여기서 안 막는다.** 몫이 범주 수보다 많은데도
+빠지는 경우가 있는데(2/98을 5%로 나누는 것), **sklearn 1.9도 같은 입력에서 같은 답을
+낸다** — 같은 감사에서 대조했다. 거기서 우리만 던지면 *"구조는 표준 라이브러리를
+따른다"*(`CLAUDE.md` §2)를 우리가 어긴다.
 
 뒤 둘은 **층화**에만 붙는다. `SPLIT_STRATIFY_TARGET_CONTINUOUS`는 타깃이 사실상
 연속이라 층화가 성립하지 않는 것이고, `SPLIT_STRATIFY_IMPOSSIBLE`과 학생이 할 일이

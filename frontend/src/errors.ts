@@ -131,6 +131,20 @@ export const CLIENT_ERROR_CODES = [
   // 두 번 나오는 데이터는 없으므로 뭉치면 불가능한 조언을 하게 된다
   // (open-decisions.md "층화는 갈리는 값에서만 뜻이 있다").
   'SPLIT_STRATIFY_TARGET_CONTINUOUS',
+  // 훈련이나 테스트 몫이 **범주 수보다 적다** - sklearn `StratifiedShuffleSplit`이
+  // `The test_size = N should be greater or equal to the number of classes = K`로
+  // 던지는 그 자리다 (2026-09-01 R18 감사 B-4, sklearn 1.9로 대조).
+  //
+  // **위 둘과 나누는 이유는 학생이 할 일이 또 다르기 때문이다** - `IMPOSSIBLE`은 그 값의
+  // 데이터가 원래 적어서 "더 모아라"이고, `TARGET_CONTINUOUS`는 "꺼라"인데, 이쪽은
+  // **학생이 방금 움직인 비율** 때문이라 "비율을 조정하라"다. 뭉치면 고칠 수 있는 것을
+  // 못 고친다.
+  //
+  // **범주 하나가 몫에서 빠지는 것 자체는 여기서 안 막는다.** 10범주에 시험 20장이면
+  // 던지지 않지만 빠지는 범주는 여전히 생길 수 있다 - **sklearn도 그렇다.** 실제로
+  // 2/98을 5%로 나누면 저쪽도 소수 라벨을 시험에서 뺀다(같은 감사에서 대조했다).
+  // 거기서 우리만 던지면 **구조를 표준 라이브러리에 맞춘다는 §2를 우리가 어긴다.**
+  'SPLIT_STRATIFY_SHARE_TOO_SMALL',
   // 층화를 켠 채로 뽑을 행 수가 너무 적다 - ml/sample.ts (open-decisions.md #22).
   // **SPLIT_STRATIFY_IMPOSSIBLE과 나누는 이유는 학생이 할 일이 다르기 때문이다** -
   // 그쪽은 데이터에 그 값이 원래 적어서 "더 모아라"이고, 이쪽은 학생이 방금 정한 숫자가

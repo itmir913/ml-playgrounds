@@ -556,6 +556,7 @@
     "SPLIT_TOO_FEW_ROWS": "데이터가 {actualRows}개뿐이라 훈련 데이터와 테스트 데이터로 분할할 수 없습니다. (최소 {minRows}개)",
     "SPLIT_STRATIFY_IMPOSSIBLE": "이 범주의 데이터가 {count}개뿐이라 비율을 유지한 채 분할할 수 없습니다. [범주 비율 유지]를 끄거나 이 범주의 데이터를 {minRows}개 이상 모아 주세요. ({label})",
     "SPLIT_STRATIFY_TARGET_CONTINUOUS": "{kinds}종류 중 {lonely}종류가 하나씩만 있어 비율을 유지한 채 분할할 수 없습니다. [범주 비율 유지]를 끄세요.",
+    "SPLIT_STRATIFY_SHARE_TOO_SMALL": "층화하려면 훈련 데이터와 테스트 데이터에 범주 수만큼은 들어가야 합니다. 테스트 데이터 비율을 조정하거나 층화를 꺼 주세요. (범주 {labels}개, 훈련 {trainRows}행, 테스트 {testRows}행)",
     "SAMPLE_STRATIFY_IMPOSSIBLE": "{nSamples}행만 추출하기로 했는데 타깃 값이 {labels}종류라 비율을 유지한 채 추출할 수 없습니다. 추출할 행 수를 늘리거나 [범주 비율 유지]를 끄세요. (값 하나마다 최소 {minRows}행)",
     "STRATIFY_NOT_FOR_TASK_TYPE": "지금 선택한 기계학습 유형에서는 범주가 없어 [범주 비율 유지]를 쓸 수 없습니다.",
     "CLUSTER_TOO_FEW_ROWS": "데이터가 {rows}개뿐이라 군집 {clusters}개로 묶을 수 없습니다. 군집 수를 줄이거나 데이터를 더 모아 주세요.",

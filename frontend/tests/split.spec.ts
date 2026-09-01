@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
 import { MIN_SPLIT_ROWS } from '../src/limits'
-import { appendAll, holdoutSplit, splitRows } from '../src/ml/split'
+import { appendAll, holdoutSplit, splitRows, type SplitIndices } from '../src/ml/split'
 import type { Split } from '../src/project/schema'
 
 const split = (overrides: Partial<Split> = {}): Split => ({
@@ -100,14 +100,24 @@ describe('인덱스가 원본 행 번호다', () => {
     const labels = [...Array(20).keys()].map((index) => `L${index % 10}`)
     const labelOf = (index: number): string => labels[usable.indexOf(index)] as string
 
-    const { testIndices } = holdoutSplit({ rows: usable, labels }, split({ stratify: true }))
+    /**
+     * **`testSize`가 0.5인 이유는 층화가 성립해야 하기 때문이다** (2026-09-01 R18 감사 B-4).
+     * 기본값 0.2면 시험이 4장인데 범주가 열이라 **sklearn 1.9도 이 입력을 거부한다**
+     * (`test_size = 4 should be greater or equal to the number of classes = 10`).
+     * 이 검사가 보려는 것은 **라벨을 자리로 읽는가**이지 그 경계가 아니다.
+     */
+    const { testIndices } = holdoutSplit(
+      { rows: usable, labels },
+      split({ stratify: true, testSize: 0.5 }),
+    )
 
     // **산출을 그대로 못 박는다.** 층화는 라벨마다 다른 씨앗을 쓰므로(`labelSeed`),
     // 라벨을 행 번호로 읽으면 열 종류가 빈 문자열 하나로 뭉개지고 **씨앗이 통째로
     // 달라져 다른 행이 뽑힌다.** 라벨 구성만 보면 씨앗 운으로 우연히 맞을 수 있어
     // 축이 안 갈린다 - 이 파일이 재현 가능성을 보는 자리이므로 값을 적는다.
-    expect(testIndices).toEqual([103, 109, 115, 117])
-    expect(new Set(testIndices.map(labelOf)).size).toBe(4)
+    expect(testIndices).toEqual([100, 101, 102, 103, 104, 106, 109, 115, 117, 118])
+    // 범주 열이 시험에 하나씩. **라벨을 행 번호로 읽으면 이 수가 무너진다.**
+    expect(new Set(testIndices.map(labelOf)).size).toBe(10)
   })
 
   it('훈련 데이터와 테스트 데이터가 겹치지 않고 합치면 전체가 된다', () => {
@@ -504,5 +514,100 @@ describe('appendAll이 `push(...slice)`와 같은 것을 한다', () => {
         expect(appended(source, from, to), `[${from}, ${to})`).not.toContain(undefined)
       }
     }
+  })
+})
+
+/**
+ * **층화의 몫이 범주 수보다 적으면 던진다** (2026-09-01 R18 감사 B-4).
+ *
+ * sklearn `StratifiedShuffleSplit`이 던지는 그 자리다. 우리는 조용히 지나가고 있었고,
+ * **10범주 × 12장을 5%로 나누면 시험 6장**이라 최소 네 범주가 시험에서 통째로 빠졌다.
+ *
+ * **경계를 sklearn 1.9로 대조했다** — 아래 넷 중 둘은 저쪽도 던지고, 둘은 저쪽도 통과한다.
+ * 통과하는 쪽에서 우리만 던지면 **§2("구조는 표준 라이브러리를 따른다")를 우리가 어긴다.**
+ */
+describe('층화의 몫이 범주 수보다 적으면', () => {
+  function labelled(counts: readonly number[]): { rows: number[]; labels: string[] } {
+    const rows: number[] = []
+    const labels: string[] = []
+    counts.forEach((count, group) => {
+      for (let taken = 0; taken < count; taken += 1) {
+        rows.push(rows.length)
+        labels.push(String.fromCharCode(65 + group))
+      }
+    })
+    return { rows, labels }
+  }
+
+  function split(counts: readonly number[], testSize: number): SplitIndices {
+    return holdoutSplit(labelled(counts), {
+      method: 'holdout',
+      testSize,
+      stratify: true,
+      randomState: 42,
+    })
+  }
+
+  function codeOf(counts: readonly number[], testSize: number): string | null {
+    try {
+      split(counts, testSize)
+      return null
+    } catch (error) {
+      return isClientError(error) ? error.code : 'NOT_A_CLIENT_ERROR'
+    }
+  }
+
+  /** 시험 6장에 범주 열. **sklearn 1.9도 여기서 던진다.** */
+  it('시험 몫이 모자라면 던진다', () => {
+    expect(
+      codeOf(
+        Array.from({ length: 10 }, () => 12),
+        0.05,
+      ),
+    ).toBe('SPLIT_STRATIFY_SHARE_TOO_SMALL')
+  })
+
+  /** 시험 1장에 범주 둘. **sklearn 1.9도 여기서 던진다.** */
+  it('시험이 한 장이면 던진다', () => {
+    expect(codeOf([2, 98], 0.01)).toBe('SPLIT_STRATIFY_SHARE_TOO_SMALL')
+  })
+
+  /**
+   * **훈련 쪽도 본다.** `testSize`가 크면 모자라는 것은 훈련이다 — 저쪽도 두 가드를 갖는다.
+   * 스키마가 0.9까지 열어 두므로 화면에서 닿지 않아도 남의 `.mlpx`로는 온다.
+   */
+  it('훈련 몫이 모자라면 던진다', () => {
+    expect(
+      codeOf(
+        Array.from({ length: 10 }, () => 12),
+        0.95,
+      ),
+    ).toBe('SPLIT_STRATIFY_SHARE_TOO_SMALL')
+  })
+
+  /**
+   * **여기서는 안 던진다. 이것이 이 검사의 절반이다.**
+   *
+   * 시험 5장에 범주 둘이라 몫은 넉넉한데 **소수 라벨이 시험에서 빠진다.** 그래도 통과가
+   * 맞다 — **sklearn 1.9가 같은 입력에서 같은 답을 낸다**(통과, 시험에서 A 빠짐).
+   * 여기서 던지면 우리가 저쪽과 갈린다.
+   */
+  it('몫이 넉넉하면 범주가 빠져도 안 던진다 - sklearn과 같은 자리', () => {
+    expect(codeOf([2, 98], 0.05)).toBeNull()
+    const out = split([2, 98], 0.05)
+    const { labels } = labelled([2, 98])
+    const inTest = new Set(out.testIndices.map((row) => labels[row]))
+    // 실제로 빠진다는 것까지 못 박는다 - 이 검사가 무엇을 봐주는지가 분명해야 한다.
+    expect(inTest.size).toBe(1)
+  })
+
+  it('층화를 끄면 이 가드가 안 걸린다', () => {
+    const { rows, labels } = labelled(Array.from({ length: 10 }, () => 12))
+    expect(() =>
+      holdoutSplit(
+        { rows, labels },
+        { method: 'holdout', testSize: 0.05, stratify: false, randomState: 42 },
+      ),
+    ).not.toThrow()
   })
 })

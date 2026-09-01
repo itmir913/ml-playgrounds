@@ -1584,10 +1584,36 @@ describe('표본 뽑기', () => {
 
   it('화면이 센 행 수가 학습이 실제로 쓴 행 수와 같다', () => {
     // 붓꽃 픽스처는 30행이다. 안 뽑는 경우 · 딱 맞는 경우 · 넘치는 경우 · 뽑는 경우.
-    for (const nSamples of [undefined, 30, 60, 24, 12, 6]) {
+    for (const nSamples of [undefined, 30, 60, 24, 12]) {
       const settings = settingsFor(nSamples === undefined ? {} : { nSamples })
       expect({ nSamples, gate: gateFor(settings) }).toEqual({ nSamples, gate: usedBy(settings) })
     }
+  })
+
+  /**
+   * **가장 작은 표본은 층화를 끄고 본다** (2026-09-01 R18 감사 B-4).
+   *
+   * 6행에 범주 셋이면 시험이 2장이라 **층화가 성립하지 않는다** — 이제 그 자리에서
+   * `SPLIT_STRATIFY_SHARE_TOO_SMALL`이 뜬다. **sklearn 1.9도 같은 입력을 같은 말로
+   * 거부한다**(`test_size = 2 should be greater or equal to the number of classes = 3`).
+   *
+   * **세는 것이 맞는지는 층화와 무관하다.** 이 검사가 보려는 것은 화면의 수와 학습이 쓴
+   * 수가 같은가이고, 가장 작은 표본에서도 그것을 봐야 한다.
+   */
+  it('가장 작은 표본에서도 센 수가 맞는다 - 층화 없이', () => {
+    const settings = settingsFor({
+      nSamples: 6,
+      split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+    })
+    expect(gateFor(settings)).toBe(usedBy(settings))
+  })
+
+  /** 그 조합에 층화를 켜면 이제 이유를 말하고 멈춘다. 조용히 나누지 않는다. */
+  it('가장 작은 표본에 층화를 켜면 이유를 말한다', () => {
+    const settings = settingsFor({ nSamples: 6 })
+    expect(() => usedBy(settings)).toThrow(
+      expect.objectContaining({ code: 'SPLIT_STRATIFY_SHARE_TOO_SMALL' }),
+    )
   })
 
   it('뽑은 실험도 끝까지 돈다 - 세는 것만 맞고 학습이 죽으면 소용없다', () => {

@@ -556,6 +556,7 @@
     "SPLIT_TOO_FEW_ROWS": "There is not enough data to split into training data and test data. (usable {actualRows}, needs at least {minRows})",
     "SPLIT_STRATIFY_IMPOSSIBLE": "This class appears too few times to keep the same proportions in the split. Turn off proportional splitting, or collect more data for this class. ({label}: has {count}, needs at least {minRows})",
     "SPLIT_STRATIFY_TARGET_CONTINUOUS": "Of the {kinds} distinct values, {lonely} appear only once, so the split cannot keep the same proportions. Turn proportional splitting off.",
+    "SPLIT_STRATIFY_SHARE_TOO_SMALL": "Stratifying needs at least as many rows as categories on both sides of the split. Adjust the test data ratio or turn stratifying off. ({labels} categories, {trainRows} training rows, {testRows} test rows)",
     "SAMPLE_STRATIFY_IMPOSSIBLE": "You chose to use only {nSamples} rows, but the target has {labels} distinct values, so the sample cannot keep the same proportions. Use more rows, or turn off proportional splitting. (each value needs at least {minRows})",
     "STRATIFY_NOT_FOR_TASK_TYPE": "The task type you chose has no categories to balance, so proportional splitting is unavailable.",
     "CLUSTER_TOO_FEW_ROWS": "There are only {rows} samples, so they cannot be grouped into {clusters} clusters. Lower the number of clusters, or collect more data.",
