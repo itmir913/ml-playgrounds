@@ -370,8 +370,13 @@ def main() -> int:
         return 0
 
     document["sklearnVersion"] = sklearn.__version__
+    # **줄 끝을 LF로 못 박는다.** 윈도우에서 기본값으로 쓰면 CRLF가 되고, 이 저장소는
+    # 같은 함정에서 여러 번 넘어졌다(메모리 `crlf-breaks-source-checks`). 커밋은 git이
+    # 정규화해 조용하지만, 작업 사본이 매번 통째로 달라 보인다.
     EXPECTED.write_text(
-        json.dumps(document, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+        json.dumps(document, ensure_ascii=False, indent=1) + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
     print(f"Wrote fixtures from sklearn {sklearn.__version__} -> {EXPECTED}")
     return 0
