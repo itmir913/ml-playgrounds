@@ -13,6 +13,7 @@
     "fixtures:check": "uv run --project ../backend python ../scripts/generate_sklearn_fixtures.py --check",
     "preview": "vite preview",
     "test": "vitest run",
+    "mutate": "node tools/mutate.mjs",
     "ci": "npm run backbones && npm run lint:check && npm run typecheck && npm run test && npm run fixtures:check && npm run build",
     "test:watch": "vitest",
     "lint": "eslint . --fix && prettier --write src/ tests/ scripts/",

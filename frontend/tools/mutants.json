@@ -1,0 +1,47 @@
+{
+  "$comment": "R24에서 심었을 때 조용했던 자리들. `npm run mutate`가 이 목록을 돌린다. 항목이 '조용'에서 '욺'으로 뒤집히면 그 자리에 검사가 생긴 것이고, 그때 이 줄을 지운다. 자세한 것은 tools/mutate.ts 머리말.",
+  "mutants": [
+    {
+      "file": "src/views/preprocess/TabularPrepPanel.vue",
+      "find": "  } finally {\n    testBusy.value = false\n  }\n}\n\nfunction onTestPick",
+      "replace": "  } finally {\n    testBusy.value = true\n  }\n}\n\nfunction onTestPick",
+      "loses": "깨진 파일을 한 번 고르면 [파일 선택]이 '읽는 중'으로 영영 꺼진다. 새로고침이 유일한 길이다."
+    },
+    {
+      "file": "src/views/preprocess/TabularPrepPanel.vue",
+      "find": "async function requestApplyTest(): Promise<void> {\n  if (experimentCount.value > 0) {",
+      "replace": "async function requestApplyTest(): Promise<void> {\n  if (experimentCount.value > 1) {",
+      "loses": "실험이 하나뿐일 때 확인 없이 지워진다."
+    },
+    {
+      "file": "src/components/ExportButton.vue",
+      "find": "    project.update((live) => ({ ...live, document: exported.document }))",
+      "replace": "    void exported.document",
+      "loses": "파일 이름과 manifest에 학번·이름이 없어 서른 명 제출물에서 누구 것인지 못 가른다."
+    },
+    {
+      "file": "src/views/portfolio/TemplateSourceList.vue",
+      "find": "    emit('failed', error)",
+      "replace": "    void error",
+      "loses": "학교망·오프라인에서 프리셋 목록이 조용히 비고 학생은 왜인지 모른다."
+    },
+    {
+      "file": "src/components/ProjectName.vue",
+      "find": "  if (name === '' || name === project.name) return",
+      "replace": "  if (name === project.name) return",
+      "loses": "이름을 지우고 Enter를 누르면 파일 이름에서 프로젝트 이름이 사라진다."
+    },
+    {
+      "file": "src/components/StepChecklist.vue",
+      "find": "const done = computed(() => tasks.value.every((task) => task.done))",
+      "replace": "const done = computed(() => tasks.value.some((task) => task.done))",
+      "loses": "하나만 끝나도 '이 단계에서 할 일을 모두 마쳤습니다'가 뜬다. 여섯 화면이 이 부품을 쓴다."
+    },
+    {
+      "file": "src/components/ProjectPicker.vue",
+      "find": "  return summary.readable ? null : t('projects.unreadable')",
+      "replace": "  return summary.readable ? t('projects.unreadable') : null",
+      "loses": "가정 PC에서 저장된 프로젝트를 못 연다."
+    }
+  ]
+}
