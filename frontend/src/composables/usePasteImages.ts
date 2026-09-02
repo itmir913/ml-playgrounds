@@ -16,10 +16,8 @@
 
 import { onBeforeUnmount, onMounted } from 'vue'
 
-/** 클립보드에서 사진만 고른다. 글자를 붙여넣은 것은 우리에게 온 것이 아니다. */
-function imagesIn(data: DataTransfer | null): readonly File[] {
-  return [...(data?.files ?? [])].filter((file) => file.type.startsWith('image/'))
-}
+// **클립보드에서 사진을 고르는 자리는 하나다** (R24 C-1). 같은 함수가 여기에도 있었다.
+import { imagesFromClipboard } from '@/project/attachments'
 
 /**
  * 글자를 쓰는 자리인가. **거기서 누른 Ctrl+V는 글자 붙여넣기다.**
@@ -64,7 +62,7 @@ export function usePasteImages(take: (files: readonly File[]) => void): void {
   function onPaste(event: ClipboardEvent): void {
     if (editable(event.target)) return
 
-    const images = imagesIn(event.clipboardData)
+    const images = imagesFromClipboard(event.clipboardData)
     // **사진이 없으면 아무 일도 안 한다.** 글자를 붙여넣은 것을 거절이라고 말하면,
     // 학생은 하지도 않은 일을 실패로 읽는다 (§8.10.4의 "거절할 때는 말한다"는 **받을
     // 수 있는 것을 안 받을 때**의 규칙이다).

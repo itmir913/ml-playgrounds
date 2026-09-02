@@ -56,6 +56,11 @@ export const DATA_FACTS: Readonly<Record<DataType, (file: ProjectFile) => DataFa
        * 층화가 갈리는 값에서만 뜻이 있는 것과 같은 모양이고, 분류 카드의 잠금 이유도
        * 같은 문장이다 (open-decisions.md "이미지 프로젝트의 데이터 화면").
        *
+       * **그 카드가 2026-09-02에야 생겼다** (architecture.md §10.5). 그 전까지 이 주석은
+       * **없는 코드를 가리키고 있었고**, 잠금이 대신 단계 진입에 있어 분류를 누른 학생이
+       * 학습 화면에서 쫓겨났다. 지금은 `ModelAxes`의 유형 축이 `taskTypeBlockers`로
+       * 판정한다 — `task-type-trap.spec.ts`가 그 셋(판정·카드·배선)을 잰다.
+       *
        * **`_unlabeled`는 안 센다.** 범주가 아니라 상태이고, 그 사진들은 분류 학습에
        * 안 들어간다.
        */

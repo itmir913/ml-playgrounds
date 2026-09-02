@@ -30,6 +30,7 @@ import ImagePanel from '../src/views/data/ImagePanel.vue'
 import ImagePredictPanel from '../src/views/predict/ImagePredictPanel.vue'
 import TabularPanel from '../src/views/data/TabularPanel.vue'
 import {
+  dropEvent,
   imagePredictProject,
   pasteEvent,
   pastedPhoto,
@@ -66,6 +67,7 @@ async function deleteDatabase(): Promise<void> {
 
 interface DataInternals {
   busy: boolean
+  onDrop: (event: Event) => void
   pending: readonly { path: string; category: string }[] | null
   bake: () => Promise<void>
 }
@@ -223,7 +225,8 @@ describe('굽는 동안 붙여넣으면', () => {
     await settle()
 
     expect(panel.busy).toBe(true)
-    expect(panel.pending).toHaveLength(1)
+    // **덧붙는다** — 굽는 중에 붙여넣은 것도 앞의 것을 안 밀어낸다 (R24 B-10).
+    expect(panel.pending).toHaveLength(2)
 
     workerState.bake[0]?.deliver()
     await baking
@@ -331,6 +334,102 @@ describe('붙여넣기 리스너 자체는', () => {
     await flushPromises()
 
     expect(taken.flat()).toEqual(['pasted-1.png', 'pasted-2.png'])
+    wrapper.unmount()
+  })
+})
+
+/**
+ * **붙여넣기는 누적된다** (`open-decisions.md` "붙여넣기만 덧붙인다", R24 B-10).
+ *
+ * 확인 판이 선 채로 한 장 더 붙여넣으면 **앞 장이 말없이 사라졌다.** 드롭도 같은
+ * 동작이지만 거기서는 파일이 디스크에 남아 다시 놓을 수 있다 — **붙여넣은 스크린샷은
+ * 어디에도 없다.** 갈리는 것은 규칙이 아니라 되돌릴 수 있는가다.
+ */
+describe('붙여넣기를 거듭하면', () => {
+  it('앞 장이 안 사라지고 쌓인다', async () => {
+    const { wrapper, panel } = await dataPanel()
+
+    window.dispatchEvent(pasteEvent([pastedPhoto([1])]))
+    await settle()
+    window.dispatchEvent(pasteEvent([pastedPhoto([2])]))
+    await settle()
+    window.dispatchEvent(pasteEvent([pastedPhoto([3])]))
+    await settle()
+
+    expect(panel.pending).toHaveLength(3)
+    expect(new Set(panel.pending?.map((one) => one.path)).size).toBe(3)
+
+    wrapper.unmount()
+  })
+
+  it('쌓은 것을 한 번에 굽는다', async () => {
+    const { project, wrapper, panel } = await dataPanel()
+
+    window.dispatchEvent(pasteEvent([pastedPhoto([1])]))
+    await settle()
+    window.dispatchEvent(pasteEvent([pastedPhoto([2])]))
+    await settle()
+    await panel.bake()
+    await settle()
+
+    expect(readImages(project.file)).toHaveLength(2)
+    expect(panel.pending).toBeNull()
+
+    wrapper.unmount()
+  })
+
+  /**
+   * **드롭은 그대로 갈아끼운다.** 예외는 붙여넣기 하나뿐이고, 그 근거는 되돌릴 수
+   * 있는가다 — 놓은 파일은 디스크에 남아 있다.
+   */
+  it('드롭은 갈아끼운다 - 예외는 붙여넣기뿐이다', async () => {
+    const { wrapper, panel } = await dataPanel()
+
+    window.dispatchEvent(pasteEvent([pastedPhoto([1])]))
+    await settle()
+    expect(panel.pending).toHaveLength(1)
+
+    panel.onDrop(dropEvent([pastedPhoto([2])]))
+    await settle()
+
+    expect(panel.pending).toHaveLength(1)
+    wrapper.unmount()
+  })
+})
+
+/**
+ * **글자를 쓰는 자리는 셋이다** (R24 C-2). `input`만 재던 때는 `TEXTAREA`·`SELECT`
+ * 갈래를 지워도 조용했고, 그때 프로브가 `<textarea>`에서 사진을 받았다.
+ */
+describe('글자를 쓰는 자리에서 누른 붙여넣기는', () => {
+  for (const tag of ['input', 'textarea', 'select'] as const) {
+    it(`<${tag}>에서 안 받는다`, async () => {
+      const { wrapper, panel } = await dataPanel()
+      const element = document.createElement(tag)
+      document.body.append(element)
+
+      window.dispatchEvent(pasteEvent([pastedPhoto()], element))
+      await settle()
+
+      expect(panel.pending).toBeNull()
+      element.remove()
+      wrapper.unmount()
+    })
+  }
+
+  it('contenteditable에서도 안 받는다', async () => {
+    const { wrapper, panel } = await dataPanel()
+    const box = document.createElement('div')
+    box.setAttribute('contenteditable', 'true')
+    // jsdom은 `isContentEditable`을 속성에서 안 만든다. 실물의 그 값을 흉내 낸다.
+    Object.defineProperty(box, 'isContentEditable', { value: true })
+    document.body.append(box)
+
+    window.dispatchEvent(pasteEvent([pastedPhoto()], box))
+    await settle()
+
+    expect(panel.pending).toBeNull()
+    box.remove()
     wrapper.unmount()
   })
 })

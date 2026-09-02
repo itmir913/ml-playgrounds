@@ -33,6 +33,7 @@ import {
   dropEvent,
   HARNESS_BACKBONE,
   resetImageWorkers,
+  settleSave,
   stubDialogElement,
   workerState,
 } from './fixtures/image-workers'
@@ -248,6 +249,8 @@ describe('굽기가 끝나면', () => {
 
     workerState.bake[0]?.deliver()
     await settle()
+    // **저장이 끝나야 알림이 온다** (R24 B-4). 틱 몇 번으로는 전체 실행에서 어긋난다.
+    await settleSave(project, settle)
 
     expect(readImages(project.file, 'test')).toHaveLength(2)
     expect(toasts.items.map((one) => one.key)).toContain('preprocess.testImagesAdded')

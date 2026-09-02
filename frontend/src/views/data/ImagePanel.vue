@@ -217,7 +217,21 @@ function backboneOf(file: ProjectFile | null): BackboneSpec | undefined {
 }
 
 /** 압축 파일인가 사진인가. **학생에게 묻지 않는다** — 확장자가 이미 답을 갖고 있다. */
-async function readPicked(files: readonly File[], into: string): Promise<void> {
+async function readPicked(
+  files: readonly File[],
+  into: string,
+  /**
+   * 확인 판에 이미 선 것이 있으면 **갈아끼우지 말고 뒤에 붙인다.**
+   *
+   * **붙여넣기만 그렇다** (`open-decisions.md` "이미지 붙여넣기"). 놓은 파일은 디스크에
+   * 남아 다시 놓을 수 있지만 **붙여넣은 스크린샷은 어디에도 없다** — 다시 찍어야 한다.
+   * 클립보드는 한 번에 한 장이라 스무 장을 모으는 수업이 붙여넣기 스무 번이 되고, 그
+   * 사이 한 번이라도 확인을 안 누르면 앞 장이 말없이 사라졌다 (R24 B-10).
+   *
+   * **갈리는 것은 규칙이 아니라 되돌릴 수 있는가다.**
+   */
+  { append = false }: { append?: boolean } = {},
+): Promise<void> {
   if (files.length === 0) return
   // **굽는 중이어도 받는다.** 확인 판이 있는 화면이라 받아 두었다가 굽기가 끝난 뒤 그
   // 자리에 세우면 된다 — 돌려보내는 것보다 낫다 (§8.10.4). 잠금은 셈이 지키므로
@@ -248,7 +262,7 @@ async function readPicked(files: readonly File[], into: string): Promise<void> {
       const shortfall = await imageRoomShortfall(project.file, items.length, spec)
       if (shortfall) throw new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall })
     }
-    pending.value = items
+    pending.value = append && pending.value ? [...pending.value, ...items] : items
   } catch (error) {
     toasts.pushError(error)
   } finally {
@@ -279,7 +293,7 @@ function onDrop(event: DragEvent): void {
 // **붙여넣기는 놓기와 같은 일이다** (`open-decisions.md` "이미지 붙여넣기"). 범주를 묻는
 // 모달을 두지 않는다 — 스무 장을 모으는 수업에서 모달이 스무 번 뜨고, 범주가 하나도
 // 없을 때를 따로 정해야 한다. 여기로 오면 그 둘이 다 사라진다.
-usePasteImages((files) => void readPicked(files, IMAGE_UNLABELED))
+usePasteImages((files) => void readPicked(files, IMAGE_UNLABELED, { append: true }))
 
 /**
  * 확인한 것을 굽는다. **정본 크기는 백본이 정한다** — 224로 구운 정본은 260을 요구하는

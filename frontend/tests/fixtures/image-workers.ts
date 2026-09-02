@@ -185,3 +185,23 @@ export function pasteEvent(files: readonly File[], target?: EventTarget): Event 
 export function pastedPhoto(bytes = [1, 2, 3]): File {
   return new File([new Uint8Array(bytes)], 'image.png', { type: 'image/png' })
 }
+
+/**
+ * **저장이 끝날 때까지 기다린다.** `project.save` 뒤에 오는 것(알림·판 비우기)을 재는
+ * 검사가 쓴다.
+ *
+ * **틱 몇 번으로는 모자란다.** 스토어는 `file.value`를 **먼저** 바꾸고 IndexedDB 쓰기를
+ * `await`하므로, 사진 수 같은 동기 값은 바로 보이는데 **그 뒤의 알림은 아직 안 온다.**
+ * 격리 실행에서는 우연히 맞고 **전체 실행에서만 어긋난다** — 거짓 빨강이 진짜 빨강을
+ * 가린다 (2026-09-02 R24 B-4, `flaky-gate-under-load`).
+ */
+export async function settleSave(
+  project: { saving: boolean },
+  flush: () => Promise<void>,
+): Promise<void> {
+  for (let round = 0; round < 200 && project.saving; round += 1) {
+    await flush()
+  }
+  // 쓰기가 끝난 뒤의 마이크로태스크(알림·판 비우기)를 한 번 더 흘린다.
+  await flush()
+}
