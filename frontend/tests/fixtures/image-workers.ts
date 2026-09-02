@@ -167,3 +167,21 @@ export function dropEvent(files: readonly File[]): Event {
   Object.defineProperty(event, 'dataTransfer', { value: { files } })
   return event
 }
+
+/**
+ * 붙여넣은 것. **jsdom에는 `ClipboardEvent`가 없다** — `DragEvent`와 같은 사정이다.
+ *
+ * **`window`에 던진다** — 화면이 리스너를 거기 건다(`composables/usePasteImages.ts`).
+ * `target`을 주면 글자 쓰는 자리에서 누른 붙여넣기를 흉내 낼 수 있다.
+ */
+export function pasteEvent(files: readonly File[], target?: EventTarget): Event {
+  const event = new Event('paste', { bubbles: true, cancelable: true })
+  Object.defineProperty(event, 'clipboardData', { value: { files } })
+  if (target) Object.defineProperty(event, 'target', { value: target })
+  return event
+}
+
+/** 클립보드에서 온 사진 한 장. **이름이 언제나 `image.png`인 것이 요점이다.** */
+export function pastedPhoto(bytes = [1, 2, 3]): File {
+  return new File([new Uint8Array(bytes)], 'image.png', { type: 'image/png' })
+}

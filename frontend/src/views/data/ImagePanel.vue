@@ -31,6 +31,7 @@ import StepHeader from '@/components/StepHeader.vue'
 import { isValidCategoryName } from '@/data/image/canonical'
 import { canonicalizeImages } from '@/data/image/client'
 import { useThumbnails } from '@/composables/useThumbnails'
+import { usePasteImages } from '@/composables/usePasteImages'
 import { clearIfHeld, useWork } from '@/composables/useWork'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
 import {
@@ -274,6 +275,11 @@ function onDrop(event: DragEvent): void {
   dragging.value = false
   void readPicked([...(event.dataTransfer?.files ?? [])], IMAGE_UNLABELED)
 }
+
+// **붙여넣기는 놓기와 같은 일이다** (`open-decisions.md` "이미지 붙여넣기"). 범주를 묻는
+// 모달을 두지 않는다 — 스무 장을 모으는 수업에서 모달이 스무 번 뜨고, 범주가 하나도
+// 없을 때를 따로 정해야 한다. 여기로 오면 그 둘이 다 사라진다.
+usePasteImages((files) => void readPicked(files, IMAGE_UNLABELED))
 
 /**
  * 확인한 것을 굽는다. **정본 크기는 백본이 정한다** — 224로 구운 정본은 260을 요구하는

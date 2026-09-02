@@ -25,6 +25,7 @@ import { canonicalizeImages } from '@/data/image/client'
 import { useThumbnails } from '@/composables/useThumbnails'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
 import { IMAGE_ACCEPT, readImageFiles, readImageZip, ZIP_EXTENSION } from '@/data/image/upload'
+import { usePasteImages } from '@/composables/usePasteImages'
 import { useWork } from '@/composables/useWork'
 import { ClientError, isClientError } from '@/errors'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
@@ -352,6 +353,10 @@ function onDrop(event: DragEvent): void {
   dragging.value = false
   void readPicked([...(event.dataTransfer?.files ?? [])])
 }
+
+// **붙여넣기는 놓기와 같은 일이다** (`open-decisions.md` "이미지 붙여넣기"). 드롭이 쓰는
+// 함수를 그대로 넘기므로, 굽는 중의 거절도 떠날 때 안 앉는 것도 여기서 다시 안 정한다.
+usePasteImages((files) => void readPicked(files))
 
 /**
  * 예측한다. **없는 임베딩만 먼저 뽑는다** — 학습과 같은 규칙이다 (mlpx-spec.md §1.3).
