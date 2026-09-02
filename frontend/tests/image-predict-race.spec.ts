@@ -188,3 +188,92 @@ describe('사진을 굽는 중에 화면을 떠나면', () => {
     expect(useToastStore().items).toEqual([])
   })
 })
+
+/**
+ * **예측이 도는 동안 사진을 지우거나 옮기는 버튼이 잠기는가** (`photosLocked`).
+ *
+ * 놓는 것은 이제 안전하지만 **지우는 것은 아니다** — 답 루프가 삭제 전에 뜬 사본을 매 장
+ * 다시 써서 지운 사진의 답을 되돌려 놓는다. 그 잠금이 **무검사였다** (2026-09-02 R20 B-3):
+ * `photosLocked`에서 `predicting`을 빼도 전체 2,749개가 초록이었다.
+ */
+describe('예측이 도는 동안', () => {
+  const addButton = (wrapper: ReturnType<typeof mount>) =>
+    wrapper.findAll('button').find((button) => button.text() === '사진 추가')
+
+  it('사진을 늘리고 지우는 버튼이 잠긴다', async () => {
+    const project = useProjectStore()
+    await project.save(imagePredictProject(['a']))
+    const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    // 아무것도 안 도는 동안에는 열려 있다 — 잠긴 채로 시작하면 위 단언이 뜻을 잃는다.
+    expect(addButton(wrapper)?.attributes('disabled')).toBeUndefined()
+
+    const panel = wrapper.vm as unknown as PanelInternals
+    const running = panel.run()
+    await tick()
+    await flushPromises()
+    expect(addButton(wrapper)?.attributes('disabled')).toBeDefined()
+
+    workerState.embed[0]?.deliver()
+    await running
+    await flushPromises()
+    expect(addButton(wrapper)?.attributes('disabled')).toBeUndefined()
+  })
+})
+
+/**
+ * **떠난 뒤에 도착한 임베딩은 앉히지 않는다** (`if (!alive) return`).
+ *
+ * 이 화면의 저장은 이제 지금 파일에 얹지만, **어느 프로젝트의 조각인지는 스토어가 모른다**
+ * (architecture.md §8.10.3). 그래서 떠난 뒤의 앉히기는 화면이 스스로 막아야 한다.
+ * 이 가드도 무검사였다 — `ui-rules.spec.ts`의 "도는 판은 떠나면 멈춘다"는 파일에
+ * `if (!alive)`가 **하나라도** 있으면 통과라, 둘 중 하나가 빠져도 못 봤다 (R20 B-7).
+ */
+describe('임베딩을 기다리는 중에 화면을 떠나면', () => {
+  it('아직 안 온 벡터는 워커가 끊겨 오지 않는다', async () => {
+    const project = useProjectStore()
+    await project.save(imagePredictProject(['a']))
+    const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+
+    const panel = wrapper.vm as unknown as PanelInternals
+    const running = panel.run()
+    await tick()
+    await flushPromises()
+    expect(workerState.embed).toHaveLength(1)
+
+    wrapper.unmount()
+    await flushPromises()
+    workerState.embed[0]?.deliver()
+    await running
+    await flushPromises()
+
+    expect(project.file?.embeddings.size).toBe(0)
+  })
+
+  /**
+   * **벡터가 이미 도착한 뒤에 떠나는 창.** 여기서는 끊기가 늦어 아무 일도 안 하고
+   * (`settle`이 이미 지났다), 앉히기를 막는 것은 `if (!alive) return` 그것 하나다.
+   * **그 줄을 지우면 이 검사만 운다** — 위엣것은 그대로 초록이다.
+   */
+  it('도착한 뒤에 떠나도 앉히지 않는다', async () => {
+    const project = useProjectStore()
+    await project.save(imagePredictProject(['a']))
+    const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+
+    const panel = wrapper.vm as unknown as PanelInternals
+    const running = panel.run()
+    await tick()
+    await flushPromises()
+
+    // 벡터가 도착해 약속이 풀린다. **이어지는 코드는 아직 안 돌았다** — 마이크로태스크다.
+    workerState.embed[0]?.deliver()
+    // 그 사이에 떠난다.
+    wrapper.unmount()
+    await running
+    await flushPromises()
+
+    expect(project.file?.embeddings.size).toBe(0)
+  })
+})

@@ -6,7 +6,7 @@
  * 저장된 선택 > navigator 선호 목록 > 대체 언어 순이다.
  */
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   FALLBACK_LOCALE,
@@ -84,5 +84,45 @@ describe('splitTerm', () => {
 
   it('영어 라벨에는 아무 일도 하지 않는다 - 병기가 없다', () => {
     expect(splitTerm('Decision tree')).toEqual({ head: 'Decision tree', term: null })
+  })
+})
+
+/**
+ * **나중에 온 것이 아니라 사람이 고른 것이 이긴다** (`i18n.ts`의 `chosenByUser`).
+ *
+ * 시작할 때 저장된 언어를 읽는 것은 비동기다. IndexedDB가 느린 기기에서는 그 사이에
+ * 학생이 언어를 바꿀 수 있고, 뒤늦게 도착한 옛 값이 그 선택을 되돌리면 **화면이 혼자
+ * 되돌아간 것처럼 보인다.**
+ *
+ * **가드는 있었는데 무검사였다** (2026-09-02 R20 B-1). `limits-switch.ts`가 같은 가드를
+ * 베끼며 검사를 얻었고 원본만 비어 있었다 — 지우고 전체 2,749개를 돌려도 아무도 안 울었다.
+ * 이 검사는 그 라운드가 처방으로 재 본 것을 그대로 옮긴 것이다.
+ */
+describe('언어 선택의 경합', () => {
+  afterEach(() => {
+    vi.doUnmock('../src/project/storage')
+    vi.resetModules()
+  })
+
+  it('읽는 중에 학생이 고르면 그 선택이 이긴다', async () => {
+    let deliver: (value: string | null) => void = () => {}
+    vi.resetModules()
+    vi.doMock('../src/project/storage', () => ({
+      readPreferredLocale: () =>
+        new Promise<string | null>((resolve) => {
+          deliver = resolve
+        }),
+      writePreferredLocale: () => Promise.resolve(),
+    }))
+    // **다시 가져온다.** 위의 정적 import는 진짜 저장소를 물고 있는 옛 모듈이다.
+    const module = await import('../src/i18n')
+
+    const arriving = module.initLocale()
+    await module.setLocale('ko')
+    // 저장소가 이제야 옛 값을 들고 도착한다.
+    deliver('en')
+    await arriving
+
+    expect(module.i18n.global.locale.value).toBe('ko')
   })
 })

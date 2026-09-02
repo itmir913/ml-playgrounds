@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
 import type { ExperimentInput } from '../src/ml/experiment'
-import { train, type TrainWorker } from '../src/ml/worker/client'
+import { calibrateDevice, train, type TrainWorker } from '../src/ml/worker/client'
 import { handleTrain } from '../src/ml/worker/handler'
 import type { TrainRequest, WorkerMessage } from '../src/ml/worker/protocol'
 import type { RunsFile, Settings, TabularSettings } from '../src/project/schema'
@@ -408,5 +408,49 @@ describe('취소', () => {
     await expect(result).resolves.toBeDefined()
     // 두 번 종료하지 않는다. 학생이 열 번 돌리는 사이에 워커가 쌓이면 안 된다.
     expect(worker.terminated).toBe(1)
+  })
+})
+
+/**
+ * 기기 교정 (`calibrateDevice`).
+ *
+ * **못 재면 `null`이고, 화면은 그 자리에 `알 수 없음`을 적는다.** 그래서 **언제나 `null`을
+ * 돌려줘도 아무도 안 울었다** (2026-09-02 R20 B-6) — 예상 시간이 영원히 사라지는데
+ * 화면은 정상으로 보인다. 재는 것이 실제로 값을 내는지 여기서 못 박는다.
+ */
+describe('기기 교정', () => {
+  class CalibrateWorker extends FakeWorker {
+    constructor(private readonly elapsedMs: number | null) {
+      super()
+    }
+
+    override postMessage(): void {
+      queueMicrotask(() => {
+        const message =
+          this.elapsedMs === null
+            ? ({ type: 'error', code: 'JOB_FAILED', params: {} } as unknown as WorkerMessage)
+            : ({ type: 'calibrated', elapsedMs: this.elapsedMs } as unknown as WorkerMessage)
+        this.emit(message)
+      })
+    }
+  }
+
+  it('워커가 잰 시간을 그대로 돌려준다', async () => {
+    const worker = new CalibrateWorker(87)
+    await expect(calibrateDevice(() => worker)).resolves.toBe(87)
+    // 재고 나면 놓는다 — 교정 워커가 남으면 학습이 그만큼 좁은 기기에서 돈다.
+    expect(worker.terminated).toBe(1)
+  })
+
+  it('못 재면 null이다 - 화면이 `알 수 없음`을 적는 자리다', async () => {
+    await expect(calibrateDevice(() => new CalibrateWorker(null))).resolves.toBeNull()
+  })
+
+  it('워커를 못 띄워도 던지지 않는다 - 예상 시간 하나 때문에 화면이 죽으면 안 된다', async () => {
+    await expect(
+      calibrateDevice(() => {
+        throw new Error('no worker')
+      }),
+    ).resolves.toBeNull()
   })
 })
