@@ -24,7 +24,7 @@
  *     job.done()                    // 내 몫만 놓는다
  *   }
  * }
- * onBeforeUnmount(cancelAll)
+ * onBeforeUnmount(retire)          // 끊고, 끝났다고 표시한다
  * ```
  *
  * **`busy`는 `computed`라 쓸 수 없다.** 옛 모양(`busy.value = true`)은 검사가 아니라
@@ -67,6 +67,9 @@ export interface Job {
   /**
    * 끊을 수 있는 것을 이 일에 맡긴다. **떠날 때 `cancelAll()`이 이것도 끊는다.**
    * 한 일이 여럿을 차례로 열면 마지막 것이 이 일의 손잡이다.
+   *
+   * **이미 떠났으면 맡아 주지 않고 그 자리에서 끊는다** (R23 재감사 A-1) — 맡기기
+   * 전의 `await`가 몇 개든 늦게 뜬 워커가 앉을 수 없게 하는 것이 이 문의 일이다.
    */
   hold: (handle: Cancellable) => void
   /** 진행을 알린다. **다른 일의 표시를 건드리지 않는다.** */
@@ -114,6 +117,12 @@ export function useWork(): Work {
    */
   const handles = new Map<symbol, Cancellable>()
 
+  /**
+   * 화면이 아직 살아 있는가. **반응형이 아니다** — 화면이 그리는 값이 아니라 긴 계산
+   * 뒤에 "계속해도 되는가"를 묻는 자리라, `ref`로 두면 템플릿에서 읽으라고 부추긴다.
+   */
+  let living = true
+
   const busy = computed(() => blocking.value.length > 0)
 
   const progress = computed<WorkProgress | null>(() => {
@@ -137,6 +146,18 @@ export function useWork(): Work {
 
     return {
       hold(handle: Cancellable): void {
+        // **떠난 뒤에 온 손잡이는 맡아 주지 않고 그 자리에서 끊는다**
+        // (2026-09-02 R23 재감사 A-1).
+        //
+        // `alive()`를 `await`마다 놓는 처방은 **하나를 빠뜨린다** — 실제로 읽기 뒤에만
+        // 놓았더니 `hold()` 앞에 자리 묻기가 하나 더 있었고, 그 창에서 떠나면 죽은
+        // 화면이 워커를 열어 **지금 열린 파일에 얹었다.** 화면 셋에서 실측됐다.
+        //
+        // **그래서 맡기는 문 하나가 판정한다.** `await`가 앞에 몇 개든 상관없어진다.
+        if (!living) {
+          handle.cancel()
+          return
+        }
         handles.set(id, handle)
       },
       report(completed: number, total: number): void {
@@ -159,12 +180,6 @@ export function useWork(): Work {
     // 부르므로 여기서 목록을 비우지 않는다 — 비우면 아직 도는 일이 안 바쁜 것이 된다.
     for (const handle of [...handles.values()]) handle.cancel()
   }
-
-  /**
-   * 화면이 아직 살아 있는가. **반응형이 아니다** — 화면이 그리는 값이 아니라 긴 계산
-   * 뒤에 "계속해도 되는가"를 묻는 자리라, `ref`로 두면 템플릿에서 읽으라고 부추긴다.
-   */
-  let living = true
 
   function retire(): void {
     // **끊는 것과 끝난 것은 다른 일이다.** [취소]도 `cancelAll()`을 부르는데 그것은

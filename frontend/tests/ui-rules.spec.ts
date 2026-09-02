@@ -995,12 +995,17 @@ describe('예측 판은 화면에 양보한다', () => {
      * 손으로 들던 것을 `alive()`/`retire()`가 가져갔으므로 두 표기를 다 받는다 —
      * 아직 `useWork`를 안 쓰는 판(`TabularPredictPanel`)이 옛 표기로 남아 있다.
      */
+    /**
+     * **낱말이 아니라 부름을 본다** (2026-09-02 R23 재감사 C-2). `onBeforeUnmount`를
+     * 글자로만 찾던 때는 **`import` 줄이 그 조건을 만족시켰다** — 등록을 통째로 지워도
+     * 이 규칙이 초록이었다. 여는 괄호까지 요구하고 `import` 줄은 뺀다.
+     */
+    const REGISTERS = /onBeforeUnmount\s*\(/
+    const GUARDS = /if \(!alive\(?\)?\)/
+
     function stopsOnLeave(source: string): boolean {
-      const lines = withoutComments(source)
-      return (
-        lines.some((line) => line.includes('onBeforeUnmount')) &&
-        lines.some((line) => line.includes('if (!alive)') || line.includes('if (!alive())'))
-      )
+      const lines = withoutComments(source).filter((line) => !line.trimStart().startsWith('import'))
+      return lines.some((line) => REGISTERS.test(line)) && lines.some((line) => GUARDS.test(line))
     }
 
     it('검사기가 안 멈추는 판을 잡는다', () => {
@@ -1030,6 +1035,17 @@ describe('예측 판은 화면에 양보한다', () => {
     it('검사기가 useWork의 수명 표기도 받는다', () => {
       const viaWork = ['onBeforeUnmount(retire)', 'if (!alive()) return'].join('\n')
       expect(stopsOnLeave(viaWork)).toBe(true)
+    })
+
+    /**
+     * **`import` 줄은 등록이 아니다** (R23 재감사 C-2). 이것을 안 가르던 때는 두 화면에서
+     * `onBeforeUnmount(retire)`를 통째로 지워도 이 규칙이 초록이었다.
+     */
+    it('검사기가 import 줄을 등록으로 안 센다', () => {
+      const onlyImport = ["import { onBeforeUnmount } from 'vue'", 'if (!alive()) return'].join(
+        '\n',
+      )
+      expect(stopsOnLeave(onlyImport)).toBe(false)
     })
 
     const LOOPING = PANELS.filter((name) =>
@@ -2465,10 +2481,12 @@ describe('화면은 도는 일을 셈으로 든다', () => {
     for (const path of opens) {
       const code = withoutComments(sourceOf(path)).join('\n')
       expect(code, `${path}: handle is not held by a job`).toMatch(/\.hold\(/)
-      // **`retire()`도 받는다** — 떠날 때 부르는 것은 이제 그쪽이고, 그 안에서
-      // `cancelAll()`이 돈다 (2026-09-02 R23 B-2). 화면이 [취소]를 갖고 있으면
-      // `cancelAll`도 함께 있다.
-      expect(code, `${path}: leaving does not cancel every job`).toMatch(/cancelAll|retire/)
+      // **떠날 때 실제로 등록하는지를 본다** (2026-09-02 R23 재감사 C-2). 낱말만 찾던
+      // 때는 **구조 분해 줄(`const { ..., retire } = useWork()`)이 이 조건을 만족시켜**
+      // 등록을 지워도 초록이었다. 워커를 여는 화면 셋은 전부 `retire`를 등록한다.
+      expect(code, `${path}: leaving does not cancel every job`).toMatch(
+        /onBeforeUnmount\(\s*retire\s*\)/,
+      )
     }
   })
 

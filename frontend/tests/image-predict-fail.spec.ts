@@ -240,3 +240,37 @@ describe('R23: leaving while the zip is still being read', () => {
     expect(readImages(project.file, 'predict')).toHaveLength(before)
   })
 })
+
+/**
+ * **모르는 백본을 가리키는 파일에서 말없이 돌아가지 않는다** (2026-09-02 R23 B-3).
+ *
+ * `backboneId`는 스키마가 `z.string()`이라 등록부에 없는 값도 열린다. 그때 사진을 놓거나
+ * [예측하기]를 눌러도 **워커 0 · 알림 0 · `busy` false**였다 — 버튼이 고장난 것으로
+ * 읽힌다. 학습·전처리·데이터 화면은 셋 다 이 코드를 띄운다.
+ */
+describe('R23: the file points at a backbone this app does not know', () => {
+  it('drop and predict both tell the student', async () => {
+    const project = useProjectStore()
+    const seed = imagePredictProject(['a'])
+    const settings = seed.document.settings as unknown as { data: { backboneId: string } }
+    settings.data.backboneId = 'backbone-from-the-future'
+    await project.save(seed)
+    const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const panel = wrapper.vm as unknown as PanelInternals
+
+    panel.onDrop(dropEvent([new File([new Uint8Array([9])], 'late.jpg', { type: 'image/jpeg' })]))
+    await settle()
+    expect(useToastStore().items.map((one) => one.key)).toEqual(['client.BACKBONE_UNAVAILABLE'])
+
+    useToastStore().clear()
+    await panel.run()
+    await settle()
+    expect(useToastStore().items.map((one) => one.key)).toEqual(['client.BACKBONE_UNAVAILABLE'])
+    expect(bakers.workers).toHaveLength(0)
+    expect(panel.busy).toBe(false)
+    expect(panel.predicting).toBe(false)
+
+    wrapper.unmount()
+  })
+})

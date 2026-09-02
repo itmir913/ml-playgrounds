@@ -144,31 +144,42 @@ async function apply(): Promise<void> {
   if (!source || !file || busy.value) return
 
   const job = start()
+  /** 개정이 실제로 앉았는가. **아래 `finally`의 판정 근거다.** */
+  let seated = false
   try {
     const imported = importTable(source.document, sheetName.value)
     // 읽는 동안 파일이 달라졌을 수 있다 — 지금 파일에 얹는다 (architecture.md §8.10.3).
-    await project.save(
-      (live) =>
-        applyPredictDataset(live, imported, {
-          fileName: source.fileName,
-          hasHeader: hasHeader.value,
-          now: new Date().toISOString(),
-          requiredColumns: props.fields.map((field) => field.name),
-        }).project,
-    )
+    await project.save((live) => {
+      const applied = applyPredictDataset(live, imported, {
+        fileName: source.fileName,
+        hasHeader: hasHeader.value,
+        now: new Date().toISOString(),
+        requiredColumns: props.fields.map((field) => field.name),
+      })
+      // **여기까지 왔으면 앉는다.** 위 호출은 열이 없으면 던지고, 그때는 안 앉는다.
+      seated = true
+      return applied.project
+    })
 
     toasts.push('success', 'predict.tabular.fileApplied')
   } catch (error) {
     toasts.pushError(error)
   } finally {
     /**
-     * **내가 든 파일만 치우고, 어느 길로 끝났든 치운다.** 성공 뒤에만 비우던 때는
-     * **저장이 쿼터로 거절되면 판이 그대로 섰다** — 스토어는 쓰기가 던져도 `file.value`를
-     * 먼저 바꾸므로(`stores/project.ts`) 정본은 이미 앉았는데 판도 남아, 다시 누르면
-     * 같은 일이 한 번 더 돌고 같은 알림은 `same()`이 합쳐 **아무것도 안 바뀐 것처럼
-     * 보였다** (2026-09-02 R23 B-1). 붙이는 동안 학생이 놓은 **다른** 파일은 안 치운다.
+     * **앉았을 때만 판을 접는다** (architecture.md §8.10.4, 2026-09-02 R23 B-1).
+     *
+     * 갈래가 셋이다. **저장이 쿼터로 거절돼도 정본은 이미 앉아 있다** — 스토어는 쓰기가
+     * 던져도 `file.value`를 먼저 바꾼다(`stores/project.ts`). 그때 판이 남으면 다시 눌러
+     * 같은 일이 한 번 더 돌고 같은 알림은 `same()`이 합쳐 아무것도 안 바뀐 것처럼 보인다.
+     *
+     * **그렇다고 어느 길로 끝나든 접는 것은 아니다.** `applyPredictDataset`은 **필요한
+     * 열이 없으면 던지고** 그때는 아무것도 안 앉는다 — 판을 접으면 학생은 시트나 머리글을
+     * 고칠 자리를 잃고 파일을 다시 고른다 (R23 재감사 B-1).
+     *
+     * **그래서 개정 함수 안에서 표시를 세운다.** `project.file`이 바뀌었는지로 재면
+     * 자동 저장이나 다른 화면의 쓰기가 그 판정을 흔든다.
      */
-    clearIfHeld(opened, source)
+    if (seated) clearIfHeld(opened, source)
     job.done()
   }
 }

@@ -91,7 +91,7 @@ const dragging = ref(false)
  * 굽는 동안 학생이 사진을 더 놓을 수 있고, 그때 `busy`가 칸 하나면 먼저 끝난 읽기가
  * **굽는 중인 자물쇠를 연다** (R21 A-1).
  */
-const { busy, progress, start, cancelAll } = useWork()
+const { busy, progress, start, cancelAll, retire } = useWork()
 
 /**
  * 다음에 고를 사진이 들어갈 칸. **파일 고르기 입구가 하나여서 필요하다** — 칸마다 숨은
@@ -164,7 +164,8 @@ watch(
   { immediate: true },
 )
 
-onBeforeUnmount(cancelAll)
+// **떠나면 굽던 것을 끊고 끝났다고 표시한다** (§8.10.4). `cancelAll`은 [취소]가 쓴다.
+onBeforeUnmount(retire)
 
 /**
  * [취소]. **굽는 중이면 굽기를 끊고, 아니면 확인 판을 비운다.**
@@ -293,6 +294,8 @@ async function bake(): Promise<void> {
   // `busy`가 거짓인 창이 되어 굽기가 둘 뜨거나 [취소]가 굽기를 못 막는다
   // (2026-09-02 R22 재감사 B-1′). 거절 갈래마다 놓고 돌아간다.
   const job = start()
+  /** 개정이 실제로 앉았는가. **아래 `finally`의 판정 근거다.** */
+  let seated = false
   // **무엇이 도는지 화면이 알아야 한다.** 여기서부터 확인 판과 도는 묶음이 갈릴 수 있고,
   // [취소]가 이 칸을 비우는 것이 "굽지 마라"는 신호다.
   baking.value = items
@@ -342,39 +345,26 @@ async function bake(): Promise<void> {
     // **굽는 동안 파일이 달라졌을 수 있다** — 붙든 것이 아니라 지금 파일에 얹는다
     // (architecture.md §8.10.3). 셈은 얹은 결과에서 나오므로 여기서 받아 둔다.
     let counts = { added: 0, duplicates: 0 }
-    /**
-     * **저장까지 갔으면 앉았든 안 앉았든 확인 판을 접는다** (2026-09-02 R23 B-1).
-     *
-     * 스토어는 쓰기가 던져도 `file.value`를 **먼저** 바꾼다(`stores/project.ts`). 그래서
-     * 쿼터로 거절돼도 사진은 이미 화면에 앉아 있는데, 성공 뒤에만 판을 비우던 때는
-     * **판이 그대로 서 있었다** — 다시 누르면 워커가 한 번 더 돌고, 같은 알림은
-     * `same()`이 합쳐 **아무것도 안 바뀐 것처럼 보인다.**
-     *
-     * **워커가 죽은 것과는 다르다.** 그때는 앉은 것이 없으므로 묶음이 판에 남아야
-     * 학생이 다시 누를 수 있다 — 그래서 `finally`를 저장 둘레에만 두른다.
-     */
-    try {
-      await project.save((live) => {
-        const applied = addImages(
-          live,
-          // 워커는 이름으로만 대답한다. 그 이름이 곧 압축 파일 안의 경로라 범주를 되찾는다.
-          result.images.map((image) => ({
-            hash: image.hash,
-            bytes: image.bytes,
-            category: byPath.get(image.sourceName) ?? IMAGE_UNLABELED,
-          })),
-          {
-            canonicalSize: backbone.canonicalSize,
-            now: new Date().toISOString(),
-            format: result.format,
-          },
-        )
-        counts = { added: applied.added, duplicates: applied.duplicates }
-        return applied.project
-      })
-    } finally {
-      clearIfHeld(pending, items)
-    }
+    await project.save((live) => {
+      const applied = addImages(
+        live,
+        // 워커는 이름으로만 대답한다. 그 이름이 곧 압축 파일 안의 경로라 범주를 되찾는다.
+        result.images.map((image) => ({
+          hash: image.hash,
+          bytes: image.bytes,
+          category: byPath.get(image.sourceName) ?? IMAGE_UNLABELED,
+        })),
+        {
+          canonicalSize: backbone.canonicalSize,
+          now: new Date().toISOString(),
+          format: result.format,
+        },
+      )
+      counts = { added: applied.added, duplicates: applied.duplicates }
+      // **여기까지 왔으면 앉는다.** 아래 `finally`가 이 표시로 판을 접을지 정한다.
+      seated = true
+      return applied.project
+    })
     toasts.push('success', 'data.image.added', { count: counts.added })
     // **조용히 넘기지 않는다.** 40장을 올렸는데 12장만 늘어난 것을 학생은 고장으로 본다.
     if (counts.duplicates > 0) {
@@ -388,6 +378,15 @@ async function bake(): Promise<void> {
     if (isClientError(error) && error.code === 'JOB_CANCELLED') clearIfHeld(pending, items)
     else toasts.pushError(error)
   } finally {
+    /**
+     * **앉았을 때만 판을 접는다** (§8.10.4, 2026-09-02 R23 B-1). 저장이 쿼터로 거절돼도
+     * 사진은 이미 앉아 있다 — 스토어가 `file.value`를 먼저 바꾼다. 반대로 워커가 죽거나
+     * 상한에 걸리면 앉은 것이 없으니 묶음이 판에 남아야 **다시 누를 수 있다.**
+     *
+     * 표 화면 둘과 같은 모양이다 — **셋이 다르면 어느 쪽이 맞는지 다음 사람이 판단해야
+     * 하고, 판단은 틀린다.**
+     */
+    if (seated) clearIfHeld(pending, items)
     // **내가 든 것만 놓는다.** 겹치는 굽기는 `busy`가 막지만, 같은 규율을 여기서도 쓴다.
     clearIfHeld(baking, items)
     job.done()

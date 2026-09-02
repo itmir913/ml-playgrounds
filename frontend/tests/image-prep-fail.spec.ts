@@ -46,10 +46,12 @@ vi.mock('../src/data/image/spawn', () => ({
   },
 }))
 
-const room = vi.hoisted(() => ({ fails: false }))
+const room = vi.hoisted(() => ({ fails: false, gate: null as Promise<void> | null }))
 
 vi.mock('../src/data/image/room', () => ({
   imageRoomShortfall: async () => {
+    // **검사가 자리 묻기를 붙들 수 있다.** 그 창이 `hold()` 앞의 두 번째 `await`다.
+    if (room.gate) await room.gate
     if (room.fails) throw new Error('room check unavailable')
     return null
   },
@@ -120,6 +122,7 @@ beforeEach(async () => {
   setActivePinia(createPinia())
   bakers.workers.length = 0
   room.fails = false
+  room.gate = null
   closeStorage()
   await deleteDatabase()
   Object.defineProperty(navigator, 'storage', {
@@ -261,5 +264,48 @@ describe('R23: leaving while the zip is still being read', () => {
     expect(bakers.workers).toHaveLength(0)
     expect(readImages(project.file, 'test')).toHaveLength(0)
     expect(project.file?.document.settings.split.method).not.toBe('provided')
+  })
+})
+
+/**
+ * **자리를 묻는 창에서 떠나도 아무것도 안 앉는다** (2026-09-02 R23 재감사 A-1).
+ *
+ * `alive()` 가드를 **읽기 뒤에만** 놓았더니 `hold()` 앞에 자리 묻기가 하나 더 있었고,
+ * 그 창에서 떠나면 읽기 창과 똑같이 워커가 뜨고 프로젝트에 앉았다. **자리를 세는 처방은
+ * 하나를 빠뜨린다** — 지금은 `hold()`가 떠난 뒤에 온 손잡이를 그 자리에서 끊는다.
+ *
+ * **워커가 뜨는 것 자체는 막지 않는다.** 뜨자마자 끊기므로 앉는 것이 없다.
+ */
+describe('R23: leaving while takeTest is asking for room', () => {
+  it('nothing is seated after unmount, even though the worker spawned', async () => {
+    const { project, wrapper, zone } = await panelWithDropzone()
+    let release!: () => void
+    room.gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+
+    zone().element.dispatchEvent(dropEvent([photo('개', 'a.jpg'), photo('고양이', 'b.jpg')]))
+    await flushPromises()
+    await flushPromises()
+
+    wrapper.unmount()
+    await flushPromises()
+    release()
+    await settle()
+
+    // **워커가 답하게 만든다.** 안 그러면 `baking.result`가 영영 안 풀려 아무것도 안
+    // 앉는 것이 당연해지고, 이 검사는 결함을 못 잡는다 — 처음에 그렇게 써서 안 울었다.
+    const baked = ['개/a.jpg', '고양이/b.jpg'].map((name) => {
+      const bytes = new TextEncoder().encode(`baked:${name}`)
+      return { sourceName: name, hash: hashBytes(bytes), bytes }
+    })
+    bakers.workers[0]?.onmessage?.({
+      data: { type: 'done', format: 'webp', images: baked, skipped: [] },
+    } as unknown as MessageEvent<never>)
+    await settle()
+
+    expect(readImages(project.file, 'test')).toHaveLength(0)
+    expect(project.file?.document.settings.split.method).not.toBe('provided')
+    expect(useToastStore().items.filter((one) => one.tone === 'success')).toEqual([])
   })
 })

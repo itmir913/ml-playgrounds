@@ -269,3 +269,69 @@ describe('내가 든 것만 치운다', () => {
     expect(slot.value).toEqual(['a.jpg'])
   })
 })
+
+describe('떠난 뒤에는 아무것도 안 맡는다', () => {
+  /**
+   * **원시 연산의 규칙은 원시 연산의 검사에 있어야 한다** (2026-09-02 R23 재감사 C-1).
+   * `retire()`에서 `cancelAll()`을 빼도 `living = false`를 빼도 이 파일은 초록이었다 —
+   * 띄우는 검사들이 대신 물고 있었을 뿐이다.
+   */
+  it('떠나면 도는 것을 전부 끊는다', () => {
+    const work = useWork()
+    const first = handle()
+    const second = handle()
+    work.start().hold(first)
+    work.start({ blocks: false }).hold(second)
+
+    work.retire()
+    expect(first.cancelled).toBe(1)
+    expect(second.cancelled).toBe(1)
+  })
+
+  it('떠나기 전에는 살아 있다고 답한다', () => {
+    const work = useWork()
+    expect(work.alive()).toBe(true)
+    work.retire()
+    expect(work.alive()).toBe(false)
+  })
+
+  /**
+   * **[취소]는 화면을 죽이지 않는다.** 끊는 것과 끝난 것을 한 함수로 묶으면 [취소] 한
+   * 번에 화면이 죽은 것으로 표시되고, 그 뒤의 모든 일이 조용히 버려진다.
+   */
+  it('[취소]는 끊기만 하고 수명은 안 건드린다', () => {
+    const work = useWork()
+    const one = handle()
+    work.start().hold(one)
+
+    work.cancelAll()
+    expect(one.cancelled).toBe(1)
+    expect(work.alive()).toBe(true)
+  })
+
+  /**
+   * **맡기는 문 하나가 판정한다** (R23 재감사 A-1). `alive()`를 `await`마다 놓는 처방은
+   * 하나를 빠뜨린다 — 실제로 읽기 뒤에만 놓았더니 `hold()` 앞에 자리 묻기가 하나 더
+   * 있었고, 그 창에서 떠난 화면이 워커를 열어 **지금 열린 파일에 얹었다.**
+   */
+  it('떠난 뒤에 맡긴 손잡이는 그 자리에서 끊긴다', () => {
+    const work = useWork()
+    const job = work.start()
+    work.retire()
+
+    const late = handle()
+    job.hold(late)
+    expect(late.cancelled).toBe(1)
+  })
+
+  it('떠난 뒤에 맡긴 것은 자루에도 안 담긴다 - 두 번 끊지 않는다', () => {
+    const work = useWork()
+    const job = work.start()
+    work.retire()
+
+    const late = handle()
+    job.hold(late)
+    work.cancelAll()
+    expect(late.cancelled).toBe(1)
+  })
+})
