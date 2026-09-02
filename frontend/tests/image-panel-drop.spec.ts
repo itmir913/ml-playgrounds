@@ -36,8 +36,25 @@ vi.mock('../src/data/image/spawn', async () => {
   return { spawnCanonicalizeWorker: fakeCanonicalizeWorker }
 })
 
-// 자리 판정은 이 검사의 주제가 아니다. 없으면 `navigator.storage`가 답을 못 한다.
-vi.mock('../src/data/image/room', () => ({ imageRoomShortfall: async () => null }))
+/**
+ * 자리 판정은 이 검사의 주제가 아니다 — 언제나 자리가 있다. 다만 **답하는 시점은 검사가
+ * 정한다**: `hold`가 참이면 `bake()`가 자리를 묻는 `await`에 멈춰 서고, 그 사이가
+ * `busy`를 보고 나서 일을 잡기까지의 창이다 (2026-09-02 R22 재감사 B-1′).
+ */
+const room = vi.hoisted(() => ({ hold: false, waiting: [] as (() => void)[] }))
+
+vi.mock('../src/data/image/room', () => ({
+  imageRoomShortfall: async () => {
+    if (room.hold) await new Promise<void>((resolve) => room.waiting.push(resolve))
+    return null
+  },
+}))
+
+function releaseRoom(): void {
+  const waiting = [...room.waiting]
+  room.waiting.length = 0
+  for (const one of waiting) one()
+}
 
 /**
  * 사진 상한. **검사가 그때그때 정한다** — 기본값으로는 상한에 닿는 데 수천 장이 든다.
@@ -94,6 +111,8 @@ const renamed =
 beforeEach(async () => {
   setActivePinia(createPinia())
   limits.images = Number.POSITIVE_INFINITY
+  room.hold = false
+  room.waiting.length = 0
   resetImageWorkers()
   closeStorage()
   await deleteDatabase()
@@ -317,5 +336,68 @@ describe('굽는 동안 둘째 묶음이 판에 서면', () => {
     panel.cancelBaking()
     await settle()
     expect(panel.pending).toBeNull()
+  })
+})
+
+/**
+ * **굽기는 일을 먼저 잡고 나서 묻는다** (architecture.md §8.10.4).
+ *
+ * 상한을 다시 묻는 자리(R22 B-1)가 `busy` 검사와 `start()` 사이에 `await`를 끼워 넣었고,
+ * 그 사이는 **`busy`가 거짓인 창**이었다 — 굽기를 한 번 더 부르면 워커가 둘 떴고, [취소]를
+ * 누르면 판은 닫히는데 굽기는 그대로 시작해 사진이 앉았다 (2026-09-02 R22 재감사 B-1′).
+ * 화면에서 두 번 누르기를 막던 것은 `busy`가 아니라 `AppButton`의 `running`뿐이었다.
+ *
+ * `imageRoomShortfall`을 붙들어 그 창을 열어 둔 채 잰다.
+ */
+describe('굽기가 자리를 묻는 동안', () => {
+  /** `a.jpg`를 판에 세우고 굽기를 자리 묻기에서 멈춰 세운다. */
+  async function panelAskingRoom() {
+    const project = useProjectStore()
+    await project.save(imagePredictProject([]))
+    const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const panel = wrapper.vm as unknown as PanelInternals
+
+    panel.onDrop(dropEvent([file('a.jpg')]))
+    await settle()
+    expect(panel.pending?.map((one) => one.path)).toEqual(['a.jpg'])
+
+    room.hold = true
+    const baking = panel.bake()
+    await flushPromises()
+    expect(workerState.baked).toBe(0)
+    return { project, wrapper, panel, baking }
+  }
+
+  it('이미 바쁘고, 한 번 더 불러도 굽기는 하나만 뜬다', async () => {
+    const { panel, baking } = await panelAskingRoom()
+    expect(panel.busy).toBe(true)
+
+    const again = panel.bake()
+    await flushPromises()
+
+    releaseRoom()
+    await baking
+    await again
+    await settle()
+    expect(workerState.baked).toBe(1)
+    expect(panel.busy).toBe(false)
+  })
+
+  it('[취소]를 누르면 굽기가 시작되지 않고 묶음은 판에 남는다', async () => {
+    const { project, wrapper, panel, baking } = await panelAskingRoom()
+    // 아직 진행 표시는 없지만 굽는 중이다 — 단추도 그렇게 말해야 한다.
+    expect(wrapper.findAll('button').map((one) => one.text())).toContain('준비 취소')
+
+    panel.cancelBaking()
+    releaseRoom()
+    await baking
+    await settle()
+
+    expect(workerState.baked).toBe(0)
+    expect(readImages(project.file)).toHaveLength(0)
+    expect(panel.pending?.map((one) => one.path)).toEqual(['a.jpg'])
+    expect(panel.busy).toBe(false)
+    expect(useToastStore().items.filter((one) => one.tone === 'danger')).toEqual([])
   })
 })

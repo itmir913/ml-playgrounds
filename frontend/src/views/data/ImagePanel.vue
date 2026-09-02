@@ -15,7 +15,7 @@
  * `project/images.ts`다. 여기 있는 것은 순서와 화면뿐이다.
  */
 
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { dataKindFor, stepTextKey } from '@/data/kinds'
@@ -113,6 +113,11 @@ const pending = ref<readonly UploadItem[] | null>(null)
  *
  * **판을 일마다로 쪼개지는 않는다** — 겹치는 굽기는 `busy`가 막으므로 도는 것은 언제나
  * 하나다. 여기 필요한 것은 목록이 아니라 **무엇이 도는지 이름을 아는 것**이다.
+ *
+ * **그 "하나"는 일을 먼저 잡았을 때만 참이다.** `bake()`가 `busy`를 보고 나서 `start()`
+ * 전에 `await`를 하면 그 사이가 `busy`가 거짓인 창이라, 굽기를 한 번 더 부르면 워커가
+ * 둘 뜨고 [취소]는 판만 닫고 굽기를 못 막았다 (2026-09-02 R22 재감사 B-1′). 그래서
+ * 이 칸은 **묻기 전에** 채우고, [취소]는 진행 표시가 아니라 이 칸으로 판정한다.
  */
 const baking = ref<readonly UploadItem[] | null>(null)
 
@@ -166,10 +171,16 @@ onBeforeUnmount(cancelAll)
  *
  * 끊으면 굽기의 `catch`가 자기가 든 묶음만 치운다 — 여기서 판까지 비우면 **그 사이에
  * 학생이 새로 놓은 것이 함께 날아간다** (§8.10.4).
+ *
+ * **굽는 중인지는 `baking`으로 판정한다.** 진행 표시는 워커의 첫 보고에서야 생기므로,
+ * 자리를 묻는 동안 누른 [취소]가 그것을 보면 판만 접고 굽기는 그대로 시작한다
+ * (R22 재감사 B-1′). 칸을 비우는 것이 곧 신호다 — `bake()`가 `await` 뒤에 그것을 본다.
  */
 function cancelBaking(): void {
-  if (progress.value) cancelAll()
-  else pending.value = null
+  if (baking.value) {
+    baking.value = null
+    cancelAll()
+  } else pending.value = null
 }
 
 /**
@@ -278,25 +289,39 @@ async function bake(): Promise<void> {
     return
   }
 
+  // **일을 먼저 잡는다.** 아래 자리 묻기가 `await`라, 이것이 뒤에 있으면 그 사이가
+  // `busy`가 거짓인 창이 되어 굽기가 둘 뜨거나 [취소]가 굽기를 못 막는다
+  // (2026-09-02 R22 재감사 B-1′). 거절 갈래마다 놓고 돌아간다.
+  const job = start()
+  // **무엇이 도는지 화면이 알아야 한다.** 여기서부터 확인 판과 도는 묶음이 갈릴 수 있고,
+  // [취소]가 이 칸을 비우는 것이 "굽지 마라"는 신호다.
+  baking.value = items
+
   // **상한을 여기서 다시 묻는다** (architecture.md §8.10.4). 받을 때 이미 물었지만,
   // **굽는 동안 놓은 묶음은 앞 묶음이 아직 파일에 안 앉은 수로 통과했다** — 둘 다 앉고
-  // 나면 상한을 넘어 있다 (2026-09-02 R22 B-1). 겹쳐 굽는 것은 `busy`가 막으므로 여기
-  // 오는 시점이면 앞 묶음은 이미 앉아 있고, 워커를 돌리기 전이라 **거절이 기다린 시간을
-  // 버리지 않는다.** R21이 둘째 묶음을 살리기 전까지는 아무도 이 자리에 닿지 못했다.
+  // 나면 상한을 넘어 있다 (2026-09-02 R22 B-1). 일을 잡은 뒤라 겹쳐 굽는 것은 `busy`가
+  // 막고, 여기 오는 시점이면 앞 묶음은 이미 앉아 있고, 워커를 돌리기 전이라 **거절이
+  // 기다린 시간을 버리지 않는다.** R21이 둘째 묶음을 살리기 전까지는 아무도 이 자리에
+  // 닿지 못했다.
   const overflow = imageOverflow(file, items.length)
   if (overflow) {
     toasts.pushError(new ClientError('IMAGE_TOO_MANY_PHOTOS', { ...overflow }))
+    clearIfHeld(baking, items)
+    job.done()
     return
   }
   const shortfall = await imageRoomShortfall(file, items.length, backbone)
-  if (shortfall) {
-    toasts.pushError(new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall }))
+  // **묻는 동안 [취소]가 눌렸으면 굽지 않는다.** 그 신호는 `baking`이 비어 있는 것이다 —
+  // 묶음은 확인 판에 그대로 남아 학생이 잃는 것이 없다.
+  const cancelled = toRaw(baking.value) !== toRaw(items)
+  if (shortfall || cancelled) {
+    if (shortfall) {
+      toasts.pushError(new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall }))
+    }
+    clearIfHeld(baking, items)
+    job.done()
     return
   }
-
-  const job = start()
-  // **무엇이 도는지 화면이 알아야 한다.** 여기서부터 확인 판과 도는 묶음이 갈릴 수 있다.
-  baking.value = items
   job.report(0, items.length)
   const byPath = new Map(items.map((item) => [item.path, item.category]))
   const handle = canonicalizeImages(
@@ -567,7 +592,7 @@ async function commitRemoveCategory(): Promise<void> {
             놓은 학생이 그것을 물리는 줄 안다.
           -->
           <AppButton variant="secondary" @click="cancelBaking">
-            {{ progress ? t('data.image.cancelPreparing') : t('common.cancel') }}
+            {{ baking ? t('data.image.cancelPreparing') : t('common.cancel') }}
           </AppButton>
           <AppButton :disabled="busy" :action="bake">{{ t('data.image.use') }}</AppButton>
         </template>
