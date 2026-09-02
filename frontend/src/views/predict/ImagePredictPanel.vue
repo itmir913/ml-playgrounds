@@ -82,19 +82,10 @@ const fileInput = ref<HTMLInputElement | null>(null)
  * **예측은 화면을 막지 않는다** — 도는 중에도 사진은 더 받는다. 막는 것은 굽기와
  * 사진 빼기이고, 예측 자체는 `predicting`이 말한다.
  */
-const { busy, progress, start, cancelAll } = useWork()
+const { busy, progress, start, alive, retire } = useWork()
 /** 사진을 끌고 판 위에 있는가. 빈 자리의 점선이 이걸 보고 색을 바꾼다. */
 const dragging = ref(false)
 const predicting = ref(false)
-
-/**
- * 아직 이 화면에 있는가. **끊기는 것은 워커뿐이다** - 그 뒤의
- * `사진 × 모델` 루프는 매 장 `yieldToScreen()`으로 비켜 줄 뿐 멈출 자리가 없어서,
- * 학생이 다른 단계로 넘어가도 아무도 안 보는 답을 끝까지 계산했다.
- *
- * **반응형일 필요가 없다** - 읽는 곳이 async 함수 안뿐이고 화면은 이 값을 안 그린다.
- */
-let alive = true
 
 /** 사진 해시 -> (run id -> 답). 사진 하나가 표의 한 줄이다. */
 const answers = ref(new Map<string, Map<string, Answer>>())
@@ -241,7 +232,15 @@ function toggleAll(axis: FilterAxisId): void {
 async function readPicked(files: readonly File[]): Promise<void> {
   const file = project.file
   const spec = backbone.value
-  if (files.length === 0 || !file || !spec) return
+  if (files.length === 0 || !file) return
+  // **모르는 백본을 가리키는 파일은 말없이 돌아가지 않는다** (2026-09-02 R23 B-3).
+  // `backboneId`는 스키마가 `z.string()`이라 등록부에 없는 값도 열린다. 그때 학생이
+  // 사진을 놓으면 워커도 알림도 0이라 **버튼이 고장난 것으로 읽힌다** — 학습·전처리·
+  // 데이터 화면은 셋 다 이 코드를 띄운다.
+  if (!spec) {
+    toasts.pushError(new ClientError('BACKBONE_UNAVAILABLE'))
+    return
+  }
   // **도는 일이 있으면 받지 않는다 — 그리고 그렇다고 말한다.** 데이터 화면과 달리 여기는
   // 확인 판이 없어 받은 즉시 굽는데, 정본 워커를 둘 띄우는 것은 저사양 교실 PC라는
   // 기준에 안 맞는다. **말없이 돌려보내면 학생은 고장으로 읽는다** (R21 B-3).
@@ -266,6 +265,12 @@ async function readPicked(files: readonly File[]): Promise<void> {
             locale: uiLocale.value,
           })
         : readImageFiles(files)
+
+    // **읽는 동안 떠났으면 여기서 멈춘다.** 읽기 구간에는 맡길 손잡이가 없어
+    // `retire()`가 끊을 것이 없다 — 이 줄이 없으면 죽은 화면이 워커를 열어 **지금 열린
+    // 파일에** 사진을 얹는다. 그 사이 학생이 다른 프로젝트를 열었으면 그쪽에 앉는다
+    // (2026-09-02 R23 B-2).
+    if (!alive()) return
 
     // **굽기 전에 막는다** (project/images.ts의 imageOverflow). 백본을 돌린 뒤에
     // 거절하면 학생은 기다린 시간을 통째로 버린다.
@@ -354,7 +359,12 @@ function onDrop(event: DragEvent): void {
 async function run(): Promise<void> {
   const file = project.file
   const spec = backbone.value
-  if (!file || !spec || predicting.value) return
+  if (!file || predicting.value) return
+  // 위와 같은 이유다 (R23 B-3). [예측하기]가 아무 일도 안 하는 것으로 보이면 안 된다.
+  if (!spec) {
+    toasts.pushError(new ClientError('BACKBONE_UNAVAILABLE'))
+    return
+  }
 
   predicting.value = true
   // **막지 않는 일이다.** 도는 동안에도 사진은 더 받는다(§8.10.3). 그래도 손잡이는
@@ -390,7 +400,7 @@ async function run(): Promise<void> {
       )
       job.hold(embedding)
       const { vectors, dim } = await embedding.result
-      if (!alive) return
+      if (!alive()) return
 
       const fresh = new Map<string, Float32Array>()
       for (const [index, entry] of pending.entries()) {
@@ -401,7 +411,7 @@ async function run(): Promise<void> {
       // 임베딩을 기다리는 동안 학생이 사진을 놓았으면, 스냅샷을 통째로 쓰는 순간
       // 그 사진이 화면에서도 IndexedDB에서도 사라진다 (2026-09-02 R20 A-2).
       await project.save((live) => addEmbeddings(live, spec.id, fresh))
-      if (!alive) return
+      if (!alive()) return
       // 아래 답 루프가 읽는 것도 지금 파일이어야 한다. **지금은 값이 같다** — 예측이
       // 도는 동안 모델과 훈련 행은 못 바뀌고 사진만 는다(`photosLocked`). 그래도 두는
       // 것은 **바뀌는 날 이 줄이 없으면 조용히 옛 모델로 답하기 때문이다.**
@@ -477,14 +487,14 @@ async function run(): Promise<void> {
       // 답 하나가 `사진 수 × 모델 수`라, 안 비켜 주면 그 곱만큼 화면이 멎는다.
       answers.value = new Map(next)
       await yieldToScreen()
-      if (!alive) return
+      if (!alive()) return
     }
     predicted.value = true
   } catch (error) {
     // **떠나서 끊긴 것은 실패가 아니다.** `cancel()`이 `JOB_CANCELLED`로 끊는데 그대로
     // 띄우면 이미 넘어간 다음 화면에 에러가 뜬다 - `useTraining`과 `ImagePanel`이
     // 같은 코드를 삼키는 이유가 그것이다.
-    if (alive && !(isClientError(error) && error.code === 'JOB_CANCELLED')) {
+    if (alive() && !(isClientError(error) && error.code === 'JOB_CANCELLED')) {
       toasts.pushError(error)
     }
   } finally {
@@ -538,16 +548,13 @@ watch(page, () => {
 /** 해시 -> 썸네일 주소. 만들고 놓아주는 것은 `useThumbnails`가 한다 (V11 R5 C-2). */
 const { urls } = useThumbnails(photos)
 
-onBeforeUnmount(() => {
-  // **떠날 때 끊는다.** 학습 화면은 onBeforeRouteLeave + training.cancel()로 이미
-  // 막혀 있는데 여기만 안 막혀 있었다 (V11 R4 B-6).
-  //
-  // **워커를 끊는 것만으로는 절반이다** - 임베딩 뒤의 답 루프는 워커가 아니라 이
-  // 함수 안에서 돌기 때문에 `alive`를 봐야 멈춘다.
-  alive = false
-  // **도는 것을 전부 끊는다.** 굽기와 임베딩이 겹쳐 있으면 둘 다다 (§8.10.4).
-  cancelAll()
-})
+// **떠날 때 끊고 끝났다고 표시한다.** 학습 화면은 onBeforeRouteLeave + training.cancel()로
+// 이미 막혀 있는데 여기만 안 막혀 있었다 (V11 R4 B-6).
+//
+// **워커를 끊는 것만으로는 절반이다** — 임베딩 뒤의 답 루프는 워커가 아니라 이 함수
+// 안에서 돌기 때문에 `alive()`를 봐야 멈춘다. 그 수명을 화면이 손으로 들던 것을
+// `useWork`가 가져갔다 (2026-09-02 R23 B-2).
+onBeforeUnmount(retire)
 
 const canPredict = computed(
   () => photos.value.length > 0 && visibleUsable.value.length > 0 && !busy.value,

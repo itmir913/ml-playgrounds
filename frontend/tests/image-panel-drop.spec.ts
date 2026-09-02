@@ -443,10 +443,17 @@ describe('굽기가 자리를 묻는 동안', () => {
     expect(panel.busy).toBe(false)
   })
 
-  it('[취소]를 누르면 굽기가 시작되지 않고 묶음은 판에 남는다', async () => {
+  /**
+   * **[취소]는 이 창에서도 판을 접는다** (§8.10.4, 2026-09-02 R23 C-1).
+   *
+   * 그 전에는 **창마다 결과가 달랐다** — 자리를 묻는 동안 누르면 묶음이 판에 남고,
+   * 워커가 도는 동안 누르면 지워졌다. 학생이 보는 것은 같은 자리의 같은 글자인데
+   * 결과가 갈린다.
+   */
+  it('[취소]를 누르면 굽기가 시작되지 않고 판도 접힌다', async () => {
     const { project, wrapper, panel, baking } = await panelAskingRoom()
-    // **아직 진행 표시는 없지만 굽는 중이다.** 그래서 [취소]가 판을 접는 것이 아니라
-    // 굽기를 막아야 한다 — 단추 이름은 이 둘을 구별하지 않는다(코드 소유자 판단).
+    // **아직 진행 표시는 없지만 굽는 중이다.** 그래서 [취소]가 굽기를 막아야 한다 —
+    // 단추 이름은 이 둘을 구별하지 않는다(코드 소유자 판단).
     expect(wrapper.findAll('button').map((one) => one.text())).toContain('취소')
 
     panel.cancelBaking()
@@ -456,7 +463,7 @@ describe('굽기가 자리를 묻는 동안', () => {
 
     expect(workerState.baked).toBe(0)
     expect(readImages(project.file)).toHaveLength(0)
-    expect(panel.pending?.map((one) => one.path)).toEqual(['a.jpg'])
+    expect(panel.pending).toBeNull()
     expect(panel.busy).toBe(false)
     expect(useToastStore().items.filter((one) => one.tone === 'danger')).toEqual([])
   })

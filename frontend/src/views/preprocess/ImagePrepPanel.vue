@@ -233,10 +233,10 @@ const testReason = computed(() => {
 })
 
 /** 지금 이 화면에서 도는 일들 (architecture.md §8.10.4). */
-const { busy, start, cancelAll } = useWork()
+const { busy, start, alive, retire } = useWork()
 
-// **떠나면 굽던 것을 끊는다.** 이미지 판들이 전부 같은 규칙이다.
-onBeforeUnmount(cancelAll)
+// **떠나면 굽던 것을 끊고 끝났다고 표시한다.** 이미지 판들이 전부 같은 규칙이다.
+onBeforeUnmount(retire)
 
 /**
  * 사진을 받는 자리가 잠겼는가. **템플릿에서 조립하지 않는다** (architecture.md §10) —
@@ -253,16 +253,10 @@ const testDisabled = computed(() => testBlock.value !== null || busy.value)
 async function takeTest(items: readonly UploadItem[]): Promise<void> {
   const file = project.file
   if (!file || items.length === 0) return
-  // **거절하되 말한다** (architecture.md §8.10.4). 여기는 확인 판이 없어 받은 즉시
-  // 굽는데 정본 워커를 둘 띄우는 것은 저사양 교실 PC라는 기준에 안 맞는다. 예측
-  // 화면이 같은 자리를 이렇게 다루는데 **이 화면만 말없이 돌려보내고 있었다** —
-  // 버튼은 `testDisabled`로 잠기지만 **끌어다 놓는 데는 잠글 버튼이 없다**
-  // (2026-09-02 R22 B-2).
-  if (busy.value) {
-    toasts.push('caution', 'preprocess.testImagesWhileBusy')
-    return
-  }
-
+  // **거절은 입구(`readTest`)가 한다.** 여기서 `busy`를 보면 **읽기가 자기 자신을
+  // 막는다** — 읽는 것도 도는 일이 된 뒤로(R23 C-2) 이 함수는 언제나 바쁜 채로 불린다.
+  // 부르는 둘은 전부 그 앞에서 걸러진다: `readTest`는 입구에서 거절하고,
+  // `confirmTakeTest`는 대화상자가 닫힌 뒤라 그때는 도는 것이 없다.
   const job = start()
   try {
     const block = testZipBlockFor(
@@ -342,6 +336,18 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
 async function readTest(files: readonly File[]): Promise<void> {
   if (files.length === 0) return
 
+  // **거절하되 말한다** (architecture.md §8.10.4). 여기는 확인 판이 없어 받은 즉시
+  // 굽는데 정본 워커를 둘 띄우는 것은 저사양 교실 PC라는 기준에 안 맞는다.
+  // **거절은 입구인 여기서 한다** — 굽기 함수 안에서 보면 읽기가 자기 자신을 막는다.
+  if (busy.value) {
+    toasts.push('caution', 'preprocess.testImagesWhileBusy')
+    return
+  }
+
+  // **읽는 것도 도는 일이다** (architecture.md §8.10.4, R22 C-3의 결정). 그 결정이
+  // 데이터 화면 둘에만 적용돼 있었다 — 여기서는 큰 zip을 읽는 내내 드롭존이 초대색이고
+  // 버튼이 열려 있어, 두 번 놓으면 `pendingTest`가 말없이 덮였다 (2026-09-02 R23 C-2).
+  const job = start()
   try {
     const single = files[0]
     // **압축 파일과 사진 파일을 같은 함수가 가른다** (`data/image/upload.ts`의 IMAGE_ACCEPT).
@@ -354,9 +360,15 @@ async function readTest(files: readonly File[]): Promise<void> {
             expect: categories.value,
           })
         : readImageFiles(files)
+    // **읽는 동안 떠났으면 여기서 멈춘다.** 읽기 구간에는 맡길 손잡이가 없어
+    // `retire()`가 끊을 것이 없다 — 이 줄이 없으면 죽은 화면이 워커를 열어 **지금 열린
+    // 파일에** 테스트 사진을 얹는다 (2026-09-02 R23 B-2).
+    if (!alive()) return
     await requestTakeTest(items)
   } catch (error) {
     toasts.pushError(error)
+  } finally {
+    job.done()
   }
 }
 

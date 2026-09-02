@@ -84,8 +84,22 @@ export interface Work {
   /** 보여줄 진행. **가장 나중에 시작한 일의 것이다** — 학생이 방금 한 일이 그것이다. */
   progress: ComputedRef<WorkProgress | null>
   start: (options?: StartOptions) => Job
-  /** 도는 것을 전부 끊는다. 언마운트와 [취소]가 부른다. */
+  /** 도는 것을 전부 끊는다. **[취소]가 부른다** — 화면은 살아 있다. */
   cancelAll: () => void
+  /**
+   * **이 화면이 아직 살아 있는가.** 긴 계산 뒤에 스토어를 만지기 전에 본다.
+   *
+   * `cancelAll()`은 **맡긴 것**만 끊는데, 파일을 읽는 구간에는 맡길 손잡이가 없다
+   * (`readImageZip`은 워커가 아니다). 그래서 읽는 동안 떠나면 끊을 것이 없고, 읽기가
+   * 끝난 뒤 **죽은 화면의 코드가 워커를 열어 지금 열린 파일에 얹는다** — 그 사이 학생이
+   * 다른 프로젝트를 열었으면 **그쪽에 앉는다** (2026-09-02 R23 B-2).
+   */
+  alive: () => boolean
+  /**
+   * **떠난다.** 도는 것을 전부 끊고 이 화면이 끝났다고 표시한다.
+   * `onBeforeUnmount(retire)`가 이 함수의 유일한 자리다.
+   */
+  retire: () => void
 }
 
 export function useWork(): Work {
@@ -146,7 +160,20 @@ export function useWork(): Work {
     for (const handle of [...handles.values()]) handle.cancel()
   }
 
-  return { busy, progress, start, cancelAll }
+  /**
+   * 화면이 아직 살아 있는가. **반응형이 아니다** — 화면이 그리는 값이 아니라 긴 계산
+   * 뒤에 "계속해도 되는가"를 묻는 자리라, `ref`로 두면 템플릿에서 읽으라고 부추긴다.
+   */
+  let living = true
+
+  function retire(): void {
+    // **끊는 것과 끝난 것은 다른 일이다.** [취소]도 `cancelAll()`을 부르는데 그것은
+    // 화면이 죽은 것이 아니다 — 한 함수로 묶으면 [취소] 한 번에 화면이 죽은 것이 된다.
+    living = false
+    cancelAll()
+  }
+
+  return { busy, progress, start, cancelAll, alive: () => living, retire }
 }
 
 /**

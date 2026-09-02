@@ -201,9 +201,6 @@ async function apply(): Promise<void> {
       return applied.project
     })
 
-    // **내가 든 파일만 치운다.** 확정하는 동안 학생이 다른 파일을 놓았으면 그것은 판에
-    // 남아야 한다 (§8.10.4).
-    clearIfHeld(opened, source)
     toasts.push('success', 'data.tabular.applied')
     if (dropped.length > 0) {
       // 조용히 사라지면 학생은 자기가 고른 열이 빠진 줄 모른다.
@@ -214,6 +211,14 @@ async function apply(): Promise<void> {
   } catch (error) {
     toasts.pushError(error)
   } finally {
+    /**
+     * **내가 든 파일만 치우고, 어느 길로 끝났든 치운다.** 성공 뒤에만 비우던 때는
+     * **저장이 쿼터로 거절되면 판이 그대로 섰다** — 스토어는 쓰기가 던져도 `file.value`를
+     * 먼저 바꾸므로(`stores/project.ts`) 정본은 이미 앉았는데 판도 남아, 다시 누르면
+     * 같은 일이 한 번 더 돌고 같은 알림은 `same()`이 합쳐 **아무것도 안 바뀐 것처럼
+     * 보였다** (2026-09-02 R23 B-1). 확정하는 동안 학생이 놓은 **다른** 파일은 안 치운다.
+     */
+    clearIfHeld(opened, source)
     job.done()
     /**
      * **창은 성공하든 실패하든 닫는다.** 닫는 줄이 `try` 안에 있으면, 실패했을 때

@@ -86,7 +86,7 @@ const dragging = shallowRef(false)
  * 붙이는 동안 판에 새 파일을 끌어다 놓을 수 있고, 그때 `busy`가 칸 하나면 먼저 끝난
  * 읽기가 **붙이는 중인 자물쇠를 연다.**
  */
-const { busy, start } = useWork()
+const { busy, start, alive, retire } = useWork()
 /** 아직 확정하지 않은 파일. 확정하면 비운다 - 데이터 화면·테스트 데이터와 같은 모양이다. */
 const opened = shallowRef<{ document: TableDocument; fileName: string } | null>(null)
 const sheetName = shallowRef<string | undefined>(undefined)
@@ -157,13 +157,18 @@ async function apply(): Promise<void> {
         }).project,
     )
 
-    // **내가 든 파일만 치운다.** 붙이는 동안 학생이 다른 파일을 놓았으면 그것은 판에
-    // 남아야 한다 (§8.10.4).
-    clearIfHeld(opened, source)
     toasts.push('success', 'predict.tabular.fileApplied')
   } catch (error) {
     toasts.pushError(error)
   } finally {
+    /**
+     * **내가 든 파일만 치우고, 어느 길로 끝났든 치운다.** 성공 뒤에만 비우던 때는
+     * **저장이 쿼터로 거절되면 판이 그대로 섰다** — 스토어는 쓰기가 던져도 `file.value`를
+     * 먼저 바꾸므로(`stores/project.ts`) 정본은 이미 앉았는데 판도 남아, 다시 누르면
+     * 같은 일이 한 번 더 돌고 같은 알림은 `same()`이 합쳐 **아무것도 안 바뀐 것처럼
+     * 보였다** (2026-09-02 R23 B-1). 붙이는 동안 학생이 놓은 **다른** 파일은 안 치운다.
+     */
+    clearIfHeld(opened, source)
     job.done()
   }
 }
@@ -350,11 +355,7 @@ const computing = shallowRef(false)
  * 간다.** 학생이 [내려받기]를 눌렀는데 조용히 아무 파일도 안 나오면 그건 버튼이 고장난
  * 것으로 읽힌다 (같은 이유로 아래 catch가 오류를 삼키지 않는다).
  */
-let alive = true
-
-onBeforeUnmount(() => {
-  alive = false
-})
+onBeforeUnmount(retire)
 
 /**
  * 쪽 넘김 버튼의 잠금. **조합은 여기서 한다** (architecture.md §10.1) — 템플릿에서
@@ -401,7 +402,7 @@ async function goToPage(index: number): Promise<void> {
     // 안에 `await`가 하나도 없고 `predictPage`도 완전한 동기 함수라, 양보하지 않으면
     // 꺼짐이 그려지기 전에 계산이 끝난다 - 그동안 쌓인 클릭이 전부 한 번씩 더 돈다.
     await yieldToScreen()
-    if (!alive) return
+    if (!alive()) return
     await ensurePage(index)
   } catch (error) {
     // 쪽을 넘기다 터지면 화면이 그 자리에 멈춘다. 무엇이 잘못됐는지는 말해야 한다.

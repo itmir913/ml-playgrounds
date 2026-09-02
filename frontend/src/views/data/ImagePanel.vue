@@ -315,9 +315,14 @@ async function bake(): Promise<void> {
     if (shortfall) throw new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall })
 
     // **묻는 동안 [취소]가 눌렸으면 굽지 않는다.** 그 신호는 `baking`이 비어 있는
-    // 것이다 — 묶음은 확인 판에 그대로 남아 학생이 잃는 것이 없다. 취소는 실패가
-    // 아니므로 던지지 않고 조용히 돌아간다.
-    if (toRaw(baking.value) !== toRaw(items)) return
+    // 것이다. 취소는 실패가 아니므로 던지지 않고 조용히 돌아간다.
+    //
+    // **판도 함께 접는다** (§8.10.4, 2026-09-02 R23 C-1). 그 전에는 이 창에서만 묶음이
+    // 남고 워커가 도는 중에 취소하면 지워져 **같은 단추가 창마다 다른 결과를 냈다.**
+    if (toRaw(baking.value) !== toRaw(items)) {
+      clearIfHeld(pending, items)
+      return
+    }
 
     job.report(0, items.length)
     const byPath = new Map(items.map((item) => [item.path, item.category]))
@@ -337,28 +342,39 @@ async function bake(): Promise<void> {
     // **굽는 동안 파일이 달라졌을 수 있다** — 붙든 것이 아니라 지금 파일에 얹는다
     // (architecture.md §8.10.3). 셈은 얹은 결과에서 나오므로 여기서 받아 둔다.
     let counts = { added: 0, duplicates: 0 }
-    await project.save((live) => {
-      const applied = addImages(
-        live,
-        // 워커는 이름으로만 대답한다. 그 이름이 곧 압축 파일 안의 경로라 범주를 되찾을 수 있다.
-        result.images.map((image) => ({
-          hash: image.hash,
-          bytes: image.bytes,
-          category: byPath.get(image.sourceName) ?? IMAGE_UNLABELED,
-        })),
-        {
-          canonicalSize: backbone.canonicalSize,
-          now: new Date().toISOString(),
-          format: result.format,
-        },
-      )
-      counts = { added: applied.added, duplicates: applied.duplicates }
-      return applied.project
-    })
-    // **내가 든 묶음만 치운다.** 굽는 동안 학생이 새로 놓았으면 그것은 확인 판에 남아야
-    // 한다 — 통째로 비우면 학생이 판에 선 것을 보고 있다가 말없이 잃는다 (R21 A-1).
-    clearIfHeld(pending, items)
-
+    /**
+     * **저장까지 갔으면 앉았든 안 앉았든 확인 판을 접는다** (2026-09-02 R23 B-1).
+     *
+     * 스토어는 쓰기가 던져도 `file.value`를 **먼저** 바꾼다(`stores/project.ts`). 그래서
+     * 쿼터로 거절돼도 사진은 이미 화면에 앉아 있는데, 성공 뒤에만 판을 비우던 때는
+     * **판이 그대로 서 있었다** — 다시 누르면 워커가 한 번 더 돌고, 같은 알림은
+     * `same()`이 합쳐 **아무것도 안 바뀐 것처럼 보인다.**
+     *
+     * **워커가 죽은 것과는 다르다.** 그때는 앉은 것이 없으므로 묶음이 판에 남아야
+     * 학생이 다시 누를 수 있다 — 그래서 `finally`를 저장 둘레에만 두른다.
+     */
+    try {
+      await project.save((live) => {
+        const applied = addImages(
+          live,
+          // 워커는 이름으로만 대답한다. 그 이름이 곧 압축 파일 안의 경로라 범주를 되찾는다.
+          result.images.map((image) => ({
+            hash: image.hash,
+            bytes: image.bytes,
+            category: byPath.get(image.sourceName) ?? IMAGE_UNLABELED,
+          })),
+          {
+            canonicalSize: backbone.canonicalSize,
+            now: new Date().toISOString(),
+            format: result.format,
+          },
+        )
+        counts = { added: applied.added, duplicates: applied.duplicates }
+        return applied.project
+      })
+    } finally {
+      clearIfHeld(pending, items)
+    }
     toasts.push('success', 'data.image.added', { count: counts.added })
     // **조용히 넘기지 않는다.** 40장을 올렸는데 12장만 늘어난 것을 학생은 고장으로 본다.
     if (counts.duplicates > 0) {
@@ -368,7 +384,7 @@ async function bake(): Promise<void> {
       toasts.push('caution', 'data.image.skipped', { count: result.skipped.length })
     }
   } catch (error) {
-    // 취소도 여기로 온다. 학생이 누른 것이므로 실패로 말하지 않는다.
+    // **취소는 판을 접는다** (§8.10.4, R23 C-1). 학생이 누른 것이므로 실패로 말하지 않는다.
     if (isClientError(error) && error.code === 'JOB_CANCELLED') clearIfHeld(pending, items)
     else toasts.pushError(error)
   } finally {

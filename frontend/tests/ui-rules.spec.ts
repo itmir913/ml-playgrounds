@@ -990,11 +990,16 @@ describe('예측 판은 화면에 양보한다', () => {
    * 하나에 **막는 자리 하나**만 있으면 통과다.
    */
   describe('도는 판은 떠나면 멈춘다', () => {
+    /**
+     * **수명은 이제 `useWork`가 든다** (2026-09-02 R23 B-2). 화면이 `let alive = true`를
+     * 손으로 들던 것을 `alive()`/`retire()`가 가져갔으므로 두 표기를 다 받는다 —
+     * 아직 `useWork`를 안 쓰는 판(`TabularPredictPanel`)이 옛 표기로 남아 있다.
+     */
     function stopsOnLeave(source: string): boolean {
       const lines = withoutComments(source)
       return (
         lines.some((line) => line.includes('onBeforeUnmount')) &&
-        lines.some((line) => line.includes('if (!alive)'))
+        lines.some((line) => line.includes('if (!alive)') || line.includes('if (!alive())'))
       )
     }
 
@@ -1020,6 +1025,11 @@ describe('예측 판은 화면에 양보한다', () => {
     it('검사기가 둘 다 갖춘 판은 안 잡는다', () => {
       const whole = ['onBeforeUnmount(() => {})', 'if (!alive) return'].join('\n')
       expect(stopsOnLeave(whole)).toBe(true)
+    })
+
+    it('검사기가 useWork의 수명 표기도 받는다', () => {
+      const viaWork = ['onBeforeUnmount(retire)', 'if (!alive()) return'].join('\n')
+      expect(stopsOnLeave(viaWork)).toBe(true)
     })
 
     const LOOPING = PANELS.filter((name) =>
@@ -2455,7 +2465,10 @@ describe('화면은 도는 일을 셈으로 든다', () => {
     for (const path of opens) {
       const code = withoutComments(sourceOf(path)).join('\n')
       expect(code, `${path}: handle is not held by a job`).toMatch(/\.hold\(/)
-      expect(code, `${path}: leaving does not cancel every job`).toMatch(/cancelAll/)
+      // **`retire()`도 받는다** — 떠날 때 부르는 것은 이제 그쪽이고, 그 안에서
+      // `cancelAll()`이 돈다 (2026-09-02 R23 B-2). 화면이 [취소]를 갖고 있으면
+      // `cancelAll`도 함께 있다.
+      expect(code, `${path}: leaving does not cancel every job`).toMatch(/cancelAll|retire/)
     }
   })
 
