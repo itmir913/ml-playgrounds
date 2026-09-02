@@ -439,8 +439,12 @@ function adamStep(
  * 회귀는 **값 그대로**다.
  *
  * **회귀의 타깃은 스케일링하지 않는다** — sklearn `MLPRegressor`와 같다. 크기가 큰
- * 타깃(집값 같은 것)에서 학습이 에폭 상한 안에 못 닿는 것도 그쪽과 같고, 그때
- * `NEURAL_NOT_CONVERGED`가 붙어 손실 곡선이 그 사실을 보여 준다.
+ * 타깃(성적·집값 같은 것)에서 학습이 에폭 상한 안에 못 닿는 것도 그쪽과 같고, 그때
+ * `NEURAL_REGRESSION_NOT_CONVERGED`가 붙어 손실 곡선이 그 사실을 보여 준다.
+ *
+ * **안 하는 것이 결정이다** (`open-decisions.md` #39, 2026-09-03에 닫혔다). 안에서
+ * 표준화하면 모델은 배우지만 **파이썬으로 옮겨 간 학생이 다른 결과를 얻고 왜인지 알
+ * 방법이 없다** — 이 도구는 scikit-learn으로 가는 발판이다 (CLAUDE.md §2).
  */
 export function fitNeural(
   features: readonly (readonly number[])[],
