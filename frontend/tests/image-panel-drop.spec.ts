@@ -13,6 +13,7 @@
 import 'fake-indexeddb/auto'
 
 import { flushPromises, mount } from '@vue/test-utils'
+import { zipSync } from 'fflate'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -263,6 +264,9 @@ describe('상한 가까이에서 굽는 중에 더 놓으면', () => {
     expect(readImages(project.file)).toHaveLength(1)
 
     // 이제 학생이 [이 사진 사용]을 누른다. **여기서 다시 물어야 막힌다.**
+    // 굽기를 더는 붙들지 않는다 — 붙든 채면 재확인을 빼도 단언이 아니라 **시간 초과로
+    // 운다** (R22 재감사 C-2). 우는 이유는 정직해야 한다.
+    workerState.holdBake = false
     await panel.bake()
     await settle()
 
@@ -336,6 +340,50 @@ describe('굽는 동안 둘째 묶음이 판에 서면', () => {
     panel.cancelBaking()
     await settle()
     expect(panel.pending).toBeNull()
+  })
+})
+
+/**
+ * **읽는 것도 도는 일이다.** 압축 파일을 읽는 동안 화면이 안 바쁜 것으로 남으면 삭제·이동과
+ * [이 사진 사용]이 열려 있다. 읽기를 `blocks: false`로 바꿔도 2,839개가 초록이었다
+ * (2026-09-02 R22 재감사 C-3) — 진짜 파일은 한 마이크로태스크에 읽혀 창이 안 생긴다.
+ * **바이트를 붙들어야 보인다** (`tabular-panel-overlap.spec.ts`의 `heldCsv`와 같은 모양).
+ */
+describe('압축 파일을 읽는 동안', () => {
+  /** 바이트를 검사가 줄 때까지 안 내놓는 zip. 안에는 범주 폴더 하나와 사진 하나다. */
+  function heldZip(): { file: File; release: () => void } {
+    const bytes = zipSync({ '개/a.jpg': new Uint8Array([1, 2, 3]) })
+    const real = new File([bytes], 'photos.zip', { type: 'application/zip' })
+    let open!: () => void
+    const waiting = new Promise<void>((resolve) => {
+      open = resolve
+    })
+    Object.defineProperty(real, 'arrayBuffer', {
+      value: async () => {
+        await waiting
+        return bytes.buffer
+      },
+    })
+    return { file: real, release: open }
+  }
+
+  it('화면이 바쁜 것으로 남는다', async () => {
+    const project = useProjectStore()
+    await project.save(imagePredictProject([]))
+    const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const panel = wrapper.vm as unknown as PanelInternals
+    expect(panel.busy).toBe(false)
+
+    const held = heldZip()
+    panel.onDrop(dropEvent([held.file]))
+    await flushPromises()
+    expect(panel.busy).toBe(true)
+
+    held.release()
+    await settle()
+    expect(panel.busy).toBe(false)
+    expect(panel.pending?.map((one) => one.path)).toEqual(['개/a.jpg'])
   })
 })
 
