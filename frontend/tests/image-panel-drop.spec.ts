@@ -75,6 +75,7 @@ interface PanelInternals {
   cancelBaking: () => void
   busy: boolean
   pending: readonly { path: string }[] | null
+  waiting: readonly { path: string }[] | null
 }
 
 const file = (name: string): File =>
@@ -252,5 +253,69 @@ describe('상한 가까이에서 굽는 중에 더 놓으면', () => {
     expect(panel.pending?.map((one) => one.path)).toEqual(['b.jpg', 'c.jpg'])
     // 워커를 돌리기 전에 막았다 — 기다린 시간을 버리지 않는다.
     expect(workerState.baked).toBe(1)
+  })
+})
+
+/**
+ * **판이 세는 것과 버튼이 하는 일이 어긋나면 안 된다** (architecture.md §8.10.4).
+ *
+ * 굽는 동안 둘째 묶음이 확인 판에 서면, 판은 **둘째**의 파일 수를 보이는데 같은 줄의
+ * 진행 표시와 [취소]는 **첫 굽기**의 것이었다. 학생은 [취소]가 방금 놓은 것을 물릴
+ * 줄 안다 (2026-09-02 R22 C-1).
+ */
+describe('굽는 동안 둘째 묶음이 판에 서면', () => {
+  it('바는 도는 묶음을 세고 기다리는 묶음은 따로 말한다', async () => {
+    const { panel, wrapper, baking } = await panelBaking()
+
+    panel.onDrop(dropEvent([file('b.jpg'), file('c.jpg')]))
+    await settle()
+
+    // 판에 선 것은 둘째 묶음이지만, 바가 세는 것은 도는 묶음이다.
+    expect(panel.pending?.map((one) => one.path)).toEqual(['b.jpg', 'c.jpg'])
+    expect(wrapper.text()).toContain('파일 1개를 읽었습니다')
+    expect(wrapper.text()).toContain('파일 2개는 다음 차례로 기다리는 중입니다')
+
+    workerState.bake[0]?.deliver()
+    await baking
+    await settle()
+
+    // 굽기가 끝나면 기다리던 묶음이 그대로 판의 주인이 된다.
+    expect(panel.waiting).toBeNull()
+    expect(wrapper.text()).toContain('파일 2개를 읽었습니다')
+  })
+
+  it('[취소]가 무엇을 끊는지 이름으로 밝힌다', async () => {
+    const { wrapper, panel, baking } = await panelBaking()
+
+    const labels = () => wrapper.findAll('button').map((one) => one.text())
+    expect(labels()).toContain('준비 취소')
+
+    panel.cancelBaking()
+    await baking
+    await settle()
+
+    // 안 구울 때의 [취소]는 확인 판을 접는 일이라 이름이 다르다.
+    expect(labels()).not.toContain('준비 취소')
+  })
+
+  /**
+   * **안 구울 때의 [취소]는 판을 접는다.** 이 갈래를 아무도 안 봐서, `cancelBaking`이
+   * 언제나 `cancelAll()`을 부르게 바꿔도 전체가 초록이었다 — 그러면 학생이 [취소]를
+   * 눌러도 **확인 판이 영영 안 닫힌다** (2026-09-02 R22, 감사자 돌연변이 V6).
+   */
+  it('굽지 않을 때 [취소]는 확인 판을 접는다', async () => {
+    const project = useProjectStore()
+    await project.save(imagePredictProject([]))
+    const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const panel = wrapper.vm as unknown as PanelInternals
+
+    panel.onDrop(dropEvent([file('a.jpg')]))
+    await settle()
+    expect(panel.pending).not.toBeNull()
+
+    panel.cancelBaking()
+    await settle()
+    expect(panel.pending).toBeNull()
   })
 })

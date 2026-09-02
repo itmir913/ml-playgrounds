@@ -138,6 +138,8 @@
       "nameTaken": "A category with this name already exists.",
       "newCategory": "New category",
       "pickCategory": "Choose one",
+      "readWaiting": "{count} more file is waiting its turn. | {count} more files are waiting their turn.",
+      "cancelPreparing": "Cancel preparing",
       "readTitle": "Read {count} file. | Read {count} files.",
       "removeCategory": "Delete category",
       "removeCategoryDescription": "The photos stay and move to [No category]. ({name})",

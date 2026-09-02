@@ -2355,17 +2355,36 @@ describe('화면은 스토어에 함수로 쓴다', () => {
  * 손잡이가 칸 하나면 먼저 끝난 쪽이 **남의 손잡이를 지워** 떠날 때 워커가 한쪽만 끊긴다.
  * R21 감사가 화면 넷에서 실측했다.
  *
- * **타입이 절반을 이미 막는다** — `useWork()`의 `busy`는 `computed`라 값을 못 쓴다.
+ * **타입이 절반을 막는다** — `useWork()`의 `busy`는 `ComputedRef`라 값을 못 쓴다.
  * 여기서 막는 것은 **그 앞 단계**다: 화면이 자기 boolean과 자기 손잡이 칸을 다시
- * 만드는 것.
+ * 만드는 것. (그 타입이 정말 서는지는 `useWork.spec.ts`가 `@ts-expect-error`로 지킨다 —
+ * `Ref<boolean>`을 돌려주던 동안 이 문장은 **거짓이었다**, 2026-09-02 R22 A-2.)
+ *
+ * **이 그물이 못 보는 것 셋.** 규칙에 못 보는 것을 안 적으면 다음 사람이 그물을 방패로
+ * 읽는다:
+ *
+ * - **다른 이름의 칸.** `const baking = ref(false)`는 안 걸린다. 이름을 고르는 사람을
+ *   막을 방법이 없어서, 그 뒤는 화면을 띄워 재는 검사들이 받는다
+ *   (`image-panel-drop`·`image-prep-drop`·`tabular-panel-overlap`·`image-predict-race`).
+ * - **`ref`가 아닌 손잡이.** `let handle: Cancellable | null = null`은 그물 밖이다.
+ *   아래 `SPAWNS` 규칙이 `.hold(`를 요구해 그 자리를 대신 좁힌다.
+ * - **간접으로 워커를 여는 화면.** `TrainView`는 `trainingSourceOf`를 거치므로
+ *   `SPAWNS`에 안 걸리고 **아래 두 규칙이 통째로 면제다.** 그 화면의 손잡이와 취소
+ *   삼킴은 `train-preparing.spec.ts`와 `train-preparing-live.spec.ts`가 따로 잰다.
  */
 describe('화면은 도는 일을 셈으로 든다', () => {
   const VIEWS = join(SRC, 'views')
 
-  /** 화면이 스스로 든 바쁨 boolean. 이름이 `busy`인 것만 본다 — 그것이 이 저장소의 말이다. */
-  const OWN_BUSY = /const\s+busy\s*=\s*(?:shallowRef|ref)\s*[(<]/
+  /**
+   * 화면이 스스로 든 바쁨 boolean. 이름이 `busy`인 것만 본다 — 그것이 이 저장소의 말이다.
+   *
+   * **`let`과 타입 주석까지 본다** (2026-09-02 R22 C-4). `const busy =`만 보던 때는
+   * `let busy = ref(false)`와 `const busy: Ref<boolean> = ref(false)`가 **그대로
+   * 빠져나갔다** — 같은 병을 두 글자 차이로 다시 만들 수 있었다.
+   */
+  const OWN_BUSY = /(?:const|let)\s+busy\s*(?::[^=]+)?=\s*(?:shallowRef|ref)\s*[(<]/
   /** 끊을 것을 담아 둔 칸. `ref`에 담으면 주인이 하나뿐이라는 가정이 박힌다. */
-  const OWN_HANDLE = /const\s+\w*[Rr]unning\s*=\s*(?:shallowRef|ref)\s*[(<]/
+  const OWN_HANDLE = /(?:const|let)\s+\w*[Rr]unning\s*(?::[^=]+)?=\s*(?:shallowRef|ref)\s*[(<]/
 
   function ownsWorkState(source: string): string[] {
     const code = withoutComments(source).join('\n')
@@ -2382,19 +2401,48 @@ describe('화면은 도는 일을 셈으로 든다', () => {
     expect(ownsWorkState('const busy = ref(false)')).toHaveLength(1)
     expect(ownsWorkState('const busy = shallowRef(false)')).toHaveLength(1)
     expect(ownsWorkState('const running = ref<CanonicalizeHandle | null>(null)')).toHaveLength(1)
+    // **두 글자 차이로 빠져나가던 모양들** (2026-09-02 R22 C-4).
+    expect(ownsWorkState('let busy = ref(false)')).toHaveLength(1)
+    expect(ownsWorkState('const busy: Ref<boolean> = ref(false)')).toHaveLength(1)
+    expect(ownsWorkState('let running: Ref<Handle | null> = shallowRef(null)')).toHaveLength(1)
     // `useWork()`에서 받아 오는 것은 잡지 않는다.
     expect(ownsWorkState('const { busy, start } = useWork()')).toEqual([])
     // 주석 속의 옛 모양은 코드가 아니다 — 이 파일의 머리말이 그 이유다.
     expect(ownsWorkState('// const busy = ref(false)')).toEqual([])
     // 다른 이름의 boolean은 이 규칙의 대상이 아니다(대화상자 플래그가 그렇다).
     expect(ownsWorkState('const deleting = ref(false)')).toEqual([])
+    // **`ref`가 아닌 것도 아니다.** 손잡이를 그냥 변수로 드는 것은 이 그물 밖이다.
+    expect(ownsWorkState('let preparingHandle: Cancellable | null = null')).toEqual([])
   })
 
-  it('화면 어디에도 자기 바쁨과 자기 손잡이 칸이 없다', () => {
-    const offenders = vueFiles(VIEWS).flatMap((path) =>
+  /**
+   * **부품도 훑는다.** 화면만 보던 때는 `src/components/**`가 통째로 면제였는데, 그
+   * 면제의 실제 이유는 `AppButton`의 boolean `running` 하나뿐이었다 — 다른 부품이 같은
+   * 칸을 들어도 아무도 안 봤다 (2026-09-02 R22 C-4).
+   *
+   * **`AppButton`은 경로로 면제한다.** 그 `running`은 **한 버튼이 자기 동작이 도는지**
+   * 아는 칸이라 화면의 겹침과 무관하고, 그것이 없으면 `action`이 두 번 눌리는 것을
+   * 못 막는다 (CLAUDE.md §4).
+   */
+  const OWN_STATE_EXEMPT = 'AppButton.vue'
+
+  it('화면과 부품 어디에도 자기 바쁨과 자기 손잡이 칸이 없다', () => {
+    const scanned = [...vueFiles(VIEWS), ...vueFiles(join(SRC, 'components'))].filter(
+      (path) => !path.endsWith(OWN_STATE_EXEMPT),
+    )
+    // **면제가 실제로 무언가를 빼고 있는지 본다.** 파일이 안 늘면 이 규칙이 죽은 것이다.
+    expect(scanned.length).toBeGreaterThan(vueFiles(VIEWS).length)
+
+    const offenders = scanned.flatMap((path) =>
       ownsWorkState(sourceOf(path)).map((line) => `${path}: ${line}`),
     )
     expect(offenders).toEqual([])
+  })
+
+  it('면제한 부품은 실제로 그 칸을 들고 있다 - 면제가 낡으면 여기서 선다', () => {
+    const button = vueFiles(join(SRC, 'components')).find((path) => path.endsWith(OWN_STATE_EXEMPT))
+    expect(button).toBeDefined()
+    expect(ownsWorkState(sourceOf(button ?? ''))).toHaveLength(1)
   })
 
   it('워커를 여는 화면은 끊을 것을 일에 맡기고 떠날 때 전부 끊는다', () => {

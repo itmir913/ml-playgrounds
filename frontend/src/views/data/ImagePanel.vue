@@ -103,6 +103,19 @@ const target = ref<string>(IMAGE_UNLABELED)
 /** 읽었지만 아직 안 구운 것. **확인시키기 전에는 프로젝트를 손대지 않는다.** */
 const pending = ref<readonly UploadItem[] | null>(null)
 
+/**
+ * 지금 굽고 있는 묶음. **확인 판과 다른 칸이다.**
+ *
+ * 굽는 동안 학생이 새로 놓으면 `pending`은 **새 묶음**이 되는데(§8.10.4, R21 A-1),
+ * 같은 줄의 진행 표시와 [취소]는 여전히 **도는 묶음**의 것이다. 칸이 하나면 화면이
+ * 그 둘을 구별해 말할 수 없어 **판이 세는 수와 버튼이 하는 일이 어긋난다**
+ * (2026-09-02 R22 C-1).
+ *
+ * **판을 일마다로 쪼개지는 않는다** — 겹치는 굽기는 `busy`가 막으므로 도는 것은 언제나
+ * 하나다. 여기 필요한 것은 목록이 아니라 **무엇이 도는지 이름을 아는 것**이다.
+ */
+const baking = ref<readonly UploadItem[] | null>(null)
+
 /** 골라 둔 사진들. 옮기기·지우기의 대상이다. */
 const selected = ref(new Set<string>())
 
@@ -159,8 +172,26 @@ function cancelBaking(): void {
   else pending.value = null
 }
 
+/**
+ * 바가 지금 말하고 있는 묶음. **도는 것이 있으면 그것이다** — 진행 표시와 [취소]가
+ * 그 묶음의 것이라, 판만 새 묶음을 세면 화면이 서로 다른 둘을 한 줄에서 말한다.
+ */
+const shownBatch = computed(() => baking.value ?? pending.value)
+
+/**
+ * 굽는 동안 새로 놓여 **차례를 기다리는** 묶음. 없으면 `null`이다.
+ *
+ * 이것이 있다는 것은 판에 선 것과 도는 것이 다르다는 뜻이고, 그때 화면은 둘을 **따로**
+ * 말해야 한다 (2026-09-02 R22 C-1).
+ */
+const waiting = computed(() => {
+  const held = baking.value
+  const next = pending.value
+  return held !== null && next !== null && next !== held ? next : null
+})
+
 /** 굽기 전에 보여줄 요약. **중첩 흡수가 조용히 틀릴 수 있는 유일한 자리다.** */
-const summary = computed(() => (pending.value ? summarizeUpload(pending.value) : []))
+const summary = computed(() => (shownBatch.value ? summarizeUpload(shownBatch.value) : []))
 
 function labelOf(category: string): string {
   return category === IMAGE_UNLABELED ? t('meta.image.unlabeled') : category
@@ -264,6 +295,8 @@ async function bake(): Promise<void> {
   }
 
   const job = start()
+  // **무엇이 도는지 화면이 알아야 한다.** 여기서부터 확인 판과 도는 묶음이 갈릴 수 있다.
+  baking.value = items
   job.report(0, items.length)
   const byPath = new Map(items.map((item) => [item.path, item.category]))
   const handle = canonicalizeImages(
@@ -318,6 +351,8 @@ async function bake(): Promise<void> {
     if (isClientError(error) && error.code === 'JOB_CANCELLED') clearIfHeld(pending, items)
     else toasts.pushError(error)
   } finally {
+    // **내가 든 것만 놓는다.** 겹치는 굽기는 `busy`가 막지만, 같은 규율을 여기서도 쓴다.
+    clearIfHeld(baking, items)
     job.done()
   }
 }
@@ -477,8 +512,16 @@ async function commitRemoveCategory(): Promise<void> {
       **아무것도 없을 때는 안 뜬다.** 그때 동작의 유일한 출처는 화면 가운데 빈 상태다.
     -->
     <StepActionBar v-if="pending || entries.length > 0 || categories.length > 0">
-      <template v-if="pending">
-        <span class="font-bold">{{ t('data.image.readTitle', pending.length) }}</span>
+      <template v-if="shownBatch">
+        <span class="font-bold">{{ t('data.image.readTitle', shownBatch.length) }}</span>
+        <!--
+          **판에 선 것과 도는 것이 갈리면 따로 말한다** (§8.10.4, R22 C-1). 굽는 동안
+          새로 놓은 묶음은 이 줄이 되고, 위의 요약과 오른쪽 [취소]는 **도는 묶음**의
+          것이다. 한 수만 보이면 학생은 [취소]가 방금 놓은 것을 물릴 줄 안다.
+        -->
+        <span v-if="waiting" class="text-ink-soft">
+          {{ t('data.image.readWaiting', waiting.length) }}
+        </span>
         <ul class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           <li v-for="one in summary" :key="one.category" class="flex items-baseline gap-1.5">
             <span class="max-w-40 truncate font-bold text-ink-soft">
@@ -514,12 +557,17 @@ async function commitRemoveCategory(): Promise<void> {
       </template>
 
       <template #end>
-        <template v-if="pending">
+        <template v-if="shownBatch">
           <span v-if="progress" class="tabular-nums text-ink-soft">
             {{ t('meta.image.preparing', { done: progress.completed, total: progress.total }) }}
           </span>
+          <!--
+            **무엇을 물리는지 이름으로 밝힌다** (R22 C-1). 굽는 중에는 이 단추가 도는
+            준비를 끊고, 아닐 때는 확인 판을 접는다 — 그냥 [취소]로 두면 새 묶음을
+            놓은 학생이 그것을 물리는 줄 안다.
+          -->
           <AppButton variant="secondary" @click="cancelBaking">
-            {{ t('common.cancel') }}
+            {{ progress ? t('data.image.cancelPreparing') : t('common.cancel') }}
           </AppButton>
           <AppButton :disabled="busy" :action="bake">{{ t('data.image.use') }}</AppButton>
         </template>
