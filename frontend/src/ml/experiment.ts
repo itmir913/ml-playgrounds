@@ -24,7 +24,15 @@
 
 import { ClientError, failureDetail, isClientError } from '../errors'
 import { DATA_COMPARABLE_KEYS, dataSettings } from '../project/schema'
-import type { Experiment, DataType, Run, RunsFile, Settings, TaskType } from '../project/schema'
+import type {
+  Experiment,
+  DataType,
+  Run,
+  RunsFile,
+  Settings,
+  TaskType,
+  Warning,
+} from '../project/schema'
 import { algorithmOptions, type Algorithm, type AlgorithmOption } from './algorithms'
 import {
   reasonParams,
@@ -416,6 +424,34 @@ interface TrainContext {
   randomState: number
 }
 
+/**
+ * **갈라 볼 것이 없는 학습인가** (2026-09-03 교실 판단, `errors.ts`의
+ * `TARGET_TOO_FEW_CLASSES`).
+ *
+ * 값이 한 종류인 열을 타깃으로 놓고 분류를 돌리면 **아무도 안 막았고 지금도 안 막는다** —
+ * 학습은 실제로 돌고 지표도 나온다. 재 보니 정확도 100% · F1 100% · 혼동 행렬 1×1이었다.
+ * **거절하지 않는 이유**는 *"정확도 100%인데 왜 쓸모없을까"*가 그 자체로 좋은 수업
+ * 장면이라서다. **그래도 말은 해야 한다** — 교실에서 100%는 성공으로 읽히고, 유일한
+ * 단서인 특이도 0%를 학생이 읽어내지 못한다.
+ *
+ * **엔진이 아니라 여기서 낸다.** 모델의 성질이 아니라 데이터의 성질이라, 엔진마다 넣으면
+ * 알고리즘 수만큼 같은 판정이 생기고 새 엔진은 그것을 빠뜨린다.
+ *
+ * **훈련 몫을 센다. 열 전체가 아니다.** 열이 한 종류면 훈련 몫도 반드시 한 종류라
+ * 전처리 화면의 주의(`ml/selection.ts`의 `targetCaution`)가 뜬 경우를 전부 덮고,
+ * **분할이 만든 한 종류짜리 훈련 몫**까지 잡는다 — 그건 그 화면이 알 수 없던 것이다.
+ *
+ * **군집은 묻지 않는다.** 정답이 없는 것이 전제이므로 타깃이 비어 있다.
+ * **회귀도 묻지 않는다** — 상수 타깃은 "갈릴 것이 없다"가 아니라 분산이 0인 것이고,
+ * 할 말이 다르다. 아직 안 재 봤다.
+ */
+function singleClassWarning(context: TrainContext): Warning | undefined {
+  if (context.taskType !== 'classification') return undefined
+  const classes = new Set(context.trainTarget)
+  if (classes.size !== 1) return undefined
+  return { code: 'TARGET_TOO_FEW_CLASSES', params: { value: [...classes][0] as string } }
+}
+
 type RunBase = Pick<Run, 'id' | 'algorithm' | 'hyperparameters' | 'trainedAt'>
 
 /**
@@ -473,6 +509,15 @@ function trainOne(
       evaluation = evaluate(context.taskType, context.testTarget, predict(context.testFeatures))
     }
 
+    /**
+     * **데이터의 성질이 모델의 성질을 이긴다** (2026-09-03 교실 판단).
+     *
+     * `Run.warning`이 하나뿐이라 둘이 겹치면 골라야 한다. 타깃이 한 종류면 **그 점수
+     * 자체에 뜻이 없으므로**, *"덜 다듬어진 계수에서 나온 숫자다"*보다 먼저 할 말이다.
+     * 실제로 겹칠 일은 드물다 - 상수 타깃에서는 대개 곧바로 수렴한다.
+     */
+    const nothingToLearn = singleClassWarning(context)
+
     const run: Run = {
       ...stamp,
       status: 'done',
@@ -481,7 +526,7 @@ function trainOne(
       ...(evaluation.confusionMatrix ? { confusionMatrix: evaluation.confusionMatrix } : {}),
       // **성공한 run에 붙는다** (mlpx-spec.md 5.9). 실패로 뒤집지 않는다 - 지표도 모델도
       // 나왔고, 학생이 알아야 하는 것은 그 숫자가 덜 다듬어진 계수에서 나왔다는 사실이다.
-      ...(warning ? { warning } : {}),
+      ...((nothingToLearn ?? warning) ? { warning: nothingToLearn ?? warning } : {}),
       // **모델이 없는 이유를 여기서 적는다.** 저장까지 가야 알 수 있는 사유(예산, 개별
       // 상한)와 달리 이건 학습이 끝난 순간 확정되고, 그래서 저장 전에도 화면이 학생에게
       // 무엇을 할 수 있는지 말할 수 있다 (mlpx-spec.md 4.2).

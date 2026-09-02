@@ -1721,3 +1721,133 @@ describe('상한 off 스위치가 학습까지 간다', () => {
     expect(experiment.runs[0]?.failure).toBeUndefined()
   })
 })
+
+/**
+ * **갈라 볼 것이 없는 학습에 경고가 붙는다** (2026-09-03 교실 판단, `errors.ts`의
+ * `TARGET_TOO_FEW_CLASSES`).
+ *
+ * 값이 한 종류인 열을 타깃으로 놓고 분류를 돌리면 **아무도 안 막는다** — 전처리 화면이
+ * *"타깃에 값이 한 종류뿐이라 예측할 것이 없습니다"*로 주의를 주지만 그것을 지나치면
+ * 학생이 받는 것은 **정확도 100%**다. 교실에서 100%는 실패가 아니라 성공으로 읽힌다.
+ *
+ * **거절하지 않는 것이 결정이다** — *"정확도 100%인데 왜 쓸모없을까"*가 좋은 수업
+ * 장면이라서다. 그래서 점수는 그대로 나오고 경고가 그 옆에 선다.
+ */
+describe('타깃에 값이 한 종류뿐이면', () => {
+  /** 특성은 갈리는데 타깃만 상수인 표. 교실에서 "전원 합격"이 이 모양이다. */
+  function constantTarget(label: string, rows = 10): Dataset {
+    return {
+      columns: ['키', '몸무게', '결과'],
+      rows: Array.from({ length: rows }, (_, index) => [
+        String(150 + index * 3),
+        String(45 + index * 2),
+        label,
+      ]),
+    }
+  }
+
+  /** 절반씩 갈리는 같은 모양의 표. 문턱이 문턱으로 사는지 재는 쪽이다. */
+  function twoClasses(rows = 10): Dataset {
+    return {
+      columns: ['키', '몸무게', '결과'],
+      rows: Array.from({ length: rows }, (_, index) => [
+        String(150 + index * 3),
+        String(45 + index * 2),
+        index % 2 === 0 ? '합격' : '불합격',
+      ]),
+    }
+  }
+
+  function runOn(
+    dataset: Dataset,
+    overrides: Partial<Omit<ExperimentInput, 'snapshot'>> = {},
+  ): Experiment {
+    const settings = settingsFor()
+    return runExperiment(
+      {
+        ...inputFor({ dataset, ...overrides }),
+        settings: {
+          ...settings,
+          selectedAlgorithms: models('decision_tree'),
+          data: { ...baseData, features: ['키', '몸무게'], target: '결과' },
+        },
+      },
+      frozen,
+    ).experiment
+  }
+
+  it('학습은 성공하고 경고가 붙는다 - 실패로 뒤집지 않는다', () => {
+    const run = runOn(constantTarget('합격')).runs[0]
+    expect(run?.status).toBe('done')
+    expect(run?.failure).toBeUndefined()
+    expect(run?.warning?.code).toBe('TARGET_TOO_FEW_CLASSES')
+  })
+
+  /** **문장이 그 값을 든다.** 학생이 어느 열의 무엇인지 알아야 고칠 수 있다. */
+  it('경고가 그 한 종류의 값을 들고 온다', () => {
+    const run = runOn(constantTarget('합격')).runs[0]
+    expect(run?.warning?.params).toEqual({ value: '합격' })
+  })
+
+  /**
+   * **이 줄이 경고가 있어야 하는 이유 그 자체다.** 지표는 멀쩡히 나오고 100%다 —
+   * dev 서버에서 손으로 밟았을 때와 같은 값이다(정확도 100% · 혼동 행렬 1×1).
+   * 이 숫자가 안 나오게 되는 날은 경고의 근거도 달라진 것이니 함께 읽어야 한다.
+   */
+  it('그래도 정확도는 100%로 나온다 - 그것이 위험한 것이다', () => {
+    const run = runOn(constantTarget('합격')).runs[0]
+    expect(run?.metrics?.accuracy).toBe(1)
+  })
+
+  it('값이 두 종류면 경고가 없다 - 문턱이 문턱으로 산다', () => {
+    const run = runOn(twoClasses()).runs[0]
+    expect(run?.status).toBe('done')
+    expect(run?.warning).toBeUndefined()
+  })
+
+  /**
+   * **회귀에는 안 붙는다.** 상수 타깃은 회귀에서도 문제이지만 **"갈릴 것이 없다"가
+   * 아니라 분산이 0인 것**이고, 학생에게 할 말이 다르다 — 그 자리는 아직 안 재 봤다.
+   * 분류의 문장을 그대로 내면 *"모델이 갈라 볼 것이 없습니다"*가 회귀 학생에게 간다.
+   *
+   * **이 검사가 유형 가드를 무는 유일한 자리다.** 아래 군집 검사는 안 문다 — 군집은
+   * 타깃이 빈 배열이라 개수가 0이고, 유형을 안 봐도 그냥 지나간다(돌연변이로 확인했다).
+   */
+  it('회귀에는 안 붙는다 - 할 말이 다르다', () => {
+    const experiment = runExperiment(
+      {
+        ...inputFor({ dataset: constantTarget('42'), taskType: 'regression' }),
+        settings: {
+          ...settingsFor(),
+          selectedAlgorithms: models('linear_regression'),
+          split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+          data: { ...baseData, features: ['키', '몸무게'], target: '결과' },
+        },
+      },
+      frozen,
+    ).experiment
+    expect(experiment.runs[0]?.status).toBe('done')
+    expect(experiment.runs[0]?.warning?.code).not.toBe('TARGET_TOO_FEW_CLASSES')
+  })
+
+  /**
+   * **군집은 정답이 없는 것이 전제라 타깃이 비어 있다.** 개수가 0이라 문턱(1)에 안 걸린다 —
+   * 위 회귀 검사와 달리 이것은 유형 가드를 물지 않는다. 그래도 두는 이유는 **군집 학습마다
+   * 경고가 붙는 상태**를 다른 무엇이 만들어도 여기서 걸리기 때문이다.
+   */
+  it('군집에는 안 붙는다 - 타깃이 없는 것이 전제다', () => {
+    const experiment = runExperiment(
+      {
+        ...inputFor({ dataset: constantTarget('합격'), taskType: 'clustering' }),
+        settings: {
+          ...settingsFor(),
+          selectedAlgorithms: models('k_means'),
+          data: { ...baseData, features: ['키', '몸무게'], target: '결과' },
+        },
+      },
+      frozen,
+    ).experiment
+    expect(experiment.runs[0]?.status).toBe('done')
+    expect(experiment.runs[0]?.warning).toBeUndefined()
+  })
+})
