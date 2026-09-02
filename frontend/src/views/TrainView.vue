@@ -134,6 +134,21 @@ const preparingText = computed(() => {
   return t(kind.value?.engineStateKeys?.[now.state] ?? `engineState.${now.state}`)
 })
 
+/**
+ * 학습 진행 문구. **인자는 새 객체여야 한다.**
+ *
+ * vue-i18n은 복수 판정에 쓰는 `count`·`n`을 **넘겨받은 인자 객체에 써 넣는다.** 스토어의
+ * 진행 상태를 그대로 넘기면 그 객체가 읽기 전용이라 쓰기가 막히고, dev 서버 콘솔에
+ * *"Set operation on key 'count' failed: target is readonly"*가 학습이 도는 내내 쌓인다.
+ * 복수형이 있는 언어에서는 그 값이 안 들어가 문장이 어긋난다 — 한국어는 복수형이 없어
+ * 여태 안 드러났다 (2026-09-02에 dev 서버로 직접 밟다 봤다. **사람 확인이다**).
+ */
+const progressText = computed(() => {
+  const at = training.progress.value
+  const total = at?.total ?? 0
+  return t('train.progress', { completed: at?.completed ?? 0, total }, total)
+})
+
 const dataset = computed(() => readDataset(project.file))
 const columns = computed(() => (dataset.value ? summarizeColumns(dataset.value) : []))
 
@@ -672,13 +687,7 @@ function leave(): void {
         -->
         <p v-if="preparing" class="min-w-0 font-bold" role="status">{{ preparingText }}</p>
         <p v-else-if="training.running.value" class="min-w-0 font-bold" role="status">
-          {{
-            t(
-              'train.progress',
-              training.progress.value ?? { completed: 0, total: 0 },
-              training.progress.value?.total ?? 0,
-            )
-          }}
+          {{ progressText }}
         </p>
         <!-- 이유 없이 꺼진 버튼은 학생에게 고장으로 보인다. -->
         <p v-else-if="nothingToTrain" class="min-w-0 text-ink-soft">

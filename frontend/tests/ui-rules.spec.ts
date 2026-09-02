@@ -2235,6 +2235,39 @@ describe('되보내는 부품은 같은 것을 보낸다', () => {
 })
 
 /**
+ * **`t()`에 넘기는 인자는 새 객체여야 한다.**
+ *
+ * vue-i18n은 복수 판정에 쓰는 `count`·`n`을 **넘겨받은 객체에 써 넣는다.** 스토어나
+ * `computed`가 든 읽기 전용 객체를 그대로 넘기면 그 쓰기가 막혀 콘솔에 경고가 쌓이고,
+ * **복수형이 있는 언어에서는 그 값이 안 들어가 문장이 어긋난다** — 한국어는 복수형이
+ * 없어 여태 안 드러났다 (2026-09-02, dev 서버를 직접 밟다 봤다).
+ *
+ * 검사로 세우는 이유는 **콘솔 경고가 조용하기 때문이다** — 검사도 타입도 안 운다.
+ */
+describe('t()의 인자는 새 객체다', () => {
+  /** `t(…, X.value…)` 꼴. 객체 리터럴이나 개별 값은 안 잡는다. */
+  const REF_PARAMS = /\bt\(\s*(?:'[^']*'|"[^"]*"|`[^`]*`|[\w.]+)\s*,\s*[\w.$]+\.value/g
+
+  function refParams(source: string): string[] {
+    const code = withoutComments(source).join(String.fromCharCode(10))
+    return [...code.matchAll(REF_PARAMS)].map((match) => match[0])
+  }
+
+  it('읽기 전용 객체를 그대로 넘기는 모양을 잡는다', () => {
+    expect(refParams("t('train.progress', training.progress.value)")).toHaveLength(1)
+    expect(refParams("t('train.progress', { completed: at.value ?? 0 })")).toEqual([])
+    expect(refParams("t('x', { done: now.completed, total: now.total })")).toEqual([])
+  })
+
+  it('화면 어디에도 그 모양이 없다', () => {
+    const offenders = vueFiles(SRC).flatMap((path) =>
+      refParams(sourceOf(path)).map((hit) => `${path}: ${hit}`),
+    )
+    expect(offenders).toEqual([])
+  })
+})
+
+/**
  * **화면은 스토어에 함수로 쓴다** (architecture.md §8.10.3).
  *
  * 파일을 통째로 넘기면 그 값은 **부르는 쪽이 언제 읽었는지**에 달린다. 긴 비동기를 여는
