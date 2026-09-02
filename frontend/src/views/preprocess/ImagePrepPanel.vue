@@ -27,7 +27,7 @@ import {
   type UploadItem,
   ZIP_EXTENSION,
 } from '@/data/image/upload'
-import { ClientError } from '@/errors'
+import { ClientError, isClientError } from '@/errors'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { backboneFor } from '@/ml/backbones'
 import { useRadioGroupGuard } from '@/composables/useRadioGroupGuard'
@@ -315,6 +315,11 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
       toasts.push('caution', 'data.image.skipped', { count: baked.skipped.length })
     }
   } catch (error) {
+    // **끊은 것은 실패가 아니다.** 굽는 중에 학생이 다른 단계로 가면 `cancelAll()`이
+    // 워커를 끊고 그 거절이 여기로 온다 — 학생이 스스로 한 일이라 알릴 것이 없고,
+    // 게다가 그 알림은 다음 화면에서 **"학습을 멈췄습니다"**라고 말한다(굽기는 학습이
+    // 아니고, 여기는 학습 화면도 아니다). 이미지 판 넷이 같은 자리를 이렇게 다룬다.
+    if (isClientError(error) && error.code === 'JOB_CANCELLED') return
     toasts.pushError(error)
   } finally {
     job.done()

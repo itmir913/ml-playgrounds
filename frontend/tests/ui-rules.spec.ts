@@ -2410,4 +2410,26 @@ describe('화면은 도는 일을 셈으로 든다', () => {
       expect(code, `${path}: leaving does not cancel every job`).toMatch(/cancelAll/)
     }
   })
+
+  /**
+   * **끊은 것을 실패로 말하지 않는다.** 손잡이를 맡기는 순간 떠나기가 워커를 끊고, 그
+   * 거절(`JOB_CANCELLED`)이 굽기의 `catch`로 온다. 삼키지 않으면 **다음 화면에 빨간
+   * 알림이 뜨고, 그 문구는 "학습을 멈췄습니다"다** — 굽기는 학습이 아니고 전처리 화면은
+   * 학습 화면도 아니다.
+   *
+   * **R21이 이 자리를 만들었다.** `ImagePrepPanel`은 손잡이를 버리고 있어서 취소가 아예
+   * 안 일어났고, 위 규칙을 세워 손잡이를 맡기게 하자 **거절이 처음으로 도착했다.**
+   * 이웃 넷은 전부 삼키고 있었고 그 하나만 안 삼켰다 — **사람이 자리마다 판정하면 틀린다.**
+   */
+  it('워커를 여는 화면은 취소를 실패로 말하지 않는다', () => {
+    const opens = vueFiles(VIEWS).filter((path) =>
+      SPAWNS.test(withoutComments(sourceOf(path)).join('\n')),
+    )
+    expect(opens.length).toBeGreaterThan(0)
+
+    for (const path of opens) {
+      const code = withoutComments(sourceOf(path)).join('\n')
+      expect(code, `${path}: cancellation is reported as a failure`).toMatch(/JOB_CANCELLED/)
+    }
+  })
 })
