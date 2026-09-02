@@ -64,7 +64,9 @@ describe('R24 B-6: an integer knob rounds where the student can see it', () => {
       props: {
         chosen: chosen as unknown as never,
         values: { decision_tree: { mljs: { maxDepth: 5 } } },
-        statuses: [{ kind: 'idle' }] as unknown as never,
+        // `ModelStatus`는 문자열 넷이다 (`ml/training-status.ts`). 캐스트로 다른 모양을
+        // 밀어 넣으면 판이 그 값을 표에서 못 찾아도 아무것도 안 운다.
+        statuses: ['waiting'] as const,
         estimates: [{ kind: 'unknown' }] as unknown as never,
         running: false,
         startedAt: [null],

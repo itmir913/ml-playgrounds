@@ -88,7 +88,7 @@ function clusteringExperiment(project: ProjectFile): Experiment {
     settings: {
       taskType: 'clustering',
       runtime: 'mljs',
-      selectedAlgorithms: [{ algorithm: 'kmeans', runtime: 'mljs' }],
+      selectedAlgorithms: [{ algorithm: 'k_means', runtime: 'mljs' }],
       data: {
         categories: ['개', '고양이'],
         backboneId: DEFAULT_BACKBONE_ID,
@@ -102,7 +102,8 @@ function clusteringExperiment(project: ProjectFile): Experiment {
     preprocessor: { format: 'mlpx-preprocess-v1', path: 'model/preprocessor-experiment-1.json' },
     runs: [
       run('run-1', {
-        algorithm: 'kmeans',
+        // 등록부의 id다 (`ml/algorithms.ts`). `kmeans`로 적으면 판이 id를 읽는 날 이 검사만 다른 세계를 잰다.
+        algorithm: 'k_means',
         model: {
           format: KMEANS_FORMAT,
           path: 'model/run-1.json',
