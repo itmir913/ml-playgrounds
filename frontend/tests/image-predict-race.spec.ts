@@ -25,11 +25,13 @@ import { i18n, setLocale } from '../src/i18n'
 import { readImages } from '../src/project/images'
 import { closeStorage, DB_NAME, loadProject } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
+import { useToastStore } from '../src/stores/toasts'
 import ImagePredictPanel from '../src/views/predict/ImagePredictPanel.vue'
 import {
   dropEvent,
   imagePredictProject,
   resetImageWorkers,
+  stubDialogElement,
   workerState,
 } from './fixtures/image-workers'
 
@@ -72,6 +74,7 @@ beforeEach(async () => {
     configurable: true,
     value: { estimate: () => Promise.resolve({ quota: 10_000_000_000, usage: 0 }) },
   })
+  stubDialogElement()
   URL.createObjectURL = () => 'blob:fake'
   URL.revokeObjectURL = () => {}
   await setLocale('ko')
@@ -154,5 +157,34 @@ describe('사진을 굽는 동안 예측이 돌면', () => {
     expect(project.file?.embeddings.size).toBe(2)
     // 구운 사진도 함께 남는다 — 처음 둘에 나중에 놓은 하나.
     expect(readImages(project.file, 'predict')).toHaveLength(3)
+  })
+})
+
+/**
+ * **취소는 실패가 아니다** (2026-09-02 R20 C-2).
+ *
+ * 굽는 중에 화면을 떠나면 언마운트가 워커를 끊고 그 거절이 `readPicked`의 `catch`로
+ * 온다. 그것을 알림으로 올리면 **다음 화면에 빨간 "학습을 멈췄습니다"가 뜬다** — 학생이
+ * 스스로 떠난 것이고, 게다가 굽기는 학습이 아니다. 데이터 화면은 같은 자리를 삼킨다.
+ */
+describe('사진을 굽는 중에 화면을 떠나면', () => {
+  it('취소가 알림으로 남지 않는다', async () => {
+    const project = useProjectStore()
+    await project.save(imagePredictProject(['a']))
+    const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+
+    workerState.holdBake = true
+    const panel = wrapper.vm as unknown as PanelInternals
+    panel.onDrop(dropEvent([new File([new Uint8Array([7])], 'gone.jpg', { type: 'image/jpeg' })]))
+    await flushPromises()
+    expect(workerState.baked).toBe(1)
+
+    wrapper.unmount()
+    await flushPromises()
+    await tick()
+    await flushPromises()
+
+    expect(useToastStore().items).toEqual([])
   })
 })

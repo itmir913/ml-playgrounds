@@ -127,6 +127,22 @@ export function imagePredictProject(seeds: readonly string[]): ProjectFile {
   ).project
 }
 
+/**
+ * jsdom에는 `<dialog>`의 열고 닫기가 없다. **없으면 언마운트가 던진다** —
+ * `AppDialog`가 `onBeforeUnmount`에서 `close()`를 부르기 때문이고, 그 예외는 화면을
+ * 떠나는 것을 보는 검사마다 걸린다.
+ */
+export function stubDialogElement(): void {
+  const proto = globalThis.HTMLDialogElement?.prototype
+  if (!proto) return
+  proto.showModal = function showModal(this: HTMLDialogElement): void {
+    this.open = true
+  }
+  proto.close = function close(this: HTMLDialogElement): void {
+    this.open = false
+  }
+}
+
 /** 판에 사진을 끌어다 놓는 것. **jsdom에는 `DragEvent`가 없다.** */
 export function dropEvent(files: readonly File[]): Event {
   const event = new Event('drop', { bubbles: true, cancelable: true })

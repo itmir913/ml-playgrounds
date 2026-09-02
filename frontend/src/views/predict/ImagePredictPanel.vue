@@ -307,6 +307,12 @@ async function readPicked(files: readonly File[]): Promise<void> {
     // 사진이 바뀌면 답이 뜻을 잃는다.
     answers.value = new Map()
   } catch (error) {
+    // **취소는 실패가 아니다.** 굽는 중에 떠나면 `onBeforeUnmount`가 워커를 끊고 그
+    // 거절이 여기로 온다 — 학생이 스스로 한 일이라 알릴 것이 없고, 게다가 그 알림은
+    // 다음 화면에서 "학습을 멈췄습니다"라고 말한다(굽기는 학습이 아니다).
+    // 데이터 화면(`views/data/ImagePanel.vue`)이 같은 자리를 이미 이렇게 다룬다
+    // (2026-09-02 R20 C-2).
+    if (isClientError(error) && error.code === 'JOB_CANCELLED') return
     toasts.pushError(error)
   } finally {
     // 끝났으면 손잡이도 놓는다. 안 놓으면 다음 언마운트가 끝난 워커를 끊으려 든다.

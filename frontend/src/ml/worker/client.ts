@@ -121,7 +121,11 @@ export function train(
       return
     }
     if (message.type === 'progress') {
-      // 취소한 뒤에 도착한 보고는 버린다. terminate가 즉시 조용해지지는 않는다.
+      // **지금은 여기 못 닿는다.** 취소는 `settle()`을 지나고 그것이 핸들러를 떼므로,
+      // 뒤늦게 온 보고는 이 함수까지 오지 않는다 — `training.spec.ts`의 "취소한 뒤에
+      // 도착한 보고는 안 쌓인다"가 재는 것도 그 뗌이지 이 가드가 아니다(R20 C-1).
+      // 남겨 두는 것은 핸들러를 안 떼는 경로가 생기는 날을 위한 그물이고, **지금 이 줄이
+      // 하는 일은 없다.**
       if (!finished) {
         runs.push(message.run)
         if (message.model) models.set(message.run.id, message.model)
