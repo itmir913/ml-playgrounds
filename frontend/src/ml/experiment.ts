@@ -450,6 +450,7 @@ function trainOne(
         features: context.trainFeatures,
         rowIndices: context.trainRowIndices,
         target: context.trainTarget,
+        taskType: context.taskType,
         hyperparameters: base.hyperparameters,
         randomState: context.randomState,
       },

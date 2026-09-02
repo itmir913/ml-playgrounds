@@ -202,7 +202,9 @@ export const ALGORITHMS: readonly Algorithm[] = [
      */
     id: 'neural_network',
     dataTypes: { tabular: true, image: false },
-    taskTypes: { classification: true, regression: false, clustering: false },
+    // **분류와 회귀를 함께 하는 첫 줄이다.** 갈리는 것은 출력층 셋(칸 수·활성·손실)뿐이고
+    // 역전파는 한 줄도 안 갈린다 — 그래서 엔진 하나로 둘을 한다 (mlpx-spec.md §5.11).
+    taskTypes: { classification: true, regression: true, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': false, 'server-sklearn': false },
     maxRows: {
       tabular: { mljs: MLJS_NEURAL_NETWORK_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },

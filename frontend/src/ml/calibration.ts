@@ -107,6 +107,7 @@ export function measureJob(job: CalibrationJob): number {
     features,
     rowIndices,
     target,
+    taskType: job.regression ? 'regression' : 'classification',
     hyperparameters: job.hyperparameters ?? {},
     randomState: 42,
   })

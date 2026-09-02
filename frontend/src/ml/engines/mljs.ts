@@ -45,22 +45,30 @@ import MultivariateLinearRegression from 'ml-regression-multivariate-linear'
 
 import { ClientError, failureDetail } from '../../errors'
 import type { ClientWarningCode } from '../../errors'
-import type { Warning } from '../../project/schema'
+import type { TaskType, Warning } from '../../project/schema'
 import { resolveWith, type HyperparameterSpec } from '../hyperparams'
 import type { Prediction } from '../metrics'
 import {
   KMEANS_FORMAT,
   LINEAR_V2_FORMAT,
   NEURAL_FORMAT,
+  NEURAL_REGRESSION_FORMAT,
   REFERENCE_FORMAT,
   SVM_FORMAT,
   knnPredict,
   loadKMeansModel,
   loadLinearV2Model,
   loadNeuralModel,
+  loadNeuralRegressionModel,
   svmPredict,
 } from '../models'
-import type { KMeansModel, LinearModelV2, NeuralModel, PairwiseClassifier } from '../models'
+import type {
+  KMeansModel,
+  LinearModelV2,
+  NeuralModel,
+  NeuralRegressionModel,
+  PairwiseClassifier,
+} from '../models'
 import type { ModelFile, Predict } from '../models/types'
 import { fitLogistic } from './logistic'
 import { fitNeural } from './neural'
@@ -168,6 +176,16 @@ export interface FitInput {
   rowIndices: readonly number[]
   /** 분류면 라벨 문자열, 회귀면 수치. */
   target: readonly Prediction[]
+  /**
+   * 무엇을 학습하는가. **`target`이 무엇인지가 이 값에 달려 있다** — 지금까지는 트레이너
+   * 이름이 그것을 암묵으로 말했고(`linear_regression`이 `.map(Number)`를 하는 것이 그
+   * 가정이었다), **분류와 회귀를 함께 하는 알고리즘이 들어오면서 밖으로 나왔다**
+   * (`neural_network`, 2026-09-03).
+   *
+   * **한 알고리즘이 한 유형만 하면 이 값을 안 본다.** 등록부의 축이 이미 짝을 맞춰 두므로
+   * 어긋난 조합은 여기 도달하지 않는다 (`ml/algorithms.ts`).
+   */
+  taskType: TaskType
   hyperparameters: Record<string, unknown>
   /** 항상 저장하고 항상 쓴다. 재현 가능성이 교육용 도구의 생명이다. */
   randomState: number
@@ -636,35 +654,53 @@ const TRAINERS: Record<string, Trainer> = {
    * "덜 배웠다"이므로 지표도 모델도 정상으로 나온다 (mlpx-spec.md §5.9).
    */
   neural_network: (input) => {
-    const { encoded, labels } = labelCodec(input.target)
     const featureCount = input.features[0]?.length ?? 0
+    const options = {
+      hiddenLayers: numberOption(input.hyperparameters, 'hiddenLayers'),
+      neuronsPerLayer: numberOption(input.hyperparameters, 'neuronsPerLayer'),
+    }
+    const regression = input.taskType === 'regression'
+    // **회귀는 부호화하지 않는다. 타깃이 이미 수치다** (`linear_regression`과 같다).
+    const { encoded, labels } = regression
+      ? { encoded: input.target.map(Number), labels: [] }
+      : labelCodec(input.target)
 
     const fitted = fitNeural(
       input.features,
       encoded,
-      labels.length,
-      {
-        hiddenLayers: numberOption(input.hyperparameters, 'hiddenLayers'),
-        neuronsPerLayer: numberOption(input.hyperparameters, 'neuronsPerLayer'),
-      },
+      regression ? { kind: 'regression' } : { kind: 'classification', classCount: labels.length },
+      options,
       input.randomState,
     )
 
-    const model: NeuralModel = {
-      format: NEURAL_FORMAT,
-      classes: labels,
+    const layers = {
       featureCount,
       weights: fitted.weights,
       intercepts: fitted.intercepts,
       lossCurve: fitted.lossCurve,
     }
+    /**
+     * **형식이 갈린다** (mlpx-spec.md §5.11). 돌려주는 것이 라벨이냐 수치냐가 다르고,
+     * `classes`를 선택 필드로 두면 해석기가 그 유무로 갈라진다.
+     */
+    const model: NeuralModel | NeuralRegressionModel = regression
+      ? { format: NEURAL_REGRESSION_FORMAT, ...layers }
+      : { format: NEURAL_FORMAT, classes: labels, ...layers }
 
+    /**
+     * **조건은 같고 코드는 갈린다.** 에폭 상한에 닿은 것은 유형과 무관하지만 **학생이 할
+     * 일이 다르다** — 분류는 전처리 스케일링이 답이고(실측 0.40 → 1.00), 회귀에서는
+     * 그것이 되레 해롭다(R² −0.20 → −10.2). 문구가 한쪽에 거짓말하지 않게 여기서 나눈다.
+     */
     const warning: EngineWarning | undefined = fitted.converged
       ? undefined
-      : { code: 'NEURAL_NOT_CONVERGED', params: { iterations: fitted.epochs } }
+      : {
+          code: regression ? 'NEURAL_REGRESSION_NOT_CONVERGED' : 'NEURAL_NOT_CONVERGED',
+          params: { iterations: fitted.epochs },
+        }
 
     return {
-      predict: loadNeuralModel(model),
+      predict: regression ? loadNeuralRegressionModel(model) : loadNeuralModel(model),
       model,
       ...(warning ? { warning } : {}),
     }

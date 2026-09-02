@@ -13,7 +13,12 @@
  * 이어야 하고, 우리가 손대는 순간 그것은 아무도 안 본 계산이 된다.
  */
 
-import { NEURAL_FORMAT, parseNeural } from './models'
+import {
+  NEURAL_FORMAT,
+  NEURAL_REGRESSION_FORMAT,
+  parseNeural,
+  parseNeuralRegression,
+} from './models'
 
 /** 곡선의 한 점. 에폭은 1부터 센다 — 학생이 세는 방식이다. */
 export interface LossPoint {
@@ -27,7 +32,7 @@ export interface LossPoint {
  * 답한다.
  */
 export function showsLossCurve(format: string | undefined): boolean {
-  return format === NEURAL_FORMAT
+  return format === NEURAL_FORMAT || format === NEURAL_REGRESSION_FORMAT
 }
 
 /**
@@ -47,9 +52,15 @@ export function lossCurveOf(
   if (!showsLossCurve(format) || !bytes) return null
 
   try {
-    const model = parseNeural(JSON.parse(new TextDecoder().decode(bytes)))
-    if (model.lossCurve.length < 2) return null
-    return model.lossCurve.map((loss, index) => ({ epoch: index + 1, loss }))
+    const payload: unknown = JSON.parse(new TextDecoder().decode(bytes))
+    // **형식마다 자기 해석기를 부른다.** 하나로 읽고 `classes`의 유무로 가르면 이 파일이
+    // 형식의 속을 아는 것이 되고, 그건 §5.11이 나눈 이유를 되돌리는 것이다.
+    const curve =
+      format === NEURAL_FORMAT
+        ? parseNeural(payload).lossCurve
+        : parseNeuralRegression(payload).lossCurve
+    if (curve.length < 2) return null
+    return curve.map((loss, index) => ({ epoch: index + 1, loss }))
   } catch {
     // 못 읽는 파일이다. 이유를 말하는 자리는 다른 곳이고, 여기서는 안 그린다.
     return null

@@ -67,6 +67,7 @@ function trained(
     features: matrix,
     rowIndices: ROWS,
     target: values,
+    taskType: 'classification',
     hyperparameters: {},
     randomState: 42,
   })

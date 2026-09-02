@@ -16,7 +16,13 @@ import { KMEANS_FORMAT, loadKMeansModel } from './kmeans'
 import { LINEAR_V2_FORMAT, loadLinearV2Model, loadLinearV2Proba } from './linear'
 import { LINEAR_REGRESSION_FORMAT, loadLinearRegressionModel } from './linear-regression'
 import { NAIVE_BAYES_FORMAT, loadNaiveBayesModel } from './naive-bayes'
-import { NEURAL_FORMAT, loadNeuralModel, loadNeuralProba } from './neural'
+import {
+  NEURAL_FORMAT,
+  NEURAL_REGRESSION_FORMAT,
+  loadNeuralModel,
+  loadNeuralProba,
+  loadNeuralRegressionModel,
+} from './neural'
 import { REFERENCE_FORMAT, loadReferenceModel } from './reference'
 import { SVM_FORMAT, loadSvmModel } from './svm'
 import { TREE_FORMAT, loadTreeModel } from './tree'
@@ -30,8 +36,15 @@ export { LINEAR_REGRESSION_FORMAT, parseLinearRegression } from './linear-regres
 export type { LinearRegressionModel, ParsedLinearRegression } from './linear-regression'
 export { NAIVE_BAYES_FORMAT, parseNaiveBayes } from './naive-bayes'
 export type { NaiveBayesModel, ParsedNaiveBayes } from './naive-bayes'
-export { NEURAL_FORMAT, loadNeuralModel, parseNeural } from './neural'
-export type { NeuralModel, ParsedNeural } from './neural'
+export {
+  NEURAL_FORMAT,
+  NEURAL_REGRESSION_FORMAT,
+  loadNeuralModel,
+  loadNeuralRegressionModel,
+  parseNeural,
+  parseNeuralRegression,
+} from './neural'
+export type { NeuralModel, NeuralRegressionModel, ParsedLayers, ParsedNeural } from './neural'
 export { REFERENCE_FORMAT, knnPredict } from './reference'
 export type { NeighborhoodInput, ReferenceModel } from './reference'
 export { SVM_FORMAT, svmPredict } from './svm'
@@ -79,6 +92,16 @@ const INTERPRETERS: readonly ModelInterpreter[] = [
     needsTrainingRows: false,
     load: loadNeuralModel,
     loadProba: loadNeuralProba,
+  },
+  {
+    /**
+     * **같은 망인데 형식이 갈린다** (mlpx-spec.md §5.11). 돌려주는 것이 라벨이 아니라
+     * 수치라 `classes`가 없고, **확률도 없다** — 회귀에는 고를 칸이 없다.
+     */
+    format: NEURAL_REGRESSION_FORMAT,
+    includesPreprocessing: false,
+    needsTrainingRows: false,
+    load: loadNeuralRegressionModel,
   },
   {
     format: LINEAR_REGRESSION_FORMAT,

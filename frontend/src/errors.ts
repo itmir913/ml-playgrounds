@@ -276,6 +276,18 @@ export const CLIENT_WARNING_CODES = [
   // 손실이 더 안 줄어들기 전에 에폭 상한에 닿았다. 가중치도 지표도 나온다 - 덜 배웠을
   // 뿐이다. sklearn `MLPClassifier`가 ConvergenceWarning을 내는 그 자리다.
   'NEURAL_NOT_CONVERGED',
+  /**
+   * 위와 **같은 조건이고 학생이 할 일만 다르다** (2026-09-03).
+   *
+   * **회귀에서는 전처리 스케일링이 답이 아니다.** 실측에서 그것을 켜면 되레 나빠졌다 —
+   * 같은 데이터에서 R²가 −0.20에서 **−10.2**가 됐다. 특성을 표준화하면 은닉층의 활성이
+   * 작아져 타깃 크기에 닿는 데 더 오래 걸린다. 분류에서는 정확히 반대다(0.40 → 1.00).
+   *
+   * **그래서 코드를 나눈다.** 하나로 두면 문구가 둘 중 한쪽에 거짓말을 하고, 그건 이
+   * 저장소가 로지스틱에서 이미 한 번 겪은 막다른 길이다
+   * (`open-decisions.md` "로지스틱 회귀 솔버를 sklearn과 같은 구조로 바꾼다").
+   */
+  'NEURAL_REGRESSION_NOT_CONVERGED',
 ] as const
 
 export type ClientWarningCode = (typeof CLIENT_WARNING_CODES)[number]

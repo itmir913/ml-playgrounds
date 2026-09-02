@@ -43,6 +43,7 @@ function input(hyperparameters: Record<string, unknown>): FitInput {
     ],
     rowIndices: [0, 1],
     target: ['a', 'b'],
+    taskType: 'classification',
     hyperparameters,
     randomState: 42,
   }

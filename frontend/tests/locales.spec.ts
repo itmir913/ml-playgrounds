@@ -1143,28 +1143,65 @@ describe('번역이 빠진 값이 없다', () => {
  *
  * **세 경고를 함께 본다.** SVM·K-평균은 처음부터 스케일링을 말하고 있었고, 로지스틱만
  * 빠져 있었다 — 한 자리만 고치고 이웃을 안 보면 다음에 또 갈린다.
+ *
+ * **그런데 이름으로 세면 안 된다** (2026-09-03). 이 검사는 `_NOT_CONVERGED`로 끝나는
+ * 코드를 전부 훑고 있었고, 그러면 **처방이 다른 새 코드가 들어와도 조용히 이 규칙을
+ * 뒤집어쓴다.** 실제로 인공신경망 회귀가 그랬다 — 같은 조건인데 **스케일링을 켜면
+ * 되레 나빠진다**(같은 데이터에서 R² −0.20 → −10.2 실측, 분류는 0.40 → 1.00).
+ * 그래서 **처방이 실제로 스케일링인 것만 이름을 적는다.**
  */
 describe('수렴 경고는 전처리 스케일링을 가리킨다', () => {
-  const NOT_CONVERGED = CLIENT_WARNING_CODES.filter((code) => code.endsWith('_NOT_CONVERGED'))
+  /**
+   * **손으로 적은 목록이다.** 여기 이름이 있다는 것은 *"이 코드에서 스케일링이 답이라는
+   * 것을 재 봤다"*는 뜻이고, 재 보지 않은 코드가 이름 모양만으로 끼어들지 못하게 한다.
+   */
+  const SCALING_HELPS = [
+    'SVM_NOT_CONVERGED',
+    'LOGISTIC_NOT_CONVERGED',
+    'KMEANS_NOT_CONVERGED',
+    'NEURAL_NOT_CONVERGED',
+  ] as const
 
-  it('경고 코드가 넷 다 여기 걸린다', () => {
-    // 새 엔진이 같은 종류의 경고를 들고 오면 이 검사가 그것도 본다.
-    // **인공신경망이 넷째다** (2026-09-03) — 에폭 상한에 닿는 자리이고, 그 처방도
-    // 스케일링이다.
-    expect(NOT_CONVERGED.length).toBe(4)
+  /** 스케일링이 답이 **아닌** 수렴 경고. 문구가 그것을 권하면 막다른 길이 된다. */
+  const SCALING_HURTS = ['NEURAL_REGRESSION_NOT_CONVERGED'] as const
+
+  it('수렴 경고가 둘 중 한 목록에 반드시 든다', () => {
+    // **새 엔진이 같은 종류의 경고를 들고 오면 여기서 멈춘다** — 그때 물어야 하는 것은
+    // "이 코드에서 스케일링이 답인가"이고, 그건 재 봐야 아는 것이다.
+    const named: readonly string[] = [...SCALING_HELPS, ...SCALING_HURTS]
+    const unplaced = CLIENT_WARNING_CODES.filter(
+      (code) => code.endsWith('_NOT_CONVERGED') && !named.includes(code),
+    )
+    expect(unplaced, 'measure whether scaling is the fix, then add it to a list').toEqual([])
+    expect(named.length).toBe(5)
   })
 
   it('한국어가 스케일링을 말한다', () => {
-    const silent = NOT_CONVERGED.filter(
+    const silent = SCALING_HELPS.filter(
       (code) => !(korean.get(`client.${code}`) ?? '').includes('스케일링'),
     )
     expect(silent).toEqual([])
   })
 
   it('영어가 스케일링을 말한다', () => {
-    const silent = NOT_CONVERGED.filter(
+    const silent = SCALING_HELPS.filter(
       (code) => !(english.get(`client.${code}`) ?? '').includes('Scaling'),
     )
     expect(silent).toEqual([])
+  })
+
+  /**
+   * **권하지 않는 것까지 못 박는다.** 안 그러면 다음 사람이 "이웃과 같은 문장을 쓰자"고
+   * 스케일링을 넣고, 그 문장은 실측과 반대다.
+   */
+  it('회귀 쪽은 스케일링을 권하지 않고 손실 곡선을 가리킨다', () => {
+    for (const code of SCALING_HURTS) {
+      const ko = korean.get(`client.${code}`) ?? ''
+      const en = english.get(`client.${code}`) ?? ''
+      expect(ko, code).not.toContain('스케일링')
+      expect(en, code).not.toContain('Scaling')
+      expect(ko, code).toContain('손실 곡선')
+      expect(en, code).toContain('loss curve')
+    }
   })
 })

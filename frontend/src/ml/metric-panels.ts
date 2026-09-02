@@ -112,12 +112,17 @@ const PANELS: readonly MetricPanel[] = [
      * **이 곡선을 갖는 것은 신경망뿐이다.** 다른 모델은 다 자란 결과만 남기므로 여기
      * 항목이 늘어날 자리는 "에폭을 도는 엔진이 하나 더 생겼을 때"다.
      *
-     * **표와 사진 양쪽에 선다.** 곡선은 특성 이름을 안 쓰므로 임베딩에서도 뜻이 그대로다 —
-     * 계수 표가 표 데이터 전용인 것과 갈리는 자리다.
+     * **분류와 회귀 양쪽에 선다** (2026-09-03). 곡선은 라벨을 안 쓰므로 뜻이 그대로이고,
+     * **회귀에는 혼동 행렬도 범주별 점수도 없어서 학습을 눈으로 보는 자리가 여기뿐이다.**
+     *
+     * **사진은 `false`다. 곡선이 사진에서 뜻이 없어서가 아니라 알고리즘이 거기서 안
+     * 열려 있어서다** — `neural_network`의 `dataTypes`를 따라간다. 그쪽이 열리는 날 이
+     * 줄도 함께 뒤집는다. **여기만 `true`로 두면 아무도 못 지나가는 축을 참이라고
+     * 적어 두는 것이 된다.**
      */
     id: 'loss-curve',
-    dataTypes: { tabular: true, image: true },
-    taskTypes: { classification: true, regression: false, clustering: false },
+    dataTypes: { tabular: true, image: false },
+    taskTypes: { classification: true, regression: true, clustering: false },
     // **형식으로 판정한다** — 계수 표와 같은 규칙이다. 곡선 자체는 모델 파일 안이라
     // `run` 하나로는 못 보고, 그 사실은 패널이 열어 보고 안다 (§9.5).
     hasData: (run) => showsLossCurve(run.model?.format),

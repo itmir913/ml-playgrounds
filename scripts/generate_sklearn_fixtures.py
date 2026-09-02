@@ -46,7 +46,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import accuracy_score, r2_score
 from sklearn.naive_bayes import GaussianNB
-from sklearn.neural_network import MLPClassifier
+from sklearn.neural_network import MLPClassifier, MLPRegressor
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
@@ -177,7 +177,10 @@ def expectations_for(name: str, entry: dict[str, Any]) -> dict[str, Any]:
                 "coefficients": regression.coef_.tolist(),
                 "intercept": float(regression.intercept_),
                 "r2": float(r2_score(np.array(y_test, dtype=float), prediction)),
-            }
+            },
+            "neural_network": neural_regression_distribution(
+                x_train, y_train, x_test, y_test
+            ),
         }
 
     counts: dict[str, int] = {}
@@ -287,6 +290,45 @@ def neural_distribution(
         "accuracyMin": float(min(accuracies)),
         "accuracyMax": float(max(accuracies)),
         "accuracyMedian": float(np.median(accuracies)),
+        "hiddenLayerSizes": [100],
+    }
+
+
+def neural_regression_distribution(
+    x_train: np.ndarray,
+    y_train: list[str],
+    x_test: np.ndarray,
+    y_test: list[str],
+) -> dict[str, Any]:
+    """MLPRegressor를 씨앗마다 돌려 **R2의 구간**을 적는다.
+
+    분류 쪽(`neural_distribution`)과 같은 이유로 값 하나가 아니라 구간이다 - 목적함수가
+    비볼록이고 도착점이 초기화에 달렸다.
+
+    **`r2Min`이 음수일 수 있다.** R2는 "평균만 내는 모델"이 0이고 그보다 못하면 음수라,
+    타깃의 크기가 큰 벌에서는 에폭 상한 안에 못 닿아 음수가 나온다 - 그때 sklearn도
+    같은 자리에 있다는 것이 이 표의 값이다.
+    """
+    train = np.array(y_train, dtype=float)
+    test = np.array(y_test, dtype=float)
+    scores: list[float] = []
+    for seed in NEURAL_SEEDS:
+        model = MLPRegressor(hidden_layer_sizes=(100,), random_state=seed)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ConvergenceWarning)
+            model.fit(x_train, train)
+        scores.append(float(r2_score(test, model.predict(x_test))))
+
+    # **평균만 내는 모델의 R2는 정의상 0이다.** 분류의 다수 클래스 기준선과 같은 자리이고,
+    # 견주는 쪽이 그 사실을 알아야 "찍기보다 낫다"를 물을 수 있다.
+    return {
+        "seeds": list(NEURAL_SEEDS),
+        # **`r2Values`다. `r2`가 아니다** - 선형 회귀 항목이 그 이름으로 수 하나를 갖고
+        # 있고, 같은 이름이 한 파일에서 배열과 수를 함께 뜻하면 읽는 쪽의 타입이 갈린다.
+        "r2Values": scores,
+        "r2Min": float(min(scores)),
+        "r2Max": float(max(scores)),
+        "r2Median": float(np.median(scores)),
         "hiddenLayerSizes": [100],
     }
 

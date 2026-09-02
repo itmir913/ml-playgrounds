@@ -184,6 +184,7 @@ export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
         features: shared.trainFeatures,
         rowIndices: settings.trainIndices,
         target: shared.trainTarget,
+        taskType: settings.taskType,
         // **파일에 적힌 값을 그대로 먹인다.** 기본값을 다시 채우면 학생이 바꾼 값이
         // 사라지고, 그러면 다른 설정으로 학습해 놓고 "안 맞는다"고 말하게 된다.
         hyperparameters: run.hyperparameters,

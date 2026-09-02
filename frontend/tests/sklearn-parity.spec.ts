@@ -58,7 +58,6 @@ interface FixtureEntry {
       }
       coefficients?: number[]
       intercept?: number
-      r2?: number
       /**
        * 인공신경망만. **씨앗마다의 정확도와 그 구간이다** — 이 알고리즘은 도착점이
        * 하나가 아니라서 기대값이 수 하나가 아니다 (`open-decisions.md` "인공신경망을
@@ -66,6 +65,12 @@ interface FixtureEntry {
        */
       seeds?: number[]
       accuracies?: number[]
+      /** 회귀 쪽. **R2는 "평균만 내는 모델"이 0이고 그보다 못하면 음수다.** */
+      r2?: number
+      r2Values?: number[]
+      r2Min?: number
+      r2Max?: number
+      r2Median?: number
       accuracyMin?: number
       accuracyMax?: number
       accuracyMedian?: number
@@ -172,7 +177,10 @@ describe('대조가 줄어들지 않았다', () => {
   it('분류 데이터셋마다 알고리즘 여섯을 다 견준다', () => {
     for (const [name, entry] of Object.entries(document.datasets)) {
       if (entry.meta.taskType === 'regression') {
-        expect(Object.keys(entry.sklearn), name).toEqual(['linear_regression'])
+        expect(Object.keys(entry.sklearn).sort(), name).toEqual([
+          'linear_regression',
+          'neural_network',
+        ])
         continue
       }
       expect(Object.keys(entry.sklearn).sort(), name).toEqual([
@@ -208,6 +216,7 @@ for (const [name, entry] of Object.entries(document.datasets)) {
           features: trainFeatures,
           rowIndices: entry.trainIndices,
           target: trainTarget.map(Number),
+          taskType: 'regression',
           hyperparameters: {},
           randomState: entry.randomState,
         })
@@ -227,6 +236,62 @@ for (const [name, entry] of Object.entries(document.datasets)) {
           LSTSQ_TOLERANCE,
         )
       })
+
+      /**
+       * **회귀 신경망도 분포로 견준다** — 분류 쪽과 같은 이유다(위 블록 참고).
+       *
+       * **여기서 재는 것은 "sklearn만큼 못 배운다"이다.** 이 벌의 타깃은 성적(23.8~103.9)인데
+       * 특성은 공부시간·수면시간(한 자릿수)이라, **타깃을 스케일링하지 않는 sklearn
+       * `MLPRegressor`가 200 에폭 안에 거기까지 못 간다** — 다섯 씨앗의 R²가
+       * −2.91~0.23이고 중앙값이 음수다(평균만 내는 모델보다 못하다는 뜻이다). 같은
+       * 데이터에서 선형 회귀는 0.935를 낸다.
+       *
+       * **그것이 결함이 아니라 사실이라는 것이 이 검사의 주장이다.** 우리도 sklearn의
+       * 구간 안에 있어야 하고, **더 잘해도 안 된다는 말은 아니다** — 아래는 한쪽만 본다.
+       *
+       * 학생이 이 자리에서 보는 것은 손실 곡선이 아직 가파르게 내려가는 중이라는 것과
+       * `NEURAL_NOT_CONVERGED`다. **그 둘이 이 사실을 화면에서 말해 준다.**
+       */
+      const neuralRegression = entry.sklearn.neural_network
+      if (neuralRegression) {
+        it('neural_network — sklearn 회귀 분포 안이고 손실이 내려간다', () => {
+          expect(neuralRegression.seeds, `${name}: neural reference`).toBeDefined()
+          expect(neuralRegression.r2Values, `${name}: neural r2`).toBeDefined()
+          expect(neuralRegression.hiddenLayerSizes, `${name}: hidden layer sizes`).toEqual([100])
+
+          const ours = (neuralRegression.seeds ?? []).map((seed) => {
+            const { predict, model } = fit('neural_network', {
+              features: trainFeatures,
+              rowIndices: entry.trainIndices,
+              target: trainTarget.map(Number),
+              taskType: 'regression',
+              hyperparameters: {},
+              randomState: seed,
+            })
+            const curve = (model as { lossCurve?: number[] }).lossCurve ?? []
+            const r2 =
+              evaluate('regression', testTarget.map(Number), predict(testFeatures)).metrics.r2 ?? 0
+            return { r2, curve }
+          })
+
+          for (const [index, run] of ours.entries()) {
+            expect(run.curve.length, `${name}: seed ${index} curve`).toBeGreaterThan(1)
+            expect(
+              run.curve[run.curve.length - 1],
+              `${name}: seed ${index} loss descends`,
+            ).toBeLessThan(run.curve[0] as number)
+          }
+
+          const sorted = ours.map((one) => one.r2).sort((a, b) => a - b)
+          const median = sorted[Math.floor(sorted.length / 2)] ?? 0
+          expect(
+            median,
+            `${name}: ours median R² ${median.toFixed(4)} vs sklearn min ${(
+              neuralRegression.r2Min ?? 0
+            ).toFixed(4)}`,
+          ).toBeGreaterThanOrEqual(neuralRegression.r2Min ?? 0)
+        })
+      }
       return
     }
 
@@ -243,6 +308,7 @@ for (const [name, entry] of Object.entries(document.datasets)) {
           features: trainFeatures,
           rowIndices: entry.trainIndices,
           target: trainTarget,
+          taskType: 'classification',
           hyperparameters: {},
           randomState: entry.randomState,
         })
@@ -311,6 +377,7 @@ for (const [name, entry] of Object.entries(document.datasets)) {
             features: trainFeatures,
             rowIndices: entry.trainIndices,
             target: trainTarget,
+            taskType: 'classification',
             hyperparameters: {},
             randomState: entry.randomState,
           })
@@ -348,6 +415,7 @@ for (const [name, entry] of Object.entries(document.datasets)) {
             features: trainFeatures,
             rowIndices: entry.trainIndices,
             target: trainTarget,
+            taskType: 'classification',
             hyperparameters: {},
             randomState: entry.randomState,
           })
@@ -420,6 +488,7 @@ for (const [name, entry] of Object.entries(document.datasets)) {
             features: trainFeatures,
             rowIndices: entry.trainIndices,
             target: trainTarget,
+            taskType: 'classification',
             hyperparameters: {},
             randomState: seed,
           })

@@ -53,6 +53,7 @@ function train(hyperparameters: Record<string, unknown> = {}, randomState = 42) 
     features: IRIS_FEATURES,
     rowIndices: IRIS_FEATURES.map((_, index) => index),
     target: IRIS_LABELS,
+    taskType: 'classification',
     hyperparameters,
     randomState,
   })

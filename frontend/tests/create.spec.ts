@@ -176,9 +176,21 @@ describe('고를 수 있는 과제 유형', () => {
     }
   })
 
+  /**
+   * **목록에서 유도된다는 것이 요점이다.** 손으로 적은 유형 배열이 어딘가에 또 있으면
+   * 알고리즘을 등록해도 화면이 안 따라온다.
+   *
+   * **한 알고리즘이 두 유형을 할 수 있다** (2026-09-03, `neural_network`). 그래서 "회귀를
+   * 하는 것만 남기면 회귀만 나온다"가 더 이상 참이 아니고, 참인 것은 **남긴 것들의 유형을
+   * 합친 것과 같다**이다 — 그쪽이 원래 재려던 것이기도 하다.
+   */
   it('알고리즘을 등록하면 저절로 따라온다', () => {
     const only = ALGORITHMS.filter((one) => one.taskTypes.regression)
-    expect(supportedTaskTypes(undefined, only)).toEqual(['regression'])
+    const union = TASK_TYPES.filter((taskType) => only.some((one) => one.taskTypes[taskType]))
+    expect(supportedTaskTypes(undefined, only)).toEqual(union)
+    // 걸러 낸 것이 실제로 줄어들었는지까지 본다 — 전부 남으면 이 검사가 아무 말도 안 한다.
+    expect(only.length).toBeLessThan(ALGORITHMS.length)
+    expect(union).toContain('regression')
   })
 
   /**

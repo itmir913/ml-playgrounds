@@ -75,19 +75,30 @@ function uniform01(rng: ReturnType<typeof xoroshiro128plus>): number {
 }
 
 /**
+ * 이 학습이 무엇을 내는가. **출력층 셋(칸 수·활성·손실)만 여기서 갈린다.**
+ *
+ * `targets[i]`가 무엇인지도 이것이 정한다 — 분류는 **클래스 번호**, 회귀는 **값 그대로**다.
+ */
+export type NeuralTask =
+  { readonly kind: 'classification'; readonly classCount: number } | { readonly kind: 'regression' }
+
+/**
  * 층 크기 목록. `[특성 수, 은닉…, 출력 칸 수]`.
  *
  * **이진의 출력이 한 칸인 것은 sklearn과 같다** — `MLPClassifier`가 라벨 이진화로
  * 열 하나를 얻고 출력 활성을 로지스틱으로 둔다. 두 칸 softmax로 풀면 같은 모델이 아니다.
+ *
+ * **회귀도 한 칸이다** — 타깃이 하나이므로 `MLPRegressor`와 같다. 그래서 회귀와 이진
+ * 분류의 **망 크기가 같고**, 예상 시간 기준표를 한 벌로 쓴다 (`limits.ts`).
  */
 function layerSizes(
   featureCount: number,
-  classCount: number,
+  task: NeuralTask,
   options: NeuralOptions,
 ): readonly number[] {
   const hidden = Math.max(1, Math.round(options.hiddenLayers))
   const width = Math.max(1, Math.round(options.neuronsPerLayer))
-  const output = classCount === 2 ? 1 : classCount
+  const output = task.kind === 'regression' ? 1 : task.classCount === 2 ? 1 : task.classCount
   return [featureCount, ...Array.from({ length: hidden }, () => width), output]
 }
 
@@ -144,15 +155,31 @@ function sigmoid(z: number): number {
 const CLIP = 1e-10
 
 /**
+ * 출력층의 활성. **`Objective`가 들고 다닌다** — `forward`가 과제 유형을 보고 갈라지면
+ * 층을 흘리는 산수 안에 분기가 생기고, 회귀가 붙는 날 그 분기가 하나 는다.
+ */
+type Activate = (output: Float64Array) => void
+
+/** 분류의 출력 — 이진이면 로지스틱 한 칸, 다중이면 softmax. */
+const probability: Activate = (output) => {
+  if (output.length === 1) output[0] = sigmoid(output[0] as number)
+  else softmax(output)
+}
+
+/** 회귀의 출력 — 항등이다. sklearn `MLPRegressor`의 `out_activation_`과 같다. */
+const identity: Activate = () => {}
+
+/**
  * 앞으로 한 번. `activations[0]`이 입력이고 마지막이 출력이다.
  *
- * **은닉층은 ReLU, 출력층만 다르다** — 이진이면 로지스틱 한 칸, 다중이면 softmax.
+ * **은닉층은 언제나 ReLU고, 출력층만 부르는 쪽이 정한다.**
  */
 function forward(
   weights: readonly number[][][],
   intercepts: readonly number[][],
   input: readonly number[],
   activations: Float64Array[],
+  activate: Activate,
 ): void {
   const first = activations[0] as Float64Array
   for (let i = 0; i < first.length; i += 1) first[i] = input[i] ?? 0
@@ -174,12 +201,64 @@ function forward(
 
     if (layer < last) {
       for (let j = 0; j < to.length; j += 1) to[j] = Math.max(0, to[j] as number)
-    } else if (to.length === 1) {
-      to[0] = sigmoid(to[0] as number)
     } else {
-      softmax(to)
+      activate(to)
     }
   }
+}
+
+/**
+ * 손실과 출력층 델타. **과제 유형이 갈리는 자리가 여기 하나다.**
+ *
+ * **델타는 셋 다 `예측 − 정답`이다.** 활성의 미분이 손실의 미분과 상쇄되어 사라지므로
+ * softmax·로지스틱·항등이 같은 식을 쓴다 — sklearn도 `MLPClassifier`와 `MLPRegressor`가
+ * 같은 `_backprop`을 쓰는 이유다. **여기에 `p(1-p)` 같은 것을 곱하면 틀린 기울기인데도
+ * 손실이 그럭저럭 내려간다** — 유한차분 검사가 그것을 잡는다.
+ */
+interface Objective {
+  readonly activate: Activate
+  /** 이 행의 손실을 돌려주고 `delta`를 채운다. */
+  readonly lossAndDelta: (output: Float64Array, target: number, delta: Float64Array) => number
+}
+
+/** 이진 분류 — 한 칸의 베르누이 로그손실. */
+const binaryObjective: Objective = {
+  activate: probability,
+  lossAndDelta: (output, target, delta) => {
+    const raw = output[0] as number
+    const p = Math.min(1 - CLIP, Math.max(CLIP, raw))
+    delta[0] = raw - (target === 1 ? 1 : 0)
+    return target === 1 ? -Math.log(p) : -Math.log(1 - p)
+  },
+}
+
+/** 다중 분류 — 정답 칸의 로그손실. */
+const multiclassObjective: Objective = {
+  activate: probability,
+  lossAndDelta: (output, target, delta) => {
+    for (let j = 0; j < output.length; j += 1) {
+      delta[j] = (output[j] as number) - (j === target ? 1 : 0)
+    }
+    return -Math.log(Math.min(1 - CLIP, Math.max(CLIP, output[target] as number)))
+  },
+}
+
+/**
+ * 회귀 — 제곱오차의 절반. **sklearn `squared_loss`와 같다**
+ * (`((y − p)² ).mean() / 2`이고, 여기서는 행마다의 몫을 내고 부르는 쪽이 나눈다).
+ */
+const regressionObjective: Objective = {
+  activate: identity,
+  lossAndDelta: (output, target, delta) => {
+    const gap = (output[0] as number) - target
+    delta[0] = gap
+    return (gap * gap) / 2
+  },
+}
+
+function objectiveFor(task: NeuralTask): Objective {
+  if (task.kind === 'regression') return regressionObjective
+  return task.classCount === 2 ? binaryObjective : multiclassObjective
 }
 
 /** Adam의 상태. 층마다 1차·2차 모멘트를 가중치와 절편 각각에 든다. */
@@ -222,47 +301,32 @@ function accumulate(
   weights: readonly number[][][],
   intercepts: readonly number[][],
   features: readonly (readonly number[])[],
-  encoded: readonly number[],
+  targets: readonly number[],
   rows: readonly number[],
-  sizes: readonly number[],
+  objective: Objective,
   activations: Float64Array[],
   deltas: Float64Array[],
   gradWeights: Float64Array[],
   gradIntercepts: Float64Array[],
 ): number {
   const last = weights.length - 1
-  const outputs = sizes[sizes.length - 1] as number
   for (const grad of gradWeights) grad.fill(0)
   for (const grad of gradIntercepts) grad.fill(0)
 
   let loss = 0
   for (const row of rows) {
-    forward(weights, intercepts, features[row] as readonly number[], activations)
-    const output = activations[last + 1] as Float64Array
-    const label = encoded[row] as number
-
-    // 로그손실. 이진은 한 칸의 베르누이, 다중은 정답 칸의 로그다.
-    if (outputs === 1) {
-      const p = Math.min(1 - CLIP, Math.max(CLIP, output[0] as number))
-      loss += label === 1 ? -Math.log(p) : -Math.log(1 - p)
-    } else {
-      const p = Math.min(1 - CLIP, Math.max(CLIP, output[label] as number))
-      loss += -Math.log(p)
-    }
-
-    /**
-     * **출력층의 델타는 softmax·로지스틱 둘 다 `예측 - 정답`이다.** 활성 함수의 미분이
-     * 로그손실의 미분과 상쇄되어 사라지는 자리이고, 그래서 여기에 `p(1-p)`를 곱하면
-     * **틀린 기울기인데도 손실이 그럭저럭 내려간다** — 유한차분 검사가 이것을 잡는다.
-     */
-    const outDelta = deltas[last] as Float64Array
-    if (outputs === 1) {
-      outDelta[0] = (output[0] as number) - (label === 1 ? 1 : 0)
-    } else {
-      for (let j = 0; j < outputs; j += 1) {
-        outDelta[j] = (output[j] as number) - (j === label ? 1 : 0)
-      }
-    }
+    forward(
+      weights,
+      intercepts,
+      features[row] as readonly number[],
+      activations,
+      objective.activate,
+    )
+    loss += objective.lossAndDelta(
+      activations[last + 1] as Float64Array,
+      targets[row] as number,
+      deltas[last] as Float64Array,
+    )
 
     for (let layer = last; layer >= 0; layer -= 1) {
       const delta = deltas[layer] as Float64Array
@@ -368,18 +432,26 @@ function adamStep(
 }
 
 /**
- * 학습한다. `encoded[i]`는 클래스 번호이고, 이진이면 **1이 두 번째 클래스**다 —
- * sklearn이 `classes_[1]`을 양성으로 두는 것과 같다.
+ * 학습한다.
+ *
+ * **`targets[i]`가 무엇인지는 `task`가 정한다** — 분류는 클래스 번호이고 이진이면
+ * **1이 두 번째 클래스**다(sklearn이 `classes_[1]`을 양성으로 두는 것과 같다).
+ * 회귀는 **값 그대로**다.
+ *
+ * **회귀의 타깃은 스케일링하지 않는다** — sklearn `MLPRegressor`와 같다. 크기가 큰
+ * 타깃(집값 같은 것)에서 학습이 에폭 상한 안에 못 닿는 것도 그쪽과 같고, 그때
+ * `NEURAL_NOT_CONVERGED`가 붙어 손실 곡선이 그 사실을 보여 준다.
  */
 export function fitNeural(
   features: readonly (readonly number[])[],
-  encoded: readonly number[],
-  classCount: number,
+  targets: readonly number[],
+  task: NeuralTask,
   options: NeuralOptions,
   randomState: number,
 ): FittedNeural {
   const featureCount = features[0]?.length ?? 0
-  const sizes = layerSizes(featureCount, classCount, options)
+  const sizes = layerSizes(featureCount, task, options)
+  const objective = objectiveFor(task)
   const { weights, intercepts } = initialize(sizes, randomState)
   const adam = adamFor(sizes)
 
@@ -418,9 +490,9 @@ export function fitNeural(
         weights,
         intercepts,
         features,
-        encoded,
+        targets,
         batch,
-        sizes,
+        objective,
         activations,
         deltas,
         gradWeights,
@@ -459,7 +531,8 @@ export function neuralGradientForTest(
   weights: readonly number[][][],
   intercepts: readonly number[][],
   features: readonly (readonly number[])[],
-  encoded: readonly number[],
+  targets: readonly number[],
+  task: NeuralTask,
 ): { loss: number; gradWeights: Float64Array[]; gradIntercepts: Float64Array[] } {
   const sizes = [(weights[0]?.length ?? 0) as number, ...intercepts.map((bias) => bias.length)]
   const activations = sizes.map((size) => new Float64Array(size))
@@ -474,9 +547,9 @@ export function neuralGradientForTest(
     weights,
     intercepts,
     features,
-    encoded,
+    targets,
     rows,
-    sizes,
+    objectiveFor(task),
     activations,
     deltas,
     gradWeights,

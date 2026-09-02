@@ -32,6 +32,7 @@ function run(algorithm: string, hyperparameters: Record<string, unknown> = {}) {
     features: pick(split.trainIndices),
     rowIndices: split.trainIndices,
     target: labelsOf(split.trainIndices),
+    taskType: 'classification',
     hyperparameters,
     randomState: 42,
   })
@@ -202,6 +203,7 @@ describe('로지스틱 수렴 경고 (mlpx-spec.md 5.9)', () => {
       features: IRIS_FEATURES,
       rowIndices: IRIS_FEATURES.map((_, index) => index),
       target: IRIS_LABELS,
+      taskType: 'classification',
       hyperparameters: { maxIter: 1 },
       randomState: 42,
     })
@@ -217,6 +219,7 @@ describe('로지스틱 수렴 경고 (mlpx-spec.md 5.9)', () => {
       features: IRIS_FEATURES,
       rowIndices: IRIS_FEATURES.map((_, index) => index),
       target: IRIS_LABELS,
+      taskType: 'classification',
       hyperparameters: {},
       randomState: 42,
     })
@@ -254,6 +257,7 @@ describe('로지스틱 수렴 경고 (mlpx-spec.md 5.9)', () => {
           features: raw,
           rowIndices,
           target: labels,
+          taskType: 'classification',
           hyperparameters: { maxIter },
           randomState: 42,
         })
@@ -271,6 +275,7 @@ describe('로지스틱 수렴 경고 (mlpx-spec.md 5.9)', () => {
         features: standardized,
         rowIndices,
         target: labels,
+        taskType: 'classification',
         hyperparameters: {},
         randomState: 42,
       })
@@ -373,6 +378,7 @@ describe('회귀', () => {
       features,
       rowIndices: [0, 1, 2, 3, 4],
       target: [1, 3, 5, 7, 9],
+      taskType: 'regression',
       hyperparameters: {},
       randomState: 42,
     })
@@ -389,6 +395,7 @@ describe('모르는 알고리즘', () => {
         features: [[1]],
         rowIndices: [0],
         target: ['a'],
+        taskType: 'classification',
         hyperparameters: {},
         randomState: 1,
       })

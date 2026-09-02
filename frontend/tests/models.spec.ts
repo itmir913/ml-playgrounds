@@ -58,6 +58,7 @@ function train(algorithm: string, hyperparameters: Record<string, unknown> = {})
     features: IRIS_FEATURES,
     rowIndices: IRIS_FEATURES.map((_, index) => index),
     target: IRIS_LABELS,
+    taskType: 'classification',
     hyperparameters,
     randomState: 42,
   })
@@ -117,6 +118,7 @@ describe('라운드트립 — 예측이 원본과 하나도 다르지 않다', (
         features,
         rowIndices: features.map((_, index) => index),
         target,
+        taskType: 'classification',
         hyperparameters: {},
         randomState: 42,
       })
@@ -181,6 +183,7 @@ describe('라운드트립 — 예측이 원본과 하나도 다르지 않다', (
             features: [[0], [1], [2], [3]],
             rowIndices: [0, 1, 2, 3],
             target: [1, 3, 5, 7],
+            taskType: 'classification',
             hyperparameters: {},
             randomState: 42,
           })
@@ -440,6 +443,7 @@ describe('mlpx-linear-v2', () => {
         features,
         rowIndices: picked,
         target: picked.map((index) => IRIS_LABELS[index] ?? ''),
+        taskType: 'classification',
         hyperparameters: {},
         randomState: 42,
       })
@@ -749,6 +753,7 @@ describe('mlpx-linear-regression-v1', () => {
     features,
     rowIndices: features.map((_, index) => index),
     target,
+    taskType: 'regression',
     hyperparameters: {},
     randomState: 42,
   })

@@ -30,7 +30,12 @@ import { fit } from '../src/ml/engines/mljs'
 import { fitKMeans } from '../src/ml/engines/mljs-kmeans'
 import { fitNeural } from '../src/ml/engines/neural'
 import { evaluate, evaluateCluster } from '../src/ml/metrics'
-import { NEURAL_FORMAT, loadNeuralModel } from '../src/ml/models'
+import {
+  NEURAL_FORMAT,
+  NEURAL_REGRESSION_FORMAT,
+  loadNeuralModel,
+  loadNeuralRegressionModel,
+} from '../src/ml/models'
 
 /** 기본 특성 수. **특성 축은 알고리즘마다 따로 훑는다**(아래 `*_columns` 사다리들). */
 const FEATURES = 8
@@ -117,6 +122,7 @@ export function measure(job: Job): number {
     features,
     rowIndices,
     target,
+    taskType: job.regression ? 'regression' : 'classification',
     hyperparameters: job.hyperparameters ?? {},
     randomState: 42,
   })
@@ -174,6 +180,7 @@ function measureNeural(
   columns: number,
   layers: number,
   neurons: number,
+  regression = false,
 ): LadderResult {
   let state = 42
   const random = (): number => {
@@ -190,26 +197,36 @@ function measureNeural(
   const classes = ['a', 'b']
   const target = encoded.map((one) => classes[one] as string)
 
+  /**
+   * **회귀는 이진 분류와 망 크기가 같다** — 출력이 양쪽 다 한 칸이다. 그래서 기준표를
+   * 한 벌로 쓰는데, **그 말이 사실인지는 재야 안다** (`limits.ts`의 기준표 주석).
+   */
+  const targets = regression ? encoded.map((one) => one * 10 + 5) : encoded
   const started = performance.now()
   const fitted = fitNeural(
     features,
-    encoded,
-    classes.length,
+    targets,
+    regression ? { kind: 'regression' } : { kind: 'classification', classCount: classes.length },
     { hiddenLayers: layers, neuronsPerLayer: neurons },
     42,
   )
   // **예측과 평가까지 지나간다** — 다른 사다리와 같은 자리를 재려면 그래야 한다
   // (`measure`의 머리말). 학생이 기다리는 것은 [학습하기]를 누르고 결과가 나올 때까지다.
-  const predict = loadNeuralModel({
-    format: NEURAL_FORMAT,
-    classes,
+  const layerFile = {
     featureCount: columns,
     weights: fitted.weights,
     intercepts: fitted.intercepts,
     lossCurve: fitted.lossCurve,
-  })
+  }
+  const predict = regression
+    ? loadNeuralRegressionModel({ format: NEURAL_REGRESSION_FORMAT, ...layerFile })
+    : loadNeuralModel({ format: NEURAL_FORMAT, classes, ...layerFile })
   const shown = Math.max(1, Math.round(rows * PREDICT_RATIO))
-  evaluate('classification', target.slice(0, shown), predict(features.slice(0, shown)))
+  evaluate(
+    regression ? 'regression' : 'classification',
+    (regression ? targets : target).slice(0, shown),
+    predict(features.slice(0, shown)),
+  )
   return { elapsed: Math.round(performance.now() - started), iterations: fitted.epochs }
 }
 
@@ -384,6 +401,18 @@ export const LADDERS: readonly Ladder[] = [
     points: [1000, 2000, 5000, 10_000, 20_000],
     job: (rows) => ({ algorithm: 'neural_network', rows }),
     run: (rows) => measureNeural(rows, FEATURES, 1, 100),
+  },
+  {
+    /**
+     * **회귀가 분류와 같은 시간인지 잰다.** 기준표를 한 벌로 쓰기로 한 근거가 그것이고,
+     * **근거는 재서 얻는다** — 출력이 양쪽 다 한 칸이라는 사실만으로는 문장이 아니다.
+     */
+    id: 'neural_network_regression',
+    label: '인공신경망 · 회귀 · 행 수 (1층 × 100뉴런)',
+    axis: 'rows',
+    points: [1000, 2000, 5000],
+    job: (rows) => ({ algorithm: 'neural_network', rows, regression: true }),
+    run: (rows) => measureNeural(rows, FEATURES, 1, 100, true),
   },
   {
     /**

@@ -250,6 +250,7 @@ describe('재현 가능성', () => {
           features: SPREAD,
           rowIndices: SPREAD.map((_, index) => index),
           target: [],
+          taskType: 'clustering',
           hyperparameters: { nClusters: 3 },
           randomState: seed,
         }).clusterResult?.centroids,

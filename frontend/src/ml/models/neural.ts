@@ -18,10 +18,10 @@ import { ClientError } from '../../errors'
 import type { ModelFile, Predict, ProbaModel } from './types'
 
 export const NEURAL_FORMAT = 'mlpx-neural-v1'
+export const NEURAL_REGRESSION_FORMAT = 'mlpx-neural-regression-v1'
 
-export interface NeuralModel extends ModelFile {
-  readonly format: typeof NEURAL_FORMAT
-  readonly classes: readonly string[]
+/** 두 형식이 함께 갖는 것. **`classes`만 분류 쪽에 더 있다.** */
+interface NeuralLayers {
   readonly featureCount: number
   /** 층마다 `[들어오는 칸][나가는 칸]`. 은닉층 수 + 1개다. */
   readonly weights: readonly (readonly (readonly number[])[])[]
@@ -31,41 +31,72 @@ export interface NeuralModel extends ModelFile {
   readonly lossCurve: readonly number[]
 }
 
-const neuralModelSchema = z.looseObject({
-  format: z.literal(NEURAL_FORMAT),
-  classes: z.array(z.string()).min(2),
+export interface NeuralModel extends ModelFile, NeuralLayers {
+  readonly format: typeof NEURAL_FORMAT
+  readonly classes: readonly string[]
+}
+
+/**
+ * **`classes`가 없다.** 회귀에는 클래스가 없고 예측이 돌려주는 것은 수치다 —
+ * `mlpx-linear-regression-v1`이 `mlpx-linear-v2`와 이름을 나눈 것과 같은 이유이고,
+ * **선택 필드로 두면 해석기가 그 유무로 갈라진다** (mlpx-spec.md §5.11).
+ */
+export interface NeuralRegressionModel extends ModelFile, NeuralLayers {
+  readonly format: typeof NEURAL_REGRESSION_FORMAT
+}
+
+const layersShape = {
   featureCount: z.number(),
   weights: z.array(z.array(z.array(z.number()))).min(1),
   intercepts: z.array(z.array(z.number())).min(1),
   lossCurve: z.array(z.number()),
+}
+
+const neuralModelSchema = z.looseObject({
+  ...layersShape,
+  format: z.literal(NEURAL_FORMAT),
+  classes: z.array(z.string()).min(2),
+})
+
+const neuralRegressionModelSchema = z.looseObject({
+  ...layersShape,
+  format: z.literal(NEURAL_REGRESSION_FORMAT),
 })
 
 function invalid(field: string): never {
   throw new ClientError('MODEL_FILE_INVALID', { field })
 }
 
-/** 검증을 마친 모델. **`load`와 `loadProba`가 같은 것을 본다.** */
-export interface ParsedNeural {
-  readonly classes: readonly string[]
+/** 검증을 마친 층들. **두 형식이 같은 것을 쓴다.** */
+export interface ParsedLayers {
   readonly featureCount: number
   readonly weights: readonly Float64Array[][]
   readonly intercepts: readonly Float64Array[]
   readonly lossCurve: readonly number[]
 }
 
+/** 검증을 마친 분류 모델. **`load`와 `loadProba`가 같은 것을 본다.** */
+export interface ParsedNeural extends ParsedLayers {
+  readonly classes: readonly string[]
+}
+
 /**
- * 파일 내용을 확인해 꺼낸다. **검증은 읽을 때 한 번 하고 예측 루프에서는 아무것도 안
- * 본다.**
+ * 층을 확인해 꺼낸다. **검증은 읽을 때 한 번 하고 예측 루프에서는 아무것도 안 본다.**
  *
  * **층의 모양이 서로 맞물리는지까지 본다** — 한 층의 나가는 칸 수와 다음 층의 들어오는
- * 칸 수가 어긋난 파일은 예측 루프에서 `undefined`를 곱해 **NaN을 답으로 낸다.**
+ * 칸 수가 어긋난 파일은 예측 루프에서 `undefined`를 곱해 **NaN을 답으로 낸다**
+ * (mlpx-spec.md §5.11의 불변식 3).
+ *
+ * **마지막 층의 칸 수는 여기서 안 본다** — 그 수가 무엇이어야 하는지는 형식마다 다르고,
+ * 부르는 쪽이 답한다. 돌려주는 것에 그 값이 들어 있다.
  */
-export function parseNeural(file: unknown): ParsedNeural {
-  const parsed = neuralModelSchema.safeParse(file)
-  if (!parsed.success) invalid('payload')
-  const model = parsed.data
-
-  const { featureCount, classes } = model
+function parseLayers(model: {
+  featureCount: number
+  weights: readonly (readonly (readonly number[])[])[]
+  intercepts: readonly (readonly number[])[]
+  lossCurve: readonly number[]
+}): { layers: ParsedLayers; outputs: number } {
+  const { featureCount } = model
   if (!Number.isInteger(featureCount) || featureCount <= 0) invalid('featureCount')
   if (model.weights.length !== model.intercepts.length) invalid('weights')
 
@@ -75,7 +106,7 @@ export function parseNeural(file: unknown): ParsedNeural {
 
   for (const [layer, matrix] of model.weights.entries()) {
     if (matrix.length !== fanIn) invalid('weights')
-    const bias = model.intercepts[layer] as number[]
+    const bias = model.intercepts[layer] as readonly number[]
     const fanOut = bias.length
     if (fanOut === 0) invalid('intercepts')
 
@@ -92,15 +123,64 @@ export function parseNeural(file: unknown): ParsedNeural {
     fanIn = fanOut
   }
 
-  // **마지막 층의 칸 수가 클래스 수를 말한다.** 이진은 한 칸이다 (sklearn과 같다).
-  const outputs = fanIn
-  if (outputs !== (classes.length === 2 ? 1 : classes.length)) invalid('weights')
-
-  return { classes, featureCount, weights, intercepts, lossCurve: model.lossCurve }
+  return {
+    layers: { featureCount, weights, intercepts, lossCurve: model.lossCurve },
+    outputs: fanIn,
+  }
 }
 
-/** 한 행을 앞으로 흘려 출력층의 확률을 낸다. */
-function forward(model: ParsedNeural, input: readonly number[]): Float64Array {
+/** 분류 모델을 꺼낸다. */
+export function parseNeural(file: unknown): ParsedNeural {
+  const parsed = neuralModelSchema.safeParse(file)
+  if (!parsed.success) invalid('payload')
+
+  const { classes } = parsed.data
+  const { layers, outputs } = parseLayers(parsed.data)
+  // **마지막 층의 칸 수가 클래스 수를 말한다.** 이진은 한 칸이다 (sklearn과 같다).
+  if (outputs !== (classes.length === 2 ? 1 : classes.length)) invalid('weights')
+
+  return { classes, ...layers }
+}
+
+/** 회귀 모델을 꺼낸다. **출력은 언제나 한 칸이다.** */
+export function parseNeuralRegression(file: unknown): ParsedLayers {
+  const parsed = neuralRegressionModelSchema.safeParse(file)
+  if (!parsed.success) invalid('payload')
+
+  const { layers, outputs } = parseLayers(parsed.data)
+  if (outputs !== 1) invalid('weights')
+  return layers
+}
+
+/**
+ * 출력층의 활성. **엔진과 같은 이유로 함수다** (`ml/engines/neural.ts`) — 층을 흘리는
+ * 산수 안에 형식 분기를 두지 않는다.
+ */
+type Activate = (output: Float64Array) => void
+
+/** 분류의 출력 — 이진이면 로지스틱 한 칸, 다중이면 softmax. */
+const probability: Activate = (next) => {
+  if (next.length === 1) {
+    const z = next[0] as number
+    next[0] = z >= 0 ? 1 / (1 + Math.exp(-z)) : Math.exp(z) / (1 + Math.exp(z))
+    return
+  }
+  let max = -Infinity
+  for (const value of next) if (value > max) max = value
+  let sum = 0
+  for (let j = 0; j < next.length; j += 1) {
+    const e = Math.exp((next[j] as number) - max)
+    next[j] = e
+    sum += e
+  }
+  for (let j = 0; j < next.length; j += 1) next[j] = (next[j] as number) / sum
+}
+
+/** 회귀의 출력 — 항등이다. */
+const identity: Activate = () => {}
+
+/** 한 행을 앞으로 흘린다. **두 형식이 이 계산을 함께 쓴다.** */
+function forward(model: ParsedLayers, input: readonly number[], activate: Activate): Float64Array {
   const last = model.weights.length - 1
   let current = Float64Array.from({ length: model.featureCount }, (_, i) => input[i] ?? 0)
 
@@ -120,19 +200,8 @@ function forward(model: ParsedNeural, input: readonly number[]): Float64Array {
 
     if (layer < last) {
       for (let j = 0; j < next.length; j += 1) next[j] = Math.max(0, next[j] as number)
-    } else if (next.length === 1) {
-      const z = next[0] as number
-      next[0] = z >= 0 ? 1 / (1 + Math.exp(-z)) : Math.exp(z) / (1 + Math.exp(z))
     } else {
-      let max = -Infinity
-      for (const value of next) if (value > max) max = value
-      let sum = 0
-      for (let j = 0; j < next.length; j += 1) {
-        const e = Math.exp((next[j] as number) - max)
-        next[j] = e
-        sum += e
-      }
-      for (let j = 0; j < next.length; j += 1) next[j] = (next[j] as number) / sum
+      activate(next)
     }
     current = next
   }
@@ -144,7 +213,7 @@ function forward(model: ParsedNeural, input: readonly number[]): Float64Array {
  * sklearn `predict_proba`가 `[1-p, p]`를 주는 것과 같고, `p`는 **두 번째 클래스**의 것이다.
  */
 function probabilities(model: ParsedNeural, input: readonly number[]): Float64Array {
-  const output = forward(model, input)
+  const output = forward(model, input, probability)
   if (model.classes.length === 2) {
     const p = output[0] as number
     return Float64Array.from([1 - p, p])
@@ -181,4 +250,13 @@ export function loadNeuralProba(file: unknown): ProbaModel {
     classes: model.classes,
     predict: (features) => features.map((row) => probabilities(model, row)),
   }
+}
+
+/**
+ * 회귀의 예측. **수치를 그대로 돌려준다** — 문자열로 굳히지 않는다(`Prediction`이
+ * `string | number`다). 여기서 반올림하거나 자리를 맞추면 그 규칙이 화면의 것과 갈린다.
+ */
+export function loadNeuralRegressionModel(file: unknown): Predict {
+  const model = parseNeuralRegression(file)
+  return (features) => features.map((row) => forward(model, row, identity)[0] as number)
 }
