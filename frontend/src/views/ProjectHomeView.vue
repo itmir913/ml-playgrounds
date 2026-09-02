@@ -29,7 +29,7 @@ import { useRouter } from 'vue-router'
 import AppButton from '@/components/AppButton.vue'
 import ProjectSummary from '@/components/ProjectSummary.vue'
 import StepHeader from '@/components/StepHeader.vue'
-import { dataKindFor, lockedSentence, lockedTextFor, stepTextKey } from '@/data/kinds'
+import { dataKindFor, lockedSentenceFor, stepTextKey } from '@/data/kinds'
 import { STEP_ICONS } from '@/icons'
 import {
   currentTask,
@@ -91,15 +91,16 @@ function go(step: StepId): void {
 }
 /** 잠긴 줄에 할 말. 막는 사실을 가리킨다 (V11 R5 B-10). */
 function lockedText(step: StepId): string {
-  const text = lockedTextFor(
+  // **판정도 번역도 여기서 하지 않는다** (`data/kinds.ts`의 `lockedSentenceFor`). 화면 둘이
+  // 두 줄을 똑같이 복사해 갖고 있었고(2026-08-31 검증 감사 C-3), 셋째 화면은 번역을
+  // 빠뜨려 키를 그대로 보였다(2026-09-03 R24 재검토 B-N1). 입구를 하나로 좁혔다.
+  return lockedSentenceFor(
     kind.value,
     step,
     stepBlockers(step, project.facts, project.taskType, project.dataType),
     project.dataType,
+    t,
   )
-  // **판정은 여기서 하지 않는다** (`data/kinds.ts`의 `lockedSentence`). 화면 둘이
-  // 이 두 줄을 똑같이 복사해 갖고 있었고 아무도 안 태웠다 (2026-08-31 검증 감사 C-3).
-  return lockedSentence(text, t)
 }
 </script>
 

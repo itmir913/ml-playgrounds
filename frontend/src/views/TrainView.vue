@@ -49,7 +49,7 @@ import { failedRuns } from '@/ml/results'
 import { addEmbeddings } from '@/project/embeddings'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
 import { applyExperiment } from '@/project/attach'
-import { dataKindFor, DEFAULT_DATA_TYPE, lockedTextFor } from '@/data/kinds'
+import { dataKindFor, DEFAULT_DATA_TYPE, lockedSentenceFor } from '@/data/kinds'
 import { taskTypeBlockers } from '@/router/steps'
 import { readDataset } from '@/project/dataset'
 import { tabularDataOf, type ProjectDocument, type TaskType } from '@/project/schema'
@@ -181,8 +181,11 @@ const taskTypes = computed(() => supportedTaskTypes(project.file?.document.manif
  * '갈릴 것이 없다'로 판정한다"). 잠금이 대신 **단계 진입**에 있었고, 그래서 분류를 누르는
  * 순간 학습 화면이 잠겨 **유형을 바꿀 손잡이가 그 안에 갇혔다**(2026-09-02 교실 보고).
  *
- * **문장은 레일의 잠금과 같은 것을 쓴다** — 같은 사실을 두 자리에서 다르게 말하면
- * 학생이 둘을 다른 일로 읽는다.
+ * **문장은 레일의 잠금과 같은 함수에서 나온다** (`data/kinds.ts`의 `lockedSentenceFor`) —
+ * 같은 사실을 두 자리에서 다르게 말하면 학생이 둘을 다른 일로 읽는다. 처음에는 키와
+ * 값을 받아 `t()`에 바로 넣었고, 그러면 `task` 자리의 **로케일 키가 번역 없이** 화면에
+ * 나간다 — 학생이 `(tasks.image.targetChosen)`을 읽었다 (2026-09-03 R24 재검토 B-N1).
+ * `task-type-trap.spec.ts`가 이 화면을 띄워 카드의 글자를 레일 문장과 대조한다.
  */
 const taskTypeLocks = computed<Partial<Record<TaskType, string>>>(() => {
   const dataType = project.file?.document.manifest.dataType
@@ -190,8 +193,7 @@ const taskTypeLocks = computed<Partial<Record<TaskType, string>>>(() => {
   for (const type of taskTypes.value) {
     const blockers = taskTypeBlockers('train', project.facts, type, dataType)
     if (blockers.length === 0) continue
-    const locked = lockedTextFor(kind.value, 'train', blockers, dataType)
-    locks[type] = t(locked.key, locked.params ?? {})
+    locks[type] = lockedSentenceFor(kind.value, 'train', blockers, dataType, t)
   }
   return locks
 })

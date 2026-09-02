@@ -17,8 +17,11 @@ import { join } from 'node:path'
 
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { defineComponent, h } from 'vue'
+import { RouterView } from 'vue-router'
 
+import { dataKindFor, lockedSentenceFor } from '../src/data/kinds'
 import { hashBytes } from '../src/hash'
 import { i18n, setLocale } from '../src/i18n'
 import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
@@ -30,7 +33,19 @@ import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
 import { router } from '../src/router'
 import { useProjectStore } from '../src/stores/project'
 import ModelAxes from '../src/views/train/ModelAxes.vue'
+import { resetImageWorkers, stubDialogElement } from './fixtures/image-workers'
 import { withoutComments } from './fixtures/source'
+
+/** 학습 화면이 뜨자마자 기기 교정을 워커에 시킨다. **아무 말도 안 하는 워커**로 갈아 끼운다. */
+vi.mock('../src/ml/worker/spawn', () => ({
+  spawnTrainingWorker: () => ({
+    onmessage: null,
+    onerror: null,
+    onmessageerror: null,
+    postMessage() {},
+    terminate() {},
+  }),
+}))
 
 const PROJECT_ID = '550e8400-e29b-41d4-a716-446655440000'
 
@@ -253,5 +268,99 @@ describe('라벨 없는 사진만 있는 분류 프로젝트에서 학습을 시
     const { trainableRowsOf } = await import('../src/ml/training-source')
     expect(trainableRowsOf(unlabeledPhotos(2), 'clustering')).toBe(2)
     expect(trainableRowsOf(unlabeledPhotos(2), 'classification')).toBe(0)
+  })
+
+  /**
+   * **문턱은 분류만의 것이다.** 군집은 나누지 않으므로 `MIN_SPLIT_ROWS`가 걸릴 자리가
+   * 없고, 한 장짜리 군집 프로젝트도 임베딩까지 간다(그쪽 최소는 `CLUSTER_TOO_FEW_ROWS`가
+   * 따로 답한다). 위 검사는 세는 함수만 보므로, 면제 조건을 뒤집어도 사진 두 장에서는
+   * 조용했다 — 여기서 **한 장으로 입구 자체**를 지난다.
+   */
+  it('군집은 사진 한 장이어도 조기 거절 없이 임베딩으로 간다', async () => {
+    const { TRAINING_SOURCES } = await import('../src/ml/training-source')
+    let spawned = 0
+
+    await expect(
+      TRAINING_SOURCES.image({
+        project: unlabeledPhotos(1),
+        taskType: 'clustering',
+        createEmbedWorker: () => {
+          spawned += 1
+          throw new Error('reached the worker')
+        },
+      }),
+    ).rejects.toThrow('reached the worker')
+
+    expect(spawned).toBe(1)
+  })
+})
+
+/**
+ * **학습 화면을 실제로 띄워 카드의 글자를 읽는다** (2026-09-03 R24 재검토 B-N1·B-N2).
+ *
+ * 위의 카드 검사는 사유 문장을 손으로 박아 넣고, 배선 검사는 prop 이름 글자만 본다. 그
+ * 사이에서 **화면이 실제로 만드는 문장**이 무검사였다 — 잠금 판정을 뒤집어도 초록이었고,
+ * 학생은 `(tasks.image.targetChosen)`을 읽었다. 여기서는 그 둘을 한 번에 잰다: 분류는
+ * 잠기고 군집은 열려 있는가, 잠긴 카드의 사유가 **레일과 같은 함수의 문장**인가.
+ */
+describe('학습 화면을 띄우면', { timeout: 20_000 }, () => {
+  const Host = defineComponent({ render: () => h(RouterView) })
+  const translate = (key: string, params?: Record<string, string>): string =>
+    i18n.global.t(key, params ?? {})
+
+  beforeEach(() => {
+    window.scrollTo = () => {}
+    resetImageWorkers()
+    Object.defineProperty(navigator, 'storage', {
+      configurable: true,
+      value: { estimate: () => Promise.resolve({ quota: 10_000_000_000, usage: 0 }) },
+    })
+    stubDialogElement()
+  })
+
+  afterEach(() => {
+    Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
+  })
+
+  /** 범주 없음 두 장짜리 프로젝트의 학습 화면. 카드는 라벨 글자로 찾는다. */
+  async function trainScreen() {
+    await saveProject(unlabeledPhotos(2))
+    const wrapper = mount(Host, { global: { plugins: [i18n, router] } })
+    await router.push('/')
+    await router.isReady()
+    await router.push(`/project/${PROJECT_ID}/train`)
+    await flushPromises()
+    await flushPromises()
+    expect(String(router.currentRoute.value.name)).toBe('train')
+    const card = (label: string) =>
+      wrapper.findAll('button').find((one) => one.text().startsWith(label))
+    return { wrapper, card }
+  }
+
+  it('분류 카드는 잠기고, 누르면 레일과 같은 문장을 말한다 - 키가 아니다', async () => {
+    const { wrapper, card } = await trainScreen()
+    const classification = card('분류')
+    expect(classification?.attributes('aria-disabled')).toBe('true')
+
+    await classification?.trigger('click')
+    await flushPromises()
+    const said = wrapper.findAll('[role="status"]').map((one) => one.text())
+    const rail = lockedSentenceFor(
+      dataKindFor('image'),
+      'train',
+      ['targetChosen'],
+      'image',
+      translate,
+    )
+    expect(said).toContain(rail)
+    // 번역을 빠뜨리면 여기에 로케일 키가 그대로 선다.
+    expect(said.join(' ')).not.toContain('tasks.')
+    wrapper.unmount()
+  })
+
+  it('군집 카드는 열려 있다 - 잠금이 뒤집히지 않았다', async () => {
+    const { wrapper, card } = await trainScreen()
+    expect(card('군집')?.attributes('aria-disabled')).toBe('false')
+    wrapper.unmount()
   })
 })

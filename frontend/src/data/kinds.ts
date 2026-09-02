@@ -147,8 +147,13 @@ export function stepTextKey(kind: DataKind | undefined, step: StepId, slot: Step
  * 셋인데 문장이 하나여서, 새 표 프로젝트에서 *"전처리 단계에서 할 일을 먼저 마쳐
  * 주세요"*라고 말하면서 **전처리도 잠겨 있었다** (V11 R5 B-10). 실제로 막는 것은
  * 데이터였다. 이제 `stepBlockers`가 그 사실을 주므로 화면이 맞는 일을 가리킨다.
+ *
+ * **밖으로 안 나간다** (2026-09-03 R24 재검토 B-N1). 이 값의 `params.task`는 문장이 아니라
+ * **로케일 키**라 한 번 더 번역해야 하는데, 이것을 받아 `t()`에 바로 넣은 화면이 세 번째로
+ * 생겼다 — 학생이 카드에서 `tasks.image.targetChosen`을 읽었다. 화면이 부를 수 있는 것은
+ * 아래 `lockedSentenceFor` 하나다: 키를 얻는 길이 없으면 잘못 넣을 길도 없다.
  */
-export function lockedTextFor(
+function lockedTextFor(
   kind: DataKind | undefined,
   step: StepId,
   blockers: readonly FactKey[],
@@ -186,6 +191,25 @@ export type Translate = (key: string, params?: Record<string, string>) => string
 export function lockedSentence(text: LockedText, translate: Translate): string {
   const task = text.params?.task
   return task === undefined ? translate(text.key) : translate(text.key, { task: translate(task) })
+}
+
+/**
+ * **잠긴 자리에 세울 문장을 만드는 유일한 입구.** 레일·홈·학습 화면의 유형 카드가 전부
+ * 이것을 부른다 (architecture.md §10.5) — 같은 사실을 세 자리가 다른 글자로 말하면 학생은
+ * 셋을 다른 일로 읽는다.
+ *
+ * 판정(`lockedTextFor`)과 번역(`lockedSentence`)을 한 함수로 묶는 이유는, 둘을 따로
+ * 내주면 **키를 문장인 줄 알고 넣는 화면이 다시 생기기 때문이다.** 2026-08-31에 둘,
+ * 2026-09-02에 하나였다. `task-type-trap.spec.ts`가 학습 화면을 띄워 그 글자를 잰다.
+ */
+export function lockedSentenceFor(
+  kind: DataKind | undefined,
+  step: StepId,
+  blockers: readonly FactKey[],
+  dataType: DataType | undefined,
+  translate: Translate,
+): string {
+  return lockedSentence(lockedTextFor(kind, step, blockers, dataType), translate)
 }
 
 /**

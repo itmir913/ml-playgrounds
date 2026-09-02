@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest'
 import {
   dataKindFor,
   lockedSentence,
-  lockedTextFor,
+  lockedSentenceFor,
   stepTextKey,
   SUPPORTED_DATA_TYPES,
 } from '../src/data/kinds'
@@ -217,10 +217,36 @@ describe('잠긴 줄에 세울 문장', () => {
     expect(lockedSentence({ key: 'steps.train.locked' }, translate)).toBe('steps.train.locked')
   })
 
-  it('막는 일이 있는 잠금은 그 이름을 데려간다', () => {
-    const text = lockedTextFor(dataKindFor('tabular'), 'train', ['targetChosen'], 'tabular')
-    // 등록부가 손으로 쓴 문장을 안 갖고 있으면 막는 일의 이름을 댄다.
-    if (text.params === undefined) return
-    expect(lockedSentence(text, translate)).toContain(text.params.task)
+  /**
+   * **화면이 부를 수 있는 것은 이 함수 하나다** (2026-09-03 R24 재검토 B-N1). 키와 값을
+   * 따로 내주던 때는 그것을 `t()`에 바로 넣는 화면이 셋째로 생겼고, 학생이 카드에서
+   * `tasks.image.targetChosen`을 읽었다. 여기서는 막는 일의 이름이 **번역을 지나서**
+   * 문장에 들어가는지 본다 — `translate`가 그 키를 한 번 더 받아야 한다.
+   */
+  it('막는 일이 있는 잠금은 그 이름을 번역해서 데려간다', () => {
+    const seen: string[] = []
+    const sentence = lockedSentenceFor(
+      dataKindFor('tabular'),
+      'train',
+      ['targetChosen'],
+      'tabular',
+      (key, params) => {
+        seen.push(key)
+        return translate(key, params)
+      },
+    )
+    expect(sentence).toBe('tasks.lockedBy(tasks.targetChosen)')
+    expect(seen).toEqual(['tasks.targetChosen', 'tasks.lockedBy'])
+  })
+
+  it('이미지에서는 범주 문구를 데려간다 - 표의 말이 아니다', () => {
+    const sentence = lockedSentenceFor(
+      dataKindFor('image'),
+      'train',
+      ['targetChosen'],
+      'image',
+      translate,
+    )
+    expect(sentence).toBe('tasks.lockedBy(tasks.image.targetChosen)')
   })
 })

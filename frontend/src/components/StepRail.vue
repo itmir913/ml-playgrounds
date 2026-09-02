@@ -44,7 +44,7 @@ import { type RouteLocationRaw, useRoute } from 'vue-router'
 
 import { HOME_ICON, STEP_ICONS } from '@/icons'
 import { ROUTE_PROJECT_HOME } from '@/router'
-import { dataKindFor, lockedSentence, lockedTextFor } from '@/data/kinds'
+import { dataKindFor, lockedSentenceFor } from '@/data/kinds'
 import { isStepUnlocked, STEP_IDS, stepBlockers, type StepId } from '@/router/steps'
 import { useProjectStore } from '@/stores/project'
 
@@ -125,15 +125,16 @@ function reason(step: StepId): string {
   // 정해 주세요"는 이미지에서 학생이 할 수 없는 일을 하라는 말이 된다.
   // **막는 사실을 가리킨다.** 단계마다 문장 하나로는 못 말하는 자리가 있었다 —
   // 학습이 "전처리 단계에서 할 일을…"이라고 하는데 전처리도 잠겨 있었다 (V11 R5 B-10).
-  const text = lockedTextFor(
+  // **판정도 번역도 여기서 하지 않는다** (`data/kinds.ts`의 `lockedSentenceFor`). 화면 둘이
+  // 두 줄을 똑같이 복사해 갖고 있었고(2026-08-31 검증 감사 C-3), 셋째 화면은 번역을
+  // 빠뜨려 키를 그대로 보였다(2026-09-03 R24 재검토 B-N1). 입구를 하나로 좁혔다.
+  return lockedSentenceFor(
     dataKindFor(project.dataType ?? ''),
     step,
     stepBlockers(step, project.facts, project.taskType, project.dataType),
     project.dataType,
+    t,
   )
-  // **판정은 여기서 하지 않는다** (`data/kinds.ts`의 `lockedSentence`). 화면 둘이
-  // 이 두 줄을 똑같이 복사해 갖고 있었고 아무도 안 태웠다 (2026-08-31 검증 감사 C-3).
-  return lockedSentence(text, t)
 }
 
 /**
