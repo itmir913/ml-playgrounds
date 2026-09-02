@@ -29,6 +29,8 @@ import {
   MLJS_IMAGE_KNN_ROW_LIMIT,
   MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT,
   MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT,
+  MLJS_IMAGE_NEURAL_NETWORK_BASELINE_MS,
+  MLJS_IMAGE_NEURAL_NETWORK_ROW_LIMIT,
   MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT,
   MLJS_IMAGE_SVM_ROW_LIMIT,
   MLJS_KMEANS_ROW_LIMIT,
@@ -51,6 +53,7 @@ import {
 } from '../limits'
 import { TASK_TYPES, type DataType, type TaskType } from '../project/schema'
 import { supports, type Axis } from './axes'
+import { DEFAULT_BACKBONE_ID, backboneFor } from './backbones'
 import {
   runtimeOptions,
   type AlgorithmSpec,
@@ -193,28 +196,34 @@ export const ALGORITHMS: readonly Algorithm[] = [
     /**
      * 다층 퍼셉트론 (`open-decisions.md` "인공신경망을 넣는다").
      *
-     * **사진에는 안 연다.** 임베딩이 1,280차원이라 첫 층만으로 가중치가 128,100개이고
-     * (기본 손잡이의 142배), **그 자리를 안 쟀다.** 재 보지 않은 칸에 숫자를 넣지 않는
-     * 것과 같은 규칙이다 — 재고 나서 연다.
+     * **사진도 연다** (2026-09-03에 재고 열었다). 임베딩이 1,280차원이라 첫 층만으로
+     * 가중치가 128,100개(기본 손잡이의 142배)인데, **장당 148ms로 완전히 선형이다** —
+     * 트리 계열처럼 한 칸 위가 절벽인 자리가 없다 (`limits.ts`의 상한 주석).
+     *
+     * **`taskTypes.regression`이 사진까지 열지는 않는다.** 이미지에서 무슨 과제를 할 수
+     * 있는지는 **백본이 답한다**(`backbones.ts`의 `tasks`) — 두 축을 곱해 놓고 교집합을
+     * 여기 적으면 등록부가 자기 축으로 표현할 수 없는 사실을 품게 된다.
      *
      * **에폭 상한이 시간의 천장을 쥔다.** 행에는 선형이고 가중치는 행 수에 안 붙어
-     * 깨지는 지점이 없다 — 상한은 데이터셋 천장 그대로다.
+     * 깨지는 지점이 없다 — 표에서는 데이터셋 천장이 그대로 상한이고, 사진에서는
+     * 45분 수업이 상한을 정했다.
      */
     id: 'neural_network',
-    dataTypes: { tabular: true, image: false },
+    dataTypes: { tabular: true, image: true },
     // **분류와 회귀를 함께 하는 첫 줄이다.** 갈리는 것은 출력층 셋(칸 수·활성·손실)뿐이고
     // 역전파는 한 줄도 안 갈린다 — 그래서 엔진 하나로 둘을 한다 (mlpx-spec.md §5.11).
     taskTypes: { classification: true, regression: true, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': false, 'server-sklearn': false },
     maxRows: {
       tabular: { mljs: MLJS_NEURAL_NETWORK_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
-      image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
+      image: { mljs: MLJS_IMAGE_NEURAL_NETWORK_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
     },
     baseline: {
       // **`flat`이다.** 특성은 첫 층 하나에만 붙지 학습 전체에 선형이 아니고, 그 몫은
       // 손잡이 배수표(`MLJS_NEURAL_NETWORK_WEIGHTS_MS`)가 가중치 수로 함께 받는다.
+      // **사진 표도 같다** — 거기는 차원이 표 안에 이미 들어 있다.
       tabular: { ms: MLJS_NEURAL_NETWORK_BASELINE_MS, columns: 'flat' },
-      image: UNMEASURED_BASELINE,
+      image: { ms: MLJS_IMAGE_NEURAL_NETWORK_BASELINE_MS, columns: 'flat' },
     },
   },
   {
@@ -298,10 +307,21 @@ export interface AlgorithmOption {
  * 있게 되고, 학생은 아무것도 못 하는 프로젝트를 만든다. 군집 알고리즘을 등록하는 날
  * 여기가 저절로 따라온다.
  *
- * **데이터 종류를 함께 본다.** 유형과 데이터 종류는 독립이 아니다 - 이미지에 회귀는
- * 성립하지 않고, 그건 우리가 정하는 것이 아니라 **그 조합에 등록된 알고리즘이 없다는
- * 사실**이다. 안 보면 학생이 회귀를 고른 뒤에야 모델이 전부 꺼진 목록을 만난다.
+ * **데이터 종류를 함께 본다.** 유형과 데이터 종류는 독립이 아니다 - 안 보면 학생이
+ * 회귀를 고른 뒤에야 모델이 전부 꺼진 목록을 만난다.
  * `if (dataType === 'image')`를 쓰지 않는 이유는 이 파일의 첫 주석과 같다.
+ *
+ * **사진에서는 백본에게도 묻는다** (2026-09-03). 그전까지 이미지 회귀가 막힌 것은
+ * **그 조합에 등록된 알고리즘이 없어서**였고, `backbones.ts`와 결정문이 입을 모아
+ * *"화면의 `v-if`가 아니라 `tasks`가 짧아서 막힌다"*고 적어 두었지만 **그 필드를 읽는
+ * 코드가 없었다** (V11 R1 감사 B-4가 그것을 찾아 `tests/backbones.spec.ts`에
+ * 트립와이어를 세워 두었다).
+ *
+ * **인공신경망이 그 트립와이어를 울렸다.** 표에서는 분류와 회귀를 함께 하고 사진에서는
+ * 분류만 하는 첫 알고리즘인데, 등록부의 축은 `dataTypes × taskTypes`라 **그 교집합을
+ * 표현할 수 없다.** 둘 중 하나를 끄는 것은 둘 다 틀린 답이라(사진을 닫거나, 있지도 않은
+ * 이미지 회귀를 열거나) **감사가 가리키던 자리를 여기서 막는다** — 사진에서 무슨 과제를
+ * 할 수 있는지는 **백본이 답한다.**
  *
  * 데이터를 아직 안 올렸으면 종류를 모른다. 그때는 **좁히지 않는다** - 무엇을 올릴지
  * 모르는 채로 유형을 지울 근거가 없다.
@@ -315,8 +335,19 @@ export function supportedTaskTypes(
   const usable = algorithms.filter(
     (algorithm) => dataType === undefined || supports(algorithm.dataTypes, dataType),
   )
-  return TASK_TYPES.filter((taskType) =>
-    usable.some((algorithm) => supports(algorithm.taskTypes, taskType)),
+  /**
+   * 사진에서 이 백본이 할 줄 아는 과제. **표에서는 `null`이고 아무것도 안 좁힌다.**
+   *
+   * **백본을 못 찾으면 좁히지 않는다.** 그 상태는 프로젝트가 모르는 백본을 가리키는
+   * 것이고, 거기서 유형을 지우면 학생은 **이유 없이 비어 버린 목록**을 만난다 — 못 읽는
+   * 이유를 말하는 자리는 여기가 아니다.
+   */
+  const byBackbone = dataType === 'image' ? (backboneFor(DEFAULT_BACKBONE_ID)?.tasks ?? null) : null
+
+  return TASK_TYPES.filter(
+    (taskType) =>
+      (byBackbone === null || byBackbone.includes(taskType)) &&
+      usable.some((algorithm) => supports(algorithm.taskTypes, taskType)),
   )
 }
 

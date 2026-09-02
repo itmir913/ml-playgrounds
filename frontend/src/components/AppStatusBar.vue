@@ -43,7 +43,6 @@ import { needsSizeWarning } from '@/project/file-size'
 import { PROJECT_FILE_WARN_BYTES } from '@/limits'
 import { useFormat } from '@/composables/useFormat'
 import { ACTION_ICONS } from '@/icons'
-import { hasEstimates } from '@/ml/estimate'
 import { setLocale, SUPPORTED_LOCALES, type Locale } from '@/i18n'
 import { limitsOff, setLimitsOff } from '@/limits-switch'
 import { totalBytes } from '@/project/storage'
@@ -151,26 +150,19 @@ const limitsLabel = computed(() =>
 )
 
 /**
- * **사진 프로젝트에는 예상 시간이 없다** (2026-09-01 감사 B-5).
+ * **한때 종류마다 다른 문장을 말했다** (2026-09-01 감사 B-5 → 2026-09-03에 지웠다).
  *
- * 등록부의 이미지 기준표가 하나도 안 차 있어(`UNMEASURED_BASELINE`) 학습 화면의 그
- * 칸은 **모든 줄에서 `알 수 없음`**이다. 그런데 팝오버는 *"학습 화면의 예상 시간이 말해
- * 줍니다"*라고 안내했다 — **상한을 푸는 전형이 사진 학생**이고, 등록부 주석이 사진
- * 1,000장에 521.7초라고 적는 그 자리다.
+ * 등록부의 이미지 기준표가 하나도 안 차 있어 학습 화면의 그 칸이 **사진에서는 모든
+ * 줄이 `알 수 없음`**이었는데 팝오버는 *"학습 화면의 예상 시간이 말해 줍니다"*라고
+ * 안내했다. 그래서 사진용 문장을 따로 두고, `hasEstimates`로 **등록부에 물어** 갈랐다.
  *
- * **종류로 문구를 가른다** (`docs/i18n.md`의 종류별 키). 프로젝트가 없으면 표 쪽 문장이
- * 맞다 — 그때는 아직 무엇을 학습할지도 안 정해졌다.
+ * **사진 기준표가 채워지면서 그 갈림이 지나갈 수 없는 길이 됐다.** 그때 검사에 적어 둔
+ * 지시가 *"지울 것은 검사가 아니라 갈림 자체다"*였고, 그대로 따랐다 — **분기가 없는
+ * 것이 화면이 종류를 안 보는 가장 강한 모양이다** (`architecture.md` §9.1).
+ *
+ * 남은 문장 하나가 그 자리를 다 덮는다: *"아직 측정하지 않은 조합은 그 예상도 나오지
+ * 않습니다."* 안 잰 칸은 종류가 아니라 **조합**마다 있고, 그것이 사실에 더 가깝다.
  */
-const estimateKey = computed(() => {
-  // **스토어에 묻는다.** `file?.document.manifest.dataType`을 여기서 다시 조립하면
-  // 스토어가 이미 갖고 있는 `dataType`과 두 벌이 된다.
-  const dataType = project.dataType
-  // **화면이 종류를 비교하지 않는다** (`architecture.md` §9.1). 등록부에 묻는다 —
-  // 기준표가 채워지는 날 이 문구가 저절로 바뀐다.
-  return dataType === undefined || hasEstimates(dataType)
-    ? 'shell.limitsEstimate'
-    : 'shell.limitsEstimateImage'
-})
 </script>
 
 <template>
@@ -335,7 +327,7 @@ const estimateKey = computed(() => {
         {{ limitsOff ? t('shell.limitsRiskOn') : t('shell.limitsWhy') }}
       </p>
       <p class="mt-1 leading-relaxed text-ink-soft">
-        {{ limitsOff ? t(estimateKey) : t('shell.limitsRisk') }}
+        {{ limitsOff ? t('shell.limitsEstimate') : t('shell.limitsRisk') }}
       </p>
       <p class="mt-1 leading-relaxed text-ink-faint">{{ t('shell.limitsDevice') }}</p>
 

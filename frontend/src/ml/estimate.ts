@@ -28,6 +28,7 @@ import {
 import type { DataType } from '../project/schema'
 
 import { ALGORITHMS } from './algorithms'
+import { DEFAULT_BACKBONE_ID, backboneFor } from './backbones'
 import type { Baseline } from './backend'
 
 type Ladder = readonly (readonly [number, number])[]
@@ -102,6 +103,26 @@ function neuralWeights(columns: number, layers: number, neurons: number): number
 }
 
 /**
+ * 이 종류의 기준표가 **몇 개의 특성에서 재어졌나.**
+ *
+ * **사진에서 특성 수를 두 번 세지 않으려고 있다.** 사진 기준표는 임베딩 차원에서 재어져
+ * 있고(`backbones.ts`), 학습 화면이 넘기는 `columns`는 **사진에서 0이다**
+ * (`TrainView.vue`의 `featureWidth`가 `tabularDataOf`를 읽는다). 그 0을 그대로 가중치
+ * 식에 넣으면 배수가 **3분의 1로 줄어** 예상이 크게 짧아진다 — `UNMEASURED_BASELINE`의
+ * 주석이 `columns: 'flat'`에 대해 말하는 것과 같은 함정이고, 손잡이 배수에서 한 번 더
+ * 나타난 것이다.
+ *
+ * 그래서 사진에서는 **분자와 분모가 같은 차원을 쓴다** — 배수가 손잡이로만 움직인다.
+ *
+ * **백본이 하나 더 생기면 사진 기준표를 다시 재야 한다** (`UNMEASURED_BASELINE`의 같은
+ * 경고). 여기서 기본 백본의 차원을 쓰는 것도 그 전제 위에 있다.
+ */
+function baselineColumnsOf(dataType: DataType): number {
+  if (dataType !== 'image') return BASELINE_COLUMNS
+  return backboneFor(DEFAULT_BACKBONE_ID)?.embeddingDim ?? BASELINE_COLUMNS
+}
+
+/**
  * **지배적인 손잡이 넷만 곱한다** — 랜덤포레스트의 그루 수, 로지스틱의 `maxIter`,
  * K-평균의 군집 수, 신경망의 층 수와 뉴런 수다. 기기 배수로는 못 덮는다: 나무를 10에서
  * 500으로 올리면 50배이고, 정확한 예상이 가장 필요한 순간이 바로 그 순간이다.
@@ -117,6 +138,7 @@ function handleFactor(
   algorithm: string,
   hyperparameters: Record<string, unknown>,
   columns: number,
+  dataType: DataType,
 ): number {
   if (algorithm === 'random_forest') {
     const trees = numberOr(hyperparameters, 'nEstimators', MLJS_RANDOM_FOREST_BASELINE_TREES)
@@ -155,17 +177,20 @@ function handleFactor(
       'neuronsPerLayer',
       MLJS_NEURAL_NETWORK_BASELINE_NEURONS,
     )
+    // **분모는 그 종류의 기준표가 재어진 특성 수다.** 사진에서는 분자도 같은 값이라
+    // 특성 축이 상쇄되고 손잡이만 남는다 (`baselineColumnsOf`).
+    const measuredAt = baselineColumnsOf(dataType)
+    const actual = dataType === 'image' ? measuredAt : columns
     const baseline = interpolate(
       MLJS_NEURAL_NETWORK_WEIGHTS_MS,
       neuralWeights(
-        BASELINE_COLUMNS,
+        measuredAt,
         MLJS_NEURAL_NETWORK_BASELINE_LAYERS,
         MLJS_NEURAL_NETWORK_BASELINE_NEURONS,
       ),
     )
     return (
-      interpolate(MLJS_NEURAL_NETWORK_WEIGHTS_MS, neuralWeights(columns, layers, neurons)) /
-      baseline
+      interpolate(MLJS_NEURAL_NETWORK_WEIGHTS_MS, neuralWeights(actual, layers, neurons)) / baseline
     )
   }
   if (algorithm === 'k_means') {
@@ -194,7 +219,11 @@ export function baselineMs(input: EstimateInput): number | null {
   const rows = interpolate(baseline.ms, Math.max(input.rows, 1))
   // 특성 수에 선형인 것은 트리 계열과 SVM뿐이다. KNN과 로지스틱은 안 곱한다 (실측).
   const columns = baseline.columns === 'linear' ? Math.max(input.columns, 1) / BASELINE_COLUMNS : 1
-  return rows * columns * handleFactor(input.algorithm, input.hyperparameters, input.columns)
+  return (
+    rows *
+    columns *
+    handleFactor(input.algorithm, input.hyperparameters, input.columns, input.dataType)
+  )
 }
 
 /**

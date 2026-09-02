@@ -295,6 +295,17 @@ export interface Ladder {
    * - 던지면 그 자리가 답이다 — 메모리 부족이 그렇게 온다.
    */
   readonly findsLimit?: true
+  /**
+   * **이 사다리에서 시간이 축을 따라 몇 제곱으로 붙나.** 없으면 축의 기본값
+   * (`projectionExponent`).
+   *
+   * **행 축의 기본값이 2인 것은 트리 계열 때문이다** — 분할 탐색이 노드마다
+   * `O(특성 × 행²)`이라 다음 점을 크게 잡아야 폭주를 막는다. **에폭이 고정된 솔버는
+   * 행에 선형**이라 그 규칙이 맞지 않고, 실제로 인공신경망 사다리가 첫 점을 재고
+   * *"다음 점의 어림이 크다"*로 멈췄다 (2026-09-03). 재려던 것을 못 재는 어림은
+   * 안전장치가 아니라 고장이다.
+   */
+  readonly growth?: number
 }
 
 /**
@@ -401,6 +412,7 @@ export const LADDERS: readonly Ladder[] = [
     points: [1000, 2000, 5000, 10_000, 20_000],
     job: (rows) => ({ algorithm: 'neural_network', rows }),
     run: (rows) => measureNeural(rows, FEATURES, 1, 100),
+    growth: 1,
   },
   {
     /**
@@ -413,6 +425,7 @@ export const LADDERS: readonly Ladder[] = [
     points: [1000, 2000, 5000],
     job: (rows) => ({ algorithm: 'neural_network', rows, regression: true }),
     run: (rows) => measureNeural(rows, FEATURES, 1, 100, true),
+    growth: 1,
   },
   {
     /**
@@ -659,6 +672,23 @@ export const LADDERS: readonly Ladder[] = [
     job: (rows) => ({ algorithm: 'naive_bayes', rows, columns: IMAGE_FEATURES }),
   },
   {
+    /**
+     * **첫 층이 통째로 커진다.** 임베딩이 1,280차원이라 기본 손잡이에서도 가중치가
+     * `1280 × 100 + 100 = 128,100`개 — 표 데이터 기본값(900)의 **142배**다. 그래서
+     * 이 사다리가 사진에서 이 모델을 열 수 있는지를 정한다.
+     *
+     * **에폭 천장으로 잰다** (`measureNeural`) — 다른 사다리와 같은 이유다.
+     */
+    id: 'image_neural_network',
+    label: '[사진] 인공신경망 · 장 수 (1층 × 100뉴런)',
+    axis: 'rows',
+    points: [125, 250, 500, 1000],
+    job: (rows) => ({ algorithm: 'neural_network', rows, columns: IMAGE_FEATURES }),
+    run: (rows) => measureNeural(rows, IMAGE_FEATURES, 1, 100),
+    // **행에 선형이다** — 실측 148ms/장이 네 점에서 그대로다 (`limits.ts`).
+    growth: 1,
+  },
+  {
     id: 'image_logistic_regression',
     label: '[사진] 로지스틱 회귀 · 장 수 (maxIter 100 천장)',
     axis: 'rows',
@@ -864,6 +894,11 @@ export function projectionExponent(axis: Axis): number {
   return axis === 'rows' ? 2 : 1
 }
 
+/** 이 사다리가 쓸 지수. **사다리가 적어 두었으면 그것이고, 아니면 축의 기본값이다.** */
+export function ladderExponent(ladder: Pick<Ladder, 'axis' | 'growth'>): number {
+  return ladder.growth ?? projectionExponent(ladder.axis)
+}
+
 /**
  * 어림 규칙을 사람이 읽는 한 줄로. **결과 JSON에 함께 실린다.**
  *
@@ -873,7 +908,13 @@ export function projectionExponent(axis: Axis): number {
  * 것을 JSON에서 구분하려고"*였으니 그러면 넣은 뜻이 없다.
  */
 export function projectionRule(): string {
-  return AXES.map((axis) => `${axis}^${projectionExponent(axis)}`).join(' · ')
+  const axes = AXES.map((axis) => `${axis}^${projectionExponent(axis)}`).join(' · ')
+  // **사다리가 자기 지수를 적을 수 있다** (`Ladder.growth`). 어느 사다리가 그랬는지까지
+  // 적어 두어야 결과 JSON만 보고도 어림이 어떻게 됐는지 읽을 수 있다.
+  const overridden = LADDERS.filter((ladder) => ladder.growth !== undefined)
+    .map((ladder) => `${ladder.id}^${ladder.growth}`)
+    .join(' · ')
+  return overridden === '' ? axes : `${axes} (사다리별: ${overridden})`
 }
 
 /** 멈춘 이유. **`null`이면 안 멈춘다.** */
@@ -921,7 +962,7 @@ export function stopReason(
   if (ladder.findsLimit) return previous.elapsed > FAILURE_CEILING_MS ? 'ceiling' : null
   if (previous.elapsed > CEILING_MS) return 'ceiling'
   const growth = point / previous.point
-  const projected = previous.elapsed * growth ** projectionExponent(ladder.axis)
+  const projected = previous.elapsed * growth ** ladderExponent(ladder)
   return projected > PROJECTION_MS ? 'projection' : null
 }
 

@@ -127,16 +127,12 @@ describe('예상 시간 줄이 데이터 종류를 본다', () => {
     return panelText(true)
   }
 
-  it('사진은 아직 못 잰다고 말한다', async () => {
-    const text = await estimateLine('image')
-    expect(text).toContain(i18n.global.t('shell.limitsEstimateImage'))
-    expect(text).not.toContain(i18n.global.t('shell.limitsEstimate'))
+  it('사진도 학습 화면을 가리킨다', async () => {
+    expect(await estimateLine('image')).toContain(i18n.global.t('shell.limitsEstimate'))
   })
 
   it('표는 학습 화면을 가리킨다', async () => {
-    const text = await estimateLine('tabular')
-    expect(text).toContain(i18n.global.t('shell.limitsEstimate'))
-    expect(text).not.toContain(i18n.global.t('shell.limitsEstimateImage'))
+    expect(await estimateLine('tabular')).toContain(i18n.global.t('shell.limitsEstimate'))
   })
 
   /** 프로젝트가 없으면 아직 무엇을 학습할지도 안 정해졌다. 표 쪽 문장이 맞다. */
@@ -145,12 +141,18 @@ describe('예상 시간 줄이 데이터 종류를 본다', () => {
   })
 
   /**
-   * **종류마다 다른 말을 하는가.** 위 둘이 키를 하나씩 짚는다면 이것은 **두 종류의
-   * 글이 실제로 갈리는가**를 본다 — 등록부가 사진 기준표를 채우는 날 이 검사가
-   * 빨개지고, 그때 지울 것은 검사가 아니라 갈림 자체다.
+   * **이제 종류마다 같은 말을 한다** (2026-09-03).
+   *
+   * 여기 있던 검사는 *"사진과 표의 글이 서로 다르다"*였고, 주석에 **"등록부가 사진
+   * 기준표를 채우는 날 이 검사가 빨개지고, 그때 지울 것은 검사가 아니라 갈림 자체다"**라고
+   * 적혀 있었다. 그날이 와서 그대로 했다 — 사진 인공신경망의 기준표가 채워졌고, 갈림과
+   * 사진 전용 문구를 함께 지웠다.
+   *
+   * **남은 문장 하나가 그 자리를 덮는다**: *"아직 측정하지 않은 조합은 그 예상도 나오지
+   * 않습니다."* 안 잰 칸은 종류가 아니라 **조합**마다 있다.
    */
-  it('사진과 표의 글이 서로 다르다', async () => {
-    expect(await estimateLine('image')).not.toBe(await estimateLine('tabular'))
+  it('종류가 문구를 가르지 않는다 - 갈림을 지웠다', async () => {
+    expect(await estimateLine('image')).toBe(await estimateLine('tabular'))
   })
 })
 

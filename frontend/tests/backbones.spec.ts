@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { ALGORITHMS } from '@/ml/algorithms'
+import { ALGORITHMS, supportedTaskTypes } from '@/ml/algorithms'
 import { BACKBONES, BACKBONE_IDS, DEFAULT_BACKBONE_ID, backboneFor } from '@/ml/backbones'
 import { TASK_TYPES } from '@/project/schema'
 
@@ -188,33 +188,50 @@ describe('백본 등록부', () => {
   })
 
   /**
-   * **두 등록부가 같은 말을 하는가.**
+   * **백본의 과제 목록이 실제로 막는가.**
    *
    * `open-decisions.md`와 `backbones.ts`의 주석이 입을 모아 *"이미지 회귀가 막히는 것은
-   * 화면의 `v-if`가 아니라 여기 과제 목록이 짧기 때문"*이라고 적는다. **그런데
-   * `BackboneSpec.tasks`를 읽는 코드가 저장소에 없다** (V11 R1 감사 B-4) — 실제로 막는 것은
-   * 알고리즘 등록부의 `dataTypes.image`다. 아무도 안 읽는 필드를 지키는 초록불이 서 있었다.
+   * 화면의 `v-if`가 아니라 여기 과제 목록이 짧기 때문"*이라고 적어 두었는데, **그 필드를
+   * 읽는 코드가 저장소에 없었다** (V11 R1 감사 B-4). 실제로 막던 것은 알고리즘 등록부의
+   * `dataTypes.image`였고, 그래서 그때는 **둘이 같은 말을 하는지**만 못 박았다 —
+   * *"`image: true`인 회귀 알고리즘을 한 줄 더하면 이미지 회귀가 열리는데 백본 쪽은
+   * 아무 말도 안 한다"*는 경고와 함께.
    *
-   * **오늘은 화면이 옳게 동작한다. 문제는 다음 사람이다** — `image: true`인 회귀 알고리즘을
-   * 한 줄 더하면 이미지 회귀가 열리는데 백본 쪽은 아무 말도 안 한다. 그래서 **둘의 교집합을
-   * 여기서 못 박는다.** 지금 상태에서 초록이고, 둘이 갈리는 날 운다.
+   * **2026-09-03에 그 한 줄이 실제로 들어왔다.** 인공신경망이 표에서 분류와 회귀를 함께
+   * 하고 사진에서는 분류만 한다 — 등록부의 축은 `dataTypes × taskTypes`라 **그 교집합을
+   * 표현할 수 없고**, 그때 감사가 세운 트립와이어가 울었다. 둘 중 하나를 끄는 옛 처방은
+   * 둘 다 틀린 답이라(사진을 닫거나, 없는 이미지 회귀를 열거나) **`supportedTaskTypes`가
+   * 백본에게 묻게 고쳤다.**
+   *
+   * 그래서 이 검사도 **합의**가 아니라 **강제**를 본다.
    */
-  it('알고리즘 등록부가 이미지에서 여는 과제는 백본도 할 줄 안다', () => {
-    const openedByAlgorithms = new Set(
-      TASK_TYPES.filter((task) =>
-        ALGORITHMS.some((algorithm) => algorithm.dataTypes.image && algorithm.taskTypes[task]),
-      ),
+  it('사진에서 열리는 과제는 백본이 할 줄 아는 것뿐이다', () => {
+    const backbone = backboneFor(DEFAULT_BACKBONE_ID)
+    expect(backbone, DEFAULT_BACKBONE_ID).toBeDefined()
+
+    const opened = supportedTaskTypes('image')
+    expect(
+      opened.filter((task) => !(backbone?.tasks ?? []).includes(task)),
+      [
+        '사진에서 열린 과제인데 백본이 못 한다고 적혀 있다.',
+        '  supportedTaskTypes가 백본의 tasks로 좁히는지 확인하라.',
+      ].join(NEWLINE),
+    ).toEqual([])
+
+    // **좁히기가 실제로 일을 하는지까지 본다.** 알고리즘 축만 보면 무엇이 열렸을까.
+    const byAlgorithmsAlone = TASK_TYPES.filter((task) =>
+      ALGORITHMS.some((algorithm) => algorithm.dataTypes.image && algorithm.taskTypes[task]),
     )
-    for (const backbone of BACKBONES) {
-      expect(
-        [...openedByAlgorithms].filter((task) => !backbone.tasks.includes(task)),
-        [
-          `${backbone.id}의 tasks가 알고리즘 등록부보다 짧다.`,
-          '  이미지에서 열린 과제인데 백본이 못 한다고 적혀 있다.',
-          '  둘 중 하나를 고쳐라 - 알고리즘의 dataTypes.image를 닫거나, 백본의 tasks를 늘리거나.',
-        ].join(NEWLINE),
-      ).toEqual([])
-    }
+    expect(byAlgorithmsAlone, 'a regression algorithm now claims images').toContain('regression')
+    expect(opened, 'and the backbone must take it back out').not.toContain('regression')
+  })
+
+  /**
+   * **표는 안 좁힌다.** 백본은 사진에만 있는 물건이고, 여기서 좁히면 표 프로젝트가
+   * 이유 없이 유형을 잃는다.
+   */
+  it('표에서는 백본이 아무것도 안 막는다', () => {
+    expect(supportedTaskTypes('tabular')).toContain('regression')
   })
 
   it.each(BACKBONES.map((backbone) => [backbone.id, backbone] as const))(

@@ -166,16 +166,98 @@ group('등록부', () => {
     for (const algorithm of ALGORITHMS) {
       expect(algorithm.baseline.tabular.ms.length, algorithm.id).toBeGreaterThan(1)
       expect(['linear', 'flat'], algorithm.id).toContain(algorithm.baseline.tabular.columns)
-      // **이미지는 아직 안 쟀다.** 안 잰 칸이 조용히 숫자를 갖지 않는다.
-      expect(algorithm.baseline.image.ms, algorithm.id).toEqual([])
+      /**
+       * **이미지 칸은 비었거나 제대로 된 표다.** 안 잰 칸이 조용히 숫자를 갖지 않는다는
+       * 것이 원래 규칙이었고, 2026-09-03에 첫 표가 채워지면서 **"비어 있다"에서 "점 하나
+       * 짜리 가짜가 아니다"로** 넓어졌다.
+       *
+       * **채워졌으면 `flat`이어야 한다** — 사진 표는 임베딩 차원에서 재어지므로 특성
+       * 배수를 한 번 더 곱하면 그 차원을 두 번 센다 (`backend.ts`의 `UNMEASURED_BASELINE`).
+       */
+      const image = algorithm.baseline.image
+      if (image.ms.length > 0) {
+        expect(image.ms.length, algorithm.id).toBeGreaterThan(1)
+        expect(image.columns, algorithm.id).toBe('flat')
+      }
     }
   })
 
   it('기준표의 행 수가 오름차순이다 - 보간이 그것을 전제한다', () => {
     for (const algorithm of ALGORITHMS) {
-      const rows = algorithm.baseline.tabular.ms.map(([value]) => value)
-      expect(rows, algorithm.id).toEqual([...rows].sort((a, b) => a - b))
+      for (const baseline of [algorithm.baseline.tabular, algorithm.baseline.image]) {
+        const rows = baseline.ms.map(([value]) => value)
+        expect(rows, algorithm.id).toEqual([...rows].sort((a, b) => a - b))
+      }
     }
+  })
+
+  /** **채워진 사진 표가 하나라도 있어야 위 검사가 빈 배열을 훑지 않는다.** */
+  it('사진 기준표가 적어도 하나는 차 있다', () => {
+    expect(ALGORITHMS.filter((one) => one.baseline.image.ms.length > 0).length).toBeGreaterThan(0)
+  })
+
+  /**
+   * **사진을 연 알고리즘은 사진 상한을 든다.** 축만 열고 상한을 `UNMEASURED`로 두면
+   * 카드는 켜지는데 "몇 장까지"는 아무도 답하지 않는다.
+   */
+  it('사진을 여는 알고리즘마다 사진 상한이 있다', () => {
+    for (const algorithm of ALGORITHMS) {
+      if (!algorithm.dataTypes.image) continue
+      expect(algorithm.maxRows.image.mljs, algorithm.id).not.toBeNull()
+    }
+  })
+})
+
+/**
+ * **사진에서 특성 수를 두 번 세지 않는다** (2026-09-03).
+ *
+ * 사진 기준표는 임베딩 차원에서 재어져 있고, 학습 화면이 넘기는 `columns`는 **사진에서
+ * 0이다**(`TrainView.vue`의 `featureWidth`가 `tabularDataOf`를 읽는다). 그 0을 가중치
+ * 식에 그대로 넣으면 손잡이 배수가 **3분의 1로 줄어** 예상이 크게 짧아진다 —
+ * `UNMEASURED_BASELINE`의 주석이 `columns: 'flat'`에 대해 경고하는 것과 같은 함정이,
+ * 인공신경망의 손잡이 배수에서 한 번 더 나타난 자리다.
+ *
+ * **그래서 실측값 자체를 못 박는다.** 기본 손잡이의 예상은 기준표에 적힌 그 수여야 한다 —
+ * 배수가 1이 아니면 곧바로 갈린다.
+ */
+group('사진 예상은 기준표를 그대로 낸다', () => {
+  const imageInput = (rows: number, hyperparameters: Record<string, unknown> = {}) => ({
+    algorithm: 'neural_network',
+    dataType: 'image' as const,
+    rows,
+    // **화면이 실제로 넘기는 값이다.** 사진에서는 0이다.
+    columns: 0,
+    hyperparameters,
+  })
+
+  it('기본 손잡이면 기준표의 값 그대로다', () => {
+    const table = ALGORITHMS.find((one) => one.id === 'neural_network')?.baseline.image.ms ?? []
+    expect(table.length, 'the image table must be filled').toBeGreaterThan(1)
+    for (const [rows, ms] of table) {
+      expect(baselineMs(imageInput(rows)), `${rows} photos`).toBeCloseTo(ms, 6)
+    }
+  })
+
+  /**
+   * **손잡이는 여전히 움직인다.** 배수를 통째로 1로 굳혀도 위 검사는 초록이라, 그 자리를
+   * 여기서 막는다.
+   *
+   * **1,280차원에서는 층을 하나 더해도 조금만 는다** — 첫 층이 128,100개인데 은닉층
+   * 하나가 10,000개를 더할 뿐이다. 표 데이터에서 같은 조치가 5.7배인 것과 갈리는 자리이고,
+   * 그래서 가중치 수로 접어 두었다.
+   */
+  it('층을 늘리면 늘지만, 사진에서는 조금만 는다', () => {
+    const one = baselineMs(imageInput(1000)) ?? 0
+    const two = baselineMs(imageInput(1000, { hiddenLayers: 2, neuronsPerLayer: 100 })) ?? 0
+    expect(two).toBeGreaterThan(one)
+    expect(two / one).toBeLessThan(1.2)
+  })
+
+  /** **뉴런을 반으로 줄이면 눈에 띄게 준다.** 첫 층이 그만큼 얇아진다. */
+  it('뉴런을 줄이면 예상도 준다', () => {
+    const full = baselineMs(imageInput(1000)) ?? 0
+    const half = baselineMs(imageInput(1000, { hiddenLayers: 1, neuronsPerLayer: 50 })) ?? 0
+    expect(half).toBeLessThan(full * 0.7)
   })
 })
 
@@ -252,18 +334,35 @@ group('K-평균의 군집 수', () => {
 /**
  * **이 종류에 예상이 나오기는 하는가** (2026-09-01 감사 B-5).
  *
- * 상한 팝오버가 *"학습 화면의 예상 시간이 말해 줍니다"*라고 안내하는데, **사진에서는
- * 모든 줄이 `알 수 없음`**이다 — 등록부의 이미지 기준표 여덟이 전부 비어 있다. 화면이
+ * 상한 팝오버가 *"학습 화면의 예상 시간이 말해 줍니다"*라고 안내하는데, 그때 **사진에서는
+ * 모든 줄이 `알 수 없음`**이었다 — 등록부의 이미지 기준표 여덟이 전부 비어 있었다. 화면이
  * 그 사실을 `dataType === 'image'`로 알면 **기준표를 채우는 날 그 화면도 함께 고쳐야
  * 하고**, 빠뜨린 것은 컴파일도 검사도 못 잡는다 (`architecture.md` §9.1).
+ *
+ * **2026-09-03에 그 날이 왔다.** 사진 인공신경망의 기준표가 채워지면서 `hasEstimates`가
+ * 사진에도 참이 됐고, **화면의 문구가 저절로 바뀌었다** — 고친 것은 등록부 한 줄뿐이다.
+ * 그 성질을 지키는 것이 아래 두 검사다.
  */
 group('예상이 나오는 종류인가', () => {
   it('표는 기준표가 있어 예상이 나온다', () => {
     expect(hasEstimates('tabular')).toBe(true)
   })
 
-  it('사진은 아직 안 나온다 - 등록부가 비어 있다', () => {
-    expect(hasEstimates('image')).toBe(false)
+  /** **사진도 나온다** — 채워진 것은 인공신경망 하나이고, 나머지 줄은 여전히 `알 수 없음`이다. */
+  it('사진도 이제 나온다 - 기준표가 하나 채워졌다', () => {
+    expect(hasEstimates('image')).toBe(true)
+  })
+
+  /**
+   * **비면 거짓이 된다.** 위 검사가 값이 아니라 **등록부를 보고 답한다**는 것을 지키려면
+   * 반대 방향도 있어야 한다 — 안 그러면 `hasEstimates`가 `true`를 상수로 돌려줘도 초록이다.
+   */
+  it('그 종류의 표가 전부 비면 거짓이 된다', () => {
+    const emptied = ALGORITHMS.map((entry) => ({
+      ...entry,
+      baseline: { ...entry.baseline, image: { ms: [], columns: 'flat' as const } },
+    }))
+    expect(hasEstimates('image', emptied)).toBe(false)
   })
 
   /**

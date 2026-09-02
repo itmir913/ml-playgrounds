@@ -52,7 +52,6 @@
     "limitsRisk": "Turning them off lets you train on much larger data. Training may then take a very long time, and while a large file is opening or a prediction is running, the browser may ask whether to keep waiting for the page.",
     "limitsRiskOn": "You can now train on much larger data. Training may take a very long time, and while a large file is opening or a prediction is running, the browser may ask whether to keep waiting for the page.",
     "limitsEstimate": "The training screen tells you how long it should take. Combinations nobody has measured yet have no estimate at all.",
-    "limitsEstimateImage": "Photo training has not been measured yet, so the training screen shows no estimate. You start without knowing how long it will take.",
     "limitsDevice": "This setting is stored on this computer only and never goes into the project file.",
     "limitsRelease": "Turn limits off",
     "limitsOff": "Limits off",
