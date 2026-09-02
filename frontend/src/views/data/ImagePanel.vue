@@ -583,12 +583,13 @@ async function commitRemoveCategory(): Promise<void> {
             {{ t('meta.image.preparing', { done: progress.completed, total: progress.total }) }}
           </span>
           <!--
-            **무엇을 물리는지 이름으로 밝힌다** (R22 C-1). 굽는 중에는 이 단추가 도는
-            준비를 끊고, 아닐 때는 확인 판을 접는다 — 그냥 [취소]로 두면 새 묶음을
-            놓은 학생이 그것을 물리는 줄 안다.
+            **이름은 하나다.** 굽는 중에는 이 단추가 도는 준비를 끊고 아닐 때는 확인 판을
+            접지만, 그 차이를 **단추 이름으로 말하지 않는다** — 상태에 따라 글자가 바뀌는
+            단추는 학생이 같은 자리를 다시 배워야 한다. 무엇이 도는지와 무엇이 기다리는지는
+            **바 왼쪽 두 줄**이 이미 말하고 있다 (2026-09-02, 코드 소유자 판단).
           -->
           <AppButton variant="secondary" @click="cancelBaking">
-            {{ baking ? t('data.image.cancelPreparing') : t('common.cancel') }}
+            {{ t('common.cancel') }}
           </AppButton>
           <AppButton :disabled="busy" :action="bake">{{ t('data.image.use') }}</AppButton>
         </template>

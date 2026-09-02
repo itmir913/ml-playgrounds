@@ -312,18 +312,24 @@ describe('굽는 동안 둘째 묶음이 판에 서면', () => {
     expect(wrapper.text()).toContain('파일 2개를 읽었습니다')
   })
 
-  it('[취소]가 무엇을 끊는지 이름으로 밝힌다', async () => {
+  /**
+   * **단추 이름은 상태에 따라 안 바뀐다** (2026-09-02, 코드 소유자 판단).
+   *
+   * 한때 굽는 중에만 「준비 취소」로 바뀌었다 — 무엇을 끊는지 이름으로 말하려던 것인데,
+   * **같은 자리의 글자가 상태마다 달라지면 학생이 그 자리를 다시 배워야 한다.** 무엇이
+   * 도는지와 무엇이 기다리는지는 바 왼쪽 두 줄이 이미 말한다.
+   */
+  it('[취소]의 이름은 굽는 중에도 그대로다', async () => {
     const { wrapper, panel, baking } = await panelBaking()
 
     const labels = () => wrapper.findAll('button').map((one) => one.text())
-    expect(labels()).toContain('준비 취소')
+    expect(labels()).toContain('취소')
 
     panel.cancelBaking()
     await baking
     await settle()
 
-    // 안 구울 때의 [취소]는 확인 판을 접는 일이라 이름이 다르다.
-    expect(labels()).not.toContain('준비 취소')
+    expect(labels()).toContain('취소')
   })
 
   /**
@@ -439,8 +445,9 @@ describe('굽기가 자리를 묻는 동안', () => {
 
   it('[취소]를 누르면 굽기가 시작되지 않고 묶음은 판에 남는다', async () => {
     const { project, wrapper, panel, baking } = await panelAskingRoom()
-    // 아직 진행 표시는 없지만 굽는 중이다 — 단추도 그렇게 말해야 한다.
-    expect(wrapper.findAll('button').map((one) => one.text())).toContain('준비 취소')
+    // **아직 진행 표시는 없지만 굽는 중이다.** 그래서 [취소]가 판을 접는 것이 아니라
+    // 굽기를 막아야 한다 — 단추 이름은 이 둘을 구별하지 않는다(코드 소유자 판단).
+    expect(wrapper.findAll('button').map((one) => one.text())).toContain('취소')
 
     panel.cancelBaking()
     releaseRoom()

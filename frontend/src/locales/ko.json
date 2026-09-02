@@ -139,7 +139,6 @@
       "newCategory": "범주 만들기",
       "pickCategory": "선택하세요",
       "readWaiting": "파일 {count}개는 다음 차례로 기다리는 중입니다.",
-      "cancelPreparing": "준비 취소",
       "readTitle": "파일 {count}개를 읽었습니다.",
       "removeCategory": "범주 삭제",
       "removeCategoryDescription": "사진은 삭제되지 않고 [범주 없음]으로 이동합니다. ({name})",
