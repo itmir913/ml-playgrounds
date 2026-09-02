@@ -571,3 +571,63 @@ describe('내보낸 파일이 지금 작업과 얼마나 어긋나 있는가', (
     expect(exportStateOf('2026-08-19T05:00:00+09:00', '2026-08-18T21:00:00.000Z')).toBe('exported')
   })
 })
+
+/**
+ * 긴 계산이 파일을 쓰는 모양 (architecture.md §8.10.3).
+ *
+ * **붙든 파일에 쓰면 그 사이의 편집이 사라진다.** 예측이 도는 동안 놓은 사진, 백본을
+ * 받는 동안 뺀 모델 — R20 감사가 둘 다 실측했다. 그래서 `save`·`update`가 함수를 받고,
+ * 스토어가 **부르는 순간의 값**에 적용한다.
+ *
+ * **닫힌 뒤에 앉히지 않는 것이 짝이다.** 늦게 도착한 계산이 스토어를 되살리면 목록으로
+ * 나간 학생의 화면에 옛 프로젝트가 뜨고 자동 저장이 그것을 쓴다.
+ */
+describe('스토어에 함수로 쓰면', () => {
+  /** 이름 뒤에 표를 하나 붙인다. **어느 값에 적용됐는지가 이름에 남는다.** */
+  const marked = (current: ProjectFile): ProjectFile => ({
+    ...current,
+    document: {
+      ...current.document,
+      manifest: { ...current.document.manifest, name: `${current.document.manifest.name}!` },
+    },
+  })
+
+  it('붙든 값이 아니라 지금 값에 적용한다', async () => {
+    const project = useProjectStore()
+    await project.save(renamed('처음'))
+    // 긴 계산이 도는 동안 학생이 고친 것에 해당한다.
+    await project.save(renamed('학생이 고친 것'))
+
+    await project.save(marked)
+
+    expect(project.name).toBe('학생이 고친 것!')
+    const stored = await loadProject(manifest.projectId)
+    expect(stored?.document.manifest.name).toBe('학생이 고친 것!')
+  })
+
+  it('닫힌 뒤에는 아무것도 안 앉는다', async () => {
+    const project = useProjectStore()
+    await project.save(renamed('처음'))
+    project.close()
+
+    await project.save(marked)
+
+    expect(project.file).toBeNull()
+    expect(project.dirty).toBe(false)
+    // 디스크에는 닫기 전의 것만 남는다.
+    const stored = await loadProject(manifest.projectId)
+    expect(stored?.document.manifest.name).toBe('처음')
+  })
+
+  it('`update`도 같은 규칙이다', async () => {
+    const project = useProjectStore()
+    await project.save(renamed('처음'))
+
+    project.update(marked)
+    expect(project.name).toBe('처음!')
+
+    project.close()
+    project.update(marked)
+    expect(project.file).toBeNull()
+  })
+})

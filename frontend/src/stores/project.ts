@@ -31,6 +31,15 @@ import { NO_FACTS, type ProjectFacts } from '@/router/steps'
 import { useToastStore } from './toasts'
 
 /**
+ * 지금 열린 파일을 받아 새 파일을 돌려주는 함수. **긴 계산의 끝은 이 모양으로 쓴다**
+ * (architecture.md §8.10.3).
+ *
+ * 붙든 파일에 쓰면 그 사이 학생이 한 일이 사라진다 — 예측이 도는 동안 놓은 사진,
+ * 백본을 받는 동안 뺀 모델. **자리마다 가드를 붙이는 대신 쓰기의 모양을 바꾼다.**
+ */
+export type ProjectRevision = (current: ProjectFile) => ProjectFile
+
+/**
  * 파일에서 사실들을 뽑는다. **순수 함수라 스토어 없이 테스트한다.**
  *
  * 스키마를 아는 것은 여기까지다. steps.ts는 결과인 불리언들만 보고, 체크리스트와
@@ -134,6 +143,23 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   /**
+   * 넘어온 것을 지금 쓸 값으로 바꾼다. **함수면 지금 열린 파일에 적용한다**
+   * (architecture.md §8.10.3).
+   *
+   * **닫혔으면 `null`을 돌려주고 부르는 쪽은 아무것도 안 한다.** 되살리면 목록으로
+   * 나간 학생의 화면에 옛 프로젝트가 다시 뜨고 자동 저장이 그것을 쓴다 — R20 감사가
+   * 학습 화면에서 실측한 것이 그것이다(백본이 늦게 도착해 `close()` 뒤에 앉았다).
+   *
+   * **어느 프로젝트의 조각인지는 여기서 모른다.** 다른 프로젝트를 연 뒤에 옛 계산이
+   * 도착하는 것은 화면이 스스로 멈춰야 한다(`alive`·취소 손잡이).
+   */
+  function resolve(next: ProjectFile | ProjectRevision): ProjectFile | null {
+    if (typeof next !== 'function') return next
+    const current = file.value
+    return current === null ? null : next(current)
+  }
+
+  /**
    * 바뀐 프로젝트를 저장하고 화면에 반영한다.
    *
    * **쓰기와 교체를 한 함수로 묶은 이유**는 둘이 갈라지면 언젠가 화면만 바뀌고 저장이
@@ -153,9 +179,11 @@ export const useProjectStore = defineStore('project', () => {
    * 잃는다. 그래서 `dirty`가 실패 뒤에도 참으로 남아 상태 표시줄이 계속 말하는 것이
    * 이 결정의 짝이다. 부르는 쪽은 던진 것을 잡아 토스트를 띄워야 한다.
    */
-  async function save(next: ProjectFile): Promise<void> {
+  async function save(next: ProjectFile | ProjectRevision): Promise<void> {
+    const value = resolve(next)
+    if (value === null) return
     cancelPending()
-    file.value = next
+    file.value = value
     dirty.value = true
     await write()
   }
@@ -223,8 +251,10 @@ export const useProjectStore = defineStore('project', () => {
    * **실패하면 알림을 띄운다.** 타이머가 부르는 것이라 기다리는 사람이 없고,
    * 조용히 실패하면 학생은 저장된 줄 안다.
    */
-  function update(next: ProjectFile): void {
-    file.value = next
+  function update(next: ProjectFile | ProjectRevision): void {
+    const value = resolve(next)
+    if (value === null) return
+    file.value = value
     dirty.value = true
     cancelPending()
     pending = setTimeout(() => {
