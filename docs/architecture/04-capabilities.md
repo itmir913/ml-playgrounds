@@ -591,3 +591,10 @@ function trainGate(facts: ProjectFacts, selection: SelectionResult, runtime: Run
 있는데, 이미지는 백본 12.4MB를 받고 사진을 전부 돌린 **뒤에야** 라벨 없음을 알게 된다.
 표는 `TARGET_NOT_SELECTED`로 곧바로 서지만 이미지는 그렇지 않다 — 학생이 몇 분을 기다린
 뒤에 *"데이터가 0개"*를 읽는다. 셀 수 있는 것을 **세고 나서 시작한다.**
+
+**카드의 사유 문장은 레일과 같은 함수에서 나온다** (`data/kinds.ts`의 `lockedSentenceFor`,
+2026-09-03 R24 재검토). 처음 구현은 판정이 준 키와 값을 `t()`에 바로 넣었고, 그러면 `task`
+자리의 로케일 키가 번역 없이 나가 학생이 *"(tasks.image.targetChosen)"*을 읽었다. 같은 병이
+2026-08-31에 화면 둘에서 났었다. 그래서 키를 내주는 함수는 밖으로 안 나가고 **문장을 만드는
+함수 하나**만 나간다 — 세 화면이 같은 것을 부르고, `task-type-trap.spec.ts`가 학습 화면을
+띄워 카드의 글자를 레일 문장과 대조한다.
