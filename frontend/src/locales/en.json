@@ -353,6 +353,7 @@
     "testDataTitle": "Test Data",
     "testImagesAdd": "Choose zip file",
     "testImagesAddFolder": "Add a folder",
+    "testImagesWhileBusy": "You can add test photos once the current task finishes.",
     "testImagesAdded": "Added {count} test photos.",
     "testImagesAttachConfirm": "Add",
     "testImagesAttachTitle": "Adding test photos deletes your training results",
@@ -830,7 +831,7 @@
     "tallyLead": "Only classification answers are counted. Models that answered with the same category share a color.",
     "image": {
       "add": "Add photos",
-      "addWhileBusy": "The photos are still being prepared. Please add more once that finishes.",
+      "addWhileBusy": "You can add photos once the current task finishes.",
       "clear": "Delete all photos",
       "clearDescription": "This deletes the {count} photo you added for prediction. Your training photos stay. | This deletes the {count} photos you added for prediction. Your training photos stay.",
       "clearTitle": "Remove all photos?",

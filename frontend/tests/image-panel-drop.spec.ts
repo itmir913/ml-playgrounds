@@ -39,6 +39,17 @@ vi.mock('../src/data/image/spawn', async () => {
 // 자리 판정은 이 검사의 주제가 아니다. 없으면 `navigator.storage`가 답을 못 한다.
 vi.mock('../src/data/image/room', () => ({ imageRoomShortfall: async () => null }))
 
+/**
+ * 사진 상한. **검사가 그때그때 정한다** — 기본값으로는 상한에 닿는 데 수천 장이 든다.
+ * `beforeEach`가 무한대로 되돌리므로 **다른 검사는 상한을 안 만난다.**
+ */
+const limits = vi.hoisted(() => ({ images: Number.POSITIVE_INFINITY }))
+
+vi.mock('../src/limits-switch', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/limits-switch')>()
+  return { ...actual, maxImageCount: () => limits.images }
+})
+
 /** 매크로태스크 한 번. `readImageFiles`가 파일을 읽는 동안 비켜 준다. */
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -81,6 +92,7 @@ const renamed =
 
 beforeEach(async () => {
   setActivePinia(createPinia())
+  limits.images = Number.POSITIVE_INFINITY
   resetImageWorkers()
   closeStorage()
   await deleteDatabase()
@@ -188,5 +200,57 @@ describe('굽기가 끝나 사진을 앉힐 때', () => {
     // 스냅샷을 통째로 쓰면 이 이름이 되돌아간다 (architecture.md §8.10.3).
     expect(project.name).toBe('학생이 굽는 동안 바꾼 이름')
     expect(panel.busy).toBe(false)
+  })
+})
+
+/**
+ * **상한은 받을 때와 굽기 직전 두 번 묻는다** (architecture.md §8.10.4).
+ *
+ * 받을 때의 판정은 **지금 파일**의 장수를 세는데, 굽는 중에 놓은 묶음은 **앞 묶음이
+ * 아직 파일에 안 앉은 수**로 통과한다. 둘 다 앉고 나면 상한을 넘어 있다.
+ *
+ * **R21이 살리기 전까지는 아무도 이 자리에 닿지 못했다** — 그전에는 둘째 묶음이 첫
+ * 굽기가 끝나며 말없이 사라졌다 (2026-09-02 R22 B-1).
+ */
+describe('상한 가까이에서 굽는 중에 더 놓으면', () => {
+  it('한꺼번에 놓으면 상한에서 막힌다 - 우회할 것이 있다는 뜻이다', async () => {
+    limits.images = 2
+    const project = useProjectStore()
+    await project.save(imagePredictProject([]))
+    const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const panel = wrapper.vm as unknown as PanelInternals
+
+    panel.onDrop(dropEvent([file('a.jpg'), file('b.jpg'), file('c.jpg')]))
+    await settle()
+
+    expect(panel.pending).toBeNull()
+    expect(useToastStore().items.map((one) => one.key)).toContain('client.IMAGE_TOO_MANY_PHOTOS')
+  })
+
+  it('굽는 중에 놓아 나눠 넣어도 상한을 못 넘는다', async () => {
+    limits.images = 2
+    const { project, panel, baking } = await panelBaking()
+
+    // 둘째 묶음은 **첫 묶음이 아직 안 앉은 수**로 통과해 확인 판에 선다.
+    panel.onDrop(dropEvent([file('b.jpg'), file('c.jpg')]))
+    await settle()
+    expect(panel.pending?.map((one) => one.path)).toEqual(['b.jpg', 'c.jpg'])
+
+    workerState.bake[0]?.deliver()
+    await baking
+    await settle()
+    expect(readImages(project.file)).toHaveLength(1)
+
+    // 이제 학생이 [이 사진 사용]을 누른다. **여기서 다시 물어야 막힌다.**
+    await panel.bake()
+    await settle()
+
+    expect(readImages(project.file)).toHaveLength(1)
+    expect(useToastStore().items.map((one) => one.key)).toContain('client.IMAGE_TOO_MANY_PHOTOS')
+    // 거절해도 학생이 놓은 것은 판에 남는다 — 지우고 다시 놓게 하지 않는다.
+    expect(panel.pending?.map((one) => one.path)).toEqual(['b.jpg', 'c.jpg'])
+    // 워커를 돌리기 전에 막았다 — 기다린 시간을 버리지 않는다.
+    expect(workerState.baked).toBe(1)
   })
 })

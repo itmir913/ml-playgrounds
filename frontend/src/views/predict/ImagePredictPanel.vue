@@ -242,9 +242,14 @@ async function readPicked(files: readonly File[]): Promise<void> {
   const file = project.file
   const spec = backbone.value
   if (files.length === 0 || !file || !spec) return
-  // **굽는 중에는 받지 않는다 — 그리고 그렇다고 말한다.** 데이터 화면과 달리 여기는
+  // **도는 일이 있으면 받지 않는다 — 그리고 그렇다고 말한다.** 데이터 화면과 달리 여기는
   // 확인 판이 없어 받은 즉시 굽는데, 정본 워커를 둘 띄우는 것은 저사양 교실 PC라는
   // 기준에 안 맞는다. **말없이 돌려보내면 학생은 고장으로 읽는다** (R21 B-3).
+  //
+  // **문구가 굽기를 이름으로 부르지 않는다.** `busy`는 굽기만이 아니라 삭제(`drop`)도
+  // 켜므로, *"사진을 준비하는 중"*이라고 말하면 지우는 동안 놓은 학생에게 거짓말이
+  // 된다 (2026-09-02 R22 C-5). 학생에게 필요한 것은 무슨 일인지가 아니라
+  // **지금은 안 되고 곧 된다**는 사실이다.
   if (busy.value) {
     toasts.push('caution', 'predict.image.addWhileBusy')
     return

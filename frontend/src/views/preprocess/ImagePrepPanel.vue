@@ -252,7 +252,16 @@ const testDisabled = computed(() => testBlock.value !== null || busy.value)
  */
 async function takeTest(items: readonly UploadItem[]): Promise<void> {
   const file = project.file
-  if (!file || busy.value || items.length === 0) return
+  if (!file || items.length === 0) return
+  // **거절하되 말한다** (architecture.md §8.10.4). 여기는 확인 판이 없어 받은 즉시
+  // 굽는데 정본 워커를 둘 띄우는 것은 저사양 교실 PC라는 기준에 안 맞는다. 예측
+  // 화면이 같은 자리를 이렇게 다루는데 **이 화면만 말없이 돌려보내고 있었다** —
+  // 버튼은 `testDisabled`로 잠기지만 **끌어다 놓는 데는 잠글 버튼이 없다**
+  // (2026-09-02 R22 B-2).
+  if (busy.value) {
+    toasts.push('caution', 'preprocess.testImagesWhileBusy')
+    return
+  }
 
   const job = start()
   try {
@@ -361,6 +370,13 @@ function onTestPick(event: Event): void {
 
 /** 끌어다 놓는 중인가. 데이터 화면의 드롭존과 같은 표시다. */
 const dragging = ref(false)
+
+/**
+ * 지금 놓으면 받는가. **받을 수 없는 동안에는 색을 안 바꾼다** — 바꾸면 받겠다고
+ * 말해 놓고 거절하는 것이라, 학생은 놓은 뒤에야 안 받았음을 안다. 예측 화면의
+ * 드롭존과 같은 규칙이다 (2026-09-02 R22 B-2).
+ */
+const inviting = computed(() => dragging.value && !busy.value)
 
 const zipInput = ref<HTMLInputElement | null>(null)
 const folderInput = ref<HTMLInputElement | null>(null)
@@ -544,7 +560,7 @@ function onStratify(event: Event): void {
               -->
               <div
                 class="mt-3 grid place-items-center gap-3 rounded-panel border-2 border-dashed px-4 py-6 text-center transition-colors"
-                :class="dragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
+                :class="inviting ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
                 @dragover.prevent="dragging = true"
                 @dragleave="dragging = false"
                 @drop.prevent="onTestDrop"

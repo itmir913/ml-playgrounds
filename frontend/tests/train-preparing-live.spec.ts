@@ -245,6 +245,38 @@ describe('[학습하기]를 누르고 워커가 아직 아무 말도 안 했을 
   })
 })
 
+/**
+ * **잠금은 풀리기도 해야 한다** (2026-09-02 R22 B-4).
+ *
+ * `working`이 `:inert`와 나가기 가드를 몰고, **준비 중에는 [멈추기]가 없다.** 그래서
+ * `starting`이 안 꺼지는 경로가 하나라도 있으면 학생은 화면에 갇힌다 — 못 누르고,
+ * 못 나간다. `finally`의 `starting.value = false`를 지워도 **2,797개가 초록이었다**:
+ * 잠기는 쪽만 재고 풀리는 쪽은 아무도 안 봤다.
+ *
+ * **성공도 취소도 아닌 끝으로 잰다.** 워커가 죽는 길이 그것이고, 실제로도 백본을 못
+ * 받으면 여기로 온다.
+ */
+describe('준비가 실패로 끝나면', SLOW, () => {
+  it('잠금이 풀리고 학생이 다시 누를 수도 나갈 수도 있다', async () => {
+    const { wrapper, startButton } = await trainScreenAfterStart()
+    expect(axesInert(wrapper)).toBe(true)
+
+    workerState.embed[0]?.fail()
+    await settle()
+
+    // **셋이 함께 풀린다** — 축, 담은 목록, 그리고 나가기.
+    expect(axesInert(wrapper)).toBe(false)
+    expect(startButton()?.attributes('disabled')).toBeUndefined()
+    expect(wrapper.findAll('button').filter((one) => one.text() === '제거')).toHaveLength(2)
+
+    await router.push('/')
+    await settle()
+    expect(router.currentRoute.value.name).toBe(ROUTE_PROJECTS)
+
+    wrapper.unmount()
+  })
+})
+
 describe('백본을 받는 동안 화면을 떠나면', SLOW, () => {
   it('워커가 끊기고, 늦게 온 벡터는 아무 데도 안 앉고, 알림도 안 뜬다', async () => {
     reportFirst.value = true

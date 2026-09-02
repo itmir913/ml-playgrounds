@@ -23,8 +23,8 @@ import { addImages } from '../../src/project/images'
 
 /** 검사가 워커의 시점을 잡는 손잡이. **`beforeEach`에서 `resetImageWorkers`를 부른다.** */
 export const workerState = {
-  /** 아직 안 끝난 임베딩 요청들. `deliver()`가 그 하나를 끝낸다. */
-  embed: [] as { deliver: () => void }[],
+  /** 아직 안 끝난 임베딩 요청들. `deliver()`가 그 하나를 끝내고 `fail()`이 죽인다. */
+  embed: [] as { deliver: () => void; fail: () => void }[],
   /** 굽기 요청이 몇 번 갔나. */
   baked: 0,
   /**
@@ -62,6 +62,14 @@ export function fakeEmbedWorker(): EmbedWorker {
         deliver: () => {
           const message: EmbedMessage = { type: 'done', vectors, dim }
           worker.onmessage?.({ data: message } as MessageEvent<EmbedMessage>)
+        },
+        /**
+         * **워커가 죽는다.** 스크립트를 못 받았거나 wasm이 안 서는 자리이고, 검사에서는
+         * **성공도 취소도 아닌 셋째 끝**이 필요할 때 쓴다 — 그 길로도 화면의 잠금이
+         * 풀리는지는 아무도 안 봤다 (2026-09-02 R22 B-4).
+         */
+        fail: () => {
+          worker.onerror?.(new ErrorEvent('error', { message: '워커가 죽었다' }))
         },
       })
     },

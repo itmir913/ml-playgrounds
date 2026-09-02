@@ -247,6 +247,22 @@ async function bake(): Promise<void> {
     return
   }
 
+  // **상한을 여기서 다시 묻는다** (architecture.md §8.10.4). 받을 때 이미 물었지만,
+  // **굽는 동안 놓은 묶음은 앞 묶음이 아직 파일에 안 앉은 수로 통과했다** — 둘 다 앉고
+  // 나면 상한을 넘어 있다 (2026-09-02 R22 B-1). 겹쳐 굽는 것은 `busy`가 막으므로 여기
+  // 오는 시점이면 앞 묶음은 이미 앉아 있고, 워커를 돌리기 전이라 **거절이 기다린 시간을
+  // 버리지 않는다.** R21이 둘째 묶음을 살리기 전까지는 아무도 이 자리에 닿지 못했다.
+  const overflow = imageOverflow(file, items.length)
+  if (overflow) {
+    toasts.pushError(new ClientError('IMAGE_TOO_MANY_PHOTOS', { ...overflow }))
+    return
+  }
+  const shortfall = await imageRoomShortfall(file, items.length, backbone)
+  if (shortfall) {
+    toasts.pushError(new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall }))
+    return
+  }
+
   const job = start()
   job.report(0, items.length)
   const byPath = new Map(items.map((item) => [item.path, item.category]))
