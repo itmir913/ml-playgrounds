@@ -580,7 +580,8 @@
     "IMAGE_TOO_MANY_PHOTOS": "사진은 최대 {limit}장까지 추가할 수 있습니다. 추가한 사진을 삭제하거나 한 번에 추가하는 수를 줄여 주세요. (지금 {current}장, 더 추가하려는 사진 {incoming}장)",
     "IMAGE_PHOTOS_EXCEED_STORAGE": "이 사진들은 이 컴퓨터에 다 들어가지 않습니다. 추가하는 사진을 줄이거나 이미 추가한 사진을 삭제해 주세요. (필요 약 {requiredMb}MB, 남은 공간 {availableMb}MB)",
     "IMAGE_CANONICAL_SIZE_MISMATCH": "사진 크기가 이 백본(Backbone)이 요구하는 것과 다릅니다. 다른 곳에서 만들었거나 손으로 고친 파일일 수 있습니다. ({found}, 필요한 크기 {expected})",
-    "IMAGE_CATEGORY_NAME_INVALID": "범주 이름으로 쓸 수 없는 폴더가 있습니다. 폴더 이름을 바꾼 뒤 다시 압축해 주세요. ({name})"
+    "IMAGE_CATEGORY_NAME_INVALID": "범주 이름으로 쓸 수 없는 폴더가 있습니다. 폴더 이름을 바꾼 뒤 다시 압축해 주세요. ({name})",
+    "IMAGE_TOO_FEW_CATEGORIES": "분류하려면 사진이 든 범주가 둘 이상이어야 하는데 지금은 {categories}개입니다. 데이터 화면에서 범주를 만들고 사진을 이동해 주세요."
   },
   "portfolio": {
     "contents": "문항 목차",

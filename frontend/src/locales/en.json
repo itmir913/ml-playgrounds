@@ -580,7 +580,8 @@
     "IMAGE_TOO_MANY_PHOTOS": "A project can hold up to {limit} photos. Remove some photos, or upload fewer at a time. (has {current}, adding {incoming})",
     "IMAGE_PHOTOS_EXCEED_STORAGE": "These photos will not fit on this computer. Upload fewer photos, or remove some you already added. (needs about {requiredMb}MB, {availableMb}MB free)",
     "IMAGE_CANONICAL_SIZE_MISMATCH": "A photo is not the size this backbone requires. The file may have been made elsewhere or edited by hand. ({found}, expected {expected})",
-    "IMAGE_CATEGORY_NAME_INVALID": "A folder here cannot be used as a category name. Rename the folder and compress it again. ({name})"
+    "IMAGE_CATEGORY_NAME_INVALID": "A folder here cannot be used as a category name. Rename the folder and compress it again. ({name})",
+    "IMAGE_TOO_FEW_CATEGORIES": "Classification needs at least two categories that have photos, but there are {categories}. Create categories on the data screen and move photos into them."
   },
   "portfolio": {
     "contents": "Contents",

@@ -9,8 +9,9 @@
  * 컴포넌트를 끌고 온다 (architecture.md §9.2.3의 스키마 등록부와 같은 사정).
  */
 
-import { IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
-import { readImages } from '@/project/images'
+import { MIN_CLASSIFICATION_CATEGORIES } from '@/limits'
+import type { ProjectFile } from '@/project/format'
+import { labeledCategoryCount, readImages } from '@/project/images'
 import { dataSettings, type DataType } from '@/project/schema'
 
 /**
@@ -44,27 +45,26 @@ export const DATA_FACTS: Readonly<Record<DataType, (file: ProjectFile) => DataFa
     }
   },
   image: (file) => {
-    const labeled = new Set(
-      readImages(file)
-        .map((entry) => entry.category)
-        .filter((category) => category !== IMAGE_UNLABELED),
-    )
     return {
       datasetReady: readImages(file).length > 0,
       /**
        * **"갈릴 것이 없다"가 판정이다.** 범주가 하나면 분류가 성립하지 않는다 —
-       * 층화가 갈리는 값에서만 뜻이 있는 것과 같은 모양이고, 분류 카드의 잠금 이유도
-       * 같은 문장이다 (open-decisions.md "이미지 프로젝트의 데이터 화면").
+       * 층화가 갈리는 값에서만 뜻이 있는 것과 같은 모양이다
+       * (open-decisions.md "이미지 프로젝트의 데이터 화면").
        *
-       * **그 카드가 2026-09-02에야 생겼다** (architecture.md §10.5). 그 전까지 이 주석은
-       * **없는 코드를 가리키고 있었고**, 잠금이 대신 단계 진입에 있어 분류를 누른 학생이
-       * 학습 화면에서 쫓겨났다. 지금은 `ModelAxes`의 유형 축이 `taskTypeBlockers`로
-       * 판정한다 — `task-type-trap.spec.ts`가 그 셋(판정·카드·배선)을 잰다.
+       * **[학습하기]의 거절이 같은 것을 센다** (`ml/training-source.ts`의
+       * `IMAGE_TOO_FEW_CATEGORIES`). 그래서 세는 함수도 그 수도 하나다 —
+       * `labeledCategoryCount`와 `MIN_CLASSIFICATION_CATEGORIES`.
+       *
+       * **한때 유형 카드가 이것으로 잠겼고, 2026-09-03에 걷어냈다**
+       * (architecture.md §10.5). 이 체크리스트는 **고른 유형**으로 좁혀지므로 군집을
+       * 고르면 이 항목이 사라지는데, 카드는 **제 유형**으로 좁혀 그 항목을 요구했다 —
+       * 잠금을 풀 방법이 화면에서 사라진 채로 잠겼다.
        *
        * **`_unlabeled`는 안 센다.** 범주가 아니라 상태이고, 그 사진들은 분류 학습에
        * 안 들어간다.
        */
-      targetChosen: labeled.size >= 2,
+      targetChosen: labeledCategoryCount(file) >= MIN_CLASSIFICATION_CATEGORIES,
       /**
        * **학생이 특성을 안 고른다. 백본이 만든다.** 그래서 `true`인 것이 아니라
        * **항목이 아니다** — 체크리스트에서 빠지는 것은 `router/steps.ts`의 종류 축이

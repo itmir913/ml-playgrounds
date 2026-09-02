@@ -243,6 +243,23 @@ IMAGE_PHOTOS_EXCEED_STORAGE, IMAGE_CATEGORY_NAME_INVALID
 `estimatedBytes` + 백본의 `embeddingDim` × 4)이다. 판정하는 문턱은 우리 상수가 아니라
 **브라우저가 보고하는 쿼터**다.
 
+**사진 분류를 시작할 때** (`ml/training-source.ts`)
+```
+IMAGE_TOO_FEW_CATEGORIES
+```
+
+**갈릴 것이 없다** — 라벨 붙은 범주가 `MIN_CLASSIFICATION_CATEGORIES`보다 적다
+(`_unlabeled`는 범주가 아니라 상태라 안 센다). **유형 카드의 잠금을 대신하는 자리다**
+(`architecture.md` §10.5) — 고르는 자리는 안 잠그고 [학습하기]가 세운다.
+
+`SPLIT_TOO_FEW_ROWS`와 나뉘는 이유는 **학생이 할 일이 다르기** 때문이다. 그쪽은 "사진을
+더 모아라"인데 이쪽은 **"범주를 만들고 사진을 이동하라"**다 — 사진은 이미 충분히 있을 수
+있고 실제로 화면에 보인다. 라벨 없는 사진을 안 세는 탓에 그쪽이 *"데이터가 0개"*라고
+말하는데, **사진 여섯 장을 보고 있는 학생에게 그건 틀린 문장이다.**
+
+**백본을 받기 전에 판정한다.** 뒤에 두면 학생은 12.4MB를 받고 사진을 전부 돌린 다음에야
+거절을 읽는다.
+
 **프로젝트 파일 열기**
 ```
 PROJECT_FILE_NOT_ZIP, PROJECT_FILE_ENTRY_MISSING, PROJECT_FILE_INVALID,

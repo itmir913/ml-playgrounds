@@ -100,6 +100,28 @@ export function imageCategories(project: ProjectFile | null): readonly string[] 
 }
 
 /**
+ * **사진이 실제로 들어 있는 범주가 몇 개인가.** 분류가 성립하는지의 판정이다 —
+ * "갈릴 것이 없다"(open-decisions.md "이미지 프로젝트의 데이터 화면").
+ *
+ * **`imageCategories`와 다르다.** 저쪽은 화면에 그릴 목록이라 **빈 범주도 센다**;
+ * 여기는 학습에 들어갈 라벨이라 사진이 없는 범주는 없는 것과 같다. `_unlabeled`는
+ * 범주가 아니라 상태라 양쪽 다 안 센다.
+ *
+ * **부르는 곳이 둘이고, 그래서 함수가 하나다** — 데이터 화면의 체크리스트
+ * (`project/facts.ts`의 `targetChosen`)와 [학습하기]의 거절
+ * (`ml/training-source.ts`의 `IMAGE_TOO_FEW_CATEGORIES`). 2026-08-12 결정문이
+ * *"두 벌로 계산하지 않는다 — 갈리면 '체크는 다 됐는데 못 한다'가 생기고, 그건 학생이
+ * 고칠 방법이 없는 고장이다"*라고 적어 둔 자리다.
+ */
+export function labeledCategoryCount(project: ProjectFile): number {
+  return new Set(
+    readImages(project)
+      .map((entry) => entry.category)
+      .filter((category) => category !== IMAGE_UNLABELED),
+  ).size
+}
+
+/**
  * 두 사진 **사이의 것 전부** (양끝 포함). 화면에서 shift+클릭이 부른다
  * (open-decisions.md "Shift+클릭으로 범위를 고른다").
  *

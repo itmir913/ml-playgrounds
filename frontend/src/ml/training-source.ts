@@ -11,7 +11,7 @@
  */
 
 import { ClientError } from '@/errors'
-import { MIN_SPLIT_ROWS } from '@/limits'
+import { MIN_CLASSIFICATION_CATEGORIES, MIN_SPLIT_ROWS } from '@/limits'
 import { limitsOff } from '@/limits-switch'
 import type { EngineState, RuntimeContext } from '@/ml/backend'
 import { backboneFor } from '@/ml/backbones'
@@ -23,7 +23,7 @@ import { trainableRowCount } from '@/ml/selection'
 import { readDataset, readTestDataset } from '@/project/dataset'
 import { addEmbeddings, readEmbeddings } from '@/project/embeddings'
 import { IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
-import { readImages } from '@/project/images'
+import { labeledCategoryCount, readImages } from '@/project/images'
 import {
   dataSettings,
   dataSnapshot,
@@ -124,10 +124,42 @@ export const TRAINING_SOURCES: Readonly<
      * 뒤에야** `SPLIT_TOO_FEW_ROWS(0)`로 섰다 — 학생은 몇 분을 기다린 끝에 화면에 사진이
      * 있는데 *"데이터가 0개"*를 읽는다. 표는 `TARGET_NOT_SELECTED`로 곧바로 선다.
      *
+     * **세는 것만으로는 부족했다** (2026-09-03). 빨라진 뒤에도 문장은 여전히 *"데이터가
+     * 0개"*였고, 유형 카드의 잠금이 그 문장을 학생에게서 가리고 있었을 뿐이다. 카드를
+     * 열면서 문장도 바로잡았다 — `IMAGE_TOO_FEW_CATEGORIES`.
+     *
      * **군집은 안 묻는다.** 나누지 않으므로 이 상한이 걸리는 자리가 아니고, 그쪽의
      * 최소는 군집 수와의 관계라 `CLUSTER_TOO_FEW_ROWS`가 따로 답한다.
      */
     if (taskType !== 'clustering') {
+      /**
+       * **갈릴 것이 없으면 여기서 선다** (architecture.md §10.5, 2026-09-03 교실 보고).
+       *
+       * **이것이 유형 카드의 잠금을 대신한다.** 전에는 분류 카드가 `targetChosen`으로
+       * 잠갔는데, 그 잠금이 **군집을 고른 학생의 데이터 화면에서는 사라진 할 일**을
+       * 요구해 되돌릴 길이 없었다. 고르는 자리는 안 잠그고 **저지르는 자리**가 센다.
+       *
+       * **아래 행 수보다 먼저 묻는다.** 라벨 없는 사진은 안 세므로 범주가 모자란 상태는
+       * 거의 언제나 `SPLIT_TOO_FEW_ROWS(0)`으로도 걸리는데, 그 문장은 **화면에 사진이
+       * 보이는 학생에게 "데이터가 0개"라고 말한다.** 할 일이 "사진을 더 모아라"가 아니라
+       * **"범주를 만들고 사진을 옮겨라"**라서 코드가 갈린다.
+       *
+       * **범주가 하나뿐인 경우는 전에 아무 데도 판정이 없었다** — 카드가 막고 있어서
+       * 여기까지 닿은 적이 없었기 때문이다. 사진 여섯 장이 전부 `개`면 행 수는 넉넉하고,
+       * 그대로 두면 무엇을 넣어도 `개`를 답하는 모델이 정확도 100%로 나온다.
+       */
+      const categories = labeledCategoryCount(project)
+      if (categories < MIN_CLASSIFICATION_CATEGORIES) {
+        throw new ClientError('IMAGE_TOO_FEW_CATEGORIES', { categories })
+      }
+      /**
+       * **오늘은 위 판정이 이것을 먹는다.** 범주가 둘이면 그 범주에 든 사진도 둘 이상이라
+       * `usable >= MIN_CLASSIFICATION_CATEGORIES >= MIN_SPLIT_ROWS`가 늘 참이다 — 두 상수가
+       * 지금 둘 다 2라서 그렇다. **그래도 지우지 않는다**: `MIN_SPLIT_ROWS`가 범주 최소보다
+       * 커지는 날(범주 둘에 사진 한 장씩) 다시 닿고, 없으면 그 학생은 백본 12.4MB를 받은
+       * **뒤에** `ml/split.ts`에서 같은 말을 듣는다. **사람 확인이다** — 두 상수의 관계를
+       * 무는 검사는 없다.
+       */
       const usable = trainableRowsOf(project, taskType)
       if (usable < MIN_SPLIT_ROWS) {
         throw new ClientError('SPLIT_TOO_FEW_ROWS', {

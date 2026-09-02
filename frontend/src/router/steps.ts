@@ -132,12 +132,18 @@ export function isStepId(value: unknown): value is StepId {
  * 유형별 사실을 요구하면, 그 사실을 면제받는 유형은 영원히 고를 수 없다. 그래서 유형이
  * 없을 때는 **한 유형이라도 면제하는 사실을 안 막는다.**
  *
- * **느슨해지는 것은 안 고른 동안뿐이다.** `manifest.taskType`이 파일에 남으므로 분류로
- * 정해 둔 프로젝트를 다시 열면 타깃 없이는 여전히 잠긴다. `requires`에서 그 사실을 아예
- * 빼면 잠금이 통째로 사라진다 - 그래서 안 뺀다.
+ * **고른 뒤에도 느슨하다** (2026-09-02, §10.5). `manifest.taskType`이 파일에 남으므로
+ * 전에는 분류로 정해 둔 프로젝트를 다시 열면 타깃 없이 잠겼고, **유형을 바꿀 손잡이가 그
+ * 잠긴 화면 안에 있었다.** 아래 `stepBlockers`가 그 자리에서 유형을 안 본다.
  *
- * **들어간 뒤는 카드가 맡는다.** 못 하는 유형은 이유와 함께 잠긴다(§9.4) - 화면 진입을
- * 막는 것보다 학생이 무엇을 할 수 있는지 알게 된다.
+ * **그래서 `targetChosen`은 지금 어느 단계도 안 막는다.** 그 사실을 `requires`에 든
+ * 단계가 `train` 하나이고, 거기가 바로 유형을 고르는 자리이기 때문이다.
+ * `requires`에서 아예 빼지 않는 이유는 **체크리스트가 같은 표를 읽기 때문**이다 - 빼면
+ * 학생이 할 일 목록에서도 사라진다.
+ *
+ * **못 하는 조합은 [학습하기]가 세운다** (`ml/training-source.ts`, §10.5). 화면 진입을
+ * 막는 것도, 축의 카드를 잠그는 것도 **되돌릴 손잡이를 가둔다** - 둘 다 실제로 그랬다.
+ * `task-type-trap.spec.ts`가 진짜 라우터와 진짜 화면으로 그 셋을 지킨다.
  */
 export function isStepUnlocked(
   step: StepId,
@@ -178,30 +184,15 @@ export function stepBlockers(
    * 사실을 안 막는다"). **고른 뒤에도 같아야 한다** — 안 그러면 그 완화가 막으려던 순환이
    * 한 걸음 뒤에서 그대로 일어난다.
    *
-   * **잠금을 없애는 것이 아니라 옮기는 것이다.** 못 하는 유형은 축의 카드가 이유와 함께
-   * 잠그고(§9.4, `ModelAxes`), 그것이 2026-08-12에 이미 정해진 자리다.
+   * **한때 이 완화가 잠금을 축의 카드로 옮겼고, 2026-09-03에 그것도 걷어냈다.** 옮긴
+   * 자리도 같은 덫이었다 — 이 체크리스트는 **고른 유형**으로 좁혀 군집에서 `targetChosen`을
+   * 지우는데, 카드는 **제 유형**으로 좁혀 그것을 요구했다. **잠금을 풀 방법이 화면에서
+   * 사라진 채로 잠긴다.** 지금 못 하는 조합을 세우는 것은 [학습하기]다
+   * (`ml/training-source.ts`).
    */
   const chosenHere = tasksOf(step, dataType).includes('taskTypeChosen')
-  return taskTypeBlockers(step, facts, chosenHere ? undefined : taskType, dataType)
-}
-
-/**
- * **이 유형으로 이 단계를 할 수 있는가.** 축의 카드가 쓰는 판정이다 (§10.5, §9.4).
- *
- * **`stepBlockers`와 갈리는 것은 완화 하나뿐이다.** 그쪽은 그 축을 **고르는** 단계에서
- * 유형을 안 보고(안 그러면 고른 순간 그 화면이 잠겨 되돌릴 손잡이가 갇힌다), 이쪽은
- * **바로 그 유형을 묻는다.**
- *
- * **둘을 한 함수로 쓰면 카드가 언제나 열린다** — 실제로 그렇게 썼다가 카드 잠금이
- * 죽은 코드가 됐고, `task-type-trap.spec.ts`가 그것을 잡았다.
- */
-export function taskTypeBlockers(
-  step: StepId,
-  facts: ProjectFacts,
-  taskType: TaskType | undefined,
-  dataType?: DataType | undefined,
-): FactKey[] {
-  return STEPS[step].requires.filter((fact) => factBlocks(fact, taskType, dataType) && !facts[fact])
+  const narrowed = chosenHere ? undefined : taskType
+  return STEPS[step].requires.filter((fact) => factBlocks(fact, narrowed, dataType) && !facts[fact])
 }
 
 /**

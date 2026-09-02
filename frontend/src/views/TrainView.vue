@@ -49,8 +49,7 @@ import { failedRuns } from '@/ml/results'
 import { addEmbeddings } from '@/project/embeddings'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
 import { applyExperiment } from '@/project/attach'
-import { dataKindFor, DEFAULT_DATA_TYPE, lockedSentenceFor } from '@/data/kinds'
-import { taskTypeBlockers } from '@/router/steps'
+import { dataKindFor, DEFAULT_DATA_TYPE } from '@/data/kinds'
 import { readDataset } from '@/project/dataset'
 import { tabularDataOf, type ProjectDocument, type TaskType } from '@/project/schema'
 import {
@@ -173,30 +172,6 @@ const context = computed<RuntimeContext>(() => runtimeContextFor(project.file, D
  * 표를 안 올렸으면 종류를 모르므로 좁히지 않는다 (ml/algorithms.ts).
  */
 const taskTypes = computed(() => supportedTaskTypes(project.file?.document.manifest.dataType))
-
-/**
- * 유형 축의 잠금. **카드가 이유를 든다** (architecture.md §10.5, §9.4).
- *
- * 2026-08-12에 정해 두고 구현되지 않은 자리다(`open-decisions/04-image.md` "잠금은
- * '갈릴 것이 없다'로 판정한다"). 잠금이 대신 **단계 진입**에 있었고, 그래서 분류를 누르는
- * 순간 학습 화면이 잠겨 **유형을 바꿀 손잡이가 그 안에 갇혔다**(2026-09-02 교실 보고).
- *
- * **문장은 레일의 잠금과 같은 함수에서 나온다** (`data/kinds.ts`의 `lockedSentenceFor`) —
- * 같은 사실을 두 자리에서 다르게 말하면 학생이 둘을 다른 일로 읽는다. 처음에는 키와
- * 값을 받아 `t()`에 바로 넣었고, 그러면 `task` 자리의 **로케일 키가 번역 없이** 화면에
- * 나간다 — 학생이 `(tasks.image.targetChosen)`을 읽었다 (2026-09-03 R24 재검토 B-N1).
- * `task-type-trap.spec.ts`가 이 화면을 띄워 카드의 글자를 레일 문장과 대조한다.
- */
-const taskTypeLocks = computed<Partial<Record<TaskType, string>>>(() => {
-  const dataType = project.file?.document.manifest.dataType
-  const locks: Partial<Record<TaskType, string>> = {}
-  for (const type of taskTypes.value) {
-    const blockers = taskTypeBlockers('train', project.facts, type, dataType)
-    if (blockers.length === 0) continue
-    locks[type] = lockedSentenceFor(kind.value, 'train', blockers, dataType, t)
-  }
-  return locks
-})
 
 /**
  * 지금 고를 수 있는 모델들. **유형을 안 골랐으면 빈 목록이다.**
@@ -857,7 +832,6 @@ function leave(): void {
         >
           <ModelAxes
             :task-types="taskTypes"
-            :task-type-locks="taskTypeLocks"
             :task-type="project.taskType"
             :options="options"
             :chosen="chosen"
