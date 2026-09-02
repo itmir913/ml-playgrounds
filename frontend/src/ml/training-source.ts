@@ -11,6 +11,7 @@
  */
 
 import { ClientError } from '@/errors'
+import { MIN_SPLIT_ROWS } from '@/limits'
 import { limitsOff } from '@/limits-switch'
 import type { EngineState, RuntimeContext } from '@/ml/backend'
 import { backboneFor } from '@/ml/backbones'
@@ -115,6 +116,26 @@ export const TRAINING_SOURCES: Readonly<
     const backbone = backboneFor(backboneId)
     // 등록부에 없는 백본을 가리키는 파일이다. 다시 뽑을 수도 없다.
     if (!backbone) throw new ClientError('BACKBONE_UNAVAILABLE')
+
+    /**
+     * **셀 수 있는 것은 세고 나서 시작한다** (architecture.md §10.5, 2026-09-02 교실 보고).
+     *
+     * 라벨 없는 사진만 있는 분류 프로젝트에서 **백본 12.4MB를 받고 사진을 전부 돌린
+     * 뒤에야** `SPLIT_TOO_FEW_ROWS(0)`로 섰다 — 학생은 몇 분을 기다린 끝에 화면에 사진이
+     * 있는데 *"데이터가 0개"*를 읽는다. 표는 `TARGET_NOT_SELECTED`로 곧바로 선다.
+     *
+     * **군집은 안 묻는다.** 나누지 않으므로 이 상한이 걸리는 자리가 아니고, 그쪽의
+     * 최소는 군집 수와의 관계라 `CLUSTER_TOO_FEW_ROWS`가 따로 답한다.
+     */
+    if (taskType !== 'clustering') {
+      const usable = trainableRowsOf(project, taskType)
+      if (usable < MIN_SPLIT_ROWS) {
+        throw new ClientError('SPLIT_TOO_FEW_ROWS', {
+          actualRows: usable,
+          minRows: MIN_SPLIT_ROWS,
+        })
+      }
+    }
 
     const known = readEmbeddings(project, backboneId, backbone.embeddingDim)
     const have = new Set(known.keys())

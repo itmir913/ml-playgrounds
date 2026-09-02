@@ -222,3 +222,36 @@ describe('학습 화면의 배선', () => {
     expect(tag).toContain(':task-type-locks="taskTypeLocks"')
   })
 })
+
+/**
+ * **셀 수 있는 것은 세고 나서 시작한다** (architecture.md §10.5).
+ *
+ * 카드가 분류를 막지만 **파일에 분류가 남은 채 라벨을 뗀 프로젝트**를 열면 [학습하기]까지
+ * 갈 수 있다. 그때 전에는 백본 12.4MB를 받고 사진을 전부 돌린 **뒤에야** 섰다 — 학생은
+ * 몇 분을 기다린 끝에 화면에 사진이 있는데 "데이터가 0개"를 읽었다.
+ */
+describe('라벨 없는 사진만 있는 분류 프로젝트에서 학습을 시작하면', () => {
+  it('백본을 받기 전에 선다', async () => {
+    const { TRAINING_SOURCES } = await import('../src/ml/training-source')
+    let spawned = 0
+
+    await expect(
+      TRAINING_SOURCES.image({
+        project: unlabeledPhotos(2),
+        taskType: 'classification',
+        createEmbedWorker: () => {
+          spawned += 1
+          throw new Error('the worker must not be reached')
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'SPLIT_TOO_FEW_ROWS' })
+
+    expect(spawned).toBe(0)
+  })
+
+  it('군집은 같은 사진으로 그대로 지나간다 - 라벨이 필요 없다', async () => {
+    const { trainableRowsOf } = await import('../src/ml/training-source')
+    expect(trainableRowsOf(unlabeledPhotos(2), 'clustering')).toBe(2)
+    expect(trainableRowsOf(unlabeledPhotos(2), 'classification')).toBe(0)
+  })
+})

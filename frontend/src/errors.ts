@@ -157,8 +157,11 @@ export const CLIENT_ERROR_CODES = [
 
   // 군집화 - ml/engines/mljs-kmeans.ts
   // 데이터보다 군집이 많다. sklearn이 `n_samples should be >= n_clusters`로 던지는 자리다.
-  // **SPLIT_TOO_FEW_ROWS와 나누는 이유는 학생이 할 일이 다르기 때문이다** - 그쪽은 데이터를
-  // 더 모으는 것뿐이고 이쪽은 군집 수를 줄이는 길이 함께 있다. 지금은 군집화가 브라우저에만
+  // **SPLIT_TOO_FEW_ROWS와 나누는 이유는 학생이 할 일이 다르기 때문이다** - 이쪽은 군집
+  // 수를 줄이는 길이 함께 있다. 그쪽은 데이터를 더 모으는 것인데, **이미지 분류에서는
+  // "라벨을 붙여라"다** - 라벨 없는 사진은 세지 않으므로 사진이 있어도 쓸 수 있는 것이
+  // 0이 된다 (2026-09-02 교실 보고). 그래서 두 문구가 **"학습에 쓸 수 있는"**이라고
+  // 말한다. 지금은 군집화가 브라우저에만
   // 있어서 클라이언트 전용이고, 서버가 군집을 학습하게 되면 backend/app/errors.py 쪽으로
   // 옮겨 간다 (아래 CLIENT_WARNING_CODES의 사정과 같다).
   'CLUSTER_TOO_FEW_ROWS',
