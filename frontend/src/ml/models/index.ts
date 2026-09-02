@@ -16,6 +16,7 @@ import { KMEANS_FORMAT, loadKMeansModel } from './kmeans'
 import { LINEAR_V2_FORMAT, loadLinearV2Model, loadLinearV2Proba } from './linear'
 import { LINEAR_REGRESSION_FORMAT, loadLinearRegressionModel } from './linear-regression'
 import { NAIVE_BAYES_FORMAT, loadNaiveBayesModel } from './naive-bayes'
+import { NEURAL_FORMAT, loadNeuralModel, loadNeuralProba } from './neural'
 import { REFERENCE_FORMAT, loadReferenceModel } from './reference'
 import { SVM_FORMAT, loadSvmModel } from './svm'
 import { TREE_FORMAT, loadTreeModel } from './tree'
@@ -29,6 +30,8 @@ export { LINEAR_REGRESSION_FORMAT, parseLinearRegression } from './linear-regres
 export type { LinearRegressionModel, ParsedLinearRegression } from './linear-regression'
 export { NAIVE_BAYES_FORMAT, parseNaiveBayes } from './naive-bayes'
 export type { NaiveBayesModel, ParsedNaiveBayes } from './naive-bayes'
+export { NEURAL_FORMAT, loadNeuralModel, parseNeural } from './neural'
+export type { NeuralModel, ParsedNeural } from './neural'
 export { REFERENCE_FORMAT, knnPredict } from './reference'
 export type { NeighborhoodInput, ReferenceModel } from './reference'
 export { SVM_FORMAT, svmPredict } from './svm'
@@ -65,6 +68,17 @@ const INTERPRETERS: readonly ModelInterpreter[] = [
     includesPreprocessing: false,
     needsTrainingRows: false,
     load: loadNaiveBayesModel,
+  },
+  {
+    /**
+     * **다층 퍼셉트론.** 확률을 내는 둘째 형식이다 — 출력이 softmax(또는 이진의
+     * 로지스틱)라 `predict_proba`가 sklearn과 같은 자리에 있다.
+     */
+    format: NEURAL_FORMAT,
+    includesPreprocessing: false,
+    needsTrainingRows: false,
+    load: loadNeuralModel,
+    loadProba: loadNeuralProba,
   },
   {
     format: LINEAR_REGRESSION_FORMAT,

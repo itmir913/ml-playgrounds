@@ -293,20 +293,27 @@ PORTFOLIO_TEMPLATE_UNAVAILABLE, PORTFOLIO_TOO_LARGE
 `mlpx-spec.md` §8.6.1). 제약이 아니라 폭주 방지턱이다 — 손으로 쓴 글은 여기 안 닿고,
 실제로 걸리는 것은 붙여넣기 한 번에 들어오는 거대한 텍스트다.
 
-**경고 — 실패가 아니다** (`ml/engines/mljs.ts`의 svm·logistic 트레이너)
+**경고 — 실패가 아니다** (`ml/engines/mljs.ts`의 svm·logistic·k_means·neural 트레이너)
 ```
 SVM_NOT_CONVERGED
 LOGISTIC_NOT_CONVERGED
 KMEANS_NOT_CONVERGED
+NEURAL_NOT_CONVERGED
 ```
 
-셋 다 "반복 예산 안에 멈추지 못했다"이고 sklearn이 `ConvergenceWarning`을 내는
+넷 다 "반복 예산 안에 멈추지 못했다"이고 sklearn이 `ConvergenceWarning`을 내는
 자리다. 지표도 모델도 나온다 — 덜 다듬어졌다는 사실 하나가 덧붙는다.
 
-**학생이 할 일은 셋이 같다 — 먼저 전처리 스케일링이다** (2026-08-31). 로지스틱 문구만
+**`NEURAL_NOT_CONVERGED`는 에폭 상한(200)에 닿은 것이다** (2026-09-03). 손실이 더 안
+줄어들어 스스로 멈추는 길이 따로 있고(`n_iter_no_change`), 거기 못 닿은 채 예산을 다 쓴
+자리에 붙는다 — sklearn `MLPClassifier`와 같은 판정이다. **이 모델은 결과 화면에 손실
+곡선이 서므로**(`ml/loss-curve.ts`) 학생이 *"얼마나 더 내려갈 참이었는지"*를 눈으로 볼 수
+있다. 문구가 그 곡선을 가리킨다.
+
+**학생이 할 일은 넷이 같다 — 먼저 전처리 스케일링이다** (2026-08-31). 로지스틱 문구만
 `maxIter`를 늘리라고 말하고 있었고, 실물 `.mlpx`에서 그 길이 막다른 길이었다
 (`open-decisions.md` "로지스틱 회귀 솔버를 sklearn과 같은 구조로 바꾼다"의 "실물이 꺼낸
-것"). 문장은 로케일이 갖고 `tests/locales.spec.ts`가 셋을 함께 지킨다.
+것"). 문장은 로케일이 갖고 `tests/locales.spec.ts`가 넷을 함께 지킨다.
 
 **다만 뒤집었을 때의 뜻이 다르다.** 로지스틱은 경고가 없으면 최적점 근방이지만,
 SMO는 정지 조건이 휴리스틱이라 **경고가 없어도 최적점 근방이라는 보증이 없다**

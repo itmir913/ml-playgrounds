@@ -39,11 +39,13 @@ import {
   MLJS_LINEAR_REGRESSION_BASELINE_MS,
   MLJS_LOGISTIC_REGRESSION_BASELINE_MS,
   MLJS_NAIVE_BAYES_BASELINE_MS,
+  MLJS_NEURAL_NETWORK_BASELINE_MS,
   MLJS_RANDOM_FOREST_BASELINE_MS,
   MLJS_SVM_BASELINE_MS,
   MLJS_LINEAR_REGRESSION_ROW_LIMIT,
   MLJS_LOGISTIC_REGRESSION_ROW_LIMIT,
   MLJS_NAIVE_BAYES_ROW_LIMIT,
+  MLJS_NEURAL_NETWORK_ROW_LIMIT,
   MLJS_RANDOM_FOREST_ROW_LIMIT,
   MLJS_SVM_ROW_LIMIT,
 } from '../limits'
@@ -184,6 +186,32 @@ export const ALGORITHMS: readonly Algorithm[] = [
     },
     baseline: {
       tabular: { ms: MLJS_SVM_BASELINE_MS, columns: 'linear' },
+      image: UNMEASURED_BASELINE,
+    },
+  },
+  {
+    /**
+     * 다층 퍼셉트론 (`open-decisions.md` "인공신경망을 넣는다").
+     *
+     * **사진에는 안 연다.** 임베딩이 1,280차원이라 첫 층만으로 가중치가 128,100개이고
+     * (기본 손잡이의 142배), **그 자리를 안 쟀다.** 재 보지 않은 칸에 숫자를 넣지 않는
+     * 것과 같은 규칙이다 — 재고 나서 연다.
+     *
+     * **에폭 상한이 시간의 천장을 쥔다.** 행에는 선형이고 가중치는 행 수에 안 붙어
+     * 깨지는 지점이 없다 — 상한은 데이터셋 천장 그대로다.
+     */
+    id: 'neural_network',
+    dataTypes: { tabular: true, image: false },
+    taskTypes: { classification: true, regression: false, clustering: false },
+    runtimes: { mljs: true, 'pyodide-sklearn': false, 'server-sklearn': false },
+    maxRows: {
+      tabular: { mljs: MLJS_NEURAL_NETWORK_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
+    },
+    baseline: {
+      // **`flat`이다.** 특성은 첫 층 하나에만 붙지 학습 전체에 선형이 아니고, 그 몫은
+      // 손잡이 배수표(`MLJS_NEURAL_NETWORK_WEIGHTS_MS`)가 가중치 수로 함께 받는다.
+      tabular: { ms: MLJS_NEURAL_NETWORK_BASELINE_MS, columns: 'flat' },
       image: UNMEASURED_BASELINE,
     },
   },

@@ -51,16 +51,19 @@ import type { Prediction } from '../metrics'
 import {
   KMEANS_FORMAT,
   LINEAR_V2_FORMAT,
+  NEURAL_FORMAT,
   REFERENCE_FORMAT,
   SVM_FORMAT,
   knnPredict,
   loadKMeansModel,
   loadLinearV2Model,
+  loadNeuralModel,
   svmPredict,
 } from '../models'
-import type { KMeansModel, LinearModelV2, PairwiseClassifier } from '../models'
+import type { KMeansModel, LinearModelV2, NeuralModel, PairwiseClassifier } from '../models'
 import type { ModelFile, Predict } from '../models/types'
 import { fitLogistic } from './logistic'
+import { fitNeural } from './neural'
 import { fitKMeans } from './mljs-kmeans'
 import { SMO_DEFAULTS, seededRandom, trainLinearSvm } from './svm-smo'
 import { MLJS_PARAMETERS } from './mljs-params'
@@ -618,6 +621,50 @@ const TRAINERS: Record<string, Trainer> = {
 
     return {
       predict: loadLinearV2Model(model),
+      model,
+      ...(warning ? { warning } : {}),
+    }
+  },
+
+  /**
+   * 다층 퍼셉트론 (`open-decisions.md` "인공신경망을 넣는다").
+   *
+   * **손잡이 둘이 sklearn의 한 인자가 된다** — `hidden_layer_sizes=(뉴런 수,) * 층 수`.
+   *
+   * **경고 자리가 로지스틱과 같다.** sklearn이 `ConvergenceWarning`을 내는 그 자리이고,
+   * 여기서는 손실이 더 안 줄어들기 전에 에폭 상한에 닿았다는 뜻이다 — 실패가 아니라
+   * "덜 배웠다"이므로 지표도 모델도 정상으로 나온다 (mlpx-spec.md §5.9).
+   */
+  neural_network: (input) => {
+    const { encoded, labels } = labelCodec(input.target)
+    const featureCount = input.features[0]?.length ?? 0
+
+    const fitted = fitNeural(
+      input.features,
+      encoded,
+      labels.length,
+      {
+        hiddenLayers: numberOption(input.hyperparameters, 'hiddenLayers'),
+        neuronsPerLayer: numberOption(input.hyperparameters, 'neuronsPerLayer'),
+      },
+      input.randomState,
+    )
+
+    const model: NeuralModel = {
+      format: NEURAL_FORMAT,
+      classes: labels,
+      featureCount,
+      weights: fitted.weights,
+      intercepts: fitted.intercepts,
+      lossCurve: fitted.lossCurve,
+    }
+
+    const warning: EngineWarning | undefined = fitted.converged
+      ? undefined
+      : { code: 'NEURAL_NOT_CONVERGED', params: { iterations: fitted.epochs } }
+
+    return {
+      predict: loadNeuralModel(model),
       model,
       ...(warning ? { warning } : {}),
     }

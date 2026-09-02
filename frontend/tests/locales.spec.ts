@@ -1147,9 +1147,11 @@ describe('번역이 빠진 값이 없다', () => {
 describe('수렴 경고는 전처리 스케일링을 가리킨다', () => {
   const NOT_CONVERGED = CLIENT_WARNING_CODES.filter((code) => code.endsWith('_NOT_CONVERGED'))
 
-  it('경고 코드가 셋 다 여기 걸린다', () => {
+  it('경고 코드가 넷 다 여기 걸린다', () => {
     // 새 엔진이 같은 종류의 경고를 들고 오면 이 검사가 그것도 본다.
-    expect(NOT_CONVERGED.length).toBe(3)
+    // **인공신경망이 넷째다** (2026-09-03) — 에폭 상한에 닿는 자리이고, 그 처방도
+    // 스케일링이다.
+    expect(NOT_CONVERGED.length).toBe(4)
   })
 
   it('한국어가 스케일링을 말한다', () => {

@@ -59,6 +59,17 @@ interface FixtureEntry {
       coefficients?: number[]
       intercept?: number
       r2?: number
+      /**
+       * 인공신경망만. **씨앗마다의 정확도와 그 구간이다** — 이 알고리즘은 도착점이
+       * 하나가 아니라서 기대값이 수 하나가 아니다 (`open-decisions.md` "인공신경망을
+       * 넣는다 - 대조는 분포로 한다").
+       */
+      seeds?: number[]
+      accuracies?: number[]
+      accuracyMin?: number
+      accuracyMax?: number
+      accuracyMedian?: number
+      hiddenLayerSizes?: number[]
     }
   >
 }
@@ -169,6 +180,7 @@ describe('대조가 줄어들지 않았다', () => {
         'knn',
         'logistic_regression',
         'naive_bayes',
+        'neural_network',
         'random_forest',
         'svm',
       ])
@@ -219,6 +231,13 @@ for (const [name, entry] of Object.entries(document.datasets)) {
     }
 
     for (const [algorithm, expected] of Object.entries(entry.sklearn)) {
+      /**
+       * **인공신경망은 이 자리에서 안 잰다.** 아래 자기 블록이 **분포로** 견준다 —
+       * 여기서 `expected.accuracy`를 읽으면 그 필드가 없어서 **0과 견주게 되고, 그
+       * 단언은 무엇이든 통과시킨다** (R9 감사 C-2와 같은 자리).
+       */
+      if (algorithm === 'neural_network') continue
+
       it(`${algorithm} — sklearn 수준이고 기준선을 넘는다`, () => {
         const { predict, warning } = fit(algorithm, {
           features: trainFeatures,
@@ -355,6 +374,89 @@ for (const [name, entry] of Object.entries(document.datasets)) {
               `${name} intercept [${index}]`,
             ).toBeLessThanOrEqual(PARAM_ABS_TOLERANCE + PARAM_REL_TOLERANCE * Math.abs(reference))
           })
+        }
+      })
+    }
+
+    /**
+     * **인공신경망은 분포로 견준다** (`open-decisions.md` "인공신경망을 넣는다 — 손잡이는 층 수와
+     * 뉴런 수 둘").
+     *
+     * 로지스틱은 L2가 최적점을 **유일하게** 만들어 계수까지 견줄 수 있었다. 여기는 그럴
+     * 수 없다 — 목적함수가 비볼록이고 도착점이 초기화와 배치 순서에 달렸다. sklearn은
+     * numpy `RandomState`로 뽑고 우리는 xoroshiro로 뽑으므로 **같은 숫자가 나올 수 없고,
+     * 같은 척하는 기대값을 적으면 그것이 거짓말이 된다.**
+     *
+     * 그래서 재는 것은 셋이고, **어느 것도 우리가 고른 상수를 안 쓴다** — 문턱은 전부
+     * sklearn을 씨앗마다 실제로 돌려 얻은 값이다 (`no-arbitrary-thresholds`).
+     *
+     * 1. **손실이 내려간다.** 씨앗마다 본다. **곡선이 화면에 그려지므로 그 곡선이
+     *    거짓이면 학생이 배우는 것이 거짓이다.**
+     * 2. **sklearn의 씨앗이 전부 찍기를 이긴 데이터에서는**(`accuracyMin > baseline`,
+     *    즉 이 데이터에서 MLP가 **믿을 만하게** 배운다) 우리 **중앙값**이 sklearn의
+     *    최솟값 아래로 안 내려가고 찍기도 이긴다.
+     * 3. **그렇지 않은 데이터에서는** 우리 **최댓값**이 sklearn의 최솟값에 닿는다.
+     *
+     * **3번이 있는 이유는 재 봤기 때문이다.** `scale`(특성 크기가 크게 갈린 벌)에서
+     * 씨앗 열을 돌리니 우리는 0.271~0.896, sklearn은 다섯 씨앗에서 0.500~0.896이었다 —
+     * **초기화가 어느 골짜기로 떨어지느냐의 문제**이고 sklearn도 한 씨앗에서 기준선
+     * 그대로였다. 그 벌에서 중앙값을 요구하면 재는 것이 엔진이 아니라 **씨앗 다섯의
+     * 운**이 된다. `overlap`(두 범주가 겹친 벌)도 같은 자리다.
+     *
+     * **손으로 고른 예외 목록이 아니다.** 갈림은 `accuracyMin > baseline` 하나이고, 그
+     * 값은 픽스처 안에 있다 — 데이터가 바뀌면 판정도 따라 바뀐다.
+     */
+    const neural = entry.sklearn.neural_network
+    if (neural) {
+      it('neural_network — sklearn 분포 안이고 손실이 내려간다', () => {
+        expect(neural.seeds, `${name}: neural reference`).toBeDefined()
+        expect(neural.accuracies, `${name}: neural accuracies`).toBeDefined()
+        // **손잡이가 sklearn과 같은 모양인지 먼저 본다.** 픽스처가 다른 크기의 망을
+        // 돌렸으면 그 뒤의 비교는 다른 두 모델을 견주는 것이다.
+        expect(neural.hiddenLayerSizes, `${name}: hidden layer sizes`).toEqual([100])
+
+        const ours = (neural.seeds ?? []).map((seed) => {
+          const { predict, model } = fit('neural_network', {
+            features: trainFeatures,
+            rowIndices: entry.trainIndices,
+            target: trainTarget,
+            hyperparameters: {},
+            randomState: seed,
+          })
+          const curve = (model as { lossCurve?: number[] }).lossCurve ?? []
+          const accuracy =
+            evaluate('classification', testTarget, predict(testFeatures)).metrics.accuracy ?? 0
+          return { accuracy, curve }
+        })
+
+        for (const [index, run] of ours.entries()) {
+          expect(run.curve.length, `${name}: seed ${index} curve`).toBeGreaterThan(1)
+          expect(
+            run.curve[run.curve.length - 1],
+            `${name}: seed ${index} loss descends`,
+          ).toBeLessThan(run.curve[0] as number)
+        }
+
+        const accuracies = ours.map((one) => one.accuracy)
+        const sorted = [...accuracies].sort((a, b) => a - b)
+        const median = sorted[Math.floor(sorted.length / 2)] ?? 0
+        const best = Math.max(...accuracies)
+        const floor = neural.accuracyMin ?? 0
+        const baseline = entry.baseline ?? 0
+
+        if (floor > baseline) {
+          // sklearn의 씨앗이 전부 찍기를 이긴 벌 — 중앙값으로 견준다.
+          expect(
+            median,
+            `${name}: ours median ${median.toFixed(4)} vs sklearn min ${floor.toFixed(4)}`,
+          ).toBeGreaterThanOrEqual(floor)
+          expect(median, `${name}: neural baseline`).toBeGreaterThan(baseline)
+        } else {
+          // sklearn 자신이 씨앗에 따라 찍기 수준으로 떨어지는 벌 — 최댓값으로 견준다.
+          expect(
+            best,
+            `${name}: ours best ${best.toFixed(4)} vs sklearn min ${floor.toFixed(4)}`,
+          ).toBeGreaterThanOrEqual(floor)
         }
       })
     }

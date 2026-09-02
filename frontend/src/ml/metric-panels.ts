@@ -22,6 +22,7 @@ import { defineAsyncComponent, type Component } from 'vue'
 
 import type { DataType, Experiment, Run, TaskType } from '../project/schema'
 import { supports, type Axis } from './axes'
+import { showsLossCurve } from './loss-curve'
 import { showsParameters } from './parameters'
 import type { Dataset, Preprocessor } from './preprocess'
 
@@ -103,6 +104,24 @@ const PANELS: readonly MetricPanel[] = [
     // 담길 수 있고(옛 파일), 우리가 읽을 수 있는지는 형식이 답한다.
     hasData: (run) => showsParameters(run.model?.format),
     panel: defineAsyncComponent(() => import('@/views/results/panels/ParameterPanel.vue')),
+  },
+  {
+    /**
+     * **학습이 지나간 길** (`open-decisions.md` "인공신경망을 넣는다").
+     *
+     * **이 곡선을 갖는 것은 신경망뿐이다.** 다른 모델은 다 자란 결과만 남기므로 여기
+     * 항목이 늘어날 자리는 "에폭을 도는 엔진이 하나 더 생겼을 때"다.
+     *
+     * **표와 사진 양쪽에 선다.** 곡선은 특성 이름을 안 쓰므로 임베딩에서도 뜻이 그대로다 —
+     * 계수 표가 표 데이터 전용인 것과 갈리는 자리다.
+     */
+    id: 'loss-curve',
+    dataTypes: { tabular: true, image: true },
+    taskTypes: { classification: true, regression: false, clustering: false },
+    // **형식으로 판정한다** — 계수 표와 같은 규칙이다. 곡선 자체는 모델 파일 안이라
+    // `run` 하나로는 못 보고, 그 사실은 패널이 열어 보고 안다 (§9.5).
+    hasData: (run) => showsLossCurve(run.model?.format),
+    panel: defineAsyncComponent(() => import('@/views/results/panels/LossCurvePanel.vue')),
   },
   {
     id: 'cluster-result',

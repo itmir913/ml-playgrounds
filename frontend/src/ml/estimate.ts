@@ -16,6 +16,9 @@ import {
   MLJS_KMEANS_CLUSTERS_MS,
   MLJS_LOGISTIC_REGRESSION_BASELINE_MAX_ITER,
   MLJS_LOGISTIC_REGRESSION_MAX_ITER_MS,
+  MLJS_NEURAL_NETWORK_BASELINE_LAYERS,
+  MLJS_NEURAL_NETWORK_BASELINE_NEURONS,
+  MLJS_NEURAL_NETWORK_WEIGHTS_MS,
   MLJS_RANDOM_FOREST_BASELINE_TREES,
   TRAINING_ELAPSED_VISIBLE_AFTER_MS,
   TRAINING_ESTIMATE_COARSE_FROM_SECONDS,
@@ -85,15 +88,36 @@ function numberOr(source: Record<string, unknown>, name: string, fallback: numbe
 }
 
 /**
- * **지배적인 손잡이 셋만 곱한다** — 랜덤포레스트의 그루 수, 로지스틱의 `maxIter`,
- * K-평균의 군집 수다. 기기 배수로는 못 덮는다: 나무를 10에서 500으로 올리면 50배이고,
- * 정확한 예상이 가장 필요한 순간이 바로 그 순간이다.
+ * 인공신경망의 가중치 수. **손잡이 둘과 특성 수가 여기서 하나로 접힌다.**
+ *
+ * **출력 칸은 1로 센다.** 클래스 수는 예상 시간을 낼 시점에 모르고(학습이 돌아야 안다),
+ * `뉴런 × 클래스`는 은닉층의 `뉴런²` 옆에서 작은 항이다 — 기본 손잡이에서 전체의 11%,
+ * 2층부터는 1% 아래다. **모르는 값을 지어내는 것보다 작은 항을 빠뜨리는 쪽이 낫고, 그
+ * 방향은 짧게 틀린다** — 이 파일이 피하려는 방향이지만 크기가 저 정도다.
+ */
+function neuralWeights(columns: number, layers: number, neurons: number): number {
+  const width = Math.max(neurons, 1)
+  const depth = Math.max(layers, 1)
+  return Math.max(columns, 1) * width + (depth - 1) * width * width + width
+}
+
+/**
+ * **지배적인 손잡이 넷만 곱한다** — 랜덤포레스트의 그루 수, 로지스틱의 `maxIter`,
+ * K-평균의 군집 수, 신경망의 층 수와 뉴런 수다. 기기 배수로는 못 덮는다: 나무를 10에서
+ * 500으로 올리면 50배이고, 정확한 예상이 가장 필요한 순간이 바로 그 순간이다.
  *
  * **`k`는 처음에 "나머지"로 묶여 있었다** — `C`·최대 깊이와 함께 시간을 크게 안 바꾼다고
  * 봤는데, **재 보니 8.4배였다** (2026-09-01). 비용이 `행 × k × 특성 × 반복`이라 `k`가
  * 곧바로 붙는다. 남은 둘(`C`·최대 깊이)은 그대로 무시한다.
+ *
+ * **신경망만 특성 수를 여기서 받는다** (2026-09-03). 등록부의 `columns` 축은 곱셈
+ * 하나뿐이라 "첫 층에만 붙는다"를 표현할 수 없고, 가중치 수는 그것을 이미 품고 있다.
  */
-function handleFactor(algorithm: string, hyperparameters: Record<string, unknown>): number {
+function handleFactor(
+  algorithm: string,
+  hyperparameters: Record<string, unknown>,
+  columns: number,
+): number {
   if (algorithm === 'random_forest') {
     const trees = numberOr(hyperparameters, 'nEstimators', MLJS_RANDOM_FOREST_BASELINE_TREES)
     // 그루 수에는 선형이다 (실측: 1,000행에서 그루당 223~226ms로 일정).
@@ -118,6 +142,31 @@ function handleFactor(algorithm: string, hyperparameters: Record<string, unknown
       MLJS_LOGISTIC_REGRESSION_BASELINE_MAX_ITER,
     )
     return interpolate(MLJS_LOGISTIC_REGRESSION_MAX_ITER_MS, clamped) / ceiling
+  }
+  if (algorithm === 'neural_network') {
+    /**
+     * **두 손잡이의 배수를 따로 곱하지 않는다.** 실측에서 2층 × 200뉴런이 57.9초인데
+     * 곱셈 규칙은 35.2초를 냈다 — 층이 늘면 `뉴런²` 덩어리가 늘어 두 손잡이가 서로를
+     * 곱하기 때문이다 (`limits.ts`의 표).
+     */
+    const layers = numberOr(hyperparameters, 'hiddenLayers', MLJS_NEURAL_NETWORK_BASELINE_LAYERS)
+    const neurons = numberOr(
+      hyperparameters,
+      'neuronsPerLayer',
+      MLJS_NEURAL_NETWORK_BASELINE_NEURONS,
+    )
+    const baseline = interpolate(
+      MLJS_NEURAL_NETWORK_WEIGHTS_MS,
+      neuralWeights(
+        BASELINE_COLUMNS,
+        MLJS_NEURAL_NETWORK_BASELINE_LAYERS,
+        MLJS_NEURAL_NETWORK_BASELINE_NEURONS,
+      ),
+    )
+    return (
+      interpolate(MLJS_NEURAL_NETWORK_WEIGHTS_MS, neuralWeights(columns, layers, neurons)) /
+      baseline
+    )
   }
   if (algorithm === 'k_means') {
     const clusters = numberOr(hyperparameters, 'nClusters', MLJS_KMEANS_BASELINE_CLUSTERS)
@@ -145,7 +194,7 @@ export function baselineMs(input: EstimateInput): number | null {
   const rows = interpolate(baseline.ms, Math.max(input.rows, 1))
   // 특성 수에 선형인 것은 트리 계열과 SVM뿐이다. KNN과 로지스틱은 안 곱한다 (실측).
   const columns = baseline.columns === 'linear' ? Math.max(input.columns, 1) / BASELINE_COLUMNS : 1
-  return rows * columns * handleFactor(input.algorithm, input.hyperparameters)
+  return rows * columns * handleFactor(input.algorithm, input.hyperparameters, input.columns)
 }
 
 /**

@@ -190,7 +190,8 @@
     "naive_bayes": "Naive Bayes",
     "svm": "Support vector machine",
     "linear_regression": "Linear regression",
-    "k_means": "K-means"
+    "k_means": "K-means",
+    "neural_network": "Neural network"
   },
   "runtimes": {
     "mljs": "ml.js · this computer",
@@ -206,6 +207,8 @@
     "tol": "Convergence tolerance (tol)",
     "C": "Regularization strength (C)",
     "nClusters": "Number of clusters (nClusters)",
+    "hiddenLayers": "Number of hidden layers (hiddenLayers)",
+    "neuronsPerLayer": "Neurons per layer (neuronsPerLayer)",
     "max_depth": "Maximum tree depth (max_depth)",
     "min_samples_split": "Smallest group a branch may split (min_samples_split)",
     "n_estimators": "Number of trees (n_estimators)",
@@ -549,6 +552,7 @@
     "PREDICTION_INPUT_INCOMPLETE": "Some boxes are still empty. ({feature})",
     "SVM_NOT_CONVERGED": "The boundary was not fully refined within the allowed rounds. The scores are real, but the model has not converged yet. Turn on [Scaling] in the preprocess step, or lower [Regularization strength (C)], and the boundary is easier to find.",
     "LOGISTIC_NOT_CONVERGED": "The best fit was not reached within the allowed iterations. The scores are real, but the model has not converged yet. Turn on [Scaling] in the preprocess step and it converges in far fewer iterations. If the same notice appears, raise [Maximum iterations (maxIter)] in the training step.",
+    "NEURAL_NOT_CONVERGED": "The loss was still going down when the epoch budget ran out. The scores are real, but the model has not finished learning. Turn on [Scaling] in the preprocess step and it descends much faster. The loss curve on the results screen shows how much further it was heading.",
     "KMEANS_NOT_CONVERGED": "The cluster centers had not settled within the allowed rounds. The clusters are real, but they have not converged yet. Turn on [Scaling] in the preprocess step, or lower [Number of clusters (nClusters)], and the centers settle sooner.",
     "DATASET_FILE_TYPE_UNSUPPORTED": "This file type is not supported. ({fileName})",
     "DATASET_SHEET_NOT_FOUND": "That sheet could not be found. ({sheetName})",
@@ -785,6 +789,12 @@
     "parametersIntercept": "Intercept",
     "paramTitle": "Hyperparameters used for this model",
     "perClass": "Score for each class",
+    "lossCurve": "Loss curve",
+    "lossCurveLead": "How wrong the model was after each pass over the data (epoch). A line going down means it is learning.",
+    "lossCurveEpoch": "Epoch",
+    "lossCurveAxis": "Loss",
+    "lossCurveDescended": "Over {epochs} epochs the loss came down to {loss}.",
+    "lossCurveFlat": "Over {epochs} epochs the loss did not come down. Try turning on [Scaling] in the preprocess step.",
     "scoreTitle": "Scores from this experiment",
     "support": "Samples in the test data (support)",
     "tabular": {

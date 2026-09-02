@@ -46,6 +46,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import accuracy_score, r2_score
 from sklearn.naive_bayes import GaussianNB
+from sklearn.neural_network import MLPClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
@@ -62,6 +63,15 @@ CLASSIFIERS = [
     "svm",
     "logistic_regression",
 ]
+
+# 인공신경망을 돌리는 씨앗들. **다섯인 이유는 구간을 보려면 하나로는 모자라고, 이 값이
+# 관문의 시간이 되기 때문이다.**
+#
+# **여기만 씨앗을 여럿 돌린다.** 다른 알고리즘은 도착점이 하나라 씨앗이 결과를 안 바꾸지만
+# (또는 바꿔도 규제가 최적점을 유일하게 만든다), MLP는 목적함수가 비볼록이라 **초기화가
+# 어디로 갈지를 정한다.** 그래서 이 알고리즘의 기대값은 수 하나가 아니라 구간이다
+# (open-decisions.md "인공신경망을 넣는다 — 손잡이는 층 수와 뉴런 수 둘").
+NEURAL_SEEDS = [0, 1, 2, 3, 4]
 
 
 def read_csv(name: str) -> tuple[list[str], list[list[str]]]:
@@ -241,7 +251,44 @@ def expectations_for(name: str, entry: dict[str, Any]) -> dict[str, Any]:
                 "intercept": model.intercept_.tolist(),
             }
         out[algorithm] = record
+
+    out["neural_network"] = neural_distribution(x_train, y_train, x_test, y_test)
     return out
+
+
+def neural_distribution(
+    x_train: np.ndarray,
+    y_train: list[str],
+    x_test: np.ndarray,
+    y_test: list[str],
+) -> dict[str, Any]:
+    """MLPClassifier를 씨앗마다 돌려 **정확도의 구간**을 적는다.
+
+    **계수도 손실 곡선도 안 적는다.** 우리 엔진은 numpy의 난수열을 재현하지 않으므로 그
+    값들이 같을 수 없고, **같은 척하는 숫자를 픽스처에 넣으면 그것이 거짓말이 된다.**
+    적는 것은 "이 데이터에서 sklearn의 MLP가 어디쯤을 내는가"뿐이다.
+
+    손잡이는 우리 화면의 기본값과 같다 - `hidden_layer_sizes=(100,)`은 sklearn의
+    기본값이기도 하다.
+    """
+    accuracies: list[float] = []
+    for seed in NEURAL_SEEDS:
+        model = MLPClassifier(hidden_layer_sizes=(100,), random_state=seed)
+        with warnings.catch_warnings():
+            # 200 에폭 안에 안 멈추는 것은 정상이다 - 우리 엔진도 그때 경고를 붙인다.
+            warnings.simplefilter("ignore", ConvergenceWarning)
+            model.fit(x_train, y_train)
+        predicted = [str(one) for one in model.predict(x_test)]
+        accuracies.append(accuracy_score(y_test, predicted))
+
+    return {
+        "seeds": list(NEURAL_SEEDS),
+        "accuracies": accuracies,
+        "accuracyMin": float(min(accuracies)),
+        "accuracyMax": float(max(accuracies)),
+        "accuracyMedian": float(np.median(accuracies)),
+        "hiddenLayerSizes": [100],
+    }
 
 
 # 반복 솔버가 낸 값의 허용차. **닫힌 식과 같은 자를 쓸 수 없다** (2026-08-31).

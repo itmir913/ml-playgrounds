@@ -273,6 +273,9 @@ export const CLIENT_WARNING_CODES = [
   // Lloyd 반복이 max_iter 안에 중심점을 고정하지 못했다. 중심점도 군집 번호도 나온다 -
   // 조금 더 돌리면 미세하게 움직일 뿐이다. sklearn도 같은 자리에서 ConvergenceWarning을 낸다.
   'KMEANS_NOT_CONVERGED',
+  // 손실이 더 안 줄어들기 전에 에폭 상한에 닿았다. 가중치도 지표도 나온다 - 덜 배웠을
+  // 뿐이다. sklearn `MLPClassifier`가 ConvergenceWarning을 내는 그 자리다.
+  'NEURAL_NOT_CONVERGED',
 ] as const
 
 export type ClientWarningCode = (typeof CLIENT_WARNING_CODES)[number]

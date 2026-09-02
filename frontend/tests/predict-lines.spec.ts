@@ -12,8 +12,24 @@
  */
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
+
+/**
+ * **산점도는 안 그린다.** 이 검사가 보는 것은 이웃 표이고, 캔버스는 jsdom에 없다.
+ *
+ * **부하에서만 터지던 자리다** — `ClusterNeighbors`가 차트를 `defineAsyncComponent`로
+ * 부르므로 검사가 끝난 **뒤에** 붙고, 그때 wrapper는 이미 떠나 있어 `ownerDocument`를
+ * 읽다 죽는다. 격리 실행에서는 안 나고 전체 실행에서만 났다 (R24 B-4와 같은 모양).
+ */
+vi.mock('@/components/ClusterScatter.vue', () => {
+  // **`defineComponent`를 안 쓴다.** 한 파일에 둘이 되면 `vue/one-component-per-file`이
+  // 운다 — 맨 객체도 Vue가 컴포넌트로 받는다.
+  const stub = { name: 'ClusterScatter', render: () => null }
+  // **`default`만 두면 안 된다.** Vue가 비동기 컴포넌트를 풀 때 모듈에서 내부 표식
+  // (`__isTeleport` 등)을 읽고, 없으면 vitest가 그 자리에서 던진다.
+  return { __esModule: true, default: stub }
+})
 
 import { i18n, setLocale } from '../src/i18n'
 import { clusterMaterial, nearestMembers } from '../src/ml/clusters'

@@ -297,6 +297,7 @@ describe('enabledAlgorithms', () => {
       'random_forest',
       'naive_bayes',
       'svm',
+      'neural_network',
     ])
   })
 })

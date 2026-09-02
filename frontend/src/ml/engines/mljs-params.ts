@@ -55,6 +55,24 @@ export const MLJS_PARAMETERS: Readonly<Record<string, readonly HyperparameterSpe
     { name: 'maxIter', integer: true, min: 1, max: 1000, step: 1, default: 100 },
     { name: 'tol', integer: false, min: 0.000001, max: 0.01, step: 0.000001, default: 0.0001 },
   ],
+  /**
+   * **손잡이 둘이 sklearn의 한 인자가 된다** — `hidden_layer_sizes=(뉴런 수,) * 층 수`
+   * (`open-decisions.md` "인공신경망을 넣는다"). 기본값 1층 × 100뉴런은 sklearn
+   * `MLPClassifier`의 기본값 `(100,)` 그대로다.
+   *
+   * **위쪽 끝은 눈금이지 상한이 아니다.** 층 5 × 뉴런 200은 교실에서 볼 일이 거의 없는
+   * 크기이고, 학생은 숫자를 직접 쳐서 그 밖으로 나갈 수 있다.
+   *
+   * **아래쪽 끝이 1인 이유는 KNN·나무와 같다** — 은닉층 0개는 값이 아니라 다른
+   * 알고리즘(로지스틱 회귀)이고, 뉴런 0개짜리 층은 정보가 지나갈 길이 없다.
+   *
+   * 나머지(활성·솔버·학습률·에폭·규제)는 sklearn 기본값에 고정이다. 이유는
+   * `ml/engines/neural.ts` 머리말에 있다.
+   */
+  neural_network: [
+    { name: 'hiddenLayers', integer: true, min: 1, max: 5, step: 1, default: 1 },
+    { name: 'neuronsPerLayer', integer: true, min: 1, max: 200, step: 1, default: 100 },
+  ],
   linear_regression: [],
   // **`C` 하나만 연다** (open-decisions.md "순수 JS 서포트 벡터 머신을 넣는다").
   // 커널은 선형뿐이라 손잡이가 아니고, 수렴 허용오차·반복 횟수는 수업 내용이 아니라

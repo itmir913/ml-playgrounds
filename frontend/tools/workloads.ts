@@ -28,7 +28,9 @@ import {
 } from '../src/ml/calibration'
 import { fit } from '../src/ml/engines/mljs'
 import { fitKMeans } from '../src/ml/engines/mljs-kmeans'
+import { fitNeural } from '../src/ml/engines/neural'
 import { evaluate, evaluateCluster } from '../src/ml/metrics'
+import { NEURAL_FORMAT, loadNeuralModel } from '../src/ml/models'
 
 /** 기본 특성 수. **특성 축은 알고리즘마다 따로 훑는다**(아래 `*_columns` 사다리들). */
 const FEATURES = 8
@@ -154,6 +156,63 @@ function uniformData(rows: number, columns: number): { features: number[][]; tar
   return { features, target }
 }
 
+/**
+ * **에폭을 다 도는 신경망 한 번.** `measure`를 안 쓰는 이유는 K-평균과 같다 — 데이터가
+ * 반복 횟수를 정한다.
+ *
+ * `syntheticData`는 라벨이 특성에서 곧장 나오는 쉬운 데이터라 **손실이 금세 평평해지고
+ * `n_iter_no_change`가 200 에폭 전에 멈춘다.** 실제로 그 데이터에서는 50,000행이
+ * 20,000행의 1.4배밖에 안 걸렸다(둘 다 잰 값이다) — 행이 늘수록 **에폭이 줄어서**다.
+ * 그 표를 그대로 쓰면 어려운 데이터에서 예상이 짧게 틀린다.
+ *
+ * 여기는 **라벨이 특성과 무관한 데이터**를 준다. 은닉층이 그것을 외우려고 계속 내려가므로
+ * 에폭 상한까지 간다 — 로지스틱을 `tol: 0`으로 재는 것과 같은 자리이고, 목적도 같다:
+ * **천장을 잰다.**
+ */
+function measureNeural(
+  rows: number,
+  columns: number,
+  layers: number,
+  neurons: number,
+): LadderResult {
+  let state = 42
+  const random = (): number => {
+    state = (state * 1664525 + 1013904223) >>> 0
+    return state / 4294967296
+  }
+  const features: number[][] = []
+  const encoded: number[] = []
+  for (let row = 0; row < rows; row += 1) {
+    features.push(Array.from({ length: columns }, () => random()))
+    // **라벨이 특성과 무관하다.** 그래서 손실이 평평해지지 않는다.
+    encoded.push(random() < 0.5 ? 0 : 1)
+  }
+  const classes = ['a', 'b']
+  const target = encoded.map((one) => classes[one] as string)
+
+  const started = performance.now()
+  const fitted = fitNeural(
+    features,
+    encoded,
+    classes.length,
+    { hiddenLayers: layers, neuronsPerLayer: neurons },
+    42,
+  )
+  // **예측과 평가까지 지나간다** — 다른 사다리와 같은 자리를 재려면 그래야 한다
+  // (`measure`의 머리말). 학생이 기다리는 것은 [학습하기]를 누르고 결과가 나올 때까지다.
+  const predict = loadNeuralModel({
+    format: NEURAL_FORMAT,
+    classes,
+    featureCount: columns,
+    weights: fitted.weights,
+    intercepts: fitted.intercepts,
+    lossCurve: fitted.lossCurve,
+  })
+  const shown = Math.max(1, Math.round(rows * PREDICT_RATIO))
+  evaluate('classification', target.slice(0, shown), predict(features.slice(0, shown)))
+  return { elapsed: Math.round(performance.now() - started), iterations: fitted.epochs }
+}
+
 /** 점 하나의 결과. **반복 횟수는 K-평균만 답한다.** */
 export interface LadderResult {
   readonly elapsed: number
@@ -185,7 +244,15 @@ function measureKMeans(rows: number, clusters: number, columns: number = FEATURE
  * **타입이 아니라 값이다** (2026-09-01 R17 감사 C-4). 타입만 있으면 축을 훑는 코드가
  * 목록을 손으로 다시 적어야 하고, 그 목록은 축이 늘어도 안 는다.
  */
-export const AXES = ['rows', 'nEstimators', 'maxIter', 'columns', 'nClusters'] as const
+export const AXES = [
+  'rows',
+  'nEstimators',
+  'maxIter',
+  'columns',
+  'nClusters',
+  'hiddenLayers',
+  'neuronsPerLayer',
+] as const
 
 export type Axis = (typeof AXES)[number]
 
@@ -304,6 +371,77 @@ export const LADDERS: readonly Ladder[] = [
       rows: 2000,
       hyperparameters: { tol: 0, maxIter },
     }),
+  },
+  {
+    /**
+     * **에폭이 고정이라 행 수에 선형이다** — 손잡이로 열지 않은 `max_iter`가 200이고,
+     * 한 에폭의 비용이 `O(행 × 가중치 수)`다. 로지스틱의 절벽(수렴하면 빠르고 안 하면
+     * 느리다)이 여기 없는 이유가 그것이다 — **여기는 언제나 천장을 지난다.**
+     */
+    id: 'neural_network',
+    label: '인공신경망 · 행 수 (1층 × 100뉴런)',
+    axis: 'rows',
+    points: [1000, 2000, 5000, 10_000, 20_000],
+    job: (rows) => ({ algorithm: 'neural_network', rows }),
+    run: (rows) => measureNeural(rows, FEATURES, 1, 100),
+  },
+  {
+    /**
+     * **뉴런 수는 지배적인 손잡이다.** 은닉층이 하나일 때 가중치 수가 `특성 × 뉴런`이라
+     * 선형이어야 하는데, **그것이 사실인지는 재야 안다** — 층이 둘 이상이면 `뉴런²`이
+     * 되고 그때 이 사다리의 모양이 갈린다.
+     */
+    id: 'neural_network_neurons',
+    label: '인공신경망 · 층당 뉴런 수 (2,000행 · 1층)',
+    axis: 'neuronsPerLayer',
+    points: [25, 50, 100, 200],
+    job: (neurons) => ({
+      algorithm: 'neural_network',
+      rows: 2000,
+      hyperparameters: { hiddenLayers: 1, neuronsPerLayer: neurons },
+    }),
+    run: (neurons) => measureNeural(2000, FEATURES, 1, neurons),
+  },
+  {
+    /**
+     * **층을 늘리면 `뉴런²`짜리 덩어리가 하나씩 는다.** 첫 층만 `특성 × 뉴런`이라
+     * 1층에서 2층 사이가 가장 크게 뛴다 — 그 모양을 모르고 곱셈으로 어림하면 크게 틀린다.
+     */
+    id: 'neural_network_layers',
+    label: '인공신경망 · 은닉층 수 (2,000행 · 100뉴런)',
+    axis: 'hiddenLayers',
+    points: [1, 2, 3, 5],
+    job: (layers) => ({
+      algorithm: 'neural_network',
+      rows: 2000,
+      hyperparameters: { hiddenLayers: layers, neuronsPerLayer: 100 },
+    }),
+    run: (layers) => measureNeural(2000, FEATURES, layers, 100),
+  },
+  {
+    /**
+     * **곱셈 규칙이 맞는지 보는 자리.** 두 손잡이의 배수를 따로 재서 곱하면 예상이
+     * 나오는가 — `estimate.ts`가 실제로 그렇게 계산하므로 **그 가정 자체를 재 둔다.**
+     * 어긋나면 곱셈이 아니라 다른 모양이 필요하다는 뜻이다.
+     */
+    id: 'neural_network_both',
+    label: '인공신경망 · 두 손잡이를 함께 (2,000행 · 2층 × 200뉴런)',
+    axis: 'neuronsPerLayer',
+    points: [200],
+    job: (neurons) => ({
+      algorithm: 'neural_network',
+      rows: 2000,
+      hyperparameters: { hiddenLayers: 2, neuronsPerLayer: neurons },
+    }),
+    run: (neurons) => measureNeural(2000, FEATURES, 2, neurons),
+  },
+  {
+    id: 'neural_network_columns',
+    label: '인공신경망 · 특성 수 (2,000행 · 1층 × 100뉴런)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({ algorithm: 'neural_network', rows: 2000, columns }),
+    run: (columns) => measureNeural(2000, columns, 1, 100),
   },
   {
     id: 'knn',
