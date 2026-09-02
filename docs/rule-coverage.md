@@ -390,7 +390,7 @@ R15 A-1(그물이 앞 절반만 있던 상한 스위치)과 같은 모양이다.
 
 - `ml/worker/client.ts`의 `calibrateDevice` → `TrainView.vue` 배선. 교정 순수 함수는 `calibration.spec.ts`가 문다. **재야 할 것 넷째(R18 B-3)와 같은 자리다.**
 - `ml/selection.ts`의 `stratifyBlockFor` **이미지 쪽 배선** — `ImagePrepPanel.vue`가 직접 부른다. 표 쪽은 `stratifyBlock` 경유로 물린다.
-- `project/identity.ts`의 `identityOf` → `ExportButton.vue`·`ProjectName.vue`. **내보내기 사슬의 최종 배선**(인적사항 → `identifiedExport` → `exportFile`)이 무도달 컴포넌트 안이다 — 스토어의 `exportFile` 자체는 물린다.
+- ~~`project/identity.ts`의 `identityOf` → `ExportButton.vue`·`ProjectName.vue`~~ **닫혔다 (2026-09-03 R24 B-3·B-9).** 이 줄이 R24 감사의 실측 근거가 됐고, 뭉갠 두 줄이 실제로 조용했다. 지금은 `export-button.spec.ts`가 부품을 띄워 넘어간 마크다운과 manifest의 학번을 재고, `project-name.spec.ts`가 빈 이름 거부를 잰다.
 - `project/portfolio-presets.ts`의 `presetUrl`·`loadPresets` — **fetch 경로와 `BASE_URL` 조립이 무검사다.** `portfolio-preset.spec.ts`는 디스크에서 직접 읽는다. 틀리면 Pages 배포에서 내장 양식이 404인데, 바닥이 빈 양식이라 죽지는 않는다(그 파일 머리말).
 - `TrainView.vue`의 예상 시간 인자 조립 — `baselineMs`·`estimateMs`는 물리는데 `trainingRows`(시험 몫 빼기)와 `featureWidth`를 화면이 계산해 넘긴다. R13-3 A-2·R14-3 A-4가 두 자리를 밖으로 뺐지만 **같은 모양이 여기 남아 있다.**
 
@@ -412,9 +412,9 @@ R15 A-1(그물이 앞 절반만 있던 상한 스위치)과 같은 모양이다.
    `cannotRun` · 쪽 계산 다섯 판.
 4. **상태기계** — `TrainView`의 멈추기/나가기(`stopped`·`stopping`·`leaving` — V11 R4
    C-5의 고침이 무검사로 서 있다), 테스트 데이터 받기의 `manualTestChoice` 덮어쓰기.
-5. **표시 분기** — `featureSummary`의 네 상태, `previewEmptyKey`, `AnswerList.bars()`의
-   "굵은 막대는 argmax가 아니라 답과 대조"(mlpx-spec.md §5.4의 규칙인데 화면 쪽 이행은
-   무검사다).
+5. **표시 분기** — `featureSummary`의 네 상태, `previewEmptyKey`. **`AnswerList.bars()`의
+   "굵은 막대는 argmax가 아니라 답과 대조"는 닫혔다** (2026-09-03 R24 B-6,
+   `predict-lines.spec.ts`).
 
 그리고 **전역 오류 손잡이가 없다는 결정**(`errorHandler`도 `onError`도 없다 —
 `project/schema.ts`와 `BatchPredict.vue`의 주석이 근거를 들고 있다)의 짝: **모든 async
@@ -434,7 +434,7 @@ throw는 아무 데도 안 간다.
 
 ### 이 지도가 확인 못 한 것
 
-- 돌연변이는 여섯뿐이다. "물림" 실측도 그 여섯에 대해서다 — **다른 자리의 "검사 있음"은 이 지도가 보증하지 않는다.**
+- 돌연변이는 여섯뿐이다. "물림" 실측도 그 여섯에 대해서다 — **다른 자리의 "검사 있음"은 이 지도가 보증하지 않는다.** (2026-09-03 R24를 닫으며 스물넷을 더 심었다. **둘은 처음에 안 물어 검사를 고쳤다** — 혼동 행렬 팝오버는 `개`가 `개수`에 걸려 글자 세기가 통과했고, 빈 이름 거부는 `withIdentity`가 이미 막고 있어 화면 쪽을 지워도 이름이 안 사라졌다. 카탈로그(`tools/mutants.json`)는 **조용한 자리만** 담으므로 지금 비어 있다.)
 - 무도달 화면 중 전량 읽은 것은 다섯 판과 `AnswerList`·`ExportButton` 일부다. 나머지(결과 패널들 · 데이터 판들 · 셸 부품들)는 계산 냄새 훑기까지만 했다 — **거기서 다섯 갈래 밖의 것이 나올 수 있다.**
 - `ml/models/*.ts` 해석기의 갈래별(형식별 파싱 실패 경로) 커버리지 폭은 안 쟀다.
 - import 그래프는 2026-09-02의 것이다. **세는 칸은 세는 사람이 사라지면 곧바로 낡는다** — 위 머리말의 그 경고가 이 절에도 그대로 적용된다.
