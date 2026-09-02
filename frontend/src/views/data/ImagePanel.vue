@@ -297,46 +297,42 @@ async function bake(): Promise<void> {
   // [취소]가 이 칸을 비우는 것이 "굽지 마라"는 신호다.
   baking.value = items
 
-  // **상한을 여기서 다시 묻는다** (architecture.md §8.10.4). 받을 때 이미 물었지만,
-  // **굽는 동안 놓은 묶음은 앞 묶음이 아직 파일에 안 앉은 수로 통과했다** — 둘 다 앉고
-  // 나면 상한을 넘어 있다 (2026-09-02 R22 B-1). 일을 잡은 뒤라 겹쳐 굽는 것은 `busy`가
-  // 막고, 여기 오는 시점이면 앞 묶음은 이미 앉아 있고, 워커를 돌리기 전이라 **거절이
-  // 기다린 시간을 버리지 않는다.** R21이 둘째 묶음을 살리기 전까지는 아무도 이 자리에
-  // 닿지 못했다.
-  const overflow = imageOverflow(file, items.length)
-  if (overflow) {
-    toasts.pushError(new ClientError('IMAGE_TOO_MANY_PHOTOS', { ...overflow }))
-    clearIfHeld(baking, items)
-    job.done()
-    return
-  }
-  const shortfall = await imageRoomShortfall(file, items.length, backbone)
-  // **묻는 동안 [취소]가 눌렸으면 굽지 않는다.** 그 신호는 `baking`이 비어 있는 것이다 —
-  // 묶음은 확인 판에 그대로 남아 학생이 잃는 것이 없다.
-  const cancelled = toRaw(baking.value) !== toRaw(items)
-  if (shortfall || cancelled) {
-    if (shortfall) {
-      toasts.pushError(new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall }))
-    }
-    clearIfHeld(baking, items)
-    job.done()
-    return
-  }
-  job.report(0, items.length)
-  const byPath = new Map(items.map((item) => [item.path, item.category]))
-  const handle = canonicalizeImages(
-    items.map((item) => item.file),
-    {
-      createWorker: spawnCanonicalizeWorker,
-      size: backbone.canonicalSize,
-      onProgress: (completed, total) => {
-        job.report(completed, total)
-      },
-    },
-  )
-  job.hold(handle)
-
+  // **놓는 자리는 하나다.** 일을 잡은 뒤로는 갈래마다 손으로 놓지 않는다 — 자리 묻기가
+  // `await`이고 **그것은 던질 수 있다**(`detectCanonicalFormat`은 2d 컨텍스트가 없거나
+  // 구울 수 있는 형식이 하나도 없으면 던진다). 갈래 하나만 빠뜨리면 `busy`가 참인 채로
+  // 굳어 **학생이 그 화면에서 아무것도 못 하게 된다** (2026-09-02 R22 재감사 뒤).
   try {
+    // **상한을 여기서 다시 묻는다** (architecture.md §8.10.4). 받을 때 이미 물었지만,
+    // **굽는 동안 놓은 묶음은 앞 묶음이 아직 파일에 안 앉은 수로 통과했다** — 둘 다 앉고
+    // 나면 상한을 넘어 있다 (2026-09-02 R22 B-1). 일을 잡은 뒤라 겹쳐 굽는 것은 `busy`가
+    // 막고, 여기 오는 시점이면 앞 묶음은 이미 앉아 있고, 워커를 돌리기 전이라 **거절이
+    // 기다린 시간을 버리지 않는다.** R21이 둘째 묶음을 살리기 전까지는 아무도 이 자리에
+    // 닿지 못했다.
+    const overflow = imageOverflow(file, items.length)
+    if (overflow) throw new ClientError('IMAGE_TOO_MANY_PHOTOS', { ...overflow })
+
+    const shortfall = await imageRoomShortfall(file, items.length, backbone)
+    if (shortfall) throw new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall })
+
+    // **묻는 동안 [취소]가 눌렸으면 굽지 않는다.** 그 신호는 `baking`이 비어 있는
+    // 것이다 — 묶음은 확인 판에 그대로 남아 학생이 잃는 것이 없다. 취소는 실패가
+    // 아니므로 던지지 않고 조용히 돌아간다.
+    if (toRaw(baking.value) !== toRaw(items)) return
+
+    job.report(0, items.length)
+    const byPath = new Map(items.map((item) => [item.path, item.category]))
+    const handle = canonicalizeImages(
+      items.map((item) => item.file),
+      {
+        createWorker: spawnCanonicalizeWorker,
+        size: backbone.canonicalSize,
+        onProgress: (completed, total) => {
+          job.report(completed, total)
+        },
+      },
+    )
+    job.hold(handle)
+
     const result = await handle.result
     // **굽는 동안 파일이 달라졌을 수 있다** — 붙든 것이 아니라 지금 파일에 얹는다
     // (architecture.md §8.10.3). 셈은 얹은 결과에서 나오므로 여기서 받아 둔다.

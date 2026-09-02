@@ -226,6 +226,41 @@ describe('계산이 도는 동안 필터가 잠긴다', () => {
     expect(lockedChips(wrapper)).not.toContain(false)
   })
 
+  /**
+   * **파일 입구도 같은 신호로 잠긴다** (2026-09-02 R22 재감사 C-2의 짝).
+   *
+   * `fileBusy`가 바의 [파일 선택]·[삭제]·[사용]·[다운로드] 넷을 가리는데 **그것을 무는
+   * 검사가 하나도 없었다.** 겹침 검사가 숨은 `<input>`에 `change`를 억지로 넣어 그
+   * 아래 방어선을 재는 동안, **학생이 실제로 닿는 입구인 이 잠금은 아무도 안 봤다.**
+   *
+   * `!batch.value`까지 "바쁨"으로 치는 것은 일부러다 — 판이 안 그려졌으면 누를 대상이
+   * 없다. 그 갈래는 위의 "판이 안 그려졌으면" 검사가 따로 본다.
+   */
+  function barButtons(wrapper: Awaited<ReturnType<typeof panelInFileMode>>): string[] {
+    return wrapper
+      .findAll('button')
+      .filter((one) => one.attributes('disabled') === undefined)
+      .map((one) => one.text())
+  }
+
+  it('파일을 읽는 동안 파일 입구가 잠긴다', async () => {
+    const wrapper = await panelInFileMode()
+    expect(barButtons(wrapper)).toContain('파일 선택')
+
+    batch.busy.value = true
+    await wrapper.vm.$nextTick()
+    expect(barButtons(wrapper)).not.toContain('파일 선택')
+  })
+
+  it('내려받기가 도는 동안에도 파일 입구가 잠긴다', async () => {
+    const wrapper = await panelInFileMode()
+    expect(barButtons(wrapper)).toContain('파일 선택')
+
+    batch.computing.value = true
+    await wrapper.vm.$nextTick()
+    expect(barButtons(wrapper)).not.toContain('파일 선택')
+  })
+
   it('판이 안 그려졌으면 열려 있다 — 필터를 전부 끈 학생이 다시 켤 수 있어야 한다', async () => {
     const wrapper = await panelInFileMode()
     // [전체 해제]를 두 축 다 누르면 보이는 모델이 0이라 `BatchPredict`가 사라진다.

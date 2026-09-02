@@ -42,11 +42,14 @@ vi.mock('../src/data/image/spawn', async () => {
  * 정한다**: `hold`가 참이면 `bake()`가 자리를 묻는 `await`에 멈춰 서고, 그 사이가
  * `busy`를 보고 나서 일을 잡기까지의 창이다 (2026-09-02 R22 재감사 B-1′).
  */
-const room = vi.hoisted(() => ({ hold: false, waiting: [] as (() => void)[] }))
+const room = vi.hoisted(() => ({ hold: false, fails: false, waiting: [] as (() => void)[] }))
 
 vi.mock('../src/data/image/room', () => ({
   imageRoomShortfall: async () => {
     if (room.hold) await new Promise<void>((resolve) => room.waiting.push(resolve))
+    // **묻다가 던지는 길이 있다.** `detectCanonicalFormat`은 2d 컨텍스트가 없거나
+    // 구울 수 있는 형식이 하나도 없으면 던진다 (`data/image/bake.ts`).
+    if (room.fails) throw new Error('room check unavailable')
     return null
   },
 }))
@@ -94,6 +97,7 @@ interface PanelInternals {
   busy: boolean
   pending: readonly { path: string }[] | null
   waiting: readonly { path: string }[] | null
+  baking: readonly { path: string }[] | null
 }
 
 const file = (name: string): File =>
@@ -113,6 +117,7 @@ beforeEach(async () => {
   setActivePinia(createPinia())
   limits.images = Number.POSITIVE_INFINITY
   room.hold = false
+  room.fails = false
   room.waiting.length = 0
   resetImageWorkers()
   closeStorage()
@@ -447,5 +452,42 @@ describe('굽기가 자리를 묻는 동안', () => {
     expect(panel.pending?.map((one) => one.path)).toEqual(['a.jpg'])
     expect(panel.busy).toBe(false)
     expect(useToastStore().items.filter((one) => one.tone === 'danger')).toEqual([])
+  })
+})
+
+/**
+ * **자리를 묻다가 던지면 어떻게 되는가** (2026-09-02 R22 재감사 뒤).
+ *
+ * 재감사가 `start()`를 `await` 앞으로 옮기면서 **그 `await`가 일을 잡은 채로 `try` 밖에
+ * 남았다.** `imageRoomShortfall`은 던질 수 있다 — `detectCanonicalFormat`이 2d 컨텍스트를
+ * 못 잡거나 구울 수 있는 형식이 하나도 없으면 던지고, 그 길은 낡은 학교 PC가 기준
+ * 기기라는 전제에서 죽은 가지가 아니다.
+ *
+ * 그러면 `job.done()`이 영영 안 돌아 **`busy`가 참인 채로 굳는다** — [이 사진 사용]이
+ * 꺼진 채로 남고 학생은 그 화면에서 아무것도 못 한다.
+ */
+describe('자리를 묻다가 실패하면', () => {
+  it('자물쇠가 풀리고 학생이 다시 누를 수 있다', async () => {
+    const project = useProjectStore()
+    await project.save(imagePredictProject([]))
+    const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const panel = wrapper.vm as unknown as PanelInternals
+
+    panel.onDrop(dropEvent([file('a.jpg')]))
+    await settle()
+    expect(panel.pending).not.toBeNull()
+
+    room.fails = true
+    await panel.bake()
+    await settle()
+
+    // **자물쇠가 풀린다.** 안 풀리면 이 화면은 되돌릴 길이 없다.
+    expect(panel.busy).toBe(false)
+    expect(panel.baking).toBeNull()
+    // 묶음은 판에 남는다 — 학생이 다시 누를 수 있어야 한다.
+    expect(panel.pending).not.toBeNull()
+    // **말없이 삼키지 않는다.** 눌렀는데 아무 일도 안 나면 학생은 고장으로 읽는다.
+    expect(useToastStore().items.filter((one) => one.tone === 'danger')).not.toEqual([])
   })
 })
