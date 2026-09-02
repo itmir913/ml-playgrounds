@@ -435,6 +435,19 @@ const preparing = ref<{
 } | null>(null)
 
 /**
+ * [학습하기]를 누른 뒤 아직 아무것도 보고되지 않은 창.
+ *
+ * **`preparing`은 워커의 첫 마디에서야 값을 받는다.** 그전까지는 워커 스크립트를 받아
+ * 실행하는 시간이고(`embed.worker`가 1.98MB, wasm이 0.31/0.42MB — 리셋되는 교실 PC에서는
+ * 초 단위다), 표 경로는 정본을 파싱하는 내내 아예 아무 보고도 없다. 그 창에서 축이 안
+ * 잠기고 나가기도 안 막혔다 (2026-09-02 R21 B-1).
+ *
+ * **누른 순간부터 도는 것으로 친다.** 학생이 누른 것은 "학습을 시작하라"이고, 그 뒤로
+ * 화면이 잠기는 것이 기대한 결과다.
+ */
+const starting = ref(false)
+
+/**
  * 도는 준비 일감의 손잡이. **떠날 때 끊는다** — 아무도 안 듣는 12.4MB 내려받기가 뒤에
  * 남으면 안 된다 (이미지 판들이 굽기를 다루는 것과 같은 규칙이다).
  */
@@ -462,7 +475,7 @@ onBeforeUnmount(() => {
  *
  * `train-preparing.spec.ts`가 축·가드·잠금이 셋 다 이 신호를 보는지 지킨다.
  */
-const working = computed(() => training.running.value || preparing.value !== null)
+const working = computed(() => training.running.value || preparing.value !== null || starting.value)
 
 /** 추가한 모델이 없으면 돌릴 것이 없다. 나머지 실패는 학습이 사유와 함께 돌려준다. */
 const nothingToTrain = computed(() => chosen.value.length === 0)
@@ -484,6 +497,8 @@ async function startTraining(): Promise<void> {
   // 지난번에 멈춘 것도 마찬가지다. 안 되돌리면 두 번째 학습이 멈춘 적 없이 끝나도
   // "멈췄습니다"라고 말한다.
   stopped = false
+  // **누른 순간부터다.** `await`보다 먼저 켜야 창이 안 생긴다 (R21 B-1).
+  starting.value = true
 
   try {
     /**
@@ -561,6 +576,7 @@ async function startTraining(): Promise<void> {
   } finally {
     preparing.value = null
     preparingHandle = null
+    starting.value = false
   }
 }
 

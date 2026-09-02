@@ -78,7 +78,10 @@ const steps = computed(() =>
        *
        * **잠겨 있을 때는 사유가 그 자리를 채우므로** 설명까지 겹치지 않는다.
        */
-      explains: (here || (unlocked && tasks.length === 0)) && kind.value !== null,
+      // **`dataKindFor`는 `undefined`를 돌려준다** (`data/kinds.ts`). `!== null`은 그것을
+      // 통과시켜 가드가 아니었고, 종류를 모르는 순간(닫히는 중) 화면이 없는 대체 키
+      // `steps.data.purpose`를 찾았다 (R21 C-1).
+      explains: (here || (unlocked && tasks.length === 0)) && kind.value !== undefined,
     }
   }),
 )

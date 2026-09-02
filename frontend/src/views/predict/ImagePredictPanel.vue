@@ -397,7 +397,9 @@ async function run(): Promise<void> {
       // 그 사진이 화면에서도 IndexedDB에서도 사라진다 (2026-09-02 R20 A-2).
       await project.save((live) => addEmbeddings(live, spec.id, fresh))
       if (!alive) return
-      // 아래 답 루프가 읽는 것도 지금 파일이어야 한다 — 모델 바이트와 훈련 행이 여기서 나온다.
+      // 아래 답 루프가 읽는 것도 지금 파일이어야 한다. **지금은 값이 같다** — 예측이
+      // 도는 동안 모델과 훈련 행은 못 바뀌고 사진만 는다(`photosLocked`). 그래도 두는
+      // 것은 **바뀌는 날 이 줄이 없으면 조용히 옛 모델로 답하기 때문이다.**
       current = project.file ?? current
     }
     // 여기서부터는 답 루프라 셀 것이 없다. **진행 표시만 거둔다** — 일은 계속 돈다.

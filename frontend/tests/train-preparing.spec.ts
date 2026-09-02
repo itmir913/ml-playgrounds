@@ -9,9 +9,9 @@
  * **여기서 보는 것은 셋이 같은 신호를 보는가이다.** 신호가 갈리면 축은 잠기는데 나가기는
  * 안 막히는 식으로 **화면이 절반만 도는 것으로 친다.**
  *
- * **이것은 모양 검사다.** 실제로 막히는지는 화면을 띄워야 보이고, 그 자리는
- * `image-predict-race.spec.ts`가 쓰는 하니스로 다음 라운드가 세운다. 여기서 지키는 것은
- * **"세 자리가 하나의 계산을 본다"까지**다.
+ * **이것은 모양 검사다.** 여기서 지키는 것은 **"세 자리가 하나의 계산을 본다"까지**이고,
+ * 실제로 막히는지와 **언제부터 막히는지**는 `train-preparing-live.spec.ts`가 화면을 띄워
+ * 잰다. 그 둘이 갈린 자리가 R21 B-1이었다 — 신호는 하나로 맞았는데 늦게 켜졌다.
  */
 
 import { readFileSync } from 'node:fs'
@@ -48,6 +48,8 @@ describe('준비 단계도 도는 것으로 친다', () => {
     expect(body).not.toBe('')
     expect(body).toContain('training.running.value')
     expect(body).toContain('preparing.value')
+    // **누른 순간부터다.** `preparing`은 워커의 첫 마디에서야 켜져 창이 남는다 (R21 B-1).
+    expect(body).toContain('starting.value')
   })
 
   it('나가기 가드가 그 신호를 본다', () => {

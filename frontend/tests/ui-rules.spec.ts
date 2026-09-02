@@ -2245,8 +2245,14 @@ describe('되보내는 부품은 같은 것을 보낸다', () => {
  * 검사로 세우는 이유는 **콘솔 경고가 조용하기 때문이다** — 검사도 타입도 안 운다.
  */
 describe('t()의 인자는 새 객체다', () => {
-  /** `t(…, X.value…)` 꼴. 객체 리터럴이나 개별 값은 안 잡는다. */
-  const REF_PARAMS = /\bt\(\s*(?:'[^']*'|"[^"]*"|`[^`]*`|[\w.]+)\s*,\s*[\w.$]+\.value/g
+  /**
+   * `t(…, X.value…)`나 `t(…, Object.freeze(…))` 꼴. 객체 리터럴이나 개별 값은 안 잡는다.
+   *
+   * **얼린 것도 같은 병이다** — vue-i18n이 `count`를 써 넣지 못하는 것은 `readonly`든
+   * `Object.freeze`든 마찬가지다. R21 감사가 이 구멍을 돌연변이로 찾았다.
+   */
+  const REF_PARAMS =
+    /\bt\(\s*(?:'[^']*'|"[^"]*"|`[^`]*`|[\w.]+)\s*,\s*(?:[\w.$]+\.value|Object\.freeze\()/g
 
   function refParams(source: string): string[] {
     const code = withoutComments(source).join(String.fromCharCode(10))
@@ -2255,8 +2261,19 @@ describe('t()의 인자는 새 객체다', () => {
 
   it('읽기 전용 객체를 그대로 넘기는 모양을 잡는다', () => {
     expect(refParams("t('train.progress', training.progress.value)")).toHaveLength(1)
+    expect(refParams("t('train.progress', Object.freeze({ completed: 1 }))")).toHaveLength(1)
     expect(refParams("t('train.progress', { completed: at.value ?? 0 })")).toEqual([])
     expect(refParams("t('x', { done: now.completed, total: now.total })")).toEqual([])
+  })
+
+  /**
+   * **못 보는 것**: `props.x`나 스토어 항목을 그대로 넘기는 것. 지금 소스에 그런 호출은
+   * 없고(R21이 3인자 `t()`를 전수로 훑었다), 이름만으로는 읽기 전용인지 알 수 없어
+   * 넓히면 멀쩡한 코드를 문다 — **거짓 빨강도 결함이다.**
+   */
+  it('개별 값과 이름 있는 객체는 안 잡는다 - 알고 그렇다', () => {
+    expect(refParams("t('x', props.params)")).toEqual([])
+    expect(refParams("t('x', { count: props.count })")).toEqual([])
   })
 
   it('화면 어디에도 그 모양이 없다', () => {
@@ -2309,6 +2326,17 @@ describe('화면은 스토어에 함수로 쓴다', () => {
     expect(snapshotWrites('project.update(\n  (live) => ({ ...live }),\n)')).toEqual([])
     // 주석 안의 예문은 코드가 아니다.
     expect(snapshotWrites('// project.save(applied.project)')).toEqual([])
+  })
+
+  /**
+   * **함수 참조도 잡는다. 알고 그렇다.** 이름만으로는 값인지 함수인지 못 가르고, 가르려
+   * 들면 타입 정보가 필요하다. 그래서 `ImagePanel.save`가 받은 함수를 `(live) => next(live)`로
+   * 한 번 더 감싼다 — **규칙을 위한 규칙이 맞다**(R21 C-3). 값이 같고 한 줄이라 치르는
+   * 값이 없어 그대로 둔다.
+   */
+  it('함수 참조를 값과 못 가른다 - 감싸는 이유가 그것이다', () => {
+    expect(snapshotWrites('await project.save(next)')).toHaveLength(1)
+    expect(snapshotWrites('await project.save((live) => next(live))')).toEqual([])
   })
 
   it('화면과 부품 어디에도 통째로 넘기는 자리가 없다', () => {

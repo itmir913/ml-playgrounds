@@ -117,3 +117,29 @@ describe('대시보드는 모든 종류에서 문장을 갖는다', () => {
     })
   }
 })
+
+/**
+ * **종류를 모르는 순간이 있다.** 프로젝트가 닫히면 `dataType`이 사라지고, 화면이
+ * 내려가기 전에 한 번 더 그려진다. `dataKindFor`는 그때 `undefined`를 돌려주는데
+ * 설명문 가드는 `!== null`을 보고 있었다 — `undefined !== null`은 참이라 **가드가
+ * 아니었고**, 화면이 `steps.data.purpose`라는 **없는 키**를 찾았다 (R21 C-1).
+ *
+ * 학생 눈에는 다음 렌더가 덮어 안 보이지만, **키가 없다는 것은 그대로다** —
+ * `steps.data`에는 `label`·`tabular`·`image`뿐이다.
+ */
+describe('종류를 모르는 순간', () => {
+  it('없는 대체 키를 찾지 않는다', async () => {
+    const wrapper = await mountHome('tabular')
+    await flushPromises()
+    const vm = wrapper.vm as unknown as { steps: { explains: boolean }[] }
+    // 종류를 아는 동안에는 설명문이 실제로 뜬다 — 안 그러면 아래 단언이 뜻을 잃는다.
+    expect(vm.steps.some((one) => one.explains)).toBe(true)
+
+    useProjectStore().close()
+    // 닫힌 뒤에도 한 번은 그려진다. 그때 종류는 `undefined`다.
+    await flushPromises()
+
+    expect(vm.steps.some((one) => one.explains)).toBe(false)
+    expect(wrapper.text()).not.toContain('steps.data.purpose')
+  })
+})

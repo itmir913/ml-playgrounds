@@ -629,5 +629,8 @@ describe('스토어에 함수로 쓰면', () => {
     project.close()
     project.update(marked)
     expect(project.file).toBeNull()
+    // **`dirty`까지 본다.** `file`만 보면 가드를 빼도 `null`을 다시 써 넣는 것이라
+    // 안 운다 — 그 검사가 절반이었다 (R21 B-5).
+    expect(project.dirty).toBe(false)
   })
 })
