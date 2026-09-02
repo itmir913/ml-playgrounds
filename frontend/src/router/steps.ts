@@ -165,6 +165,42 @@ export function stepBlockers(
   taskType?: TaskType | undefined,
   dataType?: DataType | undefined,
 ): FactKey[] {
+  /**
+   * **고르는 화면은 그 선택으로 잠기지 않는다** (architecture.md §10.5, 2026-09-02
+   * 교실 보고).
+   *
+   * 유형을 고르는 것은 학습 단계의 **할 일**이다. 그런데 그 단계의 진입을 **고른 유형**으로
+   * 판정하면, 분류를 누르는 순간 `targetChosen`이 그 화면을 잠그고 **유형을 바꿀 손잡이는
+   * 그 안에 있다.** 되돌리는 길이 "원치 않는 일"뿐이 된다 — 라벨 없이 군집만 하려던
+   * 학생이 범주를 만들어야 나온다.
+   *
+   * 위 `factBlocks`가 **유형 미정일 때** 이미 같은 완화를 한다("한 유형이라도 면제하는
+   * 사실을 안 막는다"). **고른 뒤에도 같아야 한다** — 안 그러면 그 완화가 막으려던 순환이
+   * 한 걸음 뒤에서 그대로 일어난다.
+   *
+   * **잠금을 없애는 것이 아니라 옮기는 것이다.** 못 하는 유형은 축의 카드가 이유와 함께
+   * 잠그고(§9.4, `ModelAxes`), 그것이 2026-08-12에 이미 정해진 자리다.
+   */
+  const chosenHere = tasksOf(step, dataType).includes('taskTypeChosen')
+  return taskTypeBlockers(step, facts, chosenHere ? undefined : taskType, dataType)
+}
+
+/**
+ * **이 유형으로 이 단계를 할 수 있는가.** 축의 카드가 쓰는 판정이다 (§10.5, §9.4).
+ *
+ * **`stepBlockers`와 갈리는 것은 완화 하나뿐이다.** 그쪽은 그 축을 **고르는** 단계에서
+ * 유형을 안 보고(안 그러면 고른 순간 그 화면이 잠겨 되돌릴 손잡이가 갇힌다), 이쪽은
+ * **바로 그 유형을 묻는다.**
+ *
+ * **둘을 한 함수로 쓰면 카드가 언제나 열린다** — 실제로 그렇게 썼다가 카드 잠금이
+ * 죽은 코드가 됐고, `task-type-trap.spec.ts`가 그것을 잡았다.
+ */
+export function taskTypeBlockers(
+  step: StepId,
+  facts: ProjectFacts,
+  taskType: TaskType | undefined,
+  dataType?: DataType | undefined,
+): FactKey[] {
   return STEPS[step].requires.filter((fact) => factBlocks(fact, taskType, dataType) && !facts[fact])
 }
 

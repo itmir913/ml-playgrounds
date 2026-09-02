@@ -30,6 +30,11 @@ const props = defineProps<{
   taskTypes: readonly TaskType[]
   /** 아직 아무도 안 골랐으면 undefined다. 기본값이 없다. */
   taskType?: TaskType | undefined
+  /**
+   * 못 고르는 유형과 그 이유. **판정은 화면 밖에서 끝났다** (architecture.md §10.2) —
+   * 여기 없는 유형은 열려 있다.
+   */
+  taskTypeLocks?: Partial<Record<TaskType, string>> | undefined
   /** 유형을 안 골랐으면 빈 목록이다 — 그때는 아래 두 축이 뜻이 없다. */
   options: readonly AlgorithmOption[]
   chosen: readonly ChosenModel[]
@@ -99,15 +104,25 @@ function withReason(choice: AxisChoice, label: string): Choice {
 }
 
 /**
- * 유형 축은 **아무것도 꺼지지 않는다.** 알고리즘이 하나도 없는 유형은 등록부가 애초에
- * 목록에서 빼므로(`supportedTaskTypes`), 여기 있는 것은 전부 고를 수 있다.
+ * 유형 축. **알고리즘이 하나도 없는 유형은 등록부가 애초에 목록에서 뺀다**
+ * (`supportedTaskTypes`). 그래서 여기서 꺼지는 것은 **지금 데이터로 그 유형을 못 하는
+ * 경우**뿐이고, 판정은 화면 밖에서 이미 끝나 이유와 함께 온다.
+ *
+ * **여기가 잠기는 자리다** (architecture.md §10.5). 전에는 `enabled: true`가 박혀 있었고
+ * 잠금이 **단계 진입**에 있었는데, 그러면 분류를 누르는 순간 이 화면이 잠겨 **유형을
+ * 바꿀 손잡이가 그 안에 갇혔다** (2026-09-02 교실 보고). 2026-08-12 결정이 말한 자리가
+ * 처음부터 여기였다.
  */
 const taskChoices = computed<Choice[]>(() =>
-  props.taskTypes.map((taskType) => ({
-    id: taskType,
-    label: t(`taskTypes.${taskType}`),
-    enabled: true,
-  })),
+  props.taskTypes.map((taskType) => {
+    const reason = props.taskTypeLocks?.[taskType]
+    return {
+      id: taskType,
+      label: t(`taskTypes.${taskType}`),
+      enabled: reason === undefined,
+      ...(reason === undefined ? {} : { reason }),
+    }
+  }),
 )
 
 // 줄마다 자기 사유와 자기 숫자를 들고 있다 (modelAxes).

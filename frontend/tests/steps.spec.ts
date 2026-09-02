@@ -118,12 +118,18 @@ describe('잠금 해제', () => {
     expect(ready.algorithmsChosen).toBe(false)
   })
 
-  it('군집화는 타깃 없이도 학습이 열린다 - 잠금은 다른 질문을 한다', () => {
-    // **여기가 이 설계의 요점이다.** 할 일에서만 빼고 잠금에서 안 빼면 군집화 학생이
-    // 영영 못 들어가는 단계를 보게 된다.
+  /**
+   * **유형을 고르는 화면은 그 선택으로 안 잠긴다** (architecture.md §10.5,
+   * 2026-09-02 교실 보고). 전에는 분류에서 `false`였고, 그래서 분류를 누른 학생이
+   * **유형을 바꿀 손잡이가 있는 화면에서 쫓겨났다.**
+   *
+   * 잠금이 사라진 것이 아니라 **카드로 옮겼다** — 못 하는 유형은 `ModelAxes`의 축에서
+   * 이유와 함께 꺼진다(§9.4).
+   */
+  it('학습 화면은 어떤 유형을 골랐든 그 선택으로 안 잠긴다', () => {
     const ready = facts({ datasetReady: true, featuresChosen: true })
     expect(isStepUnlocked('train', ready, 'clustering')).toBe(true)
-    expect(isStepUnlocked('train', ready, 'classification')).toBe(false)
+    expect(isStepUnlocked('train', ready, 'classification')).toBe(true)
   })
 
   /**
@@ -136,11 +142,23 @@ describe('잠금 해제', () => {
     expect(isStepUnlocked('train', ready)).toBe(true)
   })
 
-  /** 느슨해지는 것은 안 고른 동안뿐이다. 파일에 유형이 남으면 다시 묻는다. */
-  it('유형을 고른 뒤에는 다시 막힌다', () => {
+  /**
+   * **고른 뒤에도 안 막힌다** (§10.5). 여기가 갇힘이 나던 자리다 — `manifest.taskType`이
+   * 파일에 남으므로 분류를 한 번 누르면 다시 열 수 없었다.
+   *
+   * **다른 단계는 그대로 유형을 본다.** 완화는 그 축을 **고르는 단계**에만 걸린다.
+   */
+  it('유형을 고른 뒤에도 학습 화면은 열려 있다', () => {
     const ready = facts({ datasetReady: true, featuresChosen: true })
-    expect(isStepUnlocked('train', ready, 'classification')).toBe(false)
-    expect(isStepUnlocked('train', ready, 'regression')).toBe(false)
+    expect(isStepUnlocked('train', ready, 'classification')).toBe(true)
+    expect(isStepUnlocked('train', ready, 'regression')).toBe(true)
+  })
+
+  it('완화는 유형을 고르는 단계에만 걸린다 - 전처리는 그대로 유형을 본다', () => {
+    const ready = facts({ datasetReady: true })
+    expect(stepBlockers('preprocess', ready, 'classification')).toEqual([])
+    // 전처리의 잠금 조건은 데이터뿐이라 유형과 무관하다. 완화가 새 문을 열지 않았다.
+    expect(stepBlockers('preprocess', facts({}), 'clustering')).toEqual(['datasetReady'])
   })
 
   /** 어느 유형도 면제하지 않는 사실은 유형이 없어도 그대로 막는다. */
@@ -625,9 +643,11 @@ describe('무엇이 이 단계를 막는가', () => {
    * **순서도 함께 못 박는다.** `requires`의 순서이고, 앞엣것이 지금 할 수 있는 일이다.
    */
   it('막는 사실을 전부, 순서대로 준다', () => {
+    // **`targetChosen`이 빠진 것이 맞다.** 학습 단계는 유형을 고르는 자리라 유형으로
+    // 자기를 안 잠그고(§10.5), 유형 미정의 규칙("한 유형이라도 면제하면 안 막는다")이
+    // 그대로 걸린다 — 군집이 타깃을 면제한다. 그 유형은 카드가 잠근다.
     expect(stepBlockers('train', NO_FACTS, 'classification', 'tabular')).toEqual([
       'datasetReady',
-      'targetChosen',
       'featuresChosen',
     ])
   })
