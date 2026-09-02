@@ -434,3 +434,57 @@ describe('모델 목록에 넘기는 선택 축', () => {
     )
   })
 })
+
+/**
+ * **떠나면 끊을 수 있어야 한다** (2026-09-02 R20 A-3).
+ *
+ * 백본 12.4MB를 받는 동안 학생이 화면을 떠나면, 손잡이가 없던 때는 아무도 안 듣는
+ * 내려받기가 계속 돌고 **끝나서는 닫힌 스토어에 옛 프로젝트를 앉혔다.** 화면이 끊으려면
+ * 준비가 **기다리기 시작하기 전에** 손잡이를 건네야 한다.
+ */
+describe('준비를 끊는 손잡이', () => {
+  /** 답하지 않는 워커. 끊지 않으면 이 약속은 영원히 안 끝난다. */
+  function silentWorker(): EmbedWorker {
+    return {
+      onmessage: null,
+      onerror: null,
+      onmessageerror: null,
+      postMessage() {},
+      terminate() {},
+    }
+  }
+
+  it('기다리기 전에 건네므로 그 사이에 떠난 화면도 끊을 수 있다', async () => {
+    let handle: { cancel: () => void } | null = null
+    const pending = trainingSourceOf({
+      project: imageProject(['a']),
+      taskType: 'clustering',
+      createEmbedWorker: silentWorker,
+      onHandle: (given) => {
+        handle = given
+      },
+    })
+    // **`await`을 한 번도 안 걸고 본다** — 기다린 뒤에 건네면 여기서 아직 `null`이다.
+    expect(handle).not.toBeNull()
+
+    handle!.cancel()
+    await expect(pending).rejects.toMatchObject({ code: 'JOB_CANCELLED' })
+  })
+
+  it('뽑을 것이 없으면 손잡이도 없다 - 워커를 안 띄우기 때문이다', async () => {
+    const project = imageProject(['a'])
+    const vectors = new Map(
+      readImages(project).map((entry) => [entry.hash, new Float32Array(DIM).fill(1)]),
+    )
+    let called = false
+    await trainingSourceOf({
+      project: addEmbeddings(project, BACKBONE.id, vectors),
+      taskType: 'clustering',
+      createEmbedWorker: silentWorker,
+      onHandle: () => {
+        called = true
+      },
+    })
+    expect(called).toBe(false)
+  })
+})

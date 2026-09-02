@@ -14,7 +14,7 @@ import { ClientError } from '@/errors'
 import { limitsOff } from '@/limits-switch'
 import type { EngineState, RuntimeContext } from '@/ml/backend'
 import { backboneFor } from '@/ml/backbones'
-import { embedImages, type EmbedWorker } from '@/ml/embed/client'
+import { embedImages, type EmbedHandle, type EmbedWorker } from '@/ml/embed/client'
 import { spawnEmbedWorker } from '@/ml/embed/spawn'
 import { imageTestDataset, imageTrainingSource, pendingEmbeddings } from '@/ml/images'
 import type { Dataset } from '@/ml/preprocess'
@@ -76,6 +76,12 @@ export interface TrainingSourceInput {
    * (`ml/embed/spawn.ts`).
    */
   readonly createEmbedWorker?: () => EmbedWorker
+  /**
+   * 도는 일감의 손잡이. **부르는 쪽이 끊을 수 있어야 한다** — 백본 12.4MB를 받는 동안
+   * 학생이 화면을 떠나면 아무도 안 듣는 내려받기가 계속 돈다 (2026-09-02 R20 A-3).
+   * 표에서는 안 불린다 — 기다릴 것이 없다.
+   */
+  readonly onHandle?: (handle: EmbedHandle) => void
 }
 
 /**
@@ -104,7 +110,7 @@ export const TRAINING_SOURCES: Readonly<
     }
   },
 
-  image: async ({ project, taskType, onPrepare, onProgress, createEmbedWorker }) => {
+  image: async ({ project, taskType, onPrepare, onProgress, createEmbedWorker, onHandle }) => {
     const { backboneId } = dataSettings('image', project.document.settings)
     const backbone = backboneFor(backboneId)
     // 등록부에 없는 백본을 가리키는 파일이다. 다시 뽑을 수도 없다.
@@ -132,7 +138,7 @@ export const TRAINING_SOURCES: Readonly<
     let filled = project
     let fresh = new Map<string, Float32Array>()
     if (pending.length > 0) {
-      const { vectors, dim } = await embedImages(
+      const handle = embedImages(
         backbone.id,
         // 워커가 디코드한다. 메인에서 하면 화면이 멈춘다 (ml/embed/protocol.ts).
         pending.map((entry) => entry.bytes as Uint8Array<ArrayBuffer>),
@@ -141,7 +147,11 @@ export const TRAINING_SOURCES: Readonly<
           ...(onPrepare ? { onState: onPrepare } : {}),
           ...(onProgress ? { onProgress } : {}),
         },
-      ).result
+      )
+      // **손잡이를 먼저 건넨다.** 기다리기 시작한 뒤에 주면 그 사이에 떠난 학생은
+      // 끊을 것을 못 잡는다.
+      onHandle?.(handle)
+      const { vectors, dim } = await handle.result
 
       // **벡터는 사진 순서대로 이어 붙은 하나의 배열이다** (ml/embed/protocol.ts).
       // 잘라서 해시에 다시 붙이는 자리가 여기이고, 순서가 어긋나면 **엉뚱한 사진의

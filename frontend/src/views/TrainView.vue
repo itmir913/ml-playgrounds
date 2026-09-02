@@ -14,7 +14,7 @@
  * 끝났다는 것과 [결과 보기]가 버튼 자리에 남는다.
  */
 
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter, type RouteLocationNormalized } from 'vue-router'
 
@@ -28,7 +28,7 @@ import StepHeader from '@/components/StepHeader.vue'
 import { useFormat } from '@/composables/useFormat'
 import { useTraining } from '@/composables/useTraining'
 import { summarizeColumns } from '@/data/columns'
-import { toMessage } from '@/errors'
+import { isClientError, toMessage } from '@/errors'
 import { algorithmOptions, supportedTaskTypes } from '@/ml/algorithms'
 import { calibrateDevice } from '@/ml/worker/client'
 import {
@@ -419,6 +419,36 @@ const preparing = ref<{
   fraction?: number
 } | null>(null)
 
+/**
+ * 도는 준비 일감의 손잡이. **떠날 때 끊는다** — 아무도 안 듣는 12.4MB 내려받기가 뒤에
+ * 남으면 안 된다 (이미지 판들이 굽기를 다루는 것과 같은 규칙이다).
+ */
+let preparingHandle: { cancel: () => void } | null = null
+
+/**
+ * 이 화면이 아직 살아 있는가. **긴 계산 뒤에 스토어를 만지기 전에 본다** — 떠난 뒤에
+ * 앉히면 닫힌 스토어가 되살아나거나 **다른 프로젝트 위에 옛 조각이 앉는다.**
+ */
+let alive = true
+
+onBeforeUnmount(() => {
+  alive = false
+  preparingHandle?.cancel()
+  preparingHandle = null
+})
+
+/**
+ * **이 화면이 지금 무엇을 돌리고 있는가.** 학습만이 아니라 **준비도 포함이다.**
+ *
+ * `training.running`만 보던 때는 준비 단계(이미지 백본 12.4MB를 받는 동안)에 축이 열려
+ * 있었고, 나가기도 안 막혔다. 학생이 그 사이에 모델을 빼면 준비가 끝나며 되돌아갔고,
+ * 나가면 닫힌 스토어에 옛 프로젝트가 되살아났다 (2026-09-02 R20 A-3).
+ * *"학습 중에 나가면 결과가 없다"*는 대화상자의 문장은 **준비 중에도 참이다.**
+ *
+ * `train-preparing.spec.ts`가 축·가드·잠금이 셋 다 이 신호를 보는지 지킨다.
+ */
+const working = computed(() => training.running.value || preparing.value !== null)
+
 /** 추가한 모델이 없으면 돌릴 것이 없다. 나머지 실패는 학습이 사유와 함께 돌려준다. */
 const nothingToTrain = computed(() => chosen.value.length === 0)
 
@@ -460,7 +490,14 @@ async function startTraining(): Promise<void> {
       onProgress: (completed, total) => {
         preparing.value = { state: 'ready', completed, total }
       },
+      onHandle: (handle) => {
+        preparingHandle = handle
+      },
     })
+    preparingHandle = null
+    // **떠났으면 아무것도 앉히지 않는다.** 여기까지 오는 데 12.4MB를 받는 시간이 걸리고,
+    // 그 사이 학생은 목록으로 나갔거나 다른 프로젝트를 열었을 수 있다 (R20 A-3).
+    if (!alive) return
 
     // **뽑은 임베딩을 먼저 앉힌다.** 학습이 실패해도 그건 이미 유효한 계산이고,
     // 버리면 다음 시도에서 백본을 다시 받는다 (mlpx-spec.md §1.3).
@@ -499,11 +536,16 @@ async function startTraining(): Promise<void> {
     // 약속한 것("끝난 것은 남습니다")을 여기서 확인해 주는 자리다.
     toasts.push('success', stopped ? 'train.stopped' : 'train.finished')
   } catch (error) {
+    // **끊은 것은 실패가 아니다.** 준비 중에 학생이 화면을 떠나면 우리가 워커를 끊고,
+    // 그 거절이 여기로 온다 — 학생이 스스로 한 일이라 알릴 것이 없다. 데이터 화면이
+    // 굽기 취소를 다루는 것과 같은 규칙이다 (`views/data/ImagePanel.vue`).
+    if (isClientError(error) && error.code === 'JOB_CANCELLED') return
     // 같은 실패를 알림과 상태 줄 둘 다에 보인다. 알림은 눈에 띄고 상태 줄은 남는다.
     failure.value = toMessage(error)
     toasts.pushError(error)
   } finally {
     preparing.value = null
+    preparingHandle = null
   }
 }
 
@@ -563,7 +605,7 @@ const leavingTo = ref<RouteLocationNormalized | null>(null)
 let leaving = false
 
 onBeforeRouteLeave((to) => {
-  if (leaving || !training.running.value) return true
+  if (leaving || !working.value) return true
   leavingTo.value = to
   return false
 })
@@ -753,8 +795,8 @@ function leave(): void {
       <div class="mt-4 grid gap-x-4 gap-y-5 md:grid-cols-3">
         <div
           class="min-w-0 transition-opacity md:col-span-2"
-          :class="training.running.value ? 'opacity-60' : ''"
-          :inert="training.running.value"
+          :class="working ? 'opacity-60' : ''"
+          :inert="working"
         >
           <ModelAxes
             :task-types="taskTypes"
