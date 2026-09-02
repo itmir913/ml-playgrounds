@@ -373,6 +373,25 @@ const hasPredictFile = computed(() => batch.value?.hasFile === true)
 const picking = computed(() => batch.value?.opened ?? null)
 
 /**
+ * 계산이 도는 중인가. **두 모드를 다 본다** — 값 모드는 `predicting`, 파일 모드는
+ * `BatchPredict`가 드는 `busy`·`computing`이다.
+ *
+ * **필터 잠금이 보는 것이 이것이다** (architecture.md §8.13.1). 파일 모드에서 이걸
+ * `predicting`으로만 두었더니 내려받는 중에 필터가 열려 있었다 — 내려받기는 쪽마다 그
+ * 순간의 모델 목록으로 답을 내고 열 이름은 끝에 한 번 세우므로, 도중에 목록이 바뀌면
+ * 앞쪽 행의 답이 다른 모델의 열 아래 앉는다. **오류도 알림도 없이 틀린 CSV가 나가고,
+ * 그 파일이 제출물이다** (2026-09-02 R20 A-1).
+ *
+ * **`fileBusy`와 다른 물건이다.** 저쪽은 판이 안 그려진 것(`!batch.value`)까지 "바쁨"으로
+ * 쳐서 바의 버튼을 끈다. 필터에 그것을 쓰면 **필터를 전부 끈 학생이 다시 못 켠다** —
+ * 판이 없어 필터가 잠기고, 필터가 잠겨 판이 안 돌아온다.
+ * `predict-filters.spec.ts`의 "계산이 도는 동안 필터가 잠긴다" 넷이 이 자리를 지킨다.
+ */
+const calculating = computed(
+  () => predicting.value || batch.value?.busy === true || batch.value?.computing === true,
+)
+
+/**
  * 지금 보이는(필터를 지난) 쓸 수 있는 모델에 같은 값을 넣는다.
  *
  * **한 모델의 실패가 나머지를 막지 않는다.** 학습에서 run 하나의 실패가 실험을 죽이지
@@ -618,7 +637,7 @@ async function run(): Promise<void> {
         :axes="axes"
         :filter="filter"
         :count="filterCount"
-        :disabled="predicting"
+        :disabled="calculating"
         @toggle="toggle"
         @toggle-all="toggleAll"
       />

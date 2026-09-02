@@ -12,11 +12,17 @@
  */
 
 import { mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { defineComponent, h, ref } from 'vue'
 
 import { i18n, setLocale } from '../src/i18n'
 import type { PredictFilter } from '../src/ml/predict'
+import type { ProjectFile } from '../src/project/format'
+import { useProjectStore } from '../src/stores/project'
 import PredictFilters, { type FilterAxis } from '../src/views/predict/PredictFilters.vue'
+import TabularPredictPanel from '../src/views/predict/TabularPredictPanel.vue'
+import { experiment, projectFileWithPredictDataset, run } from './fixtures/project'
 
 const ONE = [{ id: 'a', label: '1번째 실험' }]
 const TWO = [
@@ -127,5 +133,106 @@ describe('두 축은 각자의 상태를 본다', () => {
   it('칩의 눌림이 자기 축의 집합을 따라간다', () => {
     const pressed = chipsOf(asymmetric()).map((one) => one.attributes('aria-pressed'))
     expect(pressed).toEqual(['true', 'false', 'true', 'true'])
+  })
+})
+
+/**
+ * 잠금은 판이 조립한다 (`TabularPredictPanel`의 `calculating`). **여기서만 보인다** —
+ * 필터 컴포넌트는 `disabled`를 받아 쓸 뿐이고, 어느 상태를 넣을지는 판이 정한다.
+ *
+ * **파일 모드가 갈려 있었다** (2026-09-02 R20 A-1). 값 모드만 `predicting`을 켜므로
+ * 내려받는 중에 필터가 열려 있었고, 도중에 모델을 끄면 앞쪽 행은 옛 목록으로 계산된
+ * 답인데 열 이름은 새 목록으로 서서 **틀린 CSV가 조용히 나갔다.** 그 파일이 제출물이다.
+ *
+ * 셋째 검사가 짝이다 — 판이 안 그려졌을 때까지 잠그면 **필터를 전부 끈 학생이 다시 못
+ * 켠다.** `fileBusy`(바의 버튼용)를 그대로 쓰면 그렇게 된다.
+ */
+describe('계산이 도는 동안 필터가 잠긴다', () => {
+  const batch = { busy: ref(false), computing: ref(false) }
+
+  /** `BatchPredict` 대신 세우는 가짜. 판이 읽는 것은 노출된 넷뿐이다. */
+  const FakeBatch = defineComponent({
+    name: 'BatchPredict',
+    setup(_props, { expose }) {
+      expose({ busy: batch.busy, computing: batch.computing, opened: null, hasFile: false })
+      return () => h('div')
+    },
+  })
+
+  function twoModelProject(): ProjectFile {
+    const base = projectFileWithPredictDataset()
+    return {
+      ...base,
+      document: {
+        ...base.document,
+        runs: {
+          experiments: [
+            experiment('experiment-1', [
+              run('run-1', { algorithm: 'decision_tree' }),
+              run('run-2', { algorithm: 'logistic_regression' }),
+            ]),
+          ],
+        },
+      },
+      models: new Map([
+        ...base.models,
+        ['model/run-2.json', new TextEncoder().encode('{"tree":[]}')],
+      ]),
+    }
+  }
+
+  async function panelInFileMode() {
+    setActivePinia(createPinia())
+    const project = useProjectStore()
+    project.update(twoModelProject())
+
+    const wrapper = mount(TabularPredictPanel, {
+      global: { plugins: [i18n], stubs: { BatchPredict: FakeBatch } },
+    })
+    // [파일로 예측]을 고른다. 라디오 둘 중 뒤엣것이다.
+    const radios = wrapper.findAll('input[name="predict-input-mode"]')
+    await radios[1]?.trigger('change')
+    return wrapper
+  }
+
+  function lockedChips(wrapper: Awaited<ReturnType<typeof panelInFileMode>>): boolean[] {
+    const chips = wrapper.findAll('button[aria-pressed]')
+    expect(chips.length).toBeGreaterThan(0)
+    return chips.map((chip) => chip.attributes('disabled') !== undefined)
+  }
+
+  beforeEach(async () => {
+    batch.busy.value = false
+    batch.computing.value = false
+    await setLocale('ko')
+  })
+
+  it('파일 모드에서 아무것도 안 도는 동안에는 열려 있다', async () => {
+    const wrapper = await panelInFileMode()
+    expect(lockedChips(wrapper)).not.toContain(true)
+  })
+
+  it('내려받기가 도는 동안 잠긴다', async () => {
+    const wrapper = await panelInFileMode()
+    batch.computing.value = true
+    await wrapper.vm.$nextTick()
+    expect(lockedChips(wrapper)).not.toContain(false)
+  })
+
+  it('파일을 읽는 동안에도 잠긴다', async () => {
+    const wrapper = await panelInFileMode()
+    batch.busy.value = true
+    await wrapper.vm.$nextTick()
+    expect(lockedChips(wrapper)).not.toContain(false)
+  })
+
+  it('판이 안 그려졌으면 열려 있다 — 필터를 전부 끈 학생이 다시 켤 수 있어야 한다', async () => {
+    const wrapper = await panelInFileMode()
+    // [전체 해제]를 두 축 다 누르면 보이는 모델이 0이라 `BatchPredict`가 사라진다.
+    for (const button of wrapper.findAll('button')) {
+      if (button.text() === '전체 해제') await button.trigger('click')
+    }
+    expect(wrapper.findComponent(FakeBatch).exists()).toBe(false)
+    expect(lockedChips(wrapper)).not.toContain(true)
   })
 })
