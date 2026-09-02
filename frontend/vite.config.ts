@@ -1,3 +1,4 @@
+import { availableParallelism } from 'node:os'
 import { fileURLToPath, URL } from 'node:url'
 // vitest 설정을 같은 파일에 두기 위해 vite가 아니라 vitest/config에서 가져온다.
 import { defineConfig } from 'vitest/config'
@@ -109,6 +110,20 @@ export default defineConfig({
      * 그래서 그런 병은 값이 아니라 **표기**로 막는다 (`tests/spread-rules.spec.ts`).
      */
     pool: 'threads',
+    /**
+     * **스레드를 다 채우지 않는다** (2026-09-02 실측, 기준 기기: 논리 스레드 8·물리 코어 4·
+     * 가용 메모리 1.6GB). 전체 검사가 워커 8에서 83·84초, 7에서 71초, **6에서 69·72·78초**,
+     * 5에서 74초였다. 논리 스레드는 물리 코어의 두 배라 다 채우면 서로 밟고 — jsdom 환경을
+     * 세우는 누적 비용이 8일 때 212~246초, 6일 때 145~173초 — 워커마다 힙을 잡아 가용
+     * 메모리를 400MB대까지 밀어내 페이징이 난다. **실행마다 다른 검사가 5초 시간 초과로
+     * 서던 거짓 빨강의 원인이 그 페이징이었다.**
+     *
+     * 상수가 아니라 3/4인 이유: 최적이 8의 3/4였고, 그 비율이면 코어 2~4개짜리 CI 러너를
+     * 과다 배정하지 않는다(2 → 2, 4 → 3). **같은 날 잰 것 중 탈락한 것**: happy-dom(83초,
+     * 빠르지 않고 `size-meter` 셋이 깨진다) · 의존성 사전 번들링(80초, 차이 없음) ·
+     * `--no-isolate`(빠르지만 `vi.mock`이 파일 사이로 새어 실행마다 다르게 깨진다).
+     */
+    maxWorkers: Math.max(1, Math.ceil(availableParallelism() * 0.75)),
     environment: 'node',
     include: ['tests/**/*.spec.ts', 'src/**/*.spec.ts'],
   },
