@@ -43,10 +43,16 @@ function editable(target: EventTarget | null): boolean {
  * 사는 곳은 **굽기 전의 확인 판 한 줄**뿐이고, 유일하기만 하면 된다.
  *
  * **해시를 여기에 쓸 수는 없다** — 해시는 워커가 구운 뒤에 나오는데 이름은 그 전에 필요하다.
+ *
+ * **MIME 아래 종류가 곧 확장자는 아니다** (R24 C-3). `image/svg+xml`을 그대로 자르면
+ * `.svg+xml`이 된다 — 실제 클립보드는 `image.png`라 여기 안 닿는 갈래이지만, 이름이
+ * 확장자처럼 생겼는데 확장자가 아닌 것을 학생에게 보이지는 않는다. `+` 뒤는 표현 형식이라
+ * 떨어뜨리고, 종류가 아예 없으면 확장자를 안 붙인다.
  */
 function named(file: File, index: number): File {
   const dot = file.name.lastIndexOf('.')
-  const extension = dot > 0 ? file.name.slice(dot) : `.${file.type.slice('image/'.length)}`
+  const subtype = file.type.slice('image/'.length).split('+')[0] ?? ''
+  const extension = dot > 0 ? file.name.slice(dot) : subtype === '' ? '' : `.${subtype}`
   return new File([file], `pasted-${index}${extension}`, { type: file.type })
 }
 

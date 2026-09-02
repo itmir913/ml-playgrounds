@@ -336,6 +336,29 @@ describe('붙여넣기 리스너 자체는', () => {
     expect(taken.flat()).toEqual(['pasted-1.png', 'pasted-2.png'])
     wrapper.unmount()
   })
+
+  /**
+   * **MIME 아래 종류가 곧 확장자는 아니다** (R24 C-3). 이름 없는 파일에서 종류를 그대로
+   * 자르면 `.svg+xml`이 된다 — 확장자처럼 생겼는데 확장자가 아니다.
+   *
+   * 실제 클립보드는 `image.png`라 여기는 **닿기 어려운 갈래**이고, 이 이름이 사는 곳은
+   * 굽기 전의 확인 판 한 줄뿐이다. 그래도 화면에 나가는 글자다.
+   */
+  it('이름이 없으면 종류에서 확장자를 만든다 - `+` 뒤는 안 붙인다', async () => {
+    const { taken, wrapper } = listening()
+
+    window.dispatchEvent(
+      pasteEvent([
+        new File([new Uint8Array([1])], '', { type: 'image/svg+xml' }),
+        new File([new Uint8Array([2])], '', { type: 'image/webp' }),
+        new File([new Uint8Array([3])], '', { type: 'image/' }),
+      ]),
+    )
+    await flushPromises()
+
+    expect(taken.flat()).toEqual(['pasted-1.svg', 'pasted-2.webp', 'pasted-3'])
+    wrapper.unmount()
+  })
 })
 
 /**
