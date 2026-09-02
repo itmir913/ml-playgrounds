@@ -201,7 +201,7 @@ const featureSummary = computed(() => {
 
 function apply(next: ProjectDocument): void {
   const file = project.file
-  if (file) project.update({ ...file, document: next })
+  if (file) project.update((live) => ({ ...live, document: next }))
 }
 
 function now(): string {
@@ -502,12 +502,15 @@ async function applyTest(): Promise<void> {
   testBusy.value = true
   try {
     const imported = importTable(source.document, testSheetName.value)
-    const applied = applyTestDataset(file, imported, {
-      fileName: source.fileName,
-      hasHeader: testHasHeader.value,
-      now: new Date().toISOString(),
-    })
-    await project.save(applied.project)
+    // 읽는 동안 파일이 달라졌을 수 있다 — 지금 파일에 얹는다 (architecture.md §8.10.3).
+    await project.save(
+      (live) =>
+        applyTestDataset(live, imported, {
+          fileName: source.fileName,
+          hasHeader: testHasHeader.value,
+          now: new Date().toISOString(),
+        }).project,
+    )
 
     // 이 셋은 성공했을 때만이다 — 실패하면 고른 파일이 그대로 남아 있어야 다시 누른다.
     openedTest.value = null
@@ -545,8 +548,7 @@ async function removeTest(): Promise<void> {
 
   testBusy.value = true
   try {
-    const removed = removeTestDataset(file, new Date().toISOString())
-    await project.save(removed.project)
+    await project.save((live) => removeTestDataset(live, new Date().toISOString()).project)
     manualTestChoice.value = 'holdout'
   } catch (error) {
     toasts.pushError(error)

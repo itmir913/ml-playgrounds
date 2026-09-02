@@ -39,6 +39,18 @@ export interface TrainingSource {
    * 붙는다. 부르는 쪽이 이것을 저장해야 다음 학습에서 다시 안 뽑는다.
    */
   readonly project: ProjectFile
+  /**
+   * 이 준비가 **새로 뽑은** 임베딩. 없으면 뽑을 것이 없었다는 뜻이다.
+   *
+   * **조각으로 따로 준다** (architecture.md §8.10.3). 위의 `project`는 준비를 시작할
+   * 때의 파일에서 자란 것이라, 그것을 통째로 스토어에 앉히면 **백본을 받는 동안 학생이
+   * 한 편집이 사라진다** — 뺀 모델이 되살아나는 것을 R20 감사가 실측했다. 부르는 쪽은
+   * 이 조각을 지금 파일에 얹는다.
+   */
+  readonly embeddings?: {
+    readonly backboneId: string
+    readonly vectors: ReadonlyMap<string, Float32Array>
+  }
   readonly dataset: Dataset
   readonly testDataset: Dataset | null
   /** 계산에 쓰는 설정. 언제나 표의 모양이다 (open-decisions.md). */
@@ -118,6 +130,7 @@ export const TRAINING_SOURCES: Readonly<
     ]
 
     let filled = project
+    let fresh = new Map<string, Float32Array>()
     if (pending.length > 0) {
       const { vectors, dim } = await embedImages(
         backbone.id,
@@ -133,7 +146,7 @@ export const TRAINING_SOURCES: Readonly<
       // **벡터는 사진 순서대로 이어 붙은 하나의 배열이다** (ml/embed/protocol.ts).
       // 잘라서 해시에 다시 붙이는 자리가 여기이고, 순서가 어긋나면 **엉뚱한 사진의
       // 임베딩으로 학습하면서 아무 오류도 안 난다.**
-      const fresh = new Map<string, Float32Array>()
+      fresh = new Map<string, Float32Array>()
       for (const [index, entry] of pending.entries()) {
         fresh.set(entry.hash, vectors.slice(index * dim, (index + 1) * dim))
       }
@@ -144,6 +157,8 @@ export const TRAINING_SOURCES: Readonly<
     const source = imageTrainingSource(filled, known, backbone, taskType)
     return {
       project: filled,
+      // 뽑은 것이 없으면 얹을 것도 없다 — 그때는 이 칸이 아예 없다.
+      ...(fresh.size > 0 ? { embeddings: { backboneId: backbone.id, vectors: fresh } } : {}),
       dataset: source.dataset,
       // **훈련 표와 같은 열 이름을 쓴다** (ml/images.ts). `provided`가 아니면 `null`이고
       // 그때는 splitRows가 아예 보지 않는다 (open-decisions.md "테스트용 zip").

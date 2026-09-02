@@ -46,6 +46,7 @@ import type { EngineState, RuntimeContext } from '@/ml/backend'
 import { algorithmsLosingMeaning, requiredTargetKind, type ChosenModel } from '@/ml/selection'
 import { algorithmSelectionFor, runtimeContextFor, trainingSourceOf } from '@/ml/training-source'
 import { failedRuns } from '@/ml/results'
+import { addEmbeddings } from '@/project/embeddings'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
 import { applyExperiment } from '@/project/attach'
 import { dataKindFor, DEFAULT_DATA_TYPE } from '@/data/kinds'
@@ -286,7 +287,7 @@ const targetIssue = computed(() => {
 
 function apply(next: ProjectDocument): void {
   const file = project.file
-  if (file) project.update({ ...file, document: next })
+  if (file) project.update((live) => ({ ...live, document: next }))
 }
 
 function now(): string {
@@ -463,7 +464,14 @@ async function startTraining(): Promise<void> {
 
     // **뽑은 임베딩을 먼저 앉힌다.** 학습이 실패해도 그건 이미 유효한 계산이고,
     // 버리면 다음 시도에서 백본을 다시 받는다 (mlpx-spec.md §1.3).
-    if (source.project !== file) project.update(source.project)
+    //
+    // **조각으로 얹는다** (architecture.md §8.10.3). `source.project`를 통째로 앉히면
+    // 그건 [학습하기]를 누른 순간의 파일이라, 백본 12.4MB를 받는 동안 학생이 모델을
+    // 빼거나 설정을 고친 것이 되살아난다 (2026-09-02 R20 A-3).
+    const prepared = source.embeddings
+    if (prepared) {
+      project.update((live) => addEmbeddings(live, prepared.backboneId, prepared.vectors))
+    }
     preparing.value = null
 
     const result = await training.run({
@@ -486,7 +494,7 @@ async function startTraining(): Promise<void> {
     if (result === null) return
 
     // 학습하는 동안 학생이 다른 것을 고쳤을 수 있다. 그때의 파일이 아니라 지금 것에 앉힌다.
-    project.update(applyExperiment(project.file ?? source.project, result, now()))
+    project.update((live) => applyExperiment(live, result, now()))
     // **멈춘 것을 "끝났습니다"라고 부르지 않는다.** 학생이 스스로 누른 것이고, 모달이
     // 약속한 것("끝난 것은 남습니다")을 여기서 확인해 주는 자리다.
     toasts.push('success', stopped ? 'train.stopped' : 'train.finished')

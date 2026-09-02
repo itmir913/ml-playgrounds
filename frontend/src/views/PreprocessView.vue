@@ -75,7 +75,7 @@ const hasData = computed(() => {
 
 function apply(next: ProjectDocument): void {
   const file = project.file
-  if (file) project.update({ ...file, document: next })
+  if (file) project.update((live) => ({ ...live, document: next }))
 }
 
 function now(): string {

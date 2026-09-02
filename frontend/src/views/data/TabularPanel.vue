@@ -180,19 +180,24 @@ async function apply(): Promise<void> {
   busy.value = true
   try {
     const imported = importTable(source.document, sheetName.value)
-    const applied = applyDataset(file, imported, {
-      fileName: source.fileName,
-      hasHeader: hasHeader.value,
-      now: new Date().toISOString(),
+    // 읽는 동안 파일이 달라졌을 수 있다 — 지금 파일에 얹는다 (architecture.md §8.10.3).
+    let dropped: readonly string[] = []
+    await project.save((live) => {
+      const applied = applyDataset(live, imported, {
+        fileName: source.fileName,
+        hasHeader: hasHeader.value,
+        now: new Date().toISOString(),
+      })
+      dropped = applied.droppedColumns
+      return applied.project
     })
-    await project.save(applied.project)
 
     opened.value = null
     toasts.push('success', 'data.tabular.applied')
-    if (applied.droppedColumns.length > 0) {
+    if (dropped.length > 0) {
       // 조용히 사라지면 학생은 자기가 고른 열이 빠진 줄 모른다.
       toasts.push('caution', 'data.tabular.droppedColumns', {
-        names: applied.droppedColumns.join(', '),
+        names: dropped.join(', '),
       })
     }
   } catch (error) {

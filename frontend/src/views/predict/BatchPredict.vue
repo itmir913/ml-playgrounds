@@ -138,13 +138,16 @@ async function apply(): Promise<void> {
   busy.value = true
   try {
     const imported = importTable(source.document, sheetName.value)
-    const applied = applyPredictDataset(file, imported, {
-      fileName: source.fileName,
-      hasHeader: hasHeader.value,
-      now: new Date().toISOString(),
-      requiredColumns: props.fields.map((field) => field.name),
-    })
-    await project.save(applied.project)
+    // 읽는 동안 파일이 달라졌을 수 있다 — 지금 파일에 얹는다 (architecture.md §8.10.3).
+    await project.save(
+      (live) =>
+        applyPredictDataset(live, imported, {
+          fileName: source.fileName,
+          hasHeader: hasHeader.value,
+          now: new Date().toISOString(),
+          requiredColumns: props.fields.map((field) => field.name),
+        }).project,
+    )
 
     opened.value = null
     toasts.push('success', 'predict.tabular.fileApplied')
@@ -161,8 +164,7 @@ async function remove(): Promise<void> {
 
   busy.value = true
   try {
-    const removed = removePredictDataset(file, new Date().toISOString())
-    await project.save(removed.project)
+    await project.save((live) => removePredictDataset(live, new Date().toISOString()).project)
   } catch (error) {
     toasts.pushError(error)
   } finally {

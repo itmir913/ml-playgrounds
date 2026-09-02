@@ -82,7 +82,7 @@ async function exportFile(close: () => void): Promise<void> {
     )
 
     // 파일 이름이 인적사항으로 만들어져야 하므로 문서를 먼저 넣는다.
-    project.update({ ...file, document: exported.document })
+    project.update((live) => ({ ...live, document: exported.document }))
 
     const dropped = await project.exportFile(exported.markdown)
     close()

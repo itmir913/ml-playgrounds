@@ -2233,3 +2233,55 @@ describe('되보내는 부품은 같은 것을 보낸다', () => {
     expect(declarationOf('TemplateSourceMenu.vue')).toBe(list)
   })
 })
+
+/**
+ * **화면은 스토어에 함수로 쓴다** (architecture.md §8.10.3).
+ *
+ * 파일을 통째로 넘기면 그 값은 **부르는 쪽이 언제 읽었는지**에 달린다. 긴 비동기를 여는
+ * 함수는 시작할 때 `project.file`을 붙들고 끝에 그 스냅샷의 파생물을 쓰므로, 그 사이
+ * 학생이 한 일이 사라진다 — 예측이 도는 동안 놓은 사진, 백본을 받는 동안 뺀 모델
+ * (2026-09-02 R20 A-2·A-3에서 실측).
+ *
+ * **`await`를 건너는 자리만 고르지 않는다.** 그 판정은 사람이 해야 하고, 사람은 틀린다 —
+ * 이 저장소에서 실제로 **한 자리만 고쳐진 채 넷이 남아 있었다.** 모양을 하나로 두면
+ * 다섯째 자리가 생기는 날 그 자리도 안전하다.
+ *
+ * 동기 경로에서는 두 모양이 같은 값을 낸다. **그래서 이 규칙은 손해가 없다.**
+ */
+describe('화면은 스토어에 함수로 쓴다', () => {
+  const WRITE = /project\.(?:save|update)\(/g
+  /** `(live) => …`나 `live => …`로 시작하는가. 이름은 안 본다. */
+  const RECIPE = /^project\.(?:save|update)\(\s*(?:\([^()]*\)|[A-Za-z_$][\w$]*)\s*=>/
+
+  /** 파일 통째로 넘기는 자리들. **주석과 문자열이 아니라 코드만 본다.** */
+  function snapshotWrites(source: string): string[] {
+    const code = withoutComments(source).join('\n')
+    const found: string[] = []
+    for (const match of code.matchAll(WRITE)) {
+      const rest = code.slice(match.index)
+      if (!RECIPE.test(rest)) found.push(rest.slice(0, 60).split('\n')[0] ?? '')
+    }
+    return found
+  }
+
+  /**
+   * **검사기를 먼저 검사한다.** 정규식이 아무것도 안 잡으면서 초록인 것이 제일 나쁜
+   * 상태다 — 이 파일의 머리말이 그것을 말한다.
+   */
+  it('통째로 넘기는 모양을 실제로 잡는다', () => {
+    expect(snapshotWrites('await project.save(applied.project)')).toHaveLength(1)
+    expect(snapshotWrites('project.update({ ...file, document: next })')).toHaveLength(1)
+    // 함수로 넘긴 것은 안 잡는다 — 한 줄로도, 줄을 바꿔서도.
+    expect(snapshotWrites('await project.save((live) => addImages(live))')).toEqual([])
+    expect(snapshotWrites('project.update(\n  (live) => ({ ...live }),\n)')).toEqual([])
+    // 주석 안의 예문은 코드가 아니다.
+    expect(snapshotWrites('// project.save(applied.project)')).toEqual([])
+  })
+
+  it('화면과 부품 어디에도 통째로 넘기는 자리가 없다', () => {
+    const offenders = vueFiles(SRC).flatMap((path) =>
+      snapshotWrites(sourceOf(path)).map((line) => `${path}: ${line}`),
+    )
+    expect(offenders).toEqual([])
+  })
+})

@@ -117,11 +117,11 @@ function apply(next: Portfolio, revert?: () => void, bytes?: Map<string, Uint8Ar
   // 지난 차시로 남고, 목록이 updatedAt 인덱스로 정렬하므로 한 시간을 쓴 프로젝트가
   // 아무것도 안 한 프로젝트 아래로 가라앉는다 (V11 R5 A-1). 프로젝트를 고치는 다른
   // 열한 자리는 전부 찍는다 - 여기만 빠져 있었다.
-  project.update({
-    ...file,
+  project.update((live) => ({
+    ...live,
     attachments,
-    document: touch({ ...file.document, portfolio: next }, new Date().toISOString()),
-  })
+    document: touch({ ...live.document, portfolio: next }, new Date().toISOString()),
+  }))
 }
 
 /** 문항 하나짜리 빈 양식. **코드가 만든다** - 파일도 연결도 필요 없다 (§8.3). */

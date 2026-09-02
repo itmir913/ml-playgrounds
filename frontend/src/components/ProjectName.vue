@@ -42,14 +42,14 @@ function commit(): void {
   const name = draft.value.trim()
   if (name === '' || name === project.name) return
 
-  project.update({
-    ...file,
+  project.update((live) => ({
+    ...live,
     document: withIdentity(
-      file.document,
-      { ...identityOf(file.document.manifest), name },
+      live.document,
+      { ...identityOf(live.document.manifest), name },
       new Date().toISOString(),
     ),
-  })
+  }))
 }
 
 function cancel(): void {

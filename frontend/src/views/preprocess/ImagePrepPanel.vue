@@ -275,26 +275,31 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
     ).result
 
     const byPath = new Map(items.map((item) => [item.path, item.category]))
-    const applied = applyTestImages(
-      file,
-      baked.images.map((image) => ({
-        hash: image.hash,
-        bytes: image.bytes,
-        category: byPath.get(image.sourceName) ?? IMAGE_UNLABELED,
-      })),
-      {
-        canonicalSize: backbone.canonicalSize,
-        now: new Date().toISOString(),
-        format: baked.format,
-      },
-    )
-    await project.save(applied.project)
+    // **굽는 동안 파일이 달라졌을 수 있다** — 지금 파일에 얹는다 (architecture.md §8.10.3).
+    let counts = { added: 0, droppedExperiments: 0 }
+    await project.save((live) => {
+      const applied = applyTestImages(
+        live,
+        baked.images.map((image) => ({
+          hash: image.hash,
+          bytes: image.bytes,
+          category: byPath.get(image.sourceName) ?? IMAGE_UNLABELED,
+        })),
+        {
+          canonicalSize: backbone.canonicalSize,
+          now: new Date().toISOString(),
+          format: baked.format,
+        },
+      )
+      counts = { added: applied.added, droppedExperiments: applied.droppedExperiments }
+      return applied.project
+    })
 
-    toasts.push('success', 'preprocess.testImagesAdded', { count: applied.added })
+    toasts.push('success', 'preprocess.testImagesAdded', { count: counts.added })
     // **조용히 지우지 않는다.** 테스트 데이터가 바뀌면 그 위의 점수는 다른 것을 잰 값이다.
-    if (applied.droppedExperiments > 0) {
+    if (counts.droppedExperiments > 0) {
       toasts.push('caution', 'preprocess.testImagesDropped', {
-        count: applied.droppedExperiments,
+        count: counts.droppedExperiments,
       })
     }
     if (baked.skipped.length > 0) {
@@ -376,7 +381,7 @@ async function removeTest(): Promise<void> {
 
   busy.value = true
   try {
-    await project.save(clearTestImages(file, new Date().toISOString()))
+    await project.save((live) => clearTestImages(live, new Date().toISOString()))
     manualTestChoice.value = 'holdout'
   } catch (error) {
     toasts.pushError(error)
@@ -395,14 +400,14 @@ function onStratify(event: Event): void {
   const input = event.target as HTMLInputElement
   const file = project.file
   if (file) {
-    project.update({
-      ...file,
+    project.update((live) => ({
+      ...live,
       document: withSplit(
-        file.document,
-        { stratify: !file.document.settings.split.stratify },
+        live.document,
+        { stratify: !live.document.settings.split.stratify },
         new Date().toISOString(),
       ),
-    })
+    }))
   }
   input.checked = project.file?.document.settings.split.stratify ?? false
 }

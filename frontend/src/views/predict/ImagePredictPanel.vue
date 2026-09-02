@@ -281,22 +281,26 @@ async function readPicked(files: readonly File[]): Promise<void> {
     running.value = baking
     const baked = await baking.result
 
-    const applied = addImages(
-      file,
-      // **라벨이 없다.** 답을 모르는 사진이라 범주에 넣을 수가 없다 (mlpx-spec.md §1.2).
-      baked.images.map((image) => ({
-        hash: image.hash,
-        bytes: image.bytes,
-        category: IMAGE_UNLABELED,
-      })),
-      {
-        canonicalSize: spec.canonicalSize,
-        now: new Date().toISOString(),
-        role: 'predict',
-        format: baked.format,
-      },
+    // **굽는 동안 예측이 돌았을 수 있다** — 그 임베딩을 안 잃으려면 붙든 파일이 아니라
+    // 지금 파일에 얹는다 (architecture.md §8.10.3, 2026-09-02 R20 A-2).
+    await project.save(
+      (live) =>
+        addImages(
+          live,
+          // **라벨이 없다.** 답을 모르는 사진이라 범주에 넣을 수가 없다 (mlpx-spec.md §1.2).
+          baked.images.map((image) => ({
+            hash: image.hash,
+            bytes: image.bytes,
+            category: IMAGE_UNLABELED,
+          })),
+          {
+            canonicalSize: spec.canonicalSize,
+            now: new Date().toISOString(),
+            role: 'predict',
+            format: baked.format,
+          },
+        ).project,
     )
-    await project.save(applied.project)
     if (baked.skipped.length > 0) {
       toasts.push('caution', 'data.image.skipped', { count: baked.skipped.length })
     }
@@ -371,9 +375,13 @@ async function run(): Promise<void> {
         fresh.set(entry.hash, vectors.slice(index * dim, (index + 1) * dim))
       }
       for (const [hash, vector] of fresh) known.set(hash, vector)
-      current = addEmbeddings(current, spec.id, fresh)
-      await project.save(current)
+      // **누른 순간의 파일이 아니라 지금 파일에 얹는다** (architecture.md §8.10.3).
+      // 임베딩을 기다리는 동안 학생이 사진을 놓았으면, 스냅샷을 통째로 쓰는 순간
+      // 그 사진이 화면에서도 IndexedDB에서도 사라진다 (2026-09-02 R20 A-2).
+      await project.save((live) => addEmbeddings(live, spec.id, fresh))
       if (!alive) return
+      // 아래 답 루프가 읽는 것도 지금 파일이어야 한다 — 모델 바이트와 훈련 행이 여기서 나온다.
+      current = project.file ?? current
     }
     progress.value = null
 
@@ -470,7 +478,7 @@ async function drop(hashes: readonly string[]): Promise<void> {
   if (!file || hashes.length === 0) return
   busy.value = true
   try {
-    await project.save(removeImages(file, hashes, new Date().toISOString(), 'predict'))
+    await project.save((live) => removeImages(live, hashes, new Date().toISOString(), 'predict'))
     const next = new Map(answers.value)
     for (const hash of hashes) next.delete(hash)
     answers.value = next
@@ -526,10 +534,14 @@ const canPredict = computed(
  * 굽는 동안이고 예측은 `predicting`을 켜므로, 예측이 도는 내내 이 버튼들이 열려 있었다
  * (2026-08-29 사용자 지적).
  *
- * **미관이 아니라 어긋남을 막는다.** 예측 중에 사진이 나가면 둘이 깨진다 - 임베딩 단계의
- * `project.save(current)`는 예측을 시작할 때의 스냅샷이라 **지운 사진을 되살리고**, 답
- * 루프는 삭제 전에 뜬 `next` 사본을 매 장 `answers`에 다시 써서 **지운 사진의 답을
- * 되돌려 놓는다.**
+ * **미관이 아니라 어긋남을 막는다.** 예측 중에 사진이 **나가면** 답 루프가 삭제 전에 뜬
+ * `next` 사본을 매 장 `answers`에 다시 써서 **지운 사진의 답을 되돌려 놓는다.**
+ *
+ * **막는 것은 지우기·옮기기까지다.** 판에 끌어다 놓는 길은 여기를 안 지나는데, **놓는
+ * 것은 이제 안전하다** — 쓰기가 지금 파일에 얹히므로 예측이 끝나도 그 사진이 남고
+ * (architecture.md §8.10.3), 답 루프는 시작할 때의 배열을 끝까지 돌고 답을 해시로
+ * 붙이므로 새 사진이 순서를 흔들지 않는다. **거절하지 않는 쪽을 골랐다** — 학생이 놓은
+ * 사진을 돌려보내는 것보다 받아서 지키는 것이 낫다 (2026-09-02 R20 A-2).
  *
  * 표 판은 이미 `predicting`으로 잠그고 있었다 - 이미지 판만 갈려 있었다.
  */

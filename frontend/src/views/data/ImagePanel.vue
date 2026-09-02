@@ -59,7 +59,7 @@ import {
   renameCategory,
 } from '@/project/images'
 import { dataSettings } from '@/project/schema'
-import { useProjectStore } from '@/stores/project'
+import { useProjectStore, type ProjectRevision } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import ImageGrid from './ImageGrid.vue'
 
@@ -249,27 +249,33 @@ async function bake(): Promise<void> {
 
   try {
     const result = await handle.result
-    const applied = addImages(
-      file,
-      // 워커는 이름으로만 대답한다. 그 이름이 곧 압축 파일 안의 경로라 범주를 되찾을 수 있다.
-      result.images.map((image) => ({
-        hash: image.hash,
-        bytes: image.bytes,
-        category: byPath.get(image.sourceName) ?? IMAGE_UNLABELED,
-      })),
-      {
-        canonicalSize: backbone.canonicalSize,
-        now: new Date().toISOString(),
-        format: result.format,
-      },
-    )
-    await project.save(applied.project)
+    // **굽는 동안 파일이 달라졌을 수 있다** — 붙든 것이 아니라 지금 파일에 얹는다
+    // (architecture.md §8.10.3). 셈은 얹은 결과에서 나오므로 여기서 받아 둔다.
+    let counts = { added: 0, duplicates: 0 }
+    await project.save((live) => {
+      const applied = addImages(
+        live,
+        // 워커는 이름으로만 대답한다. 그 이름이 곧 압축 파일 안의 경로라 범주를 되찾을 수 있다.
+        result.images.map((image) => ({
+          hash: image.hash,
+          bytes: image.bytes,
+          category: byPath.get(image.sourceName) ?? IMAGE_UNLABELED,
+        })),
+        {
+          canonicalSize: backbone.canonicalSize,
+          now: new Date().toISOString(),
+          format: result.format,
+        },
+      )
+      counts = { added: applied.added, duplicates: applied.duplicates }
+      return applied.project
+    })
     pending.value = null
 
-    toasts.push('success', 'data.image.added', { count: applied.added })
+    toasts.push('success', 'data.image.added', { count: counts.added })
     // **조용히 넘기지 않는다.** 40장을 올렸는데 12장만 늘어난 것을 학생은 고장으로 본다.
-    if (applied.duplicates > 0) {
-      toasts.push('info', 'data.image.duplicates', { count: applied.duplicates })
+    if (counts.duplicates > 0) {
+      toasts.push('info', 'data.image.duplicates', { count: counts.duplicates })
     }
     if (result.skipped.length > 0) {
       toasts.push('caution', 'data.image.skipped', { count: result.skipped.length })
@@ -285,10 +291,12 @@ async function bake(): Promise<void> {
   }
 }
 
-async function save(next: ReturnType<typeof moveImages>): Promise<void> {
+async function save(next: ProjectRevision): Promise<void> {
   busy.value = true
   try {
-    await project.save(next)
+    // 받은 것을 그대로 넘기지만 **모양은 지킨다** — 화면의 쓰기는 언제나 함수다
+    // (architecture.md §8.10.3, `ui-rules.spec.ts`의 "화면은 스토어에 함수로 쓴다").
+    await project.save((live) => next(live))
   } catch (error) {
     toasts.pushError(error)
   } finally {
@@ -335,14 +343,16 @@ function pickAll(category: string): void {
 async function moveSelected(to: string): Promise<void> {
   const file = project.file
   if (!file || selected.value.size === 0) return
-  await save(moveImages(file, [...selected.value], to, new Date().toISOString()))
+  const hashes = [...selected.value]
+  await save((live) => moveImages(live, hashes, to, new Date().toISOString()))
   selected.value = new Set()
 }
 
 async function deleteSelected(): Promise<void> {
   const file = project.file
   if (!file) return
-  await save(removeImages(file, [...selected.value], new Date().toISOString()))
+  const hashes = [...selected.value]
+  await save((live) => removeImages(live, hashes, new Date().toISOString()))
   selected.value = new Set()
   deleting.value = false
 }
@@ -371,10 +381,10 @@ async function commitName(): Promise<void> {
   const file = project.file
   if (!draft || !file || !canName.value) return
   const name = draft.value.trim()
-  await save(
+  await save((live) =>
     draft.mode === 'create'
-      ? addCategory(file, name, new Date().toISOString())
-      : renameCategory(file, draft.from, name, new Date().toISOString()),
+      ? addCategory(live, name, new Date().toISOString())
+      : renameCategory(live, draft.from, name, new Date().toISOString()),
   )
   naming.value = null
 }
@@ -383,7 +393,7 @@ async function commitRemoveCategory(): Promise<void> {
   const file = project.file
   const name = removingCategory.value
   if (!file || name === null) return
-  await save(removeCategory(file, name, new Date().toISOString()))
+  await save((live) => removeCategory(live, name, new Date().toISOString()))
   removingCategory.value = null
 }
 </script>
