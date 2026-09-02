@@ -809,6 +809,13 @@ function leave(): void {
       **다만 담은 목록은 예외다** (§8.17, 2026-08-07). 도는 동안 그 목록이 상태판이 되므로
       흐리게 하거나 접근성 트리에서 빼면 **정작 읽어야 할 때 못 읽는다.** 그래서 잠금은
       고르는 쪽(축)에만 걸고, 목록은 자기 안에서 손잡이와 [빼기]만 감춘다.
+
+      **감추는 신호는 축을 잠그는 신호와 같아야 한다.** `training.running`만 보던 때는
+      준비 단계(백본 12.4MB를 받는 십수 초)에 [제거]와 하이퍼파라미터가 **열려 있었다** —
+      실험은 [학습하기]를 누른 순간의 스냅샷으로 도는데 학생이 그 사이에 모델을 빼면
+      **학습은 옛 값으로 돌고 파일은 새 값을 보인다.** 재현 가능성이 생명인 도구에서
+      조용히 갈리는 자리다 (2026-09-02 R22 A-1). `train-preparing.spec.ts`가 축·가드·이
+      목록이 **셋 다 `working`을 보는지** 지킨다.
     -->
     <section class="min-w-0 rounded-panel border border-line bg-surface p-4">
       <h2 class="font-bold">{{ t('train.modelsTitle') }}</h2>
@@ -851,7 +858,7 @@ function leave(): void {
             :estimates="estimates"
             :started-at="training.startedAt.value"
             :now="training.now.value"
-            :running="training.running.value"
+            :running="working"
             @remove="removeModel"
             @set-param="setParam"
           />

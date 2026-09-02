@@ -42,6 +42,15 @@ function axesAttributes(code: string): string {
   return found?.[0] ?? ''
 }
 
+/**
+ * 담은 목록(`<ChosenModels>`)의 여는 태그. **`inert` 밖에 있는 형제라 자기 신호를 받는다** —
+ * 도는 동안 그 목록은 상태판이므로 통째로 잠그면 정작 읽어야 할 때 못 읽는다(§8.17).
+ */
+function chosenAttributes(code: string): string {
+  const found = /<ChosenModels[\s\S]*?\/?>/.exec(code)
+  return found?.[0] ?? ''
+}
+
 describe('준비 단계도 도는 것으로 친다', () => {
   it('신호 하나가 학습과 준비를 둘 다 본다', () => {
     const body = workingBody(CODE)
@@ -68,6 +77,19 @@ describe('준비 단계도 도는 것으로 친다', () => {
   })
 
   /**
+   * **담은 목록도 같은 신호를 본다** (2026-09-02 R22 A-1). `training.running`만 보던 때는
+   * 준비 중에 [제거]와 하이퍼파라미터가 **열려 있었다** — 축은 잠겼는데 그 옆 목록은
+   * 안 잠긴, 정확히 이 파일이 막으려는 "절반만 도는 것으로 침"이었다. 학습은 누른
+   * 순간의 스냅샷으로 도므로 그 사이의 편집은 **파일에만 남고 계산에는 안 실린다.**
+   */
+  it('담은 목록의 손잡이도 같은 신호를 본다', () => {
+    const attributes = chosenAttributes(CODE)
+    expect(attributes).not.toBe('')
+    expect(attributes).toContain(':running="working"')
+    expect(attributes).not.toContain('training.running')
+  })
+
+  /**
    * **검사기를 검사한다.** 위 셋은 정규식이 아무것도 못 찾아도 빈 문자열끼리 견주면
    * 통과할 수 있는 모양이라, 못 찾는 경우를 실패로 만들어 두었는지 여기서 확인한다.
    */
@@ -75,6 +97,7 @@ describe('준비 단계도 도는 것으로 친다', () => {
     expect(workingBody('아무것도 없는 소스')).toBe('')
     expect(leaveGuard('아무것도 없는 소스')).toBe('')
     expect(axesAttributes('아무것도 없는 소스')).toBe('')
+    expect(chosenAttributes('아무것도 없는 소스')).toBe('')
   })
 
   /**

@@ -29,9 +29,16 @@
  *
  * **`busy`는 `computed`라 쓸 수 없다.** 옛 모양(`busy.value = true`)은 검사가 아니라
  * 타입에서 선다 — 다음 사람이 되돌아가는 길을 막는 것은 이쪽이 확실하다.
+ *
+ * **그 말이 한동안 거짓이었다** (2026-09-02 R22 A-2). 돌려주는 타입이 `Ref<boolean>`이면
+ * `computed`를 담아도 **소비자가 받는 것은 쓸 수 있는 칸이다** — `busy.value = true`가
+ * 컴파일을 통과했고, 실행 시에는 Vue가 그 쓰기를 조용히 버렸다. 되돌아간 화면은
+ * **`busy`가 영영 거짓인 채 아무것도 안 우는** 상태가 된다. 그래서 `ComputedRef`다.
+ * 그 타입이 정말 서는지는 `tests/useWork.spec.ts`의 `@ts-expect-error`가 지킨다 —
+ * 쓰기가 다시 합법이 되면 그 지시자가 **쓸모없어져서** 컴파일이 깨진다.
  */
 
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, toRaw, type ComputedRef, type Ref } from 'vue'
 
 /** 끊을 수 있는 것. 워커 손잡이들이 이 모양이다. */
 export interface Cancellable {
@@ -72,10 +79,10 @@ export interface Job {
 
 /** 화면이 받는 것. */
 export interface Work {
-  /** 화면을 막는 일이 하나라도 도는가. */
-  busy: Ref<boolean>
+  /** 화면을 막는 일이 하나라도 도는가. **읽기 전용이다** — 위 머리말이 그 이유다. */
+  busy: ComputedRef<boolean>
   /** 보여줄 진행. **가장 나중에 시작한 일의 것이다** — 학생이 방금 한 일이 그것이다. */
-  progress: Ref<WorkProgress | null>
+  progress: ComputedRef<WorkProgress | null>
   start: (options?: StartOptions) => Job
   /** 도는 것을 전부 끊는다. 언마운트와 [취소]가 부른다. */
   cancelAll: () => void
@@ -148,7 +155,15 @@ export function useWork(): Work {
  *
  * 통째로 `null`을 쓰면 **그 사이에 학생이 새로 놓은 것이 함께 날아간다** — §8.10.3이
  * 스토어에서 고친 것과 같은 병이고 자리만 화면이다 (R21 A-1).
+ *
+ * **원본끼리 견준다.** `ref`는 값을 프록시로 감싸므로 든 것을 `slot.value`에서 읽었으면
+ * 양쪽이 같은 프록시라 그냥도 맞다. 하지만 **한쪽만 원본이면 조용히 어긋난다** —
+ * `toRaw`로 들거나 `shallowRef`로 바뀌는 날이 그날이고, 그때 이 함수는 아무것도 안
+ * 치우면서 아무 말도 안 한다. `toRaw`는 프록시가 아닌 것에는 그대로라 손해가 없다.
+ *
+ * **못 보는 것: 내용이 같은 다른 객체.** 이것은 동일성이지 같음이 아니다 — 새로 읽은
+ * 묶음이 우연히 같은 파일들이어도 그건 학생이 새로 놓은 것이므로 안 치우는 쪽이 맞다.
  */
 export function clearIfHeld<T>(slot: Ref<T | null>, held: T): void {
-  if (slot.value === held) slot.value = null
+  if (toRaw(slot.value) === toRaw(held)) slot.value = null
 }

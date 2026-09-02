@@ -204,6 +204,45 @@ describe('[학습하기]를 누르고 워커가 아직 아무 말도 안 했을 
 
     wrapper.unmount()
   })
+
+  /**
+   * **담은 목록도 그 창에서 닫힌다** (2026-09-02 R22 A-1).
+   *
+   * 축은 `inert`가 잠그지만 담은 목록은 그 밖의 형제라(§8.17) **자기 신호로 닫는다.**
+   * `training.running`을 보던 때는 백본 12.4MB를 받는 십수 초 동안 [제거]가 눌렸고,
+   * 학습은 [학습하기]를 누른 순간의 스냅샷으로 도므로 **뺀 모델이 그대로 학습됐다** —
+   * 파일에는 뺀 것으로 남고 결과에는 선다.
+   *
+   * **누르기 전에 열려 있는 것부터 잰다.** 처음부터 0개면 이 단언은 아무것도 안 지킨다.
+   */
+  it('담은 목록의 [제거]와 하이퍼파라미터도 닫힌다', async () => {
+    await saveProject(trainableImageProject())
+    const wrapper = mount(Host, { global: { plugins: [router, i18n] } })
+    await router.push(`/project/${PROJECT_ID}/train`)
+    await settle()
+
+    const removes = () => wrapper.findAll('button').filter((one) => one.text() === '제거')
+    const tunings = () => wrapper.findAll('details')
+    // 누르기 전에는 모델 둘의 [제거]와 조정 상자가 열려 있다.
+    expect(removes()).toHaveLength(2)
+    expect(tunings().length).toBeGreaterThan(0)
+
+    const start = wrapper.findAll('button').find((one) => one.text().includes('학습하기'))
+    await start?.trigger('click')
+    await settle()
+    expect(workerState.embed).toHaveLength(1)
+
+    // **워커는 아직 한 마디도 안 했다.** `preparing`은 거짓이고 `starting`만 참인 창이다.
+    expect(removes()).toHaveLength(0)
+    expect(tunings()).toHaveLength(0)
+
+    await router.push('/')
+    await settle()
+    const leave = wrapper.findAll('button').find((one) => one.text() === '나가고 학습 멈추기')
+    await leave?.trigger('click')
+    await settle()
+    wrapper.unmount()
+  })
 })
 
 describe('백본을 받는 동안 화면을 떠나면', SLOW, () => {
