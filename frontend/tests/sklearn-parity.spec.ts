@@ -476,7 +476,12 @@ for (const [name, entry] of Object.entries(document.datasets)) {
      */
     const neural = entry.sklearn.neural_network
     if (neural) {
-      it('neural_network — sklearn 분포 안이고 손실이 내려간다', () => {
+      /**
+       * **씨앗 다섯을 200에폭씩 돌린다 — 이 파일에서 가장 느린 검사다.** 격리하면 한 벌이
+       * 1초 남짓인데, 관문이 워커 여섯으로 돌리면 5초 기본 천장을 넘어 터졌다 (2026-09-03에
+       * 실제로 흔들렸다). **가짜 빨강이 진짜 빨강을 가린다.**
+       */
+      it('neural_network — sklearn 분포 안이고 손실이 내려간다', { timeout: 30_000 }, () => {
         expect(neural.seeds, `${name}: neural reference`).toBeDefined()
         expect(neural.accuracies, `${name}: neural accuracies`).toBeDefined()
         // **손잡이가 sklearn과 같은 모양인지 먼저 본다.** 픽스처가 다른 크기의 망을
