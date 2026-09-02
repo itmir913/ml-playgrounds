@@ -401,9 +401,10 @@ R15 A-1(그물이 앞 절반만 있던 상한 스위치)과 같은 모양이다.
    선다** — 조용히 틀리는 종류이고, 서명 계산 자체(`predictPageSignature`)만 물린다.
 2. **DOM↔파일 재동기** (architecture.md §8.15.1) — `onStratify` · `setSampleRows` ·
    `startSampling`. 라디오 그룹만 `radio-guard.spec.ts`가 물고 숫자 칸·체크박스는 사람이다.
-3. **잠금·버튼 상태 조립** — `photosLocked`(**예측 중 사진 삭제가 저장 스냅샷에 지운
-   사진을 되살리는 경합의 유일한 방어다** — `ImagePredictPanel.vue`의 주석이 경합을
-   정확히 적어 두고, 그 방어를 무는 검사는 없다) · `cannotRun` · 쪽 계산 다섯 판.
+3. **잠금·버튼 상태 조립** — `photosLocked`(**더 이상 유일한 방어가 아니다** — 그 경합은
+   2026-09-02 R20이 실측했고, 막는 것은 이제 스토어에 함수로 쓰는 모양이다
+   (architecture.md §8.10.3). `image-predict-race.spec.ts`가 잠금과 병합을 둘 다 문다) ·
+   `cannotRun` · 쪽 계산 다섯 판.
 4. **상태기계** — `TrainView`의 멈추기/나가기(`stopped`·`stopping`·`leaving` — V11 R4
    C-5의 고침이 무검사로 서 있다), 테스트 데이터 받기의 `manualTestChoice` 덮어쓰기.
 5. **표시 분기** — `featureSummary`의 네 상태, `previewEmptyKey`, `AnswerList.bars()`의
