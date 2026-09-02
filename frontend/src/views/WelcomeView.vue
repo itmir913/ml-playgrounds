@@ -35,6 +35,7 @@ import type { DataType } from '@/project/schema'
 import { readFileBytes } from '@/project/download'
 import { MLPX_EXTENSION, readProject } from '@/project/format'
 import { deleteProject, listProjects, saveProject, type ProjectSummary } from '@/project/storage'
+import { useWork } from '@/composables/useWork'
 import { useToastStore } from '@/stores/toasts'
 
 const { t, locale } = useI18n()
@@ -63,7 +64,8 @@ const summaries = ref<ProjectSummary[]>([])
  * 나타나면 그게 더 나쁘다.
  */
 const ready = ref(false)
-const busy = ref(false)
+/** 지금 이 화면에서 도는 일들 (architecture.md §8.10.4). */
+const { busy, start } = useWork()
 
 const creating = ref(false)
 const name = ref('')
@@ -135,7 +137,7 @@ function openProject(projectId: string): void {
 
 async function create(): Promise<void> {
   if (!canCreate.value) return
-  busy.value = true
+  const job = start()
   try {
     // **과제 유형은 여기서 정하지 않는다.** 표를 보기도 전에 분류인지 회귀인지 아는
     // 학생은 없다. 무엇을 예측할지 고르는 전처리 화면이 그 판단이 서는 자리다
@@ -156,7 +158,7 @@ async function create(): Promise<void> {
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    busy.value = false
+    job.done()
   }
 }
 
@@ -176,7 +178,7 @@ async function openFile(event: Event): Promise<void> {
   input.value = ''
   if (!picked || busy.value) return
 
-  busy.value = true
+  const job = start()
   try {
     const { project: opened, integrity } = await readProject(await readFileBytes(picked))
     await saveProject(opened)
@@ -188,14 +190,14 @@ async function openFile(event: Event): Promise<void> {
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    busy.value = false
+    job.done()
   }
 }
 
 async function remove(): Promise<void> {
   const target = removing.value
   if (!target || busy.value) return
-  busy.value = true
+  const job = start()
   try {
     await deleteProject(target.projectId)
     await refresh()
@@ -203,7 +205,7 @@ async function remove(): Promise<void> {
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    busy.value = false
+    job.done()
   }
 }
 

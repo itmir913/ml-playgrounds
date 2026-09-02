@@ -63,6 +63,7 @@ interface PanelInternals {
   run: () => Promise<void>
   onDrop: (event: Event) => void
   predicting: boolean
+  busy: boolean
 }
 
 beforeEach(async () => {
@@ -275,5 +276,157 @@ describe('임베딩을 기다리는 중에 화면을 떠나면', () => {
     await flushPromises()
 
     expect(project.file?.embeddings.size).toBe(0)
+  })
+})
+
+/**
+ * **굽기와 임베딩이 겹친 채 떠나면 둘 다 끊기는가** (architecture.md §8.10.4).
+ *
+ * R20이 예측 중 사진 놓기를 허용하면서 이 겹침이 생겼는데, 손잡이 칸은 하나로 남아
+ * 있었다 — **먼저 끝난 쪽이 남의 손잡이를 지운다.** R21 감사가 두 순서 모두에서 실측했다:
+ * 떠나도 끊긴 것은 굽기뿐이고, 아무도 안 듣는 백본 12.4MB 내려받기가 뒤에 남았다.
+ */
+describe('굽기와 임베딩이 겹친 채 화면을 떠나면', () => {
+  const late = (): File => new File([new Uint8Array([1, 2, 3])], 'late.jpg', { type: 'image/jpeg' })
+
+  it('예측 → 드롭 순서에서 둘 다 끊긴다', async () => {
+    const project = useProjectStore()
+    await project.save(imagePredictProject(['a']))
+    const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const panel = wrapper.vm as unknown as PanelInternals
+
+    const running = panel.run()
+    await tick()
+    await flushPromises()
+    expect(workerState.embed).toHaveLength(1)
+
+    workerState.holdBake = true
+    panel.onDrop(dropEvent([late()]))
+    await flushPromises()
+    await tick()
+    await flushPromises()
+    expect(workerState.baked).toBe(1)
+
+    wrapper.unmount()
+    await flushPromises()
+
+    expect(workerState.terminated).toEqual({ embed: 1, bake: 1 })
+
+    // 늦게 온 벡터는 닫힌 화면 뒤에 아무것도 안 앉힌다.
+    workerState.embed[0]?.deliver()
+    await running
+    await flushPromises()
+    expect(project.file?.embeddings.size ?? 0).toBe(0)
+  })
+
+  it('드롭 → 예측 순서에서, 굽기가 먼저 끝나도 임베딩이 끊긴다', async () => {
+    const project = useProjectStore()
+    await project.save(imagePredictProject(['a']))
+    const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const panel = wrapper.vm as unknown as PanelInternals
+
+    workerState.holdBake = true
+    panel.onDrop(dropEvent([late()]))
+    await flushPromises()
+    await tick()
+    await flushPromises()
+    expect(workerState.baked).toBe(1)
+
+    const running = panel.run()
+    await tick()
+    await flushPromises()
+    expect(workerState.embed).toHaveLength(1)
+
+    // **굽기가 먼저 끝난다** — 칸이 하나였을 때 이 `finally`가 임베딩의 손잡이를 지웠다.
+    workerState.bake[0]?.deliver()
+    for (let index = 0; index < 50 && panel.busy; index += 1) {
+      await flushPromises()
+      await tick()
+    }
+
+    wrapper.unmount()
+    await flushPromises()
+
+    expect(workerState.terminated.embed).toBe(1)
+    workerState.embed[0]?.deliver()
+    await running
+    await flushPromises()
+    expect(project.file?.embeddings.size ?? 0).toBe(0)
+  })
+})
+
+/**
+ * **굽는 동안 놓은 사진은 거절되고, 거절은 학생에게 말이 간다** (§8.10.4).
+ *
+ * 데이터 화면과 답이 갈리는 자리다. 거기는 확인 판이 있어 받아 두지만 여기는 받은 즉시
+ * 굽는데, 정본 워커를 둘 띄우는 것은 저사양 교실 PC라는 기준에 안 맞는다. **거절 자체는
+ * 결정이고, 말없이 거절하는 것이 결함이었다** (R21 B-3) — 학생은 사진을 놓았는데 아무
+ * 일도 안 일어난 것을 보고 고장으로 읽는다.
+ */
+describe('굽는 동안 사진을 더 놓으면', () => {
+  it('거절하되 그렇다고 말한다', async () => {
+    const project = useProjectStore()
+    await project.save(imagePredictProject(['a']))
+    const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const panel = wrapper.vm as unknown as PanelInternals
+
+    workerState.holdBake = true
+    panel.onDrop(
+      dropEvent([new File([new Uint8Array([1, 2, 3])], 'first.jpg', { type: 'image/jpeg' })]),
+    )
+    await flushPromises()
+    await tick()
+    await flushPromises()
+    expect(workerState.baked).toBe(1)
+
+    panel.onDrop(
+      dropEvent([new File([new Uint8Array([4, 5, 6])], 'second.jpg', { type: 'image/jpeg' })]),
+    )
+    await flushPromises()
+    await tick()
+    await flushPromises()
+
+    // 둘째 굽기는 안 열리고, **대신 말이 간다.**
+    expect(workerState.baked).toBe(1)
+    expect(useToastStore().items.map((one) => one.key)).toEqual(['predict.image.addWhileBusy'])
+
+    workerState.bake[0]?.deliver()
+    for (let index = 0; index < 50 && panel.busy; index += 1) {
+      await flushPromises()
+      await tick()
+    }
+    expect(readImages(project.file, 'predict')).toHaveLength(2)
+  })
+
+  it('받을 수 없는 동안에는 놓는 자리가 색을 안 바꾼다', async () => {
+    const project = useProjectStore()
+    await project.save(imagePredictProject([]))
+    const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const panel = wrapper.vm as unknown as PanelInternals
+
+    await wrapper.find('div').trigger('dragover')
+    expect(wrapper.find('.border-dashed').classes()).toContain('border-brand')
+
+    workerState.holdBake = true
+    panel.onDrop(
+      dropEvent([new File([new Uint8Array([1, 2, 3])], 'first.jpg', { type: 'image/jpeg' })]),
+    )
+    await flushPromises()
+    await tick()
+    await flushPromises()
+    expect(panel.busy).toBe(true)
+
+    await wrapper.find('div').trigger('dragover')
+    expect(wrapper.find('.border-dashed').classes()).not.toContain('border-brand')
+
+    workerState.bake[0]?.deliver()
+    for (let index = 0; index < 50 && panel.busy; index += 1) {
+      await flushPromises()
+      await tick()
+    }
   })
 })

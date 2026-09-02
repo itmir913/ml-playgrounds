@@ -22,6 +22,7 @@ import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { nameList } from '@/data/columns'
 import { importTable, openTable, TABULAR_ACCEPT, type TableDocument } from '@/data/table'
+import { clearIfHeld, useWork } from '@/composables/useWork'
 import { toCanonicalCsv } from '@/data/serialize'
 import { pageSizeOf, predictPageSize } from '@/limits-switch'
 import type { Prediction } from '@/ml/metrics'
@@ -80,14 +81,21 @@ const hasFile = computed(() => predictDataset.value !== null)
 
 const fileInput = shallowRef<HTMLInputElement | null>(null)
 const dragging = shallowRef(false)
-const busy = shallowRef(false)
+/**
+ * 지금 이 판에서 도는 일들 (architecture.md §8.10.4). **읽기와 붙이기·삭제가 겹친다** —
+ * 붙이는 동안 판에 새 파일을 끌어다 놓을 수 있고, 그때 `busy`가 칸 하나면 먼저 끝난
+ * 읽기가 **붙이는 중인 자물쇠를 연다.**
+ */
+const { busy, start } = useWork()
 /** 아직 확정하지 않은 파일. 확정하면 비운다 - 데이터 화면·테스트 데이터와 같은 모양이다. */
 const opened = shallowRef<{ document: TableDocument; fileName: string } | null>(null)
 const sheetName = shallowRef<string | undefined>(undefined)
 const hasHeader = shallowRef(true)
 
 async function readFile(file: File): Promise<void> {
-  busy.value = true
+  // **붙이는 중이어도 읽는다.** 읽은 것은 판에 설 뿐 프로젝트를 안 건드린다 — 잠금은
+  // 셈이 지키므로 여기서 잡아도 붙이는 중인 자물쇠가 열리지 않는다 (§8.10.4).
+  const job = start()
   try {
     const bytes = new Uint8Array(await file.arrayBuffer())
     const document = await openTable(bytes, file.name)
@@ -97,7 +105,7 @@ async function readFile(file: File): Promise<void> {
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    busy.value = false
+    job.done()
   }
 }
 
@@ -135,7 +143,7 @@ async function apply(): Promise<void> {
   const file = project.file
   if (!source || !file || busy.value) return
 
-  busy.value = true
+  const job = start()
   try {
     const imported = importTable(source.document, sheetName.value)
     // 읽는 동안 파일이 달라졌을 수 있다 — 지금 파일에 얹는다 (architecture.md §8.10.3).
@@ -149,12 +157,14 @@ async function apply(): Promise<void> {
         }).project,
     )
 
-    opened.value = null
+    // **내가 든 파일만 치운다.** 붙이는 동안 학생이 다른 파일을 놓았으면 그것은 판에
+    // 남아야 한다 (§8.10.4).
+    clearIfHeld(opened, source)
     toasts.push('success', 'predict.tabular.fileApplied')
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    busy.value = false
+    job.done()
   }
 }
 
@@ -162,13 +172,13 @@ async function remove(): Promise<void> {
   const file = project.file
   if (!file || busy.value) return
 
-  busy.value = true
+  const job = start()
   try {
     await project.save((live) => removePredictDataset(live, new Date().toISOString()).project)
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    busy.value = false
+    job.done()
   }
 }
 

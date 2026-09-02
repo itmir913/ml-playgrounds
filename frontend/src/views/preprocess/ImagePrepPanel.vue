@@ -12,7 +12,7 @@
  * **같은 함수**에 넘긴다.
  */
 
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
@@ -31,6 +31,7 @@ import { ClientError } from '@/errors'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { backboneFor } from '@/ml/backbones'
 import { useRadioGroupGuard } from '@/composables/useRadioGroupGuard'
+import { useWork } from '@/composables/useWork'
 import { splitsData, stratifyBlockFor, stratifyLocked } from '@/ml/selection'
 import { IMAGE_UNLABELED } from '@/project/format'
 import { dataSettings } from '@/project/schema'
@@ -231,7 +232,11 @@ const testReason = computed(() => {
   return block === null ? null : t(`client.${block.code}`, block.params ?? {})
 })
 
-const busy = ref(false)
+/** 지금 이 화면에서 도는 일들 (architecture.md §8.10.4). */
+const { busy, start, cancelAll } = useWork()
+
+// **떠나면 굽던 것을 끊는다.** 이미지 판들이 전부 같은 규칙이다.
+onBeforeUnmount(cancelAll)
 
 /**
  * 사진을 받는 자리가 잠겼는가. **템플릿에서 조립하지 않는다** (architecture.md §10) —
@@ -249,7 +254,7 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
   const file = project.file
   if (!file || busy.value || items.length === 0) return
 
-  busy.value = true
+  const job = start()
   try {
     const block = testZipBlockFor(
       categories.value,
@@ -269,10 +274,14 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
     const shortfall = await imageRoomShortfall(file, items.length, backbone)
     if (shortfall) throw new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall })
 
-    const baked = await canonicalizeImages(
+    // **손잡이를 버리지 않는다.** 버리면 학생이 굽는 도중에 다른 단계로 갔을 때 아무도
+    // 안 듣는 워커가 계속 돈다 — 저사양 교실 PC가 기준이다 (R21, §8.10.4).
+    const baking = canonicalizeImages(
       items.map((item) => item.file),
       { createWorker: spawnCanonicalizeWorker, size: backbone.canonicalSize },
-    ).result
+    )
+    job.hold(baking)
+    const baked = await baking.result
 
     const byPath = new Map(items.map((item) => [item.path, item.category]))
     // **굽는 동안 파일이 달라졌을 수 있다** — 지금 파일에 얹는다 (architecture.md §8.10.3).
@@ -308,7 +317,7 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    busy.value = false
+    job.done()
   }
 }
 
@@ -379,14 +388,14 @@ async function removeTest(): Promise<void> {
   const file = project.file
   if (!file) return
 
-  busy.value = true
+  const job = start()
   try {
     await project.save((live) => clearTestImages(live, new Date().toISOString()))
     manualTestChoice.value = 'holdout'
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    busy.value = false
+    job.done()
     // **창은 성공하든 실패하든 닫는다.** 이유는 `TabularPrepPanel`의 `applyTest`와 같다.
     testRemoving.value = false
   }

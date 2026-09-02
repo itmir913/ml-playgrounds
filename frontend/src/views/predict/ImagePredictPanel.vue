@@ -25,6 +25,7 @@ import { canonicalizeImages } from '@/data/image/client'
 import { useThumbnails } from '@/composables/useThumbnails'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
 import { IMAGE_ACCEPT, readImageFiles, readImageZip, ZIP_EXTENSION } from '@/data/image/upload'
+import { useWork } from '@/composables/useWork'
 import { ClientError, isClientError } from '@/errors'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { backboneFor } from '@/ml/backbones'
@@ -72,21 +73,22 @@ const project = useProjectStore()
 const toasts = useToastStore()
 
 const fileInput = ref<HTMLInputElement | null>(null)
-const busy = ref(false)
+
+/**
+ * 지금 이 화면에서 도는 일들 (architecture.md §8.10.4). **굽기와 임베딩이 겹친다** —
+ * 예측이 도는 동안 사진을 놓을 수 있게 한 뒤로(§8.10.3) 손잡이가 칸 하나면 **먼저 끝난
+ * 쪽이 남의 손잡이를 지우고**, 떠날 때 워커가 한쪽만 끊긴다 (R21 B-2).
+ *
+ * **예측은 화면을 막지 않는다** — 도는 중에도 사진은 더 받는다. 막는 것은 굽기와
+ * 사진 빼기이고, 예측 자체는 `predicting`이 말한다.
+ */
+const { busy, progress, start, cancelAll } = useWork()
 /** 사진을 끌고 판 위에 있는가. 빈 자리의 점선이 이걸 보고 색을 바꾼다. */
 const dragging = ref(false)
 const predicting = ref(false)
-/** 준비 진행. 백본을 받는 동안 화면이 할 말이 여기서 나온다. */
-const progress = ref<{ completed: number; total: number } | null>(null)
 
 /**
- * 지금 도는 워커의 손잡이. **끊을 수 있어야 한다** - 굽기와 임베딩이 차례로 도는 동안
- * 학생이 떠날 수 있고, 그때 아무도 안 듣는 워커가 남으면 안 된다.
- */
-const running = ref<{ cancel: () => void } | null>(null)
-
-/**
- * 아직 이 화면에 있는가. **`running`이 끊는 것은 임베딩 워커뿐이다** - 그 뒤의
+ * 아직 이 화면에 있는가. **끊기는 것은 워커뿐이다** - 그 뒤의
  * `사진 × 모델` 루프는 매 장 `yieldToScreen()`으로 비켜 줄 뿐 멈출 자리가 없어서,
  * 학생이 다른 단계로 넘어가도 아무도 안 보는 답을 끝까지 계산했다.
  *
@@ -239,9 +241,16 @@ function toggleAll(axis: FilterAxisId): void {
 async function readPicked(files: readonly File[]): Promise<void> {
   const file = project.file
   const spec = backbone.value
-  if (files.length === 0 || !file || !spec || busy.value) return
+  if (files.length === 0 || !file || !spec) return
+  // **굽는 중에는 받지 않는다 — 그리고 그렇다고 말한다.** 데이터 화면과 달리 여기는
+  // 확인 판이 없어 받은 즉시 굽는데, 정본 워커를 둘 띄우는 것은 저사양 교실 PC라는
+  // 기준에 안 맞는다. **말없이 돌려보내면 학생은 고장으로 읽는다** (R21 B-3).
+  if (busy.value) {
+    toasts.push('caution', 'predict.image.addWhileBusy')
+    return
+  }
 
-  busy.value = true
+  const job = start()
   try {
     const [only] = files
     const items =
@@ -264,7 +273,7 @@ async function readPicked(files: readonly File[]): Promise<void> {
     const shortfall = await imageRoomShortfall(file, items.length, spec)
     if (shortfall) throw new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall })
 
-    progress.value = { completed: 0, total: items.length }
+    job.report(0, items.length)
     // **핸들을 버리지 않는다.** 학생이 굽는 도중 다른 단계로 가면 아무도 안 듣는
     // 워커가 계속 돈다 - 저사양 교실 PC가 기준이라는 전제에서 그건 그냥 비용이다
     // (`views/data/ImagePanel.vue`가 같은 상황을 이미 이렇게 다룬다).
@@ -274,11 +283,11 @@ async function readPicked(files: readonly File[]): Promise<void> {
         createWorker: spawnCanonicalizeWorker,
         size: spec.canonicalSize,
         onProgress: (completed, total) => {
-          progress.value = { completed, total }
+          job.report(completed, total)
         },
       },
     )
-    running.value = baking
+    job.hold(baking)
     const baked = await baking.result
 
     // **굽는 동안 예측이 돌았을 수 있다** — 그 임베딩을 안 잃으려면 붙든 파일이 아니라
@@ -315,10 +324,9 @@ async function readPicked(files: readonly File[]): Promise<void> {
     if (isClientError(error) && error.code === 'JOB_CANCELLED') return
     toasts.pushError(error)
   } finally {
-    // 끝났으면 손잡이도 놓는다. 안 놓으면 다음 언마운트가 끝난 워커를 끊으려 든다.
-    running.value = null
-    progress.value = null
-    busy.value = false
+    // **내 몫만 놓는다.** 끝난 워커를 다음 언마운트가 끊으려 들지도, 겹쳐 도는 예측의
+    // 손잡이와 진행 표시를 지우지도 않는다 (§8.10.4).
+    job.done()
   }
 }
 
@@ -344,6 +352,9 @@ async function run(): Promise<void> {
   if (!file || !spec || predicting.value) return
 
   predicting.value = true
+  // **막지 않는 일이다.** 도는 동안에도 사진은 더 받는다(§8.10.3). 그래도 손잡이는
+  // 맡긴다 — 떠나면 12.4MB 내려받기가 함께 끊겨야 한다 (§8.10.4).
+  const job = start({ blocks: false })
   try {
     // **무엇을 하기 전에 한 번 양보한다** (`screen.ts`). 임베딩이 이미 있으면 아래가
     // 통째로 동기라, 여기서 안 비켜 주면 **단추가 한 번도 꺼진 적 없는 채로** 계산이
@@ -360,7 +371,7 @@ async function run(): Promise<void> {
     )
 
     if (pending.length > 0) {
-      progress.value = { completed: 0, total: pending.length }
+      job.report(0, pending.length)
       // 백본을 받는 중에 떠나도 워커가 끊긴다. 12.4MB짜리 내려받기가 뒤에 남으면 안 된다.
       const embedding = embedImages(
         spec.id,
@@ -368,11 +379,11 @@ async function run(): Promise<void> {
         {
           createWorker: spawnEmbedWorker,
           onProgress: (completed, total) => {
-            progress.value = { completed, total }
+            job.report(completed, total)
           },
         },
       )
-      running.value = embedding
+      job.hold(embedding)
       const { vectors, dim } = await embedding.result
       if (!alive) return
 
@@ -389,7 +400,8 @@ async function run(): Promise<void> {
       // 아래 답 루프가 읽는 것도 지금 파일이어야 한다 — 모델 바이트와 훈련 행이 여기서 나온다.
       current = project.file ?? current
     }
-    progress.value = null
+    // 여기서부터는 답 루프라 셀 것이 없다. **진행 표시만 거둔다** — 일은 계속 돈다.
+    job.clear()
 
     // 예측할 사진들의 표. 학습과 같은 열 이름을 쓴다 — 좌표계가 갈릴 자리가 없다.
     // **벡터가 없는 사진은 답을 안 낸다** — `table.missing`이 그것을 들고 있다.
@@ -469,8 +481,7 @@ async function run(): Promise<void> {
       toasts.pushError(error)
     }
   } finally {
-    running.value = null
-    progress.value = null
+    job.done()
     predicting.value = false
   }
 }
@@ -482,7 +493,7 @@ const clearing = ref(false)
 async function drop(hashes: readonly string[]): Promise<void> {
   const file = project.file
   if (!file || hashes.length === 0) return
-  busy.value = true
+  const job = start()
   try {
     await project.save((live) => removeImages(live, hashes, new Date().toISOString(), 'predict'))
     const next = new Map(answers.value)
@@ -491,7 +502,7 @@ async function drop(hashes: readonly string[]): Promise<void> {
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    busy.value = false
+    job.done()
     clearing.value = false
   }
 }
@@ -527,8 +538,8 @@ onBeforeUnmount(() => {
   // **워커를 끊는 것만으로는 절반이다** - 임베딩 뒤의 답 루프는 워커가 아니라 이
   // 함수 안에서 돌기 때문에 `alive`를 봐야 멈춘다.
   alive = false
-  running.value?.cancel()
-  running.value = null
+  // **도는 것을 전부 끊는다.** 굽기와 임베딩이 겹쳐 있으면 둘 다다 (§8.10.4).
+  cancelAll()
 })
 
 const canPredict = computed(
@@ -552,6 +563,12 @@ const canPredict = computed(
  * 표 판은 이미 `predicting`으로 잠그고 있었다 - 이미지 판만 갈려 있었다.
  */
 const photosLocked = computed(() => busy.value || predicting.value)
+
+/**
+ * 끌고 온 것을 지금 받을 수 있는가. **굽는 중에는 자리가 색을 안 바꾼다** — 받지 못할
+ * 것을 받을 것처럼 보이면 학생은 놓고 나서야 안 된다는 말을 듣는다 (R21 B-3).
+ */
+const inviting = computed(() => dragging.value && !busy.value)
 
 /**
  * 필터 칸을 보이는가. 각 축이 둘 이상일 때만 그 축을 그리는 판정은 `PredictFilters`가
@@ -652,7 +669,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
     <div
       v-if="photos.length === 0"
       class="grid min-h-0 flex-1 place-items-center rounded-panel border-2 border-dashed transition-colors"
-      :class="dragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
+      :class="inviting ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
     >
       <AppEmpty :reason="t('predict.image.emptyReason')" :next="t('predict.image.emptyNext')">
         <AppButton size="lg" :disabled="busy" @click="fileInput?.click()">

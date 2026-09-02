@@ -30,6 +30,7 @@ import AppTable from '@/components/AppTable.vue'
 import StepActionBar from '@/components/StepActionBar.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
+import { clearIfHeld, useWork } from '@/composables/useWork'
 import { summarizeColumns, toDataset, type ColumnSummary } from '@/data/columns'
 import {
   importTable,
@@ -60,7 +61,13 @@ const toasts = useToastStore()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const dragging = ref(false)
-const busy = ref(false)
+
+/**
+ * 지금 이 화면에서 도는 일들 (architecture.md §8.10.4). **읽기와 확정이 겹친다** —
+ * 확정하는 동안 판에 새 파일을 끌어다 놓을 수 있고, 그때 `busy`가 칸 하나면 먼저 끝난
+ * 읽기가 **확정 중인 자물쇠를 연다.**
+ */
+const { busy, start } = useWork()
 
 /** 아직 확정하지 않은 파일. 확정하면 비운다. */
 const opened = ref<{ document: TableDocument; fileName: string } | null>(null)
@@ -131,7 +138,9 @@ const previewCaption = computed<{ key: string; count: number } | null>(() => {
 })
 
 async function readFile(file: File): Promise<void> {
-  busy.value = true
+  // **확정 중이어도 읽는다.** 읽은 것은 판에 설 뿐 프로젝트를 안 건드린다 — 잠금은
+  // 셈이 지키므로 여기서 잡아도 확정 중인 자물쇠가 열리지 않는다 (§8.10.4).
+  const job = start()
   try {
     const bytes = new Uint8Array(await file.arrayBuffer())
     const document = await openTable(bytes, file.name)
@@ -141,7 +150,7 @@ async function readFile(file: File): Promise<void> {
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    busy.value = false
+    job.done()
   }
 }
 
@@ -177,7 +186,7 @@ async function apply(): Promise<void> {
   const file = project.file
   if (!source || !file || busy.value) return
 
-  busy.value = true
+  const job = start()
   try {
     const imported = importTable(source.document, sheetName.value)
     // 읽는 동안 파일이 달라졌을 수 있다 — 지금 파일에 얹는다 (architecture.md §8.10.3).
@@ -192,7 +201,9 @@ async function apply(): Promise<void> {
       return applied.project
     })
 
-    opened.value = null
+    // **내가 든 파일만 치운다.** 확정하는 동안 학생이 다른 파일을 놓았으면 그것은 판에
+    // 남아야 한다 (§8.10.4).
+    clearIfHeld(opened, source)
     toasts.push('success', 'data.tabular.applied')
     if (dropped.length > 0) {
       // 조용히 사라지면 학생은 자기가 고른 열이 빠진 줄 모른다.
@@ -203,7 +214,7 @@ async function apply(): Promise<void> {
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    busy.value = false
+    job.done()
     /**
      * **창은 성공하든 실패하든 닫는다.** 닫는 줄이 `try` 안에 있으면, 실패했을 때
      * "실험 N개가 사라집니다"라고 적힌 경고창이 열린 채로 남고 그 아래에 실패 토스트가

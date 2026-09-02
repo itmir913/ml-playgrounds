@@ -1,0 +1,192 @@
+// @vitest-environment jsdom
+/**
+ * **데이터 화면에서 굽는 동안 사진을 더 놓으면** 무슨 일이 나는가 (architecture.md §8.10.4).
+ *
+ * R21 감사가 실측한 A급이 여기 있었다 — 둘째 묶음이 확인 판에 섰다가 첫 굽기가 끝나며
+ * **말없이 사라지고**, 그 사이 `busy`까지 풀려 굽는 중인데 [이 사진 사용]과 삭제·이동이
+ * 전부 열렸다. 학생은 판에 선 것을 보고 있다가 잃는다.
+ *
+ * **띄워서 본다.** 굽기가 끝나는 시점을 검사가 정해야 겹치는 창이 생긴다
+ * (`tests/fixtures/image-workers.ts`).
+ */
+
+import 'fake-indexeddb/auto'
+
+import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { i18n, setLocale } from '../src/i18n'
+import type { ProjectFile } from '../src/project/format'
+import { readImages } from '../src/project/images'
+import { closeStorage, DB_NAME } from '../src/project/storage'
+import { useProjectStore } from '../src/stores/project'
+import { useToastStore } from '../src/stores/toasts'
+import ImagePanel from '../src/views/data/ImagePanel.vue'
+import {
+  dropEvent,
+  imagePredictProject,
+  resetImageWorkers,
+  stubDialogElement,
+  workerState,
+} from './fixtures/image-workers'
+
+vi.mock('../src/data/image/spawn', async () => {
+  const { fakeCanonicalizeWorker } = await import('./fixtures/image-workers')
+  return { spawnCanonicalizeWorker: fakeCanonicalizeWorker }
+})
+
+// 자리 판정은 이 검사의 주제가 아니다. 없으면 `navigator.storage`가 답을 못 한다.
+vi.mock('../src/data/image/room', () => ({ imageRoomShortfall: async () => null }))
+
+/** 매크로태스크 한 번. `readImageFiles`가 파일을 읽는 동안 비켜 준다. */
+const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
+
+async function settle(): Promise<void> {
+  await flushPromises()
+  await tick()
+  await flushPromises()
+}
+
+async function deleteDatabase(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const request = indexedDB.deleteDatabase(DB_NAME)
+    request.onsuccess = () => resolve()
+    request.onerror = () => resolve()
+    request.onblocked = () => resolve()
+  })
+}
+
+/** 화면 안쪽. **띄운 판에 직접 묻는다** — 드롭과 굽기의 순서를 검사가 정해야 해서다. */
+interface PanelInternals {
+  bake: () => Promise<void>
+  onDrop: (event: Event) => void
+  cancelBaking: () => void
+  busy: boolean
+  pending: readonly { path: string }[] | null
+}
+
+const file = (name: string): File =>
+  new File([new Uint8Array([1, 2, 3])], name, { type: 'image/jpeg' })
+
+const renamed =
+  (name: string) =>
+  (current: ProjectFile): ProjectFile => ({
+    ...current,
+    document: {
+      ...current.document,
+      manifest: { ...current.document.manifest, name },
+    },
+  })
+
+beforeEach(async () => {
+  setActivePinia(createPinia())
+  resetImageWorkers()
+  closeStorage()
+  await deleteDatabase()
+  Object.defineProperty(navigator, 'storage', {
+    configurable: true,
+    value: { estimate: () => Promise.resolve({ quota: 10_000_000_000, usage: 0 }) },
+  })
+  stubDialogElement()
+  URL.createObjectURL = () => 'blob:fake'
+  URL.revokeObjectURL = () => {}
+  await setLocale('ko')
+})
+
+afterEach(async () => {
+  Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
+  closeStorage()
+  await deleteDatabase()
+})
+
+/** 사진 없는 이미지 프로젝트를 띄우고, `a.jpg`를 확인 판에 세운 뒤 굽기를 열어 둔다. */
+async function panelBaking() {
+  const project = useProjectStore()
+  await project.save(imagePredictProject([]))
+  const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+  await flushPromises()
+  const panel = wrapper.vm as unknown as PanelInternals
+
+  panel.onDrop(dropEvent([file('a.jpg')]))
+  await settle()
+  expect(panel.pending?.map((one) => one.path)).toEqual(['a.jpg'])
+
+  workerState.holdBake = true
+  const baking = panel.bake()
+  await flushPromises()
+  expect(workerState.baked).toBe(1)
+  expect(panel.busy).toBe(true)
+
+  return { project, wrapper, panel, baking }
+}
+
+describe('굽는 동안 사진을 더 놓으면', () => {
+  it('굽는 중인 자물쇠가 안 풀린다', async () => {
+    const { panel, wrapper, baking } = await panelBaking()
+
+    panel.onDrop(dropEvent([file('b.jpg')]))
+    await settle()
+
+    // **읽기가 끝나도 굽기는 돈다.** `busy`가 칸 하나였을 때 여기서 풀렸다.
+    expect(panel.busy).toBe(true)
+    const use = wrapper.findAll('button').find((one) => one.text() === '이 사진 사용')
+    expect(use?.attributes('disabled')).toBeDefined()
+
+    workerState.bake[0]?.deliver()
+    await baking
+    await settle()
+    expect(panel.busy).toBe(false)
+  })
+
+  it('둘째 묶음이 확인 판에 남는다', async () => {
+    const { project, panel, baking } = await panelBaking()
+
+    panel.onDrop(dropEvent([file('b.jpg')]))
+    await settle()
+    expect(panel.pending?.map((one) => one.path)).toEqual(['b.jpg'])
+
+    workerState.bake[0]?.deliver()
+    await baking
+    await settle()
+
+    // 구운 것은 들어가고, **놓은 것은 판에 그대로 서 있다.**
+    expect(readImages(project.file)).toHaveLength(1)
+    expect(panel.pending?.map((one) => one.path)).toEqual(['b.jpg'])
+    expect(useToastStore().items.map((one) => one.key)).toContain('data.image.added')
+  })
+
+  it('굽기를 취소해도 새로 놓은 묶음은 남는다', async () => {
+    const { project, panel, baking } = await panelBaking()
+
+    panel.onDrop(dropEvent([file('b.jpg')]))
+    await settle()
+
+    panel.cancelBaking()
+    await baking
+    await settle()
+
+    // 취소는 학생이 누른 것이라 실패로 말하지 않는다. 지워지는 것은 **굽던 묶음뿐이다.**
+    expect(readImages(project.file)).toHaveLength(0)
+    expect(panel.pending?.map((one) => one.path)).toEqual(['b.jpg'])
+    expect(useToastStore().items.filter((one) => one.tone === 'danger')).toEqual([])
+  })
+})
+
+describe('굽기가 끝나 사진을 앉힐 때', () => {
+  it('붙든 파일이 아니라 지금 파일에 얹는다', async () => {
+    const { project, panel, baking } = await panelBaking()
+
+    // 굽는 동안 프로젝트가 달라진다 — 다른 화면의 편집이나 자동 저장이 이 자리다.
+    await project.save(renamed('학생이 굽는 동안 바꾼 이름'))
+
+    workerState.bake[0]?.deliver()
+    await baking
+    await settle()
+
+    expect(readImages(project.file)).toHaveLength(1)
+    // 스냅샷을 통째로 쓰면 이 이름이 되돌아간다 (architecture.md §8.10.3).
+    expect(project.name).toBe('학생이 굽는 동안 바꾼 이름')
+    expect(panel.busy).toBe(false)
+  })
+})

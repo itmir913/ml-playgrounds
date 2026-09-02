@@ -29,8 +29,9 @@ import StepActionBar from '@/components/StepActionBar.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { isValidCategoryName } from '@/data/image/canonical'
-import { canonicalizeImages, type CanonicalizeHandle } from '@/data/image/client'
+import { canonicalizeImages } from '@/data/image/client'
 import { useThumbnails } from '@/composables/useThumbnails'
+import { clearIfHeld, useWork } from '@/composables/useWork'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
 import {
   readImageFiles,
@@ -39,7 +40,7 @@ import {
   type UploadItem,
   ZIP_EXTENSION,
 } from '@/data/image/upload'
-import { ClientError } from '@/errors'
+import { ClientError, isClientError } from '@/errors'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { MAX_CATEGORY_NAME_LENGTH } from '@/limits'
 import { backboneFor, type BackboneSpec } from '@/ml/backbones'
@@ -84,7 +85,13 @@ const toasts = useToastStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const folderInput = ref<HTMLInputElement | null>(null)
 const dragging = ref(false)
-const busy = ref(false)
+
+/**
+ * 지금 이 화면에서 도는 일들 (architecture.md §8.10.4). **읽기와 굽기와 저장이 겹친다** —
+ * 굽는 동안 학생이 사진을 더 놓을 수 있고, 그때 `busy`가 칸 하나면 먼저 끝난 읽기가
+ * **굽는 중인 자물쇠를 연다** (R21 A-1).
+ */
+const { busy, progress, start, cancelAll } = useWork()
 
 /**
  * 다음에 고를 사진이 들어갈 칸. **파일 고르기 입구가 하나여서 필요하다** — 칸마다 숨은
@@ -95,10 +102,6 @@ const target = ref<string>(IMAGE_UNLABELED)
 
 /** 읽었지만 아직 안 구운 것. **확인시키기 전에는 프로젝트를 손대지 않는다.** */
 const pending = ref<readonly UploadItem[] | null>(null)
-/** 굽는 중의 진행. 백분율은 화면이 만든다. */
-const progress = ref<{ completed: number; total: number } | null>(null)
-/** 돌고 있는 굽기. **취소 버튼이 이걸 부른다** — 화면을 떠날 때도 여기서 끊는다. */
-const running = ref<CanonicalizeHandle | null>(null)
 
 /** 골라 둔 사진들. 옮기기·지우기의 대상이다. */
 const selected = ref(new Set<string>())
@@ -143,9 +146,18 @@ watch(
   { immediate: true },
 )
 
-onBeforeUnmount(() => {
-  running.value?.cancel()
-})
+onBeforeUnmount(cancelAll)
+
+/**
+ * [취소]. **굽는 중이면 굽기를 끊고, 아니면 확인 판을 비운다.**
+ *
+ * 끊으면 굽기의 `catch`가 자기가 든 묶음만 치운다 — 여기서 판까지 비우면 **그 사이에
+ * 학생이 새로 놓은 것이 함께 날아간다** (§8.10.4).
+ */
+function cancelBaking(): void {
+  if (progress.value) cancelAll()
+  else pending.value = null
+}
 
 /** 굽기 전에 보여줄 요약. **중첩 흡수가 조용히 틀릴 수 있는 유일한 자리다.** */
 const summary = computed(() => (pending.value ? summarizeUpload(pending.value) : []))
@@ -163,7 +175,10 @@ function backboneOf(file: ProjectFile | null): BackboneSpec | undefined {
 /** 압축 파일인가 사진인가. **학생에게 묻지 않는다** — 확장자가 이미 답을 갖고 있다. */
 async function readPicked(files: readonly File[], into: string): Promise<void> {
   if (files.length === 0) return
-  busy.value = true
+  // **굽는 중이어도 받는다.** 확인 판이 있는 화면이라 받아 두었다가 굽기가 끝난 뒤 그
+  // 자리에 세우면 된다 — 돌려보내는 것보다 낫다 (§8.10.4). 잠금은 셈이 지키므로
+  // 여기서 잡아도 굽는 중인 자물쇠가 열리지 않는다.
+  const job = start()
   try {
     const [only] = files
     // **구조가 있으면 구조가 이긴다.** 폴더나 zip이 라벨을 들고 있으면 그것이 답이고,
@@ -193,7 +208,7 @@ async function readPicked(files: readonly File[], into: string): Promise<void> {
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    busy.value = false
+    job.done()
   }
 }
 
@@ -232,8 +247,8 @@ async function bake(): Promise<void> {
     return
   }
 
-  busy.value = true
-  progress.value = { completed: 0, total: items.length }
+  const job = start()
+  job.report(0, items.length)
   const byPath = new Map(items.map((item) => [item.path, item.category]))
   const handle = canonicalizeImages(
     items.map((item) => item.file),
@@ -241,11 +256,11 @@ async function bake(): Promise<void> {
       createWorker: spawnCanonicalizeWorker,
       size: backbone.canonicalSize,
       onProgress: (completed, total) => {
-        progress.value = { completed, total }
+        job.report(completed, total)
       },
     },
   )
-  running.value = handle
+  job.hold(handle)
 
   try {
     const result = await handle.result
@@ -270,7 +285,9 @@ async function bake(): Promise<void> {
       counts = { added: applied.added, duplicates: applied.duplicates }
       return applied.project
     })
-    pending.value = null
+    // **내가 든 묶음만 치운다.** 굽는 동안 학생이 새로 놓았으면 그것은 확인 판에 남아야
+    // 한다 — 통째로 비우면 학생이 판에 선 것을 보고 있다가 말없이 잃는다 (R21 A-1).
+    clearIfHeld(pending, items)
 
     toasts.push('success', 'data.image.added', { count: counts.added })
     // **조용히 넘기지 않는다.** 40장을 올렸는데 12장만 늘어난 것을 학생은 고장으로 본다.
@@ -282,17 +299,15 @@ async function bake(): Promise<void> {
     }
   } catch (error) {
     // 취소도 여기로 온다. 학생이 누른 것이므로 실패로 말하지 않는다.
-    if (error instanceof ClientError && error.code === 'JOB_CANCELLED') pending.value = null
+    if (isClientError(error) && error.code === 'JOB_CANCELLED') clearIfHeld(pending, items)
     else toasts.pushError(error)
   } finally {
-    running.value = null
-    progress.value = null
-    busy.value = false
+    job.done()
   }
 }
 
 async function save(next: ProjectRevision): Promise<void> {
-  busy.value = true
+  const job = start()
   try {
     // 받은 것을 그대로 넘기지만 **모양은 지킨다** — 화면의 쓰기는 언제나 함수다
     // (architecture.md §8.10.3, `ui-rules.spec.ts`의 "화면은 스토어에 함수로 쓴다").
@@ -300,7 +315,7 @@ async function save(next: ProjectRevision): Promise<void> {
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    busy.value = false
+    job.done()
   }
 }
 
@@ -487,7 +502,7 @@ async function commitRemoveCategory(): Promise<void> {
           <span v-if="progress" class="tabular-nums text-ink-soft">
             {{ t('meta.image.preparing', { done: progress.completed, total: progress.total }) }}
           </span>
-          <AppButton variant="secondary" @click="progress ? running?.cancel() : (pending = null)">
+          <AppButton variant="secondary" @click="cancelBaking">
             {{ t('common.cancel') }}
           </AppButton>
           <AppButton :disabled="busy" :action="bake">{{ t('data.image.use') }}</AppButton>

@@ -2318,3 +2318,68 @@ describe('화면은 스토어에 함수로 쓴다', () => {
     expect(offenders).toEqual([])
   })
 })
+
+/**
+ * **화면은 도는 일을 셈으로 든다** (architecture.md §8.10.4).
+ *
+ * 겹침을 허용한 뒤로(§8.10.3) **칸 하나짜리 상태는 전부 주인이 둘이 됐다.** `busy`가
+ * boolean이면 굽는 중에 들어온 읽기가 자기 `finally`에서 **굽는 중인 자물쇠를 열고**,
+ * 손잡이가 칸 하나면 먼저 끝난 쪽이 **남의 손잡이를 지워** 떠날 때 워커가 한쪽만 끊긴다.
+ * R21 감사가 화면 넷에서 실측했다.
+ *
+ * **타입이 절반을 이미 막는다** — `useWork()`의 `busy`는 `computed`라 값을 못 쓴다.
+ * 여기서 막는 것은 **그 앞 단계**다: 화면이 자기 boolean과 자기 손잡이 칸을 다시
+ * 만드는 것.
+ */
+describe('화면은 도는 일을 셈으로 든다', () => {
+  const VIEWS = join(SRC, 'views')
+
+  /** 화면이 스스로 든 바쁨 boolean. 이름이 `busy`인 것만 본다 — 그것이 이 저장소의 말이다. */
+  const OWN_BUSY = /const\s+busy\s*=\s*(?:shallowRef|ref)\s*[(<]/
+  /** 끊을 것을 담아 둔 칸. `ref`에 담으면 주인이 하나뿐이라는 가정이 박힌다. */
+  const OWN_HANDLE = /const\s+\w*[Rr]unning\s*=\s*(?:shallowRef|ref)\s*[(<]/
+
+  function ownsWorkState(source: string): string[] {
+    const code = withoutComments(source).join('\n')
+    return code
+      .split('\n')
+      .filter((line) => OWN_BUSY.test(line) || OWN_HANDLE.test(line))
+      .map((line) => line.trim())
+  }
+
+  /** 워커를 여는 화면들. **이들은 끊을 것을 일에 맡겨야 한다.** */
+  const SPAWNS = /\b(?:canonicalizeImages|embedImages)\s*\(/
+
+  it('검사기가 화면이 스스로 든 것을 잡는다', () => {
+    expect(ownsWorkState('const busy = ref(false)')).toHaveLength(1)
+    expect(ownsWorkState('const busy = shallowRef(false)')).toHaveLength(1)
+    expect(ownsWorkState('const running = ref<CanonicalizeHandle | null>(null)')).toHaveLength(1)
+    // `useWork()`에서 받아 오는 것은 잡지 않는다.
+    expect(ownsWorkState('const { busy, start } = useWork()')).toEqual([])
+    // 주석 속의 옛 모양은 코드가 아니다 — 이 파일의 머리말이 그 이유다.
+    expect(ownsWorkState('// const busy = ref(false)')).toEqual([])
+    // 다른 이름의 boolean은 이 규칙의 대상이 아니다(대화상자 플래그가 그렇다).
+    expect(ownsWorkState('const deleting = ref(false)')).toEqual([])
+  })
+
+  it('화면 어디에도 자기 바쁨과 자기 손잡이 칸이 없다', () => {
+    const offenders = vueFiles(VIEWS).flatMap((path) =>
+      ownsWorkState(sourceOf(path)).map((line) => `${path}: ${line}`),
+    )
+    expect(offenders).toEqual([])
+  })
+
+  it('워커를 여는 화면은 끊을 것을 일에 맡기고 떠날 때 전부 끊는다', () => {
+    const opens = vueFiles(VIEWS).filter((path) =>
+      SPAWNS.test(withoutComments(sourceOf(path)).join('\n')),
+    )
+    // **검사할 화면을 실제로 찾는다.** 0개면 이 규칙이 죽은 것이다.
+    expect(opens.length).toBeGreaterThan(0)
+
+    for (const path of opens) {
+      const code = withoutComments(sourceOf(path)).join('\n')
+      expect(code, `${path}: handle is not held by a job`).toMatch(/\.hold\(/)
+      expect(code, `${path}: leaving does not cancel every job`).toMatch(/cancelAll/)
+    }
+  })
+})

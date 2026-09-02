@@ -34,6 +34,11 @@ export const workerState = {
   holdBake: false,
   /** 붙들어 둔 굽기 요청들. */
   bake: [] as { deliver: () => void }[],
+  /**
+   * 끊긴 워커의 수. **떠날 때 무엇이 끊겼는지가 이 하니스로만 보인다** — 굽기와 임베딩이
+   * 겹치면 손잡이가 칸 하나일 때 한쪽만 끊긴다 (R21 B-2).
+   */
+  terminated: { embed: 0, bake: 0 },
 }
 
 export function resetImageWorkers(): void {
@@ -41,6 +46,7 @@ export function resetImageWorkers(): void {
   workerState.bake.length = 0
   workerState.baked = 0
   workerState.holdBake = false
+  workerState.terminated = { embed: 0, bake: 0 }
 }
 
 /** 벡터는 전부 1이다. **값이 아니라 시점이 이 하니스의 주제다.** */
@@ -59,7 +65,9 @@ export function fakeEmbedWorker(): EmbedWorker {
         },
       })
     },
-    terminate() {},
+    terminate() {
+      workerState.terminated.embed += 1
+    },
   }
   return worker
 }
@@ -86,7 +94,9 @@ export function fakeCanonicalizeWorker(): CanonicalizeWorker {
       }
       queueMicrotask(deliver)
     },
-    terminate() {},
+    terminate() {
+      workerState.terminated.bake += 1
+    },
   }
   return worker
 }
