@@ -73,7 +73,41 @@ export function growTree(
   const picked = featureBagging(bag.X, featureSampleCount, replacement, bag.seed)
   const tree = new DecisionTreeClassifier(treeOptions)
   tree.train(picked.X, bag.y)
-  return { tree: tree.toJSON(), usedIndex: picked.usedIndex }
+  return { tree: plainTree(tree.toJSON()), usedIndex: picked.usedIndex }
+}
+
+/**
+ * **`toJSON()`이 이름과 달리 JSON이 아니다.** 살아 있는 `TreeNode`와 그 안의
+ * `Matrix`(`distribution`)를 그대로 담아 돌려주는데, **`postMessage`의 구조화 복제는
+ * 프로토타입을 벗긴다.**
+ *
+ * 되살리는 쪽이 그것을 정확히 가른다 (`ml-cart`의 `TreeNode.setNodeParameters`):
+ *
+ * ```js
+ * this.distribution = node.distribution.constructor === Array
+ *   ? new Matrix(node.distribution)   // JSON에서 온 것 — 되살린다
+ *   : node.distribution               // 살아 있는 Matrix — 그대로 쓴다
+ * ```
+ *
+ * 구조화 복제를 지난 `Matrix`는 **Array도 Matrix도 아닌 평범한 객체**라 두 갈래를 다
+ * 비껴간다. 그러면 `classify()`가 그 객체를 그대로 내고 예측이
+ * *"maxRowIndex is not a function"*으로 죽는다 — **학습이 멀쩡히 끝난 뒤에** 죽어서,
+ * 학생은 오래 기다린 다음에 실패를 본다. (실측 2026-09-04: 그대로 통과 ·
+ * structuredClone 실패 · JSON 왕복 통과.)
+ *
+ * **그래서 `root`만 JSON을 태운다.** 통째로 태우면 `options.maxDepth`의 `Infinity`가
+ * `null`이 된다 — 예측에는 안 쓰이는 값이지만 **조용히 값이 바뀌는 것**이고,
+ * `forest-parallel.spec.ts`의 라이브러리 대조가 정확히 그것을 잡았다. 손잡이 객체는
+ * 평범한 값이라 구조화 복제가 `Infinity`째로 옮겨 준다.
+ *
+ * **직렬 경로도 이 함수를 쓴다** — 갈래마다 다른 값을 내면 "결과는 코어 수와
+ * 무관하다"가 여기서 깨진다.
+ */
+function plainTree(json: unknown): unknown {
+  if (json === null || typeof json !== 'object') return json
+  const parts = json as { root?: unknown }
+  if (parts.root === undefined) return json
+  return { ...parts, root: JSON.parse(JSON.stringify(parts.root)) as unknown }
 }
 
 /**

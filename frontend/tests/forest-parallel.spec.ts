@@ -44,8 +44,13 @@ function sample(rows: number): { features: number[][]; labels: string[]; encoded
 }
 
 /**
- * 검사용 풀 — 워커 없이 **같은 함수**(`growTree`)를 제자리에서 돌린다. 진짜 풀과 다른
- * 것은 워커가 없다는 것뿐이라, 이 풀로 숲이 같으면 남는 변수는 씨앗 사슬 하나다.
+ * 검사용 풀 — 워커 없이 **같은 함수**(`growTree`)를 제자리에서 돌린다.
+ *
+ * **답을 `structuredClone`에 통과시킨다.** 이것이 없어서 실물 결함 하나를 놓쳤다
+ * (2026-09-04): `DecisionTreeClassifier.toJSON()`이 살아 있는 `TreeNode`·`Matrix`를
+ * 돌려주는데 구조화 복제가 프로토타입을 벗겨, **브라우저에서만** 예측이
+ * *"maxRowIndex is not a function"*으로 죽었다. 제자리 풀은 그 경계를 안 지나가서
+ * 초록이었다 — **가짜 풀이 진짜 경계보다 관대하면 그 차이만큼이 사각이다.**
  */
 function inProcessForestPool(log?: { grown: number }): ForestPoolFactory {
   return (seed) => ({
@@ -62,7 +67,17 @@ function inProcessForestPool(log?: { grown: number }): ForestPoolFactory {
       )
       if (log) log.grown += chain.length
       const trees: ForestTree[] = chain.map((one) =>
-        growTree(matrix, targets, one, seed.featureSampleCount, seed.replacement, seed.treeOptions),
+        // 진짜 워커가 지나가는 그 경계다. 위 머리말의 그것.
+        structuredClone(
+          growTree(
+            matrix,
+            targets,
+            one,
+            seed.featureSampleCount,
+            seed.replacement,
+            seed.treeOptions,
+          ),
+        ),
       )
       return Promise.resolve(trees)
     },
@@ -72,9 +87,9 @@ function inProcessForestPool(log?: { grown: number }): ForestPoolFactory {
 
 const TREES = 6
 
-async function forestModel(pools?: ComputePools): Promise<unknown> {
+async function forestFit(pools?: ComputePools) {
   const { features, labels } = sample(120)
-  const result = await fit('random_forest', {
+  return await fit('random_forest', {
     features,
     rowIndices: features.map((_, index) => index),
     target: labels,
@@ -83,18 +98,32 @@ async function forestModel(pools?: ComputePools): Promise<unknown> {
     randomState: 42,
     ...(pools ? { pools } : {}),
   })
-  return result.model
 }
 
 describe('갈라도 같은 숲이다', () => {
   it('풀을 준 학습과 안 준 학습이 같은 모델 파일을 낸다', async () => {
     const log = { grown: 0 }
-    const serial = await forestModel()
-    const parallel = await forestModel({ forest: inProcessForestPool(log) })
+    const serial = await forestFit()
+    const parallel = await forestFit({ forest: inProcessForestPool(log) })
 
     // 풀이 실제로 쓰였는지 먼저 — 안 쓰였으면 아래 비교는 아무것도 안 잰다.
     expect(log.grown).toBe(TREES)
-    expect(parallel).toEqual(serial)
+    expect(parallel.model).toEqual(serial.model)
+  })
+
+  /**
+   * **모델 파일만 견주면 못 잡는 것이 있다.** 실제로 놓쳤다 — 재조립한 숲이 **예측을
+   * 못 하는데** 직렬화는 멀쩡했다(위 `inProcessForestPool` 머리말). 학습이 끝난 뒤
+   * 채점에서 죽으므로 학생은 오래 기다린 다음에 실패를 본다.
+   */
+  it('재조립한 숲이 예측을 한다 — 그리고 직렬과 같은 답이다', async () => {
+    const { features } = sample(120)
+    const serial = await forestFit()
+    const parallel = await forestFit({ forest: inProcessForestPool() })
+
+    const answers = parallel.predict(features)
+    expect(answers).toHaveLength(features.length)
+    expect(answers).toEqual(serial.predict(features))
   })
 
   it('라이브러리가 직렬로 지은 숲과 나무·열 번호가 바이트 단위로 같다', () => {
@@ -114,9 +143,27 @@ describe('갈라도 같은 숲이다', () => {
     const ours = chain.map((seed) => growTree(matrix, [...encoded], seed, columns, true, undefined))
 
     const json = stock.toJSON() as unknown as {
-      baseModel: { estimators: unknown[]; indexes: number[][] }
+      baseModel: { estimators: { root: unknown; options: unknown }[]; indexes: number[][] }
     }
-    expect(ours.map((one) => one.tree)).toEqual(json.baseModel.estimators)
+    const trees = ours.map((one) => one.tree as { root: unknown; options: unknown })
+
+    /**
+     * **나무의 속을 값으로 견준다.** 우리 쪽은 `root`가 **평범한 객체**이고 저쪽은
+     * `TreeNode` 인스턴스라 그대로 비교하면 클래스 정체성에서 갈린다 — 그건 의도한
+     * 차이다(워커 경계를 넘어야 하므로, `forest-compute.ts`의 `plainTree`).
+     * 양쪽을 같은 자로 펴서 **값만** 본다.
+     */
+    const flat = (one: unknown): unknown => JSON.parse(JSON.stringify(one)) as unknown
+    expect(trees.map((one) => flat(one.root))).toEqual(
+      json.baseModel.estimators.map((one) => flat(one.root)),
+    )
+    /**
+     * **손잡이는 펴지 않고 그대로 본다.** JSON을 태우면 `maxDepth: Infinity`가 `null`이
+     * 되어 **양쪽 다 null이 되므로 손실이 안 보인다** — 실제로 한 번 그렇게 놓칠 뻔했다.
+     */
+    expect(trees.map((one) => one.options)).toEqual(
+      json.baseModel.estimators.map((one) => one.options),
+    )
     expect(ours.map((one) => [...one.usedIndex])).toEqual(json.baseModel.indexes)
   })
 
