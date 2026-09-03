@@ -38,18 +38,40 @@ import { join } from 'node:path'
 
 const ROOT = process.cwd()
 const CATALOGUE = join(ROOT, 'tools', 'mutants.json')
+/**
+ * **vitest의 진입 파일을 `node`로 직접 띄운다. `npx`를 안 쓴다.**
+ *
+ * 여기 있던 것은 `execFileSync('npx.cmd', …)`였고 **이 러너는 그것으로 vitest를 한 번도
+ * 못 띄웠다** (2026-09-03 R25 B-1). Node 20.12/22부터 `.cmd`는 셸 없이 못 뜬다 —
+ * `spawnSync npx.cmd EINVAL`로 던지는데, 아래 `catch`가 그것을 **"울었다"로 셌다.**
+ * 첫 커밋부터 같은 호출이었으므로 **이 기기에서 찍힌 "욺"은 전부 스폰 실패였고**,
+ * 서른셋짜리 목록이 1.5초에 끝났다(vitest 한 번이 5초가 넘는다).
+ *
+ * **셸로 되돌리지 마라** — 인자가 이어 붙으면서 escape가 안 되는 길이 열린다(DEP0190).
+ * 진입 파일을 직접 띄우면 셸도 `.cmd`도 필요 없다.
+ */
+const VITEST = join(ROOT, 'node_modules', 'vitest', 'vitest.mjs')
 
-/** vitest를 한 번 돌리고 **울었는지**만 돌려준다. */
+/**
+ * vitest를 한 번 돌린다. **울음과 오류를 가른다.**
+ *
+ * 프로세스가 뜨긴 했는데 실패한 것만 울음이다 — `error.status`가 **숫자**다. 스폰 자체가
+ * 실패하면(`EINVAL`·`ENOENT`) `status`가 `null`이고, 그건 검사에 대한 아무 말도 아니다.
+ * **그 둘을 뭉갠 것이 B-1이었다.**
+ */
 function cries(specs) {
   try {
-    // **셸을 안 쓴다.** 인자가 이어 붙으면서 escape가 안 되는 길이 열린다 (DEP0190).
-    execFileSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['vitest', 'run', ...specs], {
+    execFileSync(process.execPath, [VITEST, 'run', ...specs], {
       cwd: ROOT,
       stdio: 'pipe',
+      maxBuffer: 64 * 1024 * 1024,
     })
-    return false
-  } catch {
-    return true
+    return { cried: false }
+  } catch (error) {
+    if (typeof error.status !== 'number') {
+      return { cried: false, failure: String(error.code ?? error.message) }
+    }
+    return { cried: true }
   }
 }
 
@@ -77,9 +99,10 @@ for (const [index, mutant] of mutants.entries()) {
     original.replace(find, () => replace),
     'utf-8',
   )
-  let cried
+  const started = Date.now()
+  let outcome
   try {
-    cried = cries(mutant.expectSpecs ?? [])
+    outcome = cries(mutant.expectSpecs ?? [])
   } finally {
     writeFileSync(path, original, 'utf-8')
     if (readFileSync(path, 'utf-8') !== original) {
@@ -88,16 +111,30 @@ for (const [index, mutant] of mutants.entries()) {
     }
   }
 
-  results.push({ index: index + 1, mutant, expected, cried })
+  // **스폰이 실패하면 그 자리에서 멈춘다.** 검사에 대한 아무 말도 아닌 것을 판정으로
+  // 흘려보내면 목록 전체가 거짓이 된다 — 그것이 B-1이었다.
+  if (outcome.failure !== undefined) {
+    console.error(
+      `\n[${index + 1}] ${mutant.file}\n  vitest를 못 띄웠다 (${outcome.failure}). 판정이 아니라 오류다.`,
+    )
+    process.exit(1)
+  }
+
+  const seconds = (Date.now() - started) / 1000
+  results.push({ index: index + 1, mutant, expected, cried: outcome.cried, seconds })
   process.stdout.write(
-    `[${index + 1}/${mutants.length}] ${cried ? '욺  ' : '조용'} (기대 ${
+    `[${index + 1}/${mutants.length}] ${outcome.cried ? '욺  ' : '조용'} (기대 ${
       expected === 'cries' ? '욺' : '조용'
-    }) ${mutant.file}\n`,
+    }) ${seconds.toFixed(1)}s ${mutant.file}\n`,
   )
 }
 
 const criedCount = results.filter((one) => one.cried).length
-console.log(`\n욺 ${criedCount} · 조용 ${results.length - criedCount} (전체 ${results.length})`)
+const total = results.reduce((sum, one) => sum + one.seconds, 0)
+// **경과 시간을 찍는다.** 서른셋이 몇 초면 vitest가 안 뜬 것이다 (B-1).
+console.log(
+  `\n욺 ${criedCount} · 조용 ${results.length - criedCount} (전체 ${results.length}) · ${total.toFixed(0)}초`,
+)
 
 const silent = results.filter((one) => one.expected === 'silent' && !one.cried)
 if (silent.length > 0) {

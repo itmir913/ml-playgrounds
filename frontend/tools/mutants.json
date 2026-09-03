@@ -12,43 +12,11 @@
     },
     {
       "file": "src/ml/training-source.ts",
-      "find": "      if (usable < MIN_SPLIT_ROWS) {",
-      "replace": "      if (usable < 0) {",
-      "expect": "cries",
-      "expectSpecs": ["tests/task-type-trap.spec.ts"],
-      "loses": "라벨 없는 분류 프로젝트가 백본 12.4MB를 받고 사진을 다 돌린 뒤에야 선다 (R24 A-1c)"
-    },
-    {
-      "file": "src/ml/training-source.ts",
       "find": "    if (taskType !== 'clustering') {",
       "replace": "    if (taskType !== 'regression') {",
       "expect": "cries",
       "expectSpecs": ["tests/task-type-trap.spec.ts"],
       "loses": "한 장짜리 군집 프로젝트가 분류의 문턱에 걸려 조기 거절된다 (R24 재검토)"
-    },
-    {
-      "file": "src/views/TrainView.vue",
-      "find": "    if (blockers.length === 0) continue",
-      "replace": "    if (blockers.length !== 0) continue",
-      "expect": "cries",
-      "expectSpecs": ["tests/task-type-trap.spec.ts"],
-      "loses": "열린 유형이 잠기고 잠긴 유형이 열린다 — 카드 잠금의 배선 내용 (R24 재검토 B-N2)"
-    },
-    {
-      "file": "src/views/TrainView.vue",
-      "find": "locks[type] = lockedSentenceFor(kind.value, 'train', blockers, dataType, t)",
-      "replace": "locks[type] = lockedSentenceFor(kind.value, 'train', blockers, dataType, (key) => key)",
-      "expect": "cries",
-      "expectSpecs": ["tests/task-type-trap.spec.ts"],
-      "loses": "잠긴 카드의 사유에 로케일 키(tasks.image.targetChosen)가 그대로 뜬다 (R24 재검토 B-N1)"
-    },
-    {
-      "file": "src/views/train/ModelAxes.vue",
-      "find": "      enabled: reason === undefined,",
-      "replace": "      enabled: true,",
-      "expect": "cries",
-      "expectSpecs": ["tests/task-type-trap.spec.ts"],
-      "loses": "못 하는 유형의 카드가 열려 있어 잠금이 사라진다 (R24 A-1 처방 ①b)"
     },
     {
       "file": "src/views/preprocess/TabularPrepPanel.vue",
@@ -148,11 +116,11 @@
     },
     {
       "file": "src/views/predict/TabularPredictPanel.vue",
-      "find": "          failure: isClientError(error)",
-      "replace": "          failure: undefined && isClientError(error)",
+      "find": "        next.set(entry.run.id, {\n          failure: isClientError(error)\n            ? { code: error.code, params: error.params }\n            : { code: 'MODEL_FILE_INVALID', params: { field: 'payload' } },\n        })",
+      "replace": "        void error",
       "expect": "cries",
       "expectSpecs": ["tests/predict-lines.spec.ts"],
-      "loses": "깨진 모델이 실패로 안 남아 '값을 채우고 [예측]을 누르면'으로 영영 남는다 (R24 B-6)"
+      "loses": "깨진 모델이 실패로 안 남아 '값을 채우고 [예측]을 누르면'으로 영영 남는다 (R24 B-6) — R25에서 돌연변이를 고쳤다: 조건만 끄면 삼항의 반대 가지가 여전히 failure를 채워 아무것도 안 잃었다"
     },
     {
       "file": "src/views/train/ChosenModels.vue",
@@ -265,6 +233,230 @@
       "expect": "cries",
       "expectSpecs": ["tests/csv.spec.ts", "tests/table.spec.ts"],
       "loses": "모든 행에 빈 칸이 하나 더 붙어 열 수가 어긋난다 (R24 M23 — 이름 없이 물린 것의 증거)"
+    },
+    {
+      "file": "src/ml/engines/neural.ts",
+      "find": "    if (stale > NO_IMPROVEMENT_LIMIT) {",
+      "replace": "    if (stale > 0) {",
+      "expect": "cries",
+      "expectSpecs": ["tests/sklearn-parity.spec.ts"],
+      "loses": "정지 규칙이 첫 정체 에폭에서 멈춰 덜 배운 모델이 나온다 - sum120 중앙값 0.60 < 0.8167, multi 0.70 < 0.75 (R25 N1)"
+    },
+    {
+      "file": "src/ml/engines/neural.ts",
+      "find": "      accumulated += loss * batch.length",
+      "replace": "      accumulated += loss",
+      "expect": "cries",
+      "expectSpecs": ["tests/neural.spec.ts", "tests/sklearn-parity.spec.ts"],
+      "loses": "손실 곡선의 값이 배치 수만큼 작아지고 정지 규칙이 그 값으로 일찍 멈춘다 - 화면의 곡선이 거짓이 된다 (R25 N3)"
+    },
+    {
+      "file": "src/ml/engines/neural.ts",
+      "find": "    return (gap * gap) / 2",
+      "replace": "    return gap * gap",
+      "expect": "cries",
+      "expectSpecs": ["tests/neural.spec.ts"],
+      "loses": "회귀 손실이 sklearn squared_loss의 두 배가 되어 곡선의 값이 갈린다 (R25 N7)"
+    },
+    {
+      "file": "src/ml/engines/neural.ts",
+      "find": "const ALPHA = 0.0001",
+      "replace": "const ALPHA = 0",
+      "expect": "cries",
+      "expectSpecs": ["tests/neural.spec.ts"],
+      "loses": "L2 규제가 사라져 sklearn 기본값(alpha=1e-4)과 다른 모델이 된다 (R25 N8)"
+    },
+    {
+      "file": "src/ml/engines/neural.ts",
+      "find": "      delta[j] = (output[j] as number) - (j === target ? 1 : 0)",
+      "replace": "      delta[j] = (output[j] as number) - (j === target ? 0 : 1)",
+      "expect": "cries",
+      "expectSpecs": ["tests/sklearn-parity.spec.ts"],
+      "loses": "다중 분류의 출력 델타가 틀려 손실이 오르막을 간다 - multi·iris에서 '손실이 내려간다'가 운다 (R25 N11)"
+    },
+    {
+      "file": "src/ml/engines/neural.ts",
+      "find": "        if ((belowActivation[i] as number) <= 0) {",
+      "replace": "        if ((belowActivation[i] as number) < 0) {",
+      "expect": "cries",
+      "expectSpecs": ["tests/neural.spec.ts"],
+      "loses": "죽은 ReLU 뉴런이 기울기를 흘려보내 역전파가 틀린다 - 유한차분이 운다 (R25 N12)"
+    },
+    {
+      "file": "src/ml/models/neural.ts",
+      "find": "  if (outputs !== 1) invalid('weights')",
+      "replace": "  if (outputs !== 1 && false) invalid('weights')",
+      "expect": "cries",
+      "expectSpecs": ["tests/neural.spec.ts"],
+      "loses": "출력이 두 칸인 회귀 파일이 거부되지 않는다 (mlpx-spec 5.11 불변식 5, R25 P2)"
+    },
+    {
+      "file": "src/ml/algorithms.ts",
+      "find": "  const byBackbone = dataType === 'image' ? (backboneFor(DEFAULT_BACKBONE_ID)?.tasks ?? null) : null",
+      "replace": "  const byBackbone = dataType === 'image' ? (backboneFor(DEFAULT_BACKBONE_ID)?.tasks ?? null) && null : null",
+      "expect": "cries",
+      "expectSpecs": ["tests/backbones.spec.ts"],
+      "loses": "사진에서 이미지 회귀가 열린다 - 백본은 못 하는 과제다 (V11 R1 B-4 트립와이어, R25 G1)"
+    },
+    {
+      "file": "tests/neural.spec.ts",
+      "find": "          // **꺾이는 점 근처는 건너뛴다.** 좌우 차분이 크게 갈리는 자리가 그것이다.\n          if (Math.abs(up + down - 2 * analytic.loss) > 1e-7) continue",
+      "replace": "          // **꺾이는 점 근처는 건너뛴다.** 좌우 차분이 크게 갈리는 자리가 그것이다.\n          if (Math.abs(up + down - 2 * analytic.loss) > -1) continue",
+      "expect": "cries",
+      "expectSpecs": ["tests/neural.spec.ts"],
+      "loses": "유한차분 검사가 칸을 전부 건너뛰어 아무것도 안 재는데 초록이 된다 - checked>20 가드가 지킨다 (R25 T2)"
+    },
+    {
+      "file": "src/views/train/ModelAxes.vue",
+      "find": "    enabled: true,",
+      "replace": "    enabled: taskType !== 'classification',",
+      "expect": "cries",
+      "expectSpecs": ["tests/task-type-trap.spec.ts"],
+      "loses": "분류 카드가 다시 잠긴다 - 군집을 고른 학생의 화면에서 풀 방법 없이 잠긴다 (R25 R1)"
+    },
+    {
+      "file": "src/ml/experiment.ts",
+      "find": "  if (distinct.size !== 1) return undefined",
+      "replace": "  if (distinct.size !== 99) return undefined",
+      "expect": "cries",
+      "expectSpecs": ["tests/experiment.spec.ts"],
+      "loses": "값이 한 종류인 타깃의 100%가 경고 없이 성공으로 나간다 (R25 R2)"
+    },
+    {
+      "file": "src/ml/engines/mljs.ts",
+      "find": "    const mean = values.length === 0 ? 0 : values.reduce((sum, v) => sum + v, 0) / values.length",
+      "replace": "    const mean = 0",
+      "expect": "cries",
+      "expectSpecs": ["tests/mljs.spec.ts"],
+      "loses": "상수 타깃의 결정계수가 1.0이 아니라 0.0으로 뒤집힌다 (R25 R4)"
+    },
+    {
+      "file": "src/ml/training-source.ts",
+      "find": "      if (categories < MIN_CLASSIFICATION_CATEGORIES) {",
+      "replace": "      if (categories < 0) {",
+      "expect": "cries",
+      "expectSpecs": ["tests/task-type-trap.spec.ts"],
+      "loses": "라벨 없는 사진 분류가 백본 12.4MB를 받은 뒤에야 '데이터가 0개'로 선다 (R25 R5)"
+    },
+    {
+      "file": "src/router/steps.ts",
+      "find": "  const narrowed = chosenHere ? undefined : taskType",
+      "replace": "  const narrowed = taskType",
+      "expect": "cries",
+      "expectSpecs": ["tests/steps.spec.ts", "tests/task-type-trap.spec.ts"],
+      "loses": "분류를 고르는 순간 학습 화면이 잠겨 유형을 바꿀 손잡이가 그 안에 갇힌다 (R24 [1] → R25 S1)"
+    },
+    {
+      "file": "src/project/images.ts",
+      "find": "      .filter((category) => category !== IMAGE_UNLABELED),\n  ).size",
+      "replace": "      .filter((category) => category !== IMAGE_UNLABELED),\n  ).size + 1",
+      "expect": "cries",
+      "expectSpecs": ["tests/steps.spec.ts", "tests/task-type-trap.spec.ts"],
+      "loses": "범주 하나짜리 사진 프로젝트가 체크리스트와 거절 양쪽에서 분류 가능으로 센다 (R25 S2)"
+    },
+    {
+      "file": "src/ml/engines/neural.ts",
+      "find": "    if (epochLoss > best - TOL) stale += 1",
+      "replace": "    if (epochLoss > best) stale += 1",
+      "expect": "silent",
+      "expectSpecs": ["tests/neural.spec.ts", "tests/sklearn-parity.spec.ts"],
+      "loses": "tol이 사라져 sklearn과 다른 자리에서 멈춘다 - 경고가 붙는 실행이 달라진다 (R25 N2)"
+    },
+    {
+      "file": "src/ml/engines/neural.ts",
+      "find": "  const scale =\n    (LEARNING_RATE_INIT * Math.sqrt(1 - Math.pow(BETA_2, adam.step))) /\n    (1 - Math.pow(BETA_1, adam.step))",
+      "replace": "  const scale = LEARNING_RATE_INIT",
+      "expect": "silent",
+      "expectSpecs": ["tests/neural.spec.ts", "tests/sklearn-parity.spec.ts"],
+      "loses": "Adam 편향 보정이 빠져 첫 걸음들이 sklearn과 다르다 - '같은 Adam'이라는 머리말이 무검사다 (R25 N4)"
+    },
+    {
+      "file": "src/ml/engines/neural.ts",
+      "find": "      converged = true",
+      "replace": "      converged = false",
+      "expect": "cries",
+      "expectSpecs": ["tests/neural-warning.spec.ts"],
+      "loses": "스스로 멈춘 실행에도 NEURAL_NOT_CONVERGED가 붙는다 (R25 N5)"
+    },
+    {
+      "file": "src/ml/engines/neural.ts",
+      "find": "      randomState ^ Number.parseInt(hashText(`epoch:${epoch}`).slice(0, 8), 16),",
+      "replace": "      randomState ^ Number.parseInt(hashText(`epoch:0`).slice(0, 8), 16),",
+      "expect": "silent",
+      "expectSpecs": ["tests/neural.spec.ts", "tests/sklearn-parity.spec.ts"],
+      "loses": "에폭마다 섞는다는 말이 거짓이 되어도 아무도 모른다 (sklearn shuffle=True, R25 N6)"
+    },
+    {
+      "file": "src/ml/engines/neural.ts",
+      "find": "    const bound = Math.sqrt(6 / (fanIn + fanOut))",
+      "replace": "    const bound = Math.sqrt(6 / fanIn)",
+      "expect": "silent",
+      "expectSpecs": ["tests/neural.spec.ts", "tests/sklearn-parity.spec.ts"],
+      "loses": "Glorot 초기화 범위가 sklearn _init_coef과 달라져도 아무도 모른다 (R25 N9)"
+    },
+    {
+      "file": "src/ml/engines/neural.ts",
+      "find": "    epochs = epoch + 1",
+      "replace": "    epochs = epoch",
+      "expect": "cries",
+      "expectSpecs": ["tests/neural-warning.spec.ts"],
+      "loses": "경고의 iterations가 하나 작게 적힌다 (R25 N14)"
+    },
+    {
+      "file": "src/ml/engines/mljs.ts",
+      "find": "          code: regression ? 'NEURAL_REGRESSION_NOT_CONVERGED' : 'NEURAL_NOT_CONVERGED',",
+      "replace": "          code: regression ? 'NEURAL_NOT_CONVERGED' : 'NEURAL_REGRESSION_NOT_CONVERGED',",
+      "expect": "cries",
+      "expectSpecs": ["tests/neural-warning.spec.ts"],
+      "loses": "회귀 학생에게 스케일링을 권한다 - 결정문이 해롭다고 잰 그 처방(R2 -0.20 → -10.2) (R25 A1)"
+    },
+    {
+      "file": "src/ml/engines/mljs.ts",
+      "find": "    const warning: EngineWarning | undefined = fitted.converged\n      ? undefined\n      : {\n          code: regression ?",
+      "replace": "    const warning: EngineWarning | undefined = true\n      ? undefined\n      : {\n          code: regression ?",
+      "expect": "cries",
+      "expectSpecs": ["tests/neural-warning.spec.ts"],
+      "loses": "에폭 상한에 닿아도 경고가 안 붙는다 - 덜 배운 모델이 정상으로 보인다 (R25 A2)"
+    },
+    {
+      "file": "src/ml/models/neural.ts",
+      "find": "  if (outputs !== (classes.length === 2 ? 1 : classes.length)) invalid('weights')",
+      "replace": "  if (outputs !== (classes.length === 2 ? 1 : classes.length) && false) invalid('weights')",
+      "expect": "cries",
+      "expectSpecs": ["tests/neural-warning.spec.ts"],
+      "loses": "출력 칸 수가 클래스 수와 안 맞는 분류 파일이 읽힌다 (mlpx-spec 5.11 불변식 5, R25 P1)"
+    },
+    {
+      "file": "src/ml/loss-curve.ts",
+      "find": "    if (curve.length < 2) return null",
+      "replace": "    if (curve.length < 1) return null",
+      "expect": "cries",
+      "expectSpecs": ["tests/neural-warning.spec.ts"],
+      "loses": "점 하나짜리 곡선이 그려진다 - 머리말은 안 그린다고 적는다 (R25 L1)"
+    },
+    {
+      "file": "src/ml/loss-curve.ts",
+      "find": "  return first !== undefined && last !== undefined && last < first",
+      "replace": "  return first !== undefined && last !== undefined && last <= first",
+      "expect": "cries",
+      "expectSpecs": ["tests/neural-warning.spec.ts"],
+      "loses": "평평한 곡선을 '내려갔다'고 말한다 (R25 L2)"
+    },
+    {
+      "file": "src/ml/experiment.ts",
+      "find": "      ...((nothingToLearn ?? warning) ? { warning: nothingToLearn ?? warning } : {}),",
+      "replace": "      ...((warning ?? nothingToLearn) ? { warning: warning ?? nothingToLearn } : {}),",
+      "expect": "cries",
+      "expectSpecs": ["tests/experiment.spec.ts"],
+      "loses": "데이터 경고가 엔진 경고에 진다 - 100%의 이유 대신 '덜 다듬어진 계수'를 읽는다 (R25 R3a)"
+    },
+    {
+      "file": "src/ml/engines/mljs.ts",
+      "find": "        : (features) => toRows(features).map((row) => Number(model.predict(row)[0] ?? 0) + mean),",
+      "replace": "        : (features) => toRows(features).map((row) => Number(model.predict(row)[0] ?? 0)),",
+      "expect": "silent",
+      "expectSpecs": ["tests/mljs.spec.ts", "tests/lifecycle.spec.ts"],
+      "loses": "직렬화가 실패한 회귀의 예측이 평균만큼 틀린다 — **정책상 죽은 길이다**: models.spec의 \"모든 알고리즘이 우리 형식으로 담긴다\"가 그 경로를 막고, 직렬화를 강제로 던지게 하면 모델이 있어야 하는 검사 아홉이 먼저 운다 (R25 C-2)"
     }
   ]
 }
