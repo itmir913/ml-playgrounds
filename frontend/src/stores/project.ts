@@ -9,8 +9,10 @@
 import { computed, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 
+import { ClientError } from '@/errors'
 import { AUTOSAVE_DELAY_MS } from '@/limits'
 import { downloadBlob } from '@/project/download'
+import { acquireTabLock, releaseTabLock } from '@/project/tab-lock'
 import {
   projectFileName,
   writeProject,
@@ -124,6 +126,13 @@ export const useProjectStore = defineStore('project', () => {
     }
     opening.value = true
     try {
+      // **다른 탭이 쥔 프로젝트는 열지 않는다** (open-decisions.md "프로젝트는 한 번에
+      // 하나만 연다"). 반쯤 열면 자동 저장이 따라 들어와, 잊힌 탭의 저장이 이쪽 실험을
+      // 흔적 없이 덮는 바로 그 사고를 다시 부른다. 알리고 목록으로 돌려보낸다.
+      if (!(await acquireTabLock(id))) {
+        useToastStore().pushError(new ClientError('PROJECT_OPEN_ELSEWHERE'))
+        return false
+      }
       // **못 읽는 것은 없는 것과 다르다** (architecture.md §8.10.2). 형식이 바뀐 뒤의
       // 옛 레코드나 손상된 레코드가 여기서 던지는데, 그대로 두면 렌더 중 예외가 되어
       // 그 프로젝트만이 아니라 앱 전체가 멈춘다. 받아서 알리고 목록으로 돌려보낸다.
@@ -131,6 +140,8 @@ export const useProjectStore = defineStore('project', () => {
         useToastStore().pushError(error)
         return null
       })
+      // 못 열었으면 잠금도 놓는다 - 안 열린 프로젝트를 쥔 채로 두면 다른 탭까지 막는다.
+      if (loaded === null) releaseTabLock()
       file.value = loaded
       // 열린 직후는 방금 읽은 그대로이므로 저장된 상태다.
       dirty.value = false
@@ -315,6 +326,7 @@ export const useProjectStore = defineStore('project', () => {
 
   function close(): void {
     cancelPending()
+    releaseTabLock()
     file.value = null
     dirty.value = false
     savedAt.value = null

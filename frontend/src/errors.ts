@@ -95,6 +95,12 @@ export const CLIENT_ERROR_CODES = [
    */
   'IMAGE_TOO_FEW_CATEGORIES',
 
+  // 프로젝트 열기 - stores/project.ts, project/tab-lock.ts
+  // 같은 프로젝트가 다른 탭에 열려 있다. 두 번째 탭의 편집을 안 연다 -
+  // 잊힌 탭의 저장이 이쪽 실험을 흔적 없이 덮기 때문이다
+  // (open-decisions.md "프로젝트는 한 번에 하나만 연다").
+  'PROJECT_OPEN_ELSEWHERE',
+
   // 프로젝트 파일 열기 - project/format.ts, project/migrate.ts
   'PROJECT_FILE_NOT_ZIP',
   'PROJECT_FILE_ENTRY_MISSING',

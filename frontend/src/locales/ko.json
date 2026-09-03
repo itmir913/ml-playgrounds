@@ -540,6 +540,7 @@
     "ENGINE_NOT_READY": "여기서 학습하려면 준비가 먼저 끝나야 합니다.",
     "ENGINE_NOT_WIRED": "아직 만드는 중인 기능입니다. 지금은 다른 곳에서 학습해 주세요.",
     "BACKBONE_UNAVAILABLE": "이미지 학습 준비를 마치지 못했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요. 학교 네트워크가 막고 있다면 선생님께 말씀드려야 합니다.",
+    "PROJECT_OPEN_ELSEWHERE": "이미 다른 탭에서 열려 있습니다. 그 탭에서 계속하거나, 그 탭을 닫고 다시 열어 주세요.",
     "PROJECT_FILE_NOT_ZIP": "이 파일은 프로젝트 파일이 아닙니다.",
     "PROJECT_FILE_ENTRY_MISSING": "프로젝트 파일에 필요한 내용이 들어 있지 않습니다. ({entry})",
     "PROJECT_FILE_INVALID": "프로젝트 파일의 내용을 읽을 수 없습니다. ({path})",

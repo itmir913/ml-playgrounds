@@ -808,6 +808,20 @@ export const TOAST_DURATION_MS = 6000
 export const AUTOSAVE_DELAY_MS = 800
 
 /**
+ * 두 탭 잠금에서 "이 프로젝트 누가 쥐고 있나"의 답을 기다리는 창 (`project/tab-lock.ts`).
+ *
+ * BroadcastChannel 폴백에만 쓴다 — Web Locks가 없는 비보안 컨텍스트(자가호스팅 도커를
+ * `http://…`로 여는 컴퓨터실)에서 프로젝트를 열 때마다 이만큼 늦는 것이 대가다.
+ * 같은 기계 안 IPC 왕복은 밀리초 급이라(개발 PC 실측: 워커 4개 왕복 0.85~1.45ms)
+ * 이 창은 그 수백 배다 — 창이 끝나기 전에 답이 못 오는 경우는 쥔 탭이 그 순간
+ * 멈춰 있을 때뿐이고, 그 동시 열기는 결정문이 받아들인 가장자리다
+ * (open-decisions.md "프로젝트는 한 번에 하나만 연다").
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const TAB_LOCK_REPLY_WINDOW_MS = 250
+
+/**
  * 학번 입력 상한. 자유 문자열이다 - 1-2-03 같은 체계가 실재한다 (mlpx-spec.md 7).
  *
  * **분류: 교실을 보고 골랐다.**
