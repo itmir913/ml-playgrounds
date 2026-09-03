@@ -324,11 +324,11 @@
     },
     {
       "file": "src/ml/engines/mljs.ts",
-      "find": "    const mean = values.length === 0 ? 0 : values.reduce((sum, v) => sum + v, 0) / values.length",
-      "replace": "    const mean = 0",
+      "find": "  const targetMean = values.reduce((sum, value) => sum + value, 0) / count",
+      "replace": "  const targetMean = 0",
       "expect": "cries",
       "expectSpecs": ["tests/mljs.spec.ts"],
-      "loses": "상수 타깃의 결정계수가 1.0이 아니라 0.0으로 뒤집힌다 (R25 R4)"
+      "loses": "상수 타깃의 결정계수가 1.0이 아니라 0.0으로 뒤집힌다 — 타깃을 안 센터링하면 우변이 영벡터가 아니라 잔차에 먼지가 남는다 (R25 R4 → B-2에서 SVD로 옮김)"
     },
     {
       "file": "src/ml/training-source.ts",
@@ -452,11 +452,19 @@
     },
     {
       "file": "src/ml/engines/mljs.ts",
-      "find": "        : (features) => toRows(features).map((row) => Number(model.predict(row)[0] ?? 0) + mean),",
-      "replace": "        : (features) => toRows(features).map((row) => Number(model.predict(row)[0] ?? 0)),",
-      "expect": "silent",
-      "expectSpecs": ["tests/mljs.spec.ts", "tests/lifecycle.spec.ts"],
-      "loses": "직렬화가 실패한 회귀의 예측이 평균만큼 틀린다 — **정책상 죽은 길이다**: models.spec의 \"모든 알고리즘이 우리 형식으로 담긴다\"가 그 경로를 막고, 직렬화를 강제로 던지게 하면 모델이 있어야 하는 검사 아홉이 먼저 운다 (R25 C-2)"
+      "find": "  const beta = solve(new Matrix(centeredRows), new Matrix(centeredTarget), true)",
+      "replace": "  const beta = solve(new Matrix(centeredRows), new Matrix(centeredTarget), false)",
+      "expect": "cries",
+      "expectSpecs": ["tests/mljs.spec.ts"],
+      "loses": "SVD 대신 정규방정식으로 돌아가 척도가 갈린 표에서 작은 계수가 부호까지 틀린다 — 실측 −120.68, 참값 3986.58 (R25 B-2)"
+    },
+    {
+      "file": "src/ml/engines/mljs.ts",
+      "find": "    (_, column) => rows.reduce((sum, row) => sum + (row[column] ?? 0), 0) / count,",
+      "replace": "    () => 0,",
+      "expect": "cries",
+      "expectSpecs": ["tests/mljs.spec.ts", "tests/sklearn-parity.spec.ts"],
+      "loses": "X 센터링이 무너져 sklearn 구조와 갈린다 — 절편을 되돌리는 식이 틀어진다 (R25 B-2)"
     }
   ]
 }

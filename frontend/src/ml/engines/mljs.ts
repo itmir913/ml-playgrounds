@@ -41,7 +41,7 @@
 
 import { DecisionTreeClassifier } from 'ml-cart'
 import { RandomForestClassifier } from 'ml-random-forest'
-import MultivariateLinearRegression from 'ml-regression-multivariate-linear'
+import { Matrix, solve } from 'ml-matrix'
 
 import { ClientError, failureDetail } from '../../errors'
 import type { ClientWarningCode } from '../../errors'
@@ -50,6 +50,7 @@ import { resolveWith, type HyperparameterSpec } from '../hyperparams'
 import type { Prediction } from '../metrics'
 import {
   KMEANS_FORMAT,
+  LINEAR_REGRESSION_FORMAT,
   LINEAR_V2_FORMAT,
   NEURAL_FORMAT,
   NEURAL_REGRESSION_FORMAT,
@@ -66,6 +67,7 @@ import {
 import type {
   KMeansModel,
   LinearModelV2,
+  LinearRegressionModel,
   NeuralModel,
   NeuralRegressionModel,
   PairwiseClassifier,
@@ -78,7 +80,6 @@ import { SMO_DEFAULTS, seededRandom, trainLinearSvm } from './svm-smo'
 import { MLJS_PARAMETERS } from './mljs-params'
 import {
   serializeForest,
-  serializeLinearRegression,
   serializeNaiveBayes,
   serializeTree,
   type NaiveBayesParameters,
@@ -437,6 +438,42 @@ function classifier(build: (input: FitInput) => Trained): Trainer {
  * 하이퍼파라미터 이름이 sklearn과 다르다(`maxDepth` / `max_depth`). 그래서 등록부 키가
  * (알고리즘, 실행 방법)이어야 한다 - 같은 이름으로 두 엔진을 먹이면 조용히 무시된다.
  */
+/**
+ * **센터링 + SVD 최소제곱.** sklearn `LinearRegression(fit_intercept=True)`의 구조다.
+ *
+ * `solve(A, B, useSVD)`가 `ml-matrix`의 최소제곱이다 — 열이 겹치거나(공선) 척도가 갈려도
+ * 정규방정식처럼 조건수를 제곱하지 않는다.
+ */
+function fitLeastSquares(
+  rows: number[][],
+  values: number[],
+  featureCount: number,
+): LinearRegressionModel {
+  const count = rows.length
+  if (count === 0 || featureCount === 0) {
+    return { format: LINEAR_REGRESSION_FORMAT, featureCount, coefficients: [], intercept: 0 }
+  }
+  const columnMeans = Array.from(
+    { length: featureCount },
+    (_, column) => rows.reduce((sum, row) => sum + (row[column] ?? 0), 0) / count,
+  )
+  const targetMean = values.reduce((sum, value) => sum + value, 0) / count
+  const centeredRows = rows.map((row) =>
+    Array.from(
+      { length: featureCount },
+      (_, column) => (row[column] ?? 0) - (columnMeans[column] as number),
+    ),
+  )
+  const centeredTarget = values.map((value) => [value - targetMean])
+  const beta = solve(new Matrix(centeredRows), new Matrix(centeredTarget), true)
+  const coefficients = Array.from({ length: featureCount }, (_, column) => beta.get(column, 0))
+  const intercept = coefficients.reduce(
+    (sum, value, column) => sum - value * (columnMeans[column] as number),
+    targetMean,
+  )
+  return { format: LINEAR_REGRESSION_FORMAT, featureCount, coefficients, intercept }
+}
+
 const TRAINERS: Record<string, Trainer> = {
   decision_tree: classifier((input) => {
     const model = new DecisionTreeClassifier({
@@ -708,60 +745,53 @@ const TRAINERS: Record<string, Trainer> = {
   },
 
   linear_regression: (input) => {
-    // 회귀는 부호화하지 않는다. 타깃이 이미 수치다.
-    const values = input.target.map((value) => Number(value))
     /**
-     * **타깃만 센터링해서 푼다. 푸는 방법은 여전히 정규방정식이다** (2026-09-03).
+     * **sklearn `LinearRegression`과 같은 구조로 푼다** (2026-09-03 R25 B-2,
+     * CLAUDE.md §2 "구조는 표준 라이브러리를 따른다").
      *
-     * **여기 "sklearn과 같은 구조다"라고 적혀 있었고 그것은 거짓이었다** (R25 B-2).
-     * sklearn `LinearRegression`은 **X도 센터링하고 SVD(lstsq)로** 푼다. 우리는 y만
-     * 센터링하고 라이브러리는 1로 채운 열을 붙인 `X'X`의 유사역행렬을 쓴다 — **열 척도가
-     * 크게 갈리면 작은 방향을 잃는다.**
+     * X와 y를 **센터링한 뒤 SVD 최소제곱**으로 계수를 얻고 절편을 `ȳ - X̄·β`로
+     * 되돌린다. sklearn이 `fit_intercept=True`에서 하는 그것이다.
      *
-     * 실측(x1 ~ 10⁶ · x2 ~ 10⁻³ · 60행, `[X|1]`의 조건수 2.0e9):
+     * **여기 있던 것은 `ml-regression-multivariate-linear`의 정규방정식이었다** — 1로
+     * 채운 열을 붙이고 `X'X`의 유사역행렬을 곱한다. 정규방정식은 **조건수를 제곱한다**
+     * (`cond(X'X) = cond(X)²`). 열 척도가 갈리면 그 제곱이 배정밀도를 통째로 넘긴다.
+     *
+     * 실측(x1 ~ 10⁶ · x2 ~ 10⁻³ · 60행, `[X|1]`의 조건수 **2.0e9** → 제곱하면 4e18):
      *
      * | 풀이 | x1 | x2 | SSres |
      * |---|---|---|---|
      * | 참값(열을 표준화해 풀고 되돌림) | 0.5000000 | **3986.58** | 0.038 |
+     * | 옛 정규방정식 | 0.4999997 | **−120.68** | 86.78 |
      * | sklearn 1.9.0 | 0.4999997 | −3.5e−11 | 81.75 |
-     * | **우리** | 0.4999997 | **−120.68** | 86.78 |
+     * | **지금(센터링 + SVD)** | 0.5000000 | **3986.58** | **0.038** |
      *
-     * **둘 다 x2를 잃지만 잃는 모양이 다르다.** R²로는 안 보이고(차이 3.4e−12) 화면의
-     * "모델이 배운 값"에만 보인다. 전처리 스케일링을 켜면 사라진다. **고칠지는 결정이
-     * 걸려 있다** — 열을 표준화해 풀면 sklearn보다 좋아지고, 그건 "sklearn이 안 하는 것을
-     * 우리가 한다"가 되어 §2의 전제와 부딪친다. → `open-decisions.md`
+     * **재고 나서 안 것 하나 — 우리가 sklearn보다 정확해졌다** (2026-09-03). 구조는
+     * 같은데 `scipy.linalg.lstsq`는 **rcond 절단**을 두어 작은 특잇값의 방향을 0으로
+     * 죽이고, `ml-matrix`의 `solve(…, useSVD)`는 안 죽인다. 그래서 sklearn은 x2를 잃고
+     * 우리는 참값을 맞힌다.
      *
-     * **아래 센터링이 하는 일은 그것과 별개다** (CLAUDE.md §2 "구조는 표준 라이브러리를
-     * 따른다"의 한 걸음).
+     * **그 갈림은 병든 표에서만 난다.** 정상 데이터에서는 `sklearn-parity.spec.ts`가
+     * 계수·절편·R²를 `1e-6` 안에서 대조하고 실측이 1e-11 이하다 — 이 변경으로 못 박은
+     * 값이 **하나도 안 움직였다**(276개 그대로 통과).
      *
-     * `ml-regression-multivariate-linear`은 **정규방정식**을 쓴다 — 1로 채운 열을 붙이고
-     * `X'X`의 유사역행렬을 곱한다. 센터링이 없다. sklearn `LinearRegression`은 X와 y를
-     * 센터링한 뒤 `lstsq`(SVD)로 풀고 절편을 `ȳ - X̄·β`로 되돌린다.
+     * **rcond 절단은 흉내 내지 않는다** (2026-09-03에 정했다). 흉내 내면 숫자가
+     * 같아지지만 **맞는 답을 일부러 버리는 것**이고, 그 절단은 sklearn이 언젠가 고칠 수
+     * 있는 정책이지 우리가 따라야 할 구조가 아니다. **구조는 따르고 절단은 안 따른다.**
+     * → `open-decisions.md` #40
      *
-     * **그 차이가 분산 0짜리 타깃에서 드러났다** (실측). 값이 전부 42인 열로 회귀를
-     * 돌리면 참해는 `계수 0 · 절편 42`인데, 정규방정식은 계수에 **1e-14 먼지**를 남겨
-     * 잔차가 정확히 0이 아니게 된다. `metrics.ts`의 R²는 분모가 0일 때 **잔차가 정확히
-     * 0인지**로 1과 0을 가르므로(sklearn과 같은 규칙), 그 먼지 하나가 **1.0이어야 할
-     * 점수를 0.0으로 뒤집었다.** sklearn은 같은 데이터에서 1.0을 낸다.
+     * **열을 표준화하는 길은 안 골랐다.** 그건 sklearn이 **하지 않는 일**을 더하는 것이라
+     * §2의 전제와 부딪친다(`#39`와 같은 자리). 지금 고른 것은 **sklearn이 하는 일을 그대로
+     * 하는 것**이고, 남은 차이는 그쪽의 절단 정책 하나다.
      *
-     * **센터링하면 그 자리가 정확해진다.** 타깃이 상수면 `y - ȳ`가 **정확히 0**이라
-     * 라이브러리가 받는 우변이 영벡터이고, 계수도 정확히 0이 된다. 되돌린 절편이 곧
-     * `ȳ`다. 실측: 그 화면의 결정계수가 0.000에서 **1.000**으로 바뀌었다.
-     *
-     * **정상 데이터의 수치는 안 움직인다.** 센터링은 절편이 있는 최소제곱에서 **정확한
-     * 대수 변형**이고, 넣은 뒤 `sklearn-parity.spec.ts`와 `mljs.spec.ts`의 못 박은 값이
-     * 하나도 안 흔들렸다(201개 그대로 통과).
+     * **상수 타깃도 이 구조가 정확히 맞힌다.** `y - ȳ`가 정확히 0이면 우변이 영벡터이라
+     * 계수도 정확히 0이고 절편이 곧 `ȳ`다. `metrics.ts`의 R²가 분모 0일 때 **잔차가
+     * 정확히 0인지**로 1과 0을 가르므로(sklearn과 같은 규칙), 그 정확함이 곧 1.000이다.
+     * 옛 풀이는 1e-14 먼지를 남겨 그 점수를 0.000으로 뒤집고 있었다.
      */
-    const mean = values.length === 0 ? 0 : values.reduce((sum, v) => sum + v, 0) / values.length
-    const model = new MultivariateLinearRegression(
-      toRows(input.features),
-      values.map((value) => [value - mean]),
-    )
+    const values = input.target.map((value) => Number(value))
+    const rows = toRows(input.features)
     const featureCount = input.features[0]?.length ?? 0
-    const attempted = serializeOrOmit(() => {
-      const built = serializeLinearRegression(model, featureCount)
-      return { ...built, intercept: built.intercept + mean }
-    })
+    const attempted = serializeOrOmit(() => fitLeastSquares(rows, values, featureCount))
     return {
       ...(attempted.model ? { model: attempted.model } : {}),
       ...(attempted.model === undefined && attempted.detail !== undefined
@@ -770,19 +800,16 @@ const TRAINERS: Record<string, Trainer> = {
       /**
        * **예측은 담기는 모델의 해석기를 그대로 쓴다** — KNN·SVM·로지스틱·K-평균과 같은
        * 방식이고, 그래서 **저장했다 읽은 예측이 원본과 같은 것이 구조로 보장된다.**
+       * 같은 규칙을 두 번 적으면 저장 전후가 갈린다 — 실제로 `lifecycle.spec.ts`가
+       * `0.1202292862280948` 대 `0.12022928622809483`로 빨개진 적이 있다.
        *
-       * **센터링이 이 자리를 강제했다** (2026-09-03). 라이브러리 예측에 평균을 따로
-       * 더하면 `(Σcoef·x + 절편) + 평균`인데 담긴 모델은 `Σcoef·x + (절편 + 평균)`이라,
-       * **부동소수 덧셈이 결합법칙을 안 지켜** 마지막 자리가 갈렸다. 실제로
-       * `lifecycle.spec.ts`의 왕복 재현이 `0.1202292862280948` vs `0.12022928622809483`로
-       * 빨개졌다 — 같은 규칙을 두 번 적으면 갈라진다는 그 자리다.
-       *
-       * **직렬화가 실패한 run만 라이브러리로 답한다.** 그때는 담긴 모델이 없어 대조할
-       * 상대도 없고, 지표까지 잃는 것보다 낫다.
+       * **직렬화가 실패하면 답할 것이 없다.** 이 풀이는 계수와 절편을 직접 만들므로
+       * 실패하는 길은 모양 검사뿐이고, 그때는 담긴 모델도 없어 대조할 상대가 없다.
+       * 지표까지 잃지 않도록 0을 답한다.
        */
       predict: attempted.model
         ? loadLinearRegressionModel(attempted.model)
-        : (features) => toRows(features).map((row) => Number(model.predict(row)[0] ?? 0) + mean),
+        : (features) => toRows(features).map(() => 0),
     }
   },
 

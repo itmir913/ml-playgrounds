@@ -403,6 +403,46 @@ describe('회귀', () => {
    * **"정확히 0이다"**이고, 그 정확함이 곧 R²의 갈림이다. 가까움으로 재면 센터링을
    * 걷어내도 초록이다(실제로 걷어낸 값이 −2.8e−14였다).
    */
+  /**
+   * **척도가 크게 갈린 표에서 작은 방향을 안 잃는다** (2026-09-03 R25 B-2).
+   *
+   * 옛 풀이(`ml-regression-multivariate-linear`의 정규방정식)는 여기서 x2 계수를
+   * **−120.68**로 냈다 — 참값이 **3986.58**이라 부호까지 틀린 수가 화면의 "모델이 배운
+   * 값"에 그대로 떴다. 정규방정식이 **조건수를 제곱하기** 때문이다(2.0e9 → 4e18, 배정밀도
+   * 밖). 지금은 sklearn처럼 센터링한 뒤 SVD로 푼다.
+   *
+   * **여유가 넉넉한 것은 씨앗과 잡음 때문이 아니다** — 이 데이터는 결정적이다. 참값에서
+   * 1% 안이면 되고, **옛 풀이는 부호가 반대라 어떤 여유로도 안 통과한다.**
+   */
+  it('척도가 갈린 표에서도 작은 계수를 맞힌다 - 정규방정식이 부호까지 틀렸던 자리', () => {
+    let state = 23 >>> 0
+    const random = (): number => {
+      state = (state * 1664525 + 1013904223) >>> 0
+      return state / 4294967296
+    }
+    const features: number[][] = []
+    const target: string[] = []
+    for (let index = 0; index < 60; index += 1) {
+      const big = random() * 1_000_000
+      const small = random() * 0.001
+      features.push([big, small])
+      target.push(String(0.5 * big + 4000 * small + 7 + (random() - 0.5) * 0.1))
+    }
+    const { model } = fit('linear_regression', {
+      features,
+      rowIndices: features.map((_, index) => index),
+      target,
+      taskType: 'regression',
+      hyperparameters: {},
+      randomState: 1,
+    })
+    const stored = model as unknown as { coefficients: number[]; intercept: number }
+    expect(stored.coefficients[0]).toBeCloseTo(0.5, 6)
+    // 참값 3986.58. 옛 풀이는 −120.68이었다.
+    expect(stored.coefficients[1]).toBeGreaterThan(3946)
+    expect(stored.coefficients[1]).toBeLessThan(4026)
+  })
+
   it('타깃이 상수면 계수가 정확히 0이고 결정계수가 1이다 - sklearn과 같다', () => {
     const features = [
       [150, 45],
