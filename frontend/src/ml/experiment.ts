@@ -442,8 +442,12 @@ interface TrainContext {
  * **분할이 만든 한 종류짜리 훈련 몫**까지 잡는다 — 그건 그 화면이 알 수 없던 것이다.
  *
  * **군집은 묻지 않는다.** 정답이 없는 것이 전제이므로 타깃이 비어 있다.
- * **회귀도 묻지 않는다** — 상수 타깃은 "갈릴 것이 없다"가 아니라 분산이 0인 것이고,
- * 할 말이 다르다. 아직 안 재 봤다.
+ *
+ * **회귀도 묻지 않는다 — 재고 나서 그렇게 뒀다** (2026-09-03). 상수 타깃은 "갈릴 것이
+ * 없다"가 아니라 **분산이 0인 것**이라 할 말이 다르다. 재 보니 그쪽의 문제는 문장이
+ * 아니라 **숫자**였다: 완벽히 맞힌 선형회귀가 R² 0.000을 받고 있었다(sklearn은 1.0).
+ * 원인은 정규방정식이 남긴 1e-14 먼지였고, sklearn처럼 센터링해서 고쳤다
+ * (`ml/engines/mljs.ts`).
  */
 function singleClassWarning(context: TrainContext): Warning | undefined {
   if (context.taskType !== 'classification') return undefined

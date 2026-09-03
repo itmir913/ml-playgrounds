@@ -386,6 +386,52 @@ describe('회귀', () => {
     expect(metrics.r2).toBeGreaterThan(0.99)
     expect(metrics.mae).toBeLessThan(0.01)
   })
+
+  /**
+   * **분산 0짜리 타깃에서 sklearn과 같은 답을 낸다** (2026-09-03에 재서 맞췄다).
+   *
+   * 값이 전부 같은 열로 회귀를 돌리면 참해는 `계수 0 · 절편 그 값`이다. 그런데
+   * `ml-regression-multivariate-linear`은 **정규방정식**을 써서 계수에 1e-14 먼지를
+   * 남기고, `metrics.ts`의 R²는 분모가 0일 때 **잔차가 정확히 0인지**로 1과 0을
+   * 가르므로(sklearn과 같은 규칙) 그 먼지 하나가 **1.0이어야 할 점수를 0.0으로
+   * 뒤집었다.** 실제 화면에서 결정계수 0.000이 나왔다.
+   *
+   * **그래서 sklearn처럼 타깃을 센터링해서 푼다**(`ml/engines/mljs.ts`). 상수 타깃이면
+   * `y - ȳ`가 정확히 0이라 계수도 정확히 0이 된다.
+   *
+   * **`toBeCloseTo`를 쓰지 않는다.** 이 검사가 무는 것은 *"가깝다"*가 아니라
+   * **"정확히 0이다"**이고, 그 정확함이 곧 R²의 갈림이다. 가까움으로 재면 센터링을
+   * 걷어내도 초록이다(실제로 걷어낸 값이 −2.8e−14였다).
+   */
+  it('타깃이 상수면 계수가 정확히 0이고 결정계수가 1이다 - sklearn과 같다', () => {
+    const features = [
+      [150, 45],
+      [153, 52],
+      [156, 48],
+      [159, 61],
+      [162, 50],
+      [165, 58],
+    ]
+    const { predict, model } = fit('linear_regression', {
+      features,
+      rowIndices: [0, 1, 2, 3, 4, 5],
+      target: [42, 42, 42, 42, 42, 42],
+      taskType: 'regression',
+      hyperparameters: {},
+      randomState: 42,
+    })
+
+    const stored = model as unknown as { coefficients: number[]; intercept: number }
+    expect(stored.coefficients).toEqual([0, 0])
+    expect(stored.intercept).toBe(42)
+
+    // 예측도 정확히 그 값이어야 잔차가 정확히 0이 된다.
+    expect(predict([[168, 44]])).toEqual([42])
+
+    const { metrics } = evaluate('regression', [42, 42], predict(features.slice(0, 2)))
+    expect(metrics.r2).toBe(1)
+    expect(metrics.rmse).toBe(0)
+  })
 })
 
 describe('모르는 알고리즘', () => {

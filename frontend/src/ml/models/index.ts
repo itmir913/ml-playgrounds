@@ -32,7 +32,11 @@ export { KMEANS_FORMAT, kmeansPredict, loadKMeansModel, parseKMeansModel } from 
 export type { KMeansModel } from './kmeans'
 export { LINEAR_V2_FORMAT, loadLinearV2Model, parseLinearV2 } from './linear'
 export type { LinearModelV2, ParsedLinear } from './linear'
-export { LINEAR_REGRESSION_FORMAT, parseLinearRegression } from './linear-regression'
+export {
+  LINEAR_REGRESSION_FORMAT,
+  loadLinearRegressionModel,
+  parseLinearRegression,
+} from './linear-regression'
 export type { LinearRegressionModel, ParsedLinearRegression } from './linear-regression'
 export { NAIVE_BAYES_FORMAT, parseNaiveBayes } from './naive-bayes'
 export type { NaiveBayesModel, ParsedNaiveBayes } from './naive-bayes'

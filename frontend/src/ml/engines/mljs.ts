@@ -57,6 +57,7 @@ import {
   SVM_FORMAT,
   knnPredict,
   loadKMeansModel,
+  loadLinearRegressionModel,
   loadLinearV2Model,
   loadNeuralModel,
   loadNeuralRegressionModel,
@@ -708,18 +709,60 @@ const TRAINERS: Record<string, Trainer> = {
 
   linear_regression: (input) => {
     // 회귀는 부호화하지 않는다. 타깃이 이미 수치다.
+    const values = input.target.map((value) => Number(value))
+    /**
+     * **타깃을 센터링해서 푼다 — sklearn과 같은 구조다** (2026-09-03, CLAUDE.md §2
+     * "구조는 표준 라이브러리를 따른다").
+     *
+     * `ml-regression-multivariate-linear`은 **정규방정식**을 쓴다 — 1로 채운 열을 붙이고
+     * `X'X`의 유사역행렬을 곱한다. 센터링이 없다. sklearn `LinearRegression`은 X와 y를
+     * 센터링한 뒤 `lstsq`(SVD)로 풀고 절편을 `ȳ - X̄·β`로 되돌린다.
+     *
+     * **그 차이가 분산 0짜리 타깃에서 드러났다** (실측). 값이 전부 42인 열로 회귀를
+     * 돌리면 참해는 `계수 0 · 절편 42`인데, 정규방정식은 계수에 **1e-14 먼지**를 남겨
+     * 잔차가 정확히 0이 아니게 된다. `metrics.ts`의 R²는 분모가 0일 때 **잔차가 정확히
+     * 0인지**로 1과 0을 가르므로(sklearn과 같은 규칙), 그 먼지 하나가 **1.0이어야 할
+     * 점수를 0.0으로 뒤집었다.** sklearn은 같은 데이터에서 1.0을 낸다.
+     *
+     * **센터링하면 그 자리가 정확해진다.** 타깃이 상수면 `y - ȳ`가 **정확히 0**이라
+     * 라이브러리가 받는 우변이 영벡터이고, 계수도 정확히 0이 된다. 되돌린 절편이 곧
+     * `ȳ`다. 실측: 그 화면의 결정계수가 0.000에서 **1.000**으로 바뀌었다.
+     *
+     * **정상 데이터의 수치는 안 움직인다.** 센터링은 절편이 있는 최소제곱에서 **정확한
+     * 대수 변형**이고, 넣은 뒤 `sklearn-parity.spec.ts`와 `mljs.spec.ts`의 못 박은 값이
+     * 하나도 안 흔들렸다(201개 그대로 통과).
+     */
+    const mean = values.length === 0 ? 0 : values.reduce((sum, v) => sum + v, 0) / values.length
     const model = new MultivariateLinearRegression(
       toRows(input.features),
-      input.target.map((value) => [Number(value)]),
+      values.map((value) => [value - mean]),
     )
     const featureCount = input.features[0]?.length ?? 0
-    const attempted = serializeOrOmit(() => serializeLinearRegression(model, featureCount))
+    const attempted = serializeOrOmit(() => {
+      const built = serializeLinearRegression(model, featureCount)
+      return { ...built, intercept: built.intercept + mean }
+    })
     return {
       ...(attempted.model ? { model: attempted.model } : {}),
       ...(attempted.model === undefined && attempted.detail !== undefined
         ? { modelOmittedDetail: attempted.detail }
         : {}),
-      predict: (features) => toRows(features).map((row) => Number(model.predict(row)[0] ?? 0)),
+      /**
+       * **예측은 담기는 모델의 해석기를 그대로 쓴다** — KNN·SVM·로지스틱·K-평균과 같은
+       * 방식이고, 그래서 **저장했다 읽은 예측이 원본과 같은 것이 구조로 보장된다.**
+       *
+       * **센터링이 이 자리를 강제했다** (2026-09-03). 라이브러리 예측에 평균을 따로
+       * 더하면 `(Σcoef·x + 절편) + 평균`인데 담긴 모델은 `Σcoef·x + (절편 + 평균)`이라,
+       * **부동소수 덧셈이 결합법칙을 안 지켜** 마지막 자리가 갈렸다. 실제로
+       * `lifecycle.spec.ts`의 왕복 재현이 `0.1202292862280948` vs `0.12022928622809483`로
+       * 빨개졌다 — 같은 규칙을 두 번 적으면 갈라진다는 그 자리다.
+       *
+       * **직렬화가 실패한 run만 라이브러리로 답한다.** 그때는 담긴 모델이 없어 대조할
+       * 상대도 없고, 지표까지 잃는 것보다 낫다.
+       */
+      predict: attempted.model
+        ? loadLinearRegressionModel(attempted.model)
+        : (features) => toRows(features).map((row) => Number(model.predict(row)[0] ?? 0) + mean),
     }
   },
 
