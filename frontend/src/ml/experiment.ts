@@ -443,17 +443,31 @@ interface TrainContext {
  *
  * **군집은 묻지 않는다.** 정답이 없는 것이 전제이므로 타깃이 비어 있다.
  *
- * **회귀도 묻지 않는다 — 재고 나서 그렇게 뒀다** (2026-09-03). 상수 타깃은 "갈릴 것이
- * 없다"가 아니라 **분산이 0인 것**이라 할 말이 다르다. 재 보니 그쪽의 문제는 문장이
- * 아니라 **숫자**였다: 완벽히 맞힌 선형회귀가 R² 0.000을 받고 있었다(sklearn은 1.0).
- * 원인은 정규방정식이 남긴 1e-14 먼지였고, sklearn처럼 센터링해서 고쳤다
- * (`ml/engines/mljs.ts`).
+ * **회귀도 같은 판정을 받되 코드가 갈린다** (2026-09-03 R25 §5). 상수 타깃은 회귀에서도
+ * 갈라 볼 것이 없는데, 그쪽에서 학생이 보는 것은 100%가 아니라 **결정계수 1.000**이다
+ * (sklearn과 맞춘 뒤로 그렇다 — `ml/engines/mljs.ts`의 센터링). 만점이라 성공으로 읽히는
+ * 것은 같고, **할 일이 다르다**: 분류는 *"갈라 볼 것이 없다"*, 회귀는 *"오차로 판단하라"*.
+ *
+ * **축은 유형마다 다르다 — 감사가 잡은 자리다.** 분류의 타깃은 문자열이라 `Set`으로 세는
+ * 것이 맞다. **회귀는 엔진이 `Number()`로 읽는다** — `42`·`42.0`·`42.00`이 든 열은
+ * 문자열로는 **세 종류**인데 수치로는 **한 종류**이고, 그때 R²의 분모는 정확히 0이라
+ * 1.0/0.0 규칙이 켜지는데 경고만 안 붙는다. 그래서 회귀는 **수치로 센다**(분산 0과 같다).
+ *
+ * **함수는 하나다.** 판정을 유형마다 두면 오늘 고친 교실 버그와 같은 모양이 된다.
  */
-function singleClassWarning(context: TrainContext): Warning | undefined {
-  if (context.taskType !== 'classification') return undefined
-  const classes = new Set(context.trainTarget)
-  if (classes.size !== 1) return undefined
-  return { code: 'TARGET_TOO_FEW_CLASSES', params: { value: [...classes][0] as string } }
+function noVarianceWarning(context: TrainContext): Warning | undefined {
+  if (context.taskType === 'clustering') return undefined
+  const regression = context.taskType === 'regression'
+  // 회귀는 수치로, 분류는 문자열로 센다 — 위 주석의 그 갈림이다.
+  const values: readonly (string | number)[] = regression
+    ? context.trainTarget.map(Number)
+    : context.trainTarget
+  const distinct = new Set(values)
+  if (distinct.size !== 1) return undefined
+  const value = [...distinct][0]
+  return regression
+    ? { code: 'TARGET_NO_VARIANCE', params: { value: String(value) } }
+    : { code: 'TARGET_TOO_FEW_CLASSES', params: { value: String(value) } }
 }
 
 type RunBase = Pick<Run, 'id' | 'algorithm' | 'hyperparameters' | 'trainedAt'>
@@ -520,7 +534,7 @@ function trainOne(
      * 자체에 뜻이 없으므로**, *"덜 다듬어진 계수에서 나온 숫자다"*보다 먼저 할 말이다.
      * 실제로 겹칠 일은 드물다 - 상수 타깃에서는 대개 곧바로 수렴한다.
      */
-    const nothingToLearn = singleClassWarning(context)
+    const nothingToLearn = noVarianceWarning(context)
 
     const run: Run = {
       ...stamp,

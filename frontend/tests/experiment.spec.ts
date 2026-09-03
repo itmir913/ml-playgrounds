@@ -17,6 +17,7 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { isClientError } from '../src/errors'
 import { ALGORITHMS, type Algorithm } from '../src/ml/algorithms'
+import { fit } from '../src/ml/engines/mljs'
 import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/ml/experiment'
 import { dataSnapshot } from '../src/project/schema'
 import { trainableRowCount } from '../src/ml/selection'
@@ -1806,17 +1807,15 @@ describe('타깃에 값이 한 종류뿐이면', () => {
   })
 
   /**
-   * **회귀에는 안 붙는다.** 상수 타깃은 회귀에서도 문제이지만 **"갈릴 것이 없다"가
-   * 아니라 분산이 0인 것**이고, 학생에게 할 말이 다르다 — 그 자리는 아직 안 재 봤다.
-   * 분류의 문장을 그대로 내면 *"모델이 갈라 볼 것이 없습니다"*가 회귀 학생에게 간다.
+   * **회귀에는 회귀의 코드가 붙는다** (2026-09-03 R25 §5). 판정은 한 함수이고 학생이
+   * 할 일이 갈린다 — 분류는 *"갈라 볼 것이 없다"*, 회귀는 **"오차로 판단하라"**다.
    *
-   * **이 검사가 유형 가드를 무는 유일한 자리다.** 아래 군집 검사는 안 문다 — 군집은
-   * 타깃이 빈 배열이라 개수가 0이고, 유형을 안 봐도 그냥 지나간다(돌연변이로 확인했다).
+   * **분류의 문장을 그대로 내면 회귀 학생에게 틀린 말이 간다.**
    */
-  it('회귀에는 안 붙는다 - 할 말이 다르다', () => {
-    const experiment = runExperiment(
+  function regressionRun(dataset: Dataset) {
+    return runExperiment(
       {
-        ...inputFor({ dataset: constantTarget('42'), taskType: 'regression' }),
+        ...inputFor({ dataset, taskType: 'regression' }),
         settings: {
           ...settingsFor(),
           selectedAlgorithms: models('linear_regression'),
@@ -1825,9 +1824,103 @@ describe('타깃에 값이 한 종류뿐이면', () => {
         },
       },
       frozen,
+    ).experiment.runs[0]
+  }
+
+  it('회귀는 회귀의 코드로 붙는다 - 분류 문장이 가면 안 된다', () => {
+    const run = regressionRun(constantTarget('42'))
+    expect(run?.status).toBe('done')
+    expect(run?.warning?.code).toBe('TARGET_NO_VARIANCE')
+  })
+
+  /**
+   * **이 줄이 그 경고가 필요한 이유다.** sklearn과 맞춘 뒤로 완벽히 맞힌 회귀는 분모가
+   * 0인 자리에서 **1.000**을 받는다 — 만점이라 성공으로 읽힌다.
+   */
+  it('그래도 결정계수는 1.000으로 나온다 - 그것이 위험한 것이다', () => {
+    expect(regressionRun(constantTarget('42'))?.metrics?.r2).toBe(1)
+  })
+
+  /**
+   * **회귀는 수치로 센다** (R25가 잡은 모서리). `42`와 `42.0`은 **문자열로 두 종류**인데
+   * 엔진은 `Number()`로 읽어 **한 종류**로 학습한다. 그 열에서 R²의 분모는 정확히 0이라
+   * 1.0/0.0 규칙이 켜지는데, 문자열로 세면 경고만 안 붙는다.
+   */
+  it('42와 42.0은 회귀에서 한 종류다 - 문자열로 세면 이 줄이 빨개진다', () => {
+    const mixed: Dataset = {
+      columns: ['키', '몸무게', '결과'],
+      rows: Array.from({ length: 10 }, (_, index) => [
+        String(150 + index * 3),
+        String(45 + index * 2),
+        index % 2 === 0 ? '42' : '42.0',
+      ]),
+    }
+    const run = regressionRun(mixed)
+    expect(run?.status).toBe('done')
+    expect(run?.warning?.code).toBe('TARGET_NO_VARIANCE')
+  })
+
+  /**
+   * **데이터 경고가 엔진 경고를 이긴다** (2026-09-03 R25 B-3).
+   *
+   * `Run.warning`이 하나뿐이라 둘이 겹치면 골라야 한다. 감사가 **우선순위만 뒤집는**
+   * 돌연변이를 심었더니 조용했다 — 둘이 함께 나는 픽스처가 없었기 때문이다. 재 보니
+   * **인공신경망 회귀가 상수 타깃에서 실제로 `NEURAL_REGRESSION_NOT_CONVERGED`를 낸다.**
+   *
+   * 타깃이 상수면 그 점수 자체에 뜻이 없으므로 *"덜 다듬어진 계수에서 나온 숫자다"*보다
+   * 먼저 할 말이다.
+   */
+  it('엔진 경고와 겹치면 데이터 경고가 이긴다', () => {
+    const rows = 30
+    const constant: Dataset = {
+      columns: ['키', '몸무게', '결과'],
+      rows: Array.from({ length: rows }, (_, index) => [
+        String(index * 0.7),
+        String((index % 5) * 3),
+        '42',
+      ]),
+    }
+    const experiment = runExperiment(
+      {
+        ...inputFor({ dataset: constant, taskType: 'regression' }),
+        settings: {
+          ...settingsFor(),
+          selectedAlgorithms: models('neural_network'),
+          split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+          data: { ...baseData, features: ['키', '몸무게'], target: '결과' },
+        },
+      },
+      frozen,
     ).experiment
-    expect(experiment.runs[0]?.status).toBe('done')
-    expect(experiment.runs[0]?.warning?.code).not.toBe('TARGET_TOO_FEW_CLASSES')
+    const run = experiment.runs[0]
+    expect(run?.status).toBe('done')
+    // 이 픽스처가 엔진 경고를 실제로 내야 이 검사가 우선순위를 잰다.
+    expect(
+      fit('neural_network', {
+        features: constant.rows.map((row) => [Number(row[0]), Number(row[1])]),
+        rowIndices: constant.rows.map((_, index) => index),
+        target: constant.rows.map(() => '42'),
+        taskType: 'regression',
+        hyperparameters: {},
+        randomState: 42,
+      }).warning?.code,
+      'the engine must warn here, or this test does not measure priority',
+    ).toBe('NEURAL_REGRESSION_NOT_CONVERGED')
+    expect(run?.warning?.code).toBe('TARGET_NO_VARIANCE')
+  })
+
+  it('회귀 타깃이 실제로 변하면 경고가 없다 - 문턱이 문턱으로 산다', () => {
+    const varying: Dataset = {
+      columns: ['키', '몸무게', '결과'],
+      rows: Array.from({ length: 10 }, (_, index) => [
+        String(150 + index * 3),
+        String(45 + index * 2),
+        String(40 + index),
+      ]),
+    }
+    const run = regressionRun(varying)
+    expect(run?.status).toBe('done')
+    expect(run?.warning).toBeUndefined()
   })
 
   /**
