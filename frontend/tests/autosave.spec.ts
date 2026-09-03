@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * 자동 저장과 `.mlpx` 내보내기.
  *
@@ -314,7 +315,12 @@ describe('내보내기', () => {
     // 미뤄 둔 저장이 반영된 이름과, 표가 통째로 실려 나갔는가.
     const { project: reopened, integrity } = await readProject(bytes)
     expect(reopened.document.manifest.name).toBe('나간 파일에 담겨야 하는 이름')
-    expect(reopened.dataset?.bytes).toEqual(projectFile().dataset?.bytes)
+    // jsdom에서는 zip이 돌려준 배열과 픽스처의 배열이 다른 realm의 Uint8Array라
+    // toEqual이 내용이 같아도 운다 - 이 파일이 jsdom으로 옮겨 오며(가드 규칙) 드러났다.
+    // 같은 realm으로 감싸 바이트만 견준다.
+    expect(new Uint8Array(reopened.dataset?.bytes ?? [])).toEqual(
+      new Uint8Array(projectFile().dataset?.bytes ?? []),
+    )
     expect(reopened.models.size).toBe(projectFile().models.size)
     expect(integrity.status).toBe('UNCHANGED')
   })

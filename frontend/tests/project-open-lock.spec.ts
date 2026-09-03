@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * 프로젝트 스토어가 두 탭 잠금을 옳게 배선했는가 (stores/project.ts의 open·close,
  * open-decisions.md "프로젝트는 한 번에 하나만 연다").

@@ -51,7 +51,7 @@ function settingsFor(algorithms: string[]): Settings {
   }
 }
 
-function trained(algorithms: string[]): Experiment {
+function trained(algorithms: string[]): Promise<Experiment> {
   return runExperiment(
     {
       dataset,
@@ -62,11 +62,15 @@ function trained(algorithms: string[]): Experiment {
       context: { limitsOff: false, serverStatus: 'unavailable', rowCount: 30, dataType: 'tabular' },
     },
     { now: () => '2026-08-06T00:00:00.000Z' },
-  ).experiment
+  ).then((result) => result.experiment)
 }
 
 /** run 하나를 손본 실험. 파일을 풀어 고친 상태를 흉내 낸다. */
-function withRun(experiment: Experiment, index: number, overrides: Partial<Run>): Experiment {
+async function withRun(
+  experiment: Experiment,
+  index: number,
+  overrides: Partial<Run>,
+): Promise<Experiment> {
   const runs = experiment.runs.map((run, at) => (at === index ? { ...run, ...overrides } : run))
   return { ...experiment, runs }
 }
@@ -83,17 +87,17 @@ describe('재실행 대조', () => {
    * 스키마를 통과하는 정상 `.mlpx`이고, 그런 파일이 이 층의 위협 모형 자체다 —
    * 학생이 학습 전에 `runs.json`을 고치고 저장하면 해시는 멀쩡하다.
    */
-  it('견줄 지표가 없으면 재현됐다고 말하지 않는다', () => {
-    const experiment = withRun(trained(['decision_tree']), 0, { metrics: {} })
-    const found = reproduceExperiment({ experiment, dataset, testDataset: null })
+  it('견줄 지표가 없으면 재현됐다고 말하지 않는다', async () => {
+    const experiment = await withRun(await trained(['decision_tree']), 0, { metrics: {} })
+    const found = await reproduceExperiment({ experiment, dataset, testDataset: null })
 
     expect(found).toHaveLength(1)
     expect(found[0]?.status).not.toBe('REPRODUCED')
   })
 
-  it('방금 학습한 실험은 그대로 재현된다', () => {
-    const experiment = trained(['decision_tree', 'knn', 'naive_bayes', 'svm'])
-    const found = reproduceExperiment({ experiment, dataset, testDataset: null })
+  it('방금 학습한 실험은 그대로 재현된다', async () => {
+    const experiment = await trained(['decision_tree', 'knn', 'naive_bayes', 'svm'])
+    const found = await reproduceExperiment({ experiment, dataset, testDataset: null })
 
     expect(found).toHaveLength(4)
     for (const one of found) {
@@ -106,57 +110,61 @@ describe('재실행 대조', () => {
     }
   })
 
-  it('지표를 고친 파일은 어긋나고, 얼마나 어긋났는지까지 준다', () => {
-    const experiment = trained(['decision_tree'])
+  it('지표를 고친 파일은 어긋나고, 얼마나 어긋났는지까지 준다', async () => {
+    const experiment = await trained(['decision_tree'])
     const stored = experiment.runs[0]?.metrics?.['accuracy'] ?? 0
-    const tampered = withRun(experiment, 0, {
+    const tampered = await withRun(experiment, 0, {
       metrics: { ...experiment.runs[0]?.metrics, accuracy: 1 },
     })
 
-    const [found] = reproduceExperiment({ experiment: tampered, dataset, testDataset: null })
+    const [found] = await reproduceExperiment({ experiment: tampered, dataset, testDataset: null })
     expect(found?.status).toBe('NOT_REPRODUCED')
     expect(found?.again?.['accuracy']).toBe(stored)
     // 판정하지 않고 차이를 준다. 얼마까지 봐 줄지는 이 층이 정하지 않는다.
     expect(found?.deltas?.['accuracy']).toBeCloseTo(stored - 1, 10)
   })
 
-  it('엔진이 다르면 대조하지 않는다 - 무고한 학생을 지목하지 않는다', () => {
-    const experiment = trained(['decision_tree'])
-    const other = withRun(experiment, 0, { engine: { kind: 'mljs', version: '999' } })
+  it('엔진이 다르면 대조하지 않는다 - 무고한 학생을 지목하지 않는다', async () => {
+    const experiment = await trained(['decision_tree'])
+    const other = await withRun(experiment, 0, { engine: { kind: 'mljs', version: '999' } })
 
-    const [found] = reproduceExperiment({ experiment: other, dataset, testDataset: null })
+    const [found] = await reproduceExperiment({ experiment: other, dataset, testDataset: null })
     expect(found?.status).toBe('ENGINE_UNAVAILABLE')
     // 무엇으로 만든 것인지 함께 준다. 화면이 "이 파일은 다른 엔진에서 왔다"를 말해야 한다.
     expect(found?.engine?.version).toBe('999')
     expect(found?.again).toBeUndefined()
   })
 
-  it('무엇으로 만들었는지 모르는 run도 대조하지 않는다', () => {
-    const experiment = trained(['decision_tree'])
-    const [found] = reproduceExperiment({
-      experiment: withRun(experiment, 0, { engine: undefined }),
+  it('무엇으로 만들었는지 모르는 run도 대조하지 않는다', async () => {
+    const experiment = await trained(['decision_tree'])
+    const [found] = await reproduceExperiment({
+      experiment: await withRun(experiment, 0, { engine: undefined }),
       dataset,
       testDataset: null,
     })
     expect(found?.status).toBe('ENGINE_UNAVAILABLE')
   })
 
-  it('실패한 run은 대조 대상이 아니다 - 견줄 지표가 없다', () => {
-    const experiment = trained(['decision_tree'])
-    const failed = withRun(experiment, 0, {
+  it('실패한 run은 대조 대상이 아니다 - 견줄 지표가 없다', async () => {
+    const experiment = await trained(['decision_tree'])
+    const failed = await withRun(experiment, 0, {
       status: 'failed',
       metrics: undefined,
       failure: { code: 'JOB_FAILED' },
     })
-    expect(reproduceExperiment({ experiment: failed, dataset, testDataset: null })).toEqual([])
+    expect(await reproduceExperiment({ experiment: failed, dataset, testDataset: null })).toEqual(
+      [],
+    )
   })
 
-  it('학생이 바꾼 하이퍼파라미터를 그대로 먹인다', () => {
+  it('학생이 바꾼 하이퍼파라미터를 그대로 먹인다', async () => {
     // 기본값으로 다시 채우면 다른 설정으로 학습해 놓고 "안 맞는다"고 말하게 된다.
-    const experiment = trained(['decision_tree'])
-    const shallow = withRun(experiment, 0, { hyperparameters: { maxDepth: 1, minNumSamples: 3 } })
+    const experiment = await trained(['decision_tree'])
+    const shallow = await withRun(experiment, 0, {
+      hyperparameters: { maxDepth: 1, minNumSamples: 3 },
+    })
 
-    const [found] = reproduceExperiment({ experiment: shallow, dataset, testDataset: null })
+    const [found] = await reproduceExperiment({ experiment: shallow, dataset, testDataset: null })
     // 깊이 1로 다시 돌리면 붓꽃 세 품종을 못 가르므로 파일의 지표와 어긋난다.
     expect(found?.status).toBe('NOT_REPRODUCED')
     expect(found?.again?.['accuracy']).toBeLessThan(experiment.runs[0]?.metrics?.['accuracy'] ?? 1)
@@ -201,28 +209,30 @@ describe('대조의 전처리기도 훈련 데이터에서만 나온다', () => 
     hyperparameters: { knn: { mljs: { k: 1 } } },
   }
 
-  it('학습한 그대로 대조하면 어긋나는 곳이 없다', () => {
-    const experiment = runExperiment(
-      {
-        dataset: skewed,
-        testDataset: null,
-        taskType: 'classification',
-        dataType: 'tabular',
-        settings: skewedSettings,
-        context: {
-          limitsOff: false,
-          serverStatus: 'unavailable',
-          rowCount: 16,
+  it('학습한 그대로 대조하면 어긋나는 곳이 없다', async () => {
+    const experiment = (
+      await runExperiment(
+        {
+          dataset: skewed,
+          testDataset: null,
+          taskType: 'classification',
           dataType: 'tabular',
+          settings: skewedSettings,
+          context: {
+            limitsOff: false,
+            serverStatus: 'unavailable',
+            rowCount: 16,
+            dataType: 'tabular',
+          },
         },
-      },
-      { now: () => '2026-08-06T00:00:00.000Z' },
+        { now: () => '2026-08-06T00:00:00.000Z' },
+      )
     ).experiment
 
     // 테스트 자리가 정말 극단값 행인지 먼저 못 박는다 - 분할이 바뀌면 이 검사가 무뎌진다.
     expect([...experiment.settings.testIndices].sort((a, b) => a - b)).toEqual([3, 4, 10, 13])
 
-    const [found] = reproduceExperiment({ experiment, dataset: skewed, testDataset: null })
+    const [found] = await reproduceExperiment({ experiment, dataset: skewed, testDataset: null })
     expect(found?.status).toBe('REPRODUCED')
     expect(Object.values(found?.deltas ?? {}).every((delta) => delta === 0)).toBe(true)
   })
@@ -267,7 +277,7 @@ describe('군집도 대조한다', () => {
     hyperparameters: {},
   }
 
-  function clusterExperiment(): Experiment {
+  function clusterExperiment(): Promise<Experiment> {
     return runExperiment(
       {
         dataset: clusters,
@@ -283,12 +293,12 @@ describe('군집도 대조한다', () => {
         },
       },
       { now: () => '2026-08-06T00:00:00.000Z' },
-    ).experiment
+    ).then((result) => result.experiment)
   }
 
-  it('엔진이 없다고 하지 않는다 - 엔진은 거기 있다', () => {
-    const [found] = reproduceExperiment({
-      experiment: clusterExperiment(),
+  it('엔진이 없다고 하지 않는다 - 엔진은 거기 있다', async () => {
+    const [found] = await reproduceExperiment({
+      experiment: await clusterExperiment(),
       dataset: clusters,
       testDataset: null,
     })
@@ -297,12 +307,12 @@ describe('군집도 대조한다', () => {
     expect(found?.again?.['inertia']).toBeDefined()
   })
 
-  it('군집 지표를 고친 파일도 잡는다', () => {
-    const experiment = clusterExperiment()
-    const tampered = withRun(experiment, 0, {
+  it('군집 지표를 고친 파일도 잡는다', async () => {
+    const experiment = await clusterExperiment()
+    const tampered = await withRun(experiment, 0, {
       metrics: { ...experiment.runs[0]?.metrics, silhouette: 0.1 },
     })
-    const [found] = reproduceExperiment({
+    const [found] = await reproduceExperiment({
       experiment: tampered,
       dataset: clusters,
       testDataset: null,
@@ -334,34 +344,36 @@ describe('테스트 파일이 따로 온 실험', () => {
     }
   }
 
-  function providedExperiment(): { experiment: Experiment; testDataset: Dataset } {
+  async function providedExperiment(): Promise<{ experiment: Experiment; testDataset: Dataset }> {
     const testDataset = testTable()
     const settings = settingsFor(['decision_tree', 'knn'])
-    const experiment = runExperiment(
-      {
-        dataset,
-        testDataset,
-        taskType: 'classification',
-        dataType: 'tabular',
-        settings: {
-          ...settings,
-          split: { ...settings.split, method: 'provided' },
-        },
-        context: {
-          limitsOff: false,
-          serverStatus: 'unavailable',
-          rowCount: 30,
+    const experiment = (
+      await runExperiment(
+        {
+          dataset,
+          testDataset,
+          taskType: 'classification',
           dataType: 'tabular',
+          settings: {
+            ...settings,
+            split: { ...settings.split, method: 'provided' },
+          },
+          context: {
+            limitsOff: false,
+            serverStatus: 'unavailable',
+            rowCount: 30,
+            dataType: 'tabular',
+          },
         },
-      },
-      { now: () => '2026-08-06T00:00:00.000Z' },
+        { now: () => '2026-08-06T00:00:00.000Z' },
+      )
     ).experiment
     return { experiment, testDataset }
   }
 
-  it('방금 학습한 것이 그대로 재현된다', () => {
-    const { experiment, testDataset } = providedExperiment()
-    const found = reproduceExperiment({ experiment, dataset, testDataset })
+  it('방금 학습한 것이 그대로 재현된다', async () => {
+    const { experiment, testDataset } = await providedExperiment()
+    const found = await reproduceExperiment({ experiment, dataset, testDataset })
 
     expect(found).toHaveLength(2)
     for (const one of found) expect(one.status, one.algorithm).toBe('REPRODUCED')
@@ -371,17 +383,17 @@ describe('테스트 파일이 따로 온 실험', () => {
    * **이 검사가 이 묶음의 이유다.** 채점 대상을 훈련 정본으로 바꿔치기하면 지표가
    * 달라져야 한다 — 안 달라지면 `provided` 갈래가 아무 일도 안 하고 있는 것이다.
    */
-  it('채점 대상이 훈련 정본으로 바뀌면 재현되지 않는다', () => {
-    const { experiment } = providedExperiment()
-    const found = reproduceExperiment({ experiment, dataset, testDataset: dataset })
+  it('채점 대상이 훈련 정본으로 바뀌면 재현되지 않는다', async () => {
+    const { experiment } = await providedExperiment()
+    const found = await reproduceExperiment({ experiment, dataset, testDataset: dataset })
 
     expect(found.some((one) => one.status !== 'REPRODUCED')).toBe(true)
   })
 
   /** 테스트 정본이 없으면 대조 자체가 불가능하다 - 없는 것을 있는 척하지 않는다. */
-  it('테스트 정본이 없으면 대조할 수 없다고 말한다', () => {
-    const { experiment } = providedExperiment()
-    const found = reproduceExperiment({ experiment, dataset, testDataset: null })
+  it('테스트 정본이 없으면 대조할 수 없다고 말한다', async () => {
+    const { experiment } = await providedExperiment()
+    const found = await reproduceExperiment({ experiment, dataset, testDataset: null })
 
     // **바닥이다.** 없으면 이 순회가 0회 돌고 초록이라, 지키는 것이 "말한다"가 아니라
     // "적어도 거짓말은 안 한다"까지로 줄어든다. 실제로 앞에 `return []` 한 줄을 끼워도
@@ -430,7 +442,7 @@ describe('대조도 파일에 적힌 씨앗으로 돌린다', () => {
 
   const noisy = noisyTable()
 
-  function forestWith(randomState: number): Experiment {
+  async function forestWith(randomState: number): Promise<Experiment> {
     return runExperiment(
       {
         dataset: noisy,
@@ -456,23 +468,23 @@ describe('대조도 파일에 적힌 씨앗으로 돌린다', () => {
         },
       },
       { now: () => '2026-08-06T00:00:00.000Z' },
-    ).experiment
+    ).then((result) => result.experiment)
   }
 
   /**
    * **전제부터 확인한다.** 두 씨앗이 실제로 다른 지표를 내야 아래 검사가 뜻을 갖는다 —
    * 안 갈리면 픽스처가 무딘 것이지 코드가 옳은 것이 아니다.
    */
-  it('씨앗이 다르면 지표가 갈린다 - 이 픽스처가 그 축을 가른다', () => {
-    const left = forestWith(42).runs[0]?.metrics
-    const right = forestWith(7).runs[0]?.metrics
+  it('씨앗이 다르면 지표가 갈린다 - 이 픽스처가 그 축을 가른다', async () => {
+    const left = (await forestWith(42)).runs[0]?.metrics
+    const right = (await forestWith(7)).runs[0]?.metrics
     expect(left).toBeDefined()
     expect(right).not.toEqual(left)
   })
 
-  it('파일의 씨앗으로 다시 돌린다 - 못 박힌 값이 아니라', () => {
-    const experiment = forestWith(7)
-    const [found] = reproduceExperiment({ experiment, dataset: noisy, testDataset: null })
+  it('파일의 씨앗으로 다시 돌린다 - 못 박힌 값이 아니라', async () => {
+    const experiment = await forestWith(7)
+    const [found] = await reproduceExperiment({ experiment, dataset: noisy, testDataset: null })
     expect(found?.status).toBe('REPRODUCED')
   })
 })

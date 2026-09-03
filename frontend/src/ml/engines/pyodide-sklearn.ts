@@ -276,7 +276,7 @@ function fetchNestedList(name: string): unknown[][] {
 // fit — TrainingEngine.fit 계약
 // ---------------------------------------------------------------------------
 
-export function fit(algorithm: string, input: FitInput): FitResult {
+export async function fit(algorithm: string, input: FitInput): Promise<FitResult> {
   if (!py) throw new ClientError('ENGINE_NOT_READY')
 
   const hp = resolve(algorithm, input.hyperparameters)

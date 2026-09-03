@@ -52,7 +52,7 @@ function settingsWith(scaling: Preprocessing['scaling']): Experiment['settings']
 }
 
 /** 학습부터 직렬화까지 실제로 지나간다. 돌려주는 것은 `.mlpx`에 담기는 바이트다. */
-function trained(
+async function trained(
   algorithm: string,
   features: readonly string[],
   target: string,
@@ -63,7 +63,7 @@ function trained(
   const matrix = transform(preprocessor, DATASET, ROWS, preprocessing.categoricalEncoding)
   const targetIndex = DATASET.columns.indexOf(target)
   const values = ROWS.map((row) => (DATASET.rows[row] as string[])[targetIndex] as string)
-  const { model } = fit(algorithm, {
+  const { model } = await fit(algorithm, {
     features: matrix,
     rowIndices: ROWS,
     target: values,
@@ -79,8 +79,12 @@ function trained(
 }
 
 describe('모델이 배운 값의 표', () => {
-  it('로지스틱 — 범주마다 한 줄이고 절편이 함께 온다', () => {
-    const { format, bytes, preprocessor } = trained('logistic_regression', NUMERIC_FEATURES, '결과')
+  it('로지스틱 — 범주마다 한 줄이고 절편이 함께 온다', async () => {
+    const { format, bytes, preprocessor } = await trained(
+      'logistic_regression',
+      NUMERIC_FEATURES,
+      '결과',
+    )
     const table = parameterTableFor(format, bytes, preprocessor, settingsWith('none'))
 
     expect(table?.featureNames).toEqual(['키', '몸무게'])
@@ -99,8 +103,8 @@ describe('모델이 배운 값의 표', () => {
     }
   })
 
-  it('선형 회귀 — 줄이 하나이고 범주 이름이 없다', () => {
-    const { format, bytes, preprocessor } = trained('linear_regression', ['키'], '몸무게')
+  it('선형 회귀 — 줄이 하나이고 범주 이름이 없다', async () => {
+    const { format, bytes, preprocessor } = await trained('linear_regression', ['키'], '몸무게')
     const table = parameterTableFor(format, bytes, preprocessor, settingsWith('none'))
 
     const rows = table?.sections[0]?.rows ?? []
@@ -110,8 +114,8 @@ describe('모델이 배운 값의 표', () => {
     expect(rows[0]?.intercept).not.toBeNull()
   })
 
-  it('나이브 베이즈 — 평균과 분산이 각각 한 표이고 절편이 없다', () => {
-    const { format, bytes, preprocessor } = trained('naive_bayes', NUMERIC_FEATURES, '결과')
+  it('나이브 베이즈 — 평균과 분산이 각각 한 표이고 절편이 없다', async () => {
+    const { format, bytes, preprocessor } = await trained('naive_bayes', NUMERIC_FEATURES, '결과')
     const table = parameterTableFor(format, bytes, preprocessor, settingsWith('none'))
 
     expect(table?.sections.map((section) => section.kind)).toEqual(['means', 'variances'])
@@ -124,8 +128,12 @@ describe('모델이 배운 값의 표', () => {
     expect(means[0]?.values[0]).toBeLessThan(means[1]?.values[0] ?? 0)
   })
 
-  it('원핫으로 늘어난 열도 이름 그대로 한 줄씩이다', () => {
-    const { format, bytes, preprocessor } = trained('logistic_regression', ['키', '지역'], '결과')
+  it('원핫으로 늘어난 열도 이름 그대로 한 줄씩이다', async () => {
+    const { format, bytes, preprocessor } = await trained(
+      'logistic_regression',
+      ['키', '지역'],
+      '결과',
+    )
     const table = parameterTableFor(format, bytes, preprocessor, settingsWith('none'))
 
     // 되묶지 않는다 — 되묶는 것도 우리가 짜는 계산이다 (결정문).
@@ -134,9 +142,9 @@ describe('모델이 배운 값의 표', () => {
     expect(table?.sections[0]?.rows[0]?.values).toHaveLength(preprocessor.featureNames.length)
   })
 
-  it('스케일링을 켰는지가 표에 실린다', () => {
-    const off = trained('logistic_regression', NUMERIC_FEATURES, '결과', 'none')
-    const on = trained('logistic_regression', NUMERIC_FEATURES, '결과', 'standard')
+  it('스케일링을 켰는지가 표에 실린다', async () => {
+    const off = await trained('logistic_regression', NUMERIC_FEATURES, '결과', 'none')
+    const on = await trained('logistic_regression', NUMERIC_FEATURES, '결과', 'standard')
 
     expect(
       parameterTableFor(off.format, off.bytes, off.preprocessor, settingsWith('none'))?.scaled,
@@ -146,8 +154,12 @@ describe('모델이 배운 값의 표', () => {
     ).toBe(true)
   })
 
-  it('읽을 수 없으면 아무것도 세우지 않는다', () => {
-    const { format, bytes, preprocessor } = trained('logistic_regression', NUMERIC_FEATURES, '결과')
+  it('읽을 수 없으면 아무것도 세우지 않는다', async () => {
+    const { format, bytes, preprocessor } = await trained(
+      'logistic_regression',
+      NUMERIC_FEATURES,
+      '결과',
+    )
 
     // 전처리기가 안 담긴 파일 — 이름 없이 숫자만 늘어놓지 않는다.
     expect(parameterTableFor(format, bytes, null, settingsWith('none'))).toBeNull()

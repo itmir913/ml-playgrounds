@@ -13,3 +13,11 @@ import type { TrainWorker } from './client'
 export function spawnTrainingWorker(): TrainWorker {
   return new Worker(new URL('./train.worker.ts', import.meta.url), { type: 'module' })
 }
+
+/**
+ * 신경망 조각 계산 워커. **학습 워커 안에서 부른다** — 중첩 워커라 부모(학습 워커)가
+ * terminate로 죽으면 함께 죽고, 그래서 취소 의미가 그대로 남는다 (ml/worker/neural-pool.ts).
+ */
+export function spawnNeuralComputeWorker(): Worker {
+  return new Worker(new URL('./neural-compute.worker.ts', import.meta.url), { type: 'module' })
+}

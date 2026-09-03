@@ -123,7 +123,7 @@ class HandlerWorker extends FakeWorker {
   override postMessage(message: TrainRequest): void {
     super.postMessage(message)
     // 진짜 워커도 비동기로 답한다. 동기로 답하면 client가 못 잡는 순서를 놓친다.
-    queueMicrotask(() => handleTrain(message, (outgoing) => this.emit(outgoing)))
+    queueMicrotask(() => void handleTrain(message, (outgoing) => this.emit(outgoing)))
   }
 }
 
@@ -138,14 +138,14 @@ async function rejectionCode(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('워커 안의 처리', () => {
-  function collect(request: TrainRequest): WorkerMessage[] {
+  async function collect(request: TrainRequest): Promise<WorkerMessage[]> {
     const messages: WorkerMessage[] = []
-    handleTrain(request, (message) => messages.push(message))
+    await handleTrain(request, (message) => messages.push(message))
     return messages
   }
 
-  it('모델마다 시작과 끝을 보내고 마지막에 결과를 보낸다', () => {
-    const messages = collect(requestFor())
+  it('모델마다 시작과 끝을 보내고 마지막에 결과를 보낸다', async () => {
+    const messages = await collect(requestFor())
     expect(messages.map((message) => message.type)).toEqual([
       // **첫 모델보다 먼저다.** 취소가 조립할 재료이므로 루프 안에 있으면 늦다
       // (open-decisions.md "멈추기가 끝난 것을 남긴다" §3).
@@ -158,8 +158,8 @@ describe('워커 안의 처리', () => {
     ])
   })
 
-  it('머리말이 runs 말고 전부 들고 온다 - 취소가 이것으로 조립한다', () => {
-    const first = collect(requestFor())[0]
+  it('머리말이 runs 말고 전부 들고 온다 - 취소가 이것으로 조립한다', async () => {
+    const first = (await collect(requestFor()))[0]
     expect(first?.type).toBe('prelude')
     if (first?.type === 'prelude') {
       expect(first.prelude.id).toBe('experiment-1')
@@ -168,8 +168,8 @@ describe('워커 안의 처리', () => {
     }
   })
 
-  it('끝 보고가 방금 추가한 모델을 싣는다 - 취소하면 워커와 함께 사라진다', () => {
-    const finished = collect(requestFor()).filter((message) => message.type === 'progress')
+  it('끝 보고가 방금 추가한 모델을 싣는다 - 취소하면 워커와 함께 사라진다', async () => {
+    const finished = (await collect(requestFor())).filter((message) => message.type === 'progress')
     expect(finished).not.toHaveLength(0)
     // 담기는 알고리즘이 하나라도 있으면 그 자리에 모델이 실린다. 직렬화기가 없는
     // 알고리즘은 지표만 남는 것이 정상이다 (mlpx-spec.md §4.2).
@@ -179,8 +179,8 @@ describe('워커 안의 처리', () => {
     expect(carried.length).toBeGreaterThan(0)
   })
 
-  it('시작 보고가 무엇이 도는지 말한다 - 끝난 개수로는 알 수 없다', () => {
-    const started = collect(requestFor()).find((message) => message.type === 'started')
+  it('시작 보고가 무엇이 도는지 말한다 - 끝난 개수로는 알 수 없다', async () => {
+    const started = (await collect(requestFor())).find((message) => message.type === 'started')
     const first = started
     expect(first?.type).toBe('started')
     if (first?.type === 'started') {
@@ -192,16 +192,16 @@ describe('워커 안의 처리', () => {
     }
   })
 
-  it('끝 보고도 자리를 싣는다 - 받는 쪽이 "끝난 개수 - 1"로 되짚지 않는다', () => {
-    const messages = collect(requestFor())
+  it('끝 보고도 자리를 싣는다 - 받는 쪽이 "끝난 개수 - 1"로 되짚지 않는다', async () => {
+    const messages = await collect(requestFor())
     const finished = messages.filter((message) => message.type === 'progress')
     expect(finished.map((message) => (message.type === 'progress' ? message.index : -1))).toEqual([
       0, 1,
     ])
   })
 
-  it('진행은 모델 단위다 - 백분율을 만들지 않는다', () => {
-    const first = collect(requestFor()).find((message) => message.type === 'progress')
+  it('진행은 모델 단위다 - 백분율을 만들지 않는다', async () => {
+    const first = (await collect(requestFor())).find((message) => message.type === 'progress')
     expect(first?.type).toBe('progress')
     if (first?.type === 'progress') {
       expect(first.completed).toBe(1)
@@ -210,26 +210,28 @@ describe('워커 안의 처리', () => {
     }
   })
 
-  it('던지지 않는다 - 실패도 메시지다', () => {
+  it('던지지 않는다 - 실패도 메시지다', async () => {
     const broken = settingsFor()
     delete broken.data.target
 
-    const messages = collect(requestFor(broken))
+    const messages = await collect(requestFor(broken))
     expect(messages).toEqual([{ type: 'failed', code: 'TARGET_NOT_SELECTED', params: {} }])
   })
 
-  it('알고리즘 하나가 실패해도 실험은 성공이다', () => {
-    const messages = collect(requestFor(settingsFor({ selectedAlgorithms: models('svm', 'knn') })))
+  it('알고리즘 하나가 실패해도 실험은 성공이다', async () => {
+    const messages = await collect(
+      requestFor(settingsFor({ selectedAlgorithms: models('svm', 'knn') })),
+    )
     expect(messages[messages.length - 1]?.type).toBe('done')
   })
 
-  it('history를 넘기면 id가 이어진다', () => {
-    const first = collect(requestFor()).at(-1)
+  it('history를 넘기면 id가 이어진다', async () => {
+    const first = (await collect(requestFor())).at(-1)
     if (first?.type !== 'done') return expect.unreachable()
 
     const history: RunsFile = { experiments: [first.experiment] }
     const messages: WorkerMessage[] = []
-    handleTrain({ ...requestFor(), history }, (message) => messages.push(message))
+    await handleTrain({ ...requestFor(), history }, (message) => messages.push(message))
 
     const second = messages.at(-1)
     expect(second?.type === 'done' && second.experiment.id).toBe('experiment-2')

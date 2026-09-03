@@ -39,10 +39,12 @@ import { DB_VERSION } from '../src/project/storage'
 /**
  * 학습 엔진의 버전. `run.engine`에 그대로 들어가고 재실행 대조가 이 값으로 엔진을 가린다.
  *
- * `mljs`가 `'2'`인 사연은 파일 머리말에 있다. 나머지는 전부 `'1'`이고 그대로 둔다.
+ * `mljs`가 `'3'`인 사연은 파일 머리말에 있다 — 신경망 기울기 합산의 정본이 고정 조각
+ * 접기로 바뀌었다 (2026-09-04, open-decisions.md "학습을 코어로 가른다 — 결과는 코어
+ * 수와 무관하다". 코드 소유자 지시). 나머지는 전부 `'1'`이고 그대로 둔다.
  */
 const PINNED_ENGINES: Readonly<Record<string, string>> = {
-  mljs: '2',
+  mljs: '3',
   'pyodide-sklearn': '1',
 }
 

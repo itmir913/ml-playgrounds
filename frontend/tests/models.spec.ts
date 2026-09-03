@@ -9,11 +9,11 @@
  * `.mlpx` 안에 들어가는 것은 객체가 아니라 바이트다.
  */
 
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 
 import { isClientError, type ClientErrorCode } from '../src/errors'
 import { MAX_MODEL_BYTES } from '../src/limits'
-import { MLJS_ALGORITHMS, fit } from '../src/ml/engines/mljs'
+import { MLJS_ALGORITHMS, fit, type FitResult } from '../src/ml/engines/mljs'
 import {
   KMEANS_FORMAT,
   SUPPORTED_MODEL_FORMATS,
@@ -84,8 +84,8 @@ function forestOf(votes: readonly number[]): TreeModel {
 
 describe('라운드트립 — 예측이 원본과 하나도 다르지 않다', () => {
   for (const algorithm of ['decision_tree', 'random_forest']) {
-    it(`${algorithm}: 직렬화 → JSON 왕복 → 역직렬화가 같은 예측을 낸다`, () => {
-      const { predict, model } = train(algorithm)
+    it(`${algorithm}: 직렬화 → JSON 왕복 → 역직렬화가 같은 예측을 낸다`, async () => {
+      const { predict, model } = await train(algorithm)
       expect(model).toBeDefined()
 
       const reloaded = loadModel(roundTrip(model))
@@ -129,8 +129,8 @@ describe('라운드트립 — 예측이 원본과 하나도 다르지 않다', (
      * 초록으로 남는다 — R12 A-2가 *"상수와 픽스처가 우연히 같으면 그 연산은 사라진다"*로
      * 이름 붙인 병이다.
      */
-    it('픽스처가 잎 하나짜리 나무를 만든다 - 동점이라 나눌 이득이 없다', () => {
-      const { model } = trained()
+    it('픽스처가 잎 하나짜리 나무를 만든다 - 동점이라 나눌 이득이 없다', async () => {
+      const { model } = await trained()
       const tree = model as TreeModel
       expect(tree.trees).toHaveLength(1)
       // 잎 하나뿐. 두 클래스가 같은 수이므로 그 잎의 분포가 동점이다.
@@ -139,32 +139,32 @@ describe('라운드트립 — 예측이 원본과 하나도 다르지 않다', (
       expect(target.filter((one) => one === 'b')).toHaveLength(2)
     })
 
-    it('동점이면 번호가 작은 쪽이다 - ml.js의 `>` 비교와 같은 규칙', () => {
-      const { predict } = trained()
+    it('동점이면 번호가 작은 쪽이다 - ml.js의 `>` 비교와 같은 규칙', async () => {
+      const { predict } = await trained()
       // 클래스 배열은 등장 순이라 'a'가 0번이다.
       expect(predict(features)).toEqual(['a', 'a', 'a', 'a'])
     })
 
-    it('파일로 갔다 온 모델도 같은 답을 낸다', () => {
-      const { predict, model } = trained()
+    it('파일로 갔다 온 모델도 같은 답을 낸다', async () => {
+      const { predict, model } = await trained()
       const reloaded = loadModel(roundTrip(model))
       expect(reloaded(features)).toEqual(predict(features))
     })
   })
 
-  it('결정트리는 나무가 한 그루다 — 그래서 해석기에 알고리즘 분기가 없다', () => {
-    const { model } = train('decision_tree')
+  it('결정트리는 나무가 한 그루다 — 그래서 해석기에 알고리즘 분기가 없다', async () => {
+    const { model } = await train('decision_tree')
     expect((model as TreeModel).trees).toHaveLength(1)
     expect((model as TreeModel).format).toBe(TREE_FORMAT)
   })
 
-  it('랜덤포레스트는 요청한 그루 수만큼 담는다', () => {
-    const { model } = train('random_forest', { nEstimators: 12 })
+  it('랜덤포레스트는 요청한 그루 수만큼 담는다', async () => {
+    const { model } = await train('random_forest', { nEstimators: 12 })
     expect((model as TreeModel).trees).toHaveLength(12)
   })
 
-  it('클래스는 라벨을 정렬한 순서다 — 행 순서가 바뀌어도 같은 모델이어야 한다', () => {
-    const { model } = train('decision_tree')
+  it('클래스는 라벨을 정렬한 순서다 — 행 순서가 바뀌어도 같은 모델이어야 한다', async () => {
+    const { model } = await train('decision_tree')
     expect((model as TreeModel).classes).toEqual([...new Set(IRIS_LABELS)].sort())
   })
 
@@ -175,11 +175,11 @@ describe('라운드트립 — 예측이 원본과 하나도 다르지 않다', (
    * 그래서 이 검사가 앞을 지킨다 — **직렬화기 없이 알고리즘을 등록하면 여기가 빨개진다.**
    * 어휘 자체는 스키마에 남는다. 앞으로 들어올 엔진(pyodide·서버)에는 여전히 필요하다.
    */
-  it('이 엔진의 모든 알고리즘이 우리 형식으로 담긴다', () => {
+  it('이 엔진의 모든 알고리즘이 우리 형식으로 담긴다', async () => {
     const regressionOnly = new Set(['linear_regression'])
     for (const algorithm of MLJS_ALGORITHMS) {
       const trained = regressionOnly.has(algorithm)
-        ? fit(algorithm, {
+        ? await fit(algorithm, {
             features: [[0], [1], [2], [3]],
             rowIndices: [0, 1, 2, 3],
             target: [1, 3, 5, 7],
@@ -187,7 +187,7 @@ describe('라운드트립 — 예측이 원본과 하나도 다르지 않다', (
             hyperparameters: {},
             randomState: 42,
           })
-        : train(algorithm)
+        : await train(algorithm)
 
       expect(trained.model, algorithm).toBeDefined()
       expect(trained.modelOmittedDetail, algorithm).toBeUndefined()
@@ -258,24 +258,24 @@ describe('깨진 모델은 조용히 틀린 답을 내지 않는다', () => {
     expectCode(() => loadModel({ ...base, trees: [{ nodes: [] }] }), 'MODEL_FILE_INVALID')
   })
 
-  it('임계값이 수가 아니면 거부한다', () => {
+  it('임계값이 수가 아니면 거부한다', async () => {
     expectCode(
       () => loadModel({ ...base, trees: [{ nodes: [['x', 1, -1, -1]] }] }),
       'MODEL_FILE_INVALID',
     )
   })
 
-  it('특성 개수가 다른 입력은 거부한다 — 전처리기가 바뀐 파일이 여기서 걸린다', () => {
+  it('특성 개수가 다른 입력은 거부한다 — 전처리기가 바뀐 파일이 여기서 걸린다', async () => {
     const model = loadModel({ ...base, featureCount: 4 })
     expectCode(() => model([[1, 2, 3]]), 'MODEL_FILE_INVALID')
   })
 })
 
 describe('크기', () => {
-  it('교실 크기 데이터의 기본 100그루가 개별 상한 안에 든다', () => {
+  it('교실 크기 데이터의 기본 100그루가 개별 상한 안에 든다', async () => {
     // #19의 실측이 이 값을 정한다. 여기서는 상한과 형식이 어긋나는 것을 막는 것이
     // 목적이다 - 형식을 바꿔 모델이 커지면 이 테스트가 먼저 깨진다.
-    const { model } = train('random_forest')
+    const { model } = await train('random_forest')
     expect(new TextEncoder().encode(JSON.stringify(model)).length).toBeLessThan(MAX_MODEL_BYTES)
   })
 })
@@ -293,7 +293,7 @@ describe('훈련 행이 필요한 형식', () => {
    * 내건 "축 하나가 형식 이름을 대신한다"를 정작 이 검사가 안 지키고 있었다**
    * (2026-08-30, R12 감사 C-4). 형식이 늘면 이 검사도 저절로 는다.
    */
-  it('참조형만 훈련 행을 요구하고 나머지는 전부 자체 완결형이다', () => {
+  it('참조형만 훈련 행을 요구하고 나머지는 전부 자체 완결형이다', async () => {
     // 0개를 돌고 통과하는 것을 막는 바닥. 등록부가 비면 아래 루프가 공허해진다.
     expect(SUPPORTED_MODEL_FORMATS.length).toBeGreaterThanOrEqual(7)
 
@@ -303,7 +303,7 @@ describe('훈련 행이 필요한 형식', () => {
     expect(needy).toEqual([REFERENCE_FORMAT])
   })
 
-  it('요구하는데 안 주면 던진다 - 빈 훈련 데이터로 그럴듯한 답을 내지 않는다', () => {
+  it('요구하는데 안 주면 던진다 - 빈 훈련 데이터로 그럴듯한 답을 내지 않는다', async () => {
     const needy: ModelInterpreter = {
       format: 'test-reference',
       includesPreprocessing: false,
@@ -318,7 +318,7 @@ describe('훈련 행이 필요한 형식', () => {
     ).not.toThrow()
   })
 
-  it('요구하지 않는 형식은 행이 없어도 그냥 통과한다', () => {
+  it('요구하지 않는 형식은 행이 없어도 그냥 통과한다', async () => {
     const interpreter = interpreterFor(TREE_FORMAT)
     expect(interpreter).toBeDefined()
     if (interpreter) expect(() => assertContext(interpreter, {})).not.toThrow()
@@ -336,7 +336,10 @@ describe('훈련 행이 필요한 형식', () => {
  * 엔진이 안 만든 지 오래였으며 읽을 파일도 없었다.
  */
 describe('mlpx-linear-v2', () => {
-  const trained = train('logistic_regression')
+  let trained: FitResult
+  beforeAll(async () => {
+    trained = await train('logistic_regression')
+  })
 
   it('로지스틱 회귀가 우리 형식으로 담긴다', () => {
     expect(trained.model?.format).toBe(LINEAR_V2_FORMAT)
@@ -389,8 +392,13 @@ describe('mlpx-linear-v2', () => {
    * 뜻인데 지표만 보면 상쇄로 가려진다 - 이 형식이 실제로 겪은 그 자리다.
    */
   describe('확률', () => {
-    const file = roundTrip(trained.model)
-    const classes = (trained.model as LinearModelV2).classes
+    // 부모 beforeAll이 trained를 채운 뒤에 읽어야 하므로 여기도 beforeAll이다.
+    let file: unknown
+    let classes: readonly string[]
+    beforeAll(() => {
+      file = roundTrip(trained.model)
+      classes = (trained.model as LinearModelV2).classes
+    })
 
     /** 확률이 가장 높은 칸. 화면이 하는 일과 같다. */
     function argmax(row: Float64Array): number {
@@ -401,11 +409,11 @@ describe('mlpx-linear-v2', () => {
       return best
     }
 
-    it('해석기가 자기 라벨을 함께 준다 - 화면이 모델 파일을 뒤지지 않는다', () => {
+    it('해석기가 자기 라벨을 함께 준다 - 화면이 모델 파일을 뒤지지 않는다', async () => {
       expect(loadModelProba(file)?.classes).toEqual(classes)
     })
 
-    it('합이 1이다', () => {
+    it('합이 1이다', async () => {
       const rows = loadModelProba(file)?.predict(IRIS_FEATURES) ?? []
       expect(rows).toHaveLength(IRIS_FEATURES.length)
       for (const row of rows) {
@@ -414,7 +422,7 @@ describe('mlpx-linear-v2', () => {
       }
     })
 
-    it('라벨이 확률의 argmax와 같다 - 포화하지 않으면 두 판정이 어긋날 수 없다', () => {
+    it('라벨이 확률의 argmax와 같다 - 포화하지 않으면 두 판정이 어긋날 수 없다', async () => {
       const labels = loadModel(file)(IRIS_FEATURES)
       const rows = loadModelProba(file)?.predict(IRIS_FEATURES) ?? []
 
@@ -432,14 +440,14 @@ describe('mlpx-linear-v2', () => {
      * 경로로 다루지만 `ml-logistic-regression`에는 그 갈림이 없다. 공용 픽스처가
      * 3클래스라 이 경로가 통째로 안 덮여 있었다.
      */
-    it('클래스가 2개여도 담기고 읽히고 확률이 나온다', () => {
+    it('클래스가 2개여도 담기고 읽히고 확률이 나온다', async () => {
       const [first, second] = [...new Set(IRIS_LABELS)].sort()
       const picked = IRIS_LABELS.flatMap((label, index) =>
         label === first || label === second ? [index] : [],
       )
       const features = picked.map((index) => IRIS_FEATURES[index] ?? [])
 
-      const binary = fit('logistic_regression', {
+      const binary = await fit('logistic_regression', {
         features,
         rowIndices: picked,
         target: picked.map((index) => IRIS_LABELS[index] ?? ''),
@@ -467,9 +475,9 @@ describe('mlpx-linear-v2', () => {
       })
     })
 
-    it('확률을 안 내는 형식은 null이다 - 화면은 형식 이름을 보지 않는다', () => {
-      expect(loadModelProba(roundTrip(train('decision_tree').model))).toBeNull()
-      expect(loadModelProba(roundTrip(train('naive_bayes').model))).toBeNull()
+    it('확률을 안 내는 형식은 null이다 - 화면은 형식 이름을 보지 않는다', async () => {
+      expect(loadModelProba(roundTrip((await train('decision_tree')).model))).toBeNull()
+      expect(loadModelProba(roundTrip((await train('naive_bayes')).model))).toBeNull()
     })
   })
 })
@@ -481,7 +489,10 @@ describe('mlpx-linear-v2', () => {
  * 여기는 학습 쪽과 해석기 쪽에 **같은 식이 두 벌** 있어서, 한쪽만 고치면 조용히 갈린다.
  */
 describe('mlpx-naive-bayes-v1', () => {
-  const trained = train('naive_bayes')
+  let trained: FitResult
+  beforeAll(async () => {
+    trained = await train('naive_bayes')
+  })
 
   it('나이브 베이즈가 우리 형식으로 담긴다', () => {
     expect(trained.model?.format).toBe(NAIVE_BAYES_FORMAT)
@@ -493,7 +504,7 @@ describe('mlpx-naive-bayes-v1', () => {
     expect(restored(IRIS_FEATURES)).toEqual(trained.predict(IRIS_FEATURES))
   })
 
-  it('계수의 줄 수가 전부 클래스 수와 같다', () => {
+  it('계수의 줄 수가 전부 클래스 수와 같다', async () => {
     const model = trained.model as NaiveBayesModel
     expect(model.logPriors).toHaveLength(model.classes.length)
     expect(model.means).toHaveLength(model.classes.length)
@@ -503,7 +514,7 @@ describe('mlpx-naive-bayes-v1', () => {
     }
   })
 
-  it('사전확률이 이미 로그다 - 확률로 되돌리지 않는다', () => {
+  it('사전확률이 이미 로그다 - 확률로 되돌리지 않는다', async () => {
     const model = trained.model as NaiveBayesModel
     // 로그 확률이므로 전부 0 이하이고, exp의 합이 1이다.
     expect(model.logPriors.every((value) => value <= 0)).toBe(true)
@@ -511,7 +522,7 @@ describe('mlpx-naive-bayes-v1', () => {
     expect(total).toBeCloseTo(1, 10)
   })
 
-  it('분산이 0인 열은 점수에서 빠진다 - 나누면 전부 NaN이 된다', () => {
+  it('분산이 0인 열은 점수에서 빠진다 - 나누면 전부 NaN이 된다', async () => {
     // 두 클래스가 같은 평균을 갖고, 유일하게 갈리는 열의 분산이 0이다.
     const model = loadModel({
       format: NAIVE_BAYES_FORMAT,
@@ -531,7 +542,7 @@ describe('mlpx-naive-bayes-v1', () => {
     expect(model([[0, 50]])).toEqual(['a'])
   })
 
-  it('정규화 상수가 식에 있어야 한다 - 분산이 다르면 답이 갈린다', () => {
+  it('정규화 상수가 식에 있어야 한다 - 분산이 다르면 답이 갈린다', async () => {
     // 두 클래스가 평균은 같고 분산만 다르다. 입력이 평균과 정확히 같으면 거리 항이 0이라
     // **정규화 상수만 남고**, 분산이 작은 쪽이 이긴다. 상수를 빼면 0 대 0 동점이 되어
     // 번호가 작은 a가 이긴다 - 붓꽃 왕복 테스트로는 이 차이가 안 잡힌다.
@@ -546,7 +557,7 @@ describe('mlpx-naive-bayes-v1', () => {
     expect(model([[0]])).toEqual(['b'])
   })
 
-  it('줄 수가 어긋나면 거부한다', () => {
+  it('줄 수가 어긋나면 거부한다', async () => {
     expectCode(
       () =>
         loadModel({
@@ -571,7 +582,10 @@ describe('mlpx-naive-bayes-v1', () => {
  */
 describe('mlpx-reference-v1', () => {
   const indices = IRIS_FEATURES.map((_, index) => index)
-  const trained = train('knn', { k: 5 })
+  let trained: FitResult
+  beforeAll(async () => {
+    trained = await train('knn', { k: 5 })
+  })
   const context = {
     trainingRows: { indices, features: IRIS_FEATURES, target: IRIS_LABELS },
   }
@@ -705,7 +719,7 @@ describe('k개 고르기 — 힙이 완전 정렬과 같은 답을 낸다', () =
     }
   }
 
-  it('무작위 데이터에서 두 구현이 한 줄도 다르지 않다', () => {
+  it('무작위 데이터에서 두 구현이 한 줄도 다르지 않다', async () => {
     // 좌표를 성기게 잡아 **동점이 실제로 생기게** 한다. 연속값만 쓰면 규칙 3·4가
     // 한 번도 안 밟히고, 그러면 이 테스트는 아무것도 확인하지 않는다.
     let seed = 20260806
@@ -749,13 +763,16 @@ describe('mlpx-linear-regression-v1', () => {
     [4, 9],
   ]
   const target = features.map(([a, b]) => 2 * (a ?? 0) + 3 * (b ?? 0) + 1)
-  const trained = fit('linear_regression', {
-    features,
-    rowIndices: features.map((_, index) => index),
-    target,
-    taskType: 'regression',
-    hyperparameters: {},
-    randomState: 42,
+  let trained: FitResult
+  beforeAll(async () => {
+    trained = await fit('linear_regression', {
+      features,
+      rowIndices: features.map((_, index) => index),
+      target,
+      taskType: 'regression',
+      hyperparameters: {},
+      randomState: 42,
+    })
   })
 
   it('선형 회귀가 우리 형식으로 담긴다', () => {

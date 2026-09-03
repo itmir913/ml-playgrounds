@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * 답에 붙는 증거 등록부 (`ml/answer-evidence.ts`).
  *

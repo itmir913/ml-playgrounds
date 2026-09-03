@@ -103,7 +103,7 @@ function ENGINES_BY_KIND(): Map<string, TrainingEngine> {
  * **한 run이 터져도 나머지는 대조한다.** 학습에서와 같은 규칙이다 (mlpx-spec.md §4.1).
  * 여기서 통째로 멈추면 교사는 멀쩡한 모델의 대조 결과까지 못 본다.
  */
-export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
+export async function reproduceExperiment(input: ReproduceInput): Promise<Reproduction[]> {
   const { experiment, dataset, testDataset } = input
   const { settings } = experiment
   // 재실행 대조는 표에만 있다 — 이미지는 임베딩이 파일에 담겨 경로가 따로 선다.
@@ -161,50 +161,20 @@ export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
     }
   })()
 
-  return done.map((run): Reproduction => {
-    const base = {
-      runId: run.id,
-      algorithm: run.algorithm,
-      stored: run.metrics ?? {},
-    }
-
-    const engine = engineOf(run)
-    if (!engine || !shared) {
-      // 엔진이 다르거나, 전처리가 지금 데이터로는 성립하지 않는다. 둘 다 **대조를 못 한
-      // 것이지 어긋난 것이 아니다** - 여기서 NOT_REPRODUCED를 내면 도구가 학생을 지목한다.
-      return {
-        ...base,
-        status: 'ENGINE_UNAVAILABLE',
-        ...(run.engine ? { engine: run.engine } : {}),
+  // 순서는 runs.json 그대로다 — Promise.all은 결과를 자리로 돌려주고, 안의 학습은
+  // 어차피 동기 계산이라 사실상 하나씩 돈다 (재실행 대조는 풀을 안 받아 직렬이다).
+  return Promise.all(
+    done.map(async (run): Promise<Reproduction> => {
+      const base = {
+        runId: run.id,
+        algorithm: run.algorithm,
+        stored: run.metrics ?? {},
       }
-    }
 
-    try {
-      const { predict, clusterResult } = engine.fit(run.algorithm, {
-        features: shared.trainFeatures,
-        rowIndices: settings.trainIndices,
-        target: shared.trainTarget,
-        taskType: settings.taskType,
-        // **파일에 적힌 값을 그대로 먹인다.** 기본값을 다시 채우면 학생이 바꾼 값이
-        // 사라지고, 그러면 다른 설정으로 학습해 놓고 "안 맞는다"고 말하게 된다.
-        hyperparameters: run.hyperparameters,
-        randomState: settings.split.randomState,
-      })
-
-      // **군집은 시그니처가 다르다** (architecture.md §3.7) — 학습 경로와 같은 갈래다.
-      const again = isClustering
-        ? clusterResult
-          ? evaluateCluster(
-              shared.trainFeatures,
-              clusterResult.assignments,
-              clusterResult.centroids,
-              settings.split.randomState,
-            ).metrics
-          : null
-        : evaluate(settings.taskType, shared.testTarget, predict(shared.testFeatures)).metrics
-
-      // 군집 엔진이 배정을 안 돌려줬다. 대조를 못 한 것이지 어긋난 것이 아니다.
-      if (!again) {
+      const engine = engineOf(run)
+      if (!engine || !shared) {
+        // 엔진이 다르거나, 전처리가 지금 데이터로는 성립하지 않는다. 둘 다 **대조를 못 한
+        // 것이지 어긋난 것이 아니다** - 여기서 NOT_REPRODUCED를 내면 도구가 학생을 지목한다.
         return {
           ...base,
           status: 'ENGINE_UNAVAILABLE',
@@ -212,34 +182,68 @@ export function reproduceExperiment(input: ReproduceInput): Reproduction[] {
         }
       }
 
-      const deltas: Record<string, number> = {}
-      for (const [name, value] of Object.entries(again)) {
-        const stored = base.stored[name]
-        if (typeof stored === 'number') deltas[name] = value - stored
-      }
+      try {
+        const { predict, clusterResult } = await engine.fit(run.algorithm, {
+          features: shared.trainFeatures,
+          rowIndices: settings.trainIndices,
+          target: shared.trainTarget,
+          taskType: settings.taskType,
+          // **파일에 적힌 값을 그대로 먹인다.** 기본값을 다시 채우면 학생이 바꾼 값이
+          // 사라지고, 그러면 다른 설정으로 학습해 놓고 "안 맞는다"고 말하게 된다.
+          hyperparameters: run.hyperparameters,
+          randomState: settings.split.randomState,
+        })
 
-      // **차이가 0인가만 본다.** 얼마까지 봐 줄지는 이 층이 정하지 않는다 (#12).
-      const same =
-        Object.keys(deltas).length > 0 && Object.values(deltas).every((delta) => delta === 0)
+        // **군집은 시그니처가 다르다** (architecture.md §3.7) — 학습 경로와 같은 갈래다.
+        const again = isClustering
+          ? clusterResult
+            ? evaluateCluster(
+                shared.trainFeatures,
+                clusterResult.assignments,
+                clusterResult.centroids,
+                settings.split.randomState,
+              ).metrics
+            : null
+          : evaluate(settings.taskType, shared.testTarget, predict(shared.testFeatures)).metrics
 
-      return {
-        ...base,
-        status: same ? 'REPRODUCED' : 'NOT_REPRODUCED',
-        again,
-        deltas,
-      }
-    } catch (error) {
-      // 다시 돌리다 터졌다. 눈금 밖 하이퍼파라미터가 파일에 적혀 있는 경우가 대표적이다 -
-      // 그건 학습 때도 실패했어야 하는 값이라 "대조 불가"가 아니라 "안 맞는다"에 가깝다.
-      // 그래도 지목하지 않는다: 우리가 못 돌린 것과 학생이 고친 것을 여기서 못 가른다.
-      if (isClientError(error) || error instanceof Error) {
+        // 군집 엔진이 배정을 안 돌려줬다. 대조를 못 한 것이지 어긋난 것이 아니다.
+        if (!again) {
+          return {
+            ...base,
+            status: 'ENGINE_UNAVAILABLE',
+            ...(run.engine ? { engine: run.engine } : {}),
+          }
+        }
+
+        const deltas: Record<string, number> = {}
+        for (const [name, value] of Object.entries(again)) {
+          const stored = base.stored[name]
+          if (typeof stored === 'number') deltas[name] = value - stored
+        }
+
+        // **차이가 0인가만 본다.** 얼마까지 봐 줄지는 이 층이 정하지 않는다 (#12).
+        const same =
+          Object.keys(deltas).length > 0 && Object.values(deltas).every((delta) => delta === 0)
+
         return {
           ...base,
-          status: 'ENGINE_UNAVAILABLE',
-          ...(run.engine ? { engine: run.engine } : {}),
+          status: same ? 'REPRODUCED' : 'NOT_REPRODUCED',
+          again,
+          deltas,
         }
+      } catch (error) {
+        // 다시 돌리다 터졌다. 눈금 밖 하이퍼파라미터가 파일에 적혀 있는 경우가 대표적이다 -
+        // 그건 학습 때도 실패했어야 하는 값이라 "대조 불가"가 아니라 "안 맞는다"에 가깝다.
+        // 그래도 지목하지 않는다: 우리가 못 돌린 것과 학생이 고친 것을 여기서 못 가른다.
+        if (isClientError(error) || error instanceof Error) {
+          return {
+            ...base,
+            status: 'ENGINE_UNAVAILABLE',
+            ...(run.engine ? { engine: run.engine } : {}),
+          }
+        }
+        throw new ClientError('UNEXPECTED_ERROR')
       }
-      throw new ClientError('UNEXPECTED_ERROR')
-    }
-  })
+    }),
+  )
 }

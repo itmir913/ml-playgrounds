@@ -91,23 +91,27 @@ function inputFor(settings: Settings): Omit<ExperimentInput, 'snapshot'> {
 }
 
 /** 설정을 바꿔 두 번 학습한다. 두 번째 실험의 changed가 이 테스트의 입력이다. */
-function twice(second: Partial<Settings>): { first: Experiment; second: Experiment } {
-  const first = runExperiment(inputFor(settingsFor())).experiment
-  const next = runExperiment(inputFor(settingsFor(second)), {
-    history: { experiments: [first] },
-  }).experiment
+async function twice(
+  second: Partial<Settings>,
+): Promise<{ first: Experiment; second: Experiment }> {
+  const first = (await runExperiment(inputFor(settingsFor()))).experiment
+  const next = (
+    await runExperiment(inputFor(settingsFor(second)), {
+      history: { experiments: [first] },
+    })
+  ).experiment
   return { first, second: next }
 }
 
 /** 실험 둘과 그 사이의 변경들. 경로는 파일에 적힌 것을 그대로 쓴다. */
-function changesOf(second: Partial<Settings>) {
-  const { first, second: next } = twice(second)
+async function changesOf(second: Partial<Settings>) {
+  const { first, second: next } = await twice(second)
   return describeChanges(first, next, next.changed ?? [])
 }
 
 describe('바뀐 값을 전후로 보여준다', () => {
-  it('어휘는 로케일 키로 온다 - 화면이 문장을 만든다', () => {
-    const changes = changesOf({
+  it('어휘는 로케일 키로 온다 - 화면이 문장을 만든다', async () => {
+    const changes = await changesOf({
       preprocessing: { missing: 'mean', scaling: 'standard', categoricalEncoding: 'onehot' },
     })
 
@@ -126,8 +130,8 @@ describe('바뀐 값을 전후로 보여준다', () => {
    * 학생이 만진 손잡이에는 `20%`라고 쓰여 있는데 결과 화면이 다른 말을 했다
    * (2026-08-29 전 경로 감사). 백분율로 읽는 것은 화면의 일이고, 여기는 값만 준다.
    */
-  it('비율은 백분율로 읽을 값으로 온다', () => {
-    const changes = changesOf({
+  it('비율은 백분율로 읽을 값으로 온다', async () => {
+    const changes = await changesOf({
       split: { method: 'holdout', testSize: 0.5, stratify: true, randomState: 42 },
     })
 
@@ -141,8 +145,8 @@ describe('바뀐 값을 전후로 보여준다', () => {
     ])
   })
 
-  it('참·거짓은 켬과 끔이다', () => {
-    const changes = changesOf({
+  it('참·거짓은 켬과 끔이다', async () => {
+    const changes = await changesOf({
       split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
     })
 
@@ -150,8 +154,8 @@ describe('바뀐 값을 전후로 보여준다', () => {
     expect(changes[0]?.to).toEqual({ kind: 'locale', key: 'common.off' })
   })
 
-  it('목록은 개수만 말한다 - 이름을 늘어놓으면 그 줄이 화면을 덮는다', () => {
-    const changes = changesOf({ features: [IRIS_FEATURE_COLUMNS[0] ?? ''] })
+  it('목록은 개수만 말한다 - 이름을 늘어놓으면 그 줄이 화면을 덮는다', async () => {
+    const changes = await changesOf({ features: [IRIS_FEATURE_COLUMNS[0] ?? ''] })
     const features = changes.find((change) => change.path === 'features')
 
     // **줄에 쓰는 것은 개수다.** 이름은 아래 `items`에 실려 있고 화면이 눌러야 연다.
@@ -161,8 +165,8 @@ describe('바뀐 값을 전후로 보여준다', () => {
     expect(features?.to).toMatchObject({ count: 1 })
   })
 
-  it('특성은 무엇이었는지까지 들고 있다 - 개수만으로는 무엇을 뺐는지 모른다', () => {
-    const changes = changesOf({ features: [IRIS_FEATURE_COLUMNS[0] ?? ''] })
+  it('특성은 무엇이었는지까지 들고 있다 - 개수만으로는 무엇을 뺐는지 모른다', async () => {
+    const changes = await changesOf({ features: [IRIS_FEATURE_COLUMNS[0] ?? ''] })
     const features = changes.find((change) => change.path === 'features')
 
     expect(features?.from).toMatchObject({ items: [...IRIS_FEATURE_COLUMNS] })
@@ -176,8 +180,8 @@ describe('바뀐 값을 전후로 보여준다', () => {
    * **이름은 여기서 만들지 않는다** — 항목은 `knn:mljs` 꼴의 식별자이고, 사람이 읽는
    * 이름으로 바꾸는 것은 로케일을 아는 화면의 일이다. `itemKind`가 그 사실만 실어 보낸다.
    */
-  it('모델 목록은 식별자를 들고 있고, 어떻게 읽을지를 함께 말한다', () => {
-    const changes = changesOf({ selectedAlgorithms: [{ algorithm: 'knn' }] })
+  it('모델 목록은 식별자를 들고 있고, 어떻게 읽을지를 함께 말한다', async () => {
+    const changes = await changesOf({ selectedAlgorithms: [{ algorithm: 'knn' }] })
     const algorithms = changes.find((change) => change.path === 'algorithms')
 
     expect(algorithms?.to).toMatchObject({ kind: 'count', itemKind: 'model' })
@@ -185,8 +189,8 @@ describe('바뀐 값을 전후로 보여준다', () => {
     expect(algorithms?.to).toHaveProperty('items')
   })
 
-  it('분할 방식이 바뀌면 잡힌다', () => {
-    const changes = changesOf({
+  it('분할 방식이 바뀌면 잡힌다', async () => {
+    const changes = await changesOf({
       split: { method: 'provided', testSize: 0.3, stratify: false, randomState: 42 },
     })
     const method = changes.find((change) => change.path === 'split.method')
@@ -239,7 +243,7 @@ describe('목록의 들고 남', () => {
     })
   })
 
-  it('개수만 같고 구성이 다른 것도 잡는다 - 줄에는 아무 변화가 없어 보인다', () => {
+  it('개수만 같고 구성이 다른 것도 잡는다 - 줄에는 아무 변화가 없어 보인다', async () => {
     expect(memberDiff(list('키', '몸무게'), list('키', '나이'))).toEqual({
       added: ['나이'],
       removed: ['몸무게'],
@@ -248,7 +252,7 @@ describe('목록의 들고 남', () => {
   })
 
   /** 읽는 방식은 값이 들고 온다. 화면이 경로로 갈라지지 않게 하는 것이 이 값의 일이다. */
-  it('모델 목록은 읽는 방식을 함께 넘긴다', () => {
+  it('모델 목록은 읽는 방식을 함께 넘긴다', async () => {
     const models = (...items: string[]) => ({ ...list(...items), itemKind: 'model' as const })
 
     expect(memberDiff(models('knn:mljs'), models('decision_tree:mljs'))).toEqual({
@@ -258,20 +262,22 @@ describe('목록의 들고 남', () => {
     })
   })
 
-  it('이름을 안 든 목록에는 답하지 않는다', () => {
+  it('이름을 안 든 목록에는 답하지 않는다', async () => {
     expect(memberDiff({ kind: 'count', count: 2 }, list('a'))).toBeNull()
     expect(memberDiff(list('a'), { kind: 'count', count: 2 })).toBeNull()
   })
 
-  it('목록이 아닌 값에는 답하지 않는다', () => {
+  it('목록이 아닌 값에는 답하지 않는다', async () => {
     expect(memberDiff({ kind: 'literal', text: '3' }, list('a'))).toBeNull()
     expect(memberDiff(list('a'), { kind: 'absent' })).toBeNull()
   })
 })
 
 describe('하이퍼파라미터는 어느 모델의 것인지를 함께 준다', () => {
-  it('모델과 실행 방법이 문장 밖으로 나온다', () => {
-    const changes = changesOf({ hyperparameters: { decision_tree: { mljs: { maxDepth: 3 } } } })
+  it('모델과 실행 방법이 문장 밖으로 나온다', async () => {
+    const changes = await changesOf({
+      hyperparameters: { decision_tree: { mljs: { maxDepth: 3 } } },
+    })
     const depth = changes.find((change) => change.path.startsWith('hyperparameters.'))
 
     expect(depth?.labelKey).toBe('hyperparams.maxDepth')
@@ -279,8 +285,10 @@ describe('하이퍼파라미터는 어느 모델의 것인지를 함께 준다',
     expect(depth?.to).toEqual({ kind: 'literal', text: '3' })
   })
 
-  it('경로가 파일에 적힌 그대로다 - 우리가 다시 계산하지 않는다', () => {
-    const { second } = twice({ hyperparameters: { decision_tree: { mljs: { maxDepth: 3 } } } })
+  it('경로가 파일에 적힌 그대로다 - 우리가 다시 계산하지 않는다', async () => {
+    const { second } = await twice({
+      hyperparameters: { decision_tree: { mljs: { maxDepth: 3 } } },
+    })
     expect(second.changed).toContain('hyperparameters.decision_tree:mljs.maxDepth')
   })
 })
@@ -296,8 +304,8 @@ describe('하이퍼파라미터는 어느 모델의 것인지를 함께 준다',
  * 그 해시가 이력의 유일한 신호다.
  */
 describe('이미지 설정의 변경도 말한다', () => {
-  const imageSource = (data: Record<string, unknown>): ComparableSource => {
-    const { first } = twice({})
+  const imageSource = async (data: Record<string, unknown>): Promise<ComparableSource> => {
+    const { first } = await twice({})
     return {
       ...first,
       settings: { ...first.settings, data: data as never },
@@ -312,10 +320,10 @@ describe('이미지 설정의 변경도 말한다', () => {
     rowsHash: 'aaaaaaaabbbbbbbbcccccccc',
   }
 
-  it('사진 차례가 바뀌면 앞 여덟 자로 말한다 - 라벨만 옮긴 것이 여기로 온다', () => {
+  it('사진 차례가 바뀌면 앞 여덟 자로 말한다 - 라벨만 옮긴 것이 여기로 온다', async () => {
     const changes = describeChanges(
-      imageSource(BEFORE),
-      imageSource({ ...BEFORE, rowsHash: 'zzzzzzzzyyyyyyyyxxxxxxxx' }),
+      await imageSource(BEFORE),
+      await imageSource({ ...BEFORE, rowsHash: 'zzzzzzzzyyyyyyyyxxxxxxxx' }),
       ['rowsHash'],
     )
 
@@ -324,10 +332,10 @@ describe('이미지 설정의 변경도 말한다', () => {
     expect(changes[0]?.to).toEqual({ kind: 'literal', text: 'zzzzzzzz' })
   })
 
-  it('범주별 장수와 범주 목록과 라벨 없는 장수와 백본을 말한다', () => {
+  it('범주별 장수와 범주 목록과 라벨 없는 장수와 백본을 말한다', async () => {
     const changes = describeChanges(
-      imageSource(BEFORE),
-      imageSource({
+      await imageSource(BEFORE),
+      await imageSource({
         ...BEFORE,
         categoryCounts: [3, 9],
         categories: ['개', '고양이', '토끼'],
@@ -354,10 +362,10 @@ describe('이미지 설정의 변경도 말한다', () => {
    * — `listOf` 주석이 *"이름으로 늘어놓으면 그 줄이 화면을 덮는다"*고 막으려던 그
    * 상태다 (R14-3 감사 A-3).
    */
-  it('범주 목록은 세어서 말하고 무엇이 들고 났는지 펼칠 수 있다', () => {
+  it('범주 목록은 세어서 말하고 무엇이 들고 났는지 펼칠 수 있다', async () => {
     const changes = describeChanges(
-      imageSource(BEFORE),
-      imageSource({ ...BEFORE, categories: ['개', '고양이', '토끼'] }),
+      await imageSource(BEFORE),
+      await imageSource({ ...BEFORE, categories: ['개', '고양이', '토끼'] }),
       ['categories'],
     )
 
@@ -369,10 +377,10 @@ describe('이미지 설정의 변경도 말한다', () => {
     })
   })
 
-  it('라벨 없는 장수는 수 하나로 말한다 - 펼칠 것이 없다', () => {
+  it('라벨 없는 장수는 수 하나로 말한다 - 펼칠 것이 없다', async () => {
     const changes = describeChanges(
-      imageSource(BEFORE),
-      imageSource({ ...BEFORE, unlabeledCount: 0 }),
+      await imageSource(BEFORE),
+      await imageSource({ ...BEFORE, unlabeledCount: 0 }),
       ['unlabeledCount'],
     )
 
@@ -383,8 +391,8 @@ describe('이미지 설정의 변경도 말한다', () => {
 })
 
 describe('모르는 경로도 버리지 않는다', () => {
-  it('등록부에 없으면 라벨이 null이고 값은 그대로 온다', () => {
-    const { first, second } = twice({})
+  it('등록부에 없으면 라벨이 null이고 값은 그대로 온다', async () => {
+    const { first, second } = await twice({})
     const changes = describeChanges(first, second, ['algorithms'])
     expect(changes[0]?.labelKey).toBe('train.chosenTitle')
 
@@ -397,8 +405,8 @@ describe('모르는 경로도 버리지 않는다', () => {
     })
   })
 
-  it('경로 목록이 비면 아무것도 안 만든다', () => {
-    const { first, second } = twice({})
+  it('경로 목록이 비면 아무것도 안 만든다', async () => {
+    const { first, second } = await twice({})
     expect(describeChanges(first, second, [])).toEqual([])
   })
 })

@@ -41,6 +41,7 @@ import {
   type UnavailableReason,
 } from './backend'
 import { engineFor, type TrainingEngine } from './engines'
+import type { NeuralPoolFactory } from './engines/neural'
 import { assertInRange } from './hyperparams'
 import { evaluate, evaluateCluster, type Evaluation } from './metrics'
 import type { ModelFile } from './models'
@@ -98,6 +99,12 @@ export interface ExperimentOptions {
   history?: RunsFile
   /** 시각. 테스트가 결정적이려면 주입할 수 있어야 한다. */
   now?: () => string
+  /**
+   * 신경망 조각 워커 풀의 공장. **학습 워커만 준다** (ml/worker/handler.ts) — 검사와
+   * 재실행 대조는 안 주고 직렬로 돈다. 어느 쪽이든 결과는 같다 (open-decisions.md
+   * "학습을 코어로 가른다 — 결과는 코어 수와 무관하다").
+   */
+  neuralPool?: NeuralPoolFactory
   /**
    * 모델 하나를 **시작할 때마다** (mlpx-spec.md §0.3). 워커 껍데기가 이걸 postMessage로
    * 바꾼다.
@@ -422,6 +429,8 @@ interface TrainContext {
   trainTarget: string[]
   testTarget: string[]
   randomState: number
+  /** 신경망 조각 워커 풀의 공장. 학습 워커만 준다 — 없으면 직렬이고 결과는 같다. */
+  neuralPool?: NeuralPoolFactory
 }
 
 /**
@@ -480,12 +489,12 @@ type RunBase = Pick<Run, 'id' | 'algorithm' | 'hyperparameters' | 'trainedAt'>
  * **다만 원문을 버리지는 않는다** - failureDetail이 params.detail에 실어 보낸다.
  * 코드를 라이브러리 결함 수만큼 늘리지 않으면서도 "실패"만 뜨는 상태를 피하는 방법이다.
  */
-function trainOne(
+async function trainOne(
   base: RunBase,
   runtime: RuntimeSpec,
   engine: TrainingEngine,
   context: TrainContext,
-): { run: Run; model?: ModelFile } {
+): Promise<{ run: Run; model?: ModelFile }> {
   const stamp = {
     ...base,
     computedBy: runtime.location,
@@ -498,7 +507,7 @@ function trainOne(
     // try 안이라 **이 run 하나만 실패하고 나머지 모델은 계속 돈다** (mlpx-spec.md 4.1).
     assertInRange(engine.parameters(base.algorithm), base.hyperparameters)
 
-    const { predict, model, modelOmittedDetail, warning, clusterResult } = engine.fit(
+    const { predict, model, modelOmittedDetail, warning, clusterResult } = await engine.fit(
       base.algorithm,
       {
         features: context.trainFeatures,
@@ -507,6 +516,7 @@ function trainOne(
         taskType: context.taskType,
         hyperparameters: base.hyperparameters,
         randomState: context.randomState,
+        ...(context.neuralPool ? { neuralPool: context.neuralPool } : {}),
       },
     )
 
@@ -574,10 +584,10 @@ function trainOne(
  * 분할·전처리가 실패하면 던진다. 개별 알고리즘의 실패는 failed run으로 남고 나머지는
  * 계속 돈다 - **실험 하나가 통째로 실패하는 일은 없다** (mlpx-spec.md 4.1).
  */
-export function runExperiment(
+export async function runExperiment(
   input: ExperimentInput,
   options: ExperimentOptions = {},
-): ExperimentResult {
+): Promise<ExperimentResult> {
   const { dataset, testDataset, settings, taskType, dataType, context, snapshot } = input
   /**
    * **여기서 읽는 설정은 언제나 표의 모양이다.** 이미지도 임베딩을 열 이름 붙인 표로
@@ -618,6 +628,7 @@ export function runExperiment(
     trainTarget: isClustering ? [] : targetValues(dataset, split.trainIndices, target!),
     testTarget: isClustering ? [] : targetValues(testSource, split.testIndices, target!),
     randomState: settings.split.randomState,
+    ...(options.neuralPool ? { neuralPool: options.neuralPool } : {}),
   }
 
   const available = new Map(
@@ -735,7 +746,7 @@ export function runExperiment(
         failure: { code: reason, params: reasonParams(reason, maxRows) },
       })
     } else {
-      const trained = trainOne(base, runtime, engine, trainContext)
+      const trained = await trainOne(base, runtime, engine, trainContext)
       runs.push(trained.run)
       if (trained.model) models.set(trained.run.id, trained.model)
     }

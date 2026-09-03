@@ -26,7 +26,7 @@ import { uniformInt } from 'pure-rand/distribution/uniformInt'
 import { xoroshiro128plus } from 'pure-rand/generator/xoroshiro128plus'
 
 import { hashText } from '../../hash'
-import { NEURAL_BATCH_SIZE, NEURAL_MAX_EPOCHS } from '../../limits'
+import { NEURAL_BATCH_SIZE, NEURAL_MAX_EPOCHS, NEURAL_PARALLEL_CHUNK_ROWS } from '../../limits'
 import { shuffled } from '../shuffle'
 
 /**
@@ -215,7 +215,7 @@ function forward(
  * 같은 `_backprop`을 쓰는 이유다. **여기에 `p(1-p)` 같은 것을 곱하면 틀린 기울기인데도
  * 손실이 그럭저럭 내려간다** — 유한차분 검사가 그것을 잡는다.
  */
-interface Objective {
+export interface Objective {
   readonly activate: Activate
   /** 이 행의 손실을 돌려주고 `delta`를 채운다. */
   readonly lossAndDelta: (output: Float64Array, target: number, delta: Float64Array) => number
@@ -256,7 +256,8 @@ const regressionObjective: Objective = {
   },
 }
 
-function objectiveFor(task: NeuralTask): Objective {
+/** 컴퓨트 워커(`ml/worker/neural-compute.ts`)가 같은 목적함수를 세우려고 내보낸다. */
+export function objectiveFor(task: NeuralTask): Objective {
   if (task.kind === 'regression') return regressionObjective
   return task.classCount === 2 ? binaryObjective : multiclassObjective
 }
@@ -286,18 +287,18 @@ function adamFor(sizes: readonly number[]): Adam {
 }
 
 /**
- * 한 배치의 **손실과 기울기**를 낸다. 걸음은 안 걷는다 — 그것은 `adamStep`의 일이다.
+ * **조각 하나**의 손실 합과 기울기 합을 낸다. 걸음은 안 걷는다 — 그것은 `adamStep`의
+ * 일이고, 규제도 안 붙인다 — 그것은 조각들을 접은 뒤 `applyRegularization`의 일이다.
  *
- * **둘을 가른 이유는 유한차분이다** (`neuralGradientForTest`). 한 함수 안에 있으면
- * 기울기를 밖에서 잴 방법이 없고, **틀린 기울기로도 손실은 그럭저럭 내려간다.**
+ * **배치가 아니라 조각인 이유가 이 설계의 전부다** (open-decisions.md "학습을 코어로
+ * 가른다 — 결과는 코어 수와 무관하다"). 부동소수점 덧셈은 결합법칙이 없어서 합산
+ * 순서가 결과의 일부다 — 조각 안은 표본 순서, 조각들은 조각 번호 순서로 접기로
+ * 정본을 못 박으면, 이 함수가 어느 워커에서 돌든(안 돌든) 같은 모델이 나온다.
  *
- * **규제 항은 배치 크기로 나눈다** — sklearn `_backprop`이 그렇게 한다. 안 나누면
- * 배치가 작을수록 규제가 세지고, 마지막 자투리 배치만 다른 목적함수를 푼다.
- *
- * 돌려주는 기울기는 **아직 배치 크기로 안 나눈 합**이다. 나누는 자리는 한 곳이어야 하고
- * (`adamStep`), 손실만 여기서 나눈다.
+ * `gradWeights`·`gradIntercepts`는 **이 조각의 몫만** 담고 나간다 — 들어올 때 비운다.
+ * 돌려주는 손실은 **아직 표본 수로 안 나눈 합**이다. 나누는 자리는 부르는 쪽 하나다.
  */
-function accumulate(
+export function accumulateChunk(
   weights: readonly number[][][],
   intercepts: readonly number[][],
   features: readonly (readonly number[])[],
@@ -363,10 +364,22 @@ function accumulate(
     }
   }
 
-  const size = rows.length
-  // 규제. **절편은 규제하지 않는다** — sklearn과 같다.
+  return loss
+}
+
+/**
+ * L2 규제 — 접은 기울기에 `ALPHA × w`를 더하고 벌점 합을 돌려준다.
+ * **절편은 규제하지 않는다** — sklearn과 같다.
+ *
+ * **조각이 아니라 배치마다 한 번이다.** 조각마다 더하면 조각 수만큼 규제가 세진다 —
+ * 옛 `accumulate`가 표본을 다 돈 뒤에 더하던 그 자리 그대로다.
+ */
+export function applyRegularization(
+  weights: readonly number[][][],
+  gradWeights: Float64Array[],
+): number {
   let penalty = 0
-  for (let layer = 0; layer <= last; layer += 1) {
+  for (let layer = 0; layer < weights.length; layer += 1) {
     const matrix = weights[layer] as readonly number[][]
     const gw = gradWeights[layer] as Float64Array
     const width = (matrix[0]?.length ?? 0) as number
@@ -379,8 +392,7 @@ function accumulate(
       }
     }
   }
-
-  return loss / size + (0.5 * ALPHA * penalty) / size
+  return penalty
 }
 
 /** Adam 한 걸음. **기울기는 배치 평균이다** — 나누는 자리가 여기 하나다. */
@@ -431,6 +443,136 @@ function adamStep(
   }
 }
 
+/** 조각 하나의 계산 결과 — 손실 합과 층마다의 기울기 합. 워커가 이 모양으로 돌려준다. */
+export interface NeuralChunkGrads {
+  readonly lossSum: number
+  readonly gradWeights: readonly Float64Array[]
+  readonly gradIntercepts: readonly Float64Array[]
+}
+
+/**
+ * 조각들을 대신 계산해 주는 손. `fitNeural`은 이것이 **어디서** 계산하는지 모른다 —
+ * 진짜는 워커들(`ml/worker/neural-pool.ts`)이고 검사는 같은 함수를 제자리에서 돌린다.
+ *
+ * **돌려주는 배열은 조각 번호 순서다.** 접는 쪽이 그 순서로 접으므로, 이 계약이
+ * 깨지면 워커 수가 결과에 스며든다 — 그것을 `neural-parallel.spec.ts`가 못 박는다.
+ */
+export interface NeuralPool {
+  step(
+    parameters: Float64Array,
+    chunks: readonly (readonly number[])[],
+  ): Promise<readonly NeuralChunkGrads[]>
+  dispose(): void
+}
+
+/** 풀을 세울 때 한 번 건네는 재료. 표본은 여기서 한 번만 워커로 간다. */
+export interface NeuralPoolSeed {
+  readonly features: readonly (readonly number[])[]
+  readonly targets: readonly number[]
+  readonly sizes: readonly number[]
+  readonly task: NeuralTask
+}
+
+/**
+ * 풀 공장. `null`은 "이 환경에서는 못 가른다"이고 그때 직렬로 돈다 — **결과는 같다.**
+ * 주입인 이유는 워커 스폰이 번들러 구문이라서다 (`ml/worker/spawn.ts`와 같은 사정).
+ */
+export type NeuralPoolFactory = (seed: NeuralPoolSeed) => NeuralPool | null
+
+/** 가중치 칸 수 — 실물 공장의 게이트(`ml/worker/neural-pool.ts`)가 이 수를 곱에 쓴다. */
+export function weightCellCount(sizes: readonly number[]): number {
+  let cells = 0
+  for (let layer = 0; layer + 1 < sizes.length; layer += 1)
+    cells += (sizes[layer] as number) * (sizes[layer + 1] as number)
+  return cells
+}
+
+/** 가중치와 절편을 한 버퍼로 잇는 길이. 스텝마다 워커로 가는 것이 이 버퍼 하나다. */
+export function parameterCellCount(sizes: readonly number[]): number {
+  let cells = weightCellCount(sizes)
+  for (let layer = 1; layer < sizes.length; layer += 1) cells += sizes[layer] as number
+  return cells
+}
+
+/** 가중치·절편을 `into`에 편다. 배치마다 새로 만들지 않으려고 버퍼를 받는다. */
+export function flattenParameters(
+  weights: readonly number[][][],
+  intercepts: readonly number[][],
+  into: Float64Array,
+): void {
+  let offset = 0
+  for (const matrix of weights)
+    for (const row of matrix) {
+      for (let j = 0; j < row.length; j += 1) into[offset + j] = row[j] as number
+      offset += row.length
+    }
+  for (const bias of intercepts) {
+    for (let j = 0; j < bias.length; j += 1) into[offset + j] = bias[j] as number
+    offset += bias.length
+  }
+}
+
+/**
+ * `flattenParameters`의 반대 — 워커가 스텝마다 이것으로 중첩 배열을 되살린다.
+ *
+ * 평평한 채로 계산하지 않는 이유는 실측이다: 같은 수학을 평평한 배열로 돌리면 V8에서
+ * **0.87배로 느렸다** (2026-09-03, 결정문의 실측 1). 되살리는 값이 계산에서 돌아온다.
+ */
+export function readParameters(
+  flat: Float64Array,
+  sizes: readonly number[],
+): { weights: number[][][]; intercepts: number[][] } {
+  const weights: number[][][] = []
+  const intercepts: number[][] = []
+  let offset = 0
+  for (let layer = 0; layer + 1 < sizes.length; layer += 1) {
+    const fanIn = sizes[layer] as number
+    const fanOut = sizes[layer + 1] as number
+    const matrix: number[][] = []
+    for (let i = 0; i < fanIn; i += 1) {
+      const row: number[] = new Array<number>(fanOut)
+      for (let j = 0; j < fanOut; j += 1) row[j] = flat[offset + j] as number
+      offset += fanOut
+      matrix.push(row)
+    }
+    weights.push(matrix)
+  }
+  for (let layer = 1; layer < sizes.length; layer += 1) {
+    const width = sizes[layer] as number
+    const bias: number[] = new Array<number>(width)
+    for (let j = 0; j < width; j += 1) bias[j] = flat[offset + j] as number
+    offset += width
+    intercepts.push(bias)
+  }
+  return { weights, intercepts }
+}
+
+/** 배치를 고정 크기 조각으로 가른다. 이 크기가 정본의 일부다 (`limits.ts`). */
+function chunksOf(batch: readonly number[]): (readonly number[])[] {
+  const chunks: (readonly number[])[] = []
+  for (let offset = 0; offset < batch.length; offset += NEURAL_PARALLEL_CHUNK_ROWS)
+    chunks.push(batch.slice(offset, offset + NEURAL_PARALLEL_CHUNK_ROWS))
+  return chunks
+}
+
+/** 조각의 몫을 합계에 접는다. 부르는 순서(조각 번호 순서)가 곧 정본이다. */
+function foldChunk(
+  gradWeights: Float64Array[],
+  gradIntercepts: Float64Array[],
+  chunk: NeuralChunkGrads,
+): void {
+  for (let layer = 0; layer < gradWeights.length; layer += 1) {
+    const total = gradWeights[layer] as Float64Array
+    const part = chunk.gradWeights[layer] as Float64Array
+    for (let cell = 0; cell < total.length; cell += 1)
+      total[cell] = (total[cell] as number) + (part[cell] as number)
+    const totalBias = gradIntercepts[layer] as Float64Array
+    const partBias = chunk.gradIntercepts[layer] as Float64Array
+    for (let cell = 0; cell < totalBias.length; cell += 1)
+      totalBias[cell] = (totalBias[cell] as number) + (partBias[cell] as number)
+  }
+}
+
 /**
  * 학습한다.
  *
@@ -446,13 +588,14 @@ function adamStep(
  * 표준화하면 모델은 배우지만 **파이썬으로 옮겨 간 학생이 다른 결과를 얻고 왜인지 알
  * 방법이 없다** — 이 도구는 scikit-learn으로 가는 발판이다 (CLAUDE.md §2).
  */
-export function fitNeural(
+export async function fitNeural(
   features: readonly (readonly number[])[],
   targets: readonly number[],
   task: NeuralTask,
   options: NeuralOptions,
   randomState: number,
-): FittedNeural {
+  poolFactory?: NeuralPoolFactory,
+): Promise<FittedNeural> {
   const featureCount = features[0]?.length ?? 0
   const sizes = layerSizes(featureCount, task, options)
   const objective = objectiveFor(task)
@@ -465,59 +608,104 @@ export function fitNeural(
     .slice(0, -1)
     .map((size, layer) => new Float64Array(size * (sizes[layer + 1] as number)))
   const gradIntercepts = sizes.slice(1).map((size) => new Float64Array(size))
+  // 직렬 경로가 조각 하나를 계산하는 자리. 조각마다 비우고 다시 쓴다.
+  const chunkWeights = gradWeights.map((grad) => new Float64Array(grad.length))
+  const chunkIntercepts = gradIntercepts.map((grad) => new Float64Array(grad.length))
 
   const order = features.map((_, index) => index)
   const batchSize = Math.min(NEURAL_BATCH_SIZE, Math.max(1, features.length))
+
+  /**
+   * **가를 것인가는 공장이 정한다** — 일이 작거나 환경이 못 가르면 `null`을 돌려주고
+   * 직렬로 돈다 (`ml/worker/neural-pool.ts`의 게이트). 어느 쪽이든 조각 순서가 같아
+   * **결과는 못 가른다.** 검사는 자기 공장을 넣어 풀 경로를 작은 망으로도 밟는다.
+   */
+  const pool = poolFactory !== undefined ? poolFactory({ features, targets, sizes, task }) : null
+  const parameters = pool === null ? null : new Float64Array(parameterCellCount(sizes))
+
   const lossCurve: number[] = []
   let best = Infinity
   let stale = 0
   let converged = false
   let epochs = 0
 
-  for (let epoch = 0; epoch < NEURAL_MAX_EPOCHS; epoch += 1) {
-    /**
-     * **에폭마다 섞는다** (sklearn `shuffle=True`). 안 섞으면 정렬된 교실 CSV에서 배치
-     * 하나가 한 라벨로만 채워지고, 그 순서가 그대로 학습에 새겨진다.
-     *
-     * **씨앗은 에폭마다 흔든다.** `randomState + epoch`로는 인접한 씨앗이 붙어 다닐 수
-     * 있어 `labelSeed`와 같은 방식으로 해시를 쓴다 (`ml/shuffle.ts`).
-     */
-    const shuffledRows = shuffled(
-      order,
-      randomState ^ Number.parseInt(hashText(`epoch:${epoch}`).slice(0, 8), 16),
-    )
-
-    let accumulated = 0
-    for (let start = 0; start < shuffledRows.length; start += batchSize) {
-      const batch = shuffledRows.slice(start, start + batchSize)
-      const loss = accumulate(
-        weights,
-        intercepts,
-        features,
-        targets,
-        batch,
-        objective,
-        activations,
-        deltas,
-        gradWeights,
-        gradIntercepts,
+  try {
+    for (let epoch = 0; epoch < NEURAL_MAX_EPOCHS; epoch += 1) {
+      /**
+       * **에폭마다 섞는다** (sklearn `shuffle=True`). 안 섞으면 정렬된 교실 CSV에서 배치
+       * 하나가 한 라벨로만 채워지고, 그 순서가 그대로 학습에 새겨진다.
+       *
+       * **씨앗은 에폭마다 흔든다.** `randomState + epoch`로는 인접한 씨앗이 붙어 다닐 수
+       * 있어 `labelSeed`와 같은 방식으로 해시를 쓴다 (`ml/shuffle.ts`).
+       */
+      const shuffledRows = shuffled(
+        order,
+        randomState ^ Number.parseInt(hashText(`epoch:${epoch}`).slice(0, 8), 16),
       )
-      adamStep(weights, intercepts, adam, gradWeights, gradIntercepts, batch.length)
-      accumulated += loss * batch.length
-    }
 
-    const epochLoss = accumulated / shuffledRows.length
-    lossCurve.push(epochLoss)
-    epochs = epoch + 1
+      let accumulated = 0
+      for (let start = 0; start < shuffledRows.length; start += batchSize) {
+        const batch = shuffledRows.slice(start, start + batchSize)
+        const chunks = chunksOf(batch)
 
-    // sklearn `_update_no_improvement_count`와 같은 판정이다.
-    if (epochLoss > best - TOL) stale += 1
-    else stale = 0
-    if (epochLoss < best) best = epochLoss
-    if (stale > NO_IMPROVEMENT_LIMIT) {
-      converged = true
-      break
+        // **조각 번호 순서로 접는다** — 병렬이든 직렬이든 같은 정본 순서다
+        // (open-decisions.md "학습을 코어로 가른다 — 결과는 코어 수와 무관하다").
+        for (const grad of gradWeights) grad.fill(0)
+        for (const grad of gradIntercepts) grad.fill(0)
+        let lossSum = 0
+
+        if (pool !== null && parameters !== null && chunks.length > 1) {
+          flattenParameters(weights, intercepts, parameters)
+          const results = await pool.step(parameters, chunks)
+          for (const chunk of results) {
+            lossSum += chunk.lossSum
+            foldChunk(gradWeights, gradIntercepts, chunk)
+          }
+        } else {
+          for (const rows of chunks) {
+            lossSum += accumulateChunk(
+              weights,
+              intercepts,
+              features,
+              targets,
+              rows,
+              objective,
+              activations,
+              deltas,
+              chunkWeights,
+              chunkIntercepts,
+            )
+            foldChunk(gradWeights, gradIntercepts, {
+              lossSum: 0,
+              gradWeights: chunkWeights,
+              gradIntercepts: chunkIntercepts,
+            })
+          }
+        }
+
+        const penalty = applyRegularization(weights, gradWeights)
+        const loss = lossSum / batch.length + (0.5 * ALPHA * penalty) / batch.length
+        adamStep(weights, intercepts, adam, gradWeights, gradIntercepts, batch.length)
+        accumulated += loss * batch.length
+      }
+
+      const epochLoss = accumulated / shuffledRows.length
+      lossCurve.push(epochLoss)
+      epochs = epoch + 1
+
+      // sklearn `_update_no_improvement_count`와 같은 판정이다.
+      if (epochLoss > best - TOL) stale += 1
+      else stale = 0
+      if (epochLoss < best) best = epochLoss
+      if (stale > NO_IMPROVEMENT_LIMIT) {
+        converged = true
+        break
+      }
     }
+  } finally {
+    // 취소로 위가 던져도 워커들이 남으면 안 된다. 학습 워커가 통째로 죽는 취소에서는
+    // 자식 워커가 부모와 함께 죽지만, 여기는 그보다 좁은 실패까지 맡는다.
+    pool?.dispose()
   }
 
   return { weights, intercepts, lossCurve, converged, epochs }
@@ -546,19 +734,35 @@ export function neuralGradientForTest(
     .map((size, layer) => new Float64Array(size * (sizes[layer + 1] as number)))
   const gradIntercepts = sizes.slice(1).map((size) => new Float64Array(size))
   const rows = features.map((_, index) => index)
+  const objective = objectiveFor(task)
 
-  const loss = accumulate(
-    weights,
-    intercepts,
-    features,
-    targets,
-    rows,
-    objectiveFor(task),
-    activations,
-    deltas,
-    gradWeights,
-    gradIntercepts,
-  )
+  // **fitNeural이 걷는 그 순서로 잰다** — 조각 안은 표본 순서, 조각들은 번호 순서.
+  // 유한차분이 확인하는 것이 정본이어야 하므로 여기가 본 경로와 갈리면 안 된다.
+  const chunkWeights = gradWeights.map((grad) => new Float64Array(grad.length))
+  const chunkIntercepts = gradIntercepts.map((grad) => new Float64Array(grad.length))
+  let lossSum = 0
+  for (let offset = 0; offset < rows.length; offset += NEURAL_PARALLEL_CHUNK_ROWS) {
+    lossSum += accumulateChunk(
+      weights,
+      intercepts,
+      features,
+      targets,
+      rows.slice(offset, offset + NEURAL_PARALLEL_CHUNK_ROWS),
+      objective,
+      activations,
+      deltas,
+      chunkWeights,
+      chunkIntercepts,
+    )
+    foldChunk(gradWeights, gradIntercepts, {
+      lossSum: 0,
+      gradWeights: chunkWeights,
+      gradIntercepts: chunkIntercepts,
+    })
+  }
+  const penalty = applyRegularization(weights, gradWeights)
+  const loss = lossSum / rows.length + (0.5 * ALPHA * penalty) / rows.length
+
   for (const grad of gradWeights)
     for (let i = 0; i < grad.length; i += 1) grad[i] = (grad[i] as number) / rows.length
   for (const grad of gradIntercepts)

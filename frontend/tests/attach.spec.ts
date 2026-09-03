@@ -113,8 +113,8 @@ const treeFile: ModelFile = { format: TREE_FORMAT }
 const PREPROCESSOR = { format: 'mlpx-preprocess-v1' }
 
 describe('학습 → 담기 → 다시 꺼내 예측', () => {
-  it('담은 바이트에서 꺼낸 모델이 학습 직후와 같은 예측을 한다', () => {
-    const result = runExperiment(inputFor(['decision_tree', 'random_forest']))
+  it('담은 바이트에서 꺼낸 모델이 학습 직후와 같은 예측을 한다', async () => {
+    const result = await runExperiment(inputFor(['decision_tree', 'random_forest']))
     const attached = attachExperimentFiles(result.experiment, result.preprocessor, result.models)
 
     for (const run of attached.experiment.runs) {
@@ -126,23 +126,23 @@ describe('학습 → 담기 → 다시 꺼내 예측', () => {
     }
   })
 
-  it('붙인 실험이 스키마를 통과한다 — 이 층의 산출물이 곧 runs.json이다', () => {
-    const result = runExperiment(inputFor(['decision_tree']))
+  it('붙인 실험이 스키마를 통과한다 — 이 층의 산출물이 곧 runs.json이다', async () => {
+    const result = await runExperiment(inputFor(['decision_tree']))
     const attached = attachExperimentFiles(result.experiment, result.preprocessor, result.models)
     expect(experimentSchema.safeParse(attached.experiment).success).toBe(true)
   })
 
-  it('참조형도 담긴다 - 행 번호만 담으므로 데이터를 중복 저장하지 않는다', () => {
-    const result = runExperiment(inputFor(['knn']))
+  it('참조형도 담긴다 - 행 번호만 담으므로 데이터를 중복 저장하지 않는다', async () => {
+    const result = await runExperiment(inputFor(['knn']))
     expect(result.models.size).toBe(1)
     expect(result.experiment.runs[0]?.modelOmitted).toBeUndefined()
   })
 
-  it('회귀도 담긴다 - 이제 이 엔진에 못 담는 알고리즘이 없다', () => {
+  it('회귀도 담긴다 - 이제 이 엔진에 못 담는 알고리즘이 없다', async () => {
     // 회귀에는 수치 타깃이 필요하다. 특성 하나를 타깃으로 돌려 쓴다 - 붓꽃 열은 전부 수치다.
     const base = inputFor(['linear_regression'])
     const [first, ...rest] = IRIS_FEATURE_COLUMNS
-    const result = runExperiment({
+    const result = await runExperiment({
       ...base,
       taskType: 'regression',
       settings: {
@@ -248,7 +248,7 @@ describe('모델이 없는 이유를 적는다', () => {
 })
 
 describe('끝난 실험을 프로젝트에 앉힌다', () => {
-  function emptyProject(): ProjectFile {
+  async function emptyProject(): Promise<ProjectFile> {
     const document = newProjectDocument(
       { name: '붓꽃', locale: 'ko', dataType: 'tabular' },
       { projectId: 'p-1', createdAt: '2026-08-05T09:00:00Z', randomState: 42 },
@@ -262,9 +262,9 @@ describe('끝난 실험을 프로젝트에 앉힌다', () => {
     }
   }
 
-  it('실험이 뒤에 붙고 모델 엔트리가 합쳐진다', () => {
-    const result = runExperiment(inputFor(['decision_tree']))
-    const next = applyExperiment(emptyProject(), result, '2026-08-05T10:00:00Z')
+  it('실험이 뒤에 붙고 모델 엔트리가 합쳐진다', async () => {
+    const result = await runExperiment(inputFor(['decision_tree']))
+    const next = applyExperiment(await emptyProject(), result, '2026-08-05T10:00:00Z')
 
     expect(next.document.runs.experiments).toHaveLength(1)
     const experiment = next.document.runs.experiments[0]
@@ -279,11 +279,11 @@ describe('끝난 실험을 프로젝트에 앉힌다', () => {
     expect(next.document.manifest.updatedAt).toBe('2026-08-05T10:00:00Z')
   })
 
-  it('지난 실험을 지우지 않는다 - 결과 화면이 변경 이력이다', () => {
-    const first = runExperiment(inputFor(['decision_tree']))
-    const started = applyExperiment(emptyProject(), first, '2026-08-05T10:00:00Z')
+  it('지난 실험을 지우지 않는다 - 결과 화면이 변경 이력이다', async () => {
+    const first = await runExperiment(inputFor(['decision_tree']))
+    const started = applyExperiment(await emptyProject(), first, '2026-08-05T10:00:00Z')
 
-    const second = runExperiment(inputFor(['knn']), { history: started.document.runs })
+    const second = await runExperiment(inputFor(['knn']), { history: started.document.runs })
     const next = applyExperiment(started, second, '2026-08-05T10:05:00Z')
 
     expect(next.document.runs.experiments.map((one) => one.id)).toEqual([
@@ -295,9 +295,13 @@ describe('끝난 실험을 프로젝트에 앉힌다', () => {
     for (const path of started.models.keys()) expect(next.models.has(path)).toBe(true)
   })
 
-  it('원본을 고치지 않는다 - 스토어가 새 값으로 갈아 끼운다', () => {
-    const before = emptyProject()
-    applyExperiment(before, runExperiment(inputFor(['decision_tree'])), '2026-08-05T10:00:00Z')
+  it('원본을 고치지 않는다 - 스토어가 새 값으로 갈아 끼운다', async () => {
+    const before = await emptyProject()
+    applyExperiment(
+      before,
+      await runExperiment(inputFor(['decision_tree'])),
+      '2026-08-05T10:00:00Z',
+    )
     expect(before.document.runs.experiments).toHaveLength(0)
     expect(before.models.size).toBe(0)
   })

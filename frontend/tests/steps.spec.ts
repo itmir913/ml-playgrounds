@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * 단계 진입 조건과 체크리스트.
  *

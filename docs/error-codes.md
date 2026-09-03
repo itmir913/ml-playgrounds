@@ -260,6 +260,15 @@ IMAGE_TOO_FEW_CATEGORIES
 **백본을 받기 전에 판정한다.** 뒤에 두면 학생은 12.4MB를 받고 사진을 전부 돌린 다음에야
 거절을 읽는다.
 
+**프로젝트 열기**
+```
+PROJECT_OPEN_ELSEWHERE
+```
+
+같은 프로젝트가 **다른 탭에 열려 있어** 이 탭에서는 편집을 안 연다
+(`open-decisions.md` "프로젝트는 한 번에 하나만 연다"). 잊힌 탭의 저장 한 번이 이쪽
+실험들을 흔적 없이 덮기 때문이고, 학생이 할 일은 그 탭에서 계속하거나 그 탭을 닫는 것이다.
+
 **프로젝트 파일 열기**
 ```
 PROJECT_FILE_NOT_ZIP, PROJECT_FILE_ENTRY_MISSING, PROJECT_FILE_INVALID,

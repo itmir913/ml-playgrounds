@@ -9,6 +9,7 @@
 import { failureDetail, isClientError } from '../../errors'
 import { runCalibration } from '../calibration'
 import { runExperiment } from '../experiment'
+import { neuralPoolFactory } from './neural-pool'
 import type { TrainRequest, WorkerMessage, WorkerRequest } from './protocol'
 
 /**
@@ -17,10 +18,17 @@ import type { TrainRequest, WorkerMessage, WorkerRequest } from './protocol'
  * 워커 안에서 예외가 새면 메인 스레드는 `error` 이벤트 하나만 받고 무엇이 왜 실패했는지
  * 알 수 없다. 사유를 코드로 바꿔 보내야 화면이 로케일 문장을 고를 수 있다 (CLAUDE.md 1.4).
  */
-export function handleTrain(request: TrainRequest, emit: (message: WorkerMessage) => void): void {
+export async function handleTrain(
+  request: TrainRequest,
+  emit: (message: WorkerMessage) => void,
+): Promise<void> {
   try {
-    const { experiment, preprocessor, models } = runExperiment(request.input, {
+    const { experiment, preprocessor, models } = await runExperiment(request.input, {
       ...(request.history ? { history: request.history } : {}),
+      // 신경망이 큰 배치를 코어로 가를 수 있게 풀 공장을 준다. **여기가 유일한 실물
+      // 주입 자리다** — 검사와 재실행 대조는 안 줘서 직렬로 돌고, 결과는 같다
+      // (open-decisions.md "학습을 코어로 가른다 — 결과는 코어 수와 무관하다").
+      neuralPool: neuralPoolFactory,
       onRunStart: ({ index, algorithm, runtime }, total) =>
         emit({ type: 'started', index, algorithm, runtime, total }),
       // 모델을 함께 싣는다. 이것이 없으면 취소가 지표만 건지고 모델은 워커와 함께
@@ -45,18 +53,18 @@ export function handleTrain(request: TrainRequest, emit: (message: WorkerMessage
  * 교정도 여기로 온다 — 학습과 같은 워커에서 돌아야 **학습이 실제로 도는 환경**을
  * 재는 것이 된다 (open-decisions.md "언제 재는가").
  */
-export function handleRequest(
+export async function handleRequest(
   request: WorkerRequest,
   emit: (message: WorkerMessage) => void,
-): void {
+): Promise<void> {
   if (request.type === 'calibrate') {
     try {
-      emit({ type: 'calibrated', elapsedMs: runCalibration() })
+      emit({ type: 'calibrated', elapsedMs: await runCalibration() })
     } catch (error) {
       // **예상 시간 하나 때문에 학습 화면이 죽으면 안 된다.** 못 재면 못 재는 것이다.
       emit({ type: 'failed', code: 'JOB_FAILED', params: failureDetail(error) })
     }
     return
   }
-  handleTrain(request, emit)
+  await handleTrain(request, emit)
 }

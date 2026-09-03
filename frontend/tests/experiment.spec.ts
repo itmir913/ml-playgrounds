@@ -12,7 +12,7 @@
  * 통과한다. 그런데 그 움직임이 곧 옛 .mlpx의 "재현되지 않음"이다.
  */
 
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 
 import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { isClientError } from '../src/errors'
@@ -23,7 +23,7 @@ import { dataSnapshot } from '../src/project/schema'
 import { trainableRowCount } from '../src/ml/selection'
 import { NOT_FOR_TABULAR_ALGORITHM } from './fixtures/algorithms'
 import type { RuntimeContext } from '../src/ml/backend'
-import type { Dataset } from '../src/ml/preprocess'
+import type { Dataset, Preprocessor } from '../src/ml/preprocess'
 import {
   DATA_SCHEMAS,
   DATA_TYPES,
@@ -150,24 +150,28 @@ describe('실험이 실제로 학습한다', () => {
     naive_bayes: 8 / 9,
   }
 
-  const { experiment } = runExperiment(
+  // describe 몸통은 동기여야 하므로 약속을 나눠 갖고 각 it가 기다린다.
+  const trained = runExperiment(
     inputFor({ settings: settingsFor({ selectedAlgorithms: models(...Object.keys(PINNED)) }) }),
     frozen,
   )
 
   for (const [algorithm, accuracy] of Object.entries(PINNED)) {
-    it(`${algorithm}의 정확도가 손으로 엮은 경로와 같다`, () => {
+    it(`${algorithm}의 정확도가 손으로 엮은 경로와 같다`, async () => {
+      const { experiment } = await trained
       const run = experiment.runs.find((candidate) => candidate.algorithm === algorithm)
       expect(run?.status, algorithm).toBe('done')
       expect(run?.metrics?.accuracy, algorithm).toBeCloseTo(accuracy, 10)
     })
   }
 
-  it('결과가 스키마를 통과한다', () => {
+  it('결과가 스키마를 통과한다', async () => {
+    const { experiment } = await trained
     expect(() => experimentSchema.parse(experiment)).not.toThrow()
   })
 
-  it('분류에는 혼동 행렬과 클래스별 지표가 있다', () => {
+  it('분류에는 혼동 행렬과 클래스별 지표가 있다', async () => {
+    const { experiment } = await trained
     const run = experiment.runs[0]
     expect(run?.confusionMatrix?.labels).toEqual(['setosa', 'versicolor', 'virginica'])
     expect(run?.perClass?.map((entry) => entry.label)).toEqual([
@@ -177,17 +181,19 @@ describe('실험이 실제로 학습한다', () => {
     ])
   })
 
-  it('무엇으로 만들었는지 남는다 - 재실행 대조가 엔진을 넘지 않는다', () => {
+  it('무엇으로 만들었는지 남는다 - 재실행 대조가 엔진을 넘지 않는다', async () => {
+    const { experiment } = await trained
     // 바닥. 목록이 비면 아래 순회가 0회 돌고 초록이다.
     expect(experiment.runs).not.toHaveLength(0)
     for (const run of experiment.runs) {
-      expect(run.engine, run.algorithm).toEqual({ kind: 'mljs', version: '2' })
+      // 3이 된 사연은 MLJS_ENGINE의 머리말에 있다 - 신경망 합산 정본이 바뀌었다 (2026-09-04).
+      expect(run.engine, run.algorithm).toEqual({ kind: 'mljs', version: '3' })
       expect(run.computedBy, run.algorithm).toBe('browser')
     }
   })
 
-  it('전처리기는 실험 안이 아니라 따로 나온다', () => {
-    const result = runExperiment(inputFor(), frozen)
+  it('전처리기는 실험 안이 아니라 따로 나온다', async () => {
+    const result = await runExperiment(inputFor(), frozen)
     expect(result.preprocessor.format).toBe('mlpx-preprocess-v1')
     // zip 안의 경로를 가리키는 참조는 저장 계층이 채운다. 여기서 적으면 거짓말이 된다.
     expect(result.experiment.preprocessor).toBeUndefined()
@@ -195,8 +201,8 @@ describe('실험이 실제로 학습한다', () => {
 })
 
 describe('실험 전체가 같은 분할과 전처리를 쓴다', () => {
-  it('분할 인덱스가 실험에 남고 서로 겹치지 않는다', () => {
-    const { experiment } = runExperiment(inputFor(), frozen)
+  it('분할 인덱스가 실험에 남고 서로 겹치지 않는다', async () => {
+    const { experiment } = await runExperiment(inputFor(), frozen)
     const { trainIndices, testIndices } = experiment.settings
 
     expect([...trainIndices, ...testIndices].sort((a, b) => a - b)).toEqual([
@@ -205,9 +211,9 @@ describe('실험 전체가 같은 분할과 전처리를 쓴다', () => {
     expect(trainIndices.filter((index) => testIndices.includes(index))).toEqual([])
   })
 
-  it('전처리 파라미터가 훈련 데이터에서만 나온다', () => {
+  it('전처리 파라미터가 훈련 데이터에서만 나온다', async () => {
     // 테스트 데이터가 섞이면 지표가 조용히 부풀고, 학생은 자기 모델이 실제보다 좋다고 믿는다.
-    const { experiment, preprocessor } = runExperiment(
+    const { experiment, preprocessor } = await runExperiment(
       inputFor({
         settings: settingsFor({
           preprocessing: { missing: 'mean', scaling: 'standard', categoricalEncoding: 'onehot' },
@@ -227,15 +233,15 @@ describe('실험 전체가 같은 분할과 전처리를 쓴다', () => {
 })
 
 describe('재현 가능성', () => {
-  it('같은 설정으로 두 번 돌리면 실험이 통째로 같다', () => {
-    const first = runExperiment(inputFor(), frozen)
-    const second = runExperiment(inputFor(), frozen)
+  it('같은 설정으로 두 번 돌리면 실험이 통째로 같다', async () => {
+    const first = await runExperiment(inputFor(), frozen)
+    const second = await runExperiment(inputFor(), frozen)
     expect(second.experiment).toEqual(first.experiment)
     expect(second.preprocessor).toEqual(first.preprocessor)
   })
 
-  it('randomState가 다르면 분할이 달라진다', () => {
-    const other = runExperiment(
+  it('randomState가 다르면 분할이 달라진다', async () => {
+    const other = await runExperiment(
       inputFor({
         settings: settingsFor({
           split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: 7 },
@@ -243,14 +249,14 @@ describe('재현 가능성', () => {
       }),
       frozen,
     )
-    const base = runExperiment(inputFor(), frozen)
+    const base = await runExperiment(inputFor(), frozen)
     expect(other.experiment.settings.testIndices).not.toEqual(base.experiment.settings.testIndices)
   })
 })
 
 describe('일부만 실패한다', () => {
-  it('모르는 알고리즘이 섞여도 나머지 결과는 나온다', () => {
-    const { experiment } = runExperiment(
+  it('모르는 알고리즘이 섞여도 나머지 결과는 나온다', async () => {
+    const { experiment } = await runExperiment(
       inputFor({
         settings: settingsFor({
           selectedAlgorithms: models('decision_tree', '없는알고리즘', 'knn'),
@@ -267,10 +273,10 @@ describe('일부만 실패한다', () => {
     expect(experiment.runs[1]?.metrics).toBeUndefined()
   })
 
-  it('실행 방법에 맞는 하이퍼파라미터만 먹인다', () => {
+  it('실행 방법에 맞는 하이퍼파라미터만 먹인다', async () => {
     // ml.js는 maxDepth, sklearn은 max_depth다. 한 자리에 섞어 두면 학생이 실행 방법을
     // 바꿨을 때 맞춰 둔 값이 조용히 무시되고 화면에는 그 값이 그대로 떠 있다.
-    const { experiment } = runExperiment(
+    const { experiment } = await runExperiment(
       inputFor({
         settings: settingsFor({
           selectedAlgorithms: models('decision_tree'),
@@ -287,14 +293,14 @@ describe('일부만 실패한다', () => {
     expect(experiment.runs[0]?.hyperparameters).toEqual({ maxDepth: 1, minNumSamples: 3 })
 
     // 실제로 먹혔는지까지 본다. 깊이 1이면 붓꽃 세 품종을 가를 수 없다.
-    const deep = runExperiment(inputFor(), frozen).experiment.runs[0]
+    const deep = (await runExperiment(inputFor(), frozen)).experiment.runs[0]
     expect(experiment.runs[0]?.metrics?.accuracy).toBeLessThan(deep?.metrics?.accuracy ?? 0)
   })
 
-  it('svm도 순수 JS에서 돈다 - 서버가 없어도 지표가 나온다', () => {
+  it('svm도 순수 JS에서 돈다 - 서버가 없어도 지표가 나온다', async () => {
     // 예전에는 여기서 ENGINE_NOT_READY로 실패했다. 그 상태가 공식 배포의 기본값이라
     // 대부분의 학생에게 SVM은 없는 물건이었다 (open-decisions.md).
-    const { experiment } = runExperiment(
+    const { experiment } = await runExperiment(
       inputFor({ settings: settingsFor({ selectedAlgorithms: models('svm') }) }),
       frozen,
     )
@@ -305,10 +311,10 @@ describe('일부만 실패한다', () => {
     expect(experiment.runs[0]?.hyperparameters).toEqual({ C: 1 })
   })
 
-  it('학습이 터져도 무엇을 먹였는지가 남는다', () => {
+  it('학습이 터져도 무엇을 먹였는지가 남는다', async () => {
     // 나무 0그루는 라이브러리가 던진다. 확정이 fit 뒤였다면 실패한 run에는 아무 값도
     // 안 남고, 같은 필드가 성공과 실패에서 두 가지 뜻을 갖게 된다.
-    const { experiment } = runExperiment(
+    const { experiment } = await runExperiment(
       inputFor({
         settings: settingsFor({
           selectedAlgorithms: models('random_forest'),
@@ -322,15 +328,15 @@ describe('일부만 실패한다', () => {
     expect(experiment.runs[0]?.hyperparameters).toEqual({ nEstimators: 0 })
   })
 
-  it('학생이 안 건드려도 실제로 먹인 값이 남는다', () => {
+  it('학생이 안 건드려도 실제로 먹인 값이 남는다', async () => {
     // 빈 객체가 남으면 교사가 파일을 열고 "이 결정트리는 깊이 몇이었나"에 답할 수 없다.
-    const { experiment } = runExperiment(inputFor(), frozen)
+    const { experiment } = await runExperiment(inputFor(), frozen)
     expect(experiment.runs[0]?.hyperparameters).toEqual({ maxDepth: 100, minNumSamples: 3 })
   })
 
-  it('모델별로 고른 실행 방법이 사유를 바꾼다 - 덮어쓰기가 실제로 먹는다', () => {
+  it('모델별로 고른 실행 방법이 사유를 바꾼다 - 덮어쓰기가 실제로 먹는다', async () => {
     // 학생이 SVM만 학교 서버로 지정했다. 실험 기본은 순수 JS 그대로다.
-    const { experiment } = runExperiment(
+    const { experiment } = await runExperiment(
       inputFor({
         settings: settingsFor({
           selectedAlgorithms: [
@@ -355,9 +361,9 @@ describe('일부만 실패한다', () => {
     ])
   })
 
-  it('같은 알고리즘을 여러 실행 방법으로 나란히 고를 수 있다', () => {
+  it('같은 알고리즘을 여러 실행 방법으로 나란히 고를 수 있다', async () => {
     // "같은 SVM인데 엔진이 다르면 왜 숫자가 다른가"를 한 실험 안에서 볼 수 있어야 한다.
-    const { experiment } = runExperiment(
+    const { experiment } = await runExperiment(
       inputFor({
         settings: settingsFor({
           selectedAlgorithms: [
@@ -382,10 +388,10 @@ describe('일부만 실패한다', () => {
     ])
   })
 
-  it('물려받은 것만 자동으로 옮긴다', () => {
+  it('물려받은 것만 자동으로 옮긴다', async () => {
     // 기본을 따른 SVM은 되는 곳을 찾아 나서고(여기서는 없어서 실패), 콕 집은 것은
     // 고른 자리에서 판정된다. 둘의 사유가 다른 것이 그 차이의 증거다.
-    const { experiment } = runExperiment(
+    const { experiment } = await runExperiment(
       inputFor({
         settings: settingsFor({
           runtime: 'server-sklearn',
@@ -397,14 +403,14 @@ describe('일부만 실패한다', () => {
 
     // 기본이 학교 서버인데 없다 -> 순수 JS로 넘어가 실제로 돈다.
     expect(experiment.runs[0]?.status).toBe('done')
-    expect(experiment.runs[0]?.engine).toEqual({ kind: 'mljs', version: '2' })
+    expect(experiment.runs[0]?.engine).toEqual({ kind: 'mljs', version: '3' })
     // 요청은 그대로 남는다. 요청과 결과가 다른 것이 화면이 설명할 근거다.
     expect(experiment.settings.selectedAlgorithms).toEqual([
       { algorithm: 'decision_tree', runtime: 'server-sklearn' },
     ])
   })
 
-  it('눈금 밖 손잡이는 그 모델만 실패시킨다', () => {
+  it('눈금 밖 손잡이는 그 모델만 실패시킨다', async () => {
     /**
      * **나무 0그루는 범위 밖 값이 아니라 값이 아니다.** 화면이 이미 그 자리에서 말하지만
      * 학생은 그대로 [학습]을 누를 수 있고(막지 않는다), 그때 남아야 하는 것은
@@ -424,7 +430,7 @@ describe('일부만 실패한다', () => {
      * errors.spec.ts의 failureDetail이 덮고 있고, 두 번째 엔진이 들어오면 그때 이 자리에
      * 실물이 생긴다.
      */
-    const { experiment } = runExperiment(
+    const { experiment } = await runExperiment(
       inputFor({
         settings: settingsFor({
           selectedAlgorithms: models('random_forest', 'decision_tree'),
@@ -445,14 +451,14 @@ describe('일부만 실패한다', () => {
     expect(() => experimentSchema.parse(experiment)).not.toThrow()
   })
 
-  it('정수 손잡이에 온 소수는 반올림해 확정한다', () => {
+  it('정수 손잡이에 온 소수는 반올림해 확정한다', async () => {
     /**
      * 나무 2.5그루는 거부할 값이 아니라 **값이 아니다.** 예전에는 그대로 라이브러리까지
      * 가서 RangeError가 됐다 (open-decisions.md #21).
      *
      * **확정이 곧 기록이므로** 파일에 남는 것도 반올림된 값이다 (mlpx-spec.md 3).
      */
-    const { experiment } = runExperiment(
+    const { experiment } = await runExperiment(
       inputFor({
         settings: settingsFor({
           selectedAlgorithms: models('random_forest'),
@@ -466,21 +472,21 @@ describe('일부만 실패한다', () => {
     expect(experiment.runs[0]?.hyperparameters).toEqual({ nEstimators: 3 })
   })
 
-  it('실패한 run도 스키마를 통과한다 - 사유가 반드시 있다', () => {
-    const { experiment } = runExperiment(
+  it('실패한 run도 스키마를 통과한다 - 사유가 반드시 있다', async () => {
+    const { experiment } = await runExperiment(
       inputFor({ settings: settingsFor({ selectedAlgorithms: models('svm', '없는알고리즘') }) }),
       frozen,
     )
     expect(() => experimentSchema.parse(experiment)).not.toThrow()
   })
 
-  it('분할이 성립하지 않으면 실험 자체가 던진다', () => {
+  it('분할이 성립하지 않으면 실험 자체가 던진다', async () => {
     // run을 만들어 봐야 전부 같은 사유로 실패한다. 학생이 같은 문장을 모델 수만큼 볼 뿐이다.
     const tiny: Dataset = { columns: [...IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN], rows: [] }
-    expect(() => runExperiment(inputFor({ dataset: tiny }), frozen)).toThrow()
+    await expect(runExperiment(inputFor({ dataset: tiny }), frozen)).rejects.toThrow()
   })
 
-  it('타깃을 안 골랐으면 TARGET_NOT_SELECTED로 던진다', () => {
+  it('타깃을 안 골랐으면 TARGET_NOT_SELECTED로 던진다', async () => {
     // 군집화에는 타깃이 없어서 스키마상 선택 항목이지만, 분류·회귀는 정답 열이 없으면
     // 학습도 채점도 못 한다. 열을 안 고른 것과 빈 문자열을 같게 다룬다.
     const withoutTarget = settingsFor()
@@ -488,7 +494,7 @@ describe('일부만 실패한다', () => {
 
     for (const settings of [withoutTarget, settingsFor({ target: '' })]) {
       try {
-        runExperiment(inputFor({ settings }), frozen)
+        await runExperiment(inputFor({ settings }), frozen)
         expect.unreachable()
       } catch (error) {
         expect(isClientError(error)).toBe(true)
@@ -499,9 +505,9 @@ describe('일부만 실패한다', () => {
 })
 
 describe('진행 보고', () => {
-  it('모델 하나가 끝날 때마다 부른다', () => {
+  it('모델 하나가 끝날 때마다 부른다', async () => {
     const seen: { algorithm: string; completed: number; total: number }[] = []
-    const { experiment } = runExperiment(
+    const { experiment } = await runExperiment(
       inputFor({
         settings: settingsFor({
           selectedAlgorithms: models('decision_tree', 'knn', 'naive_bayes'),
@@ -522,9 +528,9 @@ describe('진행 보고', () => {
     expect(experiment.runs).toHaveLength(3)
   })
 
-  it('실패한 모델도 보고한다 - 진행률이 거기서 멈추면 안 된다', () => {
+  it('실패한 모델도 보고한다 - 진행률이 거기서 멈추면 안 된다', async () => {
     let calls = 0
-    runExperiment(
+    await runExperiment(
       inputFor({ settings: settingsFor({ selectedAlgorithms: models('svm', 'knn') }) }),
       {
         ...frozen,
@@ -538,106 +544,121 @@ describe('진행 보고', () => {
 })
 
 describe('id와 changed', () => {
-  const first = runExperiment(inputFor(), frozen).experiment
-  const history: RunsFile = { experiments: [first] }
+  // describe 몸통은 동기여야 하므로 첫 학습은 beforeAll이 한다.
+  let first: Experiment
+  let history: RunsFile
+  beforeAll(async () => {
+    first = (await runExperiment(inputFor(), frozen)).experiment
+    history = { experiments: [first] }
+  })
 
-  it('첫 실험은 experiment-1이고 run 번호가 1부터다', () => {
+  it('첫 실험은 experiment-1이고 run 번호가 1부터다', async () => {
     expect(first.id).toBe('experiment-1')
     expect(first.runs.map((run) => run.id)).toEqual(['run-1', 'run-2'])
   })
 
-  it('첫 실험에는 changed가 없다 - 빈 배열은 다른 뜻이다', () => {
+  it('첫 실험에는 changed가 없다 - 빈 배열은 다른 뜻이다', async () => {
     expect(first.changed).toBeUndefined()
   })
 
-  it('run 번호는 프로젝트 전역으로 이어진다', () => {
-    const second = runExperiment(inputFor(), { ...frozen, history }).experiment
+  it('run 번호는 프로젝트 전역으로 이어진다', async () => {
+    const second = (await runExperiment(inputFor(), { ...frozen, history })).experiment
     expect(second.id).toBe('experiment-2')
     expect(second.runs.map((run) => run.id)).toEqual(['run-3', 'run-4'])
   })
 
-  it('바꾼 것이 없으면 changed가 비어 있다', () => {
-    expect(runExperiment(inputFor(), { ...frozen, history }).experiment.changed).toEqual([])
+  it('바꾼 것이 없으면 changed가 비어 있다', async () => {
+    expect((await runExperiment(inputFor(), { ...frozen, history })).experiment.changed).toEqual([])
   })
 
-  it('바뀐 설정의 경로만 집는다', () => {
-    const second = runExperiment(
-      inputFor({
-        settings: settingsFor({
-          preprocessing: { missing: 'mean', scaling: 'standard', categoricalEncoding: 'onehot' },
+  it('바뀐 설정의 경로만 집는다', async () => {
+    const second = (
+      await runExperiment(
+        inputFor({
+          settings: settingsFor({
+            preprocessing: { missing: 'mean', scaling: 'standard', categoricalEncoding: 'onehot' },
+          }),
         }),
-      }),
-      { ...frozen, history },
+        { ...frozen, history },
+      )
     ).experiment
     expect(second.changed).toEqual(['preprocessing.scaling'])
   })
 
-  it('하이퍼파라미터는 바꾼 값 이름까지 집는다 - 학생이 가장 자주 바꾸는 것이다', () => {
-    const second = runExperiment(
-      inputFor({
-        settings: settingsFor({
-          selectedAlgorithms: models('decision_tree', 'knn'),
-          hyperparameters: { knn: { mljs: { k: 3 } } },
+  it('하이퍼파라미터는 바꾼 값 이름까지 집는다 - 학생이 가장 자주 바꾸는 것이다', async () => {
+    const second = (
+      await runExperiment(
+        inputFor({
+          settings: settingsFor({
+            selectedAlgorithms: models('decision_tree', 'knn'),
+            hyperparameters: { knn: { mljs: { k: 3 } } },
+          }),
         }),
-      }),
-      { ...frozen, history },
+        { ...frozen, history },
+      )
     ).experiment
     // 알고리즘만이 아니라 실행 방법까지 키에 들어간다. 같은 KNN이라도 순수 JS의 k와
     // sklearn의 n_neighbors는 다른 손잡이라 한 칸에 담으면 안 된다.
     expect(second.changed).toEqual(['hyperparameters.knn:mljs.k'])
   })
 
-  it('고른 알고리즘이 바뀌면 잡는다', () => {
-    const second = runExperiment(
-      inputFor({ settings: settingsFor({ selectedAlgorithms: models('decision_tree') }) }),
-      { ...frozen, history },
+  it('고른 알고리즘이 바뀌면 잡는다', async () => {
+    const second = (
+      await runExperiment(
+        inputFor({ settings: settingsFor({ selectedAlgorithms: models('decision_tree') }) }),
+        { ...frozen, history },
+      )
     ).experiment
     expect(second.changed).toEqual(['algorithms'])
   })
 
-  it('실험이 과제 유형을 스냅샷하고 changed가 그것을 잡는다', () => {
+  it('실험이 과제 유형을 스냅샷하고 changed가 그것을 잡는다', async () => {
     // manifest의 taskType은 현재 값만 남는다. 학생이 분류에서 회귀로 바꾸면 옛 실험의
     // accuracy와 새 실험의 r2가 비교표에서 같은 열에 서는데, 실험 자신이 무엇으로
     // 돌았는지 들고 있지 않으면 화면이 그걸 구분할 근거가 없다.
     expect(first.settings.taskType).toBe('classification')
 
-    const regression = runExperiment(
-      {
-        dataset: {
-          columns: ['x', 'y'],
-          rows: [...Array(10).keys()].map((x) => [`${x}`, `${2 * x + 1}`]),
-        },
-        testDataset: null,
-        taskType: 'regression',
-        dataType: 'tabular',
-        settings: settingsFor({
-          features: ['x'],
-          target: 'y',
-          split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
-          selectedAlgorithms: models('linear_regression'),
-        }),
-        context: {
-          limitsOff: false,
-          serverStatus: 'unavailable',
-          rowCount: 10,
+    const regression = (
+      await runExperiment(
+        {
+          dataset: {
+            columns: ['x', 'y'],
+            rows: [...Array(10).keys()].map((x) => [`${x}`, `${2 * x + 1}`]),
+          },
+          testDataset: null,
+          taskType: 'regression',
           dataType: 'tabular',
+          settings: settingsFor({
+            features: ['x'],
+            target: 'y',
+            split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+            selectedAlgorithms: models('linear_regression'),
+          }),
+          context: {
+            limitsOff: false,
+            serverStatus: 'unavailable',
+            rowCount: 10,
+            dataType: 'tabular',
+          },
         },
-      },
-      { ...frozen, history },
+        { ...frozen, history },
+      )
     ).experiment
 
     expect(regression.settings.taskType).toBe('regression')
     expect(regression.changed).toContain('taskType')
   })
 
-  it('분할 인덱스는 changed에 안 나온다 - 학생에게 아무 뜻이 없다', () => {
-    const second = runExperiment(
-      inputFor({
-        settings: settingsFor({
-          split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: 7 },
+  it('분할 인덱스는 changed에 안 나온다 - 학생에게 아무 뜻이 없다', async () => {
+    const second = (
+      await runExperiment(
+        inputFor({
+          settings: settingsFor({
+            split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: 7 },
+          }),
         }),
-      }),
-      { ...frozen, history },
+        { ...frozen, history },
+      )
     ).experiment
     expect(second.changed).toEqual(['split.randomState'])
   })
@@ -649,11 +670,13 @@ describe('id와 changed', () => {
    * 순위표가 아니라 **변경 이력**이라는 것이 이 도구의 차별점이다
    * (`architecture.md` §8.9).
    */
-  it('뽑는 수를 바꾸면 changed에 뜬다', () => {
-    const sampled = runExperiment(inputFor({ settings: settingsFor({ nSamples: 12 }) }), {
-      ...frozen,
-      history,
-    }).experiment
+  it('뽑는 수를 바꾸면 changed에 뜬다', async () => {
+    const sampled = (
+      await runExperiment(inputFor({ settings: settingsFor({ nSamples: 12 }) }), {
+        ...frozen,
+        history,
+      })
+    ).experiment
     expect(sampled.changed).toEqual(['nSamples'])
   })
 
@@ -769,7 +792,7 @@ describe('id와 changed', () => {
       ]),
     ]
 
-    it('스키마의 모든 필드가 셋 중 하나에 적혀 있다', () => {
+    it('스키마의 모든 필드가 셋 중 하나에 적혀 있다', async () => {
       const declared = new Set([
         ...Object.keys(MUTATIONS),
         ...Object.keys(IMAGE_MUTATIONS),
@@ -779,7 +802,7 @@ describe('id와 changed', () => {
       expect(missing, 'put a new settings field in MUTATIONS or NOT_COMPARED').toEqual([])
     })
 
-    it('적힌 것 말고 다른 것이 없다 - 필드가 사라지면 표도 따라간다', () => {
+    it('적힌 것 말고 다른 것이 없다 - 필드가 사라지면 표도 따라간다', async () => {
       const fields = new Set(FIELDS)
       const extra = [
         ...Object.keys(MUTATIONS),
@@ -794,23 +817,27 @@ describe('id와 changed', () => {
      * 앱에서 갈리는 자리가 정확히 거기다.
      */
     for (const [field, patch] of Object.entries(IMAGE_MUTATIONS)) {
-      it(`이미지: ${field}를 바꾸면 changed에 뜬다`, () => {
-        const of = (snapshot: Record<string, unknown>): Experiment =>
-          runExperimentRaw(
-            {
-              ...inputFor({ dataType: 'image' }),
-              snapshot: snapshot as Experiment['settings']['data'],
-            },
-            frozen,
+      it(`이미지: ${field}를 바꾸면 changed에 뜬다`, async () => {
+        const of = async (snapshot: Record<string, unknown>): Promise<Experiment> =>
+          (
+            await runExperimentRaw(
+              {
+                ...inputFor({ dataType: 'image' }),
+                snapshot: snapshot as Experiment['settings']['data'],
+              },
+              frozen,
+            )
           ).experiment
 
-        const base = of(IMAGE_SNAPSHOT)
-        const next = runExperimentRaw(
-          {
-            ...inputFor({ dataType: 'image' }),
-            snapshot: { ...IMAGE_SNAPSHOT, ...patch } as Experiment['settings']['data'],
-          },
-          { ...frozen, history: { experiments: [base] } },
+        const base = await of(IMAGE_SNAPSHOT)
+        const next = (
+          await runExperimentRaw(
+            {
+              ...inputFor({ dataType: 'image' }),
+              snapshot: { ...IMAGE_SNAPSHOT, ...patch } as Experiment['settings']['data'],
+            },
+            { ...frozen, history: { experiments: [base] } },
+          )
         ).experiment
 
         expect(
@@ -821,12 +848,14 @@ describe('id와 changed', () => {
     }
 
     for (const [field, { patch, path }] of Object.entries(MUTATIONS)) {
-      it(`${field}를 바꾸면 changed에 ${path}가 뜬다`, () => {
-        const base = runExperiment(inputFor(), frozen).experiment
-        const next = runExperiment(inputFor({ settings: settingsFor(patch) }), {
-          ...frozen,
-          history: { experiments: [base] },
-        }).experiment
+      it(`${field}를 바꾸면 changed에 ${path}가 뜬다`, async () => {
+        const base = (await runExperiment(inputFor(), frozen)).experiment
+        const next = (
+          await runExperiment(inputFor({ settings: settingsFor(patch) }), {
+            ...frozen,
+            history: { experiments: [base] },
+          })
+        ).experiment
         const hit = (next.changed ?? []).some((one) => one === path || one.startsWith(`${path}.`))
         expect(
           hit,
@@ -841,33 +870,38 @@ describe('id와 changed', () => {
      * `알고리즘:실행방법`으로 눕히는 이유는 **알고리즘은 그대로인데 엔진만 바꾼 것도
      * 학생이 한 변경이고, 숫자가 움직이는 가장 흔한 이유**여서다. 그 표본이 없었다.
      */
-    it('알고리즘은 그대로고 실행 방법만 바꿔도 changed에 뜬다', () => {
-      const base = runExperiment(
-        inputFor({ settings: settingsFor({ selectedAlgorithms: models('decision_tree') }) }),
-        frozen,
+    it('알고리즘은 그대로고 실행 방법만 바꿔도 changed에 뜬다', async () => {
+      const base = (
+        await runExperiment(
+          inputFor({ settings: settingsFor({ selectedAlgorithms: models('decision_tree') }) }),
+          frozen,
+        )
       ).experiment
-      const next = runExperiment(
-        inputFor({
-          settings: settingsFor({
-            selectedAlgorithms: [{ algorithm: 'decision_tree', runtime: 'server-sklearn' }],
+      const next = (
+        await runExperiment(
+          inputFor({
+            settings: settingsFor({
+              selectedAlgorithms: [{ algorithm: 'decision_tree', runtime: 'server-sklearn' }],
+            }),
           }),
-        }),
-        { ...frozen, history: { experiments: [base] } },
+          { ...frozen, history: { experiments: [base] } },
+        )
       ).experiment
 
       expect(next.changed).toContain('algorithms')
     })
   })
 
-  it('뽑기를 껐다 켜는 것도 잡는다 - 없다가 생긴 것이 변경이 아닐 수 없다', () => {
-    const sampled = runExperiment(
-      inputFor({ settings: settingsFor({ nSamples: 12 }) }),
-      frozen,
+  it('뽑기를 껐다 켜는 것도 잡는다 - 없다가 생긴 것이 변경이 아닐 수 없다', async () => {
+    const sampled = (
+      await runExperiment(inputFor({ settings: settingsFor({ nSamples: 12 }) }), frozen)
     ).experiment
-    const back = runExperiment(inputFor(), {
-      ...frozen,
-      history: { experiments: [sampled] },
-    }).experiment
+    const back = (
+      await runExperiment(inputFor(), {
+        ...frozen,
+        history: { experiments: [sampled] },
+      })
+    ).experiment
     expect(back.changed).toEqual(['nSamples'])
   })
 })
@@ -879,22 +913,33 @@ describe('회귀', () => {
     rows: [...Array(10).keys()].map((x) => [String(x), String(2 * x + 1)]),
   }
 
-  const { experiment } = runExperiment(
-    {
-      dataset: line,
-      testDataset: null,
-      taskType: 'regression',
-      dataType: 'tabular',
-      settings: settingsFor({
-        features: ['x'],
-        target: 'y',
-        split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
-        selectedAlgorithms: models('linear_regression'),
-      }),
-      context: { limitsOff: false, serverStatus: 'unavailable', rowCount: 10, dataType: 'tabular' },
-    },
-    frozen,
-  )
+  // describe 몸통은 동기여야 하므로 학습은 beforeAll이 한다.
+  let experiment: Experiment
+  beforeAll(async () => {
+    experiment = (
+      await runExperiment(
+        {
+          dataset: line,
+          testDataset: null,
+          taskType: 'regression',
+          dataType: 'tabular',
+          settings: settingsFor({
+            features: ['x'],
+            target: 'y',
+            split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+            selectedAlgorithms: models('linear_regression'),
+          }),
+          context: {
+            limitsOff: false,
+            serverStatus: 'unavailable',
+            rowCount: 10,
+            dataType: 'tabular',
+          },
+        },
+        frozen,
+      )
+    ).experiment
+  })
 
   it('직선을 정확히 찾는다', () => {
     expect(experiment.runs[0]?.status).toBe('done')
@@ -954,11 +999,11 @@ describe('회귀 + 범주형 타깃', () => {
     )
   }
 
-  it('TARGET_NOT_NUMERIC으로 실험이 시작조차 하지 않는다', () => {
+  it('TARGET_NOT_NUMERIC으로 실험이 시작조차 하지 않는다', async () => {
     // 넘기면 metrics가 전부 NaN인 채 status가 done이 되고, 저장할 때 JSON이 그것을
     // null로 바꿔 **다시 열리지 않는 .mlpx**가 된다.
     try {
-      runGrades('regression', 'linear_regression')
+      await runGrades('regression', 'linear_regression')
       expect.unreachable()
     } catch (error) {
       expect(isClientError(error)).toBe(true)
@@ -969,20 +1014,20 @@ describe('회귀 + 범주형 타깃', () => {
     }
   })
 
-  it('같은 데이터라도 분류를 고르면 그대로 돈다 - 과제 유형을 판정하는 것이 아니다', () => {
+  it('같은 데이터라도 분류를 고르면 그대로 돈다 - 과제 유형을 판정하는 것이 아니다', async () => {
     // 거부하는 것은 타깃의 자료형이 아니라 **성립하지 않는 조합**이다. 학생이 고른
     // 과제 유형은 그대로 존중된다 (mlpx-spec.md 0.1).
-    const { experiment } = runGrades('classification', 'decision_tree')
+    const { experiment } = await runGrades('classification', 'decision_tree')
     expect(experiment.runs[0]?.status).toBe('done')
     expect(experiment.runs[0]?.metrics?.accuracy).toBeGreaterThanOrEqual(0)
   })
 
-  it('빈 칸이 섞인 수치 타깃은 거부하지 않는다 - 결측은 이미 걸러졌다', () => {
+  it('빈 칸이 섞인 수치 타깃은 거부하지 않는다 - 결측은 이미 걸러졌다', async () => {
     const withGap: Dataset = {
       columns: ['x', 'y'],
       rows: [...Array(10).keys()].map((x) => [String(x), x === 3 ? '' : String(2 * x + 1)]),
     }
-    const { experiment } = runExperiment(
+    const { experiment } = await runExperiment(
       {
         dataset: withGap,
         testDataset: null,
@@ -1006,13 +1051,13 @@ describe('회귀 + 범주형 타깃', () => {
     expect(experiment.runs[0]?.status).toBe('done')
   })
 
-  it("'N/A'가 섞인 타깃은 거부한다 - 빈 칸이 아니라 값이다", () => {
+  it("'N/A'가 섞인 타깃은 거부한다 - 빈 칸이 아니라 값이다", async () => {
     const withText: Dataset = {
       columns: ['x', 'y'],
       rows: [...Array(10).keys()].map((x) => [String(x), x === 3 ? 'N/A' : String(2 * x + 1)]),
     }
     try {
-      runExperiment(
+      await runExperiment(
         {
           dataset: withText,
           testDataset: null,
@@ -1052,57 +1097,59 @@ describe('데이터 타입·과제 유형에 안 맞는 모델', () => {
     rows: [...Array(10).keys()].map((x) => [String(x), String(2 * x + 1)]),
   }
 
-  function runLine(overrides: Partial<ExperimentInput>, algorithms?: readonly Algorithm[]) {
-    return runExperiment(
-      {
-        dataset: line,
-        testDataset: null,
-        taskType: 'regression',
-        dataType: 'tabular',
-        settings: settingsFor({
-          features: ['x'],
-          target: 'y',
-          split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
-          selectedAlgorithms: models('decision_tree'),
-        }),
-        context: {
-          limitsOff: false,
-          serverStatus: 'unavailable',
-          rowCount: line.rows.length,
+  async function runLine(overrides: Partial<ExperimentInput>, algorithms?: readonly Algorithm[]) {
+    return (
+      await runExperiment(
+        {
+          dataset: line,
+          testDataset: null,
+          taskType: 'regression',
           dataType: 'tabular',
+          settings: settingsFor({
+            features: ['x'],
+            target: 'y',
+            split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+            selectedAlgorithms: models('decision_tree'),
+          }),
+          context: {
+            limitsOff: false,
+            serverStatus: 'unavailable',
+            rowCount: line.rows.length,
+            dataType: 'tabular',
+          },
+          ...overrides,
         },
-        ...overrides,
-      },
-      algorithms ? { ...frozen, algorithms } : frozen,
+        algorithms ? { ...frozen, algorithms } : frozen,
+      )
     ).experiment
   }
 
-  it('분류 전용 모델을 회귀에 고르면 학습하지 않는다', () => {
-    const experiment = runLine({})
+  it('분류 전용 모델을 회귀에 고르면 학습하지 않는다', async () => {
+    const experiment = await runLine({})
     expect(experiment.runs[0]?.status).toBe('failed')
     expect(experiment.runs[0]?.failure?.code).toBe('ALGORITHM_NOT_FOR_TASK_TYPE')
     expect(experiment.runs[0]?.metrics).toBeUndefined()
   })
 
-  it('데이터 타입이 안 맞으면 그쪽 사유가 이긴다 - 더 근본적인 것이 먼저다', () => {
+  it('데이터 타입이 안 맞으면 그쪽 사유가 이긴다 - 더 근본적인 것이 먼저다', async () => {
     // **표본은 가짜다.** 어휘에는 지금 되는 종류만 있어서(open-decisions.md "어휘에는
     // 지금 되는 것만 넣는다") 안 맞는 종류를 넘길 수 없다. 확인하는 것은 어휘가 아니라
     // unavailableReason이 데이터 타입 사유를 먼저 가로채는가다.
-    const experiment = runLine({}, [{ ...NOT_FOR_TABULAR_ALGORITHM, id: 'decision_tree' }])
+    const experiment = await runLine({}, [{ ...NOT_FOR_TABULAR_ALGORITHM, id: 'decision_tree' }])
     expect(experiment.runs[0]?.status).toBe('failed')
     expect(experiment.runs[0]?.failure?.code).toBe('ALGORITHM_NOT_FOR_DATA_TYPE')
   })
 
-  it('실패해도 무엇을 시도했는지는 남는다', () => {
-    const experiment = runLine({})
+  it('실패해도 무엇을 시도했는지는 남는다', async () => {
+    const experiment = await runLine({})
     // 엔진이 정해지지 않았으므로 확정할 주체가 없다 - 준 값 그대로다 (mlpx-spec.md 3).
     expect(experiment.runs[0]?.hyperparameters).toEqual({})
     expect(experiment.runs[0]?.algorithm).toBe('decision_tree')
     expect(experiment.runs[0]?.computedBy).toBe('browser')
   })
 
-  it('맞는 조합은 그대로 학습된다', () => {
-    const experiment = runLine({
+  it('맞는 조합은 그대로 학습된다', async () => {
+    const experiment = await runLine({
       settings: settingsFor({
         features: ['x'],
         target: 'y',
@@ -1113,8 +1160,8 @@ describe('데이터 타입·과제 유형에 안 맞는 모델', () => {
     expect(experiment.runs[0]?.status).toBe('done')
   })
 
-  it('실험 안에서 맞는 것만 돈다 - 하나가 안 맞아도 나머지는 나온다', () => {
-    const experiment = runLine({
+  it('실험 안에서 맞는 것만 돈다 - 하나가 안 맞아도 나머지는 나온다', async () => {
+    const experiment = await runLine({
       settings: settingsFor({
         features: ['x'],
         target: 'y',
@@ -1134,22 +1181,22 @@ describe('전처리와 분할을 끌 수 있다', () => {
    */
   const keepBlanks = { missing: 'none', scaling: 'none', categoricalEncoding: 'onehot' } as const
 
-  it('깨끗한 데이터면 아무 일도 안 일어난다', () => {
-    const { experiment } = runExperiment(
+  it('깨끗한 데이터면 아무 일도 안 일어난다', async () => {
+    const { experiment } = await runExperiment(
       inputFor({ settings: settingsFor({ preprocessing: keepBlanks }) }),
       frozen,
     )
     expect(experiment.runs.every((run) => run.status === 'done')).toBe(true)
   })
 
-  it('빈 칸이 하나라도 있으면 실험이 통째로 거부된다', () => {
+  it('빈 칸이 하나라도 있으면 실험이 통째로 거부된다', async () => {
     // 분할·전처리의 실패는 run 하나가 아니라 실험 자체가 성립하지 않는 것이다.
     const holed = irisDataset()
     const rows = holed.rows.map((row) => [...row])
     rows[3] = (rows[3] ?? []).map((cell, column) => (column === 0 ? '' : cell))
 
     try {
-      runExperiment(
+      await runExperiment(
         inputFor({
           dataset: { columns: holed.columns, rows },
           settings: settingsFor({ preprocessing: keepBlanks }),
@@ -1166,14 +1213,15 @@ describe('전처리와 분할을 끌 수 있다', () => {
     }
   })
 
-  it('테스트 데이터의 빈 칸도 잡는다 - 훈련 데이터만 보면 조용히 0이 되어 지나간다', () => {
+  it('테스트 데이터의 빈 칸도 잡는다 - 훈련 데이터만 보면 조용히 0이 되어 지나간다', async () => {
     const holed = irisDataset()
     const rows = holed.rows.map((row) => [...row])
     // 어느 행이 테스트 데이터로 가든 하나는 걸린다. 전체를 보므로 분할과 무관하다.
-    const testRow = runExperiment(inputFor(), frozen).experiment.settings.testIndices[0] ?? 0
+    const testRow =
+      (await runExperiment(inputFor(), frozen)).experiment.settings.testIndices[0] ?? 0
     rows[testRow] = (rows[testRow] ?? []).map((cell, column) => (column === 0 ? '' : cell))
 
-    expect(() =>
+    await expect(
       runExperiment(
         inputFor({
           dataset: { columns: holed.columns, rows },
@@ -1181,7 +1229,7 @@ describe('전처리와 분할을 끌 수 있다', () => {
         }),
         frozen,
       ),
-    ).toThrow()
+    ).rejects.toThrow()
   })
 
   /**
@@ -1195,7 +1243,7 @@ describe('전처리와 분할을 끌 수 있다', () => {
    * (V11 R2 감사 B-1). `provided`가 두 표를 가리킨다는 것이 이 포맷의 유일한 자리인데
    * (mlpx-spec.md §1.1) 그것을 무는 검사가 하나도 없었다.
    */
-  it('테스트 데이터가 파일로 오면 그 표로 채점한다 - 훈련 표를 되짚지 않는다', () => {
+  it('테스트 데이터가 파일로 오면 그 표로 채점한다 - 훈련 표를 되짚지 않는다', async () => {
     // 특성은 붓꽃에서 가져오되 라벨을 한 품종씩 민다. 모델이 맞히면 라벨과 어긋난다.
     const SHIFTED: Record<string, string> = {
       setosa: 'versicolor',
@@ -1211,7 +1259,7 @@ describe('전처리와 분할을 끌 수 있다', () => {
       ]),
     }
 
-    const { experiment } = runExperiment(
+    const { experiment } = await runExperiment(
       inputFor({
         testDataset,
         settings: settingsFor({
@@ -1242,9 +1290,9 @@ describe('전처리와 분할을 끌 수 있다', () => {
    * "학습에 쓸 수 있는 데이터가 0줄뿐"이었고, 멀쩡한 훈련 데이터를 들여다보게 만들었다.
    * 인자를 필수로 바꿔 그 경로는 타입이 막지만, 손으로 고친 파일에서는 여전히 올 수 있다.
    */
-  it('테스트 데이터 없이 provided로 돌리면 테스트 데이터를 가리켜 실패한다', () => {
+  it('테스트 데이터 없이 provided로 돌리면 테스트 데이터를 가리켜 실패한다', async () => {
     try {
-      runExperiment(
+      await runExperiment(
         inputFor({
           testDataset: null,
           settings: settingsFor({
@@ -1289,9 +1337,9 @@ describe('전처리와 분할을 끌 수 있다', () => {
     ['random_forest', { random_forest: { mljs: { nEstimators: 5 } } }],
     ['svm', {}],
   ] as const) {
-    it(`씨앗이 분할만이 아니라 fit까지 간다 - ${algorithm}이 그 값을 먹는다`, () => {
-      const modelFor = (randomState: number): string => {
-        const { models: fitted } = runExperiment(
+    it(`씨앗이 분할만이 아니라 fit까지 간다 - ${algorithm}이 그 값을 먹는다`, async () => {
+      const modelFor = async (randomState: number): Promise<string> => {
+        const { models: fitted } = await runExperiment(
           inputFor({
             testDataset: irisDataset(),
             settings: settingsFor({
@@ -1308,13 +1356,13 @@ describe('전처리와 분할을 끌 수 있다', () => {
       }
 
       // 같은 씨앗은 같은 모델이다 - 재현 가능성이 이 도구의 생명이다.
-      expect(modelFor(42)).toBe(modelFor(42))
+      expect(await modelFor(42)).toBe(await modelFor(42))
       // 다른 씨앗은 다른 모델이다. 같다면 그 값이 fit에 안 닿은 것이다.
-      expect(modelFor(42)).not.toBe(modelFor(7))
+      expect(await modelFor(42)).not.toBe(await modelFor(7))
     })
   }
 
-  it('테스트 데이터가 전처리에서 통째로 걸러져도 같은 코드다', () => {
+  it('테스트 데이터가 전처리에서 통째로 걸러져도 같은 코드다', async () => {
     // 타깃이 빈 행은 어떤 전략에서도 채점에 못 쓴다 - 전부 그러면 채점할 것이 없다.
     const empty = irisDataset()
     const blanked = {
@@ -1327,7 +1375,7 @@ describe('전처리와 분할을 끌 수 있다', () => {
     }
 
     try {
-      runExperiment(
+      await runExperiment(
         inputFor({
           testDataset: blanked,
           settings: settingsFor({
@@ -1391,19 +1439,24 @@ describe('군집', () => {
     }
   }
 
-  const { experiment, preprocessor } = runExperiment(
-    {
-      dataset: clusters,
-      testDataset: null,
-      taskType: 'clustering',
-      dataType: 'tabular',
-      settings: clusterSettings(),
-      context: BROWSER_ONLY,
-    },
-    frozen,
-  )
+  // describe 몸통은 동기여야 하므로 학습은 beforeAll이 한다.
+  let experiment: Experiment
+  let preprocessor: Preprocessor
+  beforeAll(async () => {
+    ;({ experiment, preprocessor } = await runExperiment(
+      {
+        dataset: clusters,
+        testDataset: null,
+        taskType: 'clustering',
+        dataType: 'tabular',
+        settings: clusterSettings(),
+        context: BROWSER_ONLY,
+      },
+      frozen,
+    ))
+  })
 
-  it('학습이 성공한다', () => {
+  it('학습이 성공한다', async () => {
     expect(experiment.runs[0]?.status).toBe('done')
   })
 
@@ -1419,7 +1472,7 @@ describe('군집', () => {
    * **오늘 무너지는 것이 아니라 되살아나는 것이 문제다.** 실루엣은 올라가므로 숫자만 보면
    * 더 좋아 보인다.
    */
-  it('타깃 열이 있어도 군집의 전처리기에는 안 들어간다', () => {
+  it('타깃 열이 있어도 군집의 전처리기에는 안 들어간다', async () => {
     const labeled: Dataset = {
       columns: [...clusters.columns, 'label'],
       rows: clusters.rows.map((row, index) => [
@@ -1428,7 +1481,7 @@ describe('군집', () => {
       ]),
     }
 
-    const { preprocessor: fitted } = runExperiment(
+    const { preprocessor: fitted } = await runExperiment(
       {
         dataset: labeled,
         testDataset: null,
@@ -1450,37 +1503,37 @@ describe('군집', () => {
     expect(fitted.featureNames).not.toContain('label')
   })
 
-  it('실루엣 계수와 이너셔가 나온다', () => {
+  it('실루엣 계수와 이너셔가 나온다', async () => {
     expect(experiment.runs[0]?.metrics?.silhouette).toBeDefined()
     expect(experiment.runs[0]?.metrics?.inertia).toBeDefined()
   })
 
-  it('뚜렷한 뭉치를 정확히 분리한다', () => {
+  it('뚜렷한 뭉치를 정확히 분리한다', async () => {
     // 거리가 멀어 실루엣이 0.9 이상이 아니면 엔진이 잘못된 것이다.
     expect(experiment.runs[0]?.metrics?.silhouette).toBeGreaterThan(0.9)
   })
 
-  it('혼동 행렬도 클래스별 지표도 없다 — 정답이 없다', () => {
+  it('혼동 행렬도 클래스별 지표도 없다 — 정답이 없다', async () => {
     expect(experiment.runs[0]?.confusionMatrix).toBeUndefined()
     expect(experiment.runs[0]?.perClass).toBeUndefined()
   })
 
-  it('설정에 타깃이 없다', () => {
+  it('설정에 타깃이 없다', async () => {
     expect(experiment.settings.data.target).toBeUndefined()
   })
 
-  it('전체 데이터로 학습하고 테스트 데이터는 비어 있다', () => {
+  it('전체 데이터로 학습하고 테스트 데이터는 비어 있다', async () => {
     // architecture.md §3.6: 군집화는 나누지 않는다.
     expect(experiment.settings.trainIndices).toEqual([...clusters.rows.keys()])
     expect(experiment.settings.testIndices).toEqual([])
   })
 
-  it('스키마를 통과한다', () => {
+  it('스키마를 통과한다', async () => {
     expect(() => experimentSchema.parse(experiment)).not.toThrow()
   })
 
-  it('같은 설정으로 두 번 돌리면 결과가 같다', () => {
-    const second = runExperiment(
+  it('같은 설정으로 두 번 돌리면 결과가 같다', async () => {
+    const second = await runExperiment(
       {
         dataset: clusters,
         testDataset: null,
@@ -1494,19 +1547,19 @@ describe('군집', () => {
     expect(second.experiment.runs[0]?.metrics).toEqual(experiment.runs[0]?.metrics)
   })
 
-  it('전처리기가 따로 나온다', () => {
+  it('전처리기가 따로 나온다', async () => {
     expect(preprocessor.format).toBe('mlpx-preprocess-v1')
   })
 
-  it('하이퍼파라미터가 확정된다', () => {
+  it('하이퍼파라미터가 확정된다', async () => {
     // 학생이 안 건드려도 nClusters의 확정 값이 남아야 한다.
     expect(experiment.runs[0]?.hyperparameters).toHaveProperty('nClusters')
   })
 
-  it('타깃 없이도 TARGET_NOT_SELECTED가 나지 않는다', () => {
+  it('타깃 없이도 TARGET_NOT_SELECTED가 나지 않는다', async () => {
     // 분류·회귀는 타깃이 없으면 TARGET_NOT_SELECTED로 거부한다. 군집화는 타깃이 없는
     // 것이 정상이므로 같은 검사에 걸리면 안 된다.
-    expect(() =>
+    await expect(
       runExperiment(
         {
           dataset: clusters,
@@ -1518,7 +1571,7 @@ describe('군집', () => {
         },
         frozen,
       ),
-    ).not.toThrow()
+    ).resolves.toBeDefined()
   })
 
   /**
@@ -1529,7 +1582,7 @@ describe('군집', () => {
    * 것이다 (mlpx-spec.md §4.1) — 데이터보다 군집이 많은 것은 학생이 손잡이로 만들 수
    * 있는 상태이고, 그때 다른 모델까지 사라지면 안 된다.
    */
-  it('데이터보다 군집이 많으면 그 모델만 failed로 남는다', () => {
+  it('데이터보다 군집이 많으면 그 모델만 failed로 남는다', async () => {
     const twoRows: Dataset = {
       columns: ['x', 'y'],
       rows: [
@@ -1537,7 +1590,7 @@ describe('군집', () => {
         ['1', '1'],
       ],
     }
-    const { experiment: failed } = runExperiment(
+    const { experiment: failed } = await runExperiment(
       {
         dataset: twoRows,
         testDataset: null,
@@ -1578,16 +1631,19 @@ describe('표본 뽑기', () => {
       settings.nSamples,
     )
 
-  const usedBy = (settings: Settings): number => {
-    const { experiment } = runExperiment(inputFor({ settings }), frozen)
+  const usedBy = async (settings: Settings): Promise<number> => {
+    const { experiment } = await runExperiment(inputFor({ settings }), frozen)
     return experiment.settings.trainIndices.length + experiment.settings.testIndices.length
   }
 
-  it('화면이 센 행 수가 학습이 실제로 쓴 행 수와 같다', () => {
+  it('화면이 센 행 수가 학습이 실제로 쓴 행 수와 같다', async () => {
     // 붓꽃 픽스처는 30행이다. 안 뽑는 경우 · 딱 맞는 경우 · 넘치는 경우 · 뽑는 경우.
     for (const nSamples of [undefined, 30, 60, 24, 12]) {
       const settings = settingsFor(nSamples === undefined ? {} : { nSamples })
-      expect({ nSamples, gate: gateFor(settings) }).toEqual({ nSamples, gate: usedBy(settings) })
+      expect({ nSamples, gate: gateFor(settings) }).toEqual({
+        nSamples,
+        gate: await usedBy(settings),
+      })
     }
   })
 
@@ -1601,52 +1657,52 @@ describe('표본 뽑기', () => {
    * **세는 것이 맞는지는 층화와 무관하다.** 이 검사가 보려는 것은 화면의 수와 학습이 쓴
    * 수가 같은가이고, 가장 작은 표본에서도 그것을 봐야 한다.
    */
-  it('가장 작은 표본에서도 센 수가 맞는다 - 층화 없이', () => {
+  it('가장 작은 표본에서도 센 수가 맞는다 - 층화 없이', async () => {
     const settings = settingsFor({
       nSamples: 6,
       split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
     })
-    expect(gateFor(settings)).toBe(usedBy(settings))
+    expect(gateFor(settings)).toBe(await usedBy(settings))
   })
 
   /** 그 조합에 층화를 켜면 이제 이유를 말하고 멈춘다. 조용히 나누지 않는다. */
-  it('가장 작은 표본에 층화를 켜면 이유를 말한다', () => {
+  it('가장 작은 표본에 층화를 켜면 이유를 말한다', async () => {
     const settings = settingsFor({ nSamples: 6 })
-    expect(() => usedBy(settings)).toThrow(
+    await expect(usedBy(settings)).rejects.toThrow(
       expect.objectContaining({ code: 'SPLIT_STRATIFY_SHARE_TOO_SMALL' }),
     )
   })
 
-  it('뽑은 실험도 끝까지 돈다 - 세는 것만 맞고 학습이 죽으면 소용없다', () => {
+  it('뽑은 실험도 끝까지 돈다 - 세는 것만 맞고 학습이 죽으면 소용없다', async () => {
     const settings = settingsFor({ nSamples: 12 })
-    const { experiment } = runExperiment(inputFor({ settings }), frozen)
+    const { experiment } = await runExperiment(inputFor({ settings }), frozen)
     // 바닥. run이 하나도 안 나오면 "끝까지 돈다"가 공허하게 참이 된다.
     expect(experiment.runs).not.toHaveLength(0)
     for (const run of experiment.runs) expect(run.status).toBe('done')
   })
 
-  it('뽑은 값이 실험 스냅샷에 남는다 - 없으면 재현이 성립하지 않는다', () => {
-    const { experiment } = runExperiment(
+  it('뽑은 값이 실험 스냅샷에 남는다 - 없으면 재현이 성립하지 않는다', async () => {
+    const { experiment } = await runExperiment(
       inputFor({ settings: settingsFor({ nSamples: 12 }) }),
       frozen,
     )
     expect(experiment.settings.nSamples).toBe(12)
 
     // 안 뽑았으면 키 자체가 없다. undefined가 파일에 null로 남으면 안 된다.
-    const { experiment: whole } = runExperiment(inputFor(), frozen)
+    const { experiment: whole } = await runExperiment(inputFor(), frozen)
     expect(whole.settings).not.toHaveProperty('nSamples')
   })
 
-  it('같은 씨앗이면 뽑은 실험도 통째로 같다', () => {
+  it('같은 씨앗이면 뽑은 실험도 통째로 같다', async () => {
     const settings = settingsFor({ nSamples: 12 })
-    const first = runExperiment(inputFor({ settings }), frozen).experiment
-    const second = runExperiment(inputFor({ settings }), frozen).experiment
+    const first = (await runExperiment(inputFor({ settings }), frozen)).experiment
+    const second = (await runExperiment(inputFor({ settings }), frozen)).experiment
     expect(second.settings.trainIndices).toEqual(first.settings.trainIndices)
     expect(second.settings.testIndices).toEqual(first.settings.testIndices)
   })
 
-  it('뽑힌 행은 원본 행 번호이고 파일 안에 있다', () => {
-    const { experiment } = runExperiment(
+  it('뽑힌 행은 원본 행 번호이고 파일 안에 있다', async () => {
+    const { experiment } = await runExperiment(
       inputFor({ settings: settingsFor({ nSamples: 12 }) }),
       frozen,
     )
@@ -1686,7 +1742,7 @@ describe('상한 off 스위치가 학습까지 간다', () => {
     ]
   }
 
-  function run(limitsOff: boolean) {
+  async function run(limitsOff: boolean) {
     return runExperiment(
       {
         dataset: line,
@@ -1707,17 +1763,17 @@ describe('상한 off 스위치가 학습까지 간다', () => {
         },
       },
       { ...frozen, algorithms: tinyLimit(1) },
-    ).experiment
+    )
   }
 
-  it('켠 채로는 그 run이 실패한다', () => {
-    const experiment = run(false)
+  it('켠 채로는 그 run이 실패한다', async () => {
+    const experiment = (await run(false)).experiment
     expect(experiment.runs[0]?.status).toBe('failed')
     expect(experiment.runs[0]?.failure?.code).toBe('DATASET_TOO_LARGE_FOR_BROWSER')
   })
 
-  it('끄면 같은 데이터가 학습된다 - 값이 워커까지 실려 온다', () => {
-    const experiment = run(true)
+  it('끄면 같은 데이터가 학습된다 - 값이 워커까지 실려 온다', async () => {
+    const experiment = (await run(true)).experiment
     expect(experiment.runs[0]?.status).toBe('done')
     expect(experiment.runs[0]?.failure).toBeUndefined()
   })
@@ -1759,10 +1815,10 @@ describe('타깃에 값이 한 종류뿐이면', () => {
     }
   }
 
-  function runOn(
+  async function runOn(
     dataset: Dataset,
     overrides: Partial<Omit<ExperimentInput, 'snapshot'>> = {},
-  ): Experiment {
+  ): Promise<Experiment> {
     const settings = settingsFor()
     return runExperiment(
       {
@@ -1774,19 +1830,19 @@ describe('타깃에 값이 한 종류뿐이면', () => {
         },
       },
       frozen,
-    ).experiment
+    ).then((result) => result.experiment)
   }
 
-  it('학습은 성공하고 경고가 붙는다 - 실패로 뒤집지 않는다', () => {
-    const run = runOn(constantTarget('합격')).runs[0]
+  it('학습은 성공하고 경고가 붙는다 - 실패로 뒤집지 않는다', async () => {
+    const run = (await runOn(constantTarget('합격'))).runs[0]
     expect(run?.status).toBe('done')
     expect(run?.failure).toBeUndefined()
     expect(run?.warning?.code).toBe('TARGET_TOO_FEW_CLASSES')
   })
 
   /** **문장이 그 값을 든다.** 학생이 어느 열의 무엇인지 알아야 고칠 수 있다. */
-  it('경고가 그 한 종류의 값을 들고 온다', () => {
-    const run = runOn(constantTarget('합격')).runs[0]
+  it('경고가 그 한 종류의 값을 들고 온다', async () => {
+    const run = (await runOn(constantTarget('합격'))).runs[0]
     expect(run?.warning?.params).toEqual({ value: '합격' })
   })
 
@@ -1795,13 +1851,13 @@ describe('타깃에 값이 한 종류뿐이면', () => {
    * dev 서버에서 손으로 밟았을 때와 같은 값이다(정확도 100% · 혼동 행렬 1×1).
    * 이 숫자가 안 나오게 되는 날은 경고의 근거도 달라진 것이니 함께 읽어야 한다.
    */
-  it('그래도 정확도는 100%로 나온다 - 그것이 위험한 것이다', () => {
-    const run = runOn(constantTarget('합격')).runs[0]
+  it('그래도 정확도는 100%로 나온다 - 그것이 위험한 것이다', async () => {
+    const run = (await runOn(constantTarget('합격'))).runs[0]
     expect(run?.metrics?.accuracy).toBe(1)
   })
 
-  it('값이 두 종류면 경고가 없다 - 문턱이 문턱으로 산다', () => {
-    const run = runOn(twoClasses()).runs[0]
+  it('값이 두 종류면 경고가 없다 - 문턱이 문턱으로 산다', async () => {
+    const run = (await runOn(twoClasses())).runs[0]
     expect(run?.status).toBe('done')
     expect(run?.warning).toBeUndefined()
   })
@@ -1812,7 +1868,7 @@ describe('타깃에 값이 한 종류뿐이면', () => {
    *
    * **분류의 문장을 그대로 내면 회귀 학생에게 틀린 말이 간다.**
    */
-  function regressionRun(dataset: Dataset) {
+  async function regressionRun(dataset: Dataset) {
     return runExperiment(
       {
         ...inputFor({ dataset, taskType: 'regression' }),
@@ -1824,11 +1880,11 @@ describe('타깃에 값이 한 종류뿐이면', () => {
         },
       },
       frozen,
-    ).experiment.runs[0]
+    ).then((result) => result.experiment.runs[0])
   }
 
-  it('회귀는 회귀의 코드로 붙는다 - 분류 문장이 가면 안 된다', () => {
-    const run = regressionRun(constantTarget('42'))
+  it('회귀는 회귀의 코드로 붙는다 - 분류 문장이 가면 안 된다', async () => {
+    const run = await regressionRun(constantTarget('42'))
     expect(run?.status).toBe('done')
     expect(run?.warning?.code).toBe('TARGET_NO_VARIANCE')
   })
@@ -1837,8 +1893,8 @@ describe('타깃에 값이 한 종류뿐이면', () => {
    * **이 줄이 그 경고가 필요한 이유다.** sklearn과 맞춘 뒤로 완벽히 맞힌 회귀는 분모가
    * 0인 자리에서 **1.000**을 받는다 — 만점이라 성공으로 읽힌다.
    */
-  it('그래도 결정계수는 1.000으로 나온다 - 그것이 위험한 것이다', () => {
-    expect(regressionRun(constantTarget('42'))?.metrics?.r2).toBe(1)
+  it('그래도 결정계수는 1.000으로 나온다 - 그것이 위험한 것이다', async () => {
+    expect((await regressionRun(constantTarget('42')))?.metrics?.r2).toBe(1)
   })
 
   /**
@@ -1846,7 +1902,7 @@ describe('타깃에 값이 한 종류뿐이면', () => {
    * 엔진은 `Number()`로 읽어 **한 종류**로 학습한다. 그 열에서 R²의 분모는 정확히 0이라
    * 1.0/0.0 규칙이 켜지는데, 문자열로 세면 경고만 안 붙는다.
    */
-  it('42와 42.0은 회귀에서 한 종류다 - 문자열로 세면 이 줄이 빨개진다', () => {
+  it('42와 42.0은 회귀에서 한 종류다 - 문자열로 세면 이 줄이 빨개진다', async () => {
     const mixed: Dataset = {
       columns: ['키', '몸무게', '결과'],
       rows: Array.from({ length: 10 }, (_, index) => [
@@ -1855,7 +1911,7 @@ describe('타깃에 값이 한 종류뿐이면', () => {
         index % 2 === 0 ? '42' : '42.0',
       ]),
     }
-    const run = regressionRun(mixed)
+    const run = await regressionRun(mixed)
     expect(run?.status).toBe('done')
     expect(run?.warning?.code).toBe('TARGET_NO_VARIANCE')
   })
@@ -1870,7 +1926,7 @@ describe('타깃에 값이 한 종류뿐이면', () => {
    * 타깃이 상수면 그 점수 자체에 뜻이 없으므로 *"덜 다듬어진 계수에서 나온 숫자다"*보다
    * 먼저 할 말이다.
    */
-  it('엔진 경고와 겹치면 데이터 경고가 이긴다', () => {
+  it('엔진 경고와 겹치면 데이터 경고가 이긴다', async () => {
     const rows = 30
     const constant: Dataset = {
       columns: ['키', '몸무게', '결과'],
@@ -1880,36 +1936,40 @@ describe('타깃에 값이 한 종류뿐이면', () => {
         '42',
       ]),
     }
-    const experiment = runExperiment(
-      {
-        ...inputFor({ dataset: constant, taskType: 'regression' }),
-        settings: {
-          ...settingsFor(),
-          selectedAlgorithms: models('neural_network'),
-          split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
-          data: { ...baseData, features: ['키', '몸무게'], target: '결과' },
+    const experiment = (
+      await runExperiment(
+        {
+          ...inputFor({ dataset: constant, taskType: 'regression' }),
+          settings: {
+            ...settingsFor(),
+            selectedAlgorithms: models('neural_network'),
+            split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+            data: { ...baseData, features: ['키', '몸무게'], target: '결과' },
+          },
         },
-      },
-      frozen,
+        frozen,
+      )
     ).experiment
     const run = experiment.runs[0]
     expect(run?.status).toBe('done')
     // 이 픽스처가 엔진 경고를 실제로 내야 이 검사가 우선순위를 잰다.
     expect(
-      fit('neural_network', {
-        features: constant.rows.map((row) => [Number(row[0]), Number(row[1])]),
-        rowIndices: constant.rows.map((_, index) => index),
-        target: constant.rows.map(() => '42'),
-        taskType: 'regression',
-        hyperparameters: {},
-        randomState: 42,
-      }).warning?.code,
+      (
+        await fit('neural_network', {
+          features: constant.rows.map((row) => [Number(row[0]), Number(row[1])]),
+          rowIndices: constant.rows.map((_, index) => index),
+          target: constant.rows.map(() => '42'),
+          taskType: 'regression',
+          hyperparameters: {},
+          randomState: 42,
+        })
+      ).warning?.code,
       'the engine must warn here, or this test does not measure priority',
     ).toBe('NEURAL_REGRESSION_NOT_CONVERGED')
     expect(run?.warning?.code).toBe('TARGET_NO_VARIANCE')
   })
 
-  it('회귀 타깃이 실제로 변하면 경고가 없다 - 문턱이 문턱으로 산다', () => {
+  it('회귀 타깃이 실제로 변하면 경고가 없다 - 문턱이 문턱으로 산다', async () => {
     const varying: Dataset = {
       columns: ['키', '몸무게', '결과'],
       rows: Array.from({ length: 10 }, (_, index) => [
@@ -1918,7 +1978,7 @@ describe('타깃에 값이 한 종류뿐이면', () => {
         String(40 + index),
       ]),
     }
-    const run = regressionRun(varying)
+    const run = await regressionRun(varying)
     expect(run?.status).toBe('done')
     expect(run?.warning).toBeUndefined()
   })
@@ -1928,17 +1988,19 @@ describe('타깃에 값이 한 종류뿐이면', () => {
    * 위 회귀 검사와 달리 이것은 유형 가드를 물지 않는다. 그래도 두는 이유는 **군집 학습마다
    * 경고가 붙는 상태**를 다른 무엇이 만들어도 여기서 걸리기 때문이다.
    */
-  it('군집에는 안 붙는다 - 타깃이 없는 것이 전제다', () => {
-    const experiment = runExperiment(
-      {
-        ...inputFor({ dataset: constantTarget('합격'), taskType: 'clustering' }),
-        settings: {
-          ...settingsFor(),
-          selectedAlgorithms: models('k_means'),
-          data: { ...baseData, features: ['키', '몸무게'], target: '결과' },
+  it('군집에는 안 붙는다 - 타깃이 없는 것이 전제다', async () => {
+    const experiment = (
+      await runExperiment(
+        {
+          ...inputFor({ dataset: constantTarget('합격'), taskType: 'clustering' }),
+          settings: {
+            ...settingsFor(),
+            selectedAlgorithms: models('k_means'),
+            data: { ...baseData, features: ['키', '몸무게'], target: '결과' },
+          },
         },
-      },
-      frozen,
+        frozen,
+      )
     ).experiment
     expect(experiment.runs[0]?.status).toBe('done')
     expect(experiment.runs[0]?.warning).toBeUndefined()

@@ -312,7 +312,7 @@ describe('사다리 판정', () => {
       return found as Ladder
     }
 
-    it('전수 사다리는 어느 점에서도 안 자른다', () => {
+    it('전수 사다리는 어느 점에서도 안 자른다', async () => {
       const ladder = ladderOf('k_means_columns_full')
       for (const columns of ladder.points) {
         const rows = ladder.job(columns).rows
@@ -320,7 +320,7 @@ describe('사다리 판정', () => {
       }
     })
 
-    it('표본 사다리는 모든 점에서 자른다', () => {
+    it('표본 사다리는 모든 점에서 자른다', async () => {
       const ladder = ladderOf('k_means_columns')
       for (const columns of ladder.points) {
         const rows = ladder.job(columns).rows
@@ -329,8 +329,8 @@ describe('사다리 판정', () => {
     })
   })
 
-  it('모르는 사다리는 던진다 - 조용한 0은 그대로 기준표가 된다', () => {
-    expect(() => ladderPoint('no_such_ladder', 100)).toThrow()
+  it('모르는 사다리는 던진다 - 조용한 0은 그대로 기준표가 된다', async () => {
+    await expect(ladderPoint('no_such_ladder', 100)).rejects.toThrow()
   })
 
   it('상한 사다리는 전부 그 표시를 달고 온다', () => {
@@ -356,10 +356,10 @@ describe('교정은 앱의 함수로 잰다', () => {
     expect(harness).not.toMatch(/measureCalibration[\s\S]{0,200}?\bmeasure\(/)
   })
 
-  it('실제로 돌고 숫자를 준다', () => {
+  it('실제로 돌고 숫자를 준다', async () => {
     const job = CALIBRATION[0]
     expect(job).toBeDefined()
-    const elapsed = measureCalibration(job!)
+    const elapsed = await measureCalibration(job!)
     expect(Number.isFinite(elapsed)).toBe(true)
     expect(elapsed).toBeGreaterThanOrEqual(0)
   })
@@ -377,7 +377,7 @@ describe('사다리와 워커의 계약', () => {
    *
    * **등록부의 사실이 아니라 일감으로 판정한다.**
    */
-  it('K-평균 사다리는 전부 자기 데이터로 잰다', () => {
+  it('K-평균 사다리는 전부 자기 데이터로 잰다', async () => {
     const withoutRun = ALL_LADDERS.filter((ladder) => {
       const first = ladder.points[0]
       return (
@@ -392,14 +392,14 @@ describe('사다리와 워커의 계약', () => {
    * 바꿔도 아무것도 안 울었다 — 0ms는 기준표에 들어갈 뿐 아니라 `stopsBefore`의
    * `previous`가 되어 **그 사다리를 맨 위까지 전부 돌게 한다.**
    */
-  it('모르는 사다리는 실패로 나간다 - 0ms 성공이 아니다', () => {
-    const outcome = benchOutcome({ kind: 'ladder', ladderId: 'no_such_ladder', point: 1 })
+  it('모르는 사다리는 실패로 나간다 - 0ms 성공이 아니다', async () => {
+    const outcome = await benchOutcome({ kind: 'ladder', ladderId: 'no_such_ladder', point: 1 })
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) expect(outcome.error).toContain('no_such_ladder')
   })
 
-  it('아는 사다리는 시간을 준다', () => {
-    const outcome = benchOutcome({ kind: 'ladder', ladderId: 'naive_bayes', point: 100 })
+  it('아는 사다리는 시간을 준다', async () => {
+    const outcome = await benchOutcome({ kind: 'ladder', ladderId: 'naive_bayes', point: 100 })
     expect(outcome.ok).toBe(true)
     if (outcome.ok) expect(outcome.elapsed).toBeGreaterThanOrEqual(0)
   })
@@ -412,8 +412,12 @@ describe('사다리와 워커의 계약', () => {
    * 더 일찍 멈추는데, 그러면 **재는 것이 열 비용이 아니다.** 엔진이 이미 세고 있는 수를
    * 나란히 실어 읽는 사람이 나눠 볼 수 있게 한다.
    */
-  it('K-평균은 반복 횟수를 함께 답한다', () => {
-    const outcome = benchOutcome({ kind: 'ladder', ladderId: 'k_means_columns_full', point: 4 })
+  it('K-평균은 반복 횟수를 함께 답한다', async () => {
+    const outcome = await benchOutcome({
+      kind: 'ladder',
+      ladderId: 'k_means_columns_full',
+      point: 4,
+    })
     expect(outcome.ok).toBe(true)
     if (outcome.ok) {
       // **0이면 답이 아니다.** 한 번도 안 돌았다는 뜻이 되고, 그러면 나눗셈이 무한이다.
@@ -425,17 +429,20 @@ describe('사다리와 워커의 계약', () => {
    * **없는 칸은 아예 안 싣는다.** `0`을 실으면 *"한 번도 안 돌았다"*로 읽히고, JSON을
    * 읽는 사람이 **안 재는 사다리**와 구분하지 못한다.
    */
-  it('K-평균이 아닌 사다리는 반복 횟수 칸이 없다', () => {
-    const outcome = benchOutcome({ kind: 'ladder', ladderId: 'naive_bayes', point: 100 })
+  it('K-평균이 아닌 사다리는 반복 횟수 칸이 없다', async () => {
+    const outcome = await benchOutcome({ kind: 'ladder', ladderId: 'naive_bayes', point: 100 })
     expect(outcome.ok).toBe(true)
     if (outcome.ok) expect(outcome.iterations).toBeUndefined()
   })
 
   /** 교정 일감은 K-평균이 아니라 그 수가 없다. */
-  it('교정 일감도 반복 횟수 칸이 없다', () => {
+  it('교정 일감도 반복 횟수 칸이 없다', async () => {
     const job = CALIBRATION[0]
     expect(job).toBeDefined()
-    const outcome = benchOutcome({ kind: 'calibration', job: job as (typeof CALIBRATION)[number] })
+    const outcome = await benchOutcome({
+      kind: 'calibration',
+      job: job as (typeof CALIBRATION)[number],
+    })
     expect(outcome.ok).toBe(true)
     if (outcome.ok) expect(outcome.iterations).toBeUndefined()
   })
@@ -451,8 +458,8 @@ describe('사다리와 워커의 계약', () => {
    * **그 어긋남은 아무 데서도 안 보인다.** 나눗셈의 두 항이 다른 것을 재는 것이라
    * 배수가 통째로 틀리는데 값은 멀쩡해 보인다.
    */
-  it('전부 한 번에 재는 갈래가 앱의 절차를 부른다', () => {
-    const outcome = benchOutcome({ kind: 'calibration-set' })
+  it('전부 한 번에 재는 갈래가 앱의 절차를 부른다', async () => {
+    const outcome = await benchOutcome({ kind: 'calibration-set' })
     expect(outcome.ok).toBe(true)
     if (outcome.ok) expect(outcome.elapsed).toBeGreaterThan(0)
   })
@@ -461,12 +468,15 @@ describe('사다리와 워커의 계약', () => {
    * **둘이 같은 것을 재면 갈래를 나눈 뜻이 없다.** 전부 한 번에 잰 것은 일감 **전부**를
    * 지나가므로 일감 하나보다 반드시 길다.
    */
-  it('전부 한 번에 잰 것이 일감 하나보다 길다', () => {
+  it('전부 한 번에 잰 것이 일감 하나보다 길다', async () => {
     const job = CALIBRATION[0]
     expect(job).toBeDefined()
     expect(CALIBRATION.length).toBeGreaterThanOrEqual(2)
-    const one = benchOutcome({ kind: 'calibration', job: job as (typeof CALIBRATION)[number] })
-    const all = benchOutcome({ kind: 'calibration-set' })
+    const one = await benchOutcome({
+      kind: 'calibration',
+      job: job as (typeof CALIBRATION)[number],
+    })
+    const all = await benchOutcome({ kind: 'calibration-set' })
     expect(one.ok && all.ok).toBe(true)
     if (one.ok && all.ok) expect(all.elapsed).toBeGreaterThan(one.elapsed)
   })
@@ -478,7 +488,9 @@ describe('사다리와 워커의 계약', () => {
   it('`measure`가 학습·예측·평가를 다 지나간다', () => {
     const source = readFileSync(join(ROOT, 'tools', 'workloads.ts'), 'utf-8')
     const body =
-      /export function measure\(job: Job\): number \{[\s\S]*?\n\}/.exec(source)?.[0] ?? ''
+      /export async function measure\(job: Job\): Promise<number> \{[\s\S]*?\n\}/.exec(
+        source,
+      )?.[0] ?? ''
     expect(body, 'measure() not found').not.toBe('')
     expect(body).toMatch(/\bfit\(/)
     expect(body).toMatch(/\bpredict\(/)

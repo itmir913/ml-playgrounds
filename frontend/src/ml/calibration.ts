@@ -99,11 +99,11 @@ export const CALIBRATION_JOBS: readonly CalibrationJob[] = [
  * **예측까지 지나간다.** 기준표를 그렇게 쟀고, 학생이 기다리는 것도 [학습하기]를 누르고
  * 결과가 나올 때까지다.
  */
-export function measureJob(job: CalibrationJob): number {
+export async function measureJob(job: CalibrationJob): Promise<number> {
   const { features, target } = syntheticData(job.rows, job.columns ?? 8, job.regression ?? false)
   const rowIndices = features.map((_, index) => index)
   const started = performance.now()
-  const { predict } = fit(job.algorithm, {
+  const { predict } = await fit(job.algorithm, {
     features,
     rowIndices,
     target,
@@ -116,8 +116,10 @@ export function measureJob(job: CalibrationJob): number {
 }
 
 /** 일감 전부를 돌린 시간의 합. **워커에서 부른다** — 메인에서 돌리면 화면이 그만큼 멈춘다. */
-export function runCalibration(): number {
-  return CALIBRATION_JOBS.reduce((total, job) => total + measureJob(job), 0)
+export async function runCalibration(): Promise<number> {
+  let total = 0
+  for (const job of CALIBRATION_JOBS) total += await measureJob(job)
+  return total
 }
 
 /**

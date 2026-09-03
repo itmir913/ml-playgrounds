@@ -39,8 +39,28 @@ let releaseHeld: (() => void) | null = null
 /** claim에 답하려고 열어 두는 채널. 잠금을 놓아도 채널은 두고 답만 멈춘다. */
 let channel: BroadcastChannel | null = null
 
+/**
+ * **수단은 window의 것만 쓴다.** node 22부터 전역에 진짜 `navigator.locks`와
+ * `BroadcastChannel`이 있고, 검사의 jsdom 전역에도 node 쪽이 새어 들어온다 — node의
+ * BroadcastChannel은 **워커 스레드를 가로질러** 통해서, 병렬로 도는 스펙 파일들이
+ * 같은 픽스처 프로젝트를 서로 "쥐고 있다"고 답해 준다. 진짜 탭에는 언제나 `window`가
+ * 있고, 탭을 가로지르는 수단도 window의 것이어야 한다.
+ */
 function locksOf(): LockManager | undefined {
-  return typeof navigator === 'undefined' ? undefined : navigator.locks
+  if (typeof window === 'undefined') return undefined
+  return window.navigator.locks
+}
+
+function channelClassOf(): typeof BroadcastChannel | undefined {
+  if (typeof window === 'undefined') return undefined
+  const Channel = window.BroadcastChannel
+  if (Channel === undefined) return undefined
+  // **node의 BroadcastChannel은 걸러낸다** — vitest의 jsdom은 window에까지 node의
+  // 것을 올리는데, node의 채널은 **워커 스레드를 가로질러** 통해서 병렬 스펙 파일들이
+  // 서로의 잠금에 답해 준다. node의 것만 `unref`를 갖는다(브라우저 명세에 없다) —
+  // 그 지문으로 가른다. 진짜 탭과 검사의 가짜 채널에는 unref가 없다.
+  if ('unref' in Channel.prototype) return undefined
+  return Channel
 }
 
 /**
@@ -70,7 +90,8 @@ function acquireViaLocks(locks: LockManager, id: string): Promise<boolean> {
 /** 채널을 열고, 우리가 쥔 프로젝트를 묻는 claim에 답하게 한다. */
 function ensureChannel(): BroadcastChannel {
   if (channel === null) {
-    channel = new BroadcastChannel(CHANNEL_NAME)
+    const Channel = channelClassOf() as typeof BroadcastChannel
+    channel = new Channel(CHANNEL_NAME)
     channel.onmessage = (event: MessageEvent<LockMessage>) => {
       const message = event.data
       if (message.kind === 'claim' && heldId !== null && message.id === heldId) {
@@ -119,12 +140,6 @@ export async function acquireTabLock(id: string): Promise<boolean> {
   if (heldId === id) return true
   releaseTabLock()
 
-  // **페이지가 아니면 수단을 안 잡는다.** node 22부터 `navigator.locks`와
-  // `BroadcastChannel`이 진짜로 동작해서, 검사의 node 환경에서 이 경로를 타면
-  // 프로세스 단위 잠금이 스펙 파일을 넘어 남고 채널이 이벤트 루프를 붙든다.
-  // 진짜 탭에는 언제나 `document`가 있다.
-  if (typeof document === 'undefined') return true
-
   const locks = locksOf()
   if (locks !== undefined) {
     const acquired = await acquireViaLocks(locks, id)
@@ -132,7 +147,7 @@ export async function acquireTabLock(id: string): Promise<boolean> {
     return acquired
   }
 
-  if (typeof BroadcastChannel === 'undefined') return true
+  if (channelClassOf() === undefined) return true
 
   const acquired = await claimViaChannel(id)
   if (acquired) heldId = id

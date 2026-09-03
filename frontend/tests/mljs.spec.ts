@@ -24,11 +24,11 @@ const split = holdoutSplit(
   { method: 'holdout', testSize: 0.3, stratify: true, randomState: 42 },
 )
 
-function run(algorithm: string, hyperparameters: Record<string, unknown> = {}) {
+async function run(algorithm: string, hyperparameters: Record<string, unknown> = {}) {
   const pick = (indices: readonly number[]) => indices.map((i) => IRIS_FEATURES[i] as number[])
   const labelsOf = (indices: readonly number[]) => indices.map((i) => IRIS_LABELS[i] as string)
 
-  const { predict } = fit(algorithm, {
+  const { predict } = await fit(algorithm, {
     features: pick(split.trainIndices),
     rowIndices: split.trainIndices,
     target: labelsOf(split.trainIndices),
@@ -88,7 +88,7 @@ describe('엔진 버전이 의존성에 묶여 있다', () => {
     expect('ml-regression-multivariate-linear' in packageJson.dependencies).toBe(false)
   })
 
-  it('엔진 이름이 실행 방법의 engineKind와 같다', () => {
+  it('엔진 이름이 실행 방법의 engineKind와 같다', async () => {
     expect(MLJS_ENGINE.kind).toBe('mljs')
   })
 })
@@ -107,8 +107,8 @@ describe('엔진 버전이 의존성에 묶여 있다', () => {
  */
 describe('재현 가능성', () => {
   for (const algorithm of ['decision_tree', 'knn', 'random_forest', 'naive_bayes']) {
-    it(`${algorithm}은 두 번 돌려도 같은 결과다`, () => {
-      expect(run(algorithm).metrics).toEqual(run(algorithm).metrics)
+    it(`${algorithm}은 두 번 돌려도 같은 결과다`, async () => {
+      expect((await run(algorithm)).metrics).toEqual((await run(algorithm)).metrics)
     })
   }
 
@@ -124,8 +124,8 @@ describe('재현 가능성', () => {
    * 모델이 안 달라졌음을 지킨다.
    */
   for (const nEstimators of [1, 3, 10]) {
-    it(`랜덤포레스트를 ${nEstimators}그루로 잡아도 학습된다`, () => {
-      expect(run('random_forest', { nEstimators }).metrics.accuracy).toBeGreaterThan(0)
+    it(`랜덤포레스트를 ${nEstimators}그루로 잡아도 학습된다`, async () => {
+      expect((await run('random_forest', { nEstimators })).metrics.accuracy).toBeGreaterThan(0)
     })
   }
 })
@@ -167,17 +167,17 @@ describe('붓꽃을 실제로 학습한다', () => {
   }
 
   for (const [algorithm, accuracy] of Object.entries(PINNED)) {
-    it(`${algorithm}의 붓꽃 정확도가 그대로다`, () => {
-      const { metrics, confusionMatrix } = run(algorithm)
+    it(`${algorithm}의 붓꽃 정확도가 그대로다`, async () => {
+      const { metrics, confusionMatrix } = await run(algorithm)
       expect(Number.isFinite(metrics.accuracy)).toBe(true)
       expect(confusionMatrix?.labels).toEqual(['setosa', 'versicolor', 'virginica'])
       expect(metrics.accuracy, algorithm).toBeCloseTo(accuracy, 10)
     })
   }
 
-  it('예측 결과가 학습에서 본 라벨 안에서만 나온다', () => {
+  it('예측 결과가 학습에서 본 라벨 안에서만 나온다', async () => {
     const known = new Set(IRIS_LABELS)
-    const { confusionMatrix } = run('decision_tree')
+    const { confusionMatrix } = await run('decision_tree')
     for (const label of confusionMatrix?.labels ?? []) {
       expect(known.has(label), label).toBe(true)
     }
@@ -185,24 +185,26 @@ describe('붓꽃을 실제로 학습한다', () => {
 })
 
 describe('하이퍼파라미터', () => {
-  it('넘긴 값이 실제로 쓰인다 - 깊이 1이면 성능이 떨어진다', () => {
-    const shallow = run('decision_tree', { maxDepth: 1 }).metrics.accuracy ?? 0
-    const deep = run('decision_tree', { maxDepth: 100 }).metrics.accuracy ?? 0
+  it('넘긴 값이 실제로 쓰인다 - 깊이 1이면 성능이 떨어진다', async () => {
+    const shallow = (await run('decision_tree', { maxDepth: 1 })).metrics.accuracy ?? 0
+    const deep = (await run('decision_tree', { maxDepth: 100 })).metrics.accuracy ?? 0
     expect(shallow).toBeLessThan(deep)
   })
 
-  it('모르는 값은 무시하고 기본값으로 돈다', () => {
-    expect(run('knn', { max_depth: 3, 이상한값: 'x' }).metrics).toEqual(run('knn').metrics)
+  it('모르는 값은 무시하고 기본값으로 돈다', async () => {
+    expect((await run('knn', { max_depth: 3, 이상한값: 'x' })).metrics).toEqual(
+      (await run('knn')).metrics,
+    )
   })
 
-  it('숫자가 아닌 값이 와도 기본값으로 떨어진다', () => {
-    expect(run('knn', { k: null }).metrics).toEqual(run('knn', { k: 5 }).metrics)
+  it('숫자가 아닌 값이 와도 기본값으로 떨어진다', async () => {
+    expect((await run('knn', { k: null })).metrics).toEqual((await run('knn', { k: 5 })).metrics)
   })
 })
 
 describe('로지스틱 수렴 경고 (mlpx-spec.md 5.9)', () => {
-  it('maxIter에 닿으면 LOGISTIC_NOT_CONVERGED가 붙는다', () => {
-    const { warning } = fit('logistic_regression', {
+  it('maxIter에 닿으면 LOGISTIC_NOT_CONVERGED가 붙는다', async () => {
+    const { warning } = await fit('logistic_regression', {
       features: IRIS_FEATURES,
       rowIndices: IRIS_FEATURES.map((_, index) => index),
       target: IRIS_LABELS,
@@ -214,11 +216,11 @@ describe('로지스틱 수렴 경고 (mlpx-spec.md 5.9)', () => {
     expect(warning?.params?.iterations).toBe(1)
   })
 
-  it('기본값으로 수렴하면 경고가 없다 - L2 덕에 최적점이 유한하다', () => {
+  it('기본값으로 수렴하면 경고가 없다 - L2 덕에 최적점이 유한하다', async () => {
     // 규제 없는 옛 솔버는 분리 가능한 데이터에서 좋은 모델에도 경고가 떴다.
     // 이 검사가 그 상태로 돌아가는 것을 막는다 (open-decisions.md "솔버를 sklearn과
     // 같은 구조로 바꾼다").
-    const { warning } = fit('logistic_regression', {
+    const { warning } = await fit('logistic_regression', {
       features: IRIS_FEATURES,
       rowIndices: IRIS_FEATURES.map((_, index) => index),
       target: IRIS_LABELS,
@@ -254,9 +256,9 @@ describe('로지스틱 수렴 경고 (mlpx-spec.md 5.9)', () => {
     ])
     const rowIndices = raw.map((_, index) => index)
 
-    it('스케일이 갈리면 반복을 스무 배 줘도 같은 자리에 선다', () => {
-      const at = (maxIter: number) =>
-        fit('logistic_regression', {
+    it('스케일이 갈리면 반복을 스무 배 줘도 같은 자리에 선다', async () => {
+      const at = async (maxIter: number) =>
+        await fit('logistic_regression', {
           features: raw,
           rowIndices,
           target: labels,
@@ -264,8 +266,8 @@ describe('로지스틱 수렴 경고 (mlpx-spec.md 5.9)', () => {
           hyperparameters: { maxIter },
           randomState: 42,
         })
-      const few = at(100)
-      const many = at(2000)
+      const few = await at(100)
+      const many = await at(2000)
       expect(few.warning?.code).toBe('LOGISTIC_NOT_CONVERGED')
       expect(many.warning?.code).toBe('LOGISTIC_NOT_CONVERGED')
       // **경고 유무만 보면 이 사실이 안 잡힌다** - 반복을 늘리면 조금이라도 나아진다는
@@ -273,8 +275,8 @@ describe('로지스틱 수렴 경고 (mlpx-spec.md 5.9)', () => {
       expect(many.model).toEqual(few.model)
     })
 
-    it('표준화하면 같은 데이터가 기본값 안에서 수렴한다', () => {
-      const { warning } = fit('logistic_regression', {
+    it('표준화하면 같은 데이터가 기본값 안에서 수렴한다', async () => {
+      const { warning } = await fit('logistic_regression', {
         features: standardized,
         rowIndices,
         target: labels,
@@ -367,17 +369,17 @@ describe('resolve - 무엇을 먹였는지 확정한다', () => {
     expect(resolve('decision_tree', once)).toEqual(once)
   })
 
-  it('fit은 resolve를 안 거친 호출에도 견딘다', () => {
+  it('fit은 resolve를 안 거친 호출에도 견딘다', async () => {
     // 안 그러면 k가 0인 KNN처럼 조용히 망가지고, 원인은 여기서 멀리 떨어진 곳에서 터진다.
-    expect(run('knn', {}).metrics.accuracy).toBeGreaterThan(0.5)
+    expect((await run('knn', {})).metrics.accuracy).toBeGreaterThan(0.5)
   })
 })
 
 describe('회귀', () => {
-  it('선형 회귀가 직선을 찾는다', () => {
+  it('선형 회귀가 직선을 찾는다', async () => {
     // y = 2x + 1
     const features = [[0], [1], [2], [3], [4]]
-    const { predict } = fit('linear_regression', {
+    const { predict } = await fit('linear_regression', {
       features,
       rowIndices: [0, 1, 2, 3, 4],
       target: [1, 3, 5, 7, 9],
@@ -417,7 +419,7 @@ describe('회귀', () => {
    * **여유가 넉넉한 것은 씨앗과 잡음 때문이 아니다** — 이 데이터는 결정적이다. 참값에서
    * 1% 안이면 되고, **옛 풀이는 부호가 반대라 어떤 여유로도 안 통과한다.**
    */
-  it('척도가 갈린 표에서도 작은 계수를 맞힌다 - 정규방정식이 부호까지 틀렸던 자리', () => {
+  it('척도가 갈린 표에서도 작은 계수를 맞힌다 - 정규방정식이 부호까지 틀렸던 자리', async () => {
     let state = 23 >>> 0
     const random = (): number => {
       state = (state * 1664525 + 1013904223) >>> 0
@@ -431,7 +433,7 @@ describe('회귀', () => {
       features.push([big, small])
       target.push(String(0.5 * big + 4000 * small + 7 + (random() - 0.5) * 0.1))
     }
-    const { model } = fit('linear_regression', {
+    const { model } = await fit('linear_regression', {
       features,
       rowIndices: features.map((_, index) => index),
       target,
@@ -446,7 +448,7 @@ describe('회귀', () => {
     expect(stored.coefficients[1]).toBeLessThan(4026)
   })
 
-  it('타깃이 상수면 계수가 정확히 0이고 결정계수가 1이다 - sklearn과 같다', () => {
+  it('타깃이 상수면 계수가 정확히 0이고 결정계수가 1이다 - sklearn과 같다', async () => {
     const features = [
       [150, 45],
       [153, 52],
@@ -455,7 +457,7 @@ describe('회귀', () => {
       [162, 50],
       [165, 58],
     ]
-    const { predict, model } = fit('linear_regression', {
+    const { predict, model } = await fit('linear_regression', {
       features,
       rowIndices: [0, 1, 2, 3, 4, 5],
       target: [42, 42, 42, 42, 42, 42],
@@ -478,9 +480,9 @@ describe('회귀', () => {
 })
 
 describe('모르는 알고리즘', () => {
-  it('ALGORITHM_UNSUPPORTED로 실패한다', () => {
+  it('ALGORITHM_UNSUPPORTED로 실패한다', async () => {
     try {
-      fit('없는알고리즘', {
+      await fit('없는알고리즘', {
         features: [[1]],
         rowIndices: [0],
         target: ['a'],

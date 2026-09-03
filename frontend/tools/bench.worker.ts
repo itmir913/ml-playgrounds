@@ -83,15 +83,15 @@ interface WorkerScope {
 
 const scope = self as unknown as WorkerScope
 
-scope.onmessage = (event) => {
+scope.onmessage = async (event) => {
   const request = event.data
   // **판단은 `workloads.ts`가 한다** — 여기 두면 검사가 못 닿는다(감사 B-2).
   const outcome =
     request.kind === 'calibration-set'
-      ? benchOutcome({ kind: 'calibration-set' })
+      ? await benchOutcome({ kind: 'calibration-set' })
       : request.kind === 'calibration'
-        ? benchOutcome({ kind: 'calibration', job: request.job })
-        : benchOutcome({ kind: 'ladder', ladderId: request.ladderId, point: request.point })
+        ? await benchOutcome({ kind: 'calibration', job: request.job })
+        : await benchOutcome({ kind: 'ladder', ladderId: request.ladderId, point: request.point })
   if (!outcome.ok) {
     scope.postMessage({ ok: false, error: outcome.error })
     return

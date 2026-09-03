@@ -21,6 +21,17 @@ interface WorkerScope {
 
 const scope = self as unknown as WorkerScope
 
+/**
+ * **요청은 온 순서대로 하나씩.** handleRequest가 비동기가 되면서(신경망이 조각 워커들의
+ * 답을 스텝마다 기다린다) 뒤 요청이 앞 요청을 앞지를 수 있게 됐다 — 사슬로 묶어
+ * 동기이던 시절의 순서를 그대로 지킨다. 거절은 handleRequest 안에서 이미 failed
+ * 메시지가 되므로 사슬이 여기서 끊길 일은 없지만, 만약을 위해 삼킨다.
+ */
+let queue: Promise<void> = Promise.resolve()
+
 scope.onmessage = (event) => {
-  handleRequest(event.data, (message) => scope.postMessage(message))
+  // 앞 요청이 어떻게 끝났든 이번 요청은 돈다 — 삼키는 것은 앞의 거절이지 이번 일이 아니다.
+  queue = queue
+    .catch(() => undefined)
+    .then(() => handleRequest(event.data, (message) => scope.postMessage(message)))
 }

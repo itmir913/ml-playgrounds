@@ -139,7 +139,7 @@ async function trainAndReopen(
   settings: Settings,
   taskType: TaskType,
 ): Promise<ProjectFile> {
-  const result = runExperiment(
+  const result = await runExperiment(
     { dataset, testDataset: null, taskType, dataType: 'tabular', settings, context: OFFLINE },
     { now: () => '2026-08-06T00:00:00.000Z' },
   )

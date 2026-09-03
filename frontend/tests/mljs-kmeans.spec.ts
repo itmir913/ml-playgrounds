@@ -240,20 +240,24 @@ describe('재현 가능성', () => {
    * R9 감사 A-4가 잡았던 것과 같은 자리다 — 그때 고침이 직접 호출 검사만 세워
    * 어댑터 한 홉을 남겼다.
    */
-  it('어댑터도 씨앗을 넘긴다 - 엔진 등록부를 지나서 본다', () => {
+  it('어댑터도 씨앗을 넘긴다 - 엔진 등록부를 지나서 본다', async () => {
     const engine = engineFor('mljs')
     expect(engine, 'the mljs engine must be in the registry').toBeDefined()
 
-    const answers = [3, 11, 29].map((seed) =>
-      JSON.stringify(
-        engine!.fit('k_means', {
-          features: SPREAD,
-          rowIndices: SPREAD.map((_, index) => index),
-          target: [],
-          taskType: 'clustering',
-          hyperparameters: { nClusters: 3 },
-          randomState: seed,
-        }).clusterResult?.centroids,
+    const answers = await Promise.all(
+      [3, 11, 29].map(async (seed) =>
+        JSON.stringify(
+          (
+            await engine!.fit('k_means', {
+              features: SPREAD,
+              rowIndices: SPREAD.map((_, index) => index),
+              target: [],
+              taskType: 'clustering',
+              hyperparameters: { nClusters: 3 },
+              randomState: seed,
+            })
+          ).clusterResult?.centroids,
+        ),
       ),
     )
 

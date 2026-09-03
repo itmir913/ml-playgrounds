@@ -91,9 +91,9 @@ describe('역전파가 손실의 기울기와 같다', () => {
    * **한 걸음이 손실을 내리는가.** 기울기의 부호가 뒤집혔으면 Adam이 오르막으로 걷고,
    * 그러면 이 단언이 곧바로 운다.
    */
-  it('학습이 손실을 내린다', () => {
+  it('학습이 손실을 내린다', async () => {
     const { features, encoded } = twoBlobs()
-    const fitted = fitNeural(
+    const fitted = await fitNeural(
       features,
       encoded,
       CLASSIFY2,
@@ -115,9 +115,9 @@ describe('역전파가 손실의 기울기와 같다', () => {
    * **엔진이 낸 곡선의 마지막 값과 손으로 다시 센 손실이 같아야 한다** — 이것이 첫
    * 단언이다. 다르면 곡선이 다른 것을 재고 있다는 뜻이고, **그 곡선이 화면에 그려진다.**
    */
-  it('곡선의 마지막 값이 그 가중치의 실제 손실이다', () => {
+  it('곡선의 마지막 값이 그 가중치의 실제 손실이다', async () => {
     const { features, encoded } = twoBlobs()
-    const fitted = fitNeural(
+    const fitted = await fitNeural(
       features,
       encoded,
       CLASSIFY2,
@@ -144,10 +144,10 @@ describe('역전파가 손실의 기울기와 같다', () => {
    * 그건 우리 식이 틀린 것이 아니라 함수가 거기서 안 미분되는 것이다. 초기 가중치에서
    * 재므로 그 자리에 걸릴 확률이 낮고, 걸린 칸은 아래에서 건너뛴다.
    */
-  it('해석적 기울기가 유한차분과 맞는다', () => {
+  it('해석적 기울기가 유한차분과 맞는다', async () => {
     const { features, encoded } = twoBlobs()
     // 학습 전 초기 가중치에서 잰다 — 학습이 멈춘 자리는 기울기가 0에 가까워 상대오차가 커진다.
-    const start = fitNeural(
+    const start = await fitNeural(
       features,
       encoded,
       CLASSIFY2,
@@ -209,27 +209,27 @@ describe('역전파가 손실의 기울기와 같다', () => {
 })
 
 describe('씨앗이 결과를 정한다', () => {
-  it('같은 씨앗이면 같은 곡선이다', () => {
+  it('같은 씨앗이면 같은 곡선이다', async () => {
     const { features, encoded } = twoBlobs()
     const options = { hiddenLayers: 2, neuronsPerLayer: 5 }
-    const a = fitNeural(features, encoded, CLASSIFY2, options, 42)
-    const b = fitNeural(features, encoded, CLASSIFY2, options, 42)
+    const a = await fitNeural(features, encoded, CLASSIFY2, options, 42)
+    const b = await fitNeural(features, encoded, CLASSIFY2, options, 42)
     expect(a.lossCurve).toEqual(b.lossCurve)
   })
 
-  it('다른 씨앗이면 다른 곡선이다 - 초기화가 도착점을 정한다', () => {
+  it('다른 씨앗이면 다른 곡선이다 - 초기화가 도착점을 정한다', async () => {
     const { features, encoded } = twoBlobs()
     const options = { hiddenLayers: 2, neuronsPerLayer: 5 }
-    const a = fitNeural(features, encoded, CLASSIFY2, options, 42)
-    const b = fitNeural(features, encoded, CLASSIFY2, options, 7)
+    const a = await fitNeural(features, encoded, CLASSIFY2, options, 42)
+    const b = await fitNeural(features, encoded, CLASSIFY2, options, 7)
     expect(a.lossCurve).not.toEqual(b.lossCurve)
   })
 })
 
 describe('손잡이 둘이 층 모양을 정한다', () => {
-  it('은닉층 수 + 1개의 가중치 덩어리가 나온다', () => {
+  it('은닉층 수 + 1개의 가중치 덩어리가 나온다', async () => {
     const { features, encoded } = twoBlobs()
-    const fitted = fitNeural(
+    const fitted = await fitNeural(
       features,
       encoded,
       CLASSIFY2,
@@ -244,10 +244,10 @@ describe('손잡이 둘이 층 모양을 정한다', () => {
     expect(fitted.weights[3]?.[0]).toHaveLength(1)
   })
 
-  it('다중 클래스의 출력은 클래스 수만큼이다', () => {
+  it('다중 클래스의 출력은 클래스 수만큼이다', async () => {
     const features = Array.from({ length: 30 }, (_, i) => [i / 30, (i % 3) / 3])
     const encoded = features.map((_, i) => i % 3)
-    const fitted = fitNeural(
+    const fitted = await fitNeural(
       features,
       encoded,
       CLASSIFY3,
@@ -265,7 +265,7 @@ describe('학습이 낸 모델을 화면 계층이 읽는다', () => {
     (i % 5) / 5,
   ])
 
-  function trained() {
+  async function trained() {
     return fit('neural_network', {
       features,
       rowIndices: features.map((_, i) => i),
@@ -276,22 +276,26 @@ describe('학습이 낸 모델을 화면 계층이 읽는다', () => {
     })
   }
 
-  it('형식과 클래스가 파일에 담긴다', () => {
-    const model = trained().model as { format: string; classes: string[]; lossCurve: number[] }
+  it('형식과 클래스가 파일에 담긴다', async () => {
+    const model = (await trained()).model as {
+      format: string
+      classes: string[]
+      lossCurve: number[]
+    }
     expect(model.format).toBe(NEURAL_FORMAT)
     // 정렬 순서다 (`labelCodec`).
     expect(model.classes).toEqual(['개', '고양이'])
     expect(model.lossCurve.length).toBeGreaterThan(1)
   })
 
-  it('저장했다 읽으면 같은 예측이다', () => {
-    const { predict, model } = trained()
+  it('저장했다 읽으면 같은 예측이다', async () => {
+    const { predict, model } = await trained()
     const reloaded = loadModel(JSON.parse(JSON.stringify(model)))
     expect(reloaded(features)).toEqual(predict(features))
   })
 
-  it('확률은 클래스 순서이고 합이 1이다', () => {
-    const { model } = trained()
+  it('확률은 클래스 순서이고 합이 1이다', async () => {
+    const { model } = await trained()
     const proba = loadModelProba(JSON.parse(JSON.stringify(model)))
     expect(proba?.classes).toEqual(['개', '고양이'])
     const row = proba?.predict([features[0] as number[]])[0]
@@ -300,8 +304,8 @@ describe('학습이 낸 모델을 화면 계층이 읽는다', () => {
   })
 
   /** **라벨과 확률이 갈리면 안 된다** (mlpx-spec.md §5.4). */
-  it('가장 높은 확률의 클래스가 답이다', () => {
-    const { predict, model } = trained()
+  it('가장 높은 확률의 클래스가 답이다', async () => {
+    const { predict, model } = await trained()
     const parsed = JSON.parse(JSON.stringify(model)) as unknown
     const proba = loadModelProba(parsed)
     const answers = predict(features)
@@ -312,8 +316,8 @@ describe('학습이 낸 모델을 화면 계층이 읽는다', () => {
     }
   })
 
-  it('층 모양이 어긋난 파일은 던진다', () => {
-    const model = JSON.parse(JSON.stringify(trained().model)) as { weights: number[][][] }
+  it('층 모양이 어긋난 파일은 던진다', async () => {
+    const model = JSON.parse(JSON.stringify((await trained()).model)) as { weights: number[][][] }
     // 한 층의 나가는 칸을 하나 줄인다. **그냥 흘리면 NaN이 답으로 나온다.**
     model.weights[0] = (model.weights[0] as number[][]).map((row) => row.slice(0, -1))
     expect(() => parseNeural(model)).toThrow()
@@ -323,15 +327,18 @@ describe('학습이 낸 모델을 화면 계층이 읽는다', () => {
 describe('손실 곡선을 화면이 꺼낸다', () => {
   const target = Array.from({ length: 40 }, (_, i) => (i % 2 === 0 ? 'a' : 'b'))
   const features = target.map((label, i) => [(i % 5) / 5 + (label === 'b' ? 1 : 0)])
-  const model = fit('neural_network', {
+  // describe 몸통은 동기여야 하므로 학습은 약속으로 나눠 갖는다.
+  const shared = fit('neural_network', {
     features,
     rowIndices: features.map((_, i) => i),
     target,
     taskType: 'classification',
     hyperparameters: { hiddenLayers: 1, neuronsPerLayer: 4 },
     randomState: 42,
-  }).model
-  const bytes = new TextEncoder().encode(JSON.stringify(model))
+  }).then((result) => {
+    const bytes = new TextEncoder().encode(JSON.stringify(result.model))
+    return { model: result.model, bytes }
+  })
 
   it('이 형식만 곡선을 갖는다', () => {
     expect(showsLossCurve(NEURAL_FORMAT)).toBe(true)
@@ -339,7 +346,8 @@ describe('손실 곡선을 화면이 꺼낸다', () => {
     expect(showsLossCurve(undefined)).toBe(false)
   })
 
-  it('에폭이 1부터 매겨진다', () => {
+  it('에폭이 1부터 매겨진다', async () => {
+    const { bytes } = await shared
     const points = lossCurveOf(NEURAL_FORMAT, bytes)
     expect(points?.[0]?.epoch).toBe(1)
     expect(points?.[points.length - 1]?.epoch).toBe(points?.length)
@@ -347,7 +355,8 @@ describe('손실 곡선을 화면이 꺼낸다', () => {
   })
 
   /** **모델이 안 담긴 실행에는 곡선도 없다.** 그때 화면은 아무것도 안 그린다 (§9.2). */
-  it('모델이 없으면 없다', () => {
+  it('모델이 없으면 없다', async () => {
+    const { bytes } = await shared
     expect(lossCurveOf(NEURAL_FORMAT, undefined)).toBeNull()
     expect(lossCurveOf('mlpx-tree-v1', bytes)).toBeNull()
   })
@@ -421,25 +430,25 @@ describe('회귀도 같은 역전파를 쓴다', () => {
     return total / features.length + (0.5 * ALPHA * penalty) / features.length
   }
 
-  function trained(neurons: number) {
+  async function trained(neurons: number) {
     const { features, targets } = line()
     return {
       features,
       targets,
-      ...fit('neural_network', {
+      ...(await fit('neural_network', {
         features,
         rowIndices: features.map((_, i) => i),
         target: targets.map(String),
         taskType: 'regression',
         hyperparameters: { hiddenLayers: 1, neuronsPerLayer: neurons },
         randomState: 42,
-      }),
+      })),
     }
   }
 
-  it('출력이 한 칸이고 활성이 없다', () => {
+  it('출력이 한 칸이고 활성이 없다', async () => {
     const { features, targets } = line()
-    const fitted = fitNeural(
+    const fitted = await fitNeural(
       features,
       targets,
       REGRESS,
@@ -450,9 +459,9 @@ describe('회귀도 같은 역전파를 쓴다', () => {
     expect(fitted.weights[2]?.[0]).toHaveLength(1)
   })
 
-  it('손실이 내려간다', () => {
+  it('손실이 내려간다', async () => {
     const { features, targets } = line()
-    const fitted = fitNeural(
+    const fitted = await fitNeural(
       features,
       targets,
       REGRESS,
@@ -465,9 +474,15 @@ describe('회귀도 같은 역전파를 쓴다', () => {
     )
   })
 
-  it('해석적 기울기가 유한차분과 맞는다', () => {
+  it('해석적 기울기가 유한차분과 맞는다', async () => {
     const { features, targets } = line()
-    const start = fitNeural(features, targets, REGRESS, { hiddenLayers: 2, neuronsPerLayer: 5 }, 5)
+    const start = await fitNeural(
+      features,
+      targets,
+      REGRESS,
+      { hiddenLayers: 2, neuronsPerLayer: 5 },
+      5,
+    )
     const weights = start.weights.map((matrix) => matrix.map((row) => [...row]))
     const intercepts = start.intercepts.map((bias) => [...bias])
 
@@ -507,8 +522,8 @@ describe('회귀도 같은 역전파를 쓴다', () => {
     expect(worst).toBeLessThan(1e-9)
   })
 
-  it('배운 관계를 실제로 맞힌다 - 평균만 내는 모델보다 낫다', () => {
-    const { features, targets, predict, model } = trained(16)
+  it('배운 관계를 실제로 맞힌다 - 평균만 내는 모델보다 낫다', async () => {
+    const { features, targets, predict, model } = await trained(16)
     expect((model as { format: string }).format).toBe(NEURAL_REGRESSION_FORMAT)
 
     const predicted = predict(features).map(Number)
@@ -518,8 +533,8 @@ describe('회귀도 같은 역전파를 쓴다', () => {
     expect(ours).toBeLessThan(flat)
   })
 
-  it('저장했다 읽으면 같은 예측이고, 수치를 돌려준다', () => {
-    const { features, predict, model } = trained(6)
+  it('저장했다 읽으면 같은 예측이고, 수치를 돌려준다', async () => {
+    const { features, predict, model } = await trained(6)
     const reloaded = loadModel(JSON.parse(JSON.stringify(model)))
     expect(reloaded(features)).toEqual(predict(features))
     // **문자열로 굳히지 않는다** — `Prediction`이 `string | number`다.
@@ -527,14 +542,14 @@ describe('회귀도 같은 역전파를 쓴다', () => {
   })
 
   /** **회귀에는 확률이 없다.** 고를 칸이 없어서다. */
-  it('확률을 안 낸다', () => {
-    const { model } = trained(6)
+  it('확률을 안 낸다', async () => {
+    const { model } = await trained(6)
     expect(loadModelProba(JSON.parse(JSON.stringify(model)))).toBeNull()
   })
 
   /** **분류 파일을 회귀 해석기로 읽을 수 없다.** 형식을 나눈 것이 이것을 막는다. */
-  it('형식이 어긋나면 던진다', () => {
-    const { model } = trained(6)
+  it('형식이 어긋나면 던진다', async () => {
+    const { model } = await trained(6)
     expect(() => parseNeural(JSON.parse(JSON.stringify(model)))).toThrow()
 
     // 출력이 두 칸인 회귀 파일도 거부한다 (mlpx-spec.md §5.11의 불변식 5).
@@ -548,8 +563,8 @@ describe('회귀도 같은 역전파를 쓴다', () => {
     expect(() => parseNeuralRegression(broken)).toThrow()
   })
 
-  it('손실 곡선을 회귀에서도 꺼낸다', () => {
-    const { model } = trained(6)
+  it('손실 곡선을 회귀에서도 꺼낸다', async () => {
+    const { model } = await trained(6)
     const bytes = new TextEncoder().encode(JSON.stringify(model))
     expect(showsLossCurve(NEURAL_REGRESSION_FORMAT)).toBe(true)
     const points = lossCurveOf(NEURAL_REGRESSION_FORMAT, bytes)

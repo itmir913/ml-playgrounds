@@ -120,10 +120,10 @@ describe('하이퍼파라미터가 Python 소스로 나갈 때', () => {
 })
 
 describe('준비되지 않은 엔진', () => {
-  it('Pyodide가 없으면 던진다', () => {
+  it('Pyodide가 없으면 던진다', async () => {
     expect.assertions(2)
     try {
-      fit('decision_tree', input({}))
+      await fit('decision_tree', input({}))
     } catch (error) {
       expect(isClientError(error)).toBe(true)
       if (isClientError(error)) expect(error.code).toBe('ENGINE_NOT_READY')

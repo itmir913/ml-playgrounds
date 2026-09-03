@@ -131,10 +131,10 @@ describe('경고는 에폭 상한에 닿았을 때만 붙는다', { timeout: 60_
    * **경고의 유무가 곡선의 길이와 정확히 맞물린다.** 이 한 줄이 A2(경고 제거)와
    * N14(`epochs`를 하나 작게)를 함께 문다.
    */
-  it('분류: 경고 ⇔ 곡선이 상한에 닿음, 그리고 iterations가 곡선 길이다', () => {
+  it('분류: 경고 ⇔ 곡선이 상한에 닿음, 그리고 iterations가 곡선 길이다', async () => {
     for (const seed of [0, 1, 2, 3, 4, 5, 6, 7]) {
       for (const neurons of [4, 100]) {
-        const result = fit('neural_network', {
+        const result = await fit('neural_network', {
           features: blobs.features,
           rowIndices: blobs.features.map((_, index) => index),
           target: blobs.target,
@@ -158,11 +158,11 @@ describe('경고는 에폭 상한에 닿았을 때만 붙는다', { timeout: 60_
    * **회귀는 코드가 갈린다.** 맞바꾸면(A1) 회귀 학생이 *"스케일링을 켜라"*를 읽는데,
    * 결정문이 그것을 R² −0.20 → **−10.2**로 재 두었다 — 시킨 대로 하면 더 나빠진다.
    */
-  it('회귀: 같은 규칙이되 회귀 코드로 붙는다', () => {
+  it('회귀: 같은 규칙이되 회귀 코드로 붙는다', async () => {
     const features = table.rows.map((row) => [Number(row[0]), Number(row[1]), Number(row[3])])
     const target = table.rows.map((row) => String(row[2]))
     for (const seed of [0, 1, 2, 3]) {
-      const result = fit('neural_network', {
+      const result = await fit('neural_network', {
         features,
         rowIndices: features.map((_, index) => index),
         target,
@@ -184,7 +184,7 @@ describe('경고는 에폭 상한에 닿았을 때만 붙는다', { timeout: 60_
    * `converged = false`(영원히 경고)를 심어도 조용하다 — 그 데이터에서는 아무것도 상한
    * 전에 안 멈추기 때문이다. 감사의 첫 처방이 그래서 N5를 못 물었다.
    */
-  it('스스로 멈추는 실행이 실제로 있다 - 없으면 위 검사가 한쪽만 잰다', () => {
+  it('스스로 멈추는 실행이 실제로 있다 - 없으면 위 검사가 한쪽만 잰다', async () => {
     /**
      * **간격이 아주 넓으면 곧바로 평평해진다.** 재 보니 이 벌은 씨앗 다섯이 **전부**
      * 상한 전에 멈춘다(에폭 44·13·33·39·33). 위의 `blobs`는 **전부** 상한을 채운다 —
@@ -196,7 +196,7 @@ describe('경고는 에폭 상한에 닿았을 때만 붙는다', { timeout: 60_
     const target = Array.from({ length: 20 }, (_, index) => (index < 10 ? 'a' : 'b'))
     let stopped = 0
     for (const seed of [0, 1, 2, 3, 4]) {
-      const result = fit('neural_network', {
+      const result = await fit('neural_network', {
         features,
         rowIndices: features.map((_, index) => index),
         target,
@@ -221,7 +221,7 @@ describe('.mlpx 왕복 전후', { timeout: 60_000 }, () => {
   for (const taskType of ['classification', 'regression'] as const) {
     it(`${taskType}: 곡선·경고·지표·모델 바이트가 같고 재실행 대조가 재현한다`, async () => {
       const settings = settingsFor(taskType)
-      const result = runExperiment(
+      const result = await runExperiment(
         {
           dataset: table,
           testDataset: null,
@@ -256,25 +256,31 @@ describe('.mlpx 왕복 전후', { timeout: 60_000 }, () => {
 
       const dataset = readDataset(reopened)
       expect(dataset).not.toBeNull()
-      const mine = reproduceExperiment({
-        experiment: after.experiment,
-        dataset: dataset!,
-        testDataset: null,
-      }).find((one) => one.runId === after.run.id)
+      const mine = (
+        await reproduceExperiment({
+          experiment: after.experiment,
+          dataset: dataset!,
+          testDataset: null,
+        })
+      ).find((one) => one.runId === after.run.id)
       expect(mine?.status).toBe('REPRODUCED')
     })
   }
 })
 
 /** 곡선과 파일 검사에 쓸 작은 분류 모델 하나. */
-const small = fit('neural_network', {
-  features: Array.from({ length: 40 }, (_, index) => [(index % 5) / 5 + (index % 2 === 1 ? 1 : 0)]),
-  rowIndices: Array.from({ length: 40 }, (_, index) => index),
-  target: Array.from({ length: 40 }, (_, index) => (index % 2 === 0 ? 'a' : 'b')),
-  taskType: 'classification',
-  hyperparameters: { hiddenLayers: 1, neuronsPerLayer: 4 },
-  randomState: 42,
-}).model as unknown as {
+const small = (
+  await fit('neural_network', {
+    features: Array.from({ length: 40 }, (_, index) => [
+      (index % 5) / 5 + (index % 2 === 1 ? 1 : 0),
+    ]),
+    rowIndices: Array.from({ length: 40 }, (_, index) => index),
+    target: Array.from({ length: 40 }, (_, index) => (index % 2 === 0 ? 'a' : 'b')),
+    taskType: 'classification',
+    hyperparameters: { hiddenLayers: 1, neuronsPerLayer: 4 },
+    randomState: 42,
+  })
+).model as unknown as {
   lossCurve: number[]
   weights: number[][][]
   intercepts: number[][]

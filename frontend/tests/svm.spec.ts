@@ -135,7 +135,7 @@ describe('벤더링한 SMO', () => {
     expect(decide(scaled, stretched)).toEqual(decide(plain, features))
   })
 
-  it('값이 하나뿐인 열이 있어도 NaN이 안 나온다 - 폭 0은 1로 둔다', () => {
+  it('값이 하나뿐인 열이 있어도 NaN이 안 나온다 - 폭 0은 1로 둔다', async () => {
     const { features, labels } = separable(80)
     const withConstant = features.map((row) => [...row, 3])
     const model = trainLinearSvm(withConstant, labels, options)
@@ -148,7 +148,7 @@ describe('벤더링한 SMO', () => {
 describe('one-vs-one 투표', () => {
   const classes = ['a', 'b', 'c']
 
-  it('쌍마다 이긴 쪽에 표를 준다', () => {
+  it('쌍마다 이긴 쪽에 표를 준다', async () => {
     // 첫 특성만 본다. 값이 크면 뒤쪽 클래스가 이기게 세운다.
     const predict = svmPredict({
       classes,
@@ -166,7 +166,7 @@ describe('one-vs-one 투표', () => {
     expect(predict([[-1]])).toEqual(['a'])
   })
 
-  it('표가 같으면 결정함수 값의 합으로 가른다 - sklearn SVC와 같다', () => {
+  it('표가 같으면 결정함수 값의 합으로 가른다 - sklearn SVC와 같다', async () => {
     // 셋이 한 표씩 나눠 갖는 3파전. a>b, b>c, c>a로 돌게 세운다.
     const predict = svmPredict({
       classes,
@@ -183,7 +183,7 @@ describe('one-vs-one 투표', () => {
     expect(predict([[0]])).toEqual(['a'])
   })
 
-  it('클래스가 여럿인데 가르는 쌍이 없으면 거부한다 - 전부 첫 클래스로 답한다', () => {
+  it('클래스가 여럿인데 가르는 쌍이 없으면 거부한다 - 전부 첫 클래스로 답한다', async () => {
     try {
       svmPredict({ classes, featureCount: 1, classifiers: [] })
       expect.unreachable()
@@ -192,7 +192,7 @@ describe('one-vs-one 투표', () => {
     }
   })
 
-  it('특성 수가 다른 입력은 거부한다', () => {
+  it('특성 수가 다른 입력은 거부한다', async () => {
     const predict = svmPredict({
       classes: ['a', 'b'],
       featureCount: 2,
@@ -208,8 +208,8 @@ describe('one-vs-one 투표', () => {
 })
 
 describe('mljs 엔진의 svm', () => {
-  it('붓꽃 세 품종을 쌍마다 하나씩 감싼다', () => {
-    const { model } = train()
+  it('붓꽃 세 품종을 쌍마다 하나씩 감싼다', async () => {
+    const { model } = await train()
     const svm = model as SvmModel
 
     expect(svm.format).toBe(SVM_FORMAT)
@@ -223,15 +223,15 @@ describe('mljs 엔진의 svm', () => {
     ])
   })
 
-  it('학습한 예측과 파일에서 읽은 예측이 같다', () => {
-    const { predict, model } = train()
+  it('학습한 예측과 파일에서 읽은 예측이 같다', async () => {
+    const { predict, model } = await train()
     const revived = loadModel(JSON.parse(JSON.stringify(model)) as unknown)
 
     expect(revived(IRIS_FEATURES)).toEqual(predict(IRIS_FEATURES))
   })
 
-  it('붓꽃을 맞힌다', () => {
-    const { predict } = train()
+  it('붓꽃을 맞힌다', async () => {
+    const { predict } = await train()
     const predicted = predict(IRIS_FEATURES)
     const hit = predicted.filter((value, index) => value === IRIS_LABELS[index]).length
 
@@ -240,20 +240,20 @@ describe('mljs 엔진의 svm', () => {
     expect(hit / IRIS_LABELS.length).toBeGreaterThan(0.9)
   })
 
-  it('원본 데이터가 필요 없다 - 참조형과 갈리는 자리다', () => {
-    const { model } = train()
+  it('원본 데이터가 필요 없다 - 참조형과 갈리는 자리다', async () => {
+    const { model } = await train()
     // context 없이 부른다. 참조형이면 여기서 MODEL_NEEDS_DATASET이 난다.
     expect(() => loadModel(JSON.parse(JSON.stringify(model)) as unknown)).not.toThrow()
   })
 
-  it('C를 안 주면 확정된 기본값으로 돈다', () => {
-    const first = train()
-    const second = train({ C: 1 })
+  it('C를 안 주면 확정된 기본값으로 돈다', async () => {
+    const first = await train()
+    const second = await train({ C: 1 })
     expect(first.predict(IRIS_FEATURES)).toEqual(second.predict(IRIS_FEATURES))
   })
 
-  it('같은 randomState면 같은 모델이다', () => {
-    expect(JSON.stringify(train().model)).toBe(JSON.stringify(train().model))
+  it('같은 randomState면 같은 모델이다', async () => {
+    expect(JSON.stringify((await train()).model)).toBe(JSON.stringify((await train()).model))
   })
 
   /**
@@ -263,8 +263,10 @@ describe('mljs 엔진의 svm', () => {
    * 실제로 `seededRandom(input.randomState)`를 상수로 바꿔도 **저장소 전체
    * 2028개가 전부 초록이었다** (R9 감사 A-4). SMO의 쌍 고르기가 그 값을 먹는다.
    */
-  it('다른 randomState면 모델이 갈린다 - 씨앗이 안 쓰이면 여기가 빨개진다', () => {
-    const models = [42, 7, 29].map((seed) => JSON.stringify(train({}, seed).model))
+  it('다른 randomState면 모델이 갈린다 - 씨앗이 안 쓰이면 여기가 빨개진다', async () => {
+    const models = await Promise.all(
+      [42, 7, 29].map(async (seed) => JSON.stringify((await train({}, seed)).model)),
+    )
     expect(new Set(models).size, 'the seed did not reach inside SMO').toBeGreaterThan(1)
   })
 })

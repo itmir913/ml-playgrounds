@@ -71,8 +71,12 @@ export interface TrainingEngine {
    *
    * 모델이 없는 것은 정상이다 - 그 엔진에 그 알고리즘의 직렬화기가 아직 없다는 뜻이고,
    * 파일에는 사유가 남는다 (mlpx-spec.md 4.2).
+   *
+   * **비동기인 이유는 안이 갈라지기 때문이다** — 신경망이 조각을 워커들에 나눠 스텝마다
+   * 답을 기다린다 (open-decisions.md "학습을 코어로 가른다 — 결과는 코어 수와 무관하다").
+   * 서버 엔진도 어차피 이 모양이다 (ml/server.ts).
    */
-  fit(algorithm: string, input: FitInput): FitResult
+  fit(algorithm: string, input: FitInput): Promise<FitResult>
 }
 
 /**

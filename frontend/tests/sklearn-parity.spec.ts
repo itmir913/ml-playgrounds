@@ -160,7 +160,7 @@ function relativeGap(ours: readonly number[], sklearn: readonly number[]): numbe
  * 없다.** 파이썬이 필요해서 관문 밖에 있고, `CLAUDE.md`는 관문이 명령 하나라고 못 박았다.
  */
 describe('대조가 줄어들지 않았다', () => {
-  it('데이터셋 아홉이 그대로 있다', () => {
+  it('데이터셋 아홉이 그대로 있다', async () => {
     expect(Object.keys(document.datasets).sort()).toEqual([
       'categorical',
       'iris',
@@ -174,7 +174,7 @@ describe('대조가 줄어들지 않았다', () => {
     ])
   })
 
-  it('분류 데이터셋마다 알고리즘 여섯을 다 견준다', () => {
+  it('분류 데이터셋마다 알고리즘 여섯을 다 견준다', async () => {
     for (const [name, entry] of Object.entries(document.datasets)) {
       if (entry.meta.taskType === 'regression') {
         expect(Object.keys(entry.sklearn).sort(), name).toEqual([
@@ -210,9 +210,9 @@ for (const [name, entry] of Object.entries(document.datasets)) {
     const testTarget = targetValues(dataset, entry.testIndices, entry.meta.target)
 
     if (entry.meta.taskType === 'regression') {
-      it('선형 회귀 — 계수·절편·R²가 최소제곱 해석해와 같다', () => {
+      it('선형 회귀 — 계수·절편·R²가 최소제곱 해석해와 같다', async () => {
         const expected = entry.sklearn.linear_regression
-        const { predict, model } = fit('linear_regression', {
+        const { predict, model } = await fit('linear_regression', {
           features: trainFeatures,
           rowIndices: entry.trainIndices,
           target: trainTarget.map(Number),
@@ -254,25 +254,28 @@ for (const [name, entry] of Object.entries(document.datasets)) {
        */
       const neuralRegression = entry.sklearn.neural_network
       if (neuralRegression) {
-        it('neural_network — sklearn 회귀 분포 안이고 손실이 내려간다', () => {
+        it('neural_network — sklearn 회귀 분포 안이고 손실이 내려간다', async () => {
           expect(neuralRegression.seeds, `${name}: neural reference`).toBeDefined()
           expect(neuralRegression.r2Values, `${name}: neural r2`).toBeDefined()
           expect(neuralRegression.hiddenLayerSizes, `${name}: hidden layer sizes`).toEqual([100])
 
-          const ours = (neuralRegression.seeds ?? []).map((seed) => {
-            const { predict, model } = fit('neural_network', {
-              features: trainFeatures,
-              rowIndices: entry.trainIndices,
-              target: trainTarget.map(Number),
-              taskType: 'regression',
-              hyperparameters: {},
-              randomState: seed,
-            })
-            const curve = (model as { lossCurve?: number[] }).lossCurve ?? []
-            const r2 =
-              evaluate('regression', testTarget.map(Number), predict(testFeatures)).metrics.r2 ?? 0
-            return { r2, curve }
-          })
+          const ours = await Promise.all(
+            (neuralRegression.seeds ?? []).map(async (seed) => {
+              const { predict, model } = await fit('neural_network', {
+                features: trainFeatures,
+                rowIndices: entry.trainIndices,
+                target: trainTarget.map(Number),
+                taskType: 'regression',
+                hyperparameters: {},
+                randomState: seed,
+              })
+              const curve = (model as { lossCurve?: number[] }).lossCurve ?? []
+              const r2 =
+                evaluate('regression', testTarget.map(Number), predict(testFeatures)).metrics.r2 ??
+                0
+              return { r2, curve }
+            }),
+          )
 
           for (const [index, run] of ours.entries()) {
             expect(run.curve.length, `${name}: seed ${index} curve`).toBeGreaterThan(1)
@@ -303,8 +306,8 @@ for (const [name, entry] of Object.entries(document.datasets)) {
        */
       if (algorithm === 'neural_network') continue
 
-      it(`${algorithm} — sklearn 수준이고 기준선을 넘는다`, () => {
-        const { predict, warning } = fit(algorithm, {
+      it(`${algorithm} — sklearn 수준이고 기준선을 넘는다`, async () => {
+        const { predict, warning } = await fit(algorithm, {
           features: trainFeatures,
           rowIndices: entry.trainIndices,
           target: trainTarget,
@@ -373,7 +376,7 @@ for (const [name, entry] of Object.entries(document.datasets)) {
 
         if (algorithm === 'naive_bayes' && expected.params) {
           expect(expected.params.theta, `${name}: naive bayes reference`).toBeDefined()
-          const { model } = fit('naive_bayes', {
+          const { model } = await fit('naive_bayes', {
             features: trainFeatures,
             rowIndices: entry.trainIndices,
             target: trainTarget,
@@ -411,7 +414,7 @@ for (const [name, entry] of Object.entries(document.datasets)) {
          */
         if (algorithm === 'logistic_regression' && expected.params && bothConverged) {
           expect(expected.params.coef, `${name}: logistic coefficient reference`).toBeDefined()
-          const { model } = fit('logistic_regression', {
+          const { model } = await fit('logistic_regression', {
             features: trainFeatures,
             rowIndices: entry.trainIndices,
             target: trainTarget,
@@ -481,27 +484,29 @@ for (const [name, entry] of Object.entries(document.datasets)) {
        * 1초 남짓인데, 관문이 워커 여섯으로 돌리면 5초 기본 천장을 넘어 터졌다 (2026-09-03에
        * 실제로 흔들렸다). **가짜 빨강이 진짜 빨강을 가린다.**
        */
-      it('neural_network — sklearn 분포 안이고 손실이 내려간다', { timeout: 30_000 }, () => {
+      it('neural_network — sklearn 분포 안이고 손실이 내려간다', { timeout: 30_000 }, async () => {
         expect(neural.seeds, `${name}: neural reference`).toBeDefined()
         expect(neural.accuracies, `${name}: neural accuracies`).toBeDefined()
         // **손잡이가 sklearn과 같은 모양인지 먼저 본다.** 픽스처가 다른 크기의 망을
         // 돌렸으면 그 뒤의 비교는 다른 두 모델을 견주는 것이다.
         expect(neural.hiddenLayerSizes, `${name}: hidden layer sizes`).toEqual([100])
 
-        const ours = (neural.seeds ?? []).map((seed) => {
-          const { predict, model } = fit('neural_network', {
-            features: trainFeatures,
-            rowIndices: entry.trainIndices,
-            target: trainTarget,
-            taskType: 'classification',
-            hyperparameters: {},
-            randomState: seed,
-          })
-          const curve = (model as { lossCurve?: number[] }).lossCurve ?? []
-          const accuracy =
-            evaluate('classification', testTarget, predict(testFeatures)).metrics.accuracy ?? 0
-          return { accuracy, curve }
-        })
+        const ours = await Promise.all(
+          (neural.seeds ?? []).map(async (seed) => {
+            const { predict, model } = await fit('neural_network', {
+              features: trainFeatures,
+              rowIndices: entry.trainIndices,
+              target: trainTarget,
+              taskType: 'classification',
+              hyperparameters: {},
+              randomState: seed,
+            })
+            const curve = (model as { lossCurve?: number[] }).lossCurve ?? []
+            const accuracy =
+              evaluate('classification', testTarget, predict(testFeatures)).metrics.accuracy ?? 0
+            return { accuracy, curve }
+          }),
+        )
 
         for (const [index, run] of ours.entries()) {
           expect(run.curve.length, `${name}: seed ${index} curve`).toBeGreaterThan(1)

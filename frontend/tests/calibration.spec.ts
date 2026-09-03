@@ -69,8 +69,8 @@ describe('기기 배수', () => {
     expect(target.every((value) => Number.isFinite(Number(value)))).toBe(true)
   })
 
-  it('실제로 시간을 낸다', () => {
-    expect(runCalibration()).toBeGreaterThan(0)
+  it('실제로 시간을 낸다', async () => {
+    expect(await runCalibration()).toBeGreaterThan(0)
   })
 
   it('하니스가 앱과 같은 일감을 쓴다 - 갈리면 배수가 통째로 어긋난다', () => {

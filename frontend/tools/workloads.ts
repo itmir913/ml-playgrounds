@@ -110,7 +110,7 @@ export interface Job {
  * **엔진의 시간**이고, 그 사실이 여기 적혀 있어야 다음 사람이 표를 오해하지 않는다
  * (`open-decisions.md` "학습 예상 시간은 실측표에 기기 배수를 곱해 낸다").
  */
-export function measure(job: Job): number {
+export async function measure(job: Job): Promise<number> {
   const { features, target } = syntheticData(
     job.rows,
     job.columns ?? FEATURES,
@@ -118,7 +118,7 @@ export function measure(job: Job): number {
   )
   const rowIndices = features.map((_, index) => index)
   const started = performance.now()
-  const { predict } = fit(job.algorithm, {
+  const { predict } = await fit(job.algorithm, {
     features,
     rowIndices,
     target,
@@ -175,13 +175,13 @@ function uniformData(rows: number, columns: number): { features: number[][]; tar
  * 에폭 상한까지 간다 — 로지스틱을 `tol: 0`으로 재는 것과 같은 자리이고, 목적도 같다:
  * **천장을 잰다.**
  */
-function measureNeural(
+async function measureNeural(
   rows: number,
   columns: number,
   layers: number,
   neurons: number,
   regression = false,
-): LadderResult {
+): Promise<LadderResult> {
   let state = 42
   const random = (): number => {
     state = (state * 1664525 + 1013904223) >>> 0
@@ -203,7 +203,7 @@ function measureNeural(
    */
   const targets = regression ? encoded.map((one) => one * 10 + 5) : encoded
   const started = performance.now()
-  const fitted = fitNeural(
+  const fitted = await fitNeural(
     features,
     targets,
     regression ? { kind: 'regression' } : { kind: 'classification', classCount: classes.length },
@@ -286,7 +286,7 @@ export interface Ladder {
    * K-평균만 이것을 갖는다 — 반복 횟수를 데이터가 정하는데 공용 생성기는 군집이
    * 이미 갈려 있어 즉시 수렴한다(위 `uniformData`).
    */
-  readonly run?: (point: number) => LadderResult
+  readonly run?: (point: number) => LadderResult | Promise<LadderResult>
   /**
    * **상한을 찾는 사다리인가.** 기준표를 만드는 사다리와 목적이 다르다.
    *
@@ -836,10 +836,10 @@ const LIMIT_LADDERS: readonly Ladder[] = [
  * **워커 파일이 아니라 여기 사는 이유**는 저쪽이 모듈 꼭대기에서 `self`를 만져 검사가
  * 들여올 수 없기 때문이다. 판단은 검사가 닿는 곳에 둔다.
  */
-export function ladderPoint(ladderId: string, point: number): LadderResult {
+export async function ladderPoint(ladderId: string, point: number): Promise<LadderResult> {
   const ladder = ALL_LADDERS.find((one) => one.id === ladderId)
   if (ladder === undefined) throw new Error(`unknown ladder: ${ladderId}`)
-  return ladder.run ? ladder.run(point) : { elapsed: measure(ladder.job(point)) }
+  return ladder.run ? await ladder.run(point) : { elapsed: await measure(ladder.job(point)) }
 }
 
 /**
@@ -857,26 +857,26 @@ export function benchOutcome(request: {
   readonly kind: 'ladder'
   readonly ladderId: string
   readonly point: number
-}): Outcome
+}): Promise<Outcome>
 export function benchOutcome(request: {
   readonly kind: 'calibration'
   readonly job: CalibrationJob
-}): Outcome
-export function benchOutcome(request: { readonly kind: 'calibration-set' }): Outcome
-export function benchOutcome(request: {
+}): Promise<Outcome>
+export function benchOutcome(request: { readonly kind: 'calibration-set' }): Promise<Outcome>
+export async function benchOutcome(request: {
   readonly kind: 'ladder' | 'calibration' | 'calibration-set'
   readonly ladderId?: string
   readonly point?: number
   readonly job?: CalibrationJob
-}): Outcome {
+}): Promise<Outcome> {
   try {
     // **교정 일감은 반복 횟수를 안 답한다.** K-평균이 아니라 그런 수가 없다.
     const result: LadderResult =
       request.kind === 'calibration-set'
-        ? { elapsed: measureCalibrationSet() }
+        ? { elapsed: await measureCalibrationSet() }
         : request.kind === 'calibration'
-          ? { elapsed: measureCalibration(request.job as CalibrationJob) }
-          : ladderPoint(request.ladderId as string, request.point as number)
+          ? { elapsed: await measureCalibration(request.job as CalibrationJob) }
+          : await ladderPoint(request.ladderId as string, request.point as number)
     return { ok: true, ...result }
   } catch (error) {
     return { ok: false, error: String(error) }
@@ -1003,8 +1003,8 @@ export const CALIBRATION = CALIBRATION_JOBS
  * 잰 절차와 앱이 도는 절차가 다르면 나눗셈의 두 항이 다른 것을 재는 것이다. 그래서 여기서
  * 다시 정의하지 않고 **가져와 부른다.**
  */
-export function measureCalibration(job: CalibrationJob): number {
-  return Math.round(measureJob(job))
+export async function measureCalibration(job: CalibrationJob): Promise<number> {
+  return Math.round(await measureJob(job))
 }
 
 /**
@@ -1018,6 +1018,6 @@ export function measureCalibration(job: CalibrationJob): number {
  * **그래서 기준값을 이 함수로 잰다.** 위 갈래는 *"어느 일감이 얼마를 먹나"*를 보는 것이고,
  * 이쪽이 *"앱이 잴 값이 얼마인가"*다. 둘을 한 함수로 합치면 그 구분이 사라진다.
  */
-export function measureCalibrationSet(): number {
-  return Math.round(runCalibration())
+export async function measureCalibrationSet(): Promise<number> {
+  return Math.round(await runCalibration())
 }

@@ -196,11 +196,11 @@ describe('세는 것이 실제 학습과 같다', () => {
    * **이 검사가 이 파일의 이유다.** 카드가 읽는 계획과 학습이 남긴 기록이 같은 행을
    * 가리키는지 본다. 화면이 따로 세기 시작하면 여기가 먼저 깨진다.
    */
-  it('계획의 분할이 곧 실험에 남는 분할이다', () => {
+  it('계획의 분할이 곧 실험에 남는 분할이다', async () => {
     for (const nSamples of [undefined, 21]) {
       const settings = settingsFor({}, nSamples === undefined ? {} : { nSamples })
       const plan = planRun({ ...input, settings })
-      const { experiment } = runExperiment({
+      const { experiment } = await runExperiment({
         ...input,
         settings,
         dataType: 'tabular',

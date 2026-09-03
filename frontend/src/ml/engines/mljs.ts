@@ -74,7 +74,7 @@ import type {
 } from '../models'
 import type { ModelFile, Predict } from '../models/types'
 import { fitLogistic } from './logistic'
-import { fitNeural } from './neural'
+import { fitNeural, type NeuralPoolFactory } from './neural'
 import { fitKMeans } from './mljs-kmeans'
 import { SMO_DEFAULTS, seededRandom, trainLinearSvm } from './svm-smo'
 import { MLJS_PARAMETERS } from './mljs-params'
@@ -110,7 +110,16 @@ import {
  * tests/mljs.spec.ts가 설치된 ml.js 버전을 고정해 두었다 - Dependabot이 올리면
  * 테스트가 깨지고, 그때 숫자가 움직였는지 보고 결정하게 된다.
  */
-export const MLJS_ENGINE = { kind: 'mljs', version: '2' } as const
+/**
+ * **3이 된 이유 — 신경망 기울기 합산의 정본 순서가 바뀌었다** (2026-09-04,
+ * open-decisions.md "학습을 코어로 가른다 — 결과는 코어 수와 무관하다"). 배치를 고정
+ * 조각으로 갈라 접으면서 부동소수점 합산 순서가 달라져 **같은 씨앗의 신경망이 2와 다른
+ * 모델을 낸다.** 다른 알고리즘은 한 비트도 안 달라졌지만 버전은 엔진 하나에 하나다 —
+ * 옛 파일의 재실행 대조가 전부 "대조 불가"로 빠지는 값을 치르고, 교사용 화면이 아직
+ * 없는 지금이 가장 싼 시점이라는 판단까지 결정문에 있다. 코드 소유자 지시로 움직였다
+ * (workflow.md §4).
+ */
+export const MLJS_ENGINE = { kind: 'mljs', version: '3' } as const
 
 export type { Predict } from '../models/types'
 
@@ -191,9 +200,18 @@ export interface FitInput {
   hyperparameters: Record<string, unknown>
   /** 항상 저장하고 항상 쓴다. 재현 가능성이 교육용 도구의 생명이다. */
   randomState: number
+  /**
+   * 신경망 조각을 나눠 받을 워커 풀의 공장 (open-decisions.md "학습을 코어로 가른다 —
+   * 결과는 코어 수와 무관하다"). **없으면 직렬로 돌고 결과는 같다** — 그래서 검사와
+   * 재실행 대조는 이 값을 아예 안 준다. 실물은 학습 워커만 준다 (ml/worker/handler.ts).
+   *
+   * 직렬화되는 요청(TrainRequest)이 아니라 **워커 안에서** 붙는 값이다 — 함수는
+   * postMessage를 못 탄다.
+   */
+  neuralPool?: NeuralPoolFactory
 }
 
-type Trainer = (input: FitInput) => FitResult
+type Trainer = (input: FitInput) => FitResult | Promise<FitResult>
 
 const toRows = (features: readonly (readonly number[])[]): number[][] =>
   features.map((row) => [...row])
@@ -691,7 +709,7 @@ const TRAINERS: Record<string, Trainer> = {
    * 여기서는 손실이 더 안 줄어들기 전에 에폭 상한에 닿았다는 뜻이다 — 실패가 아니라
    * "덜 배웠다"이므로 지표도 모델도 정상으로 나온다 (mlpx-spec.md §5.9).
    */
-  neural_network: (input) => {
+  neural_network: async (input) => {
     const featureCount = input.features[0]?.length ?? 0
     const options = {
       hiddenLayers: numberOption(input.hyperparameters, 'hiddenLayers'),
@@ -703,12 +721,13 @@ const TRAINERS: Record<string, Trainer> = {
       ? { encoded: input.target.map(Number), labels: [] }
       : labelCodec(input.target)
 
-    const fitted = fitNeural(
+    const fitted = await fitNeural(
       input.features,
       encoded,
       regression ? { kind: 'regression' } : { kind: 'classification', classCount: labels.length },
       options,
       input.randomState,
+      input.neuralPool,
     )
 
     const layers = {
@@ -883,11 +902,11 @@ export function resolve(
  * 모르는 알고리즘이면 실패한다. 화면이 고르게 하는 목록은 등록부에서 나오므로 여기
  * 도달하는 것은 버그이거나 남의 파일에 든 모르는 알고리즘이다 (mlpx-spec.md 5.2).
  */
-export function fit(algorithm: string, input: FitInput): FitResult {
+export async function fit(algorithm: string, input: FitInput): Promise<FitResult> {
   const trainer = TRAINERS[algorithm]
   if (!trainer) throw new ClientError('ALGORITHM_UNSUPPORTED', { algorithm })
   // **여기서도 확정한다.** 부르는 쪽이 resolve를 거쳤는지에 기대지 않는다 - 안 거친
   // 호출은 k가 0인 KNN처럼 조용히 망가지고, 그 원인은 여기서 멀리 떨어진 곳에서 터진다.
   // resolve는 병합이라 두 번 걸어도 결과가 같다.
-  return trainer({ ...input, hyperparameters: resolve(algorithm, input.hyperparameters) })
+  return await trainer({ ...input, hyperparameters: resolve(algorithm, input.hyperparameters) })
 }
