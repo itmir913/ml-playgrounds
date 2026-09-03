@@ -456,7 +456,7 @@
       "replace": "  const beta = solve(new Matrix(centeredRows), new Matrix(centeredTarget), false)",
       "expect": "cries",
       "expectSpecs": ["tests/mljs.spec.ts"],
-      "loses": "SVD 대신 정규방정식으로 돌아가 척도가 갈린 표에서 작은 계수가 부호까지 틀린다 — 실측 −120.68, 참값 3986.58 (R25 B-2)"
+      "loses": "useSVD를 끄면 ml-matrix는 정규방정식이 아니라 QR로 푼다 — 병든 표는 QR도 맞힌다. 우는 것은 상수 타깃의 계수가 -0이 되어 '정확히 0' 검사가 서명 0을 가르는 자리다 (R25 B-2, 재검토 C-10)"
     },
     {
       "file": "src/ml/engines/mljs.ts",

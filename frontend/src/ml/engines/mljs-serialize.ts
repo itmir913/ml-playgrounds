@@ -14,12 +14,10 @@
  */
 
 import type { DecisionTreeClassifier } from 'ml-cart'
-import type MultivariateLinearRegression from 'ml-regression-multivariate-linear'
 import { Matrix } from 'ml-matrix'
 import type { RandomForestClassifier } from 'ml-random-forest'
 import { z } from 'zod'
 
-import { LINEAR_REGRESSION_FORMAT, type LinearRegressionModel } from '../models/linear-regression'
 import { NAIVE_BAYES_FORMAT, type NaiveBayesModel } from '../models/naive-bayes'
 import { LEAF, TREE_FORMAT, type TreeModel, type TreeNode } from '../models/tree'
 
@@ -32,17 +30,6 @@ import { LEAF, TREE_FORMAT, type TreeModel, type TreeNode } from '../models/tree
  */
 function drift(what: string): never {
   throw new Error(`mljs model shape changed: ${what}`)
-}
-
-/**
- * `toJSON()`을 부른다. **라이브러리 타입 선언에 이 메서드가 없다** - 실제로는 있고
- * 공개 API인데 `.d.ts`가 빠뜨렸다. 단언으로 통과시키지 않고 있는지 재고 없으면 드리프트로
- * 다룬다 - 이 파일이 지키는 규칙이 그것이다.
- */
-function toJSONOf(value: object): unknown {
-  const method = (value as { toJSON?: unknown }).toJSON
-  if (typeof method !== 'function') drift('toJSON')
-  return (method as () => unknown).call(value)
 }
 
 /**
@@ -254,47 +241,5 @@ export function serializeNaiveBayes(
   }
 }
 
-/** 선형 회귀의 `toJSON()`. 절편은 가중치 행렬의 **마지막 줄**에 있다. */
-const linearRegressionSchema = z.looseObject({
-  weights: z.array(z.array(z.number())).min(1),
-  inputs: z.number(),
-  outputs: z.number(),
-  intercept: z.boolean(),
-})
-
-/**
- * 선형 회귀 (mlpx-spec.md 5.7).
- *
- * **절편을 계수 배열에서 떼어낸다.** 라이브러리는 가중치 행렬의 마지막 줄에 절편을 두는데,
- * 그 규약을 그대로 담으면 `coefficients.length`가 `featureCount`와 안 맞아 "특성 수가
- * 맞는가"라는 가장 중요한 검사가 헷갈린다.
- *
- * 출력이 하나인 것만 담는다 - 타깃은 열 하나이고, 여럿인 모델은 우리가 만들지 않는다.
- */
-export function serializeLinearRegression(
-  regression: MultivariateLinearRegression,
-  featureCount: number,
-): LinearRegressionModel {
-  const parsed = linearRegressionSchema.safeParse(JSON.parse(JSON.stringify(toJSONOf(regression))))
-  if (!parsed.success) drift('linear regression')
-
-  const { weights, inputs, outputs, intercept } = parsed.data
-  if (outputs !== 1) drift('linear regression outputs')
-  if (inputs !== featureCount) drift('linear regression inputs')
-  // 절편이 있으면 줄이 하나 더 있다. 없으면 우리가 0으로 채운다.
-  if (weights.length !== featureCount + (intercept ? 1 : 0)) drift('linear regression weights')
-
-  const coefficients = weights.slice(0, featureCount).map((row) => {
-    const value = row[0]
-    if (row.length !== 1) drift('linear regression row')
-    return numberOf(value, 'linear regression coefficient')
-  })
-
-  const last = intercept ? weights[featureCount]?.[0] : 0
-  return {
-    format: LINEAR_REGRESSION_FORMAT,
-    featureCount,
-    coefficients,
-    intercept: numberOf(last, 'linear regression intercept'),
-  }
-}
+// 선형 회귀는 여기 없다. 라이브러리가 아니라 우리 산수(`mljs.ts`의 `fitLeastSquares`)가
+// 계수와 절편을 직접 만든다 (2026-09-03 R25 B-2, `open-decisions.md` #40).

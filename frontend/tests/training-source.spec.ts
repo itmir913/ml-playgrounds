@@ -13,6 +13,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { hashBytes } from '../src/hash'
+import { MIN_CLASSIFICATION_CATEGORIES, MIN_SPLIT_ROWS } from '../src/limits'
 import { DEFAULT_BACKBONE_ID, backboneFor } from '../src/ml/backbones'
 import type { EmbedMessage, EmbedRequest } from '../src/ml/embed/protocol'
 import type { EmbedWorker } from '../src/ml/embed/client'
@@ -28,6 +29,21 @@ import { type ProjectFile } from '../src/project/format'
 import { addImages, applyTestImages, readImages } from '../src/project/images'
 import { withSplit } from '../src/project/settings'
 import { IMAGE_UNLABELED } from '../src/project/format'
+
+/**
+ * **`SPLIT_TOO_FEW_ROWS` 가지가 그늘에 든 이유가 이 부등식이다** (2026-09-03 R25 §4.1).
+ *
+ * 범주가 `MIN_CLASSIFICATION_CATEGORIES`개면 라벨 붙은 사진도 그만큼이라 `usable`이
+ * 언제나 `MIN_SPLIT_ROWS` 이상이다 — 그래서 `ml/training-source.ts`의 그 가지는 오늘 안
+ * 닿는다. 이 줄이 빨개지는 날 그 가지가 다시 살고, 그때는 그 가지를 무는 검사를 세워야
+ * 한다. R25 재검토가 범주 판정을 끄고 밟아 그 가지가 죽은 것이 아니라 그늘에 든 것임을
+ * 확인했다(실패 문장이 "데이터가 0개"로 바뀌었다).
+ */
+describe('범주 최소와 분할 최소의 관계', () => {
+  it('범주 최소가 분할 최소보다 작지 않다', () => {
+    expect(MIN_CLASSIFICATION_CATEGORIES).toBeGreaterThanOrEqual(MIN_SPLIT_ROWS)
+  })
+})
 
 const NOW = '2026-08-12T09:00:00.000Z'
 const BACKBONE = backboneFor(DEFAULT_BACKBONE_ID)!

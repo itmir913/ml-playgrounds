@@ -70,12 +70,9 @@ describe('엔진 버전이 의존성에 묶여 있다', () => {
     expect({
       'ml-cart': packageJson.dependencies['ml-cart'],
       'ml-random-forest': packageJson.dependencies['ml-random-forest'],
-      'ml-regression-multivariate-linear':
-        packageJson.dependencies['ml-regression-multivariate-linear'],
     }).toEqual({
       'ml-cart': '^2.1.1',
       'ml-random-forest': '^2.1.0',
-      'ml-regression-multivariate-linear': '^2.0.4',
     })
   })
 
@@ -83,6 +80,12 @@ describe('엔진 버전이 의존성에 묶여 있다', () => {
     // 2026-08-10, V2 감사 1단계-B (ml/engines/logistic.ts). 다시 들어오면 그건
     // 솔버 교체 결정(open-decisions.md)을 되돌리는 일이니 여기가 시끄럽게 알린다.
     expect('ml-logistic-regression' in packageJson.dependencies).toBe(false)
+  })
+
+  it('ml-regression-multivariate-linear도 빠졌다 - 선형회귀는 센터링 + SVD로 푼다', () => {
+    // 2026-09-03 R25 B-2 (open-decisions.md #40). 정규방정식이 척도가 갈린 표에서 부호까지
+    // 틀렸다. 다시 들어오면 그 결정을 되돌리는 일이니 여기가 시끄럽게 알린다.
+    expect('ml-regression-multivariate-linear' in packageJson.dependencies).toBe(false)
   })
 
   it('엔진 이름이 실행 방법의 engineKind와 같다', () => {

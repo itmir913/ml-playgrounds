@@ -157,8 +157,9 @@ export const TRAINING_SOURCES: Readonly<
        * `usable >= MIN_CLASSIFICATION_CATEGORIES >= MIN_SPLIT_ROWS`가 늘 참이다 — 두 상수가
        * 지금 둘 다 2라서 그렇다. **그래도 지우지 않는다**: `MIN_SPLIT_ROWS`가 범주 최소보다
        * 커지는 날(범주 둘에 사진 한 장씩) 다시 닿고, 없으면 그 학생은 백본 12.4MB를 받은
-       * **뒤에** `ml/split.ts`에서 같은 말을 듣는다. **사람 확인이다** — 두 상수의 관계를
-       * 무는 검사는 없다.
+       * **뒤에** `ml/split.ts`에서 같은 말을 듣는다. 두 상수의 관계는
+       * `tests/training-source.spec.ts`의 *"범주 최소가 분할 최소보다 작지 않다"*가
+       * 못 박는다 — 그 검사가 빨개지는 날 이 가지가 다시 산다 (R25 §4.1).
        */
       const usable = trainableRowsOf(project, taskType)
       if (usable < MIN_SPLIT_ROWS) {

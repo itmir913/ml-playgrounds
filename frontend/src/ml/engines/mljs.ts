@@ -766,9 +766,12 @@ const TRAINERS: Record<string, Trainer> = {
      * | **지금(센터링 + SVD)** | 0.5000000 | **3986.58** | **0.038** |
      *
      * **재고 나서 안 것 하나 — 우리가 sklearn보다 정확해졌다** (2026-09-03). 구조는
-     * 같은데 `scipy.linalg.lstsq`는 **rcond 절단**을 두어 작은 특잇값의 방향을 0으로
-     * 죽이고, `ml-matrix`의 `solve(…, useSVD)`는 안 죽인다. 그래서 sklearn은 x2를 잃고
-     * 우리는 참값을 맞힌다.
+     * 같은데 **절단이 다르다.** sklearn 1.9의 `LinearRegression`은 `scipy.linalg.lstsq`에
+     * 자기 `tol` 인자(기본 1e-6)를 `cond`로 넘겨 그 비율 아래 특잇값의 방향을 0으로
+     * 죽인다(`sklearn/linear_model/_base.py`, 1.9에서 dense에 처음 적용). **scipy·numpy의
+     * `lstsq` 자체는 같은 행에서 3986.58을 맞힌다** — 절단의 주인은 scipy가 아니라
+     * sklearn이다 (R25 재검토 C-7). `ml-matrix`의 SVD도 `(ε/2)·max(m,n)·s₀` 아래는
+     * 죽이지만(`svd.js`) 이 표의 두 번째 특잇값은 그 문턱보다 다섯 자릿수 위라 산다.
      *
      * **그 갈림은 병든 표에서만 난다.** 정상 데이터에서는 `sklearn-parity.spec.ts`가
      * 계수·절편·R²를 `1e-6` 안에서 대조하고 실측이 1e-11 이하다 — 이 변경으로 못 박은
@@ -777,7 +780,8 @@ const TRAINERS: Record<string, Trainer> = {
      * **rcond 절단은 흉내 내지 않는다** (2026-09-03에 정했다). 흉내 내면 숫자가
      * 같아지지만 **맞는 답을 일부러 버리는 것**이고, 그 절단은 sklearn이 언젠가 고칠 수
      * 있는 정책이지 우리가 따라야 할 구조가 아니다. **구조는 따르고 절단은 안 따른다.**
-     * → `open-decisions.md` #40
+     * → `open-decisions.md` #40. **파이썬으로 옮긴 학생은 기본 `tol`에서 x2 ≈ 0을 본다** —
+     * 그 긴장을 #40이 적어 둔다.
      *
      * **열을 표준화하는 길은 안 골랐다.** 그건 sklearn이 **하지 않는 일**을 더하는 것이라
      * §2의 전제와 부딪친다(`#39`와 같은 자리). 지금 고른 것은 **sklearn이 하는 일을 그대로
@@ -791,25 +795,25 @@ const TRAINERS: Record<string, Trainer> = {
     const values = input.target.map((value) => Number(value))
     const rows = toRows(input.features)
     const featureCount = input.features[0]?.length ?? 0
-    const attempted = serializeOrOmit(() => fitLeastSquares(rows, values, featureCount))
+    /**
+     * **못 만든 모델은 실패 run이다** (2026-09-03 R25 재검토 C-8). 이 풀이는 계수와
+     * 절편을 우리 산수로 직접 만들므로 `serializeOrOmit`으로 감쌀 남의 직렬화기가 없다.
+     * 여기서 던지는 것은 전부 우리 고장이고, 그것을 잡아 0을 답하면 **조용히 틀린 지표가
+     * `done`으로 나간다** — 이 저장소가 가장 무서워하는 모양이다. 던지면 `trainOne`의
+     * `catch`가 `JOB_FAILED`로 만들고 원문을 `failureDetail`에 남긴다.
+     *
+     * **닿는 길은 지금 없다** — 행렬을 여기서 같은 폭으로 짓는다. 사람 확인이다.
+     */
+    const model = fitLeastSquares(rows, values, featureCount)
     return {
-      ...(attempted.model ? { model: attempted.model } : {}),
-      ...(attempted.model === undefined && attempted.detail !== undefined
-        ? { modelOmittedDetail: attempted.detail }
-        : {}),
+      model,
       /**
        * **예측은 담기는 모델의 해석기를 그대로 쓴다** — KNN·SVM·로지스틱·K-평균과 같은
        * 방식이고, 그래서 **저장했다 읽은 예측이 원본과 같은 것이 구조로 보장된다.**
        * 같은 규칙을 두 번 적으면 저장 전후가 갈린다 — 실제로 `lifecycle.spec.ts`가
        * `0.1202292862280948` 대 `0.12022928622809483`로 빨개진 적이 있다.
-       *
-       * **직렬화가 실패하면 답할 것이 없다.** 이 풀이는 계수와 절편을 직접 만들므로
-       * 실패하는 길은 모양 검사뿐이고, 그때는 담긴 모델도 없어 대조할 상대가 없다.
-       * 지표까지 잃지 않도록 0을 답한다.
        */
-      predict: attempted.model
-        ? loadLinearRegressionModel(attempted.model)
-        : (features) => toRows(features).map(() => 0),
+      predict: loadLinearRegressionModel(model),
     }
   },
 

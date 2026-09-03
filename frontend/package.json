@@ -47,7 +47,6 @@
     "ml-cart": "^2.1.1",
     "ml-matrix": "^6.15.0",
     "ml-random-forest": "^2.1.0",
-    "ml-regression-multivariate-linear": "^2.0.4",
     "papaparse": "^5.5.4",
     "pinia": "^4.0.2",
     "pretendard": "^1.3.9",
