@@ -21,3 +21,16 @@ export function spawnTrainingWorker(): TrainWorker {
 export function spawnNeuralComputeWorker(): Worker {
   return new Worker(new URL('./neural-compute.worker.ts', import.meta.url), { type: 'module' })
 }
+
+/**
+ * 랜덤포레스트 트리 학습 워커. **신경망과 청크를 나눠 갖는다** — 이쪽은 `ml-cart`를
+ * 끌고 오고 저쪽은 안 그런다. 한 파일에 합치면 신경망만 쓰는 학생도 트리 코드를 받는다.
+ */
+export function spawnForestWorker(): Worker {
+  return new Worker(new URL('./forest.worker.ts', import.meta.url), { type: 'module' })
+}
+
+/** KNN 예측 워커. 위와 같은 이유로 따로 있다 — 이쪽이 끌고 오는 것은 해석기뿐이다. */
+export function spawnKnnWorker(): Worker {
+  return new Worker(new URL('./knn.worker.ts', import.meta.url), { type: 'module' })
+}

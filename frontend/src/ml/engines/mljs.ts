@@ -73,8 +73,9 @@ import type {
   PairwiseClassifier,
 } from '../models'
 import type { ModelFile, Predict } from '../models/types'
+import type { ComputePools, ForestTree } from '../pools'
 import { fitLogistic } from './logistic'
-import { fitNeural, type NeuralPoolFactory } from './neural'
+import { fitNeural } from './neural'
 import { fitKMeans } from './mljs-kmeans'
 import { SMO_DEFAULTS, seededRandom, trainLinearSvm } from './svm-smo'
 import { MLJS_PARAMETERS } from './mljs-params'
@@ -149,6 +150,19 @@ export type EngineWarning = Warning & { readonly code: ClientWarningCode }
  */
 export interface FitResult {
   predict: Predict
+  /**
+   * **채점 한 번을 코어로 갈라서 하는 길.** 있으면 실험 실행이 채점에 이것을 쓴다
+   * (`ml/experiment.ts`) — 없으면 위 `predict`를 그대로 쓴다.
+   *
+   * **KNN 하나가 이것을 준다** (open-decisions.md "학습을 코어로 가른다 — 결과는 코어
+   * 수와 무관하다"). 저쪽은 학습에 비용이 없고 **비용이 전부 예측**이라, 가를 것이
+   * 학습이 아니라 채점이다. 행마다 독립이라 갈라도 답이 같다.
+   *
+   * **`predict`를 대신하지 않는다.** 예측 화면은 한 줄씩 즉시 답해야 하므로 동기인
+   * `predict`를 그대로 쓴다 — 여기는 시험 몫 전체를 한 번에 채점하는 자리 전용이다.
+   * 둘이 같은 답을 내는지는 `knn-parallel.spec.ts`가 못 박는다.
+   */
+  predictBatch?: (features: readonly (readonly number[])[]) => Promise<readonly Prediction[]>
   model?: ModelFile
   /**
    * 모델을 못 담았을 때 그 원문. **어휘가 아니라 기술 정보다** (mlpx-spec.md 5.0.1).
@@ -201,14 +215,14 @@ export interface FitInput {
   /** 항상 저장하고 항상 쓴다. 재현 가능성이 교육용 도구의 생명이다. */
   randomState: number
   /**
-   * 신경망 조각을 나눠 받을 워커 풀의 공장 (open-decisions.md "학습을 코어로 가른다 —
-   * 결과는 코어 수와 무관하다"). **없으면 직렬로 돌고 결과는 같다** — 그래서 검사와
-   * 재실행 대조는 이 값을 아예 안 준다. 실물은 학습 워커만 준다 (ml/worker/handler.ts).
+   * 학습을 코어로 가르는 손들 (open-decisions.md "학습을 코어로 가른다 — 결과는 코어
+   * 수와 무관하다"). **없으면 전부 직렬로 돌고 결과는 같다** — 그래서 검사와 재실행
+   * 대조는 이 값을 아예 안 준다. 실물은 학습 워커만 준다 (ml/worker/handler.ts).
    *
    * 직렬화되는 요청(TrainRequest)이 아니라 **워커 안에서** 붙는 값이다 — 함수는
    * postMessage를 못 탄다.
    */
-  neuralPool?: NeuralPoolFactory
+  pools?: ComputePools
 }
 
 type Trainer = (input: FitInput) => FitResult | Promise<FitResult>
@@ -428,6 +442,48 @@ function serializeOrOmit(serialize: () => ModelFile): {
   }
 }
 
+/**
+ * 워커가 지은 나무들을 **라이브러리의 숲으로 되돌린다** (`RandomForestClassifier.load`).
+ *
+ * **여기 적힌 값들은 라이브러리가 직렬 학습에서 자기 필드에 넣는 그 값이다** —
+ * `maxFeatures`·`replacement`는 `defaultOptions`에서, `n`은 `floor(열 수 × 1.0)`에서,
+ * `isClassifier`는 `RandomForestClassifier`가 세운다. 손으로 옮겨 적은 것이므로
+ * **`forest-parallel.spec.ts`가 라이브러리의 직렬 학습과 맞대어 지킨다** — 저쪽이
+ * 필드를 하나 더 요구하게 되면 거기가 빨개진다.
+ */
+function loadForest(
+  trees: readonly ForestTree[],
+  treeCount: number,
+  featureCount: number,
+  randomState: number,
+): RandomForestClassifier {
+  const model = {
+    name: 'RFClassifier',
+    baseModel: {
+      indexes: trees.map((one) => [...one.usedIndex]),
+      n: featureCount,
+      replacement: true,
+      maxFeatures: 1.0,
+      nEstimators: treeCount,
+      // **패키지의 타입은 `object`라 적었지만 라이브러리가 실제로 담는 값은 `undefined`다** —
+      // 손잡이를 안 주면 그대로 둔다. 직렬 학습이 낸 숲과 바이트 단위로 같아야 하므로
+      // 여기서도 `undefined`를 담고, 좁게 적힌 타입을 아래에서 한 번 맞춰 준다.
+      treeOptions: undefined,
+      isClassifier: true,
+      seed: randomState,
+      estimators: trees.map((one) => one.tree),
+      useSampleBagging: true,
+    },
+  }
+  // 위 주석의 그 한 번이다. `any`가 아니라 **이 라이브러리가 자기 `load`에 받는 그 타입**으로
+  // 좁힌다 — `unknown`을 거치는 이유는 패키지 타입이 `treeOptions`를 필수 `object`로 적어
+  // 두어 직접 변환이 안 되기 때문이다. 모양이 실제로 맞는지는 `forest-parallel.spec.ts`가
+  // 라이브러리의 직렬 학습과 맞대어 지킨다.
+  return RandomForestClassifier.load(
+    model as unknown as Parameters<typeof RandomForestClassifier.load>[0],
+  )
+}
+
 function classifier(build: (input: FitInput) => Trained): Trainer {
   return (input) => {
     const { encoded, labels, decode } = labelCodec(input.target)
@@ -505,9 +561,12 @@ const TRAINERS: Record<string, Trainer> = {
     }
   }),
 
-  random_forest: classifier((input) => {
-    const model = new RandomForestClassifier({
-      nEstimators: numberOption(input.hyperparameters, 'nEstimators'),
+  random_forest: async (input) => {
+    const { encoded, labels, decode } = labelCodec(input.target)
+    const treeCount = numberOption(input.hyperparameters, 'nEstimators')
+    const featureCount = input.features[0]?.length ?? 0
+    const options = {
+      nEstimators: treeCount,
       // 시드를 반드시 넘긴다. 안 넘기면 같은 설정으로 두 번 돌려도 결과가 다르다.
       seed: input.randomState,
       useSampleBagging: true,
@@ -524,12 +583,49 @@ const TRAINERS: Record<string, Trainer> = {
       // **학습된 모델은 한 비트도 달라지지 않는다** - tests/mljs.spec.ts의 고정된 숫자가
       // 그것을 지킨다. 덤으로 학습이 빨라진다.
       noOOB: true,
-    })
-    return {
-      predictor: model as TrainablePredictor,
-      serialize: (classes, featureCount) => serializeForest(model, classes, featureCount),
     }
-  }),
+
+    /**
+     * **나무를 코어로 가른다** (open-decisions.md "학습을 코어로 가른다 — 결과는 코어
+     * 수와 무관하다"). 손이 없거나 가를 만큼 크지 않으면 `null`이 오고 **라이브러리의
+     * 직렬 학습을 그대로 쓴다** — 어느 쪽이든 같은 숲이 나온다.
+     *
+     * `featureSampleCount`와 `replacement`는 라이브러리가 기본값에서 정하는 그 값이다:
+     * `maxFeatures`가 1.0이라 `n = floor(열 수 × 1.0)`이고, `replacement`는 참이다
+     * (`RandomForestClassifier`의 `defaultOptions`).
+     */
+    const pool =
+      input.pools?.forest?.({
+        features: input.features,
+        targets: encoded,
+        treeCount,
+        randomState: input.randomState,
+        featureSampleCount: featureCount,
+        replacement: true,
+        treeOptions: undefined,
+      }) ?? null
+
+    let model: RandomForestClassifier
+    if (pool === null) {
+      model = new RandomForestClassifier(options)
+      model.train(toRows(input.features), encoded)
+    } else {
+      try {
+        model = loadForest(await pool.grow(), treeCount, featureCount, input.randomState)
+      } finally {
+        // 취소로 위가 던져도 워커가 남으면 안 된다.
+        pool.dispose()
+      }
+    }
+
+    const predict: Predict = (features) =>
+      [...model.predict(toRows(features))].map((value) => decode(Math.round(value)))
+    const attempted = serializeOrOmit(() => serializeForest(model, labels, featureCount))
+    if (attempted.model) return { predict, model: attempted.model }
+    return attempted.detail === undefined
+      ? { predict }
+      : { predict, modelOmittedDetail: attempted.detail }
+  },
 
   naive_bayes: classifier(() => {
     const predictor = gaussianNaiveBayes()
@@ -564,6 +660,32 @@ const TRAINERS: Record<string, Trainer> = {
       indices: input.rowIndices,
     })
 
+    /**
+     * **채점을 코어로 가른다** (open-decisions.md "학습을 코어로 가른다 — 결과는 코어
+     * 수와 무관하다"). KNN은 담는 것이 행 번호뿐이라 학습에 비용이 없고 **비용이 전부
+     * 예측**이다 — 그래서 가르는 자리가 학습이 아니라 채점이고, 행마다 독립이라 갈라도
+     * 같은 답이 나온다(엔진 버전이 안 움직이는 이유).
+     *
+     * **`null`이 오면 직렬로 답한다** — 가를 만큼 크지 않거나 워커가 없다는 뜻이다.
+     */
+    const pool =
+      input.pools?.knn?.({
+        k,
+        featureCount,
+        rows,
+        labels: rowLabels,
+        indices: input.rowIndices,
+      }) ?? null
+    const predictBatch = pool
+      ? async (features: readonly (readonly number[])[]): Promise<readonly Prediction[]> => {
+          try {
+            return (await pool.answer(features)) ?? predict(features)
+          } finally {
+            pool.dispose()
+          }
+        }
+      : undefined
+
     const attempted = serializeOrOmit(() => ({
       format: REFERENCE_FORMAT,
       k,
@@ -571,10 +693,14 @@ const TRAINERS: Record<string, Trainer> = {
       featureCount,
       trainIndices: [...input.rowIndices],
     }))
-    if (attempted.model) return { predict, model: attempted.model }
-    return attempted.detail === undefined
-      ? { predict }
-      : { predict, modelOmittedDetail: attempted.detail }
+    const extra = {
+      ...(predictBatch ? { predictBatch } : {}),
+      ...(attempted.model ? { model: attempted.model } : {}),
+      ...(attempted.model === undefined && attempted.detail !== undefined
+        ? { modelOmittedDetail: attempted.detail }
+        : {}),
+    }
+    return { predict, ...extra }
   },
 
   /**
@@ -727,7 +853,7 @@ const TRAINERS: Record<string, Trainer> = {
       regression ? { kind: 'regression' } : { kind: 'classification', classCount: labels.length },
       options,
       input.randomState,
-      input.neuralPool,
+      input.pools?.neural,
     )
 
     const layers = {

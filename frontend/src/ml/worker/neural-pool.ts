@@ -14,7 +14,7 @@
 import {
   MLJS_NEURAL_PARALLEL_MIN_WEIGHT_ROWS,
   NEURAL_BATCH_SIZE,
-  NEURAL_PARALLEL_WORKER_CAP,
+  PARALLEL_WORKER_CAP,
 } from '../../limits'
 import {
   weightCellCount,
@@ -87,14 +87,14 @@ function ask(worker: Worker, request: NeuralComputeRequest): Promise<NeuralCompu
  * 결과는 같고 속도만 다르다.
  *
  * 워커 수는 `min(상한, 코어 - 1)`이다 — 상한(4)은 개발 PC 사다리의 무릎이고
- * (`limits.ts`의 `NEURAL_PARALLEL_WORKER_CAP`), 하나는 조각을 접고 걸음을 걷는
+ * (`limits.ts`의 `PARALLEL_WORKER_CAP`), 하나는 조각을 접고 걸음을 걷는
  * 이 스레드 몫으로 남긴다. 둘이 안 되면 가르는 값이 없다.
  */
 export const neuralPoolFactory: NeuralPoolFactory = (seed) => {
   if (typeof Worker === 'undefined') return null
   if (!shouldSplitNeural(seed.sizes, seed.features.length)) return null
   const cores = typeof navigator === 'undefined' ? 1 : (navigator.hardwareConcurrency ?? 1)
-  const count = Math.min(NEURAL_PARALLEL_WORKER_CAP, Math.max(1, cores - 1))
+  const count = Math.min(PARALLEL_WORKER_CAP, Math.max(1, cores - 1))
   if (count < 2) return null
 
   const columns = seed.features[0]?.length ?? 0

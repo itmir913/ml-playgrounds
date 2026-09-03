@@ -182,11 +182,22 @@ async function trainAndReadFailure(
     'the train button is disabled, so this walk cannot happen',
   ).toBe(undefined)
   await start?.trigger('click')
-  await settle()
-  await new Promise((resolve) => setTimeout(resolve, 50))
-  await settle()
 
-  const opener = buttons().find((one) => one.text() === i18n.global.t('train.failedHere'))
+  /**
+   * **고정 대기가 아니라 조건 대기다.** 여기 `setTimeout(50)`이 있었는데, 학습 경로가
+   * 비동기로 길어지자(`fit`이 약속을 돌려주게 된 2026-09-04) 부하가 걸린 전체 실행에서
+   * 50ms를 넘겨 **가짜 빨강**이 났다 — 격리하면 늘 통과하는 그 모양이다.
+   * 실패가 화면에 닿을 때까지 기다리고, 안 닿으면 아래 단언이 그 사실을 말한다.
+   */
+  const label = i18n.global.t('train.failedHere')
+  const findOpener = (): ReturnType<typeof buttons>[number] | undefined =>
+    buttons().find((one) => one.text() === label)
+  for (let round = 0; round < 100 && findOpener() === undefined; round += 1) {
+    await settle()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+
+  const opener = findOpener()
   expect(opener, 'the failure never reached the screen').toBeDefined()
   await opener?.trigger('click')
   await settle()

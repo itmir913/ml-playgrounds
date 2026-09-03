@@ -9,6 +9,8 @@
 import { failureDetail, isClientError } from '../../errors'
 import { runCalibration } from '../calibration'
 import { runExperiment } from '../experiment'
+import { forestPoolFactory } from './forest-pool'
+import { knnPoolFactory } from './knn-pool'
 import { neuralPoolFactory } from './neural-pool'
 import type { TrainRequest, WorkerMessage, WorkerRequest } from './protocol'
 
@@ -25,10 +27,10 @@ export async function handleTrain(
   try {
     const { experiment, preprocessor, models } = await runExperiment(request.input, {
       ...(request.history ? { history: request.history } : {}),
-      // 신경망이 큰 배치를 코어로 가를 수 있게 풀 공장을 준다. **여기가 유일한 실물
+      // 오래 걸리는 학습을 코어로 가를 수 있게 손들을 준다. **여기가 유일한 실물
       // 주입 자리다** — 검사와 재실행 대조는 안 줘서 직렬로 돌고, 결과는 같다
       // (open-decisions.md "학습을 코어로 가른다 — 결과는 코어 수와 무관하다").
-      neuralPool: neuralPoolFactory,
+      pools: { neural: neuralPoolFactory, forest: forestPoolFactory, knn: knnPoolFactory },
       onRunStart: ({ index, algorithm, runtime }, total) =>
         emit({ type: 'started', index, algorithm, runtime, total }),
       // 모델을 함께 싣는다. 이것이 없으면 취소가 지표만 건지고 모델은 워커와 함께

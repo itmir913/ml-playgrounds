@@ -41,7 +41,7 @@ import {
   type UnavailableReason,
 } from './backend'
 import { engineFor, type TrainingEngine } from './engines'
-import type { NeuralPoolFactory } from './engines/neural'
+import type { ComputePools } from './pools'
 import { assertInRange } from './hyperparams'
 import { evaluate, evaluateCluster, type Evaluation } from './metrics'
 import type { ModelFile } from './models'
@@ -100,11 +100,11 @@ export interface ExperimentOptions {
   /** 시각. 테스트가 결정적이려면 주입할 수 있어야 한다. */
   now?: () => string
   /**
-   * 신경망 조각 워커 풀의 공장. **학습 워커만 준다** (ml/worker/handler.ts) — 검사와
+   * 학습을 코어로 가르는 손들. **학습 워커만 준다** (ml/worker/handler.ts) — 검사와
    * 재실행 대조는 안 주고 직렬로 돈다. 어느 쪽이든 결과는 같다 (open-decisions.md
    * "학습을 코어로 가른다 — 결과는 코어 수와 무관하다").
    */
-  neuralPool?: NeuralPoolFactory
+  pools?: ComputePools
   /**
    * 모델 하나를 **시작할 때마다** (mlpx-spec.md §0.3). 워커 껍데기가 이걸 postMessage로
    * 바꾼다.
@@ -429,8 +429,8 @@ interface TrainContext {
   trainTarget: string[]
   testTarget: string[]
   randomState: number
-  /** 신경망 조각 워커 풀의 공장. 학습 워커만 준다 — 없으면 직렬이고 결과는 같다. */
-  neuralPool?: NeuralPoolFactory
+  /** 학습을 코어로 가르는 손들. 학습 워커만 준다 — 없으면 직렬이고 결과는 같다. */
+  pools?: ComputePools
 }
 
 /**
@@ -507,18 +507,16 @@ async function trainOne(
     // try 안이라 **이 run 하나만 실패하고 나머지 모델은 계속 돈다** (mlpx-spec.md 4.1).
     assertInRange(engine.parameters(base.algorithm), base.hyperparameters)
 
-    const { predict, model, modelOmittedDetail, warning, clusterResult } = await engine.fit(
-      base.algorithm,
-      {
+    const { predict, predictBatch, model, modelOmittedDetail, warning, clusterResult } =
+      await engine.fit(base.algorithm, {
         features: context.trainFeatures,
         rowIndices: context.trainRowIndices,
         target: context.trainTarget,
         taskType: context.taskType,
         hyperparameters: base.hyperparameters,
         randomState: context.randomState,
-        ...(context.neuralPool ? { neuralPool: context.neuralPool } : {}),
-      },
-    )
+        ...(context.pools ? { pools: context.pools } : {}),
+      })
 
     // **군집은 시그니처가 다르다** (architecture.md §3.7). 정답이 없으므로
     // (actual, predicted)를 쓸 수 없고, 훈련 데이터·할당·중심점으로 지표를 낸다.
@@ -534,7 +532,13 @@ async function trainOne(
         context.randomState,
       )
     } else {
-      evaluation = evaluate(context.taskType, context.testTarget, predict(context.testFeatures))
+      // **채점을 코어로 가를 수 있으면 그렇게 한다** (open-decisions.md "학습을 코어로
+      // 가른다 — 결과는 코어 수와 무관하다"). 손을 내주는 것은 지금 KNN 하나이고,
+      // 없으면 여기 그대로 동기 예측이다 — **답은 어느 쪽이든 같다.**
+      const predicted = predictBatch
+        ? await predictBatch(context.testFeatures)
+        : predict(context.testFeatures)
+      evaluation = evaluate(context.taskType, context.testTarget, predicted)
     }
 
     /**
@@ -628,7 +632,7 @@ export async function runExperiment(
     trainTarget: isClustering ? [] : targetValues(dataset, split.trainIndices, target!),
     testTarget: isClustering ? [] : targetValues(testSource, split.testIndices, target!),
     randomState: settings.split.randomState,
-    ...(options.neuralPool ? { neuralPool: options.neuralPool } : {}),
+    ...(options.pools ? { pools: options.pools } : {}),
   }
 
   const available = new Map(
