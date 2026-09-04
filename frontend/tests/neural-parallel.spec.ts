@@ -9,7 +9,7 @@
  * 1. 풀을 준 학습과 안 준 학습이 **비트 단위로 같은 모델**을 낸다 (엔진 버전 3의 정의).
  * 2. 컴퓨트 워커의 손(`createNeuralComputeHandler`)이 엔진의 `accumulateChunk`와
  *    같은 답을 낸다 — 두 벌이 아니라 한 벌임을 못 박는다.
- * 3. 조각 배분(`assignChunks`)이 이어진 덩어리로 전부를 정확히 한 번씩 덮는다 —
+ * 3. 조각 배분(`assignSpans`)이 이어진 덩어리로 전부를 정확히 한 번씩 덮는다 —
  *    워커 답을 순서대로 이어 붙이면 조각 번호 순서가 되는 근거다.
  * 4. 게이트(`shouldSplitNeural`)는 크기만 보고, 갈라도 안 갈라도 결과가 같으므로
  *    문턱이 틀려도 잃는 것은 시간뿐이다.
@@ -29,7 +29,8 @@ import {
   type NeuralTask,
 } from '../src/ml/engines/neural'
 import { createNeuralComputeHandler } from '../src/ml/worker/neural-compute'
-import { assignChunks, shouldSplitNeural } from '../src/ml/worker/neural-pool'
+import { shouldSplitNeural } from '../src/ml/worker/neural-pool'
+import { assignSpans } from '../src/ml/worker/pool'
 
 /** 결정적 표본. 세 클래스가 실제로 갈리는 관계라 학습이 헛돌지 않는다. */
 function sample(rows: number): { features: number[][]; targets: number[] } {
@@ -200,7 +201,7 @@ describe('조각 배분', () => {
       [1, 4],
       [7, 3],
     ] as const) {
-      const spans = assignChunks(chunks, workers)
+      const spans = assignSpans(chunks, workers)
       // 빈 몫은 아예 안 나온다 — 빈 스텝을 워커에 보내면 답 재조립이 어긋난다.
       expect(spans.every((span) => span.end > span.start)).toBe(true)
       expect(spans.length).toBeLessThanOrEqual(Math.min(chunks, workers))

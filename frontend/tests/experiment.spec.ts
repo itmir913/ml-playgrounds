@@ -2006,3 +2006,42 @@ describe('타깃에 값이 한 종류뿐이면', () => {
     expect(experiment.runs[0]?.warning).toBeUndefined()
   })
 })
+
+/**
+ * **채점이 병렬 예측을 실제로 지나는가** (2026-09-04 R26 B-3).
+ *
+ * `predictBatch`가 있으면 채점은 그것을 써야 한다 — KNN의 2.36배가 거기서 나온다.
+ * 그런데 그 배선에 검사가 0줄이라, 감사자가 채점을 `predict`로 되돌리자
+ * **138개가 조용했다.** 학생은 병렬화를 통째로 잃고 아무도 모른다.
+ *
+ * 여기서는 풀이 **일부러 다른 답**을 내게 해서 채점이 어느 길로 갔는지 드러낸다.
+ * 실물 풀은 직렬과 같은 답을 낸다(`compute-pools.spec.ts`가 그것을 잰다) — 같은
+ * 답으로는 어느 길로 갔는지 안 보이므로 여기서만 갈라 놓는다.
+ */
+describe('채점은 풀이 준 답을 쓴다', () => {
+  it('`predictBatch`가 있으면 채점이 그 답으로 지표를 낸다', async () => {
+    let asked = 0
+    const { experiment } = await runExperiment(
+      inputFor({ settings: settingsFor({ selectedAlgorithms: models('knn') }) }),
+      {
+        ...frozen,
+        pools: {
+          knn: () => ({
+            answer(queries: readonly (readonly number[])[]) {
+              asked += 1
+              // 전부 틀린 답. 채점이 이 길을 지났다면 정확도가 0이다.
+              return Promise.resolve(queries.map(() => '__없는라벨__'))
+            },
+            dispose() {},
+          }),
+        },
+      },
+    )
+
+    const run = experiment.runs.find((one) => one.algorithm === 'knn')
+    expect(run?.status).toBe('done')
+    // 풀에 안 물었다면 채점이 직렬 `predict`로 갔다는 뜻이다.
+    expect(asked, 'the pool was never asked').toBeGreaterThan(0)
+    expect(run?.metrics?.accuracy).toBe(0)
+  })
+})

@@ -5,7 +5,8 @@
  *
  * 신경망과 달리 **엔진 버전이 안 움직인다.** 근거가 여기 있다 — `ml-random-forest`의
  * 씨앗 사슬은 표집 함수 둘에서만 진화하고 트리 학습은 그것을 안 건드리므로, 나무마다의
- * 씨앗만 뽑아 두면 어느 워커에서 몇 개씩 짓든 **라이브러리가 직렬로 지은 그 숲**이 나온다.
+ * 씨앗만 뽑아 두면 어느 워커에서 몇 개씩 짓든 **라이브러리가 직렬로 지은 그 숲**이 나온다
+ * (**값이 같다는 뜻이다** — `plainTree`가 `root`에 JSON을 태우므로 물건 자체는 다르다).
  *
  * **그래서 여기서 재는 것은 우리 코드끼리가 아니라 우리와 라이브러리다.** 남의 내부
  * 모듈(`src/utils.js`)을 부르고 있어 semver 밖이고, 저쪽이 표집을 바꾸면 **이 파일이
@@ -17,7 +18,7 @@ import { Matrix } from 'ml-matrix'
 import { describe, expect, it } from 'vitest'
 
 import { MLJS_FOREST_PARALLEL_MIN_TREE_ROWS } from '../src/limits'
-import { fit } from '../src/ml/engines/mljs'
+import { fit, loadForest } from '../src/ml/engines/mljs'
 import type { ComputePools, ForestPoolFactory, ForestTree } from '../src/ml/pools'
 import { growTree } from '../src/ml/worker/forest-compute'
 import { forestSeeds, shouldSplitForest } from '../src/ml/worker/forest-pool'
@@ -126,7 +127,7 @@ describe('갈라도 같은 숲이다', () => {
     expect(answers).toEqual(serial.predict(features))
   })
 
-  it('라이브러리가 직렬로 지은 숲과 나무·열 번호가 바이트 단위로 같다', () => {
+  it('라이브러리가 직렬로 지은 숲과 나무 속·열 번호가 값까지 같다', () => {
     // **여기가 semver 밖을 지키는 자리다.** 저쪽이 표집을 바꾸면 이 단언이 깨진다.
     const { features, encoded } = sample(200)
     const stock = new RandomForestClassifier({
@@ -195,5 +196,72 @@ describe('게이트', () => {
     // 실측의 자리 — 500행×10그루가 직렬 575ms다.
     expect(500 * 10).toBeGreaterThanOrEqual(MLJS_FOREST_PARALLEL_MIN_TREE_ROWS)
     expect(shouldSplitForest(500, 10)).toBe(true)
+  })
+})
+
+/**
+ * **되세운 숲의 손잡이를 라이브러리와 맞댄다** (2026-09-04 R26 B-2·C-5).
+ *
+ * `loadForest`는 라이브러리가 `load`에 받는 모양을 **손으로 적는다** — 그럴 수밖에
+ * 없는 사정은 그 함수의 머리말에 있다. 손으로 적은 것은 틀리고, 실제로 둘이 틀려
+ * 있었다: `numberFeatures`·`numberSamples`가 빠져 `featureImportance()`가 `[NaN]`을
+ * 냈고(C-5), `n`·`replacement`·`maxFeatures`를 **셋 동시에** 어긋내도 검사 마흔여섯이
+ * 조용했다(B-2). 우리 모델 파일은 그 필드를 안 담아서 위의 파일 대조가 못 본다.
+ */
+describe('되세운 숲이 라이브러리의 숲과 같은 모양이다', () => {
+  const { features, encoded } = sample(200)
+  const columns = features[0]?.length ?? 0
+
+  function stockForest(): RandomForestClassifier {
+    const stock = new RandomForestClassifier({
+      nEstimators: TREES,
+      seed: 42,
+      useSampleBagging: true,
+      noOOB: true,
+    })
+    stock.train(features, encoded)
+    return stock
+  }
+
+  function ours(): RandomForestClassifier {
+    const matrix = Matrix.checkMatrix(features.map((row) => [...row]))
+    const chain = forestSeeds(matrix, [...encoded], TREES, 42, columns, true)
+    const trees = chain.map((seed) =>
+      growTree(matrix, [...encoded], seed, columns, true, undefined),
+    )
+    return loadForest(trees, TREES, columns, 42, features.length)
+  }
+
+  it('나무를 뺀 손잡이가 전부 같다', () => {
+    // 나무 자체는 위에서 이미 값으로 견줬다. 여기서 보는 것은 **그 둘레의 필드들**이다.
+    const strip = (model: RandomForestClassifier): Record<string, unknown> => {
+      const json = model.toJSON() as unknown as { baseModel: Record<string, unknown> }
+      const rest = { ...json.baseModel }
+      // 나무와 열 번호는 위 검사가 이미 값으로 견줬다. 여기서 보는 것은 그 둘레다.
+      delete rest.estimators
+      delete rest.indexes
+      return rest
+    }
+    expect(strip(ours())).toEqual(strip(stockForest()))
+  })
+
+  /**
+   * **패키지 타입이 `featureImportance()`를 안 적어 두었다** — 구현에는 있다
+   * (`node_modules/ml-random-forest/src/RandomForestBase.js`). 선언을 덧대려 했더니
+   * 원본 클래스와 병합되지 않고 가려서, 부르는 이 한 자리에서만 좁힌다.
+   */
+  const importanceOf = (model: RandomForestClassifier): number[] => [
+    ...(model as unknown as { featureImportance(): number[] }).featureImportance(),
+  ]
+
+  it('특성 중요도가 라이브러리와 같다 — 빠진 필드는 길이부터 틀어진다', () => {
+    const importance = importanceOf(ours())
+    /**
+     * **길이가 증상이었다.** `numberFeatures`가 없으면 `new Array(undefined)`가 되어
+     * 칸 **하나**짜리 답이 나온다 — 열이 넷인데 하나다.
+     */
+    expect(importance).toHaveLength(columns)
+    // 그리고 라이브러리가 직접 학습한 숲과 같은 답이다. 값 자체가 무엇이든.
+    expect(importance).toEqual(importanceOf(stockForest()))
   })
 })

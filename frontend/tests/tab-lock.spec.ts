@@ -29,13 +29,26 @@ async function freshTab(): Promise<TabLockModule> {
  */
 class FakeLocks {
   readonly held = new Set<string>()
+  /** 요청마다 넘어온 옵션. 아래 검사가 `ifAvailable`을 여기서 본다. */
+  readonly options: unknown[] = []
 
   request = async (
     name: string,
-    _options: unknown,
+    options: unknown,
     callback: (lock: { name: string } | null) => unknown,
   ): Promise<unknown> => {
-    if (this.held.has(name)) return callback(null)
+    this.options.push(options)
+    if (this.held.has(name)) {
+      /**
+       * **진짜 Web Locks는 `ifAvailable` 없이 부르면 거절하지 않고 기다린다**
+       * (2026-09-04 R26 A-5). 이 가짜가 옵션을 안 보던 동안에는 그 옵션을 지워도
+       * 검사 열셋이 초록이었다 — 그런데 실물에서는 둘째 탭이 "다른 탭이 쓰고 있다"
+       * 대신 **첫 탭이 닫힐 때까지 멈춘 화면**을 본다.
+       */
+      if ((options as { ifAvailable?: boolean } | null)?.ifAvailable !== true)
+        return new Promise(() => {})
+      return callback(null)
+    }
     this.held.add(name)
     try {
       return await callback({ name })
@@ -137,6 +150,25 @@ describe('Web Locks 경로', () => {
     expect(await tab.acquireTabLock('p-1')).toBe(true)
     // 자물쇠는 여전히 하나만 잡혀 있다 — 두 번 잡고 한 번 놓는 상태가 안 생긴다.
     expect(locks.held.size).toBe(1)
+  })
+
+  /**
+   * **`ifAvailable`이 빠지면 둘째 탭이 영영 매달린다** (2026-09-04 R26 A-5).
+   *
+   * 위 가짜가 그 의미를 지키게 됐으니 옵션을 지우면 약속이 안 풀려 검사가 시간
+   * 초과로 죽는다. 그건 **느리게 우는 것**이고, 여기서는 넘어간 옵션을 직접 봐서
+   * **빠르고 분명하게** 운다.
+   */
+  it('언제나 `ifAvailable`로 묻는다 — 기다리는 것은 멈춘 화면이다', async () => {
+    const locks = new FakeLocks()
+    stubLocks(locks)
+    const tabA = await freshTab()
+    const tabB = await freshTab()
+    await tabA.acquireTabLock('p-1')
+    await tabB.acquireTabLock('p-1')
+
+    expect(locks.options.length).toBeGreaterThan(0)
+    expect(locks.options).toEqual(locks.options.map(() => ({ ifAvailable: true })))
   })
 
   it('요청 자체가 던지면 여는 쪽으로 실패한다', async () => {

@@ -451,11 +451,21 @@ function serializeOrOmit(serialize: () => ModelFile): {
  * **`forest-parallel.spec.ts`가 라이브러리의 직렬 학습과 맞대어 지킨다** — 저쪽이
  * 필드를 하나 더 요구하게 되면 거기가 빨개진다.
  */
-function loadForest(
+/**
+ * 워커들이 지은 나무로 라이브러리의 숲을 되세운다.
+ *
+ * **필드를 손으로 적는다** — 라이브러리에 "이 나무들로 숲을 만들라"는 입구가 없어
+ * `load`가 받는 모양을 그대로 짓는 수밖에 없다. 손으로 적은 것은 틀릴 수 있고 실제로
+ * 틀려 있었다(2026-09-04 R26 C-5: `numberFeatures`·`numberSamples`가 빠져
+ * `featureImportance()`가 `[NaN]`을 냈다). **그래서 `forest-parallel.spec.ts`가 이
+ * 함수의 결과를 라이브러리가 직접 학습한 숲과 필드마다 맞댄다.**
+ */
+export function loadForest(
   trees: readonly ForestTree[],
   treeCount: number,
   featureCount: number,
   randomState: number,
+  rowCount: number,
 ): RandomForestClassifier {
   const model = {
     name: 'RFClassifier',
@@ -466,7 +476,7 @@ function loadForest(
       maxFeatures: 1.0,
       nEstimators: treeCount,
       // **패키지의 타입은 `object`라 적었지만 라이브러리가 실제로 담는 값은 `undefined`다** —
-      // 손잡이를 안 주면 그대로 둔다. 직렬 학습이 낸 숲과 바이트 단위로 같아야 하므로
+      // 손잡이를 안 주면 그대로 둔다. 직렬 학습이 낸 숲과 값이 같아야 하므로
       // 여기서도 `undefined`를 담고, 좁게 적힌 타입을 아래에서 한 번 맞춰 준다.
       treeOptions: undefined,
       isClassifier: true,
@@ -479,9 +489,53 @@ function loadForest(
   // 좁힌다 — `unknown`을 거치는 이유는 패키지 타입이 `treeOptions`를 필수 `object`로 적어
   // 두어 직접 변환이 안 되기 때문이다. 모양이 실제로 맞는지는 `forest-parallel.spec.ts`가
   // 라이브러리의 직렬 학습과 맞대어 지킨다.
-  return RandomForestClassifier.load(
+  const loaded = RandomForestClassifier.load(
     model as unknown as Parameters<typeof RandomForestClassifier.load>[0],
   )
+  /**
+   * **`load`가 안 되살리는 둘을 손으로 세운다** (2026-09-04 R26 C-5).
+   *
+   * `RandomForestBase`는 `train`에서 `numberFeatures`·`numberSamples`를 담는데
+   * **`toJSON`이 그 둘을 안 싣고 `load`도 안 읽는다** — 라이브러리 자신의 한계다.
+   * 그런데 `featureImportance()`가 `new Array(this.numberFeatures)`로 자리를 잡으므로,
+   * 없으면 길이 1짜리 `[NaN]`이 조용히 나온다.
+   *
+   * **직렬 갈래는 `load`를 안 지나니 멀쩡하다.** 여기서 안 세우면 **코어 수에 따라
+   * 할 수 있는 일이 갈린다** — 그것이 결정문이 금지하는 그것이다.
+   */
+  const fields = loaded as unknown as {
+    numberFeatures: number
+    numberSamples: number
+    estimators: { root?: unknown }[]
+  }
+  fields.numberFeatures = featureCount
+  fields.numberSamples = rowCount
+  // 노드마다의 표본 수도 `load`가 버린다. 위와 같은 이유로 되돌린다.
+  for (let index = 0; index < fields.estimators.length; index += 1)
+    restoreSampleCounts(
+      fields.estimators[index]?.root,
+      (trees[index]?.tree as { root?: unknown })?.root,
+    )
+  return loaded
+}
+
+/**
+ * `load`가 되살린 노드에 `numberSamples`를 되돌린다.
+ *
+ * `TreeNode.setNodeParameters`가 옮기는 것은 `splitValue`·`splitColumn`·`gain`뿐이라
+ * **`numberSamples`가 전부 `undefined`가 된다.** `featureImportance()`는
+ * `gain * numberSamples`를 곱하므로 그 순간 답이 통째로 `NaN`이다.
+ *
+ * 우리가 보낸 평범한 나무에는 그 값이 살아 있으니 같은 모양을 나란히 걸으며 옮긴다.
+ */
+function restoreSampleCounts(live: unknown, plain: unknown): void {
+  if (live === null || typeof live !== 'object') return
+  if (plain === null || typeof plain !== 'object') return
+  const node = live as { numberSamples?: number; left?: unknown; right?: unknown }
+  const source = plain as { numberSamples?: number; left?: unknown; right?: unknown }
+  if (typeof source.numberSamples === 'number') node.numberSamples = source.numberSamples
+  restoreSampleCounts(node.left, source.left)
+  restoreSampleCounts(node.right, source.right)
 }
 
 function classifier(build: (input: FitInput) => Trained): Trainer {
@@ -611,7 +665,13 @@ const TRAINERS: Record<string, Trainer> = {
       model.train(toRows(input.features), encoded)
     } else {
       try {
-        model = loadForest(await pool.grow(), treeCount, featureCount, input.randomState)
+        model = loadForest(
+          await pool.grow(),
+          treeCount,
+          featureCount,
+          input.randomState,
+          input.features.length,
+        )
       } finally {
         // 취소로 위가 던져도 워커가 남으면 안 된다.
         pool.dispose()

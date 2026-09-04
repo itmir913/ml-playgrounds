@@ -17,7 +17,7 @@ import { examplesBaggingWithReplacement, featureBagging } from 'ml-random-forest
 import { MLJS_FOREST_PARALLEL_MIN_TREE_ROWS } from '../../limits'
 import type { ForestPoolFactory, ForestTree } from '../pools'
 import type { ForestComputeReply, ForestComputeRequest } from './forest-compute'
-import { askWorker, assignSpans, poolWorkerCount } from './pool'
+import { askWorker, assignSpans, poolWorkerCount, spawnPool } from './pool'
 import { spawnForestWorker } from './spawn'
 
 /**
@@ -72,7 +72,9 @@ export const forestPoolFactory: ForestPoolFactory = (seed) => {
   }
   const targets = Float64Array.from(seed.targets)
 
-  const workers = Array.from({ length: count }, () => spawnForestWorker())
+  // 못 띄우면 직렬로 돈다 — 결과는 같고 속도만 다르다 (R26 B-5).
+  const workers = spawnPool(count, spawnForestWorker)
+  if (workers === null) return null
   for (const worker of workers) {
     // 씨앗은 답이 없는 요청이다. 워커 메시지는 순서를 지키므로 뒤의 스텝이 앞지르지 못한다.
     worker.postMessage({

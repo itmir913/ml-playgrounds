@@ -12,7 +12,7 @@
 import { MLJS_KNN_PARALLEL_MIN_ROW_PRODUCT } from '../../limits'
 import type { KnnPoolFactory } from '../pools'
 import type { KnnComputeReply, KnnComputeRequest } from './knn-compute'
-import { askWorker, assignSpans, poolWorkerCount } from './pool'
+import { askWorker, assignSpans, poolWorkerCount, spawnPool } from './pool'
 import { spawnKnnWorker } from './spawn'
 
 /**
@@ -51,7 +51,10 @@ export const knnPoolFactory: KnnPoolFactory = (seed) => {
       if (count === 0) return null
 
       if (workers.length === 0) {
-        workers = Array.from({ length: count }, () => spawnKnnWorker())
+        // 못 띄우면 직렬 예측으로 물러난다 — `null`이 그 신호다 (R26 B-5).
+        const spawned = spawnPool(count, spawnKnnWorker)
+        if (spawned === null) return null
+        workers = spawned
         const rows = flatten(seed.rows, seed.featureCount)
         for (const worker of workers) {
           worker.postMessage({

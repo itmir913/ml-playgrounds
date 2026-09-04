@@ -31,7 +31,9 @@
 
 import { describe, expect, it } from 'vitest'
 
+import { NEURAL_PARALLEL_CHUNK_ROWS } from '../src/limits'
 import { ENGINES } from '../src/ml/engines'
+import { chunksOf } from '../src/ml/engines/neural'
 import { SUPPORTED_MODEL_FORMATS } from '../src/ml/models'
 import { FORMAT_VERSION } from '../src/project/schema'
 import { DB_VERSION } from '../src/project/storage'
@@ -107,6 +109,33 @@ describe('버전은 지시 없이 움직이지 않는다', () => {
           `${kind}: ${version} (잠긴 값은 ${PINNED_ENGINES[kind] ?? "새 엔진이므로 '1'"})`,
       )
     expect(moved).toEqual([])
+  })
+
+  /**
+   * **엔진 3의 내용 자체를 못 박는다** (2026-09-04 R26 A-2).
+   *
+   * 버전 문자열만 잠그는 것으로는 모자랐다. 엔진 3이 뜻하는 것은 *"기울기 합산의
+   * 정본이 50행 고정 조각을 조각 번호 순서로 접는 것"*인데, **그 정본을 아무나
+   * 바꿔도 관문이 초록이었다** — 병렬 스펙이 재는 것은 "직렬과 병렬이 같다"이고
+   * 두 갈래가 같은 함수를 쓰므로 **정본이 통째로 움직이면 나란히 움직여** 단언이
+   * 그대로 참이 된다. 감사자가 조각을 뒤집고(`chunksOf().reverse()`) 크기를 40으로
+   * 바꿨는데 138개가 조용했다.
+   *
+   * **여기가 빨개졌다면 재실행 대조가 옛 결과와 안 맞게 됐다는 뜻이다.**
+   * 기대값을 고치지 마라 — `MLJS_ENGINE.version`을 올려야 하는 변경이다
+   * (`docs/workflow.md` §4).
+   */
+  it('엔진 3의 정본 — 조각 크기 50, 조각 번호 오름차순', () => {
+    expect(NEURAL_PARALLEL_CHUNK_ROWS).toBe(50)
+
+    const batch = Array.from({ length: 125 }, (_, index) => index * 2)
+    const chunks = chunksOf(batch)
+    // 조각 셋: 50 · 50 · 25. 마지막만 짧다.
+    expect(chunks.map((one) => one.length)).toEqual([50, 50, 25])
+    // **순서가 정본이다.** 뒤집으면 부동소수 덧셈의 결합순서가 달라져 결과가 갈린다.
+    expect(chunks.flat()).toEqual(batch)
+    expect(chunks[0]?.[0]).toBe(0)
+    expect(chunks[1]?.[0]).toBe(100)
   })
 
   it('잠근 엔진이 사라지거나 이름이 바뀌지 않았다', () => {

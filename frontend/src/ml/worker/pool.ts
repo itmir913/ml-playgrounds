@@ -50,8 +50,12 @@ export function poolWorkerCount(jobs: number): number {
 }
 
 /**
- * 워커 하나에게 요청 하나를 보내고 답 하나를 기다린다. **오류는 거절로 돌아온다** —
- * 워커가 조용히 죽으면 부르는 쪽이 영원히 기다리게 되므로 `error`도 함께 듣는다.
+ * 워커 하나에게 요청 하나를 보내고 답 하나를 기다린다. **끝나는 길을 전부 듣는다** —
+ * 안 들리는 길이 하나라도 있으면 부르는 쪽이 **영원히 기다린다.**
+ *
+ * 길이 셋이다: 답(`message`), 워커가 죽음(`error`), 그리고 **답이 복제에 실패함**
+ * (`messageerror`). 셋째를 2026-09-04(R26 B-6)에 더했다 — 같은 저장소의
+ * `ml/worker/client.ts`는 처음부터 듣고 있었는데 이쪽만 빠져 있었다.
  */
 export function askWorker<Request, Reply>(worker: Worker, request: Request): Promise<Reply> {
   return new Promise((resolve, reject) => {
@@ -63,12 +67,37 @@ export function askWorker<Request, Reply>(worker: Worker, request: Request): Pro
       cleanup()
       reject(new Error(event.message || 'compute worker failed'))
     }
+    const onMessageError = (): void => {
+      cleanup()
+      reject(new Error('compute worker reply could not be cloned'))
+    }
     function cleanup(): void {
       worker.removeEventListener('message', onMessage)
       worker.removeEventListener('error', onError)
+      worker.removeEventListener('messageerror', onMessageError)
     }
     worker.addEventListener('message', onMessage)
     worker.addEventListener('error', onError)
+    worker.addEventListener('messageerror', onMessageError)
     worker.postMessage(request)
   })
+}
+
+/**
+ * 워커 `count`명을 띄운다. **하나라도 못 뜨면 이미 뜬 것을 거두고 `null`을 낸다.**
+ *
+ * 결정문은 *"중첩 워커가 없는 환경은 직렬로 돈다"*고 적었는데 그 폴백은
+ * `typeof Worker` 하나뿐이었다 — **`Worker`는 있는데 스폰이 던지는 환경**(CSP가
+ * `worker-src`를 막거나, 청크를 못 받거나)에서는 학습이 통째로 실패했다. 학생은
+ * 직렬로 조금 느린 대신 **아무 결과도 못 받는다.** (2026-09-04 R26 B-5)
+ */
+export function spawnPool(count: number, spawn: () => Worker): Worker[] | null {
+  const workers: Worker[] = []
+  try {
+    for (let index = 0; index < count; index += 1) workers.push(spawn())
+  } catch {
+    for (const worker of workers) worker.terminate()
+    return null
+  }
+  return workers
 }

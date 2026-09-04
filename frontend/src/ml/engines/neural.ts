@@ -547,8 +547,15 @@ export function readParameters(
   return { weights, intercepts }
 }
 
-/** 배치를 고정 크기 조각으로 가른다. 이 크기가 정본의 일부다 (`limits.ts`). */
-function chunksOf(batch: readonly number[]): (readonly number[])[] {
+/**
+ * 배치를 고정 크기 조각으로 가른다. **이 크기와 이 순서가 엔진 3의 정본이다**
+ * (`limits.ts`의 `NEURAL_PARALLEL_CHUNK_ROWS`).
+ *
+ * **검사를 위해 내보낸다.** 직렬과 병렬이 같은 함수를 쓰므로 "둘이 같다"는 단언은
+ * 정본이 통째로 움직여도 참이다 — 정본 자체를 못 박는 것은 `versions.spec.ts`뿐이다
+ * (2026-09-04 R26 A-2: 조각을 뒤집고 크기를 40으로 바꿔도 관문이 초록이었다).
+ */
+export function chunksOf(batch: readonly number[]): (readonly number[])[] {
   const chunks: (readonly number[])[] = []
   for (let offset = 0; offset < batch.length; offset += NEURAL_PARALLEL_CHUNK_ROWS)
     chunks.push(batch.slice(offset, offset + NEURAL_PARALLEL_CHUNK_ROWS))
