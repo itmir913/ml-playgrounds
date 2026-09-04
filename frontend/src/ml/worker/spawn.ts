@@ -17,6 +17,10 @@ export function spawnTrainingWorker(): TrainWorker {
 /**
  * 신경망 조각 계산 워커. **학습 워커 안에서 부른다** — 중첩 워커라 부모(학습 워커)가
  * terminate로 죽으면 함께 죽고, 그래서 취소 의미가 그대로 남는다 (ml/worker/neural-pool.ts).
+ *
+ * **쟀다** (2026-09-04, 크롬): 부모를 terminate하자 자식 넷의 심장 박동이 즉시 끊겼다.
+ * 사람 확인이고 검사가 아니다 — jsdom에 `Worker`가 없어 관문으로는 못 밟는다.
+ * 절차는 open-decisions.md "학습을 코어로 가른다"에 있다.
  */
 export function spawnNeuralComputeWorker(): Worker {
   return new Worker(new URL('./neural-compute.worker.ts', import.meta.url), { type: 'module' })
