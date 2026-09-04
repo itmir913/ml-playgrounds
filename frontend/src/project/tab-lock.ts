@@ -19,6 +19,7 @@
  * 동작 그대로다 — 잠금은 보호이지 기능의 전제가 아니다.
  */
 
+import { ClientError } from '@/errors'
 import { TAB_LOCK_REPLY_WINDOW_MS } from '@/limits'
 
 /** Web Locks의 자물쇠 이름. 잠금은 오리진 단위라 앱 이름을 접두로 붙인다. */
@@ -133,8 +134,9 @@ function claimViaChannel(id: string): Promise<boolean> {
  * 프로젝트 하나를 이 탭의 것으로 잡는다. `false`면 **다른 탭이 쥐고 있다** — 부르는
  * 쪽은 열지 말고 그 사실을 말해야 한다 (stores/project.ts의 `open`).
  *
- * 다른 프로젝트를 쥔 채 부르면 앞의 것을 먼저 놓는다 — 편집 중인 프로젝트는 언제나
- * 하나이므로 잠금도 하나다.
+ * 다른 프로젝트를 쥔 채 부르면 **새 것을 잡은 뒤에** 앞의 것을 놓는다 — 편집 중인
+ * 프로젝트는 언제나 하나이므로 잠금도 하나이고, **거절당하면 쥐던 것이 그대로 남는다**
+ * (`acquireOne`의 머리말, 2026-09-04 R27 A-2).
  */
 export function acquireTabLock(id: string): Promise<boolean> {
   /**
@@ -154,22 +156,79 @@ export function acquireTabLock(id: string): Promise<boolean> {
 
 let pending: Promise<unknown> = Promise.resolve()
 
+/**
+ * **앞의 것은 새 것을 잡은 뒤에만 놓는다** (2026-09-04 R27 A-2).
+ *
+ * 먼저 놓으면 거절당했을 때 **화면이 든 프로젝트와 이 탭이 쥔 자물쇠가 어긋난다** —
+ * 탭 A가 P를 열어 둔 채 다른 탭이 쥔 Q를 열려 하면 P의 자물쇠만 풀리고 Q는 거절된다.
+ * 라우터는 목록으로 되돌리는데 **그 두 번째 가드 통과의 `flush()`가 P를 쓴 뒤에야**
+ * `close()`가 돌고, 그 사이에 다른 탭이 P를 정상적으로 연다. **두 탭이 P를 쓰는 상태**,
+ * 이 잠금이 막으려던 바로 그것이다.
+ *
+ * BroadcastChannel 갈래도 같은 한 줄이 낸다 — `heldId`가 `null`인 동안 이 탭은 `claim`에
+ * 답하지 않아 남의 탭이 P를 "비었다"고 읽는다.
+ */
 async function acquireOne(id: string): Promise<boolean> {
   if (heldId === id) return true
-  releaseTabLock()
 
-  const locks = locksOf()
-  if (locks !== undefined) {
-    const acquired = await acquireViaLocks(locks, id)
-    if (acquired) heldId = id
-    return acquired
+  // 놓는 손잡이를 들고만 있는다. 실패하면 이대로 되돌려 앞 잠금이 이어진다.
+  const previousId = heldId
+  const previousRelease = releaseHeld
+  heldId = null
+  releaseHeld = null
+
+  const acquired = await acquireNew(id)
+  if (acquired) {
+    // 새 것을 잡았으니 이제 앞의 것을 놓는다. 편집 중인 프로젝트는 언제나 하나다.
+    previousRelease?.()
+    heldId = id
+    return true
   }
 
-  if (channelClassOf() === undefined) return true
+  heldId = previousId
+  releaseHeld = previousRelease
+  return false
+}
 
-  const acquired = await claimViaChannel(id)
-  if (acquired) heldId = id
-  return acquired
+/**
+ * 수단을 골라 실제로 잡아 본다. **여기서는 앞 잠금을 모른다** — 놓는 순서를 아는 곳은
+ * `acquireOne` 하나여야 어긋남이 한 자리에만 산다.
+ */
+async function acquireNew(id: string): Promise<boolean> {
+  const locks = locksOf()
+  if (locks !== undefined) return await acquireViaLocks(locks, id)
+  if (channelClassOf() === undefined) return true
+  return await claimViaChannel(id)
+}
+
+/**
+ * **잠금을 잡거나, 못 잡으면 던진다** (2026-09-04 R27 A-1·B-1).
+ *
+ * `acquireTabLock`이 `boolean`을 주는 것은 라우터 가드가 이동을 되돌려야 해서다.
+ * **저장소에 쓰려는 쪽은 다르다** — 못 잡았으면 할 일이 "쓰지 않고 말하기" 하나뿐이고,
+ * `false`를 돌려주면 부르는 쪽마다 그 문장을 다시 조립하게 된다. 던지면 이미 있는
+ * `catch` + `pushError`가 그대로 받는다.
+ *
+ * 잡은 것은 **놓지 않고 넘긴다** — 부르는 쪽이 그대로 편집 화면으로 이어 갈 수 있어야
+ * 하고, 라우터가 곧 부르는 `open(id)`은 `heldId === id` 지름길로 통과한다.
+ */
+export async function claimTabLock(id: string): Promise<void> {
+  if (!(await acquireTabLock(id))) throw new ClientError('PROJECT_OPEN_ELSEWHERE')
+}
+
+/**
+ * **잠금을 쥔 동안만 일한다.** 끝나면(실패해도) 놓는다.
+ *
+ * 지우기처럼 **끝나고 나면 쥘 대상이 없어지는** 쓰기가 이것을 쓴다 — 없어진 프로젝트를
+ * 쥔 채로 두면 그 탭이 다음 프로젝트를 열 때까지 유령 잠금이 남는다.
+ */
+export async function withTabLock<T>(id: string, work: () => Promise<T>): Promise<T> {
+  await claimTabLock(id)
+  try {
+    return await work()
+  } finally {
+    releaseTabLock()
+  }
 }
 
 /**

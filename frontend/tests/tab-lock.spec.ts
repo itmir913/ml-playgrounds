@@ -300,3 +300,54 @@ describe('두 요청이 겹쳐도 자물쇠가 고아가 안 된다', () => {
     expect(await tab.acquireTabLock('p-1')).toBe(true)
   })
 })
+
+/**
+ * **거절당해도 쥐고 있던 것을 잃지 않는다** (2026-09-04 R27 A-2).
+ *
+ * 앞의 것을 먼저 놓고 새 것을 잡으러 가면, 거절당한 탭은 **자기가 화면에 들고 있는
+ * 프로젝트의 자물쇠를 잃은 채** 목록으로 밀려난다. 라우터의 두 번째 가드 통과가
+ * `flush()`로 그것을 쓰는 동안 다른 탭이 정상적으로 그 프로젝트를 연다 —
+ * **두 탭이 같은 프로젝트를 쓰는 상태**, 이 잠금이 막으려던 그것이다.
+ */
+describe('잠금 교체가 실패하면 앞의 것이 그대로 남는다', () => {
+  it('남이 쥔 프로젝트를 열려다 거절당해도 쥐던 것을 남이 못 가져간다', async () => {
+    const locks = new FakeLocks()
+    stubLocks(locks)
+    const tabA = await freshTab()
+    const tabB = await freshTab()
+    const tabC = await freshTab()
+
+    expect(await tabA.acquireTabLock('p-1')).toBe(true)
+    expect(await tabB.acquireTabLock('p-2')).toBe(true)
+
+    // 탭 A가 탭 B의 프로젝트를 열려 한다. 거절이 맞다.
+    expect(await tabA.acquireTabLock('p-2')).toBe(false)
+    await settle()
+
+    // **p-1이 사라지면 안 된다.** 화면은 아직 p-1을 들고 있고 flush가 그것을 쓴다.
+    expect(locks.held.has('ml-playgrounds:project:p-1')).toBe(true)
+    // 그래서 제3의 탭이 p-1을 가져갈 수 없다.
+    expect(await tabC.acquireTabLock('p-1')).toBe(false)
+    // 그리고 탭 A는 자기 것을 여전히 쥔 것으로 안다 — heldId와 자물쇠가 안 어긋난다.
+    expect(await tabA.acquireTabLock('p-1')).toBe(true)
+    await settle()
+    expect(locks.held.size).toBe(2)
+  })
+
+  it('거절 뒤에 스스로 놓으면 그때는 남이 가져간다', async () => {
+    const locks = new FakeLocks()
+    stubLocks(locks)
+    const tabA = await freshTab()
+    const tabB = await freshTab()
+    const tabC = await freshTab()
+
+    await tabA.acquireTabLock('p-1')
+    await tabB.acquireTabLock('p-2')
+    expect(await tabA.acquireTabLock('p-2')).toBe(false)
+
+    // 붙들고 있는 것이지 새는 것이 아니다 — 놓으면 놓인다.
+    tabA.releaseTabLock()
+    await settle()
+    expect(await tabC.acquireTabLock('p-1')).toBe(true)
+  })
+})

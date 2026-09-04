@@ -21,7 +21,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ClientError } from '../src/errors'
 import { i18n, setLocale } from '../src/i18n'
 import type { ProjectFile } from '../src/project/format'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage, DB_NAME, loadProject, saveProject } from '../src/project/storage'
+import { releaseTabLock } from '../src/project/tab-lock'
 import { ROUTE_PROJECTS, router } from '../src/router'
 import { useToastStore } from '../src/stores/toasts'
 import WelcomeView from '../src/views/WelcomeView.vue'
@@ -153,6 +154,117 @@ describe('R23: opening a broken .mlpx', () => {
     }
     expect(dangers()).toHaveLength(0)
     expect(router.currentRoute.value.name).not.toBe(ROUTE_PROJECTS)
+  })
+})
+
+/**
+ * **잠금 밖에서 저장소를 쓰지 않는다** (2026-09-04 R27 A-1·B-1).
+ *
+ * 두 탭 잠금은 편집 화면에만 걸려 있었고 목록 화면의 두 동작은 잠금을 **묻지도 않고**
+ * 저장소를 썼다. 가져오기는 같은 `projectId`로 `put`하므로 **덮어쓰기**이고, 그것이
+ * 정확히 이 잠금이 막으려던 사고다 — 거절은 그 뒤에 왔다.
+ *
+ * 여기서 재는 것은 **말했는가**가 아니라 **안 썼는가**다.
+ */
+describe('R27: 다른 탭이 쥔 프로젝트는 목록 화면도 못 건드린다', () => {
+  /** 이름 목록에 든 자물쇠는 남이 쥐고 있다. 나머지는 내준다. */
+  function stubLocksHeldElsewhere(ids: readonly string[]): void {
+    const taken = new Set(ids.map((id) => `ml-playgrounds:project:${id}`))
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: {
+        request: async (
+          name: string,
+          _options: unknown,
+          callback: (lock: { name: string } | null) => unknown,
+        ) => (taken.has(name) ? callback(null) : await callback({ name })),
+      },
+    })
+  }
+
+  afterEach(() => {
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined })
+    releaseTabLock()
+  })
+
+  it('가져오기: 거절하고 **저장소를 안 건드린다**', async () => {
+    const mine = projectFile()
+    const id = mine.document.manifest.projectId
+    await saveProject(mine)
+
+    // 같은 projectId인데 내용이 다른 파일 — 덮어쓰면 표시가 바뀐다.
+    const incoming = projectFile()
+    incoming.document.portfolio.answers.motivation = '다른 탭에서 온 답'
+    const { bytes } = await writeProjectBytes(incoming, '')
+
+    stubLocksHeldElsewhere([id])
+    const { view, openWith } = await welcome()
+    await openWith(new File([bytes.slice()], 'same.mlpx'))
+
+    expect(dangers().map((one) => one.key)).toEqual(['client.PROJECT_OPEN_ELSEWHERE'])
+    expect(view.busy).toBe(false)
+    expect(router.currentRoute.value.name).toBe(ROUTE_PROJECTS)
+
+    // **여기가 이 검사의 전부다.** 있던 것이 그대로 있어야 한다.
+    const kept = await loadProject(id)
+    expect(kept?.document.portfolio.answers.motivation).toBe('꽃이 좋아서')
+  })
+
+  it('가져오기: 아무도 안 쥐었으면 그대로 들어온다 (대조)', async () => {
+    const incoming = projectFile()
+    incoming.document.portfolio.answers.motivation = '가져온 답'
+    const { bytes } = await writeProjectBytes(incoming, '')
+
+    stubLocksHeldElsewhere([])
+    const { openWith } = await welcome()
+    await openWith(new File([bytes.slice()], 'new.mlpx'))
+
+    expect(dangers()).toHaveLength(0)
+    const stored = await loadProject(incoming.document.manifest.projectId)
+    expect(stored?.document.portfolio.answers.motivation).toBe('가져온 답')
+  })
+
+  /** 목록의 지우기 아이콘을 누르고 확인 판의 [삭제]까지 누른다 — 학생이 밟는 길이다. */
+  async function clickDelete(wrapper: Awaited<ReturnType<typeof welcome>>['wrapper']) {
+    // 목록의 지우기는 아이콘 단추라 글자가 없다 — 이름표로 찾는다.
+    const icon = wrapper.find('button[aria-label="삭제"]')
+    expect(icon.exists()).toBe(true)
+    await icon.trigger('click')
+    await settle()
+    const confirm = wrapper.findAll('button').find((one) => one.text() === '삭제')
+    expect(confirm).toBeDefined()
+    await confirm?.trigger('click')
+    await settle()
+    await settle()
+  }
+
+  it('삭제: 거절하고 **지우지 않는다**', async () => {
+    const mine = projectFile()
+    const id = mine.document.manifest.projectId
+    await saveProject(mine)
+
+    stubLocksHeldElsewhere([id])
+    const { wrapper, view } = await welcome()
+    await clickDelete(wrapper)
+
+    expect(dangers().map((one) => one.key)).toEqual(['client.PROJECT_OPEN_ELSEWHERE'])
+    expect(view.busy).toBe(false)
+    // **여전히 있어야 한다.** 지우면 저 탭의 다음 자동 저장이 되살리거나, 저 탭이 하던
+    // 것이 사라진다 — 어느 쪽인지는 타이밍이 정한다.
+    expect(await loadProject(id)).not.toBeNull()
+  })
+
+  it('삭제: 아무도 안 쥐었으면 지워진다 (대조)', async () => {
+    const mine = projectFile()
+    const id = mine.document.manifest.projectId
+    await saveProject(mine)
+
+    stubLocksHeldElsewhere([])
+    const { wrapper } = await welcome()
+    await clickDelete(wrapper)
+
+    expect(dangers()).toHaveLength(0)
+    expect(await loadProject(id)).toBeNull()
   })
 })
 

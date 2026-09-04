@@ -35,6 +35,7 @@ import type { DataType } from '@/project/schema'
 import { readFileBytes } from '@/project/download'
 import { MLPX_EXTENSION, readProject } from '@/project/format'
 import { deleteProject, listProjects, saveProject, type ProjectSummary } from '@/project/storage'
+import { claimTabLock, withTabLock } from '@/project/tab-lock'
 import { useWork } from '@/composables/useWork'
 import { useToastStore } from '@/stores/toasts'
 
@@ -170,6 +171,13 @@ async function create(): Promise<void> {
  *
  * 같은 projectId가 이미 있으면 덮어쓴다 - 같은 프로젝트를 다시 가져온 것이므로
  * 새로 만드는 것이 아니라 최신으로 맞추는 것이 맞다.
+ *
+ * **그래서 쓰기 전에 잠금을 묻는다** (2026-09-04 R27 A-1). 덮어쓰기이므로 이 경로가
+ * 정확히 두 탭 잠금이 막으려던 그 저장이다 - 다른 탭이 그 프로젝트로 실험을 세 번
+ * 돌려 두었으면 여기서 그것이 사라진다. **거절이 덮어쓴 뒤에 오면 늦다.**
+ *
+ * 잡은 것은 놓지 않고 편집 화면으로 넘긴다 - 라우터가 곧 부르는 `open`이 같은 잠금을
+ * 지름길로 통과한다.
  */
 async function openFile(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
@@ -181,6 +189,7 @@ async function openFile(event: Event): Promise<void> {
   const job = start()
   try {
     const { project: opened, integrity } = await readProject(await readFileBytes(picked))
+    await claimTabLock(opened.document.manifest.projectId)
     await saveProject(opened)
     if (integrity.status === 'MODIFIED') {
       // 고쳐졌다고 열어 주지 않을 이유는 없다. 다만 말은 해 준다 (mlpx-spec.md §7.3).
@@ -194,12 +203,22 @@ async function openFile(event: Event): Promise<void> {
   }
 }
 
+/**
+ * 프로젝트를 지운다.
+ *
+ * **다른 탭이 편집 중인 것은 못 지운다** (2026-09-04 R27 B-1). 지워도 그 탭의 다음
+ * 자동 저장이 `put`으로 되살리므로, 학생이 보는 것은 "지웠는데 목록에 다시 있다"이거나
+ * 그 탭이 저장을 안 하면 "저 탭에서 하던 것이 사라졌다"이고 어느 쪽인지는 타이밍이
+ * 정한다. **둘 다 학생에게 설명할 수 없는 화면이다.**
+ *
+ * 잡은 것은 `withTabLock`이 곧바로 놓는다 - 없어진 프로젝트를 쥐고 있을 이유가 없다.
+ */
 async function remove(): Promise<void> {
   const target = removing.value
   if (!target || busy.value) return
   const job = start()
   try {
-    await deleteProject(target.projectId)
+    await withTabLock(target.projectId, () => deleteProject(target.projectId))
     await refresh()
     closeRemove()
   } catch (error) {
