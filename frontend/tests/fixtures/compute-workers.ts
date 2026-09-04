@@ -11,6 +11,16 @@
  * `structuredClone`을 태운다 — 안 태우면 가짜가 진짜보다 관대해지고, 정확히 그
  * 차이만큼이 사각이 된다 (`worker-boundary-strips-prototypes`: `toJSON()`이 낸 살아
  * 있는 `Matrix`가 프로토타입을 잃고 예측이 죽은 것을 제자리 풀이 못 봤다).
+ *
+ * **관대한 자리 셋을 조였다** (2026-09-04 R27 C). 조일 당시 셋 다 **아무 검사도 안
+ * 울었다** — 지금 이 차이에 걸리는 코드가 없다는 뜻이고, 그래서 **조이는 비용이 0**이다.
+ * 지금 조여 두는 이유는 다음에 취소 경로를 만질 때 그물이 미리 서 있어야 해서다.
+ *
+ * 1. **`terminate()` 뒤에는 아무것도 안 배달한다.** 세기만 하던 동안에는 이미 큐에 든
+ *    답이 그대로 나갔다 — 진짜 워커는 죽은 뒤 아무 말도 안 한다.
+ * 2. **이관 목록은 실제로 중립화한다.** 세기만 하면 넘긴 버퍼를 워커가 계속 쓸 수
+ *    있어서, 진짜에서는 죽는 코드가 여기서는 산다.
+ * 3. **답은 마이크로태스크가 아니라 태스크로 온다.** 진짜 워커는 훨씬 늦게 답한다.
  */
 
 import { vi } from 'vitest'
@@ -47,6 +57,8 @@ export function fakeComputeWorker<Request, Reply>(
   const index = computeWorkerLog.spawned
   computeWorkerLog.spawned += 1
   const target = new EventTarget()
+  /** 살아 있는가. `terminate()` 뒤에는 받지도 배달하지도 않는다 — 진짜가 그렇다. */
+  let alive = true
   const worker = {
     addEventListener: target.addEventListener.bind(target),
     removeEventListener: target.removeEventListener.bind(target),
@@ -55,17 +67,24 @@ export function fakeComputeWorker<Request, Reply>(
     onerror: null,
     onmessageerror: null,
     postMessage(request: unknown): void {
+      // 죽은 워커는 아무것도 안 받는다.
+      if (!alive) return
       // 경계 ① 가는 쪽. 여기서 프로토타입이 벗겨진다.
       const received = structuredClone(request) as Request
       const kind = (received as { type?: unknown }).type
       computeWorkerLog.requests.push({ worker: index, type: String(kind) })
-      // 진짜 워커는 다른 스레드에 있다. 답이 같은 틱에 오면 안 된다.
-      queueMicrotask(() => {
+      // **진짜 워커는 다른 스레드에 있고, 훨씬 늦게 답한다.** 마이크로태스크로 답하면
+      // 이 가짜가 진짜보다 이르고, 순서에 기대는 코드가 그 차이에 안 걸린다.
+      setTimeout(() => {
+        if (!alive) return
         try {
           handle(received, (reply, transfer) => {
+            if (!alive) return
             computeWorkerLog.transferred += transfer?.length ?? 0
-            // 경계 ② 오는 쪽.
-            const data = structuredClone(reply)
+            // 경계 ② 오는 쪽. **이관 목록은 실제로 중립화한다** — `transfer`를 주면
+            // 넘긴 버퍼가 이쪽에서 분리되어, 넘기고 나서 다시 쓰는 코드가 여기서도
+            // 진짜처럼 죽는다. 목록에 답에 없는 것이 들어 있으면 진짜처럼 던진다.
+            const data = structuredClone(reply, transfer ? { transfer } : undefined)
             target.dispatchEvent(new MessageEvent('message', { data }))
           })
         } catch (error) {
@@ -73,10 +92,12 @@ export function fakeComputeWorker<Request, Reply>(
             new ErrorEvent('error', { message: error instanceof Error ? error.message : 'failed' }),
           )
         }
-      })
+      }, 0)
     },
     terminate(): void {
       computeWorkerLog.terminated += 1
+      // **죽은 뒤에는 아무 말도 안 한다.** 이미 큐에 든 답도 나가면 안 된다.
+      alive = false
     },
   }
   return worker as unknown as Worker
