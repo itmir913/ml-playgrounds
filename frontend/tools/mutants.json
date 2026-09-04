@@ -465,6 +465,86 @@
       "expect": "cries",
       "expectSpecs": ["tests/mljs.spec.ts", "tests/sklearn-parity.spec.ts"],
       "loses": "X 센터링이 무너져 sklearn 구조와 갈린다 — 절편을 되돌리는 식이 틀어진다 (R25 B-2)"
+    },
+    {
+      "file": "src/ml/worker/forest-pool.ts",
+      "find": "for (const tree of answer.trees) trees.push(tree)",
+      "replace": "for (const tree of answer.trees) trees.unshift(tree)",
+      "expect": "cries",
+      "expectSpecs": ["tests/compute-pools.spec.ts"],
+      "loses": "워커 답을 거꾸로 이어 붙여 나무 번호가 뒤집힌다 — 숲이 라이브러리와 달라진다 (R26 M2)"
+    },
+    {
+      "file": "src/ml/worker/knn-pool.ts",
+      "find": "for (const one of answer.answers) merged.push(one)",
+      "replace": "for (const one of answer.answers) merged.unshift(one)",
+      "expect": "cries",
+      "expectSpecs": ["tests/compute-pools.spec.ts"],
+      "loses": "시험 행의 답이 뒤집혀 정확도가 통째로 틀린다 (R26 M1)"
+    },
+    {
+      "file": "src/ml/worker/forest-compute.ts",
+      "find": "row[column] = request.rows[index * columns + column] as number",
+      "replace": "row[column] = request.rows[index * columns + ((column + 1) % columns)] as number",
+      "expect": "cries",
+      "expectSpecs": ["tests/compute-pools.spec.ts"],
+      "loses": "워커가 표를 어긋나게 되세워 모든 나무가 뒤섞인 특성으로 학습된다 (R26 M5)"
+    },
+    {
+      "file": "src/ml/worker/handler.ts",
+      "find": "pools: { neural: neuralPoolFactory, forest: forestPoolFactory, knn: knnPoolFactory },",
+      "replace": "pools: { neural: neuralPoolFactory, forest: forestPoolFactory },",
+      "expect": "cries",
+      "expectSpecs": ["tests/compute-pools.spec.ts"],
+      "loses": "KNN 병렬화가 통째로 꺼진다 — 학생은 2.36배를 잃고 아무도 모른다 (R26 M7)"
+    },
+    {
+      "file": "src/limits.ts",
+      "find": "export const NEURAL_PARALLEL_CHUNK_ROWS = 50",
+      "replace": "export const NEURAL_PARALLEL_CHUNK_ROWS = 40",
+      "expect": "cries",
+      "expectSpecs": ["tests/versions.spec.ts"],
+      "loses": "엔진 3의 정본(기울기 합산 순서)이 버전을 안 올린 채 바뀐다 — 재실행 대조가 옛 결과와 안 맞는다 (R26 M4)"
+    },
+    {
+      "file": "src/ml/engines/neural.ts",
+      "find": "  for (let offset = 0; offset < batch.length; offset += NEURAL_PARALLEL_CHUNK_ROWS)\n    chunks.push(batch.slice(offset, offset + NEURAL_PARALLEL_CHUNK_ROWS))\n  return chunks",
+      "replace": "  for (let offset = 0; offset < batch.length; offset += NEURAL_PARALLEL_CHUNK_ROWS)\n    chunks.push(batch.slice(offset, offset + NEURAL_PARALLEL_CHUNK_ROWS))\n  return chunks.reverse()",
+      "expect": "cries",
+      "expectSpecs": ["tests/versions.spec.ts"],
+      "loses": "조각을 거꾸로 접어 부동소수 결합순서가 달라진다 — 같은 씨앗이 다른 모델을 낸다 (R26 C3)"
+    },
+    {
+      "file": "src/project/tab-lock.ts",
+      "find": "{ ifAvailable: true }, (lock)",
+      "replace": "{}, (lock)",
+      "expect": "cries",
+      "expectSpecs": ["tests/tab-lock.spec.ts"],
+      "loses": "둘째 탭이 안내 대신 멈춘 화면을 본다 — 첫 탭이 닫힐 때까지 (R26 M8)"
+    },
+    {
+      "file": "src/ml/engines/mljs.ts",
+      "find": "      n: featureCount,\n      replacement: true,\n      maxFeatures: 1.0,",
+      "replace": "      n: featureCount + 1,\n      replacement: false,\n      maxFeatures: 0.5,",
+      "expect": "cries",
+      "expectSpecs": ["tests/forest-parallel.spec.ts"],
+      "loses": "되세운 숲의 손잡이가 라이브러리와 갈린다 (R26 M10)"
+    },
+    {
+      "file": "src/ml/engines/mljs.ts",
+      "find": "  for (let index = 0; index < fields.estimators.length; index += 1)\n    restoreSampleCounts(",
+      "replace": "  for (let index = 0; index < 0; index += 1)\n    restoreSampleCounts(",
+      "expect": "cries",
+      "expectSpecs": ["tests/forest-parallel.spec.ts"],
+      "loses": "되세운 숲의 특성 중요도가 통째로 NaN이 된다 — 직렬 갈래는 멀쩡하니 코어 수가 할 수 있는 일을 가른다 (R26 C-5)"
+    },
+    {
+      "file": "src/ml/experiment.ts",
+      "find": "      const predicted = predictBatch\n        ? await predictBatch(context.testFeatures)\n        : predict(context.testFeatures)",
+      "replace": "      const predicted = predict(context.testFeatures)",
+      "expect": "cries",
+      "expectSpecs": ["tests/experiment.spec.ts"],
+      "loses": "채점이 병렬 예측을 안 지나간다 — KNN의 2.36배가 조용히 사라진다 (R26 M12)"
     }
   ]
 }

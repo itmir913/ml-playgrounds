@@ -86,6 +86,19 @@ for (const [index, mutant] of mutants.entries()) {
   const replace = mutant.replace.replaceAll('\n', eol)
   const expected = mutant.expect ?? 'silent'
 
+  /**
+   * **`cries`인데 무는 스펙을 안 적으면 거절한다** (2026-09-04 R26 B-10).
+   *
+   * 안 적으면 아래가 스위트 전체를 돌린다 — 그러면 **이 돌연변이가 무엇을 증명하는지
+   * 아무도 못 말한다.** 다른 이유로 빨개져도 "욺"으로 찍히고, 항목은 영원히 초록이다.
+   */
+  if (mutant.expect === 'cries' && !(mutant.expectSpecs?.length > 0)) {
+    console.error(`
+[${index + 1}] ${mutant.file}
+  expect가 'cries'인데 expectSpecs가 비었다.`)
+    process.exit(1)
+  }
+
   // **앵커는 정확히 하나여야 한다.** 여럿이면 남의 자리까지 바뀐다.
   const found = original.split(find).length - 1
   if (found !== 1) {

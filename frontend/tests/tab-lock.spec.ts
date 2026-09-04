@@ -38,6 +38,15 @@ class FakeLocks {
     callback: (lock: { name: string } | null) => unknown,
   ): Promise<unknown> => {
     this.options.push(options)
+    /**
+     * **진짜 Web Locks는 콜백을 나중 태스크에서 부른다** (2026-09-04 R26 B-11).
+     *
+     * 이 가짜가 동기로 부르던 동안에는 요청 둘을 겹쳐도 아무 일이 안 났다 — 앞
+     * 요청의 놓는 손잡이가 **이미 담겨 있어서** 뒤 요청이 그것을 제대로 놓았다.
+     * 실물에서는 그 손잡이가 아직 없어서 앞 자물쇠가 고아가 된다.
+     * **가짜가 진짜보다 관대하면 그 차이만큼이 사각이다.**
+     */
+    await Promise.resolve()
     if (this.held.has(name)) {
       /**
        * **진짜 Web Locks는 `ifAvailable` 없이 부르면 거절하지 않고 기다린다**
@@ -226,6 +235,68 @@ describe('BroadcastChannel 폴백 (Web Locks가 없는 비보안 컨텍스트)',
 describe('수단이 없는 환경', () => {
   it('둘 다 없으면 연다 — 잠금은 보호이지 기능의 전제가 아니다', async () => {
     const tab = await freshTab()
+    expect(await tab.acquireTabLock('p-1')).toBe(true)
+  })
+})
+
+/**
+ * **node의 채널을 걸러내는 지문에 무는 검사가 0건이었다** (2026-09-04 R26 B-1).
+ *
+ * 두 방향 모두 조용히 실패하는 자리다. 지문을 지우면 node의 채널이 **워커 스레드를
+ * 가로질러** 통해 병렬로 도는 스펙 파일들이 서로의 잠금에 답한다 — 격리하면 초록이고
+ * 전체 실행에서만 빨간, 가장 알아보기 어려운 실패다(실제로 한 번 그랬다). 반대로
+ * 브라우저가 언젠가 `unref`를 넣으면 **잠금이 통째로 조용히 꺼진다.**
+ */
+describe('node의 BroadcastChannel은 안 쓴다', () => {
+  /** node의 것에만 있는 것. 브라우저 명세에는 없다. */
+  class NodeLikeChannel extends FakeBroadcastChannel {
+    unref(): void {}
+  }
+
+  it('`unref`를 가진 채널은 수단으로 안 쓴다 — 잠금 없이 연다', async () => {
+    vi.stubGlobal('BroadcastChannel', NodeLikeChannel)
+    const tabA = await freshTab()
+    const tabB = await freshTab()
+
+    // 채널이 없는 것과 같은 길이다. 둘 다 참을 받고 창을 기다리지도 않는다.
+    expect(await tabA.acquireTabLock('p-1')).toBe(true)
+    expect(await tabB.acquireTabLock('p-1')).toBe(true)
+  })
+
+  it('`unref`가 없는 채널은 그대로 쓴다 — 지문이 브라우저를 안 막는다', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel)
+    const tabA = await freshTab()
+    const tabB = await freshTab()
+
+    const claimA = tabA.acquireTabLock('p-1')
+    await vi.advanceTimersByTimeAsync(TAB_LOCK_REPLY_WINDOW_MS)
+    expect(await claimA).toBe(true)
+    expect(await tabB.acquireTabLock('p-1')).toBe(false)
+  })
+})
+
+/**
+ * **빠르게 두 번 열기** (2026-09-04 R26 B-11). 목록에서 프로젝트 둘을 연달아 누르면
+ * 두 요청이 `await` 사이에서 겹친다.
+ */
+describe('두 요청이 겹쳐도 자물쇠가 고아가 안 된다', () => {
+  it('연달아 다른 프로젝트를 열어도 앞의 것을 다시 열 수 있다', async () => {
+    const locks = new FakeLocks()
+    stubLocks(locks)
+    const tab = await freshTab()
+
+    // 기다리지 않고 둘을 동시에 던진다 — 이것이 학생의 두 번 누르기다.
+    const [first, second] = await Promise.all([
+      tab.acquireTabLock('p-1'),
+      tab.acquireTabLock('p-2'),
+    ])
+    expect([first, second]).toEqual([true, true])
+    await settle()
+
+    // 자물쇠는 마지막 것 하나만 남아야 한다. 앞의 것이 고아로 남으면 여기가 2다.
+    expect(locks.held.size).toBe(1)
+    // 그리고 앞 프로젝트를 다시 열 수 있어야 한다 — 고아가 있으면 `false`가 온다.
     expect(await tab.acquireTabLock('p-1')).toBe(true)
   })
 })

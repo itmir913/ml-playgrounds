@@ -136,7 +136,25 @@ function claimViaChannel(id: string): Promise<boolean> {
  * 다른 프로젝트를 쥔 채 부르면 앞의 것을 먼저 놓는다 — 편집 중인 프로젝트는 언제나
  * 하나이므로 잠금도 하나다.
  */
-export async function acquireTabLock(id: string): Promise<boolean> {
+export function acquireTabLock(id: string): Promise<boolean> {
+  /**
+   * **요청은 온 순서대로 하나씩** (2026-09-04 R26 B-11).
+   *
+   * 사슬이 없으면 두 요청이 `await` 사이에서 겹친다 — 뒤 요청의 `releaseTabLock()`이
+   * 앞 요청의 `releaseHeld`가 **아직 안 담긴 사이에** 지나가고, 그러면 앞 자물쇠가
+   * 놓는 손잡이 없이 브라우저에 남는다. 그 탭은 **그 프로젝트를 다시 못 연다** —
+   * 자기가 쥐고 있는데 `ifAvailable`이 `null`을 주기 때문이다. 탭을 닫아야 풀린다.
+   *
+   * 학생이 목록에서 프로젝트 둘을 빠르게 누르면 나는 일이다.
+   */
+  const next = pending.catch(() => undefined).then(() => acquireOne(id))
+  pending = next.catch(() => undefined)
+  return next
+}
+
+let pending: Promise<unknown> = Promise.resolve()
+
+async function acquireOne(id: string): Promise<boolean> {
   if (heldId === id) return true
   releaseTabLock()
 
