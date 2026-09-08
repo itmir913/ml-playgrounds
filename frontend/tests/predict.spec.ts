@@ -34,7 +34,6 @@ import {
   predictDownloadGrid,
   predictPage,
   predictPageSignature,
-  shuffled,
   toggleAllFilter,
   toggleFilter,
   rankAnswers,
@@ -1782,19 +1781,5 @@ describe('칸의 상태를 가른다', () => {
   })
 })
 
-/**
- * **제자리에서 안 바꾼다.** 그 함수의 주석이 *"원본을 공유하는 곳이 있으면 그쪽이
- * 놀란다"*고 적는데, `[...items]`를 지워도 검사도 타입도 조용했다 (R13-5 감사 C-3).
- * 지금 부르는 두 곳이 배열 리터럴을 넘겨서 해가 없을 뿐이다.
- */
-describe('섞기', () => {
-  it('원본을 안 건드리고 같은 원소를 돌려준다', () => {
-    const items = [1, 2, 3, 4, 5, 6, 7, 8]
-    const before = [...items]
-
-    const mixed = shuffled(items)
-
-    expect(items, 'the original was mutated in place').toEqual(before)
-    expect([...mixed].sort((a, b) => a - b)).toEqual(before)
-  })
-})
+// 팔레트를 섞던 `shuffled`는 #18에서 거리순 차례로 바뀌어 사라졌다. 그 자리의 검사는
+// `tests/palette.spec.ts`가 갖는다 — 제자리 변경 금지도 거기서 잰다.

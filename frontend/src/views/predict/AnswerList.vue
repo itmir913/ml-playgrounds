@@ -1,14 +1,15 @@
 <script lang="ts">
 /**
- * **팔레트는 모듈에서 한 번 섞는다** (architecture.md §8.13.1).
+ * **팔레트 차례는 모듈에서 한 번 뽑는다** (architecture.md §8.13.1).
  *
- * `<script setup>`은 목록 하나마다 다시 실행되므로 거기서 섞으면 **사진 스무 장짜리
- * 화면에서 셔플이 스무 번 돈다** — 같은 등수에 사진마다 다른 색이 배정된다. 목록이
+ * `<script setup>`은 목록 하나마다 다시 실행되므로 거기서 뽑으면 **사진 스무 장짜리
+ * 화면에서 스무 번 뽑는다** — 같은 등수에 사진마다 다른 색이 배정된다. 목록이
  * 하나뿐이던 시절에는 "인스턴스마다"와 "페이지마다"가 같은 말이었고, 이미지가
  * 들어오면서 갈라졌다. 여기 두면 **페이지당 한 번**이라 세션 중에는 고정이면서
  * 매번 다른 성질은 그대로다.
  */
 
+import { CARD_ORDERS, pickOrder, reorder } from '@/palette'
 import type { Answer } from '@/ml/predict'
 
 /**
@@ -26,21 +27,29 @@ export type { Answer }
  * 소스에서 클래스 이름을 못 찾아 그 색이 빌드에서 통째로 빠진다 - CLAUDE.md §4가 임의
  * 값을 막는 것과 같은 이유로, 만들어 붙인 이름도 안 된다.
  *
- * **등수와 색의 대응은 페이지가 뜰 때 한 번 섞는다.** 색은 순위표가 아니라 "같은
+ * **등수와 색의 대응은 페이지가 뜰 때 한 번 정한다.** 색은 순위표가 아니라 "같은
  * 값이면 같은 색"만 보장하면 되므로, 1등이 매번 chart-1로 고정될 이유가 없다.
  * 고정하면 분류가 대개 두세 갈래라 chart-1·2만 늘 쓰이고 나머지 다섯은 안 쓰인
- * 채로 남는다. **답이 갱신되는 동안에는 다시 안 섞는다** - [예측]을 다시 누를 때마다
+ * 채로 남는다. **답이 갱신되는 동안에는 다시 안 정한다** - [예측]을 다시 누를 때마다
  * 색이 바뀌면 방금 보던 카드를 못 찾는다.
+ *
+ * **그런데 무작위로 섞으면 안 된다** (#18). 셔플은 두 색이 얼마나 벌어졌는지를 안
+ * 봐서, 두 갈래 분류에서 채움색 둘이 ΔE2000으로 2.4까지 붙었다. 첫 색만 무작위이고
+ * 그다음부터는 거리가 정한다 (`palette.ts`). **카드는 `CARD_ORDERS`다** — 넓이를
+ * 채우는 것이 `-soft` 쪽이라 옅은 색이 병목이다.
  */
-const CHART_CLASSES = shuffled([
-  'border-chart-1 bg-chart-1-soft',
-  'border-chart-2 bg-chart-2-soft',
-  'border-chart-3 bg-chart-3-soft',
-  'border-chart-4 bg-chart-4-soft',
-  'border-chart-5 bg-chart-5-soft',
-  'border-chart-6 bg-chart-6-soft',
-  'border-chart-7 bg-chart-7-soft',
-])
+const CHART_CLASSES = reorder(
+  [
+    'border-chart-1 bg-chart-1-soft',
+    'border-chart-2 bg-chart-2-soft',
+    'border-chart-3 bg-chart-3-soft',
+    'border-chart-4 bg-chart-4-soft',
+    'border-chart-5 bg-chart-5-soft',
+    'border-chart-6 bg-chart-6-soft',
+    'border-chart-7 bg-chart-7-soft',
+  ],
+  pickOrder(CARD_ORDERS),
+)
 </script>
 
 <script setup lang="ts">
@@ -74,7 +83,6 @@ import type { Prediction } from '@/ml/metrics'
 import {
   answerRank,
   answersInClusters,
-  shuffled,
   clusterNumberOf,
   tallyClassificationAnswers,
   type PredictableModel,

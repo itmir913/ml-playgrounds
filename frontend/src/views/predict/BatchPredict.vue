@@ -25,6 +25,7 @@ import { importTable, openTable, TABULAR_ACCEPT, type TableDocument } from '@/da
 import { clearIfHeld, useWork } from '@/composables/useWork'
 import { toCanonicalCsv } from '@/data/serialize'
 import { pageSizeOf, predictPageSize } from '@/limits-switch'
+import { INK_ORDERS, pickOrder, reorder } from '@/palette'
 import type { Prediction } from '@/ml/metrics'
 import {
   interpreterFor,
@@ -37,7 +38,6 @@ import {
 import {
   assignAnswerColors,
   cellColorIndex,
-  shuffled,
   answerState,
   chosenProbability,
   predictDownloadGrid,
@@ -427,17 +427,24 @@ async function goToPage(index: number): Promise<void> {
  * 값마다 다른 글자색. `AnswerList.vue`와 같은 팔레트(architecture.md §8.13.1)이지만
  * **팔레트를 공유하진 않는다** - `PredictView.vue`에서 이 화면과 `AnswerList`는
  * `v-if`/`v-else`로 갈려 동시에 안 보이므로, 같은 값이 두 화면에서 같은 색일 이유가
- * 없다. 그래서 여기서 따로, 뜰 때 한 번만 섞는다.
+ * 없다. 그래서 여기서 따로, 뜰 때 한 번만 정한다.
+ *
+ * **차례는 거리가 정한다** (#18, `palette.ts`). 1,2,3…으로 주면 값이 넷일 때
+ * chart-1과 chart-4가 어두운 배색에서 ΔE2000으로 9.3까지 붙는다. **여기는
+ * `INK_ORDERS`다** - 표는 배경을 안 칠하고 글자색만 쓰므로 진한 색만 본다.
  */
-const CHART_CLASSES = shuffled([
-  'text-chart-1',
-  'text-chart-2',
-  'text-chart-3',
-  'text-chart-4',
-  'text-chart-5',
-  'text-chart-6',
-  'text-chart-7',
-])
+const CHART_CLASSES = reorder(
+  [
+    'text-chart-1',
+    'text-chart-2',
+    'text-chart-3',
+    'text-chart-4',
+    'text-chart-5',
+    'text-chart-6',
+    'text-chart-7',
+  ],
+  pickOrder(INK_ORDERS),
+)
 
 /**
  * 값 -> 색 인덱스. **등수(개수 순)가 아니라 처음 본 순서다** - 왜인지, 일곱 개를

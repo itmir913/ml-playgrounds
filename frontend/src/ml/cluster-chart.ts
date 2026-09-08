@@ -18,6 +18,8 @@
 
 import type { ChartData, ChartOptions, PointStyle } from 'chart.js'
 
+import { CHART_COLORS, INK_ORDER } from '@/palette'
+
 import type { ClusterSummary, ScatterData } from './clusters'
 
 /**
@@ -151,9 +153,21 @@ export const FALLBACK_PALETTE: readonly string[] = [
 /** 색은 일곱을 돌려 쓰고 여덟 번째 군집부터 모양을 바꾼다 (#28-3). */
 export const POINT_SHAPES: readonly PointStyle[] = ['circle', 'triangle', 'rect']
 
+/**
+ * 군집 하나의 색. **돌려 쓰는 차례가 1,2,3…이 아니다** (#18, `palette.ts`).
+ *
+ * 순서대로 주면 군집 넷짜리 그림에서 0번(chart-1)과 3번(chart-4)이 어두운 배색에서
+ * ΔE2000으로 9.3까지 붙는다. 거리순 차례를 쓰면 넷일 때 최악이 26.7이다.
+ *
+ * **여기는 무작위를 안 쓴다** (`INK_ORDER`, 고정). 군집 번호는 그 모델이 매긴 이름이라
+ * 프로젝트를 다시 열 때마다 0번의 색이 바뀌면 어제 본 그림과 못 맞춘다.
+ */
 export function clusterColor(tokens: ClusterChartTokens, cluster: number): string {
   const palette = tokens.palette
-  return palette.length === 0 ? tokens.ink : (palette[cluster % palette.length] ?? tokens.ink)
+  if (palette.length === 0) return tokens.ink
+  const slot = cluster % palette.length
+  const ordered = palette.length === CHART_COLORS ? (INK_ORDER[slot] ?? slot) : slot
+  return palette[ordered] ?? tokens.ink
 }
 
 export function clusterShape(tokens: ClusterChartTokens, cluster: number): PointStyle {

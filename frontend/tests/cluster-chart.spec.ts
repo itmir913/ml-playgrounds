@@ -201,8 +201,12 @@ describe('가리켜도 표식이 안 변한다', () => {
 describe('색과 모양', () => {
   it('일곱을 돌려 쓰고 여덟 번째부터 모양을 바꾼다', () => {
     // 색을 스무 개로 늘리지 않는다 - 늘리는 순간 색맹 안전이라는 근거가 깨진다 (#28-3).
-    expect(clusterColor(TOKENS, 0)).toBe('c1')
-    expect(clusterColor(TOKENS, 7)).toBe('c1')
+    //
+    // **0번이 chart-1이 아니다** (#18). 돌려 쓰는 차례는 1,2,3…이 아니라 거리순이고
+    // (`palette.ts`의 `INK_ORDER`), 그 첫 자리가 chart-4다. 바닥값은
+    // `palette.spec.ts`가 지킨다 - 여기가 재는 것은 **일곱마다 돌아온다**는 것뿐이다.
+    expect(clusterColor(TOKENS, 0)).toBe('c4')
+    expect(clusterColor(TOKENS, 7)).toBe('c4')
     expect(clusterShape(TOKENS, 0)).toBe('circle')
     expect(clusterShape(TOKENS, 7)).toBe('triangle')
     expect(clusterShape(TOKENS, 14)).toBe('rect')
