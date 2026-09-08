@@ -10,12 +10,28 @@
 import { describe, expect, it } from 'vitest'
 
 import { describeChanges, memberDiff } from '../src/ml/changes'
-import type { ComparableSource } from '../src/ml/experiment'
-import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/ml/experiment'
+import type { ComparableSource, ExperimentPrelude } from '../src/ml/experiment'
+import {
+  assembleExperiment,
+  comparablePair,
+  runExperiment as runExperimentRaw,
+  type ExperimentInput,
+} from '../src/ml/experiment'
 import { dataSnapshot } from '../src/project/schema'
 import type { RuntimeContext } from '../src/ml/backend'
-import type { Experiment, Settings, TabularSettings } from '../src/project/schema'
+import type { Experiment, Run, Settings, TabularSettings } from '../src/project/schema'
 import { IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN, irisDataset } from './fixtures/iris'
+
+/**
+ * 견줌 객체가 낼 수 있는 경로 전부. **`changedPaths`와 같은 규칙으로 판다** — 객체는
+ * 파고들고 그 밖은 잎이다.
+ */
+function leafPaths(value: unknown, prefix = ''): string[] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return [prefix]
+  return Object.entries(value).flatMap(([key, held]) =>
+    leafPaths(held, prefix ? `${prefix}.${key}` : key),
+  )
+}
 
 /**
  * 스냅샷은 **표에서는 설정에서 그대로 나온다** (open-decisions.md "이미지 학습은 표
@@ -408,5 +424,104 @@ describe('모르는 경로도 버리지 않는다', () => {
   it('경로 목록이 비면 아무것도 안 만든다', async () => {
     const { first, second } = await twice({})
     expect(describeChanges(first, second, [])).toEqual([])
+  })
+
+  /**
+   * **그 관대함이 우리 경로를 덮으면 안 된다** (#20). 위 규칙은 남의 파일을 만났을 때의
+   * 예의인데, 우리가 만든 파일이 거기 걸려 학생에게 *"알 수 없는 설정이 바뀌었습니다"*가
+   * 떴다. 낯선 경로는 계속 받아 주되, **우리 생산자가 낼 수 있는 경로**에 이름 없는 것이
+   * 하나라도 있으면 여기서 운다.
+   */
+  it('우리가 낼 수 있는 경로에는 이름 없는 것이 없다', async () => {
+    const { first, second } = await twice({})
+    // `changed`가 아니라 견줌 객체 전체를 훑는다 - 이 검사가 바꾼 것만 보면
+    // 아무도 안 건드린 칸이 이름 없이 남아 있어도 조용하다.
+    const { before, after } = comparablePair(first, second)
+    const paths = [...new Set([...leafPaths(before), ...leafPaths(after)])]
+
+    expect(paths.length).toBeGreaterThan(5)
+    const nameless = describeChanges(first, second, paths).filter(
+      (change) => change.labelKey === null,
+    )
+    expect(nameless.map((change) => change.path)).toEqual([])
+  })
+})
+
+describe('학습을 중단한 실험', () => {
+  /**
+   * 취소한 뒤의 부분 실험. **워커 클라이언트가 하는 조립 그대로다**
+   * (`ml/worker/client.ts`) — 끝난 run만 쌓아 `assembleExperiment`에 넘긴다.
+   *
+   * 여기서 `runs`를 손으로 지어 넣으면 `changed` 계산이 지나는 길이 달라진다
+   * (`hyperparameters`는 run이 들고 있다).
+   */
+  async function stoppedAfter(
+    settings: Settings,
+    previous: Experiment,
+    keep: number,
+  ): Promise<Experiment> {
+    let prelude: ExperimentPrelude | undefined
+    const runs: Run[] = []
+    await runExperiment(inputFor(settings), {
+      history: { experiments: [previous] },
+      onPrelude: (given) => {
+        prelude = given
+      },
+      onRun: (run) => {
+        if (runs.length < keep) runs.push(run)
+      },
+    })
+    if (!prelude) throw new Error('the experiment never reached its model loop')
+    return assembleExperiment({ prelude, previous, runs })
+  }
+
+  const TWO: Settings = settingsFor({
+    selectedAlgorithms: [{ algorithm: 'decision_tree' }, { algorithm: 'naive_bayes' }],
+  })
+
+  /**
+   * **#20 그대로다.** 학생은 [멈추기]만 눌렀는데 결과 화면이 안 돈 모델 수만큼
+   * "설정이 바뀌었다"고 적었다. 안 돈 모델은 견줄 결과가 없다.
+   */
+  it('안 돈 모델을 설정 변경이라고 말하지 않는다', async () => {
+    const first = (await runExperiment(inputFor(TWO))).experiment
+    const stopped = await stoppedAfter(TWO, first, 1)
+
+    expect(stopped.runs).toHaveLength(1)
+    expect(stopped.settings.selectedAlgorithms).toHaveLength(2)
+    expect(stopped.changed).toEqual([])
+  })
+
+  /**
+   * **끝난 쪽은 계속 본다.** 위를 "하이퍼파라미터를 통째로 안 본다"로 고치면 이 검사가
+   * 운다 — 돈 모델의 설정을 바꾼 것은 학생이 한 일이고 이력에 남아야 한다.
+   */
+  it('끝난 모델의 하이퍼파라미터는 그대로 견준다', async () => {
+    const first = (await runExperiment(inputFor(TWO))).experiment
+    const deeper: Settings = {
+      ...TWO,
+      hyperparameters: { decision_tree: { mljs: { maxDepth: 3 } } },
+    }
+    const stopped = await stoppedAfter(deeper, first, 1)
+
+    expect(stopped.changed).toEqual(['hyperparameters.decision_tree:mljs.maxDepth'])
+    expect(describeChanges(first, stopped, stopped.changed ?? [])[0]?.labelKey).toBe(
+      'hyperparams.maxDepth',
+    )
+  })
+
+  /**
+   * 중단은 **설정 변경을 가리지도 않는다.** 위 둘만 있으면 "중단이면 전부 침묵"으로
+   * 고쳐도 초록이다.
+   */
+  it('중단해도 학생이 바꾼 설정은 그대로 뜬다', async () => {
+    const first = (await runExperiment(inputFor(TWO))).experiment
+    const wider: Settings = {
+      ...TWO,
+      split: { method: 'holdout', testSize: 0.5, stratify: true, randomState: 42 },
+    }
+    const stopped = await stoppedAfter(wider, first, 1)
+
+    expect(stopped.changed).toEqual(['split.testSize'])
   })
 })

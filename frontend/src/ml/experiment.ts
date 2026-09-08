@@ -354,6 +354,13 @@ export interface ComparableSource {
  * 하이퍼파라미터는 **양쪽에 다 있는 (알고리즘, 실행 방법)만** 본다. KNN을 목록에서 빼면
  * 그 하이퍼파라미터도 같이 사라지는데, 둘 다 적으면 학생은 하나를 바꾸고 두 줄을 보게
  * 된다. 목록이 바뀐 것은 `algorithms` 한 줄로 이미 드러난다.
+ *
+ * **"있다"의 기준은 고른 것이 아니라 돈 것이다** (#20). 학습을 중단하면 뒤쪽 모델은
+ * `selectedAlgorithms`에는 있는데 run이 없고(`open-decisions.md` "멈추기가 끝난 것을
+ * 남긴다" §1), 하이퍼파라미터는 run에서 읽으므로 그 자리가 통째로 빈다. 고른 것으로
+ * 재면 그것이 **"있다가 없어졌다"**로 잡혀, 아무것도 안 바꾼 학생에게
+ * *"알 수 없는 설정이 바뀌었습니다"*가 모델 수만큼 뜬다. **안 돈 모델은 견줄 결과가
+ * 애초에 없다** — 무엇이 안 돌았는지는 결과 표가 말한다.
  */
 export function comparablePair(
   previous: ComparableSource,
@@ -361,10 +368,21 @@ export function comparablePair(
 ): { before: Record<string, unknown>; after: Record<string, unknown> } {
   const key = (selection: { algorithm: string; runtime: string }): string =>
     `${selection.algorithm}:${selection.runtime}`
-  const after = new Set(current.settings.selectedAlgorithms.map(key))
-  const shared = new Set(
-    previous.settings.selectedAlgorithms.map(key).filter((id) => after.has(id)),
-  )
+  /**
+   * 그 (알고리즘, 실행 방법)의 하이퍼파라미터가 **파일에 실제로 남았는가.**
+   * `comparable()`이 읽는 것과 같은 자리를 같은 방식으로 짚는다 — 여기서 갈리면
+   * 걸러 낸 키가 저쪽에서 다시 살아난다.
+   */
+  const recorded = (source: ComparableSource): Set<string> => {
+    const found = new Set<string>()
+    source.settings.selectedAlgorithms.forEach((selection, index) => {
+      if (source.runs[index]?.hyperparameters) found.add(key(selection))
+    })
+    return found
+  }
+
+  const after = recorded(current)
+  const shared = new Set([...recorded(previous)].filter((id) => after.has(id)))
 
   return {
     before: comparable(previous.settings, previous.runs, shared),
