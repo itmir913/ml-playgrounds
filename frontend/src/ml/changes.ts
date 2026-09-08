@@ -12,7 +12,7 @@
  */
 
 import { HASH_PREVIEW_LENGTH } from '../limits'
-import { comparablePair, type ComparableSource } from './experiment'
+import { comparablePair, sharedModelKeys, type ComparableSource } from './experiment'
 
 /**
  * 전후 값 하나의 서술.
@@ -280,10 +280,34 @@ function hyperparameter(
 }
 
 /**
+ * 그릴 것이 있는 경로인가 (#20).
+ *
+ * **`hyperparameters.<모델>`인데 그 모델이 견줌 대상이 아니면 없다.** 한쪽에 run이
+ * 없다는 뜻이고, 그러면 전후 어느 쪽에도 값이 없다 — `알 수 없는 설정이 바뀌었습니다`
+ * 한 줄만 남는데 **바뀐 것이 없으므로 그 문장이 거짓이다.**
+ *
+ * **판정은 만드는 쪽과 같은 함수가 한다** (`sharedModelKeys`). 두 벌이면 여기서 걸러 낸
+ * 경로가 저쪽에서 되살아난다.
+ *
+ * **낯선 경로는 안 건드린다.** `hyperparameters`로 시작하지 않으면 그대로 지나가고,
+ * 남의 파일이 보낸 `hyperparameters.X:Y`도 양쪽에 run이 있으면 그린다.
+ */
+function hasSomethingToCompare(path: string, models: ReadonlySet<string>): boolean {
+  const parts = path.split('.')
+  if (parts[0] !== 'hyperparameters') return true
+  const model = parts[1]
+  return model === undefined || models.has(model)
+}
+
+/**
  * 두 실험 사이의 변경들. **`changed`에 적힌 경로만** 본다.
  *
  * 경로 목록을 여기서 다시 계산하지 않는 이유는, 그것이 **학습 시점에 확정된 사실**이기
  * 때문이다. 파일에 적힌 것과 화면이 보여주는 것이 다르면 어느 쪽이 참인지 아무도 모른다.
+ *
+ * **그래도 그릴 것이 없는 경로는 뺀다** (#20, `architecture.md` §8.13). 다시 계산하는
+ * 것이 아니라 **파일이 스스로 말하는 사실**로 거른다 — 안 돈 모델에는 견줄 결과가 없다.
+ * 옛 파일에 이미 적힌 거짓 줄이 이 필터로 조용해진다. 파일은 안 고친다.
  */
 export function describeChanges(
   previous: ComparableSource,
@@ -291,28 +315,31 @@ export function describeChanges(
   paths: readonly string[],
 ): Change[] {
   const { before, after } = comparablePair(previous, current)
+  const compared = sharedModelKeys(previous, current)
 
-  return paths.map((path) => {
-    const parameter = hyperparameter(path)
-    if (parameter) {
+  return paths
+    .filter((path) => hasSomethingToCompare(path, compared))
+    .map((path) => {
+      const parameter = hyperparameter(path)
+      if (parameter) {
+        const steps = path.split('.')
+        return {
+          path,
+          labelKey: `hyperparams.${parameter.name}`,
+          from: literal(at(before, steps)),
+          to: literal(at(after, steps)),
+          model: parameter.model,
+        }
+      }
+
+      const known = LABELS[path]
       const steps = path.split('.')
+      const describe = known?.describe ?? literal
       return {
         path,
-        labelKey: `hyperparams.${parameter.name}`,
-        from: literal(at(before, steps)),
-        to: literal(at(after, steps)),
-        model: parameter.model,
+        labelKey: known?.labelKey ?? null,
+        from: describe(at(before, steps)),
+        to: describe(at(after, steps)),
       }
-    }
-
-    const known = LABELS[path]
-    const steps = path.split('.')
-    const describe = known?.describe ?? literal
-    return {
-      path,
-      labelKey: known?.labelKey ?? null,
-      from: describe(at(before, steps)),
-      to: describe(at(after, steps)),
-    }
-  })
+    })
 }

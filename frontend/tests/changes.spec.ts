@@ -514,6 +514,31 @@ describe('학습을 중단한 실험', () => {
    * 중단은 **설정 변경을 가리지도 않는다.** 위 둘만 있으면 "중단이면 전부 침묵"으로
    * 고쳐도 초록이다.
    */
+  /**
+   * **옛 파일에는 이미 적혀 있다** (#20). 생산자를 고쳐도 나간 `.mlpx`는 안 바뀌고,
+   * 그건 수행평가 제출물이라 교사가 연다. 파일을 고쳐 쓰지 않고 **그리지 않는다.**
+   */
+  it('옛 파일에 적힌 그 경로는 화면에서 조용하다', async () => {
+    const first = (await runExperiment(inputFor(TWO))).experiment
+    const stopped = await stoppedAfter(TWO, first, 1)
+    // 고치기 전 코드가 파일에 적던 것 그대로다 — 안 돈 모델의 두 조각짜리 경로.
+    const written = ['hyperparameters.naive_bayes:mljs']
+
+    expect(describeChanges(first, stopped, written)).toEqual([])
+  })
+
+  /**
+   * **모양으로 자르지 않았다는 것을 재는 자리다.** 두 조각짜리 경로를 통째로 빼는
+   * 구현은 여기서 운다 — 남의 파일이 보낸 것이어도 양쪽에 run이 있으면 그린다.
+   */
+  it('양쪽에 run이 있으면 두 조각짜리 경로도 그대로 뜬다', async () => {
+    const { first, second } = await twice({})
+    const foreign = ['hyperparameters.decision_tree:mljs']
+
+    expect(describeChanges(first, second, foreign)).toHaveLength(1)
+    expect(describeChanges(first, second, foreign)[0]?.path).toBe(foreign[0])
+  })
+
   it('중단해도 학생이 바꾼 설정은 그대로 뜬다', async () => {
     const first = (await runExperiment(inputFor(TWO))).experiment
     const wider: Settings = {

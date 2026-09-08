@@ -304,7 +304,7 @@ function comparable(
   // runs는 selectedAlgorithms와 같은 순서로 만들어진다. 그래서 index로 짝지을 수 있고,
   // 같은 알고리즘이 두 실행 방법으로 두 번 들어와도 서로 덮어쓰지 않는다.
   settings.selectedAlgorithms.forEach((selection, index) => {
-    const key = `${selection.algorithm}:${selection.runtime}`
+    const key = modelKey(selection)
     if (!shared.has(key)) return
     const values = runs[index]?.hyperparameters
     if (values) hyperparameters[key] = values
@@ -330,9 +330,7 @@ function comparable(
     nSamples: settings.nSamples ?? null,
     // 모델과 그 실행 방법을 함께 본다. 알고리즘은 그대로인데 엔진만 바꾼 것도
     // 학생이 한 변경이고, 숫자가 움직이는 가장 흔한 이유다.
-    algorithms: settings.selectedAlgorithms.map(
-      (selection) => `${selection.algorithm}:${selection.runtime}`,
-    ),
+    algorithms: settings.selectedAlgorithms.map(modelKey),
     hyperparameters,
   }
 }
@@ -341,6 +339,48 @@ function comparable(
 export interface ComparableSource {
   readonly settings: Experiment['settings']
   readonly runs: readonly Run[]
+}
+
+/** `알고리즘:실행방법`. 하이퍼파라미터를 묶는 키이자 `changed` 경로의 가운데 조각이다. */
+export function modelKey(selection: { algorithm: string; runtime: string }): string {
+  return `${selection.algorithm}:${selection.runtime}`
+}
+
+/**
+ * 하이퍼파라미터가 **파일에 실제로 남은** (알고리즘, 실행 방법)들 (#20).
+ *
+ * **고른 것이 아니라 돈 것이다.** 학습을 중단하면 뒤쪽 모델은 `selectedAlgorithms`에는
+ * 있는데 run이 없다 (`open-decisions.md` "멈추기가 끝난 것을 남긴다" §1). 하이퍼파라미터는
+ * run이 들고 있으므로 그 자리는 통째로 비어 있고, **비어 있는 것을 "없어졌다"로 읽으면
+ * 아무것도 안 바꾼 학생에게 설정이 바뀌었다고 말하게 된다.**
+ *
+ * **쓰는 곳이 둘이고 그래서 함수가 하나다.** 만드는 쪽(`comparablePair`)과 읽는
+ * 쪽(`describeChanges`, 옛 파일에 이미 적힌 경로를 거른다)이 같은 문장을 써야 한다 —
+ * 두 벌이면 걸러 낸 경로가 저쪽에서 되살아난다.
+ *
+ * `comparable()`이 값을 꺼내는 자리와 **같은 자리를 같은 방식으로 짚는다** (index 짝짓기).
+ */
+function recordedModelKeys(source: ComparableSource): Set<string> {
+  const found = new Set<string>()
+  source.settings.selectedAlgorithms.forEach((selection, index) => {
+    if (source.runs[index]?.hyperparameters) found.add(modelKey(selection))
+  })
+  return found
+}
+
+/**
+ * 두 실험이 **함께 견줄 수 있는** (알고리즘, 실행 방법)들. 위 집합의 교집합이다.
+ *
+ * **만드는 쪽과 읽는 쪽이 이것 하나를 부른다** — `comparablePair`가 견줌 객체를 지을 때,
+ * `describeChanges`가 옛 파일에 이미 적힌 경로를 거를 때. 판정이 두 벌이면 한쪽이 뺀
+ * 경로가 다른 쪽에서 되살아난다.
+ */
+export function sharedModelKeys(
+  previous: ComparableSource,
+  current: ComparableSource,
+): Set<string> {
+  const after = recordedModelKeys(current)
+  return new Set([...recordedModelKeys(previous)].filter((id) => after.has(id)))
 }
 
 /**
@@ -366,23 +406,7 @@ export function comparablePair(
   previous: ComparableSource,
   current: ComparableSource,
 ): { before: Record<string, unknown>; after: Record<string, unknown> } {
-  const key = (selection: { algorithm: string; runtime: string }): string =>
-    `${selection.algorithm}:${selection.runtime}`
-  /**
-   * 그 (알고리즘, 실행 방법)의 하이퍼파라미터가 **파일에 실제로 남았는가.**
-   * `comparable()`이 읽는 것과 같은 자리를 같은 방식으로 짚는다 — 여기서 갈리면
-   * 걸러 낸 키가 저쪽에서 다시 살아난다.
-   */
-  const recorded = (source: ComparableSource): Set<string> => {
-    const found = new Set<string>()
-    source.settings.selectedAlgorithms.forEach((selection, index) => {
-      if (source.runs[index]?.hyperparameters) found.add(key(selection))
-    })
-    return found
-  }
-
-  const after = recorded(current)
-  const shared = new Set([...recorded(previous)].filter((id) => after.has(id)))
+  const shared = sharedModelKeys(previous, current)
 
   return {
     before: comparable(previous.settings, previous.runs, shared),
