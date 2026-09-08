@@ -25,6 +25,19 @@
  * 학생에게 나가는 화면이고, 이 페이지는 코드 소유자만 연다.
  */
 
+/**
+ * **워커를 번들에 굽는다** (`?worker&inline`, 2026-09-09).
+ *
+ * `new Worker(new URL('./bench.worker.ts', import.meta.url))`이면 빌드가 **파일 둘**을
+ * 낸다. 개발 서버로 열 때는 아무 문제가 없지만, **다른 컴퓨터로 들고 갈 파일 하나**를
+ * 구울 수 없다 (`scripts/bench-standalone.mjs`) — 실측은 개발 PC 밖에서도 해야 하고
+ * 그쪽에 저장소를 세우게 할 수는 없다.
+ *
+ * 인라인은 워커를 base64로 안고 blob URL로 띄운다. **워커에서 돈다는 사실은 안 바뀐다**
+ * (`bench.worker.ts` 머리말의 이유들) — 바뀌는 것은 그 코드가 어디서 오는가뿐이다.
+ */
+import BenchWorker from './bench.worker.ts?worker&inline'
+
 import type { BenchReply, BenchRequest } from './bench.worker'
 import {
   ALL_LADDERS,
@@ -213,7 +226,7 @@ function snapshot(): Record<string, unknown> {
  * 몇 초째인지가 보인다. 진짜로 죽으면 `onerror`나 침묵으로 온다.
  */
 function runInWorker(id: string, request: BenchRequest): Promise<Outcome> {
-  const worker = new Worker(new URL('./bench.worker.ts', import.meta.url), { type: 'module' })
+  const worker = new BenchWorker()
   // **시작을 먼저 적고 저장한다.** 말없이 죽으면 이 줄만 남고, 그 줄이 곧 답이다.
   running = id
   publish()
@@ -432,3 +445,35 @@ try {
 } catch {
   // 못 읽으면 빈 상자다. 그것도 사실이다.
 }
+
+/**
+ * **워커가 뜨는지 먼저 확인한다** (2026-09-09).
+ *
+ * 파일 하나로 구운 하니스(`scripts/bench-standalone.mjs`)는 워커를 blob으로 띄우고,
+ * **브라우저가 그것을 막을 수 있다** — `file://`로 열면 출처가 없어서다. 막히면
+ * `onerror`가 오는데 그것은 **메모리가 모자라 워커가 죽은 것과 똑같이 생겼다.**
+ * 그대로 재게 두면 사다리마다 첫 점에서 `워커가 죽었다`가 찍히고, 그 JSON은
+ * **"이 기기는 5,000행에서 깨진다"로 읽힌다.** 못 연 것이 실측으로 굳는다.
+ *
+ * **그래서 재기 전에 막는다.** 단추를 잠그고 무엇을 해야 하는지 적는다 — 여기서
+ * 조용히 넘어가면 그다음에 나오는 것은 틀린 값이지 없는 값이 아니다.
+ */
+void (async () => {
+  busy(true)
+  status.textContent = '워커를 띄워 보는 중…'
+  const outcome = await runInWorker('ping', { kind: 'ping' })
+  if (outcome.ok) {
+    status.textContent = json.value === '' ? '' : status.textContent
+    busy(false)
+    return
+  }
+  status.innerHTML =
+    '<b style="color: #b91c1c;">이 브라우저에서 워커를 띄우지 못했습니다.</b> ' +
+    `(${outcome.how} — ${outcome.detail})<br>` +
+    '<code>file://</code>로 연 파일 하나짜리 하니스라면 브라우저가 막은 것입니다. ' +
+    '<b>Firefox로 열어 보세요</b> — 같은 파일이 그쪽에서는 대개 열립니다. ' +
+    '그래도 안 되면 이 파일이 있는 폴더에서 <code>npx serve</code> 같은 것으로 띄우고 ' +
+    '<code>http://…</code> 주소로 여세요.<br>' +
+    '<b>이 상태로 잰 값은 쓸 수 없습니다</b> — 워커가 못 뜬 것이 “상한에 닿았다”와 똑같이 기록됩니다.'
+  // 단추는 잠근 채로 둔다.
+})()

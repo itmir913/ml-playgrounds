@@ -30,6 +30,17 @@ export type BenchRequest =
    * 앱은 새 워커 하나에서 일감 둘을 이어 돌린다(`ml/worker/handler.ts`).
    */
   | { readonly kind: 'calibration-set' }
+  /**
+   * **아무것도 안 재고 살아 있다고만 답한다** (2026-09-09).
+   *
+   * 파일 하나로 구운 하니스는 워커를 blob으로 띄우는데(`scripts/bench-standalone.mjs`),
+   * **브라우저가 그것을 막을 수 있다** — `file://`에서 열면 출처가 없기 때문이다.
+   * 막히면 `onerror`가 오고, 그건 **메모리가 모자라 워커가 죽은 것과 똑같이 생겼다.**
+   * 그대로 두면 *"첫 점에서 상한에 닿았다"*가 되어 **못 띄운 것이 실측으로 남는다.**
+   *
+   * 그래서 아무 점도 재기 전에 한 번 물어 본다. 여기가 안 오면 잰 것이 아니라 못 연 것이다.
+   */
+  | { readonly kind: 'ping' }
 
 /**
  * 그 점의 답. **던진 것도 답이다** — 메모리가 모자라면 그렇게 오고, 그 자리가 상한이다.
@@ -85,6 +96,11 @@ const scope = self as unknown as WorkerScope
 
 scope.onmessage = async (event) => {
   const request = event.data
+  // **살아 있다는 말만 한다.** 일감을 하나라도 돌리면 그것이 첫 점의 열을 데운다.
+  if (request.kind === 'ping') {
+    scope.postMessage({ ok: true, elapsed: 0 })
+    return
+  }
   // **판단은 `workloads.ts`가 한다** — 여기 두면 검사가 못 닿는다(감사 B-2).
   const outcome =
     request.kind === 'calibration-set'
