@@ -42,6 +42,7 @@ import {
   MLJS_IMAGE_KNN_ROW_LIMIT,
   MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT,
   MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT,
+  MLJS_IMAGE_NEURAL_NETWORK_ROW_LIMIT,
   MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT,
   MLJS_IMAGE_SVM_ROW_LIMIT,
   PROJECT_FILE_WARN_BYTES,
@@ -366,18 +367,32 @@ describe('산점도 상한이 화면까지 이어진다', () => {
  * 것이 그것이다. 대신 **순서**를 못 박는다. 순서는 실측이 정한 사실이고 값이 바뀌어도
  * 안 뒤집힌다 — 뒤집히면 그건 새 실측이라 이 줄을 함께 고칠 자리다.
  *
- * 근거는 각 상수의 주석에 있는 2026-08-14 실측이다. 랜덤포레스트가 500장 113초인데
- * 결정 트리는 1,000장 58.7초다 — **무거운 쪽이 더 낮아야 한다.**
+ * **그 순서가 2026-09-10에 뒤집혔다 — 새 실측이라 이 줄을 함께 고쳤다.** 위 문단이
+ * 적어 둔 그 자리다. 무거운 셋(결정 트리·랜덤포레스트·SVM)을 **깨질 때까지 밀었는데
+ * 안 깨졌다** — 5,000장까지 셋 다 완주했다(`open-decisions.md` "그러면 상한은 시간으로
+ * 정하는 것이 아니다"의 **넷째 실측**). 옛 순서의 근거는 *시간*이었고, 그 결정문이
+ * 시간을 상한의 근거에서 이미 뺐다.
+ *
+ * **그래서 지금 못 박는 것은 순서가 아니라 자리다** — 사진 칸 일곱 중 **신경망만**
+ * 천장보다 낮고 나머지 여섯은 천장이다. 신경망은 이 판에서 안 쟀다(상한 사다리가 없다).
  */
-describe('이미지 행 상한은 무거운 순서다', () => {
-  it('무거운 둘이 가벼운 것보다 낮다', () => {
-    expect(MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT).toBeLessThan(MLJS_IMAGE_DECISION_TREE_ROW_LIMIT)
-    expect(MLJS_IMAGE_DECISION_TREE_ROW_LIMIT).toBeLessThan(MLJS_IMAGE_SVM_ROW_LIMIT)
-    expect(MLJS_IMAGE_SVM_ROW_LIMIT).toBeLessThan(MLJS_IMAGE_KNN_ROW_LIMIT)
+describe('사진 행 상한은 신경망만 남았다', () => {
+  it('안 잰 신경망만 천장보다 낮다', () => {
+    expect(MLJS_IMAGE_NEURAL_NETWORK_ROW_LIMIT).toBeLessThan(MAX_IMAGE_COUNT)
   })
 
-  /** 재 보니 상한을 둘 이유가 없던 넷. 사진 수 천장을 그대로 쓴다. */
-  it('가벼운 넷은 사진 수 천장을 그대로 쓴다', () => {
+  /**
+   * **재 보니 상한을 둘 이유가 없던 여섯.**
+   *
+   * **`limits.ts`는 이 셋을 `MAX_IMAGE_COUNT`가 아니라 숫자로 들고 있다** — 전역이
+   * 오르는 날 **안 잰 크기를 대신 허락하지 않으려고**다(랜덤포레스트가 5,000장에서
+   * 137.7분이다). 그래서 여기 이 줄이 곧 **전역을 올리는 사람에게 걸리는 덫**이다:
+   * 천장이 오르면 이 검사가 울고, 그때 할 일은 값을 맞추는 것이 아니라 **다시 재는 것**이다.
+   */
+  it('나머지 여섯은 사진 수 천장과 같다', () => {
+    expect(MLJS_IMAGE_DECISION_TREE_ROW_LIMIT).toBe(MAX_IMAGE_COUNT)
+    expect(MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT).toBe(MAX_IMAGE_COUNT)
+    expect(MLJS_IMAGE_SVM_ROW_LIMIT).toBe(MAX_IMAGE_COUNT)
     expect(MLJS_IMAGE_KNN_ROW_LIMIT).toBe(MAX_IMAGE_COUNT)
     expect(MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT).toBe(MAX_IMAGE_COUNT)
     expect(MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT).toBe(MAX_IMAGE_COUNT)

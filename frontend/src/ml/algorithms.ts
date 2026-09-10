@@ -29,7 +29,10 @@ import {
   MLJS_IMAGE_KNN_ROW_LIMIT,
   MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT,
   MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT,
+  MLJS_IMAGE_DECISION_TREE_BASELINE_MS,
   MLJS_IMAGE_NEURAL_NETWORK_BASELINE_MS,
+  MLJS_IMAGE_RANDOM_FOREST_BASELINE_MS,
+  MLJS_IMAGE_SVM_BASELINE_MS,
   MLJS_IMAGE_NEURAL_NETWORK_ROW_LIMIT,
   MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT,
   MLJS_IMAGE_SVM_ROW_LIMIT,
@@ -111,7 +114,8 @@ export const ALGORITHMS: readonly Algorithm[] = [
     },
     baseline: {
       tabular: { ms: MLJS_DECISION_TREE_BASELINE_MS, columns: 'linear' },
-      image: UNMEASURED_BASELINE,
+      // **차원이 표에 들어 있다** — `flat`인 이유는 사진 신경망 칸과 같다.
+      image: { ms: MLJS_IMAGE_DECISION_TREE_BASELINE_MS, columns: 'flat' },
     },
   },
   {
@@ -157,7 +161,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
     },
     baseline: {
       tabular: { ms: MLJS_RANDOM_FOREST_BASELINE_MS, columns: 'linear' },
-      image: UNMEASURED_BASELINE,
+      image: { ms: MLJS_IMAGE_RANDOM_FOREST_BASELINE_MS, columns: 'flat' },
     },
   },
   {
@@ -189,7 +193,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
     },
     baseline: {
       tabular: { ms: MLJS_SVM_BASELINE_MS, columns: 'linear' },
-      image: UNMEASURED_BASELINE,
+      image: { ms: MLJS_IMAGE_SVM_BASELINE_MS, columns: 'flat' },
     },
   },
   {
