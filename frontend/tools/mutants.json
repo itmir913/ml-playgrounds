@@ -356,11 +356,19 @@
     },
     {
       "file": "src/ml/engines/neural.ts",
-      "find": "    if (epochLoss > best - TOL) stale += 1",
+      "find": "    if (epochLoss > best - tol) stale += 1",
       "replace": "    if (epochLoss > best) stale += 1",
-      "expect": "silent",
+      "expect": "cries",
       "expectSpecs": ["tests/neural.spec.ts", "tests/sklearn-parity.spec.ts"],
-      "loses": "tol이 사라져 sklearn과 다른 자리에서 멈춘다 - 경고가 붙는 실행이 달라진다 (R25 N2)"
+      "loses": "tol이 사라져 sklearn과 다른 자리에서 멈춘다 - 경고가 붙는 실행이 달라진다 (R25 N2). 2026-09-10에 silent에서 cries로 옮겼다 - 'tol이 수렴 판정을 정한다'가 섰다"
+    },
+    {
+      "file": "src/ml/engines/neural.ts",
+      "find": "  const tol = options.tol ?? TOL",
+      "replace": "  const tol = options.tol || TOL",
+      "expect": "cries",
+      "expectSpecs": ["tests/neural.spec.ts", "tests/bench-rules.spec.ts"],
+      "loses": "tol 0이 조용히 기본값으로 되돌아가 실측 하니스가 천장이 아닌 것을 잰다 - 표의 위쪽이 짧게 틀린다 (2026-09-10)"
     },
     {
       "file": "src/ml/engines/neural.ts",

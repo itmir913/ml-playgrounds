@@ -163,6 +163,17 @@ function uniformData(rows: number, columns: number): { features: number[][]; tar
 }
 
 /**
+ * **신경망은 `tol`을 0으로 놓고 잰다.** `LOGISTIC_CEILING`과 같은 물건이고 같은 이유다 —
+ * 기준표는 **에폭 상한을 다 도는 경우**로 정의돼 있는데(`limits.ts`의
+ * `MLJS_NEURAL_NETWORK_BASELINE_MS`), 기본 `tol`에서는 행이 늘수록 에폭이 줄어 표의 위쪽이
+ * 천장이 아니게 된다.
+ *
+ * **등록부를 안 지난다** (`ml/engines/mljs-params.ts`에 `tol`이 없다). 그래서 이 값은
+ * `measureNeural`이 엔진을 직접 부를 때만 붙고, 학생 경로는 기본값 그대로다.
+ */
+const NEURAL_CEILING = { tol: 0 } as const
+
+/**
  * **에폭을 다 도는 신경망 한 번.** `measure`를 안 쓰는 이유는 K-평균과 같다 — 데이터가
  * 반복 횟수를 정한다.
  *
@@ -171,9 +182,13 @@ function uniformData(rows: number, columns: number): { features: number[][]; tar
  * 20,000행의 1.4배밖에 안 걸렸다(둘 다 잰 값이다) — 행이 늘수록 **에폭이 줄어서**다.
  * 그 표를 그대로 쓰면 어려운 데이터에서 예상이 짧게 틀린다.
  *
- * 여기는 **라벨이 특성과 무관한 데이터**를 준다. 은닉층이 그것을 외우려고 계속 내려가므로
- * 에폭 상한까지 간다 — 로지스틱을 `tol: 0`으로 재는 것과 같은 자리이고, 목적도 같다:
- * **천장을 잰다.**
+ * 여기는 **라벨이 특성과 무관한 데이터**를 주고, 거기에 **`tol: 0`을 함께 건다**
+ * (`NEURAL_CEILING`). 로지스틱과 같은 자리이고 목적도 같다: **천장을 잰다.**
+ *
+ * **데이터만으로는 모자랐다** (2026-09-09). 라벨이 무관해도 20,000행에서는 은닉 100개가
+ * 그 잡음을 못 외워 **31 에폭에 멈췄고**, 그래서 20,000행이 10,000행보다 빨랐다 —
+ * 행이 늘수록 에폭이 줄어 표가 가장 필요한 큰 행 쪽에서 곡선이 꺾인다. `tol: 0`이면
+ * 그 판정 자체가 안 선다 (`open-decisions.md` "신경망도 tol을 0으로 놓고 잰다").
  */
 async function measureNeural(
   rows: number,
@@ -207,7 +222,7 @@ async function measureNeural(
     features,
     targets,
     regression ? { kind: 'regression' } : { kind: 'classification', classCount: classes.length },
-    { hiddenLayers: layers, neuronsPerLayer: neurons },
+    { hiddenLayers: layers, neuronsPerLayer: neurons, ...NEURAL_CEILING },
     42,
   )
   // **예측과 평가까지 지나간다** — 다른 사다리와 같은 자리를 재려면 그래야 한다
@@ -230,16 +245,24 @@ async function measureNeural(
   return { elapsed: Math.round(performance.now() - started), iterations: fitted.epochs }
 }
 
-/** 점 하나의 결과. **반복 횟수는 K-평균만 답한다.** */
+/**
+ * 점 하나의 결과. **반복 횟수는 자기 데이터로 재는 사다리(`run`)만 답한다** — 지금은
+ * K-평균과 신경망 둘이다.
+ */
 export interface LadderResult {
   readonly elapsed: number
   /**
-   * Lloyd 반복이 몇 번 돌았나. **데이터가 정하는 값이라 손잡이가 아니다.**
+   * 반복이 몇 번 돌았나 — K-평균은 Lloyd 반복, 신경망은 에폭이다. **데이터가 정하는
+   * 값이라 손잡이가 아니다.**
    *
    * **이게 없으면 특성 축을 못 읽는다** (2026-09-01 R17 감사 C-3). K-평균 한 번의 비용은
    * `O(행 × k × 특성 × 반복)`이라 **반복 하나의 비용은 특성에 선형이어야 하는데**,
    * 잰 사다리는 특성이 늘수록 내려간다. 내려간 것이 열 비용인지 반복 횟수인지는 ms
    * 하나로 절대 안 갈리고, **엔진은 이미 이 수를 세고 있다**(`mljs-kmeans.ts`).
+   *
+   * **신경망이 그 칸으로 잡혔다** (2026-09-09). 20,000행이 10,000행보다 빠른 것이
+   * ms만으로는 잡음처럼 보였는데, 옆에 실린 `31`이 *"에폭이 줄었다"*고 말했다. 그래서
+   * 이 칸은 K-평균만의 것이 아니다 (`open-decisions.md` "신경망도 tol을 0으로 놓고 잰다").
    */
   readonly iterations?: number
 }
@@ -283,8 +306,10 @@ export interface Ladder {
   /**
    * 이 사다리가 **자기 데이터로** 재는가. 없으면 `measure(job(point))`를 쓴다.
    *
-   * K-평균만 이것을 갖는다 — 반복 횟수를 데이터가 정하는데 공용 생성기는 군집이
-   * 이미 갈려 있어 즉시 수렴한다(위 `uniformData`).
+   * **둘이 갖는다 — K-평균과 신경망.** 양쪽 다 반복 횟수를 데이터가 정하는데 공용
+   * 생성기로는 천장을 안 지난다: K-평균은 군집이 이미 갈려 있어 즉시 수렴하고(위
+   * `uniformData`), 신경망은 라벨이 특성에서 곧장 나와 손실이 금세 평평해진다
+   * (위 `measureNeural`).
    */
   readonly run?: (point: number) => LadderResult | Promise<LadderResult>
   /**
@@ -402,14 +427,42 @@ export const LADDERS: readonly Ladder[] = [
   },
   {
     /**
-     * **에폭이 고정이라 행 수에 선형이다** — 손잡이로 열지 않은 `max_iter`가 200이고,
-     * 한 에폭의 비용이 `O(행 × 가중치 수)`다. 로지스틱의 절벽(수렴하면 빠르고 안 하면
-     * 느리다)이 여기 없는 이유가 그것이다 — **여기는 언제나 천장을 지난다.**
+     * **에폭 상한을 다 도므로 행 수에 선형이다** — 한 에폭의 비용이 `O(행 × 가중치 수)`이고
+     * `max_iter`가 200에 고정이다.
+     *
+     * **"언제나 천장을 지난다"가 여기 적혀 있었고 틀렸다** (2026-09-09). 로지스틱의
+     * 절벽이 모양만 바꿔서 여기도 있었다 — 저쪽은 수렴하면 빨라지고, 이쪽은 **행이
+     * 늘수록 에폭이 줄어** 20,000행이 10,000행보다 빨랐다. 천장을 지나게 하는 것은
+     * 데이터가 아니라 `NEURAL_CEILING`이다.
      */
     id: 'neural_network',
     label: '인공신경망 · 행 수 (1층 × 100뉴런)',
     axis: 'rows',
     points: [1000, 2000, 5000, 10_000, 20_000],
+    job: (rows) => ({ algorithm: 'neural_network', rows }),
+    run: (rows) => measureNeural(rows, FEATURES, 1, 100),
+    growth: 1,
+  },
+  {
+    /**
+     * **위 사다리가 못 가는 한 점.** `tol: 0`을 걸면 20,000행이 `CEILING_MS`(20초) 위로
+     * 올라가고, 그러면 그 다음 점은 **앞 점이 천장을 넘겼다**로 선다.
+     *
+     * **천장을 올리지 않는다** — 그것은 모든 사다리를 함께 올리는 값이고, 랜덤포레스트
+     * 하나에 7분을 태우지 않으려고 거기 있다. 대신 **첫 점으로 들어간다**: `stopReason`은
+     * 앞 점으로만 판정하므로 앞이 없는 점은 언제나 돈다.
+     *
+     * `logistic_regression_iterations_deep`이 같은 자리에 있다 — 본 사다리가 서는 곳
+     * 너머의 모양을 따로 보려고 두는 한 판이다.
+     *
+     * **여기가 표의 끝인 이유**는 `MLJS_NEURAL_NETWORK_ROW_LIMIT`이 100,000이라서가
+     * 아니다. 100,000행은 이 기계에서 4분이 넘고, **표는 보간용이라 큰 쪽은 기울기로
+     * 잇는다**(`ml/estimate.ts`의 `interpolate`).
+     */
+    id: 'neural_network_deep',
+    label: '인공신경망 · 행 수 천장 너머 한 점 (50,000행 · 1층 × 100뉴런)',
+    axis: 'rows',
+    points: [50_000],
     job: (rows) => ({ algorithm: 'neural_network', rows }),
     run: (rows) => measureNeural(rows, FEATURES, 1, 100),
     growth: 1,

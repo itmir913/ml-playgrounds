@@ -30,9 +30,13 @@ import { NEURAL_BATCH_SIZE, NEURAL_MAX_EPOCHS, NEURAL_PARALLEL_CHUNK_ROWS } from
 import { shuffled } from '../shuffle'
 
 /**
- * sklearn `MLPClassifier`의 기본값. **여는 손잡이는 층 수와 뉴런 수 둘뿐이고**
+ * sklearn `MLPClassifier`의 기본값. **학생에게 여는 손잡이는 층 수와 뉴런 수 둘뿐이고**
  * (`ml/engines/mljs-params.ts`) 나머지는 여기 고정이다 — 수렴 설정은 수업 내용이 아니라
  * 수업 시간을 말아먹는 값이다(k-means·SVM과 같은 판단).
+ *
+ * **`TOL`만 밖에서 덮을 수 있다** (`NeuralOptions.tol`, 2026-09-10). 등록부에 없으므로
+ * 학생 경로에서는 여전히 이 값이고, 채우는 곳은 실측 하니스뿐이다 — 이유는 그 칸의
+ * 주석에 있다.
  *
  * **값을 바꾸면 학생의 결과가 바뀐다.** 그리고 sklearn 기본값에서 멀어지는 순간
  * *"파이썬으로 옮겨 가면 같은 것이 나온다"*가 깨진다 (CLAUDE.md §2).
@@ -42,8 +46,9 @@ const LEARNING_RATE_INIT = 0.001
 const BETA_1 = 0.9
 const BETA_2 = 0.999
 const EPSILON = 1e-8
+/** 수렴 판정의 기본 문턱. **`NeuralOptions.tol`이 비어 있을 때 쓰는 값이다.** */
 const TOL = 1e-4
-/** 손실이 `TOL`만큼도 안 줄어든 에폭이 이만큼 이어지면 멈춘다 (sklearn과 같다). */
+/** 손실이 `tol`만큼도 안 줄어든 에폭이 이만큼 이어지면 멈춘다 (sklearn과 같다). */
 const NO_IMPROVEMENT_LIMIT = 10
 
 /** 솔버의 손잡이. 기본값은 `mljs-params.ts`가 갖는다 — 여기는 받은 값을 쓸 뿐이다. */
@@ -52,6 +57,19 @@ export interface NeuralOptions {
   readonly hiddenLayers: number
   /** 층당 뉴런 수. sklearn `hidden_layer_sizes`의 **값**. */
   readonly neuronsPerLayer: number
+  /**
+   * 수렴 판정 문턱. sklearn `MLPClassifier`의 `tol`이고 기본값도 같다(`TOL`).
+   *
+   * **등록부에 없다** (`mljs-params.ts`) — 수렴 설정은 수업 내용이 아니라 수업 시간을
+   * 말아먹는 값이고, SVM·k-평균과 같은 판단이다. 앱은 이 칸을 안 채우므로 학생이 만나는
+   * 것은 언제나 기본값이다.
+   *
+   * **비어 있지 않은 유일한 자리가 실측 하니스다** (`tools/workloads.ts`의
+   * `NEURAL_CEILING`). 0을 주면 **에폭 상한까지 다 돈다** — 기준표는 천장을 재야 하고,
+   * 고정 `tol`에서는 행이 늘수록 에폭이 줄어 20,000행이 10,000행보다 빨랐다
+   * (`open-decisions.md` "신경망도 tol을 0으로 놓고 잰다").
+   */
+  readonly tol?: number
 }
 
 export interface FittedNeural {
@@ -630,6 +648,10 @@ export async function fitNeural(
   const pool = poolFactory !== undefined ? poolFactory({ features, targets, sizes, task }) : null
   const parameters = pool === null ? null : new Float64Array(parameterCellCount(sizes))
 
+  // **0도 값이다.** `||`로 접으면 `tol: 0`이 조용히 기본값으로 되돌아가고, 그러면
+  // 하니스가 재는 것이 천장이 아니게 된다 (`tools/workloads.ts`의 `NEURAL_CEILING`).
+  const tol = options.tol ?? TOL
+
   const lossCurve: number[] = []
   let best = Infinity
   let stale = 0
@@ -701,7 +723,7 @@ export async function fitNeural(
       epochs = epoch + 1
 
       // sklearn `_update_no_improvement_count`와 같은 판정이다.
-      if (epochLoss > best - TOL) stale += 1
+      if (epochLoss > best - tol) stale += 1
       else stale = 0
       if (epochLoss < best) best = epochLoss
       if (stale > NO_IMPROVEMENT_LIMIT) {

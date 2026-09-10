@@ -12,6 +12,7 @@
 
 import { describe, expect, it } from 'vitest'
 
+import { NEURAL_MAX_EPOCHS } from '../src/limits'
 import { fitNeural, neuralGradientForTest } from '../src/ml/engines/neural'
 import { fit } from '../src/ml/engines/mljs'
 import {
@@ -223,6 +224,58 @@ describe('씨앗이 결과를 정한다', () => {
     const a = await fitNeural(features, encoded, CLASSIFY2, options, 42)
     const b = await fitNeural(features, encoded, CLASSIFY2, options, 7)
     expect(a.lossCurve).not.toEqual(b.lossCurve)
+  })
+})
+
+/**
+ * **`tol`이 언제 멈출지를 정한다** (`open-decisions.md` "신경망도 tol을 0으로 놓고 잰다").
+ *
+ * 이 칸은 등록부에 없어서 **학생 경로로는 절대 안 채워진다.** 채우는 곳이 실측 하니스
+ * 하나뿐이라(`tools/workloads.ts`의 `NEURAL_CEILING`), 여기가 안 물면 그 하니스가
+ * 천장이 아닌 것을 재고 있어도 **아무 데서도 안 보인다** — 실제로 2026-09-09까지
+ * 그랬다.
+ *
+ * **라벨이 특성과 무관한 데이터를 쓰고 뉴런을 하나만 준다.** 잡음을 외울 수 없는 크기라
+ * 손실이 금세 바닥에 닿고, 그래서 **기본 `tol`이 상한 전에 멈춘다** — 하니스가 20,000행에서
+ * 만난 것과 같은 사정을 60분의 1 크기로 재현한 것이다.
+ */
+describe('tol이 수렴 판정을 정한다', () => {
+  /** 라벨이 특성에서 안 나오는 데이터. **외울 수 없으면 손실이 평평해진다.** */
+  function noisyLabels(rows: number): { features: number[][]; encoded: number[] } {
+    const features: number[][] = []
+    const encoded: number[] = []
+    let state = 42
+    const random = (): number => {
+      state = (state * 1664525 + 1013904223) >>> 0
+      return state / 4294967296
+    }
+    for (let row = 0; row < rows; row += 1) {
+      features.push(Array.from({ length: 8 }, () => random()))
+      encoded.push(random() < 0.5 ? 0 : 1)
+    }
+    return { features, encoded }
+  }
+
+  const TINY = { hiddenLayers: 1, neuronsPerLayer: 1 } as const
+
+  it('기본값은 에폭 상한 전에 멈춘다', async () => {
+    const { features, encoded } = noisyLabels(2000)
+    const fitted = await fitNeural(features, encoded, CLASSIFY2, TINY, 42)
+    // 잰 값은 110 에폭이다 (2026-09-10, 개발 PC). **여기서 재는 것은 그 수가 아니라
+    // "상한 전에 섰다"이므로** 부등호로 둔다 — 잡음에 따라 몇 에폭은 흔들린다.
+    expect(fitted.epochs).toBeLessThan(NEURAL_MAX_EPOCHS)
+    expect(fitted.converged).toBe(true)
+  })
+
+  /**
+   * **`0`은 값이지 빈칸이 아니다.** `options.tol || TOL`로 접으면 이 검사가 곧장 빨개진다 —
+   * 하니스가 0을 건네도 기본값으로 되돌아가기 때문이다.
+   */
+  it('tol이 0이면 상한까지 다 돈다', async () => {
+    const { features, encoded } = noisyLabels(2000)
+    const fitted = await fitNeural(features, encoded, CLASSIFY2, { ...TINY, tol: 0 }, 42)
+    expect(fitted.epochs).toBe(NEURAL_MAX_EPOCHS)
+    expect(fitted.converged).toBe(false)
   })
 })
 

@@ -18,6 +18,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { NEURAL_MAX_EPOCHS } from '../src/limits'
 import { ALGORITHMS } from '../src/ml/algorithms'
 import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { silhouetteSampleSize } from '../src/ml/metrics'
@@ -388,6 +389,26 @@ describe('사다리와 워커의 계약', () => {
   })
 
   /**
+   * **신경망도 같다** (2026-09-10). `run`이 없으면 `measure()`로 가고, 그것은 **라벨이
+   * 특성에서 곧장 나오는 쉬운 데이터**에 **기본 `tol`**을 얹는다 — 손실이 금세 평평해져
+   * 에폭이 상한 한참 아래에서 끝나고, 그러면 잰 것이 천장이 아니다.
+   *
+   * **행이 클수록 더 짧게 틀린다.** 쉬운 데이터에서는 50,000행이 20,000행의 1.4배였다
+   * (`tools/workloads.ts`의 `measureNeural`). 표가 가장 필요한 쪽이 가장 많이 틀린다.
+   */
+  it('신경망 사다리는 전부 자기 데이터로 잰다', async () => {
+    const withoutRun = ALL_LADDERS.filter((ladder) => {
+      const first = ladder.points[0]
+      return (
+        first !== undefined &&
+        ladder.job(first).algorithm === 'neural_network' &&
+        ladder.run === undefined
+      )
+    }).map((ladder) => ladder.id)
+    expect(withoutRun, 'neural_network ladders must measure with their own data').toEqual([])
+  })
+
+  /**
    * **던진 것은 성공으로 안 나간다** (R16-B-2). 워커 안에 있던 동안은 `elapsed: 0`으로
    * 바꿔도 아무것도 안 울었다 — 0ms는 기준표에 들어갈 뿐 아니라 `stopsBefore`의
    * `previous`가 되어 **그 사다리를 맨 위까지 전부 돌게 한다.**
@@ -426,10 +447,45 @@ describe('사다리와 워커의 계약', () => {
   })
 
   /**
+   * **신경망도 답한다** (2026-09-09). 여기 실린 `31`이 *"20,000행이 10,000행보다 빠르다"*를
+   * 잡음이 아니라 **에폭이 줄어든 것**으로 읽게 했다. K-평균 때문에 만든 칸이 다른
+   * 알고리즘을 잡은 것이고, 그래서 이 칸의 주인은 하나가 아니다.
+   */
+  it('신경망도 반복 횟수를 함께 답한다', async () => {
+    const outcome = await benchOutcome({
+      kind: 'ladder',
+      ladderId: 'neural_network_neurons',
+      point: 1,
+    })
+    expect(outcome.ok).toBe(true)
+    if (outcome.ok) expect(outcome.iterations).toBeGreaterThan(0)
+  })
+
+  /**
+   * **그리고 그 수가 천장이어야 한다** (`open-decisions.md` "신경망도 tol을 0으로 놓고
+   * 잰다"). 기준표는 **에폭 상한을 다 도는 경우**로 정의돼 있는데, 그것을 지키는 것은
+   * 데이터가 아니라 `NEURAL_CEILING`이다.
+   *
+   * **뉴런 하나짜리 점을 고른 이유**가 여기 있다. 2,000행의 잡음을 뉴런 하나가 못
+   * 외워서 **기본 `tol`이면 110 에폭에 선다**(2026-09-10에 쟀다). `NEURAL_CEILING`을
+   * 떼면 이 검사가 그 수를 보고 곧장 빨개진다 — 20,000행에서 30초를 태우지 않고 같은
+   * 병을 0.12초에 잡는다.
+   */
+  it('신경망 사다리는 에폭 상한을 다 돈다 - 재는 것이 천장이다', async () => {
+    const outcome = await benchOutcome({
+      kind: 'ladder',
+      ladderId: 'neural_network_neurons',
+      point: 1,
+    })
+    expect(outcome.ok).toBe(true)
+    if (outcome.ok) expect(outcome.iterations).toBe(NEURAL_MAX_EPOCHS)
+  })
+
+  /**
    * **없는 칸은 아예 안 싣는다.** `0`을 실으면 *"한 번도 안 돌았다"*로 읽히고, JSON을
    * 읽는 사람이 **안 재는 사다리**와 구분하지 못한다.
    */
-  it('K-평균이 아닌 사다리는 반복 횟수 칸이 없다', async () => {
+  it('반복 횟수를 안 재는 사다리는 그 칸이 없다', async () => {
     const outcome = await benchOutcome({ kind: 'ladder', ladderId: 'naive_bayes', point: 100 })
     expect(outcome.ok).toBe(true)
     if (outcome.ok) expect(outcome.iterations).toBeUndefined()
