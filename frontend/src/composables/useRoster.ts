@@ -62,12 +62,26 @@ export interface Roster {
    * 서른인 폴더에서 교사 기기가 선다.
    */
   open: (item: RosterItem) => Promise<void>
+  /**
+   * 명렬을 **처음부터 끝까지 한 줄씩** 통째로 읽어 손에 넘긴다. 묶음을 굽는 자리가 쓴다.
+   *
+   * **같은 줄에 선다** — 훑기와 열람이 쓰는 그 큐다. 그래서 묶는 동안에도 동시에 풀리는
+   * 파일은 하나뿐이고, **열어 보던 제출물도 안 바뀐다**(읽은 것은 화면에 안 앉는다).
+   *
+   * 못 읽은 줄은 `null`로 온다. 묶음에서 빠질 뿐 명렬에서는 사유와 함께 남는다.
+   */
+  collect: (take: (item: RosterItem, read: ReadResult | null) => void) => Promise<void>
 }
 
 /** 큐에 선 일감. 훑기는 메타만, 고른 것은 통째로. */
 interface Job {
   readonly item: RosterItem
   readonly full: boolean
+  /**
+   * 읽고 나서 무엇을 할까. **없으면 화면에 앉힌다**(교사가 고른 줄), 있으면 그 손에
+   * 넘기고 만다(묶음 굽기) — 묶는 동안 열어 보던 제출물이 바뀌면 안 된다.
+   */
+  readonly take?: (read: ReadResult | null) => void
 }
 
 export function useRoster(): Roster {
@@ -115,7 +129,8 @@ export function useRoster(): Roster {
     if (mine !== held) return
 
     put(job.item.label, done.summary)
-    if (done.read) opened.value = { item: job.item, read: done.read }
+    if (job.take) job.take(done.read ?? null)
+    else if (done.read) opened.value = { item: job.item, read: done.read }
   }
 
   /** 하나씩, 앞에서부터. **동시에 푸는 파일은 언제나 하나다.** */
@@ -150,7 +165,28 @@ export function useRoster(): Roster {
     return pump ?? Promise.resolve()
   }
 
-  return { items, summaries, reading, opened, edits, show, open, correct }
+  /** 명렬을 한 줄씩 통째로 읽는다. **큐 뒤에 붙는다** — 교사가 고른 줄이 먼저다. */
+  function collect(take: (item: RosterItem, read: ReadResult | null) => void): Promise<void> {
+    const mine = held
+    const waits = items.value.map(
+      (item) =>
+        new Promise<void>((resolve) => {
+          pending.push({
+            item,
+            full: true,
+            take: (read) => {
+              // 명렬이 갈렸으면 그 묶음은 이미 남의 것이다.
+              if (mine === held) take(item, read)
+              resolve()
+            },
+          })
+        }),
+    )
+    pumpQueue()
+    return Promise.all(waits).then(() => undefined)
+  }
+
+  return { items, summaries, reading, opened, edits, show, open, correct, collect }
 }
 
 /** 한 줄을 읽는다. **못 읽는 것은 사유가 된다** — 명렬에서 빼지 않는다. */

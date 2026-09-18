@@ -55,7 +55,12 @@
     "editStudent": "학번·이름 수정",
     "noDifference": "차이 없음",
     "noStudentId": "학번 없음",
-    "noStudentName": "이름 없음"
+    "noStudentName": "이름 없음",
+    "portfolio": "포트폴리오",
+    "portfolioEmpty": "아직 쓴 글이 없습니다.",
+    "bundle": "포트폴리오 모아 받기",
+    "bundling": "묶는 중 ({done}/{total})",
+    "bundleName": "포트폴리오.zip"
   },
   "taskTypes": {
     "classification": "분류(Classification)",

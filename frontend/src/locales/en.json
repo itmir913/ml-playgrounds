@@ -55,7 +55,12 @@
     "editStudent": "Edit student",
     "noDifference": "No difference",
     "noStudentId": "No student number",
-    "noStudentName": "No name"
+    "noStudentName": "No name",
+    "portfolio": "Portfolio",
+    "portfolioEmpty": "Nothing written yet.",
+    "bundle": "Download portfolios",
+    "bundling": "Bundling ({done}/{total})",
+    "bundleName": "portfolios.zip"
   },
   "taskTypes": {
     "classification": "Classification",

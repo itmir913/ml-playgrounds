@@ -23,21 +23,29 @@ import AppButton from '@/components/AppButton.vue'
 import AppTable from '@/components/AppTable.vue'
 import ProjectSummary from '@/components/ProjectSummary.vue'
 import { useRoster } from '@/composables/useRoster'
+import { useWork } from '@/composables/useWork'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { ACTION_ICONS } from '@/icons'
 import { experimentPreprocessor } from '@/ml/preprocess'
 import { experimentOrder } from '@/ml/results'
 import { readDataset, readTestDataset } from '@/project/dataset'
 import { MLPX_EXTENSION } from '@/project/format'
+import { downloadBlob } from '@/project/download'
+import { bundleOf, type BundleEntry } from '@/project/portfolio-bundle'
 import { rosterOf, sortRoster, type RosterItem, type RosterSort } from '@/project/roster'
 import IntegrityPanel from './inspect/IntegrityPanel.vue'
+import PortfolioPanel from './inspect/PortfolioPanel.vue'
 import StudentEditor from './inspect/StudentEditor.vue'
 import ReproducePanel from './inspect/ReproducePanel.vue'
 import ExperimentDetail from './results/ExperimentDetail.vue'
 import ExperimentList from './results/ExperimentList.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const roster = useRoster()
+const work = useWork()
+
+/** 묶는 동안 몇 줄까지 읽었는가. 서른 개면 그 수가 교사가 기다리는 크기다. */
+const bundled = ref(0)
 
 const folderInput = ref<HTMLInputElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -223,6 +231,37 @@ const studentLine = computed(() =>
     .join(' · '),
 )
 
+/**
+ * **명렬의 포트폴리오를 한 묶음으로 내려받는다** (open-decisions.md "점검은 읽기 전용
+ * 열람기다"의 "내보내기는 열려 있다").
+ *
+ * 서른 명의 글을 읽는 일은 화면을 서른 번 여는 일이 아니라 한 번에 받아 두고 읽는 일이다.
+ *
+ * **나가는 것은 우리가 새로 지은 zip이다.** 학생의 `.mlpx`는 안 실린다 — 교사가 이미
+ * 가진 것이고, 원본은 어느 경로로도 다시 쓰이지 않는다.
+ *
+ * **읽기는 여전히 한 줄로 흐른다** — 묶는 동안에도 동시에 풀리는 파일은 하나뿐이고,
+ * 열어 보던 제출물도 안 바뀐다.
+ */
+async function downloadPortfolios(): Promise<void> {
+  if (work.busy.value || roster.items.value.length === 0) return
+  const job = work.start()
+  bundled.value = 0
+  const entries: BundleEntry[] = []
+  try {
+    await roster.collect((item, read) => {
+      bundled.value += 1
+      if (read) entries.push({ label: item.label, file: read.project })
+    })
+    if (entries.length > 0 && work.alive()) {
+      downloadBlob(bundleOf(entries, t, locale.value), t('inspect.bundleName'))
+    }
+  } finally {
+    bundled.value = 0
+    job.done()
+  }
+}
+
 /** 못 읽은 줄의 사유 문장. **코드를 화면이 문장으로 바꾼다** (CLAUDE.md §1.4). */
 function reasonOf(code: string): string {
   return t(errorMessageKey(code as ClientErrorCode))
@@ -272,9 +311,24 @@ function reasonOf(code: string): string {
     <template v-else>
       <!-- 머리글은 표에 붙는다. 바깥 리듬(`gap-5`)이 아니라 제 짝과의 간격이다. -->
       <div class="flex flex-col gap-2">
-        <h3 class="font-bold text-ink-soft">
-          {{ t('inspect.roster', { read: progress.read, total: progress.total }) }}
-        </h3>
+        <div class="flex flex-wrap items-baseline justify-between gap-3">
+          <h3 class="font-bold text-ink-soft">
+            {{ t('inspect.roster', { read: progress.read, total: progress.total }) }}
+          </h3>
+
+          <!--
+            **명렬 전체가 대상이라 명렬의 머리에 선다.** 고른 제출물 하나가 아니라 지금
+            보이는 목록 전부를 묶는다.
+          -->
+          <AppButton variant="secondary" :disabled="work.busy.value" :action="downloadPortfolios">
+            <component :is="ACTION_ICONS.exportFile" :size="18" aria-hidden="true" />
+            {{
+              work.busy.value
+                ? t('inspect.bundling', { done: bundled, total: progress.total })
+                : t('inspect.bundle')
+            }}
+          </AppButton>
+        </div>
 
         <!--
           **표의 껍데기는 `AppTable`이 갖는다** — 머리 줄의 색도, 줄 사이의 선도, 넘칠 때의
@@ -465,6 +519,9 @@ function reasonOf(code: string): string {
             <p v-else class="rounded-panel border border-line bg-surface p-4 text-ink-soft">
               {{ t('inspect.noExperiment') }}
             </p>
+
+            <!-- 학생이 쓴 글. **무엇을 했나 다음에 무엇을 썼나다** (§8.21의 판 순서). -->
+            <PortfolioPanel :file="viewing.file" />
           </div>
         </div>
       </template>

@@ -24,6 +24,7 @@ const INSPECT: readonly string[] = [
   join(SRC, 'views', 'InspectView.vue'),
   join(SRC, 'composables', 'useRoster.ts'),
   join(SRC, 'project', 'roster.ts'),
+  join(SRC, 'project', 'portfolio-bundle.ts'),
   // 판이 여럿이 되면 이 디렉터리로 온다. 규칙은 그대로다.
   join(SRC, 'views', 'inspect'),
 ]
@@ -56,11 +57,13 @@ describe('점검 경로', () => {
    * **금지는 모듈이 아니라 이름이다.** 읽기와 쓰기가 한 모듈에 사는 자리가 둘이라
    * (`readProject`/`writeProject`, `readFileBytes`/`downloadBlob`) 모듈로 막으면
    * 점검이 파일을 못 읽는다.
+   *
+   * **내려받기는 금지가 아니다** (2026-09-18, 결정문 "내보내기는 열려 있다"). 새 파일을
+   * 만들어 교사 디스크로 내보내는 일은 원본을 안 건드린다 — 지키는 것은 그 하나이고,
+   * 아래 검사가 **나가는 것이 학생의 바이트가 아님**을 따로 못 박는다.
    */
   const FORBIDDEN: readonly string[] = [
     'writeProject',
-    'downloadBlob',
-    'downloadBytes',
     'project/storage',
     'stores/project',
     'tab-lock',
@@ -162,5 +165,28 @@ describe('점검 화면은 결과 화면의 부품을 쓴다', () => {
     const source = body(VIEW)
     expect(source).toContain('experimentPreprocessor')
     expect(source).toContain('experimentOrder')
+  })
+})
+
+/**
+ * **나가는 것은 우리가 새로 지은 파일이다** (open-decisions.md "점검은 읽기 전용
+ * 열람기다"의 "내보내기는 열려 있다").
+ *
+ * 내려받기를 열었으므로 **무엇이 나가는가**가 규칙이 된다. 학생의 `.mlpx` 바이트를 그대로
+ * 흘려보내면 점검이 파일 배포처가 되고, 그건 교사가 이미 가진 것이다.
+ */
+describe('점검이 내보내는 것', () => {
+  const BUNDLE = join(SRC, 'project', 'portfolio-bundle.ts')
+
+  it('묶음은 글과 그 글이 가리키는 사진만 담는다', () => {
+    const source = body(BUNDLE)
+    // 원본 바이트로 가는 길 셋 — 프로젝트 파일 자체, 정본 표, 정본 사진.
+    expect(source).not.toContain('readFileBytes')
+    expect(source).not.toContain('.dataset')
+    expect(source).not.toContain('.images')
+  })
+
+  it('원본을 다시 쓰는 길이 없다', () => {
+    expect(body(BUNDLE)).not.toContain('writeProject')
   })
 })
