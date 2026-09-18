@@ -16,6 +16,22 @@
     "image": "Image data",
     "tabular": "Table data"
   },
+  "inspect": {
+    "title": "Inspect submissions",
+    "lead": "Open project files your students handed in. Files are never modified.",
+    "pickFolder": "Choose folder",
+    "pickFiles": "Choose files",
+    "empty": "Choose a folder or files to inspect.",
+    "roster": "Submissions ({read}/{total})",
+    "reading": "Reading",
+    "unreadable": "Cannot open",
+    "line": "{student} · {experiments} experiments",
+    "noStudent": "No name",
+    "pickOne": "Choose a submission on the left.",
+    "student": "Student",
+    "experiments": "Experiments",
+    "runs": "Trained models"
+  },
   "taskTypes": {
     "classification": "Classification",
     "regression": "Regression",

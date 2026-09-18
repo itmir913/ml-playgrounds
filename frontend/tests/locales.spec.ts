@@ -1025,8 +1025,9 @@ describe('두 언어가 나란히 말한다', () => {
     ['meta.taskType', 'train.taskTitle'],
     // 한국어에 복수 표시가 없어 한 낱말로 모인다. 결과 화면의 배지는 **개수를 세는
     // 자리**(`Experiments 3`)라 복수이고, 예측 필터의 축 이름은 **무엇으로 거르는지**를
-    // 가리키는 자리라 옆의 `Model`과 같이 단수다.
-    ['predict.filterExperiments', 'results.experiment'],
+    // 가리키는 자리라 옆의 `Model`과 같이 단수다. **점검 요약의 줄은 세는 자리**라
+    // 결과 화면과 같은 쪽이다 (2026-09-18).
+    ['inspect.experiments', 'predict.filterExperiments', 'results.experiment'],
   ]
 
   const allowed = new Set(ALLOWED.map(fingerprint))

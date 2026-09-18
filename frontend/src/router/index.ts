@@ -24,6 +24,14 @@ import { isStepId, resolveStep, STEP_IDS, type StepId } from './steps'
 export const ROUTE_PROJECTS = 'projects'
 
 /**
+ * 점검. **교사가 제출물을 열어 보는 자리이고 단계가 아니다** (architecture.md §8.21).
+ *
+ * `projectId`가 없는 주소라 아래 가드가 **열려 있던 프로젝트를 닫는다** — 점검은 저장소를
+ * 안 타므로 그것이 맞는 동작이다 (open-decisions.md "점검은 읽기 전용 열람기다").
+ */
+export const ROUTE_INSPECT = 'inspect'
+
+/**
  * 프로젝트 홈. **프로젝트를 열면 여기로 온다.**
  *
  * 예전에는 첫 단계로 곧장 리다이렉트했는데 그건 홈이 없어서 쓴 우회였고, 파라미터를
@@ -52,6 +60,11 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     name: ROUTE_PROJECTS,
     component: () => import('@/views/WelcomeView.vue'),
+  },
+  {
+    path: '/inspect',
+    name: ROUTE_INSPECT,
+    component: () => import('@/views/InspectView.vue'),
   },
   {
     path: '/project/:projectId',

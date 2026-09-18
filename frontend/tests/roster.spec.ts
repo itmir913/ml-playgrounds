@@ -1,0 +1,178 @@
+/**
+ * 명렬 (`project/roster.ts`, `composables/useRoster.ts`).
+ *
+ * **여기서 지키는 것 셋.**
+ *
+ *   1. **입구가 둘이어도 명렬은 하나다** — 폴더째든 파일 하나든 같은 함수를 지난다
+ *   2. **같은 파일을 두 번 풀지 않고, 한 번에 하나만 푼다** — 서른 개짜리 폴더에서
+ *      메모리가 서지 않는 이유가 그것이다
+ *   3. **폴더를 바꾸면 옛 훑기의 결과가 새 명렬에 안 앉는다** — 다른 반의 요약이 이 반에
+ *      붙는 것이 이 화면에서 가장 나쁜 결함이다
+ */
+
+import { flushPromises } from '@vue/test-utils'
+import { describe, expect, it, vi } from 'vitest'
+
+import { rosterOf, summaryOf, type RosterItem } from '../src/project/roster'
+import { newProjectDocument } from '../src/project/create'
+import type { ProjectDocument } from '../src/project/schema'
+
+/** 고른 파일 하나. `webkitRelativePath`는 표준 밖이라 손으로 붙인다. */
+function picked(name: string, relative?: string): File {
+  const file = new File([new Uint8Array([1, 2, 3])], name)
+  if (relative !== undefined) {
+    Object.defineProperty(file, 'webkitRelativePath', { value: relative })
+  }
+  return file
+}
+
+function document(overrides: Partial<ProjectDocument['manifest']> = {}): ProjectDocument {
+  const base = newProjectDocument(
+    { name: '붓꽃 분류', locale: 'ko', dataType: 'tabular' },
+    {
+      projectId: '550e8400-e29b-41d4-a716-446655440000',
+      createdAt: '2026-09-18T00:00:00.000Z',
+      randomState: 42,
+    },
+  )
+  return { ...base, manifest: { ...base.manifest, ...overrides } }
+}
+
+describe('명렬을 만든다', () => {
+  it('.mlpx가 아닌 것은 지나친다 - 폴더에는 별게 다 들어 있다', () => {
+    const items = rosterOf([picked('kim.mlpx'), picked('메모.txt'), picked('사진.png')])
+    expect(items.map((one) => one.label)).toEqual(['kim.mlpx'])
+  })
+
+  it('폴더째 고르면 상대 경로가 이름표다 - 반이 다르면 같은 이름도 갈린다', () => {
+    const items = rosterOf([picked('kim.mlpx', '2반/kim.mlpx'), picked('kim.mlpx', '1반/kim.mlpx')])
+    // 정렬도 그 이름표로 한다 — 반이 묶여 선다.
+    expect(items.map((one) => one.label)).toEqual(['1반/kim.mlpx', '2반/kim.mlpx'])
+  })
+
+  it('파일 하나를 골라도 같은 명렬을 지난다 - 단일 파일용 갈래가 없다', () => {
+    const items = rosterOf([picked('kim.mlpx')])
+    expect(items).toHaveLength(1)
+    expect(items[0]?.label).toBe('kim.mlpx')
+  })
+
+  it('확장자는 대소문자를 안 가린다 - 학생 파일 이름은 무엇이든 온다', () => {
+    expect(rosterOf([picked('KIM.MLPX')])).toHaveLength(1)
+  })
+})
+
+describe('요약은 메타에서 나온다', () => {
+  it('이름과 학생과 실험 수를 남긴다', () => {
+    const summary = summaryOf(
+      document({ student: { name: '김하나', id: '10101' } } as Partial<
+        ProjectDocument['manifest']
+      >),
+    )
+    expect(summary).toEqual({
+      state: 'read',
+      name: '붓꽃 분류',
+      student: '김하나',
+      dataType: 'tabular',
+      experiments: 0,
+      runs: 0,
+    })
+  })
+
+  it('학생 이름이 없으면 그 칸을 안 만든다 - 없는 것을 빈 문자열로 말하지 않는다', () => {
+    expect(summaryOf(document())).not.toHaveProperty('student')
+  })
+})
+
+/** 읽기를 손으로 쥔 명렬. 언제 끝날지는 검사가 정한다. */
+function harness() {
+  const reads: { label: string; settle: (bytes: Uint8Array) => void }[] = []
+  vi.doMock('../src/project/download', () => ({
+    readFileBytes: (file: File) =>
+      new Promise<Uint8Array>((resolve) => {
+        reads.push({ label: file.name, settle: resolve })
+      }),
+  }))
+  return reads
+}
+
+describe('읽기는 한 줄로 흐른다', () => {
+  it('동시에 푸는 파일이 하나다', async () => {
+    vi.resetModules()
+    const reads = harness()
+    const { useRoster: fresh } = await import('../src/composables/useRoster')
+
+    const roster = fresh()
+    roster.show(rosterOf([picked('a.mlpx'), picked('b.mlpx'), picked('c.mlpx')]))
+    await flushPromises()
+
+    // **셋을 한꺼번에 열지 않는다.** 사진이 든 제출물 서른 개를 동시에 풀면 거기서 선다.
+    expect(reads).toHaveLength(1)
+    expect(reads[0]?.label).toBe('a.mlpx')
+
+    reads[0]?.settle(new Uint8Array([1]))
+    await flushPromises()
+    expect(reads).toHaveLength(2)
+    expect(reads[1]?.label).toBe('b.mlpx')
+    vi.doUnmock('../src/project/download')
+  })
+
+  it('고른 줄이 맨 앞으로 간다', async () => {
+    vi.resetModules()
+    const reads = harness()
+    const { useRoster: fresh } = await import('../src/composables/useRoster')
+
+    const roster = fresh()
+    const items = rosterOf([picked('a.mlpx'), picked('b.mlpx'), picked('c.mlpx')])
+    roster.show(items)
+    await flushPromises()
+
+    void roster.readNow(items[2] as RosterItem)
+    reads[0]?.settle(new Uint8Array([1]))
+    await flushPromises()
+
+    // 훑기 순서대로면 b가 왔을 자리다. 교사가 고른 것이 먼저다.
+    expect(reads[1]?.label).toBe('c.mlpx')
+    vi.doUnmock('../src/project/download')
+  })
+
+  it('이미 읽은 줄은 다시 안 푼다', async () => {
+    vi.resetModules()
+    const reads = harness()
+    const { useRoster: fresh } = await import('../src/composables/useRoster')
+
+    const roster = fresh()
+    const items = rosterOf([picked('a.mlpx')])
+    roster.show(items)
+    await flushPromises()
+    reads[0]?.settle(new Uint8Array([1]))
+    await flushPromises()
+
+    void roster.readNow(items[0] as RosterItem)
+    await flushPromises()
+    expect(reads).toHaveLength(1)
+    vi.doUnmock('../src/project/download')
+  })
+})
+
+describe('명렬을 바꾸면 옛 결과는 버린다', () => {
+  it('다른 폴더를 고르면 앞의 요약이 안 앉는다', async () => {
+    vi.resetModules()
+    const reads = harness()
+    const { useRoster: fresh } = await import('../src/composables/useRoster')
+
+    const roster = fresh()
+    roster.show(rosterOf([picked('1반-kim.mlpx')]))
+    await flushPromises()
+
+    // 읽는 도중에 교사가 다른 폴더를 골랐다.
+    roster.show(rosterOf([picked('2반-lee.mlpx')]))
+    await flushPromises()
+
+    // 옛 읽기가 이제야 끝난다. **그 결과는 새 명렬에 앉으면 안 된다.**
+    reads[0]?.settle(new Uint8Array([1]))
+    await flushPromises()
+
+    expect([...roster.summaries.value.keys()]).not.toContain('1반-kim.mlpx')
+    vi.doUnmock('../src/project/download')
+  })
+})
