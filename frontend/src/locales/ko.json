@@ -18,11 +18,9 @@
   },
   "inspect": {
     "title": "제출물 점검",
-    "lead": "학생이 낸 프로젝트 파일을 열어 봅니다. 파일은 수정하지 않습니다.",
+    "lead": "Machine Learning Playgrounds 프로젝트 파일을 점검합니다.",
     "pickFolder": "폴더 선택",
     "pickFiles": "제출물 파일 선택",
-    "empty": "점검할 폴더나 파일을 선택하세요.",
-    "roster": "제출물 ({read}/{total})",
     "reading": "읽는 중",
     "unreadable": "열 수 없음",
     "pickOne": "표에서 제출물을 선택하세요.",
@@ -36,7 +34,7 @@
     "editHint": "여기서 수정한 학번과 이름은 명렬에만 쓰입니다. 제출물 파일은 바뀌지 않고, 브라우저를 새로 열면 사라집니다.",
     "editedMark": "(수정)",
     "integrity": "무결성",
-    "integrityNote": "학생이 마지막으로 저장한 뒤에 파일이 바뀌었는지까지 확인합니다. 제출된 뒤에 바뀌었는지는 받은 날 남긴 해시 기록으로만 알 수 있습니다.",
+    "integrityNote": "파일이 마지막으로 저장된 뒤에 바뀌었는지까지 확인합니다. 제출된 뒤에 바뀌었는지는 받은 날 남긴 해시 기록으로만 알 수 있습니다.",
     "reproduce": "재실행 대조",
     "reproduceLead": "파일에 적힌 설정과 분할로 다시 학습해, 파일에 적힌 점수가 그대로 나오는지 확인합니다.",
     "reproduceStart": "대조 시작",
@@ -62,7 +60,11 @@
     "bundling": "묶는 중 ({done}/{total})",
     "bundleName": "포트폴리오.zip",
     "model": "모델",
-    "viewMode": "열람"
+    "viewMode": "열람",
+    "submissions": "제출물",
+    "readOf": "{read}/{total}",
+    "emptyReason": "아직 선택한 파일이 없습니다.",
+    "emptyNext": "mlpx 파일이 포함된 폴더를 선택하거나, mlpx 파일을 선택하세요. 선택한 파일은 이 컴퓨터 안에서만 처리되고 외부로 전송되지 않습니다."
   },
   "taskTypes": {
     "classification": "분류(Classification)",

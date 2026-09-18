@@ -18,11 +18,9 @@
   },
   "inspect": {
     "title": "Inspect submissions",
-    "lead": "Open project files your students handed in. Files are never modified.",
+    "lead": "Inspect Machine Learning Playgrounds project files.",
     "pickFolder": "Choose folder",
     "pickFiles": "Choose files",
-    "empty": "Choose a folder or files to inspect.",
-    "roster": "Submissions ({read}/{total})",
     "reading": "Reading",
     "unreadable": "Cannot open",
     "pickOne": "Choose a submission from the table.",
@@ -36,7 +34,7 @@
     "editHint": "Edits here apply to this roster only. The submitted file is untouched, and edits are lost on reload.",
     "editedMark": "(edited)",
     "integrity": "Integrity",
-    "integrityNote": "This checks whether the file changed after the student last saved it. Whether it changed after submission can only be told from a hash recorded when you collected it.",
+    "integrityNote": "This checks whether the file changed after it was last saved. Whether it changed after submission can only be told from a hash recorded when you collected it.",
     "reproduce": "Reproduction check",
     "reproduceLead": "Trains again with the settings and split recorded in the file, then compares the scores.",
     "reproduceStart": "Start check",
@@ -62,7 +60,11 @@
     "bundling": "Bundling ({done}/{total})",
     "bundleName": "portfolios.zip",
     "model": "Model",
-    "viewMode": "View"
+    "viewMode": "View",
+    "submissions": "Submissions",
+    "readOf": "{read}/{total}",
+    "emptyReason": "No files chosen yet.",
+    "emptyNext": "Choose a folder that contains .mlpx files, or choose the .mlpx files themselves. Files you choose stay on this computer and are never sent anywhere."
   },
   "taskTypes": {
     "classification": "Classification",

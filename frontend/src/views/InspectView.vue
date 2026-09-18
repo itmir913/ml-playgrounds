@@ -19,9 +19,13 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
+import AppEmpty from '@/components/AppEmpty.vue'
 import AppTable from '@/components/AppTable.vue'
 import ProjectSummary from '@/components/ProjectSummary.vue'
+import StepActionBar from '@/components/StepActionBar.vue'
+import StepHeader from '@/components/StepHeader.vue'
 import { useRoster } from '@/composables/useRoster'
 import { useWork } from '@/composables/useWork'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
@@ -361,25 +365,25 @@ function reasonOf(code: string): string {
 
 <template>
   <div class="flex min-h-full flex-col gap-5 p-4 sm:p-5">
-    <header class="flex flex-col gap-2">
-      <h2 class="text-2xl font-black tracking-tight">{{ t('inspect.title') }}</h2>
-      <p class="leading-relaxed text-ink-soft">{{ t('inspect.lead') }}</p>
-    </header>
-
     <!--
-      **입구 둘을 나란히 둔다** (§8의 "같은 규칙의 두 모양"). 휴대폰에는 폴더 고르기가
-      없으므로 폴백이 아니라 나란한 길이고, 둘 다 같은 명렬로 들어간다.
+      **머리는 다른 탭과 같은 것이다** (`StepHeader`, §8.9, 2026-09-18 사용자). 점검만
+      큰 제목에 큰 단추를 세워 두었더니 **같은 앱의 화면으로 안 읽혔다** — 단계가 아니라고
+      해서 머리의 문법까지 다를 이유는 없다.
+
+      **맥락은 배지-값이다** (§8.16, 결과·전처리·학습의 머리와 같은 문법).
     -->
-    <div class="flex flex-wrap gap-3">
-      <AppButton @click="folderInput?.click()">
-        <component :is="ACTION_ICONS.openFile" :size="20" aria-hidden="true" />
-        {{ t('inspect.pickFolder') }}
-      </AppButton>
-      <AppButton variant="secondary" @click="fileInput?.click()">
-        <component :is="ACTION_ICONS.openFile" :size="20" aria-hidden="true" />
-        {{ t('inspect.pickFiles') }}
-      </AppButton>
-    </div>
+    <StepHeader :title="t('inspect.title')" :purpose="t('inspect.lead')">
+      <template v-if="roster.items.value.length > 0" #context>
+        <div class="flex items-baseline gap-1.5">
+          <dt>
+            <AppBadge>{{ t('inspect.submissions') }}</AppBadge>
+          </dt>
+          <dd class="font-bold tabular-nums text-ink">
+            {{ t('inspect.readOf', { read: progress.read, total: progress.total }) }}
+          </dd>
+        </div>
+      </template>
+    </StepHeader>
 
     <input
       ref="fileInput"
@@ -395,23 +399,44 @@ function reasonOf(code: string): string {
     -->
     <input ref="folderInput" type="file" webkitdirectory class="hidden" @change="pick" />
 
-    <p v-if="roster.items.value.length === 0" class="text-ink-soft">
-      {{ t('inspect.empty') }}
-    </p>
+    <!--
+      **비었을 때는 빈 상태가 화면이다** (`AppEmpty`, §8.9). 데이터 화면이 표를 받기 전에
+      서 있는 그 모양이다 — 왜 비었는지와 무엇을 하면 열리는지를 함께 주고, **입구 둘이
+      그 안에 나란히 선다.** 휴대폰에는 폴더 고르기가 없으므로 둘은 폴백이 아니라 나란한
+      길이고, 둘 다 같은 명렬로 들어간다.
+    -->
+    <div v-if="roster.items.value.length === 0" class="grid min-h-0 flex-1 place-items-center">
+      <AppEmpty :reason="t('inspect.emptyReason')" :next="t('inspect.emptyNext')">
+        <AppButton size="lg" @click="folderInput?.click()">
+          <component :is="ACTION_ICONS.openFile" :size="20" aria-hidden="true" />
+          {{ t('inspect.pickFolder') }}
+        </AppButton>
+        <AppButton size="lg" variant="secondary" @click="fileInput?.click()">
+          <component :is="ACTION_ICONS.openFile" :size="20" aria-hidden="true" />
+          {{ t('inspect.pickFiles') }}
+        </AppButton>
+      </AppEmpty>
+    </div>
 
     <template v-else>
-      <!-- 머리글은 표에 붙는다. 바깥 리듬(`gap-5`)이 아니라 제 짝과의 간격이다. -->
-      <div class="flex flex-col gap-2">
-        <div class="flex flex-wrap items-baseline justify-between gap-3">
-          <h3 class="font-bold text-ink-soft">
-            {{ t('inspect.roster', { read: progress.read, total: progress.total }) }}
-          </h3>
+      <!--
+        **누르는 것은 동작 바에 모인다** (`StepActionBar`, §8.13.1). 학습·예측 화면 셋이
+        쓰는 그 바이고, 점검만 단추를 본문에 흩어 두면 교사가 화면마다 다른 곳을 찾게
+        된다. **기본 자리에는 명렬을 채우는 것**이, **`end`에는 이 화면의 결론**이 선다 —
+        교사가 가져가는 것이 포트폴리오 묶음이다.
+      -->
+      <StepActionBar>
+        <AppButton variant="secondary" @click="folderInput?.click()">
+          <component :is="ACTION_ICONS.openFile" :size="18" aria-hidden="true" />
+          {{ t('inspect.pickFolder') }}
+        </AppButton>
+        <AppButton variant="secondary" @click="fileInput?.click()">
+          <component :is="ACTION_ICONS.openFile" :size="18" aria-hidden="true" />
+          {{ t('inspect.pickFiles') }}
+        </AppButton>
 
-          <!--
-            **명렬 전체가 대상이라 명렬의 머리에 선다.** 고른 제출물 하나가 아니라 지금
-            보이는 목록 전부를 묶는다.
-          -->
-          <AppButton variant="secondary" :disabled="work.busy.value" :action="downloadPortfolios">
+        <template #end>
+          <AppButton :disabled="work.busy.value" :action="downloadPortfolios">
             <component :is="ACTION_ICONS.exportFile" :size="18" aria-hidden="true" />
             {{
               work.busy.value
@@ -419,8 +444,10 @@ function reasonOf(code: string): string {
                 : t('inspect.bundle')
             }}
           </AppButton>
-        </div>
+        </template>
+      </StepActionBar>
 
+      <div class="flex flex-col gap-2">
         <!--
           **표의 껍데기는 `AppTable`이 갖는다** — 머리 줄의 색도, 줄 사이의 선도, 넘칠 때의
           처리도 거기 있다(`data-table`). 여기서 다시 그리면 이 앱의 표 아홉 중 하나만
@@ -566,7 +593,14 @@ function reasonOf(code: string): string {
         -->
         <header class="flex flex-wrap items-start justify-between gap-3">
           <div class="flex min-w-0 flex-col gap-1">
-            <h3 class="truncate text-xl font-black">{{ viewing.file.document.manifest.name }}</h3>
+            <!--
+              **화면 제목보다 크면 안 된다** (2026-09-18, 사용자). 머리가 `StepHeader`로
+              내려앉으면서 이 줄이 화면에서 가장 큰 글자가 됐다 — 제출물 하나는 화면의
+              일부이지 화면이 아니다. `StepHeader`의 제목과 같은 눈금으로 선다.
+            -->
+            <h3 class="truncate text-lg font-bold tracking-tight">
+              {{ viewing.file.document.manifest.name }}
+            </h3>
             <p class="truncate text-ink-soft">
               {{ studentLine }}
             </p>
@@ -607,8 +641,9 @@ function reasonOf(code: string): string {
           **점선으로 가르지 않는다** — 왼쪽이 카드로 서 있는 자리에서는 그 선이 카드
           테두리와 겹쳐 보인다.
         -->
-        <div v-if="mode === 'model'" class="grid gap-4 lg:grid-cols-3">
-          <div class="flex min-w-0 flex-col gap-4">
+        <!-- 칸 사이 간격은 다른 화면의 두 열과 같다 (`gap-5`, 전처리·대시보드·포트폴리오). -->
+        <div v-if="mode === 'model'" class="grid gap-5 lg:grid-cols-3">
+          <div class="flex min-w-0 flex-col gap-5">
             <!-- 무슨 데이터를 몇 행, 타깃은 무엇으로. **교사가 가장 먼저 보는 줄들이다.** -->
             <aside class="rounded-panel border border-line bg-surface p-4">
               <ProjectSummary :file="viewing.file" />
@@ -652,7 +687,7 @@ function reasonOf(code: string): string {
             **오른쪽은 결과 화면과 같은 것이다** (§8.21, 2026-09-18 사용자) — 왼쪽에서
             실험을 고르고 여기에 그 상세가 선다. 점검이 새로 만든 판은 전부 왼쪽에 모인다.
           -->
-          <div class="flex min-w-0 flex-col gap-4 lg:col-span-2">
+          <div class="flex min-w-0 flex-col gap-5 lg:col-span-2">
             <ExperimentDetail
               v-if="viewing.current"
               :experiment="viewing.current"
