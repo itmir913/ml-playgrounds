@@ -602,12 +602,27 @@ function reasonOf(code: string): string {
 
             <!--
               **무결성이 요약 바로 아래다.** 교사가 제출물에서 묻는 순서가 "무엇인가 →
-              손댄 흔적이 있나 → 점수가 진짜인가"이고, 세 판이 그 순서로 선다.
-            -->
-            <!--
-              **무결성은 파일 전체의 일이라 요약 옆이다.** 실험마다 다른 값이 아니다.
+              손댄 흔적이 있나 → 점수가 진짜인가"이고, **세 판이 이 열에 그 순서로 선다**
+              (§8.21). 무결성은 파일 전체의 일이라 실험마다 다른 값이 아니다.
             -->
             <IntegrityPanel :integrity="viewing.integrity" />
+
+            <!--
+              **대조는 무결성 바로 아래다** (2026-09-18, 사용자). 둘 다 "이 제출물을 믿을
+              수 있나"의 답이라, 사이에 다른 것이 끼면 묻는 흐름이 끊긴다. 대조가 **그
+              실험**의 일이라는 것은 자리가 아니라 판이 말한다(`:order`).
+
+              **단추로 돈다.** 열자마자 돌면 무결성만 훑는 한 바퀴가 불가능해지고, 서른 개
+              동선이 거기서 무너진다 (open-decisions.md "명렬은 메타만 읽는다").
+            -->
+            <ReproducePanel
+              v-if="viewing.current"
+              :experiment="viewing.current"
+              :order="viewing.order.get(viewing.current.id) ?? 0"
+              :data-type="viewing.file.document.manifest.dataType"
+              :dataset="viewing.dataset"
+              :test-dataset="viewing.testDataset"
+            />
 
             <section v-if="viewing.experiments.length > 0" class="flex flex-col gap-1.5">
               <h3 class="font-bold text-ink-soft">{{ t('results.experimentTitle') }}</h3>
@@ -619,22 +634,11 @@ function reasonOf(code: string): string {
             </section>
           </div>
 
+          <!--
+            **오른쪽은 결과 화면과 같은 것이다** (§8.21, 2026-09-18 사용자) — 왼쪽에서
+            실험을 고르고 여기에 그 상세가 선다. 점검이 새로 만든 판은 전부 왼쪽에 모인다.
+          -->
           <div class="flex min-w-0 flex-col gap-4 lg:col-span-2">
-            <!--
-              **대조는 그 실험의 일이라 상세 옆에 붙는다** (2026-09-18, 사용자). 실험 기록
-              위에 두면 "어느 실험의 대조인가"가 화면에서 사라진다 — 실험을 바꾸면 이 판도
-              함께 바뀌는 것이 그 자리로 보여야 한다.
-
-              **단추로 돈다.** 열자마자 돌면 무결성만 훑는 한 바퀴가 불가능해지고, 서른 개
-              동선이 거기서 무너진다 (open-decisions.md "명렬은 메타만 읽는다").
-            -->
-            <ReproducePanel
-              v-if="viewing.current"
-              :experiment="viewing.current"
-              :data-type="viewing.file.document.manifest.dataType"
-              :dataset="viewing.dataset"
-              :test-dataset="viewing.testDataset"
-            />
             <ExperimentDetail
               v-if="viewing.current"
               :experiment="viewing.current"

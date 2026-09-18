@@ -10,12 +10,18 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 
 import { i18n } from '../../src/i18n'
 import InspectView from '../../src/views/InspectView.vue'
-import { emptyProjectFile } from './project'
+import { emptyProjectFile, projectFile } from './project'
 import { writeProjectBytes } from './write'
 
 /** 진짜로 열리는 제출물 하나. 이름표는 명렬에 그대로 선다. */
 export async function submissionFile(name: string): Promise<File> {
   const { bytes } = await writeProjectBytes(emptyProjectFile(), '# 포트폴리오\n')
+  return new File([bytes as BlobPart], name)
+}
+
+/** 실험이 하나 든 제출물. **대조 판과 실험 상세는 실험이 있어야 선다.** */
+export async function submissionWithExperiment(name: string): Promise<File> {
+  const { bytes } = await writeProjectBytes(projectFile(), '# 포트폴리오\n')
   return new File([bytes as BlobPart], name)
 }
 

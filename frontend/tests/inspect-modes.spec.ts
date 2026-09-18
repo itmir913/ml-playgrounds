@@ -18,8 +18,16 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { i18n, setLocale } from '../src/i18n'
 import IntegrityPanel from '../src/views/inspect/IntegrityPanel.vue'
 import PortfolioPanel from '../src/views/inspect/PortfolioPanel.vue'
+import ReproducePanel from '../src/views/inspect/ReproducePanel.vue'
+import ExperimentDetail from '../src/views/results/ExperimentDetail.vue'
 import ProjectSummary from '../src/components/ProjectSummary.vue'
-import { brokenFile, mountInspect, pickFiles, submissionFile } from './fixtures/inspect-screen'
+import {
+  brokenFile,
+  mountInspect,
+  pickFiles,
+  submissionFile,
+  submissionWithExperiment,
+} from './fixtures/inspect-screen'
 
 /** 그 모드의 단추. **글자로 찾는다** — 교사가 누르는 것도 그 글자다. */
 function modeButton(wrapper: Awaited<ReturnType<typeof mountInspect>>, label: string) {
@@ -71,6 +79,36 @@ describe('열람 모드', () => {
     await modeButton(wrapper, PORTFOLIO()).trigger('click')
     expect(modeButton(wrapper, MODEL()).attributes('aria-pressed')).toBe('false')
     expect(modeButton(wrapper, PORTFOLIO()).attributes('aria-pressed')).toBe('true')
+    wrapper.unmount()
+  })
+
+  /**
+   * **자리가 뜻이다** (§8.21, 2026-09-18 사용자). 무결성과 대조는 둘 다 "이 제출물을 믿을
+   * 수 있나"의 답이라 한 열에 붙어 서고, 그래서 **오른쪽 열은 결과 화면과 같은 것**이
+   * 된다 — 왼쪽에서 고르고 오른쪽에 상세가 선다.
+   *
+   * **이 판은 자리를 두 번 옮겼다.** 옮겨도 화면은 멀쩡히 그려지므로 아무것도 안 운다.
+   */
+  it('대조는 무결성과 한 열에 서고 오른쪽 열에는 상세만 있다', async () => {
+    const wrapper = await mountInspect([await submissionWithExperiment('hong.mlpx')])
+    await flushPromises()
+
+    /** 두 열 격자에서 이 부품이 든 칸. */
+    const columnOf = (element: Element): Element | null => element.closest('.grid > *')
+    const integrity = columnOf(wrapper.findComponent(IntegrityPanel).element)
+    expect(integrity).not.toBeNull()
+    expect(columnOf(wrapper.findComponent(ReproducePanel).element)).toBe(integrity)
+    expect(columnOf(wrapper.findComponent(ExperimentDetail).element)).not.toBe(integrity)
+    wrapper.unmount()
+  })
+
+  it('대조 판이 어느 실험의 것인지를 말한다', async () => {
+    const wrapper = await mountInspect([await submissionWithExperiment('hong.mlpx')])
+    await flushPromises()
+    // 번호는 결과 화면이 매기는 그것이다 — 교사와 학생이 같은 실험을 다르게 부르면 안 된다.
+    expect(wrapper.findComponent(ReproducePanel).text()).toContain(
+      i18n.global.t('results.experimentName', { index: 1 }),
+    )
     wrapper.unmount()
   })
 

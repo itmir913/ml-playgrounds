@@ -40,6 +40,15 @@ import { DATA_SCHEMAS, type DataType, type Experiment } from '@/project/schema'
 
 const props = defineProps<{
   experiment: Experiment
+  /**
+   * 몇 번째 실험인가. **이 판이 상세에서 떨어져 나오면서 필요해졌다** (§8.21,
+   * 2026-09-18 사용자) — 상세 옆에 붙어 있을 때는 어느 실험의 대조인지를 자리가 말해
+   * 줬고, 무결성 아래로 오면서 그것을 판이 들고 가야 한다.
+   *
+   * **번호는 결과 화면이 매기는 그것이다** (`experimentOrder`) — 교사와 학생이 같은
+   * 실험을 다른 번호로 부르면 안 된다.
+   */
+  order: number
   dataType: DataType
   dataset: Dataset | null
   testDataset: Dataset | null
@@ -228,13 +237,23 @@ function failureText(reproduction: Reproduction): string {
 
 <template>
   <!--
-    **실험 상세의 이웃이라 같은 절 모양이다** (`ExperimentDetail`의 절들) — 이름표는
-    `font-bold text-ink-soft`, 이름표와 내용 사이는 `gap-1.5`, 안내는 이름표 바로 아래다.
-    여기만 테두리를 두르면 같은 열의 이웃들과 무게가 어긋난다 (2026-09-18, 사용자).
+    **무결성의 이웃이라 같은 절 모양이다** (`IntegrityPanel`, 그쪽도 `ExperimentDetail`의
+    절을 따른다) — 이름표는 `font-bold text-ink-soft`, 이름표와 내용 사이는 `gap-1.5`,
+    안내는 이름표 바로 아래다. 여기만 테두리를 두르면 같은 열의 이웃들과 무게가 어긋난다
+    (2026-09-18, 사용자).
   -->
   <section class="flex min-w-0 flex-col gap-1.5">
     <div class="flex flex-wrap items-baseline justify-between gap-2">
-      <h3 class="font-bold text-ink-soft">{{ t('inspect.reproduce') }}</h3>
+      <!--
+        **어느 실험의 대조인지를 판이 말한다** (§8.21). 실험 상세 옆에 있을 때는 자리가
+        말해 주던 것이고, 무결성 아래로 오면서 이 자리가 그것을 들고 간다.
+      -->
+      <div class="flex flex-wrap items-baseline gap-2">
+        <h3 class="font-bold text-ink-soft">{{ t('inspect.reproduce') }}</h3>
+        <span class="text-ink-faint">
+          {{ t('results.experimentName', { index: props.order }) }}
+        </span>
+      </div>
       <div class="flex flex-wrap items-baseline gap-3">
         <!-- **누르기 전에 말한다.** 교사의 질문은 "지금 눌러도 되는 일인가"다. -->
         <span v-if="blockers.length === 0" class="text-ink-faint">{{ estimateText }}</span>
