@@ -16,7 +16,7 @@
  * 넷 중 셋이 끝난 뒤 멈춰도 그 셋은 화면에 남는다.
  */
 
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, triggerRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
@@ -57,10 +57,40 @@ const props = defineProps<{
 const { t } = useI18n()
 const work = useWork()
 
-/** 지금까지 도착한 판정. **취소해도 남는 것이 이것이다.** */
-const found = ref<readonly Reproduction[]>([])
-/** 대조가 통째로 실패한 사유. run 하나의 실패는 그 줄이 말한다. */
-const failure = ref<ClientErrorCode | null>(null)
+/**
+ * **판정은 실험에 붙는다** (2026-09-18, 사용자). 실험 id → 그 실험의 판정들.
+ *
+ * 이 판은 실험을 바꿔도 **같은 컴포넌트가 그대로 산다.** 값을 칸 하나에 두면 3번째 실험의
+ * 판정이 2번째 실험의 자리에 그대로 서서, **다른 실험의 점수를 이 실험의 것으로 읽게
+ * 된다** — 이 화면이 가장 하면 안 되는 일이다.
+ *
+ * **그렇다고 지우지도 않는다.** 3번을 대조하고 2번을 들렀다 3번으로 돌아오면 그 판정이
+ * 다시 서야 한다 — 서른 명을 훑는 교사에게 같은 계산을 두 번 시키지 않는다. 파일을 바꾸면
+ * 이 판이 통째로 새로 서므로(`InspectView`의 `:key`) 남의 판정이 얹힐 자리는 없다.
+ */
+const byExperiment = ref(new Map<string, readonly Reproduction[]>())
+
+/** 통째로 실패한 사유도 실험에 붙는다. run 하나의 실패는 그 줄이 말한다. */
+const failures = ref(new Map<string, ClientErrorCode>())
+
+/**
+ * 지금 대조가 도는 **실험의 id**. 다른 실험을 보고 있으면 그 진행은 여기 안 뜬다.
+ *
+ * **바쁨도 손잡이도 아니다.** 도는지 여부는 `work.busy`가, 끊을 것은 `job.hold()`가
+ * 갖는다(`useWork`) — 여기 있는 것은 **그 일이 어느 실험의 것인가**이고, 그건 일을
+ * 쥔 쪽이 알 수 없는 값이다. 이름에 `running`을 안 쓰는 이유는 `ui-rules.spec.ts`가
+ * 그 낱말을 **손잡이 칸의 이름으로** 못 박아 두었기 때문이다.
+ */
+const comparing = ref<string | null>(null)
+
+/** 지금 실험의 판정들. */
+const found = computed<readonly Reproduction[]>(
+  () => byExperiment.value.get(props.experiment.id) ?? [],
+)
+
+const failure = computed<ClientErrorCode | null>(
+  () => failures.value.get(props.experiment.id) ?? null,
+)
 
 /** 무엇이 대조를 막는가. **boolean이 아니라 이유 목록이다** (CLAUDE.md §2). */
 const blockers = computed(() =>
@@ -164,14 +194,19 @@ const estimateText = computed(() => {
 
 async function reproduce(): Promise<void> {
   if (cannotStart.value || !props.dataset) return
-  found.value = []
-  failure.value = null
+  // **시작할 때의 실험을 손에 쥔다.** 도는 동안 교사가 다른 실험으로 옮기면 `props`는
+  // 그쪽을 가리키고, 그때 돌아온 판정을 그 자리에 앉히면 남의 실험의 점수가 된다.
+  const claim = props.experiment
+  const target = claim.id
+  byExperiment.value.delete(target)
+  failures.value.delete(target)
+  comparing.value = target
 
   const job = work.start()
   const request = {
     type: 'train' as const,
     input: reproduceInputOf({
-      experiment: props.experiment,
+      experiment: claim,
       dataset: props.dataset,
       testDataset: props.testDataset,
       dataType: props.dataType,
@@ -184,13 +219,23 @@ async function reproduce(): Promise<void> {
     const { experiment } = await handle.result
     // **떠난 화면에는 안 앉힌다** (`useWork`의 `alive`). 교사가 다른 제출물로 옮겼는데
     // 앞 파일의 판정이 뒤늦게 이 자리에 앉으면 **무고한 학생에게 붙는다.**
-    if (work.alive()) found.value = compareExperiments(props.experiment, experiment)
+    if (work.alive()) {
+      seat(byExperiment.value, target, compareExperiments(claim, experiment))
+    }
   } catch (error) {
     // **취소도 여기로 온다** (`JOB_CANCELLED`). 그때까지 온 것은 그대로 둔다.
-    if (work.alive()) failure.value = isClientError(error) ? error.code : 'JOB_FAILED'
+    if (work.alive()) seat(failures.value, target, isClientError(error) ? error.code : 'JOB_FAILED')
   } finally {
+    if (comparing.value === target) comparing.value = null
     job.done()
   }
+}
+
+/** 맵에 앉히고 화면에 알린다. **`ref`가 든 `Map`은 넣는 것만으로는 안 깨어난다.** */
+function seat<Value>(map: Map<string, Value>, key: string, value: Value): void {
+  map.set(key, value)
+  triggerRef(byExperiment)
+  triggerRef(failures)
 }
 
 /**
@@ -283,7 +328,8 @@ function failureText(reproduction: Reproduction): string {
       <span v-if="blockers.length === 0" class="text-ink-faint">{{ estimateText }}</span>
     </div>
 
-    <p v-if="work.busy.value" class="text-ink-soft">
+    <!-- **진행은 그 실험의 자리에서만 보인다.** 다른 실험을 보는 동안에는 남의 진행이다. -->
+    <p v-if="comparing === props.experiment.id" class="text-ink-soft">
       {{ t('inspect.reproducing', { done: found.length, total: claims }) }}
     </p>
 

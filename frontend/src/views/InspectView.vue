@@ -812,7 +812,14 @@ function reasonOf(code: string): string {
               동선이 거기서 무너진다 (open-decisions.md "명렬은 메타만 읽는다").
             -->
             <div v-if="viewing.current" :class="PANEL">
+              <!--
+                **판정 꾸러미는 제출물마다 새로 선다** (2026-09-18, 사용자). 판은 실험을
+                바꿔도 판정을 들고 있는데(그래야 3번을 대조하고 2번을 들렀다 돌아왔을 때
+                다시 안 돌린다), **파일이 바뀌면 그 기억은 남의 것**이다. 실험 id는 같은
+                프로젝트에서 나온 파일들 사이에서 겹치므로 이름표로 가른다.
+              -->
               <ReproducePanel
+                :key="opened?.label"
                 :experiment="viewing.current"
                 :order="viewing.order.get(viewing.current.id) ?? 0"
                 :data-type="viewing.file.document.manifest.dataType"
