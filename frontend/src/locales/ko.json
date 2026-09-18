@@ -25,7 +25,6 @@
     "roster": "제출물 ({read}/{total})",
     "reading": "읽는 중",
     "unreadable": "열 수 없음",
-    "noStudent": "이름 없음",
     "pickOne": "표에서 제출물을 선택하세요.",
     "experiments": "실험(Experiment)",
     "runs": "학습한 모델",
@@ -54,7 +53,9 @@
     },
     "delta": "{metric} {value}",
     "editStudent": "학번·이름 수정",
-    "noDifference": "차이 없음"
+    "noDifference": "차이 없음",
+    "noStudentId": "학번 없음",
+    "noStudentName": "이름 없음"
   },
   "taskTypes": {
     "classification": "분류(Classification)",

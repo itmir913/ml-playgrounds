@@ -25,7 +25,6 @@
     "roster": "Submissions ({read}/{total})",
     "reading": "Reading",
     "unreadable": "Cannot open",
-    "noStudent": "No name",
     "pickOne": "Choose a submission from the table.",
     "experiments": "Experiments",
     "runs": "Trained models",
@@ -54,7 +53,9 @@
     },
     "delta": "{metric} {value}",
     "editStudent": "Edit student",
-    "noDifference": "No difference"
+    "noDifference": "No difference",
+    "noStudentId": "No student number",
+    "noStudentName": "No name"
   },
   "taskTypes": {
     "classification": "Classification",

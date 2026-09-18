@@ -143,8 +143,10 @@ const rows = computed(() =>
       const read = summary?.state === 'read' ? summary : undefined
       return {
         item,
-        studentId: read ? (read.studentId ?? t('inspect.noStudent')) : '',
-        studentName: read ? (read.studentName ?? t('inspect.noStudent')) : '',
+        // **빈 자리의 이름은 열마다 다르다.** 학번 칸에 `이름 없음`이 서 있었다
+        // (2026-09-18, 사용자).
+        studentId: read ? (read.studentId ?? t('inspect.noStudentId')) : '',
+        studentName: read ? (read.studentName ?? t('inspect.noStudentName')) : '',
         /** 교사가 고쳐 둔 줄. **파일과 다르다는 것을 화면이 말해야 한다.** */
         edited: roster.edits.value.has(item.label),
         experiments: read ? t('meta.countUnit', read.experiments) : '',
