@@ -223,6 +223,8 @@ async function reproduce(): Promise<void> {
   byExperiment.value.delete(target)
   failures.value.delete(target)
   comparing.value = target
+  // 다시 누르면 앞서 멈춘 자국은 지운다.
+  if (halted.value === target) halted.value = null
 
   const job = start()
   const request = {
@@ -284,8 +286,21 @@ async function reproduce(): Promise<void> {
  */
 function stop(): void {
   stopped = comparing.value
+  halted.value = comparing.value
   cancelAll()
 }
+
+/**
+ * 교사가 멈춘 실험. **화면이 그 사실을 말해야 한다** (2026-09-18 R28-V).
+ *
+ * 멈추면 진행 줄이 사라지고 판정 셋만 남는데, 주장이 넷이라는 사실은 화면 어디에도 없다 —
+ * **`넷 중 셋`과 `셋 중 셋`이 같은 모양이다.** 서른 개를 넘기다 보면 교사는 어느 것을
+ * 멈췄는지 잊는다.
+ *
+ * **`stopped`와 따로 든다.** 저쪽은 `try`가 한 번 묻고 버리는 값이고 이쪽은 화면이 계속
+ * 읽는 값이라, 하나로 합치면 끝나는 순간 줄이 사라진다.
+ */
+const halted = ref<string | null>(null)
 
 /** 맵에 앉히고 화면에 알린다. **`ref`가 든 `Map`은 넣는 것만으로는 안 깨어난다.** */
 function seat<Value>(map: Map<string, Value>, key: string, value: Value): void {
@@ -392,9 +407,17 @@ function failureText(reproduction: Reproduction): string {
       <span v-if="blockers.length === 0" class="text-ink-faint">{{ estimateText }}</span>
     </div>
 
-    <!-- **진행은 그 실험의 자리에서만 보인다.** 다른 실험을 보는 동안에는 남의 진행이다. -->
+    <!--
+      **진행은 그 실험의 자리에서만 보인다.** 다른 실험을 보는 동안에는 남의 진행이다.
+
+      **멈춘 자국도 남는다** (2026-09-18 R28-V). 멈추고 줄이 사라지면 `넷 중 셋`과
+      `셋 중 셋`이 같은 모양이라, 교사가 어느 것을 멈췄는지 알 길이 없다.
+    -->
     <p v-if="comparing === props.experiment.id" class="text-ink-soft">
       {{ t('inspect.reproducing', { done: found.length, total: claims }) }}
+    </p>
+    <p v-else-if="halted === props.experiment.id" class="text-ink-soft">
+      {{ t('inspect.reproduceStopped', { done: found.length, total: claims }) }}
     </p>
 
     <p v-if="failure" class="text-caution">{{ t(errorMessageKey(failure)) }}</p>

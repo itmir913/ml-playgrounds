@@ -199,6 +199,47 @@ describe('대조가 도는 동안', () => {
   })
 
   /**
+   * **판정이 두 길로 오지만 두 번 서지는 않는다** (2026-09-18 R28-V). run마다 오는 보고와
+   * 끝날 때 오는 완성품이 **둘 다 같은 자리에 앉는다** — 뒤엣것이 덮어쓰지 않고 덧붙이면
+   * 판정이 두 배가 되고, 교사는 **넷짜리 실험에서 여덟 줄**을 본다.
+   */
+  it('run 보고를 받은 뒤에 끝나도 판정이 두 번 안 선다', async () => {
+    const two = claim('experiment-3', 2)
+    const panel = await started(two)
+    worker.report?.(two.runs[0]!, 1, 2, 0)
+    worker.report?.(two.runs[1]!, 2, 2, 1)
+    await flushPromises()
+    expect(verdicts(panel)).toHaveLength(2)
+
+    worker.resolve?.({ experiment: two })
+    await flushPromises()
+    expect(verdicts(panel), 'the finished experiment replaces, not appends').toHaveLength(2)
+    panel.unmount()
+  })
+
+  /**
+   * **실패한 주장에는 견줄 점수가 없다.** 학습 루프는 실패한 run에도 보고를 보내므로
+   * (`ml/experiment.ts`), 여기서 거르지 않으면 **그 자리에 판정 줄이 하나 선다** —
+   * 파일이 "실패했다"고 적어 둔 것을 화면이 대조 결과처럼 말하는 것이 된다.
+   */
+  it('파일이 실패라고 적은 run에는 판정 줄이 안 선다', async () => {
+    const base = claim('experiment-3', 2)
+    const failed: Experiment = {
+      ...base,
+      runs: [{ ...base.runs[0]!, status: 'failed', metrics: {} }, base.runs[1]!],
+    }
+    const panel = await started(failed)
+    worker.report?.(failed.runs[0]!, 1, 2, 0)
+    await flushPromises()
+    expect(verdicts(panel), 'a failed claim has no score to compare').toEqual([])
+
+    worker.report?.(failed.runs[1]!, 2, 2, 1)
+    await flushPromises()
+    expect(verdicts(panel)).toHaveLength(1)
+    panel.unmount()
+  })
+
+  /**
    * **멈추면 끝난 것이 남는다** (open-decisions.md "멈추기가 끝난 것을 남긴다").
    *
    * 멈추기는 도착한 run만으로 실험을 조립해 돌려주므로, 그것을 통째로 견주면 **안 돌린
@@ -217,6 +258,25 @@ describe('대조가 도는 동안', () => {
     await flushPromises()
 
     expect(verdicts(panel)).toHaveLength(1)
+    // **몇 중 몇에서 멈췄는지가 남는다** — 줄이 사라지면 `넷 중 셋`과 `셋 중 셋`이 같다.
+    expect(panel.text()).toContain(i18n.global.t('inspect.reproduceStopped', { done: 1, total: 2 }))
+    panel.unmount()
+  })
+
+  it('다른 실험으로 옮기면 멈춘 자국도 따라오지 않는다', async () => {
+    const two = claim('experiment-3', 2)
+    const panel = await started(two)
+    worker.report?.(two.runs[0]!, 1, 2, 0)
+    await flushPromises()
+    await button(panel, STOP()).trigger('click')
+    worker.resolve?.({ experiment: experiment('experiment-3', [two.runs[0]!]) })
+    await flushPromises()
+
+    await panel.setProps({ experiment: claim('experiment-2', 2) })
+    await flushPromises()
+    expect(panel.text()).not.toContain(
+      i18n.global.t('inspect.reproduceStopped', { done: 1, total: 2 }),
+    )
     panel.unmount()
   })
 

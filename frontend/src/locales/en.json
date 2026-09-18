@@ -38,6 +38,7 @@
     "reproduceLead": "Trains again with the settings and split recorded in the file, then checks whether the same scores come out.",
     "reproduceStart": "Start check",
     "reproducing": "Checking ({done}/{total})",
+    "reproduceStopped": "Stopped ({done}/{total})",
     "verdict": "Verdict",
     "difference": "Difference",
     "flipped": "{count} rows predicted differently",
