@@ -239,28 +239,25 @@ function failureText(reproduction: Reproduction): string {
   <!--
     **무결성의 이웃이라 같은 절 모양이다** (`IntegrityPanel`, 그쪽도 `ExperimentDetail`의
     절을 따른다) — 이름표는 `font-bold text-ink-soft`, 이름표와 내용 사이는 `gap-1.5`,
-    안내는 이름표 바로 아래다. 여기만 테두리를 두르면 같은 열의 이웃들과 무게가 어긋난다
-    (2026-09-18, 사용자).
+    안내는 이름표 바로 아래다.
+
+    **카드는 여기서 안 두른다.** 왼쪽 열의 판 셋을 같은 카드가 감싸고, 그 카드는
+    `InspectView`의 `PANEL`이 한 자리에서 준다 (2026-09-18, 사용자).
   -->
   <section class="flex min-w-0 flex-col gap-1.5">
-    <div class="flex flex-wrap items-baseline justify-between gap-2">
-      <!--
-        **어느 실험의 대조인지를 판이 말한다** (§8.21). 실험 상세 옆에 있을 때는 자리가
-        말해 주던 것이고, 무결성 아래로 오면서 이 자리가 그것을 들고 간다.
-      -->
-      <div class="flex flex-wrap items-baseline gap-2">
-        <h3 class="font-bold text-ink-soft">{{ t('inspect.reproduce') }}</h3>
-        <span class="text-ink-faint">
-          {{ t('results.experimentName', { index: props.order }) }}
-        </span>
-      </div>
-      <div class="flex flex-wrap items-baseline gap-3">
-        <!-- **누르기 전에 말한다.** 교사의 질문은 "지금 눌러도 되는 일인가"다. -->
-        <span v-if="blockers.length === 0" class="text-ink-faint">{{ estimateText }}</span>
-        <AppButton :disabled="cannotStart" :action="reproduce">
-          {{ t('inspect.reproduceStart') }}
-        </AppButton>
-      </div>
+    <!--
+      **머리 줄에는 글자만 선다** (2026-09-18, 사용자). 단추를 여기 두면 그 높이만큼 줄이
+      두꺼워지고, `items-baseline`이라 **이름표가 아래로 밀려 카드 위 여백이 이웃 카드보다
+      넓어 보인다.** 옆 카드(무결성)의 머리 줄은 글자 둘이라 그 일이 안 생긴다.
+
+      **어느 실험의 대조인지를 판이 말한다** (§8.21). 실험 상세 옆에 있을 때는 자리가
+      말해 주던 것이고, 무결성 아래로 오면서 이 자리가 그것을 들고 간다.
+    -->
+    <div class="flex flex-wrap items-baseline gap-2">
+      <h3 class="font-bold text-ink-soft">{{ t('inspect.reproduce') }}</h3>
+      <span class="text-ink-faint">
+        {{ t('results.experimentName', { index: props.order }) }}
+      </span>
     </div>
 
     <p class="text-ink-faint">{{ t('inspect.reproduceLead') }}</p>
@@ -272,6 +269,19 @@ function failureText(reproduction: Reproduction): string {
     <ul v-if="blockers.length > 0" class="flex flex-col gap-1 text-ink-soft">
       <li v-for="blocker in blockers" :key="blocker">{{ t(`inspect.blocked.${blocker}`) }}</li>
     </ul>
+
+    <!--
+      **동작은 설명 다음이다.** 무엇을 하는 판인지 읽고 나서 누르는 순서이고, 머리 줄을
+      글자만으로 두어 이웃 카드와 리듬이 맞는다.
+
+      **누르기 전에 얼마나 걸릴지 말한다.** 교사의 질문은 "지금 눌러도 되는 일인가"다.
+    -->
+    <div class="mt-1 flex flex-wrap items-center gap-3">
+      <AppButton :disabled="cannotStart" :action="reproduce">
+        {{ t('inspect.reproduceStart') }}
+      </AppButton>
+      <span v-if="blockers.length === 0" class="text-ink-faint">{{ estimateText }}</span>
+    </div>
 
     <p v-if="work.busy.value" class="text-ink-soft">
       {{ t('inspect.reproducing', { done: found.length, total: claims }) }}

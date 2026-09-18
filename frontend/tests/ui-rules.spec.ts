@@ -2650,3 +2650,37 @@ describe('없는 색 토큰을 부르지 않는다', () => {
     expect(offenders, 'uses a color token that theme.css does not define').toEqual([])
   })
 })
+
+/**
+ * **스크롤 도착 지점은 붙박이 바 아래에서 멈춘다** (2026-09-18, 사용자).
+ *
+ * `ExperimentDetail`은 결과 화면과 점검 화면에 **함께 서는데 점검에만 붙박이 동작 바가
+ * 있다.** 도착 지점이 바 높이를 안 빼면 `scrollIntoView`가 데려간 자리를 바가 덮어서,
+ * 모델 줄을 눌러도 열린 것이 안 보인다 — 실제로 그랬다.
+ *
+ * **기본값이 0이어야 한다.** 바가 없는 화면(결과)도 같은 클래스를 쓰므로, `under-step-bar`
+ * 처럼 한 줄짜리 바의 높이를 기본으로 두면 거기서 여백이 84px 더 생긴다.
+ */
+describe('도착 지점은 붙박이 바를 비켜선다', () => {
+  const css = readFileSync(join(SRC, 'styles', 'utilities.css'), 'utf-8')
+
+  /** `@utility <이름> { ... }`의 몸통. */
+  function utility(name: string): string {
+    const start = css.indexOf(`@utility ${name} {`)
+    expect(start, `${name} not found`).toBeGreaterThan(-1)
+    return css.slice(start, css.indexOf('}', css.indexOf('{', start)) + 1)
+  }
+
+  it('scroll-below-shell이 바 높이를 빼고 기본값은 0이다', () => {
+    const rule = utility('scroll-below-shell')
+    expect(rule, 'the arrival point ignores the sticky bar').toContain('--step-bar-height')
+    expect(rule, 'a screen without a bar would gain the fallback gap').toMatch(
+      /--step-bar-height,\s*0px/,
+    )
+  })
+
+  it('바가 늘 있는 화면의 것과 기본값이 다르다', () => {
+    // `under-step-bar`는 바가 늘 있는 화면의 것이라 **아직 못 쟀을 때**를 위한 기본값을 갖는다.
+    expect(utility('under-step-bar')).toMatch(/--step-bar-height,\s*5\.25rem/)
+  })
+})

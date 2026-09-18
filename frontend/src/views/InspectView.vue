@@ -292,6 +292,14 @@ const COLUMNS: readonly InspectColumn[] = [
   },
 ]
 
+/**
+ * 왼쪽 열의 판 하나를 담는 카드 (2026-09-18, 사용자).
+ *
+ * **셋이 한 문자열을 쓴다.** 자리마다 적으면 그중 하나만 고쳐지는 날이 오고, 어긋난
+ * 것은 그 열을 통째로 봐야 보인다 — 요약만 카드이던 동안이 정확히 그 상태였다.
+ */
+const PANEL = 'rounded-panel border border-line bg-surface p-4'
+
 /** 머리와 칸이 함께 부르는 것. **정렬을 두 번 적지 않는다.** */
 function alignClass(column: InspectColumn): string {
   return column.align === 'right' ? 'text-right' : ''
@@ -643,9 +651,14 @@ function reasonOf(code: string): string {
         -->
         <!-- 칸 사이 간격은 다른 화면의 두 열과 같다 (`gap-5`, 전처리·대시보드·포트폴리오). -->
         <div v-if="mode === 'model'" class="grid gap-5 lg:grid-cols-3">
+          <!--
+            **왼쪽 판 셋은 같은 카드에 담긴다** (2026-09-18, 사용자). 요약만 카드이고
+            나머지가 맨몸이면 한 열에 두 문법이 서고, 그 열이 통째로 흐트러져 보인다 —
+            **카드 안의 절 리듬은 그대로다**(이름표 `font-bold text-ink-soft`, `gap-1.5`).
+          -->
           <div class="flex min-w-0 flex-col gap-5">
             <!-- 무슨 데이터를 몇 행, 타깃은 무엇으로. **교사가 가장 먼저 보는 줄들이다.** -->
-            <aside class="rounded-panel border border-line bg-surface p-4">
+            <aside :class="PANEL">
               <ProjectSummary :file="viewing.file" />
             </aside>
 
@@ -654,7 +667,9 @@ function reasonOf(code: string): string {
               손댄 흔적이 있나 → 점수가 진짜인가"이고, **세 판이 이 열에 그 순서로 선다**
               (§8.21). 무결성은 파일 전체의 일이라 실험마다 다른 값이 아니다.
             -->
-            <IntegrityPanel :integrity="viewing.integrity" />
+            <div :class="PANEL">
+              <IntegrityPanel :integrity="viewing.integrity" />
+            </div>
 
             <!--
               **대조는 무결성 바로 아래다** (2026-09-18, 사용자). 둘 다 "이 제출물을 믿을
@@ -664,14 +679,15 @@ function reasonOf(code: string): string {
               **단추로 돈다.** 열자마자 돌면 무결성만 훑는 한 바퀴가 불가능해지고, 서른 개
               동선이 거기서 무너진다 (open-decisions.md "명렬은 메타만 읽는다").
             -->
-            <ReproducePanel
-              v-if="viewing.current"
-              :experiment="viewing.current"
-              :order="viewing.order.get(viewing.current.id) ?? 0"
-              :data-type="viewing.file.document.manifest.dataType"
-              :dataset="viewing.dataset"
-              :test-dataset="viewing.testDataset"
-            />
+            <div v-if="viewing.current" :class="PANEL">
+              <ReproducePanel
+                :experiment="viewing.current"
+                :order="viewing.order.get(viewing.current.id) ?? 0"
+                :data-type="viewing.file.document.manifest.dataType"
+                :dataset="viewing.dataset"
+                :test-dataset="viewing.testDataset"
+              />
+            </div>
 
             <section v-if="viewing.experiments.length > 0" class="flex flex-col gap-1.5">
               <h3 class="font-bold text-ink-soft">{{ t('results.experimentTitle') }}</h3>

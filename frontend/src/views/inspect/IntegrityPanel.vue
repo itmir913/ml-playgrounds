@@ -33,6 +33,9 @@ const changed = computed(() => props.integrity.entries.filter((one) => one.state
     **절의 리듬은 결과 화면과 같다** (`ExperimentDetail`) — 이름표는 `font-bold text-ink-soft`,
     이름표와 내용 사이는 `gap-1.5`. 점검만 다른 여백을 쓰면 같은 부품을 쓰고도 화면이
     남의 것처럼 보인다 (2026-09-18, 사용자).
+
+    **카드는 여기서 안 두른다.** 왼쪽 열의 판 셋이 같은 카드에 담기고 그 카드는
+    `InspectView`의 `PANEL`이 한 자리에서 준다 — 판마다 두르면 셋이 갈린다.
   -->
   <section class="flex flex-col gap-1.5">
     <div class="flex flex-wrap items-baseline justify-between gap-2">

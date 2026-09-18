@@ -178,9 +178,20 @@
   overscroll-behavior: contain;
 }
 
-/** 셸 안쪽에서 멈추는 스크롤 도착 지점. 붙박이 바가 없는 화면(결과)이 쓴다. */
+/**
+ * 셸 안쪽에서 멈추는 스크롤 도착 지점.
+ *
+ * **바가 있으면 그 아래에서 멈춘다** (2026-09-18, 사용자). 같은 부품(`ExperimentDetail`)이
+ * 결과 화면과 점검 화면에 함께 서는데 **점검에는 붙박이 동작 바가 있다** — 바 높이를
+ * 안 빼면 `scrollIntoView`가 데려간 자리를 바가 덮어서, 모델 줄을 눌러도 열린 것이
+ * 안 보인다.
+ *
+ * **기본값이 0인 것이 `under-step-bar`와 다른 점이다.** 저쪽은 바가 늘 있는 화면의
+ * 것이라 아직 못 쟀을 때를 대비해 한 줄짜리 바의 높이를 기본으로 두지만, 여기는
+ * **바가 없는 화면도 쓰므로** 없을 때 0이어야 한다(`StepActionBar`가 떠날 때 지운다).
+ */
 @utility scroll-below-shell {
-  scroll-margin-top: calc(var(--shell-top) + 1.25rem);
+  scroll-margin-top: calc(var(--shell-top) + var(--step-bar-height, 0px) + 1.25rem);
 }
 
 /**
