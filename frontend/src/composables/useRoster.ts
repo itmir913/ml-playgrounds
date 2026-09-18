@@ -12,7 +12,8 @@
  * **명렬의 동일성을 쥔다.** 교사가 다른 폴더를 고르면 옛 훑기가 아직 돌고 있고, 그 결과가
  * 새 명렬에 앉으면 **다른 반의 요약이 이 반에 붙는다.** `alive`/`retire`로는 못 막는다 —
  * 그쪽은 화면을 떠날 때의 이야기이고 파일 읽기 루프에는 맡길 손잡이가 없다
- * (`useWork.ts`의 같은 문단). 그래서 앉히기 전에 **내가 든 명렬이 지금 명렬인지** 본다.
+ * (`useWork.ts`의 같은 문단). 그래서 앉히기 전에 **내가 든 명렬이 지금 명렬인지** 본다
+ * (`useWork.ts`의 `clearIfHeld`와 같은 관용구이고, 여기서는 배열 하나를 직접 견준다).
  */
 
 import { ref, shallowRef, type Ref } from 'vue'
@@ -39,8 +40,6 @@ export interface Roster {
   readonly items: Ref<readonly RosterItem[]>
   /** 이름표 → 요약. 아직 안 읽은 줄은 없다. */
   readonly summaries: Ref<ReadonlyMap<string, RosterSummary>>
-  /** 지금 읽고 있는 줄. 없으면 훑기가 쉬는 중이다. */
-  readonly reading: Ref<string | null>
   /**
    * 통째로 읽어 연 제출물. **명렬이 메타만 읽는 것과 갈리는 자리다** — 열람과 무결성은
    * 사진까지 있어야 한다.
@@ -97,7 +96,6 @@ interface Job {
 export function useRoster(): Roster {
   const items = shallowRef<readonly RosterItem[]>([])
   const summaries = ref<ReadonlyMap<string, RosterSummary>>(new Map())
-  const reading = ref<string | null>(null)
   const opened = shallowRef<OpenedSubmission | null>(null)
   const edits = ref<ReadonlyMap<string, StudentEdit>>(new Map())
 
@@ -143,9 +141,7 @@ export function useRoster(): Roster {
 
   async function run(job: Job): Promise<void> {
     const mine = held
-    reading.value = job.item.label
     const done = await readOne(job)
-    reading.value = null
     // **내가 든 명렬이 아직 지금 명렬일 때만 앉힌다.**
     if (mine !== held) {
       release(job)
@@ -225,7 +221,7 @@ export function useRoster(): Roster {
     return Promise.all(waits).then((all) => all.every((one) => one))
   }
 
-  return { items, summaries, reading, opened, edits, show, open, correct, collect }
+  return { items, summaries, opened, edits, show, open, correct, collect }
 }
 
 /** 한 줄을 읽는다. **못 읽는 것은 사유가 된다** — 명렬에서 빼지 않는다. */

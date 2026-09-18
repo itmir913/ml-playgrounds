@@ -124,6 +124,34 @@ describe('열람 모드', () => {
     wrapper.unmount()
   })
 
+  /**
+   * **고른 실험은 제출물을 안 건넌다** (2026-09-18 R28 C-8).
+   *
+   * 실험 id는 **같은 프로젝트에서 나온 파일들 사이에서 겹친다** — 교사가 나눠 준 시작
+   * 파일로 학습한 반이 전부 그 모양이다. 줄을 옮길 때 고른 id를 안 비우면 다음 파일에서
+   * 그 id가 그대로 맞아, **교사가 앞 학생에게서 고른 그 실험**이 열린 채로 선다.
+   */
+  it('다른 제출물로 옮기면 마지막 실험으로 돌아온다', async () => {
+    const wrapper = await mountInspect([
+      await submissionWithExperiment('hong.mlpx', 3),
+      await submissionWithExperiment('kim.mlpx', 3),
+    ])
+    await flushPromises()
+    await wrapper.findAll('tbody tr')[0]!.trigger('click')
+    await flushPromises()
+    // 첫 실험을 고른다 — 이 id는 다음 파일에도 그대로 있다.
+    await wrapper.findAllComponents({ name: 'ExperimentList' })[0]!.vm.$emit('pick', 'experiment-1')
+    await flushPromises()
+    expect(wrapper.findComponent(ReproducePanel).props('order')).toBe(1)
+
+    await wrapper.findAll('tbody tr')[1]!.trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent(ReproducePanel).props('order'), 'the choice must not travel').toBe(
+      3,
+    )
+    wrapper.unmount()
+  })
+
   it('다른 제출물로 옮겨도 모드가 유지된다', async () => {
     const wrapper = await mountInspect([
       await submissionFile('hong.mlpx'),

@@ -182,8 +182,12 @@ describe('파일에서 판정까지 한 줄로', () => {
 
     expect(fresh?.runs).toHaveLength(experiment.runs.length)
     for (const [index, run] of experiment.runs.entries()) {
-      // **지표가 같아야 한다.** 조립이 한 자리라도 틀리면 여기서 갈린다 — 손잡이를
-      // 다른 데서 읽거나, 실행 방법을 요청한 것으로 쓰거나, 분할을 다시 계산하면.
+      // **지표가 같아야 한다.** 조립이 한 자리라도 틀리면 여기서 갈린다 — 실행 방법을
+      // 요청한 것으로 쓰거나 분할을 다시 계산하면 그렇다.
+      //
+      // **손잡이는 여기서 안 갈린다** (2026-09-18 R28 C-22). 이 픽스처의 run은 기본
+      // 손잡이라, `run.hyperparameters` 대신 다른 데서 읽어도 같은 값이 나온다 — 그 자리는
+      // `reproduce.spec.ts`의 "손잡이를 바꿔 가며 남긴 실험"이 잡는다.
       expect(fresh?.runs[index]?.metrics, run.algorithm).toEqual(run.metrics)
     }
   })

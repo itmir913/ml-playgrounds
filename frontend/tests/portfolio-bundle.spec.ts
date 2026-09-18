@@ -9,7 +9,7 @@
 import { unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
-import { bundleOf, entriesOf, folderFor } from '../src/project/portfolio-bundle'
+import { bundleOf, entriesOf, folderFor, folderNames } from '../src/project/portfolio-bundle'
 import { DIR, ENTRY } from '../src/project/format'
 import type { ProjectFile } from '../src/project/format'
 import { projectFile } from './fixtures/project'
@@ -50,12 +50,12 @@ describe('폴더 이름', () => {
 
 describe('제출물 하나의 엔트리', () => {
   it('글은 파일 안에서와 같은 자리에 들어간다', () => {
-    const files = entriesOf({ label: '홍길동.mlpx', file: projectFile() }, label, 'ko')
+    const files = entriesOf({ label: '홍길동.mlpx', file: projectFile() }, '홍길동', label, 'ko')
     expect(Object.keys(files)).toEqual([`홍길동/${ENTRY.portfolioMarkdown}`])
   })
 
   it('사진도 파일 안에서와 같은 자리다 - 글이 상대 경로로 가리킨다', () => {
-    const files = entriesOf({ label: '홍길동.mlpx', file: withPhoto() }, label, 'ko')
+    const files = entriesOf({ label: '홍길동.mlpx', file: withPhoto() }, '홍길동', label, 'ko')
     const markdown = new TextDecoder().decode(files[`홍길동/${ENTRY.portfolioMarkdown}`])
 
     // 글이 적은 주소를 글이 놓인 자리에서 풀면 사진의 자리가 나온다.
@@ -72,12 +72,12 @@ describe('제출물 하나의 엔트리', () => {
         [`${DIR.attachments}2.webp`, new Uint8Array([9])],
       ]),
     }
-    const files = entriesOf({ label: '홍길동.mlpx', file: orphan }, label, 'ko')
+    const files = entriesOf({ label: '홍길동.mlpx', file: orphan }, '홍길동', label, 'ko')
     expect(files[`홍길동/${DIR.attachments}2.webp`]).toBeUndefined()
   })
 
   it('머리글은 교사의 언어로 그린다 - 학생 파일에 담긴 글을 베끼지 않는다', () => {
-    const files = entriesOf({ label: '홍길동.mlpx', file: projectFile() }, label, 'ko')
+    const files = entriesOf({ label: '홍길동.mlpx', file: projectFile() }, '홍길동', label, 'ko')
     const markdown = new TextDecoder().decode(files[`홍길동/${ENTRY.portfolioMarkdown}`])
     expect(markdown).toContain('[meta.created]')
   })
@@ -108,5 +108,41 @@ describe('묶음', () => {
     expect(names.some((name) => name.startsWith(DIR.dataset))).toBe(false)
     expect(names.some((name) => name.startsWith(DIR.model))).toBe(false)
     expect(names).not.toContain(ENTRY.manifest)
+  })
+})
+
+/**
+ * **폴더 이름이 겹치면 한 학생의 글이 남의 글로 바뀐다** (2026-09-18 R28 C-20).
+ *
+ * `folderFor`는 확장자만 떼므로 한 폴더의 `a.mlpx`와 `a.MLPX`가 같은 이름이 된다 —
+ * 대소문자를 가리는 파일 시스템(리눅스)에서 만들 수 있는 입력이고, 그때 zip 엔트리는
+ * **조용히 덮인다.** 교사는 서른 명을 냈는데 스물아홉 폴더를 받고 그 사실을 알 길이 없다.
+ */
+describe('폴더 이름은 서로 다르다', () => {
+  it('겹치면 뒤엣것에 번호를 붙인다', () => {
+    expect(folderNames(['a.mlpx', 'a.MLPX', 'a.mlpx'])).toEqual(['a', 'a (2)', 'a (3)'])
+  })
+
+  it('안 겹치면 그대로 둔다', () => {
+    expect(folderNames(['1반/홍길동.mlpx', '1반/김철수.mlpx'])).toEqual([
+      '1반/홍길동',
+      '1반/김철수',
+    ])
+  })
+
+  it('묶음이 그 이름을 쓴다 - 덮이는 제출물이 없다', async () => {
+    const blob = bundleOf(
+      [
+        { label: '홍길동.mlpx', file: projectFile() },
+        { label: '홍길동.MLPX', file: projectFile() },
+      ],
+      label,
+      'ko',
+    )
+    const entries = unzipSync(new Uint8Array(await blob.arrayBuffer()))
+    expect(Object.keys(entries).sort()).toEqual([
+      `홍길동 (2)/${ENTRY.portfolioMarkdown}`,
+      `홍길동/${ENTRY.portfolioMarkdown}`,
+    ])
   })
 })

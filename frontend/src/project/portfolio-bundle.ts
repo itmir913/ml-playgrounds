@@ -44,19 +44,44 @@ export function folderFor(label: string): string {
 }
 
 /**
+ * 이름표들이 차지할 **서로 다른** 폴더 이름들. 순서는 받은 그대로다.
+ *
+ * **겹치면 뒤엣것이 조용히 덮인다** (2026-09-18 R28 C-20). `folderFor`는 확장자만 떼므로
+ * 한 폴더의 `a.mlpx`와 `a.MLPX`가 같은 이름이 되는데, 그것은 리눅스에서 만들 수 있다.
+ * 그때 zip은 스물아홉 폴더로 나가고 **한 학생의 글이 남의 글로 바뀌어 있다** — 교사는
+ * 그 사실을 알 길이 없다.
+ *
+ * **던지지 않고 갈라 준다.** 내보내기는 무조건 성공해야 하는 자리라(교사가 여기서 막히면
+ * 할 수 있는 일이 없다), 뒤엣것에 번호를 붙여 서로 다른 폴더로 만든다.
+ */
+export function folderNames(labels: readonly string[]): string[] {
+  const used = new Set<string>()
+  return labels.map((label) => {
+    const base = folderFor(label)
+    let name = base
+    for (let index = 2; used.has(name); index += 1) name = `${base} (${index})`
+    used.add(name)
+    return name
+  })
+}
+
+/**
  * 제출물 하나가 묶음에 넣을 엔트리들.
  *
  * **글은 파일에 담긴 것을 다시 그리지 않고 지금 문서에서 그린다** — 학생이 마지막으로
  * 저장할 때 담긴 `document.md`와 같은 함수(`renderPortfolioMarkdown`)를 쓰므로 내용은
  * 같고, **머리글의 언어만 교사의 것이 된다.** 교사가 읽을 묶음이라 그쪽이 맞다.
+ *
+ * **폴더 이름은 받아서 쓴다.** 겹침을 가르는 일은 묶음 전체를 봐야 할 수 있으므로
+ * `folderNames`가 하고, 여기는 한 제출물만 안다.
  */
 export function entriesOf(
   entry: BundleEntry,
+  folder: string,
   translate: Translate,
   locale: string,
 ): Record<string, Uint8Array> {
   const { document, attachments } = entry.file
-  const folder = folderFor(entry.label)
   const markdown = renderPortfolioMarkdown(
     portfolioMarkdownText(document.manifest, translate, locale),
     document.portfolio,
@@ -90,7 +115,13 @@ export function bundleOf(
   locale: string,
 ): Blob {
   const files: Record<string, Uint8Array> = {}
-  for (const entry of entries) Object.assign(files, entriesOf(entry, translate, locale))
+  const folders = folderNames(entries.map((entry) => entry.label))
+  for (const [index, entry] of entries.entries()) {
+    Object.assign(
+      files,
+      entriesOf(entry, folders[index] ?? folderFor(entry.label), translate, locale),
+    )
+  }
   const zipped = zipSync(files, { level: 6 })
   return new Blob([zipped as unknown as BlobPart], { type: 'application/zip' })
 }

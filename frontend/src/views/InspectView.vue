@@ -2,10 +2,12 @@
 /**
  * **점검** — 교사가 제출물을 열어 보는 화면 (architecture.md §8.21).
  *
- * 이 판은 명렬까지다. 고른 파일의 열람·무결성·재실행 대조는 이어서 붙는다.
+ * 이 화면이 명렬을 들고, 고른 파일의 열람·무결성·재실행 대조가 그 아래 붙는다.
  *
- * **읽기 전용이다.** 원본 `.mlpx`를 고칠 길을 안 만든다 — 저장도, 내려받기도, 탭 잠금도
- * 여기서 안 부른다 (`tests/inspect-rules.spec.ts`가 지킨다).
+ * **원본 `.mlpx`를 고칠 길을 안 만든다.** 저장도, 탭 잠금도 여기서 안 부른다
+ * (`tests/inspect-rules.spec.ts`가 지킨다). **내려받기는 예외다** — 포트폴리오를 한
+ * 묶음으로 내보내는 zip은 우리가 새로 짓는 파일이고, 학생의 파일은 거기 안 실린다
+ * (open-decisions.md "점검은 읽기 전용 열람기다"의 "내보내기는 열려 있다").
  *
  * **입구는 둘이고 경로는 하나다.** 폴더째 고르든 파일 하나를 고르든 같은 명렬을 지난다 —
  * 항목이 하나뿐이면 자동으로 골라 손이 한 번 준다.
@@ -237,7 +239,6 @@ const groups = computed(() => same.value.groups)
 const sameProject = computed(() => {
   const files = groups.value.size
   return {
-    groups: new Set(groups.value.values()).size,
     files,
     all: same.value.all,
     // 전원이 한 프로젝트면 문장이 갈린다 — 그때는 묶음 수를 셀 것이 없다.
@@ -895,6 +896,11 @@ function reasonOf(code: string): string {
                 바꿔도 판정을 들고 있는데(그래야 3번을 대조하고 2번을 들렀다 돌아왔을 때
                 다시 안 돌린다), **파일이 바뀌면 그 기억은 남의 것**이다. 실험 id는 같은
                 프로젝트에서 나온 파일들 사이에서 겹치므로 이름표로 가른다.
+
+                **이 `:key`가 그 일을 혼자 하는 것은 아니다** (2026-09-18 R28 C-6). 줄을
+                고르면 `viewing`이 잠깐 `null`이 되어 위 `v-else` 아래가 통째로 내려갔다
+                다시 서므로, 지워도 남의 판정이 앉을 자리는 없다 — **뜻을 자리가 아니라
+                이름으로 적어 두는 것**이라 남긴다.
               -->
                 <ReproducePanel
                   :key="opened?.label"

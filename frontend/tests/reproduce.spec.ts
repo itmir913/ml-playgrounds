@@ -923,4 +923,24 @@ describe('대조를 막는 이유', () => {
     }
     expect(reproduceBlockers(await subject({ experiment: server }))).toContain('ENGINE_MISSING')
   })
+
+  /**
+   * **하나라도 여기 있으면 연다** (2026-09-18 R28 C-4). 엔진이 섞인 실험 — 한 run은
+   * 이 브라우저의 엔진으로, 한 run은 서버로 돈 파일 — 이 자리에 검사가 없어서
+   * `some`을 `every`로 바꿔도 아무 데서도 안 울었다.
+   *
+   * **막으면 대조할 수 있는 run까지 못 돌린다.** 서버로 돈 run은 `ENGINE_UNAVAILABLE`로
+   * 와서 그 줄이 스스로 말하므로, 여기서 통째로 잠글 이유가 없다.
+   */
+  it('엔진이 섞여 있어도 하나가 여기 있으면 안 막는다', async () => {
+    const experiment = await trained(['decision_tree', 'knn'])
+    const mixed: Experiment = {
+      ...experiment,
+      runs: [
+        experiment.runs[0]!,
+        { ...experiment.runs[1]!, engine: { kind: 'sklearn', version: '1' } },
+      ],
+    }
+    expect(reproduceBlockers(await subject({ experiment: mixed }))).toEqual([])
+  })
 })

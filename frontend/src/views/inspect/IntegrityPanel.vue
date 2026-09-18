@@ -60,6 +60,13 @@ const changed = computed(() => props.integrity.entries.filter((one) => one.state
     </div>
 
     <!--
+      **설명이 목록보다 먼저다** (2026-09-18 R28 C-16). 이 문장은 *"어느 부분이 바뀌었는지
+      아래에 함께 표시합니다"*라고 말하는데, 목록이 그 위에 서 있었다 — 화면이 자기 문장과
+      반대로 서 있으면 교사는 그 목록이 무엇인지 모르는 채로 먼저 읽는다.
+    -->
+    <p class="leading-relaxed text-ink-faint">{{ t('inspect.integrityNote') }}</p>
+
+    <!--
       **어긋난 자리는 이름으로 말한다** (mlpx-spec.md §7.2). `runs.json은 바뀌었고
       dataset/은 그대로`가 교사에게 넘길 신호이고, "파일이 바뀌었습니다" 한 줄로는
       학생에게도 교사에게도 할 수 있는 일이 없다.
@@ -73,11 +80,5 @@ const changed = computed(() => props.integrity.entries.filter((one) => one.state
         <span class="text-caution">{{ t(`entryHash.${entry.state}`) }}</span>
       </li>
     </ul>
-
-    <!--
-      **이 판이 답하지 못하는 것을 이 판이 말한다.** 여기서 보는 것은 "학생의 마지막 저장
-      뒤에 바뀌었는가"까지다 — 수거 뒤의 변조는 교사가 받은 날 남긴 해시 기록만 답한다.
-    -->
-    <p class="leading-relaxed text-ink-faint">{{ t('inspect.integrityNote') }}</p>
   </section>
 </template>

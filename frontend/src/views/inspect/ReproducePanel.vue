@@ -81,7 +81,8 @@ onBeforeUnmount(retire)
  *
  * **그렇다고 지우지도 않는다.** 3번을 대조하고 2번을 들렀다 3번으로 돌아오면 그 판정이
  * 다시 서야 한다 — 서른 명을 훑는 교사에게 같은 계산을 두 번 시키지 않는다. 파일을 바꾸면
- * 이 판이 통째로 새로 서므로(`InspectView`의 `:key`) 남의 판정이 얹힐 자리는 없다.
+ * 이 판이 통째로 새로 서므로(`InspectView`의 `v-if` 사슬과 `:key`) 남의 판정이 얹힐 자리는
+ * 없다.
  */
 const byExperiment = ref(new Map<string, readonly Reproduction[]>())
 

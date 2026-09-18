@@ -125,6 +125,22 @@ describe('묶는 동안 명렬을 만져도 큐가 안 잠긴다', () => {
     expect(taken, 'nothing from the old roster is handed over').toEqual([])
   })
 
+  /**
+   * **새 명렬은 백지에서 시작한다** (2026-09-18 R28 C-9). 요약을 안 비우면 머리의
+   * `파일 n/m`이 **앞 반의 수를 더해** 서고, 열어 둔 제출물도 앞 반의 것이 남는다.
+   */
+  it('다른 폴더를 고르면 앞 반의 요약과 열어 둔 것이 안 남는다', async () => {
+    const { roster, items } = await ready(['a.mlpx', 'b.mlpx', 'c.mlpx'])
+    void roster.open(items[0] as RosterItem)
+    await drain()
+    expect(roster.summaries.value.size).toBe(3)
+
+    roster.show(rosterOf([picked('x.mlpx')]))
+    expect(roster.opened.value, 'the previous class must not stay open').toBeNull()
+    await drain()
+    expect(roster.summaries.value.size, 'summaries do not add up across classes').toBe(1)
+  })
+
   it('아무도 안 건드리면 다 읽었다고 말한다', async () => {
     const { roster } = await ready(['a.mlpx', 'b.mlpx'])
     const bundle = roster.collect(() => {})

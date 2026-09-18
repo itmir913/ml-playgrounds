@@ -239,8 +239,13 @@ export async function reproduceExperiment(
     },
   })
 
-  // **`onRun`이 못 본 자리를 여기서 채운다.** 등록부에 없는 알고리즘처럼 학습 루프가
-  // 콜백 없이 만드는 run이 있다 (`ml/experiment.ts`). 순서는 `runs.json` 그대로다.
+  // **`onRun`이 못 본 자리를 여기서 채운다.** 여기 오는 길은 **신선한 쪽의 run이 주장보다
+  // 적을 때** 하나다 — `selectedAlgorithms`가 `runs`보다 짧은 파일이 그렇다. 그때 안 온
+  // 자리는 `compareExperiments`가 `엔진 없음`으로 적는다. 순서는 `runs.json` 그대로다.
+  //
+  // **"등록부에 없는 알고리즘은 콜백 없이 만들어진다"고 적혀 있었고 그것은 거짓이다**
+  // (2026-09-18 R28 C-2). `ml/experiment.ts`는 실패한 run에도 `onRun`을 부른다 — 그 문장을
+  // 근거로 이 줄을 지우면 진짜 이유가 함께 사라진다.
   return found.length < total ? compareExperiments(input.experiment, experiment) : found
 }
 
@@ -330,8 +335,12 @@ function sameEngine(claim: Run, fresh: Run): boolean {
 /**
  * 이 run의 (알고리즘 × 엔진)에서 판정을 믿을 수 있는가 (`AlgorithmSpec.reproduction`).
  *
- * **모르면 `advisory`와 같게 다룬다** — 등록부에 없는 알고리즘(남의 파일)도, 재어 본 적
- * 없는 엔진도 여기로 온다. 모르는 자리에서 붉은 말을 하지 않는다.
+ * **모르면 `advisory`와 같게 다룬다** — 재어 본 적 없는 엔진이 그 자리다. 모르는 자리에서
+ * 붉은 말을 하지 않는다.
+ *
+ * **등록부에 없는 알고리즘은 여기까지 못 온다** (2026-09-18 R28 C-3). 그런 run은 학습
+ * 루프가 `ALGORITHM_UNSUPPORTED`로 먼저 떨어뜨리므로 `compareRun`의 앞 갈래에서 걸린다 —
+ * `!spec`을 남겨 두는 것은 등록부가 줄어드는 날의 그물이고, **지금 이 갈래가 하는 일은 없다.**
  */
 function fidelityOf(claim: Run): ReproductionFidelity {
   const spec = ALGORITHMS.find((one) => one.id === claim.algorithm)

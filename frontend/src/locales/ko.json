@@ -55,7 +55,7 @@
     "noStudentName": "이름 없음",
     "portfolio": "포트폴리오",
     "portfolioEmpty": "아직 쓴 글이 없습니다.",
-    "bundle": "포트폴리오 모아 받기",
+    "bundle": "포트폴리오 전체 다운로드",
     "bundling": "읽는 중 ({done}/{total})",
     "bundleName": "포트폴리오.zip",
     "model": "모델",
