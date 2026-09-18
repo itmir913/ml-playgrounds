@@ -4,7 +4,12 @@
 # 여기서 못 켠다 - Settings > Code security 에서 한 번 켜야 한다.
 #
 # **PR을 묶는다.** 관리자가 한 명이고 수업 준비 중에 PR 열 개가 쏟아지면 아무것도 안 보게
-# 된다. 주 1회, 생태계마다 PR 하나가 목표다.
+# 된다. **달 1회, 생태계마다 PR 하나**가 목표다.
+#
+# **주 1회에서 늦췄다** (2026-09-18). 이력을 보니 **머지된 PR이 하나도 없다** - 전부 닫히거나
+# 다음 주 PR에 밀려났고, 실제 갱신은 관리자가 `npm update`로 가져갔다. 그러면 주 1회는
+# 알림이 아니라 소음이다. 사소한 것(patch·minor)은 감사 라운드마다 `npm update`로 올리고,
+# 여기서 오는 PR은 **그 사이에 무엇이 밀렸는지 보는 창**으로 쓴다.
 #
 # 실제로 조심해야 하는 것은 **학생이 올린 파일을 파싱하는 의존성**이다 -
 # exceljs, SheetJS, papaparse, fflate. 남이 만든 파일을 여는 코드라 여기 취약점은
@@ -16,7 +21,7 @@ updates:
   - package-ecosystem: npm
     directory: /frontend
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 3
     # TypeScript 7은 받지 않는다. 7.0은 Go 재작성판이라 컴파일러 API가 다르고,
     # typescript-eslint가 아직 그걸 못 읽는다(peer: typescript >=4.8.4 <6.1.0).
@@ -26,9 +31,17 @@ updates:
     # **이걸 안 막으면 매주 같은 PR이 와서 매주 같은 자리에서 CI가 깨진다.**
     # typescript-eslint가 지원을 내놓으면(추적: typescript-eslint#10940) 이 항목을 지운다.
     # minor/patch는 계속 받으므로 6.0.x 안에서는 정상적으로 올라간다.
+    #
+    # jsdom 30.1은 **vitest가 못 따라온다.** vitest의 jsdom 호환 shim(`makeCompatBlob`)이
+    # jsdom의 내부 `Blob._buffer`를 들여다보는데 30.1.0이 그걸 바꿔서,
+    # `URL.createObjectURL`을 부르는 순간 처리 안 된 오류가 난다 - **검사는 전부 통과하는데
+    # 관문이 빨개진다.** 우리 코드의 문제가 아니라 검사 환경의 충돌이다.
+    # `package.json`도 `~30.0.1`로 좁혀 두었다. **vitest 5를 받는 날 둘 다 푼다.**
     ignore:
       - dependency-name: typescript
         update-types: ['version-update:semver-major']
+      - dependency-name: jsdom
+        update-types: ['version-update:semver-minor', 'version-update:semver-major']
     groups:
       # 파일을 파싱하는 것들. 따로 보고 싶은 묶음이라 먼저 잡는다.
       parsers:
@@ -45,7 +58,7 @@ updates:
   - package-ecosystem: uv
     directory: /backend
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 2
     groups:
       backend:
