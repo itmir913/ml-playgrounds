@@ -107,6 +107,8 @@ describe('머리와 칸이 정렬을 각자 적지 않는다', () => {
   interface Slot {
     readonly align: Align
     readonly many: boolean
+    /** 여러 열에 걸친 머리인가. **짝이 되는 칸이 아예 없다**(혼동 행렬의 `예측`). */
+    readonly spans: boolean
   }
 
   /** 그 줄의 칸들. 여는 태그 하나가 자리 하나다. */
@@ -114,7 +116,8 @@ describe('머리와 칸이 정렬을 각자 적지 않는다', () => {
     return [...row.matchAll(CELL_TAG)].map(([, , attributes]) => {
       const text = attributes ?? ''
       const found = Object.entries(ALIGN_CLASSES).find(([name]) => text.includes(name))
-      return { align: found?.[1] ?? 'left', many: /\bv-for\b|colspan/.test(text) }
+      const spans = text.includes('colspan')
+      return { align: found?.[1] ?? 'left', many: spans || /\bv-for\b/.test(text), spans }
     })
   }
 
@@ -180,6 +183,34 @@ describe('머리와 칸이 정렬을 각자 적지 않는다', () => {
     ).toEqual([])
   })
 
+  /**
+   * **면제한 표도 아주 놓지는 않는다.** 자리는 못 세지만 **정렬을 적은 칸의 수**는 셀 수
+   * 있다 — 머리에만 `text-right`가 있고 칸에는 하나도 없으면(그 반대도) 여기서 선다.
+   *
+   * 옛 검사가 표 열셋 전부에 하던 것이 정확히 이것이고, **자리를 보게 고치면서 이 둘이
+   * 통째로 맨몸이 될 뻔했다.** 약한 그물이라도 없는 것보다는 낫다.
+   */
+  it('면제한 표는 정렬을 적은 칸의 수라도 맞는다', () => {
+    const counted = (region: string): string =>
+      rowsOf(region)
+        .flatMap((row) => slotsOf(row))
+        .filter((slot) => slot.align !== 'left' && !slot.spans)
+        .map((slot) => slot.align)
+        .sort()
+        .join(' ')
+
+    for (const name of STACKED_HEADS) {
+      const path = screens.find((one) => one.endsWith(name))
+      for (const { head, body } of tables(templateOf(readFileSync(path ?? '', 'utf8')))) {
+        const headCount = counted(head)
+        // **머리가 하나도 안 적었으면 칸도 안 적어야 한다** — 한쪽만 적으면 거기서 갈린다.
+        expect(counted(body) === '', `${name}: ${headCount} / ${counted(body)}`).toBe(
+          headCount === '',
+        )
+      }
+    }
+  })
+
   it('면제한 표는 실제로 머리가 두 줄이다 - 면제가 낡으면 여기서 선다', () => {
     for (const name of STACKED_HEADS) {
       const path = screens.find((one) => one.endsWith(name))
@@ -216,10 +247,12 @@ describe('머리와 칸이 정렬을 각자 적지 않는다', () => {
     expect(slotsOf('<th :colspan="3" class="text-center">예측</th>')[0]).toEqual({
       align: 'center',
       many: true,
+      spans: true,
     })
     expect(slotsOf('<td v-for="one in list" :key="one">x</td>')[0]).toEqual({
       align: 'left',
       many: true,
+      spans: false,
     })
   })
 })
