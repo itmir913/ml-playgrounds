@@ -34,7 +34,7 @@
     "editHint": "Edits here apply to this list only. The original file is untouched, and edits are lost on reload.",
     "editedMark": "(edited)",
     "integrity": "Integrity",
-    "integrityNote": "This compares the record inside the file with its contents now. Whether the file changed after you received it cannot be told this way.",
+    "integrityNote": "Checks whether this project file was modified after it was saved. If there are signs of changes, the parts that changed are listed below.",
     "reproduce": "Reproduction check",
     "reproduceLead": "Trains again with the settings and split recorded in the file, then checks whether the same scores come out.",
     "reproduceStart": "Start check",

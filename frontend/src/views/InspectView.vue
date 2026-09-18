@@ -767,7 +767,12 @@ function reasonOf(code: string): string {
         **도착 지점은 붙박이 동작 바 아래에서 멈춘다**(`scroll-below-shell`). 그 자리에
         여백이 없으면 바가 머리줄을 덮는다.
       -->
-      <div ref="detailEl" class="flex min-h-0 flex-col gap-5 scroll-below-shell">
+      <!--
+        **머리줄은 제 판들과 가깝고, 표와는 멀다** (2026-09-18, 사용자). 이 상자 안의
+        간격은 제목과 그 내용 사이(`gap-3`)이고, 표와의 사이는 바깥 리듬(`gap-5`)에
+        한 칸을 더 둔다 — 제목이 표에 붙어 서면 표의 마지막 줄처럼 읽힌다.
+      -->
+      <div ref="detailEl" class="mt-2 flex min-h-0 flex-col gap-3 scroll-below-shell">
         <p v-if="!opened" class="text-ink-soft">{{ t('inspect.pickOne') }}</p>
         <p
           v-else-if="summaryOfOpened?.state === 'unreadable'"
