@@ -492,9 +492,9 @@ function reasonOf(code: string): string {
               (`ExperimentList`의 `bg-brand-soft`) — 표라고 다른 말을 쓰지 않는다.
 
               **얹힌 줄은 색이 드는 것이 아니라 어두워지고, 그것은 껍데기가 준다**
-              (`data-table`의 `tbody tr:not(.bg-brand-soft):hover`). 여기서 hover를 또
-              적으면 이 표만 다른 색이 된다 — 둘이 같은 색이면 마우스가 지나간 줄이
-              "골라진 것"으로 읽힌다 (2026-09-18, 사용자).
+              (`data-table`의 `tbody tr:hover > td`). 여기서 hover를 또 적으면 이 표만
+              다른 색이 된다 — 둘이 같은 색이면 마우스가 지나간 줄이 "골라진 것"으로
+              읽힌다 (2026-09-18, 사용자). **고른 줄 위에도 그 한 겹이 그대로 얹힌다.**
 
               **전에는 둘 다 `bg-surface-soft`였고 그런 토큰이 없다.** Tailwind는 모르는
               이름에 CSS를 안 만들어서 강조도 hover도 처음부터 없었다

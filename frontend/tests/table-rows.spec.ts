@@ -6,14 +6,18 @@
  * 그 동작이 정확히 그렇다.
  *
  * **얹힌 줄은 어두워지고, 고른 줄은 색이 든다.** 둘을 같은 색으로 두면 마우스가 지나간
- * 줄이 "골라진 것"으로 읽힌다. 그래서 얹힌 줄은 `surface-hover`(한 단계 어둡게), 고른
- * 줄은 `brand-soft`에 굵게다. **표마다 다르면 안 된다** — 같은 앱의 표라는 것이 색으로
+ * 줄이 "골라진 것"으로 읽힌다. 그래서 얹힌 줄은 `row-hover`(한 겹 어둡게), 고른 줄은
+ * `brand-soft`에 굵게다. **표마다 다르면 안 된다** — 같은 앱의 표라는 것이 색으로
  * 보여야 한다.
  *
- * **줄무늬 표가 얹힌 색의 조건을 정했다.** 두 표가 `odd:bg-surface even:bg-surface-sunken`
- * 이라, 얹힌 색이 그중 하나면 **그 줄에서는 아무 일도 안 일어난다.** 그래서 줄무늬 두
- * 색보다 한 단계 더 어둡다. (`hover:`가 `odd:`/`even:`보다 뒤에 깔리는 것은 빌드 CSS에서
- * 재 봤다 — 특정도가 같아 순서가 정한다.)
+ * **얹힌 것은 칸 위에 한 겹으로 얹힌다.** 줄에 배경색을 주는 방식으로 먼저 만들었더니
+ * **칸이 제 색을 가진 자리에서 아무 일도 안 일어났다** — 혼동 행렬의 대각선, 범주별
+ * 점수의 칸, 그리고 고른 줄이 그랬다(2026-09-18, 사용자). 칸의 배경이 줄의 배경을
+ * 언제나 가리기 때문이다. 그래서 `background-image` 한 겹이고, 그것은 같은 칸의
+ * `background-color` 위에 깔린다.
+ *
+ * **줄무늬 표가 그 진하기의 조건을 정했다.** 두 표가 `odd:bg-surface even:bg-surface-sunken`
+ * 이라, 한 겹이 옅으면 **줄무늬의 어두운 쪽에서 얹힌 것이 안 보인다.**
  */
 
 import { readFileSync } from 'node:fs'
@@ -28,8 +32,8 @@ const SRC = join(process.cwd(), 'src')
 /** 고른 줄의 색. **`theme.css`의 토큰 이름이다.** */
 const CHOSEN = 'brand-soft'
 
-/** 얹힌 줄의 색. **고른 줄과 달라야 한다** — 그것이 이 파일이 지키는 것이다. */
-const HOVER = 'surface-hover'
+/** 얹힌 줄에 얹는 한 겹. **고른 줄과 달라야 한다** — 그것이 이 파일이 지키는 것이다. */
+const HOVER = 'row-hover'
 
 /** `data-table`이 사는 곳. 표의 껍데기는 여기 하나다 (`components/AppTable.vue`). */
 const UTILITIES = join(SRC, 'styles', 'utilities.css')
@@ -69,7 +73,7 @@ describe('마우스가 얹힌 줄', () => {
    */
   it('data-table이 몸통 줄에 강조를 준다', () => {
     expect(css, 'data-table has no row hover').toMatch(
-      new RegExp(String.raw`&\s*tbody\s+tr[^{]*:hover\s*\{[^}]*--color-` + HOVER),
+      new RegExp(String.raw`&\s*tbody\s+tr[^{]*:hover[^{]*\{[^}]*--color-` + HOVER),
     )
   })
 
@@ -77,20 +81,26 @@ describe('마우스가 얹힌 줄', () => {
    * **얹힌 색과 고른 색은 다른 것이다.** 하나로 합치면 마우스가 지나간 줄과 열어 둔 줄이
    * 같은 모양이 된다 (2026-09-18에 한 번 그렇게 만들었다가 사용자가 잡았다).
    */
+  /** 얹힌 줄을 그리는 규칙 하나. 아래 검사들이 이 덩어리를 읽는다. */
+  const hoverRule = css.match(/&\s*tbody\s+tr[^{]*:hover[^{]*\{[^}]*\}/)?.[0] ?? ''
+
   it('얹힌 색과 고른 색이 다르다', () => {
-    const rule = css.match(/&\s*tbody\s+tr[^{]*:hover\s*\{[^}]*\}/)?.[0] ?? ''
-    expect(rule, 'no row hover rule to read').not.toBe('')
-    expect(rule, 'hover wears the chosen colour').not.toContain(`--color-${CHOSEN}`)
+    expect(hoverRule, 'no row hover rule to read').not.toBe('')
+    expect(hoverRule, 'hover wears the chosen colour').not.toContain(`--color-${CHOSEN}`)
   })
 
   /**
-   * **고른 줄에는 안 건다.** 안 빼면 고른 줄에 마우스를 얹는 순간 그 줄이 회색이 되어
-   * 고른 표시가 풀린 것처럼 보인다 — 줄의 `:hover`가 칸의 클래스보다 특정도가 높다.
+   * **칸이 제 색을 가진 자리에서도 보여야 한다** (2026-09-18, 사용자). 줄에 배경색을
+   * 주면 혼동 행렬의 대각선도, 범주별 점수의 칸도, 고른 줄도 **얹은 것을 가린다** —
+   * 칸의 배경이 줄의 배경 위에 있기 때문이다.
+   *
+   * 그래서 두 가지를 함께 본다: **칸을 골라야 하고**(`tr:hover > th, td`), **색이 아니라
+   * 한 겹이어야 한다**(`background-image`). 둘 중 하나만으로는 안 된다 — 칸에 걸어도
+   * `background-color`면 칸이 제 색을 잃고, 한 겹이어도 줄에 걸면 칸이 그것을 가린다.
    */
-  it('고른 줄은 얹혀도 색이 안 바뀐다', () => {
-    expect(css, 'hover repaints the chosen row').toMatch(
-      new RegExp(String.raw`&\s*tbody\s+tr:not\(\.bg-` + CHOSEN + String.raw`\):hover`),
-    )
+  it('얹힌 것이 칸의 제 색 위에 얹힌다', () => {
+    expect(hoverRule, 'hover does not reach the cells').toMatch(/tr:hover\s*>\s*(th|td)/)
+    expect(hoverRule, 'hover paints under the cell colour').toContain('background-image')
   })
 
   /**
