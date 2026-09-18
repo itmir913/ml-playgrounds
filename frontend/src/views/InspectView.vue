@@ -469,12 +469,14 @@ const studentFields = computed(() => {
 })
 
 /**
- * 머리줄에 서는 한 줄 — 학번·이름과 파일 이름. **없는 칸은 빼고 잇는다** — `이름 없음 ·
- * 이름 없음 · test.mlpx`는 아무것도 말하지 않는다.
+ * 머리줄 둘째 줄 — 학번과 이름. **없는 칸은 빼고 잇고, 둘 다 없으면 줄이 아예 없다**
+ * (2026-09-18, 사용자). `이름 없음 · 이름 없음`은 아무것도 말하지 않는다.
+ *
+ * **파일 이름은 여기 없다.** 그것이 머리줄의 제목으로 올라갔다.
  */
 const studentLine = computed(() =>
-  [studentFields.value.studentId, studentFields.value.studentName, opened.value?.label]
-    .filter((part) => part !== undefined && part !== '')
+  [studentFields.value.studentId, studentFields.value.studentName]
+    .filter((part) => part !== '')
     .join(' · '),
 )
 
@@ -774,16 +776,19 @@ function reasonOf(code: string): string {
           <header class="flex flex-wrap items-start justify-between gap-3">
             <div class="flex min-w-0 flex-col gap-1">
               <!--
-              **화면 제목보다 크면 안 된다** (2026-09-18, 사용자). 머리가 `StepHeader`로
-              내려앉으면서 이 줄이 화면에서 가장 큰 글자가 됐다 — 제출물 하나는 화면의
-              일부이지 화면이 아니다. `StepHeader`의 제목과 같은 눈금으로 선다.
-            -->
-              <h3 class="truncate text-lg font-bold tracking-tight">
-                {{ viewing.file.document.manifest.name }}
-              </h3>
-              <p class="truncate text-ink-soft">
-                {{ studentLine }}
-              </p>
+                **제목은 파일 이름이다** (2026-09-18, 사용자). 점검에서 줄의 정체는 파일이고,
+                교사가 누른 것도 명렬의 그 글자다 — 머리줄이 다른 글자를 받으면 누른 것과
+                보고 있는 것을 한 번 더 대조해야 한다. **학생이 붙인 제목은 요약 카드의 첫
+                줄과 표의 열이 갖는다.**
+
+                **같은 프로젝트에서 나온 파일들은 제목이 같다.** 제목을 여기 두면 그 넷을
+                번갈아 여는 동안 — 표절 의심을 가리는 바로 그 순간에 — 머리가 한 글자도
+                안 바뀐다.
+
+                **화면 제목보다 크면 안 된다.** `StepHeader`의 제목과 같은 눈금으로 선다.
+              -->
+              <h3 class="truncate text-lg font-bold tracking-tight">{{ opened?.label }}</h3>
+              <p v-if="studentLine !== ''" class="truncate text-ink-soft">{{ studentLine }}</p>
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
