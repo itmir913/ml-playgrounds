@@ -190,6 +190,11 @@ describe('머리와 칸이 정렬을 각자 적지 않는다', () => {
    * 옛 검사가 표 열셋 전부에 하던 것이 정확히 이것이고, **자리를 보게 고치면서 이 둘이
    * 통째로 맨몸이 될 뻔했다.** 약한 그물이라도 없는 것보다는 낫다.
    */
+  /**
+   * **단언이 이름보다 약했다** (2026-09-18 R28-V). 처음에는 *빈 것/안 빈 것의 짝*만
+   * 봤는데 이름은 *"칸의 수라도 맞는다"*였다 — 머리에 `center` 하나, 칸에 `right` 하나를
+   * 넣으면 **양쪽 다 안 비어 있어서 통과**했다. 옛 다중집합 검사는 거기서 울었다.
+   */
   it('면제한 표는 정렬을 적은 칸의 수라도 맞는다', () => {
     const counted = (region: string): string =>
       rowsOf(region)
@@ -202,11 +207,8 @@ describe('머리와 칸이 정렬을 각자 적지 않는다', () => {
     for (const name of STACKED_HEADS) {
       const path = screens.find((one) => one.endsWith(name))
       for (const { head, body } of tables(templateOf(readFileSync(path ?? '', 'utf8')))) {
-        const headCount = counted(head)
-        // **머리가 하나도 안 적었으면 칸도 안 적어야 한다** — 한쪽만 적으면 거기서 갈린다.
-        expect(counted(body) === '', `${name}: ${headCount} / ${counted(body)}`).toBe(
-          headCount === '',
-        )
+        // **적은 것이 같아야 한다** — 개수도 종류도. 한쪽만 적거나 다른 쪽을 적으면 갈린다.
+        expect(counted(body), name).toBe(counted(head))
       }
     }
   })

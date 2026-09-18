@@ -710,6 +710,29 @@ describe('실험끼리 견준다', () => {
     const [found] = compareExperiments(claim, { ...claim, runs: [] })
     expect(found?.status).toBe('ENGINE_UNAVAILABLE')
   })
+
+  /**
+   * **run이 선택보다 많은 파일** (2026-09-18 R28-V). `runs.json`에 run을 덧붙이는 것이
+   * 정확히 이 층의 위협 모형이고, 그때 `selectedAlgorithms`는 그대로라 조립이 신선한
+   * 쪽을 **짧게** 만든다 — `reproduceExperiment`의 폴백이 그 자리를 채운다.
+   *
+   * **그 폴백은 "등록부에 없는 알고리즘 때문"이라고 적혀 있었고 그것은 거짓이었다**
+   * (R28 C-2). 이유를 고쳐 적었으니 그 경로가 실제로 서는 것도 여기서 못 박는다.
+   */
+  it('run을 덧붙인 파일은 덧붙인 자리가 엔진 없음으로 선다', async () => {
+    const honest = await trained(['decision_tree'])
+    const padded: Experiment = {
+      ...honest,
+      runs: [honest.runs[0]!, { ...honest.runs[0]!, id: 'x' }],
+    }
+
+    const found = await reproduceExperiment({ experiment: padded, dataset, testDataset: null })
+    expect(found, 'both claims are answered').toHaveLength(2)
+    expect(found[0]?.status).toBe('REPRODUCED')
+    expect(found[1]?.status, 'a run that was never selected cannot be run again').toBe(
+      'ENGINE_UNAVAILABLE',
+    )
+  })
 })
 
 /**

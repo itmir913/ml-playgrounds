@@ -17,7 +17,7 @@
  * 되돌릴 것이 없어야 한다.
  */
 
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { dataKindFor, stepTextKey } from '@/data/kinds'
@@ -67,7 +67,14 @@ const dragging = ref(false)
  * 확정하는 동안 판에 새 파일을 끌어다 놓을 수 있고, 그때 `busy`가 칸 하나면 먼저 끝난
  * 읽기가 **확정 중인 자물쇠를 연다.**
  */
-const { busy, start } = useWork()
+/**
+ * **일을 들면 떠날 때 끝났다고 표시한다** (`useWork`의 `retire`). 이 화면이 맡기는
+ * 손잡이는 아직 없지만, **규칙의 기준은 손잡이가 아니라 일을 드는가**다 — 이름으로
+ * 판정하던 그물이 이름을 바꾸는 사람을 못 막았다 (2026-09-18 R28-V V-U1).
+ */
+const { busy, start, retire } = useWork()
+
+onBeforeUnmount(retire)
 
 /** 아직 확정하지 않은 파일. 확정하면 비운다. */
 const opened = ref<{ document: TableDocument; fileName: string } | null>(null)

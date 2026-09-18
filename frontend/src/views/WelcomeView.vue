@@ -13,7 +13,7 @@
  * (open-decisions.md "데이터 없는 프로젝트는 정상 상태다").
  */
 
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
@@ -66,7 +66,10 @@ const summaries = ref<ProjectSummary[]>([])
  */
 const ready = ref(false)
 /** 지금 이 화면에서 도는 일들 (architecture.md §8.10.4). */
-const { busy, start } = useWork()
+/** 일을 들면 떠날 때 끝났다고 표시한다 (`useWork`의 `retire`). */
+const { busy, start, retire } = useWork()
+
+onBeforeUnmount(retire)
 
 const creating = ref(false)
 const name = ref('')

@@ -2508,27 +2508,66 @@ describe('화면은 도는 일을 셈으로 든다', () => {
    * 이웃 넷은 전부 삼키고 있었고 그 하나만 안 삼켰다 — **사람이 자리마다 판정하면 틀린다.**
    */
   /**
-   * **`alive()`를 묻는 화면은 `retire`를 걸어야 한다** (2026-09-18 R28 A-1).
+   * **일을 드는 화면은 떠날 때 끝났다고 표시한다** (2026-09-18 R28 A-1, R28-V에서 넓혔다).
    *
-   * `alive()`는 긴 계산 뒤에 "계속해도 되는가"를 묻는 자리이고, **그 값을 거짓으로
-   * 만드는 곳은 `retire` 하나뿐이다.** 안 걸면 영원히 참이라 그 가드는 **한 줄도 막지
-   * 않으면서 막는 것처럼 보인다** — 점검의 두 화면이 그렇게 서 있었고, 가드를 지우는
-   * 돌연변이가 아무 데서도 안 울었다.
+   * `retire`는 둘을 한다 — 맡긴 것을 끊고, `alive()`를 거짓으로 만든다. 안 걸면 워커가
+   * 끝까지 돌고, 더 조용하게는 **`alive()` 가드가 한 줄도 막지 않으면서 막는 것처럼
+   * 보인다** (점검의 두 화면이 그렇게 서 있었다).
    *
-   * **워커 규칙과 겹치지 않는다.** 위쪽은 *워커를 여는가*를 묻고 여기는 *가드를 쓰는가*를
-   * 묻는다 — 워커를 안 여는 화면도 긴 읽기 뒤에 스토어를 만진다.
+   * **기준이 `useWork()`를 부르는가다.** 처음에는 *`alive()`를 묻는가*로 잡았는데,
+   * `const { alive: living } = useWork()`로 이름만 바꾸면 그물 밖이었다 (R28-V V-U1).
+   * **이름에 기대는 그물은 이름을 바꾸는 사람을 못 막는다** — 일을 드는 것 자체가 조건이다.
+   *
+   * **거는 모양도 안 따진다.** `onBeforeUnmount(retire)`만 찾던 때는 **정리할 것이 하나
+   * 더 생겨 화살표로 감싸는 순간 거짓 빨강**이 났다(이 저장소에서 실제로 났다). 떠나는
+   * 자리 안에서 `retire`를 부르면 된다.
    */
-  it('alive()를 묻는 화면은 떠날 때 끝났다고 표시한다', () => {
-    const asked = [...vueFiles(VIEWS), ...vueFiles(join(SRC, 'components'))].filter((path) =>
-      /\balive\(\)/.test(withoutComments(sourceOf(path)).join('\n')),
-    )
-    // **묻는 화면을 실제로 찾는다.** 0개면 이 규칙이 죽은 것이다.
-    expect(asked.length).toBeGreaterThan(0)
+  /**
+   * `(`부터 **짝이 맞는 `)`**까지. 짝이 안 맞으면 **빈 글자를 준다** — 여기서 찾는 것은
+   * *있어야 하는 것*이라, 빈 글자는 "안 걸었다"가 되어 붉어진다. 반대로 나머지를 통째로
+   * 주면 파일 어딘가의 `retire`에 걸려 **조용히 초록**이 된다.
+   */
+  function argsAt(code: string, open: number): string {
+    let depth = 0
+    for (let index = open; index < code.length; index += 1) {
+      if (code[index] === '(') depth += 1
+      else if (code[index] === ')') {
+        depth -= 1
+        if (depth === 0) return code.slice(open + 1, index)
+      }
+    }
+    return ''
+  }
 
-    const offenders = asked.filter(
-      (path) => !/onBeforeUnmount\(\s*retire\s*\)/.test(withoutComments(sourceOf(path)).join('\n')),
+  /** 떠나는 자리들이 부르는 것 전부. */
+  function onLeaving(code: string): string {
+    return [...code.matchAll(/onBeforeUnmount\s*\(/g)]
+      .map((match) => argsAt(code, code.indexOf('(', match.index)))
+      .join('\n')
+  }
+
+  it('일을 드는 화면은 떠날 때 끝났다고 표시한다', () => {
+    const holders = [...vueFiles(VIEWS), ...vueFiles(join(SRC, 'components'))].filter((path) =>
+      /\buseWork\(/.test(withoutComments(sourceOf(path)).join('\n')),
     )
-    expect(offenders, 'asks alive() but never retires - the guard is dead').toEqual([])
+    // **일을 드는 화면을 실제로 찾는다.** 0개면 이 규칙이 죽은 것이다.
+    expect(holders.length).toBeGreaterThan(0)
+
+    const offenders = holders.filter((path) => {
+      const code = withoutComments(sourceOf(path)).join('\n')
+      return !/\bretire\b/.test(onLeaving(code))
+    })
+    expect(offenders, 'holds work but never retires on leave').toEqual([])
+  })
+
+  it('검사기가 거는 모양을 안 따지고, 안 건 것은 잡는다', () => {
+    const has = (code: string): boolean => /\bretire\b/.test(onLeaving(code))
+    expect(has('onBeforeUnmount(() => {\n  retire()\n  roster.stop()\n})')).toBe(true)
+    expect(has('onBeforeUnmount(retire)')).toBe(true)
+    expect(has('onBeforeUnmount(() => {\n  roster.stop()\n})')).toBe(false)
+    // **떠나는 자리 밖의 `retire`는 안 센다.** 파일 어딘가에 있다고 걸린 것이 아니다.
+    expect(has('const { retire } = useWork()\nonBeforeUnmount(() => close())')).toBe(false)
+    expect(has('const { retire } = useWork()')).toBe(false)
   })
 
   it('워커를 여는 화면은 취소를 실패로 말하지 않는다', () => {
