@@ -594,3 +594,46 @@ describe('데이터 종류별 설정', () => {
     }
   })
 })
+
+/**
+ * **시각 형식은 우리 것이다** (2026-09-18, `project/schema.ts`의 `TIMESTAMP`).
+ *
+ * 전에는 `z.iso.datetime({ offset: true })`라 **`.mlpx`가 받아들이는 집합을 zod의 내부
+ * 정규식이 정했고, 그것이 실제로 움직였다** — 4.6.0이 초를 필수로 바꿔 `2026-09-18T10:30Z`가
+ * 하루아침에 거부됐다. `.mlpx`는 이미 학생 손에 나간 계약이라 그런 식으로 좁아지면 안 된다.
+ *
+ * **그래서 표본으로 못 박는다.** 정본 검사(`schema-structure.spec.ts`)는 정규식이 *바뀌었다*를
+ * 말하지만 **무엇이 달라졌는지는 안 말한다** — 읽는 사람이 저 긴 정규식을 눈으로 풀어야 한다.
+ * 여기 줄들이 그 답이다.
+ */
+describe('시각 형식', () => {
+  const at = (value: string) => manifestSchema.safeParse({ ...manifest, createdAt: value }).success
+
+  it('우리가 쓰는 모양을 받는다 - toISOString()의 것', () => {
+    expect(at('2026-09-18T10:30:00.000Z')).toBe(true)
+  })
+
+  it('초가 없어도 받는다 - 좁히면 옛 파일이 안 열린다', () => {
+    expect(at('2026-09-18T10:30Z')).toBe(true)
+  })
+
+  it('오프셋 표기를 받는다 - +09:00으로 적힌 파일이 있다', () => {
+    expect(at('2026-09-18T10:30:00+09:00')).toBe(true)
+    expect(at('2026-09-18T10:30+09:00')).toBe(true)
+  })
+
+  it('윤년의 2월 29일을 가른다', () => {
+    expect(at('2024-02-29T00:00:00Z')).toBe(true)
+    expect(at('2026-02-29T00:00:00Z')).toBe(false)
+  })
+
+  it('시각대가 없으면 거부한다 - 언제인지 모르는 값이다', () => {
+    expect(at('2026-09-18T10:30:00')).toBe(false)
+  })
+
+  it('날짜만 있거나 아예 다른 글자면 거부한다', () => {
+    expect(at('2026-09-18')).toBe(false)
+    expect(at('어제')).toBe(false)
+    expect(at('')).toBe(false)
+  })
+})
