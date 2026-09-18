@@ -42,8 +42,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { type RouteLocationRaw, useRoute } from 'vue-router'
 
-import { HOME_ICON, STEP_ICONS } from '@/icons'
-import { ROUTE_PROJECT_HOME } from '@/router'
+import { HOME_ICON, INSPECT_ICON, STEP_ICONS } from '@/icons'
+import { ROUTE_INSPECT, ROUTE_PROJECT_HOME } from '@/router'
 import { dataKindFor, lockedSentenceFor } from '@/data/kinds'
 import { isStepUnlocked, STEP_IDS, stepBlockers, type StepId } from '@/router/steps'
 import { useProjectStore } from '@/stores/project'
@@ -244,5 +244,37 @@ const LABEL = 'w-full text-center break-keep break-words hyphens-auto'
         <span :class="[LABEL, 'max-md:hidden']">{{ label(step) }}</span>
       </span>
     </template>
+
+    <!--
+      **점검은 단계가 아니라 그 아래에 있는 자리다** (§8.6, 2026-09-18 사용자). 대시보드가
+      위에서 구분선으로 갈리는 것과 같은 짝이고, 그래서 **일곱 번째 단계로 안 읽힌다.**
+
+      **넓은 화면에서는 바닥에 붙는다**(`md:mt-auto`). 가로로 누운 좁은 화면에서는 줄의
+      마지막 칸이다 — 거기서 `mt-auto`는 아무 일도 하지 않는다.
+    -->
+    <span
+      class="my-1 shrink-0 self-stretch border-line max-md:border-l md:mt-auto md:border-t"
+      aria-hidden="true"
+    />
+
+    <!--
+      **프로젝트가 없어도 열린다.** 단계 여섯이 전부 잠긴 화면에서 이 칸만 살아 있는 것이
+      "다른 층"이라는 신호다. 그래서 잠긴 꼴을 따로 두지 않는다.
+    -->
+    <RouterLink
+      :to="{ name: ROUTE_INSPECT }"
+      :title="t('shell.inspect')"
+      :aria-current="route.name === ROUTE_INSPECT ? 'page' : undefined"
+      :class="[
+        CELL,
+        'shrink-0 transition-colors',
+        route.name === ROUTE_INSPECT
+          ? 'z-10 bg-surface font-medium text-brand md:-mr-px md:rounded-r-none md:border-surface'
+          : 'font-medium text-ink-soft hover:bg-surface/60 hover:text-ink',
+      ]"
+    >
+      <component :is="INSPECT_ICON" :size="20" aria-hidden="true" />
+      <span :class="[LABEL, 'max-md:hidden']">{{ t('shell.inspect') }}</span>
+    </RouterLink>
   </nav>
 </template>

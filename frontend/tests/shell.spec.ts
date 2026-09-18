@@ -15,6 +15,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 
 import StepRail from '../src/components/StepRail.vue'
 import { i18n, setLocale } from '../src/i18n'
+import { ROUTE_INSPECT } from '../src/router'
 import { STEP_IDS } from '../src/router/steps'
 import { useProjectStore } from '../src/stores/project'
 import { emptyProjectFile, projectFile } from './fixtures/project'
@@ -26,6 +27,9 @@ function stubRouter() {
     routes: [
       { path: '/', name: 'projects', component: { template: '<div />' } },
       { path: '/project/:projectId', name: 'project', component: { template: '<div />' } },
+      // 레일 바닥의 점검 칸 (§8.6). **없으면 `RouterLink`가 setup에서 던진다** — 레일 한
+      // 칸이 던지면 앱 전체가 갱신을 멈춘다는 그 자리이고, 이 스펙 여덟이 그렇게 울었다.
+      { path: '/inspect', name: ROUTE_INSPECT, component: { template: '<div />' } },
       ...STEP_IDS.map((step) => ({
         path: `/project/:projectId/${step}`,
         name: step,
@@ -74,24 +78,35 @@ describe('단계 레일', () => {
     await router.isReady()
 
     const rail = mount(StepRail, { global: { plugins: [router, i18n] } })
-    // 단계 여섯에 프로젝트 홈 하나가 더 있다.
+    // 단계 여섯에 프로젝트 홈과 점검이 하나씩 더 있다 (§8.6).
     const links = rail.findAll('a')
-    expect(links).toHaveLength(STEP_IDS.length + 1)
-    // 링크는 스토어가 아는 프로젝트를 가리킨다.
-    for (const link of links) {
+    expect(links).toHaveLength(STEP_IDS.length + 2)
+    // **프로젝트를 가리키는 링크만** 스토어가 아는 그 프로젝트를 가리킨다. 점검은
+    // 프로젝트 밖 화면이라 주소에 projectId가 없다.
+    const inProject = links.filter((link) => link.attributes('href')?.includes('/project/'))
+    expect(inProject).toHaveLength(STEP_IDS.length + 1)
+    for (const link of inProject) {
       expect(link.attributes('href')).toContain(projectFile().document.manifest.projectId)
     }
   })
 
-  it('프로젝트가 없으면 어디로도 못 간다', async () => {
+  /**
+   * **점검은 프로젝트가 없어도 열린다** (§8.6, 2026-09-18 사용자). 단계가 전부 잠긴
+   * 화면에서 이 칸만 살아 있는 것이 "다른 층"이라는 신호다 — 그리고 이 화면으로 가는
+   * 길은 앱 전체에서 이 칸 하나뿐이라, 같이 잠기면 점검에 닿을 방법이 없어진다.
+   */
+  it('프로젝트가 없으면 단계로는 못 가고 점검만 열려 있다', async () => {
     const rail = await mountRail()
-    expect(rail.findAll('a')).toHaveLength(0)
+    const links = rail.findAll('a')
+    expect(links).toHaveLength(1)
+    expect(links[0]?.attributes('href')).toContain('/inspect')
   })
 
   it('갖춰진 프로젝트는 여섯 곳이 전부 열린다', async () => {
     useProjectStore().file = projectFile()
     const rail = await mountRail()
-    expect(rail.findAll('a')).toHaveLength(STEP_IDS.length + 1)
+    // 여섯 단계 + 프로젝트 홈 + 점검.
+    expect(rail.findAll('a')).toHaveLength(STEP_IDS.length + 2)
   })
 })
 

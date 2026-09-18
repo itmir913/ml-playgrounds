@@ -22,6 +22,7 @@ import {
   Download,
   ExternalLink,
   FileInput,
+  FileSearch,
   FileText,
   FlaskConical,
   CircleQuestionMark,
@@ -50,6 +51,14 @@ export const BRAND_ICON: LucideIcon = Shapes
 
 /** 프로젝트 홈. 단계가 아니라 그 위에 있는 자리다. */
 export const HOME_ICON: LucideIcon = LayoutDashboard
+
+/**
+ * 점검. **단계가 아니라 그 아래에 있는 자리다** (architecture.md §8.6).
+ *
+ * 파일을 들여다보는 그림이다 — 이 화면이 하는 일이 파일을 열어 보는 것이고, 돋보기만
+ * 두면 앱 안의 검색으로 읽힌다.
+ */
+export const INSPECT_ICON: LucideIcon = FileSearch
 
 /** 워크플로 단계의 그림. 레일과 상태 팝오버가 같은 것을 쓴다. */
 export const STEP_ICONS: Readonly<Record<StepId, LucideIcon>> = {
