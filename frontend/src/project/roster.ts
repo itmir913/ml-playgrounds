@@ -32,8 +32,15 @@ export type RosterSummary =
   | {
       readonly state: 'read'
       readonly name: string
-      /** 학생. **manifest 안에 있다** — 읽기 전에는 파일 이름뿐이다. */
-      readonly student?: string
+      /**
+       * 학생. **manifest 안에 있다** — 읽기 전에는 파일 이름뿐이고, 학생이 안 적었으면
+       * 파일에도 없다.
+       *
+       * **학번과 이름이 따로다** (2026-09-18, 사용자). 교사가 명렬을 세우는 기준이 둘이고
+       * (반 번호순 · 이름순), 하나로 붙여 두면 어느 쪽으로도 못 센다.
+       */
+      readonly studentId?: string
+      readonly studentName?: string
       readonly dataType: DataType
       readonly experiments: number
       readonly runs: number
@@ -82,14 +89,56 @@ function labelOf(file: File): string {
  */
 export function summaryOf(document: ProjectDocument): RosterSummary {
   const experiments = document.runs.experiments
-  const student = document.manifest.student?.name
+  const student = document.manifest.student
   return {
     state: 'read',
     name: document.manifest.name,
-    ...(student === undefined || student === '' ? {} : { student }),
+    ...filled('studentId', student?.studentId),
+    ...filled('studentName', student?.name),
     dataType: document.manifest.dataType,
     experiments: experiments.length,
     runs: experiments.reduce((count, experiment) => count + experiment.runs.length, 0),
+  }
+}
+
+/** 빈 문자열은 **없는 것**이다. 학생이 칸을 비워 둔 것과 안 적은 것은 같은 상태다. */
+function filled<Key extends string>(
+  key: Key,
+  value: string | undefined,
+): Partial<Record<Key, string>> {
+  const trimmed = value?.trim()
+  return trimmed === undefined || trimmed === '' ? {} : ({ [key]: trimmed } as Record<Key, string>)
+}
+
+/**
+ * **교사가 고쳐 둔 학번·이름** (2026-09-18, 사용자).
+ *
+ * 학생이 이름을 잘못 적어 내면 명렬이 그 이름으로 서고, 교사는 **정렬을 하기 전에**
+ * 그것을 고쳐야 한다. 그 고침은 **화면에만 산다** — 원본 `.mlpx`는 안 건드리는 것이
+ * 이 화면의 첫 규칙이고(open-decisions.md "점검은 읽기 전용 열람기다"), 그래서
+ * **새로 고치면 사라진다.** 화면이 그 사실을 말해야 한다.
+ */
+export interface StudentEdit {
+  readonly studentId?: string
+  readonly studentName?: string
+}
+
+/**
+ * 고침을 얹은 요약. **못 읽은 줄에는 얹지 않는다** — 고칠 대상이 없다.
+ *
+ * **칸을 비우는 것도 고침이다.** 그래서 두 칸을 얹는 것이 아니라 다시 짓는다 — 얹기만
+ * 하면 교사가 지운 이름이 파일의 이름으로 되살아난다.
+ */
+export function withEdit(summary: RosterSummary, edit: StudentEdit | undefined): RosterSummary {
+  if (!edit || summary.state !== 'read') return summary
+  return {
+    state: 'read',
+    name: summary.name,
+    ...filled('studentId', edit.studentId ?? summary.studentId),
+    ...filled('studentName', edit.studentName ?? summary.studentName),
+    dataType: summary.dataType,
+    experiments: summary.experiments,
+    runs: summary.runs,
   }
 }
 
@@ -97,7 +146,7 @@ export function summaryOf(document: ProjectDocument): RosterSummary {
  * 명렬을 무엇으로 정렬할 수 있는가. **열 머리가 곧 기준이다** — 정렬 기준을 드롭다운에
  * 숨기면 지금 무엇으로 서 있는지가 화면 밖으로 나간다 (architecture.md §8.21).
  */
-export const ROSTER_SORTS = ['label', 'student', 'experiments', 'runs'] as const
+export const ROSTER_SORTS = ['label', 'studentId', 'studentName', 'experiments', 'runs'] as const
 
 export type RosterSort = (typeof ROSTER_SORTS)[number]
 
@@ -143,6 +192,8 @@ function compare(
 ): number {
   if (sort === 'label') return left.label.localeCompare(right.label)
   if (a?.state !== 'read' || b?.state !== 'read') return 0
-  if (sort === 'student') return (a.student ?? '').localeCompare(b.student ?? '')
+  // **안 적은 칸은 빈 글자로 센다** — 이름 없는 줄끼리 모이고, 적은 줄이 그 뒤에 선다.
+  if (sort === 'studentId') return (a.studentId ?? '').localeCompare(b.studentId ?? '')
+  if (sort === 'studentName') return (a.studentName ?? '').localeCompare(b.studentName ?? '')
   return a[sort] - b[sort]
 }

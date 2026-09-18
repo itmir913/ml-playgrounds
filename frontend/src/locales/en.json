@@ -27,12 +27,15 @@
     "unreadable": "Cannot open",
     "noStudent": "No name",
     "pickOne": "Choose a submission from the table.",
-    "student": "Student",
     "experiments": "Experiments",
     "runs": "Trained models",
     "file": "Submission file",
     "state": "Status",
-    "noExperiment": "No experiments yet."
+    "noExperiment": "No experiments yet.",
+    "studentId": "Student number",
+    "studentName": "Name",
+    "editHint": "Edits here apply to this roster only. The submitted file is untouched, and edits are lost on reload.",
+    "editedMark": "(edited)"
   },
   "taskTypes": {
     "classification": "Classification",

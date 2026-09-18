@@ -20,7 +20,13 @@ import { ref, shallowRef, type Ref } from 'vue'
 import { isClientError, type ClientErrorCode } from '@/errors'
 import { readFileBytes } from '@/project/download'
 import { readProject, readProjectMeta, type ReadResult } from '@/project/format'
-import { summaryOf, type RosterItem, type RosterSummary } from '@/project/roster'
+import {
+  summaryOf,
+  withEdit,
+  type RosterItem,
+  type RosterSummary,
+  type StudentEdit,
+} from '@/project/roster'
 
 /** 교사가 지금 열어 본 제출물. **한 번에 하나다** — 다음 줄을 고르면 앞엣것을 버린다. */
 export interface OpenedSubmission {
@@ -40,8 +46,15 @@ export interface Roster {
    * 사진까지 있어야 한다.
    */
   readonly opened: Ref<OpenedSubmission | null>
+  /** 이름표 → 교사가 고친 학번·이름. **파일에는 안 적힌다** (`StudentEdit`). */
+  readonly edits: Ref<ReadonlyMap<string, StudentEdit>>
   /** 명렬을 갈아 끼우고 훑기를 시작한다. 옛 훑기의 결과는 버려진다. */
   show: (items: readonly RosterItem[]) => void
+  /**
+   * 이 줄의 학번·이름을 고쳐 둔다. **화면에만 산다** — 정렬도 표시도 고친 값으로 하고,
+   * 원본은 안 건드린다. 새로 고치면 사라진다.
+   */
+  correct: (item: RosterItem, edit: StudentEdit) => void
   /**
    * 이 줄을 통째로 읽어 연다. **교사가 고른 것이 큐의 맨 앞이다.**
    *
@@ -62,6 +75,7 @@ export function useRoster(): Roster {
   const summaries = ref<ReadonlyMap<string, RosterSummary>>(new Map())
   const reading = ref<string | null>(null)
   const opened = shallowRef<OpenedSubmission | null>(null)
+  const edits = ref<ReadonlyMap<string, StudentEdit>>(new Map())
 
   /** 지금 명렬. **읽은 것을 앉히기 전에 이것과 견준다.** */
   let held: readonly RosterItem[] = items.value
@@ -71,8 +85,25 @@ export function useRoster(): Roster {
 
   function put(label: string, summary: RosterSummary): void {
     const next = new Map(summaries.value)
-    next.set(label, summary)
+    next.set(label, withEdit(summary, edits.value.get(label)))
     summaries.value = next
+  }
+
+  /**
+   * 고친 값을 명렬에 앉힌다. **요약이 이미 있어야 한다** — 아직 안 읽은 줄에는 고칠
+   * 대상이 없고, 읽고 나면 `put`이 그 고침을 다시 얹는다.
+   */
+  function correct(item: RosterItem, edit: StudentEdit): void {
+    const next = new Map(edits.value)
+    next.set(item.label, { ...next.get(item.label), ...edit })
+    edits.value = next
+
+    const known = summaries.value.get(item.label)
+    if (known) {
+      const seated = new Map(summaries.value)
+      seated.set(item.label, withEdit(known, next.get(item.label)))
+      summaries.value = seated
+    }
   }
 
   async function run(job: Job): Promise<void> {
@@ -103,6 +134,8 @@ export function useRoster(): Roster {
     items.value = next
     held = next
     opened.value = null
+    // **고침도 함께 버린다.** 다른 폴더의 줄에 앞 반의 이름이 얹히면 안 된다.
+    edits.value = new Map()
     summaries.value = new Map()
     pending = next.map((item) => ({ item, full: false }))
     pumpQueue()
@@ -117,7 +150,7 @@ export function useRoster(): Roster {
     return pump ?? Promise.resolve()
   }
 
-  return { items, summaries, reading, opened, show, open }
+  return { items, summaries, reading, opened, edits, show, open, correct }
 }
 
 /** 한 줄을 읽는다. **못 읽는 것은 사유가 된다** — 명렬에서 빼지 않는다. */

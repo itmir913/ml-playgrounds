@@ -27,12 +27,15 @@
     "unreadable": "열 수 없음",
     "noStudent": "이름 없음",
     "pickOne": "표에서 제출물을 선택하세요.",
-    "student": "학생",
     "experiments": "실험(Experiment)",
     "runs": "학습한 모델",
     "file": "제출물 파일",
     "state": "상태",
-    "noExperiment": "아직 학습한 실험이 없습니다."
+    "noExperiment": "아직 학습한 실험이 없습니다.",
+    "studentId": "학번",
+    "studentName": "이름",
+    "editHint": "여기서 수정한 학번과 이름은 명렬에만 쓰입니다. 제출물 파일은 바뀌지 않고, 브라우저를 새로 열면 사라집니다.",
+    "editedMark": "(수정)"
   },
   "taskTypes": {
     "classification": "분류(Classification)",

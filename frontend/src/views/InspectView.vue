@@ -21,6 +21,7 @@ import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
 import AppTable from '@/components/AppTable.vue'
+import AppField from '@/components/AppField.vue'
 import ProjectSummary from '@/components/ProjectSummary.vue'
 import { useRoster } from '@/composables/useRoster'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
@@ -135,7 +136,10 @@ const rows = computed(() =>
       const read = summary?.state === 'read' ? summary : undefined
       return {
         item,
-        student: read ? (read.student ?? t('inspect.noStudent')) : '',
+        studentId: read ? (read.studentId ?? t('inspect.noStudent')) : '',
+        studentName: read ? (read.studentName ?? t('inspect.noStudent')) : '',
+        /** 교사가 고쳐 둔 줄. **파일과 다르다는 것을 화면이 말해야 한다.** */
+        edited: roster.edits.value.has(item.label),
         experiments: read ? t('meta.countUnit', read.experiments) : '',
         runs: read ? t('meta.countUnit', read.runs) : '',
         state: read
@@ -169,8 +173,15 @@ const COLUMNS: readonly {
 }[] = [
   { key: 'label', label: 'inspect.file', numeric: false, wide: false, width: 'w-full min-w-48' },
   {
-    key: 'student',
-    label: 'inspect.student',
+    key: 'studentId',
+    label: 'inspect.studentId',
+    numeric: false,
+    wide: true,
+    width: 'min-w-24 max-w-32',
+  },
+  {
+    key: 'studentName',
+    label: 'inspect.studentName',
     numeric: false,
     wide: true,
     width: 'min-w-24 max-w-40',
@@ -178,6 +189,26 @@ const COLUMNS: readonly {
   { key: 'experiments', label: 'inspect.experiments', numeric: true, wide: true, width: 'w-44' },
   { key: 'runs', label: 'inspect.runs', numeric: true, wide: true, width: 'w-36' },
 ]
+
+/**
+ * 교사가 고친 학번·이름. **파일에는 안 적는다** (open-decisions.md "점검은 읽기 전용
+ * 열람기다") — 명렬의 표시와 정렬만 이 값으로 선다.
+ *
+ * **고치는 자리가 여기인 이유는 순서다.** 학생이 이름을 잘못 내면 교사는 **정렬하기
+ * 전에** 그것을 고쳐야 하고, 고치려면 그 제출물을 열어 보고 있어야 한다.
+ */
+function correctStudent(field: 'studentId' | 'studentName', event: Event): void {
+  const item = opened.value
+  if (!item) return
+  roster.correct(item, { [field]: (event.target as HTMLInputElement).value })
+}
+
+/** 지금 칸에 들어 있는 값. 고친 것이 있으면 고친 것, 없으면 파일의 것. */
+const studentFields = computed(() => {
+  const summary = summaryOfOpened.value
+  if (summary?.state !== 'read') return { studentId: '', studentName: '' }
+  return { studentId: summary.studentId ?? '', studentName: summary.studentName ?? '' }
+})
 
 /** 못 읽은 줄의 사유 문장. **코드를 화면이 문장으로 바꾼다** (CLAUDE.md §1.4). */
 function reasonOf(code: string): string {
@@ -298,13 +329,18 @@ function reasonOf(code: string): string {
               :class="opened?.label === row.item.label ? 'bg-surface-soft font-bold' : ''"
               @click="select(row.item)"
             >
-              <!-- 남는 폭을 이 열이 다 먹는다. 긴 경로는 그 안에서 잘린다. -->
-              <td class="w-full max-w-0">
-                <span class="block truncate">{{ row.item.label }}</span>
+              <!-- 남는 폭을 이 열이 다 먹는다. 긴 경로는 줄을 바꾼다. -->
+              <td class="w-full break-words">{{ row.item.label }}</td>
+              <!--
+                **고친 줄에는 표시를 단다** (2026-09-18, 사용자). 교사가 화면에서 고친 값은
+                파일에 없는 값이라, 아무 표시 없이 두면 다음에 열었을 때 파일이 그렇게
+                적혀 있는 줄 안다.
+              -->
+              <td class="hidden break-words md:table-cell">
+                {{ row.studentId }}
+                <span v-if="row.edited" class="text-ink-faint">{{ t('inspect.editedMark') }}</span>
               </td>
-              <td class="hidden max-w-0 md:table-cell">
-                <span class="block truncate">{{ row.student }}</span>
-              </td>
+              <td class="hidden break-words md:table-cell">{{ row.studentName }}</td>
               <td class="hidden text-right md:table-cell">{{ row.experiments }}</td>
               <td class="hidden text-right md:table-cell">{{ row.runs }}</td>
               <td
@@ -332,9 +368,43 @@ function reasonOf(code: string): string {
       </p>
       <p v-else-if="!viewing" class="text-ink-soft">{{ t('inspect.reading') }}</p>
       <template v-else>
-        <header class="flex flex-col gap-1">
-          <h3 class="truncate text-xl font-black">{{ viewing.file.document.manifest.name }}</h3>
-          <p class="truncate text-ink-soft">{{ opened.label }}</p>
+        <header class="flex flex-col gap-3">
+          <div class="flex flex-col gap-1">
+            <h3 class="truncate text-xl font-black">{{ viewing.file.document.manifest.name }}</h3>
+            <p class="truncate text-ink-soft">{{ opened.label }}</p>
+          </div>
+
+          <!--
+            **학번과 이름은 여기서 고친다** (2026-09-18, 사용자). 학생이 잘못 적어 내면
+            명렬이 그 값으로 서는데, 교사는 **정렬하기 전에** 고쳐야 한다.
+
+            **파일은 안 고친다.** 고친 값은 이 화면에만 살고 새로 고치면 사라진다 —
+            그 사실을 아래 도움말이 말한다.
+          -->
+          <div class="grid gap-3 sm:grid-cols-2 lg:max-w-xl">
+            <AppField :label="t('inspect.studentId')">
+              <template #default="field">
+                <input
+                  v-bind="field"
+                  type="text"
+                  :value="studentFields.studentId"
+                  class="w-full rounded-field border border-line-strong bg-surface px-3 py-2.5"
+                  @input="correctStudent('studentId', $event)"
+                />
+              </template>
+            </AppField>
+            <AppField :label="t('inspect.studentName')" :hint="t('inspect.editHint')">
+              <template #default="field">
+                <input
+                  v-bind="field"
+                  type="text"
+                  :value="studentFields.studentName"
+                  class="w-full rounded-field border border-line-strong bg-surface px-3 py-2.5"
+                  @input="correctStudent('studentName', $event)"
+                />
+              </template>
+            </AppField>
+          </div>
         </header>
 
         <!--

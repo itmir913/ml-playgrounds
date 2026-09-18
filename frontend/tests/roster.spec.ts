@@ -17,6 +17,7 @@ import {
   rosterOf,
   sortRoster,
   summaryOf,
+  withEdit,
   type RosterItem,
   type RosterSummary,
 } from '../src/project/roster'
@@ -68,24 +69,30 @@ describe('명렬을 만든다', () => {
 })
 
 describe('요약은 메타에서 나온다', () => {
-  it('이름과 학생과 실험 수를 남긴다', () => {
+  it('이름과 학번과 실험 수를 남긴다', () => {
     const summary = summaryOf(
-      document({ student: { name: '김하나', id: '10101' } } as Partial<
+      document({ student: { name: '김하나', studentId: '10101' } } as Partial<
         ProjectDocument['manifest']
       >),
     )
     expect(summary).toEqual({
       state: 'read',
       name: '붓꽃 분류',
-      student: '김하나',
+      studentId: '10101',
+      studentName: '김하나',
       dataType: 'tabular',
       experiments: 0,
       runs: 0,
     })
   })
 
-  it('학생 이름이 없으면 그 칸을 안 만든다 - 없는 것을 빈 문자열로 말하지 않는다', () => {
-    expect(summaryOf(document())).not.toHaveProperty('student')
+  it('학생이 안 적은 칸은 안 만든다 - 없는 것을 빈 문자열로 말하지 않는다', () => {
+    const blank = summaryOf(
+      document({ student: { name: '  ', studentId: '' } } as Partial<ProjectDocument['manifest']>),
+    )
+    expect(blank).not.toHaveProperty('studentName')
+    expect(blank).not.toHaveProperty('studentId')
+    expect(summaryOf(document())).not.toHaveProperty('studentName')
   })
 })
 
@@ -199,11 +206,11 @@ describe('명렬을 바꾸면 옛 결과는 버린다', () => {
 describe('명렬을 정렬한다', () => {
   const items = rosterOf([picked('c.mlpx'), picked('a.mlpx'), picked('b.mlpx')])
 
-  function read(name: string, experiments: number, student?: string): RosterSummary {
+  function read(name: string, experiments: number, studentName?: string): RosterSummary {
     return {
       state: 'read',
       name,
-      ...(student === undefined ? {} : { student }),
+      ...(studentName === undefined ? {} : { studentName }),
       dataType: 'tabular',
       experiments,
       runs: experiments * 2,
@@ -264,7 +271,7 @@ describe('명렬을 정렬한다', () => {
       ['b.mlpx', read('나', 1, '박두리')],
       ['c.mlpx', read('다', 1, '김하나')],
     ])
-    expect(sortRoster(items, mixed, 'student').map((one) => one.label)).toEqual([
+    expect(sortRoster(items, mixed, 'studentName').map((one) => one.label)).toEqual([
       'a.mlpx',
       'c.mlpx',
       'b.mlpx',
@@ -275,5 +282,60 @@ describe('명렬을 정렬한다', () => {
     const before = items.map((one) => one.label)
     sortRoster(items, summaries, 'runs', true)
     expect(items.map((one) => one.label)).toEqual(before)
+  })
+})
+
+/**
+ * **교사가 고친 학번·이름** (2026-09-18, 사용자).
+ *
+ * 학생이 잘못 적어 내면 명렬이 그 값으로 서고, 교사는 **정렬하기 전에** 고쳐야 한다.
+ * 고침은 **화면에만 산다** — 파일은 안 건드린다.
+ */
+describe('학번과 이름을 고쳐 둔다', () => {
+  const summary: RosterSummary = {
+    state: 'read',
+    name: '붓꽃 분류',
+    studentId: '10101',
+    studentName: '김하나',
+    dataType: 'tabular',
+    experiments: 1,
+    runs: 2,
+  }
+
+  it('고친 값이 요약을 덮는다', () => {
+    const fixed = withEdit(summary, { studentName: '김하나라' })
+    expect(fixed).toMatchObject({ studentId: '10101', studentName: '김하나라' })
+  })
+
+  it('안 고친 칸은 파일의 값이 그대로다', () => {
+    expect(withEdit(summary, { studentId: '10102' })).toMatchObject({ studentName: '김하나' })
+  })
+
+  it('빈 칸으로 고치면 없는 것이 된다 - 빈 글자로 세우지 않는다', () => {
+    expect(withEdit(summary, { studentName: '   ' })).not.toHaveProperty('studentName')
+  })
+
+  it('못 읽은 줄에는 안 얹는다 - 고칠 대상이 없다', () => {
+    const unreadable: RosterSummary = { state: 'unreadable', code: 'PROJECT_FILE_NOT_ZIP' }
+    expect(withEdit(unreadable, { studentName: '김하나' })).toBe(unreadable)
+  })
+
+  it('고친 값으로 정렬한다 - 고치고 다시 세우는 것이 이 기능의 이유다', () => {
+    const items = rosterOf([picked('a.mlpx'), picked('b.mlpx')])
+    const before = new Map<string, RosterSummary>([
+      ['a.mlpx', { ...summary, studentName: '하윤' }],
+      ['b.mlpx', { ...summary, studentName: '가온' }],
+    ])
+    expect(sortRoster(items, before, 'studentName').map((one) => one.label)).toEqual([
+      'b.mlpx',
+      'a.mlpx',
+    ])
+
+    const after = new Map(before)
+    after.set('a.mlpx', withEdit(before.get('a.mlpx')!, { studentName: '가람' }))
+    expect(sortRoster(items, after, 'studentName').map((one) => one.label)).toEqual([
+      'a.mlpx',
+      'b.mlpx',
+    ])
   })
 })
