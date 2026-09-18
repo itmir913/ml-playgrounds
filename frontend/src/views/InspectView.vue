@@ -514,11 +514,13 @@ async function downloadPortfolios(): Promise<void> {
   bundled.value = 0
   const entries: BundleEntry[] = []
   try {
-    await roster.collect((item, read) => {
+    // **다 읽었을 때만 내려받는다** (§8.21). 굽는 동안 교사가 다른 폴더를 고르면 그
+    // 묶음은 이미 남의 것이라, 여기서 안 물으면 **앞 반의 절반짜리 zip이 내려간다.**
+    const whole = await roster.collect((item, read) => {
       bundled.value += 1
       if (read) entries.push({ label: item.label, file: read.project })
     })
-    if (entries.length > 0 && alive()) {
+    if (whole && entries.length > 0 && alive()) {
       downloadBlob(bundleOf(entries, t, locale.value), t('inspect.bundleName'))
     }
   } finally {
