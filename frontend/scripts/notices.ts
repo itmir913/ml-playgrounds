@@ -322,11 +322,21 @@ export interface Notices {
  *
  * **개수 문턱이 아니라 이름 목록인 이유**는 그때 49개가 41개가 됐기 때문이다 — 어지간한
  * 문턱은 그냥 지나간다. 아래 넷은 **서로 다른 수집 경로**를 하나씩 대표한다:
- * 본 빌드(`vue`), **워커 빌드만 거치는 것**(`@tensorflow/tfjs-core`·`seedrandom`),
- * 그리고 전문을 `SUPPLIED`가 채우는 자산(`pretendard`).
+ * 본 빌드(`@vue/runtime-core`), **워커 빌드만 거치는 것**(`@tensorflow/tfjs-core`·
+ * `seedrandom`), 그리고 전문을 `SUPPLIED`가 채우는 자산(`pretendard`).
+ *
+ * **본 빌드의 대표가 `vue`에서 `@vue/runtime-core`로 바뀌었다** (2026-09-18). npm이 트리를
+ * 재배치하면서 `@vue/*` 넷이 `node_modules/vue/node_modules/` 아래로 내려갔고, 그러자
+ * **`vue` 패키지 자체의 파일은 번들에 하나도 안 남았다** — 그 dist는 `@vue/*`를 다시
+ * 내보내기만 해서 통째로 흔들려 떨어진다. 실제로 실리는 것은 넷이고 고지도 그 넷의
+ * 것으로 실린다(같은 MIT, 같은 저작권자).
+ *
+ * **이름을 고친 것이지 그물을 푼 것이 아니다.** 대표는 여전히 *"본 빌드를 읽었는가"*를
+ * 묻고, 안 읽으면 선다. 고칠 때 **번들에 실제로 무엇이 들어 있는지 세어 보고 골랐다** —
+ * 초록을 만들려고 이름을 지우면 이 장치가 하던 일이 그 순간 사라진다.
  */
 export const REQUIRED: readonly string[] = [
-  'vue',
+  '@vue/runtime-core',
   'pretendard',
   '@tensorflow/tfjs-core',
   'seedrandom',
