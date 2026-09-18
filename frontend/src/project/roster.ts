@@ -233,6 +233,8 @@ export const ROSTER_SORTS = [
   'label',
   'studentId',
   'studentName',
+  /** 학생이 프로젝트에 붙인 제목 (2026-09-18, 사용자). 파일 이름과 다를 수 있다. */
+  'name',
   'experiments',
   'runs',
   /**
@@ -312,5 +314,6 @@ function compare(
   // **안 적은 칸은 빈 글자로 센다** — 이름 없는 줄끼리 모이고, 적은 줄이 그 뒤에 선다.
   if (sort === 'studentId') return (a.studentId ?? '').localeCompare(b.studentId ?? '')
   if (sort === 'studentName') return (a.studentName ?? '').localeCompare(b.studentName ?? '')
+  if (sort === 'name') return a.name.localeCompare(b.name)
   return a[sort] - b[sort]
 }

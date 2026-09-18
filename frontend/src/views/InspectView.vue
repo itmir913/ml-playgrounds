@@ -287,6 +287,8 @@ const rows = computed(() =>
           // (2026-09-18, 사용자).
           studentId: read ? (read.studentId ?? t('inspect.noStudentId')) : '',
           studentName: read ? (read.studentName ?? t('inspect.noStudentName')) : '',
+          // **학생이 붙인 제목이다.** 파일 이름과 다를 수 있고, 다를 때 그것이 정보다.
+          name: read ? read.name : '',
           sameProject: sameProjectText(item.label),
           experiments: read ? t('meta.countUnit', read.experiments) : '',
           runs: read ? t('meta.countUnit', read.runs) : '',
@@ -339,7 +341,9 @@ const BASE_COLUMNS: readonly InspectColumn[] = [
     sort: 'label',
     align: 'left',
     wide: false,
-    width: 'min-w-48',
+    // **열이 여덟이 되면서 한 칸 줄였다** (2026-09-18). 이름은 어차피 남는 폭을 먹으므로
+    // 바닥값이 낮아도 넓은 화면에서는 그대로 넓고, 좁은 화면에서는 두 줄로 접힌다.
+    width: 'min-w-40',
     // 남는 폭을 이 열이 다 먹는다. 긴 경로는 줄을 바꾼다.
     cell: 'break-words',
   },
@@ -361,6 +365,15 @@ const BASE_COLUMNS: readonly InspectColumn[] = [
     align: 'left',
     wide: true,
     width: 'min-w-24',
+    cell: 'break-words',
+  },
+  {
+    key: 'name',
+    label: 'inspect.projectName',
+    sort: 'name',
+    align: 'left',
+    wide: true,
+    width: 'min-w-32',
     cell: 'break-words',
   },
   {
@@ -818,7 +831,9 @@ function reasonOf(code: string): string {
             <div class="flex min-w-0 flex-col gap-5">
               <!-- 무슨 데이터를 몇 행, 타깃은 무엇으로. **교사가 가장 먼저 보는 줄들이다.** -->
               <aside :class="PANEL">
-                <ProjectSummary :file="viewing.file" />
+                <!-- **제목이 첫 줄이다** (2026-09-18, 사용자). 학생이 이 프로젝트를 뭐라고
+                   불렀는지가 요약의 머리에 선다 — 파일 이름과 다를 수 있다. -->
+                <ProjectSummary :file="viewing.file" with-name />
               </aside>
 
               <!--
