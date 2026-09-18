@@ -50,6 +50,16 @@ export interface Roster {
   /** 명렬을 갈아 끼우고 훑기를 시작한다. 옛 훑기의 결과는 버려진다. */
   show: (items: readonly RosterItem[]) => void
   /**
+   * **읽기를 그만둔다.** 화면이 떠날 때 부른다 (`onBeforeUnmount`).
+   *
+   * 안 부르면 **서른 개를 훑다 나가도 큐가 끝까지 돈다** — 훑기는 메타만 읽어 가볍지만
+   * 굽는 도중에 나가면 통째 읽기가 이어진다. `useWork`의 `retire`가 워커에 하는 일을
+   * 명렬에 하는 것이고, **그쪽은 여기까지 못 온다**(파일 읽기 루프에는 맡길 손잡이가 없다).
+   *
+   * **돌고 있는 하나는 못 끊는다.** 그것은 끝나고 나서 명렬이 갈렸다고 판정된다.
+   */
+  stop: () => void
+  /**
    * 이 줄의 학번·이름을 고쳐 둔다. **화면에만 산다** — 정렬도 표시도 고친 값으로 하고,
    * 원본은 안 건드린다. 새로 고치면 사라진다.
    */
@@ -180,6 +190,19 @@ export function useRoster(): Roster {
     pumpQueue()
   }
 
+  /**
+   * 읽기를 그만둔다. **줄 선 것을 버리고 기다리는 손을 놓아 준다.**
+   *
+   * `held`를 아무도 안 든 배열로 옮겨서, **돌고 있는 하나가 끝나도 앉을 데가 없게** 한다 —
+   * 그러면 묶음도 "다 읽었다"가 아니게 되고, 죽은 화면이 절반짜리 zip을 내려받지 않는다.
+   */
+  function stop(): void {
+    const dropped = pending
+    pending = []
+    held = []
+    for (const job of dropped) release(job)
+  }
+
   function open(item: RosterItem): Promise<void> {
     opened.value = null
     // 줄 서 있던 같은 파일을 맨 앞으로 데려온다. **두 번 풀지 않는다** — 그리고 그 줄을
@@ -221,7 +244,7 @@ export function useRoster(): Roster {
     return Promise.all(waits).then((all) => all.every((one) => one))
   }
 
-  return { items, summaries, opened, edits, show, open, correct, collect }
+  return { items, summaries, opened, edits, show, stop, open, correct, collect }
 }
 
 /** 한 줄을 읽는다. **못 읽는 것은 사유가 된다** — 명렬에서 빼지 않는다. */

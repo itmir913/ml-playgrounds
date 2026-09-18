@@ -18,11 +18,21 @@ import { ENTRY, MLPX_EXTENSION, type ProjectFile } from './format'
 import { renderPortfolioMarkdown } from './portfolio'
 import { portfolioMarkdownText, type Translate } from './portfolio-text'
 
-/** 묶음에 들어가는 제출물 하나. */
+/**
+ * 묶음에 들어가는 제출물 하나.
+ *
+ * **파일 전체가 아니라 나갈 것 둘만 든다** (2026-09-18 R28-V N-1). `ProjectFile`을 통째로
+ * 받던 때는 굽기가 끝날 때까지 **서른 개의 통째 파싱 결과가 동시에 살았다** — 정본 표도,
+ * 모델도, 사진 바이트도 전부. zip에 실리는 것은 글과 그 글의 첨부뿐인데도 그랬다.
+ *
+ * **`useRoster`의 "메모리에 사는 파싱 결과가 언제나 하나다"가 이 경로에서 거짓이었다.**
+ * 타입을 좁히면 컴파일이 나머지를 막는다 — 다음 사람이 `entry.file.dataset`을 읽으려는
+ * 순간 선다.
+ */
 export interface BundleEntry {
   /** 명렬의 이름표. 폴더째 골랐으면 상대 경로다. */
   readonly label: string
-  readonly file: ProjectFile
+  readonly file: Pick<ProjectFile, 'document' | 'attachments'>
 }
 
 /**

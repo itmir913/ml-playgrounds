@@ -64,7 +64,12 @@ const roster = useRoster()
  */
 const { busy, start, alive, retire } = useWork()
 
-onBeforeUnmount(retire)
+onBeforeUnmount(() => {
+  retire()
+  // **명렬도 함께 멈춘다** (2026-09-18 R28-V §5). `retire`는 워커까지이고 파일 읽기
+  // 루프에는 맡길 손잡이가 없다 — 안 멈추면 서른 개를 훑다 나가도 큐가 끝까지 돈다.
+  roster.stop()
+})
 
 /** 묶는 동안 몇 줄까지 읽었는가. 서른 개면 그 수가 교사가 기다리는 크기다. */
 const bundled = ref(0)
@@ -517,7 +522,13 @@ async function downloadPortfolios(): Promise<void> {
     // 묶음은 이미 남의 것이라, 여기서 안 물으면 **앞 반의 절반짜리 zip이 내려간다.**
     const whole = await roster.collect((item, read) => {
       bundled.value += 1
-      if (read) entries.push({ label: item.label, file: read.project })
+      // **나갈 것 둘만 들고 나머지는 놓는다** (2026-09-18 R28-V N-1). `read.project`를
+      // 통째로 들면 굽기가 끝날 때까지 **서른 개의 정본 표와 모델과 사진이 동시에 산다** —
+      // 한 번에 하나만 푼다는 규칙이 바로 여기서 무너졌다.
+      if (read) {
+        const { document, attachments } = read.project
+        entries.push({ label: item.label, file: { document, attachments } })
+      }
     })
     if (whole && entries.length > 0 && alive()) {
       downloadBlob(bundleOf(entries, t, locale.value), t('inspect.bundleName'))

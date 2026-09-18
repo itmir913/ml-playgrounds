@@ -26,14 +26,23 @@ vi.mock('../src/project/download', () => ({
 }))
 
 /**
- * 읽은 바이트는 못 여는 파일이다. **여기서는 그것으로 충분하다** — 못 읽은 줄도 큐에서는
- * 다 읽은 줄과 똑같이 끝나야 하고, 그 끝남이 이 파일이 보는 전부다.
+ * 파는 자리도 가짜다. **바이트는 안 보고 약속만 본다.**
+ *
+ * **한동안 둘 다 실패였다** (2026-09-18 R28-V). 못 읽는 줄도 큐에서는 다 읽은 줄과
+ * 똑같이 끝나므로 이 파일이 보려던 것에는 충분했는데, **읽기가 성공해야만 지나가는
+ * 자리가 하나 있었다** — 굽기로 읽은 것이 화면에 안 앉는다는 규칙이다. `read`가 없으면
+ * 그 줄을 지나가지도 않아서, 가드를 지워도 조용했다.
  */
-vi.mock('../src/project/format', async (real) => ({
-  ...(await real<Record<string, unknown>>()),
-  readProject: () => Promise.reject(new Error('unreadable')),
-  readProjectMeta: () => Promise.reject(new Error('unreadable')),
-}))
+vi.mock('../src/project/format', async (real) => {
+  const actual = await real<Record<string, unknown>>()
+  const { emptyProjectFile } = await import('./fixtures/project')
+  const integrity = { status: 'UNKNOWN', contentHash: null, computedContentHash: 'x', entries: [] }
+  return {
+    ...actual,
+    readProject: () => Promise.resolve({ project: emptyProjectFile(), integrity }),
+    readProjectMeta: () => Promise.resolve(emptyProjectFile().document),
+  }
+})
 
 const { useRoster } = await import('../src/composables/useRoster')
 
@@ -146,6 +155,88 @@ describe('묶는 동안 명렬을 만져도 큐가 안 잠긴다', () => {
     const bundle = roster.collect(() => {})
     await drain()
     expect(await bundle).toBe(true)
+  })
+
+  /**
+   * **절반을 읽은 뒤에 갈려도 남의 것이다** (2026-09-18 R28-V). 앞선 검사는 **하나도 안
+   * 읽은 채** 갈리는 경우만 봤고, 그래서 `every`를 `some`으로 바꿔도 조용했다 — 그때는
+   * 절반이 참이라 화면이 **앞 반의 절반짜리 zip을 내려받는다.**
+   */
+  it('절반을 읽은 뒤에 폴더를 바꿔도 다 읽었다고 말하지 않는다', async () => {
+    const { roster } = await ready(['a.mlpx', 'b.mlpx', 'c.mlpx'])
+    const taken: string[] = []
+    const bundle = roster.collect((item) => taken.push(item.label))
+    await flushPromises()
+
+    // 첫 줄만 읽히게 둔다 — 그 하나는 이 반의 것으로 넘어간다.
+    reads.shift()?.settle(new Uint8Array([1]))
+    await flushPromises()
+    expect(taken).toEqual(['a.mlpx'])
+
+    roster.show(rosterOf([picked('x.mlpx')]))
+    await drain()
+
+    expect(await settled(bundle), 'collect() resolved').toBe(true)
+    expect(await bundle, 'a half-read bundle is not a whole bundle').toBe(false)
+  })
+
+  /**
+   * **굽기가 읽은 것은 화면에 안 앉는다** (§8.21의 *"묶는 동안 열어 보던 제출물도 안
+   * 바뀐다"*). 교사가 A를 열어 두고 묶음을 구우면, 굽기가 B·C를 읽는 동안에도 화면은
+   * **A를 보고 있어야 한다.**
+   */
+  it('굽기가 읽은 것이 열어 둔 제출물을 밀어내지 않는다', async () => {
+    const { roster, items } = await ready(['a.mlpx', 'b.mlpx', 'c.mlpx'])
+    void roster.open(items[0] as RosterItem)
+    await drain()
+    const held = roster.opened.value
+    expect(held?.item.label, 'the chosen row must be open to begin with').toBe('a.mlpx')
+
+    const bundle = roster.collect(() => {})
+    await drain()
+
+    expect(await bundle).toBe(true)
+    expect(roster.opened.value, 'baking must not change what is open').toBe(held)
+  })
+
+  /**
+   * **한 파일을 둘이 기다려도 손을 다 데려간다.** 굽기가 둘 줄 서 있는데 교사가 그 줄을
+   * 누르면 기다리는 손이 **둘**이다 — 하나만 데려가면 나머지 묶음이 안 끝난다.
+   */
+  it('한 파일을 기다리는 손이 여럿이어도 전부 데려간다', async () => {
+    const { roster, items } = await ready(['a.mlpx', 'b.mlpx'])
+    const first: string[] = []
+    const second: string[] = []
+    const one = roster.collect((item) => first.push(item.label))
+    const two = roster.collect((item) => second.push(item.label))
+    await flushPromises()
+
+    void roster.open(items[1] as RosterItem)
+    await drain()
+
+    expect(await settled(one), 'first collect resolved').toBe(true)
+    expect(await settled(two), 'second collect resolved').toBe(true)
+    expect(first.sort()).toEqual(['a.mlpx', 'b.mlpx'])
+    expect(second.sort()).toEqual(['a.mlpx', 'b.mlpx'])
+  })
+
+  /**
+   * **떠나면 큐도 멈춘다** (2026-09-18 R28-V §5). 화면은 `retire`로 도는 일을 끊는데
+   * 명렬은 그 밖이라, 서른 개를 훑다 나가도 **읽기가 끝까지 돌았다.**
+   */
+  it('멈추면 안 읽은 줄이 안 읽히고 기다리던 손이 풀린다', async () => {
+    const { roster } = await ready(['a.mlpx', 'b.mlpx', 'c.mlpx'])
+    const taken: string[] = []
+    const bundle = roster.collect((item) => taken.push(item.label))
+    await flushPromises()
+
+    roster.stop()
+    await drain()
+
+    expect(await settled(bundle), 'collect() resolved').toBe(true)
+    expect(await bundle, 'a stopped bundle is not a whole bundle').toBe(false)
+    // 돌던 하나는 끝나지만 뒤엣것은 아예 안 읽힌다.
+    expect(taken.length).toBeLessThan(3)
   })
 
   /**

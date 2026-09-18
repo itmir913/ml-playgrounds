@@ -9,13 +9,42 @@
 import { unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
-import { bundleOf, entriesOf, folderFor, folderNames } from '../src/project/portfolio-bundle'
+import {
+  bundleOf,
+  entriesOf,
+  folderFor,
+  folderNames,
+  type BundleEntry,
+} from '../src/project/portfolio-bundle'
 import { DIR, ENTRY } from '../src/project/format'
 import type { ProjectFile } from '../src/project/format'
 import { projectFile } from './fixtures/project'
 
 /** 가짜 번역. 키를 그대로 돌려주므로 머리글의 언어를 검사가 안 본다. */
 const label = (key: string): string => `[${key}]`
+
+/**
+ * **묶음이 드는 것은 글과 첨부뿐이다** (2026-09-18 R28-V N-1).
+ *
+ * `ProjectFile`을 통째로 받던 때는 굽기가 끝날 때까지 **서른 개의 정본 표와 모델과 사진이
+ * 동시에 살았다** — zip에 나가는 것은 둘뿐인데도 그랬다. `useRoster`의 *"메모리에 사는
+ * 파싱 결과가 언제나 하나다"*가 이 경로에서 거짓이었다.
+ *
+ * **검사가 아니라 타입이 막는다.** 여기 `@ts-expect-error`가 서 있다는 것이 그 증거이고,
+ * 타입이 다시 넓어지면 이 지시자가 **쓸모없어져서** 컴파일이 깨진다 (`useWork.spec.ts`의
+ * 같은 관용구).
+ */
+it('묶음 항목은 정본 표도 모델도 안 든다 - 타입이 막는다', () => {
+  const entry: BundleEntry = { label: 'a.mlpx', file: projectFile() }
+  // **값이 아니라 타입을 본다.** 넘긴 객체에는 아직 그 칸이 붙어 있을 수 있지만
+  // (구조적 타입), **읽으려는 코드가 컴파일을 못 지난다**는 것이 이 검사의 내용이다.
+  // @ts-expect-error 묶음은 정본 표를 안 든다.
+  void entry.file.dataset
+  // @ts-expect-error 묶음은 모델을 안 든다.
+  void entry.file.models
+  expect(entry.file.document).toBeDefined()
+  expect(entry.file.attachments).toBeDefined()
+})
 
 /** 사진 한 장이 붙은 제출물. 문항 `motivation`은 픽스처가 이미 갖고 있다. */
 function withPhoto(path = `${DIR.attachments}1.webp`): ProjectFile {
