@@ -26,7 +26,7 @@
     "reading": "Reading",
     "unreadable": "Cannot open",
     "noStudent": "No name",
-    "pickOne": "Choose a submission on the left.",
+    "pickOne": "Choose a submission from the table.",
     "student": "Student",
     "experiments": "Experiments",
     "runs": "Trained models",

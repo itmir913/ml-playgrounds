@@ -20,6 +20,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
+import AppTable from '@/components/AppTable.vue'
 import { useRoster } from '@/composables/useRoster'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { ACTION_ICONS } from '@/icons'
@@ -123,7 +124,7 @@ const COLUMNS: readonly {
    */
   width: string
 }[] = [
-  { key: 'label', label: 'inspect.file', numeric: false, wide: false, width: '' },
+  { key: 'label', label: 'inspect.file', numeric: false, wide: false, width: 'w-full' },
   { key: 'student', label: 'inspect.student', numeric: false, wide: true, width: 'w-32' },
   { key: 'experiments', label: 'inspect.experiments', numeric: true, wide: true, width: 'w-44' },
   { key: 'runs', label: 'inspect.runs', numeric: true, wide: true, width: 'w-36' },
@@ -182,83 +183,86 @@ function reasonOf(code: string): string {
           {{ t('inspect.roster', { read: progress.read, total: progress.total }) }}
         </h3>
 
-        <div class="overflow-hidden rounded-panel border border-line bg-surface">
-          <table class="w-full table-fixed">
-            <!--
-              **머리 줄에 색을 준다** (2026-09-18, 사용자). 선 하나로는 머리와 첫 줄이
-              같은 무게로 보여서, 훑는 눈이 어디가 이름표인지 매번 다시 찾는다.
-            -->
-            <thead class="bg-surface-soft">
-              <tr class="border-b border-line">
-                <!--
+        <!--
+          **표의 껍데기는 `AppTable`이 갖는다** — 머리 줄의 색도, 줄 사이의 선도, 넘칠 때의
+          처리도 거기 있다(`data-table`). 여기서 다시 그리면 이 앱의 표 아홉 중 하나만
+          다른 모양이 된다.
+
+          **높이에 상한이 있다** (§8.9, 전처리의 열 고르기와 같은 값). 제출물이 서른이면
+          표만 1,400px이라 **고른 줄의 상세가 화면 밖으로 밀린다** — 교사는 누르고 나서
+          한참 내려가야 무엇을 눌렀는지 본다. 상한을 두면 상세가 늘 표 바로 아래에 선다.
+
+          **그래서 머리 줄을 고정한다.** 안에서 스크롤하는 동안 열 이름이 사라지면 어느
+          칸을 보고 있는지 알 수 없다.
+        -->
+        <AppTable class="lg:max-h-150">
+          <thead class="sticky top-0 z-10">
+            <tr>
+              <!--
                   **열 머리가 곧 정렬 기준이다.** 누르면 그 열로 서고 다시 누르면 뒤집힌다 —
                   지금 무엇으로 서 있는지가 화살표로 그 자리에 있다.
 
                   **좁은 화면에서는 열을 줄인다.** 표를 카드로 바꾸는 것이 아니라 덜 중요한
                   열을 접는 것이라, 교사가 두 화면을 따로 배우지 않는다.
                 -->
-                <th
-                  v-for="column in COLUMNS"
-                  :key="column.key"
-                  scope="col"
-                  class="p-0"
-                  :class="[column.width, column.wide ? 'hidden md:table-cell' : '']"
+              <th
+                v-for="column in COLUMNS"
+                :key="column.key"
+                scope="col"
+                :class="[column.width, column.wide ? 'hidden md:table-cell' : '']"
+              >
+                <button
+                  type="button"
+                  class="flex w-full items-center gap-1"
+                  :class="column.numeric ? 'justify-end' : ''"
+                  @click="sortBy(column.key)"
                 >
-                  <button
-                    type="button"
-                    class="flex w-full items-center gap-1 p-3 font-bold whitespace-nowrap text-ink-soft hover:bg-surface"
-                    :class="column.numeric ? 'justify-end' : ''"
-                    @click="sortBy(column.key)"
-                  >
-                    {{ t(column.label) }}
-                    <!--
+                  {{ t(column.label) }}
+                  <!--
                       **화살표 자리는 늘 있다.** 누를 때마다 생겼다 사라지면 그 열의
                       글자가 좌우로 밀리고, 정렬을 바꿀 때마다 머리 줄이 출렁인다.
                     -->
-                    <component
-                      :is="descending ? ACTION_ICONS.moveDown : ACTION_ICONS.moveUp"
-                      :size="16"
-                      :class="sort === column.key ? '' : 'invisible'"
-                      aria-hidden="true"
-                    />
-                  </button>
-                </th>
-                <th
-                  scope="col"
-                  class="w-32 p-3 text-right font-bold whitespace-nowrap text-ink-soft"
-                >
-                  {{ t('inspect.state') }}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <!--
-                **못 여는 파일도 줄을 갖는다.** 조용히 빠지면 교사는 그 제출물이 없는 것으로
+                  <component
+                    :is="descending ? ACTION_ICONS.moveDown : ACTION_ICONS.moveUp"
+                    :size="16"
+                    :class="sort === column.key ? '' : 'invisible'"
+                    aria-hidden="true"
+                  />
+                </button>
+              </th>
+              <th scope="col" class="text-right">{{ t('inspect.state') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!--
+              **못 여는 파일도 줄을 갖는다.** 조용히 빠지면 교사는 그 제출물이 없는 것으로
                 읽고, 그것이 이 화면이 가장 하면 안 되는 일이다.
               -->
-              <tr
-                v-for="row in rows"
-                :key="row.item.label"
-                class="cursor-pointer border-t border-line hover:bg-surface-soft"
-                :class="opened?.label === row.item.label ? 'bg-surface-soft font-bold' : ''"
-                @click="select(row.item)"
+            <tr
+              v-for="row in rows"
+              :key="row.item.label"
+              class="cursor-pointer hover:bg-surface-soft"
+              :class="opened?.label === row.item.label ? 'bg-surface-soft font-bold' : ''"
+              @click="select(row.item)"
+            >
+              <!-- 남는 폭을 이 열이 다 먹는다. 긴 경로는 그 안에서 잘린다. -->
+              <td class="w-full max-w-0">
+                <span class="block truncate">{{ row.item.label }}</span>
+              </td>
+              <td class="hidden max-w-0 md:table-cell">
+                <span class="block truncate">{{ row.student }}</span>
+              </td>
+              <td class="hidden text-right md:table-cell">{{ row.experiments }}</td>
+              <td class="hidden text-right md:table-cell">{{ row.runs }}</td>
+              <td
+                class="text-right whitespace-nowrap"
+                :class="row.faint ? 'text-ink-faint' : 'text-ink-soft'"
               >
-                <td class="truncate p-3">{{ row.item.label }}</td>
-                <td class="hidden truncate p-3 md:table-cell">{{ row.student }}</td>
-                <td class="hidden p-3 text-right tabular-nums md:table-cell">
-                  {{ row.experiments }}
-                </td>
-                <td class="hidden p-3 text-right tabular-nums md:table-cell">{{ row.runs }}</td>
-                <td
-                  class="truncate p-3 text-right"
-                  :class="row.faint ? 'text-ink-faint' : 'text-ink-soft'"
-                >
-                  {{ row.state }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                {{ row.state }}
+              </td>
+            </tr>
+          </tbody>
+        </AppTable>
       </div>
 
       <!-- 고른 하나. 열람과 대조가 이 자리에 붙는다. -->
