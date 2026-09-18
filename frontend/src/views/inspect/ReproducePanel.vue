@@ -13,10 +13,14 @@
  * 더 느리다. 메인 스레드에서 돌리면 그동안 교사의 탭이 멈추고 취소 손잡이도 함께 죽는다.
  *
  * **취소는 끝난 것을 남긴다** (같은 결정문). run 하나가 끝날 때마다 판정이 도착하므로,
- * 넷 중 셋이 끝난 뒤 멈춰도 그 셋은 화면에 남는다.
+ * 넷 중 셋이 끝난 뒤 멈춰도 그 셋은 화면에 남는다 — `onProgress`가 그 통로다.
+ *
+ * **한동안 이 문단이 거짓이었다** (2026-09-18 R28 B-2). 판정을 `handle.result` 한 번에
+ * 받아 앉히고 있어서 진행 숫자가 `(0/N)`에 붙박여 있었고 멈출 손잡이도 없었는데,
+ * **주석만 지금처럼 적혀 있었다.** 이 저장소에서 가장 위험한 입력이 그 모양이다.
  */
 
-import { computed, onMounted, ref, triggerRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, triggerRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
@@ -26,10 +30,12 @@ import { summarizeColumns } from '@/data/columns'
 import { errorMessageKey, isClientError, type ClientErrorCode } from '@/errors'
 import {
   compareExperiments,
+  compareRun,
   reproduceBlockers,
   reproduceInputOf,
   type Reproduction,
 } from '@/ml/reproduce'
+import { succeeded } from '@/ml/results'
 import { factorFrom, readFactor, writeFactor } from '@/ml/calibration'
 import { describe as describeEstimate, estimateMs, type Estimate } from '@/ml/estimate'
 import { estimatedFeatureWidth } from '@/ml/preprocess'
@@ -55,7 +61,16 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const work = useWork()
+/**
+ * **떠날 때 워커를 끊는다** (`useWork`). 이 판은 학습 워커를 직접 여는데
+ * `onBeforeUnmount(retire)`가 없었고, 그래서 **대조가 도는 중에 다른 제출물을 눌러도
+ * 워커가 끝까지 돌았다** — 서른 개를 넘기며 누르면 그만큼 쌓인다. 더 조용한 쪽은
+ * `alive()`였다: `retire`가 없으면 그 값이 영영 참이라 아래 가드 둘이 **죽은 채로**
+ * 초록이었다 (2026-09-18 R28 A-1).
+ */
+const { busy, start, alive, retire, cancelAll } = useWork()
+
+onBeforeUnmount(retire)
 
 /**
  * **판정은 실험에 붙는다** (2026-09-18, 사용자). 실험 id → 그 실험의 판정들.
@@ -76,7 +91,7 @@ const failures = ref(new Map<string, ClientErrorCode>())
 /**
  * 지금 대조가 도는 **실험의 id**. 다른 실험을 보고 있으면 그 진행은 여기 안 뜬다.
  *
- * **바쁨도 손잡이도 아니다.** 도는지 여부는 `work.busy`가, 끊을 것은 `job.hold()`가
+ * **바쁨도 손잡이도 아니다.** 도는지 여부는 `busy`가, 끊을 것은 `job.hold()`가
  * 갖는다(`useWork`) — 여기 있는 것은 **그 일이 어느 실험의 것인가**이고, 그건 일을
  * 쥔 쪽이 알 수 없는 값이다. 이름에 `running`을 안 쓰는 이유는 `ui-rules.spec.ts`가
  * 그 낱말을 **손잡이 칸의 이름으로** 못 박아 두었기 때문이다.
@@ -106,7 +121,7 @@ const blockers = computed(() =>
  * 단추를 잠그는 것 전부. **이름 붙은 값 하나로 합친다** — 템플릿에서 조건을 조립하면
  * `ui-rules.spec.ts`가 잡고, 무엇보다 학생이든 교사든 **왜 못 누르는지 모르게 된다.**
  */
-const cannotStart = computed(() => work.busy.value || blockers.value.length > 0)
+const cannotStart = computed(() => busy.value || blockers.value.length > 0)
 
 /** 견줄 주장의 수. 진행을 셀 분모다. */
 const claims = computed(() => props.experiment.runs.filter((run) => run.status === 'done').length)
@@ -121,7 +136,7 @@ onMounted(() => {
   if (deviceFactor.value !== null) return
   void calibrateDevice(spawnTrainingWorker).then((elapsed) => {
     const factor = elapsed === null ? null : factorFrom(elapsed)
-    if (factor !== null && work.alive()) {
+    if (factor !== null && alive()) {
       deviceFactor.value = factor
       writeFactor(factor)
     }
@@ -192,6 +207,12 @@ const estimateText = computed(() => {
   return t(key, { value: estimate.value.value })
 })
 
+/**
+ * 교사가 멈춘 실험의 id. **`ref`가 아니다** — 화면이 그리는 값이 아니라 아래 `try`가
+ * "통째로 앉혀도 되는가"를 묻는 자리다. 반응형으로 두면 읽는 곳 없는 상태가 하나 더 생긴다.
+ */
+let stopped: string | null = null
+
 async function reproduce(): Promise<void> {
   if (cannotStart.value || !props.dataset) return
   // **시작할 때의 실험을 손에 쥔다.** 도는 동안 교사가 다른 실험으로 옮기면 `props`는
@@ -202,7 +223,7 @@ async function reproduce(): Promise<void> {
   failures.value.delete(target)
   comparing.value = target
 
-  const job = work.start()
+  const job = start()
   const request = {
     type: 'train' as const,
     input: reproduceInputOf({
@@ -213,22 +234,56 @@ async function reproduce(): Promise<void> {
     }),
   }
 
-  const handle = train(request, { createWorker: spawnTrainingWorker })
+  const handle = train(request, {
+    createWorker: spawnTrainingWorker,
+    /**
+     * **run 하나가 끝날 때마다 앉힌다** (§8.21). 통째로 기다렸다 한 번에 앉히면 진행
+     * 숫자가 `(0/N)`에 붙박이고, 무엇보다 **멈춘 자리에 아무것도 안 남는다.**
+     *
+     * 실패한 주장은 여기서도 건너뛴다 — 견줄 점수가 없다(`compareExperiments`와 같은 규칙).
+     */
+    onProgress: (fresh, _completed, _total, index) => {
+      if (!alive()) return
+      const one = claim.runs[index]
+      if (!one || !succeeded(one)) return
+      const before = byExperiment.value.get(target) ?? []
+      seat(byExperiment.value, target, [...before, compareRun(one, fresh)])
+    },
+  })
   job.hold(handle)
   try {
     const { experiment } = await handle.result
     // **떠난 화면에는 안 앉힌다** (`useWork`의 `alive`). 교사가 다른 제출물로 옮겼는데
     // 앞 파일의 판정이 뒤늦게 이 자리에 앉으면 **무고한 학생에게 붙는다.**
-    if (work.alive()) {
+    //
+    // **멈춘 실험에는 안 앉힌다.** 멈추기는 도착한 run만으로 실험을 조립해 돌려주므로
+    // (`ml/worker/client.ts`), 통째로 견주면 **안 돌린 run이 `엔진 없음`으로 선다** —
+    // 우리가 멈춘 일을 파일의 사정으로 말하는 것이 된다. 온 것은 이미 앉아 있다.
+    if (alive() && stopped !== target) {
       seat(byExperiment.value, target, compareExperiments(claim, experiment))
     }
   } catch (error) {
-    // **취소도 여기로 온다** (`JOB_CANCELLED`). 그때까지 온 것은 그대로 둔다.
-    if (work.alive()) seat(failures.value, target, isClientError(error) ? error.code : 'JOB_FAILED')
+    // **끊은 것은 실패가 아니다.** 멈추기도, 떠나기도 `JOB_CANCELLED`로 오고 그때까지
+    // 앉은 판정이 그대로 남는다 — 여기서 삼키지 않으면 "학습을 멈췄습니다"가 붉게 뜬다.
+    if (isClientError(error) && error.code === 'JOB_CANCELLED') return
+    if (alive()) seat(failures.value, target, isClientError(error) ? error.code : 'JOB_FAILED')
   } finally {
     if (comparing.value === target) comparing.value = null
+    if (stopped === target) stopped = null
     job.done()
   }
+}
+
+/**
+ * **멈춘다.** 끝난 run의 판정은 그대로 남는다 (open-decisions.md "멈추기가 끝난 것을
+ * 남긴다").
+ *
+ * **묻지 않는다.** 학습 화면은 한 번 묻는데 거기서 잃는 것은 학생의 수행평가이고, 여기서
+ * 잃는 것은 교사가 다시 누르면 되는 계산이다.
+ */
+function stop(): void {
+  stopped = comparing.value
+  cancelAll()
 }
 
 /** 맵에 앉히고 화면에 알린다. **`ref`가 든 `Map`은 넣는 것만으로는 안 깨어난다.** */
@@ -322,7 +377,15 @@ function failureText(reproduction: Reproduction): string {
       **누르기 전에 얼마나 걸릴지 말한다.** 교사의 질문은 "지금 눌러도 되는 일인가"다.
     -->
     <div class="mt-1 flex flex-wrap items-center gap-3">
-      <AppButton :disabled="cannotStart" :action="reproduce">
+      <!--
+        **도는 동안에는 자리가 [멈추기]다** (학습 화면과 같은 문법). 서른 개를 훑는
+        교사가 잘못 누른 대조에 88초를 묶여 있을 이유가 없고, 끝난 run의 판정은 멈춰도
+        그대로 남는다.
+      -->
+      <AppButton v-if="comparing === props.experiment.id" variant="secondary" @click="stop">
+        {{ t('train.stop') }}
+      </AppButton>
+      <AppButton v-else :disabled="cannotStart" :action="reproduce">
         {{ t('inspect.reproduceStart') }}
       </AppButton>
       <span v-if="blockers.length === 0" class="text-ink-faint">{{ estimateText }}</span>

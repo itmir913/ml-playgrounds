@@ -2420,8 +2420,15 @@ describe('화면은 도는 일을 셈으로 든다', () => {
       .map((line) => line.trim())
   }
 
-  /** 워커를 여는 화면들. **이들은 끊을 것을 일에 맡겨야 한다.** */
-  const SPAWNS = /\b(?:canonicalizeImages|embedImages)\s*\(/
+  /**
+   * 워커를 여는 화면들. **이들은 끊을 것을 일에 맡겨야 한다.**
+   *
+   * **학습 워커가 한동안 빠져 있었다** (2026-09-18 R28 A-1). 이름이 사진 워커 둘뿐이라
+   * 규칙 이름은 "워커를 여는 화면"인데 실제로는 **사진 화면만** 훑었고, 점검의 대조 판이
+   * `train()`으로 학습 워커를 열면서 `retire`도 `JOB_CANCELLED`도 없이 초록이었다.
+   * **이름이 넓고 그물이 좁으면 다음 사람은 그물을 이름으로 읽는다.**
+   */
+  const SPAWNS = /\b(?:canonicalizeImages|embedImages|train)\s*\(/
 
   it('검사기가 화면이 스스로 든 것을 잡는다', () => {
     expect(ownsWorkState('const busy = ref(false)')).toHaveLength(1)
@@ -2500,6 +2507,30 @@ describe('화면은 도는 일을 셈으로 든다', () => {
    * 안 일어났고, 위 규칙을 세워 손잡이를 맡기게 하자 **거절이 처음으로 도착했다.**
    * 이웃 넷은 전부 삼키고 있었고 그 하나만 안 삼켰다 — **사람이 자리마다 판정하면 틀린다.**
    */
+  /**
+   * **`alive()`를 묻는 화면은 `retire`를 걸어야 한다** (2026-09-18 R28 A-1).
+   *
+   * `alive()`는 긴 계산 뒤에 "계속해도 되는가"를 묻는 자리이고, **그 값을 거짓으로
+   * 만드는 곳은 `retire` 하나뿐이다.** 안 걸면 영원히 참이라 그 가드는 **한 줄도 막지
+   * 않으면서 막는 것처럼 보인다** — 점검의 두 화면이 그렇게 서 있었고, 가드를 지우는
+   * 돌연변이가 아무 데서도 안 울었다.
+   *
+   * **워커 규칙과 겹치지 않는다.** 위쪽은 *워커를 여는가*를 묻고 여기는 *가드를 쓰는가*를
+   * 묻는다 — 워커를 안 여는 화면도 긴 읽기 뒤에 스토어를 만진다.
+   */
+  it('alive()를 묻는 화면은 떠날 때 끝났다고 표시한다', () => {
+    const asked = [...vueFiles(VIEWS), ...vueFiles(join(SRC, 'components'))].filter((path) =>
+      /\balive\(\)/.test(withoutComments(sourceOf(path)).join('\n')),
+    )
+    // **묻는 화면을 실제로 찾는다.** 0개면 이 규칙이 죽은 것이다.
+    expect(asked.length).toBeGreaterThan(0)
+
+    const offenders = asked.filter(
+      (path) => !/onBeforeUnmount\(\s*retire\s*\)/.test(withoutComments(sourceOf(path)).join('\n')),
+    )
+    expect(offenders, 'asks alive() but never retires - the guard is dead').toEqual([])
+  })
+
   it('워커를 여는 화면은 취소를 실패로 말하지 않는다', () => {
     const opens = vueFiles(VIEWS).filter((path) =>
       SPAWNS.test(withoutComments(sourceOf(path)).join('\n')),

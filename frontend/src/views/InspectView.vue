@@ -16,7 +16,7 @@
  * 붙을 자리도 열이다.
  */
 
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
@@ -55,7 +55,14 @@ import ExperimentList from './results/ExperimentList.vue'
 
 const { t, locale } = useI18n()
 const roster = useRoster()
-const work = useWork()
+/**
+ * **떠날 때 도는 것을 끊고 끝났다고 표시한다** (`useWork`). 이 화면은 묶음을 굽는 일을
+ * 들고 있고 그 뒤에 `alive()`를 묻는데, `retire`를 안 걸면 **그 값이 영영 참이라 가드가
+ * 죽은 채로 초록이다** — 굽다 나가면 다른 화면에서 zip이 내려간다 (2026-09-18 R28 A-1).
+ */
+const { busy, start, alive, retire } = useWork()
+
+onBeforeUnmount(retire)
 
 /** 묶는 동안 몇 줄까지 읽었는가. 서른 개면 그 수가 교사가 기다리는 크기다. */
 const bundled = ref(0)
@@ -502,8 +509,8 @@ const studentLine = computed(() =>
  * 열어 보던 제출물도 안 바뀐다.
  */
 async function downloadPortfolios(): Promise<void> {
-  if (work.busy.value || roster.items.value.length === 0) return
-  const job = work.start()
+  if (busy.value || roster.items.value.length === 0) return
+  const job = start()
   bundled.value = 0
   const entries: BundleEntry[] = []
   try {
@@ -511,7 +518,7 @@ async function downloadPortfolios(): Promise<void> {
       bundled.value += 1
       if (read) entries.push({ label: item.label, file: read.project })
     })
-    if (entries.length > 0 && work.alive()) {
+    if (entries.length > 0 && alive()) {
       downloadBlob(bundleOf(entries, t, locale.value), t('inspect.bundleName'))
     }
   } finally {
@@ -599,10 +606,10 @@ function reasonOf(code: string): string {
         </AppButton>
 
         <template #end>
-          <AppButton :disabled="work.busy.value" :action="downloadPortfolios">
+          <AppButton :disabled="busy" :action="downloadPortfolios">
             <component :is="ACTION_ICONS.exportFile" :size="18" aria-hidden="true" />
             {{
-              work.busy.value
+              busy
                 ? t('inspect.bundling', { done: bundled, total: progress.total })
                 : t('inspect.bundle')
             }}

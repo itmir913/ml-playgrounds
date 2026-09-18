@@ -1,0 +1,250 @@
+// @vitest-environment jsdom
+// 판을 띄우고 **도는 중에** 만진다 — 여기서 보는 것은 전부 끝나기 전의 상태다.
+/**
+ * **대조가 도는 동안** (2026-09-18 R28 A-1·B-2·B-5).
+ *
+ * 이웃 스펙(`inspect-reproduce-cache`)의 가짜 워커는 `Promise.resolve`라 **끼어들 틈이
+ * 없다.** 그래서 도는 중에만 나는 결함 셋이 전부 초록이었다.
+ *
+ *   1. 판정이 **돌던 실험**이 아니라 지금 보고 있는 실험에 앉는가 (B-5)
+ *   2. 진행 숫자가 `(0/N)`에 붙박여 있는가 — run 하나가 끝날 때마다 앉는가 (B-2)
+ *   3. 떠날 때 워커가 끊기는가 (A-1)
+ *
+ * **여기 가짜 워커는 손잡이를 검사에 준다.** 언제 보고하고 언제 끝낼지를 검사가 정해야
+ * "도는 중"이라는 상태가 생긴다.
+ */
+
+import { flushPromises, mount } from '@vue/test-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ClientError } from '../src/errors'
+import { MLJS_ENGINE } from '../src/ml/engines/mljs'
+import { i18n, setLocale } from '../src/i18n'
+import type { Experiment, Run } from '../src/project/schema'
+
+/** run 하나가 끝났다는 보고. `ml/worker/client.ts`의 `onProgress`와 같은 모양이다. */
+type Report = (run: Run, completed: number, total: number, index: number) => void
+
+const worker = vi.hoisted(() => ({
+  resolve: null as null | ((value: unknown) => void),
+  reject: null as null | ((error: unknown) => void),
+  report: null as null | Report,
+  cancelled: 0,
+}))
+
+vi.mock('../src/ml/worker/client', () => ({
+  train: (_request: unknown, options: { onProgress?: Report }) => {
+    worker.report = options.onProgress ?? null
+    return {
+      result: new Promise((resolve, reject) => {
+        worker.resolve = resolve
+        worker.reject = reject
+      }),
+      // **끊긴 것만 센다.** 그 뒤에 무엇으로 끝나는지는 검사가 정한다 — 진짜 손잡이는
+      // 도착한 run이 있으면 반쪽 실험으로 풀고, 없으면 `JOB_CANCELLED`로 던진다.
+      cancel: () => {
+        worker.cancelled += 1
+      },
+    }
+  },
+  calibrateDevice: () => Promise.resolve(null),
+}))
+
+vi.mock('../src/ml/worker/spawn', () => ({ spawnTrainingWorker: () => ({}) }))
+
+const { experiment, run } = await import('./fixtures/project')
+const ReproducePanel = (await import('../src/views/inspect/ReproducePanel.vue')).default
+const { irisDataset } = await import('./fixtures/iris')
+
+/**
+ * 주장 하나. **엔진을 지금 것으로 적는다** — 파일을 만든 엔진이 없으면 판이 잠겨
+ * (`ENGINE_MISSING`) 여기서 보려는 자리까지 못 간다.
+ */
+function claim(id: string, count = 1): Experiment {
+  return experiment(
+    id,
+    Array.from({ length: count }, (_, index) =>
+      run(`${id}-run-${index + 1}`, { engine: MLJS_ENGINE }),
+    ),
+  )
+}
+
+function mountPanel(one: Experiment) {
+  return mount(ReproducePanel, {
+    props: {
+      experiment: one,
+      order: 1,
+      dataType: 'tabular' as const,
+      dataset: irisDataset(),
+      testDataset: null,
+    },
+    global: { plugins: [i18n] },
+  })
+}
+
+type Panel = ReturnType<typeof mountPanel>
+
+/** 판정 줄들. 잠긴 사유도 `li`로 서므로 `판정` 배지가 있는 줄만 고른다. */
+function verdicts(panel: Panel): string[] {
+  const verdict = i18n.global.t('inspect.verdict')
+  return panel
+    .findAll('li')
+    .map((one) => one.text().replace(/\s+/g, ' '))
+    .filter((text) => text.includes(verdict))
+}
+
+/** 그 글자가 적힌 단추. **교사가 누르는 것도 그 글자다.** */
+function button(panel: Panel, label: string) {
+  const found = panel.findAll('button').find((one) => one.text().trim() === label)
+  expect(found, `button not found: ${label}`).toBeTruthy()
+  return found!
+}
+
+const START = () => i18n.global.t('inspect.reproduceStart')
+const STOP = () => i18n.global.t('train.stop')
+
+describe('대조가 도는 동안', () => {
+  beforeEach(() => {
+    setLocale('ko')
+    worker.resolve = null
+    worker.reject = null
+    worker.report = null
+    worker.cancelled = 0
+  })
+
+  /** 대조를 시작하고 **안 끝낸 채로** 둔다. */
+  async function started(one: Experiment): Promise<Panel> {
+    const panel = mountPanel(one)
+    await button(panel, START()).trigger('click')
+    await flushPromises()
+    return panel
+  }
+
+  /**
+   * **판정은 시작할 때 쥔 실험에 앉는다** (B-5). 도는 동안 교사가 다른 실험으로 옮기면
+   * `props`는 그쪽을 가리키므로, 거기에 앉히면 **남의 실험의 점수**가 된다.
+   */
+  it('도는 중에 실험을 옮겨도 판정은 돌던 실험에 앉는다', async () => {
+    const third = claim('experiment-3')
+    // **주장이 다른 실험이다.** 3번의 결과를 2번의 주장과 견주면 `재현되지 않음`이 되므로,
+    // 잘못 앉은 것과 제대로 앉은 것이 글자로 갈린다.
+    const second = experiment('experiment-2', [
+      run('experiment-2-run-1', { engine: MLJS_ENGINE, metrics: { accuracy: 0.5 } }),
+    ])
+    const panel = await started(third)
+    expect(verdicts(panel)).toEqual([])
+
+    await panel.setProps({ experiment: second })
+    await flushPromises()
+    worker.resolve?.({ experiment: third })
+    await flushPromises()
+
+    expect(verdicts(panel), 'experiment 2 must show nothing').toEqual([])
+
+    await panel.setProps({ experiment: third })
+    await flushPromises()
+    expect(verdicts(panel)).toHaveLength(1)
+    expect(verdicts(panel)[0]).toContain(i18n.global.t('reproduction.REPRODUCED'))
+    panel.unmount()
+  })
+
+  /**
+   * **run 하나씩 오는 보고도 같은 규칙이다.** 통째로 오는 결과만 보면 이 자리가 비는데,
+   * 실제로 위험한 쪽은 이쪽이다 — 보고는 **여러 번** 오므로 교사가 옮긴 뒤에도 계속 온다.
+   */
+  it('도는 중에 실험을 옮겨도 그 뒤에 온 run이 돌던 실험에 앉는다', async () => {
+    const two = claim('experiment-3', 2)
+    const panel = await started(two)
+    worker.report?.(two.runs[0]!, 1, 2, 0)
+    await flushPromises()
+
+    await panel.setProps({ experiment: claim('experiment-2', 2) })
+    await flushPromises()
+    worker.report?.(two.runs[1]!, 2, 2, 1)
+    await flushPromises()
+    expect(verdicts(panel), 'experiment 2 must show nothing').toEqual([])
+
+    await panel.setProps({ experiment: two })
+    await flushPromises()
+    expect(verdicts(panel)).toHaveLength(2)
+    panel.unmount()
+  })
+
+  it('진행 줄은 돌던 실험의 자리에서만 선다', async () => {
+    const third = claim('experiment-3')
+    const panel = await started(third)
+    const line = i18n.global.t('inspect.reproducing', { done: 0, total: 1 })
+    expect(panel.text()).toContain(line)
+
+    await panel.setProps({ experiment: claim('experiment-2') })
+    await flushPromises()
+    expect(panel.text()).not.toContain(line)
+    panel.unmount()
+  })
+
+  /**
+   * **run 하나가 끝날 때마다 판정이 도착한다** (B-2). 통째로 기다렸다 한 번에 앉히면
+   * 진행 숫자가 끝날 때까지 `(0/N)`이고, 판의 머리말은 그동안 반대로 적혀 있었다.
+   */
+  it('run 하나가 끝나면 그 판정이 먼저 서고 진행 숫자가 오른다', async () => {
+    const two = claim('experiment-3', 2)
+    const panel = await started(two)
+    expect(panel.text()).toContain(i18n.global.t('inspect.reproducing', { done: 0, total: 2 }))
+
+    worker.report?.(two.runs[0]!, 1, 2, 0)
+    await flushPromises()
+    expect(verdicts(panel)).toHaveLength(1)
+    expect(panel.text()).toContain(i18n.global.t('inspect.reproducing', { done: 1, total: 2 }))
+    panel.unmount()
+  })
+
+  /**
+   * **멈추면 끝난 것이 남는다** (open-decisions.md "멈추기가 끝난 것을 남긴다").
+   *
+   * 멈추기는 도착한 run만으로 실험을 조립해 돌려주므로, 그것을 통째로 견주면 **안 돌린
+   * run이 `엔진 없음`으로 선다** — 우리가 멈춘 일을 파일의 사정으로 말하는 것이 된다.
+   */
+  it('멈추면 그때까지 온 판정만 남고 안 돌린 run은 안 선다', async () => {
+    const two = claim('experiment-3', 2)
+    const panel = await started(two)
+    worker.report?.(two.runs[0]!, 1, 2, 0)
+    await flushPromises()
+
+    await button(panel, STOP()).trigger('click')
+    expect(worker.cancelled).toBe(1)
+    // 진짜 손잡이가 하는 일: 도착한 run만으로 실험을 조립해 푼다.
+    worker.resolve?.({ experiment: experiment('experiment-3', [two.runs[0]!]) })
+    await flushPromises()
+
+    expect(verdicts(panel)).toHaveLength(1)
+    panel.unmount()
+  })
+
+  /**
+   * **끊은 것을 실패로 말하지 않는다** (`ui-rules.spec.ts`의 같은 규칙). 도착한 run이
+   * 없으면 손잡이가 `JOB_CANCELLED`로 던지는데, 그것을 삼키지 않으면 판에 붉은 글씨로
+   * **"학습을 멈췄습니다"**가 뜬다 — 교사가 스스로 누른 일이고 실패가 아니다.
+   */
+  it('아무것도 못 받고 멈춰도 실패 문구가 안 뜬다', async () => {
+    const panel = await started(claim('experiment-3'))
+    await button(panel, STOP()).trigger('click')
+    worker.reject?.(new ClientError('JOB_CANCELLED'))
+    await flushPromises()
+
+    expect(panel.text()).not.toContain(i18n.global.t('errors.JOB_CANCELLED'))
+    // 멈췄으니 자리는 다시 [대조 시작]이다.
+    expect(button(panel, START()).exists()).toBe(true)
+    panel.unmount()
+  })
+
+  /**
+   * **떠나면 워커를 끊는다** (A-1). 안 끊으면 신경망 50,000행이 88초를 마저 돌고, 서른
+   * 개를 넘기며 누르는 교사의 기기에 그만큼 쌓인다.
+   */
+  it('판이 사라지면 돌던 워커가 끊긴다', async () => {
+    const panel = await started(claim('experiment-3'))
+    expect(worker.cancelled).toBe(0)
+    panel.unmount()
+    expect(worker.cancelled).toBe(1)
+  })
+})

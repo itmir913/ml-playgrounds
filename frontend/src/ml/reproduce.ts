@@ -10,7 +10,7 @@
  *
  *   1. 파일 → `ExperimentInput` 조립 (`reproduceInputOf`)
  *   2. 기록된 분할 넘기기 (`recordedSplitOf`, `ml/plan.ts`의 `recordedSplit`)
- *   3. 나온 지표와 파일의 지표 견주기 (`compare`)
+ *   3. 나온 지표와 파일의 지표 견주기 (`compareRun`)
  *
  * **사본이 두 번 뒤처졌던 자리다.** 채점이 `predictBatch ?? predict`로 바뀔 때도,
  * 학습에 풀이 붙을 때도 재실행만 안 따라갔다. 구조로 막는다 — 이 파일에는 `engine.fit`도
@@ -233,7 +233,7 @@ export async function reproduceExperiment(
     onRun: (fresh, _completed, _all, index) => {
       const claim = stored[index]
       if (!claim || !succeeded(claim)) return
-      const reproduction = compare(claim, fresh)
+      const reproduction = compareRun(claim, fresh)
       found.push(reproduction)
       options.onRun?.(reproduction, found.length, total)
     },
@@ -255,7 +255,7 @@ export function compareExperiments(claim: Experiment, fresh: Experiment): Reprod
   const found: Reproduction[] = []
   for (const [index, run] of claim.runs.entries()) {
     if (!succeeded(run)) continue
-    found.push(compare(run, fresh.runs[index]))
+    found.push(compareRun(run, fresh.runs[index]))
   }
   return found
 }
@@ -270,8 +270,12 @@ export function compareExperiments(claim: Experiment, fresh: Experiment): Reprod
  *   2. **차이가 없다** → `REPRODUCED`.
  *   3. **차이가 있다** → 그 (알고리즘 × 엔진)이 `exact`면 `NOT_REPRODUCED`, 아니면
  *      `NOT_JUDGED`(차이를 보이고 판정은 교사가).
+ *
+ * **run 하나씩 도착하는 화면이 이것을 직접 부른다** (`views/inspect/ReproducePanel.vue`).
+ * 거기서는 워커가 run 하나를 끝낼 때마다 보고를 보내므로 실험 전체를 기다릴 수 없다 —
+ * **그래도 견주는 코드는 한 벌이어야 한다.**
  */
-function compare(claim: Run, fresh: Run | undefined): Reproduction {
+export function compareRun(claim: Run, fresh: Run | undefined): Reproduction {
   const base = {
     runId: claim.id,
     algorithm: claim.algorithm,
