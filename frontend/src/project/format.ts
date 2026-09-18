@@ -14,7 +14,7 @@
  * 아무도 가리키지 않는 고아 모델이다. 실어 나를 이유가 없다.
  */
 
-import { AsyncZipDeflate, unzip, Zip, type Unzipped } from 'fflate'
+import { AsyncZipDeflate, unzip, Zip, type Unzipped, type UnzipFileFilter } from 'fflate'
 
 import { decodeZipNames } from '../data/zip-names'
 import { ClientError } from '../errors'
@@ -330,9 +330,21 @@ function encodeJson(value: unknown): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(value, null, 2))
 }
 
-async function unzipAsync(bytes: Uint8Array): Promise<Unzipped> {
+/**
+ * zip을 푼다. **`filter`를 주면 그 엔트리만 푼다.**
+ *
+ * zip은 엔트리마다 따로 압축되므로 고른 것만 푸는 것이 가능하고, 명렬이 그것으로 산다
+ * (open-decisions.md "명렬은 메타만 읽는다"). 사진 200장이 든 제출물에서도 JSON 넷만
+ * 풀면 비용이 그 넷 크기다.
+ *
+ * **무압축 엔트리는 그대로 읽힌다** (2026-09-18에 재서 확인했다, `tests/format.spec.ts`).
+ * fflate 문서는 *"필터가 통과시킨 엔트리가 deflate가 아니면 던진다"*라고 적었는데
+ * 무압축(method 0)은 예외로 복사한다 - 학생이 풀었다 탐색기로 다시 압축한 파일이 여기
+ * 걸릴까 봐 확인한 것이고, 안 걸린다. 던지는 것은 LZMA 같은 다른 방식뿐이다.
+ */
+async function unzipAsync(bytes: Uint8Array, filter?: UnzipFileFilter): Promise<Unzipped> {
   return new Promise((resolve, reject) => {
-    unzip(bytes, (error, unzipped) => {
+    unzip(bytes, filter ? { filter } : {}, (error, unzipped) => {
       // zip이 아니거나 깨졌다. 어느 쪽이든 프로젝트 파일이 아니다.
       if (error) reject(new ClientError('PROJECT_FILE_NOT_ZIP'))
       else resolve(unzipped)
@@ -792,10 +804,23 @@ function rekeyByRecordedPaths(
  *
  * 순서를 지켜야 한다 - 압축 해제 -> JSON 파싱 -> **버전 확인과 마이그레이션** -> 검증.
  */
-export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
-  const unzipped = await unzipAsync(bytes)
-  const entries = new Map<string, Uint8Array>(rekeyByRecordedPaths(Object.entries(unzipped)))
+/** 문서 넷이 사는 엔트리. **명렬이 푸는 것이 정확히 이것뿐이다.** */
+const DOCUMENT_ENTRIES: readonly string[] = [
+  ENTRY.manifest,
+  ENTRY.settings,
+  ENTRY.runs,
+  ENTRY.portfolio,
+  // 이름 되살리기가 기록된 경로를 본다 (`rekeyByRecordedPaths`).
+  ENTRY.hashes,
+]
 
+/**
+ * 엔트리 맵에서 **문서**를 세운다. 버전 확인과 마이그레이션이 여기서 끝난다.
+ *
+ * **전체 읽기와 메타 읽기가 같은 이 함수를 지난다** (open-decisions.md "명렬은 메타만
+ * 읽는다"). 가벼운 판독기를 따로 두면 파서·스키마·마이그레이션이 갈린다.
+ */
+function documentOf(entries: ReadonlyMap<string, Uint8Array>): ProjectDocument {
   const required = (entry: string): Uint8Array => {
     const content = entries.get(entry)
     if (!content) throw new ClientError('PROJECT_FILE_ENTRY_MISSING', { entry })
@@ -808,14 +833,35 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
   const manifest = decodeJson(required(ENTRY.manifest), ENTRY.manifest)
   requireSupportedVersion(manifest)
 
-  const raw = {
+  const document = migrateProjectDocument({
     manifest,
     settings: decodeJson(required(ENTRY.settings), ENTRY.settings),
     runs: decodeJson(required(ENTRY.runs), ENTRY.runs),
     portfolio: decodeJson(required(ENTRY.portfolio), ENTRY.portfolio),
-  }
-  const document = migrateProjectDocument(raw)
+  })
   requireSanePaths(document)
+  return document
+}
+
+/**
+ * **문서 넷만 읽는다.** 정본 표도 사진도 임베딩도 안 푼다.
+ *
+ * 명렬이 서른 개를 훑는 자리다 (architecture.md §8.21) — 거기서 필요한 것은 이름·학생·
+ * 실험 수이고, 무결성과 재실행 대조는 교사가 고른 파일에서 한다. **해시는 사진 바이트를
+ * 전부 읽어야 나오므로 여기서 하지 않는다.**
+ *
+ * **못 읽는 파일은 명렬에서 빼지 않는다.** 여기서 던진 사유가 그 줄의 상태가 된다 —
+ * 조용히 빠지면 교사는 그 제출물이 없는 것으로 읽는다 (architecture.md §8.21).
+ */
+export async function readProjectMeta(bytes: Uint8Array): Promise<ProjectDocument> {
+  const unzipped = await unzipAsync(bytes, (file) => DOCUMENT_ENTRIES.includes(file.name))
+  return documentOf(new Map(rekeyByRecordedPaths(Object.entries(unzipped))))
+}
+
+export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
+  const unzipped = await unzipAsync(bytes)
+  const entries = new Map<string, Uint8Array>(rekeyByRecordedPaths(Object.entries(unzipped)))
+  const document = documentOf(entries)
 
   // settings가 데이터셋을 가리키는데 본체가 없으면 재학습도, 참조형 모델의 예측도,
   // 해시 재계산도 전부 불가능하다. 아예 안 가리키는 것은 다르다 - 표를 아직 안 올린

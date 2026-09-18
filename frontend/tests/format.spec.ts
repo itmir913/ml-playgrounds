@@ -17,6 +17,7 @@ import {
   type ProjectFile,
   projectFileName,
   readProject,
+  readProjectMeta,
   selectModels,
   writeProject,
 } from '../src/project/format'
@@ -852,5 +853,58 @@ describe('포트폴리오 첨부', () => {
 
     const { project } = await readProject(zipSync(entries))
     expect(project.document.portfolio.attachments).toEqual({})
+  })
+})
+
+/**
+ * **명렬은 메타만 읽는다** (`open-decisions.md` "명렬은 메타만 읽는다 — 입구는 둘,
+ * 경로는 하나", `architecture.md` §8.21).
+ *
+ * 여기서 지키는 것 셋.
+ *
+ *   1. **문서 넷만 푼다** — 사진과 표는 건드리지도 않는다. 그것이 서른 개짜리 폴더를
+ *      훑을 수 있는 이유다
+ *   2. **같은 파서를 지난다** — 전체 읽기와 같은 문서가 나온다. 가벼운 판독기를 따로
+ *      두면 스키마와 마이그레이션이 갈린다
+ *   3. **풀 수 없는 엔트리가 섞이면 던진다** — 부르는 쪽이 그 파일만 전체 읽기로
+ *      떨어뜨릴 수 있게
+ */
+describe('메타만 읽기', () => {
+  it('전체 읽기와 같은 문서가 나온다', async () => {
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
+    const meta = await readProjectMeta(bytes)
+    const { project } = await readProject(bytes)
+    expect(meta).toEqual(project.document)
+  })
+
+  it('정본 표가 없어도 읽힌다 - 전체 읽기는 거기서 선다', async () => {
+    // **이것이 "안 푼다"의 관측 가능한 모양이다.** 표를 안 보므로 없는 것도 모른다.
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
+    const entries = unzipSync(bytes)
+    delete entries['dataset/data.csv']
+    const without = zipSync(entries)
+
+    const meta = await readProjectMeta(without)
+    expect(meta.manifest.formatVersion).toBe(FORMAT_VERSION)
+    await expect(readProject(without)).rejects.toSatisfy(
+      (error: unknown) => isClientError(error) && error.code === 'PROJECT_FILE_ENTRY_MISSING',
+    )
+  })
+
+  it('학생이 다시 압축한 파일도 읽힌다 - 무압축 엔트리가 섞여도', async () => {
+    // **쟀다 (2026-09-18).** fflate는 필터를 지난 엔트리가 deflate가 **아니면** 던진다고
+    // 적혀 있는데, 무압축(method 0)은 예외로 그대로 복사한다(`esm/browser.js`의
+    // `if (!c_2) files[fn] = slc(...)`). 학생이 풀었다 탐색기로 다시 압축한 파일이
+    // 여기 걸릴까 봐 확인한 것이고, **안 걸린다.** 던지는 것은 LZMA 같은 다른 방식뿐이다.
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
+    const entries = unzipSync(bytes)
+    const mixed = zipSync({
+      ...entries,
+      [ENTRY.settings]: [entries[ENTRY.settings]!, { level: 0 }],
+      'dataset/images/cat/a1b2.webp': [filler(64), { level: 0 }],
+    })
+
+    const meta = await readProjectMeta(mixed)
+    expect(meta.manifest.formatVersion).toBe(FORMAT_VERSION)
   })
 })
