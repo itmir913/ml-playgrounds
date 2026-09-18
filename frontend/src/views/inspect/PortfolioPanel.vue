@@ -13,6 +13,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AppEmpty from '@/components/AppEmpty.vue'
 import { useObjectUrls } from '@/composables/useObjectUrls'
 import type { ProjectFile } from '@/project/format'
 import { hasTemplate, orphanAnswers, photosOf, portfolioSections } from '@/project/portfolio'
@@ -58,7 +59,7 @@ const written = computed(
     **머리글이 없다.** 이 판이 서는 자리가 포트폴리오 모드 하나뿐이고, 모드 스위치가
     이미 그 이름으로 눌려 있다 (§8.21) — 바로 아래에 같은 낱말을 또 적으면 소음이다.
   -->
-  <section class="flex min-w-0 flex-col gap-1.5">
+  <section class="flex min-w-0 flex-1 flex-col gap-1.5">
     <PortfolioPreview
       v-if="written"
       :sections="sections"
@@ -66,8 +67,18 @@ const written = computed(
       :anchor-id="anchorId"
       :photos-of="photosFor"
     />
-    <p v-else class="rounded-panel border border-line bg-surface p-4 text-ink-soft">
-      {{ t('inspect.portfolioEmpty') }}
-    </p>
+
+    <!--
+      **빈 상태는 자리를 넉넉히 잡는다** (2026-09-18, 사용자). 한 줄짜리 판이던 동안에는
+      포트폴리오 모드로 바꾸는 순간 화면이 통째로 접혀서, **굴릴 것이 없어진 화면이 맨
+      위로 튀었다.** 남은 높이를 이 카드가 채우면 모드를 오갈 때 자리가 안 흔들린다.
+      다른 화면의 빈 상태와 같은 부품이고 같은 여백이다 (`AppEmpty`, §8.9).
+    -->
+    <div
+      v-else
+      class="grid min-h-64 flex-1 place-items-center rounded-panel border border-line bg-surface"
+    >
+      <AppEmpty :reason="t('inspect.portfolioEmpty')" :next="t('inspect.portfolioEmptyNext')" />
+    </div>
   </section>
 </template>

@@ -70,7 +70,8 @@
     "sameProjectNote": "mlpx 파일을 복사해서 이어 작업하면 프로젝트 아이디도 함께 복사됩니다. 아래 파일들은 아이디가 같으므로 한 파일에서 나온 것입니다.",
     "thisFile": "(이 파일)",
     "sameProjectColumn": "프로젝트",
-    "sameProjectAll": "이 목록의 파일 {files}개가 모두 한 프로젝트에서 나왔습니다."
+    "sameProjectAll": "이 목록의 파일 {files}개가 모두 한 프로젝트에서 나왔습니다.",
+    "portfolioEmptyNext": "포트폴리오 단계에서 글을 쓰면 이 자리에 그대로 보입니다."
   },
   "taskTypes": {
     "classification": "분류(Classification)",

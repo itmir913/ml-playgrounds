@@ -70,7 +70,8 @@
     "sameProjectNote": "Copying an .mlpx file and continuing in it copies the project ID as well. The files below share an ID, so they came from one file.",
     "thisFile": "(this file)",
     "sameProjectColumn": "Project",
-    "sameProjectAll": "All {files} files in this list came from one project."
+    "sameProjectAll": "All {files} files in this list came from one project.",
+    "portfolioEmptyNext": "Anything written in the portfolio step shows up here."
   },
   "taskTypes": {
     "classification": "Classification",
