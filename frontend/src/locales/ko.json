@@ -558,7 +558,7 @@
   },
   "fileHash": {
     "UNCHANGED": "변경된 흔적 없음",
-    "MODIFIED": "저장 후 변경됨",
+    "MODIFIED": "변경된 흔적 있음",
     "UNKNOWN": "확인할 수 없음"
   },
   "entryHash": {

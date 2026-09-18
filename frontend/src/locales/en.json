@@ -558,7 +558,7 @@
   },
   "fileHash": {
     "UNCHANGED": "No sign of changes",
-    "MODIFIED": "Changed after saving",
+    "MODIFIED": "Signs of changes",
     "UNKNOWN": "Cannot tell"
   },
   "entryHash": {
