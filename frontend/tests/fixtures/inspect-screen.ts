@@ -10,7 +10,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 
 import { i18n } from '../../src/i18n'
 import InspectView from '../../src/views/InspectView.vue'
-import { emptyProjectFile, projectFile } from './project'
+import { emptyProjectFile, experiment, projectFile, run } from './project'
 import { writeProjectBytes } from './write'
 
 /**
@@ -30,9 +30,23 @@ export async function submissionFile(name: string, projectId?: string): Promise<
   return new File([bytes as BlobPart], name)
 }
 
-/** 실험이 하나 든 제출물. **대조 판과 실험 상세는 실험이 있어야 선다.** */
-export async function submissionWithExperiment(name: string): Promise<File> {
-  const { bytes } = await writeProjectBytes(projectFile(), '# 포트폴리오\n')
+/**
+ * 실험이 든 제출물. **대조 판과 실험 상세는 실험이 있어야 선다.**
+ *
+ * `count`를 주면 그만큼 쌓는다 — **여럿일 때 어느 것이 먼저 열리는가**가 실물 파일로
+ * 재다 잡힌 자리다 (§8.21, 2026-09-18).
+ */
+export async function submissionWithExperiment(name: string, count = 1): Promise<File> {
+  const base = projectFile()
+  const experiments = Array.from({ length: count }, (_, index) =>
+    index === 0
+      ? base.document.runs.experiments[0]!
+      : experiment(`experiment-${index + 1}`, [run(`run-${index + 1}`)]),
+  )
+  const { bytes } = await writeProjectBytes(
+    { ...base, document: { ...base.document, runs: { experiments } } },
+    '# 포트폴리오\n',
+  )
   return new File([bytes as BlobPart], name)
 }
 

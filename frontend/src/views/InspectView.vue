@@ -121,10 +121,29 @@ function select(item: RosterItem): void {
   opened.value = item
   selected.value = null
   void roster.open(item)
-  // **누른 것이 보이는 자리로 데려간다.** 읽는 동안 문서가 짧아져 스크롤이 0으로 당겨지는
-  // 것을 덮는 일이기도 하다 — 그때 교사는 방금 누른 줄이 어디 갔는지 모른다.
-  void nextTick(() => detailEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
+
+/**
+ * **누른 것이 보이는 자리로 데려간다** (2026-09-18, 사용자).
+ *
+ * **누르는 순간에 굴리면 안 된다.** 그때는 아직 `읽는 중` 한 줄이라 문서가 화면보다
+ * 짧아지고, 브라우저가 스크롤을 0으로 당겨 **굴린 것이 그대로 취소된다** — 실물 파일로
+ * 눌러 보고서야 보였다(주소는 맞는데 화면은 맨 위였다).
+ *
+ * 그래서 **그 제출물의 내용이 자리를 잡은 뒤에** 굴린다. 못 읽는 파일도 자기 사유로
+ * 자리를 잡으므로 같은 자리에서 멈춘다.
+ */
+watch(
+  () => {
+    if (!opened.value) return null
+    const ready = viewing.value !== null || summaryOfOpened.value?.state === 'unreadable'
+    return ready ? opened.value.label : null
+  },
+  (label) => {
+    if (label === null) return
+    void nextTick(() => detailEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  },
+)
 
 /**
  * 같은 열을 다시 누르면 방향이 뒤집힌다. 다른 열이면 오름차순부터다.
@@ -156,11 +175,15 @@ const viewing = computed(() => {
   if (!file || roster.opened.value?.item.label !== opened.value?.label) return null
 
   const experiments = file.document.runs.experiments
-  const index = Math.max(
-    experiments.findIndex((experiment) => experiment.id === selected.value),
-    0,
-  )
-  const current = experiments[experiments.length === 0 ? -1 : index]
+  /**
+   * **안 고르면 마지막 실험이다** (2026-09-18, 실물 파일로 재다 잡았다). 여기 `0`이 박혀
+   * 있어서 실험이 셋인 파일을 열면 **학생이 제일 먼저 한 실험**이 떴다 — 교사가 먼저 볼
+   * 것은 학생이 마지막에 한 일이고, **결과 화면도 마지막을 연다**(`ResultsView`).
+   * 바로 위 주석은 그동안 "마지막 실험을 본다"고 적혀 있었다.
+   */
+  const found = experiments.findIndex((experiment) => experiment.id === selected.value)
+  const current = found >= 0 ? experiments[found] : experiments[experiments.length - 1]
+  const index = found >= 0 ? found : experiments.length - 1
   return {
     file,
     /** 해시 대조는 파일을 열 때 이미 끝나 있다 (`readProject`). 여기서 다시 세지 않는다. */

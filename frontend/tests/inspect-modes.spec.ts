@@ -102,6 +102,18 @@ describe('열람 모드', () => {
     wrapper.unmount()
   })
 
+  /**
+   * **안 고르면 마지막 실험이다** (2026-09-18, 실물 파일로 재다 잡았다). 실험이 셋인 파일을
+   * 열면 **학생이 제일 먼저 한 실험**이 떠 있었다 — 교사가 먼저 볼 것은 마지막에 한 일이고,
+   * 결과 화면도 마지막을 연다. 그런데 바로 그 자리의 주석은 마지막을 연다고 적혀 있었다.
+   */
+  it('실험이 여럿이면 마지막 실험이 열려 있다', async () => {
+    const wrapper = await mountInspect([await submissionWithExperiment('hong.mlpx', 3)])
+    await flushPromises()
+    expect(wrapper.findComponent(ReproducePanel).props('order')).toBe(3)
+    wrapper.unmount()
+  })
+
   it('대조 판이 어느 실험의 것인지를 말한다', async () => {
     const wrapper = await mountInspect([await submissionWithExperiment('hong.mlpx')])
     await flushPromises()
