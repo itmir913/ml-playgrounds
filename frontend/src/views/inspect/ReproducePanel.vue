@@ -173,8 +173,12 @@ function failureText(reproduction: Reproduction): string {
 
     <AppTable v-if="found.length > 0">
       <thead>
+        <!--
+          **남는 폭을 모델 열에 몰아주지 않는다** (2026-09-18, 사용자). `w-full`을 주면
+          나머지가 내용 최소 너비까지 짜여서 `차이 없음`이 두 줄로 접힌다.
+        -->
         <tr>
-          <th scope="col" class="w-full">{{ t('results.model') }}</th>
+          <th scope="col">{{ t('results.model') }}</th>
           <th scope="col">{{ t('inspect.verdict') }}</th>
           <th scope="col">{{ t('inspect.difference') }}</th>
         </tr>
@@ -192,7 +196,7 @@ function failureText(reproduction: Reproduction): string {
             **빈 칸은 "안 쟀다"로 읽힌다** (2026-09-18, 사용자). 차이가 0인 것은 결과이지
             빈 것이 아니므로 그렇게 적는다.
           -->
-          <td class="break-words">
+          <td class="break-words whitespace-nowrap">
             <span v-if="one.flipped" class="mr-2">
               {{ t('inspect.flipped', { count: one.flipped }) }}
             </span>

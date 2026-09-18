@@ -169,29 +169,24 @@ const COLUMNS: readonly {
   /** 좁은 화면에서 접는 열. 제출물 이름과 상태만 남는다. */
   wide: boolean
   /**
-   * 그 열의 너비. **머리 글자가 접히지 않을 만큼 준다** — 접히면 머리 줄의 높이가
+   * 그 열의 **최소** 너비. 머리 글자가 접히지 않을 만큼 준다 — 접히면 머리 줄의 높이가
    * 열마다 달라지고, 정렬로 화살표가 붙고 떨어질 때 그 높이가 흔들린다.
    *
-   * **글자가 있는 두 열은 아래위 폭을 함께 준다** (2026-09-18, 사용자). 자르면 긴 이름이
-   * `이름 …`이 되어 누구인지 사라지고, 가로 스크롤은 서른 줄에서 훑기를 망친다 —
-   * **줄을 바꾸되 그 열이 너무 넓어지지 않게** 상한을 둔다.
+   * **남는 폭을 한 열에 몰아주지 않는다** (2026-09-18, 사용자). 첫 열에 `w-full`을 주면
+   * 표가 나머지를 **내용 최소 너비까지 짜내서**, 자리가 남는데도 이름이 두 줄로 접혔다.
+   * 상한도 안 준다 — 이름이 길면 그만큼 가져가고, 그때 좁아지는 것은 남는 폭을 쥐고 있던
+   * 파일 이름 열이다.
    */
   width: string
 }[] = [
-  { key: 'label', label: 'inspect.file', numeric: false, wide: false, width: 'w-full min-w-48' },
-  {
-    key: 'studentId',
-    label: 'inspect.studentId',
-    numeric: false,
-    wide: true,
-    width: 'min-w-24 max-w-32',
-  },
+  { key: 'label', label: 'inspect.file', numeric: false, wide: false, width: 'min-w-48' },
+  { key: 'studentId', label: 'inspect.studentId', numeric: false, wide: true, width: 'min-w-28' },
   {
     key: 'studentName',
     label: 'inspect.studentName',
     numeric: false,
     wide: true,
-    width: 'min-w-24 max-w-40',
+    width: 'min-w-28',
   },
   { key: 'experiments', label: 'inspect.experiments', numeric: true, wide: true, width: 'w-44' },
   { key: 'runs', label: 'inspect.runs', numeric: true, wide: true, width: 'w-36' },
@@ -346,7 +341,7 @@ function reasonOf(code: string): string {
               @click="select(row.item)"
             >
               <!-- 남는 폭을 이 열이 다 먹는다. 긴 경로는 줄을 바꾼다. -->
-              <td class="w-full break-words">{{ row.item.label }}</td>
+              <td class="break-words">{{ row.item.label }}</td>
               <!--
                 **고친 줄에는 표시를 단다** (2026-09-18, 사용자). 교사가 화면에서 고친 값은
                 파일에 없는 값이라, 아무 표시 없이 두면 다음에 열었을 때 파일이 그렇게
