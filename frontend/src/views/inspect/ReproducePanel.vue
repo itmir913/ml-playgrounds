@@ -16,12 +16,13 @@
  * 넷 중 셋이 끝난 뒤 멈춰도 그 셋은 화면에 남는다.
  */
 
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
 import AppTable from '@/components/AppTable.vue'
 import { useWork } from '@/composables/useWork'
+import { summarizeColumns } from '@/data/columns'
 import { errorMessageKey, isClientError, type ClientErrorCode } from '@/errors'
 import {
   compareExperiments,
@@ -29,10 +30,13 @@ import {
   reproduceInputOf,
   type Reproduction,
 } from '@/ml/reproduce'
-import { train } from '@/ml/worker/client'
+import { factorFrom, readFactor, writeFactor } from '@/ml/calibration'
+import { describe as describeEstimate, estimateMs, type Estimate } from '@/ml/estimate'
+import { estimatedFeatureWidth } from '@/ml/preprocess'
+import { calibrateDevice, train } from '@/ml/worker/client'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
 import type { Dataset } from '@/ml/preprocess'
-import type { DataType, Experiment } from '@/project/schema'
+import { DATA_SCHEMAS, type DataType, type Experiment } from '@/project/schema'
 
 const props = defineProps<{
   experiment: Experiment
@@ -67,6 +71,87 @@ const cannotStart = computed(() => work.busy.value || blockers.value.length > 0)
 
 /** 견줄 주장의 수. 진행을 셀 분모다. */
 const claims = computed(() => props.experiment.runs.filter((run) => run.status === 'done').length)
+
+/**
+ * **이 기기가 개발 PC보다 몇 배 느린가** (`ml/calibration.ts`). 학습 화면과 같은 값을
+ * 같은 자리에서 읽고 쓴다 — 브라우저당 한 번 재고 `localStorage`에 남는다.
+ */
+const deviceFactor = ref<number | null>(readFactor())
+
+onMounted(() => {
+  if (deviceFactor.value !== null) return
+  void calibrateDevice(spawnTrainingWorker).then((elapsed) => {
+    const factor = elapsed === null ? null : factorFrom(elapsed)
+    if (factor !== null && work.alive()) {
+      deviceFactor.value = factor
+      writeFactor(factor)
+    }
+  })
+})
+
+/**
+ * 이 실험의 표 설정. **종류를 비교하지 않고 스키마에 묻는다** (architecture.md §9.1) —
+ * `if (dataType === 'image')`를 화면에 적으면 종류가 늘 때 고칠 자리가 등록부 하나가
+ * 아니라 그 사실을 아는 화면 전부가 된다.
+ *
+ * 사진 실험이면 `null`이고, 그때 아래 예상은 `알 수 없음`으로 선다 — 사진은 특성 수가
+ * 백본이 정해 늘 같아서 이 표가 말할 수 있는 것이 아니다.
+ */
+const tabularSnapshot = computed(() => {
+  const parsed = DATA_SCHEMAS.tabular.snapshot.safeParse(props.experiment.settings.data)
+  return parsed.success ? parsed.data : null
+})
+
+/**
+ * 대조가 얼마나 걸릴까. **누르기 전에 말한다** — 교사가 서른 개를 이어 여는 자리라
+ * "지금 눌러도 되는 일인가"가 그 순간의 질문이다 (open-decisions.md "학습 예상 시간은
+ * 실측표에 기기 배수를 곱해 낸다").
+ *
+ * **모르면 지어내지 않는다.** 아직 못 잰 기기, 표가 아닌 프로젝트, 우리가 모르는 기기에서
+ * 돈 줄(서버·pyodide)이 그 자리다 — 학습 화면과 같은 규칙이다.
+ *
+ * **실험 하나가 통째로 도는 시간이다.** 모델은 하나씩 차례로 돌므로 합이 곧 기다림이다.
+ */
+const estimate = computed<Estimate>(() => {
+  const factor = deviceFactor.value
+  const data = tabularSnapshot.value
+  if (factor === null || !data || !props.dataset) return { kind: 'unknown' }
+
+  const columns = estimatedFeatureWidth(
+    summarizeColumns(props.dataset),
+    data.features,
+    data.preprocessing.categoricalEncoding,
+  )
+  const rows = props.experiment.settings.trainIndices.length
+
+  let total = 0
+  for (const run of props.experiment.runs) {
+    if (run.status !== 'done') continue
+    // **브라우저의 순수 JS만 안다.** 나머지는 우리가 모르는 기기다.
+    if (run.engine?.kind !== 'mljs') return { kind: 'unknown' }
+    const ms = estimateMs(
+      {
+        algorithm: run.algorithm,
+        dataType: props.dataType,
+        rows,
+        columns,
+        hyperparameters: run.hyperparameters,
+      },
+      factor,
+    )
+    if (ms === null) return { kind: 'unknown' }
+    total += ms
+  }
+  return describeEstimate(total)
+})
+
+/** 예상 시간 한 줄. **문구는 학습 화면의 것을 그대로 쓴다** — 같은 말이다. */
+const estimateText = computed(() => {
+  if (estimate.value.kind === 'unknown') return t('train.estimateUnknown')
+  const key =
+    estimate.value.kind === 'minutes' ? 'train.estimate.minutes' : 'train.estimate.seconds'
+  return t(key, { value: estimate.value.value })
+})
 
 async function reproduce(): Promise<void> {
   if (cannotStart.value || !props.dataset) return
@@ -150,9 +235,13 @@ function failureText(reproduction: Reproduction): string {
   <section class="flex min-w-0 flex-col gap-1.5">
     <div class="flex flex-wrap items-baseline justify-between gap-2">
       <h3 class="font-bold text-ink-soft">{{ t('inspect.reproduce') }}</h3>
-      <AppButton :disabled="cannotStart" :action="reproduce">
-        {{ t('inspect.reproduceStart') }}
-      </AppButton>
+      <div class="flex flex-wrap items-baseline gap-3">
+        <!-- **누르기 전에 말한다.** 교사의 질문은 "지금 눌러도 되는 일인가"다. -->
+        <span v-if="blockers.length === 0" class="text-ink-faint">{{ estimateText }}</span>
+        <AppButton :disabled="cannotStart" :action="reproduce">
+          {{ t('inspect.reproduceStart') }}
+        </AppButton>
+      </div>
     </div>
 
     <p class="text-ink-faint">{{ t('inspect.reproduceLead') }}</p>
