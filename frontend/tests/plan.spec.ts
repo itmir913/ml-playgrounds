@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { planRun } from '../src/ml/plan'
+import { asRecordedSplit, planRun } from '../src/ml/plan'
 import { runExperiment } from '../src/ml/experiment'
 import type { Dataset } from '../src/ml/preprocess'
 import type { RuntimeContext } from '../src/ml/backend'
@@ -276,5 +276,128 @@ describe('뜻이 없는 유형에서는 층화를 무시한다', () => {
       taskType: 'classification',
     })
     expect(plan.ok).toBe(false)
+  })
+})
+
+/**
+ * **파일에 적힌 분할을 그대로 쓴다** (`open-decisions.md` "재실행은 학습 경로를 그대로
+ * 탄다"의 "분할은 다시 계산하지 않는다").
+ *
+ * 여기서 지키는 것 셋.
+ *
+ *   1. 준 인덱스가 **그대로** 나온다 — 다시 나누면 대조가 아니라 새 학습이다
+ *   2. **전처리기가 그 훈련 행에서 맞춰진다** — 주입 자리가 `planRun` 밖이면 채움값과
+ *      스케일 기준이 다시 계산한 분할에서 나와 정직한 파일이 재현되지 않는다
+ *   3. **그 앞의 검사는 그대로 돈다** — 빈 칸을 건너뛰면 `transform`이 조용히 0을 채운다
+ */
+describe('기록된 분할', () => {
+  /** 파일에서 읽어 온 셈 치는 분할. 조립(`ml/reproduce.ts`)만 만들 수 있는 값이다. */
+  const recorded = asRecordedSplit({ trainIndices: [0, 1, 2, 3, 4, 5], testIndices: [6, 7, 8] })
+
+  it('준 인덱스가 그대로 나온다 - 다시 나누지 않는다', () => {
+    const plan = planRun({
+      dataset: irisDataset(),
+      testDataset: null,
+      settings: settingsFor(),
+      taskType: 'classification',
+      recordedSplit: recorded,
+    })
+    expect(plan.ok).toBe(true)
+    if (!plan.ok) return
+    expect(plan.split.trainIndices).toEqual([0, 1, 2, 3, 4, 5])
+    expect(plan.split.testIndices).toEqual([6, 7, 8])
+    // 뽑힌 행은 둘의 합집합이다. `provided`가 아니면 시험 행도 같은 표의 번호다.
+    expect(plan.sampled).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8])
+  })
+
+  it('전처리기가 기록된 훈련 행에서 맞춰진다', () => {
+    // **다시 계산한 분할로 맞추면 이 숫자가 달라진다.** 같은 설정으로 분할만 준 계획과
+    // 안 준 계획을 견주어, 안 준 쪽과 다르다는 것으로 "그 행에서 맞췄다"를 본다.
+    const scaled: Partial<TabularSettings> = {
+      preprocessing: { missing: 'mean', scaling: 'standard', categoricalEncoding: 'onehot' },
+    }
+    const withRecorded = planRun({
+      dataset: irisDataset(),
+      testDataset: null,
+      settings: settingsFor(scaled),
+      taskType: 'classification',
+      recordedSplit: recorded,
+    })
+    const plain = planRun({
+      dataset: irisDataset(),
+      testDataset: null,
+      settings: settingsFor(scaled),
+      taskType: 'classification',
+    })
+    expect(withRecorded.ok && plain.ok).toBe(true)
+    if (!withRecorded.ok || !plain.ok) return
+    const center = (facts: typeof withRecorded): number | undefined =>
+      facts.ok ? facts.preprocessor.columns[0]?.scale?.center : undefined
+    expect(center(withRecorded)).toBeTypeOf('number')
+    expect(center(withRecorded)).not.toBe(center(plain))
+  })
+
+  it('앞의 검사는 그대로 돈다 - 빈 칸은 여전히 막힌다', () => {
+    // 뽑기와 나누기만 대신한다. 이 검사가 건너뛰어지면 빈 칸이 조용히 0이 된다.
+    const plan = planRun({
+      dataset: tableWithBlank(),
+      testDataset: null,
+      settings: settingsFor({
+        features: ['a', 'b'],
+        target: 'label',
+        preprocessing: { missing: 'none', scaling: 'none', categoricalEncoding: 'onehot' },
+      }),
+      taskType: 'classification',
+      recordedSplit: asRecordedSplit({ trainIndices: [0, 1], testIndices: [2] }),
+    })
+    expect(plan.ok).toBe(false)
+    if (plan.ok) return
+    expect(plan.reason).toEqual({
+      kind: 'error',
+      code: 'FEATURE_HAS_MISSING',
+      params: { feature: 'b', count: 1 },
+    })
+  })
+
+  it('provided인데 테스트 표가 없으면 막는다', () => {
+    // **오늘 이 자리를 지키던 것은 `splitRows`이고 기록된 분할이 그것을 건너뛴다.**
+    // 안 막으면 시험 표의 행 번호로 훈련 표를 잘라 엉뚱한 행으로 채점한다 - 범위 안이면
+    // 아무 예외도 없이 조용히 틀린다.
+    const plan = planRun({
+      dataset: irisDataset(),
+      testDataset: null,
+      settings: settingsFor(
+        {},
+        { split: { method: 'provided', testSize: 0.3, stratify: false, randomState: 42 } },
+      ),
+      taskType: 'classification',
+      recordedSplit: recorded,
+    })
+    expect(plan.ok).toBe(false)
+    if (plan.ok) return
+    expect(plan.reason).toEqual({
+      kind: 'error',
+      code: 'TEST_DATASET_NO_USABLE_ROWS',
+      params: {},
+    })
+  })
+
+  it('군집은 테스트 표가 없어도 선다 - 애초에 안 나눈다', () => {
+    const plan = planRun({
+      dataset: irisDataset(),
+      testDataset: null,
+      settings: settingsFor(
+        { target: undefined },
+        {
+          selectedAlgorithms: [{ algorithm: 'k_means' }],
+          split: { method: 'provided', testSize: 0.3, stratify: false, randomState: 42 },
+        },
+      ),
+      taskType: 'clustering',
+      recordedSplit: asRecordedSplit({ trainIndices: [0, 1, 2, 3], testIndices: [] }),
+    })
+    expect(plan.ok).toBe(true)
+    if (!plan.ok) return
+    expect(plan.split.testIndices).toEqual([])
   })
 })

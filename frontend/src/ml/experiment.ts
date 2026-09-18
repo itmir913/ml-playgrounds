@@ -47,7 +47,7 @@ import { evaluate, evaluateCluster, type Evaluation } from './metrics'
 import type { ModelFile } from './models'
 import { targetValues, transform, type Dataset, type Preprocessor } from './preprocess'
 // 행 고르기·뽑기·분할·전처리기. **전처리 화면의 요약 카드가 같은 함수를 부른다.**
-import { planRunOrThrow } from './plan'
+import { planRunOrThrow, type RecordedSplit } from './plan'
 
 export interface ExperimentInput {
   /** 정본 CSV를 읽은 표. 헤더는 rows에 없다 - 행 번호가 곧 분할 인덱스다. */
@@ -89,6 +89,14 @@ export interface ExperimentInput {
    * 넘기므로 파일에 남는 값이 안 바뀐다.
    */
   snapshot: Experiment['settings']['data']
+  /**
+   * **파일에 적힌 분할.** 점검의 재실행 대조만 준다 (`ml/plan.ts`의 `recordedSplit`).
+   *
+   * 주면 뽑기와 나누기를 그것으로 대신하고, 나머지는 학습과 **한 글자도 다르지 않다** —
+   * 그것이 "재실행은 저장하지 않는 학습이다"의 뜻이다 (open-decisions.md "재실행은 학습
+   * 경로를 그대로 탄다").
+   */
+  recordedSplit?: RecordedSplit | undefined
 }
 
 export interface ExperimentOptions {
@@ -655,6 +663,9 @@ export async function runExperiment(
     testDataset,
     settings,
     taskType,
+    // **재실행 대조가 유일하게 갈리는 자리다** (ml/plan.ts의 `recordedSplit`). 학습은
+    // 안 주고, 점검의 조립만 준다.
+    ...(input.recordedSplit ? { recordedSplit: input.recordedSplit } : {}),
   })
 
   // provided면 testIndices는 dataset이 아니라 testDataset의 행 번호다

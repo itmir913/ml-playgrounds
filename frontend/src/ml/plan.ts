@@ -53,6 +53,51 @@ export interface PlanInput {
    * 않기 때문이다 (architecture.md §3.6).
    */
   taskType?: TaskType | undefined
+  /**
+   * **파일에 적힌 분할.** 주면 뽑기와 나누기를 그것으로 대신한다 (mlpx-spec.md §5.1).
+   *
+   * **재실행 대조가 학습과 갈라지는 자리는 여기 하나다** (open-decisions.md "재실행은
+   * 학습 경로를 그대로 탄다"). 다시 나누면 라이브러리 차이 하나로 테스트셋이 갈리고,
+   * 그러면 대조가 아니라 새 학습이 된다. **그 하나를 `if`가 아니라 입력으로 둔다** —
+   * 학습 경로가 인자를 하나 더 받을 뿐, 재실행 쪽에 이 함수의 사본이 생기지 않는다.
+   *
+   * **주입 자리가 여기여야 한다.** 아래에서 `fitPreprocessor`가 `split.trainIndices`로
+   * 맞춰지므로, 밖에서 분할만 갈아 끼우면 **채움값과 스케일 기준이 다시 계산한 분할의
+   * 훈련 행에서 나온다** — 정직한 파일이 재현되지 않는다.
+   *
+   * **대신하는 것은 뽑기와 나누기뿐이다.** 그 앞의 검사들(타깃 선택·타깃 자료형·빈 칸)은
+   * 그대로 돈다 — 건너뛰면 빈 칸이 `transform`에서 조용히 0이 된다.
+   *
+   * **점검 밖에서 넘기지 마라.** 브랜드가 실수로 만드는 것을 막고(평범한
+   * `{ trainIndices, testIndices }`는 이 타입이 아니다), **누가 부를 수 있는지는
+   * `asRecordedSplit`을 부르는 자리를 임포트 그래프 검사가 지킨다** — 그 검사는 조립과
+   * 함께 온다(계획 1-b).
+   */
+  recordedSplit?: RecordedSplit | undefined
+}
+
+declare const recordedSplitBrand: unique symbol
+
+/**
+ * 파일에서 읽은 분할. **학습 화면이 실수로 만들 수 없게 브랜드를 달았다** —
+ * 평범한 `{ trainIndices, testIndices }`는 이 타입이 아니다.
+ */
+export interface RecordedSplit {
+  readonly trainIndices: readonly number[]
+  readonly testIndices: readonly number[]
+  readonly [recordedSplitBrand]: true
+}
+
+/**
+ * 인덱스 둘을 `RecordedSplit`으로 만든다. **부르는 곳은 조립 하나여야 한다.**
+ *
+ * 브랜드는 타입 안에서만 사는 표시라 런타임 값이 늘지 않는다 - 그래서 여기서 단언한다.
+ */
+export function asRecordedSplit(split: {
+  readonly trainIndices: readonly number[]
+  readonly testIndices: readonly number[]
+}): RecordedSplit {
+  return split as RecordedSplit
 }
 
 /**
@@ -187,14 +232,31 @@ export function planRun(input: PlanInput): RunPlan {
   }
 
   try {
-    // **뽑고 나서 나눈다** (open-decisions.md #22). 뽑힌 행만 분할되므로 trainIndices와
-    // testIndices의 뜻은 그대로이고, **뽑히지 않은 행은 그 둘의 여집합**이라 따로 적지
-    // 않는다. nSamples가 없으면 usable을 그대로 돌려주므로 지금까지의 동작과 같다.
-    const sampled = sampleRows(
-      { rows: usable, ...(isClustering ? {} : { labels: usableLabels }) },
-      splitSettings,
-      settings.nSamples,
-    )
+    /**
+     * **파일에 적힌 분할이 있으면 뽑기와 나누기를 건너뛴다.**
+     *
+     * 뽑힌 행은 훈련과 시험의 합집합이다 — **`provided`는 예외로, 시험 행이 다른 표의
+     * 번호라 여기 더할 수 없다** (mlpx-spec.md §1.1).
+     */
+    const recorded = input.recordedSplit
+    if (recorded && !isClustering && settings.split.method === 'provided' && !testDataset) {
+      // **여기서 던지던 것은 `splitRows`였고 기록된 분할이 그 자리를 건너뛴다.**
+      // 안 막으면 시험 표의 행 번호로 훈련 표를 잘라 **엉뚱한 행으로 채점한 숫자**가
+      // 나온다 - 범위 안이면 아무 예외도 없이 조용히 틀린다.
+      throw new ClientError('TEST_DATASET_NO_USABLE_ROWS')
+    }
+    const sampled = recorded
+      ? [...recorded.trainIndices, ...(testFromProvided ? [] : recorded.testIndices)].sort(
+          (a, b) => a - b,
+        )
+      : // **뽑고 나서 나눈다** (open-decisions.md #22). 뽑힌 행만 분할되므로 trainIndices와
+        // testIndices의 뜻은 그대로이고, **뽑히지 않은 행은 그 둘의 여집합**이라 따로 적지
+        // 않는다. nSamples가 없으면 usable을 그대로 돌려주므로 지금까지의 동작과 같다.
+        sampleRows(
+          { rows: usable, ...(isClustering ? {} : { labels: usableLabels }) },
+          splitSettings,
+          settings.nSamples,
+        )
     // 뽑힌 행의 정답이다. usableLabels를 잘라 쓰지 않는 이유는 sampleRows가 원본 행
     // 번호를 오름차순으로 돌려주지 usable의 위치를 돌려주지 않기 때문이다 - 위치로
     // 착각해 자르면 라벨이 조용히 다른 행의 것이 된다.
@@ -203,13 +265,15 @@ export function planRun(input: PlanInput): RunPlan {
     // **군집화는 나누지 않는다** (architecture.md §3.6). 전체 데이터로 학습하고,
     // trainIndices는 전체, testIndices는 빈 배열이다. 교실에서 "왜 나누지 않나요?"는
     // 비지도학습을 이해하는 좋은 질문이고, 그것을 설명할 자리가 생기는 것이 교육적 가치다.
-    const split = isClustering
-      ? { trainIndices: sampled, testIndices: [] as number[] }
-      : splitRows(
-          { rows: sampled, labels },
-          splitSettings,
-          providedTestRows ? { rows: providedTestRows } : undefined,
-        )
+    const split = recorded
+      ? { trainIndices: [...recorded.trainIndices], testIndices: [...recorded.testIndices] }
+      : isClustering
+        ? { trainIndices: sampled, testIndices: [] as number[] }
+        : splitRows(
+            { rows: sampled, labels },
+            splitSettings,
+            providedTestRows ? { rows: providedTestRows } : undefined,
+          )
 
     const preprocessor = fitPreprocessor(
       dataset,
