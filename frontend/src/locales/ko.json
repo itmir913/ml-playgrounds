@@ -22,7 +22,7 @@
     "pickFolder": "폴더 선택",
     "pickFiles": "제출물 파일 선택",
     "reading": "읽는 중",
-    "unreadable": "열 수 없음",
+    "unreadable": "파일 열기 실패",
     "pickOne": "표에서 제출물을 선택하세요.",
     "experiments": "실험(Experiment)",
     "runs": "학습한 모델",

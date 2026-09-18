@@ -22,7 +22,7 @@
     "pickFolder": "Choose folder",
     "pickFiles": "Choose files",
     "reading": "Reading",
-    "unreadable": "Cannot open",
+    "unreadable": "Failed to open",
     "pickOne": "Choose a submission from the table.",
     "experiments": "Experiments",
     "runs": "Trained models",
