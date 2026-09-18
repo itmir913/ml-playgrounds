@@ -204,6 +204,33 @@ export function sameProjectsOf(
 }
 
 /**
+ * **아무도 안 적은 칸은 열이 서지 않는다** (2026-09-18, 사용자). 학번·이름 각각 누군가
+ * 적었는가.
+ *
+ * 학번과 이름은 학생이 **안 적어도 되는 값**이라, 아무도 안 적은 명렬에서는 `학번 없음`이
+ * 서른 줄 서는 열이 둘 생긴다 — **아무것도 못 가르면서 폭만 먹는다**(같은 프로젝트 열이
+ * 전원 한 묶음일 때 안 서는 것과 같은 이유다).
+ *
+ * **둘을 따로 본다.** 학번만 적게 한 수업과 이름만 적게 한 수업이 따로 있다.
+ *
+ * **교사가 고친 값도 센다.** `summaries`에 이미 고침이 얹혀 있으므로(`withEdit`), 빈
+ * 명렬에서 교사가 학번 하나를 적어 넣으면 그 순간 열이 선다.
+ */
+export function studentFieldsInUse(summaries: ReadonlyMap<string, RosterSummary>): {
+  readonly studentId: boolean
+  readonly studentName: boolean
+} {
+  let studentId = false
+  let studentName = false
+  for (const summary of summaries.values()) {
+    if (summary.state !== 'read') continue
+    if (summary.studentId !== undefined) studentId = true
+    if (summary.studentName !== undefined) studentName = true
+  }
+  return { studentId, studentName }
+}
+
+/**
  * 묶음 번호를 **글자**로 바꾼다 — 1은 `A`, 26은 `Z`, 27은 `AA` (2026-09-18, 사용자).
  *
  * **표에 숫자를 또 세우지 않는다.** 그 표에는 이미 `1개`·`5개`가 서 있어서 숫자 배지가

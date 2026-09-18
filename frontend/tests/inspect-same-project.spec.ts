@@ -138,3 +138,51 @@ describe('같은 프로젝트를 화면이 말한다', () => {
     wrapper.unmount()
   })
 })
+
+/**
+ * **아무도 안 적은 칸은 열이 서지 않는다** (2026-09-18, 사용자). 계산은 `roster.spec.ts`가
+ * 보고, 여기서는 **표가 실제로 그 열을 안 세우는지**를 본다.
+ */
+describe('학번과 이름 열', () => {
+  beforeEach(() => {
+    setLocale('ko')
+  })
+
+  function heads(wrapper: Awaited<ReturnType<typeof mountInspect>>): string[] {
+    return wrapper.findAll('thead th').map((th) => th.text().trim())
+  }
+
+  it('아무도 안 적었으면 두 열이 다 없다', async () => {
+    const wrapper = await mountInspect([
+      await submissionFile('01-가.mlpx'),
+      await submissionFile('02-나.mlpx', OTHER[0]),
+    ])
+    await flushPromises()
+    expect(heads(wrapper)).not.toContain(i18n.global.t('inspect.studentId'))
+    expect(heads(wrapper)).not.toContain(i18n.global.t('inspect.studentName'))
+    wrapper.unmount()
+  })
+
+  /** **따로 본다.** 학번만 적게 한 수업이 있고 이름만 적게 한 수업이 있다. */
+  it('학번만 적혔으면 학번 열만 선다', async () => {
+    const wrapper = await mountInspect([
+      await submissionFile('01-가.mlpx', undefined, { studentId: '10203' }),
+      await submissionFile('02-나.mlpx', OTHER[0]),
+    ])
+    await flushPromises()
+    expect(heads(wrapper)).toContain(i18n.global.t('inspect.studentId'))
+    expect(heads(wrapper)).not.toContain(i18n.global.t('inspect.studentName'))
+    wrapper.unmount()
+  })
+
+  it('이름만 적혔으면 이름 열만 선다', async () => {
+    const wrapper = await mountInspect([
+      await submissionFile('01-가.mlpx', undefined, { name: '김하늘' }),
+      await submissionFile('02-나.mlpx', OTHER[0]),
+    ])
+    await flushPromises()
+    expect(heads(wrapper)).toContain(i18n.global.t('inspect.studentName'))
+    expect(heads(wrapper)).not.toContain(i18n.global.t('inspect.studentId'))
+    wrapper.unmount()
+  })
+})

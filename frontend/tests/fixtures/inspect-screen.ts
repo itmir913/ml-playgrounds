@@ -20,12 +20,21 @@ import { writeProjectBytes } from './write'
  * **여러 개를 만들면 전부 한 프로젝트에서 나온 것**이 된다 — 교사가 시작 파일을 나눠 준
  * 그 상태이고, 거기서 명렬이 아무 표시도 안 하는 것이 맞다.
  */
-export async function submissionFile(name: string, projectId?: string): Promise<File> {
+export async function submissionFile(
+  name: string,
+  projectId?: string,
+  student?: { studentId?: string; name?: string },
+): Promise<File> {
   const base = emptyProjectFile()
+  const manifest = {
+    ...base.document.manifest,
+    ...(projectId === undefined ? {} : { projectId }),
+    ...(student === undefined ? {} : { student }),
+  }
   const document =
-    projectId === undefined
+    projectId === undefined && student === undefined
       ? base.document
-      : { ...base.document, manifest: { ...base.document.manifest, projectId } }
+      : { ...base.document, manifest }
   const { bytes } = await writeProjectBytes({ ...base, document }, '# 포트폴리오\n')
   return new File([bytes as BlobPart], name)
 }

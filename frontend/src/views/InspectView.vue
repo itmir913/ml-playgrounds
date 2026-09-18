@@ -41,6 +41,7 @@ import {
   rosterOf,
   sameProjectsOf,
   sortRoster,
+  studentFieldsInUse,
   type RosterItem,
   type RosterSort,
 } from '@/project/roster'
@@ -430,11 +431,22 @@ const GROUP_COLUMN: InspectColumn = {
  *
  * **자리는 파일 이름 바로 옆이다.** 그 배지가 꾸미는 것이 파일이기 때문이다.
  */
-const COLUMNS = computed<readonly InspectColumn[]>(() =>
-  sameProject.value.files === 0 || sameProject.value.all
-    ? BASE_COLUMNS
-    : [BASE_COLUMNS[0]!, GROUP_COLUMN, ...BASE_COLUMNS.slice(1)],
-)
+const COLUMNS = computed<readonly InspectColumn[]>(() => {
+  /**
+   * **아무도 안 적은 칸은 열이 안 선다** (2026-09-18, 사용자). 학번과 이름은 학생이 안
+   * 적어도 되는 값이라, 아무도 안 적은 명렬에서는 `학번 없음`이 서른 줄 서는 열이 둘
+   * 생긴다 — 아무것도 못 가르면서 폭만 먹는다. **둘은 따로 본다.**
+   */
+  const inUse = studentFieldsInUse(roster.summaries.value)
+  const shown = BASE_COLUMNS.filter(
+    (column) =>
+      (column.key !== 'studentId' || inUse.studentId) &&
+      (column.key !== 'studentName' || inUse.studentName),
+  )
+  return sameProject.value.files === 0 || sameProject.value.all
+    ? shown
+    : [shown[0]!, GROUP_COLUMN, ...shown.slice(1)]
+})
 
 /**
  * 왼쪽 열의 판 하나를 담는 카드 (2026-09-18, 사용자).

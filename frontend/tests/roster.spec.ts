@@ -17,6 +17,7 @@ import {
   groupName,
   rosterOf,
   sameProjectsOf,
+  studentFieldsInUse,
   sortRoster,
   summaryOf,
   withEdit,
@@ -479,5 +480,55 @@ describe('묶음에 글자로 이름을 붙인다', () => {
     expect(groupName(28)).toBe('AB')
     expect(groupName(52)).toBe('AZ')
     expect(groupName(53)).toBe('BA')
+  })
+})
+
+/**
+ * **아무도 안 적은 칸은 열이 서지 않는다** (2026-09-18, 사용자).
+ *
+ * 학번과 이름은 학생이 **안 적어도 되는 값**이라, 아무도 안 적은 명렬에서는 `학번 없음`이
+ * 서른 줄 서는 열이 둘 생긴다 — 아무것도 못 가르면서 폭만 먹는다.
+ */
+describe('학번과 이름은 누군가 적었을 때만 열이 된다', () => {
+  function read(student: { studentId?: string; studentName?: string } = {}): RosterSummary {
+    return {
+      state: 'read',
+      name: '붓꽃 분류',
+      ...student,
+      projectId: 'P1',
+      dataType: 'tabular',
+      experiments: 1,
+      runs: 1,
+    }
+  }
+
+  const inUse = (...summaries: RosterSummary[]) =>
+    studentFieldsInUse(new Map(summaries.map((one, index) => [`${index}.mlpx`, one])))
+
+  it('아무도 안 적었으면 둘 다 안 선다', () => {
+    expect(inUse(read(), read())).toEqual({ studentId: false, studentName: false })
+  })
+
+  /** **둘을 따로 본다** — 학번만 적게 한 수업과 이름만 적게 한 수업이 따로 있다. */
+  it('한 쪽만 적혔으면 그 쪽만 선다', () => {
+    expect(inUse(read({ studentId: '10203' }), read())).toEqual({
+      studentId: true,
+      studentName: false,
+    })
+    expect(inUse(read({ studentName: '김하나' }), read())).toEqual({
+      studentId: false,
+      studentName: true,
+    })
+  })
+
+  it('한 줄만 적어도 그 열은 선다 - 서른 중 하나가 적었으면 그 하나를 봐야 한다', () => {
+    expect(inUse(read(), read(), read({ studentId: '10203' })).studentId).toBe(true)
+  })
+
+  it('못 읽은 줄은 안 센다', () => {
+    expect(inUse({ state: 'unreadable', code: 'PROJECT_FILE_NOT_ZIP' })).toEqual({
+      studentId: false,
+      studentName: false,
+    })
   })
 })
