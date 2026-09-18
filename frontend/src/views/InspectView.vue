@@ -45,6 +45,7 @@ import {
 } from '@/project/roster'
 import IntegrityPanel from './inspect/IntegrityPanel.vue'
 import PortfolioPanel from './inspect/PortfolioPanel.vue'
+import SameProjectPanel from './inspect/SameProjectPanel.vue'
 import StudentEditor from './inspect/StudentEditor.vue'
 import ReproducePanel from './inspect/ReproducePanel.vue'
 import ExperimentDetail from './results/ExperimentDetail.vue'
@@ -178,21 +179,42 @@ const progress = computed(() => ({
  * 표에 그릴 줄들. **판단을 템플릿에 두지 않는다** — 상태 셋(읽는 중·읽음·못 읽음)이
  * `v-if` 사슬로 흩어지면 그중 하나가 빠져도 아무도 모른다.
  */
-const rows = computed(() => {
-  /**
-   * **같은 프로젝트에서 나온 줄들** (§8.21). 번호는 정렬이 아니라 **명렬의 순서**가
-   * 정하므로 여기서 한 번 계산하고, 어느 열로 세우든 같은 짝이 같은 번호로 남는다.
-   */
-  const groups = sameProjectGroups(roster.items.value, roster.summaries.value)
+/**
+ * **같은 프로젝트에서 나온 줄들** (§8.21). 이름표 → 묶음 번호.
+ *
+ * 번호는 정렬이 아니라 **명렬의 순서**가 정하므로 여기서 한 번 계산하고, 표도 판도
+ * 같은 것을 본다 — 두 자리가 따로 세면 배지의 번호와 판의 목록이 갈린다.
+ */
+const groups = computed(() => sameProjectGroups(roster.items.value, roster.summaries.value))
 
-  return sortRoster(roster.items.value, roster.summaries.value, sort.value, descending.value).map(
+/** 묶음이 몇 개이고 몇 파일인가. **있을 때만 한 줄이 선다** — 훑다 놓치지 않을 만큼만. */
+const sameProject = computed(() => ({
+  groups: new Set(groups.value.values()).size,
+  files: groups.value.size,
+}))
+
+/**
+ * 지금 열어 둔 줄과 같은 프로젝트에서 나온 이름표들. **명렬의 순서 그대로다.**
+ *
+ * 짝이 없으면 빈 배열이고 그때 판은 안 선다 — 드문 것이 눈에 띄어야 한다.
+ */
+const sameProjectPeers = computed(() => {
+  const mine = opened.value ? groups.value.get(opened.value.label) : undefined
+  if (mine === undefined) return []
+  return roster.items.value
+    .filter((item) => groups.value.get(item.label) === mine)
+    .map((item) => item.label)
+})
+
+const rows = computed(() =>
+  sortRoster(roster.items.value, roster.summaries.value, sort.value, descending.value).map(
     (item) => {
       const summary = roster.summaries.value.get(item.label)
       const read = summary?.state === 'read' ? summary : undefined
       return {
         item,
         /** 짝이 있으면 그 묶음의 번호. **없으면 말할 것도 없다.** */
-        sameProject: groups.get(item.label),
+        sameProject: groups.value.get(item.label),
         /** 교사가 고쳐 둔 줄. **파일과 다르다는 것을 화면이 말해야 한다.** */
         edited: roster.edits.value.has(item.label),
         /** 값이 아직 없는 줄. 회색으로 두어 훑는 눈이 건너뛴다. */
@@ -214,8 +236,8 @@ const rows = computed(() => {
         } satisfies Record<InspectColumn['key'], string>,
       }
     },
-  )
-})
+  ),
+)
 
 /**
  * 열 머리. **여기 한 줄을 더하면 표가 따라온다** — 머리와 칸이 같은 목록에서 나온다.
@@ -471,6 +493,19 @@ function reasonOf(code: string): string {
 
       <div class="flex flex-col gap-2">
         <!--
+          **묶음이 있으면 표 위에서 먼저 말한다** (§8.21, 2026-09-18 사용자). 배지 하나로는
+          서른 줄을 훑다 지나친다. **있을 때만 선다** — 드문 것이 눈에 띄어야 한다.
+        -->
+        <p v-if="sameProject.groups > 0" class="text-ink-soft">
+          {{
+            t('inspect.sameProjectSummary', {
+              groups: sameProject.groups,
+              files: sameProject.files,
+            })
+          }}
+        </p>
+
+        <!--
           **표의 껍데기는 `AppTable`이 갖는다** — 머리 줄의 색도, 줄 사이의 선도, 넘칠 때의
           처리도 거기 있다(`data-table`). 여기서 다시 그리면 이 앱의 표 아홉 중 하나만
           다른 모양이 된다.
@@ -686,6 +721,14 @@ function reasonOf(code: string): string {
             <aside :class="PANEL">
               <ProjectSummary :file="viewing.file" />
             </aside>
+
+            <!--
+              **어디서 왔나는 무엇인가 다음이다** (§8.21). 짝이 있을 때만 서므로, 이 판이
+              보이는 것 자체가 드문 일이라는 신호다.
+            -->
+            <div v-if="sameProjectPeers.length > 0" :class="PANEL">
+              <SameProjectPanel :labels="sameProjectPeers" :current="opened?.label ?? ''" />
+            </div>
 
             <!--
               **무결성이 요약 바로 아래다.** 교사가 제출물에서 묻는 순서가 "무엇인가 →

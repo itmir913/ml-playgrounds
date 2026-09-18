@@ -162,6 +162,9 @@ export function withEdit(summary: RosterSummary, edit: StudentEdit | undefined):
  * "같은 프로젝트에서 나왔다"까지만 말하고, 왜 그런지는 교사가 안다.
  *
  * - **혼자인 값은 안 담는다.** 묶을 짝이 없으면 말할 것도 없다.
+ * - **전부가 한 묶음이면 아무것도 안 담는다.** 교사가 나눠 준 시작 파일이 그 모양이고,
+ *   **모든 줄에 붙는 표시는 아무도 구분하지 못하면서 의심만 만든다.** 임계값이 아니라
+ *   정보량이 이유다 — 전원이 같으면 그 표시로는 아무도 못 가린다.
  * - **번호는 명렬의 순서가 정한다**(먼저 나온 묶음이 1번). 정렬을 바꿔도 안 흔들리려면
  *   기준이 화면의 순서가 아니라 명렬의 순서여야 한다.
  * - 못 읽은 줄과 아직 안 읽은 줄은 값이 없어 어느 묶음에도 안 든다.
@@ -178,6 +181,10 @@ export function sameProjectGroups(
     if (labels) labels.push(item.label)
     else byProject.set(summary.projectId, [item.label])
   }
+
+  // **읽은 줄 전부가 한 프로젝트에서 나왔으면 말할 것이 없다.**
+  const read = [...byProject.values()].reduce((count, labels) => count + labels.length, 0)
+  if (byProject.size === 1 && read > 1) return new Map()
 
   const groups = new Map<string, number>()
   let number = 0

@@ -13,9 +13,20 @@ import InspectView from '../../src/views/InspectView.vue'
 import { emptyProjectFile, projectFile } from './project'
 import { writeProjectBytes } from './write'
 
-/** 진짜로 열리는 제출물 하나. 이름표는 명렬에 그대로 선다. */
-export async function submissionFile(name: string): Promise<File> {
-  const { bytes } = await writeProjectBytes(emptyProjectFile(), '# 포트폴리오\n')
+/**
+ * 진짜로 열리는 제출물 하나. 이름표는 명렬에 그대로 선다.
+ *
+ * **프로젝트 아이디를 갈아 끼울 수 있다** (§8.21). 안 주면 픽스처의 것을 그대로 쓰므로
+ * **여러 개를 만들면 전부 한 프로젝트에서 나온 것**이 된다 — 교사가 시작 파일을 나눠 준
+ * 그 상태이고, 거기서 명렬이 아무 표시도 안 하는 것이 맞다.
+ */
+export async function submissionFile(name: string, projectId?: string): Promise<File> {
+  const base = emptyProjectFile()
+  const document =
+    projectId === undefined
+      ? base.document
+      : { ...base.document, manifest: { ...base.document.manifest, projectId } }
+  const { bytes } = await writeProjectBytes({ ...base, document }, '# 포트폴리오\n')
   return new File([bytes as BlobPart], name)
 }
 
