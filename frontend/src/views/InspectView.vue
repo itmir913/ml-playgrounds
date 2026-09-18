@@ -323,19 +323,32 @@ function reasonOf(code: string): string {
           <p class="truncate text-ink-soft">{{ opened.label }}</p>
         </header>
 
-        <div class="grid gap-4 lg:grid-cols-3">
-          <!-- 무슨 데이터를 몇 행, 타깃은 무엇으로. **교사가 가장 먼저 보는 줄들이다.** -->
-          <aside class="min-w-0 rounded-panel border border-line bg-surface p-4">
-            <ProjectSummary :file="viewing.file" />
-          </aside>
+        <!--
+          **왼쪽이 고르는 자리, 오른쪽이 고른 것의 속이다** (§8.12, 결과 화면의 두 열과
+          같은 관계다, 2026-09-18 사용자). 목록을 상세 위에 쌓으면 실험이 여럿일 때
+          상세가 그만큼 아래로 밀리고, 무엇보다 **학생이 보던 결과 화면과 문법이 갈린다.**
 
-          <div class="flex min-w-0 flex-col gap-4 lg:col-span-2">
-            <ExperimentList
-              v-if="viewing.experiments.length > 0"
-              :experiments="viewing.experiments"
-              :selected="viewing.current?.id ?? null"
-              @pick="selected = $event"
-            />
+          **점선으로 가르지 않는다** — 왼쪽이 카드로 서 있는 자리에서는 그 선이 카드
+          테두리와 겹쳐 보인다.
+        -->
+        <div class="grid gap-4 lg:grid-cols-3">
+          <div class="flex min-w-0 flex-col gap-4">
+            <!-- 무슨 데이터를 몇 행, 타깃은 무엇으로. **교사가 가장 먼저 보는 줄들이다.** -->
+            <aside class="rounded-panel border border-line bg-surface p-4">
+              <ProjectSummary :file="viewing.file" />
+            </aside>
+
+            <section v-if="viewing.experiments.length > 0" class="flex flex-col gap-1.5">
+              <h4 class="font-bold text-ink-soft">{{ t('results.experimentTitle') }}</h4>
+              <ExperimentList
+                :experiments="viewing.experiments"
+                :selected="viewing.current?.id ?? null"
+                @pick="selected = $event"
+              />
+            </section>
+          </div>
+
+          <div class="min-w-0 lg:col-span-2">
             <ExperimentDetail
               v-if="viewing.current"
               :experiment="viewing.current"
