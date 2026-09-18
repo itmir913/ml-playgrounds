@@ -1,3 +1,9 @@
 # sklearn 대조 픽스처 - scripts/generate_sklearn_fixtures.py가 만드는 산출물이라
 # 사람이 편집하지 않고, 포맷터가 손대면 --check(재생성 대조)가 어긋난다.
 tests/fixtures/sklearn/expected.json
+
+# 스키마 구조 정본 - zod가 낸 것을 `JSON.stringify(…, null, 2)`로 그대로 받은 것이라
+# 사람이 편집하지 않는다. 포맷터는 짧은 배열을 한 줄로 접는데, 접는 순간 정본이
+# "zod가 낸 그대로"가 아니게 되고 `MLPX_WRITE_SCHEMA_CANON=1`로 다시 뜰 때마다
+# lint와 핑퐁이 된다 (tests/schema-structure.spec.ts).
+tests/fixtures/schema/

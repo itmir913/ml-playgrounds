@@ -553,6 +553,22 @@
       "expect": "cries",
       "expectSpecs": ["tests/experiment.spec.ts"],
       "loses": "채점이 병렬 예측을 안 지나간다 — KNN의 2.36배가 조용히 사라진다 (R26 M12)"
+    },
+    {
+      "file": "src/project/schema.ts",
+      "find": "  dataType: z.enum(DATA_TYPES),\n  locale: z.string(),\n})",
+      "replace": "  dataType: z.enum(DATA_TYPES),\n  locale: z.string(),\n  teacherNote: z.string(),\n})",
+      "expect": "cries",
+      "expectSpecs": ["tests/schema-structure.spec.ts"],
+      "loses": "필수 필드가 하나 늘어도 어휘가 안 움직여 관문이 초록이다 — 나가면 학생의 구버전 .mlpx가 '손상됐습니다'가 된다 (2026-09-18 M1)"
+    },
+    {
+      "file": "src/project/schema.ts",
+      "find": "  studentId: z.string().optional(),\n  name: z.string().optional(),\n})",
+      "replace": "  studentId: z.string().optional(),\n  name: z.string().optional(),\n  nickname: z.string().optional(),\n})",
+      "expect": "cries",
+      "expectSpecs": ["tests/schema-structure.spec.ts"],
+      "loses": "서명은 울어야 한다. 다만 정본을 갱신하면 호환 판정은 조용해야 하는 자리다 — 선택 속성 추가는 옛 파일을 안 막는다 (2026-09-18 M5)"
     }
   ]
 }
