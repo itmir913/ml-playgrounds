@@ -15,6 +15,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   rosterOf,
+  sameProjectGroups,
   sortRoster,
   summaryOf,
   withEdit,
@@ -80,6 +81,8 @@ describe('요약은 메타에서 나온다', () => {
       name: '붓꽃 분류',
       studentId: '10101',
       studentName: '김하나',
+      // **파일이 어느 프로젝트에서 나왔는지도 남는다** (§8.21) — 명렬이 이것으로 짝을 묶는다.
+      projectId: '550e8400-e29b-41d4-a716-446655440000',
       dataType: 'tabular',
       experiments: 0,
       runs: 0,
@@ -211,6 +214,7 @@ describe('명렬을 정렬한다', () => {
       state: 'read',
       name,
       ...(studentName === undefined ? {} : { studentName }),
+      projectId: name,
       dataType: 'tabular',
       experiments,
       runs: experiments * 2,
@@ -297,6 +301,7 @@ describe('학번과 이름을 고쳐 둔다', () => {
     name: '붓꽃 분류',
     studentId: '10101',
     studentName: '김하나',
+    projectId: '550e8400-e29b-41d4-a716-446655440000',
     dataType: 'tabular',
     experiments: 1,
     runs: 2,
@@ -337,5 +342,81 @@ describe('학번과 이름을 고쳐 둔다', () => {
       'a.mlpx',
       'b.mlpx',
     ])
+  })
+})
+
+/**
+ * **같은 프로젝트에서 나온 파일들** (architecture.md §8.21, 2026-09-18 사용자).
+ *
+ * `projectId`는 파일을 열어 다시 저장해도 따라간다. 이름과 내용은 얼마든지 바뀌므로
+ * **눈으로는 안 보이고**, 파일을 하나씩 열어 보는 동안에도 안 보인다.
+ *
+ * **판정하지 않는다.** 교사가 나눠 준 시작 파일이면 반 전체가 같은 값이다 — 여기서
+ * 나오는 것은 묶음일 뿐이고, 화면도 그 이상을 말하지 않는다.
+ */
+describe('같은 프로젝트에서 나온 줄을 묶는다', () => {
+  const items = rosterOf([picked('a.mlpx'), picked('b.mlpx'), picked('c.mlpx'), picked('d.mlpx')])
+
+  function read(projectId: string): RosterSummary {
+    return {
+      state: 'read',
+      name: '붓꽃 분류',
+      projectId,
+      dataType: 'tabular',
+      experiments: 1,
+      runs: 1,
+    }
+  }
+
+  function groups(pairs: readonly (readonly [string, RosterSummary])[]): Record<string, number> {
+    return Object.fromEntries(sameProjectGroups(items, new Map(pairs)))
+  }
+
+  it('같은 값을 가진 줄끼리 같은 번호를 받는다', () => {
+    expect(
+      groups([
+        ['a.mlpx', read('P1')],
+        ['b.mlpx', read('P2')],
+        ['c.mlpx', read('P1')],
+      ]),
+    ).toEqual({ 'a.mlpx': 1, 'c.mlpx': 1 })
+  })
+
+  it('혼자인 값은 안 담는다 - 묶을 짝이 없으면 말할 것도 없다', () => {
+    expect(groups([['a.mlpx', read('P1')]])).toEqual({})
+  })
+
+  it('묶음이 여럿이면 명렬 순서대로 번호가 붙는다', () => {
+    expect(
+      groups([
+        ['a.mlpx', read('P1')],
+        ['b.mlpx', read('P2')],
+        ['c.mlpx', read('P2')],
+        ['d.mlpx', read('P1')],
+      ]),
+    ).toEqual({ 'a.mlpx': 1, 'd.mlpx': 1, 'b.mlpx': 2, 'c.mlpx': 2 })
+  })
+
+  it('못 읽은 줄과 아직 안 읽은 줄은 어느 묶음에도 안 든다', () => {
+    expect(
+      groups([
+        ['a.mlpx', read('P1')],
+        ['b.mlpx', { state: 'unreadable', code: 'PROJECT_FILE_NOT_ZIP' }],
+      ]),
+    ).toEqual({})
+  })
+
+  /** **요약이 그 값을 들고 온다.** 안 들고 오면 위 함수가 묶을 것이 없다. */
+  it('요약에 프로젝트 아이디가 담긴다', () => {
+    const summary = summaryOf(document())
+    expect(summary.state === 'read' && summary.projectId).toBe(
+      '550e8400-e29b-41d4-a716-446655440000',
+    )
+  })
+
+  /** 교사가 학번·이름을 고쳐도 묶음은 그대로다 — 고침은 화면에만 사는 값이다. */
+  it('학번·이름을 고쳐도 아이디는 안 바뀐다', () => {
+    const edited = withEdit(read('P1'), { studentName: '김하나' })
+    expect(edited.state === 'read' && edited.projectId).toBe('P1')
   })
 })

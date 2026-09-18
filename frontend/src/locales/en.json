@@ -64,7 +64,8 @@
     "submissions": "Files",
     "readOf": "{read}/{total}",
     "emptyReason": "No files chosen yet.",
-    "emptyNext": "Choose a folder that contains .mlpx files, or choose the .mlpx files themselves. Files you choose stay on this computer and are never sent anywhere."
+    "emptyNext": "Choose a folder that contains .mlpx files, or choose the .mlpx files themselves. Files you choose stay on this computer and are never sent anywhere.",
+    "sameProject": "Same project {group}"
   },
   "taskTypes": {
     "classification": "Classification",

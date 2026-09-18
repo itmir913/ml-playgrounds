@@ -41,6 +41,14 @@ export type RosterSummary =
        */
       readonly studentId?: string
       readonly studentName?: string
+      /**
+       * 이 파일이 나온 프로젝트 (architecture.md §8.21).
+       *
+       * **파일을 열어 다시 저장해도 따라간다.** 그래서 두 줄의 값이 같다는 것은 한쪽이
+       * 다른 쪽에서 나왔다는 뜻이고, 이름과 내용으로는 안 보이는 그것을 명렬이 묶는다
+       * (`sameProjectGroups`).
+       */
+      readonly projectId: string
       readonly dataType: DataType
       readonly experiments: number
       readonly runs: number
@@ -95,6 +103,7 @@ export function summaryOf(document: ProjectDocument): RosterSummary {
     name: document.manifest.name,
     ...filled('studentId', student?.studentId),
     ...filled('studentName', student?.name),
+    projectId: document.manifest.projectId,
     dataType: document.manifest.dataType,
     experiments: experiments.length,
     runs: experiments.reduce((count, experiment) => count + experiment.runs.length, 0),
@@ -136,10 +145,48 @@ export function withEdit(summary: RosterSummary, edit: StudentEdit | undefined):
     name: summary.name,
     ...filled('studentId', edit.studentId ?? summary.studentId),
     ...filled('studentName', edit.studentName ?? summary.studentName),
+    projectId: summary.projectId,
     dataType: summary.dataType,
     experiments: summary.experiments,
     runs: summary.runs,
   }
+}
+
+/**
+ * **같은 프로젝트에서 나온 줄들** — 이름표 → 묶음 번호 (architecture.md §8.21).
+ *
+ * `manifest.projectId`는 프로젝트를 만들 때 한 번 생기고 **파일을 열어 다시 저장해도
+ * 그대로 따라간다.** 두 파일의 값이 같다는 것은 한쪽이 다른 쪽에서 나왔다는 뜻이다.
+ *
+ * **판정하지 않는다.** 교사가 나눠 준 시작 파일이면 반 전체가 같은 값을 갖는다 — 화면은
+ * "같은 프로젝트에서 나왔다"까지만 말하고, 왜 그런지는 교사가 안다.
+ *
+ * - **혼자인 값은 안 담는다.** 묶을 짝이 없으면 말할 것도 없다.
+ * - **번호는 명렬의 순서가 정한다**(먼저 나온 묶음이 1번). 정렬을 바꿔도 안 흔들리려면
+ *   기준이 화면의 순서가 아니라 명렬의 순서여야 한다.
+ * - 못 읽은 줄과 아직 안 읽은 줄은 값이 없어 어느 묶음에도 안 든다.
+ */
+export function sameProjectGroups(
+  items: readonly RosterItem[],
+  summaries: ReadonlyMap<string, RosterSummary>,
+): ReadonlyMap<string, number> {
+  const byProject = new Map<string, string[]>()
+  for (const item of items) {
+    const summary = summaries.get(item.label)
+    if (summary?.state !== 'read') continue
+    const labels = byProject.get(summary.projectId)
+    if (labels) labels.push(item.label)
+    else byProject.set(summary.projectId, [item.label])
+  }
+
+  const groups = new Map<string, number>()
+  let number = 0
+  for (const labels of byProject.values()) {
+    if (labels.length < 2) continue
+    number += 1
+    for (const label of labels) groups.set(label, number)
+  }
+  return groups
 }
 
 /**
