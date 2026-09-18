@@ -461,6 +461,61 @@ describe('같은 프로젝트에서 나온 줄을 묶는다', () => {
     const edited = withEdit(read('P1'), { studentName: '김하나' })
     expect(edited.state === 'read' && edited.projectId).toBe('P1')
   })
+
+  /**
+   * **그 열의 일은 묶음을 모아 세우는 것이다** (§8.21, 2026-09-18 R28 B-7).
+   *
+   * 여기 검사가 없던 동안 정렬 규칙 셋을 각각 지워도 저장소 어디서도 안 울었다 — 짝 없는
+   * 줄을 뒤로 미는 것, 묶음끼리 모으는 비교, 묶음을 스스로 다시 세는 것. 지우면 **이 열을
+   * 눌러도 아무 일이 안 일어나고**, 줄은 그대로 서 있으니 눌러 본 사람도 그냥 그런가 한다.
+   */
+  describe('묶음으로 정렬한다', () => {
+    const pairs = [
+      ['a.mlpx', read('P1')],
+      ['b.mlpx', read('P2')],
+      ['c.mlpx', read('P1')],
+      ['d.mlpx', read('P2')],
+    ] as const
+
+    function sorted(descending = false): string[] {
+      return sortRoster(items, new Map(pairs), 'sameProject', descending).map((one) => one.label)
+    }
+
+    it('같은 묶음끼리 모여 선다', () => {
+      expect(sorted()).toEqual(['a.mlpx', 'c.mlpx', 'b.mlpx', 'd.mlpx'])
+    })
+
+    it('뒤집으면 묶음의 순서가 뒤집힌다', () => {
+      expect(sorted(true)).toEqual(['b.mlpx', 'd.mlpx', 'a.mlpx', 'c.mlpx'])
+    })
+
+    /**
+     * **짝 없는 줄은 방향과 무관하게 뒤다.** 뒤집었다고 빈 줄이 위로 오면 이 정렬로
+     * 하려던 일(묶음을 모아 보기)이 그 순간 사라진다.
+     */
+    it('짝 없는 줄은 뒤집어도 뒤에 남는다', () => {
+      const lonely = [
+        ['a.mlpx', read('P1')],
+        ['b.mlpx', read('P9')],
+        ['c.mlpx', read('P1')],
+      ] as const
+      const labels = (descending: boolean) =>
+        sortRoster(items, new Map(lonely), 'sameProject', descending).map((one) => one.label)
+      expect(labels(false).at(0)).not.toBe('b.mlpx')
+      expect(labels(false).indexOf('b.mlpx')).toBeGreaterThan(labels(false).indexOf('c.mlpx'))
+      expect(labels(true).indexOf('b.mlpx')).toBeGreaterThan(labels(true).indexOf('c.mlpx'))
+    })
+
+    /**
+     * **부르는 쪽이 묶음을 안 넘긴다.** 넘기게 하면 안 넘기고도 정렬이 되고, 그때는 모든
+     * 줄이 동점이라 **아무 일도 안 일어난 것처럼 보인다** — 그래서 정렬이 스스로 센다.
+     */
+    it('묶음을 안 넘겨도 정렬이 스스로 센다', () => {
+      expect(sortRoster(items, new Map(pairs), 'sameProject').map((one) => one.label)).not.toEqual(
+        items.map((one) => one.label),
+      )
+    })
+  })
 })
 
 /**

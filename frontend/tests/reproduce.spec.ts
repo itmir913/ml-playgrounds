@@ -14,9 +14,11 @@ import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/
 import { dataSnapshot } from '../src/project/schema'
 import { isClientError } from '../src/errors'
 import {
+  compareExperiments,
   flippedRows,
   reproduceBlockers,
   reproduceExperiment,
+  reproduceInputOf,
   storedMetricsMatchMatrix,
   type Reproduction,
 } from '../src/ml/reproduce'
@@ -589,6 +591,124 @@ describe('조립은 run에서 읽는다', () => {
     expect(found).toHaveLength(1)
     expect(found[0]?.algorithm).toBe('decision_tree')
     expect(found[0]?.status).toBe('REPRODUCED')
+  })
+
+  /**
+   * **자리를 맞추려고 통째로 넘긴다** — 그래서 `selectedAlgorithms`가 run보다 길면 남는
+   * 모델이 헛돈다. 서른 개를 이어 여는 교사에게 그 시간이 그대로 기다림이다.
+   *
+   * 여기 검사가 없던 동안 `.slice(0, runs.length)`를 지워도 저장소 어디서도 안 울었다
+   * (2026-09-18 R28 C-1) — 판정은 인덱스로 짝지어져 안 갈리기 때문이다.
+   */
+  it('중단된 실험은 안 돌 모델을 아예 안 넘긴다', async () => {
+    const experiment = await trained(['decision_tree', 'knn'])
+    // 주장이 둘인 실험은 둘 다 넘긴다 - 안 그러면 아래가 아무것도 안 가른다.
+    expect(
+      reproduceInputOf({ experiment, dataset, testDataset: null }).settings.selectedAlgorithms,
+    ).toHaveLength(2)
+
+    const stopped: Experiment = { ...experiment, runs: [experiment.runs[0]!] }
+    const input = reproduceInputOf({ experiment: stopped, dataset, testDataset: null })
+    expect(
+      input.settings.selectedAlgorithms,
+      'a run that never happened is not run again',
+    ).toHaveLength(1)
+  })
+})
+
+/**
+ * **점검이 채우는 실행 환경** (open-decisions.md "재실행은 학습 경로를 그대로 탄다").
+ *
+ * **상한은 끈다.** 학생이 상한을 끄고 학습한 제출물을 교사 기기가 거절하면 **대조 자체가
+ * 불가능해진다** — 거절 대신 경고가 맞다.
+ *
+ * 여기 검사가 없던 동안 `limitsOff: true`를 `false`로 뒤집어도 저장소 어디서도 안 울었다
+ * (2026-09-18 R28 B-4). 픽스처가 전부 상한 아래라, 되돌아가도 **다치는 파일이 검사에
+ * 하나도 없다.**
+ */
+describe('점검이 채우는 실행 환경', () => {
+  it('상한을 끄고, 행 수는 표에서 읽고, 서버는 모르는 채로 둔다', async () => {
+    const experiment = await trained(['decision_tree'])
+    const { context } = reproduceInputOf({ experiment, dataset, testDataset: null })
+    expect(context.limitsOff, 'a submission trained with limits off must still be checkable').toBe(
+      true,
+    )
+    expect(context.rowCount).toBe(dataset.rows.length)
+    expect(context.serverStatus).toBe('unknown')
+    expect(context.engineStates).toEqual({})
+  })
+
+  /** 파일에 적힌 분할을 그대로 넘긴다 — 다시 나누면 대조가 아니라 새 학습이다. */
+  it('기록된 분할을 그대로 넘긴다', async () => {
+    const experiment = await trained(['decision_tree'])
+    const { recordedSplit } = reproduceInputOf({ experiment, dataset, testDataset: null })
+    expect(recordedSplit, 'the recorded split must reach the training path').toBeDefined()
+    expect(recordedSplit?.trainIndices).toEqual(experiment.settings.trainIndices)
+    expect(recordedSplit?.testIndices).toEqual(experiment.settings.testIndices)
+  })
+})
+
+/**
+ * **run 하나씩 견주는 자리** (2026-09-18 R28 B-8·B-9).
+ *
+ * 화면이 실제로 부르는 것은 `compareExperiments`인데 이 파일의 검사는 거의 전부
+ * `reproduceExperiment`를 지났고, 그쪽은 학습 루프의 `index`로 짝을 짓는다. 그래서
+ * **화면이 쓰는 짝짓기에는 검사가 없었다.**
+ */
+describe('실험끼리 견준다', () => {
+  /** 이 주장과 똑같이 생긴 신선한 실험. 지표만 갈아 끼울 수 있다. */
+  function fresh(claim: Experiment, metrics?: Record<string, number>[]): Experiment {
+    return {
+      ...claim,
+      runs: claim.runs.map((one, index) => ({
+        ...one,
+        ...(metrics?.[index] ? { metrics: metrics[index] } : {}),
+      })),
+    }
+  }
+
+  /**
+   * **짝은 `runs.json`의 자리다.** 앞에 실패한 run이 있으면 성공한 것만 세는 방식으로는
+   * 뒤 run이 **엉뚱한 것과 견줘진다** — 실패한 자리도 신선한 쪽에 그대로 있기 때문이다.
+   */
+  it('앞에 실패한 run이 있어도 뒤 run이 제 짝과 견줘진다', async () => {
+    const trained2 = await trained(['decision_tree', 'knn'])
+    const failed: Run = { ...trained2.runs[0]!, status: 'failed', metrics: {} }
+    const claim: Experiment = { ...trained2, runs: [failed, trained2.runs[1]!] }
+
+    const found = compareExperiments(claim, fresh(trained2))
+    expect(found, 'only the succeeded claim is compared').toHaveLength(1)
+    expect(found[0]?.runId).toBe(trained2.runs[1]?.id)
+    expect(found[0]?.status).toBe('REPRODUCED')
+  })
+
+  /**
+   * **파일에 없는 지표는 아예 빠진다** (`Reproduction.deltas`). 없는 것과 어긋난 것은
+   * 다른 말이고, **옛 파일에는 지금 있는 지표가 없을 수 있다** — `value - 0`으로 세면
+   * 지표가 하나 는 배포 뒤에 정직한 학생이 `재현되지 않음`이 된다.
+   */
+  it('파일에 없는 지표는 차이로 안 센다', async () => {
+    const claim = await trained(['decision_tree'])
+    const thin: Experiment = {
+      ...claim,
+      runs: [
+        { ...claim.runs[0]!, metrics: { accuracy: claim.runs[0]?.metrics?.['accuracy'] ?? 0 } },
+      ],
+    }
+
+    const [found] = compareExperiments(thin, fresh(claim))
+    expect(
+      Object.keys(found?.deltas ?? {}),
+      'a metric the file never had is not a difference',
+    ).toEqual(['accuracy'])
+    expect(found?.status).toBe('REPRODUCED')
+  })
+
+  /** 자리가 비면 지목하지 않는다 — 우리가 못 돌린 것이지 학생이 고친 것이 아니다. */
+  it('신선한 쪽에 그 자리가 없으면 엔진 없음이다', async () => {
+    const claim = await trained(['decision_tree'])
+    const [found] = compareExperiments(claim, { ...claim, runs: [] })
+    expect(found?.status).toBe('ENGINE_UNAVAILABLE')
   })
 })
 

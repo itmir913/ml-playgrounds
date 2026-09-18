@@ -32,7 +32,6 @@
     "studentId": "Student number",
     "studentName": "Name",
     "editHint": "Edits here apply to this list only. The original file is untouched, and edits are lost on reload.",
-    "editedMark": "(edited)",
     "integrity": "Integrity",
     "integrityNote": "Checks whether this project file was modified after it was saved. If there are signs of changes, the parts that changed are listed below.",
     "reproduce": "Reproduction check",

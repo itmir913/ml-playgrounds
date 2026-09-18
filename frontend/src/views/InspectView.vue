@@ -281,8 +281,6 @@ const rows = computed(() =>
       const read = summary?.state === 'read' ? summary : undefined
       return {
         item,
-        /** 교사가 고쳐 둔 줄. **파일과 다르다는 것을 화면이 말해야 한다.** */
-        edited: roster.edits.value.has(item.label),
         /** 값이 아직 없는 줄. 회색으로 두어 훑는 눈이 건너뛴다. */
         faint: !read,
         /** 열마다 그 칸에 설 글자. **열쇠가 `COLUMNS`의 것과 같다** — 표가 이것으로 선다. */
@@ -744,17 +742,14 @@ function reasonOf(code: string): string {
                 >
                   {{ row.cells[column.key] }}
                 </span>
-                <template v-else>
-                  {{ row.cells[column.key] }}
-                  <!--
-                    **고친 줄에는 표시를 단다** (2026-09-18, 사용자). 교사가 화면에서 고친
-                    값은 파일에 없는 값이라, 아무 표시 없이 두면 다음에 열었을 때 파일이
-                    그렇게 적혀 있는 줄 안다.
-                  -->
-                  <span v-if="column.key === 'studentId' && row.edited" class="text-ink-faint">{{
-                    t('inspect.editedMark')
-                  }}</span>
-                </template>
+                <!--
+                  **교사가 고친 값에는 표시를 안 단다** (§8.21, 2026-09-18 사용자). 한때
+                  `(수정)`을 달았는데 **학번 칸에만** 붙어서, 이름만 적게 한 수업에서는
+                  학번 열이 안 서므로 표시가 어디에도 없었다. 칸마다 제대로 다는 대신
+                  없앤 이유는 **그 값을 방금 넣은 사람이 교사 자신**이고, 그 고침이 이
+                  목록에만 산다는 것은 고치는 자리의 안내가 이미 말하기 때문이다.
+                -->
+                <template v-else>{{ row.cells[column.key] }}</template>
               </td>
             </tr>
           </tbody>
