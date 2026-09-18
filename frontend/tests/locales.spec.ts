@@ -772,9 +772,7 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
   const NOT_ON_SCREEN_YET: readonly string[] = [
     // 백엔드 큐의 단계. 자가호스팅 백엔드가 서면 상태 표시줄이 부른다.
     'stages.',
-    // 무결성 확인과 재실행 대조. 교사용 확인 화면이 V7이다 (roadmap.md).
-    'fileHash.',
-    'entryHash.',
+    // 재실행 대조. 점검 화면의 대조 판이 이 어휘를 부른다 (architecture.md §8.21).
     'reproduction.',
     // 나누기 방식의 이름. 요약이 아직 이 축을 안 보인다.
     'splitMethod.',
@@ -855,6 +853,8 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
     'client.', // 클라이언트 전용 코드는 client.* 에서 찾는다
     'execution.', // 실행 위치마다 이름이 있다
     'engineState.', // 무결성 어휘가 로케일과 양방향으로 일치한다
+    'fileHash.', // 파일 전체와 엔트리 하나하나의 대조 결과 (점검 화면의 무결성 판)
+    'entryHash.', //   〃
     'modelOmission.', // 모델이 안 담긴 사유마다 문구가 있다 (위 어휘 짝 검사)
     'missingStrategy.', // 전처리 설정의 어휘가 로케일과 양방향으로 일치한다
     'missingHelp.', //     〃 (선택지마다의 설명. 아래 같은 검사가 개수까지 맞춘다)

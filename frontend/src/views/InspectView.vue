@@ -31,6 +31,7 @@ import { experimentOrder } from '@/ml/results'
 import { readDataset } from '@/project/dataset'
 import { MLPX_EXTENSION } from '@/project/format'
 import { rosterOf, sortRoster, type RosterItem, type RosterSort } from '@/project/roster'
+import IntegrityPanel from './inspect/IntegrityPanel.vue'
 import ExperimentDetail from './results/ExperimentDetail.vue'
 import ExperimentList from './results/ExperimentList.vue'
 
@@ -99,7 +100,8 @@ const summaryOfOpened = computed(() =>
  * 다른 숫자를 말하게 된다.
  */
 const viewing = computed(() => {
-  const file = roster.opened.value?.read.project
+  const read = roster.opened.value?.read
+  const file = read?.project
   if (!file || roster.opened.value?.item.label !== opened.value?.label) return null
 
   const experiments = file.document.runs.experiments
@@ -110,6 +112,8 @@ const viewing = computed(() => {
   const current = experiments[experiments.length === 0 ? -1 : index]
   return {
     file,
+    /** 해시 대조는 파일을 열 때 이미 끝나 있다 (`readProject`). 여기서 다시 세지 않는다. */
+    integrity: read.integrity,
     experiments,
     current,
     order: experimentOrder(experiments),
@@ -421,6 +425,12 @@ function reasonOf(code: string): string {
             <aside class="rounded-panel border border-line bg-surface p-4">
               <ProjectSummary :file="viewing.file" />
             </aside>
+
+            <!--
+              **무결성이 요약 바로 아래다.** 교사가 제출물에서 묻는 순서가 "무엇인가 →
+              손댄 흔적이 있나 → 점수가 진짜인가"이고, 세 판이 그 순서로 선다.
+            -->
+            <IntegrityPanel :integrity="viewing.integrity" />
 
             <section v-if="viewing.experiments.length > 0" class="flex flex-col gap-1.5">
               <h4 class="font-bold text-ink-soft">{{ t('results.experimentTitle') }}</h4>

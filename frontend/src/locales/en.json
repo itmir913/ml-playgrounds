@@ -35,7 +35,9 @@
     "studentId": "Student number",
     "studentName": "Name",
     "editHint": "Edits here apply to this roster only. The submitted file is untouched, and edits are lost on reload.",
-    "editedMark": "(edited)"
+    "editedMark": "(edited)",
+    "integrity": "Integrity",
+    "integrityNote": "This checks whether the file changed after the student last saved it. Whether it changed after submission can only be told from a hash recorded when you collected it."
   },
   "taskTypes": {
     "classification": "Classification",
