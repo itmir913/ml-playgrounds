@@ -12,17 +12,17 @@ import { useI18n } from 'vue-i18n'
 
 import { readDataset } from '@/project/dataset'
 import { tabularDataOf } from '@/project/schema'
-import { useProjectStore } from '@/stores/project'
+import type { ProjectFile } from '@/project/format'
 
 const { t } = useI18n()
-const project = useProjectStore()
+const props = defineProps<{ file: ProjectFile }>()
 
 /**
  * 표의 크기는 **정본 CSV를 파싱해서 센다.** 저장해 둔 숫자가 아니라 실제 바이트에서
  * 세는 이유는, 파일을 손으로 고친 남의 프로젝트에서도 맞아야 하기 때문이다.
  */
 const dataset = computed(() => {
-  const file = project.file
+  const file = props.file
   const table = readDataset(file)
   const reference = file === null ? undefined : tabularDataOf(file.document)?.dataset
   if (table === null || reference === undefined) return null
@@ -33,7 +33,7 @@ const dataset = computed(() => {
   }
 })
 
-const data = computed(() => tabularDataOf(project.file?.document))
+const data = computed(() => tabularDataOf(props.file.document))
 </script>
 
 <template>

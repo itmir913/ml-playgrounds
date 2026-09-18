@@ -152,6 +152,9 @@ describe('R24 B-5: the image cluster panel rebuilds the clustering table', () =>
       dataset: null,
       preprocessor,
       modelBytes: kmeansBytes(),
+      // **패널은 이 파일에서 사진과 임베딩을 꺼낸다.** 예전에는 스토어를 직접 읽었고,
+      // 그래서 스토어가 없는 화면에서 이 패널만 비었다.
+      file: project,
     }
 
     const wrapper = mount(ImageClusterPanel, { props: { input }, global: { plugins: [i18n] } })

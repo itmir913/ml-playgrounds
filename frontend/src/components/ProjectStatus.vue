@@ -53,6 +53,6 @@ const project = useProjectStore()
       </button>
     </template>
 
-    <ProjectSummary with-name />
+    <ProjectSummary v-if="project.file" :file="project.file" with-name />
   </AppPopover>
 </template>

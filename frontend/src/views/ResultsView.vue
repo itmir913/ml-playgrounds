@@ -220,7 +220,7 @@ const models = computed<ReadonlyMap<string, Uint8Array>>(
         <!-- 도착 지점에 여백을 남긴다 (ExperimentDetail.vue 주석). -->
         <div ref="detailEl" class="scroll-below-shell">
           <ExperimentDetail
-            v-if="current"
+            v-if="current && project.file"
             :experiment="current"
             :order="order.get(current.id) ?? 0"
             :previous="previous"
@@ -228,6 +228,7 @@ const models = computed<ReadonlyMap<string, Uint8Array>>(
             :dataset="dataset"
             :preprocessor="preprocessor"
             :models="models"
+            :file="project.file"
           />
         </div>
       </div>

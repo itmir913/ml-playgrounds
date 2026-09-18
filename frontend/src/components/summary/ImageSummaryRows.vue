@@ -19,14 +19,14 @@ import { useI18n } from 'vue-i18n'
 
 import { IMAGE_UNLABELED } from '@/project/format'
 import { countByCategory, imageCategories, readImages } from '@/project/images'
-import { useProjectStore } from '@/stores/project'
+import type { ProjectFile } from '@/project/format'
 
 const { t } = useI18n()
-const project = useProjectStore()
+const props = defineProps<{ file: ProjectFile }>()
 
-const photos = computed(() => readImages(project.file).length)
-const categories = computed(() => imageCategories(project.file).length)
-const unlabeled = computed(() => countByCategory(project.file).get(IMAGE_UNLABELED) ?? 0)
+const photos = computed(() => readImages(props.file).length)
+const categories = computed(() => imageCategories(props.file).length)
+const unlabeled = computed(() => countByCategory(props.file).get(IMAGE_UNLABELED) ?? 0)
 </script>
 
 <template>

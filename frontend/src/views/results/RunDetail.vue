@@ -26,6 +26,7 @@ import { useI18n } from 'vue-i18n'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { metricPanelsFor, type PanelInput } from '@/ml/metric-panels'
 import type { Dataset, Preprocessor } from '@/ml/preprocess'
+import type { ProjectFile } from '@/project/format'
 import { hyperparametersOf, whereTrainedKeyOf } from '@/ml/results'
 import type { DataType, Experiment, Run, TaskType } from '@/project/schema'
 
@@ -42,6 +43,8 @@ const props = defineProps<{
   dataset: Dataset | null
   preprocessor: Preprocessor | null
   modelBytes: Uint8Array | undefined
+  /** 사진·임베딩이 필요한 패널의 재료 (`PanelInput.file`). 여기서도 안 쓰고 넘기기만 한다. */
+  file: ProjectFile
 }>()
 
 const { t } = useI18n()
@@ -70,6 +73,7 @@ const panelInput = computed<PanelInput>(() => ({
   dataset: props.dataset,
   preprocessor: props.preprocessor,
   modelBytes: props.modelBytes,
+  file: props.file,
 }))
 
 /** 이 run에 먹인 손잡이들. 판정은 전부 `ml/results.ts`에 있다. */

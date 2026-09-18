@@ -264,7 +264,7 @@ function lockedText(step: StepId): string {
       <!-- 오른쪽: 이게 무슨 프로젝트인지 -->
       <aside class="min-w-0 rounded-panel border border-line bg-surface p-4 md:col-span-2">
         <h2 class="mb-3 font-bold">{{ t('meta.title') }}</h2>
-        <ProjectSummary />
+        <ProjectSummary v-if="project.file" :file="project.file" />
       </aside>
     </div>
   </div>

@@ -24,6 +24,7 @@ import type { DataType, Experiment, Run, TaskType } from '../project/schema'
 import { supports, type Axis } from './axes'
 import { showsLossCurve } from './loss-curve'
 import { showsParameters } from './parameters'
+import type { ProjectFile } from '../project/format'
 import type { Dataset, Preprocessor } from './preprocess'
 
 /**
@@ -52,6 +53,16 @@ export interface PanelInput {
   readonly preprocessor: Preprocessor | null
   /** 이 run의 모델 바이트. 파일에 안 담겼으면 `undefined`다 (`run.modelOmitted`). */
   readonly modelBytes: Uint8Array | undefined
+  /**
+   * 열려 있는 프로젝트 파일. **사진과 임베딩이 필요한 패널이 있다**
+   * (`ImageClusterPanel` — 군집의 결과가 사진으로만 읽힌다).
+   *
+   * **필수다.** 없으면 그 패널이 스토어를 직접 읽게 되고, 실제로 그랬다 — 그러면
+   * `ResultsView`가 적어 둔 *"파일을 아는 것은 이 화면 하나이고, 아래는 받은 것을
+   * 나르기만 한다"*가 깨지고, **스토어가 없는 화면(점검)에서 그 패널만 빈다**
+   * (open-decisions.md "점검은 읽기 전용 열람기다").
+   */
+  readonly file: ProjectFile
 }
 
 export interface MetricPanel {

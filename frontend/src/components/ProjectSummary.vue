@@ -18,14 +18,20 @@ import { useFormat } from '@/composables/useFormat'
 import { dataKindFor } from '@/data/kinds'
 import { needsSizeWarning } from '@/project/file-size'
 import { PROJECT_FILE_WARN_BYTES } from '@/limits'
+import type { ProjectFile } from '@/project/format'
 import { totalBytes } from '@/project/storage'
-import { useProjectStore } from '@/stores/project'
 
-const props = withDefaults(defineProps<{ withName?: boolean }>(), { withName: false })
+/**
+ * **파일은 받는다.** 스토어를 직접 읽고 있었고, 그래서 스토어가 없는 화면(점검)에서는
+ * 이 카드가 통째로 비었다 — 교사가 제출물에서 가장 먼저 보는 줄들이 그것이다
+ * (open-decisions.md "점검은 읽기 전용 열람기다").
+ */
+const props = withDefaults(defineProps<{ file: ProjectFile; withName?: boolean }>(), {
+  withName: false,
+})
 
 const { t } = useI18n()
 const format = useFormat()
-const project = useProjectStore()
 
 /**
  * 보여줄 값들. **문서에서 읽기만 한다** — 여기서 판단을 만들지 않는다.
@@ -33,11 +39,10 @@ const project = useProjectStore()
  * 표의 크기는 정본 CSV를 파싱해서 센다. 저장해 둔 숫자가 아니라 실제 바이트에서
  * 세는 이유는, 파일을 손으로 고친 남의 프로젝트에서도 맞아야 하기 때문이다.
  */
-const kind = computed(() => dataKindFor(project.file?.document.manifest.dataType ?? ''))
+const kind = computed(() => dataKindFor(props.file.document.manifest.dataType))
 
 const info = computed(() => {
-  const file = project.file
-  if (!file) return null
+  const file = props.file
   const { manifest, settings, runs } = file.document
 
   const allRuns = runs.experiments.flatMap((experiment) => experiment.runs)
@@ -65,7 +70,7 @@ const info = computed(() => {
 </script>
 
 <template>
-  <div v-if="info">
+  <div>
     <h2 v-if="props.withName" class="mb-3 truncate font-bold">{{ info.manifest.name }}</h2>
 
     <dl class="flex flex-col gap-1.5">
@@ -87,7 +92,7 @@ const info = computed(() => {
         떴다 — 없는 것이 아니라 **애초에 그 종류에 없는 항목**인데 "아직 안 골랐다"로
         읽힌다.
       -->
-      <component :is="kind.summaryRows" v-if="kind" />
+      <component :is="kind.summaryRows" v-if="kind" :file="props.file" />
 
       <div class="flex justify-between gap-4">
         <dt class="shrink-0 font-bold text-ink-soft">{{ t('meta.algorithms') }}</dt>

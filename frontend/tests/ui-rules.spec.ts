@@ -10,7 +10,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -2511,4 +2511,41 @@ describe('화면은 도는 일을 셈으로 든다', () => {
       expect(code, `${path}: cancellation is reported as a failure`).toMatch(/JOB_CANCELLED/)
     }
   })
+})
+
+/**
+ * **받은 것을 그리는 부품은 스토어를 안 읽는다** (`architecture.md` §8.21,
+ * `open-decisions.md` "점검은 읽기 전용 열람기다 — 대조는 그 안의 한 판이다").
+ *
+ * `ResultsView`가 머리말에 *"파일을 아는 것은 이 화면 하나이고, 아래는 받은 것을
+ * 나르기만 한다"*라고 규칙을 적어 두었는데 **넷이 그것을 어기고 있었다** — 지표 패널
+ * 하나와 요약 부품 셋이 `useProjectStore()`를 직접 불렀다.
+ *
+ * **눈으로는 안 보이는 결함이다.** 스토어가 있는 화면에서는 멀쩡히 그려지고, 스토어가
+ * 없는 화면(점검)에서 **그 부품만 빈다.** 그래서 검사가 본다.
+ */
+describe('받은 것을 그리는 부품은 스토어를 안 읽는다', () => {
+  /** 파일을 프롭으로 받아야 하는 자리들. 화면(`views/*View.vue`)은 여기 없다. */
+  const SHARED = [
+    join(SRC, 'views', 'results', 'panels'),
+    join(SRC, 'components', 'summary'),
+    join(SRC, 'components', 'ProjectSummary.vue'),
+  ]
+
+  const FILES = SHARED.flatMap((path) =>
+    path.endsWith('.vue') ? [path] : existsSync(path) ? vueFiles(path) : [],
+  )
+
+  /** 훑을 파일이 실제로 있어야 한다. 0개면 판정이 썩은 것이지 규칙이 지켜진 게 아니다. */
+  it('검사할 부품을 실제로 찾는다', () => {
+    expect(FILES.length).toBeGreaterThanOrEqual(6)
+  })
+
+  for (const path of FILES) {
+    it(`${basename(path)}가 스토어를 안 읽는다`, () => {
+      const source = readFileSync(path, 'utf-8')
+      expect(source, path).not.toContain('useProjectStore')
+      expect(source, path).not.toContain('stores/project')
+    })
+  }
 })

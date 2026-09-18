@@ -27,12 +27,10 @@ import { useThumbnails } from '@/composables/useThumbnails'
 import { readEmbeddings } from '@/project/embeddings'
 import { readImages } from '@/project/images'
 import { dataSnapshot } from '@/project/schema'
-import { useProjectStore } from '@/stores/project'
 
 const props = defineProps<{ input: PanelInput }>()
 
 const { t } = useI18n()
-const project = useProjectStore()
 
 /**
  * 사진과 군집 배정.
@@ -44,8 +42,9 @@ const project = useProjectStore()
  * (§9.2 "없는 것을 이름으로 말하지 않는다").
  */
 const groups = computed(() => {
-  const file = project.file
-  if (!file) return null
+  // **파일은 받은 것이다** (`PanelInput.file`). 예전에는 스토어를 직접 읽었고, 그래서
+  // 스토어가 없는 화면(점검)에서 이 패널만 비었다.
+  const file = props.input.file
 
   const { backboneId } = dataSnapshot('image', props.input.experiment.settings)
   const backbone = backboneFor(backboneId)
@@ -76,7 +75,7 @@ const groups = computed(() => {
  * `project/images.ts`가 갖는다. 여기서 다시 쓰면 두 표기가 생기고, 실제로 그랬다
  * (V11 R5 C-2: `lastIndexOf('.')`와 `length - extension.length`가 같은 파일 안에서 갈렸다).
  */
-const { urls } = useThumbnails(computed(() => readImages(project.file)))
+const { urls } = useThumbnails(computed(() => readImages(props.input.file)))
 
 /**
  * 군집마다의 지금 쪽. **군집 하나가 200장일 수 있다** — 한 번에 다 그리면 그 군집

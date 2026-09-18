@@ -63,6 +63,7 @@ function panelInput(one: Run): PanelInput {
     dataset: null,
     preprocessor: null,
     modelBytes: undefined,
+    file: projectFile(),
   }
 }
 

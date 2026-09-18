@@ -19,6 +19,7 @@ import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { describeChanges } from '@/ml/changes'
 import { metricsOf, type MetricDisplay } from '@/ml/metrics'
 import type { Dataset, Preprocessor } from '@/ml/preprocess'
+import type { ProjectFile } from '@/project/format'
 import { bestByMetric, doneRuns, failedRuns, whereTrainedKeyOf } from '@/ml/results'
 import type { DataType, Experiment, Run } from '@/project/schema'
 import ChangeList from './ChangeList.vue'
@@ -51,6 +52,8 @@ const props = defineProps<{
   preprocessor: Preprocessor | null
   /** 모델 경로 → 바이트. 어느 run의 것을 꺼낼지는 여기서 정해진다 (`openedModelBytes`). */
   models: ReadonlyMap<string, Uint8Array>
+  /** 사진·임베딩이 필요한 패널의 재료 (`PanelInput.file`). 여기도 나르기만 한다. */
+  file: ProjectFile
 }>()
 
 const { t, te } = useI18n()
@@ -245,6 +248,7 @@ function failureDetailOf(run: Run): string | null {
         :dataset="props.dataset"
         :preprocessor="props.preprocessor"
         :model-bytes="openedModelBytes"
+        :file="props.file"
       />
     </div>
 
