@@ -209,7 +209,7 @@ function failureDetailOf(run: Run): string | null {
             v-for="run in succeeded"
             :key="run.id"
             class="cursor-pointer"
-            :class="run.id === openedRun ? 'bg-brand-soft' : ''"
+            :class="run.id === openedRun ? 'bg-brand-soft font-bold' : ''"
             @click="pickRun(run.id)"
           >
             <th class="text-left">{{ t(`algorithms.${run.algorithm}`) }}</th>

@@ -26,6 +26,8 @@
   --color-canvas: #172033;
   --color-surface: #1e293b;
   --color-surface-sunken: #0f172a;
+  /* 얹힌 줄. **여기서는 한 단계 밝다** — 어두운 배색에서 더 어두워지면 바탕에 묻힌다. */
+  --color-surface-hover: #334155;
 
   --color-line: #334155;
   --color-line-strong: #475569;

@@ -21,6 +21,17 @@
   --color-canvas: #f8fafc;
   --color-surface: #ffffff;
   --color-surface-sunken: #f1f5f9;
+  /*
+   * 마우스가 얹힌 줄 (2026-09-18, 사용자). **색이 드는 것이 아니라 한 단계 어두워지는
+   * 것이다** — 색이 들면 고른 줄(`brand-soft`)과 같은 말을 하게 된다.
+   *
+   * **줄무늬 두 색보다 어둡다.** 표 둘이 흰색과 `surface-sunken`을 번갈아 깔아서, 그중
+   * 하나를 쓰면 짝수 줄이나 홀수 줄에서 아무 일도 안 일어난다.
+   *
+   * 어두운 배색에서는 **반대로 한 단계 밝다**(`dark.css`) — 거기서 "어두워짐"은
+   * 바탕에 묻히는 방향이다. 이름이 방향이 아니라 쓰임새인 이유가 그것이다.
+   */
+  --color-surface-hover: #e2e8f0;
   --color-line: #e2e8f0;
   --color-line-strong: #cbd5e1;
 

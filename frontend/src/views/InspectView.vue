@@ -491,8 +491,10 @@ function reasonOf(code: string): string {
               어느 줄을 열어 둔 것인지 못 찾는다. 색은 이 앱이 "고른 것"에 쓰는 그 색이다
               (`ExperimentList`의 `bg-brand-soft`) — 표라고 다른 말을 쓰지 않는다.
 
-              **hover는 고른 줄에 안 건다.** 뒤에 오는 변종이 이겨서, 고른 줄에 마우스를
-              얹으면 그 줄만 고른 표시가 풀린 것처럼 보인다.
+              **얹힌 줄은 색이 드는 것이 아니라 어두워지고, 그것은 껍데기가 준다**
+              (`data-table`의 `tbody tr:not(.bg-brand-soft):hover`). 여기서 hover를 또
+              적으면 이 표만 다른 색이 된다 — 둘이 같은 색이면 마우스가 지나간 줄이
+              "골라진 것"으로 읽힌다 (2026-09-18, 사용자).
 
               **전에는 둘 다 `bg-surface-soft`였고 그런 토큰이 없다.** Tailwind는 모르는
               이름에 CSS를 안 만들어서 강조도 hover도 처음부터 없었다
@@ -502,11 +504,7 @@ function reasonOf(code: string): string {
               v-for="row in rows"
               :key="row.item.label"
               class="cursor-pointer"
-              :class="
-                opened?.label === row.item.label
-                  ? 'bg-brand-soft font-bold'
-                  : 'hover:bg-surface-sunken'
-              "
+              :class="opened?.label === row.item.label ? 'bg-brand-soft font-bold' : ''"
               @click="select(row.item)"
             >
               <!--

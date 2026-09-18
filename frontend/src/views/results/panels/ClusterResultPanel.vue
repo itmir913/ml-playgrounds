@@ -239,7 +239,7 @@ function cellsOf(row: number): readonly string[] {
             v-for="summary in summaries"
             :key="summary.cluster"
             class="cursor-pointer"
-            :class="summary.cluster === openedCluster ? 'bg-brand-soft' : ''"
+            :class="summary.cluster === openedCluster ? 'bg-brand-soft font-bold' : ''"
             @click="openedCluster = summary.cluster"
           >
             <th class="text-left">{{ clusterName(summary.cluster) }}</th>
