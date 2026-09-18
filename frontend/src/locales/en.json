@@ -52,7 +52,9 @@
       "ENGINE_MISSING": "The engine that made this file is not in this browser.",
       "NO_TEST_DATASET": "The file has no test data, so nothing can be scored."
     },
-    "delta": "{metric} {value}"
+    "delta": "{metric} {value}",
+    "editStudent": "Edit student",
+    "noDifference": "No difference"
   },
   "taskTypes": {
     "classification": "Classification",

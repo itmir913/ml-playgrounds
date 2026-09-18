@@ -52,7 +52,9 @@
       "ENGINE_MISSING": "이 파일을 만든 학습 엔진이 이 브라우저에 없습니다.",
       "NO_TEST_DATASET": "테스트 데이터가 파일에 없어서 채점할 수 없습니다."
     },
-    "delta": "{metric} {value}"
+    "delta": "{metric} {value}",
+    "editStudent": "학번·이름 수정",
+    "noDifference": "차이 없음"
   },
   "taskTypes": {
     "classification": "분류(Classification)",

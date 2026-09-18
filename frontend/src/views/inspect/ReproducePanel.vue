@@ -123,6 +123,17 @@ function signed(value: number): string {
   return `${value > 0 ? '+' : ''}${value.toExponential(2)}`
 }
 
+/**
+ * 그 줄의 `차이` 칸. **비워 두지 않는다** — 빈 칸은 못 쟀다는 뜻으로 읽힌다.
+ *
+ * 못 돌린 줄은 사유를, 돌린 줄은 지표마다의 차이를, 차이가 없으면 없다고 적는다.
+ */
+function differenceText(reproduction: Reproduction): string {
+  const failed = failureText(reproduction)
+  if (failed !== '') return failed
+  return deltaText(reproduction.deltas) || t('inspect.noDifference')
+}
+
 /** 못 돌린 사유. 파일이 아니라 **이 기기**의 사정이다. */
 function failureText(reproduction: Reproduction): string {
   const code = reproduction.failure?.code
@@ -172,11 +183,15 @@ function failureText(reproduction: Reproduction): string {
             변조와 한 행 뒤집힌 엔진 차이의 크기가 같다 — 차이만으로는 그 둘을 못 가르고,
             혼동 행렬이 가른다.
           -->
+          <!--
+            **빈 칸은 "안 쟀다"로 읽힌다** (2026-09-18, 사용자). 차이가 0인 것은 결과이지
+            빈 것이 아니므로 그렇게 적는다.
+          -->
           <td class="break-words">
             <span v-if="one.flipped" class="mr-2">
               {{ t('inspect.flipped', { count: one.flipped }) }}
             </span>
-            {{ failureText(one) || deltaText(one.deltas) }}
+            {{ differenceText(one) }}
           </td>
         </tr>
       </tbody>

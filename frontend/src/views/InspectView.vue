@@ -21,7 +21,6 @@ import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
 import AppTable from '@/components/AppTable.vue'
-import AppField from '@/components/AppField.vue'
 import ProjectSummary from '@/components/ProjectSummary.vue'
 import { useRoster } from '@/composables/useRoster'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
@@ -32,6 +31,7 @@ import { readDataset, readTestDataset } from '@/project/dataset'
 import { MLPX_EXTENSION } from '@/project/format'
 import { rosterOf, sortRoster, type RosterItem, type RosterSort } from '@/project/roster'
 import IntegrityPanel from './inspect/IntegrityPanel.vue'
+import StudentEditor from './inspect/StudentEditor.vue'
 import ReproducePanel from './inspect/ReproducePanel.vue'
 import ExperimentDetail from './results/ExperimentDetail.vue'
 import ExperimentList from './results/ExperimentList.vue'
@@ -204,10 +204,9 @@ const COLUMNS: readonly {
  * **고치는 자리가 여기인 이유는 순서다.** 학생이 이름을 잘못 내면 교사는 **정렬하기
  * 전에** 그것을 고쳐야 하고, 고치려면 그 제출물을 열어 보고 있어야 한다.
  */
-function correctStudent(field: 'studentId' | 'studentName', event: Event): void {
+function correctStudent(edit: { studentId?: string; studentName?: string }): void {
   const item = opened.value
-  if (!item) return
-  roster.correct(item, { [field]: (event.target as HTMLInputElement).value })
+  if (item) roster.correct(item, edit)
 }
 
 /** 지금 칸에 들어 있는 값. 고친 것이 있으면 고친 것, 없으면 파일의 것. */
@@ -216,6 +215,16 @@ const studentFields = computed(() => {
   if (summary?.state !== 'read') return { studentId: '', studentName: '' }
   return { studentId: summary.studentId ?? '', studentName: summary.studentName ?? '' }
 })
+
+/**
+ * 머리줄에 서는 한 줄 — 학번·이름과 파일 이름. **없는 칸은 빼고 잇는다** — `이름 없음 ·
+ * 이름 없음 · test.mlpx`는 아무것도 말하지 않는다.
+ */
+const studentLine = computed(() =>
+  [studentFields.value.studentId, studentFields.value.studentName, opened.value?.label]
+    .filter((part) => part !== undefined && part !== '')
+    .join(' · '),
+)
 
 /** 못 읽은 줄의 사유 문장. **코드를 화면이 문장으로 바꾼다** (CLAUDE.md §1.4). */
 function reasonOf(code: string): string {
@@ -375,43 +384,24 @@ function reasonOf(code: string): string {
       </p>
       <p v-else-if="!viewing" class="text-ink-soft">{{ t('inspect.reading') }}</p>
       <template v-else>
-        <header class="flex flex-col gap-3">
-          <div class="flex flex-col gap-1">
+        <!--
+          **머리줄은 누구의 무엇인지만 말한다.** 학번·이름을 고치는 일은 서른 명 중 두셋에게만
+          생기는 드문 일이라, 폼으로 상시 자리를 먹지 않고 팝오버로 접어 둔다
+          (2026-09-18, 사용자).
+        -->
+        <header class="flex flex-wrap items-start justify-between gap-3">
+          <div class="flex min-w-0 flex-col gap-1">
             <h3 class="truncate text-xl font-black">{{ viewing.file.document.manifest.name }}</h3>
-            <p class="truncate text-ink-soft">{{ opened.label }}</p>
+            <p class="truncate text-ink-soft">
+              {{ studentLine }}
+            </p>
           </div>
 
-          <!--
-            **학번과 이름은 여기서 고친다** (2026-09-18, 사용자). 학생이 잘못 적어 내면
-            명렬이 그 값으로 서는데, 교사는 **정렬하기 전에** 고쳐야 한다.
-
-            **파일은 안 고친다.** 고친 값은 이 화면에만 살고 새로 고치면 사라진다 —
-            그 사실을 아래 도움말이 말한다.
-          -->
-          <div class="grid gap-3 sm:grid-cols-2 lg:max-w-xl">
-            <AppField :label="t('inspect.studentId')">
-              <template #default="field">
-                <input
-                  v-bind="field"
-                  type="text"
-                  :value="studentFields.studentId"
-                  class="w-full rounded-field border border-line-strong bg-surface px-3 py-2.5"
-                  @input="correctStudent('studentId', $event)"
-                />
-              </template>
-            </AppField>
-            <AppField :label="t('inspect.studentName')" :hint="t('inspect.editHint')">
-              <template #default="field">
-                <input
-                  v-bind="field"
-                  type="text"
-                  :value="studentFields.studentName"
-                  class="w-full rounded-field border border-line-strong bg-surface px-3 py-2.5"
-                  @input="correctStudent('studentName', $event)"
-                />
-              </template>
-            </AppField>
-          </div>
+          <StudentEditor
+            :student-id="studentFields.studentId"
+            :student-name="studentFields.studentName"
+            @correct="correctStudent"
+          />
         </header>
 
         <!--
@@ -433,20 +423,10 @@ function reasonOf(code: string): string {
               **무결성이 요약 바로 아래다.** 교사가 제출물에서 묻는 순서가 "무엇인가 →
               손댄 흔적이 있나 → 점수가 진짜인가"이고, 세 판이 그 순서로 선다.
             -->
-            <IntegrityPanel :integrity="viewing.integrity" />
-
             <!--
-              **대조는 단추로 돈다** (open-decisions.md "명렬은 메타만 읽는다"의 같은 문단).
-              열자마자 돌면 무결성만 훑는 한 바퀴가 불가능해지고, 서른 개 동선이 거기서
-              무너진다. 그리고 **실험 하나가 단위다** — 지금 보고 있는 그 실험이다.
+              **무결성은 파일 전체의 일이라 요약 옆이다.** 실험마다 다른 값이 아니다.
             -->
-            <ReproducePanel
-              v-if="viewing.current"
-              :experiment="viewing.current"
-              :data-type="viewing.file.document.manifest.dataType"
-              :dataset="viewing.dataset"
-              :test-dataset="viewing.testDataset"
-            />
+            <IntegrityPanel :integrity="viewing.integrity" />
 
             <section v-if="viewing.experiments.length > 0" class="flex flex-col gap-1.5">
               <h4 class="font-bold text-ink-soft">{{ t('results.experimentTitle') }}</h4>
@@ -458,7 +438,22 @@ function reasonOf(code: string): string {
             </section>
           </div>
 
-          <div class="min-w-0 lg:col-span-2">
+          <div class="flex min-w-0 flex-col gap-4 lg:col-span-2">
+            <!--
+              **대조는 그 실험의 일이라 상세 옆에 붙는다** (2026-09-18, 사용자). 실험 기록
+              위에 두면 "어느 실험의 대조인가"가 화면에서 사라진다 — 실험을 바꾸면 이 판도
+              함께 바뀌는 것이 그 자리로 보여야 한다.
+
+              **단추로 돈다.** 열자마자 돌면 무결성만 훑는 한 바퀴가 불가능해지고, 서른 개
+              동선이 거기서 무너진다 (open-decisions.md "명렬은 메타만 읽는다").
+            -->
+            <ReproducePanel
+              v-if="viewing.current"
+              :experiment="viewing.current"
+              :data-type="viewing.file.document.manifest.dataType"
+              :dataset="viewing.dataset"
+              :test-dataset="viewing.testDataset"
+            />
             <ExperimentDetail
               v-if="viewing.current"
               :experiment="viewing.current"
