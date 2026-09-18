@@ -135,66 +135,76 @@ function reasonOf(code: string): string {
       {{ t('inspect.empty') }}
     </p>
 
-    <div v-else class="grid gap-4 md:grid-cols-5">
-      <!-- 왼쪽: 명렬. 파일 하나가 한 줄이다. -->
-      <section class="min-w-0 md:col-span-2">
-        <h3 class="mb-2 font-bold text-ink-soft">
-          {{ t('inspect.roster', { read: progress.read, total: progress.total }) }}
-        </h3>
-        <ul class="flex flex-col overflow-hidden rounded-panel border border-line bg-surface">
-          <!--
+    <!--
+      **머리글은 두 판의 위에 있다.** 왼쪽 안에 두면 오른쪽 카드가 그 한 줄만큼 높이
+      시작해 두 판의 윗선이 어긋난다 (2026-09-18, 사용자). 세는 대상이 명렬이라 왼쪽에
+      두고 싶어지는 자리이지만, **줄을 맞추는 쪽이 읽기 쉽다** — 오른쪽 카드가 무엇의
+      상세인지는 고른 줄이 이미 말한다.
+    -->
+    <!-- 머리글은 판에 붙는다. 바깥 리듬(`gap-5`)이 아니라 제 짝과의 간격이다. -->
+    <div v-else class="flex flex-col gap-2">
+      <h3 class="font-bold text-ink-soft">
+        {{ t('inspect.roster', { read: progress.read, total: progress.total }) }}
+      </h3>
+
+      <div class="grid gap-4 md:grid-cols-5">
+        <!-- 왼쪽: 명렬. 파일 하나가 한 줄이다. -->
+        <section class="min-w-0 md:col-span-2">
+          <ul class="flex flex-col overflow-hidden rounded-panel border border-line bg-surface">
+            <!--
             **못 여는 파일도 줄을 갖는다.** 조용히 빠지면 교사는 그 제출물이 없는 것으로
             읽고, 그것이 이 화면이 가장 하면 안 되는 일이다.
           -->
-          <li
-            v-for="(row, index) in rows"
-            :key="row.item.label"
-            :class="index > 0 ? 'border-t border-line' : ''"
-          >
-            <button
-              type="button"
-              class="flex w-full flex-col gap-1 p-3 text-left hover:bg-surface-soft"
-              :class="opened?.label === row.item.label ? 'bg-surface-soft font-bold' : ''"
-              @click="select(row.item)"
+            <li
+              v-for="(row, index) in rows"
+              :key="row.item.label"
+              :class="index > 0 ? 'border-t border-line' : ''"
             >
-              <span class="truncate">{{ row.item.label }}</span>
-              <span :class="row.faint ? 'text-ink-faint' : 'text-ink-soft'">{{ row.note }}</span>
-            </button>
-          </li>
-        </ul>
-      </section>
+              <button
+                type="button"
+                class="flex w-full flex-col gap-1 p-3 text-left hover:bg-surface-soft"
+                :class="opened?.label === row.item.label ? 'bg-surface-soft font-bold' : ''"
+                @click="select(row.item)"
+              >
+                <span class="truncate">{{ row.item.label }}</span>
+                <span :class="row.faint ? 'text-ink-faint' : 'text-ink-soft'">{{ row.note }}</span>
+              </button>
+            </li>
+          </ul>
+        </section>
 
-      <!-- 오른쪽: 고른 하나. 열람과 대조가 이 자리에 붙는다. -->
-      <section class="min-w-0 rounded-panel border border-line bg-surface p-4 md:col-span-3">
-        <p v-if="!opened" class="text-ink-soft">{{ t('inspect.pickOne') }}</p>
-        <template v-else-if="summaryOfOpened?.state === 'read'">
-          <h3 class="truncate text-xl font-black">{{ summaryOfOpened.name }}</h3>
-          <dl class="mt-3 flex flex-col gap-1.5">
-            <div class="flex justify-between gap-4">
-              <dt class="font-bold text-ink-soft">{{ t('inspect.student') }}</dt>
-              <dd>{{ summaryOfOpened.student ?? t('inspect.noStudent') }}</dd>
-            </div>
-            <div class="flex justify-between gap-4">
-              <dt class="font-bold text-ink-soft">{{ t('meta.dataType') }}</dt>
-              <dd>{{ t(`dataTypes.${summaryOfOpened.dataType}`) }}</dd>
-            </div>
-            <div class="flex justify-between gap-4">
-              <dt class="font-bold text-ink-soft">{{ t('inspect.experiments') }}</dt>
-              <dd class="tabular-nums">
-                {{ t('meta.countUnit', summaryOfOpened.experiments) }}
-              </dd>
-            </div>
-            <div class="flex justify-between gap-4">
-              <dt class="font-bold text-ink-soft">{{ t('inspect.runs') }}</dt>
-              <dd class="tabular-nums">{{ t('meta.countUnit', summaryOfOpened.runs) }}</dd>
-            </div>
-          </dl>
-        </template>
-        <p v-else-if="summaryOfOpened?.state === 'unreadable'" class="leading-relaxed">
-          {{ reasonOf(summaryOfOpened.code) }}
-        </p>
-        <p v-else class="text-ink-soft">{{ t('inspect.reading') }}</p>
-      </section>
+        <!-- 오른쪽: 고른 하나. 열람과 대조가 이 자리에 붙는다. -->
+        <section class="min-w-0 rounded-panel border border-line bg-surface p-4 md:col-span-3">
+          <p v-if="!opened" class="text-ink-soft">{{ t('inspect.pickOne') }}</p>
+          <template v-else-if="summaryOfOpened?.state === 'read'">
+            <h3 class="truncate text-xl font-black">{{ summaryOfOpened.name }}</h3>
+            <dl class="mt-3 flex flex-col gap-1.5">
+              <div class="flex justify-between gap-4">
+                <dt class="font-bold text-ink-soft">{{ t('inspect.student') }}</dt>
+                <dd>{{ summaryOfOpened.student ?? t('inspect.noStudent') }}</dd>
+              </div>
+              <div class="flex justify-between gap-4">
+                <dt class="font-bold text-ink-soft">{{ t('meta.dataType') }}</dt>
+                <dd>{{ t(`dataTypes.${summaryOfOpened.dataType}`) }}</dd>
+              </div>
+              <div class="flex justify-between gap-4">
+                <dt class="font-bold text-ink-soft">{{ t('inspect.experiments') }}</dt>
+                <dd class="tabular-nums">
+                  {{ t('meta.countUnit', summaryOfOpened.experiments) }}
+                </dd>
+              </div>
+              <div class="flex justify-between gap-4">
+                <dt class="font-bold text-ink-soft">{{ t('inspect.runs') }}</dt>
+                <dd class="tabular-nums">{{ t('meta.countUnit', summaryOfOpened.runs) }}</dd>
+              </div>
+            </dl>
+          </template>
+          <p v-else-if="summaryOfOpened?.state === 'unreadable'" class="leading-relaxed">
+            {{ reasonOf(summaryOfOpened.code) }}
+          </p>
+          <p v-else class="text-ink-soft">{{ t('inspect.reading') }}</p>
+        </section>
+      </div>
     </div>
   </div>
 </template>
