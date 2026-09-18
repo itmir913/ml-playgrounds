@@ -12,7 +12,14 @@ import { describe, expect, it } from 'vitest'
 
 import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/ml/experiment'
 import { dataSnapshot } from '../src/project/schema'
-import { reproduceExperiment } from '../src/ml/reproduce'
+import { isClientError } from '../src/errors'
+import {
+  flippedRows,
+  reproduceBlockers,
+  reproduceExperiment,
+  storedMetricsMatchMatrix,
+  type Reproduction,
+} from '../src/ml/reproduce'
 import type { Dataset } from '../src/ml/preprocess'
 import type { Experiment, Run, Settings } from '../src/project/schema'
 import {
@@ -390,16 +397,33 @@ describe('테스트 파일이 따로 온 실험', () => {
     expect(found.some((one) => one.status !== 'REPRODUCED')).toBe(true)
   })
 
-  /** 테스트 정본이 없으면 대조 자체가 불가능하다 - 없는 것을 있는 척하지 않는다. */
-  it('테스트 정본이 없으면 대조할 수 없다고 말한다', async () => {
+  /**
+   * **테스트 정본이 없으면 시끄럽게 선다.**
+   *
+   * 옛 판은 여기서 run마다 `ENGINE_UNAVAILABLE`을 돌려줬는데, 기록된 분할이 `splitRows`의
+   * 방어를 건너뛰게 되면서 **조용히 틀릴 자리**가 생겼다 — 시험 표의 행 번호로 훈련 표를
+   * 자르면 범위 안에서는 아무 예외도 없이 엉뚱한 행으로 채점한다 (R4 B-3).
+   * 그래서 던지고, **교사가 보는 말은 gate가 한다**(`reproduceBlockers`).
+   */
+  it('테스트 정본이 없으면 던진다 - 조용히 딴 행으로 채점하지 않는다', async () => {
     const { experiment } = await providedExperiment()
-    const found = await reproduceExperiment({ experiment, dataset, testDataset: null })
 
-    // **바닥이다.** 없으면 이 순회가 0회 돌고 초록이라, 지키는 것이 "말한다"가 아니라
-    // "적어도 거짓말은 안 한다"까지로 줄어든다. 실제로 앞에 `return []` 한 줄을 끼워도
-    // 저장소 전체가 초록이었다 (R13-2 감사 A-5). 그때 교사는 아무 줄도 못 본다.
-    expect(found).toHaveLength(2)
-    for (const one of found) expect(one.status, one.algorithm).not.toBe('REPRODUCED')
+    await expect(reproduceExperiment({ experiment, dataset, testDataset: null })).rejects.toSatisfy(
+      (error: unknown) => isClientError(error) && error.code === 'TEST_DATASET_NO_USABLE_ROWS',
+    )
+  })
+
+  it('gate가 그 사실을 먼저 말한다 - 단추가 잠기는 이유다', async () => {
+    const { experiment } = await providedExperiment()
+
+    expect(
+      reproduceBlockers({
+        experiment,
+        dataType: 'tabular',
+        hasDataset: true,
+        hasTestDataset: false,
+      }),
+    ).toEqual(['NO_TEST_DATASET'])
   })
 })
 
@@ -407,7 +431,9 @@ describe('테스트 파일이 따로 온 실험', () => {
  * **씨앗이 대조의 `fit`까지 닿는가** (R7 감사 A-2).
  *
  * 학습 경로(`ml/experiment.ts`)는 2026-08-18에 검사가 붙었는데 **대조 경로는 무방비였다** —
- * `reproduce.ts`의 `randomState`를 `0`으로 못 박아도 저장소 전체가 초록이었다.
+ * 그때 대조는 씨앗을 손으로 넘겼고, 그 자리를 `0`으로 못 박아도 저장소 전체가 초록이었다.
+ * **지금은 조립이 실험 스냅샷을 그대로 넘기므로 씨앗도 그 길로 간다** — 그래도 이 검사는
+ * 남는다: 조립이 `split`을 안 옮기면 여기서 운다.
  *
  * **씨앗에 민감한 모델이라야 잡힌다.** 랜덤포레스트는 배깅이 씨앗을 먹으므로 다른 씨앗이면
  * 다른 나무가 서고 지표가 갈린다 — 결정트리로는 이 축을 못 가른다.
@@ -486,5 +512,295 @@ describe('대조도 파일에 적힌 씨앗으로 돌린다', () => {
     const experiment = await forestWith(7)
     const [found] = await reproduceExperiment({ experiment, dataset: noisy, testDataset: null })
     expect(found?.status).toBe('REPRODUCED')
+  })
+})
+
+/**
+ * **조립 — 파일의 어느 값을 어느 자리에 넣는가** (`reproduceInputOf`).
+ *
+ * 계획 감사의 A급 둘이 여기 있었다. 둘 다 *"스냅샷을 그대로 쓰면 된다"*에서 나왔고,
+ * 둘 다 **정직한 학생이 붉은 말을 듣는** 모양이었다 (open-decisions.md "재실행은 학습
+ * 경로를 그대로 탄다"의 "조립은 문서 설정을 한 글자도 안 읽는다").
+ */
+describe('조립은 run에서 읽는다', () => {
+  it('손잡이를 바꿔 가며 남긴 실험도 각자의 값으로 다시 돈다', async () => {
+    // **실험 스냅샷에는 `hyperparameters`가 없다.** 문서 설정을 쓰면 마지막 화면 상태로
+    // 돌고, 스냅샷만 쓰면 전부 기본값으로 돈다 - 어느 쪽이든 첫 실험이 어긋난다.
+    const shallow = await runExperiment({
+      dataset,
+      testDataset: null,
+      taskType: 'classification',
+      dataType: 'tabular',
+      settings: {
+        ...settingsFor(['decision_tree']),
+        hyperparameters: { decision_tree: { mljs: { maxDepth: 2 } } },
+      },
+      context: { limitsOff: false, serverStatus: 'unavailable', rowCount: 30, dataType: 'tabular' },
+    })
+    const deep = await runExperiment({
+      dataset,
+      testDataset: null,
+      taskType: 'classification',
+      dataType: 'tabular',
+      settings: {
+        ...settingsFor(['decision_tree']),
+        hyperparameters: { decision_tree: { mljs: { maxDepth: 10 } } },
+      },
+      context: { limitsOff: false, serverStatus: 'unavailable', rowCount: 30, dataType: 'tabular' },
+    })
+
+    // 두 실험의 손잡이가 실제로 갈렸는지부터 본다. 같으면 아래가 아무것도 안 가른다.
+    expect(shallow.experiment.runs[0]?.hyperparameters['maxDepth']).toBe(2)
+    expect(deep.experiment.runs[0]?.hyperparameters['maxDepth']).toBe(10)
+
+    for (const experiment of [shallow.experiment, deep.experiment]) {
+      const [found] = await reproduceExperiment({ experiment, dataset, testDataset: null })
+      expect(found?.status, String(experiment.runs[0]?.hyperparameters['maxDepth'])).toBe(
+        'REPRODUCED',
+      )
+    }
+  })
+
+  it('실행 방법은 run의 엔진에서 되짚는다 - 스냅샷의 요청이 아니라', async () => {
+    // **스냅샷은 요청한 방법이고 run의 엔진이 실제로 돈 것이다.** 학습 때 자동으로
+    // 넘어간 run(요청은 pyodide, 실제로는 mljs)을 스냅샷대로 다시 돌리면 그 방법이
+    // 준비되지 않았다며 **실패 run**이 된다 - 엔진은 바로 거기 있는데도.
+    const experiment = await trained(['decision_tree'])
+    const asked: Experiment = {
+      ...experiment,
+      settings: {
+        ...experiment.settings,
+        runtime: 'pyodide-sklearn',
+        selectedAlgorithms: [{ algorithm: 'decision_tree', runtime: 'pyodide-sklearn' }],
+      },
+    }
+
+    const [found] = await reproduceExperiment({ experiment: asked, dataset, testDataset: null })
+    expect(found?.status).toBe('REPRODUCED')
+  })
+
+  it('중단된 실험은 앞부분만 견준다', async () => {
+    // 취소는 도착한 run만으로 실험을 조립한다 (`ml/worker/client.ts`). 그때 자리가 맞는
+    // 것은 앞부분뿐이라, 뒤엣것까지 견주면 엉뚱한 run과 짝지어진다.
+    const experiment = await trained(['decision_tree', 'knn'])
+    const stopped: Experiment = { ...experiment, runs: [experiment.runs[0]!] }
+
+    const found = await reproduceExperiment({ experiment: stopped, dataset, testDataset: null })
+    expect(found).toHaveLength(1)
+    expect(found[0]?.algorithm).toBe('decision_tree')
+    expect(found[0]?.status).toBe('REPRODUCED')
+  })
+})
+
+/**
+ * **못 가르는 자리는 교사에게 넘긴다** (`NOT_JUDGED`).
+ *
+ * `Math.exp`/`log`/`pow`를 누적하는 알고리즘은 JS 엔진마다 마지막 자리가 갈릴 수 있어
+ * (미결정 12), 그 칸에서 붉은 말을 하면 **정직한 학생을 지목한다.** 판정이 갈리는
+ * 축은 알고리즘이 아니라 (알고리즘 × 엔진)이고, 등록부가 그것을 갖는다.
+ */
+describe('판정은 등록부가 정한다', () => {
+  async function tamper(algorithm: string): Promise<Reproduction | undefined> {
+    const experiment = await trained([algorithm])
+    const tampered = await withRun(experiment, 0, {
+      metrics: { ...experiment.runs[0]?.metrics, accuracy: 1 },
+    })
+    const [found] = await reproduceExperiment({ experiment: tampered, dataset, testDataset: null })
+    return found
+  }
+
+  it('exact인 칸에서는 어긋났다고 말한다', async () => {
+    expect((await tamper('decision_tree'))?.status).toBe('NOT_REPRODUCED')
+  })
+
+  it('advisory인 칸에서는 판정하지 않고 차이를 보인다', async () => {
+    const found = await tamper('logistic_regression')
+    expect(found?.status).toBe('NOT_JUDGED')
+    // **차이는 그대로 준다.** 판정을 접는 것이지 사실을 감추는 것이 아니다.
+    expect(found?.deltas?.['accuracy']).toBeDefined()
+  })
+
+  it('advisory라도 차이가 0이면 재현된 것이다', async () => {
+    const experiment = await trained(['logistic_regression'])
+    const [found] = await reproduceExperiment({ experiment, dataset, testDataset: null })
+    expect(found?.status).toBe('REPRODUCED')
+  })
+
+  it('등록부에 없는 알고리즘은 학습 경로가 사유와 함께 세운다', async () => {
+    // 남의 파일에서 온 모르는 모델이다. **실패 사유가 코드로 온다** - 옛 판은 무엇이든
+    // `ENGINE_UNAVAILABLE`로 뭉갰고, 그러면 교사가 손쓸 것이 없다.
+    const experiment = await trained(['decision_tree'])
+    const unknown: Experiment = {
+      ...(await withRun(experiment, 0, {
+        algorithm: 'gradient_boosting',
+        metrics: { ...experiment.runs[0]?.metrics, accuracy: 1 },
+      })),
+      settings: {
+        ...experiment.settings,
+        selectedAlgorithms: [{ algorithm: 'gradient_boosting', runtime: 'mljs' }],
+      },
+    }
+    const [found] = await reproduceExperiment({ experiment: unknown, dataset, testDataset: null })
+    expect(found?.status).toBe('ENGINE_UNAVAILABLE')
+    expect(found?.failure?.code).toBe('ALGORITHM_UNSUPPORTED')
+  })
+})
+
+/**
+ * **혼동 행렬은 지표가 못 가르는 것을 가른다** (R4 B-5).
+ *
+ * 분류 지표의 눈금은 `1/시험 행 수`라 한 칸 올린 변조와 한 행 뒤집힌 엔진 차이의 크기가
+ * 같다. 행렬은 **어느 줄이 어디로 갔는지**를 들고 있어 그 둘을 가른다.
+ */
+describe('혼동 행렬', () => {
+  const labels = ['a', 'b']
+
+  it('다른 칸 질량의 절반이 뒤집힌 줄 수다', () => {
+    const before = {
+      labels,
+      matrix: [
+        [5, 0],
+        [1, 4],
+      ],
+    }
+    const after = {
+      labels,
+      matrix: [
+        [4, 1],
+        [1, 4],
+      ],
+    }
+    expect(flippedRows(before, after)).toBe(1)
+  })
+
+  it('같은 행렬이면 0이다', () => {
+    const matrix = {
+      labels,
+      matrix: [
+        [5, 0],
+        [1, 4],
+      ],
+    }
+    expect(flippedRows(matrix, matrix)).toBe(0)
+  })
+
+  it('라벨이 다르면 셀 수 없다 - 지어내지 않는다', () => {
+    expect(
+      flippedRows(
+        {
+          labels,
+          matrix: [
+            [1, 0],
+            [0, 1],
+          ],
+        },
+        {
+          labels: ['b', 'a'],
+          matrix: [
+            [1, 0],
+            [0, 1],
+          ],
+        },
+      ),
+    ).toBeUndefined()
+    expect(
+      flippedRows(undefined, {
+        labels,
+        matrix: [
+          [1, 0],
+          [0, 1],
+        ],
+      }),
+    ).toBeUndefined()
+  })
+
+  it('대조 결과에 실려 온다', async () => {
+    const experiment = await trained(['decision_tree'])
+    const [found] = await reproduceExperiment({ experiment, dataset, testDataset: null })
+    expect(found?.flipped).toBe(0)
+  })
+
+  it('파일 안에서 스스로 어긋나는 것은 재실행 없이 잡힌다', () => {
+    const run = {
+      id: 'run-1',
+      algorithm: 'decision_tree',
+      hyperparameters: {},
+      computedBy: 'browser',
+      trainedAt: '2026-09-18T00:00:00.000Z',
+      status: 'done',
+      metrics: { accuracy: 0.9 },
+      confusionMatrix: {
+        labels,
+        matrix: [
+          [5, 0],
+          [1, 4],
+        ],
+      },
+    } as unknown as Run
+
+    expect(storedMetricsMatchMatrix(run)).toBe(true)
+    expect(storedMetricsMatchMatrix({ ...run, metrics: { accuracy: 1 } } as unknown as Run)).toBe(
+      false,
+    )
+    // 재료가 없으면 말하지 않는다 - 회귀와 군집에는 행렬이 없다.
+    expect(storedMetricsMatchMatrix({ ...run, confusionMatrix: undefined } as unknown as Run)).toBe(
+      undefined,
+    )
+  })
+})
+
+/**
+ * **잠그는 이유는 목록이다** (`reproduceBlockers`, CLAUDE.md §2).
+ *
+ * 화면이 "잠겼다"만 알면 교사에게 할 말이 하나뿐이고, 그 하나가 틀릴 수 있다.
+ */
+describe('대조를 막는 이유', () => {
+  async function subject(overrides: Partial<Parameters<typeof reproduceBlockers>[0]> = {}) {
+    return {
+      experiment: await trained(['decision_tree']),
+      dataType: 'tabular' as const,
+      hasDataset: true,
+      hasTestDataset: false,
+      ...overrides,
+    }
+  }
+
+  it('다 갖춰져 있으면 비어 있다', async () => {
+    expect(reproduceBlockers(await subject())).toEqual([])
+  })
+
+  it('정본 표가 없으면 막는다', async () => {
+    expect(reproduceBlockers(await subject({ hasDataset: false }))).toContain('NO_DATASET')
+  })
+
+  it('사진은 첫 판에서 안 연다', async () => {
+    expect(reproduceBlockers(await subject({ dataType: 'image' }))).toContain('IMAGE_NOT_OPEN')
+  })
+
+  it('성공한 run이 없으면 거기서 멈춘다 - 근본적인 것이 먼저다', async () => {
+    const experiment = await trained(['decision_tree'])
+    const failed: Experiment = {
+      ...experiment,
+      runs: experiment.runs.map((run) => ({ ...run, status: 'failed' as const })),
+    }
+    // 엔진 이야기는 공집합에 대한 말이라 뜻이 없다. 그래서 그 뒤가 안 붙는다.
+    expect(reproduceBlockers(await subject({ experiment: failed }))).toEqual(['NO_CLAIM'])
+  })
+
+  it('만든 엔진이 여기 없으면 막는다 - 버전만 달라도 그렇다', async () => {
+    // **이번 학기까지의 파일이 전부 여기 걸린다** — `mljs@2`로 만들었고 지금은 3이다.
+    // 버전이 다르면 같은 이름의 다른 계산기라, 돌려 봐야 숫자를 버리게 된다.
+    const experiment = await trained(['decision_tree'])
+    const older: Experiment = {
+      ...experiment,
+      runs: experiment.runs.map((run) => ({ ...run, engine: { kind: 'mljs', version: '2' } })),
+    }
+    expect(reproduceBlockers(await subject({ experiment: older }))).toContain('ENGINE_MISSING')
+
+    const server: Experiment = {
+      ...experiment,
+      runs: experiment.runs.map((run) => ({ ...run, engine: { kind: 'sklearn', version: '1' } })),
+    }
+    expect(reproduceBlockers(await subject({ experiment: server }))).toContain('ENGINE_MISSING')
   })
 })
