@@ -111,11 +111,22 @@ const rows = computed(() =>
 )
 
 /** 열 머리. **여기 한 줄을 더하면 표가 따라온다** — 머리와 칸이 같은 목록에서 나온다. */
-const COLUMNS: readonly { key: RosterSort; label: string; numeric: boolean; wide: boolean }[] = [
-  { key: 'label', label: 'inspect.file', numeric: false, wide: false },
-  { key: 'student', label: 'inspect.student', numeric: false, wide: true },
-  { key: 'experiments', label: 'inspect.experiments', numeric: true, wide: true },
-  { key: 'runs', label: 'inspect.runs', numeric: true, wide: true },
+const COLUMNS: readonly {
+  key: RosterSort
+  label: string
+  numeric: boolean
+  /** 좁은 화면에서 접는 열. 제출물 이름과 상태만 남는다. */
+  wide: boolean
+  /**
+   * 그 열의 너비. **머리 글자가 접히지 않을 만큼 준다** — 접히면 머리 줄의 높이가
+   * 열마다 달라지고, 정렬로 화살표가 붙고 떨어질 때 그 높이가 흔들린다.
+   */
+  width: string
+}[] = [
+  { key: 'label', label: 'inspect.file', numeric: false, wide: false, width: '' },
+  { key: 'student', label: 'inspect.student', numeric: false, wide: true, width: 'w-32' },
+  { key: 'experiments', label: 'inspect.experiments', numeric: true, wide: true, width: 'w-44' },
+  { key: 'runs', label: 'inspect.runs', numeric: true, wide: true, width: 'w-36' },
 ]
 
 /** 못 읽은 줄의 사유 문장. **코드를 화면이 문장으로 바꾼다** (CLAUDE.md §1.4). */
@@ -173,7 +184,11 @@ function reasonOf(code: string): string {
 
         <div class="overflow-hidden rounded-panel border border-line bg-surface">
           <table class="w-full table-fixed">
-            <thead>
+            <!--
+              **머리 줄에 색을 준다** (2026-09-18, 사용자). 선 하나로는 머리와 첫 줄이
+              같은 무게로 보여서, 훑는 눈이 어디가 이름표인지 매번 다시 찾는다.
+            -->
+            <thead class="bg-surface-soft">
               <tr class="border-b border-line">
                 <!--
                   **열 머리가 곧 정렬 기준이다.** 누르면 그 열로 서고 다시 누르면 뒤집힌다 —
@@ -187,24 +202,31 @@ function reasonOf(code: string): string {
                   :key="column.key"
                   scope="col"
                   class="p-0"
-                  :class="column.wide ? 'hidden w-32 sm:table-cell' : ''"
+                  :class="[column.width, column.wide ? 'hidden md:table-cell' : '']"
                 >
                   <button
                     type="button"
-                    class="flex w-full items-center gap-1 p-3 font-bold text-ink-soft hover:bg-surface-soft"
+                    class="flex w-full items-center gap-1 p-3 font-bold whitespace-nowrap text-ink-soft hover:bg-surface"
                     :class="column.numeric ? 'justify-end' : ''"
                     @click="sortBy(column.key)"
                   >
                     {{ t(column.label) }}
+                    <!--
+                      **화살표 자리는 늘 있다.** 누를 때마다 생겼다 사라지면 그 열의
+                      글자가 좌우로 밀리고, 정렬을 바꿀 때마다 머리 줄이 출렁인다.
+                    -->
                     <component
                       :is="descending ? ACTION_ICONS.moveDown : ACTION_ICONS.moveUp"
-                      v-if="sort === column.key"
                       :size="16"
+                      :class="sort === column.key ? '' : 'invisible'"
                       aria-hidden="true"
                     />
                   </button>
                 </th>
-                <th scope="col" class="w-32 p-3 text-right font-bold text-ink-soft">
+                <th
+                  scope="col"
+                  class="w-32 p-3 text-right font-bold whitespace-nowrap text-ink-soft"
+                >
                   {{ t('inspect.state') }}
                 </th>
               </tr>
@@ -222,11 +244,11 @@ function reasonOf(code: string): string {
                 @click="select(row.item)"
               >
                 <td class="truncate p-3">{{ row.item.label }}</td>
-                <td class="hidden truncate p-3 sm:table-cell">{{ row.student }}</td>
-                <td class="hidden p-3 text-right tabular-nums sm:table-cell">
+                <td class="hidden truncate p-3 md:table-cell">{{ row.student }}</td>
+                <td class="hidden p-3 text-right tabular-nums md:table-cell">
                   {{ row.experiments }}
                 </td>
-                <td class="hidden p-3 text-right tabular-nums sm:table-cell">{{ row.runs }}</td>
+                <td class="hidden p-3 text-right tabular-nums md:table-cell">{{ row.runs }}</td>
                 <td
                   class="truncate p-3 text-right"
                   :class="row.faint ? 'text-ink-faint' : 'text-ink-soft'"
