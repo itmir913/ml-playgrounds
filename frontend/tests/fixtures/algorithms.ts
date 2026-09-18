@@ -26,6 +26,16 @@ const UNMEASURED_ROWS = {
  */
 const NO_BASELINE = { tabular: UNMEASURED_BASELINE, image: UNMEASURED_BASELINE } as const
 
+/**
+ * **재현 판정도 안 쟀다.** 표본이 확인하는 것은 판정 규칙이고, 어느 칸이 `exact`인지는
+ * 등록부의 사실이라 바뀐다 (`ml/backend.ts`의 `ReproductionFidelity`).
+ */
+const NO_REPRODUCTION = {
+  mljs: 'unmeasured',
+  'pyodide-sklearn': 'unmeasured',
+  sklearn: 'unmeasured',
+} as const
+
 export const SKLEARN_ONLY_ALGORITHM: Algorithm = {
   id: 'sklearn_only',
   dataTypes: { tabular: true, image: false },
@@ -33,6 +43,7 @@ export const SKLEARN_ONLY_ALGORITHM: Algorithm = {
   runtimes: { mljs: false, 'pyodide-sklearn': true, 'server-sklearn': true },
   maxRows: UNMEASURED_ROWS,
   baseline: NO_BASELINE,
+  reproduction: NO_REPRODUCTION,
 }
 
 /**
@@ -52,6 +63,7 @@ export const NOT_FOR_TABULAR_ALGORITHM: Algorithm = {
   runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
   maxRows: UNMEASURED_ROWS,
   baseline: NO_BASELINE,
+  reproduction: NO_REPRODUCTION,
 }
 
 /** 등록부에 그 알고리즘 하나가 더 있는 세상. */

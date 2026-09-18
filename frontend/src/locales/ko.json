@@ -513,6 +513,7 @@
     "NOT_CHECKED": "아직 확인하지 않음",
     "REPRODUCED": "결과가 재현됨",
     "NOT_REPRODUCED": "결과가 재현되지 않음",
+    "NOT_JUDGED": "차이가 있으나 판정하지 않음",
     "ENGINE_UNAVAILABLE": "여기서는 확인할 수 없음"
   },
   "engineState": {

@@ -124,6 +124,34 @@ export const BROWSER_RUNTIME_IDS = ['mljs', 'pyodide-sklearn'] as const
 
 export type BrowserRuntimeId = (typeof BROWSER_RUNTIME_IDS)[number]
 
+/**
+ * **무엇이 계산했는가.** `run.engine.kind`에 그대로 적히고, 재실행 대조가 이 값으로 엔진을
+ * 가린다 (`ml/reproduce.ts`).
+ *
+ * **실행 방법 id와 다른 축이다.** id는 "어디서 어떻게 고르는가"이고 이것은 "어느 계산기로
+ * 돌았는가"다 — 같은 엔진이 두 실행 방법에 붙을 수 있어서(sklearn이 브라우저와 서버에
+ * 하나씩) 둘을 하나로 못 접는다.
+ *
+ * **파일에서 읽은 값은 이 타입이 아니다.** 남의 `.mlpx`에는 무엇이든 적혀 있을 수 있어
+ * `engineSchema`는 문자열을 받고, 등록부와 맞춰 보는 조회가 그 경계다.
+ */
+export const ENGINE_KINDS = ['mljs', 'pyodide-sklearn', 'sklearn'] as const
+
+export type EngineKind = (typeof ENGINE_KINDS)[number]
+
+/**
+ * **이 (알고리즘 × 엔진)에서 재실행 대조의 판정을 믿을 수 있는가**
+ * (`open-decisions.md` "재현 판정은 (알고리즘 × 엔진)이 정하고, 못 가르는 자리는 교사에게
+ * 넘긴다").
+ *
+ * - `exact` — 같은 입력이면 마지막 자리까지 같다. 다르면 다른 것이다.
+ * - `advisory` — `Math.exp`·`log`·`pow`를 **누적하는** 알고리즘이라 JS 엔진마다 마지막
+ *   자리가 갈릴 수 있다 (미결정 12). 차이가 0이 아니어도 **지목하지 않고** 차이를 보인다.
+ * - `unmeasured` — 재어 본 적이 없다. **모르는 것을 아는 척 적지 않는다**(`UNMEASURED`와
+ *   같은 자리). 판정에서는 `advisory`와 같게 다룬다 — 모르면 판정하지 않는다.
+ */
+export type ReproductionFidelity = 'exact' | 'advisory' | 'unmeasured'
+
 export function isBrowserRuntimeId(id: RuntimeId): id is BrowserRuntimeId {
   return (BROWSER_RUNTIME_IDS as readonly RuntimeId[]).includes(id)
 }
@@ -149,7 +177,7 @@ export interface RuntimeSpec {
   readonly id: RuntimeId
   readonly location: TrainingLocation
   /** run.engine.kind에 그대로 들어간다. 재실행 대조가 이 값으로 엔진을 가린다. */
-  readonly engineKind: string
+  readonly engineKind: EngineKind
   /** 쓰기 전에 내려받고 시동해야 하는가. 순수 JS는 번들에 이미 있다. */
   readonly needsPreparation: boolean
   /**
@@ -255,6 +283,19 @@ export interface AlgorithmSpec {
    * 들어간다. **화면이 종류를 비교해서 끄지 않는다** (architecture.md §9.1).
    */
   readonly baseline: Readonly<Record<DataType, Baseline>>
+  /**
+   * **이 알고리즘의 재실행 대조를 엔진마다 얼마나 믿을 수 있는가** (`ReproductionFidelity`).
+   *
+   * **축이 실행 방법이 아니라 엔진이다.** 마지막 자리를 흔드는 것은 JS 엔진의 초월함수라
+   * `mljs` 구현의 성질이고, 재실행이 run을 맞추는 열쇠도 `run.engine.kind`다
+   * (`ml/reproduce.ts`). `maxRows`·`baseline`이 브라우저 실행 방법 축인 것은 그쪽이
+   * "어디서 도는가"의 성질이기 때문이고, 여기는 "무엇이 계산했는가"다.
+   *
+   * **칸을 다 채운다** — `maxRows`와 같은 이유로 `Partial`이 아니다. 새 엔진이 붙는 날
+   * 알고리즘 줄마다 "이건 어느 쪽인가"를 묻게 하려는 것이고, **`Record<string, …>`으로
+   * 두면 빈 객체가 통과해 그 강제가 조용히 죽는다.**
+   */
+  readonly reproduction: Readonly<Record<EngineKind, ReproductionFidelity>>
 }
 
 /**

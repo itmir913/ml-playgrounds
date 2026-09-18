@@ -513,6 +513,7 @@
     "NOT_CHECKED": "Not checked yet",
     "REPRODUCED": "Results reproduced",
     "NOT_REPRODUCED": "Results did not reproduce",
+    "NOT_JUDGED": "Differs, not judged",
     "ENGINE_UNAVAILABLE": "Cannot check here"
   },
   "engineState": {

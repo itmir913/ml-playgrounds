@@ -139,7 +139,8 @@ describe('버전은 지시 없이 움직이지 않는다', () => {
   })
 
   it('잠근 엔진이 사라지거나 이름이 바뀌지 않았다', () => {
-    const kinds = ENGINES.map((entry) => entry.engine.kind)
+    // 잠근 목록은 파일에 적히는 문자열이라 등록부의 좁은 타입보다 넓다.
+    const kinds: readonly string[] = ENGINES.map((entry) => entry.engine.kind)
     expect(Object.keys(PINNED_ENGINES).filter((kind) => !kinds.includes(kind))).toEqual([])
   })
 

@@ -117,6 +117,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
       // **차원이 표에 들어 있다** — `flat`인 이유는 사진 신경망 칸과 같다.
       image: { ms: MLJS_IMAGE_DECISION_TREE_BASELINE_MS, columns: 'flat' },
     },
+    reproduction: { mljs: 'exact', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
   },
   {
     id: 'knn',
@@ -132,6 +133,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { ms: MLJS_KNN_BASELINE_MS, columns: 'flat' },
       image: UNMEASURED_BASELINE,
     },
+    reproduction: { mljs: 'exact', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
   },
   {
     id: 'logistic_regression',
@@ -147,6 +149,8 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { ms: MLJS_LOGISTIC_REGRESSION_BASELINE_MS, columns: 'flat' },
       image: UNMEASURED_BASELINE,
     },
+    // **advisory** — 손실과 기울기가 `exp`·`log1p`를 반복마다 누적한다 (미결정 12).
+    reproduction: { mljs: 'advisory', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
   },
   {
     id: 'random_forest',
@@ -163,6 +167,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { ms: MLJS_RANDOM_FOREST_BASELINE_MS, columns: 'linear' },
       image: { ms: MLJS_IMAGE_RANDOM_FOREST_BASELINE_MS, columns: 'flat' },
     },
+    reproduction: { mljs: 'exact', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
   },
   {
     id: 'naive_bayes',
@@ -178,6 +183,8 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { ms: MLJS_NAIVE_BAYES_BASELINE_MS, columns: 'linear' },
       image: UNMEASURED_BASELINE,
     },
+    // **advisory** — 가우시안 pdf의 `log`가 표본마다 누적된다 (미결정 12).
+    reproduction: { mljs: 'advisory', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
   },
   {
     id: 'svm',
@@ -195,6 +202,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { ms: MLJS_SVM_BASELINE_MS, columns: 'linear' },
       image: { ms: MLJS_IMAGE_SVM_BASELINE_MS, columns: 'flat' },
     },
+    reproduction: { mljs: 'exact', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
   },
   {
     /**
@@ -229,6 +237,9 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { ms: MLJS_NEURAL_NETWORK_BASELINE_MS, columns: 'flat' },
       image: { ms: MLJS_IMAGE_NEURAL_NETWORK_BASELINE_MS, columns: 'flat' },
     },
+    // **advisory** — 활성·손실의 `exp`·`log`·`pow`를 표본마다·스텝마다 누적한다.
+    // 셋 중 가장 많이 누적하는 쪽이다 (미결정 12).
+    reproduction: { mljs: 'advisory', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
   },
   {
     id: 'linear_regression',
@@ -246,6 +257,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { ms: MLJS_LINEAR_REGRESSION_BASELINE_MS, columns: 'linear' },
       image: UNMEASURED_BASELINE,
     },
+    reproduction: { mljs: 'exact', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
   },
   {
     id: 'k_means',
@@ -282,6 +294,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
       tabular: { ms: MLJS_KMEANS_BASELINE_MS, columns: 'linear' },
       image: UNMEASURED_BASELINE,
     },
+    reproduction: { mljs: 'exact', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
   },
 ]
 

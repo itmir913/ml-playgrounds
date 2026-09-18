@@ -26,6 +26,7 @@ import {
 } from '../src/ml/algorithms'
 import {
   BROWSER_RUNTIME_IDS,
+  ENGINE_KINDS,
   RUNTIME_IDS,
   UNMEASURED,
   UNMEASURED_BASELINE,
@@ -112,6 +113,46 @@ describe('등록부', () => {
           )
         }
       }
+    }
+  })
+
+  it('재현 판정은 엔진 칸을 다 채운다', () => {
+    // **`Record<EngineKind, …>`이 타입에서 강제하지만, 그 강제는 조용히 죽을 수 있다** -
+    // `Record<string, …>`으로 넓히면 빈 객체가 통과한다 (계획 R4의 지적). 그래서 칸을
+    // 런타임으로도 센다: 키가 ENGINE_KINDS와 정확히 같아야 한다.
+    for (const algorithm of ALGORITHMS) {
+      expect(Object.keys(algorithm.reproduction).sort(), algorithm.id).toEqual(
+        [...ENGINE_KINDS].sort(),
+      )
+      for (const kind of ENGINE_KINDS) {
+        expect(['exact', 'advisory', 'unmeasured'], `${algorithm.id}/${kind}`).toContain(
+          algorithm.reproduction[kind],
+        )
+      }
+    }
+  })
+
+  it('누적하는 셋만 순수 JS에서 advisory다', () => {
+    // 결정문이 이름으로 셋을 든다 (open-decisions.md "재현 판정은 (알고리즘 × 엔진)이
+    // 정하고, 못 가르는 자리는 교사에게 넘긴다"). **셋 다 `Math.exp`/`log`/`pow`를
+    // 학습 루프에서 누적한다** - 미결정 12가 원인으로 짚은 것이고, 신경망은 그 목록이
+    // 쓰인 뒤에 들어와 한동안 빠져 있었다.
+    //
+    // **이 검사가 우는 방향이 둘이다**: 새 알고리즘이 누적하는데 exact로 적히거나,
+    // 여기 든 셋 중 하나가 exact로 바뀌거나. 둘 다 사람이 봐야 하는 변화다.
+    const advisory = ALGORITHMS.filter((one) => one.reproduction.mljs === 'advisory').map(
+      (one) => one.id,
+    )
+    expect(advisory.sort()).toEqual(['logistic_regression', 'naive_bayes', 'neural_network'])
+  })
+
+  it('안 재 본 엔진 칸은 exact라고 적지 않는다', () => {
+    // **모르는 것을 아는 척 적지 않는다** (`UNMEASURED`와 같은 자리). Pyodide는 WASM이라
+    // 브라우저 사이에서 같은 답을 낼 **것으로 보이지만 아무도 재지 않았고**, 서버 sklearn은
+    // 우리 기기에서 돌지도 않는다.
+    for (const algorithm of ALGORITHMS) {
+      expect(algorithm.reproduction['pyodide-sklearn'], algorithm.id).toBe('unmeasured')
+      expect(algorithm.reproduction.sklearn, algorithm.id).toBe('unmeasured')
     }
   })
 
@@ -274,6 +315,12 @@ describe('분기 없이 늘어난다', () => {
           image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
         },
         baseline: { tabular: UNMEASURED_BASELINE, image: UNMEASURED_BASELINE },
+        // 재현 판정도 마찬가지다 - 새 알고리즘은 재 보기 전까지 어느 칸도 `exact`가 아니다.
+        reproduction: {
+          mljs: 'unmeasured',
+          'pyodide-sklearn': 'unmeasured',
+          sklearn: 'unmeasured',
+        },
       },
     ]
     const options = algorithmOptions(

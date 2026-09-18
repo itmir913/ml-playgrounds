@@ -379,11 +379,22 @@ export const FILE_HASH_STATUSES = ['UNCHANGED', 'MODIFIED', 'UNKNOWN'] as const
  */
 export const ENTRY_HASH_STATUSES = ['UNCHANGED', 'MODIFIED', 'ADDED', 'REMOVED'] as const
 
-/** 재실행 대조 결과. 대조는 run을 만든 엔진으로만 한다 (architecture.md 3.2). */
+/**
+ * 재실행 대조 결과. 대조는 run을 만든 엔진으로만 한다 (architecture.md 3.2).
+ *
+ * **`NOT_JUDGED`는 "다르다"가 아니라 "우리가 판정하지 않는다"이다** (open-decisions.md
+ * "재현 판정은 (알고리즘 × 엔진)이 정하고, 못 가르는 자리는 교사에게 넘긴다").
+ * `Math.exp`·`log`·`pow`를 누적하는 알고리즘은 JS 엔진마다 마지막 자리가 갈릴 수 있어
+ * (미결정 12), 그 칸에서 차이가 0이 아닐 때 붉은 말을 하면 **정직한 학생을 지목한다.**
+ * 화면은 차이를 보이고 판단은 교사가 한다.
+ *
+ * **`.mlpx`에 안 실린다** — 이 어휘는 화면의 것이라 늘어도 formatVersion이 안 움직인다.
+ */
 export const REPRODUCTION_STATUSES = [
   'NOT_CHECKED',
   'REPRODUCED',
   'NOT_REPRODUCED',
+  'NOT_JUDGED',
   'ENGINE_UNAVAILABLE',
 ] as const
 

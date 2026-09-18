@@ -14,6 +14,7 @@
  * 메시지 인터페이스를 갖지만 구현이 다르다 (ml/server.ts, architecture.md 3.4).
  */
 
+import type { EngineKind } from '../backend'
 import type { HyperparameterSpec } from '../hyperparams'
 import type { FitInput, FitResult } from './mljs'
 import {
@@ -36,8 +37,14 @@ export type { FitInput, FitResult, Predict } from './mljs'
 export interface TrainingEngine {
   /** ml/backend.ts의 RUNTIMES에 있는 id. 판정과 등록부가 같은 이름을 본다. */
   readonly runtimeId: string
-  /** run.engine에 그대로 들어간다. 재실행 대조가 이 값으로 엔진을 가린다. */
-  readonly engine: { readonly kind: string; readonly version: string }
+  /**
+   * run.engine에 그대로 들어간다. 재실행 대조가 이 값으로 엔진을 가린다.
+   *
+   * **`kind`는 등록부의 어휘다**(`ml/backend.ts`의 `ENGINE_KINDS`) — 알고리즘 등록부의
+   * `reproduction` 칸이 같은 축을 쓰므로, 여기서 좁혀야 그 조회가 단언 없이 선다.
+   * **파일에서 읽은 값은 여전히 문자열이다** — 남의 `.mlpx`에는 무엇이든 적혀 있을 수 있다.
+   */
+  readonly engine: { readonly kind: EngineKind; readonly version: string }
   /** 이 엔진이 돌릴 수 있는 알고리즘. */
   readonly algorithms: readonly string[]
   /**
