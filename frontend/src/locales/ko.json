@@ -37,7 +37,22 @@
     "editHint": "여기서 수정한 학번과 이름은 명렬에만 쓰입니다. 제출물 파일은 바뀌지 않고, 브라우저를 새로 열면 사라집니다.",
     "editedMark": "(수정)",
     "integrity": "무결성",
-    "integrityNote": "학생이 마지막으로 저장한 뒤에 파일이 바뀌었는지까지 확인합니다. 제출된 뒤에 바뀌었는지는 받은 날 남긴 해시 기록으로만 알 수 있습니다."
+    "integrityNote": "학생이 마지막으로 저장한 뒤에 파일이 바뀌었는지까지 확인합니다. 제출된 뒤에 바뀌었는지는 받은 날 남긴 해시 기록으로만 알 수 있습니다.",
+    "reproduce": "재실행 대조",
+    "reproduceLead": "파일에 적힌 설정과 분할로 다시 학습해, 파일에 적힌 점수가 그대로 나오는지 확인합니다.",
+    "reproduceStart": "대조 시작",
+    "reproducing": "대조 중 ({done}/{total})",
+    "verdict": "판정",
+    "difference": "차이",
+    "flipped": "{count}줄 뒤바뀜",
+    "blocked": {
+      "NO_DATASET": "정본 데이터가 파일에 없어서 다시 학습할 수 없습니다.",
+      "NO_CLAIM": "학습에 성공한 모델이 없어서 비교할 점수가 없습니다.",
+      "IMAGE_NOT_OPEN": "사진 프로젝트의 대조는 아직 열지 않았습니다.",
+      "ENGINE_MISSING": "이 파일을 만든 학습 엔진이 이 브라우저에 없습니다.",
+      "NO_TEST_DATASET": "테스트 데이터가 파일에 없어서 채점할 수 없습니다."
+    },
+    "delta": "{metric} {value}"
   },
   "taskTypes": {
     "classification": "분류(Classification)",

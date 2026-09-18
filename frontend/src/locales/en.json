@@ -37,7 +37,22 @@
     "editHint": "Edits here apply to this roster only. The submitted file is untouched, and edits are lost on reload.",
     "editedMark": "(edited)",
     "integrity": "Integrity",
-    "integrityNote": "This checks whether the file changed after the student last saved it. Whether it changed after submission can only be told from a hash recorded when you collected it."
+    "integrityNote": "This checks whether the file changed after the student last saved it. Whether it changed after submission can only be told from a hash recorded when you collected it.",
+    "reproduce": "Reproduction check",
+    "reproduceLead": "Trains again with the settings and split recorded in the file, then compares the scores.",
+    "reproduceStart": "Start check",
+    "reproducing": "Checking ({done}/{total})",
+    "verdict": "Verdict",
+    "difference": "Difference",
+    "flipped": "{count} rows flipped",
+    "blocked": {
+      "NO_DATASET": "The file has no dataset, so it cannot be trained again.",
+      "NO_CLAIM": "No model trained successfully, so there are no scores to compare.",
+      "IMAGE_NOT_OPEN": "Checking image projects is not open yet.",
+      "ENGINE_MISSING": "The engine that made this file is not in this browser.",
+      "NO_TEST_DATASET": "The file has no test data, so nothing can be scored."
+    },
+    "delta": "{metric} {value}"
   },
   "taskTypes": {
     "classification": "Classification",

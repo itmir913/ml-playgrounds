@@ -28,10 +28,11 @@ import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { ACTION_ICONS } from '@/icons'
 import { experimentPreprocessor } from '@/ml/preprocess'
 import { experimentOrder } from '@/ml/results'
-import { readDataset } from '@/project/dataset'
+import { readDataset, readTestDataset } from '@/project/dataset'
 import { MLPX_EXTENSION } from '@/project/format'
 import { rosterOf, sortRoster, type RosterItem, type RosterSort } from '@/project/roster'
 import IntegrityPanel from './inspect/IntegrityPanel.vue'
+import ReproducePanel from './inspect/ReproducePanel.vue'
 import ExperimentDetail from './results/ExperimentDetail.vue'
 import ExperimentList from './results/ExperimentList.vue'
 
@@ -114,6 +115,8 @@ const viewing = computed(() => {
     file,
     /** 해시 대조는 파일을 열 때 이미 끝나 있다 (`readProject`). 여기서 다시 세지 않는다. */
     integrity: read.integrity,
+    /** 테스트 정본. `provided`로 나눈 실험이 아니면 없다 (mlpx-spec.md §1.1). */
+    testDataset: readTestDataset(file),
     experiments,
     current,
     order: experimentOrder(experiments),
@@ -431,6 +434,19 @@ function reasonOf(code: string): string {
               손댄 흔적이 있나 → 점수가 진짜인가"이고, 세 판이 그 순서로 선다.
             -->
             <IntegrityPanel :integrity="viewing.integrity" />
+
+            <!--
+              **대조는 단추로 돈다** (open-decisions.md "명렬은 메타만 읽는다"의 같은 문단).
+              열자마자 돌면 무결성만 훑는 한 바퀴가 불가능해지고, 서른 개 동선이 거기서
+              무너진다. 그리고 **실험 하나가 단위다** — 지금 보고 있는 그 실험이다.
+            -->
+            <ReproducePanel
+              v-if="viewing.current"
+              :experiment="viewing.current"
+              :data-type="viewing.file.document.manifest.dataType"
+              :dataset="viewing.dataset"
+              :test-dataset="viewing.testDataset"
+            />
 
             <section v-if="viewing.experiments.length > 0" class="flex flex-col gap-1.5">
               <h4 class="font-bold text-ink-soft">{{ t('results.experimentTitle') }}</h4>

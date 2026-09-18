@@ -241,12 +241,21 @@ export async function reproduceExperiment(
 
   // **`onRun`이 못 본 자리를 여기서 채운다.** 등록부에 없는 알고리즘처럼 학습 루프가
   // 콜백 없이 만드는 run이 있다 (`ml/experiment.ts`). 순서는 `runs.json` 그대로다.
-  if (found.length < total) {
-    found.length = 0
-    for (const [index, claim] of stored.entries()) {
-      if (!succeeded(claim)) continue
-      found.push(compare(claim, experiment.runs[index]))
-    }
+  return found.length < total ? compareExperiments(input.experiment, experiment) : found
+}
+
+/**
+ * 파일의 실험과 방금 나온 실험을 견준다. **순수 함수다.**
+ *
+ * **워커를 쓰는 화면이 부르는 자리다** (`views/inspect`). 거기서는 학습이 워커에서 돌고
+ * 견주기는 메인 스레드에서 하므로 위 `reproduceExperiment`를 통째로 쓸 수 없다 —
+ * **그래도 견주는 코드는 한 벌이어야 한다.**
+ */
+export function compareExperiments(claim: Experiment, fresh: Experiment): Reproduction[] {
+  const found: Reproduction[] = []
+  for (const [index, run] of claim.runs.entries()) {
+    if (!succeeded(run)) continue
+    found.push(compare(run, fresh.runs[index]))
   }
   return found
 }
