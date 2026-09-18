@@ -309,8 +309,20 @@
     color: var(--color-ink-soft);
     font-weight: 700;
     padding: 0.625rem 1rem;
-    text-align: left;
     white-space: nowrap;
+  }
+
+  /*
+   * 머리 칸의 기본 정렬. **`:where()` 안이라 특정도가 0이다** - 이것 없이 `& th`에 적으면
+   * `.data-table th`(0,1,1)가 템플릿의 `.text-right`(0,1,0)를 이겨서 **칸에 붙인 정렬
+   * 유틸리티가 조용히 죽는다.** 2026-09-18에 명렬의 `상태` 열이 그랬고(머리는 왼쪽, 칸은
+   * 오른쪽), 혼동 행렬의 가운데 정렬도 같이 죽어 있었다. `text-align`을 아예 안 적을 수는
+   * 없다 - 브라우저 기본값이 `th { text-align: center }`라 그러면 전부 가운데로 선다.
+   *
+   * `tests/table-align.spec.ts`가 이 규칙을 지킨다.
+   */
+  :where(&) th {
+    text-align: left;
   }
 
   & td {

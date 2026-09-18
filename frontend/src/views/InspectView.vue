@@ -90,8 +90,14 @@ function select(item: RosterItem): void {
   void roster.open(item)
 }
 
-/** 같은 열을 다시 누르면 방향이 뒤집힌다. 다른 열이면 오름차순부터다. */
-function sortBy(key: RosterSort): void {
+/**
+ * 같은 열을 다시 누르면 방향이 뒤집힌다. 다른 열이면 오름차순부터다.
+ *
+ * **기준이 없는 열도 받는다** — `상태`는 `ROSTER_SORTS`에 없어서 `null`이고, 그 열의
+ * 머리는 누를 수 있는 것으로 그려지지도 않는다.
+ */
+function sortBy(key: RosterSort | null): void {
+  if (key === null) return
   descending.value = sort.value === key ? !descending.value : false
   sort.value = key
 }
@@ -151,31 +157,45 @@ const rows = computed(() =>
       const read = summary?.state === 'read' ? summary : undefined
       return {
         item,
-        // **빈 자리의 이름은 열마다 다르다.** 학번 칸에 `이름 없음`이 서 있었다
-        // (2026-09-18, 사용자).
-        studentId: read ? (read.studentId ?? t('inspect.noStudentId')) : '',
-        studentName: read ? (read.studentName ?? t('inspect.noStudentName')) : '',
         /** 교사가 고쳐 둔 줄. **파일과 다르다는 것을 화면이 말해야 한다.** */
         edited: roster.edits.value.has(item.label),
-        experiments: read ? t('meta.countUnit', read.experiments) : '',
-        runs: read ? t('meta.countUnit', read.runs) : '',
-        state: read
-          ? t(`dataTypes.${read.dataType}`)
-          : summary
-            ? t('inspect.unreadable')
-            : t('inspect.reading'),
         /** 값이 아직 없는 줄. 회색으로 두어 훑는 눈이 건너뛴다. */
         faint: !read,
+        /** 열마다 그 칸에 설 글자. **열쇠가 `COLUMNS`의 것과 같다** — 표가 이것으로 선다. */
+        cells: {
+          label: item.label,
+          // **빈 자리의 이름은 열마다 다르다.** 학번 칸에 `이름 없음`이 서 있었다
+          // (2026-09-18, 사용자).
+          studentId: read ? (read.studentId ?? t('inspect.noStudentId')) : '',
+          studentName: read ? (read.studentName ?? t('inspect.noStudentName')) : '',
+          experiments: read ? t('meta.countUnit', read.experiments) : '',
+          runs: read ? t('meta.countUnit', read.runs) : '',
+          state: read
+            ? t(`dataTypes.${read.dataType}`)
+            : summary
+              ? t('inspect.unreadable')
+              : t('inspect.reading'),
+        } satisfies Record<InspectColumn['key'], string>,
       }
     },
   ),
 )
 
-/** 열 머리. **여기 한 줄을 더하면 표가 따라온다** — 머리와 칸이 같은 목록에서 나온다. */
-const COLUMNS: readonly {
-  key: RosterSort
+/**
+ * 열 머리. **여기 한 줄을 더하면 표가 따라온다** — 머리와 칸이 같은 목록에서 나온다.
+ *
+ * **정렬도 여기 한 자리에 있다** (2026-09-18, 사용자). `상태` 열이 머리는 왼쪽이고 칸은
+ * 오른쪽이었다 — 머리에 적은 `text-right`가 `data-table`에 눌려 죽은 것이 절반이고,
+ * **머리와 칸이 서로 다른 자리에서 정렬을 정하고 있던 것**이 나머지 절반이다.
+ * `tests/table-align.spec.ts`가 둘이 갈리면 운다.
+ */
+interface InspectColumn {
+  key: RosterSort | 'state'
   label: string
-  numeric: boolean
+  /** 이 열로 정렬할 수 있으면 그 기준. **`상태`는 없다** — `ROSTER_SORTS`에 없는 값이다. */
+  sort: RosterSort | null
+  /** 머리와 칸이 함께 쓴다. 숫자는 오른쪽, 글자는 왼쪽이 관행이다. */
+  align: 'left' | 'right'
   /** 좁은 화면에서 접는 열. 제출물 이름과 상태만 남는다. */
   wide: boolean
   /**
@@ -188,19 +208,72 @@ const COLUMNS: readonly {
    * 파일 이름 열이다.
    */
   width: string
-}[] = [
-  { key: 'label', label: 'inspect.file', numeric: false, wide: false, width: 'min-w-48' },
-  { key: 'studentId', label: 'inspect.studentId', numeric: false, wide: true, width: 'min-w-28' },
+  /** 칸에만 붙는 모양. 긴 이름은 접고, 상태는 안 접는다. */
+  cell: string
+}
+
+const COLUMNS: readonly InspectColumn[] = [
+  {
+    key: 'label',
+    label: 'inspect.file',
+    sort: 'label',
+    align: 'left',
+    wide: false,
+    width: 'min-w-48',
+    // 남는 폭을 이 열이 다 먹는다. 긴 경로는 줄을 바꾼다.
+    cell: 'break-words',
+  },
+  {
+    key: 'studentId',
+    label: 'inspect.studentId',
+    sort: 'studentId',
+    align: 'left',
+    wide: true,
+    width: 'min-w-28',
+    cell: 'break-words',
+  },
   {
     key: 'studentName',
     label: 'inspect.studentName',
-    numeric: false,
+    sort: 'studentName',
+    align: 'left',
     wide: true,
     width: 'min-w-28',
+    cell: 'break-words',
   },
-  { key: 'experiments', label: 'inspect.experiments', numeric: true, wide: true, width: 'w-44' },
-  { key: 'runs', label: 'inspect.runs', numeric: true, wide: true, width: 'w-36' },
+  {
+    key: 'experiments',
+    label: 'inspect.experiments',
+    sort: 'experiments',
+    align: 'right',
+    wide: true,
+    width: 'w-44',
+    cell: '',
+  },
+  {
+    key: 'runs',
+    label: 'inspect.runs',
+    sort: 'runs',
+    align: 'right',
+    wide: true,
+    width: 'w-36',
+    cell: '',
+  },
+  {
+    key: 'state',
+    label: 'inspect.state',
+    sort: null,
+    align: 'right',
+    wide: false,
+    width: '',
+    cell: 'whitespace-nowrap',
+  },
 ]
+
+/** 머리와 칸이 함께 부르는 것. **정렬을 두 번 적지 않는다.** */
+function alignClass(column: InspectColumn): string {
+  return column.align === 'right' ? 'text-right' : ''
+}
 
 /**
  * 교사가 고친 학번·이름. **파일에는 안 적는다** (open-decisions.md "점검은 읽기 전용
@@ -356,17 +429,22 @@ function reasonOf(code: string): string {
                 v-for="column in COLUMNS"
                 :key="column.key"
                 scope="col"
-                :class="[column.width, column.wide ? 'hidden md:table-cell' : '']"
+                :class="[
+                  column.width,
+                  alignClass(column),
+                  column.wide ? 'hidden md:table-cell' : '',
+                ]"
               >
                 <!--
-                  **숫자 열은 화살표가 글자 왼쪽이다.** 오른쪽에 두면 그 자리만큼 이름표가
+                  **오른쪽 열은 화살표가 글자 왼쪽이다.** 오른쪽에 두면 그 자리만큼 이름표가
                   안으로 밀려 **머리와 칸의 오른쪽 끝이 어긋난다** (2026-09-18, 사용자).
                 -->
                 <button
+                  v-if="column.sort"
                   type="button"
                   class="flex w-full items-center gap-1"
-                  :class="column.numeric ? 'flex-row-reverse justify-start' : ''"
-                  @click="sortBy(column.key)"
+                  :class="column.align === 'right' ? 'flex-row-reverse justify-start' : ''"
+                  @click="sortBy(column.sort)"
                 >
                   {{ t(column.label) }}
                   <!--
@@ -380,8 +458,9 @@ function reasonOf(code: string): string {
                     aria-hidden="true"
                   />
                 </button>
+                <!-- 정렬 기준이 아닌 열. 여기서는 `th`의 정렬이 곧 이 글자의 정렬이다. -->
+                <template v-else>{{ t(column.label) }}</template>
               </th>
-              <th scope="col" class="text-right">{{ t('inspect.state') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -396,25 +475,38 @@ function reasonOf(code: string): string {
               :class="opened?.label === row.item.label ? 'bg-surface-soft font-bold' : ''"
               @click="select(row.item)"
             >
-              <!-- 남는 폭을 이 열이 다 먹는다. 긴 경로는 줄을 바꾼다. -->
-              <td class="break-words">{{ row.item.label }}</td>
               <!--
-                **고친 줄에는 표시를 단다** (2026-09-18, 사용자). 교사가 화면에서 고친 값은
-                파일에 없는 값이라, 아무 표시 없이 두면 다음에 열었을 때 파일이 그렇게
-                적혀 있는 줄 안다.
+                **칸도 머리와 같은 목록에서 나온다** (2026-09-18, 사용자). 손으로 적던
+                시절에는 `상태` 열의 머리와 칸이 서로 다른 자리에서 정렬을 정했고, 그래서
+                갈렸다.
               -->
-              <td class="hidden break-words md:table-cell">
-                {{ row.studentId }}
-                <span v-if="row.edited" class="text-ink-faint">{{ t('inspect.editedMark') }}</span>
-              </td>
-              <td class="hidden break-words md:table-cell">{{ row.studentName }}</td>
-              <td class="hidden text-right md:table-cell">{{ row.experiments }}</td>
-              <td class="hidden text-right md:table-cell">{{ row.runs }}</td>
               <td
-                class="text-right whitespace-nowrap"
-                :class="row.faint ? 'text-ink-faint' : 'text-ink-soft'"
+                v-for="column in COLUMNS"
+                :key="column.key"
+                :class="[
+                  alignClass(column),
+                  column.cell,
+                  column.wide ? 'hidden md:table-cell' : '',
+                ]"
               >
-                {{ row.state }}
+                <!-- 상태는 값이 아직 없는 줄을 회색으로 둔다. -->
+                <span
+                  v-if="column.key === 'state'"
+                  :class="row.faint ? 'text-ink-faint' : 'text-ink-soft'"
+                >
+                  {{ row.cells[column.key] }}
+                </span>
+                <template v-else>
+                  {{ row.cells[column.key] }}
+                  <!--
+                    **고친 줄에는 표시를 단다** (2026-09-18, 사용자). 교사가 화면에서 고친
+                    값은 파일에 없는 값이라, 아무 표시 없이 두면 다음에 열었을 때 파일이
+                    그렇게 적혀 있는 줄 안다.
+                  -->
+                  <span v-if="column.key === 'studentId' && row.edited" class="text-ink-faint">{{
+                    t('inspect.editedMark')
+                  }}</span>
+                </template>
               </td>
             </tr>
           </tbody>
