@@ -298,11 +298,11 @@ function failureText(reproduction: Reproduction): string {
       **어느 실험의 대조인지를 판이 말한다** (§8.21). 실험 상세 옆에 있을 때는 자리가
       말해 주던 것이고, 무결성 아래로 오면서 이 자리가 그것을 들고 간다.
     -->
-    <div class="flex flex-wrap items-baseline gap-2">
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
       <h3 class="font-bold text-ink-soft">{{ t('inspect.reproduce') }}</h3>
-      <span class="text-ink-faint">
-        {{ t('results.experimentName', { index: props.order }) }}
-      </span>
+      <AppBadge class="whitespace-nowrap font-bold">{{
+        t('results.experimentName', { index: props.order })
+      }}</AppBadge>
     </div>
 
     <p class="text-ink-faint">{{ t('inspect.reproduceLead') }}</p>

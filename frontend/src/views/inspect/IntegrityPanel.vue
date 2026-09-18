@@ -18,6 +18,8 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AppBadge from '@/components/AppBadge.vue'
+
 import type { HashCheck } from '@/project/integrity'
 
 const props = defineProps<{ integrity: HashCheck }>()
@@ -38,11 +40,23 @@ const changed = computed(() => props.integrity.entries.filter((one) => one.state
     `InspectView`의 `PANEL`이 한 자리에서 준다 — 판마다 두르면 셋이 갈린다.
   -->
   <section class="flex flex-col gap-1.5">
+    <!--
+      **판정은 제목 오른쪽의 배지다** (2026-09-18, 사용자). 왼쪽 열의 판 셋이 같은 모양으로
+      서야 한 카드 뭉치로 읽힌다.
+
+      **색은 배지가 아니라 안쪽 글자가 갖는다.** `AppBadge`는 색을 안 받는다 — 뜻을 가진
+      색은 그 화면의 판정과 함께 있어야 하기 때문이다(§10.1). 그래서 바뀐 흔적이 있을 때의
+      주의색만 여기서 글자에 준다.
+    -->
     <div class="flex flex-wrap items-baseline justify-between gap-2">
       <h3 class="font-bold text-ink-soft">{{ t('inspect.integrity') }}</h3>
-      <p :class="props.integrity.status === 'UNCHANGED' ? 'font-bold' : 'font-bold text-caution'">
-        {{ t(`fileHash.${props.integrity.status}`) }}
-      </p>
+      <AppBadge class="whitespace-nowrap">
+        <span
+          :class="props.integrity.status === 'UNCHANGED' ? 'font-bold' : 'font-bold text-caution'"
+        >
+          {{ t(`fileHash.${props.integrity.status}`) }}
+        </span>
+      </AppBadge>
     </div>
 
     <!--

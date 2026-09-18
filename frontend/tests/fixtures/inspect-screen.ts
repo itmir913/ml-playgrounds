@@ -52,8 +52,22 @@ export async function pickFiles(wrapper: VueWrapper, files: File[]): Promise<voi
   await flushPromises()
 }
 
+/**
+ * **jsdom에는 `scrollIntoView`가 없다.** 화면은 줄을 고를 때 그것을 부르므로(§8.21의
+ * "누른 것이 보이는 자리로 데려간다"), 안 채워 두면 마운트 검사마다 처리 안 된 오류가
+ * 쌓인다 — 검사는 통과하는데 관문이 빨개지는 그 모양이다.
+ *
+ * **화면 코드를 검사에 맞추지 않는다.** 없는 것은 브라우저가 아니라 jsdom이다.
+ */
+function fillScrollIntoView(): void {
+  if (typeof Element.prototype.scrollIntoView !== 'function') {
+    Element.prototype.scrollIntoView = function scrollIntoView(): void {}
+  }
+}
+
 /** 점검 화면을 띄우고 명렬을 세운다. */
 export async function mountInspect(files: File[]): Promise<VueWrapper> {
+  fillScrollIntoView()
   const wrapper = mount(InspectView, { global: { plugins: [i18n] } })
   await pickFiles(wrapper, files)
   return wrapper

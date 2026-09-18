@@ -16,7 +16,7 @@
  * 붙을 자리도 열이다.
  */
 
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
@@ -58,6 +58,9 @@ const work = useWork()
 
 /** 묶는 동안 몇 줄까지 읽었는가. 서른 개면 그 수가 교사가 기다리는 크기다. */
 const bundled = ref(0)
+
+/** 고른 것이 서는 자리. **누르면 여기로 굴러온다** (2026-09-18, 사용자). */
+const detailEl = ref<HTMLElement | null>(null)
 
 const folderInput = ref<HTMLInputElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -118,6 +121,9 @@ function select(item: RosterItem): void {
   opened.value = item
   selected.value = null
   void roster.open(item)
+  // **누른 것이 보이는 자리로 데려간다.** 읽는 동안 문서가 짧아져 스크롤이 0으로 당겨지는
+  // 것을 덮는 일이기도 하다 — 그때 교사는 방금 누른 줄이 어디 갔는지 모른다.
+  void nextTick(() => detailEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
 
 /**
@@ -704,63 +710,74 @@ function reasonOf(code: string): string {
         읽기 전용 열람기다"의 "화면 부품도 사본을 만들지 않는다") — 여기서 다시 그리면
         교사가 보는 화면과 학생이 보던 화면이 갈린다. 무결성과 대조는 이 아래에 붙는다.
       -->
-      <p v-if="!opened" class="text-ink-soft">{{ t('inspect.pickOne') }}</p>
-      <p
-        v-else-if="summaryOfOpened?.state === 'unreadable'"
-        class="rounded-panel border border-line bg-surface p-4 leading-relaxed"
-      >
-        {{ reasonOf(summaryOfOpened.code) }}
-      </p>
-      <p v-else-if="!viewing" class="text-ink-soft">{{ t('inspect.reading') }}</p>
-      <template v-else>
-        <!--
+      <!--
+        **고른 것이 서는 자리** (2026-09-18, 사용자). 줄을 누르면 여기로 굴러온다.
+
+        **누르면 화면이 맨 위로 튀었다.** 읽는 동안 이 자리가 한 줄로 접히면서 문서가
+        화면보다 짧아지고, 브라우저가 스크롤을 0으로 당긴다 — 교사는 방금 누른 줄이
+        어디 갔는지 모른 채 표 맨 위를 본다.
+
+        **도착 지점은 붙박이 동작 바 아래에서 멈춘다**(`scroll-below-shell`). 그 자리에
+        여백이 없으면 바가 머리줄을 덮는다.
+      -->
+      <div ref="detailEl" class="flex min-h-0 flex-col gap-5 scroll-below-shell">
+        <p v-if="!opened" class="text-ink-soft">{{ t('inspect.pickOne') }}</p>
+        <p
+          v-else-if="summaryOfOpened?.state === 'unreadable'"
+          class="rounded-panel border border-line bg-surface p-4 leading-relaxed"
+        >
+          {{ reasonOf(summaryOfOpened.code) }}
+        </p>
+        <p v-else-if="!viewing" class="text-ink-soft">{{ t('inspect.reading') }}</p>
+        <template v-else>
+          <!--
           **머리줄은 누구의 무엇인지만 말한다.** 학번·이름을 고치는 일은 서른 명 중 두셋에게만
           생기는 드문 일이라, 폼으로 상시 자리를 먹지 않고 팝오버로 접어 둔다
           (2026-09-18, 사용자).
         -->
-        <header class="flex flex-wrap items-start justify-between gap-3">
-          <div class="flex min-w-0 flex-col gap-1">
-            <!--
+          <header class="flex flex-wrap items-start justify-between gap-3">
+            <div class="flex min-w-0 flex-col gap-1">
+              <!--
               **화면 제목보다 크면 안 된다** (2026-09-18, 사용자). 머리가 `StepHeader`로
               내려앉으면서 이 줄이 화면에서 가장 큰 글자가 됐다 — 제출물 하나는 화면의
               일부이지 화면이 아니다. `StepHeader`의 제목과 같은 눈금으로 선다.
             -->
-            <h3 class="truncate text-lg font-bold tracking-tight">
-              {{ viewing.file.document.manifest.name }}
-            </h3>
-            <p class="truncate text-ink-soft">
-              {{ studentLine }}
-            </p>
-          </div>
+              <h3 class="truncate text-lg font-bold tracking-tight">
+                {{ viewing.file.document.manifest.name }}
+              </h3>
+              <p class="truncate text-ink-soft">
+                {{ studentLine }}
+              </p>
+            </div>
 
-          <div class="flex flex-wrap items-center gap-2">
-            <!--
+            <div class="flex flex-wrap items-center gap-2">
+              <!--
               **모드 스위치는 바꾸는 대상 바로 위에 선다** (2026-09-18, 사용자). 고른 쪽만
               색이 차고 자리는 그대로다 — `AppChoices`와 같은 문법이되, 머리줄에 서는
               것이라 그쪽의 이름표와 격자를 데려오지 않는다.
             -->
-            <div class="flex gap-2" role="group" :aria-label="t('inspect.viewMode')">
-              <AppButton
-                v-for="one in VIEW_MODES"
-                :key="one.id"
-                :variant="mode === one.id ? 'primary' : 'secondary'"
-                :aria-pressed="mode === one.id"
-                @click="mode = one.id"
-              >
-                <component :is="one.icon" :size="18" aria-hidden="true" />
-                {{ t(one.label) }}
-              </AppButton>
+              <div class="flex gap-2" role="group" :aria-label="t('inspect.viewMode')">
+                <AppButton
+                  v-for="one in VIEW_MODES"
+                  :key="one.id"
+                  :variant="mode === one.id ? 'primary' : 'secondary'"
+                  :aria-pressed="mode === one.id"
+                  @click="mode = one.id"
+                >
+                  <component :is="one.icon" :size="18" aria-hidden="true" />
+                  {{ t(one.label) }}
+                </AppButton>
+              </div>
+
+              <StudentEditor
+                :student-id="studentFields.studentId"
+                :student-name="studentFields.studentName"
+                @correct="correctStudent"
+              />
             </div>
+          </header>
 
-            <StudentEditor
-              :student-id="studentFields.studentId"
-              :student-name="studentFields.studentName"
-              @correct="correctStudent"
-            />
-          </div>
-        </header>
-
-        <!--
+          <!--
           **왼쪽이 고르는 자리, 오른쪽이 고른 것의 속이다** (§8.12, 결과 화면의 두 열과
           같은 관계다, 2026-09-18 사용자). 목록을 상세 위에 쌓으면 실험이 여럿일 때
           상세가 그만큼 아래로 밀리고, 무엇보다 **학생이 보던 결과 화면과 문법이 갈린다.**
@@ -768,42 +785,42 @@ function reasonOf(code: string): string {
           **점선으로 가르지 않는다** — 왼쪽이 카드로 서 있는 자리에서는 그 선이 카드
           테두리와 겹쳐 보인다.
         -->
-        <!-- 칸 사이 간격은 다른 화면의 두 열과 같다 (`gap-5`, 전처리·대시보드·포트폴리오). -->
-        <div v-if="mode === 'model'" class="grid gap-5 lg:grid-cols-3">
-          <!--
+          <!-- 칸 사이 간격은 다른 화면의 두 열과 같다 (`gap-5`, 전처리·대시보드·포트폴리오). -->
+          <div v-if="mode === 'model'" class="grid gap-5 lg:grid-cols-3">
+            <!--
             **왼쪽 판 셋은 같은 카드에 담긴다** (2026-09-18, 사용자). 요약만 카드이고
             나머지가 맨몸이면 한 열에 두 문법이 서고, 그 열이 통째로 흐트러져 보인다 —
             **카드 안의 절 리듬은 그대로다**(이름표 `font-bold text-ink-soft`, `gap-1.5`).
           -->
-          <div class="flex min-w-0 flex-col gap-5">
-            <!-- 무슨 데이터를 몇 행, 타깃은 무엇으로. **교사가 가장 먼저 보는 줄들이다.** -->
-            <aside :class="PANEL">
-              <ProjectSummary :file="viewing.file" />
-            </aside>
+            <div class="flex min-w-0 flex-col gap-5">
+              <!-- 무슨 데이터를 몇 행, 타깃은 무엇으로. **교사가 가장 먼저 보는 줄들이다.** -->
+              <aside :class="PANEL">
+                <ProjectSummary :file="viewing.file" />
+              </aside>
 
-            <!--
+              <!--
               **어디서 왔나는 무엇인가 다음이다** (§8.21). 짝이 있을 때만 서므로, 이 판이
               보이는 것 자체가 드문 일이라는 신호다.
             -->
-            <div v-if="sameProjectPeers.length > 0" :class="PANEL">
-              <SameProjectPanel
-                :labels="sameProjectPeers"
-                :current="opened?.label ?? ''"
-                :name="sameProjectText(opened?.label ?? '')"
-                :project-id="viewing.file.document.manifest.projectId"
-              />
-            </div>
+              <div v-if="sameProjectPeers.length > 0" :class="PANEL">
+                <SameProjectPanel
+                  :labels="sameProjectPeers"
+                  :current="opened?.label ?? ''"
+                  :name="sameProjectText(opened?.label ?? '')"
+                  :project-id="viewing.file.document.manifest.projectId"
+                />
+              </div>
 
-            <!--
+              <!--
               **무결성이 요약 바로 아래다.** 교사가 제출물에서 묻는 순서가 "무엇인가 →
               손댄 흔적이 있나 → 점수가 진짜인가"이고, **세 판이 이 열에 그 순서로 선다**
               (§8.21). 무결성은 파일 전체의 일이라 실험마다 다른 값이 아니다.
             -->
-            <div :class="PANEL">
-              <IntegrityPanel :integrity="viewing.integrity" />
-            </div>
+              <div :class="PANEL">
+                <IntegrityPanel :integrity="viewing.integrity" />
+              </div>
 
-            <!--
+              <!--
               **대조는 무결성 바로 아래다** (2026-09-18, 사용자). 둘 다 "이 제출물을 믿을
               수 있나"의 답이라, 사이에 다른 것이 끼면 묻는 흐름이 끊긴다. 대조가 **그
               실험**의 일이라는 것은 자리가 아니라 판이 말한다(`:order`).
@@ -811,61 +828,62 @@ function reasonOf(code: string): string {
               **단추로 돈다.** 열자마자 돌면 무결성만 훑는 한 바퀴가 불가능해지고, 서른 개
               동선이 거기서 무너진다 (open-decisions.md "명렬은 메타만 읽는다").
             -->
-            <div v-if="viewing.current" :class="PANEL">
-              <!--
+              <div v-if="viewing.current" :class="PANEL">
+                <!--
                 **판정 꾸러미는 제출물마다 새로 선다** (2026-09-18, 사용자). 판은 실험을
                 바꿔도 판정을 들고 있는데(그래야 3번을 대조하고 2번을 들렀다 돌아왔을 때
                 다시 안 돌린다), **파일이 바뀌면 그 기억은 남의 것**이다. 실험 id는 같은
                 프로젝트에서 나온 파일들 사이에서 겹치므로 이름표로 가른다.
               -->
-              <ReproducePanel
-                :key="opened?.label"
-                :experiment="viewing.current"
-                :order="viewing.order.get(viewing.current.id) ?? 0"
-                :data-type="viewing.file.document.manifest.dataType"
-                :dataset="viewing.dataset"
-                :test-dataset="viewing.testDataset"
-              />
+                <ReproducePanel
+                  :key="opened?.label"
+                  :experiment="viewing.current"
+                  :order="viewing.order.get(viewing.current.id) ?? 0"
+                  :data-type="viewing.file.document.manifest.dataType"
+                  :dataset="viewing.dataset"
+                  :test-dataset="viewing.testDataset"
+                />
+              </div>
+
+              <section v-if="viewing.experiments.length > 0" class="flex flex-col gap-1.5">
+                <h3 class="font-bold text-ink-soft">{{ t('results.experimentTitle') }}</h3>
+                <ExperimentList
+                  :experiments="viewing.experiments"
+                  :selected="viewing.current?.id ?? null"
+                  @pick="selected = $event"
+                />
+              </section>
             </div>
 
-            <section v-if="viewing.experiments.length > 0" class="flex flex-col gap-1.5">
-              <h3 class="font-bold text-ink-soft">{{ t('results.experimentTitle') }}</h3>
-              <ExperimentList
-                :experiments="viewing.experiments"
-                :selected="viewing.current?.id ?? null"
-                @pick="selected = $event"
-              />
-            </section>
-          </div>
-
-          <!--
+            <!--
             **오른쪽은 결과 화면과 같은 것이다** (§8.21, 2026-09-18 사용자) — 왼쪽에서
             실험을 고르고 여기에 그 상세가 선다. 점검이 새로 만든 판은 전부 왼쪽에 모인다.
           -->
-          <div class="flex min-w-0 flex-col gap-5 lg:col-span-2">
-            <ExperimentDetail
-              v-if="viewing.current"
-              :experiment="viewing.current"
-              :order="viewing.order.get(viewing.current.id) ?? 0"
-              :previous="viewing.previous"
-              :data-type="viewing.file.document.manifest.dataType"
-              :dataset="viewing.dataset"
-              :preprocessor="viewing.preprocessor"
-              :models="viewing.file.models"
-              :file="viewing.file"
-            />
-            <p v-else class="rounded-panel border border-line bg-surface p-4 text-ink-soft">
-              {{ t('inspect.noExperiment') }}
-            </p>
+            <div class="flex min-w-0 flex-col gap-5 lg:col-span-2">
+              <ExperimentDetail
+                v-if="viewing.current"
+                :experiment="viewing.current"
+                :order="viewing.order.get(viewing.current.id) ?? 0"
+                :previous="viewing.previous"
+                :data-type="viewing.file.document.manifest.dataType"
+                :dataset="viewing.dataset"
+                :preprocessor="viewing.preprocessor"
+                :models="viewing.file.models"
+                :file="viewing.file"
+              />
+              <p v-else class="rounded-panel border border-line bg-surface p-4 text-ink-soft">
+                {{ t('inspect.noExperiment') }}
+              </p>
+            </div>
           </div>
-        </div>
 
-        <!--
+          <!--
           **글은 한 열로 넓게 선다** (§8.21). 학생이 [완성본]에서 보던 폭이고, 두 열에
           끼우면 읽는 폭이 아니다.
         -->
-        <PortfolioPanel v-else :file="viewing.file" />
-      </template>
+          <PortfolioPanel v-else :file="viewing.file" />
+        </template>
+      </div>
     </template>
   </div>
 </template>

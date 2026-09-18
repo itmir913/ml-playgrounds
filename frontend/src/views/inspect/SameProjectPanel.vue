@@ -39,7 +39,7 @@ const { t } = useI18n()
   <section class="flex min-w-0 flex-col gap-1.5">
     <div class="flex flex-wrap items-baseline justify-between gap-2">
       <h3 class="font-bold text-ink-soft">{{ t('inspect.sameProjectTitle') }}</h3>
-      <AppBadge class="whitespace-nowrap">{{ name }}</AppBadge>
+      <AppBadge class="whitespace-nowrap font-bold">{{ name }}</AppBadge>
     </div>
     <p class="text-ink-faint">{{ t('inspect.sameProjectNote') }}</p>
 
