@@ -236,10 +236,7 @@ const sameProject = computed(() => {
     // 전원이 한 프로젝트면 문장이 갈린다 — 그때는 묶음 수를 셀 것이 없다.
     line: same.value.all
       ? t('inspect.sameProjectAll', { files })
-      : t('inspect.sameProjectSummary', {
-          groups: new Set(groups.value.values()).size,
-          files,
-        }),
+      : t('inspect.sameProjectSummary', { files }),
   }
 })
 
@@ -926,9 +923,20 @@ function reasonOf(code: string): string {
                 :models="viewing.file.models"
                 :file="viewing.file"
               />
-              <p v-else class="rounded-panel border border-line bg-surface p-4 text-ink-soft">
-                {{ t('inspect.noExperiment') }}
-              </p>
+              <!--
+                **빈 상태는 자리를 넉넉히 잡는다** (2026-09-18, 사용자, 포트폴리오 빈 자리와
+                같은 처리). 한 줄짜리 판이면 오른쪽 열이 통째로 접혀서, 왼쪽 판들만 선
+                화면이 한쪽으로 쏠린다. 다른 화면의 빈 상태와 같은 부품이고 같은 여백이다.
+              -->
+              <div
+                v-else
+                class="grid min-h-64 flex-1 place-items-center rounded-panel border border-line bg-surface"
+              >
+                <AppEmpty
+                  :reason="t('inspect.noExperiment')"
+                  :next="t('inspect.noExperimentNext')"
+                />
+              </div>
             </div>
           </div>
 
