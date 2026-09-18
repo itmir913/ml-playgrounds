@@ -2520,7 +2520,11 @@ describe('화면은 도는 일을 셈으로 든다', () => {
    *
    * **거는 모양도 안 따진다.** `onBeforeUnmount(retire)`만 찾던 때는 **정리할 것이 하나
    * 더 생겨 화살표로 감싸는 순간 거짓 빨강**이 났다(이 저장소에서 실제로 났다). 떠나는
-   * 자리 안에서 `retire`를 부르면 된다.
+   * 자리 안에서 `retire`를 **부르면** 된다.
+   *
+   * **부름을 찾지 낱말을 찾지 않는다** (2026-09-18 R28-F C-1). 낱말로 찾던 때는
+   * `void retire`처럼 **언급만 하고 안 부르는 것이 통과**했다. 이 파일은 같은 병을 한 번
+   * 앓았다 — `import` 줄이 등록으로 세어지던 자리다(R23 재감사).
    */
   /**
    * `(`부터 **짝이 맞는 `)`**까지. 짝이 안 맞으면 **빈 글자를 준다** — 여기서 찾는 것은
@@ -2539,11 +2543,26 @@ describe('화면은 도는 일을 셈으로 든다', () => {
     return ''
   }
 
-  /** 떠나는 자리들이 부르는 것 전부. */
-  function onLeaving(code: string): string {
-    return [...code.matchAll(/onBeforeUnmount\s*\(/g)]
-      .map((match) => argsAt(code, code.indexOf('(', match.index)))
-      .join('\n')
+  /** 떠나는 자리들이 받는 것 전부. */
+  function onLeaving(code: string): string[] {
+    return [...code.matchAll(/onBeforeUnmount\s*\(/g)].map((match) =>
+      argsAt(code, code.indexOf('(', match.index)),
+    )
+  }
+
+  /**
+   * 떠나는 자리가 `retire`를 **부르는가.**
+   *
+   * 둘 중 하나여야 한다 — 인자가 `retire` 그 자체이거나(`onBeforeUnmount(retire)`),
+   * 몸통 안에서 `retire()`를 부르거나. **언급은 부름이 아니다.**
+   *
+   * **앞의 점까지 본다.** `job.retire()`는 일 하나를 놓는 것이지 화면이 떠나는 것이
+   * 아니다 — `\W` 하나로 가르면 그것이 통과한다.
+   */
+  const CALLS_RETIRE = /(?<![.\w])retire\s*\(\s*\)/
+
+  function retires(code: string): boolean {
+    return onLeaving(code).some((args) => args.trim() === 'retire' || CALLS_RETIRE.test(args))
   }
 
   it('일을 드는 화면은 떠날 때 끝났다고 표시한다', () => {
@@ -2553,21 +2572,22 @@ describe('화면은 도는 일을 셈으로 든다', () => {
     // **일을 드는 화면을 실제로 찾는다.** 0개면 이 규칙이 죽은 것이다.
     expect(holders.length).toBeGreaterThan(0)
 
-    const offenders = holders.filter((path) => {
-      const code = withoutComments(sourceOf(path)).join('\n')
-      return !/\bretire\b/.test(onLeaving(code))
-    })
+    const offenders = holders.filter((path) => !retires(withoutComments(sourceOf(path)).join('\n')))
     expect(offenders, 'holds work but never retires on leave').toEqual([])
   })
 
   it('검사기가 거는 모양을 안 따지고, 안 건 것은 잡는다', () => {
-    const has = (code: string): boolean => /\bretire\b/.test(onLeaving(code))
-    expect(has('onBeforeUnmount(() => {\n  retire()\n  roster.stop()\n})')).toBe(true)
-    expect(has('onBeforeUnmount(retire)')).toBe(true)
-    expect(has('onBeforeUnmount(() => {\n  roster.stop()\n})')).toBe(false)
+    expect(retires('onBeforeUnmount(() => {\n  retire()\n  roster.stop()\n})')).toBe(true)
+    expect(retires('onBeforeUnmount(retire)')).toBe(true)
+    expect(retires('onBeforeUnmount(() => {\n  roster.stop()\n})')).toBe(false)
     // **떠나는 자리 밖의 `retire`는 안 센다.** 파일 어딘가에 있다고 걸린 것이 아니다.
-    expect(has('const { retire } = useWork()\nonBeforeUnmount(() => close())')).toBe(false)
-    expect(has('const { retire } = useWork()')).toBe(false)
+    expect(retires('const { retire } = useWork()\nonBeforeUnmount(() => close())')).toBe(false)
+    expect(retires('const { retire } = useWork()')).toBe(false)
+    // **언급은 부름이 아니다** (R28-F C-1). 낱말로 찾던 때는 이것이 통과했다.
+    expect(retires('onBeforeUnmount(() => {\n  void retire\n  roster.stop()\n})')).toBe(false)
+    expect(retires('onBeforeUnmount(() => {\n  const kept = retire\n})')).toBe(false)
+    // 이름이 겹치는 남의 함수는 안 센다.
+    expect(retires('onBeforeUnmount(() => {\n  job.retire()\n})')).toBe(false)
   })
 
   it('워커를 여는 화면은 취소를 실패로 말하지 않는다', () => {

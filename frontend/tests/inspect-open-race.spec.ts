@@ -37,6 +37,7 @@ const { mountInspect, submissionFile } = await import('./fixtures/inspect-screen
 
 /** 다른 프로젝트에서 나온 파일. 묶음 표시가 끼어들지 않게 아이디를 갈라 둔다. */
 const OTHER = '11111111-1111-4111-8111-111111111111'
+const THIRD = '22222222-2222-4222-8222-222222222222'
 
 /**
  * 표 아래 **고른 것이 서는 자리**의 글자. 명렬의 표는 여기 안 든다 — 표에는 서른 줄이
@@ -92,5 +93,32 @@ describe('읽는 도중에 다음 줄을 누른다', () => {
     expect(detail(wrapper)).toContain('10102')
     expect(detail(wrapper)).not.toContain('10101')
     wrapper.unmount()
+  })
+
+  /**
+   * **떠나면 큐도 멈춘다** (§8.21, 2026-09-18 R28-F C-2). 화면의 `retire`는 워커까지이고
+   * **파일 읽기 루프에는 맡길 손잡이가 없다** — `roster.stop()`을 안 걸면 서른 개를
+   * 훑다 나가도 큐가 끝까지 돈다.
+   *
+   * **화면이 그것을 거는지를 본다.** `roster-queue.spec.ts`는 `stop()`을 직접 불러
+   * 그 동작만 재므로, 떠나는 자리에서 지워도 거기서는 안 보인다 — 옛 상태로 조용히
+   * 돌아가는 모양이다.
+   */
+  it('화면을 떠나면 안 읽은 줄이 더 안 읽힌다', async () => {
+    const wrapper = await mountInspect([
+      await submissionFile('01.mlpx'),
+      await submissionFile('02.mlpx', OTHER),
+      await submissionFile('03.mlpx', THIRD),
+    ])
+    // 첫 줄만 읽히게 두고 나머지는 큐에 남긴다.
+    gates.shift()?.()
+    await flushPromises()
+    expect(gates.length, 'a read must be waiting to begin with').toBe(1)
+
+    wrapper.unmount()
+    // 돌고 있던 하나는 끝난다. **그 뒤의 줄은 시작되지 않는다.**
+    gates.shift()?.()
+    await flushPromises()
+    expect(gates.length, 'leaving must not start the next read').toBe(0)
   })
 })
