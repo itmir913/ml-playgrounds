@@ -397,6 +397,31 @@ export function parsePreprocessor(value: unknown): Preprocessor {
 }
 
 /**
+ * **이 실험의 전처리기.** 파일에 담긴 것을 읽어 검증한다. 없거나 못 읽으면 `null`이다.
+ *
+ * **세 자리가 이 열 줄을 각자 들고 있었다** — 결과 화면·예측 증거 판·예측 경로의 일괄
+ * 읽기. 점검 화면이 넷째가 될 뻔했고, 그때 이것이 **빠진 원시 연산**임이 드러났다
+ * (open-decisions.md "점검은 읽기 전용 열람기다"의 "화면 부품도 사본을 만들지 않는다").
+ *
+ * **캐스팅으로 넘기지 않는 이유가 `parsePreprocessor`에 있다** — 잘못된 `categories`
+ * 하나가 예외 없이 한 칸 밀린 원-핫을 만든다.
+ */
+export function experimentPreprocessor(
+  experiment: { readonly preprocessor?: { readonly path: string } | undefined },
+  models: ReadonlyMap<string, Uint8Array>,
+): Preprocessor | null {
+  const path = experiment.preprocessor?.path
+  const bytes = path === undefined ? undefined : models.get(path)
+  if (bytes === undefined) return null
+  try {
+    return parsePreprocessor(JSON.parse(new TextDecoder().decode(bytes)))
+  } catch {
+    // 남이 편집한 파일이다. 재료가 없으면 그 재료가 필요한 판만 안 뜬다 (§9.2).
+    return null
+  }
+}
+
+/**
  * 고른 행을 숫자 행렬로 바꾼다. 훈련 데이터에도 테스트 데이터에도 **같은 전처리기**를 쓴다.
  *
  * 훈련 데이터에 없던 범주를 만나면 onehot은 전부 0, ordinal은 -1이다. 예측 한 번을

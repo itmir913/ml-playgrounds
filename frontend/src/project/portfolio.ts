@@ -245,6 +245,25 @@ export function attachmentsOf(portfolio: Portfolio, sectionId: string): readonly
   return portfolio.attachments[sectionId] ?? []
 }
 
+/**
+ * 문항 하나에 붙은 사진들을 **화면이 그리는 모양**으로 만든다.
+ *
+ * **주소가 없는 것은 뺀다** — 파일에서 바이트가 빠진 첨부가 그렇고, 거기서 빈 `<img>`를
+ * 그리면 깨진 그림 아이콘이 뜬다.
+ *
+ * 순수 함수인 이유는 부르는 화면이 둘이 되기 때문이다 — 포트폴리오 편집 화면과 점검
+ * 화면이 같은 것을 그린다 (open-decisions.md "점검은 읽기 전용 열람기다").
+ */
+export function photosOf(
+  portfolio: Portfolio,
+  sectionId: string,
+  urls: ReadonlyMap<string, string>,
+): { path: string; url: string }[] {
+  return attachmentsOf(portfolio, sectionId)
+    .map((path) => ({ path, url: urls.get(path) ?? '' }))
+    .filter((one) => one.url !== '')
+}
+
 /** 파일 안에서 누군가 가리키고 있는 사진 경로 전부. */
 export function referencedAttachments(portfolio: Portfolio): Set<string> {
   return new Set(Object.values(portfolio.attachments).flat())

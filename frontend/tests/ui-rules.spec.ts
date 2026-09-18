@@ -2549,3 +2549,46 @@ describe('받은 것을 그리는 부품은 스토어를 안 읽는다', () => {
     })
   }
 })
+
+/**
+ * **객체 URL은 손으로 만들지 않는다** (`composables/useObjectUrls.ts`).
+ *
+ * 만드는 것은 한 줄이고 **놓아주는 시점이 어렵다.** 다섯 화면이 같은 모양을 각자 들고
+ * 있었고(V11 R5 C-2), 그러고도 포트폴리오 화면이 여섯째로 남아 있었다 — 키만 경로인
+ * 같은 코드였다. 점검 화면이 일곱째가 될 뻔했다 (2026-09-18).
+ *
+ * **예외는 내려받기 하나다** — 거기서 만드는 URL은 화면에 안 걸리고 그 자리에서 놓는다.
+ */
+describe('객체 URL은 한 곳에서만 만든다', () => {
+  const ALLOWED = [
+    join(SRC, 'composables', 'useObjectUrls.ts'),
+    join(SRC, 'project', 'download.ts'),
+  ]
+
+  function sourcesUnder(directory: string): string[] {
+    return readdirSync(directory).flatMap((entry) => {
+      const path = join(directory, entry)
+      if (statSync(path).isDirectory()) return sourcesUnder(path)
+      return entry.endsWith('.vue') || entry.endsWith('.ts') ? [path] : []
+    })
+  }
+
+  it('허용한 둘 말고는 createObjectURL을 안 부른다', () => {
+    const offenders = sourcesUnder(SRC)
+      .filter((path) => !ALLOWED.includes(path))
+      .filter((path) =>
+        withoutComments(readFileSync(path, 'utf-8')).some((line) =>
+          line.includes('createObjectURL'),
+        ),
+      )
+      .map((path) => basename(path))
+    expect(offenders).toEqual([])
+  })
+
+  /** 허용 목록이 썩지 않았는지. 둘 다 실제로 부르고 있어야 규칙이 뜻을 갖는다. */
+  it('허용한 둘은 실제로 부른다', () => {
+    for (const path of ALLOWED) {
+      expect(readFileSync(path, 'utf-8'), basename(path)).toContain('createObjectURL')
+    }
+  })
+})

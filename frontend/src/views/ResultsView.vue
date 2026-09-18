@@ -15,7 +15,7 @@ import { useI18n } from 'vue-i18n'
 import AppBadge from '@/components/AppBadge.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import StepHeader from '@/components/StepHeader.vue'
-import { parsePreprocessor, type Preprocessor } from '@/ml/preprocess'
+import { experimentPreprocessor, type Preprocessor } from '@/ml/preprocess'
 import { experimentOrder } from '@/ml/results'
 import { readFlag, writeFlag } from '@/prefs'
 import { readDataset } from '@/project/dataset'
@@ -82,23 +82,16 @@ const previous = computed(() => (index.value > 0 ? experiments.value[index.value
 const dataset = computed(() => readDataset(project.file))
 
 /**
- * 고른 실험의 전처리기. **파일에서 읽어 검증한다** (`parsePreprocessor`) — 캐스팅으로
- * 넘기면 잘못된 `categories` 하나가 예외 없이 한 칸 밀린 원-핫을 만든다. 예측 화면이
- * 같은 길을 쓴다(`PredictView.vue`).
+ * 고른 실험의 전처리기. **읽고 검증하는 것은 `experimentPreprocessor`가 한다** — 같은
+ * 열 줄을 세 화면이 각자 들고 있었다.
  *
  * **고른 실험 것만 읽는다.** 패널이 보는 것은 그 실험 하나이고, 실험이 스물이면 스무
  * 벌을 미리 읽을 이유가 없다.
  */
 const preprocessor = computed<Preprocessor | null>(() => {
-  const path = current.value?.preprocessor?.path
-  const bytes = path === undefined ? undefined : project.file?.models.get(path)
-  if (bytes === undefined) return null
-  try {
-    return parsePreprocessor(JSON.parse(new TextDecoder().decode(bytes)))
-  } catch {
-    // 못 읽은 전처리기다. 남의 파일에서 올 수 있고, 그때 그 재료가 필요한 패널만 안 뜬다.
-    return null
-  }
+  const experiment = current.value
+  const models = project.file?.models
+  return experiment && models ? experimentPreprocessor(experiment, models) : null
 })
 
 /**

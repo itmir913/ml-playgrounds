@@ -28,7 +28,7 @@ import type { Prediction } from './metrics'
 import { interpreterFor, type LoadContext, type Predict, type ProbaModel } from './models'
 import { succeeded } from './results'
 import {
-  parsePreprocessor,
+  experimentPreprocessor,
   targetValues,
   transform,
   type ColumnKind,
@@ -537,14 +537,9 @@ export function readPreprocessors(
 ): Map<string, Preprocessor> {
   const found = new Map<string, Preprocessor>()
   for (const experiment of document.runs.experiments) {
-    const path = experiment.preprocessor?.path
-    const bytes = path === undefined ? undefined : files.get(path)
-    if (bytes === undefined) continue
-    try {
-      found.set(experiment.id, parsePreprocessor(JSON.parse(new TextDecoder().decode(bytes))))
-    } catch {
-      // 못 읽은 전처리기다. 사유는 withPreprocessorReason이 붙인다.
-    }
+    // 못 읽은 전처리기는 `null`로 온다. 사유는 `withPreprocessorReason`이 붙인다.
+    const preprocessor = experimentPreprocessor(experiment, files)
+    if (preprocessor) found.set(experiment.id, preprocessor)
   }
   return found
 }

@@ -12,6 +12,7 @@ import { defineComponent, h, ref } from 'vue'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useObjectUrls, type ObjectUrlSource } from '../src/composables/useObjectUrls'
 import { useThumbnails, type Thumbnailable } from '../src/composables/useThumbnails'
 
 const created: string[] = []
@@ -39,13 +40,21 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-/** 컴포저블만 태우는 껍데기. 화면은 여기서 볼 것이 아니다. */
-function host(entries: ReturnType<typeof ref<Thumbnailable[]>>) {
+/**
+ * 컴포저블만 태우는 껍데기. 화면은 여기서 볼 것이 아니다.
+ *
+ * **둘이 같은 껍데기를 쓴다** — 썸네일과 그 아래 원시 연산(`useObjectUrls`). 껍데기를
+ * 두 벌로 두면 한쪽만 고쳐지고, 그건 이 파일이 막으려는 병과 같은 모양이다.
+ */
+function host(
+  entries: ReturnType<typeof ref<Thumbnailable[] | ObjectUrlSource[]>>,
+  use: (source: never) => { urls: { value: Map<string, string> } } = useThumbnails as never,
+) {
   let urls!: { value: Map<string, string> }
   const wrapper = mount(
     defineComponent({
       setup() {
-        urls = useThumbnails(entries as never).urls
+        urls = use(entries as never).urls
         return () => h('div')
       },
     }),
@@ -117,6 +126,51 @@ describe('만들고 놓아준다', () => {
 
     wrapper.unmount()
 
+    for (const url of all) expect(revoked).toContain(url)
+  })
+})
+
+/**
+ * **첨부 사진도 같은 원시 연산을 쓴다** (`composables/useObjectUrls.ts`, 2026-09-18).
+ *
+ * 포트폴리오 화면이 이 코드를 **줄 단위로 같은 두 벌째**로 들고 있었고, 키만 해시 대신
+ * 경로였다. 여기서 보는 것은 그 어휘 차이 둘이다 — **키가 무엇이든 되고, 형식을 몰라도
+ * 된다.**
+ */
+describe('키가 무엇이든, 형식을 몰라도 된다', () => {
+  function attachment(path: string): ObjectUrlSource {
+    // 첨부는 무엇이든 올 수 있어 `mime`이 없다. 브라우저가 알아서 읽는다.
+    return { key: path, bytes: new Uint8Array([9, 9]) }
+  }
+
+  it('경로를 키로 써도 하나씩 만든다', () => {
+    const { state } = host(
+      ref([attachment('portfolio/attachments/1.webp')]),
+      useObjectUrls as never,
+    )
+    expect(state.urls.get('portfolio/attachments/1.webp')).toBeDefined()
+    expect(created).toHaveLength(1)
+  })
+
+  it('뗀 첨부의 주소는 그 자리에서 놓아준다', async () => {
+    const entries = ref([attachment('a.webp'), attachment('b.webp')])
+    const { state } = host(entries, useObjectUrls as never)
+    const gone = state.urls.get('b.webp')!
+
+    entries.value = [attachment('a.webp')]
+    await Promise.resolve()
+
+    expect(revoked).toContain(gone)
+    expect(state.urls.has('b.webp')).toBe(false)
+  })
+
+  it('떠날 때 전부 놓아준다', () => {
+    const { wrapper, state } = host(
+      ref([attachment('a.webp'), attachment('b.webp')]),
+      useObjectUrls as never,
+    )
+    const all = [...state.urls.values()]
+    wrapper.unmount()
     for (const url of all) expect(revoked).toContain(url)
   })
 })

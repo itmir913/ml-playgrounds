@@ -12,6 +12,7 @@ import { isClientError } from '../src/errors'
 import {
   PREPROCESSOR_FORMAT,
   detectKind,
+  experimentPreprocessor,
   fitPreprocessor,
   missingColumns,
   targetValues,
@@ -375,5 +376,57 @@ describe('사분위 - 짝수 개에서 보간이 돈다', () => {
     // (1-2.5)/1.5 = -1, (4-2.5)/1.5 = 1. 보간이 죽으면 둘 다 다른 값이 된다.
     expect(moved[0]?.[0]).toBeCloseTo(-1, 10)
     expect(moved[3]?.[0]).toBeCloseTo(1, 10)
+  })
+})
+
+/**
+ * **이 실험의 전처리기** (`experimentPreprocessor`).
+ *
+ * 결과 화면·예측 증거 판·예측 경로가 같은 열 줄을 각자 들고 있었고, 점검 화면이 넷째가
+ * 될 뻔했다 (2026-09-18). 여기서 보는 것은 **못 읽을 때 무엇이 되는가**다 — 남의 파일에서
+ * 오는 값이라 던지면 화면이 통째로 죽는다.
+ */
+describe('실험의 전처리기', () => {
+  const fitted = fitPreprocessor(
+    {
+      columns: ['a', 'b'],
+      rows: [
+        ['1', '2'],
+        ['3', '4'],
+      ],
+    },
+    [0, 1],
+    ['a', 'b'],
+    { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
+  )
+  const bytes = new TextEncoder().encode(JSON.stringify(fitted))
+
+  it('가리키는 것을 읽어 검증한다', () => {
+    const models = new Map([['model/pre-1.json', bytes]])
+    const read = experimentPreprocessor({ preprocessor: { path: 'model/pre-1.json' } }, models)
+    expect(read).toEqual(fitted)
+  })
+
+  it('안 가리키면 없다', () => {
+    expect(experimentPreprocessor({}, new Map([['model/pre-1.json', bytes]]))).toBeNull()
+  })
+
+  it('가리키는데 파일에 없으면 없다', () => {
+    expect(
+      experimentPreprocessor({ preprocessor: { path: 'model/gone.json' } }, new Map()),
+    ).toBeNull()
+  })
+
+  it('못 읽는 것은 던지지 않고 없는 것이 된다', () => {
+    // 남이 편집한 파일이다. 던지면 그 재료가 필요 없는 패널까지 함께 죽는다.
+    const broken = new Map([['model/pre-1.json', new TextEncoder().encode('{ not json')]])
+    expect(
+      experimentPreprocessor({ preprocessor: { path: 'model/pre-1.json' } }, broken),
+    ).toBeNull()
+  })
+
+  it('모양이 틀린 것도 없는 것이 된다 - 캐스팅으로 통과시키지 않는다', () => {
+    const wrong = new Map([['model/pre-1.json', new TextEncoder().encode('{"format":"nope"}')]])
+    expect(experimentPreprocessor({ preprocessor: { path: 'model/pre-1.json' } }, wrong)).toBeNull()
   })
 })

@@ -28,7 +28,7 @@ import type { AnswerEvidenceInput } from '@/ml/answer-evidence'
 import { backboneFor } from '@/ml/backbones'
 import { imageClusterGroups } from '@/ml/image-clusters'
 import { imageTrainingSource } from '@/ml/images'
-import { parsePreprocessor, transform } from '@/ml/preprocess'
+import { experimentPreprocessor, transform } from '@/ml/preprocess'
 import { useThumbnails } from '@/composables/useThumbnails'
 import { readEmbeddings } from '@/project/embeddings'
 import { readImages } from '@/project/images'
@@ -43,16 +43,8 @@ const project = useProjectStore()
 
 /** 이 실험의 전처리기. 학습 때 정한 것을 그대로 되써야 좌표계가 안 갈린다. */
 const preprocessor = computed(() => {
-  const file = project.file
-  const path = props.input.experiment.preprocessor?.path
-  const bytes = path === undefined ? undefined : file?.models.get(path)
-  if (!bytes) return null
-  try {
-    return parsePreprocessor(JSON.parse(new TextDecoder().decode(bytes)))
-  } catch {
-    // 남이 편집한 파일이다. 재료가 없으면 아무것도 안 그린다 (§9.2).
-    return null
-  }
+  const models = project.file?.models
+  return models ? experimentPreprocessor(props.input.experiment, models) : null
 })
 
 /**

@@ -20,6 +20,7 @@ import {
   nextAttachmentPath,
   portfolioBytes,
   orphanAnswers,
+  photosOf,
   portfolioSections,
   portfolioTextBytes,
   renderPortfolioMarkdown,
@@ -942,5 +943,50 @@ describe('머리글의 언어가 manifest에 남는다', () => {
     const { document } = identifiedExport(withForm, identity, '2026-08-15T07:00:00Z', label, 'en')
     expect(document.manifest.locale).toBe('en')
     expect(document.portfolio.template.locale).toBe('ko')
+  })
+})
+
+/**
+ * **문항에 붙은 사진을 화면이 그리는 모양으로 만든다** (`photosOf`).
+ *
+ * 포트폴리오 편집 화면이 들고 있던 것을 순수 함수로 뺐다 (2026-09-18) — 점검 화면이
+ * 같은 것을 그리고, 옮겨 적으면 두 화면이 다른 사진을 보인다.
+ */
+describe('문항에 붙은 사진', () => {
+  const urls = new Map([
+    ['portfolio/attachments/1.webp', 'blob:1'],
+    ['portfolio/attachments/2.webp', 'blob:2'],
+  ])
+
+  function withPhotos(paths: string[]): Portfolio {
+    const base = portfolio([{ id: 'why', title: '왜' }])
+    return { ...base, attachments: { why: paths } }
+  }
+
+  it('붙은 순서 그대로 준다', () => {
+    const photos = photosOf(
+      withPhotos(['portfolio/attachments/2.webp', 'portfolio/attachments/1.webp']),
+      'why',
+      urls,
+    )
+    expect(photos.map((one) => one.path)).toEqual([
+      'portfolio/attachments/2.webp',
+      'portfolio/attachments/1.webp',
+    ])
+    expect(photos.map((one) => one.url)).toEqual(['blob:2', 'blob:1'])
+  })
+
+  it('주소가 없는 첨부는 뺀다 - 빈 img는 깨진 그림으로 보인다', () => {
+    // 파일에서 바이트가 빠진 첨부다. 남의 파일에서 온다.
+    const photos = photosOf(
+      withPhotos(['portfolio/attachments/1.webp', 'portfolio/attachments/9.webp']),
+      'why',
+      urls,
+    )
+    expect(photos.map((one) => one.path)).toEqual(['portfolio/attachments/1.webp'])
+  })
+
+  it('붙은 것이 없으면 빈 목록이다', () => {
+    expect(photosOf(portfolio([{ id: 'why', title: '왜' }]), 'why', urls)).toEqual([])
   })
 })

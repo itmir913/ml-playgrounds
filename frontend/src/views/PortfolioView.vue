@@ -24,6 +24,7 @@ import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import StepActionBar from '@/components/StepActionBar.vue'
 import StepHeader from '@/components/StepHeader.vue'
+import { useObjectUrls } from '@/composables/useObjectUrls'
 import { ClientError } from '@/errors'
 import type { Locale } from '@/i18n'
 import { ACTION_ICONS } from '@/icons'
@@ -33,10 +34,10 @@ import { bakeAttachments } from '@/project/attachments'
 import { touch } from '@/project/create'
 import { parsePortfolioForm } from '@/project/portfolio-form'
 import {
-  attachmentsOf,
   hasTemplate,
   nextAttachmentPath,
   orphanAnswers,
+  photosOf,
   portfolioBytes,
   portfolioSections,
   withAnswer,
@@ -356,40 +357,17 @@ function detach(): void {
 }
 
 /**
- * 사진의 미리보기 주소. **살아 있는 것만 남기고 나머지는 놓아준다** - 안 놓으면 붙였다
- * 뗀 사진의 바이트가 탭이 닫힐 때까지 메모리에 남는다.
+ * 사진의 미리보기 주소. **만들고 놓아주는 일은 `useObjectUrls`가 한다** — 이 화면이
+ * 들고 있던 것과 `useThumbnails`가 줄 단위로 같은 두 벌이었고, 2026-09-18에 하나로
+ * 접었다. 안 놓으면 붙였다 뗀 사진의 바이트가 탭이 닫힐 때까지 메모리에 남는다.
  */
-const urls = ref(new Map<string, string>())
-
-watch(
-  () => project.file?.attachments,
-  (current) => {
-    const alive = current ?? new Map<string, Uint8Array>()
-    const next = new Map<string, string>()
-    for (const [path, url] of urls.value) {
-      if (alive.has(path)) next.set(path, url)
-      else URL.revokeObjectURL(url)
-    }
-    for (const [path, bytes] of alive) {
-      if (next.has(path)) continue
-      // `Uint8Array`의 버퍼가 `SharedArrayBuffer`일 수도 있다고 보는 자리라 단언한다
-      // (`project/download.ts`가 같은 이유로 같은 모양이다).
-      next.set(path, URL.createObjectURL(new Blob([bytes as unknown as BlobPart])))
-    }
-    urls.value = next
-  },
-  { immediate: true, deep: false },
+const { urls } = useObjectUrls(
+  computed(() => [...(project.file?.attachments ?? [])].map(([key, bytes]) => ({ key, bytes }))),
 )
 
-onBeforeUnmount(() => {
-  for (const url of urls.value.values()) URL.revokeObjectURL(url)
-})
-
-/** 문항 하나에 붙은 사진들. 화면이 그리는 모양으로 만들어 넘긴다. */
-function photosOf(sectionId: string): { path: string; url: string }[] {
-  return attachmentsOf(portfolio.value, sectionId)
-    .map((path) => ({ path, url: urls.value.get(path) ?? '' }))
-    .filter((one) => one.url !== '')
+/** 문항 하나에 붙은 사진들. 판정은 `project/portfolio.ts`의 순수 함수가 한다. */
+function photosFor(sectionId: string): { path: string; url: string }[] {
+  return photosOf(portfolio.value, sectionId, urls.value)
 }
 
 function remove(): void {
@@ -472,7 +450,7 @@ function remove(): void {
             :sections="sections"
             :orphans="orphans"
             :anchor-id="anchorId"
-            :photos-of="photosOf"
+            :photos-of="photosFor"
           />
 
           <template v-else>
@@ -484,7 +462,7 @@ function remove(): void {
               :section="section"
               :index="index"
               :count="sections.length"
-              :photos="photosOf(section.id)"
+              :photos="photosFor(section.id)"
               @answer="(text, element) => setAnswer(section.id, text, element)"
               @title="(text, element) => setTitle(section.id, text, element)"
               @description="(text, element) => setDescription(section.id, text, element)"
