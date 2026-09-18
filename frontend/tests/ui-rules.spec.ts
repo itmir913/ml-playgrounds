@@ -14,7 +14,7 @@ import { basename, dirname, join, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { windowedHits, withoutComments } from './fixtures/source'
+import { sourceFiles, windowedHits, withoutComments } from './fixtures/source'
 
 /** 정규식과 예문 안에 그대로 못 적는다 - 이 파일 자신이 검사 대상이라 조립 자리로 읽힌다. */
 const BACKTICK = String.fromCharCode(96)
@@ -2674,8 +2674,16 @@ describe('없는 색 토큰을 부르지 않는다', () => {
     expect(missingTokens('// bg-surface-soft로 두었다가 지웠다')).toEqual([])
   })
 
-  it('화면과 부품 어디에도 없는 토큰이 없다', () => {
-    const offenders = vueFiles(SRC).flatMap((path) =>
+  /**
+   * **`.vue`만 훑던 그물을 소스 전체로 넓혔다** (2026-09-18 R28 C-12). 클래스 이름을
+   * 조립해 주는 `.ts`가 생기는 날 — 등록부에 색을 적는 자리가 그 모양이 되기 쉽다 —
+   * 그쪽은 통째로 면제였고, 넓히는 값이 한 줄이라 지금 넓힌다.
+   *
+   * **템플릿 리터럴 안의 조립(`bg-${tone}`)은 여전히 밖이다.** 이름이 코드로 만들어지면
+   * 정규식이 볼 글자가 없다 — 그 자리는 사람 확인이다.
+   */
+  it('소스 어디에도 없는 토큰이 없다', () => {
+    const offenders = sourceFiles(SRC).flatMap((path) =>
       missingTokens(sourceOf(path)).map((token) => `${path.slice(SRC.length + 1)}  ${token}`),
     )
     expect(offenders, 'uses a color token that theme.css does not define').toEqual([])

@@ -41,17 +41,31 @@ const UTILITIES = join(SRC, 'styles', 'utilities.css')
 /** `<tbody>` 안의 줄 여는 태그. 속성이 여러 줄에 걸쳐도 `[^>]`가 줄바꿈을 먹는다. */
 const BODY_ROW = /<tr\b[^>]*>/g
 
+/**
+ * `<tbody>` 안의 **모든** 여는 태그 — 줄과 칸. (2026-09-18 R28 C-11)
+ *
+ * 얹힌 색을 줄에서만 찾던 때는 **칸으로 옮긴 `hover:bg-`가 그물 밖**이었다. 칸이 제 색을
+ * 칠하면 줄의 강조를 가리므로(이 파일의 머리말), 다른 색을 칸에 거는 것이 더 나쁘다.
+ */
+const BODY_TAG = /<t[rhd]\b[^>]*>/g
+
 /** 화면 본문만. 주석 안의 예문과 스크립트의 문자열에 안 속는다. */
 function templateOf(text: string): string {
   return text.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<!--[\s\S]*?-->/g, '')
 }
 
+/** 이 화면의 `<tbody>` 안 여는 태그들. `rows`가 참이면 줄만. */
+function bodyTags(path: string, rows: boolean): string[] {
+  const template = templateOf(readFileSync(path, 'utf8'))
+  const pattern = rows ? BODY_ROW : BODY_TAG
+  return [...template.matchAll(/<tbody[\s\S]*?<\/tbody>/g)].flatMap((body) =>
+    [...body[0].matchAll(pattern)].map((tag) => tag[0]),
+  )
+}
+
 /** 이 화면의 `<tbody>` 안 줄들. */
 function bodyRows(path: string): string[] {
-  const template = templateOf(readFileSync(path, 'utf8'))
-  return [...template.matchAll(/<tbody[\s\S]*?<\/tbody>/g)].flatMap((body) =>
-    [...body[0].matchAll(BODY_ROW)].map((row) => row[0]),
-  )
+  return bodyTags(path, true)
 }
 
 /** 표가 있는 화면들. */
@@ -117,9 +131,10 @@ describe('마우스가 얹힌 줄', () => {
   it('화면이 다른 색으로 덮지 않는다', () => {
     const offenders: string[] = []
     for (const path of screensWithTables()) {
-      for (const row of bodyRows(path)) {
-        for (const [, token] of row.matchAll(/hover:bg-([\w-]+)/g)) {
-          if (token !== HOVER) offenders.push(`${path.slice(SRC.length + 1)}  ${oneLine(row)}`)
+      // **줄만이 아니라 칸까지 본다.** 칸의 배경은 줄의 배경을 언제나 이긴다.
+      for (const tag of bodyTags(path, false)) {
+        for (const [, token] of tag.matchAll(/hover:bg-([\w-]+)/g)) {
+          if (token !== HOVER) offenders.push(`${path.slice(SRC.length + 1)}  ${oneLine(tag)}`)
         }
       }
     }
@@ -133,17 +148,21 @@ describe('고른 줄', () => {
     return row.includes('@click')
   }
 
-  /** 그 줄의 `:class`에 적힌 것 — 고른 줄의 표시가 여기 산다. */
-  function dynamicClass(row: string): string {
-    const found = row.match(/:class="([\s\S]*?)"/)
-    return found?.[1] ?? ''
+  /**
+   * 그 줄이 입은 클래스 전부 — `:class`와 그냥 `class` 둘 다. (2026-09-18 R28 C-11)
+   *
+   * `:class`만 읽던 때는 **고른 줄의 색을 정적 `class`로 옮기면 그물 밖**이었다. 줄무늬
+   * (`odd:bg-…`)는 앞에 `:`가 붙어 아래 정규식이 이미 안 센다.
+   */
+  function rowClasses(row: string): string {
+    return [...row.matchAll(/:?class="([\s\S]*?)"/g)].map(([, value]) => value ?? '').join(' ')
   }
 
   it('고른 줄의 색이 표마다 같다', () => {
     const offenders: string[] = []
     for (const path of screensWithTables()) {
       for (const row of bodyRows(path)) {
-        for (const [, token] of dynamicClass(row).matchAll(/(?<!:)\bbg-([\w-]+)/g)) {
+        for (const [, token] of rowClasses(row).matchAll(/(?<!:)\bbg-([\w-]+)/g)) {
           if (token !== CHOSEN) offenders.push(`${path.slice(SRC.length + 1)}  bg-${token}`)
         }
       }
@@ -161,12 +180,24 @@ describe('고른 줄', () => {
     for (const path of screensWithTables()) {
       for (const row of bodyRows(path)) {
         if (!clickable(row)) continue
-        if (!dynamicClass(row).includes('font-bold')) {
+        if (!rowClasses(row).includes('font-bold')) {
           offenders.push(`${path.slice(SRC.length + 1)}  ${oneLine(row)}`)
         }
       }
     }
     expect(offenders, 'a chosen row is not bold').toEqual([])
+  })
+
+  it('검사기가 정적 class에 적은 색도 본다', () => {
+    expect([
+      ...rowClasses('<tr class="bg-caution-soft">').matchAll(/(?<!:)\bbg-([\w-]+)/g),
+    ]).toEqual([expect.arrayContaining(['caution-soft'])])
+    // **줄무늬는 안 센다.** 앞에 `odd:`·`even:`이 붙어 고른 줄의 색이 아니다.
+    expect([
+      ...rowClasses('<tr class="odd:bg-surface even:bg-surface-sunken">').matchAll(
+        /(?<!:)\bbg-([\w-]+)/g,
+      ),
+    ]).toEqual([])
   })
 })
 
@@ -178,6 +209,12 @@ describe('검사기가 실제로 잡는다', () => {
     const screen = `<template><table><thead><tr><th>a</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></template>`
     const rows = [...(screen.match(/<tbody[\s\S]*?<\/tbody>/) ?? [''])[0].matchAll(BODY_ROW)]
     expect(rows).toHaveLength(1)
+  })
+
+  it('칸까지 세는 자리가 줄과 칸을 모두 본다', () => {
+    const body = '<tbody><tr><th>a</th><td class="hover:bg-surface-sunken">1</td></tr></tbody>'
+    expect([...body.matchAll(BODY_ROW)]).toHaveLength(1)
+    expect([...body.matchAll(BODY_TAG)]).toHaveLength(3)
   })
 
   it('다른 색과 안 굵은 고른 줄을 가른다', () => {

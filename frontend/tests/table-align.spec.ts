@@ -79,6 +79,15 @@ describe('정렬 기본값은 칸이 덮을 수 있어야 한다', () => {
   })
 })
 
+/**
+ * **정적 훑기는 열 번호를 본다** (2026-09-18 R28 A-2).
+ *
+ * 처음에는 정렬 클래스를 **모아서**(다중집합) 견줬다. 머리말은 *"머리와 칸이 정렬을 각자
+ * 적었는지를 잡는다"*라고 적혀 있었는데, 머리의 1열과 칸의 6열이 각각 `text-right`이면
+ * **양쪽 다 `[text-right]`이라 조용했다** — 열이 어긋났는데 초록이다. 짝짓기도 화면
+ * 안의 `<thead>`와 `<tbody>`를 **순서로** 맞춰서, 머리 없는 표가 하나 끼면 그 뒤가 통째로
+ * 밀렸다.
+ */
 describe('머리와 칸이 정렬을 각자 적지 않는다', () => {
   /** 주석과 스크립트를 걷어낸 화면 본문. 주석 안의 `<thead>`에 속지 않는다. */
   function templateOf(text: string): string {
@@ -89,59 +98,129 @@ describe('머리와 칸이 정렬을 각자 적지 않는다', () => {
   const CELL_TAG = /<t([hd])\b([^>]*)>/g
 
   /**
-   * 그 구역에서 칸들이 적은 정렬. **기본값(`text-left`)은 안 센다** — 적어도 안 적어도
-   * 같은 자리에 서므로 한쪽에만 있다고 갈리는 것이 아니다.
+   * 칸 하나가 먹는 자리.
    *
-   * **`colspan`이 붙은 칸은 뺀다.** 여러 열에 걸친 머리(혼동 행렬의 `예측`)는 짝이 되는
-   * 칸이 아예 없다.
+   * **몇 칸인지 모르는 칸이 있다** — `v-for`로 도는 머리와 코드가 정하는 `colspan`이다.
+   * 그 폭은 정적으로 못 세므로 **"여럿"이라고만 적고** 머리와 칸이 같은 자리에서 같은
+   * 모양인지를 본다.
    */
-  function declaredAligns(region: string): string[] {
-    const found: string[] = []
-    for (const [, , attributes] of region.matchAll(CELL_TAG)) {
+  interface Slot {
+    readonly align: Align
+    readonly many: boolean
+  }
+
+  /** 그 줄의 칸들. 여는 태그 하나가 자리 하나다. */
+  function slotsOf(row: string): Slot[] {
+    return [...row.matchAll(CELL_TAG)].map(([, , attributes]) => {
       const text = attributes ?? ''
-      if (/\bcolspan\b/.test(text)) continue
-      for (const [name, align] of Object.entries(ALIGN_CLASSES)) {
-        if (align !== 'left' && text.includes(name)) found.push(name)
-      }
-    }
-    return found.sort()
+      const found = Object.entries(ALIGN_CLASSES).find(([name]) => text.includes(name))
+      return { align: found?.[1] ?? 'left', many: /\bv-for\b|colspan/.test(text) }
+    })
   }
 
-  /** 한 화면 안의 `<thead>`와 그 뒤에 오는 `<tbody>` 짝들. */
+  /** 그 구역의 줄들. */
+  function rowsOf(region: string): string[] {
+    return [...region.matchAll(/<tr\b[^>]*>[\s\S]*?<\/tr>/g)].map((row) => row[0])
+  }
+
+  /** 자리들을 실패 문구에 실을 한 줄로. */
+  function shown(slots: Slot[]): string {
+    return slots.map((slot) => `${slot.align}${slot.many ? '*' : ''}`).join(' ')
+  }
+
+  /**
+   * 한 화면 안의 표들. **껍데기 단위로 자른다** — `<table>`이거나 `<AppTable>`이다.
+   *
+   * `<thead>`와 `<tbody>`를 화면 전체에서 순서로 맞추던 때는 **머리 없는 표가 하나만
+   * 끼어도 짝이 통째로 밀렸고**, 그러면 남의 표의 머리와 이 표의 칸을 견준다.
+   */
   function tables(template: string): { head: string; body: string }[] {
-    const heads = [...template.matchAll(/<thead[\s\S]*?<\/thead>/g)]
-    const bodies = [...template.matchAll(/<tbody[\s\S]*?<\/tbody>/g)]
-    return heads.map((head, index) => ({ head: head[0], body: bodies[index]?.[0] ?? '' }))
+    const found: { head: string; body: string }[] = []
+    for (const [block] of template.matchAll(/<(table|AppTable)\b[\s\S]*?<\/\1>/g)) {
+      const head = block.match(/<thead[\s\S]*?<\/thead>/)?.[0] ?? ''
+      const body = block.match(/<tbody[\s\S]*?<\/tbody>/)?.[0] ?? ''
+      if (head !== '' && body !== '') found.push({ head, body })
+    }
+    return found
   }
 
-  it('한 표의 머리와 칸이 같은 정렬을 적는다', () => {
+  /**
+   * **머리가 두 줄이고 `rowspan`으로 아래까지 걸치는 표.** 열 번호를 정적으로 셀 수
+   * 없다 — 위 줄의 칸이 아래 줄의 자리를 먹고, 그 옆의 `colspan`은 코드가 정한다.
+   *
+   * **이 둘은 사람 확인이다.** 면제를 숨기지 않고 여기 이름으로 적어 두고, 아래 검사가
+   * **면제가 아직 필요한지**를 판정한다 — 표가 평평해지는 날 이 목록이 먼저 운다.
+   */
+  const STACKED_HEADS = ['ConfusionMatrixPanel.vue', 'TabularPrepPreview.vue']
+
+  const screens = sourceFiles(SRC).filter((path) => path.endsWith('.vue'))
+
+  it('한 표의 머리와 칸이 열마다 같은 정렬을 적는다', () => {
     const offenders: string[] = []
-    for (const path of sourceFiles(SRC)) {
-      if (!path.endsWith('.vue')) continue
-      const template = templateOf(readFileSync(path, 'utf8'))
-      for (const { head, body } of tables(template)) {
-        const headAligns = declaredAligns(head)
-        const bodyAligns = declaredAligns(body)
-        if (headAligns.join() !== bodyAligns.join()) {
-          offenders.push(
-            `${path.slice(SRC.length + 1)}  머리[${headAligns.join(' ')}] 칸[${bodyAligns.join(' ')}]`,
-          )
+    for (const path of screens) {
+      if (STACKED_HEADS.some((name) => path.endsWith(name))) continue
+      for (const { head, body } of tables(templateOf(readFileSync(path, 'utf8')))) {
+        const headRow = rowsOf(head).at(-1)
+        if (headRow === undefined) continue
+        const wanted = slotsOf(headRow)
+        for (const row of rowsOf(body)) {
+          const got = slotsOf(row)
+          if (shown(got) !== shown(wanted)) {
+            offenders.push(
+              `${path.slice(SRC.length + 1)}  머리[${shown(wanted)}] 칸[${shown(got)}]`,
+            )
+          }
         }
       }
     }
     // 갈리면 정렬을 열 정의 한 자리에 두고 머리와 칸이 거기서 받아라 (`InspectView`의 `COLUMNS`).
-    expect(offenders, 'header and body declare different alignments').toEqual([])
+    expect(
+      offenders,
+      'a column declares one alignment in the header and another in the cell',
+    ).toEqual([])
   })
 
-  it('검사기가 실제로 잡는다', () => {
-    const head = '<thead><tr><th scope="col">a</th></tr></thead>'
-    const body = '<tbody><tr><td class="text-right">1</td></tr></tbody>'
-    expect(declaredAligns(head)).toEqual([])
-    expect(declaredAligns(body)).toEqual(['text-right'])
+  it('면제한 표는 실제로 머리가 두 줄이다 - 면제가 낡으면 여기서 선다', () => {
+    for (const name of STACKED_HEADS) {
+      const path = screens.find((one) => one.endsWith(name))
+      expect(path, `exempted screen not found: ${name}`).toBeDefined()
+      const heads = tables(templateOf(readFileSync(path ?? '', 'utf8'))).map(({ head }) =>
+        rowsOf(head),
+      )
+      expect(
+        heads.some((rows) => rows.length > 1),
+        `${name} no longer stacks its header`,
+      ).toBe(true)
+    }
   })
 
-  it('여러 열에 걸친 머리는 짝이 없으므로 안 센다', () => {
-    expect(declaredAligns('<th :colspan="3" class="text-center">예측</th>')).toEqual([])
+  it('검사기가 열이 어긋난 것을 잡는다', () => {
+    const head = '<tr><th class="text-right">a</th><th>b</th></tr>'
+    const body = '<tr><td>1</td><td class="text-right">2</td></tr>'
+    // **모아서 견주면 둘 다 `[right]`이라 조용하다.** 자리를 봐야 갈린다.
+    expect(shown(slotsOf(head))).not.toBe(shown(slotsOf(body)))
+    expect(shown(slotsOf(head))).toBe('right left')
+    expect(shown(slotsOf(body))).toBe('left right')
+  })
+
+  it('머리 없는 표가 끼어도 짝이 안 밀린다', () => {
+    const template =
+      '<table><tbody><tr><td class="text-right">x</td></tr></tbody></table>' +
+      '<AppTable><thead><tr><th>a</th></tr></thead><tbody><tr><td>1</td></tr></tbody></AppTable>'
+    const found = tables(template)
+    expect(found).toHaveLength(1)
+    expect(shown(slotsOf(rowsOf(found[0]!.body)[0] ?? ''))).toBe('left')
+  })
+
+  it('몇 칸인지 모르는 칸은 여럿으로 센다', () => {
+    expect(slotsOf('<th :colspan="3" class="text-center">예측</th>')[0]).toEqual({
+      align: 'center',
+      many: true,
+    })
+    expect(slotsOf('<td v-for="one in list" :key="one">x</td>')[0]).toEqual({
+      align: 'left',
+      many: true,
+    })
   })
 })
 
