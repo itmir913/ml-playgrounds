@@ -142,15 +142,20 @@ function failureText(reproduction: Reproduction): string {
 </script>
 
 <template>
-  <section class="flex flex-col gap-3 rounded-panel border border-line bg-surface p-4">
+  <!--
+    **실험 상세의 이웃이라 같은 절 모양이다** (`ExperimentDetail`의 절들) — 이름표는
+    `font-bold text-ink-soft`, 이름표와 내용 사이는 `gap-1.5`, 안내는 이름표 바로 아래다.
+    여기만 테두리를 두르면 같은 열의 이웃들과 무게가 어긋난다 (2026-09-18, 사용자).
+  -->
+  <section class="flex min-w-0 flex-col gap-1.5">
     <div class="flex flex-wrap items-baseline justify-between gap-2">
-      <h4 class="font-bold">{{ t('inspect.reproduce') }}</h4>
+      <h3 class="font-bold text-ink-soft">{{ t('inspect.reproduce') }}</h3>
       <AppButton :disabled="cannotStart" :action="reproduce">
         {{ t('inspect.reproduceStart') }}
       </AppButton>
     </div>
 
-    <p class="text-ink-soft">{{ t('inspect.reproduceLead') }}</p>
+    <p class="text-ink-faint">{{ t('inspect.reproduceLead') }}</p>
 
     <!--
       **잠긴 이유를 전부 말한다** (architecture.md §10). 이유 없이 회색인 단추는 고장으로

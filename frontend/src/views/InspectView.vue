@@ -429,7 +429,7 @@ function reasonOf(code: string): string {
             <IntegrityPanel :integrity="viewing.integrity" />
 
             <section v-if="viewing.experiments.length > 0" class="flex flex-col gap-1.5">
-              <h4 class="font-bold text-ink-soft">{{ t('results.experimentTitle') }}</h4>
+              <h3 class="font-bold text-ink-soft">{{ t('results.experimentTitle') }}</h3>
               <ExperimentList
                 :experiments="viewing.experiments"
                 :selected="viewing.current?.id ?? null"

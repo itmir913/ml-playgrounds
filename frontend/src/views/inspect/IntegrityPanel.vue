@@ -29,9 +29,14 @@ const changed = computed(() => props.integrity.entries.filter((one) => one.state
 </script>
 
 <template>
-  <section class="flex flex-col gap-3 rounded-panel border border-line bg-surface p-4">
+  <!--
+    **절의 리듬은 결과 화면과 같다** (`ExperimentDetail`) — 이름표는 `font-bold text-ink-soft`,
+    이름표와 내용 사이는 `gap-1.5`. 점검만 다른 여백을 쓰면 같은 부품을 쓰고도 화면이
+    남의 것처럼 보인다 (2026-09-18, 사용자).
+  -->
+  <section class="flex flex-col gap-1.5">
     <div class="flex flex-wrap items-baseline justify-between gap-2">
-      <h4 class="font-bold">{{ t('inspect.integrity') }}</h4>
+      <h3 class="font-bold text-ink-soft">{{ t('inspect.integrity') }}</h3>
       <p :class="props.integrity.status === 'UNCHANGED' ? 'font-bold' : 'font-bold text-caution'">
         {{ t(`fileHash.${props.integrity.status}`) }}
       </p>
@@ -42,7 +47,10 @@ const changed = computed(() => props.integrity.entries.filter((one) => one.state
       dataset/은 그대로`가 교사에게 넘길 신호이고, "파일이 바뀌었습니다" 한 줄로는
       학생에게도 교사에게도 할 수 있는 일이 없다.
     -->
-    <ul v-if="changed.length > 0" class="flex flex-col gap-1">
+    <ul
+      v-if="changed.length > 0"
+      class="flex flex-col gap-1 rounded-panel border border-line bg-surface p-4"
+    >
       <li v-for="entry in changed" :key="entry.path" class="flex flex-wrap justify-between gap-x-4">
         <span class="font-mono break-all">{{ entry.path }}</span>
         <span class="text-caution">{{ t(`entryHash.${entry.state}`) }}</span>
@@ -53,6 +61,6 @@ const changed = computed(() => props.integrity.entries.filter((one) => one.state
       **이 판이 답하지 못하는 것을 이 판이 말한다.** 여기서 보는 것은 "학생의 마지막 저장
       뒤에 바뀌었는가"까지다 — 수거 뒤의 변조는 교사가 받은 날 남긴 해시 기록만 답한다.
     -->
-    <p class="text-ink-soft">{{ t('inspect.integrityNote') }}</p>
+    <p class="leading-relaxed text-ink-faint">{{ t('inspect.integrityNote') }}</p>
   </section>
 </template>
