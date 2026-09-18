@@ -2592,3 +2592,61 @@ describe('객체 URL은 한 곳에서만 만든다', () => {
     }
   })
 })
+
+/**
+ * **없는 토큰을 부르는 색 유틸리티는 아무 일도 안 한다** (2026-09-18, 사용자).
+ *
+ * 명렬의 고른 줄과 hover가 `bg-surface-soft`·`hover:bg-surface-soft`였는데 **그런 토큰이
+ * 없다.** Tailwind는 모르는 이름에 CSS를 아예 안 만들고, 클래스는 붙어 있고 화면은
+ * 멀쩡히 그려진다 — 교사 눈에는 **고른 줄이 굵어지기만 하고 강조가 없었다.**
+ *
+ * 같은 날 `th`의 `text-right`가 특정도에 눌려 죽은 것과 **같은 병의 다른 얼굴이다**:
+ * 화면에 적은 것이 조용히 아무 일도 안 한다 (`tests/table-align.spec.ts`).
+ *
+ * **우리 토큰만 본다.** 첫 마디가 `theme.css`의 토큰 이름과 같은 것만 잣대에 걸고,
+ * Tailwind 기본 팔레트(`bg-slate-100`)와 치수 유틸리티(`text-base`·`border-t`)는
+ * 첫 마디가 우리 것이 아니라서 저절로 빠진다.
+ */
+describe('없는 색 토큰을 부르지 않는다', () => {
+  /** `theme.css`가 정한 이름들. **값의 출처가 하나라는 것이 이 검사의 전제다.** */
+  const TOKENS = new Set(
+    [...readFileSync(join(SRC, 'styles', 'theme.css'), 'utf-8').matchAll(/--color-([\w-]+):/g)].map(
+      (match) => match[1] ?? '',
+    ),
+  )
+
+  /** 우리 토큰 이름의 첫 마디. `surface-soft`가 우리 것인지 가르는 잣대다. */
+  const ROOTS = new Set([...TOKENS].map((name) => name.split('-')[0] ?? ''))
+
+  /** 색을 받는 유틸리티. 변종(`hover:`)이 앞에 붙어도 낱말 경계라 걸린다. */
+  const COLOR_UTILITY =
+    /\b(?:bg|text|border|ring|outline|fill|stroke|from|via|to|divide|decoration|accent|caret|placeholder|shadow)-([a-z][\w-]*)\b/g
+
+  /** 이 소스가 부르는, **우리 것인데 없는** 토큰들. */
+  function missingTokens(source: string): string[] {
+    const code = withoutComments(source).join('\n')
+    const found: string[] = []
+    for (const [, name] of code.matchAll(COLOR_UTILITY)) {
+      const token = name ?? ''
+      if (!ROOTS.has(token.split('-')[0] ?? '')) continue
+      if (!TOKENS.has(token)) found.push(token)
+    }
+    return found
+  }
+
+  it('검사기가 실제로 잡는다', () => {
+    expect(missingTokens('<tr class="hover:bg-surface-soft">')).toEqual(['surface-soft'])
+    expect(missingTokens('<tr class="bg-surface-sunken">')).toEqual([])
+    // 기본 팔레트와 치수는 우리 잣대 밖이다.
+    expect(missingTokens('<p class="bg-slate-100 text-base border-t">')).toEqual([])
+    // 주석 안의 예문은 화면이 부르는 것이 아니다.
+    expect(missingTokens('// bg-surface-soft로 두었다가 지웠다')).toEqual([])
+  })
+
+  it('화면과 부품 어디에도 없는 토큰이 없다', () => {
+    const offenders = vueFiles(SRC).flatMap((path) =>
+      missingTokens(sourceOf(path)).map((token) => `${path.slice(SRC.length + 1)}  ${token}`),
+    )
+    expect(offenders, 'uses a color token that theme.css does not define').toEqual([])
+  })
+})

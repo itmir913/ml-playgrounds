@@ -486,11 +486,27 @@ function reasonOf(code: string): string {
               **못 여는 파일도 줄을 갖는다.** 조용히 빠지면 교사는 그 제출물이 없는 것으로
                 읽고, 그것이 이 화면이 가장 하면 안 되는 일이다.
               -->
+            <!--
+              **고른 줄은 색으로도 말한다** (2026-09-18, 사용자). 굵게만 하면 훑는 눈이
+              어느 줄을 열어 둔 것인지 못 찾는다. 색은 이 앱이 "고른 것"에 쓰는 그 색이다
+              (`ExperimentList`의 `bg-brand-soft`) — 표라고 다른 말을 쓰지 않는다.
+
+              **hover는 고른 줄에 안 건다.** 뒤에 오는 변종이 이겨서, 고른 줄에 마우스를
+              얹으면 그 줄만 고른 표시가 풀린 것처럼 보인다.
+
+              **전에는 둘 다 `bg-surface-soft`였고 그런 토큰이 없다.** Tailwind는 모르는
+              이름에 CSS를 안 만들어서 강조도 hover도 처음부터 없었다
+              (`tests/ui-rules.spec.ts`의 "없는 색 토큰을 부르지 않는다"가 이제 운다).
+            -->
             <tr
               v-for="row in rows"
               :key="row.item.label"
-              class="cursor-pointer hover:bg-surface-soft"
-              :class="opened?.label === row.item.label ? 'bg-surface-soft font-bold' : ''"
+              class="cursor-pointer"
+              :class="
+                opened?.label === row.item.label
+                  ? 'bg-brand-soft font-bold'
+                  : 'hover:bg-surface-sunken'
+              "
               @click="select(row.item)"
             >
               <!--
