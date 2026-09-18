@@ -160,11 +160,21 @@ const COLUMNS: readonly {
   /**
    * 그 열의 너비. **머리 글자가 접히지 않을 만큼 준다** — 접히면 머리 줄의 높이가
    * 열마다 달라지고, 정렬로 화살표가 붙고 떨어질 때 그 높이가 흔들린다.
+   *
+   * **글자가 있는 두 열은 아래위 폭을 함께 준다** (2026-09-18, 사용자). 자르면 긴 이름이
+   * `이름 …`이 되어 누구인지 사라지고, 가로 스크롤은 서른 줄에서 훑기를 망친다 —
+   * **줄을 바꾸되 그 열이 너무 넓어지지 않게** 상한을 둔다.
    */
   width: string
 }[] = [
-  { key: 'label', label: 'inspect.file', numeric: false, wide: false, width: 'w-full' },
-  { key: 'student', label: 'inspect.student', numeric: false, wide: true, width: 'w-32' },
+  { key: 'label', label: 'inspect.file', numeric: false, wide: false, width: 'w-full min-w-48' },
+  {
+    key: 'student',
+    label: 'inspect.student',
+    numeric: false,
+    wide: true,
+    width: 'min-w-24 max-w-40',
+  },
   { key: 'experiments', label: 'inspect.experiments', numeric: true, wide: true, width: 'w-44' },
   { key: 'runs', label: 'inspect.runs', numeric: true, wide: true, width: 'w-36' },
 ]
@@ -250,10 +260,14 @@ function reasonOf(code: string): string {
                 scope="col"
                 :class="[column.width, column.wide ? 'hidden md:table-cell' : '']"
               >
+                <!--
+                  **숫자 열은 화살표가 글자 왼쪽이다.** 오른쪽에 두면 그 자리만큼 이름표가
+                  안으로 밀려 **머리와 칸의 오른쪽 끝이 어긋난다** (2026-09-18, 사용자).
+                -->
                 <button
                   type="button"
                   class="flex w-full items-center gap-1"
-                  :class="column.numeric ? 'justify-end' : ''"
+                  :class="column.numeric ? 'flex-row-reverse justify-start' : ''"
                   @click="sortBy(column.key)"
                 >
                   {{ t(column.label) }}
