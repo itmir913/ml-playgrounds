@@ -132,7 +132,7 @@ describe('읽기는 한 줄로 흐른다', () => {
     roster.show(items)
     await flushPromises()
 
-    void roster.readNow(items[2] as RosterItem)
+    void roster.open(items[2] as RosterItem)
     reads[0]?.settle(new Uint8Array([1]))
     await flushPromises()
 
@@ -141,21 +141,25 @@ describe('읽기는 한 줄로 흐른다', () => {
     vi.doUnmock('../src/project/download')
   })
 
-  it('이미 읽은 줄은 다시 안 푼다', async () => {
+  it('줄 서 있던 파일을 고르면 두 번 읽지 않는다', async () => {
+    // 훑기가 아직 안 지난 줄을 교사가 고르면 그 줄은 **앞으로 옮겨질 뿐** 큐에 하나 더
+    // 생기지 않는다. 안 그러면 사진이 든 제출물을 두 번 푼다.
     vi.resetModules()
     const reads = harness()
     const { useRoster: fresh } = await import('../src/composables/useRoster')
 
     const roster = fresh()
-    const items = rosterOf([picked('a.mlpx')])
+    const items = rosterOf([picked('a.mlpx'), picked('b.mlpx'), picked('c.mlpx')])
     roster.show(items)
     await flushPromises()
-    reads[0]?.settle(new Uint8Array([1]))
-    await flushPromises()
 
-    void roster.readNow(items[0] as RosterItem)
-    await flushPromises()
-    expect(reads).toHaveLength(1)
+    void roster.open(items[2] as RosterItem)
+    for (let index = 0; index < 4; index += 1) {
+      reads[index]?.settle(new Uint8Array([1]))
+      await flushPromises()
+    }
+
+    expect(reads.map((one) => one.label)).toEqual(['a.mlpx', 'c.mlpx', 'b.mlpx'])
     vi.doUnmock('../src/project/download')
   })
 })

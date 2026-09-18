@@ -31,7 +31,8 @@
     "experiments": "Experiments",
     "runs": "Trained models",
     "file": "Submission file",
-    "state": "Status"
+    "state": "Status",
+    "noExperiment": "No experiments yet."
   },
   "taskTypes": {
     "classification": "Classification",

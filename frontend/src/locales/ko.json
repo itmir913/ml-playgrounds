@@ -31,7 +31,8 @@
     "experiments": "실험(Experiment)",
     "runs": "학습한 모델",
     "file": "제출물 파일",
-    "state": "상태"
+    "state": "상태",
+    "noExperiment": "아직 학습한 실험이 없습니다."
   },
   "taskTypes": {
     "classification": "분류(Classification)",

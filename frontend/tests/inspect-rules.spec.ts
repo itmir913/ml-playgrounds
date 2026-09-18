@@ -10,7 +10,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -18,8 +18,15 @@ import { withoutComments } from './fixtures/source'
 
 const SRC = join(process.cwd(), 'src')
 
-/** 점검이 사는 자리. 화면은 2단계에서 `views/inspect`로 온다. */
-const INSPECT: readonly string[] = [join(SRC, 'ml', 'reproduce.ts'), join(SRC, 'views', 'inspect')]
+/** 점검이 사는 자리. 계산과 화면 둘 다 여기 규칙 아래에 있다. */
+const INSPECT: readonly string[] = [
+  join(SRC, 'ml', 'reproduce.ts'),
+  join(SRC, 'views', 'InspectView.vue'),
+  join(SRC, 'composables', 'useRoster.ts'),
+  join(SRC, 'project', 'roster.ts'),
+  // 판이 여럿이 되면 이 디렉터리로 온다. 규칙은 그대로다.
+  join(SRC, 'views', 'inspect'),
+]
 
 function sourcesOf(path: string): string[] {
   if (!existsSync(path)) return []
@@ -39,7 +46,7 @@ function body(path: string): string {
 describe('점검 경로', () => {
   /** 훑을 파일이 실제로 있어야 한다. 0개면 판정이 썩은 것이지 규칙이 지켜진 게 아니다. */
   it('검사할 파일을 실제로 찾는다', () => {
-    expect(FILES.length).toBeGreaterThanOrEqual(1)
+    expect(FILES.length).toBeGreaterThanOrEqual(4)
   })
 
   /**
@@ -123,5 +130,37 @@ describe('점검 경로', () => {
     )
     // 주석은 안 본다 - 규칙을 가리키는 주석까지 물면 그 주석을 못 쓰게 된다.
     expect(withoutComments('// writeProject를 부르지 마라').join('')).not.toContain('writeProject')
+  })
+})
+
+/**
+ * **화면 부품도 사본을 만들지 않는다** (open-decisions.md "점검은 읽기 전용 열람기다").
+ *
+ * 열람은 결과 화면의 부품을 **그대로 쓴다.** 옮겨 적으면 교사가 보는 화면과 학생이 보던
+ * 화면이 갈리고, 그 갈라짐은 한쪽만 고쳐질 때 드러난다 — 계산에서 두 번 겪은 일이다.
+ *
+ * **양·음 두 조건이다.** 이름이 같은 파일이 없다는 것만으로는 부족하다 — `MyRunDetail.vue`
+ * 처럼 이름을 바꿔 베끼면 음 조건은 통과한다. 그래서 **실제로 임포트하는지**를 함께 본다.
+ */
+describe('점검 화면은 결과 화면의 부품을 쓴다', () => {
+  const VIEW = join(SRC, 'views', 'InspectView.vue')
+  const SHARED = ['ExperimentDetail', 'ExperimentList', 'ProjectSummary']
+
+  it('그 부품들을 임포트한다', () => {
+    const source = body(VIEW)
+    for (const name of SHARED) expect(source, name).toContain(`import ${name} from`)
+  })
+
+  it('같은 이름의 부품을 점검 아래에 새로 만들지 않았다', () => {
+    const own = sourcesOf(join(SRC, 'views', 'inspect')).map((path) => basename(path, '.vue'))
+    expect(own.filter((name) => SHARED.includes(name))).toEqual([])
+  })
+
+  it('결과 화면의 재료를 짓는 함수도 공용이다', () => {
+    // 전처리기 파싱과 실험 번호는 이미 있는 함수다. 여기서 다시 지으면 같은 파일을 보고
+    // 두 화면이 다른 숫자를 말한다.
+    const source = body(VIEW)
+    expect(source).toContain('experimentPreprocessor')
+    expect(source).toContain('experimentOrder')
   })
 })

@@ -21,11 +21,17 @@ import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
 import AppTable from '@/components/AppTable.vue'
+import ProjectSummary from '@/components/ProjectSummary.vue'
 import { useRoster } from '@/composables/useRoster'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { ACTION_ICONS } from '@/icons'
+import { experimentPreprocessor } from '@/ml/preprocess'
+import { experimentOrder } from '@/ml/results'
+import { readDataset } from '@/project/dataset'
 import { MLPX_EXTENSION } from '@/project/format'
 import { rosterOf, sortRoster, type RosterItem, type RosterSort } from '@/project/roster'
+import ExperimentDetail from './results/ExperimentDetail.vue'
+import ExperimentList from './results/ExperimentList.vue'
 
 const { t } = useI18n()
 const roster = useRoster()
@@ -35,6 +41,9 @@ const fileInput = ref<HTMLInputElement | null>(null)
 
 /** 지금 보고 있는 줄. **명렬이 갈리면 비운다** — 없는 줄을 가리키고 있을 수 없다. */
 const opened = ref<RosterItem | null>(null)
+
+/** 고른 실험. 없으면 마지막 실험을 본다 — 교사가 먼저 볼 것은 학생이 마지막에 한 일이다. */
+const selected = ref<string | null>(null)
 
 /** 지금 정렬 기준. 기본은 이름표순이라 **폴더째 고르면 반이 묶여 선다.** */
 const sort = ref<RosterSort>('label')
@@ -66,7 +75,8 @@ watch(roster.items, (items) => {
  */
 function select(item: RosterItem): void {
   opened.value = item
-  void roster.readNow(item)
+  selected.value = null
+  void roster.open(item)
 }
 
 /** 같은 열을 다시 누르면 방향이 뒤집힌다. 다른 열이면 오름차순부터다. */
@@ -78,6 +88,35 @@ function sortBy(key: RosterSort): void {
 const summaryOfOpened = computed(() =>
   opened.value ? roster.summaries.value.get(opened.value.label) : undefined,
 )
+
+/**
+ * 열어 본 제출물의 재료. **파일을 아는 것은 이 화면 하나이고, 아래는 받은 것을 나르기만
+ * 한다** (`ResultsView`가 적어 둔 같은 규칙).
+ *
+ * **여기서 읽는 것들은 전부 이미 있던 함수다** — 정본 표는 `readDataset`, 실험의 전처리기는
+ * `experimentPreprocessor`, 번호는 `experimentOrder`. 옮겨 적으면 결과 화면과 점검 화면이
+ * 다른 숫자를 말하게 된다.
+ */
+const viewing = computed(() => {
+  const file = roster.opened.value?.read.project
+  if (!file || roster.opened.value?.item.label !== opened.value?.label) return null
+
+  const experiments = file.document.runs.experiments
+  const index = Math.max(
+    experiments.findIndex((experiment) => experiment.id === selected.value),
+    0,
+  )
+  const current = experiments[experiments.length === 0 ? -1 : index]
+  return {
+    file,
+    experiments,
+    current,
+    order: experimentOrder(experiments),
+    previous: index > 0 ? experiments[index - 1] : undefined,
+    dataset: readDataset(file),
+    preprocessor: current ? experimentPreprocessor(current, file.models) : null,
+  }
+})
 
 /** 몇 줄까지 읽었는가. 훑는 동안 교사가 기다림의 크기를 안다. */
 const progress = computed(() => ({
@@ -265,18 +304,55 @@ function reasonOf(code: string): string {
         </AppTable>
       </div>
 
-      <!-- 고른 하나. 열람과 대조가 이 자리에 붙는다. -->
-      <section class="rounded-panel border border-line bg-surface p-4">
-        <p v-if="!opened" class="text-ink-soft">{{ t('inspect.pickOne') }}</p>
-        <template v-else-if="summaryOfOpened?.state === 'read'">
-          <h3 class="truncate text-xl font-black">{{ summaryOfOpened.name }}</h3>
-          <p class="mt-1 truncate text-ink-soft">{{ opened.label }}</p>
-        </template>
-        <p v-else-if="summaryOfOpened?.state === 'unreadable'" class="leading-relaxed">
-          {{ reasonOf(summaryOfOpened.code) }}
-        </p>
-        <p v-else class="text-ink-soft">{{ t('inspect.reading') }}</p>
-      </section>
+      <!--
+        고른 하나. **열람은 결과 화면의 부품을 그대로 쓴다** (open-decisions.md "점검은
+        읽기 전용 열람기다"의 "화면 부품도 사본을 만들지 않는다") — 여기서 다시 그리면
+        교사가 보는 화면과 학생이 보던 화면이 갈린다. 무결성과 대조는 이 아래에 붙는다.
+      -->
+      <p v-if="!opened" class="text-ink-soft">{{ t('inspect.pickOne') }}</p>
+      <p
+        v-else-if="summaryOfOpened?.state === 'unreadable'"
+        class="rounded-panel border border-line bg-surface p-4 leading-relaxed"
+      >
+        {{ reasonOf(summaryOfOpened.code) }}
+      </p>
+      <p v-else-if="!viewing" class="text-ink-soft">{{ t('inspect.reading') }}</p>
+      <template v-else>
+        <header class="flex flex-col gap-1">
+          <h3 class="truncate text-xl font-black">{{ viewing.file.document.manifest.name }}</h3>
+          <p class="truncate text-ink-soft">{{ opened.label }}</p>
+        </header>
+
+        <div class="grid gap-4 lg:grid-cols-3">
+          <!-- 무슨 데이터를 몇 행, 타깃은 무엇으로. **교사가 가장 먼저 보는 줄들이다.** -->
+          <aside class="min-w-0 rounded-panel border border-line bg-surface p-4">
+            <ProjectSummary :file="viewing.file" />
+          </aside>
+
+          <div class="flex min-w-0 flex-col gap-4 lg:col-span-2">
+            <ExperimentList
+              v-if="viewing.experiments.length > 0"
+              :experiments="viewing.experiments"
+              :selected="viewing.current?.id ?? null"
+              @pick="selected = $event"
+            />
+            <ExperimentDetail
+              v-if="viewing.current"
+              :experiment="viewing.current"
+              :order="viewing.order.get(viewing.current.id) ?? 0"
+              :previous="viewing.previous"
+              :data-type="viewing.file.document.manifest.dataType"
+              :dataset="viewing.dataset"
+              :preprocessor="viewing.preprocessor"
+              :models="viewing.file.models"
+              :file="viewing.file"
+            />
+            <p v-else class="rounded-panel border border-line bg-surface p-4 text-ink-soft">
+              {{ t('inspect.noExperiment') }}
+            </p>
+          </div>
+        </div>
+      </template>
     </template>
   </div>
 </template>
