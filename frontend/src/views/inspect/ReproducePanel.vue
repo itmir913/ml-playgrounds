@@ -20,7 +20,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
-import AppTable from '@/components/AppTable.vue'
+import AppBadge from '@/components/AppBadge.vue'
 import { useWork } from '@/composables/useWork'
 import { summarizeColumns } from '@/data/columns'
 import { errorMessageKey, isClientError, type ClientErrorCode } from '@/errors'
@@ -289,39 +289,51 @@ function failureText(reproduction: Reproduction): string {
 
     <p v-if="failure" class="text-caution">{{ t(errorMessageKey(failure)) }}</p>
 
-    <AppTable v-if="found.length > 0">
-      <thead>
-        <!--
-          **남는 폭을 모델 열에 몰아주지 않는다** (2026-09-18, 사용자). `w-full`을 주면
-          나머지가 내용 최소 너비까지 짜여서 `차이 없음`이 두 줄로 접힌다.
-        -->
-        <tr>
-          <th scope="col">{{ t('results.model') }}</th>
-          <th scope="col">{{ t('inspect.verdict') }}</th>
-          <th scope="col">{{ t('inspect.difference') }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="one in found" :key="one.runId">
-          <td class="break-words">{{ t(`algorithms.${one.algorithm}`) }}</td>
-          <td class="whitespace-nowrap">{{ t(`reproduction.${one.status}`) }}</td>
+    <!--
+      **표가 아니라 나열이다** (2026-09-18, 실측). 이 판이 무결성 아래로 오면서 폭이
+      3분의 1 열(1024px에서 카드 286px)이 됐고, 거기서 세 열짜리 표는 **모델 이름이 넉 줄로
+      접히고 `차이` 열이 73px 잘려 나갔다.** 비교하려고 표를 쓰는데 그 폭에서는 비교가
+      안 되므로, 좁은 자리의 관용구인 나열로 바꾼다.
+
+      **이름은 배지, 값은 plaintext다** (§8.16, `ui-rules.spec.ts`가 지킨다).
+    -->
+    <ul v-if="found.length > 0" class="flex flex-col gap-3">
+      <li
+        v-for="one in found"
+        :key="one.runId"
+        class="flex flex-col gap-1 border-t border-line pt-3 first:border-t-0 first:pt-0"
+      >
+        <p class="font-bold break-words">{{ t(`algorithms.${one.algorithm}`) }}</p>
+
+        <dl class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <div class="flex items-baseline gap-1.5">
+            <dt>
+              <AppBadge>{{ t('inspect.verdict') }}</AppBadge>
+            </dt>
+            <dd>{{ t(`reproduction.${one.status}`) }}</dd>
+          </div>
+
           <!--
             **뒤집힌 줄 수가 여기 선다.** 분류 지표의 눈금은 `1/시험 행 수`라 한 칸 올린
             변조와 한 행 뒤집힌 엔진 차이의 크기가 같다 — 차이만으로는 그 둘을 못 가르고,
             혼동 행렬이 가른다.
+
+            **빈 자리는 "안 쟀다"로 읽힌다** (2026-09-18, 사용자). 차이가 0인 것은
+            결과이지 빈 것이 아니므로 그렇게 적는다.
           -->
-          <!--
-            **빈 칸은 "안 쟀다"로 읽힌다** (2026-09-18, 사용자). 차이가 0인 것은 결과이지
-            빈 것이 아니므로 그렇게 적는다.
-          -->
-          <td class="break-words whitespace-nowrap">
-            <span v-if="one.flipped" class="mr-2">
-              {{ t('inspect.flipped', { count: one.flipped }) }}
-            </span>
-            {{ differenceText(one) }}
-          </td>
-        </tr>
-      </tbody>
-    </AppTable>
+          <div class="flex items-baseline gap-1.5">
+            <dt>
+              <AppBadge>{{ t('inspect.difference') }}</AppBadge>
+            </dt>
+            <dd class="break-words text-ink-soft">
+              <span v-if="one.flipped" class="mr-2">
+                {{ t('inspect.flipped', { count: one.flipped }) }}
+              </span>
+              {{ differenceText(one) }}
+            </dd>
+          </div>
+        </dl>
+      </li>
+    </ul>
   </section>
 </template>
