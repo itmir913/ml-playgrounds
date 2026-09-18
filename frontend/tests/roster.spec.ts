@@ -14,8 +14,9 @@ import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  groupName,
   rosterOf,
-  sameProjectGroups,
+  sameProjectsOf,
   sortRoster,
   summaryOf,
   withEdit,
@@ -369,7 +370,7 @@ describe('같은 프로젝트에서 나온 줄을 묶는다', () => {
   }
 
   function groups(pairs: readonly (readonly [string, RosterSummary])[]): Record<string, number> {
-    return Object.fromEntries(sameProjectGroups(items, new Map(pairs)))
+    return Object.fromEntries(sameProjectsOf(items, new Map(pairs)).groups)
   }
 
   it('같은 값을 가진 줄끼리 같은 번호를 받는다', () => {
@@ -398,17 +399,33 @@ describe('같은 프로젝트에서 나온 줄을 묶는다', () => {
   })
 
   /**
-   * **교사가 나눠 준 시작 파일이 이 모양이다** (2026-09-18, 사용자). 모든 줄에 붙는
-   * 표시는 **아무도 구분하지 못하면서 의심만 만든다** — 임계값이 아니라 정보량이 이유다.
+   * **전부가 한 프로젝트인 것은 감추지 않는다** (2026-09-18, 사용자가 뒤집었다).
+   *
+   * 칸마다 같은 글자가 서른 번 서면 구분은 0이라 **열도 판도 안 서지만**, 그 사실 자체는
+   * 화면이 반드시 해야 하는 말이다 — 숨기면 `전부 다르다`와 `전부 같다`가 똑같이 보인다.
+   * 그래서 묶음은 비우고 `all`로 알린다.
    */
-  it('전부가 한 묶음이면 아무것도 안 담는다', () => {
-    expect(
-      groups([
+  it('전부가 한 프로젝트면 묶음은 비우고 all로 알린다', () => {
+    const pairs = [
+      ['a.mlpx', read('P1')],
+      ['b.mlpx', read('P1')],
+      ['c.mlpx', read('P1')],
+    ] as const
+    const same = sameProjectsOf(items, new Map(pairs))
+    expect(same.all).toBe(true)
+    expect(Object.fromEntries(same.groups)).toEqual({ 'a.mlpx': 1, 'b.mlpx': 1, 'c.mlpx': 1 })
+  })
+
+  it('한 줄이라도 다르면 all이 아니다', () => {
+    const same = sameProjectsOf(
+      items,
+      new Map([
         ['a.mlpx', read('P1')],
         ['b.mlpx', read('P1')],
-        ['c.mlpx', read('P1')],
+        ['c.mlpx', read('P2')],
       ]),
-    ).toEqual({})
+    )
+    expect(same.all).toBe(false)
   })
 
   it('한 줄이라도 다르면 묶음이 뜻을 갖는다', () => {
@@ -442,5 +459,25 @@ describe('같은 프로젝트에서 나온 줄을 묶는다', () => {
   it('학번·이름을 고쳐도 아이디는 안 바뀐다', () => {
     const edited = withEdit(read('P1'), { studentName: '김하나' })
     expect(edited.state === 'read' && edited.projectId).toBe('P1')
+  })
+})
+
+/**
+ * **묶음의 이름은 글자다** (2026-09-18, 사용자). 표에 숫자를 또 세우면 옆 칸의
+ * `1개`·`5개`와 섞이고, 글자는 열 머리(`프로젝트`)와 함께 "이 파일이 속한 프로젝트"로
+ * 읽힌다. 스프레드시트의 열 이름과 같은 규칙이라 교사가 이미 아는 모양이다.
+ */
+describe('묶음에 글자로 이름을 붙인다', () => {
+  it('첫 스물여섯은 A부터 Z까지다', () => {
+    expect(groupName(1)).toBe('A')
+    expect(groupName(2)).toBe('B')
+    expect(groupName(26)).toBe('Z')
+  })
+
+  it('스물여섯을 넘기면 자리가 하나 는다 - 숫자로 안 떨어진다', () => {
+    expect(groupName(27)).toBe('AA')
+    expect(groupName(28)).toBe('AB')
+    expect(groupName(52)).toBe('AZ')
+    expect(groupName(53)).toBe('BA')
   })
 })

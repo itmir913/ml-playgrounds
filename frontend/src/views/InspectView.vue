@@ -37,8 +37,9 @@ import { MLPX_EXTENSION } from '@/project/format'
 import { downloadBlob } from '@/project/download'
 import { bundleOf, type BundleEntry } from '@/project/portfolio-bundle'
 import {
+  groupName,
   rosterOf,
-  sameProjectGroups,
+  sameProjectsOf,
   sortRoster,
   type RosterItem,
   type RosterSort,
@@ -185,13 +186,32 @@ const progress = computed(() => ({
  * 번호는 정렬이 아니라 **명렬의 순서**가 정하므로 여기서 한 번 계산하고, 표도 판도
  * 같은 것을 본다 — 두 자리가 따로 세면 배지의 번호와 판의 목록이 갈린다.
  */
-const groups = computed(() => sameProjectGroups(roster.items.value, roster.summaries.value))
+const same = computed(() => sameProjectsOf(roster.items.value, roster.summaries.value))
 
-/** 묶음이 몇 개이고 몇 파일인가. **있을 때만 한 줄이 선다** — 훑다 놓치지 않을 만큼만. */
-const sameProject = computed(() => ({
-  groups: new Set(groups.value.values()).size,
-  files: groups.value.size,
-}))
+const groups = computed(() => same.value.groups)
+
+/**
+ * 표 위 한 줄. **있으면 언제나 말한다** — 훑다 놓치지 않을 만큼만.
+ *
+ * **전부가 한 프로젝트일 때가 가장 중요한 자리다** (2026-09-18, 사용자). 칸마다 같은
+ * 글자가 서른 번 서면 구분은 0이라 열도 판도 안 서지만, **그 문장까지 숨기면 `전부
+ * 다르다`와 `전부 같다`가 화면에서 똑같이 보인다.**
+ */
+const sameProject = computed(() => {
+  const files = groups.value.size
+  return {
+    groups: new Set(groups.value.values()).size,
+    files,
+    all: same.value.all,
+    // 전원이 한 프로젝트면 문장이 갈린다 — 그때는 묶음 수를 셀 것이 없다.
+    line: same.value.all
+      ? t('inspect.sameProjectAll', { files })
+      : t('inspect.sameProjectSummary', {
+          groups: new Set(groups.value.values()).size,
+          files,
+        }),
+  }
+})
 
 /**
  * 지금 열어 둔 줄과 같은 프로젝트에서 나온 이름표들. **명렬의 순서 그대로다.**
@@ -199,12 +219,26 @@ const sameProject = computed(() => ({
  * 짝이 없으면 빈 배열이고 그때 판은 안 선다 — 드문 것이 눈에 띄어야 한다.
  */
 const sameProjectPeers = computed(() => {
+  // 전원이 한 프로젝트면 서른 줄을 나열할 일이 아니다 — 표 위 한 줄이 이미 다 말했다.
+  if (same.value.all) return []
   const mine = opened.value ? groups.value.get(opened.value.label) : undefined
   if (mine === undefined) return []
   return roster.items.value
     .filter((item) => groups.value.get(item.label) === mine)
     .map((item) => item.label)
 })
+
+/**
+ * 그 줄의 묶음 번호. **짝이 없으면 빈 글자다.**
+ *
+ * **글자만 적는다** (`groupName`) — 무엇의 글자인지는 열 머리(`프로젝트`)가 말하고, 그
+ * 열은 짝이 있을 때만 선다. 칸마다 `같은 프로젝트 1`을 적으면 같은 말이 서른 번 반복되고,
+ * 숫자를 적으면 옆 칸의 `1개`·`5개`와 섞인다.
+ */
+function sameProjectText(label: string): string {
+  const group = groups.value.get(label)
+  return group === undefined ? '' : groupName(group)
+}
 
 const rows = computed(() =>
   sortRoster(roster.items.value, roster.summaries.value, sort.value, descending.value).map(
@@ -213,8 +247,6 @@ const rows = computed(() =>
       const read = summary?.state === 'read' ? summary : undefined
       return {
         item,
-        /** 짝이 있으면 그 묶음의 번호. **없으면 말할 것도 없다.** */
-        sameProject: groups.value.get(item.label),
         /** 교사가 고쳐 둔 줄. **파일과 다르다는 것을 화면이 말해야 한다.** */
         edited: roster.edits.value.has(item.label),
         /** 값이 아직 없는 줄. 회색으로 두어 훑는 눈이 건너뛴다. */
@@ -226,6 +258,7 @@ const rows = computed(() =>
           // (2026-09-18, 사용자).
           studentId: read ? (read.studentId ?? t('inspect.noStudentId')) : '',
           studentName: read ? (read.studentName ?? t('inspect.noStudentName')) : '',
+          sameProject: sameProjectText(item.label),
           experiments: read ? t('meta.countUnit', read.experiments) : '',
           runs: read ? t('meta.countUnit', read.runs) : '',
           state: read
@@ -270,7 +303,7 @@ interface InspectColumn {
   cell: string
 }
 
-const COLUMNS: readonly InspectColumn[] = [
+const BASE_COLUMNS: readonly InspectColumn[] = [
   {
     key: 'label',
     label: 'inspect.file',
@@ -287,7 +320,9 @@ const COLUMNS: readonly InspectColumn[] = [
     sort: 'studentId',
     align: 'left',
     wide: true,
-    width: 'min-w-28',
+    // 머리 두 글자와 `학번 없음`이 한 줄로 들어가는 최소치. **더 주면 표가 가로로 넘친다** —
+    // 프로젝트 열이 서는 순간 1024px에서 18px이 모자랐다 (2026-09-18 실측).
+    width: 'min-w-24',
     cell: 'break-words',
   },
   {
@@ -296,7 +331,7 @@ const COLUMNS: readonly InspectColumn[] = [
     sort: 'studentName',
     align: 'left',
     wide: true,
-    width: 'min-w-28',
+    width: 'min-w-24',
     cell: 'break-words',
   },
   {
@@ -327,6 +362,37 @@ const COLUMNS: readonly InspectColumn[] = [
     cell: 'whitespace-nowrap',
   },
 ]
+
+/**
+ * 묶음 열 (2026-09-18, 사용자). **누르면 같은 묶음끼리 모여 선다.**
+ *
+ * 배지를 파일 이름 칸에 달아 두었더니 이름 아래 한 줄이 더 생겨 **줄 높이가 45px에서
+ * 73px이 됐고**, 무엇보다 **누를 머리가 없어 묶음을 눈으로 찾아야 했다.**
+ */
+const GROUP_COLUMN: InspectColumn = {
+  key: 'sameProject',
+  label: 'inspect.sameProjectColumn',
+  sort: 'sameProject',
+  align: 'left',
+  // 좁은 화면에서는 접힌다. 거기서도 표 위의 한 줄은 그대로 서서 있다는 것을 말한다.
+  wide: true,
+  // 칸에는 글자 한둘뿐이라 **머리 글자가 안 접힐 만큼**이면 된다. 넓게 잡으면 그만큼
+  // 표가 가로로 넘쳐서 `상태`가 잘린다(1024px에서 실제로 그랬다).
+  width: 'min-w-24',
+  cell: '',
+}
+
+/**
+ * 지금 표가 세울 열들. **묶음이 하나도 없으면 그 열은 아예 없다** — 빈 열은 폭만 먹고
+ * 아무 말도 안 한다(§8.21의 "전부가 한 묶음이면 아무 표시도 안 한다"와 같은 이유다).
+ *
+ * **자리는 파일 이름 바로 옆이다.** 그 배지가 꾸미는 것이 파일이기 때문이다.
+ */
+const COLUMNS = computed<readonly InspectColumn[]>(() =>
+  sameProject.value.files === 0 || sameProject.value.all
+    ? BASE_COLUMNS
+    : [BASE_COLUMNS[0]!, GROUP_COLUMN, ...BASE_COLUMNS.slice(1)],
+)
 
 /**
  * 왼쪽 열의 판 하나를 담는 카드 (2026-09-18, 사용자).
@@ -496,14 +562,7 @@ function reasonOf(code: string): string {
           **묶음이 있으면 표 위에서 먼저 말한다** (§8.21, 2026-09-18 사용자). 배지 하나로는
           서른 줄을 훑다 지나친다. **있을 때만 선다** — 드문 것이 눈에 띄어야 한다.
         -->
-        <p v-if="sameProject.groups > 0" class="text-ink-soft">
-          {{
-            t('inspect.sameProjectSummary', {
-              groups: sameProject.groups,
-              files: sameProject.files,
-            })
-          }}
-        </p>
+        <p v-if="sameProject.files > 0" class="text-ink-soft">{{ sameProject.line }}</p>
 
         <!--
           **표의 껍데기는 `AppTable`이 갖는다** — 머리 줄의 색도, 줄 사이의 선도, 넘칠 때의
@@ -605,9 +664,20 @@ function reasonOf(code: string): string {
                   column.wide ? 'hidden md:table-cell' : '',
                 ]"
               >
+                <!--
+                  **같은 프로젝트에서 나온 짝** (§8.21, 2026-09-18 사용자). 번호가 같은
+                  줄끼리 한 프로젝트에서 나왔다는 **사실만** 말한다 — 교사가 나눠 준 시작
+                  파일이면 반 전체가 같은 번호이므로, 베꼈다는 말은 화면이 하지 않는다.
+                -->
+                <AppBadge
+                  v-if="column.key === 'sameProject' && row.cells.sameProject !== ''"
+                  class="whitespace-nowrap"
+                  >{{ row.cells.sameProject }}</AppBadge
+                >
+
                 <!-- 상태는 값이 아직 없는 줄을 회색으로 둔다. -->
                 <span
-                  v-if="column.key === 'state'"
+                  v-else-if="column.key === 'state'"
                   :class="row.faint ? 'text-ink-faint' : 'text-ink-soft'"
                 >
                   {{ row.cells[column.key] }}
@@ -622,17 +692,6 @@ function reasonOf(code: string): string {
                   <span v-if="column.key === 'studentId' && row.edited" class="text-ink-faint">{{
                     t('inspect.editedMark')
                   }}</span>
-
-                  <!--
-                    **같은 프로젝트에서 나온 짝** (§8.21, 2026-09-18 사용자). 번호가 같은
-                    줄끼리 한 프로젝트에서 나왔다는 **사실만** 말한다 — 교사가 나눠 준 시작
-                    파일이면 반 전체가 같은 번호이므로, 베꼈다는 말은 화면이 하지 않는다.
-                  -->
-                  <AppBadge
-                    v-if="column.key === 'label' && row.sameProject"
-                    class="inline-block whitespace-nowrap"
-                    >{{ t('inspect.sameProject', { group: row.sameProject }) }}</AppBadge
-                  >
                 </template>
               </td>
             </tr>
@@ -727,7 +786,12 @@ function reasonOf(code: string): string {
               보이는 것 자체가 드문 일이라는 신호다.
             -->
             <div v-if="sameProjectPeers.length > 0" :class="PANEL">
-              <SameProjectPanel :labels="sameProjectPeers" :current="opened?.label ?? ''" />
+              <SameProjectPanel
+                :labels="sameProjectPeers"
+                :current="opened?.label ?? ''"
+                :name="sameProjectText(opened?.label ?? '')"
+                :project-id="viewing.file.document.manifest.projectId"
+              />
             </div>
 
             <!--

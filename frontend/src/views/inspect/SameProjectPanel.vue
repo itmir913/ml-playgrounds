@@ -15,11 +15,20 @@
 
 import { useI18n } from 'vue-i18n'
 
+import AppBadge from '@/components/AppBadge.vue'
+
 defineProps<{
   /** 이 묶음의 이름표들. **명렬의 순서 그대로** 온다. */
   labels: readonly string[]
   /** 지금 열어 둔 줄. 그 자리에 표시가 붙는다. */
   current: string
+  /** 표의 `프로젝트` 열에 선 그 글자. **두 자리가 같은 것을 가리킨다는 표시다.** */
+  name: string
+  /**
+   * 진짜 아이디. **표에는 안 적고 여기에만 적는다** (2026-09-24 기준 서른여섯 글자) —
+   * 서른 줄에 깔면 못 읽지만, 판을 연 순간에는 **교사가 확인할 수 있는 유일한 사실**이다.
+   */
+  projectId: string
 }>()
 
 const { t } = useI18n()
@@ -28,13 +37,28 @@ const { t } = useI18n()
 <template>
   <!-- 절의 리듬은 이웃 판들과 같다 (`IntegrityPanel`). 카드는 화면이 두른다. -->
   <section class="flex min-w-0 flex-col gap-1.5">
-    <h3 class="font-bold text-ink-soft">{{ t('inspect.sameProjectTitle') }}</h3>
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <h3 class="font-bold text-ink-soft">{{ t('inspect.sameProjectTitle') }}</h3>
+      <AppBadge class="whitespace-nowrap">{{ name }}</AppBadge>
+    </div>
     <p class="text-ink-faint">{{ t('inspect.sameProjectNote') }}</p>
 
-    <ul class="flex flex-col gap-1">
-      <li v-for="label in labels" :key="label" class="flex flex-wrap items-baseline gap-2">
-        <span class="break-words" :class="label === current ? 'font-bold' : ''">{{ label }}</span>
-        <span v-if="label === current" class="text-ink-faint">{{ t('inspect.thisFile') }}</span>
+    <!-- 아이디는 줄 어디에서든 끊는다. 서른여섯 글자라 286px 카드에서 두 줄이 된다. -->
+    <p class="break-all text-ink-soft">{{ projectId }}</p>
+
+    <!--
+      **점이 글자 밖에 선다** (`list-outside`, 2026-09-18 사용자). 파일 이름이 길어 줄을
+      바꿀 때 둘째 줄이 첫 줄과 나란히 들여쓰여서, 이름 하나가 어디서 끝나는지가 보인다.
+
+      **줄을 flex로 만들면 점이 사라진다** — `display: list-item`이 아니게 되기 때문이다.
+      그래서 이름과 표시는 inline으로 두고 사이를 `ml-2`로 벌린다.
+    -->
+    <ul class="list-outside list-disc space-y-1 pl-5">
+      <li v-for="label in labels" :key="label" class="break-words">
+        <span :class="label === current ? 'font-bold' : ''">{{ label }}</span>
+        <span v-if="label === current" class="ml-2 text-ink-faint">{{
+          t('inspect.thisFile')
+        }}</span>
       </li>
     </ul>
   </section>

@@ -65,11 +65,12 @@
     "readOf": "{read}/{total}",
     "emptyReason": "아직 선택한 파일이 없습니다.",
     "emptyNext": "mlpx 파일이 포함된 폴더를 선택하거나, mlpx 파일을 선택하세요. 선택한 파일은 이 컴퓨터 안에서만 처리되고 외부로 전송되지 않습니다.",
-    "sameProject": "같은 프로젝트 {group}",
-    "sameProjectSummary": "같은 프로젝트에서 나온 파일이 {groups}묶음({files}개) 있습니다.",
-    "sameProjectTitle": "같은 프로젝트",
-    "sameProjectNote": "아래 파일들은 한 프로젝트에서 나왔습니다. 파일을 열어 다시 저장해도 프로젝트는 그대로 따라갑니다.",
-    "thisFile": "(이 파일)"
+    "sameProjectSummary": "프로젝트 {groups}개에서 나온 파일이 {files}개 있습니다.",
+    "sameProjectTitle": "프로젝트 아이디가 같은 파일",
+    "sameProjectNote": "mlpx 파일을 복사해서 이어 작업하면 프로젝트 아이디도 함께 복사됩니다. 아래 파일들은 아이디가 같으므로 한 파일에서 나온 것입니다.",
+    "thisFile": "(이 파일)",
+    "sameProjectColumn": "프로젝트",
+    "sameProjectAll": "이 목록의 파일 {files}개가 모두 한 프로젝트에서 나왔습니다."
   },
   "taskTypes": {
     "classification": "분류(Classification)",

@@ -65,11 +65,12 @@
     "readOf": "{read}/{total}",
     "emptyReason": "No files chosen yet.",
     "emptyNext": "Choose a folder that contains .mlpx files, or choose the .mlpx files themselves. Files you choose stay on this computer and are never sent anywhere.",
-    "sameProject": "Same project {group}",
-    "sameProjectSummary": "{groups} group(s) of files came from the same project ({files} files).",
-    "sameProjectTitle": "Same project",
-    "sameProjectNote": "These files came from one project. A project follows the file even when it is opened and saved again.",
-    "thisFile": "(this file)"
+    "sameProjectSummary": "{files} files came from {groups} projects.",
+    "sameProjectTitle": "Files with the same project ID",
+    "sameProjectNote": "Copying an .mlpx file and continuing in it copies the project ID as well. The files below share an ID, so they came from one file.",
+    "thisFile": "(this file)",
+    "sameProjectColumn": "Project",
+    "sameProjectAll": "All {files} files in this list came from one project."
   },
   "taskTypes": {
     "classification": "Classification",
