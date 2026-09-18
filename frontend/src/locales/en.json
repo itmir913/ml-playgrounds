@@ -25,12 +25,13 @@
     "roster": "Submissions ({read}/{total})",
     "reading": "Reading",
     "unreadable": "Cannot open",
-    "line": "{student} · {experiments} experiments",
     "noStudent": "No name",
     "pickOne": "Choose a submission on the left.",
     "student": "Student",
     "experiments": "Experiments",
-    "runs": "Trained models"
+    "runs": "Trained models",
+    "file": "Submission file",
+    "state": "Status"
   },
   "taskTypes": {
     "classification": "Classification",

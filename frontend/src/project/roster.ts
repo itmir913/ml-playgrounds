@@ -92,3 +92,57 @@ export function summaryOf(document: ProjectDocument): RosterSummary {
     runs: experiments.reduce((count, experiment) => count + experiment.runs.length, 0),
   }
 }
+
+/**
+ * 명렬을 무엇으로 정렬할 수 있는가. **열 머리가 곧 기준이다** — 정렬 기준을 드롭다운에
+ * 숨기면 지금 무엇으로 서 있는지가 화면 밖으로 나간다 (architecture.md §8.21).
+ */
+export const ROSTER_SORTS = ['label', 'student', 'experiments', 'runs'] as const
+
+export type RosterSort = (typeof ROSTER_SORTS)[number]
+
+/**
+ * 정렬한 명렬.
+ *
+ * **아직 안 읽은 줄과 못 읽은 줄은 뒤로 간다.** 훑는 동안 요약이 하나씩 도착하는데 그때마다
+ * 줄이 위아래로 튀면 교사가 읽던 자리를 잃는다 — 값이 없는 줄을 끝에 모아 두면 움직이는
+ * 것은 그 경계 하나뿐이다.
+ *
+ * **동점은 이름표로 가른다.** `sort`가 안정적이어도 기준 값이 같은 줄들의 순서는 원래
+ * 배열에 달려 있고, 그 배열은 읽은 순서에 따라 흔들린다.
+ */
+export function sortRoster(
+  items: readonly RosterItem[],
+  summaries: ReadonlyMap<string, RosterSummary>,
+  sort: RosterSort,
+  descending = false,
+): RosterItem[] {
+  const direction = descending ? -1 : 1
+  return [...items].sort((left, right) => {
+    const a = summaries.get(left.label)
+    const b = summaries.get(right.label)
+    const ranked = rank(a) - rank(b)
+    if (ranked !== 0) return ranked
+    const compared = compare(sort, left, right, a, b) * direction
+    return compared !== 0 ? compared : left.label.localeCompare(right.label)
+  })
+}
+
+/** 읽은 줄이 먼저, 그다음이 못 읽은 줄, 아직 안 읽은 줄이 맨 뒤다. */
+function rank(summary: RosterSummary | undefined): number {
+  if (!summary) return 2
+  return summary.state === 'read' ? 0 : 1
+}
+
+function compare(
+  sort: RosterSort,
+  left: RosterItem,
+  right: RosterItem,
+  a: RosterSummary | undefined,
+  b: RosterSummary | undefined,
+): number {
+  if (sort === 'label') return left.label.localeCompare(right.label)
+  if (a?.state !== 'read' || b?.state !== 'read') return 0
+  if (sort === 'student') return (a.student ?? '').localeCompare(b.student ?? '')
+  return a[sort] - b[sort]
+}

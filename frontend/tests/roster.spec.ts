@@ -13,7 +13,13 @@
 import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 
-import { rosterOf, summaryOf, type RosterItem } from '../src/project/roster'
+import {
+  rosterOf,
+  sortRoster,
+  summaryOf,
+  type RosterItem,
+  type RosterSummary,
+} from '../src/project/roster'
 import { newProjectDocument } from '../src/project/create'
 import type { ProjectDocument } from '../src/project/schema'
 
@@ -174,5 +180,96 @@ describe('명렬을 바꾸면 옛 결과는 버린다', () => {
 
     expect([...roster.summaries.value.keys()]).not.toContain('1반-kim.mlpx')
     vi.doUnmock('../src/project/download')
+  })
+})
+
+/**
+ * **열이 곧 정렬 기준이다** (architecture.md §8.21).
+ *
+ * 여기서 지키는 것 둘.
+ *
+ *   1. **값이 없는 줄은 뒤로 간다** — 훑는 동안 요약이 하나씩 도착하는데, 그때마다 줄이
+ *      위아래로 튀면 교사가 읽던 자리를 잃는다
+ *   2. **동점은 이름표로 가른다** — 안 그러면 순서가 "읽은 순서"에 달리고, 그건 매번 다르다
+ */
+describe('명렬을 정렬한다', () => {
+  const items = rosterOf([picked('c.mlpx'), picked('a.mlpx'), picked('b.mlpx')])
+
+  function read(name: string, experiments: number, student?: string): RosterSummary {
+    return {
+      state: 'read',
+      name,
+      ...(student === undefined ? {} : { student }),
+      dataType: 'tabular',
+      experiments,
+      runs: experiments * 2,
+    }
+  }
+
+  const summaries = new Map<string, RosterSummary>([
+    ['a.mlpx', read('가', 3, '김하나')],
+    ['b.mlpx', read('나', 1, '박두리')],
+    ['c.mlpx', read('다', 3, '이세찌')],
+  ])
+
+  it('기본은 이름표순이다 - 폴더째 고르면 반이 묶여 선다', () => {
+    expect(sortRoster(items, summaries, 'label').map((one) => one.label)).toEqual([
+      'a.mlpx',
+      'b.mlpx',
+      'c.mlpx',
+    ])
+  })
+
+  it('방향을 뒤집는다', () => {
+    expect(sortRoster(items, summaries, 'label', true).map((one) => one.label)).toEqual([
+      'c.mlpx',
+      'b.mlpx',
+      'a.mlpx',
+    ])
+  })
+
+  it('실험 수로 세우고, 동점은 이름표로 가른다', () => {
+    expect(sortRoster(items, summaries, 'experiments').map((one) => one.label)).toEqual([
+      'b.mlpx',
+      'a.mlpx',
+      'c.mlpx',
+    ])
+  })
+
+  it('아직 안 읽은 줄과 못 읽은 줄은 뒤로 간다', () => {
+    const partial = new Map<string, RosterSummary>([
+      ['c.mlpx', read('다', 3)],
+      ['b.mlpx', { state: 'unreadable', code: 'PROJECT_FILE_VERSION_TOO_NEW' }],
+    ])
+    // 읽은 줄 → 못 읽은 줄 → 아직 안 읽은 줄. 방향을 뒤집어도 그 차례는 그대로다.
+    expect(sortRoster(items, partial, 'label').map((one) => one.label)).toEqual([
+      'c.mlpx',
+      'b.mlpx',
+      'a.mlpx',
+    ])
+    expect(sortRoster(items, partial, 'label', true).map((one) => one.label)).toEqual([
+      'c.mlpx',
+      'b.mlpx',
+      'a.mlpx',
+    ])
+  })
+
+  it('이름 없는 학생은 이름 있는 학생보다 앞이다 - 빈 값은 빈 값끼리 모인다', () => {
+    const mixed = new Map<string, RosterSummary>([
+      ['a.mlpx', read('가', 1)],
+      ['b.mlpx', read('나', 1, '박두리')],
+      ['c.mlpx', read('다', 1, '김하나')],
+    ])
+    expect(sortRoster(items, mixed, 'student').map((one) => one.label)).toEqual([
+      'a.mlpx',
+      'c.mlpx',
+      'b.mlpx',
+    ])
+  })
+
+  it('원래 배열을 안 건드린다 - 화면이 든 목록이 정렬로 흔들리면 안 된다', () => {
+    const before = items.map((one) => one.label)
+    sortRoster(items, summaries, 'runs', true)
+    expect(items.map((one) => one.label)).toEqual(before)
   })
 })

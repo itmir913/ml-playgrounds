@@ -9,6 +9,11 @@
  *
  * **입구는 둘이고 경로는 하나다.** 폴더째 고르든 파일 하나를 고르든 같은 명렬을 지난다 —
  * 항목이 하나뿐이면 자동으로 골라 손이 한 번 준다.
+ *
+ * **명렬은 표다** (2026-09-18, 사용자). 교사가 여기서 하는 일은 읽기가 아니라 **비교**다 —
+ * "실험이 0개인 줄이 누구지"를 찾는 동작은 세로 훑기이고, 카드 목록은 그것을 못 한다.
+ * 그리고 **열이 곧 정렬 기준**이라 기준이 화면 밖으로 안 나간다. 무결성과 대조 판정이
+ * 붙을 자리도 열이다.
  */
 
 import { computed, ref, watch } from 'vue'
@@ -19,7 +24,7 @@ import { useRoster } from '@/composables/useRoster'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { ACTION_ICONS } from '@/icons'
 import { MLPX_EXTENSION } from '@/project/format'
-import { rosterOf, type RosterItem } from '@/project/roster'
+import { rosterOf, sortRoster, type RosterItem, type RosterSort } from '@/project/roster'
 
 const { t } = useI18n()
 const roster = useRoster()
@@ -29,6 +34,10 @@ const fileInput = ref<HTMLInputElement | null>(null)
 
 /** 지금 보고 있는 줄. **명렬이 갈리면 비운다** — 없는 줄을 가리키고 있을 수 없다. */
 const opened = ref<RosterItem | null>(null)
+
+/** 지금 정렬 기준. 기본은 이름표순이라 **폴더째 고르면 반이 묶여 선다.** */
+const sort = ref<RosterSort>('label')
+const descending = ref(false)
 
 /**
  * 고른 것을 명렬로 바꾼다. **입구 둘이 여기서 하나가 된다.**
@@ -51,12 +60,18 @@ watch(roster.items, (items) => {
 })
 
 /**
- * 이 줄을 본다. **기다리지 않는다** — 고르는 순간 오른쪽이 `읽는 중`으로 서고, 요약이
+ * 이 줄을 본다. **기다리지 않는다** — 고르는 순간 아래가 `읽는 중`으로 서고, 요약이
  * 도착하면 그 자리가 채워진다. 여기서 `await`하면 누른 것이 화면에 늦게 반영된다.
  */
 function select(item: RosterItem): void {
   opened.value = item
   void roster.readNow(item)
+}
+
+/** 같은 열을 다시 누르면 방향이 뒤집힌다. 다른 열이면 오름차순부터다. */
+function sortBy(key: RosterSort): void {
+  descending.value = sort.value === key ? !descending.value : false
+  sort.value = key
 }
 
 const summaryOfOpened = computed(() =>
@@ -70,24 +85,38 @@ const progress = computed(() => ({
 }))
 
 /**
- * 명렬에 그릴 줄들. **판단을 템플릿에 두지 않는다** — 상태 셋(읽는 중·읽음·못 읽음)이
+ * 표에 그릴 줄들. **판단을 템플릿에 두지 않는다** — 상태 셋(읽는 중·읽음·못 읽음)이
  * `v-if` 사슬로 흩어지면 그중 하나가 빠져도 아무도 모른다.
  */
 const rows = computed(() =>
-  roster.items.value.map((item) => {
-    const summary = roster.summaries.value.get(item.label)
-    if (!summary) return { item, note: t('inspect.reading'), faint: true }
-    if (summary.state === 'unreadable') return { item, note: t('inspect.unreadable'), faint: true }
-    return {
-      item,
-      note: t('inspect.line', {
-        student: summary.student ?? t('inspect.noStudent'),
-        experiments: summary.experiments,
-      }),
-      faint: false,
-    }
-  }),
+  sortRoster(roster.items.value, roster.summaries.value, sort.value, descending.value).map(
+    (item) => {
+      const summary = roster.summaries.value.get(item.label)
+      const read = summary?.state === 'read' ? summary : undefined
+      return {
+        item,
+        student: read ? (read.student ?? t('inspect.noStudent')) : '',
+        experiments: read ? t('meta.countUnit', read.experiments) : '',
+        runs: read ? t('meta.countUnit', read.runs) : '',
+        state: read
+          ? t(`dataTypes.${read.dataType}`)
+          : summary
+            ? t('inspect.unreadable')
+            : t('inspect.reading'),
+        /** 값이 아직 없는 줄. 회색으로 두어 훑는 눈이 건너뛴다. */
+        faint: !read,
+      }
+    },
+  ),
 )
+
+/** 열 머리. **여기 한 줄을 더하면 표가 따라온다** — 머리와 칸이 같은 목록에서 나온다. */
+const COLUMNS: readonly { key: RosterSort; label: string; numeric: boolean; wide: boolean }[] = [
+  { key: 'label', label: 'inspect.file', numeric: false, wide: false },
+  { key: 'student', label: 'inspect.student', numeric: false, wide: true },
+  { key: 'experiments', label: 'inspect.experiments', numeric: true, wide: true },
+  { key: 'runs', label: 'inspect.runs', numeric: true, wide: true },
+]
 
 /** 못 읽은 줄의 사유 문장. **코드를 화면이 문장으로 바꾼다** (CLAUDE.md §1.4). */
 function reasonOf(code: string): string {
@@ -135,76 +164,93 @@ function reasonOf(code: string): string {
       {{ t('inspect.empty') }}
     </p>
 
-    <!--
-      **머리글은 두 판의 위에 있다.** 왼쪽 안에 두면 오른쪽 카드가 그 한 줄만큼 높이
-      시작해 두 판의 윗선이 어긋난다 (2026-09-18, 사용자). 세는 대상이 명렬이라 왼쪽에
-      두고 싶어지는 자리이지만, **줄을 맞추는 쪽이 읽기 쉽다** — 오른쪽 카드가 무엇의
-      상세인지는 고른 줄이 이미 말한다.
-    -->
-    <!-- 머리글은 판에 붙는다. 바깥 리듬(`gap-5`)이 아니라 제 짝과의 간격이다. -->
-    <div v-else class="flex flex-col gap-2">
-      <h3 class="font-bold text-ink-soft">
-        {{ t('inspect.roster', { read: progress.read, total: progress.total }) }}
-      </h3>
+    <template v-else>
+      <!-- 머리글은 표에 붙는다. 바깥 리듬(`gap-5`)이 아니라 제 짝과의 간격이다. -->
+      <div class="flex flex-col gap-2">
+        <h3 class="font-bold text-ink-soft">
+          {{ t('inspect.roster', { read: progress.read, total: progress.total }) }}
+        </h3>
 
-      <div class="grid gap-4 md:grid-cols-5">
-        <!-- 왼쪽: 명렬. 파일 하나가 한 줄이다. -->
-        <section class="min-w-0 md:col-span-2">
-          <ul class="flex flex-col overflow-hidden rounded-panel border border-line bg-surface">
-            <!--
-            **못 여는 파일도 줄을 갖는다.** 조용히 빠지면 교사는 그 제출물이 없는 것으로
-            읽고, 그것이 이 화면이 가장 하면 안 되는 일이다.
-          -->
-            <li
-              v-for="(row, index) in rows"
-              :key="row.item.label"
-              :class="index > 0 ? 'border-t border-line' : ''"
-            >
-              <button
-                type="button"
-                class="flex w-full flex-col gap-1 p-3 text-left hover:bg-surface-soft"
+        <div class="overflow-hidden rounded-panel border border-line bg-surface">
+          <table class="w-full table-fixed">
+            <thead>
+              <tr class="border-b border-line">
+                <!--
+                  **열 머리가 곧 정렬 기준이다.** 누르면 그 열로 서고 다시 누르면 뒤집힌다 —
+                  지금 무엇으로 서 있는지가 화살표로 그 자리에 있다.
+
+                  **좁은 화면에서는 열을 줄인다.** 표를 카드로 바꾸는 것이 아니라 덜 중요한
+                  열을 접는 것이라, 교사가 두 화면을 따로 배우지 않는다.
+                -->
+                <th
+                  v-for="column in COLUMNS"
+                  :key="column.key"
+                  scope="col"
+                  class="p-0"
+                  :class="column.wide ? 'hidden w-32 sm:table-cell' : ''"
+                >
+                  <button
+                    type="button"
+                    class="flex w-full items-center gap-1 p-3 font-bold text-ink-soft hover:bg-surface-soft"
+                    :class="column.numeric ? 'justify-end' : ''"
+                    @click="sortBy(column.key)"
+                  >
+                    {{ t(column.label) }}
+                    <component
+                      :is="descending ? ACTION_ICONS.moveDown : ACTION_ICONS.moveUp"
+                      v-if="sort === column.key"
+                      :size="16"
+                      aria-hidden="true"
+                    />
+                  </button>
+                </th>
+                <th scope="col" class="w-32 p-3 text-right font-bold text-ink-soft">
+                  {{ t('inspect.state') }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <!--
+                **못 여는 파일도 줄을 갖는다.** 조용히 빠지면 교사는 그 제출물이 없는 것으로
+                읽고, 그것이 이 화면이 가장 하면 안 되는 일이다.
+              -->
+              <tr
+                v-for="row in rows"
+                :key="row.item.label"
+                class="cursor-pointer border-t border-line hover:bg-surface-soft"
                 :class="opened?.label === row.item.label ? 'bg-surface-soft font-bold' : ''"
                 @click="select(row.item)"
               >
-                <span class="truncate">{{ row.item.label }}</span>
-                <span :class="row.faint ? 'text-ink-faint' : 'text-ink-soft'">{{ row.note }}</span>
-              </button>
-            </li>
-          </ul>
-        </section>
-
-        <!-- 오른쪽: 고른 하나. 열람과 대조가 이 자리에 붙는다. -->
-        <section class="min-w-0 rounded-panel border border-line bg-surface p-4 md:col-span-3">
-          <p v-if="!opened" class="text-ink-soft">{{ t('inspect.pickOne') }}</p>
-          <template v-else-if="summaryOfOpened?.state === 'read'">
-            <h3 class="truncate text-xl font-black">{{ summaryOfOpened.name }}</h3>
-            <dl class="mt-3 flex flex-col gap-1.5">
-              <div class="flex justify-between gap-4">
-                <dt class="font-bold text-ink-soft">{{ t('inspect.student') }}</dt>
-                <dd>{{ summaryOfOpened.student ?? t('inspect.noStudent') }}</dd>
-              </div>
-              <div class="flex justify-between gap-4">
-                <dt class="font-bold text-ink-soft">{{ t('meta.dataType') }}</dt>
-                <dd>{{ t(`dataTypes.${summaryOfOpened.dataType}`) }}</dd>
-              </div>
-              <div class="flex justify-between gap-4">
-                <dt class="font-bold text-ink-soft">{{ t('inspect.experiments') }}</dt>
-                <dd class="tabular-nums">
-                  {{ t('meta.countUnit', summaryOfOpened.experiments) }}
-                </dd>
-              </div>
-              <div class="flex justify-between gap-4">
-                <dt class="font-bold text-ink-soft">{{ t('inspect.runs') }}</dt>
-                <dd class="tabular-nums">{{ t('meta.countUnit', summaryOfOpened.runs) }}</dd>
-              </div>
-            </dl>
-          </template>
-          <p v-else-if="summaryOfOpened?.state === 'unreadable'" class="leading-relaxed">
-            {{ reasonOf(summaryOfOpened.code) }}
-          </p>
-          <p v-else class="text-ink-soft">{{ t('inspect.reading') }}</p>
-        </section>
+                <td class="truncate p-3">{{ row.item.label }}</td>
+                <td class="hidden truncate p-3 sm:table-cell">{{ row.student }}</td>
+                <td class="hidden p-3 text-right tabular-nums sm:table-cell">
+                  {{ row.experiments }}
+                </td>
+                <td class="hidden p-3 text-right tabular-nums sm:table-cell">{{ row.runs }}</td>
+                <td
+                  class="truncate p-3 text-right"
+                  :class="row.faint ? 'text-ink-faint' : 'text-ink-soft'"
+                >
+                  {{ row.state }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+
+      <!-- 고른 하나. 열람과 대조가 이 자리에 붙는다. -->
+      <section class="rounded-panel border border-line bg-surface p-4">
+        <p v-if="!opened" class="text-ink-soft">{{ t('inspect.pickOne') }}</p>
+        <template v-else-if="summaryOfOpened?.state === 'read'">
+          <h3 class="truncate text-xl font-black">{{ summaryOfOpened.name }}</h3>
+          <p class="mt-1 truncate text-ink-soft">{{ opened.label }}</p>
+        </template>
+        <p v-else-if="summaryOfOpened?.state === 'unreadable'" class="leading-relaxed">
+          {{ reasonOf(summaryOfOpened.code) }}
+        </p>
+        <p v-else class="text-ink-soft">{{ t('inspect.reading') }}</p>
+      </section>
+    </template>
   </div>
 </template>
