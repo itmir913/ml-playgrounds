@@ -60,7 +60,9 @@
     "portfolioEmpty": "Nothing written yet.",
     "bundle": "Download portfolios",
     "bundling": "Bundling ({done}/{total})",
-    "bundleName": "portfolios.zip"
+    "bundleName": "portfolios.zip",
+    "model": "Model",
+    "viewMode": "View"
   },
   "taskTypes": {
     "classification": "Classification",

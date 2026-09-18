@@ -19,14 +19,11 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { i18n, setLocale } from '../src/i18n'
-import InspectView from '../src/views/InspectView.vue'
-import { emptyProjectFile } from './fixtures/project'
+import { setLocale } from '../src/i18n'
+import { brokenFile, mountInspect, submissionFile } from './fixtures/inspect-screen'
 import { sourceFiles } from './fixtures/source'
-import { writeProjectBytes } from './fixtures/write'
 
 const SRC = join(process.cwd(), 'src')
 
@@ -185,27 +182,13 @@ describe('명렬을 띄워서 본다', () => {
     setLocale('ko')
   })
 
-  /** 파일 고르기를 진짜로 지난다. **입구를 건너뛰면 명렬이 안 선다.** */
-  async function openRoster(files: File[]): Promise<ReturnType<typeof mount>> {
-    const wrapper = mount(InspectView, { global: { plugins: [i18n] } })
-    const input = wrapper.find('input[type="file"]').element as HTMLInputElement
-    Object.defineProperty(input, 'files', { value: files, configurable: true })
-    input.dispatchEvent(new Event('change'))
-    await flushPromises()
-    return wrapper
-  }
-
   /** 읽히는 제출물 하나와 못 읽는 것 하나. **둘 다 줄을 갖는다.** */
   async function submissions(): Promise<File[]> {
-    const { bytes } = await writeProjectBytes(emptyProjectFile(), '# 포트폴리오\n')
-    return [
-      new File([bytes as BlobPart], 'hong.mlpx'),
-      new File([new Uint8Array([1, 2, 3]) as BlobPart], 'broken.mlpx'),
-    ]
+    return [await submissionFile('hong.mlpx'), brokenFile('broken.mlpx')]
   }
 
   it('열마다 머리와 칸이 같은 쪽으로 선다', async () => {
-    const wrapper = await openRoster(await submissions())
+    const wrapper = await mountInspect(await submissions())
     const table = wrapper.find('table').element
     const head = table.querySelector('thead tr')
     const rows = [...table.querySelectorAll('tbody tr')]
@@ -220,7 +203,7 @@ describe('명렬을 띄워서 본다', () => {
   })
 
   it('머리 칸 안의 가로 배치도 그 칸과 같은 쪽을 본다', async () => {
-    const wrapper = await openRoster(await submissions())
+    const wrapper = await mountInspect(await submissions())
     for (const cell of wrapper.find('thead tr').element.querySelectorAll('th')) {
       const inner = innerAlign(cell)
       if (inner) expect(inner, cell.textContent?.trim()).toBe(alignOf(cell))

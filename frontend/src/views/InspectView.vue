@@ -25,7 +25,7 @@ import ProjectSummary from '@/components/ProjectSummary.vue'
 import { useRoster } from '@/composables/useRoster'
 import { useWork } from '@/composables/useWork'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
-import { ACTION_ICONS } from '@/icons'
+import { ACTION_ICONS, STEP_ICONS } from '@/icons'
 import { experimentPreprocessor } from '@/ml/preprocess'
 import { experimentOrder } from '@/ml/results'
 import { readDataset, readTestDataset } from '@/project/dataset'
@@ -55,6 +55,24 @@ const opened = ref<RosterItem | null>(null)
 
 /** 고른 실험. 없으면 마지막 실험을 본다 — 교사가 먼저 볼 것은 학생이 마지막에 한 일이다. */
 const selected = ref<string | null>(null)
+
+/**
+ * 열람의 두 모드 (architecture.md §8.21, 2026-09-18 사용자).
+ *
+ * **그림은 학생이 그 단계에서 보던 것이다** — 교사가 보는 화면과 학생이 보던 화면이
+ * 같은 그림을 쓰면 "이게 어느 쪽 이야기인지"를 다시 배우지 않는다.
+ */
+const VIEW_MODES = [
+  { id: 'model', label: 'inspect.model', icon: STEP_ICONS.results },
+  { id: 'portfolio', label: 'inspect.portfolio', icon: STEP_ICONS.portfolio },
+] as const
+
+/**
+ * 지금 무엇을 보고 있나. **제출물을 건너 유지된다** — 이 갈래의 이유가 "글만 서른 개
+ * 읽기"라, 줄을 바꿀 때마다 모델로 돌아오면 아무것도 안 바뀐 것이다. 명렬을 갈아
+ * 끼워도 마찬가지다(`watch(roster.items)`가 안 건드린다).
+ */
+const mode = ref<(typeof VIEW_MODES)[number]['id']>('model')
 
 /** 지금 정렬 기준. 기본은 이름표순이라 **폴더째 고르면 반이 묶여 선다.** */
 const sort = ref<RosterSort>('label')
@@ -540,11 +558,31 @@ function reasonOf(code: string): string {
             </p>
           </div>
 
-          <StudentEditor
-            :student-id="studentFields.studentId"
-            :student-name="studentFields.studentName"
-            @correct="correctStudent"
-          />
+          <div class="flex flex-wrap items-center gap-2">
+            <!--
+              **모드 스위치는 바꾸는 대상 바로 위에 선다** (2026-09-18, 사용자). 고른 쪽만
+              색이 차고 자리는 그대로다 — `AppChoices`와 같은 문법이되, 머리줄에 서는
+              것이라 그쪽의 이름표와 격자를 데려오지 않는다.
+            -->
+            <div class="flex gap-2" role="group" :aria-label="t('inspect.viewMode')">
+              <AppButton
+                v-for="one in VIEW_MODES"
+                :key="one.id"
+                :variant="mode === one.id ? 'primary' : 'secondary'"
+                :aria-pressed="mode === one.id"
+                @click="mode = one.id"
+              >
+                <component :is="one.icon" :size="18" aria-hidden="true" />
+                {{ t(one.label) }}
+              </AppButton>
+            </div>
+
+            <StudentEditor
+              :student-id="studentFields.studentId"
+              :student-name="studentFields.studentName"
+              @correct="correctStudent"
+            />
+          </div>
         </header>
 
         <!--
@@ -555,7 +593,7 @@ function reasonOf(code: string): string {
           **점선으로 가르지 않는다** — 왼쪽이 카드로 서 있는 자리에서는 그 선이 카드
           테두리와 겹쳐 보인다.
         -->
-        <div class="grid gap-4 lg:grid-cols-3">
+        <div v-if="mode === 'model'" class="grid gap-4 lg:grid-cols-3">
           <div class="flex min-w-0 flex-col gap-4">
             <!-- 무슨 데이터를 몇 행, 타깃은 무엇으로. **교사가 가장 먼저 보는 줄들이다.** -->
             <aside class="rounded-panel border border-line bg-surface p-4">
@@ -611,11 +649,14 @@ function reasonOf(code: string): string {
             <p v-else class="rounded-panel border border-line bg-surface p-4 text-ink-soft">
               {{ t('inspect.noExperiment') }}
             </p>
-
-            <!-- 학생이 쓴 글. **무엇을 했나 다음에 무엇을 썼나다** (§8.21의 판 순서). -->
-            <PortfolioPanel :file="viewing.file" />
           </div>
         </div>
+
+        <!--
+          **글은 한 열로 넓게 선다** (§8.21). 학생이 [완성본]에서 보던 폭이고, 두 열에
+          끼우면 읽는 폭이 아니다.
+        -->
+        <PortfolioPanel v-else :file="viewing.file" />
       </template>
     </template>
   </div>

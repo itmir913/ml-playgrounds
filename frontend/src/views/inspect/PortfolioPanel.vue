@@ -54,9 +54,11 @@ const written = computed(
 </script>
 
 <template>
+  <!--
+    **머리글이 없다.** 이 판이 서는 자리가 포트폴리오 모드 하나뿐이고, 모드 스위치가
+    이미 그 이름으로 눌려 있다 (§8.21) — 바로 아래에 같은 낱말을 또 적으면 소음이다.
+  -->
   <section class="flex min-w-0 flex-col gap-1.5">
-    <h3 class="font-bold text-ink-soft">{{ t('inspect.portfolio') }}</h3>
-
     <PortfolioPreview
       v-if="written"
       :sections="sections"
