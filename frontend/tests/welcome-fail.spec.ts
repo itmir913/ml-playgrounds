@@ -18,7 +18,10 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { unzipSync, zipSync } from 'fflate'
+
 import { ClientError } from '../src/errors'
+import { ENTRY } from '../src/project/format'
 import { i18n, setLocale } from '../src/i18n'
 import type { ProjectFile } from '../src/project/format'
 import { closeStorage, DB_NAME, loadProject, saveProject } from '../src/project/storage'
@@ -286,5 +289,54 @@ describe('R23: creating when storage refuses', () => {
     expect(view.busy).toBe(false)
     expect(view.creating).toBe(true)
     expect(router.currentRoute.value.name).toBe(ROUTE_PROJECTS)
+  })
+})
+
+/**
+ * **손댄 흔적을 알리는 경고는 도착한 뒤까지 살아야 한다** (2026-09-19, 사용자가 잡았다).
+ *
+ * 열자마자 대시보드로 넘어가는데 **알림을 이동 전에 밀고 있었다.** 라우터는 이동이
+ * 시작될 때의 수위선 이하를 도착 뒤에 걷으므로(`router/index.ts`, 떠나는 화면의 오류가
+ * 다음 화면을 덮던 것을 막는 장치), 그 경고는 **뜨자마자 사라졌다.**
+ *
+ * **어조의 문제가 아니다.** 걷는 쪽은 어조를 안 본다 — `danger`로 올려도 똑같이 사라진다.
+ * 자리의 문제이고, 그래서 검사도 "도착한 뒤에 남아 있는가"를 본다.
+ */
+describe('손댄 파일을 열면 경고가 도착한 뒤에도 남는다', () => {
+  const cautions = () => useToastStore().items.filter((one) => one.tone === 'caution')
+
+  /** 풀어서 지표를 고치고 다시 압축한 파일. 해시가 안 맞아 `MODIFIED`로 읽힌다. */
+  async function tampered(): Promise<File> {
+    const { bytes } = await writeProjectBytes(projectFile(), '')
+    const entries = unzipSync(bytes)
+    const runs = JSON.parse(new TextDecoder().decode(entries[ENTRY.runs])) as {
+      experiments: { runs: { metrics: Record<string, number> }[] }[]
+    }
+    const target = runs.experiments[0]?.runs[0]
+    if (target) target.metrics = { accuracy: 0.99 }
+    entries[ENTRY.runs] = new TextEncoder().encode(JSON.stringify(runs, null, 2))
+    return new File([zipSync(entries) as BlobPart], 'tampered.mlpx')
+  }
+
+  it('대시보드에 도착한 뒤에도 경고가 떠 있다', async () => {
+    const { view, openWith } = await welcome()
+    await openWith(await tampered())
+
+    // 열어는 준다 - 고쳐졌다고 안 열어 줄 이유는 없다 (mlpx-spec.md §7.3).
+    expect(router.currentRoute.value.name).not.toBe(ROUTE_PROJECTS)
+    expect(
+      cautions().map((one) => one.key),
+      'the warning must survive the navigation',
+    ).toEqual(['project.openModified'])
+    expect(view.busy).toBe(false)
+  })
+
+  it('멀쩡한 파일에는 안 뜬다 - 대조군', async () => {
+    const { openWith } = await welcome()
+    const { bytes } = await writeProjectBytes(projectFile(), '')
+    await openWith(new File([bytes.slice() as BlobPart], 'ok.mlpx'))
+
+    expect(router.currentRoute.value.name).not.toBe(ROUTE_PROJECTS)
+    expect(cautions()).toEqual([])
   })
 })

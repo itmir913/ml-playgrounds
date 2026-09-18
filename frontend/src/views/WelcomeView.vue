@@ -135,8 +135,14 @@ function openCreate(): void {
   creating.value = true
 }
 
-function openProject(projectId: string): void {
-  void router.push({ name: ROUTE_PROJECT_HOME, params: { projectId } })
+/**
+ * 연 프로젝트로 넘어간다. **도착할 때까지 기다린다** (2026-09-19, 사용자).
+ *
+ * 기다리는 이유는 **알림 때문**이다. 라우터가 이동을 시작할 때 떠 있던 알림을 도착 뒤에
+ * 걷으므로(`router/index.ts`의 수위선), 이동 전에 민 알림은 **뜨자마자 사라진다.**
+ */
+async function openProject(projectId: string): Promise<void> {
+  await router.push({ name: ROUTE_PROJECT_HOME, params: { projectId } })
 }
 
 async function create(): Promise<void> {
@@ -194,11 +200,17 @@ async function openFile(event: Event): Promise<void> {
     const { project: opened, integrity } = await readProject(await readFileBytes(picked))
     await claimTabLock(opened.document.manifest.projectId)
     await saveProject(opened)
+    await openProject(opened.document.manifest.projectId)
+    // 고쳐졌다고 열어 주지 않을 이유는 없다. 다만 말은 해 준다 (mlpx-spec.md §7.3).
+    //
+    // **도착한 뒤에 민다** (2026-09-19, 사용자가 잡았다). 이동 전에 밀면 라우터가
+    // **뜨자마자 걷어 간다** — 떠나는 화면의 알림을 걷는 수위선 아래에 들기 때문이다
+    // (`router/index.ts`). 학생이 본 것은 "떴다가 곧바로 사라지는 경고"였다.
+    //
+    // **어조를 올려도 안 고쳐진다.** 걷는 쪽은 어조를 안 본다 — 자리의 문제다.
     if (integrity.status === 'MODIFIED') {
-      // 고쳐졌다고 열어 주지 않을 이유는 없다. 다만 말은 해 준다 (mlpx-spec.md §7.3).
       toasts.push('caution', 'project.openModified')
     }
-    openProject(opened.document.manifest.projectId)
   } catch (error) {
     toasts.pushError(error)
   } finally {
