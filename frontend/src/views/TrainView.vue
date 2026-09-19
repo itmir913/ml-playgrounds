@@ -42,7 +42,7 @@ import {
 import { baselineMs, describe as describeEstimate, estimateMs, type Estimate } from '@/ml/estimate'
 import { estimatedFeatureWidth } from '@/ml/preprocess'
 import { trainableRowsOf } from '@/ml/training-source'
-import type { EngineState, RuntimeContext } from '@/ml/backend'
+import { isBrowserRuntimeId, type EngineState, type RuntimeContext } from '@/ml/backend'
 import { algorithmsLosingMeaning, requiredTargetKind, type ChosenModel } from '@/ml/selection'
 import { algorithmSelectionFor, runtimeContextFor, trainingSourceOf } from '@/ml/training-source'
 import { failedRuns } from '@/ml/results'
@@ -263,7 +263,8 @@ const estimates = computed<Estimate[]>(() => {
   const values = settings.value?.hyperparameters ?? {}
   return chosen.value.map((row) => {
     // **브라우저에서 도는 줄만 안다.** 서버는 우리가 모르는 기기다.
-    if (factor === null || dataType === undefined || row.runtime !== 'mljs') {
+    // **종류를 손으로 세지 않는다** — 등록부가 아는 것을 묻는다 (`architecture.md` §9.1).
+    if (factor === null || dataType === undefined || !isBrowserRuntimeId(row.runtime)) {
       return { kind: 'unknown' }
     }
     // 그 알고리즘을 한 번이라도 돌려 봤으면 그때 잰 값이 이긴다.
@@ -276,6 +277,7 @@ const estimates = computed<Estimate[]>(() => {
           rows: trainingRows.value,
           columns: featureWidth.value,
           hyperparameters: values[row.algorithm]?.[row.runtime] ?? {},
+          runtime: row.runtime,
         },
         measured,
       ),

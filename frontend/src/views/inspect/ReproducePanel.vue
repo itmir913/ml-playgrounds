@@ -37,7 +37,7 @@ import {
 } from '@/ml/reproduce'
 import { succeeded } from '@/ml/results'
 import { factorFrom, readFactor, writeFactor } from '@/ml/calibration'
-import type { EngineState } from '@/ml/backend'
+import { RUNTIMES, isBrowserRuntimeId, type EngineState } from '@/ml/backend'
 import { describe as describeEstimate, estimateMs, type Estimate } from '@/ml/estimate'
 import { estimatedFeatureWidth } from '@/ml/preprocess'
 import { calibrateDevice, train } from '@/ml/worker/client'
@@ -206,8 +206,9 @@ const estimate = computed<Estimate>(() => {
   let total = 0
   for (const run of props.experiment.runs) {
     if (run.status !== 'done') continue
-    // **브라우저의 순수 JS만 안다.** 나머지는 우리가 모르는 기기다.
-    if (run.engine?.kind !== 'mljs') return { kind: 'unknown' }
+    // **브라우저에서 돈 줄만 안다.** 서버는 우리가 모르는 기기다.
+    const runtime = RUNTIMES.find((one) => one.engineKind === run.engine?.kind)?.id
+    if (runtime === undefined || !isBrowserRuntimeId(runtime)) return { kind: 'unknown' }
     const ms = estimateMs(
       {
         algorithm: run.algorithm,
@@ -215,6 +216,7 @@ const estimate = computed<Estimate>(() => {
         rows,
         columns,
         hyperparameters: run.hyperparameters,
+        runtime,
       },
       factor,
     )

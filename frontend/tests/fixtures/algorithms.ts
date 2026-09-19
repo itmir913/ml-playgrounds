@@ -24,7 +24,10 @@ const UNMEASURED_ROWS = {
  * 표본은 시간도 안 쟀다. **빈 표는 예상을 못 낸다**는 뜻이고, 그것이 여기서 맞는 상태다
  * (`ml/estimate.ts`가 그 자리에 `알 수 없음`을 남긴다).
  */
-const NO_BASELINE = { tabular: UNMEASURED_BASELINE, image: UNMEASURED_BASELINE } as const
+const NO_BASELINE = {
+  tabular: { mljs: UNMEASURED_BASELINE, 'pyodide-sklearn': UNMEASURED_BASELINE },
+  image: { mljs: UNMEASURED_BASELINE, 'pyodide-sklearn': UNMEASURED_BASELINE },
+} as const
 
 /**
  * **재현 판정도 안 쟀다.** 표본이 확인하는 것은 판정 규칙이고, 어느 칸이 `exact`인지는

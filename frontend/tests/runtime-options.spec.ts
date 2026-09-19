@@ -32,7 +32,10 @@ const unmeasured = {
 } as const
 
 /** 표본은 시간도 안 쟀다. 빈 표는 예상을 못 낸다는 뜻이다. */
-const noBaseline = { tabular: UNMEASURED_BASELINE, image: UNMEASURED_BASELINE } as const
+const noBaseline = {
+  tabular: { mljs: UNMEASURED_BASELINE, 'pyodide-sklearn': UNMEASURED_BASELINE },
+  image: { mljs: UNMEASURED_BASELINE, 'pyodide-sklearn': UNMEASURED_BASELINE },
+} as const
 
 /** 재현 판정도 안 쟀다. 여기서 확인하는 것은 실행 방법 판정이다. */
 const noReproduction = {

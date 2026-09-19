@@ -19,6 +19,7 @@ import { describe as group, expect, it } from 'vitest'
 import {
   BASELINE_COLUMNS,
   MLJS_DECISION_TREE_BASELINE_MS,
+  PYODIDE_BOOT_MS,
   TRAINING_ELAPSED_VISIBLE_AFTER_MS,
 } from '../src/limits'
 import { ALGORITHMS } from '../src/ml/algorithms'
@@ -54,7 +55,8 @@ group('보간', () => {
   it('표 아래로는 첫 점의 값을 쓴다 - 아래로 외삽하면 값이 되레 커지는 표가 있다', () => {
     // **아래로 외삽하면 안 되는 이유가 표마다 다르다.** 선형 회귀는 1,000행과 5,000행이
     // 둘 다 23ms라 기울기가 0이고, 그런 표에서 아래로 늘리면 값이 안 줄거나 되레 커진다.
-    const naive = ALGORITHMS.find((entry) => entry.id === 'naive_bayes')?.baseline.tabular.ms ?? []
+    const naive =
+      ALGORITHMS.find((entry) => entry.id === 'naive_bayes')?.baseline.tabular.mljs.ms ?? []
     expect(interpolate(naive, 10)).toBe(naive[0]?.[1])
     expect(interpolate(MLJS_DECISION_TREE_BASELINE_MS, 10)).toBe(49)
   })
@@ -167,8 +169,8 @@ group('화면이 적을 것', () => {
 group('등록부', () => {
   it('모든 알고리즘이 기준표를 든다 - 새 알고리즘이 빈칸으로 들어오지 않는다', () => {
     for (const algorithm of ALGORITHMS) {
-      expect(algorithm.baseline.tabular.ms.length, algorithm.id).toBeGreaterThan(1)
-      expect(['linear', 'flat'], algorithm.id).toContain(algorithm.baseline.tabular.columns)
+      expect(algorithm.baseline.tabular.mljs.ms.length, algorithm.id).toBeGreaterThan(1)
+      expect(['linear', 'flat'], algorithm.id).toContain(algorithm.baseline.tabular.mljs.columns)
       /**
        * **이미지 칸은 비었거나 제대로 된 표다.** 안 잰 칸이 조용히 숫자를 갖지 않는다는
        * 것이 원래 규칙이었고, 2026-09-03에 첫 표가 채워지면서 **"비어 있다"에서 "점 하나
@@ -177,7 +179,7 @@ group('등록부', () => {
        * **채워졌으면 `flat`이어야 한다** — 사진 표는 임베딩 차원에서 재어지므로 특성
        * 배수를 한 번 더 곱하면 그 차원을 두 번 센다 (`backend.ts`의 `UNMEASURED_BASELINE`).
        */
-      const image = algorithm.baseline.image
+      const image = algorithm.baseline.image.mljs
       if (image.ms.length > 0) {
         expect(image.ms.length, algorithm.id).toBeGreaterThan(1)
         expect(image.columns, algorithm.id).toBe('flat')
@@ -187,7 +189,7 @@ group('등록부', () => {
 
   it('기준표의 행 수가 오름차순이다 - 보간이 그것을 전제한다', () => {
     for (const algorithm of ALGORITHMS) {
-      for (const baseline of [algorithm.baseline.tabular, algorithm.baseline.image]) {
+      for (const baseline of [algorithm.baseline.tabular.mljs, algorithm.baseline.image.mljs]) {
         const rows = baseline.ms.map(([value]) => value)
         expect(rows, algorithm.id).toEqual([...rows].sort((a, b) => a - b))
       }
@@ -196,7 +198,9 @@ group('등록부', () => {
 
   /** **채워진 사진 표가 하나라도 있어야 위 검사가 빈 배열을 훑지 않는다.** */
   it('사진 기준표가 적어도 하나는 차 있다', () => {
-    expect(ALGORITHMS.filter((one) => one.baseline.image.ms.length > 0).length).toBeGreaterThan(0)
+    expect(
+      ALGORITHMS.filter((one) => one.baseline.image.mljs.ms.length > 0).length,
+    ).toBeGreaterThan(0)
   })
 
   /**
@@ -234,7 +238,8 @@ group('사진 예상은 기준표를 그대로 낸다', () => {
   })
 
   it('기본 손잡이면 기준표의 값 그대로다', () => {
-    const table = ALGORITHMS.find((one) => one.id === 'neural_network')?.baseline.image.ms ?? []
+    const table =
+      ALGORITHMS.find((one) => one.id === 'neural_network')?.baseline.image.mljs.ms ?? []
     expect(table.length, 'the image table must be filled').toBeGreaterThan(1)
     for (const [rows, ms] of table) {
       expect(baselineMs(imageInput(rows)), `${rows} photos`).toBeCloseTo(ms, 6)
@@ -363,7 +368,13 @@ group('예상이 나오는 종류인가', () => {
   it('그 종류의 표가 전부 비면 거짓이 된다', () => {
     const emptied = ALGORITHMS.map((entry) => ({
       ...entry,
-      baseline: { ...entry.baseline, image: { ms: [], columns: 'flat' as const } },
+      baseline: {
+        ...entry.baseline,
+        image: {
+          mljs: { ms: [], columns: 'flat' as const },
+          'pyodide-sklearn': { ms: [], columns: 'flat' as const },
+        },
+      },
     }))
     expect(hasEstimates('image', emptied)).toBe(false)
   })
@@ -461,13 +472,29 @@ group('기준표의 모양', () => {
     const wrong: string[] = []
     let counted = 0
     for (const [name, value] of Object.entries(limits)) {
-      if (!name.startsWith('MLJS_') || !name.endsWith('BASELINE_MS')) continue
+      // **두 엔진의 표를 다 훑는다.** sklearn 표가 이 그물 밖에 있으면, 그 표에서 같은
+      // 결함이 나도 아무도 안 운다.
+      if (!/^(MLJS|PYODIDE)_/.test(name) || !name.endsWith('BASELINE_MS')) continue
       const table = value as readonly (readonly [number, number])[]
       counted += 1
+      /**
+       * **감소폭이 그 표의 최솟값보다 작으면 넘어간다** (2026-09-19, sklearn 표가 들어오면서).
+       *
+       * sklearn은 **점마다 드는 고정 비용이 커서** 작은 점에서 데이터 비용이 묻힌다 —
+       * KNN이 1,000행 738ms · 2,000행 651ms다. 그건 결함이 아니라 그 엔진의 성질이고,
+       * 그 사실 자체가 실측이다(`limits.ts`).
+       *
+       * **문턱을 지어내지 않는다.** 가장 작은 점은 거의 전부가 고정 비용이므로, 그보다
+       * 작은 감소는 **그 고정 비용 안에서 흔들린 것**이다. K-평균에서 잡았던 진짜 결함은
+       * 20,000행 6,106ms가 100,000행 3,344ms로 내려간 것이라 문턱(42ms)을 백 배 넘었다.
+       */
+      const floor = Math.min(...table.map(([, ms]) => ms))
       for (let index = 1; index < table.length; index += 1) {
         const [rows, ms] = table[index]!
         const [before, earlier] = table[index - 1]!
-        if (ms < earlier) wrong.push(`${name}: ${before}행 ${earlier}ms -> ${rows}행 ${ms}ms`)
+        if (earlier - ms >= floor) {
+          wrong.push(`${name}: ${before}행 ${earlier}ms -> ${rows}행 ${ms}ms`)
+        }
       }
     }
     /**
@@ -476,9 +503,97 @@ group('기준표의 모양', () => {
      * 실제로 내놓는 표의 수와 맞춘다 — 표가 늘면 이 검사가 저절로 따라간다.
      */
     const declared = readFileSync(join(__dirname, '..', 'src', 'limits.ts'), 'utf-8')
-    const named = declared.match(/^export const MLJS_[A-Z_]*BASELINE_MS = /gm) ?? []
+    const named = declared.match(/^export const (MLJS|PYODIDE)_[A-Z_]*BASELINE_MS = /gm) ?? []
     expect(counted, 'every declared baseline table must be walked').toBe(named.length)
     expect(counted, 'the tables must not vanish from limits.ts').toBeGreaterThan(8)
     expect(wrong).toEqual([])
+  })
+})
+
+/**
+ * **두 엔진의 예상이 서로 다른 수를 말하는가** (2026-09-19, 로드맵 4단계).
+ *
+ * 두 엔진은 기준표도 손잡이 배수도 시동도 다르다. **축을 안 태우면 sklearn 줄이 순수 JS의
+ * 수를 자기 것처럼 말하고**, 그건 아무 오류 없이 조용하다.
+ */
+group('실행 방법마다 다른 수를 말한다', () => {
+  const at = (runtime: 'mljs' | 'pyodide-sklearn', hyperparameters = {}) =>
+    baselineMs({
+      algorithm: 'random_forest',
+      dataType: 'tabular',
+      rows: 1000,
+      columns: BASELINE_COLUMNS,
+      hyperparameters,
+      runtime,
+    })
+
+  it('같은 일감에 두 엔진이 다른 수를 낸다', () => {
+    expect(at('mljs')).not.toBeCloseTo(at('pyodide-sklearn') ?? 0, 0)
+  })
+
+  /**
+   * **순수 JS는 그루 수에 선형이고 sklearn은 아니다.**
+   *
+   * **기준 그루 수부터 다르다** — 순수 JS 표는 10그루에서, sklearn 표는 100그루(그쪽
+   * 기본값)에서 쟀다. 그래서 배수 하나를 견주는 대신 **같은 두 점 사이의 기울기**를 본다:
+   * 10 → 100그루가 순수 JS에서는 **열 배**이고 sklearn에서는 **1.46배**다.
+   */
+  it('그루 수를 열 배로 올렸을 때 두 엔진이 다르게 준다', () => {
+    const slope = (runtime: 'mljs' | 'pyodide-sklearn', few: string, many: string) =>
+      (at(runtime, { [many]: 100 }) ?? 0) / (at(runtime, { [few]: 10 }) ?? 1)
+    expect(slope('mljs', 'nEstimators', 'nEstimators')).toBeCloseTo(10, 1)
+    expect(slope('pyodide-sklearn', 'n_estimators', 'n_estimators')).toBeLessThan(2)
+  })
+
+  /**
+   * **손잡이 이름이 엔진마다 다르다.** sklearn 줄에 순수 JS 이름을 주면 **그 값이 안 읽히고
+   * 기본값으로 셈한다** — 학생이 그루를 열로 줄였는데 화면은 백 그루의 시간을 말한다.
+   */
+  it('sklearn은 파이썬 이름을 읽는다 - 순수 JS 이름은 안 읽는다', () => {
+    expect(at('pyodide-sklearn', { n_estimators: 10 })).not.toBeCloseTo(
+      at('pyodide-sklearn') ?? 0,
+      0,
+    )
+    expect(at('pyodide-sklearn', { nEstimators: 10 })).toBeCloseTo(at('pyodide-sklearn') ?? 0, 6)
+  })
+
+  /**
+   * **로지스틱의 반복 횟수는 sklearn에서 평평하다** — 재고 나서 적은 1이다. 순수 JS의
+   * 표를 빌려 쓰면 열여섯 배 틀린다.
+   */
+  it('로지스틱 반복 횟수: 순수 JS는 늘고 sklearn은 그대로다', () => {
+    const one = (runtime: 'mljs' | 'pyodide-sklearn', hyperparameters: Record<string, unknown>) =>
+      baselineMs({
+        algorithm: 'logistic_regression',
+        dataType: 'tabular',
+        rows: 20_000,
+        columns: BASELINE_COLUMNS,
+        hyperparameters,
+        runtime,
+      }) ?? 0
+
+    expect(one('mljs', { maxIter: 1000 }) / one('mljs', {})).toBeGreaterThan(5)
+    expect(one('pyodide-sklearn', { max_iter: 1000 }) / one('pyodide-sklearn', {})).toBe(1)
+  })
+
+  /**
+   * **학생이 기다리는 것은 시동 + 학습이다.** 기준표는 시동을 시계 밖에 두고 쟀으므로
+   * 예상이 그것을 더해야 한다 — 안 더하면 27.3MB를 받는 줄이 *"약 1초"*라고 말한다.
+   */
+  it('sklearn 줄의 예상에 시동이 들어 있다', () => {
+    const input = {
+      algorithm: 'naive_bayes' as const,
+      dataType: 'tabular' as const,
+      rows: 1000,
+      columns: BASELINE_COLUMNS,
+      hyperparameters: {},
+    }
+    const training = baselineMs({ ...input, runtime: 'pyodide-sklearn' }) ?? 0
+    const shown = estimateMs({ ...input, runtime: 'pyodide-sklearn' }, 1) ?? 0
+    expect(shown - training).toBe(PYODIDE_BOOT_MS)
+    // 순수 JS는 시동이 없다.
+    expect(estimateMs({ ...input, runtime: 'mljs' }, 1)).toBe(
+      baselineMs({ ...input, runtime: 'mljs' }),
+    )
   })
 })

@@ -52,6 +52,21 @@ import {
   MLJS_NAIVE_BAYES_ROW_LIMIT,
   MLJS_NEURAL_NETWORK_ROW_LIMIT,
   MLJS_RANDOM_FOREST_ROW_LIMIT,
+  PYODIDE_DECISION_TREE_BASELINE_MS,
+  PYODIDE_IMAGE_DECISION_TREE_BASELINE_MS,
+  PYODIDE_IMAGE_KMEANS_BASELINE_MS,
+  PYODIDE_IMAGE_KNN_BASELINE_MS,
+  PYODIDE_IMAGE_LOGISTIC_REGRESSION_BASELINE_MS,
+  PYODIDE_IMAGE_NAIVE_BAYES_BASELINE_MS,
+  PYODIDE_IMAGE_RANDOM_FOREST_BASELINE_MS,
+  PYODIDE_IMAGE_SVM_BASELINE_MS,
+  PYODIDE_KMEANS_BASELINE_MS,
+  PYODIDE_KNN_BASELINE_MS,
+  PYODIDE_LINEAR_REGRESSION_BASELINE_MS,
+  PYODIDE_LOGISTIC_REGRESSION_BASELINE_MS,
+  PYODIDE_NAIVE_BAYES_BASELINE_MS,
+  PYODIDE_RANDOM_FOREST_BASELINE_MS,
+  PYODIDE_SVM_BASELINE_MS,
   MLJS_SVM_ROW_LIMIT,
   PYODIDE_DECISION_TREE_ROW_LIMIT,
   PYODIDE_IMAGE_DECISION_TREE_ROW_LIMIT,
@@ -134,9 +149,15 @@ export const ALGORITHMS: readonly Algorithm[] = [
       },
     },
     baseline: {
-      tabular: { ms: MLJS_DECISION_TREE_BASELINE_MS, columns: 'linear' },
+      tabular: {
+        mljs: { ms: MLJS_DECISION_TREE_BASELINE_MS, columns: 'linear' },
+        'pyodide-sklearn': { ms: PYODIDE_DECISION_TREE_BASELINE_MS, columns: 'flat' },
+      },
       // **차원이 표에 들어 있다** — `flat`인 이유는 사진 신경망 칸과 같다.
-      image: { ms: MLJS_IMAGE_DECISION_TREE_BASELINE_MS, columns: 'flat' },
+      image: {
+        mljs: { ms: MLJS_IMAGE_DECISION_TREE_BASELINE_MS, columns: 'flat' },
+        'pyodide-sklearn': { ms: PYODIDE_IMAGE_DECISION_TREE_BASELINE_MS, columns: 'flat' },
+      },
     },
     reproduction: { mljs: 'exact', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
   },
@@ -151,8 +172,14 @@ export const ALGORITHMS: readonly Algorithm[] = [
       image: { mljs: MLJS_IMAGE_KNN_ROW_LIMIT, 'pyodide-sklearn': PYODIDE_IMAGE_KNN_ROW_LIMIT },
     },
     baseline: {
-      tabular: { ms: MLJS_KNN_BASELINE_MS, columns: 'flat' },
-      image: UNMEASURED_BASELINE,
+      tabular: {
+        mljs: { ms: MLJS_KNN_BASELINE_MS, columns: 'flat' },
+        'pyodide-sklearn': { ms: PYODIDE_KNN_BASELINE_MS, columns: 'flat' },
+      },
+      image: {
+        mljs: UNMEASURED_BASELINE,
+        'pyodide-sklearn': { ms: PYODIDE_IMAGE_KNN_BASELINE_MS, columns: 'flat' },
+      },
     },
     reproduction: { mljs: 'exact', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
   },
@@ -173,8 +200,14 @@ export const ALGORITHMS: readonly Algorithm[] = [
       },
     },
     baseline: {
-      tabular: { ms: MLJS_LOGISTIC_REGRESSION_BASELINE_MS, columns: 'flat' },
-      image: UNMEASURED_BASELINE,
+      tabular: {
+        mljs: { ms: MLJS_LOGISTIC_REGRESSION_BASELINE_MS, columns: 'flat' },
+        'pyodide-sklearn': { ms: PYODIDE_LOGISTIC_REGRESSION_BASELINE_MS, columns: 'flat' },
+      },
+      image: {
+        mljs: UNMEASURED_BASELINE,
+        'pyodide-sklearn': { ms: PYODIDE_IMAGE_LOGISTIC_REGRESSION_BASELINE_MS, columns: 'flat' },
+      },
     },
     // **advisory** — 손실과 기울기가 `exp`·`log1p`를 반복마다 누적한다 (미결정 12).
     reproduction: { mljs: 'advisory', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
@@ -197,8 +230,14 @@ export const ALGORITHMS: readonly Algorithm[] = [
       },
     },
     baseline: {
-      tabular: { ms: MLJS_RANDOM_FOREST_BASELINE_MS, columns: 'linear' },
-      image: { ms: MLJS_IMAGE_RANDOM_FOREST_BASELINE_MS, columns: 'flat' },
+      tabular: {
+        mljs: { ms: MLJS_RANDOM_FOREST_BASELINE_MS, columns: 'linear' },
+        'pyodide-sklearn': { ms: PYODIDE_RANDOM_FOREST_BASELINE_MS, columns: 'flat' },
+      },
+      image: {
+        mljs: { ms: MLJS_IMAGE_RANDOM_FOREST_BASELINE_MS, columns: 'flat' },
+        'pyodide-sklearn': { ms: PYODIDE_IMAGE_RANDOM_FOREST_BASELINE_MS, columns: 'flat' },
+      },
     },
     reproduction: { mljs: 'exact', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
   },
@@ -219,8 +258,14 @@ export const ALGORITHMS: readonly Algorithm[] = [
       },
     },
     baseline: {
-      tabular: { ms: MLJS_NAIVE_BAYES_BASELINE_MS, columns: 'linear' },
-      image: UNMEASURED_BASELINE,
+      tabular: {
+        mljs: { ms: MLJS_NAIVE_BAYES_BASELINE_MS, columns: 'linear' },
+        'pyodide-sklearn': { ms: PYODIDE_NAIVE_BAYES_BASELINE_MS, columns: 'flat' },
+      },
+      image: {
+        mljs: UNMEASURED_BASELINE,
+        'pyodide-sklearn': { ms: PYODIDE_IMAGE_NAIVE_BAYES_BASELINE_MS, columns: 'flat' },
+      },
     },
     // **advisory** — 가우시안 pdf의 `log`가 표본마다 누적된다 (미결정 12).
     reproduction: { mljs: 'advisory', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
@@ -238,8 +283,14 @@ export const ALGORITHMS: readonly Algorithm[] = [
       image: { mljs: MLJS_IMAGE_SVM_ROW_LIMIT, 'pyodide-sklearn': PYODIDE_IMAGE_SVM_ROW_LIMIT },
     },
     baseline: {
-      tabular: { ms: MLJS_SVM_BASELINE_MS, columns: 'linear' },
-      image: { ms: MLJS_IMAGE_SVM_BASELINE_MS, columns: 'flat' },
+      tabular: {
+        mljs: { ms: MLJS_SVM_BASELINE_MS, columns: 'linear' },
+        'pyodide-sklearn': { ms: PYODIDE_SVM_BASELINE_MS, columns: 'flat' },
+      },
+      image: {
+        mljs: { ms: MLJS_IMAGE_SVM_BASELINE_MS, columns: 'flat' },
+        'pyodide-sklearn': { ms: PYODIDE_IMAGE_SVM_BASELINE_MS, columns: 'flat' },
+      },
     },
     reproduction: { mljs: 'exact', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
   },
@@ -273,8 +324,14 @@ export const ALGORITHMS: readonly Algorithm[] = [
       // **`flat`이다.** 특성은 첫 층 하나에만 붙지 학습 전체에 선형이 아니고, 그 몫은
       // 손잡이 배수표(`MLJS_NEURAL_NETWORK_WEIGHTS_MS`)가 가중치 수로 함께 받는다.
       // **사진 표도 같다** — 거기는 차원이 표 안에 이미 들어 있다.
-      tabular: { ms: MLJS_NEURAL_NETWORK_BASELINE_MS, columns: 'flat' },
-      image: { ms: MLJS_IMAGE_NEURAL_NETWORK_BASELINE_MS, columns: 'flat' },
+      tabular: {
+        mljs: { ms: MLJS_NEURAL_NETWORK_BASELINE_MS, columns: 'flat' },
+        'pyodide-sklearn': UNMEASURED_BASELINE,
+      },
+      image: {
+        mljs: { ms: MLJS_IMAGE_NEURAL_NETWORK_BASELINE_MS, columns: 'flat' },
+        'pyodide-sklearn': UNMEASURED_BASELINE,
+      },
     },
     // **advisory** — 활성·손실의 `exp`·`log`·`pow`를 표본마다·스텝마다 누적한다.
     // 셋 중 가장 많이 누적하는 쪽이다 (미결정 12).
@@ -296,8 +353,14 @@ export const ALGORITHMS: readonly Algorithm[] = [
       image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
     },
     baseline: {
-      tabular: { ms: MLJS_LINEAR_REGRESSION_BASELINE_MS, columns: 'linear' },
-      image: UNMEASURED_BASELINE,
+      tabular: {
+        mljs: { ms: MLJS_LINEAR_REGRESSION_BASELINE_MS, columns: 'linear' },
+        'pyodide-sklearn': { ms: PYODIDE_LINEAR_REGRESSION_BASELINE_MS, columns: 'flat' },
+      },
+      image: {
+        mljs: UNMEASURED_BASELINE,
+        'pyodide-sklearn': UNMEASURED_BASELINE,
+      },
     },
     reproduction: { mljs: 'exact', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
   },
@@ -336,8 +399,14 @@ export const ALGORITHMS: readonly Algorithm[] = [
      * 임의 상수라 근거가 없다. 반복 횟수는 엔진이 이미 세고 있는 값이다.
      */
     baseline: {
-      tabular: { ms: MLJS_KMEANS_BASELINE_MS, columns: 'linear' },
-      image: UNMEASURED_BASELINE,
+      tabular: {
+        mljs: { ms: MLJS_KMEANS_BASELINE_MS, columns: 'linear' },
+        'pyodide-sklearn': { ms: PYODIDE_KMEANS_BASELINE_MS, columns: 'flat' },
+      },
+      image: {
+        mljs: UNMEASURED_BASELINE,
+        'pyodide-sklearn': { ms: PYODIDE_IMAGE_KMEANS_BASELINE_MS, columns: 'flat' },
+      },
     },
     reproduction: { mljs: 'exact', 'pyodide-sklearn': 'unmeasured', sklearn: 'unmeasured' },
   },

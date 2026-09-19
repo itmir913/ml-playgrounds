@@ -321,7 +321,10 @@ describe('분기 없이 늘어난다', () => {
           tabular: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
           image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
         },
-        baseline: { tabular: UNMEASURED_BASELINE, image: UNMEASURED_BASELINE },
+        baseline: {
+          tabular: { mljs: UNMEASURED_BASELINE, 'pyodide-sklearn': UNMEASURED_BASELINE },
+          image: { mljs: UNMEASURED_BASELINE, 'pyodide-sklearn': UNMEASURED_BASELINE },
+        },
         // 재현 판정도 마찬가지다 - 새 알고리즘은 재 보기 전까지 어느 칸도 `exact`가 아니다.
         reproduction: {
           mljs: 'unmeasured',

@@ -32,6 +32,10 @@ import {
   MLJS_NEURAL_NETWORK_BASELINE_LAYERS,
   MLJS_NEURAL_NETWORK_BASELINE_NEURONS,
   MLJS_NEURAL_NETWORK_WEIGHTS_MS,
+  PYODIDE_KMEANS_CLUSTERS_MS,
+  PYODIDE_LOGISTIC_REGRESSION_MAX_ITER_FACTOR,
+  PYODIDE_RANDOM_FOREST_BASELINE_TREES,
+  PYODIDE_RANDOM_FOREST_TREES_MS,
   MLJS_RANDOM_FOREST_BASELINE_TREES,
   TRAINING_ELAPSED_VISIBLE_AFTER_MS,
   TRAINING_ESTIMATE_COARSE_FROM_SECONDS,
@@ -42,7 +46,7 @@ import type { DataType } from '../project/schema'
 
 import { ALGORITHMS } from './algorithms'
 import { DEFAULT_BACKBONE_ID, backboneFor } from './backbones'
-import type { Baseline } from './backend'
+import { BROWSER_RUNTIME_IDS, RUNTIMES, type Baseline, type BrowserRuntimeId } from './backend'
 
 type Ladder = readonly (readonly [number, number])[]
 
@@ -94,6 +98,14 @@ export interface EstimateInput {
   readonly columns: number
   /** 확정된 손잡이. 비어 있으면 기본값으로 본다. */
   readonly hyperparameters: Record<string, unknown>
+  /**
+   * 어느 실행 방법으로 도는가. **없으면 순수 JS다** — 옛 부르는 쪽을 그대로 두려는 것이
+   * 아니라, 그쪽이 이 도구의 기본값이기 때문이다 (`ml/backend.ts`의 `RUNTIMES` 순서).
+   *
+   * **두 엔진의 성질이 실제로 다르다** (2026-09-19 실측). 기준표도, 손잡이 배수도, 시동도
+   * 갈린다 — 이 칸이 없으면 sklearn 줄이 **순수 JS의 수를 자기 것처럼 말한다.**
+   */
+  readonly runtime?: BrowserRuntimeId
 }
 
 function numberOr(source: Record<string, unknown>, name: string, fallback: number): number {
@@ -148,11 +160,15 @@ function baselineColumnsOf(dataType: DataType): number {
  * 하나뿐이라 "첫 층에만 붙는다"를 표현할 수 없고, 가중치 수는 그것을 이미 품고 있다.
  */
 function handleFactor(
+  runtime: BrowserRuntimeId,
   algorithm: string,
   hyperparameters: Record<string, unknown>,
   columns: number,
   dataType: DataType,
 ): number {
+  if (runtime === 'pyodide-sklearn') {
+    return sklearnHandleFactor(algorithm, hyperparameters)
+  }
   if (algorithm === 'random_forest') {
     const trees = numberOr(hyperparameters, 'nEstimators', MLJS_RANDOM_FOREST_BASELINE_TREES)
     // 그루 수에는 선형이다 (실측: 1,000행에서 그루당 223~226ms로 일정).
@@ -215,8 +231,46 @@ function handleFactor(
   return 1
 }
 
-function baselineOf(algorithm: string, dataType: DataType): Baseline | null {
-  const found = ALGORITHMS.find((entry) => entry.id === algorithm)?.baseline[dataType]
+/**
+ * sklearn의 손잡이 배수. **순수 JS의 표를 빌려 쓰지 않는다** — 셋 다 성질이 다르다
+ * (2026-09-19 실측, `limits.ts`).
+ *
+ * - **그루 수**: 순수 JS는 선형인데 sklearn은 고정 비용 위에 그루당 4.2ms뿐이다.
+ *   빌려 쓰면 10그루를 **일곱 배 짧게** 말한다.
+ * - **반복 횟수**: 순수 JS는 100→1000이 19.2배인데 sklearn은 **평평하다.** 빌려 쓰면
+ *   **열여섯 배 틀린다.**
+ * - **군집 수**: 모양은 비슷하고 `k=20`에서 갈린다.
+ *
+ * **이름도 다르다.** 손잡이 이름은 엔진의 서술이 갖고(`ml/engines/pyodide-sklearn-params.ts`)
+ * sklearn은 파이썬 관행을 따른다 — `n_estimators`·`n_clusters`다. 순수 JS 이름으로 읽으면
+ * **학생이 올린 손잡이가 기본값으로 읽혀 조용히 틀린다.**
+ *
+ * **인공신경망은 여기 안 온다** — 등록부가 `'pyodide-sklearn': false`라고 선언한다.
+ */
+function sklearnHandleFactor(algorithm: string, hyperparameters: Record<string, unknown>): number {
+  if (algorithm === 'random_forest') {
+    const trees = numberOr(hyperparameters, 'n_estimators', PYODIDE_RANDOM_FOREST_BASELINE_TREES)
+    const baseline = interpolate(
+      PYODIDE_RANDOM_FOREST_TREES_MS,
+      PYODIDE_RANDOM_FOREST_BASELINE_TREES,
+    )
+    return interpolate(PYODIDE_RANDOM_FOREST_TREES_MS, Math.max(trees, 1)) / baseline
+  }
+  if (algorithm === 'k_means') {
+    const clusters = numberOr(hyperparameters, 'n_clusters', MLJS_KMEANS_BASELINE_CLUSTERS)
+    const baseline = interpolate(PYODIDE_KMEANS_CLUSTERS_MS, MLJS_KMEANS_BASELINE_CLUSTERS)
+    return interpolate(PYODIDE_KMEANS_CLUSTERS_MS, Math.max(clusters, 1)) / baseline
+  }
+  // **로지스틱의 `max_iter`는 재 보니 평평했다.** 이 1은 짐작이 아니라 잰 값이다.
+  return PYODIDE_LOGISTIC_REGRESSION_MAX_ITER_FACTOR
+}
+
+function baselineOf(
+  algorithm: string,
+  dataType: DataType,
+  runtime: BrowserRuntimeId,
+): Baseline | null {
+  const found = ALGORITHMS.find((entry) => entry.id === algorithm)?.baseline[dataType][runtime]
   // 빈 표는 "0초"가 아니라 **안 쟀다**는 뜻이다 (`UNMEASURED_BASELINE`).
   return found === undefined || found.ms.length === 0 ? null : found
 }
@@ -226,17 +280,28 @@ function baselineOf(algorithm: string, dataType: DataType): Baseline | null {
  * 그렇고, 지어내지 않는다.
  */
 export function baselineMs(input: EstimateInput): number | null {
-  const baseline = baselineOf(input.algorithm, input.dataType)
+  const runtime = input.runtime ?? 'mljs'
+  const baseline = baselineOf(input.algorithm, input.dataType, runtime)
   if (baseline === null) return null
 
   const rows = interpolate(baseline.ms, Math.max(input.rows, 1))
   // 특성 수에 선형인 것은 트리 계열과 SVM뿐이다. KNN과 로지스틱은 안 곱한다 (실측).
   const columns = baseline.columns === 'linear' ? Math.max(input.columns, 1) / BASELINE_COLUMNS : 1
-  return (
+  const training =
     rows *
     columns *
-    handleFactor(input.algorithm, input.hyperparameters, input.columns, input.dataType)
-  )
+    handleFactor(runtime, input.algorithm, input.hyperparameters, input.columns, input.dataType)
+
+  /**
+   * **시동이 학습 앞에 붙는다** (2026-09-19, 로드맵 4단계). 기준표는 시동을 시계 밖에 두고
+   * 쟀는데(`limits.ts`), **학생이 기다리는 것은 시동 + 학습**이다. 안 더하면 27.3MB를 받고
+   * 8.7초를 세우는 줄이 *"약 1초"*라고 말한다.
+   *
+   * **기기 배수를 안 먹인다.** 그 배수는 계산 속도를 재는 것인데(`ml/calibration.ts`)
+   * 시동의 절반 이상이 내려받기와 WASM 세우기다 — 곱하면 느린 기기에서 두 번 부풀린다.
+   * 그래서 `estimateMs`가 배수를 먹인 뒤에 더한다.
+   */
+  return training
 }
 
 /**
@@ -250,13 +315,26 @@ export function baselineMs(input: EstimateInput): number | null {
  * **여기 물으면 실측이 들어오는 순간 문구가 저절로 바뀐다.**
  */
 export function hasEstimates(dataType: DataType, algorithms = ALGORITHMS): boolean {
-  return algorithms.some((entry) => entry.baseline[dataType].ms.length > 0)
+  return algorithms.some((entry) =>
+    BROWSER_RUNTIME_IDS.some((runtime) => entry.baseline[dataType][runtime].ms.length > 0),
+  )
 }
 
-/** 이 기기에서 몇 ms 걸릴 일인가. `factor`는 `ml/calibration.ts`가 잰 배수다. */
+/**
+ * 이 기기에서 몇 ms 걸릴 일인가. `factor`는 `ml/calibration.ts`가 잰 배수다.
+ *
+ * **시동은 배수 밖에서 더한다** (`baselineMs`의 주석). 그 배수는 계산 속도이고 시동의
+ * 절반 이상은 내려받기와 WASM 세우기다.
+ */
 export function estimateMs(input: EstimateInput, factor: number): number | null {
   const baseline = baselineMs(input)
-  return baseline === null ? null : baseline * factor
+  if (baseline === null) return null
+  return baseline * factor + preparationMs(input.runtime ?? 'mljs')
+}
+
+/** 그 실행 방법이 학습 앞에 무는 시동. 순수 JS는 0이다 (`ml/backend.ts`의 `RUNTIMES`). */
+function preparationMs(runtime: BrowserRuntimeId): number {
+  return RUNTIMES.find((one) => one.id === runtime)?.preparation?.ms ?? 0
 }
 
 /**

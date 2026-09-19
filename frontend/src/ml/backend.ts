@@ -140,8 +140,13 @@ export type EngineKind = (typeof ENGINE_KINDS)[number]
  */
 export type ReproductionFidelity = 'exact' | 'advisory' | 'unmeasured'
 
-export function isBrowserRuntimeId(id: RuntimeId): id is BrowserRuntimeId {
-  return (BROWSER_RUNTIME_IDS as readonly RuntimeId[]).includes(id)
+/**
+ * **문자열을 받는다.** 실행 방법 id의 출처가 학생 설정과 `.mlpx`라 좁은 타입이 아니고
+ * (`Settings.runtime`이 `string`이다), **좁히는 일이 이 함수의 일**이다. 부르는 쪽이
+ * 먼저 단언하면 그 단언이 틀렸을 때 아무도 안 운다.
+ */
+export function isBrowserRuntimeId(id: string): id is BrowserRuntimeId {
+  return (BROWSER_RUNTIME_IDS as readonly string[]).includes(id)
 }
 
 /**
@@ -259,11 +264,16 @@ export interface AlgorithmSpec {
    * **서버 칸이 없다.** 우리가 모르는 기기에서 도는 것이라 예상을 못 낸다 — 그 자리는
    * 화면이 `알 수 없음`이라고 적는다.
    *
-   * **종류 축이 있는 이유는 `maxRows`와 같다** — 사진 한 장이 1,280차원이라 같은 행 수가
-   * 같은 시간을 뜻하지 않는다. 이미지는 아직 안 쟀고, 안 잰 칸에는 `UNMEASURED_BASELINE`이
-   * 들어간다. **화면이 종류를 비교해서 끄지 않는다** (architecture.md §9.1).
+   * **축 둘이 `maxRows`와 같다** — 종류가 있는 이유는 사진 한 장이 1,280차원이라 같은 행
+   * 수가 같은 시간을 뜻하지 않아서이고, **실행 방법이 있는 이유는 두 엔진의 성질이 실제로
+   * 달라서다**(2026-09-19 실측). sklearn은 점마다 드는 고정 비용이 커서 작은 데이터에서는
+   * 순수 JS보다 **느리고**, 손잡이 배수도 다르다 — 로지스틱의 반복 횟수가 순수 JS에서는
+   * 19.2배인데 sklearn에서는 평평하다(`limits.ts`).
+   *
+   * 안 잰 칸에는 `UNMEASURED_BASELINE`이 들어간다.
+   * **화면이 종류를 비교해서 끄지 않는다** (architecture.md §9.1).
    */
-  readonly baseline: Readonly<Record<DataType, Baseline>>
+  readonly baseline: Readonly<Record<DataType, Readonly<Record<BrowserRuntimeId, Baseline>>>>
   /**
    * **이 알고리즘의 재실행 대조를 엔진마다 얼마나 믿을 수 있는가** (`ReproductionFidelity`).
    *
