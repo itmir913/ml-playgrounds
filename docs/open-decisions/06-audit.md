@@ -884,13 +884,13 @@ off 스위치 범위 · `.mlpx` 크기를 하드 블록으로 막지 않는 이�
 **여섯째 줄이 있는 이유는 이 파일이 상한만 사는 곳이 아니어서다.** webp 품질과 알림 시간이
 여기 함께 산다. 스위치를 "이 파일 전부"로 정의하면 그것들까지 꺼진다.
 
-**전수 분류 (95개, 2026-09-10 기준).** 값은 여기 옮겨 적지 않는다 — 코드가 출처다.
+**전수 분류 (110개, 2026-09-19 기준).** 값은 여기 옮겨 적지 않는다 — 코드가 출처다.
 **이 표는 손으로 세는 것이라 낡는다** — 실제로 **두 번** 낡았다(44 → 52 → 73). 두 번째는
 분류를 옮기면서 칸의 수만 고치고 이 총계를 안 고쳐서다. **이제 검사가 총계도 센다.**
 
 | 분류 | 상수 |
 |---|---|
-| **우리 기기가 정했다** (25) | `MAX_DATASET_ROWS` · `MAX_IMAGE_COUNT` · `MAX_DATASET_COLUMNS` · `BROWSER_ROW_LIMIT` · `MLJS_*_ROW_LIMIT` 아홉(표) · `MLJS_IMAGE_*_ROW_LIMIT` 여덟 · `CLUSTER_SCATTER_POINT_LIMIT` · `PREDICT_PAGE_SIZE` · `IMAGE_PREDICT_PAGE_SIZE` · `MAX_PORTFOLIO_BYTES` |
+| **우리 기기가 정했다** (40) | `MAX_DATASET_ROWS` · `MAX_IMAGE_COUNT` · `MAX_DATASET_COLUMNS` · `BROWSER_ROW_LIMIT` · `MLJS_*_ROW_LIMIT` 아홉(표) · `MLJS_IMAGE_*_ROW_LIMIT` 여덟 · **`PYODIDE_*_ROW_LIMIT` 여덟(표) · `PYODIDE_IMAGE_*_ROW_LIMIT` 일곱** (2026-09-19 실측, "scikit-learn(Pyodide)은 원본에서 받고, 시동은 학습마다 낸다") · `CLUSTER_SCATTER_POINT_LIMIT` · `PREDICT_PAGE_SIZE` · `IMAGE_PREDICT_PAGE_SIZE` · `MAX_PORTFOLIO_BYTES` |
 | **파일이 나간 뒤가 요구한다** (5) | `MAX_CATEGORY_NAME_LENGTH`(윈도우 260자 경로) · `MAX_FILE_NAME_LENGTH`(파일 시스템) · `MAX_MODEL_BYTES` · `MODEL_BUDGET_BYTES` · `SILHOUETTE_BUDGET_MS`(§1.3) |
 | **계산 자체가 요구한다** (4) | `MIN_SPLIT_ROWS` · `MIN_SILHOUETTE_SAMPLE` · `MIN_CLASSIFICATION_CATEGORIES`(갈릴 것이 없으면 분류가 성립하지 않는다) · `NEURAL_PARALLEL_CHUNK_ROWS`(기울기 합산 정본의 조각 크기 — 값이 바뀌면 모델이 바뀐다, "학습을 코어로 가른다") |
 | **교실을 보고 골랐다** (3) | `MAX_STUDENT_ID_LENGTH` · `MAX_STUDENT_NAME_LENGTH` · `TEST_SIZE_RANGE` |
