@@ -111,36 +111,33 @@ cc745bf feat: 학습 워커가 scikit-learn을 원본에서 받아 띄운다
 
 ## 3. 실측 대조 — 검사가 못 지키는 자리
 
-**이 라운드는 숫자 열일곱을 심었다.** 원본은 2026-09-19에 사용자 크롬에서 나온 하니스
-JSON이고, 값은 아래와 같다(단위 ms, 학습+20% 예측+평가, **시동 제외**).
+**이 라운드는 숫자 열일곱을 새로 심었다.** 검사는 그 값이 *맞는지*를 못 지킨다 — 그 값이
+곧 기대값이기 때문이다. **그러니 여기는 눈으로 대조하는 자리다.**
 
-| 사다리 | 잰 값 | 심은 상수 |
-|---|---|---|
-| 표 나이브 베이즈 100,000행 | 515 | `PYODIDE_NAIVE_BAYES_ROW_LIMIT = MAX_DATASET_ROWS` |
-| 표 선형 회귀 100,000행 | 1,003 | `PYODIDE_LINEAR_REGRESSION_ROW_LIMIT` |
-| 표 로지스틱 100,000행(천장) | 1,448 | `PYODIDE_LOGISTIC_REGRESSION_ROW_LIMIT` |
-| 표 KNN 100,000행 | 16,357 | `PYODIDE_KNN_ROW_LIMIT` |
-| 표 의사결정트리 100,000행 | 4,677 | `PYODIDE_DECISION_TREE_ROW_LIMIT` |
-| 표 랜덤 포레스트 100,000행 | 54,957 | `PYODIDE_RANDOM_FOREST_ROW_LIMIT` |
-| 표 K-평균 100,000행 | 10,685 | `PYODIDE_KMEANS_ROW_LIMIT` |
-| 표 SVM 20,000행 | 30,033 | `PYODIDE_SVM_ROW_LIMIT = 20_000` |
-| 사진 나이브 베이즈 5,000장 | 1,875 | `PYODIDE_IMAGE_NAIVE_BAYES_ROW_LIMIT` |
-| 사진 로지스틱 5,000장(천장) | 22,351 | `PYODIDE_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT` |
-| 사진 KNN 5,000장 | 4,158 | `PYODIDE_IMAGE_KNN_ROW_LIMIT` |
-| 사진 K-평균 5,000장 | 4,184 | `PYODIDE_IMAGE_KMEANS_ROW_LIMIT` |
-| 사진 의사결정트리 5,000장 | 27,122 | `PYODIDE_IMAGE_DECISION_TREE_ROW_LIMIT` |
-| 사진 랜덤 포레스트 5,000장 | 41,660 | `PYODIDE_IMAGE_RANDOM_FOREST_ROW_LIMIT` |
-| 사진 SVM 5,000장 | 155,370 | `PYODIDE_IMAGE_SVM_ROW_LIMIT` |
-| 시동(122회 중앙값) | 7,750 | `PYODIDE_BOOT_MS = 7700` |
-| 전송량(br 합계) | 27.3MB | `PYODIDE_DOWNLOAD_BYTES = 27.3 * MB` |
+**증인 셋을 서로 맞춰라.** 셋이 같은 말을 해야 하고, 갈리면 어느 쪽이 옮겨 적다 틀린 것이다.
 
-**볼 것 셋.**
+1. **원본** — `docs/audit/r29-bench.json`. 2026-09-19에 사용자 크롬(8코어·8GB·Chrome 153)에서
+   하니스 `tools/bench.html`의 [sklearn 훑기]가 낸 출력 그대로다. **다시 재면 재현된다.**
+2. **상수와 그 주석** — `frontend/src/limits.ts`의 `PYODIDE_*_ROW_LIMIT` 열다섯 +
+   `PYODIDE_DOWNLOAD_BYTES` · `PYODIDE_BOOT_MS`.
+3. **결정문의 비교표** — `docs/open-decisions/07-after-audit.md`의 "scikit-learn(Pyodide)은
+   원본에서 받고, 시동은 학습마다 낸다" 안의 표 둘(표·사진).
 
-- 상수의 **주석에 적은 숫자**가 위 표와 같은가 (`limits.ts`의 열다섯 줄).
-- `open-decisions/07-after-audit.md`의 비교표에 적은 배수가 **`limits.ts`의 mljs 기준표와
-  실제로 나눠 맞는가.** 예: *"사진 5,000장 의사결정트리 24분 → 27초, 53배"*.
-- **사다리 하나는 실패 0건이었다.** 그래서 상한이 "깨지는 자리"가 아니라 "데이터 천장"이
-  됐고, SVM만 20,000이다. 그 논리가 `limits.ts` 주석과 결정문에서 **같은 말을 하는가.**
+**어느 사다리가 어느 상수를 뒷받침하는지는 이름이 말한다** — `pyodide_image_svm`과
+`pyodide_limit_image_svm`이 `PYODIDE_IMAGE_SVM_ROW_LIMIT`의 근거다. 상한 사다리
+(`pyodide_limit_*`)가 그 알고리즘의 **가장 큰 점**을 들고 있다.
+
+**특히 볼 것 넷.**
+
+- **주석의 숫자가 원본과 같은가.** 열다섯 줄을 하나씩.
+- **결정문 비교표의 배수가 실제로 나눠 맞는가** — 그 표는 `limits.ts`의 `MLJS_*_BASELINE_MS`와
+  위 원본을 나눈 것이다. 예: *"사진 5,000장 의사결정트리 24분 → 27초, 53배"*.
+- **시동 수치.** 나는 한 번 틀렸다 — 처음에 *"122회 중앙값 7,750"*이라고 적었는데
+  원본을 세어 보니 **118회 · 중앙값 7,739**였다(`parts` 115 + `boots` 3). 같은 종류가
+  더 있는지 봐라.
+- **"실패 0건"이라는 주장.** 원본의 `failed`와 `stopped`가 비어 있는 것이 그 근거이고,
+  거기서 **상한이 "깨지는 자리"가 아니라 "데이터 천장"이 된다**는 논리가 나온다.
+  그 논리가 `limits.ts` 주석과 결정문에서 **같은 말을 하는가.** SVM만 20,000인 이유도.
 
 ## 4. 제외할 것
 

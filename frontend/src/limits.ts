@@ -681,8 +681,9 @@ export const PYODIDE_IMAGE_KMEANS_ROW_LIMIT = MAX_IMAGE_COUNT
 export const PYODIDE_DOWNLOAD_BYTES = 27.3 * MB
 
 /**
- * **받은 뒤 시동에 드는 시간** (2026-09-19 실측, 개발 PC · 따뜻한 캐시 · 122회 부팅의
- * 중앙값). 코어 1.59 + 휠 1.97 + 첫 `import sklearn` 4.17초다.
+ * **받은 뒤 시동에 드는 시간** (2026-09-19 실측, 개발 PC · 따뜻한 캐시 · **118회 부팅의
+ * 중앙값 7,739ms**, 범위 7,549~8,732). 국면의 중앙값은 코어 1,591 + 휠 1,970 +
+ * 첫 `import sklearn` 4,172ms다. **원본은 `docs/audit/r29-bench.json`이다.**
  *
  * **캐시가 못 지운다.** 다운로드는 두 번째부터 캐시가 대신 주지만 이 시간은 **학습마다**
  * 든다 — 학습 워커가 학습마다 새로 뜨기 때문이다 (`architecture.md` §3.4).
