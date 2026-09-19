@@ -416,3 +416,86 @@ describe('경과 시계의 수명', () => {
     expect(training.startedAt.value).toEqual([])
   })
 })
+
+/**
+ * **준비 국면이 워커에서 줄까지 간다** (2026-09-19 R29 C-5).
+ *
+ * 조각마다 검사가 있었는데 **잇는 검사가 없었다** — 워커의 `preparing` 송신을 지워도,
+ * `onPreparing`이 상태를 안 바꿔도, 상태 표를 뒤섞어도 저장소가 조용했다(M18·M22·M6).
+ * 그 셋이 전부 **학생이 8초 동안 보는 문장**을 정한다.
+ *
+ * **가짜 워커가 메시지를 쏘고 `statuses`까지 본다.** 사이를 끊으면 여기가 운다.
+ */
+describe('준비 국면이 줄까지 간다', () => {
+  it('받는 중 · 세우는 중 · 학습 중으로 바뀐다', async () => {
+    const { training, latest } = harness()
+    const done = training.run(requestFor(2))
+
+    latest()?.emit({
+      type: 'started',
+      index: 0,
+      algorithm: 'decision_tree',
+      runtime: 'pyodide-sklearn',
+      total: 2,
+    })
+    expect(training.statuses.value).toEqual(['running', 'waiting'])
+
+    latest()?.emit({ type: 'preparing', state: 'downloading' })
+    expect(training.statuses.value).toEqual(['downloading', 'waiting'])
+
+    latest()?.emit({ type: 'preparing', state: 'downloaded' })
+    expect(training.statuses.value).toEqual(['starting', 'waiting'])
+
+    // **`ready`는 준비의 끝이자 학습의 시작이다.** 여기서 `waiting`으로 돌아가면
+    // 줄이 도는 내내 `대기 중`이고 경과 시계도 안 흐른다.
+    latest()?.emit({ type: 'preparing', state: 'ready' })
+    expect(training.statuses.value).toEqual(['running', 'waiting'])
+
+    latest()?.emit(DONE)
+    await done
+  })
+
+  /**
+   * **자리는 워커가 말한 것을 쓴다.** 준비 메시지에는 자리가 없으므로 **방금 시작된
+   * 줄**이 그 자리다 — 둘째 모델이 준비 중인데 첫째 줄이 바뀌면 학생은 엉뚱한 모델을
+   * 범인으로 지목한다(이 목록을 만든 이유 그 자체다).
+   */
+  it('방금 시작한 줄이 바뀐다 - 앞 줄이 아니다', async () => {
+    const { training, latest } = harness()
+    const done = training.run(requestFor(2))
+
+    latest()?.emit({
+      type: 'started',
+      index: 0,
+      algorithm: 'decision_tree',
+      runtime: 'mljs',
+      total: 2,
+    })
+    latest()?.emit({ type: 'progress', run: RUN, index: 0, completed: 1, total: 2 })
+    latest()?.emit({
+      type: 'started',
+      index: 1,
+      algorithm: 'knn',
+      runtime: 'pyodide-sklearn',
+      total: 2,
+    })
+    latest()?.emit({ type: 'preparing', state: 'downloading' })
+
+    expect(training.statuses.value).toEqual(['done', 'downloading'])
+
+    latest()?.emit(DONE)
+    await done
+  })
+
+  /** 아무것도 시작 안 했으면 준비 보고는 아무 줄도 안 건드린다. */
+  it('시작 보고가 없으면 아무 줄도 안 바꾼다', async () => {
+    const { training, latest } = harness()
+    const done = training.run(requestFor(2))
+
+    latest()?.emit({ type: 'preparing', state: 'downloading' })
+    expect(training.statuses.value).toEqual(['waiting', 'waiting'])
+
+    latest()?.emit(DONE)
+    await done
+  })
+})

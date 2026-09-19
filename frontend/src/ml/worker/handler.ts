@@ -9,6 +9,7 @@
 import { failureDetail, isClientError } from '../../errors'
 import { runCalibration } from '../calibration'
 import { runExperiment } from '../experiment'
+import type { TrainingEngine } from '../engines'
 import { forestPoolFactory } from './forest-pool'
 import { knnPoolFactory } from './knn-pool'
 import { neuralPoolFactory } from './neural-pool'
@@ -23,10 +24,21 @@ import type { TrainRequest, WorkerMessage, WorkerRequest } from './protocol'
 export async function handleTrain(
   request: TrainRequest,
   emit: (message: WorkerMessage) => void,
+  /**
+   * 볼 엔진 등록부. **검사가 가짜를 넣으려고 있다** (`ExperimentOptions.engines`와 같은 자리).
+   *
+   * 진짜 sklearn 엔진은 원본에서 27.3MB를 받으므로 검사가 부를 수 없는데, **준비 국면이
+   * 워커 밖으로 나가는지**는 그 엔진이 있어야만 지나가는 경로다 — 그 사이가 비어 있어
+   * 송신을 지워도 저장소가 조용했다(2026-09-19 R29 C-5).
+   *
+   * 워커 파일은 이 인자를 안 준다 (`train.worker.ts`).
+   */
+  engines?: readonly TrainingEngine[],
 ): Promise<void> {
   try {
     const { experiment, preprocessor, models } = await runExperiment(request.input, {
       ...(request.history ? { history: request.history } : {}),
+      ...(engines ? { engines } : {}),
       // 오래 걸리는 학습을 코어로 가를 수 있게 손들을 준다. **여기가 유일한 실물
       // 주입 자리다** — 검사와 재실행 대조는 안 줘서 직렬로 돌고, 결과는 같다
       // (open-decisions.md "학습을 코어로 가른다 — 결과는 코어 수와 무관하다").

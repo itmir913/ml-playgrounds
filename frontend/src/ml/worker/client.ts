@@ -129,7 +129,10 @@ export function train(
       return
     }
     if (message.type === 'preparing') {
-      // 취소한 뒤에 도착한 보고는 버린다 — `started`와 같은 이유다.
+      // **지금은 여기 못 닿는다** — 아래 `progress` 가지와 같은 사정이고 같은 그물이다.
+      // 취소는 `settle()`을 지나며 `onmessage`를 떼므로 뒤늦은 보고가 이 함수에 안 온다.
+      // `worker.spec.ts`의 *"취소한 뒤 도착한 준비 보고는 버린다"*가 재는 것도 **그 뗌이지
+      // 이 가드가 아니다** (2026-09-19 R29 C-7 — 가드를 지워도 그 검사는 초록이었다).
       if (!finished) options.onPreparing?.(message.state, message.fraction)
       return
     }

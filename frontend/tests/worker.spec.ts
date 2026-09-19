@@ -17,6 +17,7 @@ import { describe, expect, it } from 'vitest'
 import { isClientError } from '../src/errors'
 import type { ExperimentInput } from '../src/ml/experiment'
 import { calibrateDevice, train, type TrainWorker } from '../src/ml/worker/client'
+import { ENGINES, type TrainingEngine } from '../src/ml/engines'
 import { handleTrain } from '../src/ml/worker/handler'
 import type { TrainRequest, WorkerMessage } from '../src/ml/worker/protocol'
 import type { RunsFile, Settings, TabularSettings } from '../src/project/schema'
@@ -495,5 +496,68 @@ describe('기기 교정', () => {
         throw new Error('no worker')
       }),
     ).resolves.toBeNull()
+  })
+})
+
+/**
+ * **워커가 준비 국면을 밖으로 내보낸다** (2026-09-19 R29 C-5).
+ *
+ * 이 자리가 비어 있었다 — `handler.ts`의 `onPrepare` → `emit({type:'preparing'})`을 지워도
+ * 저장소가 조용했다. 그러면 **화면이 7.7초 동안 `학습 중`으로 서 있고**, 학생은 멈춘 줄 안다.
+ *
+ * **가짜 엔진이 있어야만 지나가는 경로다.** 진짜 sklearn은 원본에서 27.3MB를 받는다.
+ */
+describe('준비 국면이 워커 밖으로 나간다', () => {
+  /** 아무것도 안 받고 국면만 흘리는 엔진. `mljs` 자리에 끼운다. */
+  function preparingEngine(): TrainingEngine {
+    const real = ENGINES.find((one) => one.runtimeId === 'mljs')
+    if (!real) throw new Error('mljs engine missing')
+    return {
+      ...real,
+      prepare: async (onState) => {
+        onState?.('downloading')
+        onState?.('downloaded')
+        onState?.('ready')
+      },
+    }
+  }
+
+  it('started와 progress 사이에 국면이 흐른다', async () => {
+    const messages: WorkerMessage[] = []
+    await handleTrain(
+      { type: 'train', input: inputFor(settingsFor({ selectedAlgorithms: models('knn') })) },
+      (message) => messages.push(message),
+      [preparingEngine()],
+    )
+
+    expect(messages.map((one) => one.type)).toEqual([
+      'prelude',
+      'started',
+      'preparing',
+      'preparing',
+      'preparing',
+      'progress',
+      'done',
+    ])
+    const states = messages
+      .filter((one) => one.type === 'preparing')
+      .map((one) => (one.type === 'preparing' ? one.state : ''))
+    expect(states).toEqual(['downloading', 'downloaded', 'ready'])
+  })
+
+  /**
+   * **비율은 안 온다** (`ml/engines/pyodide-runtime.ts`). Pyodide가 받은 양을 안 알려 주므로
+   * 지어내지 않는다 — 칸이 늘 비어 있어야 화면이 없는 진행 막대를 그리지 않는다.
+   */
+  it('안 준 비율을 지어내지 않는다', async () => {
+    const messages: WorkerMessage[] = []
+    await handleTrain(
+      { type: 'train', input: inputFor(settingsFor({ selectedAlgorithms: models('knn') })) },
+      (message) => messages.push(message),
+      [preparingEngine()],
+    )
+    for (const message of messages) {
+      if (message.type === 'preparing') expect(message.fraction).toBeUndefined()
+    }
   })
 })

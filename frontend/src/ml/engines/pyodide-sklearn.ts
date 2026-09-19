@@ -6,10 +6,14 @@
  *
  * ## 번들에 아무것도 넣지 않는다
  *
- * Pyodide는 gzip 26.3MB + 시동 15.4초다 (architecture.md §7.4). 이 모듈은 번들에는
- * **어댑터 코드만** 넣고, Pyodide 자체는 학생이 상태 점검에서 "준비"를 눌렀을 때
- * 동적으로 받는다. 받기 전에는 `ENGINE_NOT_READY`로 잠겨 있고
- * (`runtimeOptions`가 `isReady`를 보므로), `fit()`이 불리는 일이 없다.
+ * Pyodide는 27.3MB + 시동 7.7초다 (`architecture.md` §7.4). 이 모듈은 번들에는
+ * **어댑터 코드만** 넣고, Pyodide 자체는 **학습이 시작될 때** 원본에서 받는다 —
+ * `prepare()`가 `fit()` 바로 앞에서 그것을 한다(`pyodide-runtime.ts`).
+ *
+ * **잠그지 않는다.** 한때 받기 전에는 카드가 `ENGINE_NOT_READY`로 잠겨 있었는데,
+ * **켜는 자리를 안 만들기로 하면서 그 잠금이 열리지 않는 문이 됐다**
+ * (`open-decisions.md` "scikit-learn(Pyodide)은 원본에서 받고, 시동은 학습마다 낸다").
+ * 대신 화면이 고르기 전에 비용을 말한다.
  *
  * ## Pyodide 인스턴스 주입
  *
@@ -156,8 +160,8 @@ export function resolve(
  * 서술에 없는 키를 손대지 않고 통과시키므로 남의 파일에 든 임의의 문자열이
  * `runPython()`까지 갔다. `.mlpx`는 교사와 학생이 서로 주고받는 것이 이 도구의
  * 전제이고(CLAUDE.md §1.3), Pyodide의 Python은 `import js`로 IndexedDB와 `fetch`에
- * 닿는다. **지금은 `setPyodide()`를 부르는 코드가 없어 도달하지 않지만, 워커 배선이
- * 붙는 순간 열리는 경로다.**
+ * 닿는다. **2026-09-19에 배선이 붙어 그 경로가 실제로 열렸다** — `prepare()`가 학습
+ * 앞에서 Pyodide를 띄우므로 여기 오는 문자열은 진짜 `runPython()`까지 간다.
  *
  * **값도 유한한 수치만 받는다.** 서술(`HyperparameterSpec`)이 수치 전용이다.
  * 예전 코드는 수치가 아니면 `JSON.stringify`를 했는데, 그러면 boolean이 Python에서

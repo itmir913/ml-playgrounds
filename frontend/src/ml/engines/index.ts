@@ -97,8 +97,8 @@ export interface TrainingEngine {
    * **반드시 멱등이어야 한다.** 실험 하나에 sklearn 모델이 셋이면 세 번 불린다 —
    * 두 번째부터는 상태만 알리고 곧장 돌아와야 한다.
    *
-   * **`RuntimeSpec.needsPreparation`과 짝이다.** 그쪽은 *"무겁다"*는 선언이고 이쪽은
-   * 그것을 실제로 하는 코드다. 둘이 어긋나면 `tests/runtime-options.spec.ts`가 운다.
+   * **`RuntimeSpec.preparation`과 짝이다.** 그쪽은 *"무엇이 드는가"*의 선언이고 이쪽은
+   * 그것을 실제로 하는 코드다. 둘이 어긋나면 `tests/pyodide-runtime.spec.ts`가 운다.
    */
   prepare?(onState?: (state: EngineState, fraction?: number) => void): Promise<void>
 }
@@ -106,8 +106,8 @@ export interface TrainingEngine {
 /**
  * V3 엔진. **순서가 기본값 우선순위다** — 앞에 있는 것부터 고른다 (ml/backend.ts).
  *
- * 순수 JS가 맨 앞인 이유는 gzip 25KB에 시동이 없기 때문이다. scikit-learn은 26.3MB에
- * 시동 15.4초라 기본값이 될 수 없다 (open-decisions.md "브라우저 학습 엔진은 둘 다 간다").
+ * 순수 JS가 맨 앞인 이유는 gzip 25KB에 시동이 없기 때문이다. scikit-learn은 27.3MB에
+ * 시동 7.7초라 기본값이 될 수 없다 (open-decisions.md "브라우저 학습 엔진은 둘 다 간다").
  *
  * **여기 항목을 추가하면 실험이 따라온다.** experiment.ts가 `engineFor(runtimeId)`로
  * 이 배열을 보고, runtimeOptions가 `engineFor`로 존재 여부를 확인한다.

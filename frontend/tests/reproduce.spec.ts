@@ -565,8 +565,9 @@ describe('조립은 run에서 읽는다', () => {
 
   it('실행 방법은 run의 엔진에서 되짚는다 - 스냅샷의 요청이 아니라', async () => {
     // **스냅샷은 요청한 방법이고 run의 엔진이 실제로 돈 것이다.** 학습 때 자동으로
-    // 넘어간 run(요청은 pyodide, 실제로는 mljs)을 스냅샷대로 다시 돌리면 그 방법이
-    // 준비되지 않았다며 **실패 run**이 된다 - 엔진은 바로 거기 있는데도.
+    // 넘어간 run(요청은 pyodide, 실제로는 mljs)을 스냅샷대로 다시 돌리면 **엉뚱한
+    // 엔진으로 다시 학습한다** — 요청이 가리키는 sklearn은 이제 실제로 돌기 때문이다
+    // (2026-09-19에 배선이 붙었다. 그전에는 "준비되지 않았다"며 실패 run이 됐다).
     const experiment = await trained(['decision_tree'])
     const asked: Experiment = {
       ...experiment,

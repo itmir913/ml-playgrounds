@@ -1011,8 +1011,8 @@ const LIMIT_LADDERS: readonly Ladder[] = [
  * **점은 표 쪽 사다리와 같게 시작한다.** 두 엔진의 같은 점을 나란히 놓을 수 있어야
  * "sklearn이 몇 배인가"를 말할 수 있다. 위쪽은 20초 천장이 알아서 자른다.
  *
- * **상한 사다리는 아직 없다.** 깨지는 지점을 찾는 것은 기준표를 잰 다음이고, 시동이
- * 점마다 붙는 상태에서 몇 시간짜리 사다리를 돌리는 것은 순서가 틀렸다.
+ * **상한 사다리는 아래 `PYODIDE_LIMIT_LADDERS`가 갖는다** — 기준표를 재고 나서 같은 날
+ * 세웠다.
  */
 export const PYODIDE_LADDERS: readonly Ladder[] = [
   {
@@ -1211,8 +1211,9 @@ export const PYODIDE_LADDERS: readonly Ladder[] = [
  * `MAX_DATASET_ROWS`(100,000)까지, 사진의 그 넷과 의사결정트리는 `MAX_IMAGE_COUNT`(5,000)까지
  * 실제로 돌았다 — **그 위는 이 앱이 데이터로 받지도 않는다.**
  *
- * **SVM이 먼저 깨질 것이다.** N×N 커널이라 2만 행이면 3.2GB다. 그 자리가 상한이고,
- * 그것은 오래 걸리는 것이 아니라 **워커가 죽는 것**으로 온다.
+ * **"SVM이 먼저 깨질 것"이라는 예상은 틀렸다** (2026-09-19). N×N 커널이라 2만 행이면
+ * 3.2GB일 줄 알았는데 **30초에 끝났다** — libsvm은 커널을 통째로 만들지 않고 캐시
+ * 크기로 나눠 계산한다. **이 판에서는 아무것도 안 깨졌다.**
  */
 const PYODIDE_LIMIT_LADDERS: readonly Ladder[] = [
   {

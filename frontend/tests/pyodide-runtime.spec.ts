@@ -113,6 +113,9 @@ describe('준비가 흐르는 순서', () => {
    * 실패이고, 그 문장은 *"순수 JS로 학습해 주세요"*여야 한다.
    */
   it('못 띄우면 ENGINE_BOOT_FAILED다', async () => {
+    // **안 던지면 아무것도 안 재고 초록이다** — `catch` 안에만 확인이 있어서다
+    // (2026-09-19 R29 C-9). 셋은 위 `rejects` 하나와 아래 둘이다.
+    expect.assertions(3)
     const boot = async (): Promise<Boot> => {
       throw new Error('net::ERR_BLOCKED_BY_CLIENT')
     }

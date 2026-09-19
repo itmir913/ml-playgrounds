@@ -18,9 +18,12 @@
  * `architecture.md` §3.4). 그러므로 아래 `prepare()`는 **워커마다 한 번** 불리고, 그 값이
  * 실측 7.7초다. 상주 워커를 두지 않는 판단은 결정문에 있다.
  *
- * **모듈 상태가 워커 하나의 수명과 같다.** 메인 스레드에서는 이 모듈이 로드될 일이
- * 없고(학습은 워커에서만 돈다), 혹시 로드되더라도 `prepare()`를 안 부르면 아무 일도
- * 일어나지 않는다.
+ * **모듈 상태가 워커 하나의 수명과 같다.** 학습은 워커에서만 돌기 때문이다.
+ *
+ * **그렇다고 이 모듈이 메인 번들 밖에 있는 것은 아니다** (2026-09-19 R29 C-4가 잡았다).
+ * 점검 화면이 `ml/reproduce.ts`를 쓰고 그쪽이 `ml/engines`를 들여오므로 **이 파일은
+ * 메인이 읽는 청크에 들어간다.** 해가 없는 이유는 **원격 `import()`가 `bootPyodide`
+ * 안에만 있어서**다 — `prepare()`를 안 부르면 27.3MB는 한 바이트도 안 움직인다.
  */
 
 import { ClientError, failureDetail } from '../../errors'
@@ -77,7 +80,8 @@ export type BootParts = {
 export interface Boot {
   readonly parts: BootParts
   /**
-   * 파이썬이 스스로 답한 버전들. **우리가 적은 것이 아니라 물어본 것이다.**
+   * 파이썬이 스스로 답한 버전들. **`pyodide` 칸만 우리가 적은 상수다**(아래 `json.dumps`) —
+   * 나머지 넷은 물어본 값이다.
    *
    * `run.engine.version`에 무엇을 담을지가 이 값에 걸려 있다 — 재실행 대조는 버전이
    * 정확히 같을 때만 판정하므로(`ml/reproduce.ts`의 `engineIsHere`), 담는 순간 이 문자열이

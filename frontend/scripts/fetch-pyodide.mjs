@@ -58,6 +58,10 @@ const EXPECTED = {
   'scikit-learn': '1.8.0',
   numpy: '2.4.6',
   scipy: '1.18.0',
+  // **고지가 이 다섯을 이름으로 적는다** (`scripts/notices.ts`의 `RUNTIMES`). 락 파일이
+  // 다른 말을 하면 우리가 나눠 주는 고지가 틀린 버전을 적는 것이다 (2026-09-19 R29 C-9).
+  joblib: '1.5.3',
+  threadpoolctl: '3.6.0',
 }
 
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
@@ -80,7 +84,7 @@ async function fetchFile(url) {
 function versionsOf(bytes) {
   const lock = JSON.parse(bytes.toString('utf-8'))
   const found = { python: lock.info?.python }
-  for (const name of ['scikit-learn', 'numpy', 'scipy']) {
+  for (const name of ['scikit-learn', 'numpy', 'scipy', 'joblib', 'threadpoolctl']) {
     found[name] = lock.packages?.[name]?.version
   }
   return found

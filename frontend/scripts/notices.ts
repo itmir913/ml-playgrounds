@@ -107,7 +107,8 @@ export const MODELS: readonly {
  *
  * **원본은 `src/ml/engines/pyodide-runtime.ts`의 `PYODIDE_VERSION`이고 여기는 그것을
  * 베낀 것이다** (`MODELS`가 백본 등록부를 베끼는 것과 같은 사정 — vite 설정이 무는 파일은
- * 확장자가 있어야 한다). **두 값이 같은지는 `tests/notices.spec.ts`가 문다.**
+ * 확장자가 있어야 한다). **두 값이 같은지는 `tests/pyodide-runtime.spec.ts`가 문다** —
+ * `notices.spec.ts`가 아니다(2026-09-19 R29 C-3).
  */
 export const RUNTIMES: readonly {
   readonly id: string

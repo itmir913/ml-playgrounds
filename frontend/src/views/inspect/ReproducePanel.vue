@@ -37,6 +37,7 @@ import {
 } from '@/ml/reproduce'
 import { succeeded } from '@/ml/results'
 import { factorFrom, readFactor, writeFactor } from '@/ml/calibration'
+import type { EngineState } from '@/ml/backend'
 import { describe as describeEstimate, estimateMs, type Estimate } from '@/ml/estimate'
 import { estimatedFeatureWidth } from '@/ml/preprocess'
 import { calibrateDevice, train } from '@/ml/worker/client'
@@ -98,6 +99,13 @@ const failures = ref(new Map<string, ClientErrorCode>())
  * 그 낱말을 **손잡이 칸의 이름으로** 못 박아 두었기 때문이다.
  */
 const comparing = ref<string | null>(null)
+/**
+ * 무거운 엔진을 띄우는 국면. **없으면 `null`이고 그때는 숫자를 말한다.**
+ *
+ * `EngineState` 중 `ready`는 안 담는다 — 그건 준비가 끝났다는 뜻이라 여기서는 `null`과
+ * 같은 말이다 (`ml/engines/pyodide-runtime.ts`).
+ */
+const preparing = ref<EngineState | null>(null)
 
 /** 지금 실험의 판정들. */
 const found = computed<readonly Reproduction[]>(
@@ -126,6 +134,21 @@ const cannotStart = computed(() => busy.value || blockers.value.length > 0)
 
 /** 견줄 주장의 수. 진행을 셀 분모다. */
 const claims = computed(() => props.experiment.runs.filter((run) => run.status === 'done').length)
+
+/**
+ * 도는 동안 그 자리에 적을 문장. **준비 중이면 그것을 먼저 말한다** (2026-09-19 R29 A-1).
+ *
+ * 숫자는 준비 국면에서 움직일 수 없으므로 `(0/N)`만 보이면 **멈춘 것으로 읽힌다** —
+ * 학생 화면이 줄마다 같은 국면을 말하는 것과 같은 자리다(`views/train/ChosenModels.vue`).
+ *
+ * **키를 조립하지 않는다** — 이어 붙이면 어느 키가 실제로 불리는지 검사가 못 세고,
+ * 안 불리는 키가 남아도 아무도 모른다 (`tests/locales.spec.ts`의 짝 규칙).
+ */
+const progressText = computed(() => {
+  if (preparing.value === 'downloading') return t('inspect.preparingDownload')
+  if (preparing.value === 'downloaded') return t('inspect.preparingStart')
+  return t('inspect.reproducing', { done: found.value.length, total: claims.value })
+})
 
 /**
  * **이 기기가 개발 PC보다 몇 배 느린가** (`ml/calibration.ts`). 학습 화면과 같은 값을
@@ -240,6 +263,16 @@ async function reproduce(): Promise<void> {
   const handle = train(request, {
     createWorker: spawnTrainingWorker,
     /**
+     * **무거운 엔진을 띄우는 동안에도 말한다** (2026-09-19 R29 A-1).
+     *
+     * 학생이 scikit-learn으로 학습한 파일은 대조도 그 엔진으로 돈다 — 교사 기기가
+     * 원본에서 27.3MB를 받고 7.7초를 세운다. 그동안 화면에 `대조 중 (0/N)`만 서 있으면
+     * **교사는 멈춘 줄 안다.** 학습 화면이 같은 국면을 줄마다 말하는 것과 같은 자리다.
+     */
+    onPreparing: (state) => {
+      if (alive()) preparing.value = state === 'ready' ? null : state
+    },
+    /**
      * **run 하나가 끝날 때마다 앉힌다** (§8.21). 통째로 기다렸다 한 번에 앉히면 진행
      * 숫자가 `(0/N)`에 붙박이고, 무엇보다 **멈춘 자리에 아무것도 안 남는다.**
      *
@@ -247,6 +280,8 @@ async function reproduce(): Promise<void> {
      */
     onProgress: (fresh, _completed, _total, index) => {
       if (!alive()) return
+      // 첫 run이 끝났으면 준비는 이미 지난 국면이다.
+      preparing.value = null
       const one = claim.runs[index]
       if (!one || !succeeded(one)) return
       const before = byExperiment.value.get(target) ?? []
@@ -414,7 +449,11 @@ function failureText(reproduction: Reproduction): string {
       `셋 중 셋`이 같은 모양이라, 교사가 어느 것을 멈췄는지 알 길이 없다.
     -->
     <p v-if="comparing === props.experiment.id" class="text-ink-soft">
-      {{ t('inspect.reproducing', { done: found.length, total: claims }) }}
+      <!--
+        **준비 중이면 그것을 먼저 말한다.** 숫자는 아직 움직일 수 없는 국면이라
+        `(0/N)`만 보이면 멈춘 것으로 읽힌다 (R29 A-1).
+      -->
+      {{ progressText }}
     </p>
     <p v-else-if="halted === props.experiment.id" class="text-ink-soft">
       {{ t('inspect.reproduceStopped', { done: found.length, total: claims }) }}

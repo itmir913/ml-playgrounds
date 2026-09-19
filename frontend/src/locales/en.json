@@ -38,6 +38,8 @@
     "reproduceLead": "Trains again with the settings and split recorded in the file, then checks whether the same scores come out.",
     "reproduceStart": "Start check",
     "reproducing": "Checking ({done}/{total})",
+    "preparingDownload": "Downloading scikit-learn",
+    "preparingStart": "Getting scikit-learn ready",
     "reproduceStopped": "Stopped ({done}/{total})",
     "verdict": "Verdict",
     "difference": "Difference",

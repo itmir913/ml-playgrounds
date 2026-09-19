@@ -2095,7 +2095,11 @@ describe('무거운 엔진은 학습보다 먼저 준비된다', () => {
       runtimeId: 'mljs',
       engine: { kind: 'mljs', version: '3' },
       algorithms: ['naive_bayes', 'decision_tree'],
-      parameters: () => [],
+      // **손잡이 하나를 든다.** 없으면 `assertInRange`가 볼 것이 없어 눈금 밖 검사가
+      // 통과해 버린다 — 그 검사가 재려는 것은 "엔진을 띄우기 전에 거절하는가"다.
+      parameters: () => [
+        { name: 'varSmoothing', integer: false, min: 0, max: 1, step: 0.1, default: 0.5 },
+      ],
       resolve: (_algorithm: string, given: Record<string, unknown>) => given,
       prepare: async (onState?: (state: EngineState, fraction?: number) => void) => {
         prepared += 1
@@ -2169,6 +2173,28 @@ describe('무거운 엔진은 학습보다 먼저 준비된다', () => {
     expect(seen).toEqual(['downloading', 'ready'])
   })
 
+  /**
+   * **눈금 밖 손잡이는 27.3MB를 받기 전에 거절한다** (2026-09-19 R29 C-9).
+   *
+   * `prepare`가 `assertInRange`보다 앞에 오면 **학생이 눈금 밖 값을 적어 둔 run 때문에
+   * 원본에서 27.3MB를 받고 나서야 거절한다.** 순서를 바꿔도 아무것도 안 울었다(M10).
+   */
+  it('눈금 밖 손잡이는 엔진을 띄우기 전에 거절한다', async () => {
+    const log: string[] = []
+    const { experiment } = await runExperiment(
+      inputFor({
+        settings: settingsFor({
+          selectedAlgorithms: models('naive_bayes'),
+          // 서술의 눈금 밖이다 (`ml/engines/mljs-params.ts`).
+          hyperparameters: { naive_bayes: { mljs: { varSmoothing: -1 } } },
+        }),
+      }),
+      { ...frozen, engines: [fakeEngine(log)] },
+    )
+    expect(experiment.runs[0]?.status).toBe('failed')
+    expect(log, 'the engine must not boot for a run that is rejected anyway').toEqual([])
+  })
+
   /** 순수 JS에는 `prepare`가 없다. **없는 것을 부르지 않는다.** */
   it('준비가 필요 없는 엔진은 그냥 돈다', async () => {
     const log: string[] = []
@@ -2179,5 +2205,67 @@ describe('무거운 엔진은 학습보다 먼저 준비된다', () => {
     )
     expect(experiment.runs[0]?.status).toBe('done')
     expect(log).toEqual(['fit:naive_bayes'])
+  })
+})
+
+/**
+ * **자동 이동은 비용이 드는 실행 방법에 안 내려앉는다** (2026-09-19 R29 B-1).
+ *
+ * 실행 방법이 안 적힌 줄(옛 파일·남의 파일)이 mljs 상한을 넘으면 되는 곳을 찾아 나서는데,
+ * 그 자리에 sklearn이 있으면 **학생이 고르지도 않은 27.3MB가 조용히 내려온다.** 화면은
+ * 그 줄을 옛 실행 방법으로 그리고 있고 비용 문구는 *지금 고른* 것만 본다.
+ */
+describe('자동 이동이 비용을 몰래 물리지 않는다', () => {
+  /** mljs 칸만 좁힌 등록부. **실물에서 이 모양인 칸은 표의 랜덤 포레스트 하나다.** */
+  function narrowMljs(rows: number): readonly Algorithm[] {
+    const entry = ALGORITHMS.find((one) => one.id === 'random_forest')
+    if (!entry) throw new Error('random_forest missing from the registry')
+    return [
+      {
+        ...entry,
+        maxRows: {
+          ...entry.maxRows,
+          tabular: { mljs: rows, 'pyodide-sklearn': rows * 100 },
+        },
+      },
+    ]
+  }
+
+  it('고르지 않은 줄은 sklearn으로 안 옮겨 간다', async () => {
+    const log: string[] = []
+    const { experiment } = await runExperiment(
+      inputFor({
+        // **실행 방법을 안 적은 줄이다.** 학습 화면은 늘 적지만 옛 파일에는 없다.
+        settings: settingsFor({ selectedAlgorithms: [{ algorithm: 'random_forest' }] }),
+      }),
+      {
+        ...frozen,
+        algorithms: narrowMljs(1),
+        engines: [ENGINES[0] as TrainingEngine, offlineSklearn],
+      },
+    )
+    const run = experiment.runs[0]
+    expect(run?.status).toBe('failed')
+    // **상한 사유로 실패한다** — 엔진을 못 띄운 것이 아니다.
+    expect(run?.failure?.code).toBe('DATASET_TOO_LARGE_FOR_BROWSER')
+    expect(log).toEqual([])
+  })
+
+  /** **콕 집으면 그대로 간다.** 학생이 고른 것은 비용을 듣고 고른 것이다. */
+  it('콕 집은 줄은 sklearn에서 그대로 돈다', async () => {
+    const { experiment } = await runExperiment(
+      inputFor({
+        settings: settingsFor({
+          selectedAlgorithms: [{ algorithm: 'random_forest', runtime: 'pyodide-sklearn' }],
+        }),
+      }),
+      {
+        ...frozen,
+        algorithms: narrowMljs(1),
+        engines: [ENGINES[0] as TrainingEngine, offlineSklearn],
+      },
+    )
+    // 가짜 sklearn은 준비에서 죽는다 — 여기서 보는 것은 **그 자리까지 갔다**는 것이다.
+    expect(experiment.runs[0]?.failure?.code).toBe('ENGINE_BOOT_FAILED')
   })
 })

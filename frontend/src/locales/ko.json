@@ -38,6 +38,8 @@
     "reproduceLead": "파일에 적힌 설정과 분할로 다시 학습해서, 같은 점수가 나오는지 확인합니다.",
     "reproduceStart": "대조 시작",
     "reproducing": "대조 중 ({done}/{total})",
+    "preparingDownload": "scikit-learn을 다운로드하는 중입니다",
+    "preparingStart": "scikit-learn을 준비하는 중입니다",
     "reproduceStopped": "멈춤 ({done}/{total})",
     "verdict": "판정",
     "difference": "차이",

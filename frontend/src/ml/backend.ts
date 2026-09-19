@@ -39,10 +39,14 @@ export type ServerStatus = 'unknown' | 'available' | 'unavailable'
 /**
  * 무거운 엔진의 준비 상태. **네 단계다.**
  *
- * 'downloaded'가 따로 있는 이유 - 다운로드는 캐시에 남지만 **시동은 페이지를 열 때마다
- * 다시 든다.** scikit-learn은 실측 15.4초이고 그중 다운로드는 0초다. 세 단계로 줄이면
- * 학생이 "아까 받았는데 왜 또 기다리지"를 겪는다
- * (open-decisions.md "무거운 엔진은 상태 점검에서 학생이 켠다").
+ * 'downloaded'가 따로 있는 이유 - 다운로드는 캐시에 남지만 **시동은 학습할 때마다
+ * 다시 든다**(학습 워커가 학습마다 새로 뜬다). scikit-learn은 실측 7.7초이고 그중
+ * 다운로드는 두 번째부터 0초다. 셋으로 줄이면 학생이 받는 동안과 세우는 동안 **같은
+ * 문장**을 보게 되고, 회선이 느린 교실에서는 그 둘의 길이가 자릿수로 다르다
+ * (open-decisions.md "scikit-learn(Pyodide)은 원본에서 받고, 시동은 학습마다 낸다").
+ *
+ * **'absent'는 화면에 안 흐른다** — 아직 아무 일도 안 일어난 것이라 알릴 것이 없다
+ * (`ml/engines/pyodide-runtime.ts`의 `prepare`).
  */
 export const ENGINE_STATES = ['absent', 'downloading', 'downloaded', 'ready'] as const
 
@@ -194,8 +198,8 @@ export const FALLBACK_RUNTIME_ID: RuntimeId = 'mljs'
 /**
  * V1의 실행 방법. **순서가 곧 기본값 우선순위다** - 앞에 있는 것부터 고른다.
  *
- * 순수 JS가 맨 앞인 이유는 gzip 25KB에 시동이 없기 때문이다. scikit-learn은 26.3MB에
- * 시동 15.4초라 기본값이 될 수 없다 (open-decisions.md "브라우저 학습 엔진은 둘 다 간다").
+ * 순수 JS가 맨 앞인 이유는 gzip 25KB에 시동이 없기 때문이다. scikit-learn은 27.3MB에
+ * 시동 7.7초라 기본값이 될 수 없다 (open-decisions.md "브라우저 학습 엔진은 둘 다 간다").
  *
  * **RUNTIME_IDS 값마다 한 줄이 있어야 한다** - 이름만 있고 명세가 없는 실행 방법은
  * 화면에서 통째로 사라진다. 타입은 이걸 못 잡으므로 검사가 본다 (§9.3.2).
@@ -373,8 +377,11 @@ const TOO_LARGE_REASON: Readonly<Record<DataType, UnavailableReason>> = {
  * 실행 방법마다 지금 고를 수 있는지 판정한다.
  *
  * **이유의 우선순위가 설계다** (mlpx-spec.md 0.1). 알고리즘이 아예 지원하지 않는 것이
- * 먼저고, 그다음이 실행 위치, 마지막이 엔진 준비 상태다. 데이터가 너무 크면 엔진을
- * 준비해도 소용없으므로 크기가 준비 상태보다 앞에 온다.
+ * 먼저고, 그다음이 실행 위치, 마지막이 데이터 크기다.
+ *
+ * **한때 그 뒤에 "엔진 준비 상태"가 하나 더 있었다** — 2026-09-19에 지웠다. 무거운
+ * 엔진을 잠그지 않기로 했으므로(같은 날 결정문) 준비는 사유가 아니라 **비용**이고,
+ * 그것은 잠그는 자리가 아니라 `RuntimeSpec.preparation`이 말한다.
  *
  * 순수 함수다. 화면은 이 결과를 그대로 그리기만 한다.
  */

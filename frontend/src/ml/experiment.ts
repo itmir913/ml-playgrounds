@@ -220,7 +220,7 @@ export interface ExperimentResult {
  * 모델별로 **콕 집어 고른 것은 옮기지 않는다.** 두 가지 이유가 있다.
  *
  * 1. 고른 것과 다른 데서 돌리는 것은 조용히 다른 일을 하는 것이다. 못 돌면 사유를
- *    주는 편이 낫다 - "엔진을 준비하세요"에는 학생이 할 일이 있다.
+ *    주는 편이 낫다 - "데이터가 커서 여기서는 못 한다"에는 학생이 할 일이 있다.
  * 2. **같은 알고리즘을 여러 실행 방법으로 나란히 돌릴 수 있기 때문이다.** SVM을 순수
  *    JS·sklearn·학교 서버로 셋 다 고른 학생에게 자동 이동이 걸리면 셋이 같은 곳으로
  *    몰려 **똑같은 줄 세 개**가 나온다. 비교하려던 것이 사라진다.
@@ -245,7 +245,24 @@ function chooseRuntime(
     (candidate) => candidate.enabled && lookup(candidate.runtime.id) !== undefined,
   )
   const wanted = usable.find((candidate) => candidate.runtime.id === preferred)
-  return (explicit ? wanted : (wanted ?? usable[0]))?.runtime
+  if (explicit) return wanted?.runtime
+  /**
+   * **자동 이동은 비용이 드는 실행 방법에 안 내려앉는다** (2026-09-19 R29 B-1).
+   *
+   * `preparation`이 있는 실행 방법은 **원본에서 27.3MB를 받는다**(`ml/backend.ts`).
+   * 학생이 고르지도 않은 줄이 거기로 옮겨 가면 **고르기 전에 비용을 말한다**는 결정이
+   * 그 자리에서 깨진다 — 화면은 그 줄을 옛 실행 방법으로 그리고 있고, 비용 문구는
+   * *지금 고른* 실행 방법만 본다(`views/train/ModelAxes.vue`).
+   *
+   * **닿는 조합은 좁다**: 줄에 실행 방법이 안 적혀 있고(옛 파일·남의 파일), 두 브라우저
+   * 엔진의 행 상한이 갈리는 칸이어야 한다. 등록부에서 그런 칸은 **표의 랜덤 포레스트
+   * 하나뿐이다**(50,000 대 100,000). 좁아도 막는 이유는 **조용히 받는 것**이기 때문이다.
+   *
+   * **콕 집은 줄은 이 가지를 안 지난다** — 위에서 이미 돌아갔다. 학생이 sklearn을 직접
+   * 고르면 비용을 듣고 받는다.
+   */
+  return (wanted ?? usable.find((candidate) => candidate.runtime.preparation === undefined))
+    ?.runtime
 }
 
 /**
@@ -287,7 +304,7 @@ function unavailableReason(option: AlgorithmOption, preferred: string): Unavaila
   }
 
   // 그러면 이 알고리즘이 **실제로 지원하는** 실행 방법의 사유를 준다.
-  // "엔진을 준비하세요"는 할 일이 있고 "여기선 안 됩니다"는 없다.
+  // "데이터가 커서 여기서는 못 한다"는 할 일이 있고 "여기선 안 됩니다"는 없다.
   const relevant = option.runtimes.find(
     (candidate) => candidate.reason && candidate.reason !== 'ALGORITHM_NOT_AVAILABLE_HERE',
   )

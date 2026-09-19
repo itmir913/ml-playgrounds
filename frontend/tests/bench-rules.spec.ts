@@ -203,9 +203,9 @@ describe('등록부의 칸마다 사다리가 있다', () => {
   /**
    * **sklearn 칸도 같은 규칙을 받는다** (2026-09-19).
    *
-   * 등록부의 `maxRows['pyodide-sklearn']` 여덟 줄이 전부 `UNMEASURED`인 것은 **빠뜨림이
-   * 아니라 못 잰 사실**이었다 — 어댑터를 띄우는 코드가 없었다. 띄우는 코드가 생긴 지금,
-   * 그 칸을 채울 사다리가 없는 알고리즘은 **영원히 `UNMEASURED`로 남는다.**
+   * 등록부의 `maxRows['pyodide-sklearn']` 여덟 줄은 **2026-09-19까지 전부 `UNMEASURED`**
+   * 였다 — 빠뜨림이 아니라 어댑터를 띄우는 코드가 없어 못 잰 사실이었다. 같은 날 사다리가
+   * 서고 칸이 찼다. **사다리가 없는 알고리즘은 다시 잴 방법이 없다.**
    */
   it('등록부가 sklearn으로 돌 수 있다고 한 (알고리즘 × 종류)에 사다리가 있다', () => {
     const missing: string[] = []
@@ -470,6 +470,28 @@ describe('사다리와 워커의 계약', () => {
   it('군집 갈래 판정이 알고리즘을 본다', () => {
     expect(shapeFor({ algorithm: 'k_means', rows: 10 })).toBe('clustering')
     expect(shapeFor({ algorithm: 'decision_tree', rows: 10 })).toBe('supervised')
+  })
+
+  /**
+   * **그리고 재는 쪽이 그 답을 본다** (2026-09-19 R29 C-6).
+   *
+   * 위 둘은 `shapeFor`의 답만 봤다. **`measurePyodide`가 그 답을 안 보게 해도 vitest가
+   * 전부 초록이었고 tsc만 "함수를 안 쓴다"고 울었다** — 즉 `measureKMeansPyodide`를 아무
+   * 데서나 한 번 부르기만 하면 그 침묵이 완성된다. 그러면 **군집 사다리가 분류 데이터로
+   * 재어지고**(R15-A-1이 표 쪽에서 실제로 겪은 것) 기준표가 두 자릿수로 짧아진다.
+   *
+   * sklearn 사다리는 27.3MB를 받아 검사가 못 돌리므로 **소스로 확인한다** —
+   * `ladderPoint` 검사와 같은 방식이다.
+   */
+  it('`measurePyodide`가 그 갈래 판정을 지난다', () => {
+    const source = withoutComments(readFileSync(join(ROOT, 'tools', 'workloads.ts'), 'utf-8'))
+    const body =
+      /async function measurePyodide\([\s\S]*?Promise<LadderResult> \{[\s\S]*?\n\}/.exec(
+        source,
+      )?.[0] ?? ''
+    expect(body, 'measurePyodide() not found').not.toBe('')
+    expect(body).toContain('shapeFor(job)')
+    expect(body).toMatch(/measureKMeansPyodide\(/)
   })
 
   /**
@@ -755,10 +777,11 @@ describe('사다리와 워커의 계약', () => {
       const engine = ladder.engine ?? 'mljs'
       const limit = ALGORITHMS.find((one) => one.id === job.algorithm)?.maxRows[dataType][engine]
       /**
-       * **안 잰 칸은 숫자를 말하면 안 된다** (2026-09-19). sklearn 칸은 여덟 줄이 전부
-       * `UNMEASURED`인데, 거기 아무 수나 적어 두면 **라벨이 등록부보다 먼저 값을 갖는다** —
-       * 이 검사가 잡으려던 것이 정확히 그 반대 방향(라벨이 옛 수를 든 채 남는 것)이다.
-       * **칸을 채우는 날 라벨도 함께 바뀌어야 하고, 안 바꾸면 여기가 운다.**
+       * **안 잰 칸은 숫자를 말하면 안 된다** (2026-09-19). 안 잰 칸에 아무 수나 적어 두면
+       * **라벨이 등록부보다 먼저 값을 갖는다** — 이 검사가 잡으려던 것이 정확히 그 반대
+       * 방향(라벨이 옛 수를 든 채 남는 것)이다. **칸을 채우는 날 라벨도 함께 바뀌어야
+       * 하고, 안 바꾸면 여기가 운다.** 오늘 그 가지에 걸리는 칸은 없다 — sklearn 칸이
+       * 같은 날 다 찼다.
        */
       if (limit === UNMEASURED) {
         if (!ladder.label.includes('지금 안 잼')) {
