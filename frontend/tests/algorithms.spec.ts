@@ -30,7 +30,6 @@ import {
   RUNTIME_IDS,
   UNMEASURED,
   UNMEASURED_BASELINE,
-  type EngineState,
   type RuntimeContext,
 } from '../src/ml/backend'
 import { DATA_TYPES, TASK_TYPES, type DataType } from '../src/project/schema'
@@ -46,8 +45,6 @@ function context(overrides: Partial<RuntimeContext> = {}): RuntimeContext {
     ...overrides,
   }
 }
-
-const skReady: Record<string, EngineState> = { 'pyodide-sklearn': 'ready' }
 
 function optionFor(options: ReturnType<typeof algorithmOptions>, id: string) {
   return options.find((option) => option.algorithm.id === id)
@@ -172,10 +169,12 @@ describe('등록부', () => {
   it('순수 JS 구현이 없는 것도 숨기지 않고 등록한다', () => {
     // 목록에서 빼면 학생은 그런 모델이 있다는 사실조차 모른다. **표본은 가짜다** -
     // 등록부에는 지금 sklearn 전용이 하나도 없고, 그건 규칙이 아니라 오늘의 사실이다.
+    //
+    // **그리고 이제 열린다** (2026-09-19). 브라우저의 sklearn이 붙으면서 이 모델은 서버
+    // 없이도 닿는다 — 전에는 여기가 `ENGINE_NOT_WIRED`로 잠겨 있었다.
     const options = algorithmOptions(tabularClassification, context(), [SKLEARN_ONLY_ALGORITHM])
     expect(options).toHaveLength(1)
-    expect(options[0]?.enabled).toBe(false)
-    expect(options[0]?.reason).toBe('ENGINE_NOT_WIRED')
+    expect(options[0]?.enabled).toBe(true)
   })
 })
 
@@ -211,27 +210,35 @@ describe('세 축으로 고른다', () => {
     const options = algorithmOptions(tabularClassification, context())
     // 순수 JS가 있으므로 서버가 없어도 열린다.
     expect(optionFor(options, 'decision_tree')?.enabled).toBe(true)
-    // sklearn에서만 도는 모델은 서버도 없고 엔진도 준비 안 됐으니 잠긴다.
+    /**
+     * **sklearn 전용 모델도 서버 없이 열린다** (2026-09-19). 브라우저의 Pyodide가 그
+     * 자리를 메우고, 무겁다고 잠그지 않는다 — 비용은 화면이 미리 말한다.
+     *
+     * 전에는 여기가 `false`였다. *"서버도 없고 엔진도 준비 안 됐다"*가 이유였는데,
+     * **준비를 켜는 자리를 안 만들기로 하면서 그 잠금이 열리지 않는 문이 됐다.**
+     */
     const sklearnOnly = algorithmOptions(tabularClassification, context(), [SKLEARN_ONLY_ALGORITHM])
-    expect(sklearnOnly[0]?.enabled).toBe(false)
+    expect(sklearnOnly[0]?.enabled).toBe(true)
   })
 })
 
 describe('못 쓰는 이유가 쓸모 있어야 한다', () => {
-  it('지원하지도 않는 실행 방법의 이유를 보여주지 않는다', () => {
-    // 이 모델은 mljs를 아예 지원하지 않는다. "여기서 실행할 수 없습니다"라고만 하면
-    // 학생은 무엇을 해야 하는지 모른다. **엔진 쪽 사유까지 내려가야 한다** - 지금은
-    // 켤 자리가 없어서 그 사유가 `ENGINE_NOT_WIRED`이고, 배선이 붙으면
-    // `ENGINE_NOT_READY`("준비하면 된다")로 돌아온다.
+  /**
+   * **서버가 없어도 sklearn 전용 모델이 열린다** (2026-09-19). 이 자리에는 잠김과
+   * 그 사유(`ENGINE_NOT_WIRED`)를 보던 검사 둘이 있었다 — 배선이 붙으면서 **잠길 일이
+   * 없어졌다.**
+   *
+   * **이유 없이 꺼진 칸이 없다는 규칙은 그대로다**(위 describe의 다른 검사들). 여기서
+   * 지키는 것은 *"브라우저만으로 이 모델에 닿는가"*이고, 그게 이 엔진을 붙인 이유다.
+   */
+  it('서버가 없어도 sklearn 전용 모델이 열린다', () => {
     const options = algorithmOptions(tabularClassification, context(), [SKLEARN_ONLY_ALGORITHM])
-    expect(options[0]?.reason).toBe('ENGINE_NOT_WIRED')
-  })
-
-  it('엔진을 준비하면 sklearn 전용 모델이 열린다', () => {
-    const options = algorithmOptions(tabularClassification, context({ engineStates: skReady }), [
-      SKLEARN_ONLY_ALGORITHM,
-    ])
     expect(options[0]?.enabled).toBe(true)
+    expect(options[0]?.reason).toBeUndefined()
+    // 브라우저에서 도는 자리로 열려야 한다 — 서버는 여전히 `unknown`이다.
+    const runtime = options[0]?.runtimes.find((one) => one.enabled)?.runtime
+    expect(runtime?.id).toBe('pyodide-sklearn')
+    expect(runtime?.location).toBe('browser')
   })
 
   it('데이터가 너무 크면 브라우저 전용 상황에서 잠긴다', () => {

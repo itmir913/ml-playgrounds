@@ -93,16 +93,16 @@ QUEUED → VALIDATING → PREPROCESSING → TRAINING → EVALUATING → DONE
 **실행 위치**
 ```
 SERVER_UNAVAILABLE, ALGORITHM_NOT_AVAILABLE_HERE, DATASET_TOO_LARGE_FOR_BROWSER,
-IMAGE_TOO_LARGE_FOR_BROWSER, ENGINE_NOT_READY, ENGINE_NOT_WIRED, ENGINE_BOOT_FAILED
+IMAGE_TOO_LARGE_FOR_BROWSER, ENGINE_NOT_READY, ENGINE_BOOT_FAILED
 ```
 
-**마지막 둘은 갈라 놓은 한 쌍이다** (2026-08-29). `ENGINE_NOT_READY`는 "준비하면 된다"는
-뜻인데, 준비를 켤 자리가 아직 없는 엔진에도 그 문장이 나가고 있었다 — 학생이 눌러도 갈
-곳이 없는 문을 가리켰다. 어느 것으로 말할지는 `RuntimeSpec.preparable`이 정한다.
-**`ENGINE_NOT_WIRED`는 한시적이다** — 그 엔진에 배선이 붙는 날 `preparable`을 참으로
-바꾸고 이 코드를 지운다 (`roadmap/01-v1-v5.md`).
+**`ENGINE_NOT_READY`는 이제 잠금의 사유가 아니다** (2026-09-19). 한때 이것과
+`ENGINE_NOT_WIRED`가 한 쌍이었고 `RuntimeSpec.preparable`이 둘을 갈랐는데, **무거운
+엔진을 잠그지 않기로 하면서**(`open-decisions.md` "scikit-learn(Pyodide)은 원본에서 받고,
+시동은 학습마다 낸다") 잠금 자체가 없어졌다 — `ENGINE_NOT_WIRED`는 지웠고, 이 코드는
+**어댑터가 준비 없이 불렸을 때의 그물**로만 남는다. 정상 경로로는 안 나온다.
 
-**`ENGINE_BOOT_FAILED`는 상태가 아니라 사건이다** (2026-09-19). 앞의 둘은 *"아직 안
+**`ENGINE_BOOT_FAILED`는 상태가 아니라 사건이다** (2026-09-19). 앞엣것은 *"아직 안
 띄웠다"*는 상태이고 이것은 **띄우려다 실패한 것**이다 — scikit-learn을 원본에서 받다가
 실패했거나 시동에서 터졌다(`ml/engines/pyodide-runtime.ts`). **학생이 할 일이 다르다**:
 가장 흔한 원인이 학교망의 CDN 차단이라 다시 눌러도 같은 자리에서 죽고, 할 일은 순수 JS로

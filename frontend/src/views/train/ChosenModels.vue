@@ -105,6 +105,27 @@ const STATUS_TONE: Readonly<Record<ModelStatus, { accent: string; badge: string;
     badge: 'bg-surface-sunken text-ink-soft',
     key: 'train.modelWaiting',
   },
+  /**
+   * **준비도 도는 것이다.** 그래서 색은 `running`과 같고 글자만 다르다 — 학생이 봐야 할
+   * 것은 *"이 줄이 지금 내 차례다"*이고, 그 자리에서 무엇을 기다리는지가 글자다.
+   *
+   * **색까지 가르지 않는 이유**는 준비가 학습의 앞 국면이지 다른 일이 아니어서다. 색을
+   * 더 두면 학생은 상태가 여섯이라고 읽는다.
+   *
+   * **글자는 둘로 가른다.** 27.3MB를 받는 것과 그것을 세우는 것은 **기다리는 길이가
+   * 다르고**(회선이 느린 교실에서는 앞이 압도적이다), 학생이 *"내 인터넷이 느린가"*와
+   * *"원래 이만큼 걸리나"*를 갈라 읽을 수 있어야 한다.
+   */
+  downloading: {
+    accent: 'border-l-brand',
+    badge: 'bg-brand text-ink-invert',
+    key: 'train.modelDownloading',
+  },
+  starting: {
+    accent: 'border-l-brand',
+    badge: 'bg-brand text-ink-invert',
+    key: 'train.modelStarting',
+  },
   running: {
     accent: 'border-l-brand',
     badge: 'bg-brand text-ink-invert',
@@ -167,7 +188,16 @@ const rows = computed(() =>
  */
 const clocks = computed<readonly ({ minutes: string; seconds: string } | null)[]>(() =>
   props.chosen.map((_row, index) => {
-    const startedAt = props.statuses[index] === 'running' ? (props.startedAt[index] ?? null) : null
+    /**
+     * **준비하는 동안에도 흐른다** (2026-09-19). 학생이 기다리는 시간은 27.3MB를 받는
+     * 시간까지이고, 그 자리에서 시계가 멈춰 있으면 **아무 일도 안 일어나는 것처럼
+     * 보인다** — 이 시계를 넣은 이유가 정확히 그 오해를 막는 것이었다.
+     */
+    const ticking =
+      props.statuses[index] === 'running' ||
+      props.statuses[index] === 'downloading' ||
+      props.statuses[index] === 'starting'
+    const startedAt = ticking ? (props.startedAt[index] ?? null) : null
     const shown: Elapsed = elapsedOf(startedAt, props.now)
     // **화면이 쓸 모양으로 준다.** `Elapsed`를 그대로 내보내면 템플릿이 갈래를 좁히지
     // 못해 캐스트가 생긴다 — 좁히는 일은 좁힐 수 있는 곳에서 한다.

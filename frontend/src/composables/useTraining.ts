@@ -21,7 +21,13 @@ import { isClientError } from '../errors'
 import { succeeded } from '../ml/results'
 import { TRAINING_ELAPSED_TICK_MS } from '../limits'
 import type { ExperimentResult } from '../ml/experiment'
-import { waitingStatuses, withFinished, withStarted, type ModelStatus } from '../ml/training-status'
+import {
+  waitingStatuses,
+  withFinished,
+  withPreparing,
+  withStarted,
+  type ModelStatus,
+} from '../ml/training-status'
 import { train, type TrainWorker } from '../ml/worker/client'
 import type { TrainRequest } from '../ml/worker/protocol'
 
@@ -156,6 +162,13 @@ export function useTraining(createWorker: () => TrainWorker, options?: TrainingO
      * 하는 일이 없다(화면은 상태 배지만 바꾼다). 학생이 실제로 기다리는 시간이 이것이다.
      */
     const begunAt = new Map<number, { at: number; algorithm: string; runtime: string }>()
+    /**
+     * 워커가 마지막으로 시작했다고 말한 자리. 준비 보고에는 자리가 없어서 여기 둔다.
+     *
+     * **위의 `running`(지금 학습 중인가)과 다른 것이다.** 이름을 겹치게 두면 한쪽을
+     * 고치는 사람이 다른 쪽을 건드린다.
+     */
+    let startedIndex: number | null = null
 
     try {
       const started = train(plain(request), {
@@ -170,6 +183,24 @@ export function useTraining(createWorker: () => TrainWorker, options?: TrainingO
             startedAt.value = next
           }
           statuses.value = withStarted(statuses.value, index)
+          startedIndex = index
+        },
+        /**
+         * **방금 시작된 자리가 준비 중이다.** 준비 메시지에는 자리가 없다 — 준비는
+         * `started` 뒤에 오므로 그 자리를 여기서 안다 (`ml/worker/client.ts`).
+         *
+         * **시계를 다시 맞춘다.** 아래 `begunAt`은 기기 배수를 내려고 재는 값이고
+         * (`ml/calibration.ts`), 그 배수가 재려는 것은 **계산 속도**다. 시동 7.7초가
+         * 섞이면 그 기기가 여덟 배 느린 것으로 기록된다. **학생이 기다리는 시간은
+         * 여전히 둘의 합이고, 그것은 `startedAt`이 잰다.**
+         */
+        onPreparing: (state) => {
+          if (startedIndex === null) return
+          statuses.value = withPreparing(statuses.value, startedIndex, state)
+          const begun = begunAt.get(startedIndex)
+          if (state === 'ready' && begun !== undefined) {
+            begunAt.set(startedIndex, { ...begun, at: performance.now() })
+          }
         },
         onProgress: (run, completed, count, index) => {
           const begun = begunAt.get(index)

@@ -303,9 +303,12 @@ describe('세 축이 서로를 좁힌다', () => {
   })
 
   /**
-   * **어디서도 못 도는 것이 먼저다** (mlpx-spec.md 0.1). 서버가 없으면 서포트 벡터 머신은
-   * 순수 JS에 없어서가 아니라 **엔진이 준비되지 않아서** 못 쓴다 - 그쪽이 학생이 할 수
-   * 있는 일을 알려주는 사유다.
+   * **어디서도 못 도는 것이 먼저다** (mlpx-spec.md 0.1).
+   *
+   * **2026-09-19에 답이 바뀌었다.** 전에는 이 자리가 *"엔진이 준비되지 않아서"*였는데,
+   * 브라우저의 sklearn이 붙으면서 **그 모델은 여기서 실제로 돈다.** 지금 이 검사가
+   * 쓰는 표본은 `mljs`에만 있는 알고리즘을 sklearn 축에서 보는 것이라, 남는 사유는
+   * *"이 실행 방법에는 그 구현이 없다"*다.
    */
   it('축이 좁히기 전에 더 근본적인 사유가 있으면 그것이 이긴다', () => {
     const options = algorithmOptions(
@@ -313,7 +316,9 @@ describe('세 축이 서로를 좁힌다', () => {
       OFFLINE,
       withSklearnOnly(ALGORITHMS),
     )
-    expect(choice(axes({ options }).algorithms, 'sklearn_only')?.reason).toBe('ENGINE_NOT_WIRED')
+    expect(choice(axes({ options }).algorithms, 'sklearn_only')?.reason).toBe(
+      'ALGORITHM_NOT_AVAILABLE_HERE',
+    )
   })
 
   it('과제 유형이 먼저다 - 회귀에서는 분류 모델이 유형 사유로 꺼진다', () => {
@@ -341,8 +346,13 @@ describe('세 축이 서로를 좁힌다', () => {
     const { runtimes } = axes()
     expect(runtimes.map((one) => one.id)).toEqual(['mljs', 'pyodide-sklearn', 'server-sklearn'])
     expect(choice(runtimes, 'server-sklearn')?.reason).toBe('SERVER_UNAVAILABLE')
-    // 켤 자리가 아직 없어서 `ENGINE_NOT_READY`가 아니다 (`ml/backend.ts`의 `notReadyReason`).
-    expect(choice(runtimes, 'pyodide-sklearn')?.reason).toBe('ENGINE_NOT_WIRED')
+    /**
+     * **브라우저의 sklearn은 서버와 사정이 다르다** (2026-09-19). 서버가 없는 것은
+     * 학생이 어쩔 수 없는 사실이지만, 이쪽은 **받으면 되는 일**이라 잠그지 않는다 —
+     * 대신 무엇이 드는지 화면이 말한다 (`AxisChoice.preparation`).
+     */
+    expect(choice(runtimes, 'pyodide-sklearn')?.enabled).toBe(true)
+    expect(choice(runtimes, 'pyodide-sklearn')?.preparation?.bytes).toBeGreaterThan(0)
   })
 
   it('같은 쌍은 두 번 못 담고, 실행 방법이 다르면 담을 수 있다', () => {

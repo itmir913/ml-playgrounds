@@ -241,6 +241,18 @@ export interface AxisChoice {
    * (알고리즘 × 구현)마다 다르므로 id 하나로는 애초에 고를 수 없다.
    */
   readonly maxRows?: number
+  /**
+   * 이걸 쓰려면 무엇이 드는가 (`ml/backend.ts`의 `RuntimeSpec.preparation`).
+   *
+   * **꺼진 칸이 아니라 켜진 칸에 붙는다.** 무거운 엔진을 잠그지 않기로 했으므로
+   * (`open-decisions.md` "scikit-learn(Pyodide)은 원본에서 받고, 시동은 학습마다 낸다")
+   * 학생이 **고르기 전에** 무엇이 드는지 알아야 한다. 사유가 *"왜 못 쓰나"*라면
+   * 이것은 *"쓰면 무엇이 드나"*다.
+   *
+   * **실행 방법 축에만 있다.** 모델 축은 같은 알고리즘이 실행 방법마다 다른 비용을
+   * 갖는데, 그 축에서는 어느 실행 방법인지가 안 정해져 있다.
+   */
+  readonly preparation?: { readonly bytes: number; readonly ms: number }
 }
 
 /**
@@ -327,6 +339,9 @@ export function modelAxes(input: ModelAxesInput): ModelAxes {
     enabled: one.enabled,
     ...(one.reason ? { reason: one.reason } : {}),
     ...(one.maxRows === undefined ? {} : { maxRows: one.maxRows }),
+    // **등록부가 그대로 들려 보낸다.** 화면이 id로 되짚으면 그 순간 두 벌이 된다 —
+    // `maxRows`가 같은 이유로 이 자리에 실려 온다.
+    ...(one.runtime.preparation === undefined ? {} : { preparation: one.runtime.preparation }),
   }))
 
   const choice = algorithms.find((one) => one.id === input.algorithm)

@@ -20,6 +20,7 @@ import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
 import AppChoices, { type Choice } from '@/components/AppChoices.vue'
+import { formatBytes } from '@/composables/useFormat'
 import AppEmpty from '@/components/AppEmpty.vue'
 import type { AlgorithmOption } from '@/ml/algorithms'
 import { reasonParams } from '@/ml/backend'
@@ -42,7 +43,7 @@ const emit = defineEmits<{
   add: [algorithm: string, runtime: string]
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 /** 학생이 콕 집은 것. null은 "아직 안 골랐다"이고, 그때만 우리가 채운다. */
 const pickedAlgorithm = ref<string | null>(null)
@@ -131,6 +132,26 @@ const runtimeChoices = computed<Choice[]>(() =>
   axes.value.runtimes.map((choice) => withReason(choice, t(`runtimes.${choice.id}`))),
 )
 
+/**
+ * **지금 고른 실행 방법이 무엇을 요구하는가.** 없으면 `null`이고, 그때는 줄 자체가 없다.
+ *
+ * **잠그지 않는 대신 말한다** (`open-decisions.md` "scikit-learn(Pyodide)은 원본에서 받고,
+ * 시동은 학습마다 낸다"). 27.3MB와 8초는 학생이 **누르기 전에** 알아야 하는 것이고,
+ * 잠긴 카드로 알리면 그 문이 열리지 않는다.
+ *
+ * **수는 등록부에서 온다** (`AxisChoice.preparation`). 문구에 적어 두면 다시 잰 날
+ * 번역 파일을 고치게 되고, 그 파일은 실측이 사는 곳이 아니다.
+ */
+const preparation = computed(() => {
+  const found = axes.value.runtimes.find((one) => one.id === runtime.value)?.preparation
+  if (found === undefined) return null
+  return t('train.engineCost', {
+    size: formatBytes(locale.value, found.bytes),
+    // **올림이다.** 7.7초를 `7초`라고 말하면 학생이 기다리는 시간이 그보다 길다.
+    seconds: Math.ceil(found.ms / 1000),
+  })
+})
+
 /** 왜 못 담는지. 이유 없이 꺼진 버튼은 학생에게 고장으로 보인다. */
 const blocked = computed(() => {
   const reason = axes.value.blocked
@@ -190,6 +211,12 @@ function onTaskType(id: string): void {
         :selected="runtime"
         @pick="pickedRuntime = $event"
       />
+
+      <!--
+        **고른 방법이 무엇을 요구하는지 여기서 말한다.** 축 아래 한 줄이고, 요구가 없는
+        방법에서는 줄 자체가 없다 — 빈 자리를 비워 두면 축이 실행 방법마다 위아래로 뛴다.
+      -->
+      <p v-if="preparation" class="text-ink-soft">{{ preparation }}</p>
 
       <!-- [담기]도 같은 선으로 가른다. 고르는 일이 아니라 담는 일이다. -->
       <hr class="border-t border-dashed border-line-strong" />

@@ -183,7 +183,6 @@ export function reproduceInputOf(input: ReproduceInput): ExperimentInput {
 function inspectContext(dataType: DataType, dataset: Dataset): RuntimeContext {
   return {
     serverStatus: 'unknown',
-    engineStates: {},
     rowCount: dataset.rows.length,
     dataType,
     limitsOff: true,

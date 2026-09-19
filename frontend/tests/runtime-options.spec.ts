@@ -17,7 +17,6 @@ import {
   UNMEASURED,
   UNMEASURED_BASELINE,
   type AlgorithmSpec,
-  type EngineState,
   type RuntimeContext,
   preferredRuntime,
   runtimeOptions,
@@ -79,8 +78,6 @@ function context(overrides: Partial<RuntimeContext> = {}): RuntimeContext {
   }
 }
 
-const ready: Record<string, EngineState> = { 'pyodide-sklearn': 'ready' }
-
 function optionFor(options: ReturnType<typeof runtimeOptions>, id: string) {
   return options.find((option) => option.runtime.id === id)
 }
@@ -123,7 +120,7 @@ describe('실행 방법 목록', () => {
         sklearnOnly,
         context({ serverStatus: 'unknown', rowCount: 999999, dataType: 'tabular' }),
       ),
-      runtimeOptions(anywhere, context({ serverStatus: 'available', engineStates: ready })),
+      runtimeOptions(anywhere, context({ serverStatus: 'available' })),
     ]
     for (const options of cases) {
       for (const option of options) {
@@ -133,55 +130,45 @@ describe('실행 방법 목록', () => {
   })
 })
 
-/**
- * 켜는 자리가 화면에 있는 등록부. **지금 실제 등록부에는 그런 칸이 없다** —
- * `pyodide-sklearn`의 배선이 아직 없어서다 (`roadmap/01-v1-v5.md`). 그래서
- * `ENGINE_NOT_READY`("준비하면 된다") 쪽 규칙은 이 판으로 확인한다. 배선이 붙는 날
- * 등록부가 이 모양이 되고, 이 픽스처는 사라진다.
- */
-const preparableRuntimes = RUNTIMES.map((runtime) =>
-  runtime.id === 'pyodide-sklearn' ? { ...runtime, preparable: true } : runtime,
-)
-
-describe('엔진 준비 상태', () => {
+describe('무거운 엔진은 잠그지 않고 비용을 말한다', () => {
   /**
-   * **켤 자리가 없으면 "준비하면 된다"고 말하지 않는다** (2026-08-29 전 경로 감사).
-   * 그 문장은 학생을 없는 문으로 보낸다.
+   * **2026-09-19에 뒤집었다.** 이 자리에는 *"받아 놓지 않았으면 잠근다"*는 규칙이 있었고,
+   * 사유가 `ENGINE_NOT_READY`("준비하면 된다") 또는 `ENGINE_NOT_WIRED`("아직 못 켠다")로
+   * 갈렸다. **켜는 자리를 안 만들기로 하면서 그 잠금은 열리지 않는 문이 됐다** —
+   * 지금은 [학습하기]가 그 run 앞에서 준비를 선행한다 (`open-decisions.md`
+   * "scikit-learn(Pyodide)은 원본에서 받고, 시동은 학습마다 낸다").
    */
-  it('켜는 자리가 없는 엔진은 ENGINE_NOT_WIRED로 잠긴다', () => {
+  it('안 받아 놨어도 고를 수 있다', () => {
     const options = runtimeOptions(anywhere, context())
     expect(optionFor(options, 'pyodide-sklearn')).toEqual({
       runtime: RUNTIMES[1],
-      enabled: false,
-      reason: 'ENGINE_NOT_WIRED',
-      // 잠긴 칸에도 상한이 붙는다 - "얼마까지 되나"는 잠기기 전에도 묻는 질문이다.
+      enabled: true,
+      // 잠기지 않아도 상한은 붙는다 - "얼마까지 되나"는 고르기 전에도 묻는 질문이다.
       maxRows: BROWSER_ROW_LIMIT,
     })
   })
 
-  it('켜는 자리가 있으면 ENGINE_NOT_READY로 잠긴다', () => {
-    const options = runtimeOptions(anywhere, context(), preparableRuntimes)
-    expect(optionFor(options, 'pyodide-sklearn')?.reason).toBe('ENGINE_NOT_READY')
+  /**
+   * **대신 무엇이 드는지는 등록부가 들고 있다.** 화면이 그 값을 읽어 고르기 전에
+   * 알린다 — 잠그는 것과 알리는 것은 다른 일이다. **수를 화면 문구에 적지 않는다**:
+   * 실측이 번역 파일에 살면 다시 잰 날 그 파일을 고치게 된다.
+   */
+  it('무거운 엔진은 무엇이 드는지 선언한다', () => {
+    const heavy = RUNTIMES.filter((runtime) => runtime.preparation !== undefined)
+    expect(heavy.map((runtime) => runtime.id)).toEqual(['pyodide-sklearn'])
+    for (const runtime of heavy) {
+      expect(runtime.preparation?.bytes).toBeGreaterThan(0)
+      expect(runtime.preparation?.ms).toBeGreaterThan(0)
+    }
   })
 
-  it('준비되면 열린다', () => {
-    const options = runtimeOptions(anywhere, context({ engineStates: ready }))
-    expect(optionFor(options, 'pyodide-sklearn')?.enabled).toBe(true)
+  it('순수 JS와 서버는 준비 칸이 없다', () => {
+    for (const id of ['mljs', 'server-sklearn'] as const) {
+      expect(RUNTIMES.find((runtime) => runtime.id === id)?.preparation).toBeUndefined()
+    }
   })
 
-  it('내려받기만 끝난 상태는 아직 준비가 아니다 - 시동 15초가 남아 있다', () => {
-    const states: Record<string, EngineState> = { 'pyodide-sklearn': 'downloaded' }
-    const options = runtimeOptions(anywhere, context({ engineStates: states }), preparableRuntimes)
-    expect(optionFor(options, 'pyodide-sklearn')?.reason).toBe('ENGINE_NOT_READY')
-  })
-
-  it('내려받는 중에도 아직 못 쓴다', () => {
-    const states: Record<string, EngineState> = { 'pyodide-sklearn': 'downloading' }
-    const options = runtimeOptions(anywhere, context({ engineStates: states }))
-    expect(optionFor(options, 'pyodide-sklearn')?.enabled).toBe(false)
-  })
-
-  it('준비가 필요 없는 실행 방법은 상태와 무관하다', () => {
+  it('준비와 무관하게 나머지도 그대로 열린다', () => {
     const options = runtimeOptions(anywhere, context({ serverStatus: 'available' }))
     expect(optionFor(options, 'mljs')?.enabled).toBe(true)
     expect(optionFor(options, 'server-sklearn')?.enabled).toBe(true)
@@ -196,7 +183,6 @@ describe('데이터 크기', () => {
         serverStatus: 'available',
         rowCount: BROWSER_ROW_LIMIT + 1,
         dataType: 'tabular',
-        engineStates: ready,
       }),
     )
     expect(optionFor(options, 'mljs')?.reason).toBe('DATASET_TOO_LARGE_FOR_BROWSER')
@@ -236,7 +222,7 @@ describe('데이터 크기', () => {
         image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
       },
     }
-    const options = runtimeOptions(uneven, context({ rowCount: 500, engineStates: ready }))
+    const options = runtimeOptions(uneven, context({ rowCount: 500 }))
     expect(optionFor(options, 'mljs')?.reason).toBe('DATASET_TOO_LARGE_FOR_BROWSER')
     expect(optionFor(options, 'pyodide-sklearn')?.enabled).toBe(true)
   })
@@ -269,7 +255,7 @@ describe('데이터 크기', () => {
         image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
       },
     }
-    const context4x = context({ rowCount: BROWSER_ROW_LIMIT * 2, engineStates: ready })
+    const context4x = context({ rowCount: BROWSER_ROW_LIMIT * 2 })
     const options = runtimeOptions(partly, context4x)
     // 재서 얻은 값이 전역보다 높아도 그대로 이긴다. 이 방향이 뒤집힌 것이 이번 변경이다.
     expect(optionFor(options, 'mljs')?.enabled).toBe(true)
@@ -304,12 +290,12 @@ describe('preferredRuntime', () => {
   })
 
   it('준비된 무거운 엔진이 있어도 순수 JS가 먼저다', () => {
-    const options = runtimeOptions(anywhere, context({ engineStates: ready }))
+    const options = runtimeOptions(anywhere, context())
     expect(preferredRuntime(options)?.id).toBe('mljs')
   })
 
   it('순수 JS 구현이 없으면 다음 것으로 넘어간다', () => {
-    const options = runtimeOptions(sklearnOnly, context({ engineStates: ready }))
+    const options = runtimeOptions(sklearnOnly, context())
     expect(preferredRuntime(options)?.id).toBe('pyodide-sklearn')
   })
 
@@ -377,14 +363,12 @@ describe('상한을 끄면 행 상한만 열린다', () => {
   })
 
   /**
-   * **스위치가 여는 것은 우리 기기가 정한 줄뿐이다** (결정문 §2). 엔진이 안 왔거나 서버가
-   * 없는 것은 기기가 빨라져도 안 바뀌는 사실이라, 켠다고 열리면 안 된다.
+   * **스위치가 여는 것은 우리 기기가 정한 줄뿐이다** (결정문 §2). 서버가 없는 것은 기기가
+   * 빨라져도 안 바뀌는 사실이라, 켠다고 열리면 안 된다.
+   *
+   * **엔진 쪽 짝은 없어졌다** (2026-09-19). 여기에는 *"엔진이 안 왔으면 켜도 안 열린다"*가
+   * 나란히 있었는데, **무거운 엔진을 잠그지 않기로 하면서 잠길 일 자체가 없다.**
    */
-  it('엔진이 안 왔으면 켜도 안 열린다', () => {
-    const options = runtimeOptions(anywhere, context({ ...tooBig, limitsOff: true }))
-    expect(optionFor(options, 'pyodide-sklearn')?.enabled).toBe(false)
-    expect(optionFor(options, 'pyodide-sklearn')?.reason).not.toBe('DATASET_TOO_LARGE_FOR_BROWSER')
-  })
 
   it('서버가 없으면 켜도 안 열린다', () => {
     const options = runtimeOptions(

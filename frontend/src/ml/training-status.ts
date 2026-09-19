@@ -11,6 +11,7 @@
  * 틀린다. 그래서 시작도 끝도 자리(index)를 함께 받는다 (`ml/worker/protocol.ts`).
  */
 
+import type { EngineState } from './backend'
 import type { Run } from '../project/schema'
 import { succeeded } from './results'
 
@@ -20,7 +21,15 @@ import { succeeded } from './results'
  * `failed`는 **그 모델 하나만 실패한 것**이다 - 실험 하나가 통째로 실패하는 일은 없다
  * (mlpx-spec.md §4.1). 실험 자체가 터지면 학습이 끝난 것이라 이 목록은 사라진다.
  */
-export type ModelStatus = 'waiting' | 'running' | 'done' | 'failed'
+export type ModelStatus =
+  | 'waiting'
+  /** 무거운 엔진을 받는 중. **회선이 느린 교실에서는 이 국면이 가장 길다.** */
+  | 'downloading'
+  /** 다 받고 세우는 중. **캐시가 못 지우는 국면이고 학습마다 든다.** */
+  | 'starting'
+  | 'running'
+  | 'done'
+  | 'failed'
 
 /** 아직 아무 보고도 안 왔다. 전부 대기다. */
 export function waitingStatuses(count: number): ModelStatus[] {
@@ -49,6 +58,40 @@ function replaced(
 /** 워커가 이 자리를 시작했다고 말했다. */
 export function withStarted(statuses: readonly ModelStatus[], index: number): ModelStatus[] {
   return replaced(statuses, index, 'running')
+}
+
+/**
+ * 워커가 **무거운 엔진을 띄우는 중**이라고 말했다 (`ml/engines/pyodide-runtime.ts`).
+ *
+ * **`running`과 가르는 이유는 학생이 기다리는 대상이 다르기 때문이다.** scikit-learn은
+ * 27.3MB를 받고 시동에 7.7초를 쓰는데, 그 동안 줄이 `학습 중`이면 **학생은 자기
+ * 데이터가 무겁다고 읽는다** — 그리고 다음번에 데이터를 줄인다.
+ *
+ * **`ready`가 오면 `running`으로 돌아간다.** 준비는 학습의 앞 국면이지 다른 일이 아니다.
+ *
+ * **자리는 워커가 말한 것을 쓴다** (`withStarted`와 같은 규칙) — 준비 메시지에는 자리가
+ * 없고, 부르는 쪽이 방금 시작된 자리를 안다 (`composables/useTraining.ts`).
+ */
+export function withPreparing(
+  statuses: readonly ModelStatus[],
+  index: number,
+  state: EngineState,
+): ModelStatus[] {
+  return replaced(statuses, index, PREPARING_STATUS[state])
+}
+
+/**
+ * 준비의 국면을 줄의 상태로. **표로 두는 이유는 빠뜨릴 수 없게 하려는 것이다** —
+ * `EngineState`에 값이 하나 늘면 여기가 컴파일에서 운다.
+ *
+ * **`absent`는 `waiting`이다.** 아직 아무 일도 안 일어난 것이고, 그 줄은 제 차례를
+ * 기다리는 중이다.
+ */
+const PREPARING_STATUS: Readonly<Record<EngineState, ModelStatus>> = {
+  absent: 'waiting',
+  downloading: 'downloading',
+  downloaded: 'starting',
+  ready: 'running',
 }
 
 /**

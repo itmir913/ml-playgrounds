@@ -19,7 +19,7 @@ import { ClientError, isClientError } from '../src/errors'
 import { ALGORITHMS, type Algorithm } from '../src/ml/algorithms'
 import { fit } from '../src/ml/engines/mljs'
 import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/ml/experiment'
-import type { TrainingEngine } from '../src/ml/engines'
+import { ENGINES, type TrainingEngine } from '../src/ml/engines'
 import { dataSnapshot } from '../src/project/schema'
 import { trainableRowCount } from '../src/ml/selection'
 import { NOT_FOR_TABULAR_ALGORITHM } from './fixtures/algorithms'
@@ -62,6 +62,17 @@ function runExperiment(
  * 학생 대부분이 그렇게 쓴다.
  */
 const models = (...names: string[]) => names.map((algorithm) => ({ algorithm }))
+
+/**
+ * **못 띄우는 sklearn 엔진.** 학교망이 CDN을 막은 기기가 이 모양이다.
+ *
+ * 진짜 엔진을 부르면 검사가 원본에서 27.3MB를 받으려 든다 — 노드에는 그럴 브라우저도
+ * 없고, **있어도 검사가 회선을 타면 안 된다.**
+ */
+const offlineSklearn: TrainingEngine = {
+  ...(ENGINES.find((one) => one.runtimeId === 'pyodide-sklearn') as TrainingEngine),
+  prepare: () => Promise.reject(new ClientError('ENGINE_BOOT_FAILED')),
+}
 
 /** 서버도 무거운 엔진도 없는 상태. 공식 배포(GitHub Pages)가 정확히 이렇다. */
 const BROWSER_ONLY: RuntimeContext = {
@@ -374,7 +385,15 @@ describe('일부만 실패한다', () => {
           ],
         }),
       }),
-      frozen,
+      /**
+       * **진짜 sklearn 엔진을 안 부른다** — 그쪽은 원본에서 27.3MB를 받는다. 여기서
+       * 재는 것은 *"고른 자리에서 각각 판정되는가"*이고, 엔진이 실제로 뜨는지는
+       * `tests/pyodide-runtime.spec.ts`와 브라우저가 본다.
+       */
+      {
+        ...frozen,
+        engines: [...ENGINES.filter((one) => one.runtimeId === 'mljs'), offlineSklearn],
+      },
     )
 
     expect(experiment.runs).toHaveLength(3)
@@ -384,7 +403,7 @@ describe('일부만 실패한다', () => {
     // 줄 세 개가 나오고, 비교하려던 것이 사라진다. 대신 사유가 각각 다르다.
     expect(experiment.runs.map((run) => run.failure?.code)).toEqual([
       undefined, // 순수 JS는 돈다 - 벤더링한 SMO가 여기 있다
-      'ENGINE_NOT_WIRED', // pyodide는 켤 자리조차 아직 없다
+      'ENGINE_BOOT_FAILED', // sklearn을 못 띄웠다 (학교망이 CDN을 막으면 학생이 보는 것)
       'SERVER_UNAVAILABLE', // 학교 서버가 없다
     ])
   })
@@ -1738,7 +1757,15 @@ describe('상한 off 스위치가 학습까지 간다', () => {
     return [
       {
         ...entry,
-        maxRows: { ...entry.maxRows, tabular: { ...entry.maxRows.tabular, mljs: rows } },
+        /**
+         * **브라우저 엔진 둘을 함께 좁힌다.** mljs만 좁히면 그 run이 sklearn으로
+         * 옮겨 가고(자동 이동), 그러면 이 검사가 재려던 것(상한 스위치)이 아니라
+         * **엔진 배선**을 재게 된다 — 실제로 2026-09-19에 그렇게 빨개졌다.
+         */
+        maxRows: {
+          ...entry.maxRows,
+          tabular: { mljs: rows, 'pyodide-sklearn': rows },
+        },
       },
     ]
   }

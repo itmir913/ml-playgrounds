@@ -297,7 +297,6 @@ export function runtimeContextFor(
 ): RuntimeContext {
   return {
     serverStatus: 'unknown',
-    engineStates: {},
     // **종류가 센다.** 표는 전처리와 뽑기에서 빠질 행을 뺀 수이고, 이미지는 학습에
     // 들어갈 사진 수다.
     // **과제 유형도 파일에서 뽑는다.** 화면이 넘기게 두었더니 그 인자가 검사 밖이었고,

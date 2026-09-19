@@ -21,7 +21,7 @@
  * 두 곳이 각자 판정하면 반드시 어긋난다.
  */
 
-import { BROWSER_ROW_LIMIT } from '../limits'
+import { BROWSER_ROW_LIMIT, PYODIDE_BOOT_MS, PYODIDE_DOWNLOAD_BYTES } from '../limits'
 import type { DataType } from '../project/schema'
 import { supports, type Axis } from './axes'
 
@@ -61,25 +61,9 @@ export const UNAVAILABLE_REASONS = [
   'ALGORITHM_NOT_AVAILABLE_HERE',
   'DATASET_TOO_LARGE_FOR_BROWSER',
   'IMAGE_TOO_LARGE_FOR_BROWSER',
-  'ENGINE_NOT_READY',
-  'ENGINE_NOT_WIRED',
 ] as const
 
 export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number]
-
-/**
- * 준비가 안 된 엔진의 사유. **등록부가 고른다.**
- *
- * `ENGINE_NOT_READY`는 "준비하면 된다"는 뜻이고, 그 문장은 **켜는 자리가 화면에 있을
- * 때만 참이다.** 없는데도 그것을 주면 학생이 눌러도 갈 곳이 없는 문을 가리킨다
- * (2026-08-29 전 경로 감사, `roadmap/01-v1-v5.md`).
- *
- * **`if (runtime.id === 'pyodide-sklearn')`을 쓰지 않는다** — 배선이 붙는 날 고칠 곳이
- * 등록부 한 줄이어야 한다.
- */
-function notReadyReason(runtime: RuntimeSpec): UnavailableReason {
-  return runtime.preparable ? 'ENGINE_NOT_READY' : 'ENGINE_NOT_WIRED'
-}
 
 /**
  * 사유별로 로케일 문장이 요구하는 값. 나머지는 빈 파라미터다.
@@ -178,19 +162,24 @@ export interface RuntimeSpec {
   readonly location: TrainingLocation
   /** run.engine.kind에 그대로 들어간다. 재실행 대조가 이 값으로 엔진을 가린다. */
   readonly engineKind: EngineKind
-  /** 쓰기 전에 내려받고 시동해야 하는가. 순수 JS는 번들에 이미 있다. */
-  readonly needsPreparation: boolean
   /**
-   * **준비를 켤 자리가 화면에 있는가.** 사유가 이 값으로 갈린다 —
-   * 참이면 `ENGINE_NOT_READY`("준비하면 된다"), 거짓이면 `ENGINE_NOT_WIRED`다.
+   * 쓰기 전에 무엇을 받고 얼마를 기다려야 하는가. **순수 JS는 이 칸이 없다** — 번들에
+   * 이미 있고 시동이 0초다.
    *
-   * `needsPreparation`과 따로인 이유는 **다른 사실이어서다.** 앞엣것은 엔진의 성질이고
-   * (무겁다), 이것은 **우리 화면의 상태**다(그 엔진을 켜는 단추를 아직 안 만들었다).
-   * 하나로 합치면 배선이 붙는 날 어느 뜻으로 쓰이던 값인지 갈린다.
+   * **`boolean`이 아니라 값인 이유는 화면이 그 값을 말하기 때문이다** (2026-09-19).
+   * 잠그지 않는 대신 **미리 알린다** — *"처음 한 번 27MB를 받고 8초쯤 걸립니다"*가
+   * 학생이 고르기 전에 보여야 한다. 참/거짓만 두면 그 수가 화면 문구로 들어가고,
+   * 그 순간 **실측이 상수가 아니라 번역 파일에 산다.**
    *
-   * **준비가 필요 없는 엔진에서는 아무 일도 안 한다.** 그때는 판정 자체를 안 지난다.
+   * **`TrainingEngine.prepare`와 짝이다.** 이쪽은 *"무엇이 드는가"*의 선언이고 저쪽은
+   * 그것을 실제로 하는 코드다. 어긋나면 `tests/pyodide-runtime.spec.ts`가 운다.
    */
-  readonly preparable: boolean
+  readonly preparation?: {
+    /** 원본에서 받는 양. **우리 산출물에는 없다.** */
+    readonly bytes: number
+    /** 받은 뒤 시동에 드는 시간. **캐시가 못 지우고 학습마다 든다.** */
+    readonly ms: number
+  }
 }
 
 /**
@@ -212,28 +201,16 @@ export const FALLBACK_RUNTIME_ID: RuntimeId = 'mljs'
  * 화면에서 통째로 사라진다. 타입은 이걸 못 잡으므로 검사가 본다 (§9.3.2).
  */
 export const RUNTIMES: readonly RuntimeSpec[] = [
-  {
-    id: 'mljs',
-    location: 'browser',
-    engineKind: 'mljs',
-    needsPreparation: false,
-    preparable: false,
-  },
+  { id: 'mljs', location: 'browser', engineKind: 'mljs' },
   {
     id: 'pyodide-sklearn',
     location: 'browser',
     engineKind: 'pyodide-sklearn',
-    needsPreparation: true,
-    // **아직 켜는 자리가 없다** (roadmap/01-v1-v5.md). 배선이 붙는 날 참으로 바꾼다.
-    preparable: false,
+    // 2026-09-19 실측 (`open-decisions.md` "scikit-learn(Pyodide)은 원본에서 받고,
+    // 시동은 학습마다 낸다"). 값은 `limits.ts`가 갖는다.
+    preparation: { bytes: PYODIDE_DOWNLOAD_BYTES, ms: PYODIDE_BOOT_MS },
   },
-  {
-    id: 'server-sklearn',
-    location: 'server',
-    engineKind: 'sklearn',
-    needsPreparation: false,
-    preparable: false,
-  },
+  { id: 'server-sklearn', location: 'server', engineKind: 'sklearn' },
 ]
 
 export interface AlgorithmSpec {
@@ -348,13 +325,6 @@ export interface RuntimeOption {
 
 export interface RuntimeContext {
   serverStatus: ServerStatus
-  /**
-   * 실행 방법 id -> 준비 상태. 없으면 'absent'로 본다.
-   *
-   * **여기는 Axis가 아니다.** 등록부의 선언이 아니라 지금 이 순간의 상태이고, 비어 있는
-   * 것이 정상이므로(아직 아무것도 안 받았다) 칸을 강제하지 않는다.
-   */
-  engineStates?: Readonly<Partial<Record<RuntimeId, EngineState>>>
   rowCount: number
   /**
    * 무엇을 학습하는가. **상한에 걸렸을 때 학생이 할 일이 종류마다 다르다** — 표는
@@ -408,10 +378,6 @@ const TOO_LARGE_REASON: Readonly<Record<DataType, UnavailableReason>> = {
  *
  * 순수 함수다. 화면은 이 결과를 그대로 그리기만 한다.
  */
-function isReady(context: RuntimeContext, id: RuntimeId): boolean {
-  return (context.engineStates?.[id] ?? 'absent') === 'ready'
-}
-
 export function runtimeOptions(
   algorithm: AlgorithmSpec,
   context: RuntimeContext,
@@ -429,9 +395,6 @@ export function runtimeOptions(
     // **서버 칸에는 상한을 걸지 않는다.** 그 숫자는 능력 협상이 알려줄 것이고, 우리가
     // 대신 정하면 GPU 서버를 띄운 학교의 상한을 우리 상수가 깎는다 (open-decisions.md #13).
     if (!isBrowserRuntimeId(runtime.id)) {
-      if (runtime.needsPreparation && !isReady(context, runtime.id)) {
-        return { runtime, enabled: false, reason: notReadyReason(runtime) }
-      }
       return { runtime, enabled: true }
     }
 
@@ -448,11 +411,18 @@ export function runtimeOptions(
     if (!context.limitsOff && context.rowCount > maxRows) {
       return { runtime, enabled: false, reason: TOO_LARGE_REASON[context.dataType], maxRows }
     }
-    if (runtime.needsPreparation && !isReady(context, runtime.id)) {
-      // 여기서 내려받게 하지 않는다. 준비는 상단 상태 점검 한 곳에서만 일어나야
-      // 교사가 "다 같이 지금 눌러라"로 부하 타이밍을 쥘 수 있다.
-      return { runtime, enabled: false, reason: notReadyReason(runtime), maxRows }
-    }
+    /**
+     * **무거운 엔진이라고 잠그지 않는다** (2026-09-19, `open-decisions.md`
+     * "scikit-learn(Pyodide)은 원본에서 받고, 시동은 학습마다 낸다").
+     *
+     * 여기에는 *"받아 놓지 않았으면 잠근다"*는 가지가 있었다. **자동 준비에서는 그것이
+     * 열리지 않는 문이다** — 켜는 자리를 안 만들기로 했으므로 잠긴 카드를 푸는 방법이
+     * 화면에 없다. [학습하기]가 그 run 앞에서 준비를 선행한다
+     * (`ml/experiment.ts` → `TrainingEngine.prepare`).
+     *
+     * **대신 비용을 미리 말한다** — `runtime.preparation`이 그 칸이고 화면이 그것을
+     * 읽는다. 잠그는 것과 알리는 것은 다른 일이다.
+     */
     return { runtime, enabled: true, maxRows }
   })
 }

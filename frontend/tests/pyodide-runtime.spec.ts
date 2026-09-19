@@ -147,10 +147,10 @@ describe('준비가 흐르는 순서', () => {
 /**
  * **무겁다고 선언한 엔진에는 띄우는 코드가 있어야 한다.**
  *
- * `RuntimeSpec.needsPreparation`은 *"무겁다"*는 선언이고 `TrainingEngine.prepare`는 그것을
+ * `RuntimeSpec.preparation`은 *"무엇이 드는가"*의 선언이고 `TrainingEngine.prepare`는 그것을
  * 실제로 하는 코드다. **어긋나는 두 모양이 다 나쁘다** — 선언만 있으면 학습이 준비 없이
- * 어댑터를 부르고(`ENGINE_NOT_READY`로 죽는다), 코드만 있으면 화면이 그 시간을 예고하지
- * 못한다.
+ * 어댑터를 부르고(`ENGINE_NOT_READY`로 죽는다), 코드만 있으면 **화면이 27MB와 8초를
+ * 예고하지 못한 채** 학생이 그것을 만난다.
  */
 describe('선언과 코드가 짝이다', () => {
   it('무거운 브라우저 엔진에는 prepare가 있다', async () => {
@@ -162,9 +162,9 @@ describe('선언과 코드가 짝이다', () => {
         wrong.push(`${engine.runtimeId}: 등록부에 실행 방법이 없다`)
         continue
       }
-      if (runtime.needsPreparation !== (engine.prepare !== undefined)) {
+      if ((runtime.preparation !== undefined) !== (engine.prepare !== undefined)) {
         wrong.push(
-          `${engine.runtimeId}: needsPreparation=${String(runtime.needsPreparation)} · prepare=${String(
+          `${engine.runtimeId}: preparation=${String(runtime.preparation !== undefined)} · prepare=${String(
             engine.prepare !== undefined,
           )}`,
         )

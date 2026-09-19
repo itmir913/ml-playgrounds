@@ -635,7 +635,6 @@ describe('점검이 채우는 실행 환경', () => {
     )
     expect(context.rowCount).toBe(dataset.rows.length)
     expect(context.serverStatus).toBe('unknown')
-    expect(context.engineStates).toEqual({})
   })
 
   /** 파일에 적힌 분할을 그대로 넘긴다 — 다시 나누면 대조가 아니라 새 학습이다. */

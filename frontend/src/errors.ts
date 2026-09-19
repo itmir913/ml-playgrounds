@@ -26,11 +26,17 @@ export const CLIENT_ERROR_CODES = [
   'ALGORITHM_NOT_AVAILABLE_HERE',
   'DATASET_TOO_LARGE_FOR_BROWSER',
   'IMAGE_TOO_LARGE_FOR_BROWSER',
+  /**
+   * 엔진이 아직 안 떴다 (`ml/engines/pyodide-sklearn.ts`의 어댑터가 던진다).
+   *
+   * **잠금의 사유가 아니다** (2026-09-19). 그 자리에 있던 동안은 *"준비하면 된다"*는
+   * 뜻이었는데, **준비를 켤 자리를 안 만들기로 하면서** 잠금 자체가 없어졌다 —
+   * 지금은 [학습하기]가 그 run 앞에서 준비를 선행한다.
+   *
+   * **그래도 남긴다.** 어댑터는 `py`가 없으면 이것을 던지고, 그 자리는 **준비가 어떤
+   * 이유로든 안 지나갔을 때의 그물**이다. 정상 경로로는 안 나온다.
+   */
   'ENGINE_NOT_READY',
-  // **`ENGINE_NOT_READY`와 갈라 놓은 한시적인 짝이다** (docs/error-codes.md).
-  // 앞엣것은 "준비하면 된다"는 뜻인데, 준비를 켤 자리가 아직 없는 엔진에도 그 문장이
-  // 나가고 있었다. 배선이 붙는 날 `RuntimeSpec.preparable`을 참으로 바꾸고 이것을 지운다.
-  'ENGINE_NOT_WIRED',
   /**
    * 엔진을 못 띄웠다 — scikit-learn을 받지 못했거나 시동에서 터졌다
    * (`ml/engines/pyodide-runtime.ts`).

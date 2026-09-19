@@ -667,6 +667,33 @@ export const PYODIDE_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT = MAX_IMAGE_COUNT
 export const PYODIDE_IMAGE_KMEANS_ROW_LIMIT = MAX_IMAGE_COUNT
 
 /**
+ * **scikit-learn을 쓰려면 받아야 하는 양** (2026-09-19 실측, br 압축 기준).
+ *
+ * 코어 5.95MB + numpy·scipy 16.8MB + sklearn 4.60MB다. **우리 산출물에는 없다** — 학생
+ * 브라우저가 원본에서 직접 받는다 (`ml/engines/pyodide-runtime.ts`).
+ *
+ * **화면이 이 수를 말한다.** 잠그지 않는 대신 고르기 전에 알리기로 했고
+ * (`open-decisions.md` "scikit-learn(Pyodide)은 원본에서 받고, 시동은 학습마다 낸다"),
+ * 그 문장의 숫자가 여기서 나온다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const PYODIDE_DOWNLOAD_BYTES = 27.3 * MB
+
+/**
+ * **받은 뒤 시동에 드는 시간** (2026-09-19 실측, 개발 PC · 따뜻한 캐시 · 122회 부팅의
+ * 중앙값). 코어 1.59 + 휠 1.97 + 첫 `import sklearn` 4.17초다.
+ *
+ * **캐시가 못 지운다.** 다운로드는 두 번째부터 캐시가 대신 주지만 이 시간은 **학습마다**
+ * 든다 — 학습 워커가 학습마다 새로 뜨기 때문이다 (`architecture.md` §3.4).
+ *
+ * **학교 PC는 이보다 느리다.** 그 값은 아직 안 쟀다 (`open-decisions.md` #3-1).
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const PYODIDE_BOOT_MS = 7700
+
+/**
  * 모델 하나를 .mlpx에 담을 수 있는 최대 크기.
  *
  * 이걸 넘는 모델은 담지 않고 지표만 남긴다. 저장 자체는 성공한다.
