@@ -3002,7 +3002,11 @@
       "통과",
       "통과",
       "탈락"
-     ]
+     ],
+     "size": {
+      "nodes": 266,
+      "leaves": 138
+     }
     },
     "naive_bayes": {
      "accuracy": 0.875,
@@ -6401,7 +6405,11 @@
       "불합격",
       "불합격",
       "합격"
-     ]
+     ],
+     "size": {
+      "nodes": 242,
+      "leaves": 126
+     }
     },
     "naive_bayes": {
      "accuracy": 0.9666666666666667,
@@ -8851,7 +8859,11 @@
       "중등부",
       "고등부",
       "고등부"
-     ]
+     ],
+     "size": {
+      "nodes": 138,
+      "leaves": 74
+     }
     },
     "naive_bayes": {
      "accuracy": 1.0,
@@ -19997,7 +20009,11 @@
       "미달",
       "도달",
       "미달"
-     ]
+     ],
+     "size": {
+      "nodes": 1044,
+      "leaves": 527
+     }
     },
     "naive_bayes": {
      "accuracy": 0.7166666666666667,
@@ -30480,7 +30496,11 @@
       "중",
       "상",
       "상"
-     ]
+     ],
+     "size": {
+      "nodes": 874,
+      "leaves": 442
+     }
     },
     "naive_bayes": {
      "accuracy": 0.8,
@@ -33026,7 +33046,11 @@
       "virginica",
       "virginica",
       "virginica"
-     ]
+     ],
+     "size": {
+      "nodes": 136,
+      "leaves": 73
+     }
     },
     "naive_bayes": {
      "accuracy": 0.9666666666666667,
@@ -41670,7 +41694,11 @@
       "참가",
       "참가",
       "참가"
-     ]
+     ],
+     "size": {
+      "nodes": 758,
+      "leaves": 384
+     }
     },
     "naive_bayes": {
      "accuracy": 0.6666666666666666,
@@ -48512,7 +48540,11 @@
       "여름",
       "겨울",
       "여름"
-     ]
+     ],
+     "size": {
+      "nodes": 602,
+      "leaves": 306
+     }
     },
     "naive_bayes": {
      "accuracy": 0.7804878048780488,

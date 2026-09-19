@@ -45,7 +45,7 @@ import { Matrix, solve } from 'ml-matrix'
 
 import { ClientError, failureDetail } from '../../errors'
 import type { ClientWarningCode } from '../../errors'
-import type { TaskType, Warning } from '../../project/schema'
+import type { ModelOmissionReason, TaskType, Warning } from '../../project/schema'
 import { resolveWith, type HyperparameterSpec } from '../hyperparams'
 import type { Prediction } from '../metrics'
 import {
@@ -170,6 +170,16 @@ export interface FitResult {
    * 사유 어휘(modelOmitted)는 부르는 쪽이 붙인다 - 여기서는 무엇이 터졌는지만 전한다.
    */
   modelOmittedDetail?: string
+  /**
+   * 모델이 없는 **사유 어휘**. 기본은 `engineUnsupported`이고, 엔진이 다르게 말해야 할 때만
+   * 채운다 (`schema.ts`의 `MODEL_OMISSION_REASONS`).
+   *
+   * **하나뿐이다** — 크기의 하한이 이미 개별 상한을 넘어 **만들기 전에 거절한 경우**다
+   * (`tooLarge`, open-decisions.md "큰 모델은 만들기 전에 거절한다"). 저장까지 가서 바이트를
+   * 재는 평소 경로와 **같은 어휘를 써야 화면이 같은 지시를 한다** — `engineUnsupported`는
+   * *"지금 할 수 있는 일이 없다"*이고 학생이 할 일은 나무 개수를 줄이는 것이다.
+   */
+  modelOmittedReason?: ModelOmissionReason
   /**
    * 학습은 됐지만 학생이 알아야 하는 사실. run.warning이 된다 (mlpx-spec.md 5.9).
    *

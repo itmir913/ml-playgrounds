@@ -53,7 +53,7 @@ export { REFERENCE_FORMAT, knnPredict } from './reference'
 export type { NeighborhoodInput, ReferenceModel } from './reference'
 export { SVM_FORMAT, svmPredict } from './svm'
 export type { PairwiseClassifier, SvmModel, VotingInput } from './svm'
-export { TREE_FORMAT, TREE_V2_FORMAT } from './tree'
+export { TREE_FORMAT, TREE_V2_FORMAT, minimumTreeV2Bytes } from './tree'
 export type { TreeModel, TreeNode, TreeV2Model } from './tree'
 export type {
   LoadContext,

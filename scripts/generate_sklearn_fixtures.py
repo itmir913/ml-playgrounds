@@ -242,6 +242,13 @@ def expectations_for(name: str, entry: dict[str, Any]) -> dict[str, Any]:
         if dumped is not None:
             record["dump"] = dumped
             record["dumpLabels"] = predicted
+        # **담기 전에 크기를 세는 식도 실물에서 돌린다** (open-decisions.md "큰 모델은
+        # 만들기 전에 거절한다"). 이 식이 터지면 `serialize`의 `try`가 삼켜 **랜덤
+        # 포레스트가 조용히 안 담긴다** - 그 침묵을 여기서 깬다. 센 값은 스펙이 실제
+        # 바이트와 견주어 **하한인지**까지 본다.
+        sized = adapter_python.sized(algorithm, model)
+        if sized is not None:
+            record["size"] = sized
         if algorithm == "logistic_regression":
             # 수렴 상태를 담는다 (1단계-C) - 관문이 빨개졌을 때 "진짜 결함인가, 경로가
             # 조금 움직인 것인가"를 가를 근거가 파일 안에 있어야 한다. 라벨 완전 일치

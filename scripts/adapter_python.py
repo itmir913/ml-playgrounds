@@ -102,6 +102,46 @@ def dumps() -> dict[str, str]:
     return found
 
 
+def sizes() -> dict[str, str]:
+    """알고리즘 -> `_size`에 들어갈 파이썬 식. **있는 칸만 돌려준다.**
+
+    **`dump`과 같은 이유로 여기 있다.** 이 식도 27.3MB를 받아야만 도는 자리에 있고,
+    터지면 `serialize`의 `try`가 삼켜 **모델이 조용히 안 담긴다** - 랜덤 포레스트 전부가
+    그렇게 된다. 그래서 픽스처 생성기가 실물 sklearn 모델에 이 식을 직접 먹인다.
+    """
+    source = _source()
+    starts = [
+        (found.group(1), found.start())
+        for found in re.finditer(r"^  (\w+): \{$", source, re.MULTILINE)
+    ]
+    found: dict[str, str] = {}
+    for index, (name, begin) in enumerate(starts):
+        end = starts[index + 1][1] if index + 1 < len(starts) else len(source)
+        block = re.sub(r"^\s*(//|\*|/\*).*$", "", source[begin:end], flags=re.MULTILINE)
+        templated = re.search(r"size: `(.*?)`,\n", block, re.DOTALL)
+        if templated:
+            found[name] = templated.group(1)
+    # **하나는 있어야 한다.** 랜덤 포레스트가 그 칸을 잃으면 113MB짜리 숲이 다시 통째로
+    # 만들어지고, 그 사실을 아무도 안 말해 준다.
+    if "random_forest" not in found:
+        raise AdapterParseError("no size expression found for: random_forest")
+    return found
+
+
+def sized(algorithm: str, model: Any) -> Any:
+    """어댑터의 크기 식을 그대로 돌려 `{"nodes": …, "leaves": …}`를 받는다."""
+    import json
+
+    import numpy as np
+
+    expression = sizes().get(algorithm)
+    if expression is None:
+        return None
+
+    scope: dict[str, Any] = {"_model": model, "_np": np, "json": json}
+    return json.loads(json.dumps(eval(expression, scope)))  # noqa: S307
+
+
 def dumped(algorithm: str, model: Any, classes: list[str]) -> Any:
     """어댑터의 조각을 그대로 돌려 `_dump`을 받는다. **앱이 하는 것과 같은 코드다.**
 

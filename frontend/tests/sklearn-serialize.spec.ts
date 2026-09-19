@@ -36,7 +36,7 @@ import {
   type SklearnLinearDump,
   type SklearnNaiveBayesDump,
 } from '../src/ml/engines/pyodide-serialize'
-import { loadModel, type ModelFile } from '../src/ml/models'
+import { loadModel, minimumTreeV2Bytes, type ModelFile } from '../src/ml/models'
 import { fitPreprocessor, transform, type Dataset } from '../src/ml/preprocess'
 
 const FIXTURES = path.join(__dirname, 'fixtures', 'sklearn')
@@ -56,6 +56,13 @@ interface Recorded {
   readonly dumpLabels?: readonly string[]
   /** sklearn 자신의 예측 중 **판정 가능한 행만.** `null`은 규약이 안 정해진 자리다. */
   readonly labels?: readonly (string | null)[]
+  /**
+   * **어댑터의 `size` 식을 실물 sklearn에 먹여 센 수** (`adapter_python.sized`).
+   *
+   * 이 식은 담기 전에 크기의 하한을 세어 거절을 결정하는데, 27.3MB를 받아야만 도는
+   * 자리에 있고 **터지면 `serialize`의 `try`가 삼켜 모델이 조용히 안 담긴다.**
+   */
+  readonly size?: { readonly nodes: number; readonly leaves: number }
   readonly params?: {
     readonly coef?: readonly (readonly number[])[]
     readonly intercept?: readonly number[]
@@ -256,6 +263,48 @@ describe('옮긴 것을 대조할 재료가 있다', () => {
     }
     expect(missing).toEqual([])
   })
+})
+
+/**
+ * **담기 전에 세는 수가 맞는가** (open-decisions.md "큰 모델은 만들기 전에 거절한다").
+ *
+ * 어댑터는 배열을 꺼내기 전에 파이썬에게 노드 수와 잎 수를 묻고, 그 수로 크기의 하한을
+ * 셈해 **113MB짜리 숲을 아예 안 만든다.** 여기서 재는 것이 둘이다.
+ *
+ * 1. **센 수가 옮긴 모델의 실제 모양과 같은가.** 파이썬이 잘못 세면 하한이 헛것이 된다.
+ * 2. **그 하한이 진짜 하한인가.** 실제 바이트보다 크면 **담겼을 모델을 거절한다** —
+ *    이 문을 여는 유일한 조건이 *"하한이라 그럴 일이 없다"*였다.
+ */
+describe('담기 전에 세는 크기', () => {
+  for (const [name, entry] of Object.entries(document.datasets)) {
+    if (entry.meta.taskType === 'regression') continue
+    const recorded = entry.sklearn['random_forest']
+
+    it(`센 노드·잎이 옮긴 숲과 같고 하한이 실제보다 작다 · ${name}`, () => {
+      expect(recorded?.size, `${name} size`).toBeDefined()
+      if (!recorded?.size) return
+
+      const prepared = preparedFor(name, entry)
+      const model = sklearnForestV2Model(
+        recorded.dump as SklearnForestV2Dump,
+        prepared.classes,
+        prepared.featureCount,
+      )
+      expect(model, 'the dump must map onto our format').not.toBeNull()
+      if (model === null) return
+
+      const nodes = model.trees.reduce((sum, tree) => sum + tree.nodes.length, 0)
+      const leaves = model.trees.reduce((sum, tree) => sum + tree.leaves.length, 0)
+      expect({ nodes, leaves }).toEqual(recorded.size)
+
+      const least = minimumTreeV2Bytes(nodes, leaves, prepared.classes.length)
+      const actual = new TextEncoder().encode(JSON.stringify(model)).length
+      expect(least, `${name} bound`).toBeLessThanOrEqual(actual)
+      // **하한이 0에 가까우면 그건 하한이 아니라 무의미다.** 실제의 몇 할은 돼야
+      // 113MB짜리 숲이 실제로 걸린다.
+      expect(least, `${name} bound is not trivial`).toBeGreaterThan(actual * 0.2)
+    })
+  }
 })
 
 for (const [name, entry] of Object.entries(document.datasets)) {

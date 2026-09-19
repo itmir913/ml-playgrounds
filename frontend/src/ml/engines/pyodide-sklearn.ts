@@ -24,20 +24,23 @@
  *
  * ## 모델 직렬화
  *
- * **여덟 중 일곱을 담는다** (2026-09-19). 등록부의 `serializer` 칸이 파이썬에게 물을 것과
+ * **여덟을 다 담는다** (2026-09-19). 등록부의 `serializer` 칸이 파이썬에게 물을 것과
  * 그것을 우리 형식으로 옮기는 함수를 함께 갖고, 옮기는 일은 전부 `pyodide-serialize.ts`가
  * 한다 — 그래야 Pyodide 없이 검사가 돈다. **칸이 빈 알고리즘은 모델을 안 담고**
- * `modelOmitted: 'engineUnsupported'`로 기록된다(mlpx-spec.md §4.2).
+ * `modelOmitted: 'engineUnsupported'`로 기록되는데, **지금 빈 칸은 없다**
+ * (`sklearn-serialize.spec.ts`가 못 박는다, mlpx-spec.md §4.2).
  *
- * **랜덤 포레스트만 비어 있고, 그건 못 해서가 아니라 안 하는 것이다** — 아래 그 항목에
- * 이유와 실측이 있다.
+ * 랜덤 포레스트가 마지막이었다 — 예측 규칙이 달라 v1으로는 못 담았고, 잎이 분포를 드는
+ * `mlpx-tree-v2`가 서면서 열렸다(`mlpx-spec.md` §5.3.1).
  */
 
 import { ClientError, failureDetail } from '../../errors'
 import type { HyperparameterSpec } from '../hyperparams'
 import { resolveWith } from '../hyperparams'
 import type { FitInput, FitResult, Predict } from './mljs'
-import type { ModelFile } from '../models'
+import { minimumTreeV2Bytes, type ModelFile } from '../models'
+import { MAX_MODEL_BYTES } from '../../limits'
+import type { ModelOmissionReason } from '../../project/schema'
 import {
   sklearnKMeansModel,
   sklearnLinearModel,
@@ -141,6 +144,19 @@ interface SklearnClass {
 interface SklearnSerializer {
   /** `_dump`에 담길 파이썬 식. **사전 하나여야 하고 `classes`를 함께 넣는다.** */
   readonly dump?: string
+  /**
+   * **담기 전에 크기의 하한을 세는 파이썬 식** (open-decisions.md "큰 모델은 만들기 전에
+   * 거절한다"). `{"nodes": …, "leaves": …}` 모양의 사전 하나이고, `_size`에 JSON 문자열로
+   * 남는다.
+   *
+   * **`dump`보다 먼저 돈다.** 배열을 꺼내기 전이라 여기서 거절하면 파이썬의 JSON 문자열도,
+   * JS의 파싱도, 모델 객체도, `encodeCompact`도 안 돈다 — 113MB짜리 숲에서 아끼는 것이
+   * 그 전부다.
+   *
+   * **세는 것과 판단하는 것은 여전히 갈라져 있다.** 파이썬은 `node_count` 같은 수만 세고,
+   * 그 수를 바이트로 바꿔 상한과 견주는 일은 아래 `refusedForSize`가 한다.
+   */
+  readonly size?: string
   readonly build: (dumped: unknown, context: SerializeContext) => ModelFile | null
 }
 
@@ -242,6 +258,11 @@ const SKLEARN_CLASSES: Readonly<Record<string, SklearnClass>> = {
     module: 'sklearn.ensemble',
     cls: 'RandomForestClassifier',
     serializer: {
+      // 잎은 `children_left == -1`인 노드다. 나무가 백 그루라 파이썬에서 한 번에 센다.
+      size: `{
+    "nodes": sum(int(one.tree_.node_count) for one in _model.estimators_),
+    "leaves": sum(int((one.tree_.children_left == -1).sum()) for one in _model.estimators_),
+}`,
       dump: '{"trees": [_mlpx_tree_v2(one.tree_) for one in _model.estimators_], "classes": _classes}',
       build: (dumped, context) =>
         sklearnForestV2Model(dumped as SklearnForestV2Dump, context.classes, context.featureCount),
@@ -538,7 +559,12 @@ function serialize(
   algorithm: string,
   input: FitInput,
   hyperparameters: Record<string, unknown>,
-): { readonly model: ModelFile } | { readonly modelOmittedDetail: string } {
+):
+  | { readonly model: ModelFile }
+  | {
+      readonly modelOmittedDetail: string
+      readonly modelOmittedReason?: ModelOmissionReason
+    } {
   const serializer = SKLEARN_CLASSES[algorithm]?.serializer
   if (!serializer) return omitted(algorithm, 'serializer-missing')
   if (!py) return omitted(algorithm, 'engine-gone')
@@ -557,6 +583,13 @@ function serialize(
       rowIndices: input.rowIndices,
       hyperparameters,
     }
+
+    /**
+     * **담을 수 없을 만큼 크면 여기서 멈춘다** (open-decisions.md "큰 모델은 만들기 전에
+     * 거절한다"). `dump` 앞이라 파이썬의 JSON 문자열도 JS의 파싱도 안 돈다.
+     */
+    const refused = refusedForSize(serializer, classes.length)
+    if (refused) return { ...omitted(algorithm, refused), modelOmittedReason: 'tooLarge' as const }
 
     let dumped: unknown
     if (serializer.dump !== undefined) {
@@ -586,6 +619,38 @@ function serialize(
  */
 function omitted(algorithm: string, why: string): { readonly modelOmittedDetail: string } {
   return { modelOmittedDetail: `pyodide-sklearn:${algorithm}:${why}` }
+}
+
+/**
+ * **옮기기 전에 크기의 하한을 세어 보고, 넘으면 사유를 돌려준다.** 안 넘거나 셀 수 없으면
+ * `undefined`이고, 그러면 평소대로 옮긴다.
+ *
+ * **하한이라 애매한 것은 통과시킨다** (`models/tree.ts`의 `minimumTreeV2Bytes`). 거절한
+ * 것은 만들었어도 `MAX_MODEL_BYTES`에서 똑같이 빠졌을 물건이다 — 바뀌는 것은 **버리는
+ * 자리가 아니라 만드는 비용**이고, 그 비용이 113MB짜리 숲에서 힙 0.5GB였다
+ * (2026-09-19 R31 B-1).
+ *
+ * **못 세면 막지 않는다.** `size` 칸이 없는 알고리즘이 대부분이고, 파이썬이 다른 모양을
+ * 주면 그건 이 문의 일이 아니다 — 담아 보고 저장할 때 걸리면 된다.
+ */
+function refusedForSize(serializer: SklearnSerializer, classCount: number): string | undefined {
+  if (serializer.size === undefined || !py) return undefined
+  py.runPython(`
+import json
+_size = json.dumps(${serializer.size})
+`)
+  const proxy = py.globals.get('_size')
+  const text = String(proxy.toJs?.() ?? proxy)
+  proxy.destroy?.()
+  const counted: unknown = JSON.parse(text)
+  if (typeof counted !== 'object' || counted === null) return undefined
+  const { nodes, leaves } = counted as { nodes?: unknown; leaves?: unknown }
+  if (typeof nodes !== 'number' || typeof leaves !== 'number') return undefined
+
+  const least = minimumTreeV2Bytes(nodes, leaves, classCount)
+  if (least <= MAX_MODEL_BYTES) return undefined
+  // **수를 함께 적는다.** 교사가 "얼마나 넘었나"를 물으면 답할 것이 이 한 줄뿐이다.
+  return `too-large:${nodes}nodes:${leaves}leaves:${least}bytes`
 }
 
 /**

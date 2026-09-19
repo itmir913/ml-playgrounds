@@ -259,6 +259,65 @@ describe('배운 것을 못 받아써도', () => {
   })
 })
 
+/**
+ * **113MB짜리 숲은 만들기 전에 거절한다** (open-decisions.md "큰 모델은 만들기 전에
+ * 거절한다", 2026-09-19 R31 B-1).
+ *
+ * 화면 문구는 담고 나서 재는 경로에서도 맞는 말을 하지만, **그 판정 전에 물건이 이미
+ * 서 있다** — Node에서 재니 정점이 479MB였다. 여기서 재는 것이 셋이다: 거절하는가,
+ * **아무것도 안 만드는가**, 그리고 학생에게 뭐라고 말하는가.
+ */
+describe('담을 수 없을 만큼 큰 숲', () => {
+  /** `_size`에 센 수를, 그 밖에는 평소의 가짜를 주는 Pyodide. */
+  function pyodideCounting(counted: { nodes: number; leaves: number }): {
+    proxy: PyodideProxy
+    sources: string[]
+  } {
+    const sources: string[] = []
+    return {
+      sources,
+      proxy: {
+        runPython: (code) => {
+          sources.push(code)
+          return undefined
+        },
+        globals: {
+          get: (name) => ({
+            toJs: () => (name === '_size' ? JSON.stringify(counted) : [0]),
+            destroy: () => {},
+          }),
+          set: () => {},
+        },
+      },
+    }
+  }
+
+  it('하한이 상한을 넘으면 옮기지 않고 거절한다', async () => {
+    // 잎 200만 · 클래스 셋이면 하한이 45MB다 — `MAX_MODEL_BYTES`(5MB)의 아홉 배.
+    const { proxy, sources } = pyodideCounting({ nodes: 3_623_648, leaves: 1_811_874 })
+    setPyodide(proxy)
+
+    const result = await fit('random_forest', input({ n_estimators: 100 }))
+    expect(result.model).toBeUndefined()
+    // **학생이 할 일이 다르다.** `engineUnsupported`는 "지금 할 수 있는 일이 없다"이고,
+    // 여기서 할 일은 나무 개수를 줄여 다시 학습하는 것이다.
+    expect(result.modelOmittedReason).toBe('tooLarge')
+    expect(result.modelOmittedDetail).toContain('pyodide-sklearn:random_forest:too-large:')
+    // **아낀 것이 이것이다.** 옮기고 나서 버리면 힙은 이미 다녀간 뒤다.
+    expect(sources.some((one) => one.includes('_mlpx_tree_v2'))).toBe(false)
+  })
+
+  it('작으면 평소대로 옮긴다 - 바닥', async () => {
+    const { proxy, sources } = pyodideCounting({ nodes: 300, leaves: 150 })
+    setPyodide(proxy)
+
+    const result = await fit('random_forest', input({ n_estimators: 10 }))
+    // 가짜가 주는 `_dump`은 우리 모양이 아니라 모델은 없다. **그러나 옮기려고는 했다.**
+    expect(result.modelOmittedReason).toBeUndefined()
+    expect(sources.some((one) => one.includes('_mlpx_tree_v2'))).toBe(true)
+  })
+})
+
 describe('준비되지 않은 엔진', () => {
   it('Pyodide가 없으면 던진다', async () => {
     expect.assertions(2)

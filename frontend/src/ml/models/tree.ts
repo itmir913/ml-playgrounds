@@ -16,6 +16,7 @@
 import { z } from 'zod'
 
 import { ClientError, type ClientErrorParams } from '../../errors'
+import { TREE_V2_MIN_BYTES_PER_LEAF_CLASS, TREE_V2_MIN_BYTES_PER_NODE } from '../../limits'
 import type { ModelFile, Predict } from './types'
 
 export const TREE_FORMAT = 'mlpx-tree-v1'
@@ -200,6 +201,22 @@ export function loadTreeModel(file: unknown): Predict {
 // ---------------------------------------------------------------------------
 
 export const TREE_V2_FORMAT = 'mlpx-tree-v2'
+
+/**
+ * 이 모양의 숲을 `mlpx-tree-v2`로 담으면 **적어도** 몇 바이트인가.
+ *
+ * **하한이다.** 노드 하나는 `[0,0,1,2]`보다 못 짧고, 잎의 줄은 `[0,1,0]`보다 못 짧다.
+ * 번호가 커지거나 임계값이 실수면 늘어나기만 한다. 머리글(`format`·`classes`·`trees`의
+ * 대괄호)은 **일부러 안 센다** — 하한을 더 낮게 잡을수록 안전하다.
+ *
+ * **쓰는 곳은 담기 전의 거절이다** (open-decisions.md "큰 모델은 만들기 전에 거절한다").
+ * 파이썬이 `tree_`에서 노드 수와 잎 수를 바로 셀 수 있으므로 **배열을 꺼내기 전에** 답이
+ * 나오고, 하한이라 *"이건 반드시 상한을 넘는다"*만 거절한다.
+ */
+export function minimumTreeV2Bytes(nodes: number, leaves: number, classCount: number): number {
+  const perLeaf = classCount * TREE_V2_MIN_BYTES_PER_LEAF_CLASS + 1
+  return nodes * TREE_V2_MIN_BYTES_PER_NODE + leaves * perLeaf
+}
 
 export interface TreeV2Model extends ModelFile {
   readonly format: typeof TREE_V2_FORMAT

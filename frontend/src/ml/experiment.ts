@@ -646,16 +646,23 @@ async function trainOne(
      */
     await engine.prepare?.(context.onPrepare, context.enginePins?.[engine.engine.kind])
 
-    const { predict, predictBatch, model, modelOmittedDetail, warning, clusterResult } =
-      await engine.fit(base.algorithm, {
-        features: context.trainFeatures,
-        rowIndices: context.trainRowIndices,
-        target: context.trainTarget,
-        taskType: context.taskType,
-        hyperparameters: base.hyperparameters,
-        randomState: context.randomState,
-        ...(context.pools ? { pools: context.pools } : {}),
-      })
+    const {
+      predict,
+      predictBatch,
+      model,
+      modelOmittedDetail,
+      modelOmittedReason,
+      warning,
+      clusterResult,
+    } = await engine.fit(base.algorithm, {
+      features: context.trainFeatures,
+      rowIndices: context.trainRowIndices,
+      target: context.trainTarget,
+      taskType: context.taskType,
+      hyperparameters: base.hyperparameters,
+      randomState: context.randomState,
+      ...(context.pools ? { pools: context.pools } : {}),
+    })
 
     // **군집은 시그니처가 다르다** (architecture.md §3.7). 정답이 없으므로
     // (actual, predicted)를 쓸 수 없고, 훈련 데이터·할당·중심점으로 지표를 낸다.
@@ -705,7 +712,9 @@ async function trainOne(
       // **원문도 함께 남긴다** (mlpx-spec.md 4.2, 5.0.1). 사유 어휘는 학생에게 할 말이고
       // 원문은 교사와 우리가 읽는 단서다 - 직렬화가 터졌는데 아무 기록이 없으면
       // 학생 환경에서 재현할 단서가 0이 된다.
-      ...(model ? {} : { modelOmitted: 'engineUnsupported' as const }),
+      // **어휘는 엔진이 다르게 말할 수 있다.** 기본은 "지금 할 수 있는 일이 없다"이지만,
+      // 만들기 전에 크기로 거절한 것은 `tooLarge`다 — 학생이 할 일이 다르다(§4.2).
+      ...(model ? {} : { modelOmitted: modelOmittedReason ?? ('engineUnsupported' as const) }),
       ...(model === undefined && modelOmittedDetail !== undefined ? { modelOmittedDetail } : {}),
     }
     return model ? { run, model } : { run }
