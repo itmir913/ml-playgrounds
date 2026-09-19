@@ -822,6 +822,15 @@
                         },
                         "version": {
                           "type": "string"
+                        },
+                        "packages": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "string"
+                          }
                         }
                       },
                       "required": [

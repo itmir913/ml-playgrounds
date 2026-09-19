@@ -719,6 +719,17 @@ export const featureImportanceSchema = z.looseObject({
 export const engineSchema = z.looseObject({
   kind: z.string(),
   version: z.string(),
+  /**
+   * 그 엔진이 싣고 있던 것들 — 이름 → 버전. **받아 오는 엔진만 적는다.**
+   *
+   * scikit-learn(Pyodide)의 `version`은 **배포판 이름**이고 그 이름은 CPython 버전이라
+   * (`314.0.7` = CPython 3.14.2) **sklearn이 몇인지를 말하지 않는다.** 교사가 파일만 보고
+   * 그것을 알아야 해서 함께 적는다 (`ml/engines/pyodide-runtime.ts`).
+   *
+   * **선택 필드이고 포맷 버전을 안 올린다.** 옛 파일에는 없고, 옛 해석기는 이 칸을 그냥
+   * 안 본다 — 없다고 달라지는 판정이 하나도 없다(`engineIsHere`는 `version`만 본다).
+   */
+  packages: z.record(z.string(), z.string()).optional(),
 })
 
 /**

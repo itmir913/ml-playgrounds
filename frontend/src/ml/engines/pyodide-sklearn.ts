@@ -313,7 +313,13 @@ function classOf(algorithm: string): SklearnClass {
 // 공개 API — TrainingEngine 계약
 // ---------------------------------------------------------------------------
 
-export const PYODIDE_SKLEARN_ENGINE = { kind: 'pyodide-sklearn', version: '1' } as const
+/**
+ * **버전이 여기 없다.** 이 엔진의 버전은 *우리 코드의 판*이 아니라 **받아 오는 Pyodide
+ * 배포판의 이름**이고, 그것을 아는 것은 띄우는 쪽이다(`pyodide-runtime.ts`의
+ * `PYODIDE_VERSION`). 여기서 그쪽을 들여오면 **순환 임포트**가 된다 — 띄우는 쪽이 이
+ * 파일의 `setPyodide`를 부른다. 그래서 등록부(`ml/engines/index.ts`)가 붙인다.
+ */
+export const PYODIDE_SKLEARN_ENGINE = { kind: 'pyodide-sklearn' } as const
 
 export const PYODIDE_SKLEARN_ALGORITHMS = Object.keys(SKLEARN_CLASSES)
 

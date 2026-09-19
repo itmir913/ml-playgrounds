@@ -2127,6 +2127,68 @@ describe('무거운 엔진은 학습보다 먼저 준비된다', () => {
     return copy as unknown as TrainingEngine
   }
 
+  /**
+   * **띄운 뒤에 무엇이 떴는지를 파일에 적는다** (2026-09-19, 결정문의 넷째 조항).
+   *
+   * 받아 오는 엔진은 *어느 판이 떴는가*가 답을 바꾸므로, 등록부의 기본값이 아니라
+   * **`describe()`가 말하는 것**이 `run.engine`이어야 한다. 이 갈래가 죽으면 파일이
+   * 언제나 *오늘 못 박은 판*을 적고, **재실행 대조가 영원히 오늘 판으로 돈다.**
+   */
+  it('파일에 적히는 것은 등록부의 기본값이 아니라 뜬 판이다', async () => {
+    const log: string[] = []
+    const engine: TrainingEngine = {
+      ...fakeEngine(log),
+      describe: () => ({ version: '300.1.2', packages: { 'scikit-learn': '9.9.9' } }),
+    }
+    const { experiment } = await runExperiment(
+      inputFor({ settings: settingsFor({ selectedAlgorithms: models('naive_bayes') }) }),
+      { ...frozen, engines: [engine] },
+    )
+    expect(experiment.runs[0]?.engine?.version).toBe('300.1.2')
+    expect(experiment.runs[0]?.engine?.packages).toEqual({ 'scikit-learn': '9.9.9' })
+  })
+
+  /**
+   * **못 띄웠으면 뜬 판이 없다.** 그때 적히는 등록부의 기본값은 *"이것으로 돌리려 했다"*는
+   * 사실이고, 그게 실패한 run에 맞는 답이다.
+   */
+  it('못 띄운 run에는 등록부의 기본값이 적힌다', async () => {
+    const log: string[] = []
+    const engine: TrainingEngine = {
+      ...fakeEngine(log, true),
+      describe: () => undefined,
+    }
+    const { experiment } = await runExperiment(
+      inputFor({ settings: settingsFor({ selectedAlgorithms: models('naive_bayes') }) }),
+      { ...frozen, engines: [engine] },
+    )
+    expect(experiment.runs[0]?.status).toBe('failed')
+    expect(experiment.runs[0]?.engine?.version).toBe('3')
+    expect(experiment.runs[0]?.engine?.packages).toBeUndefined()
+  })
+
+  /**
+   * **파일이 말하는 판이 띄우는 쪽까지 간다.** 이 줄이 끊기면 대조가 교사 기기의 오늘
+   * 판으로 돌고, **갈린 숫자가 학생의 것으로 읽힌다.**
+   */
+  it('실험 입력의 엔진 못이 prepare까지 간다', async () => {
+    const asked: (string | undefined)[] = []
+    const engine: TrainingEngine = {
+      ...fakeEngine([]),
+      prepare: async (_onState, version) => {
+        asked.push(version)
+      },
+    }
+    await runExperiment(
+      {
+        ...inputFor({ settings: settingsFor({ selectedAlgorithms: models('naive_bayes') }) }),
+        enginePins: { mljs: '300.1.2' },
+      },
+      { ...frozen, engines: [engine] },
+    )
+    expect(asked).toEqual(['300.1.2'])
+  })
+
   it('prepare가 fit보다 먼저다', async () => {
     const log: string[] = []
     await runExperiment(

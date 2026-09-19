@@ -19,6 +19,9 @@ import {
   PYODIDE_INDEX_URL,
   PYODIDE_PACKAGES,
   PYODIDE_VERSION,
+  bootedDistribution,
+  distributionVersion,
+  indexUrlFor,
   prepare,
   resetPyodideRuntime,
   type Boot,
@@ -30,14 +33,22 @@ const ROOT = join(__dirname, '..')
 /** 아무것도 안 받고 성공한 척한다. 재는 것은 순서이지 시간이 아니다. */
 const fakeBoot =
   (log: EngineState[]) =>
-  async (onState?: (state: EngineState) => void): Promise<Boot> => {
+  async (onState?: (state: EngineState) => void, version = PYODIDE_VERSION): Promise<Boot> => {
     onState?.('downloaded')
     log.push('downloaded')
     return {
       parts: { core: 1, packages: 1, imports: 1, total: 3 },
-      versions: { 'scikit-learn': '1.8.0' },
+      version,
+      versions: { pyodide: version, 'scikit-learn': '1.8.0' },
     }
   }
+
+/** 아무것도 안 받고 성공한 척한다. 버전만 세는 자리에서 쓴다. */
+const bootOf = (version: string): Boot => ({
+  parts: { core: 0, packages: 0, imports: 0, total: 0 },
+  version,
+  versions: { pyodide: version },
+})
 
 describe('버전 못은 한 말만 한다', () => {
   /**
@@ -86,7 +97,7 @@ describe('준비가 흐르는 순서', () => {
    */
   it('받는 중 · 받았다 · 준비됐다 순서로 알린다', async () => {
     const seen: EngineState[] = []
-    await prepare((state) => seen.push(state), fakeBoot([]))
+    await prepare((state) => seen.push(state), undefined, fakeBoot([]))
     expect(seen).toEqual(['downloading', 'downloaded', 'ready'])
   })
 
@@ -98,11 +109,11 @@ describe('준비가 흐르는 순서', () => {
     let booted = 0
     const boot = async (): Promise<Boot> => {
       booted += 1
-      return { parts: { core: 0, packages: 0, imports: 0, total: 0 }, versions: {} }
+      return bootOf(PYODIDE_VERSION)
     }
-    await prepare(undefined, boot)
+    await prepare(undefined, undefined, boot)
     const seen: EngineState[] = []
-    await prepare((state) => seen.push(state), boot)
+    await prepare((state) => seen.push(state), undefined, boot)
     expect(booted).toBe(1)
     // **그래도 상태는 알린다** — 화면이 이 run에서도 같은 자리에 답을 본다.
     expect(seen).toEqual(['ready'])
@@ -119,9 +130,9 @@ describe('준비가 흐르는 순서', () => {
     const boot = async (): Promise<Boot> => {
       throw new Error('net::ERR_BLOCKED_BY_CLIENT')
     }
-    await expect(prepare(undefined, boot)).rejects.toThrow()
+    await expect(prepare(undefined, undefined, boot)).rejects.toThrow()
     try {
-      await prepare(undefined, boot)
+      await prepare(undefined, undefined, boot)
     } catch (error) {
       expect(isClientError(error)).toBe(true)
       if (isClientError(error)) expect(error.code).toBe('ENGINE_BOOT_FAILED')
@@ -139,11 +150,129 @@ describe('준비가 흐르는 순서', () => {
       // **던지는 원문은 영어다** (`tests/ci-language.spec.ts`) — 실패 원문은 기술 정보로
       // 그대로 실려 나가고, 그 통로는 번역되지 않는다.
       if (tries === 1) throw new Error('first attempt fails')
-      return { parts: { core: 0, packages: 0, imports: 0, total: 0 }, versions: {} }
+      return bootOf(PYODIDE_VERSION)
     }
-    await expect(prepare(undefined, boot)).rejects.toThrow()
-    await prepare(undefined, boot)
+    await expect(prepare(undefined, undefined, boot)).rejects.toThrow()
+    await prepare(undefined, undefined, boot)
     expect(tries).toBe(2)
+  })
+})
+
+/**
+ * **파일이 말하는 배포판을 받는다** (결정문의 넷째 조항).
+ *
+ * 이 값의 출처가 **학생 파일**이라는 것이 여기 있는 검사의 전부다 — `.mlpx`는 교사와
+ * 학생이 서로 주고받는 것이 이 도구의 전제이고(CLAUDE.md §1.3), 이 문자열은 주소가 되어
+ * `import()`에 들어간다. 그 코드는 Pyodide 안에서 `import js`로 IndexedDB와 `fetch`에 닿는다.
+ */
+describe('파일이 말하는 배포판을 받는다', () => {
+  beforeEach(() => resetPyodideRuntime())
+
+  it('숫자 셋이 아닌 것은 안 믿는다', () => {
+    for (const junk of [
+      '../../evil',
+      'latest',
+      '314.0.7/../../x',
+      'https://evil.example/full/',
+      '314.0',
+      '314.0.7 ',
+      '',
+      undefined,
+    ]) {
+      expect(distributionVersion(junk), `${String(junk)} must not become a URL`).toBeNull()
+    }
+    expect(distributionVersion('314.0.7')).toBe('314.0.7')
+    expect(distributionVersion('400.1.0')).toBe('400.1.0')
+  })
+
+  it('주소에 그 버전이 그대로 박힌다', () => {
+    expect(indexUrlFor('400.1.0')).toBe('https://cdn.jsdelivr.net/pyodide/v400.1.0/full/')
+  })
+
+  it('부른 배포판이 띄우는 쪽까지 간다', async () => {
+    const asked: (string | undefined)[] = []
+    const boot = async (_onState?: (state: EngineState) => void, version?: string) => {
+      asked.push(version)
+      return bootOf(version ?? PYODIDE_VERSION)
+    }
+    await prepare(undefined, '400.1.0', boot)
+    expect(asked).toEqual(['400.1.0'])
+    expect(bootedDistribution()?.version).toBe('400.1.0')
+  })
+
+  it('못 믿을 문자열은 못 박은 것으로 바뀐다', async () => {
+    const asked: (string | undefined)[] = []
+    const boot = async (_onState?: (state: EngineState) => void, version?: string) => {
+      asked.push(version)
+      return bootOf(version ?? PYODIDE_VERSION)
+    }
+    await prepare(undefined, '../../evil', boot)
+    expect(asked).toEqual([PYODIDE_VERSION])
+  })
+
+  /**
+   * **원본이 옛 배포판을 영원히 서빙한다는 보장이 없다.** 그때 교사에게 *"이 파일은 대조할
+   * 수 없습니다"*라고 말하는 것은 **파일이 멀쩡한데 우리 사정으로 거절하는 것**이다.
+   */
+  it('그 배포판이 없으면 못 박은 것으로 한 번 더 부른다', async () => {
+    const asked: (string | undefined)[] = []
+    const boot = async (_onState?: (state: EngineState) => void, version?: string) => {
+      asked.push(version)
+      if (version !== PYODIDE_VERSION) throw new Error('404 Not Found')
+      return bootOf(PYODIDE_VERSION)
+    }
+    await prepare(undefined, '1.2.3', boot)
+    expect(asked).toEqual(['1.2.3', PYODIDE_VERSION])
+    // **부른 것이 아니라 뜬 것을 적는다.** 여기서 `1.2.3`을 적으면 파일이 거짓말을 한다.
+    expect(bootedDistribution()?.version).toBe(PYODIDE_VERSION)
+  })
+
+  it('못 박은 것을 부른 경우에는 다시 안 해 본다', async () => {
+    let tries = 0
+    const boot = async (): Promise<Boot> => {
+      tries += 1
+      throw new Error('net::ERR_BLOCKED_BY_CLIENT')
+    }
+    await expect(prepare(undefined, PYODIDE_VERSION, boot)).rejects.toThrow()
+    expect(tries).toBe(1)
+  })
+
+  /**
+   * **한 사실이 두 자리에 있으면 다음 사람이 어느 쪽을 믿을지 고르게 된다.** 배포판 이름은
+   * `version`이 갖고, 지도는 파이썬이 답한 것만 갖는다.
+   */
+  it('패키지 지도에 배포판 이름이 안 들어간다', async () => {
+    await prepare(undefined, undefined, fakeBoot([]))
+    const described = bootedDistribution()
+    expect(described?.packages).toEqual({ 'scikit-learn': '1.8.0' })
+    expect(described?.version).toBe(PYODIDE_VERSION)
+  })
+
+  it('안 띄웠으면 말할 것이 없다', () => {
+    expect(bootedDistribution()).toBeUndefined()
+  })
+})
+
+/**
+ * **버전이 같아야 하는 엔진과, 받아 오면 되는 엔진.**
+ *
+ * 순수 JS의 `version`은 *우리 코드*의 판이라 다른 판을 흉내 낼 수 없고, sklearn의
+ * `version`은 *받아 오는 배포판*의 이름이라 받으면 된다. **이 사실을 아는 코드는 등록부
+ * 하나여야 한다** — 밖에서 `if (kind === 'pyodide-sklearn')`을 쓰면 그 조회가 흩어진다.
+ */
+describe('버전을 감당하는 방식이 엔진마다 다르다', () => {
+  it('sklearn은 배포판 이름이면 받아 온다', () => {
+    const sklearn = ENGINES.find((one) => one.runtimeId === 'pyodide-sklearn')
+    expect(sklearn?.acceptsVersion?.('400.1.0')).toBe(true)
+    expect(sklearn?.acceptsVersion?.('../../evil')).toBe(false)
+    // **못 박은 것이 기본값이다** — 새 학습은 이것으로 돌고 파일에 이것이 적힌다.
+    expect(sklearn?.engine.version).toBe(PYODIDE_VERSION)
+  })
+
+  it('순수 JS는 정확히 같아야 한다', () => {
+    const mljs = ENGINES.find((one) => one.runtimeId === 'mljs')
+    expect(mljs?.acceptsVersion).toBeUndefined()
+    expect(mljs?.describe).toBeUndefined()
   })
 })
 

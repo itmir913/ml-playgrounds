@@ -967,3 +967,61 @@ describe('대조를 막는 이유', () => {
     expect(reproduceBlockers(await subject({ experiment: mixed }))).toEqual([])
   })
 })
+
+/**
+ * **파일이 말하는 배포판으로 대조한다** (2026-09-19, 결정문의 넷째 조항).
+ *
+ * 무거운 엔진은 받아 오는 물건이라 *어느 판을 받을지*가 답을 바꾼다. 이 자리가 비어
+ * 있으면 대조가 언제나 **교사 기기의 오늘 판**으로 돌고, 갈린 숫자가 학생의 것으로
+ * 읽힌다 — 이 도구가 가장 하면 안 되는 일이다.
+ */
+describe('대조는 파일이 말하는 엔진 판을 들고 간다', () => {
+  it('run의 엔진 판이 그대로 못이 된다', async () => {
+    const experiment = await trained(['decision_tree'])
+    const made: Experiment = {
+      ...experiment,
+      runs: [{ ...experiment.runs[0]!, engine: { kind: 'pyodide-sklearn', version: '300.1.2' } }],
+    }
+
+    const input = reproduceInputOf({ experiment: made, dataset, testDataset: null })
+    expect(input.enginePins).toEqual({ 'pyodide-sklearn': '300.1.2' })
+  })
+
+  it('엔진이 섞여 있으면 종류마다 하나씩 든다', async () => {
+    const experiment = await trained(['decision_tree', 'knn'])
+    const mixed: Experiment = {
+      ...experiment,
+      runs: [
+        { ...experiment.runs[0]!, engine: { kind: 'pyodide-sklearn', version: '300.1.2' } },
+        experiment.runs[1]!,
+      ],
+    }
+
+    const input = reproduceInputOf({ experiment: mixed, dataset, testDataset: null })
+    expect(input.enginePins?.['pyodide-sklearn']).toBe('300.1.2')
+    expect(input.enginePins?.['mljs']).toBeDefined()
+  })
+
+  /**
+   * **버전을 감당하는 방식이 엔진마다 다르다.** 받아 오는 엔진은 다른 판이라도 그 판을
+   * 받으면 되므로 막지 않고, 우리 코드의 판인 엔진은 흉내 낼 수 없으므로 막는다.
+   *
+   * **이 갈래가 죽으면 옛 sklearn 파일이 통째로 잠긴다** — 배포판을 한 번 올리는 순간
+   * 그 전에 만들어진 제출물 전부가 `[대조하기]`를 잃는다.
+   */
+  it('sklearn은 판이 달라도 안 막고, 순수 JS는 막는다', async () => {
+    const experiment = await trained(['decision_tree'])
+    const blockersFor = (engine: Run['engine']): readonly string[] =>
+      reproduceBlockers({
+        experiment: { ...experiment, runs: [{ ...experiment.runs[0]!, engine }] },
+        dataType: 'tabular',
+        hasDataset: true,
+        hasTestDataset: false,
+      })
+
+    expect(blockersFor({ kind: 'pyodide-sklearn', version: '300.1.2' })).toEqual([])
+    expect(blockersFor({ kind: 'mljs', version: '2' })).toEqual(['ENGINE_MISSING'])
+    // **판이라 할 수 없는 문자열은 받아 올 주소가 없다.** sklearn에서도 막는다.
+    expect(blockersFor({ kind: 'pyodide-sklearn', version: 'latest' })).toEqual(['ENGINE_MISSING'])
+  })
+})

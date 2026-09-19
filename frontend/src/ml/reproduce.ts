@@ -167,6 +167,9 @@ export function reproduceInputOf(input: ReproduceInput): ExperimentInput {
     context: inspectContext(dataType, dataset),
     snapshot,
     recordedSplit: recordedSplitOf(experiment),
+    // **파일이 말하는 배포판으로 띄운다.** 안 주면 교사 기기의 오늘 판으로 돌고, 갈린
+    // 숫자가 학생의 것으로 읽힌다.
+    enginePins: enginePinsOf(experiment),
   }
 }
 
@@ -197,8 +200,9 @@ function runtimeIdFor(run: Run | undefined): string | undefined {
 }
 
 /**
- * **이 run을 만든 엔진이 여기 있는가.** `kind`와 `version`이 둘 다 같아야 한다 —
- * 버전이 다르면 같은 이름의 다른 계산기다 (`MLJS_ENGINE.version`의 규칙).
+ * **이 run을 만든 엔진이 여기 있는가.** `kind`는 언제나 같아야 하고, **버전은 엔진이
+ * 정한다** — 순수 JS는 정확히 같아야 하고(다른 판은 같은 이름의 다른 계산기다,
+ * `MLJS_ENGINE.version`의 규칙) sklearn은 배포판 이름이라 받아 오면 된다.
  *
  * **여기서 하는 것은 조회이지 계산이 아니다.** 이 파일에 학습 계산을 들이지 않는 규칙은
  * `tests/inspect-rules.spec.ts`가 지키고, 그 규칙이 막는 것은 `fit`·`evaluate`·`transform`
@@ -206,8 +210,33 @@ function runtimeIdFor(run: Run | undefined): string | undefined {
  */
 function engineIsHere(run: Run): boolean {
   const id = runtimeIdFor(run)
-  const here = id === undefined ? undefined : engineFor(id)?.engine
-  return here !== undefined && here.kind === run.engine?.kind && here.version === run.engine.version
+  const engine = id === undefined ? undefined : engineFor(id)
+  if (engine === undefined || engine.engine.kind !== run.engine?.kind) return false
+  /**
+   * **버전을 감당하는 방식이 엔진마다 다르다** (2026-09-19, 결정문의 넷째 조항).
+   *
+   * 순수 JS의 버전은 *우리 코드*의 판이라 다른 판을 흉내 낼 수 없지만, sklearn의 버전은
+   * *받아 오는 배포판*의 이름이라 **그 이름으로 받아 오면 된다.** 그래서 판정을 등록부에
+   * 맡긴다 — 여기서 `if (kind === 'pyodide-sklearn')`을 쓰면 그 지식이 흩어진다.
+   */
+  return engine.acceptsVersion?.(run.engine.version) ?? engine.engine.version === run.engine.version
+}
+
+/**
+ * **엔진 종류마다, 파일이 말하는 배포판.** 받아 오는 엔진이 그것으로 뜬다.
+ *
+ * **한 종류에 하나다.** 워커 하나에 파이썬은 하나뿐이라(`pyodide-runtime.ts`) 여럿을 줄
+ * 자리가 없다. 한 실험의 run들은 같은 세션에서 만들어져 같은 판을 말하므로 **첫 것을
+ * 쓴다** — 어긋나면 먼저 뜬 것으로 돌고 **파일에는 뜬 것이 적힌다.**
+ */
+function enginePinsOf(experiment: Experiment): Record<string, string> {
+  const pins: Record<string, string> = {}
+  for (const run of experiment.runs) {
+    const engine = run.engine
+    if (engine === undefined || pins[engine.kind] !== undefined) continue
+    pins[engine.kind] = engine.version
+  }
+  return pins
 }
 
 /**

@@ -98,6 +98,22 @@ export interface ExperimentInput {
    * 경로를 그대로 탄다").
    */
   recordedSplit?: RecordedSplit | undefined
+  /**
+   * **엔진 종류마다, 파일이 말하는 배포판.** 재실행 대조만 준다 (`ml/reproduce.ts`).
+   *
+   * 무거운 엔진은 받아 오는 물건이라 *어느 판을 받을지*가 답을 바꾼다. 학생이 만든 파일이
+   * 어느 sklearn으로 만들어졌는지 적혀 있으면 **교사 기기도 그것을 받아 대조한다** —
+   * 안 그러면 대조가 언제나 오늘 판으로 돌고, 갈린 숫자가 학생의 것으로 읽힌다
+   * (`open-decisions.md` "scikit-learn(Pyodide)은 원본에서 받고, 시동은 학습마다 낸다"의
+   * 넷째 조항).
+   *
+   * **run마다가 아니라 종류마다다.** 워커 하나에 파이썬은 하나뿐이고, 한 실험의 run들은
+   * 같은 세션에서 만들어져 같은 판을 말한다. 어긋나면 먼저 뜬 것으로 돌고 **파일에는 뜬
+   * 것이 적힌다** — 부르는 쪽이 둘을 견주어 말한다.
+   *
+   * **평범한 데이터여야 한다** — 워커 경계를 넘는다(`ml/worker/protocol.ts`).
+   */
+  enginePins?: Readonly<Record<string, string>>
 }
 
 export interface ExperimentOptions {
@@ -525,6 +541,8 @@ interface TrainContext {
    * 준다 — `pools`와 같은 자리다.
    */
   onPrepare?: (state: EngineState, fraction?: number) => void
+  /** 엔진 종류마다, 파일이 말하는 배포판. **재실행 대조만 준다** (`ExperimentInput`). */
+  enginePins?: Readonly<Record<string, string>>
 }
 
 /**
@@ -589,10 +607,25 @@ async function trainOne(
   engine: TrainingEngine,
   context: TrainContext,
 ): Promise<{ run: Run; model?: ModelFile }> {
-  const stamp = {
-    ...base,
-    computedBy: runtime.location,
-    engine: { kind: engine.engine.kind, version: engine.engine.version },
+  const stamp = { ...base, computedBy: runtime.location }
+
+  /**
+   * 이 run을 만든 엔진. **부른 것이 아니라 뜬 것이다** (`ml/engines/index.ts`의 `describe`).
+   *
+   * **부르는 자리가 둘이고 답이 갈릴 수 있다.** 띄우기 전에 물으면 등록부의 기본값이고,
+   * 띄운 뒤에 물으면 실제 배포판이다 — 그래서 값으로 굳히지 않고 **그때 묻는다.**
+   * 실패한 run은 띄우기 전에 죽었을 수 있고, 그때 적히는 기본값이 맞는 답이다
+   * (*"이것으로 돌리려 했다"*).
+   */
+  const engineStamp = (): Run['engine'] => {
+    const described = engine.describe?.()
+    if (!described) return { kind: engine.engine.kind, version: engine.engine.version }
+    const { version, packages } = described
+    return {
+      kind: engine.engine.kind,
+      version,
+      ...(packages && Object.keys(packages).length > 0 ? { packages: { ...packages } } : {}),
+    }
   }
 
   try {
@@ -611,7 +644,7 @@ async function trainOne(
      *
      * **눈금 검사보다 뒤다.** 손잡이가 범위 밖이면 27MB를 받기 전에 거절하는 편이 낫다.
      */
-    await engine.prepare?.(context.onPrepare)
+    await engine.prepare?.(context.onPrepare, context.enginePins?.[engine.engine.kind])
 
     const { predict, predictBatch, model, modelOmittedDetail, warning, clusterResult } =
       await engine.fit(base.algorithm, {
@@ -658,6 +691,7 @@ async function trainOne(
 
     const run: Run = {
       ...stamp,
+      engine: engineStamp(),
       status: 'done',
       metrics: evaluation.metrics,
       ...(evaluation.perClass ? { perClass: evaluation.perClass } : {}),
@@ -679,6 +713,7 @@ async function trainOne(
     return {
       run: {
         ...stamp,
+        engine: engineStamp(),
         status: 'failed',
         failure: isClientError(error)
           ? { code: error.code, params: error.params }
@@ -743,6 +778,7 @@ export async function runExperiment(
     randomState: settings.split.randomState,
     ...(options.pools ? { pools: options.pools } : {}),
     ...(options.onPrepare ? { onPrepare: options.onPrepare } : {}),
+    ...(input.enginePins ? { enginePins: input.enginePins } : {}),
   }
 
   const available = new Map(

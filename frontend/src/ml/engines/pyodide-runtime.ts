@@ -42,13 +42,33 @@ import { setPyodide, type PyodideProxy } from './pyodide-sklearn'
  * `scripts/fetch-pyodide.mjs`가 원본의 락 파일을 받아 대조하므로, 원격이 조용히 바뀌면
  * 학생이 아니라 **CI가 먼저 운다.**
  *
- * **`run.engine.version`과 다른 값이다.** 저쪽은 파일에 남아 재실행 대조의 열쇠가 되고,
- * 이쪽은 *지금 새 학습이 무엇으로 도는가*다 (결정문의 마지막 조항).
+ * **새 학습은 이것으로 돈다. 재실행은 파일이 말하는 것으로 돈다** (결정문의 넷째 조항) —
+ * 그래서 이 문자열은 *기본값*이지 유일한 값이 아니다.
  */
 export const PYODIDE_VERSION = '314.0.7'
 
+/**
+ * 믿을 수 있는 배포판 이름인가. **못 믿으면 `null`이고 그때는 못 박은 것을 쓴다.**
+ *
+ * **이 값이 주소가 되고 그 주소를 `import()`가 부른다.** 그리고 이 값의 출처는 학생
+ * 파일이다 — `.mlpx`는 교사와 학생이 서로 주고받는 것이 이 도구의 전제이고(CLAUDE.md
+ * §1.3), Pyodide의 파이썬은 `import js`로 IndexedDB와 `fetch`에 닿는다. 어댑터의 손잡이
+ * 문자열을 서술로 막은 것과 **같은 자리, 같은 이유**다(`pyodide-sklearn.ts`의
+ * `formatHyperparameters`).
+ *
+ * 그래서 **숫자 셋만** 통과시킨다. `..`도, 슬래시도, 온전한 URL도, `latest`도 아니다.
+ */
+export function distributionVersion(value: string | undefined): string | null {
+  return value !== undefined && /^\d+\.\d+\.\d+$/.test(value) ? value : null
+}
+
 /** 받는 곳. **원본이다** — 우리 산출물에는 이 27.3MB가 없다. */
-export const PYODIDE_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`
+export function indexUrlFor(version: string): string {
+  return `https://cdn.jsdelivr.net/pyodide/v${version}/full/`
+}
+
+/** 못 박은 배포판의 주소. 감시 스크립트와 고지가 이것을 본다. */
+export const PYODIDE_INDEX_URL = indexUrlFor(PYODIDE_VERSION)
 
 /**
  * 부를 것. **의존성은 Pyodide가 따라온다** — sklearn 하나를 부르면 joblib·numpy·scipy·
@@ -80,12 +100,18 @@ export type BootParts = {
 export interface Boot {
   readonly parts: BootParts
   /**
-   * 파이썬이 스스로 답한 버전들. **`pyodide` 칸만 우리가 적은 상수다**(아래 `json.dumps`) —
+   * **실제로 뜬 배포판.** 부른 것과 다를 수 있다 — 원본이 그 배포판을 더 안 서빙하면
+   * 못 박은 것으로 한 번 더 부르기 때문이다(아래 `prepare`).
+   *
+   * 이 값이 `run.engine.version`이 된다 (결정문의 넷째 조항).
+   */
+  readonly version: string
+  /**
+   * 파이썬이 스스로 답한 버전들. **`pyodide` 칸만 우리가 적은 값이다**(아래 `json.dumps`) —
    * 나머지 넷은 물어본 값이다.
    *
-   * `run.engine.version`에 무엇을 담을지가 이 값에 걸려 있다 — 재실행 대조는 버전이
-   * 정확히 같을 때만 판정하므로(`ml/reproduce.ts`의 `engineIsHere`), 담는 순간 이 문자열이
-   * 파일에 남는 계약이 된다.
+   * 이 중 파이썬이 답한 넷이 `run.engine.packages`가 된다. **교사가 파일만 보고 sklearn이
+   * 몇인지 알아야 하기 때문이다** — 배포판 이름은 CPython 버전이라 그 말을 안 한다.
    */
   readonly versions: Readonly<Record<string, string>>
 }
@@ -109,16 +135,22 @@ const since = (started: number): number => Math.round(now() - started)
  * **국면마다 걸린 시간을 돌려준다.** 앱은 그 값을 안 쓰고 실측 하니스가 쓴다 — 앱이 쓰는
  * 것은 아래 `prepare()`이고, 그쪽은 시간 대신 **상태**를 흘린다.
  */
-export async function bootPyodide(onState?: (state: EngineState) => void): Promise<Boot> {
+export async function bootPyodide(
+  onState?: (state: EngineState) => void,
+  /**
+   * 띄울 배포판. **부르는 쪽이 이미 걸러 온 값이어야 한다**(`distributionVersion`) —
+   * 여기서 주소가 된다.
+   */
+  version: string = PYODIDE_VERSION,
+): Promise<Boot> {
+  const indexURL = indexUrlFor(version)
   const startedCore = now()
   /**
    * **주소로 부른다.** 번들러가 이것을 들여다보면 안 된다 — `@vite-ignore`가 없으면
    * vite가 빌드 시점에 풀려 들고, 그 순간 27MB가 우리 산출물의 문제가 된다.
    */
-  const module = (await import(
-    /* @vite-ignore */ `${PYODIDE_INDEX_URL}pyodide.mjs`
-  )) as PyodideModule
-  const py = await module.loadPyodide({ indexURL: PYODIDE_INDEX_URL })
+  const module = (await import(/* @vite-ignore */ `${indexURL}pyodide.mjs`)) as PyodideModule
+  const py = await module.loadPyodide({ indexURL })
   const core = since(startedCore)
 
   const startedPackages = now()
@@ -154,7 +186,7 @@ export async function bootPyodide(onState?: (state: EngineState) => void): Promi
 import json, sklearn, numpy, scipy, sys
 json.dumps({
     "python": sys.version.split()[0],
-    "pyodide": "${PYODIDE_VERSION}",
+    "pyodide": "${version}",
     "scikit-learn": sklearn.__version__,
     "numpy": numpy.__version__,
     "scipy": scipy.__version__,
@@ -164,7 +196,11 @@ json.dumps({
   ) as Record<string, string>
 
   setPyodide(py)
-  return { parts: { core, packages, imports, total: core + packages + imports }, versions }
+  return {
+    parts: { core, packages, imports, total: core + packages + imports },
+    version,
+    versions,
+  }
 }
 
 /**
@@ -176,6 +212,31 @@ json.dumps({
  * 되는 것은 학생이 이해할 수 없는 상태다.
  */
 let booting: Promise<Boot> | null = null
+
+/**
+ * 뜬 것. **`booting`이 끝나야 채워진다.**
+ *
+ * 부르는 쪽이 *"무엇으로 돌았나"*를 물을 자리이고(`bootedDistribution`), 그 답이
+ * `run.engine`에 적힌다. **부른 것이 아니라 뜬 것이어야 한다** — 원본이 그 배포판을 더
+ * 안 서빙하면 둘이 갈리고, 그때 파일에 부른 것을 적으면 **그 파일은 거짓말을 한다.**
+ */
+let booted: Boot | null = null
+
+/**
+ * 지금 워커에 떠 있는 배포판과 그것이 싣고 있는 것. **아직 안 떴으면 없다.**
+ *
+ * `packages`에서 `pyodide` 칸을 뺀다 — 그 값은 `version`과 같은 사실이고, **한 사실이 두
+ * 자리에 있으면 다음 사람이 어느 쪽을 믿을지 고르게 된다.**
+ */
+export function bootedDistribution():
+  { version: string; packages: Readonly<Record<string, string>> } | undefined {
+  if (booted === null) return undefined
+  const packages: Record<string, string> = {}
+  for (const [name, value] of Object.entries(booted.versions)) {
+    if (name !== 'pyodide') packages[name] = value
+  }
+  return { version: booted.version, packages }
+}
 
 /**
  * 학습 전에 엔진을 준비한다. **이미 준비됐으면 상태만 알리고 곧장 돌아온다.**
@@ -195,23 +256,37 @@ let booting: Promise<Boot> | null = null
 export async function prepare(
   onState?: (state: EngineState, fraction?: number) => void,
   /**
+   * 부르는 배포판. **파일이 말하는 것이다** — 재실행 대조가 준다(`ml/reproduce.ts`).
+   *
+   * 없거나 모양이 아니면 못 박은 것을 쓴다. 새 학습은 늘 이 자리가 비어 있다.
+   */
+  wanted?: string,
+  /**
    * 띄우는 일 자체. **검사가 가짜를 넣으려고 있다** — 진짜는 27.3MB를 받으므로
    * 여기서 도는 것은 **상태의 순서와 실패의 모양**뿐이어야 한다.
    *
    * 앱은 이 인자를 안 준다 (`ml/engines/index.ts`가 `prepare` 하나만 등록한다).
    */
-  boot: (onState?: (state: EngineState) => void) => Promise<Boot> = bootPyodide,
+  boot: (onState?: (state: EngineState) => void, version?: string) => Promise<Boot> = bootPyodide,
 ): Promise<void> {
   if (booting !== null) {
-    // **이미 떠 있다.** 그래도 상태는 알린다 — 화면이 이 run에서도 같은 순서를 본다.
+    /**
+     * **이미 떠 있다.** 그래도 상태는 알린다 — 화면이 이 run에서도 같은 순서를 본다.
+     *
+     * **부른 배포판이 달라도 다시 안 띄운다.** 워커 하나에 파이썬은 하나이고, 한 실험의
+     * run들은 같은 세션에서 만들어져 같은 배포판을 말한다. 그래도 어긋날 수 있는데, 그때
+     * 답은 **뜬 것을 파일에 적는 것**이다 — 부르는 쪽이 둘을 견주어 말한다
+     * (`views/inspect/ReproducePanel.vue`).
+     */
     onState?.('ready')
     await booting
     return
   }
+  const asked = distributionVersion(wanted) ?? PYODIDE_VERSION
   onState?.('downloading')
-  booting = boot(onState)
+  booting = attempt(boot, asked, onState)
   try {
-    await booting
+    booted = await booting
   } catch (error) {
     // **실패를 기억하지 않는다.** 다음 학습은 다시 받아 본다.
     booting = null
@@ -220,7 +295,30 @@ export async function prepare(
   onState?.('ready')
 }
 
+/**
+ * 부른 배포판으로 띄우고, **안 되면 못 박은 것으로 한 번 더.**
+ *
+ * 원본이 옛 배포판을 영원히 서빙한다는 보장이 없고, 그때 교사에게 *"이 파일은 대조할 수
+ * 없습니다"*라고 말하는 것은 **파일이 멀쩡한데 우리 사정으로 거절하는 것**이다. 다른
+ * 배포판으로라도 돌리고 **그 사실을 말하는 편**이 낫다 (결정문의 넷째 조항).
+ *
+ * **못 박은 것을 부른 경우에는 다시 안 해 본다** — 같은 주소를 두 번 부르는 것뿐이다.
+ */
+async function attempt(
+  boot: (onState?: (state: EngineState) => void, version?: string) => Promise<Boot>,
+  asked: string,
+  onState?: (state: EngineState) => void,
+): Promise<Boot> {
+  try {
+    return await boot(onState, asked)
+  } catch (error) {
+    if (asked === PYODIDE_VERSION) throw error
+    return await boot(onState, PYODIDE_VERSION)
+  }
+}
+
 /** 테스트가 상태를 초기화할 때. 앱에서는 쓰지 않는다. */
 export function resetPyodideRuntime(): void {
   booting = null
+  booted = null
 }

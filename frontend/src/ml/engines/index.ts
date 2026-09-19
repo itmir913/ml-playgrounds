@@ -24,7 +24,12 @@ import {
   parameters as mljsParameters,
   resolve as mljsResolve,
 } from './mljs'
-import { prepare as pyodidePrepare } from './pyodide-runtime'
+import {
+  PYODIDE_VERSION,
+  bootedDistribution,
+  distributionVersion,
+  prepare as pyodidePrepare,
+} from './pyodide-runtime'
 import {
   PYODIDE_SKLEARN_ALGORITHMS,
   PYODIDE_SKLEARN_ENGINE,
@@ -100,7 +105,26 @@ export interface TrainingEngine {
    * **`RuntimeSpec.preparation`과 짝이다.** 그쪽은 *"무엇이 드는가"*의 선언이고 이쪽은
    * 그것을 실제로 하는 코드다. 둘이 어긋나면 `tests/pyodide-runtime.spec.ts`가 운다.
    */
-  prepare?(onState?: (state: EngineState, fraction?: number) => void): Promise<void>
+  prepare?(
+    onState?: (state: EngineState, fraction?: number) => void,
+    /** 파일이 말하는 배포판. **재실행 대조만 준다** (`ml/reproduce.ts`). */
+    version?: string,
+  ): Promise<void>
+  /**
+   * **띄우고 나서 실제로 무엇이 떴는가.** 없으면 위 `engine`이 그대로 답이다.
+   *
+   * 이 값이 `run.engine`에 적힌다 — 부른 배포판과 뜬 배포판이 갈릴 수 있고(원본이 옛
+   * 배포판을 더 안 서빙할 때), **파일에는 뜬 것이 적혀야 한다.**
+   */
+  describe?(): { version: string; packages?: Readonly<Record<string, string>> } | undefined
+  /**
+   * 파일에 적힌 버전을 이 엔진이 감당할 수 있는가. **없으면 정확히 같아야 한다.**
+   *
+   * **둘은 다른 종류의 수다.** 순수 JS의 `version`은 *우리 코드*의 판이라 다른 판을 흉내
+   * 낼 수 없고, sklearn의 `version`은 *받아 오는 배포판*의 이름이라 받으면 된다. 그래서
+   * 여기서 갈리고, 등록부 밖에서 이 사실을 아는 코드는 없다.
+   */
+  acceptsVersion?(version: string): boolean
 }
 
 /**
@@ -123,7 +147,16 @@ export const ENGINES: readonly TrainingEngine[] = [
   },
   {
     runtimeId: 'pyodide-sklearn',
-    engine: PYODIDE_SKLEARN_ENGINE,
+    /**
+     * **버전은 배포판 이름이다** (2026-09-19, 결정문의 넷째 조항). 한때 `'1'`이었는데,
+     * 그러면 **파일이 어느 sklearn으로 만들어졌는지를 말하지 않아** 재실행 대조가 언제나
+     * 오늘 것으로 돈다.
+     *
+     * **어댑터가 아니라 여기서 붙인다.** 배포판을 아는 것은 띄우는 쪽(`pyodide-runtime.ts`)
+     * 이고, 어댑터가 그쪽을 들여오면 **순환 임포트**가 된다 — 띄우는 쪽이 어댑터의
+     * `setPyodide`를 부르기 때문이다.
+     */
+    engine: { ...PYODIDE_SKLEARN_ENGINE, version: PYODIDE_VERSION },
     algorithms: PYODIDE_SKLEARN_ALGORITHMS,
     parameters: pyodideParameters,
     resolve: pyodideResolve,
@@ -131,6 +164,9 @@ export const ENGINES: readonly TrainingEngine[] = [
     // **27.3MB를 원본에서 받고 시동 7.7초를 낸다.** 학습 워커가 학습마다 새로 뜨므로
     // 이 값도 학습마다다 (`pyodide-runtime.ts`).
     prepare: pyodidePrepare,
+    describe: bootedDistribution,
+    // **배포판 이름이면 받아 온다.** 정확히 같을 필요가 없는 유일한 엔진이다.
+    acceptsVersion: (version) => distributionVersion(version) !== null,
   },
 ]
 

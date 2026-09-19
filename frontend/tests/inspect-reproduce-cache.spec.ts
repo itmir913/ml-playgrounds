@@ -17,6 +17,8 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createPinia, setActivePinia } from 'pinia'
+
 import { MLJS_ENGINE } from '../src/ml/engines/mljs'
 import { i18n, setLocale } from '../src/i18n'
 import type { Experiment } from '../src/project/schema'
@@ -79,6 +81,8 @@ function verdicts(panel: ReturnType<typeof mountPanel>): string[] {
 describe('대조 판정은 실험을 따라간다', () => {
   beforeEach(() => {
     setLocale('ko')
+    // **스토어가 있어야 판이 뜬다** — 대조 판이 알림 스토어를 쓴다(엔진 판이 갈렸을 때).
+    setActivePinia(createPinia())
   })
 
   it('실험을 바꾸면 앞 실험의 판정이 그 자리에 안 남는다', async () => {

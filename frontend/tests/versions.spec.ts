@@ -34,6 +34,7 @@ import { describe, expect, it } from 'vitest'
 import { NEURAL_PARALLEL_CHUNK_ROWS } from '../src/limits'
 import { ENGINES } from '../src/ml/engines'
 import { chunksOf } from '../src/ml/engines/neural'
+import { PYODIDE_VERSION } from '../src/ml/engines/pyodide-runtime'
 import { SUPPORTED_MODEL_FORMATS } from '../src/ml/models'
 import { FORMAT_VERSION } from '../src/project/schema'
 import { DB_VERSION } from '../src/project/storage'
@@ -43,11 +44,18 @@ import { DB_VERSION } from '../src/project/storage'
  *
  * `mljs`가 `'3'`인 사연은 파일 머리말에 있다 — 신경망 기울기 합산의 정본이 고정 조각
  * 접기로 바뀌었다 (2026-09-04, open-decisions.md "학습을 코어로 가른다 — 결과는 코어
- * 수와 무관하다". 코드 소유자 지시). 나머지는 전부 `'1'`이고 그대로 둔다.
+ * 수와 무관하다". 코드 소유자 지시).
+ *
+ * **`pyodide-sklearn`은 종류가 다른 수다** (2026-09-19, 코드 소유자 지시). 한때 `'1'`이라
+ * 우리 코드의 판을 뜻했는데, 그러면 **파일이 어느 sklearn으로 만들어졌는지를 말하지 않아**
+ * 재실행 대조가 언제나 오늘 판으로 돈다. 이제 이 칸은 **받아 오는 Pyodide 배포판의
+ * 이름**이고(`PYODIDE_VERSION`), 그래서 **배포판을 올리면 이 값도 따라 올라간다** —
+ * 그건 지시 없는 이동이 아니라 못을 옮긴 결과다. 못은 한 곳이므로 여기서 베끼지 않고
+ * 그 상수를 그대로 읽는다.
  */
 const PINNED_ENGINES: Readonly<Record<string, string>> = {
   mljs: '3',
-  'pyodide-sklearn': '1',
+  'pyodide-sklearn': PYODIDE_VERSION,
 }
 
 /**

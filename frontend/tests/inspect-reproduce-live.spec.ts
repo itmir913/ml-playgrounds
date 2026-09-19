@@ -17,8 +17,11 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createPinia, setActivePinia } from 'pinia'
+
 import { ClientError } from '../src/errors'
 import { MLJS_ENGINE } from '../src/ml/engines/mljs'
+import { useToastStore } from '../src/stores/toasts'
 import { i18n, setLocale } from '../src/i18n'
 import type { Experiment, Run } from '../src/project/schema'
 
@@ -106,6 +109,8 @@ const STOP = () => i18n.global.t('train.stop')
 describe('대조가 도는 동안', () => {
   beforeEach(() => {
     setLocale('ko')
+    // **스토어가 있어야 판이 뜬다** — 대조 판이 알림 스토어를 쓴다(엔진 판이 갈렸을 때).
+    setActivePinia(createPinia())
     worker.resolve = null
     worker.reject = null
     worker.report = null
@@ -214,6 +219,46 @@ describe('대조가 도는 동안', () => {
     worker.resolve?.({ experiment: two })
     await flushPromises()
     expect(verdicts(panel), 'the finished experiment replaces, not appends').toHaveLength(2)
+    panel.unmount()
+  })
+
+  /**
+   * **파일이 말한 판으로 못 돌았으면 말한다** (2026-09-19, 결정문의 넷째 조항).
+   *
+   * 원본이 그 배포판을 더 안 서빙하면 지금 판으로 돌리는데, **그 사실을 안 말하면 교사가
+   * 보는 차이가 학생의 것으로 읽힌다.** 여기서 재는 것은 *둘을 견주어 말하는가*이고,
+   * 통로를 따로 안 만든 이유가 그것이다 — 파일의 run과 다시 돈 run이 각자 자기 엔진을
+   * 적고 있다.
+   */
+  it('돈 판이 파일의 판과 다르면 알림이 뜬다', async () => {
+    const toasts = useToastStore()
+    const made = claim('experiment-pinned')
+    const panel = await started(made)
+
+    const elsewhere: Experiment = {
+      ...made,
+      runs: [{ ...made.runs[0]!, engine: { kind: MLJS_ENGINE.kind, version: '300.1.2' } }],
+    }
+    worker.resolve?.({ experiment: elsewhere })
+    await flushPromises()
+
+    expect(toasts.items.map((one) => one.key)).toEqual(['inspect.engineVersionFallback'])
+    expect(toasts.items[0]?.params).toEqual({
+      stored: MLJS_ENGINE.version,
+      used: '300.1.2',
+    })
+    panel.unmount()
+  })
+
+  it('같은 판으로 돌았으면 아무 말도 안 한다', async () => {
+    const toasts = useToastStore()
+    const made = claim('experiment-same')
+    const panel = await started(made)
+
+    worker.resolve?.({ experiment: made })
+    await flushPromises()
+
+    expect(toasts.items).toEqual([])
     panel.unmount()
   })
 

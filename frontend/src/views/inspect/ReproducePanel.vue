@@ -42,6 +42,7 @@ import { describe as describeEstimate, estimateMs, type Estimate } from '@/ml/es
 import { estimatedFeatureWidth } from '@/ml/preprocess'
 import { calibrateDevice, train } from '@/ml/worker/client'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
+import { useToastStore } from '@/stores/toasts'
 import type { Dataset } from '@/ml/preprocess'
 import { DATA_SCHEMAS, type DataType, type Experiment } from '@/project/schema'
 
@@ -299,6 +300,7 @@ async function reproduce(): Promise<void> {
     // 우리가 멈춘 일을 파일의 사정으로 말하는 것이 된다. 온 것은 이미 앉아 있다.
     if (alive() && stopped !== target) {
       seat(byExperiment.value, target, compareExperiments(claim, experiment))
+      announceEngineChange(claim, experiment)
     }
   } catch (error) {
     // **끊은 것은 실패가 아니다.** 멈추기도, 떠나기도 `JOB_CANCELLED`로 오고 그때까지
@@ -336,6 +338,33 @@ function stop(): void {
  * 읽는 값이라, 하나로 합치면 끝나는 순간 줄이 사라진다.
  */
 const halted = ref<string | null>(null)
+
+const toasts = useToastStore()
+
+/**
+ * **파일이 말한 배포판으로 못 돌았으면 말한다** (2026-09-19, 결정문의 넷째 조항).
+ *
+ * 무거운 엔진은 받아 오는 물건이라 파일이 *어느 판으로 만들어졌는지*를 적고 대조는 그
+ * 판을 받는다(`ml/reproduce.ts`의 `enginePinsOf`). 원본이 그 판을 더 안 서빙하면 지금
+ * 판으로 돌리는데, **그 사실을 안 말하면 교사가 보는 차이가 학생의 것으로 읽힌다.**
+ *
+ * **통로를 따로 안 만든다.** 파일의 run과 다시 돈 run이 각자 자기 엔진을 적고 있으므로,
+ * 둘을 견주는 것으로 충분하다 — 워커가 보내 주는 메시지 하나를 더 두면 그 메시지가
+ * 어긋날 자리가 하나 더 생긴다.
+ */
+function announceEngineChange(claim: Experiment, again: Experiment): void {
+  for (const [index, fresh] of again.runs.entries()) {
+    const stored = claim.runs[index]?.engine
+    if (!stored || !fresh.engine) continue
+    if (stored.kind !== fresh.engine.kind || stored.version === fresh.engine.version) continue
+    toasts.push('caution', 'inspect.engineVersionFallback', {
+      stored: stored.version,
+      used: fresh.engine.version,
+    })
+    // **한 번만 말한다.** 한 실험의 run들은 같은 엔진으로 돌므로 같은 문장이 반복된다.
+    return
+  }
+}
 
 /** 맵에 앉히고 화면에 알린다. **`ref`가 든 `Map`은 넣는 것만으로는 안 깨어난다.** */
 function seat<Value>(map: Map<string, Value>, key: string, value: Value): void {

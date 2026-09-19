@@ -15,6 +15,8 @@
 import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { createPinia, setActivePinia } from 'pinia'
+
 import { i18n, setLocale } from '../src/i18n'
 import IntegrityPanel from '../src/views/inspect/IntegrityPanel.vue'
 import PortfolioPanel from '../src/views/inspect/PortfolioPanel.vue'
@@ -43,6 +45,8 @@ const PORTFOLIO = () => i18n.global.t('inspect.portfolio')
 describe('열람 모드', () => {
   beforeEach(() => {
     setLocale('ko')
+    // **스토어가 있어야 판이 뜬다** — 대조 판이 알림 스토어를 쓴다(엔진 판이 갈렸을 때).
+    setActivePinia(createPinia())
   })
 
   /** 열린 제출물 하나. **항목이 하나면 저절로 골라진다.** */

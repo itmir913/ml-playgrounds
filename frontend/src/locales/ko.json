@@ -40,6 +40,7 @@
     "reproducing": "대조 중 ({done}/{total})",
     "preparingDownload": "scikit-learn을 다운로드하는 중입니다",
     "preparingStart": "scikit-learn을 준비하는 중입니다",
+    "engineVersionFallback": "이 실험을 만든 scikit-learn 배포판을 받을 수 없어 지금 배포판으로 대조했습니다 (파일 {stored} · 대조 {used}).",
     "reproduceStopped": "멈춤 ({done}/{total})",
     "verdict": "판정",
     "difference": "차이",
