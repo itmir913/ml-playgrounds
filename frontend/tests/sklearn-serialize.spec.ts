@@ -30,6 +30,8 @@ import {
   sklearnTreeModel,
   splitBoundary,
   type SklearnForestDump,
+  type SklearnLinearDump,
+  type SklearnNaiveBayesDump,
 } from '../src/ml/engines/pyodide-serialize'
 import { loadModel, type ModelFile } from '../src/ml/models'
 import { fitPreprocessor, transform, type Dataset } from '../src/ml/preprocess'
@@ -38,7 +40,15 @@ const FIXTURES = path.join(__dirname, 'fixtures', 'sklearn')
 
 /** 픽스처가 알고리즘 하나에 대해 담고 있는 것 중 **이 파일이 읽는 것**. */
 interface Recorded {
-  readonly dump?: SklearnForestDump
+  /**
+   * **어댑터가 꺼낸 것 그대로다** (2026-09-19 R30 C-3). 픽스처 생성기가 `pyodide-sklearn.ts`의
+   * `dump` 문자열을 읽어 진짜 sklearn에 먹여 만든다(`scripts/adapter_python.py`) — 그러니
+   * 여기 담긴 모양은 **앱이 브라우저에서 만드는 바로 그 모양**이다.
+   *
+   * 타입이 `unknown`인 이유는 알고리즘마다 다른 사전이기 때문이고, 어느 모양인지는
+   * 아래 `CASES`가 안다.
+   */
+  readonly dump?: unknown
   /** sklearn 자신의 예측. **전 행이 굳어 있다.** */
   readonly dumpLabels?: readonly string[]
   /** sklearn 자신의 예측 중 **판정 가능한 행만.** `null`은 규약이 안 정해진 자리다. */
@@ -130,7 +140,11 @@ const CASES: readonly SerializeCase[] = [
     algorithm: 'decision_tree',
     build: (recorded, prepared) =>
       recorded.dump
-        ? sklearnTreeModel(recorded.dump, prepared.classes, prepared.featureCount)
+        ? sklearnTreeModel(
+            recorded.dump as SklearnForestDump,
+            prepared.classes,
+            prepared.featureCount,
+          )
         : null,
     expected: (recorded) => recorded.dumpLabels,
   },
@@ -138,11 +152,7 @@ const CASES: readonly SerializeCase[] = [
     algorithm: 'naive_bayes',
     build: (recorded, prepared) =>
       sklearnNaiveBayesModel(
-        {
-          theta: recorded.params?.theta ?? [],
-          var: recorded.params?.var ?? [],
-          logPriors: recorded.params?.classLogPrior ?? [],
-        },
+        recorded.dump as SklearnNaiveBayesDump,
         prepared.classes,
         prepared.featureCount,
       ),
@@ -152,7 +162,7 @@ const CASES: readonly SerializeCase[] = [
     algorithm: 'logistic_regression',
     build: (recorded, prepared) =>
       sklearnLinearModel(
-        { coef: recorded.params?.coef ?? [], intercept: recorded.params?.intercept ?? [] },
+        recorded.dump as SklearnLinearDump,
         prepared.classes,
         prepared.featureCount,
       ),
@@ -161,11 +171,7 @@ const CASES: readonly SerializeCase[] = [
   {
     algorithm: 'svm',
     build: (recorded, prepared) =>
-      sklearnSvmModel(
-        { coef: recorded.params?.coef ?? [], intercept: recorded.params?.intercept ?? [] },
-        prepared.classes,
-        prepared.featureCount,
-      ),
+      sklearnSvmModel(recorded.dump as SklearnLinearDump, prepared.classes, prepared.featureCount),
     expected: (recorded) => recorded.dumpLabels,
   },
   {
@@ -618,7 +624,11 @@ describe('포레스트를 안 담는 이유가 수로 남아 있다', () => {
       if (!found?.dump || !found.dumpLabels) continue
 
       const prepared = preparedFor(name, entry)
-      const model = sklearnTreeModel(found.dump, prepared.classes, prepared.featureCount)
+      const model = sklearnTreeModel(
+        found.dump as SklearnForestDump,
+        prepared.classes,
+        prepared.featureCount,
+      )
       expect(model, `${name}: the dump still maps onto our format`).not.toBeNull()
       if (model === null) continue
 

@@ -39,17 +39,20 @@ import warnings
 from pathlib import Path
 from typing import Any
 
+import adapter_python
 import numpy as np
 import sklearn
-from sklearn.exceptions import ConvergenceWarning
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import accuracy_score, r2_score
 from sklearn.naive_bayes import GaussianNB
-from sklearn.neural_network import MLPClassifier, MLPRegressor
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier, MLPRegressor
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / "frontend" / "tests" / "fixtures" / "sklearn"
@@ -163,39 +166,33 @@ def targets_for(
     return train, test
 
 
-
 def tree_dump(tree: Any) -> dict[str, Any]:
-    """나무 하나를 그대로 받아쓴다. **판단이 하나도 없다.**
+    """나무 하나를 **어댑터의 조각으로** 받아쓴다.
 
-    **갈림값을 여기서 옮기지 않는다** (2026-09-19). sklearn은 `x <= t`면 왼쪽이고 단정도로
-    비교하는데, 그것을 우리 해석기의 규칙으로 옮기는 식이 한때 여기와 앱의 어댑터에 **두
-    벌**로 있었다. 어댑터 쪽은 27.3MB를 받아야 돌아서 **어떤 검사도 지나가지 않았고**,
-    둘이 같다는 것을 지키는 것은 주석뿐이었다.
-
-    이제 옮기는 것은 `ml/engines/pyodide-serialize.ts`의 `splitBoundary` 하나이고,
-    여기서 굳히는 것은 **sklearn이 말한 값 그대로**다. 그래서 `sklearn-serialize.spec.ts`의
-    줄 대조가 **옮기는 코드를 실제로 지나간다** - 앱이 쓰는 바로 그 코드다.
+    앱이 Pyodide에 먹이는 `_mlpx_tree`를 TS 소스에서 읽어 그대로 돌린다
+    (`scripts/adapter_python.py`). 한때 여기 그 함수의 **복사본**이 있었고, 어댑터 쪽은
+    27.3MB를 받아야 돌아서 **어떤 검사도 지나가지 않았다** - 둘이 갈려도 아무도 안 울었다
+    (2026-09-19 R30 C-3).
     """
-    return {
-        "left": tree.children_left.tolist(),
-        "right": tree.children_right.tolist(),
-        "feature": tree.feature.tolist(),
-        "threshold": tree.threshold.tolist(),
-        "leafClass": tree.value[:, 0, :].argmax(axis=1).tolist(),
-    }
+    scope: dict[str, Any] = {"_np": np}
+    exec(adapter_python.tree_helper(), scope)  # noqa: S102
+    return dict(scope["_mlpx_tree"](tree))
 
 
 def model_dump(algorithm: str, model: Any) -> dict[str, Any] | None:
-    """직렬화기가 있는 알고리즘만 받아쓴다. 없으면 `None`이고 그때는 안 굳힌다."""
+    """어댑터가 그 알고리즘에서 꺼내는 것 **그대로**. 꺼내는 칸이 없으면 `None`이다.
+
+    **랜덤 포레스트만 손으로 짠다** - 안 담기로 한 알고리즘이라 어댑터에 `dump` 칸이 없는데
+    (`open-decisions.md` "배운 것을 담는다 — 여덟 중 일곱"), 갈리는 줄을 세려면 나무가
+    필요하다. 그 나무도 **어댑터의 `_mlpx_tree`가 만든다.**
+    """
     classes = [str(one) for one in getattr(model, "classes_", [])]
-    if algorithm == "decision_tree":
-        return {"trees": [tree_dump(model.tree_)], "classes": classes}
     if algorithm == "random_forest":
         return {
             "trees": [tree_dump(one.tree_) for one in model.estimators_],
             "classes": classes,
         }
-    return None
+    return adapter_python.dumped(algorithm, model, classes)
 
 
 def expectations_for(name: str, entry: dict[str, Any]) -> dict[str, Any]:
@@ -414,7 +411,19 @@ SOLVER_ABS = 5e-3
 SOLVER_REL = 5e-3
 
 
-def close(a: Any, b: Any, rel: float = 1e-9, atol: float = 1e-12, path: str = "") -> bool:
+def solver_made(key: str, value: Any) -> bool:
+    """이 칸의 수를 **반복 솔버가 걸어가서** 냈는가. 그러면 자가 다르다.
+
+    `params`와 `dump` 둘 다다 - 어댑터가 꺼내는 `dump`에도 로지스틱·SVM의 `coef`가 그대로
+    들어 있고(2026-09-19 R30 C-3에서 어댑터의 조각을 직접 돌리게 됐다), **거기만 1e-9으로
+    재면 리눅스 CI가 `Stale fixtures`로 선다** - 이미 한 번 그랬다.
+    """
+    return key in {"params", "dump"} and isinstance(value, dict) and "coef" in value
+
+
+def close(
+    a: Any, b: Any, rel: float = 1e-9, atol: float = 1e-12, path: str = ""
+) -> bool:
     if isinstance(a, float) or isinstance(b, float):
         if bool(np.isclose(float(a), float(b), rtol=rel, atol=atol)):
             return True
@@ -438,8 +447,8 @@ def close(a: Any, b: Any, rel: float = 1e-9, atol: float = 1e-12, path: str = ""
             close(
                 a[k],
                 b[k],
-                SOLVER_REL if k == "params" and "coef" in (a[k] or {}) else rel,
-                SOLVER_ABS if k == "params" and "coef" in (a[k] or {}) else atol,
+                SOLVER_REL if solver_made(k, a[k]) else rel,
+                SOLVER_ABS if solver_made(k, a[k]) else atol,
                 f"{path}.{k}" if path else k,
             )
             for k in a
@@ -473,7 +482,9 @@ def main() -> int:
     if check:
         if stale:
             print(f"Stale fixtures: {', '.join(stale)}")
-            print("Regenerate with: uv run --project backend python scripts/generate_sklearn_fixtures.py")
+            print(
+                "Regenerate with: uv run --project backend python scripts/generate_sklearn_fixtures.py"
+            )
             return 1
         print(f"Fixtures match a fresh run of sklearn {sklearn.__version__}.")
         return 0
