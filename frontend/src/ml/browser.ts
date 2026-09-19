@@ -3,7 +3,7 @@
  *
  * 엔진은 둘이다 - 순수 JS가 기본이고 scikit-learn(Pyodide)은 학생이 고르는 선택지다
  * (docs/open-decisions.md "브라우저 학습 엔진은 둘 다 간다"). 실측으로 확인된 것 -
- * 순수 JS는 gzip 25KB에 시동이 없고, scikit-learn은 27.3MB에 시동만 7.7초다.
+ * 순수 JS는 gzip 25KB에 시동이 없고, scikit-learn은 27.3MB에 시동만 8.7초다.
  * **[학습하기]가 그 run 앞에서 받는다** — 켜는 자리를 따로 두지 않고 비용을 미리 말한다
  * (같은 문서 "scikit-learn(Pyodide)은 원본에서 받고, 시동은 학습마다 낸다").
  *

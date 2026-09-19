@@ -89,7 +89,7 @@ export type WorkerMessage =
    * 무거운 엔진을 띄우는 중이다 (`ml/engines/pyodide-runtime.ts`).
    *
    * **`started`와 `progress` 사이에 온다.** 학생이 고른 모델이 scikit-learn이면 그
-   * run은 **7.7초 동안 아무 진행도 안 하는데**, 그 시간을 `학습 중`으로 덮으면 학생은
+   * run은 **8.7초 동안 아무 진행도 안 하는데**, 그 시간을 `학습 중`으로 덮으면 학생은
    * 멈춘 줄 안다. 임베딩 워커가 같은 이유로 같은 메시지를 갖는다
    * (`ml/embed/protocol.ts`).
    *

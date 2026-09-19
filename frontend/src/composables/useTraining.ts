@@ -190,7 +190,7 @@ export function useTraining(createWorker: () => TrainWorker, options?: TrainingO
          * `started` 뒤에 오므로 그 자리를 여기서 안다 (`ml/worker/client.ts`).
          *
          * **시계를 다시 맞춘다.** 아래 `begunAt`은 기기 배수를 내려고 재는 값이고
-         * (`ml/calibration.ts`), 그 배수가 재려는 것은 **계산 속도**다. 시동 7.7초가
+         * (`ml/calibration.ts`), 그 배수가 재려는 것은 **계산 속도**다. 시동 8.7초가
          * 섞이면 그 기기가 여덟 배 느린 것으로 기록된다. **학생이 기다리는 시간은
          * 여전히 둘의 합이고, 그것은 `startedAt`이 잰다.**
          */

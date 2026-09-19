@@ -136,7 +136,7 @@ const runtimeChoices = computed<Choice[]>(() =>
  * **지금 고른 실행 방법이 무엇을 요구하는가.** 없으면 `null`이고, 그때는 줄 자체가 없다.
  *
  * **잠그지 않는 대신 말한다** (`open-decisions.md` "scikit-learn(Pyodide)은 원본에서 받고,
- * 시동은 학습마다 낸다"). 27.3MB와 8초는 학생이 **누르기 전에** 알아야 하는 것이고,
+ * 시동은 학습마다 낸다"). 27.3MB와 9초는 학생이 **누르기 전에** 알아야 하는 것이고,
  * 잠긴 카드로 알리면 그 문이 열리지 않는다.
  *
  * **수는 등록부에서 온다** (`AxisChoice.preparation`). 문구에 적어 두면 다시 잰 날
@@ -147,7 +147,7 @@ const preparation = computed(() => {
   if (found === undefined) return null
   return t('train.engineCost', {
     size: formatBytes(locale.value, found.bytes),
-    // **올림이다.** 7.7초를 `7초`라고 말하면 학생이 기다리는 시간이 그보다 길다.
+    // **올림이다.** 8.7초를 `7초`라고 말하면 학생이 기다리는 시간이 그보다 길다.
     seconds: Math.ceil(found.ms / 1000),
   })
 })

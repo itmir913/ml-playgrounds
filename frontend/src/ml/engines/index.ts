@@ -95,7 +95,7 @@ export interface TrainingEngine {
    * 있고 시동이 0초다.
    *
    * **`fit` 안이 아니라 밖에 있는 이유는 화면이 그 시간을 알아야 하기 때문이다.**
-   * scikit-learn은 실측 7.7초이고, 그동안 진행 표시가 `학습 중`으로 서 있으면 학생은
+   * scikit-learn은 실측 8.7초이고, 그동안 진행 표시가 `학습 중`으로 서 있으면 학생은
    * 멈춘 줄 안다. 상태는 `downloading` → `downloaded` → `ready`로 흐른다
    * (`ml/backend.ts`의 `ENGINE_STATES`).
    *
@@ -131,7 +131,7 @@ export interface TrainingEngine {
  * V3 엔진. **순서가 기본값 우선순위다** — 앞에 있는 것부터 고른다 (ml/backend.ts).
  *
  * 순수 JS가 맨 앞인 이유는 gzip 25KB에 시동이 없기 때문이다. scikit-learn은 27.3MB에
- * 시동 7.7초라 기본값이 될 수 없다 (open-decisions.md "브라우저 학습 엔진은 둘 다 간다").
+ * 시동 8.7초라 기본값이 될 수 없다 (open-decisions.md "브라우저 학습 엔진은 둘 다 간다").
  *
  * **여기 항목을 추가하면 실험이 따라온다.** experiment.ts가 `engineFor(runtimeId)`로
  * 이 배열을 보고, runtimeOptions가 `engineFor`로 존재 여부를 확인한다.
@@ -161,7 +161,7 @@ export const ENGINES: readonly TrainingEngine[] = [
     parameters: pyodideParameters,
     resolve: pyodideResolve,
     fit: pyodideFit,
-    // **27.3MB를 원본에서 받고 시동 7.7초를 낸다.** 학습 워커가 학습마다 새로 뜨므로
+    // **27.3MB를 원본에서 받고 시동 8.7초를 낸다.** 학습 워커가 학습마다 새로 뜨므로
     // 이 값도 학습마다다 (`pyodide-runtime.ts`).
     prepare: pyodidePrepare,
     describe: bootedDistribution,

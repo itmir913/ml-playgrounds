@@ -6,7 +6,7 @@
  *
  * ## 번들에 아무것도 넣지 않는다
  *
- * Pyodide는 27.3MB + 시동 7.7초다 (`architecture.md` §7.4). 이 모듈은 번들에는
+ * Pyodide는 27.3MB + 시동 8.7초다 (`architecture.md` §7.4). 이 모듈은 번들에는
  * **어댑터 코드만** 넣고, Pyodide 자체는 **학습이 시작될 때** 원본에서 받는다 —
  * `prepare()`가 `fit()` 바로 앞에서 그것을 한다(`pyodide-runtime.ts`).
  *

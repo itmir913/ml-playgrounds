@@ -40,7 +40,7 @@ export type ServerStatus = 'unknown' | 'available' | 'unavailable'
  * 무거운 엔진의 준비 상태. **네 단계다.**
  *
  * 'downloaded'가 따로 있는 이유 - 다운로드는 캐시에 남지만 **시동은 학습할 때마다
- * 다시 든다**(학습 워커가 학습마다 새로 뜬다). scikit-learn은 실측 7.7초이고 그중
+ * 다시 든다**(학습 워커가 학습마다 새로 뜬다). scikit-learn은 실측 8.7초이고 그중
  * 다운로드는 두 번째부터 0초다. 셋으로 줄이면 학생이 받는 동안과 세우는 동안 **같은
  * 문장**을 보게 되고, 회선이 느린 교실에서는 그 둘의 길이가 자릿수로 다르다
  * (open-decisions.md "scikit-learn(Pyodide)은 원본에서 받고, 시동은 학습마다 낸다").
@@ -199,7 +199,7 @@ export const FALLBACK_RUNTIME_ID: RuntimeId = 'mljs'
  * V1의 실행 방법. **순서가 곧 기본값 우선순위다** - 앞에 있는 것부터 고른다.
  *
  * 순수 JS가 맨 앞인 이유는 gzip 25KB에 시동이 없기 때문이다. scikit-learn은 27.3MB에
- * 시동 7.7초라 기본값이 될 수 없다 (open-decisions.md "브라우저 학습 엔진은 둘 다 간다").
+ * 시동 8.7초라 기본값이 될 수 없다 (open-decisions.md "브라우저 학습 엔진은 둘 다 간다").
  *
  * **RUNTIME_IDS 값마다 한 줄이 있어야 한다** - 이름만 있고 명세가 없는 실행 방법은
  * 화면에서 통째로 사라진다. 타입은 이걸 못 잡으므로 검사가 본다 (§9.3.2).

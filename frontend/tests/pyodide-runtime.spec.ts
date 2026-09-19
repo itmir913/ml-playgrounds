@@ -7,12 +7,13 @@
  * 흐르는가**, **실패가 어떤 모양인가**.
  */
 
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it, beforeEach } from 'vitest'
 
 import { isClientError } from '../src/errors'
+import { PYODIDE_BOOT_MS } from '../src/limits'
 import type { EngineState } from '../src/ml/backend'
 import { ENGINES } from '../src/ml/engines'
 import {
@@ -28,7 +29,25 @@ import {
 } from '../src/ml/engines/pyodide-runtime'
 import { RUNTIMES as NOTICE_RUNTIMES } from '../scripts/notices'
 
-const ROOT = join(__dirname, '..')
+const ROOT = join(__dirname, '..', '..')
+
+/** 글자로 된 파일 전부. **숨은 자리를 안 만들려고 훑는다.** */
+function textFilesUnder(roots: readonly string[]): string[] {
+  const found: string[] = []
+  const walk = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name)
+      if (entry.isDirectory()) {
+        if (entry.name === 'node_modules' || entry.name === 'fixtures') continue
+        walk(path)
+      } else if (/\.(ts|vue|md|json)$/.test(entry.name)) {
+        found.push(path)
+      }
+    }
+  }
+  for (const root of roots) walk(root)
+  return found
+}
 
 /** 아무것도 안 받고 성공한 척한다. 재는 것은 순서이지 시간이 아니다. */
 const fakeBoot =
@@ -58,7 +77,7 @@ describe('버전 못은 한 말만 한다', () => {
    * 없으면 반드시 어긋난다 (`tests/backbones.spec.ts`가 백본에서 같은 일을 한다).
    */
   it('감시 스크립트가 같은 버전을 본다', () => {
-    const script = readFileSync(join(ROOT, 'scripts', 'fetch-pyodide.mjs'), 'utf-8')
+    const script = readFileSync(join(ROOT, 'frontend', 'scripts', 'fetch-pyodide.mjs'), 'utf-8')
     const said = /const VERSION = '([^']+)'/.exec(script)?.[1]
     expect(said, 'fetch-pyodide.mjs no longer declares VERSION').toBeDefined()
     expect(said).toBe(PYODIDE_VERSION)
@@ -79,6 +98,80 @@ describe('버전 못은 한 말만 한다', () => {
   it('받는 주소에 버전이 박혀 있다', () => {
     expect(PYODIDE_INDEX_URL).toContain(`/v${PYODIDE_VERSION}/`)
     expect(PYODIDE_INDEX_URL.endsWith('/')).toBe(true)
+  })
+
+  /**
+   * **시동 초를 베껴 적은 자리가 스무 곳이다** (2026-09-19).
+   *
+   * 값을 7.7에서 8.7로 옮기던 날 `7.7초`가 소스와 문서 스물두 파일에 서른일곱 번 적혀
+   * 있었다. **하나라도 안 고치면 그 파일이 학생에게 말하는 시간과 화면이 말하는 시간이
+   * 갈리고**, 그건 이 저장소에서 가장 위험한 입력인 *"유창하게 틀린 주석"*이다.
+   * 배포판 못을 세 곳에서 대조하는 위 검사와 같은 병, 같은 처방이다.
+   *
+   * **옛 값은 목록으로 통과시킨다.** 2026-08-04의 15.4초처럼 *"그때는 이랬다"*를 적은
+   * 문장은 지워야 할 거짓이 아니라 역사다. **목록에 없는 새 수를 적으면 여기서 운다** —
+   * 그때 할 일은 이 목록에 더하는 것이 아니라 **왜 다른 수를 적는지** 보는 것이다.
+   */
+  it('시동 초를 적은 자리가 전부 같은 수를 말한다', () => {
+    // 순수 JS의 0초와 2026-08-04의 옛 값(15.4 · 15). **둘 다 sklearn의 오늘이 아니다.**
+    const history = new Set([0, 15, 15.4])
+    const said = PYODIDE_BOOT_MS / 1000
+    const wrong: string[] = []
+    let counted = 0
+
+    for (const file of textFilesUnder([
+      join(ROOT, 'frontend', 'src'),
+      join(ROOT, 'frontend', 'tests'),
+      join(ROOT, 'docs'),
+    ])) {
+      // **감사 보고서는 그날의 기록이다.** 지난 라운드의 수를 오늘 값으로 고치면 그 보고서가
+      // 무엇을 잡았는지가 사라진다.
+      if (file.includes('audit')) continue
+      const text = readFileSync(file, 'utf-8')
+      for (const found of text.matchAll(/시동(?:만|이|에|도|은|의)?\s*(\d+(?:\.\d+)?)초/g)) {
+        counted += 1
+        const seconds = Number(found[1])
+        if (seconds === said || history.has(seconds)) continue
+        wrong.push(`${file.slice(ROOT.length + 1)}: ${seconds}초 (지금 값은 ${said}초)`)
+      }
+    }
+
+    // **그물의 크기를 센다** (R9 B-5). 표현이 바뀌어 하나도 안 걸리면 여기가 운다.
+    expect(counted, 'the boot figure must be found in prose').toBeGreaterThan(10)
+    expect(wrong).toEqual([])
+  })
+
+  /**
+   * **물려난 값이 아무 데도 안 남아 있다.**
+   *
+   * 위 검사는 `시동 N초` 꼴만 본다. 그런데 같은 수가 *"27.3MB와 8.7초는 누르기 전에"*처럼
+   * **`시동`이라는 낱말 없이** 적힌 자리도 있어서, 값을 옮기는 날 그런 문장이 조용히 옛 수로
+   * 남는다 — **실제로 그 모양이었다.** 그래서 물려난 수 자체를 금지한다.
+   *
+   * **값을 옮길 때 할 일이 여기 한 줄 더하는 것이다.** 그러면 이 검사가 남은 자리를 전부
+   * 찾아 준다. 옛 값을 역사로 적어야 하면 위 `history`처럼 여기서 빼고 **왜 남기는지**를
+   * 그 자리에 적어라.
+   *
+   * **이것도 못 잡는 것이 있다** — 물려난 적 없는 **새로운 틀린 수**를 `시동` 없이 적는 것.
+   * 그 자리는 사람이 본다 (`docs/rule-coverage.md`).
+   */
+  it('물려난 시동 값이 남아 있지 않다', () => {
+    // 2026-09-19에 7.7 → 8.7로 옮겼다. 15.4는 2026-08-04의 값이고 역사로 남긴다.
+    const retired = ['7.7초']
+    const wrong: string[] = []
+    for (const file of textFilesUnder([
+      join(ROOT, 'frontend', 'src'),
+      join(ROOT, 'frontend', 'tests'),
+      join(ROOT, 'docs'),
+    ])) {
+      // **자기 자신은 뺀다** — 물려난 값을 적어 두는 곳이 이 파일이다.
+      if (file.includes('audit') || file.endsWith('pyodide-runtime.spec.ts')) continue
+      const text = readFileSync(file, 'utf-8')
+      for (const gone of retired) {
+        if (text.includes(gone)) wrong.push(`${file.slice(ROOT.length + 1)}: ${gone}`)
+      }
+    }
+    expect(wrong).toEqual([])
   })
 
   /** 부르는 것은 sklearn 하나다. 나머지는 Pyodide가 따라 붙인다(실측으로 확인). */
@@ -103,7 +196,7 @@ describe('준비가 흐르는 순서', () => {
 
   /**
    * **두 번째부터는 다시 안 띄운다.** 실험 하나에 sklearn 모델이 셋이면 이 함수가 세 번
-   * 불리는데, 그때마다 7.7초를 다시 내면 **모델 셋짜리 실험이 23초를 시동에만 쓴다.**
+   * 불리는데, 그때마다 8.7초를 다시 내면 **모델 셋짜리 실험이 26초를 시동에만 쓴다.**
    */
   it('두 번째 부름은 다시 안 띄운다', async () => {
     let booted = 0

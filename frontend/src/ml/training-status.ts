@@ -64,7 +64,7 @@ export function withStarted(statuses: readonly ModelStatus[], index: number): Mo
  * 워커가 **무거운 엔진을 띄우는 중**이라고 말했다 (`ml/engines/pyodide-runtime.ts`).
  *
  * **`running`과 가르는 이유는 학생이 기다리는 대상이 다르기 때문이다.** scikit-learn은
- * 27.3MB를 받고 시동에 7.7초를 쓰는데, 그 동안 줄이 `학습 중`이면 **학생은 자기
+ * 27.3MB를 받고 시동에 8.7초를 쓰는데, 그 동안 줄이 `학습 중`이면 **학생은 자기
  * 데이터가 무겁다고 읽는다** — 그리고 다음번에 데이터를 줄인다.
  *
  * **`ready`가 오면 `running`으로 돌아간다.** 준비는 학습의 앞 국면이지 다른 일이 아니다.
