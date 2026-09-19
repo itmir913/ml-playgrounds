@@ -300,14 +300,8 @@ function bars(model: PredictableModel): ProbabilityBar[] {
           욱여넣으면 좁은 카드에서 아무 데서나 끊기고, 학생이 찾는 답이 눈에 안 띈다.
         -->
         <div class="flex flex-col gap-1">
-          <p class="font-bold">
-            {{
-              t('predict.modelName', {
-                algorithm: t(`algorithms.${model.run.algorithm}`),
-                runtime: t(whereTrainedKeyOf(model.run)),
-              })
-            }}
-          </p>
+          <p class="font-bold">{{ t(`algorithms.${model.run.algorithm}`) }}</p>
+          <p class="text-ink-soft">{{ t(whereTrainedKeyOf(model.run)) }}</p>
 
           <!--
             **실험 이름을 누르면 그 모델의 손잡이가 열린다.** 이 화면의 일이 "같은 값인데
