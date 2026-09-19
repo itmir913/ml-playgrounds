@@ -36,6 +36,7 @@ import type {
 import { algorithmOptions, type Algorithm, type AlgorithmOption } from './algorithms'
 import {
   reasonParams,
+  type EngineState,
   type RuntimeContext,
   type RuntimeSpec,
   type UnavailableReason,
@@ -153,6 +154,16 @@ export interface ExperimentOptions {
    */
   onPrelude?: (prelude: ExperimentPrelude) => void
   /**
+   * 무거운 엔진을 띄우는 동안 국면이 넘어갈 때마다 (`ml/engines/index.ts`의 `prepare`).
+   *
+   * **없으면 아무 데도 안 알린다.** 실물은 학습 워커만 준다 — 검사와 재실행 대조는
+   * 안 주고, 그래도 학습은 같은 답을 낸다(`pools`와 같은 자리다).
+   *
+   * **진행률이 아니라 상태다.** Pyodide는 받은 양을 안 알려 주므로 비율을 지어내지 않는다
+   * (`ml/engines/pyodide-runtime.ts`).
+   */
+  onPrepare?: (state: EngineState, fraction?: number) => void
+  /**
    * 볼 알고리즘 등록부. 없으면 진짜 등록부다.
    *
    * **검사가 가짜 표본을 넣으려고 있다** (`algorithmOptions`·`runtimeOptions`와 같은
@@ -160,6 +171,14 @@ export interface ExperimentOptions {
    * 아니라 오늘의 사실이라 그것만 보고 검사를 짜면 규칙이 안 지켜진다.
    */
   algorithms?: readonly Algorithm[]
+  /**
+   * 볼 엔진 등록부. 없으면 진짜 등록부다 (`algorithms`와 같은 자리, 같은 이유).
+   *
+   * **검사가 가짜를 넣으려고 있다.** 진짜 sklearn 엔진은 27.3MB를 받으므로 검사가 부를 수
+   * 없는데, **`prepare`가 `fit`보다 먼저인지**와 **준비 실패가 그 run 하나만 죽이는지**는
+   * 조용히 깨지는 종류다.
+   */
+  engines?: readonly TrainingEngine[]
 }
 
 /**
@@ -213,6 +232,7 @@ function chooseRuntime(
   option: AlgorithmOption,
   preferred: string,
   explicit: boolean,
+  lookup: (runtimeId: string) => TrainingEngine | undefined,
 ): RuntimeSpec | undefined {
   // **축이 셋인데 여기서 보이는 것은 하나뿐이다** (mlpx-spec.md 0.1). runtimes[].enabled는
   // 실행 위치만 본다 - 데이터 타입과 과제 유형의 판정은 option.enabled에 들어 있고,
@@ -222,7 +242,7 @@ function chooseRuntime(
   if (!option.enabled) return undefined
 
   const usable = option.runtimes.filter(
-    (candidate) => candidate.enabled && engineFor(candidate.runtime.id) !== undefined,
+    (candidate) => candidate.enabled && lookup(candidate.runtime.id) !== undefined,
   )
   const wanted = usable.find((candidate) => candidate.runtime.id === preferred)
   return (explicit ? wanted : (wanted ?? usable[0]))?.runtime
@@ -481,6 +501,13 @@ interface TrainContext {
   randomState: number
   /** 학습을 코어로 가르는 손들. 학습 워커만 준다 — 없으면 직렬이고 결과는 같다. */
   pools?: ComputePools
+  /**
+   * 엔진 준비가 한 국면 넘어갈 때마다 (`ml/engines/index.ts`의 `prepare`).
+   *
+   * **없으면 아무 데도 안 알린다.** 검사와 재실행 대조는 안 주고, 실물은 학습 워커만
+   * 준다 — `pools`와 같은 자리다.
+   */
+  onPrepare?: (state: EngineState, fraction?: number) => void
 }
 
 /**
@@ -556,6 +583,18 @@ async function trainOne(
     // 학습할 수 있고(막지 않는다), 그때 남아야 하는 것은 "이 모델은 이래서 안 돌았다"다.
     // try 안이라 **이 run 하나만 실패하고 나머지 모델은 계속 돈다** (mlpx-spec.md 4.1).
     assertInRange(engine.parameters(base.algorithm), base.hyperparameters)
+
+    /**
+     * **엔진을 먼저 띄운다** (`ml/engines/index.ts`의 `prepare`). 순수 JS는 이 칸이 없어
+     * 아무 일도 안 일어난다.
+     *
+     * **`try` 안이다.** 27.3MB를 못 받는 것은 이 run 하나의 실패여야 하고, 같은 실험의
+     * 순수 JS 모델들은 계속 돌아야 한다 — 학교망이 CDN을 막았다고 학습 전체가 죽으면
+     * 학생은 자기 데이터를 의심한다.
+     *
+     * **눈금 검사보다 뒤다.** 손잡이가 범위 밖이면 27MB를 받기 전에 거절하는 편이 낫다.
+     */
+    await engine.prepare?.(context.onPrepare)
 
     const { predict, predictBatch, model, modelOmittedDetail, warning, clusterResult } =
       await engine.fit(base.algorithm, {
@@ -686,6 +725,7 @@ export async function runExperiment(
     testTarget: isClustering ? [] : targetValues(testSource, split.testIndices, target!),
     randomState: settings.split.randomState,
     ...(options.pools ? { pools: options.pools } : {}),
+    ...(options.onPrepare ? { onPrepare: options.onPrepare } : {}),
   }
 
   const available = new Map(
@@ -754,10 +794,20 @@ export async function runExperiment(
 
   const runs: Run[] = []
   const models = new Map<string, ModelFile>()
+  /**
+   * 엔진을 찾는 자리. **가짜 등록부를 받을 수 있다** (`ExperimentOptions.engines`).
+   * 고르는 쪽(`chooseRuntime`)과 부르는 쪽이 **같은 목록을 봐야** 한다 — 갈리면 고를 때는
+   * 있던 엔진이 부를 때 없다.
+   */
+  const lookup = (runtimeId: string): TrainingEngine | undefined =>
+    options.engines === undefined
+      ? engineFor(runtimeId)
+      : options.engines.find((one) => one.runtimeId === runtimeId)
+
   for (const [index, { algorithm, runtime: wanted, explicit }] of requested.entries()) {
     const option = available.get(algorithm)
-    const runtime = option ? chooseRuntime(option, wanted, explicit) : undefined
-    const engine = runtime ? engineFor(runtime.id) : undefined
+    const runtime = option ? chooseRuntime(option, wanted, explicit, lookup) : undefined
+    const engine = runtime ? lookup(runtime.id) : undefined
 
     // **실행 방법이 정해진 뒤에 시작을 알린다.** 자동으로 넘어갔으면 넘어간 쪽을 말해야
     // 한다 - 화면이 "지금 무엇이 도는가"를 말하는 자리에서 틀리면 안 된다. 못 도는

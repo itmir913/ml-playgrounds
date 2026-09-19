@@ -15,14 +15,15 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
-import { isClientError } from '../src/errors'
+import { ClientError, isClientError } from '../src/errors'
 import { ALGORITHMS, type Algorithm } from '../src/ml/algorithms'
 import { fit } from '../src/ml/engines/mljs'
 import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/ml/experiment'
+import type { TrainingEngine } from '../src/ml/engines'
 import { dataSnapshot } from '../src/project/schema'
 import { trainableRowCount } from '../src/ml/selection'
 import { NOT_FOR_TABULAR_ALGORITHM } from './fixtures/algorithms'
-import type { RuntimeContext } from '../src/ml/backend'
+import type { EngineState, RuntimeContext } from '../src/ml/backend'
 import type { Dataset, Preprocessor } from '../src/ml/preprocess'
 import {
   DATA_SCHEMAS,
@@ -2043,5 +2044,113 @@ describe('채점은 풀이 준 답을 쓴다', () => {
     // 풀에 안 물었다면 채점이 직렬 `predict`로 갔다는 뜻이다.
     expect(asked, 'the pool was never asked').toBeGreaterThan(0)
     expect(run?.metrics?.accuracy).toBe(0)
+  })
+})
+
+/**
+ * **무거운 엔진은 학습 전에 띄운다** (`open-decisions.md` "scikit-learn(Pyodide)은
+ * 원본에서 받고, 시동은 학습마다 낸다").
+ *
+ * **진짜 sklearn으로는 못 잰다** — 27.3MB를 받는 일이라 검사가 부를 수 있는 것이 아니다.
+ * 그래서 가짜 엔진을 끼우고(`ExperimentOptions.engines`) **순서와 실패의 모양**만 본다.
+ * 실물은 브라우저에서 확인한다.
+ */
+describe('무거운 엔진은 학습보다 먼저 준비된다', () => {
+  /**
+   * `mljs` 자리에 끼우는 가짜. **진짜 등록부는 안 건드린다.**
+   *
+   * **캐스팅으로 때우지 않는다** — `as unknown as TrainingEngine`이면 계약이 바뀌어도
+   * 이 검사가 조용하고, 그러면 여기서 지키는 것이 오늘의 모양뿐이 된다.
+   */
+  function fakeEngine(log: string[], failFirst = false): TrainingEngine {
+    let prepared = 0
+    return {
+      runtimeId: 'mljs',
+      engine: { kind: 'mljs', version: '3' },
+      algorithms: ['naive_bayes', 'decision_tree'],
+      parameters: () => [],
+      resolve: (_algorithm: string, given: Record<string, unknown>) => given,
+      prepare: async (onState?: (state: EngineState, fraction?: number) => void) => {
+        prepared += 1
+        log.push('prepare')
+        onState?.('downloading')
+        if (failFirst && prepared === 1) throw new ClientError('ENGINE_BOOT_FAILED')
+        onState?.('ready')
+      },
+      fit: (algorithm: string) => {
+        log.push(`fit:${algorithm}`)
+        return Promise.resolve({
+          predict: (rows: readonly (readonly number[])[]) => rows.map(() => 'setosa'),
+        })
+      },
+    }
+  }
+
+  /**
+   * 준비가 아예 없는 엔진. **`prepare: undefined`가 아니라 칸이 없어야 한다** —
+   * `exactOptionalPropertyTypes`에서 그 둘은 다른 값이고, 순수 JS 엔진에는 칸이 없다.
+   */
+  function withoutPrepare(engine: TrainingEngine): TrainingEngine {
+    const copy: Record<string, unknown> = { ...engine }
+    delete copy['prepare']
+    return copy as unknown as TrainingEngine
+  }
+
+  it('prepare가 fit보다 먼저다', async () => {
+    const log: string[] = []
+    await runExperiment(
+      inputFor({ settings: settingsFor({ selectedAlgorithms: models('naive_bayes') }) }),
+      { ...frozen, engines: [fakeEngine(log)] },
+    )
+    expect(log).toEqual(['prepare', 'fit:naive_bayes'])
+  })
+
+  /**
+   * **준비 실패는 그 run 하나만 죽인다** (`mlpx-spec.md` §4.1). 학교망이 CDN을 막았다고
+   * 학습 전체가 죽으면 **학생은 자기 데이터를 의심한다.**
+   */
+  it('준비에 실패해도 다음 모델은 돈다', async () => {
+    const log: string[] = []
+    const { experiment } = await runExperiment(
+      inputFor({
+        settings: settingsFor({ selectedAlgorithms: models('naive_bayes', 'decision_tree') }),
+      }),
+      { ...frozen, engines: [fakeEngine(log, true)] },
+    )
+    const [first, second] = experiment.runs
+    expect(first?.status).toBe('failed')
+    expect(first?.failure?.code).toBe('ENGINE_BOOT_FAILED')
+    expect(second?.status).toBe('done')
+    // 첫 모델은 fit까지 못 갔고 둘째는 갔다.
+    expect(log).toEqual(['prepare', 'prepare', 'fit:decision_tree'])
+  })
+
+  /**
+   * **국면이 밖으로 흐른다.** 워커가 이것을 메시지로 바꾸고(`ml/worker/handler.ts`)
+   * 화면이 그 문장을 고른다. 안 흐르면 7.7초 동안 화면이 `학습 중`으로 서 있다.
+   */
+  it('준비 국면이 옵션으로 흘러나온다', async () => {
+    const seen: string[] = []
+    await runExperiment(
+      inputFor({ settings: settingsFor({ selectedAlgorithms: models('naive_bayes') }) }),
+      {
+        ...frozen,
+        engines: [fakeEngine([])],
+        onPrepare: (state) => seen.push(state),
+      },
+    )
+    expect(seen).toEqual(['downloading', 'ready'])
+  })
+
+  /** 순수 JS에는 `prepare`가 없다. **없는 것을 부르지 않는다.** */
+  it('준비가 필요 없는 엔진은 그냥 돈다', async () => {
+    const log: string[] = []
+    const engine = fakeEngine(log)
+    const { experiment } = await runExperiment(
+      inputFor({ settings: settingsFor({ selectedAlgorithms: models('naive_bayes') }) }),
+      { ...frozen, engines: [withoutPrepare(engine)] },
+    )
+    expect(experiment.runs[0]?.status).toBe('done')
+    expect(log).toEqual(['fit:naive_bayes'])
   })
 })

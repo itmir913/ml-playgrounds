@@ -16,6 +16,7 @@
 import { ClientError, failureDetail, toClientErrorCode } from '../../errors'
 import type { Run } from '../../project/schema'
 import { assembleExperiment, type ExperimentPrelude, type ExperimentResult } from '../experiment'
+import type { EngineState } from '../backend'
 import type { ModelFile } from '../models'
 import type { WorkerMessage, WorkerRequest } from './protocol'
 
@@ -56,6 +57,13 @@ export interface TrainOptions {
    * `index`는 `onStarted`와 같은 자리다 - 화면이 "끝난 개수 - 1"로 되짚지 않는다.
    */
   onProgress?: (run: Run, completed: number, total: number, index: number) => void
+  /**
+   * 무거운 엔진을 띄우는 동안 (`ml/engines/pyodide-runtime.ts`).
+   *
+   * **`onStarted` 뒤에 온다.** 그래서 화면은 *어느 모델이* 준비 중인지 이미 안다 — 이
+   * 콜백은 *무슨 국면인지*만 말한다.
+   */
+  onPreparing?: (state: EngineState, fraction?: number) => void
 }
 
 export interface TrainHandle {
@@ -118,6 +126,11 @@ export function train(
         const { index, algorithm, runtime } = message
         options.onStarted?.({ index, algorithm, runtime }, message.total)
       }
+      return
+    }
+    if (message.type === 'preparing') {
+      // 취소한 뒤에 도착한 보고는 버린다 — `started`와 같은 이유다.
+      if (!finished) options.onPreparing?.(message.state, message.fraction)
       return
     }
     if (message.type === 'progress') {

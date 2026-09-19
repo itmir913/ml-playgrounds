@@ -38,6 +38,10 @@ export async function handleTrain(
       onRun: (run, completed, total, index, model) =>
         emit({ type: 'progress', run, index, completed, total, ...(model ? { model } : {}) }),
       onPrelude: (prelude) => emit({ type: 'prelude', prelude }),
+      // **여기가 유일한 실물 주입 자리다** (`pools`와 같다). 검사와 재실행 대조는 안 줘서
+      // 조용히 준비하고, 결과는 같다.
+      onPrepare: (state, fraction) =>
+        emit({ type: 'preparing', state, ...(fraction === undefined ? {} : { fraction }) }),
     })
     emit({ type: 'done', experiment, preprocessor, models })
   } catch (error) {

@@ -98,6 +98,37 @@ export const MODELS: readonly {
   },
 ]
 
+/**
+ * **브라우저가 받아 오는 실행 환경.** 위 `MODELS`와 같은 자리이고 같은 이유다 — 우리가
+ * 재배포하지 않아도 **학생이 무엇 위에서 학습하는지**는 적는다.
+ *
+ * **모델이 아니라서 목록을 나눴다.** 저쪽은 가중치이고 이쪽은 파이썬 런타임과 라이브러리다.
+ * 한 목록에 섞으면 고지가 *"미리 학습된 모델"* 아래에 CPython을 적게 된다.
+ *
+ * **원본은 `src/ml/engines/pyodide-runtime.ts`의 `PYODIDE_VERSION`이고 여기는 그것을
+ * 베낀 것이다** (`MODELS`가 백본 등록부를 베끼는 것과 같은 사정 — vite 설정이 무는 파일은
+ * 확장자가 있어야 한다). **두 값이 같은지는 `tests/notices.spec.ts`가 문다.**
+ */
+export const RUNTIMES: readonly {
+  readonly id: string
+  readonly holder: string
+  readonly license: string
+  readonly url: string
+}[] = [
+  {
+    id: 'pyodide 314.0.7 (CPython 3.14.2)',
+    holder: 'Pyodide contributors / Python Software Foundation',
+    license: 'MPL-2.0 AND PSF-2.0',
+    url: 'https://cdn.jsdelivr.net/pyodide/v314.0.7/full/',
+  },
+  {
+    id: 'scikit-learn 1.8.0 · numpy 2.4.6 · scipy 1.18.0 · joblib 1.5.3 · threadpoolctl 3.6.0',
+    holder: 'scikit-learn developers, NumPy Developers, SciPy Developers, and others',
+    license: 'BSD-3-Clause',
+    url: 'https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide-lock.json',
+  },
+]
+
 /** 산출물에 들어간 패키지 하나. */
 export interface Shipped {
   readonly name: string
@@ -259,6 +290,22 @@ export function renderNotices(shipped: readonly Shipped[], extras: readonly stri
     lines.push(`  ${model.id}`)
     lines.push(`      ${model.license}, ${model.holder}`)
     lines.push(`      ${model.url}`)
+  }
+
+  lines.push(
+    '',
+    'Runtimes fetched by the browser',
+    THIN,
+    '',
+    '  The scikit-learn engine runs Python in the browser. This project does not',
+    '  redistribute it either — the browser fetches it from the address below when a',
+    '  student chooses that engine.',
+    '',
+  )
+  for (const runtime of RUNTIMES) {
+    lines.push(`  ${runtime.id}`)
+    lines.push(`      ${runtime.license}, ${runtime.holder}`)
+    lines.push(`      ${runtime.url}`)
   }
 
   lines.push('', 'License texts', THIN)

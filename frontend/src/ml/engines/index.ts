@@ -14,7 +14,7 @@
  * 메시지 인터페이스를 갖지만 구현이 다르다 (ml/server.ts, architecture.md 3.4).
  */
 
-import type { EngineKind } from '../backend'
+import type { EngineKind, EngineState } from '../backend'
 import type { HyperparameterSpec } from '../hyperparams'
 import type { FitInput, FitResult } from './mljs'
 import {
@@ -24,6 +24,7 @@ import {
   parameters as mljsParameters,
   resolve as mljsResolve,
 } from './mljs'
+import { prepare as pyodidePrepare } from './pyodide-runtime'
 import {
   PYODIDE_SKLEARN_ALGORITHMS,
   PYODIDE_SKLEARN_ENGINE,
@@ -84,6 +85,22 @@ export interface TrainingEngine {
    * 서버 엔진도 어차피 이 모양이다 (ml/server.ts).
    */
   fit(algorithm: string, input: FitInput): Promise<FitResult>
+  /**
+   * 학습 전에 엔진을 띄운다. **없으면 띄울 것이 없다는 뜻이다** — 순수 JS는 번들에 이미
+   * 있고 시동이 0초다.
+   *
+   * **`fit` 안이 아니라 밖에 있는 이유는 화면이 그 시간을 알아야 하기 때문이다.**
+   * scikit-learn은 실측 7.7초이고, 그동안 진행 표시가 `학습 중`으로 서 있으면 학생은
+   * 멈춘 줄 안다. 상태는 `downloading` → `downloaded` → `ready`로 흐른다
+   * (`ml/backend.ts`의 `ENGINE_STATES`).
+   *
+   * **반드시 멱등이어야 한다.** 실험 하나에 sklearn 모델이 셋이면 세 번 불린다 —
+   * 두 번째부터는 상태만 알리고 곧장 돌아와야 한다.
+   *
+   * **`RuntimeSpec.needsPreparation`과 짝이다.** 그쪽은 *"무겁다"*는 선언이고 이쪽은
+   * 그것을 실제로 하는 코드다. 둘이 어긋나면 `tests/runtime-options.spec.ts`가 운다.
+   */
+  prepare?(onState?: (state: EngineState, fraction?: number) => void): Promise<void>
 }
 
 /**
@@ -111,6 +128,9 @@ export const ENGINES: readonly TrainingEngine[] = [
     parameters: pyodideParameters,
     resolve: pyodideResolve,
     fit: pyodideFit,
+    // **27.3MB를 원본에서 받고 시동 7.7초를 낸다.** 학습 워커가 학습마다 새로 뜨므로
+    // 이 값도 학습마다다 (`pyodide-runtime.ts`).
+    prepare: pyodidePrepare,
   },
 ]
 

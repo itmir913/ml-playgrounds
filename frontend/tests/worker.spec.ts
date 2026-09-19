@@ -292,6 +292,47 @@ describe('메인 스레드 쪽', () => {
     ])
   })
 
+  /**
+   * **준비도 흘러나온다** (`ml/engines/pyodide-runtime.ts`). scikit-learn은 시동이 7.7초라
+   * 그동안 화면이 `학습 중`으로 서 있으면 학생은 멈춘 줄 안다.
+   *
+   * **가짜 워커가 메시지를 직접 쏜다** — 진짜 준비를 시키면 27.3MB를 받게 된다. 여기서
+   * 재는 것은 **그 메시지가 화면까지 가는가**이고, 메시지를 만드는 쪽은
+   * `tests/experiment.spec.ts`가 본다.
+   */
+  it('준비 국면이 화면까지 간다', () => {
+    const worker = new FakeWorker()
+    const seen: [string, number | undefined][] = []
+    train(requestFor(), {
+      createWorker: () => worker,
+      onPreparing: (state, fraction) => seen.push([state, fraction]),
+    })
+
+    worker.emit({ type: 'preparing', state: 'downloading' })
+    worker.emit({ type: 'preparing', state: 'ready' })
+    expect(seen).toEqual([
+      ['downloading', undefined],
+      ['ready', undefined],
+    ])
+  })
+
+  it('취소한 뒤 도착한 준비 보고는 버린다', async () => {
+    const worker = new FakeWorker()
+    const seen: string[] = []
+    const { result, cancel } = train(requestFor(), {
+      createWorker: () => worker,
+      onPreparing: (state) => seen.push(state),
+    })
+
+    cancel()
+    worker.emit({ type: 'preparing', state: 'downloading' })
+
+    // **거절을 받아 준다.** 안 받으면 검사는 초록인데 러너가 "unhandled error"를 남기고,
+    // 그 줄이 다음에 진짜로 새는 거절을 가린다.
+    await expect(rejectionCode(result)).resolves.toBe('JOB_CANCELLED')
+    expect(seen).toEqual([])
+  })
+
   it('취소한 뒤 도착한 시작 보고는 버린다', async () => {
     const worker = new FakeWorker()
     const seen: number[] = []

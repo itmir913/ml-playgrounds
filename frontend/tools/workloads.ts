@@ -43,7 +43,7 @@ import {
   loadNeuralModel,
   loadNeuralRegressionModel,
 } from '../src/ml/models'
-import { bootPyodide } from './pyodide'
+import { bootPyodide } from '../src/ml/engines/pyodide-runtime'
 
 /** 기본 특성 수. **특성 축은 알고리즘마다 따로 훑는다**(아래 `*_columns` 사다리들). */
 const FEATURES = 8

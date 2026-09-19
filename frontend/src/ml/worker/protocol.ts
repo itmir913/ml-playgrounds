@@ -11,6 +11,7 @@
  */
 
 import type { ClientErrorParams } from '../../errors'
+import type { EngineState } from '../backend'
 import type { Experiment, Run, RunsFile } from '../../project/schema'
 import type { ExperimentInput, ExperimentPrelude } from '../experiment'
 import type { ModelFile } from '../models'
@@ -84,6 +85,18 @@ export type WorkerMessage =
    * (같은 결정문 §3). 성공 경로는 이것을 안 쓴다 — `done`이 완성품을 싣는다.
    */
   | { type: 'prelude'; prelude: ExperimentPrelude }
+  /**
+   * 무거운 엔진을 띄우는 중이다 (`ml/engines/pyodide-runtime.ts`).
+   *
+   * **`started`와 `progress` 사이에 온다.** 학생이 고른 모델이 scikit-learn이면 그
+   * run은 **7.7초 동안 아무 진행도 안 하는데**, 그 시간을 `학습 중`으로 덮으면 학생은
+   * 멈춘 줄 안다. 임베딩 워커가 같은 이유로 같은 메시지를 갖는다
+   * (`ml/embed/protocol.ts`).
+   *
+   * **비율은 안 온다.** Pyodide가 받은 양을 안 알려 주고, **모르는 것을 지어내면 진행
+   * 막대가 거짓말을 한다.** 칸을 남겨 두는 이유는 백본과 모양을 맞추기 위해서다.
+   */
+  | { type: 'preparing'; state: EngineState; fraction?: number }
   // 모델은 Map으로 간다. 구조화 복제가 Map을 그대로 넘기므로 평평하게 펼 이유가 없다.
   | {
       type: 'done'
