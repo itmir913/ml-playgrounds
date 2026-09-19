@@ -1214,6 +1214,94 @@ export const PYODIDE_LADDERS: readonly Ladder[] = [
  *
  * **점은 mljs 사다리와 같은 자리다.** 달라지면 배수를 견줄 수가 없다.
  */
+const PYODIDE_COLUMN_LADDERS: readonly Ladder[] = [
+  {
+    id: 'pyodide_decision_tree_columns',
+    label: '[sklearn] 의사결정트리 · 특성 수 (2,000행)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({ algorithm: 'decision_tree', rows: 2000, columns }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_logistic_regression_columns',
+    label: '[sklearn] 로지스틱 회귀 · 특성 수 (2,000행)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({
+      algorithm: 'logistic_regression',
+      rows: 2000,
+      columns,
+      hyperparameters: PYODIDE_LOGISTIC_CEILING,
+    }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_knn_columns',
+    label: '[sklearn] KNN · 특성 수 (5,000행)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({ algorithm: 'knn', rows: 5000, columns }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_svm_columns',
+    label: '[sklearn] SVM · 특성 수 (1,000행)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({ algorithm: 'svm', rows: 1000, columns }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_naive_bayes_columns',
+    label: '[sklearn] 나이브 베이즈 · 특성 수 (50,000행)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({ algorithm: 'naive_bayes', rows: 50_000, columns }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_linear_regression_columns',
+    label: '[sklearn] 선형 회귀 · 특성 수 (50,000행)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({
+      algorithm: 'linear_regression',
+      rows: 50_000,
+      columns,
+      regression: true,
+    }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_random_forest_columns',
+    label: '[sklearn] 랜덤 포레스트 · 특성 수 (500행)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({ algorithm: 'random_forest', rows: 500, columns }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    /**
+     * **표본 국면 쪽만 잰다.** mljs는 전수(2,000행)와 표본(50,000행)을 따로 재는데,
+     * 그건 실루엣이 표본으로 넘어가는 자리에서 **특성 축의 방향이 뒤집히기** 때문이다
+     * (`k_means_columns_full`). 여기서 쓰려는 것은 **학습 시간의 특성 축**이고 기준표가
+     * 50,000행 자리에 있으므로 그 짝만 있으면 된다.
+     */
+    id: 'pyodide_k_means_columns',
+    label: '[sklearn] K-평균 · 특성 수 (군집 없는 데이터, 50,000행)',
+    axis: 'columns',
+    points: [4, 8, 16, 32],
+    job: (columns) => ({
+      algorithm: 'k_means',
+      rows: 50_000,
+      columns,
+      hyperparameters: { n_clusters: 3 },
+    }),
+    engine: 'pyodide-sklearn',
+  },
+]
+
 const PYODIDE_HANDLE_LADDERS: readonly Ladder[] = [
   {
     id: 'pyodide_random_forest_trees',
@@ -1532,6 +1620,7 @@ export const ALL_LADDERS: readonly Ladder[] = [
   ...LIMIT_LADDERS.map((ladder) => ({ ...ladder, findsLimit: true as const })),
   ...PYODIDE_LADDERS,
   ...PYODIDE_HANDLE_LADDERS,
+  ...PYODIDE_COLUMN_LADDERS,
   ...PYODIDE_LIMIT_LADDERS.map((ladder) => ({ ...ladder, findsLimit: true as const })),
 ]
 
