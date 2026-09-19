@@ -88,16 +88,26 @@ def _blocks() -> list[tuple[str, str]]:
     ]
 
 
-#: `serializer` 안의 들여쓰기. **깊이까지 못 박는다** (2026-09-19 R33 C-1).
-#
-# `^ +`로만 잡으면 **깊이를 안 보므로**, 형제 객체 안에 같은 이름의 속성이 먼저 오면
-# 그것을 가져간다. 항목은 2칸, `serializer:`가 4칸, 그 안이 6칸이다 — 그 자리 하나만 본다.
-# 구조가 바뀌면 조용히 못 찾는 대신 `EXPECTED`와 `EXPECTED_SIZES`가 시끄럽게 선다.
-_SERIALIZER_INDENT = " {6}"
+def _serializer(block: str) -> str:
+    """항목에서 **`serializer` 객체 안만** 잘라 낸다. 없으면 빈 문자열.
+
+    **자리를 깊이로만 잡으면 안 닫힌다** (2026-09-19 R34 C-1). 한때 `^ {6}`으로 잡았는데,
+    그건 *"6칸짜리 아무 `dump:`"*를 보는 것이라 **`serializer`와 같은 깊이의 형제**가
+    6칸짜리 동명 속성을 먼저 들고 오면 그것을 가져갔다. **깊이는 자리가 아니다.**
+
+    그래서 먼저 `serializer: {`부터 그 짝인 4칸짜리 `},`까지를 잘라 내고, 그 안에서만
+    찾는다. **형제는 이 slice에 아예 안 들어온다.**
+    """
+    opened = re.search(r"^    serializer: \{$", block, re.MULTILINE)
+    if not opened:
+        return ""
+    rest = block[opened.end() :]
+    closed = re.search(r"^    \},?$", rest, re.MULTILINE)
+    return rest[: closed.start()] if closed else rest
 
 
 def _property(name: str, block: str) -> str | None:
-    """항목 안에서 `이름: '식'` 또는 `이름: \\`식\\``을 꺼낸다. 없으면 `None`.
+    """`serializer` 안에서 `이름: '식'` 또는 `이름: \\`식\\``을 꺼낸다. 없으면 `None`.
 
     **속성 자리로 앵커한다** (2026-09-19 R32 C-2). 줄머리와 들여쓰기를 요구하므로
 
@@ -109,12 +119,11 @@ def _property(name: str, block: str) -> str | None:
     **주석을 더 지우는 쪽으로 안 간다.** 파이썬 조각 안의 `//`는 나눗셈이라, 문자열
     안까지 훑어 지우면 **조각을 망가뜨리는 쪽이 더 위험하다.**
     """
-    quoted = re.search(rf"^{_SERIALIZER_INDENT}{name}: '([^']*)'", block, re.MULTILINE)
+    inside = _serializer(block)
+    quoted = re.search(rf"^      {name}: '([^']*)'", inside, re.MULTILINE)
     if quoted:
         return quoted.group(1)
-    templated = re.search(
-        rf"^{_SERIALIZER_INDENT}{name}: `(.*?)`,\n", block, re.MULTILINE | re.DOTALL
-    )
+    templated = re.search(rf"^      {name}: `(.*?)`,\n", inside, re.MULTILINE | re.DOTALL)
     return templated.group(1) if templated else None
 
 
@@ -130,7 +139,9 @@ def dumps() -> dict[str, str]:
 
     found: dict[str, str] = {}
     for name, block in _blocks():
-        if re.search(r"^ +dump: LINEAR_DUMP", block, re.MULTILINE):
+        # **이 갈래도 `serializer` 안만 본다** (2026-09-19 R34 C-1). 한때 여기만 `^ +`라
+        # 형제의 `dump: LINEAR_DUMP`가 이겼다 — 고친 자리의 이웃을 안 훑은 것이다.
+        if re.search(r"^      dump: LINEAR_DUMP", _serializer(block), re.MULTILINE):
             found[name] = shared.group(1)
             continue
         expression = _property("dump", block)

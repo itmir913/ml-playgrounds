@@ -8,14 +8,12 @@
  * 결과가 스키마를 통과하는지도 함께 본다. 이 층의 산출물이 곧 `.mlpx`다.
  */
 
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-
 import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
 
 import { newProjectDocument } from '../src/project/create'
+import * as doors from '../src/project/settings'
 import { projectDocumentSchema, type ProjectDocument } from '../src/project/schema'
 import {
   withFeatures,
@@ -341,14 +339,22 @@ describe('어떤 문도 안 열리는 문서를 못 만든다', () => {
   }
 
   /**
-   * **목록이 닫혀 있는지 소스에서 센다** (R30 C-4가 이름 붙인 병 — *"그물이 자기를 센다"*).
+   * **목록이 닫혀 있는지 센다** (R30 C-4가 이름 붙인 병 — *"그물이 자기를 센다"*).
    * 새 문이 생기면 여기서 운다. 수를 손으로 적지 않는다.
+   *
+   * **소스를 정규식으로 훑지 않는다** (2026-09-19 R34 B-1). 한때 `^export function
+   * (with\w+)\(`로 셌는데, **`export const withZzz =`와 `export async function withYyy(`이
+   * 그대로 빠져나갔다** — 둘 다 스키마를 못 지나는 문서를 내는데 33개가 전부 초록이었다.
+   * **정규식을 넓히는 것은 같은 병의 다음 판이다**: 표기는 계속 는다.
+   *
+   * **그래서 모듈이 실제로 내보내는 것을 본다.** 이름이 어떻게 적혔든 `import *`의
+   * 네임스페이스에는 같은 모양으로 선다. **비동기 문이 들어와도 걸린다** — 아래 반복이
+   * `Promise`를 받아 스키마에 먹이고 거기서 운다.
    */
-  it('훑는 문이 settings.ts가 내보내는 것 전부다', () => {
-    const source = readFileSync(join(__dirname, '..', 'src', 'project', 'settings.ts'), 'utf-8')
-    const exported = [...source.matchAll(/^export function (with\w+)\(/gm)].map(
-      (found) => found[1] as string,
-    )
+  it('훑는 문이 설정 모듈이 내보내는 것 전부다', () => {
+    const exported = Object.entries(doors)
+      .filter(([name, value]) => name.startsWith('with') && typeof value === 'function')
+      .map(([name]) => name)
     expect(exported.length).toBeGreaterThan(8)
     expect(exported.filter((name) => DOORS[name] === undefined)).toEqual([])
   })

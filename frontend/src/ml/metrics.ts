@@ -338,11 +338,18 @@ function evaluateClustering(
         bi = Math.min(bi, sum / members[c]!.length)
       }
 
-      // 다른 군집이 전부 비어서 bi가 갱신되지 않은 경우. 위의 filled 가드가 이미
-      // 걸러내므로 여기 오지 않는다 - 방어선으로 남긴다.
+      // 다른 군집이 전부 비어서 bi가 갱신되지 않은 경우. **여기 온다** - 한때 위의
+      // filled 가드가 이미 걸러낸다고 적혀 있었는데, 그건 **전수일 때만** 참이다
+      // (2026-09-19 R34 §3.2): filled는 전수를 세고 members는 **표본**을 센다.
       if (!Number.isFinite(bi)) bi = 0
 
       const maxAB = Math.max(ai, bi)
+      /**
+       * **죽은 가드가 아니다.** 표본이 켜지고 소수 군집이 통째로 빠지면 `ai`도 `bi`도 0이
+       * 되어 여기 온다 — 지우면 실루엣이 `NaN`이 되고 `evaluateCluster`가 `JOB_FAILED`를
+       * 던져 **그 run이 통째로 사라진다.** 닿는 벌은 `tests/reopenable.spec.ts`의
+       * `표본이 켜지고 소수 군집이 통째로 빠지는 군집`이고, **그 벌이 이 줄을 지킨다.**
+       */
       totalSilhouette += maxAB === 0 ? 0 : (bi - ai) / maxAB
     }
 

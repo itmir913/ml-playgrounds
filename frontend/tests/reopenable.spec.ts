@@ -21,11 +21,13 @@
  * 나온 것을 진짜 문으로 앉히고, 그 문서를 읽는 길이 받는지 본다 — 손으로 조립하면
  * 지표를 짓는 코드와 문을 통째로 건너뛴다.
  *
- * **이 벌들이 실제로 무는 가드** (심어서 확인했다, 2026-09-19): `metrics.ts`의 `ratio`
- * 0-분모 가드, `r2`의 `total === 0` 가드, `settings.ts`의 문 둘. **안 닿는 것 하나**:
- * 실루엣의 `maxAB === 0` 가드는 겹친 점을 두 군집으로 쪼개도 안 지나간다 — 그 위의
- * `filled` 가드가 먼저 막는다고 소스가 적고 있고, **여기서 확인한 것은 "두 벌로 못
- * 닿았다"까지다.** 닿는 벌을 아는 사람이 채워 넣어라.
+ * **이 벌들이 실제로 무는 가드** (전부 심어서 확인했다): `metrics.ts`의 `ratio` 0-분모
+ * 가드와 `r2`의 `total === 0` 가드와 **실루엣의 `maxAB === 0` 가드**, 그리고
+ * `settings.ts`의 문 둘.
+ *
+ * **실루엣 가드는 한때 "못 닿는다"고 적혀 있었다** — 겹친 점을 두 군집으로 쪼개는 벌로는
+ * 원리적으로 못 닿기 때문이다(배정이 `argmin`이라 같은 점은 언제나 같은 라벨을 받는다).
+ * **닿는 길은 표본이었고**(2026-09-19 R34가 찾았다) 아래 다섯째 벌이 그 길이다.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -109,7 +111,13 @@ async function documentAfter(
  * 거부한다(둘 다 확인했다). 나눗셈이 들어가는 지표가 열 몇 개이고, **분모가 0이 되는
  * 데이터는 교실에서 흔하다** — 같은 값만 든 열, 두 줄짜리 표, 한 범주만 남은 시험 몫.
  */
-describe('망가진 데이터로 학습해도 그 문서는 다시 열린다', () => {
+/**
+ * **시간을 넉넉히 준다.** 아래 다섯째 벌은 실루엣 표본을 켜야 하는데, 표본 크기는
+ * `SILHOUETTE_BUDGET_MS`(2초)에서 **거꾸로 계산된 값**이다 — 즉 그 계산은 **설계상 2초를
+ * 쓴다.** 기본 5초로는 관문이 174개 워커로 붐빌 때 넘어간다(실제로 넘어갔다). 표본을
+ * 켜면서 더 싸게 만드는 모양은 없다 — 예산이 비용을 정하기 때문이다.
+ */
+describe('망가진 데이터로 학습해도 그 문서는 다시 열린다', { timeout: 30_000 }, () => {
   const CASES: Record<string, () => Promise<unknown>> = {
     '타깃이 전부 같은 값인 회귀 (R²의 분모가 0이다)': () =>
       documentAfter(
@@ -174,6 +182,34 @@ describe('망가진 데이터로 학습해도 그 문서는 다시 열린다', (
           ],
         ),
         { ...settings, hyperparameters: { k_means: { mljs: { nClusters: 2 } } } },
+        'clustering',
+      )
+    },
+
+    '표본이 켜지고 소수 군집이 통째로 빠지는 군집 (실루엣의 분모가 0이다)': () => {
+      /**
+       * **여기가 그 가드에 닿는 유일한 길이다** (2026-09-19 R34 §3.2가 찾아 줬다).
+       *
+       * 겹친 점을 두 군집으로 쪼개는 벌로는 **원리적으로 못 닿는다** — 배정이 `argmin`이라
+       * 같은 점은 언제나 같은 라벨을 받고, 그러면 위쪽 `filled` 가드가 먼저 막는다.
+       * **닿는 길은 표본이었다**: `silhouetteSampleSize(3000, 100) = 2,500 < 3,000`이라
+       * 표본이 켜지고, 씨앗 20에서 **외톨이가 표본에서 통째로 빠진다** → `ai = 0`이고
+       * 다른 군집의 표본 멤버가 0개라 `bi`도 0 → `maxAB === 0`.
+       *
+       * **소스의 단정이 반만 맞았다** — *"`filled` 가드가 이미 걸러낸다"*는 **전수일 때만**
+       * 참이다. `filled`는 전수를 세고 `members`는 표본을 센다.
+       */
+      const columns = Array.from({ length: 100 }, (_, index) => `x${index}`)
+      const crowd = Array.from({ length: 2999 }, () => columns.map(() => '1'))
+      const loner = columns.map(() => '99')
+      const settings = settingsFor(columns, 'x0', ['k_means'], 'clustering')
+      return documentAfter(
+        tableOf(columns, [...crowd, loner]),
+        {
+          ...settings,
+          split: { ...settings.split, randomState: 20 },
+          hyperparameters: { k_means: { mljs: { nClusters: 2 } } },
+        },
         'clustering',
       )
     },
