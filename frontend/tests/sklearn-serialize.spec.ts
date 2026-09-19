@@ -30,6 +30,7 @@ import {
   sklearnTreeModel,
   splitBoundary,
   type SklearnForestDump,
+  type SklearnKMeansDump,
   type SklearnLinearDump,
   type SklearnNaiveBayesDump,
 } from '../src/ml/engines/pyodide-serialize'
@@ -175,6 +176,20 @@ const CASES: readonly SerializeCase[] = [
     expected: (recorded) => recorded.dumpLabels,
   },
   {
+    /**
+     * **군집화도 같은 특성 행렬 위에서 본다** (2026-09-19). 타깃을 안 보므로 분류 벌을
+     * 그대로 재료로 쓸 수 있고, 그래서 **군집 전용 벌을 새로 만들지 않고** 이 대조가 선다.
+     *
+     * 답이 라벨이 아니라 **군집 번호**다 — 우리 해석기가 `String(가장 가까운 중심의 번호)`를
+     * 돌려주고(`ml/models/kmeans.ts`) sklearn의 `predict`도 같은 번호를 준다. 번호가 같은
+     * 것은 **중심의 순서를 우리가 안 바꾸기 때문**이고, 그게 이 검사가 지키는 것이다.
+     */
+    algorithm: 'k_means',
+    build: (recorded, prepared) =>
+      sklearnKMeansModel(recorded.dump as SklearnKMeansDump, prepared.featureCount),
+    expected: (recorded) => recorded.labels,
+  },
+  {
     algorithm: 'knn',
     // **파이썬이 준 것이 없다** — 참조형은 배운 값이 아니라 본 행을 담는다. 이웃 수는
     // 픽스처를 만든 쪽이 고정한 값이다 (`generate_sklearn_fixtures.py`의 `build_model`).
@@ -191,17 +206,18 @@ describe('옮긴 것을 대조할 재료가 있다', () => {
    * `CASES`를 도는데 그 크기를 `CASES`로 세면, **한 줄을 지웠을 때 검사 수만 줄고 전부
    * 초록이다** — 감사자가 `svm`을 지워 71 → 63이 됐는데 아무것도 안 울었다.
    */
-  it('대조하는 알고리즘이 정확히 이 다섯이다', () => {
+  it('대조하는 알고리즘이 정확히 이 여섯이다', () => {
     expect(CASES.map((one) => one.algorithm)).toEqual([
       'decision_tree',
       'naive_bayes',
       'logistic_regression',
       'svm',
+      'k_means',
       'knn',
     ])
   })
 
-  it('분류 데이터셋마다 그 다섯을 굳혀 두었다', () => {
+  it('분류 데이터셋마다 그 여섯을 굳혀 두었다', () => {
     const missing: string[] = []
     for (const [name, entry] of Object.entries(document.datasets)) {
       if (entry.meta.taskType === 'regression') continue

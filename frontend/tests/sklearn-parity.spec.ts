@@ -174,7 +174,7 @@ describe('대조가 줄어들지 않았다', () => {
     ])
   })
 
-  it('분류 데이터셋마다 알고리즘 여섯을 다 견준다', async () => {
+  it('분류 데이터셋마다 굳혀 둔 항목이 빠짐없이 있다', async () => {
     for (const [name, entry] of Object.entries(document.datasets)) {
       if (entry.meta.taskType === 'regression') {
         expect(Object.keys(entry.sklearn).sort(), name).toEqual([
@@ -185,6 +185,10 @@ describe('대조가 줄어들지 않았다', () => {
       }
       expect(Object.keys(entry.sklearn).sort(), name).toEqual([
         'decision_tree',
+        // **군집화는 같은 특성 행렬 위에서 굳힌다** (2026-09-19). 타깃을 안 보므로 벌을
+        // 새로 만들 필요가 없고, **아래 정확도 대조에는 안 들어간다** — 군집화에 정답이
+        // 없어 `accuracy`가 없다. 쓰는 곳은 `sklearn-serialize.spec.ts`다.
+        'k_means',
         'knn',
         'logistic_regression',
         'naive_bayes',
@@ -305,6 +309,12 @@ for (const [name, entry] of Object.entries(document.datasets)) {
        * 단언은 무엇이든 통과시킨다** (R9 감사 C-2와 같은 자리).
        */
       if (algorithm === 'neural_network') continue
+      /**
+       * **군집화는 이 자리에서 못 잰다.** 정답이 없어 `accuracy`도 기준선도 없고, 그것을
+       * 읽으면 **0과 견주게 되어 무엇이든 통과한다**(위 인공신경망과 같은 자리).
+       * 옮기는 규칙은 `sklearn-serialize.spec.ts`가 줄 단위로 본다.
+       */
+      if (algorithm === 'k_means') continue
 
       it(`${algorithm} — sklearn 수준이고 기준선을 넘는다`, async () => {
         const { predict, warning } = await fit(algorithm, {

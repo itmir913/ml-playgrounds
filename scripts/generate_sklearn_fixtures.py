@@ -50,6 +50,7 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier, MLPRegressor
 from sklearn.svm import SVC
+from sklearn.cluster import KMeans
 from sklearn.tree import DecisionTreeClassifier
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -320,7 +321,52 @@ def expectations_for(name: str, entry: dict[str, Any]) -> dict[str, Any]:
         out[algorithm] = record
 
     out["neural_network"] = neural_distribution(x_train, y_train, x_test, y_test)
+    out["k_means"] = clustering_record(x_train, x_test, random_state)
     return out
+
+
+#: 두 중심까지의 거리가 이만큼 안에 있으면 **어느 군집인지 굳히지 않는다.**
+#
+# **문턱을 지어내지 않았다.** 이 픽스처가 낡았는지 보는 자가 상대 1e-9인데(`close`),
+# 중심 좌표가 그 안에서 흔들릴 수 있으면 **거리도 그만큼 흔들린다** - 그 폭 안에서 1·2등이
+# 붙어 있는 행은 플랫폼이 답을 가른다. `KMeans`는 스레드 수에 따라 마지막 자리가 달라진다.
+CLUSTER_TIE_RTOL = 1e-9
+
+
+def clustering_record(
+    x_train: np.ndarray, x_test: np.ndarray, random_state: int
+) -> dict[str, Any]:
+    """군집화도 **분류 벌의 특성 행렬 위에서** 굳힌다 (2026-09-19).
+
+    **타깃을 안 본다** - 군집화에 정답이 없으므로 같은 데이터를 재료로 쓸 수 있다. 그래서
+    군집 전용 벌을 새로 만들지 않고도 *"sklearn이 배운 중심을 우리 형식으로 옮기면 같은
+    군집을 주는가"*를 물을 수 있다.
+
+    **1·2등이 붙어 있는 행은 굳히지 않는다**(`None`). 중심 좌표가 플랫폼마다 마지막 자리에서
+    갈릴 수 있고, 그런 행에서 답이 뒤집히는 것은 결함이 아니라 판정 불능이다 - KNN의 이웃
+    동점, 로지스틱의 경계 위 행과 같은 자리다.
+    """
+    model = KMeans(n_clusters=3, n_init="auto", random_state=random_state)
+    model.fit(x_train)
+    predicted = [str(one) for one in model.predict(x_test)]
+
+    # 시험 행마다 중심까지의 거리. 1등과 2등이 얼마나 붙어 있는가.
+    gaps = np.linalg.norm(
+        x_test[:, None, :] - model.cluster_centers_[None, :, :], axis=2
+    )
+    nearest = np.sort(gaps, axis=1)[:, :2]
+    labels: list[str | None] = [
+        None
+        if np.isclose(row[0], row[1], rtol=CLUSTER_TIE_RTOL, atol=0.0)
+        else predicted[index]
+        for index, row in enumerate(nearest)
+    ]
+
+    return {
+        "dump": adapter_python.dumped("k_means", model, []),
+        "labels": labels,
+        "inertia": float(model.inertia_),
+    }
 
 
 def neural_distribution(
