@@ -31,17 +31,9 @@ updates:
     # **이걸 안 막으면 매주 같은 PR이 와서 매주 같은 자리에서 CI가 깨진다.**
     # typescript-eslint가 지원을 내놓으면(추적: typescript-eslint#10940) 이 항목을 지운다.
     # minor/patch는 계속 받으므로 6.0.x 안에서는 정상적으로 올라간다.
-    #
-    # jsdom 30.1은 **vitest가 못 따라온다.** vitest의 jsdom 호환 shim(`makeCompatBlob`)이
-    # jsdom의 내부 `Blob._buffer`를 들여다보는데 30.1.0이 그걸 바꿔서,
-    # `URL.createObjectURL`을 부르는 순간 처리 안 된 오류가 난다 - **검사는 전부 통과하는데
-    # 관문이 빨개진다.** 우리 코드의 문제가 아니라 검사 환경의 충돌이다.
-    # `package.json`도 `~30.0.1`로 좁혀 두었다. **vitest 5를 받는 날 둘 다 푼다.**
     ignore:
       - dependency-name: typescript
         update-types: ['version-update:semver-major']
-      - dependency-name: jsdom
-        update-types: ['version-update:semver-minor', 'version-update:semver-major']
     groups:
       # 파일을 파싱하는 것들. 따로 보고 싶은 묶음이라 먼저 잡는다.
       parsers:
