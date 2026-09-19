@@ -46,7 +46,13 @@ import type { DataType } from '../project/schema'
 
 import { ALGORITHMS } from './algorithms'
 import { DEFAULT_BACKBONE_ID, backboneFor } from './backbones'
-import { BROWSER_RUNTIME_IDS, RUNTIMES, type Baseline, type BrowserRuntimeId } from './backend'
+import {
+  BROWSER_RUNTIME_IDS,
+  RUNTIMES,
+  isBrowserRuntimeId,
+  type Baseline,
+  type BrowserRuntimeId,
+} from './backend'
 
 type Ladder = readonly (readonly [number, number])[]
 
@@ -261,8 +267,14 @@ function sklearnHandleFactor(algorithm: string, hyperparameters: Record<string, 
     const baseline = interpolate(PYODIDE_KMEANS_CLUSTERS_MS, MLJS_KMEANS_BASELINE_CLUSTERS)
     return interpolate(PYODIDE_KMEANS_CLUSTERS_MS, Math.max(clusters, 1)) / baseline
   }
-  // **로지스틱의 `max_iter`는 재 보니 평평했다.** 이 1은 짐작이 아니라 잰 값이다.
-  return PYODIDE_LOGISTIC_REGRESSION_MAX_ITER_FACTOR
+  if (algorithm === 'logistic_regression') {
+    // **`max_iter`는 재 보니 평평했다.** 이 1은 짐작이 아니라 잰 값이다.
+    return PYODIDE_LOGISTIC_REGRESSION_MAX_ITER_FACTOR
+  }
+  // **나머지는 곱할 손잡이가 없다.** 여기에 위 상수를 두면 이름은 로지스틱을 가리키면서
+  // 값은 여섯 알고리즘에 걸린다 — 그 상수를 옮기는 사람이 나머지 여섯을 함께 옮긴다
+  // (2026-09-19 R31 C-2).
+  return 1
 }
 
 function baselineOf(
@@ -297,8 +309,10 @@ export function baselineMs(input: EstimateInput): number | null {
    * 쟀는데(`limits.ts`), **학생이 기다리는 것은 시동 + 학습**이다. 안 더하면 27.3MB를 받고
    * 8.7초를 세우는 줄이 *"약 1초"*라고 말한다.
    *
-   * **기기 배수를 안 먹인다.** 그 배수는 계산 속도를 재는 것인데(`ml/calibration.ts`)
-   * 시동의 절반 이상이 내려받기와 WASM 세우기다 — 곱하면 느린 기기에서 두 번 부풀린다.
+   * **기기 배수를 안 먹인다.** 시동의 **절반 가까이**(코어 1.6 + 휠 2.0 = 3.6초, 46%)가
+   * 내려받기와 WASM 세우기라 계산 배수가 안 붙고, 남는 임포트 4.2초는 CPU지만 **그쪽에만
+   * 배수를 먹이면 안 잰 값을 하나 더 만든다.** 둘을 갈라 곱하는 안은 그래서 안 간다
+   * (2026-09-19 R31 C-3이 *"절반 이상"*을 반증했다 — 원본은 `docs/audit/r29-bench.json`).
    * 그래서 `estimateMs`가 배수를 먹인 뒤에 더한다.
    */
   return training
@@ -323,13 +337,30 @@ export function hasEstimates(dataType: DataType, algorithms = ALGORITHMS): boole
 /**
  * 이 기기에서 몇 ms 걸릴 일인가. `factor`는 `ml/calibration.ts`가 잰 배수다.
  *
- * **시동은 배수 밖에서 더한다** (`baselineMs`의 주석). 그 배수는 계산 속도이고 시동의
- * 절반 이상은 내려받기와 WASM 세우기다.
+ * **시동은 배수 밖에서 더한다** (`baselineMs`의 주석).
  */
 export function estimateMs(input: EstimateInput, factor: number): number | null {
   const baseline = baselineMs(input)
   if (baseline === null) return null
   return baseline * factor + preparationMs(input.runtime ?? 'mljs')
+}
+
+/**
+ * **화면이 부르는 자리.** 실행 방법을 문자열로 받아 여기서 좁힌다.
+ *
+ * **`runtime`이 필수인 것이 이 함수의 전부다** (2026-09-19 R31 C-1). 위 `estimateMs`는
+ * 그 칸이 선택이라 **안 넘겨도 컴파일이 통과하고 순수 JS의 수가 나온다** — 화면 둘에서
+ * 그 한 줄을 지워도 검사 3,524개가 전부 초록이었다. 의사결정트리 100,000행에서
+ * **13.4초라고 말할 자리가 90분**이 된다.
+ *
+ * **서버 줄은 `null`이다** — 우리가 모르는 기기다.
+ */
+export function browserEstimateMs(
+  input: Omit<EstimateInput, 'runtime'> & { runtime: string },
+  factor: number,
+): number | null {
+  if (!isBrowserRuntimeId(input.runtime)) return null
+  return estimateMs({ ...input, runtime: input.runtime }, factor)
 }
 
 /** 그 실행 방법이 학습 앞에 무는 시동. 순수 JS는 0이다 (`ml/backend.ts`의 `RUNTIMES`). */

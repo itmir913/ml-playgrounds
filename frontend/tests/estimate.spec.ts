@@ -20,6 +20,10 @@ import {
   BASELINE_COLUMNS,
   MLJS_DECISION_TREE_BASELINE_MS,
   PYODIDE_BOOT_MS,
+  PYODIDE_DECISION_TREE_BASELINE_MS,
+  PYODIDE_KMEANS_CLUSTERS_MS,
+  PYODIDE_LOGISTIC_REGRESSION_MAX_ITER_FACTOR,
+  PYODIDE_RANDOM_FOREST_TREES_MS,
   TRAINING_ELAPSED_VISIBLE_AFTER_MS,
 } from '../src/limits'
 import { ALGORITHMS } from '../src/ml/algorithms'
@@ -185,6 +189,54 @@ group('등록부', () => {
         expect(image.columns, algorithm.id).toBe('flat')
       }
     }
+  })
+
+  /**
+   * **칸과 상수를 동일성으로 묶는다** (2026-09-19 R31 C-1). 등록부의 `baseline`은 알고리즘
+   * 아홉 × 종류 둘 × 엔진 둘 = **서른여섯 칸**인데, 감사자가 KNN 표의 두 엔진을 맞바꿔도
+   * 검사 3,524개가 전부 초록이었다 — *"두 엔진이 다른 수를 낸다"*만 보는 검사는
+   * **어느 쪽이 어느 엔진인지**를 안 본다.
+   *
+   * **이름으로 잇는다.** `limits.ts`의 상수 이름에서 접두사(`MLJS`/`PYODIDE`)와 종류
+   * (`IMAGE`)를 떼면 알고리즘 id가 남는다(밑줄만 지우면 같다: `k_means` ↔ `KMEANS`).
+   * 그 규칙으로 찾은 상수와 칸이 **같은 객체**여야 한다.
+   */
+  it('기준표 칸마다 이름이 맞는 상수가 들어 있다', async () => {
+    const limits = (await import('../src/limits')) as unknown as Record<string, unknown>
+    const key = (text: string) => text.replaceAll('_', '').toUpperCase()
+    const wrong: string[] = []
+    let bound = 0
+
+    for (const algorithm of ALGORITHMS) {
+      for (const dataType of ['tabular', 'image'] as const) {
+        for (const [runtime, prefix] of [
+          ['mljs', 'MLJS'],
+          ['pyodide-sklearn', 'PYODIDE'],
+        ] as const) {
+          const cell = algorithm.baseline[dataType][runtime]
+          if (cell.ms.length === 0) continue
+          const name = Object.keys(limits).find(
+            (one) =>
+              one.startsWith(`${prefix}_`) &&
+              one.endsWith('_BASELINE_MS') &&
+              key(one.slice(prefix.length + 1, -'_BASELINE_MS'.length)) ===
+                key(dataType === 'image' ? `IMAGE_${algorithm.id}` : algorithm.id),
+          )
+          if (name === undefined) {
+            wrong.push(`${algorithm.id}/${dataType}/${runtime}: 이름이 맞는 상수가 없다`)
+            continue
+          }
+          bound += 1
+          if (limits[name] !== cell.ms) {
+            wrong.push(`${algorithm.id}/${dataType}/${runtime}: ${name}이 아니다`)
+          }
+        }
+      }
+    }
+
+    // **그물의 크기를 센다** (R9 B-5). 이름 규칙이 바뀌어 한 칸도 안 묶이면 여기가 운다.
+    expect(bound, 'no baseline cell was bound to a constant').toBeGreaterThan(20)
+    expect(wrong).toEqual([])
   })
 
   it('기준표의 행 수가 오름차순이다 - 보간이 그것을 전제한다', () => {
@@ -466,6 +518,30 @@ group('경과 시간', () => {
  * **같은 값은 막지 않는다.** 선형 회귀의 1,000행과 5,000행이 둘 다 23ms인데, 그건 점마다
  * 드는 고정 비용이 데이터 비용을 덮은 자리라 실제로 일어난다.
  */
+
+/**
+ * **실측이 실제로 내려간 자리.** 이 다섯 말고는 어떤 표도 행이 늘 때 시간이 줄면 안 된다.
+ *
+ * sklearn은 **점마다 드는 고정 비용이 커서** 작은 점에서 데이터 비용이 묻히고, 그때 잡음이
+ * 순서를 뒤집는다. 그건 결함이 아니라 그 엔진의 성질이다(`limits.ts`).
+ *
+ * **문턱을 쓰지 않는다** (2026-09-19 R31 A-1). 한때 *"감소폭이 그 표의 최솟값보다 작으면
+ * 넘어간다"*로 두었는데, 그 논증은 **표의 아래쪽에서만** 성립한다 — 위쪽에서 최솟값은 값의
+ * 14~45%라, 의사결정트리 100,000행을 4,677에서 1,900ms로 **50,000행보다 빠르게** 뒤집어도
+ * 관문이 초록이었다. 목록은 지어낸 수가 없고, **안 쓰인 항목이 남아도 운다** — 낡은 예외가
+ * 조용히 사는 것을 막는다.
+ */
+const MEASURED_DIPS: readonly string[] = [
+  'PYODIDE_LINEAR_REGRESSION_BASELINE_MS: 1000행 477ms -> 5000행 453ms',
+  'PYODIDE_KNN_BASELINE_MS: 1000행 738ms -> 2000행 651ms',
+  'PYODIDE_DECISION_TREE_BASELINE_MS: 250행 644ms -> 500행 642ms',
+  'PYODIDE_DECISION_TREE_BASELINE_MS: 1000행 643ms -> 2000행 641ms',
+  'PYODIDE_SVM_BASELINE_MS: 500행 509ms -> 1000행 497ms',
+]
+
+const dipOf = (name: string, before: number, earlier: number, rows: number, ms: number): string =>
+  `${name}: ${before}행 ${earlier}ms -> ${rows}행 ${ms}ms`
+
 group('기준표의 모양', () => {
   it('행이 늘 때 시간이 줄어드는 표가 없다', async () => {
     const limits = (await import('../src/limits')) as unknown as Record<string, unknown>
@@ -477,24 +553,10 @@ group('기준표의 모양', () => {
       if (!/^(MLJS|PYODIDE)_/.test(name) || !name.endsWith('BASELINE_MS')) continue
       const table = value as readonly (readonly [number, number])[]
       counted += 1
-      /**
-       * **감소폭이 그 표의 최솟값보다 작으면 넘어간다** (2026-09-19, sklearn 표가 들어오면서).
-       *
-       * sklearn은 **점마다 드는 고정 비용이 커서** 작은 점에서 데이터 비용이 묻힌다 —
-       * KNN이 1,000행 738ms · 2,000행 651ms다. 그건 결함이 아니라 그 엔진의 성질이고,
-       * 그 사실 자체가 실측이다(`limits.ts`).
-       *
-       * **문턱을 지어내지 않는다.** 가장 작은 점은 거의 전부가 고정 비용이므로, 그보다
-       * 작은 감소는 **그 고정 비용 안에서 흔들린 것**이다. K-평균에서 잡았던 진짜 결함은
-       * 20,000행 6,106ms가 100,000행 3,344ms로 내려간 것이라 문턱(42ms)을 백 배 넘었다.
-       */
-      const floor = Math.min(...table.map(([, ms]) => ms))
       for (let index = 1; index < table.length; index += 1) {
         const [rows, ms] = table[index]!
         const [before, earlier] = table[index - 1]!
-        if (earlier - ms >= floor) {
-          wrong.push(`${name}: ${before}행 ${earlier}ms -> ${rows}행 ${ms}ms`)
-        }
+        if (ms < earlier) wrong.push(dipOf(name, before, earlier, rows, ms))
       }
     }
     /**
@@ -506,7 +568,50 @@ group('기준표의 모양', () => {
     const named = declared.match(/^export const (MLJS|PYODIDE)_[A-Z_]*BASELINE_MS = /gm) ?? []
     expect(counted, 'every declared baseline table must be walked').toBe(named.length)
     expect(counted, 'the tables must not vanish from limits.ts').toBeGreaterThan(8)
-    expect(wrong).toEqual([])
+    expect(wrong.filter((one) => !MEASURED_DIPS.includes(one))).toEqual([])
+    // **안 쓰인 예외가 남아도 운다.** 표를 다시 재면 그 자리가 사라질 수 있고, 목록에 남은
+    // 옛 항목은 **다음에 같은 자리가 진짜로 뒤집혔을 때 조용히 통과시킨다.**
+    expect(
+      MEASURED_DIPS.filter((one) => !wrong.includes(one)),
+      'stale entries',
+    ).toEqual([])
+  })
+})
+
+/**
+ * **손잡이 표가 실측 원본과 한 글자도 안 다른가** (2026-09-19 R31 §4-1).
+ *
+ * `limits.ts`의 주석이 *"원본은 `docs/audit/r31-bench.json`이다"*라고 적는데, R31은 그
+ * 원본이 **저장소에 없어서** 표의 여덟 점을 하나도 대조하지 못했다. 원본을 넣었으니
+ * **말만 하지 말고 실제로 견준다** — 표를 손으로 고치면 여기서 운다.
+ */
+group('손잡이 표는 실측 원본 그대로다', () => {
+  const bench = JSON.parse(
+    readFileSync(join(__dirname, '..', '..', 'docs', 'audit', 'r31-bench.json'), 'utf-8'),
+  ) as { runs: { measured: Record<string, Record<string, number>> }[] }
+
+  const measured = (name: string): [number, number][] => {
+    const found = bench.runs.find((one) => one.measured[name] !== undefined)?.measured[name]
+    if (found === undefined) throw new Error(`r31-bench.json has no ladder named ${name}`)
+    return Object.entries(found).map(([x, ms]) => [Number(x), ms])
+  }
+
+  for (const [name, table, key] of [
+    ['그루 수', PYODIDE_RANDOM_FOREST_TREES_MS, 'pyodide_random_forest_trees'],
+    ['군집 수', PYODIDE_KMEANS_CLUSTERS_MS, 'pyodide_k_means_clusters'],
+  ] as const) {
+    it(`${name} 표의 점이 잰 값 그대로다`, () => {
+      expect(table.map((point) => [...point])).toEqual(measured(key))
+    })
+  }
+
+  /** **평평하다는 말도 원본이 있다.** 20,000행에서 25·50·100·200회에 추세가 없다. */
+  it('반복 횟수는 사다리가 평평해서 1이다', () => {
+    const iterations = measured('pyodide_logistic_regression_iterations').map(([, ms]) => ms)
+    const worst = Math.max(...iterations) / Math.min(...iterations)
+    // 폭이 1.2배 안쪽이고 추세가 없다 - 100회가 50회보다 낮다.
+    expect(worst).toBeLessThan(1.2)
+    expect(PYODIDE_LOGISTIC_REGRESSION_MAX_ITER_FACTOR).toBe(1)
   })
 })
 
@@ -574,6 +679,40 @@ group('실행 방법마다 다른 수를 말한다', () => {
 
     expect(one('mljs', { maxIter: 1000 }) / one('mljs', {})).toBeGreaterThan(5)
     expect(one('pyodide-sklearn', { max_iter: 1000 }) / one('pyodide-sklearn', {})).toBe(1)
+  })
+
+  /**
+   * **비를 보는 검사는 그 상수가 커지는 것을 구조적으로 못 본다** (2026-09-19 R31 C-2).
+   * 위 검사는 `1000회 ÷ 기본값`이라 배수가 2가 되면 분자와 분모가 함께 커져 **여전히 1**이다.
+   * 그동안 로지스틱 줄의 예상은 통째로 두 배가 된다 — 그래서 값을 절대값으로 못 박는다.
+   */
+  it('sklearn 로지스틱의 손잡이 배수는 1이다 - 평평하다고 쟀다', () => {
+    expect(PYODIDE_LOGISTIC_REGRESSION_MAX_ITER_FACTOR).toBe(1)
+  })
+
+  /**
+   * **그 상수는 로지스틱 하나의 것이다.** 한때 나머지 여섯 알고리즘의 **기본** 배수
+   * 자리에 앉아 있어서, 이름은 로지스틱을 가리키면서 값은 여섯에 걸렸다(R31 C-2).
+   *
+   * **그래서 여기서 재는 것은 "손잡이를 바꿔도 같은가"가 아니다** — 기본 배수가 옮겨지면
+   * 손잡이와 무관하게 줄 전체가 그만큼 커지고, 두 번 부르는 비교는 그 둘을 함께 키워
+   * 못 본다. **기준표의 값 그대로인지**를 본다.
+   */
+  it('sklearn 의사결정트리의 예상은 기준표 그대로다 - 곱할 손잡이가 없다', () => {
+    const tree = (hyperparameters: Record<string, unknown>) =>
+      baselineMs({
+        algorithm: 'decision_tree',
+        dataType: 'tabular',
+        rows: 20_000,
+        columns: BASELINE_COLUMNS,
+        hyperparameters,
+        runtime: 'pyodide-sklearn',
+      })
+    const table = interpolate(PYODIDE_DECISION_TREE_BASELINE_MS, 20_000)
+    expect(tree({})).toBeCloseTo(table, 6)
+    // 무엇을 주든 같은 수다 - 읽을 손잡이가 없다.
+    expect(tree({ max_iter: 1000 })).toBeCloseTo(table, 6)
+    expect(tree({ n_estimators: 500 })).toBeCloseTo(table, 6)
   })
 
   /**

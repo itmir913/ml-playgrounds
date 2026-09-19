@@ -72,6 +72,13 @@ function claim(id: string, count = 1): Experiment {
   )
 }
 
+/** 배포판을 받아 오는 엔진으로 만든 실험. **그 문장이 참인 유일한 자리다** (R31 C-5). */
+function pinned(id: string, version: string): Experiment {
+  return experiment(id, [
+    run(`${id}-run-1`, { engine: { kind: 'pyodide-sklearn', version } }),
+  ]) as Experiment
+}
+
 function mountPanel(one: Experiment) {
   return mount(ReproducePanel, {
     props: {
@@ -232,21 +239,37 @@ describe('대조가 도는 동안', () => {
    */
   it('돈 판이 파일의 판과 다르면 알림이 뜬다', async () => {
     const toasts = useToastStore()
-    const made = claim('experiment-pinned')
+    const made = pinned('experiment-pinned', '300.1.2')
     const panel = await started(made)
 
-    const elsewhere: Experiment = {
-      ...made,
-      runs: [{ ...made.runs[0]!, engine: { kind: MLJS_ENGINE.kind, version: '300.1.2' } }],
-    }
-    worker.resolve?.({ experiment: elsewhere })
+    worker.resolve?.({ experiment: pinned('experiment-pinned', '314.0.7') })
     await flushPromises()
 
     expect(toasts.items.map((one) => one.key)).toEqual(['inspect.engineVersionFallback'])
-    expect(toasts.items[0]?.params).toEqual({
-      stored: MLJS_ENGINE.version,
-      used: '300.1.2',
+    expect(toasts.items[0]?.params).toEqual({ stored: '300.1.2', used: '314.0.7' })
+    panel.unmount()
+  })
+
+  /**
+   * **순수 JS 줄에는 그 문장이 거짓이다** (2026-09-19 R31 C-5). 문구는 *"지금 배포판으로
+   * 돌렸고, 그래서 판정하지 않고 숫자만 보입니다"*까지 말하는데, 순수 JS는 판이 갈리면
+   * `compareRun`이 `unavailable()`을 내어 **숫자가 하나도 안 보인다.** 게다가 그 문장은
+   * **scikit-learn을 이름으로 부른다** — mljs 줄에 뜨면 엔진 이름까지 틀린다.
+   */
+  it('순수 JS는 판이 갈려도 아무 말도 안 한다', async () => {
+    const toasts = useToastStore()
+    const made = claim('experiment-mljs')
+    const panel = await started(made)
+
+    worker.resolve?.({
+      experiment: {
+        ...made,
+        runs: [{ ...made.runs[0]!, engine: { kind: MLJS_ENGINE.kind, version: '300.1.2' } }],
+      },
     })
+    await flushPromises()
+
+    expect(toasts.items).toEqual([])
     panel.unmount()
   })
 

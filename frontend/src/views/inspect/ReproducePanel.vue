@@ -31,14 +31,15 @@ import { errorMessageKey, isClientError, type ClientErrorCode } from '@/errors'
 import {
   compareExperiments,
   compareRun,
+  engineVersionFallback,
   reproduceBlockers,
   reproduceInputOf,
   type Reproduction,
 } from '@/ml/reproduce'
 import { succeeded } from '@/ml/results'
 import { factorFrom, readFactor, writeFactor } from '@/ml/calibration'
-import { RUNTIMES, isBrowserRuntimeId, type EngineState } from '@/ml/backend'
-import { describe as describeEstimate, estimateMs, type Estimate } from '@/ml/estimate'
+import { RUNTIMES, type EngineState } from '@/ml/backend'
+import { browserEstimateMs, describe as describeEstimate, type Estimate } from '@/ml/estimate'
 import { estimatedFeatureWidth } from '@/ml/preprocess'
 import { calibrateDevice, train } from '@/ml/worker/client'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
@@ -206,10 +207,10 @@ const estimate = computed<Estimate>(() => {
   let total = 0
   for (const run of props.experiment.runs) {
     if (run.status !== 'done') continue
-    // **브라우저에서 돈 줄만 안다.** 서버는 우리가 모르는 기기다.
+    // **브라우저에서 돈 줄만 안다.** 서버를 거르는 일은 `browserEstimateMs`가 한다.
     const runtime = RUNTIMES.find((one) => one.engineKind === run.engine?.kind)?.id
-    if (runtime === undefined || !isBrowserRuntimeId(runtime)) return { kind: 'unknown' }
-    const ms = estimateMs(
+    if (runtime === undefined) return { kind: 'unknown' }
+    const ms = browserEstimateMs(
       {
         algorithm: run.algorithm,
         dataType: props.dataType,
@@ -350,22 +351,14 @@ const toasts = useToastStore()
  * 판을 받는다(`ml/reproduce.ts`의 `enginePinsOf`). 원본이 그 판을 더 안 서빙하면 지금
  * 판으로 돌리는데, **그 사실을 안 말하면 교사가 보는 차이가 학생의 것으로 읽힌다.**
  *
- * **통로를 따로 안 만든다.** 파일의 run과 다시 돈 run이 각자 자기 엔진을 적고 있으므로,
- * 둘을 견주는 것으로 충분하다 — 워커가 보내 주는 메시지 하나를 더 두면 그 메시지가
- * 어긋날 자리가 하나 더 생긴다.
+ * **고르는 것은 여기가 아니다.** 어느 run이 그 문장을 받을 자격이 있는지는
+ * `engineVersionFallback`이 정한다 — 화면에서 조건을 조립하면 판정하는 축과 갈린다
+ * (R31 C-5). 여기 남는 것은 *"말한다"*뿐이다.
  */
 function announceEngineChange(claim: Experiment, again: Experiment): void {
-  for (const [index, fresh] of again.runs.entries()) {
-    const stored = claim.runs[index]?.engine
-    if (!stored || !fresh.engine) continue
-    if (stored.kind !== fresh.engine.kind || stored.version === fresh.engine.version) continue
-    toasts.push('caution', 'inspect.engineVersionFallback', {
-      stored: stored.version,
-      used: fresh.engine.version,
-    })
-    // **한 번만 말한다.** 한 실험의 run들은 같은 엔진으로 돌므로 같은 문장이 반복된다.
-    return
-  }
+  const change = engineVersionFallback(claim, again)
+  if (change === undefined) return
+  toasts.push('caution', 'inspect.engineVersionFallback', change)
 }
 
 /** 맵에 앉히고 화면에 알린다. **`ref`가 든 `Map`은 넣는 것만으로는 안 깨어난다.** */

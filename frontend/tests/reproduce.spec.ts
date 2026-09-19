@@ -17,6 +17,7 @@ import { MLJS_ENGINE } from '../src/ml/engines/mljs'
 import {
   compareExperiments,
   compareRun,
+  engineVersionFallback,
   flippedRows,
   reproduceBlockers,
   reproduceExperiment,
@@ -1077,5 +1078,58 @@ describe('돈 판이 파일의 판과 다를 때', () => {
   it('판이 같으면 평소대로 판정한다 - 바닥', () => {
     const same = { kind: 'pyodide-sklearn', version: '314.0.7' } as const
     expect(compareRun(claimRun(same), freshRun(same, 0.9)).status).toBe('REPRODUCED')
+  })
+
+  /**
+   * **말하는 자리도 같은 축을 봐야 한다** (2026-09-19 R31 C-5).
+   *
+   * 그 문구는 *"지금 배포판으로 돌렸고, 그래서 판정하지 않고 숫자만 보입니다"*까지
+   * 말한다. 순수 JS에는 그 말이 거짓이다 — 바로 위 검사대로 **숫자가 하나도 안 보인다.**
+   * 엔진을 안 가리면 mljs 줄을 두고 **scikit-learn을 말한다.**
+   *
+   * **오늘은 안 닿고 닿는 날이 정해져 있다.** `MLJS_ENGINE.version`이 오르는 순간, 옛
+   * mljs run과 지금 sklearn run이 함께 든 실험이 열리고 배열에서 mljs가 앞이다.
+   */
+  describe('판이 갈렸다고 말하는 문장', () => {
+    const experimentOf = (runs: readonly Run[]) => ({ id: 'e1', runs }) as unknown as Experiment
+
+    const oldSklearn = { kind: 'pyodide-sklearn', version: '300.1.2' } as const
+    const nowSklearn = { kind: 'pyodide-sklearn', version: '314.0.7' } as const
+
+    it('받아 오는 엔진이면 파일의 판과 돈 판을 낸다', () => {
+      expect(
+        engineVersionFallback(
+          experimentOf([claimRun(oldSklearn)]),
+          experimentOf([freshRun(nowSklearn, 0.9)]),
+        ),
+      ).toEqual({ stored: '300.1.2', used: '314.0.7' })
+    })
+
+    it('순수 JS는 아무 말도 안 한다 - 그 줄에는 숫자 자체가 없다', () => {
+      expect(
+        engineVersionFallback(
+          experimentOf([claimRun({ kind: 'mljs', version: '2' })]),
+          experimentOf([freshRun(MLJS_ENGINE, 0.4)]),
+        ),
+      ).toBeUndefined()
+    })
+
+    it('앞 줄이 순수 JS여도 sklearn 줄을 찾아 말한다', () => {
+      expect(
+        engineVersionFallback(
+          experimentOf([claimRun({ kind: 'mljs', version: '2' }), claimRun(oldSklearn)]),
+          experimentOf([freshRun(MLJS_ENGINE, 0.4), freshRun(nowSklearn, 0.9)]),
+        ),
+      ).toEqual({ stored: '300.1.2', used: '314.0.7' })
+    })
+
+    it('판이 같으면 말할 것이 없다 - 바닥', () => {
+      expect(
+        engineVersionFallback(
+          experimentOf([claimRun(nowSklearn)]),
+          experimentOf([freshRun(nowSklearn, 0.9)]),
+        ),
+      ).toBeUndefined()
+    })
   })
 })

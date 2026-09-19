@@ -128,7 +128,8 @@ function compile(
  * 나무 하나가 고른 클래스 번호. 자식 인덱스가 단조 증가하므로 루프는 반드시 끝난다.
  *
  * **범위 확인이 남아 있는 것은 타입 때문이지 못 믿어서가 아니다.** compile()이 이미
- * 인덱스를 범위 안으로 묶었으므로 여기 닿지 않는다. 그래도 `?? 0` 같은 폴백으로 때우지는
+ * 인덱스를 범위 안으로 묶었으므로 여기 닿지 않는다 - 묶는 것이 **읽을 때**임을
+ * `models.spec.ts`의 `범위 밖 잎은 예측할 때가 아니라 읽을 때 거부한다`가 못 박는다. 그래도 `?? 0` 같은 폴백으로 때우지는
  * 않는다 - 그 폴백 하나가 곧 조용히 틀린 예측이고, 이 저장소가 규정한 최악이 그것이다.
  */
 function classify(tree: CompiledTree, row: Float64Array): number {
@@ -186,8 +187,9 @@ export function loadTreeModel(file: unknown): Predict {
 
       const values = Float64Array.from(row)
       const label = classes[vote(trees.map((tree) => classify(tree, values)))]
-      // 검증이 클래스 번호를 이미 범위 안으로 묶었으므로 여기 닿지 않는다. 방어선은
-      // 남긴다 - ml/engines/mljs.ts의 decode가 범위 밖 번호를 던지는 것과 같은 이유다.
+      // 검증이 클래스 번호를 이미 범위 안으로 묶었으므로 여기 닿지 않는다(`models.spec.ts`의
+      // `범위 밖 잎은 예측할 때가 아니라 읽을 때 거부한다`). 방어선은 남긴다 -
+      // ml/engines/mljs.ts의 decode가 범위 밖 번호를 던지는 것과 같은 이유다.
       if (label === undefined) invalid('classes')
       return label
     })

@@ -385,6 +385,33 @@ function versionIsFetched(claim: Run): boolean {
   return engine?.acceptsVersion !== undefined
 }
 
+/**
+ * 파일이 말한 배포판으로 못 돌았으면 **무엇으로 돌았는지**를 낸다. 아니면 `undefined`.
+ *
+ * **화면이 아니라 여기 있는 이유는 축이 하나여야 하기 때문이다** (2026-09-19 R31 C-5).
+ * 이 사실을 말하는 문구는 *"숫자는 보이고 판정을 안 한다"*까지 말하는데, 그 말이 참인
+ * run은 `versionIsFetched`가 참인 것뿐이다 — 순수 JS는 판이 갈리면 `compareRun`이
+ * `unavailable()`을 내어 **숫자가 하나도 안 보인다.** 판정하는 자리와 말하는 자리가 다른
+ * 축을 보면 화면이 자기 모순을 말하고, **엔진 이름까지 틀린다.**
+ *
+ * **한 번만 낸다.** 한 실험의 run들은 같은 세션에서 같은 판으로 돌므로 문장이 반복된다.
+ */
+export function engineVersionFallback(
+  claim: Experiment,
+  fresh: Experiment,
+): { stored: string; used: string } | undefined {
+  for (const [index, run] of fresh.runs.entries()) {
+    const claimed = claim.runs[index]
+    const stored = claimed?.engine
+    const used = run.engine
+    if (!claimed || !stored || !used) continue
+    if (stored.kind !== used.kind || stored.version === used.version) continue
+    if (!versionIsFetched(claimed)) continue
+    return { stored: stored.version, used: used.version }
+  }
+  return undefined
+}
+
 function sameEngine(claim: Run, fresh: Run): boolean {
   const before = claim.engine
   const after = fresh.engine

@@ -39,10 +39,15 @@ import {
   writeFactor,
   writeModelFactors,
 } from '@/ml/calibration'
-import { baselineMs, describe as describeEstimate, estimateMs, type Estimate } from '@/ml/estimate'
+import {
+  baselineMs,
+  browserEstimateMs,
+  describe as describeEstimate,
+  type Estimate,
+} from '@/ml/estimate'
 import { estimatedFeatureWidth } from '@/ml/preprocess'
 import { trainableRowsOf } from '@/ml/training-source'
-import { isBrowserRuntimeId, type EngineState, type RuntimeContext } from '@/ml/backend'
+import type { EngineState, RuntimeContext } from '@/ml/backend'
 import { algorithmsLosingMeaning, requiredTargetKind, type ChosenModel } from '@/ml/selection'
 import { algorithmSelectionFor, runtimeContextFor, trainingSourceOf } from '@/ml/training-source'
 import { failedRuns } from '@/ml/results'
@@ -262,15 +267,16 @@ const estimates = computed<Estimate[]>(() => {
   const dataType = project.file?.document.manifest.dataType
   const values = settings.value?.hyperparameters ?? {}
   return chosen.value.map((row) => {
-    // **브라우저에서 도는 줄만 안다.** 서버는 우리가 모르는 기기다.
-    // **종류를 손으로 세지 않는다** — 등록부가 아는 것을 묻는다 (`architecture.md` §9.1).
-    if (factor === null || dataType === undefined || !isBrowserRuntimeId(row.runtime)) {
-      return { kind: 'unknown' }
-    }
+    if (factor === null || dataType === undefined) return { kind: 'unknown' }
     // 그 알고리즘을 한 번이라도 돌려 봤으면 그때 잰 값이 이긴다.
     const measured = modelFactors.value[row.algorithm] ?? factor
+    /**
+     * **`browserEstimateMs`는 실행 방법을 필수로 받는다** (R31 C-1). 서버 줄을 거르는 일도
+     * 그쪽이 한다 — 여기서 종류를 손으로 세면 등록부가 아는 것을 화면이 다시 아는 셈이다
+     * (`architecture.md` §9.1).
+     */
     return describeEstimate(
-      estimateMs(
+      browserEstimateMs(
         {
           algorithm: row.algorithm,
           dataType,

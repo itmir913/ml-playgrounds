@@ -30,10 +30,13 @@ ADAPTER = (
 )
 
 #: 어댑터에 `serializer.dump`이 있어야 하는 알고리즘. **줄면 여기가 운다.**
+#
+# **`knn`은 없다** — 참조형이 담는 것은 배운 값이 아니라 **본 행**이라 파이썬에게 물을 것이
+# 없다 (`mlpx-spec.md` §5.6). 한때 이 집합에 넣고 아래에서 다시 뺐는데, 그러면 *"있어야
+# 한다"*는 선언과 실제가 어긋난다 (2026-09-19 R31 C-3).
 EXPECTED = {
     "decision_tree",
     "random_forest",
-    "knn",
     "logistic_regression",
     "naive_bayes",
     "svm",
@@ -61,8 +64,8 @@ def tree_helper() -> str:
 def dumps() -> dict[str, str]:
     """알고리즘 -> `_dump`에 들어갈 파이썬 식.
 
-    `dump` 칸이 없는 알고리즘(랜덤 포레스트, 참조형)은 빠진다 - 전자는 안 담기로 한 것이고
-    후자는 파이썬에게 묻지 않는다.
+    **빠지는 것은 참조형(KNN) 하나다** - 담는 것이 배운 값이 아니라 본 행이라 파이썬에게
+    물을 것이 없다. 랜덤 포레스트도 한때 빠져 있었는데 `mlpx-tree-v2`로 열렸다.
     """
     source = _source()
 
@@ -81,7 +84,9 @@ def dumps() -> dict[str, str]:
     found: dict[str, str] = {}
     for index, (name, begin) in enumerate(starts):
         end = starts[index + 1][1] if index + 1 < len(starts) else len(source)
-        block = source[begin:end]
+        # **주석을 먼저 지운다** (2026-09-19 R31 C-7). 안 그러면 주석에 적힌 옛 `dump:`가
+        # 이기고, **어댑터가 실제로 보내는 것과 다른 조각으로 픽스처가 만들어진다.**
+        block = re.sub(r"^\s*(//|\*|/\*).*$", "", source[begin:end], flags=re.MULTILINE)
         quoted = re.search(r"dump: '([^']*)'", block)
         templated = re.search(r"dump: `(.*?)`,\n", block, re.DOTALL)
         if re.search(r"dump: LINEAR_DUMP", block):
@@ -91,7 +96,7 @@ def dumps() -> dict[str, str]:
         elif templated:
             found[name] = templated.group(1)
 
-    missing = EXPECTED - set(found) - {"knn"}
+    missing = EXPECTED - set(found)
     if missing:
         raise AdapterParseError(f"no dump found for: {', '.join(sorted(missing))}")
     return found

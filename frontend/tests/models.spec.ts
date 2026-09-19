@@ -250,6 +250,19 @@ describe('깨진 모델은 조용히 틀린 답을 내지 않는다', () => {
     expectCode(() => loadModel(broken([leaf(9)])), 'MODEL_FILE_INVALID')
   })
 
+  /**
+   * **범위를 넓히는 방향은 위 검사가 못 잡는다** (2026-09-19 R31 C-6). `leaf(9)`는 범위가
+   * 한 칸 넓어져도 여전히 밖이고, 설령 통과해도 예측할 때 `classes[…]`가 `undefined`라
+   * **같은 코드로 던진다** — 그래서 범위를 `classes.length + 1`로 바꿔도 관문이 조용했다.
+   *
+   * **가르는 것은 언제 던지느냐다.** 거부는 **읽을 때** 나야 한다 — 예측할 때로 밀리면
+   * 파일을 연 교사가 아니라 사진을 넣은 학생이 그 자리에서 맞는다.
+   */
+  it('범위 밖 잎은 예측할 때가 아니라 읽을 때 거부한다', () => {
+    // 클래스가 셋이므로 번호 3은 **딱 한 칸** 밖이다.
+    expectCode(() => loadModel(broken([leaf(3)])), 'MODEL_FILE_INVALID')
+  })
+
   it('잎인데 자식이 있으면 거부한다', () => {
     expectCode(() => loadModel(broken([[-1, 0, 1, 1], leaf(0)])), 'MODEL_FILE_INVALID')
   })
