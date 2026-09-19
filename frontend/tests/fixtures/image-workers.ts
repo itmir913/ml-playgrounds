@@ -161,6 +161,31 @@ export function stubDialogElement(): void {
   }
 }
 
+/**
+ * jsdom에는 **쓸 수 있는 객체 URL이 없다.**
+ *
+ * vitest가 호환 겉옷을 씌워 두는데 그것이 jsdom의 내부 `Blob._buffer`를 읽고, **jsdom
+ * 30.1이 Blob 구현을 갈면서 그 칸이 사라졌다** — `URL.createObjectURL`을 부르는 순간
+ * 처리 안 된 오류가 나고, **검사는 전부 통과하는데 관문이 빨개진다**(2026-09-19).
+ *
+ * **가짜 글자로 충분하다.** 이 저장소의 검사는 객체 URL을 `<img src>`에 꽂힌 글자로만
+ * 보지 그 주소를 되읽지 않는다 — 사진 판 일곱이 이미 같은 줄을 손으로 적고 있었고,
+ * 여기 이름을 붙여 그 여덟째를 없앤다.
+ *
+ * **돌려주는 것이 매번 다르다.** 화면이 살아 있는 URL을 열쇠로 견주므로(`useObjectUrls`의
+ * "살아 있으면 그대로 쓴다"), 같은 글자를 돌려주면 서로 다른 사진이 한 칸으로 접힌다.
+ */
+let objectUrlCount = 0
+
+export function stubObjectUrls(): void {
+  objectUrlCount = 0
+  URL.createObjectURL = () => {
+    objectUrlCount += 1
+    return `blob:fake-${String(objectUrlCount)}`
+  }
+  URL.revokeObjectURL = () => {}
+}
+
 /** 판에 사진을 끌어다 놓는 것. **jsdom에는 `DragEvent`가 없다.** */
 export function dropEvent(files: readonly File[]): Event {
   const event = new Event('drop', { bubbles: true, cancelable: true })

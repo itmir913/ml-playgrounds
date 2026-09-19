@@ -20,6 +20,7 @@ import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import PortfolioView from '../src/views/PortfolioView.vue'
 import SectionCard from '../src/views/portfolio/SectionCard.vue'
+import { stubObjectUrls } from './fixtures/image-workers'
 import { projectFile } from './fixtures/project'
 
 /** 몇 장이 구워지는가. **검사가 정한다.** */
@@ -59,6 +60,8 @@ const cautions = () => useToastStore().items.filter((one) => one.tone === 'cauti
 beforeEach(async () => {
   setActivePinia(createPinia())
   oven.bakes = 0
+  // 붙인 사진을 화면이 객체 URL로 그린다. **jsdom에는 쓸 수 있는 것이 없다.**
+  stubObjectUrls()
   await setLocale('ko')
 })
 
