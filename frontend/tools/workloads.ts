@@ -1200,6 +1200,65 @@ export const PYODIDE_LADDERS: readonly Ladder[] = [
 ]
 
 /**
+ * **sklearn의 손잡이 사다리** (2026-09-19, 로드맵 4단계).
+ *
+ * 예상 시간은 `기준표(행) × 손잡이 배수`인데(`ml/estimate.ts`의 `handleFactor`), **그
+ * 배수가 mljs에서 잰 값이다.** 두 엔진이 같은 성질이라는 근거가 없고, **하나는 이미 크게
+ * 다른 것이 보인다** — 로지스틱의 `maxIter`는 mljs에서 100→1000이 **19.2배**인데
+ * sklearn은 천장까지 올린 사다리가 100,000행에서 1,218 → 1,448ms다(**1.19배**).
+ * 그 표를 그대로 쓰면 **화면이 16배 틀린 수를 말한다.**
+ *
+ * **세 개뿐인 이유** — `handleFactor`가 보는 손잡이가 넷인데 인공신경망은 sklearn 줄이
+ * 아예 없다(등록부가 `false`라 선언한다). 나머지 손잡이(`C`·최대 깊이·`k`)는 저쪽에서도
+ * 안 본다.
+ *
+ * **점은 mljs 사다리와 같은 자리다.** 달라지면 배수를 견줄 수가 없다.
+ */
+const PYODIDE_HANDLE_LADDERS: readonly Ladder[] = [
+  {
+    id: 'pyodide_random_forest_trees',
+    label: '[sklearn] 랜덤 포레스트 · 그루 수 (1,000행)',
+    axis: 'nEstimators',
+    points: [10, 25, 50, 100],
+    job: (trees) => ({
+      algorithm: 'random_forest',
+      rows: 1000,
+      hyperparameters: { n_estimators: trees },
+    }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    /**
+     * **`tol`을 0으로 놓는다.** 안 그러면 sklearn이 `max_iter`에 닿기 전에 수렴해 버려
+     * **손잡이를 올려도 시간이 안 늘고**, 그러면 이 사다리가 재는 것이 손잡이가 아니라
+     * "언제 수렴하나"가 된다. mljs 사다리가 같은 자리에서 같은 것을 한다.
+     */
+    id: 'pyodide_logistic_regression_iterations',
+    label: '[sklearn] 로지스틱 회귀 · max_iter (20,000행)',
+    axis: 'maxIter',
+    points: [25, 50, 100, 200],
+    job: (iterations) => ({
+      algorithm: 'logistic_regression',
+      rows: 20_000,
+      hyperparameters: { tol: 0, max_iter: iterations },
+    }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_k_means_clusters',
+    label: '[sklearn] K-평균 · 군집 수 (군집 없는 데이터, 20,000행)',
+    axis: 'nClusters',
+    points: [2, 5, 10, 20],
+    job: (clusters) => ({
+      algorithm: 'k_means',
+      rows: 20_000,
+      hyperparameters: { n_clusters: clusters },
+    }),
+    engine: 'pyodide-sklearn',
+  },
+]
+
+/**
  * **sklearn의 상한 사다리** (2026-09-19 실측 뒤에 세웠다).
  *
  * **처음 훑기에서 실패가 0건이었다.** 열다섯 사다리가 전부 끝까지 갔고, 그래서 **깨지는
@@ -1472,6 +1531,7 @@ export const ALL_LADDERS: readonly Ladder[] = [
   ...LADDERS,
   ...LIMIT_LADDERS.map((ladder) => ({ ...ladder, findsLimit: true as const })),
   ...PYODIDE_LADDERS,
+  ...PYODIDE_HANDLE_LADDERS,
   ...PYODIDE_LIMIT_LADDERS.map((ladder) => ({ ...ladder, findsLimit: true as const })),
 ]
 
