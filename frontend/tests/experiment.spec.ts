@@ -2352,6 +2352,46 @@ describe('자동 이동이 비용을 몰래 물리지 않는다', () => {
     expect(run?.modelOmittedDetail?.startsWith('pyodide-sklearn:random_forest:threw:')).toBe(true)
   })
 
+  /**
+   * **엔진이 정한 사유 어휘가 run에 실리는가** (2026-09-19 R32 C-1).
+   *
+   * **조각마다 초록인데 잇는 자리가 비어 있었다** — 엔진 쪽은 `fit()`이 `tooLarge`를
+   * 돌려주는지 보고, 소비자 쪽은 화면이 그 어휘로 문구를 고르는지 본다. **그 사이를
+   * 아무도 안 봤다.** 감사자가 `lint`와 `tsc`를 함께 통과하는 모양으로 이 배선을 없던
+   * 것으로 되돌렸더니 **3,546개가 전부 초록이었다.**
+   *
+   * **새는 것은 학생이 받는 지시다.** `tooLarge`는 *"나무 개수처럼 모델을 키우는 설정을
+   * 줄여 보세요"*이고 `engineUnsupported`는 *"아직 저장할 수 없어 점수만 남겼습니다"* —
+   * **하나는 할 일이 있고 하나는 없다.**
+   */
+  it('엔진이 사유 어휘를 말하면 그것이 run에 실린다', async () => {
+    const refusing: TrainingEngine = {
+      ...(ENGINES.find((one) => one.runtimeId === 'pyodide-sklearn') as TrainingEngine),
+      prepare: () => Promise.resolve(),
+      fit: () =>
+        Promise.resolve({
+          predict: (features: readonly (readonly number[])[]) => features.map(() => 'setosa'),
+          modelOmittedDetail: 'pyodide-sklearn:random_forest:too-large:9nodes:5leaves:99bytes',
+          modelOmittedReason: 'tooLarge' as const,
+        }),
+    }
+
+    const { experiment } = await runExperiment(
+      inputFor({
+        settings: settingsFor({
+          selectedAlgorithms: [{ algorithm: 'random_forest', runtime: 'pyodide-sklearn' }],
+        }),
+      }),
+      { ...frozen, engines: [ENGINES[0] as TrainingEngine, refusing] },
+    )
+
+    const run = experiment.runs[0]
+    expect(run?.status).toBe('done')
+    expect(run?.modelOmitted).toBe('tooLarge')
+    // **원문도 함께 건너온다.** 같은 이음매인데 이쪽은 따로 안 재고 있었다(R32 §4-2).
+    expect(run?.modelOmittedDetail).toContain(':too-large:')
+  })
+
   /** **콕 집으면 그대로 간다.** 학생이 고른 것은 비용을 듣고 고른 것이다. */
   it('콕 집은 줄은 sklearn에서 그대로 돈다', async () => {
     const { experiment } = await runExperiment(

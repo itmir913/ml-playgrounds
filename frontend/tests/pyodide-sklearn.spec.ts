@@ -307,6 +307,37 @@ describe('담을 수 없을 만큼 큰 숲', () => {
     expect(sources.some((one) => one.includes('_mlpx_tree_v2'))).toBe(false)
   })
 
+  /**
+   * **셀 수 없는 것을 "너무 크다"고 말하지 않는다** (2026-09-19 R32 C-5).
+   *
+   * `typeof NaN`은 `'number'`라, 종류만 보면 하한이 `NaN`이 되고 `NaN <= 상한`이 거짓이라
+   * **거절이 만들어진다** — 학생은 *"나무 개수를 줄이세요"*를 듣지만 줄여도 같은 일이 난다.
+   *
+   * **JSON으로 닿는 자리가 있다.** `NaN`은 `JSON.parse`가 거부하지만 **`1e999`는
+   * `Infinity`로 파싱된다** — 종류는 `number`이고 유한하지 않다.
+   */
+  it('센 수가 유한하지 않으면 거절하지 않는다', async () => {
+    const { proxy, sources } = pyodideCounting({ nodes: 0, leaves: 0 })
+    // 가짜가 주는 문자열을 직접 갈아 끼운다 — `1e999`는 객체로는 못 적는다.
+    const infinite: PyodideProxy = {
+      ...proxy,
+      globals: {
+        get: (name) => ({
+          toJs: () => (name === '_size' ? '{"nodes": 1e999, "leaves": 1e999}' : [0]),
+          destroy: () => {},
+        }),
+        set: () => {},
+      },
+    }
+    setPyodide(infinite)
+
+    const result = await fit('random_forest', input({ n_estimators: 100 }))
+    // **거절하지 않는다.** 못 세었으면 평소대로 옮겨 보고, 크면 저장할 때 걸린다.
+    expect(result.modelOmittedReason).toBeUndefined()
+    expect(result.modelOmittedDetail ?? '').not.toContain('too-large')
+    expect(sources.some((one) => one.includes('_mlpx_tree_v2'))).toBe(true)
+  })
+
   it('작으면 평소대로 옮긴다 - 바닥', async () => {
     const { proxy, sources } = pyodideCounting({ nodes: 300, leaves: 150 })
     setPyodide(proxy)

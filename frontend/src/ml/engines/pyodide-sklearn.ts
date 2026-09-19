@@ -637,6 +637,18 @@ function omitted(algorithm: string, why: string): { readonly modelOmittedDetail:
  * **못 세면 막지 않는다.** `size` 칸이 없는 알고리즘이 대부분이고, 파이썬이 다른 모양을
  * 주면 그건 이 문의 일이 아니다 — 담아 보고 저장할 때 걸리면 된다.
  */
+/**
+ * 셀 수 있는 수인가. **`typeof NaN`은 `'number'`다** (2026-09-19 R32 C-5).
+ *
+ * 종류만 보면 하한이 `NaN`이 되고 `NaN <= MAX_MODEL_BYTES`가 거짓이라 **셀 수 없는 것을
+ * *"너무 크다"*고 말한다** — 학생은 나무 개수를 줄이라는 말을 듣고 줄여도 같은 일을 겪는다.
+ * `NaN`은 `JSON.parse`가 막지만 **`1e999`는 `Infinity`로 파싱된다**(그 길은 열려 있다,
+ * `pyodide-sklearn.spec.ts`의 `센 수가 유한하지 않으면 거절하지 않는다`).
+ */
+function isCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
 function refusedForSize(serializer: SklearnSerializer, classCount: number): string | undefined {
   if (serializer.size === undefined || !py) return undefined
   py.runPython(`
@@ -649,7 +661,7 @@ _size = json.dumps(${serializer.size})
   const counted: unknown = JSON.parse(text)
   if (typeof counted !== 'object' || counted === null) return undefined
   const { nodes, leaves } = counted as { nodes?: unknown; leaves?: unknown }
-  if (typeof nodes !== 'number' || typeof leaves !== 'number') return undefined
+  if (!isCount(nodes) || !isCount(leaves)) return undefined
 
   const least = minimumTreeV2Bytes(nodes, leaves, classCount)
   if (least <= MAX_MODEL_BYTES) return undefined

@@ -2649,6 +2649,87 @@ describe('받은 것을 그리는 부품은 스토어를 안 읽는다', () => {
  *
  * **예외는 내려받기 하나다** — 거기서 만드는 URL은 화면에 안 걸리고 그 자리에서 놓는다.
  */
+/**
+ * **예상 시간은 실행 방법을 말하고 받는다** (2026-09-19 R32 C-3).
+ *
+ * `estimateMs`는 `runtime`이 **선택 인자**라 안 넘기면 조용히 순수 JS의 수를 낸다. 화면
+ * 둘을 `browserEstimateMs`(필수 인자)로 옮겨 놓았지만 **덫 자체는 그대로 있고**, 새 화면이
+ * 저쪽을 부르는 것을 막는 것이 아무것도 없었다. `browserEstimateMs`의 독스트링이
+ * *"`runtime`이 필수인 것이 이 함수의 전부다"*라고 적는데, **그 말이 참이려면 선택인 쪽이
+ * 화면에서 안 보여야 한다.**
+ *
+ * 실제로 그 덫을 밟은 자리가 있었다 — `TrainView.vue`의 배수 보정이 `baselineMs`를 직접
+ * 불러 **sklearn 줄의 배수를 순수 JS 기준표로 셈했다**(R32 B-1). 그쪽은 타입으로 닫았고,
+ * 이 규칙은 **같은 병이 화면으로 다시 들어오는 길**을 막는다.
+ */
+describe('화면은 예상을 실행 방법과 함께 낸다', () => {
+  const VIEWS = join(SRC, 'views')
+
+  /**
+   * 화면이 들여오면 안 되는 이름.
+   *
+   * **`baselineMs`는 여기 없다.** 그쪽은 학습 뒤 배수를 다듬는 자리가 실제로 쓰고
+   * (`TrainView.vue`), **실행 방법을 안 적으면 컴파일이 선다** — 진짜 그물은 타입이다.
+   * `estimateMs`도 이제 그 타입을 쓰지만, 화면은 `runtime`을 **좁혀지지 않은 문자열**로
+   * 들고 있어 서버 줄을 거르는 일까지 해야 한다. 그 일을 하는 것이 `browserEstimateMs`다.
+   */
+  const FORBIDDEN = ['estimateMs']
+
+  function viewSources(directory: string): string[] {
+    return readdirSync(directory).flatMap((entry) => {
+      const path = join(directory, entry)
+      if (statSync(path).isDirectory()) return viewSources(path)
+      return entry.endsWith('.vue') || entry.endsWith('.ts') ? [path] : []
+    })
+  }
+
+  /** `@/ml/estimate`에서 들여오는 이름들. **들여오는 절만 본다.** */
+  function importedFromEstimate(code: string): string {
+    const marker = "from '@/ml/estimate'"
+    let names = ''
+    for (let at = code.indexOf(marker); at !== -1; at = code.indexOf(marker, at + 1)) {
+      const opened = code.lastIndexOf('{', at)
+      if (opened !== -1) names += code.slice(opened, at)
+    }
+    return names
+  }
+
+  it('화면은 실행 방법 없는 예상 함수를 안 들여온다', () => {
+    const offenders: string[] = []
+    for (const path of viewSources(VIEWS)) {
+      const names = importedFromEstimate(withoutComments(readFileSync(path, 'utf-8')).join('\n'))
+      for (const name of FORBIDDEN) {
+        // `browserEstimateMs`가 `estimateMs`를 품으므로 낱말 경계를 손으로 본다.
+        if (names.split(/[^A-Za-z]+/).includes(name)) offenders.push(`${basename(path)}: ${name}`)
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
+  /** **잣대가 실제로 무는지.** 막는 이름이 소스에 실재해야 규칙이 뜻을 갖는다. */
+  it('막는 이름이 실재한다 - 그리고 대신 쓸 것이 있다', () => {
+    const estimate = readFileSync(join(SRC, 'ml', 'estimate.ts'), 'utf-8')
+    for (const name of FORBIDDEN) {
+      expect(estimate, name).toContain(`export function ${name}`)
+    }
+    expect(estimate).toContain('export function browserEstimateMs')
+  })
+
+  /**
+   * **그물이 실제로 무는지.** 잣대가 들여오는 절만 보므로, 다른 자리에 같은 낱말이 있으면
+   * 안 물어야 하고 들여오면 물어야 한다 — 그 둘을 여기서 갈라 둔다.
+   */
+  it('들여오는 절만 본다', () => {
+    const importing = "import { estimateMs } from '@/ml/estimate'"
+    expect(importedFromEstimate(importing).split(/[^A-Za-z]+/)).toContain('estimateMs')
+    // 말만 나오는 자리는 안 문다.
+    expect(importedFromEstimate('const x = 1 // estimateMs를 쓰지 마라')).toBe('')
+    // **`browserEstimateMs`가 `estimateMs`를 품는다.** 낱말로 갈라야 거짓 빨강이 안 난다.
+    const allowed = "import { browserEstimateMs } from '@/ml/estimate'"
+    expect(importedFromEstimate(allowed).split(/[^A-Za-z]+/)).not.toContain('estimateMs')
+  })
+})
+
 describe('객체 URL은 한 곳에서만 만든다', () => {
   const ALLOWED = [
     join(SRC, 'composables', 'useObjectUrls.ts'),

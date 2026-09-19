@@ -300,8 +300,18 @@ describe('담기 전에 세는 크기', () => {
       const least = minimumTreeV2Bytes(nodes, leaves, prepared.classes.length)
       const actual = new TextEncoder().encode(JSON.stringify(model)).length
       expect(least, `${name} bound`).toBeLessThanOrEqual(actual)
-      // **하한이 0에 가까우면 그건 하한이 아니라 무의미다.** 실제의 몇 할은 돼야
-      // 113MB짜리 숲이 실제로 걸린다.
+      /**
+       * **하한이 0에 가까우면 그건 하한이 아니라 무의미다.**
+       *
+       * **0.2가 어디서 왔는지 적어 둔다** (2026-09-19 R32 C-4). 이 여덟 벌의 실측 밴드가
+       * **0.461~0.495**이고(`origin` 0.474 · `scale` 0.461 · `multi` 0.495 …) 문턱은 그
+       * **절반 아래**다. 밴드를 재지 않고 고른 수였고, 재 보니 자리가 맞았다.
+       *
+       * **이 문턱이 지키는 것은 하나다** — 하한이 무의미해지는 것. 하한을 더 낮추는 방향은
+       * 해가 없고(거절이 관대해질 뿐 113MB는 여전히 걸린다) 실제로 `9 → 4`로 낮추면
+       * 비율 0.27로 조용히 지나간다. **무는 자리는 하한을 통째로 버리는 모양이다** —
+       * `nodes`를 무시하면 비율이 0.106이 되어 여기서 운다.
+       */
       expect(least, `${name} bound is not trivial`).toBeGreaterThan(actual * 0.2)
     })
   }

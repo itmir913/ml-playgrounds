@@ -61,40 +61,63 @@ def tree_helper() -> str:
     return found.group(1)
 
 
-def dumps() -> dict[str, str]:
-    """알고리즘 -> `_dump`에 들어갈 파이썬 식.
+def _blocks() -> list[tuple[str, str]]:
+    """알고리즘 이름과 그 항목의 소스. 항목은 `  이름: {` 꼴로 시작한다.
 
-    **빠지는 것은 참조형(KNN) 하나다** - 담는 것이 배운 값이 아니라 본 행이라 파이썬에게
-    물을 것이 없다. 랜덤 포레스트도 한때 빠져 있었는데 `mlpx-tree-v2`로 열렸다.
+    **쪼개는 자리가 하나다** (2026-09-19 R32 C-2). 한때 `dumps()`와 `sizes()`가 똑같은 네
+    줄을 각자 들고 있었고, **한 곳만 고치면 아무도 안 우는 모양**이었다.
     """
     source = _source()
-
-    shared = re.search(r"const LINEAR_DUMP =\s*\n?\s*'([^']*)'", source)
-    if not shared:
-        raise AdapterParseError("LINEAR_DUMP not found in the adapter")
-
-    # 알고리즘 이름 -> 그 항목이 시작하는 자리. 항목은 `  이름: {` 꼴이다.
     starts = [
         (found.group(1), found.start())
         for found in re.finditer(r"^  (\w+): \{$", source, re.MULTILINE)
     ]
     if not starts:
         raise AdapterParseError("no algorithm entries found in SKLEARN_CLASSES")
+    return [
+        (name, source[begin : starts[index + 1][1] if index + 1 < len(starts) else len(source)])
+        for index, (name, begin) in enumerate(starts)
+    ]
+
+
+def _property(name: str, block: str) -> str | None:
+    """항목 안에서 `이름: '식'` 또는 `이름: \\`식\\``을 꺼낸다. 없으면 `None`.
+
+    **속성 자리로 앵커한다** (2026-09-19 R32 C-2). 줄머리와 들여쓰기를 요구하므로
+
+        fixed: ["algorithm='brute'"], // 한때 dump: '{"rows": …}' 였다
+
+    같은 **꼬리 주석이 원천적으로 안 걸린다.** 한때는 주석 줄을 지워서 막았는데, 그건
+    **줄머리 주석만** 지웠고 위 모양이 그대로 이겼다.
+
+    **주석을 더 지우는 쪽으로 안 간다.** 파이썬 조각 안의 `//`는 나눗셈이라, 문자열
+    안까지 훑어 지우면 **조각을 망가뜨리는 쪽이 더 위험하다.**
+    """
+    quoted = re.search(rf"^ +{name}: '([^']*)'", block, re.MULTILINE)
+    if quoted:
+        return quoted.group(1)
+    templated = re.search(rf"^ +{name}: `(.*?)`,\n", block, re.MULTILINE | re.DOTALL)
+    return templated.group(1) if templated else None
+
+
+def dumps() -> dict[str, str]:
+    """알고리즘 -> `_dump`에 들어갈 파이썬 식.
+
+    **빠지는 것은 참조형(KNN) 하나다** - 담는 것이 배운 값이 아니라 본 행이라 파이썬에게
+    물을 것이 없다. 랜덤 포레스트도 한때 빠져 있었는데 `mlpx-tree-v2`로 열렸다.
+    """
+    shared = re.search(r"const LINEAR_DUMP =\s*\n?\s*'([^']*)'", _source())
+    if not shared:
+        raise AdapterParseError("LINEAR_DUMP not found in the adapter")
 
     found: dict[str, str] = {}
-    for index, (name, begin) in enumerate(starts):
-        end = starts[index + 1][1] if index + 1 < len(starts) else len(source)
-        # **주석을 먼저 지운다** (2026-09-19 R31 C-7). 안 그러면 주석에 적힌 옛 `dump:`가
-        # 이기고, **어댑터가 실제로 보내는 것과 다른 조각으로 픽스처가 만들어진다.**
-        block = re.sub(r"^\s*(//|\*|/\*).*$", "", source[begin:end], flags=re.MULTILINE)
-        quoted = re.search(r"dump: '([^']*)'", block)
-        templated = re.search(r"dump: `(.*?)`,\n", block, re.DOTALL)
-        if re.search(r"dump: LINEAR_DUMP", block):
+    for name, block in _blocks():
+        if re.search(r"^ +dump: LINEAR_DUMP", block, re.MULTILINE):
             found[name] = shared.group(1)
-        elif quoted:
-            found[name] = quoted.group(1)
-        elif templated:
-            found[name] = templated.group(1)
+            continue
+        expression = _property("dump", block)
+        if expression is not None:
+            found[name] = expression
 
     missing = EXPECTED - set(found)
     if missing:
@@ -108,19 +131,15 @@ def sizes() -> dict[str, str]:
     **`dump`과 같은 이유로 여기 있다.** 이 식도 27.3MB를 받아야만 도는 자리에 있고,
     터지면 `serialize`의 `try`가 삼켜 **모델이 조용히 안 담긴다** - 랜덤 포레스트 전부가
     그렇게 된다. 그래서 픽스처 생성기가 실물 sklearn 모델에 이 식을 직접 먹인다.
+
+    **보는 모양이 `dump`과 같다** (2026-09-19 R32 C-6). 한때 백틱만 봐서, 누가 한 줄짜리
+    작은따옴표로 쓰면 **아무 소리 없이 빠졌다.**
     """
-    source = _source()
-    starts = [
-        (found.group(1), found.start())
-        for found in re.finditer(r"^  (\w+): \{$", source, re.MULTILINE)
-    ]
     found: dict[str, str] = {}
-    for index, (name, begin) in enumerate(starts):
-        end = starts[index + 1][1] if index + 1 < len(starts) else len(source)
-        block = re.sub(r"^\s*(//|\*|/\*).*$", "", source[begin:end], flags=re.MULTILINE)
-        templated = re.search(r"size: `(.*?)`,\n", block, re.DOTALL)
-        if templated:
-            found[name] = templated.group(1)
+    for name, block in _blocks():
+        expression = _property("size", block)
+        if expression is not None:
+            found[name] = expression
     # **하나는 있어야 한다.** 랜덤 포레스트가 그 칸을 잃으면 113MB짜리 숲이 다시 통째로
     # 만들어지고, 그 사실을 아무도 안 말해 준다.
     if "random_forest" not in found:
