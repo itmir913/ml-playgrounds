@@ -435,3 +435,40 @@ group('경과 시간', () => {
     expect(elapsedOf(0, Number.NaN)).toEqual({ kind: 'hidden' })
   })
 })
+
+/**
+ * **기준표는 행이 늘수록 시간이 줄 수 없다** (2026-09-19).
+ *
+ * 이 저장소가 같은 자리에서 두 번 넘어졌다. 한 번은 K-평균 표의 50,000과 100,000이
+ * **밀리초까지 같은 수**(13,181)로 들어가 있었고 — 두 번 잰 값일 수가 없다 — 한 번은
+ * 다시 쓸어 담은 사다리에서 **20,000행이 100,000행보다 두 배 느리게** 나왔다.
+ * 어느 쪽도 사람이 표를 보고 알아채지 못했다.
+ *
+ * **모양만 본다. 값은 안 본다.** 얼마가 맞는지는 실측이 정하고 여기서 알 수 없지만,
+ * *"행이 느는데 시간이 준다"*는 어떤 실측도 낼 수 없는 모양이다 — 그런 표가 들어오면
+ * **예상 시간이 큰 데이터에서 짧게 말하고**, 그건 이 화면이 가장 하면 안 되는 거짓말이다
+ * (`open-decisions.md` "학습 예상 시간은 실측표에 기기 배수를 곱해 낸다").
+ *
+ * **같은 값은 막지 않는다.** 선형 회귀의 1,000행과 5,000행이 둘 다 23ms인데, 그건 점마다
+ * 드는 고정 비용이 데이터 비용을 덮은 자리라 실제로 일어난다.
+ */
+group('기준표의 모양', () => {
+  it('행이 늘 때 시간이 줄어드는 표가 없다', async () => {
+    const limits = (await import('../src/limits')) as unknown as Record<string, unknown>
+    const wrong: string[] = []
+    let counted = 0
+    for (const [name, value] of Object.entries(limits)) {
+      if (!name.startsWith('MLJS_') || !name.endsWith('BASELINE_MS')) continue
+      const table = value as readonly (readonly [number, number])[]
+      counted += 1
+      for (let index = 1; index < table.length; index += 1) {
+        const [rows, ms] = table[index]!
+        const [before, earlier] = table[index - 1]!
+        if (ms < earlier) wrong.push(`${name}: ${before}행 ${earlier}ms -> ${rows}행 ${ms}ms`)
+      }
+    }
+    // **그물의 크기를 센다** (R9 B-5). 이름 규칙이 바뀌어 하나도 안 걸리면 여기가 운다.
+    expect(counted, 'baseline tables must be found by name').toBeGreaterThan(8)
+    expect(wrong).toEqual([])
+  })
+})
