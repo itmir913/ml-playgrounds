@@ -11,6 +11,9 @@
  * 검사가 울어야 한다.
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { describe as group, expect, it } from 'vitest'
 
 import {
@@ -467,8 +470,15 @@ group('기준표의 모양', () => {
         if (ms < earlier) wrong.push(`${name}: ${before}행 ${earlier}ms -> ${rows}행 ${ms}ms`)
       }
     }
-    // **그물의 크기를 센다** (R9 B-5). 이름 규칙이 바뀌어 하나도 안 걸리면 여기가 운다.
-    expect(counted, 'baseline tables must be found by name').toBeGreaterThan(8)
+    /**
+     * **그물의 크기를 소스에서 센다** (2026-09-19 R30 C-4). `> 8`로 두었더니 **열셋 중
+     * 넷을 이름만 바꿔 그물 밖으로 내도 통과**했다. 수를 손으로 적는 대신 `limits.ts`가
+     * 실제로 내놓는 표의 수와 맞춘다 — 표가 늘면 이 검사가 저절로 따라간다.
+     */
+    const declared = readFileSync(join(__dirname, '..', 'src', 'limits.ts'), 'utf-8')
+    const named = declared.match(/^export const MLJS_[A-Z_]*BASELINE_MS = /gm) ?? []
+    expect(counted, 'every declared baseline table must be walked').toBe(named.length)
+    expect(counted, 'the tables must not vanish from limits.ts').toBeGreaterThan(8)
     expect(wrong).toEqual([])
   })
 })

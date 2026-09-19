@@ -180,7 +180,22 @@ const CASES: readonly SerializeCase[] = [
 
 /** 파일이 담은 것이 실제로 몇 칸인가. **검사가 자기 그물의 크기를 센다** (R9 B-5). */
 describe('옮긴 것을 대조할 재료가 있다', () => {
-  it('분류 데이터셋마다 알고리즘 다섯을 굳혀 두었다', () => {
+  /**
+   * **등록부의 크기를 등록부 자신이 세면 안 된다** (2026-09-19 R30 C-2). 아래 반복이
+   * `CASES`를 도는데 그 크기를 `CASES`로 세면, **한 줄을 지웠을 때 검사 수만 줄고 전부
+   * 초록이다** — 감사자가 `svm`을 지워 71 → 63이 됐는데 아무것도 안 울었다.
+   */
+  it('대조하는 알고리즘이 정확히 이 다섯이다', () => {
+    expect(CASES.map((one) => one.algorithm)).toEqual([
+      'decision_tree',
+      'naive_bayes',
+      'logistic_regression',
+      'svm',
+      'knn',
+    ])
+  })
+
+  it('분류 데이터셋마다 그 다섯을 굳혀 두었다', () => {
     const missing: string[] = []
     for (const [name, entry] of Object.entries(document.datasets)) {
       if (entry.meta.taskType === 'regression') continue

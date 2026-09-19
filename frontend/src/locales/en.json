@@ -40,7 +40,7 @@
     "reproducing": "Checking ({done}/{total})",
     "preparingDownload": "Downloading scikit-learn",
     "preparingStart": "Getting scikit-learn ready",
-    "engineVersionFallback": "The scikit-learn distribution this experiment was made with is no longer available, so the comparison ran on the current one (file {stored} · comparison {used}).",
+    "engineVersionFallback": "The scikit-learn distribution this experiment was made with is no longer available, so it ran on the current one and the rows show numbers without a verdict (file {stored} · used {used}).",
     "reproduceStopped": "Stopped ({done}/{total})",
     "verdict": "Verdict",
     "difference": "Difference",

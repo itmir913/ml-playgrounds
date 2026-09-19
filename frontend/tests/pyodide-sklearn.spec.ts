@@ -122,6 +122,100 @@ describe('하이퍼파라미터가 Python 소스로 나갈 때', () => {
 })
 
 /**
+ * **클래스 순서 그물이 실제로 무는가** (2026-09-19 R30 C-1).
+ *
+ * `agrees()`가 sklearn의 `classes_`와 우리 정렬을 견주고, **어긋나면 아무것도 안 담는다.**
+ * 나무는 `sklearnTreeModel`이 한 번 더 보지만 **로지스틱·SVM·나이브 베이즈의 유일한 그물이
+ * 이것**인데, 감사자가 `agrees()`를 늘 참으로 만들어도 정렬을 뒤집어도 **아무 검사도 안
+ * 울었다** — 가짜가 주던 `_dump`이 어차피 우리 형식이 아니라 양쪽 답이 같았기 때문이다.
+ *
+ * 그래서 **성한 JSON을 주되 클래스 순서만 뒤집는다.** 담기면 잎과 계수의 번호가 다른
+ * 라벨을 가리켜 **조용히 틀린 예측**이 된다.
+ */
+/**
+ * **못 담은 사유가 갈린다** (2026-09-19 R30 C-5). 한동안 넷이 전부 `serializer-missing`
+ * 이었는데, 그건 *"이 알고리즘에는 직렬화기가 없다"*는 말이고 **셋은 있고 거절한 것**이었다.
+ */
+describe('못 담은 사유를 갈라 적는다', () => {
+  it('직렬화기가 없는 알고리즘은 없다고 적는다', async () => {
+    setPyodide(fakePyodide().proxy)
+    const result = await fit('random_forest', input({ n_estimators: 10 }))
+    expect(result.modelOmittedDetail).toBe('pyodide-sklearn:random_forest:serializer-missing')
+  })
+})
+
+describe('클래스 순서가 어긋나면 아무것도 안 담는다', () => {
+  /** 잎 둘짜리 나무 하나. `classes`만 갈아 끼운다. */
+  const dumpWith = (classes: readonly string[]): string =>
+    JSON.stringify({
+      trees: [
+        {
+          left: [1, -1, -1],
+          right: [2, -1, -1],
+          feature: [0, -2, -2],
+          threshold: [0.5, -2, -2],
+          leafClass: [0, 0, 1],
+        },
+      ],
+      classes,
+    })
+
+  function pyodideSaying(dump: string): PyodideProxy {
+    return {
+      runPython: () => undefined,
+      globals: {
+        get: (name) => ({
+          toJs: () => (name === '_dump' ? dump : [0]),
+          destroy: () => {},
+        }),
+        set: () => {},
+      },
+    }
+  }
+
+  it('sklearn이 우리와 같은 순서를 말하면 담는다 - 바닥', async () => {
+    setPyodide(pyodideSaying(dumpWith(['a', 'b'])))
+    const result = await fit('decision_tree', input({ max_depth: 3 }))
+    expect(result.model).toBeDefined()
+  })
+
+  it('순서가 뒤집혀 있으면 안 담는다', async () => {
+    setPyodide(pyodideSaying(dumpWith(['b', 'a'])))
+    const result = await fit('decision_tree', input({ max_depth: 3 }))
+    expect(result.model).toBeUndefined()
+  })
+
+  it('클래스 수가 다르면 안 담는다', async () => {
+    setPyodide(pyodideSaying(dumpWith(['a'])))
+    const result = await fit('decision_tree', input({ max_depth: 3 }))
+    expect(result.model).toBeUndefined()
+  })
+
+  /**
+   * **나무는 이 그물이 없어도 산다** — `sklearnTreeModel`이 `dump.classes`를 한 번 더
+   * 견주기 때문이다. **선형 계열에는 그 둘째 그물이 없다**: `sklearnLinearModel`이 받는
+   * 것은 계수와 절편뿐이라 클래스 순서를 알 길이 없다.
+   *
+   * 그래서 `agrees()`가 죽었는지를 보려면 **여기로 찔러야 한다.** 감사자의 M6이 조용했던
+   * 이유가 나무로만 찔렀기 때문이다 (R30 C-1).
+   */
+  const linearDump = (classes: readonly string[]): string =>
+    JSON.stringify({ coef: [[1, 2]], intercept: [0], classes })
+
+  it('로지스틱: 순서가 같으면 담는다 - 바닥', async () => {
+    setPyodide(pyodideSaying(linearDump(['a', 'b'])))
+    const result = await fit('logistic_regression', input({}))
+    expect(result.model).toBeDefined()
+  })
+
+  it('로지스틱: 순서가 뒤집혀 있으면 안 담는다 - 그물이 여기 하나뿐이다', async () => {
+    setPyodide(pyodideSaying(linearDump(['b', 'a'])))
+    const result = await fit('logistic_regression', input({}))
+    expect(result.model).toBeUndefined()
+  })
+})
+
+/**
  * **직렬화가 학습을 죽이지 않는다** (2026-09-19).
  *
  * 파이썬이 다른 모양을 주거나 JSON이 깨져 있어도 잃는 것은 **모델 하나**여야 한다 —
@@ -136,7 +230,9 @@ describe('배운 것을 못 받아써도', () => {
     // 우리 형식이 아니고, 그 앞뒤로 무엇이 터져도 결과는 같아야 한다.
     const result = await fit('decision_tree', input({ max_depth: 3 }))
     expect(result.model).toBeUndefined()
-    expect(result.modelOmittedDetail).toContain('serializer-missing')
+    // **어느 갈래로 못 담았는지가 적힌다** (R30 C-5). 가짜가 주는 `_dump`은 `'0'`이라
+    // 클래스 목록이 없고, 그러면 `agrees()`가 먼저 거절한다.
+    expect(result.modelOmittedDetail).toBe('pyodide-sklearn:decision_tree:classes-differ')
     expect(result.predict([[0, 0]])).toHaveLength(1)
   })
 })

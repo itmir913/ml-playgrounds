@@ -103,6 +103,11 @@ export interface Boot {
    * **실제로 뜬 배포판.** 부른 것과 다를 수 있다 — 원본이 그 배포판을 더 안 서빙하면
    * 못 박은 것으로 한 번 더 부르기 때문이다(아래 `prepare`).
    *
+   * **Pyodide에게 물은 값이다**(`py.version`). 한때 *"뜬 배포판"*이라 적어 두고 실제로는
+   * **우리가 부른 주소의 이름**을 담고 있었는데, 그러면 원본이 그 주소에서 다른 판을
+   * 내주는 날 **파일이 거짓말을 한다** (2026-09-19 R30 C-8). 못 물으면 부른 이름으로
+   * 되돌아간다 — 옛 배포판에는 이 칸이 없을 수 있다.
+   *
    * 이 값이 `run.engine.version`이 된다 (결정문의 넷째 조항).
    */
   readonly version: string
@@ -119,6 +124,8 @@ export interface Boot {
 /** Pyodide에서 우리가 더 쓰는 것. 어댑터의 계약(`PyodideProxy`)에 부팅용 하나를 얹는다. */
 interface BootablePyodide extends PyodideProxy {
   loadPackage(names: readonly string[] | string): Promise<unknown>
+  /** 자기 판. **Pyodide가 스스로 말하는 값이다** — 우리가 부른 주소가 아니다. */
+  readonly version?: string
 }
 
 /** 원격 모듈이 돌려주는 것. **타입이 없는 경계라 여기서 한 번만 좁힌다.** */
@@ -196,10 +203,12 @@ json.dumps({
   ) as Record<string, string>
 
   setPyodide(py)
+  // **물어서 답한 것이 있으면 그것이 뜬 판이다.** 없으면 부른 이름이 우리가 아는 전부다.
+  const booted = distributionVersion(py.version) ?? version
   return {
     parts: { core, packages, imports, total: core + packages + imports },
-    version,
-    versions,
+    version: booted,
+    versions: { ...versions, pyodide: booted },
   }
 }
 

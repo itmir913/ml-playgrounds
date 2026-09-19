@@ -147,7 +147,7 @@ const preparation = computed(() => {
   if (found === undefined) return null
   return t('train.engineCost', {
     size: formatBytes(locale.value, found.bytes),
-    // **올림이다.** 8.7초를 `7초`라고 말하면 학생이 기다리는 시간이 그보다 길다.
+    // **올림이다.** 8.7초를 `8초`라고 말하면 학생이 기다리는 시간이 그보다 길다.
     seconds: Math.ceil(found.ms / 1000),
   })
 })

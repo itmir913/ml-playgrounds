@@ -325,9 +325,20 @@ export function compareRun(claim: Run, fresh: Run | undefined): Reproduction {
   if (!succeeded(fresh)) {
     return unavailable(fresh.failure ? { failure: fresh.failure } : {})
   }
-  // **엔진 스탬프를 돌고 나서 견준다.** 조립이 실행 방법을 되짚으므로 여기서 갈리는 것은
-  // 버전이 다르거나(옛 파일) 조립이 틀렸을 때뿐이고, 어느 쪽이든 숫자를 버려야 한다.
-  if (!sameEngine(claim, fresh)) return unavailable()
+  /**
+   * **엔진 스탬프를 돌고 나서 견준다.** 조립이 실행 방법을 되짚으므로 여기서 갈리는 것은
+   * 판이 다르거나(옛 파일) 조립이 틀렸을 때뿐이다.
+   *
+   * **버릴지 보일지는 엔진이 정한다** (2026-09-19 R30 B-1, 코드 소유자).
+   *
+   * 순수 JS의 판은 *우리 코드*의 판이라 다른 판의 숫자를 나란히 놓는 것 자체가 뜻이 없다 —
+   * 버린다. **받아 오는 엔진은 다르다**: 원본이 파일이 말한 배포판을 더 안 주면 우리가
+   * 못 박은 것으로 돌리는데(`pyodide-runtime.ts`의 `attempt`), 그때 숫자까지 버리면
+   * **27.3MB를 받고 다시 학습한 것을 통째로 버리고 나서 "대조했습니다"라고 말하게 된다.**
+   * 숫자는 보이고 판정만 안 한다 — *"못 가르는 자리는 교사에게 넘긴다"*가 이 저장소의 길이다.
+   */
+  const engineJudges = sameEngine(claim, fresh)
+  if (!engineJudges && !versionIsFetched(claim)) return unavailable()
 
   const again = fresh.metrics ?? {}
   const deltas: Record<string, number> = {}
@@ -338,19 +349,40 @@ export function compareRun(claim: Run, fresh: Run | undefined): Reproduction {
 
   const flipped = flippedRows(claim.confusionMatrix, fresh.confusionMatrix)
   const same = Object.keys(deltas).length > 0 && Object.values(deltas).every((delta) => delta === 0)
-  const status: ReproductionStatus = same
-    ? 'REPRODUCED'
-    : fidelityOf(claim) === 'exact'
-      ? 'NOT_REPRODUCED'
-      : 'NOT_JUDGED'
+  /**
+   * **판이 갈렸으면 숫자가 같아도 "재현됐다"고 말하지 않는다.** 그건 파일이 말한 배포판으로
+   * 확인한 것이 아니고, 이 화면에서 `재현됨`은 **학생의 주장을 우리가 보증하는 말**이다.
+   */
+  const status: ReproductionStatus = !engineJudges
+    ? 'NOT_JUDGED'
+    : same
+      ? 'REPRODUCED'
+      : fidelityOf(claim) === 'exact'
+        ? 'NOT_REPRODUCED'
+        : 'NOT_JUDGED'
 
   return {
     ...base,
     status,
     again,
     deltas,
+    // **무엇으로 돌았는지를 함께 보낸다.** 판이 갈린 줄에서 화면이 그 사실을 말할 수 있어야
+    // 하고, 갈리지 않았으면 적을 것이 없다.
+    ...(engineJudges || !fresh.engine ? {} : { engine: fresh.engine }),
     ...(flipped === undefined ? {} : { flipped }),
   }
+}
+
+/**
+ * 이 run의 엔진은 **판을 받아 오는** 종류인가. 그러면 판이 갈려도 숫자를 보인다.
+ *
+ * **묻는 곳이 등록부다** (`TrainingEngine.acceptsVersion`) — `engineIsHere`가 들어올 때 쓰는
+ * 바로 그 축이고, **들어올 때와 견줄 때가 다른 축을 보면 안 된다.** 그 어긋남이 B-1이었다.
+ */
+function versionIsFetched(claim: Run): boolean {
+  const id = runtimeIdFor(claim)
+  const engine = id === undefined ? undefined : engineFor(id)
+  return engine?.acceptsVersion !== undefined
 }
 
 function sameEngine(claim: Run, fresh: Run): boolean {

@@ -33,7 +33,7 @@
  * 이유와 실측이 있다.
  */
 
-import { ClientError } from '../../errors'
+import { ClientError, failureDetail } from '../../errors'
 import type { HyperparameterSpec } from '../hyperparams'
 import { resolveWith } from '../hyperparams'
 import type { FitInput, FitResult, Predict } from './mljs'
@@ -500,16 +500,14 @@ export async function fit(algorithm: string, input: FitInput): Promise<FitResult
       }
     : undefined
 
-  // 5. 배운 것을 우리 형식으로
-  const model = serialize(algorithm, input, hp)
+  // 5. 배운 것을 우리 형식으로. **못 담았으면 어느 갈래로 못 담았는지가 함께 온다.**
+  const attempt = serialize(algorithm, input, hp)
 
   return {
     predict,
-    ...(model
-      ? { model }
-      : // **못 담는 것은 정상이다** — 그 알고리즘에 아직 직렬화기가 없다는 뜻이고, 사유는
-        // run.modelOmitted에, 원문은 run.modelOmittedDetail에 남는다 (mlpx-spec.md §4.2).
-        { modelOmittedDetail: `serializer-missing:pyodide-sklearn:${algorithm}` }),
+    // **못 담는 것은 정상이다** — 사유는 run.modelOmitted에, 원문은 run.modelOmittedDetail에
+    // 남는다 (mlpx-spec.md §4.2, 5.0.1).
+    ...attempt,
     ...(clusterResult ? { clusterResult } : {}),
   }
 }
@@ -525,9 +523,10 @@ function serialize(
   algorithm: string,
   input: FitInput,
   hyperparameters: Record<string, unknown>,
-): ModelFile | undefined {
+): { readonly model: ModelFile } | { readonly modelOmittedDetail: string } {
   const serializer = SKLEARN_CLASSES[algorithm]?.serializer
-  if (!serializer || !py) return undefined
+  if (!serializer) return omitted(algorithm, 'serializer-missing')
+  if (!py) return omitted(algorithm, 'engine-gone')
 
   /**
    * **여기서 나는 어떤 사고도 학습을 죽이지 않는다.** 파이썬이 다른 모양을 주거나 JSON이
@@ -551,13 +550,27 @@ function serialize(
       const text = String(proxy.toJs?.() ?? proxy)
       proxy.destroy?.()
       dumped = JSON.parse(text)
-      if (!agrees(dumped, classes)) return undefined
+      // **클래스 순서가 갈렸다.** 담으면 번호가 다른 라벨을 가리켜 조용히 틀린 예측이 된다.
+      if (!agrees(dumped, classes)) return omitted(algorithm, 'classes-differ')
     }
 
-    return serializer.build(dumped, context) ?? undefined
-  } catch {
-    return undefined
+    const built = serializer.build(dumped, context)
+    return built === null ? omitted(algorithm, 'shape-refused') : { model: built }
+  } catch (error) {
+    return omitted(algorithm, `threw:${failureDetail(error).detail ?? 'unknown'}`)
   }
+}
+
+/**
+ * 못 담은 사유. **어느 갈래로 나갔는지를 적는다** (2026-09-19 R30 C-5).
+ *
+ * 한동안 넷이 전부 `serializer-missing`이었다 — *"이 알고리즘에는 직렬화기가 없다"*는 말인데
+ * **셋은 있고 거절한 것**이었다. 학생·교사에게 보이는 어휘는 `modelOmitted` 하나
+ * (`engineUnsupported`)이고 여기 적히는 것은 **우리가 읽는 단서**다(mlpx-spec.md §4.2).
+ * 그게 갈리지 않으면 학생 환경에서 재현할 단서가 0이 된다.
+ */
+function omitted(algorithm: string, why: string): { readonly modelOmittedDetail: string } {
+  return { modelOmittedDetail: `pyodide-sklearn:${algorithm}:${why}` }
 }
 
 /**

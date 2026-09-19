@@ -13,8 +13,10 @@ import { describe, expect, it } from 'vitest'
 import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/ml/experiment'
 import { dataSnapshot } from '../src/project/schema'
 import { isClientError } from '../src/errors'
+import { MLJS_ENGINE } from '../src/ml/engines/mljs'
 import {
   compareExperiments,
+  compareRun,
   flippedRows,
   reproduceBlockers,
   reproduceExperiment,
@@ -1023,5 +1025,57 @@ describe('대조는 파일이 말하는 엔진 판을 들고 간다', () => {
     expect(blockersFor({ kind: 'mljs', version: '2' })).toEqual(['ENGINE_MISSING'])
     // **판이라 할 수 없는 문자열은 받아 올 주소가 없다.** sklearn에서도 막는다.
     expect(blockersFor({ kind: 'pyodide-sklearn', version: 'latest' })).toEqual(['ENGINE_MISSING'])
+  })
+})
+
+/**
+ * **판이 갈린 채로 돌았을 때 무엇을 보이는가** (2026-09-19 R30 B-1).
+ *
+ * 원본이 파일이 말한 배포판을 더 안 주면 우리가 못 박은 것으로 돌린다. 그때 숫자까지
+ * 버리면 **27.3MB를 받고 다시 학습한 것을 통째로 버리고 나서 "대조했습니다"라고 말하게
+ * 된다** — 그 모양이 실제로 한동안 서 있었다.
+ *
+ * **버릴지 보일지는 엔진이 정한다.** 판을 받아 오는 엔진은 보이고, 우리 코드의 판인
+ * 엔진은 버린다 — `engineIsHere`가 들어올 때 쓰는 그 축과 **같은 축이어야 한다.**
+ */
+describe('돈 판이 파일의 판과 다를 때', () => {
+  const claimRun = (engine: Run['engine']): Run =>
+    ({
+      id: 'run-1',
+      algorithm: 'decision_tree',
+      hyperparameters: {},
+      trainedAt: '2026-08-06T00:00:00.000Z',
+      computedBy: 'browser',
+      status: 'done',
+      metrics: { accuracy: 0.9 },
+      engine,
+    }) as Run
+
+  const freshRun = (engine: Run['engine'], accuracy: number): Run =>
+    ({ ...claimRun(engine), metrics: { accuracy } }) as Run
+
+  it('sklearn은 숫자를 보이고 판정을 안 한다', () => {
+    const found = compareRun(
+      claimRun({ kind: 'pyodide-sklearn', version: '300.1.2' }),
+      freshRun({ kind: 'pyodide-sklearn', version: '314.0.7' }, 0.9),
+    )
+    // **숫자가 같아도 `재현됨`이 아니다** — 파일이 말한 배포판으로 확인한 것이 아니다.
+    expect(found.status).toBe('NOT_JUDGED')
+    expect(found.again).toEqual({ accuracy: 0.9 })
+    expect(found.deltas).toEqual({ accuracy: 0 })
+    // **무엇으로 돌았는지를 함께 보낸다.** 화면이 그 줄에서 그 사실을 말할 수 있어야 한다.
+    expect(found.engine).toEqual({ kind: 'pyodide-sklearn', version: '314.0.7' })
+  })
+
+  it('순수 JS는 지금처럼 숫자를 안 보인다 - 무고한 학생을 지목하지 않는다', () => {
+    const found = compareRun(claimRun({ kind: 'mljs', version: '2' }), freshRun(MLJS_ENGINE, 0.4))
+    expect(found.status).toBe('ENGINE_UNAVAILABLE')
+    expect(found.again).toBeUndefined()
+    expect(found.deltas).toBeUndefined()
+  })
+
+  it('판이 같으면 평소대로 판정한다 - 바닥', () => {
+    const same = { kind: 'pyodide-sklearn', version: '314.0.7' } as const
+    expect(compareRun(claimRun(same), freshRun(same, 0.9)).status).toBe('REPRODUCED')
   })
 })
