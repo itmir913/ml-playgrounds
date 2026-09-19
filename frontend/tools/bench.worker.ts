@@ -17,7 +17,7 @@
  * (`ml/worker/train.worker.ts`와 같은 이유).
  */
 
-import { benchOutcome } from './workloads'
+import { benchOutcome, replyOf } from './workloads'
 import type { CalibrationJob } from '../src/ml/calibration'
 
 /** 점 하나를 시키는 말. **함수는 못 건넌다** — 사다리는 `id`로 가리키고 워커가 찾는다. */
@@ -30,6 +30,13 @@ export type BenchRequest =
    * 앱은 새 워커 하나에서 일감 둘을 이어 돌린다(`ml/worker/handler.ts`).
    */
   | { readonly kind: 'calibration-set' }
+  /**
+   * **scikit-learn을 띄우기만 한다.** 아무것도 학습하지 않는다.
+   *
+   * 시동은 데이터 크기와 무관한 고정 비용이라 사다리의 점이 아니다 — 점으로 두면
+   * 축이 없는 사다리가 되고, 어림도 천장도 그 위에서 뜻을 잃는다.
+   */
+  | { readonly kind: 'pyodide-boot' }
   /**
    * **아무것도 안 재고 살아 있다고만 답한다** (2026-09-09).
    *
@@ -59,6 +66,13 @@ export type BenchReply =
        * 못 가른다 (2026-09-01 R17 감사 C-3). 나눠 보라고 함께 보낸다.
        */
       readonly iterations?: number
+      /**
+       * 국면마다 몇 ms인가 (`LadderResult.parts`). **sklearn 쪽만 싣는다** — 시동이
+       * 넷으로 갈리고, 합계 하나로 뭉치면 어디를 고칠지가 사라진다.
+       */
+      readonly parts?: Readonly<Record<string, number>>
+      /** 파이썬이 스스로 답한 버전들. **시동 실측만 싣는다.** */
+      readonly versions?: Readonly<Record<string, string>>
     }
   | { readonly ok: false; readonly error: string }
 
@@ -105,17 +119,15 @@ scope.onmessage = async (event) => {
   const outcome =
     request.kind === 'calibration-set'
       ? await benchOutcome({ kind: 'calibration-set' })
-      : request.kind === 'calibration'
-        ? await benchOutcome({ kind: 'calibration', job: request.job })
-        : await benchOutcome({ kind: 'ladder', ladderId: request.ladderId, point: request.point })
+      : request.kind === 'pyodide-boot'
+        ? await benchOutcome({ kind: 'pyodide-boot' })
+        : request.kind === 'calibration'
+          ? await benchOutcome({ kind: 'calibration', job: request.job })
+          : await benchOutcome({ kind: 'ladder', ladderId: request.ladderId, point: request.point })
   if (!outcome.ok) {
     scope.postMessage({ ok: false, error: outcome.error })
     return
   }
-  scope.postMessage({
-    ok: true,
-    elapsed: outcome.elapsed,
-    // **없는 칸은 아예 안 싣는다.** `0`을 실으면 *"한 번도 안 돌았다"*로 읽힌다.
-    ...(outcome.iterations === undefined ? {} : { iterations: outcome.iterations }),
-  })
+  // **무엇을 싣고 무엇을 빼는지도 `workloads.ts`가 정한다** — 여기 두면 검사가 못 닿는다.
+  scope.postMessage({ ok: true, ...replyOf(outcome) })
 }

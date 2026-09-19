@@ -363,19 +363,32 @@ describe('enabledAlgorithms', () => {
 describe('행 상한 칸에 제 이름의 상수가 온다', () => {
   const SOURCE = readFileSync(join(process.cwd(), 'src', 'ml', 'algorithms.ts'), 'utf-8')
 
-  /** 알고리즘 id -> { tabular, image } 의 mljs 상수 이름. 소스에서 글자로 읽는다. */
-  function cells(): Map<string, { tabular: string | undefined; image: string | undefined }> {
-    const found = new Map<string, { tabular: string | undefined; image: string | undefined }>()
+  /**
+   * 알고리즘 id -> 종류마다 (엔진 -> 상수 이름). 소스에서 글자로 읽는다.
+   *
+   * **엔진 축이 붙었다** (2026-09-19). 칸이 (종류 × 브라우저 실행 방법)이 되면서 **바꿔치기
+   * 할 자리가 두 배가 됐다** — sklearn 칸에 남의 상수를 넣어도 타입은 조용하다.
+   *
+   * **줄바꿈을 견딘다.** prettier가 칸을 여러 줄로 펴는 순간 `\{ mljs:` 하나짜리 정규식은
+   * **`(없다)`를 답하고**, 그건 "상수가 틀렸다"와 똑같이 생겼다. 실제로 이 파일을 고치다
+   * 그렇게 빨개졌다.
+   */
+  function cells(): Map<string, Record<DataType, Record<string, string | undefined>>> {
+    const found = new Map<string, Record<DataType, Record<string, string | undefined>>>()
     // **id로 자른다.** 한 조각이 알고리즘 하나이므로 조각 안에서 찾은 칸은 그 알고리즘의
     // 것이다 - 블록의 끝을 정규식으로 맞히려 들면 들여쓰기에 매달린다.
     const chunks = SOURCE.split(/id: '/).slice(1)
+    const block = (chunk: string, dataType: DataType): Record<string, string | undefined> => {
+      const body = new RegExp(`${dataType}: \\{([^}]*)\\}`).exec(chunk)?.[1] ?? ''
+      return {
+        mljs: /\bmljs: (\w+)/.exec(body)?.[1],
+        'pyodide-sklearn': /'pyodide-sklearn': (\w+)/.exec(body)?.[1],
+      }
+    }
     for (const chunk of chunks) {
       const id = /^([a-z_]+)'/.exec(chunk)?.[1]
       if (id === undefined) continue
-      found.set(id, {
-        tabular: /tabular: \{ mljs: (\w+)/.exec(chunk)?.[1],
-        image: /image: \{ mljs: (\w+)/.exec(chunk)?.[1],
-      })
+      found.set(id, { tabular: block(chunk, 'tabular'), image: block(chunk, 'image') })
     }
     return found
   }
@@ -393,9 +406,33 @@ describe('행 상한 칸에 제 이름의 상수가 온다', () => {
       const wrong: string[] = []
       for (const algorithm of ALGORITHMS) {
         if (!algorithm.dataTypes[dataType]) continue
-        const name = cells().get(algorithm.id)?.[dataType]
+        const name = cells().get(algorithm.id)?.[dataType]?.['mljs']
         const prefix = dataType === 'image' ? 'MLJS_IMAGE_' : 'MLJS_'
         const expected = core(`${prefix}${algorithm.id}_ROW_LIMIT`)
+        if (name === undefined || core(name) !== expected) {
+          wrong.push(`${algorithm.id}.${dataType} = ${name ?? '(없다)'}`)
+        }
+      }
+      expect(wrong, 'swapping these starts training at a size the student cannot run').toEqual([])
+    })
+
+    /**
+     * **sklearn 칸도 같은 규칙을 받는다** (2026-09-19).
+     *
+     * **`UNMEASURED`는 등록부가 "이 엔진에 이 알고리즘이 없다"고 말한 줄에서만 옳다.**
+     * 돌 수 있다고 선언해 놓고 칸이 비어 있으면 그 카드는 **전역 기본값**
+     * (`BROWSER_ROW_LIMIT`, 5,000)으로 판정된다 — 100,000행까지 재 놓고 5,000에서
+     * 잠그는 것이 그 모양이다.
+     */
+    it(`${dataType} 칸의 sklearn 상수 이름이 알고리즘과 맞는다`, () => {
+      const wrong: string[] = []
+      for (const algorithm of ALGORITHMS) {
+        if (!algorithm.dataTypes[dataType]) continue
+        const name = cells().get(algorithm.id)?.[dataType]?.['pyodide-sklearn']
+        const prefix = dataType === 'image' ? 'PYODIDE_IMAGE_' : 'PYODIDE_'
+        const expected = algorithm.runtimes['pyodide-sklearn']
+          ? core(`${prefix}${algorithm.id}_ROW_LIMIT`)
+          : core('UNMEASURED')
         if (name === undefined || core(name) !== expected) {
           wrong.push(`${algorithm.id}.${dataType} = ${name ?? '(없다)'}`)
         }

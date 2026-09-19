@@ -53,6 +53,21 @@ import {
   MLJS_NEURAL_NETWORK_ROW_LIMIT,
   MLJS_RANDOM_FOREST_ROW_LIMIT,
   MLJS_SVM_ROW_LIMIT,
+  PYODIDE_DECISION_TREE_ROW_LIMIT,
+  PYODIDE_IMAGE_DECISION_TREE_ROW_LIMIT,
+  PYODIDE_IMAGE_KMEANS_ROW_LIMIT,
+  PYODIDE_IMAGE_KNN_ROW_LIMIT,
+  PYODIDE_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT,
+  PYODIDE_IMAGE_NAIVE_BAYES_ROW_LIMIT,
+  PYODIDE_IMAGE_RANDOM_FOREST_ROW_LIMIT,
+  PYODIDE_IMAGE_SVM_ROW_LIMIT,
+  PYODIDE_KMEANS_ROW_LIMIT,
+  PYODIDE_KNN_ROW_LIMIT,
+  PYODIDE_LINEAR_REGRESSION_ROW_LIMIT,
+  PYODIDE_LOGISTIC_REGRESSION_ROW_LIMIT,
+  PYODIDE_NAIVE_BAYES_ROW_LIMIT,
+  PYODIDE_RANDOM_FOREST_ROW_LIMIT,
+  PYODIDE_SVM_ROW_LIMIT,
 } from '../limits'
 import { TASK_TYPES, type DataType, type TaskType } from '../project/schema'
 import { supports, type Axis } from './axes'
@@ -109,8 +124,14 @@ export const ALGORITHMS: readonly Algorithm[] = [
     // O(특성 × 행²)이고, 데이터가 잘 갈릴수록 얕게 끝난다. **이미지에서 가장 크게
     // 갈린다** - 1,000장 58.7초이고 1,500장이면 136초다.
     maxRows: {
-      tabular: { mljs: MLJS_DECISION_TREE_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
-      image: { mljs: MLJS_IMAGE_DECISION_TREE_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      tabular: {
+        mljs: MLJS_DECISION_TREE_ROW_LIMIT,
+        'pyodide-sklearn': PYODIDE_DECISION_TREE_ROW_LIMIT,
+      },
+      image: {
+        mljs: MLJS_IMAGE_DECISION_TREE_ROW_LIMIT,
+        'pyodide-sklearn': PYODIDE_IMAGE_DECISION_TREE_ROW_LIMIT,
+      },
     },
     baseline: {
       tabular: { ms: MLJS_DECISION_TREE_BASELINE_MS, columns: 'linear' },
@@ -126,8 +147,8 @@ export const ALGORITHMS: readonly Algorithm[] = [
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // **학습이 아니라 예측이 비싸고, 그 비용은 예측마다 되풀이된다.**
     maxRows: {
-      tabular: { mljs: MLJS_KNN_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
-      image: { mljs: MLJS_IMAGE_KNN_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      tabular: { mljs: MLJS_KNN_ROW_LIMIT, 'pyodide-sklearn': PYODIDE_KNN_ROW_LIMIT },
+      image: { mljs: MLJS_IMAGE_KNN_ROW_LIMIT, 'pyodide-sklearn': PYODIDE_IMAGE_KNN_ROW_LIMIT },
     },
     baseline: {
       tabular: { ms: MLJS_KNN_BASELINE_MS, columns: 'flat' },
@@ -142,8 +163,14 @@ export const ALGORITHMS: readonly Algorithm[] = [
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // 선형 회귀와 이름만 닮았다 - 경사하강이고 5000행에서 이미 4.3초다.
     maxRows: {
-      tabular: { mljs: MLJS_LOGISTIC_REGRESSION_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
-      image: { mljs: MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      tabular: {
+        mljs: MLJS_LOGISTIC_REGRESSION_ROW_LIMIT,
+        'pyodide-sklearn': PYODIDE_LOGISTIC_REGRESSION_ROW_LIMIT,
+      },
+      image: {
+        mljs: MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT,
+        'pyodide-sklearn': PYODIDE_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT,
+      },
     },
     baseline: {
       tabular: { ms: MLJS_LOGISTIC_REGRESSION_BASELINE_MS, columns: 'flat' },
@@ -160,8 +187,14 @@ export const ALGORITHMS: readonly Algorithm[] = [
     // 5000행 100그루가 약 7분이다. **값이 안 바뀌어도 적는다** (backend.ts의 maxRows).
     // 이미지는 1,000장이 521.7초라 등록부에서 가장 낮은 칸이 됐다.
     maxRows: {
-      tabular: { mljs: MLJS_RANDOM_FOREST_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
-      image: { mljs: MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      tabular: {
+        mljs: MLJS_RANDOM_FOREST_ROW_LIMIT,
+        'pyodide-sklearn': PYODIDE_RANDOM_FOREST_ROW_LIMIT,
+      },
+      image: {
+        mljs: MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT,
+        'pyodide-sklearn': PYODIDE_IMAGE_RANDOM_FOREST_ROW_LIMIT,
+      },
     },
     baseline: {
       tabular: { ms: MLJS_RANDOM_FOREST_BASELINE_MS, columns: 'linear' },
@@ -176,8 +209,14 @@ export const ALGORITHMS: readonly Algorithm[] = [
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // 10만 행 0.1초. 데이터를 한 번 훑는다.
     maxRows: {
-      tabular: { mljs: MLJS_NAIVE_BAYES_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
-      image: { mljs: MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      tabular: {
+        mljs: MLJS_NAIVE_BAYES_ROW_LIMIT,
+        'pyodide-sklearn': PYODIDE_NAIVE_BAYES_ROW_LIMIT,
+      },
+      image: {
+        mljs: MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT,
+        'pyodide-sklearn': PYODIDE_IMAGE_NAIVE_BAYES_ROW_LIMIT,
+      },
     },
     baseline: {
       tabular: { ms: MLJS_NAIVE_BAYES_BASELINE_MS, columns: 'linear' },
@@ -195,8 +234,8 @@ export const ALGORITHMS: readonly Algorithm[] = [
     // 상한의 시작이었고, 이제는 일곱 줄 전부가 자기 값을 든다** (open-decisions.md #13).
     // **이미지 칸의 값이 같은 것은 우연이다** - 커널 크기는 특성 수를 안 가린다.
     maxRows: {
-      tabular: { mljs: MLJS_SVM_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
-      image: { mljs: MLJS_IMAGE_SVM_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      tabular: { mljs: MLJS_SVM_ROW_LIMIT, 'pyodide-sklearn': PYODIDE_SVM_ROW_LIMIT },
+      image: { mljs: MLJS_IMAGE_SVM_ROW_LIMIT, 'pyodide-sklearn': PYODIDE_IMAGE_SVM_ROW_LIMIT },
     },
     baseline: {
       tabular: { ms: MLJS_SVM_BASELINE_MS, columns: 'linear' },
@@ -250,7 +289,10 @@ export const ALGORITHMS: readonly Algorithm[] = [
     // **이미지 칸은 `UNMEASURED`다** - 위 `dataTypes`가 이미 닫아서 판정이 여기까지
     // 오지 않는다. 숫자를 지어 넣으면 재 본 값처럼 보인다 (backend.ts의 UNMEASURED).
     maxRows: {
-      tabular: { mljs: MLJS_LINEAR_REGRESSION_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      tabular: {
+        mljs: MLJS_LINEAR_REGRESSION_ROW_LIMIT,
+        'pyodide-sklearn': PYODIDE_LINEAR_REGRESSION_ROW_LIMIT,
+      },
       image: { mljs: UNMEASURED, 'pyodide-sklearn': UNMEASURED },
     },
     baseline: {
@@ -266,8 +308,11 @@ export const ALGORITHMS: readonly Algorithm[] = [
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // 할당과 갱신이 반복마다 O(n·k·d). 10만 행 k=20이 112회 반복 6.4초 (limits.ts).
     maxRows: {
-      tabular: { mljs: MLJS_KMEANS_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
-      image: { mljs: MLJS_IMAGE_KMEANS_ROW_LIMIT, 'pyodide-sklearn': UNMEASURED },
+      tabular: { mljs: MLJS_KMEANS_ROW_LIMIT, 'pyodide-sklearn': PYODIDE_KMEANS_ROW_LIMIT },
+      image: {
+        mljs: MLJS_IMAGE_KMEANS_ROW_LIMIT,
+        'pyodide-sklearn': PYODIDE_IMAGE_KMEANS_ROW_LIMIT,
+      },
     },
     /**
      * **`'linear'`인데 잰 사다리는 내려간다** (2026-09-01 R17 감사 C-3). 그래도 안 바꾼다.

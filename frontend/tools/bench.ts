@@ -75,8 +75,11 @@ app.innerHTML = `
     <p id="controls"></p>
     <p><button id="all" style="font-size: 16px; padding: 8px 16px;">전부 훑기</button>
        <button id="limits" style="font-size: 16px; padding: 8px 16px;">상한 찾기 (몇 시간)</button>
-       <button id="calibrate" style="font-size: 16px; padding: 8px 16px;">교정 일감만</button></p>
+       <button id="calibrate" style="font-size: 16px; padding: 8px 16px;">교정 일감만</button>
+       <button id="boot" style="font-size: 16px; padding: 8px 16px;">sklearn 시동만</button>
+       <button id="sklearn" style="font-size: 16px; padding: 8px 16px;">sklearn 훑기 (오래)</button></p>
     <p style="color: #666;">[상한 찾기]는 <b>깨지는 지점을 찾는 것</b>이라 탭이 죽을 수 있습니다. 점을 하나 잴 때마다 저장하므로, 죽었으면 이 페이지를 다시 열어 아래 상자를 확인하세요.</p>
+    <p style="color: #666;">[sklearn …]은 <b>인터넷에서 27MB를 받습니다</b>(cdn.jsdelivr.net). 점을 하나 잴 때마다 새 워커에서 파이썬을 다시 띄우므로, 표의 <b>ms는 학습만</b>이고 시동은 아래 상자의 <code>parts</code>에 따로 있습니다.</p>
     <p id="status"></p>
     <table id="result" style="border-collapse: collapse; width: 100%;"></table>
     <h2 style="font-size: 18px;">붙여넣을 것</h2>
@@ -88,6 +91,8 @@ const controls = document.getElementById('controls') as HTMLElement
 const allButton = document.getElementById('all') as HTMLButtonElement
 const limitsButton = document.getElementById('limits') as HTMLButtonElement
 const calibrateButton = document.getElementById('calibrate') as HTMLButtonElement
+const bootButton = document.getElementById('boot') as HTMLButtonElement
+const sklearnButton = document.getElementById('sklearn') as HTMLButtonElement
 const status = document.getElementById('status') as HTMLElement
 const table = document.getElementById('result') as HTMLElement
 const json = document.getElementById('json') as HTMLTextAreaElement
@@ -122,6 +127,10 @@ type Outcome =
       readonly elapsed: number
       /** K-평균의 Lloyd 반복 횟수. 다른 사다리는 없다. */
       readonly iterations?: number
+      /** sklearn 사다리의 국면별 ms — 시동이 넷으로 갈린다 (`workloads.ts`). */
+      readonly parts?: Readonly<Record<string, number>>
+      /** 파이썬이 스스로 답한 버전들. 시동 실측만 답한다. */
+      readonly versions?: Readonly<Record<string, string>>
     }
   | ({
       readonly ok: false
@@ -141,6 +150,21 @@ const measured: Record<string, Record<string, number>> = {}
  * 남기면 그 비율이 무엇에서 나왔는지가 사라진다.
  */
 const iterations: Record<string, Record<string, number>> = {}
+/**
+ * **점마다 국면별 ms** — sklearn 사다리만 답한다 (`workloads.ts`의 `LadderResult.parts`).
+ *
+ * `measured`에 들어가는 `elapsed`는 **학습만**이고 시동은 시계 밖이라, 이 칸이 없으면
+ * *"이 점이 실제로 몇 초 걸렸나"*를 아무 데서도 못 읽는다. 학생이 기다리는 것은 둘의
+ * 합이므로, **따로 재되 함께 남긴다.**
+ */
+const parts: Record<string, Record<string, number>> = {}
+/**
+ * **시동만 잰 것.** 판마다 새 워커라 셋 다 차가운 시작이고, 두 번째부터는 HTTP 캐시가
+ * 27MB를 대신 준다 — 그 차이가 *"캐시가 지워 주는 값"*과 *"못 지우는 값"*의 경계다.
+ */
+const boots: Record<string, number>[] = []
+/** 파이썬이 스스로 답한 버전들. **우리가 적은 못이 아니라 실제로 뜬 것이다.** */
+let versions: Readonly<Record<string, string>> | null = null
 const calibration: Record<string, number[]> = {}
 /**
  * **앱과 같은 모양으로 잰 교정 시간.** `CALIBRATION_BASELINE_MS`를 고칠 때 볼 값이 이것이다.
@@ -209,6 +233,9 @@ function snapshot(): Record<string, unknown> {
     failed,
     measured,
     iterations,
+    parts,
+    boots,
+    versions,
     calibration,
     calibrationSet,
   }
@@ -316,6 +343,11 @@ async function runLadder(ladder: Ladder): Promise<void> {
 
     const elapsed = outcome.elapsed
     results[String(point)] = elapsed
+    if (outcome.parts !== undefined) {
+      // **답한 점만 칸을 얻는다** — `iterations`와 같은 규칙이다. 빈 칸을 만들면
+      // *"시동이 0이었다"*와 *"시동을 안 잰다"*가 같은 모양이 된다.
+      parts[id] = outcome.parts
+    }
     if (outcome.iterations !== undefined) {
       // **답한 사다리만 칸을 얻는다.** 안 답한 사다리에 빈 칸을 만들면 JSON을 읽는
       // 사람이 *"0번 돌았다"*와 *"안 잰다"*를 구분 못 한다.
@@ -372,10 +404,43 @@ async function runCalibration(): Promise<void> {
   }
 }
 
+/**
+ * **scikit-learn을 세 번 띄운다.** 아무것도 학습하지 않는다.
+ *
+ * 세 번인 이유는 **첫 번째만 27MB를 받기 때문이다** — 두 번째부터는 브라우저의 HTTP
+ * 캐시가 대신 주고, 그 차이가 곧 *"캐시가 지워 주는 값"*이다. 남는 것이 **캐시가 못
+ * 지우는 값**이고 그게 학생이 매 학습마다 무는 값이다.
+ *
+ * **평균도 최솟값도 여기서 안 고른다** (교정 일감과 같은 규칙). 셋을 그대로 남기면
+ * 흔들리는 폭이 보인다.
+ */
+async function runBoots(): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await breathe()
+    const stopTicking = ticking(`sklearn 시동 (${attempt + 1}/3)`)
+    const outcome = await runInWorker(`pyodide-boot/${attempt}`, { kind: 'pyodide-boot' })
+    stopTicking()
+    if (!outcome.ok) {
+      failed[`pyodide-boot/${attempt}`] = { how: outcome.how, detail: outcome.detail }
+      addRow('sklearn 시동', `${attempt + 1}회차`, -1)
+      publish()
+      break
+    }
+    if (outcome.parts !== undefined) boots.push(outcome.parts)
+    // **버전은 마지막 것이 남는다.** 셋이 다르면 그것 자체가 사건이고, 그때는 원격이
+    // 우리가 못 박은 것과 다른 것을 주고 있다는 뜻이다.
+    if (outcome.versions !== undefined) versions = outcome.versions
+    addRow('sklearn 시동', `${attempt + 1}회차`, outcome.elapsed)
+    publish()
+  }
+}
+
 function busy(disabled: boolean): void {
   allButton.disabled = disabled
   limitsButton.disabled = disabled
   calibrateButton.disabled = disabled
+  bootButton.disabled = disabled
+  sklearnButton.disabled = disabled
   for (const node of controls.querySelectorAll('button')) node.disabled = disabled
 }
 
@@ -393,6 +458,7 @@ function start(work: () => Promise<void>): void {
      * 단추마다 적으면 넷째 단추가 생기는 날 그것만 빠진다.
      */
     calibrationSet.length = 0
+    boots.length = 0
     stopped.length = 0
     wentHidden = document.visibilityState === 'hidden'
     await work()
@@ -422,11 +488,35 @@ allButton.addEventListener('click', () =>
 
 limitsButton.addEventListener('click', () =>
   start(async () => {
-    for (const ladder of ALL_LADDERS.filter((one) => one.findsLimit)) await runLadder(ladder)
+    // **sklearn은 빼고 돈다** — 저쪽은 27MB를 받는다. 섞으면 회선이 없는 곳에서
+    // 표 쪽 상한 실측까지 통째로 못 돈다. sklearn의 상한 사다리는 아래 단추가 맡는다.
+    const here = ALL_LADDERS.filter((one) => one.findsLimit && one.engine !== 'pyodide-sklearn')
+    for (const ladder of here) await runLadder(ladder)
   }),
 )
 
 calibrateButton.addEventListener('click', () => start(runCalibration))
+
+bootButton.addEventListener('click', () => start(runBoots))
+
+/**
+ * **sklearn 사다리 전부 — 기준표와 상한을 함께.** [전부 훑기]·[상한 찾기]에 안 섞는
+ * 이유는 둘이다: 네트워크를 타고, 점마다 시동을 문다.
+ *
+ * **표 쪽처럼 둘로 안 나눈다.** 저쪽은 상한 사다리가 몇 시간짜리라 따로 도는데, sklearn은
+ * 첫 훑기에서 **열다섯 사다리가 전부 끝까지 갔다**(2026-09-19) — 상한 쪽도 점이 몇 개
+ * 안 붙고, 나누면 27MB를 두 번 받는 판이 하나 더 생긴다.
+ *
+ * **시동을 먼저 잰다.** 그래야 사다리의 첫 점이 27MB 다운로드를 안고 시작하지 않는다.
+ */
+sklearnButton.addEventListener('click', () =>
+  start(async () => {
+    await runBoots()
+    for (const ladder of ALL_LADDERS.filter((one) => one.engine === 'pyodide-sklearn')) {
+      await runLadder(ladder)
+    }
+  }),
+)
 
 /**
  * **죽은 뒤 되살린다.** 저장만 하고 되살리지 않으면 그 저장이 쓸모가 없다 — [상한 찾기]는

@@ -531,6 +531,142 @@ export const MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT = MAX_IMAGE_COUNT
 export const MLJS_IMAGE_KMEANS_ROW_LIMIT = MAX_IMAGE_COUNT
 
 /**
+ * ## scikit-learn(Pyodide)의 행 상한 — 전부 2026-09-19 실측
+ *
+ * **아래 열다섯은 한 판에서 나왔다.** 개발 PC(8코어 · 8GB · Chrome 153)의 브라우저 워커에서
+ * 사다리 스물셋을 돌렸고 **실패 0건 · 멈춘 사다리 0건**이다 — 상한 사다리 여섯으로 위쪽을
+ * 밀었는데도 **깨지는 자리를 못 봤다**(`open-decisions.md` "scikit-learn(Pyodide)은 원본에서
+ * 받고, 시동은 학습마다 낸다").
+ *
+ * **그래서 대부분이 데이터 천장이다.** 상한은 시간이 아니라 깨지는 자리이고
+ * (`open-decisions.md` "그러면 상한은 시간으로 정하는 것이 아니다"), 안 깨졌는데 그 위가
+ * 없으면 열 수 있는 데까지 연 것이다. **예외는 표의 SVM 하나**이고 그건 사다리의 끝이
+ * 20,000이어서다 — **안 잰 곳은 안 올린다.**
+ *
+ * **시간은 학습 + 20% 예측 + 평가를 지나간 값이고 시동은 빠져 있다.** 시동은 데이터와
+ * 무관한 7.7초이고 학습마다 따로 든다.
+ *
+ * **순수 JS 칸과 같은 수여도 같은 상수가 아니다.** 근거가 다르다 — 저쪽은 `ml-cart`나
+ * SMO가 깨지는 자리를 재서 정했고, 이쪽은 sklearn이 천장까지 안 깨진 것을 재서 정했다.
+ * **분류: 우리 기기가 정했다** (열다섯 전부).
+ */
+
+/**
+ * sklearn 의사결정트리. 100,000행 4.7초.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
+export const PYODIDE_DECISION_TREE_ROW_LIMIT = MAX_DATASET_ROWS
+
+/**
+ * sklearn KNN. 100,000행 16.4초 (학습 + 20% 예측).
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
+export const PYODIDE_KNN_ROW_LIMIT = MAX_DATASET_ROWS
+
+/**
+ * sklearn 랜덤 포레스트. 100,000행 55.0초, **sklearn 기본값 100그루에서**.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
+export const PYODIDE_RANDOM_FOREST_ROW_LIMIT = MAX_DATASET_ROWS
+
+/**
+ * sklearn 나이브 베이즈. 100,000행 0.5초.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
+export const PYODIDE_NAIVE_BAYES_ROW_LIMIT = MAX_DATASET_ROWS
+
+/**
+ * sklearn 로지스틱 회귀. 100,000행 1.4초 (`max_iter` 100을 다 도는 천장에서).
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
+export const PYODIDE_LOGISTIC_REGRESSION_ROW_LIMIT = MAX_DATASET_ROWS
+
+/**
+ * sklearn 선형 회귀. 100,000행 1.0초.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
+export const PYODIDE_LINEAR_REGRESSION_ROW_LIMIT = MAX_DATASET_ROWS
+
+/**
+ * sklearn K-평균. 100,000행 10.7초 (군집 없는 데이터, k=3).
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
+export const PYODIDE_KMEANS_ROW_LIMIT = MAX_DATASET_ROWS
+
+/**
+ * sklearn SVM. **여기만 천장이 아니다.**
+ *
+ * 20,000행 30.0초까지 재고 **안 깨졌다.** 그 위는 안 재 봤고, 비용이 행에 제곱이라
+ * 100,000행은 10분대로 어림된다 — **어림으로 열지 않는다.**
+ *
+ * **순수 JS와 같은 20,000이지만 같은 자리가 아니다.** 저쪽은 27.1분이 걸린 20,000이고
+ * 이쪽은 30초다.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
+export const PYODIDE_SVM_ROW_LIMIT = 20_000
+
+/**
+ * sklearn 이미지 의사결정트리. 5,000장 27.1초.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
+export const PYODIDE_IMAGE_DECISION_TREE_ROW_LIMIT = MAX_IMAGE_COUNT
+
+/**
+ * sklearn 이미지 랜덤 포레스트. 5,000장 41.7초, **100그루에서**.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
+export const PYODIDE_IMAGE_RANDOM_FOREST_ROW_LIMIT = MAX_IMAGE_COUNT
+
+/**
+ * sklearn 이미지 SVM. 5,000장 **155.4초**.
+ *
+ * **여기가 이 판에서 유일하게 순수 JS보다 느린 칸이다**(저쪽 137.8초). 4,000장까지는
+ * sklearn이 4.5배 빠른데(30.6초 대 137.8초) 5,000장에서 혼자 **5.1배**가 뛴다.
+ * **원인은 추정이다** — libsvm의 커널 캐시를 넘겨 재계산이 터진 것으로 보이고, 재 보지 않았다.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
+export const PYODIDE_IMAGE_SVM_ROW_LIMIT = MAX_IMAGE_COUNT
+
+/**
+ * sklearn 이미지 KNN. 5,000장 4.2초 (학습 + 20% 예측).
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
+export const PYODIDE_IMAGE_KNN_ROW_LIMIT = MAX_IMAGE_COUNT
+
+/**
+ * sklearn 이미지 나이브 베이즈. 5,000장 1.9초.
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
+export const PYODIDE_IMAGE_NAIVE_BAYES_ROW_LIMIT = MAX_IMAGE_COUNT
+
+/**
+ * sklearn 이미지 로지스틱 회귀. 5,000장 22.4초 (`max_iter` 100 천장).
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
+export const PYODIDE_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT = MAX_IMAGE_COUNT
+
+/**
+ * sklearn 이미지 K-평균. 5,000장 4.2초 (군집 없는 데이터, k=3).
+ *
+ * **분류: 우리 기기가 정했다.**
+ */
+export const PYODIDE_IMAGE_KMEANS_ROW_LIMIT = MAX_IMAGE_COUNT
+
+/**
  * 모델 하나를 .mlpx에 담을 수 있는 최대 크기.
  *
  * 이걸 넘는 모델은 담지 않고 지표만 남긴다. 저장 자체는 성공한다.

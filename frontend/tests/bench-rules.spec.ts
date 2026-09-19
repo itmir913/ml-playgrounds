@@ -20,6 +20,7 @@ import { describe, expect, it } from 'vitest'
 
 import { NEURAL_MAX_EPOCHS } from '../src/limits'
 import { ALGORITHMS } from '../src/ml/algorithms'
+import { UNMEASURED } from '../src/ml/backend'
 import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { silhouetteSampleSize } from '../src/ml/metrics'
 import type { DataType } from '../src/project/schema'
@@ -30,11 +31,16 @@ import {
   CALIBRATION,
   CEILING_MS,
   FAILURE_CEILING_MS,
+  LADDERS,
   ladderPoint,
   measureCalibration,
+  measurerFor,
   PROJECTION_MS,
   projectionExponent,
   projectionRule,
+  PYODIDE_LADDERS,
+  replyOf,
+  shapeFor,
   stopReason,
   STOP_WHY,
   stopsBefore,
@@ -141,17 +147,30 @@ describe('실측 하니스는 배포본에 안 들어간다', () => {
 describe('등록부의 칸마다 사다리가 있다', () => {
   const IMAGE_FEATURES = backboneFor(DEFAULT_BACKBONE_ID)?.embeddingDim
 
-  /** 사다리가 실제로 만드는 일감으로 판정한다. **이름이 아니라 일감이 무엇을 재는가다.** */
-  function covers(algorithm: string, dataType: DataType): boolean {
-    return ALL_LADDERS.some((ladder) =>
-      ladder.points.some((point) => {
+  /**
+   * 사다리가 실제로 만드는 일감으로 판정한다. **이름이 아니라 일감이 무엇을 재는가다.**
+   *
+   * **엔진도 함께 본다** (2026-09-19). 등록부의 `maxRows`·`baseline`은 (알고리즘 × 종류 ×
+   * **브라우저 실행 방법**)이라 같은 알고리즘의 두 사다리가 **다른 칸**을 채운다. 엔진을
+   * 안 보면 sklearn 사다리 하나가 **순수 JS 칸이 찼다고** 말하고, 그 순간 순수 JS 사다리를
+   * 지워도 이 검사가 조용하다.
+   */
+  function covers(
+    ladders: readonly Ladder[],
+    algorithm: string,
+    dataType: DataType,
+    engine: 'mljs' | 'pyodide-sklearn',
+  ): boolean {
+    return ladders.some((ladder) => {
+      if ((ladder.engine ?? 'mljs') !== engine) return false
+      return ladder.points.some((point) => {
         const job = ladder.job(point)
         if (job.algorithm !== algorithm) return false
         return dataType === 'image'
           ? job.columns === IMAGE_FEATURES
           : job.columns !== IMAGE_FEATURES
-      }),
-    )
+      })
+    })
   }
 
   it('백본의 특성 수를 읽었다 - 못 읽으면 위 판정이 통째로 헐거워진다', () => {
@@ -173,10 +192,45 @@ describe('등록부의 칸마다 사다리가 있다', () => {
     for (const algorithm of ALGORITHMS) {
       for (const dataType of ['tabular', 'image'] as const) {
         if (!algorithm.dataTypes[dataType]) continue
-        if (!covers(algorithm.id, dataType)) missing.push(`${algorithm.id}/${dataType}`)
+        if (!covers(ALL_LADDERS, algorithm.id, dataType, 'mljs')) {
+          missing.push(`${algorithm.id}/${dataType}`)
+        }
       }
     }
     expect(missing).toEqual([])
+  })
+
+  /**
+   * **sklearn 칸도 같은 규칙을 받는다** (2026-09-19).
+   *
+   * 등록부의 `maxRows['pyodide-sklearn']` 여덟 줄이 전부 `UNMEASURED`인 것은 **빠뜨림이
+   * 아니라 못 잰 사실**이었다 — 어댑터를 띄우는 코드가 없었다. 띄우는 코드가 생긴 지금,
+   * 그 칸을 채울 사다리가 없는 알고리즘은 **영원히 `UNMEASURED`로 남는다.**
+   */
+  it('등록부가 sklearn으로 돌 수 있다고 한 (알고리즘 × 종류)에 사다리가 있다', () => {
+    const missing: string[] = []
+    for (const algorithm of ALGORITHMS) {
+      if (!algorithm.runtimes['pyodide-sklearn']) continue
+      for (const dataType of ['tabular', 'image'] as const) {
+        if (!algorithm.dataTypes[dataType]) continue
+        if (!covers(ALL_LADDERS, algorithm.id, dataType, 'pyodide-sklearn')) {
+          missing.push(`${algorithm.id}/${dataType}`)
+        }
+      }
+    }
+    expect(missing).toEqual([])
+  })
+
+  /**
+   * **엔진 축이 실제로 문다.** 위 두 검사가 같은 사다리를 두 번 세면 둘 중 하나는
+   * 아무것도 안 지키는 것이다 — sklearn 사다리만으로는 순수 JS 칸이 안 차야 한다.
+   */
+  it('그 규칙이 엔진을 가른다 - sklearn 사다리만으로는 순수 JS 칸이 안 찬다', () => {
+    // 같은 목록 · 같은 알고리즘 · 같은 종류인데 **엔진만 다르게** 물었을 때 답이 갈려야 한다.
+    expect(covers(PYODIDE_LADDERS, 'naive_bayes', 'tabular', 'pyodide-sklearn')).toBe(true)
+    expect(covers(PYODIDE_LADDERS, 'naive_bayes', 'tabular', 'mljs')).toBe(false)
+    expect(covers(LADDERS, 'naive_bayes', 'tabular', 'mljs')).toBe(true)
+    expect(covers(LADDERS, 'naive_bayes', 'tabular', 'pyodide-sklearn')).toBe(false)
   })
 
   /**
@@ -185,8 +239,8 @@ describe('등록부의 칸마다 사다리가 있다', () => {
    * 빨개진다 — 규칙이 아니라 사실이 바뀐 것인데 규칙이 우는 꼴이다.
    */
   it('그 규칙이 실제로 문다 - 없는 칸을 있다고 하지 않는다', () => {
-    expect(covers('없는_알고리즘', 'tabular')).toBe(false)
-    expect(covers('없는_알고리즘', 'image')).toBe(false)
+    expect(covers(ALL_LADDERS, '없는_알고리즘', 'tabular', 'mljs')).toBe(false)
+    expect(covers(ALL_LADDERS, '없는_알고리즘', 'image', 'mljs')).toBe(false)
   })
 })
 
@@ -382,10 +436,103 @@ describe('사다리와 워커의 계약', () => {
     const withoutRun = ALL_LADDERS.filter((ladder) => {
       const first = ladder.points[0]
       return (
-        first !== undefined && ladder.job(first).algorithm === 'k_means' && ladder.run === undefined
+        first !== undefined &&
+        ladder.job(first).algorithm === 'k_means' &&
+        ladder.run === undefined &&
+        // **sklearn 쪽은 `run`이 아니라 `shapeFor`가 가른다** (아래 검사). 두 벌이 아니라
+        // 같은 규칙의 다른 장치이고, 여기서 `run`을 요구하면 **엔진 고르는 자리가 사다리마다
+        // 하나씩 생긴다** — 잘못 고른 것을 아무도 못 보는 그 모양이다.
+        ladder.engine !== 'pyodide-sklearn'
       )
     }).map((ladder) => ladder.id)
     expect(withoutRun, 'k_means ladders must measure with their own data').toEqual([])
+  })
+
+  /**
+   * **sklearn 사다리도 군집은 군집 데이터로 잰다** (2026-09-19).
+   *
+   * 표 쪽에서 이 자리가 실제로 틀렸던 적이 있다 — 군집이 이미 갈린 데이터에 분류 지표를
+   * 얹어 **기준표가 두 자릿수로 짧았다**(R15-A-1). sklearn 쪽은 27MB를 받느라 검사가
+   * 돌려 볼 수 없으므로, **돌리지 않고 확인할 수 있는 자리**를 따로 두었다(`shapeFor`).
+   */
+  it('sklearn K-평균 사다리는 군집 갈래로 간다', () => {
+    const wrong = PYODIDE_LADDERS.filter((ladder) => {
+      const first = ladder.points[0]
+      if (first === undefined) return true
+      const job = ladder.job(first)
+      const expected = job.algorithm === 'k_means' ? 'clustering' : 'supervised'
+      return shapeFor(job) !== expected
+    }).map((ladder) => ladder.id)
+    expect(wrong).toEqual([])
+  })
+
+  /** 그 갈래가 실제로 문다 — 알고리즘이 바뀌면 답도 바뀐다. */
+  it('군집 갈래 판정이 알고리즘을 본다', () => {
+    expect(shapeFor({ algorithm: 'k_means', rows: 10 })).toBe('clustering')
+    expect(shapeFor({ algorithm: 'decision_tree', rows: 10 })).toBe('supervised')
+  })
+
+  /**
+   * **sklearn 사다리는 sklearn이 잰다.** 이 한 줄이 없으면 `ladderPoint`가 기본 갈래
+   * (순수 JS)로 떨어지고, **표에는 숫자가 멀쩡히 찍힌다** — 그 값으로 등록부의
+   * `pyodide-sklearn` 칸을 채우면 저장소가 **순수 JS의 시간을 sklearn의 시간이라고**
+   * 말하게 된다.
+   */
+  it('사다리마다 무엇이 재는지가 정해져 있다', () => {
+    const wrong = ALL_LADDERS.filter((ladder) => {
+      const expected = ladder.run
+        ? 'own'
+        : ladder.engine === 'pyodide-sklearn'
+          ? 'pyodide-sklearn'
+          : 'mljs'
+      return measurerFor(ladder) !== expected
+    }).map((ladder) => ladder.id)
+    expect(wrong).toEqual([])
+    expect(PYODIDE_LADDERS.every((ladder) => measurerFor(ladder) === 'pyodide-sklearn')).toBe(true)
+    expect(measurerFor({ engine: 'pyodide-sklearn', run: () => ({ elapsed: 0 }) })).toBe('own')
+    expect(measurerFor({})).toBe('mljs')
+  })
+
+  /**
+   * **그리고 돌리는 쪽이 그 답을 본다.** 위 검사는 판정만 보므로, `ladderPoint`가 그것을
+   * 안 보고 기본 갈래로 가면 **판정은 초록인데 잰 것은 순수 JS다.** sklearn 사다리는
+   * 검사가 돌려 볼 수 없어(27MB) 소스로 확인한다.
+   */
+  it('`ladderPoint`가 그 판정대로 고른다', () => {
+    const source = withoutComments(readFileSync(join(ROOT, 'tools', 'workloads.ts'), 'utf-8'))
+    const body = /export async function ladderPoint\([\s\S]*?\n\}/.exec(source)?.[0] ?? ''
+    expect(body, 'ladderPoint() not found').not.toBe('')
+    expect(body).toContain('measurerFor(ladder)')
+    expect(body).toMatch(/measurePyodide\(/)
+  })
+
+  /**
+   * **[전부 훑기]에 sklearn이 안 섞인다.** 저쪽은 네트워크 없이 도는 실측이고, 여기는
+   * 27MB를 받는다 — 섞으면 회선이 없거나 CDN이 막힌 곳에서 **표 쪽 실측까지 통째로
+   * 못 돈다.** 그리고 점마다 시동을 물어 시간 자릿수가 다르다.
+   */
+  it('sklearn 사다리는 [전부 훑기]에 없다', () => {
+    const leaked = LADDERS.filter((ladder) => ladder.engine === 'pyodide-sklearn').map(
+      (ladder) => ladder.id,
+    )
+    expect(leaked).toEqual([])
+    expect(PYODIDE_LADDERS.length).toBeGreaterThan(0)
+    // 개별 버튼으로는 돌 수 있어야 한다 — `bench.ts`가 이 목록으로 단추를 만든다.
+    for (const ladder of PYODIDE_LADDERS) {
+      expect(ALL_LADDERS).toContainEqual(ladder)
+    }
+  })
+
+  /**
+   * **안 잰 칸은 안 싣는다** (`replyOf`). `0`을 실으면 *"시동이 0이었다"*로 읽히고,
+   * 그 값이 JSON에 남으면 다음 사람이 **캐시가 다 지워 준 줄로 읽는다.**
+   */
+  it('답하지 않은 칸은 메시지에 없다', () => {
+    expect(replyOf({ elapsed: 12 })).toEqual({ elapsed: 12 })
+    expect(
+      replyOf({ elapsed: 12, parts: { boot: 900 }, versions: { 'scikit-learn': '1.8.0' } }),
+    ).toEqual({ elapsed: 12, parts: { boot: 900 }, versions: { 'scikit-learn': '1.8.0' } })
+    expect(replyOf({ elapsed: 12, iterations: 3 })).toEqual({ elapsed: 12, iterations: 3 })
   })
 
   /**
@@ -540,18 +687,31 @@ describe('사다리와 워커의 계약', () => {
   /**
    * **사다리도 앱의 절차로 잰다** (R16-B-4). R15가 교정 경로만 고쳤더니 병이 사다리로
    * 옮겨 갔다 — `evaluate`를 지우거나 예측 비율을 0.01로 해도 안 울었다.
+   *
+   * **보는 자리가 `measure`에서 `measureWith`로 옮겼다** (2026-09-19). 엔진이 둘이 되면서
+   * 절차가 그쪽으로 내려갔고, **두 엔진이 그 한 함수를 함께 쓴다** — 절차가 한 벌이라는
+   * 것이 두 표를 나란히 놓을 수 있는 유일한 근거다.
    */
-  it('`measure`가 학습·예측·평가를 다 지나간다', () => {
+  it('`measureWith`가 학습·예측·평가를 다 지나간다', () => {
     const source = readFileSync(join(ROOT, 'tools', 'workloads.ts'), 'utf-8')
     const body =
-      /export async function measure\(job: Job\): Promise<number> \{[\s\S]*?\n\}/.exec(
-        source,
-      )?.[0] ?? ''
-    expect(body, 'measure() not found').not.toBe('')
-    expect(body).toMatch(/\bfit\(/)
+      /async function measureWith\([\s\S]*?Promise<number> \{[\s\S]*?\n\}/.exec(source)?.[0] ?? ''
+    expect(body, 'measureWith() not found').not.toBe('')
+    expect(body).toMatch(/\bengineFit\(/)
     expect(body).toMatch(/\bpredict\(/)
     expect(body).toMatch(/\bevaluate\(/)
     expect(body).toContain('PREDICT_RATIO')
+  })
+
+  /**
+   * **두 엔진이 그 한 절차를 쓴다.** 어느 한쪽이 자기 절차를 따로 갖는 순간 두 표는
+   * 나란히 놓을 수 없는 것이 되는데, **그 갈라짐은 표에서 안 보인다** — 교정 일감이
+   * 목록만 같고 절차가 갈렸던 그 병이다(감사 B-4).
+   */
+  it('두 엔진이 같은 절차를 지난다', () => {
+    const source = withoutComments(readFileSync(join(ROOT, 'tools', 'workloads.ts'), 'utf-8'))
+    expect(source).toMatch(/measureWith\(fit,/)
+    expect(source).toMatch(/measureWith\(pyodideFit,/)
   })
 
   /**
@@ -584,16 +744,33 @@ describe('사다리와 워커의 계약', () => {
   it('상한 사다리의 라벨이 등록부와 같은 수를 말한다', () => {
     const wrong: string[] = []
     for (const ladder of ALL_LADDERS.filter((one) => one.findsLimit)) {
-      const said = /지금 ([\d,]+)/.exec(ladder.label)?.[1]?.replaceAll(',', '')
       const first = ladder.points[0]
-      if (said === undefined || first === undefined) {
-        wrong.push(`${ladder.id}: 라벨에 상한이 없다`)
+      if (first === undefined) {
+        wrong.push(`${ladder.id}: 점이 없다`)
         continue
       }
       const job = ladder.job(first)
       const dataType =
         job.columns === backboneFor(DEFAULT_BACKBONE_ID)?.embeddingDim ? 'image' : 'tabular'
-      const limit = ALGORITHMS.find((one) => one.id === job.algorithm)?.maxRows[dataType].mljs
+      const engine = ladder.engine ?? 'mljs'
+      const limit = ALGORITHMS.find((one) => one.id === job.algorithm)?.maxRows[dataType][engine]
+      /**
+       * **안 잰 칸은 숫자를 말하면 안 된다** (2026-09-19). sklearn 칸은 여덟 줄이 전부
+       * `UNMEASURED`인데, 거기 아무 수나 적어 두면 **라벨이 등록부보다 먼저 값을 갖는다** —
+       * 이 검사가 잡으려던 것이 정확히 그 반대 방향(라벨이 옛 수를 든 채 남는 것)이다.
+       * **칸을 채우는 날 라벨도 함께 바뀌어야 하고, 안 바꾸면 여기가 운다.**
+       */
+      if (limit === UNMEASURED) {
+        if (!ladder.label.includes('지금 안 잼')) {
+          wrong.push(`${ladder.id}: 등록부가 안 잰 칸인데 라벨이 수를 말한다`)
+        }
+        continue
+      }
+      const said = /지금 ([\d,]+)/.exec(ladder.label)?.[1]?.replaceAll(',', '')
+      if (said === undefined) {
+        wrong.push(`${ladder.id}: 라벨에 상한이 없다`)
+        continue
+      }
       if (Number(said) !== limit) wrong.push(`${ladder.id}: 라벨 ${said} · 등록부 ${limit}`)
     }
     expect(wrong).toEqual([])

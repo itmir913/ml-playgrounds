@@ -17,6 +17,12 @@ import {
   MLJS_KNN_ROW_LIMIT,
   MLJS_RANDOM_FOREST_ROW_LIMIT,
   MLJS_SVM_ROW_LIMIT,
+  PYODIDE_DECISION_TREE_ROW_LIMIT,
+  PYODIDE_IMAGE_RANDOM_FOREST_ROW_LIMIT,
+  PYODIDE_IMAGE_SVM_ROW_LIMIT,
+  PYODIDE_KNN_ROW_LIMIT,
+  PYODIDE_RANDOM_FOREST_ROW_LIMIT,
+  PYODIDE_SVM_ROW_LIMIT,
 } from '../src/limits'
 import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import {
@@ -29,6 +35,7 @@ import {
 import { fit } from '../src/ml/engines/mljs'
 import { fitKMeans } from '../src/ml/engines/mljs-kmeans'
 import { fitNeural } from '../src/ml/engines/neural'
+import { fit as pyodideFit } from '../src/ml/engines/pyodide-sklearn'
 import { evaluate, evaluateCluster } from '../src/ml/metrics'
 import {
   NEURAL_FORMAT,
@@ -36,6 +43,7 @@ import {
   loadNeuralModel,
   loadNeuralRegressionModel,
 } from '../src/ml/models'
+import { bootPyodide } from './pyodide'
 
 /** 기본 특성 수. **특성 축은 알고리즘마다 따로 훑는다**(아래 `*_columns` 사다리들). */
 const FEATURES = 8
@@ -111,6 +119,48 @@ export interface Job {
  * (`open-decisions.md` "학습 예상 시간은 실측표에 기기 배수를 곱해 낸다").
  */
 export async function measure(job: Job): Promise<number> {
+  return measureWith(fit, job)
+}
+
+/**
+ * 같은 일감을 **scikit-learn(Pyodide)으로** 잰다.
+ *
+ * **시동은 시계 밖이다.** 시동은 데이터 크기와 무관한 고정 비용이라(`bootPyodide`)
+ * 안에 넣으면 사다리의 모든 점에 같은 상수가 얹혀 **행 수 곡선이 평평해 보인다** —
+ * 1,000행과 20,000행이 둘 다 *"15초쯤"*이 되고, 그 표로는 보간을 못 한다. 시동은
+ * `parts.boot`에 따로 실어 나란히 남긴다.
+ *
+ * **`fit` 자리만 갈아 끼운다.** 데이터 생성·예측 비율·평가까지 표 쪽과 한 글자도 다르지
+ * 않아야 두 엔진의 숫자를 나란히 놓을 수 있다 — 교정 일감이 *"목록만 같고 절차가
+ * 갈렸던"* 그 병(감사 B-4)을 여기서 되풀이하지 않는다.
+ */
+async function measurePyodide(job: Job): Promise<LadderResult> {
+  const { parts } = await bootPyodide()
+  /**
+   * **군집화는 데이터도 평가도 다르다.** 표 쪽이 `measureKMeans`를 따로 둔 것과 같은
+   * 이유이고, 여기서 갈라 두면 **sklearn 사다리는 `run`을 안 써도 된다** — `run`이 있으면
+   * 그 안에서 엔진을 다시 고르게 되고, 잘못 고른 것을 아무도 못 본다.
+   */
+  const measured =
+    shapeFor(job) === 'clustering'
+      ? await measureKMeansPyodide(job)
+      : { elapsed: await measureWith(pyodideFit, job) }
+  return { ...measured, parts: { ...parts, boot: parts.total } }
+}
+
+/**
+ * **이 일감이 어떤 데이터와 어떤 평가를 요구하는가.**
+ *
+ * `measurerFor`와 같은 이유로 밖에 있다 — sklearn 사다리는 27MB를 받아서 검사가 못
+ * 돌리는데, **군집 사다리가 분류 데이터로 재어지는 것**은 표 쪽에서 실제로 났던 결함이다
+ * (R15-A-1). 돌리지 않고도 그 갈래를 확인할 수 있어야 한다.
+ */
+export function shapeFor(job: Job): 'clustering' | 'supervised' {
+  return job.algorithm === 'k_means' ? 'clustering' : 'supervised'
+}
+
+/** 엔진 하나로 점 하나를 잰다. **위 둘이 공유하는 절차이고, 갈라지면 안 된다.** */
+async function measureWith(engineFit: typeof fit, job: Job): Promise<number> {
   const { features, target } = syntheticData(
     job.rows,
     job.columns ?? FEATURES,
@@ -118,7 +168,7 @@ export async function measure(job: Job): Promise<number> {
   )
   const rowIndices = features.map((_, index) => index)
   const started = performance.now()
-  const { predict } = await fit(job.algorithm, {
+  const { predict } = await engineFit(job.algorithm, {
     features,
     rowIndices,
     target,
@@ -265,6 +315,21 @@ export interface LadderResult {
    * 이 칸은 K-평균만의 것이 아니다 (`open-decisions.md` "신경망도 tol을 0으로 놓고 잰다").
    */
   readonly iterations?: number
+  /**
+   * 국면마다 몇 ms인가. **scikit-learn 사다리만 답한다** — 시동이 넷으로 갈리고
+   * (`BootParts`), 그 넷을 합계 하나로 뭉치면 **어디를 고쳐야 하는지가 사라진다.**
+   *
+   * **`elapsed`에는 안 들어간다.** 시동은 데이터와 무관한 고정 비용이라 시계 밖이고,
+   * 여기 실린 값은 그 옆에 나란히 놓으라고 있는 것이다 (`measurePyodide`).
+   */
+  readonly parts?: Readonly<Record<string, number>>
+  /**
+   * **파이썬이 스스로 답한 버전들.** 시동 실측만 답한다.
+   *
+   * 우리가 적은 못(`PYODIDE_VERSION`)이 아니라 **실제로 뜬 것**이라, 원격이 조용히
+   * 바뀌면 여기서 먼저 드러난다. `run.engine.version`에 무엇을 담을지가 이 값에 걸려 있다.
+   */
+  readonly versions?: Readonly<Record<string, string>>
 }
 
 /** 위 데이터로 K-평균 한 번. **`measure`를 안 쓰는 이유는 데이터가 다르기 때문이다.** */
@@ -276,6 +341,37 @@ function measureKMeans(rows: number, clusters: number, columns: number = FEATURE
   // **여기가 군집화의 진짜 비용이다** (`open-decisions.md` "실루엣 계수는 표본으로 낸다").
   evaluateCluster(features, result.assignments, result.centroids, 42)
   return { elapsed: Math.round(performance.now() - started), iterations: result.iterations }
+}
+
+/**
+ * 같은 데이터로 **sklearn의** K-평균 한 번.
+ *
+ * **반복 횟수를 안 답한다.** 우리 엔진은 Lloyd 반복을 세어 돌려주지만(`mljs-kmeans.ts`)
+ * sklearn의 `n_iter_`는 어댑터의 `clusterResult`에 없다 — **없는 수를 0으로 채우지
+ * 않는다**(`LadderResult.iterations`의 규칙). 필요해지면 어댑터가 그 칸을 갖는 것이 먼저다.
+ */
+async function measureKMeansPyodide(job: Job): Promise<LadderResult> {
+  const clusters = Number(job.hyperparameters?.n_clusters ?? 0)
+  // **일감이 군집 수를 안 들고 오면 잰 것이 사다리가 아니다.** 기본값으로 메우면
+  // 사다리의 점과 실제로 돈 `k`가 갈리고, 그 표는 조용히 다른 축을 말한다.
+  if (!Number.isInteger(clusters) || clusters < 2) {
+    throw new Error(`k_means ladder needs n_clusters: ${String(job.hyperparameters?.n_clusters)}`)
+  }
+  const { features } = uniformData(job.rows, job.columns ?? FEATURES)
+  const rowIndices = features.map((_, index) => index)
+  const started = performance.now()
+  const { clusterResult } = await pyodideFit('k_means', {
+    features,
+    rowIndices,
+    target: features.map(() => ''),
+    taskType: 'clustering',
+    hyperparameters: { n_clusters: clusters },
+    randomState: 42,
+  })
+  if (clusterResult === undefined) throw new Error('k_means did not return clusters')
+  // 표 쪽과 같은 자리를 잰다 — 군집화의 진짜 비용은 여기다.
+  evaluateCluster(features, clusterResult.assignments, clusterResult.centroids, 42)
+  return { elapsed: Math.round(performance.now() - started) }
 }
 
 /**
@@ -296,6 +392,18 @@ export const AXES = [
 
 export type Axis = (typeof AXES)[number]
 
+/**
+ * 사다리가 무엇으로 재는가. **없으면 순수 JS다** — 오늘 사다리의 대부분이 그쪽이고,
+ * 줄마다 `engine: 'mljs'`를 적게 하면 그 글자가 아무것도 안 막으면서 길어지기만 한다.
+ *
+ * **축이 필요한 이유는 등록부가 엔진마다 다른 칸을 갖기 때문이다** — `maxRows`와
+ * `baseline`이 (알고리즘 × 종류 × 브라우저 실행 방법)이라(`ml/algorithms.ts`), 같은
+ * 알고리즘의 두 사다리가 **다른 칸을 채운다.** 이름만으로 가르면
+ * `tests/bench-rules.spec.ts`의 덮개 검사가 **sklearn 사다리 하나로 순수 JS 칸이 찼다고
+ * 말한다.**
+ */
+export type LadderEngine = 'mljs' | 'pyodide-sklearn'
+
 /** 사다리 하나. `points`가 무엇을 바꾸는지는 `axis`가 말한다. */
 export interface Ladder {
   readonly id: string
@@ -303,6 +411,8 @@ export interface Ladder {
   readonly axis: Axis
   readonly points: readonly number[]
   readonly job: (point: number) => Job
+  /** 무엇으로 재나. **없으면 순수 JS다** (`LadderEngine`). */
+  readonly engine?: LadderEngine
   /**
    * 이 사다리가 **자기 데이터로** 재는가. 없으면 `measure(job(point))`를 쓴다.
    *
@@ -341,6 +451,13 @@ export interface Ladder {
  * 16초가 이웃이라(결정문의 표) 행 수 보간이 통째로 거짓말이 된다. 천장을 재면 매끄럽다.
  */
 const LOGISTIC_CEILING = { tol: 0, maxIter: 100 }
+
+/**
+ * **같은 물건의 sklearn 어휘다.** 이름이 다른 이유는 손잡이 이름이 엔진마다 다르기
+ * 때문이고(`maxIter` 대 `max_iter`), 그것이 하이퍼파라미터를 (알고리즘 × 실행 방법)으로
+ * 만든 이유다 (`ml/engines/pyodide-sklearn-params.ts`).
+ */
+const PYODIDE_LOGISTIC_CEILING = { tol: 0, max_iter: 100 }
 
 export const LADDERS: readonly Ladder[] = [
   {
@@ -881,6 +998,287 @@ const LIMIT_LADDERS: readonly Ladder[] = [
  * **검사로 막는 대신 빠질 수 없게 만든다.**
  */
 /**
+ * **scikit-learn(Pyodide) 사다리** (2026-09-19).
+ *
+ * **여기 나온 값이 등록부의 `pyodide-sklearn` 칸을 채운다.** 지금 그 칸은 알고리즘 여덟
+ * 줄이 전부 `UNMEASURED`이고(`ml/algorithms.ts`), 그건 빠뜨림이 아니라 **아직 못 재는
+ * 사실**이었다 — 어댑터를 띄우는 코드가 저장소에 없었다.
+ *
+ * **[전부 훑기]에 안 들어간다.** 점 하나마다 새 워커이고 워커마다 시동을 무므로
+ * (`measurePyodide`) 표 쪽 사다리와 시간 자릿수가 다르다. 그리고 **네트워크를 탄다** —
+ * 27MB를 받는 사다리를 순수 JS 훑기에 섞으면, 회선이 없을 때 표 쪽 실측까지 못 돈다.
+ *
+ * **점은 표 쪽 사다리와 같게 시작한다.** 두 엔진의 같은 점을 나란히 놓을 수 있어야
+ * "sklearn이 몇 배인가"를 말할 수 있다. 위쪽은 20초 천장이 알아서 자른다.
+ *
+ * **상한 사다리는 아직 없다.** 깨지는 지점을 찾는 것은 기준표를 잰 다음이고, 시동이
+ * 점마다 붙는 상태에서 몇 시간짜리 사다리를 돌리는 것은 순서가 틀렸다.
+ */
+export const PYODIDE_LADDERS: readonly Ladder[] = [
+  {
+    id: 'pyodide_naive_bayes',
+    label: '[sklearn] 나이브 베이즈 · 행 수',
+    axis: 'rows',
+    points: [1000, 5000, 20_000, 50_000, 100_000],
+    job: (rows) => ({ algorithm: 'naive_bayes', rows }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_linear_regression',
+    label: '[sklearn] 선형 회귀 · 행 수',
+    axis: 'rows',
+    points: [1000, 5000, 20_000, 50_000, 100_000],
+    job: (rows) => ({ algorithm: 'linear_regression', rows, regression: true }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    /**
+     * **`max_iter`를 sklearn 기본값에 둔다.** 표 쪽은 `tol: 0`으로 천장을 재는데
+     * (`LOGISTIC_CEILING`), sklearn 서술에는 `tol`이 있으므로 같은 손잡이를 줄 수는 있다.
+     * **그래도 안 준다** — 먼저 알아야 하는 것은 *"학생이 기본값으로 눌렀을 때 얼마인가"*이고,
+     * 천장 재기는 그 값이 절벽인 것을 본 다음이다 (표 쪽이 그 순서로 갔다).
+     */
+    id: 'pyodide_logistic_regression',
+    label: '[sklearn] 로지스틱 회귀 · 행 수 (sklearn 기본값)',
+    axis: 'rows',
+    points: [1000, 5000, 20_000, 50_000, 100_000],
+    job: (rows) => ({ algorithm: 'logistic_regression', rows }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_knn',
+    label: '[sklearn] KNN · 행 수 (학습 + 20% 예측)',
+    axis: 'rows',
+    points: [1000, 2000, 5000, 10_000],
+    job: (rows) => ({ algorithm: 'knn', rows }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_decision_tree',
+    label: '[sklearn] 의사결정트리 · 행 수',
+    axis: 'rows',
+    points: [250, 500, 1000, 2000, 5000, 10_000, 20_000],
+    job: (rows) => ({ algorithm: 'decision_tree', rows }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_svm',
+    label: '[sklearn] SVM · 행 수',
+    axis: 'rows',
+    points: [250, 500, 1000, 2000, 3000],
+    job: (rows) => ({ algorithm: 'svm', rows }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    /**
+     * **그루 수가 sklearn 기본값(100)이다.** 우리 엔진의 기본값은 교실에 맞춘 10이라
+     * (`mljs-params.ts`) 같은 점에서 열 배의 일을 한다 — **두 표를 나란히 놓을 때
+     * 이것을 모르면 "sklearn이 열 배 느리다"고 읽는다.**
+     */
+    id: 'pyodide_random_forest',
+    label: '[sklearn] 랜덤 포레스트 · 행 수 (sklearn 기본값 100그루)',
+    axis: 'rows',
+    points: [250, 500, 1000, 2000, 5000],
+    job: (rows) => ({ algorithm: 'random_forest', rows }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_k_means',
+    label: '[sklearn] K-평균 · 행 수 (군집 없는 데이터, k=3)',
+    axis: 'rows',
+    points: [1000, 5000, 20_000, 50_000, 100_000],
+    job: (rows) => ({ algorithm: 'k_means', rows, hyperparameters: { n_clusters: 3 } }),
+    engine: 'pyodide-sklearn',
+  },
+  /**
+   * **사진 쪽.** 1,280차원이 표의 160배 자리라 표의 값으로 외삽할 수 없다 — 표 쪽
+   * 사다리가 사진을 따로 재는 것과 같은 이유다(`image_*`).
+   *
+   * **인공신경망은 여기 없다.** 등록부가 `'pyodide-sklearn': false`라고 선언한다
+   * (`ml/algorithms.ts`) — sklearn의 `MLPClassifier`는 우리 손잡이와 모양이 다르다.
+   */
+  {
+    id: 'pyodide_image_naive_bayes',
+    label: '[sklearn][사진] 나이브 베이즈 · 장 수',
+    axis: 'rows',
+    points: [250, 500, 1000, 2000, 4000, 5000],
+    job: (rows) => ({ algorithm: 'naive_bayes', rows, columns: IMAGE_FEATURES }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_image_logistic_regression',
+    label: '[sklearn][사진] 로지스틱 회귀 · 장 수 (sklearn 기본값)',
+    axis: 'rows',
+    points: [250, 500, 1000, 2000, 4000, 5000],
+    job: (rows) => ({ algorithm: 'logistic_regression', rows, columns: IMAGE_FEATURES }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_image_knn',
+    label: '[sklearn][사진] KNN · 장 수 (학습 + 20% 예측)',
+    axis: 'rows',
+    points: [250, 500, 1000, 2000, 4000, 5000],
+    job: (rows) => ({ algorithm: 'knn', rows, columns: IMAGE_FEATURES }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_image_k_means',
+    label: '[sklearn][사진] K-평균 · 장 수 (군집 없는 데이터, k=3)',
+    axis: 'rows',
+    points: [250, 500, 1000, 2000, 4000, 5000],
+    job: (rows) => ({
+      algorithm: 'k_means',
+      rows,
+      columns: IMAGE_FEATURES,
+      hyperparameters: { n_clusters: 3 },
+    }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_image_decision_tree',
+    label: '[sklearn][사진] 의사결정트리 · 장 수',
+    axis: 'rows',
+    points: [250, 500, 1000, 2000, 5000],
+    job: (rows) => ({ algorithm: 'decision_tree', rows, columns: IMAGE_FEATURES }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_image_random_forest',
+    label: '[sklearn][사진] 랜덤 포레스트 · 장 수 (sklearn 기본값 100그루)',
+    axis: 'rows',
+    points: [100, 250, 500, 1000, 2000],
+    job: (rows) => ({ algorithm: 'random_forest', rows, columns: IMAGE_FEATURES }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_image_svm',
+    label: '[sklearn][사진] SVM · 장 수',
+    axis: 'rows',
+    points: [250, 500, 1000, 2000, 3000],
+    job: (rows) => ({ algorithm: 'svm', rows, columns: IMAGE_FEATURES }),
+    engine: 'pyodide-sklearn',
+  },
+  /**
+   * **로지스틱은 천장으로도 한 번 잰다** (2026-09-19 실측 뒤에 더했다).
+   *
+   * 위 두 사다리는 **sklearn 기본값**이라 *"학생이 그냥 눌렀을 때"*를 답하고, 여기는
+   * `tol: 0`으로 **`max_iter`를 다 도는 경우**를 답한다. 표 쪽 기준표가 정의된 자리가
+   * 그쪽이고(`LOGISTIC_CEILING`), 두 엔진을 나란히 놓으려면 같은 정의여야 한다.
+   *
+   * **그리고 합성 데이터는 쉽다.** 라벨이 특성에서 곧장 나와 일찍 수렴하므로, 기본값으로
+   * 잰 값은 **학생의 어려운 데이터에서 짧게 틀린다** — 순수 JS 쪽이 2026-08-31에 그
+   * 절벽(2만 행 0.2초 · 2.4만 행 16초)으로 한 번 무너진 자리다.
+   *
+   * **`tol: 0`은 서술의 범위 밖이다**(`min: 0.000001`). `resolveWith`는 범위를 안 자르므로
+   * (`ml/hyperparams.ts`) 그대로 sklearn에 간다 — 학생 경로에서는 화면이 범위를 막는다.
+   */
+  {
+    id: 'pyodide_logistic_regression_ceiling',
+    label: '[sklearn] 로지스틱 회귀 · 행 수 (max_iter 100 천장)',
+    axis: 'rows',
+    points: [1000, 5000, 20_000, 50_000, 100_000],
+    job: (rows) => ({
+      algorithm: 'logistic_regression',
+      rows,
+      hyperparameters: PYODIDE_LOGISTIC_CEILING,
+    }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_image_logistic_regression_ceiling',
+    label: '[sklearn][사진] 로지스틱 회귀 · 장 수 (max_iter 100 천장)',
+    axis: 'rows',
+    points: [250, 500, 1000, 2000, 4000, 5000],
+    job: (rows) => ({
+      algorithm: 'logistic_regression',
+      rows,
+      columns: IMAGE_FEATURES,
+      hyperparameters: PYODIDE_LOGISTIC_CEILING,
+    }),
+    engine: 'pyodide-sklearn',
+  },
+]
+
+/**
+ * **sklearn의 상한 사다리** (2026-09-19 실측 뒤에 세웠다).
+ *
+ * **처음 훑기에서 실패가 0건이었다.** 열다섯 사다리가 전부 끝까지 갔고, 그래서 **깨지는
+ * 지점을 하나도 못 봤다** — 사다리의 점이 거기까지였기 때문이지 거기가 천장이어서가 아니다.
+ * 상한은 시간이 아니라 **깨지는 자리**이므로(`open-decisions.md` "그러면 상한은 시간으로
+ * 정하는 것이 아니다"), 그 자리를 보려면 위쪽을 더 밀어야 한다.
+ *
+ * **여기 없는 칸은 이미 천장에 닿았다.** 표의 나이브 베이즈·선형 회귀·로지스틱·K-평균은
+ * `MAX_DATASET_ROWS`(100,000)까지, 사진의 그 넷과 의사결정트리는 `MAX_IMAGE_COUNT`(5,000)까지
+ * 실제로 돌았다 — **그 위는 이 앱이 데이터로 받지도 않는다.**
+ *
+ * **SVM이 먼저 깨질 것이다.** N×N 커널이라 2만 행이면 3.2GB다. 그 자리가 상한이고,
+ * 그것은 오래 걸리는 것이 아니라 **워커가 죽는 것**으로 온다.
+ */
+const PYODIDE_LIMIT_LADDERS: readonly Ladder[] = [
+  {
+    id: 'pyodide_limit_decision_tree',
+    label: `상한 찾기 · [sklearn] 의사결정트리 (지금 ${PYODIDE_DECISION_TREE_ROW_LIMIT.toLocaleString()})`,
+    axis: 'rows',
+    points: [20_000, 50_000, 100_000],
+    job: (rows) => ({ algorithm: 'decision_tree', rows }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_limit_knn',
+    label: `상한 찾기 · [sklearn] KNN (지금 ${PYODIDE_KNN_ROW_LIMIT.toLocaleString()})`,
+    axis: 'rows',
+    points: [10_000, 20_000, 50_000, 100_000],
+    job: (rows) => ({ algorithm: 'knn', rows }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_limit_random_forest',
+    label: `상한 찾기 · [sklearn] 랜덤 포레스트 (지금 ${PYODIDE_RANDOM_FOREST_ROW_LIMIT.toLocaleString()})`,
+    axis: 'rows',
+    points: [5000, 10_000, 20_000, 50_000, 100_000],
+    job: (rows) => ({ algorithm: 'random_forest', rows }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_limit_svm',
+    label: `상한 찾기 · [sklearn] SVM (지금 ${PYODIDE_SVM_ROW_LIMIT.toLocaleString()})`,
+    axis: 'rows',
+    points: [3000, 5000, 8000, 12_000, 20_000],
+    job: (rows) => ({ algorithm: 'svm', rows }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_limit_image_random_forest',
+    label: `상한 찾기 · [sklearn][사진] 랜덤 포레스트 (지금 ${PYODIDE_IMAGE_RANDOM_FOREST_ROW_LIMIT.toLocaleString()})`,
+    axis: 'rows',
+    points: [2000, 3000, 4000, 5000],
+    job: (rows) => ({ algorithm: 'random_forest', rows, columns: IMAGE_FEATURES }),
+    engine: 'pyodide-sklearn',
+  },
+  {
+    id: 'pyodide_limit_image_svm',
+    label: `상한 찾기 · [sklearn][사진] SVM (지금 ${PYODIDE_IMAGE_SVM_ROW_LIMIT.toLocaleString()})`,
+    axis: 'rows',
+    points: [3000, 4000, 5000],
+    job: (rows) => ({ algorithm: 'svm', rows, columns: IMAGE_FEATURES }),
+    engine: 'pyodide-sklearn',
+  },
+]
+
+/**
+ * **이 점을 무엇이 재는가.** `ladderPoint`가 이 답대로 고른다.
+ *
+ * **밖으로 꺼낸 이유는 검사가 닿아야 하기 때문이다.** sklearn 사다리는 27MB를 받으므로
+ * 검사가 돌려 볼 수 없고, 그래서 *"이 사다리가 무엇으로 재는가"*는 **돌리지 않고
+ * 확인할 수 있어야 한다.** 안에 두었다면 `engine` 칸을 안 보게 만들어도 아무것도 안
+ * 울었을 것이다 — 그때 sklearn 사다리 전부가 **조용히 순수 JS를 잰다.**
+ */
+export function measurerFor(ladder: Pick<Ladder, 'engine' | 'run'>): LadderEngine | 'own' {
+  if (ladder.run) return 'own'
+  return ladder.engine ?? 'mljs'
+}
+
+/**
  * 사다리 하나의 한 점을 돌린다. **워커가 부르는 자리다** (`bench.worker.ts`).
  *
  * **없는 `id`는 던진다** — 조용히 `0`을 돌려주면 그게 기준표가 된다. 2026-09-01 감사가
@@ -892,7 +1290,11 @@ const LIMIT_LADDERS: readonly Ladder[] = [
 export async function ladderPoint(ladderId: string, point: number): Promise<LadderResult> {
   const ladder = ALL_LADDERS.find((one) => one.id === ladderId)
   if (ladder === undefined) throw new Error(`unknown ladder: ${ladderId}`)
-  return ladder.run ? await ladder.run(point) : { elapsed: await measure(ladder.job(point)) }
+  const measurer = measurerFor(ladder)
+  if (measurer === 'own') return await (ladder.run as NonNullable<Ladder['run']>)(point)
+  return measurer === 'pyodide-sklearn'
+    ? await measurePyodide(ladder.job(point))
+    : { elapsed: await measure(ladder.job(point)) }
 }
 
 /**
@@ -916,8 +1318,9 @@ export function benchOutcome(request: {
   readonly job: CalibrationJob
 }): Promise<Outcome>
 export function benchOutcome(request: { readonly kind: 'calibration-set' }): Promise<Outcome>
+export function benchOutcome(request: { readonly kind: 'pyodide-boot' }): Promise<Outcome>
 export async function benchOutcome(request: {
-  readonly kind: 'ladder' | 'calibration' | 'calibration-set'
+  readonly kind: 'ladder' | 'calibration' | 'calibration-set' | 'pyodide-boot'
   readonly ladderId?: string
   readonly point?: number
   readonly job?: CalibrationJob
@@ -929,10 +1332,46 @@ export async function benchOutcome(request: {
         ? { elapsed: await measureCalibrationSet() }
         : request.kind === 'calibration'
           ? { elapsed: await measureCalibration(request.job as CalibrationJob) }
-          : await ladderPoint(request.ladderId as string, request.point as number)
+          : request.kind === 'pyodide-boot'
+            ? await measureBoot()
+            : await ladderPoint(request.ladderId as string, request.point as number)
     return { ok: true, ...result }
   } catch (error) {
     return { ok: false, error: String(error) }
+  }
+}
+
+/**
+ * **시동만 잰다** — 아무것도 학습하지 않는다.
+ *
+ * 이 값이 *"학습마다 낼 것인가, 상주시킬 것인가"*를 정한다. 2026-08-04에 잰 15.4초는
+ * CPython 3.11 시절 배포판의 값이고, 그 숫자 하나로 **엔진을 켜는 자리를 따로 두는
+ * 설계**가 섰다. 배포판이 바뀌었으니(`PYODIDE_VERSION`) 그 전제부터 다시 잰다.
+ *
+ * **점마다 새 워커라 세 번 부르면 세 번 다 차가운 시작이다** (`bench.ts`의 `runInWorker`).
+ * 다만 **두 번째부터는 브라우저의 HTTP 캐시가 27MB를 대신 준다** — 그 차이가 곧
+ * *"캐시가 지워 주는 값"*과 *"캐시가 못 지우는 값"*의 경계다.
+ */
+async function measureBoot(): Promise<LadderResult> {
+  const { parts, versions } = await bootPyodide()
+  return { elapsed: parts.total, parts, versions }
+}
+
+/**
+ * 워커가 돌려보낼 답을 만든다. **없는 칸은 아예 안 싣는다.**
+ *
+ * `0`을 실으면 *"한 번도 안 돌았다"*로 읽히고, 빈 객체를 실으면 *"국면을 재 봤는데
+ * 아무것도 없었다"*로 읽힌다 — 둘 다 **안 잰 것과 다른 말**이다.
+ *
+ * **워커 파일이 아니라 여기 있는 이유**는 저쪽이 모듈 꼭대기에서 `self`를 만져 검사가
+ * 못 들여오기 때문이다 (감사 B-2와 같은 자리).
+ */
+export function replyOf(result: LadderResult): LadderResult {
+  return {
+    elapsed: result.elapsed,
+    ...(result.iterations === undefined ? {} : { iterations: result.iterations }),
+    ...(result.parts === undefined ? {} : { parts: result.parts }),
+    ...(result.versions === undefined ? {} : { versions: result.versions }),
   }
 }
 
@@ -1031,6 +1470,8 @@ export function stopsBefore(
 export const ALL_LADDERS: readonly Ladder[] = [
   ...LADDERS,
   ...LIMIT_LADDERS.map((ladder) => ({ ...ladder, findsLimit: true as const })),
+  ...PYODIDE_LADDERS,
+  ...PYODIDE_LIMIT_LADDERS.map((ladder) => ({ ...ladder, findsLimit: true as const })),
 ]
 
 /**
