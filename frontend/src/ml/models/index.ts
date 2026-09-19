@@ -25,7 +25,7 @@ import {
 } from './neural'
 import { REFERENCE_FORMAT, loadReferenceModel } from './reference'
 import { SVM_FORMAT, loadSvmModel } from './svm'
-import { TREE_FORMAT, loadTreeModel } from './tree'
+import { TREE_FORMAT, TREE_V2_FORMAT, loadTreeModel, loadTreeV2Model } from './tree'
 import type { LoadContext, ModelInterpreter, Predict, ProbaModel } from './types'
 
 export { KMEANS_FORMAT, kmeansPredict, loadKMeansModel, parseKMeansModel } from './kmeans'
@@ -53,8 +53,8 @@ export { REFERENCE_FORMAT, knnPredict } from './reference'
 export type { NeighborhoodInput, ReferenceModel } from './reference'
 export { SVM_FORMAT, svmPredict } from './svm'
 export type { PairwiseClassifier, SvmModel, VotingInput } from './svm'
-export { TREE_FORMAT } from './tree'
-export type { TreeModel, TreeNode } from './tree'
+export { TREE_FORMAT, TREE_V2_FORMAT } from './tree'
+export type { TreeModel, TreeNode, TreeV2Model } from './tree'
 export type {
   LoadContext,
   ModelFile,
@@ -70,6 +70,17 @@ const INTERPRETERS: readonly ModelInterpreter[] = [
     includesPreprocessing: false,
     needsTrainingRows: false,
     load: loadTreeModel,
+  },
+  /**
+   * **v1과 나란히 산다** (`mlpx-spec.md` §5.3.1). 옛 파일은 계속 v1이고, 이름이 갈려
+   * 있으므로 옛 앱이 새 파일을 만나면 `MODEL_FORMAT_UNSUPPORTED`로 **시끄럽게** 선다 —
+   * 같은 이름에 뜻을 얹었으면 그 자리가 **조용히 다른 답**이었다.
+   */
+  {
+    format: TREE_V2_FORMAT,
+    includesPreprocessing: false,
+    needsTrainingRows: false,
+    load: loadTreeV2Model,
   },
   {
     format: LINEAR_V2_FORMAT,

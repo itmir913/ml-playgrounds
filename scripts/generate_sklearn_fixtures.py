@@ -183,16 +183,11 @@ def tree_dump(tree: Any) -> dict[str, Any]:
 def model_dump(algorithm: str, model: Any) -> dict[str, Any] | None:
     """어댑터가 그 알고리즘에서 꺼내는 것 **그대로**. 꺼내는 칸이 없으면 `None`이다.
 
-    **랜덤 포레스트만 손으로 짠다** - 안 담기로 한 알고리즘이라 어댑터에 `dump` 칸이 없는데
-    (`open-decisions.md` "배운 것을 담는다 — 여덟 중 일곱"), 갈리는 줄을 세려면 나무가
-    필요하다. 그 나무도 **어댑터의 `_mlpx_tree`가 만든다.**
+    **이제 여덟이 다 여기를 지난다** (2026-09-19). 랜덤 포레스트만 손으로 짜고 있었는데,
+    안 담기로 했던 것이 `mlpx-tree-v2`로 뒤집히면서 어댑터가 그 칸을 갖게 됐다
+    (`mlpx-spec.md` §5.3.1).
     """
     classes = [str(one) for one in getattr(model, "classes_", [])]
-    if algorithm == "random_forest":
-        return {
-            "trees": [tree_dump(one.tree_) for one in model.estimators_],
-            "classes": classes,
-        }
     return adapter_python.dumped(algorithm, model, classes)
 
 

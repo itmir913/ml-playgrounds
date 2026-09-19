@@ -14,7 +14,13 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
 import type { FitInput } from '../src/ml/engines/mljs'
-import { type PyodideProxy, fit, resetPyodide, setPyodide } from '../src/ml/engines/pyodide-sklearn'
+import {
+  PYODIDE_SKLEARN_ALGORITHMS,
+  type PyodideProxy,
+  fit,
+  resetPyodide,
+  setPyodide,
+} from '../src/ml/engines/pyodide-sklearn'
 
 /** 실행된 Python 소스를 모아 두는 가짜 Pyodide. 아무것도 실행하지 않는다. */
 function fakePyodide(): { proxy: PyodideProxy; sources: string[] } {
@@ -137,10 +143,26 @@ describe('하이퍼파라미터가 Python 소스로 나갈 때', () => {
  * 이었는데, 그건 *"이 알고리즘에는 직렬화기가 없다"*는 말이고 **셋은 있고 거절한 것**이었다.
  */
 describe('못 담은 사유를 갈라 적는다', () => {
-  it('직렬화기가 없는 알고리즘은 없다고 적는다', async () => {
-    setPyodide(fakePyodide().proxy)
-    const result = await fit('random_forest', input({ n_estimators: 10 }))
-    expect(result.modelOmittedDetail).toBe('pyodide-sklearn:random_forest:serializer-missing')
+  /**
+   * **이제 여덟이 다 직렬화기를 갖는다** (2026-09-19). 랜덤 포레스트가 마지막이었고
+   * `mlpx-tree-v2`로 열렸다 — 그래서 `serializer-missing`은 **오늘 아무 알고리즘도 안 낸다.**
+   *
+   * **그 갈래를 지우지는 않았다.** 새 알고리즘이 칸을 비운 채 들어올 수 있고, 그때 사유가
+   * *"클래스가 갈렸다"*로 적히면 고치는 사람이 엉뚱한 데를 판다. **대신 그 사실을 여기서
+   * 못 박는다** — 하나라도 비면 이 검사가 운다.
+   */
+  it('직렬화기가 없는 알고리즘이 하나도 없다', async () => {
+    const missing: string[] = []
+    for (const algorithm of PYODIDE_SKLEARN_ALGORITHMS) {
+      setPyodide(fakePyodide().proxy)
+      const result = await fit(algorithm, input({}))
+      if (result.modelOmittedDetail?.endsWith(':serializer-missing') === true) {
+        missing.push(algorithm)
+      }
+      resetPyodide()
+    }
+    expect(PYODIDE_SKLEARN_ALGORITHMS.length, 'the registry must not be empty').toBe(8)
+    expect(missing).toEqual([])
   })
 })
 

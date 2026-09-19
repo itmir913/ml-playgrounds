@@ -25,11 +25,13 @@ import {
   sklearnLinearModel,
   sklearnLinearRegressionModel,
   sklearnNaiveBayesModel,
+  sklearnForestV2Model,
   sklearnReferenceModel,
   sklearnSvmModel,
   sklearnTreeModel,
   splitBoundary,
   type SklearnForestDump,
+  type SklearnForestV2Dump,
   type SklearnKMeansDump,
   type SklearnLinearDump,
   type SklearnNaiveBayesDump,
@@ -190,6 +192,21 @@ const CASES: readonly SerializeCase[] = [
     expected: (recorded) => recorded.labels,
   },
   {
+    /**
+     * **여기만 `mlpx-tree-v2`다** (2026-09-19, `mlpx-spec.md` §5.3.1). 한때 이 알고리즘은
+     * **안 담겼고**, 이 파일은 *"안 담는 이유가 몇 행인가"*를 세고 있었다 — 그 수(387 중 12)가
+     * 형식을 하나 더 두게 만든 근거다.
+     */
+    algorithm: 'random_forest',
+    build: (recorded, prepared) =>
+      sklearnForestV2Model(
+        recorded.dump as SklearnForestV2Dump,
+        prepared.classes,
+        prepared.featureCount,
+      ),
+    expected: (recorded) => recorded.dumpLabels,
+  },
+  {
     algorithm: 'knn',
     // **파이썬이 준 것이 없다** — 참조형은 배운 값이 아니라 본 행을 담는다. 이웃 수는
     // 픽스처를 만든 쪽이 고정한 값이다 (`generate_sklearn_fixtures.py`의 `build_model`).
@@ -206,18 +223,19 @@ describe('옮긴 것을 대조할 재료가 있다', () => {
    * `CASES`를 도는데 그 크기를 `CASES`로 세면, **한 줄을 지웠을 때 검사 수만 줄고 전부
    * 초록이다** — 감사자가 `svm`을 지워 71 → 63이 됐는데 아무것도 안 울었다.
    */
-  it('대조하는 알고리즘이 정확히 이 여섯이다', () => {
+  it('대조하는 알고리즘이 정확히 이 일곱이다', () => {
     expect(CASES.map((one) => one.algorithm)).toEqual([
       'decision_tree',
       'naive_bayes',
       'logistic_regression',
       'svm',
       'k_means',
+      'random_forest',
       'knn',
     ])
   })
 
-  it('분류 데이터셋마다 그 여섯을 굳혀 두었다', () => {
+  it('분류 데이터셋마다 그 일곱을 굳혀 두었다', () => {
     const missing: string[] = []
     for (const [name, entry] of Object.entries(document.datasets)) {
       if (entry.meta.taskType === 'regression') continue
@@ -560,79 +578,24 @@ describe('어긋난 것은 안 담는다 · 나머지', () => {
 })
 
 /**
- * **포레스트는 옮길 수 있지만 안 담는다** — 예측 규칙이 다르기 때문이다. sklearn은
- * 나무마다의 확률을 평균해 고르고, 우리 형식의 해석기는 다수결이다
- * (`ml/models/tree.ts`의 `vote`, ml.js가 그렇게 한다).
+ * **v2가 있는 이유가 수로 남아 있다** (2026-09-19).
  *
- * **갈린 줄이 몇인지가 그 결정의 근거다** (2026-09-19). 이유가 *"조금 다르다"*가 아니라
- * **387행 중 12행**이라는 실측이고, 그 수가 여기 있어야 다음 사람이 같은 판단을 다시 할
- * 수 있다. **0이 되는 날은 규칙이 같아졌거나 대조가 사라진 것**이고, 둘 다 사람이 봐야
- * 하는 변화다.
+ * sklearn의 포레스트는 나무마다의 **확률을 평균**해 고르고 `mlpx-tree-v1`의 해석기는
+ * **다수결**이다 (`ml/models/tree.ts`의 `vote`). 그 차이가 픽스처 여덟 벌에서 **387행 중
+ * 12행**이었고, 그 수가 형식을 하나 더 두게 만들었다 (`mlpx-spec.md` §5.3.1).
  *
- * **여기서 한 번에 센다.** 벌마다 나눠 담아 두면 검사 하나만 돌릴 때 합계가 0이 되어
+ * **둘을 나란히 센다.** v2는 한 줄도 안 갈려야 하고(그건 위 줄 대조가 이미 본다) **v1은
+ * 여전히 갈려야 한다** — 0이 되는 날은 sklearn이 규칙을 바꿨거나 대조가 사라진 것이고,
+ * 그때는 v2를 유지할 이유부터 다시 물어야 한다.
+ *
+ * **여기서 한 번에 센다.** 벌마다 나눠 담으면 검사 하나만 돌릴 때 합계가 0이 되어
  * **실행 순서에 기대는 검사**가 된다.
  */
-/**
- * **참조형은 담되, 갈릴 수 있는 자리가 어디인지 세어 둔다** (2026-09-19).
- *
- * KNN의 파일은 배운 값이 아니라 *본 행*이라, 학습 화면의 지표는 sklearn이 내고 예측
- * 화면의 답은 **우리 해석기가** 낸다. 둘이 갈릴 수 있는 곳은 **sklearn이 규약을 정하지
- * 않은 자리** 하나다 — k번째와 k+1번째 이웃의 거리가 같은 행.
- *
- * **그 행이 387 중 32이고, 실제로 갈린 줄은 1이다** (픽스처 여덟 벌, sklearn 1.9.1).
- * "규약이 없다"는 사실만으로는 몇 줄이 다른지 모르고, **모르는 채로 담을지 말지를 정할
- * 수는 없다** — 포레스트를 안 담기로 한 판단도 3.1%라는 수 위에 섰다.
- *
- * **둘의 차이가 담고 안 담는 선이다.** 포레스트가 갈리는 자리는 sklearn이 답을 정해 둔
- * 곳이라 우리가 틀린 것이고, 여기가 갈리는 자리는 **아무도 답을 안 정한 곳**이다.
- */
-describe('참조형이 갈릴 수 있는 자리를 센다', () => {
-  it('이웃 동점 행에서 실제로 갈리는 줄이 몇인가', () => {
-    let rows = 0
-    let undecided = 0
-    let diverged = 0
-    for (const [name, entry] of Object.entries(document.datasets)) {
-      if (entry.meta.taskType === 'regression') continue
-      const recorded = entry.sklearn['knn']
-      expect(recorded?.dumpLabels, `${name}/knn dumpLabels`).toBeDefined()
-      expect(recorded?.labels, `${name}/knn labels`).toBeDefined()
-      if (!recorded?.dumpLabels || !recorded.labels) continue
-
-      const prepared = preparedFor(name, entry)
-      const model = sklearnReferenceModel(
-        prepared.classes,
-        prepared.featureCount,
-        prepared.trainIndices,
-        5,
-      )
-      expect(model, `${name}: the reference model must map onto our format`).not.toBeNull()
-      if (model === null) continue
-
-      const ours = loadModel(
-        JSON.parse(JSON.stringify(model)) as unknown,
-        prepared.context,
-      )(prepared.test)
-      rows += recorded.dumpLabels.length
-      undecided += recorded.labels.filter((label) => label === null).length
-      diverged += ours.filter((value, index) => value !== recorded.dumpLabels?.[index]).length
-    }
-
-    expect(rows, 'every classification fixture must be counted').toBeGreaterThan(0)
-    // **판정 불능 행이 있다는 것 자체가 실측이다.** 0이 되면 sklearn이 규약을 정했거나
-    // 픽스처가 그 모양을 잃은 것이고, 둘 다 사람이 봐야 하는 변화다.
-    expect(undecided, 'ties exist — that is why this count is here').toBeGreaterThan(0)
-    // **갈린 줄은 판정 불능 행을 넘을 수 없다.** 넘었다면 규약 차이가 아니라 결함이다 —
-    // 이웃 집합이 같은 행에서 다른 답이 나온 것이기 때문이다.
-    expect(diverged, `KNN diverges only where the tie rule is undefined`).toBeLessThanOrEqual(
-      undecided,
-    )
-  })
-})
-
-describe('포레스트를 안 담는 이유가 수로 남아 있다', () => {
-  it('다수결과 확률 평균이 갈리는 줄이 있다', () => {
+describe('v2가 있는 이유가 수로 남아 있다', () => {
+  it('같은 숲을 v1로 읽으면 여전히 갈리고, v2로 읽으면 안 갈린다', () => {
     let counted = 0
-    let diverged = 0
+    let divergedV1 = 0
+    let divergedV2 = 0
     for (const [name, entry] of Object.entries(document.datasets)) {
       if (entry.meta.taskType === 'regression') continue
       const found = entry.sklearn['random_forest']
@@ -640,30 +603,44 @@ describe('포레스트를 안 담는 이유가 수로 남아 있다', () => {
       if (!found?.dump || !found.dumpLabels) continue
 
       const prepared = preparedFor(name, entry)
-      const model = sklearnTreeModel(
+      const legacy = sklearnTreeModel(
         found.dump as SklearnForestDump,
         prepared.classes,
         prepared.featureCount,
       )
-      expect(model, `${name}: the dump still maps onto our format`).not.toBeNull()
-      if (model === null) continue
+      const current = sklearnForestV2Model(
+        found.dump as SklearnForestV2Dump,
+        prepared.classes,
+        prepared.featureCount,
+      )
+      expect(legacy, `${name}: the dump still maps onto v1`).not.toBeNull()
+      expect(current, `${name}: the dump maps onto v2`).not.toBeNull()
+      if (legacy === null || current === null) continue
 
-      const ours = loadModel(JSON.parse(JSON.stringify(model)) as unknown)(prepared.test)
+      const read = (model: unknown) => loadModel(JSON.parse(JSON.stringify(model)) as unknown)
       const labels = found.dumpLabels
       counted += 1
-      diverged += ours.filter((value, index) => value !== labels[index]).length
+      divergedV1 += read(legacy)(prepared.test).filter((one, i) => one !== labels[i]).length
+      divergedV2 += read(current)(prepared.test).filter((one, i) => one !== labels[i]).length
     }
     expect(counted, 'every classification fixture must be counted').toBeGreaterThan(0)
-    expect(diverged, 'soft voting and majority voting still disagree').toBeGreaterThan(0)
+    // **다수결은 여전히 sklearn과 다르다.** 이 수가 v2의 존재 이유다.
+    expect(divergedV1, 'majority voting still disagrees with sklearn').toBeGreaterThan(0)
+    // **확률 평균은 한 줄도 안 갈린다.**
+    expect(divergedV2, 'soft voting reproduces sklearn exactly').toBe(0)
   })
 
-  it('어댑터가 포레스트를 안 담는다', () => {
+  it('어댑터가 포레스트를 v2로 담는다', () => {
     const source = fs.readFileSync(
       path.join(__dirname, '..', 'src', 'ml', 'engines', 'pyodide-sklearn.ts'),
       'utf8',
     )
-    const forest = /random_forest: \{[^}]*\}/.exec(source)?.[0] ?? ''
+    // **정규식을 안 쓴다.** 항목이 여러 줄이라 패턴에 줄바꿈이 들어가고, 이 저장소는
+    // 그 자리에서 백슬래시를 잃어 본 적이 있다 (CLAUDE.md §4).
+    const begin = source.indexOf('  random_forest: {')
+    const forest = begin < 0 ? '' : source.slice(begin, source.indexOf('\n  },', begin))
     expect(forest, 'random_forest entry not found').not.toBe('')
-    expect(forest).not.toContain('serializer')
+    expect(forest).toContain('_mlpx_tree_v2')
+    expect(forest).toContain('sklearnForestV2Model')
   })
 })

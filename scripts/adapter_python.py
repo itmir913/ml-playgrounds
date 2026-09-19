@@ -32,6 +32,7 @@ ADAPTER = (
 #: 어댑터에 `serializer.dump`이 있어야 하는 알고리즘. **줄면 여기가 운다.**
 EXPECTED = {
     "decision_tree",
+    "random_forest",
     "knn",
     "logistic_regression",
     "naive_bayes",

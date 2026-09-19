@@ -45,8 +45,10 @@ import {
   sklearnNaiveBayesModel,
   sklearnReferenceModel,
   sklearnSvmModel,
+  sklearnForestV2Model,
   sklearnTreeModel,
   type SklearnForestDump,
+  type SklearnForestV2Dump,
   type SklearnKMeansDump,
   type SklearnLinearDump,
   type SklearnNaiveBayesDump,
@@ -179,6 +181,12 @@ def _mlpx_tree(t):
         "threshold": t.threshold.tolist(),
         "leafClass": t.value[:, 0, :].argmax(axis=1).tolist(),
     }
+
+
+def _mlpx_tree_v2(t):
+    out = _mlpx_tree(t)
+    out["value"] = t.value[:, 0, :].tolist()
+    return out
 `
 
 /** 선형 계열 둘이 같은 것을 묻는다. **뜻은 옮기는 쪽이 안다** (일대다냐 쌍이냐). */
@@ -220,18 +228,25 @@ const SKLEARN_CLASSES: Readonly<Record<string, SklearnClass>> = {
     },
   },
   /**
-   * **모델을 안 담는다** (2026-09-19). 나무를 옮기는 것은 되는데 **예측 규칙이 다르다** —
-   * sklearn의 포레스트는 나무마다의 **확률을 평균**해 고르고, 우리 형식의 해석기는
-   * **다수결**이다 (`ml/models/tree.ts`의 `vote`, ml.js가 그렇게 한다).
+   * **여기만 `mlpx-tree-v2`다** (2026-09-19, `mlpx-spec.md` §5.3.1).
    *
-   * **재 보니 387행 중 12행(3.1%)이 갈렸다** — 픽스처 여덟 벌의 실측이고
-   * `tests/sklearn-serialize.spec.ts`가 그 사실을 지킨다. 서른 줄에 한 줄꼴로 **학습
-   * 화면의 정확도와 예측 화면의 답이 다른 말을 하는 것**이라, 담는 것이 안 담는 것보다
-   * 나쁘다.
+   * sklearn의 포레스트는 나무마다의 **확률을 평균**해 고르는데 v1의 해석기는 **다수결**이라
+   * (`ml/models/tree.ts`의 `vote`, ml.js가 그렇게 한다) **387행 중 12행이 갈렸다.** 한때
+   * 그래서 **안 담았는데**, 학습해 놓고 예측을 못 하면 그 run은 수행평가에서 반쪽이다
+   * (코드 소유자). 그래서 형식을 하나 더 뒀다.
    *
-   * **여는 길은 형식을 하나 더 두는 것이다** — 잎에 분포를 담는 `mlpx-tree-v2`.
+   * **의사결정트리는 v1 그대로다** — 나무가 하나면 분포의 argmax가 곧 그 잎의 클래스라
+   * v1이 이미 정확하고(387행 0갈림), 옮기면 옛 앱이 못 읽는 파일만 는다.
    */
-  random_forest: { module: 'sklearn.ensemble', cls: 'RandomForestClassifier' },
+  random_forest: {
+    module: 'sklearn.ensemble',
+    cls: 'RandomForestClassifier',
+    serializer: {
+      dump: '{"trees": [_mlpx_tree_v2(one.tree_) for one in _model.estimators_], "classes": _classes}',
+      build: (dumped, context) =>
+        sklearnForestV2Model(dumped as SklearnForestV2Dump, context.classes, context.featureCount),
+    },
+  },
   naive_bayes: {
     module: 'sklearn.naive_bayes',
     cls: 'GaussianNB',

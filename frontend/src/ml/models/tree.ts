@@ -86,7 +86,14 @@ function isIndex(value: number, limit: number): boolean {
  */
 function compile(
   nodes: readonly TreeNode[],
-  classCount: number,
+  /**
+   * 잎의 둘째 칸이 가리킬 수 있는 범위. **형식마다 뜻이 다르다** — v1에서는 클래스 번호이고
+   * v2에서는 `leaves`의 인덱스다 (`mlpx-spec.md` §5.3.1).
+   *
+   * **범위를 안 좁히면 v1의 뜻으로 읽힌다.** 잎이 `[-1, 2, -1, -1]`인 v2 파일에서 그 2는
+   * 세 번째 분포인데, 클래스 수로만 막으면 클래스가 셋일 때 그대로 통과한다.
+   */
+  leafLimit: number,
   featureCount: number,
 ): CompiledTree {
   const size = nodes.length
@@ -99,7 +106,7 @@ function compile(
     const [nodeColumn, nodeValue, nodeLeft, nodeRight] = node
 
     if (nodeColumn === LEAF) {
-      if (!isIndex(nodeValue, classCount)) invalid('leafClass')
+      if (!isIndex(nodeValue, leafLimit)) invalid('leafClass')
       if (nodeLeft !== LEAF || nodeRight !== LEAF) invalid('leafChild')
     } else {
       if (!isIndex(nodeColumn, featureCount)) invalid('column')
@@ -181,6 +188,120 @@ export function loadTreeModel(file: unknown): Predict {
       const label = classes[vote(trees.map((tree) => classify(tree, values)))]
       // 검증이 클래스 번호를 이미 범위 안으로 묶었으므로 여기 닿지 않는다. 방어선은
       // 남긴다 - ml/engines/mljs.ts의 decode가 범위 밖 번호를 던지는 것과 같은 이유다.
+      if (label === undefined) invalid('classes')
+      return label
+    })
+}
+
+// ---------------------------------------------------------------------------
+// v2 — 잎이 분포를 든다 (mlpx-spec.md §5.3.1)
+// ---------------------------------------------------------------------------
+
+export const TREE_V2_FORMAT = 'mlpx-tree-v2'
+
+export interface TreeV2Model extends ModelFile {
+  readonly format: typeof TREE_V2_FORMAT
+  readonly classes: readonly string[]
+  readonly featureCount: number
+  readonly trees: readonly {
+    /** **v1과 같은 배열이다.** 잎만 뜻이 다르다 — `[-1, 분포 번호, -1, -1]`. */
+    readonly nodes: readonly TreeNode[]
+    /** 잎마다 클래스 분포. 줄의 길이는 `classes`의 길이다. */
+    readonly leaves: readonly (readonly number[])[]
+  }[]
+}
+
+const treeV2ModelSchema = z.looseObject({
+  format: z.literal(TREE_V2_FORMAT),
+  classes: z.array(z.string()).min(1),
+  featureCount: z.number(),
+  trees: z
+    .array(
+      z.looseObject({
+        nodes: z.array(nodeSchema).min(1),
+        leaves: z.array(z.array(z.number())).min(1),
+      }),
+    )
+    .min(1),
+})
+
+/** 나무 하나가 고른 잎의 분포. **합이 1이 되게 고쳐 둔다** (아래 `softVote`). */
+interface CompiledTreeV2 {
+  readonly tree: CompiledTree
+  readonly leaves: readonly Float64Array[]
+}
+
+/**
+ * **나무마다의 분포를 평균해 가장 큰 것.** sklearn `RandomForestClassifier.predict`와 같은
+ * 식이다 (`mlpx-spec.md` §5.3.1).
+ *
+ * **다수결이 아니다.** 나무 100그루 중 51그루가 A를 "겨우" 고르고 49그루가 B를 "확실히"
+ * 골랐으면 답은 B다 — 그 차이가 픽스처 여덟 벌에서 **387행 중 12행**이었다.
+ *
+ * **동점이면 정렬 순서가 앞선 클래스다** (§5.4.1·§5.6과 같은 규약). `>`로 견주므로 먼저 만난
+ * 것이 남고, 클래스는 정렬돼 있다.
+ */
+function softVote(trees: readonly CompiledTreeV2[], row: Float64Array, classCount: number): number {
+  const total = new Float64Array(classCount)
+  for (const compiled of trees) {
+    const leaf = compiled.leaves[classify(compiled.tree, row)]
+    if (leaf === undefined) invalid('leaves')
+    for (let index = 0; index < classCount; index += 1) {
+      total[index] = (total[index] as number) + (leaf[index] as number)
+    }
+  }
+
+  let best = 0
+  let highest = Number.NEGATIVE_INFINITY
+  for (let index = 0; index < classCount; index += 1) {
+    const value = total[index] as number
+    if (value > highest) {
+      highest = value
+      best = index
+    }
+  }
+  return best
+}
+
+/**
+ * 잎의 분포를 **합이 1이 되게** 옮긴다.
+ *
+ * **여기서 정규화하는 이유는 담는 쪽을 못 믿어서가 아니라, 안 하면 나무마다 무게가 달라지기
+ * 때문이다** — sklearn은 나무마다 `predict_proba`(합 1)를 평균하는데, 표본 수가 담긴 채로
+ * 평균하면 **표본이 많은 나무가 더 크게 말한다.** 합이 0이면 그 잎은 아무 말도 못 하므로
+ * 거부한다.
+ */
+function compileLeaves(leaves: readonly (readonly number[])[], classCount: number): Float64Array[] {
+  return leaves.map((leaf) => {
+    if (leaf.length !== classCount) invalid('leaves')
+    let sum = 0
+    for (const value of leaf) {
+      if (!Number.isFinite(value) || value < 0) invalid('leaves')
+      sum += value
+    }
+    if (sum <= 0) invalid('leaves')
+    return Float64Array.from(leaf, (value) => value / sum)
+  })
+}
+
+/** 파일 내용을 예측 함수로. 형식과 안 맞으면 던진다. */
+export function loadTreeV2Model(file: unknown): Predict {
+  const parsed = treeV2ModelSchema.safeParse(file)
+  if (!parsed.success) invalid('payload')
+
+  const { classes, featureCount } = parsed.data
+  if (!Number.isInteger(featureCount) || featureCount <= 0) invalid('featureCount')
+
+  const trees: CompiledTreeV2[] = parsed.data.trees.map((tree) => ({
+    // **잎의 둘째 칸이 가리키는 것은 분포다.** 그래서 범위가 클래스 수가 아니라 잎의 수다.
+    tree: compile(tree.nodes, tree.leaves.length, featureCount),
+    leaves: compileLeaves(tree.leaves, classes.length),
+  }))
+
+  return (features) =>
+    features.map((row) => {
+      if (row.length !== featureCount) invalid('featureCount')
+      const label = classes[softVote(trees, Float64Array.from(row), classes.length)]
       if (label === undefined) invalid('classes')
       return label
     })

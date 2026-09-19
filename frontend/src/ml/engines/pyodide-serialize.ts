@@ -24,7 +24,14 @@ import { LINEAR_REGRESSION_FORMAT, type LinearRegressionModel } from '../models/
 import { NAIVE_BAYES_FORMAT, type NaiveBayesModel } from '../models/naive-bayes'
 import { REFERENCE_FORMAT, type ReferenceModel } from '../models/reference'
 import { SVM_FORMAT, type SvmModel } from '../models/svm'
-import { TREE_FORMAT, LEAF, type TreeModel, type TreeNode } from '../models/tree'
+import {
+  TREE_FORMAT,
+  TREE_V2_FORMAT,
+  LEAF,
+  type TreeModel,
+  type TreeNode,
+  type TreeV2Model,
+} from '../models/tree'
 
 /**
  * 길이와 유한성을 함께 본다. **`unknown`을 받는 이유는 이 값이 `JSON.parse`에서
@@ -173,6 +180,24 @@ export interface SklearnTreeDump {
   readonly leafClass: readonly number[]
 }
 
+/**
+ * 나무 하나를 **분포째** 받아쓴 모양 (`mlpx-tree-v2`). 위와 배열 넷이 같고 잎만 다르다.
+ */
+export interface SklearnTreeV2Dump extends Omit<SklearnTreeDump, 'leafClass'> {
+  /**
+   * 노드마다 `value[:, 0, :]` — 클래스별 표본 수(또는 비율)다. **잎만 쓴다.**
+   *
+   * **가지 자리도 실려 온다.** 파이썬 쪽에서 잎만 고르면 그건 판단이고, 이 파일의 규칙은
+   * *"파이썬은 받아쓰기만"*이다. 고르는 일은 아래 `sklearnForestV2Model`이 한다.
+   */
+  readonly value: readonly (readonly number[])[]
+}
+
+export interface SklearnForestV2Dump {
+  readonly trees: readonly SklearnTreeV2Dump[]
+  readonly classes: readonly string[]
+}
+
 export interface SklearnForestDump {
   readonly trees: readonly SklearnTreeDump[]
   /** sklearn의 `classes_`를 문자열로. **우리 정렬과 같은지 확인하는 데 쓴다.** */
@@ -256,6 +281,60 @@ export function sklearnTreeModel(
     trees.push({ nodes })
   }
   return { format: TREE_FORMAT, classes: [...classes], featureCount, trees }
+}
+
+/**
+ * 랜덤 포레스트 → `mlpx-tree-v2` (`mlpx-spec.md` §5.3.1). **잎이 분포를 든다.**
+ *
+ * **v1으로 담으면 안 되는 이유가 예측 규칙이다** — sklearn은 나무마다의 확률을 평균해
+ * 고르고 v1의 해석은 다수결이라, 픽스처 여덟 벌에서 **387행 중 12행**이 갈렸다.
+ *
+ * **잎만 골라 담는다.** 가지 자리의 `value`는 안 쓰므로 버린다 — 나무 백 그루에서 그
+ * 절반이 가지이고, 담으면 파일이 두 배가 된다(`limits.ts`의 모델 크기 예산).
+ * **잎의 둘째 칸은 그래서 클래스 번호가 아니라 `leaves`의 인덱스다.**
+ */
+export function sklearnForestV2Model(
+  dump: SklearnForestV2Dump,
+  classes: readonly string[],
+  featureCount: number,
+): TreeV2Model | null {
+  if (dump.trees.length === 0) return null
+  if (dump.classes.length !== classes.length) return null
+  if (dump.classes.some((label, index) => label !== classes[index])) return null
+  if (!usableWidth(featureCount)) return null
+
+  const trees: { nodes: readonly TreeNode[]; leaves: readonly (readonly number[])[] }[] = []
+  for (const tree of dump.trees) {
+    const size = tree.left.length
+    /**
+     * **잎의 자리에 자기 노드 번호를 넣어 준다.** `nodesOf`는 그 칸이 범위 안의 정수인지만
+     * 보는데(v1에서는 클래스 번호였다), 여기서 진짜 값은 아래 `leaves`의 번호이고 그건
+     * 잎을 다 세고 나서야 정해진다. 노드 번호는 언제나 범위 안이라 자리를 지키는 데 맞다.
+     */
+    const placeholder = Array.from({ length: size }, (_, index) => index)
+    const nodes = nodesOf({ ...tree, leafClass: placeholder }, size, featureCount)
+    if (nodes === null) return null
+    if (!isMatrix(tree.value, size, classes.length)) return null
+
+    // 잎을 만난 순서대로 분포를 모으고, 잎의 둘째 칸을 그 번호로 바꾼다.
+    const leaves: number[][] = []
+    const renumbered: TreeNode[] = []
+    for (const [index, node] of nodes.entries()) {
+      if (node[0] !== LEAF) {
+        renumbered.push(node)
+        continue
+      }
+      const distribution = tree.value[index]
+      // **여기 닿을 수 없다** — 위 `isMatrix`가 길이를 이미 맞췄다. 그래도 조용히 넘기지
+      // 않는다: 넘기면 그 잎이 남의 분포를 가리킨 채 담긴다.
+      if (distribution === undefined) return null
+      leaves.push([...distribution])
+      renumbered.push([LEAF, leaves.length - 1, LEAF, LEAF])
+    }
+    if (leaves.length === 0) return null
+    trees.push({ nodes: renumbered, leaves })
+  }
+  return { format: TREE_V2_FORMAT, classes: [...classes], featureCount, trees }
 }
 
 // ---------------------------------------------------------------------------

@@ -64,6 +64,12 @@ const PINNED_ENGINES: Readonly<Record<string, string>> = {
  * `mlpx-linear`만 v2다 — 로지스틱 회귀가 절편을 갖게 되면서 새 이름을 받았고
  * (`1610477`), **문서 커밋이 앞에 있어 승인된 변경이다**(`a94a23e`). **v1은 2026-08-15에
  * 지웠다** — 엔진이 안 만든 지 오래였고 읽을 파일도 없었다 (`mlpx-spec.md` §5.4).
+ *
+ * **`mlpx-tree-v2`가 2026-09-19에 들어왔다** (코드 소유자 지시, 문서 커밋이 앞에 있다).
+ * scikit-learn의 포레스트는 확률을 평균해 고르는데 v1의 해석은 다수결이라 **387행 중
+ * 12행이 갈렸다** — 안 담기로 했다가 *"학습해 놓고 예측하지 못하면 아무 의미가 없다"*로
+ * 뒤집혔다. **v1은 그대로 남는다** — 순수 JS와 의사결정트리가 계속 그것을 쓰고, 옛 파일도
+ * 그대로 읽힌다. `formatVersion`도 마이그레이션도 안 움직인다 (`mlpx-spec.md` §5.3.1).
  */
 const PINNED_FORMATS: readonly string[] = [
   'mlpx-kmeans-v1',
@@ -73,6 +79,7 @@ const PINNED_FORMATS: readonly string[] = [
   'mlpx-reference-v1',
   'mlpx-svm-v1',
   'mlpx-tree-v1',
+  'mlpx-tree-v2',
 ]
 
 /** 잠금이 잘못 통과하지 않게, 무엇을 세고 있는지부터 확인한다. */
