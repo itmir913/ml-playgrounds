@@ -1,0 +1,622 @@
+{
+  "_note": "2026-09-19 실측 하니스(tools/bench.html)의 출력 그대로다. r29-bench.json이 행 사다리와 상한 사다리를 담고, 이 파일이 나머지를 담는다 — limits.ts의 PYODIDE_*_COLUMNS_MS·PYODIDE_RANDOM_FOREST_TREES_MS·PYODIDE_KMEANS_CLUSTERS_MS·PYODIDE_LOGISTIC_REGRESSION_MAX_ITER_FACTOR·PYODIDE_BOOT_MS가 여기서 나왔다. R31 §4-1이 \"원본이 저장소에 없어 확인 못 했다\"고 적은 자리이고, 그래서 뒤늦게 옮겨 담았다. ms는 학습 + 20% 예측 + 평가이고 시동은 빠져 있다(따로 든 boots가 그것이다).",
+  "runs": [
+    {
+      "_ran": "특성 사다리 여덟 (열 4·8·16·32 · 50,000행)",
+      "device": {
+        "cores": 8,
+        "memoryGb": 8,
+        "mobile": false,
+        "platform": "Windows",
+        "touchPoints": 0,
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+      },
+      "wentHidden": false,
+      "ceilingMs": 20000,
+      "projectionMs": 60000,
+      "projectionRule": "rows^2 · nEstimators^1 · maxIter^1 · columns^1 · nClusters^1 · hiddenLayers^1 · neuronsPerLayer^1 (사다리별: neural_network^1 · neural_network_deep^1 · neural_network_regression^1 · image_neural_network^1)",
+      "failureCeilingMs": 3600000,
+      "running": null,
+      "stopped": [],
+      "failed": {},
+      "measured": {
+        "pyodide_decision_tree_columns": {
+          "4": 637,
+          "8": 629,
+          "16": 694,
+          "32": 755
+        },
+        "pyodide_logistic_regression_columns": {
+          "4": 494,
+          "8": 489,
+          "16": 505,
+          "32": 596
+        },
+        "pyodide_knn_columns": {
+          "4": 655,
+          "8": 681,
+          "16": 725,
+          "32": 741
+        },
+        "pyodide_svm_columns": {
+          "4": 531,
+          "8": 492,
+          "16": 517,
+          "32": 776
+        },
+        "pyodide_naive_bayes_columns": {
+          "4": 265,
+          "8": 305,
+          "16": 423,
+          "32": 620
+        },
+        "pyodide_linear_regression_columns": {
+          "4": 726,
+          "8": 797,
+          "16": 859,
+          "32": 1190
+        },
+        "pyodide_k_means_columns": {
+          "4": 8586,
+          "8": 10081,
+          "16": 8093,
+          "32": 8272
+        },
+        "pyodide_random_forest_columns": {
+          "4": 1092,
+          "8": 1040,
+          "16": 1132,
+          "32": 1189
+        }
+      },
+      "iterations": {},
+      "parts": {
+        "pyodide_decision_tree_columns@4": {
+          "core": 1885,
+          "packages": 2282,
+          "imports": 4292,
+          "total": 8459,
+          "boot": 8459
+        },
+        "pyodide_decision_tree_columns@8": {
+          "core": 1627,
+          "packages": 2102,
+          "imports": 4316,
+          "total": 8045,
+          "boot": 8045
+        },
+        "pyodide_decision_tree_columns@16": {
+          "core": 1616,
+          "packages": 1968,
+          "imports": 4364,
+          "total": 7948,
+          "boot": 7948
+        },
+        "pyodide_decision_tree_columns@32": {
+          "core": 1541,
+          "packages": 2221,
+          "imports": 4408,
+          "total": 8170,
+          "boot": 8170
+        },
+        "pyodide_logistic_regression_columns@4": {
+          "core": 1567,
+          "packages": 1987,
+          "imports": 4260,
+          "total": 7814,
+          "boot": 7814
+        },
+        "pyodide_logistic_regression_columns@8": {
+          "core": 1578,
+          "packages": 2007,
+          "imports": 4249,
+          "total": 7834,
+          "boot": 7834
+        },
+        "pyodide_logistic_regression_columns@16": {
+          "core": 1599,
+          "packages": 2009,
+          "imports": 4124,
+          "total": 7732,
+          "boot": 7732
+        },
+        "pyodide_logistic_regression_columns@32": {
+          "core": 1517,
+          "packages": 1982,
+          "imports": 4204,
+          "total": 7703,
+          "boot": 7703
+        },
+        "pyodide_knn_columns@4": {
+          "core": 1610,
+          "packages": 1991,
+          "imports": 4214,
+          "total": 7815,
+          "boot": 7815
+        },
+        "pyodide_knn_columns@8": {
+          "core": 1611,
+          "packages": 1997,
+          "imports": 4231,
+          "total": 7839,
+          "boot": 7839
+        },
+        "pyodide_knn_columns@16": {
+          "core": 1598,
+          "packages": 1976,
+          "imports": 4260,
+          "total": 7834,
+          "boot": 7834
+        },
+        "pyodide_knn_columns@32": {
+          "core": 1706,
+          "packages": 1975,
+          "imports": 4279,
+          "total": 7960,
+          "boot": 7960
+        },
+        "pyodide_svm_columns@4": {
+          "core": 1601,
+          "packages": 1987,
+          "imports": 4234,
+          "total": 7822,
+          "boot": 7822
+        },
+        "pyodide_svm_columns@8": {
+          "core": 1621,
+          "packages": 2014,
+          "imports": 4269,
+          "total": 7904,
+          "boot": 7904
+        },
+        "pyodide_svm_columns@16": {
+          "core": 1603,
+          "packages": 1959,
+          "imports": 4110,
+          "total": 7672,
+          "boot": 7672
+        },
+        "pyodide_svm_columns@32": {
+          "core": 1595,
+          "packages": 1987,
+          "imports": 4191,
+          "total": 7773,
+          "boot": 7773
+        },
+        "pyodide_naive_bayes_columns@4": {
+          "core": 1757,
+          "packages": 2181,
+          "imports": 4603,
+          "total": 8541,
+          "boot": 8541
+        },
+        "pyodide_naive_bayes_columns@8": {
+          "core": 1644,
+          "packages": 1983,
+          "imports": 4225,
+          "total": 7852,
+          "boot": 7852
+        },
+        "pyodide_naive_bayes_columns@16": {
+          "core": 1591,
+          "packages": 2055,
+          "imports": 4171,
+          "total": 7817,
+          "boot": 7817
+        },
+        "pyodide_naive_bayes_columns@32": {
+          "core": 1533,
+          "packages": 2003,
+          "imports": 4215,
+          "total": 7751,
+          "boot": 7751
+        },
+        "pyodide_linear_regression_columns@4": {
+          "core": 1596,
+          "packages": 1999,
+          "imports": 4218,
+          "total": 7813,
+          "boot": 7813
+        },
+        "pyodide_linear_regression_columns@8": {
+          "core": 1599,
+          "packages": 1987,
+          "imports": 4215,
+          "total": 7801,
+          "boot": 7801
+        },
+        "pyodide_linear_regression_columns@16": {
+          "core": 1566,
+          "packages": 1968,
+          "imports": 4201,
+          "total": 7735,
+          "boot": 7735
+        },
+        "pyodide_linear_regression_columns@32": {
+          "core": 1639,
+          "packages": 1989,
+          "imports": 4199,
+          "total": 7827,
+          "boot": 7827
+        },
+        "pyodide_k_means_columns@4": {
+          "core": 1709,
+          "packages": 2129,
+          "imports": 4394,
+          "total": 8232,
+          "boot": 8232
+        },
+        "pyodide_k_means_columns@8": {
+          "core": 2061,
+          "packages": 2690,
+          "imports": 5852,
+          "total": 10603,
+          "boot": 10603
+        },
+        "pyodide_k_means_columns@16": {
+          "core": 1981,
+          "packages": 2697,
+          "imports": 5622,
+          "total": 10300,
+          "boot": 10300
+        },
+        "pyodide_k_means_columns@32": {
+          "core": 2157,
+          "packages": 2674,
+          "imports": 5606,
+          "total": 10437,
+          "boot": 10437
+        },
+        "pyodide_random_forest_columns@4": {
+          "core": 1728,
+          "packages": 2018,
+          "imports": 4339,
+          "total": 8085,
+          "boot": 8085
+        },
+        "pyodide_random_forest_columns@8": {
+          "core": 1625,
+          "packages": 1959,
+          "imports": 4181,
+          "total": 7765,
+          "boot": 7765
+        },
+        "pyodide_random_forest_columns@16": {
+          "core": 1602,
+          "packages": 2042,
+          "imports": 4192,
+          "total": 7836,
+          "boot": 7836
+        },
+        "pyodide_random_forest_columns@32": {
+          "core": 1614,
+          "packages": 2015,
+          "imports": 4238,
+          "total": 7867,
+          "boot": 7867
+        }
+      },
+      "boots": [],
+      "versions": null,
+      "calibration": {},
+      "calibrationSet": []
+    },
+    {
+      "_ran": "손잡이 사다리 셋 (그루 수 · 반복 횟수 · 군집 수 · 20,000행)",
+      "device": {
+        "cores": 8,
+        "memoryGb": 8,
+        "mobile": false,
+        "platform": "Windows",
+        "touchPoints": 0,
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+      },
+      "wentHidden": false,
+      "ceilingMs": 20000,
+      "projectionMs": 60000,
+      "projectionRule": "rows^2 · nEstimators^1 · maxIter^1 · columns^1 · nClusters^1 · hiddenLayers^1 · neuronsPerLayer^1 (사다리별: neural_network^1 · neural_network_deep^1 · neural_network_regression^1 · image_neural_network^1)",
+      "failureCeilingMs": 3600000,
+      "running": null,
+      "stopped": [],
+      "failed": {},
+      "measured": {
+        "pyodide_random_forest_trees": {
+          "10": 826,
+          "25": 863,
+          "50": 961,
+          "100": 1203
+        },
+        "pyodide_logistic_regression_iterations": {
+          "25": 632,
+          "50": 717,
+          "100": 615,
+          "200": 680
+        },
+        "pyodide_k_means_clusters": {
+          "2": 3630,
+          "5": 4504,
+          "10": 4851,
+          "20": 5569
+        }
+      },
+      "iterations": {},
+      "parts": {
+        "pyodide_random_forest_trees@10": {
+          "core": 1693,
+          "packages": 2158,
+          "imports": 4377,
+          "total": 8228,
+          "boot": 8228
+        },
+        "pyodide_random_forest_trees@25": {
+          "core": 1697,
+          "packages": 2055,
+          "imports": 4199,
+          "total": 7951,
+          "boot": 7951
+        },
+        "pyodide_random_forest_trees@50": {
+          "core": 1602,
+          "packages": 1961,
+          "imports": 4208,
+          "total": 7771,
+          "boot": 7771
+        },
+        "pyodide_random_forest_trees@100": {
+          "core": 1614,
+          "packages": 2029,
+          "imports": 4207,
+          "total": 7850,
+          "boot": 7850
+        },
+        "pyodide_logistic_regression_iterations@25": {
+          "core": 1662,
+          "packages": 2024,
+          "imports": 4282,
+          "total": 7968,
+          "boot": 7968
+        },
+        "pyodide_logistic_regression_iterations@50": {
+          "core": 1542,
+          "packages": 1991,
+          "imports": 4196,
+          "total": 7729,
+          "boot": 7729
+        },
+        "pyodide_logistic_regression_iterations@100": {
+          "core": 1608,
+          "packages": 1948,
+          "imports": 4150,
+          "total": 7706,
+          "boot": 7706
+        },
+        "pyodide_logistic_regression_iterations@200": {
+          "core": 1614,
+          "packages": 2016,
+          "imports": 4214,
+          "total": 7844,
+          "boot": 7844
+        },
+        "pyodide_k_means_clusters@2": {
+          "core": 1721,
+          "packages": 2627,
+          "imports": 5409,
+          "total": 9757,
+          "boot": 9757
+        },
+        "pyodide_k_means_clusters@5": {
+          "core": 1617,
+          "packages": 1947,
+          "imports": 4212,
+          "total": 7776,
+          "boot": 7776
+        },
+        "pyodide_k_means_clusters@10": {
+          "core": 1612,
+          "packages": 2042,
+          "imports": 4226,
+          "total": 7880,
+          "boot": 7880
+        },
+        "pyodide_k_means_clusters@20": {
+          "core": 1606,
+          "packages": 1966,
+          "imports": 4252,
+          "total": 7824,
+          "boot": 7824
+        }
+      },
+      "boots": [],
+      "versions": null,
+      "calibration": {},
+      "calibrationSet": []
+    },
+    {
+      "_ran": "K-평균 하네스 (군집이 있는 데이터와 없는 데이터)",
+      "device": {
+        "cores": 8,
+        "memoryGb": 8,
+        "mobile": false,
+        "platform": "Windows",
+        "touchPoints": 0,
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+      },
+      "wentHidden": false,
+      "ceilingMs": 20000,
+      "projectionMs": 60000,
+      "projectionRule": "rows^2 · nEstimators^1 · maxIter^1 · columns^1 · nClusters^1 · hiddenLayers^1 · neuronsPerLayer^1 (사다리별: neural_network^1 · neural_network_deep^1 · neural_network_regression^1 · image_neural_network^1)",
+      "failureCeilingMs": 3600000,
+      "running": null,
+      "stopped": [],
+      "failed": {},
+      "measured": {
+        "k_means_hard": {
+          "1000": 41,
+          "5000": 393,
+          "20000": 1286,
+          "50000": 1615,
+          "100000": 2735
+        },
+        "pyodide_k_means": {
+          "1000": 2141,
+          "5000": 2663,
+          "20000": 6776,
+          "50000": 9969,
+          "100000": 12949
+        }
+      },
+      "iterations": {
+        "k_means_hard": {
+          "1000": 19,
+          "5000": 23,
+          "20000": 25,
+          "50000": 15,
+          "100000": 17
+        }
+      },
+      "parts": {
+        "pyodide_k_means@1000": {
+          "core": 3992,
+          "packages": 2675,
+          "imports": 10813,
+          "total": 17480,
+          "boot": 17480
+        },
+        "pyodide_k_means@5000": {
+          "core": 3929,
+          "packages": 2698,
+          "imports": 10172,
+          "total": 16799,
+          "boot": 16799
+        },
+        "pyodide_k_means@20000": {
+          "core": 3908,
+          "packages": 2709,
+          "imports": 10017,
+          "total": 16634,
+          "boot": 16634
+        },
+        "pyodide_k_means@50000": {
+          "core": 3779,
+          "packages": 2662,
+          "imports": 10135,
+          "total": 16576,
+          "boot": 16576
+        },
+        "pyodide_k_means@100000": {
+          "core": 3890,
+          "packages": 2793,
+          "imports": 9989,
+          "total": 16672,
+          "boot": 16672
+        }
+      },
+      "boots": [],
+      "versions": null,
+      "calibration": {},
+      "calibrationSet": []
+    },
+    {
+      "_ran": "시동만 (1회차)",
+      "device": {
+        "cores": 8,
+        "memoryGb": 8,
+        "mobile": false,
+        "platform": "Windows",
+        "touchPoints": 0,
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+      },
+      "wentHidden": false,
+      "ceilingMs": 20000,
+      "projectionMs": 60000,
+      "projectionRule": "rows^2 · nEstimators^1 · maxIter^1 · columns^1 · nClusters^1 · hiddenLayers^1 · neuronsPerLayer^1 (사다리별: neural_network^1 · neural_network_deep^1 · neural_network_regression^1 · image_neural_network^1)",
+      "failureCeilingMs": 3600000,
+      "running": null,
+      "stopped": [],
+      "failed": {},
+      "measured": {},
+      "iterations": {},
+      "parts": {},
+      "boots": [
+        {
+          "core": 1616,
+          "packages": 2031,
+          "imports": 4261,
+          "total": 7908
+        },
+        {
+          "core": 1613,
+          "packages": 2024,
+          "imports": 4390,
+          "total": 8027
+        },
+        {
+          "core": 1608,
+          "packages": 2338,
+          "imports": 5027,
+          "total": 8973
+        }
+      ],
+      "versions": {
+        "python": "3.14.2",
+        "pyodide": "314.0.7",
+        "scikit-learn": "1.8.0",
+        "numpy": "2.4.6",
+        "scipy": "1.18.0"
+      },
+      "calibration": {},
+      "calibrationSet": []
+    },
+    {
+      "_ran": "시동만 (2회차)",
+      "device": {
+        "cores": 8,
+        "memoryGb": 8,
+        "mobile": false,
+        "platform": "Windows",
+        "touchPoints": 0,
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+      },
+      "wentHidden": false,
+      "ceilingMs": 20000,
+      "projectionMs": 60000,
+      "projectionRule": "rows^2 · nEstimators^1 · maxIter^1 · columns^1 · nClusters^1 · hiddenLayers^1 · neuronsPerLayer^1 (사다리별: neural_network^1 · neural_network_deep^1 · neural_network_regression^1 · image_neural_network^1)",
+      "failureCeilingMs": 3600000,
+      "running": null,
+      "stopped": [],
+      "failed": {},
+      "measured": {},
+      "iterations": {},
+      "parts": {},
+      "boots": [
+        {
+          "core": 1779,
+          "packages": 2661,
+          "imports": 5595,
+          "total": 10035
+        },
+        {
+          "core": 1983,
+          "packages": 2687,
+          "imports": 4692,
+          "total": 9362
+        },
+        {
+          "core": 1721,
+          "packages": 2038,
+          "imports": 4321,
+          "total": 8080
+        }
+      ],
+      "versions": {
+        "python": "3.14.2",
+        "pyodide": "314.0.7",
+        "scikit-learn": "1.8.0",
+        "numpy": "2.4.6",
+        "scipy": "1.18.0"
+      },
+      "calibration": {},
+      "calibrationSet": []
+    }
+  ]
+}
