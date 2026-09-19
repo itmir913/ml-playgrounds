@@ -11,6 +11,7 @@
  * `ml/hyperparams.ts`가 출처다.
  */
 
+import { MIN_SPLIT_ROWS } from '../limits'
 import {
   dataSettings,
   type Preprocessing,
@@ -137,11 +138,23 @@ export function withSplit(
   patch: Partial<Omit<Split, 'randomState'>>,
   now: string,
 ): ProjectDocument {
-  return withSettings(
-    document,
-    { ...document.settings, split: { ...document.settings.split, ...patch } },
-    now,
-  )
+  const split = { ...document.settings.split, ...patch }
+  /**
+   * **스키마가 받는 범위 밖이면 지금 값을 지킨다** (2026-09-19 R33 A-1의 이웃).
+   *
+   * 화면의 슬라이더가 `TEST_SIZE_RANGE` 안에서만 움직이므로 오늘은 안 닿지만,
+   * `Number(input.value)`는 빈 칸에서 **`0`**이 되고 스키마는 `(0, 1)` 열린 구간이다.
+   * 한 번 담기면 **파일은 저장되고 다시는 안 열린다.**
+   *
+   * **클램프가 아니라 무시다.** 범위 밖 값을 가까운 값으로 바꿔 담으면, 스키마는 받지만
+   * 화면 밖에서 온 정상 파일(예: `testSize` 0.7)을 학생이 층화를 켤 때마다 **조용히
+   * 고쳐 쓰게 된다.** 이 문이 지킬 것은 *"못 여는 문서를 안 만든다"*이지 *"내가 옳다고
+   * 보는 값으로 고친다"*가 아니다.
+   */
+  if (!Number.isFinite(split.testSize) || split.testSize <= 0 || split.testSize >= 1) {
+    split.testSize = document.settings.split.testSize
+  }
+  return withSettings(document, { ...document.settings, split }, now)
 }
 
 /**
@@ -162,7 +175,17 @@ export function withSampling(
 ): ProjectDocument {
   const rest = { ...document.settings }
   delete rest.nSamples
-  return withSettings(document, nSamples === undefined ? rest : { ...rest, nSamples }, now)
+  if (nSamples === undefined) return withSettings(document, rest, now)
+  /**
+   * **바닥 아래로는 안 담는다** (2026-09-19 R33 A-1). 스키마가 `MIN_SPLIT_ROWS` 미만을
+   * 거부하는데 **쓰는 길에는 검증이 없고 읽는 길에만 있어서**, 한 번 담기면 파일도
+   * IndexedDB 사본도 다시는 안 열린다.
+   *
+   * **부르는 쪽이 이미 클램프한다.** 여기는 그 뒤에 서는 문이고, 문이 모양을 보장하는
+   * 것이 이 저장소가 R32 A-1에서 고른 길이다 — 자리마다 조심하는 대신 **값이 문서로
+   * 들어가는 자리 하나**에서 막는다.
+   */
+  return withSettings(document, { ...rest, nSamples: Math.max(nSamples, MIN_SPLIT_ROWS) }, now)
 }
 
 /**
@@ -180,9 +203,13 @@ export function withRandomState(
   randomState: number,
   now: string,
 ): ProjectDocument {
+  // **정수가 아니면 지금 씨앗을 지킨다** (위 `withSplit`과 같은 이유). 스키마가 `int`를
+  // 요구하므로 소수 하나가 **파일을 못 열게 만든다.** 씨앗은 재현의 뿌리라 지어내지 않고
+  // 있던 것을 그대로 둔다 — 화면은 파일을 다시 읽으므로 안 바뀐 것이 그대로 보인다.
+  const seed = Number.isInteger(randomState) ? randomState : document.settings.split.randomState
   return withSettings(
     document,
-    { ...document.settings, split: { ...document.settings.split, randomState } },
+    { ...document.settings, split: { ...document.settings.split, randomState: seed } },
     now,
   )
 }

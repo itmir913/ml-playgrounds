@@ -8,7 +8,12 @@
  * 결과가 스키마를 통과하는지도 함께 본다. 이 층의 산출물이 곧 `.mlpx`다.
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
+
+import { isClientError } from '../src/errors'
 
 import { newProjectDocument } from '../src/project/create'
 import { projectDocumentSchema, type ProjectDocument } from '../src/project/schema'
@@ -256,6 +261,115 @@ describe('전처리와 분할', () => {
       { algorithm: 'svm', runtime: 'server-sklearn' },
     ])
   })
+})
+
+/**
+ * **어떤 문도 다시 안 열리는 문서를 못 만든다** (2026-09-19 R33 A-1, 코드 소유자).
+ *
+ * **같은 종류의 A가 두 라운드 연속으로 났다.** R32는 `modelOmittedDetail`이 235자,
+ * R33은 `nSamples`가 바닥 아래였다. 모양이 똑같다 — **쓰는 길에는 검증이 없고 읽는
+ * 길에만 있어서**, 스키마를 어기는 값이 한 번 담기면 `.mlpx`도 IndexedDB 사본도
+ * **저장은 성공하고 다시는 안 열린다.** 학생은 한 차시가 끝난 뒤에 안다.
+ *
+ * **그래서 자리마다 조심하는 대신 문 전부를 훑는다.** 설정을 고치는 길은 이 파일이
+ * 내보내는 함수들뿐이고(아래가 그 목록이 닫혀 있는지도 센다), 각 문은 둘 중 하나여야
+ * 한다 — **스키마를 통과하는 문서를 내거나, `ClientError`로 시끄럽게 서거나.**
+ * **조용히 못 읽는 문서를 내는 것만 금지다.**
+ *
+ * **쓰는 길에 검증을 넣는 길은 안 간다** — `내보내기는 무조건 성공해야 한다`가 규칙이다.
+ * 막는 자리는 값이 문서로 들어가는 문이고, 이 검사가 그 문들을 지킨다.
+ */
+describe('어떤 문도 안 열리는 문서를 못 만든다', () => {
+  /** 바닥·천장·정수·유한성을 찌르는 값들. **스키마가 거부하는 모양을 겨눈다.** */
+  const DOORS: Record<string, readonly (() => ProjectDocument)[]> = {
+    withTaskType: [
+      () => withTaskType(base(), 'clustering', [], NOW),
+      () => withTaskType(base(), 'regression', ['없는열'], NOW),
+    ],
+    withTarget: [
+      () => withTarget(base(), '', NOW),
+      () => withTarget(base(), undefined, NOW),
+      () => withTarget(base(), 'x'.repeat(1000), NOW),
+    ],
+    withFeatures: [
+      () => withFeatures(base(), [], NOW),
+      () => withFeatures(base(), ['x'.repeat(1000)], NOW),
+      () => withFeatures(base(), ['같은열', '같은열'], NOW),
+    ],
+    withPreprocessing: [() => withPreprocessing(base(), {}, NOW)],
+    withSplit: [
+      () => withSplit(base(), { testSize: 0 }, NOW),
+      () => withSplit(base(), { testSize: 1 }, NOW),
+      () => withSplit(base(), { testSize: Number.NaN }, NOW),
+      () => withSplit(base(), { testSize: -1 }, NOW),
+    ],
+    withSampling: [
+      // **R33 A-1이 여기였다.** 화면의 클램프가 천장을 뒤에 걸어 바닥을 도로 깎았다.
+      () => withSampling(base(), 1, NOW),
+      () => withSampling(base(), 0, NOW),
+      () => withSampling(base(), -1, NOW),
+      () => withSampling(base(), undefined, NOW),
+    ],
+    withRandomState: [
+      () => withRandomState(base(), 0, NOW),
+      () => withRandomState(base(), -1, NOW),
+      () => withRandomState(base(), 1.5, NOW),
+      () => withRandomState(base(), Number.NaN, NOW),
+    ],
+    withRuntime: [() => withRuntime(base(), '', NOW), () => withRuntime(base(), '없는엔진', NOW)],
+    withSelectedAlgorithms: [
+      () => withSelectedAlgorithms(base(), [], NOW),
+      () => withSelectedAlgorithms(base(), [{ algorithm: '' }], NOW),
+    ],
+    withHyperparameter: [
+      () => withHyperparameter(base(), { algorithm: 'knn', runtime: 'mljs', name: 'k' }, 0, NOW),
+      () =>
+        withHyperparameter(
+          base(),
+          { algorithm: 'knn', runtime: 'mljs', name: 'k' },
+          Number.NaN,
+          NOW,
+        ),
+      () =>
+        withHyperparameter(
+          base(),
+          { algorithm: 'knn', runtime: 'mljs', name: 'k' },
+          undefined,
+          NOW,
+        ),
+    ],
+  }
+
+  /**
+   * **목록이 닫혀 있는지 소스에서 센다** (R30 C-4가 이름 붙인 병 — *"그물이 자기를 센다"*).
+   * 새 문이 생기면 여기서 운다. 수를 손으로 적지 않는다.
+   */
+  it('훑는 문이 settings.ts가 내보내는 것 전부다', () => {
+    const source = readFileSync(join(__dirname, '..', 'src', 'project', 'settings.ts'), 'utf-8')
+    const exported = [...source.matchAll(/^export function (with\w+)\(/gm)].map(
+      (found) => found[1] as string,
+    )
+    expect(exported.length).toBeGreaterThan(8)
+    expect(exported.filter((name) => DOORS[name] === undefined)).toEqual([])
+  })
+
+  for (const [name, calls] of Object.entries(DOORS)) {
+    it(`${name}: 무엇을 넣어도 다시 열 수 있는 문서이거나, 시끄럽게 선다`, () => {
+      for (const [index, call] of calls.entries()) {
+        let document: ProjectDocument
+        try {
+          document = call()
+        } catch (error) {
+          // **서는 것은 괜찮다.** 그 자리에서 알 수 있고 파일이 안 죽는다.
+          expect(isClientError(error), `${name}[${index}]`).toBe(true)
+          continue
+        }
+        const parsed = projectDocumentSchema.safeParse(document)
+        const where = parsed.success ? '' : (parsed.error.issues[0]?.path.join('.') ?? '')
+        expect(parsed.success, `${name}[${index}] -> ${where}`).toBe(true)
+      }
+    })
+  }
 })
 
 describe('결과가 스키마를 통과한다', () => {

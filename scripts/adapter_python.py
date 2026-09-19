@@ -45,6 +45,14 @@ EXPECTED = {
 }
 
 
+#: 어댑터에 `serializer.size`가 있어야 하는 알고리즘. **줄면 여기가 운다.**
+#
+# **랜덤 포레스트 하나다** - 크기의 하한을 셀 수 있는 형식이 `mlpx-tree-v2`뿐이고,
+# 그 칸을 잃으면 113MB짜리 숲이 다시 통째로 만들어진다. **둘째가 생기면 여기 적어라**
+# (2026-09-19 R33 C-2): 안 적으면 그 칸이 뒤에 사라져도 아무 소리가 안 난다.
+EXPECTED_SIZES = {"random_forest"}
+
+
 class AdapterParseError(RuntimeError):
     """TS 소스에서 조각을 못 찾았다. **조용히 넘어가지 않는다.**"""
 
@@ -80,6 +88,14 @@ def _blocks() -> list[tuple[str, str]]:
     ]
 
 
+#: `serializer` 안의 들여쓰기. **깊이까지 못 박는다** (2026-09-19 R33 C-1).
+#
+# `^ +`로만 잡으면 **깊이를 안 보므로**, 형제 객체 안에 같은 이름의 속성이 먼저 오면
+# 그것을 가져간다. 항목은 2칸, `serializer:`가 4칸, 그 안이 6칸이다 — 그 자리 하나만 본다.
+# 구조가 바뀌면 조용히 못 찾는 대신 `EXPECTED`와 `EXPECTED_SIZES`가 시끄럽게 선다.
+_SERIALIZER_INDENT = " {6}"
+
+
 def _property(name: str, block: str) -> str | None:
     """항목 안에서 `이름: '식'` 또는 `이름: \\`식\\``을 꺼낸다. 없으면 `None`.
 
@@ -93,10 +109,12 @@ def _property(name: str, block: str) -> str | None:
     **주석을 더 지우는 쪽으로 안 간다.** 파이썬 조각 안의 `//`는 나눗셈이라, 문자열
     안까지 훑어 지우면 **조각을 망가뜨리는 쪽이 더 위험하다.**
     """
-    quoted = re.search(rf"^ +{name}: '([^']*)'", block, re.MULTILINE)
+    quoted = re.search(rf"^{_SERIALIZER_INDENT}{name}: '([^']*)'", block, re.MULTILINE)
     if quoted:
         return quoted.group(1)
-    templated = re.search(rf"^ +{name}: `(.*?)`,\n", block, re.MULTILINE | re.DOTALL)
+    templated = re.search(
+        rf"^{_SERIALIZER_INDENT}{name}: `(.*?)`,\n", block, re.MULTILINE | re.DOTALL
+    )
     return templated.group(1) if templated else None
 
 
@@ -140,10 +158,9 @@ def sizes() -> dict[str, str]:
         expression = _property("size", block)
         if expression is not None:
             found[name] = expression
-    # **하나는 있어야 한다.** 랜덤 포레스트가 그 칸을 잃으면 113MB짜리 숲이 다시 통째로
-    # 만들어지고, 그 사실을 아무도 안 말해 준다.
-    if "random_forest" not in found:
-        raise AdapterParseError("no size expression found for: random_forest")
+    missing = EXPECTED_SIZES - set(found)
+    if missing:
+        raise AdapterParseError(f"no size found for: {', '.join(sorted(missing))}")
     return found
 
 

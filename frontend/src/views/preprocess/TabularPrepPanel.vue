@@ -314,9 +314,17 @@ function startSampling(input: HTMLInputElement): void {
  */
 function setSampleRows(input: HTMLInputElement): void {
   const parsed = Number.parseInt(input.value, 10)
+  /**
+   * **바닥을 마지막에 건다** (2026-09-19 R33 A-1). 천장을 나중에 걸면 **천장이 바닥보다
+   * 낮을 때 바닥을 도로 깎는다** — 쓸 수 있는 행이 하나뿐인 표에서 `nSamples: 1`이 박히고,
+   * 그 값은 스키마가 거부하므로 **파일은 저장되고 다시는 안 열린다.**
+   *
+   * 바로 위 `startSampling`이 같은 순서였고(`Math.max(…, MIN_SPLIT_ROWS)`가 마지막),
+   * **두 자리가 반대였으며 안 막힌 쪽이 학생이 숫자를 치는 칸이었다.**
+   */
   const next = Number.isNaN(parsed)
     ? (nSamples.value ?? usableRowCount.value)
-    : Math.min(Math.max(parsed, MIN_SPLIT_ROWS), usableRowCount.value)
+    : Math.max(Math.min(parsed, usableRowCount.value), MIN_SPLIT_ROWS)
   setSampling(next)
   input.value = String(next)
 }

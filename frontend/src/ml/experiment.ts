@@ -723,8 +723,11 @@ async function trainOne(
       //
       // **엔진마다 자르지 않고 여기서 자르는 이유**는 이 자리가 값이 문서로 들어가는
       // 유일한 문이기 때문이다. 접두사를 붙이는 엔진이 하나 더 생겨도 여기서 막힌다.
-      // `format.spec.ts`의 `직렬화 사고의 원문이 아무리 길어도 파일이 다시 열린다`와
-      // `experiment.spec.ts`의 `엔진이 아무리 긴 원문을 보내도 상한 안으로 잘린다`가 문다.
+      // **무는 것은 `experiment.spec.ts`의 `엔진이 아무리 긴 원문을 보내도 상한 안으로
+      // 잘린다` 하나다** (2026-09-19 R32 B-1이 세어 줬다). 한때 여기에 파일 계층의 검사도
+      // 함께 적었는데, **그쪽은 상한 안의 값만 넣어 보므로 이 줄을 지워도 안 운다** —
+      // 파일 계층이 지키는 것은 *"상한까지 찬 값이 왕복에서 안 변한다"*이고 그건 다른
+      // 문장이다(`format.spec.ts`의 `모델을 못 담은 run의 왕복`).
       ...(model === undefined && modelOmittedDetail !== undefined
         ? { modelOmittedDetail: modelOmittedDetail.slice(0, MAX_FAILURE_DETAIL_LENGTH) }
         : {}),
