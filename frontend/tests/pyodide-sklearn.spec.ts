@@ -70,7 +70,9 @@ describe('하이퍼파라미터가 Python 소스로 나갈 때', () => {
 
     const source = sources.join('\n')
     expect(source).toContain('max_depth=7')
-    expect(source).not.toContain('import js')
+    // **낱말로 본다.** `import json`이 `import js`를 부분 문자열로 품어서, 글자로 찾으면
+    // 직렬화기가 쓰는 정당한 임포트가 오탐으로 걸린다 (2026-09-19).
+    expect(source).not.toMatch(/import js/)
     expect(source).not.toContain('_ignored')
   })
 
@@ -116,6 +118,26 @@ describe('하이퍼파라미터가 Python 소스로 나갈 때', () => {
     expect(source).not.toContain("n_neighbors='7'")
     expect(source).not.toContain('n_neighbors=7')
     expect(source).toContain('n_neighbors=5')
+  })
+})
+
+/**
+ * **직렬화가 학습을 죽이지 않는다** (2026-09-19).
+ *
+ * 파이썬이 다른 모양을 주거나 JSON이 깨져 있어도 잃는 것은 **모델 하나**여야 한다 —
+ * 지표는 이미 나와 있고, 던지면 그 run이 통째로 실패해 **학생이 학습을 다시 해야 한다.**
+ */
+describe('배운 것을 못 받아써도', () => {
+  it('학습은 끝나고 모델만 안 담긴다', async () => {
+    const { proxy } = fakePyodide()
+    setPyodide(proxy)
+
+    // 가짜는 `_dump`에 JSON이 아닌 것을 준다 — `String([0])`은 `'0'`이라 파싱은 되지만
+    // 우리 형식이 아니고, 그 앞뒤로 무엇이 터져도 결과는 같아야 한다.
+    const result = await fit('decision_tree', input({ max_depth: 3 }))
+    expect(result.model).toBeUndefined()
+    expect(result.modelOmittedDetail).toContain('serializer-missing')
+    expect(result.predict([[0, 0]])).toHaveLength(1)
   })
 })
 

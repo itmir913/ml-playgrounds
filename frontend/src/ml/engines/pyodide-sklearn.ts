@@ -24,17 +24,34 @@
  *
  * ## 모델 직렬화
  *
- * **지금은 안 한다.** sklearn 모델을 우리 JSON 형식(`mlpx-*-v1`)으로 변환하려면
- * `model.tree_`·`model.coef_` 등 내부를 꺼내 JS 객체로 만드는 경로가 알고리즘마다
- * 필요하고, 그건 V3의 범위를 넘는다. `modelOmitted: 'engineUnsupported'`로 기록되고,
- * 화면이 학생에게 "이 실행 방법에서는 모델을 파일에 담지 않습니다"라고 말한다
- * (mlpx-spec.md §4.2).
+ * **여덟 중 일곱을 담는다** (2026-09-19). 등록부의 `serializer` 칸이 파이썬에게 물을 것과
+ * 그것을 우리 형식으로 옮기는 함수를 함께 갖고, 옮기는 일은 전부 `pyodide-serialize.ts`가
+ * 한다 — 그래야 Pyodide 없이 검사가 돈다. **칸이 빈 알고리즘은 모델을 안 담고**
+ * `modelOmitted: 'engineUnsupported'`로 기록된다(mlpx-spec.md §4.2).
+ *
+ * **랜덤 포레스트만 비어 있고, 그건 못 해서가 아니라 안 하는 것이다** — 아래 그 항목에
+ * 이유와 실측이 있다.
  */
 
 import { ClientError } from '../../errors'
 import type { HyperparameterSpec } from '../hyperparams'
 import { resolveWith } from '../hyperparams'
 import type { FitInput, FitResult, Predict } from './mljs'
+import type { ModelFile } from '../models'
+import {
+  sklearnKMeansModel,
+  sklearnLinearModel,
+  sklearnLinearRegressionModel,
+  sklearnNaiveBayesModel,
+  sklearnReferenceModel,
+  sklearnSvmModel,
+  sklearnTreeModel,
+  type SklearnForestDump,
+  type SklearnKMeansDump,
+  type SklearnLinearDump,
+  type SklearnNaiveBayesDump,
+  type SklearnRegressionDump,
+} from './pyodide-serialize'
 import { PYODIDE_SKLEARN_PARAMETERS } from './pyodide-sklearn-params'
 
 // ---------------------------------------------------------------------------
@@ -102,24 +119,187 @@ interface SklearnClass {
   readonly cls: string
   /** 생성자에 항상 붙는 인자. **Python 소스 조각이므로 우리 상수만 온다.** */
   readonly fixed?: readonly string[]
+  /** 배운 것을 파일에 담는 법. **없으면 그 알고리즘은 모델을 안 담는다**(`modelOmitted`). */
+  readonly serializer?: SklearnSerializer
 }
 
+/**
+ * 배운 것을 우리 형식으로 옮기는 한 벌.
+ *
+ * **받아쓰기와 판단을 가른다.** `dump`은 `tolist()`로 배열을 꺼내는 파이썬 한 조각이고,
+ * 세거나 고르거나 옮기는 일은 전부 `build`가 — 즉 `pyodide-serialize.ts`가 — 한다.
+ * 판단을 파이썬에 두면 그 코드는 27.3MB를 받아야만 돌고, **검사가 영영 못 본다.**
+ *
+ * `_dump`에 **JSON 문자열**을 넣는다. 사전을 그대로 꺼내지 않는 이유는 `toJs()`가
+ * 배포판마다 다른 모양을 주기 때문이다 (`pyodide-runtime.ts`에서 실제로 물렸다).
+ *
+ * **`dump`이 없는 칸이 있다** — 참조형(KNN)은 배운 값이 아니라 *어느 행을 봤는가*를
+ * 담으므로 파이썬에게 물을 것이 없다. 그때 `build`은 `undefined`를 받는다.
+ */
+interface SklearnSerializer {
+  /** `_dump`에 담길 파이썬 식. **사전 하나여야 하고 `classes`를 함께 넣는다.** */
+  readonly dump?: string
+  readonly build: (dumped: unknown, context: SerializeContext) => ModelFile | null
+}
+
+/** 옮기는 데 필요한 것 중 파이썬 밖에 있는 것. **학습 입력에서 온다.** */
+interface SerializeContext {
+  /** 라벨을 정렬한 순서. 학습에 쓴 것과 같은 규칙으로 센다. */
+  readonly classes: readonly string[]
+  readonly featureCount: number
+  readonly rowIndices: readonly number[]
+  /** **기본값이 채워진 뒤의** 손잡이다 (`resolve`). */
+  readonly hyperparameters: Record<string, unknown>
+}
+
+/** 손잡이에서 정수 하나. 없거나 수가 아니면 `null`이고, 그러면 안 담는다. */
+function integerOption(hp: Record<string, unknown>, name: string): number | null {
+  const value = hp[name]
+  return typeof value === 'number' && Number.isInteger(value) ? value : null
+}
+
+/**
+ * 나무 하나를 받아쓰는 도우미. **갈림값을 우리 해석기의 규칙으로 옮겨 보낸다.**
+ *
+ * 둘이 두 군데서 다르다.
+ *
+ * 1. sklearn은 `x <= t`면 왼쪽이고 **우리는 `x < t`면 왼쪽이다**
+ *    (`ml/models/tree.ts`의 `classify`).
+ * 2. **sklearn은 나무를 float32로 비교한다** — 학습도 예측도 X를 `np.float32`로 바꿔
+ *    한다. 우리 해석기는 배정도 그대로 본다.
+ *
+ * 그래서 보내는 값은 **`float32(x) > t`가 되는 가장 작은 배정도**다 — t보다 큰 첫
+ * float32를 찾고 그 앞 float32와의 중점을 잡는다.
+ *
+ * **2번을 빼먹으면 실물에서 갈린다** (2026-09-19에 픽스처 대조가 잡았다). 어떤 행의
+ * 값이 `5.6`인데 임계값이 정확히 `float32(5.6)`이라, 배정도로 재면 오른쪽이고 sklearn은
+ * 왼쪽이었다. **`scripts/generate_sklearn_fixtures.py`의 `split_boundary`와 같은 식이고,
+ * `tests/sklearn-serialize.spec.ts`가 그 식으로 만든 나무를 진짜 예측과 대조한다.**
+ */
+const TREE_DUMP_HELPER = `
+def _mlpx_boundary(threshold):
+    t = _np.asarray(threshold, dtype=_np.float64)
+    nearest = t.astype(_np.float32)
+    above = _np.where(
+        nearest.astype(_np.float64) <= t,
+        _np.nextafter(nearest, _np.float32(_np.inf)),
+        nearest,
+    )
+    below = _np.nextafter(above, _np.float32(-_np.inf))
+    return (above.astype(_np.float64) + below.astype(_np.float64)) / 2.0
+
+
+def _mlpx_tree(t):
+    return {
+        "left": t.children_left.tolist(),
+        "right": t.children_right.tolist(),
+        "feature": t.feature.tolist(),
+        "threshold": _mlpx_boundary(t.threshold).tolist(),
+        "leafClass": t.value[:, 0, :].argmax(axis=1).tolist(),
+    }
+`
+
+/** 선형 계열 둘이 같은 것을 묻는다. **뜻은 옮기는 쪽이 안다** (일대다냐 쌍이냐). */
+const LINEAR_DUMP =
+  '{"coef": _model.coef_.tolist(), "intercept": _model.intercept_.tolist(), "classes": _classes}'
+
 const SKLEARN_CLASSES: Readonly<Record<string, SklearnClass>> = {
-  decision_tree: { module: 'sklearn.tree', cls: 'DecisionTreeClassifier' },
+  decision_tree: {
+    module: 'sklearn.tree',
+    cls: 'DecisionTreeClassifier',
+    serializer: {
+      dump: '{"trees": [_mlpx_tree(_model.tree_)], "classes": _classes}',
+      build: (dumped, context) =>
+        sklearnTreeModel(dumped as SklearnForestDump, context.classes, context.featureCount),
+    },
+  },
   // KNN: 교실 데이터에서 kd-tree 구축 비용이 오히려 크고, brute force가 가장 결정론적이다.
   knn: {
     module: 'sklearn.neighbors',
     cls: 'KNeighborsClassifier',
     fixed: ["algorithm='brute'"],
+    serializer: {
+      // **파이썬에게 안 묻는다** — 담는 것이 배운 값이 아니라 본 행이다.
+      build: (_dumped, context) => {
+        const k = integerOption(context.hyperparameters, 'n_neighbors')
+        return k === null
+          ? null
+          : sklearnReferenceModel(context.classes, context.featureCount, context.rowIndices, k)
+      },
+    },
   },
-  logistic_regression: { module: 'sklearn.linear_model', cls: 'LogisticRegression' },
+  logistic_regression: {
+    module: 'sklearn.linear_model',
+    cls: 'LogisticRegression',
+    serializer: {
+      dump: LINEAR_DUMP,
+      build: (dumped, context) =>
+        sklearnLinearModel(dumped as SklearnLinearDump, context.classes, context.featureCount),
+    },
+  },
+  /**
+   * **모델을 안 담는다** (2026-09-19). 나무를 옮기는 것은 되는데 **예측 규칙이 다르다** —
+   * sklearn의 포레스트는 나무마다의 **확률을 평균**해 고르고, 우리 형식의 해석기는
+   * **다수결**이다 (`ml/models/tree.ts`의 `vote`, ml.js가 그렇게 한다).
+   *
+   * **재 보니 387행 중 12행(3.1%)이 갈렸다** — 픽스처 여덟 벌의 실측이고
+   * `tests/sklearn-serialize.spec.ts`가 그 사실을 지킨다. 서른 줄에 한 줄꼴로 **학습
+   * 화면의 정확도와 예측 화면의 답이 다른 말을 하는 것**이라, 담는 것이 안 담는 것보다
+   * 나쁘다.
+   *
+   * **여는 길은 형식을 하나 더 두는 것이다** — 잎에 분포를 담는 `mlpx-tree-v2`.
+   */
   random_forest: { module: 'sklearn.ensemble', cls: 'RandomForestClassifier' },
-  naive_bayes: { module: 'sklearn.naive_bayes', cls: 'GaussianNB' },
+  naive_bayes: {
+    module: 'sklearn.naive_bayes',
+    cls: 'GaussianNB',
+    serializer: {
+      dump: `{
+    "theta": _model.theta_.tolist(),
+    "var": _model.var_.tolist(),
+    "logPriors": _np.log(_model.class_prior_).tolist(),
+    "classes": _classes,
+}`,
+      build: (dumped, context) =>
+        sklearnNaiveBayesModel(
+          dumped as SklearnNaiveBayesDump,
+          context.classes,
+          context.featureCount,
+        ),
+    },
+  },
   // SVM: mljs의 우리 SMO와 같은 조건으로 맞춘다 (선형 커널).
-  svm: { module: 'sklearn.svm', cls: 'SVC', fixed: ["kernel='linear'"] },
-  linear_regression: { module: 'sklearn.linear_model', cls: 'LinearRegression' },
+  svm: {
+    module: 'sklearn.svm',
+    cls: 'SVC',
+    fixed: ["kernel='linear'"],
+    serializer: {
+      dump: LINEAR_DUMP,
+      build: (dumped, context) =>
+        sklearnSvmModel(dumped as SklearnLinearDump, context.classes, context.featureCount),
+    },
+  },
+  linear_regression: {
+    module: 'sklearn.linear_model',
+    cls: 'LinearRegression',
+    serializer: {
+      // **`coef_`가 1차원이다** — 타깃이 하나뿐이라 줄이 없다 (`mlpx-spec.md` §5.7).
+      dump: '{"coef": _model.coef_.tolist(), "intercept": float(_model.intercept_)}',
+      build: (dumped, context) =>
+        sklearnLinearRegressionModel(dumped as SklearnRegressionDump, context.featureCount),
+    },
+  },
   // KMeans: 기본 알고리즘 'lloyd'와 init='k-means++'는 그대로 두고 n_init만 고정한다.
-  k_means: { module: 'sklearn.cluster', cls: 'KMeans', fixed: ["n_init='auto'"] },
+  k_means: {
+    module: 'sklearn.cluster',
+    cls: 'KMeans',
+    fixed: ["n_init='auto'"],
+    serializer: {
+      dump: '{"centroids": _model.cluster_centers_.tolist(), "classes": _classes}',
+      build: (dumped, context) =>
+        sklearnKMeansModel(dumped as SklearnKMeansDump, context.featureCount),
+    },
+  },
 }
 
 /** 등록부에 없는 알고리즘은 여기서 걸린다. */
@@ -214,12 +394,14 @@ function buildFitCode(algorithm: string, hp: Record<string, unknown>, randomStat
 
   return `
 import numpy as np
+import numpy as _np
 from ${info.module} import ${info.cls}
 
 _X = np.array(_X_train_js.to_py(), dtype=np.float64)
 _y = np.array(_y_train_js.to_py())
 _model = ${info.cls}(${params.join(', ')})
 _model.fit(_X, _y)
+_classes = [str(c) for c in getattr(_model, "classes_", [])]
 `
 }
 
@@ -244,6 +426,22 @@ _model = ${info.cls}(${params.join(', ')})
 _model.fit(_X)
 _assignments = _model.labels_.tolist()
 _centroids = _model.cluster_centers_.tolist()
+_classes = []
+`
+}
+
+/**
+ * 배운 것을 받아쓰는 코드. **`_dump`에 JSON 문자열이 남는다.**
+ *
+ * `_np`를 여기서 다시 임포트한다 — 학습 코드가 이미 했지만 **군집 쪽은 안 했고**,
+ * 두 번 임포트하는 비용은 파이썬 사전 조회 한 번이다.
+ */
+function buildDumpCode(dump: string): string {
+  return `
+import json
+import numpy as _np
+${TREE_DUMP_HELPER}
+_dump = json.dumps(${dump})
 `
 }
 
@@ -314,11 +512,81 @@ export async function fit(algorithm: string, input: FitInput): Promise<FitResult
       }
     : undefined
 
+  // 5. 배운 것을 우리 형식으로
+  const model = serialize(algorithm, input, hp)
+
   return {
     predict,
-    // **직렬화는 아직 안 한다** (이 파일 머리말). 사유 코드는 run.modelOmitted에 남고,
-    // 원문은 run.modelOmittedDetail에 남아 교사가 읽을 수 있다 (mlpx-spec.md 4.2).
-    modelOmittedDetail: 'serializer-missing:pyodide-sklearn',
+    ...(model
+      ? { model }
+      : // **못 담는 것은 정상이다** — 그 알고리즘에 아직 직렬화기가 없다는 뜻이고, 사유는
+        // run.modelOmitted에, 원문은 run.modelOmittedDetail에 남는다 (mlpx-spec.md §4.2).
+        { modelOmittedDetail: `serializer-missing:pyodide-sklearn:${algorithm}` }),
     ...(clusterResult ? { clusterResult } : {}),
   }
+}
+
+/**
+ * 배운 것을 파이썬에서 받아 우리 형식으로. **못 옮기면 `undefined`다.**
+ *
+ * **여기서 던지지 않는다.** 직렬화 하나 때문에 학습을 통째로 잃는 것은 학생에게 설명할
+ * 수 없는 손해다 — 지표는 이미 나왔고 모델만 안 담긴다 (`mljs.ts`의 `serializeOrOmit`과
+ * 같은 규칙).
+ */
+function serialize(
+  algorithm: string,
+  input: FitInput,
+  hyperparameters: Record<string, unknown>,
+): ModelFile | undefined {
+  const serializer = SKLEARN_CLASSES[algorithm]?.serializer
+  if (!serializer || !py) return undefined
+
+  /**
+   * **여기서 나는 어떤 사고도 학습을 죽이지 않는다.** 파이썬이 다른 모양을 주거나 JSON이
+   * 깨져 있어도 잃는 것은 모델 하나이고, 지표는 이미 나와 있다. 던지면 그 run이 통째로
+   * 실패하고 **학생은 학습을 다시 해야 한다** — 담을 것이 없는 것보다 나쁘다.
+   */
+  try {
+    // **학습에 쓴 것과 같은 규칙으로 센다** (`mljs.ts`의 `labelCodec`).
+    const classes = [...new Set(input.target.map(String))].sort()
+    const context: SerializeContext = {
+      classes,
+      featureCount: input.features[0]?.length ?? 0,
+      rowIndices: input.rowIndices,
+      hyperparameters,
+    }
+
+    let dumped: unknown
+    if (serializer.dump !== undefined) {
+      py.runPython(buildDumpCode(serializer.dump))
+      const proxy = py.globals.get('_dump')
+      const text = String(proxy.toJs?.() ?? proxy)
+      proxy.destroy?.()
+      dumped = JSON.parse(text)
+      if (!agrees(dumped, classes)) return undefined
+    }
+
+    return serializer.build(dumped, context) ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * sklearn이 센 클래스 순서가 우리 것과 같은가. **다르면 아무것도 안 담는다.**
+ *
+ * 우리는 라벨을 문자열로 정렬하고 sklearn도 `np.unique`로 정렬하지만, **그건 우리가 확인한
+ * 사실이 아니라 두 구현의 습관이다.** 다르면 계수·잎·쌍의 번호가 전부 다른 라벨을 가리켜
+ * **조용히 틀린 예측**이 된다 — 형식마다 따로 볼 일이 아니라서 여기 하나로 둔다.
+ */
+function agrees(dumped: unknown, classes: readonly string[]): boolean {
+  if (typeof dumped !== 'object' || dumped === null) return false
+  const listed = (dumped as { classes?: unknown }).classes
+  // **없으면 묻지 않은 것이다** — 회귀는 클래스가 없다.
+  if (listed === undefined) return true
+  return (
+    Array.isArray(listed) &&
+    listed.length === classes.length &&
+    listed.every((label, index) => String(label) === classes[index])
+  )
 }

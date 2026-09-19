@@ -163,6 +163,62 @@ def targets_for(
     return train, test
 
 
+
+def split_boundary(threshold: np.ndarray) -> np.ndarray:
+    """sklearn의 갈림을 **우리 해석기의 규칙으로 옮긴 값**.
+
+    둘이 두 군데서 다르다.
+
+    1. sklearn은 `x <= t`면 왼쪽이고 **우리는 `x < t`면 왼쪽이다**
+       (`ml/models/tree.ts`의 `classify`).
+    2. **sklearn은 나무를 float32로 비교한다** - `DecisionTreeClassifier`가 X를
+       `np.float32`로 바꿔 배우고 예측한다. 우리 해석기는 배정도 그대로 본다.
+
+    그래서 경계는 **`float32(x) > t`가 되는 가장 작은 배정도**다: t보다 큰 첫 float32를
+    찾고, 그 앞 float32와의 중점을 잡는다. 그 아래는 반올림해서 t 이하가 되고 위는
+    넘어간다.
+
+    **2번을 빼먹으면 실물에서 갈린다** (2026-09-19에 실제로 걸렸다). `categorical` 벌의
+    한 행이 `주당활동시간 = 5.6`인데 임계값이 정확히 `float32(5.6)`이라, 배정도로 재면
+    오른쪽이고 sklearn은 왼쪽이었다.
+
+    **앱의 어댑터와 같은 식이어야 한다** (`ml/engines/pyodide-sklearn.ts`의
+    `TREE_DUMP_HELPER`). 갈리면 여기서 굳힌 것이 앱이 만드는 것과 다른 물건이 된다.
+    """
+    t = np.asarray(threshold, dtype=np.float64)
+    upper = np.float32(np.inf)
+    lower = np.float32(-np.inf)
+    nearest = t.astype(np.float32)
+    # 반올림이 t 아래로 떨어졌으면 한 칸 올려 "t보다 큰 첫 float32"로 만든다.
+    above = np.where(nearest.astype(np.float64) <= t, np.nextafter(nearest, upper), nearest)
+    below = np.nextafter(above, lower)
+    return (above.astype(np.float64) + below.astype(np.float64)) / 2.0
+
+
+def tree_dump(tree: Any) -> dict[str, Any]:
+    """나무 하나를 그대로 받아쓴다. 판단은 `split_boundary` 하나뿐이다."""
+    return {
+        "left": tree.children_left.tolist(),
+        "right": tree.children_right.tolist(),
+        "feature": tree.feature.tolist(),
+        "threshold": split_boundary(tree.threshold).tolist(),
+        "leafClass": tree.value[:, 0, :].argmax(axis=1).tolist(),
+    }
+
+
+def model_dump(algorithm: str, model: Any) -> dict[str, Any] | None:
+    """직렬화기가 있는 알고리즘만 받아쓴다. 없으면 `None`이고 그때는 안 굳힌다."""
+    classes = [str(one) for one in getattr(model, "classes_", [])]
+    if algorithm == "decision_tree":
+        return {"trees": [tree_dump(model.tree_)], "classes": classes}
+    if algorithm == "random_forest":
+        return {
+            "trees": [tree_dump(one.tree_) for one in model.estimators_],
+            "classes": classes,
+        }
+    return None
+
+
 def expectations_for(name: str, entry: dict[str, Any]) -> dict[str, Any]:
     header, body = read_csv(name)
     x_train, x_test = matrices_for(header, body, entry)
@@ -177,6 +233,10 @@ def expectations_for(name: str, entry: dict[str, Any]) -> dict[str, Any]:
                 "coefficients": regression.coef_.tolist(),
                 "intercept": float(regression.intercept_),
                 "r2": float(r2_score(np.array(y_test, dtype=float), prediction)),
+                # **예측값 자체를 굳힌다** (2026-09-19). 계수만으로는 "옮긴 모델이 같은 답을
+                # 내는가"를 물을 수 없다 - 그 물음의 답은 계수를 곱한 결과이고, 곱하는 쪽이
+                # 우리 해석기다 (`tests/sklearn-serialize.spec.ts`).
+                "dumpValues": prediction.tolist(),
             },
             "neural_network": neural_regression_distribution(
                 x_train, y_train, x_test, y_test
@@ -200,6 +260,16 @@ def expectations_for(name: str, entry: dict[str, Any]) -> dict[str, Any]:
         )
         predicted = [str(one) for one in model.predict(x_test)]
         record: dict[str, Any] = {"accuracy": accuracy_score(y_test, predicted)}
+        # **배운 것을 그대로 받아쓴다** (`ml/engines/pyodide-serialize.ts`).
+        #
+        # Pyodide는 검사가 못 띄우므로(27.3MB) **sklearn이 배운 모양을 우리 형식으로
+        # 옮기는 일이 맞는지**를 여기서 굳힌다. `sklearn-serialize.spec.ts`가 이 덤프로
+        # 우리 모델 파일을 만들어 해석기에 먹이고, **그 예측이 아래 `labels`와 같은지**
+        # 본다 - 같지 않으면 학생 파일이 자기 run과 다른 답을 내는 것이다.
+        dumped = model_dump(algorithm, model)
+        if dumped is not None:
+            record["dump"] = dumped
+            record["dumpLabels"] = predicted
         if algorithm == "logistic_regression":
             # 수렴 상태를 담는다 (1단계-C) - 관문이 빨개졌을 때 "진짜 결함인가, 경로가
             # 조금 움직인 것인가"를 가를 근거가 파일 안에 있어야 한다. 라벨 완전 일치
@@ -226,6 +296,11 @@ def expectations_for(name: str, entry: dict[str, Any]) -> dict[str, Any]:
             # **이웃 선택 동점은 sklearn이 규약을 정의하지 않는 자리다** (자료구조에 따라
             # 다르다). k번째와 k+1번째 이웃의 거리가 같은 행은 라벨을 굳히지 않는다(null) -
             # 그 행의 답은 어느 쪽이든 규약 차이이지 결함이 아니다.
+            # **가린 것과 안 가린 것을 함께 굳힌다** (2026-09-19). 가린 쪽은 "우리 엔진이
+            # sklearn과 같은가"를 묻는 자리가 쓰고(`sklearn-parity.spec.ts`), 안 가린 쪽은
+            # **동점 행에서 실제로 몇 줄이 갈리는지**를 세는 자리가 쓴다
+            # (`sklearn-serialize.spec.ts`) - 규약이 없다는 사실만으로는 그 수를 모른다.
+            record["dumpLabels"] = list(predicted)
             record["labels"] = list(predicted)
             if len(x_train) > 5:
                 distances, _ = model.kneighbors(x_test, n_neighbors=6)
@@ -239,6 +314,19 @@ def expectations_for(name: str, entry: dict[str, Any]) -> dict[str, Any]:
                 "var": model.var_.tolist(),
                 "classLogPrior": np.log(model.class_prior_).tolist(),
             }
+        if algorithm == "svm":
+            # **계수와 라벨을 굳힌다** (2026-09-19). 옮긴 모델의 대조가 이 둘 위에 선다 -
+            # 계수는 `mlpx-svm-v1`이 담는 것 자체이고, 라벨은 그것으로 우리 해석기가 낸
+            # 답과 견줄 자리다 (`tests/sklearn-serialize.spec.ts`).
+            #
+            # **이진과 다중 클래스에서 부호가 갈린다** - libsvm은 양수면 앞 클래스인데
+            # sklearn이 클래스 둘일 때만 `coef_`에 -1을 곱해 내놓는다. 그 사실이 맞는지는
+            # 여기 굳힌 라벨이 판정한다.
+            record["params"] = {
+                "coef": model.coef_.tolist(),
+                "intercept": model.intercept_.tolist(),
+            }
+            record["dumpLabels"] = predicted
         if algorithm == "logistic_regression":
             # 계수와 절편을 굳힌다 (2026-08-31). 화면이 이 값을 학생에게 보여주기로 했고
             # (open-decisions.md "모델이 무엇을 배웠는지 화면이 보여준다"), 보여주는 숫자는
