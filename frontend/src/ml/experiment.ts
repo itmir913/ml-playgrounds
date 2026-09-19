@@ -23,6 +23,7 @@
  */
 
 import { ClientError, failureDetail, isClientError } from '../errors'
+import { MAX_FAILURE_DETAIL_LENGTH } from '../limits'
 import { DATA_COMPARABLE_KEYS, dataSettings } from '../project/schema'
 import type {
   Experiment,
@@ -715,7 +716,18 @@ async function trainOne(
       // **어휘는 엔진이 다르게 말할 수 있다.** 기본은 "지금 할 수 있는 일이 없다"이지만,
       // 만들기 전에 크기로 거절한 것은 `tooLarge`다 — 학생이 할 일이 다르다(§4.2).
       ...(model ? {} : { modelOmitted: modelOmittedReason ?? ('engineUnsupported' as const) }),
-      ...(model === undefined && modelOmittedDetail !== undefined ? { modelOmittedDetail } : {}),
+      // **길이는 여기서 자른다** (2026-09-19 R32 A-1). 스키마가 이 칸에만 `.max()`를 걸고,
+      // **쓰는 길에는 검증이 없고 읽는 길에만 있다** — 넘치면 파일은 멀쩡히 저장되고
+      // **다시는 안 열린다**(IndexedDB 사본까지). 실제로 그랬다: 엔진이 원문을 200자로
+      // 자른 뒤 접두사를 붙여 235자를 보냈다.
+      //
+      // **엔진마다 자르지 않고 여기서 자르는 이유**는 이 자리가 값이 문서로 들어가는
+      // 유일한 문이기 때문이다. 접두사를 붙이는 엔진이 하나 더 생겨도 여기서 막힌다.
+      // `format.spec.ts`의 `직렬화 사고의 원문이 아무리 길어도 파일이 다시 열린다`와
+      // `experiment.spec.ts`의 `엔진이 아무리 긴 원문을 보내도 상한 안으로 잘린다`가 문다.
+      ...(model === undefined && modelOmittedDetail !== undefined
+        ? { modelOmittedDetail: modelOmittedDetail.slice(0, MAX_FAILURE_DETAIL_LENGTH) }
+        : {}),
     }
     return model ? { run, model } : { run }
   } catch (error) {

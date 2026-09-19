@@ -34,6 +34,7 @@ import { calibrateDevice } from '@/ml/worker/client'
 import {
   factorFrom,
   factorFromRun,
+  modelFactorKey,
   readFactor,
   readModelFactors,
   writeFactor,
@@ -47,7 +48,7 @@ import {
 } from '@/ml/estimate'
 import { estimatedFeatureWidth } from '@/ml/preprocess'
 import { trainableRowsOf } from '@/ml/training-source'
-import type { EngineState, RuntimeContext } from '@/ml/backend'
+import { isBrowserRuntimeId, type EngineState, type RuntimeContext } from '@/ml/backend'
 import { algorithmsLosingMeaning, requiredTargetKind, type ChosenModel } from '@/ml/selection'
 import { algorithmSelectionFor, runtimeContextFor, trainingSourceOf } from '@/ml/training-source'
 import { failedRuns } from '@/ml/results'
@@ -78,24 +79,34 @@ const toasts = useToastStore()
  * 학습이 배수를 다듬는다"). 교정 일감이 낸 기기 배수는 **첫 학습 전까지의 어림**이고,
  * 진짜 값은 학생의 데이터로 실제로 돌아 본 이 시간이다.
  *
- * **알고리즘마다 따로 둔다.** 하나로 두면 기준표가 크게 틀린 알고리즘(K-평균이 그랬다)의
- * 오차가 다른 알고리즘의 예상으로 옮는다.
+ * **알고리즘마다, 그리고 실행 방법마다 따로 둔다.** 하나로 두면 기준표가 크게 틀린
+ * 알고리즘(K-평균이 그랬다)의 오차가 다른 알고리즘의 예상으로 옮는다. **실행 방법을 안
+ * 가르면 같은 일이 엔진 사이에서 난다** — 두 엔진은 기준표가 아예 다르고, 실제로 ml.js에서
+ * 잰 배수가 sklearn 줄에 실려 *"약 2분"*을 *"약 40초"*라고 말했다 (2026-09-19 R32 B-1).
  */
 const training = useTraining(spawnTrainingWorker, {
   onModelTimed: ({ algorithm, runtime, elapsedMs }) => {
     const dataType = project.file?.document.manifest.dataType
-    // 브라우저에서 돈 것만 안다. 서버는 우리가 모르는 기기다.
-    if (runtime !== 'mljs' || dataType === undefined) return
+    /**
+     * **브라우저에서 돈 것만 안다.** 서버는 우리가 모르는 기기다.
+     *
+     * **sklearn도 브라우저다.** 한때 `runtime !== 'mljs'`로 걸러 그쪽은 영영 안 배웠는데,
+     * 시동은 이미 시계 밖이라(`useTraining`이 준비가 끝나는 순간 시계를 다시 시작한다)
+     * 이 값은 두 엔진 모두에서 **학습에 걸린 시간**이다.
+     */
+    if (!isBrowserRuntimeId(runtime) || dataType === undefined) return
     const expected = baselineMs({
       algorithm,
       dataType,
       rows: trainingRows.value,
       columns: featureWidth.value,
       hyperparameters: settings.value?.hyperparameters[algorithm]?.[runtime] ?? {},
+      // **이 줄이 없으면 sklearn 실행을 순수 JS 기준표로 나눈다** (R32 B-1). 이제 타입이 선다.
+      runtime,
     })
     const factor = expected === null ? null : factorFromRun(elapsedMs, expected)
     if (factor === null) return
-    modelFactors.value = { ...modelFactors.value, [algorithm]: factor }
+    modelFactors.value = { ...modelFactors.value, [modelFactorKey(algorithm, runtime)]: factor }
     writeModelFactors(modelFactors.value)
   },
 })
@@ -268,8 +279,8 @@ const estimates = computed<Estimate[]>(() => {
   const values = settings.value?.hyperparameters ?? {}
   return chosen.value.map((row) => {
     if (factor === null || dataType === undefined) return { kind: 'unknown' }
-    // 그 알고리즘을 한 번이라도 돌려 봤으면 그때 잰 값이 이긴다.
-    const measured = modelFactors.value[row.algorithm] ?? factor
+    // 그 알고리즘을 **그 실행 방법으로** 한 번이라도 돌려 봤으면 그때 잰 값이 이긴다.
+    const measured = modelFactors.value[modelFactorKey(row.algorithm, row.runtime)] ?? factor
     /**
      * **`browserEstimateMs`는 실행 방법을 필수로 받는다** (R31 C-1). 서버 줄을 거르는 일도
      * 그쪽이 한다 — 여기서 종류를 손으로 세면 등록부가 아는 것을 화면이 다시 아는 셈이다

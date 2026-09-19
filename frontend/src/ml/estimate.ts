@@ -105,13 +105,17 @@ export interface EstimateInput {
   /** 확정된 손잡이. 비어 있으면 기본값으로 본다. */
   readonly hyperparameters: Record<string, unknown>
   /**
-   * 어느 실행 방법으로 도는가. **없으면 순수 JS다** — 옛 부르는 쪽을 그대로 두려는 것이
-   * 아니라, 그쪽이 이 도구의 기본값이기 때문이다 (`ml/backend.ts`의 `RUNTIMES` 순서).
+   * 어느 실행 방법으로 도는가. **필수다** (2026-09-19 R32 B-1).
    *
    * **두 엔진의 성질이 실제로 다르다** (2026-09-19 실측). 기준표도, 손잡이 배수도, 시동도
    * 갈린다 — 이 칸이 없으면 sklearn 줄이 **순수 JS의 수를 자기 것처럼 말한다.**
+   *
+   * **한때 `?? 'mljs'`로 기본값을 줬고, 바로 그 기본값이 이 문장을 실현했다.** R31이
+   * `browserEstimateMs`의 인자를 필수로 만들었는데 **`baselineMs`를 직접 부르는 자리가
+   * 하나 남아 있었고**(`TrainView.vue`의 학습 뒤 배수 보정), 거기서 sklearn 줄의 배수가
+   * 순수 JS 기준표로 셈해졌다. **기본값을 없애는 것이 처방이다** — 안 적으면 컴파일이 선다.
    */
-  readonly runtime?: BrowserRuntimeId
+  readonly runtime: BrowserRuntimeId
 }
 
 function numberOr(source: Record<string, unknown>, name: string, fallback: number): number {
@@ -292,7 +296,7 @@ function baselineOf(
  * 그렇고, 지어내지 않는다.
  */
 export function baselineMs(input: EstimateInput): number | null {
-  const runtime = input.runtime ?? 'mljs'
+  const runtime = input.runtime
   const baseline = baselineOf(input.algorithm, input.dataType, runtime)
   if (baseline === null) return null
 
@@ -342,7 +346,7 @@ export function hasEstimates(dataType: DataType, algorithms = ALGORITHMS): boole
 export function estimateMs(input: EstimateInput, factor: number): number | null {
   const baseline = baselineMs(input)
   if (baseline === null) return null
-  return baseline * factor + preparationMs(input.runtime ?? 'mljs')
+  return baseline * factor + preparationMs(input.runtime)
 }
 
 /**

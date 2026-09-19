@@ -174,7 +174,26 @@ export function factorFromRun(elapsedMs: number, expectedMs: number): number | n
   return elapsedMs / expectedMs
 }
 
-/** 저장된 알고리즘별 배수 전부. **못 읽거나 깨졌으면 빈 것이다.** */
+/**
+ * 배수가 사는 자리의 이름. **알고리즘 하나가 실행 방법마다 다른 기준표를 쓴다**
+ * (2026-09-19 R32 B-1).
+ *
+ * 한때 알고리즘 이름만으로 저장했고, 그래서 **ml.js에서 잰 값이 sklearn 줄의 예상에
+ * 그대로 실렸다** — 포레스트는 병렬로 돌아 배수가 0.5 언저리라, 그 줄이 *"약 2분"*을
+ * *"약 40초"*라고 말했다. 두 엔진은 기준표가 아예 다르므로 한쪽에서 잰 보정이 다른 쪽을
+ * 못 고친다.
+ */
+export function modelFactorKey(algorithm: string, runtime: string): string {
+  return `${algorithm}@${runtime}`
+}
+
+/**
+ * 저장된 배수 전부. **못 읽거나 깨졌으면 빈 것이다.**
+ *
+ * **옛 키(실행 방법이 없는 것)는 버린다.** 그것들은 전부 ml.js에서 잰 값인데, 어느
+ * 기준표로 잰 것인지 이름이 안 말한다 — 살려 두면 다음 사람이 그 뜻을 다시 짐작한다.
+ * 잃는 것은 학습 한 번이면 되찾는 값 하나다.
+ */
 export function readModelFactors(): Record<string, number> {
   let stored: string | null = null
   try {
@@ -192,8 +211,9 @@ export function readModelFactors(): Record<string, number> {
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
   const factors: Record<string, number> = {}
-  for (const [algorithm, value] of Object.entries(parsed as Record<string, unknown>)) {
-    if (typeof value === 'number' && Number.isFinite(value) && value > 0) factors[algorithm] = value
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    if (!key.includes('@')) continue
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) factors[key] = value
   }
   return factors
 }

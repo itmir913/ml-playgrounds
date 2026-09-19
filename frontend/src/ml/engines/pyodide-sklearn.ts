@@ -618,6 +618,10 @@ function serialize(
  * 그게 갈리지 않으면 학생 환경에서 재현할 단서가 0이 된다.
  */
 function omitted(algorithm: string, why: string): { readonly modelOmittedDetail: string } {
+  // **길이는 여기서 안 자른다.** `why`가 이미 200자까지 올 수 있어(`failureDetail`)
+  // 접두사를 붙이면 넘치는데, 자르는 자리는 **값이 문서로 들어가는 문 하나**다
+  // (`ml/experiment.ts`). 여기서도 자르면 같은 규칙이 두 군데 살고, 셋째 엔진이
+  // 생기면 또 한 군데가 된다 (2026-09-19 R32 A-1).
   return { modelOmittedDetail: `pyodide-sklearn:${algorithm}:${why}` }
 }
 

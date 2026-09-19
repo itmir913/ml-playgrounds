@@ -38,9 +38,22 @@ import {
 } from '../src/ml/estimate'
 import { estimatedFeatureWidth, fitPreprocessor } from '../src/ml/preprocess'
 
-/** 손잡이를 안 건드린 기본 상태. 기준표를 잰 모양 그대로다. */
+/**
+ * 손잡이를 안 건드린 기본 상태. 기준표를 잰 모양 그대로다.
+ *
+ * **실행 방법을 여기서 적는다.** 소스 쪽 기본값(`?? 'mljs'`)은 없어졌다 — 그 기본값이
+ * sklearn 줄의 배수를 순수 JS 기준표로 셈하게 했다(R32 B-1). 이 파일의 아래 묶음들은
+ * 순수 JS 표를 재는 것이라 여기서 `mljs`를 **명시한다.**
+ */
 function input(algorithm: string, rows: number, columns = BASELINE_COLUMNS) {
-  return { algorithm, dataType: 'tabular' as const, rows, columns, hyperparameters: {} }
+  return {
+    algorithm,
+    dataType: 'tabular' as const,
+    rows,
+    columns,
+    hyperparameters: {},
+    runtime: 'mljs' as const,
+  }
 }
 
 group('보간', () => {
@@ -287,6 +300,8 @@ group('사진 예상은 기준표를 그대로 낸다', () => {
     // **화면이 실제로 넘기는 값이다.** 사진에서는 0이다.
     columns: 0,
     hyperparameters,
+    // 인공신경망은 순수 JS에만 있다 — 등록부가 `'pyodide-sklearn': false`라고 선언한다.
+    runtime: 'mljs' as const,
   })
 
   it('기본 손잡이면 기준표의 값 그대로다', () => {

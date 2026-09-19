@@ -17,6 +17,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { ClientError, isClientError } from '../src/errors'
 import { ALGORITHMS, type Algorithm } from '../src/ml/algorithms'
+import { MAX_FAILURE_DETAIL_LENGTH } from '../src/limits'
 import { fit } from '../src/ml/engines/mljs'
 import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/ml/experiment'
 import { ENGINES, type TrainingEngine } from '../src/ml/engines'
@@ -2311,6 +2312,44 @@ describe('자동 이동이 비용을 몰래 물리지 않는다', () => {
     // **상한 사유로 실패한다** — 엔진을 못 띄운 것이 아니다.
     expect(run?.failure?.code).toBe('DATASET_TOO_LARGE_FOR_BROWSER')
     expect(log).toEqual([])
+  })
+
+  /**
+   * **엔진이 보낸 원문은 문서에 들어갈 때 잘린다** (2026-09-19 R32 A-1).
+   *
+   * 이 칸은 문서에서 **길이 상한이 걸린 유일한 문자열**이고, 넘치면 저장은 성공하고
+   * **여는 자리에서 죽는다** — `.mlpx`도 IndexedDB 사본도 다시는 안 열린다. 실제로
+   * sklearn 어댑터가 원문을 200자로 자른 뒤 접두사를 붙여 **235자**를 보냈다.
+   *
+   * **자르는 자리는 문 하나다.** 엔진마다 자르면 셋째 엔진이 생길 때 또 한 군데가 된다.
+   * 그러니 **엔진은 길게 보내도 되고**, 여기가 그것을 받아 준다.
+   */
+  it('엔진이 아무리 긴 원문을 보내도 상한 안으로 잘린다', async () => {
+    const shouting: TrainingEngine = {
+      ...(ENGINES.find((one) => one.runtimeId === 'pyodide-sklearn') as TrainingEngine),
+      prepare: () => Promise.resolve(),
+      fit: () =>
+        Promise.resolve({
+          predict: (features: readonly (readonly number[])[]) => features.map(() => 'setosa'),
+          modelOmittedDetail: `pyodide-sklearn:random_forest:threw:${'x'.repeat(400)}`,
+        }),
+    }
+
+    const { experiment } = await runExperiment(
+      inputFor({
+        settings: settingsFor({
+          selectedAlgorithms: [{ algorithm: 'random_forest', runtime: 'pyodide-sklearn' }],
+        }),
+      }),
+      { ...frozen, engines: [ENGINES[0] as TrainingEngine, shouting] },
+    )
+
+    const run = experiment.runs[0]
+    expect(run?.status).toBe('done')
+    expect(run?.modelOmitted).toBe('engineUnsupported')
+    expect(run?.modelOmittedDetail?.length).toBe(MAX_FAILURE_DETAIL_LENGTH)
+    // **앞을 남긴다** — 뒤를 남기면 어느 알고리즘이 어느 갈래로 빠졌는지가 사라진다.
+    expect(run?.modelOmittedDetail?.startsWith('pyodide-sklearn:random_forest:threw:')).toBe(true)
   })
 
   /** **콕 집으면 그대로 간다.** 학생이 고른 것은 비용을 듣고 고른 것이다. */

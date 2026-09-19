@@ -16,6 +16,7 @@ import {
   CALIBRATION_JOBS,
   factorFrom,
   factorFromRun,
+  modelFactorKey,
   readModelFactors,
   writeModelFactors,
   readFactor,
@@ -108,8 +109,12 @@ describe('학습 뒤 배수 보정', () => {
   })
 
   it('저장했다 읽으면 같은 값이다', () => {
-    writeModelFactors({ decision_tree: 2.5, k_means: 0.5 })
-    expect(readModelFactors()).toEqual({ decision_tree: 2.5, k_means: 0.5 })
+    const saved = {
+      [modelFactorKey('decision_tree', 'mljs')]: 2.5,
+      [modelFactorKey('k_means', 'pyodide-sklearn')]: 0.5,
+    }
+    writeModelFactors(saved)
+    expect(readModelFactors()).toEqual(saved)
   })
 
   it('없거나 깨졌으면 빈 것이다 - 지어내지 않는다', () => {
@@ -127,9 +132,43 @@ describe('학습 뒤 배수 보정', () => {
   it('이상한 항목만 걷어낸다', () => {
     window.localStorage.setItem(
       'ml-playgrounds:model-factors',
-      JSON.stringify({ decision_tree: 2, knn: 0, svm: -1, k_means: 'fast', naive_bayes: 1.5 }),
+      JSON.stringify({
+        'decision_tree@mljs': 2,
+        'knn@mljs': 0,
+        'svm@mljs': -1,
+        'k_means@mljs': 'fast',
+        'naive_bayes@pyodide-sklearn': 1.5,
+      }),
     )
-    expect(readModelFactors()).toEqual({ decision_tree: 2, naive_bayes: 1.5 })
+    expect(readModelFactors()).toEqual({
+      'decision_tree@mljs': 2,
+      'naive_bayes@pyodide-sklearn': 1.5,
+    })
+  })
+
+  /**
+   * **옛 키는 버린다** (2026-09-19 R32 B-1). 실행 방법이 없는 키는 전부 ml.js에서 잰
+   * 값인데 **이름이 그 사실을 안 말한다** — 살려 두면 다음 사람이 뜻을 다시 짐작한다.
+   * 잃는 것은 학습 한 번이면 되찾는 값이고, 그동안은 기기 배수를 쓴다.
+   */
+  it('실행 방법이 없는 옛 키는 안 읽는다', () => {
+    window.localStorage.setItem(
+      'ml-playgrounds:model-factors',
+      JSON.stringify({ decision_tree: 2, 'knn@mljs': 1.5 }),
+    )
+    expect(readModelFactors()).toEqual({ 'knn@mljs': 1.5 })
+  })
+
+  /**
+   * **두 엔진은 기준표가 아예 다르다** (2026-09-19 R32 B-1). 한때 키가 알고리즘 이름
+   * 하나여서 **ml.js에서 잰 배수가 sklearn 줄에 실렸다** — 포레스트는 병렬로 돌아 배수가
+   * 0.5 언저리고, 그 줄이 *"약 2분"*을 *"약 40초"*라고 말했다.
+   */
+  it('같은 알고리즘이라도 실행 방법이 다르면 다른 자리다', () => {
+    const forest = 'random_forest'
+    expect(modelFactorKey(forest, 'mljs')).not.toBe(modelFactorKey(forest, 'pyodide-sklearn'))
+    writeModelFactors({ [modelFactorKey(forest, 'mljs')]: 0.51 })
+    expect(readModelFactors()[modelFactorKey(forest, 'pyodide-sklearn')]).toBeUndefined()
   })
 
   /**
@@ -137,9 +176,11 @@ describe('학습 뒤 배수 보정', () => {
    * 알고리즘의 오차가 다른 알고리즘의 예상으로 옮는다 — K-평균이 실제로 그랬다.
    */
   it('한 알고리즘의 보정이 다른 알고리즘을 안 건드린다', () => {
-    writeModelFactors({ ...readModelFactors(), k_means: 70 })
-    expect(readModelFactors().decision_tree).toBeUndefined()
-    writeModelFactors({ ...readModelFactors(), decision_tree: 1.2 })
-    expect(readModelFactors()).toEqual({ k_means: 70, decision_tree: 1.2 })
+    const kmeans = modelFactorKey('k_means', 'mljs')
+    const tree = modelFactorKey('decision_tree', 'mljs')
+    writeModelFactors({ ...readModelFactors(), [kmeans]: 70 })
+    expect(readModelFactors()[tree]).toBeUndefined()
+    writeModelFactors({ ...readModelFactors(), [tree]: 1.2 })
+    expect(readModelFactors()).toEqual({ [kmeans]: 70, [tree]: 1.2 })
   })
 })

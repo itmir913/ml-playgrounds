@@ -10,7 +10,7 @@ import { unzipSync, zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
-import { MAX_MODEL_BYTES } from '../src/limits'
+import { MAX_FAILURE_DETAIL_LENGTH, MAX_MODEL_BYTES } from '../src/limits'
 import {
   ENTRY,
   MLPX_EXTENSION,
@@ -459,6 +459,49 @@ describe('크기 예산', () => {
 
     const written = unzipSync((await writeProjectBytes(project, markdown)).bytes)
     expect(Object.keys(written)).not.toContain('model/preprocessor-experiment-1.json')
+  })
+})
+
+/**
+ * **모델을 못 담은 run이 왕복에서 그대로인가** (2026-09-19 R32 A-1·§2.2).
+ *
+ * 이 run이 파일에 들고 가는 것은 둘이다 — 학생에게 할 말(`modelOmitted`)과 우리가 읽을
+ * 단서(`modelOmittedDetail`). **뒤엣것은 문서에서 길이 상한이 걸린 유일한 문자열 칸**이고,
+ * **쓰는 길에는 검증이 없고 읽는 길에만 있다.** 그래서 이 칸이 넘치면 실패가 저장 자리에
+ * 안 나고 **여는 자리에 난다** — `.mlpx`도 IndexedDB 사본도 다시는 안 열린다. 실제로
+ * 그랬다: 어댑터가 원문을 200자로 자른 뒤 접두사를 붙여 235자를 보냈고, **저장은
+ * 2,890바이트로 성공했다.**
+ *
+ * **길이를 자르는 일은 여기가 아니라 `ml/experiment.ts`가 한다**(`experiment.spec.ts`의
+ * `엔진이 아무리 긴 원문을 보내도 상한 안으로 잘린다`). 여기서 보는 것은 **상한 끝까지
+ * 찬 값이 왕복에서 한 글자도 안 변하는가**다.
+ */
+describe('모델을 못 담은 run의 왕복', () => {
+  it('사유와 원문이 상한 끝까지 차 있어도 그대로 돌아온다', async () => {
+    const project = projectFile()
+    const first = project.document.runs.experiments[0]?.runs[0]
+    expect(first, 'the fixture must have a run to mark').toBeDefined()
+    if (!first) return
+
+    // **어떤 엔진도 이보다 길게 못 만든다** — 문이 여기까지만 통과시킨다.
+    const detail =
+      `pyodide-sklearn:random_forest:threw:${'x'.repeat(MAX_FAILURE_DETAIL_LENGTH)}`.slice(
+        0,
+        MAX_FAILURE_DETAIL_LENGTH,
+      )
+    delete first.model
+    first.modelOmitted = 'tooLarge'
+    first.modelOmittedDetail = detail
+    // 모델 본체도 없어야 한다 - 있으면 열 때 사유가 지워진다(담긴 모델 옆의 "못 담았다").
+    project.models.delete('model/run-1.json')
+
+    const reopened = await open((await writeProjectBytes(project, markdown)).bytes)
+    const run = reopened.document.runs.experiments[0]?.runs[0]
+    // **어휘가 뒤집히면 화면이 반대 지시를 한다** — `tooLarge`는 "나무 개수를 줄여라"이고
+    // `engineUnsupported`는 "지금 할 수 있는 일이 없다"다.
+    expect(run?.modelOmitted).toBe('tooLarge')
+    expect(run?.modelOmittedDetail).toBe(detail)
+    expect(run?.model).toBeUndefined()
   })
 })
 
