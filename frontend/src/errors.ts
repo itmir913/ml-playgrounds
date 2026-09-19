@@ -142,6 +142,10 @@ export const CLIENT_ERROR_CODES = [
   // 자기가 넣은 값으로 예측했다고 믿는데 실제로는 훈련 데이터의 평균이 들어간다.
   // 예측은 브라우저에서만 하므로(mlpx-spec.md 0.2) 이 코드는 서버에 없다.
   'PREDICTION_INPUT_INCOMPLETE',
+  // 숫자로 못 읽는 값이 수치 열에 들어왔다. **빈 칸과 끝까지 나눈다** - 학생이 할 일이
+  // 다르다(채우는 것과 고쳐 적는 것). 조용히 0으로 떨어뜨리면 **모델이 자신 있게 틀린
+  // 답을 낸다** (2026-09-19 R33 C-3).
+  'PREDICTION_INPUT_NOT_NUMBER',
 
   // 표 파일 가져오기 - 서버는 정규화된 CSV만 보므로 이 둘은 서버에 없다 (data/table.ts)
   'DATASET_FILE_TYPE_UNSUPPORTED',

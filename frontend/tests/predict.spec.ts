@@ -1031,6 +1031,45 @@ describe('일괄 예측 (open-decisions.md "일괄 예측은 행 × 모델 매�
     expect(page[2]?.[0]?.value).toBe('b')
   })
 
+  /**
+   * **숫자로 못 읽는 값은 조용히 0이 되면 안 된다** (2026-09-19 R33 C-3).
+   *
+   * 고치기 전에는 셋 다 답이 나왔고 벡터만 갈렸다 — 실측하면 이랬다:
+   *
+   * ```
+   * 키 '150'   -> [150, 40, 1, 0, 0]
+   * 키 '없음'   -> [  0, 40, 1, 0, 0]
+   * 키 '1,650' -> [  0, 40, 1, 0, 0]
+   * ```
+   *
+   * **표준화까지 지나면 그 0은 평균에서 한참 떨어진 값이고**, 모델은 자신 있게 틀린 답을
+   * 낸다. 실패도 경고도 없다. **교실에서 흔한 모양은 글자가 아니라 천 단위 쉼표다.**
+   */
+  it('숫자로 못 읽는 값은 그 칸만 실패한다 - 나머지 행은 계속 간다', () => {
+    const rows = [cellsOf(0), { ...cellsOf(0), 키: '없음' }, { ...cellsOf(0), 키: '1,650' }]
+    const page = predictPage([model], rows, preprocessors, predictors, noProba, fileColumns)
+
+    expect(page[0]?.[0]?.value).toBe('a')
+    for (const index of [1, 2]) {
+      const failure = page[index]?.[0]?.failure
+      expect(failure?.code, `row ${index}`).toBe('PREDICTION_INPUT_NOT_NUMBER')
+      // **어느 열인지 말한다.** 학생이 파일에서 고칠 자리를 찾는 유일한 단서다.
+      expect(failure?.params?.feature, `row ${index}`).toBe('키')
+    }
+  })
+
+  /** **빈 칸과 끝까지 나눈다.** 학생이 할 일이 다르다 — 채우는 것과 고쳐 적는 것. */
+  it('빈 칸과 숫자가 아닌 값은 다른 사유다', () => {
+    const rows = [
+      { ...cellsOf(0), 키: '' },
+      { ...cellsOf(0), 키: 'x' },
+    ]
+    const page = predictPage([model], rows, preprocessors, predictors, noProba, fileColumns)
+
+    expect(page[0]?.[0]?.failure?.code).toBe('PREDICTION_INPUT_INCOMPLETE')
+    expect(page[1]?.[0]?.failure?.code).toBe('PREDICTION_INPUT_NOT_NUMBER')
+  })
+
   it('모델이 보는 열이 파일에 없으면 빈 칸이 아니라 열이 없다고 말한다', () => {
     // 파일을 붙인 뒤 학생이 특성을 바꿔 재학습한 상태. 붙일 때는 통과했던 파일이다.
     const without = ['몸무게', '지역', '품종']

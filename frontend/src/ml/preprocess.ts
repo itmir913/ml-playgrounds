@@ -74,6 +74,18 @@ function toNumber(cell: string): number | null {
 }
 
 /**
+ * 이 칸이 **수치 열의 값으로 읽히는가.** 빈 칸은 여기서 참이 아니다 — 그건 결측이고
+ * 다른 자리가 먼저 잡는다(`ml/predict.ts`의 `PREDICTION_INPUT_INCOMPLETE`).
+ *
+ * **판정 규칙을 한 벌로 둔다** (2026-09-19 R33 C-3). 열을 수치로 볼지 정하는 것도
+ * (`detectKind`), 예측 입력을 거절할지 정하는 것도 같은 `toNumber`여야 한다 — 두 벌이면
+ * **학습이 수치로 본 열에 예측이 다른 잣대를 대게 되고**, 그 어긋남이 조용히 0을 만든다.
+ */
+export function readsAsNumber(cell: string): boolean {
+  return toNumber(cell) !== null
+}
+
+/**
  * 결측이 아닌 값이 전부 숫자로 읽히면 수치 열이다.
  *
  * **특성 열에도 타깃 열에도 같은 규칙을 쓴다.** 회귀가 타깃을 거부할 때

@@ -30,6 +30,7 @@ import { succeeded } from './results'
 import {
   experimentPreprocessor,
   targetValues,
+  readsAsNumber,
   transform,
   type ColumnKind,
   type Dataset,
@@ -121,6 +122,31 @@ export function inputVector(
   const first = blank[0]
   if (first !== undefined) {
     throw new ClientError('PREDICTION_INPUT_INCOMPLETE', { feature: first, count: blank.length })
+  }
+
+  /**
+   * **숫자로 못 읽는 값도 시끄럽게 거부한다** (2026-09-19 R33 C-3).
+   *
+   * 빈 칸을 조용히 채우지 않는 것과 **같은 판단이다.** 여기를 안 막으면 전처리가
+   * `?? 0`으로 떨어뜨려 **`없음`도 `1,650`도 0이 되고**, 표준화까지 지나면 그 0은 평균에서
+   * 한참 떨어진 값이라 **모델이 자신 있게 틀린 답을 낸다.** 실패도 경고도 없다.
+   *
+   * **닿는 길은 파일 예측이다.** 손으로 치는 칸은 `type="number"`라 브라우저가 막고,
+   * 파일 쪽은 열 이름만 보고 받는다(`data/columns.ts`). 교실에서 흔한 모양은 글자가
+   * 아니라 **천 단위 쉼표**다 — 학교 자료의 수가 `1,650`으로 적힌다.
+   *
+   * **쉼표를 받아 주지 않는다.** 학습 때 그 열은 `detectKind`가 **범주형**으로 판정하므로,
+   * 예측에서만 숫자로 읽으면 같은 글자를 학습과 예측이 다르게 해석한다.
+   */
+  const notNumbers = preprocessor.columns.filter(
+    (column) => column.kind === 'numeric' && !readsAsNumber(values[column.name] ?? ''),
+  )
+  const bad = notNumbers[0]?.name
+  if (bad !== undefined) {
+    throw new ClientError('PREDICTION_INPUT_NOT_NUMBER', {
+      feature: bad,
+      count: notNumbers.length,
+    })
   }
 
   // 한 줄짜리 표를 만들어 학습과 같은 길로 보낸다. 열 이름을 전처리기에서 뽑으므로
