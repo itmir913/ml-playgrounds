@@ -126,11 +126,12 @@
 못 잡았다.** 결함 자체는 진짜였지만(다른 입력에서 저쪽이 던진다) **틀 잡기가 어긋났고,
 그대로 고쳤으면 우리가 sklearn과 갈라졌을 것이다.**
 
-**개발 환경에 sklearn이 있다** — `frontend/scripts/generate_sklearn_fixtures.py`가
+**개발 환경에 sklearn이 있다** — `scripts/generate_sklearn_fixtures.py`가
 쓰는 그것이다. 네 줄이면 답이 나온다:
 
 ```python
 from sklearn.model_selection import train_test_split
+
 train_test_split(X, y, test_size=0.05, stratify=y, random_state=42)
 ```
 
