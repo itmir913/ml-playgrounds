@@ -28,6 +28,7 @@ import {
   sklearnReferenceModel,
   sklearnSvmModel,
   sklearnTreeModel,
+  splitBoundary,
   type SklearnForestDump,
 } from '../src/ml/engines/pyodide-serialize'
 import { loadModel, type ModelFile } from '../src/ml/models'
@@ -280,6 +281,62 @@ for (const [name, entry] of Object.entries(document.datasets)) {
     })
   })
 }
+
+/**
+ * **갈림값을 옮기는 규칙이 무엇을 지켜야 하는가.**
+ *
+ * 위 줄 대조가 이 함수를 이미 지나가지만, **그건 픽스처가 담은 나무에서만 그렇다.**
+ * 여기서는 규칙 자체를 적는다 — `sklearn이 왼쪽으로 보내는 값` 과 `우리 해석기가 왼쪽으로
+ * 보내는 값`이 **같은 집합**이어야 한다.
+ *
+ * sklearn: 단정도로 재서 `float32(x) <= t`면 왼쪽.
+ * 우리:    배정도 그대로 `x < b`면 왼쪽 (`ml/models/tree.ts`의 `classify`).
+ */
+describe('갈림값을 옮기는 규칙', () => {
+  /** `5.6`은 실제로 갈렸던 값이다 — `categorical` 벌의 `주당활동시간`. */
+  const thresholds = [5.6, 0, -0.5, 1, 2.5, 1e-7, 1234.5678, -9876.5]
+
+  it('sklearn이 왼쪽으로 보내는 값과 우리가 왼쪽으로 보내는 값이 같다', () => {
+    const wrong: string[] = []
+    for (const threshold of thresholds) {
+      const boundary = splitBoundary(threshold)
+      // 경계 언저리의 값들. **단정도 한 칸씩** 움직여야 규칙이 갈리는 자리를 지나간다.
+      const probes = [threshold, Math.fround(threshold), boundary, boundary * (1 + 1e-9)]
+      for (const near of probes) {
+        for (const step of [-2, -1, 0, 1, 2]) {
+          const x = near * (1 + step * 1e-7)
+          const sklearnGoesLeft = Math.fround(x) <= threshold
+          const weGoLeft = x < boundary
+          if (sklearnGoesLeft !== weGoLeft) {
+            wrong.push(`t=${threshold} x=${x}: sklearn=${String(sklearnGoesLeft)}`)
+          }
+        }
+      }
+    }
+    expect(wrong).toEqual([])
+  })
+
+  /**
+   * **임계값 자신이 데이터에 나타난다** — sklearn의 임계값은 관측값 둘의 중점이다.
+   * 그래서 이 한 점이 어느 쪽으로 가는지가 실제로 갈리는 자리다.
+   *
+   * **"경계는 늘 임계값보다 크다"고 적었다가 틀렸다** (2026-09-19). `float32(t) > t`인
+   * 임계값에서는 **경계가 임계값보다 작은 것이 맞다** — 그때는 sklearn도 `t`를 오른쪽으로
+   * 보내기 때문이다. 방향을 외우지 말고 **sklearn에게 물어서** 견준다.
+   */
+  it('임계값 자신을 sklearn과 같은 쪽으로 보낸다', () => {
+    for (const threshold of thresholds) {
+      expect(threshold < splitBoundary(threshold), `t=${threshold}`).toBe(
+        Math.fround(threshold) <= threshold,
+      )
+    }
+  })
+
+  it('유한하지 않은 값은 옮기지 않는다', () => {
+    expect(Number.isNaN(splitBoundary(Number.POSITIVE_INFINITY))).toBe(true)
+    expect(Number.isNaN(splitBoundary(Number.NaN))).toBe(true)
+  })
+})
 
 /**
  * **옮길 수 없는 것은 안 옮긴다** — 던지지 않고 `null`이다. 부르는 쪽이 그것을

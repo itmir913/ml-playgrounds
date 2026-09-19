@@ -49,6 +49,109 @@ function usableWidth(featureCount: number): boolean {
   return Number.isInteger(featureCount) && featureCount > 0
 }
 
+// ---------------------------------------------------------------------------
+// 나무의 갈림값 — 규칙이 두 군데서 다르다
+// ---------------------------------------------------------------------------
+
+/** 단정도 한 칸 옮기는 데 쓰는 창. **모듈에 하나만 둔다** — 노드마다 만들 것이 아니다. */
+const SINGLE = new Float32Array(1)
+const BITS = new Uint32Array(SINGLE.buffer)
+
+/**
+ * `value`보다 **큰 쪽으로 한 칸**인 단정도. 무한과 NaN은 그대로 돌려준다.
+ *
+ * 부호비트가 앞에 있어 **양수는 비트가 늘고 음수는 준다.** `-0`은 `+0`과 같은 수이지만
+ * 비트가 달라서, 올릴 때는 양의 최소 비정규수로 건너뛴다.
+ */
+function nextUpFloat32(value: number): number {
+  SINGLE[0] = value
+  const single = SINGLE[0] as number
+  if (!Number.isFinite(single)) return single
+  if (single === 0) {
+    BITS[0] = 1
+  } else if (single > 0) {
+    BITS[0] = (BITS[0] as number) + 1
+  } else {
+    BITS[0] = (BITS[0] as number) - 1
+  }
+  return SINGLE[0] as number
+}
+
+/** 배정도 한 칸. **경계가 동점에 걸렸을 때만 쓴다.** */
+const DOUBLE = new Float64Array(1)
+const DOUBLE_BITS = new BigUint64Array(DOUBLE.buffer)
+
+function nextUpDouble(value: number): number {
+  DOUBLE[0] = value
+  if (value === 0) {
+    DOUBLE_BITS[0] = 1n
+  } else if (value > 0) {
+    DOUBLE_BITS[0] = (DOUBLE_BITS[0] as bigint) + 1n
+  } else {
+    DOUBLE_BITS[0] = (DOUBLE_BITS[0] as bigint) - 1n
+  }
+  return DOUBLE[0] as number
+}
+
+/** 위와 반대 방향. */
+function nextDownFloat32(value: number): number {
+  SINGLE[0] = value
+  const single = SINGLE[0] as number
+  if (!Number.isFinite(single)) return single
+  if (single === 0) {
+    // 음의 최소 비정규수. 부호비트를 켜고 가수를 1로.
+    BITS[0] = 0x80000001
+  } else if (single > 0) {
+    BITS[0] = (BITS[0] as number) - 1
+  } else {
+    BITS[0] = (BITS[0] as number) + 1
+  }
+  return SINGLE[0] as number
+}
+
+/**
+ * sklearn의 갈림값을 **우리 해석기의 규칙으로 옮긴다.**
+ *
+ * 둘이 두 군데서 다르다.
+ *
+ * 1. sklearn은 `x <= t`면 왼쪽이고 **우리는 `x < t`면 왼쪽이다**
+ *    (`ml/models/tree.ts`의 `classify`). 두 규칙은 **딱 임계값에서만** 갈리는데,
+ *    sklearn의 임계값은 관측값 둘의 중점이라 **그 값이 실제로 데이터에 나타난다.**
+ * 2. **sklearn은 나무를 단정도로 비교한다** — `DecisionTreeClassifier`가 X를
+ *    `np.float32`로 바꿔 배우고 예측한다. 우리 해석기는 배정도 그대로 본다.
+ *
+ * 그래서 돌려주는 것은 **`float32(x) > t`가 되는 가장 작은 배정도**다: `t`보다 큰 첫
+ * 단정도를 찾고 그 앞 단정도와의 중점을 잡는다. 그 아래는 반올림해서 `t` 이하가 되고
+ * 위는 넘어간다.
+ *
+ * **2번을 빼먹으면 실물에서 갈린다** (2026-09-19에 픽스처 대조가 잡았다). `categorical`
+ * 벌의 한 행이 `주당활동시간 = 5.6`인데 임계값이 정확히 `float32(5.6)`이라, 배정도로 재면
+ * 오른쪽이고 sklearn은 왼쪽이었다.
+ *
+ * **여기가 TS인 이유** (2026-09-19) — 한때 이 식이 어댑터의 파이썬 조각과 픽스처
+ * 생성기에 **두 벌**로 있었고, *"둘이 같아야 한다"*를 지키는 것이 주석뿐이었다.
+ * 어댑터 쪽은 27.3MB를 받아야 돌아서 **어떤 검사도 그 코드를 지나가지 않았다.**
+ * 이제 파이썬은 `tolist()`만 하고, 이 함수가 `tests/sklearn-serialize.spec.ts`의
+ * 줄 대조를 그대로 받는다.
+ */
+export function splitBoundary(threshold: number): number {
+  if (!Number.isFinite(threshold)) return Number.NaN
+  const nearest = Math.fround(threshold)
+  // 반올림이 `t` 아래로 떨어졌으면 한 칸 올려 "t보다 큰 첫 단정도"로 만든다.
+  const above = nearest <= threshold ? nextUpFloat32(nearest) : nearest
+  const middle = (above + nextDownFloat32(above)) / 2
+  /**
+   * **중점 자신이 어느 쪽인지는 반올림이 정한다.** 단정도 둘의 딱 가운데는 **짝수 가수
+   * 쪽으로** 반올림되므로(IEEE 754의 ties-to-even), `above`의 가수가 홀수면 중점은 아래로
+   * 내려가 **왼쪽**이 된다. 그때 경계를 중점으로 잡으면 우리는 오른쪽이라 답해 **갈린다.**
+   *
+   * **절반의 임계값에서 그렇다.** 픽스처 여덟 벌이 이걸 못 잡은 이유는 실제 데이터의 값이
+   * 중점에 정확히 떨어지는 일이 드물어서이고, 그래서 **줄 대조가 아니라 규칙을 적은 검사가
+   * 잡았다** (`tests/sklearn-serialize.spec.ts`의 "갈림값을 옮기는 규칙", 2026-09-19).
+   */
+  return Math.fround(middle) > threshold ? middle : nextUpDouble(middle)
+}
+
 /**
  * 나무 하나를 파이썬이 받아쓴 모양. **sklearn `Tree` 객체의 배열 넷과 잎의 클래스다.**
  *
@@ -62,13 +165,8 @@ export interface SklearnTreeDump {
   /** `feature`. 잎이면 음수다(sklearn은 -2를 쓴다). */
   readonly feature: readonly number[]
   /**
-   * `threshold`를 **한 칸 올린 값**. 잎 자리는 아무 값이나 와도 안 쓴다.
-   *
-   * **왜 올리는가** — sklearn은 `x <= t`면 왼쪽인데 **우리 해석기는 `x < t`면
-   * 왼쪽이다**(`ml/models/tree.ts`의 `classify`). 두 규칙은 **딱 임계값에서만** 갈리고,
-   * sklearn의 임계값은 관측값 둘의 중점이라 **그 값이 실제로 데이터에 나타난다.**
-   * `nextafter(t, ∞)`로 올리면 `x <= t`와 `x < nextafter(t)`가 모든 유한 배정도에서
-   * 같은 답을 낸다 — 올리는 일은 파이썬이 한다(`numpy.nextafter`).
+   * `tree_.threshold` **그대로**. 옮기는 일은 `splitBoundary`가 한다. 잎 자리는 아무 값이나
+   * 와도 안 쓴다.
    */
   readonly threshold: readonly number[]
   /** 노드마다 `value`의 argmax. **잎에서만 쓴다.** `classes`의 인덱스다. */
@@ -127,7 +225,7 @@ function nodesOf(
     }
     if (threshold === undefined || !Number.isFinite(threshold)) return null
     if (!Number.isInteger(left) || !Number.isInteger(right)) return null
-    nodes.push([column, threshold, left, right])
+    nodes.push([column, splitBoundary(threshold), left, right])
   }
   return nodes
 }

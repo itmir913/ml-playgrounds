@@ -159,42 +159,24 @@ function integerOption(hp: Record<string, unknown>, name: string): number | null
 }
 
 /**
- * 나무 하나를 받아쓰는 도우미. **갈림값을 우리 해석기의 규칙으로 옮겨 보낸다.**
+ * 나무 하나를 받아쓰는 도우미. **`tolist()`뿐이다.**
  *
- * 둘이 두 군데서 다르다.
+ * **여기에 판단이 없다는 것이 이 조각의 전부다** (2026-09-19). 한때 갈림값을 우리
+ * 해석기의 규칙으로 옮기는 식(`numpy.nextafter`)이 여기 있었는데, **그 코드는 27.3MB를
+ * 받아야만 돌아서 어떤 검사도 지나가지 않았다** — 같은 식이 픽스처 생성기에도 있었고
+ * 둘이 같다는 것을 지키는 것은 주석뿐이었다. 옮기는 일은 이제
+ * `pyodide-serialize.ts`의 `splitBoundary`가 하고, 그쪽은 줄 대조를 그대로 받는다.
  *
- * 1. sklearn은 `x <= t`면 왼쪽이고 **우리는 `x < t`면 왼쪽이다**
- *    (`ml/models/tree.ts`의 `classify`).
- * 2. **sklearn은 나무를 float32로 비교한다** — 학습도 예측도 X를 `np.float32`로 바꿔
- *    한다. 우리 해석기는 배정도 그대로 본다.
- *
- * 그래서 보내는 값은 **`float32(x) > t`가 되는 가장 작은 배정도**다 — t보다 큰 첫
- * float32를 찾고 그 앞 float32와의 중점을 잡는다.
- *
- * **2번을 빼먹으면 실물에서 갈린다** (2026-09-19에 픽스처 대조가 잡았다). 어떤 행의
- * 값이 `5.6`인데 임계값이 정확히 `float32(5.6)`이라, 배정도로 재면 오른쪽이고 sklearn은
- * 왼쪽이었다. **`scripts/generate_sklearn_fixtures.py`의 `split_boundary`와 같은 식이고,
- * `tests/sklearn-serialize.spec.ts`가 그 식으로 만든 나무를 진짜 예측과 대조한다.**
+ * `value`의 argmax만 남았다 — 잎마다 클래스 수만큼의 수를 통째로 실어 보내지 않으려는
+ * 것이고(포레스트는 나무가 백 그루다), **고르는 규칙이 우리 쪽과 같다**(첫 최댓값).
  */
 const TREE_DUMP_HELPER = `
-def _mlpx_boundary(threshold):
-    t = _np.asarray(threshold, dtype=_np.float64)
-    nearest = t.astype(_np.float32)
-    above = _np.where(
-        nearest.astype(_np.float64) <= t,
-        _np.nextafter(nearest, _np.float32(_np.inf)),
-        nearest,
-    )
-    below = _np.nextafter(above, _np.float32(-_np.inf))
-    return (above.astype(_np.float64) + below.astype(_np.float64)) / 2.0
-
-
 def _mlpx_tree(t):
     return {
         "left": t.children_left.tolist(),
         "right": t.children_right.tolist(),
         "feature": t.feature.tolist(),
-        "threshold": _mlpx_boundary(t.threshold).tolist(),
+        "threshold": t.threshold.tolist(),
         "leafClass": t.value[:, 0, :].argmax(axis=1).tolist(),
     }
 `

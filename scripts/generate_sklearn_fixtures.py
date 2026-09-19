@@ -164,44 +164,23 @@ def targets_for(
 
 
 
-def split_boundary(threshold: np.ndarray) -> np.ndarray:
-    """sklearn의 갈림을 **우리 해석기의 규칙으로 옮긴 값**.
-
-    둘이 두 군데서 다르다.
-
-    1. sklearn은 `x <= t`면 왼쪽이고 **우리는 `x < t`면 왼쪽이다**
-       (`ml/models/tree.ts`의 `classify`).
-    2. **sklearn은 나무를 float32로 비교한다** - `DecisionTreeClassifier`가 X를
-       `np.float32`로 바꿔 배우고 예측한다. 우리 해석기는 배정도 그대로 본다.
-
-    그래서 경계는 **`float32(x) > t`가 되는 가장 작은 배정도**다: t보다 큰 첫 float32를
-    찾고, 그 앞 float32와의 중점을 잡는다. 그 아래는 반올림해서 t 이하가 되고 위는
-    넘어간다.
-
-    **2번을 빼먹으면 실물에서 갈린다** (2026-09-19에 실제로 걸렸다). `categorical` 벌의
-    한 행이 `주당활동시간 = 5.6`인데 임계값이 정확히 `float32(5.6)`이라, 배정도로 재면
-    오른쪽이고 sklearn은 왼쪽이었다.
-
-    **앱의 어댑터와 같은 식이어야 한다** (`ml/engines/pyodide-sklearn.ts`의
-    `TREE_DUMP_HELPER`). 갈리면 여기서 굳힌 것이 앱이 만드는 것과 다른 물건이 된다.
-    """
-    t = np.asarray(threshold, dtype=np.float64)
-    upper = np.float32(np.inf)
-    lower = np.float32(-np.inf)
-    nearest = t.astype(np.float32)
-    # 반올림이 t 아래로 떨어졌으면 한 칸 올려 "t보다 큰 첫 float32"로 만든다.
-    above = np.where(nearest.astype(np.float64) <= t, np.nextafter(nearest, upper), nearest)
-    below = np.nextafter(above, lower)
-    return (above.astype(np.float64) + below.astype(np.float64)) / 2.0
-
-
 def tree_dump(tree: Any) -> dict[str, Any]:
-    """나무 하나를 그대로 받아쓴다. 판단은 `split_boundary` 하나뿐이다."""
+    """나무 하나를 그대로 받아쓴다. **판단이 하나도 없다.**
+
+    **갈림값을 여기서 옮기지 않는다** (2026-09-19). sklearn은 `x <= t`면 왼쪽이고 단정도로
+    비교하는데, 그것을 우리 해석기의 규칙으로 옮기는 식이 한때 여기와 앱의 어댑터에 **두
+    벌**로 있었다. 어댑터 쪽은 27.3MB를 받아야 돌아서 **어떤 검사도 지나가지 않았고**,
+    둘이 같다는 것을 지키는 것은 주석뿐이었다.
+
+    이제 옮기는 것은 `ml/engines/pyodide-serialize.ts`의 `splitBoundary` 하나이고,
+    여기서 굳히는 것은 **sklearn이 말한 값 그대로**다. 그래서 `sklearn-serialize.spec.ts`의
+    줄 대조가 **옮기는 코드를 실제로 지나간다** - 앱이 쓰는 바로 그 코드다.
+    """
     return {
         "left": tree.children_left.tolist(),
         "right": tree.children_right.tolist(),
         "feature": tree.feature.tolist(),
-        "threshold": split_boundary(tree.threshold).tolist(),
+        "threshold": tree.threshold.tolist(),
         "leafClass": tree.value[:, 0, :].argmax(axis=1).tolist(),
     }
 
