@@ -167,3 +167,51 @@ describe('R23: the save is refused by quota', () => {
     expect(dangers()).toHaveLength(1)
   })
 })
+
+/**
+ * **시각화 손잡이는 확정된 정본에만 붙는다** (`architecture.md` §8.9.1).
+ *
+ * 파일을 고르는 중에 보이는 표는 **앞부분만 파싱한 것**이라, 그것으로 그린 분포는
+ * 전체의 분포가 아니다 — 숫자는 옆에 안내를 달아 구할 수 있어도 **그림은 그게 안 된다.**
+ * 치우친 히스토그램을 본 학생이 내리는 판단은 안내문을 안 읽는다.
+ *
+ * **이 판정에 검사가 없었다** (2026-09-22 감사가 잡았다). `:visualizable="!shown.draft"`를
+ * `visualizable`(늘 참)로 바꿔도 저장소가 조용했다.
+ */
+describe('시각화 손잡이는 확정된 정본에만 붙는다', () => {
+  const handles = (wrapper: ReturnType<typeof mount>): string[] =>
+    wrapper
+      .findAll('button')
+      .filter((button) => button.text().includes('시각화 열기'))
+      .map((button) => button.text())
+
+  it('고르는 중인 파일에는 손잡이가 없다', async () => {
+    const project = useProjectStore()
+    await project.save(emptyTabularProject())
+    const wrapper = mount(TabularPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+
+    wrapper.find('[class*="min-h-full"]').element.dispatchEvent(dropEvent([csv('draft.csv')]))
+    await settle()
+
+    const panel = wrapper.vm as unknown as PanelInternals
+    expect(panel.opened).not.toBeNull()
+    expect(handles(wrapper)).toEqual([])
+  })
+
+  it('확정하면 열마다 손잡이가 선다', async () => {
+    const project = useProjectStore()
+    await project.save(emptyTabularProject())
+    const wrapper = mount(TabularPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+
+    wrapper.find('[class*="min-h-full"]').element.dispatchEvent(dropEvent([csv('good.csv')]))
+    await settle()
+    await (wrapper.vm as unknown as PanelInternals).apply()
+    await settle()
+
+    // 표가 `a`·`b` 두 열이고, 넓은 화면과 좁은 화면의 검사기가 각각 그린다.
+    expect(handles(wrapper).length).toBeGreaterThanOrEqual(2)
+    expect(handles(wrapper)[0]).toContain('a')
+  })
+})

@@ -18,8 +18,13 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import AppDialog from '../src/components/AppDialog.vue'
 import { stubDialogElement } from './fixtures/image-workers'
 
-function render(open: boolean) {
-  return mount(AppDialog, { props: { open, title: '제목' } })
+function render(open: boolean, extra: Record<string, unknown> = {}) {
+  return mount(AppDialog, { props: { open, title: '제목', ...extra } })
+}
+
+/** 바깥을 누른 것. **`<dialog>` 자신이 대상일 때만 바깥이다** — 안쪽 요소는 안 온다. */
+async function clickBackdrop(wrapper: ReturnType<typeof render>): Promise<void> {
+  await wrapper.find('dialog').trigger('click')
 }
 
 /** 지금 이 창이 열려 있는가. **내용이 아니라 `<dialog>` 자신에게 묻는다.** */
@@ -57,5 +62,56 @@ describe('열림은 `open`이 쥔다', () => {
     const element = wrapper.find('dialog').element
     wrapper.unmount()
     expect(element.open).toBe(false)
+  })
+})
+
+/**
+ * **바깥을 눌러 닫히는가.** 기본은 닫히고, `persistent`는 안 닫힌다.
+ *
+ * **이 프롭에 검사가 없었다** (2026-09-22 감사가 잡았다). `if (props.persistent) return`을
+ * 지워도 저장소가 조용했다 — 그림을 보며 축을 바꾸는 동안 커서가 캔버스 밖으로 나가면
+ * 창이 닫혀 **학생이 하던 일을 잃는데**, 그 되돌아감을 아무것도 안 막고 있었다.
+ */
+describe('바깥 클릭은 `persistent`가 쥔다', () => {
+  it('기본은 바깥을 누르면 닫자고 올린다', async () => {
+    const wrapper = render(true)
+    await clickBackdrop(wrapper)
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
+  it('`persistent`면 바깥을 눌러도 아무 말도 안 한다', async () => {
+    const wrapper = render(true, { persistent: true })
+    await clickBackdrop(wrapper)
+    expect(wrapper.emitted('close')).toBeUndefined()
+  })
+
+  /** **`Esc`는 그대로 닫는다.** 나가는 길이 없는 창을 만드는 것이 아니다. */
+  it('`persistent`여도 `<dialog>`가 스스로 닫으면 그대로 올린다', async () => {
+    const wrapper = render(true, { persistent: true })
+    await wrapper.find('dialog').trigger('close')
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+})
+
+/**
+ * **창의 크기를 `fill`이 쥔다.**
+ *
+ * **이 프롭에도 검사가 없었다** (2026-09-22 감사). 갈래를 `'w-full max-w-lg'` 고정으로
+ * 바꿔도 전부 초록이었고, 그러면 **시각화 창이 조용히 좁은 창으로 되돌아간다** —
+ * 그림은 세로로 읽는 것이라 높이가 곧 읽을 수 있는 눈금의 수다.
+ */
+describe('크기는 `fill`이 쥔다', () => {
+  it('기본은 좁은 창이다', () => {
+    const classes = render(true).find('dialog').classes()
+    expect(classes).toContain('max-w-lg')
+    expect(classes).not.toContain('dialog-fill')
+  })
+
+  it('`fill`이면 화면을 채운다 — 좁은 창의 천장을 안 쓴다', () => {
+    const classes = render(true, { fill: true }).find('dialog').classes()
+    expect(classes).toContain('dialog-fill')
+    expect(classes).not.toContain('max-w-lg')
+    // **`w-full`도 함께 빠진다** — 같이 서면 특이도가 같아 `width`가 죽는다.
+    expect(classes).not.toContain('w-full')
   })
 })

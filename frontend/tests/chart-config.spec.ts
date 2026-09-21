@@ -155,6 +155,19 @@ describe('히스토그램과 막대그래프는 다른 그림이다', () => {
     expect(beginAtZero(scales?.['y'])).toBe(true)
   })
 
+  /**
+   * **세는 축의 눈금은 정수다** (2026-09-22, 실물에서 봤다). 값이 작으면 Chart.js가
+   * `0.1 · 0.2 …`를 세운다 — 학번처럼 값마다 한 줄인 열에서 모든 막대가 1인 그림의
+   * 눈금이 전부 소수였다. `0.5개`라는 것은 없다.
+   */
+  it('도수 축의 눈금이 정수다', () => {
+    const scales = barOptions(PAINT, TEXT).scales
+    const ticks = scales?.['y']?.ticks as { precision?: number } | undefined
+    expect(ticks?.precision).toBe(0)
+    // 글자 색은 그대로 물려받는다 — 눈금 설정을 덮어쓰면서 배색을 잃지 않는다.
+    expect(scales?.['y']?.ticks?.color).toBe(PAINT.ink)
+  })
+
   /** **애니메이션은 꺼져 있다.** 상한의 근거가 된 실측이 그 상태에서 나왔다 (#28-5). */
   it('애니메이션이 꺼져 있다', () => {
     expect(barOptions(PAINT, TEXT).animation).toBe(false)

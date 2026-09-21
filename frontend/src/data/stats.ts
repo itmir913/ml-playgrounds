@@ -92,29 +92,36 @@ export interface Histogram {
 /**
  * 구간 폭을 정하는 규칙 — **numpy `histogram_bin_edges`의 `'auto'`를 그대로 따른다.**
  *
- * 스터지스와 프리드먼–다이아코니스 중 **넓은 쪽**을 쓴다. 우리가 고르지 않는 이유는
- * 둘이다.
+ * ```python
+ * fd_bw_corrected = max(fd_bw, sqrt_bw / 2)
+ * return min(fd_bw_corrected, sturges_bw)
+ * ```
+ *
+ * 우리가 안 고르는 이유는 둘이다.
  *
  * 1. **구간 수를 상수로 박으면 근거 없는 임계값이 된다.** 20이든 30이든 왜 그 수인지
  *    답할 말이 없고, 이 저장소는 그런 상수를 안 만든다.
  * 2. **학생이 나중에 `numpy.histogram`을 부를 때 같은 그림이 나온다.** 이 도구는
  *    종착지가 아니라 파이썬으로 가는 발판이다 (`CLAUDE.md` §2).
  *
- * 프리드먼–다이아코니스는 사분위 범위를 보므로 **이상치에 안 흔들리고**, 스터지스는
- * 표본이 작을 때 구간이 너무 잘게 쪼개지는 것을 막는다. 넓은 쪽을 고르는 것이
- * numpy의 규칙이고, 두 규칙이 서로의 실패를 막는 방식이다.
+ * **한때 이 함수가 `max(sturges, fd)`였다** (2026-09-22 감사가 잡았다). 방향이 반대라
+ * 구간이 **더 적게** 나왔다 — 같은 1,000점에서 numpy가 11을 줄 때 8을 줬다. 주석도
+ * 스펙도 결정문도 *"넓은 쪽"*이라 적혀 있었고, **스펙은 코드와 같은 식을 다시 계산해
+ * 견주는 항진명제라 아무것도 안 물었다.** 지금은 numpy가 실제로 내는 수를 못 박는다.
+ *
+ * **`sqrt/2`가 바닥인 이유도 numpy의 것이다** — 프리드먼–다이아코니스는 사분위 범위가
+ * 아주 작은 열에서 폭을 0에 가깝게 만들어 구간이 터진다. 그 바닥이 있으므로 여기서
+ * `iqr === 0`을 따로 막을 필요가 없다.
  */
 function autoBinWidth(sorted: readonly number[], range: number): number {
   const n = sorted.length
   const sturges = range / (Math.log2(n) + 1)
+  const sqrt = range / Math.sqrt(n)
 
   const iqr = quantile(sorted, 0.75) - quantile(sorted, 0.25)
-  // **사분위 범위가 0이면 프리드먼–다이아코니스를 안 쓴다.** 값의 절반 이상이 한 점에
-  // 몰린 열이 그렇고, 그때 폭 0을 쓰면 구간이 무한히 나온다. numpy도 같은 자리에서
-  // 스터지스만 쓴다.
-  const fd = iqr > 0 ? (2 * iqr) / Math.cbrt(n) : 0
+  const fd = (2 * iqr) / Math.cbrt(n)
 
-  return Math.max(sturges, fd)
+  return Math.min(Math.max(fd, sqrt / 2), sturges)
 }
 
 /**

@@ -81,25 +81,28 @@ describe('히스토그램', () => {
   })
 
   /**
-   * **numpy `histogram_bin_edges`의 `'auto'`를 따른다** — 스터지스와
-   * 프리드먼–다이아코니스 중 **넓은 폭**이다. 값을 박지 않고 규칙을 다시 계산해서 본다:
-   * 우리 코드가 고른 구간 수가 그 규칙이 내는 수와 같아야 한다.
+   * **numpy `histogram_bin_edges`의 `'auto'`가 내는 수를 그대로 못 박는다.**
+   *
+   * ```python
+   * fd_bw_corrected = max(fd_bw, sqrt_bw / 2)
+   * return min(fd_bw_corrected, sturges_bw)
+   * ```
+   *
+   * **한때 이 검사가 코드와 같은 식을 다시 계산해 견줬다** (2026-09-22 감사가 잡았다).
+   * 그러면 식이 틀려도 양쪽이 같이 틀려서 **항진명제가 된다** — 실제로 코드가
+   * `max(sturges, fd)`(방향이 반대)였는데 이 검사는 초록이었다. 아래 수들은
+   * `numpy.histogram_bin_edges(..., bins='auto')`를 **직접 돌려서** 받은 값이다
+   * (`uv run python`, 2026-09-22).
    */
-  it('구간 폭이 numpy의 `auto`와 같다', () => {
-    const values = series(1000).map((index) => Math.sin(index) * 50)
-    const sorted = [...values].sort((a, b) => a - b)
-    const range = (sorted[sorted.length - 1] as number) - (sorted[0] as number)
-
-    const quantile = (fraction: number): number => {
-      const position = (sorted.length - 1) * fraction
-      const low = sorted[Math.floor(position)] as number
-      const high = sorted[Math.ceil(position)] as number
-      return low + (high - low) * (position - Math.floor(position))
-    }
-    const iqr = quantile(0.75) - quantile(0.25)
-    const width = Math.max(range / (Math.log2(values.length) + 1), (2 * iqr) / Math.cbrt(1000))
-
-    expect(histogram(values, 100_000).counts.length).toBe(Math.ceil(range / width))
+  it.each([
+    ['사인 1000점', Array.from({ length: 1000 }, (_v, i) => Math.sin(i) * 50), 11],
+    ['피보나치 10점', [1, 2, 2, 3, 5, 8, 13, 21, 34, 55], 5],
+    ['한 점에 몰린 102점', [...new Array<number>(100).fill(5), 0, 10], 21],
+    ['0..10', series(11), 5],
+    ['키 7점', [150, 160, 165, 170, 175, 180, 190], 4],
+    ['3점', [1, 2, 3], 3],
+  ])('구간 수가 numpy의 `auto`와 같다 — %s', (_name, values, bins) => {
+    expect(histogram(values, 100_000).counts.length).toBe(bins)
   })
 
   /**
