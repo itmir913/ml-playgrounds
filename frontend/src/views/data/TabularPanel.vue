@@ -41,6 +41,7 @@ import {
   probeNote,
   type TableDocument,
 } from '@/data/table'
+import ChartDialog from './ChartDialog.vue'
 import ColumnInspector from './ColumnInspector.vue'
 import { TABLE_PREVIEW_ROW_COUNT } from '@/limits'
 import { applyDataset, readDataset } from '@/project/dataset'
@@ -250,6 +251,21 @@ async function apply(): Promise<void> {
 function kindOf(column: ColumnSummary): string {
   return t(`columnKind.${column.kind}`)
 }
+
+/**
+ * 그림으로 보고 있는 열. `null`이면 창이 닫혀 있다 (architecture.md §8.9.1).
+ *
+ * **확정된 정본에만 붙는다.** 고르는 중인 파일은 앞부분만 파싱한 것이라 그것으로 그린
+ * 분포가 전체의 분포가 아니고, 그 사실은 숫자와 달리 **그림 옆에 안내를 달아 구할 수
+ * 없다.** 그래서 `opened`가 있는 동안에는 손잡이 자체가 없다.
+ */
+const charting = ref<string | null>(null)
+
+/**
+ * 그림이 쓰는 씨앗. **프로젝트의 `split.randomState`를 그대로 따라간다** — 표본을 뽑는
+ * 씨앗이 둘이면 같은 프로젝트가 화면마다 다른 표본을 그린다 (`ml/sample.ts`와 같은 규칙).
+ */
+const chartSeed = computed(() => project.file?.document.settings.split.randomState ?? 0)
 </script>
 
 <template>
@@ -415,7 +431,11 @@ function kindOf(column: ColumnSummary): string {
       >
         <h3 class="leading-tight font-bold text-ink-soft">{{ t('data.tabular.inspector') }}</h3>
         <div class="flex min-h-0 flex-1 flex-col">
-          <ColumnInspector :columns="shown.columns" />
+          <ColumnInspector
+            :columns="shown.columns"
+            :visualizable="!shown.draft"
+            @visualize="charting = $event"
+          />
         </div>
       </aside>
     </div>
@@ -441,9 +461,28 @@ function kindOf(column: ColumnSummary): string {
         {{ t('data.tabular.inspector') }}
       </summary>
       <div class="max-h-72 overflow-y-auto border-t border-line p-3">
-        <ColumnInspector :columns="shown.columns" />
+        <ColumnInspector
+          :columns="shown.columns"
+          :visualizable="!shown.draft"
+          @visualize="charting = $event"
+        />
       </div>
     </details>
+
+    <!--
+      **그림은 표를 밀어내지 않는다** (§8.9.1). 표와 검사기가 이미 두 열을 채우고 있어
+      셋째 칸이 들어갈 자리가 없고, 세로로 펴면 §8.10.1을 데이터 화면에서만 어기게 된다.
+    -->
+    <ChartDialog
+      v-if="saved && charting !== null"
+      open
+      kind="tabular"
+      :dataset="saved.dataset"
+      :columns="saved.columns"
+      :column="charting"
+      :random-state="chartSeed"
+      @close="charting = null"
+    />
 
     <input ref="fileInput" type="file" :accept="accept" class="hidden" @change="onPick" />
 

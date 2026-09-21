@@ -1,3 +1,9 @@
+// @vitest-environment jsdom
+// **왜 jsdom인가.** 이 스펙이 시각화 도구 등록부(`data/charts.ts`)를 읽는데, 그
+// 등록부가 지연 로딩으로 그림 부품들을 가리키고 그 부품들이 배색 토큰을 읽는다
+// (`useChartTokens`). **실제로 `document`에 닿지는 않는다** — 지연 로딩이라 여기서
+// 평가되지 않는다. 다만 `ui-rules`의 그물은 임포트를 따라가므로, 안 밝히면 그 그물이
+// 운다. 밝히는 값이 그물을 무르게 하는 것보다 싸다 (2026-09-21).
 /**
  * 로케일 파일 사이의 계약.
  *
@@ -34,6 +40,7 @@ import { ENGINE_STATES, RUNTIMES, TRAINING_LOCATIONS, UNAVAILABLE_REASONS } from
 import { parametersFor } from '../src/ml/hyperparams'
 import { metricsOf } from '../src/ml/metrics'
 import { PER_CLASS_METRICS } from '../src/ml/results'
+import { CHART_BLOCKS, CHART_TOOLS } from '../src/data/charts'
 import { COLUMN_KINDS } from '../src/ml/preprocess'
 import { FEATURE_NOTES, requiredTargetKind } from '../src/ml/selection'
 import { EXPORT_STATES } from '../src/project/export-state'
@@ -540,6 +547,39 @@ describe('프런트엔드 전용 코드', () => {
     }
   })
 
+  /**
+   * 시각화 도구와 그 잠금 이유 (`data/charts.ts`). **양방향으로 본다** — 등록부에
+   * 있는데 문구가 없으면 화면에 키가 그대로 뜨고, 문구만 있고 등록부에 없으면
+   * 아무도 안 부르는 문장이 남는다.
+   */
+  it('시각화 도구마다 이름이 있고 남는 것이 없다', () => {
+    for (const tool of CHART_TOOLS) {
+      expect(english.has(`data.charts.${tool.id}.name`), tool.id).toBe(true)
+      expect(korean.has(`data.charts.${tool.id}.name`), tool.id).toBe(true)
+    }
+
+    const ids = new Set(CHART_TOOLS.map((tool) => tool.id))
+    const orphans = [...english.keys()]
+      .filter((key) => key.endsWith('.name') && key.startsWith('data.charts.'))
+      .map((key) => key.slice('data.charts.'.length, -'.name'.length))
+      .filter((id) => !ids.has(id))
+    expect(orphans).toEqual([])
+  })
+
+  it('그림이 잠기는 이유마다 문구가 있고 남는 것이 없다', () => {
+    for (const block of CHART_BLOCKS) {
+      expect(english.has(`data.charts.blocked.${block}`), block).toBe(true)
+      expect(korean.has(`data.charts.blocked.${block}`), block).toBe(true)
+    }
+
+    const declared = new Set<string>(CHART_BLOCKS)
+    const extra = [...english.keys()]
+      .filter((key) => key.startsWith('data.charts.blocked.'))
+      .map((key) => key.slice('data.charts.blocked.'.length))
+      .filter((name) => !declared.has(name))
+    expect(extra).toEqual([])
+  })
+
   it('등록부의 모델과 실행 방법마다 이름이 있다', () => {
     // **이름은 두 벌이고 서로 독립이다** (open-decisions.md "무엇을 학습할 수 있는지는
     // 서버가 알려준다"). 화면의 "결정 트리 / 순수 JS"는 합친 이름이 아니라 두 번 조회해
@@ -863,6 +903,8 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
     'scalingMethod.', //   〃
     'scalingBasis.', // 스케일링 방식마다 기준을 읽는 말이 있다 (none만 없다)
     'categoricalEncoding.', //   〃
+    'data.charts.', // 시각화 도구마다 이름이 있고 남는 것이 없다
+    'data.charts.blocked.', // 그림이 잠기는 이유마다 문구가 있고 남는 것이 없다
     'columnKind.', // 열 자료형·내보내기 상태·언어·포트폴리오 문항마다 이름이 있다
     'save.', //   〃
     'language.', //   〃

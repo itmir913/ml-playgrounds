@@ -16,13 +16,11 @@
  * 구성원"이라고 말하므로 표본 안에서 고르면 거짓말이 된다.
  */
 
-import { uniformInt } from 'pure-rand/distribution/uniformInt'
-import { xoroshiro128plus } from 'pure-rand/generator/xoroshiro128plus'
-
 import { ClientError } from '../errors'
 import { dataSnapshot, type Experiment, type Preprocessing } from '../project/schema'
 import { KMEANS_FORMAT, kmeansPredict, parseKMeansModel, type KMeansModel } from './models'
 import { transform, type Dataset, type FittedColumn, type Preprocessor } from './preprocess'
+import { sampleIndices } from './shuffle'
 
 /**
  * 훈련 행렬의 열 하나. **전처리기의 열과 행렬의 열은 1:1이 아니다** — 원핫이면 열
@@ -675,7 +673,9 @@ export function scatterPoints(
 ): ScatterData {
   const total = assignment.rows.length
   const picked =
-    total <= limit ? assignment.rows.map((_row, index) => index) : sample(total, limit, randomState)
+    total <= limit
+      ? assignment.rows.map((_row, index) => index)
+      : sampleIndices(total, limit, randomState)
 
   const points = picked.map((index) => {
     const row = matrix[index]!
@@ -687,26 +687,4 @@ export function scatterPoints(
   })
 
   return { points, drawn: points.length, total }
-}
-
-/**
- * `count`개 중 `size`개를 시드로 뽑는다. **오름차순으로 돌려준다.**
- *
- * 부분 Fisher-Yates다 — 앞에서부터 `size`번만 섞으면 전체를 섞을 필요가 없다.
- * `ml/split.ts`와 같은 난수원을 쓴다. `Math.random`을 쓰면 시드를 줄 수 없어 같은
- * 설정이 같은 그림을 못 준다.
- */
-function sample(count: number, size: number, seed: number): number[] {
-  const pool = Array.from({ length: count }, (_value, index) => index)
-  const rng = xoroshiro128plus(seed)
-  const take = Math.min(size, count)
-
-  for (let i = 0; i < take; i += 1) {
-    const j = uniformInt(rng, i, count - 1)
-    const swap = pool[i] as number
-    pool[i] = pool[j] as number
-    pool[j] = swap
-  }
-
-  return pool.slice(0, take).sort((a, b) => a - b)
 }

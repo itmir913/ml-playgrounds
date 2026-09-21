@@ -238,6 +238,51 @@
       "sheet": "Choose a sheet",
       "unique": "Distinct values",
       "use": "Use this data"
+    },
+    "charts": {
+      "title": "Data visualization",
+      "lead": "Pick a column to see a chart that fits it. Look at the shape of your data before you train.",
+      "column": "Selected column",
+      "open": "Open visualization",
+      "axisCount": "Count",
+      "noValues": "There is nothing to draw.",
+      "noValuesNext": "Every value in this column is empty or cannot be read as a number. Try another column.",
+      "nothingToDraw": "No chart fits this column.",
+      "missing": "{count} empty row is left out of the chart. | {count} empty rows are left out of the chart.",
+      "blocked": {
+        "needsNumeric": "Only numeric columns can be drawn this way.",
+        "needsCategorical": "Only categorical columns can be drawn this way.",
+        "needsAnotherNumeric": "This needs at least two numeric columns."
+      },
+      "histogram": {
+        "name": "Histogram",
+        "series": "Count",
+        "point": "{range} · {count}",
+        "capped": "There were too many bins, so they were reduced to {count}."
+      },
+      "bar": {
+        "name": "Bar chart",
+        "series": "Count",
+        "point": "{value} · {count}",
+        "omitted": "There are too many distinct values, so only {shown} are drawn. ({distinct} in total, {rows} rows not drawn)"
+      },
+      "box": {
+        "name": "Box plot",
+        "groupBy": "Split by",
+        "groupNone": "No split",
+        "point": "Minimum {min} · Q1 {q1} · Median {median} · Q3 {q3} · Maximum {max}",
+        "outliers": "{count} value beyond the whiskers is drawn as a dot. | {count} values beyond the whiskers are drawn as dots."
+      },
+      "scatter": {
+        "name": "Scatter plot",
+        "series": "Data",
+        "yAxis": "Y axis",
+        "colorBy": "Color by",
+        "colorNone": "No color",
+        "point": "{name} · x {x} · y {y}",
+        "sampled": "There are too many dots to draw them all, so only some are shown. ({drawn} of {total} rows)",
+        "skipped": "{count} rows could not be drawn because a value is empty."
+      }
     }
   },
   "columnKind": {

@@ -238,6 +238,51 @@
       "sheet": "시트 선택",
       "unique": "값 종류 수",
       "use": "이 데이터 사용"
+    },
+    "charts": {
+      "title": "데이터 시각화",
+      "lead": "열을 하나 선택하면 그 열에 맞는 그림을 보여 줍니다. 학습하기 전에 데이터가 어떻게 생겼는지 확인하세요.",
+      "column": "선택한 열",
+      "open": "시각화 열기",
+      "axisCount": "개수",
+      "noValues": "그릴 수 있는 값이 없습니다.",
+      "noValuesNext": "이 열은 값이 모두 비어 있거나 수로 읽히지 않습니다. 다른 열을 선택해 보세요.",
+      "nothingToDraw": "이 열로 그릴 수 있는 그림이 없습니다.",
+      "missing": "빈 칸 {count}행은 그림에서 제외했습니다.",
+      "blocked": {
+        "needsNumeric": "수치 열에서만 그릴 수 있습니다.",
+        "needsCategorical": "범주 열에서만 그릴 수 있습니다.",
+        "needsAnotherNumeric": "수치 열이 두 개 이상 있어야 합니다."
+      },
+      "histogram": {
+        "name": "히스토그램",
+        "series": "개수",
+        "point": "{range} · {count}개",
+        "capped": "구간이 너무 많아 {count}개로 줄였습니다."
+      },
+      "bar": {
+        "name": "막대그래프",
+        "series": "개수",
+        "point": "{value} · {count}개",
+        "omitted": "값 종류가 많아 {shown}개만 그렸습니다. (전체 {distinct}종, 그리지 않은 {rows}행)"
+      },
+      "box": {
+        "name": "상자 그림",
+        "groupBy": "구분 기준",
+        "groupNone": "구분 없음",
+        "point": "최솟값 {min} · 제1사분위수 {q1} · 중앙값 {median} · 제3사분위수 {q3} · 최댓값 {max}",
+        "outliers": "수염 밖의 값 {count}개를 점으로 표시했습니다."
+      },
+      "scatter": {
+        "name": "산점도",
+        "series": "데이터",
+        "yAxis": "세로축",
+        "colorBy": "색 구분",
+        "colorNone": "색 구분 없음",
+        "point": "{name} · 가로 {x} · 세로 {y}",
+        "sampled": "점이 너무 많아 일부만 그렸습니다. (전체 {total}행 중 {drawn}행)",
+        "skipped": "값이 비어 있는 {count}행은 그리지 못했습니다."
+      }
     }
   },
   "columnKind": {

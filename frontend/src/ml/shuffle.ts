@@ -45,6 +45,36 @@ export function labelSeed(randomState: number, label: string): number {
   return randomState ^ Number.parseInt(hashText(label).slice(0, 8), 16)
 }
 
+/**
+ * `count`개 중 `size`개를 시드로 뽑는다. **오름차순으로 돌려준다.**
+ *
+ * 부분 Fisher-Yates다 — 앞에서부터 `size`번만 섞으면 전체를 섞을 필요가 없다.
+ * `ml/split.ts`와 같은 난수원을 쓴다. `Math.random`을 쓰면 시드를 줄 수 없어 같은
+ * 설정이 같은 그림을 못 준다.
+ *
+ * **오름차순으로 돌려주는 것이 계약의 일부다.** 부르는 쪽이 그림을 그리는데, 그리는
+ * 순서가 겹침의 위아래를 정한다 — 표본 뽑기의 부산물로 그것이 흔들릴 이유가 없다.
+ *
+ * **부르는 곳이 둘이다** (2026-09-21). 군집 산점도(`ml/clusters.ts`)와 데이터 화면의
+ * 산점도(`data/stats.ts`)이고, 한때 앞엣것 안의 private 함수였다. 베껴 두면 같은
+ * 씨앗에서 두 그림의 표본이 갈릴 수 있고 **그 어긋남은 둘을 나란히 놓기 전에는 안
+ * 보인다** — 이 파일 머리말이 셔플에 대해 적어 둔 것과 같은 이유다.
+ */
+export function sampleIndices(count: number, size: number, seed: number): number[] {
+  const pool = Array.from({ length: count }, (_value, index) => index)
+  const rng = xoroshiro128plus(seed)
+  const take = Math.min(size, count)
+
+  for (let i = 0; i < take; i += 1) {
+    const j = uniformInt(rng, i, count - 1)
+    const swap = pool[i] as number
+    pool[i] = pool[j] as number
+    pool[j] = swap
+  }
+
+  return pool.slice(0, take).sort((a, b) => a - b)
+}
+
 /** 라벨별로 원본 행 번호를 모은다. 등장 순서를 지켜야 결과가 결정적이다. */
 export function groupByLabel(
   rows: readonly number[],

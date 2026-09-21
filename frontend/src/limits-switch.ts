@@ -29,6 +29,7 @@ import { readLimitsOff, writeLimitsOff } from './project/storage'
 
 import {
   CLUSTER_SCATTER_POINT_LIMIT,
+  DATA_SCATTER_POINT_LIMIT,
   IMAGE_PREDICT_PAGE_SIZE,
   MAX_DATASET_COLUMNS,
   MAX_DATASET_ROWS,
@@ -133,6 +134,15 @@ export function imagePredictPageSize(): number {
 /** 산점도에 그릴 점의 수. 넘으면 표본을 뽑는다 (`ml/clusters.ts`의 `scatterPoints`). */
 export function clusterScatterPointLimit(): number {
   return open(CLUSTER_SCATTER_POINT_LIMIT)
+}
+
+/**
+ * 데이터 화면의 산점도에 그릴 점의 수 (`data/stats.ts`의 `scatterSample`).
+ *
+ * **위와 나란히 있고 값도 같지만 다른 상수다** — 이유는 `limits.ts`의 그 주석이 갖는다.
+ */
+export function dataScatterPointLimit(): number {
+  return open(DATA_SCATTER_POINT_LIMIT)
 }
 
 /**

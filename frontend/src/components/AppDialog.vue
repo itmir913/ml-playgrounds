@@ -15,6 +15,16 @@ const props = defineProps<{
   open: boolean
   title: string
   description?: string
+  /**
+   * 넓은 창인가. **기본은 좁은 창이다** — 이 저장소의 대화상자는 대개 묻고 답하는
+   * 자리이고, 거기서는 좁은 것이 읽기 쉽다.
+   *
+   * **그림을 담는 창 하나 때문에 생겼다** (`ChartDialog.vue`, 2026-09-21). 상자 그림에
+   * 상자가 여럿 서거나 히스토그램의 구간이 스무 개만 돼도 `max-w-lg`(32rem) 안에서는
+   * 막대가 자기 이름보다 좁아진다. **갈래를 boolean으로 둔 이유는 지금 둘뿐이기
+   * 때문이다** — 셋째가 생기면 그때 이름 있는 크기로 바꾼다.
+   */
+  wide?: boolean
 }>()
 
 const emit = defineEmits<{ close: [] }>()
@@ -44,7 +54,8 @@ function onBackdrop(event: MouseEvent): void {
 <template>
   <dialog
     ref="dialog"
-    class="m-auto w-full max-w-lg rounded-card border border-line bg-surface p-0 text-ink shadow-pop backdrop:bg-slate-900/40"
+    class="m-auto w-full rounded-card border border-line bg-surface p-0 text-ink shadow-pop backdrop:bg-slate-900/40"
+    :class="props.wide ? 'max-w-4xl' : 'max-w-lg'"
     @close="emit('close')"
     @click="onBackdrop"
   >

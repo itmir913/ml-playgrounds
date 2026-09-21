@@ -100,6 +100,12 @@ export const ACTION_ICONS = {
   written: Check,
   /** 아직 안 쓴 문항. **표시 없음과 미완료를 가른다** - 빈 자리는 아무 말도 안 한다. */
   unwritten: Circle,
+  /**
+   * 이 열을 그림으로 본다 (`architecture.md` §8.9.1). **결과 화면의 단계 그림과 같은
+   * 아이콘이지만 다른 이름이다** — 하나는 단계의 표시이고 하나는 동작이라, 나중에
+   * 한쪽만 그림을 바꿀 수 있어야 한다 (`editDone`과 `written`이 갈린 것과 같다).
+   */
+  visualize: ChartColumn,
   addPhoto: ImagePlus,
   remove: Trash2,
   dismiss: X,

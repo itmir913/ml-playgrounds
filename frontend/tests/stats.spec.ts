@@ -1,0 +1,289 @@
+/**
+ * 데이터 화면 그림의 계산 (`data/stats.ts`).
+ *
+ * **그림은 그럴듯하게 그려지면서 틀린다.** 구간이 하나 밀려도, 마지막 값이 어느 구간에도
+ * 안 들어가도, 표본이 새로고침마다 달라져도 **막대는 나온다.** 그래서 이 계층이 화면
+ * 밖에 있고(`architecture.md` §8.9.1) 여기가 그것을 무는 자리다.
+ *
+ * **바깥의 규약을 따르는 자리는 그 규약으로 검사한다** — numpy의 `'auto'` 구간 폭과
+ * 튜키의 1.5배 수염이다. 우리가 고른 값이 아니므로 "지금 코드가 내는 값"으로 못 박으면
+ * 규약을 벗어난 것을 못 잡는다.
+ */
+
+import { describe, expect, it } from 'vitest'
+
+import { boxSummary, frequencies, histogram, numericValues, scatterSample } from '../src/data/stats'
+
+/** 0부터 n-1까지. 규약 검사의 입력으로 쓴다. */
+function series(n: number): number[] {
+  return Array.from({ length: n }, (_value, index) => index)
+}
+
+describe('열에서 수를 골라낸다', () => {
+  it('빈 칸과 못 읽는 칸을 갈라 센다', () => {
+    const read = numericValues(['1', '', '2', '  ', 'abc', '3.5'])
+    expect(read.values).toEqual([1, 2, 3.5])
+    expect(read.missing).toBe(2)
+    expect(read.unreadable).toBe(1)
+  })
+
+  it('음수와 지수 표기도 수다 — `toNumber` 한 벌을 쓴다', () => {
+    expect(numericValues(['-1', '1e3', '0.5']).values).toEqual([-1, 1000, 0.5])
+  })
+
+  /**
+   * **무한대는 수가 아니다.** `Number('Infinity')`는 유한하지 않아 `toNumber`가 거른다 —
+   * 안 거르면 축의 범위가 무한이 되어 **그림 전체가 빈 판**이 된다.
+   */
+  it('무한대를 값으로 받지 않는다', () => {
+    const read = numericValues(['1', 'Infinity', '2'])
+    expect(read.values).toEqual([1, 2])
+    expect(read.unreadable).toBe(1)
+  })
+})
+
+describe('히스토그램', () => {
+  it('값이 없으면 구간도 없다', () => {
+    expect(histogram([], 200)).toEqual({ edges: [], counts: [], capped: false })
+  })
+
+  /**
+   * **값이 하나뿐인 열과 값이 없는 열은 화면에서 달라야 한다.** numpy가 폭 0에서
+   * `[x - 0.5, x + 0.5]`를 주는 것과 같은 규칙이다.
+   */
+  it('값이 전부 같으면 그 값을 가운데 둔 구간 하나다', () => {
+    const one = histogram([7, 7, 7], 200)
+    expect(one.edges).toEqual([6.5, 7.5])
+    expect(one.counts).toEqual([3])
+  })
+
+  it('모든 값이 어느 한 구간에 들어간다 — 합이 값의 수다', () => {
+    const values = [1, 2, 2, 3, 5, 8, 13, 21, 34, 55]
+    const made = histogram(values, 200)
+    expect(made.counts.reduce((sum, count) => sum + count, 0)).toBe(values.length)
+  })
+
+  /**
+   * **최댓값이 어디에도 안 들어가는 것이 이 계산의 고전적인 실패다.** 마지막 구간만
+   * 오른쪽 끝을 포함하므로 마지막 칸에 반드시 들어가야 한다.
+   */
+  it('최댓값이 마지막 구간에 들어간다', () => {
+    const made = histogram([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 200)
+    expect(made.counts[made.counts.length - 1]).toBeGreaterThan(0)
+    expect(made.edges[made.edges.length - 1]).toBe(10)
+  })
+
+  it('경계의 처음과 끝이 최솟값과 최댓값이다', () => {
+    const made = histogram([-3, 0, 4.5, 9], 200)
+    expect(made.edges[0]).toBe(-3)
+    expect(made.edges[made.edges.length - 1]).toBe(9)
+    expect(made.edges.length).toBe(made.counts.length + 1)
+  })
+
+  /**
+   * **numpy `histogram_bin_edges`의 `'auto'`를 따른다** — 스터지스와
+   * 프리드먼–다이아코니스 중 **넓은 폭**이다. 값을 박지 않고 규칙을 다시 계산해서 본다:
+   * 우리 코드가 고른 구간 수가 그 규칙이 내는 수와 같아야 한다.
+   */
+  it('구간 폭이 numpy의 `auto`와 같다', () => {
+    const values = series(1000).map((index) => Math.sin(index) * 50)
+    const sorted = [...values].sort((a, b) => a - b)
+    const range = (sorted[sorted.length - 1] as number) - (sorted[0] as number)
+
+    const quantile = (fraction: number): number => {
+      const position = (sorted.length - 1) * fraction
+      const low = sorted[Math.floor(position)] as number
+      const high = sorted[Math.ceil(position)] as number
+      return low + (high - low) * (position - Math.floor(position))
+    }
+    const iqr = quantile(0.75) - quantile(0.25)
+    const width = Math.max(range / (Math.log2(values.length) + 1), (2 * iqr) / Math.cbrt(1000))
+
+    expect(histogram(values, 100_000).counts.length).toBe(Math.ceil(range / width))
+  })
+
+  /**
+   * **사분위 범위가 0이면 프리드먼–다이아코니스를 안 쓴다.** 값의 절반 이상이 한 점에
+   * 몰린 열이고, 폭 0을 쓰면 구간이 무한히 나온다.
+   */
+  it('값이 한 점에 몰려도 구간 수가 터지지 않는다', () => {
+    const values = [...new Array<number>(100).fill(5), 0, 10]
+    const made = histogram(values, 200)
+    expect(made.counts.length).toBeGreaterThan(0)
+    expect(made.counts.length).toBeLessThanOrEqual(200)
+    expect(made.counts.reduce((sum, count) => sum + count, 0)).toBe(values.length)
+  })
+
+  /** **줄였으면 줄였다고 말한다.** 화면이 그 사실을 학생에게 전한다. */
+  it('상한에 걸리면 `capped`가 참이다', () => {
+    const values = series(10_000).map((index) => (index % 7) * 0.001 + index * 0.00001)
+    const capped = histogram(values, 5)
+    expect(capped.counts.length).toBe(5)
+    expect(capped.capped).toBe(true)
+    expect(histogram([0, 1, 2, 3], 200).capped).toBe(false)
+  })
+})
+
+describe('상자 그림 요약', () => {
+  it('값이 없으면 `null`이다 — 0으로 채운 상자를 그리지 않는다', () => {
+    expect(boxSummary([])).toBeNull()
+  })
+
+  /**
+   * 손으로 셀 수 있는 표본으로 다섯 수를 못 박는다. 선형 보간은 numpy·pandas의
+   * 기본과 같은 규칙이고(`quantile`), 1..9에서 Q1은 3, 중앙값은 5, Q3은 7이다.
+   */
+  it('다섯 수가 numpy의 선형 보간과 같다', () => {
+    const summary = boxSummary([1, 2, 3, 4, 5, 6, 7, 8, 9])
+    expect(summary).not.toBeNull()
+    expect(summary?.min).toBe(1)
+    expect(summary?.q1).toBe(3)
+    expect(summary?.median).toBe(5)
+    expect(summary?.q3).toBe(7)
+    expect(summary?.max).toBe(9)
+  })
+
+  it('이상치가 없으면 수염이 최솟값·최댓값까지 간다', () => {
+    const summary = boxSummary([1, 2, 3, 4, 5])
+    expect(summary?.lowerWhisker).toBe(1)
+    expect(summary?.upperWhisker).toBe(5)
+    expect(summary?.outliers).toEqual([])
+  })
+
+  /**
+   * **수염은 울타리가 아니라 울타리 안의 실제 값까지다** (튜키·matplotlib의 규칙).
+   * 울타리까지 그리면 데이터가 없는 자리로 수염이 뻗고, 학생이 그 끝을 최댓값으로 읽는다.
+   */
+  it('수염이 울타리가 아니라 그 안의 마지막 값에서 멈춘다', () => {
+    const summary = boxSummary([1, 2, 3, 4, 5, 6, 7, 8, 9, 100])
+    expect(summary?.outliers).toEqual([100])
+    expect(summary?.upperWhisker).toBe(9)
+    // 울타리(Q3 + 1.5 × IQR)는 9보다 크다 — 거기까지 뻗으면 안 된다.
+    const fence = (summary?.q3 ?? 0) + 1.5 * ((summary?.q3 ?? 0) - (summary?.q1 ?? 0))
+    expect(fence).toBeGreaterThan(9)
+  })
+
+  it('아래쪽 이상치도 같은 규칙으로 잡는다', () => {
+    const summary = boxSummary([-100, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+    expect(summary?.outliers).toEqual([-100])
+    expect(summary?.lowerWhisker).toBe(1)
+  })
+
+  it('이상치는 오름차순이고 개수는 전체를 센다', () => {
+    const summary = boxSummary([50, 1, 2, 3, 4, 5, -40])
+    expect(summary?.count).toBe(7)
+    expect([...(summary?.outliers ?? [])]).toEqual(
+      [...(summary?.outliers ?? [])].sort((a, b) => a - b),
+    )
+  })
+})
+
+describe('도수 분포', () => {
+  it('빈 칸은 막대가 아니라 결측으로 센다', () => {
+    const tally = frequencies(['가', '', '나', '가', '  '], 30)
+    expect(tally.missing).toBe(2)
+    expect(tally.distinct).toBe(2)
+    expect(tally.bars).toEqual([
+      { value: '가', count: 2 },
+      { value: '나', count: 1 },
+    ])
+  })
+
+  /**
+   * **순서는 첫 등장 순서다.** 전처리의 원-핫 인코딩이 같은 순서를 쓰기 때문이고
+   * (`fitPreprocessor`의 `[...new Set(present)]`), 두 화면이 같은 열을 다른 순서로
+   * 늘어놓으면 학생이 읽은 순서와 특성 이름의 순서가 어긋난다.
+   */
+  it('도수가 큰 값이 뒤에 나와도 순서를 안 바꾼다', () => {
+    const tally = frequencies(['나', '가', '가', '가'], 30)
+    expect(tally.bars.map((bar) => bar.value)).toEqual(['나', '가'])
+  })
+
+  /**
+   * **무엇을 남길지는 도수가 정하고, 어떻게 늘어놓을지는 등장 순서가 정한다.**
+   * 앞에서부터 자르면 그림이 "가장 흔한 값들"이 아니라 "파일 맨 위의 값들"이 된다.
+   */
+  it('남기는 것은 도수가 큰 쪽이고, 늘어놓는 것은 등장 순서다', () => {
+    const cells = ['희귀1', '희귀2', ...new Array<string>(5).fill('흔함'), '희귀3']
+    const tally = frequencies(cells, 2)
+    // 흔함(5)과 그다음으로 큰 값 하나만 남는다.
+    expect(tally.bars.length).toBe(2)
+    expect(tally.bars.some((bar) => bar.value === '흔함')).toBe(true)
+    // 남은 둘은 여전히 등장 순서로 선다.
+    const positions = tally.bars.map((bar) => cells.indexOf(bar.value))
+    expect([...positions]).toEqual([...positions].sort((a, b) => a - b))
+  })
+
+  it('밀려난 값이 몇 행인지 말한다', () => {
+    const tally = frequencies(['가', '가', '나', '다', '라'], 1)
+    expect(tally.bars).toEqual([{ value: '가', count: 2 }])
+    expect(tally.distinct).toBe(4)
+    expect(tally.omitted).toBe(3)
+  })
+
+  it('전부 그렸으면 밀려난 것이 0이다', () => {
+    expect(frequencies(['가', '나'], 30).omitted).toBe(0)
+  })
+})
+
+describe('산점도 표본', () => {
+  const xs = series(20).map(String)
+  const ys = series(20).map((index) => String(index * 2))
+
+  it('행 번호가 정본 표의 번호 그대로다', () => {
+    const drawn = scatterSample(xs, ys, 100, 42)
+    expect(drawn.points[3]).toEqual({ row: 3, x: 3, y: 6 })
+    expect(drawn.total).toBe(20)
+    expect(drawn.skipped).toBe(0)
+  })
+
+  /** 한쪽이라도 수가 아니면 점을 못 찍는다. **조용히 0으로 만들지 않는다.** */
+  it('한쪽이 비거나 수가 아닌 행은 빼고 그 수를 말한다', () => {
+    const drawn = scatterSample(['1', '', '3', 'abc'], ['1', '2', '', '4'], 100, 42)
+    expect(drawn.points.map((point) => point.row)).toEqual([0])
+    expect(drawn.total).toBe(1)
+    expect(drawn.skipped).toBe(3)
+  })
+
+  it('색 열의 값을 그대로 싣고, 빈 칸이면 안 싣는다', () => {
+    const drawn = scatterSample(['1', '2'], ['1', '2'], 100, 42, ['남', ''])
+    expect(drawn.points[0]?.group).toBe('남')
+    expect(drawn.points[1]?.group).toBeUndefined()
+  })
+
+  /**
+   * **같은 씨앗이면 같은 그림이다.** 새로고침마다 표본이 달라지면 학생은 자기가 뭘
+   * 바꿔서 그림이 바뀐 줄 안다.
+   */
+  it('같은 씨앗이면 같은 표본이다', () => {
+    const first = scatterSample(xs, ys, 5, 7)
+    const second = scatterSample(xs, ys, 5, 7)
+    expect(first.points.map((point) => point.row)).toEqual(second.points.map((point) => point.row))
+    expect(first.drawn).toBe(5)
+    expect(first.total).toBe(20)
+  })
+
+  it('씨앗이 다르면 표본도 달라진다', () => {
+    const a = scatterSample(xs, ys, 5, 1).points.map((point) => point.row)
+    const b = scatterSample(xs, ys, 5, 2).points.map((point) => point.row)
+    expect(a).not.toEqual(b)
+  })
+
+  /** **뽑은 뒤 원래 순서로 되돌린다** — 그리는 순서가 겹침의 위아래를 정한다. */
+  it('표본이 행 번호 오름차순이다', () => {
+    const rows = scatterSample(xs, ys, 5, 7).points.map((point) => point.row)
+    expect([...rows]).toEqual([...rows].sort((a, b) => a - b))
+  })
+
+  /**
+   * **못 찍는 행은 표본을 뽑기 전에 뺀다.** 뽑고 나서 버리면 상한이 5인데 실제로 그려지는
+   * 것은 그보다 적어지고, 결측이 많은 열일수록 더 적어진다.
+   */
+  it('상한만큼 실제로 그린다 — 결측이 섞여도', () => {
+    const holes = series(20).map((index) => (index % 2 === 0 ? String(index) : ''))
+    const drawn = scatterSample(holes, holes, 5, 7)
+    expect(drawn.drawn).toBe(5)
+    expect(drawn.total).toBe(10)
+    expect(drawn.skipped).toBe(10)
+  })
+})

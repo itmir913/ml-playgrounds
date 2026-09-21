@@ -67,7 +67,14 @@ function isMissing(cell: string | undefined): boolean {
   return cell === undefined || cell.trim() === ''
 }
 
-function toNumber(cell: string): number | null {
+/**
+ * 칸을 수로 읽는다. 못 읽으면 `null`이다.
+ *
+ * **이 저장소에서 문자열을 수로 보는 자리는 여기 하나다** (아래 `readsAsNumber`의 머리말).
+ * 그림을 그리는 쪽도 같은 잣대를 써야 한다 — 전처리가 수치로 본 열을 히스토그램이
+ * 범주로 보면, 학생은 같은 열에 대해 두 화면에서 다른 말을 듣는다 (`data/stats.ts`).
+ */
+export function toNumber(cell: string): number | null {
   const trimmed = cell.trim()
   if (trimmed === '') return null
   const value = Number(trimmed)
@@ -107,8 +114,18 @@ function mean(values: readonly number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length
 }
 
-/** 두 값 사이는 선형 보간한다. numpy·pandas의 기본과 같은 규칙이다. */
-function quantile(sorted: readonly number[], fraction: number): number {
+/**
+ * 두 값 사이는 선형 보간한다. numpy·pandas의 기본과 같은 규칙이다.
+ *
+ * **상자 그림도 이것을 쓴다** (`data/stats.ts`, 2026-09-21). 사분위수를 구하는 규칙이
+ * 둘이 되면 **같은 열의 중앙값이 전처리와 그림에서 다르게 나오고**, 그건 학생이 둘을
+ * 나란히 보기 전에는 안 드러난다. 보간 방식은 한 가지가 아니라 아홉 가지가 있어서
+ * (numpy의 `method=`) 각자 고르면 실제로 갈린다.
+ *
+ * **오름차순으로 정렬된 배열을 받는다.** 안 정렬된 것을 주면 조용히 틀린 값을 준다 —
+ * 부르는 쪽이 정렬한다.
+ */
+export function quantile(sorted: readonly number[], fraction: number): number {
   const position = (sorted.length - 1) * fraction
   const lower = sorted[Math.floor(position)] as number
   const upper = sorted[Math.ceil(position)] as number
