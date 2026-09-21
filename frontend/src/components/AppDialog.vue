@@ -78,8 +78,8 @@ function onBackdrop(event: MouseEvent): void {
 <template>
   <dialog
     ref="dialog"
-    class="dialog-panel m-auto w-full rounded-card border border-line bg-surface p-0 text-ink shadow-pop backdrop:bg-slate-900/40"
-    :class="props.fill ? 'dialog-fill' : 'max-w-lg'"
+    class="dialog-panel m-auto rounded-card border border-line bg-surface p-0 text-ink shadow-pop backdrop:bg-slate-900/40"
+    :class="props.fill ? 'dialog-fill' : 'w-full max-w-lg'"
     @close="emit('close')"
     @click="onBackdrop"
   >
@@ -108,6 +108,11 @@ function onBackdrop(event: MouseEvent): void {
         굴러가면 스크롤 막대가 **둥근 모서리 위에 얹히고** 제목과 [닫기]까지 함께
         밀려 올라간다 — 막대가 내용 옆이 아니라 카드의 가장자리에 붙어 있어 어색했다.
         여기서 굴리면 머리와 단추는 제자리에 남는다.
+
+        **이 칸은 스크롤 상자라, 안에 놓은 것이 밖으로 못 나간다.** 지금 대화상자 열
+        어디에도 팝오버가 없어서 걸리는 것이 없지만(2026-09-22에 세어 확인했다),
+        **여기에 `AppPopover`나 떠오르는 패널을 넣으면 잘린다** — 그때는 그 부품을
+        창 바깥으로 올리거나 여기서 굴리는 것을 포기해야 한다.
       -->
       <div v-if="$slots.default" class="mt-6 flex min-h-0 flex-1 flex-col overflow-y-auto">
         <slot />
