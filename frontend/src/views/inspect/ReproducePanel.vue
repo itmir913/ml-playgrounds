@@ -27,7 +27,12 @@ import AppButton from '@/components/AppButton.vue'
 import AppBadge from '@/components/AppBadge.vue'
 import { useWork } from '@/composables/useWork'
 import { summarizeColumns } from '@/data/columns'
-import { errorMessageKey, isClientError, type ClientErrorCode } from '@/errors'
+import {
+  errorMessageKey,
+  isClientError,
+  type ClientErrorCode,
+  type ClientErrorParams,
+} from '@/errors'
 import {
   compareExperiments,
   compareRun,
@@ -89,8 +94,15 @@ onBeforeUnmount(retire)
  */
 const byExperiment = ref(new Map<string, readonly Reproduction[]>())
 
-/** 통째로 실패한 사유도 실험에 붙는다. run 하나의 실패는 그 줄이 말한다. */
-const failures = ref(new Map<string, ClientErrorCode>())
+/**
+ * 통째로 실패한 사유도 실험에 붙는다. run 하나의 실패는 그 줄이 말한다.
+ *
+ * **코드만 담으면 안 된다** (2026-09-21 델타 감사 B-2). 여기 오는 어휘 중에는 값을 끼워
+ * 넣는 것이 있고(`FEATURE_NOT_NUMBER`는 *"({feature}: {value})"*로 끝난다), 파라미터를
+ * 버리면 그 문장이 **`(: )`로 끝난다.** 워커 경계는 파라미터를 온전히 넘기므로 버리는
+ * 자리는 여기였다.
+ */
+const failures = ref(new Map<string, { code: ClientErrorCode; params: ClientErrorParams }>())
 
 /**
  * 지금 대조가 도는 **실험의 id**. 다른 실험을 보고 있으면 그 진행은 여기 안 뜬다.
@@ -114,7 +126,7 @@ const found = computed<readonly Reproduction[]>(
   () => byExperiment.value.get(props.experiment.id) ?? [],
 )
 
-const failure = computed<ClientErrorCode | null>(
+const failure = computed<{ code: ClientErrorCode; params: ClientErrorParams } | null>(
   () => failures.value.get(props.experiment.id) ?? null,
 )
 
@@ -309,7 +321,15 @@ async function reproduce(): Promise<void> {
     // **끊은 것은 실패가 아니다.** 멈추기도, 떠나기도 `JOB_CANCELLED`로 오고 그때까지
     // 앉은 판정이 그대로 남는다 — 여기서 삼키지 않으면 "학습을 멈췄습니다"가 붉게 뜬다.
     if (isClientError(error) && error.code === 'JOB_CANCELLED') return
-    if (alive()) seat(failures.value, target, isClientError(error) ? error.code : 'JOB_FAILED')
+    if (alive()) {
+      seat(
+        failures.value,
+        target,
+        isClientError(error)
+          ? { code: error.code, params: error.params }
+          : { code: 'JOB_FAILED', params: {} },
+      )
+    }
   } finally {
     if (comparing.value === target) comparing.value = null
     if (stopped === target) stopped = null
@@ -405,8 +425,11 @@ function differenceText(reproduction: Reproduction): string {
 
 /** 못 돌린 사유. 파일이 아니라 **이 기기**의 사정이다. */
 function failureText(reproduction: Reproduction): string {
-  const code = reproduction.failure?.code
-  return code === undefined ? '' : t(errorMessageKey(code as ClientErrorCode))
+  const { code, params } = reproduction.failure ?? {}
+  // **파라미터를 함께 넘긴다** — 값을 끼워 넣는 어휘가 여기도 온다 (델타 감사 B-2).
+  return code === undefined
+    ? ''
+    : t(errorMessageKey(code as ClientErrorCode), (params ?? {}) as ClientErrorParams)
 }
 </script>
 
@@ -483,7 +506,9 @@ function failureText(reproduction: Reproduction): string {
       {{ t('inspect.reproduceStopped', { done: found.length, total: claims }) }}
     </p>
 
-    <p v-if="failure" class="text-caution">{{ t(errorMessageKey(failure)) }}</p>
+    <p v-if="failure" class="text-caution">
+      {{ t(errorMessageKey(failure.code), failure.params) }}
+    </p>
 
     <!--
       **표가 아니라 나열이다** (2026-09-18, 실측). 이 판이 무결성 아래로 오면서 폭이

@@ -366,6 +366,28 @@ describe('대조가 도는 동안', () => {
   })
 
   /**
+   * **실패 사유의 값까지 화면에 간다** (2026-09-21 델타 감사 B-2).
+   *
+   * 여기 오는 어휘 중에는 값을 끼워 넣는 것이 있다 — `FEATURE_NOT_NUMBER`는
+   * *"({feature}: {value})"*로 끝난다. 판이 코드만 담고 파라미터를 버리면 그 문장이
+   * **`(: )`로 끝나고**, 교사는 어느 열이 왜 문제인지 못 읽는다. 결정문
+   * *"채점하는 행렬은 학습 전에 거절한다"*가 재실행 예외를 안 둔 근거가 바로
+   * **"교사가 열 이름과 값을 읽는다"**이므로, 그 근거가 여기서 선다.
+   */
+  it('실패 사유에 끼워 넣는 값이 화면까지 간다', async () => {
+    const panel = await started(claim('experiment-3'))
+    worker.reject?.(new ClientError('FEATURE_NOT_NUMBER', { feature: '점수', value: '1,650' }))
+    await flushPromises()
+
+    const text = panel.text()
+    expect(text).toContain('점수')
+    expect(text).toContain('1,650')
+    // **빈 괄호가 남으면 파라미터를 버린 것이다.**
+    expect(text).not.toContain('(: )')
+    panel.unmount()
+  })
+
+  /**
    * **떠나면 워커를 끊는다** (A-1). 안 끊으면 신경망 50,000행이 88초를 마저 돌고, 서른
    * 개를 넘기며 누르는 교사의 기기에 그만큼 쌓인다.
    */
