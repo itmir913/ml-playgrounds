@@ -566,6 +566,29 @@ describe('프런트엔드 전용 코드', () => {
     expect(orphans).toEqual([])
   })
 
+  /**
+   * **`data.charts.` 접두사가 고아 검사에서 통째로 빠진다** (2026-09-22 감사 B-7).
+   *
+   * `ChartDialog`가 `` t(`data.charts.${one.id}.name`) ``으로 키를 조립하므로, 아래
+   * "아무 데서도 안 불리는 키가 없다"가 **이 묶음 전체를 면제한다.** 그러면 `sampled`·
+   * `capped` 같은 **문장 키**는 부르는 자리가 사라져도 아무도 안 운다.
+   *
+   * **조립하는 둘만 빼고 나머지는 글자 그대로 불린다** — 그 사실을 여기서 못 박는다.
+   */
+  it('시각화 문구 중 조립하지 않는 키는 전부 소스에 그대로 있다', () => {
+    const composed = /^data\.charts\.(?:blocked\.|[a-z]+\.name$)/
+    const sentences = [...english.keys()].filter(
+      (key) => key.startsWith('data.charts.') && !composed.test(key),
+    )
+    // 0개면 이름이 바뀐 것이지 규칙이 지켜진 게 아니다.
+    expect(sentences.length).toBeGreaterThan(10)
+
+    const blob = sourceFiles(SRC)
+      .map((path) => readFileSync(path, 'utf-8'))
+      .join(String.fromCharCode(10))
+    expect(sentences.filter((key) => !blob.includes(key))).toEqual([])
+  })
+
   it('그림이 잠기는 이유마다 문구가 있고 남는 것이 없다', () => {
     for (const block of CHART_BLOCKS) {
       expect(english.has(`data.charts.blocked.${block}`), block).toBe(true)
