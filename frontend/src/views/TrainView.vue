@@ -843,9 +843,9 @@ function leave(): void {
       <!-- 유형과 타깃이 안 맞는다. 둘 다 고칠 수 있으므로 어느 쪽도 되돌리지 않는다. -->
       <p v-if="targetIssue" class="mt-3 font-bold text-danger">{{ targetIssue }}</p>
 
-      <div class="mt-4 grid gap-x-4 gap-y-5 md:grid-cols-3">
+      <div class="mt-4 grid gap-x-4 gap-y-5 lg:grid-cols-3">
         <div
-          class="min-w-0 transition-opacity md:col-span-2"
+          class="min-w-0 transition-opacity lg:col-span-2"
           :class="working ? 'opacity-60' : ''"
           :inert="working"
         >
@@ -868,7 +868,7 @@ function leave(): void {
           더 넓게 주었더니 선이 카드 안에서 혼자 헐렁해 보였다 (2026-08-13).
         -->
         <div
-          class="min-w-0 border-t border-dashed border-line-strong pt-5 md:border-t-0 md:border-l md:pt-0 md:pl-4"
+          class="min-w-0 border-t border-dashed border-line-strong pt-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-4"
         >
           <ChosenModels
             :chosen="chosen"

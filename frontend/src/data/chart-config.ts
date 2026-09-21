@@ -464,6 +464,18 @@ export function scatterSeries(
   return [...groups.entries()].map(([name, grouped]) => ({ name, points: grouped }))
 }
 
+/**
+ * 점의 반지름. **Chart.js의 기본값은 3이고 그게 너무 작았다** (2026-09-22, 사용자).
+ *
+ * **군집 산점도(`ml/cluster-chart.ts`)의 4보다 크고, 그게 맞다.** 저쪽에는 중심점(9)과
+ * 학생이 넣은 점(10)이 함께 서서 **점 크기가 위계를 뜻한다** — 데이터 점을 키우면 그
+ * 위계가 무너진다. 이 그림에는 그런 층이 없으므로 점은 읽히기만 하면 된다.
+ *
+ * **`pointRadius`이지 `radius`가 아니다.** 이름 없는 `radius`는 선 요소의 것이라
+ * 산점도에서는 아무 일도 안 한다 (`cluster-chart.ts`의 같은 자리 머리말).
+ */
+const POINT_RADIUS = 5
+
 export function scatterData(
   series: readonly ScatterSeries[],
   paint: ChartPaint,
@@ -474,6 +486,9 @@ export function scatterData(
       data: one.points.map((point) => ({ x: point.x, y: point.y })),
       backgroundColor: seriesColor(paint, index),
       borderColor: seriesColor(paint, index),
+      pointRadius: POINT_RADIUS,
+      // **커서를 얹어도 안 커진다.** 기본값(4)이 이 크기보다 작아 점이 오히려 줄어든다.
+      pointHoverRadius: POINT_RADIUS,
     })),
   }
 }
