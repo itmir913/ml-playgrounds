@@ -3073,3 +3073,42 @@ describe('배색 토큰을 읽는 자리', () => {
     expect(READS_TOKENS.test('getComputedStyle(element).height')).toBe(false)
   })
 })
+/**
+ * **쓰는 분기점이 정의돼 있는가** (2026-09-22).
+ *
+ * Tailwind의 기본 분기점은 `2xl`에서 끝난다. 데이터 화면이 `3xl`에서 두 열로 갈리는데
+ * (§8.9), **모르는 변형을 만나면 Tailwind는 그 클래스를 안 만들 뿐 아무 말도 안 한다** —
+ * 토큰을 지우면 화면이 영영 한 열이 되고 검사도 빌드도 초록이다. 눈으로만 보인다.
+ */
+describe('화면이 쓰는 분기점', () => {
+  const THEME = readFileSync(join(SRC, 'styles', 'theme.css'), 'utf-8')
+  /**
+   * Tailwind가 기본으로 주는 것들. 이 밖의 것은 우리가 세웠어야 한다.
+   *
+   * **`@4xl:` 같은 컨테이너 질의는 뺀다** — 철자가 같지만 다른 이름 공간이고
+   * (`--container-*`), 기본값이 `@7xl`까지 있다. 뺄 때 `@`를 안 봤더니
+   * `AnswerList`의 `@4xl:`·`@6xl:`이 "없는 분기점"으로 잡혔다.
+   * **못 보는 것: 정의 안 된 컨테이너 크기** — 그쪽은 이 검사 밖이다.
+   */
+  const BUILT_IN = ['sm', 'md', 'lg', 'xl', '2xl']
+
+  it('기본에 없는 분기점은 theme.css가 세운다', () => {
+    const used = new Set<string>()
+    for (const path of sourceFiles(SRC)) {
+      for (const match of sourceOf(path).matchAll(/(?<!@)\b(\d?[a-z]+):[a-z-]/g)) {
+        const name = match[1] ?? ''
+        if (/^\d?xl$|^sm$|^md$|^lg$/.test(name)) used.add(name)
+      }
+    }
+    const missing = [...used]
+      .filter((name) => !BUILT_IN.includes(name))
+      .filter((name) => !THEME.includes(`--breakpoint-${name}:`))
+    expect(missing, 'uses a breakpoint that nothing defines').toEqual([])
+  })
+
+  it('검사기가 실제로 잡는다', () => {
+    // 지금 실제로 쓰고 있는 것이라, 토큰을 지우면 위 검사가 운다.
+    expect(THEME).toContain('--breakpoint-3xl:')
+    expect(sourceOf(join(SRC, 'views', 'data', 'TabularPanel.vue'))).toContain('3xl:')
+  })
+})

@@ -6,9 +6,11 @@
  * 들어오는 V5에서 여기를 고치는 것이 아니라 **옆에 새 판을 하나 더 만든다**
  * (architecture.md §6).
  *
- * **표가 주인공이다** (architecture.md §8.9). 카드를 쌓지 않는다 — 열이 수십 개인 표를
- * 카드 안에 가두면 가로 스크롤 상자 안에서만 볼 수 있게 된다. **열 검사기는 넓은 화면에서
- * 표 옆에 서고, 좁은 화면에서만 표 아래로 접힌다** — 접어 두면 펼칠 때 표가 먹힌다.
+ * **표가 주인공이다** (architecture.md §8.9) — 가장 넓은 자리를 표가 갖는다. 그래서
+ * `3xl`(1920px) 이상에서만 두 열로 갈리고, 그때도 요약은 제 하한(640px)만 갖는다.
+ * **`3xl` 미만에서는 요약 → 미리보기 순으로 한 열에 서고 바깥이 스크롤한다** — 한때
+ * `md`에서 갈랐는데 그 폭에서는 **두 판이 다 잘렸다** (2026-09-22에 재서 고쳤다,
+ * §8.9의 표). `3xl`은 우리가 세운 분기점이다 (`styles/theme.css`).
  *
  * **판단은 전부 이 파일 밖에 있다** — 파싱과 인코딩 판정은 `data/`, 열 이름과 요약은
  * `data/columns.ts`, 프로젝트에 붙이는 것은 `project/dataset.ts`다.
@@ -82,8 +84,6 @@ const opened = ref<{ document: TableDocument; fileName: string } | null>(null)
 const sheetName = ref<string | undefined>(undefined)
 const hasHeader = ref(true)
 const confirming = ref(false)
-/** 열 검사기에서 펼쳐 놓은 열. 보조 영역이라 기본은 닫혀 있다. */
-const inspecting = ref(false)
 
 const experimentCount = computed(() => project.file?.document.runs.experiments.length ?? 0)
 
@@ -367,10 +367,48 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
     </StepActionBar>
 
     <!--
-      **표와 열 검사기가 남은 세로 공간을 나눠 갖는다** (architecture.md §8.9).
-      넓은 화면에서는 옆으로, 좁은 화면에서는 표만 여기 있고 검사기는 아래로 접힌다.
+      **두 열로 갈리는 폭은 `3xl`(1920px)이다** (architecture.md §8.9, 2026-09-22). 한때 `md`였는데
+      그 폭에서는 두 판이 **다 잘렸다** — 요약은 약 560px이 하한인데 275px을 받았고,
+      미리보기는 12열 중 일곱만 보였다. 잰 표가 §8.9에 있다.
+
+      **`3xl` 미만에서는 두 판이 자기 높이만큼 서고 바깥(`<main>`)이 스크롤한다.**
+      세로를 다투지 않으므로 검사기를 접을 이유가 없다. `3xl` 이상에서만 지금까지처럼
+      남은 세로를 나눠 갖고 각자 구른다.
     -->
-    <div class="flex min-h-96 flex-1 gap-5">
+    <div class="flex flex-col gap-5 3xl:min-h-96 3xl:flex-1 3xl:flex-row">
+      <!--
+        **요약이 DOM에서 먼저다** (§8.9). `3xl` 미만에서 읽는 순서가 요약 → 미리보기이고,
+        이 화면의 문장("어떤 열이 있는지 확인합니다")에 답하는 것이 요약이다. `3xl`에서만
+        `order-last`로 오른쪽에 선다 — 그때는 둘이 나란히 보이므로 보는 순서와 읽는
+        순서가 갈려도 잃는 것이 없다.
+
+        **넓은 화면에서 요약은 제 하한만 갖고 나머지를 표에 준다** (§8.9 "표가 주인공이다").
+        반씩 나누면 1920에서도 표가 851px밖에 못 받아 12열이 안 들어갔는데, 요약을
+        묶으면 1161px을 받아 전부 들어간다. **요약은 더 받아도 쓸 데가 없다** — 칸 넷이
+        늘어날 뿐이다.
+
+        **640px이고 그 안의 표가 원하는 것은 581px이다.** 차이가 카드 여백(좌우 16px)과
+        테두리다 — 처음에 576으로 잡았다가 **요약이 21px 잘렸다**(2026-09-22 실측).
+        `min-w-0`이 있어서 잘려도 화면은 멀쩡해 보인다.
+
+        **이 문단의 수는 사람 확인이다.** jsdom에는 배치가 없어 폭을 무는 검사를 못
+        세운다 — 열 수가 많은 표를 넣고 브라우저에서 재는 것이 유일한 길이고, 그렇게
+        쟀다(`docs/rule-coverage.md`).
+      -->
+      <aside
+        v-if="shown"
+        class="flex min-w-0 flex-col gap-3 rounded-panel border border-line bg-surface p-4 3xl:order-last 3xl:min-h-0 3xl:w-160 3xl:shrink-0"
+      >
+        <h3 class="leading-tight font-bold text-ink-soft">{{ t('data.tabular.inspector') }}</h3>
+        <div class="flex flex-col 3xl:min-h-0 3xl:flex-1">
+          <ColumnInspector
+            :columns="shown.columns"
+            :visualizable="!shown.draft"
+            @visualize="charting = $event"
+          />
+        </div>
+      </aside>
+
       <!--
         **표도 카드에 담는다** (§8.9, 2026-08-13). 전처리가 같은 성질의 표를 이미 카드에
         담고 있어서 두 화면의 뼈대가 갈려 있었다. 표는 `AppTable`이 스스로 스크롤
@@ -381,7 +419,7 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
       -->
       <section
         v-if="shown"
-        class="flex min-w-0 flex-1 flex-col gap-3 rounded-panel border border-line bg-surface p-4"
+        class="flex min-w-0 flex-col gap-3 rounded-panel border border-line bg-surface p-4 3xl:min-h-0 3xl:flex-1"
       >
         <!--
           **제목의 줄 높이를 조인다.** 기본 줄 상자는 글자보다 위아래로 4px씩 넓어서,
@@ -392,7 +430,7 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
           {{ t('data.tabular.previewTitle') }}
         </h3>
 
-        <AppTable class="min-h-0 flex-1">
+        <AppTable class="3xl:min-h-0 3xl:flex-1">
           <thead class="sticky top-0 z-10">
             <tr>
               <th v-for="column in shown.columns" :key="column.name" class="align-bottom">
@@ -409,9 +447,10 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
         </AppTable>
       </section>
 
+      <!-- **과녁은 스스로 높이를 갖는다.** `3xl` 미만에서는 늘려 줄 부모가 없다. -->
       <div
         v-else
-        class="grid min-h-0 flex-1 place-items-center rounded-panel border-2 border-dashed transition-colors"
+        class="grid min-h-64 place-items-center rounded-panel border-2 border-dashed transition-colors 3xl:min-h-0 3xl:flex-1"
         :class="dragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
       >
         <AppEmpty :reason="t('data.tabular.emptyReason')" :next="t('data.tabular.dropHint')">
@@ -420,25 +459,6 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
           </AppButton>
         </AppEmpty>
       </div>
-
-      <!--
-        **넓은 화면에서는 검사기가 표 옆에 늘 열려 있다.** 결측 수를 보는 이유가 표의 그
-        열을 보기 위해서이므로 둘은 함께 봐야 한다. 자기 열 안에서 스크롤하므로 열이
-        몇 개든 표의 자리는 안 줄어든다.
-      -->
-      <aside
-        v-if="shown"
-        class="hidden min-w-0 flex-1 flex-col gap-3 rounded-panel border border-line bg-surface p-4 md:flex"
-      >
-        <h3 class="leading-tight font-bold text-ink-soft">{{ t('data.tabular.inspector') }}</h3>
-        <div class="flex min-h-0 flex-1 flex-col">
-          <ColumnInspector
-            :columns="shown.columns"
-            :visualizable="!shown.draft"
-            @visualize="charting = $event"
-          />
-        </div>
-      </aside>
     </div>
 
     <!--
@@ -448,27 +468,6 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
     <p v-if="previewCaption" class="shrink-0 text-base text-ink-faint">
       {{ t(previewCaption.key, previewCaption.count) }}
     </p>
-
-    <!--
-      **좁은 화면에서만 접힌다.** 여기서는 세로가 진짜로 부족해서, 펼치는 동안 표를
-      양보하는 것이 유일한 길이다 (§8.10.1은 좁은 화면에서 1열을 타협하지 않는다).
-    -->
-    <details
-      v-if="shown"
-      class="shrink-0 rounded-panel border border-line bg-surface md:hidden"
-      :open="inspecting"
-    >
-      <summary class="cursor-pointer px-4 py-2.5 text-base font-bold text-ink-soft">
-        {{ t('data.tabular.inspector') }}
-      </summary>
-      <div class="max-h-72 overflow-y-auto border-t border-line p-3">
-        <ColumnInspector
-          :columns="shown.columns"
-          :visualizable="!shown.draft"
-          @visualize="charting = $event"
-        />
-      </div>
-    </details>
 
     <!--
       **그림은 표를 밀어내지 않는다** (§8.9.1). 표와 검사기가 이미 두 열을 채우고 있어
