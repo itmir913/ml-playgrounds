@@ -70,6 +70,11 @@ class ErrorCode(_NameValueEnum):
     # 결측 전략이 none인데 고른 열에 빈 칸이 있다. 빈 칸을 그대로 모델에 넣을 방법이
     # 없으므로 조용히 채우는 대신 거부한다 (open-decisions.md "전처리도 분할도 끌 수 있다").
     FEATURE_HAS_MISSING = auto()
+    # 수치 열의 시험 몫에 숫자로 못 읽는 값이 있다. 빈 칸과 끝까지 나눈다 - 학생이 할
+    # 일이 다르다(채우는 것과 수정하는 것). 열 판정은 훈련 몫만 보는데 채점은 시험
+    # 몫으로 하므로, 안 막으면 그 칸이 조용히 0이 되어 지표가 틀린 채로 나온다
+    # (open-decisions.md "채점하는 행렬은 학습 전에 거절한다").
+    FEATURE_NOT_NUMBER = auto()
     ALGORITHM_UNSUPPORTED = auto()
     HYPERPARAM_OUT_OF_RANGE = auto()
     SPLIT_INVALID = auto()
@@ -138,6 +143,7 @@ HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.FEATURE_NOT_SELECTED: HTTPStatus.BAD_REQUEST,
     ErrorCode.FEATURE_ALL_MISSING: HTTPStatus.BAD_REQUEST,
     ErrorCode.FEATURE_HAS_MISSING: HTTPStatus.BAD_REQUEST,
+    ErrorCode.FEATURE_NOT_NUMBER: HTTPStatus.BAD_REQUEST,
     ErrorCode.ALGORITHM_UNSUPPORTED: HTTPStatus.BAD_REQUEST,
     ErrorCode.HYPERPARAM_OUT_OF_RANGE: HTTPStatus.BAD_REQUEST,
     ErrorCode.SPLIT_INVALID: HTTPStatus.BAD_REQUEST,
