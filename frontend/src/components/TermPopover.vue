@@ -98,7 +98,10 @@ defineProps<{
       <h4 class="font-bold text-ink">{{ title }}</h4>
       <template v-if="numerator && denominator">
         <span aria-hidden="true">=</span>
-        <span class="inline-flex flex-col items-center text-center text-ink">
+        <!-- **`relative`가 담는 상자다.** 안의 `sr-only`가 절대 위치라 위치 지정된
+             조상이 없으면 화면을 기준으로 서고, 스크롤 아래쪽에 있으면 문서를 늘린다
+             (2026-09-22, `ColumnInspector`에서 실제로 그랬다). -->
+        <span class="relative inline-flex flex-col items-center text-center text-ink">
           <span class="px-2">{{ numerator }}</span>
           <span class="sr-only">/</span>
           <span class="mt-1 border-t border-line-strong px-2 pt-1">{{ denominator }}</span>

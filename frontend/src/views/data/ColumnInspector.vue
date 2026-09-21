@@ -55,11 +55,20 @@ const { t } = useI18n()
           <!--
             **손잡이는 이름 자체다.** 줄 끝에 작은 아이콘만 두면 열이 수십 개인 표에서
             과녁이 오른쪽 끝으로 흩어지고, 이름을 누르는 것이 학생이 먼저 해 보는 일이다.
+
+            **`relative`가 있어야 한다. 꾸밈이 아니다** (2026-09-22, 사용자가 실물에서
+            봤다). 아래 `sr-only`는 Tailwind에서 **`position: absolute`**인데, 위치 지정된
+            조상이 없으면 담는 상자가 **화면**이 된다 — 그러면 표의 스크롤 상자도
+            `overflow`도 그것을 못 자르고, **화면 아래에 선 것이 문서의 스크롤 영역을
+            늘린다.** 상태 표시줄 밑으로 빈 칸이 생기고 거기까지 스크롤됐다.
+
+            **`body`는 안 늘고 `html`만 늘어서** 원인을 찾는 데 오래 걸렸다 — 그 둘이
+            갈리는 것이 곧 "담는 상자가 화면인 절대 위치"의 서명이다.
           -->
           <button
             v-if="props.visualizable"
             type="button"
-            class="inline-flex items-center gap-1.5 rounded-field text-left font-bold text-brand underline decoration-transparent underline-offset-2 hover:decoration-inherit"
+            class="relative inline-flex items-center gap-1.5 rounded-field text-left font-bold text-brand underline decoration-transparent underline-offset-2 hover:decoration-inherit"
             @click="emit('visualize', column.name)"
           >
             {{ column.name }}

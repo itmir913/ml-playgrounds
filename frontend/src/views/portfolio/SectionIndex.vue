@@ -142,10 +142,15 @@ watch(() => props.active, reveal)
           **막대는 언제나 자리를 차지한다.** 표시된 줄에만 테두리를 주면 그 줄의 글자가
           2px씩 밀린다 - 칸의 안쪽 폭이 상태에 따라 달라지면 안 된다(`AppButton`).
         -->
+        <!--
+          **`relative`는 아래 `sr-only`의 담는 상자다** (2026-09-22). 목록이 길면 그
+          span의 자리가 화면 아래로 내려가는데, 담는 상자가 없으면 화면을 기준으로 서서
+          **문서의 스크롤 영역을 늘린다** — 상태 표시줄 아래로 빈 칸이 생긴다.
+        -->
         <button
           type="button"
           :data-section="section.id"
-          class="flex w-full items-baseline gap-2 rounded-control border-l-2 border-transparent px-2 py-1.5 text-left transition-colors hover:border-line-strong hover:bg-surface-sunken"
+          class="relative flex w-full items-baseline gap-2 rounded-control border-l-2 border-transparent px-2 py-1.5 text-left transition-colors hover:border-line-strong hover:bg-surface-sunken"
           :class="props.active === section.id ? 'border-brand bg-surface-sunken font-bold' : ''"
           :aria-current="props.active === section.id ? 'true' : undefined"
           @click="emit('pick', section.id)"

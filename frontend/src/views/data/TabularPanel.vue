@@ -284,7 +284,8 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
     <StepHeader :title="t('steps.data.label')" :purpose="t(dataPurpose)">
       <template #context>
         <template v-if="saved">
-          <div class="flex gap-1.5">
+          <!-- **`relative`는 아래 `sr-only`의 담는 상자다** (2026-09-22). -->
+          <div class="relative flex gap-1.5">
             <dt class="sr-only">{{ t('data.tabular.fileName') }}</dt>
             <dd class="max-w-56 truncate font-bold text-ink">
               {{ saved.reference.originalFileName }}

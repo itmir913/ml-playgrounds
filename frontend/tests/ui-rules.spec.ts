@@ -1910,6 +1910,97 @@ const props = defineProps<{ run: Run; dataset: Dataset | null }>()
    * 스타일시트가 없어 `display`가 계산되지 않으므로, 대화상자를 마운트하는 검사 스물은
    * 그때도 전부 초록이었다. 배치가 필요하면 `dialog-panel`의 `&[open]` 안에 둔다.
    */
+  /**
+   * **`sr-only`에는 담는 상자가 있어야 한다** (2026-09-22, 사용자가 실물에서 봤다).
+   *
+   * Tailwind의 `sr-only`는 **`position: absolute`**다. 위치 지정된 조상이 없으면 담는
+   * 상자가 **화면**이 되고, 그러면 셋이 한꺼번에 참이 된다.
+   *
+   * - 스크롤 상자도 `overflow: hidden`도 **그것을 못 자른다** — 자르기는 자기가 담는
+   *   상자인 자손에게만 걸린다.
+   * - 화면 아래에 선 만큼 **문서의 스크롤 영역이 늘어난다.** 상태 표시줄 밑으로 빈 칸이
+   *   생기고 거기까지 스크롤된다.
+   * - **`body`는 안 늘고 `html`만 는다.** 그 둘이 갈리는 것이 이 병의 서명이다.
+   *
+   * **눈에 안 보이는 글자가 레이아웃을 망가뜨리는 자리라 눈으로는 영영 못 찾는다.**
+   * 실제로 화면 하나가 이것 때문에 며칠 어긋나 있었고, 원인을 좁히는 데 측정이 여섯 번
+   * 들었다.
+   *
+   * **못 보는 것 둘.** 담는 상자를 `relative`가 아니라 `absolute`·`sticky`로 준 자리,
+   * 그리고 감싸는 요소가 창보다 멀리 있는 자리. 창을 넓히면 **엉뚱한 `relative`를 제
+   * 것으로 세므로** 좁게 둔다 — 지금 네 자리가 전부 그 안에 있다.
+   */
+  describe('sr-only는 담는 상자 안에 있다', () => {
+    /**
+     * `sr-only`가 있는 줄과 그 위 마흔 줄.
+     *
+     * **이 수는 감싸는 요소의 여는 태그까지의 거리다.** 열둘로 뒀더니 `SectionIndex`가
+     * 걸렸다 — 단추의 `class`가 서른 줄 위에 있고, 그 사이는 전부 단추의 내용이다.
+     * **넓힌 값을 무르게 하지 않으려고 `class` 안의 `relative`만 센다** — 주석이나 문장에
+     * 적힌 낱말은 담는 상자가 아니다.
+     */
+    const WINDOW = 40
+
+    /** 줄 나누기. **이 파일의 다른 규칙들과 같은 표기다** — 문자열 리터럴로 적지 않는다. */
+    const NEWLINE = String.fromCharCode(10)
+
+    /** 담는 상자 없이 선 `sr-only`의 줄 번호들. */
+    function unanchored(source: string): number[] {
+      const lines = source.split(NEWLINE)
+      const found: number[] = []
+      lines.forEach((line, index) => {
+        if (!/class="[^"]*\bsr-only\b/.test(line)) return
+        const near = lines.slice(Math.max(0, index - WINDOW), index + 1).join(NEWLINE)
+        if (!/class="[^"]*\brelative\b/.test(near)) found.push(index + 1)
+      })
+      return found
+    }
+
+    it('검사기가 담는 상자 없는 자리를 잡는다', () => {
+      const bare = ['<div class="flex">', '<span class="sr-only">x</span>'].join(
+        String.fromCharCode(10),
+      )
+      const anchored = ['<div class="relative flex">', '<span class="sr-only">x</span>'].join(
+        String.fromCharCode(10),
+      )
+      expect(unanchored(bare)).toEqual([2])
+      expect(unanchored(anchored)).toEqual([])
+    })
+
+    it('멀리 있는 `relative`는 제 것이 아니다', () => {
+      const far = ['<div class="relative">']
+        .concat(new Array<string>(WINDOW + 5).fill('<p>.</p>'))
+        .concat('<span class="sr-only">x</span>')
+        .join(String.fromCharCode(10))
+      expect(unanchored(far).length).toBe(1)
+    })
+
+    /** **주석에 적힌 낱말은 담는 상자가 아니다.** 창을 넓힌 값을 이 줄이 지킨다. */
+    it('`class` 밖의 `relative`는 안 센다', () => {
+      const inComment = ['<!-- relative 하게 배치한다 -->', '<span class="sr-only">x</span>'].join(
+        String.fromCharCode(10),
+      )
+      expect(unanchored(inComment)).toEqual([2])
+    })
+
+    it('`sr-only`를 쓰는 자리를 실제로 찾는다', () => {
+      const sites = vueFiles(SRC).filter((path) =>
+        /class="[^"]*\bsr-only\b/.test(readFileSync(path, 'utf-8')),
+      )
+      // 0개면 마크업이 바뀐 것이지 규칙이 지켜진 게 아니다.
+      expect(sites.length).toBeGreaterThanOrEqual(4)
+    })
+
+    it('지금 소스에 담는 상자 없는 `sr-only`가 없다', () => {
+      const offenders = vueFiles(SRC).flatMap((path) =>
+        unanchored(readFileSync(path, 'utf-8')).map(
+          (line) => `${path.slice(SRC.length + 1)}:${line}`,
+        ),
+      )
+      expect(offenders).toEqual([])
+    })
+  })
+
   describe('닫힌 대화상자를 숨기는 규칙을 덮지 않는다', () => {
     /** `<dialog` 부터 여는 꺾쇠가 닫힐 때까지. 그 안의 `class`만 본다. */
     const DISPLAY = /\b(?:flex|grid|block|inline-flex|inline-grid|table)\b/
