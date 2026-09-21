@@ -19,6 +19,7 @@
 import { z } from 'zod'
 
 import { ClientError } from '../errors'
+import { MAX_ERROR_VALUE_LENGTH } from '../limits'
 import type { Preprocessing } from '../project/schema'
 
 /** 전처리기 형식. .mlpx의 experiment.preprocessor.format에 그대로 들어간다. */
@@ -248,7 +249,11 @@ export function unreadableNumericCell(
     for (const row of rows) {
       const cell = dataset.rows[row]?.[index]
       if (cell === undefined || isMissing(cell)) continue
-      if (toNumber(cell) === null) return { name: column.name, value: cell }
+      // **값은 잘라서 넘긴다** — 학생 파일에서 온 글자라 길이가 우리 통제 밖이다
+      // (2026-09-21 R36-V V-2).
+      if (toNumber(cell) === null) {
+        return { name: column.name, value: cell.slice(0, MAX_ERROR_VALUE_LENGTH) }
+      }
     }
   }
   return undefined

@@ -14,6 +14,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
+import { MAX_ERROR_VALUE_LENGTH } from '../src/limits'
 import { planRun } from '../src/ml/plan'
 import { transform, type Dataset } from '../src/ml/preprocess'
 import type { Settings } from '../src/project/schema'
@@ -148,5 +149,72 @@ describe('막아야 할 것만 막는다', () => {
     // 훈련 몫에 글자가 하나라도 있으면 `detectKind`가 범주로 돌린다 — 그러면 수로 읽을
     // 일이 없으므로 이 문이 볼 것도 없다.
     expect(plan.preprocessor.columns.find((one) => one.name === '점수')?.kind).toBe('categorical')
+  })
+})
+
+/**
+ * **따로 올린 테스트 표의 타깃도 같은 잣대로 본다** (2026-09-21 R36-V V-1).
+ *
+ * 정본의 타깃은 `requiredTargetKind`가 이미 보는데, `provided`면 **채점에 쓰는 정답이
+ * 다른 표에서 온다.** 거기 글자가 있으면 `evaluateRegression`의 `Number()`가 `NaN`을
+ * 만들고 지표 가드가 `JOB_FAILED`로 던진다 — **시끄럽게 죽긴 하는데 열 이름도 값도
+ * 없다.** 같은 데이터가 특성 열에 있었으면 `FEATURE_NOT_NUMBER`가 짚어 준다.
+ */
+describe('회귀 · 따로 올린 테스트 표의 타깃 열', () => {
+  function regressionTables(testTargets: readonly string[]) {
+    const train: string[][] = []
+    for (let i = 0; i < 12; i += 1) train.push([String(100 + i * 10), String(i * 2)])
+    return {
+      dataset: { columns: ['점수', '보상'], rows: train },
+      testDataset: {
+        columns: ['점수', '보상'],
+        rows: testTargets.map((one, i) => [String(150 + i * 10), one]),
+      },
+    }
+  }
+
+  function planFor(testTargets: readonly string[]) {
+    const { dataset, testDataset } = regressionTables(testTargets)
+    return planRun({
+      dataset,
+      testDataset,
+      settings: {
+        kind: 'tabular',
+        data: {
+          features: ['점수'],
+          target: '보상',
+          preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
+        },
+        split: { method: 'provided', testSize: 0.25 },
+        randomState: 42,
+        runtime: 'mljs',
+        selectedAlgorithms: [{ algorithm: 'linear_regression' }],
+      } as unknown as Settings,
+      taskType: 'regression',
+    })
+  }
+
+  it('테스트 표의 타깃이 전부 수면 통과한다', () => {
+    expect(planFor(['10', '20', '30', '40']).ok).toBe(true)
+  })
+
+  it('테스트 표의 타깃에 글자가 있으면 선다 — 새 어휘 없이 TARGET_NOT_NUMERIC이다', () => {
+    const plan = planFor(['10', '없음', '30', '40'])
+    expect(plan.ok).toBe(false)
+    if (plan.ok || plan.reason.kind !== 'error') return
+    expect(plan.reason.code).toBe('TARGET_NOT_NUMERIC')
+    expect(plan.reason.params).toEqual({ target: '보상' })
+  })
+})
+
+/** **오류 문구에 실리는 셀 값은 잘린다** (2026-09-21 R36-V V-2). */
+describe('오류 문구에 실리는 값의 길이', () => {
+  it('긴 셀은 상한까지만 실린다', () => {
+    const long = '가'.repeat(500)
+    const plan = planWith(testTable(['150', long, '170', '180']))
+    expect(plan.ok).toBe(false)
+    if (plan.ok || plan.reason.kind !== 'error') return
+    expect(plan.reason.code).toBe('FEATURE_NOT_NUMBER')
+    expect(String(plan.reason.params.value)).toHaveLength(MAX_ERROR_VALUE_LENGTH)
   })
 })

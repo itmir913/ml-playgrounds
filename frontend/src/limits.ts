@@ -1064,6 +1064,21 @@ export const PREDICT_PAGE_SIZE = 100
 export const MAX_FAILURE_DETAIL_LENGTH = 200
 
 /**
+ * 오류 문구에 학생의 **셀 값**을 실을 때의 길이.
+ *
+ * `FEATURE_NOT_NUMBER`가 어느 칸이 문제인지 보여 주려고 값을 그대로 넘기는데, 그 값은
+ * 학생의 CSV에서 온 것이라 **길이가 우리 통제 밖이다.** 엑셀에서 잘못 붙인 문단 하나가
+ * 통째로 오류 카드에 들어가면 카드가 화면을 밀어내고, 정작 어느 열인지가 안 읽힌다
+ * (2026-09-21 R36-V V-2).
+ *
+ * `MAX_FAILURE_DETAIL_LENGTH`보다 짧다 — 저쪽은 **우리가 읽을 단서**이고 이쪽은
+ * **학생이 자기 파일에서 찾을 조각**이라 한눈에 들어와야 한다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const MAX_ERROR_VALUE_LENGTH = 40
+
+/**
  * 알림이 저절로 사라지기까지의 시간.
  *
  * 실패 알림은 여기 해당하지 않는다 - 학생이 읽고 닫는다 (stores/toasts.ts).

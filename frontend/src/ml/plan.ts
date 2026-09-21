@@ -195,6 +195,25 @@ export function planRun(input: PlanInput): RunPlan {
     if (required && detectKind(usableLabels) !== required.kind) {
       return blocked(required.code, { target: target! })
     }
+
+    /**
+     * **따로 올린 테스트 표의 타깃도 같은 잣대로 본다** (2026-09-21 R36-V V-1).
+     *
+     * 위 줄이 보는 `usableLabels`는 **정본**의 라벨이다. `provided`면 채점에 쓰는 정답이
+     * **다른 표**에서 오는데(`experiment.ts`의 `targetValues(testSource, …)`) 그쪽은
+     * 아무도 안 봤다 — 회귀에서 거기 글자가 있으면 `evaluateRegression`의 `Number()`가
+     * `NaN`을 만들고 지표 가드가 `JOB_FAILED`로 던진다. **시끄럽게 죽긴 하는데 열
+     * 이름도 값도 없다.** 같은 데이터가 특성 열에 있었으면 `FEATURE_NOT_NUMBER`가
+     * 짚어 주므로, 같은 병에 얼굴이 둘이었다.
+     *
+     * **새 어휘를 안 만든다** — `TARGET_NOT_NUMERIC`이 말하는 것이 정확히 이것이다.
+     */
+    if (required && testFromProvided) {
+      const testLabels = targetValues(testDataset!, providedTestRows ?? [], target!)
+      if (detectKind(testLabels) !== required.kind) {
+        return blocked(required.code, { target: target! })
+      }
+    }
   }
 
   // **"아무것도 안 함"은 빈 칸이 있으면 거부한다.** 조용히 두는 길이 없어서다 - 수치
