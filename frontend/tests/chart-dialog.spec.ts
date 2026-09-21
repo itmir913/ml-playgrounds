@@ -279,3 +279,40 @@ describe('어느 그림에도 안 들어간 행을 말한다', () => {
     expect(seriesNames(wrapper, 'Scatter')).toEqual(['데이터'])
   })
 })
+
+describe('상자 그림의 툴팁', () => {
+  /**
+   * **다섯 수는 수염 끝이 아니다.** 이상치가 있으면 수염은 그보다 안쪽에서 멈추는데,
+   * 문구는 `최솟값`이라 적혀 있다 — 학생은 그 수를 자기 데이터의 가장 작은 값으로 읽는다.
+   */
+  it('이상치가 있어도 최솟값·최댓값을 그대로 말한다', async () => {
+    const withOutlier = {
+      columns: ['점수'],
+      rows: [['1'], ['2'], ['3'], ['4'], ['5'], ['6'], ['7'], ['8'], ['9'], ['500']],
+    }
+    const columns = [
+      { name: '점수', kind: 'numeric' as const, missing: 0, unique: 10, samples: ['1'] },
+    ]
+    const wrapper = mount(ChartDialog, {
+      props: {
+        open: true,
+        kind: 'tabular' as const,
+        dataset: withOutlier,
+        columns,
+        column: '점수',
+        randomState: 42,
+      },
+      global: { plugins: [i18n] },
+    })
+    const box = toolButtons(wrapper).find((button) => button.text() === '상자 그림')
+    await box?.trigger('click')
+    await drawn(wrapper)
+
+    const options = wrapper.findComponent({ name: 'Bar' }).props('options') as {
+      plugins?: { tooltip?: { callbacks?: { label?: (item: { label: string }) => string } } }
+    }
+    const label = options.plugins?.tooltip?.callbacks?.label?.({ label: '점수' }) ?? ''
+    expect(label).toContain('최솟값 1')
+    expect(label).toContain('최댓값 500')
+  })
+})

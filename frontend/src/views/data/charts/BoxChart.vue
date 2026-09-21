@@ -99,12 +99,19 @@ const options = computed(() =>
     point: (name) => {
       const found = series.value.find((one) => one.name === name)?.summary
       if (!found) return name
+      /**
+       * **다섯 수는 수염 끝이 아니라 실제 최솟값·최댓값이다** (2026-09-21).
+       *
+       * 처음에는 수염 끝을 넘겼는데, **이상치가 있으면 그것은 최솟값이 아니다** —
+       * 문구는 `최솟값`이라 적혀 있고 학생은 그 수를 자기 데이터의 가장 작은 값으로
+       * 읽는다. 수염이 어디서 멈추는지는 **그림이 이미 보여 주고 있다.**
+       */
       return t('data.charts.box.point', {
-        min: format.stat(found.lowerWhisker),
+        min: format.stat(found.min),
         q1: format.stat(found.q1),
         median: format.stat(found.median),
         q3: format.stat(found.q3),
-        max: format.stat(found.upperWhisker),
+        max: format.stat(found.max),
       })
     },
   }),
