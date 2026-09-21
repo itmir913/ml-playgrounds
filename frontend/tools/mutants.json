@@ -1,6 +1,6 @@
 {
   "$comment": "돌연변이 카탈로그. `npm run mutate`가 돌린다. expect가 'cries'면 값이 증명된 돌연변이라 지목한 스펙이 빨개져야 하고(조용하면 검사가 죽은 것, 명령이 실패한다), 'silent'면 아직 무검사인 자리라 조용한 것이 정상이다(울면 cries로 바꾸거나 지운다). find는 그 파일에 정확히 한 번 나와야 하고 여러 줄이면 \\n으로 잇는다. 자세한 것은 tools/mutate.mjs 머리말.",
-  "$history": "R24(2026-09-02)가 silent 일곱을 담았고 라운드를 닫으며 일곱 다 뒤집혀 지웠다. R24 재검토(2026-09-03)가 실제로 운 33개를 cries로 담았다 — 감사자가 라운드마다 손으로 심던 표가 이것이다. R35(2026-09-21)가 sklearn 어댑터의 문 아홉을 담았다 — silent 일곱 중 둘은 **불리는데도** 조용한 자리이고, cries 둘은 그 둘과 같은 줄의 다른 종류다. 넷을 나란히 두면 그물 둘이 서로 다른 구멍을 갖는다는 것이 표로 보인다.",
+  "$history": "R24(2026-09-02)가 silent 일곱을 담았고 라운드를 닫으며 일곱 다 뒤집혀 지웠다. R24 재검토(2026-09-03)가 실제로 운 33개를 cries로 담았다 — 감사자가 라운드마다 손으로 심던 표가 이것이다. R35(2026-09-21)가 sklearn 어댑터의 문 아홉을 담았다 — silent 일곱 중 둘은 **불리는데도** 조용한 자리이고, cries 둘은 그 둘과 같은 줄의 다른 종류다. 넷을 나란히 두면 그물 둘이 서로 다른 구멍을 갖는다는 것이 표로 보인다. R36(2026-09-21)이 열을 더했다 — cries 넷 중 하나는 그 라운드의 A급을 막으려고 새로 세운 문이고, silent 여섯은 워커가 죽는 길과 등록부 항목이다.",
   "mutants": [
     {
       "file": "src/router/steps.ts",
@@ -641,6 +641,90 @@
       "expect": "cries",
       "expectSpecs": ["tests/pyodide-sklearn.spec.ts"],
       "loses": "나무의 클래스 그물(`sklearnTreeModel`이 `dump.classes`를 다시 견준다)이 죽으면 틀린 라벨을 답한다. 선형 계열에는 이 그물이 없다 (R35 C4)"
+    },
+    {
+      "file": "src/ml/plan.ts",
+      "find": "    if (unreadable) {",
+      "replace": "    if (false && unreadable) {",
+      "expect": "cries",
+      "expectSpecs": ["tests/plan-not-number.spec.ts"],
+      "loses": "채점하는 시험 행렬의 수로 못 읽는 칸이 조용히 0이 되어 정확도·R²에 섞인다 (R36 A-1을 막는 문)"
+    },
+    {
+      "file": "src/ml/preprocess.ts",
+      "find": "  return toNumber(cell) !== null",
+      "replace": "  return toNumber(cell.replaceAll(',', '')) !== null",
+      "expect": "cries",
+      "expectSpecs": ["tests/predict.spec.ts"],
+      "loses": "천 단위 쉼표를 예측만 수로 읽어 학습의 열 판정과 잣대가 갈린다 (R33 C-3의 뿌리)"
+    },
+    {
+      "file": "src/limits.ts",
+      "find": "export const PARALLEL_WORKER_CAP = 4",
+      "replace": "export const PARALLEL_WORKER_CAP = 2",
+      "expect": "cries",
+      "expectSpecs": ["tests/compute-pools.spec.ts"],
+      "loses": "워커 수 계산 `min(천장, 코어−1, 일감)`의 유일한 그물. 소비자는 pool.ts 하나다 (R36 C-2)"
+    },
+    {
+      "file": "src/limits.ts",
+      "find": "export const SILHOUETTE_MS_PER_PAIR_FEATURE = 3.2e-6",
+      "replace": "export const SILHOUETTE_MS_PER_PAIR_FEATURE = 3.2e-5",
+      "expect": "cries",
+      "expectSpecs": ["tests/bench-rules.spec.ts"],
+      "loses": "실루엣이 전수인지 표본인지가 조용히 뒤집힌다. **무는 스펙이 bench-rules 하나라 좁힌 목록이 놓쳤던 자리다** (R36 §2.3)"
+    },
+    {
+      "file": "src/ml/preprocess.ts",
+      "find": "(toNumber(String(filled)) ?? 0)",
+      "replace": "(toNumber(String(filled)) ?? 999)",
+      "expect": "silent",
+      "loses": "0을 고르는 원시 연산 자체는 살아 있다 — 앞의 문 둘(plan.ts·predict.ts)이 막을 뿐이다 (R36 A-1)",
+      "expectSpecs": [
+        "tests/plan-not-number.spec.ts",
+        "tests/predict.spec.ts",
+        "tests/preprocess.spec.ts"
+      ]
+    },
+    {
+      "file": "src/ml/worker/pool.ts",
+      "find": "    worker.addEventListener('messageerror', onMessageError)",
+      "replace": "    void onMessageError",
+      "expect": "silent",
+      "loses": "답이 복제에 실패하면 학습이 영영 안 끝난다. R26 B-6이 일부러 더한 셋째 길을 되돌려도 초록이다 (R36 B-4)",
+      "expectSpecs": ["tests/compute-pools.spec.ts"]
+    },
+    {
+      "file": "src/ml/worker/pool.ts",
+      "find": "    worker.addEventListener('error', onError)",
+      "replace": "    void onError",
+      "expect": "silent",
+      "loses": "컴퓨트 워커가 죽으면 Promise가 안 풀려 학습이 멈춘 채 남는다 (R36 B-4)",
+      "expectSpecs": ["tests/compute-pools.spec.ts"]
+    },
+    {
+      "file": "src/ml/worker/handler.ts",
+      "find": "    emit({ type: 'done', experiment, preprocessor, models })",
+      "replace": "    emit({ type: 'done', experiment, preprocessor, models: new Map() })",
+      "expect": "silent",
+      "loses": "학습은 끝났는데 모델이 하나도 안 담긴다 — 교사가 파일을 열어도 재학습이 필요하다. 바로 윗줄 progress는 물린다 (R36 B-5)",
+      "expectSpecs": ["tests/worker.spec.ts", "tests/train-walk.spec.ts"]
+    },
+    {
+      "file": "src/ml/preprocess.ts",
+      "find": "      ? Number(mostFrequent(numbers.map((value) => String(value))))",
+      "replace": "      ? (numbers[0] ?? 0)",
+      "expect": "silent",
+      "loses": "학생이 화면에서 고를 수 있는 결측 전략 하나(mostFrequent)를 어느 스펙도 안 고른다 (R36 C-8)",
+      "expectSpecs": ["tests/preprocess.spec.ts"]
+    },
+    {
+      "file": "src/ml/metric-panels.ts",
+      "find": "export const METRIC_PANELS = PANELS",
+      "replace": "export const METRIC_PANELS = PANELS.filter((one) => one.id !== 'parameters')",
+      "expect": "silent",
+      "loses": "계수 표가 결과 화면에서 통째로 사라져도 관문이 초록이다 — 픽스처에 run.model이 없어 hasData가 거짓이다 (R36 B-3)",
+      "expectSpecs": ["tests/metric-panels.spec.ts", "tests/results-screen.spec.ts"]
     }
   ]
 }
