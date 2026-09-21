@@ -58,7 +58,16 @@ export interface ChartInput {
  * **없으면 제자리에 그린다** (아래 `useChartControls`). 부품 하나만 마운트하는 검사와
  * 하니스에서 터지지 않아야 한다.
  */
-export const CHART_CONTROLS: InjectionKey<Ref<HTMLElement | null>> = Symbol('chart-controls')
+/**
+ * **`Symbol.for`다. `Symbol()`이 아니다** (2026-09-22, 실물에서 봤다).
+ *
+ * 개발 서버가 이 모듈을 다시 평가하면 `Symbol()`은 **새 심벌**이 되고, 창은 옛 열쇠로
+ * 내주고 도구는 새 열쇠로 찾아 **주입이 조용히 빗나간다** — 설정이 왼쪽 칸 대신 그림
+ * 위에 선다. 전역 레지스트리의 심벌은 이름이 같으면 같은 것이라 그 틈이 없다.
+ */
+export const CHART_CONTROLS: InjectionKey<Ref<HTMLElement | null>> = Symbol.for(
+  'mlpx.chart-controls',
+) as InjectionKey<Ref<HTMLElement | null>>
 
 /** 설정을 보낼 자리. 창 밖에서 마운트되면 `null`이고, 그때는 제자리에 그린다. */
 export function useChartControls(): Ref<HTMLElement | null> | null {
@@ -107,12 +116,12 @@ export function numericColumns(columns: readonly ColumnSummary[]): readonly stri
   return columns.filter((column) => column.kind === 'numeric').map((column) => column.name)
 }
 
-/** 범주 열의 이름들. 상자그림을 가르는 열과 산점도의 색이 여기서 나온다. */
+/** 범주 열의 이름들. 박스 플롯을 가르는 열과 산점도의 색이 여기서 나온다. */
 export function categoricalColumns(columns: readonly ColumnSummary[]): readonly string[] {
   return columns.filter((column) => column.kind === 'categorical').map((column) => column.name)
 }
 
-/** 수치 열이 아니면 못 그린다. 히스토그램과 상자그림이 함께 쓴다. */
+/** 수치 열이 아니면 못 그린다. 히스토그램과 박스 플롯이 함께 쓴다. */
 function requireNumeric(input: GateInput): readonly ChartBlock[] {
   return kindOf(input) === 'numeric' ? [] : ['needsNumeric']
 }

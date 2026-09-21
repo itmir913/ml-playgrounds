@@ -267,7 +267,7 @@
         "omitted": "값 종류가 많아 {shown}개만 그렸습니다. (전체 {distinct}종, 그리지 않은 {rows}행)"
       },
       "box": {
-        "name": "상자그림(Box Plot)",
+        "name": "박스 플롯(Box Plot)",
         "groupBy": "구분 기준",
         "groupNone": "구분 없음",
         "point": "최솟값 {min} · 제1사분위수 {q1} · 중앙값 {median} · 제3사분위수 {q3} · 최댓값 {max}",

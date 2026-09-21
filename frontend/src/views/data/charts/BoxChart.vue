@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 상자그림 — 수치 열의 다섯 수와 이상치 (Orange3의 `Box Plot`).
+ * 박스 플롯 — 수치 열의 다섯 수와 이상치 (Orange3의 `Box Plot`).
  *
  * **범주 열로 갈라 볼 수 있다.** Orange3의 Box Plot이 `Subgroups`로 하는 일이고,
  * 이 그림의 값어치가 대부분 거기 있다 — 상자 하나는 평균과 결측 수가 이미 말한 것을
@@ -10,7 +10,7 @@
  * 화면이 *"이 도구는 열이 둘이다"*를 아는 순간 §9.1이 막으려던 분기가 거기 생긴다.
  *
  * **상자만 Chart.js가 그린다.** 수염·중앙값·이상치는 `boxWhiskers` 플러그인이 그린다
- * (`data/chart-config.ts`) — 상자그림 하나 때문에 플러그인을 받지 않기로 한 자리다.
+ * (`data/chart-config.ts`) — 박스 플롯 하나 때문에 플러그인을 받지 않기로 한 자리다.
  */
 
 import { BarController, BarElement, CategoryScale, Chart, LinearScale, Tooltip } from 'chart.js'
@@ -120,8 +120,16 @@ const options = computed(() =>
   }),
 )
 
-/** 수염·중앙값·이상치를 그리는 플러그인. **상자와 같은 재료를 본다.** */
-const plugins = computed(() => [boxWhiskers(series.value, paint.value)])
+/**
+ * 수염·중앙값·이상치를 그리는 플러그인.
+ *
+ * **재료를 안 넘긴다.** 플러그인은 데이터셋에 실려 간 것을 그릴 때 읽는다
+ * (`chart-config.ts`의 `BoxExtras`) — `vue-chartjs`가 `plugins` 프롭이 바뀌어도 차트를
+ * 다시 만들지 않아서, 넘기면 **가르기를 바꾼 뒤에도 옛 상자를 그린다.**
+ *
+ * 그래서 이 값은 한 번 만들어 두고 안 바꾼다.
+ */
+const plugins = [boxWhiskers()]
 
 /** 이상치가 몇 개인지. 0이면 아무 말도 안 한다. */
 const outliers = computed(() =>

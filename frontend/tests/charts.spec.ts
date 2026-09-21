@@ -79,7 +79,7 @@ describe('등록부의 모양', () => {
 })
 
 describe('열의 자료형이 도구를 가른다', () => {
-  it('수치 열에서는 히스토그램·상자그림·산점도가 열린다', () => {
+  it('수치 열에서는 히스토그램·박스 플롯·산점도가 열린다', () => {
     for (const id of ['histogram', 'box', 'scatter']) {
       expect(tool(id).blockedBy({ columns: COLUMNS, column: '키' }), id).toEqual([])
     }

@@ -146,7 +146,7 @@ describe('창이 열리는 순간', () => {
     expect(labels).toEqual([
       '히스토그램(Histogram)',
       '막대그래프(Bar Chart)',
-      '상자그림(Box Plot)',
+      '박스 플롯(Box Plot)',
       '산점도(Scatter Plot)',
     ])
   })
@@ -159,9 +159,9 @@ describe('못 그리는 도구는 이유와 함께 잠긴다', () => {
     expect(bar?.attributes('title')).toBe('범주 열에서만 그릴 수 있습니다.')
   })
 
-  it('범주 열에서 히스토그램과 상자그림이 잠긴다', () => {
+  it('범주 열에서 히스토그램과 박스 플롯이 잠긴다', () => {
     const buttons = toolButtons(open('성별'))
-    for (const name of ['히스토그램', '상자그림']) {
+    for (const name of ['히스토그램', '박스 플롯']) {
       const found = buttons.find((button) => button.text().startsWith(name))
       expect(found?.attributes('disabled'), name).toBeDefined()
     }
@@ -220,7 +220,7 @@ describe('창 안에서 계속 돌아다닌다', () => {
    */
   it('수치 열끼리 옮기면 고른 도구가 그대로다', async () => {
     const wrapper = open('키')
-    const box = toolButton(wrapper, '상자그림')
+    const box = toolButton(wrapper, '박스 플롯')
     await box?.trigger('click')
     await drawn(wrapper)
 
@@ -228,7 +228,7 @@ describe('창 안에서 계속 돌아다닌다', () => {
     await drawn(wrapper)
 
     const chosen = toolButtons(wrapper).find((button) => button.classes().includes('text-brand'))
-    expect(chosen?.text()).toContain('상자그림')
+    expect(chosen?.text()).toContain('박스 플롯')
   })
 
   it('열 선택기가 표의 모든 열을 들고 있다', () => {
@@ -260,9 +260,9 @@ describe('어느 그림에도 안 들어간 행을 말한다', () => {
    * **가르는 열이 빈 칸인 행은 어느 상자에도 안 들어간다.** 안 세면 성별을 안 적은
    * 학생들이 조용히 사라지고, 학생은 자기 반 전체를 보고 있다고 믿는다 (2026-09-21).
    */
-  it('상자그림을 범주로 가르면 빠진 행을 센다', async () => {
+  it('박스 플롯을 범주로 가르면 빠진 행을 센다', async () => {
     const wrapper = open('몸무게')
-    const box = toolButton(wrapper, '상자그림')
+    const box = toolButton(wrapper, '박스 플롯')
     await box?.trigger('click')
     await drawn(wrapper)
 
@@ -300,7 +300,7 @@ describe('어느 그림에도 안 들어간 행을 말한다', () => {
   })
 })
 
-describe('상자그림의 툴팁', () => {
+describe('박스 플롯의 툴팁', () => {
   /**
    * **다섯 수는 수염 끝이 아니다.** 이상치가 있으면 수염은 그보다 안쪽에서 멈추는데,
    * 문구는 `최솟값`이라 적혀 있다 — 학생은 그 수를 자기 데이터의 가장 작은 값으로 읽는다.
@@ -324,7 +324,7 @@ describe('상자그림의 툴팁', () => {
       },
       global: { plugins: [i18n] },
     })
-    const box = toolButton(wrapper, '상자그림')
+    const box = toolButton(wrapper, '박스 플롯')
     await box?.trigger('click')
     await drawn(wrapper)
 

@@ -203,9 +203,25 @@ export interface BoxSeries {
 }
 
 /**
- * 상자그림의 **상자**. 수염·중앙값·이상치는 아래 플러그인이 그린다.
+ * 수염 플러그인이 그릴 때 보는 것. **데이터셋에 실어 보낸다.**
  *
- * **`[Q1, Q3]`을 값으로 주는 떠 있는 막대다.** Chart.js 코어에는 상자그림이 없지만
+ * **플러그인이 닫힘(closure)으로 들고 있으면 낡는다** (2026-09-22, 사용자가 실물에서
+ * 봤다). `vue-chartjs`는 `plugins` 프롭이 바뀌어도 차트를 다시 만들지 않으므로, 상자
+ * 하나짜리 그림을 범주로 가르면 **두 번째 상자에는 수염도 중앙값도 안 그려졌다** —
+ * 첫 상자는 옛 요약으로 그려져서 그림이 멀쩡해 보이기까지 했다.
+ *
+ * `data` 프롭은 반응형이라 언제나 지금 것이다. 그래서 **그릴 재료를 전부 거기 싣는다.**
+ */
+interface BoxExtras {
+  readonly boxes: readonly BoxSeries[]
+  /** 수염·중앙값·이상치의 색. 배색이 바뀌면 이 값도 함께 바뀐다. */
+  readonly ink: string
+}
+
+/**
+ * 박스 플롯의 **상자**. 수염·중앙값·이상치는 아래 플러그인이 그린다.
+ *
+ * **`[Q1, Q3]`을 값으로 주는 떠 있는 막대다.** Chart.js 코어에는 박스 플롯이 없지만
  * 막대는 `[아래, 위]`를 받고, 상자는 그 모양 그대로다 — 플러그인 하나를 더 받는 것보다
  * 싸다 (`open-decisions.md` "44. 데이터 화면의 시각화"의 의존성 절).
  */
@@ -237,9 +253,12 @@ export function boxData(series: readonly BoxSeries[], paint: ChartPaint): ChartD
         /**
          * **상자 하나짜리 그림에 천장이 필요하다** (2026-09-22, 사용자가 실물에서 봤다).
          * 비율만 주면 칸이 하나일 때 그 칸이 캔버스 전체라, 상자가 그림의 절반을 차지한다 —
-         * 상자그림은 **세로로 읽는 그림**인데 가로가 그만큼 넓으면 눈이 넓이를 먼저 읽는다.
+         * 박스 플롯은 **세로로 읽는 그림**인데 가로가 그만큼 넓으면 눈이 넓이를 먼저 읽는다.
          */
         maxBarThickness: BOX_MAX_THICKNESS,
+        // **그릴 재료를 데이터셋에 싣는다** (위 `BoxExtras`). Chart.js는 모르는 필드를
+        // 건드리지 않고 그대로 들고 있으므로, 플러그인이 언제나 지금 것을 본다.
+        ...({ boxes: series, ink: paint.ink } satisfies BoxExtras),
       },
     ],
   }
@@ -285,7 +304,7 @@ function boxRange(series: readonly BoxSeries[]): { min: number; max: number } | 
 }
 
 /**
- * 상자그림의 눈금.
+ * 박스 플롯의 눈금.
  *
  * **세로축이 0에서 시작하면 안 된다** — 값의 범위를 보는 그림인데 0을 끌어들이면
  * 상자가 위쪽에 납작하게 눌린다. 키 150~190짜리 상자가 0~200 축에서 화면의 5분의 1만
@@ -321,29 +340,34 @@ const CAP_RATIO = 0.5
 const OUTLIER_RADIUS = 2.5
 
 /**
- * 상자그림의 **나머지 전부** — 수염, 수염 끝의 가로선, 중앙값, 이상치.
+ * 박스 플롯의 **나머지 전부** — 수염, 수염 끝의 가로선, 중앙값, 이상치.
  *
  * **플러그인 하나를 새로 받지 않고 직접 그리는 자리다.** 그리는 데 필요한 것은 축의
  * 좌표 변환뿐이고, Chart.js가 그것을 이미 준다.
  *
  * **`afterDatasetsDraw`다.** 상자 위에 그려야 중앙값 선이 안 묻힌다.
+ *
+ * **인자를 안 받는다.** 그릴 재료는 데이터셋에 실려 온다(`BoxExtras`) — 닫힘으로 들면
+ * 낡고, 낡은 것을 그린 그림은 **멀쩡해 보인다.**
  */
-export function boxWhiskers(series: readonly BoxSeries[], paint: ChartPaint): Plugin<'bar'> {
+export function boxWhiskers(): Plugin<'bar'> {
   return {
     id: 'box-whiskers',
     afterDatasetsDraw(chart) {
       const meta = chart.getDatasetMeta(0)
       const scale = chart.scales['y']
-      if (!scale) return
+      const extras = chart.data.datasets[0] as unknown as Partial<BoxExtras> | undefined
+      const boxes = extras?.boxes ?? []
+      if (!scale || boxes.length === 0) return
 
       const ctx = chart.ctx
       ctx.save()
       ctx.lineWidth = WHISKER_WIDTH
-      ctx.strokeStyle = paint.ink
-      ctx.fillStyle = paint.ink
+      ctx.strokeStyle = extras?.ink ?? ''
+      ctx.fillStyle = extras?.ink ?? ''
 
       meta.data.forEach((bar, index) => {
-        const summary = series[index]?.summary
+        const summary = boxes[index]?.summary
         if (!summary) return
 
         const x = bar.x

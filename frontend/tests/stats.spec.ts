@@ -124,7 +124,7 @@ describe('히스토그램', () => {
   })
 })
 
-describe('상자그림 요약', () => {
+describe('박스 플롯 요약', () => {
   it('값이 없으면 `null`이다 — 0으로 채운 상자를 그리지 않는다', () => {
     expect(boxSummary([])).toBeNull()
   })

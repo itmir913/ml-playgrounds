@@ -5,7 +5,7 @@
  * 0에서 시작하는가, 애니메이션이 꺼져 있는가. 그래서 화면에 두면 아무도 못 잡고,
  * 실제로 군집 산점도에서 두 번 그렇게 깨졌다 (`ml/cluster-chart.ts`의 머리말).
  *
- * **상자그림의 수염은 캔버스를 흉내 내서 본다.** 그리는 코드가 우리 것이고
+ * **박스 플롯의 수염은 캔버스를 흉내 내서 본다.** 그리는 코드가 우리 것이고
  * (플러그인을 안 받았다) 좌표 변환만 Chart.js가 주므로, 그 변환을 가짜로 주면 **무엇을
  * 어디에 그리는지**를 그대로 잴 수 있다.
  */
@@ -170,7 +170,7 @@ describe('히스토그램과 막대그래프는 다른 그림이다', () => {
   })
 })
 
-describe('상자그림', () => {
+describe('박스 플롯', () => {
   /** 첫 상자가 쓰는 옅은 색의 자리. `softColor`가 **돌려 쓰는 차례를 안 거친다.** */
   const INDEX_OF_FIRST = 0
   const summary = boxSummary([1, 2, 3, 4, 5, 6, 7, 8, 9, 100])!
@@ -264,15 +264,23 @@ describe('상자그림', () => {
       fillStyle: '',
     }
 
-    const bar = { x: 10, getProps: () => ({ width: 20 }) }
+    /**
+     * **재료를 데이터셋에서 읽는다.** 플러그인에 넘기지 않는 것이 계약이고, 그 계약이
+     * 깨지면 가르기를 바꾼 뒤에도 옛 상자를 그린다 (2026-09-22, 실물에서 잡았다).
+     */
+    const bars = list.map((_one, index) => ({
+      x: 10 + index * 40,
+      getProps: () => ({ width: 20 }),
+    }))
     const chart = {
       ctx,
       scales: { y: { getPixelForValue: (value: number) => value } },
-      getDatasetMeta: () => ({ data: [bar] }),
+      data: { datasets: [boxData(list, PAINT).datasets[0]] },
+      getDatasetMeta: () => ({ data: bars }),
     }
 
     // 플러그인의 계약은 Chart.js의 것이라 여기서만 캐스팅한다.
-    const plugin = boxWhiskers(list, PAINT) as unknown as {
+    const plugin = boxWhiskers() as unknown as {
       afterDatasetsDraw: (chart: unknown) => void
     }
     plugin.afterDatasetsDraw(chart)
@@ -295,6 +303,22 @@ describe('상자그림', () => {
     expect(draw(series).dots).toEqual([100])
   })
 
+  /**
+   * **상자가 여럿이면 전부 그린다** (2026-09-22, 사용자가 실물에서 봤다). 재료를 닫힘으로
+   * 들던 때는 **두 번째 상자에 수염도 중앙값도 안 그려졌고**, 첫 상자는 옛 요약으로
+   * 그려져서 그림이 멀쩡해 보이기까지 했다.
+   */
+  it('상자가 둘이면 둘 다 수염을 갖는다', () => {
+    const other = boxSummary([20, 30, 40, 50, 60])!
+    const two: readonly BoxSeries[] = [
+      { name: '여', summary },
+      { name: '남', summary: other },
+    ]
+    const { lines } = draw(two)
+    expect(lines).toContainEqual([summary.q3, summary.upperWhisker])
+    expect(lines).toContainEqual([other.q3, other.upperWhisker])
+    expect(lines).toContainEqual([other.median, other.median])
+  })
   /** 상자보다 상자가 많으면 **짝이 어긋나면 안 된다** — 요약과 막대가 같은 순서다. */
   it('요약이 없는 자리는 그리지 않는다', () => {
     expect(draw([]).lines).toEqual([])
