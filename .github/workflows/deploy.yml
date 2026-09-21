@@ -12,52 +12,25 @@ permissions:
   id-token: write
 
 jobs:
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    # A later run wins. Cancelling a build is safe.
-    concurrency:
-      group: pages-build-${{ github.ref }}
-      cancel-in-progress: true
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          # Matches ci.yml and engines in package.json.
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      # This gates the deploy: backbone weights, eslint, prettier, vue-tsc,
-      # vitest, sklearn fixture freshness, build. ci.yml calls the same one line,
-      # so the gate has a single definition (package.json's `ci` script).
-      # ci.yml checks the same commit, but reading this file alone must tell you
-      # what has to pass before anything ships (docs/open-decisions.md #10-1).
-      #
-      # The fixture check moved into `npm run ci` on 2026-08-28, so it now gates
-      # the deploy too and this job needs Python. It cannot fail because of the
-      # outside world: backend/uv.lock pins scikit-learn and `uv sync --frozen`
-      # installs exactly that, so it only goes red when we changed the fixtures
-      # or the script (docs/open-decisions.md "sklearn 대조 픽스처가 CI 관문에
-      # 들어간다").
-      - uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-          cache-dependency-glob: backend/uv.lock
-      - run: uv sync --frozen
-        working-directory: backend
-      - run: npm run ci
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          # Relative to the workspace root - defaults.run does not apply here.
-          path: frontend/dist
+  # **배포를 거는 것은 `gate.yml` 하나이고, CI가 부르는 것과 같은 파일이다.**
+  #
+  # 전에는 이 파일이 `npm run ci` 한 줄만 돌렸고 `ci.yml`은 잡 셋을 돌렸다. 그래서 같은
+  # 커밋에서 **CI는 빨갛고 배포는 초록**이었고 어휘 계약이 깨진 커밋이 그대로 나갔다
+  # (`0.23.0`, 2026-09-21). *"이 파일만 읽어도 무엇이 통과해야 나가는지 알 수 있어야
+  # 한다"*는 원래 의도가 **실제로 거는 것보다 넓었다** — 이제 한 줄이 그 셋을 전부 건다.
+  #
+  # `pages: true`가 관문 안에서 빌드한 `dist/`를 그대로 아티팩트로 올린다. 배포가 다시
+  # 빌드하지 않는 이유가 그것이다 — 두 번 빌드하면 **나가는 것이 관문을 통과한 그
+  # 바이트인지**를 아무도 보증하지 못한다.
+  gate:
+    name: Gate
+    uses: ./.github/workflows/gate.yml
+    with:
+      pages: true
 
   deploy:
     name: Deploy
-    needs: build
+    needs: gate
     runs-on: ubuntu-latest
     # Never cancelled. A deployment cut off partway can leave the site broken.
     concurrency:
