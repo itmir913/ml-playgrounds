@@ -113,8 +113,18 @@ function onBackdrop(event: MouseEvent): void {
         어디에도 팝오버가 없어서 걸리는 것이 없지만(2026-09-22에 세어 확인했다),
         **여기에 `AppPopover`나 떠오르는 패널을 넣으면 잘린다** — 그때는 그 부품을
         창 바깥으로 올리거나 여기서 굴리는 것을 포기해야 한다.
+
+        **좌우로 한 칸 반씩 새어 나간다** (`-mx-1.5 px-1.5`, 2026-09-22에 사용자가
+        실물에서 봤다). 포커스 링은 요소의 **바깥**에 그려지는데(`outline` 2px +
+        `outline-offset` 2px), 칸이 스크롤 상자의 끝과 맞닿아 있으면 그 링이 잘린다 —
+        입력칸을 누른 학생에게 **테두리가 한쪽만 잘려 보인다.** 음수 여백으로 상자를
+        바깥 여백 쪽으로 넓히고 같은 만큼 안쪽 여백을 줘서, **보이는 자리는 그대로 두고
+        링이 설 자리만 만든다.**
       -->
-      <div v-if="$slots.default" class="mt-6 flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div
+        v-if="$slots.default"
+        class="mt-6 -mx-1.5 flex min-h-0 flex-1 flex-col overflow-y-auto px-1.5"
+      >
         <slot />
       </div>
 

@@ -202,6 +202,36 @@ describe('박스 플롯', () => {
     expect(y?.max).toBeGreaterThan(tall.max)
   })
 
+  /**
+   * **축이 0을 건너지 않는다** (2026-09-22, 실물에서 봤다). 몸무게 12~300에서 눈금을
+   * 떨어지는 수까지 물리면 축이 −50에서 시작했다 — 데이터에 음수가 없는데 음수 구역이
+   * 그림의 6분의 1을 차지하고, 학생은 거기 값이 있을 수 있다고 읽는다.
+   */
+  it('값이 전부 양수면 축이 음수로 안 내려간다', () => {
+    const wide = boxSummary([12, 40, 50, 55, 60, 70, 300])!
+    const scales = boxOptions([{ name: '몸무게', summary: wide }], PAINT, {
+      x: '',
+      y: '몸무게',
+      point: () => '',
+    }).scales
+    const y = scales?.['y'] as { min?: number; max?: number } | undefined
+    expect(y?.min).toBeGreaterThanOrEqual(0)
+    expect(y?.max).toBeGreaterThan(wide.max)
+  })
+
+  /** 반대쪽도 같다 — 값이 전부 음수면 축이 0 위로 안 올라간다. */
+  it('값이 전부 음수면 축이 0 위로 안 올라간다', () => {
+    const below = boxSummary([-90, -70, -60, -55, -40, -12])!
+    const scales = boxOptions([{ name: '기온', summary: below }], PAINT, {
+      x: '',
+      y: '기온',
+      point: () => '',
+    }).scales
+    const y = scales?.['y'] as { min?: number; max?: number } | undefined
+    expect(y?.max).toBeLessThanOrEqual(0)
+    expect(y?.min).toBeLessThan(below.min)
+  })
+
   /** 값이 하나뿐이면 범위가 0이라 여백도 0이 된다 — 그때 눈금이 한 점에 겹치면 안 된다. */
   it('값이 하나뿐이어도 눈금이 겹치지 않는다', () => {
     const flat = boxSummary([7, 7, 7])!

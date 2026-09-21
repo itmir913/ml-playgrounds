@@ -297,9 +297,23 @@ function boxRange(series: readonly BoxSeries[]): { min: number; max: number } | 
   // 값이 하나뿐이면 범위가 0이라 여백도 0이 된다 — 그때는 눈금이 한 점에 겹친다.
   const pad = (high - low) * BOX_PADDING_RATIO || 1
   const step = niceStep(high - low || 1)
+
+  /**
+   * **축이 0을 건너지 않는다** (2026-09-22, 실물에서 봤다).
+   *
+   * 몸무게 12~300짜리 열에서 눈금을 떨어지는 수까지 물리면 축이 **−50**에서 시작했다 —
+   * 데이터에 음수가 하나도 없는데 **음수 구역이 그림의 6분의 1을 차지하고**, 학생은
+   * 거기 값이 있을 수 있다고 읽는다. 값이 전부 양수면 0 아래로 안 내려가고, 전부 음수면
+   * 0 위로 안 올라간다.
+   *
+   * **0에서 시작하지 않는다는 규칙과 안 부딪힌다.** 저쪽은 *0을 끌어들이지 마라*이고
+   * 이쪽은 *0을 넘어가지 마라*다 — 키 150~190은 여전히 140쯤에서 시작한다.
+   */
+  const min = Math.floor((low - pad) / step) * step
+  const max = Math.ceil((high + pad) / step) * step
   return {
-    min: Math.floor((low - pad) / step) * step,
-    max: Math.ceil((high + pad) / step) * step,
+    min: low >= 0 ? Math.max(0, min) : min,
+    max: high <= 0 ? Math.min(0, max) : max,
   }
 }
 

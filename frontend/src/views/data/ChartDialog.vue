@@ -150,6 +150,12 @@ provide(CHART_CONTROLS, controls)
 
           **한 열로 세우고 칸을 꽉 채운다.** 가로로 흐르면 창 너비에 따라 줄바꿈 자리가
           달라져 **같은 도구가 어제와 다른 자리에 선다.**
+
+          **잠긴 단추의 글자는 `text-ink-faint`가 아니다** (2026-09-22에 재서 바꿨다).
+          그 색은 어두운 배색에서 대비가 3.75:1이라 16px 굵은 글자의 기준(4.5)에 못
+          미치는데, **여기 글자는 꾸밈이 아니라 "어느 도구가 잠겼는가"를 말한다** —
+          안 읽히면 학생은 회색 덩어리만 보고 고장으로 읽는다(§8.2). `text-ink-soft`는
+          같은 자리에서 7.4:1이다.
         -->
         <div class="grid grid-cols-1 gap-2">
           <button
@@ -161,7 +167,7 @@ provide(CHART_CONTROLS, controls)
               one.id === toolId
                 ? 'border-brand bg-brand-soft text-brand'
                 : blocks(one).length > 0
-                  ? 'cursor-not-allowed border-line bg-surface-sunken text-ink-faint'
+                  ? 'cursor-not-allowed border-line bg-surface-sunken text-ink-soft'
                   : 'border-line-strong bg-surface text-ink'
             "
             :disabled="blocks(one).length > 0"
@@ -191,7 +197,13 @@ provide(CHART_CONTROLS, controls)
         </p>
       </div>
 
-      <div class="flex min-h-0 min-w-0 flex-col md:col-span-7">
+      <!--
+        **칸이 캔버스보다 작아지면 안 된다** (2026-09-22, 모바일에서 재서 봤다). 한 열로
+        내려오면 격자가 두 줄을 나눠 갖는데, 아래 줄이 201px까지 눌려서 **캔버스가 칸
+        밖으로 55px 넘쳤다** — 굴러가는 상자라 보이기는 하지만 칸의 셈이 거짓이 된다.
+        `min-h-64`는 `ChartFrame`이 캔버스에 주는 바닥값과 같은 값이다.
+      -->
+      <div class="flex min-h-64 min-w-0 flex-col md:col-span-7">
         <component :is="tool.panel" v-if="tool && blocks(tool).length === 0" :input="input" />
       </div>
     </div>
