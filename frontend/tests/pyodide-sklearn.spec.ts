@@ -78,7 +78,11 @@ describe('하이퍼파라미터가 Python 소스로 나갈 때', () => {
     expect(source).toContain('max_depth=7')
     // **낱말로 본다.** `import json`이 `import js`를 부분 문자열로 품어서, 글자로 찾으면
     // 직렬화기가 쓰는 정당한 임포트가 오탐으로 걸린다 (2026-09-19).
-    expect(source).not.toMatch(/import js/)
+    // **\b가 제어문자로 들어가 있었다** (2026-09-22에 잡았다). 힙독으로 쓴 소스가
+    // 백슬래시를 먹어 이 정규식이 `/^Himport js^H/`가 됐고, 그런 글자는 어디에도 없으므로
+    // **`not.toMatch`가 언제나 통과했다** — 막는 것이 없는 채로 초록이었다
+    // (`CLAUDE.md` §4가 경고한 바로 그 자리다).
+    expect(source).not.toMatch(/\bimport js\b/)
     expect(source).not.toContain('_ignored')
   })
 

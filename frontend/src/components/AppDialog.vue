@@ -9,43 +9,67 @@
  * **부모가 상태의 유일한 출처로 남게** 한다 - 안에서 몰래 닫으면 다시 열 수 없다.
  */
 
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 const props = defineProps<{
   open: boolean
   title: string
   description?: string
   /**
-   * 넓은 창인가. **기본은 좁은 창이다** — 이 저장소의 대화상자는 대개 묻고 답하는
-   * 자리이고, 거기서는 좁은 것이 읽기 쉽다.
+   * 화면을 채우는 창인가. **기본은 내용만큼인 좁은 창이다** — 이 저장소의 대화상자는
+   * 대개 묻고 답하는 자리이고, 거기서는 좁은 것이 읽기 쉽다.
    *
-   * **그림을 담는 창 하나 때문에 생겼다** (`ChartDialog.vue`, 2026-09-21). 상자 그림에
-   * 상자가 여럿 서거나 히스토그램의 구간이 스무 개만 돼도 `max-w-lg`(32rem) 안에서는
-   * 막대가 자기 이름보다 좁아진다. **갈래를 boolean으로 둔 이유는 지금 둘뿐이기
-   * 때문이다** — 셋째가 생기면 그때 이름 있는 크기로 바꾼다.
+   * **그림을 담는 창 하나 때문에 생겼다** (`ChartDialog.vue`). 처음에는 `max-w-lg`를
+   * `max-w-4xl`로 넓히는 갈래였는데, 실물에서 보니 **폭만으로는 모자랐다** — 상자그림은
+   * 세로로 읽는 그림이라 높이가 곧 읽을 수 있는 눈금의 수다 (2026-09-22, 코드 소유자).
+   * 그래서 지금은 **화면의 95%**이고, 남는 5%는 뒤가 비쳐 **모달이라는 것이 읽히는**
+   * 자리다.
    */
-  wide?: boolean
+  fill?: boolean
+  /**
+   * 바깥을 눌러도 안 닫히는가. **기본은 닫힌다** — 묻고 답하는 창에서 바깥 클릭은
+   * `취소`와 같은 뜻이고, 거기서는 빠져나갈 길이 많을수록 좋다.
+   *
+   * **보는 창은 다르다** (2026-09-22, 코드 소유자). 그림을 보며 축과 열을 바꾸는 동안
+   * 커서는 캔버스 밖으로 자주 나가고, 그때마다 창이 닫히면 **학생이 하던 일을 잃는다.**
+   * **`Esc`는 그대로 닫는다** — `<dialog>`가 스스로 `close`를 올리므로 여기서 할 일이
+   * 없다. 나가는 길이 없는 창을 만드는 것이 아니라 **실수로 나가는 길만** 막는다.
+   */
+  persistent?: boolean
 }>()
 
 const emit = defineEmits<{ close: [] }>()
 
 const dialog = ref<HTMLDialogElement | null>(null)
 
-watch(
-  () => props.open,
-  (open) => {
-    const element = dialog.value
-    if (!element) return
-    if (open && !element.open) element.showModal()
-    if (!open && element.open) element.close()
-  },
-  { flush: 'post' },
-)
+/** `open`이 말하는 상태를 실제 `<dialog>`에 반영한다. 이미 그 상태면 아무것도 안 한다. */
+function sync(): void {
+  const element = dialog.value
+  if (!element) return
+  if (props.open && !element.open) element.showModal()
+  if (!props.open && element.open) element.close()
+}
+
+watch(() => props.open, sync, { flush: 'post' })
+
+/**
+ * **열린 채로 태어나는 창이 있다** (2026-09-22, 실물에서 잡았다).
+ *
+ * 감시자는 값이 **바뀔 때만** 깨어난다. 부르는 쪽이 `v-if`로 이 컴포넌트를 만들면서
+ * `open`을 처음부터 참으로 주면 **`showModal()`이 한 번도 안 불린다** — 마크업은 다
+ * 있는데 `<dialog>`가 닫힌 채라 화면에 아무것도 안 뜬다.
+ *
+ * **검사가 못 잡았다.** jsdom과 `@vue/test-utils`는 `<dialog>`의 열림을 안 보고 내용을
+ * 그리므로, 시각화 창을 마운트한 검사 열여섯이 전부 초록이었다 — **가짜가 진짜보다
+ * 관대한 자리**다. 아래 `app-dialog.spec.ts`가 이제 열림 자체를 잰다.
+ */
+onMounted(sync)
 
 // 라우트가 바뀌면서 열린 채로 사라질 수 있다. 남으면 화면이 잠긴다.
 onBeforeUnmount(() => dialog.value?.close())
 
 function onBackdrop(event: MouseEvent): void {
+  if (props.persistent) return
   // <dialog> 자신이 대상이면 바깥을 누른 것이다. 안쪽 요소는 여기까지 안 온다.
   if (event.target === dialog.value) emit('close')
 }
@@ -55,11 +79,20 @@ function onBackdrop(event: MouseEvent): void {
   <dialog
     ref="dialog"
     class="dialog-panel m-auto w-full rounded-card border border-line bg-surface p-0 text-ink shadow-pop backdrop:bg-slate-900/40"
-    :class="props.wide ? 'max-w-4xl' : 'max-w-lg'"
+    :class="props.fill ? 'dialog-fill' : 'max-w-lg'"
     @close="emit('close')"
     @click="onBackdrop"
   >
-    <div class="p-6 md:p-8">
+    <!--
+      **세로 배치는 안쪽 칸이 든다. `<dialog>`이 아니다** (2026-09-22, 사용자가 실물에서
+      봤다). 닫힌 `<dialog>`를 숨기는 것은 브라우저의 `display: none` 한 줄인데, 거기에
+      `display: flex`를 주면 **그 한 줄을 덮어** 열리지도 않은 창이 화면에 눌러앉는다 —
+      확인창 둘이 겹쳐 뜨고, 상태 표시줄 아래로 빈 흰 칸이 남았다.
+
+      `[open]`에만 거는 방법도 있었지만 **아예 `display`를 안 건드리는 쪽을 골랐다** —
+      규칙 하나를 더 두면 그 규칙이 사라졌을 때 같은 일이 다시 난다.
+    -->
+    <div class="flex h-full min-h-0 flex-col p-6 md:p-8">
       <h2 class="text-xl font-bold tracking-tight md:text-2xl">{{ title }}</h2>
       <!--
         **리듬이 두 단이다** — 이름과 그 설명 사이는 1.5, 덩어리와 덩어리 사이는 6.
@@ -70,7 +103,13 @@ function onBackdrop(event: MouseEvent): void {
         {{ description }}
       </p>
 
-      <div v-if="$slots.default" class="mt-6">
+      <!--
+        **굴리는 것은 창이 아니라 이 칸이다** (2026-09-22, 사용자 지적). 창 자신이
+        굴러가면 스크롤 막대가 **둥근 모서리 위에 얹히고** 제목과 [닫기]까지 함께
+        밀려 올라간다 — 막대가 내용 옆이 아니라 카드의 가장자리에 붙어 있어 어색했다.
+        여기서 굴리면 머리와 단추는 제자리에 남는다.
+      -->
+      <div v-if="$slots.default" class="mt-6 flex min-h-0 flex-1 flex-col overflow-y-auto">
         <slot />
       </div>
 
@@ -92,7 +131,7 @@ function onBackdrop(event: MouseEvent): void {
         가장 긴 덩어리가 `training`(8자, 약 64px)이라 한 칸이 96px, 둘에 간격 12px을
         더하면 204px이다. 그 위의 첫 눈금이 `@3xs`(16rem)다.
       -->
-      <div class="mt-6 @container">
+      <div class="mt-6 shrink-0 @container">
         <div class="ml-auto grid w-fit gap-3 @3xs:grid-flow-col @3xs:auto-cols-fr">
           <slot name="actions" />
         </div>

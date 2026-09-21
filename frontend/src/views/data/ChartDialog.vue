@@ -13,8 +13,10 @@
  * `.mlpx`에 남길 것이 없다 (결정문의 "저장하지 않는다").
  */
 
-import { computed, ref, watch } from 'vue'
+import { computed, provide, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+
+import { CHART_CONTROLS } from '@/data/charts'
 
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
@@ -92,74 +94,106 @@ const input = computed(() => ({
  * 종류(표·사진)이고 이쪽은 열 하나의 자료형이다. 이름이 겹치면 다음 사람이 둘을 헷갈린다.
  */
 const columnKind = computed(() => props.columns.find((one) => one.name === column.value)?.kind)
+
+/**
+ * 도구가 자기 설정을 보낼 자리 (`data/charts.ts`의 `CHART_CONTROLS`).
+ *
+ * **왜 텔레포트인가.** 무엇을 물을지는 도구가 알아야 하고(§9.1), 어디에 세울지는 창이
+ * 정해야 한다 — 그 둘이 같은 컴포넌트에 있으면 하나를 고칠 때 다른 하나가 따라 움직인다.
+ * 도구는 `<Teleport>`로 **보내기만** 하고, 창은 **자리만** 내준다.
+ */
+const controls = ref<HTMLElement | null>(null)
+provide(CHART_CONTROLS, controls)
 </script>
 
 <template>
   <AppDialog
-    wide
+    fill
+    persistent
     :open="props.open"
     :title="t('data.charts.title')"
     :description="t('data.charts.lead')"
     @close="emit('close')"
   >
-    <div class="flex flex-col gap-5">
-      <!--
-        **열을 창 안에서도 바꿀 수 있다.** 검사기의 줄이 여는 손잡이이고, 연 뒤에
-        옆 열을 보려고 창을 닫았다 여는 것은 같은 일을 두 번 시키는 것이다.
-      -->
-      <label class="flex items-center gap-2">
-        <span class="shrink-0 font-bold text-ink-soft">{{ t('data.charts.column') }}</span>
-        <select
-          v-model="column"
-          class="min-w-0 flex-1 rounded-field border border-line-strong bg-surface px-2 py-1"
-        >
-          <option v-for="one in props.columns" :key="one.name" :value="one.name">
-            {{ one.name }}
-          </option>
-        </select>
-        <span v-if="columnKind" class="shrink-0 text-ink-soft">{{
-          t(`columnKind.${columnKind}`)
-        }}</span>
-      </label>
+    <!--
+      **고르는 자리와 보는 자리를 가른다** (2026-09-22, 코드 소유자). 설정이 그림 위에
+      가로로 누우면 창이 넓어질수록 **그 줄만 길어지고 그림은 그대로**다 — 창을 화면의
+      95%로 키운 이유가 사라진다. 왼쪽이 3, 오른쪽이 7이다.
 
-      <!--
-        **못 쓰는 도구를 숨기지 않고 이유와 함께 잠근다** (§8.2 "이유 없이 회색이면
-        고장으로 본다"). 사라지면 그 도구는 없는 것이 되고, 회색으로 남아 있으면
-        학생이 "수치 열에서 됩니다"를 읽는다.
-      -->
-      <div class="flex flex-wrap gap-2">
-        <button
-          v-for="one in tools"
-          :key="one.id"
-          type="button"
-          class="rounded-field border px-3 py-1.5 text-base font-bold"
-          :class="
-            one.id === toolId
-              ? 'border-brand bg-brand-soft text-brand'
-              : blocks(one).length > 0
-                ? 'cursor-not-allowed border-line bg-surface-sunken text-ink-faint'
-                : 'border-line-strong bg-surface text-ink'
-          "
-          :disabled="blocks(one).length > 0"
-          :title="blocks(one).join(' ')"
-          @click="toolId = one.id"
-        >
-          {{ t(`data.charts.${one.id}.name`) }}
-        </button>
+      **좁은 화면에서는 한 열로 내려온다** (§8.10.1). 거기서는 설정이 위, 그림이 아래다.
+    -->
+    <div class="grid min-h-0 flex-1 grid-cols-1 gap-5 md:grid-cols-10">
+      <div class="flex min-w-0 flex-col gap-5 md:col-span-3">
+        <!--
+          **열을 창 안에서도 바꿀 수 있다.** 검사기의 줄이 여는 손잡이이고, 연 뒤에
+          옆 열을 보려고 창을 닫았다 여는 것은 같은 일을 두 번 시키는 것이다.
+        -->
+        <label class="flex min-w-0 flex-col gap-1.5">
+          <span class="flex items-baseline gap-2 font-bold text-ink-soft">
+            {{ t('data.charts.column') }}
+            <span v-if="columnKind" class="font-normal">{{ t(`columnKind.${columnKind}`) }}</span>
+          </span>
+          <select
+            v-model="column"
+            class="w-full min-w-0 rounded-field border border-line-strong bg-surface px-2 py-1.5"
+          >
+            <option v-for="one in props.columns" :key="one.name" :value="one.name">
+              {{ one.name }}
+            </option>
+          </select>
+        </label>
+
+        <!--
+          **못 쓰는 도구를 숨기지 않고 이유와 함께 잠근다** (§8.2 "이유 없이 회색이면
+          고장으로 본다"). 사라지면 그 도구는 없는 것이 되고, 회색으로 남아 있으면
+          학생이 "수치 열에서 됩니다"를 읽는다.
+
+          **한 열로 세우고 칸을 꽉 채운다.** 가로로 흐르면 창 너비에 따라 줄바꿈 자리가
+          달라져 **같은 도구가 어제와 다른 자리에 선다.**
+        -->
+        <div class="grid grid-cols-1 gap-2">
+          <button
+            v-for="one in tools"
+            :key="one.id"
+            type="button"
+            class="w-full rounded-field border px-3 py-2 text-left text-base font-bold"
+            :class="
+              one.id === toolId
+                ? 'border-brand bg-brand-soft text-brand'
+                : blocks(one).length > 0
+                  ? 'cursor-not-allowed border-line bg-surface-sunken text-ink-faint'
+                  : 'border-line-strong bg-surface text-ink'
+            "
+            :disabled="blocks(one).length > 0"
+            :title="blocks(one).join(' ')"
+            @click="toolId = one.id"
+          >
+            {{ t(`data.charts.${one.id}.name`) }}
+          </button>
+        </div>
+
+        <!--
+          **도구마다의 설정이 여기로 온다.** 무엇이 오는지는 그 도구가 알고
+          (§8.9.1 "둘째 열은 도구가 스스로 묻는다"), 이 창은 **자리만 내준다** — 여기서
+          도구별로 갈래를 세우면 §9.1이 막으려던 분기가 화면에 생긴다.
+        -->
+        <div ref="controls" class="flex min-w-0 flex-col gap-3"></div>
+
+        <!--
+          **잠긴 이유는 붙임말이 아니라 글로도 있어야 한다.** `title` 어트리뷰트는
+          마우스를 올려야 보이고, 휴대폰에는 올릴 마우스가 없다.
+        -->
+        <p v-if="tool === undefined" class="text-ink-soft">
+          {{ t('data.charts.nothingToDraw') }}
+        </p>
+        <p v-else-if="blocks(tool).length > 0" class="text-ink-soft">
+          {{ blocks(tool).join(' ') }}
+        </p>
       </div>
 
-      <!--
-        **잠긴 이유는 붙임말이 아니라 글로도 있어야 한다.** `title` 어트리뷰트는
-        마우스를 올려야 보이고, 휴대폰에는 올릴 마우스가 없다.
-      -->
-      <p v-if="tool === undefined" class="text-ink-soft">
-        {{ t('data.charts.nothingToDraw') }}
-      </p>
-      <p v-else-if="blocks(tool).length > 0" class="text-ink-soft">
-        {{ blocks(tool).join(' ') }}
-      </p>
-
-      <component :is="tool.panel" v-if="tool && blocks(tool).length === 0" :input="input" />
+      <div class="flex min-h-0 min-w-0 flex-col md:col-span-7">
+        <component :is="tool.panel" v-if="tool && blocks(tool).length === 0" :input="input" />
+      </div>
     </div>
 
     <template #actions>

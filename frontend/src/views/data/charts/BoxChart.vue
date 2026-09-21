@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 상자 그림 — 수치 열의 다섯 수와 이상치 (Orange3의 `Box Plot`).
+ * 상자그림 — 수치 열의 다섯 수와 이상치 (Orange3의 `Box Plot`).
  *
  * **범주 열로 갈라 볼 수 있다.** Orange3의 Box Plot이 `Subgroups`로 하는 일이고,
  * 이 그림의 값어치가 대부분 거기 있다 — 상자 하나는 평균과 결측 수가 이미 말한 것을
@@ -10,7 +10,7 @@
  * 화면이 *"이 도구는 열이 둘이다"*를 아는 순간 §9.1이 막으려던 분기가 거기 생긴다.
  *
  * **상자만 Chart.js가 그린다.** 수염·중앙값·이상치는 `boxWhiskers` 플러그인이 그린다
- * (`data/chart-config.ts`) — 상자 그림 하나 때문에 플러그인을 받지 않기로 한 자리다.
+ * (`data/chart-config.ts`) — 상자그림 하나 때문에 플러그인을 받지 않기로 한 자리다.
  */
 
 import { BarController, BarElement, CategoryScale, Chart, LinearScale, Tooltip } from 'chart.js'
@@ -20,7 +20,7 @@ import { useI18n } from 'vue-i18n'
 
 import ChartFrame from './ChartFrame.vue'
 import { boxData, boxOptions, boxWhiskers, type BoxSeries } from '@/data/chart-config'
-import { categoricalColumns, type ChartInput } from '@/data/charts'
+import { categoricalColumns, useChartControls, type ChartInput } from '@/data/charts'
 import { boxSummary, columnCells, frequencies, numericValues } from '@/data/stats'
 import { useChartTokens } from '@/composables/useChartTokens'
 import { useFormat } from '@/composables/useFormat'
@@ -33,6 +33,9 @@ const props = defineProps<{ input: ChartInput }>()
 const { t } = useI18n()
 const format = useFormat()
 const paint = useChartTokens()
+
+/** 설정을 세울 자리. 창 밖에서 마운트되면 `null`이고, 그때는 제자리에 그린다. */
+const controls = useChartControls()
 
 /** 갈라 볼 범주 열. 빈 문자열이면 안 가른다. */
 const groupBy = ref('')
@@ -93,7 +96,7 @@ const series = computed(() => split.value.series)
 const data = computed(() => boxData(series.value, paint.value))
 
 const options = computed(() =>
-  boxOptions(paint.value, {
+  boxOptions(series.value, paint.value, {
     x: groupBy.value === '' ? '' : groupBy.value,
     y: props.input.column,
     point: (name) => {
@@ -148,19 +151,25 @@ const note = computed(() => {
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-3">
     <!--
+      **설정은 창이 내준 자리로 보낸다** (§8.9.1). 무엇을 물을지는 이 부품이 알고,
+      어디에 세울지는 창이 안다 — 창이 도구별로 갈래를 세우면 §9.1이 막으려던 분기가
+      거기 생기고, 부품이 자리를 정하면 창의 레이아웃이 도구 수만큼 갈린다.
+
       **가를 수 있는 열이 없으면 선택기 자체가 없다** (§8.2). 빈 드롭다운을 회색으로
       두면 학생이 고장으로 읽는다.
     -->
-    <label v-if="groupable.length > 0" class="flex items-center gap-2">
-      <span class="font-bold text-ink-soft">{{ t('data.charts.box.groupBy') }}</span>
-      <select
-        v-model="groupBy"
-        class="rounded-field border border-line-strong bg-surface px-2 py-1"
-      >
-        <option value="">{{ t('data.charts.box.groupNone') }}</option>
-        <option v-for="name in groupable" :key="name" :value="name">{{ name }}</option>
-      </select>
-    </label>
+    <Teleport :to="controls" :disabled="controls === null">
+      <label v-if="groupable.length > 0" class="flex min-w-0 flex-col gap-1.5">
+        <span class="font-bold text-ink-soft">{{ t('data.charts.box.groupBy') }}</span>
+        <select
+          v-model="groupBy"
+          class="w-full min-w-0 rounded-field border border-line-strong bg-surface px-2 py-1.5"
+        >
+          <option value="">{{ t('data.charts.box.groupNone') }}</option>
+          <option v-for="name in groupable" :key="name" :value="name">{{ name }}</option>
+        </select>
+      </label>
+    </Teleport>
 
     <ChartFrame
       :empty="series.length === 0 ? t('data.charts.noValues') : ''"

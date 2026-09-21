@@ -17,7 +17,7 @@
  * 시각화를 한 번도 안 여는 학생은 차트 라이브러리를 안 받는다 (`ClusterScatter`와 같다).
  */
 
-import { defineAsyncComponent, type Component } from 'vue'
+import { defineAsyncComponent, inject, type Component, type InjectionKey, type Ref } from 'vue'
 
 import type { ColumnSummary } from './columns'
 import type { DataType } from '@/project/schema'
@@ -46,6 +46,23 @@ export interface ChartInput {
    * 어제 본 것을 오늘도 본다 (`CLAUDE.md` §2의 재현 가능성).
    */
   readonly randomState: number
+}
+
+/**
+ * 도구가 자기 설정(둘째 열·색 열·구분 기준)을 세울 자리.
+ *
+ * **무엇을 물을지는 도구가 알고, 어디에 세울지는 창이 안다** (§9.1, §8.9.1). 창이
+ * `provide`로 자리를 내주고 도구가 `<Teleport>`로 보낸다 — 창이 도구별로 갈래를 세우면
+ * 등록부를 만든 이유가 사라지고, 도구가 자리를 정하면 창의 레이아웃이 도구 수만큼 갈린다.
+ *
+ * **없으면 제자리에 그린다** (아래 `useChartControls`). 부품 하나만 마운트하는 검사와
+ * 하니스에서 터지지 않아야 한다.
+ */
+export const CHART_CONTROLS: InjectionKey<Ref<HTMLElement | null>> = Symbol('chart-controls')
+
+/** 설정을 보낼 자리. 창 밖에서 마운트되면 `null`이고, 그때는 제자리에 그린다. */
+export function useChartControls(): Ref<HTMLElement | null> | null {
+  return inject(CHART_CONTROLS, null)
 }
 
 /**
@@ -90,12 +107,12 @@ export function numericColumns(columns: readonly ColumnSummary[]): readonly stri
   return columns.filter((column) => column.kind === 'numeric').map((column) => column.name)
 }
 
-/** 범주 열의 이름들. 상자 그림을 가르는 열과 산점도의 색이 여기서 나온다. */
+/** 범주 열의 이름들. 상자그림을 가르는 열과 산점도의 색이 여기서 나온다. */
 export function categoricalColumns(columns: readonly ColumnSummary[]): readonly string[] {
   return columns.filter((column) => column.kind === 'categorical').map((column) => column.name)
 }
 
-/** 수치 열이 아니면 못 그린다. 히스토그램과 상자 그림이 함께 쓴다. */
+/** 수치 열이 아니면 못 그린다. 히스토그램과 상자그림이 함께 쓴다. */
 function requireNumeric(input: GateInput): readonly ChartBlock[] {
   return kindOf(input) === 'numeric' ? [] : ['needsNumeric']
 }

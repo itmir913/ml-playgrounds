@@ -1899,6 +1899,50 @@ const props = defineProps<{ run: Run; dataset: Dataset | null }>()
    * 도구를 하나 더 만든 사람이 여기 안 적고 지나간다 (2026-09-01 감사 B-2가 워커 목록에서
    * 잡은 것과 같은 병).
    */
+  /**
+   * **`<dialog>`에 `display`를 직접 주지 않는다** (2026-09-22, 사용자가 실물에서 봤다).
+   *
+   * 닫힌 `<dialog>`를 숨기는 것은 브라우저의 `display: none` 한 줄이다. 클래스로
+   * `flex`·`grid`·`block`을 주면 **그 한 줄을 덮어** 열리지도 않은 창이 화면에 눌러앉는다 —
+   * 확인창 둘이 한꺼번에 뜨고, 그중 하나는 대상이 없어 이름 자리가 `()`로 비어 있었다.
+   *
+   * **검사로 세우는 이유는 어떤 단위 검사도 이것을 못 보기 때문이다.** jsdom에는
+   * 스타일시트가 없어 `display`가 계산되지 않으므로, 대화상자를 마운트하는 검사 스물은
+   * 그때도 전부 초록이었다. 배치가 필요하면 `dialog-panel`의 `&[open]` 안에 둔다.
+   */
+  describe('닫힌 대화상자를 숨기는 규칙을 덮지 않는다', () => {
+    /** `<dialog` 부터 여는 꺾쇠가 닫힐 때까지. 그 안의 `class`만 본다. */
+    const DISPLAY = /\b(?:flex|grid|block|inline-flex|inline-grid|table)\b/
+
+    function dialogClasses(source: string): string[] {
+      return [...source.matchAll(/<dialog\b[^>]*>/g)]
+        .flatMap((tag) => [...(tag[0] ?? '').matchAll(/class="([^"]*)"/g)])
+        .map((found) => found[1] ?? '')
+    }
+
+    it('검사기가 display 유틸리티를 잡는다', () => {
+      expect(dialogClasses('<dialog class="m-auto flex w-full">')[0]).toMatch(DISPLAY)
+      expect(dialogClasses('<dialog class="m-auto w-full rounded-card">')[0]).not.toMatch(DISPLAY)
+      // 내용을 담는 안쪽 칸은 대상이 아니다.
+      expect(dialogClasses('<div class="flex flex-col">')).toEqual([])
+    })
+
+    it('`<dialog>`을 실제로 찾는다', () => {
+      const found = vueFiles(SRC).filter((path) => readFileSync(path, 'utf-8').includes('<dialog'))
+      // 0개면 마크업이 바뀐 것이지 규칙이 지켜진 게 아니다.
+      expect(found.length).toBeGreaterThan(0)
+    })
+
+    it('지금 소스에 그런 자리가 없다', () => {
+      const offenders = vueFiles(SRC).flatMap((path) =>
+        dialogClasses(readFileSync(path, 'utf-8'))
+          .filter((names) => DISPLAY.test(names))
+          .map(() => path.slice(SRC.length + 1)),
+      )
+      expect(offenders).toEqual([])
+    })
+  })
+
   describe('시각화 그림은 프롭을 하나만 선언한다', () => {
     const REGISTRY = join(SRC, 'data', 'charts.ts')
 

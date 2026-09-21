@@ -95,9 +95,23 @@ async function drawn(wrapper: ReturnType<typeof open>): Promise<void> {
   }, WAIT_MS)
 }
 
-/** 도구 단추들. 창의 첫 줄에 선다. */
+/**
+ * 도구 단추들. 창의 왼쪽 칸에 한 열로 선다.
+ *
+ * **본문 안에서만 찾는다.** 창 전체에서 단추를 걷으면 아래 [닫기]까지 딸려 와서,
+ * "도구가 넷이다"를 세는 검사가 다섯을 센다 (2026-09-22).
+ */
 function toolButtons(wrapper: ReturnType<typeof open>) {
-  return wrapper.findAll('button').filter((button) => button.text() !== '')
+  return wrapper.find('.grid').findAll('button')
+}
+
+/**
+ * 이름으로 도구 단추 하나를 집는다. **앞부분만 본다** — 이름에 영문이 병기되므로
+ * (`히스토그램(Histogram)`) 글자 그대로 견주면 병기를 손볼 때마다 검사가 운다.
+ * 병기가 실제로 붙어 있는지는 아래 `이름에 영문을 병기한다`가 따로 못 박는다.
+ */
+function toolButton(wrapper: ReturnType<typeof open>, name: string) {
+  return toolButtons(wrapper).find((button) => button.text().startsWith(name))
 }
 
 beforeEach(() => {
@@ -120,29 +134,35 @@ describe('창이 열리는 순간', () => {
     const wrapper = open('성별')
     await drawn(wrapper)
     const chosen = toolButtons(wrapper).find((button) => button.classes().includes('text-brand'))
-    expect(chosen?.text()).toBe('막대그래프')
+    expect(chosen?.text()).toContain('막대그래프')
   })
 
-  it('네 도구가 전부 화면에 있다 — 못 쓰는 것도 숨기지 않는다', () => {
+  /**
+   * **이름에 영문을 병기한다** (2026-09-22, 코드 소유자). 학생이 교과서와 파이썬에서
+   * 만날 말이 영문이고, 이 창이 그 낱말을 처음 마주치는 자리다 (`docs/copy.md` §2).
+   */
+  it('네 도구가 전부 화면에 있고 이름에 영문을 병기한다', () => {
     const labels = toolButtons(open('키')).map((button) => button.text())
-    expect(labels).toContain('히스토그램')
-    expect(labels).toContain('막대그래프')
-    expect(labels).toContain('상자 그림')
-    expect(labels).toContain('산점도')
+    expect(labels).toEqual([
+      '히스토그램(Histogram)',
+      '막대그래프(Bar Chart)',
+      '상자그림(Box Plot)',
+      '산점도(Scatter Plot)',
+    ])
   })
 })
 
 describe('못 그리는 도구는 이유와 함께 잠긴다', () => {
   it('수치 열에서 막대그래프가 잠긴다', () => {
-    const bar = toolButtons(open('키')).find((button) => button.text() === '막대그래프')
+    const bar = toolButton(open('키'), '막대그래프')
     expect(bar?.attributes('disabled')).toBeDefined()
     expect(bar?.attributes('title')).toBe('범주 열에서만 그릴 수 있습니다.')
   })
 
-  it('범주 열에서 히스토그램과 상자 그림이 잠긴다', () => {
+  it('범주 열에서 히스토그램과 상자그림이 잠긴다', () => {
     const buttons = toolButtons(open('성별'))
-    for (const name of ['히스토그램', '상자 그림']) {
-      const found = buttons.find((button) => button.text() === name)
+    for (const name of ['히스토그램', '상자그림']) {
+      const found = buttons.find((button) => button.text().startsWith(name))
       expect(found?.attributes('disabled'), name).toBeDefined()
     }
   })
@@ -152,7 +172,7 @@ describe('못 그리는 도구는 이유와 함께 잠긴다', () => {
    */
   it('수치 열이 하나뿐이면 산점도가 둘째 열을 요구한다', () => {
     const alone = [COLUMNS[0]!, COLUMNS[2]!]
-    const scatter = toolButtons(open('키', alone)).find((button) => button.text() === '산점도')
+    const scatter = toolButton(open('키', alone), '산점도')
     expect(scatter?.attributes('disabled')).toBeDefined()
     expect(scatter?.attributes('title')).toBe('수치 열이 두 개 이상 있어야 합니다.')
   })
@@ -191,7 +211,7 @@ describe('창 안에서 계속 돌아다닌다', () => {
     await drawn(wrapper)
 
     const chosen = toolButtons(wrapper).find((button) => button.classes().includes('text-brand'))
-    expect(chosen?.text()).toBe('막대그래프')
+    expect(chosen?.text()).toContain('막대그래프')
   })
 
   /**
@@ -200,7 +220,7 @@ describe('창 안에서 계속 돌아다닌다', () => {
    */
   it('수치 열끼리 옮기면 고른 도구가 그대로다', async () => {
     const wrapper = open('키')
-    const box = toolButtons(wrapper).find((button) => button.text() === '상자 그림')
+    const box = toolButton(wrapper, '상자그림')
     await box?.trigger('click')
     await drawn(wrapper)
 
@@ -208,7 +228,7 @@ describe('창 안에서 계속 돌아다닌다', () => {
     await drawn(wrapper)
 
     const chosen = toolButtons(wrapper).find((button) => button.classes().includes('text-brand'))
-    expect(chosen?.text()).toBe('상자 그림')
+    expect(chosen?.text()).toContain('상자그림')
   })
 
   it('열 선택기가 표의 모든 열을 들고 있다', () => {
@@ -240,9 +260,9 @@ describe('어느 그림에도 안 들어간 행을 말한다', () => {
    * **가르는 열이 빈 칸인 행은 어느 상자에도 안 들어간다.** 안 세면 성별을 안 적은
    * 학생들이 조용히 사라지고, 학생은 자기 반 전체를 보고 있다고 믿는다 (2026-09-21).
    */
-  it('상자 그림을 범주로 가르면 빠진 행을 센다', async () => {
+  it('상자그림을 범주로 가르면 빠진 행을 센다', async () => {
     const wrapper = open('몸무게')
-    const box = toolButtons(wrapper).find((button) => button.text() === '상자 그림')
+    const box = toolButton(wrapper, '상자그림')
     await box?.trigger('click')
     await drawn(wrapper)
 
@@ -259,7 +279,7 @@ describe('어느 그림에도 안 들어간 행을 말한다', () => {
    */
   it('색 열이 빈 칸인 점은 `없음`으로 묶인다', async () => {
     const wrapper = open('키')
-    const scatter = toolButtons(wrapper).find((button) => button.text() === '산점도')
+    const scatter = toolButton(wrapper, '산점도')
     await scatter?.trigger('click')
     await drawn(wrapper)
 
@@ -272,7 +292,7 @@ describe('어느 그림에도 안 들어간 행을 말한다', () => {
 
   it('색 열을 안 고르면 갈래가 하나다', async () => {
     const wrapper = open('키')
-    const scatter = toolButtons(wrapper).find((button) => button.text() === '산점도')
+    const scatter = toolButton(wrapper, '산점도')
     await scatter?.trigger('click')
     await drawn(wrapper)
 
@@ -280,7 +300,7 @@ describe('어느 그림에도 안 들어간 행을 말한다', () => {
   })
 })
 
-describe('상자 그림의 툴팁', () => {
+describe('상자그림의 툴팁', () => {
   /**
    * **다섯 수는 수염 끝이 아니다.** 이상치가 있으면 수염은 그보다 안쪽에서 멈추는데,
    * 문구는 `최솟값`이라 적혀 있다 — 학생은 그 수를 자기 데이터의 가장 작은 값으로 읽는다.
@@ -304,7 +324,7 @@ describe('상자 그림의 툴팁', () => {
       },
       global: { plugins: [i18n] },
     })
-    const box = toolButtons(wrapper).find((button) => button.text() === '상자 그림')
+    const box = toolButton(wrapper, '상자그림')
     await box?.trigger('click')
     await drawn(wrapper)
 

@@ -16,7 +16,12 @@ import { useI18n } from 'vue-i18n'
 
 import ChartFrame from './ChartFrame.vue'
 import { scatterData, scatterOptions, scatterSeries } from '@/data/chart-config'
-import { categoricalColumns, numericColumns, type ChartInput } from '@/data/charts'
+import {
+  categoricalColumns,
+  numericColumns,
+  useChartControls,
+  type ChartInput,
+} from '@/data/charts'
 import { columnCells, scatterSample } from '@/data/stats'
 import { useChartTokens } from '@/composables/useChartTokens'
 import { useFormat } from '@/composables/useFormat'
@@ -29,6 +34,9 @@ const props = defineProps<{ input: ChartInput }>()
 const { t } = useI18n()
 const format = useFormat()
 const paint = useChartTokens()
+
+/** 설정을 세울 자리. `BoxChart`와 같은 규칙이다. */
+const controls = useChartControls()
 
 /** 세로축이 될 열. **가로축은 학생이 검사기에서 고른 열이다.** */
 const yColumn = ref('')
@@ -130,31 +138,29 @@ const note = computed(() => {
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-3">
-    <!--
-      **고르는 자리가 그림 위에 선다.** 좁은 화면에서는 세로로 쌓는다 (§8.10.1).
-    -->
-    <div class="flex flex-col gap-2 sm:flex-row sm:gap-5">
-      <label class="flex items-center gap-2">
+    <!-- **설정은 창이 내준 자리로 보낸다** (§8.9.1). `BoxChart`와 같은 규칙이다. -->
+    <Teleport :to="controls" :disabled="controls === null">
+      <label class="flex min-w-0 flex-col gap-1.5">
         <span class="font-bold text-ink-soft">{{ t('data.charts.scatter.yAxis') }}</span>
         <select
           v-model="yColumn"
-          class="rounded-field border border-line-strong bg-surface px-2 py-1"
+          class="w-full min-w-0 rounded-field border border-line-strong bg-surface px-2 py-1.5"
         >
           <option v-for="name in others" :key="name" :value="name">{{ name }}</option>
         </select>
       </label>
 
-      <label v-if="colorable.length > 0" class="flex items-center gap-2">
+      <label v-if="colorable.length > 0" class="flex min-w-0 flex-col gap-1.5">
         <span class="font-bold text-ink-soft">{{ t('data.charts.scatter.colorBy') }}</span>
         <select
           v-model="colorBy"
-          class="rounded-field border border-line-strong bg-surface px-2 py-1"
+          class="w-full min-w-0 rounded-field border border-line-strong bg-surface px-2 py-1.5"
         >
           <option value="">{{ t('data.charts.scatter.colorNone') }}</option>
           <option v-for="name in colorable" :key="name" :value="name">{{ name }}</option>
         </select>
       </label>
-    </div>
+    </Teleport>
 
     <ChartFrame
       :empty="sample.drawn === 0 ? t('data.charts.noValues') : ''"

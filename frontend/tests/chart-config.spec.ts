@@ -5,7 +5,7 @@
  * 0에서 시작하는가, 애니메이션이 꺼져 있는가. 그래서 화면에 두면 아무도 못 잡고,
  * 실제로 군집 산점도에서 두 번 그렇게 깨졌다 (`ml/cluster-chart.ts`의 머리말).
  *
- * **상자 그림의 수염은 캔버스를 흉내 내서 본다.** 그리는 코드가 우리 것이고
+ * **상자그림의 수염은 캔버스를 흉내 내서 본다.** 그리는 코드가 우리 것이고
  * (플러그인을 안 받았다) 좌표 변환만 Chart.js가 주므로, 그 변환을 가짜로 주면 **무엇을
  * 어디에 그리는지**를 그대로 잴 수 있다.
  */
@@ -23,6 +23,7 @@ import {
   scatterData,
   scatterOptions,
   scatterSeries,
+  leadColor,
   seriesColor,
   type BoxSeries,
   type ChartPaint,
@@ -34,6 +35,7 @@ import { CHART_COLORS } from '../src/palette'
 /** 일곱 색. 값이 서로 달라야 색이 갈렸는지를 잴 수 있다. */
 const PAINT: ChartPaint = {
   palette: Array.from({ length: CHART_COLORS }, (_value, index) => `#00000${index}`),
+  softPalette: Array.from({ length: CHART_COLORS }, (_value, index) => `#ffff0${index}`),
   surface: '#ffffff',
   ink: '#475569',
   line: '#e2e8f0',
@@ -101,7 +103,12 @@ describe('히스토그램과 막대그래프는 다른 그림이다', () => {
     expect(set?.barPercentage).toBeUndefined()
   })
 
-  it('막대마다 다른 색을 준다 — 범주가 여럿이면 갈려 보여야 한다', () => {
+  /**
+   * **막대마다 색을 바꾸지 않는다** (2026-09-22, 사용자가 실물에서 봤다). 한 열의 도수를
+   * 그리는 그림에서 색은 아무것도 안 가른다 — 범주가 서른이면 일곱 색이 네 바퀴를 돌아
+   * **뜻 없는 무지개**가 된다.
+   */
+  it('막대그래프는 한 색이다', () => {
     const tally = {
       bars: [
         { value: '남', count: 2 },
@@ -112,7 +119,31 @@ describe('히스토그램과 막대그래프는 다른 그림이다', () => {
       omitted: 0,
     }
     const colors = barData(tally, PAINT, '개수').datasets[0]?.backgroundColor
-    expect(Array.isArray(colors) ? new Set(colors).size : 0).toBe(2)
+    expect(colors).toBe(leadColor(PAINT))
+  })
+
+  /**
+   * **혼자 서는 그림은 팔레트의 첫 색이다.** 돌려 쓰는 차례의 첫 칸을 그냥 쓰면
+   * 히스토그램 하나가 `chart-4`로 서는데, 그 색이 거기 온 이유가 "넷째로 먼 색이라서"다.
+   */
+  it('혼자 서는 그림은 대표색을 쓴다 — 거리순 차례의 첫 칸이 아니다', () => {
+    expect(leadColor(PAINT)).toBe(PAINT.palette[0])
+    expect(leadColor(PAINT)).not.toBe(seriesColor(PAINT, 0))
+  })
+
+  /**
+   * **막대 사이를 가르는 것은 바탕색 테두리다.** 막대와 같은 색으로 그으면 **구분선이
+   * 없는 것과 똑같고**, 실제로 히스토그램 전체가 한 덩어리로 보였다 (2026-09-22).
+   */
+  it('히스토그램의 테두리가 바탕색이다', () => {
+    const set = histogramData(
+      { edges: [0, 1, 2], counts: [3, 4], capped: false },
+      ['0 ~ 1', '1 ~ 2'],
+      PAINT,
+      '개수',
+    ).datasets[0]
+    expect(set?.borderColor).toBe(PAINT.surface)
+    expect(set?.borderColor).not.toBe(set?.backgroundColor)
   })
 
   /**
@@ -127,7 +158,7 @@ describe('히스토그램과 막대그래프는 다른 그림이다', () => {
   /** **애니메이션은 꺼져 있다.** 상한의 근거가 된 실측이 그 상태에서 나왔다 (#28-5). */
   it('애니메이션이 꺼져 있다', () => {
     expect(barOptions(PAINT, TEXT).animation).toBe(false)
-    expect(boxOptions(PAINT, { x: '', y: '키', point: () => '' }).animation).toBe(false)
+    expect(boxOptions([], PAINT, { x: '', y: '키', point: () => '' }).animation).toBe(false)
     expect(scatterOptions(PAINT, { x: 'a', y: 'b', point: () => '' }, false).animation).toBe(false)
   })
 
@@ -139,7 +170,9 @@ describe('히스토그램과 막대그래프는 다른 그림이다', () => {
   })
 })
 
-describe('상자 그림', () => {
+describe('상자그림', () => {
+  /** 첫 상자가 쓰는 옅은 색의 자리. `softColor`가 **돌려 쓰는 차례를 안 거친다.** */
+  const INDEX_OF_FIRST = 0
   const summary = boxSummary([1, 2, 3, 4, 5, 6, 7, 8, 9, 100])!
   const series: readonly BoxSeries[] = [{ name: '키', summary }]
 
@@ -149,10 +182,54 @@ describe('상자 그림', () => {
     expect(data).toEqual([[summary.q1, summary.q3]])
   })
 
-  /** **세로축이 0에서 시작하지 않는다.** 값의 범위를 보는 그림이다. */
-  it('세로축을 0으로 끌어내리지 않는다', () => {
-    const scales = boxOptions(PAINT, { x: '', y: '키', point: () => '' }).scales
-    expect(beginAtZero(scales?.['y'])).toBeUndefined()
+  /**
+   * **세로축이 0에서 시작하면 안 된다** (2026-09-22, 사용자가 실물에서 봤다).
+   * 키 150~190짜리 상자가 0~200 축에 서면 화면의 5분의 1만 쓰고 **다섯 수를 눈으로 읽을
+   * 수 없다.** `beginAtZero: false`로는 안 된다 — Chart.js의 막대 눈금은 기본이 0부터라
+   * **범위를 직접 박아야** 0이 안 들어온다.
+   */
+  it('세로축이 값의 범위를 감싼다 — 0을 끌어들이지 않는다', () => {
+    // 키처럼 **0에서 멀리 떨어진** 값이라야 이 규칙이 드러난다.
+    const tall = boxSummary([150, 160, 165, 170, 175, 180, 190])!
+    const scales = boxOptions([{ name: '키', summary: tall }], PAINT, {
+      x: '',
+      y: '키',
+      point: () => '',
+    }).scales
+    const y = scales?.['y'] as { min?: number; max?: number } | undefined
+    expect(y?.min).toBeGreaterThan(100)
+    expect(y?.min).toBeLessThan(tall.min)
+    expect(y?.max).toBeGreaterThan(tall.max)
+  })
+
+  /** 값이 하나뿐이면 범위가 0이라 여백도 0이 된다 — 그때 눈금이 한 점에 겹치면 안 된다. */
+  it('값이 하나뿐이어도 눈금이 겹치지 않는다', () => {
+    const flat = boxSummary([7, 7, 7])!
+    const scales = boxOptions([{ name: '점수', summary: flat }], PAINT, {
+      x: '',
+      y: '점수',
+      point: () => '',
+    }).scales
+    const y = scales?.['y'] as { min?: number; max?: number } | undefined
+    expect(y?.max).toBeGreaterThan(y?.min ?? 0)
+  })
+
+  /**
+   * **상자의 네 변을 다 그린다.** Chart.js는 바닥 쪽 변을 기본으로 건너뛰는데, 떠 있는
+   * 막대에는 그 전제가 없다 — 제1사분위수 자리가 뚫린 상자가 된다 (2026-09-22).
+   */
+  it('상자의 아래 변을 건너뛰지 않는다', () => {
+    expect(boxData(series, PAINT).datasets[0]?.borderSkipped).toBe(false)
+  })
+
+  /** **넓이는 옅게, 테두리는 진하게.** 진하게 채우면 그 안의 중앙값 선이 묻힌다. */
+  it('상자를 옅은 색으로 채우고 테두리는 진하다', () => {
+    const set = boxData(series, PAINT).datasets[0]
+    const fill = Array.isArray(set?.backgroundColor) ? set.backgroundColor[0] : undefined
+    const edge = Array.isArray(set?.borderColor) ? set.borderColor[0] : undefined
+    expect(fill).toBe(PAINT.softPalette[INDEX_OF_FIRST])
+    expect(edge).toBe(seriesColor(PAINT, 0))
+    expect(fill).not.toBe(edge)
   })
 
   /**

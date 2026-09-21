@@ -255,19 +255,19 @@
         "needsAnotherNumeric": "수치 열이 두 개 이상 있어야 합니다."
       },
       "histogram": {
-        "name": "히스토그램",
+        "name": "히스토그램(Histogram)",
         "series": "개수",
         "point": "{range} · {count}개",
         "capped": "구간이 너무 많아 {count}개로 줄였습니다."
       },
       "bar": {
-        "name": "막대그래프",
+        "name": "막대그래프(Bar Chart)",
         "series": "개수",
         "point": "{value} · {count}개",
         "omitted": "값 종류가 많아 {shown}개만 그렸습니다. (전체 {distinct}종, 그리지 않은 {rows}행)"
       },
       "box": {
-        "name": "상자 그림",
+        "name": "상자그림(Box Plot)",
         "groupBy": "구분 기준",
         "groupNone": "구분 없음",
         "point": "최솟값 {min} · 제1사분위수 {q1} · 중앙값 {median} · 제3사분위수 {q3} · 최댓값 {max}",
@@ -275,7 +275,7 @@
         "ungrouped": "어느 상자에도 안 들어간 {count}행이 있습니다."
       },
       "scatter": {
-        "name": "산점도",
+        "name": "산점도(Scatter Plot)",
         "series": "데이터",
         "yAxis": "세로축",
         "colorBy": "색 구분",

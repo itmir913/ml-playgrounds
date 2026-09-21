@@ -483,5 +483,23 @@
  */
 @utility dialog-panel {
   max-height: calc(100dvh - 2rem);
-  overflow-y: auto;
+}
+
+/**
+ * 화면을 채우는 창 (`AppDialog`의 `fill`).
+ *
+ * **95%다.** 그림을 보는 창은 폭만이 아니라 **높이가 곧 읽을 수 있는 눈금의 수**라,
+ * 내용만큼만 커지는 창으로는 상자 그림의 다섯 수가 눌린다. 남기는 5%는 인색해서가
+ * 아니라 **뒤가 비쳐야 모달이라는 것이 읽히기 때문**이다 — 화면을 꽉 채우면 새 쪽으로
+ * 넘어온 것처럼 보이고, 그러면 학생이 [닫기] 대신 뒤로 가기를 누른다.
+ *
+ * **위 `dialog-panel`의 천장(`100dvh - 2rem`)이 이보다 크므로 서로 안 싸운다.**
+ *
+ * `dvh`·`dvw`인 이유는 `popover-panel`과 같다 — 휴대폰 브라우저의 주소창이 접혔다
+ * 펴지며 화면 크기가 바뀐다.
+ */
+@utility dialog-fill {
+  width: 95dvw;
+  height: 95dvh;
+  max-width: 95dvw;
 }

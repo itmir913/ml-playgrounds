@@ -21,6 +21,14 @@ import { theme } from '@/theme'
 export interface ChartTokens {
   /** `--color-chart-1`~`-7`. 일곱 개다 (`open-decisions.md` #28-3). */
   readonly palette: readonly string[]
+  /**
+   * 같은 일곱의 **옅은 쪽**(`--color-chart-N-soft`).
+   *
+   * **넓이를 채우는 자리에 쓴다** — 상자그림의 상자가 그렇다. 진한 색으로 채우면
+   * 그림의 절반이 한 색 덩어리가 되어, 그 안의 중앙값 선이 묻힌다. 카드가
+   * `border + bg-soft`로 서는 것과 같은 규칙이다 (`palette.ts`).
+   */
+  readonly softPalette: readonly string[]
   readonly surface: string
   readonly ink: string
   readonly line: string
@@ -41,6 +49,7 @@ export interface ChartTokens {
  */
 export function useChartTokens(): ComputedRef<ChartTokens> {
   const palette = ref<readonly string[]>(FALLBACK_PALETTE)
+  const softPalette = ref<readonly string[]>(FALLBACK_PALETTE)
   const surface = ref('#ffffff')
   const ink = ref('#475569')
   const line = ref('#e2e8f0')
@@ -54,6 +63,11 @@ export function useChartTokens(): ComputedRef<ChartTokens> {
     palette.value = FALLBACK_PALETTE.map((fallback, index) =>
       token(`--color-chart-${index + 1}`, fallback),
     )
+    // **대체값이 진한 쪽과 같다.** 옅은 색을 못 읽으면 진한 색으로 채워지는데, 그쪽이
+    // 무거울 뿐 **안 보이지는 않는다** — 옅은 대체값을 지어내면 밝은 배경에서 사라진다.
+    softPalette.value = FALLBACK_PALETTE.map((fallback, index) =>
+      token(`--color-chart-${index + 1}-soft`, fallback),
+    )
     surface.value = token('--color-surface', '#ffffff')
     ink.value = token('--color-ink-soft', '#475569')
     line.value = token('--color-line', '#e2e8f0')
@@ -64,6 +78,7 @@ export function useChartTokens(): ComputedRef<ChartTokens> {
 
   return computed(() => ({
     palette: palette.value,
+    softPalette: softPalette.value,
     surface: surface.value,
     ink: ink.value,
     line: line.value,
