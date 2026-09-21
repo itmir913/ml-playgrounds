@@ -5,15 +5,11 @@
  * 배색을 바꿨을 때 어느 그림이 안 따라오는지가 우연이 된다** — 그리고 그 어긋남은
  * 어두운 배색으로 바꿔서 그림을 하나하나 열어 보기 전까지 아무도 모른다.
  *
- * **그런데 지금 같은 일을 하는 자리가 셋이다** (2026-09-22 감사가 셌다) — 여기,
- * `components/ClusterScatter.vue`, `views/results/panels/LossCurvePanel.vue`. 이 파일이
- * 태어날 때 저 둘을 **안 데려왔다.** 위 문단이 경고한 위험이 그대로 살아 있다는 뜻이고,
- * 고치는 값이 큰 것도 아니다 — 저쪽 둘을 여기로 옮기면 된다(`LossCurvePanel`은
- * `--color-brand`를 더 쓰므로 이 계약이 한 칸 넓어진다).
- *
- * **안 옮긴 이유는 시간이 아니라 확인이다** — 그 둘은 모델을 학습해야 화면에 서는
- * 자리라, 옮긴 뒤 눈으로 볼 수 없는 채로 건드리지 않았다. 다음에 그 화면을 만질 때
- * 함께 옮겨라.
+ * **캔버스에 색을 먹이는 자리는 이제 여기 하나다** (2026-09-22). 한때 셋이었다 —
+ * 여기, `ClusterScatter`, `LossCurvePanel` — 그리고 그 셋은 같은 날 태어나지 않아서
+ * 계약이 조금씩 달랐다. 저 둘을 데려오며 `brand`가 한 칸 늘었다.
+ * **`ui-rules.spec.ts`가 새 복사본을 막는다** — 토큰을 직접 읽는 파일이 여기 말고
+ * 생기면 운다.
  *
  * **`theme` ref를 본다.** 한때 `data-theme` 속성을 게터로 읽었는데, 그것은 반응형 원본이
  * 없는 DOM 읽기라 **감시자가 한 번도 안 깨어났다** — 배색을 바꾼 학생의 산점도는 이전
@@ -38,6 +34,13 @@ export interface ChartTokens {
    * `border + bg-soft`로 서는 것과 같은 규칙이다 (`palette.ts`).
    */
   readonly softPalette: readonly string[]
+  /**
+   * `--color-brand`. **한 갈래짜리 그림이 쓰는 색이다** — 손실 곡선이 그렇다.
+   *
+   * 배색 일곱과 다른 물건이다. 저쪽은 **서로 구분되려고** 있고, 이것은 화면의 다른
+   * 강조와 **같아 보이려고** 있다.
+   */
+  readonly brand: string
   readonly surface: string
   readonly ink: string
   readonly line: string
@@ -56,6 +59,7 @@ export interface ChartTokens {
 export function useChartTokens(): ComputedRef<ChartTokens> {
   const palette = ref<readonly string[]>(FALLBACK_PALETTE)
   const softPalette = ref<readonly string[]>(FALLBACK_PALETTE)
+  const brand = ref('#2563eb')
   const surface = ref('#ffffff')
   const ink = ref('#475569')
   const line = ref('#e2e8f0')
@@ -74,6 +78,7 @@ export function useChartTokens(): ComputedRef<ChartTokens> {
     softPalette.value = FALLBACK_PALETTE.map((fallback, index) =>
       token(`--color-chart-${index + 1}-soft`, fallback),
     )
+    brand.value = token('--color-brand', '#2563eb')
     surface.value = token('--color-surface', '#ffffff')
     ink.value = token('--color-ink-soft', '#475569')
     line.value = token('--color-line', '#e2e8f0')
@@ -85,6 +90,7 @@ export function useChartTokens(): ComputedRef<ChartTokens> {
   return computed(() => ({
     palette: palette.value,
     softPalette: softPalette.value,
+    brand: brand.value,
     surface: surface.value,
     ink: ink.value,
     line: line.value,

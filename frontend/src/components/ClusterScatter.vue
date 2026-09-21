@@ -14,19 +14,14 @@
  */
 
 import { Chart, Legend, LinearScale, PointElement, ScatterController, Tooltip } from 'chart.js'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Scatter } from 'vue-chartjs'
 import { useI18n } from 'vue-i18n'
 
+import { useChartTokens } from '@/composables/useChartTokens'
 import { useFormat } from '@/composables/useFormat'
-import {
-  FALLBACK_PALETTE,
-  clusterChartData,
-  clusterChartOptions,
-  type ClusterHighlight,
-} from '@/ml/cluster-chart'
+import { clusterChartData, clusterChartOptions, type ClusterHighlight } from '@/ml/cluster-chart'
 import { axisCellOf, type ClusterAxis, type ClusterSummary, type ScatterData } from '@/ml/clusters'
-import { theme } from '@/theme'
 
 Chart.register(ScatterController, PointElement, LinearScale, Tooltip, Legend)
 
@@ -63,46 +58,11 @@ watch(
 /**
  * 배색 토큰의 실제 값. **캔버스는 CSS 클래스를 못 쓰므로 값을 읽어 와야 한다.**
  *
- * 어두운 배색은 같은 이름의 값을 바꾸므로(`styles/dark.css`) **배색이 바뀌면 다시
- * 읽는다** — 안 그러면 어두운 화면에 밝은 배색용 색이 남는다.
+ * **읽는 자리는 컴포저블 하나다** — 한때 이 파일이 제 몫을 따로 읽었고, 그때
+ * 배색이 바뀌면 다시 읽는 규칙이 화면마다 따로 살았다 (2026-09-22에 합쳤다).
+ * `ChartTokens`는 `ClusterChartTokens`를 그대로 만족한다.
  */
-const palette = ref<readonly string[]>(FALLBACK_PALETTE)
-const surface = ref('#ffffff')
-const ink = ref('#475569')
-const line = ref('#e2e8f0')
-
-function readTokens(): void {
-  if (typeof document === 'undefined') return
-  const styles = getComputedStyle(document.documentElement)
-  const token = (name: string, fallback: string): string =>
-    styles.getPropertyValue(name).trim() || fallback
-
-  // **대체값이 색마다 달라야 한다** — 전부 같으면 토큰을 못 읽는 순간 모든 군집이
-  // 한 색이 되고, 그림은 멀쩡해 보인다 (`FALLBACK_PALETTE`).
-  palette.value = FALLBACK_PALETTE.map((fallback, index) =>
-    token(`--color-chart-${index + 1}`, fallback),
-  )
-  surface.value = token('--color-surface', '#ffffff')
-  ink.value = token('--color-ink-soft', '#475569')
-  line.value = token('--color-line', '#e2e8f0')
-}
-
-onMounted(readTokens)
-
-/**
- * 배색이 바뀌면 다시 읽는다.
- *
- * **`theme` ref를 본다.** 한때 `data-theme` 속성을 게터로 읽었는데, 그것은 반응형
- * 원본이 없는 DOM 읽기라 **감시자가 한 번도 안 깨어났다** — 배색을 바꾼 학생의
- * 산점도는 이전 배색의 값을 그대로 들고 있었고, 밝은 화면에 어두운 배색의 선이
- * 검게 그려졌다 (2026-08-29 전 경로 감사).
- *
- * **부품이 배색을 고르는 장치를 아는 것은 대가가 아니다.** 그 값이 바뀌는 것을
- * 아는 자리가 거기 하나뿐이고, 모르는 척하면 이 감시자처럼 조용히 죽는다.
- * `applyTheme`이 `theme.value`와 `data-theme`을 한 번에 쓰고 감시자는 그 뒤에
- * 도므로, 여기서 읽는 계산값은 이미 새 배색의 것이다.
- */
-watch(theme, readTokens)
+const tokens = useChartTokens()
 
 const axisName = (position: number): string => props.axes[position]?.name ?? ''
 
@@ -134,13 +94,6 @@ function coordinate(value: number | null, categories?: readonly string[]): strin
   if (cell.kind === 'unknownCategory') return t('meta.none')
   return format.prediction(cell.value)
 }
-
-const tokens = computed(() => ({
-  palette: palette.value,
-  surface: surface.value,
-  ink: ink.value,
-  line: line.value,
-}))
 
 const chartData = computed(() =>
   clusterChartData(

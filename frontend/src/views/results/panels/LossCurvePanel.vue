@@ -18,15 +18,15 @@ import {
   PointElement,
   Tooltip,
 } from 'chart.js'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { Line } from 'vue-chartjs'
 import { useI18n } from 'vue-i18n'
 
+import { useChartTokens } from '@/composables/useChartTokens'
 import { useFormat } from '@/composables/useFormat'
 import { LOSS_CURVE_TICK_COUNT } from '@/limits'
 import { lossCurveOf, lossDescended } from '@/ml/loss-curve'
 import type { PanelInput } from '@/ml/metric-panels'
-import { theme } from '@/theme'
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip)
 
@@ -38,27 +38,10 @@ const format = useFormat()
 const points = computed(() => lossCurveOf(props.input.run.model?.format, props.input.modelBytes))
 
 /**
- * 배색 토큰의 실제 값. **캔버스는 CSS 클래스를 못 쓴다** — `ClusterScatter.vue`와 같은
- * 사정이고, 배색이 바뀌면 다시 읽어야 하는 것도 같다.
+ * 배색 토큰의 실제 값. **캔버스는 CSS 클래스를 못 쓴다** — 읽는 자리는 컴포저블
+ * 하나이고, 배색이 바뀌면 다시 읽는 것도 거기서 한다 (2026-09-22에 합쳤다).
  */
-const brand = ref('#2563eb')
-const ink = ref('#475569')
-const line = ref('#e2e8f0')
-
-function readTokens(): void {
-  if (typeof document === 'undefined') return
-  const styles = getComputedStyle(document.documentElement)
-  const token = (name: string, fallback: string): string =>
-    styles.getPropertyValue(name).trim() || fallback
-  brand.value = token('--color-brand', '#2563eb')
-  ink.value = token('--color-ink-soft', '#475569')
-  line.value = token('--color-line', '#e2e8f0')
-}
-
-onMounted(readTokens)
-// **`theme` ref를 본다.** DOM 속성을 게터로 읽으면 감시자가 한 번도 안 깨어난다
-// (2026-08-29 전 경로 감사, `ClusterScatter.vue`의 같은 자리).
-watch(theme, readTokens)
+const paint = useChartTokens()
 
 const chartData = computed(() => ({
   labels: (points.value ?? []).map((point) => String(point.epoch)),
@@ -66,8 +49,8 @@ const chartData = computed(() => ({
     {
       label: t('results.lossCurveAxis'),
       data: (points.value ?? []).map((point) => point.loss),
-      borderColor: brand.value,
-      backgroundColor: brand.value,
+      borderColor: paint.value.brand,
+      backgroundColor: paint.value.brand,
       // **점을 안 찍는다.** 에폭이 200개라 점을 찍으면 선이 안 보인다.
       pointRadius: 0,
       borderWidth: 2,
@@ -82,14 +65,14 @@ const chartOptions = computed(() => ({
   animation: false as const,
   scales: {
     x: {
-      title: { display: true, text: t('results.lossCurveEpoch'), color: ink.value },
-      ticks: { color: ink.value, maxTicksLimit: LOSS_CURVE_TICK_COUNT },
-      grid: { color: line.value },
+      title: { display: true, text: t('results.lossCurveEpoch'), color: paint.value.ink },
+      ticks: { color: paint.value.ink, maxTicksLimit: LOSS_CURVE_TICK_COUNT },
+      grid: { color: paint.value.line },
     },
     y: {
-      title: { display: true, text: t('results.lossCurveAxis'), color: ink.value },
-      ticks: { color: ink.value },
-      grid: { color: line.value },
+      title: { display: true, text: t('results.lossCurveAxis'), color: paint.value.ink },
+      ticks: { color: paint.value.ink },
+      grid: { color: paint.value.line },
     },
   },
   plugins: { legend: { display: false } },

@@ -10,7 +10,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { basename, dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve, sep } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -3035,5 +3035,41 @@ describe('도착 지점은 붙박이 바를 비켜선다', () => {
   it('바가 늘 있는 화면의 것과 기본값이 다르다', () => {
     // `under-step-bar`는 바가 늘 있는 화면의 것이라 **아직 못 쟀을 때**를 위한 기본값을 갖는다.
     expect(utility('under-step-bar')).toMatch(/--step-bar-height,\s*5\.25rem/)
+  })
+})
+
+/**
+ * **캔버스에 먹일 색을 읽는 자리는 하나다** (2026-09-22).
+ *
+ * 한때 셋이었다 — `useChartTokens` · `ClusterScatter` · `LossCurvePanel`. 베낀 자리는
+ * **틀려도 조용하다**: 배색을 바꿨을 때 안 따라오는 그림이 생겨도 화면은 멀쩡히 서고,
+ * 어두운 배색으로 그림을 하나하나 열어 보기 전까지 아무도 모른다. 2026-08-29 전 경로
+ * 감사가 잡은 결함(`data-theme`을 게터로 읽어 **감시자가 한 번도 안 깨어남**)이 정확히
+ * 그 모양이었고, 그때 고친 것은 **복사본 하나뿐이었다.**
+ *
+ * 그래서 세는 것은 "다시 읽는가"가 아니라 **읽는 파일이 몇 개인가**다.
+ */
+describe('배색 토큰을 읽는 자리', () => {
+  /** 루트에서 CSS 변수를 직접 집어 오는 줄. 컴포저블 말고는 없어야 한다. */
+  const READS_TOKENS = /getComputedStyle\(\s*document\.documentElement\s*\)/
+
+  it('컴포저블 하나뿐이다', () => {
+    const offenders = sourceFiles(SRC)
+      .filter((path) => READS_TOKENS.test(sourceOf(path)))
+      .map((path) =>
+        path
+          .slice(SRC.length + 1)
+          .split(sep)
+          .join('/'),
+      )
+    expect(offenders, 'reads theme tokens outside useChartTokens').toEqual([
+      'composables/useChartTokens.ts',
+    ])
+  })
+
+  it('검사기가 실제로 잡는다', () => {
+    expect(READS_TOKENS.test('const s = getComputedStyle(document.documentElement)')).toBe(true)
+    // 요소 하나의 계산값을 재는 것은 다른 일이다 (치수 측정).
+    expect(READS_TOKENS.test('getComputedStyle(element).height')).toBe(false)
   })
 })
