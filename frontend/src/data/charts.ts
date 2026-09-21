@@ -137,9 +137,19 @@ export const CHART_TOOLS: readonly ChartTool[] = [
      */
     blockedBy: (input) => {
       const blocks: ChartBlock[] = [...requireNumeric(input)]
-      // **고른 열을 뺀 나머지에서 찾는다.** 자기 자신과의 산점도는 대각선일 뿐이다.
-      const others = numericColumns(input.columns).filter((name) => name !== input.column)
-      if (others.length === 0) blocks.push('needsAnotherNumeric')
+      /**
+       * **표 전체의 수치 열을 센다. 고른 열을 뺀 나머지가 아니다.**
+       *
+       * 처음에는 고른 열을 빼고 셌는데, 그러면 **범주 열을 고른 채 표에 수치 열이
+       * 하나뿐일 때** 이 줄이 통과한다 — 학생은 *"수치 열에서만 됩니다"*를 읽고
+       * 그 하나뿐인 수치 열로 옮긴 다음 **거기서 다시 막힌다.** 잠긴 이유는 한 번에
+       * 다 말해야 한다 (2026-09-21, `charts.spec.ts`가 잡았다).
+       *
+       * 고른 열이 수치일 때는 둘 중 하나가 자기 자신이므로 **짝이 될 열이 하나
+       * 남는다는 뜻**이고, 범주일 때는 **고를 축 둘이 있다는 뜻**이다. 세는 규칙 하나가
+       * 두 경우를 다 맞힌다.
+       */
+      if (numericColumns(input.columns).length < 2) blocks.push('needsAnotherNumeric')
       return blocks
     },
     panel: defineAsyncComponent(() => import('@/views/data/charts/ScatterChart.vue')),

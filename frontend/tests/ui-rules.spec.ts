@@ -1888,6 +1888,39 @@ const props = defineProps<{ run: Run; dataset: Dataset | null }>()
     expect(verticalGaps('<div class="flex flex-col gap-x-3 gap-1.5">')).toEqual(['1.5'])
   })
 
+  /**
+   * **시각화 그림도 `input` 하나만 받는다** (`data/charts.ts`, 2026-09-21).
+   *
+   * 위 상세 패널과 같은 계약이고 같은 실패 모양이다 — 호출부가 `<component :is>` 하나뿐이라
+   * vue-tsc가 프롭을 대조하지 않고, **선언하지 않은 객체 프롭은 `[object Object]`라는
+   * 어트리뷰트로 DOM에 박힌다.**
+   *
+   * **목록을 손으로 적지 않는다.** 등록부가 가리키는 파일을 그대로 읽는다 — 손으로 적으면
+   * 도구를 하나 더 만든 사람이 여기 안 적고 지나간다 (2026-09-01 감사 B-2가 워커 목록에서
+   * 잡은 것과 같은 병).
+   */
+  describe('시각화 그림은 프롭을 하나만 선언한다', () => {
+    const REGISTRY = join(SRC, 'data', 'charts.ts')
+
+    /** 등록부가 지연 로딩으로 가리키는 `.vue` 경로들. */
+    const PANELS = [
+      ...readFileSync(REGISTRY, 'utf-8').matchAll(/import\('@\/([^']+\.vue)'\)/g),
+    ].map((match) => join(SRC, match[1] ?? ''))
+
+    it('등록부가 가리키는 그림을 실제로 찾는다', () => {
+      // 0개면 정규식이 썩은 것이지 규칙이 지켜진 게 아니다.
+      expect(PANELS.length).toBeGreaterThanOrEqual(4)
+      for (const path of PANELS) expect(existsSync(path), path).toBe(true)
+    })
+
+    it('지금 그림이 전부 input 하나만 받는다', () => {
+      const found = PANELS.map((path) => ({ path, props: panelProps(readFileSync(path, 'utf-8')) }))
+        .filter((entry) => entry.props.length !== 1 || entry.props[0] !== 'input')
+        .map((entry) => `${entry.path.slice(SRC.length + 1)}  ${entry.props.join(', ')}`)
+      expect(found).toEqual([])
+    })
+  })
+
   it('지금 판이 전부 gap-1.5 아니면 gap-5다', () => {
     const found = vueFiles(PANELS).flatMap((path) =>
       verticalGaps(readFileSync(path, 'utf-8'))
