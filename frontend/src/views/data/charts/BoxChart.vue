@@ -58,17 +58,17 @@ const read = computed(() => numericValues(columnCells(props.input.dataset, props
  * **가르는 값도 도수가 큰 것부터 남긴다** (`frequencies`). 값 종류가 수백인 열로 가르면
  * 상자가 수백 개 서서 아무것도 안 읽힌다.
  */
-const series = computed<readonly BoxSeries[]>(() => {
+const split = computed<{ series: readonly BoxSeries[]; ungrouped: number }>(() => {
   if (groupBy.value === '') {
     const summary = boxSummary(read.value.values)
-    return summary ? [{ name: props.input.column, summary }] : []
+    return { series: summary ? [{ name: props.input.column, summary }] : [], ungrouped: 0 }
   }
 
   const cells = columnCells(props.input.dataset, props.input.column)
   const groups = columnCells(props.input.dataset, groupBy.value)
-  const kept = frequencies(groups, CATEGORY_BAR_LIMIT).bars
+  const tally = frequencies(groups, CATEGORY_BAR_LIMIT)
 
-  return kept.flatMap((bar) => {
+  const series = tally.bars.flatMap((bar) => {
     const picked: string[] = []
     for (let row = 0; row < cells.length; row += 1) {
       if (groups[row] === bar.value) picked.push(cells[row] ?? '')
@@ -76,7 +76,19 @@ const series = computed<readonly BoxSeries[]>(() => {
     const summary = boxSummary(numericValues(picked).values)
     return summary ? [{ name: bar.value, summary }] : []
   })
+
+  /**
+   * **어느 상자에도 안 들어간 행.** 가르는 열이 빈 칸인 행과, 값 종류가 너무 많아
+   * 밀려난 행이다.
+   *
+   * **둘을 합쳐 세는 이유는 학생에게 같은 사실이기 때문이다** — *"이만큼은 그림에
+   * 없다"*. 안 세면 성별이 비어 있는 학생들이 어느 상자에도 없이 **조용히 사라진다**
+   * (2026-09-21).
+   */
+  return { series, ungrouped: tally.missing + tally.omitted }
 })
+
+const series = computed(() => split.value.series)
 
 const data = computed(() => boxData(series.value, paint.value))
 
@@ -105,6 +117,25 @@ const plugins = computed(() => [boxWhiskers(series.value, paint.value)])
 const outliers = computed(() =>
   series.value.reduce((sum, one) => sum + one.summary.outliers.length, 0),
 )
+
+/**
+ * 그림 아래 한 줄. **이상치와 빠진 행은 다른 사실이라 따로 말한다** — 앞엣것은 그림
+ * 안에 점으로 있고 뒤엣것은 그림에 아예 없다.
+ */
+const note = computed(() => {
+  const parts: string[] = []
+  /**
+   * **`t()`에 `.value`를 바로 넘기지 않는다** (`ui-rules`의 "t()의 인자는 새 객체다").
+   * 여기 넘기는 것은 수라서 vue-i18n이 써 넣을 자리가 없지만, **그물은 수와 객체를 못
+   * 가른다** — 넓혀서 멀쩡한 코드를 물게 하는 것보다 부르는 쪽이 한 줄 더 쓰는 것이 싸다.
+   */
+  const outlierCount = outliers.value
+  if (outlierCount > 0) parts.push(t('data.charts.box.outliers', outlierCount))
+  if (split.value.ungrouped > 0) {
+    parts.push(t('data.charts.box.ungrouped', { count: split.value.ungrouped }))
+  }
+  return parts.join(' · ')
+})
 </script>
 
 <template>
@@ -127,7 +158,7 @@ const outliers = computed(() =>
     <ChartFrame
       :empty="series.length === 0 ? t('data.charts.noValues') : ''"
       :missing="read.missing"
-      :note="outliers > 0 ? t('data.charts.box.outliers', outliers) : ''"
+      :note="note"
     >
       <Bar :data="data" :options="options" :plugins="plugins" />
     </ChartFrame>

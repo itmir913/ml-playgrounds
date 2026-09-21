@@ -271,7 +271,8 @@
         "groupBy": "Split by",
         "groupNone": "No split",
         "point": "Minimum {min} · Q1 {q1} · Median {median} · Q3 {q3} · Maximum {max}",
-        "outliers": "{count} value beyond the whiskers is drawn as a dot. | {count} values beyond the whiskers are drawn as dots."
+        "outliers": "{count} value beyond the whiskers is drawn as a dot. | {count} values beyond the whiskers are drawn as dots.",
+        "ungrouped": "{count} row is not in any box. | {count} rows are not in any box."
       },
       "scatter": {
         "name": "Scatter plot",

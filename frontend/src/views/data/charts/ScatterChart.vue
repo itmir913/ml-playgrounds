@@ -72,7 +72,20 @@ const sample = computed(() =>
   ),
 )
 
-const series = computed(() => scatterSeries(sample.value.points, t('data.charts.scatter.series')))
+/**
+ * 갈래로 나눈 점.
+ *
+ * **색 열을 골랐을 때의 이름이 다르다.** 색 열의 값이 빈 칸인 행은 갈래 이름이 없는데,
+ * 그때 `데이터`라는 이름으로 묶으면 `남`·`여` 옆에 **정체를 알 수 없는 세 번째 갈래**가
+ * 선다 — 학생은 그것을 또 하나의 값으로 읽는다. 그 자리의 참말은 `없음`이다
+ * (2026-09-21).
+ */
+const series = computed(() =>
+  scatterSeries(
+    sample.value.points,
+    colorBy.value === '' ? t('data.charts.scatter.series') : t('meta.none'),
+  ),
+)
 
 const data = computed(() => scatterData(series.value, paint.value))
 

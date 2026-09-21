@@ -20,8 +20,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * (`cluster-scatter.spec.ts`가 같은 이유로 같은 일을 한다).
  */
 vi.mock('vue-chartjs', () => ({
-  Bar: { name: 'Bar', render: () => null },
-  Scatter: { name: 'Scatter', render: () => null },
+  // **프롭을 선언한다.** 그려진 그림은 못 보지만 **무엇을 그리라고 넘겼는지**는 볼 수 있다.
+  Bar: { name: 'Bar', props: ['data', 'options', 'plugins'], render: () => null },
+  Scatter: { name: 'Scatter', props: ['data', 'options'], render: () => null },
 }))
 
 import ChartDialog from '../src/views/data/ChartDialog.vue'
@@ -35,14 +36,23 @@ const DATASET = {
     ['170', '60', '여'],
     ['180', '70', '남'],
     ['', '80', ''],
+    ['190', '90', ''],
   ],
 }
 
 const COLUMNS = [
-  { name: '키', kind: 'numeric' as const, missing: 1, unique: 3, samples: ['160'] },
-  { name: '몸무게', kind: 'numeric' as const, missing: 0, unique: 4, samples: ['50'] },
-  { name: '성별', kind: 'categorical' as const, missing: 1, unique: 2, samples: ['남'] },
+  { name: '키', kind: 'numeric' as const, missing: 1, unique: 4, samples: ['160'] },
+  { name: '몸무게', kind: 'numeric' as const, missing: 0, unique: 5, samples: ['50'] },
+  { name: '성별', kind: 'categorical' as const, missing: 2, unique: 2, samples: ['남'] },
 ]
+
+/** 그림에 넘어간 데이터셋의 이름들. 갈래가 무엇으로 갈렸는지가 여기 보인다. */
+function seriesNames(wrapper: ReturnType<typeof open>, chart: 'Bar' | 'Scatter'): string[] {
+  const data = wrapper.findComponent({ name: chart }).props('data') as {
+    datasets: { label?: string }[]
+  }
+  return data.datasets.map((set) => set.label ?? '')
+}
 
 function open(column: string, columns = COLUMNS) {
   return mount(ChartDialog, {
@@ -58,6 +68,9 @@ function open(column: string, columns = COLUMNS) {
   })
 }
 
+/** 그림이 설 때까지 기다리는 천장. 아래 `drawn`의 머리말이 이유를 갖는다. */
+const WAIT_MS = 10_000
+
 /**
  * 그림 부품이 실제로 설 때까지 기다린다.
  *
@@ -65,6 +78,11 @@ function open(column: string, columns = COLUMNS) {
  * (`data/charts.ts`) 마운트가 모듈을 불러오는 것을 기다리고, 그것은 마이크로태스크
  * 하나로 안 끝난다. **안 기다리면 `<!---->` 자리표시자를 보고 "그림이 없다"고 읽는다** —
  * 그러면 이 파일의 검사들이 전부 조용히 거짓 초록이 된다.
+ *
+ * **기본 1초로는 모자라다.** 관문은 워커 180개를 띄우고 돌아서 모듈 하나 불러오는 데
+ * 1초를 넘길 수 있다 — 실제로 격리하면 통과하고 전체에서만 빨간 적이 있다
+ * (2026-09-21). **거짓 빨강은 진짜 빨강을 가리므로** 넉넉히 준다. 기다림이 길어지는
+ * 것은 값이 아니다 — 실제로 걸리는 시간은 그대로이고 천장만 높다.
  */
 async function drawn(wrapper: ReturnType<typeof open>): Promise<void> {
   await vi.waitFor(() => {
@@ -74,7 +92,7 @@ async function drawn(wrapper: ReturnType<typeof open>): Promise<void> {
     ) {
       throw new Error('chart not mounted yet')
     }
-  })
+  }, WAIT_MS)
 }
 
 /** 도구 단추들. 창의 첫 줄에 선다. */
@@ -214,5 +232,50 @@ describe('보이는 숫자가 정본의 것이다', () => {
     const wrapper = open('몸무게')
     await drawn(wrapper)
     expect(wrapper.text()).not.toContain('제외했습니다')
+  })
+})
+
+describe('어느 그림에도 안 들어간 행을 말한다', () => {
+  /**
+   * **가르는 열이 빈 칸인 행은 어느 상자에도 안 들어간다.** 안 세면 성별을 안 적은
+   * 학생들이 조용히 사라지고, 학생은 자기 반 전체를 보고 있다고 믿는다 (2026-09-21).
+   */
+  it('상자 그림을 범주로 가르면 빠진 행을 센다', async () => {
+    const wrapper = open('몸무게')
+    const box = toolButtons(wrapper).find((button) => button.text() === '상자 그림')
+    await box?.trigger('click')
+    await drawn(wrapper)
+
+    const selects = wrapper.findAll('select')
+    await selects[selects.length - 1]?.setValue('성별')
+    await drawn(wrapper)
+
+    expect(wrapper.text()).toContain('어느 상자에도 안 들어간 2행이 있습니다.')
+  })
+
+  /**
+   * **색 열이 빈 칸인 점을 `데이터`라고 부르지 않는다.** `남`·`여` 옆에 그런 이름이
+   * 서면 학생은 그것을 또 하나의 값으로 읽는다 — 그 자리의 참말은 `없음`이다.
+   */
+  it('색 열이 빈 칸인 점은 `없음`으로 묶인다', async () => {
+    const wrapper = open('키')
+    const scatter = toolButtons(wrapper).find((button) => button.text() === '산점도')
+    await scatter?.trigger('click')
+    await drawn(wrapper)
+
+    const selects = wrapper.findAll('select')
+    await selects[selects.length - 1]?.setValue('성별')
+    await drawn(wrapper)
+
+    expect(seriesNames(wrapper, 'Scatter')).toEqual(['남', '여', '없음'])
+  })
+
+  it('색 열을 안 고르면 갈래가 하나다', async () => {
+    const wrapper = open('키')
+    const scatter = toolButtons(wrapper).find((button) => button.text() === '산점도')
+    await scatter?.trigger('click')
+    await drawn(wrapper)
+
+    expect(seriesNames(wrapper, 'Scatter')).toEqual(['데이터'])
   })
 })
