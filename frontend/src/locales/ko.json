@@ -539,6 +539,7 @@
     "FEATURE_NOT_SELECTED": "학습에 사용할 특성을 하나 이상 선택해 주세요.",
     "FEATURE_ALL_MISSING": "값이 모두 비어 있어 학습에 쓸 수 없는 특성입니다. 전처리에서 이 특성의 선택을 해제해 주세요. ({feature})",
     "FEATURE_HAS_MISSING": "[결측치 유지하기]로 되어 있는데 이 특성에 결측치가 있습니다. 전처리에서 다른 결측치 처리를 선택하거나 이 특성의 선택을 해제해 주세요. ({feature})",
+    "FEATURE_NOT_NUMBER": "숫자로 읽을 수 없는 값이 있어 이 특성으로는 채점할 수 없습니다. 원본 파일에서 값을 수정하거나 이 특성의 선택을 해제해 주세요. ({feature}: {value})",
     "ALGORITHM_UNSUPPORTED": "지원하지 않는 모델입니다. ({algorithm})",
     "HYPERPARAM_OUT_OF_RANGE": "{name} 값이 넣을 수 있는 범위를 벗어났습니다. ({min} ~ {max}, 현재 {actual})",
     "SPLIT_INVALID": "훈련 데이터와 테스트 데이터로 분할할 설정이 맞지 않습니다. 전처리에서 테스트 데이터 비율을 확인해 주세요.",

@@ -32,6 +32,7 @@ import {
   fitPreprocessor,
   missingColumns,
   targetValues,
+  unreadableNumericCell,
   usableRows,
   type Dataset,
   type Preprocessor,
@@ -281,6 +282,33 @@ export function planRun(input: PlanInput): RunPlan {
       data.features,
       data.preprocessing,
     )
+
+    /**
+     * **수치 열의 시험 몫에 수로 못 읽는 값이 있으면 학습 전에 거절한다**
+     * (2026-09-21 R36 A-1).
+     *
+     * **열 판정은 훈련 몫만 보고 `transform`은 시험 몫도 돌린다.** 그 비대칭 때문에
+     * 시험 몫에만 있는 `1,650`·`없음`·`N/A`가 아무 데도 안 걸리고 **조용히 `0`이 되어
+     * 정확도와 R²에 섞였다** — 실패도 경고도 없이 그 숫자가 포트폴리오에 적혔다.
+     *
+     * **여기서 막는 이유.** `transform`을 부르는 자리(`experiment.ts`)는 어떤 `try`
+     * 안에도 없어서 던지면 **run 하나가 아니라 학습 전체가 죽는다.** 계획 단계면
+     * 전처리 화면의 요약 카드가 같은 함수를 쓰므로(architecture.md §9.1.3) **학생이
+     * 고칠 수 있는 화면에서 열 이름과 함께 본다.**
+     *
+     * **훈련 몫은 안 본다** — `detectKind`가 이미 보장한다(`unreadableNumericCell`).
+     */
+    const unreadable = unreadableNumericCell(
+      preprocessor,
+      testFromProvided ? testDataset! : dataset,
+      split.testIndices,
+    )
+    if (unreadable) {
+      throw new ClientError('FEATURE_NOT_NUMBER', {
+        feature: unreadable.name,
+        value: unreadable.value,
+      })
+    }
 
     return {
       ok: true,

@@ -1,0 +1,152 @@
+/**
+ * **채점하는 시험 행렬에 수로 못 읽는 값이 있으면 학습 전에 선다** (2026-09-21 R36 A-1).
+ *
+ * **왜 이 검사가 있는가.** 열이 수치인지 범주인지는 `detectKind`가 **훈련 몫만** 보고
+ * 정하는데 `transform`은 **시험 몫도** 같은 규칙으로 돌린다. 그 비대칭 때문에 시험 몫에만
+ * 있는 `1,650`·`없음`·`N/A`가 아무 그물에도 안 걸리고 `preprocess.ts`의 `?? 0`에서
+ * **조용히 `0`이 됐다** — 실패도 경고도 없이 그 `0`으로 정확도와 R²가 나왔고, 학생은 그
+ * 숫자를 포트폴리오에 적었다.
+ *
+ * **여기서 재는 것은 둘이다** — 막는가, 그리고 **막아야 할 것만 막는가.** 둘째가 없으면
+ * 멀쩡한 파일이 거절당하는 쪽으로 넘어간다.
+ */
+
+import { describe, expect, it } from 'vitest'
+
+import { isClientError } from '../src/errors'
+import { planRun } from '../src/ml/plan'
+import { transform, type Dataset } from '../src/ml/preprocess'
+import type { Settings } from '../src/project/schema'
+
+/** 훈련 표 — `점수`가 전부 수로 읽힌다. 열 판정이 `numeric`으로 서는 최소 크기다. */
+function trainTable(): Dataset {
+  const rows: string[][] = []
+  for (let i = 0; i < 12; i += 1) rows.push([String(100 + i * 10), i % 2 === 0 ? '가' : '나'])
+  return { columns: ['점수', '등급'], rows }
+}
+
+function testTable(scores: readonly string[]): Dataset {
+  return {
+    columns: ['점수', '등급'],
+    rows: scores.map((score, index) => [score, index % 2 === 0 ? '가' : '나']),
+  }
+}
+
+function settingsFor(method: 'holdout' | 'provided'): Settings {
+  return {
+    kind: 'tabular',
+    data: {
+      features: ['점수'],
+      target: '등급',
+      preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
+    },
+    split: { method, testSize: 0.25 },
+    randomState: 42,
+    runtime: 'mljs',
+    selectedAlgorithms: [{ algorithm: 'decision_tree' }],
+  } as unknown as Settings
+}
+
+function planWith(test: Dataset | null, method: 'holdout' | 'provided' = 'provided') {
+  return planRun({
+    dataset: trainTable(),
+    testDataset: test,
+    settings: settingsFor(method),
+    taskType: 'classification',
+  })
+}
+
+describe('시험 몫에 수로 못 읽는 값이 있으면 계획이 선다', () => {
+  /** 교실에서 실제로 나오는 셋. 한국 학교 자료의 수는 `1,650`으로 적힌다. */
+  for (const bad of ['1,650', '없음', 'N/A']) {
+    it(`따로 올린 테스트 표의 \`${bad}\`를 거절한다`, () => {
+      const plan = planWith(testTable(['150', bad, '170', '180']))
+      expect(plan.ok).toBe(false)
+      if (plan.ok || plan.reason.kind !== 'error') return
+      expect(plan.reason.code).toBe('FEATURE_NOT_NUMBER')
+      // **어느 열의 어느 값인지 말한다** — 안 말하면 학생이 고칠 자리를 못 찾는다.
+      expect(plan.reason.params).toEqual({ feature: '점수', value: bad })
+    })
+  }
+
+  it('한 파일 홀드아웃에서도 선다 — 훈련 몫에 없는 글자가 시험 몫에만 있을 때', () => {
+    const clean = planWith(null, 'holdout')
+    expect(clean.ok).toBe(true)
+    if (!clean.ok) return
+
+    // 시험 몫으로 간 행 하나의 `점수`만 글자로 바꾼다. 훈련 몫은 그대로다.
+    const dirty = trainTable()
+    const victim = clean.split.testIndices[0] as number
+    ;(dirty.rows[victim] as string[])[0] = 'N/A'
+
+    const plan = planRun({
+      dataset: dirty,
+      testDataset: null,
+      settings: settingsFor('holdout'),
+      taskType: 'classification',
+    })
+    expect(plan.ok).toBe(false)
+    if (plan.ok || plan.reason.kind !== 'error') return
+    expect(plan.reason.code).toBe('FEATURE_NOT_NUMBER')
+  })
+
+  it('학습 경로에서는 그 사유로 던진다', async () => {
+    const { planRunOrThrow } = await import('../src/ml/plan')
+    try {
+      planRunOrThrow({
+        dataset: trainTable(),
+        testDataset: testTable(['150', '1,650', '170', '180']),
+        settings: settingsFor('provided'),
+        taskType: 'classification',
+      })
+      expect.unreachable('planRunOrThrow should have thrown')
+    } catch (error) {
+      expect(isClientError(error) && error.code).toBe('FEATURE_NOT_NUMBER')
+    }
+  })
+})
+
+describe('막아야 할 것만 막는다', () => {
+  it('시험 몫이 전부 수면 통과하고, 그때 행렬이 0으로 안 뭉개진다', () => {
+    const plan = planWith(testTable(['150', '160', '170', '180']))
+    expect(plan.ok).toBe(true)
+    if (!plan.ok) return
+
+    const matrix = transform(
+      plan.preprocessor,
+      testTable(['150', '160', '170', '180']),
+      plan.split.testIndices,
+      'onehot',
+    )
+    // **이 단언이 이 파일의 절반이다** — 고치기 전에는 여기가 [[150],[0],[0],[0]]이었다.
+    expect(matrix).toEqual([[150], [160], [170], [180]])
+  })
+
+  it('빈 칸은 이 문이 안 막는다 — 채움값이 있고 사유가 다르다', () => {
+    const plan = planWith(testTable(['150', '', '170', '180']))
+    expect(plan.ok, 'blank cells are filled by the mean strategy').toBe(true)
+  })
+
+  it('범주 열의 글자는 안 막는다 — 수치 열만 본다', () => {
+    const table = testTable(['150', '160', '170', '180'])
+    ;(table.rows[1] as string[])[1] = '처음 보는 등급'
+    const plan = planWith(table)
+    expect(plan.ok).toBe(true)
+  })
+
+  it('훈련 몫의 글자는 이 문이 아니라 열 판정이 받는다 — 그 열은 범주가 된다', () => {
+    const dirty = trainTable()
+    ;(dirty.rows[0] as string[])[0] = '없음'
+    const plan = planRun({
+      dataset: dirty,
+      testDataset: testTable(['150', '160', '170', '180']),
+      settings: settingsFor('provided'),
+      taskType: 'classification',
+    })
+    expect(plan.ok).toBe(true)
+    if (!plan.ok) return
+    // 훈련 몫에 글자가 하나라도 있으면 `detectKind`가 범주로 돌린다 — 그러면 수로 읽을
+    // 일이 없으므로 이 문이 볼 것도 없다.
+    expect(plan.preprocessor.columns.find((one) => one.name === '점수')?.kind).toBe('categorical')
+  })
+})

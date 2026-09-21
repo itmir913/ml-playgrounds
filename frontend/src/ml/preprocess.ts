@@ -222,6 +222,39 @@ export function missingColumns(
 }
 
 /**
+ * **수치 열인데 수로 못 읽는 칸**을 찾는다. 없으면 `undefined`다.
+ *
+ * **훈련 행은 안 본다. 볼 필요가 없다** — 열이 `numeric`이라는 판정 자체가
+ * `detectKind`가 훈련 행 전부를 보고 내린 것이라(`fitPreprocessor`), 훈련 몫의
+ * 비결측 칸은 **정의상 전부 수로 읽힌다.** 그래서 이 함수가 받는 `rows`는 언제나
+ * **시험 몫**이다.
+ *
+ * **그 비대칭이 곧 2026-09-21 R36 A-1이다.** 열 판정은 훈련 몫만 보는데 `transform`은
+ * 시험 몫도 같은 규칙으로 돌리므로, 시험 몫에만 있는 `1,650`·`없음`은 아무 데도 안
+ * 걸리고 `transform`에서 조용히 `0`이 됐다 — 그 `0`으로 정확도와 R²가 나왔다.
+ *
+ * **결측은 여기서 안 본다.** 빈 칸은 채움값이 있고(`fill`), 전략이 `none`이면
+ * `missingColumns`가 앞에서 이미 거절한다.
+ */
+export function unreadableNumericCell(
+  preprocessor: Preprocessor,
+  dataset: Dataset,
+  rows: readonly number[],
+): { name: string; value: string } | undefined {
+  for (const column of preprocessor.columns) {
+    if (column.kind !== 'numeric') continue
+    const index = dataset.columns.indexOf(column.name)
+    if (index < 0) continue
+    for (const row of rows) {
+      const cell = dataset.rows[row]?.[index]
+      if (cell === undefined || isMissing(cell)) continue
+      if (toNumber(cell) === null) return { name: column.name, value: cell }
+    }
+  }
+  return undefined
+}
+
+/**
  * 학습에 쓸 수 있는 행의 번호를 고른다. **분할보다 먼저 부른다** (ml/split.ts).
  *
  * 타깃이 빈 행은 어떤 결측 전략이든 쓸 수 없다 - 정답을 모르는 행으로는 학습도
@@ -472,8 +505,19 @@ export function transform(
       const filled = isMissing(cell) ? (column.fill ?? '') : cell
 
       if (column.kind === 'numeric') {
-        // 대체값이 없는데(drop 전략) 결측이면 0으로 둔다. usableRows가 이미
-        // 그런 행을 버렸으므로 여기 오는 것은 예측 입력뿐이다.
+        /**
+         * 대체값이 없는데(`drop` 전략) 결측이면 0으로 둔다.
+         *
+         * **여기 적혀 있던 이유가 둘 다 틀렸었다** (2026-09-21 R36 A-1). *"usableRows가
+         * 그런 행을 버렸다"*는 거짓이다 — `usableRows`는 **빈 칸**만 본다. *"여기 오는
+         * 것은 예측 입력뿐"*도 거짓이다 — `experiment.ts`가 **채점용 시험 몫**을 같은
+         * 함수에 태운다. 그래서 `1,650`·`없음`이 조용히 `0`이 되어 지표에 섞였다.
+         *
+         * **지금 이 `?? 0`에 닿는 길은 없다.** 앞에서 둘이 막는다 —
+         * 학습은 `plan.ts`의 `FEATURE_NOT_NUMBER`가, 예측은 `predict.ts`의
+         * `PREDICTION_INPUT_NOT_NUMBER`가 본다. **둘 다 `tests/plan.spec.ts`와
+         * `tests/predict.spec.ts`가 문다** — 그 문을 옮기는 사람은 이 줄을 함께 봐라.
+         */
         const raw = typeof filled === 'number' ? filled : (toNumber(String(filled)) ?? 0)
         values.push(column.scale ? (raw - column.scale.center) / column.scale.spread : raw)
         continue

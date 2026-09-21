@@ -539,6 +539,7 @@
     "FEATURE_NOT_SELECTED": "Choose at least one feature to learn from.",
     "FEATURE_ALL_MISSING": "That feature has no values at all, so it cannot be used. Clear it in the preprocess step. ({feature})",
     "FEATURE_HAS_MISSING": "You chose to leave blanks as they are, but this feature has blanks. Choose how to fill them in the preprocess step, or clear this feature. ({feature})",
+    "FEATURE_NOT_NUMBER": "This feature has a value that cannot be read as a number, so it cannot be scored. Fix the value, or clear this feature in the preprocess step. ({feature}: {value})",
     "ALGORITHM_UNSUPPORTED": "That model is not supported. ({algorithm})",
     "HYPERPARAM_OUT_OF_RANGE": "{name} is outside the range you can enter. ({min} – {max}, yours {actual})",
     "SPLIT_INVALID": "The train/test split settings do not work. Check the test data ratio in the preprocess step.",
