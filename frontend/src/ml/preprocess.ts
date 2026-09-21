@@ -252,7 +252,9 @@ export function unreadableNumericCell(
       // **값은 잘라서 넘긴다** — 학생 파일에서 온 글자라 길이가 우리 통제 밖이다
       // (2026-09-21 R36-V V-2).
       if (toNumber(cell) === null) {
-        return { name: column.name, value: cell.slice(0, MAX_ERROR_VALUE_LENGTH) }
+        // **코드포인트로 자른다.** `slice`는 서로게이트 쌍을 반으로 갈라 이모지 자리에
+        // 깨진 글자를 남긴다 (2026-09-21 델타 감사 C).
+        return { name: column.name, value: [...cell].slice(0, MAX_ERROR_VALUE_LENGTH).join('') }
       }
     }
   }

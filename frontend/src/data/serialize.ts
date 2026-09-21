@@ -22,9 +22,13 @@ export const CANONICAL_DELIMITER = ','
  * **쉼표를 지우는 규칙이 아니라 묶음을 알아보는 규칙이다.** 첫 묶음은 한 자리에서 세
  * 자리, 그 뒤는 정확히 세 자리씩이어야 한다. 그래서 `1,65`는 안 걸린다 — 묶음이 셋이
  * 아니면 **유럽식 소수점일 수 있고**, 우리는 묻지 않고 바꾸므로 애매하면 안 건드린다
+ *
+ * **첫 묶음이 `0`으로 시작하는 것도 뺀다** (2026-09-21 델타 감사 C). 천 단위 표기는
+ * `0,123`처럼 안 적는다 — 그렇게 적힌 것은 유럽식 `0.123`일 가능성이 높고, 실제로
+ * 세미콜론 구분 CSV로 들어오는 길이 있다
  * (`open-decisions.md` "천 단위 쉼표는 정본을 만들 때 숫자로 읽는다").
  */
-const THOUSANDS_GROUPED = /^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/
+const THOUSANDS_GROUPED = /^[+-]?[1-9]\d{0,2}(?:,\d{3})+(?:\.\d+)?$/
 
 /**
  * 칸 하나를 정본 표기로. **천 단위 묶음만 푼다.**
@@ -33,8 +37,11 @@ const THOUSANDS_GROUPED = /^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/
  * 우리는 묻지 않고 한다.** 묻지 않는 쪽이 더 엄격해야 해서 모양을 확인하고 푼다.
  */
 export function canonicalCell(cell: string): string {
-  const trimmed = cell.trim()
-  return THOUSANDS_GROUPED.test(trimmed) ? trimmed.replaceAll(',', '') : cell
+  // **바꾸는 칸도 공백은 안 건드린다.** 모양을 알아볼 때만 다듬은 값을 보고, 돌려주는
+  // 것은 쉼표만 뺀 원본이다 — 전에는 통과하는 칸만 트림돼서 `"  1,650  "`는 공백이
+  // 사라지고 `"  150  "`는 남았다. **같은 열의 두 칸이 다른 대접을 받았다**
+  // (2026-09-21 델타 감사 C). 공백은 `toNumber`가 어차피 다듬는다.
+  return THOUSANDS_GROUPED.test(cell.trim()) ? cell.replaceAll(',', '') : cell
 }
 
 /**

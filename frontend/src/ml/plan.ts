@@ -210,7 +210,7 @@ export function planRun(input: PlanInput): RunPlan {
      */
     if (required && testFromProvided) {
       const testLabels = targetValues(testDataset!, providedTestRows ?? [], target!)
-      if (detectKind(testLabels) !== required.kind) {
+      if (testLabels.length > 0 && detectKind(testLabels) !== required.kind) {
         return blocked(required.code, { target: target! })
       }
     }

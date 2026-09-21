@@ -33,11 +33,14 @@ function testTable(scores: readonly string[]): Dataset {
   }
 }
 
-function settingsFor(method: 'holdout' | 'provided'): Settings {
+function settingsFor(
+  method: 'holdout' | 'provided',
+  features: readonly string[] = ['점수'],
+): Settings {
   return {
     kind: 'tabular',
     data: {
-      features: ['점수'],
+      features: [...features],
       target: '등급',
       preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
     },
@@ -46,6 +49,14 @@ function settingsFor(method: 'holdout' | 'provided'): Settings {
     runtime: 'mljs',
     selectedAlgorithms: [{ algorithm: 'decision_tree' }],
   } as unknown as Settings
+}
+
+/** `지역`을 **0번 열**로 앞에 붙인다. 수치 열이 첫 열이 아니게 만드는 것이 목적이다. */
+function withRegion(table: Dataset, override?: string): Dataset {
+  return {
+    columns: ['지역', ...table.columns],
+    rows: table.rows.map((row, i) => [override ?? (i % 2 === 0 ? '북부' : '남부'), ...row]),
+  }
 }
 
 function planWith(test: Dataset | null, method: 'holdout' | 'provided' = 'provided') {
@@ -128,11 +139,37 @@ describe('막아야 할 것만 막는다', () => {
     expect(plan.ok, 'blank cells are filled by the mean strategy').toBe(true)
   })
 
-  it('범주 열의 글자는 안 막는다 — 수치 열만 본다', () => {
-    const table = testTable(['150', '160', '170', '180'])
-    ;(table.rows[1] as string[])[1] = '처음 보는 등급'
-    const plan = planWith(table)
+  /**
+   * **글자를 특성 열에 넣어야 이 갈래를 지난다** (2026-09-21 델타 감사 B-3). 전에는
+   * 타깃 열에 넣었는데 **타깃은 전처리기의 `columns`에 애초에 없어서**, 수치 열만 보는
+   * 가드를 지워도 초록이었다. 그래서 `지역`을 특성으로 하나 더 둔다.
+   */
+  it('범주 특성의 글자는 안 막는다 — 수치 열만 본다', () => {
+    const plan = planRun({
+      dataset: withRegion(trainTable()),
+      testDataset: withRegion(testTable(['150', '160', '170', '180']), '처음 보는 지역'),
+      settings: settingsFor('provided', ['지역', '점수']),
+      taskType: 'classification',
+    })
     expect(plan.ok).toBe(true)
+    if (!plan.ok) return
+    expect(plan.preprocessor.columns.find((one) => one.name === '지역')?.kind).toBe('categorical')
+  })
+
+  /**
+   * **수치 특성이 0번 열이 아니어야 열 조회를 잰다** (2026-09-21 델타 감사 B-3).
+   * 전에는 `점수`가 늘 첫 열이라 `columns.indexOf(...)`를 `0`으로 바꿔도 초록이었다.
+   */
+  it('수치 열이 첫 열이 아니어도 그 열을 본다', () => {
+    const plan = planRun({
+      dataset: withRegion(trainTable()),
+      testDataset: withRegion(testTable(['150', '1,650', '170', '180'])),
+      settings: settingsFor('provided', ['지역', '점수']),
+      taskType: 'classification',
+    })
+    expect(plan.ok).toBe(false)
+    if (plan.ok || plan.reason.kind !== 'error') return
+    expect(plan.reason.params).toEqual({ feature: '점수', value: '1,650' })
   })
 
   it('훈련 몫의 글자는 이 문이 아니라 열 판정이 받는다 — 그 열은 범주가 된다', () => {
@@ -196,6 +233,19 @@ describe('회귀 · 따로 올린 테스트 표의 타깃 열', () => {
 
   it('테스트 표의 타깃이 전부 수면 통과한다', () => {
     expect(planFor(['10', '20', '30', '40']).ok).toBe(true)
+  })
+
+  /**
+   * **빈 것은 "숫자가 아니다"가 아니다** (2026-09-21 델타 감사 B-1). `detectKind([])`는
+   * `categorical`을 내므로, 길이를 안 보면 **쓸 행이 하나도 없는 테스트 표**에
+   * *"회귀는 숫자를 예측하는데…"*라고 답한다. `0.22.0`은 여기서
+   * `TEST_DATASET_NO_USABLE_ROWS`를 냈다 — 이 델타가 낸 회귀였다.
+   */
+  it('테스트 표의 타깃이 전부 비면 "숫자가 아니다"가 아니라 "쓸 행이 없다"다', () => {
+    const plan = planFor(['', '', '', ''])
+    expect(plan.ok).toBe(false)
+    if (plan.ok || plan.reason.kind !== 'error') return
+    expect(plan.reason.code).toBe('TEST_DATASET_NO_USABLE_ROWS')
   })
 
   it('테스트 표의 타깃에 글자가 있으면 선다 — 새 어휘 없이 TARGET_NOT_NUMERIC이다', () => {
