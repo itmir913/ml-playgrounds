@@ -1,6 +1,6 @@
 {
   "$comment": "돌연변이 카탈로그. `npm run mutate`가 돌린다. expect가 'cries'면 값이 증명된 돌연변이라 지목한 스펙이 빨개져야 하고(조용하면 검사가 죽은 것, 명령이 실패한다), 'silent'면 아직 무검사인 자리라 조용한 것이 정상이다(울면 cries로 바꾸거나 지운다). find는 그 파일에 정확히 한 번 나와야 하고 여러 줄이면 \\n으로 잇는다. 자세한 것은 tools/mutate.mjs 머리말.",
-  "$history": "R24(2026-09-02)가 silent 일곱을 담았고 라운드를 닫으며 일곱 다 뒤집혀 지웠다. R24 재검토(2026-09-03)가 실제로 운 33개를 cries로 담았다 — 감사자가 라운드마다 손으로 심던 표가 이것이다.",
+  "$history": "R24(2026-09-02)가 silent 일곱을 담았고 라운드를 닫으며 일곱 다 뒤집혀 지웠다. R24 재검토(2026-09-03)가 실제로 운 33개를 cries로 담았다 — 감사자가 라운드마다 손으로 심던 표가 이것이다. R35(2026-09-21)가 sklearn 어댑터의 문 아홉을 담았다 — silent 일곱 중 둘은 **불리는데도** 조용한 자리이고, cries 둘은 그 둘과 같은 줄의 다른 종류다. 넷을 나란히 두면 그물 둘이 서로 다른 구멍을 갖는다는 것이 표로 보인다.",
   "mutants": [
     {
       "file": "src/router/steps.ts",
@@ -569,6 +569,78 @@
       "expect": "cries",
       "expectSpecs": ["tests/schema-structure.spec.ts"],
       "loses": "서명은 울어야 한다. 다만 정본을 갱신하면 호환 판정은 조용해야 하는 자리다 — 선택 속성 추가는 옛 파일을 안 막는다 (2026-09-18 M5)"
+    },
+    {
+      "file": "src/ml/engines/pyodide-sklearn.ts",
+      "find": "        sklearnForestV2Model(dumped as SklearnForestV2Dump, context.classes, context.featureCount),",
+      "replace": "        sklearnForestV2Model(dumped as SklearnForestV2Dump, context.classes, context.featureCount + 1),",
+      "expect": "silent",
+      "expectSpecs": ["tests/pyodide-sklearn.spec.ts", "tests/sklearn-serialize.spec.ts"],
+      "loses": "sklearn 랜덤 포레스트의 배선이 특성 수를 어긋나게 담아도 아무도 모른다 — 파일은 열리고 예측만 전부 선다 (R35 B-1)"
+    },
+    {
+      "file": "src/ml/engines/pyodide-sklearn.ts",
+      "find": "        sklearnNaiveBayesModel(\n          dumped as SklearnNaiveBayesDump,\n          context.classes,\n          context.featureCount,\n        ),",
+      "replace": "        sklearnNaiveBayesModel(\n          dumped as SklearnNaiveBayesDump,\n          context.classes,\n          context.featureCount + 1,\n        ),",
+      "expect": "silent",
+      "expectSpecs": ["tests/pyodide-sklearn.spec.ts", "tests/sklearn-serialize.spec.ts"],
+      "loses": "sklearn 나이브 베이즈의 배선이 특성 수를 어긋나게 담아도 아무도 모른다 (R35 B-1)"
+    },
+    {
+      "file": "src/ml/engines/pyodide-sklearn.ts",
+      "find": "        sklearnSvmModel(dumped as SklearnLinearDump, context.classes, context.featureCount),",
+      "replace": "        sklearnSvmModel(dumped as SklearnLinearDump, [...context.classes].reverse(), context.featureCount),",
+      "expect": "silent",
+      "expectSpecs": ["tests/pyodide-sklearn.spec.ts", "tests/sklearn-serialize.spec.ts"],
+      "loses": "sklearn SVM의 배선이 클래스 순서를 뒤집어 담아도 아무도 모른다 — 오류 없이 틀린 라벨을 답한다 (R35 B-1)"
+    },
+    {
+      "file": "src/ml/engines/pyodide-sklearn.ts",
+      "find": "        sklearnLinearRegressionModel(dumped as SklearnRegressionDump, context.featureCount),",
+      "replace": "        sklearnLinearRegressionModel(dumped as SklearnRegressionDump, context.featureCount + 1),",
+      "expect": "silent",
+      "expectSpecs": ["tests/pyodide-sklearn.spec.ts", "tests/sklearn-serialize.spec.ts"],
+      "loses": "sklearn 선형 회귀의 배선이 특성 수를 어긋나게 담아도 아무도 모른다 (R35 B-1)"
+    },
+    {
+      "file": "src/ml/engines/pyodide-sklearn.ts",
+      "find": "        sklearnKMeansModel(dumped as SklearnKMeansDump, context.featureCount),",
+      "replace": "        sklearnKMeansModel(dumped as SklearnKMeansDump, context.featureCount + 1),",
+      "expect": "silent",
+      "expectSpecs": ["tests/pyodide-sklearn.spec.ts", "tests/sklearn-serialize.spec.ts"],
+      "loses": "sklearn K-평균의 배선이 특성 수를 어긋나게 담아도 아무도 모른다 (R35 B-1)"
+    },
+    {
+      "file": "src/ml/engines/pyodide-sklearn.ts",
+      "find": "        sklearnTreeModel(dumped as SklearnForestDump, context.classes, context.featureCount),",
+      "replace": "        sklearnTreeModel(dumped as SklearnForestDump, context.classes, context.featureCount + 1),",
+      "expect": "silent",
+      "expectSpecs": ["tests/pyodide-sklearn.spec.ts", "tests/sklearn-serialize.spec.ts"],
+      "loses": "이 배선은 **불린다**. 그런데 나무 쪽에는 폭 그물이 없어 어긋난 특성 수가 그대로 파일에 적힌다 — 커버리지의 '지나갔다'가 '쟀다'가 아니라는 증거다 (R35 B-1, C1)"
+    },
+    {
+      "file": "src/ml/engines/pyodide-sklearn.ts",
+      "find": "        sklearnLinearModel(dumped as SklearnLinearDump, context.classes, context.featureCount),",
+      "replace": "        sklearnLinearModel(dumped as SklearnLinearDump, [...context.classes].reverse(), context.featureCount),",
+      "expect": "silent",
+      "expectSpecs": ["tests/pyodide-sklearn.spec.ts", "tests/sklearn-serialize.spec.ts"],
+      "loses": "이 배선도 **불린다**. 선형 계열에는 클래스 순서 그물이 없어 뒤집어 담아도 조용하다 — 오류 없이 틀린 라벨을 답한다 (R35 B-1, C3)"
+    },
+    {
+      "file": "src/ml/engines/pyodide-sklearn.ts",
+      "find": "        sklearnLinearModel(dumped as SklearnLinearDump, context.classes, context.featureCount),",
+      "replace": "        sklearnLinearModel(dumped as SklearnLinearDump, context.classes, context.featureCount + 1),",
+      "expect": "cries",
+      "expectSpecs": ["tests/pyodide-sklearn.spec.ts"],
+      "loses": "선형 계열의 폭 그물(`isVector`)이 죽으면 어긋난 특성 수가 담긴다. 나무 쪽에는 이 그물이 없다 (R35 C2)"
+    },
+    {
+      "file": "src/ml/engines/pyodide-sklearn.ts",
+      "find": "        sklearnTreeModel(dumped as SklearnForestDump, context.classes, context.featureCount),",
+      "replace": "        sklearnTreeModel(dumped as SklearnForestDump, [...context.classes].reverse(), context.featureCount),",
+      "expect": "cries",
+      "expectSpecs": ["tests/pyodide-sklearn.spec.ts"],
+      "loses": "나무의 클래스 그물(`sklearnTreeModel`이 `dump.classes`를 다시 견준다)이 죽으면 틀린 라벨을 답한다. 선형 계열에는 이 그물이 없다 (R35 C4)"
     }
   ]
 }
