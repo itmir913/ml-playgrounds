@@ -513,10 +513,15 @@ export function transform(
          * 것은 예측 입력뿐"*도 거짓이다 — `experiment.ts`가 **채점용 시험 몫**을 같은
          * 함수에 태운다. 그래서 `1,650`·`없음`이 조용히 `0`이 되어 지표에 섞였다.
          *
-         * **지금 이 `?? 0`에 닿는 길은 없다.** 앞에서 둘이 막는다 —
-         * 학습은 `plan.ts`의 `FEATURE_NOT_NUMBER`가, 예측은 `predict.ts`의
-         * `PREDICTION_INPUT_NOT_NUMBER`가 본다. **둘 다 `tests/plan.spec.ts`와
-         * `tests/predict.spec.ts`가 문다** — 그 문을 옮기는 사람은 이 줄을 함께 봐라.
+         * **학습과 예측에서는 앞에서 막는다** — 학습은 `plan.ts`의
+         * `FEATURE_NOT_NUMBER`(`tests/plan-not-number.spec.ts`가 문다), 예측은
+         * `predict.ts`의 `PREDICTION_INPUT_NOT_NUMBER`(`tests/predict.spec.ts`가 문다).
+         * **그 문을 옮기는 사람은 이 줄을 함께 봐라.**
+         *
+         * **"닿는 길이 아예 없다"고는 안 적는다.** `transform`을 부르는 자리가 **열이고**
+         * 위 둘은 그중 둘일 뿐이다. 나머지 여덟은 훈련 행이나 임베딩 표를 넘기므로
+         * 오늘은 안 닿지만, **그건 이 줄이 보장하는 것이 아니라 부르는 쪽이 그런 것이다.**
+         * (이 자리에 있던 앞 주석이 바로 그 넓은 단정으로 틀렸다.)
          */
         const raw = typeof filled === 'number' ? filled : (toNumber(String(filled)) ?? 0)
         values.push(column.scale ? (raw - column.scale.center) / column.scale.spread : raw)
