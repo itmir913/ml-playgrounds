@@ -16,6 +16,38 @@
 /** 정본 CSV의 구분자. 읽는 쪽도 이 값을 안다. */
 export const CANONICAL_DELIMITER = ','
 
+/**
+ * **천 단위로 묶인 수.** `1,650` · `1,234,567` · `-1,650` · `1,650.5`.
+ *
+ * **쉼표를 지우는 규칙이 아니라 묶음을 알아보는 규칙이다.** 첫 묶음은 한 자리에서 세
+ * 자리, 그 뒤는 정확히 세 자리씩이어야 한다. 그래서 `1,65`는 안 걸린다 — 묶음이 셋이
+ * 아니면 **유럽식 소수점일 수 있고**, 우리는 묻지 않고 바꾸므로 애매하면 안 건드린다
+ * (`open-decisions.md` "천 단위 쉼표는 정본을 만들 때 숫자로 읽는다").
+ */
+const THOUSANDS_GROUPED = /^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/
+
+/**
+ * 칸 하나를 정본 표기로. **천 단위 묶음만 푼다.**
+ *
+ * `pandas`의 `thousands=','`는 쉼표를 그냥 지우지만 **저쪽은 사람이 켜서 지우는 것이고
+ * 우리는 묻지 않고 한다.** 묻지 않는 쪽이 더 엄격해야 해서 모양을 확인하고 푼다.
+ */
+export function canonicalCell(cell: string): string {
+  const trimmed = cell.trim()
+  return THOUSANDS_GROUPED.test(trimmed) ? trimmed.replaceAll(',', '') : cell
+}
+
+/**
+ * 격자의 모든 칸에 `canonicalCell`을 적용한다. **`importTable`이 딱 한 번 부른다.**
+ *
+ * **머리글 줄도 함께 지난다.** 머리글이 있는지는 여기서 아직 모르고(학생이 뒤에서
+ * 고른다), 무엇보다 **세 표가 같은 규칙을 지나야 열 이름이 서로 맞는다** — 학습 표만
+ * 바꾸고 예측 표를 안 바꾸면 그 둘의 열 이름이 갈린다.
+ */
+export function canonicalGrid(grid: readonly (readonly string[])[]): string[][] {
+  return grid.map((row) => row.map(canonicalCell))
+}
+
 /** 정본 CSV의 줄바꿈. CRLF를 쓰지 않는다 - 바이트가 늘고 얻는 게 없다. */
 export const CANONICAL_LINE_BREAK = '\n'
 

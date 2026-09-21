@@ -23,7 +23,7 @@ import { TABLE_PREVIEW_ROW_COUNT } from '../limits'
 import { parseCsvText } from './csv'
 import { decodeText, detectEncoding, type SourceEncoding } from './encoding'
 import type { TableGrid } from './grid'
-import { toCanonicalCsv } from './serialize'
+import { canonicalGrid, toCanonicalCsv } from './serialize'
 import { openXlsx } from './xlsx'
 
 export type { TableGrid } from './grid'
@@ -170,8 +170,22 @@ export function importTable(document: TableDocument, sheetName?: string): Import
   // **켠 상태로 지나가는 검사는 csv 하나뿐이다** (2026-09-01 감사 C-4). xlsx 두 갈래는
   // 소스로만 확인했다 — 이 저장소가 「폴백 검사가 폴백을 안 지나갔다」로 한 번 앓은
   // 자리가 바로 그 파일이다.
-  const grid = document.read(sheetName, maxDatasetRows() + 1)
-  checkLimits(grid)
+  const raw = document.read(sheetName, maxDatasetRows() + 1)
+  checkLimits(raw)
+
+  /**
+   * **천 단위 묶음을 여기서 푼다** (2026-09-21 R36-V V-3). `1,650`이 글자로 남으면
+   * `detectKind`가 그 열을 통째로 범주로 돌리고, 그러면 **시험 행이 전부 미지 범주라 0
+   * 벡터가 되어** 지표가 무너진다(300행에서 회귀 R² 1.000 → −54.0).
+   *
+   * **자리가 여기인 이유.** 파이썬에서도 `thousands=','`는 `read_csv`의 인자이지 `fit`의
+   * 인자가 아니다. 설정으로 두면 새 칸이 생겨 `formatVersion`이 움직이는데, 읽는 자리로
+   * 옮기면 **정본에 이미 `1650`이 적혀** 문서 스키마가 안 바뀐다.
+   *
+   * **`checkLimits`보다 뒤다.** 상한 판정은 줄·칸의 수를 세는 일이라 값을 안 보고,
+   * 거부할 파일에 변환 비용을 쓸 이유가 없다.
+   */
+  const grid = canonicalGrid(raw)
 
   const bytes = toCanonicalCsv(grid)
   const imported: ImportedTable = {
