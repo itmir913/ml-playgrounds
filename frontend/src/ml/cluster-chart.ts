@@ -16,6 +16,8 @@
  * 라이브러리를 함께 받게 된다 — 등록(`Chart.register`)은 지연 로딩되는 패널의 몫이다.
  */
 
+import { categoryScale as sharedCategoryScale, placed } from '@/data/category-axis'
+
 import type { ChartData, ChartOptions, PointStyle } from 'chart.js'
 
 import { CHART_COLORS, INK_ORDER } from '@/palette'
@@ -74,35 +76,6 @@ export const DRAW_ORDER = { points: 3, halo: 2, centroid: 1, highlight: 0 } as c
 export interface ClusterAxisScales {
   readonly x?: readonly string[] | undefined
   readonly y?: readonly string[] | undefined
-}
-
-/**
- * 범주 칸 안에서 점을 흩뿌리는 폭 (`open-decisions.md` "군집 산점도의 축").
- *
- * **한 칸이 1이다.** ±0.3이면 이웃 칸의 구름과 0.4가 벌어져서 **눈이 여전히 칸으로
- * 묶어 읽는다** — 그보다 넓히면 어느 범주인지가 흐려지고, 좁히면 흩뿌리는 뜻이 없다.
- * 반올림하면 원래 칸으로 정확히 돌아오므로 툴팁은 참값을 말한다.
- */
-const JITTER_SPREAD = 0.3
-
-/**
- * 그 행의 흩뿌림. **행 번호에서 나오므로 언제나 같다.**
- *
- * 같은 파일이 같은 그림을 줘야 학생이 어제 본 것을 오늘도 본다 (#28-5가 표본에 시드를
- * 준 것과 같은 이유). **축을 바꿔도 점이 안 튀는 것**도 여기서 온다 — 흩뿌림이 축이
- * 아니라 행에 매여 있다.
- *
- * 난수원을 새로 들이지 않는다. 필요한 것은 "행마다 다르고 언제나 같은 수" 하나뿐이고,
- * 정수 해시로 충분하다.
- */
-function jitterOf(row: number): number {
-  const mixed = Math.sin(row * 12.9898) * 43758.5453
-  return ((mixed - Math.floor(mixed)) * 2 - 1) * JITTER_SPREAD
-}
-
-/** 범주 축이면 흩뿌리고, 아니면 그대로. */
-function placed(value: number, row: number, categories: readonly string[] | undefined): number {
-  return categories === undefined ? value : value + jitterOf(row)
 }
 
 /**
@@ -331,22 +304,11 @@ export function clusterChartOptions(
   const halo = haloIndex(clusterCount, scales.x === undefined && scales.y === undefined)
 
   /**
-   * 범주 축의 눈금. **선형 축에 정수 눈금을 세우고 이름을 붙인다** — Chart.js의
-   * `category` 축은 칸 사이(흩뿌린 자리)에 점을 놓을 수 없다.
-   *
-   * `min`·`max`가 반 칸씩 밖으로 나가는 이유는 **양 끝 칸의 구름이 잘리지 않게** 하려는
-   * 것이다. 흩뿌림이 ±0.3이라 그 안에 들어온다.
+   * 범주 축의 눈금은 **데이터 화면의 산점도와 한 자리에서 온다**
+   * (`data/category-axis.ts`) — 두 화면이 같은 범주를 다르게 그리면 안 된다.
    */
-  const categoryScale = (categories: readonly string[]) => ({
-    min: -0.5,
-    max: categories.length - 0.5,
-    ticks: {
-      color: tokens.ink,
-      stepSize: 1,
-      autoSkip: false,
-      callback: (value: string | number) => categories[Math.round(Number(value))] ?? '',
-    },
-  })
+  const categoryScale = (categories: readonly string[]) =>
+    sharedCategoryScale(categories, tokens.ink)
 
   return {
     responsive: true,

@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   boxSummary,
+  categoriesOf,
   frequencies,
   histogram,
   isBinCount,
@@ -430,5 +431,65 @@ describe('산점도 표본', () => {
     expect(drawn.drawn).toBe(5)
     expect(drawn.total).toBe(10)
     expect(drawn.skipped).toBe(10)
+  })
+})
+
+/**
+ * 범주 축 (`open-decisions.md` "군집 산점도의 축"의 2026-09-22 문단).
+ *
+ * **결과 화면과 같은 규칙이라야 한다** — 차례가 갈리면 같은 열이 두 화면에서 다른
+ * 자리에 선다. 그래서 여기가 무는 것은 *"첫 등장 순서"* 하나다.
+ */
+describe('산점도의 범주 축', () => {
+  /**
+   * **`ml/preprocess.ts`의 `[...new Set(present)]`와 같은 규칙이다.** 가나다순으로
+   * 바꾸면 학습 쪽 인코딩과 어긋나고, 그 어긋남은 두 화면을 나란히 놓기 전에는 안 보인다.
+   */
+  it('범주는 첫 등장 순서다 — 가나다순이 아니다', () => {
+    expect(categoriesOf(['여', '남', '여', '기타'])).toEqual(['여', '남', '기타'])
+  })
+
+  it('빈 칸은 범주가 아니다', () => {
+    expect(categoriesOf(['남', '', '  ', '여'])).toEqual(['남', '여'])
+  })
+
+  /** 축의 값은 **목록에서의 자리**다. 그 자리를 흩뿌리는 것은 그리는 쪽의 일이다. */
+  it('범주 축의 값이 목록에서의 자리다', () => {
+    const categories = categoriesOf(['남', '여'])
+    const drawn = scatterSample(['남', '여', '남'], ['1', '2', '3'], 100, 7, undefined, {
+      x: categories,
+    })
+    expect(drawn.points.map((point) => point.x)).toEqual([0, 1, 0])
+    expect(drawn.points.map((point) => point.y)).toEqual([1, 2, 3])
+  })
+
+  /** 두 축이 다 범주여도 된다 — 결과 화면이 그렇게 그린다. */
+  it('두 축이 모두 범주일 수 있다', () => {
+    const drawn = scatterSample(['남', '여'], ['A', 'B'], 100, 7, undefined, {
+      x: ['남', '여'],
+      y: ['A', 'B'],
+    })
+    expect(drawn.points).toEqual([
+      { row: 0, x: 0, y: 0 },
+      { row: 1, x: 1, y: 1 },
+    ])
+  })
+
+  /**
+   * **목록에 없는 값은 점을 못 찍는다.** 빈 칸과 같은 자리이고, 조용히 첫 범주로
+   * 떨어뜨리면 **없는 데이터가 생긴다.**
+   */
+  it('목록에 없는 값은 빠지고 그 수를 센다', () => {
+    const drawn = scatterSample(['남', '', '모름'], ['1', '2', '3'], 100, 7, undefined, {
+      x: ['남', '여'],
+    })
+    expect(drawn.drawn).toBe(1)
+    expect(drawn.skipped).toBe(2)
+  })
+
+  /** 축 목록을 안 주면 지금까지처럼 수로 읽는다. */
+  it('목록이 없으면 수로 읽는다', () => {
+    const drawn = scatterSample(['남', '1'], ['1', '2'], 100, 7)
+    expect(drawn.drawn).toBe(1)
   })
 })

@@ -107,29 +107,33 @@ describe('열의 자료형이 도구를 가른다', () => {
   })
 })
 
-describe('산점도는 둘째 열을 요구한다', () => {
-  const alone: readonly ColumnSummary[] = [column('키', 'numeric'), column('성별', 'categorical')]
+describe('산점도는 둘째 열만 요구한다', () => {
+  const alone: readonly ColumnSummary[] = [column('키', 'numeric')]
 
-  /** **자기 자신과의 산점도는 대각선일 뿐이다.** 고른 열은 후보에서 빠진다. */
-  it('수치 열이 그 열 하나뿐이면 잠긴다', () => {
+  /** **자기 자신과의 산점도는 대각선일 뿐이다.** 짝이 될 열이 없으면 잠긴다. */
+  it('열이 하나뿐이면 잠긴다', () => {
     expect(tool('scatter').blockedBy({ columns: alone, column: '키' })).toEqual([
-      'needsAnotherNumeric',
+      'needsAnotherColumn',
     ])
   })
 
   /**
-   * **이유가 둘일 수 있다.** 범주 열을 고른 채 수치 열이 하나뿐이면 둘 다 참이고,
-   * 하나만 말하면 학생이 하나를 고치고 다시 막힌다.
+   * **범주 축도 축이다** (2026-09-22, `open-decisions.md` "군집 산점도의 축").
+   *
+   * 결과 화면의 군집 산점도가 범주 열을 축으로 세우므로, 데이터 화면만 막으면 **같은
+   * 표의 같은 두 열이 화면마다 다르게 취급된다.** 그래서 아래 셋이 전부 열려야 한다 —
+   * 수치×수치 · 범주×수치 · 범주×범주.
    */
-  it('이유가 둘이면 둘 다 말한다', () => {
-    expect(tool('scatter').blockedBy({ columns: alone, column: '성별' })).toEqual([
-      'needsNumeric',
-      'needsAnotherNumeric',
-    ])
+  it.each([['키'], ['성별']])('고른 열이 %s이어도 열린다', (picked) => {
+    expect(tool('scatter').blockedBy({ columns: COLUMNS, column: picked })).toEqual([])
   })
 
-  it('수치 열이 둘이면 열린다', () => {
-    expect(tool('scatter').blockedBy({ columns: COLUMNS, column: '키' })).toEqual([])
+  it('범주 열만 둘이어도 열린다', () => {
+    const categorical: readonly ColumnSummary[] = [
+      column('성별', 'categorical'),
+      column('반', 'categorical'),
+    ]
+    expect(tool('scatter').blockedBy({ columns: categorical, column: '성별' })).toEqual([])
   })
 })
 

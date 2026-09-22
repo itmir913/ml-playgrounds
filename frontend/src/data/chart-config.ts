@@ -12,6 +12,7 @@
 
 import type { ChartData, ChartOptions, Plugin } from 'chart.js'
 
+import { categoryScale, placed } from './category-axis'
 import { CHART_COLORS, INK_ORDER } from '@/palette'
 
 import type { BoxSummary, DataPoint, Frequencies, Histogram } from './stats'
@@ -171,14 +172,12 @@ export function barOptions(
     scales: {
       x: axis(paint, text.x),
       /**
-       * **0부터 시작한다.** 도수를 그리는 축이 0에서 안 시작하면 막대의 길이 비율이
-       * 거짓말을 한다 — 두 배인 막대가 열 배로 보인다.
+       * **선형 쪽은 0부터 시작한다.** 도수를 그리는 축이 0에서 안 시작하면 막대의 길이
+       * 비율이 거짓말을 한다 — 두 배인 막대가 열 배로 보인다. **그리고 눈금이 정수다**
+       * (2026-09-22, 실물에서 봤다): 값이 작으면 Chart.js가 `0.1 · 0.2 …`를 세우는데,
+       * 학번처럼 값마다 한 줄인 열에서 **모든 막대가 1인 그림의 눈금이 전부 소수**였다.
+       * `0.5개`라는 것은 없다.
        *
-       * **그리고 눈금이 정수다** (2026-09-22, 실물에서 봤다). 세는 축인데 값이 작으면
-       * Chart.js가 `0.1 · 0.2 …`를 세운다 — 학번처럼 값마다 한 줄인 열에서 **모든 막대가
-       * 1인 그림의 눈금이 전부 소수**였다. `0.5개`라는 것은 없다.
-       */
-      /**
        * **로그 축에는 `beginAtZero`도 `precision`도 없다.** 로그에 0은 없고(`log 0`이
        * 정의되지 않는다), 눈금은 `1 · 10 · 100`처럼 Chart.js가 거듭제곱으로 세운다 —
        * 정수 자릿수를 우리가 줄 자리가 아니다.
@@ -530,14 +529,33 @@ export function scatterSeries(
  */
 const POINT_RADIUS = 5
 
+/**
+ * 축마다의 범주 목록. **있으면 그 축은 범주 축이다.**
+ *
+ * `ml/cluster-chart.ts`의 `ClusterAxisScales`와 같은 표시를 쓴다 — 두 화면이 범주를
+ * 같은 방식으로 그린다 (`data/category-axis.ts`).
+ */
+export interface ScatterAxisScales {
+  readonly x?: readonly string[] | undefined
+  readonly y?: readonly string[] | undefined
+}
+
 export function scatterData(
   series: readonly ScatterSeries[],
   paint: ChartPaint,
+  scales: ScatterAxisScales = {},
 ): ChartData<'scatter'> {
   return {
     datasets: series.map((one, index) => ({
       label: one.name,
-      data: one.points.map((point) => ({ x: point.x, y: point.y })),
+      /**
+       * **범주 축이면 칸 안에서 흩뿌린다** (`data/category-axis.ts`). 안 흩뿌리면
+       * 한 칸의 점 수천 개가 **한 점으로 겹쳐** 몇 개인지 알 수 없다.
+       */
+      data: one.points.map((point) => ({
+        x: placed(point.x, point.row, scales.x),
+        y: placed(point.y, point.row, scales.y),
+      })),
       backgroundColor: seriesColor(paint, index),
       borderColor: seriesColor(paint, index),
       pointRadius: POINT_RADIUS,
@@ -555,12 +573,22 @@ export function scatterOptions(
     readonly point: (name: string, x: number | null, y: number | null) => string
   },
   showLegend: boolean,
+  scales: ScatterAxisScales = {},
 ): ChartOptions<'scatter'> {
+  /**
+   * 범주 축의 눈금은 **군집 산점도와 한 자리에서 온다** (`data/category-axis.ts`) —
+   * 두 화면이 같은 범주를 다르게 그리면 안 된다.
+   */
+  const forAxis = (name: string, categories: readonly string[] | undefined) =>
+    categories === undefined
+      ? axis(paint, name)
+      : { ...axis(paint, name), ...categoryScale(categories, paint.ink) }
+
   return {
     ...base(),
     // 겹친 점을 전부 세우지 않는다. 기본 모드(`point`)는 커서 아래의 모든 점을 모은다.
     interaction: { mode: 'nearest', intersect: true },
-    scales: { x: axis(paint, text.x), y: axis(paint, text.y) },
+    scales: { x: forAxis(text.x, scales.x), y: forAxis(text.y, scales.y) },
     plugins: {
       // **갈래가 하나면 범례가 없다.** 이름 하나짜리 범례는 아무것도 안 가른다.
       legend: { display: showLegend, labels: { color: paint.ink, usePointStyle: true } },

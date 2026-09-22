@@ -252,7 +252,7 @@
       "blocked": {
         "needsNumeric": "수치 열에서만 그릴 수 있습니다.",
         "needsCategorical": "범주 열에서만 그릴 수 있습니다.",
-        "needsAnotherNumeric": "수치 열이 두 개 이상 있어야 합니다."
+        "needsAnotherColumn": "열이 두 개 이상 있어야 합니다."
       },
       "histogram": {
         "name": "히스토그램(Histogram)",

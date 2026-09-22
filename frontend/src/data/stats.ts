@@ -401,19 +401,49 @@ export interface ScatterSample {
  * **점을 못 찍는 행은 표본을 뽑기 전에 뺀다.** 뽑고 나서 버리면 `limit`이 1만인데
  * 실제로 그려지는 것은 그보다 적어지고, 결측이 많은 열일수록 더 적어진다.
  */
+/**
+ * 그 열의 범주들. **첫 등장 순서다.**
+ *
+ * **`ml/preprocess.ts`의 `[...new Set(present)]`와 같은 규칙이다** — 학습 쪽이 그 순서로
+ * 인코딩하므로, 데이터 화면이 다른 순서로 세우면 **같은 열이 두 화면에서 다른 차례로**
+ * 선다 (`open-decisions.md` "군집 산점도의 축").
+ *
+ * 빈 칸은 범주가 아니다. 그 행은 점을 못 찍고 `skipped`로 센다.
+ */
+export function categoriesOf(cells: readonly string[]): readonly string[] {
+  return [...new Set(cells.filter((cell) => !isBlank(cell)))]
+}
+
+/** 범주 축의 위치. 목록에 없거나 빈 칸이면 `null`이라 그 행은 빠진다. */
+function categoryIndex(categories: readonly string[], cell: string): number | null {
+  const at = categories.indexOf(cell)
+  return at === -1 ? null : at
+}
+
 export function scatterSample(
   xCells: readonly string[],
   yCells: readonly string[],
   limit: number,
   randomState: number,
   groupCells?: readonly string[],
+  /**
+   * 축마다의 범주 목록. **있으면 그 축은 범주 축이고, 값은 목록에서의 자리다.**
+   *
+   * 없으면 지금까지처럼 수로 읽는다 — 부르는 쪽이 열의 자료형을 알고 있고, 이 함수가
+   * 그것을 다시 판정하면 판정이 두 벌이 된다.
+   */
+  axes: { x?: readonly string[] | undefined; y?: readonly string[] | undefined } = {},
 ): ScatterSample {
   const usable: DataPoint[] = []
   const rowCount = Math.max(xCells.length, yCells.length)
+  const readX = (cell: string) =>
+    axes.x === undefined ? toNumber(cell) : categoryIndex(axes.x, cell)
+  const readY = (cell: string) =>
+    axes.y === undefined ? toNumber(cell) : categoryIndex(axes.y, cell)
 
   for (let row = 0; row < rowCount; row += 1) {
-    const x = toNumber(xCells[row] ?? '')
-    const y = toNumber(yCells[row] ?? '')
+    const x = readX(xCells[row] ?? '')
+    const y = readY(yCells[row] ?? '')
     if (x === null || y === null) continue
     const group = groupCells?.[row]
     usable.push(group === undefined || group.trim() === '' ? { row, x, y } : { row, x, y, group })

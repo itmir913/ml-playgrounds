@@ -252,7 +252,7 @@
       "blocked": {
         "needsNumeric": "Only numeric columns can be drawn this way.",
         "needsCategorical": "Only categorical columns can be drawn this way.",
-        "needsAnotherNumeric": "This needs at least two numeric columns."
+        "needsAnotherColumn": "This needs at least two columns."
       },
       "histogram": {
         "name": "Histogram",

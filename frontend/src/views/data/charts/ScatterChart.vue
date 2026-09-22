@@ -16,13 +16,8 @@ import { useI18n } from 'vue-i18n'
 
 import ChartFrame from './ChartFrame.vue'
 import { scatterData, scatterOptions, scatterSeries } from '@/data/chart-config'
-import {
-  categoricalColumns,
-  numericColumns,
-  useChartControls,
-  type ChartInput,
-} from '@/data/charts'
-import { columnCells, scatterSample } from '@/data/stats'
+import { categoricalColumns, useChartControls, type ChartInput } from '@/data/charts'
+import { categoriesOf, columnCells, scatterSample } from '@/data/stats'
 import { useChartTokens } from '@/composables/useChartTokens'
 import { useFormat } from '@/composables/useFormat'
 import { dataScatterPointLimit } from '@/limits-switch'
@@ -43,9 +38,15 @@ const yColumn = ref('')
 /** 점의 색을 가르는 범주 열. 빈 문자열이면 한 색이다. */
 const colorBy = ref('')
 
-/** 세로축 후보. **고른 열은 뺀다** — 자기 자신과의 산점도는 대각선일 뿐이다. */
+/**
+ * 세로축 후보. **고른 열은 뺀다** — 자기 자신과의 산점도는 대각선일 뿐이다.
+ *
+ * **수치 열만 주지 않는다** (2026-09-22, `open-decisions.md` "군집 산점도의 축"). 결과
+ * 화면의 군집 산점도가 범주 열을 축으로 세우므로, 여기서 빼면 **같은 표의 같은 열이
+ * 화면마다 다르게 취급된다.**
+ */
 const others = computed(() =>
-  numericColumns(props.input.columns).filter((name) => name !== props.input.column),
+  props.input.columns.map((one) => one.name).filter((name) => name !== props.input.column),
 )
 
 const colorable = computed(() => categoricalColumns(props.input.columns))
@@ -70,6 +71,25 @@ watch(colorable, (list) => {
   if (colorBy.value !== '' && !list.includes(colorBy.value)) colorBy.value = ''
 })
 
+/**
+ * 축이 범주 축인가. **`categories`가 있으면 그렇다** — `ml/cluster-chart.ts`의
+ * `ClusterAxisScales`와 같은 표시다 (`data/category-axis.ts`).
+ *
+ * **자료형은 열 검사기가 이미 판정했다.** 여기서 다시 세면 판정이 두 벌이 되고, 두 벌은
+ * 언젠가 갈린다.
+ */
+function categoriesFor(name: string): readonly string[] | undefined {
+  const column = props.input.columns.find((one) => one.name === name)
+  return column?.kind === 'categorical'
+    ? categoriesOf(columnCells(props.input.dataset, name))
+    : undefined
+}
+
+const axes = computed(() => ({
+  x: categoriesFor(props.input.column),
+  y: categoriesFor(yColumn.value),
+}))
+
 const sample = computed(() =>
   scatterSample(
     columnCells(props.input.dataset, props.input.column),
@@ -77,6 +97,7 @@ const sample = computed(() =>
     dataScatterPointLimit(),
     props.input.randomState,
     colorBy.value === '' ? undefined : columnCells(props.input.dataset, colorBy.value),
+    axes.value,
   ),
 )
 
@@ -95,7 +116,7 @@ const series = computed(() =>
   ),
 )
 
-const data = computed(() => scatterData(series.value, paint.value))
+const data = computed(() => scatterData(series.value, paint.value, axes.value))
 
 const options = computed(() =>
   scatterOptions(
@@ -111,6 +132,7 @@ const options = computed(() =>
         }),
     },
     colorBy.value !== '',
+    axes.value,
   ),
 )
 

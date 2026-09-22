@@ -81,7 +81,7 @@ export function useChartControls(): Ref<HTMLElement | null> | null {
  * 배열이 먼저인 이유는 `COLUMN_KINDS`와 같다 — 값 목록이 실행 중에도 있어야 로케일과
  * 짝지어 검사할 수 있다 (`docs/i18n.md`).
  */
-export const CHART_BLOCKS = ['needsNumeric', 'needsCategorical', 'needsAnotherNumeric'] as const
+export const CHART_BLOCKS = ['needsNumeric', 'needsCategorical', 'needsAnotherColumn'] as const
 export type ChartBlock = (typeof CHART_BLOCKS)[number]
 
 /** 잠금을 판정할 때 보는 것. **고른 열 하나가 아니라 표 전체를 본다** — 산점도가 둘째 열을 찾는다. */
@@ -158,25 +158,28 @@ export const CHART_TOOLS: readonly ChartTool[] = [
     id: 'scatter',
     dataTypes: { tabular: true, image: false },
     /**
-     * **이유가 둘일 수 있다.** 범주 열을 고른 채 표에 수치 열이 하나뿐이면 둘 다
-     * 참이고, 그때 하나만 말하면 학생이 하나를 고치고 다시 막힌다.
+     * **막히는 이유가 하나뿐이다 — 그릴 열이 둘 없다** (2026-09-22,
+     * `open-decisions.md` "군집 산점도의 축"의 2026-09-22 문단).
+     *
+     * **한때 수치 열을 요구했다.** 그런데 결과 화면의 군집 산점도는 같은 표의 범주 열을
+     * 축으로 세운다 — 같은 두 열이 **한 화면에서는 그려지고 다른 화면에서는 막혔다.**
+     * 이제 축은 수치든 범주든 되고(범주는 칸 안에서 흩뿌린다, `data/category-axis.ts`),
+     * 남는 조건은 **짝이 될 열이 있는가** 하나다.
+     *
+     * **표 전체의 열을 센다. 고른 열을 뺀 나머지가 아니다.** 고른 열도 축 하나를
+     * 차지하므로 둘이면 충분하고, 세는 규칙 하나가 두 경우를 다 맞힌다. 이 자리는
+     * 한때 *"수치 열이 하나뿐인데 범주 열을 고른"* 경우에 이유를 하나만 말해 학생이
+     * 고치고 또 막히는 모양이었는데 (2026-09-21), **이유가 하나로 줄면서 그 함정도
+     * 함께 사라졌다.**
      */
     blockedBy: (input) => {
-      const blocks: ChartBlock[] = [...requireNumeric(input)]
       /**
-       * **표 전체의 수치 열을 센다. 고른 열을 뺀 나머지가 아니다.**
-       *
-       * 처음에는 고른 열을 빼고 셌는데, 그러면 **범주 열을 고른 채 표에 수치 열이
-       * 하나뿐일 때** 이 줄이 통과한다 — 학생은 *"수치 열에서만 됩니다"*를 읽고
-       * 그 하나뿐인 수치 열로 옮긴 다음 **거기서 다시 막힌다.** 잠긴 이유는 한 번에
-       * 다 말해야 한다 (2026-09-21, `charts.spec.ts`가 잡았다).
-       *
-       * 고른 열이 수치일 때는 둘 중 하나가 자기 자신이므로 **짝이 될 열이 하나
-       * 남는다는 뜻**이고, 범주일 때는 **고를 축 둘이 있다는 뜻**이다. 세는 규칙 하나가
-       * 두 경우를 다 맞힌다.
+       * **고른 열이 표에 있어야 한다.** 학생이 고른 이름은 표가 바뀌는 사이에 사라질 수
+       * 있고(데이터 교체), 그때 가로축이 없는 채로 열리면 **빈 판이 뜬다** — 검사가
+       * 잡았다. 짝이 될 열을 세기 전에 **자기 자신이 축이 되는지**부터 본다.
        */
-      if (numericColumns(input.columns).length < 2) blocks.push('needsAnotherNumeric')
-      return blocks
+      const picked = input.columns.some((one) => one.name === input.column)
+      return picked && input.columns.length >= 2 ? [] : (['needsAnotherColumn'] as ChartBlock[])
     },
     panel: defineAsyncComponent(() => import('@/views/data/charts/ScatterChart.vue')),
   },

@@ -168,13 +168,21 @@ describe('못 그리는 도구는 이유와 함께 잠긴다', () => {
   })
 
   /**
-   * **이유가 둘이면 둘 다 말한다.** 하나만 말하면 학생이 하나를 고치고 다시 막힌다.
+   * **산점도가 막히는 이유는 하나다 — 짝이 될 열이 없다** (2026-09-22,
+   * `open-decisions.md` "군집 산점도의 축"). 축은 수치든 범주든 되므로 **수치 열 수는
+   * 더 이상 이유가 아니다.**
    */
-  it('수치 열이 하나뿐이면 산점도가 둘째 열을 요구한다', () => {
-    const alone = [COLUMNS[0]!, COLUMNS[2]!]
+  it('열이 하나뿐이면 산점도가 둘째 열을 요구한다', () => {
+    const alone = [COLUMNS[0]!]
     const scatter = toolButton(open('키', alone), '산점도')
     expect(scatter?.attributes('disabled')).toBeDefined()
-    expect(scatter?.attributes('title')).toBe('수치 열이 두 개 이상 있어야 합니다.')
+    expect(scatter?.attributes('title')).toBe('열이 두 개 이상 있어야 합니다.')
+  })
+
+  /** **범주 열을 골라도 산점도는 열린다.** 결과 화면과 같은 규칙이다. */
+  it('범주 열을 골라도 산점도가 열린다', () => {
+    const scatter = toolButton(open('성별'), '산점도')
+    expect(scatter?.attributes('disabled')).toBeUndefined()
   })
 
   /**

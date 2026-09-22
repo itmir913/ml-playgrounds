@@ -118,7 +118,7 @@ export function axisCell(axis: ClusterAxis, value: number): AxisCell {
  * 그렇다 — 거기서는 그림에 넘긴 눈금 목록이 곧 그 축이다.
  *
  * **반올림이 이 판정의 전부다.** 흩뿌린 만큼을 걷어내면 원래 칸이 나온다
- * (`cluster-chart.ts`의 `JITTER_SPREAD`가 반 칸을 못 넘는다).
+ * (`data/category-axis.ts`의 `JITTER_SPREAD`가 반 칸을 못 넘는다).
  */
 export function axisCellOf(categories: readonly string[] | undefined, value: number): AxisCell {
   if (categories === undefined) return { kind: 'number', value }

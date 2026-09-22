@@ -464,3 +464,73 @@ describe('산점도', () => {
     expect(scatterOptions(PAINT, text, true).plugins?.legend?.display).toBe(true)
   })
 })
+
+/**
+ * 범주 축을 그리는 방식 (`data/category-axis.ts`).
+ *
+ * **군집 산점도와 한 자리에서 온다** — 복사해 두면 한쪽의 흩뿌림 폭을 고칠 때 다른
+ * 쪽이 안 따라오고, 그때 같은 데이터가 두 화면에서 다르게 보인다.
+ */
+describe('산점도의 범주 축', () => {
+  const points = [
+    { row: 0, x: 0, y: 1 },
+    { row: 1, x: 1, y: 2 },
+  ]
+  const series = [{ name: '데이터', points }]
+
+  /** 수치 축이면 값을 그대로 쓴다 — 흩뿌리면 **없는 오차가 생긴다.** */
+  it('수치 축은 값을 그대로 쓴다', () => {
+    const drawn = scatterData(series, PAINT).datasets[0]?.data
+    expect(drawn).toEqual([
+      { x: 0, y: 1 },
+      { x: 1, y: 2 },
+    ])
+  })
+
+  /**
+   * **범주 축이면 칸 안에서 흩뿌린다.** 안 흩뿌리면 한 칸의 점 수천 개가 한 점으로
+   * 겹친다. 반올림하면 원래 칸으로 정확히 돌아온다.
+   */
+  it('범주 축은 칸 안에서 흩뿌리고, 반올림하면 제자리다', () => {
+    const drawn = scatterData(series, PAINT, { x: ['남', '여'] }).datasets[0]?.data as {
+      x: number
+      y: number
+    }[]
+    // `+ 0`은 `-0`을 0으로 모으려는 것이다. 흩뿌림이 음수면 `Math.round`가 `-0`을 주고,
+    // `toEqual`은 그 둘을 다른 값으로 본다 — 재려는 것은 **어느 칸인가**이지 부호가 아니다.
+    expect(drawn.map((point) => Math.round(point.x) + 0)).toEqual([0, 1])
+    expect(drawn.some((point) => !Number.isInteger(point.x))).toBe(true)
+    // 세로축은 범주가 아니므로 그대로다.
+    expect(drawn.map((point) => point.y)).toEqual([1, 2])
+  })
+
+  /** **행에 매여 있다.** 같은 파일이 같은 그림을 줘야 학생이 어제 본 것을 오늘도 본다. */
+  it('같은 행은 언제나 같은 자리에 흩뿌려진다', () => {
+    const once = scatterData(series, PAINT, { x: ['남', '여'] }).datasets[0]?.data
+    const again = scatterData(series, PAINT, { x: ['남', '여'] }).datasets[0]?.data
+    expect(once).toEqual(again)
+  })
+
+  /**
+   * **눈금은 정수 자리에 범주 이름을 세운다.** `min`·`max`가 반 칸씩 밖으로 나가는 것은
+   * 양 끝 칸의 구름이 잘리지 않게 하려는 것이다.
+   */
+  it('범주 축의 눈금이 이름을 세우고 양 끝을 반 칸씩 넓힌다', () => {
+    const text = { x: '성별', y: '키', point: () => '' }
+    const scales = scatterOptions(PAINT, text, false, { x: ['남', '여'] }).scales
+    const x = scales?.['x'] as {
+      min?: number
+      max?: number
+      ticks?: { stepSize?: number; callback?: (value: number) => string }
+    }
+    expect(x.min).toBe(-0.5)
+    expect(x.max).toBe(1.5)
+    expect(x.ticks?.stepSize).toBe(1)
+    expect(x.ticks?.callback?.(0)).toBe('남')
+    expect(x.ticks?.callback?.(1)).toBe('여')
+    // 목록 밖은 이름이 없다 — 빈 이름이 그 줄만 비운다.
+    expect(x.ticks?.callback?.(2)).toBe('')
+    // 수치 축은 건드리지 않는다.
+    expect((scales?.['y'] as { min?: number }).min).toBeUndefined()
+  })
+})
