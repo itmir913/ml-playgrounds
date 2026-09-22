@@ -149,6 +149,88 @@ describe('히스토그램', () => {
   })
 })
 
+/**
+ * 구간 수를 학생이 직접 주는 길 (`open-decisions.md` "45. 히스토그램의 구간 수를 학생이
+ * 정한다").
+ *
+ * **여기가 무는 것은 "정확히 그 수"다.** 셋째 인자를 상한(`maxBins`)에 합쳤다면 자동이
+ * 적은 수를 원하는 열에서 **학생이 고른 수가 조용히 무시된다** — 오류도 안 나고 손잡이가
+ * 아무 일도 안 한 것처럼 보이는 모양이라, 그 침묵을 여기서 막는다.
+ */
+describe('히스토그램 — 구간 수를 직접 준다', () => {
+  /**
+   * **자동이 5를 원하는 열에 20을 준다.** 상한 자리에 넣었다면 `min(5, 20) = 5`가 되어
+   * 이 검사가 운다. 자동 쪽 수는 위 numpy 대조표가 못 박은 값이다.
+   */
+  it('자동이 더 적게 원해도 준 수만큼 나눈다', () => {
+    const values = [1, 2, 2, 3, 5, 8, 13, 21, 34, 55]
+    expect(histogram(values, 200).counts.length).toBe(5)
+    expect(histogram(values, 200, 20).counts.length).toBe(20)
+  })
+
+  it('자동이 더 많이 원해도 준 수만큼 나눈다', () => {
+    const values = Array.from({ length: 1000 }, (_v, i) => Math.sin(i) * 50)
+    expect(histogram(values, 200).counts.length).toBe(11)
+    expect(histogram(values, 200, 4).counts.length).toBe(4)
+  })
+
+  it("`'auto'`를 명시한 것과 생략한 것이 같다", () => {
+    const values = [150, 160, 165, 170, 175, 180, 190]
+    expect(histogram(values, 200, 'auto')).toEqual(histogram(values, 200))
+  })
+
+  /** 구간이 달라져도 값은 하나도 안 잃는다 — 위 자동 쪽과 같은 계약이다. */
+  it.each([1, 2, 7, 20, 200])('준 수가 %i이어도 합이 값의 수다', (bins) => {
+    const values = [1, 2, 2, 3, 5, 8, 13, 21, 34, 55]
+    const made = histogram(values, 200, bins)
+    expect(made.counts.length).toBe(bins)
+    expect(made.edges.length).toBe(bins + 1)
+    expect(made.counts.reduce((sum, count) => sum + count, 0)).toBe(values.length)
+    expect(made.edges[0]).toBe(1)
+    expect(made.edges[bins]).toBe(55)
+  })
+
+  /**
+   * **폭이 0인 열은 몇으로 나누자고 해도 구간 하나다.** 자동과 같은 답이어야 한다 —
+   * 여기서 20칸을 만들면 경계가 전부 같은 값이 되어 그림이 무너진다.
+   */
+  it('값이 전부 같으면 준 수와 무관하게 구간 하나다', () => {
+    const one = histogram([7, 7, 7], 200, 20)
+    expect(one.edges).toEqual([6.5, 7.5])
+    expect(one.counts).toEqual([3])
+    expect(one.capped).toBe(false)
+  })
+
+  it('값이 없으면 준 수와 무관하게 구간도 없다', () => {
+    expect(histogram([], 200, 20)).toEqual({ edges: [], counts: [], capped: false })
+  })
+
+  /**
+   * **상한이 이기고, 이겼다고 말한다.** 화면은 여기 닿기 전에 막지만
+   * (`architecture.md` §8.9.1.1), 그 방어선이 뚫려도 조용히 다른 수를 그리지는 않는다.
+   */
+  it('준 수가 상한을 넘으면 상한이 이기고 `capped`가 참이다', () => {
+    const made = histogram([0, 1, 2, 3], 5, 20)
+    expect(made.counts.length).toBe(5)
+    expect(made.capped).toBe(true)
+  })
+
+  /** 1보다 작은 수와 소수는 numpy처럼 정수 한 칸으로 떨어진다. */
+  it.each([
+    [0, 1],
+    [-3, 1],
+    [1, 1],
+    [3.7, 3],
+  ])('준 수 %s는 구간 %i개가 된다', (given, bins) => {
+    expect(histogram([0, 1, 2, 3], 200, given).counts.length).toBe(bins)
+  })
+
+  /** 직접 준 수는 줄인 것이 아니다 — 상한에 안 걸리면 `capped`는 거짓이다. */
+  it('상한에 안 걸리면 `capped`가 거짓이다', () => {
+    expect(histogram([0, 1, 2, 3], 200, 20).capped).toBe(false)
+  })
+})
+
 describe('박스 플롯 요약', () => {
   it('값이 없으면 `null`이다 — 0으로 채운 상자를 그리지 않는다', () => {
     expect(boxSummary([])).toBeNull()

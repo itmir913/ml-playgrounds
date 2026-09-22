@@ -90,7 +90,8 @@ export interface Histogram {
 }
 
 /**
- * 구간 폭을 정하는 규칙 — **numpy `histogram_bin_edges`의 `'auto'`를 그대로 따른다.**
+ * 자동일 때 구간 수를 정하는 규칙 — **numpy `histogram_bin_edges`의 `'auto'`를 그대로
+ * 따른다.** 폭을 먼저 내고 범위를 그 폭으로 나눈다.
  *
  * ```python
  * fd_bw_corrected = max(fd_bw, sqrt_bw / 2)
@@ -113,7 +114,10 @@ export interface Histogram {
  * 아주 작은 열에서 폭을 0에 가깝게 만들어 구간이 터진다. 그 바닥이 있으므로 여기서
  * `iqr === 0`을 따로 막을 필요가 없다.
  */
-function autoBinWidth(sorted: readonly number[], range: number): number {
+function autoBinCount(values: readonly number[], range: number): number {
+  // **정렬이 여기 있는 이유.** 사분위 범위를 구하려고 정렬하는 것이고, 구간 수를 직접
+  // 받은 호출은 이 함수에 들어오지 않으므로 그때는 정렬이 아예 안 일어난다.
+  const sorted = [...values].sort((a, b) => a - b)
   const n = sorted.length
   const sturges = range / (Math.log2(n) + 1)
   const sqrt = range / Math.sqrt(n)
@@ -121,8 +125,22 @@ function autoBinWidth(sorted: readonly number[], range: number): number {
   const iqr = quantile(sorted, 0.75) - quantile(sorted, 0.25)
   const fd = (2 * iqr) / Math.cbrt(n)
 
-  return Math.min(Math.max(fd, sqrt / 2), sturges)
+  const width = Math.min(Math.max(fd, sqrt / 2), sturges)
+  return width > 0 ? Math.ceil(range / width) : 1
 }
+
+/**
+ * 구간 수를 누가 정하는가.
+ *
+ * **numpy의 `bins`와 같은 자리다** — `numpy.histogram(a, bins='auto')`이고
+ * `numpy.histogram(a, bins=20)`이다. 학생이 나중에 파이썬에서 칠 이름과 같은 모양으로
+ * 둔다 (`CLAUDE.md` §2, `open-decisions.md` "45. 히스토그램의 구간 수를 학생이 정한다").
+ *
+ * **아래 `maxBins`와 뜻이 다르므로 자리도 다르다.** 저쪽은 **그릴 수 있는가**의 상한이고
+ * 이쪽은 **몇으로 나눌까**의 선택이다. 하나로 합치면 학생이 고른 20이 자동 8짜리 열에서
+ * 조용히 8이 된다 — 오류도 없이 손잡이가 아무 일도 안 한 것처럼 보인다.
+ */
+export type BinChoice = 'auto' | number
 
 /**
  * 수치 열의 히스토그램을 만든다.
@@ -131,45 +149,62 @@ function autoBinWidth(sorted: readonly number[], range: number): number {
  * 수 있는가**의 문제이고, 그래서 이 파일이 갖지 않는다 — 숫자를 코드에 박지 않는다
  * (`CLAUDE.md` §1.5).
  *
+ * **`bins`는 몇으로 나눌까다.** 기본은 numpy의 `'auto'`이고, 수를 주면 **정확히 그
+ * 수**로 나눈다. 준 수가 `maxBins`를 넘으면 상한이 이기고 `capped`가 참이 된다 —
+ * **화면은 그 자리에 닿기 전에 막는다**(§8.9.1.1 "범위 밖이면 잠그고 이유를 말한다").
+ * 여기서 조용히 당기는 것은 그 방어선이 뚫렸을 때의 마지막 안전망이지 설계가 아니다.
+ *
+ * **수를 직접 주면 정렬하지 않는다.** 사분위 범위가 필요 없어지므로 O(n log n)이
+ * O(n)이 된다 — 자동보다 싸다.
+ *
  * **막다른 경우 둘을 조용히 넘기지 않는다.**
  *
  * - 값이 없으면 구간도 없다. `edges`와 `counts`가 둘 다 비고, 화면은 그릴 것이 없다는
  *   것을 길이로 안다.
  * - 값이 전부 같으면 폭이 0이다. 그때는 **그 값을 가운데 둔 구간 하나**를 만든다 —
  *   numpy가 `[x - 0.5, x + 0.5]`로 하는 것과 같다. 구간을 안 만들면 "값이 하나뿐인 열"이
- *   "값이 없는 열"과 화면에서 구별되지 않는다.
+ *   "값이 없는 열"과 화면에서 구별되지 않는다. **구간 수를 직접 준 경우에도 그렇다** —
+ *   폭이 0인 열을 20으로 나눌 방법이 없다.
  */
-export function histogram(values: readonly number[], maxBins: number): Histogram {
+export function histogram(
+  values: readonly number[],
+  maxBins: number,
+  bins: BinChoice = 'auto',
+): Histogram {
   if (values.length === 0) return { edges: [], counts: [], capped: false }
 
-  const sorted = [...values].sort((a, b) => a - b)
-  const low = sorted[0] as number
-  const high = sorted[sorted.length - 1] as number
+  // **최솟값·최댓값은 정렬 없이 한 번 훑어 얻는다.** 정렬은 사분위 범위가 필요한
+  // 자동일 때만 하고, 그 자리는 `autoBinCount`가 갖는다.
+  let low = values[0] as number
+  let high = low
+  for (const value of values) {
+    if (value < low) low = value
+    if (value > high) high = value
+  }
   const range = high - low
 
   if (range === 0) {
     return { edges: [low - 0.5, low + 0.5], counts: [values.length], capped: false }
   }
 
-  const width = autoBinWidth(sorted, range)
-  const wanted = width > 0 ? Math.ceil(range / width) : 1
-  const bins = Math.max(1, Math.min(wanted, maxBins))
+  const wanted = bins === 'auto' ? autoBinCount(values, range) : Math.max(1, Math.floor(bins))
+  const count = Math.min(wanted, maxBins)
 
   const edges: number[] = []
-  for (let i = 0; i <= bins; i += 1) edges.push(low + (range * i) / bins)
+  for (let i = 0; i <= count; i += 1) edges.push(low + (range * i) / count)
   // **마지막 경계는 계산하지 않고 박는다.** 부동소수 누적으로 최댓값보다 아주 조금
   // 작아지면 그 값 하나가 어느 구간에도 안 들어간다.
-  edges[bins] = high
+  edges[count] = high
 
-  const counts = new Array<number>(bins).fill(0)
+  const counts = new Array<number>(count).fill(0)
   for (const value of values) {
     // 마지막 구간만 오른쪽 끝을 포함한다. numpy·matplotlib의 규칙과 같다.
-    const position = Math.floor(((value - low) / range) * bins)
-    const index = Math.min(position, bins - 1)
+    const position = Math.floor(((value - low) / range) * count)
+    const index = Math.min(position, count - 1)
     counts[index] = (counts[index] as number) + 1
   }
 
-  return { edges, counts, capped: wanted > bins }
+  return { edges, counts, capped: wanted > count }
 }
 
 /**
