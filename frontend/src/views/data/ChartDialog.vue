@@ -148,8 +148,9 @@ provide(CHART_CONTROLS, controls)
           고장으로 본다"). 사라지면 그 도구는 없는 것이 되고, 회색으로 남아 있으면
           학생이 "수치 열에서 됩니다"를 읽는다.
 
-          **한 열로 세우고 칸을 꽉 채운다.** 가로로 흐르면 창 너비에 따라 줄바꿈 자리가
-          달라져 **같은 도구가 어제와 다른 자리에 선다.**
+          **격자이지 흐르는 줄이 아니다.** `flex-wrap`으로 두면 글자 수대로 폭이 제각각이
+          되고 창 너비에 따라 줄바꿈 자리가 달라져 **같은 도구가 어제와 다른 자리에 선다.**
+          격자는 칸 수만 바뀌고 차례는 그대로다 (`AppChoices`와 같은 판단).
 
           **잠긴 단추의 글자는 `text-ink-faint`가 아니다** (2026-09-22에 재서 바꿨다).
           그 색은 어두운 배색에서 대비가 3.75:1이라 16px 굵은 글자의 기준(4.5)에 못
@@ -157,25 +158,43 @@ provide(CHART_CONTROLS, controls)
           안 읽히면 학생은 회색 덩어리만 보고 고장으로 읽는다(§8.2). `text-ink-soft`는
           같은 자리에서 7.4:1이다.
         -->
-        <div class="grid grid-cols-1 gap-2">
-          <button
-            v-for="one in tools"
-            :key="one.id"
-            type="button"
-            class="w-full rounded-field border px-3 py-2 text-left text-base font-bold"
-            :class="
-              one.id === toolId
-                ? 'border-brand bg-brand-soft text-brand'
-                : blocks(one).length > 0
-                  ? 'cursor-not-allowed border-line bg-surface-sunken text-ink-soft'
-                  : 'border-line-strong bg-surface text-ink'
-            "
-            :disabled="blocks(one).length > 0"
-            :title="blocks(one).join(' ')"
-            @click="toolId = one.id"
-          >
-            {{ t(`data.charts.${one.id}.name`) }}
-          </button>
+        <!--
+          **두 열로 갈리는 문턱을 재서 잡았다** (2026-09-22, 코드 소유자). 한 열로만
+          세우면 넷이 세로를 다 먹고, 그 아래 설정과 그림이 그만큼 밀린다.
+
+          **재는 것은 창이 아니라 이 열이 받은 폭이다**(`@container`, `AppChoices`와 같은
+          규칙) — `md:`로 쓰면 **창이 넓다는 이유로 좁은 왼쪽 열 안에서 두 열로 갈린다.**
+
+          **문턱의 근거.** 가장 긴 이름이 `히스토그램(Histogram)`으로 158px이고(16px 굵은
+          글자, 2026-09-22 실측) 칸의 좌우 여백과 테두리가 26px이라 한 칸이 184px이다.
+          둘에 간격 8px을 더하면 376px이고, 그것을 넘는 가장 가까운 눈금이 `@sm`(384px)다.
+
+          **어느 화면에서 갈리는지 재 봤다** (2026-09-22, 이 열이 받은 폭): 375에서 306px ·
+          1366에서 351px이라 한 열이고, 1536에서 399px · 1920에서 513px이라 두 열이다.
+          **1366이 33px 모자란 것은 우연이 아니라 옳다** — 거기서 둘로 가르면 칸이 176px이라
+          가장 긴 이름이 두 줄로 접힌다.
+        -->
+        <div class="@container">
+          <div class="grid grid-cols-1 gap-2 @sm:grid-cols-2">
+            <button
+              v-for="one in tools"
+              :key="one.id"
+              type="button"
+              class="w-full rounded-field border px-3 py-2 text-left text-base font-bold"
+              :class="
+                one.id === toolId
+                  ? 'border-brand bg-brand-soft text-brand'
+                  : blocks(one).length > 0
+                    ? 'cursor-not-allowed border-line bg-surface-sunken text-ink-soft'
+                    : 'border-line-strong bg-surface text-ink'
+              "
+              :disabled="blocks(one).length > 0"
+              :title="blocks(one).join(' ')"
+              @click="toolId = one.id"
+            >
+              {{ t(`data.charts.${one.id}.name`) }}
+            </button>
+          </div>
         </div>
 
         <!--
