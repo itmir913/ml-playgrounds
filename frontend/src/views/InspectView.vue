@@ -121,6 +121,29 @@ function pick(event: Event): void {
   roster.show(picked)
 }
 
+/**
+ * 파일을 끌고 들어와 있는가. **과녁의 색이 이것으로 바뀐다.**
+ *
+ * 데이터 화면의 표 입구와 같은 관용구다 (`views/data/TabularPanel.vue`) — **점선 테두리는
+ * 꾸밈이 아니라 "여기 놓을 수 있다"는 약속**이라, 테두리만 그리고 받지 않으면 교사가
+ * 제출물을 끌어다 놓고 아무 일도 안 일어나는 것을 본다 (2026-09-22, 코드 소유자).
+ */
+const dragging = ref(false)
+
+/**
+ * 끌어다 놓은 파일들. **여러 개를 그대로 받는다** — 이 화면은 원래 명렬을 받는 자리이고
+ * `pickFiles`가 이미 그 길이다.
+ *
+ * **폴더는 안 받는다.** 폴더째 끌기는 `webkitGetAsEntry`로 트리를 훑어야 하는 다른 일이라
+ * 단추(`pickFolder`)로 남긴다 — 문구도 *"파일을 끌어다 놓으세요"*라고만 말해서 **되는
+ * 것과 말하는 것이 같다.**
+ */
+function onDrop(event: DragEvent): void {
+  dragging.value = false
+  const files = [...(event.dataTransfer?.files ?? [])]
+  if (files.length > 0) roster.show(rosterOf(files))
+}
+
 /** 항목이 하나뿐이면 자동으로 고른다. 경로는 같고 누르는 손이 한 번 준다. */
 watch(roster.items, (items) => {
   opened.value = null
@@ -546,7 +569,12 @@ function reasonOf(code: string): string {
 </script>
 
 <template>
-  <div class="flex min-h-full flex-col gap-5 p-4 sm:p-5">
+  <div
+    class="flex min-h-full flex-col gap-5 p-4 sm:p-5"
+    @dragover.prevent="dragging = true"
+    @dragleave="dragging = false"
+    @drop.prevent="onDrop"
+  >
     <!--
       **머리는 다른 탭과 같은 것이다** (`StepHeader`, §8.9, 2026-09-18 사용자). 점검만
       큰 제목에 큰 단추를 세워 두었더니 **같은 앱의 화면으로 안 읽혔다** — 단계가 아니라고
@@ -587,7 +615,19 @@ function reasonOf(code: string): string {
       그 안에 나란히 선다.** 휴대폰에는 폴더 고르기가 없으므로 둘은 폴백이 아니라 나란한
       길이고, 둘 다 같은 명렬로 들어간다.
     -->
-    <div v-if="roster.items.value.length === 0" class="grid min-h-0 flex-1 place-items-center">
+    <!--
+      **비어 있는 자리가 곧 과녁이다** (데이터 화면의 표 입구와 같은 모양). 점선은
+      장식이 아니라 **끌어다 놓을 수 있다는 약속**이고, 그래서 이 상자에 `@drop`이
+      함께 걸려 있다 — 끌면 테두리와 바탕이 물들어 놓을 자리임을 말한다.
+
+      **과녁은 스스로 높이를 갖는다**(`min-h-64`). 부모가 늘려 줄 때는 `flex-1`이
+      그것을 받는다 — 데이터 화면의 같은 자리와 같은 판단이다.
+    -->
+    <div
+      v-if="roster.items.value.length === 0"
+      class="grid min-h-64 flex-1 place-items-center rounded-panel border-2 border-dashed transition-colors"
+      :class="dragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
+    >
       <AppEmpty :reason="t('inspect.emptyReason')" :next="t('inspect.emptyNext')">
         <AppButton size="lg" @click="folderInput?.click()">
           <component :is="ACTION_ICONS.openFile" :size="20" aria-hidden="true" />

@@ -67,7 +67,7 @@
     "submissions": "Files",
     "readOf": "{read}/{total}",
     "emptyReason": "No files chosen yet.",
-    "emptyNext": "Choose a folder that contains .mlpx files, or choose the .mlpx files themselves. Files you choose stay on this computer and are never sent anywhere.",
+    "emptyNext": "Drop .mlpx files here, or choose a folder that contains them. Files you choose stay on this computer and are never sent anywhere.",
     "sameProjectSummary": "{files} files share a project ID with another file.",
     "sameProjectTitle": "Files with the same project ID",
     "sameProjectNote": "Copying an .mlpx file and continuing in it copies the project ID as well. The files below share an ID, so they came from one file.",
