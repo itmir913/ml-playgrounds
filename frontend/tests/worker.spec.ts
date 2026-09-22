@@ -119,12 +119,22 @@ class FakeWorker implements TrainWorker {
   }
 }
 
-/** 진짜 handler를 뒤에 붙인 가짜 워커. 프로토콜 왕복 전체를 본다. */
+/**
+ * 진짜 handler를 뒤에 붙인 가짜 워커. 프로토콜 왕복 전체를 본다.
+ *
+ * **엔진 등록부를 받는다** (2026-09-23, R36 C-6). 안 받으면 준비 국면이 있는 엔진을 끼울
+ * 수 없어서, 그 국면만은 **왕복을 한 번도 안 지났다** — 핸들러가 내보내는 것과
+ * 클라이언트가 받는 것을 따로 쟀을 뿐이다. 나머지 메시지 여섯은 이 길로 다닌다.
+ */
 class HandlerWorker extends FakeWorker {
+  constructor(private readonly engines?: readonly TrainingEngine[]) {
+    super()
+  }
+
   override postMessage(message: TrainRequest): void {
     super.postMessage(message)
     // 진짜 워커도 비동기로 답한다. 동기로 답하면 client가 못 잡는 순서를 놓친다.
-    queueMicrotask(() => void handleTrain(message, (outgoing) => this.emit(outgoing)))
+    queueMicrotask(() => void handleTrain(message, (outgoing) => this.emit(outgoing), this.engines))
   }
 }
 
@@ -596,6 +606,44 @@ describe('준비 국면이 워커 밖으로 나간다', () => {
       .filter((one) => one.type === 'preparing')
       .map((one) => (one.type === 'preparing' ? one.state : ''))
     expect(states).toEqual(['downloading', 'downloaded', 'ready'])
+  })
+
+  /**
+   * **워커를 나가 화면까지 간다** (2026-09-23, R36 C-6).
+   *
+   * 위 판은 핸들러가 **내보내는 것**을, 메인 스레드 쪽 *"준비 국면이 화면까지 간다"*는 가짜
+   * 워커가 **손으로 쏜 것**을 받는지를 본다. 둘 다 초록이어도 **그 사이의 이음매는 아무도
+   * 안 지났다** — 핸들러가 `preparing`을 다른 모양으로 보내거나 클라이언트가 다른 이름을
+   * 기다리면 양쪽 판은 그대로 통과하고, 학생은 8.7초 동안 멈춘 화면을 본다.
+   *
+   * 여기서는 **진짜 핸들러가 낸 메시지를 진짜 클라이언트가 받는다.** 순서도 함께 본다 —
+   * 준비는 그 모델이 시작된 뒤, 끝나기 전에 와야 화면이 *"무엇을 준비하는가"*를 말한다.
+   */
+  it('진짜 핸들러가 낸 국면을 진짜 클라이언트가 받는다', async () => {
+    const worker = new HandlerWorker([preparingEngine()])
+    const seen: string[] = []
+    const { result } = train(
+      { type: 'train', input: inputFor(settingsFor({ selectedAlgorithms: models('knn') })) },
+      {
+        createWorker: () => worker,
+        onStarted: ({ algorithm }) => seen.push(`started:${algorithm}`),
+        onPreparing: (state, fraction) => {
+          // 안 준 비율을 지어내지 않는다 — 왕복을 지나도 비어 있어야 한다.
+          expect(fraction).toBeUndefined()
+          seen.push(`preparing:${state}`)
+        },
+        onProgress: (run) => seen.push(`progress:${run.algorithm}`),
+      },
+    )
+
+    await result
+    expect(seen).toEqual([
+      'started:knn',
+      'preparing:downloading',
+      'preparing:downloaded',
+      'preparing:ready',
+      'progress:knn',
+    ])
   })
 
   /**
