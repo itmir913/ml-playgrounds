@@ -1271,3 +1271,49 @@ describe('수렴 경고는 전처리 스케일링을 가리킨다', () => {
     }
   })
 })
+
+/**
+ * 상한이 막았으면 푸는 자리를 함께 말한다 (`copy.md` §5).
+ *
+ * **이름이 실재하는지는 위 `버튼을 이름으로 부르는 문구`가 이미 본다** — 여기가 보는 것은
+ * 그 말을 **하고 있는가**다. 문장을 다듬다 절이 빠지면 학생은 다시 있는 길을 모른 채
+ * 데이터를 줄인다 (2026-09-22).
+ *
+ * **위치(`화면 오른쪽 하단`)가 맞는지는 이 스펙도 다른 무엇도 못 본다.** CSS 뒤에 있고,
+ * 그 자리에 글자 없는 아이콘이 둘이다 — **사람 확인이다** (`copy.md` §5).
+ */
+describe('상한이 막으면 푸는 자리를 함께 말한다', () => {
+  /**
+   * **손으로 적은 목록이다.** 여기 이름이 있다는 것은 둘을 확인했다는 뜻이다 —
+   * ① `limits-switch.ts`가 그 상한을 푼다 ② 그 상한이 학생의 다음 걸음을 막는다.
+   *
+   * **닮았지만 안 드는 것이 있다.** 히스토그램 구간 수·모델 예산은 스위치가 안 풀고,
+   * 기기의 남은 공간과 서버 상한은 우리 것이 아니며, 산점도 표본은 막지 않고 줄이기만
+   * 한다. 모양만 보고 여기 끼워 넣으면 **누르면 풀린다고 거짓말을 한다.**
+   */
+  const RELEASABLE = [
+    'DATASET_TOO_MANY_ROWS',
+    'DATASET_TOO_MANY_COLUMNS',
+    'IMAGE_TOO_MANY_PHOTOS',
+    'PORTFOLIO_TOO_LARGE',
+    'DATASET_TOO_LARGE_FOR_BROWSER',
+    'IMAGE_TOO_LARGE_FOR_BROWSER',
+  ] as const
+
+  for (const [locale, strings] of [
+    ['ko', korean],
+    ['en', english],
+  ] as const) {
+    it(`${locale}이 여섯 곳에서 [상한 해제]를 부른다`, () => {
+      // **버튼의 이름을 여기에 다시 쓰지 않는다.** 로케일에서 읽어야 이름을 바꿨을 때
+      // 이 스펙이 함께 따라간다 — 박아 두면 이름이 갈린 것을 못 본다.
+      const label = strings.get('shell.limitsRelease') ?? ''
+      expect(label).not.toBe('')
+
+      const silent = RELEASABLE.filter(
+        (code) => !(strings.get(errorMessageKey(code)) ?? '').includes(`[${label}]`),
+      )
+      expect(silent, 'name the release switch in messages the switch can lift').toEqual([])
+    })
+  }
+})
