@@ -51,11 +51,29 @@ export function hasTemplate(portfolio: Portfolio): boolean {
   return portfolio.template.sections.length > 0
 }
 
+/**
+ * 그 열쇠로 **직접 담긴 것**만 꺼낸다 (2026-09-22 R37 A-2).
+ *
+ * `answers`와 `attachments`는 `z.record`가 만든 평범한 객체라 `Object.prototype`을
+ * 상속한다. 문항 id가 `constructor`·`toString`·`valueOf`·`hasOwnProperty`·`__proto__`면
+ * **`?? ''`가 안 걸리고 함수가 나온다** — 그 뒤 `.trim()`·`.map()`이 던지고,
+ * `isPortfolioAnswered`가 던지므로 **라우터 가드와 체크리스트까지 함께 선다.**
+ *
+ * **입구는 교사의 양식이다.** `{#id}` 표기(`mlpx-spec.md` §8.2)의 정규식이 그 이름들을
+ * 전부 통과시키고, 제목 슬러그로도 `constructor` 하나가 들어온다. **문 여덟은 멀쩡하다** —
+ * 적대적 값 열아홉 벌이 스키마를 그대로 통과한다. 무너지는 것은 읽는 쪽이다.
+ *
+ * **자리가 셋이라 함수가 하나다** (「흩어진 결함은 빠진 연산이다」).
+ */
+function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined
+}
+
 /** 화면이 그릴 문항들. 답을 문항에 붙여 준다. */
 export function portfolioSections(portfolio: Portfolio): PortfolioSection[] {
   return portfolio.template.sections.map((section) => ({
     ...section,
-    answer: portfolio.answers[section.id] ?? '',
+    answer: own(portfolio.answers, section.id) ?? '',
   }))
 }
 
@@ -242,7 +260,7 @@ export function withAnswer(portfolio: Portfolio, id: string, answer: string): Po
 
 /** 이 문항에 붙은 사진들. 붙인 순서가 곧 보이는 순서다. */
 export function attachmentsOf(portfolio: Portfolio, sectionId: string): readonly string[] {
-  return portfolio.attachments[sectionId] ?? []
+  return own(portfolio.attachments, sectionId) ?? []
 }
 
 /**
@@ -336,7 +354,7 @@ export function orphanAnswers(portfolio: Portfolio): OrphanAnswer[] {
 export function isPortfolioAnswered(portfolio: Portfolio): boolean {
   if (!hasTemplate(portfolio)) return false
   return portfolio.template.sections.every(
-    (section) => (portfolio.answers[section.id] ?? '').trim() !== '',
+    (section) => (own(portfolio.answers, section.id) ?? '').trim() !== '',
   )
 }
 

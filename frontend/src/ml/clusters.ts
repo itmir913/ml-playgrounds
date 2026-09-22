@@ -93,12 +93,14 @@ export function isCategoricalAxis(axis: ClusterAxis): boolean {
   return axis.categories !== undefined
 }
 
-/** 축의 한 칸이 무엇으로 읽히는가. 화면은 이 결과를 글자로만 바꾼다. */
-export type AxisCell =
-  | { readonly kind: 'category'; readonly name: string }
-  /** 범주 축인데 그 번호에 이름이 없다. 화면이 "없음"이라고 말한다. */
-  | { readonly kind: 'unknownCategory' }
-  | { readonly kind: 'number'; readonly value: number }
+/**
+ * **판정은 `data/category-axis.ts`가 갖는다** (2026-09-22 R37 A-3). 흩뿌리는 자리와
+ * 되돌리는 자리가 갈려 있었고, 그 사이 새 화면이 되돌리는 것을 잊었다.
+ * 여기서는 축을 들고 있는 자리를 위해 이름만 이어 준다.
+ */
+export { axisCellOf, type AxisCell } from '@/data/category-axis'
+
+import { axisCellOf, type AxisCell } from '@/data/category-axis'
 
 /**
  * 축의 값 하나를 무엇으로 읽을지. **범주 축은 최빈 범주의 이름이다**
@@ -111,19 +113,6 @@ export type AxisCell =
  */
 export function axisCell(axis: ClusterAxis, value: number): AxisCell {
   return axisCellOf(axis.categories, value)
-}
-
-/**
- * 축을 안 들고 **범주 목록만** 든 자리를 위한 같은 판정. 산점도의 좌표 글자가
- * 그렇다 — 거기서는 그림에 넘긴 눈금 목록이 곧 그 축이다.
- *
- * **반올림이 이 판정의 전부다.** 흩뿌린 만큼을 걷어내면 원래 칸이 나온다
- * (`data/category-axis.ts`의 `JITTER_SPREAD`가 반 칸을 못 넘는다).
- */
-export function axisCellOf(categories: readonly string[] | undefined, value: number): AxisCell {
-  if (categories === undefined) return { kind: 'number', value }
-  const name = categories[Math.round(value)]
-  return name === undefined ? { kind: 'unknownCategory' } : { kind: 'category', name }
 }
 
 /**

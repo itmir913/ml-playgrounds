@@ -78,3 +78,32 @@ export function categoryScale(
     },
   }
 }
+
+/** 축의 한 칸이 무엇으로 읽히는가. 화면은 이 결과를 글자로만 바꾼다. */
+export type AxisCell =
+  | { readonly kind: 'category'; readonly name: string }
+  /** 범주 축인데 그 번호에 이름이 없다. 화면이 "없음"이라고 말한다. */
+  | { readonly kind: 'unknownCategory' }
+  | { readonly kind: 'number'; readonly value: number }
+
+/**
+ * **흩뿌린 것을 되돌린다.** 위 `placed()`가 더한 만큼을 걷어내면 원래 칸이 나온다 —
+ * 반올림이 이 판정의 전부다(`JITTER_SPREAD`가 반 칸을 못 넘는다).
+ *
+ * **여기 사는 이유는 흩뿌리는 자리가 여기이기 때문이다** (2026-09-22 R37 A-3). 한때 이
+ * 함수가 `ml/clusters.ts`에 있었고, 그 사이 새로 생긴 데이터 화면의 산점도가 **되돌리는
+ * 것을 잊었다** — 툴팁이 `여` 대신 `1.02`를 말했다. 2026-08-31 사각 감사 A-3이 닫은 병이
+ * 새 화면에서 되살아난 것이라, **더하는 곳과 빼는 곳을 한 파일에 둔다.**
+ *
+ * `ml/clusters.ts`가 이것을 다시 내보낸다 — 축을 들고 있는 자리는 그쪽 이름으로 부른다.
+ */
+export function axisCellOf(
+  categories: readonly string[] | undefined,
+  value: number | null,
+): AxisCell {
+  // **값이 없는 칸은 범주도 수도 아니다.** 툴팁은 그 자리에 "없음"을 적는다.
+  if (value === null) return { kind: 'unknownCategory' }
+  if (categories === undefined) return { kind: 'number', value }
+  const name = categories[Math.round(value)]
+  return name === undefined ? { kind: 'unknownCategory' } : { kind: 'category', name }
+}

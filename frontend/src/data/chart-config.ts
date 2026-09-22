@@ -12,7 +12,7 @@
 
 import type { ChartData, ChartOptions, Plugin } from 'chart.js'
 
-import { categoryScale, placed } from './category-axis'
+import { axisCellOf, categoryScale, placed, type AxisCell } from './category-axis'
 import { CHART_COLORS, INK_ORDER } from '@/palette'
 
 import type { BoxSummary, DataPoint, Frequencies, Histogram } from './stats'
@@ -587,7 +587,13 @@ export function scatterOptions(
   text: {
     readonly x: string
     readonly y: string
-    readonly point: (name: string, x: number | null, y: number | null) => string
+    /**
+     * **좌표는 이미 되돌린 것이 온다** (2026-09-22 R37 A-3). 범주 축의 점은 칸 안에서
+     * 흩뿌려 그리므로 `parsed.x`는 `1.02` 같은 수인데, **되돌리는 일을 부르는 쪽에
+     * 맡겼더니 새로 생긴 화면이 그것을 잊었다** — 툴팁이 `여` 대신 `1.02`를 말했다.
+     * 이제 여기서 `axisCellOf`를 거쳐 넘기므로 **잊을 자리가 없다.**
+     */
+    readonly point: (name: string, x: AxisCell, y: AxisCell) => string
   },
   showLegend: boolean,
   scales: ScatterAxisScales = {},
@@ -613,7 +619,12 @@ export function scatterOptions(
         position: 'nearest',
         usePointStyle: true,
         callbacks: {
-          label: (item) => text.point(item.dataset.label ?? '', item.parsed.x, item.parsed.y),
+          label: (item) =>
+            text.point(
+              item.dataset.label ?? '',
+              axisCellOf(scales.x, item.parsed.x),
+              axisCellOf(scales.y, item.parsed.y),
+            ),
         },
       },
     },

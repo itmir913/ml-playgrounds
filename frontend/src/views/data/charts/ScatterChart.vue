@@ -17,6 +17,7 @@ import { useI18n } from 'vue-i18n'
 import ChartFrame from './ChartFrame.vue'
 import { colorsAreDistinct, scatterData, scatterOptions, scatterSeries } from '@/data/chart-config'
 import { categoricalColumns, useChartControls, type ChartInput } from '@/data/charts'
+import { type AxisCell } from '@/data/category-axis'
 import { categoriesOf, columnCells, scatterSample } from '@/data/stats'
 import { useChartTokens } from '@/composables/useChartTokens'
 import { useFormat } from '@/composables/useFormat'
@@ -118,6 +119,20 @@ const series = computed(() =>
 
 const data = computed(() => scatterData(series.value, paint.value, axes.value))
 
+/**
+ * 툴팁에 쓸 좌표 글자. **범주 축이면 흩뿌린 것을 되돌려 이름을 말한다**
+ * (2026-09-22 R37 A-3).
+ *
+ * **되돌리는 일은 여기서 안 한다** (`chart-config.ts`가 `axisCellOf`를 거쳐 넘긴다).
+ * 처음에는 이 함수가 되돌렸는데, 그러면 **다음 화면이 또 잊는다** — 실제로 그래서
+ * `여` 자리에 `1.02`가 떴다. 화면에 남는 일은 **셀을 글자로 바꾸는 것**뿐이다.
+ */
+function coordinate(cell: AxisCell): string {
+  if (cell.kind === 'category') return cell.name
+  if (cell.kind === 'unknownCategory') return t('meta.none')
+  return format.prediction(cell.value)
+}
+
 const options = computed(() =>
   scatterOptions(
     paint.value,
@@ -127,8 +142,8 @@ const options = computed(() =>
       point: (name, x, y) =>
         t('data.charts.scatter.point', {
           name,
-          x: x === null ? t('meta.none') : format.prediction(x),
-          y: y === null ? t('meta.none') : format.prediction(y),
+          x: coordinate(x),
+          y: coordinate(y),
         }),
     },
     /**

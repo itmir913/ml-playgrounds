@@ -149,10 +149,32 @@ export function acquireTabLock(id: string): Promise<boolean> {
    *
    * 학생이 목록에서 프로젝트 둘을 빠르게 누르면 나는 일이다.
    */
-  const next = pending.catch(() => undefined).then(() => acquireOne(id))
+  /**
+   * **놓으라는 말이 이미 왔는가를 재는 자리** (2026-09-22 R37 A-1).
+   *
+   * `acquireTabLock`은 사슬로 줄을 서는데 **`releaseTabLock`은 그 사슬 밖**이라, 잡는
+   * 중에 놓으라는 말이 오면 `heldId`도 `releaseHeld`도 아직 `null`이어서 **그 말이 아무
+   * 일도 안 하고**, 뒤이어 `acquireOne`이 `heldId = id`를 쓰면서 **놓으라고 한 잠금을
+   * 도로 세운다.** 학생의 두 클릭이면 난다 — 목록에서 프로젝트를 누르고 곧이어 레일의
+   * [점검]을 누른다.
+   *
+   * **번호를 여기서 동기로 잡아야 한다.** `acquireOne` 안에서 잡으면 `releaseTabLock`이
+   * **`acquireOne`이 시작하기 전에** 올 수 있어(사슬의 `.then` 밖) 세 자리 중 하나만
+   * 닫힌다 — 둘 다 심어서 쟀다.
+   */
+  const startedAt = generation
+  const next = pending.catch(() => undefined).then(() => acquireOne(id, startedAt))
   pending = next.catch(() => undefined)
   return next
 }
+
+/**
+ * 놓으라는 말이 몇 번 왔는가. **값에 뜻이 없고 달라졌다는 것에만 뜻이 있다.**
+ *
+ * 취소 신호를 `boolean`으로 두면 **겹친 요청 둘이 서로의 신호를 지운다** — 번호는
+ * 그럴 수 없다.
+ */
+let generation = 0
 
 let pending: Promise<unknown> = Promise.resolve()
 
@@ -168,7 +190,7 @@ let pending: Promise<unknown> = Promise.resolve()
  * BroadcastChannel 갈래도 같은 한 줄이 낸다 — `heldId`가 `null`인 동안 이 탭은 `claim`에
  * 답하지 않아 남의 탭이 P를 "비었다"고 읽는다.
  */
-async function acquireOne(id: string): Promise<boolean> {
+async function acquireOne(id: string, startedAt: number): Promise<boolean> {
   if (heldId === id) return true
 
   // 놓는 손잡이를 들고만 있는다. 실패하면 이대로 되돌려 앞 잠금이 이어진다.
@@ -178,6 +200,33 @@ async function acquireOne(id: string): Promise<boolean> {
   releaseHeld = null
 
   const acquired = await acquireNew(id)
+
+  /**
+   * **기다리는 동안 놓으라는 말이 왔으면 둘 다 놓는다** (R37 A-1).
+   *
+   * 방금 잡은 것을 세우면 **아무도 편집하지 않는 프로젝트를 이 탭이 쥔 채**가 되고,
+   * 앞의 것을 되살리면 **닫으라고 한 프로젝트의 자물쇠**가 남는다. 취소는 둘 다
+   * 버리라는 뜻이다.
+   */
+  if (generation !== startedAt) {
+    /**
+     * **방금 잡은 손잡이를 버리면 자물쇠가 샌다** (2026-09-22 R37 A-1′). `releaseHeld`는
+     * 이 시점에 **방금 잡은** 것의 놓는 손잡이라, `null`로 덮으면 놓을 길이 이 탭에서
+     * 영영 사라진다 — `releaseTabLock()`은 `releaseHeld === null`을 보고 아무 일도 안 한다.
+     * 위 §"요청은 온 순서대로 하나씩"이 적어 둔 그 실패다: **그 탭은 그 프로젝트를 다시
+     * 못 연다.** 들고 있다가 놓는다.
+     */
+    // **캐스팅하는 이유.** 위에서 `releaseHeld = null`을 쓴 뒤라 TypeScript는 이 자리에서
+    // 그 값을 `null`로 좁혀 두는데, 그 사이 `await acquireNew(id)`가 모듈 변수를 다시
+    // 채운다 — 컴파일러가 못 보는 것은 타입이 아니라 그 대입이다.
+    const fresh = releaseHeld as (() => void) | null
+    releaseHeld = null
+    heldId = null
+    previousRelease?.()
+    fresh?.()
+    return false
+  }
+
   if (acquired) {
     // 새 것을 잡았으니 이제 앞의 것을 놓는다. 편집 중인 프로젝트는 언제나 하나다.
     previousRelease?.()
@@ -238,6 +287,9 @@ export async function withTabLock<T>(id: string, work: () => Promise<T>): Promis
  * 채널이 탭과 함께 죽어 답할 이가 없어진다. 같은 효과다.
  */
 export function releaseTabLock(): void {
+  // **잡는 중인 요청에게도 들리게 한다** (R37 A-1). 사슬 밖에서 오는 말이라, 번호를
+  // 올리는 것이 "네가 잡고 있는 것은 이미 놓으라고 한 것이다"를 전하는 유일한 길이다.
+  generation += 1
   heldId = null
   if (releaseHeld !== null) {
     releaseHeld()

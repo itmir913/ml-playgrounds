@@ -81,6 +81,12 @@ export const useProjectStore = defineStore('project', () => {
    */
   const file = shallowRef<ProjectFile | null>(null)
   const opening = shallowRef(false)
+
+  /**
+   * 열기가 몇 번 시작했는가. **값에 뜻이 없고 달라졌다는 것에만 뜻이 있다** — `close()`가
+   * 올리면 도는 중인 열기가 자기 차례가 지났음을 안다 (R37 A-1).
+   */
+  let openings = 0
   const saving = shallowRef(false)
   /** 마지막으로 IndexedDB에 쓴 시각. 상태 표시줄이 보여준다. */
   const savedAt = shallowRef<string | null>(null)
@@ -124,13 +130,36 @@ export const useProjectStore = defineStore('project', () => {
     if (projectId.value === id) {
       return true
     }
+    /**
+     * **이 열기가 아직 유효한가를 재는 표** (2026-09-22 R37 A-1).
+     *
+     * `open()`은 `await` 넷을 지난 뒤 `file.value`를 **조건 없이** 썼다. 그 사이에
+     * `close()`가 돌면 **목록으로 나간 학생의 화면에 옛 프로젝트가 다시 뜨고 자동
+     * 저장이 그것을 쓴다** — 바로 아래 `resolve()`가 같은 이유로 지키는 규칙을
+     * `open()`만 안 지키고 있었다 (R20 감사).
+     *
+     * **`projectId`로는 못 잰다.** 여는 중에는 아직 비어 있어서, 닫힌 것과 아직 안
+     * 열린 것이 같은 모양이다.
+     */
+    const attempt = (openings += 1)
+    const stale = (): boolean => attempt !== openings
     opening.value = true
     try {
       // **다른 탭이 쥔 프로젝트는 열지 않는다** (open-decisions.md "프로젝트는 한 번에
       // 하나만 연다"). 반쯤 열면 자동 저장이 따라 들어와, 잊힌 탭의 저장이 이쪽 실험을
       // 흔적 없이 덮는 바로 그 사고를 다시 부른다. 알리고 목록으로 돌려보낸다.
       if (!(await acquireTabLock(id))) {
-        useToastStore().pushError(new ClientError('PROJECT_OPEN_ELSEWHERE'))
+        /**
+         * **취소당한 것과 남이 쥔 것은 다르다** (R37 A-1). 잠금은 둘 다 `false`로
+         * 돌려주는데, 취소는 **학생이 방금 다른 데로 간 것**이라 알릴 일이 아니다 —
+         * 아무도 안 쥐었는데 *"다른 탭에서 열려 있습니다"*가 뜬다.
+         */
+        if (!stale()) useToastStore().pushError(new ClientError('PROJECT_OPEN_ELSEWHERE'))
+        return false
+      }
+      // 잡고 보니 이미 닫으라는 말이 왔으면 들고 있을 이유가 없다.
+      if (stale()) {
+        releaseTabLock()
         return false
       }
       // **못 읽는 것은 없는 것과 다르다** (architecture.md §8.10.2). 형식이 바뀐 뒤의
@@ -142,6 +171,8 @@ export const useProjectStore = defineStore('project', () => {
       })
       // 못 열었으면 잠금도 놓는다 - 안 열린 프로젝트를 쥔 채로 두면 다른 탭까지 막는다.
       if (loaded === null) releaseTabLock()
+      // **읽는 동안 닫혔으면 되살리지 않는다.** 잠금은 `close()`가 이미 놓았다.
+      if (stale()) return false
       file.value = loaded
       // 열린 직후는 방금 읽은 그대로이므로 저장된 상태다.
       dirty.value = false
@@ -325,6 +356,9 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   function close(): void {
+    // **도는 중인 열기를 낡게 만든다** (R37 A-1). 아래 `releaseTabLock()`이 잠금 쪽을
+    // 취소하고, 이 줄이 화면 쪽을 취소한다 — 둘이 함께여야 상태가 안 갈린다.
+    openings += 1
     cancelPending()
     releaseTabLock()
     file.value = null
