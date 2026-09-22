@@ -262,6 +262,7 @@
         "binCount": "구간 수(bins)",
         "binAuto": "자동으로 정하기",
         "binRange": "{min} ~ {max} 사이의 정수",
+        "binInvalid": "그릴 수 없는 값입니다. {min} ~ {max} 사이의 정수를 입력해 주세요.",
         "binApply": "적용",
         "bins": "구간이 {count}개입니다."
       },

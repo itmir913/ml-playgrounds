@@ -262,6 +262,7 @@
         "binCount": "Bins",
         "binAuto": "Choose automatically",
         "binRange": "A whole number from {min} to {max}",
+        "binInvalid": "That value cannot be drawn. Enter a whole number from {min} to {max}.",
         "binApply": "Apply",
         "bins": "This chart has {count} bins."
       },

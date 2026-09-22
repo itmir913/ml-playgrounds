@@ -81,11 +81,15 @@ watch(auto, (on) => {
  *
  * **조용히 당기지 않는다** (§8.9.1.1). 클램프한 값이 지금 값과 같으면 Vue가 DOM을 다시
  * 안 써서 학생이 친 숫자가 칸에 남고 화면이 계속 거짓말한다 (2026-08-12 감사 B-3).
+ *
+ * **도움말과 다른 문장이다** (2026-09-22, 브라우저로 몰아 보고 고쳤다). `AppField`는
+ * 오류가 도움말 자리를 차지하므로, 둘이 같은 글자면 **색만 붉어지고 학생에게 새 정보가
+ * 없다** — 도움말은 규칙을 가르치고 오류는 무엇이 틀렸는지 말한다 (`copy.md` §5).
  */
 const blocked = computed(() =>
   isBinCount(draft.value, HISTOGRAM_BIN_LIMIT)
     ? ''
-    : t('data.charts.histogram.binRange', { min: 1, max: HISTOGRAM_BIN_LIMIT }),
+    : t('data.charts.histogram.binInvalid', { min: 1, max: HISTOGRAM_BIN_LIMIT }),
 )
 
 function apply(): void {
