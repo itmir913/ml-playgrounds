@@ -11,6 +11,7 @@
  * `ml/hyperparams.ts`가 출처다.
  */
 
+import { own, withoutKey } from '../records'
 import { MIN_SPLIT_ROWS } from '../limits'
 import {
   dataSettings,
@@ -256,18 +257,29 @@ export function withHyperparameter(
   now: string,
 ): ProjectDocument {
   const { algorithm, runtime, name } = target
+  /**
+   * **열쇠가 파일에서 온다** (2026-09-23 R37 C-5의 이웃). `algorithm`은 스키마에서
+   * `userString`이라 손으로 고친 `.mlpx`의 `constructor`·`__proto__`가 그대로 온다.
+   *
+   * 그래서 읽기는 `own()`을 지나고, **쓰기는 색인 대입이 아니라 객체 리터럴**이다 —
+   * `obj['__proto__'] = v`는 own 속성을 안 만들고 프로토타입을 바꿔, 학생이 고친
+   * 하이퍼파라미터가 **저장은 된 것처럼 보이고 다시 열면 없다.**
+   */
   const byAlgorithm = { ...document.settings.hyperparameters }
-  const byRuntime = { ...(byAlgorithm[algorithm] ?? {}) }
-  const values = { ...(byRuntime[runtime] ?? {}) }
+  const byRuntime = { ...(own(byAlgorithm, algorithm) ?? {}) }
+  const values = { ...(own(byRuntime, runtime) ?? {}) }
 
   if (value === undefined) delete values[name]
   else values[name] = value
 
-  if (Object.keys(values).length === 0) delete byRuntime[runtime]
-  else byRuntime[runtime] = values
+  const nextRuntime =
+    Object.keys(values).length === 0
+      ? withoutKey(byRuntime, runtime)
+      : { ...byRuntime, [runtime]: values }
+  const nextAlgorithm =
+    Object.keys(nextRuntime).length === 0
+      ? withoutKey(byAlgorithm, algorithm)
+      : { ...byAlgorithm, [algorithm]: nextRuntime }
 
-  if (Object.keys(byRuntime).length === 0) delete byAlgorithm[algorithm]
-  else byAlgorithm[algorithm] = byRuntime
-
-  return withSettings(document, { ...document.settings, hyperparameters: byAlgorithm }, now)
+  return withSettings(document, { ...document.settings, hyperparameters: nextAlgorithm }, now)
 }

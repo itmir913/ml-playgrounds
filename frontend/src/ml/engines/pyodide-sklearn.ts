@@ -35,6 +35,7 @@
  */
 
 import { ClientError, failureDetail } from '../../errors'
+import { own } from '../../records'
 import type { HyperparameterSpec } from '../hyperparams'
 import { resolveWith } from '../hyperparams'
 import type { FitInput, FitResult, Predict } from './mljs'
@@ -322,7 +323,7 @@ const SKLEARN_CLASSES: Readonly<Record<string, SklearnClass>> = {
 
 /** 등록부에 없는 알고리즘은 여기서 걸린다. */
 function classOf(algorithm: string): SklearnClass {
-  const info = SKLEARN_CLASSES[algorithm]
+  const info = own(SKLEARN_CLASSES, algorithm)
   if (!info) throw new ClientError('ALGORITHM_UNSUPPORTED', { algorithm })
   return info
 }
@@ -342,7 +343,7 @@ export const PYODIDE_SKLEARN_ENGINE = { kind: 'pyodide-sklearn' } as const
 export const PYODIDE_SKLEARN_ALGORITHMS = Object.keys(SKLEARN_CLASSES)
 
 export function parameters(algorithm: string): readonly HyperparameterSpec[] {
-  return PYODIDE_SKLEARN_PARAMETERS[algorithm] ?? []
+  return own(PYODIDE_SKLEARN_PARAMETERS, algorithm) ?? []
 }
 
 export function resolve(
@@ -565,7 +566,7 @@ function serialize(
       readonly modelOmittedDetail: string
       readonly modelOmittedReason?: ModelOmissionReason
     } {
-  const serializer = SKLEARN_CLASSES[algorithm]?.serializer
+  const serializer = own(SKLEARN_CLASSES, algorithm)?.serializer
   if (!serializer) return omitted(algorithm, 'serializer-missing')
   if (!py) return omitted(algorithm, 'engine-gone')
 

@@ -9,6 +9,7 @@
  * `.md` 머리글의 라벨은 부르는 쪽이 만들어 넘긴다 (§8.6).
  */
 
+import { own } from '../records'
 import { DIR } from './format'
 import type { Portfolio, PortfolioTemplateSection } from './schema'
 
@@ -52,22 +53,11 @@ export function hasTemplate(portfolio: Portfolio): boolean {
 }
 
 /**
- * 그 열쇠로 **직접 담긴 것**만 꺼낸다 (2026-09-22 R37 A-2).
+ * **원시 연산은 `src/records.ts`가 갖는다** (2026-09-23 R37 C-5).
  *
- * `answers`와 `attachments`는 `z.record`가 만든 평범한 객체라 `Object.prototype`을
- * 상속한다. 문항 id가 `constructor`·`toString`·`valueOf`·`hasOwnProperty`·`__proto__`면
- * **`?? ''`가 안 걸리고 함수가 나온다** — 그 뒤 `.trim()`·`.map()`이 던지고,
- * `isPortfolioAnswered`가 던지므로 **라우터 가드와 체크리스트까지 함께 선다.**
- *
- * **입구는 교사의 양식이다.** `{#id}` 표기(`mlpx-spec.md` §8.2)의 정규식이 그 이름들을
- * 전부 통과시키고, 제목 슬러그로도 `constructor` 하나가 들어온다. **문 여덟은 멀쩡하다** —
- * 적대적 값 열아홉 벌이 스키마를 그대로 통과한다. 무너지는 것은 읽는 쪽이다.
- *
- * **자리가 셋이라 함수가 하나다** (「흩어진 결함은 빠진 연산이다」).
+ * A-2가 이 파일에서 셋을 닫았는데, 같은 병이 하이퍼파라미터 표 둘에 더 있었다 —
+ * 자리가 다섯이 되자 사본을 두는 것이 위험해졌다. 왜 필요한지는 그 파일에 있다.
  */
-function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined {
-  return Object.hasOwn(record, key) ? record[key] : undefined
-}
 
 /** 화면이 그릴 문항들. 답을 문항에 붙여 준다. */
 export function portfolioSections(portfolio: Portfolio): PortfolioSection[] {

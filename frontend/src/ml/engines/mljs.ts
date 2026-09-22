@@ -44,6 +44,7 @@ import { RandomForestClassifier } from 'ml-random-forest'
 import { Matrix, solve } from 'ml-matrix'
 
 import { ClientError, failureDetail } from '../../errors'
+import { own } from '../../records'
 import type { ClientWarningCode } from '../../errors'
 import type { ModelOmissionReason, TaskType, Warning } from '../../project/schema'
 import { resolveWith, type HyperparameterSpec } from '../hyperparams'
@@ -247,7 +248,7 @@ const toRows = (features: readonly (readonly number[])[]): number[][] =>
  * 거치면 ml.js 라이브러리가 통째로 첫 화면 번들에 딸려 온다.
  */
 export function parameters(algorithm: string): readonly HyperparameterSpec[] {
-  return MLJS_PARAMETERS[algorithm] ?? []
+  return own(MLJS_PARAMETERS, algorithm) ?? []
 }
 
 /**
@@ -1099,7 +1100,9 @@ export function resolve(
  * 도달하는 것은 버그이거나 남의 파일에 든 모르는 알고리즘이다 (mlpx-spec.md 5.2).
  */
 export async function fit(algorithm: string, input: FitInput): Promise<FitResult> {
-  const trainer = TRAINERS[algorithm]
+  // **색인으로 직접 읽지 않는다** (2026-09-23 R37 C-5). 진위 검사는 상속한 함수를
+  // 통과시켜서, `constructor`가 든 파일이 `Object`를 학습기로 불러 쓴다.
+  const trainer = own(TRAINERS, algorithm)
   if (!trainer) throw new ClientError('ALGORITHM_UNSUPPORTED', { algorithm })
   // **여기서도 확정한다.** 부르는 쪽이 resolve를 거쳤는지에 기대지 않는다 - 안 거친
   // 호출은 k가 0인 KNN처럼 조용히 망가지고, 그 원인은 여기서 멀리 떨어진 곳에서 터진다.

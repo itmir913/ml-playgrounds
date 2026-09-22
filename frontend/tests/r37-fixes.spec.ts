@@ -18,7 +18,7 @@ import {
 import { readProject, writeProject, type ProjectFile } from '../src/project/format'
 import { parsePortfolioForm } from '../src/project/portfolio-form'
 import { emptyProjectFile } from './fixtures/project'
-import { axisCellOf, placed } from '../src/data/category-axis'
+import { axisCellOf, JITTER_SPREAD, jitterOf, placed } from '../src/data/category-axis'
 import { scatterOptions, type ChartPaint } from '../src/data/chart-config'
 
 describe('A-2 — 문항 id가 프로토타입의 이름이어도 안 선다', () => {
@@ -121,6 +121,58 @@ describe('A-2 — 문항 id가 프로토타입의 이름이어도 안 선다', (
     const portfolio = { ...made, answers: { [made.template.sections[0]?.id ?? '']: '좋았다' } }
     expect(portfolioSections(portfolio)[0]?.answer).toBe('좋았다')
     expect(isPortfolioAnswered(portfolio)).toBe(true)
+  })
+})
+
+/**
+ * **흩뿌림의 폭과 값** (2026-09-23, R37 B-1).
+ *
+ * `JITTER_SPREAD`를 바꾸거나 해시를 건드려도 **아무도 안 울었다.** 폭이 반 칸을 넘으면
+ * 범주가 서로 섞여 **어느 칸인지가 흐려지고**(반올림으로 되돌리는 툴팁도 함께 틀린다),
+ * 해시가 바뀌면 **같은 파일이 어제와 다른 그림**을 준다 — `jitterOf`가 약속하는 재현
+ * 가능성이 그것이다.
+ */
+describe('흩뿌림은 좁고 언제나 같다', () => {
+  /**
+   * **반 칸을 안 넘는다.** 넘으면 이웃 범주의 자리로 넘어가고, 그때 `axisCellOf`의
+   * 반올림이 **다른 범주 이름**을 말한다.
+   */
+  it('폭이 반 칸보다 좁다', () => {
+    expect(JITTER_SPREAD).toBeLessThan(0.5)
+    for (let row = 0; row < 500; row += 1) {
+      expect(Math.abs(jitterOf(row)), `row ${row}`).toBeLessThanOrEqual(JITTER_SPREAD)
+    }
+  })
+
+  /** 되돌리면 원래 칸이다 — 500행을 다 본다. */
+  it('흩뿌린 뒤 반올림하면 원래 칸이다', () => {
+    const categories = ['남', '여', '기타']
+    for (let row = 0; row < 500; row += 1) {
+      for (const [index] of categories.entries()) {
+        // `+ 0`으로 `-0`을 정규화한다 — 0번 칸에서 아래로 흩뿌리면 `Math.round`가 `-0`을
+        // 주고 `toBe`는 `Object.is`라 `+0`과 다르다고 본다(이 저장소가 전에 밟은 자리다).
+        expect(Math.round(placed(index, row, categories)) + 0, `${row}/${index}`).toBe(index)
+      }
+    }
+  })
+
+  /**
+   * **골든 값 여덟.** 해시를 바꾸면 여기가 먼저 운다 — 같은 `.mlpx`가 어제와 다른 점
+   * 배치를 주는 것을 학생은 *"프로그램이 이상하다"*로 읽는다.
+   */
+  it('행마다 정해진 값을 준다', () => {
+    const golden = [
+      -0.3, 0.25301423389, -0.265669098386, 0.034933553149, -0.075759771396, -0.027912290274,
+      0.075652063792, -0.200651921913,
+    ]
+    for (const [row, expected] of golden.entries()) {
+      expect(jitterOf(row), `row ${row}`).toBeCloseTo(expected, 10)
+    }
+  })
+
+  /** 수치 축에는 안 흩뿌린다 — 거기서는 값이 자리다. */
+  it('수치 축은 그대로 둔다', () => {
+    expect(placed(1.5, 7, undefined)).toBe(1.5)
   })
 })
 

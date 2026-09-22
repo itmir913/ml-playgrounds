@@ -879,6 +879,14 @@ describe('내보낼 문서와 그 마크다운은 같은 세대다', () => {
     const cleared = withIdentity(named, { name: '이름', studentId: '', studentName: '' }, now)
 
     expect(cleared.manifest.student).toBeUndefined()
+    /**
+     * **키까지 없다** (2026-09-23 R37 C-3). 전에는 `{ student: undefined }`라 값 없는
+     * 키가 메모리에 남았고 위 줄은 그래도 통과했다 — 파일은 멀쩡하지만(`JSON.stringify`가
+     * 떨어뜨린다) **나가는 파일과 메모리의 모양이 달랐다.**
+     */
+    expect(Object.hasOwn(cleared.manifest, 'student')).toBe(false)
+    // 그리고 **지우기가 죽지 않았다** — 키째 떼는 고침이 옛 값을 남기면 안 된다.
+    expect(named.manifest.student).toBeDefined()
   })
 })
 

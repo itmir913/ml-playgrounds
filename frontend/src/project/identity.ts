@@ -48,14 +48,32 @@ export function withIdentity(
     ...(studentName === '' ? {} : { name: studentName }),
   }
 
+  /**
+   * **옛 학생 정보를 먼저 떼어 낸다** (2026-09-23 R37 C-3).
+   *
+   * 전에는 `{ student: undefined }`를 얹어 지웠다. 파일은 멀쩡했지만(`JSON.stringify`가
+   * 떨어뜨린다) **메모리의 문서에는 값 없는 키가 남았다.** 그냥 안 얹는 것으로는 못
+   * 고친다 — 그러면 **학생이 칸을 비워도 옛 이름이 그대로 살아남는다**(재고 나서 알았다).
+   * 키째 떼고 필요할 때만 다시 얹는다.
+   */
+  const { student: previous, ...manifest } = document.manifest
+  void previous
+
   return {
     ...document,
     manifest: {
-      ...document.manifest,
+      ...manifest,
       name: name === '' ? document.manifest.name : name,
       updatedAt: now,
-      // 둘 다 비었으면 student 자체를 두지 않는다.
-      ...(Object.keys(student).length === 0 ? { student: undefined } : { student }),
+      /**
+       * 둘 다 비었으면 **`student` 자체를 두지 않는다.**
+       *
+       * **키를 남기지도 않는다** (2026-09-23 R37 C-3). 전에는 `{ student: undefined }`라
+       * 메모리의 문서에 **값 없는 키가 남았다** — 파일은 멀쩡했지만(`JSON.stringify`가
+       * 떨어뜨린다) `'student' in manifest`로 묻는 코드가 생기는 날 참으로 답한다.
+       * 나가는 파일과 메모리의 모양이 다른 것은 그 자체가 다음 결함의 자리다.
+       */
+      ...(Object.keys(student).length === 0 ? {} : { student }),
     },
   }
 }

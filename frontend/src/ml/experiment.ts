@@ -22,6 +22,7 @@
  *   만들어 봐야 전부 같은 사유로 실패하고, 학생은 같은 문장을 모델 수만큼 보게 된다.
  */
 
+import { own } from '../records'
 import { ClientError, failureDetail, isClientError } from '../errors'
 import { MAX_FAILURE_DETAIL_LENGTH } from '../limits'
 import { DATA_COMPARABLE_KEYS, dataSettings } from '../project/schema'
@@ -895,7 +896,7 @@ export async function runExperiment(
     // (ml.js maxDepth / sklearn max_depth) 어느 것으로 돌지 모르면 무엇을 먹일지도 모른다.
     // 자동으로 넘어갔으면 넘어간 쪽의 값을 쓰고, 아예 못 돌면 학생이 고른 쪽의 값을
     // 기록한다 - 실패한 run에도 "무엇을 시도했는지"는 남아야 한다.
-    const given = settings.hyperparameters[algorithm]?.[runtime?.id ?? wanted] ?? {}
+    const given = own(settings.hyperparameters, algorithm)?.[runtime?.id ?? wanted] ?? {}
 
     // **확정은 학습보다 앞이다** (mlpx-spec.md 3). 여기서 채워 두면 fit이 무엇을 하든
     // run은 이미 완전한 값을 들고 있다 - 성공한 run만 기본값을 갖는 상태를 만들지 않는다.

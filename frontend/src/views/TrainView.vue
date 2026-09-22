@@ -18,6 +18,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter, type RouteLocationNormalized } from 'vue-router'
 
+import { own } from '@/records'
+
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
@@ -100,7 +102,7 @@ const training = useTraining(spawnTrainingWorker, {
       dataType,
       rows: trainingRows.value,
       columns: featureWidth.value,
-      hyperparameters: settings.value?.hyperparameters[algorithm]?.[runtime] ?? {},
+      hyperparameters: own(settings.value?.hyperparameters ?? {}, algorithm)?.[runtime] ?? {},
       // **이 줄이 없으면 sklearn 실행을 순수 JS 기준표로 나눈다** (R32 B-1). 이제 타입이 선다.
       runtime,
     })
