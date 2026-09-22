@@ -50,6 +50,56 @@ function optionFor(options: ReturnType<typeof algorithmOptions>, id: string) {
   return options.find((option) => option.algorithm.id === id)
 }
 
+/**
+ * **열린 칸의 골든 표** (2026-09-23, R36 B-2).
+ *
+ * `taskTypes`의 칸을 뒤집는 돌연변이 아홉 중 **여섯이 조용했다** — 우는 셋도 `decision_tree`
+ * 라는 이름을 박아 둔 검사였다. 칸이 열리면 **없는 조합이 학생에게 보이고, 엔진이 거절하지
+ * 않아 그럴듯한 숫자가 나온다**(예: 회귀에 나이브 베이즈).
+ *
+ * **여기가 값을 다시 적는 자리인 것은 맞다.** 그것이 골든 표의 뜻이다 — 등록부가 곧 화면의
+ * 잠금이므로(§9), **바꾸려면 두 곳을 바꾸게 해서 실수를 사고가 아니라 빨간 줄로 만든다.**
+ * 줄을 더하거나 뺄 때도 여기가 먼저 운다.
+ */
+describe('무엇이 어느 유형에서 서는가 — 골든 표', () => {
+  /** `[id, 분류, 회귀, 군집, 표, 사진]`. 출처는 `docs/roadmap.md`와 각 줄의 주석이다. */
+  const GOLDEN: readonly (readonly [string, boolean, boolean, boolean, boolean, boolean])[] = [
+    ['decision_tree', true, false, false, true, true],
+    ['knn', true, false, false, true, true],
+    ['logistic_regression', true, false, false, true, true],
+    ['random_forest', true, false, false, true, true],
+    ['naive_bayes', true, false, false, true, true],
+    ['svm', true, false, false, true, true],
+    ['neural_network', true, true, false, true, true],
+    ['linear_regression', false, true, false, true, false],
+    ['k_means', false, false, true, true, true],
+  ]
+
+  it('등록부가 표와 한 줄도 안 어긋난다', () => {
+    expect(
+      ALGORITHMS.map((one) => [
+        one.id,
+        one.taskTypes.classification,
+        one.taskTypes.regression,
+        one.taskTypes.clustering,
+        one.dataTypes.tabular,
+        one.dataTypes.image,
+      ]),
+    ).toEqual(GOLDEN.map((row) => [...row]))
+  })
+
+  /**
+   * **`linear_regression`이 사진에서 안 서는 것은 결정이다** (`dataTypes.image: false`).
+   * 골든 표가 그것을 값으로 못 박지만, **왜인지는 등록부의 주석이 갖는다** — 그 줄을
+   * 여는 날 여기가 울고, 우는 사람이 그 주석을 읽게 된다.
+   */
+  it('사진에서 안 서는 줄이 하나뿐이다', () => {
+    expect(ALGORITHMS.filter((one) => !one.dataTypes.image).map((one) => one.id)).toEqual([
+      'linear_regression',
+    ])
+  })
+})
+
 describe('등록부', () => {
   it('id가 겹치지 않는다', () => {
     expect(new Set(ALGORITHMS.map((a) => a.id)).size).toBe(ALGORITHMS.length)

@@ -37,6 +37,52 @@ const clustered = run({
   },
 })
 
+/**
+ * **먼저 맞는 것이 이긴다** (2026-09-23, R36 C-7).
+ *
+ * 지금 등록부에 줄이 하나뿐이라 **순서가 판정에 들어가는지 아무도 안 잰다** — 음성이나
+ * 다른 종류가 들어와 둘째 줄이 생기는 날, 그때 처음 실물을 만나면 늦다. 주입 인자는
+ * 이미 있고(`evidence`) 아무도 안 쓰고 있었다.
+ *
+ * **바꿔 끼우는 것은 등록부뿐이다.** 판정 규칙은 진짜를 그대로 태운다.
+ */
+describe('여럿이 맞으면 앞엣것', () => {
+  const both = { tabular: true, image: true }
+  const all = { classification: true, regression: true, clustering: true }
+  const fake = (id: string) => ({
+    id,
+    dataTypes: both,
+    taskTypes: all,
+    hasData: () => true,
+    panel: ANSWER_EVIDENCE[0]?.panel,
+  })
+
+  it('앞줄이 이긴다', () => {
+    const picked = answerEvidenceFor('tabular', 'clustering', clustered, [
+      fake('첫째'),
+      fake('둘째'),
+    ] as unknown as typeof ANSWER_EVIDENCE)
+    expect(picked?.id).toBe('첫째')
+  })
+
+  /** 앞줄이 안 맞으면 **뒷줄로 넘어간다** — 앞줄에서 멈추지 않는다. */
+  it('앞줄이 안 맞으면 뒷줄이 선다', () => {
+    const picked = answerEvidenceFor('tabular', 'clustering', clustered, [
+      { ...fake('첫째'), hasData: () => false },
+      fake('둘째'),
+    ] as unknown as typeof ANSWER_EVIDENCE)
+    expect(picked?.id).toBe('둘째')
+  })
+
+  /** 하나도 안 맞으면 `null`이고 **그것이 정상인 조합이 있다.** */
+  it('아무것도 안 맞으면 null이다', () => {
+    const picked = answerEvidenceFor('tabular', 'clustering', clustered, [
+      { ...fake('첫째'), hasData: () => false },
+    ] as unknown as typeof ANSWER_EVIDENCE)
+    expect(picked).toBeNull()
+  })
+})
+
 describe('증거 등록부', () => {
   it('id가 겹치지 않는다', () => {
     expect(new Set(ANSWER_EVIDENCE.map((entry) => entry.id)).size).toBe(ANSWER_EVIDENCE.length)

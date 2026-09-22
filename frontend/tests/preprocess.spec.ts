@@ -94,6 +94,56 @@ describe('훈련 데이터에서만 파라미터를 구한다', () => {
   })
 })
 
+/**
+ * **전략 다섯이 무엇으로 채우는가** (2026-09-23, R36 C-8).
+ *
+ * `mostFrequent`는 **학생이 화면에서 고를 수 있는데 검사에서 한 번도 안 돌아 본 채**
+ * 나가 있었다(`tests/` 전체에 `missing: 'mostFrequent'`가 0건). 표로 세워 두면 다음에
+ * 전략이 늘 때 빈칸이 눈에 띈다.
+ *
+ * 훈련 몫은 0~2행이다 — 키 `150·160·170`, 지역 `서울·부산·서울`.
+ */
+describe('결측 대체 전략', () => {
+  function fillOf(missing: Preprocessing['missing'], column: string): number | string | undefined {
+    const fitted = fitPreprocessor(dataset, [0, 1, 2], features, preprocessing({ missing }))
+    return fitted.columns.find((one) => one.name === column)?.fill
+  }
+
+  it.each([
+    ['zero', 0],
+    ['mean', 160],
+    ['median', 160],
+    ['mostFrequent', 150],
+  ] as const)('%s — 수치 열', (missing, expected) => {
+    expect(fillOf(missing, '키')).toBe(expected)
+  })
+
+  /**
+   * **범주 열에는 평균도 중앙값도 없다.** 어느 전략으로 와도 최빈값이다 — 학생이 고른
+   * 전략을 무시하는 것이 아니라 그 전략이 이 열에서 뜻하는 바가 최빈값이다.
+   */
+  it.each(['zero', 'mean', 'median', 'mostFrequent'] as const)(
+    '%s — 범주 열은 최빈값',
+    (missing) => {
+      expect(fillOf(missing, '지역')).toBe('서울')
+    },
+  )
+
+  /**
+   * **채우지 않는 둘의 모양이 서로 다르다** (재고 나서 적는다, 2026-09-23).
+   *
+   * - `none`은 대체값이 `''`다 — 표의 `none: () => ''`를 지나온다. 여기까지 오면 빈 칸이
+   *   없다는 뜻이다(`missingColumns`가 앞에서 거절했다).
+   * - `drop`은 **아예 없다**(`undefined`). `:343`이 `missing !== 'drop'`일 때만 대체값을
+   *   구하므로 표의 `drop: () => ''`는 **한 번도 안 불린다**(R36 C-1이 무실행으로 센 줄).
+   *   `Fitted`의 주석도 *"'drop'이면 없다"*라고 그렇게 적혀 있다.
+   */
+  it('none은 빈 문자열이고 drop은 대체값이 없다', () => {
+    expect(fillOf('none', '키')).toBe('')
+    expect(fillOf('drop', '키')).toBeUndefined()
+  })
+})
+
 describe('자료형 판정', () => {
   it('숫자로 읽히면 수치, 아니면 범주다', () => {
     const fitted = fitPreprocessor(dataset, [0, 1, 2, 3], features, preprocessing())

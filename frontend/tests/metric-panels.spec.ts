@@ -51,6 +51,64 @@ const clustered = run({
   },
 })
 
+/**
+ * **모델이 담긴 실행에서 어떤 판이 서는가** (2026-09-23, R36 B-3).
+ *
+ * `parameters`와 `loss-curve`는 **결과 화면에서 통째로 사라져도 관문이 초록이었다** —
+ * 픽스처의 `run`에 `model`이 없어 `hasData`가 언제나 거짓이라, 그 두 줄을 지우든 축을
+ * 뒤집든 아무 판정도 안 바뀌었다. **형식이 담긴 실행**을 하나 만들면 그 자리가 열린다.
+ */
+describe('모델 형식이 판을 연다', () => {
+  function withFormat(format: string): Run {
+    return run({
+      model: { format, path: 'model/run-1.json', includesPreprocessing: true, sizeBytes: 128 },
+      confusionMatrix: {
+        labels: ['a', 'b'],
+        matrix: [
+          [1, 0],
+          [0, 1],
+        ],
+      },
+    })
+  }
+
+  function idsFor(format: string, taskType: 'classification' | 'regression'): string[] {
+    return metricPanelsFor('tabular', taskType, withFormat(format)).map((panel) => panel.id)
+  }
+
+  /** 계수 표는 **표 데이터에서만** 선다 — 임베딩은 1,280차원이라 학생에게 뜻이 없다. */
+  it('배운 값을 보여주는 형식이면 계수 표가 선다', () => {
+    expect(idsFor('mlpx-linear-v2', 'classification')).toContain('parameters')
+    expect(
+      metricPanelsFor('image', 'classification', withFormat('mlpx-linear-v2')).map((one) => one.id),
+    ).not.toContain('parameters')
+  })
+
+  /** 곡선은 **에폭을 도는 엔진**만 갖는다. 사진에서도 선다 — 특성 이름을 안 쓴다. */
+  it('신경망 형식이면 손실 곡선이 선다', () => {
+    expect(idsFor('mlpx-neural-v1', 'classification')).toContain('loss-curve')
+    expect(
+      metricPanelsFor('image', 'classification', withFormat('mlpx-neural-v1')).map((one) => one.id),
+    ).toContain('loss-curve')
+  })
+
+  /** 형식이 다르면 안 선다 — 알고리즘 이름이 아니라 **형식**이 판정한다. */
+  it('읽을 수 없는 형식이면 둘 다 안 선다', () => {
+    const ids = idsFor('mljs-decision-tree-v1', 'classification')
+    expect(ids).not.toContain('parameters')
+    expect(ids).not.toContain('loss-curve')
+  })
+
+  /** 군집에는 둘 다 안 선다 — 축이 그렇게 적혀 있다. */
+  it('군집에는 둘 다 안 선다', () => {
+    const ids = metricPanelsFor('tabular', 'clustering', withFormat('mlpx-neural-v1')).map(
+      (one) => one.id,
+    )
+    expect(ids).not.toContain('loss-curve')
+    expect(ids).not.toContain('parameters')
+  })
+})
+
 describe('상세 패널 등록부', () => {
   it('id가 겹치지 않는다', () => {
     expect(new Set(METRIC_PANELS.map((panel) => panel.id)).size).toBe(METRIC_PANELS.length)

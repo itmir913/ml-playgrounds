@@ -18,8 +18,8 @@ import { isClientError } from '../src/errors'
 import type { ExperimentInput } from '../src/ml/experiment'
 import { calibrateDevice, train, type TrainWorker } from '../src/ml/worker/client'
 import { ENGINES, type TrainingEngine } from '../src/ml/engines'
-import { handleTrain } from '../src/ml/worker/handler'
-import type { TrainRequest, WorkerMessage } from '../src/ml/worker/protocol'
+import { handleRequest, handleTrain } from '../src/ml/worker/handler'
+import type { TrainRequest, WorkerMessage, WorkerRequest } from '../src/ml/worker/protocol'
 import type { RunsFile, Settings, TabularSettings } from '../src/project/schema'
 import { IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN, irisDataset } from './fixtures/iris'
 import { dataSnapshot } from '../src/project/schema'
@@ -159,6 +159,25 @@ describe('워커 안의 처리', () => {
     ])
   })
 
+  /**
+   * **끝 보고가 모델들을 싣는다** (2026-09-23, R36 B-5).
+   *
+   * 바로 윗줄(`progress`)은 이미 물리는데 **성공 경로의 `done`에는 그물이 0이었다** —
+   * `models`를 빼도 관문이 초록이다. 빠지면 **학습은 끝났는데 모델이 하나도 안 담기고**,
+   * 교사는 파일을 열어 놓고 재학습을 해야 한다(`.mlpx` 하나로 다 본다는 약속이 깨진다).
+   */
+  it('끝 보고가 담을 모델들을 싣는다 - 빠지면 교사가 재학습해야 한다', async () => {
+    const last = (await collect(requestFor())).at(-1)
+    expect(last?.type).toBe('done')
+    if (last?.type === 'done') {
+      expect(last.models).toBeDefined()
+      expect(last.models.size).toBeGreaterThan(0)
+      // 실험과 전처리기도 함께 온다 - 셋이 한 봉투이고 하나만 빠져도 저장이 반쪽이다.
+      expect(last.experiment.id).toBe('experiment-1')
+      expect(last.preprocessor).toBeDefined()
+    }
+  })
+
   it('머리말이 runs 말고 전부 들고 온다 - 취소가 이것으로 조립한다', async () => {
     const first = (await collect(requestFor()))[0]
     expect(first?.type).toBe('prelude')
@@ -236,6 +255,40 @@ describe('워커 안의 처리', () => {
 
     const second = messages.at(-1)
     expect(second?.type === 'done' && second.experiment.id).toBe('experiment-2')
+  })
+})
+
+/**
+ * **교정 요청도 같은 문으로 들어온다** (2026-09-23, R36 C-5).
+ *
+ * 넷이 전부 조용했다 — 보내는 쪽이 무실행이라 `handleRequest`의 이 갈래를 아무도 안
+ * 지났다. 여기가 조용히 틀리면 **예상 시간이 전부 거짓**이 되고, 여기가 던지면
+ * **학습 화면이 통째로 죽는다**(그 약속이 주석으로만 있었다).
+ */
+describe('교정 요청', () => {
+  async function collect(request: WorkerRequest): Promise<WorkerMessage[]> {
+    const messages: WorkerMessage[] = []
+    await handleRequest(request, (message) => messages.push(message))
+    return messages
+  }
+
+  it('잰 시간을 돌려준다', async () => {
+    const messages = await collect({ type: 'calibrate' })
+    expect(messages).toHaveLength(1)
+    const first = messages[0]
+    expect(first?.type).toBe('calibrated')
+    if (first?.type === 'calibrated') {
+      // 진짜로 돌린 시간이다. **0보다 크고 유한하다**는 것까지만 잰다 — 값 자체는 기계마다다.
+      expect(Number.isFinite(first.elapsedMs)).toBe(true)
+      expect(first.elapsedMs).toBeGreaterThan(0)
+    }
+  })
+
+  /** 학습 요청은 학습으로 간다 — 문 하나가 둘을 가른다. */
+  it('학습 요청은 학습으로 간다', async () => {
+    const messages = await collect(requestFor())
+    expect(messages.at(-1)?.type).toBe('done')
+    expect(messages.some((message) => message.type === 'calibrated')).toBe(false)
   })
 })
 

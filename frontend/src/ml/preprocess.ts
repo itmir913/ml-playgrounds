@@ -157,8 +157,13 @@ const FILL_BY_STRATEGY: Record<
   Preprocessing['missing'],
   (numbers: readonly number[], strings: readonly string[], kind: ColumnKind) => number | string
 > = {
-  // 여기까지 왔으면 빈 칸이 없다는 뜻이다 - missingColumns가 앞에서 거부했다.
+  // **둘이 여기 오는 사정이 다르다** (2026-09-23 R36 C-1. 전에는 한 줄이 둘을 덮었다).
+  // `none`은 온다 - 여기까지 왔으면 빈 칸이 없다는 뜻이고(missingColumns가 앞에서 거부했다)
+  // 그 열의 대체값이 `''`로 선다.
   none: () => '',
+  // `drop`은 **안 온다.** 아래 fitPreprocessor가 `missing !== 'drop'`일 때만 대체값을
+  // 구한다 - 행을 통째로 버리므로 채울 것이 없다. 이 줄은 표를 채우는 자리이고
+  // 한 번도 안 불린다(`preprocess.spec.ts`의 "none은 빈 문자열이고 drop은 대체값이 없다").
   drop: () => '',
   zero: (_numbers, strings, kind) => (kind === 'numeric' ? 0 : mostFrequent(strings)),
   mean: (numbers, strings, kind) => (kind === 'numeric' ? mean(numbers) : mostFrequent(strings)),

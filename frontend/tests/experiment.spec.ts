@@ -23,7 +23,7 @@ import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/
 import { ENGINES, type TrainingEngine } from '../src/ml/engines'
 import { dataSnapshot } from '../src/project/schema'
 import { trainableRowCount } from '../src/ml/selection'
-import { NOT_FOR_TABULAR_ALGORITHM } from './fixtures/algorithms'
+import { NOT_FOR_TABULAR_ALGORITHM, withSklearnOnly } from './fixtures/algorithms'
 import type { EngineState, RuntimeContext } from '../src/ml/backend'
 import type { Dataset, Preprocessor } from '../src/ml/preprocess'
 import {
@@ -1159,6 +1159,42 @@ describe('데이터 타입·과제 유형에 안 맞는 모델', () => {
     const experiment = await runLine({}, [{ ...NOT_FOR_TABULAR_ALGORITHM, id: 'decision_tree' }])
     expect(experiment.runs[0]?.status).toBe('failed')
     expect(experiment.runs[0]?.failure?.code).toBe('ALGORITHM_NOT_FOR_DATA_TYPE')
+  })
+
+  /**
+   * **막다른 답을 건너뛰고 할 일이 있는 사유를 준다** (2026-09-23, R36 C-4).
+   *
+   * `unavailableReason`의 세 갈래가 전부 무실행이었다. 여기가 조용히 틀리면 학생이
+   * *"여기선 실행할 수 없습니다"*만 듣고 **할 수 있는 일을 하나도 못 듣는다.**
+   *
+   * 표본은 `sklearn_only` — 순수 JS로는 안 돌고 sklearn과 서버에서만 도는 알고리즘이다.
+   * 학생이 고른 것은 순수 JS이므로 그 자리의 사유는 막다른 답이고, **다른 실행 방법의
+   * 사유**가 와야 한다.
+   */
+  it('고른 실행 방법이 막다른 답이면 다른 실행 방법의 사유를 준다', async () => {
+    const experiment = await runLine(
+      {
+        taskType: 'classification',
+        // 라벨이 있는 표로 바꾼다 — 그래야 앞의 두 가드를 지나 실행 방법 갈래까지 간다.
+        dataset: {
+          columns: ['x', 'label'],
+          rows: [...Array(10).keys()].map((x) => [String(x), x % 2 === 0 ? 'a' : 'b']),
+        },
+        settings: settingsFor({
+          features: ['x'],
+          target: 'label',
+          runtime: 'mljs',
+          split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+          selectedAlgorithms: models('sklearn_only'),
+        }),
+      },
+      withSklearnOnly(ALGORITHMS),
+    )
+
+    expect(experiment.runs[0]?.status).toBe('failed')
+    // **막다른 답이 아니다.** 무엇이 오는지는 실행 방법 등록부가 정하므로 값을 박지 않고,
+    // 막다른 답만 아니면 된다 — 그것이 이 갈래가 지키는 규칙 전부다.
+    expect(experiment.runs[0]?.failure?.code).not.toBe('ALGORITHM_NOT_AVAILABLE_HERE')
   })
 
   it('실패해도 무엇을 시도했는지는 남는다', async () => {
