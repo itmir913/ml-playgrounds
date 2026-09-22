@@ -173,6 +173,18 @@ describe('openXlsx', { timeout: 20_000 }, () => {
     expect((await openXlsx(bytes)).readSheet('Sheet1', 5)).toHaveLength(5)
   })
 
+  /**
+   * **상한을 끄면 본진도 전부 읽는다** (2026-09-23, R37 C-4). 상한이 꺼진 자리에서
+   * `importTable`이 넘기는 값이 `Infinity + 1`이라 `grid.length >= maxRows`가 언제나
+   * 거짓이다. 위 판은 켠 쪽만 보므로 **둘을 나란히 둔다** — 폴백 쪽 짝은 아래 describe에.
+   */
+  it('상한을 끄면 본진이 전부 읽는다', async () => {
+    const bytes = await buildWorkbook({ S: [['a'], ['b'], ['c'], ['d'], ['e']] })
+    const document = await openXlsx(bytes)
+    expect(document.readSheet('S', Infinity)).toHaveLength(5)
+    expect(document.readSheet('S', 2)).toHaveLength(2)
+  })
+
   it('없는 시트를 고르면 DATASET_SHEET_NOT_FOUND로 실패한다', async () => {
     const document = await openXlsx(await buildWorkbook({ Sheet1: [['a']] }))
     try {
@@ -230,6 +242,25 @@ describe('폴백', { timeout: 20_000 }, () => {
     // 않으므로, 이 파일이 정말 던지는지가 아래 검사들의 전제다 (#17의 첫 물음).
     const workbook = new ExcelJS.Workbook()
     await expect(workbook.xlsx.load(hancell as never)).rejects.toThrow()
+  })
+
+  /**
+   * **상한을 끄면 두 파서가 전부 읽는다** (2026-09-23, R37 C-4 / 2026-09-01 C-4).
+   *
+   * `importTable`이 `maxDatasetRows() + 1`을 넘기고, 상한이 꺼지면 그 값이 `Infinity`다.
+   * 읽는 자리가 셋인데(`csv.ts` 하나, `xlsx.ts`의 **두 파서**) **켠 상태로 지나가는 검사는
+   * csv 하나뿐이었고** xlsx 두 갈래는 2026-09-01부터 소스로만 확인돼 있었다. 이 저장소가
+   * 「폴백 검사가 폴백을 안 지나갔다」로 앓은 자리가 바로 이 파일이다.
+   *
+   * **10만 행을 굽지 않는다.** 재려는 것은 *"`>= maxRows` 비교가 `Infinity`를 통과시키는가"*
+   * 이고, 그것은 다섯 행으로도 똑같이 드러난다 — 관문에 100초를 더하지 않는다.
+   */
+  it('상한을 끄면 SheetJS 폴백도 전부 읽는다', async () => {
+    const document = await openXlsx(hancell)
+    // 본진과 같은 문을 쓴다 — 상한이 꺼진 자리에서 `importTable`이 넘기는 값 그대로다.
+    expect(document.readSheet('Sheet1', Infinity)).toHaveLength(4)
+    // 켜져 있으면 그만큼에서 멈춘다. 둘을 나란히 두어 비교가 살아 있는 것을 못 박는다.
+    expect(document.readSheet('Sheet1', 2)).toHaveLength(2)
   })
 
   it('그 파일을 SheetJS가 읽어낸다', async () => {

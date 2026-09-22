@@ -44,6 +44,43 @@ const LATIN1_GROESSE = [0x47, 0x72, 0xf6, 0xdf, 0x65, 0x2f, 0x61, 0x2e, 0x70, 0x
 /** 프랑스어 `café/a.png`. */
 const LATIN1_CAFE = [0x63, 0x61, 0x66, 0xe9, 0x2f, 0x61, 0x2e, 0x70, 0x6e, 0x67] // prettier-ignore
 
+/**
+ * **UTF-8로도 읽히는 CP949 이름** (2026-09-23, R37 C-8).
+ *
+ * *"대조가 되면 그것이 답이다. UTF-8보다 먼저 본다"*에 **그물이 0이었다** — 두 갈래를
+ * 맞바꿔도 조용했다. 갈림이 서려면 **같은 바이트가 두 인코딩에서 다 유효**해야 하는데,
+ * 감사자는 *"그 우연이 실재하는지 안 쟀다"*고 적었다.
+ *
+ * **재 보니 실재한다** — CP949의 앞바이트가 `C2`~`DF`, 뒷바이트가 `A1`~`BF`면 그 두 바이트가
+ * **그대로 유효한 UTF-8 2바이트 수열**이다. 그런 짝이 899개 있고, `C2A5 C2A6`은 CP949로
+ * `짜짝`이고 UTF-8로는 `¥¦`다. 즉 **순서를 뒤집으면 교사의 범주 폴더가 `¥¦`로 들어온다.**
+ */
+describe('두 인코딩에서 다 읽히는 이름', () => {
+  /** CP949 `짜짝/a.png`. 같은 바이트가 UTF-8로는 `¥¦/a.png`다. */
+  const BOTH_WAYS = [0xc2, 0xa5, 0xc2, 0xa6, 0x2f, 0x61, 0x2e, 0x70, 0x6e, 0x67] // prettier-ignore
+
+  it('대조되는 것이 UTF-8보다 세다', () => {
+    expect(decodeZipNames([asFflateWouldRead(BOTH_WAYS)], { expect: ['짜짝'] })).toEqual([
+      '짜짝/a.png',
+    ])
+  })
+
+  /**
+   * **대조할 것이 없으면 UTF-8이 이긴다.** 둘 다 유효할 때 우리가 아는 것이 없으면
+   * 플래그만 빠진 UTF-8로 보는 것이 맞다 — 순서의 나머지 절반이다.
+   */
+  it('대조할 것이 없으면 UTF-8로 읽는다', () => {
+    expect(decodeZipNames([asFflateWouldRead(BOTH_WAYS)])).toEqual(['¥¦/a.png'])
+  })
+
+  /** 엉뚱한 것을 대조해도 CP949로 넘어가지 않는다 — 대조는 증명이지 추측이 아니다. */
+  it('안 맞는 대조는 UTF-8을 안 밀어낸다', () => {
+    expect(decodeZipNames([asFflateWouldRead(BOTH_WAYS)], { expect: ['고양이'] })).toEqual([
+      '¥¦/a.png',
+    ])
+  })
+})
+
 describe('압축 파일 이름 되살리기', () => {
   it('UTF-8로 읽히면 그것이다 — 플래그만 빠진 압축 파일', () => {
     // 언어를 몰라도 풀린다. 코드 페이지 추정이 아니기 때문이다.

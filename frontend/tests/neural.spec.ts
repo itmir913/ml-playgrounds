@@ -209,6 +209,55 @@ describe('역전파가 손실의 기울기와 같다', () => {
   })
 })
 
+/**
+ * **초기화 범위와 Adam 편향 보정** (2026-09-23, R35 C-2).
+ *
+ * 둘 다 sklearn과 갈려도 **아무도 안 울었다**(카탈로그 `silent` N9·N4). 갈리면 학습이
+ * 여전히 되므로 화면에는 아무 이상이 없고, **sklearn과 같은 설정에서 다른 답**이 나온다 —
+ * 이 도구가 발판이라는 약속이 거기서 깨진다.
+ *
+ * **감사자의 처방을 그대로 쓰지 않았다** — *"`|w| ≤ sqrt(6/(fanIn+fanOut)) + epochs × lr`
+ * 한 줄이 둘 다 문다"*고 왔는데 **재 보니 깨진다**: 특성 3·은닉 4·출력 2에 에폭 200이면
+ * 천장이 1.2인데 실제 무게가 **1.2002**였다. Adam의 한 걸음이 `lr`을 살짝 넘을 수 있고
+ * (`m̂/√v̂`가 1을 넘는 구간이 있다) 여유가 층 모양에 딸린다 — 감사자가 본 0.9% 여유는
+ * **그 층 모양에서만** 참이었다. 그런 판을 넣으면 **층을 만지는 날 거짓 빨강**이 된다.
+ *
+ * **그래서 초기화 범위 하나만 문다.** 한 에폭만 돌리면 걸음이 하나라 무게가 초기값에서
+ * 거의 안 움직이고, 그때 `|w| ≤ bound`가 **정확한 불변식**이다. 범위를 넓히는 돌연변이
+ * (N9: `sqrt(6)` ≈ 2.449)는 여기서 크게 운다.
+ *
+ * **Adam 편향 보정(N4)은 여기서 안 물린다.** 잴 수 있는 신호가 넷째 자리 골든값뿐이고
+ * 그건 성질이 아니다 — 무는 길은 sklearn을 실제로 돌리는 대조(`sklearn-parity`)이고,
+ * 그쪽은 분포로 견주므로 이 한 칸을 콕 집지 못한다. **못 세운다는 것을 적어 둔다.**
+ */
+describe('무게가 초기화 범위 안에서 시작한다', () => {
+  it('한 에폭 뒤에도 Glorot 범위를 안 넘는다', async () => {
+    const { features, encoded } = twoBlobs()
+    const fitted = await fitNeural(
+      features,
+      encoded,
+      CLASSIFY2,
+      // **큰 tol로 첫 에폭에 멈춘다.** 에폭 손잡이는 없고(상한은 limits.ts) tol만 있다.
+      { hiddenLayers: 1, neuronsPerLayer: 4, tol: 1e9 },
+      42,
+    )
+
+    // 층 모양: 특성 3 → 은닉 4 → 출력 1. 가장 넓은 범위가 상한을 정한다.
+    const bound = Math.max(Math.sqrt(6 / (3 + 4)), Math.sqrt(6 / (4 + 1)))
+    // 한 걸음 몫만 얹는다. 걸음이 `lr`을 살짝 넘을 수 있어 넉넉히 쉰 걸음을 준다 —
+    // 그래도 N9의 2.449와는 자릿수가 다르다.
+    const ceiling = bound + 50 * 0.001
+
+    const biggest = Math.max(
+      ...fitted.weights.flatMap((matrix) => matrix.flat().map((one) => Math.abs(one))),
+    )
+    expect(biggest).toBeLessThanOrEqual(ceiling)
+    // **천장이 느슨하지 않은 것도 함께 잰다** — 무게가 상한의 절반도 안 되면 이 판은
+    // 어떤 돌연변이도 못 잡는다.
+    expect(biggest).toBeGreaterThan(bound * 0.5)
+  })
+})
+
 describe('씨앗이 결과를 정한다', () => {
   it('같은 씨앗이면 같은 곡선이다', async () => {
     const { features, encoded } = twoBlobs()

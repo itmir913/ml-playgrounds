@@ -261,6 +261,39 @@ describe('배운 것을 못 받아써도', () => {
     expect(result.modelOmittedDetail).toBe('pyodide-sklearn:decision_tree:classes-differ')
     expect(result.predict([[0, 0]])).toHaveLength(1)
   })
+
+  /**
+   * **직렬화가 던져도 학습은 산다** (2026-09-23, R35 §6.2).
+   *
+   * 소스가 그 약속을 적어 두었는데(*"여기서 나는 어떤 사고도 학습을 죽이지 않는다"*)
+   * **무검사였다.** 순수 JS 쪽의 같은 약속(`mljs.ts`의 `serializeOrOmit`)은 이미 물린다.
+   *
+   * 던지면 그 run이 통째로 실패하고 **학생은 학습을 다시 해야 한다** — 지표는 이미 나와
+   * 있는데 그것까지 잃는다. 담을 것이 없는 것보다 나쁘다.
+   */
+  it('직렬화가 던져도 지표와 예측은 남는다', async () => {
+    const { proxy } = fakePyodide()
+    /** 담는 국면에서만 던지는 Pyodide. 학습은 그대로 돌아야 한다. */
+    const throwing: PyodideProxy = {
+      ...proxy,
+      globals: {
+        ...proxy.globals,
+        get: (name: string) => {
+          if (name === '_dump') throw new Error('proxy exploded')
+          return proxy.globals.get(name)
+        },
+      },
+    }
+    setPyodide(throwing)
+
+    const result = await fit('decision_tree', input({ max_depth: 3 }))
+
+    expect(result.model).toBeUndefined()
+    // **어느 갈래로 못 담았는지가 적힌다** — 던진 것과 모양이 안 맞는 것은 다른 사연이다.
+    expect(result.modelOmittedDetail).toContain('threw:')
+    // 그리고 잃은 것이 모델 하나뿐이다.
+    expect(result.predict([[0, 0]])).toHaveLength(1)
+  })
 })
 
 /**

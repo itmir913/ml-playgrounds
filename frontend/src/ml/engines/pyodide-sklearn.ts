@@ -162,7 +162,7 @@ interface SklearnSerializer {
 }
 
 /** 옮기는 데 필요한 것 중 파이썬 밖에 있는 것. **학습 입력에서 온다.** */
-interface SerializeContext {
+export interface SerializeContext {
   /** 라벨을 정렬한 순서. 학습에 쓴 것과 같은 규칙으로 센다. */
   readonly classes: readonly string[]
   readonly featureCount: number
@@ -341,6 +341,24 @@ function classOf(algorithm: string): SklearnClass {
 export const PYODIDE_SKLEARN_ENGINE = { kind: 'pyodide-sklearn' } as const
 
 export const PYODIDE_SKLEARN_ALGORITHMS = Object.keys(SKLEARN_CLASSES)
+
+/**
+ * **등록부의 직렬화기를 그대로 준다** (2026-09-23, R35 B-1).
+ *
+ * `sklearn-serialize.spec.ts`가 픽스처 dump를 우리 형식으로 옮겨 sklearn의 답과 견주는데,
+ * **그 스펙이 등록부를 안 지나고 같은 배선을 손으로 다시 짜고 있었다** — `sklearnTreeModel(
+ * dump, classes, featureCount)`처럼. 그래서 위 `build` 칸의 인자를 바꿔도 대조가 조용했다
+ * (감사자가 일곱 자리를 셌다). **같은 식을 두 번 쓰면 한쪽이 틀려도 둘이 맞는다** —
+ * R37 시각화 감사의 뿌리와 같은 병이다.
+ *
+ * 그래서 문을 하나 낸다. **검사만 쓰는 조회이고 앱 경로는 안 바뀐다.**
+ */
+export function sklearnSerializerForTest(
+  algorithm: string,
+): { build: (dumped: unknown, context: SerializeContext) => ModelFile | null } | undefined {
+  const serializer = own(SKLEARN_CLASSES, algorithm)?.serializer
+  return serializer ? { build: serializer.build } : undefined
+}
 
 export function parameters(algorithm: string): readonly HyperparameterSpec[] {
   return own(PYODIDE_SKLEARN_PARAMETERS, algorithm) ?? []

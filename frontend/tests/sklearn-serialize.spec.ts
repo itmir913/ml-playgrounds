@@ -15,6 +15,7 @@
  * 한다.**
  */
 
+import { sklearnSerializerForTest } from '../src/ml/engines/pyodide-sklearn'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -254,6 +255,52 @@ describe('옮긴 것을 대조할 재료가 있다', () => {
     expect(missing).toEqual([])
   })
 
+  /**
+   * **등록부를 지나는 판** (2026-09-23, R35 B-1).
+   *
+   * 위 `CASES`는 옮기는 배선을 **손으로 다시 짠다**(`sklearnTreeModel(dump, classes,
+   * featureCount)`). 그래서 `SKLEARN_CLASSES`의 `build` 칸 인자를 바꿔도 이 파일 전체가
+   * 조용했다 — 감사자가 일곱 자리를 셌다(`:218` `:242` `:267` `:281` `:296` `:306` `:317`).
+   * **폭이 어긋나면 학습은 됐는데 예측만 전부 서고, 클래스 순서가 어긋나면 오류 없이
+   * 틀린 라벨을 답한다.**
+   *
+   * **같은 식을 두 번 쓰면 한쪽이 틀려도 둘이 맞는다** — R37 시각화 감사의 뿌리와 같은
+   * 병이다. 그래서 여기서 **두 경로의 답을 견준다**: 손으로 짠 것과 등록부가 내는 것.
+   * 어느 한쪽만 바뀌면 운다.
+   *
+   * KNN은 빠진다 — `dump`이 없는 참조형이라 등록부의 `build`가 `undefined`를 받고,
+   * 그 경로는 위 예측 대조가 이미 지나간다.
+   */
+  it('등록부의 직렬화기가 손으로 짠 배선과 같은 것을 낸다', () => {
+    const checked: string[] = []
+    for (const [name, entry] of Object.entries(document.datasets)) {
+      if (entry.meta.taskType === 'regression') continue
+      const prepared = preparedFor(name, entry)
+      for (const one of CASES) {
+        if (one.algorithm === 'knn') continue
+        const recorded = entry.sklearn[one.algorithm]
+        if (!recorded?.dump) continue
+
+        const serializer = sklearnSerializerForTest(one.algorithm)
+        expect(serializer, `${one.algorithm} is not in the registry`).toBeDefined()
+        if (!serializer) continue
+
+        const viaRegistry = serializer.build(recorded.dump, {
+          classes: prepared.classes,
+          featureCount: prepared.featureCount,
+          rowIndices: prepared.trainIndices,
+          hyperparameters: {},
+        })
+        expect(JSON.stringify(viaRegistry), `${name}/${one.algorithm}`).toBe(
+          JSON.stringify(one.build(recorded, prepared)),
+        )
+        checked.push(`${name}/${one.algorithm}`)
+      }
+    }
+    // **그물의 크기를 센다.** 전부 건너뛰면 이 판은 아무것도 안 한다 (R9 B-5).
+    expect(checked.length).toBeGreaterThan(10)
+  })
+
   it('포레스트도 굳혀 두었다 — 안 담는 이유를 세는 데 쓴다', () => {
     const missing: string[] = []
     for (const [name, entry] of Object.entries(document.datasets)) {
@@ -444,6 +491,22 @@ describe('갈림값을 옮기는 규칙', () => {
         Math.fround(threshold) <= threshold,
       )
     }
+  })
+
+  /**
+   * **임계값이 정확히 `0`인 나무** (2026-09-23, R35 §6.1). 특성을 중심화하면 흔하다.
+   *
+   * 위 두 판이 `0`을 이미 지나가지만 **값이 얼마인지는 아무도 안 적었다.** 잰 값을
+   * 못 박아 두면 `nextUpDouble`의 `value === 0` 갈래를 건드릴 때 여기가 먼저 운다 —
+   * 그 갈래는 비트를 `1n`로 세우는 특별 취급이라 다른 값과 경로가 다르다.
+   *
+   * **남은 빈칸은 픽스처다** — `sklearn-serialize.spec.ts`의 줄 대조에 임계값 `0`인 나무가
+   * 없다. 규칙은 여기서 물리므로 값은 안전하고, 그쪽은 생성기를 다시 돌릴 때의 몫이다.
+   */
+  it('임계값 0의 경계가 잰 값 그대로다', () => {
+    expect(splitBoundary(0)).toBe(7.006492321624087e-46)
+    // 규칙도 함께 선다 — sklearn은 `float32(0) <= 0`이라 `0`을 왼쪽으로 보낸다.
+    expect(0 < splitBoundary(0)).toBe(true)
   })
 
   it('유한하지 않은 값은 옮기지 않는다', () => {
