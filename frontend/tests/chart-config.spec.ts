@@ -168,6 +168,32 @@ describe('히스토그램과 막대그래프는 다른 그림이다', () => {
     expect(scales?.['y']?.ticks?.color).toBe(PAINT.ink)
   })
 
+  /**
+   * **높이 0에 가까운 막대도 짚을 수 있다** (2026-09-22, 코드 소유자가 실물에서 잡았다).
+   *
+   * `intersect: true`면 커서가 막대의 사각형 안에 있어야 반응하는데, 치우친 열에서는
+   * 대부분의 막대가 **선**이라 사실상 못 짚는다. `axis: 'x'`가 세로 위치를 안 보게 만들어
+   * 그 세로 줄 어디서나 그 구간을 말하게 한다.
+   *
+   * **박스 플롯과 산점도는 반대다** — 상자는 높이를 갖고, 점은 `intersect`를 풀면 빈
+   * 자리에서도 먼 점을 집어 온다. 그래서 셋을 한 줄에 놓고 갈라 못 박는다.
+   */
+  it('막대는 세로 줄 어디서나 짚히고, 점은 점 위에서만 짚힌다', () => {
+    expect(barOptions(PAINT, TEXT).interaction).toEqual({
+      mode: 'nearest',
+      intersect: false,
+      axis: 'x',
+    })
+    expect(boxOptions([], PAINT, { x: '', y: '키', point: () => '' }).interaction).toEqual({
+      mode: 'nearest',
+      intersect: true,
+    })
+    expect(scatterOptions(PAINT, { x: 'a', y: 'b', point: () => '' }, false).interaction).toEqual({
+      mode: 'nearest',
+      intersect: true,
+    })
+  })
+
   /** **애니메이션은 꺼져 있다.** 상한의 근거가 된 실측이 그 상태에서 나왔다 (#28-5). */
   it('애니메이션이 꺼져 있다', () => {
     expect(barOptions(PAINT, TEXT).animation).toBe(false)

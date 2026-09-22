@@ -168,11 +168,17 @@ const options = computed(() =>
         -->
         <template #default="field">
           <div class="flex min-w-0 items-center gap-2">
+            <!--
+              **칸의 높이가 단추와 같다** (2026-09-22, 코드 소유자가 화면에서 잡았다).
+              `AppButton`의 `md`가 `py-2.5`이고 칸은 `py-1.5`라 8px이 낮았는데, 자동을
+              껐다 켤 때 **단추가 들고 나면서 줄 높이가 튀었다.** 같은 값을 쓰면 단추가
+              있든 없든 그 줄이 안 움직인다.
+            -->
             <input
               v-bind="field"
               v-model.number="draft"
               type="number"
-              class="w-full min-w-0 rounded-field border border-line-strong bg-surface px-2 py-1.5"
+              class="w-full min-w-0 rounded-field border border-line-strong bg-surface px-2 py-2.5"
               :readonly="auto"
               :min="1"
               :max="HISTOGRAM_BIN_LIMIT"

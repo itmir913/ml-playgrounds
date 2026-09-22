@@ -145,8 +145,21 @@ export function barOptions(
 ): ChartOptions<'bar'> {
   return {
     ...base(),
-    // 가리킨 막대 하나만 말한다. 기본값(`index`)은 같은 자리의 여러 갈래를 함께 세운다.
-    interaction: { mode: 'nearest', intersect: true },
+    /**
+     * 가리킨 막대 하나만 말한다. 기본값(`index`)은 같은 자리의 여러 갈래를 함께 세운다.
+     *
+     * **다만 막대 안에 들어갈 것까지 요구하지는 않는다** (2026-09-22, 코드 소유자가
+     * 실물에서 잡았다). `intersect: true`는 커서가 막대의 사각형 안에 있어야 반응하는데,
+     * **치우친 열에서는 대부분의 막대가 높이 0에 가까운 선**이라 사실상 짚을 수 없다 —
+     * 정작 *"여기 몇 개나 있나"*가 궁금한 것이 그 막대들이다.
+     *
+     * `axis: 'x'`가 세로 위치를 안 보게 만들어, **그 막대가 선 세로 줄 어디에 커서가
+     * 있어도** 그 구간을 말한다. `mode`가 `nearest`라 여전히 하나만 세운다.
+     *
+     * **박스 플롯과 산점도는 그대로 둔다.** 상자는 높이를 갖고, 점은 `intersect`를 풀면
+     * 빈 자리에서도 먼 점을 집어 온다 — 같은 병이 아니다.
+     */
+    interaction: { mode: 'nearest', intersect: false, axis: 'x' },
     scales: {
       x: axis(paint, text.x),
       /**
