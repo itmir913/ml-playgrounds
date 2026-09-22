@@ -6,8 +6,44 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      **`viewport-fit=cover`가 안전 영역을 연다.** 아이폰·아이패드의 홈 인디케이터와
+      노치 자리를 `env(safe-area-inset-*)`로 받으려면 이것이 있어야 하고, 상태 표시줄이
+      이미 `pad-safe-bottom`으로 그 값을 쓰고 있다 (`AppStatusBar.vue`).
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Machine Learning Playgrounds</title>
+    <meta
+      name="description"
+      content="브라우저에서 데이터를 올려 기계학습 모델을 만들고, 결과를 분석하고, 포트폴리오를 하나의 파일로 남깁니다."
+    />
+
+    <!--
+      **홈 화면에 얹는 앱으로 선다** (2026-09-22, 코드 소유자).
+      서비스 워커는 **안 넣었다** — 정식 설치 배너(크롬)는 그것을 요구하지만, 캐시 전략과
+      갱신 규칙은 결정이 걸린 일이고 **교실 PC가 차시마다 리셋된다**는 전제 위에서 다시
+      따져야 한다 (`open-decisions.md` "컴퓨터실 PC는 리셋을 전제한다"). 지금 얻는 것은
+      **iOS·iPadOS의 홈 화면 추가와 안드로이드 크롬의 앱 모드**다.
+
+      **경로가 전부 상대다.** `vite.config.ts`의 `base: './'`와 같은 이유 — 같은 `dist/`가
+      GitHub Pages(`/ml-playgrounds/`)와 도커(`/`) 양쪽에 그대로 들어간다.
+    -->
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <!--
+      **`theme-color`의 값은 여기서 끝이 아니다.** 학생이 앱 안에서 배색을 고를 수 있으므로
+      (`theme.ts`) 운영체제 설정만 보면 **브라우저 띠와 화면이 어긋난다.** 아래 둘은 스크립트가
+      돌기 전의 첫 그림용이고, 그 뒤로는 `applyTheme`이 이 태그를 고쳐 쓴다.
+    -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1e293b" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="ML Playgrounds" />
+    <!--
+      **`black-translucent`가 아니다.** 그쪽은 상태 표시줄 아래로 내용이 흘러 들어가는데,
+      이 앱은 위에 도구 막대가 붙어 있어 시계와 제목이 겹친다.
+    -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   </head>
   <body>
     <div id="app"></div>

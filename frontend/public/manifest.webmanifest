@@ -1,0 +1,15 @@
+{
+  "name": "Machine Learning Playgrounds",
+  "short_name": "ML Playgrounds",
+  "description": "브라우저에서 데이터를 올려 기계학습 모델을 만들고, 결과를 분석하고, 포트폴리오를 하나의 파일로 남깁니다.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

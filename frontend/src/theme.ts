@@ -81,10 +81,48 @@ function darkMediaQuery(): MediaQueryList | null {
   return typeof window === 'undefined' ? null : window.matchMedia('(prefers-color-scheme: dark)')
 }
 
+/** `index.html`이 들고 있던 배색별 띠 색. 처음 한 번 읽어 둔다. */
+const chromeColors: Partial<Record<Theme, string>> = {}
+
+/**
+ * 홈 화면에 얹은 앱의 **브라우저 띠 색** (`index.html`의 `theme-color`).
+ *
+ * **여기서 고쳐 쓰는 이유.** `index.html`의 두 줄은 운영체제 설정만 보는데, 학생은 앱
+ * 안에서 배색을 직접 고를 수 있다 — 그러면 **띠는 밝고 화면은 어두운** 상태가 된다.
+ * 배색의 단일 출처가 이 파일이므로 띠도 여기서 나간다.
+ *
+ * **값을 여기 적지 않는다. 배색 토큰도 안 읽는다.** `index.html`이 첫 그림을 위해 이미
+ * 두 색을 들고 있으므로(스크립트가 돌기 전에도 띠가 서야 한다) **그중에서 고른다** —
+ * 숫자를 여기 적으면 셋째 사본이 되고, CSS를 읽으면 *"배색 토큰을 읽는 자리는 하나뿐"*
+ * 이라는 규칙을 깬다(`ui-rules.spec.ts`가 막는다).
+ *
+ * `index.html`의 두 값이 배색 토큰과 같은지는 `pwa.spec.ts`가 본다.
+ */
+function paintBrowserChrome(next: Theme): void {
+  const tags = [...document.head.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')]
+  if (tags.length === 0) return
+
+  /**
+   * 그 배색의 색. **처음 한 번은 `media`로 찾고, 그다음부터는 기억해 둔 것을 쓴다** —
+   * 아래에서 `media`를 걷어내므로 두 번째 호출에는 찾을 단서가 없다.
+   */
+  for (const tag of tags) {
+    const media = tag.getAttribute('media')
+    if (media !== null) chromeColors[media.includes('dark') ? 'dark' : 'light'] = tag.content
+    tag.removeAttribute('media')
+  }
+
+  const picked = chromeColors[next]
+  // 고를 것이 없으면 아무것도 안 한다 — 틀린 색을 세우느니 첫 그림의 값을 둔다.
+  if (picked === undefined) return
+  for (const tag of tags) tag.setAttribute('content', picked)
+}
+
 function applyTheme(next: Theme): void {
   theme.value = next
   if (typeof document !== 'undefined') {
     document.documentElement.dataset.theme = next
+    paintBrowserChrome(next)
   }
 }
 

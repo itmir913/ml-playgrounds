@@ -1,0 +1,19 @@
+<!--
+  앱 아이콘. **머리말의 마크와 같은 뜻이고 같은 색이다** — 도형 셋(원·삼각형·네모)이
+  `icons.ts`의 `BRAND_ICON`이 말하는 것과 같다.
+
+  **lucide의 경로를 베끼지 않고 우리가 그렸다.** 베끼면 모듈 그래프 밖으로 나간 사본이
+  되어 `scripts/notices.ts`가 못 세고, 고지 없이 나가는 남의 코드가 된다
+  (`CLAUDE.md` §4, 「오픈소스 고지를 세웠다」).
+
+  **여백이 넉넉하다.** 안드로이드가 아이콘을 원이나 둥근 네모로 깎으므로(maskable),
+  가장자리 20%가 잘려도 도형이 안 상하게 가운데 60%에 모았다.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Machine Learning Playgrounds">
+  <rect width="512" height="512" rx="96" fill="#4f46e5" />
+  <g fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="196" cy="196" r="58" />
+    <rect x="270" y="270" width="116" height="116" rx="16" />
+    <path d="M330 138 L386 234 L274 234 Z" />
+  </g>
+</svg>
