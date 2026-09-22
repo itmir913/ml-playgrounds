@@ -2001,6 +2001,67 @@ const props = defineProps<{ run: Run; dataset: Dataset | null }>()
     })
   })
 
+  /**
+   * 높이가 `auto`인 창 안에서 **퍼센트 높이를 쓰지 않는다** (2026-09-22, 아이패드에서
+   * 코드 소유자가 봤다).
+   *
+   * `fill`이 아닌 대화상자는 높이가 내용만큼이다. 그 안에서 `height: 100%`는 **부모가
+   * 자식을 보고 자식이 부모를 보는 순환**이라 브라우저가 서로 다르게 답한다 — 크로뮴은
+   * `auto`로 무시하고 **웹킷은 0에 가깝게 잡는다.** 그래서 같은 확인창이 아이패드에서만
+   * **제목과 첫 줄 높이로 잘려** 단추가 안 보였다.
+   *
+   * **크로뮴으로는 못 본다.** 개발도 관문도 크로뮴이라 이 규칙은 **글자로만 지킬 수
+   * 있다** — 실기기는 어느 관문도 안 본다(`audit-round-queue`의 사각).
+   */
+  describe('높이가 auto인 창 안에서 퍼센트 높이를 안 쓴다', () => {
+    /** 퍼센트로 높이를 잡는 유틸리티. `dvh`·`px`는 부모를 안 보므로 대상이 아니다. */
+    const PERCENT_HEIGHT = /\b(?:h-full|min-h-full|max-h-full|h-screen)\b/
+
+    /** `<dialog ...>`부터 `</dialog>`까지의 안쪽 마크업. */
+    function insideDialog(source: string): string {
+      const open = source.search(/<dialog\b/)
+      const close = source.indexOf('</dialog>')
+      return open === -1 || close === -1 ? '' : source.slice(open, close)
+    }
+
+    /**
+     * 그 클래스가 **조건 없이** 붙었는가.
+     *
+     * `:class="fill ? 'h-full' : ''"`처럼 **높이가 정해진 창에만** 주는 것은 옳다 —
+     * 막는 것은 언제나 붙는 것이다. 그래서 `:class`가 있는 줄은 그냥 넘긴다.
+     */
+    function unconditional(markup: string): string[] {
+      return markup
+        .split(/\r?\n/)
+        .filter((line) => !/:class=/.test(line))
+        .filter((line) => PERCENT_HEIGHT.test(/(?<!:)\bclass="([^"]*)"/.exec(line)?.[1] ?? ''))
+        .map((line) => line.trim())
+    }
+
+    it('검사기가 무는 것과 안 무는 것', () => {
+      expect(unconditional('<div class="flex h-full flex-col">')).toHaveLength(1)
+      expect(unconditional('<div class="flex flex-col">')).toHaveLength(0)
+      // 높이가 정해진 창에만 주는 모양은 통과한다.
+      expect(unconditional(`<div class="flex" :class="fill ? 'h-full' : ''">`)).toHaveLength(0)
+      // `dvh`는 부모를 안 본다.
+      expect(unconditional('<div class="h-dvh">')).toHaveLength(0)
+    })
+
+    it('`<dialog>`을 실제로 찾는다 — 모집단이 비면 규칙이 아니다', () => {
+      const found = vueFiles(SRC).filter((path) => insideDialog(readFileSync(path, 'utf-8')) !== '')
+      expect(found.length).toBeGreaterThan(0)
+    })
+
+    it('지금 소스의 모든 대화상자 안에 그런 자리가 없다', () => {
+      const offenders = vueFiles(SRC).flatMap((path) =>
+        unconditional(insideDialog(readFileSync(path, 'utf-8'))).map(
+          (line) => `${path.slice(SRC.length + 1)}: ${line}`,
+        ),
+      )
+      expect(offenders).toEqual([])
+    })
+  })
+
   describe('닫힌 대화상자를 숨기는 규칙을 덮지 않는다', () => {
     /** `<dialog` 부터 여는 꺾쇠가 닫힐 때까지. 그 안의 `class`만 본다. */
     const DISPLAY = /\b(?:flex|grid|block|inline-flex|inline-grid|table)\b/

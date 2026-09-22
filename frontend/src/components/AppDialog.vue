@@ -92,7 +92,17 @@ function onBackdrop(event: MouseEvent): void {
       `[open]`에만 거는 방법도 있었지만 **아예 `display`를 안 건드리는 쪽을 골랐다** —
       규칙 하나를 더 두면 그 규칙이 사라졌을 때 같은 일이 다시 난다.
     -->
-    <div class="flex h-full min-h-0 flex-col p-6 md:p-8">
+    <!--
+      **`h-full`은 높이가 정해진 창에만 준다** (2026-09-22, 아이패드에서 사용자가 봤다).
+      `fill`이 아닌 창은 높이가 `auto`(내용만큼)인데, 그 안에서 `height: 100%`는 **부모가
+      자식을 보고 자식이 부모를 보는 순환**이다 — 크로뮴은 `auto`로 무시하고 **웹킷은
+      0에 가깝게 잡는다.** 그래서 같은 확인창이 아이패드에서만 **제목과 첫 줄 높이로
+      잘려** 단추가 안 보였다.
+
+      **`fill`에는 필요하다.** 그쪽은 창 높이가 `95dvh`로 정해져 있어 안쪽 칸이 그것을
+      받아야 아래 굴리는 자리가 높이를 얻는다.
+    -->
+    <div class="flex min-h-0 flex-col p-6 md:p-8" :class="props.fill ? 'h-full' : ''">
       <h2 class="text-xl font-bold tracking-tight md:text-2xl">{{ title }}</h2>
       <!--
         **리듬이 두 단이다** — 이름과 그 설명 사이는 1.5, 덩어리와 덩어리 사이는 6.
