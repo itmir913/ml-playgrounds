@@ -264,7 +264,8 @@
         "binRange": "{min} ~ {max} 사이의 정수",
         "binInvalid": "그릴 수 없는 값입니다. {min} ~ {max} 사이의 정수를 입력해 주세요.",
         "binApply": "적용",
-        "bins": "구간이 {count}개입니다."
+        "bins": "구간이 {count}개입니다.",
+        "logScale": "로그 스케일"
       },
       "bar": {
         "name": "막대그래프(Bar Chart)",

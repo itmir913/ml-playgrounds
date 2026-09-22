@@ -169,6 +169,44 @@ describe('히스토그램과 막대그래프는 다른 그림이다', () => {
   })
 
   /**
+   * **로그 축은 기본이 아니다** (결정문 46). 학생이 켜야 선다.
+   *
+   * **그리고 로그일 때는 `beginAtZero`도 `precision`도 없어야 한다** — 로그에 0은 없고,
+   * 눈금은 Chart.js가 거듭제곱으로 세운다. 선형 쪽 설정을 그대로 얹으면 **둘이 싸우는
+   * 축**이 되고, 그 싸움은 캔버스 뒤라 검사가 아니면 아무도 못 본다.
+   */
+  it('세는 축은 켜야 로그가 되고, 그때 선형 쪽 설정을 안 데려간다', () => {
+    const linear = barOptions(PAINT, TEXT).scales?.['y']
+    expect(linear?.type).toBeUndefined()
+    expect(beginAtZero(linear)).toBe(true)
+
+    const log = barOptions(PAINT, TEXT, true).scales?.['y']
+    expect(log?.type).toBe('logarithmic')
+    expect(beginAtZero(log)).toBeUndefined()
+    expect((log?.ticks as { precision?: number } | undefined)?.precision).toBeUndefined()
+    // 배색은 두 갈래가 똑같이 물려받는다.
+    expect(log?.ticks?.color).toBe(PAINT.ink)
+    expect(log?.grid?.color).toBe(PAINT.line)
+  })
+
+  /**
+   * **세는 축에 0.1은 없다** (2026-09-22, 실물에서 봤다). 로그 축의 바닥을 안 박으면
+   * Chart.js가 데이터를 보고 잡는데, 그때 `0.1`·`50,000.0`처럼 **개수로는 있을 수 없는
+   * 눈금**이 선다 — `precision`은 선형 눈금의 것이라 여기서는 안 듣는다.
+   */
+  it('로그 축의 바닥이 1이고 눈금이 정수다', () => {
+    const log = barOptions(PAINT, TEXT, true).scales?.['y']
+    expect((log as { min?: number } | undefined)?.min).toBe(1)
+
+    const label = log?.ticks?.callback as ((value: number) => string) | undefined
+    expect(label).toBeTypeOf('function')
+    expect(label?.(1)).toBe('1')
+    expect(label?.(50_000)).toBe((50_000).toLocaleString())
+    // 정수가 아닌 눈금은 이름을 안 준다 — 그 줄만 이름 없이 남는다.
+    expect(label?.(0.1)).toBe('')
+  })
+
+  /**
    * **높이 0에 가까운 막대도 짚을 수 있다** (2026-09-22, 코드 소유자가 실물에서 잡았다).
    *
    * `intersect: true`면 커서가 막대의 사각형 안에 있어야 반응하는데, 치우친 열에서는

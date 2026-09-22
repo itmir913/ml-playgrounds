@@ -142,6 +142,14 @@ export function barOptions(
     readonly y: string
     readonly point: (label: string, count: number) => string
   },
+  /**
+   * 세는 축을 로그로 세우는가 (`open-decisions.md` "46. 히스토그램의 y축을 로그로 볼
+   * 것인가"). 기본은 선형이다.
+   *
+   * **부르는 쪽이 준다.** 축의 종류는 계산이 아니라 **학생이 지금 무엇을 보고 싶은가**라,
+   * 이 파일이 정할 수 있는 것이 아니다.
+   */
+  logarithmic = false,
 ): ChartOptions<'bar'> {
   return {
     ...base(),
@@ -170,11 +178,44 @@ export function barOptions(
        * Chart.js가 `0.1 · 0.2 …`를 세운다 — 학번처럼 값마다 한 줄인 열에서 **모든 막대가
        * 1인 그림의 눈금이 전부 소수**였다. `0.5개`라는 것은 없다.
        */
-      y: {
-        ...axis(paint, text.y),
-        beginAtZero: true,
-        ticks: { ...axis(paint, text.y).ticks, precision: 0 },
-      },
+      /**
+       * **로그 축에는 `beginAtZero`도 `precision`도 없다.** 로그에 0은 없고(`log 0`이
+       * 정의되지 않는다), 눈금은 `1 · 10 · 100`처럼 Chart.js가 거듭제곱으로 세운다 —
+       * 정수 자릿수를 우리가 줄 자리가 아니다.
+       *
+       * **빈 구간(0개)은 막대가 안 선다.** 로그 축에서 0은 그릴 자리가 없기 때문이고,
+       * 그것이 맞다 — **없는 것을 있는 것처럼 바닥에 붙여 그리면 거짓말이 된다.**
+       * 대신 그 칸의 가로 눈금은 그대로 있어서 **어디가 비었는지는 보인다.**
+       */
+      y: logarithmic
+        ? {
+            ...axis(paint, text.y),
+            type: 'logarithmic' as const,
+            /**
+             * **바닥이 1이다.** 로그 축의 기본 바닥은 데이터를 보고 잡히는데, 그러면
+             * `0.1`처럼 **개수로는 있을 수 없는 눈금**이 선다 (2026-09-22, 실물에서 봤다).
+             * 세는 축의 가장 작은 값은 1이다 — 0인 구간은 로그 축에 자리가 없고, 그것을
+             * 바닥에 붙여 그리면 없는 것을 있는 것처럼 말하게 된다.
+             */
+            min: 1,
+            ticks: {
+              ...axis(paint, text.y).ticks,
+              /**
+               * **정수만 세운다.** Chart.js가 로그 눈금을 `50,000.0`처럼 소수로 적는다 —
+               * `precision`은 선형 눈금의 것이라 여기서는 안 듣는다. 정수가 아닌 눈금은
+               * 이름을 안 주어 지운다(`''`을 주면 그 줄만 이름 없이 남는다).
+               */
+              callback: (value: string | number) => {
+                const count = Number(value)
+                return Number.isInteger(count) ? count.toLocaleString() : ''
+              },
+            },
+          }
+        : {
+            ...axis(paint, text.y),
+            beginAtZero: true,
+            ticks: { ...axis(paint, text.y).ticks, precision: 0 },
+          },
     },
     plugins: {
       legend: { display: false },

@@ -10,7 +10,15 @@
  * 안 여는 학생은 차트 라이브러리를 안 받는다.
  */
 
-import { BarController, BarElement, CategoryScale, Chart, LinearScale, Tooltip } from 'chart.js'
+import {
+  BarController,
+  BarElement,
+  CategoryScale,
+  Chart,
+  LinearScale,
+  LogarithmicScale,
+  Tooltip,
+} from 'chart.js'
 import { computed, ref, watch } from 'vue'
 import { Bar } from 'vue-chartjs'
 import { useI18n } from 'vue-i18n'
@@ -25,7 +33,16 @@ import { useChartTokens } from '@/composables/useChartTokens'
 import { useFormat } from '@/composables/useFormat'
 import { HISTOGRAM_BIN_LIMIT } from '@/limits'
 
-Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip)
+/**
+ * **`LogarithmicScale`을 여기서 등록한다.** Chart.js는 쓰는 것만 등록하는 구조라, 옵션에
+ * `type: 'logarithmic'`을 적어도 **등록이 없으면 `"logarithmic" is not a registered scale`로
+ * 죽는다** — 그림이 통째로 사라진다.
+ *
+ * **검사가 이것을 못 봤다** (2026-09-22). `chart-config.spec.ts`가 옵션 객체는 물지만
+ * 등록은 다른 파일의 일이라, **설정은 옳고 화면은 빈** 상태가 초록으로 통과했다.
+ * 아래 `tests/chart-registry.spec.ts`가 그 이음매를 문다.
+ */
+Chart.register(BarController, BarElement, CategoryScale, LinearScale, LogarithmicScale, Tooltip)
 
 const props = defineProps<{ input: ChartInput }>()
 
@@ -116,12 +133,28 @@ const data = computed(() =>
   histogramData(made.value, labels.value, paint.value, t('data.charts.histogram.series')),
 )
 
+/**
+ * 세는 축을 로그로 볼 것인가 (`open-decisions.md` "46. 히스토그램의 y축을 로그로 볼
+ * 것인가").
+ *
+ * **[적용]이 없다.** 축의 종류를 바꾸는 것은 **다시 세는 일이 아니라 다시 그리는 일**이라
+ * 10만 행을 건드리지 않는다 (`architecture.md` §8.9.1.1의 "되돌아가는 길은 즉시").
+ *
+ * **자동도 없다.** 구간 수의 자동은 *"numpy가 고른 값"*이라는 내용이 있었지만, 축에는
+ * 고를 것이 없다 — 켜거나 끄거나다.
+ */
+const logarithmic = ref(false)
+
 const options = computed(() =>
-  barOptions(paint.value, {
-    x: props.input.column,
-    y: t('data.charts.axisCount'),
-    point: (label, count) => t('data.charts.histogram.point', { range: label, count }),
-  }),
+  barOptions(
+    paint.value,
+    {
+      x: props.input.column,
+      y: t('data.charts.axisCount'),
+      point: (label, count) => t('data.charts.histogram.point', { range: label, count }),
+    },
+    logarithmic.value,
+  ),
 )
 </script>
 
@@ -196,6 +229,19 @@ const options = computed(() =>
           </div>
         </template>
       </AppField>
+
+      <!--
+        **자기 이름을 단 칸으로 선다** (결정문 46). 축을 바꾸는 것과 구간을 바꾸는 것은
+        다른 질문이라, 구간 수 칸 안에 끼워 넣지 않는다.
+
+        **`AppField`를 안 쓴다** — 그쪽은 라벨이 입력을 가리키는 껍데기이고, 여기 입력은
+        체크박스 하나뿐이라 **이름이 곧 그 체크박스의 이름**이다. 라벨을 두 번 세우면
+        스크린리더가 같은 말을 두 번 읽는다.
+      -->
+      <label class="flex items-center gap-2 text-base font-bold text-ink-soft">
+        <input v-model="logarithmic" type="checkbox" class="size-5 accent-brand" />
+        {{ t('data.charts.histogram.logScale') }}
+      </label>
     </Teleport>
 
     <ChartFrame
