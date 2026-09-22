@@ -15,7 +15,7 @@ import { Scatter } from 'vue-chartjs'
 import { useI18n } from 'vue-i18n'
 
 import ChartFrame from './ChartFrame.vue'
-import { scatterData, scatterOptions, scatterSeries } from '@/data/chart-config'
+import { colorsAreDistinct, scatterData, scatterOptions, scatterSeries } from '@/data/chart-config'
 import { categoricalColumns, useChartControls, type ChartInput } from '@/data/charts'
 import { categoriesOf, columnCells, scatterSample } from '@/data/stats'
 import { useChartTokens } from '@/composables/useChartTokens'
@@ -131,7 +131,12 @@ const options = computed(() =>
           y: y === null ? t('meta.none') : format.prediction(y),
         }),
     },
-    colorBy.value !== '',
+    /**
+     * **겹치는 범례는 안 세운다** (결정문 47). 자리를 먹는 것보다 먼저, 그 범례가
+     * 가리키는 대응이 참이 아니다 — 대신 위 `note`가 겹친다는 사실과 **점을 가리키면
+     * 이름이 나온다**는 것을 말한다.
+     */
+    colorBy.value !== '' && !colorsRepeat.value,
     axes.value,
   ),
 )
@@ -141,8 +146,21 @@ const options = computed(() =>
  *
  * 둘은 다른 사실이다 — 앞엣것은 우리가 줄인 것이고 뒤엣것은 데이터에 값이 없는 것이다.
  */
+/**
+ * 색이 겹치는가. **팔레트가 일곱이라 갈래가 그보다 많으면 같은 색이 둘 이상을 가리킨다**
+ * (`open-decisions.md` "47. 색 갈래가 팔레트보다 많을 때").
+ *
+ * **막지 않는다.** 그려지고 읽히는 그림이고, 다른 도구도 안 막는다 — 막는 것은 우리
+ * 발명이 된다. 대신 **범례를 안 세우고 그 사실을 말한다**: 색 열넷이 같은 자리에서
+ * 범례는 **없는 대응을 있다고 주장한다.**
+ */
+const colorsRepeat = computed(() => !colorsAreDistinct(series.value.length))
+
 const note = computed(() => {
   const parts: string[] = []
+  if (colorsRepeat.value) {
+    parts.push(t('data.charts.scatter.colorsRepeat', { count: series.value.length }))
+  }
   if (sample.value.drawn < sample.value.total) {
     parts.push(
       t('data.charts.scatter.sampled', {

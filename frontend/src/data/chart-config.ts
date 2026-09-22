@@ -535,6 +535,23 @@ const POINT_RADIUS = 5
  * `ml/cluster-chart.ts`의 `ClusterAxisScales`와 같은 표시를 쓴다 — 두 화면이 범주를
  * 같은 방식으로 그린다 (`data/category-axis.ts`).
  */
+/**
+ * 그 갈래 수에서 **색이 서로 다른가** (`open-decisions.md` "47. 색 갈래가 팔레트보다
+ * 많을 때").
+ *
+ * 팔레트가 `CHART_COLORS`개라 그보다 많으면 `seriesColor`가 돌려 쓴다 — 그때 범례는
+ * **없는 대응을 있다고 주장한다.** 그래서 범례를 세울지가 이 판정에 달린다.
+ *
+ * **막는 판정이 아니다.** 갈래가 많아도 그림은 그대로 그리고(다른 도구도 그렇다),
+ * 화면이 **겹친다는 사실과 점을 가리키면 이름이 나온다는 것**을 말한다.
+ *
+ * **컴포넌트 밖에 있는 이유는 그것이 검사할 수 있는 유일한 자리이기 때문이다**
+ * (`CLAUDE.md` §4).
+ */
+export function colorsAreDistinct(groupCount: number): boolean {
+  return groupCount <= CHART_COLORS
+}
+
 export interface ScatterAxisScales {
   readonly x?: readonly string[] | undefined
   readonly y?: readonly string[] | undefined

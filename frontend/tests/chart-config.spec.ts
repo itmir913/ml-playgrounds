@@ -17,6 +17,7 @@ import {
   barOptions,
   binLabels,
   boxData,
+  colorsAreDistinct,
   boxOptions,
   boxWhiskers,
   histogramData,
@@ -532,5 +533,48 @@ describe('산점도의 범주 축', () => {
     expect(x.ticks?.callback?.(2)).toBe('')
     // 수치 축은 건드리지 않는다.
     expect((scales?.['y'] as { min?: number }).min).toBeUndefined()
+  })
+})
+
+/**
+ * 갈래가 팔레트보다 많을 때 (`open-decisions.md` "47. 색 갈래가 팔레트보다 많을 때").
+ *
+ * **막지 않는다.** 여기가 무는 것은 **범례를 세우는 손잡이가 부르는 쪽에 있는가** 하나다 —
+ * 겹치는 범례를 안 세우는 판단은 화면의 것이고, 그 판단이 설정에 닿는 길이 이 인자다.
+ */
+describe('산점도의 범례', () => {
+  const text = { x: 'a', y: 'b', point: () => '' }
+
+  it('세우라면 세우고 말라면 안 세운다', () => {
+    expect(scatterOptions(PAINT, text, true).plugins?.legend?.display).toBe(true)
+    expect(scatterOptions(PAINT, text, false).plugins?.legend?.display).toBe(false)
+  })
+
+  /** 색 구분을 해도 **갈래가 하나면 범례가 아무것도 안 가른다** — 그 판단은 화면의 몫이다. */
+  /**
+   * **경계는 팔레트가 정한다.** 일곱까지는 서로 다른 색이고 여덟부터 돌려 쓴다 —
+   * `seriesColor`가 그렇게 도는 것을 위 '색' 검사가 이미 못 박았다.
+   */
+  it.each([
+    [1, true],
+    [CHART_COLORS, true],
+    [CHART_COLORS + 1, false],
+    [100, false],
+  ])('갈래 %i이면 색이 서로 다른가: %s', (groups, distinct) => {
+    expect(colorsAreDistinct(groups)).toBe(distinct)
+  })
+
+  /** **막는 판정이 아니다.** 갈래가 많아도 점은 전부 그린다 — 범례만 안 선다. */
+  it('갈래가 많아도 점은 전부 그린다', () => {
+    const many = Array.from({ length: 20 }, (_value, index) => ({
+      name: `갈래 ${index}`,
+      points: [{ row: index, x: index, y: index }],
+    }))
+    expect(scatterData(many, PAINT).datasets).toHaveLength(20)
+  })
+
+  it('범례를 안 세워도 점은 그대로 그린다', () => {
+    const series = [{ name: '가', points: [{ row: 0, x: 1, y: 2 }] }]
+    expect(scatterData(series, PAINT).datasets).toHaveLength(1)
   })
 })
