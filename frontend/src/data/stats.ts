@@ -143,6 +143,21 @@ function autoBinCount(values: readonly number[], range: number): number {
 export type BinChoice = 'auto' | number
 
 /**
+ * 학생이 친 것이 구간 수로 받을 수 있는 값인가.
+ *
+ * **화면이 조용히 당기지 않으려면 판정이 먼저 있어야 한다** (`architecture.md`
+ * §8.9.1.1). 당기는 설계는 2026-08-12 감사 B-3에서 터졌다 — 클램프한 값이 지금 값과
+ * 같으면 Vue가 DOM을 다시 안 써서 학생이 친 숫자가 칸에 남고 화면이 계속 거짓말한다.
+ *
+ * **컴포넌트 밖에 있는 이유는 그것이 검사할 수 있는 유일한 자리이기 때문이다**
+ * (`CLAUDE.md` §4). 숫자 칸은 빈 칸이면 `''`을, 글자를 치면 `NaN`이나 `''`을 준다 —
+ * 그래서 `number`가 아닌 것도 받아서 거짓을 돌려준다.
+ */
+export function isBinCount(value: unknown, max: number): boolean {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= max
+}
+
+/**
  * 수치 열의 히스토그램을 만든다.
  *
  * **`maxBins`는 부르는 쪽이 준다** (`limits.ts`). 구간 수의 상한은 계산이 아니라 **그릴

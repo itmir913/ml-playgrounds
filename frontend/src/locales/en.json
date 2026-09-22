@@ -258,7 +258,12 @@
         "name": "Histogram",
         "series": "Count",
         "point": "{range} · {count}",
-        "capped": "There were too many bins, so they were reduced to {count}."
+        "capped": "There were too many bins, so they were reduced to {count}.",
+        "binCount": "Bins",
+        "binAuto": "Choose automatically",
+        "binRange": "A whole number from {min} to {max}",
+        "binApply": "Apply",
+        "bins": "This chart has {count} bins."
       },
       "bar": {
         "name": "Bar chart",

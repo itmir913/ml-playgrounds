@@ -12,7 +12,14 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { boxSummary, frequencies, histogram, numericValues, scatterSample } from '../src/data/stats'
+import {
+  boxSummary,
+  frequencies,
+  histogram,
+  isBinCount,
+  numericValues,
+  scatterSample,
+} from '../src/data/stats'
 
 /** 0부터 n-1까지. 규약 검사의 입력으로 쓴다. */
 function series(n: number): number[] {
@@ -228,6 +235,37 @@ describe('히스토그램 — 구간 수를 직접 준다', () => {
   /** 직접 준 수는 줄인 것이 아니다 — 상한에 안 걸리면 `capped`는 거짓이다. */
   it('상한에 안 걸리면 `capped`가 거짓이다', () => {
     expect(histogram([0, 1, 2, 3], 200, 20).capped).toBe(false)
+  })
+})
+
+/**
+ * 화면이 [적용]을 잠그는 판정 (`architecture.md` §8.9.1.1).
+ *
+ * **경계가 양쪽 다 포함이다.** 1과 상한이 막히면 학생은 그릴 수 있는 그림을 못 그리고,
+ * 0이나 상한+1이 통과하면 위 `histogram`이 조용히 당기는 자리로 굴러간다.
+ */
+describe('구간 수로 받을 수 있는 값인가', () => {
+  it.each([
+    [1, true],
+    [20, true],
+    [200, true],
+    [0, false],
+    [-1, false],
+    [201, false],
+    [3.5, false],
+    [Number.NaN, false],
+    [Number.POSITIVE_INFINITY, false],
+  ])('%s → %s', (value, ok) => {
+    expect(isBinCount(value, 200)).toBe(ok)
+  })
+
+  /**
+   * **숫자 칸이 늘 숫자를 주지는 않는다.** 빈 칸은 `''`이고, 타입으로는 못 막는 자리라
+   * 여기서 받아서 거짓으로 돌려준다 — 안 그러면 `''`이 `NaN` 경계를 만들어 그림이
+   * 통째로 빈다.
+   */
+  it.each([[''], [null], [undefined], ['20']])('숫자가 아닌 %s는 거짓이다', (value) => {
+    expect(isBinCount(value, 200)).toBe(false)
   })
 })
 
