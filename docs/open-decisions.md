@@ -51,7 +51,7 @@
 | **히스토그램** | 수치 1 | Distributions | 막대. 구간 나누기는 순수 함수 |
 | **막대그래프** | 범주 1 | Bar Plot · Distributions | 값마다 도수 |
 | **박스 플롯** | 수치 1 (+범주 1로 갈라 보기) | Box Plot | `[Q1, Q3]` 떠 있는 막대 + 수염을 직접 그린다 |
-| **산점도** | 수치 2 (+범주 1로 색) | Scatter Plot | `ClusterScatter`와 같은 문법, **다른 부품** |
+| **산점도** | 열 2 (+범주 1로 색) | Scatter Plot | `ClusterScatter`와 같은 문법, **다른 부품**. **범주 축도 된다** (2026-09-22) — 결과 화면이 여는 것을 데이터 화면이 못 열면 같은 두 열이 화면마다 다르게 취급된다 ("군집 산점도의 축") |
 
 **2차 후보 둘**은 상관 히트맵(Heat Map)과 교차 막대(Sieve Diagram · Mosaic Display)다.
 히트맵은 캔버스가 아니라 **HTML 표 + 배경색**으로 그린다 — `chartjs-chart-matrix`를 안
