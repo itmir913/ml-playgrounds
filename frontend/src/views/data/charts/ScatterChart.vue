@@ -21,7 +21,7 @@ import { type AxisCell } from '@/data/category-axis'
 import { categoriesOf, columnCells, scatterSample } from '@/data/stats'
 import { useChartTokens } from '@/composables/useChartTokens'
 import { useFormat } from '@/composables/useFormat'
-import { dataScatterPointLimit } from '@/limits-switch'
+import { dataScatterPointLimit, drawingEveryPoint } from '@/limits-switch'
 
 Chart.register(ScatterController, PointElement, LinearScale, Tooltip, Legend)
 
@@ -171,8 +171,24 @@ const options = computed(() =>
  */
 const colorsRepeat = computed(() => !colorsAreDistinct(series.value.length))
 
+/**
+ * 상한을 해제해 **표본을 안 뽑고 전부 그리는가** (2026-09-22에 재서 넣었다).
+ *
+ * **막지 않는다.** 표본은 드문 점을 잃고, 치우친 열에서 정작 보고 싶은 것이 그 드문
+ * 점이다 — 학생이 상한을 푼 이유가 그것이다 (`limits-switch.ts`).
+ *
+ * **대신 비용을 그 자리에서 말한다.** 20만 점이면 개발 PC에서 첫 그리기 1.2초 ·
+ * 창을 흔들 때마다 1.1초이고, **기준 기기는 몇 배 느린 교실 PC다**(`CLAUDE.md` §0).
+ * 상한 팝오버가 *"브라우저가 응답하지 않는다고 물어볼 수 있습니다"*라고 미리 말하지만,
+ * **그 말을 읽은 자리와 값을 치르는 자리가 멀다.**
+ */
+const drawingAll = computed(() => drawingEveryPoint(sample.value.drawn, sample.value.total))
+
 const note = computed(() => {
   const parts: string[] = []
+  if (drawingAll.value) {
+    parts.push(t('data.charts.scatter.drawingAll', { count: sample.value.drawn }))
+  }
   if (colorsRepeat.value) {
     parts.push(t('data.charts.scatter.colorsRepeat', { count: series.value.length }))
   }

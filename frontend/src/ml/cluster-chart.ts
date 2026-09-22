@@ -238,6 +238,19 @@ export function clusterChartData(
         y: placed(point.values[axis.y] ?? 0, point.row, scales.y),
       })),
     pointBackgroundColor: clusterColor(tokens, summary.cluster),
+    /**
+     * **획을 안 긋는다** (2026-09-22에 재서 뺐다, `data/chart-config.ts`의 같은 자리).
+     * 테두리 색이 채우기와 같은 색이라 **보이지 않는데** 점마다 획이 한 번 더 간다 —
+     * 20만 점에서 다시 그리기가 436ms에서 172ms였다.
+     *
+     * **모양 셋이 전부 채워지는 것이라 안전하다**(`POINT_SHAPES`: 원·삼각형·네모).
+     * `cross`나 `star`처럼 **획으로만 그리는 모양이 들어오는 날 이 줄이 그 점을 지운다** —
+     * 그때는 모양마다 갈라야 한다.
+     */
+    pointBorderWidth: 0,
+    // **가리켜도 안 돌아온다.** Chart.js의 hover 기본값이 1이라, 안 맞추면 커서를 얹는
+    // 순간 없던 획이 생긴다 — 위 `가리켜도 표식이 안 변한다`가 그 규칙이다.
+    pointHoverBorderWidth: 0,
     pointBorderColor: clusterColor(tokens, summary.cluster),
     pointStyle: clusterShape(tokens, summary.cluster),
     pointRadius: POINT_RADIUS,
@@ -314,6 +327,12 @@ export function clusterChartOptions(
     responsive: true,
     maintainAspectRatio: false,
     animation: false,
+    /**
+     * **우리가 주는 모양이 이미 Chart.js의 내부 모양이다** (`data/chart-config.ts`의
+     * 같은 자리에서 잰 값). `{x, y}`를 그대로 주므로 파싱할 것이 없는데, 안 끄면 점마다
+     * 한 번씩 돈다 — 20만 점에서 661ms가 436ms가 됐다.
+     */
+    parsing: false,
     interaction: { mode: 'nearest', intersect: true },
     /**
      * **축 선도 격자와 같은 색을 쓴다.** 안 주면 Chart.js가 자기 기본값

@@ -290,7 +290,8 @@
         "point": "{name} · x {x} · y {y}",
         "sampled": "There are too many dots to draw them all, so only some are shown. ({drawn} of {total} rows)",
         "skipped": "{count} rows could not be drawn because a value is empty.",
-        "colorsRepeat": "There are {count} groups, so colors repeat. Point at a dot to see which value it is."
+        "colorsRepeat": "There are {count} groups, so colors repeat. Point at a dot to see which value it is.",
+        "drawingAll": "Limits are off, so all {count} dots are drawn. Resizing the window may freeze the page for a moment."
       }
     }
   },

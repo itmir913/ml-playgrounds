@@ -141,6 +141,20 @@ export function clusterScatterPointLimit(): number {
  *
  * **위와 나란히 있고 값도 같지만 다른 상수다** — 이유는 `limits.ts`의 그 주석이 갖는다.
  */
+/**
+ * 산점도가 **표본을 안 뽑고 전부 그리고 있는가** (2026-09-22에 재서 넣었다).
+ *
+ * **판정이 여기 사는 이유는 질문이 스위치의 것이기 때문이다** — *"이 상한이 지금 풀려
+ * 있나"*는 화면이 답할 수 없고, 화면이 상수를 직접 읽으면 `limits-rules.spec.ts`가
+ * 막는다(그 규칙의 목적이 **스위치를 비켜 가는 화면을 막는 것**이다).
+ *
+ * **막는 판정이 아니다.** 표본은 드문 점을 잃고, 치우친 열에서 정작 보고 싶은 것이 그
+ * 드문 점이다 — 학생이 상한을 푼 이유가 그것이다. 화면은 이 값으로 **비용을 말할 뿐**이다.
+ */
+export function drawingEveryPoint(drawn: number, total: number): boolean {
+  return drawn === total && drawn > DATA_SCATTER_POINT_LIMIT
+}
+
 export function dataScatterPointLimit(): number {
   return open(DATA_SCATTER_POINT_LIMIT)
 }

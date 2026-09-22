@@ -574,6 +574,20 @@ export function scatterData(
         y: placed(point.y, point.row, scales.y),
       })),
       backgroundColor: seriesColor(paint, index),
+      /**
+       * **획을 안 긋는다** (2026-09-22에 재서 뺐다). 테두리 색이 **배경과 같은 색**이라
+       * 보이지도 않는데, Chart.js는 점마다 채우기 말고 **획을 한 번 더** 긋고 있었다.
+       *
+       * **20만 점에서 다시 그리기가 436ms → 172ms였다**(3회 중앙값, 같은 판에서 번갈아
+       * 재서 뜨거운 기계의 기울기를 걷어냈다). 그림은 점의 지름이 `borderWidth` 기본값의
+       * 절반만큼 줄어드는 것이 전부다.
+       *
+       * **범례 표식은 그대로다** — `usePointStyle`이 채우기로 그린다.
+       */
+      borderWidth: 0,
+      // **가리켜도 안 돌아온다.** hover 기본값이 1이라 안 맞추면 커서를 얹는 순간 없던
+      // 획이 생긴다 (`ml/cluster-chart.ts`가 같은 규칙을 검사로 들고 있다).
+      hoverBorderWidth: 0,
       borderColor: seriesColor(paint, index),
       pointRadius: POINT_RADIUS,
       // **커서를 얹어도 안 커진다.** 기본값(4)이 이 크기보다 작아 점이 오히려 줄어든다.
@@ -609,6 +623,17 @@ export function scatterOptions(
 
   return {
     ...base(),
+    /**
+     * **우리가 주는 모양이 이미 Chart.js의 내부 모양이다** (2026-09-22에 재서 넣었다).
+     * `{x, y}` 객체를 그대로 주므로 파싱할 것이 없는데, 안 끄면 점마다 한 번씩 돈다.
+     *
+     * **20만 점에서 다시 그리기가 1,790ms → 1,063ms였다**(개발 PC, 800×500). 상한을
+     * 해제한 학생이 창을 흔들 때마다 무는 값이라 **40%가 그대로 체감으로 온다.**
+     *
+     * **`normalized: true`는 안 쓴다.** 그쪽은 *"x로 정렬돼 있고 값이 겹치지 않는다"*는
+     * 약속인데 **우리 점은 행 순서라 거짓이다.** 200ms를 더 줄이지만 거짓말로 산 것이다.
+     */
+    parsing: false,
     // 겹친 점을 전부 세우지 않는다. 기본 모드(`point`)는 커서 아래의 모든 점을 모은다.
     interaction: { mode: 'nearest', intersect: true },
     scales: { x: forAxis(text.x, scales.x), y: forAxis(text.y, scales.y) },

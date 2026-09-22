@@ -578,3 +578,33 @@ describe('산점도의 범례', () => {
     expect(scatterData(series, PAINT).datasets).toHaveLength(1)
   })
 })
+
+/**
+ * 점이 많을 때의 비용 (2026-09-22에 재서 넣었다).
+ *
+ * **`parsing: false`는 꾸밈이 아니라 잰 값이다** — 20만 점에서 다시 그리기가
+ * 1,790ms에서 1,063ms가 됐다. 이 줄을 지우면 상한을 해제한 학생이 창을 흔들 때마다
+ * 그 차이를 그대로 문다. **캔버스 뒤라 눈으로는 안 보이고 검사만 볼 수 있다.**
+ */
+describe('산점도는 파싱을 건너뛴다', () => {
+  const text = { x: 'a', y: 'b', point: () => '' }
+
+  it('우리가 주는 모양이 이미 내부 모양이므로 파싱을 끈다', () => {
+    expect(scatterOptions(PAINT, text, false).parsing).toBe(false)
+  })
+
+  /**
+   * **`normalized`는 안 쓴다.** *"x로 정렬돼 있고 값이 겹치지 않는다"*는 약속인데
+   * 우리 점은 행 순서라 거짓이다 — 200ms를 더 줄이지만 거짓말로 산 것이다.
+   */
+  it('정렬돼 있다고 말하지 않는다', () => {
+    expect(scatterOptions(PAINT, text, false).normalized).toBeUndefined()
+  })
+
+  /** 데이터가 정말 `{x, y}`인가 — 파싱을 끈 전제 그 자체다. */
+  it('점이 x와 y만 든 객체다', () => {
+    const drawn = scatterData([{ name: 'g', points: [{ row: 0, x: 1, y: 2 }] }], PAINT).datasets[0]
+      ?.data
+    expect(drawn).toEqual([{ x: 1, y: 2 }])
+  })
+})
