@@ -12,8 +12,10 @@ import {
   attachmentsOf,
   isPortfolioAnswered,
   portfolioSections,
+  withAttachmentRemoved,
   withImportedSections,
 } from '../src/project/portfolio'
+import { readProject, writeProject, type ProjectFile } from '../src/project/format'
 import { parsePortfolioForm } from '../src/project/portfolio-form'
 import { emptyProjectFile } from './fixtures/project'
 import { axisCellOf, placed } from '../src/data/category-axis'
@@ -62,6 +64,56 @@ describe('A-2 — 문항 id가 프로토타입의 이름이어도 안 선다', (
   it.each(NAMES)('%s — 사진을 물어도 배열이다', (id) => {
     expect(attachmentsOf(portfolioWith(id), id)).toEqual([])
   })
+
+  /**
+   * **사진을 한 장 떼면 나머지가 남는다** (2026-09-23 R37-V, A-2의 이웃).
+   *
+   * 읽는 쪽만 고쳤더니 **쓰는 쪽에 같은 병이 있었다**: `attachments[sectionId] = kept`는
+   * id가 `__proto__`일 때 **own 속성을 안 만들고 프로토타입을 바꾼다.** 그러면 `own()`이
+   * 못 찾아 **그 문항의 사진이 전부 조용히 사라진다** — 학생이 한 장을 뗐는데 넷이 없어진다.
+   */
+  it.each(NAMES)('%s — 한 장을 제거하면 나머지가 남는다', (id) => {
+    const made = portfolioWith(id)
+    const portfolio = {
+      ...made,
+      attachments: { [id]: ['portfolio/attachments/1.webp', 'portfolio/attachments/2.webp'] },
+    }
+
+    const next = withAttachmentRemoved(portfolio, id, 'portfolio/attachments/1.webp')
+    expect(attachmentsOf(next, id)).toEqual(['portfolio/attachments/2.webp'])
+  })
+
+  /**
+   * **나가는 파일에서도 안 사라진다.** `writeProject`가 첨부를 다시 세우는 자리도 같은
+   * 색인 대입이었다 — 거기서 사라지면 **제출된 `.mlpx`에 사진이 없다.**
+   *
+   * **`__proto__`는 빼고 넷만 잰다.** 재고 나서 빼는 것이다(2026-09-23): 계산된 열쇠를 쓴
+   * 리터럴은 own 속성을 만들고 `JSON` 왕복도 그것을 지키는데, **`zod`의 `z.record` 파스가
+   * 색인 대입으로 레코드를 다시 세워 거기서 사라진다.** 라이브러리 안이라 우리 코드로는
+   * 못 막는다. 문에서 막을지는 `open-decisions.md` 49가 갖는다 — 지금은 **크래시는 없고
+   * 그 하나만 저장이 안 된다.**
+   */
+  it.each(NAMES.filter((name) => name !== '__proto__'))(
+    '%s — 저장하고 열어도 사진이 남는다',
+    async (id) => {
+      const made = portfolioWith(id)
+      const base = emptyProjectFile()
+      const file: ProjectFile = {
+        ...base,
+        document: {
+          ...base.document,
+          portfolio: { ...made, attachments: { [id]: ['portfolio/attachments/1.webp'] } },
+        },
+        attachments: new Map([['portfolio/attachments/1.webp', new Uint8Array([1, 2, 3])]]),
+      }
+
+      const { blob } = await writeProject(file, '# 포트폴리오\n')
+      const reopened = await readProject(new Uint8Array(await blob.arrayBuffer()))
+      expect(attachmentsOf(reopened.project.document.portfolio, id)).toEqual([
+        'portfolio/attachments/1.webp',
+      ])
+    },
+  )
 
   /** 진짜로 담긴 값은 그대로 읽힌다 — 고침이 정상 경로를 안 막았다. */
   it('own 속성은 그대로 읽는다', () => {
@@ -117,5 +169,23 @@ describe('A-3 — 범주 축의 툴팁이 흩뿌린 수를 말하지 않는다',
   /** 수치 축은 되돌리지 않는다 — 없는 반올림을 넣으면 그쪽이 거짓말한다. */
   it('수치 축은 값을 그대로 말한다', () => {
     expect(axisCellOf(undefined, 1.02)).toEqual({ kind: 'number', value: 1.02 })
+  })
+
+  /**
+   * **값이 없는 칸은 수가 아니다** (2026-09-23 R37-V §3.3). 이 갈래를
+   * `{ kind: 'number', value: 0 }`으로 바꿔도 **전체 스위트가 조용했다** — 두 뜻을 한
+   * 이름에 합친 판단은 그대로 두고(화면 둘 다 `없음`을 적는다), **무검사인 것만 닫는다.**
+   *
+   * 조용하면 무슨 일이 나는가: 결측치가 `0`으로 읽혀 **툴팁이 첫 범주의 이름을 말한다** —
+   * 빈 칸이 `남`이 된다.
+   */
+  it('값이 없으면 수로 읽지 않는다', () => {
+    expect(axisCellOf(['남', '여'], null)).toEqual({ kind: 'unknownCategory' })
+    expect(axisCellOf(undefined, null)).toEqual({ kind: 'unknownCategory' })
+  })
+
+  /** 범주 축인데 그 번호에 이름이 없는 경우도 같은 칸이다 — 합친 뜻의 다른 쪽. */
+  it('범주 번호에 이름이 없으면 같은 칸을 준다', () => {
+    expect(axisCellOf(['남', '여'], 7)).toEqual({ kind: 'unknownCategory' })
   })
 })

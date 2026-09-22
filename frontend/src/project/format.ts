@@ -555,14 +555,20 @@ export function detachMissingAttachments(
   document: ProjectDocument,
   present: ReadonlyMap<string, Uint8Array>,
 ): ProjectDocument {
-  const attachments: Record<string, string[]> = {}
+  /**
+   * **쌓아서 한 번에 만든다** (2026-09-23 R37-V, A-2의 이웃). `attachments[sectionId] = kept`는
+   * id가 `__proto__`일 때 **own 속성을 안 만들고 프로토타입을 바꾼다** — 그러면 그 문항의
+   * 사진이 **나가는 `.mlpx`에서 조용히 사라진다.** `Object.fromEntries`는 언제나 own이다.
+   */
+  const entries: [string, string[]][] = []
   let missing = false
   for (const [sectionId, paths] of Object.entries(document.portfolio.attachments)) {
     const kept = paths.filter((path) => present.has(path))
     if (kept.length !== paths.length) missing = true
     // 마지막 한 장이 없어지면 그 문항의 자리도 없앤다 (withAttachmentRemoved와 같다).
-    if (kept.length > 0) attachments[sectionId] = kept
+    if (kept.length > 0) entries.push([sectionId, kept])
   }
+  const attachments = Object.fromEntries(entries)
   if (!missing) return document
   return { ...document, portfolio: { ...document.portfolio, attachments } }
 }

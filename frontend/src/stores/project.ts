@@ -42,6 +42,19 @@ import { useToastStore } from './toasts'
 export type ProjectRevision = (current: ProjectFile) => ProjectFile
 
 /**
+ * `open()`이 말하는 세 갈래 (2026-09-23 R37-V C-1).
+ *
+ * **`boolean`으로는 둘이 겹쳤다.** `취소당함`과 `못 열었음`이 같은 `false`라, 라우터가
+ * 취소를 실패로 읽고 **학생이 [점검]을 눌렀는데 목록으로 리다이렉트했다**(실측: 누른 곳
+ * `inspect`, 선 곳 `projects`). 취소는 **학생이 이미 다른 데로 가고 있다**는 뜻이므로
+ * 이동을 덮어쓰면 안 된다.
+ *
+ * 안에서는 이 축을 이미 갈라 쓰고 있었다(취소면 *"다른 탭에서 열려 있습니다"*를 안 띄운다).
+ * **밖으로 한 칸 내보낸 것이 전부다.** `tests/project-open-cancel.spec.ts`가 문다.
+ */
+export type OpenOutcome = 'opened' | 'failed' | 'cancelled'
+
+/**
  * 파일에서 사실들을 뽑는다. **순수 함수라 스토어 없이 테스트한다.**
  *
  * 스키마를 아는 것은 여기까지다. steps.ts는 결과인 불리언들만 보고, 체크리스트와
@@ -126,9 +139,9 @@ export const useProjectStore = defineStore('project', () => {
    * 라우터 가드가 화면 전환마다 부르므로, 같은 프로젝트 안에서 단계를 옮길 때
    * 매번 IndexedDB를 다시 읽으면 안 된다.
    */
-  async function open(id: string): Promise<boolean> {
+  async function open(id: string): Promise<OpenOutcome> {
     if (projectId.value === id) {
-      return true
+      return 'opened'
     }
     /**
      * **이 열기가 아직 유효한가를 재는 표** (2026-09-22 R37 A-1).
@@ -154,13 +167,14 @@ export const useProjectStore = defineStore('project', () => {
          * 돌려주는데, 취소는 **학생이 방금 다른 데로 간 것**이라 알릴 일이 아니다 —
          * 아무도 안 쥐었는데 *"다른 탭에서 열려 있습니다"*가 뜬다.
          */
-        if (!stale()) useToastStore().pushError(new ClientError('PROJECT_OPEN_ELSEWHERE'))
-        return false
+        if (stale()) return 'cancelled'
+        useToastStore().pushError(new ClientError('PROJECT_OPEN_ELSEWHERE'))
+        return 'failed'
       }
       // 잡고 보니 이미 닫으라는 말이 왔으면 들고 있을 이유가 없다.
       if (stale()) {
         releaseTabLock()
-        return false
+        return 'cancelled'
       }
       // **못 읽는 것은 없는 것과 다르다** (architecture.md §8.10.2). 형식이 바뀐 뒤의
       // 옛 레코드나 손상된 레코드가 여기서 던지는데, 그대로 두면 렌더 중 예외가 되어
@@ -172,13 +186,13 @@ export const useProjectStore = defineStore('project', () => {
       // 못 열었으면 잠금도 놓는다 - 안 열린 프로젝트를 쥔 채로 두면 다른 탭까지 막는다.
       if (loaded === null) releaseTabLock()
       // **읽는 동안 닫혔으면 되살리지 않는다.** 잠금은 `close()`가 이미 놓았다.
-      if (stale()) return false
+      if (stale()) return 'cancelled'
       file.value = loaded
       // 열린 직후는 방금 읽은 그대로이므로 저장된 상태다.
       dirty.value = false
       savedAt.value = loaded === null ? null : loaded.document.manifest.updatedAt
       exportedAt.value = loaded === null ? null : await readExportedAt(id)
-      return loaded !== null
+      return loaded === null ? 'failed' : 'opened'
     } finally {
       opening.value = false
     }

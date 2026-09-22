@@ -325,9 +325,18 @@ export function withAttachmentRemoved(
 ): Portfolio {
   const kept = attachmentsOf(portfolio, sectionId).filter((one) => one !== path)
   const attachments = { ...portfolio.attachments }
-  if (kept.length === 0) delete attachments[sectionId]
-  else attachments[sectionId] = kept
-  return { ...portfolio, attachments }
+  delete attachments[sectionId]
+  /**
+   * **색인 대입이 아니라 리터럴로 담는다** (2026-09-23 R37-V, A-2의 이웃).
+   *
+   * `attachments[sectionId] = kept`는 id가 `__proto__`일 때 **own 속성을 안 만들고
+   * 프로토타입을 바꾼다.** 그러면 `own()`이 못 찾아 **그 문항의 사진이 전부 조용히
+   * 사라진다.** 계산된 열쇠를 쓴 객체 리터럴은 언제나 own 속성을 만든다.
+   */
+  return {
+    ...portfolio,
+    attachments: kept.length === 0 ? attachments : { ...attachments, [sectionId]: kept },
+  }
 }
 
 /**

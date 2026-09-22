@@ -191,7 +191,10 @@ function onPicked(): void {
 
 function setAnswer(id: string, text: string, element: HTMLTextAreaElement): void {
   apply(withAnswer(portfolio.value, id, text), () => {
-    element.value = portfolio.value.answers[id] ?? ''
+    // **색인으로 직접 읽지 않는다** (2026-09-23 R37-V §2.2). 문항 id가 `constructor`면
+    // `?? ''`가 안 걸리고 **함수가 칸에 들어간다.** `sections`는 `own()`을 지나므로
+    // 아래 형제 둘(`setTitle`·`setDescription`)과 같은 관용구가 곧 처방이다.
+    element.value = sections.value.find((section) => section.id === id)?.answer ?? ''
     // 되돌리면 글이 짧아진다. 값만 되돌리고 높이를 두면 칸이 늘어난 채로 남는다.
     growToFit(element)
   })

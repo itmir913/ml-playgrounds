@@ -44,7 +44,7 @@ describe('열기', () => {
     acquireTabLock.mockResolvedValue(false)
     const project = useProjectStore()
 
-    expect(await project.open('p-1')).toBe(false)
+    expect(await project.open('p-1')).toBe('failed')
 
     // 읽기 자체가 시작되면 안 된다 — 반쯤 연 상태가 자동 저장을 물고 들어온다.
     expect(loadProject).not.toHaveBeenCalled()
@@ -59,7 +59,7 @@ describe('열기', () => {
     loadProject.mockResolvedValue(null)
     const project = useProjectStore()
 
-    expect(await project.open('p-1')).toBe(false)
+    expect(await project.open('p-1')).toBe('failed')
     expect(releaseTabLock).toHaveBeenCalledTimes(1)
   })
 
@@ -68,7 +68,7 @@ describe('열기', () => {
     loadProject.mockRejectedValue(new Error('broken record'))
     const project = useProjectStore()
 
-    expect(await project.open('p-1')).toBe(false)
+    expect(await project.open('p-1')).toBe('failed')
     expect(releaseTabLock).toHaveBeenCalledTimes(1)
   })
 })

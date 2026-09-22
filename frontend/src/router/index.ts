@@ -133,7 +133,17 @@ router.beforeEach(async (to) => {
     return true
   }
 
-  if (!(await project.open(projectId))) {
+  const outcome = await project.open(projectId)
+  /**
+   * **취소는 중단이지 리다이렉트가 아니다** (2026-09-23 R37-V C-1).
+   *
+   * 취소는 **이 열기가 도는 동안 학생이 이미 다른 데로 갔다**는 뜻이다(`close()`나 다음
+   * 열기가 세대 번호를 올렸다). 그때 목록으로 돌리면 **학생이 누른 [점검] 대신 목록이
+   * 선다** — 실측으로 그렇게 섰다. 새 이동이 이미 가려는 곳으로 가고 있으니 이 이동은
+   * 조용히 접는다.
+   */
+  if (outcome === 'cancelled') return false
+  if (outcome === 'failed') {
     return { name: ROUTE_PROJECTS }
   }
 
