@@ -18,6 +18,11 @@
  * 답하고 있다** — 이름을 다 적고 나서야 "파일 이름이 됩니다"를 만난다. 그리고 축을
  * 고르는 칸(`AppChoices`)은 그 한 줄이 위에 있어서, 나란히 선 두 칸의 순서가 서로
  * 달랐다.
+ *
+ * **`#under-label`은 그 입력을 켜고 끄는 것의 자리다** (2026-09-22, 코드 소유자).
+ * 히스토그램의 `자동으로 설정하기`처럼 **이름이 가리키는 것을 무엇이 정하는가**를 묻는
+ * 스위치는 이름 바로 아래여야 한다 — 입력 아래에 두면 학생이 칸을 먼저 만나고,
+ * 도움말 위에 따로 세우면 어느 칸의 스위치인지 알 수 없다.
  */
 
 import { computed, useId } from 'vue'
@@ -38,6 +43,8 @@ const note = computed(() => props.error ?? props.hint)
 <template>
   <div class="flex flex-col gap-1.5">
     <label :for="inputId" class="text-base font-bold text-ink-soft">{{ label }}</label>
+
+    <slot name="under-label" />
 
     <p
       v-if="note !== undefined"

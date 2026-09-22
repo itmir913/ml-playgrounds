@@ -260,7 +260,7 @@
         "point": "{range} · {count}개",
         "capped": "구간이 너무 많아 {count}개로 줄였습니다.",
         "binCount": "구간 수(bins)",
-        "binAuto": "자동으로 정하기",
+        "binAuto": "자동으로 설정하기",
         "binRange": "{min} ~ {max} 사이의 정수",
         "binInvalid": "그릴 수 없는 값입니다. {min} ~ {max} 사이의 정수를 입력해 주세요.",
         "binApply": "적용",

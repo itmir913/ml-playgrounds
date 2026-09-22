@@ -133,11 +133,6 @@ const options = computed(() =>
   <div class="flex min-h-0 flex-1 flex-col gap-3">
     <!-- **설정은 창이 내준 자리로 보낸다** (§8.9.1). `BoxChart`·`ScatterChart`와 같은 규칙이다. -->
     <Teleport :to="controls" :disabled="controls === null">
-      <label class="flex items-center gap-2 font-bold text-ink-soft">
-        <input v-model="auto" type="checkbox" class="size-5 accent-brand" />
-        {{ t('data.charts.histogram.binAuto') }}
-      </label>
-
       <!--
         **자동일 때는 `readonly`이지 `disabled`가 아니다** (§8.9.1.1). 이 숫자는 꾸밈이
         아니라 **numpy가 고른 값**이고 학생이 파이썬에 옮겨 적을 수다 — `disabled`는
@@ -152,27 +147,49 @@ const options = computed(() =>
         :hint="t('data.charts.histogram.binRange', { min: 1, max: HISTOGRAM_BIN_LIMIT })"
         :error="blocked === '' ? undefined : blocked"
       >
+        <!--
+          **스위치는 이름 바로 아래다** (2026-09-22, 코드 소유자가 화면에서 잡았다) —
+          칸이 무엇을 담는지 읽은 직후에 *"그 수를 누가 정하는가"*가 온다.
+        -->
+        <template #under-label>
+          <label class="flex items-center gap-2 text-ink">
+            <input v-model="auto" type="checkbox" class="size-5 accent-brand" />
+            {{ t('data.charts.histogram.binAuto') }}
+          </label>
+        </template>
+
+        <!--
+          **[적용]은 칸과 한 줄이다** (2026-09-22, 코드 소유자가 화면에서 잡았다).
+          아래로 세웠더니 좁은 화면에서 **단추를 보려면 굴려야 했다** — 칸을 고치고
+          바로 누르는 자리라 함께 보여야 한다.
+
+          **자동일 때는 단추 자체가 없다** (§8.9.1.1). 고칠 것이 없는데 회색으로 세워
+          두면 *"왜 못 누르나"*를 또 설명해야 한다.
+        -->
         <template #default="field">
-          <input
-            v-bind="field"
-            v-model.number="draft"
-            type="number"
-            class="w-full min-w-0 rounded-field border border-line-strong bg-surface px-2 py-1.5"
-            :readonly="auto"
-            :min="1"
-            :max="HISTOGRAM_BIN_LIMIT"
-            step="1"
-          />
+          <div class="flex min-w-0 items-center gap-2">
+            <input
+              v-bind="field"
+              v-model.number="draft"
+              type="number"
+              class="w-full min-w-0 rounded-field border border-line-strong bg-surface px-2 py-1.5"
+              :readonly="auto"
+              :min="1"
+              :max="HISTOGRAM_BIN_LIMIT"
+              step="1"
+            />
+            <AppButton
+              v-if="!auto"
+              class="shrink-0"
+              variant="secondary"
+              :disabled="blocked !== ''"
+              @click="apply"
+            >
+              {{ t('data.charts.histogram.binApply') }}
+            </AppButton>
+          </div>
         </template>
       </AppField>
-
-      <!--
-        **[적용]을 눌러야 다시 그린다** (§8.9.1.1). 자동일 때는 고칠 것이 없으므로
-        단추 자체가 없다 — 회색으로 세워 두면 *"왜 못 누르나"*를 또 설명해야 한다.
-      -->
-      <AppButton v-if="!auto" variant="secondary" :disabled="blocked !== ''" @click="apply">
-        {{ t('data.charts.histogram.binApply') }}
-      </AppButton>
     </Teleport>
 
     <ChartFrame
