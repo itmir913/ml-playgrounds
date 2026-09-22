@@ -35,7 +35,7 @@ import { ACTION_ICONS, STEP_ICONS } from '@/icons'
 import { experimentPreprocessor } from '@/ml/preprocess'
 import { experimentOrder } from '@/ml/results'
 import { readDataset, readTestDataset } from '@/project/dataset'
-import { MLPX_EXTENSION } from '@/project/format'
+import { MLPX_ACCEPT } from '@/project/format'
 import { downloadBlob } from '@/project/download'
 import { bundleOf, type BundleEntry } from '@/project/portfolio-bundle'
 import {
@@ -47,6 +47,7 @@ import {
   type RosterItem,
   type RosterSort,
 } from '@/project/roster'
+import { useToastStore } from '@/stores/toasts'
 import IntegrityPanel from './inspect/IntegrityPanel.vue'
 import PortfolioPanel from './inspect/PortfolioPanel.vue'
 import SameProjectPanel from './inspect/SameProjectPanel.vue'
@@ -57,6 +58,7 @@ import ExperimentList from './results/ExperimentList.vue'
 
 const { t, locale } = useI18n()
 const roster = useRoster()
+const toasts = useToastStore()
 /**
  * **떠날 때 도는 것을 끊고 끝났다고 표시한다** (`useWork`). 이 화면은 묶음을 굽는 일을
  * 들고 있고 그 뒤에 `alive()`를 묻는데, `retire`를 안 걸면 **그 값이 영영 참이라 가드가
@@ -116,8 +118,27 @@ const descending = ref(false)
  */
 function pick(event: Event): void {
   const input = event.target as HTMLInputElement
-  const picked = rosterOf([...(input.files ?? [])])
+  const files = [...(input.files ?? [])]
   input.value = ''
+  show(files)
+}
+
+/**
+ * 받은 파일들을 명렬로 세운다. **입구 둘이 반드시 여기를 지난다.**
+ *
+ * **하나도 안 남으면 말한다** (결정문 48). 조용히 빈 과녁으로 되돌아가면 놓은 사람은
+ * **아무 일도 안 일어난 것으로 본다** — 아이패드가 내보낸 `프로젝트.mlpx.zip`이 그렇게
+ * 떨어졌고, 원인을 찾는 데 기기 로그를 개발 서버로 끌어와야 했다.
+ *
+ * 부르는 쪽에서 세지 마라. 자리가 둘이 되면 한쪽만 고쳐진다.
+ */
+function show(files: readonly File[]): void {
+  if (files.length === 0) return
+  const picked = rosterOf(files)
+  if (picked.length === 0) {
+    toasts.push('caution', 'inspect.noProjectFiles', { count: files.length })
+    return
+  }
   roster.show(picked)
 }
 
@@ -140,8 +161,7 @@ const dragging = ref(false)
  */
 function onDrop(event: DragEvent): void {
   dragging.value = false
-  const files = [...(event.dataTransfer?.files ?? [])]
-  if (files.length > 0) roster.show(rosterOf(files))
+  show([...(event.dataTransfer?.files ?? [])])
 }
 
 /** 항목이 하나뿐이면 자동으로 고른다. 경로는 같고 누르는 손이 한 번 준다. */
@@ -599,7 +619,7 @@ function reasonOf(code: string): string {
       ref="fileInput"
       type="file"
       multiple
-      :accept="MLPX_EXTENSION"
+      :accept="MLPX_ACCEPT"
       class="hidden"
       @change="pick"
     />

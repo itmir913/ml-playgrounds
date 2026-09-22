@@ -34,6 +34,56 @@ import type { Manifest, ModelOmissionReason, ModelRef, ProjectDocument } from '.
 /** 프로젝트 파일의 확장자. 코드 안에서 '.mlpx'를 직접 쓰지 마라. */
 export const MLPX_EXTENSION = '.mlpx'
 
+/**
+ * 내보내는 `Blob`에 적는 종류.
+ *
+ * **`application/zip`이 아니다.** 실체는 zip이라 그쪽이 더 정확한데, **iOS 사파리는
+ * 종류가 말하는 확장자를 이름에 덧붙인다** — `비올까.mlpx`가 `비올까.mlpx.zip`으로
+ * 저장됐다(아이패드 iOS 18.7·아이폰, 2026-09-23 실측). 그 이름이 다시 파일 앱의
+ * 압축 해제를 부르면 **제출물이 폴더로 흩어진다.**
+ *
+ * **바꾼 뒤 아이패드에서 재니 `.zip`이 안 붙고 `비올까.mlpx`로 저장된다**
+ * (iOS 18.7, 2026-09-23). **사람 확인이다** — 검사는 브라우저의 저장 동작을 못 본다.
+ * 그래도 **붙은 이름은 계속 받는다**(`isProjectFileName`) — 이미 기기에 저장된 파일은
+ * 이름이 안 바뀐다. 결정문은 `open-decisions.md` 48.
+ */
+export const MLPX_MIME = 'application/octet-stream'
+
+/**
+ * 사파리가 덧붙이는 꼬리. `비올까.mlpx` → `비올까.mlpx.zip` (결정문 48).
+ *
+ * **관용의 범위는 이것 하나다.** 맨 `.zip`을 받으면 아무 압축 파일이나 들어오고,
+ * 교사가 폴더째 놓을 때 학생이 올린 사진 묶음까지 프로젝트 목록에 뜬다.
+ */
+const SAFARI_SUFFIX = `${MLPX_EXTENSION}.zip`
+
+/**
+ * 파일 고르기 대화상자에 주는 목록.
+ *
+ * **판정과 같은 자리에서 나와야 한다.** 갈리면 **열 수는 있는데 고를 수 없는 파일**이
+ * 생긴다 — 교사의 데스크톱에서는 대화상자가 정말로 걸러 낸다. 거울상(고를 수는 있는데
+ * 안 열리는 파일)은 `rule-coverage.md`에 이미 적혀 있다. `tests/mlpx-name.spec.ts`가
+ * 이 둘이 갈리는 것을 막는다.
+ */
+export const MLPX_ACCEPT = `${MLPX_EXTENSION},${SAFARI_SUFFIX}`
+
+/** 이 이름이 프로젝트 파일인가. 대소문자는 안 본다 — 리눅스에서 `.MLPX`가 만들어진다. */
+export function isProjectFileName(name: string): boolean {
+  const lowered = name.toLowerCase()
+  return lowered.endsWith(MLPX_EXTENSION) || lowered.endsWith(SAFARI_SUFFIX)
+}
+
+/**
+ * 확장자를 제거한 이름. `비올까.mlpx`와 `비올까.mlpx.zip`이 **같은 것을 준다.**
+ *
+ * 프로젝트 파일이 아닌 이름은 그대로 돌려준다 — 여기서 거르지 않는다.
+ */
+export function withoutProjectExtension(name: string): string {
+  if (!isProjectFileName(name)) return name
+  const tail = name.toLowerCase().endsWith(SAFARI_SUFFIX) ? SAFARI_SUFFIX : MLPX_EXTENSION
+  return name.slice(0, -tail.length)
+}
+
 /** zip 안에서 이름이 고정된 엔트리. */
 export const ENTRY = {
   manifest: 'manifest.json',
@@ -385,7 +435,7 @@ async function zipToBlob(entries: Record<string, Uint8Array>): Promise<Blob> {
       parts.push(chunk.slice())
       if (final) {
         settled = true
-        resolve(new Blob(parts as unknown as BlobPart[], { type: 'application/zip' }))
+        resolve(new Blob(parts as unknown as BlobPart[], { type: MLPX_MIME }))
       }
     })
 

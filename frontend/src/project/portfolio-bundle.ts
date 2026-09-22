@@ -14,7 +14,7 @@
 
 import { zipSync } from 'fflate'
 
-import { ENTRY, MLPX_EXTENSION, type ProjectFile } from './format'
+import { ENTRY, type ProjectFile, withoutProjectExtension } from './format'
 import { renderPortfolioMarkdown } from './portfolio'
 import { portfolioMarkdownText, type Translate } from './portfolio-text'
 
@@ -47,10 +47,10 @@ export function folderFor(label: string): string {
     .split(/[\\/]+/)
     .filter((part) => part !== '' && part !== '.' && part !== '..')
     .join('/')
-  // 확장자는 뗀다 - 폴더 이름에 `.mlpx`가 붙어 있으면 푸는 쪽에서 파일로 보인다.
-  return cleaned.toLowerCase().endsWith(MLPX_EXTENSION)
-    ? cleaned.slice(0, -MLPX_EXTENSION.length)
-    : cleaned
+  // 확장자는 제거한다 - 폴더 이름에 `.mlpx`가 붙어 있으면 푸는 쪽에서 파일로 보인다.
+  // **사파리가 붙인 `.mlpx.zip`도 같은 폴더가 된다** (결정문 48) - 같은 프로젝트를
+  // 두 기기에서 내보낸 것이 폴더 둘로 갈리면 교사가 같은 학생을 두 번 본다.
+  return withoutProjectExtension(cleaned)
 }
 
 /**

@@ -7,6 +7,7 @@
  */
 
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { createPinia, getActivePinia, setActivePinia } from 'pinia'
 
 import { i18n } from '../../src/i18n'
 import InspectView from '../../src/views/InspectView.vue'
@@ -88,8 +89,19 @@ function fillScrollIntoView(): void {
   }
 }
 
-/** 점검 화면을 띄우고 명렬을 세운다. */
+/**
+ * 점검 화면을 띄우고 명렬을 세운다.
+ *
+ * **스토어가 없으면 세운다.** 화면이 알림 스토어를 쓰므로(하나도 못 받았을 때 말한다,
+ * 결정문 48) 없으면 C:/Program Files/Git on / type ntfs (binary,noacl,auto)
+C:/Program Files/Git/usr/bin on /bin type ntfs (binary,noacl,auto)
+C:/Users/user/AppData/Local/Temp on /tmp type ntfs (binary,noacl,posix=0,usertemp)
+C: on /c type ntfs (binary,noacl,posix=0,user,noumount,auto)
+D: on /d type cryptofs (binary,noacl,posix=0,user,noumount,auto)가 setup에서 선다. **스스로 세우지 않은 것은 안 건드린다** —
+ * 부르는 쪽이 이미 세워 둔 것을 덮으면 그 스펙이 심어 둔 상태가 사라진다.
+ */
 export async function mountInspect(files: File[]): Promise<VueWrapper> {
+  if (getActivePinia() === undefined) setActivePinia(createPinia())
   fillScrollIntoView()
   const wrapper = mount(InspectView, { global: { plugins: [i18n] } })
   await pickFiles(wrapper, files)

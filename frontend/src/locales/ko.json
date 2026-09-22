@@ -24,6 +24,7 @@
     "reading": "여는 중",
     "unreadable": "파일 열기 실패",
     "pickOne": "위에서 파일을 선택하면 내용이 여기에 나옵니다.",
+    "noProjectFiles": "프로젝트 파일(.mlpx)이 하나도 없어 목록을 세우지 못했습니다. ({count}개)",
     "experiments": "실험(Experiment)",
     "runs": "학습한 모델",
     "file": "파일 이름",

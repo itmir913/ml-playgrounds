@@ -16,6 +16,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { createPinia, setActivePinia } from 'pinia'
 
+import { useToastStore } from '../src/stores/toasts'
+
 import { i18n, setLocale } from '../src/i18n'
 import InspectView from '../src/views/InspectView.vue'
 import { submissionFile } from './fixtures/inspect-screen'
@@ -82,6 +84,33 @@ describe('점검 화면에 파일을 끌어다 놓는다', () => {
 
     await dropFiles(wrapper, [])
     expect(wrapper.text()).toContain('가온.mlpx')
+  })
+
+  /**
+   * **사파리가 붙인 이름도 선다** (결정문 48). 아이패드가 `가온.mlpx`를 `가온.mlpx.zip`으로
+   * 저장하는데, 그것이 조용히 떨어져 **점검 화면이 제출물을 안 열었다.**
+   */
+  it('사파리가 붙인 .mlpx.zip도 명렬에 들어간다', async () => {
+    fillScrollIntoView()
+    const wrapper = mount(InspectView, { global: { plugins: [i18n] } })
+
+    await dropFiles(wrapper, [await submissionFile('가온.mlpx.zip')])
+    expect(wrapper.text()).toContain('가온.mlpx.zip')
+  })
+
+  /**
+   * **하나도 안 맞으면 말한다.** 조용히 빈 과녁으로 되돌아가면 놓은 사람은 **아무 일도
+   * 안 일어난 것으로 본다** — 오늘 원인을 찾는 데 기기 로그를 끌어와야 했던 이유다.
+   */
+  it('프로젝트 파일이 하나도 없으면 알린다', async () => {
+    fillScrollIntoView()
+    const wrapper = mount(InspectView, { global: { plugins: [i18n] } })
+
+    await dropFiles(wrapper, [new File([new Uint8Array([1, 2, 3])], '사진.zip')])
+    expect(useToastStore().items.length).toBe(1)
+    expect(useToastStore().items[0]?.key).toBe('inspect.noProjectFiles')
+    // **빈 상태는 그대로다** — 못 받았으므로 명렬로 넘어가지 않는다.
+    expect(wrapper.text()).toContain('선택한 파일이 없습니다')
   })
 
   /**

@@ -24,6 +24,7 @@
     "reading": "Opening",
     "unreadable": "Failed to open",
     "pickOne": "Choose a file above and its contents appear here.",
+    "noProjectFiles": "No project file (.mlpx) was found, so the list could not be built. ({count} files)",
     "experiments": "Experiments",
     "runs": "Trained models",
     "file": "File name",

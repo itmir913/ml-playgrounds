@@ -11,7 +11,7 @@
  */
 
 import type { ClientErrorCode } from '../errors'
-import { MLPX_EXTENSION } from './format'
+import { isProjectFileName } from './format'
 import type { DataType, ProjectDocument } from './schema'
 
 /** 명렬의 한 줄. **파일 하나가 한 줄이다** — 같은 학생의 파일이 여럿이면 여럿이다. */
@@ -68,12 +68,15 @@ export type RosterSummary =
  * **입구가 둘이어도 여기서 하나가 된다** (open-decisions.md의 같은 제목) — 폴더째든,
  * 여러 개든, 하나든 이 함수를 지난다. 단일 파일용 갈래를 만들지 않는다.
  *
- * - `.mlpx`가 아닌 것은 조용히 지나친다. 폴더에는 별게 다 들어 있다.
+ * - `.mlpx`가 아닌 것은 조용히 지나친다. 폴더에는 별게 다 들어 있다. **사파리가 붙인
+ *   `.mlpx.zip`은 프로젝트로 받는다** (`isProjectFileName`, 결정문 48).
+ * - **하나도 안 남으면 부르는 쪽이 말해야 한다.** 조용히 빈 목록을 주면 놓은 사람은
+ *   아무 일도 안 일어난 것으로 본다 (`InspectView`).
  * - 정렬은 이름순이고, **폴더째면 상대 경로순**이라 반이 묶여 선다.
  */
 export function rosterOf(files: readonly File[]): RosterItem[] {
   return files
-    .filter((file) => labelOf(file).toLowerCase().endsWith(MLPX_EXTENSION))
+    .filter((file) => isProjectFileName(labelOf(file)))
     .map((file) => ({ label: labelOf(file), file }))
     .sort((left, right) => left.label.localeCompare(right.label))
 }
