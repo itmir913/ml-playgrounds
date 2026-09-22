@@ -161,6 +161,24 @@ function db(): Promise<IDBPDatabase<PlaygroundDB>> {
         database.createObjectStore(MODELS_STORE, { keyPath: ['projectId', 'path'] })
       }
     },
+    /**
+     * **다른 탭이 더 새 버전으로 열려고 하면 이 탭이 놓는다** (open-decisions.md 50,
+     * 2026-09-23).
+     *
+     * 안 놓으면 새 탭의 업그레이드가 **끝없이 막힌다** — 이 연결은 한 번 열면 앱이 닫을
+     * 일이 없어서(`closeStorage`는 검사만 부른다) 옛 탭을 열어 둔 학생의 새 탭이 영영 안
+     * 떴다(2026-09-21 R37 B-2 실측: 쥔 채면 1초 안에 안 풀림).
+     *
+     * **알리지 않는다.** 놓은 뒤 이 탭이 저장하려 하면 옛 버전으로 다시 열다 `VersionError`가
+     * 나고, 그것은 아래 `asOpenError`가 `STORAGE_VERSION_TOO_NEW`로 바꾼다 — *"앱을 최신으로
+     * 바꾼 뒤 다시 열어 주세요"*는 옛 탭에 맞는 말이라 문구를 새로 쓰지 않는다.
+     * `tests/storage-upgrade.spec.ts`가 두 끝을 다 문다.
+     */
+    blocking() {
+      const held = connection
+      connection = null
+      void held?.then((database) => database.close())
+    },
   }).catch((error: unknown) => {
     // **실패한 약속을 붙들지 않는다.** 그대로 캐시하면 그 세션의 저장소 접근이 전부
     // 죽고, 되돌린 배포를 다시 올려도 새로고침 전까지 안 산다.

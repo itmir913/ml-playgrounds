@@ -132,19 +132,39 @@ export function quantile(sorted: readonly number[], fraction: number): number {
   return lower + (upper - lower) * (position - Math.floor(position))
 }
 
-function mostFrequent(values: readonly string[]): string {
-  const counts = new Map<string, number>()
+/**
+ * 가장 자주 나온 값. **동점이면 가장 작은 값이다** (open-decisions.md 52, 2026-09-23).
+ *
+ * `SimpleImputer(strategy='most_frequent')`와 같은 규칙이다 — sklearn 1.9.1로 직접 쟀다
+ * (`서울·부산·서울·부산`에서 `부산`, `3·1·3·1`에서 `1`). 전에는 **먼저 나온 값**이 이겼고
+ * (R7 B-7이 그것을 못 박았다), 같은 앱의 KNN 투표는 이미 *"정렬 순서가 앞선 쪽"*이라
+ * **동점 규칙이 둘이었다**(`ml/models/reference.ts`).
+ *
+ * **작다는 것은 부르는 쪽이 정한다.** 문자열로 견주면 `10`이 `9`보다 작아지므로 수치 열은
+ * 수로 견준다. 값이 없으면 `undefined`다.
+ */
+function modeOf<T>(values: readonly T[], smaller: (left: T, right: T) => boolean): T | undefined {
+  const counts = new Map<T, number>()
   for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1)
-  let best = ''
-  let bestCount = -1
-  // 동점이면 먼저 나온 값이 이긴다. Map이 삽입 순서를 지키므로 결정적이다.
+  let best: T | undefined
+  let bestCount = 0
   for (const [value, count] of counts) {
-    if (count > bestCount) {
+    if (count > bestCount || (count === bestCount && best !== undefined && smaller(value, best))) {
       best = value
       bestCount = count
     }
   }
   return best
+}
+
+/** 범주 열의 최빈값. 문자열은 사전순으로 작은 쪽이다 — 파이썬의 `str` 비교와 같다. */
+function mostFrequent(values: readonly string[]): string {
+  return modeOf(values, (left, right) => left < right) ?? ''
+}
+
+/** 수치 열의 최빈값. **수로 견준다.** 비었으면 0이다(전에도 `Number('')`로 0이었다). */
+function mostFrequentNumber(values: readonly number[]): number {
+  return modeOf(values, (left, right) => left < right) ?? 0
 }
 
 /**
@@ -175,9 +195,7 @@ const FILL_BY_STRATEGY: Record<
         )
       : mostFrequent(strings),
   mostFrequent: (numbers, strings, kind) =>
-    kind === 'numeric'
-      ? Number(mostFrequent(numbers.map((value) => String(value))))
-      : mostFrequent(strings),
+    kind === 'numeric' ? mostFrequentNumber(numbers) : mostFrequent(strings),
 }
 
 /**

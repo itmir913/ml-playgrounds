@@ -341,8 +341,10 @@ export function frequencies(cells: readonly string[], maxBars: number): Frequenc
   const distinct = counts.size
   const entries = [...counts.entries()]
 
-  // **동점이면 먼저 나온 값이 이긴다.** Map이 삽입 순서를 지키므로 결정적이다 —
-  // `mostFrequent`(ml/preprocess.ts)가 쓰는 규칙과 같다.
+  // **동점이면 먼저 나온 값이 남는다.** Map이 삽입 순서를 지키고 `sort`가 안정 정렬이라
+  // 결정적이다. **결측 채움의 최빈값과는 다른 규칙이다** (2026-09-23) — 그쪽은 sklearn을
+  // 따라 가장 작은 값이다(open-decisions.md 52). 여기는 막대를 몇 개 남길지 자르는
+  // 자리라 그 결정의 범위 밖이고, 갈리는 것은 **잘리는 경계에 동점이 걸릴 때**뿐이다.
   const kept = new Set(
     [...entries]
       .sort((a, b) => b[1] - a[1])

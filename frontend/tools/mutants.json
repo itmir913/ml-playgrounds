@@ -712,10 +712,10 @@
     },
     {
       "file": "src/ml/preprocess.ts",
-      "find": "      ? Number(mostFrequent(numbers.map((value) => String(value))))",
-      "replace": "      ? (numbers[0] ?? 0)",
-      "expect": "silent",
-      "loses": "학생이 화면에서 고를 수 있는 결측 전략 하나(mostFrequent)를 어느 스펙도 안 고른다 (R36 C-8)",
+      "find": "    kind === 'numeric' ? mostFrequentNumber(numbers) : mostFrequent(strings),",
+      "replace": "    kind === 'numeric' ? (numbers[0] ?? 0) : mostFrequent(strings),",
+      "expect": "cries",
+      "loses": "수치 열의 최빈값이 첫 값으로 바뀐다. 전에는 조용했다(R36 C-8 — mostFrequent를 고르는 스펙이 없었다). 2026-09-23에 전략 표와 수치 동점 판이 서면서 운다(open-decisions.md 52)",
       "expectSpecs": ["tests/preprocess.spec.ts"]
     },
     {
