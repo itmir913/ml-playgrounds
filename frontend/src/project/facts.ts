@@ -12,6 +12,7 @@
 import { MIN_CLASSIFICATION_CATEGORIES } from '@/limits'
 import type { ProjectFile } from '@/project/format'
 import { labeledCategoryCount, readImages } from '@/project/images'
+import { featuresInUse, usesTarget } from '@/ml/selection'
 import { dataSettings, type DataType } from '@/project/schema'
 
 /**
@@ -41,7 +42,13 @@ export const DATA_FACTS: Readonly<Record<DataType, (file: ProjectFile) => DataFa
       // 화면이 알고 싶은 것이 "보여줄 표가 있는가"라서다.
       datasetReady: file.dataset !== undefined,
       targetChosen: data.target !== undefined,
-      featuresChosen: data.features.length > 0,
+      // **학습이 쓰는 것으로 센다** (`open-decisions.md` 55). 특성으로 골라 둔 열을 타깃으로
+      // 고르면 그 이름이 목록에 남는데 학습은 뺀다 — 그것 하나뿐이면 고른 특성이 없는 것이다.
+      featuresChosen:
+        featuresInUse(
+          data.features,
+          usesTarget(file.document.manifest.taskType) ? data.target : undefined,
+        ).length > 0,
     }
   },
   image: (file) => {

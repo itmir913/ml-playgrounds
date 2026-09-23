@@ -51,7 +51,14 @@ import {
 import { estimatedFeatureWidth } from '@/ml/preprocess'
 import { trainableRowsOf } from '@/ml/training-source'
 import { isBrowserRuntimeId, type EngineState, type RuntimeContext } from '@/ml/backend'
-import { algorithmsLosingMeaning, requiredTargetKind, type ChosenModel } from '@/ml/selection'
+import {
+  byChosenRow,
+  chosenModelBlocks,
+  featuresInUse,
+  requiredTargetKind,
+  usesTarget,
+  type ChosenModel,
+} from '@/ml/selection'
 import { algorithmSelectionFor, runtimeContextFor, trainingSourceOf } from '@/ml/training-source'
 import { failedRuns } from '@/ml/results'
 import { addEmbeddings } from '@/project/embeddings'
@@ -224,6 +231,24 @@ const chosen = computed<ChosenModel[]>(() => {
 })
 
 /**
+ * 줄마다 지금 학습에 못 들어가는 이유. **자리가 `chosen`과 같다** (`ml/selection.ts`의
+ * `chosenModelBlocks`). 유형을 바꿔도 줄을 지우지 않고 여기서 잠근다 (`open-decisions.md` 55).
+ */
+const chosenBlocks = computed(() =>
+  chosen.value.map((row) => chosenModelBlocks(row, project.taskType)),
+)
+
+/**
+ * 학습이 보내는 상태를 **줄 자리로** 옮긴다 (`ml/selection.ts`의 `byChosenRow`). 도는
+ * 동안에는 목록과 유형이 잠기므로(`working`) 짝이 흔들리지 않는다.
+ */
+const rowStatuses = computed(() => {
+  const sent = training.statuses.value
+  return sent.length === 0 ? [] : byChosenRow(chosenBlocks.value, sent)
+})
+const rowStartedAt = computed(() => byChosenRow(chosenBlocks.value, training.startedAt.value))
+
+/**
  * **이 기기가 개발 PC보다 몇 배 느린가** (open-decisions.md "언제 재는가").
  *
  * 화면이 뜨자마자 워커에서 잰다. **[추가]를 누르기까지 몇 초가 있으므로** 예상이 필요한
@@ -257,7 +282,10 @@ onMounted(() => {
 const featureWidth = computed(() => {
   const data = project.file ? tabularDataOf(project.file.document) : null
   if (!data) return 0
-  return estimatedFeatureWidth(columns.value, data.features, data.preprocessing.categoricalEncoding)
+  // **학습이 쓰는 특성으로 센다** — 타깃과 같은 이름은 계획이 빼므로 여기서도 뺀다
+  // (`open-decisions.md` 55, `featuresInUse`).
+  const used = featuresInUse(data.features, usesTarget(project.taskType) ? data.target : undefined)
+  return estimatedFeatureWidth(columns.value, used, data.preprocessing.categoricalEncoding)
 })
 
 /** 학습에 실제로 들어가는 행 수. **시험 몫을 뺀 것이다.** */
@@ -333,33 +361,16 @@ function now(): string {
 /**
  * 기계학습 유형을 바꾼다.
  *
- * **뜻을 잃은 모델 선택은 지우고 알린다.** 데이터를 바꿀 때 없어진 열을 선택에서 빼는
- * 것과 같은 처리다(`project/dataset.ts`). 조용히 지우면 학생은 자기가 골라 둔 것이
- * 사라진 줄 모르고, 남겨 두면 [학습하기]에서 실패한 run으로 만난다.
+ * **다른 것은 아무것도 안 건드린다** (`open-decisions.md` 55 *"끄지 않고 잠근다"*). 전에는
+ * 뜻을 잃은 모델 선택을 지우고 알렸는데, **유형을 되돌려도 안 돌아와** 학생이 다시 담아야
+ * 했다. 이제 그 줄은 목록에 남아 이유와 함께 잠기고(`chosenBlocks`), 학습에는
+ * `trainingSourceOf`가 거른 것만 간다. 층화도 같은 규칙이다 — 학습이 무시하고 전처리
+ * 화면이 잠근다.
  */
 function pickTaskType(taskType: TaskType): void {
   const file = project.file
   if (!file || file.document.manifest.taskType === taskType) return
-
-  const dropped = algorithmsLosingMeaning(file.document.settings.selectedAlgorithms, taskType)
-  const changed = withTaskType(file.document, taskType, dropped, now())
-
-  /**
-   * **층화는 안 건드린다** (`open-decisions.md` "값을 내리지 않는다. 학습이 무시하고
-   * 화면이 잠근다"). 전에는 회귀로 바꿀 때 값을 내렸는데, **분류로 되돌려도 안
-   * 돌아와서** 학생이 전처리 화면까지 다시 걸어가야 했다. 뜻이 없는 동안은 학습이
-   * 무시하고(`ml/plan.ts`) 전처리 화면이 잠근다.
-   *
-   * **모델 선택과는 처리가 다르다.** 뜻을 잃은 모델은 지우고 알린다 — 그쪽은 무시할
-   * 자리가 없다: 목록에 남아 있으면 학습이 실패한 run으로 만든다.
-   */
-  apply(changed)
-
-  if (dropped.length > 0) {
-    toasts.push('caution', 'train.taskChanged', {
-      names: dropped.map((id) => t(`algorithms.${id}`)).join(', '),
-    })
-  }
+  apply(withTaskType(file.document, taskType, now()))
 }
 
 /**
@@ -498,8 +509,19 @@ onBeforeUnmount(() => {
  */
 const working = computed(() => training.running.value || preparing.value !== null || starting.value)
 
-/** 추가한 모델이 없으면 돌릴 것이 없다. 나머지 실패는 학습이 사유와 함께 돌려준다. */
-const nothingToTrain = computed(() => chosen.value.length === 0)
+/**
+ * [학습하기]를 누를 수 없는 이유. **없으면 `null`이다** (architecture.md §10).
+ *
+ * 둘을 가른다 — 담은 모델이 없는 것과, 담았는데 **전부 지금 유형에 안 맞는 것**
+ * (`open-decisions.md` 55). 뒤엣것에 *"아직 추가한 모델이 없어"*라고 말하면 목록에 줄이
+ * 보이는 학생에게 거짓말이다. 나머지 실패는 학습이 사유와 함께 돌려준다.
+ */
+const trainBlock = computed<'train.nothingToTrain' | 'train.nothingTrainable' | null>(() => {
+  if (chosen.value.length === 0) return 'train.nothingToTrain'
+  if (chosenBlocks.value.every((blocks) => blocks.length > 0)) return 'train.nothingTrainable'
+  return null
+})
+const nothingToTrain = computed(() => trainBlock.value !== null)
 
 /**
  * 학습을 한 번 돌린다. **`AppButton`의 `action`으로 준다** — 도는 동안 버튼이 스스로
@@ -727,8 +749,8 @@ function leave(): void {
           {{ progressText }}
         </p>
         <!-- 이유 없이 꺼진 버튼은 학생에게 고장으로 보인다. -->
-        <p v-else-if="nothingToTrain" class="min-w-0 text-ink-soft">
-          {{ t('train.nothingToTrain') }}
+        <p v-else-if="trainBlock" class="min-w-0 text-ink-soft">
+          {{ t(trainBlock) }}
         </p>
 
         <!--
@@ -875,9 +897,10 @@ function leave(): void {
           <ChosenModels
             :chosen="chosen"
             :values="settings.hyperparameters"
-            :statuses="training.statuses.value"
+            :blocks="chosenBlocks"
+            :statuses="rowStatuses"
             :estimates="estimates"
-            :started-at="training.startedAt.value"
+            :started-at="rowStartedAt"
             :now="training.now.value"
             :running="working"
             @remove="removeModel"

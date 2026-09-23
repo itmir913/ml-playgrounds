@@ -1,9 +1,10 @@
 /**
  * `settings.json`을 고치는 순수 함수들.
  *
- * **여기가 막는 것은 조용히 틀린 학습이다.** "타깃으로 고른 열은 특성에서 빠진다"가
- * 안 지켜지면 정답이 문제에 함께 들어가 정확도가 1.0으로 나오고, 학생은 아주 좋은
- * 모델을 만들었다고 믿는다. 화면으로는 눈에 안 띈다 — 체크박스 하나가 켜져 있을 뿐이다.
+ * **여기가 막는 것은 문 하나가 다른 필드를 고쳐 쓰는 것이다** (`open-decisions.md` 55
+ * *"끄지 않고 잠근다"*). 유형이 모델 선택을 지우고 타깃이 특성 목록을 고치던 것이 여기
+ * 있었다. **정답이 특성에 들어가는 것(정확도 1.0)은 이제 `plan.spec.ts`가 막는다** — 막는
+ * 자리가 학습 계획 하나로 옮겼다.
  *
  * 결과가 스키마를 통과하는지도 함께 본다. 이 층의 산출물이 곧 `.mlpx`다.
  */
@@ -58,20 +59,35 @@ describe('고친 시각을 남긴다', () => {
   it('설정을 고치면 updatedAt이 따라 움직인다', () => {
     // 목록 화면이 이 값으로 정렬한다. 안 찍히면 방금 만진 프로젝트가 아래에 남는다.
     expect(withFeatures(base(), ['키'], NOW).manifest.updatedAt).toBe(NOW)
-    expect(withTaskType(base(), 'regression', [], NOW).manifest.updatedAt).toBe(NOW)
+    expect(withTaskType(base(), 'regression', NOW).manifest.updatedAt).toBe(NOW)
   })
 })
 
-describe('타깃과 특성은 겹치지 않는다', () => {
-  it('타깃으로 고른 열은 특성에서 빠진다', () => {
-    const next = withTarget(chosen(), '품종', NOW)
+/**
+ * **타깃을 고르는 문은 특성 목록을 안 건드린다** (`open-decisions.md` 55 *"끄지 않고
+ * 잠근다"*). 전에는 고른 열을 특성에서 뺐고, 타깃을 다른 열로 바꿔도 **그 열이 특성으로 안
+ * 돌아왔다.** 정답이 문제에 들어가는 것은 이제 학습 계획이 막는다 — `plan.spec.ts`의
+ * *"타깃과 같은 이름은 특성에서 빠진다"*가 그 자리다.
+ */
+describe('타깃과 특성은 서로를 고쳐 쓰지 않는다', () => {
+  it('타깃으로 골라도 특성 목록은 그대로다', () => {
+    const before = chosen()
+    const next = withTarget(before, '품종', NOW)
     expect(next.settings.data.target).toBe('품종')
-    expect(next.settings.data.features).toEqual(['꽃받침길이', '꽃잎길이'])
+    expect(next.settings.data.features).toEqual(before.settings.data.features)
   })
 
-  it('특성 목록에 타깃을 넣어도 안 들어간다', () => {
-    const next = withFeatures(withTarget(base(), '품종', NOW), ['꽃잎길이', '품종'], NOW)
-    expect(next.settings.data.features).toEqual(['꽃잎길이'])
+  it('타깃을 다른 열로 옮기면 특성으로 골라 두었던 것이 그대로 살아 있다', () => {
+    const withLength = withFeatures(base(), ['꽃잎길이', '품종'], NOW)
+    const asTarget = withTarget(withLength, '품종', NOW)
+    const moved = withTarget(asTarget, '꽃받침길이', NOW)
+    expect(moved.settings.data.features).toEqual(['꽃잎길이', '품종'])
+  })
+
+  it('특성 하나를 켜고 꺼도 타깃과 같은 이름이 목록에서 사라지지 않는다', () => {
+    const start = withTarget(withFeatures(base(), ['꽃잎길이', '품종'], NOW), '품종', NOW)
+    const next = withFeatures(start, ['꽃잎길이', '품종', '꽃받침길이'], NOW)
+    expect(next.settings.data.features).toEqual(['꽃잎길이', '품종', '꽃받침길이'])
   })
 
   it('타깃을 지우면 고르지 않은 상태로 돌아간다', () => {
@@ -82,19 +98,16 @@ describe('타깃과 특성은 겹치지 않는다', () => {
 
 describe('기계학습 유형', () => {
   it('manifest에 적힌다 - settings가 아니다', () => {
-    expect(withTaskType(base(), 'regression', [], NOW).manifest.taskType).toBe('regression')
+    expect(withTaskType(base(), 'regression', NOW).manifest.taskType).toBe('regression')
   })
 
-  it('넘겨받은 모델만 지운다', () => {
-    const next = withTaskType(chosen(), 'regression', ['decision_tree'], NOW)
-    expect(next.settings.selectedAlgorithms).toEqual([
-      { algorithm: 'linear_regression', runtime: 'mljs' },
-    ])
-  })
-
-  it('아무것도 안 넘기면 선택은 그대로다', () => {
+  /**
+   * **유형을 바꿔도 모델 선택은 그대로다** (`open-decisions.md` 55). 전에는 그 유형에 안 맞는
+   * 모델을 여기서 지웠다 — 유형을 되돌려도 안 돌아왔다.
+   */
+  it('모델 선택을 안 건드린다', () => {
     const before = chosen()
-    const next = withTaskType(before, 'regression', [], NOW)
+    const next = withTaskType(before, 'regression', NOW)
     expect(next.settings.selectedAlgorithms).toEqual(before.settings.selectedAlgorithms)
   })
 })
@@ -280,10 +293,7 @@ describe('전처리와 분할', () => {
 describe('어떤 문도 안 열리는 문서를 못 만든다', () => {
   /** 바닥·천장·정수·유한성을 찌르는 값들. **스키마가 거부하는 모양을 겨눈다.** */
   const DOORS: Record<string, readonly (() => ProjectDocument)[]> = {
-    withTaskType: [
-      () => withTaskType(base(), 'clustering', [], NOW),
-      () => withTaskType(base(), 'regression', ['없는열'], NOW),
-    ],
+    withTaskType: [() => withTaskType(base(), 'clustering', NOW)],
     withTarget: [
       () => withTarget(base(), '', NOW),
       () => withTarget(base(), undefined, NOW),
@@ -380,7 +390,7 @@ describe('어떤 문도 안 열리는 문서를 못 만든다', () => {
 
 describe('결과가 스키마를 통과한다', () => {
   it('이 층의 산출물이 곧 .mlpx다', () => {
-    let document = withTaskType(base(), 'regression', [], NOW)
+    let document = withTaskType(base(), 'regression', NOW)
     document = withTarget(document, '점수', NOW)
     document = withFeatures(document, ['키', '몸무게'], NOW)
     document = withPreprocessing(document, { missing: 'mean', scaling: 'robust' }, NOW)

@@ -10,6 +10,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { featuresInUse, usesTarget } from '@/ml/selection'
 import { readDataset } from '@/project/dataset'
 import { tabularDataOf } from '@/project/schema'
 import type { ProjectFile } from '@/project/format'
@@ -34,6 +35,18 @@ const dataset = computed(() => {
 })
 
 const data = computed(() => tabularDataOf(props.file.document))
+
+/**
+ * 특성 수. **학습이 쓰는 것으로 센다** (`open-decisions.md` 55) — 특성으로 골라 둔 열을
+ * 타깃으로 고르면 그 이름이 목록에 남는데, 학습은 그것을 뺀다(`featuresInUse`). 목록의
+ * 길이를 그대로 세면 요약이 학습보다 하나 많이 말한다.
+ */
+const featureCount = computed(() => {
+  const current = data.value
+  if (!current) return 0
+  const taskType = props.file.document.manifest.taskType
+  return featuresInUse(current.features, usesTarget(taskType) ? current.target : undefined).length
+})
 </script>
 
 <template>
@@ -59,6 +72,6 @@ const data = computed(() => tabularDataOf(props.file.document))
 
   <div class="flex justify-between gap-4">
     <dt class="font-bold text-ink-soft">{{ t('meta.tabular.features') }}</dt>
-    <dd class="tabular-nums">{{ t('meta.countUnit', data?.features.length ?? 0) }}</dd>
+    <dd class="tabular-nums">{{ t('meta.countUnit', featureCount) }}</dd>
   </div>
 </template>

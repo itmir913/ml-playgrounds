@@ -234,7 +234,7 @@ function onFeature(name: string, event: Event): void {
             <input
               type="checkbox"
               class="size-4 accent-brand"
-              :checked="column.role === 'feature'"
+              :checked="column.featureChosen"
               :disabled="featureLocked(column)"
               :aria-label="column.summary.name"
               @change="onFeature(column.summary.name, $event)"

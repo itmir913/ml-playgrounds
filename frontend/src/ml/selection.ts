@@ -19,11 +19,12 @@
 
 import type { ColumnSummary } from '../data/columns'
 import { MIN_SPLIT_ROWS } from '../limits'
-import type { Preprocessing, TaskType } from '../project/schema'
+import type { Preprocessing, Split, TaskType } from '../project/schema'
 import { ALGORITHMS, type Algorithm, type AlgorithmOption } from './algorithms'
 import { supports } from './axes'
 import type { UnavailableReason } from './backend'
 import { targetValues, usableRows, type Dataset } from './preprocess'
+import { testCountFor } from './split'
 import type { ColumnKind } from './preprocess'
 
 /**
@@ -84,6 +85,13 @@ export type FeatureNote = (typeof FEATURE_NOTES)[number]
 export interface ColumnChoice {
   readonly summary: ColumnSummary
   readonly role: ColumnRole
+  /**
+   * 특성 목록에 들어 있는가. **역할과 다를 수 있다** — 특성으로 골라 둔 열을 타깃으로 고르면
+   * 역할은 `target`인데 목록에는 남는다(`open-decisions.md` 55). 화면의 특성 칸은 이 값으로
+   * **켜진 채 잠겨** 보인다 — 역할로 그리면 꺼진 것처럼 보이고, 학생은 타깃을 옮기면 그 열이
+   * 특성으로 돌아온다는 것을 모른다.
+   */
+  readonly featureChosen: boolean
   readonly targetIssue?: TargetIssue
   readonly targetCaution?: TargetCaution
   readonly featureIssue?: FeatureIssue
@@ -165,6 +173,7 @@ export function columnPlan(input: ColumnPlanInput): ColumnPlan {
     return {
       summary,
       role,
+      featureChosen: chosen.has(summary.name),
       ...(required && summary.kind !== required.kind ? { targetIssue: required.code } : {}),
       // 예측할 것이 없는 열이다. 학습은 되고 지표도 나오지만 아무것도 배우지 않는다.
       ...(summary.unique <= 1 ? { targetCaution: 'singleValue' as const } : {}),
@@ -363,14 +372,15 @@ export function modelAxes(input: ModelAxesInput): ModelAxes {
 }
 
 /**
- * 이 과제 유형에서 뜻을 잃는 모델들.
+ * 이 과제 유형에서 뜻을 잃는 모델들. **지우지 않는다 — 고를 뿐이다** (`open-decisions.md` 55).
+ * 부르는 쪽은 담긴 줄을 잠그는 것(`chosenModelBlocks`)과 학습에 넘길 것을 거르는 것
+ * (`trainableSelections`) 둘이다.
  *
- * **실행 위치는 보지 않는다.** 서버가 꺼져 있다고 SVM 선택을 지우면, 학생이 서버가
- * 켜진 다음 시간에 돌아왔을 때 골라 둔 것이 사라져 있다. 여기서 지우는 것은 과제 유형이
- * 바뀌면서 **의미가 없어진 것**뿐이다 - 분류에서 고른 선형 회귀 같은 것.
+ * **실행 위치는 보지 않는다.** 여기 걸리는 것은 과제 유형이 바뀌면서 **의미가 없어진 것**
+ * 뿐이다 - 분류에서 고른 선형 회귀 같은 것.
  *
- * **등록부에 없는 알고리즘은 남긴다.** 남의 파일에서 온 것이고, 우리가 모른다는 이유로
- * 지우면 그 파일을 열었다 저장한 학생이 조용히 잃는다 (mlpx-spec.md 5.2).
+ * **등록부에 없는 알고리즘은 고르지 않는다.** 남의 파일에서 온 것이고, 우리가 모른다는
+ * 이유로 거르면 그 파일을 연 학생이 조용히 잃는다 (mlpx-spec.md 5.2).
  */
 export function algorithmsLosingMeaning(
   selected: readonly { algorithm: string }[],
@@ -384,6 +394,63 @@ export function algorithmsLosingMeaning(
       const algorithm = known.get(id)
       return algorithm !== undefined && !supports(algorithm.taskTypes, taskType)
     })
+}
+
+/**
+ * 담긴 줄 하나가 지금 학습에 못 들어가는 이유. **없으면 빈 목록이다** (architecture.md §10).
+ *
+ * **선택을 지우지 않고 잠근다** (`open-decisions.md` 55 *"끄지 않고 잠근다"*). 전에는 유형을
+ * 바꿀 때 그 유형에 안 맞는 줄을 목록에서 지웠고(`withTaskType`의 `drop`), **유형을 되돌려도
+ * 안 돌아와** 학생이 다시 담아야 했다. 이제 줄은 남고 이 이유로 잠기며, 학습에는
+ * `trainableSelections`가 거른 것만 간다 — **둘이 같은 판정(`algorithmsLosingMeaning`)을 본다.**
+ *
+ * **실행 위치는 안 본다.** 서버가 꺼진 것은 학습이 run의 실패 사유로 말한다 — 그쪽은 담을
+ * 때 이미 막히고, 파일에서 온 줄은 학생이 다음 시간에 서버를 켜고 돌아올 수 있다.
+ */
+export type ChosenModelBlock = 'ALGORITHM_NOT_FOR_TASK_TYPE'
+
+export function chosenModelBlocks(
+  row: { readonly algorithm: string },
+  taskType: TaskType | undefined,
+  algorithms: readonly Algorithm[] = ALGORITHMS,
+): readonly ChosenModelBlock[] {
+  if (taskType === undefined) return []
+  return algorithmsLosingMeaning([row], taskType, algorithms).length > 0
+    ? ['ALGORITHM_NOT_FOR_TASK_TYPE']
+    : []
+}
+
+/**
+ * 학습에 넘길 모델. **지금 유형에 안 맞는 줄을 뺀다** — 파일의 선택은 그대로다
+ * (`open-decisions.md` 55). 실험 기록(`selectedAlgorithms`)에는 **돈 것만** 남는다 — 기록은
+ * run과 자리로 짝지어지므로(`ml/experiment.ts`의 `comparable`) 안 돈 줄이 섞이면 어긋난다.
+ *
+ * **등록부에 없는 알고리즘은 남긴다** (`algorithmsLosingMeaning`과 같다). 학습이 그 줄을
+ * 실패한 run으로 말한다 — 남의 파일에서 온 것이라 우리가 조용히 빼면 학생이 모른다.
+ */
+export function trainableSelections<T extends { readonly algorithm: string }>(
+  selected: readonly T[],
+  taskType: TaskType,
+  algorithms: readonly Algorithm[] = ALGORITHMS,
+): T[] {
+  const losing = new Set(algorithmsLosingMeaning(selected, taskType, algorithms))
+  return selected.filter((selection) => !losing.has(selection.algorithm))
+}
+
+/**
+ * 학습이 보낸 줄마다의 값(상태·시작 시각)을 **담긴 줄 자리로** 옮긴다.
+ *
+ * 학습에는 잠긴 줄을 뺀 목록이 간다(`trainableSelections`). 그래서 학습이 보내는 자리는 **그
+ * 목록의** 자리이고, 잠긴 줄을 사이에 두고 그대로 붙이면 **다른 모델의 줄에 상태가 앉는다.**
+ * 잠긴 줄은 학습에 안 들어가므로 `null`이다. `blocks`는 줄마다의 잠금 이유
+ * (`chosenModelBlocks`)이고 `trainableSelections`와 같은 판정이라 둘의 순서가 같다.
+ */
+export function byChosenRow<T>(
+  blocks: readonly (readonly unknown[])[],
+  sent: readonly T[],
+): (T | null)[] {
+  let next = 0
+  return blocks.map((reasons) => (reasons.length > 0 ? null : (sent[next++] ?? null)))
 }
 
 /**
@@ -428,6 +495,23 @@ export function usesTarget(taskType: TaskType | undefined): boolean {
 }
 
 /**
+ * 학습에 넣는 특성. **타깃과 같은 이름은 뺀다** (`open-decisions.md` 55 *"끄지 않고 잠근다"*).
+ *
+ * 설정의 특성 목록은 학생이 켠 것을 그대로 들어서, 특성으로 골라 둔 열을 나중에 타깃으로
+ * 고르면 그 이름이 남는다. **타깃이 없으면(군집) 거르지 않는다** — 군집에는 정답이 없고,
+ * 저장된 타깃 이름은 어떤 열도 타깃으로 만들지 않는다(`columnPlan`의 `wantsTarget`).
+ *
+ * **정답이 특성에 들어가는 것을 막는 자리는 학습 계획(`ml/plan.ts`) 하나다.** 나머지 부르는
+ * 자리는 **세는** 곳이다 — 실험 기록(`ml/training-source.ts`), 예상 폭(`TrainView.vue`),
+ * 프로젝트 요약(`TabularSummaryRows.vue`), 체크리스트(`project/facts.ts`). 행 수를 세는
+ * 자리(`usableRows`)는 안 불러도 같다 — 타깃이 빈 행은 이미 빠지므로 같은 열을 특성으로 한 번
+ * 더 봐도 빠지는 행이 안 는다. (사람 확인 — 이 목록을 세는 검사는 없다.)
+ */
+export function featuresInUse(features: readonly string[], target: string | undefined): string[] {
+  return target === undefined ? [...features] : features.filter((name) => name !== target)
+}
+
+/**
  * 이 유형이 **데이터를 나누는가.** 나누지 않으면 비율도 층화도 아무 일을 안 한다.
  *
  * **화면이 과제 유형을 직접 비교하지 않게 하려고 여기 있다** (`CLAUDE.md` §2,
@@ -453,6 +537,8 @@ export interface StratifyBlock {
     | 'STRATIFY_NOT_FOR_TASK_TYPE'
     | 'SPLIT_STRATIFY_IMPOSSIBLE'
     | 'SPLIT_STRATIFY_TARGET_CONTINUOUS'
+    // 나눈 몫이 범주 수보다 적다 — 시험 비율이 원인이다 (결정문 55).
+    | 'SPLIT_STRATIFY_SHARE_TOO_SMALL'
     // 뽑을 줄 수가 라벨 종류를 감당 못 한다 (open-decisions.md #22). 위 셋과 달리
     // **학생이 방금 정한 숫자**가 원인이라 할 일이 다르다 - 그 숫자를 올리거나 층화를 끈다.
     | 'SAMPLE_STRATIFY_IMPOSSIBLE'
@@ -483,42 +569,34 @@ function lonelyValues(values: readonly string[]): {
 }
 
 /**
- * 이 유형에서 층화가 실제로 걸리는가. **파일의 값은 안 건드린다** (`open-decisions.md`
- * "값을 내리지 않는다. 학습이 무시하고 화면이 잠근다").
+ * 층화가 실제로 걸리는가. **파일의 값은 안 건드린다** (`open-decisions.md` 55
+ * *"끄지 않고 잠근다"*).
  *
- * 회귀에서 켜 두면 학습이 통째로 거부했고, 그래서 유형을 바꿀 때 값을 내렸다. 그러면
- * **분류로 되돌려도 안 돌아와서** 학생이 전처리 화면까지 다시 걸어가야 했다. 이제
- * 학습이 무시하고, 값은 그대로 있다가 유형이 돌아오면 살아난다.
+ * **막힌 이유가 무엇이든 학습이 무시한다.** 처음에는 유형 사유만 무시하고 나머지(값이
+ * 1개뿐 · 연속 타깃 · 표본 수)는 학습이 거부하게 두었다 — 끄는 것이 학생의 유일한 탈출구라
+ * 그랬다. 그러면 **조건이 풀린 뒤 학생이 전처리 화면까지 다시 걸어가 켜야 했다**(2026-08-31에
+ * 유형 사유로 겪은 것과 같다). 거부 대신 무시하면 그 문이 필요 없다.
  *
  * **무시하는 자리는 학습 계획 하나다** (`ml/plan.ts`). 화면마다 무시하면 화면과 학습이
- * 다른 것을 돌린다.
+ * 다른 것을 돌린다. **판정은 `stratifyBlockFor` 하나다** — 화면이 잠그는 조건과 학습이
+ * 무시하는 조건이 같은 객체에서 나온다.
  */
-export function stratifyApplies(taskType: TaskType | undefined, stratify: boolean): boolean {
-  return stratify && !(taskType !== undefined && STRATIFY_MEANINGLESS[taskType])
+export function stratifyApplies(stratify: boolean, block: StratifyBlock | null): boolean {
+  return stratify && block === null
 }
 
 /**
- * 층화 체크박스를 잠글 것인가.
+ * 층화 체크박스를 잠글 것인가. **막힌 이유가 있으면 잠근다 — 켜져 있어도.**
  *
- * **잠그는 조건이 사유마다 갈린다. 그 갈림이 이 함수가 있는 이유다.**
+ * 옛 규칙은 *"값이 1개뿐이거나 타깃이 연속이면 켜져 있을 때 잠그지 않는다"*였다. 그때는
+ * 학습이 거부했으므로 잠그면 **빠져나갈 문이 없는 영구 차단**이었다. 이제 학습이 무시하므로
+ * (`stratifyApplies`) 그 문이 필요 없고, 끄게 두면 **조건이 풀렸을 때 켜 두었던 것이 사라진다**
+ * (결정문 55).
  *
- * 값이 1개뿐이거나 타깃이 연속이면 **켜져 있을 때 절대 잠그지 않는다.** 파일에
- * `stratify: true`로 적힌 채 막힌 상태가 실재하는데(기본값이 켜짐이다 —
- * `project/create.ts`), 그 상태에서 잠그면 **학생은 이유를 읽고도 끌 수 없고, 학습은 계속
- * 거부한다.** 화면에서 빠져나갈 문이 없는 영구 차단이다. 꺼져 있을 때 잠그는 것은
- * 아무것도 막지 않는다 - 이미 학습이 도는 상태다.
- *
- * **유형이 사유일 때는 켜져 있어도 잠근다.** 거기서는 학습이 무시하므로(위
- * `stratifyApplies`) 끄는 것이 탈출구가 아니고, 끄게 두면 **유형을 되돌렸을 때 켜 두었던
- * 것이 사라진다.** 옛 규칙이 막으려던 영구 차단이 여기서는 성립하지 않는다.
- *
- * **화면의 computed로 두지 않고 여기 둔 이유가 그것이다.** `block !== null`로 "단순화"하면
- * 그 영구 차단이 되살아나는데 화면 코드만으로는 아무도 그걸 못 잡는다
- * (tests/selection.spec.ts가 이 함수를 지킨다).
+ * `tests/selection.spec.ts`가 이 함수를 지킨다.
  */
-export function stratifyLocked(block: StratifyBlock | null, stratify: boolean): boolean {
-  if (block === null) return false
-  return block.code === 'STRATIFY_NOT_FOR_TASK_TYPE' || !stratify
+export function stratifyLocked(block: StratifyBlock | null): boolean {
+  return block !== null
 }
 
 export interface StratifyInput {
@@ -535,6 +613,8 @@ export interface StratifyInput {
    * 빠뜨린 자리는 조용히 "안 뽑은 것"이 되고, 그러면 화면이 [학습하기]보다 관대해진다.
    */
   readonly nSamples: number | undefined
+  /** 분할 방식과 시험 비율. 시험 비율이 층화를 막을 수 있다 (`shareStratifyBlock`). */
+  readonly split: StratifySplit
 }
 
 /**
@@ -596,6 +676,7 @@ export function stratifyBlockFor(
   taskType: TaskType | undefined,
   labels: readonly string[],
   nSamples: number | undefined,
+  split: StratifySplit,
 ): StratifyBlock | null {
   if (taskType !== undefined && STRATIFY_MEANINGLESS[taskType]) {
     return { code: 'STRATIFY_NOT_FOR_TASK_TYPE' }
@@ -607,8 +688,41 @@ export function stratifyBlockFor(
   if (tooFewToSample) return tooFewToSample
 
   const { lonely, kinds } = lonelyValues(labels)
-  if (lonely.length === 0) return null
-  return blockFor(lonely, kinds)
+  if (lonely.length > 0) return blockFor(lonely, kinds)
+  return shareStratifyBlock(labels, nSamples, split)
+}
+
+/** 층화 판정이 보는 분할 설정. 씨앗과 층화 여부는 판정에 안 쓰인다. */
+export interface StratifySplit {
+  readonly method: Split['method']
+  readonly testSize: number
+}
+
+/**
+ * 나눈 몫이 범주 수보다 적은가 (`ml/split.ts`의 `SPLIT_STRATIFY_SHARE_TOO_SMALL`과 같은 판정).
+ *
+ * **분할 안에만 있던 판정을 여기로 옮겼다** (2026-09-23, 결정문 55). 거기만 있으면 화면이
+ * 몰라서 체크박스를 못 잠그고, 학습은 무시하는데 화면은 켜진 것처럼 말한다. **시험 비율은
+ * 학생이 고르는 옵션이다** — 그것이 층화를 무의미하게 만드는 A다.
+ *
+ * **센 행 수는 분할이 받는 수다** — 뽑기가 줄였으면 `nSamples`, 아니면 쓸 수 있는 행 전부.
+ * 층화 뽑기는 라벨마다 바닥을 남기므로(`ml/sample.ts`) 범주 수는 뽑은 뒤에도 같다.
+ * **`provided`는 나누지 않으므로 해당 없다.**
+ */
+function shareStratifyBlock(
+  labels: readonly string[],
+  nSamples: number | undefined,
+  split: StratifySplit,
+): StratifyBlock | null {
+  if (split.method !== 'holdout') return null
+  const kinds = new Set(labels).size
+  const total = nSamples !== undefined && nSamples < labels.length ? nSamples : labels.length
+  // 행이 모자라면 분할이 먼저 `SPLIT_TOO_FEW_ROWS`로 선다 — 층화까지 안 온다.
+  if (kinds === 0 || total < MIN_SPLIT_ROWS) return null
+  const testRows = testCountFor(total, split.testSize)
+  const trainRows = total - testRows
+  if (testRows >= kinds && trainRows >= kinds) return null
+  return { code: 'SPLIT_STRATIFY_SHARE_TOO_SMALL', params: { labels: kinds, testRows, trainRows } }
 }
 
 /**
@@ -632,14 +746,19 @@ export function stratifyBlock(input: StratifyInput): StratifyBlock | null {
   const { dataset, target } = input
   // 유형 판정은 데이터가 없어도 성립한다 - 회귀를 고른 순간 층화는 뜻을 잃는다.
   if (!dataset || target === undefined) {
-    return stratifyBlockFor(input.taskType, [], input.nSamples)
+    return stratifyBlockFor(input.taskType, [], input.nSamples, input.split)
   }
 
   const column = dataset.columns.indexOf(target)
-  if (column < 0) return stratifyBlockFor(input.taskType, [], input.nSamples)
+  if (column < 0) return stratifyBlockFor(input.taskType, [], input.nSamples, input.split)
 
   const rows = usableRows(dataset, input.features, target, input.preprocessing.missing)
-  return stratifyBlockFor(input.taskType, targetValues(dataset, rows, target), input.nSamples)
+  return stratifyBlockFor(
+    input.taskType,
+    targetValues(dataset, rows, target),
+    input.nSamples,
+    input.split,
+  )
 }
 
 /** 1개뿐인 값들을 어떤 이유로 말할지. **위 판정이 걸린 뒤에만 부른다.** */

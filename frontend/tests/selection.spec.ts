@@ -37,6 +37,7 @@ import { isClientError } from '../src/errors'
 import { MIN_SPLIT_ROWS, MLJS_SVM_ROW_LIMIT } from '../src/limits'
 import { TASK_TYPES } from '../src/project/schema'
 import { sampleRows } from '../src/ml/sample'
+import { splitRows } from '../src/ml/split'
 import type { Preprocessing, Split } from '../src/project/schema'
 import { SKLEARN_ONLY_ALGORITHM, withSklearnOnly } from './fixtures/algorithms'
 
@@ -399,6 +400,9 @@ describe('층화를 걸 수 있는가', () => {
       features: ['키'],
       preprocessing: ONEHOT,
       nSamples: undefined,
+      // 시험 비율은 몫이 범주 수를 넘게 준다 — 아래 판들은 다른 사유를 재고, 시험 비율
+      // 사유는 따로 판이 있다("시험 비율이 몫을 범주 수보다 작게 만들면").
+      split: { method: 'holdout', testSize: 0.5 },
       ...overrides,
     })
   }
@@ -568,37 +572,59 @@ describe('층화를 걸 수 있는가', () => {
     expect(blockFor({ dataset: null })).toBeNull()
     expect(blockFor({ target: undefined })).toBeNull()
   })
-})
-
-describe('층화 체크박스를 잠그는 조건', () => {
-  const block = { code: 'STRATIFY_NOT_FOR_TASK_TYPE' } as const
-  /** 끄는 것이 학생이 할 수 있는 유일한 일인 사유. 옛 규칙이 그대로 걸린다. */
-  const lonely = { code: 'SPLIT_STRATIFY_IMPOSSIBLE', label: '가', count: 1, minRows: 2 } as const
-
-  it('켜진 채로는 절대 잠기지 않는다 - 영구 차단을 막는 조건이다', () => {
-    // **이 한 줄이 이 describe의 이유다.** 파일에 true로 적힌 채 막힌 상태는 기본값이
-    // 켜짐이라 실재한다. 여기서 잠그면 학생은 이유를 읽고도 끌 수 없고, 학습은 계속
-    // 거부한다 - 화면에서 빠져나갈 문이 없다.
-    expect(stratifyLocked(lonely, true)).toBe(false)
-  })
-
-  it('꺼져 있고 뜻이 없으면 잠근다 - 켤 수 없는 것을 켜게 두지 않는다', () => {
-    expect(stratifyLocked(block, false)).toBe(true)
-    expect(stratifyLocked(lonely, false)).toBe(true)
-  })
 
   /**
-   * **유형이 사유일 때만 켜져 있어도 잠근다** (`open-decisions.md` "값을 내리지 않는다.
-   * 학습이 무시하고 화면이 잠근다"). 거기서는 학습이 무시하므로 끄는 것이 탈출구가
-   * 아니고, 끄게 두면 **유형을 되돌렸을 때 켜 두었던 것이 사라진다.**
+   * **시험 비율이 몫을 범주 수보다 작게 만들면 막힌다** (결정문 55). 이 판정은 분할 안에만
+   * 있어서 화면이 몰랐다(`ml/split.ts`의 `SPLIT_STRATIFY_SHARE_TOO_SMALL`). **경계가 분할과
+   * 같아야 한다** — 같은 입력을 `splitRows`에 넣어 던지는지 견준다.
    */
-  it('유형이 사유면 켜져 있어도 잠근다 - 학습이 무시하므로 끌 이유가 없다', () => {
-    expect(stratifyLocked(block, true)).toBe(true)
+  it('시험 비율이 몫을 범주 수보다 작게 만들면 막히고, 경계가 분할과 같다', () => {
+    const labels = ['A', 'A', 'B', 'B', 'C', 'C', 'D', 'D', 'E', 'E']
+    const table = dataset(labels)
+    for (const testSize of [0.05, 0.1, 0.3, 0.5, 0.6, 0.9]) {
+      const block = blockFor({ dataset: table, split: { method: 'holdout', testSize } })
+      const thrown = codeOf(() =>
+        splitRows(
+          { rows: labels.map((_, index) => index), labels },
+          { method: 'holdout', testSize, stratify: true, randomState: 1 },
+        ),
+      )
+      const splitSays = thrown === 'SPLIT_STRATIFY_SHARE_TOO_SMALL'
+      expect(block?.code === 'SPLIT_STRATIFY_SHARE_TOO_SMALL', `testSize ${testSize}`).toBe(
+        splitSays,
+      )
+    }
+    // 둘 다 한 번은 걸리고 한 번은 안 걸려야 이 판이 뜻이 있다.
+    expect(blockFor({ dataset: table, split: { method: 'holdout', testSize: 0.1 } })?.code).toBe(
+      'SPLIT_STRATIFY_SHARE_TOO_SMALL',
+    )
+    expect(blockFor({ dataset: table, split: { method: 'holdout', testSize: 0.5 } })).toBeNull()
   })
 
-  it('걸리는 것이 없으면 꺼져 있어도 잠기지 않는다', () => {
-    expect(stratifyLocked(null, false)).toBe(false)
-    expect(stratifyLocked(null, true)).toBe(false)
+  it('따로 받은 테스트 데이터면 나누지 않으므로 시험 비율 사유가 없다', () => {
+    const table = dataset(['A', 'A', 'B', 'B', 'C', 'C', 'D', 'D', 'E', 'E'])
+    expect(blockFor({ dataset: table, split: { method: 'provided', testSize: 0.1 } })).toBeNull()
+  })
+})
+
+/**
+ * **막힌 이유가 있으면 잠근다 — 켜져 있어도** (`open-decisions.md` 55 *"끄지 않고 잠근다"*).
+ *
+ * 옛 규칙은 *"값이 1개뿐이면 켜진 채로는 잠그지 않는다"*였다 — 학습이 거부했으므로 끄는 것이
+ * 유일한 탈출구였다. 이제 학습이 무시하므로(아래 `stratifyApplies`) 그 문이 필요 없고, 끄게
+ * 두면 **조건이 풀렸을 때 켜 두었던 것이 사라진다.**
+ */
+describe('층화 체크박스를 잠그는 조건', () => {
+  const block = { code: 'STRATIFY_NOT_FOR_TASK_TYPE' } as const
+  const lonely = { code: 'SPLIT_STRATIFY_IMPOSSIBLE', label: '가', count: 1, minRows: 2 } as const
+
+  it('이유가 무엇이든 막히면 잠근다', () => {
+    expect(stratifyLocked(block)).toBe(true)
+    expect(stratifyLocked(lonely)).toBe(true)
+  })
+
+  it('걸리는 것이 없으면 잠기지 않는다', () => {
+    expect(stratifyLocked(null)).toBe(false)
   })
 })
 
@@ -861,22 +887,21 @@ describe('열 한 줄이 말하는 것', () => {
 })
 
 /**
- * **유형이 뜻을 지우면 학습이 무시한다. 파일의 값은 안 건드린다**
- * (`open-decisions.md` "값을 내리지 않는다. 학습이 무시하고 화면이 잠근다").
+ * **막히면 학습이 무시한다. 파일의 값은 안 건드린다** (`open-decisions.md` 55).
  *
- * 전에는 유형을 바꿀 때 값을 `false`로 내렸고, **분류로 되돌려도 안 돌아왔다.**
+ * 전에는 유형을 바꿀 때 값을 `false`로 내렸고, **분류로 되돌려도 안 돌아왔다.** 그 뒤 유형
+ * 사유만 무시하고 데이터 사유는 거부했다 — 그것도 학생이 손으로 끄게 만드는 연쇄였다.
  */
 describe('층화가 실제로 걸리는가', () => {
-  it('회귀에서는 켜져 있어도 안 걸린다', () => {
-    expect(stratifyApplies('regression', true)).toBe(false)
+  const lonely = { code: 'SPLIT_STRATIFY_IMPOSSIBLE', label: '가', count: 1, minRows: 2 } as const
+
+  it('막힌 이유가 있으면 켜져 있어도 안 걸린다 — 유형이든 데이터든', () => {
+    expect(stratifyApplies(true, { code: 'STRATIFY_NOT_FOR_TASK_TYPE' })).toBe(false)
+    expect(stratifyApplies(true, lonely)).toBe(false)
   })
 
-  it('분류로 돌아오면 켜 두었던 대로 살아난다', () => {
-    expect(stratifyApplies('classification', true)).toBe(true)
-    expect(stratifyApplies('classification', false)).toBe(false)
-  })
-
-  it('유형을 아직 모르면 값을 그대로 본다', () => {
-    expect(stratifyApplies(undefined, true)).toBe(true)
+  it('막힌 것이 풀리면 켜 두었던 대로 살아난다', () => {
+    expect(stratifyApplies(true, null)).toBe(true)
+    expect(stratifyApplies(false, null)).toBe(false)
   })
 })

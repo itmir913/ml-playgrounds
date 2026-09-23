@@ -139,15 +139,13 @@ describe('거부 사유를 던지지 않고 돌려준다', () => {
   })
 
   /**
-   * **분할이 던지는 것도 사유가 된다.** 값이 거의 다 다른 열을 타깃으로 삼고 층화를 켜면
-   * 하나뿐인 무리가 쏟아진다 - 학생이 화면에서 만들 수 있는 상태이고, 그때 카드가
-   * 예외로 죽으면 안 된다.
+   * **값이 거의 다 다른 열을 타깃으로 삼고 층화를 켜면** 하나뿐인 무리가 쏟아진다 — 학생이
+   * 화면에서 만들 수 있는 상태다. 전에는 분할이 던져 사유가 됐는데, 이제 계획이 같은 판정으로
+   * 층화를 무시한다(`open-decisions.md` 55).
    *
-   * **유형이 분류인 것이 중요하다.** 회귀에서는 이제 학습이 층화를 무시하므로(아래
-   * describe) 이 경로를 안 지나간다 — 유형을 회귀로 두면 이 검사가 **아무것도 안 지킨
-   * 채로 초록**이 된다.
+   * **유형이 분류인 것이 중요하다.** 회귀에서는 유형 사유로 무시되므로 이 판정을 안 지나간다.
    */
-  it('층화할 수 없는 타깃이다', () => {
+  it('층화할 수 없는 타깃이면 거부하지 않고 층화를 무시한다 (결정문 55)', () => {
     const plan = planRun({
       dataset: tableWithBlank(),
       testDataset: null,
@@ -158,7 +156,9 @@ describe('거부 사유를 던지지 않고 돌려준다', () => {
       }),
       taskType: 'classification',
     })
-    expect(reasonOf(plan)).toBe('SPLIT_STRATIFY_TARGET_CONTINUOUS')
+    // 전에는 `SPLIT_STRATIFY_TARGET_CONTINUOUS`로 섰다. 이제 화면이 같은 판정으로 체크박스를
+    // 잠그고 학습은 층화 없이 나눈다.
+    expect(plan.ok).toBe(true)
   })
 })
 
@@ -268,14 +268,29 @@ describe('뜻이 없는 유형에서는 층화를 무시한다', () => {
     expect(settings.split.stratify).toBe(true)
   })
 
-  it('분류에서는 여전히 막는다 - 무시하는 것은 유형이 지운 경우뿐이다', () => {
-    const plan = planRun({
+  /**
+   * **분류에서도 막히면 무시한다** (`open-decisions.md` 55). 전에는 *"무시하는 것은 유형이
+   * 지운 경우뿐"*이라 여기서 학습이 거부했고, 학생이 손으로 층화를 꺼야 했다.
+   * **무시한 분할은 층화를 끈 분할과 같아야 한다** — 반쯤 층화한 무언가가 아니다.
+   */
+  it('분류에서도 막히면 무시하고, 그 분할은 층화를 끈 것과 같다', () => {
+    const on = planRun({
       dataset: continuous(),
       testDataset: null,
       settings: settingsFor(data),
       taskType: 'classification',
     })
-    expect(plan.ok).toBe(false)
+    const off = planRun({
+      dataset: continuous(),
+      testDataset: null,
+      settings: settingsFor(data, {
+        split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+      }),
+      taskType: 'classification',
+    })
+    expect(on.ok && off.ok).toBe(true)
+    if (!on.ok || !off.ok) return
+    expect(on.split).toEqual(off.split)
   })
 })
 
@@ -290,6 +305,36 @@ describe('뜻이 없는 유형에서는 층화를 무시한다', () => {
  *      스케일 기준이 다시 계산한 분할에서 나와 정직한 파일이 재현되지 않는다
  *   3. **그 앞의 검사는 그대로 돈다** — 빈 칸을 건너뛰면 `transform`이 조용히 0을 채운다
  */
+/**
+ * **옵션이 층화를 막아도 학습이 선다** (`open-decisions.md` 55). 시험 비율과 표본 수는
+ * 학생이 고르는 옵션이다 — 전에는 그것이 층화를 막으면 학습이 거부했고, 학생이 전처리
+ * 화면에서 층화를 손으로 꺼야 했다. **화면이 잠그는 판정과 같은 판정으로 무시한다.**
+ */
+describe('옵션이 층화를 막으면 무시한다', () => {
+  const run = (common: Partial<Omit<Settings, 'data'>>) =>
+    planRun({
+      dataset: irisDataset(),
+      testDataset: null,
+      settings: settingsFor({}, common),
+      taskType: 'classification',
+    })
+
+  it('시험 비율이 몫을 범주 수보다 작게 만들어도 선다', () => {
+    // 붓꽃 3품종 · 5%면 시험 몫이 범주 수보다 적다 — 분할이 SPLIT_STRATIFY_SHARE_TOO_SMALL로
+    // 던지던 자리다.
+    const plan = run({
+      split: { method: 'holdout', testSize: 0.05, stratify: true, randomState: 42 },
+    })
+    expect(plan.ok).toBe(true)
+  })
+
+  it('표본 수가 층화를 감당 못 해도 선다', () => {
+    // 품종마다 바닥이 있어 5행으로는 층화 뽑기가 안 된다 — SAMPLE_STRATIFY_IMPOSSIBLE 자리다.
+    const plan = run({ nSamples: 5 })
+    expect(plan.ok).toBe(true)
+  })
+})
+
 describe('기록된 분할', () => {
   /** 파일에서 읽어 온 셈 치는 분할. 조립(`ml/reproduce.ts`)만 만들 수 있는 값이다. */
   const recorded = asRecordedSplit({ trainIndices: [0, 1, 2, 3, 4, 5], testIndices: [6, 7, 8] })

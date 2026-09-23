@@ -42,8 +42,14 @@ const { t } = useI18n()
 
 /** 지금 보고 있는 열. **바깥이 준 것으로 시작하고 그 뒤로는 창이 쥔다.** */
 const column = ref(props.column)
-/** 지금 고른 도구의 `id`. */
-const toolId = ref('')
+/**
+ * 학생이 **고른** 도구의 `id`. 아직 안 골랐으면 빈 값이다.
+ *
+ * **그리는 도구(`toolId`)와 가른다** (`open-decisions.md` 55 *"끄지 않고 잠근다"*). 전에는
+ * 열을 바꿔 지금 도구가 못 그리게 되면 이 값을 기본 도구로 **덮어썼고**, 원래 열로 돌아와도
+ * 고른 도구가 안 돌아왔다. 이제 고른 것은 남고, 못 그리는 동안만 다른 도구를 그린다.
+ */
+const chosenToolId = ref('')
 
 const tools = computed(() => chartToolsFor(props.kind))
 
@@ -54,14 +60,7 @@ function blocks(tool: ChartTool): readonly string[] {
   return tool.blockedBy(gate.value).map((block) => t(`data.charts.blocked.${block}`))
 }
 
-/**
- * **열이 바뀌면 그 열에서 그릴 수 있는 도구로 옮긴다.**
- *
- * 지금 도구가 여전히 그릴 수 있으면 그대로 둔다 — 열을 옮겨 다니며 같은 그림을 보는
- * 것이 이 창을 쓰는 방식이고, 매번 첫 도구로 되돌리면 그것을 못 한다.
- *
- * **창을 다시 열 때는 바깥이 준 열로 돌아간다.** 학생이 방금 누른 줄이 그 열이다.
- */
+/** **창을 다시 열 때는 바깥이 준 열로 돌아간다.** 학생이 방금 누른 줄이 그 열이다. */
 watch(
   () => [props.open, props.column] as const,
   ([open, picked]) => {
@@ -70,15 +69,16 @@ watch(
   { immediate: true },
 )
 
-watch(
-  [tools, gate],
-  ([list, input]) => {
-    const current = list.find((tool) => tool.id === toolId.value)
-    if (current && current.blockedBy(input).length === 0) return
-    toolId.value = defaultChartTool(props.kind, input)?.id ?? ''
-  },
-  { immediate: true },
-)
+/**
+ * 지금 **그리는** 도구의 `id`. 고른 도구가 이 열에서 그릴 수 있으면 그것이고, 못 그리면
+ * 이 열의 기본 도구다 — **고른 것을 고쳐 쓰지 않는다.** 열을 옮겨 다니며 같은 그림을 보는
+ * 것이 이 창을 쓰는 방식이고, 못 그리는 열을 한 번 지나갔다고 그 방식이 끊기면 안 된다.
+ */
+const toolId = computed(() => {
+  const chosen = tools.value.find((one) => one.id === chosenToolId.value)
+  if (chosen && chosen.blockedBy(gate.value).length === 0) return chosen.id
+  return defaultChartTool(props.kind, gate.value)?.id ?? ''
+})
 
 const tool = computed(() => tools.value.find((one) => one.id === toolId.value))
 
@@ -190,7 +190,7 @@ provide(CHART_CONTROLS, controls)
               "
               :disabled="blocks(one).length > 0"
               :title="blocks(one).join(' ')"
-              @click="toolId = one.id"
+              @click="chosenToolId = one.id"
             >
               {{ t(`data.charts.${one.id}.name`) }}
             </button>

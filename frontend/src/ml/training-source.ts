@@ -19,7 +19,7 @@ import { embedImages, type EmbedHandle, type EmbedWorker } from '@/ml/embed/clie
 import { spawnEmbedWorker } from '@/ml/embed/spawn'
 import { imageTestDataset, imageTrainingSource, pendingEmbeddings } from '@/ml/images'
 import type { Dataset } from '@/ml/preprocess'
-import { trainableRowCount } from '@/ml/selection'
+import { featuresInUse, trainableRowCount, trainableSelections, usesTarget } from '@/ml/selection'
 import { readDataset, readTestDataset } from '@/project/dataset'
 import { addEmbeddings, readEmbeddings } from '@/project/embeddings'
 import { IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
@@ -96,18 +96,29 @@ export const TRAINING_SOURCES: Readonly<
 > = {
   // **`async`인 것이 뜻을 갖는다.** 표는 기다릴 것이 없지만, 여기서 던지면 부르는 쪽이
   // `await`로 받는 실패와 그냥 던지는 실패를 둘 다 다뤄야 한다 — 한쪽을 빠뜨린다.
-  tabular: async ({ project }) => {
+  tabular: async ({ project, taskType }) => {
     const dataset = readDataset(project)
     // 화면이 정본 없이 여기까지 오지 못한다. 그래도 던지는 이유는, 조용히 빈 표로
     // 학습하면 지표가 NaN인 채로 done이 되기 때문이다.
     if (!dataset) throw new ClientError('DATASET_EMPTY')
+    const data = dataSettings('tabular', project.document.settings)
     return {
       project,
       dataset,
       testDataset: readTestDataset(project),
       settings: project.document.settings,
-      // 표에서는 계산에 쓴 설정이 그대로 기록이다.
-      snapshot: dataSnapshot('tabular', project.document.settings),
+      /**
+       * **기록에는 쓴 특성만 남긴다** (`open-decisions.md` 55). 살아 있는 설정의 특성 목록은
+       * 학생이 켠 것을 그대로 들어 타깃과 같은 이름이 있을 수 있는데, 학습은 그것을 뺀다
+       * (`ml/plan.ts`). 기록이 그 이름을 들면 결과 화면과 교사가 **정답을 특성으로 썼다**고
+       * 읽는다. 재실행 대조는 같은 계획을 다시 지나므로 이 기록으로도 같은 결과가 난다.
+       */
+      snapshot: dataSnapshot('tabular', {
+        data: {
+          ...data,
+          features: featuresInUse(data.features, usesTarget(taskType) ? data.target : undefined),
+        },
+      }),
     }
   },
 
@@ -339,6 +350,18 @@ export function algorithmSelectionFor(
 }
 
 /** 이 프로젝트의 종류가 준비하는 학습 입력. */
-export function trainingSourceOf(input: TrainingSourceInput): Promise<TrainingSource> {
-  return TRAINING_SOURCES[input.project.document.manifest.dataType](input)
+export async function trainingSourceOf(input: TrainingSourceInput): Promise<TrainingSource> {
+  const source = await TRAINING_SOURCES[input.project.document.manifest.dataType](input)
+  /**
+   * **지금 유형에 안 맞는 모델은 학습에 안 넘긴다** (`open-decisions.md` 55). 파일의 선택은
+   * 그대로 두고(학습 화면이 그 줄을 잠근다) 여기서만 거른다 — 종류마다 따로 거르면 한쪽을
+   * 빠뜨린다. 실험 기록의 `selectedAlgorithms`는 이 목록에서 만들어지므로 **돈 것만** 남는다.
+   */
+  return {
+    ...source,
+    settings: {
+      ...source.settings,
+      selectedAlgorithms: trainableSelections(source.settings.selectedAlgorithms, input.taskType),
+    },
+  }
 }

@@ -117,7 +117,7 @@ function chosen(preprocessing?: Partial<Preprocessing>, csv = CSV): ProjectFile 
   const file = projectWith(csv)
   let document = withTarget(file.document, '점수', NOW)
   document = withFeatures(document, ['키', '반'], NOW)
-  document = withTaskType(document, 'regression', [], NOW)
+  document = withTaskType(document, 'regression', NOW)
   // 층화는 회귀 타깃에서 막힌다(값이 거의 다 다르다). 여기서 보려는 것은 그 뒤다.
   document = withSplit(document, { stratify: false }, NOW)
   if (preprocessing) document = withPreprocessing(document, preprocessing, NOW)
@@ -175,7 +175,7 @@ describe('전처리 요약', () => {
     const file = projectWith(CSV_WITH_BLANK)
     let document = withTarget(file.document, '점수', NOW)
     document = withFeatures(document, ['키'], NOW)
-    document = withTaskType(document, 'regression', [], NOW)
+    document = withTaskType(document, 'regression', NOW)
     document = withPreprocessing(document, { missing: 'none' }, NOW)
 
     const text = mountSummary({ ...file, document }).text()
@@ -219,7 +219,7 @@ describe('열 표의 전처리 칸', () => {
     const file = projectWith(CSV_WITH_BLANK)
     let document = withTarget(file.document, '점수', NOW)
     document = withFeatures(document, ['키'], NOW)
-    document = withTaskType(document, 'regression', [], NOW)
+    document = withTaskType(document, 'regression', NOW)
     document = withSplit(document, { stratify: false }, NOW)
     document = withPreprocessing(document, { missing: 'median' }, NOW)
 

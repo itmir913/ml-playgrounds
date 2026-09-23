@@ -70,9 +70,11 @@ const labels = computed(() =>
 )
 
 /** **판정은 화면 밖에 있다** — 표와 같은 함수다 (`ml/selection.ts`). */
-const stratifyBlockNow = computed(() =>
-  stratifyBlockFor(project.taskType, labels.value, settings.value?.nSamples),
-)
+const stratifyBlockNow = computed(() => {
+  const current = settings.value
+  if (!current) return null
+  return stratifyBlockFor(project.taskType, labels.value, current.nSamples, current.split)
+})
 
 const stratifyReason = computed(() => {
   const block = stratifyBlockNow.value
@@ -80,9 +82,7 @@ const stratifyReason = computed(() => {
 })
 
 /** 잠금 규칙도 화면 밖에 있다 (`ml/selection.ts`의 `stratifyLocked`). */
-const stratifyDisabled = computed(() =>
-  stratifyLocked(stratifyBlockNow.value, settings.value?.split.stratify ?? false),
-)
+const stratifyDisabled = computed(() => stratifyLocked(stratifyBlockNow.value))
 
 /**
  * 이 프로젝트의 범주. 올라온 사진을 대조할 목록이다.
@@ -525,7 +525,7 @@ function onStratify(event: Event): void {
                 />
                 <span class="font-bold">{{ t('preprocess.stratify') }}</span>
               </label>
-              <!-- 이유 없이 회색이면 고장으로 보이고, 켜진 채 걸린 것은 학생이 꺼야 한다. -->
+              <!-- 이유 없이 회색이면 고장으로 보인다. 켜진 채 잠겨도 학습은 무시한다 (결정문 55). -->
               <p v-if="stratifyReason" class="mt-1 ml-6 text-caution">{{ stratifyReason }}</p>
             </div>
           </div>

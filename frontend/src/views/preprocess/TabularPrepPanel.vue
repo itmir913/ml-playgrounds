@@ -251,14 +251,22 @@ function toggleFeature(name: string, on: boolean): void {
   apply(withFeatures(file.document, next, now()))
 }
 
-/** 전부 고를 때도 못 쓰는 열은 뺀다 — 골라도 학습이 거부할 것을 체크해 주지 않는다. */
+/**
+ * 전부 고를 때도 못 쓰는 열은 뺀다 — 골라도 학습이 거부할 것을 체크해 주지 않는다.
+ *
+ * **타깃인 열은 새로 넣지도 빼지도 않는다** (`open-decisions.md` 55). 그 열이 목록에 있으면
+ * [전체 선택]을 눌러도 그대로 남는다 — 안 그러면 다른 열을 고르는 동작이 타깃으로 옮겨 간
+ * 열을 목록에서 조용히 떨군다. [전체 해제]는 학생이 전부를 비운 것이라 함께 비운다.
+ */
 function setAllFeatures(on: boolean): void {
   const current = plan.value
   const file = project.file
   if (!current || !file) return
   const names = on
     ? current.columns
-        .filter((column) => column.role !== 'target' && column.featureIssue === undefined)
+        .filter((column) =>
+          column.role === 'target' ? column.featureChosen : column.featureIssue === undefined,
+        )
         .map((column) => column.summary.name)
     : []
   apply(withFeatures(file.document, names, now()))
@@ -389,7 +397,8 @@ function onStratify(event: Event): void {
  */
 const stratifyBlockNow = computed(() => {
   const current = data.value
-  if (!current) return null
+  const all = settings.value
+  if (!current || !all) return null
   return stratifyBlock({
     dataset: dataset.value,
     taskType: project.taskType,
@@ -397,6 +406,7 @@ const stratifyBlockNow = computed(() => {
     features: current.features,
     preprocessing: current.preprocessing,
     nSamples: nSamples.value,
+    split: all.split,
   })
 })
 
@@ -406,9 +416,7 @@ const stratifyReason = computed(() => {
 })
 
 /** 잠금 규칙은 화면 밖에 있다 (`ml/selection.ts`의 `stratifyLocked` - 왜 그런지도 거기 있다). */
-const stratifyDisabled = computed(() =>
-  stratifyLocked(stratifyBlockNow.value, settings.value?.split.stratify ?? false),
-)
+const stratifyDisabled = computed(() => stratifyLocked(stratifyBlockNow.value))
 
 // ------------------------------------------------------------ 테스트 데이터 받기
 
@@ -811,7 +819,7 @@ const encodingHelp = computed(() =>
                   />
                   <span class="font-bold">{{ t('preprocess.stratify') }}</span>
                 </label>
-                <!-- 이유 없이 회색이면 고장으로 보이고, 켜진 채 걸린 것은 학생이 꺼야 한다. -->
+                <!-- 이유 없이 회색이면 고장으로 보인다. 켜진 채 잠겨도 학습은 무시한다 (결정문 55). -->
                 <p v-if="stratifyReason" class="mt-1 ml-6 text-caution">{{ stratifyReason }}</p>
               </div>
             </div>

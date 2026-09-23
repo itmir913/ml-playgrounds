@@ -131,7 +131,7 @@ describe('범주 없음 사진만 있는 프로젝트에서', () => {
     await project.open(PROJECT_ID)
     project.update((live) => ({
       ...live,
-      document: withTaskType(live.document, 'classification', [], '2026-09-02T10:00:00.000Z'),
+      document: withTaskType(live.document, 'classification', '2026-09-02T10:00:00.000Z'),
     }))
     await flushPromises()
 
@@ -144,7 +144,7 @@ describe('범주 없음 사진만 있는 프로젝트에서', () => {
     await project.open(PROJECT_ID)
     project.update((live) => ({
       ...live,
-      document: withTaskType(live.document, 'clustering', [], '2026-09-02T10:00:00.000Z'),
+      document: withTaskType(live.document, 'clustering', '2026-09-02T10:00:00.000Z'),
     }))
     await flushPromises()
 

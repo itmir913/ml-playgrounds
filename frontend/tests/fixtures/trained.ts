@@ -43,7 +43,7 @@ export async function irisProject(algorithms: readonly string[]): Promise<Projec
     hasHeader: true,
     now: NOW,
   })
-  let document = withTaskType(project.document, 'classification', [], NOW)
+  let document = withTaskType(project.document, 'classification', NOW)
   document = withTarget(document, IRIS_TARGET_COLUMN, NOW)
   document = withFeatures(document, [...IRIS_FEATURE_COLUMNS], NOW)
   document = withSelectedAlgorithms(

@@ -40,7 +40,7 @@ import {
 } from './preprocess'
 import { sampleRows } from './sample'
 // 전처리 화면이 [학습하기] 전에 같은 판정을 한다. 표가 두 벌이면 화면과 학습이 갈린다.
-import { requiredTargetKind, stratifyApplies } from './selection'
+import { featuresInUse, requiredTargetKind, stratifyApplies, stratifyBlockFor } from './selection'
 import { splitRows } from './split'
 
 export interface PlanInput {
@@ -184,19 +184,30 @@ export function planRun(input: PlanInput): RunPlan {
     return blocked('TARGET_NOT_SELECTED')
   }
 
+  /**
+   * **학습에 넣는 특성. 타깃과 같은 이름은 여기서 뺀다** (`open-decisions.md` 55).
+   *
+   * 설정의 특성 목록은 학생이 켠 것을 그대로 든다 — 특성으로 골라 둔 열을 나중에 타깃으로
+   * 고르면 그 이름이 목록에 남는다(`project/settings.ts`의 `withTarget`). **정답이 문제에
+   * 들어가 정확도가 1.0으로 나오는 것을 막는 자리가 이제 여기 하나다.** 아래에서 특성을
+   * 쓰는 자리는 전부 이 값을 쓴다 — 설정의 목록을 직접 읽으면 그 자리로 샌다.
+   * `plan.spec.ts`의 *"타깃과 같은 이름은 특성에서 빠진다"*가 문다.
+   */
+  const features = featuresInUse(data.features, isClustering ? undefined : target)
+
   // provided일 때만 쓰는 테스트 데이터셋의 usableRows. holdout이면 undefined다 -
   // splitRows가 그때는 아예 보지 않는다 (ml/split.ts).
   // 군집화에는 테스트 데이터셋이 없다 — 전체 데이터로 학습한다.
   const testFromProvided = !isClustering && settings.split.method === 'provided' && !!testDataset
   const providedTestRows = testFromProvided
-    ? usableRows(testDataset!, data.features, target!, data.preprocessing.missing)
+    ? usableRows(testDataset!, features, target!, data.preprocessing.missing)
     : undefined
 
   // 군집화에는 타깃이 없으므로 usableRows에 undefined를 넘긴다. usableRows는
   // target이 없으면 타깃 결측 검사를 건너뛴다.
   const usable = usableRows(
     dataset,
-    data.features,
+    features,
     isClustering ? undefined : target,
     data.preprocessing.missing,
   )
@@ -246,7 +257,7 @@ export function planRun(input: PlanInput): RunPlan {
   // 테스트 데이터셋도 같은 전처리를 받으므로(mlpx-spec.md §1.1) 거기도 봐야 한다.
   // 군집화에는 타깃이 없으므로 특성만 본다.
   if (data.preprocessing.missing === 'none') {
-    const checked = isClustering ? [...data.features] : [...data.features, target!]
+    const checked = isClustering ? [...features] : [...features, target!]
     const blank =
       missingColumns(dataset, checked)[0] ??
       (testFromProvided ? missingColumns(testDataset!, checked)[0] : undefined)
@@ -263,16 +274,20 @@ export function planRun(input: PlanInput): RunPlan {
    * 자리마다 갈리고, 그러면 화면과 학습이 다른 목록을 본다.
    */
   /**
-   * **뜻이 없는 유형에서는 층화를 무시한다. 파일의 값은 안 건드린다**
-   * (`open-decisions.md` "값을 내리지 않는다. 학습이 무시하고 화면이 잠근다").
+   * **층화가 막히면 무시한다. 파일의 값은 안 건드린다** (`open-decisions.md` 55
+   * *"끄지 않고 잠근다"*). 유형 · 표본 수 · 시험 비율 · 데이터(값이 1개뿐 · 연속 타깃),
+   * 이유가 무엇이든 같다 — 전처리 화면은 같은 판정(`stratifyBlockFor`)으로 체크박스를 잠근다.
    *
    * **무시하는 자리가 여기 하나다.** 화면마다 무시하면 화면과 학습이 다른 것을 돌린다.
-   * `ml/split.ts`의 거부는 그대로 남는다 — 남의 `.mlpx`를 열어 다시 돌리는 경로에는
-   * 우리 화면이 없다.
+   * `ml/split.ts`·`ml/sample.ts`의 거부는 그대로 남는다 — 이 판정과 같은 조건이라 여기서
+   * 넘어가면 닿지 않고, 계획을 거치지 않는 경로의 마지막 방어선이다.
    */
   const splitSettings = {
     ...settings.split,
-    stratify: stratifyApplies(taskType, settings.split.stratify),
+    stratify: stratifyApplies(
+      settings.split.stratify,
+      stratifyBlockFor(taskType, usableLabels, settings.nSamples, settings.split),
+    ),
   }
 
   try {
@@ -334,7 +349,7 @@ export function planRun(input: PlanInput): RunPlan {
     const preprocessor = fitPreprocessor(
       dataset,
       split.trainIndices,
-      data.features,
+      features,
       data.preprocessing,
       kindIndices,
     )

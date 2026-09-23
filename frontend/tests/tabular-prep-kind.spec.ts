@@ -87,7 +87,7 @@ async function projectFrom(csv: Uint8Array): Promise<ProjectFile> {
     hasHeader: true,
     now: NOW,
   })
-  let document = withTaskType(project.document, 'classification', [], NOW)
+  let document = withTaskType(project.document, 'classification', NOW)
   document = withTarget(document, '성별', NOW)
   document = withFeatures(document, ['키', '몸무게'], NOW)
   // **인코딩을 끈다** — 그래야 범주로 읽힌 열이 학습에서 "빠진다"고 화면이 말한다.
@@ -194,7 +194,7 @@ describe('타깃 줄이 학습의 판정을 말한다', () => {
       hasHeader: true,
       now: NOW,
     })
-    let document = withTaskType(file.document, 'regression', [], NOW)
+    let document = withTaskType(file.document, 'regression', NOW)
     document = withTarget(document, '점수', NOW)
     document = withFeatures(document, ['키', '몸무게'], NOW)
     document = withPreprocessing(document, { missing }, NOW)

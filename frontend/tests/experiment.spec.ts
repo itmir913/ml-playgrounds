@@ -1722,12 +1722,25 @@ describe('표본 뽑기', () => {
     expect(gateFor(settings)).toBe(await usedBy(settings))
   })
 
-  /** 그 조합에 층화를 켜면 이제 이유를 말하고 멈춘다. 조용히 나누지 않는다. */
-  it('가장 작은 표본에 층화를 켜면 이유를 말한다', async () => {
-    const settings = settingsFor({ nSamples: 6 })
-    await expect(usedBy(settings)).rejects.toThrow(
-      expect.objectContaining({ code: 'SPLIT_STRATIFY_SHARE_TOO_SMALL' }),
-    )
+  /**
+   * **그 조합에 층화를 켜면 학습은 층화를 무시하고 선다** (`open-decisions.md` 55, 2026-09-23).
+   *
+   * 전에는 여기서 `SPLIT_STRATIFY_SHARE_TOO_SMALL`로 멈췄고 학생이 전처리 화면에서 층화를
+   * 손으로 꺼야 했다 — 시험 비율·표본 수를 되돌리면 다시 켜러 가야 했다. 이제 화면이 같은
+   * 판정(`stratifyBlockFor`)으로 체크박스를 **이유와 함께 잠그고**, 학습은 층화 없이 나눈다.
+   * **sklearn은 이 입력에서 던진다** — 이 자리는 코드 소유자의 결정으로 발판 원칙에서 갈린다.
+   *
+   * **무시한 결과는 층화를 끈 결과와 같아야 한다** — 반쯤 층화한 무언가가 아니다.
+   */
+  it('가장 작은 표본에 층화를 켜면 무시하고, 센 수가 층화 없이와 같다', async () => {
+    const on = settingsFor({ nSamples: 6 })
+    const off = settingsFor({
+      nSamples: 6,
+      split: { method: 'holdout', testSize: 0.3, stratify: false, randomState: 42 },
+    })
+    expect(on.split.stratify).toBe(true)
+    expect(await usedBy(on)).toBe(await usedBy(off))
+    expect(gateFor(on)).toBe(await usedBy(on))
   })
 
   it('뽑은 실험도 끝까지 돈다 - 세는 것만 맞고 학습이 죽으면 소용없다', async () => {

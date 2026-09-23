@@ -117,7 +117,7 @@ function approximateMode(counts: readonly number[], draws: number, seed: number)
  * 양수의 올림은 언제나 1 이상이다. **검사 둘이 그 죽은 가지를 지킨다고 말하고 있었다**
  * (R7 감사 B-1).
  */
-function testCountFor(total: number, testSize: number): number {
+export function testCountFor(total: number, testSize: number): number {
   return Math.min(Math.ceil(total * testSize), total - 1)
 }
 

@@ -3,9 +3,12 @@
  * (`project/identity.ts`와 같은 모양이다).
  *
  * 화면이 문서를 직접 펼쳐 고치지 않는 이유는 하나다 — **여기 있는 규칙들이 화면 없이
- * 테스트돼야 하기 때문이다.** "타깃으로 고른 열은 특성에서 빠진다" 같은 것은 눈으로
- * 보면 당연해 보이지만, 안 지켜지면 같은 열이 정답이자 문제로 들어가 **정확도가 1.0으로
- * 나오는 조용히 틀린 학습**이 된다.
+ * 테스트돼야 하기 때문이다.**
+ *
+ * **한 필드를 쓰는 문이 다른 필드를 고쳐 쓰지 않는다** (`open-decisions.md` 55 *"끄지 않고
+ * 잠근다"*). 유형이 모델 선택을 지우고 타깃이 특성 목록을 고치던 것이 여기 있었는데,
+ * 그러면 되돌려도 안 돌아와 학생이 다시 골라야 했다. **적용되지 않는 값은 학습이 무시한다**
+ * — 타깃이 특성에 들어가 정확도가 1.0으로 나오는 것은 `ml/plan.ts`가 막는다.
  *
  * 값의 어휘와 상한은 여기 없다. 어휘는 `project/schema.ts`, 하이퍼파라미터의 범위는
  * `ml/hyperparams.ts`가 출처다.
@@ -57,61 +60,49 @@ function withTabularData(
 /**
  * 기계학습 유형을 바꾼다. **`manifest`에 있다** — `settings`가 아니다.
  *
- * 뜻을 잃은 모델 선택은 부르는 쪽이 `algorithmsLosingMeaning`으로 골라 `drop`에 넘긴다.
- * 여기서 등록부를 보지 않는 이유는, 지우는 판단과 지우는 동작이 한 함수에 있으면
- * 화면이 "무엇이 지워질지" 미리 물어볼 수가 없어서다 — 학생에게 알려야 하는 변경이다
- * (architecture.md §8.9).
+ * **모델 선택은 안 건드린다** (`open-decisions.md` 55 *"끄지 않고 잠근다"*). 전에는 그
+ * 유형에 안 맞는 모델을 여기서 지웠고, 유형을 되돌려도 안 돌아와 학생이 다시 담아야 했다.
+ * 이제 선택은 그대로 남고 **학습에 넘길 때만 뺀다**(`ml/training-source.ts`의
+ * `trainableSelections`). 학습 화면은 그 줄을 이유와 함께 잠근다.
  */
 export function withTaskType(
   document: ProjectDocument,
   taskType: TaskType,
-  drop: readonly string[],
   now: string,
 ): ProjectDocument {
-  const dropped = new Set(drop)
-  return {
-    ...document,
-    manifest: { ...document.manifest, taskType, updatedAt: now },
-    settings: {
-      ...document.settings,
-      selectedAlgorithms: document.settings.selectedAlgorithms.filter(
-        (selection) => !dropped.has(selection.algorithm),
-      ),
-    },
-  }
+  return { ...document, manifest: { ...document.manifest, taskType, updatedAt: now } }
 }
 
 /**
  * 타깃 열을 정한다. `undefined`면 고르지 않은 상태로 되돌린다.
  *
- * **고른 열은 특성에서 빠진다.** 정답을 문제에 함께 넣으면 어떤 모델이든 정확도가
- * 1.0으로 나오고, 학생은 자기가 아주 좋은 모델을 만들었다고 믿는다.
+ * **특성 목록은 안 건드린다** (`open-decisions.md` 55). 전에는 고른 열을 특성에서 뺐고,
+ * 타깃을 다른 열로 바꿔도 **그 열이 특성으로 안 돌아왔다.** 이제 목록에 남고, 타깃인 동안
+ * 그 줄의 특성 칸이 잠긴다.
+ *
+ * **정답이 문제에 들어가는 것은 학습 계획이 막는다** (`ml/plan.ts`의 `featuresInUse`). 막는
+ * 자리가 여기서 거기로 옮겼을 뿐이고 **자리는 하나다** — 정답을 문제에 함께 넣으면 어떤
+ * 모델이든 정확도가 1.0으로 나오고, 학생은 자기가 아주 좋은 모델을 만들었다고 믿는다.
  */
 export function withTarget(
   document: ProjectDocument,
   target: string | undefined,
   now: string,
 ): ProjectDocument {
-  return withTabularData(
-    document,
-    {
-      target,
-      features: dataSettings('tabular', document.settings).features.filter(
-        (name) => name !== target,
-      ),
-    },
-    now,
-  )
+  return withTabularData(document, { target }, now)
 }
 
-/** 특성 목록을 통째로 갈아 끼운다. 타깃은 어떤 경로로도 특성이 되지 않는다. */
+/**
+ * 특성 목록을 통째로 갈아 끼운다. **타깃과 같은 이름도 그대로 든다** (위 `withTarget`과
+ * 같은 이유) — 여기서 거르면 다른 특성 하나를 켜고 끄는 것만으로 타깃이 된 열이 목록에서
+ * 조용히 사라진다. 학습에서 빼는 자리는 `ml/plan.ts` 하나다.
+ */
 export function withFeatures(
   document: ProjectDocument,
   features: readonly string[],
   now: string,
 ): ProjectDocument {
-  const { target } = dataSettings('tabular', document.settings)
-  return withTabularData(document, { features: features.filter((name) => name !== target) }, now)
+  return withTabularData(document, { features: [...features] }, now)
 }
 
 export function withPreprocessing(
