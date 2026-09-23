@@ -295,20 +295,37 @@ export function planRun(input: PlanInput): RunPlan {
             providedTestRows ? { rows: providedTestRows } : undefined,
           )
 
+    /**
+     * **열 종류는 이 실행이 쓰는 행 전체로 정한다** (open-decisions.md 53, 2026-09-23).
+     * 훈련 몫만 보면 **무작위 분할이 해석을 정했다** — 같은 `모름` 한 칸이 훈련 몫이면
+     * 범주, 시험 몫이면 아래에서 거절이었다. 파라미터(채움값·스케일·범주 목록)는 여전히
+     * 훈련 몫만 본다.
+     *
+     * **따로 올린 테스트 파일은 넣지 않는다.** 행 번호가 다른 파일을 가리키고, 그 파일의
+     * 글자 칸은 아래에서 거절한다.
+     */
+    const kindIndices = testFromProvided
+      ? split.trainIndices
+      : [...split.trainIndices, ...split.testIndices]
     const preprocessor = fitPreprocessor(
       dataset,
       split.trainIndices,
       data.features,
       data.preprocessing,
+      kindIndices,
     )
 
     /**
      * **수치 열의 시험 몫에 수로 못 읽는 값이 있으면 학습 전에 거절한다**
      * (2026-09-21 R36 A-1).
      *
-     * **열 판정은 훈련 몫만 보고 `transform`은 시험 몫도 돌린다.** 그 비대칭 때문에
-     * 시험 몫에만 있는 `1,650`·`없음`·`N/A`가 아무 데도 안 걸리고 **조용히 `0`이 되어
-     * 정확도와 R²에 섞였다** — 실패도 경고도 없이 그 숫자가 포트폴리오에 적혔다.
+     * **지금 이 거절에 닿는 것은 따로 올린 테스트 파일뿐이다** (2026-09-23). 같은 파일의
+     * 시험 몫은 위에서 종류 판정에 들어가므로, 거기 `없음`이 있으면 열이 범주가 되지
+     * 수치 열 안의 못 읽는 칸으로 남지 않는다.
+     *
+     * 처음 선 사연: 열 판정이 훈련 몫만 보고 `transform`은 시험 몫도 돌려서, 시험 몫에만
+     * 있는 `없음`·`N/A`가 **조용히 `0`이 되어 정확도와 R²에 섞였다** — 실패도 경고도
+     * 없이 그 숫자가 포트폴리오에 적혔다.
      *
      * **여기서 막는 이유.** `transform`을 부르는 자리(`experiment.ts`)는 어떤 `try`
      * 안에도 없어서 던지면 **run 하나가 아니라 학습 전체가 죽는다.** 계획 단계면

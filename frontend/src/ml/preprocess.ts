@@ -270,9 +270,14 @@ export function missingColumns(
  * 비결측 칸은 **정의상 전부 수로 읽힌다.** 그래서 이 함수가 받는 `rows`는 언제나
  * **시험 몫**이다.
  *
- * **그 비대칭이 곧 2026-09-21 R36 A-1이다.** 열 판정은 훈련 몫만 보는데 `transform`은
- * 시험 몫도 같은 규칙으로 돌리므로, 시험 몫에만 있는 `1,650`·`없음`은 아무 데도 안
- * 걸리고 `transform`에서 조용히 `0`이 됐다 — 그 `0`으로 정확도와 R²가 나왔다.
+ * **같은 파일의 시험 몫에서는 이제 안 걸린다** (open-decisions.md 53, 2026-09-23).
+ * 열 종류를 훈련 ∪ 시험으로 정하게 되어, 시험 몫의 `모름`은 열을 **범주로** 만들지 수치
+ * 열 안의 못 읽는 칸으로 남지 않는다. **걸리는 것은 따로 올린 테스트 파일뿐이다** —
+ * 다른 파일이라 종류 판정에 안 들어간다.
+ *
+ * 처음 이 함수가 선 사연(2026-09-21 R36 A-1): 열 판정은 훈련 몫만 보는데 `transform`은
+ * 시험 몫도 같은 규칙으로 돌려서, 시험 몫에만 있는 `없음`이 `transform`에서 조용히 `0`이
+ * 됐다 — 그 `0`으로 정확도와 R²가 나왔다.
  *
  * **결측은 여기서 안 본다.** 빈 칸은 채움값이 있고(`fill`), 전략이 `none`이면
  * `missingColumns`가 앞에서 이미 거절한다.
@@ -329,14 +334,21 @@ export function usableRows(
 /**
  * 훈련 데이터에서 전처리 파라미터를 구한다.
  *
- * **trainIndices만 본다.** 여기에 테스트 데이터가 섞이면 지표가 조용히 부풀고, 그 지표로
- * 학생이 "이 모델이 제일 좋다"고 쓴다.
+ * **파라미터는 trainIndices만 본다.** 채움값·스케일·범주 목록에 테스트 데이터가 섞이면
+ * 지표가 조용히 부풀고, 그 지표로 학생이 "이 모델이 제일 좋다"고 쓴다.
+ *
+ * **열 종류(수치·범주)만은 `kindIndices`로 정한다** (open-decisions.md 53, 2026-09-23).
+ * 훈련 몫으로 정하면 **무작위 분할이 해석을 정했다** — 같은 `모름` 한 칸이 훈련 몫이면 열이
+ * 범주가 되고 시험 몫이면 수치로 남아 거절됐다. pandas는 분할 전에 열 전체로 자료형을
+ * 정하고, 우리 데이터 화면의 요약도 그렇다(`data/columns.ts`). **종류는 통계가 아니라서
+ * 누출이 아니다.** 부르는 쪽이 안 주면 예전처럼 훈련 몫이다.
  */
 export function fitPreprocessor(
   dataset: Dataset,
   trainIndices: readonly number[],
   features: readonly string[],
   preprocessing: Preprocessing,
+  kindIndices: readonly number[] = trainIndices,
 ): Preprocessor {
   const columns: FittedColumn[] = []
   const featureNames: string[] = []
@@ -350,7 +362,13 @@ export function fitPreprocessor(
     const present = cells.filter((cell) => !isMissing(cell))
     if (present.length === 0) throw new ClientError('FEATURE_ALL_MISSING', { feature: name })
 
-    const kind = detectKind(present)
+    const kind = detectKind(
+      kindIndices === trainIndices
+        ? present
+        : kindIndices
+            .map((row) => dataset.rows[row]?.[columnIndex] ?? '')
+            .filter((cell) => !isMissing(cell)),
+    )
 
     if (kind === 'categorical' && preprocessing.categoricalEncoding === 'none') {
       // 문자열을 그대로 모델에 넣을 수는 없다. 조용히 0으로 바꾸느니 빼고 말한다.

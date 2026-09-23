@@ -68,7 +68,7 @@ function planWith(test: Dataset | null, method: 'holdout' | 'provided' = 'provid
   })
 }
 
-describe('시험 몫에 수로 못 읽는 값이 있으면 계획이 선다', () => {
+describe('시험 몫의 수로 못 읽는 값 — 따로 올린 표는 서고, 같은 파일은 범주가 된다', () => {
   /** 교실에서 실제로 나오는 셋. 한국 학교 자료의 수는 `1,650`으로 적힌다. */
   for (const bad of ['1,650', '없음', 'N/A']) {
     it(`따로 올린 테스트 표의 \`${bad}\`를 거절한다`, () => {
@@ -81,25 +81,44 @@ describe('시험 몫에 수로 못 읽는 값이 있으면 계획이 선다', ()
     })
   }
 
-  it('한 파일 홀드아웃에서도 선다 — 훈련 몫에 없는 글자가 시험 몫에만 있을 때', () => {
+  /**
+   * **한 파일 홀드아웃에서는 거절하지 않고 열이 범주가 된다** (open-decisions.md 53,
+   * 2026-09-23).
+   *
+   * **전에는 반대를 못 박았다** — 시험 몫에만 있는 글자가 거절됐다(R36 A-1). 그런데 같은
+   * 글자가 훈련 몫에 가면 열이 조용히 범주가 돼서 **무작위 분할이 해석을 정했다.** 이제
+   * 열 종류를 그 실행이 쓰는 행 전체로 정하므로, `N/A`가 어디 가든 결과가 같다.
+   *
+   * **R36 A-1의 피해는 여전히 안 난다** — 그 피해는 *수치 열의 시험 행이 조용히 `0`이
+   * 되는 것*이었는데, 열이 수치가 아니게 되니 그 자리가 없다. 아래 두 판이 그것을 잰다.
+   */
+  it('한 파일 홀드아웃에서는 시험 몫의 글자가 열을 범주로 만든다 — 분할이 해석을 안 정한다', () => {
     const clean = planWith(null, 'holdout')
     expect(clean.ok).toBe(true)
     if (!clean.ok) return
 
-    // 시험 몫으로 간 행 하나의 `점수`만 글자로 바꾼다. 훈련 몫은 그대로다.
-    const dirty = trainTable()
-    const victim = clean.split.testIndices[0] as number
-    ;(dirty.rows[victim] as string[])[0] = 'N/A'
+    // 같은 글자를 한 번은 시험 몫에, 한 번은 훈련 몫에 둔다. 나머지는 같다.
+    function planWithLetterAt(row: number) {
+      const dirty = trainTable()
+      ;(dirty.rows[row] as string[])[0] = 'N/A'
+      return planRun({
+        dataset: dirty,
+        testDataset: null,
+        settings: settingsFor('holdout'),
+        taskType: 'classification',
+      })
+    }
+    const inTest = planWithLetterAt(clean.split.testIndices[0] as number)
+    const inTrain = planWithLetterAt(clean.split.trainIndices[0] as number)
 
-    const plan = planRun({
-      dataset: dirty,
-      testDataset: null,
-      settings: settingsFor('holdout'),
-      taskType: 'classification',
-    })
-    expect(plan.ok).toBe(false)
-    if (plan.ok || plan.reason.kind !== 'error') return
-    expect(plan.reason.code).toBe('FEATURE_NOT_NUMBER')
+    expect(inTest.ok).toBe(true)
+    expect(inTrain.ok).toBe(true)
+    if (!inTest.ok || !inTrain.ok) return
+    const kindOf = (plan: typeof inTest) =>
+      plan.ok ? plan.preprocessor.columns.find((column) => column.name === '점수')?.kind : null
+    // **어디 있든 같은 종류다.** 전에는 시험 몫이면 거절, 훈련 몫이면 범주였다.
+    expect(kindOf(inTest)).toBe('categorical')
+    expect(kindOf(inTrain)).toBe('categorical')
   })
 
   it('학습 경로에서는 그 사유로 던진다', async () => {
