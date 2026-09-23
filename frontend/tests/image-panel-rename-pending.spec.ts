@@ -24,7 +24,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { i18n, setLocale } from '../src/i18n'
 import { IMAGE_UNLABELED } from '../src/project/format'
-import { imageCategories, readImages } from '../src/project/images'
+import { imageCategories, readImages, removeImages } from '../src/project/images'
 import { closeStorage, DB_NAME } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import ImagePanel from '../src/views/data/ImagePanel.vue'
@@ -37,8 +37,11 @@ vi.mock('../src/data/image/spawn', async () => {
 
 vi.mock('../src/data/image/room', () => ({ imageRoomShortfall: async () => null }))
 
-/** 화면 안쪽. 놓기·이름 창·삭제 창·굽기를 진짜 함수로 부른다. */
+/** 화면 안쪽. 놓기·이름 창·삭제 창·굽기·고르기를 진짜 함수로 부른다. */
 interface PanelInternals {
+  selected: ReadonlySet<string>
+  anchor: { category: string; hash: string } | null
+  toggle: (category: string, hash: string, extend: boolean) => void
   readPicked: (files: readonly File[], into: string) => Promise<void>
   naming: { mode: 'create' | 'rename'; from: string; value: string } | null
   commitName: () => Promise<void>
@@ -156,5 +159,59 @@ describe('확인 판의 묶음이 범주 편집을 따라간다', () => {
     const after = await bakeAndRead(project, panel)
     expect(after.categories).toEqual([])
     expect(after.landedIn).toEqual([IMAGE_UNLABELED])
+  })
+})
+
+/**
+ * **고른 사진과 shift+클릭 기준점이 바탕을 따라가는가** (2026-09-23, R38 C-7).
+ *
+ * 사진이 사라지면 고른 집합에서도 빠져야 한다 — 남으면 *"3장 옮기기"*가 거짓말이 된다. 그
+ * 정리 줄(`ImagePanel.vue`의 `watch(entries)`)을 지워도 **조용했다**(IP1·IP2).
+ */
+describe('고른 사진이 바탕을 따라간다', () => {
+  /** `cat`에 사진 셋을 굽고 해시를 순서대로 준다. */
+  async function threePhotos() {
+    const { project, panel } = await panelWith('cat')
+    await panel.readPicked([file('a.jpg'), file('b.jpg'), file('c.jpg')], 'cat')
+    await settle()
+    await panel.bake()
+    await settle()
+    const hashes = readImages(project.file).map((one) => one.hash)
+    expect(hashes).toHaveLength(3)
+    return { project, panel, hashes }
+  }
+
+  it('사라진 사진은 고른 집합에서 빠지고, 기준점이면 기준점도 풀린다', async () => {
+    const { project, panel, hashes } = await threePhotos()
+    const [first, second] = hashes as [string, string, string]
+    panel.toggle('cat', second, false)
+    panel.toggle('cat', first, false)
+    expect(panel.selected.size).toBe(2)
+    expect(panel.anchor?.hash).toBe(first)
+
+    // 판 밖에서 사진 하나가 사라진다(되돌리기·다른 경로). 판은 그것을 알아차려야 한다.
+    await project.save((live) => removeImages(live, [first], '2026-09-23T00:00:00Z'))
+    await settle()
+
+    expect([...panel.selected]).toEqual([second])
+    expect(panel.anchor).toBeNull()
+  })
+
+  /**
+   * **이름을 바꿔도 shift+클릭 범위가 이어진다** (A-1의 이웃). 기준점이 옛 이름을 들고 있으면
+   * 범위 선택이 보통 클릭으로 떨어진다 — 해는 없지만 조용했다.
+   */
+  it('범주 이름을 바꾼 뒤에도 기준점에서 범위를 고른다', async () => {
+    const { panel, hashes } = await threePhotos()
+    const [first, , third] = hashes as [string, string, string]
+    panel.toggle('cat', first, false)
+
+    panel.naming = { mode: 'rename', from: 'cat', value: 'dog' }
+    await panel.commitName()
+    await settle()
+    expect(panel.anchor?.category).toBe('dog')
+
+    panel.toggle('dog', third, true)
+    expect(panel.selected.size).toBe(3)
   })
 })
