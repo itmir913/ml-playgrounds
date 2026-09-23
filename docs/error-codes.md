@@ -192,9 +192,13 @@ CLUSTER_TOO_FEW_ROWS
 
 **테스트·예측 데이터 받기** (`data/columns.ts`, `ml/split.ts`, `ml/predict.ts`)
 ```
-TEST_DATASET_COLUMN_MISSING, TEST_DATASET_NO_USABLE_ROWS,
+TEST_DATASET_COLUMN_MISSING, TEST_DATASET_NO_USABLE_ROWS, TEST_DATASET_TARGET_NOT_NUMERIC,
 PREDICT_DATASET_COLUMN_MISSING
 ```
+
+`TEST_DATASET_TARGET_NOT_NUMERIC`은 회귀에서 **따로 올린 테스트 표의** 타깃에 수가 아닌 값이
+있는 것이다(`ml/plan.ts`). 정본의 같은 사정(`TARGET_NOT_NUMERIC`)과 나누는 이유가 위와 같다 —
+뭉치면 학생이 멀쩡한 정본의 타깃 열을 들여다본다 (`open-decisions.md` 53, R38-V2 C-1).
 
 정본 열과의 대조는 브라우저에서만 한다(`mlpx-spec.md` §0.3 — 서버는 확정된 정본과
 분할 인덱스만 받는다). `TEST_DATASET_NO_USABLE_ROWS`는 테스트 데이터로 채점할 행이 하나도
