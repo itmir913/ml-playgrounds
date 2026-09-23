@@ -153,11 +153,32 @@ const fittedColumns = computed(() => {
   return new Map(current.preprocessor.columns.map((column) => [column.name, column]))
 })
 
+/**
+ * 열 요약. **종류는 학습이 정한 것으로 덮는다** (2026-09-23 R38 A-2, architecture.md §9.1.3).
+ *
+ * `summarizeColumns`는 **파일 전체의 행**으로 종류를 세고 학습은 **그 실행이 쓰는 행**으로
+ * 센다(결정문 53). 둘이 갈리는 흔한 입력 — 타깃이 빈 행에만 `모름`이 있다 — 에서 이 표는
+ * *"문자 값이 든 열이라 학습에서 빠집니다"*라고 말했는데 **학습은 그 열을 수치로 썼다.**
+ * 같은 판의 요약 카드(`runPlan`)는 옳게 말해서 **화면 둘이 반대말을 했다.**
+ *
+ * 계획이 선 열만 덮는다. 학습에서 빠진 열(`fittedColumns`에 없다)은 파일 전체의 종류로
+ * 남고, 그때는 두 쪽이 같다. **계획이 못 섰으면 파일 전체의 종류다** — 그때는 학습이 쓰는
+ * 종류라는 것이 아직 없다.
+ */
+const plannedColumns = computed(() => {
+  const fitted = fittedColumns.value
+  if (!fitted) return columns.value
+  return columns.value.map((summary) => {
+    const one = fitted.get(summary.name)
+    return one && one.kind !== summary.kind ? { ...summary, kind: one.kind } : summary
+  })
+})
+
 const plan = computed(() => {
   const current = data.value
   if (!current || !dataset.value) return null
   return columnPlan({
-    columns: columns.value,
+    columns: plannedColumns.value,
     rowCount: dataset.value.rows.length,
     taskType: project.taskType,
     target: current.target,

@@ -508,7 +508,29 @@ async function commitName(): Promise<void> {
       ? addCategory(live, name, new Date().toISOString())
       : renameCategory(live, draft.from, name, new Date().toISOString()),
   )
+  // **판에 선 묶음도 새 이름을 따라간다** (2026-09-23 R38 A-1). 묶음은 범주 이름을
+  // 문자열로 들고 있어서, 안 옮기면 굽는 순간 `addImages`가 **지운 옛 이름을 되살려**
+  // 사진을 거기 앉힌다 — 학습은 그것을 다른 클래스로 배운다.
+  if (draft.mode === 'rename') {
+    retagPending(draft.from, name)
+    // shift+클릭의 기준점도 이름을 든다 — 안 옮기면 범위 선택이 보통 클릭으로 떨어진다
+    // (R38 C-7, 해는 없지만 조용했다).
+    if (anchor.value?.category === draft.from) anchor.value = { ...anchor.value, category: name }
+  }
   naming.value = null
+}
+
+/**
+ * 확인 판에 선 묶음의 범주 이름을 바꾼다. **이미 앉은 사진에 `renameCategory`·
+ * `removeCategory`가 하는 일을 판에도 한다** — 판은 저장소 밖이라 그 둘이 못 본다.
+ *
+ * 굽는 중인 묶음(`baking`)은 안 건드린다 — 그동안은 `busy`라 이름 창과 삭제가 잠긴다.
+ */
+function retagPending(from: string, to: string): void {
+  if (!pending.value) return
+  pending.value = pending.value.map((item) =>
+    item.category === from ? { ...item, category: to } : item,
+  )
 }
 
 async function commitRemoveCategory(): Promise<void> {
@@ -516,6 +538,8 @@ async function commitRemoveCategory(): Promise<void> {
   const name = removingCategory.value
   if (!file || name === null) return
   await save((live) => removeCategory(live, name, new Date().toISOString()))
+  // 지운 범주에 서 있던 판의 사진은 **라벨 없음**으로 — 이미 앉은 사진과 같은 규칙이다.
+  retagPending(name, IMAGE_UNLABELED)
   removingCategory.value = null
 }
 </script>
