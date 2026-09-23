@@ -26,10 +26,10 @@ export type Migration = (document: RawDocument) => RawDocument
 /**
  * 버전 n -> n+1 변환의 등록부.
  *
- * 예: FORMAT_VERSION을 3으로 올린다면 { 2: (document) => ... } 를 여기 추가한다.
+ * 예: FORMAT_VERSION을 4로 올린다면 { 3: (document) => ... } 를 여기 추가한다.
  * 빠뜨리면 tests/migrate.spec.ts가 잡는다.
  */
-export const MIGRATIONS: Record<number, Migration> = { 1: migrateV1ToV2 }
+export const MIGRATIONS: Record<number, Migration> = { 1: migrateV1ToV2, 2: migrateV2ToV3 }
 
 function asRecord(value: unknown): RawDocument | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -94,6 +94,18 @@ function migrateV1ToV2(document: RawDocument): RawDocument {
   }
 
   return next
+}
+
+/**
+ * v2 -> v3. **아무것도 안 바꾼다** (mlpx-spec.md §9.3).
+ *
+ * 올린 것은 **같은 필드의 뜻**이다 — v3부터 `settings.data.features`에 타깃과 같은 이름이
+ * 있을 수 있고 학습이 그것을 뺀다(`open-decisions.md` 55). v2 파일에는 그런 이름이 없거나
+ * (옛 판의 쓰는 문이 걸렀다) 있어도 옛 판에서 이미 그랬으므로 고칠 것이 없다. 버전이 오르는
+ * 까닭은 **옛 판이 새 파일을 거부하게 하려는 것**이고, 그것은 이 함수가 아니라 번호가 한다.
+ */
+function migrateV2ToV3(document: RawDocument): RawDocument {
+  return document
 }
 
 /**

@@ -305,6 +305,19 @@ describe('스키마 구조 정본', () => {
    */
   it.skipIf(!hasCanon(PREVIOUS))('B. 직전 정본과의 사이에 깨는 변경이 하나는 있다', () => {
     const breaks = breakingChanges(readCanon(PREVIOUS), readCanon(CURRENT))
+    /**
+     * **구조가 아니라 뜻 때문에 오른 버전은 여기 적는다** — 적힌 버전은 반대로 **구조가 안
+     * 바뀌었음을** 못 박는다(그 주장이 거짓이 되면 운다). 풀어 주는 자리를 목록으로 둔 것은
+     * 다음 버전이 조용히 같은 면제를 받지 않게 하려는 것이다.
+     */
+    const RAISED_FOR_MEANING: Readonly<Record<number, string>> = {
+      // 옛 판이 `features`에 남은 타깃을 특성으로 쓴다 (mlpx-spec.md §9.3, 2026-09-23).
+      3: 'settings.data.features may hold the target name',
+    }
+    if (RAISED_FOR_MEANING[FORMAT_VERSION] !== undefined) {
+      expect(breaks, `v${FORMAT_VERSION} was raised for meaning, not structure`).toEqual([])
+      return
+    }
     expect(
       breaks.length,
       [

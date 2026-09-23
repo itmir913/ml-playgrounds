@@ -285,7 +285,8 @@ const pageCache = shallowRef<{ signature: string; pages: Map<number, Answer[][]>
 /**
  * 캐시를 버려야 하는 조건. **판 크기가 여기 들어 있다** — 상한을 풀면 판 크기가 바뀌고,
  * 캐시의 열쇠가 쪽 번호라 같은 번호가 다른 행을 가리킨다. 아래 감시자가 이 서명이
- * 바뀔 때 캐시를 버리고 첫 쪽으로 보낸다 — **쪽 번호도 그때 함께 되돌아간다.**
+ * 바뀔 때 캐시를 버리고, **파일이나 판 크기가 바뀌었으면 첫 쪽으로 보낸다** — 모델만
+ * 바뀌었으면 그 쪽에 남는다.
  */
 const signature = computed(() =>
   predictPageSignature(project.file?.predictDataset?.hash ?? '', props.models, pageSize.value),
@@ -459,7 +460,13 @@ const colorAssignments = shallowRef<ReadonlyMap<Prediction, number>>(new Map())
  *
  * **색 배정도 여기서 같이 비운다.** 다른 파일·다른 모델이면 값의 세계 자체가
  * 바뀐 것이라 이전 배정을 들고 있을 이유가 없다.
+ *
+ * **쪽 번호는 행이 바뀔 때만 첫 쪽으로 간다** (`open-decisions.md` 55 표의 8, R38-D55 C-8).
+ * 보이는 모델만 바꾸면 행은 그대로라 같은 쪽의 답을 다시 셀 뿐이다 — 거기서 첫 쪽으로
+ * 보내면 학생이 보던 행을 다시 찾아가야 한다. 파일이나 판 크기가 바뀌면 같은 번호가
+ * 다른 행이므로 첫 쪽이다.
  */
+let rowsKey: string | null = null
 watch(
   signature,
   () => {
@@ -467,7 +474,10 @@ watch(
     trainingRowContexts = new Map()
     predictorCache = null
     colorAssignments.value = new Map()
-    void goToPage(0)
+    const nextKey = `${project.file?.predictDataset?.hash ?? ''}|${pageSize.value}`
+    const keep = rowsKey === nextKey ? Math.min(page.value, totalPages.value - 1) : 0
+    rowsKey = nextKey
+    void goToPage(keep)
   },
   { immediate: true },
 )

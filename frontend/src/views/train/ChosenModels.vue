@@ -416,6 +416,11 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
           </AppButton>
         </div>
 
+        <!--
+          **잠긴 줄의 손잡이는 값을 보이되 고칠 수 없다** (`open-decisions.md` 55, R38-D55 B-3).
+          학습이 그 줄을 무시하는데 고치게 두면 화면이 거짓말을 한다. **지우지는 않는다** —
+          유형을 되돌리면 그 값으로 돈다. `readonly`인 이유는 §8.9.1.1과 같다(값이 읽혀야 한다).
+        -->
         <details
           v-if="specsOf(row).length > 0 && !props.running"
           class="mt-3 rounded-panel border border-line"
@@ -438,6 +443,7 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
                   type="number"
                   class="w-40 rounded-field border border-line-strong bg-surface px-2 py-1"
                   :value="valueOf(row, spec)"
+                  :readonly="reasons.length > 0"
                   :min="spec.min"
                   :max="spec.max"
                   :step="spec.step"

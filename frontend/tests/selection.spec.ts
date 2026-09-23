@@ -425,6 +425,21 @@ describe('층화를 걸 수 있는가', () => {
     expect(blockFor({ dataset: dataset([' A', 'A', 'B ', 'B']) })).toBeNull()
   })
 
+  /**
+   * **`provided`는 나누지 않는다** (R38-D55 A-1). 나눌 때의 사유(값이 1개뿐 · 연속)는 거기서
+   * 층화를 막지 않는다 — 뽑기의 사유만 남는다. 막으면 계획이 층화 뽑기를 끈다.
+   */
+  it('따로 받은 테스트 데이터면 나눌 때의 사유를 세지 않고 뽑을 때의 사유만 센다', () => {
+    const lonely = dataset(['A', 'A', 'A', 'B', 'B', 'B', 'C'])
+    const provided = { method: 'provided', testSize: 0.3 } as const
+    expect(blockFor({ dataset: lonely })?.code).toBe('SPLIT_STRATIFY_IMPOSSIBLE')
+    expect(blockFor({ dataset: lonely, split: provided })).toBeNull()
+    // 바닥의 합(2+2+1)을 표본 수가 못 채우면 뽑기가 던진다 — 그 사유는 남는다.
+    expect(blockFor({ dataset: lonely, split: provided, nSamples: 4 })?.code).toBe(
+      'SAMPLE_STRATIFY_IMPOSSIBLE',
+    )
+  })
+
   it('회귀에서는 유형이 먼저 걸린다 - 값을 세기 전에 답이 나온다', () => {
     // **데이터를 보지 않고도 답한다.** 값이 고르게 갈리는 데이터를 넣어도 마찬가지다 -
     // 회귀에는 맞출 "종류"가 없다.

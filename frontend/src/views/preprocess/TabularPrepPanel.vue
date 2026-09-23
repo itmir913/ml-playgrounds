@@ -30,12 +30,14 @@ import { importTable, openTable, TABULAR_ACCEPT, type TableDocument } from '@/da
 import { MIN_SPLIT_ROWS } from '@/limits'
 import {
   columnPlan,
+  featuresInUse,
   requiredTargetKind,
   rowUsage,
   splitsData,
   stratifyBlock,
   stratifyLocked,
   trainableRowCount,
+  usesTarget,
 } from '@/ml/selection'
 import { planRun } from '@/ml/plan'
 import { preprocessPreview } from '@/ml/preview'
@@ -212,7 +214,13 @@ const targetRule = computed(() => requiredTargetKind(project.taskType)?.code)
  * 시킨다.
  */
 const featureSummary = computed(() => {
-  const chosen = data.value?.features.length ?? 0
+  const current = data.value
+  // **학습이 쓰는 특성으로 센다** — 타깃과 같은 이름은 계획이 빼므로 여기서도 뺀다. 그대로
+  // 세면 타깃이 목록에 남은 파일에서 *"5개 중 4개"*가 된다(R38-D55 C-4, 결정문 55).
+  const chosen = current
+    ? featuresInUse(current.features, usesTarget(project.taskType) ? current.target : undefined)
+        .length
+    : 0
   const usable = plan.value?.usableFeatures ?? 0
   if (chosen === 0) {
     return { text: t('preprocess.tabular.noFeatureChosen'), tone: 'text-ink-soft' }
@@ -432,6 +440,14 @@ const testDataset = computed(() => readTestDataset(project.file))
  */
 const splitsHere = computed(() => splitsData(project.taskType))
 
+/**
+ * 층화 체크박스를 뽑기 카드에 세우는가 (R38-D55 B-6). **따로 받은 테스트 데이터를 고른 채
+ * 뽑기가 켜져 있을 때다** — 그때 층화는 뽑기에만 걸린다. 뽑기가 없으면 층화가 아무 일도
+ * 안 하므로 안 그린다(`architecture.md` §8.9). 뽑기 카드의 요약 줄 안에 두므로 뽑기가 꺼지면
+ * 함께 사라진다.
+ */
+const stratifyOnSampleCard = computed(() => splitsHere.value && testChoice.value === 'provided')
+
 /** 순수 함수는 ml/selection.ts에 있다 - 컴포넌트 밖에서 테스트한다. */
 const testRowUsage = computed(() => {
   const current = data.value
@@ -484,7 +500,7 @@ const testRemoving = ref(false)
  * 알아서 맞춰 준다.
  */
 function chooseHoldout(): void {
-  openedTest.value = null
+  // **읽어 둔 파일 초안은 버리지 않는다** — ②로 돌아오면 그대로 있다(결정문 55, R38-D55 C-9).
   if (settings.value?.split.method === 'provided') {
     testChoiceRadios.resync('provided')
     requestRemoveTest()
@@ -747,6 +763,26 @@ const encodingHelp = computed(() =>
               <p class="mt-1.5 text-caution">
                 {{ t('preprocess.tabular.sampleSummary', sampleSummary) }}
               </p>
+
+              <!--
+                **따로 받은 테스트 데이터면 층화는 뽑기의 손잡이다** (`open-decisions.md` 55,
+                R38-D55 B-6). 나누지 않으므로 옆 카드의 ①이 접혀 그 체크박스가 안 보이는데,
+                뽑기에는 여전히 걸린다 — 안 그리면 켜져 있는지도 왜 잠겼는지도 학생이 모른다.
+                ①이면 옆 카드에 서므로 여기서는 안 그린다(한 값에 칸이 둘이면 안 된다).
+              -->
+              <div v-if="stratifyOnSampleCard" class="mt-3">
+                <label class="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    class="size-4 accent-brand"
+                    :checked="settings.split.stratify"
+                    :disabled="stratifyDisabled"
+                    @change="onStratify"
+                  />
+                  <span class="font-bold">{{ t('preprocess.stratify') }}</span>
+                </label>
+                <p v-if="stratifyReason" class="mt-1 ml-6 text-caution">{{ stratifyReason }}</p>
+              </div>
             </div>
           </div>
 

@@ -646,6 +646,36 @@ export function defaultFilter(models: readonly PredictableModel[]): PredictFilte
 }
 
 /**
+ * 모델 집합이 바뀐 뒤의 필터. **학생이 고른 것을 지키고, 없어진 것만 떨구고, 새로 생긴 것만
+ * 켜서 더한다** (`open-decisions.md` 55 표의 7, R38-D55 B-5).
+ *
+ * 전에는 집합이 바뀔 때마다 `defaultFilter`로 **전부 켰다** — KNN만 켜 두고 한 번 더 학습하고
+ * 돌아오면 필터가 다 켜져 있었다. 되돌리던 이유(*"없어진 것을 계속 선택한 채로 두면 아무것도
+ * 안 보인다"*)는 **없어진 것**의 사정이라 그것만 떨구면 된다.
+ *
+ * `seen`은 **직전에 있던 선택지**다 — 거기 없던 값이 새로 생긴 것이다. 처음이면(`null`)
+ * 전부 켠다.
+ */
+export function carriedFilter(
+  filter: PredictFilter,
+  seen: PredictFilter | null,
+  models: readonly PredictableModel[],
+): PredictFilter {
+  const now = defaultFilter(models)
+  if (seen === null) return now
+  const carry = (
+    chosen: ReadonlySet<string>,
+    before: ReadonlySet<string>,
+    available: ReadonlySet<string>,
+  ): Set<string> =>
+    new Set([...available].filter((value) => chosen.has(value) || !before.has(value)))
+  return {
+    experimentIds: carry(filter.experimentIds, seen.experimentIds, now.experimentIds),
+    algorithms: carry(filter.algorithms, seen.algorithms, now.algorithms),
+  }
+}
+
+/**
  * 필터의 축. **화면이 이 이름으로 어느 집합을 건드릴지 정한다** — 축이 늘면 여기에
  * 하나를 더하는 것으로 끝나야 하고, 화면이 자기 나름의 문자열을 쓰기 시작하면 그 순간
  * 두 경로가 갈린다.

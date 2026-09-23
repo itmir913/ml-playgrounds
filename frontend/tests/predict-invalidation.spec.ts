@@ -82,6 +82,10 @@ function waiting(wrapper: VueWrapper): number {
 async function answered(wrapper: VueWrapper): Promise<void> {
   await button(wrapper, 'predict.tabular.fromData').trigger('click')
   await flushPromises()
+  // **가져오기가 칸을 채웠는지 먼저 본다** (R38-V2 V9). 안 보면 [가져오기]의 선이 끊겼을 때
+  // 아래 기다림이 5초를 다 쓰고 시간 초과로 운다 — 울기는 하는데 무엇이 틀렸는지 말하지 않는다.
+  const filled = wrapper.findComponent(InputRow).find('input').element as HTMLInputElement
+  expect(filled.value, '[fromData] filled no field').not.toBe('')
   await button(wrapper, 'predict.run').trigger('click')
   await vi.waitFor(() => {
     if (panelOf(wrapper).answers.size < 2) throw new Error('answers not in yet')
@@ -139,5 +143,54 @@ describe('답은 바탕이 바뀌면 지워진다', () => {
 
     expect(panelOf(wrapper).answers.size).toBe(0)
     expect(waiting(wrapper)).toBe(2)
+  })
+})
+
+/**
+ * **한 번 더 학습하고 와도 고른 필터가 남는다** (`open-decisions.md` 55 표의 7, R38-D55 B-5).
+ * 전에는 실험 집합이 바뀔 때마다 전부 켬으로 돌아갔다. 판의 감시자가 `carriedFilter`를 부르는지를
+ * 문다 — 함수만 재면 감시자를 옛 모양으로 되돌려도 조용하다.
+ */
+describe('필터는 새 학습 뒤에도 남는다', () => {
+  it('끈 알고리즘은 꺼진 채이고 새 실험은 켜진다', async () => {
+    const wrapper = await mountPanel()
+    const chip = (label: string) => {
+      const found = wrapper
+        .findComponent(PredictFilters)
+        .findAll('button[aria-pressed]')
+        .find((one) => one.text() === label)
+      expect(found, label).toBeDefined()
+      return found!
+    }
+    const knn = i18n.global.t('algorithms.knn')
+    await chip(knn).trigger('click')
+    expect(chip(knn).attributes('aria-pressed')).toBe('false')
+
+    // 같은 설정으로 한 번 더 학습한 셈이다 — 실험이 하나 는다.
+    const project = useProjectStore()
+    project.update((live) => {
+      const [first] = live.document.runs.experiments
+      if (!first) throw new Error('fixture has no experiment')
+      const again = {
+        ...first,
+        id: `${first.id}-again`,
+        runs: first.runs.map((run) => ({ ...run, id: `${run.id}-again` })),
+      }
+      return {
+        ...live,
+        document: {
+          ...live.document,
+          runs: { ...live.document.runs, experiments: [...live.document.runs.experiments, again] },
+        },
+      }
+    })
+    await flushPromises()
+
+    expect(chip(knn).attributes('aria-pressed')).toBe('false')
+    const pressedExperiments = wrapper
+      .findComponent(PredictFilters)
+      .findAll('button[aria-pressed="true"]')
+      .filter((one) => one.text() !== i18n.global.t('algorithms.decision_tree'))
+    expect(pressedExperiments.length, 'both experiments are on').toBe(2)
   })
 })

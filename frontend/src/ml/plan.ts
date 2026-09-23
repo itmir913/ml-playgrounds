@@ -25,6 +25,7 @@
  */
 
 import { ClientError, isClientError, type ClientErrorCode, type ClientErrorParams } from '../errors'
+import { MIN_SPLIT_ROWS } from '../limits'
 import { dataSettings } from '../project/schema'
 import type { Settings, TaskType } from '../project/schema'
 import {
@@ -153,6 +154,17 @@ export interface TargetJudgment {
 export type RunPlan =
   ({ ok: true } & PlanFacts) | ({ ok: false; reason: PlanBlock } & TargetJudgment)
 
+/**
+ * 정본의 타깃 사유를 **따로 올린 테스트 표**의 것으로 옮긴다 (R38-V2 C-1). 유형이 요구하는
+ * 종류가 늘면 여기 한 줄이 는다 — 타입이 빠진 짝을 잡는다.
+ */
+const TEST_TARGET_CODE = {
+  TARGET_NOT_NUMERIC: 'TEST_DATASET_TARGET_NOT_NUMERIC',
+} as const satisfies Record<
+  NonNullable<ReturnType<typeof requiredTargetKind>>['code'],
+  ClientErrorCode
+>
+
 const blocked = (code: ClientErrorCode, params: ClientErrorParams = {}): RunPlan => ({
   ok: false,
   reason: { kind: 'error', code, params },
@@ -191,7 +203,7 @@ export function planRun(input: PlanInput): RunPlan {
    * 고르면 그 이름이 목록에 남는다(`project/settings.ts`의 `withTarget`). **정답이 문제에
    * 들어가 정확도가 1.0으로 나오는 것을 막는 자리가 이제 여기 하나다.** 아래에서 특성을
    * 쓰는 자리는 전부 이 값을 쓴다 — 설정의 목록을 직접 읽으면 그 자리로 샌다.
-   * `plan.spec.ts`의 *"타깃과 같은 이름은 특성에서 빠진다"*가 문다.
+   * `option-cascade.spec.ts`의 *"학습 계획은 타깃과 같은 이름을 특성에서 뺀다"*가 문다.
    */
   const features = featuresInUse(data.features, isClustering ? undefined : target)
 
@@ -211,6 +223,20 @@ export function planRun(input: PlanInput): RunPlan {
     isClustering ? undefined : target,
     data.preprocessing.missing,
   )
+  /**
+   * **쓸 수 있는 행이 하나도 없으면 타깃의 종류를 판정하지 않는다** (`open-decisions.md` 53,
+   * R38-V2 B-1). 행이 없으면 종류도 없는데 `detectKind([])`는 `categorical`이라, 숫자뿐인
+   * 회귀 타깃에 *"숫자가 아닌 값이 있습니다"*라고 답했고 전처리 화면의 타깃 줄이 그 말을
+   * 빨갛게 옮겼다. **분할이 같은 입력에서 던지던 코드를 그대로 쓴다** — 새 어휘가 안 생긴다.
+   * `targetKind`를 안 실으므로 화면은 파일 전체의 종류로 돌아간다. 군집은 타깃이 없어
+   * 해당 없다. `tabular-prep-kind.spec.ts`의 *"쓸 수 있는 행이 0개면 … 계획은 행 수로 선다"*가 문다.
+   */
+  if (!isClustering && usable.length === 0) {
+    return blocked('SPLIT_TOO_FEW_ROWS', {
+      minRows: settings.split.method === 'provided' ? 1 : MIN_SPLIT_ROWS,
+      actualRows: 0,
+    })
+  }
   const usableLabels = isClustering ? [] : targetValues(dataset, usable, target!)
   // **아래 판정과 화면이 읽는 값이 같은 식이다** — 따로 두면 둘이 갈린다.
   const judged: TargetJudgment = isClustering ? {} : { targetKind: detectKind(usableLabels) }
@@ -241,12 +267,15 @@ export function planRun(input: PlanInput): RunPlan {
      * 이름도 값도 없다.** 같은 데이터가 특성 열에 있었으면 `FEATURE_NOT_NUMBER`가
      * 짚어 주므로, 같은 병에 얼굴이 둘이었다.
      *
-     * **새 어휘를 안 만든다** — `TARGET_NOT_NUMERIC`이 말하는 것이 정확히 이것이다.
+     * **어휘는 테스트 표의 것이다** (2026-09-23, R38-V2 C-1). 처음에는 *"새 어휘를 안
+     * 만든다"*며 `TARGET_NOT_NUMERIC`을 썼는데, 그 문장을 읽은 학생은 **정본**의 타깃 열을
+     * 뒤진다 — 정본의 타깃 줄은 조용한데. 할 일(테스트 파일을 고친다)이 달라 가른다.
+     * `plan-not-number.spec.ts`의 *"테스트 표의 타깃이 글자면 테스트 표의 이름으로 말한다"*가 문다.
      */
     if (required && testFromProvided) {
       const testLabels = targetValues(testDataset!, providedTestRows ?? [], target!)
       if (testLabels.length > 0 && detectKind(testLabels) !== required.kind) {
-        return refuse(required.code, { target: target! })
+        return refuse(TEST_TARGET_CODE[required.code], { target: target! })
       }
     }
   }
@@ -280,7 +309,9 @@ export function planRun(input: PlanInput): RunPlan {
    *
    * **무시하는 자리가 여기 하나다.** 화면마다 무시하면 화면과 학습이 다른 것을 돌린다.
    * `ml/split.ts`·`ml/sample.ts`의 거부는 그대로 남는다 — 이 판정과 같은 조건이라 여기서
-   * 넘어가면 닿지 않고, 계획을 거치지 않는 경로의 마지막 방어선이다.
+   * 넘어가면 닿지 않는다. **오늘은 어떤 입력에서도 안 닿는다** — 그 둘을 부르는 곳이 아래
+   * 둘뿐이고, 재실행 대조는 기록된 분할로 건너뛴다(R38-D55 I5). 계획을 거치지 않는 호출이
+   * 새로 생기면 그때 방어선이 된다.
    */
   const splitSettings = {
     ...settings.split,

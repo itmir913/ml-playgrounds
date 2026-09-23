@@ -147,10 +147,10 @@ export function holdoutSplit(input: SplitInput, split: Split): SplitIndices {
 
   if (split.stratify && labels) {
     const groups = groupByLabel(rows, labels)
-    // **조용히 층화를 끄지 않는다.** 학생은 자기 데이터가 왜 그런지 알아야 층화를 끌지
-    // 데이터를 더 모을지 고를 수 있다. 정상 경로에서는 전처리 화면이 먼저 말해 주고
-    // (ml/selection.ts의 stratifyBlock) 여기는 마지막 방어선이다 - 남의 .mlpx를 열어
-    // 다시 돌리는 경로에는 우리 화면이 없다.
+    // **여기서 조용히 층화를 끄지 않는다.** 끄는 판정은 학습 계획 한 자리가 한다(ml/plan.ts의
+    // stratifyApplies, open-decisions.md 55) - 여기까지 오는 층화는 그 판정을 이미 지났다.
+    // **오늘은 이 던짐에 닿는 입력이 없다**(R38-D55 I5): splitRows를 부르는 곳이 계획뿐이고
+    // 재실행 대조는 기록된 분할로 건너뛴다. 계획을 안 거치는 호출이 생기면 방어선이 된다.
     const lonely = [...groups].filter(([, group]) => group.length < MIN_SPLIT_ROWS)
     const first = lonely[0]
     if (first && lonely.length > 1) {

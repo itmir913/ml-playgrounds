@@ -35,15 +35,14 @@ const paint = useChartTokens()
 const controls = useChartControls()
 
 /**
- * 학생이 **고른** 세로축과 색 열. 아직 안 골랐으면 빈 값이다.
+ * 학생이 **고른** 세로축. 아직 안 골랐으면 빈 값이다.
  *
- * **그리는 값(아래 `yColumn`·`colorBy`)과 가른다** (`open-decisions.md` 55 *"끄지 않고
- * 잠근다"*). 전에는 가로축을 세로축과 같은 열로 바꾸면 세로축을 **다른 열로 덮어썼고**,
- * 가로축을 되돌려도 고른 세로축이 안 돌아왔다. 이제 고른 것은 남고, 쓸 수 없는 동안만 다른
- * 값으로 그린다.
+ * **그리는 값(아래 `yColumn`)과 가른다** (`open-decisions.md` 55 *"끄지 않고 잠근다"*).
+ * 전에는 가로축을 세로축과 같은 열로 바꾸면 세로축을 **다른 열로 덮어썼고**, 가로축을
+ * 되돌려도 고른 세로축이 안 돌아왔다. 이제 고른 것은 남고, 쓸 수 없는 동안만 다른 값으로
+ * 그린다.
  */
 const chosenY = ref('')
-const chosenColor = ref('')
 
 /**
  * 세로축 후보. **고른 열은 뺀다** — 자기 자신과의 산점도는 대각선일 뿐이다.
@@ -75,18 +74,13 @@ const yColumn = computed({
 })
 
 /**
- * 점의 색을 가르는 범주 열. 빈 문자열이면 한 색이다. **고른 열이 후보에 없으면 한 색으로
- * 그리되 고른 것은 지우지 않는다** — 위 세로축과 같은 규칙이다.
+ * 점의 색을 가르는 범주 열. 빈 문자열이면 한 색이다.
+ *
+ * **세로축과 달리 고른 값과 그리는 값을 가르지 않는다.** 후보(`colorable`)는 표의 범주 열
+ * 전부라 가로축을 바꿔도 안 줄고, 창이 모달이라 열려 있는 동안 표가 안 바뀐다 — 고른 열이
+ * 후보에서 빠지는 길이 없다. 그 되돌림 가지가 있었는데 닿지 않는 코드였다(R38-D55 N10).
  */
-const colorBy = computed({
-  get: () =>
-    chosenColor.value === '' || colorable.value.includes(chosenColor.value)
-      ? chosenColor.value
-      : '',
-  set: (name: string) => {
-    chosenColor.value = name
-  },
-})
+const colorBy = ref('')
 
 /**
  * 축이 범주 축인가. **`categories`가 있으면 그렇다** — `ml/cluster-chart.ts`의

@@ -230,8 +230,9 @@ export function columnBlocks(column: ColumnChoice): boolean {
 /**
  * 특성 체크박스를 잠글 열인가.
  *
- * 타깃을 거르는 것이 여기 있어야 **눌러도 아무 일도 안 일어나는 체크박스**가 안 생긴다
- * (`project/settings.ts`의 `withFeatures`가 둘째 방어선으로 다시 거른다).
+ * 타깃을 거르는 것이 여기 있어야 **눌러도 아무 일도 안 일어나는 체크박스**가 안 생긴다.
+ * 잠겨도 켜 둔 값은 목록에 남고 학습 계획이 타깃을 뺀다(`open-decisions.md` 55) —
+ * `withFeatures`는 더 거르지 않는다.
  */
 export function featureLocked(column: ColumnChoice): boolean {
   return column.role === 'target' || column.featureIssue !== undefined
@@ -687,6 +688,14 @@ export function stratifyBlockFor(
   const tooFewToSample = sampleStratifyBlock(labels, nSamples)
   if (tooFewToSample) return tooFewToSample
 
+  /**
+   * **여기부터는 나눌 때의 사유다 — `provided`는 나누지 않는다** (R38-D55 A-1). 그 갈래에서
+   * 층화는 뽑기에만 걸리고, 뽑기는 1개뿐인 범주에도 바닥을 남긴다(`ml/sample.ts`). 여기서
+   * 막으면 계획이 층화 뽑기를 꺼서(`stratifyApplies`) **드문 범주가 표본에서 조용히 빠졌다.**
+   * `tests/plan.spec.ts`의 *"따로 받은 테스트 데이터면 1개뿐인 범주도 층화 뽑기에 남는다"*가 문다.
+   */
+  if (split.method !== 'holdout') return null
+
   const { lonely, kinds } = lonelyValues(labels)
   if (lonely.length > 0) return blockFor(lonely, kinds)
   return shareStratifyBlock(labels, nSamples, split)
@@ -707,14 +716,13 @@ export interface StratifySplit {
  *
  * **센 행 수는 분할이 받는 수다** — 뽑기가 줄였으면 `nSamples`, 아니면 쓸 수 있는 행 전부.
  * 층화 뽑기는 라벨마다 바닥을 남기므로(`ml/sample.ts`) 범주 수는 뽑은 뒤에도 같다.
- * **`provided`는 나누지 않으므로 해당 없다.**
+ * **`holdout`일 때만 불린다** — `provided`는 나누지 않는다(`stratifyBlockFor`가 먼저 거른다).
  */
 function shareStratifyBlock(
   labels: readonly string[],
   nSamples: number | undefined,
   split: StratifySplit,
 ): StratifyBlock | null {
-  if (split.method !== 'holdout') return null
   const kinds = new Set(labels).size
   const total = nSamples !== undefined && nSamples < labels.length ? nSamples : labels.length
   // 행이 모자라면 분할이 먼저 `SPLIT_TOO_FEW_ROWS`로 선다 — 층화까지 안 온다.

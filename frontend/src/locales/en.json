@@ -696,6 +696,7 @@
     "CLUSTER_TOO_FEW_ROWS": "There are only {rows} samples, so they cannot be grouped into {clusters} clusters. Lower the number of clusters, or collect more data.",
     "TEST_DATASET_COLUMN_MISSING": "The test data file is missing columns from the training data. ({columns})",
     "TEST_DATASET_NO_USABLE_ROWS": "The test data has no rows that can be scored.",
+    "TEST_DATASET_TARGET_NOT_NUMERIC": "Regression predicts numbers, but the target column in the test data has values that are not numbers. Fix the test data file. ({target})",
     "TEST_IMAGES_NEED_CATEGORIES": "Group your photos into category folders on the data screen first.",
     "TEST_IMAGES_CATEGORY_MISSING": "Some of this project's categories are missing from the photos you uploaded. ({categories})",
     "TEST_IMAGES_CATEGORY_UNKNOWN": "The photos you uploaded contain categories this project does not have. ({categories})",

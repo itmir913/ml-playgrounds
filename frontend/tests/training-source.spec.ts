@@ -124,6 +124,36 @@ describe('표는 정본을 그대로 넘긴다', () => {
   })
 })
 
+/**
+ * **이미지도 유형에 안 맞는 모델을 학습에 안 넘긴다** (`open-decisions.md` 55, R38-D55 N2).
+ * 거르는 자리가 종류마다 따로 갈리면 표에서만 걸러도 조용했다.
+ */
+describe('이미지도 잠긴 모델을 학습에 안 넘긴다', () => {
+  it('군집이면 분류 전용 모델은 빠지고 파일의 선택은 그대로다', async () => {
+    const base = imageProject(['a', 'b'])
+    const project: ProjectFile = {
+      ...base,
+      document: {
+        ...base.document,
+        settings: {
+          ...base.document.settings,
+          selectedAlgorithms: [{ algorithm: 'k_means' }, { algorithm: 'knn' }],
+        },
+      },
+    }
+    const vectors = new Map(
+      readImages(project).map((entry, index) => [entry.hash, new Float32Array(DIM).fill(index)]),
+    )
+    const source = await trainingSourceOf({
+      project: addEmbeddings(project, BACKBONE.id, vectors),
+      taskType: 'clustering',
+      createEmbedWorker: () => fakeWorker({ requests: [] }),
+    })
+    expect(source.settings.selectedAlgorithms.map((one) => one.algorithm)).toEqual(['k_means'])
+    expect(project.document.settings.selectedAlgorithms).toHaveLength(2)
+  })
+})
+
 describe('이미지는 없는 것만 뽑는다', () => {
   it('다 있으면 워커를 안 띄운다', async () => {
     const project = imageProject(['a', 'b'])

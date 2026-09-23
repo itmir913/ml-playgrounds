@@ -19,6 +19,7 @@ import {
   type DroppedModel,
   type ProjectFile,
 } from '@/project/format'
+import { trainableSelections } from '@/ml/selection'
 import { dataFactsOf } from '@/project/facts'
 import { isPortfolioAnswered } from '@/project/portfolio'
 import { type DataType, type TaskType } from '@/project/schema'
@@ -75,7 +76,14 @@ export function factsOf(file: ProjectFile | null): ProjectFacts {
     // 기본값이 없으므로 이건 진짜로 "학생이 골랐는가"다
     // (open-decisions.md "기계학습 유형은 모델을 고르는 자리에서 고른다").
     taskTypeChosen: file.document.manifest.taskType !== undefined,
-    algorithmsChosen: settings.selectedAlgorithms.length > 0,
+    // **학습에 넘어가는 모델로 센다** (`open-decisions.md` 55, R38-D55 B-2). 유형에 안 맞는 줄은
+    // 목록에 남지만 학습이 무시한다 — 그것만 담겼는데 체크하면 [학습하기]는 잠겼는데 체크리스트는
+    // 끝냈다고 한다. 유형이 없으면 아무것도 안 잠기므로 목록 그대로다(특성의 `featuresInUse`와 같은 모양).
+    algorithmsChosen:
+      (file.document.manifest.taskType === undefined
+        ? settings.selectedAlgorithms
+        : trainableSelections(settings.selectedAlgorithms, file.document.manifest.taskType)
+      ).length > 0,
     trainingDone: experiments.some((experiment) => experiment.runs.length > 0),
     modelReady: experiments.some((experiment) =>
       experiment.runs.some((run) => run.model !== undefined),

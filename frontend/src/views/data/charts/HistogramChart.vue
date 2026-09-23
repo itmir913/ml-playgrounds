@@ -65,6 +65,15 @@ const applied = ref<BinChoice>('auto')
 /** 학생이 치고 있는 초안. **[적용]을 눌러야 그림에 닿는다.** */
 const draft = ref(1)
 
+/**
+ * **학생이 마지막으로 [적용]한 수.** 고른 적이 없으면 `null`이다.
+ *
+ * 칸(`draft`)은 자동인 동안 자동이 고른 수를 **비춘다** — 그 칸 하나로 학생의 수까지 들면,
+ * 자동을 켰다 끄는 것만으로 학생이 고른 수가 사라진다(`open-decisions.md` 55 표의 6,
+ * R38-D55 B-4). **비추는 값과 고른 값을 두 칸에 든다** (`architecture.md` §8.9.1.1).
+ */
+const chosen = ref<number | null>(null)
+
 const read = computed(() => numericValues(columnCells(props.input.dataset, props.input.column)))
 const made = computed(() => histogram(read.value.values, HISTOGRAM_BIN_LIMIT, applied.value))
 const labels = computed(() => binLabels(made.value.edges, (value) => format.stat(value)))
@@ -86,11 +95,20 @@ watch(
 /**
  * **자동은 즉시 반영한다.** 돌아가는 길에는 물을 것이 없다 (§8.9.1.1).
  *
- * **끄는 것만으로는 그림이 안 바뀐다** — 초안이 이미 자동이 고른 수라, 칸이 열릴 뿐
- * 같은 그림이다. 여기서 바로 수동으로 넘기면 학생이 아무것도 안 골랐는데 그림이 움직인다.
+ * **끄면 학생이 고른 수로 돌아온다** — 전에 [적용]한 수가 있으면 그것을 칸과 그림에 다시
+ * 앉힌다. 고른 적이 없으면 **끄는 것만으로는 그림이 안 바뀐다** — 초안이 이미 자동이 고른
+ * 수라, 칸이 열릴 뿐 같은 그림이다. 거기서 수동으로 넘기면 학생이 아무것도 안 골랐는데
+ * 그림이 움직인다.
  */
 watch(auto, (on) => {
-  if (on) applied.value = 'auto'
+  if (on) {
+    applied.value = 'auto'
+    return
+  }
+  if (chosen.value !== null) {
+    draft.value = chosen.value
+    applied.value = chosen.value
+  }
 })
 
 /**
@@ -111,6 +129,7 @@ const blocked = computed(() =>
 
 function apply(): void {
   applied.value = draft.value
+  chosen.value = draft.value
 }
 
 /**

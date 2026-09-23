@@ -118,6 +118,26 @@ const VOCABULARY_BY_VERSION: Readonly<Record<number, Readonly<Record<string, rea
       CANONICAL_FORMAT_IDS: ['webp', 'jpeg'],
       PORTFOLIO_ANSWER_FORMATS: ['plain-v1'],
     },
+    /**
+     * **v2와 글자 하나 다르지 않다. v2와 같은 이유로 맞다** (2026-09-23).
+     *
+     * v3이 바꾼 것은 `features`가 **뜻하는 것**이다 — 타깃과 같은 이름이 있을 수 있고
+     * 학습이 뺀다. 옛 앱이 새 파일을 열면 그 이름을 특성으로 쓴다 (mlpx-spec.md §9.3).
+     */
+    3: {
+      TASK_TYPES: ['classification', 'regression', 'clustering'],
+      DATA_TYPES: ['tabular', 'image'],
+      MISSING_STRATEGIES: ['none', 'drop', 'mean', 'median', 'mostFrequent', 'zero'],
+      SCALING_METHODS: ['none', 'standard', 'minmax', 'robust'],
+      CATEGORICAL_ENCODINGS: ['none', 'onehot', 'ordinal'],
+      SPLIT_METHODS: ['holdout', 'provided'],
+      RUN_STATUSES: ['done', 'failed'],
+      MODEL_OMISSION_REASONS: ['overBudget', 'tooLarge', 'engineUnsupported'],
+      SOURCE_ENCODINGS: ['utf-8', 'cp949', 'utf-16le', 'utf-16be'],
+      TRAINING_LOCATIONS: ['browser', 'server'],
+      CANONICAL_FORMAT_IDS: ['webp', 'jpeg'],
+      PORTFOLIO_ANSWER_FORMATS: ['plain-v1'],
+    },
   }
 
 const recorded = VOCABULARY_BY_VERSION[FORMAT_VERSION]

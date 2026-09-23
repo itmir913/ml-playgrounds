@@ -244,6 +244,27 @@ describe('확인 판의 묶음이 범주 편집을 따라간다', () => {
  * 정리 줄(`ImagePanel.vue`의 `watch(entries)`)을 지워도 **조용했다**(IP1·IP2).
  */
 describe('고른 사진이 바탕을 따라간다', () => {
+  /**
+   * **사진은 학생처럼 누른다** (R38-V2 B-2). 처음에는 판의 `toggle`을 직접 불러서, 사진 칸의
+   * `@click`을 통째로 끊어도(VS2) shift를 버려도(VS1) 25개가 초록이었다. 이제 그 범주 칸의
+   * 사진 단추를 `trigger('click')`으로 누르고 판의 안쪽은 **읽기만** 한다.
+   */
+  async function click(
+    wrapper: Awaited<ReturnType<typeof panelWith>>['wrapper'],
+    category: string,
+    hash: string,
+    shiftKey = false,
+  ): Promise<void> {
+    const grid = wrapper.findAllComponents(ImageGrid).find((one) => one.props('label') === category)
+    expect(grid, category).toBeDefined()
+    const index = (grid!.props('entries') as readonly { hash: string }[]).findIndex(
+      (entry) => entry.hash === hash,
+    )
+    expect(index, hash).toBeGreaterThanOrEqual(0)
+    await grid!.findAll('li > button')[index]!.trigger('click', { shiftKey })
+    await settle()
+  }
+
   /** `cat`에 사진 셋을 굽고 해시를 순서대로 준다. */
   async function threePhotos() {
     const { project, wrapper, panel } = await panelWith('cat')
@@ -255,10 +276,10 @@ describe('고른 사진이 바탕을 따라간다', () => {
   }
 
   it('사라진 사진은 고른 집합에서 빠지고, 기준점이면 기준점도 풀린다', async () => {
-    const { project, panel, hashes } = await threePhotos()
+    const { project, wrapper, panel, hashes } = await threePhotos()
     const [first, second] = hashes as [string, string, string]
-    panel.toggle('cat', second, false)
-    panel.toggle('cat', first, false)
+    await click(wrapper, 'cat', second)
+    await click(wrapper, 'cat', first)
     expect(panel.selected.size).toBe(2)
     expect(panel.anchor?.hash).toBe(first)
 
@@ -277,13 +298,13 @@ describe('고른 사진이 바탕을 따라간다', () => {
   it('범주 이름을 바꾼 뒤에도 기준점에서 범위를 고른다', async () => {
     const { project, wrapper, panel, hashes } = await threePhotos()
     const [first, , third] = hashes as [string, string, string]
-    panel.toggle('cat', first, false)
+    await click(wrapper, 'cat', first)
 
     await rename(wrapper, 'cat', 'dog')
     expect(imageCategories(project.file)).toEqual(['dog'])
     expect(panel.anchor?.category).toBe('dog')
 
-    panel.toggle('dog', third, true)
+    await click(wrapper, 'dog', third, true)
     expect(panel.selected.size).toBe(3)
   })
 })

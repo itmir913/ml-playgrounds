@@ -37,6 +37,7 @@ import { loadModel, loadModelProba, type LoadContext } from '@/ml/models'
 import {
   algorithmFilterOptions,
   applyPredictFilter,
+  carriedFilter,
   defaultFilter,
   experimentFilterOptions,
   filterAxisSignature,
@@ -176,10 +177,23 @@ const filter = ref<PredictFilter>({ experimentIds: new Set(), algorithms: new Se
 /** 지금 있는 실험·알고리즘의 집합. 이게 바뀔 때만 필터를 다시 연다. */
 const availableIds = computed(() => filterAxisSignature(models.value))
 
+/**
+ * 직전에 본 선택지와 그 프로젝트. **프로젝트가 바뀌면 처음부터다** — 다른 파일의 실험·
+ * 알고리즘은 이름이 같아도 다른 것이라 거기서 고른 것을 옮겨 오지 않는다.
+ */
+let seen: { projectId: string | null; options: PredictFilter } | null = null
+
+/**
+ * 집합이 바뀌면 **고른 것을 지키고 없어진 것만 떨구고 새것만 켠다** (`carriedFilter`,
+ * `open-decisions.md` 55 표의 7). 전부 켬으로 되돌리면 학생이 한 번 더 학습하고 올 때마다
+ * 필터를 다시 골라야 한다.
+ */
 watch(
-  availableIds,
+  [availableIds, () => project.projectId],
   () => {
-    filter.value = defaultFilter(models.value)
+    const before = seen?.projectId === project.projectId ? seen.options : null
+    filter.value = carriedFilter(filter.value, before, models.value)
+    seen = { projectId: project.projectId, options: defaultFilter(models.value) }
   },
   { immediate: true },
 )

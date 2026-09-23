@@ -91,15 +91,16 @@ describe('잠글 대상이 실제로 있다', () => {
 })
 
 describe('버전은 지시 없이 움직이지 않는다', () => {
-  it('`.mlpx`의 formatVersion은 2다', () => {
+  it('`.mlpx`의 formatVersion은 3이다', () => {
     /**
      * 올리라는 지시를 받지 않았다면 이 숫자가 아니라 올린 쪽을 되돌려라.
      *
      * **2는 백본 id 개정이다** (2026-08-19, 코드 소유자가 지시했다 — 손 밖으로 나간
-     * 이미지 `.mlpx`가 있다). 3으로 올리려면 `MIGRATIONS`에 `{ 2: … }`와
-     * `schema-version.spec.ts`의 지문 한 줄이 **같은 커밋에** 와야 한다.
+     * 이미지 `.mlpx`가 있다). **3은 옛 판이 목록의 타깃을 특성으로 쓰는 것을 막는다**
+     * (2026-09-23, 코드 소유자가 지시했다 — mlpx-spec.md §9.3). 4로 올리려면 `MIGRATIONS`에
+     * `{ 3: … }`와 `schema-version.spec.ts`의 지문 한 줄이 **같은 커밋에** 와야 한다.
      */
-    expect(FORMAT_VERSION).toBe(2)
+    expect(FORMAT_VERSION).toBe(3)
   })
 
   it('IndexedDB 스키마 버전은 2다', () => {

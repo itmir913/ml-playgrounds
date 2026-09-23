@@ -35,11 +35,12 @@ import { TRAINING_LOCATIONS } from '../ml/backend'
 /**
  * 이 앱이 읽고 쓰는 포맷 버전. 마이그레이션 체인의 종착점이다.
  *
- * **2로 올린 것은 백본 id 개정이다** (2026-08-19, mlpx-spec.md §9.1). 지시 없이
- * 움직이는 숫자가 아니다 — 무엇이 함께 와야 하는지는 `project/migrate.ts`와
+ * **2로 올린 것은 백본 id 개정이다** (2026-08-19, mlpx-spec.md §9.1). **3은 설정이
+ * 적용되지 않는 값을 들게 된 것이다** (2026-09-23, §9.3 — 옛 판이 목록의 타깃을 특성으로
+ * 쓴다). 지시 없이 움직이는 숫자가 아니다 — 무엇이 함께 와야 하는지는 `project/migrate.ts`와
  * `tests/versions.spec.ts`가 말한다.
  */
-export const FORMAT_VERSION = 2
+export const FORMAT_VERSION = 3
 
 /**
  * 이 앱이 만드는 프로젝트의 종류. **manifest.kind의 값이고 지금은 이것 하나뿐이다.**

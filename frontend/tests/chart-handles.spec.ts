@@ -191,6 +191,36 @@ describe('히스토그램의 손잡이', () => {
   })
 
   /**
+   * **자동을 켠 것이 학생이 고른 수를 지우지 않는다** (`open-decisions.md` 55 표의 6, R38-D55
+   * B-4, `architecture.md` §8.9.1.1). 칸은 자동인 동안 자동의 수를 비추는데, 전에는 그 비춤이
+   * 학생의 수를 덮어써서 끄면 자동이 고른 수에서 시작했다.
+   */
+  it('자동을 켰다 끄면 학생이 고른 구간 수로 돌아온다', async () => {
+    const { barCount, binInput, applyButton, autoBox } = await histogramOf()
+    const automatic = barCount()
+    expect(automatic, 'the chosen number must differ from auto').not.toBe(5)
+    await autoBox().setValue(false)
+    await binInput().setValue('5')
+    await applyButton()!.trigger('click')
+
+    await autoBox().setValue(true)
+    expect(Number((binInput().element as HTMLInputElement).value)).toBe(automatic)
+
+    await autoBox().setValue(false)
+    expect(barCount()).toBe(5)
+    expect(Number((binInput().element as HTMLInputElement).value)).toBe(5)
+  })
+
+  /** 고른 적이 없으면 끄는 것만으로는 그림이 안 바뀐다(결정문 45) — 위 판의 짝이다. */
+  it('고른 적이 없으면 자동을 꺼도 그림과 칸이 자동의 수 그대로다', async () => {
+    const { barCount, binInput, autoBox } = await histogramOf()
+    const automatic = barCount()
+    await autoBox().setValue(false)
+    expect(barCount()).toBe(automatic)
+    expect(Number((binInput().element as HTMLInputElement).value)).toBe(automatic)
+  })
+
+  /**
    * **로그 축은 열을 바꿔도 남는다** (B-3, `architecture.md` §8.9.1.1). 구간 수가 따라가는 것과
    * 같은 이유다 — 학생이 고른 설정이다. 창을 닫으면 잊는다(결정문 45).
    */

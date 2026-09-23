@@ -317,6 +317,28 @@ describe('v1 -> v2 백본 id 개정', () => {
  * 값으로는 못 가르므로 **글자로 본다.** `backbones.spec.ts`가 `fetch-backbone.mjs`를
  * 읽는 것과 같은 방식이고, 같은 한계를 갖는다 — 줄이 거기 있는지만 본다.
  */
+/**
+ * **v3은 뜻만 바꿨다** (mlpx-spec.md §9.3). 옛 판이 목록에 남은 타깃을 특성으로 쓰지 못하게
+ * 번호로 막는 것이라 문서 내용은 그대로 올라와야 한다 — 여기서 목록을 고치면 학생이 켜 둔
+ * 특성이 사라지고(결정문 55가 막은 연쇄다), 옛 v2 파일에는 고칠 것도 없다.
+ */
+describe('v2 -> v3 뜻만 바뀐다', () => {
+  it('문서가 글자 하나 안 바뀌고 번호만 3이 된다', () => {
+    const v2 = {
+      ...document,
+      manifest: { ...document.manifest, formatVersion: 2 },
+      settings: {
+        ...document.settings,
+        data: { ...document.settings.data, features: ['sepal_length', 'species'] },
+      },
+    }
+    const opened = migrateProjectDocument(v2)
+    expect(opened.manifest.formatVersion).toBe(3)
+    expect(opened.settings).toEqual(v2.settings)
+    expect(opened.runs).toEqual(v2.runs)
+  })
+})
+
 describe('마이그레이션은 지금의 등록부에 기대지 않는다', () => {
   const SOURCE = withoutComments(
     readFileSync(join(process.cwd(), 'src', 'project', 'migrate.ts'), 'utf-8'),

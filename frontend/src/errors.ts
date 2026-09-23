@@ -221,6 +221,10 @@ export const CLIENT_ERROR_CODES = [
   // 걸러냈거나 테스트 데이터가 아예 없는 채로 provided인 경우다. **훈련 데이터가 비었다는
   // 말과 나눈다** - 같은 코드로 뭉치면 학생이 멀쩡한 훈련 데이터를 들여다본다.
   'TEST_DATASET_NO_USABLE_ROWS',
+  // 회귀에서 따로 올린 테스트 표의 타깃에 수가 아닌 값이 있다 - ml/plan.ts. 정본의 같은
+  // 사정(TARGET_NOT_NUMERIC)과 나눈다 - 뭉치면 학생이 멀쩡한 정본의 타깃 열을 들여다본다
+  // (open-decisions.md 53, R38-V2 C-1).
+  'TEST_DATASET_TARGET_NOT_NUMERIC',
 
   // 테스트용 사진 받기 - data/image/test-set.ts
   // (open-decisions.md "테스트용 zip (`split.method = 'provided'`)").

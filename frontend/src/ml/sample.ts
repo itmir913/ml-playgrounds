@@ -65,9 +65,10 @@ function allocate(
   nSamples: number,
   total: number,
 ): Map<string, number> {
-  // 바닥의 합조차 안 되면 층화가 성립하지 않는다. **조용히 층화를 풀지 않는다** -
-  // 학생이 할 일은 뽑을 줄 수를 늘리거나 층화를 끄는 것이고, 그건 학생이 골라야 하는
-  // 갈림이다.
+  // 바닥의 합조차 안 되면 층화가 성립하지 않는다. **여기서 조용히 층화를 풀지 않는다** -
+  // 푸는 판정은 학습 계획 한 자리가 한다(ml/plan.ts의 stratifyApplies, open-decisions.md 55).
+  // 계획이 같은 판정(selection.ts의 sampleStratifyBlock)으로 먼저 끄므로 **오늘은 이 던짐에
+  // 닿는 입력이 없다**(R38-D55 I5). 계획을 안 거치는 호출이 생기면 방어선이 된다.
   let floors = 0
   for (const group of groups.values()) floors += floorFor(group.length)
   if (floors > nSamples) {

@@ -187,8 +187,12 @@ describe('타깃 줄이 학습의 판정을 말한다', () => {
     return new TextEncoder().encode(`${lines.join('\n')}\n`)
   }
 
-  async function regressionPanel(heightBlank: boolean, missing: 'drop' | 'mean') {
-    const imported = importTable(await openTable(scoreCsv(heightBlank), '점수.csv'))
+  async function regressionPanel(
+    heightBlank: boolean,
+    missing: 'drop' | 'mean',
+    csv: Uint8Array = scoreCsv(heightBlank),
+  ) {
+    const imported = importTable(await openTable(csv, '점수.csv'))
     const { project: file } = applyDataset(projectFile(), imported, {
       fileName: '점수.csv',
       hasHeader: true,
@@ -203,7 +207,11 @@ describe('타깃 줄이 학습의 판정을 말한다', () => {
     const wrapper = mount(TabularPrepPanel, { global: { plugins: [i18n] } })
     await settle()
     const vm = wrapper.vm as unknown as {
-      runPlan: { ok: boolean; reason?: { code?: string } } | null
+      runPlan: {
+        ok: boolean
+        reason?: { code?: string; params?: Record<string, unknown> }
+        targetKind?: string
+      } | null
       plan: {
         columns: readonly { summary: { name: string; kind: string }; targetIssue?: string }[]
       } | null
@@ -232,6 +240,26 @@ describe('타깃 줄이 학습의 판정을 말한다', () => {
     expect(target?.targetIssue).toBe('TARGET_NOT_NUMERIC')
     // 타깃 줄과 요약 카드 둘이 같은 말을 한다.
     expect(reds).toBe(2)
+  })
+
+  /**
+   * **쓸 수 있는 행이 하나도 없으면 타깃의 종류를 말하지 않는다** (R38-V2 B-1, `open-decisions.md`
+   * 53). `키`가 모든 행에서 비면 `drop`이 전부 걸러 행이 0개다. 전에는 계획이 빈 라벨을 범주로
+   * 불러 **숫자뿐인** `점수` 줄에 "숫자가 아닌 값"이 빨갛게 섰다(빨강 2). 참말은 옆 `키` 줄의
+   * "전부 비었다"이고, 요약은 행 수를 말한다.
+   */
+  it('쓸 수 있는 행이 0개면 숫자뿐인 타깃 줄이 조용하고 계획은 행 수로 선다', async () => {
+    const lines = ['키,몸무게,점수']
+    for (let i = 0; i < 40; i += 1) lines.push(`,${45 + i},${60 + i}`)
+    const csv = new TextEncoder().encode(`${lines.join('\n')}\n`)
+    const { vm, target, reds } = await regressionPanel(true, 'drop', csv)
+
+    expect(vm.runPlan?.reason?.code).toBe('SPLIT_TOO_FEW_ROWS')
+    expect(vm.runPlan?.reason?.params).toMatchObject({ actualRows: 0 })
+    expect(vm.runPlan?.targetKind).toBeUndefined()
+    expect(target?.targetIssue).toBeUndefined()
+    expect(target?.summary.kind).toBe('numeric')
+    expect(reds).toBe(0)
   })
 
   it('글자 행의 특성이 있으면 drop이어도 두 쪽 다 거부한다', async () => {

@@ -123,3 +123,47 @@ describe('상한을 푸는 순간', () => {
     expect(answeredRows(wrapper)).toBe(rows)
   })
 })
+
+/**
+ * **보이는 모델만 바꾸면 보던 쪽에 남는다** (`open-decisions.md` 55 표의 8, R38-D55 C-8). 행은
+ * 그대로라 같은 쪽의 답을 다시 셀 뿐인데, 전에는 첫 쪽으로 돌아가 학생이 보던 행을 다시 찾아가야
+ * 했다. 행이 바뀌면(파일) 같은 번호가 다른 행이라 첫 쪽이다.
+ */
+describe('보이는 모델을 바꿀 때의 쪽', () => {
+  const B: PredictableModel = {
+    experiment: experiment('experiment-1', []),
+    run: run('run-B', { algorithm: 'knn' }),
+  }
+
+  it('모델만 바뀌면 그 쪽에 남고, 파일이 바뀌면 첫 쪽이다', async () => {
+    const project = useProjectStore()
+    project.update(projectWithRows(PREDICT_PAGE_SIZE * 2 + 3))
+    const wrapper = mount(BatchPredict, {
+      props: { models: [A], preprocessors, dataset: null, fields: [], experimentNames: new Map() },
+      global: { plugins: [i18n] },
+    })
+    await tick()
+    await flushPromises()
+    const pageText = () => wrapper.find('p.tabular-nums').text()
+    const next = wrapper
+      .findAll('button')
+      .find((one) => one.text() === i18n.global.t('common.nextPage'))
+    expect(next, 'next page').toBeDefined()
+    await next!.trigger('click')
+    await tick()
+    await flushPromises()
+    expect(pageText()).toBe('2 / 3')
+
+    await wrapper.setProps({ models: [A, B] })
+    await tick()
+    await flushPromises()
+    expect(pageText()).toBe('2 / 3')
+    // 다시 센 답이 그 쪽에 선다 — 새 모델의 답까지.
+    expect(wrapper.findAll('tbody tr')[0]?.text()).toContain('run-B')
+
+    project.update(projectWithRows(PREDICT_PAGE_SIZE * 2 + 4))
+    await tick()
+    await flushPromises()
+    expect(pageText()).toBe('1 / 3')
+  })
+})

@@ -696,6 +696,7 @@
     "CLUSTER_TOO_FEW_ROWS": "학습에 쓸 수 있는 데이터가 {rows}개뿐이라 군집 {clusters}개로 묶을 수 없습니다. 군집 수를 줄이거나 데이터를 더 모아 주세요.",
     "TEST_DATASET_COLUMN_MISSING": "테스트 데이터 파일에 훈련 데이터의 열이 없습니다. ({columns})",
     "TEST_DATASET_NO_USABLE_ROWS": "테스트 데이터에 평가할 수 있는 행이 하나도 없습니다.",
+    "TEST_DATASET_TARGET_NOT_NUMERIC": "회귀는 숫자를 예측하는데 테스트 데이터의 타깃 열에는 숫자가 아닌 값이 있습니다. 테스트 데이터 파일을 수정해 주세요. ({target})",
     "TEST_IMAGES_NEED_CATEGORIES": "먼저 데이터 화면에서 사진을 범주 폴더로 묶어 주세요.",
     "TEST_IMAGES_CATEGORY_MISSING": "이 프로젝트의 범주 중 추가한 사진에 없는 것이 있습니다. ({categories})",
     "TEST_IMAGES_CATEGORY_UNKNOWN": "이 프로젝트에 없는 범주가 추가한 사진에 들어 있습니다. ({categories})",

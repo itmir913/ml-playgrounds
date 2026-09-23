@@ -267,12 +267,19 @@ describe('회귀 · 따로 올린 테스트 표의 타깃 열', () => {
     expect(plan.reason.code).toBe('TEST_DATASET_NO_USABLE_ROWS')
   })
 
-  it('테스트 표의 타깃에 글자가 있으면 선다 — 새 어휘 없이 TARGET_NOT_NUMERIC이다', () => {
+  /**
+   * **테스트 표의 이름으로 말한다** (2026-09-23, R38-V2 C-1, `open-decisions.md` 53). 처음에는
+   * *"새 어휘 없이"* `TARGET_NOT_NUMERIC`이었는데, 그 문장을 읽은 학생은 **정본**의 타깃 열을
+   * 뒤졌다 — 정본의 타깃 줄은 조용한데(`targetKind`는 정본의 것이라 `numeric`이다).
+   */
+  it('테스트 표의 타깃이 글자면 테스트 표의 이름으로 말한다', () => {
     const plan = planFor(['10', '없음', '30', '40'])
     expect(plan.ok).toBe(false)
     if (plan.ok || plan.reason.kind !== 'error') return
-    expect(plan.reason.code).toBe('TARGET_NOT_NUMERIC')
+    expect(plan.reason.code).toBe('TEST_DATASET_TARGET_NOT_NUMERIC')
     expect(plan.reason.params).toEqual({ target: '보상' })
+    // 정본의 타깃은 숫자뿐이다 — 전처리 화면의 타깃 줄이 빨개질 이유가 없다.
+    expect(plan.targetKind).toBe('numeric')
   })
 })
 

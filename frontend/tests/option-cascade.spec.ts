@@ -55,6 +55,7 @@ import {
   trainableSelections,
 } from '../src/ml/selection'
 import { trainingSourceOf } from '../src/ml/training-source'
+import { factsOf } from '../src/stores/project'
 import TabularSummaryRows from '../src/components/summary/TabularSummaryRows.vue'
 import { readDataset } from '../src/project/dataset'
 import { DATA_FACTS } from '../src/project/facts'
@@ -65,6 +66,7 @@ import { router } from '../src/router'
 import { useProjectStore } from '../src/stores/project'
 import ChartDialog from '../src/views/data/ChartDialog.vue'
 import TabularPrepPanel from '../src/views/preprocess/TabularPrepPanel.vue'
+import TrainView from '../src/views/TrainView.vue'
 import { stubDialogElement } from './fixtures/image-workers'
 import { IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN } from './fixtures/iris'
 import { irisProject } from './fixtures/trained'
@@ -88,6 +90,9 @@ async function settle(): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 0))
   }
 }
+
+/** 라우터를 태워 화면을 띄우는 껍데기. **파일에 하나만 둔다** (`vue/one-component-per-file`). */
+const Host = defineComponent({ render: () => h(RouterView) })
 
 function occurrences(text: string, fragment: string): number {
   return text.split(fragment).length - 1
@@ -150,8 +155,6 @@ describe('유형을 바꿔도 모델 선택이 남는다', { timeout: 30_000 }, 
     expect(byChosenRow(blocks, ['done', 'running'])).toEqual(['done', null, 'running'])
   })
 
-  const Host = defineComponent({ render: () => h(RouterView) })
-
   async function trainScreen(file: ProjectFile): Promise<VueWrapper> {
     await saveProject(file)
     const wrapper = mount(Host, { global: { plugins: [i18n, router] } })
@@ -210,6 +213,57 @@ describe('유형을 바꿔도 모델 선택이 남는다', { timeout: 30_000 }, 
     expect(start?.attributes('disabled')).toBeDefined()
     wrapper.unmount()
   })
+
+  /**
+   * **잠긴 줄은 돌 것처럼 말하지 않는다** (R38-D55 N7·B-3). 예상 시간은 걸릴 시간이라 잠긴 줄에
+   * 있으면 돌 것처럼 읽히고, 손잡이가 열려 있으면 학습이 무시할 값을 고치게 된다 — 값은 보이되
+   * `readonly`다. 유형을 되돌리면 그 값으로 돈다.
+   */
+  it('잠긴 줄에는 예상 시간이 없고 손잡이는 읽기만 된다', async () => {
+    const wrapper = await trainScreen(await irisProject(['knn', 'linear_regression']))
+    await pickTaskType(wrapper, '회귀')
+    const locked = rowOf(wrapper, 'knn')
+    const open = rowOf(wrapper, 'linear_regression')
+    expect(locked.text()).toContain(t('client.ALGORITHM_NOT_FOR_TASK_TYPE'))
+
+    // 교정 워커가 말이 없어 예상은 "모름"이다 — 그래도 열린 줄에는 선다.
+    expect(open.text()).toContain(t('train.estimateUnknown'))
+    expect(locked.text()).not.toContain(t('train.estimateUnknown'))
+
+    const knobs = locked.findAll('input[type="number"]')
+    expect(knobs.length, 'knn has hyperparameters').toBeGreaterThan(0)
+    for (const knob of knobs) expect(knob.attributes('readonly')).toBeDefined()
+
+    // 되돌리면 풀린다.
+    await pickTaskType(wrapper, '분류')
+    for (const knob of rowOf(wrapper, 'knn').findAll('input[type="number"]')) {
+      expect(knob.attributes('readonly')).toBeUndefined()
+    }
+    wrapper.unmount()
+  })
+
+  /**
+   * **체크리스트도 학습에 넘어가는 모델로 센다** (R38-D55 B-2). 전부 잠긴 목록에 체크하면
+   * [학습하기]는 잠겼는데 체크리스트는 끝냈다고 한다.
+   */
+  it('담은 모델이 전부 잠기면 체크리스트가 모델을 안 고른 것으로 센다', async () => {
+    expect(factsOf(await irisProject(['linear_regression'])).algorithmsChosen).toBe(false)
+    expect(factsOf(await irisProject(BOTH)).algorithmsChosen).toBe(true)
+    // 유형이 없으면 아무것도 안 잠기므로 목록 그대로다.
+    const file = await irisProject(['linear_regression'])
+    const untyped = {
+      ...file,
+      document: { ...file.document, manifest: { ...file.document.manifest, taskType: undefined } },
+    }
+    expect(factsOf(untyped).algorithmsChosen).toBe(true)
+  })
+
+  /** **등록부에 없는 알고리즘은 거르지 않는다** — 남의 파일에서 온 것을 조용히 빼면 학생이 모른다. */
+  it('등록부에 없는 알고리즘은 학습에 넘겨 실패로 말하게 한다', () => {
+    const rows = [{ algorithm: 'someone_elses_model' }, { algorithm: 'linear_regression' }]
+    expect(trainableSelections(rows, 'classification')).toEqual([rows[0]])
+    expect(chosenModelBlocks(rows[0]!, 'classification')).toEqual([])
+  })
 })
 
 // ------------------------------------------------------------------------------------ 2
@@ -239,9 +293,27 @@ describe('타깃을 골라도 특성 목록이 남는다', { timeout: 30_000 }, 
   })
 
   /** **군집에는 정답이 없다** — 저장된 타깃 이름은 어떤 열도 타깃으로 만들지 않으므로 거르지 않는다. */
-  it('군집이면 저장된 타깃 이름의 열도 특성으로 쓴다', () => {
+  it('군집이면 저장된 타깃 이름의 열도 특성으로 쓴다', async () => {
     expect(featuresInUse(['a', 'species'], undefined)).toEqual(['a', 'species'])
     expect(featuresInUse(['a', 'species'], 'species')).toEqual(['a'])
+
+    // **계획을 지나서도 그렇다** (R38-D55 N1) — 단위 검사만 있으면 계획이 군집에서도 거르게
+    // 바꿔도 조용했다.
+    const file = await allFeatures()
+    const document = withFeatures(file.document, ['sepal_length', IRIS_TARGET_COLUMN], NOW)
+    const plan = planRun({
+      dataset: readDataset(file)!,
+      testDataset: null,
+      settings: {
+        ...document.settings,
+        selectedAlgorithms: [{ algorithm: 'k_means' }],
+      },
+      taskType: 'clustering',
+    })
+    expect(plan.ok).toBe(true)
+    if (!plan.ok) return
+    const used = plan.preprocessor.columns.map((one) => one.name)
+    expect(used).toContain(IRIS_TARGET_COLUMN)
   })
 
   it('실험 기록에는 쓴 특성만 남는다', async () => {
@@ -331,6 +403,41 @@ describe('타깃을 골라도 특성 목록이 남는다', { timeout: 30_000 }, 
     summary.unmount()
   })
 
+  /**
+   * **특성 한 줄 요약도 학습이 쓰는 것으로 센다** (R38-D55 C-4). 목록 길이로 세면 타깃이 목록에
+   * 남은 파일에서 *"5개 중 4개"*라고 한다 — 그 문장은 인코딩으로 빠진 열을 위한 것이다.
+   */
+  it('타깃이 목록에 남아 있어도 특성 요약이 뺄셈을 시키지 않는다', async () => {
+    const file = await allFeatures()
+    const wrapper = await prepPanel({
+      ...file,
+      document: withFeatures(file.document, [...IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN], NOW),
+    })
+    const all = IRIS_FEATURE_COLUMNS.length
+    expect(wrapper.text()).toContain(i18n.global.t('preprocess.tabular.featureSummary', all))
+    wrapper.unmount()
+  })
+
+  /**
+   * **학습 화면의 예상 폭도 학습이 쓰는 특성으로 센다** (R38-D55 N12). 붓꽃의 `species`는 범주라
+   * 원핫이면 세 칸이다 — 타깃을 안 빼면 넷이 일곱이 되어 예상 시간이 부푼다.
+   */
+  it('학습 화면의 예상 폭에 타깃이 안 들어간다', async () => {
+    const file = await allFeatures()
+    await saveProject({
+      ...file,
+      document: withFeatures(file.document, [...IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN], NOW),
+    })
+    const wrapper = mount(Host, { global: { plugins: [i18n, router] } })
+    await router.push('/')
+    await router.isReady()
+    await router.push(`/project/${file.document.manifest.projectId}/train`)
+    await settle()
+    const view = wrapper.findComponent(TrainView).vm as unknown as { featureWidth: number }
+    expect(view.featureWidth).toBe(IRIS_FEATURE_COLUMNS.length)
+    wrapper.unmount()
+  })
+
   it('타깃인 동안 다른 특성을 켜고 꺼도 그 이름이 목록에서 안 사라진다', async () => {
     const wrapper = await prepPanel(await allFeatures())
     await radio(wrapper, 'petal_length').setValue()
@@ -383,6 +490,67 @@ describe('층화가 막히면 잠기고 학습은 무시한다', { timeout: 30_0
     expect(stratify().checked).toBe(true)
     expect(stratify().disabled).toBe(false)
     wrapper.unmount()
+  })
+
+  /**
+   * **따로 받은 테스트 데이터면 층화는 뽑기의 손잡이라 뽑기 카드에 선다** (R38-D55 B-6).
+   * 그 갈래에서 ①이 접혀 체크박스가 사라졌는데 층화는 뽑기에 여전히 걸렸다 — 켜져 있는지도
+   * 왜 잠겼는지도 학생이 몰랐다. 뽑기가 없으면 층화가 아무 일도 안 하므로 안 그린다.
+   */
+  /**
+   * **①을 골라도 ②에서 읽어 둔 파일 초안이 남는다** (R38-D55 C-9). 전에는 ①을 누르는 순간
+   * 초안을 버려서, ②로 돌아온 학생이 파일을 다시 골라야 했다. 파일을 읽는 것은 준비라 판의
+   * 읽기 함수로 하고, 오가는 것은 라디오로 한다.
+   */
+  it('①을 골랐다 ②로 돌아오면 읽어 둔 테스트 파일이 그대로다', async () => {
+    const file = await irisProject(['decision_tree'])
+    await useProjectStore().save({
+      ...file,
+      document: { ...file.document, runs: { experiments: [] } },
+    })
+    const wrapper = mount(TabularPrepPanel, { global: { plugins: [i18n] } })
+    await settle()
+    const radios = () => wrapper.findAll('input[name="test-data-choice"]')
+    await radios()[1]!.trigger('change')
+    await settle()
+    const panel = wrapper.vm as unknown as {
+      readTestFile: (file: File) => Promise<void>
+      openedTest: { fileName: string } | null
+    }
+    const csv = `${[...IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN].join(',')}\n5.1,3.5,1.4,0.2,setosa\n`
+    await panel.readTestFile(new File([csv], 'test.csv', { type: 'text/csv' }))
+    await settle()
+    expect(panel.openedTest?.fileName).toBe('test.csv')
+
+    await radios()[0]!.trigger('change')
+    await settle()
+    await radios()[1]!.trigger('change')
+    await settle()
+    expect(panel.openedTest?.fileName).toBe('test.csv')
+    expect(wrapper.text()).toContain('test.csv')
+    wrapper.unmount()
+  })
+
+  it('따로 받은 테스트 데이터면 뽑기가 켜져 있을 때만 체크박스가 하나 선다', async () => {
+    const file = await irisProject(['decision_tree'])
+    const provided = withSplit(file.document, { method: 'provided', stratify: true }, NOW)
+    const boxes = (wrapper: VueWrapper) =>
+      wrapper.findAll('label').filter((one) => one.text().trim() === t('preprocess.stratify'))
+
+    await useProjectStore().save({ ...file, document: provided })
+    const plain = mount(TabularPrepPanel, { global: { plugins: [i18n] } })
+    await settle()
+    expect(boxes(plain)).toHaveLength(0)
+    plain.unmount()
+
+    await useProjectStore().save({ ...file, document: withSampling(provided, 20, NOW) })
+    const sampled = mount(TabularPrepPanel, { global: { plugins: [i18n] } })
+    await settle()
+    expect(boxes(sampled)).toHaveLength(1)
+    const box = boxes(sampled)[0]!.find('input[type="checkbox"]').element as HTMLInputElement
+    expect(box.checked).toBe(true)
+    expect(box.disabled).toBe(false)
+    sampled.unmount()
   })
 })
 

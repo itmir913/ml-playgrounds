@@ -333,6 +333,45 @@ describe('옵션이 층화를 막으면 무시한다', () => {
     const plan = run({ nSamples: 5 })
     expect(plan.ok).toBe(true)
   })
+
+  /**
+   * **나눌 때의 사유는 나누지 않을 때 층화를 끄지 않는다** (R38-D55 A-1). `provided`에서는
+   * 층화가 뽑기에만 걸리고, 뽑기는 1개뿐인 범주에도 바닥 1을 남긴다(`ml/sample.ts`). 판정이
+   * *"값이 1개뿐이라 나눌 수 없다"*로 층화를 막자 계획이 뽑기에서 층화를 껐고, **드문 범주가
+   * 훈련 표본에서 조용히 빠졌다**(씨앗 200개 중 83). 결정문 55 전에는 안 그랬다.
+   */
+  it('따로 받은 테스트 데이터면 1개뿐인 범주도 층화 뽑기에 남는다', () => {
+    const labels = [...Array<string>(10).fill('A'), ...Array<string>(10).fill('B'), 'C']
+    const dataset: Dataset = {
+      columns: ['x', 'label'],
+      rows: labels.map((label, index) => [String(index), label]),
+    }
+    const testDataset: Dataset = {
+      columns: ['x', 'label'],
+      rows: [
+        ['1', 'A'],
+        ['2', 'B'],
+        ['3', 'C'],
+      ],
+    }
+    const absent = [...Array(40).keys()].filter((seed) => {
+      const plan = planRun({
+        dataset,
+        testDataset,
+        settings: settingsFor(
+          { features: ['x'], target: 'label' },
+          {
+            nSamples: 12,
+            split: { method: 'provided', testSize: 0.3, stratify: true, randomState: seed },
+          },
+        ),
+        taskType: 'classification',
+      })
+      expect(plan.ok).toBe(true)
+      return plan.ok && !plan.sampled.some((row) => dataset.rows[row]![1] === 'C')
+    })
+    expect(absent).toEqual([])
+  })
 })
 
 describe('기록된 분할', () => {

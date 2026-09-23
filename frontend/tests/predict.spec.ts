@@ -22,6 +22,7 @@ import {
   showsClusterNames,
   applyPredictFilter,
   assignAnswerColors,
+  carriedFilter,
   cellColorIndex,
   chosenProbability,
   defaultFilter,
@@ -753,6 +754,45 @@ describe('필터 (architecture.md 8.13.1 "답을 거르고 세어 본다")', () 
     const filter = { experimentIds: new Set<string>(), algorithms: new Set<string>() }
 
     expect(applyPredictFilter(models, filter)).toEqual([])
+  })
+})
+
+/**
+ * **모델 집합이 바뀌어도 학생이 고른 필터가 남는다** (`open-decisions.md` 55 표의 7, R38-D55
+ * B-5). 전에는 한 번 더 학습하고 오면 전부 켬으로 돌아갔다.
+ */
+describe('모델 집합이 바뀐 뒤의 필터', () => {
+  const exp1 = { ...experiment([0], onehot), id: 'exp-1' }
+  const exp2 = { ...experiment([0], onehot), id: 'exp-2' }
+  const before: PredictableModel[] = [
+    { experiment: exp1, run: runOf('r1', 'decision_tree') },
+    { experiment: exp1, run: runOf('r2', 'knn') },
+  ]
+  /** 한 번 더 학습했다 — 실험 하나와 알고리즘 하나가 새로 생겼다. */
+  const after: PredictableModel[] = [
+    ...before,
+    { experiment: exp2, run: runOf('r3', 'knn') },
+    { experiment: exp2, run: runOf('r4', 'logistic_regression') },
+  ]
+
+  it('고른 것을 지키고 새로 생긴 것만 켠다', () => {
+    const chosen = { experimentIds: new Set(['exp-1']), algorithms: new Set(['knn']) }
+    const next = carriedFilter(chosen, defaultFilter(before), after)
+    expect([...next.experimentIds].sort()).toEqual(['exp-1', 'exp-2'])
+    // 끈 decision_tree는 꺼진 채다 — 새로 생긴 logistic_regression만 켜진다.
+    expect([...next.algorithms].sort()).toEqual(['knn', 'logistic_regression'])
+  })
+
+  it('없어진 것은 떨군다 — 안 보이는 선택이 남지 않는다', () => {
+    const chosen = defaultFilter(after)
+    const next = carriedFilter(chosen, defaultFilter(after), before)
+    expect([...next.experimentIds]).toEqual(['exp-1'])
+    expect([...next.algorithms].sort()).toEqual(['decision_tree', 'knn'])
+  })
+
+  it('처음이면 전부 켠다', () => {
+    const empty = { experimentIds: new Set<string>(), algorithms: new Set<string>() }
+    expect(carriedFilter(empty, null, after)).toEqual(defaultFilter(after))
   })
 })
 

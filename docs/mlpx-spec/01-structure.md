@@ -311,7 +311,7 @@ embeddings/
 
 ```jsonc
 {
-  "formatVersion": 2,
+  "formatVersion": 3,
   "appVersion": "0.0.0",
   "projectId": "550e8400-e29b-41d4-a716-446655440000",
   "name": "붓꽃 품종 분류",
