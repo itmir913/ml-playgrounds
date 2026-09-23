@@ -14,7 +14,7 @@
  */
 
 import { BarController, BarElement, CategoryScale, Chart, LinearScale, Tooltip } from 'chart.js'
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { Bar } from 'vue-chartjs'
 import { useI18n } from 'vue-i18n'
 
@@ -42,16 +42,14 @@ const groupBy = ref('')
 
 const groupable = computed(() => categoricalColumns(props.input.columns))
 
-/**
- * **고른 열이 바뀌면 가르기를 푼다.** 안 풀면 다른 열로 옮겼을 때 이전 열에서 고른
- * 가르기가 그대로 남고, 그 열이 표에서 사라진 경우에는 **상자가 하나도 없는 그림**이 된다.
+/*
+ * **열을 바꿔도 가르기를 안 푼다** (2026-09-23 R38-V V-B1, `architecture.md` §8.9.1.1).
+ * 전에는 풀었는데 그 이유(*"그 열이 표에서 사라진다"*)는 창이 모달이라 닿지 않고, 가르는
+ * 열(범주)과 상자를 세우는 열(수치)은 같은 열이 될 수 없다. 같은 가르기로 열을 옮겨 다니며
+ * 견주는 것이 이 그림을 쓰는 방식이다. 창을 닫으면 잊는다 — 부모가 창을 `v-if`로 내린다
+ * (`TabularPanel.vue`).
+ * `chart-handles.spec.ts`의 *"창 안에서 열을 바꿔도 가르기가 남는다"*가 문다.
  */
-watch(
-  () => props.input.column,
-  () => {
-    groupBy.value = ''
-  },
-)
 
 const read = computed(() => numericValues(columnCells(props.input.dataset, props.input.column)))
 

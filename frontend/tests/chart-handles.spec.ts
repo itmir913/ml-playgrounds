@@ -205,6 +205,45 @@ describe('히스토그램의 손잡이', () => {
   })
 })
 
+/**
+ * **박스 플롯의 가르기는 열을 바꿔도 남는다** (2026-09-23 R38-V V-B1, `architecture.md`
+ * §8.9.1.1). 전에는 열이 바뀔 때마다 풀었고, 그 줄을 지워도 **조용했다**(R38 B1).
+ */
+describe('박스 플롯의 가르기', () => {
+  const DATASET = {
+    columns: ['a', 'b', 'g'],
+    rows: Array.from({ length: 60 }, (_, i) => [
+      String(i),
+      String(i * 3),
+      i % 2 === 0 ? '남' : '여',
+    ]),
+  }
+  const COLUMNS = [column('a', 'numeric'), column('b', 'numeric'), column('g', 'categorical')]
+
+  it('창 안에서 열을 바꿔도 가르기가 남는다', async () => {
+    const wrapper = open(DATASET, COLUMNS, 'a')
+    await drawn(wrapper)
+    await pickTool(wrapper, i18n.global.t('data.charts.box.name'))
+    const boxes = () =>
+      (wrapper.findComponent({ name: 'Bar' }).props('data') as { labels: unknown[] }).labels
+
+    // 학생이 **선택기로** 가른다.
+    const groupBy = wrapper
+      .findAll('label')
+      .find((one) => one.text().startsWith(i18n.global.t('data.charts.box.groupBy')))
+      ?.find('select')
+    expect(groupBy?.exists(), 'group-by select').toBe(true)
+    await groupBy!.setValue('g')
+    expect(boxes()).toEqual(['남', '여'])
+
+    await wrapper.setProps({ column: 'b' })
+    await drawn(wrapper)
+    // 같은 가르기로 새 열을 그린다 — 선택기도 그 값을 들고 있다.
+    expect(boxes()).toEqual(['남', '여'])
+    expect((groupBy!.element as HTMLSelectElement).value).toBe('g')
+  })
+})
+
 describe('산점도의 아래 한 줄과 범례', () => {
   interface ScatterInternals {
     colorBy: string
