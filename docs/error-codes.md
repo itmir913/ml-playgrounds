@@ -151,6 +151,11 @@ SPLIT_STRATIFY_TARGET_CONTINUOUS, SPLIT_STRATIFY_SHARE_TOO_SMALL,
 STRATIFY_NOT_FOR_TASK_TYPE, SAMPLE_STRATIFY_IMPOSSIBLE
 ```
 
+**층화 넷은 이제 학습을 멈추지 않는다** (2026-09-23, `open-decisions.md` 55). 계획이 같은
+판정(`stratifyBlockFor`)으로 층화를 **무시하고** 화면이 체크박스를 이유와 함께 잠근다 — 그래서
+문장이 *"…[범주 비율 유지]가 적용되지 않습니다. …하면 다시 적용됩니다"*다. `ml/split.ts`·
+`ml/sample.ts`의 던짐은 계획을 안 거치는 호출을 위한 것이고 오늘은 닿지 않는다.
+
 앞 둘은 백엔드의 `SPLIT_INVALID`와 나뉜다. 저쪽은 **설정이 말이 안 되는 것**이고 이
 둘은 **설정은 멀쩡한데 이 데이터로는 못 나누는 것**이다 — 학생이 고칠 자리가 설정이
 아니라 데이터거나 비율이다.
@@ -167,14 +172,15 @@ B-4). sklearn `StratifiedShuffleSplit`이 던지는 그 자리이고
 
 뒤 둘은 **층화**에만 붙는다. `SPLIT_STRATIFY_TARGET_CONTINUOUS`는 타깃이 사실상
 연속이라 층화가 성립하지 않는 것이고, `SPLIT_STRATIFY_IMPOSSIBLE`과 학생이 할 일이
-정반대다 — 그쪽은 "그 값을 더 모아라"이고 이쪽은 "층화를 끄라"다
+다르다 — 그쪽은 "그 값을 더 모으면 다시 적용된다"이고 이쪽은 **할 일이 없다**(층화가
+적용되지 않을 뿐 학습은 그대로 돈다)
 (`open-decisions.md` "층화는 갈리는 값에서만 뜻이 있다"). `STRATIFY_NOT_FOR_TASK_TYPE`은
 이 과제 유형에서 층화가 뜻이 없다는 **화면의 잠금 이유**이지 던지는 코드가 아니다
 (`ml/selection.ts`의 `stratifyBlock`).
 
 `SAMPLE_STRATIFY_IMPOSSIBLE`은 **뽑을 줄 수가 라벨 종류를 감당 못 하는 것**이다
 (`open-decisions.md` #22). 위 셋과 나누는 이유는 **원인이 데이터가 아니라 학생이 방금
-정한 숫자**이기 때문이다 — 할 일이 "그 숫자를 올리거나 층화를 끄라"로 정확히 갈린다.
+정한 숫자**이기 때문이다 — 할 일이 "그 숫자를 올리면 다시 적용된다"로 정확히 갈린다.
 경계는 `Σ min(라벨 크기, MIN_SPLIT_ROWS)`이고, **던지는 자리와 화면의 잠금 이유 양쪽에
 쓰인다** (`ml/sample.ts`의 `allocate`, `ml/selection.ts`의 `stratifyBlock`).
 

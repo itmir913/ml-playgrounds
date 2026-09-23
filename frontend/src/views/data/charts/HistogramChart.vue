@@ -82,7 +82,8 @@ const labels = computed(() => binLabels(made.value.edges, (value) => format.stat
  * **자동인 동안 초안은 자동이 고른 수를 비춘다.**
  *
  * 그래야 칸에 선 숫자가 *"numpy가 고른 수"*가 되고(학생이 파이썬에 옮겨 적을 값이다),
- * 자동을 껐을 때 **그 수에서 이어서 고치게 된다.** 열을 바꾸면 그 열의 수로 따라간다.
+ * 전에 [적용]한 수가 없으면 자동을 껐을 때 **그 수에서 이어서 고치게 된다**(있으면 그 수로
+ * 돌아온다 — 아래 `watch(auto)`). 열을 바꾸면 그 열의 수로 따라간다.
  */
 watch(
   [() => made.value.counts.length, auto],
