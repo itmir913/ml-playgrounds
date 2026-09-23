@@ -34,6 +34,7 @@ import {
   targetValues,
   unreadableNumericCell,
   usableRows,
+  type ColumnKind,
   type Dataset,
   type Preprocessor,
 } from './preprocess'
@@ -131,9 +132,26 @@ export interface PlanFacts {
   labels: readonly string[]
   /** 분할하지 않는가 (architecture.md §3.6). */
   isClustering: boolean
+  /** 학습이 타깃을 무엇으로 봤는가 (`TargetJudgment`). 군집이면 없다. */
+  targetKind?: ColumnKind
 }
 
-export type RunPlan = ({ ok: true } & PlanFacts) | { ok: false; reason: PlanBlock }
+/**
+ * **학습이 타깃을 무엇으로 봤는가.** 쓸 수 있는 행(`usable`)의 라벨로 센다 — 파일 전체가
+ * 아니다. 계획이 그 뒤에서 거부해도 판정은 이미 났으므로 **거부에도 실린다.** 타깃 판정
+ * 앞에서 섰으면(타깃 미선택 · 유형 미정) 없다.
+ *
+ * **화면은 타깃 열의 종류를 이것으로 말한다** (2026-09-23 R38-V V-A1). 화면이 파일 전체로
+ * 세면 `drop`으로 빠지는 행에만 글자가 있을 때 학습은 받는데 화면은 *"거부한다"*고 했다 —
+ * 특성 열의 R38 A-2와 같은 병이다. 화면이 같은 행을 따로 세는 대신 여기서 읽는다.
+ * `tabular-prep-kind.spec.ts`의 *"타깃 줄이 학습의 판정을 말한다"*가 문다.
+ */
+export interface TargetJudgment {
+  targetKind?: ColumnKind
+}
+
+export type RunPlan =
+  ({ ok: true } & PlanFacts) | ({ ok: false; reason: PlanBlock } & TargetJudgment)
 
 const blocked = (code: ClientErrorCode, params: ClientErrorParams = {}): RunPlan => ({
   ok: false,
@@ -183,6 +201,12 @@ export function planRun(input: PlanInput): RunPlan {
     data.preprocessing.missing,
   )
   const usableLabels = isClustering ? [] : targetValues(dataset, usable, target!)
+  // **아래 판정과 화면이 읽는 값이 같은 식이다** — 따로 두면 둘이 갈린다.
+  const judged: TargetJudgment = isClustering ? {} : { targetKind: detectKind(usableLabels) }
+  const refuse = (code: ClientErrorCode, params: ClientErrorParams = {}): RunPlan => ({
+    ...blocked(code, params),
+    ...judged,
+  })
 
   // **성립하지 않는 조합은 분할보다 먼저 거부한다.** 여기서 넘기면 지표가 NaN인 채로
   // run이 done으로 끝나고, 그 파일은 저장은 되는데 다시 열리지 않는다.
@@ -192,8 +216,8 @@ export function planRun(input: PlanInput): RunPlan {
     // **표본이 아니라 쓸 수 있는 행 전부를 본다.** 타깃이 숫자인지 범주인지는 열의
     // 성질이지 뽑기의 결과가 아니고, 표본으로 판정하면 nSamples를 움직일 때마다
     // 같은 데이터의 판정이 흔들릴 수 있다.
-    if (required && detectKind(usableLabels) !== required.kind) {
-      return blocked(required.code, { target: target! })
+    if (required && judged.targetKind !== required.kind) {
+      return refuse(required.code, { target: target! })
     }
 
     /**
@@ -211,7 +235,7 @@ export function planRun(input: PlanInput): RunPlan {
     if (required && testFromProvided) {
       const testLabels = targetValues(testDataset!, providedTestRows ?? [], target!)
       if (testLabels.length > 0 && detectKind(testLabels) !== required.kind) {
-        return blocked(required.code, { target: target! })
+        return refuse(required.code, { target: target! })
       }
     }
   }
@@ -226,7 +250,7 @@ export function planRun(input: PlanInput): RunPlan {
     const blank =
       missingColumns(dataset, checked)[0] ??
       (testFromProvided ? missingColumns(testDataset!, checked)[0] : undefined)
-    if (blank) return blocked('FEATURE_HAS_MISSING', { feature: blank.name, count: blank.count })
+    if (blank) return refuse('FEATURE_HAS_MISSING', { feature: blank.name, count: blank.count })
   }
 
   /**
@@ -356,9 +380,10 @@ export function planRun(input: PlanInput): RunPlan {
       preprocessor,
       labels,
       isClustering,
+      ...judged,
     }
   } catch (error) {
-    if (isClientError(error)) return blocked(error.code, error.params)
+    if (isClientError(error)) return refuse(error.code, error.params)
     throw error
   }
 }

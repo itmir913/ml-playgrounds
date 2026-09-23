@@ -160,3 +160,85 @@ describe('열 표가 학습과 같은 종류를 말한다', () => {
     }
   })
 })
+
+/**
+ * **타깃 열도 학습이 본 종류를 말한다** (2026-09-23 R38-V V-A1).
+ *
+ * 위 판의 고침은 **특성 열**만 덮었다 — 타깃은 `fittedColumns`에 없어 파일 전체의 종류로
+ * 남았다. 학습은 타깃을 **쓸 수 있는 행**(`usableRows`)의 라벨로 판정하므로, 회귀 타깃의
+ * 글자가 **특성이 빈 행에만** 있고 결측 처리가 `drop`이면 학습은 통과하는데 표의 타깃 줄은
+ * *"학습이 거부한다"*는 빨강이었다. **`drop`은 새 프로젝트의 기본값이다** — 학생이 아무것도
+ * 안 바꿔도 이 길이다.
+ *
+ * 대조 둘(`mean`으로 그 행을 살린다 · 글자 행의 특성을 채운다)은 두 쪽 다 거부해야 한다.
+ */
+describe('타깃 줄이 학습의 판정을 말한다', () => {
+  const NOT_NUMERIC = '타깃 열에는 숫자가 아닌 값이 있습니다'
+
+  /** 40행 회귀. `점수`는 수치인데 **다섯 행만** `모름`이다. `heightBlank`면 그 행의 `키`가 빈다. */
+  function scoreCsv(heightBlank: boolean): Uint8Array {
+    const lines = ['키,몸무게,점수']
+    for (let i = 0; i < 40; i += 1) {
+      const unknown = i % 8 === 3
+      const height = unknown && heightBlank ? '' : String(150 + i)
+      const score = unknown ? '모름' : String(60 + ((i * 7) % 40))
+      lines.push(`${height},${45 + i},${score}`)
+    }
+    return new TextEncoder().encode(`${lines.join('\n')}\n`)
+  }
+
+  async function regressionPanel(heightBlank: boolean, missing: 'drop' | 'mean') {
+    const imported = importTable(await openTable(scoreCsv(heightBlank), '점수.csv'))
+    const { project: file } = applyDataset(projectFile(), imported, {
+      fileName: '점수.csv',
+      hasHeader: true,
+      now: NOW,
+    })
+    let document = withTaskType(file.document, 'regression', [], NOW)
+    document = withTarget(document, '점수', NOW)
+    document = withFeatures(document, ['키', '몸무게'], NOW)
+    document = withPreprocessing(document, { missing }, NOW)
+    const project = useProjectStore()
+    await project.save({ ...file, document })
+    const wrapper = mount(TabularPrepPanel, { global: { plugins: [i18n] } })
+    await settle()
+    const vm = wrapper.vm as unknown as {
+      runPlan: { ok: boolean; reason?: { code?: string } } | null
+      plan: {
+        columns: readonly { summary: { name: string; kind: string }; targetIssue?: string }[]
+      } | null
+    }
+    const target = vm.plan?.columns.find((one) => one.summary.name === '점수')
+    const reds = wrapper.text().split(NOT_NUMERIC).length - 1
+    return { vm, target, reds }
+  }
+
+  it('글자가 drop으로 빠지는 행에만 있으면 학습은 받고 타깃 줄도 조용하다', async () => {
+    const { vm, target, reds } = await regressionPanel(true, 'drop')
+
+    // 전제: 학습은 받는다.
+    expect(vm.runPlan?.ok).toBe(true)
+    // 표가 같은 말을 한다 — 빨강이 없고, 종류는 수치다.
+    expect(target?.targetIssue).toBeUndefined()
+    expect(target?.summary.kind).toBe('numeric')
+    expect(reds).toBe(0)
+  })
+
+  it('그 행을 mean으로 살리면 두 쪽 다 거부한다', async () => {
+    const { vm, target, reds } = await regressionPanel(true, 'mean')
+
+    expect(vm.runPlan?.ok).toBe(false)
+    expect(vm.runPlan?.reason?.code).toBe('TARGET_NOT_NUMERIC')
+    expect(target?.targetIssue).toBe('TARGET_NOT_NUMERIC')
+    // 타깃 줄과 요약 카드 둘이 같은 말을 한다.
+    expect(reds).toBe(2)
+  })
+
+  it('글자 행의 특성이 있으면 drop이어도 두 쪽 다 거부한다', async () => {
+    const { vm, target, reds } = await regressionPanel(false, 'drop')
+
+    expect(vm.runPlan?.reason?.code).toBe('TARGET_NOT_NUMERIC')
+    expect(target?.targetIssue).toBe('TARGET_NOT_NUMERIC')
+    expect(reds).toBe(2)
+  })
+})

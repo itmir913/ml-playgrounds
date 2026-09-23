@@ -164,13 +164,22 @@ const fittedColumns = computed(() => {
  * 계획이 선 열만 덮는다. 학습에서 빠진 열(`fittedColumns`에 없다)은 파일 전체의 종류로
  * 남고, 그때는 두 쪽이 같다. **계획이 못 섰으면 파일 전체의 종류다** — 그때는 학습이 쓰는
  * 종류라는 것이 아직 없다.
+ *
+ * **타깃 열은 계획의 `targetKind`로 덮는다** (R38-V V-A1). 타깃은 `fittedColumns`에 없어서
+ * 위 덮기가 닿지 않았고, `drop`으로 빠지는 행에만 글자가 있는 회귀 타깃에 *"학습이 거부한다"*는
+ * 빨강을 띄웠다 — 학습은 받았다. `targetKind`는 **계획이 거부해도 실린다** — 타깃 판정 자체가
+ * 거부의 이유일 때 그 빨강은 옳다.
  */
 const plannedColumns = computed(() => {
   const fitted = fittedColumns.value
-  if (!fitted) return columns.value
+  const target = data.value?.target
+  const targetKind = runPlan.value?.targetKind
   return columns.value.map((summary) => {
-    const one = fitted.get(summary.name)
-    return one && one.kind !== summary.kind ? { ...summary, kind: one.kind } : summary
+    const kind =
+      summary.name === target && targetKind !== undefined
+        ? targetKind
+        : fitted?.get(summary.name)?.kind
+    return kind !== undefined && kind !== summary.kind ? { ...summary, kind } : summary
   })
 })
 
