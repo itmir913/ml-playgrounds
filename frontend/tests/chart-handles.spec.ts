@@ -22,7 +22,7 @@ vi.mock('vue-chartjs', () => ({
 }))
 
 import { i18n } from '../src/i18n'
-import { DATA_SCATTER_POINT_LIMIT } from '../src/limits'
+import { DATA_SCATTER_POINT_LIMIT, HISTOGRAM_BIN_LIMIT } from '../src/limits'
 import { applyLimitsOff } from '../src/limits-switch'
 import ChartDialog from '../src/views/data/ChartDialog.vue'
 import HistogramChart from '../src/views/data/charts/HistogramChart.vue'
@@ -90,83 +90,102 @@ describe('히스토그램의 손잡이', () => {
   }
   const COLUMNS = [column('a', 'numeric'), column('b', 'numeric')]
 
+  /** 읽기만 한다 — 그림이 자기가 그린 수를 말하는 한 줄. */
   interface HistogramInternals {
-    auto: boolean
-    draft: number
-    logarithmic: boolean
     note: string
-    blocked: string
-    apply: () => void
   }
 
+  /**
+   * **손잡이는 학생이 만지는 요소로 만진다** (2026-09-23 R38-V V-C1). 처음에는 `chart.draft = 5`
+   * 처럼 안쪽 값을 넣고 `chart.apply()`를 불렀는데, 그러면 칸의 `v-model`이나 [적용]의
+   * `@click`을 끊어도 초록이었다(V1~V5 조용). 이제 체크박스는 `setValue`, 칸은 `setValue`,
+   * 단추는 `trigger('click')`다. 안쪽 값(`chart`)은 **읽기만** 한다.
+   */
   async function histogramOf(name = 'a') {
     const wrapper = open(DATASET, COLUMNS, name)
     await drawn(wrapper)
     const chart = wrapper.findComponent(HistogramChart).vm as unknown as HistogramInternals
     const bar = () => wrapper.findComponent({ name: 'Bar' })
     const barCount = () => (bar().props('data') as { labels: unknown[] }).labels.length
-    return { wrapper, chart, bar, barCount }
+    const checkbox = (key: string) => {
+      const label = wrapper.findAll('label').find((one) => one.text() === i18n.global.t(key))
+      expect(label, key).toBeDefined()
+      return label!.find('input[type="checkbox"]')
+    }
+    const binInput = () => wrapper.find('input[type="number"]')
+    const applyButton = () =>
+      wrapper
+        .findAll('button')
+        .find((one) => one.text() === i18n.global.t('data.charts.histogram.binApply'))
+    const logBox = () => checkbox('data.charts.histogram.logScale')
+    const autoBox = () => checkbox('data.charts.histogram.binAuto')
+    return { wrapper, chart, bar, barCount, binInput, applyButton, logBox, autoBox }
   }
 
-  /** **체크박스가 옵션까지 간다** (H5). 옵션 함수만 물리고 이 이음매는 안 물렸다. */
+  /** **체크박스가 옵션까지 간다** (H5 · V1). 옵션 함수만 물리고 이 이음매는 안 물렸다. */
   it('로그를 켜면 세는 축이 로그가 된다', async () => {
-    const { wrapper, chart, bar } = await histogramOf()
+    const { bar, logBox } = await histogramOf()
     const yType = () =>
       (bar().props('options') as { scales: { y: { type?: string } } }).scales.y.type
 
     expect(yType()).not.toBe('logarithmic')
-    chart.logarithmic = true
-    await wrapper.vm.$nextTick()
+    await logBox().setValue(true)
     expect(yType()).toBe('logarithmic')
   })
 
   /** **자동인 동안 칸은 numpy가 고른 수를 비춘다** (H1). 학생이 파이썬에 옮겨 적을 값이다. */
   it('자동이면 칸이 그림의 막대 수와 같다', async () => {
-    const { chart, barCount } = await histogramOf()
-    expect(chart.auto).toBe(true)
-    expect(chart.draft).toBe(barCount())
+    const { binInput, barCount, autoBox, applyButton } = await histogramOf()
+    expect((autoBox().element as HTMLInputElement).checked).toBe(true)
+    expect(Number((binInput().element as HTMLInputElement).value)).toBe(barCount())
+    // 자동일 때는 단추 자체가 없다 (§8.9.1.1).
+    expect(applyButton()).toBeUndefined()
   })
 
   /**
-   * **[적용]을 눌러야 그림에 닿는다** (§8.9.1.1). 치는 동안은 그림이 그대로이고, 누르면 그
-   * 수로 그리고, **그림이 자기가 그린 수를 말한다.**
+   * **[적용]을 눌러야 그림에 닿는다** (§8.9.1.1 · V2 · V3 · V4). 치는 동안은 그림이 그대로이고,
+   * 누르면 그 수로 그리고, **그림이 자기가 그린 수를 말한다.**
    */
   it('수를 쳐도 [적용] 전에는 그림이 그대로이고, 적용하면 그 수로 그리고 말한다', async () => {
-    const { wrapper, chart, barCount } = await histogramOf()
+    const { chart, barCount, binInput, applyButton, autoBox } = await histogramOf()
     const before = barCount()
 
-    chart.auto = false
-    chart.draft = 5
-    await wrapper.vm.$nextTick()
+    await autoBox().setValue(false)
+    await binInput().setValue('5')
     expect(barCount()).toBe(before)
 
-    chart.apply()
-    await wrapper.vm.$nextTick()
+    await applyButton()!.trigger('click')
     expect(barCount()).toBe(5)
     expect(chart.note).toBe(i18n.global.t('data.charts.histogram.bins', { count: 5 }))
   })
 
-  /** **범위 밖이면 막고 말한다** (H6) — 조용히 당기지 않는다. */
-  it('범위 밖의 수는 막는 이유가 선다', async () => {
-    const { wrapper, chart } = await histogramOf()
-    chart.auto = false
-    chart.draft = 0
-    await wrapper.vm.$nextTick()
-    expect(chart.blocked).not.toBe('')
+  /** **범위 밖이면 막고 말하고, 단추가 잠긴다** (H6 · V5) — 조용히 당기지 않는다. */
+  it('범위 밖의 수는 막는 이유가 서고 [적용]이 잠긴다', async () => {
+    const { wrapper, barCount, binInput, applyButton, autoBox } = await histogramOf()
+    const before = barCount()
+    await autoBox().setValue(false)
+    await binInput().setValue('0')
+
+    const reason = i18n.global.t('data.charts.histogram.binInvalid', {
+      min: 1,
+      max: HISTOGRAM_BIN_LIMIT,
+    })
+    expect(wrapper.text()).toContain(reason)
+    expect(applyButton()!.attributes('disabled')).toBeDefined()
+    await applyButton()!.trigger('click')
+    expect(barCount()).toBe(before)
   })
 
   /** **자동을 다시 켜면 곧바로 돌아간다** — 돌아가는 길에는 물을 것이 없다(§8.9.1.1). */
   it('자동을 다시 켜면 [적용] 없이 자동 그림으로 돌아간다', async () => {
-    const { wrapper, chart, barCount } = await histogramOf()
+    const { chart, barCount, binInput, applyButton, autoBox } = await histogramOf()
     const automatic = barCount()
-    chart.auto = false
-    chart.draft = 5
-    chart.apply()
-    await wrapper.vm.$nextTick()
+    await autoBox().setValue(false)
+    await binInput().setValue('5')
+    await applyButton()!.trigger('click')
     expect(barCount()).toBe(5)
 
-    chart.auto = true
-    await wrapper.vm.$nextTick()
+    await autoBox().setValue(true)
     expect(barCount()).toBe(automatic)
     expect(chart.note).toBe('')
   })
@@ -176,9 +195,8 @@ describe('히스토그램의 손잡이', () => {
    * 같은 이유다 — 학생이 고른 설정이다. 창을 닫으면 잊는다(결정문 45).
    */
   it('창 안에서 열을 바꿔도 로그 축이 남는다', async () => {
-    const { wrapper, chart, bar } = await histogramOf('a')
-    chart.logarithmic = true
-    await wrapper.vm.$nextTick()
+    const { wrapper, bar, logBox } = await histogramOf('a')
+    await logBox().setValue(true)
 
     await wrapper.setProps({ column: 'b' })
     await drawn(wrapper)

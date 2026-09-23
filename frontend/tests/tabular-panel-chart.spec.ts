@@ -82,8 +82,14 @@ describe('시각화 창은 정본 전체를 받는다', () => {
     await settle()
     expect(wrapper.findComponent(ChartDialog).exists()).toBe(false)
 
-    // 검사기의 [시각화] — 판이 그 사건을 받아 창을 연다.
-    wrapper.findComponent(ColumnInspector).vm.$emit('visualize', '키')
+    // 검사기의 열 이름 단추를 **누른다** — 판이 그 사건을 받아 창을 연다. 사건을 직접
+    // 내보내면 검사기의 `emit('visualize')`를 끊어도 초록이었다(R38-V V-C1, V11 조용).
+    const name = wrapper
+      .findComponent(ColumnInspector)
+      .findAll('button')
+      .find((one) => one.text().startsWith('키'))
+    expect(name, 'column button').toBeDefined()
+    await name!.trigger('click')
     await settle()
 
     const dialog = wrapper.findComponent(ChartDialog)

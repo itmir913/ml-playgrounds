@@ -101,9 +101,14 @@ describe('일괄 예측의 내려받기', () => {
     await wrapper.findAll('input[name="predict-input-mode"]')[1]?.trigger('change')
     await settle()
 
-    const batch = wrapper.findComponent(BatchPredict)
-    expect(batch.exists()).toBe(true)
-    await (batch.vm as unknown as { download: () => Promise<void> }).download()
+    expect(wrapper.findComponent(BatchPredict).exists()).toBe(true)
+    // **바의 [내려받기]를 누른다** (R38-V V-C1). 판의 `download()`를 직접 부르면 바의
+    // `:action`을 끊어도 초록이었다(V10 조용).
+    const download = wrapper
+      .findAll('button')
+      .find((one) => one.text() === i18n.global.t('predict.tabular.download'))
+    expect(download, 'download button').toBeDefined()
+    await download!.trigger('click')
     await settle()
 
     expect(captured.bytes, 'download produced no file').not.toBeNull()
@@ -119,11 +124,12 @@ describe('일괄 예측의 내려받기', () => {
     const preprocessor = experimentPreprocessor(experiment, file.models)
     expect(preprocessor).not.toBeNull()
     if (!preprocessor) return
-    const table = { columns: [...IRIS_FEATURE_COLUMNS], rows: grid.slice(1) }
+    // 대조는 **올린 표**(`PICKED`의 원본 행)로 다시 만든다 — 내려받은 CSV에서 읽으면
+    // 판이 적은 것으로 판을 재는 셈이다 (R38-V V-C3).
     const vectors = transform(
       preprocessor,
       {
-        columns: table.columns,
+        columns: [...IRIS_FEATURE_COLUMNS],
         rows: PICKED.map((row) => featureIndex.map((c) => iris.rows[row]?.[c] ?? '')),
       },
       PICKED.map((_, index) => index),
