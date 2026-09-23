@@ -8,12 +8,25 @@
 #
 # **주 1회에서 늦췄다** (2026-09-18). 이력을 보니 **머지된 PR이 하나도 없다** - 전부 닫히거나
 # 다음 주 PR에 밀려났고, 실제 갱신은 관리자가 `npm update`로 가져갔다. 그러면 주 1회는
-# 알림이 아니라 소음이다. 사소한 것(patch·minor)은 감사 라운드마다 `npm update`로 올리고,
-# 여기서 오는 PR은 **그 사이에 무엇이 밀렸는지 보는 창**으로 쓴다.
+# 알림이 아니라 소음이다. 사소한 것(patch·minor)은 감사 라운드마다 `npm update`로 올린다.
+# (한때 여기 PR을 *"그 사이에 무엇이 밀렸는지 보는 창"*으로 쓴다고 적었는데, 그 몫은 이제
+# `npm outdated`가 한다 - 아래.)
+#
+#
+# **메이저만 받는다** (2026-09-23, 코드 소유자. open-decisions.md 54의 곁가지). 달 1회로
+# 늦춘 뒤에도 PR 열 개가 **전부 닫히고 머지는 0개**였다 - minor·patch는 감사 라운드의
+# `npm update`가 가져가므로 PR은 소음이고, **소음이 쌓이면 진짜 알림도 안 읽게 된다.**
+# 계약을 옮긴 것은 전부 메이저였다(zod, vitest 5, TypeScript 7). 그것만 PR로 온다.
+# **밀린 minor·patch는 감사 라운드에서 `npm outdated`로 본다** (docs/workflow.md).
+#
+# **취약점 알림은 이 파일이 끄지 않는다.** Dependabot **alerts**는 저장소 설정이고
+# (2026-09-23 확인: 켜져 있다, 열린 것 0개) 여기 규칙과 무관하게 뜬다. 다만 문서상 `ignore`는
+# **보안 업데이트 PR에도 걸리는 것으로 읽힌다** - 그러면 patch 수준의 보안 수정은 **PR 없이
+# 알림만** 온다. 그때 할 일은 `npm update`이고, 머지된 PR이 0개였으니 실제 흐름과 같다.
 #
 # 실제로 조심해야 하는 것은 **학생이 올린 파일을 파싱하는 의존성**이다 -
 # exceljs, SheetJS, papaparse, fflate. 남이 만든 파일을 여는 코드라 여기 취약점은
-# 우리 신뢰 경계 안에 있다. 그래서 patch 업데이트도 묶어서 받는다.
+# 우리 신뢰 경계 안에 있다. **그 알림이 오면 다음 감사 라운드를 기다리지 않는다.**
 
 version: 2
 
@@ -32,6 +45,9 @@ updates:
     # typescript-eslint가 지원을 내놓으면(추적: typescript-eslint#10940) 이 항목을 지운다.
     # minor/patch는 계속 받으므로 6.0.x 안에서는 정상적으로 올라간다.
     ignore:
+      # 메이저만 받는다 (위 머리말).
+      - dependency-name: '*'
+        update-types: ['version-update:semver-minor', 'version-update:semver-patch']
       - dependency-name: typescript
         update-types: ['version-update:semver-major']
     groups:
@@ -52,6 +68,10 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 2
+    # 메이저만 받는다 (위 머리말).
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-minor', 'version-update:semver-patch']
     groups:
       backend:
         patterns:
@@ -62,6 +82,10 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 2
+    # 메이저만 받는다 (위 머리말). 액션은 `@v4`처럼 메이저 태그로 부르므로 원래 거의 그렇다.
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-minor', 'version-update:semver-patch']
     groups:
       actions:
         patterns:
