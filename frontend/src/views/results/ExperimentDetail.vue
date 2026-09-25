@@ -17,7 +17,7 @@ import TermPopover from '@/components/TermPopover.vue'
 import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { describeChanges } from '@/ml/changes'
-import { metricsOf, type MetricDisplay } from '@/ml/metrics'
+import { metricsOf, silhouetteSampleNote, type MetricDisplay } from '@/ml/metrics'
 import type { Dataset, Preprocessor } from '@/ml/preprocess'
 import type { ProjectFile } from '@/project/format'
 import { bestByMetric, doneRuns, failedRuns, whereTrainedKeyOf } from '@/ml/results'
@@ -71,6 +71,24 @@ function formulaOf(display: MetricDisplay, part: 'top' | 'bottom'): string {
   const key = `metricFormula.${display.label ?? display.name}.${part}`
   return te(key) ? t(key) : ''
 }
+/**
+ * 실루엣 계수를 일부로 쟀는가 (`open-decisions.md` "실루엣 계수는 표본으로 낸다").
+ * **판정은 계산과 같은 함수다** — 여기서 조건을 다시 짜면 화면과 계산이 갈린다.
+ *
+ * **문장은 종류마다 따로다** (`i18n.md` 규칙 10) — 표는 "행", 사진은 "장"이다. 종류가 늘면
+ * `Record`가 빠진 짝을 타입으로 잡는다.
+ */
+const SILHOUETTE_SAMPLED_KEY: Record<DataType, string> = {
+  tabular: 'results.tabular.silhouetteSampled',
+  image: 'results.image.silhouetteSampled',
+}
+const silhouetteSample = computed(() =>
+  silhouetteSampleNote(
+    props.experiment.settings.taskType,
+    props.experiment.settings.trainIndices.length,
+    props.preprocessor?.featureNames.length,
+  ),
+)
 const succeeded = computed(() => doneRuns(props.experiment))
 const failed = computed(() => failedRuns(props.experiment))
 const best = computed(() => bestByMetric(succeeded.value, displays.value))
@@ -224,6 +242,18 @@ function failureDetailOf(run: Run): string | null {
           </tr>
         </tbody>
       </AppTable>
+      <!--
+        **표본으로 냈으면 말한다.** 안 밝히면 같은 데이터에서 값이 미세하게 달라지는 것을
+        학생이 오류로 읽는다 (open-decisions.md "실루엣 계수는 표본으로 낸다").
+      -->
+      <p v-if="silhouetteSample" class="text-ink-faint">
+        {{
+          t(SILHOUETTE_SAMPLED_KEY[props.dataType], {
+            used: silhouetteSample.used,
+            total: silhouetteSample.total,
+          })
+        }}
+      </p>
     </section>
 
     <section v-else class="flex flex-col gap-1.5">

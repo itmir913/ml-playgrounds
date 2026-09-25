@@ -898,6 +898,7 @@
     "firstRun": "First experiment",
     "image": {
       "trainingPhoto": "Training photo",
+      "silhouetteSampled": "There are a lot of photos, so the silhouette coefficient was measured on a random subset of them. Changing the [Random seed] may give a slightly different value on the same photos. ({used} of {total} photos)",
       "clusterEmpty": "No photos in this cluster.",
       "clusterRepresentative": "Ordered by closeness to the center. The first one represents this cluster."
     },
@@ -940,6 +941,7 @@
       "clusterModeHelp": "The most common category in this cluster. ({count} category) | The most common category in this cluster. ({count} categories)",
       "clusterPoint": "{name} ({x}, {y})",
       "clusterSample": "There are too many dots to draw them all, so only some are shown. ({drawn} of {total} rows)",
+      "silhouetteSampled": "There is a lot of data, so the silhouette coefficient was measured on a random subset of the rows. Changing the [Random seed] may give a slightly different value on the same data. ({used} of {total} rows)",
       "clusterScatter": "Cluster scatter plot",
       "clusterScatterLead": "Each dot is one row of data, and each ✕ marks the centroid of a cluster.",
       "clusterScatterNoAxes": "A scatter plot needs at least two numeric columns. (now {count})",

@@ -18,8 +18,11 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { i18n, setLocale } from '../src/i18n'
 import type { Change } from '../src/ml/changes'
 import type { PanelInput } from '../src/ml/metric-panels'
+import { DEFAULT_BACKBONE_ID, backboneFor } from '../src/ml/backbones'
+import { silhouetteSampleSize } from '../src/ml/metrics'
+import { PREPROCESSOR_FORMAT, type Dataset, type Preprocessor } from '../src/ml/preprocess'
 import type { ProjectFile } from '../src/project/format'
-import type { Run } from '../src/project/schema'
+import { DATA_TYPES, type DataType, type Run } from '../src/project/schema'
 import { useProjectStore } from '../src/stores/project'
 import ResultsView from '../src/views/ResultsView.vue'
 import ChangeList from '../src/views/results/ChangeList.vue'
@@ -216,5 +219,117 @@ describe('R24 B-5: a ratio in the change list', () => {
     expect(wrapper.text()).toContain('20%')
     expect(wrapper.text()).toContain('30%')
     expect(wrapper.text()).not.toContain('80%')
+  })
+})
+
+/**
+ * **실루엣 계수를 표본으로 냈으면 화면이 말한다** (`open-decisions.md` "실루엣 계수는
+ * 표본으로 낸다"). 순수 함수가 아니라 **화면을 띄워** 본다 — 부르는 쪽이 판정을 부르는지,
+ * 어느 수를 넘기는지가 여기서만 보인다. 판정 자체는 `metrics.spec.ts`의 *"실루엣 표본을
+ * 화면에 밝힐 것인가"*가 잰다.
+ */
+describe('the results screen says the silhouette was sampled', () => {
+  function clusteringExperiment(rows: number) {
+    const base = experiment('experiment-1', [
+      run('run-1', { algorithm: 'k_means', metrics: { silhouette: 0.5, inertia: 12 } }),
+    ])
+    return {
+      ...base,
+      settings: {
+        ...base.settings,
+        taskType: 'clustering' as const,
+        trainIndices: Array.from({ length: rows }, (_, index) => index),
+        testIndices: [],
+      },
+    }
+  }
+
+  /** 기본 백본의 임베딩 폭. 이 폭에서 아래 행 수는 표본이 켜진다 — 첫 판이 확인한다. */
+  const WIDTH = backboneFor(DEFAULT_BACKBONE_ID)?.embeddingDim ?? 0
+  const preprocessor: Preprocessor = {
+    format: PREPROCESSOR_FORMAT,
+    columns: [],
+    featureNames: Array.from({ length: WIDTH }, (_, index) => `e${index}`),
+    excludedColumns: [],
+  }
+  const SAMPLED_ROWS = 5000
+
+  /** 데이터 종류 → 그 종류의 문장 키. 화면이 고르는 것과 같은 짝이어야 한다. */
+  const KEY: Record<DataType, string> = {
+    tabular: 'results.tabular.silhouetteSampled',
+    image: 'results.image.silhouetteSampled',
+  }
+
+  /** 수를 뺀 문장 부분. 수가 무엇이든 이 문장이 보이면 표본이라고 말한 것이다. */
+  function sentence(dataType: DataType): string {
+    const whole = i18n.global.t(KEY[dataType], { used: 0, total: 0 }) as string
+    return whole.slice(0, whole.lastIndexOf('('))
+  }
+
+  function mountDetail(
+    rows: number,
+    options: {
+      dataType?: DataType
+      preprocessor?: Preprocessor | null
+      dataset?: Dataset | null
+    } = {},
+  ) {
+    return mount(ExperimentDetail, {
+      props: {
+        experiment: clusteringExperiment(rows),
+        order: 1,
+        previous: undefined,
+        dataType: options.dataType ?? 'tabular',
+        dataset: options.dataset ?? null,
+        preprocessor: options.preprocessor === undefined ? preprocessor : options.preprocessor,
+        models: new Map<string, Uint8Array>(),
+        file: projectFile(),
+      },
+      /**
+       * **고른 run의 속(`RunDetail`)은 띄우지 않는다.** 이 판이 보는 것은 점수 표 아래 문장
+       * 하나이고, 속의 군집 패널은 지연 로딩이라 판이 끝난 뒤에 모듈을 불러 vitest가
+       * 처리되지 않은 오류로 끝난다(사람 확인 — 판은 초록인데 vitest 종료 코드가 1이었다).
+       */
+      global: { plugins: [i18n], stubs: { RunDetail: true } },
+    })
+  }
+
+  for (const dataType of DATA_TYPES) {
+    it(`says it in the ${dataType} sentence, with the counts from the metric's own judgment`, () => {
+      const used = silhouetteSampleSize(SAMPLED_ROWS, WIDTH)
+      expect(used).toBeLessThan(SAMPLED_ROWS)
+
+      const text = mountDetail(SAMPLED_ROWS, { dataType }).text()
+      expect(text).toContain(i18n.global.t(KEY[dataType], { used, total: SAMPLED_ROWS }) as string)
+      // 다른 종류의 문장이 섞여 나오지 않는다 — 사진에 "행"이라 말하지 않는다.
+      for (const other of DATA_TYPES.filter((one) => one !== dataType)) {
+        expect(text).not.toContain(sentence(other))
+      }
+    })
+  }
+
+  /**
+   * **전체 수는 실험이 학습에 쓴 행 수(`trainIndices`)다. 데이터셋의 행 수가 아니다.** 빈
+   * 타깃·결측 제거·추출로 둘이 갈리고, 실루엣을 잰 행렬은 앞의 것에서 나온다
+   * (사람 확인: `ml/experiment.ts`가 `split.trainIndices`로 `transform`한다).
+   */
+  it('counts the rows the experiment trained on, not the rows of the dataset', () => {
+    const dataset: Dataset = {
+      columns: ['a'],
+      rows: Array.from({ length: SAMPLED_ROWS + 1000 }, (_, index) => [String(index)]),
+    }
+    const used = silhouetteSampleSize(SAMPLED_ROWS, WIDTH)
+    const text = mountDetail(SAMPLED_ROWS, { dataset }).text()
+    expect(text).toContain(i18n.global.t(KEY.tabular, { used, total: SAMPLED_ROWS }) as string)
+  })
+
+  it('says nothing when every row was used', () => {
+    const text = mountDetail(300).text()
+    expect(text).not.toContain(sentence('tabular'))
+  })
+
+  it('says nothing when the width is unknown — it does not make up the count', () => {
+    const text = mountDetail(SAMPLED_ROWS, { preprocessor: null }).text()
+    expect(text).not.toContain(sentence('tabular'))
   })
 })

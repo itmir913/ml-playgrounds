@@ -898,6 +898,7 @@
     "firstRun": "첫 실험",
     "image": {
       "trainingPhoto": "학습에 쓴 사진",
+      "silhouetteSampled": "사진이 많아 실루엣 계수는 무작위로 추출한 일부 사진으로 측정했습니다. [난수 씨앗(Random State)]을 바꾸면 같은 사진에서도 값이 조금 달라질 수 있습니다. (전체 {total}장 중 {used}장)",
       "clusterEmpty": "이 군집에는 사진이 없습니다.",
       "clusterRepresentative": "중심점에 가까운 순서입니다. 맨 앞이 이 군집의 대표입니다."
     },
@@ -940,6 +941,7 @@
       "clusterModeHelp": "그 군집에서 가장 많은 범주입니다. (범주 {count}개)",
       "clusterPoint": "{name} ({x}, {y})",
       "clusterSample": "점이 너무 많아 일부만 그렸습니다. (전체 {total}행 중 {drawn}행)",
+      "silhouetteSampled": "데이터가 많아 실루엣 계수는 무작위로 추출한 일부 행으로 측정했습니다. [난수 씨앗(Random State)]을 바꾸면 같은 데이터에서도 값이 조금 달라질 수 있습니다. (전체 {total}행 중 {used}행)",
       "clusterScatter": "군집 산점도",
       "clusterScatterLead": "점 하나가 데이터 한 행이고, ✕ 표시는 각 군집의 중심점입니다.",
       "clusterScatterNoAxes": "산점도는 숫자로 된 열이 둘 이상 있어야 그릴 수 있습니다. (지금 {count}개)",
