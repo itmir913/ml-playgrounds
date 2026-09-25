@@ -14,7 +14,7 @@ import { basename, dirname, join, resolve, sep } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { sourceFiles, windowedHits, withoutComments } from './fixtures/source'
+import { isMarkup, sourceFiles, windowedHits, withoutComments } from './fixtures/source'
 
 /** 정규식과 예문 안에 그대로 못 적는다 - 이 파일 자신이 검사 대상이라 조립 자리로 읽힌다. */
 const BACKTICK = String.fromCharCode(96)
@@ -889,6 +889,43 @@ describe('검사기가 실제로 잡는다', () => {
   it('따옴표 안의 //는 주석이 아니다 - 링크가 든 줄에서도 규칙이 산다', () => {
     const line = '<a href="https://example.org" class="text-xs">x</a>'
     expect(withoutComments(line)[0]).toContain('text-xs')
+  })
+
+  /**
+   * **`.ts`의 `<!--`는 주석이 아니다** (R41 별건 B). 정규식 리터럴 안의 `<!--`를 HTML
+   * 주석으로 읽으면 그 뒤를 다음 `-->`까지 삼킨다. 표본은 `project/portfolio.ts`의 그
+   * 모양이고, 삼켜지는 자리에 `secure-context-rules`와 `i18n-usage`가 막는 코드를 둔다.
+   */
+  it('`.ts`의 `<!--`는 주석이 아니다 - 그 뒤 코드가 규칙에서 안 사라진다', () => {
+    const source = [
+      'const COMMENT_BLOCK_OPEN = /^ {0,3}<!--/',
+      'export const id = (): string => crypto.randomUUID()',
+      "throw new Error('hidden')",
+      '/** `-->`가 없으면 그냥 글자로 남는다 */',
+    ].join('\n')
+    const code = withoutComments(source).join('\n')
+    expect(code).toContain('crypto.randomUUID()')
+    expect(code).toContain("throw new Error('hidden')")
+    // 마크업이면 지금처럼 HTML 주석으로 걷는다.
+    expect(withoutComments(['<!--', 'text-sm', '-->'].join('\n')).join('').trim()).toBe('')
+    // BOM과 앞 공백 뒤의 `<`도 마크업이다 — 윈도 편집기가 붙이는 BOM에 판정이 안 속는다.
+    const bom = String.fromCharCode(0xfeff)
+    expect(isMarkup(`${bom}<template><!-- text-sm --></template>`)).toBe(true)
+    expect(isMarkup(`${bom}\n  <template></template>`)).toBe(true)
+    const kept = withoutComments(`${bom}<template><!-- text-sm --></template>`).join('')
+    expect(kept).not.toContain('text-sm')
+  })
+
+  /**
+   * **마크업 판정이 실제 파일에서 맞는가.** `isMarkup`은 첫 글자만 보므로, 그 가정이 깨지는
+   * 파일(`<`로 시작하지 않는 `.vue`, `<`로 시작하는 `.ts`)이 생기면 여기서 운다.
+   */
+  it('src의 `.vue`는 전부 마크업이고 `.ts`는 전부 아니다', () => {
+    const wrong = sourceFiles(SRC).filter(
+      (path) => isMarkup(readFileSync(path, 'utf-8')) !== path.endsWith('.vue'),
+    )
+    expect(sourceFiles(SRC).some((path) => path.endsWith('.vue'))).toBe(true)
+    expect(wrong).toEqual([])
   })
 })
 

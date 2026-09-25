@@ -46,7 +46,7 @@ export async function detectCanonicalFormat(): Promise<CanonicalFormat> {
     try {
       const blob = await probe.convertToBlob({ type: format.mime, quality: format.quality })
       if (blob.type === format.mime) return format
-      failures.push(`${format.mime} -> ${blob.type || '(빈 타입)'}`)
+      failures.push(`${format.mime} -> ${blob.type || '(empty type)'}`)
     } catch (error) {
       // 이 형식은 안 된다. 다음 것으로 내려간다.
       failures.push(`${format.mime} -> ${error instanceof Error ? error.message : String(error)}`)

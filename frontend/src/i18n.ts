@@ -72,7 +72,7 @@ export function resolveLocale(
  *   없다고 프로젝트를 못 여는 쪽이 더 나쁘다.
  */
 function onMissing(locale: string, key: string): void {
-  const message = `로케일에 없는 키: ${key} (${locale})`
+  const message = `missing locale key: ${key} (${locale})`
   if (import.meta.env.MODE === 'test') throw new Error(message)
   console.error(message)
 }

@@ -20,6 +20,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
 import { sourceFiles, windowedHits, withoutComments } from './fixtures/source'
@@ -200,9 +201,9 @@ describe('로케일 문장', () => {
  * `rule-coverage.md`는 "§3 i18n 규칙 넷 전부"를 막는다고 적어 두었다 (R8 감사 A-4).
  *
  * **`.vue`만 본다.** 규칙이 말하는 것이 *컴포넌트*이고, 컴포넌트가 `.vue`다.
- * `src/`의 `.ts`에 남은 한글은 **`throw new Error`와 정규식과 기술 정보다** — 학생에게
- * 문장으로 가는 것이 아니라 개발자에게 가는 사실이라 `t()`의 대상이 아니다. 그것까지
- * 여기서 막으면 예외 목록이 자라고, 자란 목록은 곧 아무도 안 읽는다.
+ * `src/`의 `.ts`는 `t()`의 대상이 아니다 — 거기 문자열은 학생에게 가는 문장이 아니라
+ * 개발자에게 가는 사실이다. **그 사실은 영어로 쓰고**, 남는 한글은 주석과 정규식뿐이다
+ * (아래 "src의 .ts 따옴표 리터럴에 한글이 없다", 2026-09-26 R41 B-6).
  *
  * **한때 그 근거가 참이 아니었다** (2026-08-30, R12 감사 B-1). `ml/embed`의 두 자리가
  * 우리가 쓴 한국어를 `failureDetail`에 실었는데, 그 통로는 **남의 라이브러리가 던진
@@ -443,5 +444,65 @@ describe('기술 정보 통로에 우리 문장을 싣지 않는다', () => {
       hits(HANGUL_IN_DETAIL),
       'the technical channel carries codes and parameters only',
     ).toEqual([])
+  })
+
+  /**
+   * **변수를 거치면 위 둘이 못 본다** (R41 B-6). 두 검사는 `throw`·`failureDetail` 바로
+   * 뒤의 따옴표만 보는데, 한국어를 **먼저 변수에 담아** 던지면 그 자리에 따옴표가 없다.
+   *
+   * 그래서 **`.ts`의 따옴표 리터럴에 한글이 하나도 없는 것**으로 넓힌다. `.ts`에 남는
+   * 한글은 주석과 정규식뿐이어야 한다 — 학생에게 가는 문장은 로케일에, 개발자에게 가는
+   * 사실은 영어로. `.vue`는 위 "컴포넌트에 한글 리터럴이 없다"가 본다.
+   *
+   * **글자로 훑지 않고 TypeScript의 구문 트리로 본다.** 줄 단위 훑기(`withoutComments`)는
+   * 정규식 리터럴 안의 따옴표를 문자열 시작으로 읽는다(`/`+[^`]*`+/` 같은 것). 구문
+   * 트리에는 주석이 없고 정규식은 문자열이 아니다.
+   */
+  function quotedHangul(source: string): string[] {
+    const file = ts.createSourceFile('source.ts', source, ts.ScriptTarget.Latest, true)
+    const found: string[] = []
+    const visit = (node: ts.Node): void => {
+      if (
+        (ts.isStringLiteral(node) ||
+          ts.isNoSubstitutionTemplateLiteral(node) ||
+          ts.isTemplateHead(node) ||
+          ts.isTemplateMiddle(node) ||
+          ts.isTemplateTail(node)) &&
+        HANGUL_CHAR.test(node.text)
+      ) {
+        const { line } = file.getLineAndCharacterOfPosition(node.getStart(file))
+        found.push(`${line + 1}  ${node.getText(file)}`)
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(file)
+    return found
+  }
+
+  const HANGUL_CHAR = /[가-힣]/
+
+  it('따옴표 리터럴 검사기가 변수를 거친 한글을 잡는다', () => {
+    expect(quotedHangul("const note = '(빈 타입)'")).toEqual(["1  '(빈 타입)'"])
+    expect(quotedHangul('const message = `로케일에 없는 키: ${key}`')).not.toEqual([])
+    expect(quotedHangul('const m = `${a} 그리고 ${b}`')).not.toEqual([])
+    expect(quotedHangul(['const m = `first', '두 번째 줄`'].join(String.fromCharCode(10)))).toEqual(
+      [['1  `first', '두 번째 줄`'].join(String.fromCharCode(10))],
+    )
+    // 주석과 정규식은 안 잡는다 — 둘 다 따옴표 리터럴이 아니다.
+    expect(quotedHangul("// '한글 주석'")).toEqual([])
+    expect(quotedHangul("/** '한글 주석' `<!--` */")).toEqual([])
+    expect(quotedHangul('const script = /[가-힣]/u')).toEqual([])
+    expect(quotedHangul("const x = 'english' // '한글'")).toEqual([])
+  })
+
+  it('src의 .ts 따옴표 리터럴에 한글이 없다', () => {
+    const found: string[] = []
+    for (const path of sourceFiles(SRC)) {
+      if (!path.endsWith('.ts')) continue
+      for (const line of quotedHangul(readFileSync(path, 'utf-8'))) {
+        found.push(`${path.slice(SRC.length + 1)}:${line}`)
+      }
+    }
+    expect(found, 'developer-facing strings in src/*.ts are English').toEqual([])
   })
 })

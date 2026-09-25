@@ -21,8 +21,14 @@ import { join } from 'node:path'
  * 문자열 리터럴 안은 건드리지 않는다 — 거기 든 `//`는 주석이 아니라 값이다.
  *
  * `.vue`에는 HTML 주석(`<!-- -->`)과 JS 주석이 함께 있다. **둘 다 여러 줄에 걸친다.**
+ *
+ * **HTML 주석은 마크업에서만 읽는다** (R41 별건 B). `.ts`에서 `<!--`는 주석이 아니라
+ * 글자다 — 정규식 리터럴(`project/portfolio.ts`의 `/^ {0,3}<!--/`) 안에 있으면 그 뒤를
+ * 다음 `-->`까지 통째로 삼켜, 그 사이의 코드가 이 함수를 쓰는 검사 전부에서 사라진다.
+ * 무엇이 마크업인지는 `isMarkup`이 가른다. 검사: ui-rules.spec.ts "`.ts`의 `<!--`는
+ * 주석이 아니다 - 그 뒤 코드가 규칙에서 안 사라진다".
  */
-export function withoutComments(source: string): string[] {
+export function withoutComments(source: string, markup: boolean = isMarkup(source)): string[] {
   let inBlock = false
   let inHtml = false
   return source.split(/\r?\n/).map((line) => {
@@ -53,7 +59,7 @@ export function withoutComments(source: string): string[] {
         } else if (char === quote) quote = ''
         continue
       }
-      if (line.slice(i, i + 4) === '<!--') {
+      if (markup && line.slice(i, i + 4) === '<!--') {
         inHtml = true
         i += 3
       } else if (char === "'" || char === '"' || char === '`') {
@@ -67,6 +73,18 @@ export function withoutComments(source: string): string[] {
     }
     return kept
   })
+}
+
+/**
+ * **마크업인가** — 첫 글자(공백·BOM 뒤)가 `<`이면 그렇다고 본다. `.vue`는 `<template>`·
+ * `<script>`·`<!--`로 시작하고, `.ts`는 그렇게 시작하지 않는다(주석·`import`·선언).
+ * 검사가 넘기는 짧은 표본(`'<!-- 주석 -->'`, `'<p>…</p>'`)도 같은 규칙으로 마크업이 된다.
+ *
+ * **경로를 받지 않는 이유.** 부르는 자리가 수십 곳이고 다수가 문자열만 넘긴다 — 경로를
+ * 요구하면 빠뜨린 자리가 옛 동작으로 조용히 남는다. 파일이 스스로 무엇인지 말하게 둔다.
+ */
+export function isMarkup(source: string): boolean {
+  return source.trimStart().startsWith('<')
 }
 
 /**
