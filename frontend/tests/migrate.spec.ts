@@ -177,6 +177,16 @@ describe('migrateProjectDocument', () => {
     }
   })
 
+  /**
+   * **경계 바로 위를 잰다** (R41 C-7). 위 999는 먼 값이라 비교가 한 칸 느슨해져도 안
+   * 걸린다 — 직접 부르는 쪽에도 경계를 둔다(입구 쪽 짝은 `format.spec.ts`).
+   */
+  it('한 버전 위도 거부한다', () => {
+    const next = FORMAT_VERSION + 1
+    const future = { ...document, manifest: { ...document.manifest, formatVersion: next } }
+    expect(codeOf(() => migrateProjectDocument(future))).toBe('PROJECT_FILE_VERSION_TOO_NEW')
+  })
+
   it('버전을 읽을 수 없으면 거부한다', () => {
     const cases: unknown[] = [
       { ...document, manifest: { ...document.manifest, formatVersion: 0 } },

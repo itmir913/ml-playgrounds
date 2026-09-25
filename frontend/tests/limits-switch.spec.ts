@@ -18,6 +18,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bodyAt, withoutComments } from './fixtures/source'
 
 import { runtimeContextFor } from '../src/ml/training-source'
+import { imageOverflow } from '../src/project/images'
 import { writeLimitsOff } from '../src/project/storage'
 
 import {
@@ -30,6 +31,7 @@ import {
 import {
   applyLimitsOff,
   clusterScatterPointLimit,
+  dataScatterPointLimit,
   imagePredictPageSize,
   limitsOff,
   maxDatasetColumns,
@@ -57,13 +59,13 @@ describe('스위치를 안 켜면 아무것도 안 바뀐다', () => {
   })
 })
 
-describe('켜면 일곱이 함께 열린다', () => {
+describe('켜면 여덟이 함께 열린다', () => {
   /**
    * **부분만 열리면 설명할 말이 없다** (`open-decisions.md` "상한은 누가 정했느냐" §2).
    * 하나씩 확인하는 이유는 새 상한이 이 모듈에 들어오면서 `open()`을 안 거치는 일이
    * 실제로 일어나기 때문이다 — 그때 그 하나만 조용히 옛 값을 낸다.
    */
-  it('일곱이 전부 열린다', () => {
+  it('여덟이 전부 열린다', () => {
     applyLimitsOff(true)
     for (const read of [
       maxDatasetRows,
@@ -72,6 +74,7 @@ describe('켜면 일곱이 함께 열린다', () => {
       predictPageSize,
       imagePredictPageSize,
       clusterScatterPointLimit,
+      dataScatterPointLimit,
       maxPortfolioBytes,
     ]) {
       expect(read()).toBe(Number.POSITIVE_INFINITY)
@@ -84,6 +87,22 @@ describe('켜면 일곱이 함께 열린다', () => {
     expect(1_000_000 > maxDatasetRows()).toBe(false)
     // 파서가 하는 비교 그대로 (`data/csv.ts` · `data/xlsx.ts`).
     expect(1_000_000 >= maxDatasetRows() + 1).toBe(false)
+  })
+})
+
+/**
+ * **사진 상한이 업로드 판정까지 실제로 열리는가** (R41 B-7). 위 검사는 `maxImageCount()`가
+ * `Infinity`를 내는 것만 보고, 판정하는 자리(`project/images.ts`의 `imageOverflow`)가 그
+ * 값을 쓰는지는 이것이 본다 — 기본값에 숫자를 박아 스위치를 비켜 가면 여기서 운다.
+ */
+describe('사진 상한은 업로드 판정까지 열린다', () => {
+  it('켜 두면 상한 + 1장에서 걸린다', () => {
+    expect(imageOverflow(null, MAX_IMAGE_COUNT + 1)).not.toBeNull()
+  })
+
+  it('끄면 상한 + 1장도 통한다', () => {
+    applyLimitsOff(true)
+    expect(imageOverflow(null, MAX_IMAGE_COUNT + 1)).toBeNull()
   })
 })
 
@@ -218,7 +237,7 @@ describe('맥락이 스위치를 싣는다', () => {
 /**
  * **목록을 손으로 적지 않는다** (2026-09-01 감사 B-2).
  *
- * 위 `일곱이 전부 열린다`는 이름을 손으로 열거하므로, **여덟째가 `open()`을 안 거치고
+ * 위 `여덟이 전부 열린다`는 이름을 손으로 열거하므로, **아홉째가 `open()`을 안 거치고
  * 들어오면 아무 일도 안 일어난다** — 그 검사의 주석이 막겠다고 적은 바로 그 경우다.
  * 단정이 자기 목록을 근거로 하면 안 된다.
  *
