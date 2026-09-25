@@ -8,8 +8,8 @@
 
 ## Checks
 
-- [ ] `npm run ci` passes in `frontend/` — the whole thing, not a subset
-- [ ] `uv run python scripts/ci.py` passes in `backend/` (only if you touched it)
+- [ ] `npm run ci` passes in `frontend/` — the whole thing, not a subset. It runs
+      the backend checks too, so this is the only command
 - [ ] The decision behind this change is in `docs/`, committed before the code —
       or this is a plain bug fix, where the intended behaviour was already written
 - [ ] Commits follow Conventional Commits
