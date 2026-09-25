@@ -192,7 +192,7 @@ export function withSectionRemoved(portfolio: Portfolio, id: string): Portfolio 
   const answers = { ...portfolio.answers }
   delete answers[id]
   // **첨부도 함께 지운다.** 문서에서만 떼면 사진 바이트가 파일에 남아 크기만 먹고
-  // 아무도 못 본다 - 저장할 때 아무도 안 가리키는 것은 안 담긴다(`keptAttachments`).
+  // 아무도 못 본다 - `.mlpx`로 내보낼 때 아무도 안 가리키는 것은 안 담긴다(`writeProject`).
   const attachments = { ...portfolio.attachments }
   delete attachments[id]
   return { ...portfolio, template: { ...portfolio.template, sections }, answers, attachments }
@@ -280,11 +280,21 @@ export function referencedAttachments(portfolio: Portfolio): Set<string> {
 /**
  * 다음 사진이 가질 경로.
  *
- * **있는 것들의 최대 번호 + 1이다.** 개수로 세면 지웠다 붙일 때 번호가 되풀이되고,
- * 그러면 옛 무결성 기록과 같은 이름의 다른 사진이 생긴다.
+ * **가리키는 이름과 바이트로 들고 있는 이름 전부의 최대 번호 + 1이다.** 가장 큰 번호를
+ * 떼어 내면 그 번호는 다시 쓰인다 — 떼면 바이트도 함께 놓으므로 한 이름에 두 사진이 사는
+ * 일은 없다. 문항을 지우면 참조만 사라지고 바이트는 `.mlpx`로 내보낼 때까지 남는데
+ * (IndexedDB 저장은 들고 간다 — 빠지는 것은 `writeProject`뿐이다), 그 이름을 새 사진이
+ * 다시 받으면 이름으로 묶인 화면의 사진 주소(`useObjectUrls`)가 지운 사진을 그대로 보인다 —
+ * 그래서 `stored`도 센다. `portfolio-attach.spec.ts`의 *"문항을 지운 뒤 다른 문항에 붙인
+ * 사진이"*와 `portfolio.spec.ts`가 문다.
  */
-export function nextAttachmentPath(portfolio: Portfolio, extension: string): string {
-  const numbers = [...referencedAttachments(portfolio)].map((path) => {
+export function nextAttachmentPath(
+  portfolio: Portfolio,
+  extension: string,
+  stored: Iterable<string>,
+): string {
+  const names = new Set([...referencedAttachments(portfolio), ...stored])
+  const numbers = [...names].map((path) => {
     const name = path.slice(path.lastIndexOf('/') + 1)
     return Number.parseInt(name, 10)
   })

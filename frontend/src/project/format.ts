@@ -958,7 +958,7 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
   // 대로 들인다 - 없으면 학습할 때 다시 뽑는다 (mlpx-spec.md §1.3).
   const embeddings = new Map<string, Uint8Array>()
   // 포트폴리오 첨부. **문서가 문항마다 가리킨다**(`portfolio.attachments`) - 그래도 여기서는
-  // 있는 대로 들이고, 아무도 안 가리키는 것은 저장할 때 빠진다 (`keptAttachments`).
+  // 있는 대로 들이고, 아무도 안 가리키는 것은 `.mlpx`로 쓸 때 빠진다 (`writeProject`).
   const attachments = new Map<string, Uint8Array>()
   for (const [path, content] of entries) {
     if (isAttachmentEntry(path)) attachments.set(path, content)

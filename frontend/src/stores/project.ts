@@ -219,7 +219,7 @@ export const useProjectStore = defineStore('project', () => {
    * 묻는다. 같은 라우트 레코드 사이의 이동(`/project/A/…` → `/project/B/…`)은 화면을 다시
    * 쓰므로 언마운트에 매인 `alive`로는 못 가른다.
    * `train-project-switch.spec.ts` · `image-panel-drop.spec.ts` · `image-predict-fail.spec.ts` ·
-   * `image-prep-fail.spec.ts`가 문다.
+   * `image-prep-fail.spec.ts` · `portfolio-attach.spec.ts`가 문다.
    */
   function claim(): () => boolean {
     const held = projectId.value

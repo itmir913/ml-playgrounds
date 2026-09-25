@@ -291,26 +291,26 @@ describe('사진은 답 아래에 붙는다', () => {
     ])
   })
 
-  it('번호는 있는 것들의 최대값 + 1이다 - 지웠다 붙여도 안 되풀이한다', () => {
+  it('번호는 가리키는 것들의 최대값 + 1이다 - 가장 큰 번호를 떼면 그 번호가 다시 쓰인다', () => {
     const two = withAttachmentAdded(
       withAttachmentAdded(before, 'a', 'portfolio/attachments/1.webp'),
       'a',
       'portfolio/attachments/2.webp',
     )
     const removed = withAttachmentRemoved(two, 'a', 'portfolio/attachments/2.webp')
-    expect(nextAttachmentPath(removed, '.webp')).toBe('portfolio/attachments/2.webp')
-    expect(nextAttachmentPath(two, '.webp')).toBe('portfolio/attachments/3.webp')
+    expect(nextAttachmentPath(removed, '.webp', [])).toBe('portfolio/attachments/2.webp')
+    expect(nextAttachmentPath(two, '.webp', [])).toBe('portfolio/attachments/3.webp')
+  })
+
+  /** 아무도 안 가리켜도 바이트가 남아 있는 이름은 다시 주지 않는다 — 문항을 지운 뒤가 그렇다. */
+  it('바이트로 들고 있는 이름도 센다', () => {
+    const stored = ['portfolio/attachments/1.webp', 'portfolio/attachments/5.jpg']
+    expect(nextAttachmentPath(before, '.webp', stored)).toBe('portfolio/attachments/6.webp')
   })
 
   /**
    * **가운데가 빈 번호** (2026-09-23, R37 C-6). 검사 셋이 **구멍 없는 경우만** 봤다 —
    * `[1, 3]`처럼 가운데가 빠진 상태를 지나가는 줄이 하나도 없었다.
-   *
-   * **그리고 재 보니 머리말의 약속이 읽히는 것보다 좁다.** *"번호가 되풀이되면 옛 무결성
-   * 기록과 같은 이름의 다른 사진이 생긴다"*고 적혀 있는데, **가장 큰 번호를 지우면 그
-   * 번호가 다시 쓰인다**(바로 위 검사가 그 동작을 정상으로 못 박고 있다). 막는 것은
-   * *"개수로 세기"*뿐이고 되풀이 자체는 아니다. 고치려면 번호를 파일에 들고 있어야 해서
-   * 결정이 걸린다 — 지금은 **동작을 그대로 못 박아 둔다.**
    */
   it('가운데가 빈 번호에서도 최대값 + 1이다', () => {
     const gapped = withAttachmentAdded(
@@ -318,15 +318,15 @@ describe('사진은 답 아래에 붙는다', () => {
       'a',
       'portfolio/attachments/3.webp',
     )
-    expect(nextAttachmentPath(gapped, '.webp')).toBe('portfolio/attachments/4.webp')
+    expect(nextAttachmentPath(gapped, '.webp', [])).toBe('portfolio/attachments/4.webp')
 
     // 가운데를 지워도 최대값은 그대로다 — 구멍을 메우지 않는다.
     const middleGone = withAttachmentRemoved(gapped, 'a', 'portfolio/attachments/1.webp')
-    expect(nextAttachmentPath(middleGone, '.webp')).toBe('portfolio/attachments/4.webp')
+    expect(nextAttachmentPath(middleGone, '.webp', [])).toBe('portfolio/attachments/4.webp')
   })
 
   it('굽는 형식이 갈려도 이름은 그 형식을 따른다', () => {
-    expect(nextAttachmentPath(before, '.jpg')).toBe('portfolio/attachments/1.jpg')
+    expect(nextAttachmentPath(before, '.jpg', [])).toBe('portfolio/attachments/1.jpg')
   })
 
   it('마지막 한 장을 떼면 그 문항의 자리도 없앤다', () => {
