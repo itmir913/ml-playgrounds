@@ -485,3 +485,79 @@ describe('기록된 분할', () => {
     expect(plan.split.testIndices).toEqual([])
   })
 })
+
+/**
+ * **따로 올린 테스트 표(provided)의 경계.** 시험 행 번호가 다른 표를 가리킨다는 것과,
+ * 훈련 표가 비었을 때 알리는 최소 행 수를 본다.
+ */
+describe('provided 분할의 경계', () => {
+  const providedSplit = {
+    method: 'provided',
+    testSize: 0.3,
+    stratify: false,
+    randomState: 42,
+  } as const
+  const testTable: Dataset = {
+    columns: ['x', 'label'],
+    rows: [
+      ['1', 'a'],
+      ['2', 'b'],
+    ],
+  }
+  const tabular = { features: ['x'], target: 'label' }
+
+  /**
+   * **시험 행 번호는 훈련 표의 행을 가리키지 않는다.** 훈련 표의 0번 행은 타깃이 비어
+   * 학습에 안 쓰이고 `x`에 글자가 있다. 시험 표에도 0번 행이 있으니, 그 번호를 훈련 표의 종류
+   * 판정에 섞으면 **안 쓰는 행의 글자**가 `x`를 범주로 만든다.
+   */
+  it('시험 행 번호를 훈련 표의 열 종류 판정에 섞지 않는다', () => {
+    const train: Dataset = {
+      columns: ['x', 'label'],
+      rows: [
+        ['모름', ''],
+        ['1', 'a'],
+        ['2', 'b'],
+        ['3', 'a'],
+        ['4', 'b'],
+      ],
+    }
+    const plan = planRun({
+      dataset: train,
+      testDataset: testTable,
+      settings: settingsFor(tabular, { split: providedSplit }),
+      taskType: 'classification',
+    })
+    expect(plan.ok).toBe(true)
+    if (!plan.ok) return
+    expect(plan.split.testIndices).toEqual([0, 1])
+    expect(plan.preprocessor.featureNames).toEqual(['x'])
+  })
+
+  /**
+   * **provided는 훈련 행 하나로도 선다.** 시험은 따로 올린 표가 맡으니 훈련 표에서 둘로
+   * 나눌 일이 없다 — holdout의 `MIN_SPLIT_ROWS`와 다르다.
+   */
+  it('훈련 표에 쓸 행이 0개면 최소 행 수 1을 알린다', () => {
+    const train: Dataset = {
+      columns: ['x', 'label'],
+      rows: [
+        ['1', ''],
+        ['2', ''],
+      ],
+    }
+    const plan = planRun({
+      dataset: train,
+      testDataset: testTable,
+      settings: settingsFor(tabular, { split: providedSplit }),
+      taskType: 'classification',
+    })
+    expect(plan.ok).toBe(false)
+    if (plan.ok) return
+    expect(plan.reason).toEqual({
+      kind: 'error',
+      code: 'SPLIT_TOO_FEW_ROWS',
+      params: { minRows: 1, actualRows: 0 },
+    })
+  })
+})

@@ -270,6 +270,24 @@ describe('층화', () => {
   })
 
   /**
+   * **되받기 도너가 동점이면 등장 순서가 이긴다** (`ml/sample.ts`의 되받기 고리). 위 판은
+   * 도너가 하나로 정해지는 모양이라 동점 규칙을 가르지 못한다 — 여기는 도너 둘이 같은 수를
+   * 가진다. **동점 규칙이 흔들리면 같은 씨앗에서 다른 표본이 나온다.**
+   */
+  it('되받기 도너가 동점이면 먼저 나온 라벨에서 받는다', () => {
+    // 450:450:99:1에서 20줄. 비례로 9/9/1/0에 남은 한 자리를 C(.98)가 가져가 9/9/2/0이고,
+    // D가 바닥(1)으로 올라 21이 된다. 넘친 1을 9로 동점인 X·Y 중 먼저 나온 X에서 받는다.
+    const { rows: all, labels } = blocks(['X', 450], ['Y', 450], ['C', 99], ['D', 1])
+    const counts = countByLabel(
+      sampleRows({ rows: all, labels }, split({ stratify: true }), 20),
+      labels,
+    )
+    expect([counts.get('X'), counts.get('Y'), counts.get('C'), counts.get('D')]).toEqual([
+      8, 9, 2, 1,
+    ])
+  })
+
+  /**
    * **라벨마다 씨앗을 흔든다** (`ml/shuffle.ts`의 `labelSeed`).
    *
    * 흔들지 않으면 **크기가 같은 두 라벨이 완전히 같은 순열을 얻는다.** 교실 CSV는 대개
