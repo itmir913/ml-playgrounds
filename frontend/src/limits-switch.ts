@@ -8,10 +8,13 @@
  * `@vue/reactivity`가 따라 들어간다. 그래서 파일이 둘이다. **이름을 나란히 둔 것도
  * 그래서다** — `limits.ts`를 여는 사람이 이 파일을 못 보고 지나가면 안 된다.
  *
- * **여기 사는 것은 일곱뿐이다.** 스물셋을 끈다고 해서 스물셋이 여기 있어야 하는 것은
- * 아니다 — 행 상한 열여섯은 **판정이 한 곳으로 모여 있어서**(`ml/backend.ts`의
- * `runtimeOptions`) 거기서 한 번에 꺼진다. 그 값들을 여기서 `Infinity`로 바꾸면
- * **화면이 "무제한 행까지"라고 말하게 된다** — 상한이 몇인지는 꺼진 뒤에도 말할 거리다.
+ * **여기 사는 것은 `open()`을 거치는 읽기 함수 몇 개뿐이다.** 몇 개인지는 적지 않는다 —
+ * limits-switch.spec.ts "내보내는 읽기 함수가 전부 스위치를 거친다"가 소스에서 뽑는다.
+ *
+ * 스물셋을 끈다고 해서 스물셋이 여기 있어야 하는 것은 아니다 — 행 상한 열여섯은
+ * **판정이 한 곳으로 모여 있어서**(`ml/backend.ts`의 `runtimeOptions`) 거기서 한 번에
+ * 꺼진다. 그 값들을 여기서 `Infinity`로 바꾸면 **화면이 "무제한 행까지"라고 말하게
+ * 된다** — 상한이 몇인지는 꺼진 뒤에도 말할 거리다.
  *
  * **워커에는 이 모듈이 안 간다.** 학습은 워커에서 돌고 거기서도 상한을 보는데
  * (`ml/experiment.ts`), 그쪽은 `RuntimeContext.limitsOff`로 **값을 실어** 받는다.
@@ -137,11 +140,6 @@ export function clusterScatterPointLimit(): number {
 }
 
 /**
- * 데이터 화면의 산점도에 그릴 점의 수 (`data/stats.ts`의 `scatterSample`).
- *
- * **위와 나란히 있고 값도 같지만 다른 상수다** — 이유는 `limits.ts`의 그 주석이 갖는다.
- */
-/**
  * 산점도가 **표본을 안 뽑고 전부 그리고 있는가** (2026-09-22에 재서 넣었다).
  *
  * **판정이 여기 사는 이유는 질문이 스위치의 것이기 때문이다** — *"이 상한이 지금 풀려
@@ -155,6 +153,12 @@ export function drawingEveryPoint(drawn: number, total: number): boolean {
   return drawn === total && drawn > DATA_SCATTER_POINT_LIMIT
 }
 
+/**
+ * 데이터 화면의 산점도에 그릴 점의 수 (`data/stats.ts`의 `scatterSample`).
+ *
+ * **`clusterScatterPointLimit`과 값이 같지만 다른 상수다** — 이유는 `limits.ts`의 그 주석이
+ * 갖는다.
+ */
 export function dataScatterPointLimit(): number {
   return open(DATA_SCATTER_POINT_LIMIT)
 }

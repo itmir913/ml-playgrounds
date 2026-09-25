@@ -430,8 +430,12 @@ async function zipToBlob(entries: Record<string, Uint8Array>): Promise<Blob> {
         reject(error)
         return
       }
-      // **사본을 뜬다.** fflate는 내부 버퍼를 돌려 쓸 수 있어서, 그대로 붙들면 다음
-      // 청크가 앞의 것을 덮어쓴다. 여기서 뜨는 사본은 청크 하나 크기다.
+      // **사본은 방어다 — 지금의 fflate에는 필요 없다** (2026-09-26 R41 C-1). 0.8.3의
+      // `Zip`은 청크마다 새 배열을 준다: 머리글·데이터 서술자·중앙 디렉터리는 그 자리에서
+      // `new u8`로 만들고, 본문은 `AsyncZipDeflate`가 워커에서 받은 것이다
+      // (`node_modules/fflate/esm/browser.js`의 `Zip.prototype.add`·`end`, 사람 확인).
+      // 버퍼를 돌려 쓰는 판이 나오면 앞 청크가 조용히 덮이므로 남겨 둔다 — 사본은 청크
+      // 하나 크기다. **무는 검사는 없다.**
       parts.push(chunk.slice())
       if (final) {
         settled = true

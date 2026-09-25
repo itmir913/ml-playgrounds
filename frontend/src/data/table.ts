@@ -167,9 +167,8 @@ export function importTable(document: TableDocument, sheetName?: string): Import
   // `>= maxRows`로 비교하므로 그대로 통한다 — `data/csv.ts`, 그리고 `data/xlsx.ts`의
   // **두 파서**(ExcelJS와 SheetJS)다. 끈 사람이 원한 것이 그것이다.
   //
-  // **켠 상태로 지나가는 검사는 csv 하나뿐이다** (2026-09-01 감사 C-4). xlsx 두 갈래는
-  // 소스로만 확인했다 — 이 저장소가 「폴백 검사가 폴백을 안 지나갔다」로 한 번 앓은
-  // 자리가 바로 그 파일이다.
+  // **셋 다 상한을 끈 상태로 지나가는 검사가 있다** — xlsx 두 갈래는 xlsx.spec.ts "상한을
+  // 끄면 본진이 전부 읽는다"·"상한을 끄면 SheetJS 폴백도 전부 읽는다"가 덮는다.
   const raw = document.read(sheetName, maxDatasetRows() + 1)
   checkLimits(raw)
 
