@@ -57,6 +57,10 @@ beforeEach(async () => {
   closeStorage()
   await deleteDatabase()
   stubDialogElement()
+  // jsdom에는 없다. 시각화 창이 도구를 고르면 그림으로 데려간다(`ChartDialog`의 `pickTool`).
+  if (typeof Element.prototype.scrollIntoView === 'undefined') {
+    Element.prototype.scrollIntoView = () => {}
+  }
   await setLocale('ko')
 })
 

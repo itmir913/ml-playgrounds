@@ -13,7 +13,7 @@
  * `.mlpx`에 남길 것이 없다 (결정문의 "저장하지 않는다").
  */
 
-import { computed, provide, ref, watch } from 'vue'
+import { computed, nextTick, provide, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { CHART_CONTROLS } from '@/data/charts'
@@ -104,6 +104,22 @@ const columnKind = computed(() => props.columns.find((one) => one.name === colum
  */
 const controls = ref<HTMLElement | null>(null)
 provide(CHART_CONTROLS, controls)
+
+/** 그림이 서는 칸. 도구를 고르면 이리로 데려간다(아래 `pickTool`). */
+const figure = ref<HTMLElement | null>(null)
+
+/**
+ * 도구를 고른다. **고른 그림이 화면 밖이면 그리로 데려간다** (§8.9.1). 좁은 화면에서는
+ * 한 열로 쌓여 그림이 도구 목록 아래에 서고, 창 본문 밖에 있으면 도구를 눌러도 아무 일이
+ * 안 일어난 것처럼 보인다. 결과 화면이 실험을 고르면 그리로 데려가는 것과 같다(§8.13).
+ *
+ * `nearest`라 그림이 이미 보이면(넓은 화면의 옆 칸) 아무것도 안 움직인다.
+ * `tests/chart-dialog.spec.ts`의 "도구를 고르면 그림으로 데려간다"가 지킨다.
+ */
+function pickTool(id: string): void {
+  chosenToolId.value = id
+  void nextTick(() => figure.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
+}
 </script>
 
 <template>
@@ -190,7 +206,7 @@ provide(CHART_CONTROLS, controls)
               "
               :disabled="blocks(one).length > 0"
               :title="blocks(one).join(' ')"
-              @click="chosenToolId = one.id"
+              @click="pickTool(one.id)"
             >
               {{ t(`data.charts.${one.id}.name`) }}
             </button>
@@ -222,7 +238,7 @@ provide(CHART_CONTROLS, controls)
         밖으로 55px 넘쳤다** — 굴러가는 상자라 보이기는 하지만 칸의 셈이 거짓이 된다.
         `min-h-64`는 `ChartFrame`이 캔버스에 주는 바닥값과 같은 값이다.
       -->
-      <div class="flex min-h-64 min-w-0 flex-col md:col-span-7">
+      <div ref="figure" class="flex min-h-64 min-w-0 flex-col md:col-span-7">
         <component :is="tool.panel" v-if="tool && blocks(tool).length === 0" :input="input" />
       </div>
     </div>

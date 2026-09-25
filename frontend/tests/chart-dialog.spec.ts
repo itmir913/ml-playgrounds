@@ -114,9 +114,17 @@ function toolButton(wrapper: ReturnType<typeof open>, name: string) {
   return toolButtons(wrapper).find((button) => button.text().startsWith(name))
 }
 
+/**
+ * **jsdom에는 `scrollIntoView`가 없다.** 도구를 고르면 창이 그림으로 데려가므로(아래 "도구를
+ * 고르면 그림으로 데려간다") 없으면 단추를 누르는 검사마다 `nextTick` 안에서 던진다.
+ */
+const scrollIntoView = vi.fn()
+
 beforeEach(() => {
   stubDialogElement()
   i18n.global.locale.value = 'ko'
+  scrollIntoView.mockClear()
+  Element.prototype.scrollIntoView = scrollIntoView
 })
 
 describe('창이 열리는 순간', () => {
@@ -237,6 +245,27 @@ describe('창 안에서 계속 돌아다닌다', () => {
 
     const chosen = toolButtons(wrapper).find((button) => button.classes().includes('text-brand'))
     expect(chosen?.text()).toContain('박스 플롯')
+  })
+
+  /**
+   * **도구를 고르면 그림으로 데려간다** (§8.9.1). 좁은 화면에서는 그림이 도구 목록 아래에
+   * 서서, 누른 결과가 창 본문 밖에 있을 수 있다. 데려가는 대상이 **그림이 선 칸**인지까지
+   * 본다 — 도구 단추나 창 자체를 굴리면 부르긴 불러도 그림은 그대로 밖에 있다.
+   */
+  it('도구를 고르면 그림으로 데려간다', async () => {
+    const wrapper = open('키')
+    await drawn(wrapper)
+    expect(scrollIntoView).not.toHaveBeenCalled()
+
+    await toolButton(wrapper, '박스 플롯')?.trigger('click')
+    await drawn(wrapper)
+    await vi.waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1))
+
+    const target = scrollIntoView.mock.contexts[0] as Element
+    const chart = wrapper.findComponent({ name: 'Bar' }).element.parentElement
+    expect(target.contains(chart)).toBe(true)
+    expect(target.contains(wrapper.find('.grid button').element)).toBe(false)
+    expect(scrollIntoView).toHaveBeenCalledWith(expect.objectContaining({ block: 'nearest' }))
   })
 
   it('열 선택기가 표의 모든 열을 들고 있다', () => {
