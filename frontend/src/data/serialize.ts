@@ -13,7 +13,11 @@
  * 해시가 달라져 무결성 검증 전체가 무너진다(mlpx-spec.md 7).
  */
 
-/** 정본 CSV의 구분자. 읽는 쪽도 이 값을 안다. */
+/**
+ * 정본 CSV의 구분자. **읽는 쪽도 이 값으로 읽는다** — `data/csv.ts`의 `parseCanonicalCsv`가
+ * 추정하지 않고 이것을 넘긴다 (2026-09-26 R41 B-3). 검사: serialize.spec.ts
+ * "다른 구분자 후보(…)가 든 칸"·"정본을 다시 읽는 세 입구".
+ */
 export const CANONICAL_DELIMITER = ','
 
 /**
@@ -85,8 +89,10 @@ export function toCsvText(grid: readonly (readonly string[])[]): string {
 /**
  * 격자를 정본 바이트로 만든다.
  *
- * 이 결과를 parseCsv에 다시 넣으면 같은 격자가 나와야 한다(왕복 무손실).
- * tests/serialize.spec.ts가 그것을 강제한다.
+ * 이 결과를 `parseCanonicalCsv`(data/csv.ts)에 다시 넣으면 같은 격자가 나와야 한다(왕복
+ * 무손실). tests/serialize.spec.ts "왕복 무손실"이 그것을 강제한다. **업로드용
+ * `parseCsvText`로 읽으면 무손실이 아니다** — 구분자를 추정해서 `;`·탭·`|`가 많은 칸을
+ * 잘못 가른다 (R41 B-3).
  */
 export function toCanonicalCsv(grid: readonly (readonly string[])[]): Uint8Array {
   const body = new TextEncoder().encode(toCsvText(grid))

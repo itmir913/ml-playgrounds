@@ -11,7 +11,7 @@
  */
 
 import { acceptPredictDataset, alignTestDataset, columnNames, toDataset } from '@/data/columns'
-import { parseCsvText } from '@/data/csv'
+import { parseCanonicalCsv } from '@/data/csv'
 import { toCanonicalCsv } from '@/data/serialize'
 import type { ImportedTable } from '@/data/table'
 import { hashBytes } from '@/hash'
@@ -46,7 +46,7 @@ export function readDataset(project: ProjectFile | null): Dataset | null {
   const cached = parsed.get(stored)
   if (cached) return cached
 
-  const table = toDataset(parseCsvText(new TextDecoder().decode(stored.bytes)), reference.hasHeader)
+  const table = toDataset(parseCanonicalCsv(stored.bytes), reference.hasHeader)
   parsed.set(stored, table)
   return table
 }
@@ -66,7 +66,7 @@ export function readPredictDataset(project: ProjectFile | null): Dataset | null 
   const cached = parsedPredict.get(stored)
   if (cached) return cached
 
-  const table = toDataset(parseCsvText(new TextDecoder().decode(stored.bytes)), reference.hasHeader)
+  const table = toDataset(parseCanonicalCsv(stored.bytes), reference.hasHeader)
   parsedPredict.set(stored, table)
   return table
 }
@@ -86,7 +86,7 @@ export function readTestDataset(project: ProjectFile | null): Dataset | null {
   const cached = parsedTest.get(stored)
   if (cached) return cached
 
-  const table = toDataset(parseCsvText(new TextDecoder().decode(stored.bytes)), reference.hasHeader)
+  const table = toDataset(parseCanonicalCsv(stored.bytes), reference.hasHeader)
   parsedTest.set(stored, table)
   return table
 }

@@ -1,12 +1,27 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseCsvText } from '../src/data/csv'
-import { decodeText, detectEncoding } from '../src/data/encoding'
+import { parseCanonicalCsv } from '../src/data/csv'
+import { detectEncoding } from '../src/data/encoding'
 import { toCanonicalCsv, toCsvText } from '../src/data/serialize'
+import { type ImportedTable, importTable, openTable } from '../src/data/table'
+import {
+  applyDataset,
+  readDataset,
+  readPredictDataset,
+  readTestDataset,
+} from '../src/project/dataset'
+import {
+  projectFile,
+  projectFileWithPredictDataset,
+  projectFileWithTestDataset,
+} from './fixtures/project'
 
+/**
+ * 정본을 쓰고 **정본을 읽는 그 함수로** 다시 읽는다. 업로드용 `parseCsvText`로 읽으면
+ * 구분자를 추정해서, 읽는 쪽이 실제로 하는 일과 다른 것을 잰다 (R41 B-3).
+ */
 function roundTrip(grid: string[][]): string[][] {
-  const bytes = toCanonicalCsv(grid)
-  return parseCsvText(decodeText(bytes, detectEncoding(bytes)))
+  return parseCanonicalCsv(toCanonicalCsv(grid))
 }
 
 describe('toCsvText', () => {
@@ -73,5 +88,66 @@ describe('왕복 무손실', () => {
       ['1', '', '3'],
     ]
     expect(roundTrip(grid)).toEqual(grid)
+  })
+
+  /**
+   * **정본을 다시 읽을 때 구분자를 추측하지 않는다** (2026-09-26 R41 B-3). 정본은 `,`로
+   * 쓰고 `,`·`"`·줄바꿈이 든 칸만 감싼다 — `;`·탭·`|`는 안 감싼다. 읽는 쪽이 구분자를
+   * 추측하면 그런 칸이 많은 표를 `;` 구분으로 읽어 **조용히 틀린 표**가 된다.
+   */
+  it.each([';', '\t', '|'])('다른 구분자 후보(%j)가 든 칸', (other) => {
+    const grid = [
+      [`색(r${other}g${other}b)`, '이름'],
+      [`255${other}0${other}0`, '빨강'],
+      [`0${other}255${other}0`, '초록'],
+    ]
+    expect(roundTrip(grid)).toEqual(grid)
+  })
+})
+
+/**
+ * **진짜 입구로 잰다** (R41 B-3). 학생이 올린 CSV가 `openTable` → `importTable`로 정본이
+ * 되고, 프로젝트가 그 정본을 `readDataset`·`readTestDataset`·`readPredictDataset`으로 다시
+ * 읽는다. 구분자를 추측하면 업로드 때 격자는 맞아도 다시 읽은 표가
+ * `[["색(r","g","b),이름"],…]`이 된다.
+ */
+describe('정본을 다시 읽는 세 입구', () => {
+  const upload = '색(r;g;b),이름\n"255;0;0",빨강\n"0;255;0",초록\n"0;0;255",파랑\n'
+  const expected = {
+    columns: ['색(r;g;b)', '이름'],
+    rows: [
+      ['255;0;0', '빨강'],
+      ['0;255;0', '초록'],
+      ['0;0;255', '파랑'],
+    ],
+  }
+
+  async function canonical(): Promise<ImportedTable> {
+    const imported = importTable(await openTable(new TextEncoder().encode(upload), 'rgb.csv'))
+    // 업로드 쪽은 추정이 맞다 — 틀리는 것은 정본을 다시 읽는 쪽뿐이다.
+    expect(imported.grid).toEqual([expected.columns, ...expected.rows])
+    return imported
+  }
+
+  it('readDataset', async () => {
+    const imported = await canonical()
+    const { project } = applyDataset(projectFile(), imported, {
+      fileName: 'rgb.csv',
+      hasHeader: true,
+      now: '2026-09-26T00:00:00Z',
+    })
+    expect(readDataset(project)).toEqual(expected)
+  })
+
+  it('readTestDataset', async () => {
+    const { bytes, hash } = await canonical()
+    const project = { ...projectFileWithTestDataset(), testDataset: { bytes, hash } }
+    expect(readTestDataset(project)).toEqual(expected)
+  })
+
+  it('readPredictDataset', async () => {
+    const { bytes, hash } = await canonical()
+    const project = { ...projectFileWithPredictDataset(), predictDataset: { bytes, hash } }
+    expect(readPredictDataset(project)).toEqual(expected)
   })
 })
