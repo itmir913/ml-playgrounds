@@ -213,10 +213,12 @@ function euclideanDistance(a: readonly number[], b: readonly number[]): number {
  *   s(i) = (b(i) - a(i)) / max(a(i), b(i))
  * 전체 평균이 실루엣 계수다. −1~1이고 높을수록 좋다.
  *
- * **sklearn과 같은 예외 처리:**
- * - k=1이면 0 (비교할 다른 군집이 없다)
- * - 한 데이터만 있는 군집: a(i) = 0, s(i)는 b(i)에만 의존한다
- * - 모든 데이터가 같은 점이면 a(i)=b(i)=0이고 s(i)=0이다
+ * **예외 처리** — sklearn과 같은 것과 다른 것을 갈라 적는다:
+ * - 한 데이터만 있는 군집의 점: **s(i)=0**이고 평균의 분모에는 들어간다. sklearn
+ *   `silhouette_samples`와 같다 (`tests/sklearn-parity.spec.ts` *"sklearn 대조 · 실루엣 계수"*).
+ * - 채워진 군집이 하나뿐이면 0. sklearn은 라벨 수가 `2 ~ n−1` 밖이면 `ValueError`를 던진다
+ *   (사람 확인, sklearn 1.9.1) — 우리는 run을 살리려고 0을 둔다.
+ * - a(i)=b(i)=0이면 s(i)=0 (0으로 나누지 않는다)
  *
  * **이너셔 (Inertia)**
  * 각 데이터와 자기 군집 중심점까지 거리의 제곱합. K-Means의 목적함수다.
@@ -238,7 +240,9 @@ function euclideanDistance(a: readonly number[], b: readonly number[]): number {
  * 같은 손잡이이고, 다른 점은 **우리가 그 값을 시간으로 계산한다**는 것뿐이다.
  *
  * **화면도 이 함수를 부른다** — 표본으로 낸 값인지 밝히려면 같은 판정을 써야 하고,
- * 두 벌이 되면 화면이 "전수"라 적는데 실제로는 표본인 날이 온다.
+ * 두 벌이 되면 화면이 "전수"라 적는데 실제로는 표본인 날이 온다. 화면 쪽 입구는 아래
+ * `silhouetteSampleNote`이고 부르는 곳은 `views/results/ExperimentDetail.vue`다. 문다:
+ * `tests/results-screen.spec.ts`의 *"the results screen says the silhouette was sampled"*.
  */
 export function silhouetteSampleSize(rows: number, features: number): number {
   if (rows <= 0) return 0
@@ -248,6 +252,43 @@ export function silhouetteSampleSize(rows: number, features: number): number {
   )
   // 예산이 하한 아래를 가리켜도 하한은 지킨다. 그래도 행 수는 못 넘는다.
   return Math.min(rows, Math.max(affordable, MIN_SILHOUETTE_SAMPLE))
+}
+
+/** 결과 화면이 "실루엣 계수는 일부 행으로 쟀다"고 말할 때의 두 수. */
+export interface SilhouetteSampleNote {
+  /** 실루엣 계수를 잰 행 수 (표본). */
+  readonly used: number
+  /** 학습에 쓴 행 수. */
+  readonly total: number
+}
+
+/**
+ * 결과 화면이 실루엣 계수를 **표본으로 냈다고 밝힐 것인가** (`open-decisions.md` "실루엣
+ * 계수는 표본으로 낸다"의 *"표본이라는 사실을 화면이 밝힌다"*). 밝힐 때만 두 수를 준다.
+ *
+ * **계산이 쓴 판정(`silhouetteSampleSize`)을 그대로 부른다.** 행 수는 실험의
+ * `trainIndices` 길이이고 데이터셋의 행 수가 아니다(`tests/results-screen.spec.ts`의
+ * *"counts the rows the experiment trained on, not the rows of the dataset"*). 특성 수는
+ * 전처리기의 `featureNames` 길이다(사람 확인: `ml/experiment.ts`가 이 전처리기로
+ * `transform`한 행렬을 `evaluateCluster`에 넘긴다).
+ *
+ * - **실루엣이 없는 유형이면 없다.** 유형으로 가르지 않고 지표 등록부(`METRIC_DISPLAY`)에
+ *   실루엣이 있는지로 본다 — 실루엣을 내는 유형이 늘면 따라온다.
+ * - **특성 수를 모르면 없다.** 전처리기를 못 읽은 파일이다(남이 편집한 파일) — 모르는
+ *   수로 "몇 행으로 쟀다"를 지어내지 않는다. 재료가 없으면 그 재료가 필요한 판만 안 뜬다.
+ * - **알고 두는 틈 하나.** 채워진 군집이 하나뿐이거나 k≥n이면 계산이 표본을 안 뽑고 0을
+ *   내는데, 그때도 여기는 표본이라 말한다. 그 판정(`filled`)은 run의 할당을 봐야 해서
+ *   행 수와 특성 수만으로는 못 한다 — 값이 0인 run이라 먼저 눈에 띄는 것도 그 0이다.
+ */
+export function silhouetteSampleNote(
+  taskType: TaskType,
+  rows: number,
+  features: number | undefined,
+): SilhouetteSampleNote | null {
+  if (!metricsOf(taskType).some((display) => display.name === 'silhouette')) return null
+  if (features === undefined) return null
+  const used = silhouetteSampleSize(rows, features)
+  return used < rows ? { used, total: rows } : null
 }
 
 function evaluateClustering(
@@ -287,7 +328,10 @@ function evaluateClustering(
   let silhouette: number
   if (filled <= 1 || k >= n) {
     // 군집이 하나면 비교할 다른 군집이 없다 (sklearn은 여기서 ValueError를 던진다).
-    // k≥n이면 군집마다 점이 하나뿐이라 a(i)=0이고 b(i)=0이다 — sklearn도 0을 돌려준다.
+    // k≥n이면 (빈 군집이 없는 한) 군집마다 점이 하나뿐이고, 그 점들은 아래 규칙으로도 전부
+    // s=0이라 같은 0이다. sklearn은 라벨 수가 `2 ~ n−1` 밖일 때만 `ValueError`를 던진다 —
+    // k≥n이어도 빈 군집이 있어 채워진 군집이 n−1 이하면 sklearn은 값을 내고 우리는 0이다
+    // (사람 확인, sklearn 1.9.1). 우리는 run을 살리려고 0을 둔다.
     silhouette = 0
   } else {
     /**
@@ -316,26 +360,29 @@ function evaluateClustering(
       const ci = assignments[i]!
       const myCluster = members[ci]!
 
+      /**
+       * **점 하나뿐인 군집의 점은 s=0으로 센다** — sklearn `silhouette_samples`의 규칙이다.
+       * 분모(`counted`)에는 그대로 들어간다. 표본이 켜지면 여기서 세는 것은 표본 안의 군집
+       * 크기(`members`)다. `tests/metrics.spec.ts`의 *"점 하나뿐인 군집의 점은 0으로 센다"*와
+       * `tests/sklearn-parity.spec.ts`의 *"sklearn 대조 · 실루엣 계수"*가 문다.
+       */
+      if (myCluster.length <= 1) continue
+
       // a(i): 같은 군집 내 다른 데이터까지 평균 거리
-      let ai: number
-      if (myCluster.length <= 1) {
-        ai = 0
-      } else {
-        let sum = 0
-        for (const j of myCluster) {
-          if (j !== i) sum += euclideanDistance(data[i]!, data[j]!)
-        }
-        ai = sum / (myCluster.length - 1)
+      let sum = 0
+      for (const j of myCluster) {
+        if (j !== i) sum += euclideanDistance(data[i]!, data[j]!)
       }
+      const ai = sum / (myCluster.length - 1)
 
       // b(i): 가장 가까운 다른 군집까지 평균 거리
       let bi = Number.POSITIVE_INFINITY
       for (let c = 0; c < k; c += 1) {
         // 표본에 그 군집의 점이 하나도 안 뽑혔으면 비교 상대가 아니다.
         if (c === ci || members[c]!.length === 0) continue
-        let sum = 0
-        for (const j of members[c]!) sum += euclideanDistance(data[i]!, data[j]!)
-        bi = Math.min(bi, sum / members[c]!.length)
+        let far = 0
+        for (const j of members[c]!) far += euclideanDistance(data[i]!, data[j]!)
+        bi = Math.min(bi, far / members[c]!.length)
       }
 
       // 다른 군집이 전부 비어서 bi가 갱신되지 않은 경우. **여기 온다** - 한때 위의

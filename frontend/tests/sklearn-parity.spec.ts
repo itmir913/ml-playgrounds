@@ -23,7 +23,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { fit } from '../src/ml/engines/mljs'
-import { evaluate } from '../src/ml/metrics'
+import { evaluate, evaluateCluster } from '../src/ml/metrics'
 import type { LinearModelV2, LinearRegressionModel, NaiveBayesModel } from '../src/ml/models'
 import { fitPreprocessor, targetValues, transform, type Dataset } from '../src/ml/preprocess'
 
@@ -79,9 +79,19 @@ interface FixtureEntry {
   >
 }
 
-const document: { sklearnVersion: string; datasets: Record<string, FixtureEntry> } = JSON.parse(
-  fs.readFileSync(path.join(FIXTURES, 'expected.json'), 'utf8'),
-)
+/** 지표 계산기의 경계 입력 하나와 sklearn의 답 (`generate_sklearn_fixtures.py`의 `SILHOUETTE_CASES`). */
+interface SilhouetteCase {
+  name: string
+  data: number[][]
+  labels: number[]
+  silhouette: number
+}
+
+const document: {
+  sklearnVersion: string
+  datasets: Record<string, FixtureEntry>
+  metrics: { silhouette: SilhouetteCase[] }
+} = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'expected.json'), 'utf8'))
 
 /**
  * 정확도 여유. 실측 최대 결손(트리 계열 0.075)의 여유 배수다 —
@@ -551,3 +561,48 @@ for (const [name, entry] of Object.entries(document.datasets)) {
     }
   })
 }
+
+/**
+ * **실루엣 계수를 `silhouette_score`와 맞댄다.** 위의 벌들은 KMeans 라벨이라 **점 하나뿐인
+ * 군집이 없다** — 그 경계는 손으로 적은 입력이 지난다. 입력과 답이 전부 픽스처에 있다
+ * (`generate_sklearn_fixtures.py`의 `SILHOUETTE_CASES`).
+ *
+ * **전수 경로만 잰다.** 표본 경로는 sklearn과 난수열이 달라 같은 점을 못 뽑는다. 표본에서도
+ * 같은 고리(`evaluateClustering`의 `picked` 고리)를 지나는지는 사람 확인이다.
+ */
+/**
+ * 실루엣 대조의 절대 여유. **생성기 `close()`의 기본 `atol`과 같은 값이고**, 상대 쪽은
+ * `PARAM_RELATIVE_TOLERANCE`(= `close()`의 기본 `rel`)다 — numpy `isclose`와 같은 규약이다.
+ */
+const FIXTURE_ATOL = 1e-12
+
+describe('sklearn 대조 · 실루엣 계수', () => {
+  it('점 하나뿐인 군집이 있는 입력이 대조에 들어 있다', () => {
+    const lonely = document.metrics.silhouette.filter((one) => {
+      const sizes = new Map<number, number>()
+      for (const label of one.labels) sizes.set(label, (sizes.get(label) ?? 0) + 1)
+      return [...sizes.values()].includes(1)
+    })
+    expect(lonely.length).toBeGreaterThanOrEqual(1)
+  })
+
+  for (const one of document.metrics.silhouette) {
+    it(`${one.name}: sklearn과 같다`, () => {
+      const k = Math.max(...one.labels) + 1
+      const width = one.data[0]?.length ?? 0
+      const centroids = Array.from({ length: k }, (_, cluster) => {
+        const members = one.data.filter((_, index) => one.labels[index] === cluster)
+        return Array.from(
+          { length: width },
+          (_, column) => members.reduce((sum, row) => sum + (row[column] ?? 0), 0) / members.length,
+        )
+      })
+      const { metrics } = evaluateCluster(one.data, one.labels, centroids, 42)
+      const gap = Math.abs((metrics.silhouette ?? Number.NaN) - one.silhouette)
+      expect(
+        gap,
+        `${one.name}: ours ${metrics.silhouette} vs sklearn ${one.silhouette}`,
+      ).toBeLessThanOrEqual(FIXTURE_ATOL + PARAM_RELATIVE_TOLERANCE * Math.abs(one.silhouette))
+    })
+  }
+})

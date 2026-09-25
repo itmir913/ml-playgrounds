@@ -210,7 +210,15 @@ const SCALE_BY_METHOD: Record<
   standard: (values) => {
     const center = mean(values)
     const variance = mean(values.map((value) => (value - center) ** 2))
-    return { center, spread: Math.sqrt(variance) || 1 }
+    /**
+     * **상수 열인지는 `=== 0`이 아니라 sklearn `_is_constant_feature`의 식으로 본다**
+     * (`sklearn/preprocessing/_data.py`). 소수를 여러 번 더하면 평균의 끝자리가 어긋나 상수
+     * 열에도 분산이 먼지로 남는데, 이 식이 그 먼지의 상한이다 — 우리가 고른 문턱이 아니다.
+     * `tests/preprocess.spec.ts`의 *"표준화가 sklearn과 같다"* 판들이 sklearn 픽스처로 문다.
+     */
+    const n = values.length
+    const constant = variance <= n * Number.EPSILON * variance + (n * center * Number.EPSILON) ** 2
+    return { center, spread: constant ? 1 : Math.sqrt(variance) }
   },
   minmax: (values) => {
     // **인자로 펼치지 않는다** (2026-09-01 감사 A-1). `Math.min(...값)`은 값 배열을

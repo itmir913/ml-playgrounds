@@ -6,6 +6,9 @@
  * 화면에는 아무 이상도 안 보인다.
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
@@ -21,6 +24,27 @@ import {
   type Dataset,
 } from '../src/ml/preprocess'
 import type { Preprocessing } from '../src/project/schema'
+
+/** sklearn `StandardScaler`가 낸 답 (`scripts/generate_sklearn_fixtures.py`의 `STANDARD_CASES`). */
+interface StandardCase {
+  name: string
+  train: number[]
+  apply: number[]
+  scale: number
+  transformed: number[]
+}
+
+/**
+ * 픽스처 값과 견주는 자. **생성기 `close()`의 기본값과 같은 규약이다** — numpy `isclose`의
+ * `|ours − sklearn| ≤ atol + rtol·|sklearn|`, `rtol=1e-9`·`atol=1e-12`. 같은 자로 재야
+ * "픽스처가 낡지 않았다"와 "우리가 sklearn과 같다"가 한 뜻이 된다.
+ */
+const FIXTURE_RTOL = 1e-9
+const FIXTURE_ATOL = 1e-12
+
+const STANDARD_CASES: StandardCase[] = JSON.parse(
+  fs.readFileSync(path.join(__dirname, 'fixtures', 'sklearn', 'expected.json'), 'utf8'),
+).preprocessing.standard
 
 const preprocessing = (overrides: Partial<Preprocessing> = {}): Preprocessing => ({
   missing: 'mean',
@@ -296,6 +320,41 @@ describe('스케일링', () => {
       const fitted = fitPreprocessor(flat, [0, 1, 2], ['x'], preprocessing({ scaling }))
       const matrix = transform(fitted, flat, [0, 1, 2], 'onehot')
       expect(matrix.flat().every((value) => Number.isFinite(value))).toBe(true)
+    })
+  }
+
+  /**
+   * **상수 열인지를 sklearn `StandardScaler`와 같게 판정한다.** 입력과 답(`scale`·
+   * `transformed`)은 sklearn 픽스처의 `preprocessing.standard`에 있고, 생성기의
+   * `STANDARD_CASES`가 만들며 `fixtures:check`가 재생성해 대조한다. 위의 판은 정수 5라
+   * 평균이 정확히 떨어져 부동소수 먼지가 안 생긴다 — 이 판들은 그 먼지가 생기는 열이다.
+   */
+  it('상수 열 판정의 양쪽 경계가 픽스처에 있다', () => {
+    const scales = STANDARD_CASES.map((one) => one.scale)
+    expect(scales.some((scale) => scale === 1)).toBe(true)
+    expect(scales.some((scale) => scale !== 1)).toBe(true)
+  })
+
+  for (const one of STANDARD_CASES) {
+    it(`표준화가 sklearn과 같다 - ${one.name}`, () => {
+      const column: Dataset = {
+        columns: ['x'],
+        rows: [...one.train, ...one.apply].map((value) => [String(value)]),
+      }
+      const train = one.train.map((_, index) => index)
+      const apply = one.apply.map((_, index) => one.train.length + index)
+      const fitted = fitPreprocessor(column, train, ['x'], preprocessing({ scaling: 'standard' }))
+      const spread = fitted.columns[0]?.scale?.spread ?? Number.NaN
+      const within = (ours: number, sklearn: number): boolean =>
+        Math.abs(ours - sklearn) <= FIXTURE_ATOL + FIXTURE_RTOL * Math.abs(sklearn)
+
+      expect(within(spread, one.scale), `${one.name}: spread ${spread} vs ${one.scale}`).toBe(true)
+      transform(fitted, column, apply, 'onehot').forEach((row, index) => {
+        const sklearn = one.transformed[index] ?? Number.NaN
+        expect(within(row[0] ?? Number.NaN, sklearn), `${one.name}: ${row[0]} vs ${sklearn}`).toBe(
+          true,
+        )
+      })
     })
   }
 

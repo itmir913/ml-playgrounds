@@ -17,6 +17,7 @@ import {
   bestOf,
   evaluate,
   metricsOf,
+  silhouetteSampleNote,
   silhouetteSampleSize,
   type MetricDisplay,
 } from '../src/ml/metrics'
@@ -167,6 +168,21 @@ describe('분류', () => {
       [2, 0, 0],
       [0, 1, 1],
       [0, 0, 2],
+    ])
+  })
+
+  /**
+   * **나온 순서가 아니라 정렬 순서다.** 라벨이 정렬되지 않은 순서로 나오는 입력이라야
+   * 정렬을 가른다. 등장 순서를 따르면 **분할 씨앗만 바꿔도 행렬의 축이 바뀐다** — 시험 몫의
+   * 첫 행이 무엇이냐에 달리기 때문이다.
+   */
+  it('혼동 행렬의 축은 나온 순서와 무관하게 정렬된다', () => {
+    const { confusionMatrix } = evaluate('classification', ['c', 'a', 'b'], ['b', 'a', 'c'])
+    expect(confusionMatrix?.labels).toEqual(['a', 'b', 'c'])
+    expect(confusionMatrix?.matrix).toEqual([
+      [1, 0, 0],
+      [0, 0, 1],
+      [0, 1, 0],
     ])
   })
 
@@ -353,6 +369,30 @@ describe('군집', () => {
     expect(metrics.silhouette).toBeCloseTo(byHand, 12)
   })
 
+  /**
+   * **점 하나뿐인 군집의 점은 s=0이다** — sklearn `silhouette_samples`의 규칙이다.
+   * **기대값은 sklearn 1.9.1이 낸 값이고**, 같은 입력이 sklearn 픽스처에 minimal이라는 이름으로
+   * 있어 `fixtures:check`가 재생성해 대조한다(`sklearn-parity.spec.ts`가 잰다).
+   */
+  it('점 하나뿐인 군집의 점은 0으로 센다 - sklearn과 같다', () => {
+    const { metrics } = CLUSTER_EVALUATOR(
+      [
+        [0, 0],
+        [0, 1],
+        [5, 5],
+        [5, 6],
+      ],
+      [0, 1, 2, 2],
+      [
+        [0, 0],
+        [0, 1],
+        [5, 5.5],
+      ],
+      42,
+    )
+    expect(metrics.silhouette).toBeCloseTo(0.4256012204685211, 14)
+  })
+
   it('뒤섞이면 실루엣 계수가 낮다', () => {
     // 엉뚱한 할당: 먼 것끼리 묶는다
     const badAssignments = [0, 1, 0, 1]
@@ -525,6 +565,24 @@ describe('실루엣 표본', () => {
 
   it('행이 하한보다 적으면 행 수가 곧 표본이다', () => {
     expect(silhouetteSampleSize(30, 8)).toBe(30)
+  })
+
+  /**
+   * **실루엣 표본을 화면에 밝힐 것인가.** 판정이 계산의 것(`silhouetteSampleSize`)
+   * 그대로인지, 실루엣이 없는 유형과 폭을 모르는 경우에 입을 닫는지 본다. 화면이 실제로
+   * 이것을 부르는지는 `results-screen.spec.ts`의
+   * *"the results screen says the silhouette was sampled"*가 본다.
+   */
+  it('실루엣 표본을 화면에 밝힐 것인가 - 계산과 같은 판정이다', () => {
+    const rows = 100_000
+    expect(silhouetteSampleNote('clustering', rows, 8)).toEqual({
+      used: silhouetteSampleSize(rows, 8),
+      total: rows,
+    })
+    expect(silhouetteSampleNote('clustering', 500, 8)).toBeNull()
+    expect(silhouetteSampleNote('clustering', rows, undefined)).toBeNull()
+    expect(silhouetteSampleNote('classification', rows, 8)).toBeNull()
+    expect(silhouetteSampleNote('regression', rows, 8)).toBeNull()
   })
 
   /**

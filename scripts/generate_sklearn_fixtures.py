@@ -10,6 +10,8 @@
 
 - data/*.csv          - 데이터. 감사 때 생성했고 그 뒤로 손대지 않는다.
 - expected.json       - 분할 인덱스 + sklearn 기대값 + 다수 클래스 기준선.
+                        `metrics`·`preprocessing` 칸은 벌이 아니라 **경계 입력**과 그
+                        답이다 (`SILHOUETTE_CASES`·`STANDARD_CASES`).
 
 **분할 인덱스는 이 스크립트가 만들지 않는다.** 인덱스는 JS 쪽 분할(ml/split.ts,
 시드 42)이 만든 기록이고, 여기서는 그대로 보존하며 sklearn 기대값만 다시 계산한다.
@@ -45,10 +47,11 @@ import sklearn
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.metrics import accuracy_score, r2_score
+from sklearn.metrics import accuracy_score, r2_score, silhouette_score
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier, MLPRegressor
+from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from sklearn.cluster import KMeans
 from sklearn.tree import DecisionTreeClassifier
@@ -507,6 +510,109 @@ def close(
     return False
 
 
+#: 실루엣 계수를 대조할 입력들. **데이터 벌이 아니라 경계 입력이다.**
+#
+# 위의 벌들은 KMeans(k=3)의 라벨을 쓰고, 그 라벨에는 **한 점뿐인 군집이 없다** - 그 경계는
+# 입력을 손으로 적어야 지나간다. 라벨도 손으로 준다 - 여기서 재려는 것은 지표 하나다.
+_BLOBS = [
+    [0.0, 0.0],
+    [1.0, 0.5],
+    [0.5, 1.0],
+    [1.5, 1.5],
+    [0.2, 1.8],
+    [10.0, 10.0],
+    [11.0, 10.5],
+    [10.5, 11.0],
+    [11.5, 11.5],
+    [10.2, 11.8],
+]
+_OUTLIERS = [[30.0, 0.0], [0.0, 30.0]]
+SILHOUETTE_CASES: list[dict[str, Any]] = [
+    # 가장 작은 입력. 점 하나뿐인 군집이 둘이다.
+    {
+        "name": "minimal",
+        "data": [[0.0, 0.0], [0.0, 1.0], [5.0, 5.0], [5.0, 6.0]],
+        "labels": [0, 1, 2, 2],
+    },
+    # 이상치 둘이 각자 군집 하나씩 - 교실에서 k를 올리면 생기는 모양이다.
+    {
+        "name": "outliers-alone",
+        "data": _BLOBS + _OUTLIERS,
+        "labels": [0] * 5 + [1] * 5 + [2, 3],
+    },
+    # 이상치 하나는 무리에 붙고 하나만 혼자다.
+    {
+        "name": "outlier-alone",
+        "data": _BLOBS + _OUTLIERS,
+        "labels": [0] * 5 + [1] * 5 + [0, 2],
+    },
+    # 한 점뿐인 군집이 없는 대조군 - 일반 식이 같은지.
+    {
+        "name": "no-singleton",
+        "data": _BLOBS + _OUTLIERS,
+        "labels": [0] * 5 + [1] * 5 + [0, 1],
+    },
+]
+
+
+def metrics_record() -> dict[str, Any]:
+    """지표 계산기를 sklearn과 맞대는 입력과 답. 스펙은 `sklearn-parity.spec.ts`다."""
+    return {
+        "silhouette": [
+            {
+                **case,
+                "silhouette": float(
+                    silhouette_score(np.array(case["data"]), np.array(case["labels"]))
+                ),
+            }
+            for case in SILHOUETTE_CASES
+        ]
+    }
+
+
+def _ulps_above(value: float, count: int) -> float:
+    """`value`에서 부동소수 `count`칸 위의 수."""
+    for _ in range(count):
+        value = float(np.nextafter(value, np.inf))
+    return value
+
+
+#: 표준화(`StandardScaler`)를 대조할 입력들. **상수 열 판정의 양쪽 경계다.**
+#
+# sklearn은 분산이 `_is_constant_feature`의 상한 이하면 척도를 1로 둔다. 소수를 여러 번 더한
+# 열(행 수가 다른 둘 - 상한의 평균 항이 행 수를 곱하므로 그 인수를 가른다), 분산이 작은 열,
+# 1.0과 그 한 칸 위로 된 열을 둔다 - 문턱 양쪽에 입력이 있어야 문턱을 어느 쪽으로 옮긴
+# 판정도 지나가지 못한다.
+#
+# **몇 ulp짜리 비상수 열은 뺀다** - 판정은 같아도 변환값이 연산 순서로 갈린다(사람 확인).
+# 판정의 일이 아니다.
+#
+# **어느 입력이 어느 쪽인지는 여기 적지 않는다** - 답은 sklearn이 낸 `scale`이고, 양쪽이
+# 다 있는지는 `preprocess.spec.ts`의 *"상수 열 판정의 양쪽 경계가 픽스처에 있다"*가 본다.
+STANDARD_CASES: list[dict[str, Any]] = [
+    {"name": "decimal-constant", "train": [36.6] * 10, "apply": [36.6, 36.7]},
+    {"name": "decimal-constant-long", "train": [0.1] * 30, "apply": [0.1, 0.2]},
+    {"name": "small-variance", "train": [1e-6, 2e-6, 3e-6], "apply": [4e-6]},
+    {"name": "one-ulp", "train": [1.0, _ulps_above(1.0, 1)], "apply": [1.0]},
+]
+
+
+def preprocessing_record() -> dict[str, Any]:
+    """전처리 단계를 sklearn과 맞대는 입력과 답. 스펙은 `preprocess.spec.ts`다."""
+    out: list[dict[str, Any]] = []
+    for case in STANDARD_CASES:
+        scaler = StandardScaler().fit(np.array(case["train"]).reshape(-1, 1))
+        applied = scaler.transform(np.array(case["apply"]).reshape(-1, 1))
+        out.append(
+            {
+                **case,
+                "scale": float(scaler.scale_[0]),
+                "transformed": [float(one) for one in applied[:, 0]],
+            }
+        )
+    return {"standard": out}
+
+
 def main() -> int:
     check = "--check" in sys.argv
     document = json.loads(EXPECTED.read_text(encoding="utf-8"))
@@ -526,6 +632,16 @@ def main() -> int:
             if baseline is not None:
                 entry["baseline"] = baseline
             entry["sklearn"] = fresh
+
+    for key, fresh_record in (
+        ("metrics", metrics_record()),
+        ("preprocessing", preprocessing_record()),
+    ):
+        if check:
+            if not close(document.get(key), fresh_record, path=key):
+                stale.append(key)
+        else:
+            document[key] = fresh_record
 
     if check:
         if stale:
