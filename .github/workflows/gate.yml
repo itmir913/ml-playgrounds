@@ -27,6 +27,49 @@ on:
 # 부르는 쪽 설정과 무관하게 막힐 수 있다. 좁히는 것은 부르는 파일의 일이다.
 
 jobs:
+  # **기여 서명(DCO) — PR에서만 돈다** (`open-decisions.md` "기여는 MIT로 들어오고,
+  # DCO로 서명하고, 재라이선스를 허락한다"). push와 수동 배포에서는 건너뛰고, 필수
+  # 체크는 건너뛴 잡을 통과로 친다.
+  #
+  # - **머지 커밋은 건너뛴다.** 소유자가 누르는 머지 커밋은 기여가 아니고 서명줄도 없다.
+  #   "고치지" 마라.
+  # - 작성자 이메일과 같은 주소의 서명줄이 있어야 한다(대소문자 무시). `git commit -s`는
+  #   작성자와 같은 설정을 쓰므로 noreply 주소여도 저절로 맞는다.
+  # - 커밋 목록은 API로 받는다 — 포크 PR에서도 읽기 토큰이면 된다.
+  dco:
+    name: DCO
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$REPO/pulls/$PR/commits" --jq '.[] | [
+              .sha[0:12],
+              (.parents | length | tostring),
+              (.commit.author.email | ascii_downcase),
+              ([.commit.message | scan("(?m)^Signed-off-by: .*<([^>]+)>") | .[0] | ascii_downcase] | join(","))
+            ] | @tsv' > commits.tsv
+          missing=0
+          while IFS=$'\t' read -r sha parents email signers; do
+            if [ "$parents" -gt 1 ]; then
+              echo "skip  $sha (merge commit)"
+            elif [[ ",$signers," == *",$email,"* ]]; then
+              echo "ok    $sha"
+            else
+              echo "::error::$sha has no 'Signed-off-by:' line matching its author <$email>"
+              missing=1
+            fi
+          done < commits.tsv
+          if [ "$missing" -ne 0 ]; then
+            echo "Sign off every commit with 'git commit -s' (see CONTRIBUTING.md, Licensing)."
+            echo "To fix existing commits: git rebase --signoff <base branch>, then force-push your branch."
+            exit 1
+          fi
+
   contracts:
     name: Contract check (locale <-> backend code)
     runs-on: ubuntu-latest
