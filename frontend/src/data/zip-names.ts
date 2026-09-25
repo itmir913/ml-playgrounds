@@ -60,6 +60,8 @@ export interface ZipNameOptions {
    *
    * **이게 있으면 추측이 0이 된다** — 읽은 이름이 이 집합과 겹치면 그 인코딩이 답이라는
    * 것이 증명된다. 두 인코딩이 같은 이름을 내놓으면 그건 같은 글자이기 때문이다.
+   * **다만 순수 ASCII 이름은 모든 후보가 같은 글자로 읽으므로 증거가 아니다** —
+   * `decodeZipNames`가 빼고 본다 (R41 B-4).
    */
   readonly expect?: readonly string[]
 }
@@ -167,8 +169,19 @@ export function decodeZipNames(
   const utf8 = readAll(names, recovered, 'utf-8')
 
   // 2. 대조가 되면 그것이 답이다. UTF-8보다 먼저 본다 — 증명된 것이 순서보다 세다.
-  if (options.expect && options.expect.length > 0) {
-    const expected = new Set(options.expect.map((name) => name.normalize('NFC')))
+  //
+  // **순수 ASCII 이름은 증거에서 뺀다** (2026-09-26 R41 B-4). 어느 인코딩으로 읽어도 같은
+  // 글자라 무엇도 증명하지 못하는데, 넣어 두면 **첫 후보(UTF-8)가 늘 맞는다** —
+  // `hashes.json`의 `manifest.json`, 영어 범주 `cat`이 그렇다. 그러면 CP949 바이트가
+  // 유효한 UTF-8인 이름(`치타`→`ġŸ`, `짜짝`→`¥¦`)이 그 글자로 들어온다. 검사:
+  // zip-names.spec.ts "ASCII 범주가 맞는 것으로는 정하지 않는다"·"ASCII 범주가 섞인 압축
+  // 파일을 올려도 범주가 돌아온다", image-format.spec.ts "CP949 바이트가 유효한 UTF-8인
+  // 범주도 돌아온다".
+  const evidence = (options.expect ?? [])
+    .map((name) => name.normalize('NFC'))
+    .filter((name) => [...name].some((char) => char.charCodeAt(0) > ASCII_MAX))
+  if (evidence.length > 0) {
+    const expected = new Set(evidence)
     const charsets = new Set(
       Object.values(LEGACY_CHARSETS).flatMap((legacy) => (legacy ? [legacy.charset] : [])),
     )

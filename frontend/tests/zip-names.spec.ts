@@ -16,6 +16,7 @@
 import { readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
+import { zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
 import { sourceFiles, withoutComments } from './fixtures/source'
@@ -52,12 +53,43 @@ const LATIN1_CAFE = [0x63, 0x61, 0x66, 0xe9, 0x2f, 0x61, 0x2e, 0x70, 0x6e, 0x67]
  * 감사자는 *"그 우연이 실재하는지 안 쟀다"*고 적었다.
  *
  * **재 보니 실재한다** — CP949의 앞바이트가 `C2`~`DF`, 뒷바이트가 `A1`~`BF`면 그 두 바이트가
- * **그대로 유효한 UTF-8 2바이트 수열**이다. 그런 짝이 899개 있고, `C2A5 C2A6`은 CP949로
+ * **그대로 유효한 UTF-8 2바이트 수열**이다. 그런 짝이 899개 있고(python `cp949` 기준, 사람
+ * 확인 — node의 `euc-kr`은 사용자 정의 영역까지 읽어 더 많이 센다), `C2A5 C2A6`은 CP949로
  * `짜짝`이고 UTF-8로는 `¥¦`다. 즉 **순서를 뒤집으면 교사의 범주 폴더가 `¥¦`로 들어온다.**
  */
 describe('두 인코딩에서 다 읽히는 이름', () => {
   /** CP949 `짜짝/a.png`. 같은 바이트가 UTF-8로는 `¥¦/a.png`다. */
   const BOTH_WAYS = [0xc2, 0xa5, 0xc2, 0xa6, 0x2f, 0x61, 0x2e, 0x70, 0x6e, 0x67] // prettier-ignore
+
+  /**
+   * **CP949 바이트가 그대로 유효한 UTF-8인 한글 음절이 있고, 검사 표본이 그 안에 있다.**
+   * 이 파일과 `image-format.spec.ts`의 "ASCII 이름은 증거가 아니다" 검사들이 기대는 성질이
+   * 이것이다 — 표본이 그 집합 밖이면 그 검사들은 아무것도 재지 않는다.
+   *
+   * **못 보는 것:** node의 `TextDecoder('euc-kr')`는 확장 완성형(뒷바이트 0x81–0xA0)을 못
+   * 읽어서, 그 구간의 음절은 이 집합에 안 들어온다. 그래서 뒷바이트를 `A1`~`BF`로 좁혔다.
+   */
+  it('CP949 바이트가 그대로 유효한 UTF-8인 한글 음절이 있고 표본이 그 안에 있다', () => {
+    const decoder = new TextDecoder('euc-kr', { fatal: true })
+    const syllables = new Set<string>()
+    for (let lead = 0xc2; lead <= 0xdf; lead += 1) {
+      for (let trail = 0xa1; trail <= 0xbf; trail += 1) {
+        const bytes = new Uint8Array([lead, trail])
+        let text: string
+        try {
+          text = decoder.decode(bytes)
+        } catch {
+          continue
+        }
+        // 같은 두 바이트가 UTF-8로도 한 글자로 읽혀야 "두 인코딩에서 다 읽힌다"다.
+        expect(new TextDecoder('utf-8', { fatal: true }).decode(bytes)).toHaveLength(1)
+        if (/^[가-힣]$/u.test(text)) syllables.add(text)
+      }
+    }
+    expect(syllables.size).toBeGreaterThan(0)
+    const samples = ['짜', '짝', '치', '타', '화', '창']
+    expect(samples.filter((name) => !syllables.has(name))).toEqual([])
+  })
 
   it('대조되는 것이 UTF-8보다 세다', () => {
     expect(decodeZipNames([asFflateWouldRead(BOTH_WAYS)], { expect: ['짜짝'] })).toEqual([
@@ -78,6 +110,43 @@ describe('두 인코딩에서 다 읽히는 이름', () => {
     expect(decodeZipNames([asFflateWouldRead(BOTH_WAYS)], { expect: ['고양이'] })).toEqual([
       '¥¦/a.png',
     ])
+  })
+
+  /**
+   * **ASCII 이름은 증명이 아니다** (2026-09-26 R41 B-4). `cat`은 어느 인코딩으로 읽어도
+   * `cat`이라 대조에 들어가면 **첫 후보(UTF-8)가 늘 맞는다** — 그러면 옆의 `짜짝`이
+   * `¥¦`로 들어온다. 범주 하나가 영어 이름인 교실이면 이것이다.
+   */
+  it('ASCII 범주가 맞는 것으로는 정하지 않는다', () => {
+    const names = ['cat/1.png', asFflateWouldRead(BOTH_WAYS)]
+    expect(decodeZipNames(names, { expect: ['cat', '짜짝'] })).toEqual(['cat/1.png', '짜짝/a.png'])
+  })
+
+  /**
+   * **ASCII만 대조하면 대조는 서지 않는다** (R41 B-4). `cat`을 증거로 세면 UTF-8을 못
+   * 읽는 진짜 Latin-1 `Größe`가 다음 후보 `euc-kr`로 읽혀 `Gr秤e`가 된다. 증거가 없으면
+   * 영어 화면에서는 받은 그대로 남는다. 같은 규칙의 다른 얼굴(영어 화면에서 CP949 폴더가
+   * 풀리지 않고 남는 것)은 `open-decisions.md` "압축 파일의 폴더 이름은 UTF-8이 아닐 수
+   * 있다" 2번에 있다.
+   */
+  it('ASCII 범주만 대조하면 Latin-1 이름을 한자로 바꾸지 않는다', () => {
+    const names = ['cat/1.png', asFflateWouldRead(LATIN1_GROESSE)]
+    expect(decodeZipNames(names, { locale: 'en', expect: ['cat'] })).toEqual([
+      'cat/1.png',
+      'Größe/a.png',
+    ])
+  })
+
+  /**
+   * **같은 것을 진짜 업로드 입구로.** 이름을 Latin-1 글자로 넣어 두면 `fflate`가 그 글자를
+   * 그대로 돌려준다 — 플래그 없는 CP949 압축 파일을 `fflate`가 읽어 준 모양과 같다
+   * (`image-format.spec.ts` "탐색기로 다시 압축한 .mlpx"도 같은 방식이다).
+   */
+  it('ASCII 범주가 섞인 압축 파일을 올려도 범주가 돌아온다', async () => {
+    const photo = new Uint8Array([1])
+    const zip = zipSync({ 'cat/1.png': photo, [asFflateWouldRead(BOTH_WAYS)]: photo })
+    const items = await readImageZip(zip, undefined, { expect: ['cat', '짜짝'] })
+    expect(items.map((item) => item.category)).toEqual(['cat', '짜짝'])
   })
 })
 

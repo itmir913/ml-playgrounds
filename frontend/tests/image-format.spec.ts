@@ -298,6 +298,10 @@ describe('탐색기로 다시 압축한 .mlpx', () => {
   const CP949: Record<string, readonly number[]> = {
     개: [0xb0, 0xb3],
     고양이: [0xb0, 0xed, 0xbe, 0xe7, 0xc0, 0xcc],
+    // **CP949 바이트가 그대로 유효한 UTF-8인 이름** (R41 B-4). 그 성질은 아래 검사가
+    // 자기 안에서 단언한다. 바이트는 python `'치타'.encode('cp949')`.
+    치타: [0xc4, 0xa1, 0xc5, 0xb8],
+    화창: [0xc8, 0xad, 0xc3, 0xa2],
   }
 
   /** 우리가 쓴 `.mlpx`를 **인코딩만 잃은** 것으로 바꾼다. 내용은 한 바이트도 안 건드린다. */
@@ -321,6 +325,50 @@ describe('탐색기로 다시 압축한 .mlpx', () => {
     const brokenPaths = Object.keys(unzipSync(rezipped))
     expect(brokenPaths.some((path) => path.includes('°³'))).toBe(true)
     expect(brokenPaths.some((path) => path.includes('개'))).toBe(false)
+
+    const { project: after, integrity } = await readProject(rezipped)
+    expect([...after.images.keys()].sort()).toEqual([...before.images.keys()].sort())
+    expect(integrity.status).toBe('UNCHANGED')
+  })
+
+  /**
+   * **ASCII 이름은 증명이 아니다** (R41 B-4). 기대 이름 목록에는 `manifest.json` 같은
+   * ASCII 경로도 들어 있고, 그것을 증거로 세면 **첫 후보(UTF-8)가 늘 맞는다.** 위
+   * `개`·`고양이`는 CP949 바이트가 UTF-8로 안 읽혀 그 순서에 걸리지 않고, `치타`·`화창`은
+   * UTF-8로도 읽혀(`ġŸ`·`ȭâ`) 걸린다 — 이 표본이라야 그 갈림을 잰다. **그래서 표본이
+   * 정말 그런지를 먼저 단언한다** — 표본이 바뀌어 UTF-8로 안 읽히면 이 검사는 아무것도
+   * 재지 않는 채 초록이 된다.
+   */
+  it('CP949 바이트가 유효한 UTF-8인 범주도 돌아온다', async () => {
+    const categories = ['치타', '화창']
+    const strictUtf8 = new TextDecoder('utf-8', { fatal: true })
+    const notUtf8 = categories.filter((category) => {
+      try {
+        strictUtf8.decode(Uint8Array.from(CP949[category] ?? []))
+        return (CP949[category] ?? []).length === 0
+      } catch {
+        return true
+      }
+    })
+    expect(notUtf8).toEqual([])
+    const base = imageProject({
+      images: new Map(categories.map((category, index) => entryFor(category, `seed-${index}`))),
+    })
+    const before: ProjectFile = {
+      ...base,
+      document: {
+        ...base.document,
+        settings: {
+          ...base.document.settings,
+          data: { ...base.document.settings.data, categories },
+        },
+      },
+    }
+    const { bytes } = await writeProjectBytes(before, markdown)
+    const rezipped = asRezippedByExplorer(bytes)
+
+    const brokenPaths = Object.keys(unzipSync(rezipped))
+    expect(brokenPaths.some((path) => path.includes('치타'))).toBe(false)
 
     const { project: after, integrity } = await readProject(rezipped)
     expect([...after.images.keys()].sort()).toEqual([...before.images.keys()].sort())
@@ -372,8 +420,33 @@ describe('v1 파일이 지금 앱에서 열린다', () => {
     entries[path] = new TextEncoder().encode(JSON.stringify(value))
   }
 
+  /**
+   * v1 앱이 남긴 실험 하나. 모양은 `migrate.spec.ts` "v1 -> v2 백본 id 개정"의 것과 같고,
+   * **이것이 들어가야 입구가 스냅샷까지 올리는지를 잰다** (2026-09-26 R41 C-6).
+   */
+  const v1Experiment = {
+    id: 'experiment-1',
+    startedAt: '2026-08-14T09:00:00Z',
+    settings: {
+      taskType: 'classification',
+      runtime: 'mljs',
+      selectedAlgorithms: [{ algorithm: 'knn', runtime: 'mljs' }],
+      data: {
+        categories: ['개', '고양이'],
+        backboneId: V1_BACKBONE_ID,
+        categoryCounts: [1, 1],
+        unlabeledCount: 0,
+      },
+      split: { method: 'holdout', testSize: 0.5, stratify: true, randomState: 42 },
+      nSamples: 2,
+      trainIndices: [0],
+      testIndices: [1],
+    },
+    runs: [],
+  }
+
   /** 지금 앱이 쓴 파일을 v1로 되돌린다. 옛 앱이 구운 것과 같은 모양이다. */
-  async function v1FileBytes(): Promise<Uint8Array> {
+  async function v1FileBytes(withExperiment = false): Promise<Uint8Array> {
     const { bytes } = await writeProjectBytes(imageProject(), markdown)
     const entries = unzipSync(bytes)
     patch(entries, ENTRY.manifest, (value) => {
@@ -383,6 +456,11 @@ describe('v1 파일이 지금 앱에서 열린다', () => {
       const data = value.data as Record<string, unknown>
       data.backboneId = V1_BACKBONE_ID
     })
+    if (withExperiment) {
+      patch(entries, ENTRY.runs, (value) => {
+        value.experiments = [v1Experiment]
+      })
+    }
     return zipSync(entries)
   }
 
@@ -390,6 +468,21 @@ describe('v1 파일이 지금 앱에서 열린다', () => {
     const { project } = await readProject(await v1FileBytes())
 
     expect(project.document.settings.data.backboneId).toBe(V2_BACKBONE_ID)
+  })
+
+  /**
+   * **실험 스냅샷도 입구를 지나 올라온다** (R41 C-6). 위 검사는 설정만 보므로, 스냅샷
+   * 쪽은 이것이 진짜 입구에서 문다(직접 호출 쪽 짝은 `migrate.spec.ts`). 스냅샷을
+   * 빼먹으면 결과 화면이 옛 id로 임베딩을 찾다가 빈손이 된다.
+   */
+  it('실험 스냅샷의 백본 id도 올라온다', async () => {
+    const { project } = await readProject(await v1FileBytes(true))
+
+    expect(
+      project.document.runs.experiments.map(
+        (experiment) => (experiment.settings.data as { backboneId?: unknown }).backboneId,
+      ),
+    ).toEqual([V2_BACKBONE_ID])
   })
 
   it('formatVersion이 지금 것이 된다', async () => {
