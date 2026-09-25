@@ -498,8 +498,8 @@ export const X = [ … ] as const                 // 조용하다. 강제가 없
 
 ```ts
 /** 비어 있으면 눌린다. 아니면 첫 번째 이유가 버튼 옆에 문장으로 뜬다. */
-function trainGate(facts: ProjectFacts, selection: SelectionResult, runtime: RuntimeContext)
-  : readonly BlockReason[]
+function trainGate(input: { taskType: TaskType | undefined; chosen: readonly { algorithm: string }[] })
+  : readonly TrainBlock[]   // 'NO_TASK_TYPE' | 'NO_MODEL' | 'NO_TRAINABLE_MODEL'
 ```
 
 - **컴포넌트 밖의 순수 함수다.** `router/steps.ts`의 `isStepUnlocked`, `ml/selection.ts`의
@@ -507,25 +507,31 @@ function trainGate(facts: ProjectFacts, selection: SelectionResult, runtime: Run
   같은 판정이 두 벌이 되면 "체크는 다 됐는데 버튼이 잠겨 있다"가 생기고, 그건 학생이
   고칠 방법이 없는 고장이다.
 - **화면이 받는 prop은 gate 결과 하나다.** 조건이 열둘이 되어도 시그니처는 그대로다.
-- **이유는 코드다. 문장이 아니다** (CLAUDE.md §1.4와 같은 이유). 백엔드 응답과 같은
-  모양을 쓴다 — `{ code: string; params?: Record<string, string | number> }`. 화면이
-  `t(\`block.${code}\`, params)`로 문장을 만든다. **사용자 데이터는 문장 끝 괄호로 뺀다**
-  (§3 규칙 4) — 열 이름이 문장 가운데 들어가면 조사가 앞 글자에 따라 갈린다.
+- **이유는 코드다. 문장이 아니다** (CLAUDE.md §1.4와 같은 이유). 코드는 문자열 리터럴의
+  유니온이다(`TrainBlock`, `ReproduceBlocker`, `ChosenModelBlock`). 화면은 **정적인 표**로
+  코드를 문구 키에 잇는다(`TrainView`의 `TRAIN_BLOCK_KEYS`) — 키를 이어 붙여 만들면 뒷부분을
+  정적으로 확인할 수 없어 로케일 검사에 짝을 따로 세워야 한다(`i18n.md`). 문장에 값이 들어가야 하는 이유는 코드와 함께
+  파라미터를 싣고, **사용자 데이터는 문장 끝 괄호로 뺀다**(§3 규칙 4) — 열 이름이 문장
+  가운데 들어가면 조사가 앞 글자에 따라 갈린다.
 - **우선순위가 있다.** 근본적인 것이 먼저다 — 데이터가 없으면 "알고리즘을 고르세요"라고
   말하지 않는다.
 
-**아직 `trainGate`는 없다 (2026-08-07).** 만들지 않았고, 그것이 맞다.
+**`trainGate`는 `ml/selection.ts`에 있다.** 이유는 셋이고 이 순서다 — 유형을 안
+골랐다(`NO_TASK_TYPE`) · 담은 모델이 없다(`NO_MODEL`) · 담은 모델이 전부 지금 유형에 안
+맞는다(`NO_TRAINABLE_MODEL`, 결정문 55). 잠긴 줄 판정은 `chosenModelBlocks`와 같은 것을 본다.
+**버튼 잠금과 `startTraining`의 거절이 이 함수 하나를 본다** — 동작이 거절하는 조건이 곧
+버튼이 잠기는 조건이다. `train-gate.spec.ts`가 조건마다, `option-cascade.spec.ts`가 화면의
+잠금과 거절을 문다.
 
-세어 보니 `[학습하기]` 버튼이 지금 보는 조건은 **하나뿐이다** — 추가한 모델이 0개인가
-(`nothingToTrain`). 나머지는 이미 다른 자리에 흩어져 있고 **그게 옳은 자리다.**
+나머지는 여전히 다른 자리에 있고 **그게 옳은 자리다.**
 
 - 데이터·타깃·특성이 없으면 **단계가 잠겨 이 화면에 못 온다** (`router/steps.ts`).
 - 고른 모델이 지금 조합에서 안 서면 **학습이 돌고 run마다 사유가 남는다**
   (`ml/experiment.ts`). 실험 하나가 통째로 실패하는 일은 없다 (`mlpx-spec.md` §4.1).
 
-즉 지금 코드는 이미 §10.2를 만족한다 — 조건 하나, 이유 한 줄. **구현이 하나뿐인 계약을
-미리 설계하지 마라**(§9.2.1과 같은 이유). 두 번째 조건이 생기는 날 gate를 만들고,
-그날을 §10.3의 검사가 알려 준다.
+**gate는 잠금이 생길 때 만든다. 조건이 둘이 될 때를 기다리지 않는다.** §10.3의 검사는
+`:disabled`의 **템플릿 조합**만 보므로, 컴포넌트 안 computed에서 조건이 늘어나는 것은 알려 주지
+않는다 — 그 조건이 동작의 거절과 갈려도 관문은 조용하다.
 
 ### 10.3 검사가 강제한다
 
