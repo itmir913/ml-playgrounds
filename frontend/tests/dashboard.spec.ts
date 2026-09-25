@@ -143,3 +143,28 @@ describe('종류를 모르는 순간', () => {
     expect(wrapper.text()).not.toContain('steps.data.purpose')
   })
 })
+
+/**
+ * **잠긴 단계에는 [들어가기]가 없다.** 판정은 `router/steps.ts`의 `isStepUnlocked`이고
+ * (`steps.spec.ts`), 여기서는 대시보드가 그 판정을 버튼에 거는지를 본다. 라우터 가드가 잠긴
+ * 단계를 가장 가까운 열린 단계로 돌리므로, 잠긴 줄에 버튼이 서면 누른 학생에게 다른 화면이
+ * 뜬다. 잠긴 줄에는 버튼 대신 이유가 선다.
+ */
+describe('잠긴 단계에는 들어가는 버튼이 없다', () => {
+  it('버튼 수가 열린 단계 수와 같고 잠긴 줄마다 이유가 선다', async () => {
+    const wrapper = await mountHome('tabular')
+    await flushPromises()
+    const vm = wrapper.vm as unknown as { steps: { unlocked: boolean }[] }
+    const open = vm.steps.filter((one) => one.unlocked).length
+    // 새 프로젝트는 데이터만 열려 있다 — 잠긴 줄이 있어야 이 검사가 뜻을 갖는다.
+    expect(open).toBeLessThan(vm.steps.length)
+
+    const buttons = wrapper
+      .findAll('button')
+      .filter((one) => one.text() === i18n.global.t('project.openStep'))
+    expect(buttons).toHaveLength(open)
+    expect(wrapper.findAll('span.text-ink-soft').length).toBeGreaterThanOrEqual(
+      vm.steps.length - open,
+    )
+  })
+})
