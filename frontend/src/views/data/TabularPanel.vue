@@ -433,7 +433,15 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
         <AppTable class="3xl:min-h-0 3xl:flex-1">
           <thead class="sticky top-0 z-10">
             <tr>
-              <th v-for="column in shown.columns" :key="column.name" class="align-bottom">
+              <!--
+                학생의 열 이름은 줄을 바꾼다 - 이유는 `results/panels/ClusterResultPanel.vue`의
+                요약 표 머리에 있다.
+              -->
+              <th
+                v-for="column in shown.columns"
+                :key="column.name"
+                class="align-bottom whitespace-normal"
+              >
                 <span class="block text-ink">{{ column.name }}</span>
                 <span class="block font-normal">{{ kindOf(column) }}</span>
               </th>

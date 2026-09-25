@@ -229,7 +229,16 @@ function cellsOf(row: number): readonly string[] {
               **머리글을 눌러 설명을 연다** (§8.13, 점수 표와 같은 문법). 제목은 우리
               어휘가 아니라 학생의 열 이름이라 번역하지 않는다 - 설명만 우리가 쓴다.
             -->
-            <th v-for="(axis, position) in axes" :key="axis.name">
+            <!--
+              **학생의 열 이름은 머리 줄에서도 띄어쓰기에서 줄을 바꾼다.** 머리 줄은 한 줄이
+              기본이라(`data-table`) 띄어쓰기가 있는 긴 이름 하나가 표를 받은 폭 밖으로 민다.
+              **띄어쓰기 없는 이름은 끊지 않는다** — `wrap-anywhere`로 끊으면 표 자동 배치가
+              열을 최대 폭보다 조금씩 줄이는 넓은 화면에서도 `sepal_length` 같은 짧은 이름이
+              한 글자 앞에서 갈린다. 붙은 긴 이름은 `AppTable` 상자 안에서 옆으로 구른다.
+              같은 처방이 구성원 표·이웃 표(`ClusterNeighbors`)·일괄 예측 표·데이터
+              미리보기·전처리 미리보기에 있다. 사람 확인(브라우저).
+            -->
+            <th v-for="(axis, position) in axes" :key="axis.name" class="whitespace-normal">
               <TermPopover :title="axis.name" :body="axisHelp(position)" />
             </th>
           </tr>
@@ -242,7 +251,12 @@ function cellsOf(row: number): readonly string[] {
             :class="summary.cluster === openedCluster ? 'bg-brand-soft font-bold' : ''"
             @click="openedCluster = summary.cluster"
           >
-            <th class="text-left">{{ clusterName(summary.cluster) }}</th>
+            <!--
+              **군집 이름은 한 줄이다.** 몸통의 `<th>`는 줄을 바꾸므로(`utilities.css`의
+              `data-table`) 막지 않으면 `0번 군집`이 `0번` / `군집`으로 갈린다. 우리가 짓는
+              짧은 이름이라 막아도 표가 넓어지지 않는다.
+            -->
+            <th class="text-left whitespace-nowrap">{{ clusterName(summary.cluster) }}</th>
             <td class="tabular-nums">{{ summary.size }}</td>
             <td v-for="(mean, position) in summary.means" :key="position" class="tabular-nums">
               {{ cellText(position, mean) }}
@@ -265,7 +279,10 @@ function cellsOf(row: number): readonly string[] {
       <AppTable>
         <thead>
           <tr>
-            <th v-for="column in material.dataset.columns" :key="column">{{ column }}</th>
+            <!-- 열 이름이 줄을 바꾸는 이유는 위 요약 표의 머리에 있다. -->
+            <th v-for="column in material.dataset.columns" :key="column" class="whitespace-normal">
+              {{ column }}
+            </th>
           </tr>
         </thead>
         <tbody>

@@ -332,7 +332,13 @@ const neighborhood = computed<Neighborhood | null>(() => {
       <AppTable>
         <thead>
           <tr>
-            <th v-for="column in neighborhood.columns" :key="column">{{ column }}</th>
+            <!--
+              학생의 열 이름은 줄을 바꾼다 - 이유는 `results/panels/ClusterResultPanel.vue`의
+              요약 표 머리에 있다.
+            -->
+            <th v-for="column in neighborhood.columns" :key="column" class="whitespace-normal">
+              {{ column }}
+            </th>
           </tr>
         </thead>
         <tbody>

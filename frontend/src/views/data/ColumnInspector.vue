@@ -44,8 +44,15 @@ const { t } = useI18n()
       <tr>
         <th>{{ t('data.tabular.columnName') }}</th>
         <th>{{ t('data.tabular.kind') }}</th>
-        <th>{{ t('data.tabular.missing') }}</th>
-        <th>{{ t('data.tabular.unique') }}</th>
+        <!--
+          **숫자 열의 머리는 줄을 바꿀 수 있다.** 칸의 값은 짧은 수인데 머리
+          `결측치 수(Missing Value)`가 한 줄로 폭을 쥐면, 남는 폭이 줄어든 `값 예시`가 값마다
+          쪼개진다. 줄 수에 상한은 없다. 어디서 끊기는지는 `results/panels/PerClassPanel.vue`의
+          머리에 있다. 값 예시 칸은 안 막는다 - 글이 든 열이면 한 값이 수백 자라 한 줄로
+          두면 표가 그만큼 넓어진다. 사람 확인(브라우저).
+        -->
+        <th class="whitespace-normal">{{ t('data.tabular.missing') }}</th>
+        <th class="whitespace-normal">{{ t('data.tabular.unique') }}</th>
         <th>{{ t('data.tabular.samples') }}</th>
       </tr>
     </thead>

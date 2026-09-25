@@ -128,7 +128,7 @@ function cellText(
             v-for="column in props.preview.columns"
             :key="column.name"
             :colspan="spanOf(column)"
-            class="border-l border-line text-left"
+            class="border-l border-line text-left whitespace-normal"
           >
             <!--
               **알약이 아니라 주의 색 글자다.** 회색 알약은 접힐 때 안쪽 여백(`px-2`)만큼
@@ -150,10 +150,14 @@ function cellText(
               {{ t('preprocess.previewOriginal') }}
             </th>
             <!-- 이름은 전처리기가 붙인 그대로다. 모델 파일과 특성 중요도가 같은 글자를 쓴다. -->
+            <!--
+              원본 열 이름과 하위 열 이름은 학생의 데이터라 줄을 바꾼다 - 이유는
+              `results/panels/ClusterResultPanel.vue`의 요약 표 머리에 있다.
+            -->
             <th
               v-for="feature in column.features"
               :key="feature.name"
-              class="text-left font-normal text-ink-soft"
+              class="text-left font-normal whitespace-normal text-ink-soft"
             >
               {{ featureHeader(column, feature) }}
             </th>

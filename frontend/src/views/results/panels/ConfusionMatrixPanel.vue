@@ -50,8 +50,17 @@ const { t } = useI18n()
             {{ t('results.cellPredicted') }}
           </th>
         </tr>
+        <!--
+          **값 이름은 줄을 바꾼다.** 머리 줄은 한 줄이 기본인데(`data-table`) 이 칸들은
+          학생의 데이터라 길이를 모른다 - 긴 범주 하나가 표를 밀어 `예측한 값`이 화면 밖
+          한가운데에 선다. 띄어쓰기 없는 이름은 여전히 한 덩어리다(`body`의 `keep-all`) -
+          몸통의 줄 이름표와 같은 한계다. `wrap-anywhere`로 풀면 휴대폰에서 표가 최소 폭으로
+          짜일 때 짧은 이름까지 거의 한 글자씩 갈려서 안 풀었다. 사람 확인(브라우저).
+        -->
         <tr>
-          <th v-for="label in run.confusionMatrix.labels" :key="label">{{ label }}</th>
+          <th v-for="label in run.confusionMatrix.labels" :key="label" class="whitespace-normal">
+            {{ label }}
+          </th>
         </tr>
       </thead>
       <tbody>

@@ -200,10 +200,14 @@ function onFeature(name: string, event: Event): void {
           <th>
             <TermPopover :title="t('data.tabular.kind')" :body="t('columnHelp.kind')" />
           </th>
-          <th>
+          <!--
+            **숫자 열의 머리는 줄을 바꿀 수 있다.** 데이터 요약(`data/ColumnInspector.vue`)과
+            같은 머리이고 같은 처방이다. 사람 확인(브라우저).
+          -->
+          <th class="whitespace-normal">
             <TermPopover :title="t('data.tabular.missing')" :body="t('columnHelp.missing')" />
           </th>
-          <th>
+          <th class="whitespace-normal">
             <TermPopover :title="t('data.tabular.unique')" :body="t('columnHelp.unique')" />
           </th>
           <!-- 훈련 데이터에서 구한 값이라 계획이 서야 채워진다. 그전에는 빈 칸이다. -->

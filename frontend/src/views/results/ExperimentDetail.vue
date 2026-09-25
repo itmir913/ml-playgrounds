@@ -211,8 +211,11 @@ function failureDetailOf(run: Run): string | null {
             <!--
               **머리글을 눌러 설명을 연다** (§8.13). 키는 등록부가 준 이름으로 만든다 -
               지표가 늘면 로케일에 두 줄(이름·설명)을 더하는 것으로 끝난다.
+
+              **줄을 바꿀 수 있다.** 이유와 어디서 끊기는지, 줄 수에 상한이 없다는 것은
+              `panels/PerClassPanel.vue`의 머리에 있다.
             -->
-            <th v-for="display in displays" :key="display.name">
+            <th v-for="display in displays" :key="display.name" class="whitespace-normal">
               <TermPopover
                 :title="t(`metrics.${display.label ?? display.name}`)"
                 :body="t(`metricHelp.${display.label ?? display.name}`)"
@@ -231,7 +234,12 @@ function failureDetailOf(run: Run): string | null {
             @click="pickRun(run.id)"
           >
             <th class="text-left">{{ t(`algorithms.${run.algorithm}`) }}</th>
-            <td>{{ t(whereTrainedKeyOf(run)) }}</td>
+            <!--
+              **학습한 곳은 한 줄이다.** 짧은 값이라 접히면 `ml.js ·` / `내 컴퓨터`로 갈려 한
+              이름이 두 칸처럼 읽힌다. 줄을 바꾸는 것은 모델 이름 쪽이다 - 몸통의 `<th>`는 줄을
+              바꾼다(`utilities.css`의 `data-table`).
+            -->
+            <td class="whitespace-nowrap">{{ t(whereTrainedKeyOf(run)) }}</td>
             <td
               v-for="display in displays"
               :key="display.name"

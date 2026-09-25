@@ -40,7 +40,13 @@ const weakest = computed(() => weakestPerClass(run.value.perClass ?? []))
         <tr>
           <th>{{ t('results.label') }}</th>
           <!-- 키를 자리마다 적어 둔다 - 조립하면 CI의 정적 t() 검사가 못 잡는다. -->
-          <th>
+          <!--
+            **지표 머리는 줄을 바꿀 수 있다.** 이름이 `정밀도(Precision)`처럼 두 언어라 한
+            줄로 두면 넓은 화면에서도 머리만으로 표가 넘친다. **줄 수에 상한은 없다.** 한국어가
+            `정밀/도`로 갈리지 않는 것은 `body`의 `keep-all` 덕이다(`styles/base.css`). 끊기는
+            자리는 띄어쓰기, 괄호 앞, 하이픈 뒤다(`결정계수(R-` / `squared)`). 사람 확인(브라우저).
+          -->
+          <th class="whitespace-normal">
             <TermPopover
               :title="t('metrics.precision')"
               :body="t('metricHelp.precision')"
@@ -48,7 +54,7 @@ const weakest = computed(() => weakestPerClass(run.value.perClass ?? []))
               :denominator="t('metricFormula.precision.bottom')"
             />
           </th>
-          <th>
+          <th class="whitespace-normal">
             <TermPopover
               :title="t('metrics.recall')"
               :body="t('metricHelp.recall')"
@@ -56,7 +62,7 @@ const weakest = computed(() => weakestPerClass(run.value.perClass ?? []))
               :denominator="t('metricFormula.recall.bottom')"
             />
           </th>
-          <th>
+          <th class="whitespace-normal">
             <TermPopover
               :title="t('metrics.specificity')"
               :body="t('metricHelp.specificity')"
@@ -64,7 +70,7 @@ const weakest = computed(() => weakestPerClass(run.value.perClass ?? []))
               :denominator="t('metricFormula.specificity.bottom')"
             />
           </th>
-          <th>
+          <th class="whitespace-normal">
             <TermPopover
               :title="t('metrics.f1')"
               :body="t('metricHelp.f1')"
@@ -72,7 +78,9 @@ const weakest = computed(() => weakestPerClass(run.value.perClass ?? []))
               :denominator="t('metricFormula.f1.bottom')"
             />
           </th>
-          <th><TermPopover :title="t('results.support')" :body="t('metricHelp.support')" /></th>
+          <th class="whitespace-normal">
+            <TermPopover :title="t('results.support')" :body="t('metricHelp.support')" />
+          </th>
         </tr>
       </thead>
       <tbody>

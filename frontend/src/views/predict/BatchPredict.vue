@@ -729,7 +729,15 @@ defineExpose({
           <tr>
             <th class="min-w-20">{{ t('predict.tabular.rowNumber') }}</th>
             <template v-if="showFeatures">
-              <th v-for="field in props.fields" :key="field.name" class="min-w-32">
+              <!--
+                학생의 열 이름은 줄을 바꾼다 - 이유는 `results/panels/ClusterResultPanel.vue`의
+                요약 표 머리에 있다.
+              -->
+              <th
+                v-for="field in props.fields"
+                :key="field.name"
+                class="min-w-32 whitespace-normal"
+              >
                 {{ field.name }}
               </th>
             </template>

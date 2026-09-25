@@ -68,6 +68,59 @@ describe('정렬 기본값은 칸이 덮을 수 있어야 한다', () => {
     expect(offenders, 'sets text-align where a cell class cannot win').toEqual([])
   })
 
+  /**
+   * **줄을 못 바꾸게 막는 것은 머리 줄뿐이고, 칸이 덮을 수 있어야 한다.** 몸통의 줄
+   * 이름표(모델·범주 이름의 `<th>`)까지 막으면 이름 열이 폭을 다 쥐고 옆의 값 칸이 접혀
+   * 마지막 열이 숫자 한가운데서 잘린다(`utilities.css`의 `data-table` 주석). 그 폭 자체는
+   * jsdom이 못 잰다(사람 확인). 여기서 무는 것은 **규칙의 자리**다.
+   *
+   * **주석을 먼저 걷고, 쉼표로 나눈 선택자를 하나씩 본다.** 선택자 자리를 통째로 보면 그
+   * 자리가 앞의 주석까지 먹어서, 주석에 적힌 `:where()` 한 마디나 같은 줄의 `thead`로
+   * 위반이 통과한다 — 아래 "주석에 속지 않고"가 그 둘을 표본으로 든다.
+   *
+   * **줄바꿈을 막는 속성은 둘이고, 허락하는 선택자는 하나다.** `white-space`만 보면
+   * 같은 일을 하는 `text-wrap-mode`·`text-wrap`이 지나가고, 앞머리만 보면
+   * `:where(&) thead ~ tbody th`처럼 몸통을 가리키는 선택자가 지나간다.
+   */
+  const WRAP_PROPERTY = /(?:^|[;\s])(?:white-space|text-wrap(?:-mode)?)\s*:/
+  const HEAD_ONLY = ':where(&) thead th'
+
+  function wrapBlockers(css: string): string[] {
+    const offenders: string[] = []
+    const bare = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    for (const [, selector, body] of bare.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
+      if (!WRAP_PROPERTY.test(body ?? '')) continue
+      for (const one of (selector ?? '').split(',').map((part) => part.trim())) {
+        if (one.replace(/\s+/g, ' ') !== HEAD_ONLY) offenders.push(one)
+      }
+    }
+    return offenders
+  }
+
+  it('data-table이 줄바꿈을 머리 줄에서만, 클래스 특정도 0으로 막는다', () => {
+    expect(
+      wrapBlockers(dataTableBlock()),
+      'blocks wrapping outside the head row, or where a cell cannot win',
+    ).toEqual([])
+  })
+
+  it('줄바꿈 검사기가 주석에 속지 않고 선택자마다 본다', () => {
+    const note = '/* `:where()` 안이라 thead만 막는다 */\n'
+    expect(wrapBlockers(`${note}  & thead th { white-space: nowrap; }`)).toEqual(['& thead th'])
+    expect(
+      wrapBlockers(`${note}  :where(&) thead th, & tbody th { white-space: nowrap; }`),
+    ).toEqual(['& tbody th'])
+    expect(wrapBlockers(`${note}  & th { white-space: nowrap; }`)).toEqual(['& th'])
+    expect(wrapBlockers(`${note}  & tbody th { text-wrap-mode: nowrap; }`)).toEqual(['& tbody th'])
+    expect(wrapBlockers(`${note}  & tbody th { text-wrap: nowrap; }`)).toEqual(['& tbody th'])
+    expect(wrapBlockers(`${note}  :where(&) thead ~ tbody th { white-space: nowrap; }`)).toEqual([
+      ':where(&) thead ~ tbody th',
+    ])
+    expect(wrapBlockers(`${note}  :where(&) thead th { white-space: nowrap; }`)).toEqual([])
+    // 줄바꿈과 상관없는 속성은 안 본다 — 머리 칸의 배경·여백이 `& th`에 그대로 있다.
+    expect(wrapBlockers(`${note}  & th { padding: 0.625rem 1rem; }`)).toEqual([])
+  })
+
   it('검사기가 실제로 잡는다', () => {
     const bait = '& th { text-align: left; }'
     const rules = [...bait.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
