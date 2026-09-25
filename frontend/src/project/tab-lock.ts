@@ -187,16 +187,19 @@ let pending: Promise<unknown> = Promise.resolve()
  * `close()`가 돌고, 그 사이에 다른 탭이 P를 정상적으로 연다. **두 탭이 P를 쓰는 상태**,
  * 이 잠금이 막으려던 바로 그것이다.
  *
- * BroadcastChannel 갈래도 같은 한 줄이 낸다 — `heldId`가 `null`인 동안 이 탭은 `claim`에
- * 답하지 않아 남의 탭이 P를 "비었다"고 읽는다.
+ * **BroadcastChannel 갈래는 다른 줄이 낸다** (2026-09-26 R41 B-1). 거기서 "쥐고 있다"는
+ * `heldId`가 `claim`에 답하는 것이라, **새 것을 묻는 동안에도 `heldId`는 앞의 것으로
+ * 남아야 한다** — 먼저 비우면 그 창 안에서 P를 물은 탭이 "비었다"를 듣고, Q가 거절되면
+ * 이 탭은 P로 되돌아온다. 그래서 여기서는 `releaseHeld`만 비운다. 검사:
+ * tab-lock.spec.ts "다른 탭이 쥔 프로젝트로 옮기려는 동안에도 쥐던 것은 남에게 안 간다".
  */
 async function acquireOne(id: string, startedAt: number): Promise<boolean> {
   if (heldId === id) return true
 
   // 놓는 손잡이를 들고만 있는다. 실패하면 이대로 되돌려 앞 잠금이 이어진다.
+  // `heldId`는 비우지 않는다 — 위 머리말의 BroadcastChannel 갈래.
   const previousId = heldId
   const previousRelease = releaseHeld
-  heldId = null
   releaseHeld = null
 
   const acquired = await acquireNew(id)

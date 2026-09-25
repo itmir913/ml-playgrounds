@@ -234,6 +234,55 @@ describe('BroadcastChannel 폴백 (Web Locks가 없는 비보안 컨텍스트)',
     await vi.advanceTimersByTimeAsync(TAB_LOCK_REPLY_WINDOW_MS)
     expect(await claimB).toBe(true)
   })
+
+  /**
+   * **쥔 탭은 자기 것에만 답한다** (R41 B-2). 답하는 조건에서 "묻는 것이 내 것인가"가
+   * 빠지면 P를 쥔 탭이 모든 claim에 답해, 이 경로에서는 **아무도 다른 프로젝트를 못
+   * 연다.**
+   */
+  it('쥔 탭은 다른 프로젝트를 묻는 claim에 답하지 않는다', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel)
+    const tabA = await freshTab()
+    const tabB = await freshTab()
+
+    const claimA = tabA.acquireTabLock('p-1')
+    await vi.advanceTimersByTimeAsync(TAB_LOCK_REPLY_WINDOW_MS)
+    expect(await claimA).toBe(true)
+
+    const claimB = tabB.acquireTabLock('q-2')
+    await vi.advanceTimersByTimeAsync(TAB_LOCK_REPLY_WINDOW_MS)
+    expect(await claimB).toBe(true)
+  })
+
+  /**
+   * **바꾸는 중에도 쥔 것에 답한다** (2026-09-26 R41 B-1). A가 P를 쥔 채 C가 쥔 Q로
+   * 옮기려 하면, 그 claim이 도는 동안 A가 P를 비운 것처럼 굴어서는 안 된다 — 그 창에서
+   * P를 물은 B가 "비었다"를 듣고, 이어서 Q가 거절되면 A는 P로 되돌아온다. **두 탭이 P를
+   * 쓰는 상태**, R27 A-2가 Web Locks 갈래에서 닫은 그것이다.
+   */
+  it('다른 탭이 쥔 프로젝트로 옮기려는 동안에도 쥐던 것은 남에게 안 간다', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel)
+    const tabA = await freshTab()
+    const tabB = await freshTab()
+    const tabC = await freshTab()
+
+    const claimC = tabC.acquireTabLock('q-2')
+    await vi.advanceTimersByTimeAsync(TAB_LOCK_REPLY_WINDOW_MS)
+    expect(await claimC).toBe(true)
+    const claimA = tabA.acquireTabLock('p-1')
+    await vi.advanceTimersByTimeAsync(TAB_LOCK_REPLY_WINDOW_MS)
+    expect(await claimA).toBe(true)
+
+    const switchA = tabA.acquireTabLock('q-2')
+    const claimB = tabB.acquireTabLock('p-1')
+    await vi.advanceTimersByTimeAsync(TAB_LOCK_REPLY_WINDOW_MS)
+    expect({ switched: await switchA, bGot: await claimB }).toEqual({
+      switched: false,
+      bGot: false,
+    })
+  })
 })
 
 describe('수단이 없는 환경', () => {
