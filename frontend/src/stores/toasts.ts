@@ -70,9 +70,14 @@ export const useToastStore = defineStore('toasts', () => {
     )
   }
 
+  /**
+   * **같은 알림이면 옛 것을 빼고 새 id로 다시 민다.** 여전히 하나로 서되 id는 지금의 것이라,
+   * 이동의 수위선(`router/index.ts`의 `afterEach`)이 방금 다시 일어난 일의 알림을 걷지 않는다.
+   * `router.spec.ts`의 *"같은 저장 실패가 이어지면 …"*이 문다.
+   */
   function push(tone: ToastTone, key: string, params: Record<string, unknown> = {}): number {
     const already = same(tone, key, params)
-    if (already !== undefined) return already.id
+    if (already !== undefined) dismiss(already.id)
 
     lastId += 1
     const id = lastId

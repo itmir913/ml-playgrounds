@@ -219,4 +219,39 @@ describe('라우터', { timeout: 20_000 }, () => {
     )
     expect(toasts.items.map((one) => one.key)).toContain('client.STORAGE_QUOTA_EXCEEDED')
   })
+
+  /**
+   * **같은 저장 실패가 둘째 이동에서 걷히지 않는다.** 같은 알림은 하나로 두되
+   * (`stores/toasts.ts`의 `same`) 다시 밀 때 새 id를 받는다 — 옛 id면 둘째 이동의 수위선
+   * 아래라 `afterEach`가 방금 다시 실패한 저장의 알림을 걷는다.
+   */
+  it('같은 저장 실패가 이어지면 이동마다 알림이 남는다', async () => {
+    await saveProject(projectFile())
+    await router.push(`/project/${manifest.projectId}/data`)
+
+    const project = useProjectStore()
+    const toasts = useToastStore()
+    const rename = (name: string): void => {
+      const current = project.file!
+      project.update({
+        ...current,
+        document: { ...current.document, manifest: { ...current.document.manifest, name } },
+      })
+    }
+    Object.defineProperty(navigator, 'storage', {
+      configurable: true,
+      value: { estimate: () => Promise.resolve({ quota: 1, usage: 1 }) },
+    })
+    const failures = (): number =>
+      toasts.items.filter((one) => one.key === 'client.STORAGE_QUOTA_EXCEEDED').length
+
+    rename('첫째')
+    await router.push(`/project/${manifest.projectId}/preprocess`)
+    const afterFirst = failures()
+    rename('둘째')
+    await router.push(`/project/${manifest.projectId}/data`)
+    const afterSecond = failures()
+
+    expect({ afterFirst, afterSecond }).toEqual({ afterFirst: 1, afterSecond: 1 })
+  })
 })
