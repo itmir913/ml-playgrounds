@@ -5,8 +5,14 @@
 개발자용 설명이 아니다 (docs/open-decisions.md).
 
 구현 노트: 주석은 애초에 AST에 없으므로 자동으로 제외된다.
-docstring과 모듈 수준 설명 문자열은 "값으로 쓰이지 않는 문장 표현식"이므로
-ast.Expr 아래의 문자열을 통째로 제외한다.
+docstring과 모듈 수준 설명 문자열은 문법상 "문장 표현식"(ast.Expr 아래의 문자열)이라
+통째로 제외한다.
+
+**docstring이 값으로 안 쓰인다는 것은 이 파일이 지키지 않는다** (R41 B-5).
+FastAPI는 라우트 함수의 docstring을 `/openapi.json`의 `description`에 값으로 실어
+내보낸다. 그 길을 끈 것은 `app/main.py`이고, 꺼져 있는지는
+`tests/test_no_schema_endpoints.py`가 본다. **그 검사가 초록인 동안에만** 여기서
+docstring을 빼는 것이 옳다.
 """
 
 import ast
