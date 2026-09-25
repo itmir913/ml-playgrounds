@@ -35,7 +35,14 @@ before you write the code.
 
 ## Setting up
 
-Node.js 22.13 or newer. The app is `frontend/`:
+You need two things:
+
+- **Node.js 22.13 or newer**
+- **[uv](https://docs.astral.sh/uv/)**, even if you never touch Python. The gate
+  checks the scikit-learn fixtures and runs the backend checks, and uv fetches
+  the Python it needs on its own.
+
+The app is `frontend/`:
 
 ```bash
 npm install
@@ -45,31 +52,22 @@ npm install
 npm run dev
 ```
 
-The optional self-hosted backend is Python 3.12+ with
-[uv](https://docs.astral.sh/uv/), in `backend/`. Nothing in the app works
+The optional self-hosted backend lives in `backend/`. Nothing in the app works
 differently without it.
 
 ## The gate
 
-One command per side. CI runs exactly these and nothing else, so if they pass
-locally they pass there.
+One command, run in `frontend/`. CI runs exactly this and nothing else, so if it
+passes locally it passes there.
 
 ```bash
 npm run ci
 ```
 
-```bash
-uv run python scripts/ci.py
-```
-
-The first runs in `frontend/` (lint, types, roughly 2,000 vitest tests, build);
-the second in `backend/`. There is also a contract check between the locale files
-and the backend error codes, run from the repository root with the standard
-library only:
-
-```bash
-python scripts/check_locales.py
-```
+It runs lint, types, the vitest suite, and the build, then the contract check
+between the locale files and the backend error codes, then the backend checks
+(ruff, mypy, pytest). The backend part comes last, so if you only changed the
+front end, your own failures show up first.
 
 Run the whole gate before every commit, not a subset. Two notes that have cost
 people time already:
@@ -104,18 +102,70 @@ people time already:
   registry entry, not in Y's screen.
 - **Commits follow [Conventional Commits](https://www.conventionalcommits.org/)**
   (`feat:` `fix:` `docs:` `refactor:` `test:` `chore:`).
+- **Every commit is signed off** with `git commit -s`. See [Licensing](#licensing)
+  for what that line means. A check on every pull request fails without it.
 
 Fork the repository, work on a branch, and open the pull request against `main`.
-Small pull requests get read; large ones wait.
+Small pull requests get read; large ones wait. Pull requests are merged with a
+merge commit, never squashed, so your commits and their sign-off lines stay in
+the history.
 
 ## Licensing
 
+This project is [MIT](LICENSE). Please read this section before you send code.
+The terms below are not legal advice. If you are unsure whether you can agree to
+them, ask before you contribute.
+
+### Sign-off (DCO)
+
+Every commit carries a `Signed-off-by:` line (`git commit -s`) with the same
+email as the commit's author. By adding it you certify the
+[Developer Certificate of Origin 1.1](https://developercertificate.org/), which
+means you wrote the change or otherwise have the right to submit it under this
+project's license.
+
+**In this repository, your sign-off also means you agree to the terms under
+[Your contribution](#your-contribution) below.** The sign-off in the commit
+history is the record of that agreement. The checkbox in the pull request
+template only reminds you of it.
+
+Forgot it? Run `git rebase --signoff <base branch>` and force-push your branch.
+
 ### Your contribution
 
-This project is [MIT](LICENSE). **By opening a pull request you confirm that your
-contribution is offered under that same MIT license and that you have the right
-to offer it.** There is no CLA and no sign-off bot — if your employer or school
-owns what you write, sort that out before you send it.
+1. **Inbound = outbound.** Your contribution is licensed to everyone under this
+   project's MIT license.
+2. **You keep your copyright.** Nothing is assigned to anyone.
+3. **Permission to relicense.** For the material you authored in your
+   contribution, you grant the project owner and their successors and assigns a
+   perpetual, worldwide, non-exclusive, royalty-free, **irrevocable** license to
+   use, copy, modify, distribute, and **sublicense or relicense it under any
+   terms, including proprietary ones**. Whatever happens, the contribution also
+   stays available under MIT.
+4. **Patents.** You promise not to assert against the project, its owner, or
+   its users any patent claim you control that your contribution necessarily
+   infringes, whether on its own or combined with the project as you submitted
+   it.
+5. **Moral rights.** To the extent the law allows, you agree not to assert moral
+   rights (such as 저작인격권 under Korean law) in a way that would prevent the
+   uses above.
+6. **Right to submit.** If your employer or school has rights in what you write,
+   you have their permission to agree to all of this.
+
+### What we cannot accept
+
+Not as a file, not as a snippet, and not as something "adapted" from one:
+
+- **Copyleft code**: GPL, LGPL, AGPL, EUPL, SSPL, and CC BY-SA.
+- **Stack Overflow answers.** They are CC BY-SA. Describe the idea in your own
+  code instead.
+- **Code with no license**, or one you cannot name.
+- **Non-commercial or "source-available" terms**: CC BY-NC, BSL, Commons Clause.
+- **MPL code copied into a file.** MPL is file-level copyleft, so a copied file
+  stays MPL. MPL as a *dependency* is fine. Pyodide ships that way.
+
+If you used an AI assistant, what it wrote is your contribution like anything
+else. Do not submit output you have reason to think reproduces licensed code.
 
 ### Adding a dependency
 
@@ -153,9 +203,11 @@ in `docs/open-decisions.md` first. The file's header then carries three things:
 
 ### What no check can see
 
-The build counts what ships and the tests guard the hand-written parts, but three
+The build counts what ships and the tests guard the hand-written parts, but four
 gaps are known and open, which is why the pull request template asks about them:
 
+- **Where a pasted snippet came from.** The allowlist sees dependencies, not
+  code copied into a file. Only you know that.
 - **Whether a declared SPDX id matches the actual license text.** A
   `package.json` can say MIT over a LICENSE file that says something else.
 - **Licenses inside a pre-built bundle.** `exceljs` carries 68 packages our

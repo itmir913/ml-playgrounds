@@ -19,8 +19,12 @@
 Tick what applies. If a box does not apply to this change, leave it and say so —
 an unticked box with no explanation reads as an unanswered question.
 
-- [ ] My contribution is offered under this project's MIT license and I have the
-      right to offer it
+- [ ] Every commit is signed off (`git commit -s`), and I have read
+      [Licensing](https://github.com/itmir913/ml-playgrounds/blob/main/CONTRIBUTING.md#licensing): my sign-off certifies
+      the DCO and agrees to the MIT license and the irrevocable permission to
+      relicense described there
+- [ ] Nothing here is copied from copyleft code (GPL, LGPL, AGPL, CC BY-SA, …),
+      Stack Overflow, unlicensed code, or an MPL file
 - [ ] **New or upgraded dependency:** its SPDX id is on the allowlist in
       `frontend/scripts/notices.ts`, or I added it and explain below why it may
       ship inside an MIT-licensed build — **and I opened the actual license text

@@ -1,0 +1,8 @@
+# Asks the owner to review changes that touch licensing or the gate.
+# This only requests a review. Nothing here blocks a merge: there is no
+# "require code owner review" rule (docs/open-decisions.md, decision 46).
+/LICENSE                       @itmir913
+/CONTRIBUTING.md               @itmir913
+/frontend/scripts/notices.ts   @itmir913
+/frontend/scripts/licenses/    @itmir913
+/.github/                      @itmir913

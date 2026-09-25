@@ -26,7 +26,9 @@ nothing uploaded anywhere.
 
 ## Development
 
-Node.js 22.13 or newer. Everything happens in `frontend/`.
+Node.js 22.13 or newer, and [uv](https://docs.astral.sh/uv/). The gate also
+checks the Python side, and uv fetches the Python it needs. Run everything from
+`frontend/`.
 
 ```bash
 npm install
@@ -47,7 +49,8 @@ npm run build
 ```
 
 `dev` starts the local server, `ci` is the full gate (lint, types, tests,
-build) and is exactly what CI runs, and `build` produces the static site.
+build, then the locale contract and the backend checks) and is exactly what CI
+runs, and `build` produces the static site.
 
 ## Layout
 
@@ -66,8 +69,8 @@ Design notes live in [docs/](docs/) and are written in Korean.
 ## Contributing
 
 [CONTRIBUTING.md](CONTRIBUTING.md) has the setup, the one command that is the
-gate, and what a pull request has to be true about — including the licensing of
-what you add.
+gate, and what a pull request has to be true about. That includes signing off
+every commit and the licensing terms your contribution comes in under.
 
 ## License
 
