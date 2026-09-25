@@ -23,18 +23,13 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { openTable, importTable } from '../src/data/table'
 import { i18n, setLocale } from '../src/i18n'
-import { applyDataset } from '../src/project/dataset'
 import type { ProjectFile } from '../src/project/format'
-import { withFeatures, withPreprocessing, withTarget, withTaskType } from '../src/project/settings'
 import { closeStorage, DB_NAME } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import TabularPrepPanel from '../src/views/preprocess/TabularPrepPanel.vue'
 import { stubDialogElement } from './fixtures/image-workers'
-import { projectFile } from './fixtures/project'
-
-const NOW = '2026-09-23T00:00:00Z'
+import { scoreProject, surveyProject } from './fixtures/prep-kind'
 
 async function settle(): Promise<void> {
   for (let round = 0; round < 3; round += 1) {
@@ -67,34 +62,9 @@ interface PrepInternals {
 }
 
 /**
- * 40행 설문. `키`는 수치인데 **한 칸만** `모름`이다. `blankTarget`이면 그 행의 타깃(`성별`)이
- * 빈 칸이라 **그 행은 실행에서 빠진다** — 파일 전체로는 `키`가 범주, 실행으로는 수치다.
+ * 입력 둘(`surveyCsv`·`scoreCsv`)은 `fixtures/prep-kind.ts`에 있다 — 학습 화면
+ * (`train-prep-kind.spec.ts`)이 **같은 입력**을 태워 두 화면이 같은 말을 하는지 견준다.
  */
-function surveyCsv(blankTarget: boolean): Uint8Array {
-  const lines = ['키,몸무게,성별']
-  for (let i = 0; i < 40; i += 1) {
-    const height = i === 7 ? '모름' : String(150 + i)
-    const sex = i === 7 && blankTarget ? '' : i % 2 === 0 ? '남' : '여'
-    lines.push(`${height},${45 + i},${sex}`)
-  }
-  return new TextEncoder().encode(`${lines.join('\n')}\n`)
-}
-
-async function projectFrom(csv: Uint8Array): Promise<ProjectFile> {
-  const imported = importTable(await openTable(csv, '설문.csv'))
-  const { project } = applyDataset(projectFile(), imported, {
-    fileName: '설문.csv',
-    hasHeader: true,
-    now: NOW,
-  })
-  let document = withTaskType(project.document, 'classification', NOW)
-  document = withTarget(document, '성별', NOW)
-  document = withFeatures(document, ['키', '몸무게'], NOW)
-  // **인코딩을 끈다** — 그래야 범주로 읽힌 열이 학습에서 "빠진다"고 화면이 말한다.
-  document = withPreprocessing(document, { categoricalEncoding: 'none' }, NOW)
-  return { ...project, document }
-}
-
 async function mountWith(file: ProjectFile): Promise<PrepInternals> {
   const project = useProjectStore()
   await project.save(file)
@@ -126,7 +96,7 @@ describe('열 표가 학습과 같은 종류를 말한다', () => {
    * 쓴다. 표도 수치라고 말해야 하고, 특성 둘이 다 들어간다고 말해야 한다.
    */
   it('타깃이 빈 행에만 글자가 있으면 표도 수치라고 말한다', async () => {
-    const panel = await mountWith(await projectFrom(surveyCsv(true)))
+    const panel = await mountWith(await surveyProject(true))
 
     // 전제: 학습은 `키`를 수치로 쓴다.
     expect(panel.fittedColumns?.get('키')?.kind).toBe('numeric')
@@ -138,7 +108,7 @@ describe('열 표가 학습과 같은 종류를 말한다', () => {
 
   /** 글자가 실행에 **들어가면** 두 쪽 다 범주이고 빠진다 — 덮어쓰기가 옳은 경고를 안 지운다. */
   it('글자가 실행에 들어가면 두 쪽 다 범주이고 빠진다고 말한다', async () => {
-    const panel = await mountWith(await projectFrom(surveyCsv(false)))
+    const panel = await mountWith(await surveyProject(false))
 
     expect(panel.fittedColumns?.has('키')).toBe(false)
     expect(heightRow(panel)?.summary.kind).toBe('categorical')
@@ -152,7 +122,7 @@ describe('열 표가 학습과 같은 종류를 말한다', () => {
    */
   it('학습이 쓰는 열마다 표와 학습의 종류가 같다', async () => {
     for (const blank of [true, false]) {
-      const panel = await mountWith(await projectFrom(surveyCsv(blank)))
+      const panel = await mountWith(await surveyProject(blank))
       for (const [name, fitted] of panel.fittedColumns ?? []) {
         const row = panel.plan?.columns.find((one) => one.summary.name === name)
         expect(row?.summary.kind, `${name} (blank target: ${String(blank)})`).toBe(fitted.kind)
@@ -175,35 +145,9 @@ describe('열 표가 학습과 같은 종류를 말한다', () => {
 describe('타깃 줄이 학습의 판정을 말한다', () => {
   const NOT_NUMERIC = '타깃 열에는 숫자가 아닌 값이 있습니다'
 
-  /** 40행 회귀. `점수`는 수치인데 **다섯 행만** `모름`이다. `heightBlank`면 그 행의 `키`가 빈다. */
-  function scoreCsv(heightBlank: boolean): Uint8Array {
-    const lines = ['키,몸무게,점수']
-    for (let i = 0; i < 40; i += 1) {
-      const unknown = i % 8 === 3
-      const height = unknown && heightBlank ? '' : String(150 + i)
-      const score = unknown ? '모름' : String(60 + ((i * 7) % 40))
-      lines.push(`${height},${45 + i},${score}`)
-    }
-    return new TextEncoder().encode(`${lines.join('\n')}\n`)
-  }
-
-  async function regressionPanel(
-    heightBlank: boolean,
-    missing: 'drop' | 'mean',
-    csv: Uint8Array = scoreCsv(heightBlank),
-  ) {
-    const imported = importTable(await openTable(csv, '점수.csv'))
-    const { project: file } = applyDataset(projectFile(), imported, {
-      fileName: '점수.csv',
-      hasHeader: true,
-      now: NOW,
-    })
-    let document = withTaskType(file.document, 'regression', NOW)
-    document = withTarget(document, '점수', NOW)
-    document = withFeatures(document, ['키', '몸무게'], NOW)
-    document = withPreprocessing(document, { missing }, NOW)
+  async function regressionPanel(heightBlank: boolean, missing: 'drop' | 'mean', csv?: Uint8Array) {
     const project = useProjectStore()
-    await project.save({ ...file, document })
+    await project.save(await scoreProject(heightBlank, missing, csv))
     const wrapper = mount(TabularPrepPanel, { global: { plugins: [i18n] } })
     await settle()
     const vm = wrapper.vm as unknown as {

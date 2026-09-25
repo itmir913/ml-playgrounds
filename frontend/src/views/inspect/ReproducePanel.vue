@@ -45,7 +45,9 @@ import { succeeded } from '@/ml/results'
 import { factorFrom, readFactor, writeFactor } from '@/ml/calibration'
 import { RUNTIMES, type EngineState } from '@/ml/backend'
 import { browserEstimateMs, describe as describeEstimate, type Estimate } from '@/ml/estimate'
-import { estimatedFeatureWidth } from '@/ml/preprocess'
+import { fittedKinds } from '@/ml/plan'
+import { estimatedFeatureWidth, type Preprocessor } from '@/ml/preprocess'
+import { featuresInUse, usesTarget } from '@/ml/selection'
 import { calibrateDevice, train } from '@/ml/worker/client'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
 import { useToastStore } from '@/stores/toasts'
@@ -66,6 +68,12 @@ const props = defineProps<{
   dataType: DataType
   dataset: Dataset | null
   testDataset: Dataset | null
+  /**
+   * 이 실험의 **기록된** 전처리기 (`experimentPreprocessor`). 예상 폭이 학습이 본 열 종류를
+   * 여기서 읽는다(`featureWidth`). 남이 편집해 못 읽었으면 `null`이다. 넘기는 배선은
+   * `inspect-modes.spec.ts`의 *"대조 판이 상세와 같은 전처리기를 받는다"*가 문다.
+   */
+  preprocessor?: Preprocessor | null
 }>()
 
 const { t } = useI18n()
@@ -195,6 +203,24 @@ const tabularSnapshot = computed(() => {
 })
 
 /**
+ * 예상 시간이 곱할 특성 수. **열 종류는 이 실험의 학습이 본 것이다.** 계획을 다시 세우지
+ * 않고(`inspect-rules.spec.ts`) 파일에 **기록된 전처리기**로 학습 화면과 같은 덮기
+ * (`fittedKinds`)를 지난다. 기록이 없으면 파일 전체의 종류다. 학습과 같이 타깃과 같은 이름은
+ * 뺀다. `inspect-reproduce-width.spec.ts`가 문다.
+ */
+const featureWidth = computed(() => {
+  const data = tabularSnapshot.value
+  const table = props.dataset
+  if (!data || !table) return 0
+  const taskType = props.experiment.settings.taskType
+  return estimatedFeatureWidth(
+    fittedKinds(summarizeColumns(table), props.preprocessor ?? null, data.target, undefined),
+    featuresInUse(data.features, usesTarget(taskType) ? data.target : undefined),
+    data.preprocessing.categoricalEncoding,
+  )
+})
+
+/**
  * 대조가 얼마나 걸릴까. **누르기 전에 말한다** — 교사가 서른 개를 이어 여는 자리라
  * "지금 눌러도 되는 일인가"가 그 순간의 질문이다 (open-decisions.md "학습 예상 시간은
  * 실측표에 기기 배수를 곱해 낸다").
@@ -209,11 +235,7 @@ const estimate = computed<Estimate>(() => {
   const data = tabularSnapshot.value
   if (factor === null || !data || !props.dataset) return { kind: 'unknown' }
 
-  const columns = estimatedFeatureWidth(
-    summarizeColumns(props.dataset),
-    data.features,
-    data.preprocessing.categoricalEncoding,
-  )
+  const columns = featureWidth.value
   const rows = props.experiment.settings.trainIndices.length
 
   let total = 0

@@ -422,6 +422,45 @@ export function chosenModelBlocks(
 }
 
 /**
+ * [학습하기]를 막는 이유. **근본적인 것이 먼저다** (architecture.md §10.2).
+ *
+ * - `NO_TASK_TYPE` — 유형을 안 골랐다. 스키마에 유형·모델 교차 제약이 없어 모델이 담긴 채
+ *   유형만 빠진 파일도 열린다.
+ * - `NO_MODEL` — 담은 모델이 없다.
+ * - `NO_TRAINABLE_MODEL` — 담았는데 **전부** 지금 유형에 안 맞는다 (`open-decisions.md` 55).
+ *   *"추가한 모델이 없다"*와 가른다 — 목록에 줄이 보이는 학생에게 그 말은 거짓이다.
+ */
+export type TrainBlock = 'NO_TASK_TYPE' | 'NO_MODEL' | 'NO_TRAINABLE_MODEL'
+
+/**
+ * **[학습하기]의 gate** (architecture.md §10.2). 비어 있으면 누를 수 있다.
+ *
+ * **버튼 잠금과 동작의 거절이 이 함수 하나를 본다** (`TrainView`의 `trainBlocks`). 잠긴 줄
+ * 판정은 `chosenModelBlocks`와 같다. `train-gate.spec.ts`가 조건마다 묻고,
+ * `option-cascade.spec.ts`의 *"담은 모델이 전부 잠기면 …"*이 잠금과 거절을 둘 다 문다.
+ *
+ * **"도는 중"은 여기 없다** — 파일의 성질이 아니라 화면의 상태다(`reproduceBlockers`와 같다).
+ */
+export function trainGate(
+  input: {
+    readonly taskType: TaskType | undefined
+    readonly chosen: readonly { readonly algorithm: string }[]
+  },
+  algorithms: readonly Algorithm[] = ALGORITHMS,
+): readonly TrainBlock[] {
+  const blocks: TrainBlock[] = []
+  if (input.taskType === undefined) blocks.push('NO_TASK_TYPE')
+  if (input.chosen.length === 0) {
+    blocks.push('NO_MODEL')
+  } else if (
+    input.chosen.every((row) => chosenModelBlocks(row, input.taskType, algorithms).length > 0)
+  ) {
+    blocks.push('NO_TRAINABLE_MODEL')
+  }
+  return blocks
+}
+
+/**
  * 학습에 넘길 모델. **지금 유형에 안 맞는 줄을 뺀다** — 파일의 선택은 그대로다
  * (`open-decisions.md` 55). 실험 기록(`selectedAlgorithms`)에는 **돈 것만** 남는다 — 기록은
  * run과 자리로 짝지어지므로(`ml/experiment.ts`의 `comparable`) 안 돈 줄이 섞이면 어긋난다.
@@ -525,6 +564,22 @@ export function featuresInUse(features: readonly string[], target: string | unde
  */
 export function splitsData(taskType: TaskType | undefined): boolean {
   return taskType === undefined || !SPLIT_MEANINGLESS[taskType]
+}
+
+/**
+ * 쓸 수 있는 행 중 **훈련에 드는 몫** (0~1). 학습 예상 시간이 곱한다.
+ *
+ * 테스트 데이터를 따로 올렸으면(`provided`) 시험 행은 다른 파일에서 오고 정본은 **전부**
+ * 훈련이다(`ml/plan.ts`의 `testFromProvided`). 군집은 나누지 않는다(`splitsData`) — 역시 전부다.
+ * 그 밖에는 `1 − testSize`다(분할의 올림은 예상이 말할 크기가 아니다). `train-share.spec.ts`가
+ * 묻고, `train-prep-kind.spec.ts`의 *"군집이면 …"*이 화면의 배선을 문다.
+ */
+export function trainShare(
+  split: Pick<Split, 'method' | 'testSize'>,
+  taskType: TaskType | undefined,
+): number {
+  if (!splitsData(taskType) || split.method === 'provided') return 1
+  return 1 - split.testSize
 }
 
 /**

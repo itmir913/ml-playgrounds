@@ -19,6 +19,7 @@ import {
   type DroppedModel,
   type ProjectFile,
 } from '@/project/format'
+import { forgetTabularPlan } from '@/ml/plan-cache'
 import { trainableSelections } from '@/ml/selection'
 import { dataFactsOf } from '@/project/facts'
 import { isPortfolioAnswered } from '@/project/portfolio'
@@ -196,6 +197,9 @@ export const useProjectStore = defineStore('project', () => {
       // **읽는 동안 닫혔으면 되살리지 않는다.** 잠금은 `close()`가 이미 놓았다.
       if (stale()) return 'cancelled'
       file.value = loaded
+      // 다른 프로젝트로 갈아 끼웠다 — 앞 프로젝트의 표를 쥔 계획 캐시도 비운다. 라우터는
+      // A → B를 `close()` 없이 `open(B)`로 바꾼다(`tabular-plan-cache.spec.ts`가 문다).
+      forgetTabularPlan()
       // 열린 직후는 방금 읽은 그대로이므로 저장된 상태다.
       dirty.value = false
       savedAt.value = loaded === null ? null : loaded.document.manifest.updatedAt
@@ -207,6 +211,23 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   /**
+   * **지금 열린 프로젝트를 붙든다.** 돌려준 함수는 **같은 id의 프로젝트가 같은 열기로 아직
+   * 열려 있는가**에 답한다 — 닫혔거나, 다른 프로젝트가 열렸거나, 다시 열렸으면(`openings`)
+   * 거짓이다.
+   *
+   * 긴 `await`(굽기·임베딩·학습) 뒤에 조각을 앉히는 화면이 시작할 때 부르고 앉히기 전에
+   * 묻는다. 같은 라우트 레코드 사이의 이동(`/project/A/…` → `/project/B/…`)은 화면을 다시
+   * 쓰므로 언마운트에 매인 `alive`로는 못 가른다.
+   * `train-project-switch.spec.ts` · `image-panel-drop.spec.ts` · `image-predict-fail.spec.ts` ·
+   * `image-prep-fail.spec.ts`가 문다.
+   */
+  function claim(): () => boolean {
+    const held = projectId.value
+    const generation = openings
+    return () => held !== null && projectId.value === held && openings === generation
+  }
+
+  /**
    * 넘어온 것을 지금 쓸 값으로 바꾼다. **함수면 지금 열린 파일에 적용한다**
    * (architecture.md §8.10.3).
    *
@@ -215,7 +236,7 @@ export const useProjectStore = defineStore('project', () => {
    * 학습 화면에서 실측한 것이 그것이다(백본이 늦게 도착해 `close()` 뒤에 앉았다).
    *
    * **어느 프로젝트의 조각인지는 여기서 모른다.** 다른 프로젝트를 연 뒤에 옛 계산이
-   * 도착하는 것은 화면이 스스로 멈춰야 한다(`alive`·취소 손잡이).
+   * 도착하는 것은 화면이 스스로 멈춰야 한다(`alive`·취소 손잡이·위 `claim`).
    */
   function resolve(next: ProjectFile | ProjectRevision): ProjectFile | null {
     if (typeof next !== 'function') return next
@@ -384,6 +405,9 @@ export const useProjectStore = defineStore('project', () => {
     cancelPending()
     releaseTabLock()
     file.value = null
+    // 화면들이 나눠 쓰는 계획의 한 칸도 비운다 — 닫은 프로젝트의 표를 쥐고 있지 않는다
+    // (`ml/plan-cache.ts`, `tabular-plan-cache.spec.ts`가 문다).
+    forgetTabularPlan()
     dirty.value = false
     savedAt.value = null
     exportedAt.value = null
@@ -402,6 +426,7 @@ export const useProjectStore = defineStore('project', () => {
     taskType,
     dataType,
     open,
+    claim,
     save,
     update,
     flush,

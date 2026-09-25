@@ -14,7 +14,7 @@
  * 끝났다는 것과 [결과 보기]가 버튼 자리에 남는다.
  */
 
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter, type RouteLocationNormalized } from 'vue-router'
 
@@ -29,7 +29,6 @@ import StepActionBar from '@/components/StepActionBar.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { useFormat } from '@/composables/useFormat'
 import { useTraining } from '@/composables/useTraining'
-import { summarizeColumns } from '@/data/columns'
 import { isClientError, toMessage } from '@/errors'
 import { algorithmOptions, supportedTaskTypes } from '@/ml/algorithms'
 import { calibrateDevice } from '@/ml/worker/client'
@@ -49,6 +48,7 @@ import {
   type Estimate,
 } from '@/ml/estimate'
 import { estimatedFeatureWidth } from '@/ml/preprocess'
+import { plannedColumnsOf } from '@/ml/plan-cache'
 import { trainableRowsOf } from '@/ml/training-source'
 import { isBrowserRuntimeId, type EngineState, type RuntimeContext } from '@/ml/backend'
 import {
@@ -56,8 +56,11 @@ import {
   chosenModelBlocks,
   featuresInUse,
   requiredTargetKind,
+  trainGate,
+  trainShare,
   usesTarget,
   type ChosenModel,
+  type TrainBlock,
 } from '@/ml/selection'
 import { algorithmSelectionFor, runtimeContextFor, trainingSourceOf } from '@/ml/training-source'
 import { failedRuns } from '@/ml/results'
@@ -65,7 +68,6 @@ import { addEmbeddings } from '@/project/embeddings'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
 import { applyExperiment } from '@/project/attach'
 import { dataKindFor, DEFAULT_DATA_TYPE } from '@/data/kinds'
-import { readDataset } from '@/project/dataset'
 import { tabularDataOf, type ProjectDocument, type TaskType } from '@/project/schema'
 import {
   withHyperparameter,
@@ -174,8 +176,11 @@ const progressText = computed(() => {
   return t('train.progress', { completed: at?.completed ?? 0, total }, total)
 })
 
-const dataset = computed(() => readDataset(project.file))
-const columns = computed(() => (dataset.value ? summarizeColumns(dataset.value) : []))
+/**
+ * 열 요약. **종류는 계획이 본 것이다** (`plannedColumnsOf`) — 전처리 판과 같은 덮기다. 타깃
+ * 경고와 예상 폭이 이 값을 쓴다. `train-prep-kind.spec.ts`가 두 화면을 나란히 문다.
+ */
+const columns = computed(() => plannedColumnsOf(project.file))
 
 /**
  * 실행 방법 판정에 필요한 것들.
@@ -288,12 +293,16 @@ const featureWidth = computed(() => {
   return estimatedFeatureWidth(columns.value, used, data.preprocessing.categoricalEncoding)
 })
 
-/** 학습에 실제로 들어가는 행 수. **시험 몫을 뺀 것이다.** */
+/**
+ * 학습에 실제로 들어가는 행 수. **훈련 몫만이다** (`trainShare` — 테스트 데이터를 따로
+ * 올렸거나 군집이면 전부). `train-prep-kind.spec.ts`의 *"군집이면 …"*이 문다.
+ */
 const trainingRows = computed(() => {
   const file = project.file
   if (!file) return 0
   const usable = trainableRowsOf(file, project.taskType)
-  return Math.max(Math.round(usable * (1 - file.document.settings.split.testSize)), 0)
+  const share = trainShare(file.document.settings.split, project.taskType)
+  return Math.max(Math.round(usable * share), 0)
 })
 
 /**
@@ -510,18 +519,25 @@ onBeforeUnmount(() => {
 const working = computed(() => training.running.value || preparing.value !== null || starting.value)
 
 /**
- * [학습하기]를 누를 수 없는 이유. **없으면 `null`이다** (architecture.md §10).
- *
- * 둘을 가른다 — 담은 모델이 없는 것과, 담았는데 **전부 지금 유형에 안 맞는 것**
- * (`open-decisions.md` 55). 뒤엣것에 *"아직 추가한 모델이 없어"*라고 말하면 목록에 줄이
- * 보이는 학생에게 거짓말이다. 나머지 실패는 학습이 사유와 함께 돌려준다.
+ * [학습하기]를 막는 이유들 (`ml/selection.ts`의 `trainGate`, architecture.md §10.2).
+ * **버튼 잠금과 `startTraining`의 거절이 이 값 하나를 본다** — `option-cascade.spec.ts`의
+ * *"담은 모델이 전부 잠기면 …"*이 둘 다 문다. 나머지 실패는 학습이 사유와 함께 돌려준다.
  */
-const trainBlock = computed<'train.nothingToTrain' | 'train.nothingTrainable' | null>(() => {
-  if (chosen.value.length === 0) return 'train.nothingToTrain'
-  if (chosenBlocks.value.every((blocks) => blocks.length > 0)) return 'train.nothingTrainable'
-  return null
+const trainBlocks = computed(() => trainGate({ taskType: project.taskType, chosen: chosen.value }))
+const nothingToTrain = computed(() => trainBlocks.value.length > 0)
+
+/** 이유 코드 → 문구 키. **키를 조립하지 않는다** — 정적 키라야 로케일 검사가 짝을 센다. */
+const TRAIN_BLOCK_KEYS = {
+  NO_TASK_TYPE: 'train.noTaskTypeReason',
+  NO_MODEL: 'train.nothingToTrain',
+  NO_TRAINABLE_MODEL: 'train.nothingTrainable',
+} as const satisfies Record<TrainBlock, string>
+
+/** 바에 적는 것은 **첫 이유** 하나다 — 근본적인 것이 먼저 온다 (§10.2). */
+const trainBlockKey = computed(() => {
+  const first = trainBlocks.value[0]
+  return first === undefined ? null : TRAIN_BLOCK_KEYS[first]
 })
-const nothingToTrain = computed(() => trainBlock.value !== null)
 
 /**
  * 학습을 한 번 돌린다. **`AppButton`의 `action`으로 준다** — 도는 동안 버튼이 스스로
@@ -533,7 +549,16 @@ const nothingToTrain = computed(() => trainBlock.value !== null)
 async function startTraining(): Promise<void> {
   const file = project.file
   const taskType = project.taskType
-  if (!file || taskType === undefined) return
+  // **버튼을 잠그는 그 gate로 거절한다.** `taskType` 확인은 gate의 `NO_TASK_TYPE`와 같은
+  // 조건이고 타입을 좁히려고만 남는다.
+  if (!file || trainBlocks.value.length > 0 || taskType === undefined) return
+  /**
+   * **시작한 프로젝트를 붙든다** (`stores/project.ts`의 `claim`). 같은 라우트 레코드 사이의
+   * 이동은 이 화면을 다시 쓰므로 `alive`만으로는 못 가른다 — `await` 뒤마다 둘 다 본다.
+   * `train-project-switch.spec.ts`가 문다.
+   */
+  const claimed = project.claim()
+  const ours = (): boolean => alive && claimed()
 
   // 지난 실패는 지운다. 새로 돌리는 순간 그건 더 이상 지금의 사실이 아니다.
   failure.value = null
@@ -570,7 +595,7 @@ async function startTraining(): Promise<void> {
     preparingHandle = null
     // **떠났으면 아무것도 앉히지 않는다.** 여기까지 오는 데 12.4MB를 받는 시간이 걸리고,
     // 그 사이 학생은 목록으로 나갔거나 다른 프로젝트를 열었을 수 있다 (R20 A-3).
-    if (!alive) return
+    if (!ours()) return
 
     // **뽑은 임베딩을 먼저 앉힌다.** 학습이 실패해도 그건 이미 유효한 계산이고,
     // 버리면 다음 시도에서 백본을 다시 받는다 (mlpx-spec.md §1.3).
@@ -601,7 +626,8 @@ async function startTraining(): Promise<void> {
       },
       history: file.document.runs,
     })
-    if (result === null) return
+    // 다른 프로젝트로 옮겼으면 이 결과는 앉을 데가 없다 — 지금 파일은 남의 것이다.
+    if (result === null || !ours()) return
 
     // 학습하는 동안 학생이 다른 것을 고쳤을 수 있다. 그때의 파일이 아니라 지금 것에 앉힌다.
     project.update((live) => applyExperiment(live, result, now()))
@@ -613,6 +639,8 @@ async function startTraining(): Promise<void> {
     // 그 거절이 여기로 온다 — 학생이 스스로 한 일이라 알릴 것이 없다. 데이터 화면이
     // 굽기 취소를 다루는 것과 같은 규칙이다 (`views/data/ImagePanel.vue`).
     if (isClientError(error) && error.code === 'JOB_CANCELLED') return
+    // 남의 프로젝트의 실패를 이 프로젝트의 상태 줄에 세우지 않는다 (사람 확인 — 무는 검사 없음).
+    if (!ours()) return
     // 같은 실패를 알림과 상태 줄 둘 다에 보인다. 알림은 눈에 띄고 상태 줄은 남는다.
     failure.value = toMessage(error)
     toasts.pushError(error)
@@ -654,6 +682,23 @@ function confirmStop(): void {
   stopped = true
   training.cancel()
 }
+
+/**
+ * **다른 프로젝트로 옮기면 이 프로젝트의 일을 끊는다.** 같은 라우트 레코드 사이의 이동은
+ * 떠나기 가드를 안 지나므로 스토어의 `projectId`를 본다. 결과를 버리는 일은 `startTraining`의
+ * `ours()`가 하고, 여기서는 도는 일을 끊고 앞 프로젝트의 상태(멈추기 대화상자·실패 줄)를 걷는다.
+ * 끊는 것은 `train-project-switch.spec.ts`가 문다. 상태를 걷는 두 줄은 사람 확인이다.
+ */
+watch(
+  () => project.projectId,
+  () => {
+    stopping.value = null
+    failure.value = null
+    preparingHandle?.cancel()
+    preparingHandle = null
+    training.cancel()
+  },
+)
 
 function goResults(): void {
   void router.push({ name: 'results', params: { projectId: project.projectId } })
@@ -749,8 +794,8 @@ function leave(): void {
           {{ progressText }}
         </p>
         <!-- 이유 없이 꺼진 버튼은 학생에게 고장으로 보인다. -->
-        <p v-else-if="trainBlock" class="min-w-0 text-ink-soft">
-          {{ t(trainBlock) }}
+        <p v-else-if="trainBlockKey" class="min-w-0 text-ink-soft">
+          {{ t(trainBlockKey) }}
         </p>
 
         <!--

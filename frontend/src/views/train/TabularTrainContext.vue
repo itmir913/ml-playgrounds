@@ -12,8 +12,8 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
-import { summarizeColumns } from '@/data/columns'
 import { columnPlan } from '@/ml/selection'
+import { plannedColumnsOf } from '@/ml/plan-cache'
 import { readDataset } from '@/project/dataset'
 import { tabularDataOf } from '@/project/schema'
 import { useProjectStore } from '@/stores/project'
@@ -24,13 +24,18 @@ const project = useProjectStore()
 const data = computed(() => tabularDataOf(project.file?.document))
 const dataset = computed(() => readDataset(project.file))
 
-/** 지금 설정으로 학습에 들어갈 특성 수. 0이면 전처리로 돌아가야 한다. */
+/**
+ * 지금 설정으로 학습에 들어갈 특성 수. 0이면 전처리로 돌아가야 한다.
+ *
+ * **열 종류는 계획이 본 것이다** (`plannedColumnsOf`) — 전처리 판과 같은 덮기다.
+ * `train-prep-kind.spec.ts`가 두 화면의 수를 나란히 문다.
+ */
 const usableFeatures = computed(() => {
   const table = dataset.value
   const current = data.value
   if (!table || !current) return 0
   return columnPlan({
-    columns: summarizeColumns(table),
+    columns: plannedColumnsOf(project.file),
     rowCount: table.rows.length,
     taskType: project.taskType,
     target: current.target,

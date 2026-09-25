@@ -56,6 +56,7 @@ import {
 } from '../src/ml/selection'
 import { trainingSourceOf } from '../src/ml/training-source'
 import { factsOf } from '../src/stores/project'
+import StepActionBar from '../src/components/StepActionBar.vue'
 import TabularSummaryRows from '../src/components/summary/TabularSummaryRows.vue'
 import { readDataset } from '../src/project/dataset'
 import { DATA_FACTS } from '../src/project/facts'
@@ -215,6 +216,34 @@ describe('유형을 바꿔도 모델 선택이 남는다', { timeout: 30_000 }, 
     expect(wrapper.text()).not.toContain(t('train.nothingToTrain'))
     const start = wrapper.findAll('button').find((one) => one.text() === t('train.start'))
     expect(start?.attributes('disabled')).toBeDefined()
+
+    // **동작도 같은 gate로 거절한다** — 잠긴 버튼을 우회해 불러도 시작하지 않는다.
+    const view = wrapper.findComponent(TrainView).vm as unknown as {
+      startTraining: () => Promise<void>
+      working: boolean
+    }
+    void view.startTraining()
+    await settle()
+    expect(view.working).toBe(false)
+    expect(useProjectStore().file?.document.runs.experiments).toHaveLength(0)
+    wrapper.unmount()
+  })
+
+  /**
+   * **유형 없이 모델이 담긴 파일에서 [학습하기]가 이유와 함께 잠긴다** (`trainGate`의
+   * `NO_TASK_TYPE`). 스키마에 유형·모델 교차 제약이 없어 이런 파일이 열린다.
+   */
+  it('유형이 빠진 파일에서 [학습하기]가 이유와 함께 잠긴다', async () => {
+    const file = await irisProject(['decision_tree'])
+    const manifest = { ...file.document.manifest }
+    delete manifest.taskType
+    const wrapper = await trainScreen({ ...file, document: { ...file.document, manifest } })
+    expect(useProjectStore().taskType).toBeUndefined()
+
+    const start = wrapper.findAll('button').find((one) => one.text() === t('train.start'))
+    expect(start?.attributes('disabled')).toBeDefined()
+    // 동작 바에 이유가 선다 — 유형 칸의 안내문과 같은 문장이라 바 안에서 본다.
+    expect(wrapper.findComponent(StepActionBar).text()).toContain(t('train.noTaskTypeReason'))
     wrapper.unmount()
   })
 

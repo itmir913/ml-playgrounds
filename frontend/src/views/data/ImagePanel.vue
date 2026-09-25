@@ -314,6 +314,13 @@ async function bake(): Promise<void> {
   // `busy`가 거짓인 창이 되어 굽기가 둘 뜨거나 [취소]가 굽기를 못 막는다
   // (2026-09-02 R22 재감사 B-1′). 거절 갈래마다 놓고 돌아간다.
   const job = start()
+  /**
+   * **굽기를 시작한 프로젝트** (`stores/project.ts`의 `claim`). 같은 라우트 레코드 사이의
+   * 이동은 이 화면을 다시 쓰므로 `alive`로는 못 가른다. 옮겼으면 그 묶음은 앞 프로젝트의
+   * 것이라 앉히지 않고 판에서도 접는다. 굽기 뒤의 확인은 `image-panel-drop.spec.ts`의
+   * *"굽는 동안 다른 프로젝트로 옮기면"*이 문다. 굽기 전의 확인은 사람 확인이다.
+   */
+  const ours = project.claim()
   /** 개정이 실제로 앉았는가. **아래 `finally`의 판정 근거다.** */
   let seated = false
   // **무엇이 도는지 화면이 알아야 한다.** 여기서부터 확인 판과 도는 묶음이 갈릴 수 있고,
@@ -342,7 +349,7 @@ async function bake(): Promise<void> {
     //
     // **판도 함께 접는다** (§8.10.4, 2026-09-02 R23 C-1). 그 전에는 이 창에서만 묶음이
     // 남고 워커가 도는 중에 취소하면 지워져 **같은 단추가 창마다 다른 결과를 냈다.**
-    if (toRaw(baking.value) !== toRaw(items)) {
+    if (toRaw(baking.value) !== toRaw(items) || !ours()) {
       clearIfHeld(pending, items)
       return
     }
@@ -362,6 +369,10 @@ async function bake(): Promise<void> {
     job.hold(handle)
 
     const result = await handle.result
+    if (!ours()) {
+      clearIfHeld(pending, items)
+      return
+    }
     // **굽는 동안 파일이 달라졌을 수 있다** — 붙든 것이 아니라 지금 파일에 얹는다
     // (architecture.md §8.10.3). 셈은 얹은 결과에서 나오므로 여기서 받아 둔다.
     let counts = { added: 0, duplicates: 0 }

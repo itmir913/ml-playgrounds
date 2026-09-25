@@ -270,6 +270,12 @@ async function readPicked(files: readonly File[]): Promise<void> {
   }
 
   const job = start()
+  /**
+   * **받기 시작한 프로젝트** (`stores/project.ts`의 `claim`). `alive`는 언마운트에서만
+   * 내려가고, 같은 라우트 레코드 사이의 이동은 이 화면을 다시 쓴다. 굽기 뒤의 확인은
+   * `image-predict-fail.spec.ts`의 *"baked photos do not land on the other project"*가 문다.
+   */
+  const ours = project.claim()
   try {
     const [only] = files
     const items =
@@ -284,8 +290,8 @@ async function readPicked(files: readonly File[]): Promise<void> {
     // **읽는 동안 떠났으면 여기서 멈춘다.** 읽기 구간에는 맡길 손잡이가 없어
     // `retire()`가 끊을 것이 없다 — 이 줄이 없으면 죽은 화면이 워커를 열어 **지금 열린
     // 파일에** 사진을 얹는다. 그 사이 학생이 다른 프로젝트를 열었으면 그쪽에 앉는다
-    // (2026-09-02 R23 B-2).
-    if (!alive()) return
+    // (2026-09-02 R23 B-2). 같은 화면에서 프로젝트만 바뀐 것은 `ours`가 본다.
+    if (!alive() || !ours()) return
 
     // **굽기 전에 막는다** (project/images.ts의 imageOverflow). 백본을 돌린 뒤에
     // 거절하면 학생은 기다린 시간을 통째로 버린다.
@@ -314,6 +320,7 @@ async function readPicked(files: readonly File[]): Promise<void> {
     )
     job.hold(baking)
     const baked = await baking.result
+    if (!ours()) return
 
     // **굽는 동안 예측이 돌았을 수 있다** — 그 임베딩을 안 잃으려면 붙든 파일이 아니라
     // 지금 파일에 얹는다 (architecture.md §8.10.3, 2026-09-02 R20 A-2).
@@ -389,6 +396,9 @@ async function run(): Promise<void> {
   // **막지 않는 일이다.** 도는 동안에도 사진은 더 받는다(§8.10.3). 그래도 손잡이는
   // 맡긴다 — 떠나면 12.4MB 내려받기가 함께 끊겨야 한다 (§8.10.4).
   const job = start({ blocks: false })
+  // 위 `readPicked`와 같은 이유다 — 임베딩을 기다리는 동안 프로젝트가 바뀔 수 있다. 임베딩
+  // 뒤의 확인은 `image-predict-fail.spec.ts`의 *"embeddings do not land …"*가 문다.
+  const ours = project.claim()
   try {
     // **무엇을 하기 전에 한 번 양보한다** (`screen.ts`). 임베딩이 이미 있으면 아래가
     // 통째로 동기라, 여기서 안 비켜 주면 **단추가 한 번도 꺼진 적 없는 채로** 계산이
@@ -419,7 +429,7 @@ async function run(): Promise<void> {
       )
       job.hold(embedding)
       const { vectors, dim } = await embedding.result
-      if (!alive()) return
+      if (!alive() || !ours()) return
 
       const fresh = new Map<string, Float32Array>()
       for (const [index, entry] of pending.entries()) {
@@ -430,7 +440,7 @@ async function run(): Promise<void> {
       // 임베딩을 기다리는 동안 학생이 사진을 놓았으면, 스냅샷을 통째로 쓰는 순간
       // 그 사진이 화면에서도 IndexedDB에서도 사라진다 (2026-09-02 R20 A-2).
       await project.save((live) => addEmbeddings(live, spec.id, fresh))
-      if (!alive()) return
+      if (!alive() || !ours()) return
       // 아래 답 루프가 읽는 것도 지금 파일이어야 한다. **지금은 값이 같다** — 예측이
       // 도는 동안 모델과 훈련 행은 못 바뀌고 사진만 는다(`photosLocked`). 그래도 두는
       // 것은 **바뀌는 날 이 줄이 없으면 조용히 옛 모델로 답하기 때문이다.**
@@ -506,7 +516,7 @@ async function run(): Promise<void> {
       // 답 하나가 `사진 수 × 모델 수`라, 안 비켜 주면 그 곱만큼 화면이 멎는다.
       answers.value = new Map(next)
       await yieldToScreen()
-      if (!alive()) return
+      if (!alive() || !ours()) return
     }
     predicted.value = true
   } catch (error) {

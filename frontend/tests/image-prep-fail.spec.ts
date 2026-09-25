@@ -309,3 +309,42 @@ describe('R23: leaving while takeTest is asking for room', () => {
     expect(useToastStore().items.filter((one) => one.tone === 'success')).toEqual([])
   })
 })
+
+/**
+ * **굽는 동안 다른 프로젝트로 옮겨도 그쪽에 안 앉는다** (`stores/project.ts`의 `claim`).
+ *
+ * `/project/A/preprocess` → `/project/B/preprocess`는 같은 라우트 레코드라 이 판이 재사용되고
+ * `alive`가 안 내려간다. 앉으면 A의 테스트 사진이 B에 붙고 B의 실험이 지워진다
+ * (`applyTestImages`). 여기서는 라우터 대신 **스토어에 B를 앉혀** 옮긴다(라우터로 옮기는 길은
+ * `train-project-switch.spec.ts`가 탄다).
+ */
+describe('switching project while test photos bake', () => {
+  it('nothing lands on the other project and its experiments stay', async () => {
+    const { project, drop } = await panelWithDropzone(false)
+    await drop([photo('개', 'a.jpg'), photo('고양이', 'b.jpg')])
+    expect(bakers.workers).toHaveLength(1)
+
+    const other = imageDataProject(true)
+    const otherId = '44444444-4444-4444-8444-444444444444'
+    await project.save({
+      ...other,
+      document: {
+        ...other.document,
+        manifest: { ...other.document.manifest, projectId: otherId },
+      },
+    })
+    expect(project.projectId).toBe(otherId)
+
+    const baked = ['a.jpg', 'b.jpg'].map((name) => {
+      const bytes = new TextEncoder().encode(`baked:${name}`)
+      return { sourceName: name, hash: hashBytes(bytes), bytes }
+    })
+    bakers.workers[0]?.onmessage?.({
+      data: { type: 'done', format: 'webp', images: baked, skipped: [] },
+    } as unknown as MessageEvent<never>)
+    await settle()
+
+    expect(readImages(project.file, 'test')).toHaveLength(0)
+    expect(project.file?.document.runs.experiments).toHaveLength(1)
+  })
+})

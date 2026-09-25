@@ -159,6 +159,39 @@ async function panelBaking() {
   return { project, wrapper, panel, baking }
 }
 
+/**
+ * **굽는 동안 다른 프로젝트로 옮기면 그쪽에 안 앉는다** (`stores/project.ts`의 `claim`).
+ *
+ * `/project/A/data` → `/project/B/data`는 같은 라우트 레코드라 이 판이 재사용되고 `alive`가
+ * 안 내려간다. 여기서는 라우터 대신 **스토어에 B를 앉혀** 옮긴다 — 판이 보는 것은 스토어의
+ * 프로젝트다(라우터로 옮기는 길은 `train-project-switch.spec.ts`가 탄다). 그 묶음은 A의 것이라
+ * 판에서도 접힌다.
+ */
+describe('굽는 동안 다른 프로젝트로 옮기면', () => {
+  it('구운 사진이 옮긴 프로젝트에 안 앉고 판이 접힌다', async () => {
+    const { project, panel, baking } = await panelBaking()
+
+    const other = imagePredictProject([])
+    const otherId = '66666666-6666-4666-8666-666666666666'
+    await project.save({
+      ...other,
+      document: {
+        ...other.document,
+        manifest: { ...other.document.manifest, projectId: otherId },
+      },
+    })
+    expect(project.projectId).toBe(otherId)
+
+    workerState.bake[0]?.deliver()
+    await baking
+    await settle()
+
+    expect(readImages(project.file)).toHaveLength(0)
+    expect(panel.pending).toBeNull()
+    expect(panel.busy).toBe(false)
+  })
+})
+
 describe('굽는 동안 사진을 더 놓으면', () => {
   it('굽는 중인 자물쇠가 안 풀린다', async () => {
     const { panel, wrapper, baking } = await panelBaking()

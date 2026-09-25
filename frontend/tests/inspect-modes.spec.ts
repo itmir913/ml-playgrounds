@@ -118,6 +118,20 @@ describe('열람 모드', () => {
     wrapper.unmount()
   })
 
+  /**
+   * **대조 판은 상세와 같은 기록된 전처리기를 받는다.** 예상 폭이
+   * 학습이 본 열 종류를 거기서 읽는다(`inspect-reproduce-width.spec.ts`). 안 넘기면 prop이
+   * `undefined`로 남아 조용히 파일 전체의 종류로 돌아간다 — `null`(못 읽음)과 가른다.
+   */
+  it('대조 판이 상세와 같은 전처리기를 받는다', async () => {
+    const wrapper = await mountInspect([await submissionWithExperiment('hong.mlpx')])
+    await flushPromises()
+    const handed = wrapper.findComponent(ReproducePanel).props('preprocessor')
+    expect(handed).not.toBeUndefined()
+    expect(handed).toBe(wrapper.findComponent(ExperimentDetail).props('preprocessor'))
+    wrapper.unmount()
+  })
+
   it('대조 판이 어느 실험의 것인지를 말한다', async () => {
     const wrapper = await mountInspect([await submissionWithExperiment('hong.mlpx')])
     await flushPromises()

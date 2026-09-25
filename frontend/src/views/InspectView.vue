@@ -1001,6 +1001,7 @@ function reasonOf(code: string): string {
                   :data-type="viewing.file.document.manifest.dataType"
                   :dataset="viewing.dataset"
                   :test-dataset="viewing.testDataset"
+                  :preprocessor="viewing.preprocessor"
                 />
               </div>
 

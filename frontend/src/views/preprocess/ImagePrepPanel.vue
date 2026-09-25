@@ -258,6 +258,13 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
   // 부르는 둘은 전부 그 앞에서 걸러진다: `readTest`는 입구에서 거절하고,
   // `confirmTakeTest`는 대화상자가 닫힌 뒤라 그때는 도는 것이 없다.
   const job = start()
+  /**
+   * **굽기를 시작한 프로젝트** (`stores/project.ts`의 `claim`). 같은 라우트 레코드 사이의
+   * 이동은 이 화면을 다시 쓰므로 `alive`로는 못 가른다. 옮긴 뒤에 앉히면 테스트 사진이 다른
+   * 프로젝트에 붙고 그 실험을 지운다(`applyTestImages`). `image-prep-fail.spec.ts`의
+   * *"switching project while test photos bake"*가 문다.
+   */
+  const ours = project.claim()
   try {
     const block = testZipBlockFor(
       categories.value,
@@ -285,6 +292,7 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
     )
     job.hold(baking)
     const baked = await baking.result
+    if (!ours()) return
 
     const byPath = new Map(items.map((item) => [item.path, item.category]))
     // **굽는 동안 파일이 달라졌을 수 있다** — 지금 파일에 얹는다 (architecture.md §8.10.3).

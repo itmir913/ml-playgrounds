@@ -24,6 +24,7 @@
  * `runExperiment`가 한다.
  */
 
+import type { ColumnSummary } from '../data/columns'
 import { ClientError, isClientError, type ClientErrorCode, type ClientErrorParams } from '../errors'
 import { MIN_SPLIT_ROWS } from '../limits'
 import { dataSettings } from '../project/schema'
@@ -195,6 +196,14 @@ export function planRun(input: PlanInput): RunPlan {
   if (!isClustering && (target === undefined || target === '')) {
     return blocked('TARGET_NOT_SELECTED')
   }
+  /**
+   * **타깃 이름이 표에 없으면 사유로 돌려준다.** 손으로 고친 `.mlpx`가 그렇게 열린다. 아래
+   * `targetValues`는 `try` 밖이라 던지면 화면의 계산(`tabularPlanOf`를 읽는 computed)이 죽는다.
+   * `plan.spec.ts`의 *"타깃 이름이 표에 없으면 던지지 않고 사유로 선다"*가 문다.
+   */
+  if (!isClustering && !dataset.columns.includes(target!)) {
+    return blocked('COLUMN_NOT_FOUND', { column: target! })
+  }
 
   /**
    * **학습에 넣는 특성. 타깃과 같은 이름은 여기서 뺀다** (`open-decisions.md` 55).
@@ -211,6 +220,14 @@ export function planRun(input: PlanInput): RunPlan {
   // splitRows가 그때는 아예 보지 않는다 (ml/split.ts).
   // 군집화에는 테스트 데이터셋이 없다 — 전체 데이터로 학습한다.
   const testFromProvided = !isClustering && settings.split.method === 'provided' && !!testDataset
+  /**
+   * **따로 올린 테스트 표에 타깃 열이 없으면 사유로 돌려준다.** 화면의 입구는 열을 맞춰 받지만
+   * 손으로 고친 `.mlpx`는 그 표를 그대로 연다. 아래 `targetValues(testDataset, …)`는 `try`
+   * 밖이라 던지면 화면의 계산이 죽는다. `plan.spec.ts`의 *"테스트 표에 타깃 열이 없으면 …"*이 문다.
+   */
+  if (testFromProvided && !testDataset!.columns.includes(target!)) {
+    return blocked('TEST_DATASET_COLUMN_MISSING', { columns: target! })
+  }
   const providedTestRows = testFromProvided
     ? usableRows(testDataset!, features, target!, data.preprocessing.missing)
     : undefined
@@ -432,6 +449,50 @@ export function planRun(input: PlanInput): RunPlan {
     if (isClientError(error)) return refuse(error.code, error.params)
     throw error
   }
+}
+
+/**
+ * 열 요약의 종류를 **계획이 본 종류로 덮는다.** `summarizeColumns`는 파일 전체의 행으로
+ * 종류를 세고 계획은 그 실행이 쓰는 행으로 센다(결정문 53) — 화면이 학습과 같은 말을 하려면
+ * 이것을 지나야 한다.
+ *
+ * - **특성 열**은 계획이 선 열만 덮는다(`preprocessor.columns`). 계획에서 빠진 열은 파일
+ *   전체의 종류로 남는다.
+ * - **타깃 열**은 `targetKind`로 덮는다. 계획이 거부해도 실린다 — 타깃 판정 자체가 거부의
+ *   이유일 때 그 빨강은 옳다.
+ * - **계획이 없거나 못 섰으면** 파일 전체의 종류다.
+ *
+ * 화면마다 이 덮기를 다시 쓰지 않는다. 점검의 대조 판은 계획을 다시 세우지 않고
+ * (`inspect-rules.spec.ts`) 기록된 전처리기로 같은 몸통(`fittedKinds`)을 지난다.
+ * `train-prep-kind.spec.ts`가 전처리 판과 학습 화면을 나란히, `tabular-prep-kind.spec.ts`가
+ * 전처리 판을, `inspect-reproduce-width.spec.ts`가 대조 판을 문다.
+ */
+export function plannedColumns(
+  columns: readonly ColumnSummary[],
+  plan: RunPlan | null,
+  target: string | undefined,
+): ColumnSummary[] {
+  return fittedKinds(columns, plan?.ok ? plan.preprocessor : null, target, plan?.targetKind)
+}
+
+/**
+ * `plannedColumns`의 몸통. **전처리기가 본 종류로 덮는다** — 계획이 방금 지은 것이든 파일에
+ * 기록된 것(`experimentPreprocessor`)이든 같은 물건이다.
+ */
+export function fittedKinds(
+  columns: readonly ColumnSummary[],
+  preprocessor: Pick<Preprocessor, 'columns'> | null,
+  target: string | undefined,
+  targetKind: ColumnKind | undefined,
+): ColumnSummary[] {
+  const fitted = preprocessor
+    ? new Map(preprocessor.columns.map((column) => [column.name, column.kind]))
+    : undefined
+  return columns.map((summary) => {
+    const kind =
+      summary.name === target && targetKind !== undefined ? targetKind : fitted?.get(summary.name)
+    return kind !== undefined && kind !== summary.kind ? { ...summary, kind } : summary
+  })
 }
 
 /**

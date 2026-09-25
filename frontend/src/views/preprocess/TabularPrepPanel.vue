@@ -39,7 +39,8 @@ import {
   trainableRowCount,
   usesTarget,
 } from '@/ml/selection'
-import { planRun } from '@/ml/plan'
+import { plannedColumns } from '@/ml/plan'
+import { tabularPlanOf } from '@/ml/plan-cache'
 import { preprocessPreview } from '@/ml/preview'
 import {
   applyTestDataset,
@@ -97,17 +98,10 @@ const trainRowUsage = computed(() => {
  *
  * **학습이 부르는 그 함수다.** 화면이 말하는 숫자와 모델이 쓰는 숫자가 같은 객체에서
  * 나온다 (architecture.md §9.1.3).
+ *
+ * **학습 화면과 같은 계획이다** (`tabularPlanOf`) — 입력이 같으면 다시 짓지 않고 나눠 쓴다.
  */
-const runPlan = computed(() => {
-  const file = project.file
-  if (!file || !dataset.value) return null
-  return planRun({
-    dataset: dataset.value,
-    testDataset: readTestDataset(file),
-    settings: file.document.settings,
-    taskType: project.taskType,
-  })
-})
+const runPlan = computed(() => tabularPlanOf(project.file))
 
 /**
  * 다듬기가 표를 어떻게 바꾸는가 (`ml/preview.ts`). **판이 지어서 내려준다** — 카드가
@@ -163,33 +157,18 @@ const fittedColumns = computed(() => {
  * *"문자 값이 든 열이라 학습에서 빠집니다"*라고 말했는데 **학습은 그 열을 수치로 썼다.**
  * 같은 판의 요약 카드(`runPlan`)는 옳게 말해서 **화면 둘이 반대말을 했다.**
  *
- * 계획이 선 열만 덮는다. 학습에서 빠진 열(`fittedColumns`에 없다)은 파일 전체의 종류로
- * 남고, 그때는 두 쪽이 같다. **계획이 못 섰으면 파일 전체의 종류다** — 그때는 학습이 쓰는
- * 종류라는 것이 아직 없다.
- *
- * **타깃 열은 계획의 `targetKind`로 덮는다** (R38-V V-A1). 타깃은 `fittedColumns`에 없어서
- * 위 덮기가 닿지 않았고, `drop`으로 빠지는 행에만 글자가 있는 회귀 타깃에 *"학습이 거부한다"*는
- * 빨강을 띄웠다 — 학습은 받았다. `targetKind`는 **계획이 거부해도 실린다** — 타깃 판정 자체가
- * 거부의 이유일 때 그 빨강은 옳다.
+ * **덮는 규칙은 `ml/plan.ts`의 `plannedColumns` 하나다** — 학습 화면도 같은 함수를 지난다
+ * (`train-prep-kind.spec.ts`).
  */
-const plannedColumns = computed(() => {
-  const fitted = fittedColumns.value
-  const target = data.value?.target
-  const targetKind = runPlan.value?.targetKind
-  return columns.value.map((summary) => {
-    const kind =
-      summary.name === target && targetKind !== undefined
-        ? targetKind
-        : fitted?.get(summary.name)?.kind
-    return kind !== undefined && kind !== summary.kind ? { ...summary, kind } : summary
-  })
-})
+const plannedColumnList = computed(() =>
+  plannedColumns(columns.value, runPlan.value, data.value?.target),
+)
 
 const plan = computed(() => {
   const current = data.value
   if (!current || !dataset.value) return null
   return columnPlan({
-    columns: plannedColumns.value,
+    columns: plannedColumnList.value,
     rowCount: dataset.value.rows.length,
     taskType: project.taskType,
     target: current.target,

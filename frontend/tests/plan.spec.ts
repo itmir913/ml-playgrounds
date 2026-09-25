@@ -18,7 +18,14 @@ import { runExperiment } from '../src/ml/experiment'
 import type { Dataset } from '../src/ml/preprocess'
 import type { RuntimeContext } from '../src/ml/backend'
 import { dataSnapshot, type Settings, type TabularSettings } from '../src/project/schema'
+import { importTable, openTable } from '../src/data/table'
+import { hashBytes } from '../src/hash'
+import { applyTestDataset, readDataset, readTestDataset } from '../src/project/dataset'
+import { readProject, type ProjectFile } from '../src/project/format'
+import { withTarget, withTaskType } from '../src/project/settings'
 import { IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN, irisDataset } from './fixtures/iris'
+import { scoreProject, surveyProject } from './fixtures/prep-kind'
+import { writeProjectBytes } from './fixtures/write'
 
 const BROWSER_ONLY: RuntimeContext = {
   serverStatus: 'unavailable',
@@ -558,6 +565,78 @@ describe('provided 분할의 경계', () => {
       kind: 'error',
       code: 'SPLIT_TOO_FEW_ROWS',
       params: { minRows: 1, actualRows: 0 },
+    })
+  })
+})
+
+/**
+ * **타깃 이름이 표에 없는 파일** — 손으로 고친 `.mlpx`가 열린다(`readProject`가 받는다). 계획은
+ * 던지지 않고 사유로 선다: 화면의 계산이 이 함수를 부르므로 던지면 화면이 죽는다.
+ */
+describe('타깃 이름이 표에 없는 파일', () => {
+  const NOW = '2026-09-26T00:00:00Z'
+
+  /** 파일을 굽고 다시 열어 그 파일로 계획한다 — 손으로 고친 파일이 들어오는 진짜 입구다. */
+  async function planThroughFile(file: ProjectFile) {
+    const { bytes } = await writeProjectBytes(file, '# p\n')
+    const opened = (await readProject(bytes)).project
+    const dataset = readDataset(opened)
+    if (!dataset) throw new Error('no table')
+    return planRun({
+      dataset,
+      testDataset: readTestDataset(opened),
+      settings: opened.document.settings,
+      taskType: opened.document.manifest.taskType,
+    })
+  }
+
+  it('타깃 이름이 표에 없으면 던지지 않고 사유로 선다', async () => {
+    const file = await surveyProject(true)
+    const plan = await planThroughFile({
+      ...file,
+      document: withTarget(file.document, '없는열', NOW),
+    })
+    expect(plan.ok).toBe(false)
+    expect(!plan.ok && plan.reason).toEqual({
+      kind: 'error',
+      code: 'COLUMN_NOT_FOUND',
+      params: { column: '없는열' },
+    })
+  })
+
+  /** **군집은 타깃을 안 본다** — 파일에 남은 낡은 타깃 이름이 군집의 계획을 막지 않는다. */
+  it('군집이면 표에 없는 타깃 이름이 계획을 막지 않는다', async () => {
+    const file = await surveyProject(true)
+    let document = withTarget(file.document, '없는열', NOW)
+    document = withTaskType(document, 'clustering', NOW)
+    const plan = await planThroughFile({ ...file, document })
+    expect(plan.ok).toBe(true)
+  })
+
+  /**
+   * **따로 올린 테스트 표에 타깃 열이 없는 파일.** 화면의 입구는 열을 정본에 맞춰 받지만 손으로
+   * 고친 `test.csv`는 그대로 열린다. 회귀면 테스트 표의 타깃을 읽는 자리가 있다.
+   */
+  it('테스트 표에 타깃 열이 없으면 던지지 않고 사유로 선다', async () => {
+    const file = await scoreProject(true, 'drop')
+    const imported = importTable(
+      await openTable(new TextEncoder().encode('키,몸무게,점수\n150,45,60\n151,46,61\n'), 't.csv'),
+    )
+    const withTest = applyTestDataset(file, imported, {
+      fileName: 't.csv',
+      hasHeader: true,
+      now: NOW,
+    }).project
+    const bytes = new TextEncoder().encode('키,몸무게\n150,45\n151,46\n')
+    const plan = await planThroughFile({
+      ...withTest,
+      testDataset: { bytes, hash: hashBytes(bytes) },
+    })
+    expect(plan.ok).toBe(false)
+    expect(!plan.ok && plan.reason).toEqual({
+      kind: 'error',
+      code: 'TEST_DATASET_COLUMN_MISSING',
+      params: { columns: '점수' },
     })
   })
 })

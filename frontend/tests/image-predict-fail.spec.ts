@@ -19,6 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CanonicalizeWorker } from '../src/data/image/client'
 import { ClientError } from '../src/errors'
+import { hashBytes } from '../src/hash'
 import { i18n, setLocale } from '../src/i18n'
 import type { ProjectFile } from '../src/project/format'
 import { readImages } from '../src/project/images'
@@ -198,6 +199,78 @@ describe('R23: canonicalize worker dies while adding photos', () => {
     expect(addButton(wrapper)?.attributes('disabled')).toBeUndefined()
     expect(readImages(project.file, 'predict')).toHaveLength(1)
     expect(dangers().map((one) => one.key)).toEqual(['client.UNEXPECTED_ERROR'])
+  })
+})
+
+/**
+ * **굽거나 뽑는 동안 다른 프로젝트로 옮겨도 그쪽에 안 앉는다** (`stores/project.ts`의 `claim`).
+ *
+ * `/project/A/predict` → `/project/B/predict`는 같은 라우트 레코드라 이 판이 재사용되고
+ * `alive`가 안 내려간다. 여기서는 라우터 대신 **스토어에 B를 앉혀** 옮긴다 — 판이 보는 것은
+ * 스토어의 프로젝트다(라우터로 옮기는 길은 `train-project-switch.spec.ts`가 탄다).
+ */
+describe('switching project while a predict job runs', () => {
+  const OTHER_ID = '55555555-5555-4555-8555-555555555555'
+
+  async function switchTo(seeds: readonly string[]): Promise<void> {
+    const other = imagePredictProject(seeds)
+    const { manifest } = other.document
+    await useProjectStore().save({
+      ...other,
+      document: { ...other.document, manifest: { ...manifest, projectId: OTHER_ID } },
+    })
+    expect(useProjectStore().projectId).toBe(OTHER_ID)
+  }
+
+  it('baked photos do not land on the other project', async () => {
+    const project = useProjectStore()
+    await project.save(imagePredictProject(['a']))
+    const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const panel = wrapper.vm as unknown as PanelInternals
+
+    panel.onDrop(dropEvent([new File([new Uint8Array([9])], 'late.jpg', { type: 'image/jpeg' })]))
+    await flushPromises()
+    await tick()
+    await flushPromises()
+    expect(bakers.workers).toHaveLength(1)
+
+    await switchTo(['b', 'c'])
+    const bytes = new TextEncoder().encode('baked:late.jpg')
+    bakers.workers[0]?.onmessage?.({
+      data: {
+        type: 'done',
+        format: 'webp',
+        images: [{ sourceName: 'late.jpg', hash: hashBytes(bytes), bytes }],
+        skipped: [],
+      },
+    } as unknown as MessageEvent<never>)
+    await settle()
+
+    expect(readImages(project.file, 'predict')).toHaveLength(2)
+    wrapper.unmount()
+  })
+
+  it('embeddings do not land on the other project', async () => {
+    const project = useProjectStore()
+    await project.save(imagePredictProject(['a']))
+    const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const panel = wrapper.vm as unknown as PanelInternals
+
+    const running = panel.run()
+    await tick()
+    await flushPromises()
+    expect(workerState.embed).toHaveLength(1)
+
+    await switchTo(['b'])
+    const before = project.file?.embeddings.size
+    workerState.embed[0]?.deliver()
+    await running
+    await settle()
+
+    expect(project.file?.embeddings.size).toBe(before)
+    wrapper.unmount()
   })
 })
 
