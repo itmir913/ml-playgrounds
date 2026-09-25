@@ -703,8 +703,12 @@ async function commitRemoveCategory(): Promise<void> {
 
         **격자다.** 신문처럼 흘리면(`columns`) 읽는 차례가 세로가 되어 학생이 정렬해 둔
         범주 순서와 어긋난다 — 순서를 파일에 남기는 이유가 그것이다.
+
+        **`lg` 아래에도 열 템플릿이 있어야 한다.** 없으면 암묵 열이 `auto`라, 범주 칸 머리의
+        `truncate` 제목이 띄어쓰기 없는 긴 범주 이름의 폭을 최소 폭으로 내밀어 휴대폰 문서가
+        옆으로 부푼다. `grid-cols-1`은 `minmax(0, 1fr)`이다. 사람 확인(브라우저).
       -->
-      <div class="grid items-start gap-3 lg:grid-cols-2">
+      <div class="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
         <ImageGrid
           v-for="category in categories"
           :key="category"
@@ -757,10 +761,15 @@ async function commitRemoveCategory(): Promise<void> {
       class="sticky z-10 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel border border-line-strong bg-surface px-4 py-2.5 shadow-card stick-above-shell"
     >
       <span class="font-bold">{{ t('data.image.selected', selected.size) }}</span>
-      <label class="flex items-center gap-2">
-        <span class="font-bold text-ink-soft">{{ t('data.image.moveTo') }}</span>
+      <!--
+        **목록 칸이 막대 폭을 넘지 않는다.** `<select>`는 가장 긴 선택지만큼 넓어지는데
+        선택지가 학생의 범주 이름이라, 긴 이름 하나로 휴대폰 문서가 옆으로 부푼다. 줄은 막대
+        폭에서 멈추고 목록 칸이 줄어든다(펼치면 이름은 온전히 보인다). 사람 확인(브라우저).
+      -->
+      <label class="flex max-w-full min-w-0 items-center gap-2">
+        <span class="shrink-0 font-bold text-ink-soft">{{ t('data.image.moveTo') }}</span>
         <select
-          class="rounded-field border border-line-strong bg-surface px-2 py-1"
+          class="min-w-0 rounded-field border border-line-strong bg-surface px-2 py-1"
           :disabled="busy"
           @change="moveSelected(($event.target as HTMLSelectElement).value)"
         >

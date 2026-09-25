@@ -134,7 +134,9 @@ function lockedText(step: StepId): string {
           줄이면 네 귀퉁이가 테두리 밖으로 삐져나온다. 밝은 화면에서는 배경 차이가
           작아 잘 안 보이고 어두운 화면에서만 드러난다.
         -->
-        <ul class="flex flex-col overflow-hidden rounded-panel border border-line bg-surface">
+        <ul
+          class="@container flex flex-col overflow-hidden rounded-panel border border-line bg-surface"
+        >
           <!--
             **줄마다 칸이 같은 자리에서 시작한다.** flex로 두면 단계 이름의 글자 수만큼
             할 일이 밀려서 여섯 줄의 시작점이 제각각이 되고, 눈이 훑을 기준선이 없어진다
@@ -147,11 +149,16 @@ function lockedText(step: StepId): string {
             **다만 첫 칸은 내용보다 좁아지지 않는다** (`step-row-grid`). 비율만으로
             나누면 `전처리`가 `전처` / `리`로 갈리는데, 단계 이름이 갈리면 그것이 한
             낱말이라는 것부터 다시 읽어야 한다. 비율(1 : 3 : 2)은 그대로다.
+
+            **세 칸으로 갈리는 기준은 창이 아니라 이 목록의 폭이다** (§8.20). 창 폭으로 가르면
+            두 열 대시보드의 좁은 목록 안에서도 세 칸이 서서, 한 덩어리로 안 끊기는 할 일이
+            가운데 칸을 넘어 옆 칸의 잠김 이유와 겹친다. `@md`는 세 칸이 두 언어 모두 겹침
+            없이 서는 폭으로 골랐다 - 사람 확인(브라우저), jsdom은 레이아웃을 안 한다.
           -->
           <li
             v-for="(entry, index) in steps"
             :key="entry.step"
-            class="grid grid-cols-1 items-center gap-x-4 gap-y-2 p-4 sm:step-row-grid"
+            class="grid grid-cols-1 items-center gap-x-4 gap-y-2 p-4 @md:step-row-grid"
             :class="[
               index > 0 ? 'border-t border-line' : '',
               entry.here ? 'bg-brand-soft' : '',
@@ -218,7 +225,7 @@ function lockedText(step: StepId): string {
             -->
             <p
               v-if="entry.explains"
-              class="text-ink-soft sm:col-span-2 sm:col-start-1 sm:row-start-2"
+              class="text-ink-soft @md:col-span-2 @md:col-start-1 @md:row-start-2"
             >
               {{ t(stepTextKey(kind, entry.step, 'purpose')) }}
             </p>
@@ -241,19 +248,19 @@ function lockedText(step: StepId): string {
               멀쩡하고 나머지가 전부 그 모양이었다 (2026-08-31).
             -->
             <div
-              class="min-w-0 sm:col-start-3 sm:row-start-1 sm:justify-self-end"
-              :class="entry.explains ? 'sm:row-span-2' : ''"
+              class="min-w-0 @md:col-start-3 @md:row-start-1 @md:justify-self-end"
+              :class="entry.explains ? '@md:row-span-2' : ''"
             >
               <AppButton v-if="entry.unlocked" variant="secondary" @click="go(entry.step)">
                 {{ t('project.openStep') }}
               </AppButton>
               <!--
                 **넓을 때만 오른쪽에 붙인다.** 칸 자체는 이미 오른쪽 끝에 서 있지만
-                (`sm:justify-self-end`), 두 줄로 접히면 안쪽 글줄이 왼쪽에 맞아 오른쪽
+                (`@md:justify-self-end`), 두 줄로 접히면 안쪽 글줄이 왼쪽에 맞아 오른쪽
                 가장자리가 들쭉날쭉해진다 — 버튼과 같은 세로선에 서야 한 칸으로 읽힌다.
                 좁은 화면에서는 칸이 왼쪽부터 시작하므로 그대로 왼쪽 정렬이 맞다.
               -->
-              <span v-else class="block text-ink-soft sm:text-right">{{
+              <span v-else class="block text-ink-soft @md:text-right">{{
                 lockedText(entry.step)
               }}</span>
             </div>

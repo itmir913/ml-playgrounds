@@ -115,7 +115,13 @@ const shown = computed(() =>
         사이가 44px이 되어 넷이 흩어져 보인다 - 눌리는 자리는 그대로 두고 자리만
         글자 폭으로 되돌린다 (`ChosenModels`의 `-my-2.5`와 같은 손질이다).
       -->
-      <div class="ml-auto flex items-center gap-1">
+      <!--
+        **넷이 한 줄에 안 서면 줄을 바꾼다.** 사진이 생기면 `전체 선택`이 넷째로 서는데,
+        좁은 휴대폰에서 넷의 합이 머리 폭을 넘으면 줄바꿈 없이는 버튼 안의 글자가 짜부라진다.
+        **줄 사이는 `gap-y-5`다** - 버튼마다 위아래 여백을 `-my-2.5`로 되당겨 두어서, 그보다
+        좁으면 두 줄의 누르는 자리가 겹친다. 사람 확인(브라우저).
+      -->
+      <div class="ml-auto flex flex-wrap items-center gap-x-1 gap-y-5">
         <!-- **이 칸으로 바로 들어간다.** 올린 뒤 다시 골라 옮기는 걸음이 없어진다. -->
         <AppButton variant="ghost" class="-mx-2 -my-2.5" @click="emit('add')">
           {{ t('data.image.addHere') }}

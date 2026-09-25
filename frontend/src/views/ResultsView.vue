@@ -121,7 +121,7 @@ function onHistoryToggle(event: Event): void {
  */
 const detailDivider = computed(() =>
   historyOpen.value
-    ? 'border-t border-dashed border-line-strong pt-5 md:border-t-0 md:border-l md:pt-0 md:pl-5'
+    ? 'border-t border-dashed border-line-strong pt-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5'
     : 'border-t border-dashed border-line-strong pt-5',
 )
 
@@ -166,7 +166,7 @@ const models = computed<ReadonlyMap<string, Uint8Array>>(
     <div
       v-else
       class="flex min-h-96 flex-1 flex-col gap-5"
-      :class="historyOpen ? 'md:flex-row' : ''"
+      :class="historyOpen ? 'lg:flex-row' : ''"
     >
       <!--
         **접으면 상세가 전폭이 된다** (8.13.3). 넓은 화면에서는 왼쪽 320px이 상세로
@@ -179,7 +179,7 @@ const models = computed<ReadonlyMap<string, Uint8Array>>(
       -->
       <details
         class="min-h-0 shrink-0 overflow-y-auto"
-        :class="historyOpen ? 'md:w-80' : ''"
+        :class="historyOpen ? 'lg:w-80' : ''"
         :open="historyOpen"
         @toggle="onHistoryToggle"
       >

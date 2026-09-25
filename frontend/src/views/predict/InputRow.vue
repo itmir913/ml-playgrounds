@@ -70,7 +70,15 @@ function hintOf(field: PredictionField): string | undefined {
     **카드로 선다.** 붙박이로 화면을 따라올 때 테두리가 없으면 무엇이 따라오는 건지
     경계가 안 보인다.
   -->
-  <section class="flex flex-col gap-5 rounded-panel border border-line bg-surface p-4">
+  <!--
+    **`wrap-anywhere`는 학생의 열 이름 때문이다.** 칸 이름과 상태 문장 끝 괄호에 띄어쓰기
+    없는 긴 열 이름이 서면, 이 카드를 담은 붙박이 열이 `self-start`라 그 한 낱말의 폭까지
+    늘어나 휴대폰 문서가 옆으로 부푼다. `break-words`는 넘친 뒤에 끊을 뿐 그 폭 계산에 안
+    들어간다. 물려받는 속성이라 카드에 한 번 둔다. 사람 확인(브라우저).
+  -->
+  <section
+    class="flex flex-col gap-5 rounded-panel border border-line bg-surface p-4 wrap-anywhere"
+  >
     <div class="flex flex-col gap-1.5">
       <h3 class="text-lg font-bold">{{ t('predict.tabular.inputTitle') }}</h3>
       <p class="text-ink-soft">{{ t('predict.tabular.inputLead') }}</p>

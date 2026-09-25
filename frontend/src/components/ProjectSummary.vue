@@ -73,11 +73,16 @@ const info = computed(() => {
   <div>
     <h2 v-if="props.withName" class="mb-3 truncate font-bold">{{ info.manifest.name }}</h2>
 
+    <!--
+      **이름은 한 줄, 값은 오른쪽이다.** 목록이 좁아지면 이름이 접히고 접힌 값만 왼쪽에
+      서서 줄마다 값의 시작점이 달라진다. 이름은 짧은 우리 문구라 안 접고
+      (`whitespace-nowrap`), 값은 접히더라도 오른쪽 끝에 맞춘다. 사람 확인(브라우저).
+    -->
     <dl class="flex flex-col gap-1.5">
       <div class="flex justify-between gap-4">
-        <dt class="font-bold text-ink-soft">{{ t('meta.taskType') }}</dt>
+        <dt class="shrink-0 font-bold whitespace-nowrap text-ink-soft">{{ t('meta.taskType') }}</dt>
         <!-- 아직 안 골랐으면 없는 것이 맞다. 기본값을 보여주면 고른 것처럼 읽힌다. -->
-        <dd>
+        <dd class="text-right">
           {{
             info.manifest.taskType === undefined
               ? t('meta.none')
@@ -94,29 +99,37 @@ const info = computed(() => {
       -->
       <component :is="kind.summaryRows" v-if="kind" :file="props.file" />
 
+      <!--
+        **모델은 한 줄에 하나다.** 쉼표로 이어 잘라 두면 좁은 폭에서 뒤의 모델이 볼 방법 없이
+        숨는다. 이름 하나가 `K-최근접 이웃(KNN)`처럼 띄어쓰기를 품어서, 이어 쓴 채로 접게 두면
+        이름 가운데서 줄이 갈린다.
+      -->
       <div class="flex justify-between gap-4">
-        <dt class="shrink-0 font-bold text-ink-soft">{{ t('meta.algorithms') }}</dt>
-        <dd class="truncate">
-          {{ info.algorithms.length === 0 ? t('meta.none') : info.algorithms.join(', ') }}
+        <dt class="shrink-0 font-bold whitespace-nowrap text-ink-soft">
+          {{ t('meta.algorithms') }}
+        </dt>
+        <dd v-if="info.algorithms.length === 0" class="text-right">{{ t('meta.none') }}</dd>
+        <dd v-else class="flex min-w-0 flex-col items-end gap-1.5 text-right">
+          <span v-for="(name, index) in info.algorithms" :key="index">{{ name }}</span>
         </dd>
       </div>
 
       <div class="flex justify-between gap-4">
-        <dt class="font-bold text-ink-soft">{{ t('meta.runs') }}</dt>
+        <dt class="shrink-0 font-bold whitespace-nowrap text-ink-soft">{{ t('meta.runs') }}</dt>
         <dd class="tabular-nums">{{ t('meta.countUnit', info.runs) }}</dd>
       </div>
 
       <div class="mt-2 flex justify-between gap-4 border-t border-line pt-2">
-        <dt class="font-bold text-ink-soft">{{ t('meta.created') }}</dt>
-        <dd>{{ format.dateTime(info.manifest.createdAt) }}</dd>
+        <dt class="shrink-0 font-bold whitespace-nowrap text-ink-soft">{{ t('meta.created') }}</dt>
+        <dd class="text-right">{{ format.dateTime(info.manifest.createdAt) }}</dd>
       </div>
 
       <div class="flex justify-between gap-4">
-        <dt class="font-bold text-ink-soft">{{ t('meta.updated') }}</dt>
-        <dd>{{ format.dateTime(info.manifest.updatedAt) }}</dd>
+        <dt class="shrink-0 font-bold whitespace-nowrap text-ink-soft">{{ t('meta.updated') }}</dt>
+        <dd class="text-right">{{ format.dateTime(info.manifest.updatedAt) }}</dd>
       </div>
       <div class="flex justify-between gap-4">
-        <dt class="font-bold text-ink-soft">{{ t('meta.size') }}</dt>
+        <dt class="shrink-0 font-bold whitespace-nowrap text-ink-soft">{{ t('meta.size') }}</dt>
         <dd :class="needsSizeWarning(info.bytes) ? 'font-bold text-caution' : ''">
           {{ format.bytes(info.bytes) }}
         </dd>

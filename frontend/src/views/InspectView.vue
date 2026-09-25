@@ -382,7 +382,28 @@ interface InspectColumn {
    * 파일 이름 열이다.
    */
   width: string
-  /** 칸에만 붙는 모양. 긴 이름은 접고, 상태는 안 접는다. */
+  /**
+   * 칸에만 붙는 모양. 긴 이름은 접고, 상태는 안 접는다.
+   *
+   * **학생이 적은 값은 표의 최소 폭을 쥐지 않게 한다.** 한국어는 `body`의 `keep-all`
+   * 때문에 띄어쓰기 없는 이름이 통째로 한 낱말이고, `break-words`는 넘친 뒤에 끊어 줄 뿐
+   * **표가 칸 폭을 정할 때 쓰는 최소 폭은 그대로 둔다** — 이름 하나가 열을 넓혀 `상태`가
+   * 화면 밖으로 밀린다.
+   *
+   * **처방이 열마다 다르다.**
+   * - 학번·이름은 `break-normal`이다. `keep-all`만 풀어서 한국어는 음절 사이에서, 라틴
+   *   문자는 **띄어쓰기에서만** 끊긴다. `wrap-anywhere`면 라틴 이름이 낱말 가운데서
+   *   갈린다 — 열의 `min-w-*`는 그 낱말보다 좁을 수 있어 바닥이 못 된다.
+   * - 프로젝트 제목은 `wrap-anywhere`만이다. `keep-all`을 그대로 두므로 띄어쓰기 있는
+   *   제목은 한국어든 영어든 띄어쓰기에서 끊기고, 띄어쓰기 없는 제목
+   *   (`MyIrisClassificationProjectFinal`)만 낱말 안에서 끊긴다 — 그런 제목은 이름과
+   *   달리 흔하고, 막으면 표가 `상태`를 밀어낸다. `break-normal`을 더하면 `keep-all`이
+   *   풀려 한국어 제목이 띄어쓰기 대신 음절 사이에서 끊긴다.
+   * - 파일 이름은 `wrap-anywhere`다. 띄어쓰기 없는 경로가 흔하고, 이 열은 남는 폭까지
+   *   먹으므로 갈리는 일이 드물다.
+   *
+   * 폭은 jsdom이 못 잰다 — 사람 확인(브라우저).
+   */
   cell: string
 }
 
@@ -397,7 +418,7 @@ const BASE_COLUMNS: readonly InspectColumn[] = [
     // 바닥값이 낮아도 넓은 화면에서는 그대로 넓고, 좁은 화면에서는 두 줄로 접힌다.
     width: 'min-w-40',
     // 남는 폭을 이 열이 다 먹는다. 긴 경로는 줄을 바꾼다.
-    cell: 'break-words',
+    cell: 'wrap-anywhere',
   },
   {
     key: 'studentId',
@@ -408,7 +429,7 @@ const BASE_COLUMNS: readonly InspectColumn[] = [
     // 머리 두 글자와 `학번 없음`이 한 줄로 들어가는 최소치. **더 주면 표가 가로로 넘친다** —
     // 프로젝트 열이 서는 순간 1024px에서 18px이 모자랐다 (2026-09-18 실측).
     width: 'min-w-24',
-    cell: 'break-words',
+    cell: 'break-normal',
   },
   {
     key: 'studentName',
@@ -417,7 +438,7 @@ const BASE_COLUMNS: readonly InspectColumn[] = [
     align: 'left',
     wide: true,
     width: 'min-w-24',
-    cell: 'break-words',
+    cell: 'break-normal',
   },
   {
     key: 'name',
@@ -426,7 +447,7 @@ const BASE_COLUMNS: readonly InspectColumn[] = [
     align: 'left',
     wide: true,
     width: 'min-w-32',
-    cell: 'break-words',
+    cell: 'wrap-anywhere',
   },
   {
     key: 'experiments',
