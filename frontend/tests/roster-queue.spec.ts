@@ -266,3 +266,29 @@ describe('묶는 동안 명렬을 만져도 큐가 안 잠긴다', () => {
     expect(labels).toHaveLength(2)
   })
 })
+
+/**
+ * **훑기 도중에 줄 둘을 연달아 누른다.** `open`은 누른 줄을 **맨 앞에** 세우므로, 훑기가
+ * 파일 하나를 읽는 동안 c → d를 누르면 큐가 `[d, c, …]`가 되어 c의 읽기가 뒤에 끝난다.
+ * 앉히는 것은 **마지막으로 누른 줄**뿐이다(`wanted`).
+ */
+describe('훑기 도중에 줄 둘을 연달아 누른다', () => {
+  beforeEach(() => {
+    reads.length = 0
+  })
+
+  it('마지막으로 누른 줄이 열린다', async () => {
+    const roster = useRoster()
+    const items = rosterOf(['a.mlpx', 'b.mlpx', 'c.mlpx', 'd.mlpx'].map(picked))
+    roster.show(items)
+    await flushPromises()
+    // 훑기가 a를 읽는 중이다.
+    expect(reads.map((one) => one.label)).toEqual(['a.mlpx'])
+
+    void roster.open(items[2] as RosterItem)
+    void roster.open(items[3] as RosterItem)
+    await drain()
+
+    expect(roster.opened.value?.item.label).toBe('d.mlpx')
+  })
+})

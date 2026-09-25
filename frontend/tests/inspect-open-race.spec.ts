@@ -96,6 +96,36 @@ describe('읽는 도중에 다음 줄을 누른다', () => {
   })
 
   /**
+   * **훑기 도중에 줄 둘을 연달아 누른다.** 위 검사는 훑기가 끝난 **빈 큐**에서 시작한다.
+   * 폴더를 고른 직후에는 훑기가 파일 하나를 읽는 중이고, 그때 c → d를 누르면 큐가
+   * `[d, c, …]`가 된다. 앉는 것은 마지막으로 누른 d뿐이고 상세가 `읽는 중`에 남지 않는다.
+   */
+  it('훑기 도중에 줄 둘을 누르면 마지막 줄이 선다', async () => {
+    const wrapper = await mountInspect([
+      await submissionFile('hong.mlpx', undefined, { studentId: '10101', name: '홍길동' }),
+      await submissionFile('kim.mlpx', OTHER, { studentId: '10102', name: '김하나' }),
+      await submissionFile('lee.mlpx', THIRD, { studentId: '10103', name: '이두리' }),
+    ])
+    // 훑기의 첫 읽기가 아직 안 끝났다.
+    expect(gates.length, 'the scan must be reading when the rows are clicked').toBe(1)
+
+    const rows = () => wrapper.findAll('tbody tr')
+    await rows()[1]!.trigger('click')
+    await flushPromises()
+    await rows()[2]!.trigger('click')
+    await flushPromises()
+
+    await finish()
+    expect(wrapper.findComponent(ProjectSummary).exists(), 'the last clicked row must open').toBe(
+      true,
+    )
+    expect(detail(wrapper)).not.toContain(i18n.global.t('inspect.reading'))
+    expect(detail(wrapper)).toContain('10103')
+    expect(detail(wrapper)).not.toContain('10102')
+    wrapper.unmount()
+  })
+
+  /**
    * **떠나면 큐도 멈춘다** (§8.21, 2026-09-18 R28-F C-2). 화면의 `retire`는 워커까지이고
    * **파일 읽기 루프에는 맡길 손잡이가 없다** — `roster.stop()`을 안 걸면 서른 개를
    * 훑다 나가도 큐가 끝까지 돈다.

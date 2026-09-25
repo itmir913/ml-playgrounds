@@ -114,6 +114,13 @@ export function useRoster(): Roster {
   /** 아직 안 읽은 줄들. 앞에서 꺼내 읽는다. */
   let pending: Job[] = []
   let pump: Promise<void> | null = null
+  /**
+   * 교사가 **마지막으로** 누른 줄의 이름표. **앉히는 것은 이 줄뿐이다.** `open`은 누른 줄을
+   * 맨 앞에 세우므로 앞서 누른 줄의 읽기가 뒤에 끝날 수 있고, 그것이 앉으면 화면이 기다리는
+   * 줄과 명렬이 연 줄이 갈린다. `roster-queue.spec.ts`와 `inspect-open-race.spec.ts`의
+   * *"훑기 도중에 줄 둘을 …"*이 문다.
+   */
+  let wanted: string | null = null
 
   function put(label: string, summary: RosterSummary): void {
     const next = new Map(summaries.value)
@@ -160,7 +167,9 @@ export function useRoster(): Roster {
 
     put(job.item.label, done.summary)
     for (const hand of job.hands) hand(done.read ?? null)
-    if (job.seat && done.read) opened.value = { item: job.item, read: done.read }
+    if (job.seat && job.item.label === wanted && done.read) {
+      opened.value = { item: job.item, read: done.read }
+    }
   }
 
   /** 하나씩, 앞에서부터. **동시에 푸는 파일은 언제나 하나다.** */
@@ -182,6 +191,7 @@ export function useRoster(): Roster {
     items.value = next
     held = next
     opened.value = null
+    wanted = null
     // **고침도 함께 버린다.** 다른 폴더의 줄에 앞 반의 이름이 얹히면 안 된다.
     edits.value = new Map()
     summaries.value = new Map()
@@ -205,6 +215,7 @@ export function useRoster(): Roster {
 
   function open(item: RosterItem): Promise<void> {
     opened.value = null
+    wanted = item.label
     // 줄 서 있던 같은 파일을 맨 앞으로 데려온다. **두 번 풀지 않는다** — 그리고 그 줄을
     // 기다리던 손도 **함께 데려간다**(묶음 굽기). 버리면 그 약속이 영영 안 풀린다.
     const waiting = pending.filter((job) => job.item.label === item.label)
