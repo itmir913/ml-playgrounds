@@ -145,6 +145,29 @@ export const IMAGE_JPEG_QUALITY = 0.85
 export const ZIP_DEFLATE_LEVEL = 6
 
 /**
+ * 지표를 보이는 소수 자릿수(`composables/useFormat.ts`의 `formatMetric`). 왜 셋인지는 그 함수의
+ * 머리말에 있다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const METRIC_FRACTION_DIGITS = 3
+
+/**
+ * 부동소수의 잡음을 걷는 유효숫자(`formatPrediction`·`formatRawCell`). 두 자리가 같은 뜻이라
+ * 한 상수다 — 계산기의 끝자리만 걷고 학생이 넣은 자릿수는 남긴다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const FLOAT_NOISE_PRECISION = 12
+
+/**
+ * 데이터에서 계산해 낸 통계를 보이는 유효숫자(`formatStat`). 왜 넷인지는 그 함수의 머리말에 있다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const STAT_SIGNIFICANT_DIGITS = 4
+
+/**
  * 정본 webp 한 장의 예상 바이트. **굽기 전에 자리를 묻는 데만 쓴다**
  * (open-decisions.md "이미지가 들어갈 자리는 굽기 전에 묻는다").
  *

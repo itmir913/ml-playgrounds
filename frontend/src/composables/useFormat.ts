@@ -9,7 +9,12 @@
 
 import { useI18n } from 'vue-i18n'
 
-import { BYTES_PER_KB } from '../limits'
+import {
+  BYTES_PER_KB,
+  FLOAT_NOISE_PRECISION,
+  METRIC_FRACTION_DIGITS,
+  STAT_SIGNIFICANT_DIGITS,
+} from '../limits'
 
 /** 올라가는 단위들. Intl에 이 단위계가 없어서 우리가 고른다. */
 const UNITS = ['byte', 'kilobyte', 'megabyte', 'gigabyte'] as const
@@ -70,8 +75,8 @@ export function formatPercent(locale: string, ratio: number, digits = 1): string
 export function formatMetric(locale: string, value: number, format: 'percent' | 'number'): string {
   if (format === 'percent') return formatPercent(locale, value)
   return new Intl.NumberFormat(locale, {
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3,
+    minimumFractionDigits: METRIC_FRACTION_DIGITS,
+    maximumFractionDigits: METRIC_FRACTION_DIGITS,
   }).format(value)
 }
 
@@ -91,7 +96,7 @@ export function formatMetric(locale: string, value: number, format: 'percent' | 
 export function formatPrediction(locale: string, value: number): string {
   if (!Number.isFinite(value)) return String(value)
   return new Intl.NumberFormat(locale, { maximumFractionDigits: 20 }).format(
-    Number(value.toPrecision(12)),
+    Number(value.toPrecision(FLOAT_NOISE_PRECISION)),
   )
 }
 
@@ -114,7 +119,9 @@ export function formatPrediction(locale: string, value: number): string {
  */
 export function formatStat(locale: string, value: number): string {
   if (!Number.isFinite(value)) return String(value)
-  return new Intl.NumberFormat(locale, { maximumSignificantDigits: 4 }).format(value)
+  return new Intl.NumberFormat(locale, {
+    maximumSignificantDigits: STAT_SIGNIFICANT_DIGITS,
+  }).format(value)
 }
 
 /**
@@ -130,7 +137,7 @@ export function formatStat(locale: string, value: number): string {
  */
 export function formatRawCell(value: number): string {
   if (!Number.isFinite(value)) return String(value)
-  return String(Number(value.toPrecision(12)))
+  return String(Number(value.toPrecision(FLOAT_NOISE_PRECISION)))
 }
 
 /**
