@@ -14,6 +14,7 @@ import type { ChartData, ChartOptions, Plugin } from 'chart.js'
 
 import { axisCellOf, categoryScale, placed, type AxisCell } from './category-axis'
 import { CHART_COLORS, INK_ORDER } from '@/palette'
+import { categoryOrder } from '@/ml/preprocess'
 
 import type { BoxSummary, DataPoint, Frequencies, Histogram } from './stats'
 
@@ -499,22 +500,40 @@ export interface ScatterSeries {
 }
 
 /**
- * 색 열의 값마다 점을 나눈다. **값의 첫 등장 순서를 지킨다** (`frequencies`와 같은 규칙).
+ * 색 열의 값마다 점을 나눈다. **값의 차례는 인코딩 순서다** (`ml/preprocess.ts`의
+ * `categoryOrder`, `frequencies`와 같은 함수).
  *
- * 색 열이 없으면 갈래 하나이고, 그 이름은 부르는 쪽이 준다.
+ * 색 열이 없으면 갈래 하나이고, 그 이름은 부르는 쪽이 준다. **값이 없는 점의 갈래는 맨
+ * 뒤다** — 그 이름은 값이 아니라 부르는 쪽이 준 말이라 값들 사이에 정렬해 넣을 것이 아니다.
  */
 export function scatterSeries(
   points: readonly DataPoint[],
   fallbackName: string,
 ): readonly ScatterSeries[] {
   const groups = new Map<string, DataPoint[]>()
+  const unnamed: DataPoint[] = []
   for (const point of points) {
-    const key = point.group ?? fallbackName
-    const found = groups.get(key)
+    if (point.group === undefined) {
+      unnamed.push(point)
+      continue
+    }
+    const found = groups.get(point.group)
     if (found) found.push(point)
-    else groups.set(key, [point])
+    else groups.set(point.group, [point])
   }
-  return [...groups.entries()].map(([name, grouped]) => ({ name, points: grouped }))
+  const named = categoryOrder(groups.keys()).map((name) => ({
+    name,
+    points: groups.get(name) ?? [],
+  }))
+  if (unnamed.length === 0) return named
+  // 값 가운데 부르는 쪽이 준 이름과 같은 것이 있으면 한 갈래다 - 이름이 같으면 범례가 못 가른다.
+  const same = named.find((one) => one.name === fallbackName)
+  if (same) {
+    return named.map((one) =>
+      one === same ? { name: one.name, points: [...one.points, ...unnamed] } : one,
+    )
+  }
+  return [...named, { name: fallbackName, points: unnamed }]
 }
 
 /**

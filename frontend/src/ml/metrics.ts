@@ -142,11 +142,8 @@ function evaluateRegression(
       mae,
       rmse: Math.sqrt(ratio(residual, count)),
       /**
-       * 정답이 전부 같은 값이면 분모가 0이다. 완벽히 맞혔으면 1, 아니면 0으로 둔다.
-       * 여기서 NaN을 내보내면 비교표가 통째로 깨진다.
-       *
-       * **sklearn과 같은 규칙이고, 2026-09-03에 돌려서 확인했다** — 상수 타깃에서
-       * 완벽히 맞히면 `1.0`, 1만큼 어긋나면 `0.0`이다(scikit-learn 1.9.0).
+       * 분모가 0이면 완벽히 맞혔을 때 1, 아니면 0으로 둔다. 여기서 NaN을 내보내면
+       * 비교표가 통째로 깨진다. 정답이 한 값뿐일 때의 판정은 `constantTargetR2`가 한다.
        *
        * **`residual === 0`은 부동소수 정확 비교이고, 그것이 뜻을 갖는다.** 규칙이
        * 같아도 **솔버가 먼지를 남기면 답이 뒤집힌다** — 우리 선형회귀가 계수에
@@ -155,9 +152,68 @@ function evaluateRegression(
        * 뭉개지 않는다** — 그러면 sklearn이 먼지를 남기는 쪽에서 우리만 1을 낸다.
        * `tests/mljs.spec.ts`의 *"타깃이 상수면 계수가 정확히 0이고…"*가 문다.
        */
-      r2: total === 0 ? (residual === 0 ? 1 : 0) : 1 - residual / total,
+      r2:
+        constantTargetR2(truth, guess) ??
+        (total === 0 ? (residual === 0 ? 1 : 0) : 1 - residual / total),
     },
   }
+}
+
+/**
+ * **정답이 전부 같은 값일 때의 결정계수** — sklearn `r2_score`와 같은 판정이다
+ * (open-decisions.md 57). 정답에 다른 값이 하나라도 있으면 `undefined`이고 위의 식이 그대로다.
+ *
+ * sklearn의 규칙은 *"분모가 정확히 0이면 완벽할 때 1, 아니면 0"*이고(sklearn 소스의
+ * `_assemble_fraction_of_explained_deviance`), **분모는 numpy의 쌍별 합으로 구한 평균에서
+ * 잰다.** 같은 소수가 반복된 정답에서 앞에서부터 더한 평균은 먼지를 남길 수 있고, 그러면
+ * 분모가 작은 양수라 한 행만 빗나가도 값이 크게 음수다 — 쌍별 합의 평균이 그 값과 정확히
+ * 같으면 sklearn은 0이다. 먼지가 남는지는 행 수와 값이
+ * 가르고, 쌍별 합에서도 남는 입력이 있어 그때는 sklearn도 크게 음수다.
+ *
+ * **다른 값이 섞인 정답은 여기 안 온다.** 그때는 두 합이 끝자리만 다르고, 앞에서부터 더한
+ * 지금 값을 바꾸면 옛 파일의 재실행 대조가 끝자리 차이로 갈린다.
+ * `tests/sklearn-parity.spec.ts`의 *"sklearn 대조 · 결정계수"*가 문다.
+ */
+function constantTargetR2(truth: readonly number[], guess: readonly number[]): number | undefined {
+  const first = truth[0]
+  if (first === undefined || truth.some((value) => value !== first)) return undefined
+  const average = numpySum(truth) / truth.length
+  const spread = numpySum(truth.map((value) => (value - average) ** 2))
+  const residual = numpySum(truth.map((value, index) => (value - (guess[index] ?? 0)) ** 2))
+  if (residual === 0) return 1
+  return spread === 0 ? 0 : 1 - residual / spread
+}
+
+/** numpy `add.reduce`가 부동소수 배열을 더하는 차례. 이 크기 이하는 8갈래로 나눠 더한다. */
+const NUMPY_PAIRWISE_BLOCK = 128
+
+/**
+ * numpy의 쌍별 합(`pairwise_sum`) — 8개 미만은 앞에서부터, 블록 이하는 8갈래로, 그 위는
+ * 8의 배수 자리에서 반으로 갈라 더한다. 결과가 numpy와 비트까지 같은지는 생성기의
+ * `R2_CASES`가 블록 앞뒤 행 수로 대조한다(`fixtures:check`).
+ */
+function numpySum(values: readonly number[], start = 0, count = values.length): number {
+  if (count < 8) {
+    let sum = 0
+    for (let at = start; at < start + count; at += 1) sum += values[at] ?? 0
+    return sum
+  }
+  if (count <= NUMPY_PAIRWISE_BLOCK) {
+    const lanes = values.slice(start, start + 8)
+    let at = 8
+    for (; at < count - (count % 8); at += 8) {
+      for (let lane = 0; lane < 8; lane += 1) {
+        lanes[lane] = (lanes[lane] ?? 0) + (values[start + at + lane] ?? 0)
+      }
+    }
+    const [a = 0, b = 0, c = 0, d = 0, e = 0, f = 0, g = 0, h = 0] = lanes
+    let sum = a + b + (c + d) + (e + f + (g + h))
+    for (; at < count; at += 1) sum += values[start + at] ?? 0
+    return sum
+  }
+  let half = Math.floor(count / 2)
+  half -= half % 8
+  return numpySum(values, start, half) + numpySum(values, start + half, count - half)
 }
 
 /**

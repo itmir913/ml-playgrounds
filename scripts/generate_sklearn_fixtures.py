@@ -11,7 +11,8 @@
 - data/*.csv          - 데이터. 감사 때 생성했고 그 뒤로 손대지 않는다.
 - expected.json       - 분할 인덱스 + sklearn 기대값 + 다수 클래스 기준선.
                         `metrics`·`preprocessing` 칸은 벌이 아니라 **경계 입력**과 그
-                        답이다 (`SILHOUETTE_CASES`·`STANDARD_CASES`).
+                        답이다 (`SILHOUETTE_CASES`·`R2_CASES`·`STANDARD_CASES`·
+                        `CATEGORY_CASES`).
 
 **분할 인덱스는 이 스크립트가 만들지 않는다.** 인덱스는 JS 쪽 분할(ml/split.ts,
 시드 42)이 만든 기록이고, 여기서는 그대로 보존하며 sklearn 기대값만 다시 계산한다.
@@ -51,7 +52,7 @@ from sklearn.metrics import accuracy_score, r2_score, silhouette_score
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier, MLPRegressor
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 from sklearn.svm import SVC
 from sklearn.cluster import KMeans
 from sklearn.tree import DecisionTreeClassifier
@@ -110,8 +111,9 @@ def matrices_for(
 ) -> tuple[np.ndarray, np.ndarray]:
     """JS 전처리(스케일링 none, onehot)와 같은 행렬을 만든다.
 
-    수치 열은 값 그대로, 범주 열은 **훈련 데이터 등장 순서**의 원-핫이다 - ml/preprocess.ts의
-    규약과 같아야 같은 행렬 위에서 대조가 성립한다 (감사에서 최대차 1e-15로 확인했다).
+    수치 열은 값 그대로, 범주 열은 **정렬한 범주**의 원-핫이다 - sklearn `OneHotEncoder`의
+    `categories_`와 같고(open-decisions.md 61), ml/preprocess.ts의 `categoryOrder`와 같아야
+    같은 행렬 위에서 대조가 성립한다.
     """
     cols = {c: i for i, c in enumerate(header)}
     features: list[str] = entry["meta"]["features"]
@@ -138,12 +140,7 @@ def matrices_for(
         if numeric(feature):
             plans.append((feature, None))
         else:
-            categories: list[str] = []
-            for i in train_idx:
-                value = cell(i, feature)
-                if value not in categories:
-                    categories.append(value)
-            plans.append((feature, categories))
+            plans.append((feature, sorted({cell(i, feature) for i in train_idx})))
 
     def take(indices: list[int]) -> np.ndarray:
         out: list[list[float]] = []
@@ -555,6 +552,35 @@ SILHOUETTE_CASES: list[dict[str, Any]] = [
 ]
 
 
+def _constant_miss(value: float, count: int) -> dict[str, Any]:
+    """`value`만 `count`개인 정답과, 마지막 한 행만 빗나간 예측."""
+    return {"truth": [value] * count, "pred": [value] * (count - 1) + [value + 0.1]}
+
+
+#: 결정계수(`r2_score`)를 대조할 입력들. **정답이 한 값뿐인 시험 몫이다.**
+#
+# sklearn은 분모(정답의 편차 제곱합)가 **정확히 0**일 때만 따로 판정하고, 그 분모를 numpy의
+# 쌍별 합으로 구한다. 같은 소수가 반복된 정답에서 쌍별 합의 평균이 그 값과 같으면 분모가 0이고,
+# 먼지가 남으면 분모가 작은 양수라 값이 크게 음수다 - 어느 쪽인지는 행 수가 가른다. 그래서
+# 행 수를 쌍별 합의 갈래(8개 미만, 128개 이하, 그 위의 반 가르기)마다 둔다.
+#
+# **어느 입력이 어느 쪽인지는 여기 적지 않는다** - 답은 sklearn이 낸 `r2`다.
+R2_CASES: list[dict[str, Any]] = [
+    {"name": "decimal-constant-3-miss", **_constant_miss(0.1, 3)},
+    {"name": "decimal-constant-10-miss", **_constant_miss(0.1, 10)},
+    {"name": "decimal-constant-10-exact", "truth": [0.1] * 10, "pred": [0.1] * 10},
+    {"name": "decimal-constant-17-miss", **_constant_miss(0.1, 17)},
+    {"name": "decimal-constant-10-miss-36.6", **_constant_miss(36.6, 10)},
+    {"name": "decimal-constant-129-miss", **_constant_miss(0.1, 129)},
+    {"name": "decimal-constant-300-miss", **_constant_miss(0.1, 300)},
+    {
+        "name": "not-constant",
+        "truth": [1.0, 2.0, 3.0, 4.0],
+        "pred": [1.1, 1.9, 3.2, 3.9],
+    },
+]
+
+
 def metrics_record() -> dict[str, Any]:
     """지표 계산기를 sklearn과 맞대는 입력과 답. 스펙은 `sklearn-parity.spec.ts`다."""
     return {
@@ -566,7 +592,11 @@ def metrics_record() -> dict[str, Any]:
                 ),
             }
             for case in SILHOUETTE_CASES
-        ]
+        ],
+        "r2": [
+            {**case, "r2": float(r2_score(case["truth"], case["pred"]))}
+            for case in R2_CASES
+        ],
     }
 
 
@@ -597,6 +627,21 @@ STANDARD_CASES: list[dict[str, Any]] = [
 ]
 
 
+#: 범주 순서(`OrdinalEncoder`·`OneHotEncoder`의 `categories_`)를 대조할 입력들.
+#
+# sklearn은 범주를 **정렬해서** 세우고, 문자열은 파이썬 `str`의 순서 - 코드 포인트 순서다.
+# JS의 `<`와 `sort()`는 UTF-16 코드 단위라 BMP 뒤쪽(U+E000~U+FFFF)과 BMP 밖(이모지)이 함께
+# 있는 열에서 갈린다 - 그 입력을 둔다. 한글과 자모, 대소문자, 수처럼 생긴 문자열(열에 글자가
+# 섞여 범주 열이 된 것)도 둔다. 값은 훈련 몫에 나오는 차례 그대로다.
+CATEGORY_CASES: list[dict[str, Any]] = [
+    {"name": "hangul", "values": ["중", "상", "하", "상"]},
+    {"name": "hangul-jamo-latin-digit", "values": ["가", "나", "ㄱ", "A", "1"]},
+    {"name": "case-and-accents", "values": ["b", "B", "a", "A", "_", "é"]},
+    {"name": "number-like", "values": ["10", "9", "2", "없음", "-1", "1.5"]},
+    {"name": "astral-and-late-bmp", "values": ["\U0001f600", "ｚ", "a", "", "가"]},
+]
+
+
 def preprocessing_record() -> dict[str, Any]:
     """전처리 단계를 sklearn과 맞대는 입력과 답. 스펙은 `preprocess.spec.ts`다."""
     out: list[dict[str, Any]] = []
@@ -610,7 +655,21 @@ def preprocessing_record() -> dict[str, Any]:
                 "transformed": [float(one) for one in applied[:, 0]],
             }
         )
-    return {"standard": out}
+    return {
+        "standard": out,
+        "categories": [
+            {
+                **case,
+                "categories": [
+                    str(one)
+                    for one in OrdinalEncoder()
+                    .fit(np.array(case["values"], dtype=object).reshape(-1, 1))
+                    .categories_[0]
+                ],
+            }
+            for case in CATEGORY_CASES
+        ],
+    }
 
 
 def main() -> int:

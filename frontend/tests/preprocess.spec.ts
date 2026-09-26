@@ -22,6 +22,7 @@ import {
   transform,
   usableRows,
   type Dataset,
+  type Preprocessor,
 } from '../src/ml/preprocess'
 import type { Preprocessing } from '../src/project/schema'
 
@@ -42,9 +43,20 @@ interface StandardCase {
 const FIXTURE_RTOL = 1e-9
 const FIXTURE_ATOL = 1e-12
 
-const STANDARD_CASES: StandardCase[] = JSON.parse(
+/** sklearn `OrdinalEncoder`가 세운 범주 순서 (`generate_sklearn_fixtures.py`의 `CATEGORY_CASES`). */
+interface CategoryCase {
+  name: string
+  /** 훈련 몫에 나오는 차례 그대로의 값. */
+  values: string[]
+  categories: string[]
+}
+
+const SKLEARN_PREPROCESSING: { standard: StandardCase[]; categories: CategoryCase[] } = JSON.parse(
   fs.readFileSync(path.join(__dirname, 'fixtures', 'sklearn', 'expected.json'), 'utf8'),
-).preprocessing.standard
+).preprocessing
+
+const STANDARD_CASES = SKLEARN_PREPROCESSING.standard
+const CATEGORY_CASES = SKLEARN_PREPROCESSING.categories
 
 const preprocessing = (overrides: Partial<Preprocessing> = {}): Preprocessing => ({
   missing: 'mean',
@@ -114,7 +126,7 @@ describe('훈련 데이터에서만 파라미터를 구한다', () => {
   it('테스트 데이터에만 있는 범주는 학습 범주에 들어가지 않는다', () => {
     const fitted = fitPreprocessor(dataset, [0, 1, 2], features, preprocessing())
     const region = fitted.columns.find((column) => column.name === '지역')
-    expect(region?.categories).toEqual(['서울', '부산'])
+    expect(region?.categories).toEqual(['부산', '서울'])
   })
 })
 
@@ -367,18 +379,18 @@ describe('스케일링', () => {
 describe('범주 인코딩', () => {
   it('onehot은 범주마다 열을 만들고 이름에 범주를 붙인다', () => {
     const fitted = fitPreprocessor(dataset, [0, 1, 2, 3], features, preprocessing())
-    expect(fitted.featureNames).toEqual(['키', '몸무게', '지역=서울', '지역=부산'])
+    expect(fitted.featureNames).toEqual(['키', '몸무게', '지역=부산', '지역=서울'])
 
     const matrix = transform(fitted, dataset, [0, 1], 'onehot')
-    expect(matrix[0]?.slice(2)).toEqual([1, 0])
-    expect(matrix[1]?.slice(2)).toEqual([0, 1])
+    expect(matrix[0]?.slice(2)).toEqual([0, 1])
+    expect(matrix[1]?.slice(2)).toEqual([1, 0])
   })
 
   it('ordinal은 열 하나로 두고 순서를 번호로 쓴다', () => {
     const options = preprocessing({ categoricalEncoding: 'ordinal' })
     const fitted = fitPreprocessor(dataset, [0, 1, 2, 3], features, options)
     expect(fitted.featureNames).toEqual(['키', '몸무게', '지역'])
-    expect(transform(fitted, dataset, [0, 1], 'ordinal').map((row) => row[2])).toEqual([0, 1])
+    expect(transform(fitted, dataset, [0, 1], 'ordinal').map((row) => row[2])).toEqual([1, 0])
   })
 
   it('훈련 데이터에 없던 범주는 onehot에서 전부 0이다', () => {
@@ -399,6 +411,62 @@ describe('범주 인코딩', () => {
 
     expect(fitted.featureNames).toEqual(['키', '몸무게'])
     expect(fitted.excludedColumns).toEqual([{ name: '지역', reason: 'notEncodable' }])
+  })
+})
+
+/**
+ * **범주 순서는 sklearn `OrdinalEncoder`·`OneHotEncoder`의 `categories_`와 같다** — 정렬이고,
+ * 문자열은 파이썬 `str`의 순서(코드 포인트)다 (open-decisions.md 61). 입력과 답은 sklearn
+ * 픽스처의 `preprocessing.categories`에 있고 생성기의 `CATEGORY_CASES`가 만든다.
+ */
+describe('범주 순서', () => {
+  const column = (values: readonly string[]): Dataset => ({
+    columns: ['x', 'y'],
+    rows: values.map((value) => [value, '1']),
+  })
+
+  it('JS 기본 정렬과 갈리는 입력이 픽스처에 있다', () => {
+    const splits = CATEGORY_CASES.filter(
+      (one) => [...one.categories].sort().join('\u0000') !== one.categories.join('\u0000'),
+    )
+    expect(splits.length).toBeGreaterThanOrEqual(1)
+  })
+
+  for (const one of CATEGORY_CASES) {
+    it(`범주 순서가 sklearn과 같다 - ${one.name}`, () => {
+      const rows = one.values.map((_, index) => index)
+      for (const categoricalEncoding of ['onehot', 'ordinal'] as const) {
+        const fitted = fitPreprocessor(
+          column(one.values),
+          rows,
+          ['x'],
+          preprocessing({ categoricalEncoding }),
+        )
+        expect(fitted.columns[0]?.categories).toEqual(one.categories)
+      }
+      const onehot = fitPreprocessor(column(one.values), rows, ['x'], preprocessing())
+      expect(onehot.featureNames).toEqual(one.categories.map((category) => `x=${category}`))
+    })
+  }
+
+  it('훈련 몫의 행 차례가 바뀌어도 범주 순서는 같다 - 씨앗에 딸리지 않는다', () => {
+    const values = ['중', '상', '하', '상']
+    const forward = fitPreprocessor(column(values), [0, 1, 2, 3], ['x'], preprocessing())
+    const backward = fitPreprocessor(column(values), [3, 2, 1, 0], ['x'], preprocessing())
+    expect(backward.columns[0]?.categories).toEqual(forward.columns[0]?.categories)
+    expect(backward.featureNames).toEqual(forward.featureNames)
+  })
+
+  /** 옛 파일의 전처리기는 첫 등장 순서로 적혀 있다. 예측은 그 번호로 배운 모델에 들어간다. */
+  it('적힌 범주 순서는 그대로 쓴다 - 옛 파일', () => {
+    const recorded: Preprocessor = {
+      format: PREPROCESSOR_FORMAT,
+      columns: [{ name: 'x', kind: 'categorical', categories: ['중', '상', '하'] }],
+      featureNames: ['x'],
+      excludedColumns: [],
+    }
+    const table = column(['상', '하', '중'])
+    expect(transform(recorded, table, [0, 1, 2], 'ordinal').map((row) => row[0])).toEqual([1, 2, 0])
   })
 })
 

@@ -12,7 +12,7 @@
  * 말을 하게 되고**, 그 어긋남은 둘을 나란히 놓기 전에는 안 보인다.
  */
 
-import { quantile, toNumber, type Dataset } from '../ml/preprocess'
+import { categoryOrder, quantile, toNumber, type Dataset } from '../ml/preprocess'
 import { sampleIndices } from '../ml/shuffle'
 
 /**
@@ -301,7 +301,7 @@ export interface Frequency {
 /** 범주 열의 도수 분포. */
 export interface Frequencies {
   /**
-   * 그릴 막대. **첫 등장 순서다** (아래 `frequencies`의 머리말).
+   * 그릴 막대. **인코딩과 같은 순서다** (아래 `frequencies`의 머리말).
    */
   readonly bars: readonly Frequency[]
   /** 빈 칸이었던 행 수. 막대에 안 들어간다. */
@@ -315,12 +315,12 @@ export interface Frequencies {
 /**
  * 범주 열의 도수를 센다.
  *
- * **순서는 첫 등장 순서다. 도수 내림차순이 아니다.** 전처리의 원-핫 인코딩이 같은
- * 순서를 쓰기 때문이다(`fitPreprocessor`의 `[...new Set(present)]`) — 두 화면이 같은 열을
+ * **순서는 인코딩 순서다. 도수 내림차순이 아니다.** 전처리의 인코딩이 같은 순서를 쓰기
+ * 때문이다(`ml/preprocess.ts`의 `categoryOrder`, sklearn처럼 정렬) — 두 화면이 같은 열을
  * 다른 순서로 늘어놓으면, 학생이 그림에서 읽은 순서와 인코딩된 특성 이름의 순서가
  * 어긋난다. 읽기 쉬움보다 **두 화면이 같은 말을 하는 것**을 고른다.
  *
- * **무엇을 남길지는 도수가 정하고, 어떻게 늘어놓을지는 등장 순서가 정한다.** 둘은 다른
+ * **무엇을 남길지는 도수가 정하고, 어떻게 늘어놓을지는 인코딩 순서가 정한다.** 둘은 다른
  * 질문이다 — 학번처럼 값이 행 수만큼 많은 열에서 앞 20개만 남기면 그건 "가장 흔한
  * 값들"이 아니라 "파일 맨 위의 값들"이라, 그림이 아무것도 안 말한다.
  *
@@ -352,9 +352,7 @@ export function frequencies(cells: readonly string[], maxBars: number): Frequenc
       .map(([value]) => value),
   )
 
-  const bars = entries
-    .filter(([value]) => kept.has(value))
-    .map(([value, count]) => ({ value, count }))
+  const bars = categoryOrder(kept).map((value) => ({ value, count: counts.get(value) ?? 0 }))
 
   const omitted = entries
     .filter(([value]) => !kept.has(value))
@@ -404,16 +402,16 @@ export interface ScatterSample {
  * 실제로 그려지는 것은 그보다 적어지고, 결측이 많은 열일수록 더 적어진다.
  */
 /**
- * 그 열의 범주들. **첫 등장 순서다.**
+ * 그 열의 범주들. **인코딩 순서다.**
  *
- * **`ml/preprocess.ts`의 `[...new Set(present)]`와 같은 규칙이다** — 학습 쪽이 그 순서로
- * 인코딩하므로, 데이터 화면이 다른 순서로 세우면 **같은 열이 두 화면에서 다른 차례로**
- * 선다 (`open-decisions.md` "군집 산점도의 축").
+ * **`ml/preprocess.ts`의 `categoryOrder`를 그대로 쓴다** — 학습 쪽이 그 순서로 인코딩하므로,
+ * 데이터 화면이 다른 순서로 세우면 **같은 열이 두 화면에서 다른 차례로** 선다
+ * (`open-decisions.md` "군집 산점도의 축").
  *
  * 빈 칸은 범주가 아니다. 그 행은 점을 못 찍고 `skipped`로 센다.
  */
 export function categoriesOf(cells: readonly string[]): readonly string[] {
-  return [...new Set(cells.filter((cell) => !isBlank(cell)))]
+  return categoryOrder(cells.filter((cell) => !isBlank(cell)))
 }
 
 /** 범주 축의 위치. 목록에 없거나 빈 칸이면 `null`이라 그 행은 빠진다. */

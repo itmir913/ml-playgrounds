@@ -21,6 +21,7 @@ import {
   numericValues,
   scatterSample,
 } from '../src/data/stats'
+import { categoryOrder, fitPreprocessor } from '../src/ml/preprocess'
 
 /** 0부터 n-1까지. 규약 검사의 입력으로 쓴다. */
 function series(n: number): number[] {
@@ -336,28 +337,40 @@ describe('도수 분포', () => {
   })
 
   /**
-   * **순서는 첫 등장 순서다.** 전처리의 원-핫 인코딩이 같은 순서를 쓰기 때문이고
-   * (`fitPreprocessor`의 `[...new Set(present)]`), 두 화면이 같은 열을 다른 순서로
-   * 늘어놓으면 학생이 읽은 순서와 특성 이름의 순서가 어긋난다.
+   * **순서는 인코딩 순서다** (`ml/preprocess.ts`의 `categoryOrder`, open-decisions.md 61).
+   * 두 화면이 같은 열을 다른 순서로 늘어놓으면 학생이 읽은 순서와 특성 이름의 순서가
+   * 어긋난다. 도수 내림차순도 첫 등장 순서도 아니다.
    */
-  it('도수가 큰 값이 뒤에 나와도 순서를 안 바꾼다', () => {
-    const tally = frequencies(['나', '가', '가', '가'], 30)
-    expect(tally.bars.map((bar) => bar.value)).toEqual(['나', '가'])
+  it('도수가 큰 값이 뒤에 나와도, 먼저 나온 값이 있어도 인코딩 순서다', () => {
+    const tally = frequencies(['다', '나', '가', '가', '가'], 30)
+    expect(tally.bars.map((bar) => bar.value)).toEqual(['가', '나', '다'])
   })
 
   /**
-   * **무엇을 남길지는 도수가 정하고, 어떻게 늘어놓을지는 등장 순서가 정한다.**
+   * **무엇을 남길지는 도수가 정하고, 어떻게 늘어놓을지는 인코딩 순서가 정한다.**
    * 앞에서부터 자르면 그림이 "가장 흔한 값들"이 아니라 "파일 맨 위의 값들"이 된다.
    */
-  it('남기는 것은 도수가 큰 쪽이고, 늘어놓는 것은 등장 순서다', () => {
+  it('남기는 것은 도수가 큰 쪽이고, 늘어놓는 것은 인코딩 순서다', () => {
     const cells = ['희귀1', '희귀2', ...new Array<string>(5).fill('흔함'), '희귀3']
     const tally = frequencies(cells, 2)
     // 흔함(5)과 그다음으로 큰 값 하나만 남는다.
     expect(tally.bars.length).toBe(2)
     expect(tally.bars.some((bar) => bar.value === '흔함')).toBe(true)
-    // 남은 둘은 여전히 등장 순서로 선다.
-    const positions = tally.bars.map((bar) => cells.indexOf(bar.value))
-    expect([...positions]).toEqual([...positions].sort((a, b) => a - b))
+    // 남은 둘은 인코딩 순서로 선다.
+    const values = tally.bars.map((bar) => bar.value)
+    expect(values).toEqual(categoryOrder(values))
+  })
+
+  it('막대의 차례가 전처리의 범주 순서와 같다 - UTF-16과 갈리는 값까지', () => {
+    const cells = ['\u{1F600}', 'ｚ', 'a', '', '가', 'a']
+    const encoded = fitPreprocessor(
+      { columns: ['x'], rows: cells.map((cell) => [cell]) },
+      cells.map((_, index) => index),
+      ['x'],
+      { missing: 'mean', scaling: 'none', categoricalEncoding: 'ordinal' },
+    ).columns[0]?.categories
+    expect(frequencies(cells, 30).bars.map((bar) => bar.value)).toEqual(encoded)
+    expect(categoriesOf(cells)).toEqual(encoded)
   })
 
   it('밀려난 값이 몇 행인지 말한다', () => {
@@ -438,15 +451,15 @@ describe('산점도 표본', () => {
  * 범주 축 (`open-decisions.md` "군집 산점도의 축"의 2026-09-22 문단).
  *
  * **결과 화면과 같은 규칙이라야 한다** — 차례가 갈리면 같은 열이 두 화면에서 다른
- * 자리에 선다. 그래서 여기가 무는 것은 *"첫 등장 순서"* 하나다.
+ * 자리에 선다. 그래서 여기가 무는 것은 *"인코딩 순서"* 하나다.
  */
 describe('산점도의 범주 축', () => {
   /**
-   * **`ml/preprocess.ts`의 `[...new Set(present)]`와 같은 규칙이다.** 가나다순으로
-   * 바꾸면 학습 쪽 인코딩과 어긋나고, 그 어긋남은 두 화면을 나란히 놓기 전에는 안 보인다.
+   * **`ml/preprocess.ts`의 `categoryOrder`와 같은 함수다.** 첫 등장 순서로 두면 학습 쪽
+   * 인코딩과 어긋나고, 그 어긋남은 두 화면을 나란히 놓기 전에는 안 보인다.
    */
-  it('범주는 첫 등장 순서다 — 가나다순이 아니다', () => {
-    expect(categoriesOf(['여', '남', '여', '기타'])).toEqual(['여', '남', '기타'])
+  it('범주는 인코딩 순서다 — 첫 등장 순서가 아니다', () => {
+    expect(categoriesOf(['여', '남', '여', '기타'])).toEqual(['기타', '남', '여'])
   })
 
   it('빈 칸은 범주가 아니다', () => {

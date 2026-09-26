@@ -440,10 +440,20 @@ describe('산점도', () => {
     { row: 2, x: 3, y: 3, group: '남' },
   ]
 
-  it('색 열의 값마다 갈래를 만들고 첫 등장 순서를 지킨다', () => {
+  it('색 열의 값마다 갈래를 만들고 인코딩 순서로 세운다', () => {
     const series = scatterSeries(points, '데이터')
     expect(series.map((one) => one.name)).toEqual(['남', '여'])
     expect(series[0]?.points.map((point) => point.row)).toEqual([0, 2])
+  })
+
+  /** 첫 등장 순서가 아니다 — 막대(`frequencies`)와 같은 `categoryOrder`다. */
+  it('먼저 나온 값이 뒤에 서도 인코딩 순서다 - 값이 없는 갈래는 맨 뒤다', () => {
+    const mixed: readonly DataPoint[] = [
+      { row: 0, x: 1, y: 1, group: '여' },
+      { row: 1, x: 2, y: 2 },
+      { row: 2, x: 3, y: 3, group: '남' },
+    ]
+    expect(scatterSeries(mixed, '없음').map((one) => one.name)).toEqual(['남', '여', '없음'])
   })
 
   it('색 열이 없으면 갈래가 하나다', () => {

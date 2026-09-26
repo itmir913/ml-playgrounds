@@ -87,10 +87,18 @@ interface SilhouetteCase {
   silhouette: number
 }
 
+/** 결정계수의 경계 입력 하나와 sklearn의 답 (`generate_sklearn_fixtures.py`의 `R2_CASES`). */
+interface R2Case {
+  name: string
+  truth: number[]
+  pred: number[]
+  r2: number
+}
+
 const document: {
   sklearnVersion: string
   datasets: Record<string, FixtureEntry>
-  metrics: { silhouette: SilhouetteCase[] }
+  metrics: { silhouette: SilhouetteCase[]; r2: R2Case[] }
 } = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'expected.json'), 'utf8'))
 
 /**
@@ -603,6 +611,30 @@ describe('sklearn 대조 · 실루엣 계수', () => {
         gap,
         `${one.name}: ours ${metrics.silhouette} vs sklearn ${one.silhouette}`,
       ).toBeLessThanOrEqual(FIXTURE_ATOL + PARAM_RELATIVE_TOLERANCE * Math.abs(one.silhouette))
+    })
+  }
+})
+
+/**
+ * **결정계수를 `r2_score`와 맞댄다 — 정답이 한 값뿐인 시험 몫에서.** sklearn은 분모가 정확히
+ * 0일 때만 따로 판정하고(sklearn 소스의 `_assemble_fraction_of_explained_deviance`), 그
+ * 분모를 numpy의 쌍별 합으로 구한다. 입력과
+ * 답이 전부 픽스처에 있다 (`generate_sklearn_fixtures.py`의 `R2_CASES`).
+ */
+describe('sklearn 대조 · 결정계수', () => {
+  it('분모가 0인 입력과 0이 아닌 입력이 함께 대조에 들어 있다', () => {
+    const constant = document.metrics.r2.filter((one) => new Set(one.truth).size === 1)
+    expect(constant.some((one) => one.r2 === 0)).toBe(true)
+    expect(constant.some((one) => one.r2 < -1)).toBe(true)
+  })
+
+  for (const one of document.metrics.r2) {
+    it(`${one.name}: sklearn과 같다`, () => {
+      const r2 = evaluate('regression', one.truth, one.pred).metrics.r2 ?? Number.NaN
+      expect(
+        Math.abs(r2 - one.r2),
+        `${one.name}: ours ${r2} vs sklearn ${one.r2}`,
+      ).toBeLessThanOrEqual(FIXTURE_ATOL + PARAM_RELATIVE_TOLERANCE * Math.abs(one.r2))
     })
   }
 })

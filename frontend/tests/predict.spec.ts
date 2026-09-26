@@ -163,13 +163,13 @@ describe('① 훈련 행 만들기', () => {
     const preprocessor = fitFor(subject)
     const rows = trainingRowsFor(subject, preprocessor, dataset)
 
-    // 키·몸무게 + 훈련 데이터에서 본 지역 셋(서울·부산·대구)
+    // 키·몸무게 + 훈련 데이터에서 본 지역 셋(정렬해서 대구·부산·서울)
     expect(preprocessor.featureNames).toEqual([
       '키',
       '몸무게',
-      '지역=서울',
-      '지역=부산',
       '지역=대구',
+      '지역=부산',
+      '지역=서울',
     ])
     expect(rows.features[0]).toHaveLength(5)
   })
@@ -341,7 +341,7 @@ describe('칸 서술', () => {
       { name: '키', kind: 'numeric' },
       { name: '몸무게', kind: 'numeric' },
       // 순서가 원-핫 열의 순서와 같다. 자유 입력이면 오타가 미지의 범주가 된다.
-      { name: '지역', kind: 'categorical', options: ['서울', '부산', '대구'] },
+      { name: '지역', kind: 'categorical', options: ['대구', '부산', '서울'] },
     ])
   })
 
@@ -353,7 +353,7 @@ describe('칸 서술', () => {
   it('순서형에도 고를 값이 있다 - 인코딩은 저장 방식이지 입력 방식이 아니다', () => {
     const subject = experiment([0, 1, 3], ordinal)
     const 지역 = inputFields(fitFor(subject)).find((field) => field.name === '지역')
-    expect(지역?.options).toEqual(['서울', '부산', '대구'])
+    expect(지역?.options).toEqual(['대구', '부산', '서울'])
   })
 })
 
@@ -638,7 +638,8 @@ describe('여러 실험의 칸을 합친다', () => {
     const daegu = inputFields(fitFor(experiment([3], onehot)))
     const merged = mergeFields([seoulBusan, daegu])
 
-    expect(merged.find((field) => field.name === '지역')?.options).toEqual(['서울', '부산', '대구'])
+    // 실험마다의 목록은 정렬이고, 합칠 때는 먼저 나온 목록 뒤에 못 본 값을 붙인다.
+    expect(merged.find((field) => field.name === '지역')?.options).toEqual(['부산', '서울', '대구'])
   })
 
   /**
@@ -654,7 +655,7 @@ describe('여러 실험의 칸을 합친다', () => {
 
     const merged = mergeFields([seoulBusan, all])
 
-    expect(merged.find((field) => field.name === '지역')?.options).toEqual(['서울', '부산', '대구'])
+    expect(merged.find((field) => field.name === '지역')?.options).toEqual(['부산', '서울', '대구'])
   })
 
   it('먼저 나온 순서를 지킨다 - 최신 실험을 앞에 주면 화면이 지금 설정을 따른다', () => {

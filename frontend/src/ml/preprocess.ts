@@ -46,7 +46,11 @@ export interface FittedColumn {
   fill?: number | string
   /** center를 빼고 spread로 나눈다. 스케일링이 'none'이거나 범주 열이면 없다. */
   scale?: { center: number; spread: number }
-  /** 훈련 데이터에서 본 범주. **순서가 곧 인코딩 순서다.** 범주 열에만 있다. */
+  /**
+   * 훈련 데이터에서 본 범주. **순서가 곧 인코딩 순서다** (`categoryOrder`). 범주 열에만 있다.
+   * 옛 파일에는 첫 등장 순서로 적혀 있을 수 있고, 예측은 적힌 순서 그대로 쓴다
+   * (`tests/preprocess.spec.ts`의 *"적힌 범주 순서는 그대로 쓴다"*).
+   */
   categories?: string[]
 }
 
@@ -60,6 +64,44 @@ export interface Preprocessor {
   featureNames: string[]
   /** 학습에 쓰이지 않은 열과 그 이유. 화면이 학생에게 보여준다. */
   excludedColumns: { name: string; reason: 'notEncodable' }[]
+}
+
+/**
+ * 파이썬 `str`의 순서로 두 문자열을 견준다 — **코드 포인트 순서다.**
+ *
+ * JS의 `<`와 인자 없는 `sort()`는 UTF-16 **코드 단위**로 견주는데, 둘은 BMP 뒤쪽
+ * (U+E000~U+FFFF)과 BMP 밖(이모지 같은 서로게이트 쌍)이 만나는 자리에서만 갈린다. 그래서
+ * 처음 다른 코드 단위에서 서로게이트를 BMP 뒤쪽보다 위로 올려 견준다 — 서로게이트는 늘
+ * U+10000 이상을 뜻하기 때문이다. `tests/preprocess.spec.ts`의 *"범주 순서가 sklearn과
+ * 같다 - astral-and-late-bmp"*가 문다.
+ */
+export function compareCodePoints(left: string, right: string): number {
+  const shared = Math.min(left.length, right.length)
+  for (let at = 0; at < shared; at += 1) {
+    const a = left.charCodeAt(at)
+    const b = right.charCodeAt(at)
+    if (a !== b) return codePointRank(a) - codePointRank(b)
+  }
+  return left.length - right.length
+}
+
+/** 코드 단위 하나를 코드 포인트 순서의 자리로. 서로게이트가 U+E000~U+FFFF 위로 간다. */
+function codePointRank(unit: number): number {
+  if (unit >= 0xd800 && unit <= 0xdfff) return unit + 0x2000
+  if (unit >= 0xe000) return unit - 0x800
+  return unit
+}
+
+/**
+ * 범주 열의 범주들. **정렬이다** — sklearn `OrdinalEncoder`·`OneHotEncoder`의
+ * `categories_`와 같다 (open-decisions.md 61). 인코딩 번호와 원-핫 열의 차례가 이것이다.
+ *
+ * **그림도 이것을 쓴다** (`data/stats.ts`의 `frequencies`·`categoriesOf`, `data/chart-config.ts`의
+ * `scatterSeries`) — 차례를 정하는 함수가 둘이면 같은 열이 두 화면에서 다른 차례로 선다.
+ * 빈 칸을 거르는 것은 부르는 쪽이다.
+ */
+export function categoryOrder(values: Iterable<string>): string[] {
+  return [...new Set(values)].sort(compareCodePoints)
 }
 
 /** 빈 칸을 결측으로 본다. 'N/A' 같은 문자열은 손대지 않는다 - 그건 값이지 결측이 아니다. */
@@ -403,7 +445,7 @@ export function fitPreprocessor(
       if (scaler) fitted.scale = scaler(numbers)
       featureNames.push(name)
     } else {
-      const categories = [...new Set(present)]
+      const categories = categoryOrder(present)
       fitted.categories = categories
       if (preprocessing.categoricalEncoding === 'onehot') {
         // 열 하나가 범주 수만큼 늘어난다. 이름에 범주를 붙여야 featureImportance를 읽을 수 있다.

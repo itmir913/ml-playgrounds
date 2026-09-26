@@ -86,12 +86,12 @@ describe('바뀐 표를 다섯 줄로 보인다', () => {
     const region = preview.columns.find((column) => column.name === '지역')
 
     expect(region?.features.map((feature) => feature.name)).toEqual([
-      '지역=서울',
-      '지역=부산',
       '지역=대구',
+      '지역=부산',
+      '지역=서울',
     ])
-    // 첫 줄이 서울이므로 첫 특성만 1이다.
-    expect(region?.features.map((feature) => feature.values[0])).toEqual([1, 0, 0])
+    // 첫 줄이 서울이므로 서울 특성만 1이다.
+    expect(region?.features.map((feature) => feature.values[0])).toEqual([0, 0, 1])
     // 둘째 줄은 부산.
     expect(region?.features.map((feature) => feature.values[1])).toEqual([0, 1, 0])
   })
