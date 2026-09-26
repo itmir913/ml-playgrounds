@@ -3136,14 +3136,15 @@ describe('도착 지점은 붙박이 바를 비켜선다', () => {
   })
 
   /**
-   * **`md` 미만에서 동작 바는 붙지 않고 게이지 줄만 붙는다** (`open-decisions.md` 59). 모든
-   * 화면에 같은 규칙이라 컴포넌트 하나와 유틸리티 하나를 본다. 읽는 높이와 게이지가 실제로
-   * 보이는지는 브라우저로 잰 것이다(사람 확인) — 여기서는 규칙이 선 자리만 문다.
+   * **`md` 미만에서 동작 바는 붙지 않고 게이지 줄만 붙는다** (`open-decisions.md` 59). 예외는
+   * 예측 화면 하나이고 바의 `sticky` 속성으로만 연다. 그래서 컴포넌트와 유틸리티를 보고,
+   * 그 속성을 쓰는 화면을 전부 센다. 읽는 높이와 게이지가 실제로 보이는지는 브라우저로 잰
+   * 것이다(사람 확인) — 여기서는 규칙이 선 자리만 문다.
    */
   it('동작 바는 md 이상에서만 붙고, 좁은 폭에서는 게이지 줄만 붙는다', () => {
     const bar = readFileSync(join(SRC, 'components', 'StepActionBar.vue'), 'utf-8')
     // 여는 태그 전체 — 정적 `class`와 `:class` 바인딩을 함께 본다.
-    const root = /<div\s+ref="barEl"[^>]*>/.exec(bar)
+    const root = new RegExp(String.raw`<div\s+ref="barEl"${ATTRS}>`).exec(bar)
     expect(root, 'StepActionBar root not found').not.toBeNull()
     // 정적 `class`의 붙는 계열 클래스는 전부 `md:`만 달아야 한다. 접두 없는 것도 `max-md:`도
     // 휴대폰에서 붙는다.
@@ -3155,16 +3156,28 @@ describe('도착 지점은 붙박이 바를 비켜선다', () => {
       expect(one, 'the bar sticks on phones again').toMatch(/^md:/)
     }
     // 휴대폰에서 통째로 붙는 길은 `sticky` 속성 하나뿐이고, 없으면 게이지 줄만 붙는다.
-    expect(root![0], 'the gauge row no longer sticks on phones').toMatch(
-      /sticky\s*\?\s*'sticky stick-below-shell'\s*:\s*\{\s*'stick-step-bar-strip':\s*\$slots\.below\s*\}/,
+    // 바인딩 값 **전체**가 이 삼항이어야 한다 — 어딘가에 있기만 보면 옆에 붙는 클래스를
+    // 덧붙여도 조용하다.
+    const bound = /\s:class="([^"]*)"/.exec(root![0])
+    expect(bound, 'StepActionBar :class not found').not.toBeNull()
+    expect((bound![1] ?? '').replace(/\s+/g, ' ').trim(), 'the bar sticks on phones again').toBe(
+      "sticky ? 'sticky stick-below-shell' : { 'stick-step-bar-strip': $slots.below }",
     )
 
-    // 그 속성을 쓰는 화면은 예측 화면뿐이다 (open-decisions.md 59의 예외).
-    const users = sourceFiles(SRC)
-      .filter((file) => file.endsWith('.vue'))
-      .filter((file) => /<StepActionBar\b[^>]*\ssticky\b/.test(readFileSync(file, 'utf-8')))
-      .map((file) => relative(SRC, file).split(sep).join('/'))
-      .sort()
+    // 그 속성을 쓰는 화면은 예측 화면뿐이다 (open-decisions.md 59의 예외). 예외는 화면에
+    // 따라 정해지므로 정적이어야 한다 — 바인딩(`:sticky`)은 표기부터 막는다.
+    const tag = new RegExp(String.raw`<StepActionBar\b${ATTRS}>`, 'g')
+    const users: string[] = []
+    for (const file of sourceFiles(SRC).filter((one) => one.endsWith('.vue'))) {
+      const name = relative(SRC, file).split(sep).join('/')
+      for (const [open] of readFileSync(file, 'utf-8').matchAll(tag)) {
+        expect(open, `bound sticky on the action bar (${name})`).not.toMatch(
+          /\s(?::|v-bind:)sticky\b/,
+        )
+        if (/\ssticky\b/.test(open) && !users.includes(name)) users.push(name)
+      }
+    }
+    users.sort()
     expect(users, 'sticky bar outside the predict screens').toEqual([
       'views/predict/ImagePredictPanel.vue',
       'views/predict/TabularPredictPanel.vue',
