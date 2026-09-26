@@ -173,6 +173,12 @@ interface Optimized {
 const MEMORY = 10
 /** Armijo 조건의 기울기 계수. Nocedal & Wright의 관행값(1e-4)이다. */
 const ARMIJO = 1e-4
+/**
+ * Armijo 역추적에서 걸음을 반으로 줄이는 최대 횟수. 상한이 아니라 알고리즘의 내부 상수다
+ * (`open-decisions.md` 64). 내려가지 않는 방향에서 역추적이 끝없이 돌지 않게 묶는다 — 다 쓰면
+ * 선탐색 실패로 멈추고 지금 기울기로 수렴 여부를 판정한다(아래 `minimize`의 선탐색).
+ */
+const ARMIJO_MAX_HALVINGS = 60
 
 /**
  * L-BFGS + Armijo 역추적. 두-루프 재귀(Nocedal & Wright, Numerical Optimization 7.4)다.
@@ -253,7 +259,7 @@ function minimize(objective: Objective, theta: Float64Array, options: LogisticOp
     // Armijo 역추적: f(θ + t·d) ≤ f + ARMIJO·t·(gᵀd)가 될 때까지 반씩 줄인다.
     let stepSize = 1
     let trialValue = Number.POSITIVE_INFINITY
-    for (let attempt = 0; attempt < 60; attempt += 1) {
+    for (let attempt = 0; attempt < ARMIJO_MAX_HALVINGS; attempt += 1) {
       for (let j = 0; j < size; j += 1) {
         trial[j] = (theta[j] as number) + stepSize * (direction[j] as number)
       }

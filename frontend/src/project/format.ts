@@ -27,7 +27,12 @@ import {
 import { decodeZipNames } from '../data/zip-names'
 import { ClientError } from '../errors'
 import { hashBytes } from '../hash'
-import { MAX_FILE_NAME_LENGTH, MAX_MODEL_BYTES, MODEL_BUDGET_BYTES } from '../limits'
+import {
+  MAX_FILE_NAME_LENGTH,
+  MAX_MODEL_BYTES,
+  MODEL_BUDGET_BYTES,
+  ZIP_DEFLATE_LEVEL,
+} from '../limits'
 import { backboneFor } from '../ml/backbones'
 import {
   buildHashes,
@@ -445,9 +450,13 @@ class WholeEntryDeflate extends ZipPassThrough {
     if (!final) return
     const whole = concatenate(this.#pending)
     this.#pending = []
-    this.terminate = deflate(whole, { level: 6, consume: true }, (error, compressed) => {
-      this.ondata(error, compressed, true)
-    })
+    this.terminate = deflate(
+      whole,
+      { level: ZIP_DEFLATE_LEVEL, consume: true },
+      (error, compressed) => {
+        this.ondata(error, compressed, true)
+      },
+    )
   }
 }
 

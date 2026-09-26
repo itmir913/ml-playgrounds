@@ -31,6 +31,11 @@
  * **마지막 줄이 있는 이유는 이 파일이 상한만 사는 곳이 아니어서다.** webp 품질과
  * 알림 시간이 여기 함께 산다. 스위치를 "이 파일 전부"로 정의하면 그것들까지 꺼진다.
  *
+ * **알고리즘의 기본값과 내부 상수는 여기 살지 않는다** (`open-decisions.md` 64). SVM의
+ * `maxIterations`(`ml/engines/svm-smo.ts`의 `SMO_DEFAULTS`)는 sklearn처럼 알고리즘의 기본값이고,
+ * 로지스틱의 역추적 횟수(`ARMIJO_MAX_HALVINGS`)는 계산 안의 상수다 — 끄거나 교실에 맞춰 고르는
+ * 값이 아니라 그 알고리즘과 함께 읽혀야 한다.
+ *
  * **이름으로 판정하지 마라 — 근거로 판정한다.** `사람이 골랐다`라는 칸이 있었는데
  * 마흔넷이 전부 사람이 골랐으므로 아무것도 안 가렸다 (R6 감사 C-6).
  */
@@ -129,6 +134,15 @@ export const IMAGE_WEBP_QUALITY = 0.65
  * **분류: 상한이 아니다.**
  */
 export const IMAGE_JPEG_QUALITY = 0.85
+
+/**
+ * zip 엔트리를 누르는 deflate 수준. `.mlpx`(`project/format.ts`)와 교사의 포트폴리오 묶음
+ * (`project/portfolio-bundle.ts`)이 함께 쓴다 — 두 자리에 같은 숫자가 따로 적혀 있었다
+ * (`open-decisions.md` 64). zlib의 기본 수준과 같은 값이다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const ZIP_DEFLATE_LEVEL = 6
 
 /**
  * 정본 webp 한 장의 예상 바이트. **굽기 전에 자리를 묻는 데만 쓴다**

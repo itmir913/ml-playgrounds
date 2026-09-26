@@ -14,6 +14,7 @@
 
 import { zipSync } from 'fflate'
 
+import { ZIP_DEFLATE_LEVEL } from '../limits'
 import { ENTRY, type ProjectFile, withoutProjectExtension } from './format'
 import { renderPortfolioMarkdown } from './portfolio'
 import { portfolioMarkdownText, type Translate } from './portfolio-text'
@@ -136,6 +137,6 @@ export function bundleOf(
       entriesOf(entry, folders[index] ?? folderFor(entry.label), translate, locale),
     )
   }
-  const zipped = zipSync(files, { level: 6 })
+  const zipped = zipSync(files, { level: ZIP_DEFLATE_LEVEL })
   return new Blob([zipped as unknown as BlobPart], { type: 'application/zip' })
 }
