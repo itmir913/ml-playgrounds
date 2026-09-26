@@ -87,6 +87,15 @@ describe('R24 B-5: which experiment the screen opens', () => {
   })
 
   /**
+   * **처음부터 첫 모델의 자세한 결과가 펼쳐져 있다** (R39a C-2의 M21). 안 펼치면 방금 학습한
+   * 학생이 빈 칸을 보고 모델을 한 번 더 눌러야 한다.
+   */
+  it('opens the first model of that experiment without a click', () => {
+    const detail = mountResults(threeExperiments()).findComponent(ExperimentDetail)
+    expect(detail.find('.scroll-below-shell').exists(), 'no run detail on arrival').toBe(true)
+  })
+
+  /**
    * **직전은 파일 순서에서 나온다.** `experiment.changed`가 학습 시점에 견준 상대가
    * 바로 앞 실험이므로, 화면이 다른 짝을 고르면 경로와 값이 어긋난다.
    */
