@@ -501,6 +501,8 @@ export const REPRODUCE_BLOCKERS = [
   'ENGINE_MISSING',
   /** `provided`인데 테스트 표가 없다. */
   'NO_TEST_DATASET',
+  /** 같은 판에서 다른 실험의 대조가 돈다. 판 하나가 워커 하나를 쥔다. */
+  'COMPARING_OTHER',
 ] as const
 
 export type ReproduceBlocker = (typeof REPRODUCE_BLOCKERS)[number]
@@ -510,6 +512,8 @@ export interface ReproduceSubject {
   readonly dataType: DataType
   readonly hasDataset: boolean
   readonly hasTestDataset: boolean
+  /** 이 판에서 **다른** 실험의 대조가 도는가. 이 실험 자신이 도는 것은 여기 안 든다. */
+  readonly comparingOther: boolean
 }
 
 /**
@@ -518,10 +522,19 @@ export interface ReproduceSubject {
  * **순서는 근본적인 것이 먼저다** (architecture.md §10.2) — 성공한 run이 0이면 엔진
  * 이야기는 공집합에 대한 말이라 뜻이 없다.
  *
- * **"도는 중"은 여기 없다.** 그건 파일의 성질이 아니라 화면의 상태이고, 화면이 이름 붙은
- * 값 하나로 둘을 합친다 (`ui-rules.spec.ts`의 `:disabled` 규칙).
+ * **이 실험 자신이 도는 것은 여기 없다** — 그때 단추 자리는 [멈추기]다. **다른 실험이
+ * 도는 것은 있다**(`COMPARING_OTHER`, 맨 뒤) — 파일의 사정이 아니지만, 이유 목록 밖에서
+ * 잠그면 교사가 왜 회색인지 모른다 (architecture.md §8.21). `inspect-reproduce-live.spec.ts`의
+ * *"다른 실험이 대조 중이면"*이 문다.
  */
 export function reproduceBlockers(subject: ReproduceSubject): ReproduceBlocker[] {
+  const blockers = fileBlockers(subject)
+  if (subject.comparingOther) blockers.push('COMPARING_OTHER')
+  return blockers
+}
+
+/** 파일이 막는 것. 순서는 근본적인 것이 먼저다. */
+function fileBlockers(subject: ReproduceSubject): ReproduceBlocker[] {
   const blockers: ReproduceBlocker[] = []
   if (subject.dataType !== 'tabular') blockers.push('IMAGE_NOT_OPEN')
   if (!subject.hasDataset) blockers.push('NO_DATASET')

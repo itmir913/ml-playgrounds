@@ -439,7 +439,7 @@ export type TrainBlock = 'NO_TASK_TYPE' | 'NO_MODEL' | 'NO_TRAINABLE_MODEL'
  * 판정은 `chosenModelBlocks`와 같다. `train-gate.spec.ts`가 조건마다 묻고,
  * `option-cascade.spec.ts`의 *"담은 모델이 전부 잠기면 …"*이 잠금과 거절을 둘 다 문다.
  *
- * **"도는 중"은 여기 없다** — 파일의 성질이 아니라 화면의 상태다(`reproduceBlockers`와 같다).
+ * **"도는 중"은 여기 없다** — 파일의 성질이 아니라 화면의 상태다.
  */
 export function trainGate(
   input: {

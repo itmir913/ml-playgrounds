@@ -427,6 +427,7 @@ describe('테스트 파일이 따로 온 실험', () => {
         dataType: 'tabular',
         hasDataset: true,
         hasTestDataset: false,
+        comparingOther: false,
       }),
     ).toEqual(['NO_TEST_DATASET'])
   })
@@ -907,6 +908,7 @@ describe('대조를 막는 이유', () => {
       dataType: 'tabular' as const,
       hasDataset: true,
       hasTestDataset: false,
+      comparingOther: false,
       ...overrides,
     }
   }
@@ -917,6 +919,14 @@ describe('대조를 막는 이유', () => {
 
   it('정본 표가 없으면 막는다', async () => {
     expect(reproduceBlockers(await subject({ hasDataset: false }))).toContain('NO_DATASET')
+  })
+
+  it('다른 실험이 대조 중이면 막고, 그 이유는 파일의 이유 뒤에 선다', async () => {
+    expect(reproduceBlockers(await subject({ comparingOther: true }))).toEqual(['COMPARING_OTHER'])
+    expect(reproduceBlockers(await subject({ comparingOther: true, hasDataset: false }))).toEqual([
+      'NO_DATASET',
+      'COMPARING_OTHER',
+    ])
   })
 
   it('사진은 첫 판에서 안 연다', async () => {
@@ -1020,6 +1030,7 @@ describe('대조는 파일이 말하는 엔진 판을 들고 간다', () => {
         dataType: 'tabular',
         hasDataset: true,
         hasTestDataset: false,
+        comparingOther: false,
       })
 
     expect(blockersFor({ kind: 'pyodide-sklearn', version: '300.1.2' })).toEqual([])

@@ -84,7 +84,7 @@ const { t } = useI18n()
  * `alive()`였다: `retire`가 없으면 그 값이 영영 참이라 아래 가드 둘이 **죽은 채로**
  * 초록이었다 (2026-09-18 R28 A-1).
  */
-const { busy, start, alive, retire, cancelAll } = useWork()
+const { start, alive, retire, cancelAll } = useWork()
 
 onBeforeUnmount(retire)
 
@@ -115,10 +115,11 @@ const failures = ref(new Map<string, { code: ClientErrorCode; params: ClientErro
 /**
  * 지금 대조가 도는 **실험의 id**. 다른 실험을 보고 있으면 그 진행은 여기 안 뜬다.
  *
- * **바쁨도 손잡이도 아니다.** 도는지 여부는 `busy`가, 끊을 것은 `job.hold()`가
- * 갖는다(`useWork`) — 여기 있는 것은 **그 일이 어느 실험의 것인가**이고, 그건 일을
- * 쥔 쪽이 알 수 없는 값이다. 이름에 `running`을 안 쓰는 이유는 `ui-rules.spec.ts`가
- * 그 낱말을 **손잡이 칸의 이름으로** 못 박아 두었기 때문이다.
+ * **손잡이가 아니다.** 끊을 것은 `job.hold()`가 갖는다(`useWork`) — 여기 있는 것은
+ * **그 일이 어느 실험의 것인가**이고, 그건 일을 쥔 쪽이 알 수 없는 값이다. 다른 실험의
+ * 것이면 잠금의 이유가 된다(`COMPARING_OTHER`, 아래 `blockers`). 이름에 `running`을 안
+ * 쓰는 이유는 `ui-rules.spec.ts`가 그 낱말을 **손잡이 칸의 이름으로** 못 박아 두었기
+ * 때문이다.
  */
 const comparing = ref<string | null>(null)
 /**
@@ -145,14 +146,15 @@ const blockers = computed(() =>
     dataType: props.dataType,
     hasDataset: props.dataset !== null,
     hasTestDataset: props.testDataset !== null,
+    comparingOther: comparing.value !== null && comparing.value !== props.experiment.id,
   }),
 )
 
 /**
- * 단추를 잠그는 것 전부. **이름 붙은 값 하나로 합친다** — 템플릿에서 조건을 조립하면
- * `ui-rules.spec.ts`가 잡고, 무엇보다 학생이든 교사든 **왜 못 누르는지 모르게 된다.**
+ * 단추를 잠그는 것. **이유 목록 하나에서만 나온다** — 목록 밖의 조건을 더하면 단추가
+ * 이유 없이 회색이 된다(architecture.md §10.2).
  */
-const cannotStart = computed(() => busy.value || blockers.value.length > 0)
+const cannotStart = computed(() => blockers.value.length > 0)
 
 /** 견줄 주장의 수. 진행을 셀 분모다. */
 const claims = computed(() => props.experiment.runs.filter((run) => run.status === 'done').length)

@@ -51,7 +51,8 @@
       "NO_CLAIM": "No model trained successfully, so there are no scores to check against.",
       "IMAGE_NOT_OPEN": "Image projects cannot be checked yet.",
       "ENGINE_MISSING": "The engine that made this file is not in this browser.",
-      "NO_TEST_DATASET": "The file has no test data, so nothing can be scored."
+      "NO_TEST_DATASET": "The file has no test data, so nothing can be scored.",
+      "COMPARING_OTHER": "Another experiment is being checked. Go back to it and press [Stop], or wait until it finishes."
     },
     "delta": "{metric} {value}",
     "editStudent": "Edit student",

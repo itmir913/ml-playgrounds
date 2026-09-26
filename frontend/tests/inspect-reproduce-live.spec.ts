@@ -33,10 +33,13 @@ const worker = vi.hoisted(() => ({
   reject: null as null | ((error: unknown) => void),
   report: null as null | Report,
   cancelled: 0,
+  /** 뜬 대조의 수. */
+  trains: 0,
 }))
 
 vi.mock('../src/ml/worker/client', () => ({
   train: (_request: unknown, options: { onProgress?: Report }) => {
+    worker.trains += 1
     worker.report = options.onProgress ?? null
     return {
       result: new Promise((resolve, reject) => {
@@ -122,6 +125,7 @@ describe('대조가 도는 동안', () => {
     worker.reject = null
     worker.report = null
     worker.cancelled = 0
+    worker.trains = 0
   })
 
   /** 대조를 시작하고 **안 끝낸 채로** 둔다. */
@@ -396,5 +400,39 @@ describe('대조가 도는 동안', () => {
     expect(worker.cancelled).toBe(0)
     panel.unmount()
     expect(worker.cancelled).toBe(1)
+  })
+
+  /**
+   * **다른 실험이 대조 중이면 단추가 이유를 말한다** (architecture.md §8.21, `reproduceBlockers`의
+   * `COMPARING_OTHER`). 판 하나가 워커 하나를 쥐므로 둘째 대조는 안 뜬다 — 그 잠금이 이유
+   * 목록 밖에 있으면 교사는 회색 단추만 본다.
+   */
+  it('다른 실험이 대조 중이면 잠그고 이유를 말하고, 둘째 대조를 안 띄운다', async () => {
+    const third = claim('experiment-3')
+    const panel = await started(third)
+    expect(worker.trains).toBe(1)
+
+    await panel.setProps({ experiment: claim('experiment-2') })
+    await flushPromises()
+    const start = button(panel, START())
+    expect(start.attributes('disabled')).toBeDefined()
+    expect(panel.text()).toContain(i18n.global.t('inspect.blocked.COMPARING_OTHER'))
+    await start.trigger('click')
+    await flushPromises()
+    expect(worker.trains, 'a second check must not start').toBe(1)
+
+    // 돌던 실험으로 돌아가면 [멈추기]가 있다. 이유는 그 실험 자신에게는 안 선다.
+    await panel.setProps({ experiment: third })
+    await flushPromises()
+    button(panel, STOP())
+    expect(panel.text()).not.toContain(i18n.global.t('inspect.blocked.COMPARING_OTHER'))
+
+    worker.resolve?.({ experiment: third })
+    await flushPromises()
+    await panel.setProps({ experiment: claim('experiment-2') })
+    await flushPromises()
+    expect(button(panel, START()).attributes('disabled')).toBeUndefined()
+    expect(panel.text()).not.toContain(i18n.global.t('inspect.blocked.COMPARING_OTHER'))
+    panel.unmount()
   })
 })
