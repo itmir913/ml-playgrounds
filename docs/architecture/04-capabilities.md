@@ -499,7 +499,7 @@ export const X = [ … ] as const                 // 조용하다. 강제가 없
 ```ts
 /** 비어 있으면 눌린다. 아니면 첫 번째 이유가 버튼 옆에 문장으로 뜬다. */
 function trainGate(input: { taskType: TaskType | undefined; chosen: readonly { algorithm: string }[] })
-  : readonly TrainBlock[]   // 'NO_TASK_TYPE' | 'NO_MODEL' | 'NO_TRAINABLE_MODEL'
+  : readonly TrainBlock[]   // 'NO_MODEL' | 'NO_TRAINABLE_MODEL'
 ```
 
 - **컴포넌트 밖의 순수 함수다.** `router/steps.ts`의 `isStepUnlocked`, `ml/selection.ts`의
@@ -516,12 +516,16 @@ function trainGate(input: { taskType: TaskType | undefined; chosen: readonly { a
 - **우선순위가 있다.** 근본적인 것이 먼저다 — 데이터가 없으면 "알고리즘을 고르세요"라고
   말하지 않는다.
 
-**`trainGate`는 `ml/selection.ts`에 있다.** 이유는 셋이고 이 순서다 — 유형을 안
-골랐다(`NO_TASK_TYPE`) · 담은 모델이 없다(`NO_MODEL`) · 담은 모델이 전부 지금 유형에 안
-맞는다(`NO_TRAINABLE_MODEL`, 결정문 55). 잠긴 줄 판정은 `chosenModelBlocks`와 같은 것을 본다.
-**버튼 잠금과 `startTraining`의 거절이 이 함수 하나를 본다** — 동작이 거절하는 조건이 곧
-버튼이 잠기는 조건이다. `train-gate.spec.ts`가 조건마다, `option-cascade.spec.ts`가 화면의
-잠금과 거절을 문다.
+**`trainGate`는 `ml/selection.ts`에 있다.** 이유는 둘이고 이 순서다 — 담은 모델이
+없다(`NO_MODEL`) · 담은 모델이 전부 지금 유형에 안 맞는다(`NO_TRAINABLE_MODEL`, 결정문 55).
+잠긴 줄 판정은 `chosenModelBlocks`와 같은 것을 본다. **버튼 잠금과 `startTraining`의 거절이
+이 함수 하나를 본다** — 이 두 이유는 잠기는 조건이 곧 거절하는 조건이다.
+
+**그 밖의 실패는 잠그지 않고 누를 때 알린다** (§10.6, `open-decisions.md` 60). 유형이 빠진
+파일도 그렇다 — 스키마에 유형·모델 교차 제약이 없어 이런 파일이 열리고, [학습하기]는 켜진 채
+누르면 실패 알림과 동작 바의 실패 줄이 선다. **조용히 아무 일도 안 하는 것만 결함이다.**
+`train-gate.spec.ts`가 조건마다, `option-cascade.spec.ts`가 화면의 잠금·거절과 유형이 빠진
+파일의 알림을 문다.
 
 나머지는 여전히 다른 자리에 있고 **그게 옳은 자리다.**
 
