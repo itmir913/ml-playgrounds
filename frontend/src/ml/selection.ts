@@ -722,6 +722,24 @@ function sampleStratifyBlock(
 }
 
 /**
+ * **뽑기에** 층화를 걸 수 있는가 — 유형과 뽑기의 사유만 본다.
+ *
+ * 나눌 때의 사유(한 값뿐인 라벨·시험 비율)는 여기 안 들어온다. 그것까지 보면 분할 층화가
+ * 막힐 때 뽑기 층화도 꺼져 **드문 범주가 표본에서 조용히 빠진다** — 씨앗 200개 중 66번을
+ * 쟀다(`open-decisions.md` 64 ①). `tests/plan.spec.ts`의 *"나눌 때만 막히면 뽑기는 층화한다"*가 문다.
+ */
+export function sampleStratifyBlockFor(
+  taskType: TaskType | undefined,
+  labels: readonly string[],
+  nSamples: number | undefined,
+): StratifyBlock | null {
+  if (taskType !== undefined && STRATIFY_MEANINGLESS[taskType]) {
+    return { code: 'STRATIFY_NOT_FOR_TASK_TYPE' }
+  }
+  return sampleStratifyBlock(labels, nSamples)
+}
+
+/**
  * 층화를 걸 수 있는가 — **라벨만 보고 답한다.**
  *
  * 판정에 실제로 필요한 것은 **쓸 수 있는 표본의 라벨 하나하나**뿐이다. 그것을 무엇에서
@@ -738,14 +756,10 @@ export function stratifyBlockFor(
   nSamples: number | undefined,
   split: StratifySplit,
 ): StratifyBlock | null {
-  if (taskType !== undefined && STRATIFY_MEANINGLESS[taskType]) {
-    return { code: 'STRATIFY_NOT_FOR_TASK_TYPE' }
-  }
-
   // **뽑기를 먼저 본다.** 학습에서도 뽑기가 분할보다 앞이라(ml/experiment.ts) 둘 다
   // 걸리는 데이터에서 화면과 [학습하기]가 다른 말을 하면 안 된다.
-  const tooFewToSample = sampleStratifyBlock(labels, nSamples)
-  if (tooFewToSample) return tooFewToSample
+  const forSampling = sampleStratifyBlockFor(taskType, labels, nSamples)
+  if (forSampling) return forSampling
 
   /**
    * **여기부터는 나눌 때의 사유다 — `provided`는 나누지 않는다** (R38-D55 A-1). 그 갈래에서

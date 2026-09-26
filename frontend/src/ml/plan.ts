@@ -42,7 +42,13 @@ import {
 } from './preprocess'
 import { sampleRows } from './sample'
 // 전처리 화면이 [학습하기] 전에 같은 판정을 한다. 표가 두 벌이면 화면과 학습이 갈린다.
-import { featuresInUse, requiredTargetKind, stratifyApplies, stratifyBlockFor } from './selection'
+import {
+  featuresInUse,
+  requiredTargetKind,
+  sampleStratifyBlockFor,
+  stratifyApplies,
+  stratifyBlockFor,
+} from './selection'
 import { splitRows } from './split'
 
 export interface PlanInput {
@@ -337,6 +343,17 @@ export function planRun(input: PlanInput): RunPlan {
       stratifyBlockFor(taskType, usableLabels, settings.nSamples, settings.split),
     ),
   }
+  /**
+   * **뽑기는 뽑기의 사유만 본다** (`open-decisions.md` 64 ①). 나눌 때만 막히는 데이터(한 값뿐인
+   * 라벨 등)에서 분할 층화를 따라 뽑기 층화까지 끄면 드문 범주가 표본에서 조용히 빠진다.
+   */
+  const sampleSettings = {
+    ...settings.split,
+    stratify: stratifyApplies(
+      settings.split.stratify,
+      sampleStratifyBlockFor(taskType, usableLabels, settings.nSamples),
+    ),
+  }
 
   try {
     /**
@@ -361,7 +378,7 @@ export function planRun(input: PlanInput): RunPlan {
         // 않는다. nSamples가 없으면 usable을 그대로 돌려주므로 지금까지의 동작과 같다.
         sampleRows(
           { rows: usable, ...(isClustering ? {} : { labels: usableLabels }) },
-          splitSettings,
+          sampleSettings,
           settings.nSamples,
         )
     // 뽑힌 행의 정답이다. usableLabels를 잘라 쓰지 않는 이유는 sampleRows가 원본 행
