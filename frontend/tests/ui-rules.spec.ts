@@ -3253,6 +3253,46 @@ describe('폭에 따라 글자를 숨기는 손잡이', () => {
 })
 
 /**
+ * **입력칸의 포커스 링은 잘리지 않는다** (architecture.md §8.4, 2026-09-27). 링이 칸 바깥에 서면
+ * 칸이 스크롤 상자 끝에 닿을 때 잘리는데, 잘렸는지는 레이아웃이라 여기서 못 잰다. 그래서
+ * **잘릴 수 없는 모양을 강제한다** — 기본 규칙이 입력칸의 링을 안쪽(음수 `outline-offset`)에
+ * 두는지, 그리고 화면이 그 링을 덮어쓰지 않는지를 본다. 스크롤 상자 끝에 닿은 버튼은 못 본다
+ * (사람 확인).
+ */
+describe('입력칸의 포커스 링은 잘리지 않는다', () => {
+  /**
+   * 링을 덮어써도 되는 자리와 그 이유. 여기 없는 덮어쓰기는 운다 — 새 자리는 이 목록을 고치는
+   * 길로만 들어온다.
+   */
+  const ALLOWED: Readonly<Record<string, string>> = {
+    // 왼쪽 선만 있는 글쓰기 칸이라 링 대신 그 선의 색(`focus:border-brand`)이 포커스를 말한다.
+    // 선은 칸 안에 그려져 잘리지 않는다.
+    'views/portfolio/SectionCard.vue': 'border-left focus indicator',
+  }
+
+  it('기본 규칙이 입력칸의 링을 안쪽에 둔다', () => {
+    const css = readFileSync(join(SRC, 'styles', 'base.css'), 'utf-8')
+    const rule = /:is\(input,\s*textarea,\s*select\):focus-visible\s*\{([^}]*)\}/.exec(css)
+    expect(rule, 'inset focus rule for fields not found').not.toBeNull()
+    const offset = /outline-offset:\s*(-?\d+(?:\.\d+)?)px/.exec(rule![1] ?? '')
+    expect(Number(offset?.[1]), 'field focus ring is drawn outside').toBeLessThan(0)
+  })
+
+  it('화면이 링을 덮어쓰지 않는다', () => {
+    const OVERRIDE =
+      /(?<![\w-])(?:[\w-]+:)*(?:outline-none|outline-offset-[\w-]+|outline-0)(?![\w-])|outline-offset\s*:/
+    const offenders = sourceFiles(SRC)
+      .filter((file) => file.endsWith('.vue'))
+      .map((file) => relative(SRC, file).split(sep).join('/'))
+      .filter((name) => !(name in ALLOWED))
+      .filter((name) =>
+        OVERRIDE.test(withoutComments(readFileSync(join(SRC, name), 'utf-8')).join(' ')),
+      )
+    expect(offenders, 'focus ring overridden outside the allow list').toEqual([])
+  })
+})
+
+/**
  * **캔버스에 먹일 색을 읽는 자리는 하나다** (2026-09-22).
  *
  * 한때 셋이었다 — `useChartTokens` · `ClusterScatter` · `LossCurvePanel`. 베낀 자리는

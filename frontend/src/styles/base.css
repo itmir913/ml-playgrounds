@@ -117,6 +117,23 @@
   }
 
   /*
+   * **입력칸은 링을 안쪽에 그린다** (architecture.md §8.4). 바깥에 그리면 칸이 스크롤 상자 끝에
+   * 닿을 때 링이 잘린다 — 아래도 왼쪽도 실제로 잘렸다. 잴 수 없으니 **어느 쪽도** 잘릴 수 없는
+   * 모양을 강제한다. 입력칸 전부이고 예외가 없다. 입력칸은 클릭에도 `:focus-visible`이 걸리므로
+   * `:focus`를 따로 보지 않는다. `ui-rules.spec.ts`의 "입력칸의 포커스 링은 잘리지 않는다"가 문다.
+   */
+  :is(input, textarea, select):focus-visible {
+    outline-offset: -2px;
+  }
+
+  /*
+   * 체크박스·라디오는 체크되면 브랜드색으로 채워져 같은 색 링이 안쪽에서 묻힌다 — 글자색으로 그린다.
+   */
+  :is(input[type='checkbox'], input[type='radio']):focus-visible {
+    outline-color: var(--color-ink);
+  }
+
+  /*
    * 교실 저사양 PC 기준으로 모션을 절제한다. 여기서는 사용자가 줄이길 원할 때
    * 실제로 멈추는 것만 보장한다.
    */
