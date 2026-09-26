@@ -212,6 +212,7 @@ Orange3는 반대다 — 위젯을 캔버스에 놓고 거기에 축을 꽂는�
   | 상수 열의 표준화 척도는 1 | 57 ② | `0.28.0` | 표준화를 켰을 때 |
   | 범주 순서는 정렬 | 61 | `0.28.2` | 인코딩을 켰고, 기록된 범주 가운데 정렬이 아닌 것이 있을 때 |
   | 정답이 한 값뿐인 결정계수 | 57 ③ | `0.28.2` | 회귀이고, 채점한 정답이 한 값뿐일 때 |
+  | 라벨 순서와 최빈값 동점은 코드 포인트 | 61 | `0.28.3` | 분류의 정답 열에, 또는 채움값을 쓰는 결측 전략의 특성 열에 코드 포인트 순서와 UTF-16 순서가 갈리는 두 값이 함께 있을 때 |
 
 - **파일의 판은 `manifest.appVersion`이다.** 프로젝트를 **만든** 앱의 판이고 저장해도 안 바뀐다
   (`project/create.ts`만 쓴다) — 그래서 그 파일의 run이 돈 판의 **하한**이다. 그 판이 규칙의
@@ -232,7 +233,8 @@ Orange3는 반대다 — 위젯을 캔버스에 놓고 거기에 축을 꽂는�
 엔진)이 정하고, 못 가르는 자리는 교사에게 넘긴다"와 같은 길이다). 파일 안에서 스스로 어긋나는
 변조(`storedMetricsMatchMatrix`)는 여전히 잡힌다.
 
-**무는 검사.** `tests/reproduce.spec.ts` *"계산 규칙이 바뀐 뒤"*, `tests/inspect-reproduce-live.spec.ts`
+**무는 검사.** `tests/reproduce.spec.ts` *"계산 규칙이 바뀐 뒤"*(넷째 열의 좁힘은 규칙마다 그 안의
+걸림·안 걸림 판이 문다), `tests/inspect-reproduce-live.spec.ts`
 *"계산 규칙이 바뀐 뒤"*(화면이 사유와 판을 보인다), `tests/inspect-modes.spec.ts` *"대조 판이 그
 파일의 앱 버전을 받는다"*.
 
@@ -275,11 +277,23 @@ sklearn은 `상·중·하`, 우리는 `중·상·하`였고 순서 인코딩이 
 맞는다. 재실행 대조는 새 순서로 다시 계산하므로 차이가 날 수 있고, 그 run은 결정문 62가
 판정을 거른다(기록된 범주가 이미 정렬이면 순서가 같아 안 거른다).
 
-**같은 병의 이웃 — 이 결정의 범위 밖이다.** 문자열을 JS 기본 순서로 견주는 자리가 계산에 넷 더
-있다: 분류 라벨의 번호(`ml/engines/mljs.ts`의 `labelCodec`, `ml/engines/pyodide-sklearn.ts`의
-`classes`), 혼동 행렬의 라벨(`ml/metrics.ts`), 최빈값 동점(`ml/preprocess.ts`의 `mostFrequent`,
-결정문 52). 전부 **BMP 뒤쪽 글자와 이모지가 한 열에 함께 있을 때만** sklearn과 갈린다. 고치면
-계산 규칙의 변경이라 62의 목록에 줄이 늘므로 코드 소유자가 정한다.
+**같은 병의 이웃 넷도 고쳤다 (2026-09-26, 코드 소유자).** 문자열을 JS 기본 순서로 견주는 자리가
+계산에 넷 더 있었다: 분류 라벨의 번호(`ml/engines/mljs.ts`의 `labelCodec`,
+`ml/engines/pyodide-sklearn.ts`의 `classes`), 혼동 행렬의 라벨(`ml/metrics.ts`), 최빈값
+동점(`ml/preprocess.ts`의 `mostFrequent`, 결정문 52). 전부 **BMP 뒤쪽 글자와 이모지가 한 열에
+함께 있을 때만** sklearn과 갈렸다. sklearn 1.9.1·numpy 2.5.3으로 돌려 확인한 저쪽 규칙은 넷 다
+코드 포인트 순서다 — `LabelEncoder`의 `classes_`·`np.unique`·`confusion_matrix`의 라벨
+(`unique_labels`)·`SimpleImputer(strategy='most_frequent')`의 동점(가장 작은 값). 그래서 넷 다
+같은 `compareCodePoints`로 견준다. 라벨 번호는 모델의 동점(트리의 잎·KNN 득표·argmax)과 이진
+로지스틱의 양성 클래스를 정하므로 **학습 결과도 바뀔 수 있고**, 이 변경은 62의 목록에
+`CODE_POINT_ORDER`로 선다. 입력과 답은 sklearn 픽스처의 `metrics.labels`(생성기
+`LABEL_CASES`)와 `preprocessing.mostFrequent`(`MODE_CASES`)에 있다.
+
+순서를 정하는 자리 가운데 **안 옮긴 것**: zip 경로의 순서(`project/images.ts`의 `readImages`,
+`project/integrity.ts`)는 sklearn과 견줄 것이 없는 좌표계이고 바꾸면 이미 나간 파일의
+`trainIndices`와 해시가 다른 뜻이 된다(`mlpx-spec.md` "이미지에서 행 번호가 가리키는 것"). 층화 분할이 라벨을 세는 차례(`ml/split.ts`, 첫 등장 순서)는 sklearn과 행 단위로
+같다고 주장하지 않는 자리다. 나머지(`ml/predict.ts`의 지문, `ml/experiment.ts`의 바뀐 경로,
+명단·올리기 요약의 정렬)는 계산이 아니다.
 
 ### 60. 실패할 동작의 버튼을 미리 잠글 것인가 — **잠그지 않는다, 누르면 실패를 알린다 (2026-09-26, 코드 소유자)**
 
