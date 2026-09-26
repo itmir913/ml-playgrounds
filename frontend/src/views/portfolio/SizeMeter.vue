@@ -16,7 +16,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { BYTES_PER_MB } from '@/limits'
+import { BYTES_PER_MB, SIZE_FRACTION_DIGITS } from '@/limits'
 
 const props = defineProps<{
   /** 지금 담긴 바이트. */
@@ -28,7 +28,7 @@ const props = defineProps<{
 const { t } = useI18n()
 
 /**
- * 소수 한 자리. 0.0MB에서 5.0MB 사이를 말하는 자리라 정수로는 거의 안 움직인다.
+ * 소수 `SIZE_FRACTION_DIGITS` 자리(`limits.ts`). 0.0MB에서 5.0MB 사이를 말하는 자리라 정수로는 거의 안 움직인다.
  *
  * **넘긴 값은 올린다.** 5.04MB에서 색과 막대는 넘겼다고 하는데 숫자는 `5.0 / 5.0`이라
  * 화면이 스스로와 어긋났다 (V11 R5 C-5). 자릿수를 늘리는 것은 답이 아니다 — 위 주석의
@@ -36,7 +36,8 @@ const { t } = useI18n()
  */
 function mb(bytes: number, roundUp = false): string {
   const value = bytes / BYTES_PER_MB
-  return (roundUp ? Math.ceil(value * 10) / 10 : value).toFixed(1)
+  const scale = 10 ** SIZE_FRACTION_DIGITS
+  return (roundUp ? Math.ceil(value * scale) / scale : value).toFixed(SIZE_FRACTION_DIGITS)
 }
 
 const over = computed(() => props.used > props.limit)

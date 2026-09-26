@@ -168,6 +168,21 @@ export const FLOAT_NOISE_PRECISION = 12
 export const STAT_SIGNIFICANT_DIGITS = 4
 
 /**
+ * 백분율을 보이는 소수 자릿수(`composables/useFormat.ts`의 `formatPercent` 기본값).
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const PERCENT_FRACTION_DIGITS = 1
+
+/**
+ * 크기(KB·MB)를 보이는 소수 자릿수 — `formatBytes`와 포트폴리오의 `SizeMeter`가 함께 쓴다.
+ * 두 자리에 같은 숫자가 따로 적혀 있었다(`open-decisions.md` 64).
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const SIZE_FRACTION_DIGITS = 1
+
+/**
  * 정본 webp 한 장의 예상 바이트. **굽기 전에 자리를 묻는 데만 쓴다**
  * (open-decisions.md "이미지가 들어갈 자리는 굽기 전에 묻는다").
  *

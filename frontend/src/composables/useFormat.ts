@@ -13,6 +13,8 @@ import {
   BYTES_PER_KB,
   FLOAT_NOISE_PRECISION,
   METRIC_FRACTION_DIGITS,
+  PERCENT_FRACTION_DIGITS,
+  SIZE_FRACTION_DIGITS,
   STAT_SIGNIFICANT_DIGITS,
 } from '../limits'
 
@@ -42,7 +44,7 @@ export function formatBytes(locale: string, bytes: number): string {
     unit: UNITS[unit],
     unitDisplay: 'short',
     // 바이트 단위에서는 소수점이 의미가 없다.
-    maximumFractionDigits: unit === 0 ? 0 : 1,
+    maximumFractionDigits: unit === 0 ? 0 : SIZE_FRACTION_DIGITS,
   }).format(value)
 }
 
@@ -57,7 +59,11 @@ export function formatDateTime(locale: string, iso: string): string {
 }
 
 /** 비율을 백분율로. 지표 표시가 이걸 쓴다. */
-export function formatPercent(locale: string, ratio: number, digits = 1): string {
+export function formatPercent(
+  locale: string,
+  ratio: number,
+  digits = PERCENT_FRACTION_DIGITS,
+): string {
   return new Intl.NumberFormat(locale, {
     style: 'percent',
     maximumFractionDigits: digits,
