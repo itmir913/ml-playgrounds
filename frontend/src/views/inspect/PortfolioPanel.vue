@@ -16,7 +16,7 @@ import { useI18n } from 'vue-i18n'
 import AppEmpty from '@/components/AppEmpty.vue'
 import { useObjectUrls } from '@/composables/useObjectUrls'
 import type { ProjectFile } from '@/project/format'
-import { hasTemplate, orphanAnswers, photosOf, portfolioSections } from '@/project/portfolio'
+import { orphanAnswers, photosOf, portfolioSections } from '@/project/portfolio'
 import PortfolioPreview from '../portfolio/PortfolioPreview.vue'
 
 const props = defineProps<{ file: ProjectFile }>()
@@ -48,9 +48,15 @@ function anchorId(id: string): string {
 /**
  * 읽을 것이 있는가. **양식만 있고 답이 없는 제출물도 있다** — 그때 빈 문항 목록을
  * 그리는 것보다 "아직 안 썼다"가 교사에게 필요한 말이다.
+ *
+ * **미리보기가 그릴 것이 하나라도 있으면 읽을 것이다** — 글, 사진, 지금 양식에 없는
+ * 문항의 답. 사진만 붙인 문항이나 떠도는 답만 있는 제출물을 "아직 안 썼다"로 덮으면
+ * 교사는 그 학생이 낸 것을 못 본다. `inspect-portfolio-panel.spec.ts`가 문다.
  */
 const written = computed(
-  () => hasTemplate(portfolio.value) && sections.value.some((one) => one.answer.trim() !== ''),
+  () =>
+    sections.value.some((one) => one.answer.trim() !== '' || photosFor(one.id).length > 0) ||
+    orphans.value.length > 0,
 )
 </script>
 
