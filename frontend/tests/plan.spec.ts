@@ -384,6 +384,31 @@ describe('옵션이 층화를 막으면 무시한다', () => {
    * **나누는 갈래에서도 같다** (`open-decisions.md` 64 ①). 홀드아웃에서 1개뿐인 범주는 분할
    * 층화를 막지만, 그것이 뽑기 층화까지 끄면 그 범주가 표본에서 빠진다.
    */
+  it('나눌 때만 막히면 뽑기는 층화한다', () => {
+    const labels = [...Array<string>(10).fill('A'), ...Array<string>(10).fill('B'), 'C']
+    const dataset: Dataset = {
+      columns: ['x', 'label'],
+      rows: labels.map((label, index) => [String(index), label]),
+    }
+    const absent = [...Array(40).keys()].filter((seed) => {
+      const plan = planRun({
+        dataset,
+        testDataset: null,
+        settings: settingsFor(
+          { features: ['x'], target: 'label' },
+          {
+            nSamples: 12,
+            split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: seed },
+          },
+        ),
+        taskType: 'classification',
+      })
+      expect(plan.ok).toBe(true)
+      return plan.ok && !plan.sampled.some((row) => dataset.rows[row]![1] === 'C')
+    })
+    expect(absent).toEqual([])
+  })
+
   /**
    * **회귀면 뽑기도 층화하지 않는다.** 정답이 연속값이라 값마다 층을 세우면 뜻이 없다 —
    * 뽑기 판정(`sampleStratifyBlockFor`)의 유형 사유가 그것을 막는다(0.29 C 국면 패치 감사 C-1).
@@ -409,31 +434,6 @@ describe('옵션이 층화를 막으면 무시한다', () => {
     expect(on.ok && on.sampled, 'regression sample follows the stratify box').toEqual(
       off.ok && off.sampled,
     )
-  })
-
-  it('나눌 때만 막히면 뽑기는 층화한다', () => {
-    const labels = [...Array<string>(10).fill('A'), ...Array<string>(10).fill('B'), 'C']
-    const dataset: Dataset = {
-      columns: ['x', 'label'],
-      rows: labels.map((label, index) => [String(index), label]),
-    }
-    const absent = [...Array(40).keys()].filter((seed) => {
-      const plan = planRun({
-        dataset,
-        testDataset: null,
-        settings: settingsFor(
-          { features: ['x'], target: 'label' },
-          {
-            nSamples: 12,
-            split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: seed },
-          },
-        ),
-        taskType: 'classification',
-      })
-      expect(plan.ok).toBe(true)
-      return plan.ok && !plan.sampled.some((row) => dataset.rows[row]![1] === 'C')
-    })
-    expect(absent).toEqual([])
   })
 })
 

@@ -656,6 +656,10 @@ describe('층화 체크박스를 잠그는 조건', () => {
 
     const whole = stratifyBlockFor('classification', labels, undefined, split)
     expect(stratifyLocked(whole), 'not locked without sampling').toBe(true)
+
+    // 행 수만큼 뽑으면 뽑기가 안 일어난다 — 화면이 입력을 행 수로 잘라 저장하므로 실제로 닿는 값이다.
+    const all = stratifyBlockFor('classification', labels, labels.length, split)
+    expect(stratifyLocked(all), 'not locked when the sample is every row').toBe(true)
   })
 })
 
