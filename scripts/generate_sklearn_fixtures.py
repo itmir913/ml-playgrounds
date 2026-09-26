@@ -11,8 +11,8 @@
 - data/*.csv          - 데이터. 감사 때 생성했고 그 뒤로 손대지 않는다.
 - expected.json       - 분할 인덱스 + sklearn 기대값 + 다수 클래스 기준선.
                         `metrics`·`preprocessing` 칸은 벌이 아니라 **경계 입력**과 그
-                        답이다 (`SILHOUETTE_CASES`·`R2_CASES`·`STANDARD_CASES`·
-                        `CATEGORY_CASES`).
+                        답이다 (`SILHOUETTE_CASES`·`R2_CASES`·`LABEL_CASES`·
+                        `STANDARD_CASES`·`CATEGORY_CASES`·`MODE_CASES`).
 
 **분할 인덱스는 이 스크립트가 만들지 않는다.** 인덱스는 JS 쪽 분할(ml/split.ts,
 시드 42)이 만든 기록이고, 여기서는 그대로 보존하며 sklearn 기대값만 다시 계산한다.
@@ -47,15 +47,17 @@ import numpy as np
 import sklearn
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import ConvergenceWarning
+from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.metrics import accuracy_score, r2_score, silhouette_score
+from sklearn.metrics import accuracy_score, confusion_matrix, r2_score, silhouette_score
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier, MLPRegressor
-from sklearn.preprocessing import OrdinalEncoder, StandardScaler
+from sklearn.preprocessing import LabelEncoder, OrdinalEncoder, StandardScaler
 from sklearn.svm import SVC
 from sklearn.cluster import KMeans
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.utils.multiclass import unique_labels
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -581,9 +583,43 @@ R2_CASES: list[dict[str, Any]] = [
 ]
 
 
+#: 분류 라벨의 순서를 대조할 입력들 - `LabelEncoder`의 `classes_`(학습이 매기는 번호)와
+# `confusion_matrix`의 라벨(`unique_labels`)과 행렬.
+#
+# 문자열은 코드 포인트 순서로 선다. JS의 `sort()`는 UTF-16 코드 단위라 BMP 뒤쪽
+# (U+E000~U+FFFF)과 BMP 밖(서로게이트 쌍)이 함께 있는 라벨에서 갈린다 - 그 입력을 둔다.
+# 예측에만 나오는 라벨도 둔다(혼동 행렬은 정답과 예측을 합쳐 라벨을 세운다).
+LABEL_CASES: list[dict[str, Any]] = [
+    {
+        "name": "astral-and-late-bmp",
+        "truth": ["\U0001f600", "ｚ", "a", "\U0001f600", "ｚ", "a"],
+        "pred": ["ｚ", "\U0001f600", "a", "\U0001f600", "a", "ｚ"],
+    },
+    {
+        "name": "private-use-and-supplementary",
+        "truth": ["\U00020000", "\ue000", "가", "\ufffd", "\U00020000"],
+        "pred": ["\ue000", "\U00020000", "가", "\U0001f600", "\U00020000"],
+    },
+]
+
+
 def metrics_record() -> dict[str, Any]:
-    """지표 계산기를 sklearn과 맞대는 입력과 답. 스펙은 `sklearn-parity.spec.ts`다."""
+    """지표 계산기를 sklearn과 맞대는 입력과 답. 스펙은 `sklearn-parity.spec.ts`·
+    `metrics.spec.ts`·`mljs.spec.ts`·`pyodide-sklearn.spec.ts`다."""
     return {
+        "labels": [
+            {
+                **case,
+                "classes": [
+                    str(one) for one in LabelEncoder().fit(case["truth"]).classes_
+                ],
+                "labels": [
+                    str(one) for one in unique_labels(case["truth"], case["pred"])
+                ],
+                "matrix": confusion_matrix(case["truth"], case["pred"]).tolist(),
+            }
+            for case in LABEL_CASES
+        ],
         "silhouette": [
             {
                 **case,
@@ -642,6 +678,17 @@ CATEGORY_CASES: list[dict[str, Any]] = [
 ]
 
 
+#: 최빈값 동점(`SimpleImputer(strategy='most_frequent')`의 `statistics_`)을 대조할 입력들.
+#
+# 동점이면 가장 작은 값이고, 문자열은 코드 포인트 순서로 견준다. 이모지와 BMP 뒤쪽 글자가
+# 같은 수만큼 나오는 열을 두 차례로 둔다 - 먼저 나온 값과 작은 값이 갈려야 규칙이 선다.
+MODE_CASES: list[dict[str, Any]] = [
+    {"name": "astral-first", "values": ["\U0001f600", "ｚ", "\U0001f600", "ｚ"]},
+    {"name": "late-bmp-first", "values": ["ｚ", "\U0001f600", "ｚ", "\U0001f600"]},
+    {"name": "private-use-and-supplementary", "values": ["\U00020000", "\ue000"]},
+]
+
+
 def preprocessing_record() -> dict[str, Any]:
     """전처리 단계를 sklearn과 맞대는 입력과 답. 스펙은 `preprocess.spec.ts`다."""
     out: list[dict[str, Any]] = []
@@ -668,6 +715,17 @@ def preprocessing_record() -> dict[str, Any]:
                 ],
             }
             for case in CATEGORY_CASES
+        ],
+        "mostFrequent": [
+            {
+                **case,
+                "fill": str(
+                    SimpleImputer(strategy="most_frequent", missing_values=None)
+                    .fit(np.array(case["values"], dtype=object).reshape(-1, 1))
+                    .statistics_[0]
+                ),
+            }
+            for case in MODE_CASES
         ],
     }
 

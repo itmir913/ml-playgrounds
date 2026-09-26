@@ -51,12 +51,24 @@ interface CategoryCase {
   categories: string[]
 }
 
-const SKLEARN_PREPROCESSING: { standard: StandardCase[]; categories: CategoryCase[] } = JSON.parse(
+/** sklearn `SimpleImputer(strategy='most_frequent')`의 대체값 (생성기의 `MODE_CASES`). */
+interface ModeCase {
+  name: string
+  values: string[]
+  fill: string
+}
+
+const SKLEARN_PREPROCESSING: {
+  standard: StandardCase[]
+  categories: CategoryCase[]
+  mostFrequent: ModeCase[]
+} = JSON.parse(
   fs.readFileSync(path.join(__dirname, 'fixtures', 'sklearn', 'expected.json'), 'utf8'),
 ).preprocessing
 
 const STANDARD_CASES = SKLEARN_PREPROCESSING.standard
 const CATEGORY_CASES = SKLEARN_PREPROCESSING.categories
+const MODE_CASES = SKLEARN_PREPROCESSING.mostFrequent
 
 const preprocessing = (overrides: Partial<Preprocessing> = {}): Preprocessing => ({
   missing: 'mean',
@@ -257,6 +269,28 @@ describe('결측 대체', () => {
     )
     expect(fitted.columns[0]?.fill).toBe(9)
   })
+
+  /**
+   * **문자열의 동점은 코드 포인트로 작은 값이다** (open-decisions.md 61). 입력과 답은 sklearn
+   * 픽스처의 `preprocessing.mostFrequent`에 있고 생성기의 `MODE_CASES`가 만든다.
+   */
+  it('동점을 가르는 입력이 JS 기본 비교와 갈린다', () => {
+    const splits = MODE_CASES.filter((one) =>
+      one.values.some((value) => value !== one.fill && value < one.fill),
+    )
+    expect(splits.length).toBeGreaterThanOrEqual(1)
+  })
+
+  for (const one of MODE_CASES) {
+    it(`최빈값 동점이 sklearn과 같다 - ${one.name}`, () => {
+      const column: Dataset = { columns: ['x'], rows: [...one.values.map((v) => [v]), ['']] }
+      const rows = column.rows.map((_, index) => index)
+      for (const missing of ['mostFrequent', 'mean'] as const) {
+        const fitted = fitPreprocessor(column, rows, ['x'], preprocessing({ missing }))
+        expect(fitted.columns[0]?.fill).toBe(one.fill)
+      }
+    })
+  }
 
   it('빈 칸만 결측이다 - N/A 같은 문자열은 값으로 둔다', () => {
     const withNa: Dataset = { columns: ['지역'], rows: [['N/A'], ['서울'], ['N/A']] }

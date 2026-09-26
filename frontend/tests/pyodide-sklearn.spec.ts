@@ -10,6 +10,9 @@
  * 그 키가 소스에 이어 붙는 순간 남의 파일이 학생 브라우저에서 코드를 돌린다.
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
@@ -21,6 +24,11 @@ import {
   resetPyodide,
   setPyodide,
 } from '../src/ml/engines/pyodide-sklearn'
+
+/** sklearn `LabelEncoder`가 세운 라벨 차례 (`generate_sklearn_fixtures.py`의 `LABEL_CASES`). */
+const LABEL_CASES: { name: string; truth: string[]; classes: string[] }[] = JSON.parse(
+  fs.readFileSync(path.join(__dirname, 'fixtures', 'sklearn', 'expected.json'), 'utf8'),
+).metrics.labels
 
 /** 실행된 Python 소스를 모아 두는 가짜 Pyodide. 아무것도 실행하지 않는다. */
 function fakePyodide(): { proxy: PyodideProxy; sources: string[] } {
@@ -204,6 +212,27 @@ describe('클래스 순서가 어긋나면 아무것도 안 담는다', () => {
     const result = await fit('decision_tree', input({ max_depth: 3 }))
     expect(result.model).toBeDefined()
   })
+
+  /**
+   * **우리 차례가 sklearn의 `classes_`와 같아야 담긴다** — 문자열은 코드 포인트 순서다
+   * (open-decisions.md 61). JS 기본 정렬로 세면 이모지와 BMP 뒤쪽 글자가 함께 있는 라벨에서
+   * 차례가 갈려 그물이 **멀쩡한 모델을 버린다.** 답은 sklearn 픽스처의 `metrics.labels`다.
+   */
+  for (const one of LABEL_CASES) {
+    it(`sklearn이 세운 차례를 우리도 세운다 - ${one.name}`, async () => {
+      setPyodide(pyodideSaying(dumpWith(one.classes)))
+      const result = await fit('decision_tree', {
+        ...input({ max_depth: 3 }),
+        features: one.truth.map((_, index) => [index, index % 2]),
+        rowIndices: one.truth.map((_, index) => index),
+        target: one.truth,
+      })
+      expect(result.modelOmittedDetail).toBeUndefined()
+      expect((result.model as { classes?: readonly string[] } | undefined)?.classes).toEqual(
+        one.classes,
+      )
+    })
+  }
 
   it('순서가 뒤집혀 있으면 안 담는다', async () => {
     setPyodide(pyodideSaying(dumpWith(['b', 'a'])))

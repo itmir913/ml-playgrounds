@@ -260,8 +260,9 @@ function nodesOf(
  * 의사결정트리다 (`ml/models/tree.ts`).
  *
  * **클래스 순서가 우리 것과 같아야 한다.** 우리는 라벨을 문자열로 정렬하고
- * (`ml/engines/mljs.ts`의 `labelCodec`) sklearn도 `np.unique`로 정렬하지만, **그건 우리가
- * 확인한 사실이 아니라 두 구현의 습관이다.** 다르면 잎의 번호가 다른 라벨을 가리키고
+ * (`ml/engines/mljs.ts`의 `labelCodec`) sklearn도 `np.unique`로 정렬한다 — 둘 다 코드 포인트
+ * 순서이고, sklearn 픽스처의 `metrics.labels`와 `tests/pyodide-sklearn.spec.ts`의 *"sklearn이
+ * 세운 차례를 우리도 세운다"*가 문다. 그래도 다르면 잎의 번호가 다른 라벨을 가리키고
  * **조용히 틀린 예측**이 된다 — 그래서 확인하고, 다르면 안 담는다.
  */
 export function sklearnTreeModel(

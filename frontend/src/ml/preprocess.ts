@@ -199,9 +199,12 @@ function modeOf<T>(values: readonly T[], smaller: (left: T, right: T) => boolean
   return best
 }
 
-/** 범주 열의 최빈값. 문자열은 사전순으로 작은 쪽이다 — 파이썬의 `str` 비교와 같다. */
+/**
+ * 범주 열의 최빈값. 동점이면 코드 포인트 순서로 작은 쪽이다 — 파이썬의 `str` 비교와 같다
+ * (open-decisions.md 61). `tests/preprocess.spec.ts`의 *"최빈값 동점이 sklearn과 같다"*가 문다.
+ */
 function mostFrequent(values: readonly string[]): string {
-  return modeOf(values, (left, right) => left < right) ?? ''
+  return modeOf(values, (left, right) => compareCodePoints(left, right) < 0) ?? ''
 }
 
 /** 수치 열의 최빈값. **수로 견준다.** 비었으면 0이다(전에도 `Number('')`로 0이었다). */

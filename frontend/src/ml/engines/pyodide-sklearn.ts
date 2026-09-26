@@ -40,6 +40,7 @@ import type { HyperparameterSpec } from '../hyperparams'
 import { resolveWith } from '../hyperparams'
 import type { FitInput, FitResult, Predict } from './mljs'
 import { minimumTreeV2Bytes, type ModelFile } from '../models'
+import { compareCodePoints } from '../preprocess'
 import { MAX_MODEL_BYTES } from '../../limits'
 import type { ModelOmissionReason } from '../../project/schema'
 import {
@@ -594,8 +595,10 @@ function serialize(
    * 실패하고 **학생은 학습을 다시 해야 한다** — 담을 것이 없는 것보다 나쁘다.
    */
   try {
-    // **학습에 쓴 것과 같은 규칙으로 센다** (`mljs.ts`의 `labelCodec`).
-    const classes = [...new Set(input.target.map(String))].sort()
+    // **학습에 쓴 것과 같은 규칙으로 센다** (`mljs.ts`의 `labelCodec`) — 코드 포인트 순서라
+    // sklearn의 `classes_`와 같다. `tests/pyodide-sklearn.spec.ts`의 *"sklearn이 세운 차례를
+    // 우리도 세운다"*가 문다.
+    const classes = [...new Set(input.target.map(String))].sort(compareCodePoints)
     const context: SerializeContext = {
       classes,
       featureCount: input.features[0]?.length ?? 0,

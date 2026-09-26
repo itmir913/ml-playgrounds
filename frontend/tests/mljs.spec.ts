@@ -8,6 +8,9 @@
  * 붓꽃은 sklearn과 대조한 값이 있다 - 결정트리 0.9333, KNN 1.0.
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
@@ -499,4 +502,43 @@ describe('모르는 알고리즘', () => {
       }
     }
   })
+})
+
+/**
+ * **라벨 번호는 sklearn `LabelEncoder`의 `classes_`와 같은 차례다** — 문자열은 코드 포인트
+ * 순서다 (open-decisions.md 61). 번호가 모델의 동점과 이진 로지스틱의 양성 클래스를 정하므로
+ * 분류 알고리즘 전부를 본다. 입력과 답은 sklearn 픽스처의 `metrics.labels`에 있다.
+ */
+describe('라벨 번호의 차례', () => {
+  const cases: { name: string; truth: string[]; classes: string[] }[] = JSON.parse(
+    fs.readFileSync(path.join(__dirname, 'fixtures', 'sklearn', 'expected.json'), 'utf8'),
+  ).metrics.labels
+  const classifiers = ALGORITHMS.filter(
+    (one) => one.runtimes.mljs && one.taskTypes.classification,
+  ).map((one) => one.id)
+
+  it('JS 기본 정렬과 갈리는 입력이 픽스처에 있다', () => {
+    const splits = cases.filter(
+      (one) => [...one.classes].sort().join('\u0000') !== one.classes.join('\u0000'),
+    )
+    expect(splits.length).toBeGreaterThanOrEqual(1)
+    expect(classifiers.length).toBeGreaterThanOrEqual(1)
+  })
+
+  for (const one of cases) {
+    it(`모델의 classes가 sklearn과 같다 - ${one.name}`, async () => {
+      for (const algorithm of classifiers) {
+        const { model } = await fit(algorithm, {
+          features: one.truth.map((_, index) => [index, index % 2]),
+          rowIndices: one.truth.map((_, index) => index),
+          target: one.truth,
+          taskType: 'classification',
+          hyperparameters: {},
+          randomState: 42,
+        })
+        const classes = (model as { classes?: readonly string[] } | undefined)?.classes
+        expect(classes, algorithm).toEqual(one.classes)
+      }
+    })
+  }
 })

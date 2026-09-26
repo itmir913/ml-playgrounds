@@ -20,6 +20,7 @@ import {
 } from '../limits'
 
 import { ClientError } from '../errors'
+import { compareCodePoints } from './preprocess'
 import { shuffled } from './shuffle'
 import type { ConfusionMatrix, PerClass, TaskType } from '../project/schema'
 
@@ -53,6 +54,9 @@ function ratio(numerator: number, denominator: number): number {
  *
  * 라벨 목록은 **정답과 예측을 합쳐서** 만든다. 예측에만 나온 라벨을 빼면 혼동 행렬에서
  * 그 오분류가 통째로 사라져서, 학생이 "왜 정확도가 낮은데 표는 깨끗하지"를 겪는다.
+ *
+ * 라벨의 차례는 코드 포인트 순서다 — sklearn `confusion_matrix`와 같다 (open-decisions.md 61).
+ * `tests/metrics.spec.ts`의 *"혼동 행렬의 축과 칸이 sklearn과 같다"*가 문다.
  */
 function evaluateClassification(
   actual: readonly Prediction[],
@@ -60,7 +64,7 @@ function evaluateClassification(
 ): Evaluation {
   const actualLabels = actual.map(String)
   const predictedLabels = predicted.map(String)
-  const labels = [...new Set([...actualLabels, ...predictedLabels])].sort()
+  const labels = [...new Set([...actualLabels, ...predictedLabels])].sort(compareCodePoints)
   const position = new Map(labels.map((label, index) => [label, index]))
 
   const matrix = labels.map(() => labels.map(() => 0))

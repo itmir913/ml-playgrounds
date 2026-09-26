@@ -75,6 +75,7 @@ import type {
 } from '../models'
 import type { ModelFile, Predict } from '../models/types'
 import type { ComputePools, ForestTree } from '../pools'
+import { compareCodePoints } from '../preprocess'
 import { fitLogistic } from './logistic'
 import { fitNeural } from './neural'
 import { fitKMeans } from './mljs-kmeans'
@@ -267,6 +268,9 @@ function numberOption(source: Record<string, unknown>, name: string): number {
  *
  * **등장 순서가 아니라 정렬 순서로 매긴다.** 등장 순서로 하면 같은 데이터인데 행 순서가
  * 바뀌면 클래스 번호가 달라지고, 같은 모델이 다른 모델처럼 보인다.
+ *
+ * 정렬은 코드 포인트 순서다 — sklearn `LabelEncoder`의 `classes_`와 같다 (open-decisions.md
+ * 61). `tests/mljs.spec.ts`의 *"모델의 classes가 sklearn과 같다"*가 문다.
  */
 function labelCodec(target: readonly Prediction[]): {
   encoded: number[]
@@ -274,7 +278,7 @@ function labelCodec(target: readonly Prediction[]): {
   labels: string[]
   decode: (position: number) => string
 } {
-  const labels = [...new Set(target.map(String))].sort()
+  const labels = [...new Set(target.map(String))].sort(compareCodePoints)
   const index = new Map(labels.map((label, position) => [label, position]))
   return {
     encoded: target.map((value) => index.get(String(value)) ?? 0),

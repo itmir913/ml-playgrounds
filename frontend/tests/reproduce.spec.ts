@@ -1392,4 +1392,150 @@ describe('계산 규칙이 바뀐 뒤', () => {
       expect(changedRules(experiment, run, file({ dataset: null }))).toContain('CONSTANT_TARGET_R2')
     })
   })
+
+  /**
+   * 라벨 번호·혼동 행렬의 축·최빈값 동점을 코드 포인트로 견주게 된 것(open-decisions.md 61)은
+   * **BMP 뒤쪽 글자(`ｚ`, U+FF5A)와 BMP 밖 글자(`😀`)가 한 열에 함께 있을 때만** 순서를 바꾼다.
+   */
+  describe('코드 포인트 순서는 두 순서가 갈리는 값이 함께 있을 때만 걸린다', () => {
+    const table = (labels: readonly string[], feature: readonly string[]): Dataset => ({
+      columns: ['x', 'y'],
+      rows: labels.map((label, index) => [feature[index] ?? '', label]),
+    })
+    const MIXED = ['😀', 'ｚ', '😀', 'ｚ']
+    const PLAIN = ['a', '가', 'a', '가']
+
+    async function experimentOf(
+      taskType: 'classification' | 'clustering',
+      missing: Preprocessing['missing'],
+      split: 'holdout' | 'provided' = 'holdout',
+    ): Promise<{ experiment: Experiment; run: Run }> {
+      const base = await trained(['decision_tree'])
+      const experiment: Experiment = {
+        ...base,
+        settings: {
+          ...base.settings,
+          taskType,
+          split: { ...base.settings.split, method: split },
+          data: {
+            features: ['x'],
+            ...(taskType === 'classification' ? { target: 'y' } : {}),
+            preprocessing: { missing, scaling: 'none', categoricalEncoding: 'onehot' },
+          },
+        },
+      }
+      return { experiment, run: experiment.runs[0] as Run }
+    }
+
+    const file = (over: Partial<RuleFile>): RuleFile => ({
+      appVersion: '0.28.2',
+      preprocessor: null,
+      dataset: table(PLAIN, PLAIN),
+      testDataset: null,
+      ...over,
+    })
+
+    it('정답 열에 둘이 함께 있으면 걸린다', async () => {
+      const { experiment, run } = await experimentOf('classification', 'none')
+      expect(changedRules(experiment, run, file({ dataset: table(MIXED, PLAIN) }))).toContain(
+        'CODE_POINT_ORDER',
+      )
+    })
+
+    it('정답 열에 BMP 밖 글자만 있으면 안 걸린다', async () => {
+      const { experiment, run } = await experimentOf('classification', 'none')
+      const astralOnly = table(['😀', 'a', '가', '😀'], PLAIN)
+      expect(changedRules(experiment, run, file({ dataset: astralOnly }))).not.toContain(
+        'CODE_POINT_ORDER',
+      )
+    })
+
+    it('정답 열에 BMP 뒤쪽 글자만 있으면 안 걸린다', async () => {
+      const { experiment, run } = await experimentOf('classification', 'none')
+      const lateOnly = table(['ｚ', 'a', '가', 'ｚ'], PLAIN)
+      expect(changedRules(experiment, run, file({ dataset: lateOnly }))).not.toContain(
+        'CODE_POINT_ORDER',
+      )
+    })
+
+    it('군집이면 라벨이 없으므로 정답 열을 안 본다', async () => {
+      const { experiment, run } = await experimentOf('clustering', 'none')
+      expect(changedRules(experiment, run, file({ dataset: table(MIXED, PLAIN) }))).not.toContain(
+        'CODE_POINT_ORDER',
+      )
+    })
+
+    it('시험 표가 따로면 그 정답도 본다', async () => {
+      const { experiment, run } = await experimentOf('classification', 'none', 'provided')
+      const plain = table(PLAIN, PLAIN)
+      expect(
+        changedRules(experiment, run, file({ testDataset: table(['😀', 'ｚ'], PLAIN) })),
+      ).toContain('CODE_POINT_ORDER')
+      expect(changedRules(experiment, run, file({ testDataset: plain }))).not.toContain(
+        'CODE_POINT_ORDER',
+      )
+      expect(changedRules(experiment, run, file({ testDataset: null }))).toContain(
+        'CODE_POINT_ORDER',
+      )
+    })
+
+    it('채움값을 쓰는 전략이면 특성 열의 둘도 걸린다', async () => {
+      const { experiment, run } = await experimentOf('clustering', 'mean')
+      expect(changedRules(experiment, run, file({ dataset: table(PLAIN, MIXED) }))).toContain(
+        'CODE_POINT_ORDER',
+      )
+    })
+
+    it('채우지 않는 전략이면 특성 열은 안 본다', async () => {
+      for (const missing of ['none', 'drop'] as const) {
+        const { experiment, run } = await experimentOf('clustering', missing)
+        expect(
+          changedRules(experiment, run, file({ dataset: table(PLAIN, MIXED) })),
+          missing,
+        ).not.toContain('CODE_POINT_ORDER')
+      }
+    })
+
+    it('표를 못 읽으면 걸린다고 본다', async () => {
+      const { experiment, run } = await experimentOf('classification', 'none')
+      expect(changedRules(experiment, run, file({ dataset: null }))).toContain('CODE_POINT_ORDER')
+    })
+
+    /** 학습은 정답의 앞뒤 공백을 떼고 본다(`targetValues`). 떼지 않으면 공백이 첫 글자가 된다. */
+    it('정답에 앞뒤 공백이 있어도 걸린다', async () => {
+      const { experiment, run } = await experimentOf('classification', 'none')
+      const spaced = table([' ｚ', '😀 ', ' ｚ', '😀 '], PLAIN)
+      expect(changedRules(experiment, run, file({ dataset: spaced }))).toContain('CODE_POINT_ORDER')
+    })
+
+    it('정답 열이 표에 없으면 걸린다고 본다', async () => {
+      const { experiment, run } = await experimentOf('classification', 'none')
+      const noTarget: Dataset = { columns: ['x', 'z'], rows: [['a', 'a']] }
+      expect(changedRules(experiment, run, file({ dataset: noTarget }))).toContain(
+        'CODE_POINT_ORDER',
+      )
+    })
+
+    it('채움 전략에서 특성 열이 표에 없으면 걸린다고 본다', async () => {
+      const { experiment, run } = await experimentOf('clustering', 'mean')
+      const noFeature: Dataset = { columns: ['z', 'y'], rows: [['a', 'a']] }
+      expect(changedRules(experiment, run, file({ dataset: noFeature }))).toContain(
+        'CODE_POINT_ORDER',
+      )
+    })
+
+    it('스냅숏을 못 읽으면 걸린다고 본다', async () => {
+      const { experiment: base, run } = await experimentOf('clustering', 'mean')
+      // 표 스냅숏 스키마를 못 지나는 모양 — 남이 고친 파일이나 다른 데이터 종류가 이렇다.
+      const data = { features: 'x' } as unknown as Experiment['settings']['data']
+      const unreadable: Experiment = { ...base, settings: { ...base.settings, data } }
+      expect(changedRules(unreadable, run, file({}))).toContain('CODE_POINT_ORDER')
+    })
+
+    it('규칙이 바뀐 판부터 만든 파일에는 안 걸린다', async () => {
+      const { experiment, run } = await experimentOf('classification', 'mean')
+      const mixed = file({ dataset: table(MIXED, MIXED), appVersion: '0.28.3' })
+      expect(changedRules(experiment, run, mixed)).not.toContain('CODE_POINT_ORDER')
+    })
+  })
 })

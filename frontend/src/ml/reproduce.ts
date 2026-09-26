@@ -438,6 +438,7 @@ export type CalculationRule =
   | 'CONSTANT_COLUMN_SCALE'
   | 'CATEGORY_ORDER'
   | 'CONSTANT_TARGET_R2'
+  | 'CODE_POINT_ORDER'
 
 /** 판정을 거를지 볼 때 쓰는, 그 파일이 가진 것. */
 export interface RuleFile {
@@ -527,7 +528,62 @@ export const CALCULATION_RULE_CHANGES: readonly CalculationRuleChange[] = [
     touches: (subject) =>
       subject.experiment.settings.taskType === 'regression' && !testTargetVaries(subject),
   },
+  // 61 — 라벨 번호·혼동 행렬의 축·최빈값 동점을 코드 포인트로 견준다. 분류의 정답 열이나
+  // 최빈값으로 채우는 특성 열에 두 순서가 갈리는 값이 함께 있을 때만 걸린다.
+  {
+    rule: 'CODE_POINT_ORDER',
+    since: '0.28.3',
+    touches: (subject) => labelsOrderDiffers(subject) || fillOrderDiffers(subject),
+  },
 ]
+
+/**
+ * 이 값들 가운데 **코드 포인트 순서와 UTF-16 코드 단위 순서가 갈리는 쌍이 있는가.** 전체에서
+ * 두 순서가 같으면 어느 부분에서도 같다 — 그래서 훈련 몫·시험 몫·예측을 따로 안 세고 열 전체를
+ * 본다.
+ */
+function orderDiffers(values: Iterable<string>): boolean {
+  const byCodePoints = categoryOrder(values)
+  const byCodeUnits = [...byCodePoints].sort()
+  return byCodePoints.some((value, at) => value !== byCodeUnits[at])
+}
+
+/**
+ * 분류 run의 라벨 순서가 규칙 변경에 걸리는가. 라벨은 정답 열의 값이고(예측은 훈련 몫의 라벨
+ * 가운데 하나다), 학습과 같이 앞뒤 공백을 떼고 본다(`targetValues`). **못 읽으면 참이다.**
+ */
+function labelsOrderDiffers({ experiment, file, data }: RuleSubject): boolean {
+  if (experiment.settings.taskType !== 'classification') return false
+  const target = data?.target
+  if (target === undefined || file.dataset === null) return true
+  const sources =
+    experiment.settings.split.method === 'provided'
+      ? [file.dataset, file.testDataset]
+      : [file.dataset]
+  const values: string[] = []
+  for (const source of sources) {
+    if (source === null) return true
+    const column = source.columns.indexOf(target)
+    if (column < 0) return true
+    for (const row of source.rows) values.push((row[column] ?? '').trim())
+  }
+  return orderDiffers(values)
+}
+
+/**
+ * 결측 채움의 최빈값 동점이 규칙 변경에 걸리는가. 채움값을 쓰는 전략에서 특성 열의 값을 열마다
+ * 본다(`fitPreprocessor`처럼 칸 그대로). **못 읽으면 참이다.**
+ */
+function fillOrderDiffers({ file, data }: RuleSubject): boolean {
+  if (data === null) return true
+  if (data.preprocessing.missing === 'none' || data.preprocessing.missing === 'drop') return false
+  const dataset = file.dataset
+  if (dataset === null) return true
+  return data.features.some((feature) => {
+    const column = dataset.columns.indexOf(feature)
+    return column < 0 || orderDiffers(dataset.rows.map((row) => row[column] ?? ''))
+  })
+}
 
 /**
  * 이 run에 걸리는, 그 파일을 만든 뒤 바뀐 계산 규칙들. **순서는 목록 그대로다.**

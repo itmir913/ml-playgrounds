@@ -6,6 +6,9 @@
  * 지표를 잊으면 학생은 학습이 끝난 뒤에야 실패를 본다.
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
@@ -23,6 +26,17 @@ import {
 } from '../src/ml/metrics'
 import { MIN_SILHOUETTE_SAMPLE } from '../src/limits'
 import { TASK_TYPES, type TaskType } from '../src/project/schema'
+
+/** sklearn이 세운 라벨 순서와 혼동 행렬 (`generate_sklearn_fixtures.py`의 `LABEL_CASES`). */
+const LABEL_CASES: {
+  name: string
+  truth: string[]
+  pred: string[]
+  labels: string[]
+  matrix: number[][]
+}[] = JSON.parse(
+  fs.readFileSync(path.join(__dirname, 'fixtures', 'sklearn', 'expected.json'), 'utf8'),
+).metrics.labels
 
 describe('등록부끼리 어긋나지 않는다', () => {
   it('등록된 알고리즘의 과제 유형에는 전부 지표 계산기가 있다', () => {
@@ -185,6 +199,26 @@ describe('분류', () => {
       [0, 1, 0],
     ])
   })
+
+  /**
+   * **축의 차례는 sklearn `confusion_matrix`와 같다** — 문자열은 코드 포인트 순서다
+   * (open-decisions.md 61). 입력과 답은 sklearn 픽스처의 `metrics.labels`에 있고 생성기의
+   * `LABEL_CASES`가 만든다.
+   */
+  it('혼동 행렬의 축을 가르는 입력이 JS 기본 정렬과 갈린다', () => {
+    const splits = LABEL_CASES.filter(
+      (one) => [...one.labels].sort().join('\u0000') !== one.labels.join('\u0000'),
+    )
+    expect(splits.length).toBeGreaterThanOrEqual(1)
+  })
+
+  for (const one of LABEL_CASES) {
+    it(`혼동 행렬의 축과 칸이 sklearn과 같다 - ${one.name}`, () => {
+      const { confusionMatrix } = evaluate('classification', one.truth, one.pred)
+      expect(confusionMatrix?.labels).toEqual(one.labels)
+      expect(confusionMatrix?.matrix).toEqual(one.matrix)
+    })
+  }
 
   it('행의 합이 그 클래스의 support다', () => {
     const { perClass, confusionMatrix } = evaluate('classification', actual, predicted)
