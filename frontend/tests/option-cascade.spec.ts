@@ -30,15 +30,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'
 import { RouterView } from 'vue-router'
 
-/** 학습 화면이 뜨자마자 기기 교정을 워커에 시킨다. **아무 말도 안 하는 워커**로 갈아 끼운다. */
+/**
+ * 학습 화면이 뜨자마자 기기 교정을 워커에 시킨다. **아무 말도 안 하는 워커**로 갈아 끼운다.
+ * 몇 번 띄웠는지 센다 — 학습이 시작됐는지를 워커가 떴는지로 본다.
+ */
+const spawned = vi.hoisted(() => ({ count: 0 }))
 vi.mock('../src/ml/worker/spawn', () => ({
-  spawnTrainingWorker: () => ({
-    onmessage: null,
-    onerror: null,
-    onmessageerror: null,
-    postMessage() {},
-    terminate() {},
-  }),
+  spawnTrainingWorker: () => {
+    spawned.count += 1
+    return {
+      onmessage: null,
+      onerror: null,
+      onmessageerror: null,
+      postMessage() {},
+      terminate() {},
+    }
+  },
 }))
 
 vi.mock('vue-chartjs', () => ({
@@ -65,6 +72,7 @@ import { withFeatures, withSampling, withSplit, withTaskType } from '../src/proj
 import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
 import { router } from '../src/router'
 import { useProjectStore } from '../src/stores/project'
+import { useToastStore } from '../src/stores/toasts'
 import ChartDialog from '../src/views/data/ChartDialog.vue'
 import TabularPrepPanel from '../src/views/preprocess/TabularPrepPanel.vue'
 import TrainView from '../src/views/TrainView.vue'
@@ -230,10 +238,12 @@ describe('유형을 바꿔도 모델 선택이 남는다', { timeout: 30_000 }, 
   })
 
   /**
-   * **유형 없이 모델이 담긴 파일에서 [학습하기]가 이유와 함께 잠긴다** (`trainGate`의
-   * `NO_TASK_TYPE`). 스키마에 유형·모델 교차 제약이 없어 이런 파일이 열린다.
+   * **유형 없이 모델이 담긴 파일에서 [학습하기]는 켜져 있고, 누르면 실패를 알린다**
+   * (`open-decisions.md` 60, architecture.md §10.6). 스키마에 유형·모델 교차 제약이 없어 이런
+   * 파일이 열린다. 잠그지 않되 **조용히 아무 일도 안 하면 안 된다** — 알림이 뜨고, 동작 바에
+   * 실패가 남고, 학습은 시작하지 않는다.
    */
-  it('유형이 빠진 파일에서 [학습하기]가 이유와 함께 잠긴다', async () => {
+  it('유형이 빠진 파일에서 [학습하기]가 켜져 있고, 누르면 알림이 뜨고 워커는 안 뜬다', async () => {
     const file = await irisProject(['decision_tree'])
     const manifest = { ...file.document.manifest }
     delete manifest.taskType
@@ -241,9 +251,17 @@ describe('유형을 바꿔도 모델 선택이 남는다', { timeout: 30_000 }, 
     expect(useProjectStore().taskType).toBeUndefined()
 
     const start = wrapper.findAll('button').find((one) => one.text() === t('train.start'))
-    expect(start?.attributes('disabled')).toBeDefined()
-    // 동작 바에 이유가 선다 — 유형 칸의 안내문과 같은 문장이라 바 안에서 본다.
-    expect(wrapper.findComponent(StepActionBar).text()).toContain(t('train.noTaskTypeReason'))
+    expect(start?.attributes('disabled')).toBeUndefined()
+    const before = spawned.count
+    await start!.trigger('click')
+    await settle()
+
+    const alerts = useToastStore().items.filter((one) => one.tone === 'danger')
+    expect(alerts.map((one) => one.key)).toContain('train.noTaskTypeReason')
+    // 알림은 사라져도 실패는 동작 바에 남는다(학습의 다른 실패와 같은 자리).
+    expect(wrapper.findComponent(StepActionBar).text()).toContain(t('train.failedHere'))
+    expect(spawned.count).toBe(before)
+    expect(useProjectStore().file?.document.runs.experiments).toHaveLength(0)
     wrapper.unmount()
   })
 

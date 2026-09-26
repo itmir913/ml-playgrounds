@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 /**
  * **학습 도중에 주소창으로 다른 프로젝트의 학습 화면으로 간다.** `/project/A/train` →
- * `/project/B/train`은 같은 라우트 레코드라 화면이 재사용되고 떠나기 가드가 안 돈다. A에서
- * 시작한 학습은 옮기는 순간 끊기고, 끝난 것이 있어도 B에 앉지 않는다(`claim`).
+ * `/project/B/train`은 같은 라우트 레코드다. 앱에서는 `App.vue`의 화면 키가 이 화면을 새로
+ * 띄워 `onBeforeRouteLeave` 없이도 언마운트된다(키는 화면을 가리지 않는다 — `project-switch-remount.spec.ts`는 다른 판으로 잰다). **이
+ * 스펙은 그 키 없이 띄운다** — 라우터만 태워 화면이 재사용되게 두고, 키가 못 덮는 틈(파일이
+ * 바뀐 뒤 화면이 내려가기 전)을 스토어로 잰다. 그 틈에서도 A에서 시작한 학습은 옮기는 순간
+ * 끊기고, 끝난 것이 있어도 B에 앉지 않는다(`TrainView`의 `projectId` 감시와 `claim`).
  *
  * **워커는 진짜 로직을 태우되 보고를 붙잡아 둔다** (`option-cascade-train.spec.ts`와 같다) —
  * "학습 도중"이라는 순간이 있어야 보이는 자리다.

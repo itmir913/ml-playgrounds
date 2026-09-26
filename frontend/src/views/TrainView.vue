@@ -528,7 +528,6 @@ const nothingToTrain = computed(() => trainBlocks.value.length > 0)
 
 /** 이유 코드 → 문구 키. **키를 조립하지 않는다** — 정적 키라야 로케일 검사가 짝을 센다. */
 const TRAIN_BLOCK_KEYS = {
-  NO_TASK_TYPE: 'train.noTaskTypeReason',
   NO_MODEL: 'train.nothingToTrain',
   NO_TRAINABLE_MODEL: 'train.nothingTrainable',
 } as const satisfies Record<TrainBlock, string>
@@ -549,12 +548,21 @@ const trainBlockKey = computed(() => {
 async function startTraining(): Promise<void> {
   const file = project.file
   const taskType = project.taskType
-  // **버튼을 잠그는 그 gate로 거절한다.** `taskType` 확인은 gate의 `NO_TASK_TYPE`와 같은
-  // 조건이고 타입을 좁히려고만 남는다.
-  if (!file || trainBlocks.value.length > 0 || taskType === undefined) return
+  // **버튼을 잠그는 그 gate로 거절한다.**
+  if (!file || trainBlocks.value.length > 0) return
+  // **유형이 빠진 파일은 잠그지 않고 누를 때 알린다** (open-decisions.md 60, §10.6). 조용히
+  // 돌아가면 켜진 버튼이 아무 일도 안 한다. 알림과 동작 바의 실패 줄은
+  // `option-cascade.spec.ts`의 *"유형이 빠진 파일에서 …"*가 문다.
+  if (taskType === undefined) {
+    failure.value = { key: 'train.noTaskTypeReason', params: {} }
+    toasts.push('danger', 'train.noTaskTypeReason')
+    return
+  }
   /**
-   * **시작한 프로젝트를 붙든다** (`stores/project.ts`의 `claim`). 같은 라우트 레코드 사이의
-   * 이동은 이 화면을 다시 쓰므로 `alive`만으로는 못 가른다 — `await` 뒤마다 둘 다 본다.
+   * **시작한 프로젝트를 붙든다** (`stores/project.ts`의 `claim`). 프로젝트를 옮기면
+   * `App.vue`의 화면 키가 이 화면을 새로 띄워 `onBeforeRouteLeave` 없이도 언마운트된다
+   * (키는 화면을 가리지 않는다 — `project-switch-remount.spec.ts`는 다른 판으로 잰다). `ours()`는 키가 못 덮는 틈(파일이 바뀐 뒤 화면이
+   * 내려가기 전)과 키 없이 띄운 자리의 겹 방어다 — `await` 뒤마다 `alive`와 함께 본다.
    * `train-project-switch.spec.ts`가 문다.
    */
   const claimed = project.claim()
@@ -684,8 +692,10 @@ function confirmStop(): void {
 }
 
 /**
- * **다른 프로젝트로 옮기면 이 프로젝트의 일을 끊는다.** 같은 라우트 레코드 사이의 이동은
- * 떠나기 가드를 안 지나므로 스토어의 `projectId`를 본다. 결과를 버리는 일은 `startTraining`의
+ * **다른 프로젝트로 옮기면 이 프로젝트의 일을 끊는다.** 프로젝트를 옮기면 `App.vue`의 화면
+ * 키가 이 화면을 새로 띄워 `onBeforeRouteLeave` 없이도 언마운트된다
+ * (키는 화면을 가리지 않는다 — `project-switch-remount.spec.ts`는 다른 판으로 잰다). 이 감시와 `ours()`는 키가 못 덮는 틈(파일이 바뀐 뒤
+ * 화면이 내려가기 전)과 키 없이 띄운 자리의 겹 방어다. 결과를 버리는 일은 `startTraining`의
  * `ours()`가 하고, 여기서는 도는 일을 끊고 앞 프로젝트의 상태(멈추기 대화상자·실패 줄)를 걷는다.
  * 끊는 것은 `train-project-switch.spec.ts`가 문다. 상태를 걷는 두 줄은 사람 확인이다.
  */
@@ -770,14 +780,15 @@ function leave(): void {
     <StepChecklist step="train" />
 
     <!--
-      **이 단계의 본 동작이라 위에 붙어 따라온다** (§8.13.1 "동작 바는 화면들이 함께
+      **이 단계의 본 동작이라 (`md` 이상에서) 위에 붙어 따라온다** (§8.13.1 "동작 바는 화면들이 함께
       쓴다"). 예측 화면과 같은 컴포넌트다 — 한 교사가 두 화면에서 다른 문법을 가르치지
       않게 한다.
 
       **원래는 흐름 끝의 카드였다** (2026-08-14에 뒤집었다). 학습은 한 번 누르고
       기다리는 곳이라 끝에 두어도 된다고 적어 두었는데, **오래 걸리는 동작일수록 진행
       표시가 화면에 남아 있어야 한다** — 안 보이면 학생은 아무 일도 안 일어난 줄 알고
-      다시 누르러 올라간다.
+      다시 누르러 올라간다. `md` 미만에서는 바가 붙지 않고 아래 `below`의 게이지 줄만
+      붙는다(`open-decisions.md` 59).
 
       **말도 버튼도 오른쪽에 모인다.** 상태를 왼쪽 끝에 두면 넓은 화면에서 버튼과
       멀어져, 방금 누른 자리와 그 답이 화면 양 끝으로 갈린다.

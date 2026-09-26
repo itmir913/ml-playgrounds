@@ -318,7 +318,7 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
     <StepChecklist step="data" />
 
     <!--
-      **전체에 걸리는 동작은 위에 붙어 따라온다** (§8.13.1 "동작 바는 화면들이 함께
+      **전체에 걸리는 동작은 (`md` 이상에서) 위에 붙어 따라온다** (§8.13.1 "동작 바는 화면들이 함께
       쓴다"). 학습·예측 화면과 같은 컴포넌트다 — 네 화면이 같은 자리에서 같은 문법으로
       동작을 갖는다.
 

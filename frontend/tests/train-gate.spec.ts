@@ -3,6 +3,9 @@
  * `startTraining`의 거절이 이 함수 하나를 본다. `ui-rules.spec.ts`는 템플릿의 조합만 보므로
  * 조건은 여기서 하나씩 묻는다.
  *
+ * **잠금은 보수적으로 둔다** (architecture.md §10.6, `open-decisions.md` 60). 이유는 모델에 관한
+ * 둘뿐이고, 유형이 빠진 것은 잠금이 아니라 누를 때의 실패 알림이다.
+ *
  * **조건마다 mount 없이 묻는다.** 화면이 이 판정을 그대로 쓰는지는
  * `option-cascade.spec.ts`의 *"유형이 빠진 파일에서 …"*와 *"담은 모델이 전부 잠기면 …"*이 본다.
  */
@@ -19,12 +22,14 @@ describe('trainGate — [학습하기]를 막는 이유 목록', () => {
     expect(trainGate({ taskType: 'classification', chosen: [tree, linear] })).toEqual([])
   })
 
-  it('유형이 없으면 그것이 첫 이유다 — 모델이 담겨 있어도', () => {
-    expect(trainGate({ taskType: undefined, chosen: [tree] })).toEqual(['NO_TASK_TYPE'])
+  /** 유형이 빠진 파일은 잠그지 않는다 — 누르면 학습 화면이 실패를 알린다(결정문 60). */
+  it('유형이 없어도 모델이 담겨 있으면 막지 않는다', () => {
+    expect(trainGate({ taskType: undefined, chosen: [tree] })).toEqual([])
   })
 
   it('담은 모델이 없으면 막는다', () => {
     expect(trainGate({ taskType: 'classification', chosen: [] })).toEqual(['NO_MODEL'])
+    expect(trainGate({ taskType: undefined, chosen: [] })).toEqual(['NO_MODEL'])
   })
 
   it('담은 모델이 전부 지금 유형에 안 맞으면 막는다', () => {
@@ -33,13 +38,8 @@ describe('trainGate — [학습하기]를 막는 이유 목록', () => {
     ])
   })
 
-  /** **근본적인 것이 먼저다** (§10.2) — 유형을 모르면 모델 이야기는 뒤다. */
-  it('여럿이 겹치면 근본적인 것부터 순서대로 전부 준다', () => {
-    expect(trainGate({ taskType: undefined, chosen: [] })).toEqual(['NO_TASK_TYPE', 'NO_MODEL'])
-  })
-
   /** 유형을 모르면 "맞지 않는다"를 말할 수 없다 — 잠긴 줄 판정과 같다(`chosenModelBlocks`). */
   it('유형이 없으면 모델이 맞는지 판정하지 않는다', () => {
-    expect(trainGate({ taskType: undefined, chosen: [linear] })).toEqual(['NO_TASK_TYPE'])
+    expect(trainGate({ taskType: undefined, chosen: [linear] })).toEqual([])
   })
 })

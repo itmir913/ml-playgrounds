@@ -424,13 +424,14 @@ export function chosenModelBlocks(
 /**
  * [학습하기]를 막는 이유. **근본적인 것이 먼저다** (architecture.md §10.2).
  *
- * - `NO_TASK_TYPE` — 유형을 안 골랐다. 스키마에 유형·모델 교차 제약이 없어 모델이 담긴 채
- *   유형만 빠진 파일도 열린다.
  * - `NO_MODEL` — 담은 모델이 없다.
  * - `NO_TRAINABLE_MODEL` — 담았는데 **전부** 지금 유형에 안 맞는다 (`open-decisions.md` 55).
  *   *"추가한 모델이 없다"*와 가른다 — 목록에 줄이 보이는 학생에게 그 말은 거짓이다.
+ *
+ * **유형이 빠진 것은 여기 없다** (`open-decisions.md` 60, architecture.md §10.6). 잠그지 않고
+ * 누를 때 학습 화면이 실패를 알린다 — `option-cascade.spec.ts`의 *"유형이 빠진 파일에서 …"*.
  */
-export type TrainBlock = 'NO_TASK_TYPE' | 'NO_MODEL' | 'NO_TRAINABLE_MODEL'
+export type TrainBlock = 'NO_MODEL' | 'NO_TRAINABLE_MODEL'
 
 /**
  * **[학습하기]의 gate** (architecture.md §10.2). 비어 있으면 누를 수 있다.
@@ -438,6 +439,9 @@ export type TrainBlock = 'NO_TASK_TYPE' | 'NO_MODEL' | 'NO_TRAINABLE_MODEL'
  * **버튼 잠금과 동작의 거절이 이 함수 하나를 본다** (`TrainView`의 `trainBlocks`). 잠긴 줄
  * 판정은 `chosenModelBlocks`와 같다. `train-gate.spec.ts`가 조건마다 묻고,
  * `option-cascade.spec.ts`의 *"담은 모델이 전부 잠기면 …"*이 잠금과 거절을 둘 다 문다.
+ *
+ * **새 이유를 더하기 전에 코드 소유자에게 묻는다** (architecture.md §10.6) — 동작이 실패할
+ * 조건을 여기에 옮겨 적으면 둘이 갈라져 할 수 있는데 잠긴 버튼이 생긴다.
  *
  * **"도는 중"은 여기 없다** — 파일의 성질이 아니라 화면의 상태다.
  */
@@ -449,7 +453,6 @@ export function trainGate(
   algorithms: readonly Algorithm[] = ALGORITHMS,
 ): readonly TrainBlock[] {
   const blocks: TrainBlock[] = []
-  if (input.taskType === undefined) blocks.push('NO_TASK_TYPE')
   if (input.chosen.length === 0) {
     blocks.push('NO_MODEL')
   } else if (

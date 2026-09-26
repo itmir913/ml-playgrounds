@@ -9,13 +9,21 @@
  * `end` 자리에는 **그 화면의 결론** 하나가 선다([학습하기]·[예측]이고, 파일 예측은
  * 누를 예측이 없어 [내려받기]다).
  *
- * **위에 붙어 따라온다.** 아래가 길게 이어지는 화면들이라 스크롤하면 누를 것과 진행
- * 표시가 화면 밖으로 나간다 — 학생은 아무 일도 안 일어난 줄 알고 다시 누르러 올라간다.
+ * **`md` 이상에서 위에 붙어 따라온다.** 아래가 길게 이어지는 화면들이라 스크롤하면 누를
+ * 것과 진행 표시가 화면 밖으로 나간다 — 학생은 아무 일도 안 일어난 줄 알고 다시 누르러
+ * 올라간다.
+ *
+ * **`md` 미만에서는 붙지 않고, `below` 자리(학습 진행 게이지)만 남는다** (`open-decisions.md`
+ * 59). 모든 화면에 같은 규칙이다. 붙박이가 지키려던 것은 오래 걸리는 동작의 진행 표시라, `below`가 있으면 바가
+ * **게이지 줄이 보이는 만큼만** 붙는다 — 그 위는 도구 막대 뒤로 들어간다
+ * (`styles/utilities.css`의 `stick-step-bar-strip`). 게이지를 바 밖에 따로 붙이지 않는
+ * 이유는, 붙박이는 자기 부모 안에서만 붙어서 바 안의 게이지는 바와 함께 떠나기 때문이다.
  *
  * **`fixed`가 아니다** — `AppShell`의 상태 표시줄이 `<main>` 밖에 있다.
  *
- * **붙는 높이는 `--shell-top`이 정한다**(`stick-below-shell`). `md` 미만에서는 문서가
- * 스크롤하고 도구 막대가 화면 위를 덮고 있어서, `top-0`이면 바가 그 아래로 숨는다.
+ * **`md` 이상에서 붙는 높이는 `--shell-top`이 정한다**(`md:stick-below-shell`, 그 폭에서는
+ * 0이다). `md` 미만의 게이지 줄은 `stick-step-bar-strip`이 도구 막대 아래에 세운다 — 그 폭에서는
+ * 문서가 스크롤하고 도구 막대가 화면 위를 덮고 있어서, `top-0`이면 줄이 그 아래로 숨는다.
  *
  * **표 머리글보다 앞이어야 한다.** 붙박이 머리글도 `z-10`으로 붙는데 DOM에서 이 바보다
  * 뒤에 있어서, 같은 값이면 표가 바를 덮는다 — 데이터 화면에서 실제로 그렇게 나갔다
@@ -53,16 +61,52 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
  * 때문이다** - 붙박이 칸은 형제지만 스크롤 대상은 더 아래에 있다. 화면 하나에 바는
  * 하나뿐이고(판마다 `v-if`로 갈린다) 떠날 때 지운다.
  *
+ * **내놓는 것은 바의 높이가 아니라 바가 화면을 덮는 높이다.** `md` 미만에서 붙지 않으면
+ * 0이고, 게이지 줄만 붙으면 그 줄의 높이다 — 안 그러면 도착 지점(`under-step-bar`)이 없는
+ * 바를 비켜 한 칸 아래에서 멈춘다. 어느 경우인지는 **CSS가 정한 결과를 읽는다**(붙었는가,
+ * 게이지 줄만인가) — 폭의 경계를 여기 다시 적으면 CSS와 갈린다. 이 값은 레이아웃이라 jsdom
+ * 검사가 못 본다(사람 확인 — architecture.md §8.13.1의 잰 값).
+ *
  * `ResizeObserver`가 없으면 첫 값만 쓴다 - jsdom에 그것이 없어서, 안 막으면 이
  * 컴포넌트에 닿는 스펙이 전부 죽는다.
  */
 const HEIGHT_VAR = '--step-bar-height'
 
+/** 게이지 줄만 붙을 때 도구 막대 뒤로 들어가는 높이. 바 자신에 둔다(`stick-step-bar-strip`). */
+const HIDDEN_VAR = '--step-bar-hidden'
+
+/** CSS가 게이지 줄만 붙이고 있다는 표시(`stick-step-bar-strip`). */
+const STRIP_VAR = '--step-bar-strip'
+
 const barEl = ref<HTMLElement | null>(null)
+const panelEl = ref<HTMLElement | null>(null)
+const belowEl = ref<HTMLElement | null>(null)
 let observer: ResizeObserver | null = null
 
+/**
+ * 바 위쪽에서 게이지 줄이 시작하기 전까지의 높이. 게이지 위에 패널 아래 여백과 같은 틈을
+ * 남긴다 — 줄이 위아래로 같은 숨을 갖는다. `below`가 없으면 0이다.
+ */
+function hiddenAbove(el: HTMLElement): number {
+  const below = belowEl.value
+  const panel = panelEl.value
+  if (!below || !panel) return 0
+  const pad = Number.parseFloat(getComputedStyle(panel).paddingBottom)
+  const offset =
+    below.getBoundingClientRect().top -
+    el.getBoundingClientRect().top -
+    (Number.isFinite(pad) ? pad : 0)
+  return Math.max(offset, 0)
+}
+
 function publish(el: HTMLElement): void {
-  document.documentElement.style.setProperty(HEIGHT_VAR, `${el.offsetHeight}px`)
+  const hidden = hiddenAbove(el)
+  el.style.setProperty(HIDDEN_VAR, `${hidden}px`)
+  const style = getComputedStyle(el)
+  const stuck = style.position === 'sticky'
+  const strip = style.getPropertyValue(STRIP_VAR).trim() === 'on'
+  const cover = !stuck ? 0 : strip ? el.offsetHeight - hidden : el.offsetHeight
+  document.documentElement.style.setProperty(HEIGHT_VAR, `${cover}px`)
 }
 
 onMounted(() => {
@@ -84,8 +128,17 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="barEl" class="sticky z-20 -mt-4 bg-surface pt-4 stick-below-shell">
+  <!--
+    붙는 것은 `md` 이상뿐이다. 그 아래에서는 `below`가 있을 때만 게이지 줄이 붙는다
+    (`open-decisions.md` 59).
+  -->
+  <div
+    ref="barEl"
+    class="z-20 -mt-4 bg-surface pt-4 md:sticky md:stick-below-shell"
+    :class="{ 'stick-step-bar-strip': $slots.below }"
+  >
     <div
+      ref="panelEl"
       class="flex flex-wrap items-center gap-3 rounded-panel border border-line-strong bg-surface px-4 py-2.5 shadow-card"
     >
       <slot />
@@ -96,7 +149,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 전체 폭을 갖는 자리. `w-full`이라 `flex-wrap`이 스스로 다음 줄로 내린다. -->
-      <div v-if="$slots.below" class="w-full"><slot name="below" /></div>
+      <div v-if="$slots.below" ref="belowEl" class="w-full"><slot name="below" /></div>
     </div>
   </div>
 </template>

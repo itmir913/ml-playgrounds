@@ -152,6 +152,26 @@
   top: var(--shell-top);
 }
 
+/**
+ * **`md` 미만에서 동작 바의 게이지 줄만 붙인다** (`open-decisions.md` 59, architecture.md
+ * §8.13.1). 그 폭에서 바는 붙지 않는데, 학습 진행 게이지(`below` 자리)는 화면에 남아야 한다
+ * — 안 보이면 학생은 아무 일도 안 일어난 줄 알고 다시 누르러 올라간다.
+ *
+ * 바를 통째로 붙이되 **게이지 위쪽 높이(`--step-bar-hidden`)만큼 위로 올려 붙인다.** 그 부분은
+ * 도구 막대 뒤로 들어가고 게이지 줄만 보인다. 높이는 `StepActionBar`가 재서 바 자신에 둔다.
+ * 게이지를 따로 붙이지 않는 이유는 붙박이가 자기 부모 안에서만 붙기 때문이다.
+ *
+ * `--step-bar-strip`은 `StepActionBar`가 읽는 표시다 — 이 규칙이 걸려 있으면 바가 덮는
+ * 높이는 게이지 줄뿐이다. 폭의 경계를 스크립트에 다시 적지 않으려고 CSS가 알려 준다.
+ */
+@utility stick-step-bar-strip {
+  @media (width < theme(--breakpoint-md)) {
+    position: sticky;
+    top: calc(var(--shell-top) - var(--step-bar-hidden, 0px));
+    --step-bar-strip: on;
+  }
+}
+
 @utility stick-above-shell {
   bottom: calc(var(--shell-bottom) + 1rem);
 }

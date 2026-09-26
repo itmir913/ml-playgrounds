@@ -3134,6 +3134,34 @@ describe('도착 지점은 붙박이 바를 비켜선다', () => {
     // `under-step-bar`는 바가 늘 있는 화면의 것이라 **아직 못 쟀을 때**를 위한 기본값을 갖는다.
     expect(utility('under-step-bar')).toMatch(/--step-bar-height,\s*5\.25rem/)
   })
+
+  /**
+   * **`md` 미만에서 동작 바는 붙지 않고 게이지 줄만 붙는다** (`open-decisions.md` 59). 모든
+   * 화면에 같은 규칙이라 컴포넌트 하나와 유틸리티 하나를 본다. 읽는 높이와 게이지가 실제로
+   * 보이는지는 브라우저로 잰 것이다(사람 확인) — 여기서는 규칙이 선 자리만 문다.
+   */
+  it('동작 바는 md 이상에서만 붙고, 좁은 폭에서는 게이지 줄만 붙는다', () => {
+    const bar = readFileSync(join(SRC, 'components', 'StepActionBar.vue'), 'utf-8')
+    // 여는 태그 전체 — 정적 `class`와 `:class` 바인딩을 함께 본다.
+    const root = /<div\s+ref="barEl"[^>]*>/.exec(bar)
+    expect(root, 'StepActionBar root not found').not.toBeNull()
+    // 붙는 계열 클래스는 전부 `md:`만 달아야 한다. 접두 없는 것도 `max-md:`도 휴대폰에서 붙는다.
+    const sticky = root![0].match(/[\w:-]*(?:sticky|stick-below-shell)\b/g) ?? []
+    expect(sticky.length, 'the bar never sticks').toBeGreaterThan(0)
+    for (const one of sticky) {
+      expect(one, 'the bar sticks on phones again').toMatch(/^md:/)
+    }
+    expect(root![0], 'the gauge row no longer sticks on phones').toMatch(
+      /'stick-step-bar-strip':\s*\$slots\.below/,
+    )
+
+    const strip = utility('stick-step-bar-strip')
+    expect(strip).toMatch(/@media \(width < theme\(--breakpoint-md\)\)/)
+    expect(strip).toContain('position: sticky')
+    expect(strip).toContain('--step-bar-hidden')
+    // `StepActionBar`가 덮는 높이를 고르는 표지다. 없으면 게이지 줄만 붙어도 바 전체를 비켜선다.
+    expect(strip).toContain('--step-bar-strip: on')
+  })
 })
 
 /**
