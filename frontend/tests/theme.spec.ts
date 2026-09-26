@@ -7,6 +7,9 @@
  * 새로 고칠 때마다 되돌아가고, 그건 고장으로 보인다.
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -18,6 +21,46 @@ import {
   setTheme,
   THEMES,
 } from '../src/theme'
+
+/**
+ * **흐린 글자도 바탕 위에서 읽힌다** (`open-decisions.md` 64). `ink-faint`가 붙은 자리는 하필
+ * 정보다(원본 행 번호, 학습에서 빠진 열) — 한 배색을 고치며 다른 배색을 같은 값으로 맞췄다가
+ * 어두운 카드 위에서 3.07이 됐다. 값을 두 CSS에서 읽어 WCAG 식으로 잰다. 카드(`surface`)는
+ * AA(4.5), 그 밖의 바탕은 `theme.css`가 적은 줄무늬의 하한(4.3)이다.
+ */
+describe('흐린 글자도 바탕 위에서 읽힌다', () => {
+  function token(file: string, name: string): string {
+    const css = readFileSync(join(process.cwd(), 'src', 'styles', file), 'utf-8')
+    const found = new RegExp(`--color-${name}:\\s*(#[0-9a-f]{6});`).exec(css)
+    if (!found?.[1]) throw new Error(`token not found: ${file} ${name}`)
+    return found[1]
+  }
+  function luminance(hex: string): number {
+    const [r, g, b] = [1, 3, 5].map((at) => {
+      const channel = Number.parseInt(hex.slice(at, at + 2), 16) / 255
+      return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+    })
+    return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+  }
+  function contrast(a: string, b: string): number {
+    const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+    return (light! + 0.05) / (dark! + 0.05)
+  }
+
+  for (const file of ['theme.css', 'dark.css']) {
+    it(`${file}`, () => {
+      const faint = token(file, 'ink-faint')
+      expect(contrast(faint, token(file, 'surface')), `${file} on surface`).toBeGreaterThanOrEqual(
+        4.5,
+      )
+      for (const ground of ['canvas', 'surface-sunken']) {
+        expect(contrast(faint, token(file, ground)), `${file} on ${ground}`).toBeGreaterThanOrEqual(
+          4.3,
+        )
+      }
+    })
+  }
+})
 
 describe('배색을 정한다', () => {
   it('고른 값이 있으면 기기 설정과 무관하게 그것이다', () => {

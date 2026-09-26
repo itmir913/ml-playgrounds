@@ -10,7 +10,7 @@
  * 흘러나가면 아래쪽 문항에는 닿을 방법이 없다. 그래서 카드가 아니라 판이다 - 안에서
  * 스크롤하려면 머리와 목록이 높이를 나눠 가져야 한다.
  *
- * **`md` 이상에서는 막대를 숨긴다** (`md:scrollbar-none`). 좁고 늘 보이는 옆 칸이라
+ * **`lg` 이상에서는 막대를 숨긴다** (`lg:scrollbar-none`). 좁고 늘 보이는 옆 칸이라
  * 막대가 내용보다 자리를 먹고, **막대가 보인다는 것 자체가 무언가 잘못됐다는 신호로
  * 읽힌다.** 자리를 비워 두는 것(`scroll-gutter-stable`)도 함께 걷는다 - 막대가 없으면
  * 비켜설 자리도 없다.
@@ -23,9 +23,9 @@
  * **붙는 자리는 동작 바가 정한다** (`styles/utilities.css`의 `stick-under-step-bar`).
  * 숫자를 여기 적으면 좁은 화면에서 바가 두 줄이 되는 순간 바가 이 칸의 머리를 덮는다.
  *
- * **`md` 미만에서는 붙박이만 풀고 맨 위에 선다** (§8.18.1, `PortfolioView`의 감싸개).
+ * **`lg` 미만에서는 붙박이만 풀고 맨 위에 선다** (§8.18.1, `PortfolioView`의 감싸개).
  * 한때 이 자리에 "아예 안 그린다"라고 적혀 있었는데 **코드는 그런 적이 없다** — 감싸개가
- * 푸는 것은 `sticky`뿐이고, 그래서 이 파일의 `max-md:max-h-48`이 뜻을 갖는다.
+ * 푸는 것은 `sticky`뿐이고, 그래서 이 파일의 `max-lg:max-h-48`이 뜻을 갖는다.
  * 안 그리는 것이었다면 그 상한도 필요 없었다 (2026-08-29에 바로잡았다).
  *
  * **지금 보고 있는 문항을 표시한다.** 어느 문항에 와 있는지는 판정하는 쪽(화면)이
@@ -98,7 +98,7 @@ watch(() => props.active, reveal)
 </script>
 
 <template>
-  <div class="flex flex-col rounded-panel border border-line bg-surface p-4 md:fit-under-step-bar">
+  <div class="flex flex-col rounded-panel border border-line bg-surface p-4 lg:fit-under-step-bar">
     <!--
       **진행을 말하는 자리는 여기 하나다** (2026-08-15, 사용자). 동작 바에도 같은 문장이
       있었는데, 한 화면에서 같은 사실을 두 번 적으면 그중 하나는 언젠가 안 고쳐진다.
@@ -131,7 +131,7 @@ watch(() => props.active, reveal)
     -->
     <ol
       ref="list"
-      class="mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto md:scrollbar-none max-md:max-h-48"
+      class="mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto lg:scrollbar-none max-lg:max-h-48"
     >
       <li v-for="(section, index) in props.sections" :key="section.id">
         <!--

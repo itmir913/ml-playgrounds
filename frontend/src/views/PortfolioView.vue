@@ -438,12 +438,15 @@ function remove(): void {
         본체는 쓰는 자리라, 목차가 제목 한 줄을 담을 만큼만 가져간다. 기본 눈금
         열을 쓴다 - 임의 값을 템플릿에 두지 않는다 (CLAUDE.md §4).
 
-        **`md` 아래에도 열 템플릿이 있어야 한다.** 없으면 암묵 열이 `auto`라 내용의 최소 폭
+        **두 열은 `lg`부터다** (2026-09-26, `open-decisions.md` 64). `md`(768)에서는 목차가
+        세 칸 몫(약 200px)이라 문항 제목이 잘렸다 — 그 폭에서는 위에 쌓는다.
+
+        **`lg` 아래에도 열 템플릿이 있어야 한다.** 없으면 암묵 열이 `auto`라 내용의 최소 폭
         아래로 못 줄고, 목차의 답 미리보기(`truncate`)는 최소 폭이 답 전체라 휴대폰에서 문서가
         옆으로 부푼다. `grid-cols-1`은 `minmax(0, 1fr)`이다. 사람 확인(브라우저) - jsdom은
         레이아웃을 안 한다.
       -->
-      <div class="grid grid-cols-1 gap-5 md:grid-cols-10">
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-10">
         <!--
           **왼쪽은 붙박이다.** `self-start`가 없으면 격자 기본값(`stretch`)이 이 칸을
           오른쪽만큼 늘려서 붙을 자리가 안 생긴다.
@@ -452,7 +455,7 @@ function remove(): void {
           **좁은 화면에서는 붙박이를 풀고 맨 위에 선다** (§8.18.1). 거기서는 옆에 놓을
           자리가 없고(§8.10.1), 붙박이로 두면 그 높이만큼 글 칸이 줄어든다.
         -->
-        <div class="self-start md:sticky md:col-span-3 md:stick-under-step-bar">
+        <div class="self-start lg:sticky lg:col-span-3 lg:stick-under-step-bar">
           <SectionIndex
             :sections="sections"
             :active="active ?? undefined"
@@ -461,7 +464,7 @@ function remove(): void {
           />
         </div>
 
-        <div class="flex min-w-0 flex-col gap-5 md:col-span-7">
+        <div class="flex min-w-0 flex-col gap-5 lg:col-span-7">
           <PortfolioPreview
             v-if="preview"
             :sections="sections"
