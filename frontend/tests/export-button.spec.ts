@@ -97,4 +97,35 @@ describe('R24 B-3: the last two lines of the export chain', () => {
 
     expect(useToastStore().items.map((one) => one.key)).toContain('project.exportDone')
   })
+
+  /**
+   * **적어 둔 학번·이름은 칸에 미리 선다.** 안 채우면 빈 칸이 그대로 내보내져 지난 차시에
+   * 적은 인적사항을 지운다 — 교사에게 가는 파일이 이름 없이 나간다.
+   */
+  it('keeps the saved identity when exported without typing', async () => {
+    const project = useProjectStore()
+    const base = projectFile()
+    await project.save({
+      ...base,
+      document: {
+        ...base.document,
+        manifest: { ...base.document.manifest, student: { studentId: '10203', name: '홍길동' } },
+      },
+    })
+    vi.spyOn(project, 'exportFile').mockResolvedValue([])
+
+    const wrapper = mount(ExportButton, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flushPromises()
+    await wrapper.find('button').trigger('click')
+    await flushPromises()
+
+    const panel = document.querySelector('.popover-panel')
+    const inputs = [...(panel?.querySelectorAll('input') ?? [])] as HTMLInputElement[]
+    expect(inputs.map((one) => one.value)).toEqual(['10203', '홍길동'])
+
+    panel?.querySelector('button')?.dispatchEvent(new Event('click', { bubbles: true }))
+    await settle()
+
+    expect(project.file?.document.manifest.student).toEqual({ studentId: '10203', name: '홍길동' })
+  })
 })

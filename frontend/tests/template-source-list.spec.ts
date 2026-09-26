@@ -12,11 +12,16 @@
  * **한 출처가 실패해도 나머지는 선다** — 그것까지 함께 잰다.
  */
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { i18n, setLocale } from '../src/i18n'
 import type { TemplateRow, TemplateSourceContext } from '../src/project/portfolio-sources'
+import { useProjectStore } from '../src/stores/project'
+import PortfolioView from '../src/views/PortfolioView.vue'
 import TemplateSourceList from '../src/views/portfolio/TemplateSourceList.vue'
+import { stubDialogElement } from './fixtures/image-workers'
+import { projectFile } from './fixtures/project'
 
 /** 등록부가 무엇을 돌려줄지. **검사가 정한다.** */
 const registry = vi.hoisted(() => ({
@@ -97,5 +102,51 @@ describe('R24 B-9: a template source that fails', () => {
 
     expect(wrapper.emitted('pick')).toBeUndefined()
     expect(wrapper.emitted('failed')).toHaveLength(1)
+  })
+})
+
+/**
+ * **양식 언어가 시작 화면의 줄에서 파일까지 가는가** (mlpx-spec.md §8.5).
+ *
+ * `portfolio-view.spec.ts`의 *"언어까지 함께 간다"*는 메뉴 한 칸만 잰다 — 줄이 언어를
+ * 떨어뜨리거나 화면이 받은 언어를 안 넘겨도 초록이다. 여기서는 빈 포트폴리오의 시작
+ * 화면에서 줄을 실제로 눌러 **파일의 `template.locale`**을 본다. 줄의 언어를 프로젝트
+ * 언어와 다르게 둬야 어디서 왔는지 가려진다.
+ */
+describe('양식 언어는 시작 화면의 줄에서 파일까지 간다', () => {
+  it('눌린 줄의 언어가 template.locale에 적힌다', async () => {
+    setActivePinia(createPinia())
+    stubDialogElement()
+    const english = { ...standing('English form', '## Topic\n'), locale: 'en' } as TemplateRow
+    registry.rows = [english]
+    const base = projectFile()
+    useProjectStore().file = {
+      ...base,
+      document: {
+        ...base.document,
+        portfolio: {
+          template: { sections: [] },
+          answerFormat: 'plain-v1',
+          answers: {},
+          attachments: {},
+        },
+      },
+    }
+    const view = mount(PortfolioView, { global: { plugins: [i18n] }, attachTo: document.body })
+
+    const trigger = view.findAll('button').find((one) => one.text() === '양식 가져오기')
+    expect(trigger?.exists(), 'the start screen offers the import menu').toBe(true)
+    await trigger?.trigger('click')
+    await flushPromises()
+    const list = view.findComponent(TemplateSourceList)
+    const row = list.findAll('button').find((one) => one.text() === 'English form')
+    expect(row?.exists(), 'the list shows the row').toBe(true)
+    await row?.trigger('click')
+    await flushPromises()
+
+    const template = useProjectStore().file?.document.portfolio.template
+    expect(template?.sections.map((one) => one.title)).toEqual(['Topic'])
+    expect(template?.locale).toBe('en')
+    view.unmount()
   })
 })

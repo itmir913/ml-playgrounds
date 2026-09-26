@@ -24,6 +24,7 @@ import { newProjectDocument } from '../src/project/create'
 import { portfolioTextBytes, withImportedSections } from '../src/project/portfolio'
 import type { ProjectFile } from '../src/project/format'
 import { useProjectStore } from '../src/stores/project'
+import { stubDialogElement } from './fixtures/image-workers'
 
 function project(): ProjectFile {
   const document = newProjectDocument(
@@ -243,6 +244,31 @@ describe('포트폴리오를 고치면 수정 시각이 움직인다', () => {
     expect(store.file?.document.portfolio.answers).not.toEqual({})
     expect(after).not.toBe(created)
     expect(Date.parse(after!)).toBeGreaterThanOrEqual(Date.parse(before!))
+  })
+})
+
+/**
+ * **[문항 삭제]를 누르고 확인하면 문항이 사라진다.** 지우는 판단은 `portfolio.spec.ts`가
+ * 함수로 재지만, 확인 단추가 그 함수를 부르는지는 화면을 지나야 보인다.
+ */
+describe('문항 삭제는 확인을 거쳐 문항을 지운다', () => {
+  it('확인 전에는 남고, 확인하면 사라진다', async () => {
+    stubDialogElement()
+    const view = mountView()
+    const start = view.findAll('button').find((button) => button.text() === '빈 양식에서 시작')
+    await start?.trigger('click')
+    const sections = () => useProjectStore().file?.document.portfolio.template.sections ?? []
+    expect(sections()).toHaveLength(1)
+
+    await view.find('button[aria-label="문항 삭제"]').trigger('click')
+    expect(sections(), 'asking is not removing').toHaveLength(1)
+    const dialog = view.findAll('dialog').find((one) => one.element.open)
+    const confirm = dialog?.findAll('button').find((one) => one.text() === '삭제하기')
+    expect(confirm?.exists(), 'the confirm dialog opened').toBe(true)
+    await confirm?.trigger('click')
+
+    expect(sections()).toEqual([])
+    view.unmount()
   })
 })
 
