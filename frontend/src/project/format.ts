@@ -14,7 +14,15 @@
  * 아무도 가리키지 않는 고아 모델이다. 실어 나를 이유가 없다.
  */
 
-import { AsyncZipDeflate, unzip, Zip, type Unzipped, type UnzipFileFilter } from 'fflate'
+import {
+  deflate,
+  unzip,
+  Zip,
+  ZipPassThrough,
+  type AsyncTerminable,
+  type Unzipped,
+  type UnzipFileFilter,
+} from 'fflate'
 
 import { decodeZipNames } from '../data/zip-names'
 import { ClientError } from '../errors'
@@ -402,6 +410,58 @@ async function unzipAsync(bytes: Uint8Array, filter?: UnzipFileFilter): Promise<
   })
 }
 
+/** zip 엔트리의 압축 방식 번호 — deflate (APPNOTE 4.4.5). */
+const DEFLATE_METHOD = 8
+
+/**
+ * zip 엔트리 하나를 **한 번에** deflate로 누른다. 누르는 일은 fflate의 `deflate`가 워커에서
+ * 한다 — 메인 스레드에서 누르면 큰 표에서 저사양 PC의 화면이 몇 초씩 언다.
+ *
+ * **fflate의 스트리밍 압축기(`Deflate`·`ZipDeflate`·`AsyncZipDeflate`)를 쓰지 않는다.**
+ * 0.8.3의 스트리밍 압축기는 0으로 채운 32KB 되돌아보기 창을 앞에 둔 채 시작해서, 데이터
+ * 앞머리의 0 바이트를 그 없는 창을 가리키는 거리로 누를 수 있다. 그 엔트리는 fflate 자신도
+ * 못 풀어서 파일 전체가 `PROJECT_FILE_NOT_ZIP`이 된다 (`node_modules/fflate/esm/index.mjs`의
+ * `Deflate` 생성자 `this.s`와 `dflt`의 `maxd`, 사람 확인). 한 번에 누르는 `deflateSync`는
+ * 창 없이 시작한다. 무는 검사: `tests/format.spec.ts`
+ * "0이 섞인 float 엔트리가 여럿이어도 다시 열리고 바이트가 같다".
+ *
+ * **넘기는 것은 사본이고 그 사본을 워커로 transfer한다(`consume`).** 여기 오는 것은 열려
+ * 있는 프로젝트가 **지금 쓰고 있는** 데이터셋과 사진이다. 원본을 transfer하면 그 자리에서
+ * detach되어 두 번째 내보내기가 죽고 화면이 읽는 바이트도 사라진다 — `format.spec.ts`의
+ * "내보내도 원본이 살아 있다"가 막는다. 사본은 **엔트리 하나 크기**다.
+ */
+class WholeEntryDeflate extends ZipPassThrough {
+  /** `Zip`이 끝나기 전에 멈출 때 워커를 거둔다. */
+  terminate?: AsyncTerminable
+  #pending: Uint8Array[] = []
+
+  constructor(filename: string) {
+    super(filename)
+    this.compression = DEFLATE_METHOD
+  }
+
+  protected override process(chunk: Uint8Array, final: boolean): void {
+    this.#pending.push(chunk)
+    if (!final) return
+    const whole = concatenate(this.#pending)
+    this.#pending = []
+    this.terminate = deflate(whole, { level: 6, consume: true }, (error, compressed) => {
+      this.ondata(error, compressed, true)
+    })
+  }
+}
+
+/** 조각을 이어 붙인 **새** 배열. 조각이 하나여도 사본이다. */
+function concatenate(parts: readonly Uint8Array[]): Uint8Array {
+  const whole = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0))
+  let offset = 0
+  for (const part of parts) {
+    whole.set(part, offset)
+    offset += part.length
+  }
+  return whole
+}
+
 /**
  * 엔트리를 zip으로 **흘려 담는다.** 완성된 `Uint8Array`를 만들지 않는다.
  *
@@ -432,7 +492,7 @@ async function zipToBlob(entries: Record<string, Uint8Array>): Promise<Blob> {
       }
       // **사본은 방어다 — 지금의 fflate에는 필요 없다** (2026-09-26 R41 C-1). 0.8.3의
       // `Zip`은 청크마다 새 배열을 준다: 머리글·데이터 서술자·중앙 디렉터리는 그 자리에서
-      // `new u8`로 만들고, 본문은 `AsyncZipDeflate`가 워커에서 받은 것이다
+      // `new u8`로 만들고, 본문은 `WholeEntryDeflate`가 워커에서 받은 것이다
       // (`node_modules/fflate/esm/browser.js`의 `Zip.prototype.add`·`end`, 사람 확인).
       // 버퍼를 돌려 쓰는 판이 나오면 앞 청크가 조용히 덮이므로 남겨 둔다 — 사본은 청크
       // 하나 크기다. **무는 검사는 없다.**
@@ -445,17 +505,9 @@ async function zipToBlob(entries: Record<string, Uint8Array>): Promise<Blob> {
 
     try {
       for (const [path, bytes] of Object.entries(entries)) {
-        // 비동기 압축이다. 동기로 하면 큰 CSV에서 저사양 PC의 화면이 몇 초씩 언다.
-        const file = new AsyncZipDeflate(path, { level: 6 })
+        const file = new WholeEntryDeflate(path)
         stream.add(file)
-        // **사본을 넘긴다. 원본을 넘기면 그 자리에서 파괴된다.** 비동기 압축기는 버퍼를
-        // 워커로 transfer하는데, 여기 오는 것은 열려 있는 프로젝트가 **지금 쓰고 있는**
-        // 데이터셋과 사진이다. 그대로 넘기면 첫 내보내기 뒤 원본이 detach되어 두 번째
-        // 내보내기가 DataCloneError로 죽고, 그 사이 화면이 읽는 바이트도 사라진다.
-        //
-        // 사본은 **엔트리 하나 크기**다. 사진은 장마다 엔트리가 갈려서 작고, 큰 것은
-        // 표 하나뿐이라 예전의 "전체 zip을 배열로 한 벌 더"와는 자릿수가 다르다.
-        file.push(bytes.slice(), true)
+        file.push(bytes, true)
       }
       stream.end()
     } catch (error) {

@@ -116,7 +116,61 @@ describe('내보내는 길', () => {
     const reopened = await open(new Uint8Array(await second.blob.arrayBuffer()))
     expect(reopened.dataset?.bytes).toEqual(before)
   })
+
+  /**
+   * 0이 섞인 float 배열 — 임베딩·가중치의 모양이다. 압축기가 이 엔트리에서 풀리지 않는
+   * deflate 스트림을 내면 파일 전체가 `PROJECT_FILE_NOT_ZIP`으로 안 열린다.
+   * 씨앗과 0 비율이 정해져 있어 매번 같은 바이트다.
+   */
+  it('0이 섞인 float 엔트리가 여럿이어도 다시 열리고 바이트가 같다', async () => {
+    const entries = new Map<string, Uint8Array>()
+    for (const zeroPercent of [10, 30, 50]) {
+      for (let seed = 1; seed <= 40; seed++) {
+        entries.set(
+          `model/run-z${zeroPercent}-s${seed}.json`,
+          sparseFloats(seed, zeroPercent / 100),
+        )
+      }
+    }
+    const project = projectFile()
+    const runs = [...entries.keys()].map((path) =>
+      run(path.slice('model/'.length, -'.json'.length)),
+    )
+    project.document.runs.experiments = [experiment('experiment-1', runs)]
+    const preprocessor = project.models.get('model/preprocessor-experiment-1.json')
+    expect(preprocessor, 'the fixture must still carry the preprocessor').toBeDefined()
+    project.models = new Map([
+      ...entries,
+      ['model/preprocessor-experiment-1.json', preprocessor ?? new Uint8Array()],
+    ])
+
+    const reopened = await roundTrip(project)
+    for (const [path, bytes] of entries) {
+      expect(Array.from(reopened.models.get(path) ?? []), path).toEqual(Array.from(bytes))
+    }
+    // 엔트리 120개를 눌렀다 푼다 — 관문 전체의 부하에서 기본 5초가 빠듯하다.
+  }, 30_000)
 })
+
+/** 씨앗이 정해진 난수 (mulberry32). */
+function mulberry32(seed: number): () => number {
+  let state = seed >>> 0
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0
+    let t = state
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** 1280개 float32 — 임베딩 하나의 모양. `zeroRatio`만큼이 0이다. */
+function sparseFloats(seed: number, zeroRatio: number): Uint8Array {
+  const random = mulberry32(seed)
+  const values = new Float32Array(1280)
+  for (let i = 0; i < values.length; i++) values[i] = random() < zeroRatio ? 0 : random() * 6
+  return new Uint8Array(values.buffer)
+}
 
 describe('왕복', () => {
   it('문서가 그대로 돌아온다', async () => {
