@@ -61,7 +61,7 @@ export function softColor(paint: ChartPaint, index: number): string {
   return paint.softPalette[slot] ?? seriesColor(paint, index)
 }
 
-/** 캔버스 글자 크기. **교실 모니터에서 읽혀야 한다** — Chart.js 기본값 12는 작다. */
+/** 캔버스 글자 크기 — 축·제목·범례가 함께 쓴다. **교실 모니터에서 읽혀야 한다** — Chart.js 기본값 12는 작다. */
 const FONT_SIZE = 14
 
 /**
@@ -658,7 +658,10 @@ export function scatterOptions(
     scales: { x: forAxis(text.x, scales.x), y: forAxis(text.y, scales.y) },
     plugins: {
       // **갈래가 하나면 범례가 없다.** 이름 하나짜리 범례는 아무것도 안 가른다.
-      legend: { display: showLegend, labels: { color: paint.ink, usePointStyle: true } },
+      legend: {
+        display: showLegend,
+        labels: { color: paint.ink, usePointStyle: true, font: { size: FONT_SIZE } },
+      },
       tooltip: {
         position: 'nearest',
         usePointStyle: true,

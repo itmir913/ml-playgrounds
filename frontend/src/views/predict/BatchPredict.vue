@@ -661,7 +661,14 @@ defineExpose({
       v-if="project.file?.document.settings.data.predictDataset && !opened"
       class="flex flex-wrap items-center gap-x-4 gap-y-2"
     >
-      <span class="max-w-56 truncate font-bold text-ink">
+      <span
+        class="max-w-56 truncate font-bold text-ink"
+        :title="
+          typeof project.file.document.settings.data.predictDataset.originalFileName === 'string'
+            ? project.file.document.settings.data.predictDataset.originalFileName
+            : undefined
+        "
+      >
         {{ project.file.document.settings.data.predictDataset.originalFileName }}
       </span>
       <!-- 이름은 배지, 값은 plaintext (§8.16). 파일 이름은 그 자체가 값이라 배지가 없다. -->

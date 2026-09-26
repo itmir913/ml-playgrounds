@@ -175,7 +175,7 @@ function reseed(): void {
           </div>
           <input
             type="range"
-            class="mt-1.5 w-full accent-brand"
+            class="mt-1.5 w-full max-w-lg accent-brand"
             :min="TEST_SIZE_RANGE.min"
             :max="TEST_SIZE_RANGE.max"
             :step="TEST_SIZE_RANGE.step"

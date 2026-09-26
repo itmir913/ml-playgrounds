@@ -874,7 +874,10 @@ const encodingHelp = computed(() =>
                 v-if="data.testDataset && !openedTest"
                 class="flex flex-wrap items-center gap-x-4 gap-y-2"
               >
-                <span class="max-w-56 truncate font-bold text-ink">
+                <span
+                  class="max-w-56 truncate font-bold text-ink"
+                  :title="data.testDataset.originalFileName"
+                >
                   {{ data.testDataset.originalFileName }}
                 </span>
                 <span class="flex items-center gap-1.5 text-ink-soft">
@@ -909,7 +912,9 @@ const encodingHelp = computed(() =>
                 </div>
 
                 <div v-else class="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <span class="max-w-56 truncate font-bold">{{ openedTest.fileName }}</span>
+                  <span class="max-w-56 truncate font-bold" :title="openedTest.fileName">{{
+                    openedTest.fileName
+                  }}</span>
 
                   <label
                     v-if="openedTest.document.sheetNames.length > 1"

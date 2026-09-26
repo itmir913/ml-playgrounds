@@ -474,6 +474,17 @@ describe('산점도', () => {
     expect(scatterOptions(PAINT, text, false).plugins?.legend?.display).toBe(false)
     expect(scatterOptions(PAINT, text, true).plugins?.legend?.display).toBe(true)
   })
+
+  /** **범례도 축과 같은 크기다** (`open-decisions.md` 64). Chart.js 기본값(12)으로 남아 있었다. */
+  it('범례 글자는 축 글자와 같은 크기다', () => {
+    const options = scatterOptions(PAINT, { x: 'a', y: 'b', point: () => '' }, true)
+    const legend = options.plugins?.legend?.labels?.font
+    const axis = options.scales?.x?.ticks?.font
+    const size = (font: unknown): unknown =>
+      typeof font === 'object' && font !== null && 'size' in font ? font.size : undefined
+    expect(size(legend), 'legend font size').toBeDefined()
+    expect(size(legend), 'legend font size').toBe(size(axis))
+  })
 })
 
 /**

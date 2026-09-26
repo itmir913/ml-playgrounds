@@ -287,7 +287,9 @@ function bars(model: PredictableModel): ProbabilityBar[] {
       접히는 모델 이름과 답, 그리고 범주별 확률 막대다. 문턱은 그 값에서 나온다 —
       간격 16px을 빼고 나누면 36rem에서 280px, 56rem에서 288px, 72rem에서 276px이다.
     -->
-    <ul class="grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4">
+    <ul
+      class="grid grid-cols-1 items-start gap-4 @xl:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4"
+    >
       <li
         v-for="{ model, evidence } in cards"
         :key="model.run.id"

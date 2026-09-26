@@ -119,9 +119,10 @@ const shown = computed(() =>
         **넷이 한 줄에 안 서면 줄을 바꾼다.** 사진이 생기면 `전체 선택`이 넷째로 서는데,
         좁은 휴대폰에서 넷의 합이 머리 폭을 넘으면 줄바꿈 없이는 버튼 안의 글자가 짜부라진다.
         **줄 사이는 `gap-y-5`다** - 버튼마다 위아래 여백을 `-my-2.5`로 되당겨 두어서, 그보다
-        좁으면 두 줄의 누르는 자리가 겹친다. 사람 확인(브라우저).
+        좁으면 두 줄의 누르는 자리가 겹친다. **옆 사이는 `gap-x-4`다** — 같은 이유로 `-mx-2` 둘이 되당긴
+        만큼(16px) 벌려야 이웃의 누르는 자리가 안 겹친다. 사람 확인(브라우저).
       -->
-      <div class="ml-auto flex flex-wrap items-center gap-x-1 gap-y-5">
+      <div class="ml-auto flex flex-wrap items-center gap-x-4 gap-y-5">
         <!-- **이 칸으로 바로 들어간다.** 올린 뒤 다시 골라 옮기는 걸음이 없어진다. -->
         <AppButton variant="ghost" class="-mx-2 -my-2.5" @click="emit('add')">
           {{ t('data.image.addHere') }}

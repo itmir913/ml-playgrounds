@@ -618,7 +618,7 @@ async function commitRemoveCategory(): Promise<void> {
         </span>
         <ul class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           <li v-for="one in summary" :key="one.category" class="flex items-baseline gap-1.5">
-            <span class="max-w-40 truncate font-bold text-ink-soft">
+            <span class="max-w-40 truncate font-bold text-ink-soft" :title="labelOf(one.category)">
               {{ labelOf(one.category) }}
             </span>
             <!--

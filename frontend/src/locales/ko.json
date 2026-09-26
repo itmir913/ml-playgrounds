@@ -1016,7 +1016,7 @@
       "inputTitle": "새로운 값",
       "pickOption": "선택하세요",
       "probabilityColumn": "{model} 확률",
-      "range": "이 특성에 있는 값: {min} ~ {max}",
+      "range": "이 특성에 있는 값: {min} ~ {max}",
       "rowNumber": "번호",
       "showFeatures": "특성 값 보기",
       "tableTitle": "예측 결과",

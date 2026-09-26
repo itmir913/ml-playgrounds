@@ -1016,7 +1016,7 @@
       "inputTitle": "New values",
       "pickOption": "Choose one",
       "probabilityColumn": "{model} probability",
-      "range": "Values for this feature: {min} to {max}",
+      "range": "Values for this feature: {min} to {max}",
       "rowNumber": "Row",
       "showFeatures": "Show feature values",
       "tableTitle": "Prediction results",

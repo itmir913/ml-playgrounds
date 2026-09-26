@@ -287,7 +287,14 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
           <!-- **`relative`는 아래 `sr-only`의 담는 상자다** (2026-09-22). -->
           <div class="relative flex gap-1.5">
             <dt class="sr-only">{{ t('data.tabular.fileName') }}</dt>
-            <dd class="max-w-56 truncate font-bold text-ink">
+            <dd
+              class="max-w-56 truncate font-bold text-ink"
+              :title="
+                typeof saved.reference.originalFileName === 'string'
+                  ? saved.reference.originalFileName
+                  : undefined
+              "
+            >
               {{ saved.reference.originalFileName }}
             </dd>
           </div>
@@ -330,7 +337,9 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
     -->
     <StepActionBar v-if="saved || opened">
       <template v-if="opened">
-        <span class="max-w-64 truncate font-bold">{{ opened.fileName }}</span>
+        <span class="max-w-64 truncate font-bold" :title="opened.fileName">{{
+          opened.fileName
+        }}</span>
 
         <label v-if="opened.document.sheetNames.length > 1" class="flex items-center gap-2">
           <span class="font-bold text-ink-soft">{{ t('data.tabular.sheet') }}</span>

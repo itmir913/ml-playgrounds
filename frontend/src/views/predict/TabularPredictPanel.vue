@@ -548,7 +548,9 @@ async function run(): Promise<void> {
           체크를 바꾸고 다른 자리로 눈을 옮겨야 하기 때문이다.
         -->
         <template v-if="picking">
-          <span class="max-w-56 truncate font-bold">{{ picking.fileName }}</span>
+          <span class="max-w-56 truncate font-bold" :title="picking.fileName">{{
+            picking.fileName
+          }}</span>
 
           <label v-if="picking.document.sheetNames.length > 1" class="flex items-center gap-2">
             <span class="font-bold text-ink-soft">{{ t('data.tabular.sheet') }}</span>
