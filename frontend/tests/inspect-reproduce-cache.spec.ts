@@ -38,7 +38,7 @@ vi.mock('../src/ml/worker/client', () => ({
 
 vi.mock('../src/ml/worker/spawn', () => ({ spawnTrainingWorker: () => ({}) }))
 
-const { experiment, run } = await import('./fixtures/project')
+const { experiment, manifest, run } = await import('./fixtures/project')
 const ReproducePanel = (await import('../src/views/inspect/ReproducePanel.vue')).default
 const { irisDataset } = await import('./fixtures/iris')
 
@@ -60,6 +60,7 @@ function mountPanel(one: Experiment) {
       dataType: 'tabular' as const,
       dataset: irisDataset(),
       testDataset: null,
+      appVersion: manifest.appVersion,
     },
     global: { plugins: [i18n] },
   })

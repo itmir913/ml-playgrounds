@@ -39,6 +39,7 @@ import {
   engineVersionFallback,
   reproduceBlockers,
   reproduceInputOf,
+  underRuleChanges,
   type Reproduction,
 } from '@/ml/reproduce'
 import { succeeded } from '@/ml/results'
@@ -74,6 +75,11 @@ const props = defineProps<{
    * `inspect-modes.spec.ts`의 *"대조 판이 상세와 같은 전처리기를 받는다"*가 문다.
    */
   preprocessor?: Preprocessor | null
+  /**
+   * 그 파일의 `manifest.appVersion`. 그 뒤에 바뀐 계산 규칙이 걸리는 줄은 판정을 거른다
+   * (`underRuleChanges`, open-decisions.md 62).
+   */
+  appVersion: string
 }>()
 
 const { t } = useI18n()
@@ -130,9 +136,18 @@ const comparing = ref<string | null>(null)
  */
 const preparing = ref<EngineState | null>(null)
 
-/** 지금 실험의 판정들. */
-const found = computed<readonly Reproduction[]>(
-  () => byExperiment.value.get(props.experiment.id) ?? [],
+/**
+ * 지금 실험의 판정들. **담아 두는 것은 도착한 사실이고, 보일 때 계산 규칙의 변경에 한 번
+ * 비춘다** (`underRuleChanges`) — 도착하는 길이 둘(run마다·끝에 통째로)이라 담을 때 거르면
+ * 거르는 자리가 둘이 된다.
+ */
+const found = computed<readonly Reproduction[]>(() =>
+  underRuleChanges(byExperiment.value.get(props.experiment.id) ?? [], props.experiment, {
+    appVersion: props.appVersion,
+    preprocessor: props.preprocessor ?? null,
+    dataset: props.dataset,
+    testDataset: props.testDataset,
+  }),
 )
 
 const failure = computed<{ code: ClientErrorCode; params: ClientErrorParams } | null>(
@@ -578,6 +593,13 @@ function failureText(reproduction: Reproduction): string {
             </dd>
           </div>
         </dl>
+        <!--
+          **판정을 거른 까닭을 그 줄이 말한다** (open-decisions.md 62). 안 말하면 교사는
+          `판정하지 않음`을 엔진이나 등록부의 사정으로 읽는다.
+        -->
+        <p v-if="one.rulesChanged" class="text-ink-soft">
+          {{ t('inspect.rulesChanged', { version: one.rulesChanged.appVersion }) }}
+        </p>
       </li>
     </ul>
   </section>

@@ -79,6 +79,7 @@ async function widthOf(one: Case): Promise<number> {
       dataset: table,
       testDataset: null,
       preprocessor: one.recorded ? plan.preprocessor : null,
+      appVersion: file.document.manifest.appVersion,
     },
     global: { plugins: [i18n] },
   })

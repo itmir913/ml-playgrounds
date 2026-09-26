@@ -42,6 +42,7 @@
     "preparingDownload": "scikit-learn을 다운로드하는 중입니다",
     "preparingStart": "scikit-learn을 준비하는 중입니다",
     "engineVersionFallback": "이 실험을 만든 scikit-learn 배포판을 받을 수 없어 지금 배포판으로 돌렸고, 그래서 판정하지 않고 숫자만 보입니다 (파일 {stored} · 사용 {used}).",
+    "rulesChanged": "이 파일을 만든 뒤에 앱의 계산 규칙이 바뀌어, 차이가 있어도 판정하지 않습니다 (이 파일의 앱 버전 {version}).",
     "reproduceStopped": "멈춤 ({done}/{total})",
     "verdict": "판정",
     "difference": "차이",

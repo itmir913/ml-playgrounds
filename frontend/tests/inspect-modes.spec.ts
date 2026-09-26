@@ -23,6 +23,8 @@ import PortfolioPanel from '../src/views/inspect/PortfolioPanel.vue'
 import ReproducePanel from '../src/views/inspect/ReproducePanel.vue'
 import ExperimentDetail from '../src/views/results/ExperimentDetail.vue'
 import ProjectSummary from '../src/components/ProjectSummary.vue'
+import { projectFile } from './fixtures/project'
+import { writeProjectBytes } from './fixtures/write'
 import {
   brokenFile,
   mountInspect,
@@ -129,6 +131,23 @@ describe('열람 모드', () => {
     const handed = wrapper.findComponent(ReproducePanel).props('preprocessor')
     expect(handed).not.toBeUndefined()
     expect(handed).toBe(wrapper.findComponent(ExperimentDetail).props('preprocessor'))
+    wrapper.unmount()
+  })
+
+  /**
+   * **대조 판은 그 파일의 앱 버전을 받는다** (open-decisions.md 62). 그 뒤에 바뀐 계산 규칙이
+   * 걸리는 줄의 판정을 거르는 재료다 — 교사 앱의 버전을 넘기면 옛 파일이 전부 새 파일로 읽힌다.
+   */
+  it('대조 판이 그 파일의 앱 버전을 받는다', async () => {
+    const base = projectFile()
+    const made = { ...base.document.manifest, appVersion: '0.21.3' }
+    const { bytes } = await writeProjectBytes(
+      { ...base, document: { ...base.document, manifest: made } },
+      '# 포트폴리오\n',
+    )
+    const wrapper = await mountInspect([new File([bytes as BlobPart], 'hong.mlpx')])
+    await flushPromises()
+    expect(wrapper.findComponent(ReproducePanel).props('appVersion')).toBe('0.21.3')
     wrapper.unmount()
   })
 

@@ -42,6 +42,7 @@
     "preparingDownload": "Downloading scikit-learn",
     "preparingStart": "Getting scikit-learn ready",
     "engineVersionFallback": "The scikit-learn distribution this experiment was made with is no longer available, so it ran on the current one and the rows show numbers without a verdict (file {stored} · used {used}).",
+    "rulesChanged": "The app's calculation rules changed after this file was made, so a difference here is not judged (app version of this file: {version}).",
     "reproduceStopped": "Stopped ({done}/{total})",
     "verdict": "Verdict",
     "difference": "Difference",

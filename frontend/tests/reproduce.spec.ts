@@ -15,6 +15,8 @@ import { dataSnapshot } from '../src/project/schema'
 import { isClientError } from '../src/errors'
 import { MLJS_ENGINE } from '../src/ml/engines/mljs'
 import {
+  CALCULATION_RULE_CHANGES,
+  changedRules,
   compareExperiments,
   compareRun,
   engineVersionFallback,
@@ -23,10 +25,12 @@ import {
   reproduceExperiment,
   reproduceInputOf,
   storedMetricsMatchMatrix,
+  underRuleChanges,
   type Reproduction,
+  type RuleFile,
 } from '../src/ml/reproduce'
-import type { Dataset } from '../src/ml/preprocess'
-import type { Experiment, Run, Settings } from '../src/project/schema'
+import { PREPROCESSOR_FORMAT, fitPreprocessor, type Dataset } from '../src/ml/preprocess'
+import type { Experiment, Preprocessing, Run, Settings } from '../src/project/schema'
 import {
   IRIS_FEATURES,
   IRIS_FEATURE_COLUMNS,
@@ -1141,6 +1145,251 @@ describe('돈 판이 파일의 판과 다를 때', () => {
           experimentOf([freshRun(nowSklearn, 0.9)]),
         ),
       ).toBeUndefined()
+    })
+  })
+})
+
+/**
+ * **계산 규칙이 바뀐 뒤** (open-decisions.md 62). 규칙이 바뀌기 전의 앱으로 만든 파일은
+ * 학생이 아무것도 안 고쳐도 대조에서 차이가 난다 — 그 차이를 "재현되지 않음"으로 말하면
+ * 앱의 변경이 학생의 위조로 읽힌다.
+ */
+describe('계산 규칙이 바뀐 뒤', () => {
+  /** 붓꽃 결정 트리의 정확도를 고친 파일. 표준화를 켜고 학습했다(`settingsFor`). */
+  async function tampered(): Promise<{ experiment: Experiment; found: Reproduction[] }> {
+    const experiment = await trained(['decision_tree'])
+    const edited = await withRun(experiment, 0, {
+      metrics: { ...experiment.runs[0]?.metrics, accuracy: 1 },
+    })
+    return {
+      experiment: edited,
+      found: await reproduceExperiment({ experiment: edited, dataset, testDataset: null }),
+    }
+  }
+
+  function fileOf(appVersion: string, experiment: Experiment): RuleFile {
+    const data = experiment.settings.data as { features: string[]; target?: string }
+    return {
+      appVersion,
+      preprocessor: fitPreprocessor(
+        dataset,
+        experiment.settings.trainIndices,
+        data.features,
+        settingsFor([]).data.preprocessing as Preprocessing,
+      ),
+      dataset,
+      testDataset: null,
+    }
+  }
+
+  it('규칙이 걸리는 옛 파일은 판정하지 않고 그 파일의 앱 버전을 말한다 - 차이는 그대로다', async () => {
+    const { experiment, found } = await tampered()
+    expect(found[0]?.status).toBe('NOT_REPRODUCED')
+
+    const [judged] = underRuleChanges(found, experiment, fileOf('0.27.0', experiment))
+    expect(judged?.status).toBe('NOT_JUDGED')
+    expect(judged?.rulesChanged?.appVersion).toBe('0.27.0')
+    expect(judged?.rulesChanged?.rules).toContain('CONSTANT_COLUMN_SCALE')
+    expect(judged?.deltas).toEqual(found[0]?.deltas)
+  })
+
+  it('규칙이 바뀐 판 뒤에 만든 파일은 그대로 판정한다', async () => {
+    const { experiment, found } = await tampered()
+    // 목록은 판 순서다(아래 "규칙마다 한 줄이고 판 순서다"). 마지막 줄의 판이 가장 늦다.
+    const latest = CALCULATION_RULE_CHANGES.at(-1)?.since ?? ''
+    const [judged] = underRuleChanges(found, experiment, fileOf(latest, experiment))
+    expect(judged?.status).toBe('NOT_REPRODUCED')
+    expect(judged?.rulesChanged).toBeUndefined()
+  })
+
+  /** 범위를 좁힌다 — 표준화를 안 쓴 분류 run에는 이 다섯이 하나도 안 걸린다. */
+  it('규칙이 안 걸리는 run은 옛 파일이어도 판정한다', async () => {
+    const { experiment, found } = await tampered()
+    const plain: Experiment = {
+      ...experiment,
+      settings: {
+        ...experiment.settings,
+        data: {
+          ...experiment.settings.data,
+          preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
+        },
+      },
+    }
+    const [judged] = underRuleChanges(found, plain, fileOf('0.1.0', plain))
+    expect(judged?.status).toBe('NOT_REPRODUCED')
+  })
+
+  it('차이가 없는 줄은 옛 파일이어도 재현됐다고 말한다', async () => {
+    const experiment = await trained(['decision_tree'])
+    const found = await reproduceExperiment({ experiment, dataset, testDataset: null })
+    const [judged] = underRuleChanges(found, experiment, fileOf('0.1.0', experiment))
+    expect(judged?.status).toBe('REPRODUCED')
+  })
+
+  it('읽을 수 없는 판은 옛 판으로 본다 - 판정을 거르는 쪽으로', async () => {
+    const { experiment, found } = await tampered()
+    const [judged] = underRuleChanges(found, experiment, fileOf('dev', experiment))
+    expect(judged?.status).toBe('NOT_JUDGED')
+  })
+
+  it('판은 수로 견준다 - 0.9.0은 0.26.6보다 앞이다', async () => {
+    const { experiment } = await tampered()
+    const run = experiment.runs[0] as Run
+    expect(changedRules(experiment, run, fileOf('0.9.0', experiment))).toContain(
+      'CONSTANT_COLUMN_SCALE',
+    )
+    expect(changedRules(experiment, run, fileOf('0.100.0', experiment))).toEqual([])
+  })
+
+  it('규칙마다 한 줄이고 판 순서다', () => {
+    const rules = CALCULATION_RULE_CHANGES.map((change) => change.rule)
+    expect(new Set(rules).size).toBe(rules.length)
+    const parts = CALCULATION_RULE_CHANGES.map((change) => {
+      expect(change.since, change.rule).toMatch(/^\d+\.\d+\.\d+$/)
+      return change.since.split('.').map(Number)
+    })
+    const rank = (one: number[]) => (one[0] ?? 0) * 1e8 + (one[1] ?? 0) * 1e4 + (one[2] ?? 0)
+    const ranks = parts.map(rank)
+    expect(ranks).toEqual([...ranks].sort((a, b) => a - b))
+  })
+
+  /**
+   * 결정문 52의 최빈값 동점 규칙은 **범주 열**(평균·중앙값 전략도 범주 열은 최빈값으로
+   * 채운다)이나 `mostFrequent` 전략에서만 채움값을 바꾼다.
+   */
+  describe('최빈값 동점은 범주 열이 있거나 최빈값 전략일 때만 걸린다', () => {
+    const fileWith = (kind: 'numeric' | 'categorical'): RuleFile => ({
+      appVersion: '0.26.5',
+      preprocessor: {
+        format: PREPROCESSOR_FORMAT,
+        columns: [
+          kind === 'numeric'
+            ? { name: 'x', kind: 'numeric' }
+            : { name: 'x', kind: 'categorical', categories: ['a', 'b'] },
+        ],
+        featureNames: ['x'],
+        excludedColumns: [],
+      },
+      dataset,
+      testDataset: null,
+    })
+
+    async function meanFilled(): Promise<{ experiment: Experiment; run: Run }> {
+      const base = await trained(['decision_tree'])
+      const experiment: Experiment = {
+        ...base,
+        settings: {
+          ...base.settings,
+          data: {
+            ...base.settings.data,
+            preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
+          },
+        },
+      }
+      return { experiment, run: experiment.runs[0] as Run }
+    }
+
+    it('범주 열이 있고 평균 전략이면 걸린다', async () => {
+      const { experiment, run } = await meanFilled()
+      expect(changedRules(experiment, run, fileWith('categorical'))).toContain('MODE_TIE')
+    })
+
+    it('수치 열만이고 평균 전략이면 안 걸린다', async () => {
+      const { experiment, run } = await meanFilled()
+      expect(changedRules(experiment, run, fileWith('numeric'))).not.toContain('MODE_TIE')
+    })
+  })
+
+  describe('범주 순서는 기록된 범주가 정렬이 아닐 때만 걸린다', () => {
+    const categorical = (categories: string[]): RuleFile => ({
+      appVersion: '0.28.1',
+      preprocessor: {
+        format: PREPROCESSOR_FORMAT,
+        columns: [{ name: '지역', kind: 'categorical', categories }],
+        featureNames: categories.map((one) => `지역=${one}`),
+        excludedColumns: [],
+      },
+      dataset,
+      testDataset: null,
+    })
+
+    it('정렬돼 있으면 순서가 같으므로 안 걸린다', async () => {
+      const experiment = await trained(['decision_tree'])
+      const run = experiment.runs[0] as Run
+      expect(changedRules(experiment, run, categorical(['부산', '서울']))).not.toContain(
+        'CATEGORY_ORDER',
+      )
+    })
+
+    it('첫 등장 순서로 적혀 있으면 걸린다', async () => {
+      const experiment = await trained(['decision_tree'])
+      const run = experiment.runs[0] as Run
+      expect(changedRules(experiment, run, categorical(['서울', '부산']))).toContain(
+        'CATEGORY_ORDER',
+      )
+    })
+
+    it('전처리기를 못 읽었으면 걸린다고 본다', async () => {
+      const experiment = await trained(['decision_tree'])
+      const run = experiment.runs[0] as Run
+      expect(changedRules(experiment, run, { ...categorical([]), preprocessor: null })).toContain(
+        'CATEGORY_ORDER',
+      )
+    })
+  })
+
+  describe('결정계수는 채점한 정답이 한 값뿐일 때만 걸린다', () => {
+    const table: Dataset = {
+      columns: ['x', 'y'],
+      rows: [
+        ['1', '0.1'],
+        ['2', '0.1'],
+        ['3', '0.1'],
+        ['4', '0.5'],
+      ],
+    }
+
+    async function regression(
+      testIndices: number[],
+    ): Promise<{ experiment: Experiment; run: Run }> {
+      const base = await trained(['decision_tree'])
+      const experiment: Experiment = {
+        ...base,
+        settings: {
+          ...base.settings,
+          taskType: 'regression',
+          data: {
+            features: ['x'],
+            target: 'y',
+            preprocessing: { missing: 'mean', scaling: 'none', categoricalEncoding: 'onehot' },
+          },
+          testIndices,
+        },
+      }
+      return { experiment, run: experiment.runs[0] as Run }
+    }
+
+    const file = (over: Partial<RuleFile> = {}): RuleFile => ({
+      appVersion: '0.28.1',
+      preprocessor: null,
+      dataset: table,
+      testDataset: null,
+      ...over,
+    })
+
+    it('한 값뿐이면 걸린다', async () => {
+      const { experiment, run } = await regression([0, 1, 2])
+      expect(changedRules(experiment, run, file())).toContain('CONSTANT_TARGET_R2')
+    })
+
+    it('다른 값이 있으면 안 걸린다', async () => {
+      const { experiment, run } = await regression([0, 3])
+      expect(changedRules(experiment, run, file())).not.toContain('CONSTANT_TARGET_R2')
+    })
+
+    it('표가 없어 못 읽으면 걸린다고 본다', async () => {
+      const { experiment, run } = await regression([0, 3])
+      expect(changedRules(experiment, run, file({ dataset: null }))).toContain('CONSTANT_TARGET_R2')
     })
   })
 })

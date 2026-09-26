@@ -1002,6 +1002,7 @@ function reasonOf(code: string): string {
                   :dataset="viewing.dataset"
                   :test-dataset="viewing.testDataset"
                   :preprocessor="viewing.preprocessor"
+                  :app-version="viewing.file.document.manifest.appVersion"
                 />
               </div>
 

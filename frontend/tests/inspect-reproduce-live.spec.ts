@@ -21,6 +21,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import { ClientError } from '../src/errors'
 import { MLJS_ENGINE } from '../src/ml/engines/mljs'
+import { CALCULATION_RULE_CHANGES } from '../src/ml/reproduce'
 import { useToastStore } from '../src/stores/toasts'
 import { i18n, setLocale } from '../src/i18n'
 import type { Experiment, Run } from '../src/project/schema'
@@ -82,7 +83,10 @@ function pinned(id: string, version: string): Experiment {
   ]) as Experiment
 }
 
-function mountPanel(one: Experiment) {
+/** 규칙이 마지막으로 바뀐 판. 이 판으로 만든 파일에는 바뀐 규칙이 하나도 안 걸린다. */
+const LATEST_RULES = CALCULATION_RULE_CHANGES.at(-1)?.since ?? ''
+
+function mountPanel(one: Experiment, appVersion = LATEST_RULES) {
   return mount(ReproducePanel, {
     props: {
       experiment: one,
@@ -90,6 +94,7 @@ function mountPanel(one: Experiment) {
       dataType: 'tabular' as const,
       dataset: irisDataset(),
       testDataset: null,
+      appVersion,
     },
     global: { plugins: [i18n] },
   })
@@ -434,5 +439,39 @@ describe('대조가 도는 동안', () => {
     expect(button(panel, START()).attributes('disabled')).toBeUndefined()
     expect(panel.text()).not.toContain(i18n.global.t('inspect.blocked.COMPARING_OTHER'))
     panel.unmount()
+  })
+
+  /**
+   * **옛 앱으로 만든 파일의 차이는 판정하지 않고 그 까닭을 말한다** (open-decisions.md 62,
+   * `underRuleChanges`). 이 픽스처는 표준화를 켜고 학습했다 — 상수 열 척도 규칙이 걸린다.
+   */
+  describe('계산 규칙이 바뀐 뒤', () => {
+    async function differing(appVersion: string): Promise<Panel> {
+      const made = claim('experiment-old')
+      const panel = mountPanel(made, appVersion)
+      await button(panel, START()).trigger('click')
+      await flushPromises()
+      worker.report?.({ ...made.runs[0]!, metrics: { accuracy: 0.5 } }, 1, 1, 0)
+      await flushPromises()
+      return panel
+    }
+
+    it('그 파일의 앱 버전이 규칙보다 앞이면 판정하지 않고 사유와 버전을 보인다', async () => {
+      const panel = await differing('0.27.0')
+      const [line] = verdicts(panel)
+      expect(line).toContain(i18n.global.t('reproduction.NOT_JUDGED'))
+      expect(panel.text()).toContain(i18n.global.t('inspect.rulesChanged', { version: '0.27.0' }))
+      panel.unmount()
+    })
+
+    it('규칙이 바뀐 뒤에 만든 파일은 그대로 재현되지 않았다고 말한다', async () => {
+      const panel = await differing(LATEST_RULES)
+      const [line] = verdicts(panel)
+      expect(line).toContain(i18n.global.t('reproduction.NOT_REPRODUCED'))
+      expect(panel.text()).not.toContain(
+        i18n.global.t('inspect.rulesChanged', { version: LATEST_RULES }),
+      )
+      panel.unmount()
+    })
   })
 })

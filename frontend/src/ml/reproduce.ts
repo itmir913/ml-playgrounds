@@ -28,14 +28,22 @@
  */
 
 import type { ReproductionStatus } from '../errors'
-import type { ConfusionMatrix, DataType, Experiment, Run, Settings } from '../project/schema'
+import {
+  DATA_SCHEMAS,
+  type ConfusionMatrix,
+  type DataType,
+  type Experiment,
+  type Run,
+  type Settings,
+  type TabularSnapshot,
+} from '../project/schema'
 import { ALGORITHMS } from './algorithms'
 import { RUNTIMES, type ReproductionFidelity, type RuntimeContext } from './backend'
 import { engineFor } from './engines'
 import { runExperiment, type ExperimentInput } from './experiment'
 import { asRecordedSplit, type RecordedSplit } from './plan'
 import type { ComputePools } from './pools'
-import type { Dataset } from './preprocess'
+import { categoryOrder, type Dataset, type Preprocessor } from './preprocess'
 import { succeeded } from './results'
 
 /** run 하나의 대조 결과. **판정이 아니라 사실이다.** */
@@ -66,6 +74,15 @@ export interface Reproduction {
   readonly flipped?: number
   /** 대조하지 못한 이유. `ENGINE_UNAVAILABLE`일 때만 있다. */
   readonly engine?: { readonly kind: string; readonly version: string }
+  /**
+   * **그 파일을 만든 뒤 바뀐 계산 규칙이 이 run에 걸린다** — 그래서 차이가 있어도 판정하지
+   * 않았다 (`underRuleChanges`, open-decisions.md 62). 차이가 있는 줄에만 붙는다.
+   */
+  readonly rulesChanged?: {
+    /** 그 파일의 `manifest.appVersion`. */
+    readonly appVersion: string
+    readonly rules: readonly CalculationRule[]
+  }
   /**
    * 다시 돌리다 실패한 사유. **학습 경로가 코드로 들고 온다** — 눈금 밖 손잡이, 행 상한,
    * 서버 없음. 상태는 `ENGINE_UNAVAILABLE`이고(우리가 못 돌린 것이지 학생이 고친 것이
@@ -410,6 +427,195 @@ export function engineVersionFallback(
     return { stored: stored.version, used: used.version }
   }
   return undefined
+}
+
+/**
+ * 앱이 바꾼 계산 규칙의 이름. 각 규칙의 결정문은 `CALCULATION_RULE_CHANGES`가 적는다.
+ */
+export type CalculationRule =
+  | 'MODE_TIE'
+  | 'SILHOUETTE_SINGLETON'
+  | 'CONSTANT_COLUMN_SCALE'
+  | 'CATEGORY_ORDER'
+  | 'CONSTANT_TARGET_R2'
+
+/** 판정을 거를지 볼 때 쓰는, 그 파일이 가진 것. */
+export interface RuleFile {
+  /**
+   * `manifest.appVersion`. **프로젝트를 만든 앱의 판이고 저장해도 안 바뀐다**
+   * (`project/create.ts`만 쓴다) — 그래서 run이 돈 판의 **하한**이다. 이 판이 규칙이 바뀐
+   * 판보다 앞이면, 그 뒤에 새로 학습한 run도 옛 규칙으로 돌았을 수 있다고 본다.
+   */
+  readonly appVersion: string
+  /** 이 실험의 기록된 전처리기. 못 읽었으면 `null`이고 그때는 규칙이 걸린다고 본다. */
+  readonly preprocessor: Preprocessor | null
+  readonly dataset: Dataset | null
+  readonly testDataset: Dataset | null
+}
+
+/** 규칙 하나가 이 run에 걸리는가를 물을 재료. */
+interface RuleSubject {
+  readonly experiment: Experiment
+  readonly run: Run
+  readonly file: RuleFile
+  /** 이 실험의 표 스냅숏. 못 읽으면 `null`이다. */
+  readonly data: TabularSnapshot | null
+}
+
+interface CalculationRuleChange {
+  readonly rule: CalculationRule
+  /** **이 판부터** 새 규칙이다. */
+  readonly since: string
+  /**
+   * 이 규칙이 이 run의 숫자를 바꿀 수 있는가. **모르면 참이다** — 판정을 거르는 쪽이
+   * 무고한 학생을 지목하는 쪽보다 낫다.
+   */
+  readonly touches: (subject: RuleSubject) => boolean
+}
+
+/**
+ * **앱의 계산 규칙이 바뀐 자리와 그 판** (open-decisions.md 62). 판은 그 규칙을 담아 나간
+ * 태그이고, 규칙이 바뀔 때마다 여기에 한 줄을 더한다.
+ *
+ * 재실행 대조는 **지금 규칙으로** 다시 계산해 파일의 숫자와 견주므로, 규칙이 바뀌기 전에
+ * 만든 파일은 학생이 아무것도 안 고쳐도 차이가 난다. 그 차이를 "재현되지 않음"으로 말하면
+ * 앱의 변경이 학생의 위조로 읽힌다.
+ */
+export const CALCULATION_RULE_CHANGES: readonly CalculationRuleChange[] = [
+  // 52 — 결측 채움의 최빈값이 동점이면 가장 작은 값. 채움값을 쓰는 전략에서만 걸린다.
+  {
+    rule: 'MODE_TIE',
+    since: '0.26.6',
+    touches: ({ data, file }) =>
+      data === null ||
+      (data.preprocessing.missing !== 'none' &&
+        data.preprocessing.missing !== 'drop' &&
+        (data.preprocessing.missing === 'mostFrequent' ||
+          file.preprocessor === null ||
+          file.preprocessor.columns.some((column) => column.kind === 'categorical'))),
+  },
+  // 57 ① — 점 하나뿐인 군집의 실루엣은 0. 군집 run에서만 걸린다.
+  {
+    rule: 'SILHOUETTE_SINGLETON',
+    since: '0.28.0',
+    touches: ({ experiment }) => experiment.settings.taskType === 'clustering',
+  },
+  // 57 ② — 상수 열인지를 sklearn `_is_constant_feature`로 본다. 표준화에서만 걸린다.
+  {
+    rule: 'CONSTANT_COLUMN_SCALE',
+    since: '0.28.0',
+    touches: ({ data }) => data === null || data.preprocessing.scaling === 'standard',
+  },
+  // 61 — 범주 순서는 정렬. 기록된 범주가 이미 정렬돼 있으면 순서가 같아 안 걸린다.
+  {
+    rule: 'CATEGORY_ORDER',
+    since: '0.28.2',
+    touches: ({ data, file }) =>
+      data === null ||
+      (data.preprocessing.categoricalEncoding !== 'none' &&
+        (file.preprocessor === null ||
+          file.preprocessor.columns.some(
+            (column) =>
+              column.categories !== undefined &&
+              categoryOrder(column.categories).join('\u0000') !== column.categories.join('\u0000'),
+          ))),
+  },
+  // 57 ③ — 정답이 한 값뿐인 시험 몫의 결정계수. 회귀에서 그 시험 몫일 때만 걸린다.
+  {
+    rule: 'CONSTANT_TARGET_R2',
+    since: '0.28.2',
+    touches: (subject) =>
+      subject.experiment.settings.taskType === 'regression' && !testTargetVaries(subject),
+  },
+]
+
+/**
+ * 이 run에 걸리는, 그 파일을 만든 뒤 바뀐 계산 규칙들. **순서는 목록 그대로다.**
+ */
+export function changedRules(experiment: Experiment, run: Run, file: RuleFile): CalculationRule[] {
+  const parsed = DATA_SCHEMAS.tabular.snapshot.safeParse(experiment.settings.data)
+  const subject: RuleSubject = {
+    experiment,
+    run,
+    file,
+    data: parsed.success ? parsed.data : null,
+  }
+  return CALCULATION_RULE_CHANGES.filter(
+    (change) => versionBefore(file.appVersion, change.since) && change.touches(subject),
+  ).map((change) => change.rule)
+}
+
+/**
+ * **판정을 규칙 변경에 비춰 거른다.** 차이가 있는 줄에 그 파일 뒤에 바뀐 규칙이 걸리면
+ * `NOT_JUDGED`로 내리고 그 사실을 붙인다 — 차이는 그대로 보인다.
+ *
+ * **차이가 없는 줄은 그대로다.** 지금 규칙으로 다시 계산해 같은 숫자가 나왔으면 그것이
+ * 확인이다. 못 돌린 줄(`ENGINE_UNAVAILABLE`)도 그대로다.
+ *
+ * **판정을 세우는 `compareRun`은 그대로 두고 여기서 거른다** — 대조 판은 도착한 사실을
+ * 담아 두고 보일 때 이것을 한 번 지난다(`views/inspect/ReproducePanel.vue`의 `found`).
+ * `tests/reproduce.spec.ts`의 *"계산 규칙이 바뀐 뒤"*가 문다.
+ */
+export function underRuleChanges(
+  reproductions: readonly Reproduction[],
+  experiment: Experiment,
+  file: RuleFile,
+): Reproduction[] {
+  return reproductions.map((reproduction) => {
+    if (reproduction.status !== 'NOT_REPRODUCED' && reproduction.status !== 'NOT_JUDGED') {
+      return reproduction
+    }
+    const run = experiment.runs.find((one) => one.id === reproduction.runId)
+    const rules = run === undefined ? [] : changedRules(experiment, run, file)
+    if (rules.length === 0) return reproduction
+    return {
+      ...reproduction,
+      status: 'NOT_JUDGED',
+      rulesChanged: { appVersion: file.appVersion, rules },
+    }
+  })
+}
+
+/**
+ * 채점한 정답에 다른 값이 둘 이상 있는가. **못 읽으면 `false`다** — 모르는 것은 걸리는
+ * 쪽으로 센다. 정답은 학습과 같은 자리에서 읽는다(`ml/experiment.ts`: `provided`면 테스트
+ * 표, 아니면 정본 표의 `testIndices`).
+ */
+function testTargetVaries({ experiment, file, data }: RuleSubject): boolean {
+  const target = data?.target
+  const source = experiment.settings.split.method === 'provided' ? file.testDataset : file.dataset
+  if (target === undefined || source === null) return false
+  const column = source.columns.indexOf(target)
+  if (column < 0) return false
+  let first: number | undefined
+  for (const row of experiment.settings.testIndices) {
+    const cell = source.rows[row]?.[column]
+    if (cell === undefined) return false
+    const value = Number(cell.trim())
+    if (first === undefined) first = value
+    else if (value !== first) return true
+  }
+  return false
+}
+
+/**
+ * `left` 판이 `right` 판보다 앞인가. **읽을 수 없는 판은 앞으로 본다** — 모르는 파일에서
+ * 판정을 거르는 쪽이 지목하는 쪽보다 낫다.
+ */
+function versionBefore(left: string, right: string): boolean {
+  const a = versionParts(left)
+  const b = versionParts(right)
+  if (a === null || b === null) return true
+  for (let at = 0; at < 3; at += 1) {
+    const gap = (a[at] ?? 0) - (b[at] ?? 0)
+    if (gap !== 0) return gap < 0
+  }
+  return false
+}
+
+function versionParts(version: string): number[] | null {
+  const matched = /^(\d+)\.(\d+)\.(\d+)$/.exec(version.trim())
+  return matched ? matched.slice(1).map(Number) : null
 }
 
 function sameEngine(claim: Run, fresh: Run): boolean {
