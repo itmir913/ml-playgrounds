@@ -1241,6 +1241,15 @@ describe('계산 규칙이 바뀐 뒤', () => {
     expect(changedRules(experiment, run, fileOf('0.100.0', experiment))).toEqual([])
   })
 
+  it('스냅숏을 못 읽는 표준화 run은 걸린다', async () => {
+    const { experiment: base } = await tampered()
+    const run = base.runs[0] as Run
+    // 표 스냅숏 스키마를 못 지나는 모양 — 남이 고친 파일이나 다른 데이터 종류가 이렇다.
+    const data = { features: 'x' } as unknown as Experiment['settings']['data']
+    const unreadable: Experiment = { ...base, settings: { ...base.settings, data } }
+    expect(changedRules(unreadable, run, fileOf('0.27.0', base))).toContain('CONSTANT_COLUMN_SCALE')
+  })
+
   it('규칙마다 한 줄이고 판 순서다', () => {
     const rules = CALCULATION_RULE_CHANGES.map((change) => change.rule)
     expect(new Set(rules).size).toBe(rules.length)
