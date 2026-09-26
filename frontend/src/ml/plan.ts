@@ -328,7 +328,9 @@ export function planRun(input: PlanInput): RunPlan {
   /**
    * **층화가 막히면 무시한다. 파일의 값은 안 건드린다** (`open-decisions.md` 55
    * *"끄지 않고 잠근다"*). 유형 · 표본 수 · 시험 비율 · 데이터(값이 1개뿐 · 연속 타깃),
-   * 이유가 무엇이든 같다 — 전처리 화면은 같은 판정(`stratifyBlockFor`)으로 체크박스를 잠근다.
+   * 이유가 무엇이든 분할은 같다 — 전처리 화면은 같은 판정(`stratifyBlockFor`)으로 체크박스를 잠근다.
+   * **뽑기는 아래 `sampleSettings`가 따로 본다** — 분할 쪽 사유만 있으면 뽑기는 층화하고 화면은
+   * 잠그지 않는다(`StratifyBlock.stillSamples`, `open-decisions.md` 64 ①).
    *
    * **무시하는 자리가 여기 하나다.** 화면마다 무시하면 화면과 학습이 다른 것을 돌린다.
    * `ml/split.ts`·`ml/sample.ts`의 거부는 그대로 남는다 — 이 판정과 같은 조건이라 여기서

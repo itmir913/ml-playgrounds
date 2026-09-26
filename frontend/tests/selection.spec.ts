@@ -26,6 +26,7 @@ import {
   rowUsage,
   stratifyBlock,
   stratifyApplies,
+  stratifyBlockFor,
   stratifyLocked,
   splitsData,
   trainableRowCount,
@@ -640,6 +641,21 @@ describe('층화 체크박스를 잠그는 조건', () => {
 
   it('걸리는 것이 없으면 잠기지 않는다', () => {
     expect(stratifyLocked(null)).toBe(false)
+  })
+
+  /**
+   * **분할 쪽만 막혔는데 뽑기가 일어나면 잠그지 않는다** (`open-decisions.md` 64 ①). 층화가
+   * 추출에 작용하므로, 잠그면 "잠긴 것은 학습이 무시한다"가 거짓이 되고 꺼진 채면 켤 수도 없다.
+   */
+  it('나눌 때만 막히고 뽑기가 일어나면 잠그지 않는다', () => {
+    const labels = [...Array<string>(10).fill('A'), ...Array<string>(10).fill('B'), 'C']
+    const split = { method: 'holdout', testSize: 0.3 } as const
+    const sampling = stratifyBlockFor('classification', labels, 12, split)
+    expect(sampling?.code, 'still reports the split reason').toBe('SPLIT_STRATIFY_IMPOSSIBLE')
+    expect(stratifyLocked(sampling), 'locked while sampling stratifies').toBe(false)
+
+    const whole = stratifyBlockFor('classification', labels, undefined, split)
+    expect(stratifyLocked(whole), 'not locked without sampling').toBe(true)
   })
 })
 

@@ -602,6 +602,11 @@ export interface StratifyBlock {
     // **학생이 방금 정한 숫자**가 원인이라 할 일이 다르다 - 그 숫자를 올리거나 층화를 끈다.
     | 'SAMPLE_STRATIFY_IMPOSSIBLE'
   readonly params?: Record<string, string | number>
+  /**
+   * **나눌 때의 사유인데 뽑기는 층화한다.** 뽑기가 실제로 일어나면 층화는 추출에 작용하므로
+   * 체크박스를 잠그지 않는다(`stratifyLocked`, `open-decisions.md` 64 ①).
+   */
+  readonly stillSamples?: boolean
 }
 
 /**
@@ -638,7 +643,9 @@ function lonelyValues(values: readonly string[]): {
  *
  * **무시하는 자리는 학습 계획 하나다** (`ml/plan.ts`). 화면마다 무시하면 화면과 학습이
  * 다른 것을 돌린다. **판정은 `stratifyBlockFor` 하나다** — 화면이 잠그는 조건과 학습이
- * 무시하는 조건이 같은 객체에서 나온다.
+ * 무시하는 조건이 같은 객체에서 나온다. **분할 쪽만 막혔는데 뽑기가 실제로 일어나면** 그 객체가
+ * `stillSamples`를 달고, 학습은 뽑기에만 층화를 걸며(`sampleStratifyBlockFor`) 화면은 잠그지 않는다
+ * (`open-decisions.md` 64 ①).
  */
 export function stratifyApplies(stratify: boolean, block: StratifyBlock | null): boolean {
   return stratify && block === null
@@ -655,7 +662,7 @@ export function stratifyApplies(stratify: boolean, block: StratifyBlock | null):
  * `tests/selection.spec.ts`가 이 함수를 지킨다.
  */
 export function stratifyLocked(block: StratifyBlock | null): boolean {
-  return block !== null
+  return block !== null && block.stillSamples !== true
 }
 
 export interface StratifyInput {
@@ -770,8 +777,12 @@ export function stratifyBlockFor(
   if (split.method !== 'holdout') return null
 
   const { lonely, kinds } = lonelyValues(labels)
-  if (lonely.length > 0) return blockFor(lonely, kinds)
-  return shareStratifyBlock(labels, nSamples, split)
+  const forSplit =
+    lonely.length > 0 ? blockFor(lonely, kinds) : shareStratifyBlock(labels, nSamples, split)
+  if (forSplit === null) return null
+  // 여기까지 왔으면 뽑기 쪽 사유는 없다 — 뽑기가 실제로 일어나면 층화는 거기 작용한다.
+  const samples = nSamples !== undefined && nSamples < labels.length
+  return samples ? { ...forSplit, stillSamples: true } : forSplit
 }
 
 /** 층화 판정이 보는 분할 설정. 씨앗과 층화 여부는 판정에 안 쓰인다. */
