@@ -381,11 +381,15 @@ export const useProjectStore = defineStore('project', () => {
     //
     // **내보낼 파일은 `flush()` 전에 쥔다.** 받은 마크다운은 지금 열린 프로젝트의 것이라,
     // 저장을 기다리는 사이 프로젝트가 바뀌면 다시 읽은 파일에 남의 글이 실린다. `write()`는
-    // 파일을 읽기만 하므로 먼저 쥐어도 같은 내용이다. `autosave.spec.ts`의
+    // 파일을 읽기만 하므로 **쥔 순간에는** 저장할 내용과 같다. `autosave.spec.ts`의
     // "저장을 기다리는 사이 프로젝트가 바뀌어도 쥔 프로젝트를 내보낸다"가 문다.
+    //
+    // **남는 틈 하나** — 쥔 뒤에 같은 프로젝트를 고치면 그 편집은 이 파일에 없는데, 자동 저장이
+    // 아래 시각보다 먼저 끝나면 화면이 "내보냄"이라고 말한다(`exportStateOf`는 시각을 견준다).
+    // 시각이 아니라 쥔 판으로 판정해야 닫힌다(0.29 C 국면의 패치 감사 C-5a, 다음 주기).
     const current = file.value
     if (current === null) return []
-    const ours = claim()
+    const exportedId = current.document.manifest.projectId
     try {
       await flush()
     } catch (error) {
@@ -400,9 +404,10 @@ export const useProjectStore = defineStore('project', () => {
     // 내보낸 시각은 이 기기의 곁가지 정보이고(storage.ts) 파일 안에는 없다.
     const at = new Date().toISOString()
     try {
-      await markExported(current.document.manifest.projectId, at)
+      await markExported(exportedId, at)
       // 화면의 "내보낸 시각"은 지금 열린 프로젝트의 것이다 — 바뀌었으면 남의 줄에 앉히지 않는다.
-      if (ours()) exportedAt.value = at
+      // 열기 세대(`claim`)가 아니라 id로 본다: A→B→A로 다시 열었으면 이 시각이 A의 것이 맞다.
+      if (projectId.value === exportedId) exportedAt.value = at
     } catch (error) {
       useToastStore().pushError(error)
     }

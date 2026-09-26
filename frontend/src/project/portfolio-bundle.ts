@@ -67,15 +67,16 @@ export function folderFor(label: string): string {
  *
  * **겹침은 대소문자를 안 가리고 센다.** 교사가 푸는 윈도 탐색기는 `Kim`과 `kim`을 한 폴더로
  * 합친다 — 대소문자를 가리면 zip 안에서는 둘이어도 풀면 하나가 된다. `portfolio-bundle.spec.ts`의
- * "대소문자만 다른 이름도 가른다"가 문다.
+ * "대소문자만 다른 이름도 가른다"가 문다. 대문자로 견주는 것은 NTFS가 대문자 표로 견주기
+ * 때문이다(`σ`·`ς`가 한 폴더가 된다는 것은 추론이고 탐색기로 재지 않았다).
  */
 export function folderNames(labels: readonly string[]): string[] {
   const used = new Set<string>()
   return labels.map((label) => {
     const base = folderFor(label)
     let name = base
-    for (let index = 2; used.has(name.toLowerCase()); index += 1) name = `${base} (${index})`
-    used.add(name.toLowerCase())
+    for (let index = 2; used.has(name.toUpperCase()); index += 1) name = `${base} (${index})`
+    used.add(name.toUpperCase())
     return name
   })
 }

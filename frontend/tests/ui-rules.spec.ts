@@ -3141,37 +3141,6 @@ describe('도착 지점은 붙박이 바를 비켜선다', () => {
    * 그 속성을 쓰는 화면을 전부 센다. 읽는 높이와 게이지가 실제로 보이는지는 브라우저로 잰
    * 것이다(사람 확인) — 여기서는 규칙이 선 자리만 문다.
    */
-  /**
-   * **폭에 따라 글자를 숨기는 버튼은 이름을 따로 가진다.** 숨은 글자(`display: none`)는 이름
-   * 계산에서 빠져서, 아이콘이 `aria-hidden`이면 휴대폰에서 이름이 빈다 — [내보내기]와 프로젝트
-   * 상태 단추가 그렇게 나가 있었다(0.29 최종 승인 2 C-6).
-   */
-  it('폭에 따라 글자를 숨기는 버튼은 이름을 가진다', () => {
-    const button = new RegExp(String.raw`<(AppButton|button)\b(${ATTRS})>([\s\S]*?)</\1>`, 'g')
-    const HIDES = String.raw`class="[^"]*(?:max-(?:sm|md|lg):hidden|(?<![\w:-])hidden\s+(?:sm|md|lg):)[^"]*"`
-    const hidesText = new RegExp(HIDES)
-    // 숨는 요소를 걷어 낸 뒤에도 보간(`{{ }}`)이 남으면 늘 보이는 글자가 이름이 된다 — 상태
-    // 표시줄의 단추가 그렇다(곁가지만 숨는다). 걷는 것은 가장 가까운 `</span>`까지라 안에
-    // 겹친 요소가 있으면 덜 걷는다 — 그때는 이름이 있다고 보는 쪽으로 틀린다(사람 확인).
-    const hiddenSpan = new RegExp(String.raw`<span\b[^>]*${HIDES}[^>]*>[\s\S]*?</span>`, 'g')
-    const named = /\s(?::|v-bind:)?(?:label|aria-label)=/
-    const offenders: string[] = []
-    let seen = 0
-    for (const file of sourceFiles(SRC).filter((one) => one.endsWith('.vue'))) {
-      const name = relative(SRC, file).split(sep).join('/')
-      for (const [, , attrs, inner] of readFileSync(file, 'utf-8').matchAll(button)) {
-        const body = (inner ?? '').replace(/<!--[\s\S]*?-->/g, '')
-        if (!hidesText.test(body)) continue
-        seen += 1
-        const visible = body.replace(hiddenSpan, '')
-        if (!visible.includes('{{') && !named.test(attrs ?? '')) offenders.push(name)
-      }
-    }
-    // 규칙이 무는 자리가 실제로 있는지 — 없으면 정규식이 아무것도 안 보고 초록이 된다.
-    expect(seen, 'no button hides its text by width').toBeGreaterThan(0)
-    expect(offenders, 'button hides its text by width without a name').toEqual([])
-  })
-
   it('동작 바는 md 이상에서만 붙고, 좁은 폭에서는 게이지 줄만 붙는다', () => {
     const bar = readFileSync(join(SRC, 'components', 'StepActionBar.vue'), 'utf-8')
     // 여는 태그 전체 — 정적 `class`와 `:class` 바인딩을 함께 본다.
@@ -3221,6 +3190,64 @@ describe('도착 지점은 붙박이 바를 비켜선다', () => {
     expect(strip).toContain('--step-bar-hidden')
     // `StepActionBar`가 덮는 높이를 고르는 표지다. 없으면 게이지 줄만 붙어도 바 전체를 비켜선다.
     expect(strip).toContain('--step-bar-strip: on')
+  })
+})
+
+/**
+ * **폭에 따라 글자를 숨기는 손잡이는 이름을 따로 가진다.** 숨은 글자(`display: none`)는 이름
+ * 계산에서 빠져서, 아이콘이 `aria-hidden`이면 좁은 폭에서 이름이 빈다 — [내보내기]와 프로젝트
+ * 상태 단추, 도구 막대의 앱 이름 링크가 그렇게 나가 있었다(0.29 최종 승인 2 C-6, 그 패치 감사 C-1).
+ *
+ * **못 보는 것** — 숨는 요소 안에 같은 태그가 겹치면 가장 가까운 닫는 태그까지만 걷어 덜 걷고,
+ * 그때는 이름이 있다고 보는 쪽으로 틀린다. `:class` 배열·객체로 숨기는 것은 `class="` 모양일 때만
+ * 잡힌다. 실제로 숨는지는 CSS라 여기서 못 본다(사람 확인).
+ */
+describe('폭에 따라 글자를 숨기는 손잡이', () => {
+  const BREAKPOINT = String.raw`(?:sm|md|lg|xl|2xl)`
+  const HIDES = String.raw`class="[^"]*(?:max-${BREAKPOINT}:hidden|(?<![\w:-])hidden\s+${BREAKPOINT}:)[^"]*"`
+  const handle = new RegExp(
+    String.raw`<(AppButton|button|RouterLink|a)\b(${ATTRS})>([\s\S]*?)</\1>`,
+    'g',
+  )
+  const hidesText = new RegExp(HIDES)
+  // 숨는 요소를 걷어 낸 뒤에도 보간(`{{ }}`)이 남으면 늘 보이는 글자가 이름이 된다 — 상태
+  // 표시줄의 단추가 그렇다(곁가지만 숨는다).
+  const hidden = new RegExp(String.raw`<([\w][\w-]*)\b[^>]*${HIDES}[^>]*>[\s\S]*?</\1>`, 'g')
+  /** 무엇이 이름이 되는가는 태그마다 다르다 — 네이티브 `<button>`의 `label`은 아무 일도 안 한다. */
+  const NAMES: Record<string, RegExp> = {
+    AppButton: /\s(?::|v-bind:)?(?:label|aria-label)=/,
+    button: /\s(?::|v-bind:)?aria-label=/,
+    RouterLink: /\s(?::|v-bind:)?(?:aria-label|title)=/,
+    a: /\s(?::|v-bind:)?(?:aria-label|title)=/,
+  }
+
+  it('이름을 가진다', () => {
+    const offenders: string[] = []
+    const seen = new Set<string>()
+    for (const file of sourceFiles(SRC).filter((one) => one.endsWith('.vue'))) {
+      const name = relative(SRC, file).split(sep).join('/')
+      for (const [, tag, attrs, inner] of readFileSync(file, 'utf-8').matchAll(handle)) {
+        const body = (inner ?? '').replace(/<!--[\s\S]*?-->/g, '')
+        if (!hidesText.test(body)) continue
+        seen.add(name)
+        const visible = body.replace(hidden, '')
+        const named = NAMES[tag ?? '']?.test(attrs ?? '') ?? false
+        if (!visible.includes('{{') && !named) offenders.push(`${name} <${tag}>`)
+      }
+    }
+    // 규칙이 무는 자리가 **그 자리들 그대로**인지 — 수만 보면 정규식이 한 갈래를 통째로 잃어도
+    // 다른 갈래가 수를 채워 초록이 된다(그 패치 감사 C-2d).
+    expect([...seen].sort(), 'handles hiding text by width changed').toEqual([
+      'components/AppStatusBar.vue',
+      'components/AppToolbar.vue',
+      'components/ExportButton.vue',
+      'components/ProjectStatus.vue',
+      'components/StepRail.vue',
+      'views/PortfolioView.vue',
+      'views/portfolio/TemplateSourceMenu.vue',
+      'views/predict/TabularPredictPanel.vue',
+    ])
+    expect(offenders, 'handle hides its text by width without a name').toEqual([])
   })
 })
 

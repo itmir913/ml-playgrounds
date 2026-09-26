@@ -34,8 +34,10 @@ const project = useProjectStore()
   <header
     class="sticky top-0 z-30 flex h-toolbar shrink-0 items-center gap-3 border-b border-line bg-surface px-3"
   >
+    <!-- 좁은 폭에서는 앱 이름이 숨어 아이콘만 남는다 — 이름은 aria-label이 준다. -->
     <RouterLink
       :to="{ name: ROUTE_PROJECTS }"
+      :aria-label="t('app.name')"
       class="flex shrink-0 items-center gap-2 rounded-control px-1.5 py-1 text-lg font-black tracking-tight transition-colors hover:bg-surface-sunken"
     >
       <component :is="BRAND_ICON" :size="24" class="text-brand" aria-hidden="true" />
