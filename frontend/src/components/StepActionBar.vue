@@ -54,7 +54,8 @@ defineProps<{
   /**
    * **휴대폰에서도 바를 통째로 붙인다** — 예측 화면만 쓴다(`open-decisions.md` 59의 예외).
    * 값을 넣고 곧바로 [예측하기]를 누르는 일을 되풀이하는 화면이라서다. 쓰는 화면이 예측뿐인지는
-   * `ui-rules.spec.ts`의 *"동작 바는 md 이상에서만 붙고, …"*가 문다.
+   * `ui-rules.spec.ts`의 *"동작 바는 md 이상에서만 붙고, …"*가, 속성이 없을 때 안 붙는지는
+   * `step-action-bar.spec.ts`가 문다.
    */
   sticky?: boolean
 }>()
