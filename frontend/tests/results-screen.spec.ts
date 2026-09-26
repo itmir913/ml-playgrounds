@@ -93,6 +93,10 @@ describe('R24 B-5: which experiment the screen opens', () => {
   it('opens the first model of that experiment without a click', () => {
     const detail = mountResults(threeExperiments()).findComponent(ExperimentDetail)
     expect(detail.find('.scroll-below-shell').exists(), 'no run detail on arrival').toBe(true)
+    // 펼친 것이 **첫** 모델이다 — 표의 첫 줄만 골라진 표시를 단다.
+    const rows = detail.findAll('tbody tr')
+    expect(rows[0]?.classes(), 'first model not the opened one').toContain('bg-brand-soft')
+    expect(rows.slice(1).some((row) => row.classes().includes('bg-brand-soft'))).toBe(false)
   })
 
   /**

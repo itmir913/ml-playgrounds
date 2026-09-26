@@ -40,7 +40,7 @@ describe('알림', () => {
 describe('용어 설명', () => {
   it('용어 자체가 누르는 글자다', () => {
     const wrapper = mount(TermPopover, { global, props: { title: '표준화', body: '평균 0' } })
-    expect(wrapper.text()).toContain('표준화')
+    expect(wrapper.get('button').text()).toContain('표준화')
   })
 })
 
@@ -76,7 +76,8 @@ describe('문항 없이 떠도는 답', () => {
         ],
       },
     })
-    const paragraphs = wrapper.findAll('p').map((one) => one.text())
+    // `.text()`는 스스로 공백을 걷으므로 원문(`textContent`)을 본다.
+    const paragraphs = wrapper.findAll('p').map((one) => one.element.textContent)
     expect(paragraphs).toContain('첫째 답')
     expect(paragraphs).toContain('둘째 답')
   })

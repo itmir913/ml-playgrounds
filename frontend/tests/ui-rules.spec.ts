@@ -3261,33 +3261,50 @@ describe('폭에 따라 글자를 숨기는 손잡이', () => {
  */
 describe('입력칸의 포커스 링은 잘리지 않는다', () => {
   /**
-   * 링을 덮어써도 되는 자리와 그 이유. 여기 없는 덮어쓰기는 운다 — 새 자리는 이 목록을 고치는
-   * 길로만 들어온다.
+   * 링을 덮어써도 되는 **클래스 한 자리**와 그 이유. 파일을 통째로 면제하지 않는다 — 그러면 그 파일에
+   * 새로 들어오는 덮어쓰기를 못 본다. 여기 없는 덮어쓰기는 운다.
    */
-  const ALLOWED: Readonly<Record<string, string>> = {
-    // 왼쪽 선만 있는 글쓰기 칸이라 링 대신 그 선의 색(`focus:border-brand`)이 포커스를 말한다.
-    // 선은 칸 안에 그려져 잘리지 않는다.
-    'views/portfolio/SectionCard.vue': 'border-left focus indicator',
-  }
+  const ALLOWED: readonly { file: string; exact: string; why: string }[] = [
+    {
+      // 왼쪽 선만 있는 글쓰기 칸이라 링 대신 그 선의 색이 포커스를 말한다. 선은 칸 안에 그려진다.
+      file: 'views/portfolio/SectionCard.vue',
+      exact: 'focus:border-brand focus:outline-none',
+      why: 'border-left focus indicator',
+    },
+  ]
 
   it('기본 규칙이 입력칸의 링을 안쪽에 둔다', () => {
     const css = readFileSync(join(SRC, 'styles', 'base.css'), 'utf-8')
-    const rule = /:is\(input,\s*textarea,\s*select\):focus-visible\s*\{([^}]*)\}/.exec(css)
-    expect(rule, 'inset focus rule for fields not found').not.toBeNull()
-    const offset = /outline-offset:\s*(-?\d+(?:\.\d+)?)px/.exec(rule![1] ?? '')
-    expect(Number(offset?.[1]), 'field focus ring is drawn outside').toBeLessThan(0)
+    expect(css, 'inset focus rule for fields not found').toMatch(
+      /:is\(input,\s*textarea,\s*select\):focus-visible\s*\{[^}]*outline-offset/,
+    )
+    // 입력칸을 가리키는 규칙에 걸린 `outline-offset`은 **전부** 음수다 — 뒤에 한 규칙이 양수로
+    // 덮어써도 운다.
+    const offsets = [...css.matchAll(/([^{}]*)\{([^}]*)\}/g)]
+      .filter(([, selector]) => /\b(?:input|textarea|select)\b/.test(selector ?? ''))
+      .flatMap(([, , body]) => [...(body ?? '').matchAll(/outline-offset:\s*(-?\d+(?:\.\d+)?)px/g)])
+      .map((found) => Number(found[1]))
+    expect(offsets.length, 'no field outline-offset found').toBeGreaterThan(0)
+    expect(
+      offsets.filter((one) => one >= 0),
+      'field focus ring is drawn outside',
+    ).toEqual([])
   })
 
   it('화면이 링을 덮어쓰지 않는다', () => {
+    // 클래스(`outline-none`·`outline-hidden`·`outline-0`·`outline-offset-*`, 임의값 포함)와
+    // `<style>` 안의 CSS(`outline: none`·`outline-offset:`)를 함께 본다.
     const OVERRIDE =
-      /(?<![\w-])(?:[\w-]+:)*(?:outline-none|outline-offset-[\w-]+|outline-0)(?![\w-])|outline-offset\s*:/
-    const offenders = sourceFiles(SRC)
-      .filter((file) => file.endsWith('.vue'))
-      .map((file) => relative(SRC, file).split(sep).join('/'))
-      .filter((name) => !(name in ALLOWED))
-      .filter((name) =>
-        OVERRIDE.test(withoutComments(readFileSync(join(SRC, name), 'utf-8')).join(' ')),
-      )
+      /(?<![\w-])(?:[\w-]+:)*(?:outline-none|outline-hidden|outline-0|outline-offset-(?:\[[^\]]*\]|[\w-]+))(?![\w-])|outline(?:-style)?\s*:\s*(?:none|0)\b|outline-offset\s*:/
+    const offenders: string[] = []
+    for (const file of sourceFiles(SRC).filter((one) => one.endsWith('.vue'))) {
+      const name = relative(SRC, file).split(sep).join('/')
+      let text = withoutComments(readFileSync(file, 'utf-8')).join(' ')
+      for (const allowed of ALLOWED.filter((one) => one.file === name)) {
+        text = text.replace(allowed.exact, '')
+      }
+      if (OVERRIDE.test(text)) offenders.push(name)
+    }
     expect(offenders, 'focus ring overridden outside the allow list').toEqual([])
   })
 })
