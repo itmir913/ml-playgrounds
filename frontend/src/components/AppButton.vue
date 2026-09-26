@@ -35,7 +35,10 @@ const props = withDefaults(
     size?: Size
     type?: 'button' | 'submit'
     disabled?: boolean
-    /** 아이콘만 있는 버튼에 준다. 읽을 이름이 없으면 스크린리더가 읽을 것이 없다. */
+    /**
+     * 보이는 글자가 이름과 다를 때 준다 — 아이콘만 있거나, 좁은 폭에서 글자가 숨거나 짧아질 때다.
+     * 읽을 이름이 없으면 스크린리더가 읽을 것이 없다.
+     */
     label?: string | undefined
     /**
      * 누르면 할 일. **끝날 때까지 버튼이 꺼진다.**

@@ -3141,6 +3141,37 @@ describe('도착 지점은 붙박이 바를 비켜선다', () => {
    * 그 속성을 쓰는 화면을 전부 센다. 읽는 높이와 게이지가 실제로 보이는지는 브라우저로 잰
    * 것이다(사람 확인) — 여기서는 규칙이 선 자리만 문다.
    */
+  /**
+   * **폭에 따라 글자를 숨기는 버튼은 이름을 따로 가진다.** 숨은 글자(`display: none`)는 이름
+   * 계산에서 빠져서, 아이콘이 `aria-hidden`이면 휴대폰에서 이름이 빈다 — [내보내기]와 프로젝트
+   * 상태 단추가 그렇게 나가 있었다(0.29 최종 승인 2 C-6).
+   */
+  it('폭에 따라 글자를 숨기는 버튼은 이름을 가진다', () => {
+    const button = new RegExp(String.raw`<(AppButton|button)\b(${ATTRS})>([\s\S]*?)</\1>`, 'g')
+    const HIDES = String.raw`class="[^"]*(?:max-(?:sm|md|lg):hidden|(?<![\w:-])hidden\s+(?:sm|md|lg):)[^"]*"`
+    const hidesText = new RegExp(HIDES)
+    // 숨는 요소를 걷어 낸 뒤에도 보간(`{{ }}`)이 남으면 늘 보이는 글자가 이름이 된다 — 상태
+    // 표시줄의 단추가 그렇다(곁가지만 숨는다). 걷는 것은 가장 가까운 `</span>`까지라 안에
+    // 겹친 요소가 있으면 덜 걷는다 — 그때는 이름이 있다고 보는 쪽으로 틀린다(사람 확인).
+    const hiddenSpan = new RegExp(String.raw`<span\b[^>]*${HIDES}[^>]*>[\s\S]*?</span>`, 'g')
+    const named = /\s(?::|v-bind:)?(?:label|aria-label)=/
+    const offenders: string[] = []
+    let seen = 0
+    for (const file of sourceFiles(SRC).filter((one) => one.endsWith('.vue'))) {
+      const name = relative(SRC, file).split(sep).join('/')
+      for (const [, , attrs, inner] of readFileSync(file, 'utf-8').matchAll(button)) {
+        const body = (inner ?? '').replace(/<!--[\s\S]*?-->/g, '')
+        if (!hidesText.test(body)) continue
+        seen += 1
+        const visible = body.replace(hiddenSpan, '')
+        if (!visible.includes('{{') && !named.test(attrs ?? '')) offenders.push(name)
+      }
+    }
+    // 규칙이 무는 자리가 실제로 있는지 — 없으면 정규식이 아무것도 안 보고 초록이 된다.
+    expect(seen, 'no button hides its text by width').toBeGreaterThan(0)
+    expect(offenders, 'button hides its text by width without a name').toEqual([])
+  })
+
   it('동작 바는 md 이상에서만 붙고, 좁은 폭에서는 게이지 줄만 붙는다', () => {
     const bar = readFileSync(join(SRC, 'components', 'StepActionBar.vue'), 'utf-8')
     // 여는 태그 전체 — 정적 `class`와 `:class` 바인딩을 함께 본다.
@@ -3166,22 +3197,23 @@ describe('도착 지점은 붙박이 바를 비켜선다', () => {
 
     // 그 속성을 쓰는 화면은 예측 화면뿐이다 (open-decisions.md 59의 예외). 예외는 화면에
     // 따라 정해지므로 정적이어야 한다 — 바인딩(`:sticky`)은 표기부터 막는다.
-    const tag = new RegExp(String.raw`<StepActionBar\b${ATTRS}>`, 'g')
-    const users: string[] = []
+    // 세는 것은 파일이 아니라 여는 태그다 — 한 파일에 바가 둘이면(표·값, 표·파일) 하나만 빠져도
+    // 파일 단위로는 조용하다. Vue가 받는 케밥 표기도 같은 바다.
+    const tag = new RegExp(String.raw`<(?:StepActionBar|step-action-bar)\b${ATTRS}>`, 'g')
+    const users: Record<string, number> = {}
     for (const file of sourceFiles(SRC).filter((one) => one.endsWith('.vue'))) {
       const name = relative(SRC, file).split(sep).join('/')
       for (const [open] of readFileSync(file, 'utf-8').matchAll(tag)) {
         expect(open, `bound sticky on the action bar (${name})`).not.toMatch(
           /\s(?::|v-bind:)sticky\b/,
         )
-        if (/\ssticky\b/.test(open) && !users.includes(name)) users.push(name)
+        if (/\ssticky\b/.test(open)) users[name] = (users[name] ?? 0) + 1
       }
     }
-    users.sort()
-    expect(users, 'sticky bar outside the predict screens').toEqual([
-      'views/predict/ImagePredictPanel.vue',
-      'views/predict/TabularPredictPanel.vue',
-    ])
+    expect(users, 'sticky bars differ from the predict screens').toEqual({
+      'views/predict/ImagePredictPanel.vue': 1,
+      'views/predict/TabularPredictPanel.vue': 2,
+    })
 
     const strip = utility('stick-step-bar-strip')
     expect(strip).toMatch(/@media \(width < theme\(--breakpoint-md\)\)/)

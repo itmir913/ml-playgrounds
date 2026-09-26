@@ -33,6 +33,15 @@ describe('동작 바의 붙박이', () => {
     expect(classes).toContain('md:sticky')
   })
 
+  /** 안 치우면 그 값이 문서에 남아 다음 화면의 도착 지점이 없는 바를 비켜선다. */
+  it('떠날 때 자기 높이를 치운다', () => {
+    const wrapper = mount(StepActionBar, { props: { sticky: true } })
+    const root = document.documentElement.style
+    expect(root.getPropertyValue('--step-bar-height'), 'height not published').not.toBe('')
+    wrapper.unmount()
+    expect(root.getPropertyValue('--step-bar-height'), 'height left behind').toBe('')
+  })
+
   it('sticky를 주면 폭을 가리지 않고 붙는다', () => {
     const classes = rootClasses({ sticky: true })
     for (const one of UNPREFIXED) {

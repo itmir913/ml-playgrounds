@@ -70,6 +70,9 @@ function button(wrapper: VueWrapper, key: string) {
     .findAll('button')
     .find((one) => (one.attributes('aria-label') ?? one.text()) === i18n.global.t(key))
   expect(found, key).toBeDefined()
+  // 보이는 글자에 이름이 들어 있어야 한다(WCAG 2.5.3) — 이름표를 짧게 줄인 버튼도 넓은 폭에서는
+  // 긴 이름을 보인다. jsdom에는 CSS가 없어 두 이름표가 다 글자에 잡힌다.
+  expect(found!.text(), `${key} label not in the visible text`).toContain(i18n.global.t(key))
   return found!
 }
 

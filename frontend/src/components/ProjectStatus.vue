@@ -46,6 +46,7 @@ const project = useProjectStore()
       -->
       <button
         type="button"
+        :aria-label="t('meta.title')"
         class="flex items-center gap-1.5 rounded-control border border-transparent px-4 py-2.5 font-bold text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink"
       >
         <component :is="ACTION_ICONS.showSummary" :size="18" aria-hidden="true" />

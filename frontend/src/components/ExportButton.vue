@@ -103,7 +103,8 @@ const INPUT = 'w-full rounded-field border border-line-strong bg-surface px-3 py
 <template>
   <AppPopover align="right">
     <template #trigger>
-      <AppButton variant="secondary">
+      <!-- 좁은 폭에서는 글자가 숨어 아이콘만 남는다 — 이름은 label이 준다. -->
+      <AppButton variant="secondary" :label="t('project.export')">
         <component :is="ACTION_ICONS.exportFile" :size="18" aria-hidden="true" />
         <span class="max-md:hidden">{{ t('project.export') }}</span>
       </AppButton>

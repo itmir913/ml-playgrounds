@@ -517,7 +517,7 @@ async function run(): Promise<void> {
         <AppButton
           variant="secondary"
           :disabled="predicting"
-          :aria-label="t('predict.tabular.fromData')"
+          :label="t('predict.tabular.fromData')"
           @click="sample"
         >
           <span class="sm:hidden">{{ t('predict.tabular.fromDataShort') }}</span>
