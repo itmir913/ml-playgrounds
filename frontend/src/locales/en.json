@@ -1006,6 +1006,7 @@
       "fileRemove": "Delete",
       "fileChange": "Change file",
       "fromData": "Take a random row",
+      "fromDataShort": "Random",
       "fromDataDone": "Took row {index}. Try changing the values and predicting again.",
       "inputChoiceFile": "Predict many rows from a file at once",
       "inputChoiceFileNote": "Load a file and every row in it is answered at once.",

@@ -65,7 +65,10 @@ function panelOf(wrapper: VueWrapper): PanelInternals {
 }
 
 function button(wrapper: VueWrapper, key: string) {
-  const found = wrapper.findAll('button').find((one) => one.text() === i18n.global.t(key))
+  // 이름은 낭독기가 읽는 것으로 본다 — 좁은 폭에서 짧은 이름표를 보이는 버튼은 `aria-label`이 긴 이름이다.
+  const found = wrapper
+    .findAll('button')
+    .find((one) => (one.attributes('aria-label') ?? one.text()) === i18n.global.t(key))
   expect(found, key).toBeDefined()
   return found!
 }

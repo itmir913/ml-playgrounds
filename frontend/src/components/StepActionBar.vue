@@ -14,7 +14,7 @@
  * 올라간다.
  *
  * **`md` 미만에서는 붙지 않고, `below` 자리(학습 진행 게이지)만 남는다** (`open-decisions.md`
- * 59). 모든 화면에 같은 규칙이다. 붙박이가 지키려던 것은 오래 걸리는 동작의 진행 표시라, `below`가 있으면 바가
+ * 59). 예측 화면만 예외라 `sticky`를 받아 통째로 붙는다. 붙박이가 지키려던 것은 오래 걸리는 동작의 진행 표시라, `below`가 있으면 바가
  * **게이지 줄이 보이는 만큼만** 붙는다 — 그 위는 도구 막대 뒤로 들어간다
  * (`styles/utilities.css`의 `stick-step-bar-strip`). 게이지를 바 밖에 따로 붙이지 않는
  * 이유는, 붙박이는 자기 부모 안에서만 붙어서 바 안의 게이지는 바와 함께 떠나기 때문이다.
@@ -47,6 +47,15 @@
  */
 
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+
+defineProps<{
+  /**
+   * **휴대폰에서도 바를 통째로 붙인다** — 예측 화면만 쓴다(`open-decisions.md` 59의 예외).
+   * 값을 넣고 곧바로 [예측하기]를 누르는 일을 되풀이하는 화면이라서다. 쓰는 화면이 예측뿐인지는
+   * `ui-rules.spec.ts`의 *"동작 바는 md 이상에서만 붙고, …"*가 문다.
+   */
+  sticky?: boolean
+}>()
 
 /**
  * **자기 높이를 재서 내놓는다.** 아래 화면들은 "바 아래 첫 자리"를 알아야 한다 —
@@ -130,12 +139,12 @@ onBeforeUnmount(() => {
 <template>
   <!--
     붙는 것은 `md` 이상뿐이다. 그 아래에서는 `below`가 있을 때만 게이지 줄이 붙는다
-    (`open-decisions.md` 59).
+    (`open-decisions.md` 59). `sticky`면 폭을 가리지 않고 통째로 붙는다(그 결정의 예외).
   -->
   <div
     ref="barEl"
     class="z-20 -mt-4 bg-surface pt-4 md:sticky md:stick-below-shell"
-    :class="{ 'stick-step-bar-strip': $slots.below }"
+    :class="sticky ? 'sticky stick-below-shell' : { 'stick-step-bar-strip': $slots.below }"
   >
     <div
       ref="panelEl"

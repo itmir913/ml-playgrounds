@@ -512,9 +512,16 @@ async function run(): Promise<void> {
         **누르는 것은 전부 바에 모인다** (architecture.md §8.13.1 "동작 바는 화면들이
         함께 쓴다"). 이미지 경로와 같은 컴포넌트이고 같은 자리다.
       -->
-      <StepActionBar v-if="inputMode === 'value'">
-        <AppButton variant="secondary" :disabled="predicting" @click="sample">
-          {{ t('predict.tabular.fromData') }}
+      <StepActionBar v-if="inputMode === 'value'" sticky>
+        <!-- 좁은 폭에서는 짧은 이름표로 — 바가 두 줄로 접히지 않게. 낭독기는 긴 이름을 읽는다. -->
+        <AppButton
+          variant="secondary"
+          :disabled="predicting"
+          :aria-label="t('predict.tabular.fromData')"
+          @click="sample"
+        >
+          <span class="sm:hidden">{{ t('predict.tabular.fromDataShort') }}</span>
+          <span class="hidden sm:inline">{{ t('predict.tabular.fromData') }}</span>
         </AppButton>
         <AppButton variant="secondary" :disabled="predicting" @click="clear">
           {{ t('predict.tabular.clear') }}
@@ -533,7 +540,7 @@ async function run(): Promise<void> {
         계산한다. 그래서 오른쪽 끝에 서는 것은 "예측"이 아니라 **이 모드의 결론**이고,
         여기서는 내려받기다.
       -->
-      <StepActionBar v-else>
+      <StepActionBar v-else sticky>
         <!--
           **고르는 중에는 바가 그 파일을 든다.** 이때 [파일 선택]을 그대로 두면 바가
           엉뚱한 버튼을 들고 있게 된다 — 눌러야 하는 것은 [이 데이터 사용]이다.

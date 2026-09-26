@@ -10,7 +10,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { basename, dirname, join, resolve, sep } from 'node:path'
+import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -3145,15 +3145,30 @@ describe('도착 지점은 붙박이 바를 비켜선다', () => {
     // 여는 태그 전체 — 정적 `class`와 `:class` 바인딩을 함께 본다.
     const root = /<div\s+ref="barEl"[^>]*>/.exec(bar)
     expect(root, 'StepActionBar root not found').not.toBeNull()
-    // 붙는 계열 클래스는 전부 `md:`만 달아야 한다. 접두 없는 것도 `max-md:`도 휴대폰에서 붙는다.
-    const sticky = root![0].match(/[\w:-]*(?:sticky|stick-below-shell)\b/g) ?? []
+    // 정적 `class`의 붙는 계열 클래스는 전부 `md:`만 달아야 한다. 접두 없는 것도 `max-md:`도
+    // 휴대폰에서 붙는다.
+    const staticClass = /\sclass="([^"]*)"/.exec(root![0])
+    expect(staticClass, 'StepActionBar static class not found').not.toBeNull()
+    const sticky = (staticClass![1] ?? '').match(/[\w:-]*(?:sticky|stick-below-shell)\b/g) ?? []
     expect(sticky.length, 'the bar never sticks').toBeGreaterThan(0)
     for (const one of sticky) {
       expect(one, 'the bar sticks on phones again').toMatch(/^md:/)
     }
+    // 휴대폰에서 통째로 붙는 길은 `sticky` 속성 하나뿐이고, 없으면 게이지 줄만 붙는다.
     expect(root![0], 'the gauge row no longer sticks on phones').toMatch(
-      /'stick-step-bar-strip':\s*\$slots\.below/,
+      /sticky\s*\?\s*'sticky stick-below-shell'\s*:\s*\{\s*'stick-step-bar-strip':\s*\$slots\.below\s*\}/,
     )
+
+    // 그 속성을 쓰는 화면은 예측 화면뿐이다 (open-decisions.md 59의 예외).
+    const users = sourceFiles(SRC)
+      .filter((file) => file.endsWith('.vue'))
+      .filter((file) => /<StepActionBar\b[^>]*\ssticky\b/.test(readFileSync(file, 'utf-8')))
+      .map((file) => relative(SRC, file).split(sep).join('/'))
+      .sort()
+    expect(users, 'sticky bar outside the predict screens').toEqual([
+      'views/predict/ImagePredictPanel.vue',
+      'views/predict/TabularPredictPanel.vue',
+    ])
 
     const strip = utility('stick-step-bar-strip')
     expect(strip).toMatch(/@media \(width < theme\(--breakpoint-md\)\)/)

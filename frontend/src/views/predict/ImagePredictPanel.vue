@@ -667,7 +667,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       **진행 표시가 바 안에 서는 이유**는 짧기 때문이다. 긴 문장은 바를 두 줄로 만든다
       (`StepActionBar` 주석).
     -->
-    <StepActionBar>
+    <StepActionBar sticky>
       <!--
         **빈 상태에서는 이 버튼이 없다** (architecture.md §8.9). 화면 가운데 빈 상태가
         이미 같은 버튼을 들고 있고, **그것이 그 동작의 유일한 출처여야** 학생이 "둘이
