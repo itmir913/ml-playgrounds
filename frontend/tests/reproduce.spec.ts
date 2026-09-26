@@ -937,6 +937,14 @@ describe('대조를 막는 이유', () => {
     expect(reproduceBlockers(await subject({ dataType: 'image' }))).toContain('IMAGE_NOT_OPEN')
   })
 
+  it('사진 프로젝트에는 "정본 데이터가 파일에 없다"를 붙이지 않는다 - 사진은 파일 안에 있다', async () => {
+    // `ReproducePanel.vue`는 `hasDataset`을 정본 표가 있는지로 채우고, 사진 프로젝트에는
+    // 표가 없다 (사람 확인).
+    const blockers = reproduceBlockers(await subject({ dataType: 'image', hasDataset: false }))
+    expect(blockers).toContain('IMAGE_NOT_OPEN')
+    expect(blockers).not.toContain('NO_DATASET')
+  })
+
   it('성공한 run이 없으면 거기서 멈춘다 - 근본적인 것이 먼저다', async () => {
     const experiment = await trained(['decision_tree'])
     const failed: Experiment = {

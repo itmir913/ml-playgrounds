@@ -798,8 +798,10 @@ export function reproduceBlockers(subject: ReproduceSubject): ReproduceBlocker[]
 /** 파일이 막는 것. 순서는 근본적인 것이 먼저다. */
 function fileBlockers(subject: ReproduceSubject): ReproduceBlocker[] {
   const blockers: ReproduceBlocker[] = []
+  // 사진 프로젝트의 정본은 표가 아니라 파일 안의 사진이다 — 표가 없다고 `NO_DATASET`을
+  // 붙이면 거짓말이 된다. `reproduce.spec.ts`의 *"사진 프로젝트에는"*이 문다.
   if (subject.dataType !== 'tabular') blockers.push('IMAGE_NOT_OPEN')
-  if (!subject.hasDataset) blockers.push('NO_DATASET')
+  else if (!subject.hasDataset) blockers.push('NO_DATASET')
 
   const claims = subject.experiment.runs.filter(succeeded)
   if (claims.length === 0) {
