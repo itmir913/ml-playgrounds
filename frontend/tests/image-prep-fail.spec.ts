@@ -313,10 +313,10 @@ describe('R23: leaving while takeTest is asking for room', () => {
 /**
  * **굽는 동안 다른 프로젝트로 옮겨도 그쪽에 안 앉는다** (`stores/project.ts`의 `claim`).
  *
- * `/project/A/preprocess` → `/project/B/preprocess`는 같은 라우트 레코드라 이 판이 재사용되고
- * `alive`가 안 내려간다. 앉으면 A의 테스트 사진이 B에 붙고 B의 실험이 지워진다
- * (`applyTestImages`). 여기서는 라우터 대신 **스토어에 B를 앉혀** 옮긴다(라우터로 옮기는 길은
- * `train-project-switch.spec.ts`가 탄다).
+ * 앱에서는 `App.vue`의 화면 키가 옮기는 순간 이 판을 새로 띄운다(`project-switch-remount.spec.ts`).
+ * 여기서는 판을 띄운 채 **스토어에 B를 앉혀** `alive`가 안 내려가는 틈 — 파일이 바뀐 뒤 판이
+ * 내려가기 전 — 을 잰다. 앉으면 A의 테스트 사진이 B에 붙고 B의 실험이 지워진다
+ * (`applyTestImages`).
  */
 describe('switching project while test photos bake', () => {
   it('nothing lands on the other project and its experiments stay', async () => {

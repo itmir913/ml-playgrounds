@@ -20,13 +20,29 @@
  * 자연어 문자열 리터럴 금지 - 전부 t()를 거친다 (docs/i18n.md).
  */
 
-import { onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 
 import AppShell from '@/components/AppShell.vue'
 import AppToast from '@/components/AppToast.vue'
 import { useProjectStore } from '@/stores/project'
 
 const project = useProjectStore()
+const route = useRoute()
+
+/**
+ * **작업 공간의 키는 프로젝트 id다** (`open-decisions.md` "같은 라우트 레코드 안에서 프로젝트를
+ * 옮기면 화면을 어떻게 할 것인가", architecture.md §8.2).
+ *
+ * `/project/A/data` → `/project/B/data`는 같은 라우트 레코드라 키가 없으면 화면이 재사용되고,
+ * A에서 세운 초안과 도는 일이 B의 화면에 남는다. 키가 바뀌면 옛 화면이 언마운트되며 도는 일을
+ * 끊는다. 같은 프로젝트 안의 단계 이동은 라우트 레코드가 달라 원래 화면이 바뀌고, 프로젝트 밖
+ * 주소(목록·점검)는 id가 없어 키가 빈 글자로 같다. `tests/project-switch-remount.spec.ts`가 문다.
+ */
+const screenKey = computed(() => {
+  const { projectId } = route.params
+  return typeof projectId === 'string' ? projectId : ''
+})
 
 /**
  * **탭을 떠날 때 미뤄 둔 저장을 지금 한다** (V11 R4 C-3).
@@ -56,7 +72,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', flushOnHi
 
 <template>
   <AppShell>
-    <RouterView />
+    <RouterView :key="screenKey" />
   </AppShell>
   <AppToast />
 </template>

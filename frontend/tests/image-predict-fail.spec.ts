@@ -205,9 +205,9 @@ describe('R23: canonicalize worker dies while adding photos', () => {
 /**
  * **굽거나 뽑는 동안 다른 프로젝트로 옮겨도 그쪽에 안 앉는다** (`stores/project.ts`의 `claim`).
  *
- * `/project/A/predict` → `/project/B/predict`는 같은 라우트 레코드라 이 판이 재사용되고
- * `alive`가 안 내려간다. 여기서는 라우터 대신 **스토어에 B를 앉혀** 옮긴다 — 판이 보는 것은
- * 스토어의 프로젝트다(라우터로 옮기는 길은 `train-project-switch.spec.ts`가 탄다).
+ * 앱에서는 `App.vue`의 화면 키가 옮기는 순간 이 판을 새로 띄운다(`project-switch-remount.spec.ts`).
+ * 여기서는 판을 띄운 채 **스토어에 B를 앉혀** `alive`가 안 내려가는 틈 — 파일이 바뀐 뒤 판이
+ * 내려가기 전 — 을 잰다. 그 틈을 지키는 것이 `claim`이다.
  */
 describe('switching project while a predict job runs', () => {
   const OTHER_ID = '55555555-5555-4555-8555-555555555555'

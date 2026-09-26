@@ -272,8 +272,10 @@ async function readPicked(files: readonly File[]): Promise<void> {
   const job = start()
   /**
    * **받기 시작한 프로젝트** (`stores/project.ts`의 `claim`). `alive`는 언마운트에서만
-   * 내려가고, 같은 라우트 레코드 사이의 이동은 이 화면을 다시 쓴다. 굽기 뒤의 확인은
-   * `image-predict-fail.spec.ts`의 *"baked photos do not land on the other project"*가 문다.
+   * 내려가고, 프로젝트를 옮기면 `App.vue`의 화면 키가 이 판을 언마운트한다(키는 판을 가리지
+   * 않는다 — `project-switch-remount.spec.ts`는 다른 판으로 잰다). 이것은 그 키가 못 덮는 틈 — 파일이 바뀐 뒤 판이
+   * 내려가기 전 — 을 막는다. 굽기 뒤의 확인은 `image-predict-fail.spec.ts`의
+   * *"baked photos do not land on the other project"*가 문다.
    */
   const ours = project.claim()
   try {

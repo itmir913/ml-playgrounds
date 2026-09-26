@@ -216,10 +216,14 @@ export const useProjectStore = defineStore('project', () => {
    * 거짓이다.
    *
    * 긴 `await`(굽기·임베딩·학습) 뒤에 조각을 앉히는 화면이 시작할 때 부르고 앉히기 전에
-   * 묻는다. 같은 라우트 레코드 사이의 이동(`/project/A/…` → `/project/B/…`)은 화면을 다시
-   * 쓰므로 언마운트에 매인 `alive`로는 못 가른다.
-   * `train-project-switch.spec.ts` · `image-panel-drop.spec.ts` · `image-predict-fail.spec.ts` ·
-   * `image-prep-fail.spec.ts` · `portfolio-attach.spec.ts`가 문다.
+   * 묻는다.
+   *
+   * **`App.vue`의 화면 키와 겹쳐 지킨다.** 프로젝트가 바뀌면 키가 화면을 새로 띄워 `alive`가
+   * 내려간다(`project-switch-remount.spec.ts`). 그래도 이것이 남는 것은 **키가 못 덮는 틈**
+   * 때문이다 — 라우터 가드가 `open(B)`로 파일을 갈아 끼운 뒤 화면이 바뀌기까지 옛 화면이
+   * 살아 있고, 그 사이에 끝난 계산은 `alive`로 못 가른다. 키 없는 `RouterView`로 옮기거나
+   * 스토어만 바꾸는 `train-project-switch.spec.ts` · `image-panel-drop.spec.ts` ·
+   * `image-predict-fail.spec.ts` · `image-prep-fail.spec.ts` · `portfolio-attach.spec.ts`가 문다.
    */
   function claim(): () => boolean {
     const held = projectId.value

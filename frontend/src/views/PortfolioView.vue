@@ -333,10 +333,11 @@ async function attach(sectionId: string, files: readonly File[]): Promise<void> 
   const file = project.file
   if (!file || files.length === 0) return
   /**
-   * **굽기를 시작한 프로젝트** (`stores/project.ts`의 `claim`). 같은 라우트 레코드 사이의
-   * 이동은 이 화면을 다시 쓰므로, 굽는 동안 옮기면 구운 사진이 옮긴 프로젝트의 같은 id
-   * 문항에 붙는다. 굽는 동안 그 문항이 지워졌으면 사진이 어느 문항에도 안 보인 채 파일에
-   * 남는다. 둘 다 `portfolio-attach.spec.ts`의 *"굽는 동안 주인이 바뀌면"*이 문다.
+   * **굽기를 시작한 프로젝트** (`stores/project.ts`의 `claim`). 프로젝트를 옮기면 `App.vue`의
+   * 화면 키가 이 화면을 새로 띄우지만, 파일이 바뀐 뒤 화면이 내려가기 전에 굽기가 끝나면 구운
+   * 사진이 옮긴 프로젝트의 같은 id 문항에 붙는다. 굽는 동안 그 문항이 지워졌으면 사진이 어느
+   * 문항에도 안 보인 채 파일에 남는다. 둘 다 `portfolio-attach.spec.ts`의
+   * *"굽는 동안 주인이 바뀌면"*이 문다.
    */
   const ours = project.claim()
 

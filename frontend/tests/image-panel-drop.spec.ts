@@ -162,10 +162,9 @@ async function panelBaking() {
 /**
  * **굽는 동안 다른 프로젝트로 옮기면 그쪽에 안 앉는다** (`stores/project.ts`의 `claim`).
  *
- * `/project/A/data` → `/project/B/data`는 같은 라우트 레코드라 이 판이 재사용되고 `alive`가
- * 안 내려간다. 여기서는 라우터 대신 **스토어에 B를 앉혀** 옮긴다 — 판이 보는 것은 스토어의
- * 프로젝트다(라우터로 옮기는 길은 `train-project-switch.spec.ts`가 탄다). 그 묶음은 A의 것이라
- * 판에서도 접힌다.
+ * 앱에서는 `App.vue`의 화면 키가 옮기는 순간 이 판을 새로 띄운다(`project-switch-remount.spec.ts`).
+ * 여기서는 판을 띄운 채 **스토어에 B를 앉혀** `alive`가 안 내려가는 틈 — 파일이 바뀐 뒤 판이
+ * 내려가기 전 — 을 잰다. 그 틈을 지키는 것이 `claim`이다. 그 묶음은 A의 것이라 판에서도 접힌다.
  */
 describe('굽는 동안 다른 프로젝트로 옮기면', () => {
   it('구운 사진이 옮긴 프로젝트에 안 앉고 판이 접힌다', async () => {

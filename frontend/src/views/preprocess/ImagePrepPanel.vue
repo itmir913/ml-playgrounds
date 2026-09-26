@@ -259,10 +259,12 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
   // `confirmTakeTest`는 대화상자가 닫힌 뒤라 그때는 도는 것이 없다.
   const job = start()
   /**
-   * **굽기를 시작한 프로젝트** (`stores/project.ts`의 `claim`). 같은 라우트 레코드 사이의
-   * 이동은 이 화면을 다시 쓰므로 `alive`로는 못 가른다. 옮긴 뒤에 앉히면 테스트 사진이 다른
-   * 프로젝트에 붙고 그 실험을 지운다(`applyTestImages`). `image-prep-fail.spec.ts`의
-   * *"switching project while test photos bake"*가 문다.
+   * **굽기를 시작한 프로젝트** (`stores/project.ts`의 `claim`). 프로젝트를 옮기면 `App.vue`의
+   * 화면 키가 이 판을 새로 띄워 굽기를 끊는다(`project-switch-remount.spec.ts`). 이것은 그 키가
+   * 못 덮는 틈 — 파일이 바뀐 뒤 판이 내려가기 전 — 에 끝난 굽기를 막는다. 옮긴 뒤에 앉히면
+   * 테스트 사진이 다른 프로젝트에 붙고 그 실험을 지운다(`applyTestImages`).
+   * `image-prep-fail.spec.ts`의 *"switching project while test photos bake"*가 문다.
+   * **읽기 구간(`readTest`)과 확인 창(`pendingTest`)은 이것이 아니라 키가 지킨다.**
    */
   const ours = project.claim()
   try {

@@ -263,6 +263,8 @@ function clear(): void {
 }
 
 // 프로젝트를 바꿔 들어오면 남은 값이 뜻을 잃는다. 열 이름이 아예 다를 수 있다.
+// 라우터로 옮기면 `App.vue`의 화면 키가 이 판을 새로 띄우므로 이 감시가 없어도 빈 판이 선다
+// (`project-switch-remount.spec.ts`). 이 감시는 키 밖에서 스토어만 바뀌는 자리의 겹 방어다.
 watch(() => project.projectId, clear)
 
 /**
