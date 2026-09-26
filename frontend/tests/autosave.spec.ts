@@ -275,6 +275,37 @@ describe('내보내기', () => {
     expect((downloads[0]?.blob.size ?? 0) > 0).toBe(true)
   })
 
+  /**
+   * **받은 마크다운과 파일은 같은 프로젝트의 것이어야 한다.** 저장을 기다리는 사이 다른
+   * 프로젝트가 열리면, 그 뒤에 파일을 다시 읽는 순서에서는 앞 프로젝트의 글이 뒤 프로젝트의
+   * 파일에 실려 나간다(R39b C-7).
+   */
+  it('저장을 기다리는 사이 프로젝트가 바뀌어도 쥔 프로젝트를 내보낸다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+    project.update(renamed('앞 프로젝트'))
+    const base = projectFile()
+    const other: ProjectFile = {
+      ...base,
+      document: {
+        ...base.document,
+        manifest: {
+          ...base.document.manifest,
+          projectId: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b',
+          name: '뒤 프로젝트',
+        },
+      },
+    }
+
+    const pending = project.exportFile(markdown)
+    void project.save(other)
+    await pending
+
+    const { project: reopened } = await readProject(await downloadedBytes(0))
+    expect(reopened.document.manifest.name, 'the file handed down').toBe('앞 프로젝트')
+    expect(project.exportedAt, 'export time on the other project').toBeNull()
+  })
+
   it('미뤄 둔 저장을 먼저 끝낸다 - 방금 쓴 글이 빠진 파일이 나가면 안 된다', async () => {
     const project = useProjectStore()
     await project.save(projectFile())

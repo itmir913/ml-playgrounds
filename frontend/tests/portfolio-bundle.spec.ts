@@ -152,6 +152,10 @@ describe('폴더 이름은 서로 다르다', () => {
     expect(folderNames(['a.mlpx', 'a.MLPX', 'a.mlpx'])).toEqual(['a', 'a (2)', 'a (3)'])
   })
 
+  it('대소문자만 다른 이름도 가른다', () => {
+    expect(folderNames(['1반/Kim.mlpx', '1반/kim.mlpx'])).toEqual(['1반/Kim', '1반/kim (2)'])
+  })
+
   it('안 겹치면 그대로 둔다', () => {
     expect(folderNames(['1반/홍길동.mlpx', '1반/김철수.mlpx'])).toEqual([
       '1반/홍길동',

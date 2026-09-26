@@ -378,13 +378,19 @@ export const useProjectStore = defineStore('project', () => {
     //
     // 미뤄 둔 저장을 먼저 끝내려는 의도 자체는 옳다 - 방금 쓴 글이 빠진 파일이 나가면
     // 안 된다. 그래서 버리지 않고 **알린 뒤 있는 값으로 내보낸다.**
+    //
+    // **내보낼 파일은 `flush()` 전에 쥔다.** 받은 마크다운은 지금 열린 프로젝트의 것이라,
+    // 저장을 기다리는 사이 프로젝트가 바뀌면 다시 읽은 파일에 남의 글이 실린다. `write()`는
+    // 파일을 읽기만 하므로 먼저 쥐어도 같은 내용이다. `autosave.spec.ts`의
+    // "저장을 기다리는 사이 프로젝트가 바뀌어도 쥔 프로젝트를 내보낸다"가 문다.
+    const current = file.value
+    if (current === null) return []
+    const ours = claim()
     try {
       await flush()
     } catch (error) {
       useToastStore().pushError(error)
     }
-    const current = file.value
-    if (current === null) return []
 
     const { blob, dropped } = await writeProject(current, portfolioMarkdown)
     downloadBlob(blob, projectFileName(current.document.manifest))
@@ -395,7 +401,8 @@ export const useProjectStore = defineStore('project', () => {
     const at = new Date().toISOString()
     try {
       await markExported(current.document.manifest.projectId, at)
-      exportedAt.value = at
+      // 화면의 "내보낸 시각"은 지금 열린 프로젝트의 것이다 — 바뀌었으면 남의 줄에 앉히지 않는다.
+      if (ours()) exportedAt.value = at
     } catch (error) {
       useToastStore().pushError(error)
     }

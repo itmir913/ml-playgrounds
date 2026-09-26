@@ -63,14 +63,18 @@ export function folderFor(label: string): string {
  *
  * **던지지 않고 갈라 준다.** 내보내기는 무조건 성공해야 하는 자리라(교사가 여기서 막히면
  * 할 수 있는 일이 없다), 뒤엣것에 번호를 붙여 서로 다른 폴더로 만든다.
+ *
+ * **겹침은 대소문자를 안 가리고 센다.** 교사가 푸는 윈도 탐색기는 `Kim`과 `kim`을 한 폴더로
+ * 합친다 — 대소문자를 가리면 zip 안에서는 둘이어도 풀면 하나가 된다. `portfolio-bundle.spec.ts`의
+ * "대소문자만 다른 이름도 가른다"가 문다.
  */
 export function folderNames(labels: readonly string[]): string[] {
   const used = new Set<string>()
   return labels.map((label) => {
     const base = folderFor(label)
     let name = base
-    for (let index = 2; used.has(name); index += 1) name = `${base} (${index})`
-    used.add(name)
+    for (let index = 2; used.has(name.toLowerCase()); index += 1) name = `${base} (${index})`
+    used.add(name.toLowerCase())
     return name
   })
 }
