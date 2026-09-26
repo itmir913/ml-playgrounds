@@ -68,7 +68,7 @@ export function formatPercent(locale: string, ratio: number, digits = 1): string
  * 지표 하나. **자릿수를 여기서 줄인다** — 계산은 반올림하지 않고 그대로 저장한다
  * (`ml/metrics.ts`의 머리말).
  *
- * 소수는 셋째 자리까지다. 교실에서 견주는 데 그 이상은 필요 없고, 자릿수가 들쭉날쭉하면
+ * 소수 자릿수는 `METRIC_FRACTION_DIGITS`(`limits.ts`)가 정한다. 교실에서 견주는 데 그 이상은 필요 없고, 자릿수가 들쭉날쭉하면
  * 표에서 눈이 소수점을 못 따라간다 — `tabular-nums`가 자릿수를 맞춰 주는 것도 자릿수가
  * 같을 때 얘기다.
  */
@@ -90,7 +90,7 @@ export function formatMetric(locale: string, value: number, format: 'percent' | 
  * 예측값은 **학생의 데이터 단위**다. 집값이면 수백만이고 농도면 0.0001이라, 소수 셋으로
  * 자르면 한쪽은 뒤가 잘리고 다른 쪽은 0만 남는다.
  *
- * 유효숫자 12자리로 한 번 걷어내고 나머지는 그대로 둔다. 부동소수의 잡음은 마지막
+ * 유효숫자 `FLOAT_NOISE_PRECISION`(`limits.ts`)으로 한 번 걷어내고 나머지는 그대로 둔다. 부동소수의 잡음은 마지막
  * 자리들에만 있으므로 이 한 번으로 사라지고, **사람이 넣은 값에서 나온 자릿수는 남는다.**
  */
 export function formatPrediction(locale: string, value: number): string {
@@ -103,7 +103,7 @@ export function formatPrediction(locale: string, value: number): string {
 /**
  * 데이터에서 **계산해 낸 통계**. 평균·표준편차·중앙값·스케일링 기준이 여기로 온다.
  *
- * **유효숫자 넷에서 자른다.** 평균은 나눗셈의 결과라 원래 데이터에 없던 자릿수가
+ * **유효숫자 `STAT_SIGNIFICANT_DIGITS`(`limits.ts`)에서 자른다.** 평균은 나눗셈의 결과라 원래 데이터에 없던 자릿수가
  * 딸려 온다 — 소수 한 자리로 적힌 열의 평균이 `76.9166666667`로 뜬다. **데이터가 갖지
  * 않은 정밀도를 화면이 지어내는 것**이고, 그 자릿수로 학생이 할 수 있는 일도 없다.
  *
@@ -111,8 +111,8 @@ export function formatPrediction(locale: string, value: number): string {
  * 데이터 단위라, 집값이면 수백만이고 농도면 0.0001이다. 소수 자릿수를 고정하면 한쪽은
  * 뒤가 잘리고 다른 쪽은 0만 남는다.
  *
- * 넷인 것은 지표를 소수 셋으로 자른 것과 같은 눈금이다(`formatMetric`) — 0~1 지표에서
- * 소수 셋이 곧 유효숫자 서넛이다. 교실에서 견주는 데는 그 이상이 필요 없다.
+ * 그 값은 지표를 자른 소수 자릿수와 같은 눈금으로 골랐다(`formatMetric`) — 0~1 지표에서는
+ * 소수 자릿수가 곧 유효숫자와 비슷하다. 교실에서 견주는 데는 그 이상이 필요 없다.
  *
  * **모델의 답에는 쓰지 마라.** 그건 계산해 낸 통계가 아니라 그 모델이 내놓은 값이고,
  * 우리가 자를 자리가 아니다(`formatPrediction`).
@@ -133,7 +133,7 @@ export function formatStat(locale: string, value: number): string {
  * 그 카드가 존재하는 이유가 "무엇이 어떻게 바뀌는지"인데 안 바뀐 것을 바뀐 것으로
  * 보여주게 된다 (2026-08-29 화면 실측 B-2).
  *
- * 유효숫자 12로 한 번 걷는 것은 `formatPrediction`과 같다 — 부동소수의 잡음만 사라진다.
+ * `FLOAT_NOISE_PRECISION`으로 한 번 걷는 것은 `formatPrediction`과 같다 — 부동소수의 잡음만 사라진다.
  */
 export function formatRawCell(value: number): string {
   if (!Number.isFinite(value)) return String(value)

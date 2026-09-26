@@ -156,6 +156,11 @@ describe('폴더 이름은 서로 다르다', () => {
     expect(folderNames(['1반/Kim.mlpx', '1반/kim.mlpx'])).toEqual(['1반/Kim', '1반/kim (2)'])
   })
 
+  /** 윈도는 대문자 표로 견준다 — 소문자로 견주면 `σ`·`ς`가 둘로 남아 풀 때 한 폴더가 된다. */
+  it('대문자로 같아지는 이름도 가른다', () => {
+    expect(folderNames(['σ.mlpx', 'ς.mlpx'])).toEqual(['σ', 'ς (2)'])
+  })
+
   it('안 겹치면 그대로 둔다', () => {
     expect(folderNames(['1반/홍길동.mlpx', '1반/김철수.mlpx'])).toEqual([
       '1반/홍길동',

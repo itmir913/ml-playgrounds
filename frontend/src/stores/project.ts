@@ -407,6 +407,7 @@ export const useProjectStore = defineStore('project', () => {
       await markExported(exportedId, at)
       // 화면의 "내보낸 시각"은 지금 열린 프로젝트의 것이다 — 바뀌었으면 남의 줄에 앉히지 않는다.
       // 열기 세대(`claim`)가 아니라 id로 본다: A→B→A로 다시 열었으면 이 시각이 A의 것이 맞다.
+      // 그 경합은 `open()`과 이 함수가 끝나는 차례에 달려 검사로 고정하지 못했다(사람 확인).
       if (projectId.value === exportedId) exportedAt.value = at
     } catch (error) {
       useToastStore().pushError(error)
