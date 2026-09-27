@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest'
  * `CLAUDE.md`의 줄 수 상한. 경량화를 마친 줄 수 그대로다.
  * **늘려야 하면 이 값을 고친다** — 그래서 늘어난 것이 diff에 드러난다.
  */
-export const CLAUDE_MD_MAX_LINES = 141
+export const CLAUDE_MD_MAX_LINES = 143
 
 /** 규칙 문서에 둘 수 없는 날짜 모양. 날짜는 판례가 갖는다. */
 export const DATE = /\b\d{4}-\d{2}-\d{2}\b/
