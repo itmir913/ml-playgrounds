@@ -37,8 +37,8 @@ const RETIRED = ['평가 데이터', '평가셋', '학습셋', '훈련셋', '학
  */
 const QUOTED = ['옛 이름', '에서 `테스트 데이터`로 바뀌었다']
 
-/** 이 파일 자체와, 그 낱말이 왜 물러났는지를 적어 둔 문서. */
-const EXEMPT = ['frontend/tests/terms.spec.ts', 'docs/copy.md']
+/** 이 파일 자체와, 그 낱말이 왜 물러났는지를 적어 둔 판례 (`docs/workflow.md` §8). */
+const EXEMPT = ['frontend/tests/terms.spec.ts', 'docs/cases/copy.md']
 
 const ROOT = join(process.cwd(), '..')
 
