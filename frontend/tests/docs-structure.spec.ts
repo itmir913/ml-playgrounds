@@ -17,8 +17,8 @@ import { describe, expect, it } from 'vitest'
 const DOCS = join(process.cwd(), '..', 'docs')
 const CASES = join(DOCS, 'cases')
 
-/** 판례 짝이 없는 문서 — 문서가 아니라 기록 보관소다. */
-const NOT_RULE_DOCS = new Set<string>()
+/** 판례 짝이 없는 문서 — 규칙이 아니라 소개다(`info.md`). */
+const NOT_RULE_DOCS = new Set<string>(['info.md'])
 
 /** 결정문 상태로 허락된 두 표기. */
 export const STATUSES = ['**[미정]**', '**[결정]**'] as const
