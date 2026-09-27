@@ -436,3 +436,36 @@ describe('학생이 넣은 점', () => {
     expect(POINT_SHAPES).not.toContain(point.pointStyle)
   })
 })
+
+/** **`parsing: false`는 x로 정렬돼 있다는 약속이다** (`data/chart-points.ts`). */
+describe('점의 차례', () => {
+  it('군집 점을 x 오름차순으로 넘긴다', () => {
+    const points = [
+      { row: 0, cluster: 0, values: [88, 0] },
+      { row: 1, cluster: 0, values: [60, 1] },
+      { row: 2, cluster: 0, values: [99, 2] },
+    ]
+    const data = clusterChartData(
+      { points, drawn: points.length, total: points.length },
+      summaries(1),
+      { x: 0, y: 1 },
+      TOKENS,
+      TEXT,
+    )
+    const drawn = data.datasets[0]?.data as { x: number }[]
+    expect(drawn.map((point) => point.x)).toEqual([60, 88, 99])
+  })
+
+  /** 중심점의 테두리 색은 자리 번호로 요약을 따라간다 — 좌표만 정렬하면 색이 남의 군집으로 간다. */
+  it('중심점을 정렬해도 색이 제 군집을 따라간다', () => {
+    const reversed = summaries(3).map((summary) => ({
+      ...summary,
+      centroid: [10 - summary.cluster, 0],
+    }))
+    const data = clusterChartData(scatter(3), reversed, { x: 0, y: 1 }, TOKENS, TEXT)
+    const colored = data.datasets[4]
+    const xs = (colored?.data as { x: number }[]).map((point) => point.x)
+    expect(xs).toEqual([8, 9, 10])
+    expect(colored?.pointBorderColor).toEqual([2, 1, 0].map((c) => clusterColor(TOKENS, c)))
+  })
+})

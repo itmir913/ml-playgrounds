@@ -629,3 +629,22 @@ describe('산점도는 파싱을 건너뛴다', () => {
     expect(drawn).toEqual([{ x: 1, y: 2 }])
   })
 })
+
+/**
+ * **`parsing: false`는 x로 정렬돼 있다는 약속이다** (`data/chart-points.ts`). Chart.js가
+ * x축 범위를 갈래마다 첫 점과 끝 점에서만 잡으므로, 행 순서 그대로면 그 밖의 점이 사라진다.
+ */
+describe('산점도 점의 차례', () => {
+  it('점을 x 오름차순으로 넘긴다', () => {
+    const points = [
+      { row: 0, x: 88, y: 0 },
+      { row: 1, x: 60, y: 1 },
+      { row: 2, x: 99, y: 1 },
+      { row: 3, x: 91, y: 0 },
+    ]
+    const drawn = scatterData([{ name: '데이터', points }], PAINT).datasets[0]?.data as {
+      x: number
+    }[]
+    expect(drawn.map((point) => point.x)).toEqual([60, 88, 91, 99])
+  })
+})

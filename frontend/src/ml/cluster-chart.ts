@@ -17,6 +17,7 @@
  */
 
 import { categoryScale as sharedCategoryScale, placed } from '@/data/category-axis'
+import { sortedByX } from '@/data/chart-points'
 
 import type { ChartData, ChartOptions, PointStyle } from 'chart.js'
 
@@ -231,12 +232,15 @@ export function clusterChartData(
 
   const clusters = summaries.map((summary) => ({
     label: text.clusterName(summary.cluster),
-    data: scatter.points
-      .filter((point) => point.cluster === summary.cluster)
-      .map((point) => ({
-        x: placed(point.values[axis.x] ?? 0, point.row, scales.x),
-        y: placed(point.values[axis.y] ?? 0, point.row, scales.y),
-      })),
+    // **x로 정렬해 넘긴다** — `parsing: false`의 약속이다 (`data/chart-points.ts`).
+    data: sortedByX(
+      scatter.points
+        .filter((point) => point.cluster === summary.cluster)
+        .map((point) => ({
+          x: placed(point.values[axis.x] ?? 0, point.row, scales.x),
+          y: placed(point.values[axis.y] ?? 0, point.row, scales.y),
+        })),
+    ),
     pointBackgroundColor: clusterColor(tokens, summary.cluster),
     /**
      * **획을 안 긋는다** (2026-09-22에 재서 뺐다, `data/chart-config.ts`의 같은 자리).
@@ -257,15 +261,24 @@ export function clusterChartData(
     order: DRAW_ORDER.points,
   }))
 
-  const centers = summaries.map((summary) => ({
-    x: summary.centroid[axis.x] ?? 0,
-    y: summary.centroid[axis.y] ?? 0,
-  }))
+  /**
+   * 중심점도 x로 정렬한다 (`data/chart-points.ts`). **요약과 짝지어 정렬한다** — 중심점의
+   * 테두리 색은 자리 번호로 요약을 따라가므로, 좌표만 정렬하면 색이 남의 군집으로 간다.
+   */
+  const centroids = sortedByX(
+    summaries.map((summary) => ({
+      x: summary.centroid[axis.x] ?? 0,
+      y: summary.centroid[axis.y] ?? 0,
+      summary,
+    })),
+  )
+  const centers = centroids.map(({ x, y }) => ({ x, y }))
+  const centerSummaries = centroids.map((one) => one.summary)
 
   return {
     datasets: [
       ...clusters,
-      ...(drawsCentroid ? centroidLayers(centers, summaries, tokens, text.centroid) : []),
+      ...(drawsCentroid ? centroidLayers(centers, centerSummaries, tokens, text.centroid) : []),
       // **맨 위이고, 맨 뒤다** (#28-7). 위에 그려져야 점에 안 묻히고, 배열 끝이어야
       // 흰 테두리의 자리(`haloIndex`)가 안 밀린다.
       ...(highlight

@@ -13,6 +13,7 @@
 import type { ChartData, ChartOptions, Plugin } from 'chart.js'
 
 import { axisCellOf, categoryScale, placed, type AxisCell } from './category-axis'
+import { sortedByX } from './chart-points'
 import { CHART_COLORS, INK_ORDER } from '@/palette'
 import { categoryOrder } from '@/ml/preprocess'
 
@@ -588,10 +589,12 @@ export function scatterData(
        * **범주 축이면 칸 안에서 흩뿌린다** (`data/category-axis.ts`). 안 흩뿌리면
        * 한 칸의 점 수천 개가 **한 점으로 겹쳐** 몇 개인지 알 수 없다.
        */
-      data: one.points.map((point) => ({
-        x: placed(point.x, point.row, scales.x),
-        y: placed(point.y, point.row, scales.y),
-      })),
+      data: sortedByX(
+        one.points.map((point) => ({
+          x: placed(point.x, point.row, scales.x),
+          y: placed(point.y, point.row, scales.y),
+        })),
+      ),
       backgroundColor: seriesColor(paint, index),
       /**
        * **획을 안 긋는다** (2026-09-22에 재서 뺐다). 테두리 색이 **배경과 같은 색**이라
