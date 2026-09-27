@@ -687,13 +687,39 @@ function trainGate(input: { taskType: TaskType | undefined; chosen: readonly { a
 |---|---|---|
 | **낱말** | 기본 부품 밖의 `src/`에 잠금 낱말(`disabled`·`readonly`·`inert`·`pointer-events`·`not-allowed`·`tabindex`·`setAttribute`, 템플릿의 `v-bind:[…]`)이 **보이기만 하면** 운다. 표기·대소문자·이스케이프·엔티티를 가리지 않는다 | `src/locks.ts`의 `LOCK_WORDS`·`LOCK_PRIMITIVES`, `ui-rules.spec.ts`의 *"잠금 낱말은 기본 부품에만 있다"* |
 | **잠금 값** | 기본 부품은 잠금을 `Lock`으로만 받고, `Lock`은 `src/locks.ts`만 낸다 — 등록된 판정 함수를 **그 파일이 스스로 불러서**(`lockFor`·`useGate`) 또는 작업 상태에서(`issueBusyLock`, `useWork`만 부른다). 흉내 낸 값(`as`)은 부품이 읽는 순간 던진다 | `src/locks.ts`의 `ISSUED`·`lockReasons`, `locks.spec.ts` |
-| **실행 중의 DOM** | 검사가 띄운 화면에서 잠금 속성·클래스·스타일이 **기본 부품 밖의 부품이 그린 요소에** 서면 그 검사가 실패한다 — 글자에 안 남는 이름(`'dis' + 'abled'`)도 여기서 걸린다 | `tests/setup/lock-net.ts` |
-| **감시자 안의 쓰기** | 감시자 콜백 안에서 프로젝트를 쓰거나(`save`·`update`·`file`) 잠그는 일을 시작하면(`useWork().start()`) **실행 중에 던진다.** 예외는 `WATCH_WRITES`에 적힌 이름뿐이다 | `stores/project.ts`의 `refuseWatcherWrite`, `composables/useWork.ts`의 `start`, `watch-writes.spec.ts` |
+| **실행 중의 DOM** | 검사가 띄운 화면에서 잠금 속성·클래스·스타일이 **기본 부품 밖의 부품이 그린 요소에** 서면 그 검사가 실패한다 — 글자에 안 남는 이름(`'dis' + 'abled'`)도 여기서 걸린다. **쓰는 길을 세지 않는다** — `MutationObserver`가 속성·자식의 변화를 전부 받고, 검사 끝에 그 화면을 한 번 더 통째로 훑는다. 기본 부품이 **넘겨받은** 잠금 속성과 건네지 못한 속성도 운다 | `tests/setup/lock-net.ts`, `lock-net.spec.ts` |
+| **감시자·화면이 뜨는 동안의 쓰기** | 감시자 콜백 안이나 부품이 뜨고 고쳐 그려지는 동안(`setup`·수명주기 훅·그리기) 프로젝트를 쓰거나(`save`·`update`·`file`) 잠그는 일을 시작하면(`useWork().start()`) **실행 중에 던진다.** 예외는 `WATCH_WRITES`에 **제 파일과 함께** 적힌 이름뿐이다 | `locks.ts`의 `appWriteSite`, `stores/project.ts`의 `refuseWatcherWrite`, `composables/useWork.ts`의 `start`, `watch-writes.spec.ts` |
 
 **동작의 거절도 같은 칸을 부른다** (`refusalFor`·`useGate().refuse`). [학습하기]·[담기]·[대조 시작]·
-사진 [예측하기]·[만들기]·범주 이름의 [확정]은 잠금을 건너 불려도 같은 판정으로 이유를 말한다 — 잠금과
-거절이 한 함수의 한 결과라 **구조적으로 갈릴 수 없다**, 그리고 잠금이 나중에 빠져도 동작이 조용해지지
-않는다(§10.6 *"결함은 조용한 실패뿐"*).
+사진과 표의 [예측하기]·[만들기]·범주 이름의 [확정]·히스토그램 [적용]·[일부 추출]·차트 도구·쪽 넘기기는
+잠금을 건너 불려도 같은 판정으로 이유를 말하거나 멈춘다 — 잠금과 거절이 한 함수의 한 결과라 **구조적으로
+갈릴 수 없다**, 그리고 잠금이 나중에 빠져도 동작이 조용해지지 않는다(§10.6 *"결함은 조용한 실패뿐"*).
+주소창·뒤로 가기로 잠긴 단계에 가면 라우터가 레일과 같은 칸(`step`)으로 **이유를 알리고** 갈 수 있는
+곳으로 옮긴다 — 말없이 옮기지 않는다.
+
+**구조 뒤 감사에서 더한 것 (2026-09-27, 결정문 65).** 두 감사가 구조 구현을 봤다 — 낱말 검사는
+단단했고 **낱말이 글자에 안 남는 길**을 맡은 층이 뚫렸다. 그래서:
+
+- **등록부는 자기 속성만 판정으로 부른다** — `refusalFor('constructor' as never, …)`가 `Object`를 불러
+  잠금을 발급받던 길이 `LOCK_GATE_UNKNOWN`으로 선다.
+- **감시자 쓰기의 이름은 파일에 묶인다** — `WATCH_WRITES`의 항목이 `{ file, why }`이고, 그 이름의
+  문자열이 제 파일 밖의 `src/`에 나오면 `ui-rules.spec.ts`가 문법 트리로 센다. 새 자리는 새 이름으로 온다.
+- **기본 부품은 넘겨받은 속성을 뿌리에 흘리지 않는다** (`inheritAttrs: false`, `forwardAttrs`). 흘리면
+  화면이 `h(AppButton, { ['dis' + 'abled']: true })`처럼 **부품의 이름으로** 잠갔고, 그물은 요소를 그린
+  부품(기본 부품)을 보고 통과시켰다. 허락 목록(`FORWARDED_ATTRS`)은 `locks.ts`에 있다. 슬롯이 낙타 표기로
+  건네는 접근성 속성(`ariaDescribedby`)은 건넬 때 `aria-describedby`로 되돌린다 — 그대로 붙이면 뜻 없는
+  속성이 선다(이 그물이 처음 잡았다).
+- **기본 부품은 자격을 갖춘다** — `components/App*.vue`이고, 잠그는 부품은 `defineProps`가 `Lock`을
+  받는다(`takesLock`). 그물은 부품을 **전체 경로**로 견준다.
+- **`locks.ts`를 `export *`로 이어 주지 않고**, 무엇이든 다시 내보내는 모듈은 네임스페이스·동적
+  `import`로 들이지 않는다 — 이름이 글자에 안 남는 옆길이다.
+- CSS 이스케이프(`pointer-ev\65nts`)를 풀어서 센다. 변종 클래스(`md:`·`!`)도 잠금 모양이다.
+- **잠금을 더 뺐다** — [만들기]·범주 이름 [확정](누르면 창 안 문장), 사진 [예측하기]·[담기]·히스토그램
+  [적용], [대조 시작]의 파일 사정 다섯. [대조 시작]의 잠금은 "다른 실험을 대조 중" 하나다(`reproduceComparing`
+  — 거절 판정의 일부 `comparingBlockers`를 부른다). [학습하기]의 두 이유와 모델·실행 방법 카드는 남는다.
+- **거절 알림은 다음에 할 일까지 한 문장으로 말한다** — 사유만 말하던 넷(`train.nothingToTrain`·
+  `predict.filterEmptyReason`·`predict.image.emptyReason`·`inspect.blocked.COMPARING_OTHER`)은 화면 자리에
+  그대로 두고, 알림은 합친 문장(`…Refused`)을 쓴다.
 
 **기본 부품**은 `LOCK_PRIMITIVES`가 이유와 함께 적는다 — `AppButton`·`AppChoices`·`AppPlainButton`
 (도구 격자·쪽 넘기기·순서 옮기기·레일 칸·필터 칩)·`AppInput`(체크박스·라디오·숫자·글자 칸,
@@ -717,11 +743,16 @@ function trainGate(input: { taskType: TaskType | undefined; chosen: readonly { a
 
 **감시자 가드가 닿는 범위는 재서 적었다** (`watch-writes.spec.ts`, Vue 3.5). Vue가 콜백을 도는 동안
 세우는 표지(`getCurrentWatcher`)를 보므로 **콜백의 동기 구간**(흐름 `pre`·`post`·`sync`, `watchEffect`의
-몸, 그 안에서 동기로 부른 함수)은 막는다. **`await` 뒤, `queueMicrotask`·`setTimeout`·`nextTick().then`으로
-미룬 쓰기, `computed` 안의 쓰기, 파일 객체를 제자리에서 고치는 것은 못 막는다** — Vue는 콜백이
-돌아오는 순간 표지를 내리고, 뒤로 미룬 일은 감시자에서 왔다는 것을 아무것도 모른다. 등록된 자리는
-둘이다 — 사진 예측의 쪽 넘기기(`predictPage`)와 일괄 예측의 쪽 다시 계산(`batchPage`), 둘 다 작업을
-시작할 뿐 프로젝트를 동기로 쓰지 않는다.
+몸, 그 안에서 동기로 부른 함수)은 막는다. **화면이 뜨는 동안도 같다** — 부품을 세우거나 고쳐 그리는
+동안 Vue가 세우는 표지(`getCurrentInstance`)를 보므로 `setup` 몸, 수명주기 훅 여섯(`onBeforeMount`·
+`onMounted`·`onBeforeUpdate`·`onUpdated`·`onBeforeUnmount`·`onUnmounted`)과 그리기 함수, 그리기 중에
+처음 계산되는 `computed`의 쓰기를 막는다. 관문의 jsdom 스펙 114개를 이 가드와 함께 돌려 **걸린 앱
+코드가 없었다**(2026-09-27). **`await` 뒤, `queueMicrotask`·`setTimeout`·`nextTick().then`으로
+미룬 쓰기, 그리기 밖에서 계산되는 `computed` 안의 쓰기, 파일 객체를 제자리에서 고치는 것, 사용자
+지시자의 훅은 못 막는다** — Vue는 콜백이 돌아오는 순간 표지를 내리고, 뒤로 미룬 일은 어디서 왔는지
+아무것도 모른다. **이벤트 리스너와 라우터 가드는 일부러 안 본다** — 학생의 동작이다. 등록된 자리는
+둘이다 — 사진 예측의 쪽 넘기기(`predictPage`, `ImagePredictPanel.vue`)와 일괄 예측의 쪽 다시
+계산(`batchPage`, `BatchPredict.vue`), 둘 다 작업을 시작할 뿐 프로젝트를 동기로 쓰지 않는다.
 
 **못 보는 것** (`docs/rule-coverage.md`의 그 줄).
 
@@ -732,8 +763,10 @@ function trainGate(input: { taskType: TaskType | undefined; chosen: readonly { a
   결정문 60의 방향이다.
 - 잠긴 **모양만** 흉내 낸 것(흐린 글자에 핸들러 없는 `<span>`, `v-if`로 단추를 감추기)은 잠금 낱말도
   잠금 속성도 없어 못 본다.
-- 실행 중의 DOM 그물은 **검사가 그린 상태만** 본다. Vue 밖에서 손으로 만든 요소와 스타일시트의 규칙(jsdom은
-  CSS를 적용하지 않는다)도 못 본다 — 스타일시트는 낱말 검사가 본다.
+- 실행 중의 DOM 그물은 **검사가 그린 상태만** 본다. 기본 부품의 요소에 **밖에서** 쓴 것(`ref`로 부품의
+  `$el`을 얻어 속성을 쓰면 주인은 부품이다), 관찰 사이에 섰다 걷힌 잠금, 어느 가상 노드 아래에도 안 붙인
+  요소, 스타일시트의 규칙(jsdom은 CSS를 적용하지 않는다)도 못 본다 — 스타일시트는 낱말 검사가 본다.
+- 감시자 쓰기의 이름을 **실행 중에 조립하고 캐스트로 넘기면** 파일 묶기 검사가 못 본다(문자열 리터럴을 센다).
 - 감시자 가드의 사각은 위 문단이다.
 
 **§10.3의 `:disabled` 조합 규칙은 이것으로 대체됐다.** 부품 밖에서는 `:disabled`라는 글자 자체가 설 수
