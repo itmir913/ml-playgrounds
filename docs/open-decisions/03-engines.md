@@ -5,11 +5,11 @@
 > **통독하지 마라.** 다른 문서나 코드가 제목으로 가리킬 때 그 항목만 편다.
 > **제목은 주소다 — 한 번 적은 제목을 바꾸지 마라.**
 
-> **상태와 요지만 적는다.** 결정문마다 `[미정|결정됨|구현됨]` 한 줄과 요지 두 줄 이하만 두고, 무엇을 재고 무엇을 기각했는지는 같은 제목 아래 `docs/cases/open-decisions.md`에 있다.
+> **상태와 요지만 적는다.** 결정문마다 `[미정]`·`[결정]` 한 줄과 요지 두 줄 이하만 두고, 무엇을 재고 무엇을 기각했는지는 같은 제목 아래 `docs/cases/open-decisions.md`에 있다.
 
 ### 7. 저장소가 지워지는 것을 어떻게 막나 (2026-08-12)
 
-**[결정됨]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
 **물어야 할 것이 할당량이 아니었다.** 원래 제목이 "IndexedDB 할당량 정책"이었는데,
 정작 §1.2("브라우저가 저장소다")를 약하게 만드는 것은 공간이 모자란 것이 아니라 …
 
@@ -29,7 +29,7 @@
 
 ### 19. 모델 크기 예산의 실제 값 — **결정됨: 표 데이터 범위에서는 지금 값 유지 (2026-08-12). V4 이미지에서 다시 연다**
 
-**[결정됨]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
 `MAX_MODEL_BYTES`(모델 하나)와 `MODEL_BUDGET_BYTES`(한 파일 합계)는 잠정값이다
 (`frontend/src/limits.ts`). `BROWSER_ROW_LIMIT`과 같은 처지인데 그쪽(#13)만 항목이 있었다.
 
@@ -52,7 +52,7 @@
 
 ### 22. 행 랜덤 샘플링 — 행 수로 주고, 층화는 분할을 따라간다 (2026-08-11)
 
-**[결정됨]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
 **어떤 모델은 행이 많으면 교실에서 못 쓴다.** 랜덤포레스트 100그루는 1600행에서 39초,
 5000행에서 약 7분이다(#19). 그래서 등록부가 알고리즘마다 행 상한을 갖고 …
 
@@ -77,13 +77,13 @@
 
 ### 27. 다중 타깃(multi-output)을 받을 것인가 — **결정됨: V1~V2 범위에서 안 한다 (V2 감사 3단계, 2026-08-11)**
 
-**[결정됨]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
 **타깃은 스키마 처음부터 끝까지 단일 문자열이다** — `settings.target`이
 `userString.optional()`(`frontend/src/project/schema.ts`), `targetValues`가 `string[]` …
 
 ### 26. SMO의 정지 조건을 KKT 위반 기준으로 바꿀 것인가 — KKT 기준으로 바꾼다 (V3, 2026-08-11)
 
-**[결정됨]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
 **KKT 위반 기준으로 바꾸고, `svm-smo.ts`를 우리 구현으로 선언한다.**
 
 #### 26-1. 정체 종료는 이 솔버의 수렴이다 (V3 감사, 2026-08-11)
@@ -93,7 +93,7 @@
 
 ### 28. 군집 결과를 어떻게 보여주는가 (V3, 2026-08-11)
 
-**[결정됨]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
 **군집은 그림으로 봐야 뜻이 생기는 유일한 유형이다** (`roadmap.md`). 표로 "이 행은
 2번 군집"이라고만 쓰면 학생은 아무것도 못 본다.
 
@@ -139,25 +139,25 @@ x축·y축 순서로 나란히 두고, 좁은 화면에서는 세로로 쌓는�
 
 ### 29. 군집의 Evaluator 시그니처 — **결정됨 (V3, 2026-08-11)**
 
-**[결정됨]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
 분류·회귀의 `Evaluator`는 `(actual, predicted) => Evaluation`이다. 군집은 정답이
 없으므로 같은 시그니처를 쓸 수 없다 — `actual`에 빈 배열을 넣는 꼼수를 쓰면 …
 
 ### 군집화(K-Means)의 핵심 결정 넷 (V3, 2026-08-11)
 
-**[결정됨]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
 **1) K-Means 엔진은 직접 구현한다.** 의존성(`ml-kmeans`)을 쓰지 않는다. K-Means
 알고리즘은 단순하다 — 초기화(K-Means++) + Lloyd 반복이 핵심이고 50줄 이내다. …
 
 ### sklearn 대조 픽스처가 CI 관문에 들어간다 (2026-08-10)
 
-**[결정됨]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
 **"저장했다 읽으면 같은 예측"만으로는 찍기보다 못한 모델도 충실하게 왕복한다.** 순수 JS
 엔진의 결함이 세 번 다 지표 대조가 아니라 sklearn 대조에서 잡혔는데 …
 
 ### 로지스틱 회귀 솔버를 sklearn과 같은 구조로 바꾼다 (2026-08-10, 1단계-B)
 
-**[결정됨]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
 **아래 "내부 표준화" 결정을 대체한다.** 그 수정으로 정확도는 sklearn 수준이 됐지만
 검토(1단계-B)에서 남은 문제 셋이 **하나의 원인**으로 판정됐다 — 규제가 없으면 분리 …
 
@@ -168,6 +168,6 @@ x축·y축 순서로 나란히 두고, 좁은 화면에서는 세로로 쌓는�
 
 ### ~~로지스틱 회귀는 엔진 안에서 표준화하고 절편을 학습한다~~ (2026-08-10, 위 결정으로 대체됨)
 
-**[결정됨]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
 **원좌표 경사하강은 교실 데이터에서 기준선 이하였다.** `ml-logistic-regression`은
 규제도 절편도 없는 고정 학습률 경사하강이고, 이 조합은 **값의 높낮이로 갈리는 데이터** …
