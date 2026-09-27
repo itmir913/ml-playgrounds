@@ -685,7 +685,7 @@ function trainGate(input: { taskType: TaskType | undefined; chosen: readonly { a
 
 | 층 | 무엇을 막는가 | 어디서 |
 |---|---|---|
-| **낱말** | 기본 부품 밖의 `src/`에 잠금 낱말(`disabled`·`readonly`·`inert`·`pointer-events`·`not-allowed`·`tabindex`·`setAttribute`, 템플릿의 `v-bind:[…]`)이 **보이기만 하면** 운다. 표기·대소문자·이스케이프·엔티티를 가리지 않는다 | `src/locks.ts`의 `LOCK_WORDS`·`LOCK_PRIMITIVES`, `ui-rules.spec.ts`의 *"잠금 낱말은 기본 부품에만 있다"* |
+| **낱말** | 기본 부품 밖의 `src/`에 잠금 낱말(`disabled`·`readonly`·`inert`·`pointer-events`·`not-allowed`·`tabindex`·`setAttribute`, 템플릿의 `v-bind:[…]`·`v-once`·`v-memo`)이 **보이기만 하면** 운다. 표기·대소문자·이스케이프·엔티티를 가리지 않는다. 주석은 파서로만 걷는다. `index.html`과 `public/`의 `.css`도 센다 | `src/locks.ts`의 `LOCK_WORDS`·`LOCK_PRIMITIVES`, `ui-rules.spec.ts`의 *"잠금 낱말은 기본 부품에만 있다"* |
 | **잠금 값** | 기본 부품은 잠금을 `Lock`으로만 받고, `Lock`은 `src/locks.ts`만 낸다 — 등록된 판정 함수를 **그 파일이 스스로 불러서**(`lockFor`·`useGate`) 또는 작업 상태에서(`issueBusyLock`, `useWork`만 부른다). 흉내 낸 값(`as`)은 부품이 읽는 순간 던진다 | `src/locks.ts`의 `ISSUED`·`lockReasons`, `locks.spec.ts` |
 | **실행 중의 DOM** | 검사가 띄운 화면에서 잠금 속성·클래스·스타일이 **기본 부품 밖의 부품이 그린 요소에** 서면 그 검사가 실패한다 — 글자에 안 남는 이름(`'dis' + 'abled'`)도 여기서 걸린다. **쓰는 길을 세지 않는다** — `MutationObserver`가 속성·자식의 변화를 전부 받고, 검사 끝에 그 화면을 한 번 더 통째로 훑는다. 기본 부품이 **넘겨받은** 잠금 속성과 건네지 못한 속성도 운다 | `tests/setup/lock-net.ts`, `lock-net.spec.ts` |
 | **감시자·화면이 뜨는 동안의 쓰기** | 감시자 콜백 안이나 부품이 뜨고 고쳐 그려지는 동안(`setup`·수명주기 훅·그리기) 프로젝트를 쓰거나(`save`·`update`·`file`) 잠그는 일을 시작하면(`useWork().start()`) **실행 중에 던진다.** 예외는 `WATCH_WRITES`에 **제 파일과 함께** 적힌 이름뿐이다 | `locks.ts`의 `appWriteSite`, `stores/project.ts`의 `refuseWatcherWrite`, `composables/useWork.ts`의 `start`, `watch-writes.spec.ts` |
@@ -721,6 +721,24 @@ function trainGate(input: { taskType: TaskType | undefined; chosen: readonly { a
   `predict.filterEmptyReason`·`predict.image.emptyReason`·`inspect.blocked.COMPARING_OTHER`)은 화면 자리에
   그대로 두고, 알림은 합친 문장(`…Refused`)을 쓴다.
 
+**0.30.0 배포 승인 감사에서 더한 것 (2026-09-27).** 낱말 검사의 **걷어내는 자리**와 이름 층의 옆길이
+뚫렸다.
+
+- **주석은 파서가 가른다.** 템플릿의 HTML 주석은 SFC 템플릿 문법 트리의 주석 노드 자리로, 스타일의
+  주석은 CSS 파서(`postcss`)로 걷는다 — 정규식은 속성값 `'<!--'`·CSS 문자열 `"/*"`에서 주석을 열어 사이의
+  잠금을 통째로 삼켰다.
+- **`src/` 밖에서 앱과 함께 실리는 글자도 센다** — `index.html`(HTML 파서로 주석을 가른다)과 `public/`의
+  `.css`.
+- **`import.meta`는 `env`·`url`만 읽는다** — `import.meta.glob`은 동적 `import`와 같이 `locks.ts`를 이름
+  없이 들인다.
+- **`WATCH_WRITES`는 `locks.ts` 밖의 `src/`가 이름으로 못 든다**(`RESTRICTED_NAMES`) — 표를 들이면
+  `Object.keys(…)[0]`로 이름을 글자 없이 꺼냈다. 가드는 `isWatchWrite`로 묻는다.
+- **`v-once`·`v-memo`는 기본 부품 밖에서 잠금 낱말이다** — 그 아래 잠금이 첫 상태로 얼어 안 풀린다.
+- **`:action`의 맨 위에 조건을 두지 않는다**(`cond ? fn : undefined`·`cond && fn`·`??`) — 조건이 거짓이면
+  누르면 조용하다.
+- **기본 부품은 `aria-hidden`을 건네지 않는다** — 단추를 스크린리더에서 지우는 것은 그 학생에게 잠금이다.
+- 일괄 예측의 쪽 넘기기도 `turnPage`로 멈춘다(다섯 자리 모두 같은 칸).
+
 **기본 부품**은 `LOCK_PRIMITIVES`가 이유와 함께 적는다 — `AppButton`·`AppChoices`·`AppPlainButton`
 (도구 격자·쪽 넘기기·순서 옮기기·레일 칸·필터 칩)·`AppInput`(체크박스·라디오·숫자·글자 칸,
 `readable`이면 `readonly`)·`AppSelect`(안내 줄은 부품이 잠근다)·`AppLockZone`(`inert` 구역) 그리고
@@ -748,8 +766,8 @@ function trainGate(input: { taskType: TaskType | undefined; chosen: readonly { a
 `onMounted`·`onBeforeUpdate`·`onUpdated`·`onBeforeUnmount`·`onUnmounted`)과 그리기 함수, 그리기 중에
 처음 계산되는 `computed`의 쓰기를 막는다. 관문의 jsdom 스펙 114개를 이 가드와 함께 돌려 **걸린 앱
 코드가 없었다**(2026-09-27). **`await` 뒤, `queueMicrotask`·`setTimeout`·`nextTick().then`으로
-미룬 쓰기, 그리기 밖에서 계산되는 `computed` 안의 쓰기, 파일 객체를 제자리에서 고치는 것, 사용자
-지시자의 훅은 못 막는다** — Vue는 콜백이 돌아오는 순간 표지를 내리고, 뒤로 미룬 일은 어디서 왔는지
+미룬 쓰기, `watch`의 감시 대상 게터(첫 인자) 안의 쓰기, 그리기 밖에서 계산되는 `computed` 안의 쓰기,
+파일 객체를 제자리에서 고치는 것, 사용자 지시자의 훅은 못 막는다** — Vue는 콜백이 돌아오는 순간 표지를 내리고, 뒤로 미룬 일은 어디서 왔는지
 아무것도 모른다. **이벤트 리스너와 라우터 가드는 일부러 안 본다** — 학생의 동작이다. 등록된 자리는
 둘이다 — 사진 예측의 쪽 넘기기(`predictPage`, `ImagePredictPanel.vue`)와 일괄 예측의 쪽 다시
 계산(`batchPage`, `BatchPredict.vue`), 둘 다 작업을 시작할 뿐 프로젝트를 동기로 쓰지 않는다.
@@ -767,7 +785,19 @@ function trainGate(input: { taskType: TaskType | undefined; chosen: readonly { a
   `$el`을 얻어 속성을 쓰면 주인은 부품이다), 관찰 사이에 섰다 걷힌 잠금, 어느 가상 노드 아래에도 안 붙인
   요소, 스타일시트의 규칙(jsdom은 CSS를 적용하지 않는다)도 못 본다 — 스타일시트는 낱말 검사가 본다.
 - 감시자 쓰기의 이름을 **실행 중에 조립하고 캐스트로 넘기면** 파일 묶기 검사가 못 본다(문자열 리터럴을 센다).
-- 감시자 가드의 사각은 위 문단이다.
+- 감시자 가드의 사각은 위 문단이다. 그중 **`watch`의 감시 대상 게터**는 Vue 3.5가 콜백에만 표지를
+  세워서다(`watch-writes.spec.ts`가 초록으로 못 박는다).
+- **낱말 없는 덮개** — `absolute inset-0` 층이 단추 위를 덮으면 누름이 덮개에 간다. 덮개는 위치·크기
+  클래스의 조합이라(`inset-0`·`top-0 left-0 size-full`·`inset-x-0 inset-y-0`…) 낱말 하나로 못 가르고,
+  표기를 세는 그물은 결정문 65가 버린 길이다. jsdom은 배치를 안 해 실행 중 그물도 겹침을 못 본다.
+- **동작 안의 조건과 안 끝나는 동작** — `:action="() => batch?.remove()"`처럼 할 일 **안에서** 조용히
+  끝나는 것, 그리고 끝나지 않는 `action`(단추가 영영 "도는 중"으로 잠긴다)은 식의 맨 위만 보는 검사가
+  못 본다.
+- **되돌리는 핸들러** — `@change`에서 `checked`를 되돌리는 것은 잠금 노릇을 하지만 글자로는 보통의
+  핸들러다.
+- **shadow root 안**은 실행 중 그물이 안 들어간다(관찰자가 그림자 경계를 안 넘는다). 지금 화면에 shadow
+  root는 없다(사람 확인).
+- **`public/legal/`의 HTML**은 앱 밖의 문서라 낱말 검사가 안 본다.
 
 **§10.3의 `:disabled` 조합 규칙은 이것으로 대체됐다.** 부품 밖에서는 `:disabled`라는 글자 자체가 설 수
 없고, 잠금의 조합은 `anyLock`으로만 되며 그 재료는 전부 등록된 잠금이다.
