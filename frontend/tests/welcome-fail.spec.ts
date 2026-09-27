@@ -50,6 +50,9 @@ vi.mock('../src/project/storage', async (importOriginal) => {
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
+/** 파일 하나를 끝까지 여는 데 기다리는 상한. 한 검사의 상한(20초, vite.config.ts)보다 짧아 멈춘 열기는 이름대로 운다. */
+const OPEN_WAIT_MS = 10_000
+
 async function settle(): Promise<void> {
   for (let round = 0; round < 2; round += 1) {
     await flushPromises()
@@ -100,7 +103,11 @@ async function welcome() {
     expect(input.exists()).toBe(true)
     Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
     await input.trigger('change')
-    await settle()
+    // **열기가 끝난 신호를 기다린다.** 정해진 틱 수만 기다리면 부하에서 zip 읽기·해시·저장소가 그 안에 안 끝나
+    // 경로 단언이 먼저 걸렸다(2026-09-27). `openFile`은 동기 구간에서 작업을 세우고 이동까지 마친 뒤 푼다.
+    await vi.waitFor(() => {
+      if (view.busy) throw new Error('still opening')
+    }, OPEN_WAIT_MS)
     await settle()
   }
   return { wrapper, view, openWith }

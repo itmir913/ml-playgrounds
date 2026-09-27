@@ -129,6 +129,15 @@ export default defineConfig({
      * `--no-isolate`(빠르지만 `vi.mock`이 파일 사이로 새어 실행마다 다르게 깨진다).
      */
     maxWorkers: Math.max(1, Math.ceil(availableParallelism() * 0.75)),
+    /**
+     * **한 검사의 시간 상한은 20초다** (2026-09-27). vitest 기본값 5초에서, 하위 에이전트와 다른 세션이 같은
+     * 기기에서 돌던 날 관문이 **시간 초과로만** 열 번 빨갰다(integrity·option-cascade·mljs·ci-language 등,
+     * 따로 돌리면 전부 초록). 기다림이 모자란 것이지 검사가 틀린 것이 아니었다. 정말 멈춘 검사는 20초에도 운다.
+     * 시간 초과가 아닌 **단언 실패**는 이 값으로 가리지 않는다 — 그것은 검사가 끝난 신호 대신 정해진 틱 수를
+     * 기다린 탓이었고, 그 자리를 고쳤다(`predict-invalidation.spec.ts`·`welcome-fail.spec.ts`).
+     */
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
     environment: 'node',
     include: ['tests/**/*.spec.ts', 'src/**/*.spec.ts'],
   },

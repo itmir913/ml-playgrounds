@@ -93,8 +93,11 @@ async function answered(wrapper: VueWrapper): Promise<void> {
   const filled = wrapper.findComponent(InputRow).find('input').element as HTMLInputElement
   expect(filled.value, '[fromData] filled no field').not.toBe('')
   await button(wrapper, 'predict.run').trigger('click')
+  // **단언할 끝 상태를 기다린다** — 답 둘이 찬 뒤에도 카드가 아직 "기다림"을 그리는 틈이 있어, 답의 수만
+  // 기다리면 부하에서 아래 `waiting === 0`이 먼저 걸렸다(2026-09-27, 세 번).
   await vi.waitFor(() => {
     if (panelOf(wrapper).answers.size < 2) throw new Error('answers not in yet')
+    if (waiting(wrapper) !== 0) throw new Error('cards still waiting')
   }, WAIT_MS)
   await flushPromises()
   for (const answer of panelOf(wrapper).answers.values()) {
