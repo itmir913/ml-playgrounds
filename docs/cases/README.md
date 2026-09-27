@@ -23,6 +23,7 @@
 - [copy.md](copy.md) — 화면 문구의 말투와 낱말
 - [terms.md](terms.md) — 용어의 갈림
 - [privacy.md](privacy.md) — 개인정보 방침의 근거
+- [error-codes.md](error-codes.md) — 코드를 왜 나눴는가
 
 ## 정리 진행
 
@@ -34,7 +35,7 @@
 - [x] `copy.md`
 - [x] `terms.md`
 - [x] `privacy.md`
-- [ ] `error-codes.md`
+- [x] `error-codes.md`
 - [ ] `rule-coverage.md`
 - [ ] `mlpx-spec.md`
 - [ ] `roadmap.md`
