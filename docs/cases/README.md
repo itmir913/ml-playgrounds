@@ -27,6 +27,7 @@
 - [rule-coverage.md](rule-coverage.md) — 검사가 선 경위와 감사가 남긴 지도
 - [mlpx-spec.md](mlpx-spec.md) — 포맷 규칙의 이유와 실측
 - [roadmap.md](roadmap.md) — 배포판마다 나간 것과 단계의 경위
+- [architecture.md](architecture.md) — 화면과 구조 규칙의 이유와 실측
 
 ## 정리 진행
 
@@ -42,5 +43,5 @@
 - [x] `rule-coverage.md`
 - [x] `mlpx-spec.md`
 - [x] `roadmap.md`
-- [ ] `architecture.md` — 스포크 01·02·03 끝, 04 남음
+- [x] `architecture.md`
 - [ ] `open-decisions.md`
