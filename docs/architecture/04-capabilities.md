@@ -685,7 +685,7 @@ function trainGate(input: { taskType: TaskType | undefined; chosen: readonly { a
 
 | 층 | 무엇을 막는가 | 어디서 |
 |---|---|---|
-| **낱말** | 기본 부품 밖의 `src/`에 잠금 낱말(`disabled`·`readonly`·`inert`·`pointer-events`·`not-allowed`·`tabindex`·`setAttribute`, 템플릿의 `v-bind:[…]`·`v-once`·`v-memo`)이 **보이기만 하면** 운다. 표기·대소문자·이스케이프·엔티티를 가리지 않는다. 주석은 파서로만 걷는다. `index.html`과 `public/`의 `.css`도 센다 | `src/locks.ts`의 `LOCK_WORDS`·`LOCK_PRIMITIVES`, `ui-rules.spec.ts`의 *"잠금 낱말은 기본 부품에만 있다"* |
+| **낱말** | 기본 부품 밖의 `src/`에 잠금 낱말(`disabled`·`readonly`·`inert`·`pointer-events`·`not-allowed`·`tabindex`·`setAttribute`, 글자를 밖에 두는 스타일시트의 `@import`(쓰는 셋 말고)·`text/css`·`stylesheet`, 템플릿의 `v-bind:[…]`·`v-once`·`v-memo`)이 **보이기만 하면** 운다. 표기·대소문자·이스케이프·엔티티를 가리지 않는다. 주석은 파서로만 걷는다. `index.html`과 `public/`의 `.css`도 센다. SFC 블록의 `src=`와 `index.html`의 허락 목록 밖 `<script>`·`<link>`도 운다 | `src/locks.ts`의 `LOCK_WORDS`·`LOCK_PRIMITIVES`, `ui-rules.spec.ts`의 *"잠금 낱말은 기본 부품에만 있다"* |
 | **잠금 값** | 기본 부품은 잠금을 `Lock`으로만 받고, `Lock`은 `src/locks.ts`만 낸다 — 등록된 판정 함수를 **그 파일이 스스로 불러서**(`lockFor`·`useGate`) 또는 작업 상태에서(`issueBusyLock`, `useWork`만 부른다). 흉내 낸 값(`as`)은 부품이 읽는 순간 던진다 | `src/locks.ts`의 `ISSUED`·`lockReasons`, `locks.spec.ts` |
 | **실행 중의 DOM** | 검사가 띄운 화면에서 잠금 속성·클래스·스타일이 **기본 부품 밖의 부품이 그린 요소에** 서면 그 검사가 실패한다 — 글자에 안 남는 이름(`'dis' + 'abled'`)도 여기서 걸린다. **쓰는 길을 세지 않는다** — `MutationObserver`가 속성·자식의 변화를 전부 받고, 검사 끝에 그 화면을 한 번 더 통째로 훑는다. 기본 부품이 **넘겨받은** 잠금 속성과 건네지 못한 속성도 운다 | `tests/setup/lock-net.ts`, `lock-net.spec.ts` |
 | **감시자·화면이 뜨는 동안의 쓰기** | 감시자 콜백 안이나 부품이 뜨고 고쳐 그려지는 동안(`setup`·수명주기 훅·그리기) 프로젝트를 쓰거나(`save`·`update`·`file`) 잠그는 일을 시작하면(`useWork().start()`) **실행 중에 던진다.** 예외는 `WATCH_WRITES`에 **제 파일과 함께** 적힌 이름뿐이다 | `locks.ts`의 `appWriteSite`, `stores/project.ts`의 `refuseWatcherWrite`, `composables/useWork.ts`의 `start`, `watch-writes.spec.ts` |
@@ -738,6 +738,23 @@ function trainGate(input: { taskType: TaskType | undefined; chosen: readonly { a
   누르면 조용하다.
 - **기본 부품은 `aria-hidden`을 건네지 않는다** — 단추를 스크린리더에서 지우는 것은 그 학생에게 잠금이다.
 - 일괄 예측의 쪽 넘기기도 `turnPage`로 멈춘다(다섯 자리 모두 같은 칸).
+
+**0.30.0 최종 승인 감사에서 더한 것 (2026-09-27).** 검사기가 **못 읽은 것을 빈 것으로 여긴** 자리와 글자를
+파일 밖에 두는 길이 남아 있었다.
+
+- **SFC 파서가 오류를 내면 던진다** — 안 닫힌 `<template>`·`<style>`·`<script>`는 빈 블록으로 돌아와 안의
+  잠금이 통째로 안 보였다. 이 절의 SFC 가르기 다섯이 전부 한 도우미(`sfcOf`)를 지난다.
+- **모듈 지정자의 `?…`·`#…`와 확장자·뿌리 경로(`/src/…`)를 떼고 견준다** — `'@/locks?x'`가 이름 검사와
+  중계 검사를 지나갔다.
+- **`:action`의 조건은 `as`·`satisfies`·`!`·`<T>`로 감싸도 조건이다** — 벗긴 뒤 판정한다.
+- **글자를 파일 밖에 두는 스타일시트를 막는다** — `@import`(Tailwind·글꼴 꾸러미·같은 폴더의 `.css` 말고),
+  `text/css`(base64·퍼센트 인코딩 `data:` URL, `Blob`), `stylesheet`(`<link rel=stylesheet>`·`CSSStyleSheet`).
+- **SFC 블록의 `src=`와 `index.html`의 허락 목록 밖 `<script>`·`<link>`를 막는다** — 인라인 `<script>`도
+  없다. `src/` 아래 `.html`은 템플릿 전용 낱말(`v-once`·`:[…]`)까지 본다.
+- **`lockFor`·`anyLock`은 함수 몸 안에서만 부른다** — `setup`의 맨 위에서 부르면 그때의 재료로 잠금이 굳는다.
+- **기본 부품은 모두에게서 숨기는 것을 건네지 않는다**(코드 소유자) — 클래스 `hidden`·`invisible`·`collapse`
+  (변종·`!` 포함), 스타일 `display: none`·`visibility: hidden`, `type="hidden"`. 숨긴 단추는 잠긴 단추와
+  같다. `aria-hidden`과 같은 모양으로 건네지 않고 그물이 운다.
 
 **기본 부품**은 `LOCK_PRIMITIVES`가 이유와 함께 적는다 — `AppButton`·`AppChoices`·`AppPlainButton`
 (도구 격자·쪽 넘기기·순서 옮기기·레일 칸·필터 칩)·`AppInput`(체크박스·라디오·숫자·글자 칸,
@@ -792,7 +809,13 @@ function trainGate(input: { taskType: TaskType | undefined; chosen: readonly { a
   표기를 세는 그물은 결정문 65가 버린 길이다. jsdom은 배치를 안 해 실행 중 그물도 겹침을 못 본다.
 - **동작 안의 조건과 안 끝나는 동작** — `:action="() => batch?.remove()"`처럼 할 일 **안에서** 조용히
   끝나는 것, 그리고 끝나지 않는 `action`(단추가 영영 "도는 중"으로 잠긴다)은 식의 맨 위만 보는 검사가
-  못 본다.
+  못 본다. **`:action`의 식이 아닌 길로 오는** 조건부 할 일도 못 본다 — `computed`로 옮긴 조건
+  (`:action="maybeRun"`, 조건은 스크립트에 있다), `v-bind` 객체 펼치기(`v-bind="{ action: ready ? run : undefined }"`),
+  그리기 함수의 `h(AppButton, { action: ready ? run : undefined })`.
+- **한 번만 불리는 함수 안의 잠금** — `lockFor`·`anyLock`을 함수 몸 밖에서 부르는 것은 막지만, 몸 안이라도
+  합성 함수처럼 한 번만 불리면 잠금이 굳는다. 부르는 횟수는 글자로 못 잰다.
+- **꾸러미의 스타일시트** — `@import`로 허락한 꾸러미(`tailwindcss`·글꼴)와 스크립트의 `import 'x.css'`가
+  들이는 규칙은 낱말 검사가 안 읽는다. 새 꾸러미는 `package.json`의 diff로 들어온다.
 - **되돌리는 핸들러** — `@change`에서 `checked`를 되돌리는 것은 잠금 노릇을 하지만 글자로는 보통의
   핸들러다.
 - **shadow root 안**은 실행 중 그물이 안 들어간다(관찰자가 그림자 경계를 안 넘는다). 지금 화면에 shadow
