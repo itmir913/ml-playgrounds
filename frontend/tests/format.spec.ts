@@ -7,10 +7,28 @@
  */
 
 import { unzipSync, zipSync } from 'fflate'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+/**
+ * 비동기 `deflate`가 동시에 몇 개 도는지 센다. fflate는 부를 때마다 워커를 새로 띄우므로
+ * 이 수가 곧 동시에 뜬 워커 수다 (open-decisions.md 68). 세기만 하고 결과는 그대로 넘긴다.
+ */
+const inFlight = vi.hoisted(() => ({ now: 0, peak: 0 }))
+vi.mock('fflate', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fflate')>()
+  const deflate = ((data, opts, callback) => {
+    inFlight.now += 1
+    inFlight.peak = Math.max(inFlight.peak, inFlight.now)
+    return actual.deflate(data, opts, (error, result) => {
+      inFlight.now -= 1
+      callback(error, result)
+    })
+  }) as typeof actual.deflate
+  return { ...actual, deflate }
+})
 
 import { isClientError } from '../src/errors'
-import { MAX_FAILURE_DETAIL_LENGTH, MAX_MODEL_BYTES } from '../src/limits'
+import { MAX_FAILURE_DETAIL_LENGTH, MAX_MODEL_BYTES, ZIP_DEFLATE_CONCURRENCY } from '../src/limits'
 import {
   ENTRY,
   MLPX_EXTENSION,
@@ -144,10 +162,14 @@ describe('내보내는 길', () => {
       ['model/preprocessor-experiment-1.json', preprocessor ?? new Uint8Array()],
     ])
 
+    inFlight.peak = 0
     const reopened = await roundTrip(project)
     for (const [path, bytes] of entries) {
       expect(Array.from(reopened.models.get(path) ?? []), path).toEqual(Array.from(bytes))
     }
+    // **엔트리 수만큼 워커가 한꺼번에 뜨면 탭이 죽는다** (open-decisions.md 68, #34).
+    expect(inFlight.peak).toBeGreaterThan(0)
+    expect(inFlight.peak).toBeLessThanOrEqual(ZIP_DEFLATE_CONCURRENCY)
     // 엔트리 120개를 눌렀다 푼다 — 관문 전체의 부하에서 기본 5초가 빠듯하다.
   }, 30_000)
 })

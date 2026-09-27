@@ -31,6 +31,7 @@ import {
   MAX_FILE_NAME_LENGTH,
   MAX_MODEL_BYTES,
   MODEL_BUDGET_BYTES,
+  ZIP_DEFLATE_CONCURRENCY,
   ZIP_DEFLATE_LEVEL,
 } from '../limits'
 import { backboneFor } from '../ml/backbones'
@@ -439,10 +440,12 @@ class WholeEntryDeflate extends ZipPassThrough {
   /** `Zip`이 끝나기 전에 멈출 때 워커를 거둔다. */
   terminate?: AsyncTerminable
   #pending: Uint8Array[] = []
+  readonly #slots: DeflateSlots
 
-  constructor(filename: string) {
+  constructor(filename: string, slots: DeflateSlots) {
     super(filename)
     this.compression = DEFLATE_METHOD
+    this.#slots = slots
   }
 
   protected override process(chunk: Uint8Array, final: boolean): void {
@@ -450,13 +453,42 @@ class WholeEntryDeflate extends ZipPassThrough {
     if (!final) return
     const whole = concatenate(this.#pending)
     this.#pending = []
-    this.terminate = deflate(
-      whole,
-      { level: ZIP_DEFLATE_LEVEL, consume: true },
-      (error, compressed) => {
-        this.ondata(error, compressed, true)
-      },
-    )
+    this.#slots((done) => {
+      this.terminate = deflate(
+        whole,
+        { level: ZIP_DEFLATE_LEVEL, consume: true },
+        (error, compressed) => {
+          done()
+          this.ondata(error, compressed, true)
+        },
+      )
+    })
+  }
+}
+
+/** 자리가 나면 `start`를 부른다. `start`는 끝날 때 받은 `done`을 부른다. */
+type DeflateSlots = (start: (done: () => void) => void) => void
+
+/**
+ * **동시에 도는 deflate를 `limit`개로 묶는다.** fflate의 비동기 `deflate`는 부를 때마다
+ * Web Worker를 새로 띄우고, `zipToBlob`은 엔트리를 기다리지 않고 전부 넣는다 — 묶지 않으면
+ * 엔트리 수만큼 워커가 한꺼번에 떠서 사진 프로젝트의 저장이 탭을 죽였다 (open-decisions.md
+ * 68, #34). 무는 검사: `tests/image-format.spec.ts` "동시에 도는 deflate는 상한을 넘지 않는다".
+ */
+function deflateSlots(limit: number): DeflateSlots {
+  let running = 0
+  const waiting: (() => void)[] = []
+  const release = (): void => {
+    const next = waiting.shift()
+    if (next) next()
+    else running -= 1
+  }
+  return (start) => {
+    const go = (): void => start(release)
+    if (running < limit) {
+      running += 1
+      go()
+    } else waiting.push(go)
   }
 }
 
@@ -487,9 +519,13 @@ function concatenate(parts: readonly Uint8Array[]): Uint8Array {
  * 파이어폭스·사파리·iOS에 없고, `http://192.168.x.x`로 띄운 자가호스팅 학교에서는
  * 보안 컨텍스트가 아니라 아예 없다.
  */
-async function zipToBlob(entries: Record<string, Uint8Array>): Promise<Blob> {
+async function zipToBlob(
+  entries: Record<string, Uint8Array>,
+  stored: ReadonlySet<string>,
+): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const parts: Uint8Array[] = []
+    const slots = deflateSlots(ZIP_DEFLATE_CONCURRENCY)
     let settled = false
 
     const stream = new Zip((error, chunk, final) => {
@@ -514,7 +550,10 @@ async function zipToBlob(entries: Record<string, Uint8Array>): Promise<Blob> {
 
     try {
       for (const [path, bytes] of Object.entries(entries)) {
-        const file = new WholeEntryDeflate(path)
+        // `stored`는 이미 압축된 것이라 무압축(method 0)으로 담는다 — 다시 눌러도 안 준다.
+        const file = stored.has(path)
+          ? new ZipPassThrough(path)
+          : new WholeEntryDeflate(path, slots)
         stream.add(file)
         file.push(bytes, true)
       }
@@ -1183,7 +1222,12 @@ export async function writeProject(
   )
   entries[ENTRY.hashes] = encodeJson(hashes)
 
-  return { blob: await zipToBlob(entries), dropped, contentHash: hashes.contentHash }
+  // **사진과 임베딩은 누르지 않는다** (open-decisions.md 68). 사진은 추가할 때 이미 webp·jpeg로
+  // 구웠다(`data/image/bake.ts`). 임베딩은 float라 조금 줄지만 — 20MB가 16MB — 사진 수만큼
+  // 누르느라 저장이 너무 느렸다 (2026-09-28, 코드 소유자). 읽는 쪽은 무압축 엔트리를 그대로
+  // 받는다 (위 `unzipAsync`).
+  const stored = new Set([...project.images.keys(), ...project.embeddings.keys()])
+  return { blob: await zipToBlob(entries, stored), dropped, contentHash: hashes.contentHash }
 }
 
 function sanitizeSegment(value: string): string {

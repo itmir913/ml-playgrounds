@@ -6,7 +6,7 @@
  * 여기서 새면 학생이 사진을 넣은 프로젝트가 **저장은 되는데 다시 안 열린다.**
  */
 
-import { unzipSync, zipSync, type Unzipped } from 'fflate'
+import { unzip, unzipSync, zipSync, type Unzipped } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
 import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
@@ -121,6 +121,31 @@ describe('이미지 프로젝트의 왕복', () => {
       // 이름이 곧 내용이라는 규칙이 파일 안에서도 성립한다 (mlpx-spec.md §1.2).
       expect(hashes?.entries[path]).toBe(hashBytes(content))
     }
+  })
+
+  it('사진과 임베딩은 누르지 않고 무압축으로 담는다', async () => {
+    const project = imageProject({
+      embeddings: new Map([
+        [embeddingPath(DEFAULT_BACKBONE_ID, hashBytes(photo('a'))), new Uint8Array(64)],
+      ]),
+    })
+    const { bytes } = await writeProjectBytes(project, markdown)
+    const methods = new Map<string, number>()
+    await new Promise<void>((resolve, reject) => {
+      unzip(
+        bytes,
+        {
+          filter: (file) => {
+            methods.set(file.name, file.compression)
+            return false
+          },
+        },
+        (error) => (error ? reject(error) : resolve()),
+      )
+    })
+    const stored = [...project.images.keys(), ...project.embeddings.keys()]
+    expect(stored).toHaveLength(3)
+    for (const path of stored) expect(methods.get(path), path).toBe(0)
   })
 
   it('임베딩까지 대조 대상이다 - 읽는 쪽 allowlist가 쓰는 쪽을 따라잡는가', async () => {

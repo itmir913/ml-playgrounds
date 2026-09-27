@@ -145,6 +145,16 @@ export const IMAGE_JPEG_QUALITY = 0.85
 export const ZIP_DEFLATE_LEVEL = 6
 
 /**
+ * `.mlpx`를 내보낼 때 **동시에 도는 deflate 수.** fflate의 비동기 `deflate`는 부를 때마다
+ * Web Worker를 새로 띄운다 — 묶지 않으면 엔트리 수만큼 워커가 한꺼번에 떠서 사진 프로젝트의
+ * 저장이 탭을 죽였다 (`open-decisions.md` 68, #34). 개발 PC(4코어)의 코어 수다. 학생이 넣는
+ * 양을 막지 않고 일을 줄 세울 뿐이라 끌 이유가 없다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const ZIP_DEFLATE_CONCURRENCY = 4
+
+/**
  * 지표를 보이는 소수 자릿수(`composables/useFormat.ts`의 `formatMetric`). 왜 셋인지는 그 함수의
  * 머리말에 있다.
  *
