@@ -6,29 +6,35 @@
  * 그게 깨지면 무결성 검증 전체가 무의미해진다.
  */
 
-import { unzipSync, zipSync } from 'fflate'
+import { unzip, unzipSync, zipSync } from 'fflate'
 import { describe, expect, it, vi } from 'vitest'
 
 /**
- * 비동기 `deflate`가 동시에 몇 개 도는지 센다. fflate는 부를 때마다 워커를 새로 띄우므로
- * 이 수가 곧 동시에 뜬 워커 수다 (open-decisions.md 68). 세기만 하고 결과는 그대로 넘긴다.
+ * fflate의 비동기 압축기가 몇 번 불렸는지 센다. 부를 때마다 워커를 새로 띄우므로 이 수가
+ * 곧 내보내기가 띄운 워커 수다 (open-decisions.md 68). 세기만 하고 결과는 그대로 넘긴다.
  */
-const inFlight = vi.hoisted(() => ({ now: 0, peak: 0 }))
+const spawned = vi.hoisted(() => ({ count: 0 }))
 vi.mock('fflate', async (importOriginal) => {
   const actual = await importOriginal<typeof import('fflate')>()
   const deflate = ((data, opts, callback) => {
-    inFlight.now += 1
-    inFlight.peak = Math.max(inFlight.peak, inFlight.now)
-    return actual.deflate(data, opts, (error, result) => {
-      inFlight.now -= 1
-      callback(error, result)
-    })
+    spawned.count += 1
+    return actual.deflate(data, opts, callback)
   }) as typeof actual.deflate
-  return { ...actual, deflate }
+  const zip = ((data, opts, callback) => {
+    spawned.count += 1
+    return actual.zip(data, opts, callback)
+  }) as typeof actual.zip
+  const AsyncZipDeflate = class extends actual.AsyncZipDeflate {
+    constructor(...args: ConstructorParameters<typeof actual.AsyncZipDeflate>) {
+      super(...args)
+      spawned.count += 1
+    }
+  }
+  return { ...actual, deflate, zip, AsyncZipDeflate }
 })
 
 import { isClientError } from '../src/errors'
-import { MAX_FAILURE_DETAIL_LENGTH, MAX_MODEL_BYTES, ZIP_DEFLATE_CONCURRENCY } from '../src/limits'
+import { MAX_FAILURE_DETAIL_LENGTH, MAX_MODEL_BYTES } from '../src/limits'
 import {
   ENTRY,
   MLPX_EXTENSION,
@@ -140,6 +146,27 @@ describe('내보내는 길', () => {
    * deflate 스트림을 내면 파일 전체가 `PROJECT_FILE_NOT_ZIP`으로 안 열린다.
    * 씨앗과 0 비율이 정해져 있어 매번 같은 바이트다.
    */
+  /**
+   * `zipToBlob`은 무압축 본문을 **사본 없이** `Blob`에 넘긴다 — 사본을 뜨면 최고 메모리가
+   * 프로젝트 한 벌만큼 는다. 그래도 되는 근거가 이것이다: 나간 파일은 원본과 떨어져 있다.
+   */
+  it('내보낸 뒤 원본을 고쳐도 나간 파일은 그대로다', async () => {
+    const shared = projectFile()
+    // 픽스처의 바이트는 모든 테스트가 나눠 쓰므로 사본을 고친다.
+    const project = shared.dataset
+      ? { ...shared, dataset: { ...shared.dataset, bytes: shared.dataset.bytes.slice() } }
+      : shared
+    const bytes = project.dataset?.bytes
+    expect(bytes, 'the check itself must look at a project that has a table').toBeDefined()
+    const before = Array.from(bytes ?? [])
+
+    const { blob } = await writeProject(project, markdown)
+    bytes?.fill(0)
+
+    const reopened = await open(new Uint8Array(await blob.arrayBuffer()))
+    expect(Array.from(reopened.dataset?.bytes ?? [])).toEqual(before)
+  })
+
   it('0이 섞인 float 엔트리가 여럿이어도 다시 열리고 바이트가 같다', async () => {
     const entries = new Map<string, Uint8Array>()
     for (const zeroPercent of [10, 30, 50]) {
@@ -162,16 +189,43 @@ describe('내보내는 길', () => {
       ['model/preprocessor-experiment-1.json', preprocessor ?? new Uint8Array()],
     ])
 
-    inFlight.peak = 0
     const reopened = await roundTrip(project)
     for (const [path, bytes] of entries) {
       expect(Array.from(reopened.models.get(path) ?? []), path).toEqual(Array.from(bytes))
     }
-    // **엔트리 수만큼 워커가 한꺼번에 뜨면 탭이 죽는다** (open-decisions.md 68, #34).
-    expect(inFlight.peak).toBeGreaterThan(0)
-    expect(inFlight.peak).toBeLessThanOrEqual(ZIP_DEFLATE_CONCURRENCY)
-    // 엔트리 120개를 눌렀다 푼다 — 관문 전체의 부하에서 기본 5초가 빠듯하다.
+    // 엔트리 120개를 담았다 푼다 — 관문 전체의 부하에서 기본 5초가 빠듯하다.
   }, 30_000)
+
+  /**
+   * **학생의 유일한 반출 경로가 워커에 기대면 안 된다** (open-decisions.md 68, #34). 워커는
+   * 많이 뜨면 탭을 죽이고, 스폰을 막는 환경에서는 던지고, 죽으면 fflate가 콜백을 안 부른다.
+   * 그래서 `.mlpx`는 표·모델·문서까지 전부 무압축으로 담는다.
+   */
+  it('내보내기는 워커를 띄우지 않고 모든 엔트리를 무압축으로 담는다', async () => {
+    const project = projectFileWithPredictDataset()
+    spawned.count = 0
+    const { bytes } = await writeProjectBytes(project, markdown)
+    expect(spawned.count).toBe(0)
+
+    const methods = new Map<string, number>()
+    await new Promise<void>((resolve, reject) => {
+      unzip(
+        bytes,
+        {
+          filter: (file) => {
+            methods.set(file.name, file.compression)
+            return false
+          },
+        },
+        (error) => (error ? reject(error) : resolve()),
+      )
+    })
+    // 문서 JSON과 표 셋이 모두 여기 든다 — 전에 누르던 것들이다.
+    const dataset = project.document.settings.data.predictDataset
+    expect(dataset && 'path' in dataset ? methods.get(dataset.path) : undefined).toBe(0)
+    expect(methods.get(ENTRY.manifest)).toBe(0)
+    for (const [path, method] of methods) expect(method, path).toBe(0)
+  })
 })
 
 /** 씨앗이 정해진 난수 (mulberry32). */

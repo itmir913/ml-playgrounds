@@ -26,13 +26,39 @@
  * (2026-08-19에 지웠다). 그 50MB도 §1.1이 없앤 서버 업로드 상한의 잔재다.
  */
 export function downloadBlob(blob: Blob, fileName: string): void {
+  releaseLastUrl()
+  // 첫 내려받기에서 건다 — 모듈을 읽을 때 걸면 DOM 없는 곳에서 읽힐 때 가드가 필요하다.
+  if (!listening) {
+    window.addEventListener('pagehide', releaseLastUrl)
+    listening = true
+  }
   const url = URL.createObjectURL(blob)
+  lastUrl = url
   const anchor = document.createElement('a')
   anchor.href = url
   anchor.download = fileName
+  // 문서에 붙인 채 누른다 — 떨어진 앵커의 `click()`을 무시하던 브라우저가 있었다.
+  document.body.append(anchor)
   anchor.click()
-  // 놓아주지 않으면 파일 크기만큼 메모리가 탭이 닫힐 때까지 남는다.
-  URL.revokeObjectURL(url)
+  anchor.remove()
+}
+
+/**
+ * 마지막으로 내려보낸 파일의 URL. **누른 직후에 놓지 않는다** (open-decisions.md 68).
+ *
+ * 사파리(WebKit)는 내려받기를 `click()` 뒤에 비동기로 시작해서, 그 자리에서
+ * `revokeObjectURL`하면 받을 것이 사라져 내려받기가 실패한다. 끝났다는 사건은 없고,
+ * "몇 초 뒤에 놓는다"는 근거 없는 숫자다. 그래서 **다음 내려받기가 시작될 때나 페이지를
+ * 떠날 때** 놓는다. 값은 파일 하나를 더 쥐는 것이다 — `Blob`이라 브라우저가 디스크로
+ * 내릴 수 있다. 무는 검사: `tests/download.spec.ts`.
+ */
+let lastUrl: string | null = null
+let listening = false
+
+function releaseLastUrl(): void {
+  if (lastUrl === null) return
+  URL.revokeObjectURL(lastUrl)
+  lastUrl = null
 }
 
 /**

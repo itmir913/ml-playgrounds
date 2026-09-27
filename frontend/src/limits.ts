@@ -136,23 +136,13 @@ export const IMAGE_WEBP_QUALITY = 0.65
 export const IMAGE_JPEG_QUALITY = 0.85
 
 /**
- * zip 엔트리를 누르는 deflate 수준. `.mlpx`(`project/format.ts`)와 교사의 포트폴리오 묶음
- * (`project/portfolio-bundle.ts`)이 함께 쓴다 — 두 자리에 같은 숫자가 따로 적혀 있었다
- * (`open-decisions.md` 64). zlib의 기본 수준과 같은 값이다.
+ * zip 엔트리를 누르는 deflate 수준. 교사의 포트폴리오 묶음(`project/portfolio-bundle.ts`)이
+ * 쓴다 (`open-decisions.md` 64). zlib의 기본 수준과 같은 값이다. **`.mlpx`는 누르지 않는다**
+ * — 전부 무압축으로 담는다 (`open-decisions.md` 68, `project/format.ts`의 `zipToBlob`).
  *
  * **분류: 상한이 아니다.**
  */
 export const ZIP_DEFLATE_LEVEL = 6
-
-/**
- * `.mlpx`를 내보낼 때 **동시에 도는 deflate 수.** fflate의 비동기 `deflate`는 부를 때마다
- * Web Worker를 새로 띄운다 — 묶지 않으면 엔트리 수만큼 워커가 한꺼번에 떠서 사진 프로젝트의
- * 저장이 탭을 죽였다 (`open-decisions.md` 68, #34). 개발 PC(4코어)의 코어 수다. 학생이 넣는
- * 양을 막지 않고 일을 줄 세울 뿐이라 끌 이유가 없다.
- *
- * **분류: 상한이 아니다.**
- */
-export const ZIP_DEFLATE_CONCURRENCY = 4
 
 /**
  * 지표를 보이는 소수 자릿수(`composables/useFormat.ts`의 `formatMetric`). 왜 셋인지는 그 함수의
