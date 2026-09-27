@@ -21,6 +21,7 @@
 - [workflow.md](workflow.md) — 작업 리듬·관문·감사·버전·배포·커밋·소스 쓰는 법
 - [i18n.md](i18n.md) — 로케일 구조와 CI가 막는 것
 - [copy.md](copy.md) — 화면 문구의 말투와 낱말
+- [terms.md](terms.md) — 용어의 갈림
 
 ## 정리 진행
 
@@ -30,7 +31,7 @@
 - [x] `workflow.md`
 - [x] `i18n.md`
 - [x] `copy.md`
-- [ ] `terms.md`
+- [x] `terms.md`
 - [ ] `privacy.md`
 - [ ] `error-codes.md`
 - [ ] `rule-coverage.md`
