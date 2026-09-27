@@ -11,6 +11,9 @@ import { useI18n } from 'vue-i18n'
 import { ACTION_ICONS } from '@/icons'
 import { type Toast, type ToastTone, useToastStore } from '@/stores/toasts'
 
+/** **받는 속성이 없다** — 앱 껍데기에 한 번 놓는 층이다. 넘어오면 실행 중 그물이 운다. */
+defineOptions({ inheritAttrs: false })
+
 const { t } = useI18n()
 const toasts = useToastStore()
 

@@ -3,8 +3,8 @@
  * **꾸밈 없는 입력 칸** — 체크박스·라디오·숫자·글자 칸 중 **잠길 수 있는 것**의 기본 부품이다
  * (`@/locks`의 `LOCK_PRIMITIVES`, 결정문 65). 잠기지 않는 칸은 그냥 `<input>`으로 둔다.
  *
- * **그 밖의 속성은 전부 그대로 건넌다** — `type`·`:checked`·`:value`·`@change`·`class`가 아래
- * `<input>`에 붙는다(Vue의 속성 전달). `v-model`은 쓰지 않는다 — 부품에 걸면 `modelValue`가 속성으로
+ * **그 밖의 속성은 허락된 것만 건넌다** — `type`·`:checked`·`:value`·`@change`·`class`가 아래
+ * `<input>`에 붙는다(`@/locks`의 `forwardAttrs` — 허락 목록 `FORWARDED_ATTRS`). `v-model`은 쓰지 않는다 — 부품에 걸면 `modelValue`가 속성으로
  * 새어 칸에 박힌다. 잠길 수 있는 칸은 지금도 전부 `:checked`/`:value` + `@change`다.
  *
  * **두 가지로 잠근다.**
@@ -15,7 +15,13 @@
 
 import { computed } from 'vue'
 
-import { isLocked, type Lock } from '@/locks'
+import { forwardAttrs, isLocked, type Lock } from '@/locks'
+
+/**
+ * **넘겨받은 속성을 뿌리에 흘리지 않는다** (결정문 65 "구조 뒤 감사에서 더한 것", `@/locks`의
+ * `forwardAttrs`). 흘리면 화면이 이 부품의 이름으로 잠금을 걸 수 있다.
+ */
+defineOptions({ inheritAttrs: false })
 
 const props = withDefaults(
   defineProps<{
@@ -31,5 +37,9 @@ const locked = computed(() => isLocked(props.lock))
 </script>
 
 <template>
-  <input :disabled="locked && !props.readable" :readonly="locked && props.readable" />
+  <input
+    v-bind="forwardAttrs($attrs)"
+    :disabled="locked && !props.readable"
+    :readonly="locked && props.readable"
+  />
 </template>

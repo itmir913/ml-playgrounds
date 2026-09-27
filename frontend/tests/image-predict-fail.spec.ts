@@ -191,10 +191,45 @@ describe('decision 65: predicting with nothing to predict', () => {
 
   it('잠금을 건너 눌러도 사진이 없으면 이유를 알린다', async () => {
     const panel = await pressed(withUsableModel(imagePredictProject([])))
-    expect(cautions()).toEqual(['predict.image.emptyReason'])
+    // **다음에 할 일까지 한 문장이다** (결정문 65 "거절 알림은 다음에 할 일까지 말한다").
+    expect(cautions()).toEqual(['predict.image.emptyRefused'])
     expect(workerState.embed).toHaveLength(0)
     expect(panel.predicting).toBe(false)
   })
+})
+
+/**
+ * **[예측하기]는 모델이 없는 상태에서도 서 있고, 누르면 답한다** (구조 뒤 감사 B-4, 결정문 65
+ * "구조 뒤 감사에서 더한 것"). `v-if`로 감추면 위의 검사는 전부 초록이다 — 전부 `run()`을 직접
+ * 부르기 때문이다. 단추를 **찾아서 누른다.** 잠금은 진행 중뿐이라 모델이 없어도 잠겨 있지 않다.
+ */
+describe('decision 65: the predict button stands with no model', () => {
+  const cautions = () =>
+    useToastStore()
+      .items.filter((one) => one.tone === 'caution')
+      .map((one) => one.key)
+
+  for (const [name, file, key] of [
+    ['photos but no model', () => imagePredictProject(['a']), 'predict.image.noModel'],
+    [
+      'a model but no photo',
+      () => withUsableModel(imagePredictProject([])),
+      'predict.image.emptyRefused',
+    ],
+  ] as const) {
+    it(`${name}: the button is there, pressable, and says why`, async () => {
+      await useProjectStore().save(file())
+      const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
+      await flushPromises()
+      const button = runButton(wrapper)
+      expect(button?.exists(), 'the button is hidden').toBe(true)
+      expect(button?.attributes('disabled'), 'the button is locked').toBeUndefined()
+      await button?.trigger('click')
+      await settle()
+      expect(cautions()).toEqual([key])
+      expect(workerState.embed, 'the backbone is not downloaded').toHaveLength(0)
+    })
+  }
 })
 
 describe('R23: removing a photo releases its job', () => {

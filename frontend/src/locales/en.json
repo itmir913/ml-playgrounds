@@ -55,6 +55,7 @@
       "NO_TEST_DATASET": "The file has no test data, so nothing can be scored.",
       "COMPARING_OTHER": "Another experiment is being checked. Go back to it and press [Stop], or wait until it finishes."
     },
+    "comparingOtherRefused": "Another experiment is being checked, so go back to it and press [Stop], or wait until it finishes.",
     "delta": "{metric} {value}",
     "editStudent": "Edit student",
     "noDifference": "No difference",
@@ -530,7 +531,9 @@
     "noTaskTypeReason": "No task type chosen yet.",
     "noTuning": "This model has no hyperparameters you can change.",
     "nothingToTrain": "Nothing to train yet — no models have been added.",
+    "nothingToTrainRefused": "No models have been added yet, so choose a model and press [Add] before training.",
     "nothingTrainable": "None of the models you added fit the task type you chose, so there is nothing to train.",
+    "nothingTrainableRefused": "None of the models you added fit the task type you chose, so choose a model that fits and press [Add] before training.",
     "outOfRange": "This is outside the range you can enter, so training will fail.",
     "pickModel": "Model",
     "pickRuntime": "Where to train",
@@ -974,6 +977,7 @@
     "filterAlgorithms": "Model",
     "filterCount": "{shown} of {total} model | {shown} of {total} models",
     "filterEmptyReason": "Nothing matches the selected experiments and models.",
+    "filterEmptyRefused": "Nothing matches the selected experiments and models, so select an experiment or a model above.",
     "filterEmptyNext": "Select an experiment or a model above to see answers again.",
     "tallyTitle": "How the answers split",
     "tallyLead": "Only classification answers are counted. Models that answered with the same category share a color.",
@@ -985,6 +989,7 @@
       "clearTitle": "Remove all photos?",
       "emptyNext": "Drop photos here, or use [Add photos], and every model gives its answer.",
       "emptyReason": "No photos yet.",
+      "emptyRefused": "There are no photos yet, so press [Add photos] to add the photos you want to predict.",
       "noModel": "There is no model to predict with. Train a model in the training step, then predict.",
       "noUsableModel": "None of these models can make a prediction. Check the reason shown for each model.",
       "photo": "Photo to predict",
@@ -1027,7 +1032,9 @@
       "tableTitle": "Prediction results",
       "waiting": "Enter the values and press [Predict] to see the answers here.",
       "emptyReason": "This file has no model you can predict with.",
-      "emptyNext": "Train a model in the training step, and you can enter new values here."
+      "emptyNext": "Train a model in the training step, and you can enter new values here.",
+      "noModel": "There is no model to predict with. Train a model in the training step, then predict.",
+      "noUsableModel": "None of these models can make a prediction. Check the reason shown for each model."
     }
   }
 }

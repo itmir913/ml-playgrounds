@@ -10,6 +10,9 @@
  * `@/locks`의 `LOCK_PRIMITIVES`에 이유와 함께 선다.
  */
 
+/** **받는 속성이 없다** — `Teleport`는 속성을 그릴 뿌리가 없다. 넘어오면 실행 중 그물이 운다. */
+defineOptions({ inheritAttrs: false })
+
 defineProps<{
   /** 옮겨 갈 자리. `null`이면 제자리에 그린다. */
   to: HTMLElement | null

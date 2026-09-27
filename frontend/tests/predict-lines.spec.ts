@@ -43,6 +43,7 @@ import type { ProjectFile } from '../src/project/format'
 import type { Answer } from '../src/ml/predict'
 import type { Experiment, Preprocessing } from '../src/project/schema'
 import { useProjectStore } from '../src/stores/project'
+import { useToastStore } from '../src/stores/toasts'
 import AnswerList from '../src/views/predict/AnswerList.vue'
 import ClusterNeighbors from '../src/views/predict/ClusterNeighbors.vue'
 import TabularPredictPanel from '../src/views/predict/TabularPredictPanel.vue'
@@ -444,5 +445,37 @@ describe('결정문 65: 빈 칸은 모델마다 판정한다', () => {
       code: 'PREDICTION_INPUT_INCOMPLETE',
       params: { feature: '몸무게', count: 1 },
     })
+  })
+})
+
+/**
+ * **보이는 모델이 없으면 [예측]이 조용히 끝나지 않는다** (결정문 65 "구조 뒤 감사에서 더한 것").
+ * 전에는 반복이 한 번도 안 돌고 말없이 끝났다 — 사진 쪽과 같은 판정(`@/locks`의 `tabularPredict`)이
+ * 이유를 알린다.
+ */
+describe('decision 65: [Predict] with no usable model', () => {
+  it('필터가 전부 거르면 누른 [예측하기]가 이유를 알리고 답을 안 만든다', async () => {
+    useProjectStore().update(twoFeatureSets())
+    const wrapper = mount(TabularPredictPanel, {
+      global: { plugins: [i18n], stubs: { BatchPredict: FakeBatch } },
+    })
+    await flushPromises()
+    for (const button of wrapper.findAll('button')) {
+      if (button.text() === '전체 해제') await button.trigger('click')
+    }
+    await flushPromises()
+
+    const button = wrapper.findAll('button').find((one) => one.text().includes('예측하기'))
+    expect(button, 'the [Predict] button is on the bar').toBeDefined()
+    await button?.trigger('click')
+    await flushPromises()
+
+    const panel = wrapper.vm as unknown as PredictInternals
+    expect(panel.answers.size).toBe(0)
+    expect(
+      useToastStore()
+        .items.filter((one) => one.tone === 'caution')
+        .map((one) => one.key),
+    ).toEqual(['predict.filterEmptyRefused'])
   })
 })

@@ -43,7 +43,7 @@ function addButton(wrapper: ReturnType<typeof axes>) {
   return found!
 }
 
-describe('[추가]는 이미 담은 쌍에서 잠긴다', () => {
+describe('[추가]는 이미 담은 쌍에서 이유를 말한다', () => {
   beforeEach(async () => {
     await setLocale('ko')
   })
@@ -57,7 +57,12 @@ describe('[추가]는 이미 담은 쌍에서 잠긴다', () => {
     wrapper.unmount()
   })
 
-  it('지금 고른 쌍을 이미 담았으면 잠기고 이유를 말한다', async () => {
+  /**
+   * **잠그지 않는다** (결정문 65 "구조 뒤 감사에서 더한 것"). 이유는 옆 줄이 미리 말하고, 누르면
+   * `TrainView.addModel`이 같은 칸(`@/locks`의 `addModel`)으로 거절해 알린다 — 그 길은
+   * `option-cascade.spec.ts`의 *"decision 65: [Add] past the lock"*이 문다.
+   */
+  it('지금 고른 쌍을 이미 담았으면 이유를 말하고, 단추는 잠그지 않는다', async () => {
     // 축이 처음 고르는 쌍을 먼저 읽는다 — 그 쌍을 이미 담은 채로 다시 띄운다.
     const first = axes([])
     await addButton(first).trigger('click')
@@ -66,10 +71,10 @@ describe('[추가]는 이미 담은 쌍에서 잠긴다', () => {
 
     const wrapper = axes([{ algorithm, runtime }])
     const button = addButton(wrapper)
-    expect(button.attributes('disabled')).toBeDefined()
+    expect(button.attributes('disabled')).toBeUndefined()
     expect(wrapper.text()).toContain(t('train.alreadyAdded'))
     await button.trigger('click')
-    expect(wrapper.emitted('add')).toBeUndefined()
+    expect(wrapper.emitted('add')).toHaveLength(1)
     wrapper.unmount()
   })
 })

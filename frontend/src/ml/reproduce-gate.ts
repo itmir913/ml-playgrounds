@@ -55,13 +55,21 @@ export interface ReproduceSubject {
  * 잠그면 교사가 왜 회색인지 모른다 (architecture.md §8.21). `inspect-reproduce-live.spec.ts`의
  * *"다른 실험이 대조 중이면"*이 문다.
  *
- * **단추의 잠금과 `reproduce()`의 거절이 이 함수 하나를 본다** — 둘 다 `@/locks`의 `reproduce`
- * 칸을 거친다 (결정문 65).
+ * **`reproduce()`의 거절이 이 함수를 본다**(`@/locks`의 `reproduce`, 결정문 65). **단추의 잠금은
+ * 아래 `comparingBlockers`만이다**(`@/locks`의 `reproduceComparing`) — 파일의 사정은 잠그지 않고
+ * 누르면 알린다(결정문 65 "구조 뒤 감사에서 더한 것"). 잠금의 조건이 이 함수의 일부라 둘이 갈릴 수
+ * 없다.
  */
 export function reproduceBlockers(subject: ReproduceSubject): ReproduceBlocker[] {
-  const blockers = fileBlockers(subject)
-  if (subject.comparingOther) blockers.push('COMPARING_OTHER')
-  return blockers
+  return [...fileBlockers(subject), ...comparingBlockers(subject.comparingOther)]
+}
+
+/**
+ * **자원이 바쁜 것**만. 다른 실험의 대조가 도는 동안이다 — 판 하나가 워커 하나를 쥐므로 둘째
+ * 대조는 띄울 수 없다. [대조 시작]에 **잠금으로 남는 유일한 이유**다.
+ */
+export function comparingBlockers(comparingOther: boolean): ReproduceBlocker[] {
+  return comparingOther ? ['COMPARING_OTHER'] : []
 }
 
 /** 파일이 막는 것. 순서는 근본적인 것이 먼저다. */

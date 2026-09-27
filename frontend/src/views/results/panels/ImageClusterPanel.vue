@@ -18,7 +18,7 @@ import { useI18n } from 'vue-i18n'
 import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
 import { IMAGE_GRID_PAGE_SIZE } from '@/limits'
-import { lockFor } from '@/locks'
+import { lockFor, turnPage } from '@/locks'
 import { backboneFor } from '@/ml/backbones'
 import { imageClusterGroups } from '@/ml/image-clusters'
 import { imageTrainingSource } from '@/ml/images'
@@ -102,9 +102,13 @@ function shownOf(group: { cluster: number; hashes: readonly string[] }): readonl
   return group.hashes.slice(page * IMAGE_GRID_PAGE_SIZE, (page + 1) * IMAGE_GRID_PAGE_SIZE)
 }
 
-function turn(cluster: number, step: number): void {
+/**
+ * 쪽을 넘긴다. **누르는 쪽에서도 같은 판정으로 멈춘다**(`@/locks`의 `turnPage`, 결정문 65) — 잠금이
+ * 유일한 방어이면 잠금이 빠지는 날 쪽이 -1로 간다.
+ */
+function turn(cluster: number, step: -1 | 1, count: number): void {
   const next = new Map(pages.value)
-  next.set(cluster, pageOf(cluster) + step)
+  next.set(cluster, turnPage(pageOf(cluster), step, totalPagesOf(count)))
   pages.value = next
 }
 </script>
@@ -165,7 +169,7 @@ function turn(cluster: number, step: number): void {
         <AppButton
           variant="secondary"
           :lock="lockFor('pageFirst', { page: pageOf(group.cluster) })"
-          @click="turn(group.cluster, -1)"
+          @click="turn(group.cluster, -1, group.hashes.length)"
         >
           {{ t('common.prevPage') }}
         </AppButton>
@@ -180,7 +184,7 @@ function turn(cluster: number, step: number): void {
               pages: totalPagesOf(group.hashes.length),
             })
           "
-          @click="turn(group.cluster, 1)"
+          @click="turn(group.cluster, 1, group.hashes.length)"
         >
           {{ t('common.nextPage') }}
         </AppButton>

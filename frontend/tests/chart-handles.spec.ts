@@ -163,8 +163,11 @@ describe('히스토그램의 손잡이', () => {
     expect(chart.note).toBe(i18n.global.t('data.charts.histogram.bins', { count: 5 }))
   })
 
-  /** **범위 밖이면 막고 말하고, 단추가 잠긴다** (H6 · V5) — 조용히 당기지 않는다. */
-  it('범위 밖의 수는 막는 이유가 서고 [적용]이 잠긴다', async () => {
+  /**
+   * **범위 밖이면 막고 말한다** (H6 · V5) — 조용히 당기지 않는다. [적용]은 **잠그지 않는다**
+   * (결정문 65 "구조 뒤 감사에서 더한 것") — 칸 아래 이유가 이미 서 있고, 누르면 같은 판정이 멈춘다.
+   */
+  it('범위 밖의 수는 막는 이유가 서고 [적용]을 눌러도 그림이 그대로다', async () => {
     const { wrapper, barCount, binInput, applyButton, autoBox } = await histogramOf()
     const before = barCount()
     await autoBox().setValue(false)
@@ -175,9 +178,10 @@ describe('히스토그램의 손잡이', () => {
       max: HISTOGRAM_BIN_LIMIT,
     })
     expect(wrapper.text()).toContain(reason)
-    expect(applyButton()!.attributes('disabled')).toBeDefined()
+    expect(applyButton()!.attributes('disabled')).toBeUndefined()
     await applyButton()!.trigger('click')
     expect(barCount()).toBe(before)
+    expect(wrapper.text()).toContain(reason)
   })
 
   /** **자동을 다시 켜면 곧바로 돌아간다** — 돌아가는 길에는 물을 것이 없다(§8.9.1.1). */

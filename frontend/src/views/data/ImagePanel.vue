@@ -44,7 +44,7 @@ import {
 import { ClientError, isClientError } from '@/errors'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { MAX_CATEGORY_NAME_LENGTH } from '@/limits'
-import { anyLock, useGate } from '@/locks'
+import { useGate } from '@/locks'
 import { backboneFor, type BackboneSpec } from '@/ml/backbones'
 import { imageRoomShortfall } from '@/data/image/room'
 import { IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
@@ -495,21 +495,19 @@ async function deleteSelected(): Promise<void> {
 }
 
 /**
- * 이름 창의 [확정]의 잠금과 `commitName`의 거절. **같은 칸(`@/locks`의 `categoryName`)이 둘 다
- * 만든다** (결정문 65). 전에는 `commitName`이 말없이 `return`했고, 이름 칸에서 Enter를 누르면
- * (`@submit.prevent`) 잠금을 건너 그 조용한 길로 갔다. `image-panel-fail.spec.ts`의
- * *"decision 65: naming a category through Enter"*가 문다.
+ * 이름 창의 `commitName`의 거절. **등록된 칸(`@/locks`의 `categoryName`)이 판정한다** (결정문 65).
+ * 전에는 `commitName`이 말없이 `return`했고, 이름 칸에서 Enter를 누르면(`@submit.prevent`) 잠금을
+ * 건너 그 조용한 길로 갔다. `image-panel-fail.spec.ts`의 *"decision 65: naming a category through
+ * Enter"*가 문다.
+ *
+ * **[확정]은 이름으로 잠그지 않는다** (결정문 65 "구조 뒤 감사에서 더한 것") — 회색인데 눌러도
+ * 조용했다. 누르면 창 안에 이유 문장이 선다. 잠금은 진행 중(`busyLock`)뿐이다.
  */
-const {
-  lock: nameLock,
-  reasons: nameReasons,
-  refuse: refuseName,
-} = useGate('categoryName', () => ({
+const { reasons: nameReasons, refuse: refuseName } = useGate('categoryName', () => ({
   from: naming.value?.from ?? '',
   value: naming.value?.value ?? '',
   categories: categories.value,
 }))
-const confirmLock = computed(() => anyLock(nameLock.value, busyLock.value))
 
 /** 만들기와 이름 바꾸기가 같은 창이다 — 묻는 것이 이름 하나로 같다. 창 안에 늘 서는 문장이다. */
 const nameTaken = computed(() => naming.value !== null && nameReasons.value.includes('nameTaken'))
@@ -879,7 +877,7 @@ async function commitRemoveCategory(): Promise<void> {
           (`지우고 바꾸기`·`범주 없애기`). 창 하나가 둘을 겸하므로 제목과 같은 조건으로
           고른다.
         -->
-        <AppButton :lock="confirmLock" :action="commitName">
+        <AppButton :lock="busyLock" :action="commitName">
           {{
             t(naming?.mode === 'rename' ? 'data.image.renameConfirm' : 'data.image.createConfirm')
           }}

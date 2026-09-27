@@ -568,6 +568,16 @@ const TRAIN_BLOCK_KEYS = {
   NO_TRAINABLE_MODEL: 'train.nothingTrainable',
 } as const satisfies Record<TrainBlock, string>
 
+/**
+ * 거절 알림의 문구. **바의 사유와 다른 키다** (결정문 65 "거절 알림은 다음에 할 일까지 말한다") —
+ * 바는 [추가] 곁에 서서 사유만 말해도 할 일이 보이지만, 알림은 떨어져 떠서 할 일까지 한 문장으로
+ * 말한다.
+ */
+const TRAIN_REFUSAL_KEYS = {
+  NO_MODEL: 'train.nothingToTrainRefused',
+  NO_TRAINABLE_MODEL: 'train.nothingTrainableRefused',
+} as const satisfies Record<TrainBlock, string>
+
 /** 바에 적는 것은 **첫 이유** 하나다 — 근본적인 것이 먼저 온다 (§10.2). */
 const trainBlockKey = computed(() => {
   const first = trainBlocks.value[0]
@@ -591,7 +601,7 @@ async function startTraining(): Promise<void> {
   // `option-cascade.spec.ts`의 *"담은 모델이 전부 잠기면 …"*이 잠금을 건너 직접 불러 문다.
   const refused = refuseTraining()[0]
   if (refused !== undefined) {
-    toasts.push('danger', TRAIN_BLOCK_KEYS[refused])
+    toasts.push('danger', TRAIN_REFUSAL_KEYS[refused])
     return
   }
   // **유형이 빠진 파일은 잠그지 않고 누를 때 알린다** (open-decisions.md 60, §10.6). 조용히

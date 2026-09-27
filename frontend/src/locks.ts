@@ -17,7 +17,12 @@
  *    함수의 같은 결과라 갈릴 수 없다(결정문 60 *"두 벌로 적는 순간 반드시 어긋난다"*).
  *
  * 그리고 **앱이 설정을 스스로 쓰는 것**은 `stores/project.ts`가 막는다 — 감시자(`watch`·
- * `watchEffect`)의 콜백 안에서 프로젝트를 쓰면 던지고, 예외는 `WATCH_WRITES`에 적힌 자리뿐이다.
+ * `watchEffect`)의 콜백 안이나 부품이 뜨고 고쳐 그려지는 동안(`setup`·수명주기 훅·그리기) 프로젝트를
+ * 쓰면 던지고(`appWriteSite`), 예외는 `WATCH_WRITES`에 **제 파일과 함께** 적힌 자리뿐이다.
+ *
+ * **구조 뒤 감사(2026-09-27)가 더한 것.** 등록부는 **자기 속성만** 판정으로 부르고(`'constructor'`로
+ * 발급받지 못한다), 기본 부품은 넘겨받은 속성을 **허락 목록**(`FORWARDED_ATTRS`)만 건네며
+ * (`inheritAttrs: false`), 쪽 넘기기는 누르는 쪽에서도 같은 칸으로 멈춘다(`turnPage`).
  *
  * **이 파일이 안 보는 것** (`docs/rule-coverage.md`의 그 줄).
  * - 판정 함수가 **옳은가**는 각 함수의 스펙이 본다. 등록부가 막는 것은 몰래 들어오는 잠금이다.
@@ -28,18 +33,21 @@
  * - 잠긴 **모양만** 흉내 내는 것(흐린 글자에 핸들러 없는 `<span>`)은 잠금 낱말이 없어 못 본다.
  * - 이름을 실행 중에 조립하는 것(`'dis' + 'abled'`)은 글자 검사가 못 본다 — 검사가 띄운 화면에서는
  *   `tests/setup/lock-net.ts`가 실제 DOM의 잠금 속성을 부품 밖에서 잡는다.
- * - 감시자 안의 쓰기는 **`await` 앞까지만** 잡는다(`stores/project.ts`의 머리말, 재서 적었다).
+ * - 감시자·수명주기 훅 안의 쓰기는 **`await` 앞까지만** 잡는다. 사용자 지시자의 훅, 이벤트 리스너,
+ *   라우터 가드는 보지 않는다(`tests/watch-writes.spec.ts`가 재서 적었다).
+ * - 감시자 쓰기의 이름을 **실행 중에 조립하고 캐스트로 넘기면**(`('predict' + 'Page') as never`) 파일
+ *   묶기 검사가 못 본다 — 그 검사는 문자열 리터럴을 센다.
  *
  * **`why`는 영어다.** `src/`의 `.ts` 따옴표 리터럴에는 한글을 안 쓴다
  * (`i18n-usage.spec.ts`의 *"src의 .ts 따옴표 리터럴에 한글이 없다"*).
  */
 
-import { computed, toRaw, type ComputedRef } from 'vue'
+import { computed, getCurrentInstance, getCurrentWatcher, toRaw, type ComputedRef } from 'vue'
 
 import type { ChartToolGate, GateInput as ChartGateInput } from '@/data/chart-gates'
 import { isValidCategoryName } from '@/data/image/canonical'
 import { isBinCount } from '@/data/stats'
-import { reproduceBlockers, type ReproduceSubject } from '@/ml/reproduce-gate'
+import { comparingBlockers, reproduceBlockers, type ReproduceSubject } from '@/ml/reproduce-gate'
 import {
   chosenModelBlocks,
   featureLocked,
@@ -116,41 +124,142 @@ export const TEMPLATE_LOCK_WORDS: readonly { readonly word: string; readonly why
  * **기본 부품.** 잠금 낱말이 여기서만 나올 수 있고, 잠금은 `Lock`으로만 받는다. `src/` 아래
  * 경로이고 구분자는 `/`다. **새 부품은 이 목록을 고치는 길로만 들어오고 그 diff를 코드 소유자가
  * 본다** (결정문 65 ⑤).
+ *
+ * **자격이 있다** (`ui-rules.spec.ts`의 *"기본 부품은 자격을 갖춘다"*). 경로는 `components/App*.vue`
+ * 이고, `takesLock`이면 그 부품의 `defineProps`가 **`Lock` 타입의 칸을 받는다**(부품이 잠그는 근거가
+ * 등록부의 값이다). `takesLock: false`는 잠금이 아닌데 낱말이 겹쳐 옮겨 온 부품이고, 이유가 `why`에
+ * 선다. 실행 중 그물(`tests/setup/lock-net.ts`)은 이 목록을 **전체 경로로** 견준다 — 파일 이름만
+ * 견주면 다른 폴더의 같은 이름이 기본 부품 행세를 한다.
+ *
+ * **넘겨받는 속성을 뿌리에 흘리지 않는다** (`inheritAttrs: false`). 부품은 `forwardAttrs`가 허락한
+ * 것만 건넨다 — 흘리면 화면이 `h(AppButton, { ['dis' + 'abled']: true })`처럼 **부품의 이름으로**
+ * 잠글 수 있다(구조 뒤 감사 A-3).
  */
-export const LOCK_PRIMITIVES: readonly { readonly file: string; readonly why: string }[] = [
+export const LOCK_PRIMITIVES: readonly {
+  readonly file: string
+  readonly takesLock: boolean
+  readonly why: string
+}[] = [
   {
     file: 'components/AppButton.vue',
+    takesLock: true,
     why: 'The button. Locks by the lock it is given, and by itself while its action runs (a second press would run the work twice).',
   },
   {
     file: 'components/AppChoices.vue',
+    takesLock: true,
     why: 'Cards on an axis. A locked card stays pressable (aria-disabled) and pressing shows its reason under the axis.',
   },
   {
     file: 'components/AppPlainButton.vue',
+    takesLock: true,
     why: 'A bare button for places that are not AppButton (tool grids, page arrows, move arrows, rail cells). In announce mode it stays pressable and reports the press instead.',
   },
   {
     file: 'components/AppInput.vue',
+    takesLock: true,
     why: 'A bare input (checkbox, radio, number, text). Locks as disabled, or as readonly when the value must stay readable (architecture.md 8.9.1.1).',
   },
   {
     file: 'components/AppSelect.vue',
+    takesLock: true,
     why: 'A bare select. Its placeholder option is disabled so the prompt cannot be picked back; that lock belongs to the primitive, not to a screen.',
   },
   {
     file: 'components/AppLockZone.vue',
+    takesLock: true,
     why: 'A region made inert while its lock holds: the model axes while training runs, so the list and the task type cannot move under it.',
   },
   {
     file: 'components/AppTeleport.vue',
+    takesLock: false,
     why: 'Teleport has its own disabled, which means render in place. It is not a lock, but the word is, so it lives here.',
   },
   {
     file: 'components/AppToast.vue',
+    takesLock: false,
     why: 'The toast stack spans the screen width; pointer-events lets clicks pass through its empty part. It locks nothing.',
   },
 ]
+
+/**
+ * **기본 부품이 넘겨받아 건네는 속성** (결정문 65 "구조 뒤 감사에서 더한 것"). 허락 목록이다 —
+ * 여기 없는 속성은 건네지 않는다. 잠금 낱말의 속성(`disabled`·`readonly`·`inert`·`tabindex`·
+ * `aria-disabled`·`aria-readonly`)은 어느 무늬에도 안 걸리게 적었고, 걸려도 `lockingAttr`가 먼저
+ * 걷는다. 검사가 띄운 화면에서 부품이 **건네지 못한 속성을 받으면** 실행 중 그물이 운다 — 조용히
+ * 버리지 않는다.
+ */
+export const FORWARDED_ATTRS: readonly { readonly pattern: string; readonly why: string }[] = [
+  {
+    pattern: '^(?:class|style|id|name|type|value|checked|min|max|step|title|role|popovertarget)$',
+    why: 'plain HTML attributes the screens pass today: layout classes, form values and names, the popover link',
+  },
+  {
+    pattern: '^aria-(?!disabled$|readonly$)[a-z]+$',
+    why: 'labels and states for screen readers (aria-label, aria-pressed, aria-describedby, aria-invalid); the two lock states are not forwarded',
+  },
+  { pattern: '^data-[a-z0-9-]+$', why: 'data attributes carry no behaviour' },
+  { pattern: '^on[A-Z]', why: 'listeners: the primitive decides whether its element fires at all' },
+]
+
+const FORWARDED = FORWARDED_ATTRS.map((one) => new RegExp(one.pattern))
+
+/** 클래스나 스타일의 잠금 모양. 변종(`md:`)·중요도(`!`)·임의 값(`[pointer-events:none]`)도 가리지 않는다. */
+const LOCK_LOOK = /pointer[-_\s]*events\s*[-:]\s*none|cursor\s*[-:]\s*not[-_]allowed/i
+
+/**
+ * **이 속성이 잠그는가.** 기본 부품의 허락 목록과 실행 중 그물이 같은 판정을 쓴다. 이름은 대소문자·
+ * `-`·`_`를 가리지 않는다(`ariaDisabled`·`aria-disabled`). 값을 보는 것은 셋이다 — 접근성 둘은
+ * 참일 때, `tabindex`는 -1일 때, 클래스와 스타일은 잠금 모양이 들었을 때.
+ */
+export function lockingAttr(name: string, value: unknown): boolean {
+  const key = name.toLowerCase().replace(/[-_]/g, '')
+  if (key === 'disabled' || key === 'readonly' || key === 'inert') return true
+  if (key === 'ariadisabled' || key === 'ariareadonly') return value === true || value === 'true'
+  if (key === 'tabindex') return Number(value) === -1
+  if (key === 'class' || key === 'style') return LOCK_LOOK.test(flatText(value))
+  return false
+}
+
+/** 클래스·스타일 값을 글자로. 문자열·배열·객체(켜진 키, 또는 `속성: 값`)를 가리지 않는다. */
+function flatText(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) return value.map(flatText).join(' ')
+  if (value !== null && typeof value === 'object') {
+    return Object.entries(value)
+      .map(([key, one]) => (typeof one === 'boolean' ? (one ? key : '') : `${key}: ${String(one)}`))
+      .join(' ')
+  }
+  return ''
+}
+
+/**
+ * 건넬 때의 이름. **슬롯이 건넨 접근성 속성은 낙타 표기로 온다** — Vue는 `<slot :aria-describedby>`의
+ * 이름을 `ariaDescribedby`로 바꿔 넘기고, 그대로 요소에 붙이면 `ariadescribedby`라는 **아무 뜻 없는
+ * 속성**이 선다(`AppField`의 `control`이 그 길이다 — 실행 중 그물이 이 부품들에서 처음 잡았다). 그래서
+ * `aria-describedby`로 되돌려 건넨다.
+ */
+function forwardedName(name: string): string {
+  return /^aria[A-Z]/.test(name) ? `aria-${name.slice(4).toLowerCase()}` : name
+}
+
+/** 이 속성을 건네는가. 잠그는 속성은 허락 목록에 걸려도 건네지 않는다. */
+export function isForwardedAttr(name: string, value: unknown): boolean {
+  const forwarded = forwardedName(name)
+  return !lockingAttr(forwarded, value) && FORWARDED.some((pattern) => pattern.test(forwarded))
+}
+
+/**
+ * 기본 부품이 뿌리에 건넬 속성. **허락된 것만 남긴다** — 부품의 템플릿이 `v-bind="forwardAttrs($attrs)"`로
+ * 쓴다. 부품이 `inheritAttrs: false`라야 이 걸러짐이 뜻을 가진다(`ui-rules.spec.ts`가 둘 다 본다).
+ */
+export function forwardAttrs(attrs: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(attrs)
+      .filter(([name, value]) => isForwardedAttr(name, value))
+      .map(([name, value]) => [forwardedName(name), value]),
+  )
+}
 
 /**
  * **이 파일의 이름 중 부르는 자리가 정해진 것.** 다른 파일에 이 이름이 보이면 운다.
@@ -162,19 +271,49 @@ export const RESTRICTED_NAMES: Readonly<Record<string, readonly string[]>> = {
 }
 
 /**
- * **감시자 안에서 앱이 스스로 해도 되는 자리** (결정문 65 ④). 이름 → 왜.
+ * **감시자·수명주기 훅 안에서 앱이 스스로 해도 되는 자리** (결정문 65 ④, "구조 뒤 감사에서 더한
+ * 것"). 이름 → 그 이름을 쓰는 **파일**과 왜.
  *
  * 두 문이 이 이름을 받는다 — `stores/project.ts`의 `save`·`update`(프로젝트 쓰기)와 `useWork`의
- * `start`(잠그는 일을 시작하기, 결정문 65 ③). 이름 없이 감시자 안에서 부르면 둘 다 던진다.
+ * `start`(잠그는 일을 시작하기, 결정문 65 ③). 이름 없이 감시자나 수명주기 훅(`onMounted` 등, 화면이
+ * 뜨거나 고쳐 그려지는 동안) 안에서 부르면 둘 다 던진다(`appWriteSite`).
+ *
+ * **이름은 파일에 묶인다** (구조 뒤 감사 A-1). 이름이 문자열이라 다른 감시자가 `'batchPage'`를
+ * 빌려 쓸 수 있었다. 이제 `ui-rules.spec.ts`의 *"감시자 쓰기의 이름은 제 파일에서만 쓴다"*가
+ * **문법 트리로** 그 이름의 문자열이 `file` 밖의 `src/`에 나오면 운다. 새 자리는 **새 이름**으로
+ * 더한다 — 있는 이름을 다시 쓰지 않는다.
  */
 export const WATCH_WRITES = {
-  batchPage:
-    'The batch prediction table recomputes its page when the file, the filter or the page size changes (BatchPredict signature watcher). It starts the page job, which locks the page arrows and the bar buttons while it runs; it writes nothing to the project.',
-  predictPage:
-    'Turning the photo page continues a prediction the student already started (ImagePredictPanel page watcher). It starts the prediction job, which locks the photo buttons while it runs; the embeddings it stores come after an await.',
-} as const satisfies Readonly<Record<string, string>>
+  batchPage: {
+    file: 'views/predict/BatchPredict.vue',
+    why: 'The batch prediction table recomputes its page when the file, the filter or the page size changes (BatchPredict signature watcher). It starts the page job, which locks the page arrows and the bar buttons while it runs; it writes nothing to the project.',
+  },
+  predictPage: {
+    file: 'views/predict/ImagePredictPanel.vue',
+    why: 'Turning the photo page continues a prediction the student already started (ImagePredictPanel page watcher). It starts the prediction job, which locks the photo buttons while it runs; the embeddings it stores come after an await.',
+  },
+} as const satisfies Readonly<Record<string, { readonly file: string; readonly why: string }>>
 
 export type WatchWriteId = keyof typeof WATCH_WRITES
+
+/** 등록된 이름인가. **자기 속성만** 본다 — `'constructor'` 같은 프로토타입 키는 이름이 아니다. */
+export function isWatchWrite(id: string | undefined): boolean {
+  return id !== undefined && Object.hasOwn(WATCH_WRITES, id)
+}
+
+/**
+ * **지금 앱이 스스로 쓰는 자리인가** — 감시자 콜백 안(`'watcher'`)이거나, 부품이 뜨거나 고쳐 그려지는
+ * 동안(`'lifecycle'`: `setup`·`onMounted` 등 수명주기 훅·그리기)이다. 학생의 동작(이벤트 리스너)과
+ * 라우터 가드는 어느 쪽도 아니다 — Vue가 그 동안 표지를 세우지 않는다.
+ *
+ * **잰 범위는 `tests/watch-writes.spec.ts`가 적는다** — 동기 구간만이다. `await` 뒤는 Vue가 표지를
+ * 내려놓아 못 본다(`<script setup>`의 최상위 `await`만은 Vue가 표지를 되세운다).
+ */
+export function appWriteSite(): 'watcher' | 'lifecycle' | null {
+  if (getCurrentWatcher() !== undefined) return 'watcher'
+  if (getCurrentInstance() !== null) return 'lifecycle'
+  return null
+}
 
 /* ------------------------------------------------------------------ 잠금 값 */
 
@@ -255,12 +394,16 @@ export interface CategoryNameInput {
   readonly categories: readonly string[]
 }
 
-/** 사진 예측의 재료. **세는 것만 넘긴다.** */
-export interface ImagePredictInput {
-  readonly photos: number
+/** 예측할 모델의 재료. **세는 것만 넘긴다.** 모델 전부·필터를 지난 것·그중 쓸 수 있는 것. */
+export interface PredictModelsInput {
   readonly models: number
   readonly visible: number
   readonly usable: number
+}
+
+/** 사진 예측의 재료. 모델에 더해 예측할 사진의 수다. */
+export interface ImagePredictInput extends PredictModelsInput {
+  readonly photos: number
 }
 
 /** 단계 레일의 칸 하나. 프로젝트가 없으면 그것이 이유다. */
@@ -284,7 +427,7 @@ export interface StepInput {
 const GATES = {
   /** [학습하기] (결정문 60의 둘). 거절도 같은 칸이다. */
   train: (input: Parameters<typeof trainGate>[0]) => trainGate(input),
-  /** [담기]. 담을 수 없는 조합과 이미 담은 쌍. 거절도 같은 칸이다. */
+  /** [담기]의 거절. 담을 수 없는 조합과 이미 담은 쌍. **잠금으로는 쓰지 않는다**(누르면 알린다). */
   addModel: (input: ModelAxesInput) => {
     const blocked = modelAxes(input).blocked
     return blocked === null ? [] : [blocked]
@@ -307,8 +450,18 @@ const GATES = {
     readonly row: { readonly algorithm: string }
     readonly taskType: TaskType | undefined
   }) => chosenModelBlocks(input.row, input.taskType),
-  /** [대조 시작]. 다른 실험이 도는 동안(자원이 바쁨)과 파일의 사정. 거절도 같은 칸이다. */
+  /**
+   * [대조 시작]의 거절. 다른 실험이 도는 동안(자원이 바쁨)과 파일의 사정. **잠금으로는 쓰지
+   * 않는다** — 파일의 사정은 누르면 알린다(결정문 65 "구조 뒤 감사에서 더한 것"). 잠금은 아래
+   * `reproduceComparing`이다.
+   */
   reproduce: (input: ReproduceSubject) => reproduceBlockers(input),
+  /**
+   * [대조 시작]의 잠금. **다른 실험을 대조 중인 것 하나다** — 판 하나가 워커 하나를 쥐므로 누르게
+   * 두어도 할 수 있는 일이 없다. 판정은 위 거절의 일부(`comparingBlockers`)라 둘이 갈릴 수 없다.
+   */
+  reproduceComparing: (input: { readonly comparingOther: boolean }) =>
+    comparingBlockers(input.comparingOther),
   /** 표의 층화 (결정문 55의 셋째 줄). 학습이 같은 판정으로 층화를 무시한다. */
   stratifyTabular: (input: StratifyInput) => stratifyReasons(stratifyBlock(input)),
   /** 사진의 층화. 판정 함수가 같고 재료만 다르다. */
@@ -341,19 +494,27 @@ const GATES = {
    */
   chartTool: (input: { readonly tool: ChartToolGate; readonly gate: ChartGateInput }) =>
     input.tool.blockedBy(input.gate),
-  /** 히스토그램 구간 수의 [적용]. 받을 수 없는 수면 반올림하지 않고 멈춘다(§8.9.1.1). */
+  /** 히스토그램 구간 수의 [적용]의 거절. 받을 수 없는 수면 반올림하지 않고 멈춘다(§8.9.1.1). 잠금으로는 쓰지 않는다. */
   histogramBins: (input: { readonly draft: unknown; readonly max: number }) =>
     isBinCount(input.draft, input.max) ? [] : (['BIN_INVALID'] as const),
   /** 히스토그램 구간 칸. [자동]인 동안 읽기 전용이다(§8.9.1.1 — 값은 읽혀야 한다). */
   histogramAuto: (input: { readonly auto: boolean }) =>
     input.auto ? (['AUTO_BINS'] as const) : [],
-  /** 새 프로젝트의 [만들기]. 거절도 같은 칸이다(Enter로 잠금을 건너는 길). */
+  /** 새 프로젝트의 [만들기]의 거절. **잠금으로는 쓰지 않는다** — 누르면 창 안 문장이 선다. */
   projectName: (input: { readonly name: string }) =>
     input.name.trim() === '' ? (['NAME_MISSING'] as const) : [],
-  /** 범주 이름 창의 [확정]. 거절도 같은 칸이다(Enter로 잠금을 건너는 길). */
+  /** 범주 이름 창의 [확정]의 거절. **잠금으로는 쓰지 않는다** — 누르면 창 안 문장이 선다. */
   categoryName: (input: CategoryNameInput) => categoryNameReasons(input),
-  /** 사진 [예측하기]. 거절도 같은 칸이고 **백본을 받기 전에** 선다. */
+  /**
+   * 사진 [예측하기]의 거절. **백본을 받기 전에** 선다. **잠금으로는 쓰지 않는다** — 누르면 이유를
+   * 알린다(결정문 65 "구조 뒤 감사에서 더한 것").
+   */
   imagePredict: (input: ImagePredictInput) => imagePredictReasons(input),
+  /**
+   * 표 [예측]의 거절. 보이는 모델 중 쓸 수 있는 것이 없으면 **조용히 끝나지 않고** 이유를 알린다 —
+   * 사진 쪽과 같은 판정(`predictModelReasons`)이다. 잠금으로는 쓰지 않는다.
+   */
+  tabularPredict: (input: PredictModelsInput) => predictModelReasons(input),
   /** 단계 레일의 대시보드 칸. 열린 프로젝트가 없으면 갈 곳이 없다. */
   projectHome: (input: { readonly projectOpen: boolean }) =>
     input.projectOpen ? [] : (['NO_PROJECT'] as const),
@@ -397,7 +558,13 @@ function categoryNameReasons(
 function imagePredictReasons(
   input: ImagePredictInput,
 ): readonly ('noPhoto' | 'noModel' | 'noVisibleModel' | 'noUsableModel')[] {
-  if (input.photos === 0) return ['noPhoto']
+  return input.photos === 0 ? ['noPhoto'] : predictModelReasons(input)
+}
+
+/** 예측할 모델의 이유. 사진과 표가 같은 줄을 지난다. */
+function predictModelReasons(
+  input: PredictModelsInput,
+): readonly ('noModel' | 'noVisibleModel' | 'noUsableModel')[] {
   if (input.models === 0) return ['noModel']
   if (input.visible === 0) return ['noVisibleModel']
   return input.usable === 0 ? ['noUsableModel'] : []
@@ -422,8 +589,25 @@ export function refusalFor<Id extends LockId>(
   id: Id,
   input: GateInput<Id>,
 ): readonly LockReason<Id>[] {
+  // **자기 속성만 판정으로 부른다** (구조 뒤 감사 A-2). `GATES['constructor']`는 `Object`라
+  // 무엇을 넘기든 객체를 돌려주고, 그 객체가 이유 목록 행세를 해 **잠금이 발급됐다**.
+  // 캐스트(`'constructor' as never`)는 타입을 통과하므로 여기서 선다.
+  if (!Object.hasOwn(GATES, id)) {
+    throw new Error(`LOCK_GATE_UNKNOWN: ${String(id)} is not a gate registered in locks.ts`)
+  }
   const gate = GATES[id] as unknown as (input: GateInput<Id>) => readonly LockReason<Id>[]
   return gate(input)
+}
+
+/**
+ * **쪽 넘기기.** 누르는 쪽에서도 **같은 칸**(`pageFirst`·`pageLast`)으로 멈추고, 쪽 수 안으로 당긴다
+ * (결정문 65 "구조 뒤 감사에서 더한 것") — 잠금이 유일한 방어이면 잠금이 빠지는 날 쪽이 -1로 간다.
+ */
+export function turnPage(page: number, step: -1 | 1, pages: number): number {
+  const refused =
+    step < 0 ? refusalFor('pageFirst', { page }) : refusalFor('pageLast', { page, pages })
+  const next = refused.length > 0 ? page : page + step
+  return Math.min(Math.max(next, 0), Math.max(pages - 1, 0))
 }
 
 /** **잠금.** 그 칸의 판정 함수를 이 파일이 불러 잠금 값을 낸다. */

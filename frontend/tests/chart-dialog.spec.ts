@@ -12,7 +12,7 @@
  * 도구는 없는 것이 되고, 이유 없이 회색이면 학생이 고장으로 읽는다 (§8.2).
  */
 
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -212,6 +212,20 @@ describe('못 그리는 도구는 이유와 함께 잠긴다', () => {
     // 그릴 수 있는 도구를 누르면 이유가 사라진다.
     await toolButton(wrapper, '박스 플롯')?.trigger('click')
     expect(wrapper.find('[role="status"]').exists()).toBe(false)
+  })
+
+  /**
+   * **잠금이 유일한 방어가 아니다** (결정문 65 "구조 뒤 감사에서 더한 것"). 잠금을 건너 `pickTool`을
+   * 불러도 같은 칸(`chartTool`)이 거절하고 이유를 세운다 — 못 그리는 도구를 고른 채로 남지 않는다.
+   */
+  it('decision 65: picking a locked tool past the lock refuses with its reason', async () => {
+    const wrapper = open('키')
+    await drawn(wrapper)
+    const dialog = wrapper.vm as unknown as { pickTool: (id: string) => void; chosenToolId: string }
+    dialog.pickTool('bar')
+    await flushPromises()
+    expect(dialog.chosenToolId, 'the locked tool became the chosen one').toBe('')
+    expect(wrapper.find('[role="status"]').text()).toBe('범주 열에서만 그릴 수 있습니다.')
   })
 
   /**

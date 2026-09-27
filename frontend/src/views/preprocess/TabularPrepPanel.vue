@@ -30,7 +30,7 @@ import { useWork } from '@/composables/useWork'
 import { summarizeColumns } from '@/data/columns'
 import { importTable, openTable, TABULAR_ACCEPT, type TableDocument } from '@/data/table'
 import { MIN_SPLIT_ROWS } from '@/limits'
-import { isLocked, lockFor } from '@/locks'
+import { isLocked, lockFor, refusalFor } from '@/locks'
 import {
   columnPlan,
   featuresInUse,
@@ -41,6 +41,7 @@ import {
   trainableRowCountFor,
   usesTarget,
 } from '@/ml/selection'
+import { ClientError } from '@/errors'
 import { plannedColumns } from '@/ml/plan'
 import { tabularPlanOf } from '@/ml/plan-cache'
 import { preprocessPreview } from '@/ml/preview'
@@ -49,6 +50,7 @@ import {
   readDataset,
   readTestDataset,
   removeTestDataset,
+  testDatasetBlockers,
 } from '@/project/dataset'
 import {
   CATEGORICAL_ENCODINGS,
@@ -296,9 +298,19 @@ const nSamples = computed(() => settings.value?.nSamples)
  * (`trainableRowCountFor`). 유형을 아직 안 골랐으면 타깃을 쓰는 쪽으로 본다(`usesTarget`).
  * `tabular-prep-fail.spec.ts`의 *"decision 65: sampling in a clustering project"*가 문다.
  */
-const samplingLock = computed(() =>
-  lockFor('sampling', { taskType: project.taskType, target: data.value?.target }),
-)
+const samplingInput = computed(() => ({ taskType: project.taskType, target: data.value?.target }))
+const samplingLock = computed(() => lockFor('sampling', samplingInput.value))
+
+/**
+ * **잠금이 유일한 방어가 아니게 한다** (결정문 65 "구조 뒤 감사에서 더한 것"). 뽑기를 켜거나 수를
+ * 고치는 자리가 **같은 칸으로 거절하고 이유를 알린다** — 잠금이 나중에 빠져도 파일 행 수가 표본
+ * 수로 박히지 않는다. 거절하면 칸을 파일 값으로 되돌린다(§8.15.1).
+ */
+function refuseSampling(): boolean {
+  if (refusalFor('sampling', samplingInput.value).length === 0) return false
+  toasts.push('caution', 'preprocess.tabular.sampleNeedsTarget')
+  return true
+}
 
 /** 뽑은 뒤 남는 행. **모델이 한 번도 보지 않는 줄이다** (open-decisions.md #30). */
 const sampleSummary = computed(() => {
@@ -322,7 +334,7 @@ function setSampling(chosen: number | undefined): void {
  * 학생이 고르지도 않은 표본으로 학습하게 된다. 줄이는 것은 학생이 한다.
  */
 function startSampling(input: HTMLInputElement): void {
-  setSampling(Math.max(usableRowCount.value, MIN_SPLIT_ROWS))
+  if (!refuseSampling()) setSampling(Math.max(usableRowCount.value, MIN_SPLIT_ROWS))
   // **DOM을 스키마로 되돌린다** (architecture.md §8.15.1). `setSampling`은 열린 프로젝트가
   // 없으면 아무것도 안 하는데, 그때 라디오만 켜진 채로 남으면 화면이 거짓말한다.
   input.checked = nSamples.value !== undefined
@@ -339,6 +351,10 @@ function startSampling(input: HTMLInputElement): void {
  * **라디오와 달리 숫자 칸에는 "한 번 더 누르면 맞아진다"가 없다.**
  */
 function setSampleRows(input: HTMLInputElement): void {
+  if (refuseSampling()) {
+    input.value = String(nSamples.value ?? usableRowCount.value)
+    return
+  }
   const parsed = Number.parseInt(input.value, 10)
   /**
    * **바닥을 마지막에 건다** (2026-09-19 R33 A-1). 천장을 나중에 걸면 **천장이 바닥보다
@@ -552,6 +568,15 @@ function onTestDrop(event: DragEvent): void {
  * 그동안 버튼을 꺼 둘 수 있어야 두 번 눌리지 않는다 (CLAUDE.md §4).
  */
 async function requestApplyTest(): Promise<void> {
+  // **확인 창보다 거절이 먼저다** (결정문 65 ⑤, 사진 쪽 `refusedTest`와 같은 순서). 전에는 실험이
+  // 있으면 "실험이 지워진다"를 묻고 나서야 `applyTestDataset`이 거절했다 — 지울지 물어 놓고 아무것도
+  // 안 한다. `tabular-prep-fail.spec.ts`의 *"decision 65 ①"*이 실험이 있을 때도 문다.
+  const file = project.file
+  const blocked = file === null ? undefined : testDatasetBlockers(file)[0]
+  if (blocked !== undefined) {
+    toasts.pushError(new ClientError(blocked))
+    return
+  }
   if (experimentCount.value > 0) {
     testAttaching.value = true
     return

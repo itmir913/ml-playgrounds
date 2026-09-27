@@ -38,7 +38,7 @@ import { deleteProject, listProjects, saveProject, type ProjectSummary } from '@
 import { claimTabLock, withTabLock } from '@/project/tab-lock'
 import { useWork } from '@/composables/useWork'
 import { toMessage } from '@/errors'
-import { anyLock, useGate } from '@/locks'
+import { useGate } from '@/locks'
 import { useToastStore } from '@/stores/toasts'
 
 const { t, locale } = useI18n()
@@ -117,16 +117,16 @@ function closeRemove(): void {
 const openInput = ref<HTMLInputElement | null>(null)
 
 /**
- * [만들기]의 잠금과 `create()`의 거절. **같은 칸(`@/locks`의 `projectName`)이 둘 다 만든다** (결정문 65).
+ * `create()`의 거절. **등록된 칸(`@/locks`의 `projectName`)이 판정한다** (결정문 65).
  * 전에는 `create()`가 말없이 `return`했고, 이름 칸에서 Enter를 누르면(`@submit.prevent`) 잠금을
  * 건너 그 조용한 길로 갔다. `welcome-fail.spec.ts`의 *"decision 65: creating with an empty name"*이 문다.
+ *
+ * **[만들기]는 이름으로 잠그지 않는다** (결정문 65 "구조 뒤 감사에서 더한 것") — 회색인데 눌러도
+ * 조용했다. 누르면 창 안에 이유 문장이 선다. 잠금은 진행 중(`busyLock`)뿐이다.
  */
-const {
-  lock: nameLock,
-  reasons: nameReasons,
-  refuse: refuseName,
-} = useGate('projectName', () => ({ name: name.value }))
-const createLock = computed(() => anyLock(nameLock.value, busyLock.value))
+const { reasons: nameReasons, refuse: refuseName } = useGate('projectName', () => ({
+  name: name.value,
+}))
 
 /**
  * **창 안에서 말한다** (결정문 65 "모달 창 안의 거절"). 알림은 모달 창의 최상위 층 뒤에 그려져
@@ -426,7 +426,7 @@ onMounted(refresh)
           <AppButton variant="secondary" @click="creating = false">{{
             t('common.cancel')
           }}</AppButton>
-          <AppButton :lock="createLock" :action="create">{{ t('projects.create') }}</AppButton>
+          <AppButton :lock="busyLock" :action="create">{{ t('projects.create') }}</AppButton>
         </template>
       </AppDialog>
 

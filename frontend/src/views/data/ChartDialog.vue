@@ -24,7 +24,7 @@ import AppPlainButton from '@/components/AppPlainButton.vue'
 import { chartToolsFor, defaultChartTool, type ChartTool } from '@/data/charts'
 import type { ColumnSummary } from '@/data/columns'
 import type { Dataset } from '@/ml/preprocess'
-import { isLocked, lockFor, lockReasons, type Lock, type LockReason } from '@/locks'
+import { isLocked, lockFor, lockReasons, refusalFor, type Lock, type LockReason } from '@/locks'
 import type { DataType } from '@/project/schema'
 
 const props = defineProps<{
@@ -127,6 +127,15 @@ const figure = ref<HTMLElement | null>(null)
  * `tests/chart-dialog.spec.ts`의 "도구를 고르면 그림으로 데려간다"가 지킨다.
  */
 function pickTool(id: string): void {
+  // **잠금이 유일한 방어가 아니게 한다** (결정문 65 "구조 뒤 감사에서 더한 것"). 잠금을 건너 불려도
+  // 같은 칸(`chartTool`)으로 거절하고 그 도구의 이유를 아래 한 줄에 세운다 — 못 그리는 도구를 고른
+  // 채로 남기지 않는다. `chart-dialog.spec.ts`의 *"decision 65: picking a locked tool"*이 문다.
+  const picked = tools.value.find((one) => one.id === id)
+  if (picked === undefined) return
+  if (refusalFor('chartTool', { tool: picked, gate: gate.value }).length > 0) {
+    explained.value = id
+    return
+  }
   explained.value = null
   chosenToolId.value = id
   void nextTick(() => figure.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))

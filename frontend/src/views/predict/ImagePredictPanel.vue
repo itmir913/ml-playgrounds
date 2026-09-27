@@ -29,7 +29,7 @@ import { usePasteImages } from '@/composables/usePasteImages'
 import { useWork } from '@/composables/useWork'
 import { ClientError, isClientError } from '@/errors'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
-import { anyLock, lockFor, useGate, type WatchWriteId } from '@/locks'
+import { anyLock, lockFor, turnPage, useGate, type WatchWriteId } from '@/locks'
 import { backboneFor } from '@/ml/backbones'
 import { embedImages } from '@/ml/embed/client'
 import { spawnEmbedWorker } from '@/ml/embed/spawn'
@@ -613,22 +613,25 @@ const { urls } = useThumbnails(photos)
 onBeforeUnmount(retire)
 
 /**
- * [예측하기]의 잠금과 `run()`의 거절. **같은 칸(`@/locks`의 `imagePredict`)이 둘 다 만든다**
- * (결정문 65). 재료는 세는 것뿐이다.
+ * `run()`의 거절. **등록된 칸(`@/locks`의 `imagePredict`)이 판정한다** (결정문 65). 재료는 세는
+ * 것뿐이다.
+ *
+ * **[예측하기]는 이것으로 잠그지 않는다** (결정문 65 "구조 뒤 감사에서 더한 것") — 누르면 같은
+ * 판정이 이유를 알린다. 잠금은 진행 중(`busyLock`)뿐이다. 단추가 모델 없는 상태에서도 **서 있고
+ * 답하는지**는 `image-predict-fail.spec.ts`의 *"decision 65: the predict button stands …"*가 문다.
  */
-const { lock: predictGateLock, refuse: refusePredict } = useGate('imagePredict', () => ({
+const { refuse: refusePredict } = useGate('imagePredict', () => ({
   photos: photos.value.length,
   models: models.value.length,
   visible: visible.value.length,
   usable: visibleUsable.value.length,
 }))
-const predictLock = computed(() => anyLock(predictGateLock.value, busyLock.value))
 
 /** 거절 이유 → 문장 키. **키를 조립하지 않는다.** 모델이 없는 것과 필터가 전부 거른 것은 할 일이 다르다. */
 const PREDICT_REFUSAL_KEYS = {
-  noPhoto: 'predict.image.emptyReason',
+  noPhoto: 'predict.image.emptyRefused',
   noModel: 'predict.image.noModel',
-  noVisibleModel: 'predict.filterEmptyReason',
+  noVisibleModel: 'predict.filterEmptyRefused',
   noUsableModel: 'predict.image.noUsableModel',
 } as const
 
@@ -740,7 +743,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       </AppButton>
 
       <template #end>
-        <AppButton :lock="predictLock" :action="() => run()">
+        <AppButton :lock="busyLock" :action="() => run()">
           {{ t('predict.run') }}
           <template #pending>{{ t('predict.running') }}</template>
         </AppButton>
@@ -865,11 +868,19 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
 
     <!-- 쪽이 하나뿐이면 안 그린다. 아무 데도 못 가는 버튼은 고장으로 보인다. -->
     <div v-if="showPages" class="flex items-center justify-between gap-4">
-      <AppButton variant="secondary" :lock="atFirstPage" @click="page -= 1">
+      <AppButton
+        variant="secondary"
+        :lock="atFirstPage"
+        @click="page = turnPage(page, -1, totalPages)"
+      >
         {{ t('common.prevPage') }}
       </AppButton>
       <p class="tabular-nums text-ink-soft">{{ page + 1 }} / {{ totalPages }}</p>
-      <AppButton variant="secondary" :lock="atLastPage" @click="page += 1">
+      <AppButton
+        variant="secondary"
+        :lock="atLastPage"
+        @click="page = turnPage(page, 1, totalPages)"
+      >
         {{ t('common.nextPage') }}
       </AppButton>
     </div>

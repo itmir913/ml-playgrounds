@@ -26,7 +26,13 @@
 
 import { computed, ref } from 'vue'
 
-import { isLocked, type Lock } from '@/locks'
+import { forwardAttrs, isLocked, type Lock } from '@/locks'
+
+/**
+ * **넘겨받은 속성을 뿌리에 흘리지 않는다** (결정문 65 "구조 뒤 감사에서 더한 것", `@/locks`의
+ * `forwardAttrs`). 흘리면 화면이 이 부품의 이름으로 잠금을 걸 수 있다.
+ */
+defineOptions({ inheritAttrs: false })
 
 type Variant = 'primary' | 'secondary' | 'subtle' | 'ghost' | 'ghost-danger' | 'danger'
 type Size = 'md' | 'lg'
@@ -128,6 +134,7 @@ const SIZES: Readonly<Record<Size, string>> = {
 
 <template>
   <button
+    v-bind="forwardAttrs($attrs)"
     :type="type"
     :disabled="blocked"
     :aria-label="label"

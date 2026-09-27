@@ -402,8 +402,9 @@ describe('decision 65: creating with an empty name', () => {
     await flushPromises()
     expect(view.creating).toBe(true)
 
+    // **[만들기]는 이름으로 잠그지 않는다** (결정문 65 "구조 뒤 감사에서 더한 것").
     const create = wrapper.findAll('button').find((one) => one.text() === '만들기')
-    expect(create?.attributes('disabled'), 'the button is still locked').toBeDefined()
+    expect(create?.attributes('disabled'), 'the button is locked by the name').toBeUndefined()
     await wrapper.find('input[type="text"]').setValue('   ')
     await wrapper.find('form').trigger('submit')
     await settle()
@@ -421,6 +422,24 @@ describe('decision 65: creating with an empty name', () => {
     // **사유가 풀리면 걷힌다.**
     await wrapper.find('input[type="text"]').setValue('새 이름')
     expect(wrapper.find('form [role="alert"]').exists(), 'reason left after fixing').toBe(false)
+  })
+
+  /** **누르는 길도 같다** — 잠그지 않았으므로 [만들기]가 눌리고, 같은 칸이 창 안에서 이유를 말한다. */
+  it('pressing [Create] with an empty name tells why and stays open', async () => {
+    const { wrapper, view } = await welcome()
+    const newButton = wrapper.findAll('button').find((one) => one.text().includes('새 프로젝트'))
+    await newButton?.trigger('click')
+    await flushPromises()
+
+    const create = wrapper.findAll('button').find((one) => one.text() === '만들기')
+    await create?.trigger('click')
+    await settle()
+
+    const refusal = wrapper.find('form [role="alert"]')
+    expect(refusal.exists(), 'pressing said nothing').toBe(true)
+    expect(refusal.text()).toBe(i18n.global.t('projects.nameRequired'))
+    expect(view.creating).toBe(true)
+    expect(router.currentRoute.value.name).toBe(ROUTE_PROJECTS)
   })
 })
 

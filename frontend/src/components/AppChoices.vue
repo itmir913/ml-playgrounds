@@ -18,7 +18,13 @@
 import { computed, ref } from 'vue'
 
 import { splitTerm } from '@/i18n'
-import { isLocked, type Lock } from '@/locks'
+import { forwardAttrs, isLocked, type Lock } from '@/locks'
+
+/**
+ * **넘겨받은 속성을 뿌리에 흘리지 않는다** (결정문 65 "구조 뒤 감사에서 더한 것", `@/locks`의
+ * `forwardAttrs`). 흘리면 화면이 이 부품의 이름으로 잠금을 걸 수 있다.
+ */
+defineOptions({ inheritAttrs: false })
 
 export interface Choice {
   readonly id: string
@@ -126,7 +132,7 @@ const cells = computed(() =>
     폭이 내용에 달린 자리(가로 flex 칸)에 놓으면 0으로 접힌다. 지금 쓰는 세 곳은
     전부 세로 flex라 폭이 부모에게서 온다.
   -->
-  <div class="min-w-0 @container">
+  <div v-bind="forwardAttrs($attrs)" class="min-w-0 @container">
     <h3 class="font-bold text-ink-soft">{{ label }}</h3>
     <!-- 여백은 `AppField`와 같다 — 나란히 선 두 칸의 리듬이 다르면 한쪽이 밀린 것처럼 보인다. -->
     <p v-if="props.hint" class="mt-1.5 text-ink-faint">{{ props.hint }}</p>

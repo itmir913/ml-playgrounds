@@ -14,7 +14,7 @@
 
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import { reactive, ref } from 'vue'
+import { h, nextTick, reactive, ref } from 'vue'
 
 import AppButton from '../src/components/AppButton.vue'
 import AppChoices from '../src/components/AppChoices.vue'
@@ -24,18 +24,28 @@ import AppPlainButton from '../src/components/AppPlainButton.vue'
 import AppSelect from '../src/components/AppSelect.vue'
 import {
   anyLock,
+  forwardAttrs,
+  isForwardedAttr,
   isLocked,
   issueBusyLock,
   LOCK_IDS,
   lockFor,
+  lockingAttr,
   lockReasons,
   refusalFor,
+  turnPage,
   useGate,
   type GateInput,
   type Lock,
   type LockId,
 } from '../src/locks'
 import { NO_FACTS } from '../src/router/steps'
+
+/**
+ * 검사용 부품. **`defineComponent`를 안 쓴다** — 한 파일에 둘이 되면 `vue/one-component-per-file`이
+ * 운다(`predict-lines.spec.ts`와 같은 이유). 맨 객체도 Vue가 부품으로 받는다.
+ */
+const probe = <T extends object>(options: T): T => options
 
 /* ------------------------------------------------------------------ 1. 흉내 */
 
@@ -135,6 +145,22 @@ describe('잠금 값은 등록부만 만든다', () => {
     expect(isLocked(undefined)).toBe(false)
   })
 
+  /**
+   * **등록부는 자기 속성만 판정으로 부른다** (구조 뒤 감사 A-2). `GATES['constructor']`는 `Object`라
+   * 무엇을 넘기든 객체를 돌려주고, 그 객체가 이유 목록 행세를 해 **잠금이 발급됐다.** 캐스트는 타입을
+   * 통과하므로 실행 중에 선다.
+   */
+  const PROTOTYPE_KEYS = ['constructor', 'toString', 'hasOwnProperty', '__proto__', 'valueOf']
+  for (const key of PROTOTYPE_KEYS) {
+    it(`프로토타입 키로는 판정을 부를 수 없다: ${key}`, () => {
+      expect(() => refusalFor(key as never, {} as never)).toThrow('LOCK_GATE_UNKNOWN')
+      expect(() => lockFor(key as never, {} as never)).toThrow('LOCK_GATE_UNKNOWN')
+      const gate = useGate(key as never, () => ({}) as never)
+      expect(() => gate.lock.value).toThrow('LOCK_GATE_UNKNOWN')
+      expect(() => gate.refuse()).toThrow('LOCK_GATE_UNKNOWN')
+    })
+  }
+
   it('잠금 여럿은 이유를 이어 붙인다', () => {
     const joined = anyLock(issueBusyLock(true), lockFor('pageFirst', { page: 0 }), undefined)
     expect(lockReasons(joined)).toEqual(['BUSY', 'FIRST_PAGE'])
@@ -221,6 +247,11 @@ const CASES: {
     locked: { photos: 1, models: 0, visible: 0, usable: 0 },
     open: { photos: 1, models: 1, visible: 1, usable: 1 },
   },
+  tabularPredict: {
+    locked: { models: 2, visible: 2, usable: 0 },
+    open: { models: 2, visible: 1, usable: 1 },
+  },
+  reproduceComparing: { locked: { comparingOther: true }, open: { comparingOther: false } },
   projectHome: { locked: { projectOpen: false }, open: { projectOpen: true } },
   step: {
     locked: {
@@ -295,5 +326,126 @@ describe('누를 수 있게 잠근 단추는 누르면 이유를 준다', () => 
     await wrapper.find('button').trigger('click')
     expect(wrapper.emitted('click')).toHaveLength(1)
     expect(wrapper.emitted('refused')).toBeUndefined()
+  })
+})
+
+/* ------------------------------------------------------------------ 쪽 넘기기 */
+
+describe('쪽 넘기기는 누르는 쪽에서도 멈춘다', () => {
+  it('처음과 끝에서는 그 자리에 서고, 쪽 수 안으로 당긴다', () => {
+    expect(turnPage(0, -1, 3)).toBe(0)
+    expect(turnPage(2, 1, 3)).toBe(2)
+    expect(turnPage(1, -1, 3)).toBe(0)
+    expect(turnPage(1, 1, 3)).toBe(2)
+    // 쪽이 줄어 밖에 선 채 눌렀다 — 안으로 당긴다.
+    expect(turnPage(5, -1, 3)).toBe(2)
+    expect(turnPage(0, 1, 0)).toBe(0)
+  })
+})
+
+/* ------------------------------------------------------------------ 넘겨받는 속성 */
+
+/**
+ * **기본 부품은 넘겨받은 잠금을 뿌리에 흘리지 않는다** (구조 뒤 감사 A-3). 전에는 부품이 Vue의
+ * 속성 전달로 받은 것을 그대로 뿌리에 붙여서, 화면이 **부품의 이름으로** 잠갔다 — 실행 중 그물은
+ * 요소를 그린 부품(기본 부품)을 보고 통과시켰다. 이제 부품은 허락된 것만 건네고, 그물은 받은 것
+ * 자체를 운다.
+ */
+describe('기본 부품은 넘겨받은 잠금을 흘리지 않는다', () => {
+  const net = (): string[] =>
+    (globalThis as unknown as { __lockNet: { take: () => string[] } }).__lockNet.take()
+
+  const TRIES: readonly {
+    readonly name: string
+    readonly render: () => ReturnType<typeof h>
+    readonly selector: string
+    /** 넘긴 잠금이 요소에 섰는가. 부품 자신의 잠금 모양(`disabled:` 변종 등)은 세지 않는다. */
+    readonly leaked: (element: Element) => boolean
+  }[] = [
+    {
+      name: 'AppButton + assembled disabled',
+      render: () => h(AppButton, { ['dis' + 'abled']: true }, () => 'x'),
+      selector: 'button',
+      leaked: (element) => element.hasAttribute('dis' + 'abled'),
+    },
+    {
+      name: 'AppButton + assembled class',
+      render: () => h(AppButton, { class: 'pointer-' + 'events-none' }, () => 'x'),
+      selector: 'button',
+      leaked: (element) => element.classList.contains('pointer-' + 'events-none'),
+    },
+    {
+      name: 'AppInput + assembled aria state',
+      render: () => h(AppInput, { ['aria-' + 'dis' + 'abled']: 'true' }),
+      selector: 'input',
+      leaked: (element) => element.hasAttribute('aria-' + 'dis' + 'abled'),
+    },
+    {
+      name: 'AppPlainButton + tabindex -1',
+      render: () => h(AppPlainButton, { ['tab' + 'index']: -1 }, () => 'x'),
+      selector: 'button',
+      leaked: (element) => element.hasAttribute('tab' + 'index'),
+    },
+    {
+      name: 'AppSelect + assembled read-only',
+      render: () => h(AppSelect, { ['read' + 'only']: true }),
+      selector: 'select',
+      leaked: (element) => element.hasAttribute('read' + 'only'),
+    },
+    {
+      name: 'AppLockZone + assembled style',
+      render: () => h(AppLockZone, { style: { ['pointer' + 'Events']: 'none' } }),
+      selector: 'div',
+      leaked: (element) => lockingAttr('style', element.getAttribute('style') ?? ''),
+    },
+  ]
+
+  for (const attempt of TRIES) {
+    it(`흘리지 않고, 그물이 운다: ${attempt.name}`, async () => {
+      const Wrapper = probe({ render: attempt.render })
+      const wrapper = mount(Wrapper)
+      await nextTick()
+      expect(attempt.leaked(wrapper.find(attempt.selector).element)).toBe(false)
+      expect(net().join('\n')).toMatch(/received a lock attribute/)
+      wrapper.unmount()
+    })
+  }
+
+  it('허락된 속성은 그대로 건넨다 — 위가 아무것도 안 건네서 초록인 것이 아니다', async () => {
+    const wrapper = mount(
+      probe({
+        render: () =>
+          h(AppButton, { class: 'w-full', 'aria-pressed': 'true', 'data-x': '1' }, () => 'x'),
+      }),
+    )
+    await nextTick()
+    const button = wrapper.find('button')
+    expect(button.classes()).toContain('w-full')
+    expect(button.attributes('aria-pressed')).toBe('true')
+    expect(button.attributes('data-x')).toBe('1')
+    expect(net()).toEqual([])
+  })
+
+  it('허락 목록 밖의 속성은 건네지 않고, 그물이 운다 — 조용히 버리지 않는다', async () => {
+    const wrapper = mount(probe({ render: () => h(AppButton, { autofocus: true }) }))
+    await nextTick()
+    expect(wrapper.find('button').attributes('autofocus')).toBeUndefined()
+    expect(net().join('\n')).toMatch(/does not forward: autofocus/)
+    wrapper.unmount()
+  })
+
+  it('판정은 대소문자·변종·중요도를 가리지 않는다', () => {
+    expect(lockingAttr('ariaDisabled', 'true')).toBe(true)
+    expect(lockingAttr('aria-disabled', 'false')).toBe(false)
+    expect(lockingAttr('class', 'md:pointer-events-none')).toBe(true)
+    expect(lockingAttr('class', 'pointer-events-none!')).toBe(true)
+    expect(lockingAttr('class', { 'hover:cursor-not-allowed': true })).toBe(true)
+    expect(lockingAttr('class', { 'cursor-not-allowed': false })).toBe(false)
+    expect(lockingAttr('style', { pointerEvents: 'none' })).toBe(true)
+    expect(isForwardedAttr('aria-readonly', 'false')).toBe(false)
+    expect(forwardAttrs({ class: 'a', disabled: true, onClick: () => 1 })).toEqual({
+      class: 'a',
+      onClick: expect.any(Function),
+    })
   })
 })

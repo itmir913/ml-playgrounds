@@ -431,7 +431,8 @@ describe('대조가 도는 동안', () => {
     await (panel.vm as unknown as { reproduce: () => Promise<void> }).reproduce()
     await flushPromises()
     expect(worker.trains, 'a direct call must not start either').toBe(1)
-    expect(useToastStore().items.map((one) => one.key)).toContain('inspect.blocked.COMPARING_OTHER')
+    // **다음에 할 일까지 한 문장이다** (결정문 65 "거절 알림은 다음에 할 일까지 말한다").
+    expect(useToastStore().items.map((one) => one.key)).toContain('inspect.comparingOtherRefused')
 
     // 돌던 실험으로 돌아가면 [멈추기]가 있다. 이유는 그 실험 자신에게는 안 선다.
     await panel.setProps({ experiment: third })
@@ -480,5 +481,31 @@ describe('대조가 도는 동안', () => {
       )
       panel.unmount()
     })
+  })
+})
+
+/**
+ * **파일의 사정은 잠그지 않고 누르면 알린다** (결정문 65 "구조 뒤 감사에서 더한 것"). [대조 시작]의
+ * 잠금은 "다른 실험을 대조 중" 하나뿐이다 — 파일의 사정 다섯은 단추 위의 목록이 이미 말하고, 누르면
+ * 같은 판정(`@/locks`의 `reproduce`)이 알린다.
+ */
+describe('decision 65: file reasons do not lock [Start check]', () => {
+  beforeEach(() => {
+    setLocale('ko')
+    setActivePinia(createPinia())
+    worker.trains = 0
+  })
+
+  it('성공한 모델이 없는 실험: 단추가 열려 있고, 누르면 이유를 알리고 워커를 안 띄운다', async () => {
+    const panel = mountPanel(experiment('experiment-empty', []))
+    await flushPromises()
+    const start = button(panel, START())
+    expect(start.attributes('disabled'), 'a file reason locked the button').toBeUndefined()
+    expect(panel.text()).toContain(i18n.global.t('inspect.blocked.NO_CLAIM'))
+    await start.trigger('click')
+    await flushPromises()
+    expect(worker.trains).toBe(0)
+    expect(useToastStore().items.map((one) => one.key)).toEqual(['inspect.blocked.NO_CLAIM'])
+    panel.unmount()
   })
 })

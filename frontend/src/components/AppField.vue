@@ -38,6 +38,17 @@ const inputId = useId()
 const noteId = useId()
 
 const note = computed(() => props.error ?? props.hint)
+
+/**
+ * 슬롯으로 내려주는 값. **객체 하나로 건넨다** — `<slot :aria-describedby>`처럼 이름을 하나씩 적으면
+ * 컴파일러가 이름을 `ariaDescribedby`로 바꿔 넘기고, 받은 쪽이 `<input v-bind>`로 붙이면
+ * `ariadescribedby`라는 뜻 없는 속성이 서서 도움말이 칸과 안 이어졌다. `app-field.spec.ts`가 문다.
+ */
+const control = computed(() => ({
+  id: inputId,
+  'aria-describedby': note.value === undefined ? undefined : noteId,
+  'aria-invalid': props.error !== undefined,
+}))
 </script>
 
 <template>
@@ -55,10 +66,6 @@ const note = computed(() => props.error ?? props.hint)
       {{ note }}
     </p>
 
-    <slot
-      :id="inputId"
-      :aria-describedby="note === undefined ? undefined : noteId"
-      :aria-invalid="error !== undefined"
-    />
+    <slot v-bind="control" />
   </div>
 </template>

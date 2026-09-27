@@ -6,12 +6,12 @@
  * 직접 훑는다 — 요약만 필요한 화면이 문서 전체를 메모리에 올릴 이유가 없다.
  */
 
-import { computed, customRef, getCurrentWatcher, shallowRef, type Ref } from 'vue'
+import { computed, customRef, shallowRef, type Ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { ClientError } from '@/errors'
 import { AUTOSAVE_DELAY_MS } from '@/limits'
-import { WATCH_WRITES, type WatchWriteId } from '@/locks'
+import { appWriteSite, isWatchWrite, type WatchWriteId } from '@/locks'
 import { downloadBlob } from '@/project/download'
 import { acquireTabLock, releaseTabLock } from '@/project/tab-lock'
 import {
@@ -105,15 +105,26 @@ export function factsOf(file: ProjectFile | null): ProjectFacts {
  * 세우는 표지(`getCurrentWatcher`)가 서 있으면 던진다. 예외는 `@/locks`의 `WATCH_WRITES`에 적힌
  * 이름을 넘긴 쓰기뿐이다.
  *
+ * **화면이 뜨는 동안도 같다** (결정문 65 "구조 뒤 감사에서 더한 것"). *"화면에 들어오면 앱이 옵션을
+ * 되돌리는"* 모양은 감시자가 아니라 `onMounted`에서 나온다 — 부품이 뜨거나 고쳐 그려지는 동안
+ * (`setup`·수명주기 훅·그리기) Vue가 세우는 표지(`getCurrentInstance`)도 본다(`@/locks`의
+ * `appWriteSite`). 라우터 가드와 이벤트 리스너는 학생의 동작이라 보지 않는다.
+ *
  * **닿는 범위는 콜백의 동기 구간이다** (`tests/watch-writes.spec.ts`가 잰다). Vue는 콜백이
  * 돌아오는 순간 표지를 내리므로, `await` 뒤·`setTimeout`·`nextTick().then`의 쓰기는 이 검사가 못
  * 본다 — `docs/rule-coverage.md`가 그 사각을 적는다. 파일 객체를 제자리에서 고치는 것(얕은 반응성이라
  * 원래도 화면에 안 닿는다)도 못 본다.
  */
 function refuseWatcherWrite(write: WatchWriteId | undefined): void {
-  if (getCurrentWatcher() === undefined) return
-  if (write !== undefined && Object.hasOwn(WATCH_WRITES, write)) return
-  throw new Error('PROJECT_WRITE_IN_WATCHER: register the write in locks.ts WATCH_WRITES')
+  const site = appWriteSite()
+  if (site === null || isWatchWrite(write)) return
+  // **새 자리는 새 이름으로 더하라고 말한다** (구조 뒤 감사 A-1). 이름은 쓰는 파일에 묶여 있어서
+  // 있는 이름을 빌려 쓰면 `ui-rules.spec.ts`가 운다 — 그 길로 보내지 않는다.
+  throw new Error(
+    site === 'watcher'
+      ? 'PROJECT_WRITE_IN_WATCHER: add a new entry for this site to WATCH_WRITES in locks.ts (each name is bound to one file; do not reuse an existing name)'
+      : 'PROJECT_WRITE_IN_LIFECYCLE: a component wrote the project while mounting or updating; add a new entry for this site to WATCH_WRITES in locks.ts (each name is bound to one file; do not reuse an existing name)',
+  )
 }
 
 export const useProjectStore = defineStore('project', () => {

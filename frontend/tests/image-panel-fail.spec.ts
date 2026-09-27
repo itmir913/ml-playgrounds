@@ -195,7 +195,8 @@ describe('decision 65: naming a category through Enter', () => {
       panel.naming = { mode: 'create', from: '', value }
       await flushPromises()
       const confirm = wrapper.findAll('button').find((one) => one.text() === '만들기')
-      expect(confirm?.attributes('disabled'), `${key}: the button is locked`).toBeDefined()
+      // **[확정]은 이름으로 잠그지 않는다** (결정문 65 "구조 뒤 감사에서 더한 것").
+      expect(confirm?.attributes('disabled'), `${key}: the button is locked`).toBeUndefined()
 
       await wrapper.find('form').trigger('submit')
       await settle()

@@ -16,16 +16,40 @@
  * - **못 막는다**: 콜백 안의 `await` 뒤, `queueMicrotask`·`setTimeout`·`nextTick().then`으로 미룬 쓰기,
  *   `computed` 안의 쓰기(부작용), 파일 객체를 제자리에서 고치는 것. Vue는 콜백이 돌아오는 순간 표지를
  *   내린다 — 뒤로 미룬 일은 감시자에서 왔다는 것을 아무것도 모른다.
+ *
+ * **화면이 뜨는 동안**(결정문 65 "구조 뒤 감사에서 더한 것")의 잰 범위는 아래 *"화면이 뜨는 동안의
+ * 프로젝트 쓰기"* 머리말이 적는다.
  */
 
+import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { computed, nextTick, ref, watch, watchEffect } from 'vue'
+import {
+  computed,
+  h,
+  nextTick,
+  onBeforeMount,
+  onBeforeUnmount,
+  onBeforeUpdate,
+  onMounted,
+  onUnmounted,
+  onUpdated,
+  ref,
+  watch,
+  watchEffect,
+  withDirectives,
+} from 'vue'
 
 import { useWork } from '../src/composables/useWork'
 import type { ProjectFile } from '../src/project/format'
 import { useProjectStore } from '../src/stores/project'
 import { projectFile } from './fixtures/project'
+
+/**
+ * 검사용 부품. **`defineComponent`를 안 쓴다** — 한 파일에 둘이 되면 `vue/one-component-per-file`이
+ * 운다(`predict-lines.spec.ts`와 같은 이유). 맨 객체도 Vue가 부품으로 받는다.
+ */
+const probe = <T extends object>(options: T): T => options
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -167,6 +191,26 @@ describe('감시자 안의 프로젝트 쓰기', () => {
     trigger.value += 1
     await settle()
     expect(String(result)).toContain('PROJECT_WRITE_IN_WATCHER')
+    // **새 이름을 더하라고 말한다** (구조 뒤 감사 A-1) — 이름은 파일에 묶여 있어 빌려 쓰면
+    // `ui-rules.spec.ts`가 운다. 오류가 "있는 이름을 넘겨라"로 읽히면 그 길로 보낸다.
+    expect(String(result)).toContain('add a new entry')
+    expect(String(result)).toContain('do not reuse')
+  })
+
+  it('프로토타입 키는 등록된 이름이 아니다', async () => {
+    const project = useProjectStore()
+    project.update(projectFile())
+    const trigger = ref(0)
+    let result: unknown = null
+    const attempt = catching(() =>
+      project.update((live) => renamed(live, 'forged'), 'constructor' as never),
+    )
+    watch(trigger, () => {
+      result = attempt()
+    })
+    trigger.value += 1
+    await settle()
+    expect(String(result)).toContain('PROJECT_WRITE_IN_WATCHER')
   })
 
   it('감시자 밖에서는 그대로 쓴다', () => {
@@ -220,6 +264,226 @@ describe('닿지 않는 곳 (알려진 사각)', () => {
     })
     expect(sneaky.value).toBe(1)
     expect(project.name).toBe('computed')
+  })
+})
+
+/**
+ * **화면이 뜨는 동안의 쓰기** (결정문 65 "구조 뒤 감사에서 더한 것"). *"화면에 들어오면 앱이 옵션을
+ * 되돌리는"* 모양은 감시자가 아니라 `onMounted`에서 나온다. Vue가 부품을 세우거나 고쳐 그리는 동안
+ * 세우는 표지(`getCurrentInstance`)를 본다(`@/locks`의 `appWriteSite`).
+ *
+ * 잰 것 (Vue 3.5, 2026-09-27):
+ * - **막는다**: `setup` 몸, 수명주기 훅 일곱(`onBeforeMount`·`onMounted`·`onBeforeUpdate`·`onUpdated`·
+ *   `onBeforeUnmount`·`onUnmounted` 그리고 그리기 함수 자체), 그리기 중에 처음 계산되는 `computed`의
+ *   쓰기, 막는 작업 시작(`useWork().start()`).
+ * - **못 막는다**: 훅 안의 `await` 뒤, 훅이 `nextTick`·타이머로 미룬 쓰기, 사용자 지시자의 훅
+ *   (`mounted` 등 — Vue가 표지를 안 세운다), 이벤트 리스너(학생의 동작이라 일부러 안 본다), 라우터
+ *   가드(같은 이유 — 이 스펙은 라우터를 안 태운다, `docs/rule-coverage.md`가 적는다).
+ */
+describe('화면이 뜨는 동안의 프로젝트 쓰기', () => {
+  /** 한 자리에서 쓰기를 해 보고 던진 것을 모은다. */
+  function attempt(place: (write: () => void) => { setup?: () => void; render?: boolean }): {
+    results: unknown[]
+    mountIt: () => ReturnType<typeof mount>
+  } {
+    const project = useProjectStore()
+    project.update(projectFile())
+    const results: unknown[] = []
+    const write = (): void => {
+      results.push(catching(() => project.update((live) => renamed(live, 'lifecycle')))())
+    }
+    const where = place(write)
+    const Probe = probe({
+      setup() {
+        where.setup?.()
+        const tick = ref(0)
+        return () => {
+          if (where.render === true) write()
+          return h('button', { onClick: () => (tick.value += 1) }, String(tick.value))
+        }
+      },
+    })
+    return { results, mountIt: () => mount(Probe) }
+  }
+
+  const PLACES: readonly {
+    readonly name: string
+    readonly place: (write: () => void) => { setup?: () => void; render?: boolean }
+  }[] = [
+    { name: 'setup', place: (write) => ({ setup: write }) },
+    { name: 'onBeforeMount', place: (write) => ({ setup: () => onBeforeMount(write) }) },
+    { name: 'onMounted', place: (write) => ({ setup: () => onMounted(write) }) },
+    { name: 'render', place: () => ({ render: true }) },
+  ]
+
+  for (const { name, place } of PLACES) {
+    it(`${name}의 동기 쓰기는 던진다`, async () => {
+      const { results, mountIt } = attempt(place)
+      const wrapper = mountIt()
+      await settle()
+      expect(results.length).toBeGreaterThan(0)
+      expect(results.map(String)).toEqual(
+        results.map(() => expect.stringContaining('PROJECT_WRITE_IN_LIFECYCLE')),
+      )
+      expect(useProjectStore().name).not.toBe('lifecycle')
+      wrapper.unmount()
+    })
+  }
+
+  it('고쳐 그리는 훅(onBeforeUpdate·onUpdated)과 떠나는 훅(onBeforeUnmount·onUnmounted)도 던진다', async () => {
+    const project = useProjectStore()
+    project.update(projectFile())
+    const results: unknown[] = []
+    const write = (): void => {
+      results.push(catching(() => project.update((live) => renamed(live, 'lifecycle')))())
+    }
+    const Probe = probe({
+      setup() {
+        onBeforeUpdate(write)
+        onUpdated(write)
+        onBeforeUnmount(write)
+        onUnmounted(write)
+        const tick = ref(0)
+        return () => h('button', { onClick: () => (tick.value += 1) }, String(tick.value))
+      },
+    })
+    const wrapper = mount(Probe)
+    await wrapper.find('button').trigger('click')
+    await settle()
+    wrapper.unmount()
+    expect(results).toHaveLength(4)
+    expect(results.map(String)).toEqual(
+      results.map(() => expect.stringContaining('PROJECT_WRITE_IN_LIFECYCLE')),
+    )
+  })
+
+  it('그리기 중에 처음 계산되는 computed의 쓰기도 던진다', async () => {
+    const project = useProjectStore()
+    project.update(projectFile())
+    let result: unknown = 'not run'
+    const Probe = probe({
+      setup() {
+        const sneaky = computed(() => {
+          result = catching(() => project.update((live) => renamed(live, 'computed-render')))()
+          return 1
+        })
+        return () => h('span', String(sneaky.value))
+      },
+    })
+    const wrapper = mount(Probe)
+    await settle()
+    expect(String(result)).toContain('PROJECT_WRITE_IN_LIFECYCLE')
+    wrapper.unmount()
+  })
+
+  it('막는 작업을 시작하는 것도 던진다', async () => {
+    let result: unknown = 'not run'
+    const Probe = probe({
+      setup() {
+        const work = useWork()
+        onMounted(() => {
+          result = catching(() => work.start())()
+        })
+        return () => h('span')
+      },
+    })
+    const wrapper = mount(Probe)
+    await settle()
+    expect(String(result)).toContain('WORK_IN_LIFECYCLE')
+    wrapper.unmount()
+  })
+
+  it('이벤트 리스너는 학생의 동작이라 지나간다', async () => {
+    const project = useProjectStore()
+    project.update(projectFile())
+    let result: unknown = 'not run'
+    const Probe = probe({
+      setup() {
+        return () =>
+          h(
+            'button',
+            {
+              onClick: () => {
+                result = catching(() => project.update((live) => renamed(live, 'clicked')))()
+              },
+            },
+            'x',
+          )
+      },
+    })
+    const wrapper = mount(Probe)
+    await wrapper.find('button').trigger('click')
+    expect(result).toBeNull()
+    expect(project.name).toBe('clicked')
+    wrapper.unmount()
+  })
+
+  it('등록된 이름을 넘기면 지나간다', async () => {
+    const project = useProjectStore()
+    project.update(projectFile())
+    let result: unknown = 'not run'
+    const Probe = probe({
+      setup() {
+        onMounted(() => {
+          result = catching(() =>
+            project.update((live) => renamed(live, 'registered'), 'predictPage'),
+          )()
+        })
+        return () => h('span')
+      },
+    })
+    const wrapper = mount(Probe)
+    await settle()
+    expect(result).toBeNull()
+    expect(project.name).toBe('registered')
+    wrapper.unmount()
+  })
+
+  describe('닿지 않는 곳 (알려진 사각)', () => {
+    it('훅 안의 await 뒤, nextTick·타이머로 미룬 쓰기는 못 막는다', async () => {
+      const project = useProjectStore()
+      project.update(projectFile())
+      const results: unknown[] = []
+      const Probe = probe({
+        setup() {
+          onMounted(async () => {
+            await Promise.resolve()
+            results.push(catching(() => project.update((live) => renamed(live, 'await')))())
+            void nextTick(() => {
+              results.push(catching(() => project.update((live) => renamed(live, 'tick')))())
+            })
+          })
+          return () => h('span')
+        },
+      })
+      const wrapper = mount(Probe)
+      await settle()
+      await settle()
+      expect(results).toEqual([null, null])
+      expect(project.name).toBe('tick')
+      wrapper.unmount()
+    })
+
+    it('사용자 지시자의 훅은 못 막는다', async () => {
+      const project = useProjectStore()
+      project.update(projectFile())
+      let result: unknown = 'not run'
+      const directive = {
+        mounted: (): void => {
+          result = catching(() => project.update((live) => renamed(live, 'directive')))()
+        },
+      }
+      const Probe = probe({
+        setup() {
+          return () => withDirectives(h('span'), [[directive]])
+        },
+      })
+      const wrapper = mount(Probe)
+      await settle()
+      expect(result).toBeNull()
+      expect(project.name).toBe('directive')
+      wrapper.unmount()
+    })
   })
 })
 

@@ -16,6 +16,9 @@ import {
   type RouteRecordSingleView,
 } from 'vue-router'
 
+import { dataKindFor, lockedNoticeFor } from '@/data/kinds'
+import { i18n } from '@/i18n'
+import { refusalFor } from '@/locks'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import { isStepId, resolveStep, STEP_IDS, type StepId } from './steps'
@@ -150,8 +153,30 @@ router.beforeEach(async (to) => {
   if (!isStepId(to.name)) {
     return true
   }
+  // **레일과 같은 칸이 판정한다** (`@/locks`의 `step`, 결정문 65). 레일의 잠긴 칸은 눌리지 않고
+  // 이유를 세우므로, 여기 닿는 것은 주소창·뒤로 가기·북마크다 — **말없이 옮기지 않고 이유를
+  // 알린다**(결정문 65 "구조 뒤 감사에서 더한 것"). 전에는 학생이 친 주소와 다른 화면이 조용히 섰다.
+  // 알림은 수위선 뒤에 밀므로 아래 `afterEach`가 걷지 않는다. `router.spec.ts`의
+  // *"decision 65: a locked step by address"*가 문다.
+  const facts = {
+    step: to.name,
+    projectOpen: true,
+    facts: project.facts,
+    taskType: project.taskType,
+    dataType: project.dataType,
+  }
+  const blockers = refusalFor('step', facts).filter((one) => one !== 'NO_PROJECT')
+  if (blockers.length === 0) return true
+  const notice = lockedNoticeFor(
+    dataKindFor(project.dataType ?? ''),
+    to.name,
+    blockers,
+    project.dataType,
+    (key, params) => i18n.global.t(key, params ?? {}),
+  )
+  useToastStore().push('caution', notice.key, notice.params)
   const allowed = resolveStep(to.name, project.facts, project.taskType, project.dataType)
-  return allowed === to.name ? true : { name: allowed, params: to.params }
+  return { name: allowed, params: to.params }
 })
 
 /**

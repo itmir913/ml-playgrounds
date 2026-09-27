@@ -103,6 +103,40 @@ describe('라우터', { timeout: 20_000 }, () => {
     expect(router.currentRoute.value.name).toBe('results')
   })
 
+  /**
+   * **decision 65: a locked step by address** — 말없이 옮기지 않는다 (결정문 65 "구조 뒤 감사에서
+   * 더한 것"). 레일의 잠긴 칸은 눌리지 않으므로 여기 닿는 것은 주소창·뒤로 가기·북마크다. 레일과 같은
+   * 칸(`@/locks`의 `step`)이 이유를 알리고, 그 알림은 이동이 끝난 뒤에도 남는다(수위선 뒤에 민다).
+   */
+  it('decision 65: a locked step by address tells why it fell back', async () => {
+    const base = projectFile()
+    const omitted = run('run-1', { model: undefined, modelOmitted: 'overBudget' })
+    await saveProject({
+      ...base,
+      document: {
+        ...base.document,
+        runs: { experiments: [experiment('experiment-1', [omitted])] },
+      },
+    })
+    await router.push(`/project/${manifest.projectId}/results`)
+    expect(useToastStore().items).toEqual([])
+
+    await router.push(`/project/${manifest.projectId}/predict`)
+    expect(router.currentRoute.value.name).toBe('results')
+    const notices = useToastStore().items.filter((one) => one.tone === 'caution')
+    expect(notices, 'a silent redirect').toHaveLength(1)
+    // 레일의 잠긴 칸과 같은 문장이다 — 막는 일의 이름이 채워져 있다.
+    expect(notices[0]?.key).toBe('tasks.lockedBy')
+    expect(String(notices[0]?.params['task'] ?? '')).not.toBe('')
+  })
+
+  it('열린 단계로 갈 때는 아무것도 알리지 않는다', async () => {
+    await saveProject(projectFile())
+    await router.push(`/project/${manifest.projectId}/predict`)
+    expect(router.currentRoute.value.name).toBe('predict')
+    expect(useToastStore().items).toEqual([])
+  })
+
   it('목록으로 나가면 열어 둔 프로젝트를 놓아준다', async () => {
     // 안 놓아주면 도구 막대에 남의 이름이 계속 보이고 데이터셋 바이트가 붙들려 있다.
     // **화면이 아니라 라우터가 한다** - 화면 생명주기에 맡기면 순서가 어긋난다.

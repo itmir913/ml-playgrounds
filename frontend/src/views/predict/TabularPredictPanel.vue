@@ -30,7 +30,7 @@ import AppEmpty from '@/components/AppEmpty.vue'
 import StepActionBar from '@/components/StepActionBar.vue'
 import { useWork } from '@/composables/useWork'
 import { isClientError } from '@/errors'
-import { anyLock } from '@/locks'
+import { anyLock, refusalFor } from '@/locks'
 import { interpreterFor, loadModel, loadModelProba, type LoadContext } from '@/ml/models'
 import {
   algorithmFilterOptions,
@@ -339,6 +339,16 @@ const { busy: predicting, lock: predictLock, start: startPredicting, retire } = 
 onBeforeUnmount(retire)
 
 /**
+ * 거절 이유 → 문장 키. **키를 조립하지 않는다.** 모델이 아예 없는 것은 이 판의 빈 상태가 먼저
+ * 받지만(값 모드는 모델이 있어야 그려진다) 판정의 한 갈래라 문장을 둔다.
+ */
+const TABULAR_PREDICT_REFUSAL_KEYS = {
+  noModel: 'predict.tabular.noModel',
+  noVisibleModel: 'predict.filterEmptyRefused',
+  noUsableModel: 'predict.tabular.noUsableModel',
+} as const
+
+/**
  * 아직 이 화면에 있는가. **답 루프는 화면에 보이려고 도는 것이라 떠나면 멈춘다** -
  * 매 모델 `yieldToScreen()`으로 비켜 줄 뿐 멈출 자리가 없어서, 다른 단계로 넘어가도
  * 아무도 안 보는 답을 끝까지 계산했다. 이미지 판이 같은 결함을 가지고 있었다.
@@ -402,7 +412,7 @@ const batchLock = computed(() => batch.value?.lock)
 function pickPredictFile(): void {
   const current = batch.value
   if (current === null) {
-    toasts.push('caution', 'predict.filterEmptyReason')
+    toasts.push('caution', 'predict.filterEmptyRefused')
     return
   }
   current.pickFile()
@@ -448,6 +458,19 @@ const calculating = computed(() => anyLock(predictLock.value, batchLock.value))
 async function run(): Promise<void> {
   const file = project.file
   if (!file || predicting.value) return
+  // **보이는 모델 중 쓸 수 있는 것이 없으면 조용히 끝나지 않는다** (결정문 65 "구조 뒤 감사에서
+  // 더한 것"). 전에는 아래 반복이 한 번도 안 돌고 말없이 끝났다 — 사진 쪽과 같은 판정이다
+  // (`@/locks`의 `tabularPredict`). `predict-lines.spec.ts`의 *"decision 65: [Predict] with no
+  // usable model"*이 문다.
+  const refused = refusalFor('tabularPredict', {
+    models: models.value.length,
+    visible: visible.value.length,
+    usable: visibleUsable.value.length,
+  })[0]
+  if (refused !== undefined) {
+    toasts.push('caution', TABULAR_PREDICT_REFUSAL_KEYS[refused])
+    return
+  }
 
   const job = startPredicting()
   void nextTick(() => {

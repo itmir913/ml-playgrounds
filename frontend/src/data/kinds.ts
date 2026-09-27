@@ -189,8 +189,35 @@ export type Translate = (key: string, params?: Record<string, string>) => string
  * `task`는 값이 아니라 **로케일 키**라 한 번 더 번역해서 넣는다.
  */
 export function lockedSentence(text: LockedText, translate: Translate): string {
+  const filled = fillLocked(text, translate)
+  return filled.params === undefined ? translate(filled.key) : translate(filled.key, filled.params)
+}
+
+/** 자리표시자를 채운 키. **문장과 알림이 같은 채우기를 지난다** — 두 벌로 두면 한쪽이 빈다. */
+function fillLocked(
+  text: LockedText,
+  translate: Translate,
+): { readonly key: string; readonly params?: Record<string, string> } {
   const task = text.params?.task
-  return task === undefined ? translate(text.key) : translate(text.key, { task: translate(task) })
+  return task === undefined
+    ? { key: text.key }
+    : { key: text.key, params: { task: translate(task) } }
+}
+
+/**
+ * **잠긴 단계의 알림**에 실을 키와 채운 자리표시자 (결정문 65 "구조 뒤 감사에서 더한 것").
+ * 주소창·뒤로 가기로 잠긴 단계에 가면 라우터가 이것으로 이유를 알린다(`router/index.ts`) — 알림은
+ * 키로 받아 그리므로 문장이 아니라 키를 돌려준다. 판정은 `lockedSentenceFor`와 같은 줄이다.
+ */
+export function lockedNoticeFor(
+  kind: DataKind | undefined,
+  step: StepId,
+  blockers: readonly FactKey[],
+  dataType: DataType | undefined,
+  translate: Translate,
+): { readonly key: string; readonly params: Record<string, string> } {
+  const filled = fillLocked(lockedTextFor(kind, step, blockers, dataType), translate)
+  return { key: filled.key, params: filled.params ?? {} }
 }
 
 /**

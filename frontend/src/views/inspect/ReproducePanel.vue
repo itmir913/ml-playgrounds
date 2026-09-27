@@ -51,9 +51,10 @@ import { estimatedFeatureWidth, type Preprocessor } from '@/ml/preprocess'
 import { featuresInUse, usesTarget } from '@/ml/selection'
 import { calibrateDevice, train } from '@/ml/worker/client'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
-import { useGate } from '@/locks'
+import { lockFor, useGate } from '@/locks'
 import { useToastStore } from '@/stores/toasts'
 import type { Dataset } from '@/ml/preprocess'
+import type { ReproduceBlocker } from '@/ml/reproduce-gate'
 import { DATA_SCHEMAS, type DataType, type Experiment } from '@/project/schema'
 
 const props = defineProps<{
@@ -158,22 +159,42 @@ const failure = computed<{ code: ClientErrorCode; params: ClientErrorParams } | 
 /**
  * 무엇이 대조를 막는가. **boolean이 아니라 이유 목록이다** (CLAUDE.md §2).
  *
- * **단추의 잠금(`startLock`)·단추 위의 목록(`blockers`)·`reproduce()`의 거절(`refuseStart`)이 한
- * 칸에서 나온다** (`@/locks`의 `reproduce`, 결정문 65) — 목록 밖의 조건을 더하면 단추가 이유
- * 없이 회색이 되고(architecture.md §10.2), 거절을 따로 두면 잠금과 갈린다.
+ * **단추 위의 목록(`blockers`)과 `reproduce()`의 거절(`refuseStart`)이 한 칸에서 나온다**
+ * (`@/locks`의 `reproduce`, 결정문 65) — 목록 밖의 조건을 더하면 이유 없는 거절이 되고
+ * (architecture.md §10.2), 거절을 따로 두면 목록과 갈린다.
+ *
+ * **단추의 잠금(`startLock`)은 "다른 실험을 대조 중" 하나다** (`@/locks`의 `reproduceComparing`,
+ * 결정문 65 "구조 뒤 감사에서 더한 것"). 파일의 사정 다섯은 잠그지 않는다 — 목록이 이미 이유를
+ * 말하고, 누르면 같은 판정이 알린다. 잠금의 조건은 거절 판정의 일부(`comparingBlockers`)다.
  */
-const {
-  lock: startLock,
-  reasons: blockers,
-  refuse: refuseStart,
-} = useGate('reproduce', () => ({
+const comparingOther = computed(
+  () => comparing.value !== null && comparing.value !== props.experiment.id,
+)
+const { reasons: blockers, refuse: refuseStart } = useGate('reproduce', () => ({
   experiment: props.experiment,
   dataType: props.dataType,
   hasDataset: props.dataset !== null,
   hasTestDataset: props.testDataset !== null,
-  comparingOther: comparing.value !== null && comparing.value !== props.experiment.id,
+  comparingOther: comparingOther.value,
   engineHere: engineIsHere,
 }))
+const startLock = computed(() =>
+  lockFor('reproduceComparing', { comparingOther: comparingOther.value }),
+)
+
+/**
+ * 거절 이유 → 알림 문장. **키를 조립하지 않는다.** 대조 중인 것만 **다음에 할 일까지 한 문장으로**
+ * 말한다(결정문 65 "거절 알림은 다음에 할 일까지 말한다") — 나머지는 파일의 사정이라 교사가 여기서
+ * 할 일이 없다.
+ */
+const REPRODUCE_REFUSAL_KEYS = {
+  NO_DATASET: 'inspect.blocked.NO_DATASET',
+  NO_CLAIM: 'inspect.blocked.NO_CLAIM',
+  IMAGE_NOT_OPEN: 'inspect.blocked.IMAGE_NOT_OPEN',
+  ENGINE_MISSING: 'inspect.blocked.ENGINE_MISSING',
+  NO_TEST_DATASET: 'inspect.blocked.NO_TEST_DATASET',
+  COMPARING_OTHER: 'inspect.comparingOtherRefused',
+} as const satisfies Record<ReproduceBlocker, string>
 
 /** 견줄 주장의 수. 진행을 셀 분모다. */
 const claims = computed(() => props.experiment.runs.filter((run) => run.status === 'done').length)
@@ -304,7 +325,7 @@ async function reproduce(): Promise<void> {
   // 잠금을 건너 직접 불러 문다.
   const first = refuseStart()[0]
   if (first !== undefined) {
-    toasts.push('caution', `inspect.blocked.${first}`)
+    toasts.push('caution', REPRODUCE_REFUSAL_KEYS[first])
     return
   }
   // `NO_DATASET`이 위에서 이미 거절한다 — 여기는 타입을 좁히는 자리다.

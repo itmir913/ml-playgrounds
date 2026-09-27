@@ -211,21 +211,27 @@ export interface ApplyTestOptions {
  *
  * **타깃이 안 정해졌으면 거절한다** (`TARGET_NOT_SELECTED`, mlpx-spec.md §1.1 — 타깃이 있어야
  * 정본 열 목록에 뜻이 생긴다). 화면의 [따로 받은 테스트 데이터] 라디오는 잠그지 않으므로
- * (`open-decisions.md` 65 ①, 고르는 자리는 잠그지 않는다) **거절하는 자리가 여기 하나다** —
- * 화면은 이 오류를 알림으로 띄운다. `tabular-prep-fail.spec.ts`의 *"decision 65 ①"*이 판을
- * 띄워 라디오부터 [적용]까지 지나며 문다.
+ * (`open-decisions.md` 65 ①, 고르는 자리는 잠그지 않는다) **판정은 `testDatasetBlockers` 하나다** —
+ * 화면은 [적용]을 누른 순간 **"실험이 지워진다"는 확인 창보다 먼저** 같은 판정으로 거절하고(사진 쪽
+ * `refusedTest`와 같은 순서), 여기는 그 뒤의 마지막 방어다. `tabular-prep-fail.spec.ts`의
+ * *"decision 65 ①"*이 판을 띄워 라디오부터 [적용]까지, 실험이 있을 때와 없을 때를 지나며 문다.
  *
  * 정본이 아직 없으면 부르면 안 된다 - 화면이 그 전에 막는다(표가 없으면 이 판에 못 온다).
  */
+export function testDatasetBlockers(project: ProjectFile): readonly 'TARGET_NOT_SELECTED'[] {
+  return dataSettings('tabular', project.document.settings).target === undefined
+    ? ['TARGET_NOT_SELECTED']
+    : []
+}
+
 export function applyTestDataset(
   project: ProjectFile,
   imported: ImportedTable,
   options: ApplyTestOptions,
 ): AppliedTestDataset {
   const { document } = project
-  if (dataSettings('tabular', document.settings).target === undefined) {
-    throw new ClientError('TARGET_NOT_SELECTED')
-  }
+  const blocked = testDatasetBlockers(project)[0]
+  if (blocked !== undefined) throw new ClientError(blocked)
   const canonical = readDataset(project)
   // 화면이 그 전에 막는다 - 정본이 있어야 대조할 열 목록이 있다. 호출부 버그다.
   if (!canonical) throw new Error('applyTestDataset: no canonical dataset')

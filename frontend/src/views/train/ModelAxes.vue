@@ -157,9 +157,6 @@ const preparation = computed(() => {
   })
 })
 
-/** [담기]의 잠금. **`TrainView.addModel`의 거절과 같은 칸이다** (`@/locks`의 `addModel`). */
-const addLock = computed(() => lockFor('addModel', axesInput.value))
-
 /** 왜 못 담는지. 이유 없이 꺼진 버튼은 학생에게 고장으로 보인다. */
 const blocked = computed(() => {
   const reason = axes.value.blocked
@@ -231,7 +228,11 @@ function onTaskType(id: string): void {
 
       <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
         <p v-if="blocked" class="min-w-0 text-ink-soft">{{ blocked }}</p>
-        <AppButton :lock="addLock" @click="emit('add', algorithm, runtime)">
+        <!--
+          **[담기]는 잠그지 않는다** (결정문 65 "구조 뒤 감사에서 더한 것"). 누르면 `TrainView.addModel`이
+          같은 칸(`@/locks`의 `addModel`)으로 거절하고 이유를 알린다. 왼쪽 줄이 그 이유를 미리 말한다.
+        -->
+        <AppButton @click="emit('add', algorithm, runtime)">
           {{ t('train.addModel') }}
         </AppButton>
       </div>

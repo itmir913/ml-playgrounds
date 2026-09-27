@@ -248,6 +248,31 @@ describe('decision 65 ①: provided test data before a target is chosen', () => 
     expect(panel.openedTest?.fileName).toBe('test.csv')
     expect(panel.testBusy).toBe(false)
   })
+
+  /**
+   * **실험이 있으면 "실험이 지워진다"를 묻기 전에 거절한다** (결정문 65 "구조 뒤 감사에서 더한 것",
+   * 사진 쪽 `refusedTest`와 같은 순서). 전에는 지울지 묻고, 학생이 [확인]을 누른 뒤에야 거절했다.
+   */
+  it('with experiments, the refusal comes before the "experiments will be cleared" dialog', async () => {
+    const project = useProjectStore()
+    const targetless = withoutTarget()
+    const withRuns = projectFile()
+    const { panel } = await openPanel({
+      ...targetless,
+      document: { ...targetless.document, runs: withRuns.document.runs },
+    })
+    expect(project.file?.document.runs.experiments.length).toBeGreaterThan(0)
+
+    await panel.readTestFile(csv('test.csv'))
+    await settle()
+    await panel.requestApplyTest()
+    await settle()
+
+    expect(panel.testAttaching, 'the clear-experiments dialog opened first').toBe(false)
+    expect(dangers().map((one) => one.key)).toEqual(['errors.TARGET_NOT_SELECTED'])
+    expect(project.file?.document.runs.experiments.length).toBeGreaterThan(0)
+    expect(panel.openedTest?.fileName).toBe('test.csv')
+  })
 })
 
 /**
@@ -390,5 +415,30 @@ describe('decision 65: sampling in a clustering project', () => {
     )
     const part = wrapper.findAll('input[name="sampling"]').at(1)
     expect(part?.attributes('disabled')).toBeDefined()
+  })
+
+  /**
+   * **잠금이 유일한 방어가 아니다** (결정문 65 "구조 뒤 감사에서 더한 것"). 잠금을 건너 켜도 같은
+   * 칸(`sampling`)이 거절하고 알린다 — 파일 행 수가 표본 수로 박히지 않는다.
+   */
+  it('잠금을 건너 켜도 같은 칸이 거절하고 알린다', async () => {
+    const project = useProjectStore()
+    const wrapper = await mountPrep(
+      withMissingFeature({ target: undefined, taskType: 'classification' }),
+    )
+    const part = wrapper.findAll('input[name="sampling"]').at(1)
+    const input = part?.element as HTMLInputElement
+    input.checked = true
+    ;(wrapper.vm as unknown as { startSampling: (input: HTMLInputElement) => void }).startSampling(
+      input,
+    )
+    await settle()
+    expect(project.file?.document.settings.nSamples).toBeUndefined()
+    expect(input.checked, 'the radio went back to the file value').toBe(false)
+    expect(
+      useToastStore()
+        .items.filter((one) => one.tone === 'caution')
+        .map((one) => one.key),
+    ).toEqual(['preprocess.tabular.sampleNeedsTarget'])
   })
 })

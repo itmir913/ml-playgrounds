@@ -9,7 +9,13 @@
 
 import { computed } from 'vue'
 
-import { isLocked, type Lock } from '@/locks'
+import { forwardAttrs, isLocked, type Lock } from '@/locks'
+
+/**
+ * **넘겨받은 속성을 뿌리에 흘리지 않는다** (결정문 65 "구조 뒤 감사에서 더한 것", `@/locks`의
+ * `forwardAttrs`). 흘리면 화면이 이 부품의 이름으로 잠금을 걸 수 있다.
+ */
+defineOptions({ inheritAttrs: false })
 
 const props = defineProps<{
   /** 잠금. **`@/locks`만 만든다.** 이 파일이 낸 값이 아니면 그리는 순간 던진다. */
@@ -20,7 +26,7 @@ const locked = computed(() => isLocked(props.lock))
 </script>
 
 <template>
-  <div :class="locked ? 'opacity-60' : ''" :inert="locked">
+  <div v-bind="forwardAttrs($attrs)" :class="locked ? 'opacity-60' : ''" :inert="locked">
     <slot />
   </div>
 </template>

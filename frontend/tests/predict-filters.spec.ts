@@ -288,6 +288,6 @@ describe('계산이 도는 동안 필터가 잠긴다', () => {
 
     await pick?.trigger('click')
     await flushPromises()
-    expect(useToastStore().items.map((one) => one.key)).toEqual(['predict.filterEmptyReason'])
+    expect(useToastStore().items.map((one) => one.key)).toEqual(['predict.filterEmptyRefused'])
   })
 })

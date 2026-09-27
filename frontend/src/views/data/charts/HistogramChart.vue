@@ -30,7 +30,7 @@ import AppTeleport from '@/components/AppTeleport.vue'
 import ChartFrame from './ChartFrame.vue'
 import { barOptions, binLabels, histogramData } from '@/data/chart-config'
 import { useChartControls, type ChartInput } from '@/data/charts'
-import { columnCells, histogram, isBinCount, numericValues, type BinChoice } from '@/data/stats'
+import { columnCells, histogram, numericValues, type BinChoice } from '@/data/stats'
 import { useChartTokens } from '@/composables/useChartTokens'
 import { useFormat } from '@/composables/useFormat'
 import { HISTOGRAM_BIN_LIMIT } from '@/limits'
@@ -86,8 +86,13 @@ function onDraft(event: Event): void {
 /** 칸의 잠금 — [자동]인 동안 읽기 전용이다(§8.9.1.1). 값은 읽혀야 한다. */
 const autoLock = computed(() => lockFor('histogramAuto', { auto: auto.value }))
 
-/** [적용]의 잠금과 거절. **같은 칸이다** (`@/locks`의 `histogramBins`). */
-const { lock: binsLock, refuse: refuseBins } = useGate('histogramBins', () => ({
+/**
+ * [적용]의 거절과 칸 아래 오류. **같은 칸이다** (`@/locks`의 `histogramBins`).
+ *
+ * **[적용]은 잠그지 않는다** (결정문 65 "구조 뒤 감사에서 더한 것") — 받을 수 없는 수면 칸 아래
+ * 오류가 이미 이유를 말하고 있고, 누르면 같은 판정이 멈춘다(반올림하지 않는다, §8.9.1.1).
+ */
+const { reasons: binsReasons, refuse: refuseBins } = useGate('histogramBins', () => ({
   draft: draft.value,
   max: HISTOGRAM_BIN_LIMIT,
 }))
@@ -150,7 +155,7 @@ watch(auto, (on) => {
  * 없다** — 도움말은 규칙을 가르치고 오류는 무엇이 틀렸는지 말한다 (`copy.md` §5).
  */
 const blocked = computed(() =>
-  isBinCount(draft.value, HISTOGRAM_BIN_LIMIT)
+  binsReasons.value.length === 0
     ? ''
     : t('data.charts.histogram.binInvalid', { min: 1, max: HISTOGRAM_BIN_LIMIT }),
 )
@@ -270,13 +275,7 @@ const options = computed(() =>
               step="1"
               @input="onDraft"
             />
-            <AppButton
-              v-if="!auto"
-              class="shrink-0"
-              variant="secondary"
-              :lock="binsLock"
-              @click="apply"
-            >
+            <AppButton v-if="!auto" class="shrink-0" variant="secondary" @click="apply">
               {{ t('data.charts.histogram.binApply') }}
             </AppButton>
           </div>

@@ -38,9 +38,9 @@
  * 쓰기가 다시 합법이 되면 그 지시자가 **쓸모없어져서** 컴파일이 깨진다.
  */
 
-import { computed, getCurrentWatcher, ref, toRaw, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, toRaw, type ComputedRef, type Ref } from 'vue'
 
-import { issueBusyLock, WATCH_WRITES, type Lock, type WatchWriteId } from '@/locks'
+import { appWriteSite, isWatchWrite, issueBusyLock, type Lock, type WatchWriteId } from '@/locks'
 
 /** 끊을 수 있는 것. 워커 손잡이들이 이 모양이다. */
 export interface Cancellable {
@@ -158,10 +158,17 @@ export function useWork(): Work {
     // 감사가 찾은 옆길(진행 중 깃발에 감시자로 조건 넣기)이 이 모양이었다. **닿는 범위는 콜백의
     // 동기 구간이다** — `await` 뒤는 Vue가 감시자를 이미 내려놓아 못 본다
     // (`tests/watch-writes.spec.ts`가 잰다, `docs/rule-coverage.md`의 사각).
+    //
+    // **화면이 뜨는 동안도 같다** (결정문 65 "구조 뒤 감사에서 더한 것") — `onMounted` 등 수명주기 훅
+    // 안에서 막는 일을 시작하면 화면에 들어오는 것만으로 버튼이 잠긴다(`@/locks`의 `appWriteSite`).
     const blocks = options?.blocks !== false
-    const allowed = options?.watch !== undefined && Object.hasOwn(WATCH_WRITES, options.watch)
-    if (blocks && !allowed && getCurrentWatcher() !== undefined) {
-      throw new Error('WORK_IN_WATCHER: start blocking work from an action, not from a watcher')
+    const site = appWriteSite()
+    if (blocks && site !== null && !isWatchWrite(options?.watch)) {
+      throw new Error(
+        site === 'watcher'
+          ? 'WORK_IN_WATCHER: start blocking work from an action, not from a watcher; a registered site needs its own new entry in WATCH_WRITES in locks.ts'
+          : 'WORK_IN_LIFECYCLE: start blocking work from an action, not while a component mounts or updates; a registered site needs its own new entry in WATCH_WRITES in locks.ts',
+      )
     }
     const id = Symbol('work')
     live.value = [...live.value, id]

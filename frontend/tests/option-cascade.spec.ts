@@ -237,10 +237,27 @@ describe('유형을 바꿔도 모델 선택이 남는다', { timeout: 30_000 }, 
     expect(spawned.count).toBe(before)
     expect(useProjectStore().file?.document.runs.experiments).toHaveLength(0)
     // **그리고 조용하지 않다** (결정문 65 "감사 뒤 더한 것"). 잠금이 나중에 빠져도 버튼이 아무
-    // 일도 안 하는 모양이 되지 않게, 거절이 잠금과 같은 이유를 알린다.
+    // 일도 안 하는 모양이 되지 않게, 거절이 잠금과 같은 이유를 알린다 — 알림은 할 일까지 말한다.
     const alerts = useToastStore().items.filter((one) => one.tone === 'danger')
-    expect(alerts.map((one) => one.key)).toEqual(['train.nothingTrainable'])
+    expect(alerts.map((one) => one.key)).toEqual(['train.nothingTrainableRefused'])
     expect(wrapper.findComponent(StepActionBar).text()).toContain(t('train.nothingTrainable'))
+    wrapper.unmount()
+  })
+
+  /**
+   * **거절 알림은 다음에 할 일까지 말한다** (결정문 65 "구조 뒤 감사에서 더한 것"). 바는 [추가] 곁에서
+   * 사유만 말하고(`train.nothingToTrain`), 떨어져 뜨는 알림은 할 일까지 한 문장으로 말한다.
+   */
+  it('담은 모델이 없으면 바는 사유를, 알림은 할 일까지 말한다', async () => {
+    const wrapper = await trainScreen(await irisProject([]))
+    expect(wrapper.findComponent(StepActionBar).text()).toContain(t('train.nothingToTrain'))
+    const view = wrapper.findComponent(TrainView).vm as unknown as {
+      startTraining: () => Promise<void>
+    }
+    void view.startTraining()
+    await settle()
+    const alerts = useToastStore().items.filter((one) => one.tone === 'danger')
+    expect(alerts.map((one) => one.key)).toEqual(['train.nothingToTrainRefused'])
     wrapper.unmount()
   })
 

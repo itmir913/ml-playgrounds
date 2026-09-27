@@ -16,7 +16,13 @@ import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 import { parse as parseSfc } from 'vue/compiler-sfc'
 
-import { LOCK_PRIMITIVES, LOCK_WORDS, RESTRICTED_NAMES, TEMPLATE_LOCK_WORDS } from '../src/locks'
+import {
+  LOCK_PRIMITIVES,
+  LOCK_WORDS,
+  RESTRICTED_NAMES,
+  TEMPLATE_LOCK_WORDS,
+  WATCH_WRITES,
+} from '../src/locks'
 import { isMarkup, sourceFiles, windowedHits, withoutComments } from './fixtures/source'
 
 /** 정규식과 예문 안에 그대로 못 적는다 - 이 파일 자신이 검사 대상이라 조립 자리로 읽힌다. */
@@ -3439,27 +3445,48 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
       const start = node.getStart(file)
       if (dropped.has(start)) return
       out.push(file.text.slice(start, node.getEnd()))
-      if ('text' in node && typeof node.text === 'string') out.push(node.text)
+      // 푼 글자에 CSS 이스케이프가 남을 수 있다(`el.style.cssText = 'pointer-ev\\65nts: none'`).
+      if ('text' in node && typeof node.text === 'string') out.push(cssUnescape(node.text))
     }
     walk(file)
     return out.join(' ')
   }
 
-  /** 템플릿의 글자. HTML 주석을 빼고, 숫자 엔티티와 JS 이스케이프를 푼다 — 그 둘로 낱말을 가릴 수 있다. */
-  function templateText(text: string): string {
-    const code = (value: string, radix: number): string =>
-      String.fromCodePoint(Number.parseInt(value, radix))
+  /** 코드 포인트 하나. 범위 밖의 수는 대체 문자다 — 던지면 검사기가 그 파일을 못 읽는다. */
+  function codePoint(value: string, radix: number): string {
+    const point = Number.parseInt(value, radix)
+    return Number.isFinite(point) && point > 0 && point <= 0x10ffff
+      ? String.fromCodePoint(point)
+      : '�'
+  }
+
+  /**
+   * **CSS 이스케이프를 푼다** (구조 뒤 감사 B-2). `pointer-ev\65nts`·`not-\61llowed`는 브라우저에서
+   * 그 낱말이 되는데 글자에는 안 남았다. 규칙은 CSS의 것이다 — 16진 한두~여섯 자리 뒤의 공백 하나는
+   * 이스케이프의 일부이고, 16진이 아닌 글자 앞의 역슬래시는 그 글자 자신이다. 스타일 블록·`.css`만이
+   * 아니라 템플릿(`style` 속성)과 스크립트의 문자열(`cssText`)에도 건다.
+   */
+  function cssUnescape(text: string): string {
     return text
-      .replace(/<!--[\s\S]*?-->/g, ' ')
-      .replace(/&#x([0-9a-f]+);?/gi, (_all, hex: string) => code(hex, 16))
-      .replace(/&#(\d+);?/g, (_all, dec: string) => code(dec, 10))
-      .replace(/\\u\{([0-9a-f]+)\}/gi, (_all, hex: string) => code(hex, 16))
-      .replace(/\\u([0-9a-f]{4})/gi, (_all, hex: string) => code(hex, 16))
-      .replace(/\\x([0-9a-f]{2})/gi, (_all, hex: string) => code(hex, 16))
+      .replace(/\\([0-9a-f]{1,6})[ \t\n\f\r]?/gi, (_all, hex: string) => codePoint(hex, 16))
+      .replace(/\\([^\n0-9a-f])/gi, '$1')
+  }
+
+  /** 템플릿의 글자. HTML 주석을 빼고, 숫자 엔티티와 JS·CSS 이스케이프를 푼다 — 그것들로 낱말을 가릴 수 있다. */
+  function templateText(text: string): string {
+    return cssUnescape(
+      text
+        .replace(/<!--[\s\S]*?-->/g, ' ')
+        .replace(/&#x([0-9a-f]+);?/gi, (_all, hex: string) => codePoint(hex, 16))
+        .replace(/&#(\d+);?/g, (_all, dec: string) => codePoint(dec, 10))
+        .replace(/\\u\{([0-9a-f]+)\}/gi, (_all, hex: string) => codePoint(hex, 16))
+        .replace(/\\u([0-9a-f]{4})/gi, (_all, hex: string) => codePoint(hex, 16))
+        .replace(/\\x([0-9a-f]{2})/gi, (_all, hex: string) => codePoint(hex, 16)),
+    )
   }
 
   function styleText(text: string): string {
-    return text.replace(/\/\*[\s\S]*?\*\//g, ' ')
+    return cssUnescape(text.replace(/\/\*[\s\S]*?\*\//g, ' '))
   }
 
   /** 한 파일에서 볼 글자. 템플릿 글자는 따로 준다 — 템플릿에서만 보는 표기가 있다. */
@@ -3647,6 +3674,37 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
       path: 'x.ts',
       source: "import { readonly } from 'vue'",
     },
+    // **CSS 이스케이프** (구조 뒤 감사 B-2) — 브라우저에서는 그 낱말이 된다.
+    {
+      name: 'CSS hex escape in a style block',
+      path: 'x.vue',
+      source: '<template><b /></template><style>.x { pointer-ev\\65nts: none }</style>',
+    },
+    {
+      name: 'CSS hex escape with its trailing space',
+      path: 'x.css',
+      source: '.x { cursor: not-\\61 llowed }',
+    },
+    {
+      name: 'CSS six-digit escape',
+      path: 'x.css',
+      source: '.x { pointer-ev\\000065nts: none }',
+    },
+    {
+      name: 'CSS escape of a non-hex letter',
+      path: 'x.vue',
+      source: '<template><b /></template><style>.x { pointer-e\\vents: none }</style>',
+    },
+    {
+      name: 'CSS escape inside a style attribute',
+      path: 'x.vue',
+      source: '<template><b style="pointer-ev\\65nts: none" /></template>',
+    },
+    {
+      name: 'CSS escape inside a script string',
+      path: 'x.ts',
+      source: "export const css = 'cursor: not-\\\\61llowed'",
+    },
   ]
 
   for (const bypass of BYPASSES) {
@@ -3762,5 +3820,361 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
       }
     }
     expect(stale).toEqual([])
+  })
+
+  /* -------------------------------------------------- 구조 뒤 감사 (2026-09-27) */
+
+  /** 한 파일의 스크립트 블록들(`.ts`는 통째로, `.vue`는 `<script>` 둘). */
+  function scriptsOf(path: string, source: string): string[] {
+    if (path.endsWith('.vue')) {
+      const { descriptor } = parseSfc(source, { filename: path })
+      return [descriptor.script, descriptor.scriptSetup].flatMap((block) =>
+        block ? [block.content] : [],
+      )
+    }
+    return /\.(?:ts|js|mjs|cjs)$/.test(path) ? [source] : []
+  }
+
+  function astOf(text: string): ts.SourceFile {
+    return ts.createSourceFile('probe.ts', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  }
+
+  /**
+   * 한 파일에 문자열로 나오는 값들. **문법 트리로 센다** — 주석 안의 이름은 이름이 아니다. 템플릿은
+   * 식이라 트리를 따로 세우지 않고 따옴표 셋으로 감싼 글자를 센다.
+   */
+  function stringsIn(path: string, source: string): Set<string> {
+    const found = new Set<string>()
+    for (const script of scriptsOf(path, source)) {
+      const visit = (node: ts.Node): void => {
+        if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+          found.add(node.text)
+        }
+        ts.forEachChild(node, visit)
+      }
+      visit(astOf(script))
+    }
+    if (path.endsWith('.vue')) {
+      const template = parseSfc(source, { filename: path }).descriptor.template?.content ?? ''
+      for (const match of template.matchAll(/(['"`])([A-Za-z0-9_$]+)\1/g)) {
+        if (match[2] !== undefined) found.add(match[2])
+      }
+    }
+    return found
+  }
+
+  /** 감시자 쓰기의 이름이 제 파일 밖에 나온 자리. `files`는 `src/` 아래 경로 → 글자다. */
+  function borrowedWatchNames(files: ReadonlyMap<string, string>): string[] {
+    const wrong: string[] = []
+    for (const [where, source] of files) {
+      if (where === 'locks.ts') continue
+      const strings = stringsIn(where, source)
+      for (const [name, entry] of Object.entries(WATCH_WRITES)) {
+        if (strings.has(name) && entry.file !== where) wrong.push(`${where}  ${name}`)
+      }
+    }
+    return wrong
+  }
+
+  /**
+   * **감시자 쓰기의 이름은 제 파일에 묶인다** (구조 뒤 감사 A-1). 이름이 문자열이라 어느 감시자든
+   * `'batchPage'`를 넘기면 가드를 지났다. 이제 이름의 문자열이 `WATCH_WRITES[name].file` 밖의
+   * `src/`에 나오면 운다 — 새 자리는 **새 이름**을 더해야 들어온다.
+   */
+  it('감시자 쓰기의 이름은 제 파일에서만 쓴다', () => {
+    const files = new Map(
+      allSrcFiles(SRC).map((path) => [relativeToSrc(path), readFileSync(path, 'utf-8')] as const),
+    )
+    expect(borrowedWatchNames(files)).toEqual([])
+    // **목록이 낡지 않았다** — 이름이 제 파일에 실제로 있다.
+    const stale = Object.entries(WATCH_WRITES).filter(
+      ([name, entry]) => !stringsIn(entry.file, files.get(entry.file) ?? '').has(name),
+    )
+    expect(stale.map(([name]) => name)).toEqual([])
+  })
+
+  it('검사기가 잡는다: 다른 파일이 빌린 감시자 쓰기의 이름', () => {
+    const [name, entry] = Object.entries(WATCH_WRITES)[0] ?? ['', { file: '' }]
+    const cases: readonly (readonly [string, string])[] = [
+      ['views/Other.vue', `<script setup lang="ts">start({ watch: '${name}' })</script>`],
+      ['views/Other.vue', `<template><b @click="run('${name}')" /></template>`],
+      ['stores/other.ts', `export const id = "${name}"`],
+      ['stores/other.ts', `export const id = ${BACKTICK}${name}${BACKTICK}`],
+    ]
+    for (const [where, source] of cases) {
+      expect(borrowedWatchNames(new Map([[where, source]])), source).toEqual([`${where}  ${name}`])
+    }
+    // 제 파일에서는 안 잡는다. 주석 안의 이름도 이름이 아니다.
+    expect(borrowedWatchNames(new Map([[entry.file, `export const id = '${name}'`]]))).toEqual([])
+    expect(borrowedWatchNames(new Map([['stores/other.ts', `// '${name}'`]]))).toEqual([])
+  })
+
+  /** 모듈 지정자를 `src/` 아래 경로로. 우리 파일이 아니면 `null`이다. */
+  function resolveModule(
+    from: string,
+    specifier: string,
+    known: ReadonlySet<string>,
+  ): string | null {
+    let base: string
+    if (specifier.startsWith('@/')) base = specifier.slice(2)
+    else if (specifier.startsWith('.')) {
+      base = join(dirname(from), specifier).split(sep).join('/')
+    } else return null
+    for (const candidate of [base, `${base}.ts`, `${base}.vue`, `${base}/index.ts`]) {
+      if (known.has(candidate)) return candidate
+    }
+    return null
+  }
+
+  /**
+   * `locks.ts`의 이름을 **글자 없이** 꺼내는 길 (구조 뒤 감사 C-1). `export * from '@/locks'`로 이어
+   * 준 모듈을 네임스페이스로 들이면 `M['issue' + 'BusyLock']`이 이름을 글자에 안 남긴다. 그래서
+   * ① `locks.ts`를 `export *`로 이어 주지 않고 ② `locks.ts`에서 무엇이든 다시 내보내는 모듈은
+   * 네임스페이스·동적 `import`로 들이지 않는다.
+   */
+  /**
+   * 지정자를 실행 중에 짓는 동적 `import`가 허락된 파일 → 왜. **원격 모듈을 주소로 부르는 자리뿐이다** —
+   * 번들 안의 모듈을 가리킬 수 없다.
+   */
+  const REMOTE_IMPORTS: ReadonlyMap<string, string> = new Map([
+    [
+      'ml/engines/pyodide-runtime.ts',
+      'Pyodide is served by its origin; the address is a URL, not a module of this bundle',
+    ],
+  ])
+
+  function lockRelayPaths(files: ReadonlyMap<string, string>): string[] {
+    const known = new Set(files.keys())
+    const wrong: string[] = []
+    const relays = new Set<string>(['locks.ts'])
+    const declarations = new Map<string, ts.SourceFile[]>()
+    for (const [where, source] of files) {
+      declarations.set(where, scriptsOf(where, source).map(astOf))
+    }
+    for (const [where, trees] of declarations) {
+      if (where === 'locks.ts') continue
+      for (const tree of trees) {
+        for (const statement of tree.statements) {
+          if (!ts.isExportDeclaration(statement) || statement.moduleSpecifier === undefined)
+            continue
+          if (!ts.isStringLiteral(statement.moduleSpecifier)) continue
+          const target = resolveModule(where, statement.moduleSpecifier.text, known)
+          if (target !== 'locks.ts') continue
+          relays.add(where)
+          const clause = statement.exportClause
+          if (clause === undefined || ts.isNamespaceExport(clause)) {
+            wrong.push(`${where}  export * from locks`)
+          }
+        }
+      }
+    }
+    for (const [where, trees] of declarations) {
+      for (const tree of trees) {
+        const visit = (node: ts.Node): void => {
+          if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+            const target = resolveModule(where, node.moduleSpecifier.text, known)
+            const bindings = node.importClause?.namedBindings
+            if (
+              target !== null &&
+              relays.has(target) &&
+              bindings &&
+              ts.isNamespaceImport(bindings)
+            ) {
+              wrong.push(`${where}  import * from ${target}`)
+            }
+          }
+          if (
+            ts.isCallExpression(node) &&
+            node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+            node.arguments[0] !== undefined
+          ) {
+            const argument = node.arguments[0]
+            const target = ts.isStringLiteralLike(argument)
+              ? resolveModule(where, argument.text, known)
+              : null
+            // 지정자를 글자로 안 적은 동적 import는 어디로 가는지 모른다 — 그것도 운다. 원격 모듈을
+            // 주소로 부르는 자리만 이름과 이유로 뺀다(`REMOTE_IMPORTS`).
+            const unknown = !ts.isStringLiteralLike(argument) && !REMOTE_IMPORTS.has(where)
+            if (unknown || (target !== null && relays.has(target))) {
+              wrong.push(`${where}  import() of ${target ?? 'an unknown module'}`)
+            }
+          }
+          ts.forEachChild(node, visit)
+        }
+        visit(tree)
+      }
+    }
+    return wrong
+  }
+
+  it('locks.ts의 이름을 이어 주는 모듈을 통째로 들이지 않는다', () => {
+    const files = new Map(
+      allSrcFiles(SRC)
+        .filter((path) => /\.(?:ts|vue)$/.test(path))
+        .map((path) => [relativeToSrc(path), readFileSync(path, 'utf-8')] as const),
+    )
+    expect(lockRelayPaths(files)).toEqual([])
+  })
+
+  it('검사기가 잡는다: export * 중계와 그 모듈의 네임스페이스 import', () => {
+    const locks = ['locks.ts', 'export function issueBusyLock(): void {}']
+    expect(
+      lockRelayPaths(
+        new Map([locks, ['relay.ts', "export * from '@/locks'"]] as [string, string][]),
+      ),
+    ).toEqual(['relay.ts  export * from locks'])
+    expect(
+      lockRelayPaths(
+        new Map([locks, ['relay.ts', "export * as L from './locks'"]] as [string, string][]),
+      ),
+    ).toEqual(['relay.ts  export * from locks'])
+    expect(
+      lockRelayPaths(
+        new Map([
+          locks,
+          ['relay.ts', "export { anyLock } from '@/locks'"],
+          ['views/X.vue', '<script setup lang="ts">import * as R from \'@/relay\'</script>'],
+        ] as [string, string][]),
+      ),
+    ).toEqual(['views/X.vue  import * from relay.ts'])
+    expect(
+      lockRelayPaths(
+        new Map([
+          locks,
+          ['relay.ts', "export { anyLock } from '@/locks'"],
+          ['x.ts', "export const m = import('./relay')"],
+        ] as [string, string][]),
+      ),
+    ).toEqual(['x.ts  import() of relay.ts'])
+    expect(
+      lockRelayPaths(
+        new Map([locks, ['x.ts', 'export const m = (p: string) => import(p)']] as [
+          string,
+          string,
+        ][]),
+      ),
+    ).toEqual(['x.ts  import() of an unknown module'])
+    // 이어 주지 않는 모듈의 네임스페이스 import는 괜찮다.
+    expect(
+      lockRelayPaths(
+        new Map([locks, ['x.ts', "import * as V from '@/other'"], ['other.ts', 'export {}']] as [
+          string,
+          string,
+        ][]),
+      ),
+    ).toEqual([])
+  })
+
+  /** 스크립트 블록에서 `defineProps`의 타입이 `Lock`에 닿는가. 같은 파일의 인터페이스·별칭을 따라간다. */
+  function propsTakeLock(script: string): boolean {
+    const tree = astOf(script)
+    const locals = new Map<string, ts.Node>()
+    for (const statement of tree.statements) {
+      if (ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement)) {
+        locals.set(statement.name.text, statement)
+      }
+    }
+    const reaches = (node: ts.Node, seen: Set<string>): boolean => {
+      if (ts.isTypeReferenceNode(node) && ts.isIdentifier(node.typeName)) {
+        const name = node.typeName.text
+        if (name === 'Lock') return true
+        const local = locals.get(name)
+        if (local !== undefined && !seen.has(name)) {
+          seen.add(name)
+          if (reaches(local, seen)) return true
+        }
+      }
+      return ts.forEachChild(node, (child) => (reaches(child, seen) ? true : undefined)) === true
+    }
+    let found = false
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === 'defineProps'
+      ) {
+        found ||= (node.typeArguments ?? []).some((type) => reaches(type, new Set()))
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(tree)
+    return found
+  }
+
+  /** 스크립트 블록이 `defineOptions({ inheritAttrs: false })`를 부르는가. */
+  function dropsInheritedAttrs(script: string): boolean {
+    let found = false
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === 'defineOptions'
+      ) {
+        const options = node.arguments[0]
+        if (options !== undefined && ts.isObjectLiteralExpression(options)) {
+          found ||= options.properties.some(
+            (property) =>
+              ts.isPropertyAssignment(property) &&
+              ts.isIdentifier(property.name) &&
+              property.name.text === 'inheritAttrs' &&
+              property.initializer.kind === ts.SyntaxKind.FalseKeyword,
+          )
+        }
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(astOf(script))
+    return found
+  }
+
+  /** 기본 부품 하나가 자격을 갖췄는가. 모자란 것을 돌려준다. */
+  function primitiveFaults(entry: (typeof LOCK_PRIMITIVES)[number], source: string): string[] {
+    const faults: string[] = []
+    if (!/^components\/App[A-Z][A-Za-z0-9]*\.vue$/.test(entry.file)) faults.push('path')
+    const { descriptor } = parseSfc(source, { filename: entry.file })
+    const setup = descriptor.scriptSetup?.content ?? ''
+    if (entry.takesLock && !propsTakeLock(setup)) faults.push('no Lock prop')
+    if (!dropsInheritedAttrs(setup)) faults.push('inherits attrs')
+    const template = descriptor.template?.content ?? ''
+    // **넘겨받은 속성은 허락 목록을 지나서만 건넨다.** `$attrs`를 그대로 붙이거나 `useAttrs`로 꺼내면
+    // `inheritAttrs: false`가 뜻을 잃는다.
+    if (template.replace(/forwardAttrs\(\$attrs\)/g, '').includes('$attrs')) faults.push('$attrs')
+    if (/\buseAttrs\b/.test(setup)) faults.push('useAttrs')
+    return faults
+  }
+
+  /**
+   * **기본 부품은 자격을 갖춘다** (구조 뒤 감사 C-2). 목록이 아무 파일이나 가리키면 그 파일은 잠금
+   * 낱말을 마음껏 쓴다 — 목록에 드는 것이 곧 예외이므로 자격을 잰다. `components/App*.vue`이고,
+   * 잠그는 부품이면 `Lock`을 받고, 모두 넘겨받은 속성을 뿌리에 흘리지 않는다(구조 뒤 감사 A-3).
+   */
+  it('기본 부품은 자격을 갖춘다', () => {
+    const faults = LOCK_PRIMITIVES.flatMap((entry) =>
+      primitiveFaults(entry, readFileSync(join(SRC, entry.file), 'utf-8')).map(
+        (fault) => `${entry.file}  ${fault}`,
+      ),
+    )
+    expect(faults).toEqual([])
+  })
+
+  it('검사기가 잡는다: 자격 없는 기본 부품', () => {
+    const entry = { file: 'components/AppProbe.vue', takesLock: true, why: '' }
+    const good =
+      '<script setup lang="ts">import type { Lock } from \'@/locks\'\n' +
+      'interface Item { lock?: Lock }\n' +
+      'defineOptions({ inheritAttrs: false })\n' +
+      'defineProps<{ items: readonly Item[] }>()</script>' +
+      '<template><b v-bind="forwardAttrs($attrs)" /></template>'
+    expect(primitiveFaults(entry, good)).toEqual([])
+    expect(primitiveFaults({ ...entry, file: 'views/AppProbe.vue' }, good)).toEqual(['path'])
+    expect(primitiveFaults(entry, good.replace('lock?: Lock', 'lock?: boolean'))).toEqual([
+      'no Lock prop',
+    ])
+    expect(
+      primitiveFaults(entry, good.replace('inheritAttrs: false', 'inheritAttrs: true')),
+    ).toEqual(['inherits attrs'])
+    expect(primitiveFaults(entry, good.replace('forwardAttrs($attrs)', '$attrs'))).toEqual([
+      '$attrs',
+    ])
   })
 })
