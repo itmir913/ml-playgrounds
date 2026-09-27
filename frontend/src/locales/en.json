@@ -195,7 +195,7 @@
       "deleteTitle": "Delete these photos?",
       "duplicates": "Did not add {count} photo you already have. | Did not add {count} photos you already have.",
       "emptyCategory": "No photos in this category yet. Drop photo files here, or use [Add photos here].",
-      "emptyNext": "Name a category for what you want to tell apart — dog, cat — then add photos to that category. You can also add photos first and sort them later.",
+      "emptyNext": "Name a category for what you want to tell apart — dog, cat — then add photos to that category. You can also add photos first and sort them later. Add a whole folder with [Add a folder], and each folder's name becomes a category.",
       "emptyReason": "No photos yet.",
       "moveTo": "Move to",
       "createConfirm": "Create",
