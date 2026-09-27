@@ -25,6 +25,7 @@
 - [privacy.md](privacy.md) — 개인정보 방침의 근거
 - [error-codes.md](error-codes.md) — 코드를 왜 나눴는가
 - [rule-coverage.md](rule-coverage.md) — 검사가 선 경위와 감사가 남긴 지도
+- [mlpx-spec.md](mlpx-spec.md) — 포맷 규칙의 이유와 실측
 
 ## 정리 진행
 
@@ -38,7 +39,7 @@
 - [x] `privacy.md`
 - [x] `error-codes.md`
 - [x] `rule-coverage.md`
-- [ ] `mlpx-spec.md`
+- [x] `mlpx-spec.md`
 - [ ] `roadmap.md`
 - [ ] `architecture.md`
 - [ ] `open-decisions.md`
