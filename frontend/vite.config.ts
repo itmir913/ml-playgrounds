@@ -140,5 +140,11 @@ export default defineConfig({
     hookTimeout: 20_000,
     environment: 'node',
     include: ['tests/**/*.spec.ts', 'src/**/*.spec.ts'],
+    /**
+     * **실행 중의 잠금 그물** (결정문 65). 화면을 띄운 검사에서 잠금 속성이 기본 부품 밖에서 서면
+     * 그 검사가 실패한다 — 글자 검사(`ui-rules.spec.ts`)가 못 보는 "실행 중에 조립한 이름"을 여기서
+     * 본다. 노드 환경 스펙에서는 아무것도 안 한다. 왜 그런지는 그 파일의 머리말이 적는다.
+     */
+    setupFiles: ['tests/setup/lock-net.ts'],
   },
 })

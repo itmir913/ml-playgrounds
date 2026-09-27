@@ -166,6 +166,50 @@ describe('R23: worker dies while baking', () => {
   })
 })
 
+/**
+ * **Enter로 잠금을 건너도 조용하지 않다** (결정문 65 "감사 뒤 더한 것"). 이름 창의 폼은
+ * `@submit.prevent="commitName"`이라 [확정]의 잠금을 안 지나가고, 그 길의 `commitName`이 말없이
+ * `return`했다 — 학생은 Enter를 눌렀는데 창이 그대로 서 있는 것만 본다. 이제 잠금과 같은
+ * 판정(`nameBlock`)으로 알린다.
+ */
+describe('decision 65: naming a category through Enter', () => {
+  const cautions = () =>
+    useToastStore()
+      .items.filter((one) => one.tone === 'caution')
+      .map((one) => one.key)
+
+  it('Enter로 잠금을 건너도 이유를 알리고 범주를 만들지 않는다', async () => {
+    const project = useProjectStore()
+    await project.save(imagePredictProject([]))
+    const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const panel = wrapper.vm as unknown as {
+      naming: { mode: 'create' | 'rename'; from: string; value: string } | null
+    }
+    const before = project.file?.document.settings.data
+
+    for (const [value, key] of [
+      ['   ', 'data.image.nameRequired'],
+      ['_숨김', 'data.image.nameInvalid'],
+    ] as const) {
+      panel.naming = { mode: 'create', from: '', value }
+      await flushPromises()
+      const confirm = wrapper.findAll('button').find((one) => one.text() === '만들기')
+      expect(confirm?.attributes('disabled'), `${key}: the button is locked`).toBeDefined()
+
+      await wrapper.find('form').trigger('submit')
+      await settle()
+      // 알림은 모달 창 뒤에 덮이므로 창 안의 문장으로 말한다.
+      const refusal = wrapper.find('form [role="alert"]')
+      expect(refusal.exists(), `${key}: no reason inside the dialog`).toBe(true)
+      expect(refusal.text()).toBe(i18n.global.t(key))
+      expect(cautions(), `${key}: a toast would sit behind the modal`).toEqual([])
+      expect(panel.naming, 'the dialog stays open').not.toBeNull()
+      expect(project.file?.document.settings.data).toEqual(before)
+    }
+  })
+})
+
 describe('R23: a plain save releases its job', () => {
   it('busy goes back to false after save()', async () => {
     const project = useProjectStore()

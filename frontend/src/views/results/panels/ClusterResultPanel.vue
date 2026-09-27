@@ -24,6 +24,7 @@ import TermPopover from '@/components/TermPopover.vue'
 import { useFormat } from '@/composables/useFormat'
 import { clusterScatterPointLimit } from '@/limits-switch'
 import { CLUSTER_MEMBER_PAGE_SIZE } from '@/limits'
+import { lockFor } from '@/locks'
 import {
   axisCell,
   axisOverviews,
@@ -306,7 +307,7 @@ function cellsOf(row: number): readonly string[] {
       <div v-if="memberPages > 1" class="flex items-center justify-between gap-4">
         <AppButton
           variant="secondary"
-          :disabled="memberPage === 0"
+          :lock="lockFor('pageFirst', { page: memberPage })"
           @click="memberPage = memberPage - 1"
         >
           {{ t('common.prevPage') }}
@@ -314,7 +315,7 @@ function cellsOf(row: number): readonly string[] {
         <p class="tabular-nums text-ink-soft">{{ memberPage + 1 }} / {{ memberPages }}</p>
         <AppButton
           variant="secondary"
-          :disabled="memberPage >= memberPages - 1"
+          :lock="lockFor('pageLast', { page: memberPage, pages: memberPages })"
           @click="memberPage = memberPage + 1"
         >
           {{ t('common.nextPage') }}

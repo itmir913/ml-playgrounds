@@ -28,8 +28,8 @@
     },
     {
       "file": "src/views/preprocess/TabularPrepPanel.vue",
-      "find": "  } finally {\n    testBusy.value = false\n  }\n}\n\nfunction onTestPick",
-      "replace": "  } finally {\n    testBusy.value = true\n  }\n}\n\nfunction onTestPick",
+      "find": "  } finally {\n    job.done()\n  }\n}\n\nfunction onTestPick",
+      "replace": "  } finally {\n    void job\n  }\n}\n\nfunction onTestPick",
       "expect": "cries",
       "expectSpecs": ["tests/tabular-prep-fail.spec.ts"],
       "loses": "깨진 테스트 파일 한 번에 [파일 선택]이 영영 꺼진다 (R24 B-2a)"
@@ -148,11 +148,11 @@
     },
     {
       "file": "src/components/ProjectPicker.vue",
-      "find": "summary.readable ? null : t('projects.unreadable')",
-      "replace": "summary.readable ? t('projects.unreadable') : null",
+      "find": "isLocked(props.lock) ? t('projects.opening') : undefined",
+      "replace": "isLocked(props.lock) ? undefined : t('projects.opening')",
       "expect": "cries",
       "expectSpecs": ["tests/project-picker.spec.ts"],
-      "loses": "저장된 프로젝트를 못 열고 못 읽는 것이 열린다 (R24 B-7)"
+      "loses": "여는 동안 잠긴 줄이 이유 없이 회색이고, 열린 줄에 '여는 중'이 선다 (R24 B-7, 결정문 65 ②에서 못 읽는 줄의 잠금을 뺀 뒤 남은 잠금)"
     },
     {
       "file": "src/components/StepChecklist.vue",
@@ -308,8 +308,8 @@
     },
     {
       "file": "src/views/train/ModelAxes.vue",
-      "find": "    enabled: true,",
-      "replace": "    enabled: taskType !== 'classification',",
+      "find": "    label: t(`taskTypes.${taskType}`),\n  })),",
+      "replace": "    label: t(`taskTypes.${taskType}`),\n    lock: lockFor('projectHome', { projectOpen: taskType !== 'classification' }),\n  })),",
       "expect": "cries",
       "expectSpecs": ["tests/task-type-trap.spec.ts"],
       "loses": "분류 카드가 다시 잠긴다 - 군집을 고른 학생의 화면에서 풀 방법 없이 잠긴다 (R25 R1)"

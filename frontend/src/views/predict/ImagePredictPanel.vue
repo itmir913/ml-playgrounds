@@ -29,6 +29,7 @@ import { usePasteImages } from '@/composables/usePasteImages'
 import { useWork } from '@/composables/useWork'
 import { ClientError, isClientError } from '@/errors'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
+import { anyLock, lockFor, useGate, type WatchWriteId } from '@/locks'
 import { backboneFor } from '@/ml/backbones'
 import { embedImages } from '@/ml/embed/client'
 import { spawnEmbedWorker } from '@/ml/embed/spawn'
@@ -84,10 +85,18 @@ const fileInput = ref<HTMLInputElement | null>(null)
  * **예측은 화면을 막지 않는다** — 도는 중에도 사진은 더 받는다. 막는 것은 굽기와
  * 사진 빼기이고, 예측 자체는 `predicting`이 말한다.
  */
-const { busy, progress, start, alive, retire } = useWork()
+const { busy, lock: busyLock, progress, start, alive, retire } = useWork()
 /** 사진을 끌고 판 위에 있는가. 빈 자리의 점선이 이걸 보고 색을 바꾼다. */
 const dragging = ref(false)
-const predicting = ref(false)
+/**
+ * 예측이 도는 중인가. **작업 상태에서 온다** (`useWork`, 결정문 65 ③) — 사진 빼기·쪽 넘기기·필터가
+ * 이 잠금(`predictionLock`)을 받는다. 위의 일(굽기)과 따로 세는 것은 예측이 화면을 막지 않기
+ * 때문이다 — 도는 중에도 사진은 더 받는다.
+ */
+const prediction = useWork()
+const predicting = prediction.busy
+const predictionLock = prediction.lock
+onBeforeUnmount(prediction.retire)
 
 /** 사진 해시 -> (run id -> 답). 사진 하나가 표의 한 줄이다. */
 const answers = ref(new Map<string, Map<string, Answer>>())
@@ -134,8 +143,12 @@ const predicted = ref(false)
  * 도는 중에 넘기면 답이 이 쪽 것인지 저 쪽 것인지 알 수 없다. `BatchPredict`가 같은
  * 이름으로 같은 일을 한다.
  */
-const atFirstPage = computed(() => predicting.value || page.value === 0)
-const atLastPage = computed(() => predicting.value || page.value >= totalPages.value - 1)
+const atFirstPage = computed(() =>
+  anyLock(predictionLock.value, lockFor('pageFirst', { page: page.value })),
+)
+const atLastPage = computed(() =>
+  anyLock(predictionLock.value, lockFor('pageLast', { page: page.value, pages: totalPages.value })),
+)
 
 const models = computed<readonly PredictableModel[]>(() => {
   const file = project.file
@@ -383,18 +396,30 @@ usePasteImages((files) => void readPicked(files))
 
 /**
  * 예측한다. **없는 임베딩만 먼저 뽑는다** — 학습과 같은 규칙이다 (mlpx-spec.md §1.3).
+ *
+ * `watch`는 감시자 안에서 부를 때의 이름이다 (`@/locks`의 `WATCH_WRITES` — 쪽을 넘기면 이어서
+ * 예측한다). 단추에서 부를 때는 없다.
  */
-async function run(): Promise<void> {
+async function run(watch?: WatchWriteId): Promise<void> {
   const file = project.file
   const spec = backbone.value
   if (!file || predicting.value) return
+  // **백본을 받기 전에 거절한다** (결정문 65 "조용히 끝나던 동작에 알리는 가드"). 사진이나 쓸 수
+  // 있는 모델이 없으면 받을 이유가 없다 — 전에는 이것을 안 보고 **백본 12.4MB를 받은 뒤 답 없이
+  // 말없이** 끝났다. 잠금과 같은 칸이다(`@/locks`의 `imagePredict`).
+  // `image-predict-fail.spec.ts`의 *"decision 65: predicting with nothing to predict"*가 문다.
+  const refused = refusePredict()[0]
+  if (refused !== undefined) {
+    toasts.push('caution', PREDICT_REFUSAL_KEYS[refused])
+    return
+  }
   // 위와 같은 이유다 (R23 B-3). [예측하기]가 아무 일도 안 하는 것으로 보이면 안 된다.
   if (!spec) {
     toasts.pushError(new ClientError('BACKBONE_UNAVAILABLE'))
     return
   }
 
-  predicting.value = true
+  const predictJob = prediction.start(watch === undefined ? undefined : { watch })
   // **막지 않는 일이다.** 도는 동안에도 사진은 더 받는다(§8.10.3). 그래도 손잡이는
   // 맡긴다 — 떠나면 12.4MB 내려받기가 함께 끊겨야 한다 (§8.10.4).
   const job = start({ blocks: false })
@@ -530,7 +555,7 @@ async function run(): Promise<void> {
     }
   } finally {
     job.done()
-    predicting.value = false
+    predictJob.done()
   }
 }
 
@@ -573,7 +598,7 @@ function clearAll(): Promise<void> {
  */
 watch(page, () => {
   const missing = shown.value.some((photo) => !answers.value.has(photo.hash))
-  if (predicted.value && missing) void run()
+  if (predicted.value && missing) void run('predictPage')
 })
 
 /** 해시 -> 썸네일 주소. 만들고 놓아주는 것은 `useThumbnails`가 한다 (V11 R5 C-2). */
@@ -587,9 +612,25 @@ const { urls } = useThumbnails(photos)
 // `useWork`가 가져갔다 (2026-09-02 R23 B-2).
 onBeforeUnmount(retire)
 
-const canPredict = computed(
-  () => photos.value.length > 0 && visibleUsable.value.length > 0 && !busy.value,
-)
+/**
+ * [예측하기]의 잠금과 `run()`의 거절. **같은 칸(`@/locks`의 `imagePredict`)이 둘 다 만든다**
+ * (결정문 65). 재료는 세는 것뿐이다.
+ */
+const { lock: predictGateLock, refuse: refusePredict } = useGate('imagePredict', () => ({
+  photos: photos.value.length,
+  models: models.value.length,
+  visible: visible.value.length,
+  usable: visibleUsable.value.length,
+}))
+const predictLock = computed(() => anyLock(predictGateLock.value, busyLock.value))
+
+/** 거절 이유 → 문장 키. **키를 조립하지 않는다.** 모델이 없는 것과 필터가 전부 거른 것은 할 일이 다르다. */
+const PREDICT_REFUSAL_KEYS = {
+  noPhoto: 'predict.image.emptyReason',
+  noModel: 'predict.image.noModel',
+  noVisibleModel: 'predict.filterEmptyReason',
+  noUsableModel: 'predict.image.noUsableModel',
+} as const
 
 /**
  * 사진을 늘리거나 지우는 버튼이 잠기는가. **`busy`만으로는 모자랐다** - `busy`는 사진을
@@ -607,7 +648,7 @@ const canPredict = computed(
  *
  * 표 판은 이미 `predicting`으로 잠그고 있었다 - 이미지 판만 갈려 있었다.
  */
-const photosLocked = computed(() => busy.value || predicting.value)
+const photosLocked = computed(() => anyLock(busyLock.value, predictionLock.value))
 
 /**
  * 끌고 온 것을 지금 받을 수 있는가. **굽는 중에는 자리가 색을 안 바꾼다** — 받지 못할
@@ -677,7 +718,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       <AppButton
         v-if="photos.length > 0"
         variant="secondary"
-        :disabled="photosLocked"
+        :lock="photosLocked"
         @click="fileInput?.click()"
       >
         {{ t('predict.image.add') }}
@@ -692,14 +733,14 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       <AppButton
         v-if="photos.length > 0"
         variant="secondary"
-        :disabled="photosLocked"
+        :lock="photosLocked"
         @click="clearing = true"
       >
         {{ t('predict.image.clear') }}
       </AppButton>
 
       <template #end>
-        <AppButton :disabled="!canPredict" :action="run">
+        <AppButton :lock="predictLock" :action="() => run()">
           {{ t('predict.run') }}
           <template #pending>{{ t('predict.running') }}</template>
         </AppButton>
@@ -717,7 +758,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       :class="inviting ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
     >
       <AppEmpty :reason="t('predict.image.emptyReason')" :next="t('predict.image.emptyNext')">
-        <AppButton size="lg" :disabled="busy" @click="fileInput?.click()">
+        <AppButton size="lg" :lock="busyLock" @click="fileInput?.click()">
           {{ t('predict.image.add') }}
         </AppButton>
       </AppEmpty>
@@ -732,7 +773,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       :axes="axes"
       :filter="filter"
       :count="filterCount"
-      :disabled="predicting"
+      :lock="predictionLock"
       @toggle="toggle"
       @toggle-all="toggleAll"
     />
@@ -802,7 +843,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
           <AppButton
             variant="ghost"
             class="self-start md:order-last"
-            :disabled="photosLocked"
+            :lock="photosLocked"
             :action="() => removeOne(photo.hash)"
           >
             {{ t('predict.image.remove') }}
@@ -824,11 +865,11 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
 
     <!-- 쪽이 하나뿐이면 안 그린다. 아무 데도 못 가는 버튼은 고장으로 보인다. -->
     <div v-if="showPages" class="flex items-center justify-between gap-4">
-      <AppButton variant="secondary" :disabled="atFirstPage" @click="page -= 1">
+      <AppButton variant="secondary" :lock="atFirstPage" @click="page -= 1">
         {{ t('common.prevPage') }}
       </AppButton>
       <p class="tabular-nums text-ink-soft">{{ page + 1 }} / {{ totalPages }}</p>
-      <AppButton variant="secondary" :disabled="atLastPage" @click="page += 1">
+      <AppButton variant="secondary" :lock="atLastPage" @click="page += 1">
         {{ t('common.nextPage') }}
       </AppButton>
     </div>
@@ -843,7 +884,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
         <AppButton variant="secondary" @click="clearing = false">{{
           t('common.cancel')
         }}</AppButton>
-        <AppButton variant="danger" :disabled="busy" :action="clearAll">
+        <AppButton variant="danger" :lock="busyLock" :action="clearAll">
           {{ t('predict.image.clear') }}
         </AppButton>
       </template>

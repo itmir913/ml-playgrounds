@@ -39,8 +39,11 @@ const renderer = new MarkdownIt({ html: false, linkify: false, breaks: true })
 
 renderer.validateLink = (url) => ALLOWED_LINK.test(url.trim())
 
-// 그림은 규칙째 끈다. `![대체글](주소)`는 글자 그대로 남는다.
-renderer.disable('image')
+// 그림은 규칙째 끈다 — 그림 규칙을 **언제나 안 맞는 규칙으로 갈아 끼운다.** `![대체글](주소)`는
+// 그림이 되지 않고 느낌표와 링크로 읽힌다(규칙을 끈 것과 같다). 끄는 메서드를 부르지 않는 것은 그
+// 이름이 잠금 낱말이라서다(`@/locks`의 `LOCK_WORDS`, 결정문 65). `portfolio-markdown.spec.ts`의
+// *"그림은 그리지 않는다"*가 문다.
+renderer.inline.ruler.at('image', () => false)
 
 renderer.renderer.rules.link_open = (tokens, index, options, _env, self) => {
   const token = tokens[index]

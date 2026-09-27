@@ -18,12 +18,17 @@
 import { computed, ref } from 'vue'
 
 import { splitTerm } from '@/i18n'
+import { isLocked, type Lock } from '@/locks'
 
 export interface Choice {
   readonly id: string
   readonly label: string
-  readonly enabled: boolean
-  /** 꺼진 칸을 눌렀을 때 보여줄 문장. 이미 번역돼서 온다. */
+  /**
+   * 잠금. **`@/locks`만 만든다** (결정문 65) — 칸을 끄는 boolean은 받지 않는다. 전에는
+   * `enabled`를 받아서 부르는 쪽이 어떤 조건이든 넣을 수 있었다.
+   */
+  readonly lock?: Lock | undefined
+  /** 잠긴 칸을 눌렀을 때 보여줄 문장. 이미 번역돼서 온다. 잠기지 않았으면 안 쓴다. */
   readonly reason?: string | undefined
 }
 
@@ -52,11 +57,11 @@ const opened = ref<string | null>(null)
  */
 const reason = computed(() => {
   const item = props.items.find((one) => one.id === opened.value)
-  return item && !item.enabled ? item.reason : undefined
+  return item && isLocked(item.lock) ? item.reason : undefined
 })
 
 function press(item: Choice): void {
-  if (!item.enabled) {
+  if (isLocked(item.lock)) {
     opened.value = item.id
     return
   }
@@ -75,7 +80,7 @@ const STATES = {
 } as const
 
 function stateOf(item: Choice): string {
-  if (!item.enabled) return STATES.off
+  if (isLocked(item.lock)) return STATES.off
   return props.selected === item.id ? STATES.selected : STATES.idle
 }
 
@@ -149,7 +154,7 @@ const cells = computed(() =>
         class="min-w-0 rounded-control border px-3 py-2 text-center font-bold break-keep transition-colors"
         :class="stateOf(cell.item)"
         :aria-pressed="props.selected === cell.item.id"
-        :aria-disabled="!cell.item.enabled"
+        :aria-disabled="isLocked(cell.item.lock)"
         @click="press(cell.item)"
       >
         <!--

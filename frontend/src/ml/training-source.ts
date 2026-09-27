@@ -18,8 +18,13 @@ import { backboneFor } from '@/ml/backbones'
 import { embedImages, type EmbedHandle, type EmbedWorker } from '@/ml/embed/client'
 import { spawnEmbedWorker } from '@/ml/embed/spawn'
 import { imageTestDataset, imageTrainingSource, pendingEmbeddings } from '@/ml/images'
-import { usableRows, type Dataset } from '@/ml/preprocess'
-import { featuresInUse, trainableRowCount, trainableSelections, usesTarget } from '@/ml/selection'
+import type { Dataset } from '@/ml/preprocess'
+import {
+  featuresInUse,
+  trainableRowCountFor,
+  trainableSelections,
+  usesTarget,
+} from '@/ml/selection'
 import { readDataset, readTestDataset } from '@/project/dataset'
 import { addEmbeddings, readEmbeddings } from '@/project/embeddings'
 import { IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
@@ -260,22 +265,8 @@ export const TRAINING_ROW_COUNTS: Readonly<
     const data = tabularDataOf(project.document)
     if (!dataset) return 0
     if (!data) return dataset.rows.length
-    const { nSamples } = project.document.settings
-    // **타깃을 안 쓰는 유형(군집)은 계획과 같은 행을 센다** (`ml/plan.ts`의 `usableRows`) —
-    // 타깃이 빈 행을 빼지 않고 특성의 빈 칸만 본다. `train-prep-kind.spec.ts`의
-    // *"군집이면 쓸 수 있는 행 전부로 센다"*가 문다.
-    if (!usesTarget(taskType)) {
-      const features = featuresInUse(data.features, undefined)
-      const usable = usableRows(dataset, features, undefined, data.preprocessing.missing).length
-      return nSamples === undefined ? usable : Math.min(usable, nSamples)
-    }
-    return trainableRowCount(
-      dataset,
-      data.features,
-      data.target,
-      data.preprocessing.missing,
-      nSamples,
-    )
+    // **유형까지 보고 센다** — 뽑기 천장을 세는 전처리 화면과 같은 함수다(`trainableRowCountFor`).
+    return trainableRowCountFor(dataset, data, taskType, project.document.settings.nSamples)
   },
   image: (project, taskType) =>
     readImages(project).filter(

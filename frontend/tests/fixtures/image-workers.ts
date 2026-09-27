@@ -20,6 +20,8 @@ import { backboneFor, DEFAULT_BACKBONE_ID } from '../../src/ml/backbones'
 import { newProjectDocument } from '../../src/project/create'
 import { IMAGE_UNLABELED, type ProjectFile } from '../../src/project/format'
 import { addImages } from '../../src/project/images'
+import { fitPreprocessor, usableRows } from '../../src/ml/preprocess'
+import { experiment, run } from './project'
 
 /** 검사가 워커의 시점을 잡는 손잡이. **`beforeEach`에서 `resetImageWorkers`를 부른다.** */
 export const workerState = {
@@ -143,6 +145,54 @@ export function imagePredictProject(seeds: readonly string[]): ProjectFile {
       format: 'webp',
     },
   ).project
+}
+
+/**
+ * **예측할 수 있다고 보이는 모델 하나를 단다.** 모델 파일은 읽히지 않는 글자라 답은 사유와
+ * 함께 실패한다 — 이 하니스가 보는 것은 [예측]이 **임베딩까지 가는가**이지 답이 아니다.
+ *
+ * **왜 필요한가** (결정문 65 "감사 뒤 더한 것"). [예측]은 보이는 쓸 수 있는 모델이 없으면
+ * 백본을 받기 전에 거절한다 — 전에는 모델 없이도 사진을 전부 임베딩하고 답 없이 끝났고,
+ * 워커의 시점을 보는 검사들이 그 조용한 길을 타고 있었다. 전처리기는 진짜 입구
+ * (`fitPreprocessor`)로 만든다 — 읽히지 않으면 모델이 사유와 함께 꺼져 같은 거절에 걸린다.
+ */
+export function withUsableModel(file: ProjectFile): ProjectFile {
+  const table = {
+    columns: ['e0', 'e1'],
+    rows: [
+      ['0.1', '0.2'],
+      ['0.3', '0.4'],
+    ],
+  }
+  const preprocessing = { missing: 'drop', scaling: 'none', categoricalEncoding: 'onehot' } as const
+  const rows = usableRows(table, table.columns, undefined, preprocessing.missing)
+  const preprocessor = fitPreprocessor(table, rows, table.columns, preprocessing)
+  const base = experiment('experiment-usable', [run('run-usable')])
+  // 이미지 실험의 스냅샷 모양이다 — 표의 것을 두면 여는 문(`parseProjectDocument`)이 거절한다.
+  const trained = {
+    ...base,
+    settings: {
+      ...base.settings,
+      data: {
+        categories: [],
+        backboneId: DEFAULT_BACKBONE_ID,
+        categoryCounts: [],
+        unlabeledCount: 0,
+      },
+    },
+  }
+  return {
+    ...file,
+    document: { ...file.document, runs: { experiments: [trained] } },
+    models: new Map([
+      ...file.models,
+      [
+        'model/preprocessor-experiment-usable.json',
+        new TextEncoder().encode(JSON.stringify(preprocessor)),
+      ],
+      ['model/run-usable.json', new TextEncoder().encode('not a model')],
+    ]),
+  }
 }
 
 /**

@@ -15,11 +15,13 @@
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
+import AppInput from '@/components/AppInput.vue'
 import AppTable from '@/components/AppTable.vue'
 import TermPopover from '@/components/TermPopover.vue'
 import { useFormat } from '@/composables/useFormat'
 import type { FittedColumn } from '@/ml/preprocess'
-import { columnBlocks, columnNote, featureLocked, type ColumnPlan } from '@/ml/selection'
+import { lockFor } from '@/locks'
+import { columnBlocks, columnNote, type ColumnPlan } from '@/ml/selection'
 import type { Preprocessing } from '@/project/schema'
 
 const props = defineProps<{
@@ -235,11 +237,11 @@ function onFeature(name: string, event: Event): void {
             />
           </td>
           <td>
-            <input
+            <AppInput
               type="checkbox"
               class="size-4 accent-brand"
               :checked="column.featureChosen"
-              :disabled="featureLocked(column)"
+              :lock="lockFor('featureRole', { column })"
               :aria-label="column.summary.name"
               @change="onFeature(column.summary.name, $event)"
             />

@@ -20,9 +20,11 @@ import { CHART_CONTROLS } from '@/data/charts'
 
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
+import AppPlainButton from '@/components/AppPlainButton.vue'
 import { chartToolsFor, defaultChartTool, type ChartTool } from '@/data/charts'
 import type { ColumnSummary } from '@/data/columns'
 import type { Dataset } from '@/ml/preprocess'
+import { isLocked, lockFor, lockReasons, type Lock, type LockReason } from '@/locks'
 import type { DataType } from '@/project/schema'
 
 const props = defineProps<{
@@ -55,9 +57,17 @@ const tools = computed(() => chartToolsFor(props.kind))
 
 const gate = computed(() => ({ columns: props.columns, column: column.value }))
 
-/** 도구마다 잠긴 이유. **비어 있으면 그릴 수 있다.** */
+/**
+ * 도구 단추의 잠금. **등록부의 `chartTool` 칸이 도구의 `blockedBy`를 부른다** (결정문 65) —
+ * 화면은 도구와 재료만 넘긴다.
+ */
+function toolLock(tool: ChartTool): Lock<LockReason<'chartTool'>> {
+  return lockFor('chartTool', { tool, gate: gate.value })
+}
+
+/** 도구마다 잠긴 이유. **비어 있으면 그릴 수 있다.** 잠금이 든 이유 코드에서 만든다. */
 function blocks(tool: ChartTool): readonly string[] {
-  return tool.blockedBy(gate.value).map((block) => t(`data.charts.blocked.${block}`))
+  return lockReasons(toolLock(tool)).map((block) => t(`data.charts.blocked.${block}`))
 }
 
 /** **창을 다시 열 때는 바깥이 준 열로 돌아간다.** 학생이 방금 누른 줄이 그 열이다. */
@@ -117,9 +127,26 @@ const figure = ref<HTMLElement | null>(null)
  * `tests/chart-dialog.spec.ts`의 "도구를 고르면 그림으로 데려간다"가 지킨다.
  */
 function pickTool(id: string): void {
+  explained.value = null
   chosenToolId.value = id
   void nextTick(() => figure.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
 }
+
+/**
+ * 잠긴 도구를 누른 것. **누르면 이유가 선다** (결정문 65 "터치에서도 이유가 보인다"). 전에는 잠긴
+ * 단추가 눌리지도 않았고 이유가 `title`에만 있어 **휴대폰에서는 볼 길이 없었다** — 올릴 마우스가
+ * 없다. 모델 카드(`AppChoices`)와 같은 모양이다: 보이게 두되 누를 수 없다고 알리고, 누르면 그
+ * 도구의 이유를 아래 한 줄에 세운다.
+ */
+const explained = ref<string | null>(null)
+
+/** 지금 이유를 세운 도구와 그 이유. 열을 바꿔 그 도구가 풀리면 저절로 사라진다. */
+const explanation = computed(() => {
+  const one = tools.value.find((tool) => tool.id === explained.value)
+  if (one === undefined) return null
+  const reasons = blocks(one)
+  return reasons.length === 0 ? null : reasons.join(' ')
+})
 </script>
 
 <template>
@@ -192,24 +219,26 @@ function pickTool(id: string): void {
         -->
         <div class="@container">
           <div class="grid grid-cols-1 gap-2 @sm:grid-cols-2">
-            <button
+            <AppPlainButton
               v-for="one in tools"
               :key="one.id"
-              type="button"
+              announce
+              look="sunken"
+              :lock="toolLock(one)"
               class="w-full rounded-field border px-3 py-2 text-left text-base font-bold"
               :class="
                 one.id === toolId
                   ? 'border-brand bg-brand-soft text-brand'
-                  : blocks(one).length > 0
-                    ? 'cursor-not-allowed border-line bg-surface-sunken text-ink-soft'
+                  : isLocked(toolLock(one))
+                    ? ''
                     : 'border-line-strong bg-surface text-ink'
               "
-              :disabled="blocks(one).length > 0"
               :title="blocks(one).join(' ')"
               @click="pickTool(one.id)"
+              @refused="explained = one.id"
             >
               {{ t(`data.charts.${one.id}.name`) }}
-            </button>
+            </AppPlainButton>
           </div>
         </div>
 
@@ -222,13 +251,15 @@ function pickTool(id: string): void {
 
         <!--
           **잠긴 이유는 붙임말이 아니라 글로도 있어야 한다.** `title` 어트리뷰트는
-          마우스를 올려야 보이고, 휴대폰에는 올릴 마우스가 없다.
+          마우스를 올려야 보이고, 휴대폰에는 올릴 마우스가 없다. 그래서 잠긴 도구를 누르면
+          그 이유가 여기 선다(`explanation`). 그리는 도구(`tool`)는 언제나 그릴 수 있는
+          것으로 떨어지므로(`toolId`) 그 이유를 적던 줄은 닿지 않아 뺐다.
         -->
         <p v-if="tool === undefined" class="text-ink-soft">
           {{ t('data.charts.nothingToDraw') }}
         </p>
-        <p v-else-if="blocks(tool).length > 0" class="text-ink-soft">
-          {{ blocks(tool).join(' ') }}
+        <p v-if="explanation" role="status" class="text-caution">
+          {{ explanation }}
         </p>
       </div>
 

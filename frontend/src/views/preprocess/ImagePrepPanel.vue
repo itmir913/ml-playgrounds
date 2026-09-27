@@ -17,6 +17,7 @@ import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
+import AppInput from '@/components/AppInput.vue'
 import { canonicalizeImages } from '@/data/image/client'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
 import { scoresWithTestImages, testSetBlockFor, testZipBlockFor } from '@/data/image/test-set'
@@ -32,7 +33,8 @@ import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { backboneFor } from '@/ml/backbones'
 import { useRadioGroupGuard } from '@/composables/useRadioGroupGuard'
 import { useWork } from '@/composables/useWork'
-import { splitsData, stratifyBlockFor, stratifyLocked } from '@/ml/selection'
+import { lockFor } from '@/locks'
+import { splitsData, stratifyBlockFor } from '@/ml/selection'
 import { IMAGE_UNLABELED } from '@/project/format'
 import { dataSettings } from '@/project/schema'
 import { imageRoomShortfall } from '@/data/image/room'
@@ -81,8 +83,20 @@ const stratifyReason = computed(() => {
   return block === null ? null : t(`client.${block.code}`, block.params ?? {})
 })
 
-/** 잠금 규칙도 화면 밖에 있다 (`ml/selection.ts`의 `stratifyLocked`). */
-const stratifyDisabled = computed(() => stratifyLocked(stratifyBlockNow.value))
+/**
+ * 체크박스의 잠금. **등록부의 `stratifyImage` 칸이 같은 재료로 `stratifyBlockFor`를 부른다**
+ * (`@/locks`, 결정문 55·65). 뽑기만 층화하는 경우는 잠그지 않는다(`ml/selection.ts`의 `stratifyLocked`).
+ */
+const stratifyLock = computed(() => {
+  const current = settings.value
+  if (!current) return undefined
+  return lockFor('stratifyImage', {
+    taskType: project.taskType,
+    labels: labels.value,
+    nSamples: current.nSamples,
+    split: current.split,
+  })
+})
 
 /**
  * 이 프로젝트의 범주. 올라온 사진을 대조할 목록이다.
@@ -189,6 +203,10 @@ function chooseProvided(): void {
  */
 async function requestTakeTest(items: readonly UploadItem[]): Promise<void> {
   if (items.length === 0) return
+  // **거절이 확인 창보다 먼저다** (`open-decisions.md` 65 ⑤). 받을 수 없는 사진이면
+  // "실험이 지워집니다"를 묻는 것부터 헛일이다 — 학생은 확인을 누른 뒤에야 거절을 읽었다.
+  // 판정은 굽기(`takeTest`)가 다시 보는 것과 같은 `testZipBlockFor` 하나다.
+  if (refusedTest(items)) return
   if (experimentCount.value > 0) {
     pendingTest.value = items
     testAttaching.value = true
@@ -222,8 +240,27 @@ async function requestRemoveTest(): Promise<void> {
 }
 
 /**
- * 자리 자체의 잠금. **판정은 화면 밖에 있다** (`data/image/test-set.ts`) —
- * 규칙은 `open-decisions.md` "테스트용 zip (`split.method = 'provided'`)"이 갖는다.
+ * 받은 사진을 쓸 수 없으면 **이유를 알리고 참을 돌려준다.** 올리기 요청(`requestTakeTest`)과
+ * 굽기(`takeTest`)가 같은 판정(`testZipBlockFor`)으로 거절한다 — 확인 창을 사이에 두고 범주가
+ * 바뀔 수 있어 굽기 앞에서 한 번 더 본다.
+ */
+function refusedTest(items: readonly UploadItem[]): boolean {
+  const block = testZipBlockFor(
+    categories.value,
+    items.map((item) => item.category),
+  )
+  if (block === null) return false
+  toasts.push('caution', `client.${block.code}`, block.params ?? {})
+  return true
+}
+
+/**
+ * 범주가 서기 전의 안내. **판정은 화면 밖에 있다** (`data/image/test-set.ts`) — 규칙은
+ * `open-decisions.md` "테스트용 zip (`split.method = 'provided'`)"이 갖는다.
+ *
+ * **버튼을 잠그지 않는다** (`open-decisions.md` 65 ⑤). 누르면 같은 판정으로 알리고(`pickTest`),
+ * 끌어다 놓으면 올리기 요청이 거절한다(`refusedTest`) — 잠금과 거절을 따로 두면 언젠가 갈린다
+ * (결정문 60). 이 문장은 고르기 전에 미리 말해 주는 것뿐이다.
  */
 const testBlock = computed(() => testSetBlockFor(categories.value))
 
@@ -233,16 +270,11 @@ const testReason = computed(() => {
 })
 
 /** 지금 이 화면에서 도는 일들 (architecture.md §8.10.4). */
-const { busy, start, alive, retire } = useWork()
+/** 진행 중의 잠금(`lock`)은 굽거나 읽거나 떼는 동안이다 (결정문 65 ③). */
+const { busy, lock: busyLock, start, alive, retire } = useWork()
 
 // **떠나면 굽던 것을 끊고 끝났다고 표시한다.** 이미지 판들이 전부 같은 규칙이다.
 onBeforeUnmount(retire)
-
-/**
- * 사진을 받는 자리가 잠겼는가. **템플릿에서 조립하지 않는다** (architecture.md §10) —
- * 조건이 둘이 되는 순간이 이름을 붙일 순간이다. 이유는 위 `testReason`이 따로 말한다.
- */
-const testDisabled = computed(() => testBlock.value !== null || busy.value)
 
 /**
  * 테스트용 사진을 받는다.
@@ -268,14 +300,7 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
    */
   const ours = project.claim()
   try {
-    const block = testZipBlockFor(
-      categories.value,
-      items.map((item) => item.category),
-    )
-    if (block) {
-      toasts.push('caution', `client.${block.code}`, block.params ?? {})
-      return
-    }
+    if (refusedTest(items)) return
 
     const backbone = backboneFor(dataSettings('image', file.document.settings).backboneId)
     if (!backbone) throw new ClientError('BACKBONE_UNAVAILABLE')
@@ -415,6 +440,19 @@ function pick(input: HTMLInputElement | null): void {
   input?.click()
 }
 
+/**
+ * 테스트 사진 단추. **범주가 서기 전이면 파일을 고르게 하지 않고 이유를 알린다** — 고르고 나서
+ * 거절당하면 학생은 고르는 시간을 버린다. 판정은 올리기 요청과 같은 줄이다(`testZipBlockFor`의 첫 줄).
+ */
+function pickTest(input: HTMLInputElement | null): void {
+  const block = testBlock.value
+  if (block !== null) {
+    toasts.push('caution', `client.${block.code}`, block.params ?? {})
+    return
+  }
+  pick(input)
+}
+
 /** 떨어뜨린 것. 압축 파일 하나이거나, 폴더째 끌어온 사진들이다. */
 function onTestDrop(event: DragEvent): void {
   dragging.value = false
@@ -526,11 +564,11 @@ function onStratify(event: Event): void {
 
             <div>
               <label class="flex cursor-pointer items-center gap-2">
-                <input
+                <AppInput
                   type="checkbox"
                   class="size-4 accent-brand"
                   :checked="settings.split.stratify"
-                  :disabled="stratifyDisabled"
+                  :lock="stratifyLock"
                   @change="onStratify"
                 />
                 <span class="font-bold">{{ t('preprocess.stratify') }}</span>
@@ -570,8 +608,9 @@ function onStratify(event: Event): void {
 
             <template v-else>
               <!--
-                **잠기는 자리에는 이유가 함께 있다** (architecture.md §9.4). 범주가 서기
-                전에는 대조할 목록이 없어서 어떤 사진도 판정할 수 없다.
+                **고르기 전에 미리 말한다** (architecture.md §9.4). 범주가 서기 전에는
+                대조할 목록이 없어서 어떤 사진도 판정할 수 없다. 버튼은 잠그지 않는다 —
+                누르면 같은 판정으로 알린다(`pickTest`).
               -->
               <p v-if="testReason" class="text-caution">{{ testReason }}</p>
 
@@ -592,14 +631,10 @@ function onStratify(event: Event): void {
                   <p class="mt-1 text-ink-soft">{{ t('preprocess.testImagesDropNote') }}</p>
                 </div>
                 <div class="flex flex-wrap justify-center gap-2">
-                  <AppButton
-                    variant="secondary"
-                    :disabled="testDisabled"
-                    @click="pick(folderInput)"
-                  >
+                  <AppButton variant="secondary" :lock="busyLock" @click="pickTest(folderInput)">
                     {{ t('preprocess.testImagesAddFolder') }}
                   </AppButton>
-                  <AppButton variant="secondary" :disabled="testDisabled" @click="pick(zipInput)">
+                  <AppButton variant="secondary" :lock="busyLock" @click="pickTest(zipInput)">
                     {{ t('preprocess.testImagesAdd') }}
                   </AppButton>
                 </div>
@@ -664,7 +699,7 @@ function onStratify(event: Event): void {
       <AppButton variant="secondary" @click="cancelTakeTest">
         {{ t('common.cancel') }}
       </AppButton>
-      <AppButton variant="danger" :disabled="busy" :action="confirmTakeTest">
+      <AppButton variant="danger" :lock="busyLock" :action="confirmTakeTest">
         {{ t('preprocess.testImagesAttachConfirm') }}
       </AppButton>
     </template>
@@ -686,7 +721,7 @@ function onStratify(event: Event): void {
       <AppButton variant="secondary" @click="testRemoving = false">
         {{ t('common.cancel') }}
       </AppButton>
-      <AppButton variant="danger" :disabled="busy" :action="removeTest">
+      <AppButton variant="danger" :lock="busyLock" :action="removeTest">
         {{ t('preprocess.testImagesRemoveConfirm') }}
       </AppButton>
     </template>

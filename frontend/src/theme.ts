@@ -115,7 +115,9 @@ function paintBrowserChrome(next: Theme): void {
   const picked = chromeColors[next]
   // 고를 것이 없으면 아무것도 안 한다 — 틀린 색을 세우느니 첫 그림의 값을 둔다.
   if (picked === undefined) return
-  for (const tag of tags) tag.setAttribute('content', picked)
+  // 속성을 이름으로 쓰지 않고 속성값 칸에 쓴다 — 같은 일이고, 이름으로 쓰는 메서드는 잠금 그물이
+  // 막는다(`@/locks`의 `LOCK_WORDS`, 결정문 65).
+  for (const tag of tags) tag.content = picked
 }
 
 function applyTheme(next: Theme): void {

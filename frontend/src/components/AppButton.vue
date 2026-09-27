@@ -26,6 +26,8 @@
 
 import { computed, ref } from 'vue'
 
+import { isLocked, type Lock } from '@/locks'
+
 type Variant = 'primary' | 'secondary' | 'subtle' | 'ghost' | 'ghost-danger' | 'danger'
 type Size = 'md' | 'lg'
 
@@ -34,7 +36,11 @@ const props = withDefaults(
     variant?: Variant
     size?: Size
     type?: 'button' | 'submit'
-    disabled?: boolean
+    /**
+     * 잠금. **`@/locks`만 만든다** (결정문 65) — 등록된 판정 함수의 결과이거나 진행 중(`useWork`)이다.
+     * 조건을 boolean으로 받는 길은 없다. 이 파일이 낸 값이 아니면 그리는 순간 던진다.
+     */
+    lock?: Lock | undefined
     /**
      * 보이는 글자가 이름과 다를 때 준다 — 아이콘만 있거나, 좁은 폭에서 글자가 숨거나 짧아질 때다.
      * 읽을 이름이 없으면 스크린리더가 읽을 것이 없다.
@@ -52,7 +58,7 @@ const props = withDefaults(
     variant: 'primary',
     size: 'md',
     type: 'button',
-    disabled: false,
+    lock: undefined,
     label: undefined,
     action: undefined,
   },
@@ -61,7 +67,7 @@ const props = withDefaults(
 /** action이 도는 중인가. 이 동안 버튼은 꺼져 있다. */
 const running = ref(false)
 
-const blocked = computed(() => props.disabled || running.value)
+const blocked = computed(() => isLocked(props.lock) || running.value)
 
 async function run(): Promise<void> {
   if (props.action === undefined || blocked.value) return

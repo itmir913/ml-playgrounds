@@ -6,11 +6,12 @@
  * 직접 훑는다 — 요약만 필요한 화면이 문서 전체를 메모리에 올릴 이유가 없다.
  */
 
-import { computed, shallowRef } from 'vue'
+import { computed, customRef, getCurrentWatcher, shallowRef, type Ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { ClientError } from '@/errors'
 import { AUTOSAVE_DELAY_MS } from '@/limits'
+import { WATCH_WRITES, type WatchWriteId } from '@/locks'
 import { downloadBlob } from '@/project/download'
 import { acquireTabLock, releaseTabLock } from '@/project/tab-lock'
 import {
@@ -95,13 +96,66 @@ export function factsOf(file: ProjectFile | null): ProjectFacts {
   }
 }
 
+/**
+ * **감시자 안에서는 프로젝트를 쓰지 않는다** (결정문 65 ④ *"앱이 설정을 스스로 쓰는 것"*).
+ *
+ * 한 옵션이 다른 옵션을 무의미하게 만들 때 앱이 그 값을 끄거나 옮기면 학생이 다시 켜러 돌아가야
+ * 하고, 옵션 사이에 고리가 생기면 폭주한다(결정문 55). 그 쓰기의 모양은 거의 언제나 **감시자가
+ * 값을 보고 쓰는 것**이라, 글자를 세지 않고 **쓰는 순간을 막는다**: Vue가 감시자 콜백을 도는 동안
+ * 세우는 표지(`getCurrentWatcher`)가 서 있으면 던진다. 예외는 `@/locks`의 `WATCH_WRITES`에 적힌
+ * 이름을 넘긴 쓰기뿐이다.
+ *
+ * **닿는 범위는 콜백의 동기 구간이다** (`tests/watch-writes.spec.ts`가 잰다). Vue는 콜백이
+ * 돌아오는 순간 표지를 내리므로, `await` 뒤·`setTimeout`·`nextTick().then`의 쓰기는 이 검사가 못
+ * 본다 — `docs/rule-coverage.md`가 그 사각을 적는다. 파일 객체를 제자리에서 고치는 것(얕은 반응성이라
+ * 원래도 화면에 안 닿는다)도 못 본다.
+ */
+function refuseWatcherWrite(write: WatchWriteId | undefined): void {
+  if (getCurrentWatcher() === undefined) return
+  if (write !== undefined && Object.hasOwn(WATCH_WRITES, write)) return
+  throw new Error('PROJECT_WRITE_IN_WATCHER: register the write in locks.ts WATCH_WRITES')
+}
+
 export const useProjectStore = defineStore('project', () => {
   /**
    * shallowRef인 이유: 문서 안에는 데이터셋 바이트와 모델이 들어 있다. 깊은 반응성을
    * 걸면 50MB짜리 Uint8Array까지 프록시로 감싸고, 그 비용을 교실 PC가 낸다.
    * 교체는 언제나 통째로 한다.
    */
-  const file = shallowRef<ProjectFile | null>(null)
+  const file = watchGuardedFile()
+
+  /** `save`·`update`가 거치는 쓰기인가. 그 둘은 들어올 때 이미 물었다(`refuseWatcherWrite`). */
+  let passing = false
+
+  function permitted(assign: () => void): void {
+    passing = true
+    try {
+      assign()
+    } finally {
+      passing = false
+    }
+  }
+
+  /**
+   * 열린 파일의 칸. **얕은 칸이고(`shallowRef`와 같다), 감시자 안에서 직접 쓰면 던진다** — 위
+   * `refuseWatcherWrite`. `save`·`update`를 안 거치고 `project.file = …`로 쓰는 길도 여기서 막힌다.
+   * 같은 값을 다시 쓰면 아무 일도 안 한다(`shallowRef`처럼).
+   */
+  function watchGuardedFile(): Ref<ProjectFile | null> {
+    let value: ProjectFile | null = null
+    return customRef<ProjectFile | null>((track, trigger) => ({
+      get() {
+        track()
+        return value
+      },
+      set(next) {
+        if (!passing) refuseWatcherWrite(undefined)
+        if (Object.is(next, value)) return
+        value = next
+        trigger()
+      },
+    }))
+  }
   const opening = shallowRef(false)
 
   /**
@@ -268,11 +322,14 @@ export const useProjectStore = defineStore('project', () => {
    * 잃는다. 그래서 `dirty`가 실패 뒤에도 참으로 남아 상태 표시줄이 계속 말하는 것이
    * 이 결정의 짝이다. 부르는 쪽은 던진 것을 잡아 토스트를 띄워야 한다.
    */
-  async function save(next: ProjectFile | ProjectRevision): Promise<void> {
+  async function save(next: ProjectFile | ProjectRevision, writeId?: WatchWriteId): Promise<void> {
+    refuseWatcherWrite(writeId)
     const value = resolve(next)
     if (value === null) return
     cancelPending()
-    file.value = value
+    permitted(() => {
+      file.value = value
+    })
     dirty.value = true
     await write()
   }
@@ -340,10 +397,13 @@ export const useProjectStore = defineStore('project', () => {
    * **실패하면 알림을 띄운다.** 타이머가 부르는 것이라 기다리는 사람이 없고,
    * 조용히 실패하면 학생은 저장된 줄 안다.
    */
-  function update(next: ProjectFile | ProjectRevision): void {
+  function update(next: ProjectFile | ProjectRevision, writeId?: WatchWriteId): void {
+    refuseWatcherWrite(writeId)
     const value = resolve(next)
     if (value === null) return
-    file.value = value
+    permitted(() => {
+      file.value = value
+    })
     dirty.value = true
     cancelPending()
     pending = setTimeout(() => {

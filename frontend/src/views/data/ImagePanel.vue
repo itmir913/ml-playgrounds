@@ -15,7 +15,7 @@
  * `project/images.ts`다. 여기 있는 것은 순서와 화면뿐이다.
  */
 
-import { computed, onBeforeUnmount, ref, toRaw, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { dataKindFor, stepTextKey } from '@/data/kinds'
@@ -25,10 +25,10 @@ import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import AppField from '@/components/AppField.vue'
+import AppSelect from '@/components/AppSelect.vue'
 import StepActionBar from '@/components/StepActionBar.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
-import { isValidCategoryName } from '@/data/image/canonical'
 import { canonicalizeImages } from '@/data/image/client'
 import { useThumbnails } from '@/composables/useThumbnails'
 import { usePasteImages } from '@/composables/usePasteImages'
@@ -44,6 +44,7 @@ import {
 import { ClientError, isClientError } from '@/errors'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { MAX_CATEGORY_NAME_LENGTH } from '@/limits'
+import { anyLock, useGate } from '@/locks'
 import { backboneFor, type BackboneSpec } from '@/ml/backbones'
 import { imageRoomShortfall } from '@/data/image/room'
 import { IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
@@ -92,7 +93,7 @@ const dragging = ref(false)
  * 굽는 동안 학생이 사진을 더 놓을 수 있고, 그때 `busy`가 칸 하나면 먼저 끝난 읽기가
  * **굽는 중인 자물쇠를 연다** (R21 A-1).
  */
-const { busy, progress, start, cancelAll, retire } = useWork()
+const { busy, lock: busyLock, progress, start, cancelAll, retire } = useWork()
 
 /**
  * 다음에 고를 사진이 들어갈 칸. **파일 고르기 입구가 하나여서 필요하다** — 칸마다 숨은
@@ -493,29 +494,61 @@ async function deleteSelected(): Promise<void> {
   deleting.value = false
 }
 
-/** 만들기와 이름 바꾸기가 같은 창이다 — 묻는 것이 이름 하나로 같다. */
-const nameTaken = computed(() => {
-  const draft = naming.value
-  if (!draft) return false
-  const trimmed = draft.value.trim()
-  return trimmed !== draft.from && categories.value.includes(trimmed)
-})
+/**
+ * 이름 창의 [확정]의 잠금과 `commitName`의 거절. **같은 칸(`@/locks`의 `categoryName`)이 둘 다
+ * 만든다** (결정문 65). 전에는 `commitName`이 말없이 `return`했고, 이름 칸에서 Enter를 누르면
+ * (`@submit.prevent`) 잠금을 건너 그 조용한 길로 갔다. `image-panel-fail.spec.ts`의
+ * *"decision 65: naming a category through Enter"*가 문다.
+ */
+const {
+  lock: nameLock,
+  reasons: nameReasons,
+  refuse: refuseName,
+} = useGate('categoryName', () => ({
+  from: naming.value?.from ?? '',
+  value: naming.value?.value ?? '',
+  categories: categories.value,
+}))
+const confirmLock = computed(() => anyLock(nameLock.value, busyLock.value))
+
+/** 만들기와 이름 바꾸기가 같은 창이다 — 묻는 것이 이름 하나로 같다. 창 안에 늘 서는 문장이다. */
+const nameTaken = computed(() => naming.value !== null && nameReasons.value.includes('nameTaken'))
+
+/** 이름을 확정할 수 없는 이유 → 문장 키. **키를 조립하지 않는다.** */
+const NAME_REFUSAL_KEYS = {
+  nameRequired: 'data.image.nameRequired',
+  nameInvalid: 'data.image.nameInvalid',
+  nameTaken: 'data.image.nameTaken',
+} as const
 
 /**
- * 이름을 확정할 수 있는가. **템플릿에서 조건을 조립하지 않는다** (architecture.md §10) —
- * 조건이 하나 늘 때 고칠 자리가 늘고, 회색 버튼은 이유 없이는 고장으로 보인다.
- * 여기서는 이유를 창 안의 문장(`nameTaken`)과 힌트가 대신 말한다.
+ * **거절은 창 안에서 말한다** (결정문 65 "모달 창 안의 거절"). 알림은 모달 창의 최상위 층 뒤에
+ * 그려져 배경막에 덮인다. **거절한 그 창의 그 사유가 그대로인 동안만** 보인다 — 이름을 고쳐 사유가
+ * 바뀌면 걷히고, 창을 새로 열면(`naming`이 새 객체다) 비어 있다. `nameTaken`은 창 안에 늘 서는
+ * 문장이 이미 말하므로 여기서 다시 말하지 않는다.
  */
-const canName = computed(() => {
+const refusedName = shallowRef<{
+  readonly draft: object
+  readonly code: keyof typeof NAME_REFUSAL_KEYS
+} | null>(null)
+const shownNameRefusal = computed(() => {
+  const refused = refusedName.value
   const draft = naming.value
-  if (draft === null || busy.value) return false
-  return isValidCategoryName(draft.value.trim()) && !nameTaken.value
+  if (refused === null || draft === null || toRaw(draft) !== refused.draft) return null
+  if (refused.code === 'nameTaken' || nameReasons.value[0] !== refused.code) return null
+  return NAME_REFUSAL_KEYS[refused.code]
 })
 
 async function commitName(): Promise<void> {
   const draft = naming.value
   const file = project.file
-  if (!draft || !file || !canName.value) return
+  // 도는 중이면 두 번 누른 것이다 — 진행 중 잠금과 같은 뜻이라 말하지 않는다.
+  if (!draft || !file || busy.value) return
+  const code = refuseName()[0]
+  if (code !== undefined) {
+    refusedName.value = { draft: toRaw(draft), code }
+    return
+  }
   const name = draft.value.trim()
   await save((live) =>
     draft.mode === 'create'
@@ -636,14 +669,14 @@ async function commitRemoveCategory(): Promise<void> {
         </AppButton>
         <AppButton
           variant="secondary"
-          :disabled="busy"
+          :lock="busyLock"
           @click="pickInto(IMAGE_UNLABELED, fileInput)"
         >
           {{ t('data.image.add') }}
         </AppButton>
         <AppButton
           variant="secondary"
-          :disabled="busy"
+          :lock="busyLock"
           @click="pickInto(IMAGE_UNLABELED, folderInput)"
         >
           {{ t('data.image.addFolder') }}
@@ -664,7 +697,7 @@ async function commitRemoveCategory(): Promise<void> {
           <AppButton variant="secondary" @click="cancelBaking">
             {{ t('common.cancel') }}
           </AppButton>
-          <AppButton :disabled="busy" :action="bake">{{ t('data.image.use') }}</AppButton>
+          <AppButton :lock="busyLock" :action="bake">{{ t('data.image.use') }}</AppButton>
         </template>
       </template>
     </StepActionBar>
@@ -690,7 +723,7 @@ async function commitRemoveCategory(): Promise<void> {
         <AppButton
           size="lg"
           variant="secondary"
-          :disabled="busy"
+          :lock="busyLock"
           @click="pickInto(IMAGE_UNLABELED, fileInput)"
         >
           {{ t('data.image.add') }}
@@ -698,7 +731,7 @@ async function commitRemoveCategory(): Promise<void> {
         <AppButton
           size="lg"
           variant="secondary"
-          :disabled="busy"
+          :lock="busyLock"
           @click="pickInto(IMAGE_UNLABELED, folderInput)"
         >
           {{ t('data.image.addFolder') }}
@@ -782,25 +815,25 @@ async function commitRemoveCategory(): Promise<void> {
       -->
       <label class="flex max-w-full min-w-0 items-center gap-2">
         <span class="shrink-0 font-bold text-ink-soft">{{ t('data.image.moveTo') }}</span>
-        <select
+        <!-- 고른 것이 아니라 명령이다. 고른 상태로 남으면 다시 누를 수 없다 — 안내 줄은 부품이 잠근다. -->
+        <AppSelect
           class="min-w-0 rounded-field border border-line-strong bg-surface px-2 py-1"
-          :disabled="busy"
+          :lock="busyLock"
+          :placeholder="t('data.image.pickCategory')"
           @change="moveSelected(($event.target as HTMLSelectElement).value)"
         >
-          <!-- 고른 것이 아니라 명령이다. 고른 상태로 남으면 다시 누를 수 없다. -->
-          <option value="" selected disabled>{{ t('data.image.pickCategory') }}</option>
           <option v-for="category in categories" :key="category" :value="category">
             {{ category }}
           </option>
           <option :value="IMAGE_UNLABELED">{{ t('meta.image.unlabeled') }}</option>
-        </select>
+        </AppSelect>
       </label>
 
       <div class="ml-auto flex gap-2">
         <AppButton variant="secondary" @click="selected = new Set()">
           {{ t('common.clearAll') }}
         </AppButton>
-        <AppButton variant="danger" :disabled="busy" @click="deleting = true">
+        <AppButton variant="danger" :lock="busyLock" @click="deleting = true">
           {{ t('data.image.deletePhotos') }}
         </AppButton>
       </div>
@@ -836,6 +869,7 @@ async function commitRemoveCategory(): Promise<void> {
         <p v-if="nameTaken" role="status" class="text-caution">
           {{ t('data.image.nameTaken') }}
         </p>
+        <p v-if="shownNameRefusal" role="alert" class="text-caution">{{ t(shownNameRefusal) }}</p>
       </form>
 
       <template #actions>
@@ -845,7 +879,7 @@ async function commitRemoveCategory(): Promise<void> {
           (`지우고 바꾸기`·`범주 없애기`). 창 하나가 둘을 겸하므로 제목과 같은 조건으로
           고른다.
         -->
-        <AppButton :disabled="!canName" :action="commitName">
+        <AppButton :lock="confirmLock" :action="commitName">
           {{
             t(naming?.mode === 'rename' ? 'data.image.renameConfirm' : 'data.image.createConfirm')
           }}
@@ -863,7 +897,7 @@ async function commitRemoveCategory(): Promise<void> {
         <AppButton variant="secondary" @click="removingCategory = null">
           {{ t('common.cancel') }}
         </AppButton>
-        <AppButton variant="danger" :disabled="busy" :action="commitRemoveCategory">
+        <AppButton variant="danger" :lock="busyLock" :action="commitRemoveCategory">
           {{ t('data.image.removeCategory') }}
         </AppButton>
       </template>
@@ -879,7 +913,7 @@ async function commitRemoveCategory(): Promise<void> {
         <AppButton variant="secondary" @click="deleting = false">{{
           t('common.cancel')
         }}</AppButton>
-        <AppButton variant="danger" :disabled="busy" :action="deleteSelected">
+        <AppButton variant="danger" :lock="busyLock" :action="deleteSelected">
           {{ t('data.image.deletePhotos') }}
         </AppButton>
       </template>

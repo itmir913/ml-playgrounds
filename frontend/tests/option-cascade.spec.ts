@@ -230,10 +230,50 @@ describe('유형을 바꿔도 모델 선택이 남는다', { timeout: 30_000 }, 
       startTraining: () => Promise<void>
       working: boolean
     }
+    const before = spawned.count
     void view.startTraining()
     await settle()
     expect(view.working).toBe(false)
+    expect(spawned.count).toBe(before)
     expect(useProjectStore().file?.document.runs.experiments).toHaveLength(0)
+    // **그리고 조용하지 않다** (결정문 65 "감사 뒤 더한 것"). 잠금이 나중에 빠져도 버튼이 아무
+    // 일도 안 하는 모양이 되지 않게, 거절이 잠금과 같은 이유를 알린다.
+    const alerts = useToastStore().items.filter((one) => one.tone === 'danger')
+    expect(alerts.map((one) => one.key)).toEqual(['train.nothingTrainable'])
+    expect(wrapper.findComponent(StepActionBar).text()).toContain(t('train.nothingTrainable'))
+    wrapper.unmount()
+  })
+
+  /**
+   * **[담기]도 잠금과 같은 칸으로 거절한다** (결정문 65 "조용히 끝나던 동작에 알리는 가드").
+   * `TrainView.addModel`에는 가드가 아예 없어서, 잠금이 빠지면 **같은 쌍의 둘째 줄**(하이퍼파라미터를
+   * 공유해 똑같은 줄이 둘)이나 **지금 유형에 안 맞는 줄**이 조용히 담겼다. 잠금을 건너 직접 부른다.
+   */
+  it('decision 65: [Add] past the lock refuses with the lock reason', async () => {
+    const wrapper = await trainScreen(await irisProject(['logistic_regression']))
+    const view = wrapper.findComponent(TrainView).vm as unknown as {
+      addModel: (algorithm: string, runtime: string) => void
+    }
+    const rows = () => useProjectStore().file?.document.settings.selectedAlgorithms ?? []
+    const before = rows().length
+    const cautions = () =>
+      useToastStore()
+        .items.filter((one) => one.tone === 'caution')
+        .map((one) => one.key)
+
+    // 이미 담은 쌍.
+    const first = rows()[0]
+    expect(first, 'the fixture has a queued row').toBeDefined()
+    view.addModel(first?.algorithm ?? '', first?.runtime ?? 'mljs')
+    await settle()
+    expect(rows()).toHaveLength(before)
+    expect(cautions()).toEqual(['train.alreadyAdded'])
+
+    // 지금 유형(분류)에 안 맞는 모델.
+    view.addModel('linear_regression', first?.runtime ?? 'mljs')
+    await settle()
+    expect(rows()).toHaveLength(before)
+    expect(cautions()).toContain('client.ALGORITHM_NOT_FOR_TASK_TYPE')
     wrapper.unmount()
   })
 

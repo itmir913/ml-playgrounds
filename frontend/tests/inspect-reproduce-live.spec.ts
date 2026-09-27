@@ -426,6 +426,13 @@ describe('대조가 도는 동안', () => {
     await flushPromises()
     expect(worker.trains, 'a second check must not start').toBe(1)
 
+    // **잠금을 건너 불러도 조용하지 않다** (결정문 65 "감사 뒤 더한 것"). 전에는 말없이
+    // `return`했다 — 이제 단추 위의 목록과 같은 이유를 알린다.
+    await (panel.vm as unknown as { reproduce: () => Promise<void> }).reproduce()
+    await flushPromises()
+    expect(worker.trains, 'a direct call must not start either').toBe(1)
+    expect(useToastStore().items.map((one) => one.key)).toContain('inspect.blocked.COMPARING_OTHER')
+
     // 돌던 실험으로 돌아가면 [멈추기]가 있다. 이유는 그 실험 자신에게는 안 선다.
     await panel.setProps({ experiment: third })
     await flushPromises()

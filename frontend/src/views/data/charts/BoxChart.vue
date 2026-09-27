@@ -18,6 +18,7 @@ import { computed, ref } from 'vue'
 import { Bar } from 'vue-chartjs'
 import { useI18n } from 'vue-i18n'
 
+import AppTeleport from '@/components/AppTeleport.vue'
 import ChartFrame from './ChartFrame.vue'
 import { boxData, boxOptions, boxWhiskers, type BoxSeries } from '@/data/chart-config'
 import { categoricalColumns, useChartControls, type ChartInput } from '@/data/charts'
@@ -164,7 +165,7 @@ const note = computed(() => {
       **가를 수 있는 열이 없으면 선택기 자체가 없다** (§8.2). 빈 드롭다운을 회색으로
       두면 학생이 고장으로 읽는다.
     -->
-    <Teleport :to="controls" :disabled="controls === null">
+    <AppTeleport :to="controls">
       <label v-if="groupable.length > 0" class="flex min-w-0 flex-col gap-1.5">
         <span class="font-bold text-ink-soft">{{ t('data.charts.box.groupBy') }}</span>
         <select
@@ -175,7 +176,7 @@ const note = computed(() => {
           <option v-for="name in groupable" :key="name" :value="name">{{ name }}</option>
         </select>
       </label>
-    </Teleport>
+    </AppTeleport>
 
     <ChartFrame
       :empty="series.length === 0 ? t('data.charts.noValues') : ''"

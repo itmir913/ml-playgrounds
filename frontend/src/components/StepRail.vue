@@ -42,10 +42,13 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { type RouteLocationRaw, useRoute } from 'vue-router'
 
+import AppPlainButton from '@/components/AppPlainButton.vue'
+import AppPopover from '@/components/AppPopover.vue'
 import { HOME_ICON, INSPECT_ICON, STEP_ICONS } from '@/icons'
+import { isLocked, lockFor, lockReasons, type Lock, type LockReason } from '@/locks'
 import { ROUTE_INSPECT, ROUTE_PROJECT_HOME } from '@/router'
 import { dataKindFor, lockedSentenceFor } from '@/data/kinds'
-import { isStepUnlocked, STEP_IDS, stepBlockers, type StepId } from '@/router/steps'
+import { STEP_IDS, type FactKey, type StepId } from '@/router/steps'
 import { useProjectStore } from '@/stores/project'
 
 const { t } = useI18n()
@@ -107,20 +110,47 @@ function linkTo(step: StepId): RouteLocationRaw {
 
 const openId = computed(() => project.projectId ?? '')
 
-function unlocked(step: StepId): boolean {
-  return (
-    project.projectId !== null &&
-    isStepUnlocked(step, project.facts, project.taskType, project.dataType)
-  )
+/**
+ * 대시보드 칸의 잠금. **열린 프로젝트가 없으면 갈 곳이 없다** (`@/locks`의 `projectHome`).
+ * 잠겼을 때는 RouterLink가 아니어야 한다 — 아래 템플릿 주석의 이유다.
+ */
+const homeLock = computed(() => lockFor('projectHome', { projectOpen: project.projectId !== null }))
+
+/**
+ * 단계 칸마다의 잠금. **라우터 가드와 같은 판정이다** (`@/locks`의 `step` → `stepBlockers`) —
+ * 레일이 열어 준 칸을 가드가 막거나 그 반대가 되면 학생은 누른 곳에 못 간다.
+ */
+const stepLocks = computed(
+  () =>
+    new Map(
+      STEP_IDS.map((step) => [
+        step,
+        lockFor('step', {
+          step,
+          projectOpen: project.projectId !== null,
+          facts: project.facts,
+          taskType: project.taskType,
+          dataType: project.dataType,
+        }),
+      ]),
+    ),
+)
+
+function stepLock(step: StepId): Lock<LockReason<'step'>> | undefined {
+  return stepLocks.value.get(step)
 }
 
 function label(step: StepId): string {
   return t(`steps.${step}.label`)
 }
 
-/** 못 가는 이유. 프로젝트가 없으면 그것이 이유다. */
+/**
+ * 못 가는 이유. **잠금이 든 이유 코드에서 만든다** — 판정을 여기서 다시 하지 않는다.
+ * 프로젝트가 없으면 그것이 이유다.
+ */
 function reason(step: StepId): string {
-  if (project.projectId === null) return t('shell.noProject')
+  const reasons = lockReasons(stepLock(step))
+  if (reasons.includes('NO_PROJECT')) return t('shell.noProject')
   // **잠금 이유도 종류가 준다** (architecture.md §8.10) — 표의 "타깃과 특성을 먼저
   // 정해 주세요"는 이미지에서 학생이 할 수 없는 일을 하라는 말이 된다.
   // **막는 사실을 가리킨다.** 단계마다 문장 하나로는 못 말하는 자리가 있었다 —
@@ -131,7 +161,7 @@ function reason(step: StepId): string {
   return lockedSentenceFor(
     dataKindFor(project.dataType ?? ''),
     step,
-    stepBlockers(step, project.facts, project.taskType, project.dataType),
+    reasons.filter((one): one is FactKey => one !== 'NO_PROJECT'),
     project.dataType,
     t,
   )
@@ -183,7 +213,7 @@ const LABEL = 'w-full text-center break-keep break-words hyphens-auto'
       `Missing required param`으로 던지고, 레일 한 칸이 던지면 앱 전체가 갱신을 멈춘다.
     -->
     <RouterLink
-      v-if="project.projectId !== null"
+      v-if="!isLocked(homeLock)"
       :to="{ name: ROUTE_PROJECT_HOME, params: { projectId: openId } }"
       :title="t('project.dashboard')"
       :aria-current="route.name === ROUTE_PROJECT_HOME ? 'page' : undefined"
@@ -199,15 +229,28 @@ const LABEL = 'w-full text-center break-keep break-words hyphens-auto'
       <span :class="[LABEL, 'max-md:hidden']">{{ t('project.dashboard') }}</span>
     </RouterLink>
 
-    <span
-      v-else
-      :title="t('shell.noProject')"
-      :aria-disabled="true"
-      :class="[CELL, 'shrink-0 cursor-not-allowed font-medium text-ink-faint']"
-    >
-      <component :is="HOME_ICON" :size="20" aria-hidden="true" />
-      <span :class="[LABEL, 'max-md:hidden']">{{ t('project.dashboard') }}</span>
-    </span>
+    <!--
+      **잠긴 칸을 누르면 이유가 선다** (결정문 65 "터치에서도 이유가 보인다"). `title`은 마우스를
+      올려야 보이고 휴대폰에는 올릴 마우스가 없다 — 가로로 누운 레일에서는 이름까지 숨어서 **회색
+      아이콘 하나만 남았다.** 보이게 두되 누를 수 없다고 알리고(`announce`), 누르면 칸에 붙은
+      팝오버가 이유를 말한다. 링크가 아니라 버튼이다 — 눌러도 이동하지 않는다.
+    -->
+    <AppPopover v-else side="top" class="shrink-0 md:w-full">
+      <template #trigger>
+        <AppPlainButton
+          announce
+          look="faint"
+          :lock="homeLock"
+          :title="t('shell.noProject')"
+          :aria-label="t('project.dashboard')"
+          :class="[CELL, 'font-medium']"
+        >
+          <component :is="HOME_ICON" :size="20" aria-hidden="true" />
+          <span :class="[LABEL, 'max-md:hidden']">{{ t('project.dashboard') }}</span>
+        </AppPlainButton>
+      </template>
+      <p role="status">{{ t('shell.noProject') }}</p>
+    </AppPopover>
 
     <span
       class="my-1 shrink-0 self-stretch border-line max-md:border-l md:border-t"
@@ -216,7 +259,7 @@ const LABEL = 'w-full text-center break-keep break-words hyphens-auto'
 
     <template v-for="step in STEP_IDS" :key="step">
       <RouterLink
-        v-if="unlocked(step)"
+        v-if="!isLocked(stepLock(step))"
         :to="linkTo(step)"
         :title="label(step)"
         :aria-current="route.name === step ? 'page' : undefined"
@@ -234,15 +277,23 @@ const LABEL = 'w-full text-center break-keep break-words hyphens-auto'
         <span :class="[LABEL, 'max-md:hidden']">{{ label(step) }}</span>
       </RouterLink>
 
-      <span
-        v-else
-        :title="reason(step)"
-        :aria-disabled="true"
-        :class="[CELL, 'shrink-0 cursor-not-allowed font-medium text-ink-faint']"
-      >
-        <component :is="STEP_ICONS[step]" :size="20" aria-hidden="true" />
-        <span :class="[LABEL, 'max-md:hidden']">{{ label(step) }}</span>
-      </span>
+      <AppPopover v-else side="top" class="shrink-0 md:w-full">
+        <template #trigger>
+          <AppPlainButton
+            announce
+            look="faint"
+            :lock="stepLock(step)"
+            :title="reason(step)"
+            :aria-label="label(step)"
+            :class="[CELL, 'font-medium']"
+          >
+            <component :is="STEP_ICONS[step]" :size="20" aria-hidden="true" />
+            <span :class="[LABEL, 'max-md:hidden']">{{ label(step) }}</span>
+          </AppPlainButton>
+        </template>
+        <p class="font-bold">{{ label(step) }}</p>
+        <p role="status" class="mt-1">{{ reason(step) }}</p>
+      </AppPopover>
     </template>
 
     <!--

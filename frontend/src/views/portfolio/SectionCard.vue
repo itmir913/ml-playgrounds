@@ -37,6 +37,7 @@ import AppCard from '@/components/AppCard.vue'
 import AppField from '@/components/AppField.vue'
 import GuidanceText from './GuidanceText.vue'
 import { ACTION_ICONS } from '@/icons'
+import { lockFor } from '@/locks'
 import { imagesFromClipboard } from '@/project/attachments'
 import { growToFit } from '@/screen'
 import type { PortfolioSection } from '@/project/portfolio'
@@ -168,7 +169,7 @@ function onPaste(event: ClipboardEvent): void {
           <AppButton
             variant="ghost"
             :label="t('portfolio.moveUp')"
-            :disabled="props.index === 0"
+            :lock="lockFor('sectionTop', { index: props.index })"
             @click="emit('move', -1)"
           >
             <component :is="ACTION_ICONS.moveUp" :size="18" aria-hidden="true" />
@@ -176,7 +177,7 @@ function onPaste(event: ClipboardEvent): void {
           <AppButton
             variant="ghost"
             :label="t('portfolio.moveDown')"
-            :disabled="props.index === props.count - 1"
+            :lock="lockFor('sectionBottom', { index: props.index, count: props.count })"
             @click="emit('move', 1)"
           >
             <component :is="ACTION_ICONS.moveDown" :size="18" aria-hidden="true" />

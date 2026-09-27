@@ -15,7 +15,7 @@
  * 번들러가 워커 청크를 만들려 든다 (ml/worker/spawn.ts와 같은 이유다).
  */
 
-import { computed, readonly, ref, shallowRef, toRaw } from 'vue'
+import { computed, ref, shallowRef, toRaw } from 'vue'
 
 import { isClientError } from '../errors'
 import { succeeded } from '../ml/results'
@@ -243,10 +243,12 @@ export function useTraining(createWorker: () => TrainWorker, options?: TrainingO
   }
 
   return {
-    progress: readonly(progress),
-    statuses: readonly(statuses),
-    startedAt: readonly(startedAt),
-    now: readonly(now),
+    // **읽기만 내준다** — 계산값으로 감싸 밖에서 쓸 수 없게 한다. (Vue의 읽기 전용 감싸개를 쓰지
+    // 않는 것은 그 이름이 잠금 낱말이라서다 — `@/locks`의 `LOCK_WORDS`, 결정문 65.)
+    progress: computed(() => progress.value),
+    statuses: computed(() => statuses.value),
+    startedAt: computed(() => startedAt.value),
+    now: computed(() => now.value),
     running,
     run,
     cancel,

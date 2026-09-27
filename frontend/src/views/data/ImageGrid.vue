@@ -16,6 +16,7 @@ import { useI18n } from 'vue-i18n'
 import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
 import { IMAGE_GRID_PAGE_SIZE } from '@/limits'
+import { lockFor } from '@/locks'
 import type { ImageEntry } from '@/project/images'
 
 const props = defineProps<{
@@ -221,11 +222,15 @@ const shown = computed(() =>
       고르는 단위가 아니다.
     -->
     <div v-if="totalPages > 1" class="flex items-center justify-between gap-4">
-      <AppButton variant="secondary" :disabled="page === 0" @click="page -= 1">
+      <AppButton variant="secondary" :lock="lockFor('pageFirst', { page })" @click="page -= 1">
         {{ t('common.prevPage') }}
       </AppButton>
       <p class="tabular-nums text-ink-soft">{{ page + 1 }} / {{ totalPages }}</p>
-      <AppButton variant="secondary" :disabled="page >= totalPages - 1" @click="page += 1">
+      <AppButton
+        variant="secondary"
+        :lock="lockFor('pageLast', { page, pages: totalPages })"
+        @click="page += 1"
+      >
         {{ t('common.nextPage') }}
       </AppButton>
     </div>

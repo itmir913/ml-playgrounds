@@ -75,7 +75,7 @@ const dragging = ref(false)
  * 손잡이는 아직 없지만, **규칙의 기준은 손잡이가 아니라 일을 드는가**다 — 이름으로
  * 판정하던 그물이 이름을 바꾸는 사람을 못 막았다 (2026-09-18 R28-V V-U1).
  */
-const { busy, start, retire } = useWork()
+const { busy, lock: busyLock, start, retire } = useWork()
 
 onBeforeUnmount(retire)
 
@@ -361,7 +361,7 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
         <span v-if="!hasHeader" class="text-ink-soft">{{ t('data.tabular.noHeaderNote') }}</span>
       </template>
 
-      <AppButton v-else variant="secondary" :disabled="busy" @click="fileInput?.click()">
+      <AppButton v-else variant="secondary" :lock="busyLock" @click="fileInput?.click()">
         {{ busy ? t('data.tabular.reading') : t('data.tabular.change') }}
       </AppButton>
 
@@ -370,7 +370,7 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
           <AppButton variant="secondary" @click="opened = null">
             {{ t('common.cancel') }}
           </AppButton>
-          <AppButton :disabled="busy" :action="requestApply">{{ t('data.tabular.use') }}</AppButton>
+          <AppButton :lock="busyLock" :action="requestApply">{{ t('data.tabular.use') }}</AppButton>
         </template>
       </template>
     </StepActionBar>
@@ -471,7 +471,7 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
         :class="dragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
       >
         <AppEmpty :reason="t('data.tabular.emptyReason')" :next="t('data.tabular.dropHint')">
-          <AppButton size="lg" :disabled="busy" @click="fileInput?.click()">
+          <AppButton size="lg" :lock="busyLock" @click="fileInput?.click()">
             {{ busy ? t('data.tabular.reading') : t('data.tabular.choose') }}
           </AppButton>
         </AppEmpty>
@@ -513,7 +513,7 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
         <AppButton variant="secondary" @click="confirming = false">{{
           t('common.cancel')
         }}</AppButton>
-        <AppButton variant="danger" :disabled="busy" :action="apply">
+        <AppButton variant="danger" :lock="busyLock" :action="apply">
           {{ t('data.tabular.replaceConfirm') }}
         </AppButton>
       </template>

@@ -228,14 +228,20 @@ export function columnBlocks(column: ColumnChoice): boolean {
 }
 
 /**
- * 특성 체크박스를 잠글 열인가.
+ * 특성 체크박스를 잠글 열인가. **타깃인 열뿐이다** (`open-decisions.md` 55의 둘째 줄).
  *
  * 타깃을 거르는 것이 여기 있어야 **눌러도 아무 일도 안 일어나는 체크박스**가 안 생긴다.
- * 잠겨도 켜 둔 값은 목록에 남고 학습 계획이 타깃을 뺀다(`open-decisions.md` 55) —
- * `withFeatures`는 더 거르지 않는다.
+ * 잠겨도 켜 둔 값은 목록에 남고 학습 계획이 타깃을 뺀다 — `withFeatures`는 더 거르지 않는다.
+ *
+ * **결측(`featureIssue`)으로는 잠그지 않는다** (`open-decisions.md` 65 ④). 켜 둔 열이 결측
+ * 처리를 "그대로 두기"로 바꾸는 순간 **켜진 채 잠겨** 풀 길이 [전체 해제]뿐인 덫이었다 — 줄의
+ * 문장은 "선택을 해제해 주세요"라고 시키는데 해제할 수 없었다. 이제 줄이 이유를 말하고
+ * (`columnNote`), 학습이 같은 판정으로 거절한다(`ml/plan.ts`의 `FEATURE_HAS_MISSING`,
+ * `ml/preprocess.ts`의 `FEATURE_ALL_MISSING`). `tabular-prep-fail.spec.ts`의
+ * *"decision 65: missing values do not trap a checked feature"*가 문다. 잠금은 `@/locks`의 `featureRole` 칸이 이 함수를 불러 만든다.
  */
 export function featureLocked(column: ColumnChoice): boolean {
-  return column.role === 'target' || column.featureIssue !== undefined
+  return column.role === 'target'
 }
 
 /** 축의 칸 하나. **꺼진 칸도 목록에 남고 왜 꺼졌는지를 함께 든다** (architecture.md 8.12). */
@@ -914,6 +920,41 @@ export function trainableRowCount(
       ? dataset.rows.length
       : usableRows(dataset, features, target, missing).length
   return nSamples === undefined ? usable : Math.min(usable, nSamples)
+}
+
+/**
+ * **유형까지 보고** 학습이 쓸 수 있는 행 수. 학습(`ml/training-source.ts`)과 전처리 화면의
+ * 뽑기 천장이 이 함수 하나를 본다 — 둘이 따로 세면 갈린다.
+ *
+ * **타깃을 안 쓰는 유형(군집)은 계획과 같은 행을 센다** (`ml/plan.ts`의 `usableRows`) — 타깃이
+ * 빈 행을 빼지 않고 특성의 빈 칸만 본다. 파일에 남은 타깃 이름은 보지 않는다. 타깃을 쓰는
+ * 유형은 `trainableRowCount` 그대로다(타깃을 안 골랐으면 파일의 행 수).
+ * `train-prep-kind.spec.ts`의 *"군집이면 쓸 수 있는 행 전부로 센다"*가 학습 쪽을,
+ * `tabular-prep-fail.spec.ts`의 *"decision 65: sampling in a clustering project"*가 화면 쪽을 문다.
+ */
+export function trainableRowCountFor(
+  dataset: Dataset | null,
+  data: {
+    readonly features: readonly string[]
+    readonly target?: string | undefined
+    readonly preprocessing: { readonly missing: Preprocessing['missing'] }
+  },
+  taskType: TaskType | undefined,
+  nSamples: number | undefined,
+): number {
+  if (!dataset) return 0
+  if (!usesTarget(taskType)) {
+    const features = featuresInUse(data.features, undefined)
+    const usable = usableRows(dataset, features, undefined, data.preprocessing.missing).length
+    return nSamples === undefined ? usable : Math.min(usable, nSamples)
+  }
+  return trainableRowCount(
+    dataset,
+    data.features,
+    data.target,
+    data.preprocessing.missing,
+    nSamples,
+  )
 }
 
 export type RowUsage = {

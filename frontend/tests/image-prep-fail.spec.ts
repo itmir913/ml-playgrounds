@@ -223,6 +223,82 @@ describe('R23: confirm dialog branch (experiments exist)', () => {
 })
 
 /**
+ * **받을 수 없는 사진은 확인 창보다 먼저 거절한다** (결정문 65 "감사 뒤 더한 것"). 전에는
+ * 실험이 있으면 "실험이 지워집니다"부터 물었고, 학생이 확인을 누른 뒤에야 거절을 읽었다.
+ * 버튼도 잠그지 않는다 — 범주가 서기 전에도 누를 수 있고, 누르면 같은 판정으로 알린다.
+ */
+describe('decision 65: test photos are judged before the confirm dialog', () => {
+  const cautions = () =>
+    useToastStore()
+      .items.filter((one) => one.tone === 'caution')
+      .map((one) => one.key)
+
+  it('a folder set that does not match is refused without asking', async () => {
+    const { drop, panel, project } = await panelWithDropzone(true)
+    await drop([photo('개', 'a.jpg'), photo('여우', 'b.jpg')])
+
+    expect(panel.testAttaching, 'no confirm dialog for photos that cannot be used').toBe(false)
+    expect(cautions()).toEqual(['client.TEST_IMAGES_CATEGORY_MISSING'])
+    expect(bakers.workers).toHaveLength(0)
+    expect(project.file?.document.runs.experiments).toHaveLength(1)
+  })
+
+  it('with no categories the buttons are not locked, and a drop says why', async () => {
+    const project = useProjectStore()
+    // 사진을 하나도 안 올린 프로젝트 — 범주가 아직 없다.
+    const document = newProjectDocument(
+      { name: '개와 고양이', locale: 'ko', dataType: 'image', taskType: 'classification' },
+      {
+        projectId: '550e8400-e29b-41d4-a716-446655440000',
+        createdAt: '2026-09-02T08:00:00.000Z',
+        randomState: 42,
+      },
+    )
+    await project.save({
+      document: { ...document, runs: { experiments: [experiment('experiment-1', [])] } },
+      models: new Map(),
+      images: new Map(),
+      attachments: new Map(),
+      embeddings: new Map(),
+    })
+    const wrapper = mount(ImagePrepPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    await wrapper.findAll('input[name="image-test-data-choice"]')[1]?.trigger('change')
+    await flushPromises()
+
+    // 두 입구 다 — [폴더에서 추가]와 [압축 파일 선택].
+    const buttons = wrapper
+      .findAll('button')
+      .filter((one) => one.text() === '폴더에서 추가' || one.text() === '압축 파일 선택')
+    expect(buttons).toHaveLength(2)
+    for (const button of buttons) expect(button.attributes('disabled')).toBeUndefined()
+
+    wrapper
+      .find('[class*="border-dashed"]')
+      .element.dispatchEvent(dropEvent([photo('개', 'a.jpg')]))
+    await settle()
+    const panel = wrapper.vm as unknown as PanelInternals
+    expect(panel.testAttaching).toBe(false)
+    expect(cautions()).toEqual(['client.TEST_IMAGES_NEED_CATEGORIES'])
+    expect(bakers.workers).toHaveLength(0)
+
+    // **단추를 눌러도 같은 판정으로 알린다** — 파일을 고르게 한 뒤에 거절하면 고른 시간을 버린다.
+    // 숨은 파일 입력이 열리지 않아야 한다(열리면 `click`이 불린다).
+    useToastStore().clear()
+    const opened: string[] = []
+    for (const input of wrapper.findAll('input[type="file"]')) {
+      input.element.addEventListener('click', () => opened.push('picker'))
+    }
+    for (const button of buttons) {
+      await button.trigger('click')
+      await settle()
+    }
+    expect(cautions()).toEqual(['client.TEST_IMAGES_NEED_CATEGORIES'])
+    expect(opened, 'the file picker opened before the refusal').toEqual([])
+  })
+})
+
+/**
  * **읽는 동안 떠나면 아무것도 안 앉는다** (architecture.md §8.10.4, 2026-09-02 R23 B-2).
  *
  * 읽기 구간에는 맡길 손잡이가 없어 `retire()`가 끊을 것이 없다. 그 전에는 읽기가 끝난 뒤

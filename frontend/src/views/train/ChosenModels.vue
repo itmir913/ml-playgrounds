@@ -22,8 +22,10 @@ import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
 import AppField from '@/components/AppField.vue'
+import AppInput from '@/components/AppInput.vue'
+import { lockReasons, type Lock, type LockReason } from '@/locks'
 import { outOfRange, parametersFor, type HyperparameterSpec } from '@/ml/hyperparams'
-import type { ChosenModel, ChosenModelBlock } from '@/ml/selection'
+import type { ChosenModel } from '@/ml/selection'
 import { elapsedOf, type Elapsed, type Estimate } from '@/ml/estimate'
 import type { ModelStatus } from '@/ml/training-status'
 import type { Settings } from '@/project/schema'
@@ -37,11 +39,12 @@ const props = defineProps<{
    */
   statuses: readonly (ModelStatus | null)[]
   /**
-   * 줄마다 지금 학습에 못 들어가는 이유. **자리가 `chosen`과 같다** (`ml/selection.ts`의
+   * 줄마다의 잠금. **자리가 `chosen`과 같다** (`@/locks`의 `chosenModel` → `ml/selection.ts`의
    * `chosenModelBlocks`). 유형을 바꿔도 줄을 지우지 않고 여기서 잠근다
-   * (`open-decisions.md` 55 *"끄지 않고 잠근다"*).
+   * (`open-decisions.md` 55 *"끄지 않고 잠근다"*). **이유는 잠금이 든다** — 이 부품이 이유를 따로
+   * 받으면 잠금과 문장이 갈릴 자리가 생긴다(결정문 65의 감사가 찾은 옆길이 이 자리였다).
    */
-  blocks: readonly (readonly ChosenModelBlock[])[]
+  locks: readonly Lock<LockReason<'chosenModel'>>[]
   /**
    * 줄마다의 학습 예상 시간. **자리가 `chosen`과 같다** (`ml/estimate.ts`).
    *
@@ -157,7 +160,8 @@ const STATUS_TONE: Readonly<Record<ModelStatus, { accent: string; badge: string;
 const rows = computed(() =>
   props.chosen.map((row, index) => {
     const status = props.statuses[index] ?? null
-    const reasons = props.blocks[index] ?? []
+    const lock = props.locks[index]
+    const reasons = lockReasons(lock)
     // **범위를 벗어난 손잡이를 줄마다 한 번만 센다.** 템플릿에서 부르면 손잡이 칸마다
     // `outOfRange` 전체가 다시 돈다 — 모델이 스물이면 곱해진다 (V11 R5 C-3).
     return {
@@ -172,6 +176,7 @@ const rows = computed(() =>
       // **잠긴 줄은 학습에 안 들어가므로 예상도 없다** — 걸릴 시간을 말하면 돌 것처럼 읽힌다.
       showsEstimate: reasons.length === 0 && status !== 'done' && status !== 'failed',
       reasons,
+      lock,
       outOfRangeNames: violated(row),
       estimateText: estimateTextOf(props.estimates[index] ?? { kind: 'unknown' }),
     }
@@ -308,7 +313,16 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
         색만 투명하게 한다 — 도는 순간 선이 생기면 목록 전체가 4px 밀린다.
       -->
       <li
-        v-for="{ row, index, tone, outOfRangeNames, estimateText, showsEstimate, reasons } in rows"
+        v-for="{
+          row,
+          index,
+          tone,
+          outOfRangeNames,
+          estimateText,
+          showsEstimate,
+          reasons,
+          lock,
+        } in rows"
         :key="`${row.algorithm}:${row.runtime}:${index}`"
         class="min-w-0 border-l-4 p-3"
         :class="[
@@ -438,12 +452,13 @@ function onParam(row: ChosenModel, spec: HyperparameterSpec, event: Event): void
               :error="outOfRangeNames.has(spec.name) ? t('train.outOfRange') : undefined"
             >
               <template #default="field">
-                <input
+                <AppInput
                   v-bind="field"
                   type="number"
                   class="w-40 rounded-field border border-line-strong bg-surface px-2 py-1"
+                  readable
+                  :lock="lock"
                   :value="valueOf(row, spec)"
-                  :readonly="reasons.length > 0"
                   :min="spec.min"
                   :max="spec.max"
                   :step="spec.step"

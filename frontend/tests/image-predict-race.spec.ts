@@ -30,6 +30,7 @@ import ImagePredictPanel from '../src/views/predict/ImagePredictPanel.vue'
 import {
   dropEvent,
   imagePredictProject,
+  withUsableModel,
   resetImageWorkers,
   stubDialogElement,
   workerState,
@@ -90,11 +91,12 @@ afterEach(async () => {
 describe('예측이 도는 동안 사진을 놓으면', () => {
   it('놓은 사진이 예측이 끝난 뒤에도 화면과 IndexedDB 양쪽에 남는다', async () => {
     const project = useProjectStore()
-    await project.save(imagePredictProject(['a']))
+    await project.save(withUsableModel(imagePredictProject(['a'])))
     const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
     await flushPromises()
 
-    // [예측하기]. 모델이 없어도 임베딩부터 뽑으므로 **긴 창이 열린다.**
+    // [예측하기]. 임베딩부터 뽑으므로 **긴 창이 열린다.** 모델은 하나 달았다(`withUsableModel`) —
+    // 보이는 모델이 없으면 [예측]은 백본을 받기 전에 거절한다.
     const panel = wrapper.vm as unknown as PanelInternals
     const running = panel.run()
     await tick()
@@ -126,7 +128,7 @@ describe('예측이 도는 동안 사진을 놓으면', () => {
 describe('사진을 굽는 동안 예측이 돌면', () => {
   it('구운 사진과 뽑은 임베딩이 서로를 지우지 않는다', async () => {
     const project = useProjectStore()
-    await project.save(imagePredictProject(['a', 'b']))
+    await project.save(withUsableModel(imagePredictProject(['a', 'b'])))
     const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
     await flushPromises()
 
@@ -171,7 +173,7 @@ describe('사진을 굽는 동안 예측이 돌면', () => {
 describe('사진을 굽는 중에 화면을 떠나면', () => {
   it('취소가 알림으로 남지 않는다', async () => {
     const project = useProjectStore()
-    await project.save(imagePredictProject(['a']))
+    await project.save(withUsableModel(imagePredictProject(['a'])))
     const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
     await flushPromises()
 
@@ -203,7 +205,7 @@ describe('예측이 도는 동안', () => {
 
   it('사진을 늘리고 지우는 버튼이 잠긴다', async () => {
     const project = useProjectStore()
-    await project.save(imagePredictProject(['a']))
+    await project.save(withUsableModel(imagePredictProject(['a'])))
     const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
     await flushPromises()
     // 아무것도 안 도는 동안에는 열려 있다 — 잠긴 채로 시작하면 위 단언이 뜻을 잃는다.
@@ -233,7 +235,7 @@ describe('예측이 도는 동안', () => {
 describe('임베딩을 기다리는 중에 화면을 떠나면', () => {
   it('아직 안 온 벡터는 워커가 끊겨 오지 않는다', async () => {
     const project = useProjectStore()
-    await project.save(imagePredictProject(['a']))
+    await project.save(withUsableModel(imagePredictProject(['a'])))
     const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
     await flushPromises()
 
@@ -259,7 +261,7 @@ describe('임베딩을 기다리는 중에 화면을 떠나면', () => {
    */
   it('도착한 뒤에 떠나도 앉히지 않는다', async () => {
     const project = useProjectStore()
-    await project.save(imagePredictProject(['a']))
+    await project.save(withUsableModel(imagePredictProject(['a'])))
     const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
     await flushPromises()
 
@@ -291,7 +293,7 @@ describe('굽기와 임베딩이 겹친 채 화면을 떠나면', () => {
 
   it('예측 → 드롭 순서에서 둘 다 끊긴다', async () => {
     const project = useProjectStore()
-    await project.save(imagePredictProject(['a']))
+    await project.save(withUsableModel(imagePredictProject(['a'])))
     const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
@@ -322,7 +324,7 @@ describe('굽기와 임베딩이 겹친 채 화면을 떠나면', () => {
 
   it('드롭 → 예측 순서에서, 굽기가 먼저 끝나도 임베딩이 끊긴다', async () => {
     const project = useProjectStore()
-    await project.save(imagePredictProject(['a']))
+    await project.save(withUsableModel(imagePredictProject(['a'])))
     const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
@@ -368,7 +370,7 @@ describe('굽기와 임베딩이 겹친 채 화면을 떠나면', () => {
 describe('굽는 동안 사진을 더 놓으면', () => {
   it('거절하되 그렇다고 말한다', async () => {
     const project = useProjectStore()
-    await project.save(imagePredictProject(['a']))
+    await project.save(withUsableModel(imagePredictProject(['a'])))
     const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
@@ -403,7 +405,7 @@ describe('굽는 동안 사진을 더 놓으면', () => {
 
   it('받을 수 없는 동안에는 놓는 자리가 색을 안 바꾼다', async () => {
     const project = useProjectStore()
-    await project.save(imagePredictProject([]))
+    await project.save(withUsableModel(imagePredictProject([])))
     const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals

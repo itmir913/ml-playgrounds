@@ -163,7 +163,7 @@ describe('창이 열리는 순간', () => {
 describe('못 그리는 도구는 이유와 함께 잠긴다', () => {
   it('수치 열에서 막대그래프가 잠긴다', () => {
     const bar = toolButton(open('키'), '막대그래프')
-    expect(bar?.attributes('disabled')).toBeDefined()
+    expect(bar?.attributes('aria-disabled')).toBe('true')
     expect(bar?.attributes('title')).toBe('범주 열에서만 그릴 수 있습니다.')
   })
 
@@ -171,7 +171,7 @@ describe('못 그리는 도구는 이유와 함께 잠긴다', () => {
     const buttons = toolButtons(open('성별'))
     for (const name of ['히스토그램', '박스 플롯']) {
       const found = buttons.find((button) => button.text().startsWith(name))
-      expect(found?.attributes('disabled'), name).toBeDefined()
+      expect(found?.attributes('aria-disabled'), name).toBe('true')
     }
   })
 
@@ -183,14 +183,35 @@ describe('못 그리는 도구는 이유와 함께 잠긴다', () => {
   it('열이 하나뿐이면 산점도가 둘째 열을 요구한다', () => {
     const alone = [COLUMNS[0]!]
     const scatter = toolButton(open('키', alone), '산점도')
-    expect(scatter?.attributes('disabled')).toBeDefined()
+    expect(scatter?.attributes('aria-disabled')).toBe('true')
     expect(scatter?.attributes('title')).toBe('열이 두 개 이상 있어야 합니다.')
   })
 
   /** **범주 열을 골라도 산점도는 열린다.** 결과 화면과 같은 규칙이다. */
   it('범주 열을 골라도 산점도가 열린다', () => {
     const scatter = toolButton(open('성별'), '산점도')
-    expect(scatter?.attributes('disabled')).toBeUndefined()
+    expect(scatter?.attributes('aria-disabled')).toBe('false')
+  })
+
+  /**
+   * **잠긴 도구를 누르면 이유가 화면에 선다** (결정문 65 "감사 뒤 더한 것"). 전에는 `disabled`라
+   * 눌리지도 않았고 이유가 `title`에만 있어 휴대폰에서는 볼 길이 없었다. 누른 도구가 그려지지는
+   * 않는다 — 그리는 도구는 그대로다.
+   */
+  it('잠긴 도구를 누르면 그 이유가 글로 선다', async () => {
+    const wrapper = open('키')
+    await drawn(wrapper)
+    expect(wrapper.find('[role="status"]').exists()).toBe(false)
+
+    await toolButton(wrapper, '막대그래프')?.trigger('click')
+    const line = wrapper.find('[role="status"]')
+    expect(line.text()).toBe('범주 열에서만 그릴 수 있습니다.')
+    const chosen = toolButtons(wrapper).find((button) => button.classes().includes('text-brand'))
+    expect(chosen?.text(), 'the blocked tool is not drawn').toContain('히스토그램')
+
+    // 그릴 수 있는 도구를 누르면 이유가 사라진다.
+    await toolButton(wrapper, '박스 플롯')?.trigger('click')
+    expect(wrapper.find('[role="status"]').exists()).toBe(false)
   })
 
   /**

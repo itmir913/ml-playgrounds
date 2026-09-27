@@ -45,10 +45,12 @@ export function scoresWithTestImages(taskType: TaskType | undefined): boolean {
 }
 
 /**
- * 지금 이 프로젝트가 테스트용 사진을 받을 수 있는가. **자리 자체의 잠금이다.**
+ * 지금 이 프로젝트가 테스트용 사진을 받을 수 있는가.
  *
- * **범주가 서기 전에는 잠긴다** — 대조할 목록이 없으면 어떤 사진도 판정할 수 없고,
- * 그 상태에서 열어 두면 학생은 올린 뒤에야 거절당한다. 순서가 강제되는 자리다.
+ * **범주가 서기 전에는 못 받는다** — 대조할 목록이 없으면 어떤 사진도 판정할 수 없다.
+ * **버튼을 잠그는 판정이 아니다** (`open-decisions.md` 65 ⑤). 화면은 이 이유를 미리 적어
+ * 두고, 누르면 이 판정으로 알리며(`ImagePrepPanel`의 `pickTest`), 끌어다 놓으면 올리기
+ * 요청이 `testZipBlockFor`로 거절한다 — 그 첫 줄이 이 함수다.
  */
 export function testSetBlockFor(categories: readonly string[]): TestSetBlock | null {
   return categories.length === 0 ? { code: 'TEST_IMAGES_NEED_CATEGORIES' } : null

@@ -14,6 +14,7 @@ import { computed, ref } from 'vue'
 import { Scatter } from 'vue-chartjs'
 import { useI18n } from 'vue-i18n'
 
+import AppTeleport from '@/components/AppTeleport.vue'
 import ChartFrame from './ChartFrame.vue'
 import { colorsAreDistinct, scatterData, scatterOptions, scatterSeries } from '@/data/chart-config'
 import { categoricalColumns, useChartControls, type ChartInput } from '@/data/charts'
@@ -220,7 +221,7 @@ const note = computed(() => {
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-3">
     <!-- **설정은 창이 내준 자리로 보낸다** (§8.9.1). `BoxChart`와 같은 규칙이다. -->
-    <Teleport :to="controls" :disabled="controls === null">
+    <AppTeleport :to="controls">
       <label class="flex min-w-0 flex-col gap-1.5">
         <span class="font-bold text-ink-soft">{{ t('data.charts.scatter.yAxis') }}</span>
         <select
@@ -241,7 +242,7 @@ const note = computed(() => {
           <option v-for="name in colorable" :key="name" :value="name">{{ name }}</option>
         </select>
       </label>
-    </Teleport>
+    </AppTeleport>
 
     <ChartFrame
       :empty="sample.drawn === 0 ? t('data.charts.noValues') : ''"

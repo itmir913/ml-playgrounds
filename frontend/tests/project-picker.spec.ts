@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import ProjectPicker from '../src/components/ProjectPicker.vue'
 import { i18n, setLocale } from '../src/i18n'
+import { issueBusyLock } from '../src/locks'
 import type { ProjectSummary } from '../src/project/storage'
 
 function summary(overrides: Partial<ProjectSummary> = {}): ProjectSummary {
@@ -44,7 +45,11 @@ beforeEach(async () => {
 })
 
 describe('R24 B-7: opening a saved project', () => {
-  it('the readable row opens and the unreadable one is locked with a reason', async () => {
+  /**
+   * **못 읽는 줄은 잠그지 않는다** (`open-decisions.md` 65 ②). 누르면 열기가 실패를 알린다 —
+   * 그 알림은 화면을 띄워 재는 `welcome-fail.spec.ts`의 *"못 읽는 줄을 누르면 …"*이 문다.
+   */
+  it('both rows open; the unreadable one keeps its label and is not locked', async () => {
     const wrapper = mount(ProjectPicker, {
       props: { summaries: SUMMARIES },
       global: { plugins: [i18n] },
@@ -57,15 +62,16 @@ describe('R24 B-7: opening a saved project', () => {
     expect(wrapper.emitted('open')).toEqual([['readable-1']])
 
     // **못 읽는 줄도 목록에 남는다** — 빼면 학생 눈에는 프로젝트가 사라진 것이다.
-    expect(broken?.attributes('disabled')).toBeDefined()
-    expect(broken?.attributes('title')).toBe('열 수 없는 프로젝트')
+    expect(broken?.text()).toContain('열 수 없는 프로젝트')
+    expect(broken?.attributes('disabled')).toBeUndefined()
     await broken?.trigger('click')
-    expect(wrapper.emitted('open')).toEqual([['readable-1']])
+    expect(wrapper.emitted('open')).toEqual([['readable-1'], ['broken-1']])
   })
 
   it('while a file is opening every row is locked, and it says so', async () => {
     const wrapper = mount(ProjectPicker, {
-      props: { summaries: SUMMARIES, disabled: true },
+      // 여는 중의 잠금은 작업 상태에서 온다(`useWork`) — 검사는 그 문을 직접 부른다.
+      props: { summaries: SUMMARIES, lock: issueBusyLock(true) },
       global: { plugins: [i18n] },
     })
 

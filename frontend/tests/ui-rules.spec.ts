@@ -12,8 +12,11 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 
+import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
+import { parse as parseSfc } from 'vue/compiler-sfc'
 
+import { LOCK_PRIMITIVES, LOCK_WORDS, RESTRICTED_NAMES, TEMPLATE_LOCK_WORDS } from '../src/locks'
 import { isMarkup, sourceFiles, windowedHits, withoutComments } from './fixtures/source'
 
 /** 정규식과 예문 안에 그대로 못 적는다 - 이 파일 자신이 검사 대상이라 조립 자리로 읽힌다. */
@@ -113,31 +116,12 @@ const RULES: readonly Rule[] = [
       'v-for="(row, index) in rows"',
     ],
   },
-  {
-    name: '잠금 조건을 템플릿에서 조립하지 않는다',
-    why:
-      '조건을 하나 더할 때 고쳐야 할 파일이 늘고, 조건 하나를 확인하려고 화면 전체를 ' +
-      '마운트해야 하니 아무도 그 조건을 테스트하지 않는다. 무엇보다 **학생이 왜 못 ' +
-      '누르는지 모른다** — 회색 버튼은 이유 없이는 고장으로 보인다 (architecture.md §10). ' +
-      '조합이 필요해진 순간이 gate 함수(또는 이름 붙은 computed)를 만들 순간이다.',
-    // 막아야 할 죄는 **조합**이다. `!canSubmit`이나 `gate.length > 0`처럼 한 군데를
-    // 가리키는 표현은 통과시킨다 - 국소 조건까지 잡으면 검사가 성가셔지고, 성가신
-    // 검사는 꺼진다.
-    pattern: /:disabled="[^"]*(&&|\|\|)/,
-    violations: [
-      ':disabled="!hasData || !hasTarget"',
-      ':disabled="busy && !ready"',
-      ':disabled="computing || page === 0"',
-    ],
-    allowed: [
-      ':disabled="busy"',
-      ':disabled="!canSubmit"',
-      ':disabled="gate.length > 0"',
-      ':disabled="props.disabled"',
-      // :disabled가 아닌 곳의 조합은 상관없다.
-      'v-if="ready && !busy"',
-    ],
-  },
+  /*
+   * **잠금 조건을 템플릿에서 조립하지 않는다**는 규칙(`:disabled`에 `&&`·`||`)이 여기 있었다
+   * (architecture.md §10.3). 결정문 65가 그 자리를 **기본 거부**로 바꿨다 — 부품 밖에서는 잠금
+   * 낱말 자체가 설 수 없고(아래 *"잠금 낱말은 기본 부품에만 있다"*), 부품이 받는 잠금은 등록부의
+   * 판정 함수만 만든다(`@/locks`). 조합은 `anyLock`으로만 되고 그 재료는 전부 등록된 잠금이다.
+   */
   {
     name: '화면에서 데이터 종류·과제 유형을 직접 비교하지 않는다',
     why:
@@ -541,7 +525,11 @@ function topLevelDeclarations(script: string): { name: string; params: string; b
  */
 function unguardedConfirmRadios(source: string): string[] {
   const template = source.slice(source.indexOf('<template>'))
-  const radioTag = new RegExp(String.raw`<input\b${ATTRS}\btype="radio"${ATTRS}/?>`, 'gs')
+  // 잠길 수 있는 라디오는 기본 부품(`AppInput`)이다(결정문 65) — 같은 태그로 본다.
+  const radioTag = new RegExp(
+    String.raw`<(?:input|AppInput)\b${ATTRS}\btype="radio"${ATTRS}/?>`,
+    'gs',
+  )
   const radios = [...template.matchAll(radioTag)].map((match) => match[0])
   if (radios.length === 0) return []
 
@@ -630,14 +618,15 @@ function unsyncedLockedInputs(source: string): string[] {
   )
 
   return (
-    [...template.matchAll(new RegExp(String.raw`<input\b${ATTRS}>`, 'gs'))]
+    // 잠길 수 있는 입력은 기본 부품(`AppInput`)이다(결정문 65) — 같은 태그로 본다.
+    [...template.matchAll(new RegExp(String.raw`<(?:input|AppInput)\b${ATTRS}>`, 'gs'))]
       .map((match) => match[0])
       // **숫자 칸은 잠기지 않아도 본다.** 아래 "한 번 더 누르면 맞아진다"는 라디오와
       // 체크박스 이야기다 - 그것들은 상태가 둘뿐이라 학생이 다시 누르면 맞아진다.
       // **숫자 칸에는 '한 번 더'가 없다.** 클램프한 값이 지금 값과 같으면 Vue가 DOM을
       // 다시 안 쓰고, 학생이 친 숫자가 칸에 그대로 남아 화면이 계속 거짓말한다
       // (2026-08-12 감사 B-3).
-      .filter((tag) => /:disabled=/.test(tag) || /type="number"/.test(tag))
+      .filter((tag) => /:(?:disabled|lock)=/.test(tag) || /type="number"/.test(tag))
       // 그룹째 되돌리는 라디오는 §8.15의 검사가 맡는다.
       .filter((tag) => !/:ref="[^"]*\.register\(/.test(tag))
       .filter((tag) => {
@@ -3381,5 +3370,397 @@ describe('화면이 쓰는 분기점', () => {
     // 지금 실제로 쓰고 있는 것이라, 토큰을 지우면 위 검사가 운다.
     expect(THEME).toContain('--breakpoint-3xl:')
     expect(sourceOf(join(SRC, 'views', 'data', 'TabularPanel.vue'))).toContain('3xl:')
+  })
+})
+
+/* ------------------------------------------------------------------ 결정문 65 */
+
+/**
+ * **잠금 낱말은 기본 부품에만 있다** (`open-decisions.md` 65, `architecture.md` §10.7).
+ *
+ * **찾아내는 그물이 아니라 기본 거부다.** 먼저 만든 그물(`backup/lock-census-2026-09-27`)은
+ * 잠금의 *표기*를 세어 목록과 견줬고, 감사 두 번에 옆길이 여덟 나왔다 — 표기 하나를 놓치면
+ * 조용히 통과했다. 여기는 표기를 세지 않는다: `@/locks`의 `LOCK_PRIMITIVES` 밖의 `src/` 파일에서
+ * **주석을 뺀 글자에 잠금 낱말(`LOCK_WORDS`)이 보이기만 하면** 운다. 바인딩·정적 속성·객체·수식어·
+ * 스크립트 대입·대소문자를 가리지 않는다. **모르는 표기가 곧 실패다.**
+ *
+ * 걷어내는 것은 둘뿐이다 — 주석, 그리고 **TypeScript의 `readonly` 수식어와 `Readonly<T>` 계열 타입
+ * 이름**(타입은 화면을 잠글 수 없다). 둘 다 글자가 아니라 **문법 트리**로 걷는다: 정규식으로
+ * 주석을 걷으면 문자열 안의 `//`에서 무너지고, 수식어를 글자로 빼면 `{ readonly: true }`까지
+ * 빠진다(그것은 문법 트리에서 식별자다).
+ *
+ * **못 보는 것.** 이름을 실행 중에 조립하는 것(`'dis' + 'abled'`)은 글자에 안 남는다 — 검사가
+ * 띄운 화면에서는 `tests/setup/lock-net.ts`가 실제 DOM을 본다. 잠긴 **모양만** 흉내 낸 것(흐린
+ * 글자에 핸들러 없는 `<span>`)은 잠금 낱말이 없어 못 본다. `docs/rule-coverage.md`의 그 줄이 적는다.
+ */
+describe('잠금 낱말은 기본 부품에만 있다', () => {
+  const READONLY_TYPES = new Set(['Readonly', 'ReadonlyArray', 'ReadonlyMap', 'ReadonlySet'])
+
+  /**
+   * 스크립트의 글자에서 **주석과 타입의 `readonly`를 뺀** 토큰들. 식별자와 문자열은 **날것과 푼 것을
+   * 둘 다** 싣는다 — `'disabled'`나 `disabled` 같은 이스케이프가 날것에서는 안 보인다.
+   */
+  function scriptText(text: string): string {
+    const file = ts.createSourceFile(
+      'probe.ts',
+      text,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    )
+    const dropped = new Set<number>()
+    const mark = (node: ts.Node): void => {
+      if (node.kind === ts.SyntaxKind.ReadonlyKeyword) dropped.add(node.getStart(file))
+      if (ts.isTypeOperatorNode(node) && node.operator === ts.SyntaxKind.ReadonlyKeyword) {
+        dropped.add(node.getStart(file))
+      }
+      if (
+        ts.isTypeReferenceNode(node) &&
+        ts.isIdentifier(node.typeName) &&
+        READONLY_TYPES.has(node.typeName.text)
+      ) {
+        dropped.add(node.typeName.getStart(file))
+      }
+      ts.forEachChild(node, mark)
+    }
+    mark(file)
+
+    const out: string[] = []
+    const walk = (node: ts.Node): void => {
+      if (node.kind >= ts.SyntaxKind.FirstJSDocNode && node.kind <= ts.SyntaxKind.LastJSDocNode) {
+        return
+      }
+      const children = node.getChildren(file)
+      if (children.length > 0) {
+        for (const child of children) walk(child)
+        return
+      }
+      if (node.kind === ts.SyntaxKind.EndOfFileToken) return
+      const start = node.getStart(file)
+      if (dropped.has(start)) return
+      out.push(file.text.slice(start, node.getEnd()))
+      if ('text' in node && typeof node.text === 'string') out.push(node.text)
+    }
+    walk(file)
+    return out.join(' ')
+  }
+
+  /** 템플릿의 글자. HTML 주석을 빼고, 숫자 엔티티와 JS 이스케이프를 푼다 — 그 둘로 낱말을 가릴 수 있다. */
+  function templateText(text: string): string {
+    const code = (value: string, radix: number): string =>
+      String.fromCodePoint(Number.parseInt(value, radix))
+    return text
+      .replace(/<!--[\s\S]*?-->/g, ' ')
+      .replace(/&#x([0-9a-f]+);?/gi, (_all, hex: string) => code(hex, 16))
+      .replace(/&#(\d+);?/g, (_all, dec: string) => code(dec, 10))
+      .replace(/\\u\{([0-9a-f]+)\}/gi, (_all, hex: string) => code(hex, 16))
+      .replace(/\\u([0-9a-f]{4})/gi, (_all, hex: string) => code(hex, 16))
+      .replace(/\\x([0-9a-f]{2})/gi, (_all, hex: string) => code(hex, 16))
+  }
+
+  function styleText(text: string): string {
+    return text.replace(/\/\*[\s\S]*?\*\//g, ' ')
+  }
+
+  /** 한 파일에서 볼 글자. 템플릿 글자는 따로 준다 — 템플릿에서만 보는 표기가 있다. */
+  function lockText(path: string, source: string): { all: string; template: string } {
+    if (path.endsWith('.vue')) {
+      const { descriptor } = parseSfc(source, { filename: path })
+      const template = templateText(descriptor.template?.content ?? '')
+      const scripts = [descriptor.script, descriptor.scriptSetup]
+        .map((block) => (block ? scriptText(block.content) : ''))
+        .join(' ')
+      const styles = descriptor.styles.map((block) => styleText(block.content)).join(' ')
+      const custom = descriptor.customBlocks.map((block) => block.content).join(' ')
+      return { all: [template, scripts, styles, custom].join(' '), template }
+    }
+    if (/\.(?:ts|js|mjs|cjs)$/.test(path)) return { all: scriptText(source), template: '' }
+    if (path.endsWith('.css')) return { all: styleText(source), template: '' }
+    return { all: source, template: '' }
+  }
+
+  const WORDS = LOCK_WORDS.map((one) => ({ ...one, pattern: new RegExp(one.word, 'i') }))
+  const TEMPLATE_WORDS = TEMPLATE_LOCK_WORDS.map((one) => ({
+    ...one,
+    pattern: new RegExp(one.word, 'i'),
+  }))
+
+  /** 이 글자에서 걸린 낱말들. */
+  function lockWordsIn(path: string, source: string): string[] {
+    const { all, template } = lockText(path, source)
+    return [
+      ...WORDS.filter((one) => one.pattern.test(all)).map((one) => one.word),
+      ...TEMPLATE_WORDS.filter((one) => one.pattern.test(template)).map((one) => one.word),
+    ]
+  }
+
+  /** `src/` 아래 경로(구분자 `/`). */
+  function relativeToSrc(path: string): string {
+    return relative(SRC, path).split(sep).join('/')
+  }
+
+  function allSrcFiles(directory: string): string[] {
+    return readdirSync(directory).flatMap((entry) => {
+      const path = join(directory, entry)
+      return statSync(path).isDirectory() ? allSrcFiles(path) : [path]
+    })
+  }
+
+  const EXEMPT = new Set(['locks.ts', ...LOCK_PRIMITIVES.map((one) => one.file)])
+
+  /**
+   * **검사기를 먼저 검사한다.** 결정문 65의 감사가 먼저 만든 그물에서 찾은 옆길이 전부 여기서
+   * 운다 — 옆길마다 한 줄이다. 셋은 낱말이 아니라 **구조가** 막으므로 여기 없다(표지 붙은 잠금 값,
+   * 감시자 안의 작업 시작, 부품이 받는 타입). 그 셋은 `locks.spec.ts`가 잰다.
+   */
+  const BYPASSES: readonly {
+    readonly name: string
+    readonly path: string
+    readonly source: string
+  }[] = [
+    {
+      name: 'binding',
+      path: 'x.vue',
+      source: '<template><button :disabled="busy">x</button></template>',
+    },
+    {
+      name: 'v-bind long form',
+      path: 'x.vue',
+      source: '<template><button v-bind:disabled="busy">x</button></template>',
+    },
+    {
+      name: 'static attribute',
+      path: 'x.vue',
+      source: '<template><button disabled>x</button></template>',
+    },
+    {
+      name: 'casing (:Disabled)',
+      path: 'x.vue',
+      source: '<template><button :Disabled="busy">x</button></template>',
+    },
+    {
+      name: 'object v-bind',
+      path: 'x.vue',
+      source: '<template><button v-bind="{ disabled: busy }">x</button></template>',
+    },
+    {
+      name: 'prop shorthand modifier',
+      path: 'x.vue',
+      source: '<template><button .disabled="busy">x</button></template>',
+    },
+    {
+      name: 'dynamic argument',
+      path: 'x.vue',
+      source: '<template><button v-bind:[name]="busy">x</button></template>',
+    },
+    {
+      name: 'dynamic argument shorthand',
+      path: 'x.vue',
+      source: '<template><button :[name]="busy">x</button></template>',
+    },
+    {
+      name: 'aria-disabled',
+      path: 'x.vue',
+      source: '<template><span :aria-disabled="true">x</span></template>',
+    },
+    {
+      name: 'readonly attribute',
+      path: 'x.vue',
+      source: '<template><input :readonly="reasons.length > 0" /></template>',
+    },
+    {
+      name: 'inert',
+      path: 'x.vue',
+      source: '<template><div :inert="working"></div></template>',
+    },
+    {
+      name: 'pointer-events-none class binding',
+      path: 'x.vue',
+      source:
+        '<template><button :class="{ ' +
+        "'pointer-events-none'" +
+        ': busy }">x</button></template>',
+    },
+    {
+      name: 'cursor-not-allowed class',
+      path: 'x.vue',
+      source: '<template><span class="cursor-not-allowed">x</span></template>',
+    },
+    {
+      name: 'tabindex -1',
+      path: 'x.vue',
+      source: '<template><button tabindex="-1">x</button></template>',
+    },
+    {
+      name: 'HTML entity hides a letter',
+      path: 'x.vue',
+      source: '<template><span class="cursor-not-&#97;llowed">x</span></template>',
+    },
+    {
+      name: 'style block',
+      path: 'x.vue',
+      source: '<template><b /></template><style>.x { pointer-events: none }</style>',
+    },
+    {
+      name: 'script property write',
+      path: 'x.ts',
+      source: 'export function lock(el: HTMLButtonElement): void { el.disabled = true }',
+    },
+    {
+      name: 'setAttribute',
+      path: 'x.ts',
+      source: "export function lock(el: Element, name: string): void { el.setAttribute(name, '') }",
+    },
+    {
+      name: 'escaped identifier',
+      path: 'x.ts',
+      source: 'export function lock(el: HTMLButtonElement): void { el.\\u0064isabled = true }',
+    },
+    {
+      name: 'escaped string',
+      path: 'x.ts',
+      source: "export const key = 'dis\\x61bled'",
+    },
+    {
+      name: 'enabled shorthand becomes a lock word in the child',
+      path: 'x.vue',
+      source: '<template><button :aria-disabled="!cell.item.enabled">x</button></template>',
+    },
+    {
+      name: 'defineExpose of a disabled flag',
+      path: 'x.vue',
+      source: '<script setup lang="ts">defineExpose({ disabled: busy })</script>',
+    },
+    {
+      name: 'withDefaults on a disabled prop',
+      path: 'x.vue',
+      source:
+        '<script setup lang="ts">withDefaults(defineProps<{ disabled?: boolean }>(), { disabled: true })</script>',
+    },
+    {
+      name: 'readonly as a property name',
+      path: 'x.ts',
+      source: 'export const attrs = { readonly: true }',
+    },
+    {
+      name: 'Vue readonly helper',
+      path: 'x.ts',
+      source: "import { readonly } from 'vue'",
+    },
+  ]
+
+  for (const bypass of BYPASSES) {
+    it(`검사기가 잡는다: ${bypass.name}`, () => {
+      expect(lockWordsIn(bypass.path, bypass.source)).not.toEqual([])
+    })
+  }
+
+  /** 걸리면 안 되는 것. **타입의 `readonly`·주석·`inertia`**다. */
+  const ALLOWED: readonly {
+    readonly name: string
+    readonly path: string
+    readonly source: string
+  }[] = [
+    {
+      name: 'readonly modifier and Readonly types',
+      path: 'x.ts',
+      source:
+        'export interface A { readonly b: readonly string[]; readonly c: Readonly<Record<string, ReadonlyMap<string, ReadonlySet<number>>>> }',
+    },
+    {
+      name: 'comments',
+      path: 'x.ts',
+      source:
+        '// disabled readonly inert\n/** aria-disabled pointer-events-none */\nexport const a = 1',
+    },
+    {
+      name: 'HTML comment in a template',
+      path: 'x.vue',
+      source: '<template><!-- :disabled="busy" --><b /></template>',
+    },
+    {
+      name: 'inertia is a k-means score',
+      path: 'x.ts',
+      source: 'export const inertia = 1',
+    },
+    {
+      name: 'lock prop',
+      path: 'x.vue',
+      source: '<template><AppButton :lock="busyLock">x</AppButton></template>',
+    },
+  ]
+
+  for (const allowed of ALLOWED) {
+    it(`검사기가 안 잡는다: ${allowed.name}`, () => {
+      expect(lockWordsIn(allowed.path, allowed.source)).toEqual([])
+    })
+  }
+
+  it('기본 부품 목록이 실재하는 파일을 가리킨다', () => {
+    const missing = LOCK_PRIMITIVES.map((one) => one.file).filter(
+      (file) => !existsSync(join(SRC, file)),
+    )
+    expect(missing).toEqual([])
+  })
+
+  it('지금 기본 부품 밖의 src에 잠금 낱말이 없다', () => {
+    const files = allSrcFiles(SRC)
+    // **파일을 실제로 훑는다.** 0개면 이 규칙이 죽은 것이다.
+    expect(files.length).toBeGreaterThan(100)
+    const found = files
+      .filter((path) => !EXEMPT.has(relativeToSrc(path)))
+      .flatMap((path) =>
+        lockWordsIn(path, readFileSync(path, 'utf-8')).map(
+          (word) => `${relativeToSrc(path)}  ${word}`,
+        ),
+      )
+    expect(found, 'a lock word outside the primitives listed in src/locks.ts').toEqual([])
+  })
+
+  /**
+   * **기본 부품은 실제로 잠금 낱말을 쓴다** — 안 쓰는 파일이 목록에 남으면 예외만 열어 둔 채
+   * 아무것도 안 하는 자리가 된다. `locks.ts`는 낱말을 이유와 함께 적으므로 당연히 걸린다.
+   */
+  it('목록의 기본 부품은 전부 잠금 낱말을 쓴다', () => {
+    const idle = LOCK_PRIMITIVES.map((one) => one.file).filter(
+      (file) => lockWordsIn(file, readFileSync(join(SRC, file), 'utf-8')).length === 0,
+    )
+    expect(idle).toEqual([])
+  })
+
+  /** 부르는 자리가 정해진 이름(`RESTRICTED_NAMES`)이 그 밖에 없다. 별칭·네임스페이스 import도 막는다. */
+  it('정해진 자리 밖에서 잠금을 내는 이름을 부르지 않는다', () => {
+    const wrong: string[] = []
+    for (const path of allSrcFiles(SRC)) {
+      const where = relativeToSrc(path)
+      if (where === 'locks.ts') continue
+      const source = readFileSync(path, 'utf-8')
+      const code = /\.(?:ts|vue)$/.test(path) ? lockText(path, source).all : source
+      for (const [name, homes] of Object.entries(RESTRICTED_NAMES)) {
+        if (!homes.includes(where) && new RegExp(`\\b${name}\\b`).test(code)) {
+          wrong.push(`${where}  ${name}`)
+        }
+      }
+      // 네임스페이스·동적 import는 이름을 글자로 안 남기고 꺼낼 수 있다.
+      if (/import\s*\*\s*as\s+\w+\s+from\s+['"][^'"]*\blocks['"]/.test(code)) {
+        wrong.push(`${where}  import * from locks`)
+      }
+      if (/import\s*\(\s*['"][^'"]*\blocks['"]\s*\)/.test(code)) {
+        wrong.push(`${where}  import() of locks`)
+      }
+    }
+    expect(wrong).toEqual([])
+  })
+
+  it('정해진 이름이 실제로 그 자리에서 쓰인다 - 목록이 낡지 않았다', () => {
+    const stale: string[] = []
+    for (const [name, homes] of Object.entries(RESTRICTED_NAMES)) {
+      for (const home of homes) {
+        if (!new RegExp(`\\b${name}\\b`).test(readFileSync(join(SRC, home), 'utf-8'))) {
+          stale.push(`${home}  ${name}`)
+        }
+      }
+    }
+    expect(stale).toEqual([])
   })
 })

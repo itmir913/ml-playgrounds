@@ -64,7 +64,7 @@ const toasts = useToastStore()
  * 들고 있고 그 뒤에 `alive()`를 묻는데, `retire`를 안 걸면 **그 값이 영영 참이라 가드가
  * 죽은 채로 초록이다** — 굽다 나가면 다른 화면에서 zip이 내려간다 (2026-09-18 R28 A-1).
  */
-const { busy, start, alive, retire } = useWork()
+const { busy, lock: busyLock, start, alive, retire } = useWork()
 
 onBeforeUnmount(() => {
   retire()
@@ -699,7 +699,7 @@ function reasonOf(code: string): string {
         </AppButton>
 
         <template #end>
-          <AppButton :disabled="busy" :action="downloadPortfolios">
+          <AppButton :lock="busyLock" :action="downloadPortfolios">
             <component :is="ACTION_ICONS.exportFile" :size="18" aria-hidden="true" />
             {{
               busy

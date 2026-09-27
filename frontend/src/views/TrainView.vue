@@ -23,12 +23,14 @@ import { own } from '@/records'
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
+import AppLockZone from '@/components/AppLockZone.vue'
 import AppPopover from '@/components/AppPopover.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepActionBar from '@/components/StepActionBar.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { useFormat } from '@/composables/useFormat'
 import { useTraining } from '@/composables/useTraining'
+import { useWork } from '@/composables/useWork'
 import { isClientError, toMessage } from '@/errors'
 import { algorithmOptions, supportedTaskTypes } from '@/ml/algorithms'
 import { calibrateDevice } from '@/ml/worker/client'
@@ -50,13 +52,18 @@ import {
 import { estimatedFeatureWidth } from '@/ml/preprocess'
 import { plannedColumnsOf } from '@/ml/plan-cache'
 import { trainableRowsOf } from '@/ml/training-source'
-import { isBrowserRuntimeId, type EngineState, type RuntimeContext } from '@/ml/backend'
+import {
+  isBrowserRuntimeId,
+  reasonParams,
+  type EngineState,
+  type RuntimeContext,
+} from '@/ml/backend'
+import { lockFor, lockReasons, refusalFor, useGate } from '@/locks'
 import {
   byChosenRow,
-  chosenModelBlocks,
   featuresInUse,
+  modelAxes,
   requiredTargetKind,
-  trainGate,
   trainShare,
   usesTarget,
   type ChosenModel,
@@ -236,12 +243,15 @@ const chosen = computed<ChosenModel[]>(() => {
 })
 
 /**
- * 줄마다 지금 학습에 못 들어가는 이유. **자리가 `chosen`과 같다** (`ml/selection.ts`의
+ * 줄마다의 잠금. **자리가 `chosen`과 같다** (`@/locks`의 `chosenModel` → `ml/selection.ts`의
  * `chosenModelBlocks`). 유형을 바꿔도 줄을 지우지 않고 여기서 잠근다 (`open-decisions.md` 55).
  */
-const chosenBlocks = computed(() =>
-  chosen.value.map((row) => chosenModelBlocks(row, project.taskType)),
+const chosenLocks = computed(() =>
+  chosen.value.map((row) => lockFor('chosenModel', { row, taskType: project.taskType })),
 )
+
+/** 줄마다 지금 학습에 못 들어가는 이유. **잠금이 든 이유다** — 따로 판정하지 않는다. */
+const chosenBlocks = computed(() => chosenLocks.value.map((lock) => lockReasons(lock)))
 
 /**
  * 학습이 보내는 상태를 **줄 자리로** 옮긴다 (`ml/selection.ts`의 `byChosenRow`). 도는
@@ -395,6 +405,19 @@ function pickTaskType(taskType: TaskType): void {
 function addModel(algorithm: string, runtime: string): void {
   const file = project.file
   if (!file) return
+  // **[담기]를 잠그는 그 칸으로 거절하고 알린다** (결정문 65 "조용히 끝나던 동작에 알리는 가드").
+  // 전에는 가드가 아예 없어 잠금이 빠지면 학습할 수 없는 줄이나 같은 쌍의 둘째 줄이 조용히
+  // 담겼다. 문장은 [담기] 옆의 줄과 같은 키다. `option-cascade.spec.ts`의
+  // *"decision 65: [Add] past the lock"*이 문다.
+  const input = { options: options.value, algorithm, runtime, chosen: chosen.value }
+  const refused = refusalFor('addModel', input)[0]
+  if (refused !== undefined) {
+    // 숫자는 [담기] 옆의 줄(`ModelAxes`의 `blocked`)과 같은 칸에서 온다 — 모델 축의 그 카드다.
+    const card = modelAxes(input).algorithms.find((one) => one.id === algorithm)
+    if (refused === 'alreadyAdded') toasts.push('caution', 'train.alreadyAdded')
+    else toasts.push('caution', `client.${refused}`, reasonParams(refused, card?.maxRows))
+    return
+  }
   const next = withSelectedAlgorithms(
     file.document,
     [...file.document.settings.selectedAlgorithms, { algorithm, runtime }],
@@ -476,7 +499,7 @@ const preparing = ref<{
 } | null>(null)
 
 /**
- * [학습하기]를 누른 뒤 아직 아무것도 보고되지 않은 창.
+ * [학습하기]를 누른 뒤 끝날 때까지 — **작업 하나로 든다** (`useWork`, 결정문 65 ③).
  *
  * **`preparing`은 워커의 첫 마디에서야 값을 받는다.** 그전까지는 워커 스크립트를 받아
  * 실행하는 시간이고(`embed.worker`가 1.98MB, wasm이 0.31/0.42MB — 리셋되는 교실 PC에서는
@@ -484,9 +507,11 @@ const preparing = ref<{
  * 잠기고 나가기도 안 막혔다 (2026-09-02 R21 B-1).
  *
  * **누른 순간부터 도는 것으로 친다.** 학생이 누른 것은 "학습을 시작하라"이고, 그 뒤로
- * 화면이 잠기는 것이 기대한 결과다.
+ * 화면이 잠기는 것이 기대한 결과다. 전에는 손으로 켜고 끄는 `starting` 깃발이었는데, 축을
+ * 잠그는 값은 이제 작업 상태에서만 나온다 — 그 깃발에는 무엇이든 넣을 수 있었다.
  */
-const starting = ref(false)
+const { busy: starting, lock: startingLock, start: startWork, retire } = useWork()
+onBeforeUnmount(retire)
 
 /**
  * 도는 준비 일감의 손잡이. **떠날 때 끊는다** — 아무도 안 듣는 12.4MB 내려받기가 뒤에
@@ -519,12 +544,23 @@ onBeforeUnmount(() => {
 const working = computed(() => training.running.value || preparing.value !== null || starting.value)
 
 /**
- * [학습하기]를 막는 이유들 (`ml/selection.ts`의 `trainGate`, architecture.md §10.2).
- * **버튼 잠금과 `startTraining`의 거절이 이 값 하나를 본다** — `option-cascade.spec.ts`의
- * *"담은 모델이 전부 잠기면 …"*이 둘 다 문다. 나머지 실패는 학습이 사유와 함께 돌려준다.
+ * 모델 축을 멈추는 잠금. **`working`과 같은 창이다** — 학습과 준비는 둘 다 [학습하기]의 작업
+ * (`startingLock`) 안에서만 돈다(`startTraining`이 잡고 `finally`가 놓는다). 축이 받는 값은 작업
+ * 상태에서 온 잠금뿐이다(결정문 65 ③).
  */
-const trainBlocks = computed(() => trainGate({ taskType: project.taskType, chosen: chosen.value }))
-const nothingToTrain = computed(() => trainBlocks.value.length > 0)
+const workingLock = startingLock
+
+/**
+ * [학습하기]를 막는 이유들 (`ml/selection.ts`의 `trainGate`, architecture.md §10.2).
+ * **버튼 잠금과 `startTraining`의 거절이 한 칸에서 나온다** (`@/locks`의 `train`, 결정문 65) —
+ * `option-cascade.spec.ts`의 *"담은 모델이 전부 잠기면 …"*이 둘 다 문다. 나머지 실패는 학습이
+ * 사유와 함께 돌려준다.
+ */
+const {
+  lock: trainLock,
+  reasons: trainBlocks,
+  refuse: refuseTraining,
+} = useGate('train', () => ({ taskType: project.taskType, chosen: chosen.value }))
 
 /** 이유 코드 → 문구 키. **키를 조립하지 않는다** — 정적 키라야 로케일 검사가 짝을 센다. */
 const TRAIN_BLOCK_KEYS = {
@@ -548,8 +584,16 @@ const trainBlockKey = computed(() => {
 async function startTraining(): Promise<void> {
   const file = project.file
   const taskType = project.taskType
-  // **버튼을 잠그는 그 gate로 거절한다.**
-  if (!file || trainBlocks.value.length > 0) return
+  if (!file) return
+  // **버튼을 잠그는 그 칸으로 거절하고, 이유를 알린다** (결정문 65 "조용히 끝나던 동작에 알리는
+  // 가드"). 전에는 말없이 `return`했다 — 잠금이 나중에 빠지면 켜진 버튼이 아무 일도 안 하는
+  // 모양이 된다. 동작 바는 이미 같은 이유를 적고 있다(`trainBlockKey`) — 실패 줄로 덮지 않는다.
+  // `option-cascade.spec.ts`의 *"담은 모델이 전부 잠기면 …"*이 잠금을 건너 직접 불러 문다.
+  const refused = refuseTraining()[0]
+  if (refused !== undefined) {
+    toasts.push('danger', TRAIN_BLOCK_KEYS[refused])
+    return
+  }
   // **유형이 빠진 파일은 잠그지 않고 누를 때 알린다** (open-decisions.md 60, §10.6). 조용히
   // 돌아가면 켜진 버튼이 아무 일도 안 한다. 알림과 동작 바의 실패 줄은
   // `option-cascade.spec.ts`의 *"유형이 빠진 파일에서 …"*가 문다.
@@ -573,8 +617,8 @@ async function startTraining(): Promise<void> {
   // 지난번에 멈춘 것도 마찬가지다. 안 되돌리면 두 번째 학습이 멈춘 적 없이 끝나도
   // "멈췄습니다"라고 말한다.
   stopped = false
-  // **누른 순간부터다.** `await`보다 먼저 켜야 창이 안 생긴다 (R21 B-1).
-  starting.value = true
+  // **누른 순간부터다.** `await`보다 먼저 잡아야 창이 안 생긴다 (R21 B-1).
+  const job = startWork()
 
   try {
     /**
@@ -655,7 +699,7 @@ async function startTraining(): Promise<void> {
   } finally {
     preparing.value = null
     preparingHandle = null
-    starting.value = false
+    job.done()
   }
 }
 
@@ -866,7 +910,7 @@ function leave(): void {
         <AppButton v-if="training.running.value" variant="secondary" @click="askStop">
           {{ t('train.stop') }}
         </AppButton>
-        <AppButton v-else :disabled="nothingToTrain" :action="startTraining">
+        <AppButton v-else :lock="trainLock" :action="startTraining">
           {{ t('train.start') }}
         </AppButton>
       </template>
@@ -924,11 +968,7 @@ function leave(): void {
       <p v-if="targetIssue" class="mt-3 font-bold text-danger">{{ targetIssue }}</p>
 
       <div class="mt-4 grid gap-x-4 gap-y-5 lg:grid-cols-3">
-        <div
-          class="min-w-0 transition-opacity lg:col-span-2"
-          :class="working ? 'opacity-60' : ''"
-          :inert="working"
-        >
+        <AppLockZone class="min-w-0 transition-opacity lg:col-span-2" :lock="workingLock">
           <ModelAxes
             :task-types="taskTypes"
             :task-type="project.taskType"
@@ -938,7 +978,7 @@ function leave(): void {
             @pick-task-type="pickTaskType"
             @add="addModel"
           />
-        </div>
+        </AppLockZone>
 
         <!--
           **두 열 사이도 점선으로 가른다** (§8.12). 축 사이를 가른 것과 같은 선이라
@@ -953,7 +993,7 @@ function leave(): void {
           <ChosenModels
             :chosen="chosen"
             :values="settings.hyperparameters"
-            :blocks="chosenBlocks"
+            :locks="chosenLocks"
             :statuses="rowStatuses"
             :estimates="estimates"
             :started-at="rowStartedAt"

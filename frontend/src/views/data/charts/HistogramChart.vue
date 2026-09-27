@@ -25,6 +25,8 @@ import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
 import AppField from '@/components/AppField.vue'
+import AppInput from '@/components/AppInput.vue'
+import AppTeleport from '@/components/AppTeleport.vue'
 import ChartFrame from './ChartFrame.vue'
 import { barOptions, binLabels, histogramData } from '@/data/chart-config'
 import { useChartControls, type ChartInput } from '@/data/charts'
@@ -32,6 +34,7 @@ import { columnCells, histogram, isBinCount, numericValues, type BinChoice } fro
 import { useChartTokens } from '@/composables/useChartTokens'
 import { useFormat } from '@/composables/useFormat'
 import { HISTOGRAM_BIN_LIMIT } from '@/limits'
+import { lockFor, useGate } from '@/locks'
 
 /**
  * **`LogarithmicScale`을 여기서 등록한다.** Chart.js는 쓰는 것만 등록하는 구조라, 옵션에
@@ -62,8 +65,32 @@ const auto = ref(true)
  */
 const applied = ref<BinChoice>('auto')
 
-/** 학생이 치고 있는 초안. **[적용]을 눌러야 그림에 닿는다.** */
-const draft = ref(1)
+/**
+ * 학생이 치고 있는 초안. **[적용]을 눌러야 그림에 닿는다.**
+ *
+ * **숫자가 아닐 수 있다** — 칸이 비거나 글자가 들어오면 그대로 든다(`onDraft`). 받을 수 있는
+ * 수인지는 `@/locks`의 `histogramBins` 칸(`isBinCount`)이 판정한다.
+ */
+const draft = ref<number | string>(1)
+
+/**
+ * 칸에 친 것을 초안으로. **`v-model.number`와 같은 규칙이다** — 수로 읽히면 수, 아니면 글자
+ * 그대로. 칸이 잠길 수 있는 기본 부품(`AppInput`)이라 `v-model`을 걸지 않는다(그 부품의 머리말).
+ */
+function onDraft(event: Event): void {
+  const raw = (event.target as HTMLInputElement).value
+  const parsed = Number.parseFloat(raw)
+  draft.value = Number.isNaN(parsed) ? raw : parsed
+}
+
+/** 칸의 잠금 — [자동]인 동안 읽기 전용이다(§8.9.1.1). 값은 읽혀야 한다. */
+const autoLock = computed(() => lockFor('histogramAuto', { auto: auto.value }))
+
+/** [적용]의 잠금과 거절. **같은 칸이다** (`@/locks`의 `histogramBins`). */
+const { lock: binsLock, refuse: refuseBins } = useGate('histogramBins', () => ({
+  draft: draft.value,
+  max: HISTOGRAM_BIN_LIMIT,
+}))
 
 /**
  * **학생이 마지막으로 [적용]한 수.** 고른 적이 없으면 `null`이다.
@@ -129,8 +156,11 @@ const blocked = computed(() =>
 )
 
 function apply(): void {
-  applied.value = draft.value
-  chosen.value = draft.value
+  // **잠금과 같은 칸으로 거절한다.** 이유는 칸 아래 오류 자리가 이미 말하고 있다(`blocked`).
+  const value = draft.value
+  if (refuseBins().length > 0 || typeof value !== 'number') return
+  applied.value = value
+  chosen.value = value
 }
 
 /**
@@ -185,15 +215,16 @@ const options = computed(() =>
   -->
   <div class="flex min-h-0 flex-1 flex-col gap-3">
     <!-- **설정은 창이 내준 자리로 보낸다** (§8.9.1). `BoxChart`·`ScatterChart`와 같은 규칙이다. -->
-    <Teleport :to="controls" :disabled="controls === null">
+    <AppTeleport :to="controls">
       <!--
         **자동일 때는 `readonly`이지 `disabled`가 아니다** (§8.9.1.1). 이 숫자는 꾸밈이
         아니라 **numpy가 고른 값**이고 학생이 파이썬에 옮겨 적을 수다 — `disabled`는
         브라우저가 글자를 흐리게 만들어 읽히지 않는다. 이 창이 잠긴 도구 글자를
         `text-ink-faint`에서 `text-ink-soft`로 바꾼 것과 같은 판단이다.
 
-        **`@change` 핸들러를 안 단다.** 안 당기므로 되돌릴 것이 없고, `v-model`이
-        초안을 그대로 들고 있으면 칸과 초안이 갈릴 자리가 없다.
+        **`@change` 핸들러를 안 단다.** 안 당기므로 되돌릴 것이 없고, `@input`(`onDraft`)이
+        초안을 친 그대로 들고 있으면 칸과 초안이 갈릴 자리가 없다. 잠길 수 있는 칸이라
+        기본 부품(`AppInput`)이고, 그래서 `v-model` 대신 `:value`와 `@input`이다.
       -->
       <AppField
         :label="t('data.charts.histogram.binCount')"
@@ -227,21 +258,23 @@ const options = computed(() =>
               껐다 켤 때 **단추가 들고 나면서 줄 높이가 튀었다.** 같은 값을 쓰면 단추가
               있든 없든 그 줄이 안 움직인다.
             -->
-            <input
+            <AppInput
               v-bind="field"
-              v-model.number="draft"
               type="number"
               class="w-full min-w-0 rounded-field border border-line-strong bg-surface px-2 py-2.5"
-              :readonly="auto"
+              readable
+              :lock="autoLock"
+              :value="draft"
               :min="1"
               :max="HISTOGRAM_BIN_LIMIT"
               step="1"
+              @input="onDraft"
             />
             <AppButton
               v-if="!auto"
               class="shrink-0"
               variant="secondary"
-              :disabled="blocked !== ''"
+              :lock="binsLock"
               @click="apply"
             >
               {{ t('data.charts.histogram.binApply') }}
@@ -262,7 +295,7 @@ const options = computed(() =>
         <input v-model="logarithmic" type="checkbox" class="size-5 accent-brand" />
         {{ t('data.charts.histogram.logScale') }}
       </label>
-    </Teleport>
+    </AppTeleport>
 
     <ChartFrame
       :empty="made.counts.length === 0 ? t('data.charts.noValues') : ''"

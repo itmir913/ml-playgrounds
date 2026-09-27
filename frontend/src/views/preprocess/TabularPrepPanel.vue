@@ -18,16 +18,19 @@
  * 다르므로 프롭으로 받으면 등록부의 계약이 표 모양이 되어 버린다.
  */
 
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import TermPopover from '@/components/TermPopover.vue'
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
+import AppInput from '@/components/AppInput.vue'
 import { useRadioGroupGuard } from '@/composables/useRadioGroupGuard'
+import { useWork } from '@/composables/useWork'
 import { summarizeColumns } from '@/data/columns'
 import { importTable, openTable, TABULAR_ACCEPT, type TableDocument } from '@/data/table'
 import { MIN_SPLIT_ROWS } from '@/limits'
+import { isLocked, lockFor } from '@/locks'
 import {
   columnPlan,
   featuresInUse,
@@ -35,8 +38,7 @@ import {
   rowUsage,
   splitsData,
   stratifyBlock,
-  stratifyLocked,
-  trainableRowCount,
+  trainableRowCountFor,
   usesTarget,
 } from '@/ml/selection'
 import { plannedColumns } from '@/ml/plan'
@@ -267,47 +269,46 @@ function setCleaning(patch: Partial<Preprocessing>): void {
 /**
  * 뽑기 전에 쓸 수 있는 행 수. **이 손잡이의 천장이다.**
  *
- * `trainableRowCount`에 `undefined`를 넘기는 것이 핵심이다 — 지금 뽑은 값을 반영하면
- * 학생이 3,000을 넣는 순간 천장도 3,000이 되어 다시는 못 올린다.
+ * `trainableRowCountFor`에 `undefined`를 넘기는 것이 핵심이다 — 지금 뽑은 값을 반영하면
+ * 학생이 3,000을 넣는 순간 천장도 3,000이 되어 다시는 못 올린다. **유형까지 본다** — 학습
+ * (`ml/training-source.ts`)과 같은 함수라 군집에서도 학습과 같은 행을 센다.
  */
-const usableRowCount = computed(() =>
-  trainableRowCount(
-    dataset.value,
-    data.value?.features ?? [],
-    data.value?.target,
-    data.value?.preprocessing.missing ?? 'drop',
-    undefined,
-  ),
-)
+const usableRowCount = computed(() => {
+  const current = data.value
+  return current ? trainableRowCountFor(dataset.value, current, project.taskType, undefined) : 0
+})
 
 /** 지금 뽑기로 한 수. 안 뽑으면 `undefined`다. */
 const nSamples = computed(() => settings.value?.nSamples)
 
 /**
- * **타깃을 고르기 전에는 잠근다** (`open-decisions.md` #22).
+ * **타깃을 쓰는 유형에서, 타깃을 고르기 전에는 잠근다** (`open-decisions.md` #22, `@/locks`의
+ * `sampling` 칸).
  *
  * 타깃이 없으면 위 천장이 **파일의 행 수**다(`trainableRowCount`가 무엇이 빠질지 아직
  * 모르므로 보수적으로 센다). 그 상태에서 켜면 `nSamples`에 파일 행 수가 박히고, 나중에
  * 타깃을 골라 쓸 수 있는 행이 줄어도 그 숫자는 안 따라간다 — **파일과 실험 스냅샷에
  * 데이터보다 큰 표본 수가 남는다.** 학습은 안 틀리지만(`sampleRows`가 그대로 돌려준다)
  * 파일만 보고 답해야 하는 교사 쪽에서 걸린다.
+ *
+ * **군집은 잠그지 않는다** (`open-decisions.md` 65 "덫 하나"). 군집은 타깃을 안 써서 "타깃을
+ * 먼저 정해야"가 영영 안 풀리는 덫이었다. 그 유형의 천장은 특성의 빈 칸만 보고 센다
+ * (`trainableRowCountFor`). 유형을 아직 안 골랐으면 타깃을 쓰는 쪽으로 본다(`usesTarget`).
+ * `tabular-prep-fail.spec.ts`의 *"decision 65: sampling in a clustering project"*가 문다.
  */
-const samplingLocked = computed(() => data.value?.target === undefined)
+const samplingLock = computed(() =>
+  lockFor('sampling', { taskType: project.taskType, target: data.value?.target }),
+)
 
 /** 뽑은 뒤 남는 행. **모델이 한 번도 보지 않는 줄이다** (open-decisions.md #30). */
 const sampleSummary = computed(() => {
   const chosen = nSamples.value
   if (chosen === undefined) return null
   const usable = usableRowCount.value
-  // **`trainableRowCount`를 다시 구현하지 않는다.** 같은 규칙이 두 벌이면 어긋난다
-  // (2026-08-12 감사 C-1).
-  const used = trainableRowCount(
-    dataset.value,
-    data.value?.features ?? [],
-    data.value?.target,
-    data.value?.preprocessing.missing ?? 'drop',
-    chosen,
-  )
+  // **`trainableRowCountFor`를 다시 구현하지 않는다.** 같은 규칙이 두 벌이면 어긋난다
+  // (2026-08-12 감사 C-1). 천장과 같은 함수라 군집에서도 같은 행을 센다.
+  const current = data.value
+  const used = current ? trainableRowCountFor(dataset.value, current, project.taskType, chosen) : 0
   return { usable, used, rest: Math.max(usable - used, 0) }
 })
 
@@ -382,11 +383,11 @@ function onStratify(event: Event): void {
  *
  * 학습이 보는 것과 같은 함수라 "화면은 멀쩡한데 [학습하기]가 거부한다"가 생기지 않는다.
  */
-const stratifyBlockNow = computed(() => {
+const stratifyInput = computed(() => {
   const current = data.value
   const all = settings.value
   if (!current || !all) return null
-  return stratifyBlock({
+  return {
     dataset: dataset.value,
     taskType: project.taskType,
     target: current.target,
@@ -394,7 +395,12 @@ const stratifyBlockNow = computed(() => {
     preprocessing: current.preprocessing,
     nSamples: nSamples.value,
     split: all.split,
-  })
+  }
+})
+
+const stratifyBlockNow = computed(() => {
+  const input = stratifyInput.value
+  return input === null ? null : stratifyBlock(input)
 })
 
 const stratifyReason = computed(() => {
@@ -402,8 +408,15 @@ const stratifyReason = computed(() => {
   return block === null ? null : t(`client.${block.code}`, block.params ?? {})
 })
 
-/** 잠금 규칙은 화면 밖에 있다 (`ml/selection.ts`의 `stratifyLocked` - 왜 그런지도 거기 있다). */
-const stratifyDisabled = computed(() => stratifyLocked(stratifyBlockNow.value))
+/**
+ * 체크박스의 잠금. **등록부의 `stratifyTabular` 칸이 같은 재료로 `stratifyBlock`을 부른다**
+ * (`@/locks`, 결정문 55·65). 뽑기만 층화하는 경우는 잠그지 않는다(`ml/selection.ts`의
+ * `stratifyLocked` — 왜 그런지도 거기 있다).
+ */
+const stratifyLock = computed(() => {
+  const input = stratifyInput.value
+  return input === null ? undefined : lockFor('stratifyTabular', input)
+})
 
 // ------------------------------------------------------------ 테스트 데이터 받기
 
@@ -441,7 +454,13 @@ const testRowUsage = computed(() => {
 
 const experimentCount = computed(() => project.file?.document.runs.experiments.length ?? 0)
 
-/** 타깃이 정해진 뒤에만 테스트용 파일을 받을 수 있다 (mlpx-spec.md §1.1). */
+/**
+ * 타깃이 정해졌는가. 테스트용 파일은 타깃이 있어야 붙는다 (mlpx-spec.md §1.1).
+ *
+ * **라디오를 잠그지 않는다** (`open-decisions.md` 65 ①) — 고르는 자리는 잠그지 않는다
+ * (architecture.md §10.5). 이 값은 라디오 아래의 안내 줄만 켜고, 확정은 `applyTestDataset`이
+ * `TARGET_NOT_SELECTED`로 거절해 알림이 뜬다. `tabular-prep-fail.spec.ts`의 *"decision 65 ①"*이 문다.
+ */
 const targetChosen = computed(() => data.value?.target !== undefined)
 
 /**
@@ -461,7 +480,12 @@ const testFileInput = ref<HTMLInputElement | null>(null)
 /** "①"/"②" 라디오 그룹의 되돌리기 (`architecture.md` §8.15). */
 const testChoiceRadios = useRadioGroupGuard<'holdout' | 'provided'>()
 const testDragging = ref(false)
-const testBusy = ref(false)
+/**
+ * 테스트 파일을 읽거나 붙이거나 떼는 중인가. **작업 상태에서 온다** (`useWork`, 결정문 65 ③) —
+ * 전에는 손으로 켜고 끄는 `ref(false)`였고, 그러면 무엇이든 그 칸에 넣어 "진행 중"으로 잠글 수 있었다.
+ */
+const { busy: testBusy, lock: testLock, start: startTestWork, retire } = useWork()
+onBeforeUnmount(retire)
 /** 아직 확정하지 않은 테스트용 파일. 확정하면 비운다. */
 const openedTest = ref<{ document: TableDocument; fileName: string } | null>(null)
 const testSheetName = ref<string | undefined>(undefined)
@@ -494,7 +518,7 @@ function chooseProvided(): void {
 }
 
 async function readTestFile(file: File): Promise<void> {
-  testBusy.value = true
+  const job = startTestWork()
   try {
     const bytes = new Uint8Array(await file.arrayBuffer())
     const document = await openTable(bytes, file.name)
@@ -504,7 +528,7 @@ async function readTestFile(file: File): Promise<void> {
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    testBusy.value = false
+    job.done()
   }
 }
 
@@ -540,7 +564,7 @@ async function applyTest(): Promise<void> {
   const file = project.file
   if (!source || !file || testBusy.value) return
 
-  testBusy.value = true
+  const job = startTestWork()
   try {
     const imported = importTable(source.document, testSheetName.value)
     // 읽는 동안 파일이 달라졌을 수 있다 — 지금 파일에 얹는다 (architecture.md §8.10.3).
@@ -560,7 +584,7 @@ async function applyTest(): Promise<void> {
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    testBusy.value = false
+    job.done()
     /**
      * **창은 성공하든 실패하든 닫는다.** 닫는 줄이 `try` 안에 있으면, 실패했을 때
      * "실험 N개가 사라집니다"라고 적힌 경고창이 열린 채로 남고 그 아래에 실패 토스트가
@@ -587,14 +611,14 @@ async function removeTest(): Promise<void> {
   const file = project.file
   if (!file || testBusy.value) return
 
-  testBusy.value = true
+  const job = startTestWork()
   try {
     await project.save((live) => removeTestDataset(live, new Date().toISOString()).project)
     manualTestChoice.value = 'holdout'
   } catch (error) {
     toasts.pushError(error)
   } finally {
-    testBusy.value = false
+    job.done()
     // 창을 닫는 이유는 `applyTest`와 같다.
     testRemoving.value = false
   }
@@ -704,12 +728,12 @@ const encodingHelp = computed(() =>
 
           <div>
             <label class="flex cursor-pointer items-start gap-2">
-              <input
+              <AppInput
                 type="radio"
                 name="sampling"
                 class="mt-1 size-4 accent-brand"
                 :checked="nSamples !== undefined"
-                :disabled="samplingLocked"
+                :lock="samplingLock"
                 @change="startSampling($event.target as HTMLInputElement)"
               />
               <span class="flex flex-col">
@@ -719,7 +743,7 @@ const encodingHelp = computed(() =>
             </label>
 
             <!-- **이유 없이 회색이면 고장으로 본다** (architecture.md §8.2). -->
-            <p v-if="samplingLocked" class="mt-1 ml-6 text-caution">
+            <p v-if="isLocked(samplingLock)" class="mt-1 ml-6 text-caution">
               {{ t('preprocess.tabular.sampleNeedsTarget') }}
             </p>
 
@@ -751,11 +775,11 @@ const encodingHelp = computed(() =>
               -->
               <div v-if="stratifyOnSampleCard" class="mt-3">
                 <label class="flex cursor-pointer items-center gap-2">
-                  <input
+                  <AppInput
                     type="checkbox"
                     class="size-4 accent-brand"
                     :checked="settings.split.stratify"
-                    :disabled="stratifyDisabled"
+                    :lock="stratifyLock"
                     @change="onStratify"
                   />
                   <span class="font-bold">{{ t('preprocess.stratify') }}</span>
@@ -825,11 +849,11 @@ const encodingHelp = computed(() =>
 
               <div>
                 <label class="flex cursor-pointer items-center gap-2">
-                  <input
+                  <AppInput
                     type="checkbox"
                     class="size-4 accent-brand"
                     :checked="settings.split.stratify"
-                    :disabled="stratifyDisabled"
+                    :lock="stratifyLock"
                     @change="onStratify"
                   />
                   <span class="font-bold">{{ t('preprocess.stratify') }}</span>
@@ -847,7 +871,6 @@ const encodingHelp = computed(() =>
                 type="radio"
                 name="test-data-choice"
                 class="mt-1 size-4 accent-brand"
-                :disabled="!targetChosen"
                 :checked="testChoice === 'provided'"
                 @change="chooseProvided"
               />
@@ -886,10 +909,10 @@ const encodingHelp = computed(() =>
                     {{ testDataset?.rows.length ?? 0 }}
                   </span>
                 </span>
-                <AppButton variant="secondary" :disabled="testBusy" @click="testFileInput?.click()">
+                <AppButton variant="secondary" :lock="testLock" @click="testFileInput?.click()">
                   {{ t('data.tabular.change') }}
                 </AppButton>
-                <AppButton variant="secondary" :disabled="testBusy" :action="requestRemoveTest">
+                <AppButton variant="secondary" :lock="testLock" :action="requestRemoveTest">
                   {{ t('preprocess.tabular.testDataRemove') }}
                 </AppButton>
               </div>
@@ -901,11 +924,7 @@ const encodingHelp = computed(() =>
                   class="rounded-panel border-2 border-dashed p-4 text-center transition-colors"
                   :class="testDragging ? 'border-brand bg-brand-soft' : 'border-line-strong'"
                 >
-                  <AppButton
-                    variant="secondary"
-                    :disabled="testBusy"
-                    @click="testFileInput?.click()"
-                  >
+                  <AppButton variant="secondary" :lock="testLock" @click="testFileInput?.click()">
                     {{ testBusy ? t('data.tabular.reading') : t('data.tabular.choose') }}
                   </AppButton>
                   <p class="mt-1.5 text-ink-faint">{{ t('data.tabular.dropHint') }}</p>
@@ -944,7 +963,7 @@ const encodingHelp = computed(() =>
                     <AppButton variant="secondary" @click="openedTest = null">
                       {{ t('common.cancel') }}
                     </AppButton>
-                    <AppButton :disabled="testBusy" :action="requestApplyTest">
+                    <AppButton :lock="testLock" :action="requestApplyTest">
                       {{ t('data.tabular.use') }}
                     </AppButton>
                   </div>
@@ -1093,7 +1112,7 @@ const encodingHelp = computed(() =>
       <AppButton variant="secondary" @click="testAttaching = false">
         {{ t('common.cancel') }}
       </AppButton>
-      <AppButton variant="danger" :disabled="testBusy" :action="applyTest">
+      <AppButton variant="danger" :lock="testLock" :action="applyTest">
         {{ t('preprocess.tabular.testDataAttachConfirm') }}
       </AppButton>
     </template>
@@ -1109,7 +1128,7 @@ const encodingHelp = computed(() =>
       <AppButton variant="secondary" @click="testRemoving = false">
         {{ t('common.cancel') }}
       </AppButton>
-      <AppButton variant="danger" :disabled="testBusy" :action="removeTest">
+      <AppButton variant="danger" :lock="testLock" :action="removeTest">
         {{ t('preprocess.tabular.testDataRemoveConfirm') }}
       </AppButton>
     </template>

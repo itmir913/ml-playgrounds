@@ -32,6 +32,7 @@ vi.mock('@/components/ClusterScatter.vue', () => {
 })
 
 import { i18n, setLocale } from '../src/i18n'
+import { lockFor } from '../src/locks'
 import { clusterMaterial, nearestMembers } from '../src/ml/clusters'
 import { fitKMeans } from '../src/ml/engines/mljs-kmeans'
 import { KMEANS_FORMAT, type KMeansModel } from '../src/ml/models/kmeans'
@@ -67,7 +68,7 @@ describe('R24 B-6: an integer knob rounds where the student can see it', () => {
         // `ModelStatus`는 문자열 넷이다 (`ml/training-status.ts`). 캐스트로 다른 모양을
         // 밀어 넣으면 판이 그 값을 표에서 못 찾아도 아무것도 안 운다.
         statuses: ['waiting'] as const,
-        blocks: [[]],
+        locks: [lockFor('chosenModel', { row: chosen[0], taskType: 'classification' })],
         estimates: [{ kind: 'unknown' }] as unknown as never,
         running: false,
         startedAt: [null],
@@ -335,5 +336,113 @@ describe('R24 B-6: a model that cannot run says so', () => {
     // 그리고 옆 모델은 멀쩡히 답한다 — 하나가 깨져도 나머지는 돈다.
     expect(panel.answers.get('run-1')?.value).toBeDefined()
     expect(panel.answers.get('run-1')?.failure).toBeUndefined()
+  })
+})
+
+/* ------------------------------------------------------------------ 결정문 65 */
+
+/**
+ * **특성이 다른 두 실험.** 1번은 `키`만, 2번은 `키`·`몸무게`를 본다 — 입력 칸은 둘의
+ * 합집합이다. 진짜 입구(`fitPreprocessor` → `transform` → `fitKMeans`)로 세운다.
+ */
+function twoFeatureSets(): ProjectFile {
+  const base = projectFile()
+  const bytes = csvBytes()
+  const built = [
+    { id: 'experiment-1', features: ['키'] },
+    { id: 'experiment-2', features: ['키', '몸무게'] },
+  ].map(({ id, features }) => {
+    const rows = usableRows(DATASET, features, undefined, PREPROCESSING.missing)
+    const preprocessor = fitPreprocessor(DATASET, rows, features, PREPROCESSING)
+    const matrix = transform(preprocessor, DATASET, rows, PREPROCESSING.categoricalEncoding)
+    const fitted = fitKMeans(matrix, 2, 42)
+    const kmeans: KMeansModel = {
+      format: KMEANS_FORMAT,
+      featureCount: preprocessor.featureNames.length,
+      k: 2,
+      centroids: fitted.centroids,
+    }
+    const runId = `${id}-run`
+    const settings = {
+      taskType: 'clustering',
+      data: { features, preprocessing: PREPROCESSING },
+      trainIndices: rows,
+      split: { method: 'holdout', testSize: 0.2, stratify: false, randomState: 42 },
+    } as unknown as Experiment['settings']
+    const trained = run(runId, {
+      algorithm: 'k_means',
+      model: {
+        format: KMEANS_FORMAT,
+        path: `model/${runId}.json`,
+        includesPreprocessing: false,
+        sizeBytes: 32,
+      },
+    })
+    const files: [string, Uint8Array][] = [
+      [`model/preprocessor-${id}.json`, new TextEncoder().encode(JSON.stringify(preprocessor))],
+      [`model/${runId}.json`, new TextEncoder().encode(JSON.stringify(kmeans))],
+    ]
+    return { experiment: { ...experiment(id, [trained]), settings }, files }
+  })
+  return {
+    ...base,
+    document: {
+      ...base.document,
+      manifest: { ...base.document.manifest, taskType: 'clustering' },
+      settings: {
+        ...base.document.settings,
+        data: {
+          ...base.document.settings.data,
+          dataset: {
+            path: 'dataset/data.csv',
+            originalFileName: 'data.csv',
+            hasHeader: true,
+            encoding: 'utf-8' as const,
+          },
+          features: FEATURES,
+          preprocessing: PREPROCESSING,
+        } as typeof base.document.settings.data,
+      },
+      runs: { experiments: built.map((one) => one.experiment) },
+    },
+    dataset: { bytes, hash: hashBytes(bytes) },
+    models: new Map(built.flatMap((one) => one.files)),
+  }
+}
+
+/**
+ * **빈 칸이 있어도 [예측]은 잠기지 않는다** (결정문 65 "감사 뒤 더한 것"). 전에는 칸의 합집합이
+ * 하나라도 비면 잠갔다 — `키`만 보는 모델은 예측할 수 있는데도 못 눌렀다. 이제 누르면 모델마다
+ * 자기 칸으로 판정한다: 칸을 다 채운 모델은 답하고, 빈 칸을 보는 모델은 이유와 함께 거절한다.
+ */
+describe('결정문 65: 빈 칸은 모델마다 판정한다', () => {
+  it('자기 칸을 채운 모델은 답하고, 빈 칸을 보는 모델은 이유를 말한다', async () => {
+    useProjectStore().update(twoFeatureSets())
+    const wrapper = mount(TabularPredictPanel, {
+      global: { plugins: [i18n], stubs: { BatchPredict: FakeBatch } },
+    })
+    await flushPromises()
+
+    const panel = wrapper.vm as unknown as PredictInternals
+    // `몸무게`는 비워 둔다 — 2번 실험만 보는 칸이다.
+    panel.values = { 키: '151' }
+    await flushPromises()
+
+    // **진짜 입구로 누른다.** 잠겨 있으면 여기서 아무 일도 안 일어난다.
+    const button = wrapper.findAll('button').find((one) => one.text().includes('예측하기'))
+    expect(button, 'the [Predict] button is on the bar').toBeDefined()
+    expect(button?.attributes('disabled'), '[Predict] is not locked by a blank box').toBeUndefined()
+    await button?.trigger('click')
+    for (let round = 0; round < 10; round += 1) {
+      await flushPromises()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    expect(panel.answers.get('experiment-1-run')?.value).toBeDefined()
+    expect(panel.answers.get('experiment-1-run')?.failure).toBeUndefined()
+    expect(panel.answers.get('experiment-2-run')?.failure).toEqual({
+      code: 'PREDICTION_INPUT_INCOMPLETE',
+      params: { feature: '몸무게', count: 1 },
+    })
   })
 })

@@ -30,6 +30,7 @@ import ImagePredictPanel from '../src/views/predict/ImagePredictPanel.vue'
 import {
   dropEvent,
   imagePredictProject,
+  withUsableModel,
   resetImageWorkers,
   stubDialogElement,
   workerState,
@@ -133,7 +134,7 @@ const runButton = (wrapper: ReturnType<typeof mount>) =>
 describe('R23: embed worker dies while predicting', () => {
   it('unlocks add/remove and the predict button, and tells', async () => {
     const project = useProjectStore()
-    await project.save(imagePredictProject(['a']))
+    await project.save(withUsableModel(imagePredictProject(['a'])))
     const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
@@ -152,16 +153,54 @@ describe('R23: embed worker dies while predicting', () => {
     expect(panel.predicting).toBe(false)
     expect(panel.busy).toBe(false)
     expect(addButton(wrapper)?.attributes('disabled')).toBeUndefined()
-    // no models in this project -> predict stays disabled by canPredict; only check it is not running
+    // 모델이 하나 있으므로(`withUsableModel`) [예측하기]도 다시 열린다.
     expect(runButton(wrapper)?.text()).toBe('예측하기')
+    expect(runButton(wrapper)?.attributes('disabled')).toBeUndefined()
     expect(dangers().map((one) => one.key)).toEqual(['client.BACKBONE_UNAVAILABLE'])
+  })
+})
+
+/**
+ * **[예측하기]는 백본을 받기 전에 거절한다** (결정문 65 "감사 뒤 더한 것"). 전에는 잠금만
+ * 있었고 `run()`은 사진·모델을 안 봤다 — 잠금이 빠지면 백본 12.4MB를 받고 사진을 임베딩한 뒤
+ * **답 없이 말없이** 끝났다. 이제 잠금과 같은 판정(`predictBlock`)으로 먼저 알린다.
+ */
+describe('decision 65: predicting with nothing to predict', () => {
+  const cautions = () =>
+    useToastStore()
+      .items.filter((one) => one.tone === 'caution')
+      .map((one) => one.key)
+
+  async function pressed(file: ProjectFile): Promise<PanelInternals> {
+    await useProjectStore().save(file)
+    const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const panel = wrapper.vm as unknown as PanelInternals
+    // 잠금을 건너 직접 부른다.
+    await panel.run()
+    await settle()
+    return panel
+  }
+
+  it('잠금을 건너 눌러도 모델이 없으면 백본을 받기 전에 이유를 알린다', async () => {
+    const panel = await pressed(imagePredictProject(['a']))
+    expect(cautions()).toEqual(['predict.image.noModel'])
+    expect(workerState.embed, 'the backbone is not downloaded').toHaveLength(0)
+    expect(panel.predicting).toBe(false)
+  })
+
+  it('잠금을 건너 눌러도 사진이 없으면 이유를 알린다', async () => {
+    const panel = await pressed(withUsableModel(imagePredictProject([])))
+    expect(cautions()).toEqual(['predict.image.emptyReason'])
+    expect(workerState.embed).toHaveLength(0)
+    expect(panel.predicting).toBe(false)
   })
 })
 
 describe('R23: removing a photo releases its job', () => {
   it('busy goes back to false after removeOne', async () => {
     const project = useProjectStore()
-    await project.save(imagePredictProject(['a', 'b']))
+    await project.save(withUsableModel(imagePredictProject(['a', 'b'])))
     const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals & {
@@ -180,7 +219,7 @@ describe('R23: removing a photo releases its job', () => {
 describe('R23: canonicalize worker dies while adding photos', () => {
   it('unlocks the drop zone and tells; photos unchanged', async () => {
     const project = useProjectStore()
-    await project.save(imagePredictProject(['a']))
+    await project.save(withUsableModel(imagePredictProject(['a'])))
     const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
@@ -213,7 +252,7 @@ describe('switching project while a predict job runs', () => {
   const OTHER_ID = '55555555-5555-4555-8555-555555555555'
 
   async function switchTo(seeds: readonly string[]): Promise<void> {
-    const other = imagePredictProject(seeds)
+    const other = withUsableModel(imagePredictProject(seeds))
     const { manifest } = other.document
     await useProjectStore().save({
       ...other,
@@ -224,7 +263,7 @@ describe('switching project while a predict job runs', () => {
 
   it('baked photos do not land on the other project', async () => {
     const project = useProjectStore()
-    await project.save(imagePredictProject(['a']))
+    await project.save(withUsableModel(imagePredictProject(['a'])))
     const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
@@ -253,7 +292,7 @@ describe('switching project while a predict job runs', () => {
 
   it('embeddings do not land on the other project', async () => {
     const project = useProjectStore()
-    await project.save(imagePredictProject(['a']))
+    await project.save(withUsableModel(imagePredictProject(['a'])))
     const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
@@ -281,7 +320,7 @@ describe('switching project while a predict job runs', () => {
 describe('R23: leaving while the zip is still being read', () => {
   it('nothing is spawned or seated after unmount', async () => {
     const project = useProjectStore()
-    await project.save(imagePredictProject(['a']))
+    await project.save(withUsableModel(imagePredictProject(['a'])))
     const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
@@ -324,7 +363,7 @@ describe('R23: leaving while the zip is still being read', () => {
 describe('R23: the file points at a backbone this app does not know', () => {
   it('drop and predict both tell the student', async () => {
     const project = useProjectStore()
-    const seed = imagePredictProject(['a'])
+    const seed = withUsableModel(imagePredictProject(['a']))
     const settings = seed.document.settings as unknown as { data: { backboneId: string } }
     settings.data.backboneId = 'backbone-from-the-future'
     await project.save(seed)

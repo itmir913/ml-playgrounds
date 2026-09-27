@@ -28,7 +28,9 @@ import { useI18n } from 'vue-i18n'
 import AppButton from '@/components/AppButton.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import StepActionBar from '@/components/StepActionBar.vue'
+import { useWork } from '@/composables/useWork'
 import { isClientError } from '@/errors'
+import { anyLock } from '@/locks'
 import { interpreterFor, loadModel, loadModelProba, type LoadContext } from '@/ml/models'
 import {
   algorithmFilterOptions,
@@ -61,6 +63,7 @@ import { yieldToScreen } from '@/screen'
 import type { Experiment } from '@/project/schema'
 import { experimentNames as experimentNamesOf } from '@/ml/results'
 import { useProjectStore } from '@/stores/project'
+import { useToastStore } from '@/stores/toasts'
 import AnswerList from './AnswerList.vue'
 import ClusterNeighbors from './ClusterNeighbors.vue'
 import BatchPredict from './BatchPredict.vue'
@@ -69,6 +72,7 @@ import PredictFilters, { type FilterAxis } from './PredictFilters.vue'
 
 const { t } = useI18n()
 const project = useProjectStore()
+const toasts = useToastStore()
 
 /**
  * 왼쪽 입력이 양자택일이다 - 한 줄이거나 파일이거나 (architecture.md §8.13.1 "입력은
@@ -240,8 +244,12 @@ const ranges = computed(() =>
 const values = ref<Record<string, string>>({})
 const sampled = ref<number | null>(null)
 /**
- * 아직 안 채운 칸. **하나라도 있으면 [예측]이 멈춘다** — 비워 두고 누르면 훈련 데이터의
- * 대체값으로 예측되는데, 학생은 자기가 넣은 값으로 예측했다고 믿는다.
+ * 아직 안 채운 칸. **[예측]을 잠그지 않는다** (`open-decisions.md` 65 ③). 칸은 모델들이 보는
+ * 열의 합집합이라, 한 모델만 보는 칸이 비어 있어도 나머지 모델은 예측할 수 있다 — 합집합으로
+ * 잠그면 **예측할 수 있는 모델이 있는데도 잠겼다.** 누르면 모델마다 자기 칸으로 판정한다
+ * (`inputVector`의 `PREDICTION_INPUT_INCOMPLETE`) — 빈 칸을 대체값으로 조용히 채우지 않는다.
+ * 여기서는 입력 칸 위의 한 줄(`inputStatus`)만 이 값을 읽는다. `predict-lines.spec.ts`의
+ * *"결정문 65: 빈 칸은 모델마다 판정한다"*가 문다.
  */
 const blank = computed(() =>
   fields.value.filter((field) => (values.value[field.name] ?? '').trim() === ''),
@@ -323,8 +331,12 @@ function contextFor(
   return context
 }
 
-/** 계산이 도는 동안 켜진다. 필터·입력 칸이 이걸 보고 잠긴다 (architecture.md §8.13.1). */
-const predicting = ref(false)
+/**
+ * 계산이 도는 동안 켜진다. 필터·입력 칸이 이걸 보고 잠긴다 (architecture.md §8.13.1).
+ * **작업 상태에서 온다** (`useWork`, 결정문 65 ③) — 전에는 손으로 켜고 끄는 깃발이었다.
+ */
+const { busy: predicting, lock: predictLock, start: startPredicting, retire } = useWork()
+onBeforeUnmount(retire)
 
 /**
  * 아직 이 화면에 있는가. **답 루프는 화면에 보이려고 도는 것이라 떠나면 멈춘다** -
@@ -347,8 +359,9 @@ onBeforeUnmount(() => {
  * 입력 칸 위에 뜨는 한 줄. **자리는 하나이고 사슬이 나눠 쓴다**
  * (architecture.md §8.13.1 "동작 바는 세 경로가 함께 쓴다").
  *
- * **못 누르는 이유가 방금 한 일보다 앞이다.** 값을 가져온 뒤 한 칸을 지우면 둘 다
- * 참이 되는데, 그때 학생이 알아야 하는 것은 왜 [예측]이 꺼져 있는가다.
+ * **빈 칸이 방금 한 일보다 앞이다.** 값을 가져온 뒤 한 칸을 지우면 둘 다 참이 되는데,
+ * 그때 학생이 알아야 하는 것은 어느 칸이 비어 있는가다 — 그 칸을 보는 모델은 누르면
+ * 이유와 함께 거절한다(아래 `run`).
  *
  * **문장을 스크립트에서 만든다** — `t()` 옆에 계산이 붙으면 문장을 조각내는 것과
  * 구별되지 않아 `tests/i18n-usage.spec.ts`가 잡는다.
@@ -368,9 +381,6 @@ const inputStatus = computed<{ text: string; caution: boolean } | null>(() => {
   return null
 })
 
-/** 빈 칸이 하나라도 있으면 못 돌린다. **조합은 템플릿이 아니라 여기서 한다** (§10.1). */
-const cannotRun = computed(() => predicting.value || blank.value.length > 0)
-
 const answerListEl = ref<HTMLElement | null>(null)
 const inputRowEl = ref<HTMLElement | null>(null)
 
@@ -378,11 +388,25 @@ const inputRowEl = ref<HTMLElement | null>(null)
  * 파일 모드의 손잡이. **바는 판이 그리는데 파일 상태는 `BatchPredict`가 든다** — 고르는
  * 중인 시트나 머리글 여부까지 여기로 올리면 판이 두 모드의 상태를 다 지게 된다.
  *
- * **필터가 전부 걸러 내면 `BatchPredict`가 안 그려진다.** 그때 바의 버튼은 부를 곳이
- * 없으므로 꺼진다 — 학생이 할 일은 필터를 켜는 것이다.
+ * **판이 도는 동안만 바의 버튼을 잠근다** (`batchLock` — 판이 노출한 작업 상태의 잠금). 전에는
+ * 판이 안 그려진 것(`!batch.value`)까지 "바쁨"에 넣어 잠갔다 — 진행 중이라는 이름 밑에 조건이
+ * 숨어 있었다(`open-decisions.md` 65 ⑥). **필터가 전부 걸러 내면 `BatchPredict`가 안
+ * 그려지고**, 그때 [파일 선택]을 누르면 부를 곳이 없다는 것을 알린다(`pickPredictFile`) —
+ * 학생이 할 일은 필터를 켜는 것이고, 판 자리에도 같은 말이 서 있다(`filterEmptyReason`).
+ * 나머지 버튼은 판이 있을 때만 그려진다(`picking`·`hasPredictFile`).
  */
 const batch = ref<InstanceType<typeof BatchPredict> | null>(null)
-const fileBusy = computed(() => !batch.value || batch.value.busy || batch.value.computing)
+const batchLock = computed(() => batch.value?.lock)
+
+/** [파일 선택]. 판이 없으면(필터가 전부 걸러 냄) **조용히 끝나지 않고** 이유를 알린다. */
+function pickPredictFile(): void {
+  const current = batch.value
+  if (current === null) {
+    toasts.push('caution', 'predict.filterEmptyReason')
+    return
+  }
+  current.pickFile()
+}
 const hasPredictFile = computed(() => batch.value?.hasFile === true)
 
 /** 고르는 중인 파일. **그동안 바가 드는 것은 [파일 선택]이 아니라 [이 데이터 사용]이다.** */
@@ -398,14 +422,11 @@ const picking = computed(() => batch.value?.opened ?? null)
  * 앞쪽 행의 답이 다른 모델의 열 아래 앉는다. **오류도 알림도 없이 틀린 CSV가 나가고,
  * 그 파일이 제출물이다** (2026-09-02 R20 A-1).
  *
- * **`fileBusy`와 다른 물건이다.** 저쪽은 판이 안 그려진 것(`!batch.value`)까지 "바쁨"으로
- * 쳐서 바의 버튼을 끈다. 필터에 그것을 쓰면 **필터를 전부 끈 학생이 다시 못 켠다** —
- * 판이 없어 필터가 잠기고, 필터가 잠겨 판이 안 돌아온다.
+ * **판이 안 그려진 것(`!batch.value`)을 넣지 않는다.** 넣으면 **필터를 전부 끈 학생이 다시 못
+ * 켠다** — 판이 없어 필터가 잠기고, 필터가 잠겨 판이 안 돌아온다.
  * `predict-filters.spec.ts`의 "계산이 도는 동안 필터가 잠긴다" 넷이 이 자리를 지킨다.
  */
-const calculating = computed(
-  () => predicting.value || batch.value?.busy === true || batch.value?.computing === true,
-)
+const calculating = computed(() => anyLock(predictLock.value, batchLock.value))
 
 /**
  * 지금 보이는(필터를 지난) 쓸 수 있는 모델에 같은 값을 넣는다.
@@ -428,7 +449,7 @@ async function run(): Promise<void> {
   const file = project.file
   if (!file || predicting.value) return
 
-  predicting.value = true
+  const job = startPredicting()
   void nextTick(() => {
     answerListEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   })
@@ -491,7 +512,7 @@ async function run(): Promise<void> {
       if (!alive) return
     }
   } finally {
-    predicting.value = false
+    job.done()
   }
 }
 </script>
@@ -516,19 +537,25 @@ async function run(): Promise<void> {
         <!-- 좁은 폭에서는 짧은 이름표로 — 바가 두 줄로 접히지 않게. 낭독기는 긴 이름을 읽는다. -->
         <AppButton
           variant="secondary"
-          :disabled="predicting"
+          :lock="predictLock"
           :label="t('predict.tabular.fromData')"
           @click="sample"
         >
           <span class="sm:hidden">{{ t('predict.tabular.fromDataShort') }}</span>
           <span class="hidden sm:inline">{{ t('predict.tabular.fromData') }}</span>
         </AppButton>
-        <AppButton variant="secondary" :disabled="predicting" @click="clear">
+        <AppButton variant="secondary" :lock="predictLock" @click="clear">
           {{ t('predict.tabular.clear') }}
         </AppButton>
 
         <template #end>
-          <AppButton :disabled="cannotRun" :action="run">
+          <!--
+            **빈 칸으로는 잠그지 않는다** (`open-decisions.md` 65 ③). 칸은 모델들이 보는 열의
+            합집합이라, 한 모델만 보는 칸이 비어 있어도 나머지 모델은 예측할 수 있다 — 합집합으로
+            잠그면 **예측할 수 있는 모델이 있는데도 잠겼다.** 누르면 모델마다 자기 칸으로 판정한다
+            (`inputVector`의 `PREDICTION_INPUT_INCOMPLETE`). 잠그는 것은 "예측 중" 하나다.
+          -->
+          <AppButton :lock="predictLock" :action="run">
             {{ t('predict.run') }}
             <template #pending>{{ t('predict.running') }}</template>
           </AppButton>
@@ -577,13 +604,13 @@ async function run(): Promise<void> {
         </template>
 
         <template v-else>
-          <AppButton variant="secondary" :disabled="fileBusy" @click="batch?.pickFile()">
+          <AppButton variant="secondary" :lock="batchLock" @click="pickPredictFile">
             {{ hasPredictFile ? t('predict.tabular.fileChange') : t('data.tabular.choose') }}
           </AppButton>
           <AppButton
             v-if="hasPredictFile"
             variant="secondary"
-            :disabled="fileBusy"
+            :lock="batchLock"
             :action="() => batch?.remove()"
           >
             {{ t('predict.tabular.fileRemove') }}
@@ -595,16 +622,12 @@ async function run(): Promise<void> {
             <AppButton variant="secondary" @click="batch?.cancelPick()">
               {{ t('common.cancel') }}
             </AppButton>
-            <AppButton :disabled="fileBusy" :action="() => batch?.apply()">
+            <AppButton :lock="batchLock" :action="() => batch?.apply()">
               {{ t('data.tabular.use') }}
             </AppButton>
           </template>
 
-          <AppButton
-            v-else-if="hasPredictFile"
-            :disabled="fileBusy"
-            :action="() => batch?.download()"
-          >
+          <AppButton v-else-if="hasPredictFile" :lock="batchLock" :action="() => batch?.download()">
             {{ t('predict.tabular.download') }}
           </AppButton>
         </template>
@@ -662,7 +685,7 @@ async function run(): Promise<void> {
         :axes="axes"
         :filter="filter"
         :count="filterCount"
-        :disabled="calculating"
+        :lock="calculating"
         @toggle="toggle"
         @toggle-all="toggleAll"
       />
@@ -712,7 +735,7 @@ async function run(): Promise<void> {
               :values="values"
               :ranges="ranges"
               :status="inputStatus"
-              :disabled="predicting"
+              :lock="predictLock"
               @set="set"
             />
           </div>

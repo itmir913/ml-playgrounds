@@ -13,6 +13,7 @@ import { RUNTIMES } from './backend'
 import type { Experiment, PerClass, Run } from '../project/schema'
 import { parametersFor } from './hyperparams'
 import { bestOf, metricsOf, type MetricDisplay } from './metrics'
+import { succeeded } from './run-status'
 
 /**
  * 실험의 번호. **파일 순서 + 1이고, 목록을 뒤집기 전에 매긴다** — 목록을 뒤집었다고
@@ -63,18 +64,10 @@ export interface Headline {
 }
 
 /**
- * 이 실행이 **성공했나.** 판정은 여기 하나다.
- *
- * **세 자리가 각자 `run.status === 'done'`을 적고 있었다** (2026-09-01, 코드 소유자).
- * 결과 목록·학습 화면의 상태 배지·**학습 뒤 배수 보정**이고, 셋째가 그 비교를 아예
- * 안 해서 **실패한 학습이 기기 배수를 갱신했다** — 데이터가 너무 많아 곧바로 튕긴
- * 실행의 몇 밀리초가 그 알고리즘의 배수가 되어, 다음 예상이 `약 1초`가 됐다.
- *
- * **성공의 뜻이 바뀌는 날 한 곳만 고치면 된다.**
+ * 이 실행이 **성공했나.** 판정은 `run-status.ts` 하나이고 여기서는 옛 입구로 내보낸다 —
+ * 대조의 판정(`reproduce-gate.ts`)이 이 파일의 지표 계산을 들이지 않고 같은 함수를 쓰려고 옮겼다.
  */
-export function succeeded(run: Run): boolean {
-  return run.status === 'done'
-}
+export { succeeded }
 
 /** 점수가 나온 run들. 실패한 것은 지표가 없다 (schema.ts가 강제한다). */
 export function doneRuns(experiment: Experiment): readonly Run[] {

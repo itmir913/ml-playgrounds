@@ -352,10 +352,18 @@ describe('답 루프 도중에 프로젝트가 바뀌면', { timeout: 60_000 }, 
     const current = project.file
     if (!current) throw new Error('no project')
     // 첫 답이 서는 순간 옮긴다 — 판이 다음 사진으로 넘어가기 전에 비켜 주는 자리다.
+    //
+    // **감시자 밖에서 쓴다** (결정문 65 ④). 감시자 안의 프로젝트 쓰기는 스토어가 던지므로 검사도
+    // 같은 규칙을 받는다 — 옮기는 것은 다음 마이크로태스크다. 판은 답마다 화면에 양보하므로
+    // (`yieldToScreen`, 매크로태스크) 그보다 먼저 선다: 여전히 "다음 사진으로 넘어가기 전"이다.
     const stop = watch(
       () => panel.answers.size,
       (size) => {
-        if (size === 1) project.file = otherProject(current)
+        if (size === 1) {
+          queueMicrotask(() => {
+            project.file = otherProject(current)
+          })
+        }
       },
       { flush: 'sync' },
     )

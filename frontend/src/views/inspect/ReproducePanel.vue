@@ -36,8 +36,8 @@ import {
 import {
   compareExperiments,
   compareRun,
+  engineIsHere,
   engineVersionFallback,
-  reproduceBlockers,
   reproduceInputOf,
   underRuleChanges,
   type Reproduction,
@@ -51,6 +51,7 @@ import { estimatedFeatureWidth, type Preprocessor } from '@/ml/preprocess'
 import { featuresInUse, usesTarget } from '@/ml/selection'
 import { calibrateDevice, train } from '@/ml/worker/client'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
+import { useGate } from '@/locks'
 import { useToastStore } from '@/stores/toasts'
 import type { Dataset } from '@/ml/preprocess'
 import { DATA_SCHEMAS, type DataType, type Experiment } from '@/project/schema'
@@ -154,22 +155,25 @@ const failure = computed<{ code: ClientErrorCode; params: ClientErrorParams } | 
   () => failures.value.get(props.experiment.id) ?? null,
 )
 
-/** 무엇이 대조를 막는가. **boolean이 아니라 이유 목록이다** (CLAUDE.md §2). */
-const blockers = computed(() =>
-  reproduceBlockers({
-    experiment: props.experiment,
-    dataType: props.dataType,
-    hasDataset: props.dataset !== null,
-    hasTestDataset: props.testDataset !== null,
-    comparingOther: comparing.value !== null && comparing.value !== props.experiment.id,
-  }),
-)
-
 /**
- * 단추를 잠그는 것. **이유 목록 하나에서만 나온다** — 목록 밖의 조건을 더하면 단추가
- * 이유 없이 회색이 된다(architecture.md §10.2).
+ * 무엇이 대조를 막는가. **boolean이 아니라 이유 목록이다** (CLAUDE.md §2).
+ *
+ * **단추의 잠금(`startLock`)·단추 위의 목록(`blockers`)·`reproduce()`의 거절(`refuseStart`)이 한
+ * 칸에서 나온다** (`@/locks`의 `reproduce`, 결정문 65) — 목록 밖의 조건을 더하면 단추가 이유
+ * 없이 회색이 되고(architecture.md §10.2), 거절을 따로 두면 잠금과 갈린다.
  */
-const cannotStart = computed(() => blockers.value.length > 0)
+const {
+  lock: startLock,
+  reasons: blockers,
+  refuse: refuseStart,
+} = useGate('reproduce', () => ({
+  experiment: props.experiment,
+  dataType: props.dataType,
+  hasDataset: props.dataset !== null,
+  hasTestDataset: props.testDataset !== null,
+  comparingOther: comparing.value !== null && comparing.value !== props.experiment.id,
+  engineHere: engineIsHere,
+}))
 
 /** 견줄 주장의 수. 진행을 셀 분모다. */
 const claims = computed(() => props.experiment.runs.filter((run) => run.status === 'done').length)
@@ -293,7 +297,18 @@ const estimateText = computed(() => {
 let stopped: string | null = null
 
 async function reproduce(): Promise<void> {
-  if (cannotStart.value || !props.dataset) return
+  // **단추를 잠그는 그 칸으로 거절하고, 이유를 알린다** (결정문 65 "조용히 끝나던 동작에 알리는
+  // 가드"). 전에는 말없이 `return`했다 — 잠금이 나중에 빠지면 켜진 단추가 아무 일도 안 한다.
+  // 문장은 단추 위의 목록과 같은 키다. `inspect-reproduce-live.spec.ts`의
+  // *"다른 실험이 대조 중이면 잠그고 이유를 말하고, 둘째 대조를 안 띄운다"*가
+  // 잠금을 건너 직접 불러 문다.
+  const first = refuseStart()[0]
+  if (first !== undefined) {
+    toasts.push('caution', `inspect.blocked.${first}`)
+    return
+  }
+  // `NO_DATASET`이 위에서 이미 거절한다 — 여기는 타입을 좁히는 자리다.
+  if (!props.dataset) return
   // **시작할 때의 실험을 손에 쥔다.** 도는 동안 교사가 다른 실험으로 옮기면 `props`는
   // 그쪽을 가리키고, 그때 돌아온 판정을 그 자리에 앉히면 남의 실험의 점수가 된다.
   const claim = props.experiment
@@ -522,7 +537,7 @@ function failureText(reproduction: Reproduction): string {
       <AppButton v-if="comparing === props.experiment.id" variant="secondary" @click="stop">
         {{ t('train.stop') }}
       </AppButton>
-      <AppButton v-else :disabled="cannotStart" :action="reproduce">
+      <AppButton v-else :lock="startLock" :action="reproduce">
         {{ t('inspect.reproduceStart') }}
       </AppButton>
       <span v-if="blockers.length === 0" class="text-ink-faint">{{ estimateText }}</span>

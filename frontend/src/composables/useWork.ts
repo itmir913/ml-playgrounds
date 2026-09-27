@@ -38,7 +38,9 @@
  * 쓰기가 다시 합법이 되면 그 지시자가 **쓸모없어져서** 컴파일이 깨진다.
  */
 
-import { computed, ref, toRaw, type ComputedRef, type Ref } from 'vue'
+import { computed, getCurrentWatcher, ref, toRaw, type ComputedRef, type Ref } from 'vue'
+
+import { issueBusyLock, WATCH_WRITES, type Lock, type WatchWriteId } from '@/locks'
 
 /** 끊을 수 있는 것. 워커 손잡이들이 이 모양이다. */
 export interface Cancellable {
@@ -60,6 +62,11 @@ export interface StartOptions {
    * 떠날 때 임베딩 워커는 끊어야 한다. 그 둘은 다른 질문이다.
    */
   blocks?: boolean
+  /**
+   * 감시자 안에서 시작해도 되는 자리의 이름 (`@/locks`의 `WATCH_WRITES`). **막는 일만 묻는다** —
+   * 막지 않는 일은 잠금을 만들지 않는다.
+   */
+  watch?: WatchWriteId
 }
 
 /** 도는 일 하나. `start()`가 준다. */
@@ -84,6 +91,11 @@ export interface Job {
 export interface Work {
   /** 화면을 막는 일이 하나라도 도는가. **읽기 전용이다** — 위 머리말이 그 이유다. */
   busy: ComputedRef<boolean>
+  /**
+   * `busy`를 잠금 값으로 (`@/locks`의 `issueBusyLock`, 결정문 65 ③). **진행 중의 잠금은 여기서만
+   * 나온다** — 부품(`AppButton` 등)에 `:lock="lock"`으로 넘긴다.
+   */
+  lock: ComputedRef<Lock<'BUSY'>>
   /** 보여줄 진행. **가장 나중에 시작한 일의 것이다** — 학생이 방금 한 일이 그것이다. */
   progress: ComputedRef<WorkProgress | null>
   start: (options?: StartOptions) => Job
@@ -124,6 +136,7 @@ export function useWork(): Work {
   let living = true
 
   const busy = computed(() => blocking.value.length > 0)
+  const lock = computed(() => issueBusyLock(busy.value))
 
   const progress = computed<WorkProgress | null>(() => {
     for (let index = live.value.length - 1; index >= 0; index -= 1) {
@@ -140,9 +153,19 @@ export function useWork(): Work {
   }
 
   function start(options?: StartOptions): Job {
+    // **감시자 안에서는 일을 시작하지 않는다** (결정문 65 ③). 조건을 감시하다 참이면 일을 잡고
+    // 거짓이면 놓으면, 그 조건이 "진행 중"이라는 이름으로 버튼을 잠근다 — 먼저 만든 그물의
+    // 감사가 찾은 옆길(진행 중 깃발에 감시자로 조건 넣기)이 이 모양이었다. **닿는 범위는 콜백의
+    // 동기 구간이다** — `await` 뒤는 Vue가 감시자를 이미 내려놓아 못 본다
+    // (`tests/watch-writes.spec.ts`가 잰다, `docs/rule-coverage.md`의 사각).
+    const blocks = options?.blocks !== false
+    const allowed = options?.watch !== undefined && Object.hasOwn(WATCH_WRITES, options.watch)
+    if (blocks && !allowed && getCurrentWatcher() !== undefined) {
+      throw new Error('WORK_IN_WATCHER: start blocking work from an action, not from a watcher')
+    }
     const id = Symbol('work')
     live.value = [...live.value, id]
-    if (options?.blocks !== false) blocking.value = [...blocking.value, id]
+    if (blocks) blocking.value = [...blocking.value, id]
 
     return {
       hold(handle: Cancellable): void {
@@ -188,7 +211,7 @@ export function useWork(): Work {
     cancelAll()
   }
 
-  return { busy, progress, start, cancelAll, alive: () => living, retire }
+  return { busy, lock, progress, start, cancelAll, alive: () => living, retire }
 }
 
 /**

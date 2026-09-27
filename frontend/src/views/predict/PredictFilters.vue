@@ -24,6 +24,8 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
+import AppPlainButton from '@/components/AppPlainButton.vue'
+import type { Lock } from '@/locks'
 import { isAllSelected, type FilterAxisId, type PredictFilter } from '@/ml/predict'
 
 export type { FilterOption } from '@/ml/predict'
@@ -49,8 +51,11 @@ const props = defineProps<{
    * 그 축이 빠지는 프로젝트에서 셈이 통째로 사라진다.
    */
   count: string
-  /** 계산이 도는 동안 켜진다. 도중에 대상이 바뀌면 어느 집합에 대한 답인지 흐려진다. */
-  disabled: boolean
+  /**
+   * 계산이 도는 동안의 잠금. 도중에 대상이 바뀌면 어느 집합에 대한 답인지 흐려진다.
+   * **진행 중의 잠금만 온다**(판의 `useWork`, 결정문 65 ③) — 받은 값을 그대로 칩에 건넨다.
+   */
+  lock?: Lock | undefined
 }>()
 
 const emit = defineEmits<{
@@ -115,25 +120,24 @@ function chipClass(state: boolean): string {
       <AppButton
         variant="ghost"
         class="-mx-2 -my-2.5"
-        :disabled="props.disabled"
+        :lock="props.lock"
         @click="emit('toggleAll', axis.id)"
       >
         {{ allOn(axis) ? t('common.clearAll') : t('common.selectAll') }}
       </AppButton>
 
       <div class="flex flex-wrap gap-1.5">
-        <button
+        <AppPlainButton
           v-for="option in axis.options"
           :key="option.id"
-          type="button"
-          :disabled="props.disabled"
+          :lock="props.lock"
           :aria-pressed="on(axis, option.id)"
-          class="rounded-field border px-3 py-1.5 font-medium transition-colors disabled:pointer-events-none disabled:opacity-45"
+          class="rounded-field border px-3 py-1.5 font-medium transition-colors"
           :class="chipClass(on(axis, option.id))"
           @click="emit('toggle', axis.id, option.id)"
         >
           {{ option.label }}
-        </button>
+        </AppPlainButton>
       </div>
     </div>
   </section>

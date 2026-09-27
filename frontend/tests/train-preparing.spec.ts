@@ -36,9 +36,12 @@ function leaveGuard(code: string): string {
   return found?.[1] ?? ''
 }
 
-/** 모델 축을 감싼 칸의 여는 태그. `inert`가 여기 붙는다. */
+/**
+ * 모델 축을 감싼 칸의 여는 태그. **잠그는 구역 부품(`AppLockZone`)이 `inert`를 단다** — 화면
+ * 파일에는 그 낱말이 설 수 없다(결정문 65, `@/locks`의 `LOCK_PRIMITIVES`).
+ */
 function axesAttributes(code: string): string {
-  const found = /<div\n\s+class="min-w-0 transition-opacity[\s\S]*?>/.exec(code)
+  const found = /<AppLockZone\b[\s\S]*?>/.exec(code)
   return found?.[0] ?? ''
 }
 
@@ -69,11 +72,22 @@ describe('준비 단계도 도는 것으로 친다', () => {
     expect(guard).not.toContain('training.running')
   })
 
+  /**
+   * **축의 잠금은 작업 상태에서 온 잠금이다** (결정문 65 ③) — boolean `working`을 부품에 넘길 길이
+   * 없다. 그래서 같은 신호인지는 **이름으로 잇는다**: 축이 받는 `workingLock`은 [학습하기]가 잡는
+   * 작업의 잠금이고, 그 작업의 `busy`가 `working`의 셋째 항(`starting`)이다. 학습과 준비는 둘 다
+   * 그 작업 안에서만 돈다(`startTraining`이 잡고 `finally`가 놓는다) — 창이 같다.
+   */
   it('모델 축의 잠금이 같은 신호를 본다', () => {
     const attributes = axesAttributes(CODE)
     expect(attributes).not.toBe('')
-    expect(attributes).toContain(':inert="working"')
+    expect(attributes).toContain(':lock="workingLock"')
     expect(attributes).not.toContain('training.running')
+    expect(CODE).toContain('const workingLock = startingLock')
+    expect(CODE).toMatch(/busy: starting,\s*lock: startingLock,\s*start: startWork/)
+    const start = /async function startTraining[\s\S]*?\n\}\n/.exec(CODE)?.[0] ?? ''
+    expect(start).toContain('const job = startWork()')
+    expect(start).toMatch(/finally \{[\s\S]*job\.done\(\)/)
   })
 
   /**

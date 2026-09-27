@@ -24,6 +24,7 @@ import { nameList } from '@/data/columns'
 import { importTable, openTable, TABULAR_ACCEPT, type TableDocument } from '@/data/table'
 import { clearIfHeld, useWork } from '@/composables/useWork'
 import { toCanonicalCsv } from '@/data/serialize'
+import { anyLock, lockFor, type WatchWriteId } from '@/locks'
 import { pageSizeOf, predictPageSize } from '@/limits-switch'
 import { INK_ORDERS, pickOrder, reorder } from '@/palette'
 import type { Prediction } from '@/ml/metrics'
@@ -86,7 +87,7 @@ const dragging = shallowRef(false)
  * 붙이는 동안 판에 새 파일을 끌어다 놓을 수 있고, 그때 `busy`가 칸 하나면 먼저 끝난
  * 읽기가 **붙이는 중인 자물쇠를 연다.**
  */
-const { busy, start, alive, retire } = useWork()
+const { busy, lock: busyLock, start, alive, retire } = useWork()
 /** 아직 확정하지 않은 파일. 확정하면 비운다 - 데이터 화면·테스트 데이터와 같은 모양이다. */
 const opened = shallowRef<{ document: TableDocument; fileName: string } | null>(null)
 const sheetName = shallowRef<string | undefined>(undefined)
@@ -359,7 +360,20 @@ function loadPredictors(): LoadedModels {
   return { predictors, probaModels }
 }
 
-const computing = shallowRef(false)
+/**
+ * 쪽을 계산하거나 내려받는 중인가. **작업 상태에서 온다** (`useWork`, 결정문 65 ③) — 전에는 손으로
+ * 켜고 끄는 깃발이었다. 읽기·붙이기(`busy`)와 따로 세는 것은 둘이 겹치기 때문이다.
+ */
+const pageWork = useWork()
+const computing = pageWork.busy
+onBeforeUnmount(pageWork.retire)
+
+/**
+ * 바의 버튼과 필터가 받는 잠금 — **읽거나 붙이거나 계산하는 동안이다.** 판(`TabularPredictPanel`)이
+ * 노출된 이 값을 그대로 건넨다. 전에는 `busy`·`computing` 두 boolean을 내주고 판이 조합했다 —
+ * 그 길로는 어떤 조건이든 "바쁨"으로 넣을 수 있었다(결정문 65의 감사가 찾은 옆길).
+ */
+const lock = computed(() => anyLock(busyLock.value, pageWork.lock.value))
 
 /**
  * 아직 이 화면에 있는가. **가름은 그 계산이 무엇을 내놓느냐다** - 화면에 보이려고 도는
@@ -370,11 +384,15 @@ const computing = shallowRef(false)
 onBeforeUnmount(retire)
 
 /**
- * 쪽 넘김 버튼의 잠금. **조합은 여기서 한다** (architecture.md §10.1) — 템플릿에서
- * 조립하면 조건이 늘 때마다 마크업이 길어지고 그 조건을 아무도 테스트하지 않는다.
+ * 쪽 넘김 버튼의 잠금. **계산 중(작업 상태)과 끝에 닿음(등록부의 `pageFirst`·`pageLast`)을 잇는다**
+ * (`@/locks`, 결정문 65 ③). 템플릿에서 조립하지 않는다.
  */
-const atFirstPage = computed(() => computing.value || page.value === 0)
-const atLastPage = computed(() => computing.value || page.value >= totalPages.value - 1)
+const atFirstPage = computed(() =>
+  anyLock(pageWork.lock.value, lockFor('pageFirst', { page: page.value })),
+)
+const atLastPage = computed(() =>
+  anyLock(pageWork.lock.value, lockFor('pageLast', { page: page.value, pages: totalPages.value })),
+)
 
 /** 이 페이지가 캐시에 없으면 계산해 채운다. */
 async function ensurePage(index: number): Promise<Answer[][]> {
@@ -405,9 +423,13 @@ async function ensurePage(index: number): Promise<Answer[][]> {
   return result
 }
 
-async function goToPage(index: number): Promise<void> {
+/**
+ * `watch`는 감시자 안에서 부를 때의 이름이다 (`@/locks`의 `WATCH_WRITES` — 표가 바뀌면 판이 쪽을
+ * 다시 계산한다). 단추에서 부를 때는 없다.
+ */
+async function goToPage(index: number, watch?: WatchWriteId): Promise<void> {
   if (index < 0 || index >= totalPages.value) return
-  computing.value = true
+  const job = pageWork.start(watch === undefined ? undefined : { watch })
   try {
     page.value = index
     // **켜 놓은 `computing`이 화면에 서고 나서 계산한다** (`screen.ts`). `ensurePage`는
@@ -420,7 +442,7 @@ async function goToPage(index: number): Promise<void> {
     // 쪽을 넘기다 터지면 화면이 그 자리에 멈춘다. 무엇이 잘못됐는지는 말해야 한다.
     toasts.pushError(error)
   } finally {
-    computing.value = false
+    job.done()
   }
 }
 
@@ -477,7 +499,7 @@ watch(
     const nextKey = `${project.file?.predictDataset?.hash ?? ''}|${pageSize.value}`
     const keep = rowsKey === nextKey ? Math.min(page.value, totalPages.value - 1) : 0
     rowsKey = nextKey
-    void goToPage(keep)
+    void goToPage(keep, 'batchPage')
   },
   { immediate: true },
 )
@@ -558,7 +580,7 @@ function cellText(answer: Answer | undefined): string {
  * "일괄 예측은 `행 × 모델` 매트릭스다"). 아직 계산 안 한 페이지는 여기서 마저 계산한다.
  */
 async function downloadAction(): Promise<void> {
-  computing.value = true
+  const job = pageWork.start()
   try {
     // 여기는 **전체 쪽**을 돈다. 쪽마다 비켜 주지 않으면 500행짜리 파일에서 화면이
     // 통째로 멎고, 학생은 도구가 멈춘 것으로 읽는다.
@@ -603,7 +625,7 @@ async function downloadAction(): Promise<void> {
     // 아무 일도 안 일어나는 것만 본다 (V11 R4 C-4).
     toasts.pushError(error)
   } finally {
-    computing.value = false
+    job.done()
   }
 }
 
@@ -640,6 +662,7 @@ defineExpose({
   setHasHeader,
   busy,
   computing,
+  lock,
   hasFile,
   opened,
   sheetName,
@@ -689,7 +712,7 @@ defineExpose({
         @dragleave="dragging = false"
         @drop.prevent="onDrop"
       >
-        <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">
+        <AppButton variant="secondary" :lock="busyLock" @click="fileInput?.click()">
           {{ busy ? t('data.tabular.reading') : t('data.tabular.choose') }}
         </AppButton>
         <p class="mt-1.5 text-ink-faint">{{ t('data.tabular.dropHint') }}</p>
@@ -792,11 +815,11 @@ defineExpose({
       </div>
 
       <div class="flex items-center justify-between gap-4">
-        <AppButton variant="secondary" :disabled="atFirstPage" :action="() => goToPage(page - 1)">
+        <AppButton variant="secondary" :lock="atFirstPage" :action="() => goToPage(page - 1)">
           {{ t('common.prevPage') }}
         </AppButton>
         <p class="tabular-nums text-ink-soft">{{ page + 1 }} / {{ totalPages }}</p>
-        <AppButton variant="secondary" :disabled="atLastPage" :action="() => goToPage(page + 1)">
+        <AppButton variant="secondary" :lock="atLastPage" :action="() => goToPage(page + 1)">
           {{ t('common.nextPage') }}
         </AppButton>
       </div>

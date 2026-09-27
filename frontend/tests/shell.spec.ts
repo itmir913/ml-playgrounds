@@ -55,7 +55,30 @@ describe('단계 레일', () => {
   it('여섯 단계가 전부 있다 - 못 가는 것도 지우지 않는다', async () => {
     const rail = await mountRail()
     // 목록에서 사라지면 학생은 그런 단계가 있다는 것조차 모른다.
-    expect(rail.findAll('a, span[aria-disabled]').length).toBeGreaterThanOrEqual(STEP_IDS.length)
+    expect(rail.findAll('a, button[aria-disabled]').length).toBeGreaterThanOrEqual(STEP_IDS.length)
+  })
+
+  /**
+   * **잠긴 칸을 누르면 이유가 화면에 선다** (결정문 65 "감사 뒤 더한 것"). 전에는 이유가 `title`에만
+   * 있어 휴대폰에서는 볼 길이 없었다 — 가로로 누운 레일은 이름까지 숨어 회색 아이콘만 남는다.
+   * 팝오버는 `body`로 옮겨 띄우므로 문서에서 찾는다.
+   */
+  it('잠긴 칸을 누르면 못 가는 이유가 글로 선다', async () => {
+    // 프로젝트를 열면 데이터 단계만 열리고 나머지는 **단계마다의 이유**로 잠긴다.
+    useProjectStore().file = emptyProjectFile()
+    const rail = await mountRail()
+    const locked = rail.findAll('button[aria-disabled="true"]')
+    expect(locked.length, 'later steps are locked').toBeGreaterThan(0)
+    expect(document.body.querySelector('[role="status"]')).toBeNull()
+
+    const step = locked[0]!
+    expect(step.attributes('title'), 'the reason is not the no-project line').not.toBe(
+      i18n.global.t('shell.noProject'),
+    )
+    await step.trigger('click')
+    const line = document.body.querySelector('[role="status"]')
+    expect(line?.textContent?.trim()).toBe(step.attributes('title'))
+    rail.unmount()
   })
 
   it('프로젝트를 열면 데이터 단계로 갈 수 있다', async () => {

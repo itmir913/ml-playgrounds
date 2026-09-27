@@ -166,7 +166,6 @@ const candidates = computed(() =>
           runtime: t(whereTrainedKeyOf(model.run)),
         }),
       }),
-      enabled: true,
     })),
 )
 

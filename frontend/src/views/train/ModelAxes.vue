@@ -23,6 +23,7 @@ import AppChoices, { type Choice } from '@/components/AppChoices.vue'
 import { formatBytes } from '@/composables/useFormat'
 import AppEmpty from '@/components/AppEmpty.vue'
 import type { AlgorithmOption } from '@/ml/algorithms'
+import { lockFor } from '@/locks'
 import { reasonParams } from '@/ml/backend'
 import { modelAxes, type AxisChoice, type ChosenModel } from '@/ml/selection'
 import type { TaskType } from '@/project/schema'
@@ -72,14 +73,15 @@ const runtime = computed(() => {
   return fallback?.runtime.id ?? props.preferredRuntime
 })
 
-const axes = computed(() =>
-  modelAxes({
-    options: props.options,
-    algorithm: algorithm.value,
-    runtime: runtime.value,
-    chosen: props.chosen,
-  }),
-)
+/** 세 축의 재료. **판정과 잠금이 같은 재료를 본다** — 카드와 [담기]의 잠금이 이것으로 선다. */
+const axesInput = computed(() => ({
+  options: props.options,
+  algorithm: algorithm.value,
+  runtime: runtime.value,
+  chosen: props.chosen,
+}))
+
+const axes = computed(() => modelAxes(axesInput.value))
 
 /**
  * 사유 문장은 `client.*`에 이미 있다. 화면이 새로 짓지 않는다.
@@ -88,11 +90,13 @@ const axes = computed(() =>
  * 되짚어 고를 수 있는 값이 아니고, 판정이 이미 그 칸의 값을 함께 들려 보냈다
  * (`AxisChoice.maxRows`). 여기서 다시 고르면 화면이 5000이라고 말하고 3000에서 꺼진다.
  */
-function withReason(choice: AxisChoice, label: string): Choice {
+function withReason(axis: 'algorithms' | 'runtimes', choice: AxisChoice, label: string): Choice {
   return {
     id: choice.id,
     label,
-    enabled: choice.enabled,
+    // **잠금은 등록부가 낸다** (`@/locks`의 `modelCard`, 결정문 65). 카드의 `enabled`를 그대로
+    // 넘기던 자리다 — 그 길로는 어떤 조건이든 카드를 끌 수 있었다.
+    lock: lockFor('modelCard', { axes: axesInput.value, axis, id: choice.id }),
     ...(choice.reason
       ? { reason: t(`client.${choice.reason}`, reasonParams(choice.reason, choice.maxRows)) }
       : {}),
@@ -119,17 +123,18 @@ const taskChoices = computed<Choice[]>(() =>
   props.taskTypes.map((taskType) => ({
     id: taskType,
     label: t(`taskTypes.${taskType}`),
-    enabled: true,
   })),
 )
 
 // 줄마다 자기 사유와 자기 숫자를 들고 있다 (modelAxes).
 const modelChoices = computed<Choice[]>(() =>
-  axes.value.algorithms.map((choice) => withReason(choice, t(`algorithms.${choice.id}`))),
+  axes.value.algorithms.map((choice) =>
+    withReason('algorithms', choice, t(`algorithms.${choice.id}`)),
+  ),
 )
 
 const runtimeChoices = computed<Choice[]>(() =>
-  axes.value.runtimes.map((choice) => withReason(choice, t(`runtimes.${choice.id}`))),
+  axes.value.runtimes.map((choice) => withReason('runtimes', choice, t(`runtimes.${choice.id}`))),
 )
 
 /**
@@ -151,6 +156,9 @@ const preparation = computed(() => {
     seconds: Math.ceil(found.ms / 1000),
   })
 })
+
+/** [담기]의 잠금. **`TrainView.addModel`의 거절과 같은 칸이다** (`@/locks`의 `addModel`). */
+const addLock = computed(() => lockFor('addModel', axesInput.value))
 
 /** 왜 못 담는지. 이유 없이 꺼진 버튼은 학생에게 고장으로 보인다. */
 const blocked = computed(() => {
@@ -223,7 +231,7 @@ function onTaskType(id: string): void {
 
       <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
         <p v-if="blocked" class="min-w-0 text-ink-soft">{{ blocked }}</p>
-        <AppButton :disabled="blocked !== null" @click="emit('add', algorithm, runtime)">
+        <AppButton :lock="addLock" @click="emit('add', algorithm, runtime)">
           {{ t('train.addModel') }}
         </AppButton>
       </div>

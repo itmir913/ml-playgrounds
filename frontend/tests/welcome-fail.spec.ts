@@ -19,12 +19,20 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { unzipSync, zipSync } from 'fflate'
+import { openDB } from 'idb'
 
 import { ClientError } from '../src/errors'
 import { ENTRY } from '../src/project/format'
 import { i18n, setLocale } from '../src/i18n'
 import type { ProjectFile } from '../src/project/format'
-import { closeStorage, DB_NAME, loadProject, saveProject } from '../src/project/storage'
+import {
+  closeStorage,
+  DB_NAME,
+  DB_VERSION,
+  listProjects,
+  loadProject,
+  saveProject,
+} from '../src/project/storage'
 import { releaseTabLock } from '../src/project/tab-lock'
 import { ROUTE_PROJECTS, router } from '../src/router'
 import { useToastStore } from '../src/stores/toasts'
@@ -114,6 +122,71 @@ async function welcome() {
 }
 
 const dangers = () => useToastStore().items.filter((one) => one.tone === 'danger')
+
+/**
+ * **못 읽는 줄은 잠그지 않고, 누르면 알린다** (`open-decisions.md` 65 ②, 결정문 60).
+ *
+ * 목록의 "못 읽음"은 `manifest.name`만 보는 가벼운 판정이고(`listProjects`), 여는 쪽은
+ * 전체를 파싱한다(`loadProject`). 둘을 따로 두면 갈릴 수 있어 잠금을 풀었다 — 그러면 누를 때
+ * **조용하지 않아야** 한다. 진짜 입구(목록의 줄 → `openProject` → 라우터 가드 → `open()`)로
+ * 재고, 레코드는 저장소에 날것으로 심는다(`storage.spec.ts`의 `plant`와 같은 방법).
+ */
+describe('decision 65: pressing an unreadable saved project', () => {
+  async function plantUnreadable(): Promise<void> {
+    await saveProject(projectFile())
+    closeStorage()
+    const database = await openDB(DB_NAME, DB_VERSION)
+    // manifest가 없다 — 목록이 `readable: false`로 표시하는 모양이다.
+    await database.put('projects', {
+      projectId: 'unreadable-record',
+      document: { runs: {} },
+      updatedAt: '2026-08-05T00:00:00.000Z',
+      sizeBytes: 0,
+    })
+    database.close()
+    closeStorage()
+  }
+
+  it('the list marks it unreadable (precondition)', async () => {
+    await plantUnreadable()
+    const found = (await listProjects()).find((one) => one.projectId === 'unreadable-record')
+    expect(found?.readable).toBe(false)
+  })
+
+  it('the row is pressable; pressing it tells why and stays on the list', async () => {
+    await plantUnreadable()
+    const { wrapper, view } = await welcome()
+    const row = wrapper
+      .findAll('li button')
+      .find((button) => button.text().includes('열 수 없는 프로젝트'))
+    expect(row, 'unreadable row not rendered').toBeDefined()
+    expect(row?.attributes('disabled')).toBeUndefined()
+
+    await row?.trigger('click')
+    // **알림이 선 것을 기다린다** — 정해진 틱 수가 아니라 끝 상태다(라우터 가드 → 저장소 읽기).
+    await vi.waitFor(() => {
+      if (dangers().length === 0) throw new Error('no alert yet')
+    }, OPEN_WAIT_MS)
+    await settle()
+
+    expect(dangers().map((one) => one.key)).toEqual(['client.PROJECT_FILE_VERSION_UNSUPPORTED'])
+    expect(router.currentRoute.value.name).toBe(ROUTE_PROJECTS)
+    expect(view.busy).toBe(false)
+  })
+})
+
+/**
+ * **모달 창 안의 실패는 창 안에서 말한다** (결정문 65 "모달 창 안의 거절은 알림이 아니라 창 안의
+ * 문장으로 말한다"). 알림은 모달 창의 최상위 층 뒤에 그려져 배경막에 덮인다 — 창이 열린 채로 남는
+ * 실패를 알림으로 띄우면 학생은 이유를 못 본다.
+ */
+function alertIn(wrapper: Awaited<ReturnType<typeof welcome>>['wrapper'], title: string) {
+  const dialog = wrapper
+    .findAll('dialog')
+    .find((one) => one.text().includes(title) && one.attributes('open') !== undefined)
+  expect(dialog, `the dialog "${title}" is open`).toBeDefined()
+  return dialog?.find('[role="alert"]')
+}
 
 describe('R23: opening a broken .mlpx', () => {
   it('corrupt bytes: tells, unlocks, stays', async () => {
@@ -257,7 +330,11 @@ describe('R27: 다른 탭이 쥔 프로젝트는 목록 화면도 못 건드린�
     const { wrapper, view } = await welcome()
     await clickDelete(wrapper)
 
-    expect(dangers().map((one) => one.key)).toEqual(['client.PROJECT_OPEN_ELSEWHERE'])
+    // **확인 창 안에서 말한다** — 창이 열린 채 남으므로 알림은 그 뒤에 덮인다(결정문 65).
+    expect(dangers(), 'a toast would sit behind the modal').toEqual([])
+    expect(alertIn(wrapper, '이 프로젝트를 삭제할까요?')?.text()).toBe(
+      i18n.global.t('client.PROJECT_OPEN_ELSEWHERE'),
+    )
     expect(view.busy).toBe(false)
     // **여전히 있어야 한다.** 지우면 저 탭의 다음 자동 저장이 되살리거나, 저 탭이 하던
     // 것이 사라진다 — 어느 쪽인지는 타이밍이 정한다.
@@ -292,10 +369,58 @@ describe('R23: creating when storage refuses', () => {
     expect(create).toBeDefined()
     await create?.trigger('click')
     await settle()
-    expect(dangers().map((one) => one.key)).toEqual(['client.STORAGE_QUOTA_EXCEEDED'])
+    // **창 안에서 말한다** — 창이 열린 채로 남으므로 알림은 그 뒤에 덮인다(결정문 65).
+    expect(dangers(), 'a toast would sit behind the modal').toEqual([])
+    const alert = alertIn(wrapper, '새 프로젝트')
+    expect(alert?.text()).toBe(
+      i18n.global.t('client.STORAGE_QUOTA_EXCEEDED', { requiredMb: 9, availableMb: 1 }),
+    )
     expect(view.busy).toBe(false)
     expect(view.creating).toBe(true)
     expect(router.currentRoute.value.name).toBe(ROUTE_PROJECTS)
+
+    // 창을 닫았다 다시 열면 비어 있다.
+    view.creating = false
+    await settle()
+    const again = wrapper.findAll('button').find((one) => one.text().includes('새 프로젝트'))
+    await again?.trigger('click')
+    await settle()
+    expect(alertIn(wrapper, '새 프로젝트')?.exists()).toBe(false)
+  })
+})
+
+/**
+ * **이름 칸에서 Enter를 누르면 잠금을 건넌다** (결정문 65 "조용히 끝나던 동작에 알리는 가드"). 폼의
+ * `@submit.prevent="create"`는 [만들기]의 잠금을 안 지나가고, 그 길의 `create()`가 말없이
+ * `return`했다. 이제 잠금과 같은 칸(`projectName`)으로 알린다 — **창 안의 문장으로.**
+ */
+describe('decision 65: creating with an empty name', () => {
+  it('Enter in the empty name box tells why and stays open', async () => {
+    const { wrapper, view } = await welcome()
+    const newButton = wrapper.findAll('button').find((one) => one.text().includes('새 프로젝트'))
+    await newButton?.trigger('click')
+    await flushPromises()
+    expect(view.creating).toBe(true)
+
+    const create = wrapper.findAll('button').find((one) => one.text() === '만들기')
+    expect(create?.attributes('disabled'), 'the button is still locked').toBeDefined()
+    await wrapper.find('input[type="text"]').setValue('   ')
+    await wrapper.find('form').trigger('submit')
+    await settle()
+
+    const refusal = wrapper.find('form [role="alert"]')
+    expect(refusal.exists(), 'no reason inside the dialog').toBe(true)
+    expect(refusal.text()).toBe(i18n.global.t('projects.nameRequired'))
+    expect(
+      useToastStore().items.filter((one) => one.tone === 'caution'),
+      'a toast would sit behind the modal',
+    ).toEqual([])
+    expect(view.creating).toBe(true)
+    expect(router.currentRoute.value.name).toBe(ROUTE_PROJECTS)
+
+    // **사유가 풀리면 걷힌다.**
+    await wrapper.find('input[type="text"]').setValue('새 이름')
+    expect(wrapper.find('form [role="alert"]').exists(), 'reason left after fixing').toBe(false)
   })
 })
 

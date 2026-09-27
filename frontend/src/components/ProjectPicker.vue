@@ -14,8 +14,10 @@ import { ref, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
+import AppPlainButton from '@/components/AppPlainButton.vue'
 import { useFormat } from '@/composables/useFormat'
 import { ACTION_ICONS } from '@/icons'
+import { isLocked, type Lock } from '@/locks'
 import type { ProjectSummary } from '@/project/storage'
 
 const props = defineProps<{
@@ -26,8 +28,10 @@ const props = defineProps<{
    * 파일을 여는 동안 여기가 살아 있으면, 학생이 목록에서 다른 프로젝트를 눌러 먼저
    * 이동하고 **뒤늦게 끝난 파일 열기가 또 한 번 화면을 민다** — 방금 연 파일이 아닌
    * 프로젝트를 보고 있게 된다. 지우기도 같은 이유로 함께 잠근다.
+   *
+   * **진행 중의 잠금만 온다** (화면의 `useWork`, 결정문 65 ③). 받은 값을 그대로 안쪽 버튼에 건넨다.
    */
-  disabled?: boolean | undefined
+  lock?: Lock | undefined
 }>()
 
 const emit = defineEmits<{
@@ -63,25 +67,19 @@ function open(): void {
 defineExpose({ open })
 
 /**
- * 이 줄을 누를 수 있는가. **템플릿에서 조건을 조립하지 않는다** (architecture.md §10) —
- * 못 읽는 프로젝트와 지금 바쁜 것은 다른 사유이고, 둘을 `||`로 이어 붙이면 그 구분이
- * 화면 코드 속으로 사라진다.
- */
-function locked(summary: ProjectSummary): boolean {
-  return lockReason(summary) !== null
-}
-
-/**
- * 못 누르는 **이유**. 누를 수 있으면 `null`이다.
+ * 줄이 잠긴 **이유**. 잠기지 않았으면 `undefined`다.
  *
- * **boolean만 돌려주면 두 사유가 화면에서 다시 하나가 된다** (`CLAUDE.md` §2).
- * 못 읽는 줄은 이름 자리가 바뀌어 이유가 보이는데, 파일을 여는 동안 잠긴 줄은
- * **아무 말 없이 회색이었다** — `docs/copy.md` §4의 "이유 없는 회색은 학생에게
- * 고장이다" (V11 R5 C-1). 몇 초뿐이라도 그 몇 초가 학생에게는 설명이 없다.
+ * **잠그는 것은 "여는 중" 하나다** (`open-decisions.md` 65 ②). 못 읽는 줄은 잠그지 않는다 —
+ * 누르면 `open()`이 실패를 알리고(`PROJECT_FILE_VERSION_UNSUPPORTED` 알림) 목록에 남는다.
+ * 목록의 "못 읽음"은 `manifest.name`만 보는 가벼운 판정이라 `open()`의 전체 파싱과 갈릴 수
+ * 있고, 갈리면 열 수 있는 프로젝트가 잠긴다(결정문 60). `welcome-fail.spec.ts`의
+ * *"decision 65: pressing an unreadable saved project"*가 문다.
+ *
+ * **이유 없는 회색은 학생에게 고장이다** (`docs/copy.md` §4, V11 R5 C-1) — 여는 동안의
+ * 잠금도 이 문장을 `title`로 든다.
  */
-function lockReason(summary: ProjectSummary): string | null {
-  if (props.disabled === true) return t('projects.opening')
-  return summary.readable ? null : t('projects.unreadable')
+function lockReason(): string | undefined {
+  return isLocked(props.lock) ? t('projects.opening') : undefined
 }
 </script>
 
@@ -91,7 +89,7 @@ function lockReason(summary: ProjectSummary): string | null {
       variant="subtle"
       size="lg"
       class="w-full"
-      :disabled="props.disabled"
+      :lock="props.lock"
       :popovertarget="popoverId"
     >
       <component :is="ACTION_ICONS.savedProjects" :size="20" aria-hidden="true" />
@@ -118,15 +116,14 @@ function lockReason(summary: ProjectSummary): string | null {
         >
           <!--
             **못 읽는 것도 목록에 남는다** (architecture.md §8.10.2). 빼면 학생 눈에는
-            프로젝트가 사라진 것으로 보인다. 열기만 막고 지우기는 아래에 그대로 둔다 —
-            학생이 스스로 정리할 수 있어야 한다.
+            프로젝트가 사라진 것으로 보인다. 누르면 열기가 실패를 알리고, 지우기는 아래에
+            그대로 둔다 — 학생이 스스로 정리할 수 있어야 한다.
           -->
-          <button
-            type="button"
+          <AppPlainButton
             class="min-w-0 flex-1 text-left"
-            :disabled="locked(summary)"
-            :class="summary.readable ? '' : 'cursor-not-allowed text-ink-faint'"
-            :title="lockReason(summary) ?? undefined"
+            :lock="props.lock"
+            :class="summary.readable ? '' : 'text-ink-faint'"
+            :title="lockReason()"
             @click="emit('open', summary.projectId)"
           >
             <span class="block truncate font-bold">
@@ -135,7 +132,7 @@ function lockReason(summary: ProjectSummary): string | null {
             <span class="mt-1 block text-ink-faint">
               {{ format.dateTime(summary.updatedAt) }}
             </span>
-          </button>
+          </AppPlainButton>
 
           <span class="whitespace-nowrap text-ink-faint">
             {{ format.bytes(summary.sizeBytes) }}
@@ -148,7 +145,7 @@ function lockReason(summary: ProjectSummary): string | null {
           -->
           <AppButton
             variant="ghost"
-            :disabled="props.disabled"
+            :lock="props.lock"
             :label="t('projects.delete')"
             @click="emit('remove', summary)"
           >

@@ -37,6 +37,8 @@ import { MLPX_ACCEPT, readProject } from '@/project/format'
 import { deleteProject, listProjects, saveProject, type ProjectSummary } from '@/project/storage'
 import { claimTabLock, withTabLock } from '@/project/tab-lock'
 import { useWork } from '@/composables/useWork'
+import { toMessage } from '@/errors'
+import { anyLock, useGate } from '@/locks'
 import { useToastStore } from '@/stores/toasts'
 
 const { t, locale } = useI18n()
@@ -67,7 +69,7 @@ const summaries = ref<ProjectSummary[]>([])
 const ready = ref(false)
 /** 지금 이 화면에서 도는 일들 (architecture.md §8.10.4). */
 /** 일을 들면 떠날 때 끝났다고 표시한다 (`useWork`의 `retire`). */
-const { busy, start, retire } = useWork()
+const { busy, lock: busyLock, start, retire } = useWork()
 
 onBeforeUnmount(retire)
 
@@ -89,7 +91,7 @@ const asksDataType = computed(() => DATA_KINDS.length > 1)
  * 꺼질 이유가 없다. 꺼진 칸이 생기는 것은 사유를 댈 수 있는 축에서다 (AppChoices).
  */
 const dataTypeChoices = computed(() =>
-  DATA_KINDS.map((kind) => ({ id: kind.dataType, label: t(kind.labelKey), enabled: true })),
+  DATA_KINDS.map((kind) => ({ id: kind.dataType, label: t(kind.labelKey) })),
 )
 
 /** 고른 칸의 id를 종류로 되돌린다. 등록부에 없는 id는 온 적이 없다 — 목록이 거기서 났다. */
@@ -114,7 +116,38 @@ function closeRemove(): void {
 }
 const openInput = ref<HTMLInputElement | null>(null)
 
-const canCreate = computed(() => name.value.trim().length > 0 && !busy.value)
+/**
+ * [만들기]의 잠금과 `create()`의 거절. **같은 칸(`@/locks`의 `projectName`)이 둘 다 만든다** (결정문 65).
+ * 전에는 `create()`가 말없이 `return`했고, 이름 칸에서 Enter를 누르면(`@submit.prevent`) 잠금을
+ * 건너 그 조용한 길로 갔다. `welcome-fail.spec.ts`의 *"decision 65: creating with an empty name"*이 문다.
+ */
+const {
+  lock: nameLock,
+  reasons: nameReasons,
+  refuse: refuseName,
+} = useGate('projectName', () => ({ name: name.value }))
+const createLock = computed(() => anyLock(nameLock.value, busyLock.value))
+
+/**
+ * **창 안에서 말한다** (결정문 65 "모달 창 안의 거절"). 알림은 모달 창의 최상위 층 뒤에 그려져
+ * 배경막에 덮인다 — 창이 열린 채로 남는 실패(이름이 없다·저장소가 거절했다)를 알림으로 띄우면
+ * 학생은 이유를 못 본다.
+ *
+ * - `createRefused` 이름 때문에 거절했는가. **사유가 풀리면 걷힌다**(이름을 채우면 `nameReasons`가 빈다).
+ * - `createFailure` 저장이 실패한 이유. 다시 누르거나 창을 새로 열면 걷힌다.
+ */
+const createRefused = ref(false)
+const showNameRefusal = computed(() => createRefused.value && nameReasons.value.length > 0)
+const createFailure = ref<{ key: string; params: Record<string, unknown> } | null>(null)
+
+/** 지우기 확인 창의 실패. 창을 새로 열면 걷힌다 — 위와 같은 이유로 창 안에서 말한다. */
+const removeFailure = ref<{ key: string; params: Record<string, unknown> } | null>(null)
+
+/** 목록의 [삭제]. 확인 창을 새로 연다 — 지난번의 실패 문장은 남기지 않는다. */
+function askRemove(summary: ProjectSummary): void {
+  removeFailure.value = null
+  removing.value = summary
+}
 
 async function refresh(): Promise<void> {
   try {
@@ -132,6 +165,9 @@ function openCreate(): void {
   name.value = ''
   // 지난번에 고른 것이 남아 있으면 학생이 안 본 채로 만들어진다. 매번 처음으로 돌린다.
   dataType.value = DEFAULT_DATA_TYPE
+  // 지난번의 거절과 실패도 같다 — 창을 새로 열면 비어 있다.
+  createRefused.value = false
+  createFailure.value = null
   creating.value = true
 }
 
@@ -146,7 +182,13 @@ async function openProject(projectId: string): Promise<void> {
 }
 
 async function create(): Promise<void> {
-  if (!canCreate.value) return
+  // 도는 중이면 두 번 누른 것이다 — 진행 중 잠금과 같은 뜻이라 말하지 않는다.
+  if (busy.value) return
+  if (refuseName().length > 0) {
+    createRefused.value = true
+    return
+  }
+  createFailure.value = null
   const job = start()
   try {
     // **과제 유형은 여기서 정하지 않는다.** 표를 보기도 전에 분류인지 회귀인지 아는
@@ -166,7 +208,8 @@ async function create(): Promise<void> {
     creating.value = false
     openProject(document.manifest.projectId)
   } catch (error) {
-    toasts.pushError(error)
+    // 창이 열린 채로 남는다 — 알림은 그 뒤에 덮이므로 창 안에서 말한다.
+    createFailure.value = toMessage(error)
   } finally {
     job.done()
   }
@@ -231,13 +274,15 @@ async function openFile(event: Event): Promise<void> {
 async function remove(): Promise<void> {
   const target = removing.value
   if (!target || busy.value) return
+  removeFailure.value = null
   const job = start()
   try {
     await withTabLock(target.projectId, () => deleteProject(target.projectId))
     await refresh()
     closeRemove()
   } catch (error) {
-    toasts.pushError(error)
+    // 확인 창이 열린 채로 남는다 — 알림은 그 뒤에 덮이므로 창 안에서 말한다.
+    removeFailure.value = toMessage(error)
   } finally {
     job.done()
   }
@@ -282,14 +327,14 @@ onMounted(refresh)
         걸리지 않는다. 거기서는 접히는 것을 감수한다.
       -->
       <div class="grid w-full max-w-sm gap-3">
-        <AppButton size="lg" :disabled="busy" class="w-full" @click="openCreate">
+        <AppButton size="lg" :lock="busyLock" class="w-full" @click="openCreate">
           <component :is="ACTION_ICONS.newProject" :size="20" aria-hidden="true" />
           {{ t('projects.new') }}
         </AppButton>
         <AppButton
           size="lg"
           variant="secondary"
-          :disabled="busy"
+          :lock="busyLock"
           class="w-full"
           @click="openInput?.click()"
         >
@@ -301,9 +346,9 @@ onMounted(refresh)
           v-if="summaries.length > 0"
           ref="picker"
           :summaries="summaries"
-          :disabled="busy"
+          :lock="busyLock"
           @open="openProject"
-          @remove="removing = $event"
+          @remove="askRemove"
         />
       </div>
 
@@ -352,6 +397,16 @@ onMounted(refresh)
               />
             </template>
           </AppField>
+          <!--
+            **거절과 실패는 창 안에서 말한다** (결정문 65). 알림은 모달 창의 최상위 층 뒤에 덮인다.
+            이름 줄은 이름을 채우면 저절로 걷힌다.
+          -->
+          <p v-if="showNameRefusal" role="alert" class="-mt-4 text-caution">
+            {{ t('projects.nameRequired') }}
+          </p>
+          <p v-if="createFailure" role="alert" class="-mt-4 text-danger">
+            {{ t(createFailure.key, createFailure.params) }}
+          </p>
 
           <!--
             **이름 다음이다.** 종류가 첫 질문이면 아무것도 안 본 학생이 모르는 것부터
@@ -371,7 +426,7 @@ onMounted(refresh)
           <AppButton variant="secondary" @click="creating = false">{{
             t('common.cancel')
           }}</AppButton>
-          <AppButton :disabled="!canCreate" :action="create">{{ t('projects.create') }}</AppButton>
+          <AppButton :lock="createLock" :action="create">{{ t('projects.create') }}</AppButton>
         </template>
       </AppDialog>
 
@@ -381,6 +436,9 @@ onMounted(refresh)
         :description="t('projects.deleteDescription', { name: removing?.name ?? '' })"
         @close="closeRemove"
       >
+        <p v-if="removeFailure" role="alert" class="text-danger">
+          {{ t(removeFailure.key, removeFailure.params) }}
+        </p>
         <template #actions>
           <AppButton variant="secondary" @click="removing = null">{{
             t('common.cancel')

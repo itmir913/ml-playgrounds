@@ -20,6 +20,7 @@
 import { defineAsyncComponent, inject, type Component, type InjectionKey, type Ref } from 'vue'
 
 import type { ColumnSummary } from './columns'
+import type { ChartBlock, ChartToolGate, GateInput } from './chart-gates'
 import type { DataType } from '@/project/schema'
 import type { Dataset } from '@/ml/preprocess'
 import { supports, type Axis } from '@/ml/axes'
@@ -75,33 +76,14 @@ export function useChartControls(): Ref<HTMLElement | null> | null {
 }
 
 /**
- * 그림을 못 그리는 이유. **화면에 그대로 나가는 문구의 키가 된다**
- * (`data.charts.blocked.*`).
- *
- * 배열이 먼저인 이유는 `COLUMN_KINDS`와 같다 — 값 목록이 실행 중에도 있어야 로케일과
- * 짝지어 검사할 수 있다 (`docs/i18n.md`).
+ * 못 그리는 이유와 판정의 재료는 `chart-gates.ts`에 산다 — 잠금 등록부(`@/locks`)가 그림 부품을
+ * 안 들이고 그 모양을 쓰려고 떼어 냈다. 옛 입구로 다시 내보낸다.
  */
-export const CHART_BLOCKS = ['needsNumeric', 'needsCategorical', 'needsAnotherColumn'] as const
-export type ChartBlock = (typeof CHART_BLOCKS)[number]
+export { CHART_BLOCKS, type ChartBlock, type GateInput } from './chart-gates'
 
-/** 잠금을 판정할 때 보는 것. **고른 열 하나가 아니라 표 전체를 본다** — 산점도가 둘째 열을 찾는다. */
-export interface GateInput {
-  readonly columns: readonly ColumnSummary[]
-  readonly column: string
-}
-
-export interface ChartTool {
-  /** 로케일 키와 `v-for`의 key. `data.charts.{id}.name`이 그 이름이다. */
-  readonly id: string
+export interface ChartTool extends ChartToolGate {
   /** 어느 데이터 종류에서 성립하는가. */
   readonly dataTypes: Axis<DataType>
-  /**
-   * 못 그리는 이유. **비어 있으면 그릴 수 있다.**
-   *
-   * **`false`를 돌려주는 자리가 아니다** (§9.2.1). 학생이 알아야 하는 것은 "안 된다"가
-   * 아니라 "왜 안 되는가"이고, 이유 없이 회색인 버튼은 고장으로 읽힌다 (§8.2).
-   */
-  readonly blockedBy: (input: GateInput) => readonly ChartBlock[]
   /** 그리는 부품. 지연 로딩이다. */
   readonly panel: Component
 }

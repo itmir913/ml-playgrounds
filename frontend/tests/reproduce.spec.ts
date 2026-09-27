@@ -19,6 +19,7 @@ import {
   changedRules,
   compareExperiments,
   compareRun,
+  engineIsHere,
   engineVersionFallback,
   flippedRows,
   reproduceBlockers,
@@ -432,6 +433,7 @@ describe('테스트 파일이 따로 온 실험', () => {
         hasDataset: true,
         hasTestDataset: false,
         comparingOther: false,
+        engineHere: engineIsHere,
       }),
     ).toEqual(['NO_TEST_DATASET'])
   })
@@ -913,6 +915,7 @@ describe('대조를 막는 이유', () => {
       hasDataset: true,
       hasTestDataset: false,
       comparingOther: false,
+      engineHere: engineIsHere,
       ...overrides,
     }
   }
@@ -1043,6 +1046,7 @@ describe('대조는 파일이 말하는 엔진 판을 들고 간다', () => {
         hasDataset: true,
         hasTestDataset: false,
         comparingOther: false,
+        engineHere: engineIsHere,
       })
 
     expect(blockersFor({ kind: 'pyodide-sklearn', version: '300.1.2' })).toEqual([])

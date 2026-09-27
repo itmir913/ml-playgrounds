@@ -18,7 +18,10 @@
 import { useI18n } from 'vue-i18n'
 
 import AppField from '@/components/AppField.vue'
+import AppInput from '@/components/AppInput.vue'
+import AppSelect from '@/components/AppSelect.vue'
 import { useFormat } from '@/composables/useFormat'
+import type { Lock } from '@/locks'
 import type { PredictionField } from '@/ml/predict'
 
 const props = defineProps<{
@@ -36,11 +39,12 @@ const props = defineProps<{
    */
   status: { text: string; caution: boolean } | null
   /**
-   * 계산이 도는 동안 켜진다. **칸도 함께 잠근다.** 도중에 값이 바뀌면 이미 도는
+   * 계산이 도는 동안의 잠금. **칸도 함께 잠근다.** 도중에 값이 바뀌면 이미 도는
    * 계산이 어느 입력에 대한 답인지 흐려진다 — 필터를 못 바꾸게 하는 것과 같은
-   * 이유다(architecture.md §8.13.1).
+   * 이유다(architecture.md §8.13.1). **진행 중의 잠금만 온다**(판의 `useWork`, 결정문 65 ③) —
+   * 받은 값을 그대로 칸에 건넨다.
    */
-  disabled: boolean
+  lock?: Lock | undefined
 }>()
 
 const emit = defineEmits<{
@@ -107,28 +111,28 @@ function hintOf(field: PredictionField): string | undefined {
         :hint="hintOf(field)"
       >
         <template #default="control">
-          <select
+          <AppSelect
             v-if="field.options"
             v-bind="control"
             class="rounded-field border border-line-strong bg-surface px-3 py-2"
             :value="props.values[field.name] ?? ''"
-            :disabled="props.disabled"
+            :lock="props.lock"
             @change="emit('set', field.name, ($event.target as HTMLSelectElement).value)"
           >
             <option value="">{{ t('predict.tabular.pickOption') }}</option>
             <option v-for="option in field.options" :key="option" :value="option">
               {{ option }}
             </option>
-          </select>
+          </AppSelect>
 
-          <input
+          <AppInput
             v-else
             v-bind="control"
             type="number"
             step="any"
             class="rounded-field border border-line-strong bg-surface px-3 py-2 tabular-nums"
             :value="props.values[field.name] ?? ''"
-            :disabled="props.disabled"
+            :lock="props.lock"
             @input="emit('set', field.name, ($event.target as HTMLInputElement).value)"
           />
         </template>

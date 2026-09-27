@@ -18,6 +18,7 @@ import { useI18n } from 'vue-i18n'
 import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
 import { IMAGE_GRID_PAGE_SIZE } from '@/limits'
+import { lockFor } from '@/locks'
 import { backboneFor } from '@/ml/backbones'
 import { imageClusterGroups } from '@/ml/image-clusters'
 import { imageTrainingSource } from '@/ml/images'
@@ -163,7 +164,7 @@ function turn(cluster: number, step: number): void {
       >
         <AppButton
           variant="secondary"
-          :disabled="pageOf(group.cluster) === 0"
+          :lock="lockFor('pageFirst', { page: pageOf(group.cluster) })"
           @click="turn(group.cluster, -1)"
         >
           {{ t('common.prevPage') }}
@@ -173,7 +174,12 @@ function turn(cluster: number, step: number): void {
         </p>
         <AppButton
           variant="secondary"
-          :disabled="pageOf(group.cluster) >= totalPagesOf(group.hashes.length) - 1"
+          :lock="
+            lockFor('pageLast', {
+              page: pageOf(group.cluster),
+              pages: totalPagesOf(group.hashes.length),
+            })
+          "
           @click="turn(group.cluster, 1)"
         >
           {{ t('common.nextPage') }}

@@ -11,15 +11,17 @@
  * 적힌 버튼이 전부 켜면 학생은 화면을 못 믿는다.
  */
 
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { defineComponent, h, ref } from 'vue'
+import { computed, defineComponent, h, ref } from 'vue'
 
 import { i18n, setLocale } from '../src/i18n'
+import { issueBusyLock } from '../src/locks'
 import type { PredictFilter } from '../src/ml/predict'
 import type { ProjectFile } from '../src/project/format'
 import { useProjectStore } from '../src/stores/project'
+import { useToastStore } from '../src/stores/toasts'
 import PredictFilters, { type FilterAxis } from '../src/views/predict/PredictFilters.vue'
 import TabularPredictPanel from '../src/views/predict/TabularPredictPanel.vue'
 import { experiment, projectFileWithPredictDataset, run } from './fixtures/project'
@@ -47,7 +49,6 @@ function render(experiments: typeof ONE, algorithms: typeof ONE, filter?: Predic
         algorithms: new Set(algorithms.map((option) => option.id)),
       },
       count: '모델 2개 중 2개',
-      disabled: false,
     },
     global: { plugins: [i18n] },
   })
@@ -145,7 +146,8 @@ describe('두 축은 각자의 상태를 본다', () => {
  * 답인데 열 이름은 새 목록으로 서서 **틀린 CSV가 조용히 나갔다.** 그 파일이 제출물이다.
  *
  * 셋째 검사가 짝이다 — 판이 안 그려졌을 때까지 잠그면 **필터를 전부 끈 학생이 다시 못
- * 켠다.** `fileBusy`(바의 버튼용)를 그대로 쓰면 그렇게 된다.
+ * 켠다.** 판이 없는 것(`!batch.value`)을 바쁨에 넣으면 그렇게 된다 — 바의 버튼용
+ * `batchBusy`도 이제 그것을 안 넣는다(결정문 65 "감사 뒤 더한 것").
  */
 describe('계산이 도는 동안 필터가 잠긴다', () => {
   const batch = { busy: ref(false), computing: ref(false) }
@@ -154,7 +156,10 @@ describe('계산이 도는 동안 필터가 잠긴다', () => {
   const FakeBatch = defineComponent({
     name: 'BatchPredict',
     setup(_props, { expose }) {
-      expose({ busy: batch.busy, computing: batch.computing, opened: null, hasFile: false })
+      // 판이 노출하는 것은 **작업 상태의 잠금 하나다** (결정문 65 ③) — 진짜 판은 읽기(`busy`)와
+      // 계산(`computing`)을 `anyLock`으로 잇는다. 가짜도 같은 모양으로 둘을 잇는다.
+      const lock = computed(() => issueBusyLock(batch.busy.value || batch.computing.value))
+      expose({ lock, opened: null, hasFile: false })
       return () => h('div')
     },
   })
@@ -229,12 +234,13 @@ describe('계산이 도는 동안 필터가 잠긴다', () => {
   /**
    * **파일 입구도 같은 신호로 잠긴다** (2026-09-02 R22 재감사 C-2의 짝).
    *
-   * `fileBusy`가 바의 [파일 선택]·[삭제]·[사용]·[다운로드] 넷을 가리는데 **그것을 무는
+   * `batchBusy`가 바의 [파일 선택]·[삭제]·[사용]·[다운로드] 넷을 가리는데 **그것을 무는
    * 검사가 하나도 없었다.** 겹침 검사가 숨은 `<input>`에 `change`를 억지로 넣어 그
    * 아래 방어선을 재는 동안, **학생이 실제로 닿는 입구인 이 잠금은 아무도 안 봤다.**
    *
-   * `!batch.value`까지 "바쁨"으로 치는 것은 일부러다 — 판이 안 그려졌으면 누를 대상이
-   * 없다. 그 갈래는 위의 "판이 안 그려졌으면" 검사가 따로 본다.
+   * **판이 안 그려진 것(`!batch.value`)은 바쁨이 아니다** (결정문 65 "감사 뒤 더한 것", 감사 B-1).
+   * 전에는 "진행 중"이라는 이름 밑에 그 조건을 숨겨 잠갔다. 이제 [파일 선택]은 열려 있고,
+   * 누르면 부를 판이 없다는 것을 알린다 — 아래 "판이 안 그려졌으면" 둘이 문다.
    */
   function barButtons(wrapper: Awaited<ReturnType<typeof panelInFileMode>>): string[] {
     return wrapper
@@ -269,5 +275,19 @@ describe('계산이 도는 동안 필터가 잠긴다', () => {
     }
     expect(wrapper.findComponent(FakeBatch).exists()).toBe(false)
     expect(lockedChips(wrapper)).not.toContain(true)
+  })
+
+  it('판이 안 그려졌으면 [파일 선택]은 열려 있고, 누르면 이유를 알린다', async () => {
+    const wrapper = await panelInFileMode()
+    for (const button of wrapper.findAll('button')) {
+      if (button.text() === '전체 해제') await button.trigger('click')
+    }
+    expect(wrapper.findComponent(FakeBatch).exists()).toBe(false)
+    const pick = wrapper.findAll('button').find((one) => one.text() === '파일 선택')
+    expect(pick?.attributes('disabled'), 'no board is not "busy"').toBeUndefined()
+
+    await pick?.trigger('click')
+    await flushPromises()
+    expect(useToastStore().items.map((one) => one.key)).toEqual(['predict.filterEmptyReason'])
   })
 })
