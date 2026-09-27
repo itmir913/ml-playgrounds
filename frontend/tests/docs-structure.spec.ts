@@ -3,7 +3,7 @@
  *
  * - `docs/X.md`마다 `docs/cases/X.md`가 있고 그 반대도 같다.
  * - 규칙 문서는 자기 판례를 이름으로 가리키고, 판례 색인은 판례 파일을 전부 싣는다.
- * - 결정문(`###`)마다 표제 바로 아래 `**[미정]**`·`**[결정]**` 한 줄이 있고, 그 표제가 판례에 그대로 있다.
+ * - 결정문(`###`)마다 표제 바로 아래 허락된 상태 한 줄이 있고, 그 표제가 판례에 그대로 있다.
  *
  * **못 보는 것** — 상태가 사실과 맞는지(미정인데 결정이라 적었는지), 결론 한 문장이 판례와 같은 말인지.
  * 그건 사람이 읽는다.
@@ -21,7 +21,13 @@ const CASES = join(DOCS, 'cases')
 const NOT_RULE_DOCS = new Set<string>(['info.md'])
 
 /** 결정문 상태로 허락된 두 표기. */
-export const STATUSES = ['**[미정]**', '**[결정]**'] as const
+export const STATUSES = ['**[미정]**', '**[결정]**', '**[폐기]**'] as const
+
+/**
+ * 대체되어 더는 유효하지 않은 결정의 표제. **취소선으로 가르지 않는다** — 이 저장소는 "미결정이
+ * 닫혔다"는 뜻으로도 취소선을 긋는다.
+ */
+export const RETIRED_HEADING = /대체됨|폐기/
 
 const NEWLINE = /\r?\n/
 
@@ -196,11 +202,18 @@ describe('결정문은 상태를 갖고 판례에 이어진다', () => {
     expect(all.length).toBeGreaterThan(100)
   })
 
-  it('상태는 [미정]·[결정] 둘뿐이다', () => {
+  it('상태는 허락된 표기 중 하나다', () => {
     const bad = all
       .filter(({ status }) => !(STATUSES as readonly string[]).includes(status))
       .map(({ name, heading, status }) => `${name}  ${heading}  -> ${status}`)
     expect(bad, 'decision without an allowed status').toEqual([])
+  })
+
+  it('[폐기]는 표제가 대체·폐기를 말하는 결정문에만 붙는다', () => {
+    const mismatched = all
+      .filter(({ heading, status }) => (status === '**[폐기]**') !== RETIRED_HEADING.test(heading))
+      .map(({ name, heading, status }) => `${name}  ${heading}  -> ${status}`)
+    expect(mismatched, 'retired status and heading disagree').toEqual([])
   })
 
   it('결정문의 표제가 판례에 그대로 있다', () => {
