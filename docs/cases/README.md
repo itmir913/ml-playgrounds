@@ -28,6 +28,7 @@
 - [mlpx-spec.md](mlpx-spec.md) — 포맷 규칙의 이유와 실측
 - [roadmap.md](roadmap.md) — 배포판마다 나간 것과 단계의 경위
 - [architecture.md](architecture.md) — 화면과 구조 규칙의 이유와 실측
+- [open-decisions.md](open-decisions.md) — 결정문마다 재고 기각한 것
 
 ## 정리 진행
 
@@ -44,4 +45,4 @@
 - [x] `mlpx-spec.md`
 - [x] `roadmap.md`
 - [x] `architecture.md`
-- [ ] `open-decisions.md`
+- [x] `open-decisions.md` — 결정문마다 제목과 첫 문단(결론)만 남기는 기계적 1차 정리. 결론 문장을 다듬는 것은 다음 정리 국면의 몫
