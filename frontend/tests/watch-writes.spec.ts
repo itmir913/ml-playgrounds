@@ -14,7 +14,8 @@
  * - **막는다**: `watch` 콜백의 동기 구간(흐름 `pre`·`post`·`sync` 셋 다), `watchEffect` 몸의 동기 구간,
  *   콜백 안에서 **동기로 부른 함수**가 쓰는 것, `project.file = …` 직접 쓰기, 등록되지 않은 이름.
  * - **못 막는다**: 콜백 안의 `await` 뒤, `queueMicrotask`·`setTimeout`·`nextTick().then`으로 미룬 쓰기,
- *   `computed` 안의 쓰기(부작용), 파일 객체를 제자리에서 고치는 것. Vue는 콜백이 돌아오는 순간 표지를
+ *   `watch`의 감시 대상 게터(첫 인자) 안의 쓰기, `computed` 안의 쓰기(부작용), 파일 객체를 제자리에서
+ *   고치는 것. Vue는 콜백이 돌아오는 순간 표지를
  *   내린다 — 뒤로 미룬 일은 감시자에서 왔다는 것을 아무것도 모른다.
  *
  * **화면이 뜨는 동안**(결정문 65 "구조 뒤 감사에서 더한 것")의 잰 범위는 아래 *"화면이 뜨는 동안의
@@ -253,6 +254,30 @@ describe('닿지 않는 곳 (알려진 사각)', () => {
     await settle()
     await settle()
     expect(project.name).toBe('timeout')
+  })
+
+  /**
+   * **감시 대상 게터 안의 쓰기** (0.30.0 배포 승인 감사 B-1). `watch(() => …, cb)`의 첫 인자는 Vue
+   * 3.5가 표지(`getCurrentWatcher`)를 세우기 **전에** 돈다 — 콜백만 표지 아래에서 돈다. `watchEffect`의
+   * 몸은 표지 아래라 막힌다(위 *"watchEffect 몸의 동기 쓰기는 던진다"*).
+   */
+  it('watch의 감시 대상 게터 안의 쓰기는 못 막는다', async () => {
+    const project = useProjectStore()
+    project.update(projectFile())
+    const trigger = ref(0)
+    let result: unknown = 'not run'
+    const attempt = catching(() => project.update((live) => renamed(live, 'getter')))
+    watch(
+      () => {
+        if (trigger.value > 0) result = attempt()
+        return trigger.value
+      },
+      () => undefined,
+    )
+    trigger.value += 1
+    await settle()
+    expect(result).toBeNull()
+    expect(project.name).toBe('getter')
   })
 
   it('computed 안의 쓰기(부작용)는 못 막는다', () => {

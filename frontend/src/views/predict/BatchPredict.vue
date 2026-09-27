@@ -24,7 +24,7 @@ import { nameList } from '@/data/columns'
 import { importTable, openTable, TABULAR_ACCEPT, type TableDocument } from '@/data/table'
 import { clearIfHeld, useWork } from '@/composables/useWork'
 import { toCanonicalCsv } from '@/data/serialize'
-import { anyLock, lockFor, type WatchWriteId } from '@/locks'
+import { anyLock, lockFor, turnPage, type WatchWriteId } from '@/locks'
 import { pageSizeOf, predictPageSize } from '@/limits-switch'
 import { INK_ORDERS, pickOrder, reorder } from '@/palette'
 import type { Prediction } from '@/ml/metrics'
@@ -426,9 +426,11 @@ async function ensurePage(index: number): Promise<Answer[][]> {
 /**
  * `watch`는 감시자 안에서 부를 때의 이름이다 (`@/locks`의 `WATCH_WRITES` — 표가 바뀌면 판이 쪽을
  * 다시 계산한다). 단추에서 부를 때는 없다.
+ *
+ * **쪽 수 안의 번호만 받는다** — 단추는 `turn`(등록부의 `turnPage`)을, 감시자는 쪽 수 안으로 당긴
+ * 번호를 넘긴다. 범위를 여기서 따로 재지 않는다(0.30.0 배포 승인 감사 C-7 — 다른 네 자리와 같은 칸).
  */
 async function goToPage(index: number, watch?: WatchWriteId): Promise<void> {
-  if (index < 0 || index >= totalPages.value) return
   const job = pageWork.start(watch === undefined ? undefined : { watch })
   try {
     page.value = index
@@ -444,6 +446,11 @@ async function goToPage(index: number, watch?: WatchWriteId): Promise<void> {
   } finally {
     job.done()
   }
+}
+
+/** 쪽 넘김 단추. **누르는 쪽에서도 잠금과 같은 칸으로 멈춘다** (`@/locks`의 `turnPage`, 결정문 65). */
+function turn(step: -1 | 1): Promise<void> {
+  return goToPage(turnPage(page.value, step, totalPages.value))
 }
 
 /**
@@ -815,11 +822,11 @@ defineExpose({
       </div>
 
       <div class="flex items-center justify-between gap-4">
-        <AppButton variant="secondary" :lock="atFirstPage" :action="() => goToPage(page - 1)">
+        <AppButton variant="secondary" :lock="atFirstPage" :action="() => turn(-1)">
           {{ t('common.prevPage') }}
         </AppButton>
         <p class="tabular-nums text-ink-soft">{{ page + 1 }} / {{ totalPages }}</p>
-        <AppButton variant="secondary" :lock="atLastPage" :action="() => goToPage(page + 1)">
+        <AppButton variant="secondary" :lock="atLastPage" :action="() => turn(1)">
           {{ t('common.nextPage') }}
         </AppButton>
       </div>

@@ -166,8 +166,8 @@ export function useWork(): Work {
     if (blocks && site !== null && !isWatchWrite(options?.watch)) {
       throw new Error(
         site === 'watcher'
-          ? 'WORK_IN_WATCHER: start blocking work from an action, not from a watcher; a registered site needs its own new entry in WATCH_WRITES in locks.ts'
-          : 'WORK_IN_LIFECYCLE: start blocking work from an action, not while a component mounts or updates; a registered site needs its own new entry in WATCH_WRITES in locks.ts',
+          ? 'WORK_IN_WATCHER: start blocking work from an action, not from a watcher; a registered site needs its own new entry in the watch-write registry in locks.ts'
+          : 'WORK_IN_LIFECYCLE: start blocking work from an action, not while a component mounts or updates; a registered site needs its own new entry in the watch-write registry in locks.ts',
       )
     }
     const id = Symbol('work')

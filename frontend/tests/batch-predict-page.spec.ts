@@ -17,6 +17,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import AppButton from '../src/components/AppButton.vue'
 import { hashBytes } from '../src/hash'
 import { i18n, setLocale } from '../src/i18n'
 import { PREDICT_PAGE_SIZE } from '../src/limits'
@@ -165,5 +166,40 @@ describe('보이는 모델을 바꿀 때의 쪽', () => {
     await tick()
     await flushPromises()
     expect(pageText()).toBe('1 / 3')
+  })
+})
+
+/**
+ * **잠금을 건너 눌러도 쪽 밖으로 안 간다** (결정문 65, 0.30.0 배포 승인 감사 C-7). 쪽 넘김은 다른 네
+ * 자리처럼 등록부의 `turnPage`로 멈춘다 — 잠금이 유일한 방어이면 잠금이 빠지는 날 `0 / 3`이나
+ * `4 / 3`이 선다. 잠긴 단추는 눌리지 않으므로 **단추의 할 일을 직접 부른다.**
+ */
+describe('쪽 넘김의 끝', () => {
+  it('처음과 끝에서 할 일을 불러도 그 자리에 선다', async () => {
+    const project = useProjectStore()
+    project.update(projectWithRows(PREDICT_PAGE_SIZE * 2 + 3))
+    const wrapper = mount(BatchPredict, {
+      props: { models: [A], preprocessors, dataset: null, fields: [], experimentNames: new Map() },
+      global: { plugins: [i18n] },
+    })
+    await tick()
+    await flushPromises()
+    const pageText = () => wrapper.find('p.tabular-nums').text()
+    const press = async (label: string): Promise<void> => {
+      const button = wrapper
+        .findAllComponents(AppButton)
+        .find((one) => one.text() === i18n.global.t(label))
+      expect(button, label).toBeDefined()
+      await (button!.props('action') as () => Promise<void>)()
+      await tick()
+      await flushPromises()
+    }
+    await press('common.prevPage')
+    expect(pageText()).toBe('1 / 3')
+    await press('common.nextPage')
+    await press('common.nextPage')
+    expect(pageText()).toBe('3 / 3')
+    await press('common.nextPage')
+    expect(pageText()).toBe('3 / 3')
   })
 })

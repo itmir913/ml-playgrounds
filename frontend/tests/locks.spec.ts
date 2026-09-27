@@ -434,6 +434,20 @@ describe('기본 부품은 넘겨받은 잠금을 흘리지 않는다', () => {
     wrapper.unmount()
   })
 
+  /**
+   * **`aria-hidden`은 건네지 않는다** (0.30.0 배포 승인 감사 C-4). 단추를 스크린리더에서 지우면 그
+   * 학생에게는 잠긴 것과 같다. 뺄 때 기본 부품에 넘기는 화면은 없었다.
+   */
+  it('aria-hidden은 건네지 않고, 그물이 운다', async () => {
+    const wrapper = mount(probe({ render: () => h(AppButton, { 'aria-hidden': 'true' }) }))
+    await nextTick()
+    expect(wrapper.find('button').attributes('aria-hidden')).toBeUndefined()
+    expect(net().join('\n')).toMatch(/does not forward: aria-hidden/)
+    wrapper.unmount()
+    expect(isForwardedAttr('ariaHidden', true)).toBe(false)
+    expect(isForwardedAttr('aria-label', 'x')).toBe(true)
+  })
+
   it('판정은 대소문자·변종·중요도를 가리지 않는다', () => {
     expect(lockingAttr('ariaDisabled', 'true')).toBe(true)
     expect(lockingAttr('aria-disabled', 'false')).toBe(false)

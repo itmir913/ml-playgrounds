@@ -110,13 +110,19 @@ export const LOCK_WORDS: readonly { readonly word: string; readonly why: string 
 ]
 
 /**
- * 템플릿에서만 보는 표기. **속성 이름을 실행 중에 정하는 길**이라 위 낱말이 글자에 안 남는다.
- * `v-bind:[name]`과 그 줄임 `:[name]`이다.
+ * 템플릿에서만 보는 표기. **속성 이름을 실행 중에 정하는 길**이라 위 낱말이 글자에 안 남는다 —
+ * `v-bind:[name]`과 그 줄임 `:[name]`이다. 그리고 **잠금을 첫 상태로 얼리는 지시자** 둘(`v-once`·
+ * `v-memo`, 0.30.0 배포 승인 감사 C-6) — 그 아래 기본 부품이 받은 잠금이 다시 안 풀린다. 둘 다
+ * 기본 부품 밖의 `src/`에 한 곳도 없을 때 넣었다(`ui-rules.spec.ts`가 문다).
  */
 export const TEMPLATE_LOCK_WORDS: readonly { readonly word: string; readonly why: string }[] = [
   {
     word: '(?:v-bind)?:\\[',
     why: 'a dynamic attribute name hides which attribute is bound, so it could be a lock',
+  },
+  {
+    word: 'v-(?:once|memo)\\b',
+    why: 'v-once and v-memo freeze a subtree at its first render, so a lock handed to a primitive under them never lifts',
   },
 ]
 
@@ -195,8 +201,8 @@ export const FORWARDED_ATTRS: readonly { readonly pattern: string; readonly why:
     why: 'plain HTML attributes the screens pass today: layout classes, form values and names, the popover link',
   },
   {
-    pattern: '^aria-(?!disabled$|readonly$)[a-z]+$',
-    why: 'labels and states for screen readers (aria-label, aria-pressed, aria-describedby, aria-invalid); the two lock states are not forwarded',
+    pattern: '^aria-(?!disabled$|readonly$|hidden$)[a-z]+$',
+    why: 'labels and states for screen readers (aria-label, aria-pressed, aria-describedby, aria-invalid); the two lock states are not forwarded, nor aria-hidden, which takes a control away from a screen reader (no screen passed it when it was dropped)',
   },
   { pattern: '^data-[a-z0-9-]+$', why: 'data attributes carry no behaviour' },
   { pattern: '^on[A-Z]', why: 'listeners: the primitive decides whether its element fires at all' },
@@ -265,9 +271,14 @@ export function forwardAttrs(attrs: Readonly<Record<string, unknown>>): Record<s
  * **이 파일의 이름 중 부르는 자리가 정해진 것.** 다른 파일에 이 이름이 보이면 운다.
  * `issueBusyLock`은 조건을 받으면 무엇이든 "진행 중"으로 만들 수 있어서, 작업 상태를 세는
  * `useWork` 하나에만 준다.
+ *
+ * `WATCH_WRITES`는 **어디에도 주지 않는다** (0.30.0 배포 승인 감사 A-4). 표를 들이면
+ * `Object.keys(WATCH_WRITES)[0]`처럼 이름을 글자 없이 꺼내 파일 묶기 검사를 지나고, 표를 고치면 가드가
+ * 새 이름을 받는다. 가드는 `isWatchWrite`로 묻는다.
  */
 export const RESTRICTED_NAMES: Readonly<Record<string, readonly string[]>> = {
   issueBusyLock: ['composables/useWork.ts'],
+  WATCH_WRITES: [],
 }
 
 /**

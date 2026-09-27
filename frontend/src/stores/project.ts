@@ -122,8 +122,8 @@ function refuseWatcherWrite(write: WatchWriteId | undefined): void {
   // 있는 이름을 빌려 쓰면 `ui-rules.spec.ts`가 운다 — 그 길로 보내지 않는다.
   throw new Error(
     site === 'watcher'
-      ? 'PROJECT_WRITE_IN_WATCHER: add a new entry for this site to WATCH_WRITES in locks.ts (each name is bound to one file; do not reuse an existing name)'
-      : 'PROJECT_WRITE_IN_LIFECYCLE: a component wrote the project while mounting or updating; add a new entry for this site to WATCH_WRITES in locks.ts (each name is bound to one file; do not reuse an existing name)',
+      ? 'PROJECT_WRITE_IN_WATCHER: add a new entry for this site to the watch-write registry in locks.ts (each name is bound to one file; do not reuse an existing name)'
+      : 'PROJECT_WRITE_IN_LIFECYCLE: a component wrote the project while mounting or updating; add a new entry for this site to the watch-write registry in locks.ts (each name is bound to one file; do not reuse an existing name)',
   )
 }
 
