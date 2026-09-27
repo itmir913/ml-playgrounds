@@ -332,6 +332,21 @@ describe('범주 축', () => {
     expect(scale.ticks?.callback?.(9)).toBe('')
   })
 
+  /**
+   * **이름은 칸 가운데, 선은 칸 경계다** (2026-09-27 교사 제보). `min`이 -0.5라
+   * Chart.js가 눈금을 -0.5·0.5·1.5에 세우면 이름이 반 칸씩 밀린다.
+   */
+  it('눈금을 칸 가운데에만 세우고 격자선을 칸 경계로 옮긴다', () => {
+    const scale = scaleOf(optionsOf(2, { x: CATEGORIES }), 'x') as {
+      afterBuildTicks?: (axis: { ticks: { value: number }[] }) => void
+      grid?: { offset?: boolean }
+    }
+    const axis = { ticks: [{ value: -0.5 }, { value: 0.5 }, { value: 1.5 }, { value: 2.5 }] }
+    scale.afterBuildTicks?.(axis)
+    expect(axis.ticks.map((tick) => tick.value)).toEqual([0, 1, 2])
+    expect(scale.grid?.offset).toBe(true)
+  })
+
   it('범주가 아닌 축은 눈금 설정을 안 받는다 - 선형 축 그대로다', () => {
     const scale = scaleOf(optionsOf(2, { x: CATEGORIES }), 'y')
 
@@ -365,10 +380,10 @@ describe('축 선의 색', () => {
   /**
    * 범주 설정은 축 설정 **뒤에** 펼쳐진다. 거기에 같은 열쇠가 생기면 조용히 덮인다.
    *
-   * **덮이는 열쇠는 `ticks` 하나다.** `categoryScale`이 돌려주는 것은 `min`·`max`·`ticks`
-   * 셋뿐이라 `grid`도 `border`도 안 건드린다 — 그래서 저 둘만 보던 단언은 **어떤
-   * 회귀에서도 빨개질 수 없었다**(R13-5 감사 A-1). 정작 사라지는 것은 눈금 글자색이고,
-   * 없으면 Chart.js 기본 회색이 되어 어두운 배색에서 범주 이름이 거의 안 보인다.
+   * **덮이는 열쇠는 `ticks`와 `grid`다.** `grid`는 격자선을 칸 경계로 옮기려고
+   * 2026-09-27에 더해졌다 — 그래서 `categoryScale`이 선 색도 받아 함께 돌려준다. 눈금
+   * 글자색이 사라지면 Chart.js 기본 회색이 되어 어두운 배색에서 범주 이름이 거의 안
+   * 보인다(R13-5 감사 A-1).
    */
   it('범주 축이 되어도 눈금 글자색이 안 지워진다', () => {
     expect(lineOf(optionsOf(2, { x: ['서울', '부산'] }), 'x').ticks?.color).toBe(TOKENS.ink)

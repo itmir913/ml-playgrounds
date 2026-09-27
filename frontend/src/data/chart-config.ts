@@ -641,7 +641,7 @@ export function scatterOptions(
   const forAxis = (name: string, categories: readonly string[] | undefined) =>
     categories === undefined
       ? axis(paint, name)
-      : { ...axis(paint, name), ...categoryScale(categories, paint.ink) }
+      : { ...axis(paint, name), ...categoryScale(categories, paint.ink, paint.line) }
 
   return {
     ...base(),

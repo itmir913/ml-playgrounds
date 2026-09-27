@@ -555,6 +555,20 @@ describe('산점도의 범주 축', () => {
     // 수치 축은 건드리지 않는다.
     expect((scales?.['y'] as { min?: number }).min).toBeUndefined()
   })
+
+  /** **이름은 칸 가운데, 선은 칸 경계다.** 선 색은 범주 축이 되어도 토큰 그대로다. */
+  it('범주 축은 눈금을 칸 가운데에 세우고 격자선을 칸 경계로 옮긴다', () => {
+    const text = { x: '성별', y: '키', point: () => '' }
+    const x = scatterOptions(PAINT, text, false, { x: ['남', '여'] }).scales?.['x'] as {
+      afterBuildTicks?: (axis: { ticks: { value: number }[] }) => void
+      grid?: { offset?: boolean; color?: string }
+    }
+    const axis = { ticks: [{ value: -0.5 }, { value: 0.5 }, { value: 1.5 }] }
+    x.afterBuildTicks?.(axis)
+    expect(axis.ticks.map((tick) => tick.value)).toEqual([0, 1])
+    expect(x.grid?.offset).toBe(true)
+    expect(x.grid?.color).toBe(PAINT.line)
+  })
 })
 
 /**

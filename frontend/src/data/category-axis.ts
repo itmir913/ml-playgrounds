@@ -48,18 +48,27 @@ export function placed(
 }
 
 /**
- * 범주 축의 눈금. **선형 축에 정수 눈금을 세우고 이름을 붙인다** — Chart.js의
+ * 범주 축의 눈금. **선형 축에 칸을 세우고 이름을 칸 가운데에 붙인다** — Chart.js의
  * `category` 축은 칸 사이(흩뿌린 자리)에 점을 놓을 수 없다.
  *
  * `min`·`max`가 반 칸씩 밖으로 나가는 이유는 **양 끝 칸의 구름이 잘리지 않게** 하려는
  * 것이다. 흩뿌림이 ±0.3이라 그 안에 들어온다.
+ *
+ * **눈금은 칸 가운데(정수)에만 세우고, 격자선은 칸 경계에 긋는다** (2026-09-27 교사
+ * 제보). `min`이 -0.5라 Chart.js는 눈금을 -0.5·0.5·1.5에 세웠고, 반올림으로 붙인 이름이
+ * 반 칸씩 밀려 `남` 구름이 `남`과 `여` 글자 사이에 떴다. 이제 `afterBuildTicks`가 눈금을
+ * 0…n-1로 고정하고 `grid.offset`이 선을 눈금 사이(칸 경계)로 옮겨, 구름은 두 선 사이의
+ * 칸에 담기고 이름은 그 칸 가운데를 가리킨다.
  */
 export function categoryScale(
   categories: readonly string[],
   ink: string,
+  line: string,
 ): {
   min: number
   max: number
+  afterBuildTicks: (scale: { ticks: { value: number }[] }) => void
+  grid: { color: string; offset: boolean }
   ticks: {
     color: string
     stepSize: number
@@ -70,6 +79,10 @@ export function categoryScale(
   return {
     min: -0.5,
     max: categories.length - 0.5,
+    afterBuildTicks: (scale) => {
+      scale.ticks = categories.map((_name, value) => ({ value }))
+    },
+    grid: { color: line, offset: true },
     ticks: {
       color: ink,
       stepSize: 1,

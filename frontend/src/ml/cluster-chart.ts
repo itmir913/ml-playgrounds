@@ -334,7 +334,7 @@ export function clusterChartOptions(
    * (`data/category-axis.ts`) — 두 화면이 같은 범주를 다르게 그리면 안 된다.
    */
   const categoryScale = (categories: readonly string[]) =>
-    sharedCategoryScale(categories, tokens.ink)
+    sharedCategoryScale(categories, tokens.ink, tokens.line)
 
   return {
     responsive: true,
