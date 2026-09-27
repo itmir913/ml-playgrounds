@@ -178,7 +178,7 @@
 `limits-rules` · `secure-context-rules` · `entry-names` · `settings-rules` ·
 `doc-refs` · `image-room` · `image-upload-zip` · `schema-version` · `terms` · `zip-names`.
 그래서 "내가 만진 파일의 검사"라는 것이 없고,
-`CLAUDE.md` §4가 **커밋마다 전부 돌리라**고 적은 이유가 이것이다.
+`CLAUDE.md` §4가 **커밋마다 이 열셋은 늘 돌리라**고 적은 이유가 이것이다(전체 관문은 2026-09-27부터 배포 직전 한 번).
 
 > **이 목록이 양쪽으로 틀려 있었다** (2026-08-19, R7 감사 6-2). `versions`·`schema-version`·
 > `kinds`는 등록부를 **읽을** 뿐 파일을 안 훑는데 들어 있었고, 실제로 훑는 `entry-names`·
