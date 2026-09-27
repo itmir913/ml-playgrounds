@@ -63,6 +63,93 @@ const CASE_DOCS = readdirSync(CASES).filter(
   (entry) => entry.endsWith('.md') && entry !== 'README.md',
 )
 
+/** 허브의 차례가 시작하는 표제. 그 뒤는 절 제목(주소)을 옮긴 줄이라 날짜가 남는다. */
+const INDEX_HEADINGS = /^## (차례|단계별 기록|결정됨)/m
+
+/** 규칙 문서 본문의 날짜. 표제·목록 줄·울타리 안·차례 뒤는 뺀다. */
+export function bodyDates(text: string): string[] {
+  const body = text.split(INDEX_HEADINGS)[0] ?? ''
+  const found: string[] = []
+  let fenced = false
+  body.split(NEWLINE).forEach((line, index) => {
+    if (/^\s*(```|~~~)/.test(line)) fenced = !fenced
+    if (fenced || /^#/.test(line) || /^\s*- /.test(line)) return
+    if (/\b20\d\d-\d\d-\d\d\b/.test(line)) found.push(`${index + 1}: ${line.trim()}`)
+  })
+  return found
+}
+
+/** 규칙 문서 전부 — 허브와 스포크. 판례와 감사 보고서는 뺀다. */
+function ruleFiles(): { name: string; text: string }[] {
+  const files: { name: string; text: string }[] = []
+  for (const entry of readdirSync(DOCS, { withFileTypes: true })) {
+    if (entry.isFile() && entry.name.endsWith('.md')) {
+      files.push({ name: entry.name, text: readFileSync(join(DOCS, entry.name), 'utf-8') })
+    } else if (entry.isDirectory() && entry.name !== 'cases' && entry.name !== 'audit') {
+      for (const spoke of readdirSync(join(DOCS, entry.name))) {
+        if (spoke.endsWith('.md')) {
+          const name = `${entry.name}/${spoke}`
+          files.push({ name, text: readFileSync(join(DOCS, name), 'utf-8') })
+        }
+      }
+    }
+  }
+  return files
+}
+
+describe('규칙 문서의 본문에 날짜가 없다', () => {
+  it('날짜는 표제와 차례에만 있다', () => {
+    const dated = ruleFiles().flatMap(({ name, text }) =>
+      bodyDates(text).map((line) => `${name}:${line}`),
+    )
+    expect(dated, 'dates belong in docs/cases/, not in rule docs').toEqual([])
+  })
+
+  it('검사기가 실제로 잡는다', () => {
+    const sample =
+      '# 제목 (2026-01-01)\n\n본문 (2026-01-02)\n- 차례 (2026-01-03)\n\n## 차례\n본문 (2026-01-04)'
+    expect(bodyDates(sample)).toEqual(['3: 본문 (2026-01-02)'])
+  })
+})
+
+/**
+ * "위 셋"·"아래의 둘"·"다음 3개"처럼 목록을 개수로 가리키는 말. 항목이 늘거나 줄면 곧바로 낡는다.
+ * 사이에 꾸밈(`` ` ``·`**`·따옴표)과 줄바꿈이 껴도 같은 말이다 — 위 `셋`이다.
+ * 앞에 낱말 경계를 요구한다 — "단위 셋"의 "위"는 가리키는 말이 아니다.
+ */
+export const COUNTED_REFERENCE =
+  /(?:^|[\s('"“*`])(위|아래|앞|뒤|다음)의?[\s*`'"“”]+(둘|셋|넷|다섯|여섯|일곱|여덟|아홉|열|\d+\s*개)/g
+
+/** 글 전체에서 개수로 가리키는 말이 선 줄 번호. 줄바꿈을 건너 갈린 말도 잡는다. */
+export function countedReferences(text: string): number[] {
+  return [...text.matchAll(COUNTED_REFERENCE)].map(
+    (match) => text.slice(0, (match.index ?? 0) + match[0].length).split(NEWLINE).length,
+  )
+}
+
+describe('규칙 문서가 목록을 개수로 가리키지 않는다', () => {
+  it('"위 셋" 같은 말이 없다', () => {
+    const counted = [
+      { name: 'CLAUDE.md', text: readFileSync(join(DOCS, '..', 'CLAUDE.md'), 'utf-8') },
+      ...ruleFiles(),
+    ].flatMap(({ name, text }) => countedReferences(text).map((line) => `${name}:${line}`))
+    expect(counted, 'name the items instead of counting them').toEqual([])
+  })
+
+  it('검사기가 실제로 잡는다', () => {
+    const hits = (text: string): number => countedReferences(text).length
+    expect(hits('위 셋을 막는다')).toBe(1)
+    expect(hits('아래의 둘')).toBe(1)
+    expect(hits('규칙은 위 셋이다')).toBe(1)
+    expect(hits('위 `둘`이다')).toBe(1)
+    expect(hits('위 **셋**이다')).toBe(1)
+    expect(hits('다음 3개를 막는다')).toBe(1)
+    expect(hits('규칙은 위\n셋이다')).toBe(1)
+    expect(hits('셋을 막는다')).toBe(0)
+    expect(hits('계수와 단위 셋')).toBe(0)
+  })
+})
+
 describe('규칙과 판례가 맞물린다', () => {
   it('읽을 것이 실제로 있다', () => {
     expect(RULE_DOCS.length).toBeGreaterThan(8)
