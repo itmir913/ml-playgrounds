@@ -42,5 +42,5 @@
 - [x] `rule-coverage.md`
 - [x] `mlpx-spec.md`
 - [x] `roadmap.md`
-- [ ] `architecture.md`
+- [ ] `architecture.md` — 스포크 01·02 끝, 03·04 남음
 - [ ] `open-decisions.md`
