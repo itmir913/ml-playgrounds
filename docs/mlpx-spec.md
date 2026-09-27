@@ -1,6 +1,7 @@
 # `.mlpx` 포맷 명세
 
 `CLAUDE.md` §1.3의 상세 문서. 프로젝트 파일 포맷과 무결성 확인을 건드릴 때 읽는다.
+**규칙만 적는다.** 이유와 경위는 같은 절 번호로 `docs/cases/mlpx-spec.md`에 있다.
 
 > **정식 타입 정의는 `frontend/src/project/schema.ts`다.** 아래 JSON은 읽기 위한 예시이고,
 > 어긋나면 코드를 믿어라. 크기 상한의 실제 값은 `frontend/src/limits.ts`에 있다.
