@@ -95,10 +95,13 @@ function withReason(axis: 'algorithms' | 'runtimes', choice: AxisChoice, label: 
     id: choice.id,
     label,
     // **잠금은 등록부가 낸다** (`@/locks`의 `modelCard`, 결정문 65). 카드의 `enabled`를 그대로
-    // 넘기던 자리다 — 그 길로는 어떤 조건이든 카드를 끌 수 있었다.
-    lock: lockFor('modelCard', { axes: axesInput.value, axis, id: choice.id }),
+    // 넘기던 자리다 — 그 길로는 어떤 조건이든 카드를 끌 수 있었다. **잠금은 이유와 함께만 간다**
+    // (`Choice`의 타입) — `modelCard`는 사유가 없는 카드를 잠그지 않으므로 사유가 없으면 넘길 잠금도 없다.
     ...(choice.reason
-      ? { reason: t(`client.${choice.reason}`, reasonParams(choice.reason, choice.maxRows)) }
+      ? {
+          lock: lockFor('modelCard', { axes: axesInput.value, axis, id: choice.id }),
+          reason: t(`client.${choice.reason}`, reasonParams(choice.reason, choice.maxRows)),
+        }
       : {}),
   }
 }

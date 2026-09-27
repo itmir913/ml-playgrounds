@@ -3532,8 +3532,8 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
    * 파서가 따로 떼어 둔다(`raws`). 파서가 못 읽는 스타일이면 던진다 — 조용히 덜 보지 않는다. 문자열 속
    * 주석 표시가 주석이 아닌 것은 *"검사기가 잡는다: comment markers inside CSS strings"* 둘이 문다.
    *
-   * `postcss`는 `package.json`에 직접 적힌 의존성이 아니다 — `vue`의 `@vue/compiler-sfc`가 들이고, 이
-   * 파일은 이미 그 컴파일러를 쓴다. 빠지면 들이는 줄에서 선다(사람 확인).
+   * `postcss`는 이 검사가 직접 들이므로 `package.json`의 `devDependencies`에 적혀 있다(결정문 65
+   * "0.30.0 배포 승인 감사에서 더한 것"). 빠지면 들이는 줄에서 선다(사람 확인).
    */
   function styleText(text: string): string {
     const parts: string[] = []
@@ -3541,7 +3541,11 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
       if (node.type === 'decl') {
         parts.push(`${node.prop}: ${node.value}${node.important ? ' !important' : ''}`)
       } else if (node.type === 'rule') parts.push(node.selector)
-      else if (node.type === 'atrule') parts.push(`@${node.name} ${node.params}`)
+      // 이름과 매개변수 사이의 글자를 그대로 둔다 — `postcss`는 `@imp\6frt`를 이름 `imp`에서 끊는데,
+      // 브라우저는 이스케이프까지 이름으로 읽어 `@import`가 된다(0.30.0 최종 승인 감사 C-3).
+      else if (node.type === 'atrule') {
+        parts.push(`@${node.name}${node.raws.afterName ?? ' '}${node.params}`)
+      }
     })
     return cssUnescape(parts.join('\n'))
   }
@@ -3549,7 +3553,7 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
   /**
    * HTML 문서의 글자 (`index.html`, 0.30.0 배포 승인 감사 B-2). **주석은 HTML 파서(`parse5`, 브라우저와
    * 같은 규칙)가 가른다.** 엔티티는 파서가 풀고, `<style>`은 스타일로, `<script>`는 스크립트로 읽는다.
-   * `parse5`도 직접 적힌 의존성이 아니다 — `jsdom`이 들인다(사람 확인).
+   * `parse5`도 이 검사가 직접 들이므로 `devDependencies`에 적혀 있다(사람 확인).
    */
   function htmlText(source: string): string {
     const out: string[] = []
@@ -3577,11 +3581,90 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
     return out.join(' ')
   }
 
+  /**
+   * SFC를 가른다. **파서가 오류를 냈으면 파일 이름과 함께 던진다** (0.30.0 최종 승인 감사 B-1) —
+   * 안 닫힌 `<template>`·`<style>`·`<script>`는 오류 하나를 내고 그 블록을 **빈 글자**로 돌려줘서, 그 안의
+   * 잠금이 통째로 안 보인 채 초록이었다. 이 절의 SFC 가르기는 전부 여기를 지난다. 검사기 짝은
+   * *"검사기가 던진다: 안 닫힌 블록"*이다.
+   */
+  function sfcOf(
+    path: string,
+    source: string,
+    options: Omit<Parameters<typeof parseSfc>[1], 'filename'> = {},
+  ): ReturnType<typeof parseSfc>['descriptor'] {
+    const { descriptor, errors } = parseSfc(source, { ...options, filename: path })
+    if (errors.length > 0) {
+      throw new Error(
+        `${path}: the SFC parser reported ${errors.map((error) => error.message).join('; ')}`,
+      )
+    }
+    return descriptor
+  }
+
+  /**
+   * SFC 블록이 **`src=`로 파일 밖을 끌어오는가** (0.30.0 최종 승인 감사 C-4). `<style src="…">`·
+   * `<script src="…">`·`<template src="…">`는 그 글자를 이 파일에 안 두므로 낱말 검사가 못 본다. 지금
+   * `src/`에 한 곳도 없어서(2026-09-27에 셌다) 낱말처럼 막는다.
+   */
+  function blockSources(descriptor: ReturnType<typeof parseSfc>['descriptor']): string[] {
+    return [
+      descriptor.template,
+      descriptor.script,
+      descriptor.scriptSetup,
+      ...descriptor.styles,
+      ...descriptor.customBlocks,
+    ].flatMap((block) => (block?.src === undefined ? [] : [`<${block.type} src>`]))
+  }
+
+  /**
+   * `index.html`이 들여도 되는 `<script>`·`<link>` (0.30.0 최종 승인 감사 C-4). **지금 있는 것뿐이다** —
+   * 새 줄은 이 표를 고쳐야 들어온다. 인라인 `<script>`는 하나도 없다: 그 안의 코드는 `import.meta`·
+   * 중계·이름 검사(`src/`만 훑는다) 밖이고, 루트·`public/` 밖의 스타일시트·스크립트는 낱말 검사 밖이다.
+   * `src/` 아래의 `.html`에는 허락된 것이 없다.
+   */
+  const HTML_LOADS: ReadonlyMap<string, readonly string[]> = new Map([
+    [
+      'index.html',
+      [
+        'link href="./manifest.webmanifest" rel="manifest"',
+        'link href="./icon.svg" rel="icon" type="image/svg+xml"',
+        'script src="/src/main.ts" type="module"',
+      ],
+    ],
+  ])
+
+  /**
+   * HTML 문서가 들이는 `<script>`·`<link>` 중 표(`HTML_LOADS`)에 없는 것. 표는 `frontend/` 아래 경로로
+   * 찾는다 — 이름만 견주면 `src/` 아래의 `index.html`이 앱 문서의 허락을 빌린다.
+   */
+  function htmlLoads(path: string, source: string): string[] {
+    const key = relative(process.cwd(), resolve(path)).split(sep).join('/')
+    const allowed = HTML_LOADS.get(key) ?? []
+    const wrong: string[] = []
+    const visit = (node: DefaultTreeAdapterTypes.Node): void => {
+      if ('tagName' in node && (node.tagName === 'script' || node.tagName === 'link')) {
+        const attributes = [...node.attrs]
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((attribute) => `${attribute.name}="${attribute.value}"`)
+        const inline = node.childNodes.some(
+          (child) =>
+            child.nodeName === '#text' &&
+            (child as DefaultTreeAdapterTypes.TextNode).value.trim() !== '',
+        )
+        const load = [node.tagName, ...attributes].join(' ')
+        if (inline || !allowed.includes(load)) wrong.push(`<${load}${inline ? ' inline' : ''}>`)
+      }
+      if (node.nodeName === 'template') visit((node as DefaultTreeAdapterTypes.Template).content)
+      if ('childNodes' in node) for (const child of node.childNodes) visit(child)
+    }
+    visit(parseHtml(source))
+    return wrong
+  }
+
   /** 한 파일에서 볼 글자. 템플릿 글자는 따로 준다 — 템플릿에서만 보는 표기가 있다. */
   function lockText(path: string, source: string): { all: string; template: string } {
     if (path.endsWith('.vue')) {
-      const { descriptor } = parseSfc(source, {
-        filename: path,
+      const descriptor = sfcOf(path, source, {
         // 주석 노드를 트리에 남긴다 — 기본값은 빌드 모드에 따라 갈린다(`templateContent`가 그 자리로 걷는다).
         templateParseOptions: { comments: true },
       })
@@ -3595,7 +3678,12 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
     }
     if (/\.(?:ts|js|mjs|cjs)$/.test(path)) return { all: scriptText(source), template: '' }
     if (path.endsWith('.css')) return { all: styleText(source), template: '' }
-    if (path.endsWith('.html')) return { all: htmlText(source), template: '' }
+    // HTML 문서는 **템플릿 전용 낱말도 본다** (0.30.0 최종 승인 감사 C-4) — `src/` 아래 `.html`을 `?raw`로
+    // 들여 템플릿으로 쓰면 `v-once`·`:[name]`이 거기서 설 수 있었다.
+    if (path.endsWith('.html')) {
+      const text = htmlText(source)
+      return { all: text, template: text }
+    }
     return { all: source, template: '' }
   }
 
@@ -3605,12 +3693,17 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
     pattern: new RegExp(one.word, 'i'),
   }))
 
-  /** 이 글자에서 걸린 낱말들. */
+  /**
+   * 이 글자에서 걸린 낱말들. **글자를 파일 밖에서 끌어오는 길**도 여기서 운다 — SFC 블록의 `src=`,
+   * HTML 문서가 표(`HTML_LOADS`) 밖에서 들이는 `<script>`·`<link>` (0.30.0 최종 승인 감사 C-4).
+   */
   function lockWordsIn(path: string, source: string): string[] {
     const { all, template } = lockText(path, source)
     return [
       ...WORDS.filter((one) => one.pattern.test(all)).map((one) => one.word),
       ...TEMPLATE_WORDS.filter((one) => one.pattern.test(template)).map((one) => one.word),
+      ...(path.endsWith('.vue') ? blockSources(sfcOf(path, source)) : []),
+      ...(path.endsWith('.html') ? htmlLoads(path, source) : []),
     ]
   }
 
@@ -3848,6 +3941,95 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
       path: 'x.vue',
       source: '<template><AppButton v-memo="[]" :lock="lock">x</AppButton></template>',
     },
+    // **글자를 이 파일 밖에 두는 스타일시트** (0.30.0 최종 승인 감사 C-3). 아래 base64는
+    // `.x { pointer-events:none }`이다.
+    {
+      name: '@import of a base64 data: URL',
+      path: 'x.css',
+      source: '@import url("data:text/css;base64,LnggeyBwb2ludGVyLWV2ZW50czpub25lIH0=");',
+    },
+    {
+      name: '@import of a percent-encoded data: URL',
+      path: 'x.vue',
+      source:
+        '<template><b /></template><style>@import "data:text/css,.x%7Bpointer%2Devents:none%7D";</style>',
+    },
+    {
+      name: 'data: URL with blanks around its type',
+      path: 'x.css',
+      source: '.x { background: url("data: text / css,x") }',
+    },
+    {
+      name: '@import of a URL',
+      path: 'x.css',
+      source: "@import 'https://example.com/lock.css';",
+    },
+    {
+      name: '@import of a sibling folder',
+      path: 'x.css',
+      source: "@import '../../public/lock.css';",
+    },
+    {
+      name: '@import escaped in CSS',
+      path: 'x.css',
+      source: "@imp\\6frt 'https://example.com/lock.css';",
+    },
+    {
+      name: 'a Blob typed text/css',
+      path: 'x.ts',
+      source: "export const b = new Blob([rules], { type: 'text/css' })",
+    },
+    {
+      name: 'a stylesheet link in a template',
+      path: 'x.vue',
+      source: '<template><link rel="stylesheet" href="https://example.com/lock.css" /></template>',
+    },
+    {
+      name: 'a constructed stylesheet',
+      path: 'x.ts',
+      source: 'export const s = new CSSStyleSheet()',
+    },
+    // **글자를 파일 밖에서 끌어오는 길** (0.30.0 최종 승인 감사 C-4).
+    {
+      name: 'SFC style block with src',
+      path: 'x.vue',
+      source: '<template><b /></template><style src="../../public/lock.css"></style>',
+    },
+    {
+      name: 'SFC script block with src',
+      path: 'x.vue',
+      source: '<template><b /></template><script src="./lock.js"></script>',
+    },
+    {
+      name: 'SFC template block with src',
+      path: 'x.vue',
+      source: '<template src="./lock.html"></template>',
+    },
+    {
+      name: 'index.html inline module script',
+      path: 'index.html',
+      source: '<!doctype html><script type="module">import("/src/lo" + "cks.ts")</script>',
+    },
+    {
+      name: 'index.html script from outside the root',
+      path: 'index.html',
+      source: '<!doctype html><script type="module" src="https://example.com/x.js"></script>',
+    },
+    {
+      name: 'index.html preload link',
+      path: 'index.html',
+      source: '<!doctype html><link rel="preload" href="./lock.css" as="style" />',
+    },
+    {
+      name: 'the app script allowed only in index.html',
+      path: 'src/other/index.html',
+      source: '<!doctype html><script type="module" src="/src/main.ts"></script>',
+    },
+    {
+      name: 'template-only word in an HTML file',
+      path: 'src/x.html',
+      source: '<div v-once><b :[name]="x"></b></div>',
+    },
   ]
 
   for (const bypass of BYPASSES) {
@@ -3900,6 +4082,20 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
       path: 'x.vue',
       source: '<template><AppButton :lock="busyLock">x</AppButton></template>',
     },
+    {
+      name: 'the stylesheet imports in use (0.30.0 final approval audit C-3)',
+      path: 'x.css',
+      source:
+        "@import 'tailwindcss';\n@import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';\n@import \"./theme.css\";",
+    },
+    {
+      name: 'the loads of index.html (0.30.0 final approval audit C-4)',
+      path: 'index.html',
+      source:
+        '<!doctype html><head><link rel="manifest" href="./manifest.webmanifest" />' +
+        '<link rel="icon" type="image/svg+xml" href="./icon.svg" /></head>' +
+        '<body><script type="module" src="/src/main.ts"></script></body>',
+    },
   ]
 
   for (const allowed of ALLOWED) {
@@ -3907,6 +4103,33 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
       expect(lockWordsIn(allowed.path, allowed.source)).toEqual([])
     })
   }
+
+  /**
+   * **안 닫힌 블록은 빈 글자가 아니다** (0.30.0 최종 승인 감사 B-1). 파서는 오류 하나를 내고 그 블록을
+   * 비워 돌려줬다 — 안의 잠금이 통째로 안 보였다. 이 절에서 SFC를 가르는 자리 다섯(`lockText`·
+   * `scriptsOf`·`stringsIn`·`conditionalActions`·`primitiveFaults`)이 전부 `sfcOf`를 지나 던진다.
+   */
+  it('검사기가 던진다: 안 닫힌 블록', () => {
+    const unclosed = [
+      '<template><button :disabled="busy">x</button>',
+      '<template><b /></template><style>.x { pointer-events: none }',
+      '<script setup lang="ts">el.disabled = true',
+      '<template><b /></template><script>el.disabled = true',
+    ]
+    for (const source of unclosed) {
+      expect(() => lockWordsIn('views/Probe.vue', source), source).toThrow(/views\/Probe\.vue/)
+      expect(() => scriptsOf('views/Probe.vue', source), source).toThrow(/views\/Probe\.vue/)
+      expect(() => stringsIn('views/Probe.vue', source), source).toThrow(/views\/Probe\.vue/)
+      expect(() => conditionalActions('views/Probe.vue', source), source).toThrow(
+        /views\/Probe\.vue/,
+      )
+      expect(
+        () =>
+          primitiveFaults({ file: 'components/AppProbe.vue', takesLock: false, why: '' }, source),
+        source,
+      ).toThrow(/components\/AppProbe\.vue/)
+    }
+  })
 
   it('기본 부품 목록이 실재하는 파일을 가리킨다', () => {
     const missing = LOCK_PRIMITIVES.map((one) => one.file).filter(
@@ -3971,11 +4194,19 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
         wrong.push(`${where}  ${name}`)
       }
     }
-    // 네임스페이스·동적 import는 이름을 글자로 안 남기고 꺼낼 수 있다.
-    if (/import\s*\*\s*as\s+\w+\s+from\s+['"][^'"]*\blocks['"]/.test(code)) {
+    // 네임스페이스·동적 import는 이름을 글자로 안 남기고 꺼낼 수 있다. 지정자 끝의 `?…`·`#…`는
+    // 같은 모듈을 가리키므로 떼고 본다(0.30.0 최종 승인 감사 C-1 — `'@/locks?x'`가 지나갔다). 확장자를
+    // 적은 `'./locks.ts'`도 같은 모듈이다.
+    //
+    // **`scriptText`는 식별자와 문자열을 날것과 푼 것으로 두 번 싣는다** — `import * as L L from '…' …`.
+    // 전에는 그 모양을 몰라 두 식이 `.ts`·`.vue`에서 **한 번도 안 맞았다**(같은 감사에서 재서 알았다). 그동안
+    // 막은 것은 `lockRelayPaths`(`locks.ts`도 이어 주는 모듈로 센다)였다. 이제 두 번 실린 꼴을 받는다.
+    const LOCKS_SPECIFIER = String.raw`['"][^'"]*\blocks(?:\.ts)?(?:[?#][^'"]*)?['"](?:\s+[^\s)]+)?`
+    const NAMESPACE = String.raw`import\s*\*\s*as\s+[\w$]+(?:\s+[\w$]+)?\s+from\s+${LOCKS_SPECIFIER}`
+    if (new RegExp(NAMESPACE).test(code)) {
       wrong.push(`${where}  import * from locks`)
     }
-    if (/import\s*\(\s*['"][^'"]*\blocks['"]\s*\)/.test(code)) {
+    if (new RegExp(String.raw`import\s*\(\s*${LOCKS_SPECIFIER}\s*\)`).test(code)) {
       wrong.push(`${where}  import() of locks`)
     }
     return wrong
@@ -4007,6 +4238,17 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
     for (const [where, source, name] of cases) {
       expect(restrictedIn(where, source), source).toEqual([`${where}  ${name}`])
     }
+    // **지정자 끝의 `?…`·`#…`와 확장자** (0.30.0 최종 승인 감사 C-1) — 같은 모듈이다.
+    for (const [source, found] of [
+      ["import * as L from '@/locks'", 'import * from locks'],
+      ["export const m = import('@/locks')", 'import() of locks'],
+      ["import * as L from '@/locks?x'", 'import * from locks'],
+      ["import * as L from '../locks.ts#y'", 'import * from locks'],
+      ["export const m = import('@/locks?x')", 'import() of locks'],
+      ["export const m = import('./locks.ts?raw=0')", 'import() of locks'],
+    ] as const) {
+      expect(restrictedIn('stores/other.ts', source), source).toEqual([`stores/other.ts  ${found}`])
+    }
     // 정해진 자리와 주석은 안 잡는다.
     expect(restrictedIn('composables/useWork.ts', 'issueBusyLock(true)')).toEqual([])
     expect(restrictedIn('stores/other.ts', '// WATCH_WRITES\nexport {}')).toEqual([])
@@ -4029,7 +4271,7 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
   /** 한 파일의 스크립트 블록들(`.ts`는 통째로, `.vue`는 `<script>` 둘). */
   function scriptsOf(path: string, source: string): string[] {
     if (path.endsWith('.vue')) {
-      const { descriptor } = parseSfc(source, { filename: path })
+      const descriptor = sfcOf(path, source)
       return [descriptor.script, descriptor.scriptSetup].flatMap((block) =>
         block ? [block.content] : [],
       )
@@ -4057,7 +4299,7 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
       visit(astOf(script))
     }
     if (path.endsWith('.vue')) {
-      const template = parseSfc(source, { filename: path }).descriptor.template?.content ?? ''
+      const template = sfcOf(path, source).template?.content ?? ''
       for (const match of template.matchAll(/(['"`])([A-Za-z0-9_$]+)\1/g)) {
         if (match[2] !== undefined) found.add(match[2])
       }
@@ -4106,21 +4348,33 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
     for (const [where, source] of cases) {
       expect(borrowedWatchNames(new Map([[where, source]])), source).toEqual([`${where}  ${name}`])
     }
-    // 제 파일에서는 안 잡는다. 주석 안의 이름도 이름이 아니다.
-    expect(borrowedWatchNames(new Map([[entry.file, `export const id = '${name}'`]]))).toEqual([])
+    // 제 파일에서는 안 잡는다. 주석 안의 이름도 이름이 아니다. **제 파일은 `.vue`라 SFC로 준다** —
+    // 스크립트 글자만 주던 때는 파서가 빈 파일로 읽어 이 줄이 아무것도 안 쟀다(0.30.0 최종 승인 감사
+    // B-1의 `sfcOf`가 던져서 드러났다).
+    expect(
+      borrowedWatchNames(
+        new Map([[entry.file, `<script setup lang="ts">start({ watch: '${name}' })</script>`]]),
+      ),
+    ).toEqual([])
     expect(borrowedWatchNames(new Map([['stores/other.ts', `// '${name}'`]]))).toEqual([])
   })
 
-  /** 모듈 지정자를 `src/` 아래 경로로. 우리 파일이 아니면 `null`이다. */
+  /**
+   * 모듈 지정자를 `src/` 아래 경로로. 우리 파일이 아니면 `null`이다. **끝의 `?…`·`#…`를 뗀다**
+   * (0.30.0 최종 승인 감사 C-1) — 번들러는 `'@/locks?x'`도 같은 모듈로 들인다.
+   */
   function resolveModule(
     from: string,
     specifier: string,
     known: ReadonlySet<string>,
   ): string | null {
+    const bare = specifier.replace(/[?#].*$/s, '')
     let base: string
-    if (specifier.startsWith('@/')) base = specifier.slice(2)
-    else if (specifier.startsWith('.')) {
-      base = join(dirname(from), specifier).split(sep).join('/')
+    if (bare.startsWith('@/')) base = bare.slice(2)
+    // 뿌리 기준 경로도 번들러가 같은 모듈로 들인다(`import.meta.glob('/src/locks.ts')`와 같은 표기).
+    else if (bare.startsWith('/src/')) base = bare.slice('/src/'.length)
+    else if (bare.startsWith('.')) {
+      base = join(dirname(from), bare).split(sep).join('/')
     } else return null
     for (const candidate of [base, `${base}.ts`, `${base}.vue`, `${base}/index.ts`]) {
       if (known.has(candidate)) return candidate
@@ -4251,6 +4505,24 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
         new Map([locks, ['relay.ts', "export * as L from './locks'"]] as [string, string][]),
       ),
     ).toEqual(['relay.ts  export * from locks'])
+    // **지정자 끝의 `?…`·`#…`, 뿌리 기준 경로** (0.30.0 최종 승인 감사 C-1) — 같은 모듈이다.
+    for (const specifier of ['@/locks?x', './locks#y', '/src/locks.ts?z']) {
+      expect(
+        lockRelayPaths(
+          new Map([locks, ['relay.ts', `export * from '${specifier}'`]] as [string, string][]),
+        ),
+        specifier,
+      ).toEqual(['relay.ts  export * from locks'])
+    }
+    expect(
+      lockRelayPaths(
+        new Map([
+          locks,
+          ['relay.ts', "export { anyLock } from '@/locks?x'"],
+          ['x.ts', "export const m = import('./relay?y')"],
+        ] as [string, string][]),
+      ),
+    ).toEqual(['x.ts  import() of relay.ts'])
     expect(
       lockRelayPaths(
         new Map([
@@ -4343,8 +4615,7 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
    */
   function conditionalActions(path: string, source: string): string[] {
     if (!path.endsWith('.vue')) return []
-    const ast = parseSfc(source, { filename: path }).descriptor.template?.ast as
-      TemplateNode | undefined
+    const ast = sfcOf(path, source).template?.ast as TemplateNode | undefined
     const wrong: string[] = []
     const visit = (node: TemplateNode): void => {
       if (node.type === ELEMENT_NODE) {
@@ -4355,7 +4626,16 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
           if (expression !== undefined && ts.isExpressionStatement(expression)) {
             expression = expression.expression
           }
-          while (expression !== undefined && ts.isParenthesizedExpression(expression)) {
+          // 괄호와 **타입만 바꾸는 감싸개**(`as`·`satisfies`·`!`·`<T>`)를 벗긴다 — 감싸도 조건은 그대로
+          // 조건이다(0.30.0 최종 승인 감사 C-2).
+          while (
+            expression !== undefined &&
+            (ts.isParenthesizedExpression(expression) ||
+              ts.isAsExpression(expression) ||
+              ts.isSatisfiesExpression(expression) ||
+              ts.isNonNullExpression(expression) ||
+              ts.isTypeAssertionExpression(expression))
+          ) {
             expression = expression.expression
           }
           const conditional =
@@ -4386,6 +4666,12 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
       'ready && run',
       'run || undefined',
       'maybe ?? undefined',
+      // 타입만 바꾸는 감싸개 (0.30.0 최종 승인 감사 C-2).
+      '(ready ? run : undefined) as never',
+      '(ready && run) satisfies unknown',
+      '(ready ? run : undefined)!',
+      '((ready && run) as never)!',
+      '<never>(ready ? run : undefined)',
     ]) {
       const source = `<template><div><AppButton :action="${value}">x</AppButton></div></template>`
       expect(conditionalActions('x.vue', source), value).toEqual(['x.vue:1  :action'])
@@ -4401,6 +4687,105 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
       const source = `<template><AppButton :action="${value}">x</AppButton></template>`
       expect(conditionalActions('x.vue', source), value).toEqual([])
     }
+  })
+
+  /** 잠금 값을 **한 번** 내는 이름들 — 부른 자리에서 그때의 재료로 굳는다. `useGate`는 `computed`라 뺀다. */
+  const ONE_SHOT_LOCKS: ReadonlySet<string> = new Set(['lockFor', 'anyLock'])
+
+  /**
+   * 잠금을 **얼리는** 자리 (0.30.0 최종 승인 감사 C-6). `setup`의 맨 위(또는 모듈의 맨 위)에서
+   * `const l = lockFor(…)`처럼 부르면 그 순간의 재료로 잠금이 굳어 **다시 안 풀린다** — `v-once`와 같은
+   * 병이다. 그래서 `lockFor`·`anyLock`은 **함수 몸 안에서만** 부른다(`computed`의 게터, 템플릿이 부르는
+   * 함수, 핸들러). 템플릿의 식은 그릴 때마다 다시 돌므로 보지 않는다. 곧바로 부르는 함수(`(() => …)()`)는
+   * 몸이 아니다. **못 보는 것**: 몸 안이라도 한 번만 불리는 함수(합성 함수의 몸, 한 번 부른 도우미의
+   * 결과를 담아 두기) — 부르는 횟수는 글자로 못 잰다.
+   */
+  function frozenLocks(path: string, source: string): string[] {
+    if (path === 'locks.ts') return []
+    const wrong: string[] = []
+    for (const script of scriptsOf(path, source)) {
+      const tree = astOf(script)
+      const names = new Set<string>()
+      for (const statement of tree.statements) {
+        if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
+          continue
+        }
+        if (!/(?:^|\/)locks(?:\.ts)?(?:[?#].*)?$/s.test(statement.moduleSpecifier.text)) continue
+        const bindings = statement.importClause?.namedBindings
+        if (bindings === undefined || !ts.isNamedImports(bindings)) continue
+        for (const element of bindings.elements) {
+          if (ONE_SHOT_LOCKS.has((element.propertyName ?? element.name).text)) {
+            names.add(element.name.text)
+          }
+        }
+      }
+      const inBody = (node: ts.Node): boolean => {
+        for (let at: ts.Node | undefined = node.parent; at !== undefined; at = at.parent) {
+          if (!ts.isFunctionLike(at)) continue
+          let outer: ts.Node = at
+          while (ts.isParenthesizedExpression(outer.parent)) outer = outer.parent
+          const invoked = ts.isCallExpression(outer.parent) && outer.parent.expression === outer
+          if (!invoked) return true
+        }
+        return false
+      }
+      const visit = (node: ts.Node): void => {
+        if (
+          ts.isCallExpression(node) &&
+          ts.isIdentifier(node.expression) &&
+          names.has(node.expression.text) &&
+          !inBody(node)
+        ) {
+          const { line } = tree.getLineAndCharacterOfPosition(node.getStart(tree))
+          wrong.push(`${path}:${line + 1}  ${node.expression.text}`)
+        }
+        ts.forEachChild(node, visit)
+      }
+      visit(tree)
+    }
+    return wrong
+  }
+
+  it('잠금을 스크립트의 맨 위에서 얼리지 않는다', () => {
+    const wrong = allSrcFiles(SRC)
+      .filter((path) => /\.(?:ts|vue)$/.test(path))
+      .flatMap((path) => frozenLocks(relativeToSrc(path), readFileSync(path, 'utf-8')))
+    expect(wrong).toEqual([])
+  })
+
+  it('검사기가 잡는다: 스크립트의 맨 위에서 얼린 잠금', () => {
+    const header = "import { anyLock, lockFor as lf } from '@/locks'\n"
+    const frozen = [
+      "const l = lf('pageFirst', { page: 0 })",
+      'const l = anyLock(a, b)',
+      "const l = (() => lf('pageFirst', { page: 0 }))()",
+      "const l = (function () { return lf('pageFirst', { page: 0 }) })()",
+    ]
+    for (const line of frozen) {
+      expect(
+        frozenLocks('views/X.vue', `<script setup lang="ts">${header}${line}</script>`),
+        line,
+      ).not.toEqual([])
+      expect(frozenLocks('x.ts', `${header}export ${line}`), line).not.toEqual([])
+    }
+    // 함수 몸과 템플릿은 안 잡는다.
+    const alive = [
+      "const l = computed(() => lf('pageFirst', { page: page.value }))",
+      "function l(page: number) { return lf('pageFirst', { page }) }",
+      'const l = computed(() => anyLock(a.value, b.value))',
+    ]
+    for (const line of alive) {
+      expect(
+        frozenLocks('views/X.vue', `<script setup lang="ts">${header}${line}</script>`),
+        line,
+      ).toEqual([])
+    }
+    expect(
+      frozenLocks(
+        'views/X.vue',
+        `<template><AppButton :lock="lockFor('pageFirst', { page })" /></template>`,
+      ),
+    ).toEqual([])
   })
 
   /** 스크립트 블록에서 `defineProps`의 타입이 `Lock`에 닿는가. 같은 파일의 인터페이스·별칭을 따라간다. */
@@ -4469,7 +4854,7 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
   function primitiveFaults(entry: (typeof LOCK_PRIMITIVES)[number], source: string): string[] {
     const faults: string[] = []
     if (!/^components\/App[A-Z][A-Za-z0-9]*\.vue$/.test(entry.file)) faults.push('path')
-    const { descriptor } = parseSfc(source, { filename: entry.file })
+    const descriptor = sfcOf(entry.file, source)
     const setup = descriptor.scriptSetup?.content ?? ''
     if (entry.takesLock && !propsTakeLock(setup)) faults.push('no Lock prop')
     if (!dropsInheritedAttrs(setup)) faults.push('inherits attrs')

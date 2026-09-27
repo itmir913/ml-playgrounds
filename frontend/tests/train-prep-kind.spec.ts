@@ -35,6 +35,7 @@ import { router } from '../src/router'
 import TabularPrepPanel from '../src/views/preprocess/TabularPrepPanel.vue'
 import TrainView from '../src/views/TrainView.vue'
 import TabularTrainContext from '../src/views/train/TabularTrainContext.vue'
+import { useProjectStore } from '../src/stores/project'
 import { stubDialogElement } from './fixtures/image-workers'
 import { scoreProject, surveyCsv, surveyProject, tabularProjectFrom } from './fixtures/prep-kind'
 
@@ -75,6 +76,9 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  // 미뤄 둔 자동 저장을 이 검사 안에서 끊는다 — 다음 검사의 저장소에 옛 파일을 덮어쓰지 않게
+  // (`option-cascade.spec.ts`의 같은 줄, 2026-09-27).
+  useProjectStore().close()
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
   await deleteDatabase()

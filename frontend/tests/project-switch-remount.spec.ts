@@ -100,6 +100,9 @@ beforeEach(async () => {
 const mounted: VueWrapper[] = []
 
 afterEach(async () => {
+  // 미뤄 둔 자동 저장을 이 검사 안에서 끊는다 — 다음 검사의 저장소에 옛 파일을 덮어쓰지 않게
+  // (`option-cascade.spec.ts`의 같은 줄, 2026-09-27).
+  useProjectStore().close()
   await router.push('/')
   await settle()
   for (const wrapper of mounted.splice(0)) wrapper.unmount()

@@ -268,7 +268,12 @@ export const useProjectStore = defineStore('project', () => {
       // 열린 직후는 방금 읽은 그대로이므로 저장된 상태다.
       dirty.value = false
       savedAt.value = loaded === null ? null : loaded.document.manifest.updatedAt
-      exportedAt.value = loaded === null ? null : await readExportedAt(id)
+      const exported = loaded === null ? null : await readExportedAt(id)
+      // **마지막 `await` 뒤에도 차례를 다시 잰다** (0.30.0 최종 승인 감사 C-11). 그 사이 `close()`가
+      // 끼면 파일은 비었는데 `'opened'`가 나가 라우터가 빈 사실로 단계를 판정하고, 닫힌 프로젝트의
+      // 시각이 앉는다. `project-open-lock.spec.ts`의 *"내보낸 시각을 읽는 동안 닫히면"*이 문다.
+      if (stale()) return 'cancelled'
+      exportedAt.value = exported
       return loaded === null ? 'failed' : 'opened'
     } finally {
       opening.value = false
@@ -350,8 +355,13 @@ export const useProjectStore = defineStore('project', () => {
     const current = file.value
     if (current === null || !dirty.value) return
     saving.value = true
+    const turn = openings
     try {
       await saveProject(current)
+      // **쓰는 동안 닫혔거나 다른 프로젝트가 열렸으면 그쪽 상태를 건드리지 않는다** (0.30.0 최종
+      // 승인 감사 C-11의 이웃). 전에는 닫힌 뒤에 `dirty`가 참이 되고 `savedAt`이 앉았다.
+      // `project-open-lock.spec.ts`의 *"쓰는 동안 닫히면"*이 문다.
+      if (openings !== turn) return
       // 쓰는 동안 또 바뀌었을 수 있다. 그러면 여전히 안 쓴 상태로 두어야 한다.
       dirty.value = file.value !== current
       savedAt.value = new Date().toISOString()

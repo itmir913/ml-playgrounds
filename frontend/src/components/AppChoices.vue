@@ -26,17 +26,26 @@ import { forwardAttrs, isLocked, type Lock } from '@/locks'
  */
 defineOptions({ inheritAttrs: false })
 
-export interface Choice {
+/**
+ * 칸 하나. **잠금을 넘기면 이유 문장도 반드시 넘긴다** (0.30.0 최종 승인 감사 C-12) — 이유가 선택
+ * 속성이던 때는 잠겼는데 문장이 없는 칸이 타입을 지났고, 그 칸은 **누르면 조용했다**(§10.6 *"결함은
+ * 조용한 실패뿐"*). 이제 둘은 한 갈래로만 온다. `app-choices.spec.ts`의 `@ts-expect-error`가 문다.
+ */
+export type Choice = {
   readonly id: string
   readonly label: string
-  /**
-   * 잠금. **`@/locks`만 만든다** (결정문 65) — 칸을 끄는 boolean은 받지 않는다. 전에는
-   * `enabled`를 받아서 부르는 쪽이 어떤 조건이든 넣을 수 있었다.
-   */
-  readonly lock?: Lock | undefined
-  /** 잠긴 칸을 눌렀을 때 보여줄 문장. 이미 번역돼서 온다. 잠기지 않았으면 안 쓴다. */
-  readonly reason?: string | undefined
-}
+} & (
+  | { readonly lock?: undefined; readonly reason?: undefined }
+  | {
+      /**
+       * 잠금. **`@/locks`만 만든다** (결정문 65) — 칸을 끄는 boolean은 받지 않는다. 전에는
+       * `enabled`를 받아서 부르는 쪽이 어떤 조건이든 넣을 수 있었다.
+       */
+      readonly lock: Lock
+      /** 잠긴 칸을 눌렀을 때 보여줄 문장. 이미 번역돼서 온다. 잠기지 않았으면 안 쓴다. */
+      readonly reason: string
+    }
+)
 
 const props = defineProps<{
   label: string

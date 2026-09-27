@@ -37,6 +37,7 @@ import { releaseTabLock } from '../src/project/tab-lock'
 import { ROUTE_PROJECTS, router } from '../src/router'
 import { useToastStore } from '../src/stores/toasts'
 import WelcomeView from '../src/views/WelcomeView.vue'
+import { useProjectStore } from '../src/stores/project'
 import { stubDialogElement } from './fixtures/image-workers'
 import { projectFile } from './fixtures/project'
 import { writeProjectBytes } from './fixtures/write'
@@ -97,6 +98,9 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  // 미뤄 둔 자동 저장을 이 검사 안에서 끊는다 — 다음 검사의 저장소에 옛 파일을 덮어쓰지 않게
+  // (`option-cascade.spec.ts`의 같은 줄, 2026-09-27).
+  useProjectStore().close()
   closeStorage()
   await deleteDatabase()
 })

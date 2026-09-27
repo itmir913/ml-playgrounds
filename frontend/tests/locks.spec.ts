@@ -86,7 +86,9 @@ describe('잠금 값은 등록부만 만든다', () => {
     {
       name: 'AppChoices',
       mountWith: (lock: Lock) =>
-        mount(AppChoices, { props: { label: 'x', items: [{ id: 'a', label: 'a', lock }] } }),
+        mount(AppChoices, {
+          props: { label: 'x', items: [{ id: 'a', label: 'a', lock, reason: 'x' }] },
+        }),
     },
   ]
 
@@ -446,6 +448,45 @@ describe('기본 부품은 넘겨받은 잠금을 흘리지 않는다', () => {
     wrapper.unmount()
     expect(isForwardedAttr('ariaHidden', true)).toBe(false)
     expect(isForwardedAttr('aria-label', 'x')).toBe(true)
+  })
+
+  /**
+   * **숨기는 속성은 건네지 않는다** (0.30.0 최종 승인 감사 C-5, 코드 소유자). 숨긴 단추는 학생에게 잠긴
+   * 단추와 같다. `aria-hidden`과 같은 모양이다 — 건네지 않고 그물이 운다. 뺄 때 기본 부품에 숨김을 넘기는
+   * 화면은 없었다(2026-09-27에 셌다).
+   */
+  const HIDINGS: readonly (readonly [string, Record<string, unknown>])[] = [
+    ['class hidden', { class: 'w-full hidden' }],
+    ['class with a variant', { class: 'md:hidden' }],
+    ['class with importance', { class: '!invisible' }],
+    ['class with a trailing importance', { class: 'hidden!' }],
+    ['class object', { class: { 'max-md:hidden': true } }],
+    ['class array', { class: ['a', 'collapse'] }],
+    ['style string', { style: 'display: none' }],
+    ['style object', { style: { visibility: 'hidden' } }],
+    ['type hidden', { type: 'hidden' }],
+  ]
+
+  for (const [name, attrs] of HIDINGS) {
+    it(`숨기는 속성은 건네지 않고, 그물이 운다: ${name}`, async () => {
+      const wrapper = mount(probe({ render: () => h(AppInput, attrs) }))
+      await nextTick()
+      const input = wrapper.find('input')
+      expect(input.classes()).not.toContain('hidden')
+      expect(input.attributes('type')).not.toBe('hidden')
+      expect(input.attributes('style') ?? '').not.toMatch(/display|visibility/)
+      expect(net().join('\n')).toMatch(/does not forward: (?:class|style|type)/)
+      wrapper.unmount()
+    })
+  }
+
+  it('숨김이 아닌 것은 건넨다 — 위가 아무것도 안 건네서 초록인 것이 아니다', () => {
+    expect(isForwardedAttr('class', 'overflow-hidden w-full')).toBe(true)
+    expect(isForwardedAttr('class', { hidden: false, 'w-full': true })).toBe(true)
+    expect(isForwardedAttr('style', { display: 'flex' })).toBe(true)
+    expect(isForwardedAttr('type', 'checkbox')).toBe(true)
+    expect(isForwardedAttr('class', 'md:hidden')).toBe(false)
+    expect(isForwardedAttr('type', 'HIDDEN')).toBe(false)
   })
 
   it('판정은 대소문자·변종·중요도를 가리지 않는다', () => {

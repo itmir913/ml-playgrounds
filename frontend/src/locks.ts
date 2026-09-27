@@ -33,8 +33,11 @@
  * - 잠긴 **모양만** 흉내 내는 것(흐린 글자에 핸들러 없는 `<span>`)은 잠금 낱말이 없어 못 본다.
  * - 이름을 실행 중에 조립하는 것(`'dis' + 'abled'`)은 글자 검사가 못 본다 — 검사가 띄운 화면에서는
  *   `tests/setup/lock-net.ts`가 실제 DOM의 잠금 속성을 부품 밖에서 잡는다.
- * - 감시자·수명주기 훅 안의 쓰기는 **`await` 앞까지만** 잡는다. 사용자 지시자의 훅, 이벤트 리스너,
- *   라우터 가드는 보지 않는다(`tests/watch-writes.spec.ts`가 재서 적었다).
+ * - 감시자·수명주기 훅 안의 쓰기는 **콜백·훅의 동기 구간만** 잡는다 — `await` 뒤와 뒤로 미룬 쓰기는
+ *   못 잡고, **`watch`의 감시 대상 게터(첫 인자) 안의 쓰기는 동기인데도 못 잡는다**(Vue 3.5는 콜백에만
+ *   표지를 세운다). 사용자 지시자의 훅, 이벤트 리스너, 라우터 가드는 보지 않는다. 라우터 가드 말고는
+ *   전부 `tests/watch-writes.spec.ts`가 초록으로 못 박는다("닿지 않는 곳", "이벤트 리스너는 학생의
+ *   동작이라 지나간다"). 라우터 가드는 그 스펙이 라우터를 안 태워 사람 확인이다.
  * - 감시자 쓰기의 이름을 **실행 중에 조립하고 캐스트로 넘기면**(`('predict' + 'Page') as never`) 파일
  *   묶기 검사가 못 본다 — 그 검사는 문자열 리터럴을 센다.
  *
@@ -106,6 +109,20 @@ export const LOCK_WORDS: readonly { readonly word: string; readonly why: string 
   {
     word: '(?:set|toggle)[\\s_-]*attribute',
     why: 'an attribute set from script can carry any of the words above under a name built at run time',
+  },
+  // **글자를 이 파일 밖에 두는 스타일시트** (0.30.0 최종 승인 감사 C-3). 셋 다 기본 부품 밖의 `src/`에
+  // 지금 있는 것(`styles/index.css`의 `@import` 여섯) 말고는 한 곳도 없을 때 넣었다(`ui-rules.spec.ts`가 문다).
+  {
+    word: '@import(?!\\s+([\'"])(?:tailwindcss|pretendard/dist/web/variable/pretendardvariable-dynamic-subset\\.css|\\./[\\w-]+\\.css)\\1(?:\\s|;|$))',
+    why: 'an @import pulls rules the word check never reads (a URL, a data: URL, a file outside src/). Only Tailwind, the font package and a sibling .css of this folder are imported, and the sibling is itself read',
+  },
+  {
+    word: 'text\\s*/\\s*css',
+    why: 'a data: URL or a Blob typed text/css carries a stylesheet in base64 or percent-encoding, where pointer-events never shows as a word',
+  },
+  {
+    word: 'style[\\s_-]*sheet',
+    why: 'a <link rel=stylesheet>, a CSSStyleSheet or adoptedStyleSheets brings rules in from outside the text the word check reads',
   },
 ]
 
@@ -249,10 +266,39 @@ function forwardedName(name: string): string {
   return /^aria[A-Z]/.test(name) ? `aria-${name.slice(4).toLowerCase()}` : name
 }
 
-/** 이 속성을 건네는가. 잠그는 속성은 허락 목록에 걸려도 건네지 않는다. */
+/** 숨기는 클래스. 변종(`md:`)과 중요도(`!`)를 떼고 본다 — `overflow-hidden`은 숨김이 아니다. */
+const HIDING_CLASSES: ReadonlySet<string> = new Set(['hidden', 'invisible', 'collapse'])
+
+/** 숨기는 스타일. `display: none`과 `visibility: hidden`(또는 `collapse`)이다. */
+const HIDING_STYLE = /display\s*:\s*none|visibility\s*:\s*(?:hidden|collapse)/i
+
+/**
+ * **이 속성이 기본 부품을 모두에게서 숨기는가** (0.30.0 최종 승인 감사 C-5, 코드 소유자). 숨긴 단추는
+ * 학생에게 잠긴 단추와 같다 — 누를 것이 없다. `aria-hidden`을 건네지 않는 것과 같은 모양으로, 넘겨받은
+ * 클래스·스타일·`type`에 숨김이 들었으면 건네지 않고 실행 중 그물이 운다. **잠금 속성이 아니다** — 화면이
+ * 제 요소를 `hidden`으로 두는 것(`max-md:hidden`)은 그대로이고, 기본 부품의 **뿌리에 건네는 것**만 본다.
+ * `locks.spec.ts`의 *"숨기는 속성은 건네지 않고, 그물이 운다"*가 문다.
+ */
+function hidingAttr(name: string, value: unknown): boolean {
+  const key = name.toLowerCase()
+  if (key === 'type') return typeof value === 'string' && value.trim().toLowerCase() === 'hidden'
+  if (key === 'style') return HIDING_STYLE.test(flatText(value))
+  if (key !== 'class') return false
+  return flatText(value)
+    .split(/\s+/)
+    .some((token) =>
+      HIDING_CLASSES.has(token.slice(token.lastIndexOf(':') + 1).replace(/^!|!$/g, '')),
+    )
+}
+
+/** 이 속성을 건네는가. 잠그는 속성과 숨기는 속성은 허락 목록에 걸려도 건네지 않는다. */
 export function isForwardedAttr(name: string, value: unknown): boolean {
   const forwarded = forwardedName(name)
-  return !lockingAttr(forwarded, value) && FORWARDED.some((pattern) => pattern.test(forwarded))
+  return (
+    !lockingAttr(forwarded, value) &&
+    !hidingAttr(forwarded, value) &&
+    FORWARDED.some((pattern) => pattern.test(forwarded))
+  )
 }
 
 /**

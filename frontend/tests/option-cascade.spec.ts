@@ -128,6 +128,10 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  // **미뤄 둔 자동 저장을 이 검사 안에서 끊는다.** 검사마다 같은 `projectId`의 iris를 쓰는데,
+  // 유형을 누른 검사의 타이머가 다음 검사의 `saveProject` 뒤에 터져 옛 파일(유형 = 분류)을 덮어
+  // 썼다 — 부하에서만 *"유형이 빠진 파일에서"*가 `classification`을 받던 원인이다(2026-09-27).
+  useProjectStore().close()
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
   await deleteDatabase()

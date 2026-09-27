@@ -11,8 +11,9 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import AppChoices from '../src/components/AppChoices.vue'
+import AppChoices, { type Choice } from '../src/components/AppChoices.vue'
 import { i18n, setLocale } from '../src/i18n'
+import { lockFor } from '../src/locks'
 
 function textOf(label: string): string {
   const wrapper = mount(AppChoices, {
@@ -39,6 +40,26 @@ describe('나눠 그려도 글자는 그대로다', () => {
 
   it('나눌 것이 없는 라벨', () => {
     expect(textOf('군집화')).toBe('군집화')
+  })
+})
+
+/**
+ * **잠긴 칸에는 이유가 있다** (0.30.0 최종 승인 감사 C-12). 이유가 선택 속성이던 때는 잠겼는데 문장이
+ * 없는 칸이 타입을 지났고, 누르면 조용했다. **검사가 아니라 타입이 막는다** — 아래
+ * `@ts-expect-error`가 서 있다는 것이 그 증거이고, `Choice`의 갈래를 풀면 이 줄이 "쓰지 않은
+ * 기대"로 `vue-tsc`에서 운다.
+ */
+describe('잠긴 칸에는 이유가 있다', () => {
+  it('잠금은 이유 문장과 함께만 넘긴다', () => {
+    const lock = lockFor('pageFirst', { page: 0 })
+    // @ts-expect-error 잠금만 있고 이유가 없는 칸은 누르면 조용하다.
+    const silent: Choice = { id: 'a', label: 'a', lock }
+    // @ts-expect-error 이유를 `undefined`로 적어도 같다.
+    const blank: Choice = { id: 'a', label: 'a', lock, reason: undefined }
+    const told: Choice = { id: 'a', label: 'a', lock, reason: 'why' }
+    const open: Choice = { id: 'a', label: 'a' }
+
+    expect([silent, blank, told, open]).toHaveLength(4)
   })
 })
 
