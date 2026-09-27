@@ -128,6 +128,7 @@
 | 되보내는 부품이 인자를 흘리는가 | `ui-rules.spec.ts` |
 | 범주 이름이 세 운영체제에서 폴더가 되는가 | `image.spec.ts` |
 | 문서를 가리키는 참조가 살아 있는가 | `doc-refs.spec.ts` |
+| 규칙과 판례가 짝이고, 결정문이 `[미정]`·`[결정]`을 갖는가 | `docs-structure.spec.ts` |
 | 사진을 굽기 전에 자리를 묻는가 | `image-room.spec.ts` |
 | 행 상한 칸에 **제 이름의 상수**가 오는가 | `algorithms.spec.ts` · `limits.ts` |
 | 화면이 넘기는 **데이터 종류**가 열린 프로젝트의 것인가 | `training-source.spec.ts` · `data/kinds.ts` |
