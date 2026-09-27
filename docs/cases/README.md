@@ -22,6 +22,7 @@
 - [i18n.md](i18n.md) — 로케일 구조와 CI가 막는 것
 - [copy.md](copy.md) — 화면 문구의 말투와 낱말
 - [terms.md](terms.md) — 용어의 갈림
+- [privacy.md](privacy.md) — 개인정보 방침의 근거
 
 ## 정리 진행
 
@@ -32,7 +33,7 @@
 - [x] `i18n.md`
 - [x] `copy.md`
 - [x] `terms.md`
-- [ ] `privacy.md`
+- [x] `privacy.md`
 - [ ] `error-codes.md`
 - [ ] `rule-coverage.md`
 - [ ] `mlpx-spec.md`
