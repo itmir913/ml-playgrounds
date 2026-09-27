@@ -27,7 +27,7 @@
 | §2 알고리즘 선택에 `if/elif` 금지 | `algorithms.spec.ts` |
 | §2 "X는 Y에서만"은 X의 등록부에 | `algorithms.spec.ts` · `metric-panels.spec.ts` · `kinds.spec.ts` |
 | §2 잠금은 gate 함수 하나, 이유 목록 반환 | `selection.spec.ts` · `ui-rules.spec.ts` · `steps.spec.ts` |
-| §2 **잠금은 등록부 하나가 허락한다** (`open-decisions.md` 65, `architecture.md` §10.7, 2026-09-27) | `ui-rules.spec.ts` · `locks.ts` · `locks.spec.ts` · `tests/setup/lock-net.ts` · `lock-net.spec.ts` · `watch-writes.spec.ts` |
+| §2 **잠금은 등록부 하나가 허락한다** (`open-decisions.md` 65, `architecture.md` §10.7) | `ui-rules.spec.ts` · `locks.ts` · `locks.spec.ts` · `tests/setup/lock-net.ts` · `lock-net.spec.ts` · `watch-writes.spec.ts` |
 | §2 `randomState`를 항상 **저장하고 분할·뽑기에 쓴다** | `split.spec.ts` · `experiment.spec.ts` · `sample.spec.ts` |
 | §2 `fit` 입력의 씨앗이 **라이브러리까지 닿는가** | `experiment.spec.ts` · `mljs-kmeans.spec.ts` · `svm.spec.ts` · `mljs.ts` |
 | §2 **대조가 파일에 적힌 씨앗으로 도는가** | `reproduce.spec.ts` · `reproduce.ts` |

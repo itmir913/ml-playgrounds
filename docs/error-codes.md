@@ -136,11 +136,11 @@ KMEANS_NOT_CONVERGED
 NEURAL_NOT_CONVERGED
 NEURAL_REGRESSION_NOT_CONVERGED
 ```
-**여섯째는 모델이 아니라 데이터를 말한다** (`ml/experiment.ts`, 2026-09-03)
+**여섯째는 모델이 아니라 데이터를 말한다** (`ml/experiment.ts`)
 ```
 TARGET_TOO_FEW_CLASSES
 ```
-**회귀의 상수 타깃** (`ml/experiment.ts`, 2026-09-03 R25 §5)
+**회귀의 상수 타깃** (`ml/experiment.ts`)
 ```
 TARGET_NO_VARIANCE
 ```
