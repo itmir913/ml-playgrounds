@@ -18,6 +18,7 @@
 
 ## 색인
 
+- [acceptance.md](acceptance.md) — 인수 테스트를 왜 세웠고 무엇이 갈렸나
 - [workflow.md](workflow.md) — 작업 리듬·관문·감사·버전·배포·커밋·소스 쓰는 법
 - [i18n.md](i18n.md) — 로케일 구조와 CI가 막는 것
 - [copy.md](copy.md) — 화면 문구의 말투와 낱말
