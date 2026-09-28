@@ -12,6 +12,7 @@
  * 80%로 보인다.
  */
 import { mount } from '@vue/test-utils'
+import { defineComponent } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -33,6 +34,16 @@ import PerClassPanel from '../src/views/results/panels/PerClassPanel.vue'
 import { experiment, projectFile, run } from './fixtures/project'
 
 /** 실험 셋. **둘로는 모자란다** — 마지막의 직전이 첫째와 갈려야 짝을 잰다. */
+/**
+ * `RunDetail` 대신 세우는 빈 판. 자동 스텁(`true`)에서는 `dataset`이 `<run-detail-stub>`의 DOM
+ * 속성으로 흘러 CI 로그에 경고가 찍혔다 — 받는 것을 속성으로 내리지 않는다.
+ */
+const RunDetailStub = defineComponent({
+  name: 'RunDetail',
+  inheritAttrs: false,
+  render: () => null,
+})
+
 function threeExperiments(): ProjectFile {
   const file = projectFile()
   return {
@@ -303,7 +314,7 @@ describe('the results screen says the silhouette was sampled', () => {
        * 하나이고, 속의 군집 패널은 지연 로딩이라 판이 끝난 뒤에 모듈을 불러 vitest가
        * 처리되지 않은 오류로 끝난다(사람 확인 — 판은 초록인데 vitest 종료 코드가 1이었다).
        */
-      global: { plugins: [i18n], stubs: { RunDetail: true } },
+      global: { plugins: [i18n], stubs: { RunDetail: RunDetailStub } },
     })
   }
 

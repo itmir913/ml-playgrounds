@@ -150,7 +150,7 @@ afterEach(async () => {
 async function panelWithFile() {
   const project = useProjectStore()
   await project.save(emptyTabularProject())
-  const wrapper = mount(TabularPanel, { global: { plugins: [i18n] } })
+  const wrapper = mount(TabularPanel, { props: { accept: '.csv' }, global: { plugins: [i18n] } })
   await flushPromises()
   const panel = wrapper.vm as unknown as PanelInternals
 
@@ -240,7 +240,7 @@ describe('파일을 읽는 동안', () => {
   it('화면이 바쁜 것으로 남는다', async () => {
     const project = useProjectStore()
     await project.save(emptyTabularProject())
-    const wrapper = mount(TabularPanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(TabularPanel, { props: { accept: '.csv' }, global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
     expect(panel.busy).toBe(false)

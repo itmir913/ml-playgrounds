@@ -82,7 +82,7 @@ describe('시각화 창은 정본 전체를 받는다', () => {
     })
     await useProjectStore().save(file)
 
-    const wrapper = mount(TabularPanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(TabularPanel, { props: { accept: '.csv' }, global: { plugins: [i18n] } })
     await settle()
     expect(wrapper.findComponent(ChartDialog).exists()).toBe(false)
 

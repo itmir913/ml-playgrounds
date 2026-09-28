@@ -122,7 +122,7 @@ afterEach(async () => {
 async function panelWithPending() {
   const project = useProjectStore()
   await project.save(imagePredictProject([]))
-  const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+  const wrapper = mount(ImagePanel, { props: { accept: 'image/*' }, global: { plugins: [i18n] } })
   await flushPromises()
   const panel = wrapper.vm as unknown as PanelInternals
   panel.onDrop(dropEvent([file('a.jpg')]))
@@ -181,7 +181,7 @@ describe('decision 65: naming a category through Enter', () => {
   it('Enter로 잠금을 건너도 이유를 알리고 범주를 만들지 않는다', async () => {
     const project = useProjectStore()
     await project.save(imagePredictProject([]))
-    const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(ImagePanel, { props: { accept: 'image/*' }, global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as {
       naming: { mode: 'create' | 'rename'; from: string; value: string } | null
@@ -215,7 +215,7 @@ describe('R23: a plain save releases its job', () => {
   it('busy goes back to false after save()', async () => {
     const project = useProjectStore()
     await project.save(imagePredictProject([]))
-    const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(ImagePanel, { props: { accept: 'image/*' }, global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals & {
       save: (next: (live: ProjectFile) => ProjectFile) => Promise<void>
@@ -230,7 +230,7 @@ describe('R23: reading fails', () => {
   it('corrupt zip: unlocks and tells', async () => {
     const project = useProjectStore()
     await project.save(imagePredictProject([]))
-    const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(ImagePanel, { props: { accept: 'image/*' }, global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
     panel.onDrop(dropEvent([new File([new Uint8Array([1, 2, 3])], 'broken.zip')]))
@@ -243,7 +243,7 @@ describe('R23: reading fails', () => {
   it('empty zip: unlocks and tells', async () => {
     const project = useProjectStore()
     await project.save(imagePredictProject([]))
-    const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(ImagePanel, { props: { accept: 'image/*' }, global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
     panel.onDrop(dropEvent([new File([], 'empty.zip')]))
@@ -255,7 +255,7 @@ describe('R23: reading fails', () => {
   it('arrayBuffer rejects: unlocks and tells', async () => {
     const project = useProjectStore()
     await project.save(imagePredictProject([]))
-    const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(ImagePanel, { props: { accept: 'image/*' }, global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
     const bad = new File([new Uint8Array([1])], 'x.zip')

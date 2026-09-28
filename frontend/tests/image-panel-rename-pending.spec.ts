@@ -167,7 +167,7 @@ async function removeCategory(wrapper: VueWrapper, name: string): Promise<void> 
 async function panelWith(category: string) {
   const project = useProjectStore()
   await project.save(imagePredictProject([]))
-  const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+  const wrapper = mount(ImagePanel, { props: { accept: 'image/*' }, global: { plugins: [i18n] } })
   await flushPromises()
 
   await buttonIn(wrapper, 'data.image.newCategory').trigger('click')

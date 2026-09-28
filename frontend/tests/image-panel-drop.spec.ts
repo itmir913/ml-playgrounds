@@ -142,7 +142,7 @@ afterEach(async () => {
 async function panelBaking() {
   const project = useProjectStore()
   await project.save(imagePredictProject([]))
-  const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+  const wrapper = mount(ImagePanel, { props: { accept: 'image/*' }, global: { plugins: [i18n] } })
   await flushPromises()
   const panel = wrapper.vm as unknown as PanelInternals
 
@@ -275,7 +275,7 @@ describe('상한 가까이에서 굽는 중에 더 놓으면', () => {
     limits.images = 2
     const project = useProjectStore()
     await project.save(imagePredictProject([]))
-    const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(ImagePanel, { props: { accept: 'image/*' }, global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
 
@@ -372,7 +372,7 @@ describe('굽는 동안 둘째 묶음이 판에 서면', () => {
   it('굽지 않을 때 [취소]는 확인 판을 접는다', async () => {
     const project = useProjectStore()
     await project.save(imagePredictProject([]))
-    const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(ImagePanel, { props: { accept: 'image/*' }, global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
 
@@ -413,7 +413,7 @@ describe('압축 파일을 읽는 동안', () => {
   it('화면이 바쁜 것으로 남는다', async () => {
     const project = useProjectStore()
     await project.save(imagePredictProject([]))
-    const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(ImagePanel, { props: { accept: 'image/*' }, global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
     expect(panel.busy).toBe(false)
@@ -445,7 +445,7 @@ describe('굽기가 자리를 묻는 동안', () => {
   async function panelAskingRoom() {
     const project = useProjectStore()
     await project.save(imagePredictProject([]))
-    const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(ImagePanel, { props: { accept: 'image/*' }, global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
 
@@ -516,7 +516,7 @@ describe('자리를 묻다가 실패하면', () => {
   it('자물쇠가 풀리고 학생이 다시 누를 수 있다', async () => {
     const project = useProjectStore()
     await project.save(imagePredictProject([]))
-    const wrapper = mount(ImagePanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(ImagePanel, { props: { accept: 'image/*' }, global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
 

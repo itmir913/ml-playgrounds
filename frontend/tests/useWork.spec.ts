@@ -10,7 +10,7 @@
  * 마운트 검사가 잰다 — `image-panel-drop`·`image-predict-race`·`image-prep-drop`.
  */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ref, shallowRef, toRaw } from 'vue'
 
 import { clearIfHeld, useWork, type Cancellable } from '../src/composables/useWork'
@@ -86,6 +86,8 @@ describe('바쁨은 셈이다', () => {
    * Vue가 그 쓰기를 버려 **되돌아간 화면이 영영 안 바쁜 채로 남았다** (R22 A-2).
    */
   it('바쁨과 진행에는 쓸 수 없다', () => {
+    // 읽기 전용 computed에 쓰면 Vue가 경고를 낸다 — 그 경고가 이 테스트의 기대이므로 받아서 센다.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const work = useWork()
     // @ts-expect-error - busy는 ComputedRef다
     work.busy.value = true
@@ -93,6 +95,8 @@ describe('바쁨은 셈이다', () => {
     work.progress.value = { completed: 1, total: 2 }
     expect(work.busy.value).toBe(false)
     expect(work.progress.value).toBeNull()
+    expect(warn).toHaveBeenCalledTimes(2)
+    warn.mockRestore()
   })
 })
 

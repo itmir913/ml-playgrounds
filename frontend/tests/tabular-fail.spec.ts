@@ -109,7 +109,7 @@ describe('R23: TabularPanel', () => {
   it('reading fails: unlocks and tells', async () => {
     const project = useProjectStore()
     await project.save(emptyTabularProject())
-    const wrapper = mount(TabularPanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(TabularPanel, { props: { accept: '.csv' }, global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
     const bad = csv('bad.csv')
@@ -128,7 +128,7 @@ describe('R23: TabularPanel', () => {
   it('garbage file: unlocks and tells', async () => {
     const project = useProjectStore()
     await project.save(emptyTabularProject())
-    const wrapper = mount(TabularPanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(TabularPanel, { props: { accept: '.csv' }, global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
     wrapper
@@ -151,7 +151,7 @@ describe('R23: the save is refused by quota', () => {
   it('takes the draft off the bar and tells the student', async () => {
     const project = useProjectStore()
     await project.save(emptyTabularProject())
-    const wrapper = mount(TabularPanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(TabularPanel, { props: { accept: '.csv' }, global: { plugins: [i18n] } })
     await flushPromises()
     const panel = wrapper.vm as unknown as PanelInternals
     wrapper.find('[class*="min-h-full"]').element.dispatchEvent(dropEvent([csv('first.csv')]))
@@ -188,7 +188,7 @@ describe('시각화 손잡이는 확정된 정본에만 붙는다', () => {
   it('고르는 중인 파일에는 손잡이가 없다', async () => {
     const project = useProjectStore()
     await project.save(emptyTabularProject())
-    const wrapper = mount(TabularPanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(TabularPanel, { props: { accept: '.csv' }, global: { plugins: [i18n] } })
     await flushPromises()
 
     wrapper.find('[class*="min-h-full"]').element.dispatchEvent(dropEvent([csv('draft.csv')]))
@@ -202,7 +202,7 @@ describe('시각화 손잡이는 확정된 정본에만 붙는다', () => {
   it('확정하면 열마다 손잡이가 선다', async () => {
     const project = useProjectStore()
     await project.save(emptyTabularProject())
-    const wrapper = mount(TabularPanel, { global: { plugins: [i18n] } })
+    const wrapper = mount(TabularPanel, { props: { accept: '.csv' }, global: { plugins: [i18n] } })
     await flushPromises()
 
     wrapper.find('[class*="min-h-full"]').element.dispatchEvent(dropEvent([csv('good.csv')]))

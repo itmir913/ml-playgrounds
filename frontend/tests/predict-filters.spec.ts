@@ -155,6 +155,8 @@ describe('계산이 도는 동안 필터가 잠긴다', () => {
   /** `BatchPredict` 대신 세우는 가짜. 판이 읽는 것은 노출된 넷뿐이다. */
   const FakeBatch = defineComponent({
     name: 'BatchPredict',
+    // 진짜 판이 받는 prop(`dataset` 등)을 가짜 `div`로 흘리지 않는다 — DOM의 `dataset`은 읽기 전용이다.
+    inheritAttrs: false,
     setup(_props, { expose }) {
       // 판이 노출하는 것은 **작업 상태의 잠금 하나다** (결정문 65 ③) — 진짜 판은 읽기(`busy`)와
       // 계산(`computing`)을 `anyLock`으로 잇는다. 가짜도 같은 모양으로 둘을 잇는다.
