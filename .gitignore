@@ -79,6 +79,9 @@ frontend/.cache/
 # 다른 기계로 들고 가는 실측 하니스. 빌드 산출물이라 저장소가 안 따라간다
 # (frontend/scripts/bench-standalone.mjs).
 frontend/bench-standalone.html
+# 인수 테스트 데이터. 개발 서버가 /.acceptance/로 서빙해 에이전트가 브라우저로 받는다
+# (frontend/scripts/acceptance-fixtures.mjs, docs/acceptance.md §0).
+frontend/.acceptance/
 *.local
 .turbo/
 

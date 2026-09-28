@@ -1,18 +1,18 @@
 // 인수 테스트용 데이터를 만든다 → docs/acceptance.md
-// 사용: node frontend/scripts/acceptance-fixtures.mjs <outDir> [--images N] [--classes N] [--rows N] [--seed N]
+// 사용: node frontend/scripts/acceptance-fixtures.mjs [--images N] [--classes N] [--rows N] [--seed N]
 // 같은 seed면 같은 파일이 나온다.
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+//
+// **나가는 곳은 frontend/.acceptance/ 하나다.** 개발 서버가 /.acceptance/로 서빙하므로
+// 에이전트는 페이지에서 fetch로 받아 파일 입력에 넣는다 — 브라우저 도구에 파일 선택이
+// 없고, 바이트를 도구 호출로 나르면 사진 수만큼 토큰이 든다. git은 이 폴더를 무시한다.
+// 돌릴 때마다 비우고 새로 쓴다 — 큰 데이터(§2.3)와 기본 데이터가 섞이지 않는다.
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { crc32, deflateSync } from 'node:zlib'
 
+const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', '.acceptance')
 const args = process.argv.slice(2)
-const outDir = args[0]
-if (!outDir || outDir.startsWith('--')) {
-  console.error(
-    'usage: acceptance-fixtures.mjs <outDir> [--images N] [--classes N] [--rows N] [--seed N]',
-  )
-  process.exit(1)
-}
 const opt = (name, fallback) => {
   const i = args.indexOf(`--${name}`)
   return i === -1 ? fallback : Number(args[i + 1])
@@ -44,6 +44,7 @@ for (let i = 0; i < nRows; i++) {
   const cell = (v) => (rand() < 0.05 ? '' : v)
   lines.push([cell(h.toFixed(1)), cell(w.toFixed(1)), cell(c), label].join(','))
 }
+rmSync(outDir, { recursive: true, force: true })
 mkdirSync(outDir, { recursive: true })
 writeFileSync(join(outDir, 'table.csv'), lines.join('\n') + '\n')
 
