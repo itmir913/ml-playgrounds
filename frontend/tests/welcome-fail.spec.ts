@@ -33,7 +33,7 @@ import {
   loadProject,
   saveProject,
 } from '../src/project/storage'
-import { releaseTabLock } from '../src/project/tab-lock'
+import { acquireTabLock, releaseTabLock } from '../src/project/tab-lock'
 import { ROUTE_PROJECTS, router } from '../src/router'
 import { useToastStore } from '../src/stores/toasts'
 import WelcomeView from '../src/views/WelcomeView.vue'
@@ -343,6 +343,76 @@ describe('R27: 다른 탭이 쥔 프로젝트는 목록 화면도 못 건드린�
     // **여전히 있어야 한다.** 지우면 저 탭의 다음 자동 저장이 되살리거나, 저 탭이 하던
     // 것이 사라진다 — 어느 쪽인지는 타이밍이 정한다.
     expect(await loadProject(id)).not.toBeNull()
+  })
+
+  /**
+   * **가져오기가 실패하면 잡은 자물쇠만 놓는다** (2026-09-28 감사 C, C-3).
+   *
+   * 저장이 거절되면 학생은 목록에 남는데, 잡은 자물쇠를 안 놓아 **아무도 안 여는 프로젝트를 이
+   * 탭이 쥐고** 있었다 — 다른 탭에서 열면 *"다른 탭에서 열려 있습니다"*. 반대로 **잡기 전의
+   * 실패**(깨진 파일, 남이 쥔 것)에서 놓으면 이 탭이 쥔 다른 자물쇠를 버린다.
+   *
+   * 이 탭이 쥔 자물쇠를 이름으로 센다 — 콜백의 약속이 끝나면(`releaseHeld`) 빠진다.
+   */
+  describe('가져오기가 실패하면 잡은 자물쇠만 놓는다', () => {
+    function stubLocksTracked(elsewhere: readonly string[]): Set<string> {
+      const mine = new Set<string>()
+      const taken = new Set(elsewhere.map((id) => `ml-playgrounds:project:${id}`))
+      Object.defineProperty(navigator, 'locks', {
+        configurable: true,
+        value: {
+          request: async (
+            name: string,
+            _options: unknown,
+            callback: (lock: { name: string } | null) => unknown,
+          ) => {
+            if (taken.has(name) || mine.has(name)) return callback(null)
+            mine.add(name)
+            try {
+              return await callback({ name })
+            } finally {
+              mine.delete(name)
+            }
+          },
+        },
+      })
+      return mine
+    }
+    const lockOf = (id: string): string => `ml-playgrounds:project:${id}`
+
+    it('잡은 뒤 저장이 거절되면 놓는다', async () => {
+      const mine = stubLocksTracked([])
+      const { bytes } = await writeProjectBytes(projectFile(), '')
+      const { openWith } = await welcome()
+      gate.failSave = true
+      await openWith(new File([bytes.slice()], 'ok.mlpx'))
+
+      expect(dangers().map((one) => one.key)).toEqual(['client.STORAGE_QUOTA_EXCEEDED'])
+      expect(router.currentRoute.value.name).toBe(ROUTE_PROJECTS)
+      expect([...mine], 'the lock taken for the failed import must be released').toEqual([])
+    })
+
+    it('잡기 전에 실패하면 쥐던 것을 놓지 않는다 (깨진 파일)', async () => {
+      const mine = stubLocksTracked([])
+      expect(await acquireTabLock('kept-project')).toBe(true)
+      const { openWith } = await welcome()
+      await openWith(new File([new Uint8Array([1, 2, 3, 4])], 'broken.mlpx'))
+
+      expect(dangers()).toHaveLength(1)
+      expect([...mine]).toEqual([lockOf('kept-project')])
+    })
+
+    it('잡기를 거절당하면 쥐던 것을 놓지 않는다 (남이 쥔 것)', async () => {
+      const incoming = projectFile()
+      const mine = stubLocksTracked([incoming.document.manifest.projectId])
+      expect(await acquireTabLock('kept-project')).toBe(true)
+      const { bytes } = await writeProjectBytes(incoming, '')
+      const { openWith } = await welcome()
+      await openWith(new File([bytes.slice()], 'same.mlpx'))
+
+      expect(dangers().map((one) => one.key)).toEqual(['client.PROJECT_OPEN_ELSEWHERE'])
+      expect([...mine]).toEqual([lockOf('kept-project')])
+    })
   })
 
   it('삭제: 아무도 안 쥐었으면 지워진다 (대조)', async () => {

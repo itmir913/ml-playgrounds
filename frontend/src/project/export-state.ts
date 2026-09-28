@@ -27,11 +27,27 @@ export type ExportState = (typeof EXPORT_STATES)[number]
  * **둘 다 반드시 파스된다.** 그래도 두는 이유는 여기서 던지면 상태 표시줄 하나 때문에
  * 화면이 서기 때문이다 — **죽은 가지가 아니라 안전망이고, 닿는 입력은 아직 없다.**
  *
+ * **아직 안 쓴 편집이 있으면 시각을 안 본다** (2026-09-28 감사 C, A-2). 시각은 브라우저에
+ * **쓴** 때만 오르므로, 내보낸 뒤 고친 것이 저장에 실패하면(쿼터) `savedAt`이 그대로라 판정이
+ * "파일로 저장함"에 멈춰 있었다 — 그 편집은 파일에도 브라우저에도 없는데 줄은 초록이었다.
+ * 미뤄 둔 저장을 기다리는 짧은 사이도 같다: 그 편집은 아직 어느 파일에도 없다.
+ * `autosave.spec.ts`의 *"안 쓴 편집이 있으면 시각과 무관하게 stale이다"*와
+ * `status-bar-export.spec.ts`가 문다.
+ *
+ * **대가 하나** — 내보내기 직전의 저장이 실패하면 파일에는 지금 작업이 다 들어갔는데도(내보내기는
+ * 메모리의 파일로 만든다) `stale`이 선다. 초록 거짓말보다 주의색의 과잉이 낫다고 골랐다.
+ *
  * @param savedAt    마지막으로 브라우저에 쓴 시각. 아직 없으면 null이다.
  * @param exportedAt 마지막으로 파일로 저장한 시각. 한 번도 안 했으면 null이다.
+ * @param dirty      화면에는 있는데 아직 브라우저에 안 쓴 편집이 있는가 (스토어의 `dirty`).
  */
-export function exportStateOf(savedAt: string | null, exportedAt: string | null): ExportState {
+export function exportStateOf(
+  savedAt: string | null,
+  exportedAt: string | null,
+  dirty: boolean,
+): ExportState {
   if (exportedAt === null) return 'notExported'
+  if (dirty) return 'stale'
   if (savedAt === null) return 'exported'
   const saved = Date.parse(savedAt)
   const exported = Date.parse(exportedAt)

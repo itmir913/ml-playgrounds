@@ -335,8 +335,10 @@ export const useProjectStore = defineStore('project', () => {
    * **브라우저에만 있는 프로젝트는 제출을 못 하면 죽은 것이다.**
    *
    * **값은 치른다.** 저장 안 된 채 화면만 새 값인 상태가 실재하고, 새로고침하면 그것을
-   * 잃는다. 그래서 `dirty`가 실패 뒤에도 참으로 남아 상태 표시줄이 계속 말하는 것이
-   * 이 결정의 짝이다. 부르는 쪽은 던진 것을 잡아 토스트를 띄워야 한다.
+   * 잃는다. 그래서 `dirty`가 실패 뒤에도 참으로 남는 것이 이 결정의 짝이다. 상태 표시줄은
+   * 그것을 **내보내기 상태로 접어** 말한다 — `dirty`면 "파일로 저장함"이라 하지 않는다
+   * (`export-state.ts`, `status-bar-export.spec.ts`가 문다). 브라우저 저장이 실패했다는 것을
+   * 따로 적는 줄은 없고 그것은 알림이 말한다. 부르는 쪽은 던진 것을 잡아 토스트를 띄워야 한다.
    */
   async function save(next: ProjectFile | ProjectRevision, writeId?: WatchWriteId): Promise<void> {
     refuseWatcherWrite(writeId)
@@ -350,18 +352,42 @@ export const useProjectStore = defineStore('project', () => {
     await write()
   }
 
-  /** 실제로 쓰는 곳. 지금 열려 있는 값을 쓴다. */
-  async function write(): Promise<void> {
+  /**
+   * 앞선 쓰기가 끝나는 약속. **쓰기는 온 순서대로 하나씩 한다** (2026-09-28 감사 C, C-2).
+   *
+   * 겹치게 두면 `saveProject`가 트랜잭션을 세우기 전에 `estimate()`를 기다리는 사이 순서가
+   * 뒤집힐 수 있다 — 먼저 시작한 쓰기가 늦게 트랜잭션을 세우면 **옛 값이 새 값을 덮고**, 끝난
+   * 뒤에는 `dirty`만 참인 채 다시 쓸 타이머가 없다. `autosave.spec.ts`의 *"겹친 두 쓰기는
+   * 나중 값을 남긴다"*가 문다. 앞의 실패는 줄을 끊지 않는다 — 같은 파일의 *"앞의 쓰기가
+   * 실패해도 다음 쓰기는 돈다"*가 문다.
+   */
+  let writing: Promise<void> = Promise.resolve()
+
+  /**
+   * 실제로 쓰는 곳. **차례가 왔을 때** 열려 있는 값을 쓴다 — 줄을 서는 동안 바뀌었으면 바뀐
+   * 값이 쓰인다. 던진 것은 부른 쪽에 그대로 간다(`flush`·`save`가 던지는 약속) —
+   * `autosave.spec.ts`의 *"앞의 쓰기가 실패해도 다음 쓰기는 돈다"*가 문다.
+   */
+  function write(): Promise<void> {
+    const turn = writing.then(writeNow)
+    writing = turn.then(
+      () => undefined,
+      () => undefined,
+    )
+    return turn
+  }
+
+  async function writeNow(): Promise<void> {
     const current = file.value
     if (current === null || !dirty.value) return
     saving.value = true
-    const turn = openings
+    const generation = openings
     try {
       await saveProject(current)
       // **쓰는 동안 닫혔거나 다른 프로젝트가 열렸으면 그쪽 상태를 건드리지 않는다** (0.30.0 최종
       // 승인 감사 C-11의 이웃). 전에는 닫힌 뒤에 `dirty`가 참이 되고 `savedAt`이 앉았다.
       // `project-open-lock.spec.ts`의 *"쓰는 동안 닫히면"*이 문다.
-      if (openings !== turn) return
+      if (openings !== generation) return
       // 쓰는 동안 또 바뀌었을 수 있다. 그러면 여전히 안 쓴 상태로 두어야 한다.
       dirty.value = file.value !== current
       savedAt.value = new Date().toISOString()

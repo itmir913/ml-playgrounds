@@ -175,7 +175,14 @@ describe('쓰는 동안 또 바뀐 것', () => {
   it('다시 쓸 것으로 남는다', async () => {
     const project = useProjectStore()
     // 저장이 IndexedDB에서 기다리는 사이에 끼어든다.
+    //
+    // **쓰기가 시작된 뒤에 끼어든다** (2026-09-28 감사 C, C-2). 쓰기는 이제 줄을 서고 **차례가
+    // 왔을 때** 값을 읽으므로, 부른 직후에 고치면 고친 값이 그대로 쓰여 "다시 쓸 것"이 안 생긴다
+    // (그것도 옳다 — 잃은 것이 없다). 이 검사가 보려는 것은 쓰는 도중의 편집이라 `saving`이 선
+    // 뒤에 고친다.
     const writing = project.save(projectFile())
+    for (let round = 0; round < 50 && !project.saving; round += 1) await Promise.resolve()
+    expect(project.saving, 'the write must have started').toBe(true)
     project.update(renamed('쓰는 동안 고친 이름'))
     await writing
 
@@ -190,6 +197,61 @@ describe('쓰는 동안 또 바뀐 것', () => {
   it('안 바뀌었으면 다시 안 쓴다', async () => {
     const project = useProjectStore()
     await project.save(projectFile())
+    expect(project.dirty).toBe(false)
+  })
+
+  /**
+   * **쓰기는 온 순서대로 하나씩 한다** (2026-09-28 감사 C, C-2).
+   *
+   * `saveProject`는 트랜잭션을 세우기 전에 여유 공간을 묻는다(`estimate()`). 겹친 두 쓰기에서
+   * 먼저 시작한 쪽의 답이 늦으면 **나중 값이 먼저 들어가고 옛 값이 그 위를 덮었다** — 화면은
+   * 나중 값, 저장소는 옛 값, `dirty`는 참인데 다시 쓸 타이머가 없었다(실측: 화면 B · 저장소 A).
+   */
+  it('겹친 두 쓰기는 나중 값을 남긴다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+
+    let release = (): void => {}
+    let calls = 0
+    Object.defineProperty(navigator, 'storage', {
+      configurable: true,
+      value: {
+        estimate: () => {
+          calls += 1
+          if (calls > 1) return Promise.resolve({ quota: 1e12, usage: 0 })
+          return new Promise((resolve) => {
+            release = () => resolve({ quota: 1e12, usage: 0 })
+          })
+        },
+      },
+    })
+
+    project.update(renamed('먼저 쓴 이름'))
+    const first = project.flush()
+    for (let round = 0; round < 50 && calls === 0; round += 1) await Promise.resolve()
+    expect(calls, 'the first write must be waiting on the room check').toBe(1)
+
+    project.update(renamed('나중에 쓴 이름'))
+    const second = project.flush()
+    release()
+    await Promise.all([first, second])
+
+    expect(project.name).toBe('나중에 쓴 이름')
+    expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe('나중에 쓴 이름')
+    expect(project.dirty).toBe(false)
+  })
+
+  /** **줄은 실패로 끊기지 않고, 실패는 부른 쪽에 간다** — `save`·`flush`가 던지는 약속이다. */
+  it('앞의 쓰기가 실패해도 다음 쓰기는 돈다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+
+    stubEstimate(1, 1)
+    await expect(project.save(renamed('거절당한 이름'))).rejects.toThrow()
+    Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
+
+    await project.flush()
+    expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe('거절당한 이름')
     expect(project.dirty).toBe(false)
   })
 })
@@ -583,17 +645,35 @@ describe('저장소를 지우지 말아 달라고 청한다', () => {
  */
 describe('내보낸 파일이 지금 작업과 얼마나 어긋나 있는가', () => {
   it('한 번도 안 내보냈으면 notExported다', () => {
-    expect(exportStateOf('2026-08-18T10:00:00.000Z', null)).toBe('notExported')
-    expect(exportStateOf(null, null)).toBe('notExported')
+    expect(exportStateOf('2026-08-18T10:00:00.000Z', null, false)).toBe('notExported')
+    expect(exportStateOf(null, null, false)).toBe('notExported')
+    // 안 쓴 편집이 있어도 한 번도 안 내보낸 것이 먼저다.
+    expect(exportStateOf(null, null, true)).toBe('notExported')
   })
 
   it('내보낸 뒤로 저장한 적이 없으면 exported다', () => {
-    expect(exportStateOf('2026-08-18T09:00:00.000Z', '2026-08-18T10:00:00.000Z')).toBe('exported')
-    expect(exportStateOf(null, '2026-08-18T10:00:00.000Z')).toBe('exported')
+    expect(exportStateOf('2026-08-18T09:00:00.000Z', '2026-08-18T10:00:00.000Z', false)).toBe(
+      'exported',
+    )
+    expect(exportStateOf(null, '2026-08-18T10:00:00.000Z', false)).toBe('exported')
   })
 
   it('내보낸 뒤에 또 작업했으면 stale이다 - 여기서 안 알리면 학생이 안심하고 끈다', () => {
-    expect(exportStateOf('2026-08-18T11:00:00.000Z', '2026-08-18T10:00:00.000Z')).toBe('stale')
+    expect(exportStateOf('2026-08-18T11:00:00.000Z', '2026-08-18T10:00:00.000Z', false)).toBe(
+      'stale',
+    )
+  })
+
+  /**
+   * **안 쓴 편집은 시각이 못 말한다** (2026-09-28 감사 C, A-2). 시각은 브라우저에 쓴 때만
+   * 오르므로, 내보낸 뒤 고친 것이 저장에 실패하면 `savedAt`이 내보낸 시각보다 앞에 멈춘 채
+   * "exported"가 섰다 — 그 편집은 파일에도 브라우저에도 없었다.
+   */
+  it('안 쓴 편집이 있으면 시각과 무관하게 stale이다', () => {
+    expect(exportStateOf('2026-08-18T09:00:00.000Z', '2026-08-18T10:00:00.000Z', true)).toBe(
+      'stale',
+    )
+    expect(exportStateOf(null, '2026-08-18T10:00:00.000Z', true)).toBe('stale')
   })
 
   /**
@@ -603,9 +683,13 @@ describe('내보낸 파일이 지금 작업과 얼마나 어긋나 있는가', (
    */
   it('오프셋이 든 시각도 실제 시각으로 잰다', () => {
     // 05:00-09:00 = 14:00Z 저장 > 10:00Z 내보냄. 사전순이면 '05' < '10'이라 뒤집힌다.
-    expect(exportStateOf('2026-08-18T05:00:00-09:00', '2026-08-18T10:00:00.000Z')).toBe('stale')
+    expect(exportStateOf('2026-08-18T05:00:00-09:00', '2026-08-18T10:00:00.000Z', false)).toBe(
+      'stale',
+    )
     // 다음 날 05:00+09:00 = 20:00Z 저장 < 21:00Z 내보냄. 사전순이면 날짜가 커서 뒤집힌다.
-    expect(exportStateOf('2026-08-19T05:00:00+09:00', '2026-08-18T21:00:00.000Z')).toBe('exported')
+    expect(exportStateOf('2026-08-19T05:00:00+09:00', '2026-08-18T21:00:00.000Z', false)).toBe(
+      'exported',
+    )
   })
 })
 

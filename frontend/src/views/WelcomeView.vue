@@ -35,7 +35,7 @@ import type { DataType } from '@/project/schema'
 import { readFileBytes } from '@/project/download'
 import { MLPX_ACCEPT, readProject } from '@/project/format'
 import { deleteProject, listProjects, saveProject, type ProjectSummary } from '@/project/storage'
-import { claimTabLock, withTabLock } from '@/project/tab-lock'
+import { claimTabLock, releaseTabLock, withTabLock } from '@/project/tab-lock'
 import { useWork } from '@/composables/useWork'
 import { toMessage } from '@/errors'
 import { useGate } from '@/locks'
@@ -230,6 +230,13 @@ async function create(): Promise<void> {
  *
  * 잡은 것은 놓지 않고 편집 화면으로 넘긴다 - 라우터가 곧 부르는 `open`이 같은 잠금을
  * 지름길로 통과한다.
+ *
+ * **넘기기 전에 실패하면 놓는다** (2026-09-28 감사 C, C-3). 저장이 거절되면 학생은 목록에
+ * 남는데, 잡은 자물쇠가 그대로면 **아무도 안 여는 프로젝트를 이 탭이 쥔 채**라 다른 탭이
+ * 그것을 열면 *"다른 탭에서 열려 있습니다"*가 떴다. **잡기 전의 실패에서는 놓지 않는다** —
+ * `claimTabLock`은 거절당하면 쥐던 것을 그대로 두므로(`tab-lock.ts`의 `acquireOne`), 거기서
+ * 놓으면 이 탭이 쥔 다른 자물쇠를 버린다. `welcome-fail.spec.ts`의
+ * *"가져오기가 실패하면 잡은 자물쇠만 놓는다"*가 문다.
  */
 async function openFile(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
@@ -239,10 +246,14 @@ async function openFile(event: Event): Promise<void> {
   if (!picked || busy.value) return
 
   const job = start()
+  /** 잡았는데 아직 라우터에 넘기지 않았는가. 넘긴 뒤로는 스토어의 `open`·`close`가 맡는다. */
+  let holding = false
   try {
     const { project: opened, integrity } = await readProject(await readFileBytes(picked))
     await claimTabLock(opened.document.manifest.projectId)
+    holding = true
     await saveProject(opened)
+    holding = false
     await openProject(opened.document.manifest.projectId)
     // 고쳐졌다고 열어 주지 않을 이유는 없다. 다만 말은 해 준다 (mlpx-spec.md §7.3).
     //
@@ -255,6 +266,7 @@ async function openFile(event: Event): Promise<void> {
       toasts.push('caution', 'project.openModified')
     }
   } catch (error) {
+    if (holding) releaseTabLock()
     toasts.pushError(error)
   } finally {
     job.done()
