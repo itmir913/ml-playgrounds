@@ -20,10 +20,17 @@ import { thirdPartyNotices } from './scripts/notices.js'
  */
 const notices = thirdPartyNotices()
 
+/**
+ * **플러그인 시간 보고를 끈다.** rolldown은 빌드마다 "플러그인이 몇 %를 썼다"를 경고처럼
+ * 찍는다. 정상 범위에서도 나오고 읽어도 할 일이 없어, CI 로그에서 진짜 경고를 묻는다.
+ * 빌드가 느려지면 `node --cpu-prof`로 따로 잰다. 워커도 별도 빌드라 양쪽에 건다.
+ */
+const quietChecks = { pluginTimings: false }
+
 // Tailwind v4는 설정 파일이 없다. 테마는 src/styles/theme.css 안에서 정의한다.
 export default defineConfig({
   plugins: [vue(), tailwindcss(), notices.emit],
-  worker: { plugins: () => [notices.collect] },
+  worker: { plugins: () => [notices.collect], rolldownOptions: { checks: quietChecks } },
   /**
    * **배포 경로가 둘이라 base를 상대 경로로 고정한다.**
    *
@@ -72,6 +79,7 @@ export default defineConfig({
      * 봐야 하는 것이고, 첫 화면에 무거운 것이 들어오면 index가 자라서 걸린다.
      */
     chunkSizeWarningLimit: 1000,
+    rolldownOptions: { checks: quietChecks },
   },
   test: {
     /**
