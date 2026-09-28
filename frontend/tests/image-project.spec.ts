@@ -220,6 +220,43 @@ describe('사진을 프로젝트에 앉힌다', () => {
     addImages(before, [baked('a', '개')], { canonicalSize: SIZE, now: NOW, format: 'webp' })
     expect(before.images.size).toBe(0)
   })
+
+  /**
+   * **사진이 한 장도 안 앉으면 참조를 세우지 않는다** (2026-09-28 감사 A-1). 굽기가 전부
+   * 건너뛴 묶음이 여기로 빈 목록으로 온다. 참조만 서면 본체 없는 폴더 참조가 저장되어
+   * `writeProject`가 내보내기를, `loadProject`가 다시 열기를 거부한다.
+   */
+  it('사진이 한 장도 안 앉으면 참조를 세우지 않는다', async () => {
+    const { writeProject } = await import('../src/project/format')
+    for (const role of ['data', 'test', 'predict'] as const) {
+      const before = emptyProject()
+      const applied = addImages(before, [], { canonicalSize: SIZE, now: NOW, role, format: 'webp' })
+      expect(applied.project, `${role}: the project must be untouched`).toBe(before)
+      await expect(writeProject(applied.project, '# x\n')).resolves.toBeDefined()
+    }
+  })
+})
+
+describe('테스트 사진이 한 장도 안 앉으면', () => {
+  it('테스트 사진이 한 장도 안 앉으면 실험을 지우지 않는다', () => {
+    const base = withPhotos({ hash: 'a', category: '개' })
+    const withRun: ProjectFile = {
+      ...base,
+      document: {
+        ...base.document,
+        runs: {
+          experiments: [
+            { id: 'experiment-1', startedAt: NOW, settings: {}, runs: [] },
+          ] as unknown as ProjectFile['document']['runs']['experiments'],
+        },
+      },
+    }
+    const applied = applyTestImages(withRun, [], { canonicalSize: SIZE, now: NOW, format: 'webp' })
+    expect(applied.project).toBe(withRun)
+    expect(applied.droppedExperiments).toBe(0)
+    expect(applied.project.document.settings.split.method).toBe('holdout')
+    expect(dataSettings('image', applied.project.document.settings).testDataset).toBeUndefined()
+  })
 })
 
 describe('범주를 옮기고 고친다', () => {

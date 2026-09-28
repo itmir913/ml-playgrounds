@@ -337,6 +337,17 @@ async function readPicked(files: readonly File[]): Promise<void> {
     const baked = await baking.result
     if (!ours()) return
 
+    /**
+     * **한 장도 못 구웠으면 저장하지 않는다** (2026-09-28 감사 A-1). 앉히면 사진 없는 예측
+     * 참조가 남아 내보내기와 다시 열기가 둘 다 막혔다. 건너뛴 것만 말하고, 사진이 안
+     * 바뀌었으니 답도 그대로 둔다. 무는 검사: `image-predict-fail.spec.ts`의
+     * *"예측 사진이 전부 건너뛰면 저장하지 않는다"*.
+     */
+    if (baked.images.length === 0) {
+      toasts.push('caution', 'data.image.skipped', { count: baked.skipped.length })
+      return
+    }
+
     // **굽는 동안 예측이 돌았을 수 있다** — 그 임베딩을 안 잃으려면 붙든 파일이 아니라
     // 지금 파일에 얹는다 (architecture.md §8.10.3, 2026-09-02 R20 A-2).
     await project.save(

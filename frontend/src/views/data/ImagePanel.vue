@@ -377,6 +377,16 @@ async function bake(): Promise<void> {
       clearIfHeld(pending, items)
       return
     }
+    /**
+     * **한 장도 못 구웠으면 저장하지 않는다** (2026-09-28 감사 A-1). 성공 알림 대신 건너뛴
+     * 것만 말하고 **판을 남긴다** — `seated`가 거짓이라 아래 `finally`가 접지 않는다. 앉히면
+     * 본체 없는 참조가 남아 내보내기와 다시 열기가 둘 다 막혔다. 무는 검사:
+     * `image-panel-fail.spec.ts`의 *"전부 건너뛰면 저장하지 않고 판을 남긴다"*.
+     */
+    if (result.images.length === 0) {
+      toasts.push('caution', 'data.image.skipped', { count: result.skipped.length })
+      return
+    }
     // **굽는 동안 파일이 달라졌을 수 있다** — 붙든 것이 아니라 지금 파일에 얹는다
     // (architecture.md §8.10.3). 셈은 얹은 결과에서 나오므로 여기서 받아 둔다.
     let counts = { added: 0, duplicates: 0 }

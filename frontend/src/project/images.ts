@@ -259,6 +259,15 @@ export function applyTestImages(
   options: AddImagesOptions,
 ): AddedImages & { readonly droppedExperiments: number } {
   const added = addImages(project, baked, { ...options, role: 'test' })
+  /**
+   * **테스트 사진이 한 장도 없으면 아무것도 안 바꾼다** (2026-09-28 감사 A-1). 분할을
+   * `provided`로 돌리고 실험을 지운 채 사진 없는 참조가 남으면, 완성된 프로젝트가 한 번의
+   * 업로드로 내보내기도 다시 열기도 못 하게 된다. 무는 검사: `image-project.spec.ts`의
+   * *"테스트 사진이 한 장도 안 앉으면 실험을 지우지 않는다"*.
+   */
+  if (readImages(added.project, 'test').length === 0) {
+    return { ...added, project, droppedExperiments: 0 }
+  }
   const { document } = added.project
   return {
     ...added,
@@ -408,6 +417,18 @@ export function addImages(
     }
   }
 
+  /**
+   * **그 자리에 사진이 한 장도 없으면 참조를 세우지 않는다** (2026-09-28 감사 A-1).
+   *
+   * 굽기가 전부 건너뛰면(HEIC처럼 못 읽는 파일만 온 묶음) 여기로 빈 목록이 온다. 그때
+   * 참조를 세우면 **본체 없는 폴더 참조**가 저장되고, `writeProject`가 내보내기를,
+   * `loadProject`가 다시 열기를 거부해 **프로젝트가 브라우저 밖으로 영영 못 나간다.**
+   * 무는 검사: `image-project.spec.ts`의 *"사진이 한 장도 안 앉으면 참조를 세우지 않는다"*.
+   */
+  const seated = [...images.keys()].some((path) => path.startsWith(ROLE_REFERENCE[role].path))
+  if (!seated) {
+    return { project, added, duplicates }
+  }
   const reference = {
     path: ROLE_REFERENCE[role].path,
     canonicalSize: options.canonicalSize,

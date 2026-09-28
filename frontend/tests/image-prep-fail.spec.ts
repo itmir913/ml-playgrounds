@@ -160,6 +160,40 @@ async function panelWithDropzone(withExperiment = false) {
 
 const dangers = () => useToastStore().items.filter((one) => one.tone === 'danger')
 
+/**
+ * **전부 건너뛰면 저장하지 않는다** (2026-09-28 감사 A-1). 여기서 저장하면 실험이 지워지고
+ * 사진 없는 테스트 참조가 남아 **완성된 프로젝트가 내보내기도 다시 열기도 못 했다.**
+ */
+describe('A-1: every test photo is skipped', () => {
+  it('테스트 사진이 전부 건너뛰면 저장하지 않는다', async () => {
+    const { project, drop, panel } = await panelWithDropzone()
+    // **저장을 부르지 않는 것을 본다.** `applyTestImages`가 빈 목록이면 입력을 그대로 돌려주므로
+    // 파일만 보면 화면의 거름이 빠져도 초록이다.
+    const saving = vi.spyOn(project, 'save')
+    await drop([photo('개', 'a.heic'), photo('고양이', 'b.heic')])
+    expect(bakers.workers).toHaveLength(1)
+    bakers.workers[0]?.onmessage?.({
+      data: {
+        type: 'done',
+        format: 'webp',
+        images: [],
+        skipped: [{ sourceName: '개/a.heic' }, { sourceName: '고양이/b.heic' }],
+      },
+    } as unknown as MessageEvent<never>)
+    await settle()
+
+    expect(saving, 'the panel must not save').not.toHaveBeenCalled()
+    expect(project.file?.document.settings.split.method).not.toBe('provided')
+    expect(project.file?.document.settings.data).not.toHaveProperty('testDataset')
+    expect(useToastStore().items.map((one) => `${one.tone}:${one.key}`)).toEqual([
+      'caution:data.image.skipped',
+    ])
+    expect(panel.busy).toBe(false)
+    const { writeProject } = await import('../src/project/format')
+    await expect(writeProject(project.file!, '# x\n')).resolves.toBeDefined()
+  })
+})
+
 describe('R23: worker dies while baking test photos', () => {
   it('unlocks, nothing seated, student is told, zone invites again', async () => {
     const { project, wrapper, zone, drop, panel } = await panelWithDropzone()

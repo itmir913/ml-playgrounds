@@ -272,6 +272,39 @@ describe('R23: reading fails', () => {
 })
 
 /**
+ * **전부 건너뛰면 저장하지 않는다** (2026-09-28 감사 A-1). 윈도 크롬에 아이폰 HEIC만 놓으면
+ * 워커가 한 장도 못 굽는다. 그때 저장하면 사진 없는 참조가 남아 **내보내기와 다시 열기가 둘 다
+ * 막혔다** — 화면은 "0장을 추가했습니다"라고 성공을 말했다.
+ */
+describe('A-1: every photo is skipped', () => {
+  it('전부 건너뛰면 저장하지 않고 판을 남긴다', async () => {
+    const { project, panel, wrapper } = await panelWithPending()
+    // **저장을 부르지 않는 것을 본다.** `addImages`가 빈 목록에 참조를 안 세우므로 파일만 보면
+    // 화면의 거름이 빠져도 초록이다.
+    const saving = vi.spyOn(project, 'save')
+    const baking = panel.bake()
+    await flushPromises()
+    bakers.workers[0]?.onmessage?.({
+      data: { type: 'done', format: 'webp', images: [], skipped: [{ sourceName: 'a.jpg' }] },
+    } as unknown as MessageEvent<never>)
+    await baking
+    await settle()
+
+    expect(saving, 'the panel must not save').not.toHaveBeenCalled()
+    expect((project.file?.document.settings.data as { dataset?: unknown }).dataset).toBeUndefined()
+    expect(useToastStore().items.map((one) => `${one.tone}:${one.key}`)).toEqual([
+      'caution:data.image.skipped',
+    ])
+    expect(panel.pending?.map((one) => one.path)).toEqual(['a.jpg'])
+    expect(panel.busy).toBe(false)
+
+    const { writeProject } = await import('../src/project/format')
+    await expect(writeProject(project.file!, '# x\n')).resolves.toBeDefined()
+    wrapper.unmount()
+  })
+})
+
+/**
  * **저장이 거절돼도 확인 판은 접힌다** (2026-09-02 R23 B-1). 표 화면과 같은 병이고
  * 자리만 이미지다 — 사진은 이미 화면에 앉았는데 판이 남아, 다시 누르면 워커가 한 번
  * 더 돌고 아무것도 새로 안 뜬다.

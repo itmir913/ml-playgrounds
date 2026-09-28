@@ -113,7 +113,13 @@ export function fakeCanonicalizeWorker(): CanonicalizeWorker {
 
 export const HARNESS_BACKBONE = backboneFor(DEFAULT_BACKBONE_ID)
 
-/** 예측 자리에 사진이 든 이미지 프로젝트. `seeds` 하나가 사진 하나다. */
+/**
+ * 예측 자리에 사진이 든 이미지 프로젝트. `seeds` 하나가 사진 하나다.
+ *
+ * **`seeds`가 비면 예측 참조도 없다** (2026-09-28 감사 A-1). 전에는 빈 목록에도 참조가 서서
+ * 이 픽스처가 **내보내기도 다시 열기도 안 되는 상태**를 스무 곳 넘게 깔아 주고 있었다.
+ * `image-project.spec.ts`의 *"사진이 한 장도 안 앉으면 참조를 세우지 않는다"*가 문다.
+ */
 export function imagePredictProject(seeds: readonly string[]): ProjectFile {
   const backbone = HARNESS_BACKBONE
   if (!backbone) throw new Error('backbone not found')

@@ -321,6 +321,17 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
     const baked = await baking.result
     if (!ours()) return
 
+    /**
+     * **한 장도 못 구웠으면 저장하지 않는다** (2026-09-28 감사 A-1). 여기서 `applyTestImages`에
+     * 닿으면 실험을 지우고 사진 없는 참조를 남겨, 완성된 프로젝트가 내보내기도 다시 열기도
+     * 못 하게 됐다. 성공 알림 대신 건너뛴 것만 말한다. 무는 검사: `image-prep-fail.spec.ts`의
+     * *"테스트 사진이 전부 건너뛰면 저장하지 않는다"*.
+     */
+    if (baked.images.length === 0) {
+      toasts.push('caution', 'data.image.skipped', { count: baked.skipped.length })
+      return
+    }
+
     const byPath = new Map(items.map((item) => [item.path, item.category]))
     // **굽는 동안 파일이 달라졌을 수 있다** — 지금 파일에 얹는다 (architecture.md §8.10.3).
     let counts = { added: 0, droppedExperiments: 0 }

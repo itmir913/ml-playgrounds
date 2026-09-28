@@ -277,6 +277,45 @@ describe('R23: canonicalize worker dies while adding photos', () => {
 })
 
 /**
+ * **전부 건너뛰면 저장하지 않는다** (2026-09-28 감사 A-1). 앉히면 사진 없는 예측 참조가 남아
+ * 내보내기와 다시 열기가 둘 다 막혔다.
+ */
+describe('A-1: every predict photo is skipped', () => {
+  it('예측 사진이 전부 건너뛰면 저장하지 않는다', async () => {
+    const project = useProjectStore()
+    await project.save(withUsableModel(imagePredictProject([])))
+    const before = project.file
+    // **저장을 부르지 않는 것까지 본다.** `addImages`가 빈 목록에 참조를 안 세우므로 파일만
+    // 보면 화면의 거름이 빠져도 초록이다 — 그때는 답이 지워지고 쓰기가 한 번 돈다.
+    const saving = vi.spyOn(project, 'save')
+    const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const panel = wrapper.vm as unknown as PanelInternals
+
+    panel.onDrop(dropEvent([new File([new Uint8Array([9])], 'IMG_1.HEIC')]))
+    await flushPromises()
+    await tick()
+    await flushPromises()
+    expect(bakers.workers).toHaveLength(1)
+    bakers.workers[0]?.onmessage?.({
+      data: { type: 'done', format: 'webp', images: [], skipped: [{ sourceName: 'IMG_1.HEIC' }] },
+    } as unknown as MessageEvent<never>)
+    await settle()
+
+    expect(saving, 'the panel must not save').not.toHaveBeenCalled()
+    expect(project.file, 'nothing may be written').toBe(before)
+    expect(project.file?.document.settings.data).not.toHaveProperty('predictDataset')
+    expect(useToastStore().items.map((one) => `${one.tone}:${one.key}`)).toEqual([
+      'caution:data.image.skipped',
+    ])
+    expect(panel.busy).toBe(false)
+    const { writeProject } = await import('../src/project/format')
+    await expect(writeProject(project.file!, '# x\n')).resolves.toBeDefined()
+    wrapper.unmount()
+  })
+})
+
+/**
  * **굽거나 뽑는 동안 다른 프로젝트로 옮겨도 그쪽에 안 앉는다** (`stores/project.ts`의 `claim`).
  *
  * 앱에서는 `App.vue`의 화면 키가 옮기는 순간 이 판을 새로 띄운다(`project-switch-remount.spec.ts`).
