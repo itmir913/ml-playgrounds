@@ -119,7 +119,7 @@
 | `docs/mlpx-spec.md` | 프로젝트 파일 포맷·무결성 |
 | `docs/roadmap.md` | 이 기능이 지금 범위인지 |
 | `docs/open-decisions.md` | **구현 전 반드시.** 미결정 절만 통독하고, 결정됨은 가리킬 때 편다 |
-| `docs/workflow.md` | 작업 리듬·관문·커밋·버전 |
+| `docs/workflow.md` · `docs/acceptance.md` | 작업 리듬·관문·커밋·버전 · "인수 테스트 시작"을 들었을 때 |
 | `docs/i18n.md` · `docs/copy.md` · `docs/terms.md` | 로케일 구조 · 화면 문구 · 낱말 |
 | `docs/info.md` | 이 저장소가 무엇이고 누구를 위한 것인지 — 규칙이 아니라 소개 |
 | `docs/rule-coverage.md` | 이 규약을 무엇이 지키는가 |
