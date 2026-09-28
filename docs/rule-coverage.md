@@ -53,6 +53,7 @@
 | §2 앱 밖으로 나가는 주소는 **절대 주소**이고, 규정 경로는 **전부 상대 경로**다 | `links.spec.ts` · `links.ts` · `legal.ts` |
 | §4 소스를 글자로 훑는 규칙은 **prettier가 편 모양의 표본을 갖는다** | `ui-rules.spec.ts` |
 | §4 여는 태그를 자를 때 **따옴표 안의 `>`를 태그 끝으로 안 읽는다** | `ui-rules.spec.ts` |
+| §4 소스에 **날것 bidi·C1 문자가 없다**(Trojan Source) — `src`·`tests`의 코드·로케일·스타일만 본다. 문서(`docs/`)와 폭 없는 공백(U+200B)은 못 본다 | `source-characters.spec.ts` |
 | §4 확인 모달이 걸린 라디오는 **그룹째 되돌린다** | `ui-rules.spec.ts` · `radio-guard.spec.ts` |
 | §4 배색이 바뀌면 그림이 **토큰을 다시 읽는다** | `cluster-scatter.spec.ts` · `chart-tokens.spec.ts` · `ui-rules.spec.ts` |
 | §4 붙박이 바는 **떠날 때 자기 높이를 치운다** | `shell.spec.ts` · `step-action-bar.spec.ts` |

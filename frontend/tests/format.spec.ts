@@ -34,7 +34,12 @@ vi.mock('fflate', async (importOriginal) => {
 })
 
 import { isClientError } from '../src/errors'
-import { MAX_FAILURE_DETAIL_LENGTH, MAX_MODEL_BYTES } from '../src/limits'
+import {
+  MAX_FAILURE_DETAIL_LENGTH,
+  MAX_FILE_NAME_BYTES,
+  MAX_FILE_NAME_LENGTH,
+  MAX_MODEL_BYTES,
+} from '../src/limits'
 import {
   ENTRY,
   MLPX_EXTENSION,
@@ -943,6 +948,94 @@ describe('projectFileName', () => {
     const long = { ...manifest, name: '가'.repeat(300) }
     expect(projectFileName(long).length).toBeLessThan(120)
   })
+
+  /**
+   * **파일 이름은 범주와 같은 규칙으로 고친다** (2026-09-28 감사 A C-2). 전에는 범주만 예약
+   * 장치 이름과 DEL을 막아서 `CON.mlpx`가 나갔고, 한글 100자가 300바이트가 되어 운영체제의
+   * 한 이름 한계(255바이트)를 넘었다.
+   */
+  const utf8 = (text: string): number => new TextEncoder().encode(text).length
+  const stemOf = (fileName: string): string => fileName.slice(0, -MLPX_EXTENSION.length)
+
+  it('윈도우 예약 장치 이름은 첫 토막 뒤에 _를 붙인다', () => {
+    const named = (name: string) => projectFileName({ ...manifest, name })
+    expect(named('CON')).toBe(`CON_${MLPX_EXTENSION}`)
+    expect(named('nul.txt')).toBe(`nul_.txt${MLPX_EXTENSION}`)
+    expect(named('com1')).toBe(`com1_${MLPX_EXTENSION}`)
+    // 예약 이름으로 시작할 뿐인 이름은 그대로다.
+    expect(named('CONSOLE')).toBe(`CONSOLE${MLPX_EXTENSION}`)
+    // 학번이 앞에 붙으면 첫 토막이 달라지므로 안 건드린다.
+    expect(projectFileName({ ...manifest, name: 'AUX', student: { studentId: '10203' } })).toBe(
+      `10203_AUX${MLPX_EXTENSION}`,
+    )
+  })
+
+  it('C1 제어문자·DEL·양방향 서식 문자를 걷는다', () => {
+    const hidden = `a\u202eb\u0085c\u007fd\u200fe\u2066f`
+    expect(projectFileName({ ...manifest, name: hidden })).toBe(`abcdef${MLPX_EXTENSION}`)
+  })
+
+  it('확장자까지 합친 UTF-8 바이트가 한계를 안 넘는다', () => {
+    const long = {
+      ...manifest,
+      name: '가'.repeat(300),
+      student: { studentId: '1'.repeat(20), name: '나'.repeat(30) },
+    }
+    const fileName = projectFileName(long)
+    expect(fileName.endsWith(MLPX_EXTENSION)).toBe(true)
+    expect(utf8(fileName)).toBeLessThanOrEqual(MAX_FILE_NAME_BYTES)
+    // 한계에 붙어서 자른다 — 한 글자(3바이트)를 더 넣으면 넘는다.
+    expect(utf8(fileName) + utf8('가')).toBeGreaterThan(MAX_FILE_NAME_BYTES)
+  })
+
+  it('글자 수 한계는 그대로다 - 영문 긴 이름은 글자 수에서 먼저 잘린다', () => {
+    const fileName = projectFileName({ ...manifest, name: 'a'.repeat(300) })
+    expect(stemOf(fileName)).toBe('a'.repeat(MAX_FILE_NAME_LENGTH))
+  })
+
+  /**
+   * **자른 결과가 예약 이름이 되면 다시 피한다.** `CON` 뒤의 자소 하나가 결합 문자를 잔뜩 달고
+   * 한계를 넘으면 그 자소째 빠져 `CON`만 남는다 — 먼저 피할 때는 첫 토막이 그 긴 자소까지라
+   * 예약이 아니었다.
+   */
+  it('자른 결과가 예약 이름이 되면 다시 피한다', () => {
+    const heavy = `a${String.fromCodePoint(0x0308).repeat(300)}`
+    expect(projectFileName({ ...manifest, name: `CON${heavy}` })).toBe(`CON_${MLPX_EXTENSION}`)
+  })
+
+  it('이모지 가족을 가운데서 끊지 않는다', () => {
+    const zwj = String.fromCodePoint(0x200d)
+    const family = [0x1f469, 0x1f469, 0x1f467, 0x1f466]
+      .map((code) => String.fromCodePoint(code))
+      .join(zwj)
+    // 앞의 한 글자가 경계를 가족 사이에서 비킨다 — 가족 하나가 25바이트라 이것이 없으면
+    // 한계가 우연히 가족 경계에 떨어져, 자소를 안 봐도 이 검사가 초록이었다.
+    const fileName = projectFileName({ ...manifest, name: `x${family.repeat(100)}` })
+    const stem = stemOf(fileName)
+    expect(stem.length, 'something must survive').toBeGreaterThan(1)
+    expect(stem.slice(1).split(family).join(''), 'only whole families').toBe('')
+    expect(utf8(fileName)).toBeLessThanOrEqual(MAX_FILE_NAME_BYTES)
+  })
+})
+
+/**
+ * **기기 시계가 zip이 담을 수 없는 해여도 내보낸다** (2026-09-28 감사 A C-1). zip의 날짜 칸은
+ * 1980~2099년이고 fflate는 그 밖이면 던진다. 배터리가 다 된 기기는 시계가 1970년으로 돌아간다.
+ */
+describe('기기 시계가 zip이 담을 수 없는 해여도 내보낸다', () => {
+  for (const clock of ['1970-01-02T00:00:00', '2100-06-01T00:00:00']) {
+    it(`시계가 ${clock}`, async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date(clock))
+      try {
+        const { bytes } = await writeProjectBytes(projectFile(), '# 정리\n')
+        const { project } = await readProject(bytes)
+        expect(project.document.manifest.name).toBe(manifest.name)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  }
 })
 
 describe('포트폴리오 첨부', () => {

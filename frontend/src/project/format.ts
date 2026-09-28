@@ -16,10 +16,21 @@
 
 import { unzip, Zip, ZipPassThrough, type Unzipped, type UnzipFileFilter } from 'fflate'
 
+import {
+  CONTROL_CHARACTERS,
+  escapeWindowsReserved,
+  FORBIDDEN_IN_NAME,
+  stripInvisibleFormatting,
+} from '../data/file-name-rules'
 import { decodeZipNames } from '../data/zip-names'
 import { ClientError } from '../errors'
 import { hashBytes } from '../hash'
-import { MAX_FILE_NAME_LENGTH, MAX_MODEL_BYTES, MODEL_BUDGET_BYTES } from '../limits'
+import {
+  MAX_FILE_NAME_BYTES,
+  MAX_FILE_NAME_LENGTH,
+  MAX_MODEL_BYTES,
+  MODEL_BUDGET_BYTES,
+} from '../limits'
 import { backboneFor } from '../ml/backbones'
 import { escapesArchive } from './entry-path'
 import {
@@ -176,13 +187,6 @@ export const IMAGE_UNLABELED = '_unlabeled'
  * model/ 아래도 아니다 - 모델이 빠진 파일은 지표만 남은 정상적인 파일이다.
  * hashes.json도 아니다 - 옛 파일에는 아예 없고, 없으면 "확인할 수 없음"일 뿐이다.
  */
-
-/**
- * 파일명에 쓸 수 없는 문자.
- *
- * 한글은 건드리지 않는다. 하이픈도 남긴다 - 1-2-03 같은 학번 체계가 실재한다.
- */
-const FORBIDDEN_IN_FILE_NAME = /[\\/:*?"<>|]/g
 
 /**
  * 정본 데이터셋. **바이트와 해시를 쪼갤 수 없게 한 객체로 묶는다.**
@@ -404,6 +408,30 @@ async function unzipAsync(bytes: Uint8Array, filter?: UnzipFileFilter): Promise<
 }
 
 /**
+ * zip 엔트리 시각(DOS 날짜)이 담을 수 있는 해의 처음과 끝. **zip 명세가 정한 칸의 크기다** —
+ * 1980년부터 7비트(0~119)라 2099년까지다.
+ */
+const ZIP_FIRST_YEAR = 1980
+const ZIP_LAST_YEAR = 2099
+
+/**
+ * zip 엔트리에 적을 시각. **기기 시계가 담을 수 있는 해 밖이면 가장 가까운 끝으로 당긴다**
+ * (2026-09-28 감사 A C-1).
+ *
+ * fflate는 그 밖의 시각을 받으면 **던진다** — `node_modules/fflate/esm/browser.js`의 `wzh`가
+ * `if (y < 0 || y > 119) err(10)`("date not in range 1980-2099"). 배터리가 다 된 기기는 시계가
+ * 1970년으로 돌아가는 일이 실재하고, 그러면 **학생의 유일한 반출 경로가 시계 하나로 막힌다.**
+ * 이 시각은 아무도 안 읽는다(우리 읽기도 무결성도 보지 않는다). 무는 검사: `format.spec.ts`의
+ * *"기기 시계가 zip이 담을 수 없는 해여도 내보낸다"*.
+ */
+export function zipModifiedTime(now: Date = new Date()): Date {
+  const year = now.getFullYear()
+  if (year < ZIP_FIRST_YEAR) return new Date(ZIP_FIRST_YEAR, 0, 1)
+  if (year > ZIP_LAST_YEAR) return new Date(ZIP_LAST_YEAR, 0, 1)
+  return now
+}
+
+/**
  * 엔트리를 zip으로 **흘려 담는다.** 완성된 `Uint8Array`를 만들지 않는다.
  *
  * **모든 엔트리를 무압축(STORE, method 0)으로 담는다** (open-decisions.md 68, 2026-09-28
@@ -429,6 +457,7 @@ async function unzipAsync(bytes: Uint8Array, filter?: UnzipFileFilter): Promise<
  * 보안 컨텍스트가 아니라 아예 없다.
  */
 async function zipToBlob(entries: Record<string, Uint8Array>): Promise<Blob> {
+  const mtime = zipModifiedTime()
   return new Promise((resolve, reject) => {
     const parts: Uint8Array[] = []
     let settled = false
@@ -457,6 +486,7 @@ async function zipToBlob(entries: Record<string, Uint8Array>): Promise<Blob> {
     try {
       for (const [path, bytes] of Object.entries(entries)) {
         const file = new ZipPassThrough(path)
+        file.mtime = mtime
         stream.add(file)
         file.push(bytes, true)
       }
@@ -1127,17 +1157,59 @@ export async function writeProject(
   return { blob: await zipToBlob(entries), dropped, contentHash: hashes.contentHash }
 }
 
+/**
+ * 이름 한 토막을 파일 이름에 쓸 수 있게 고친다. **거부하지 않고 걷는다** — 반출 경로라
+ * 저장은 항상 성공해야 한다. 무엇을 못 쓰는지는 범주 이름과 한 벌이다
+ * (`data/file-name-rules.ts`). 한글과 하이픈은 남긴다 - 1-2-03 같은 학번 체계가 실재한다.
+ * 무는 검사: `format.spec.ts`의 *"projectFileName"* 묶음.
+ */
 function sanitizeSegment(value: string): string {
   return (
-    [...value]
-      // 제어문자는 파일명에 들어갈 수 없다. 정규식에 넣으면 소스에 안 보이는 바이트가 남는다.
-      .filter((character) => character.charCodeAt(0) > 31)
+    // C1 제어문자와 양방향 서식 문자. 범주 판정에는 없는 몫이라 따로 걷는다.
+    [...stripInvisibleFormatting(value)]
+      .filter(
+        (character) =>
+          !CONTROL_CHARACTERS.test(character) && !FORBIDDEN_IN_NAME.includes(character),
+      )
       .join('')
-      .replace(FORBIDDEN_IN_FILE_NAME, '')
       .replace(/\s+/g, '')
       // 윈도우는 점으로 끝나는 이름을 거부한다.
       .replace(/^\.+|\.+$/g, '')
   )
+}
+
+/**
+ * 사람이 한 글자로 보는 단위(자소 묶음)로 쪼갠다. **이모지 가족(ZWJ 연결)과 서로게이트 쌍을
+ * 가운데서 끊지 않기 위해서다.** `Intl.Segmenter`가 없는 브라우저에서는 코드 포인트로
+ * 쪼갠다 — 서로게이트 쌍은 그래도 안 깨진다.
+ */
+function graphemesOf(text: string): readonly string[] {
+  if (typeof Intl.Segmenter !== 'function') return [...text]
+  return [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)].map(
+    (part) => part.segment,
+  )
+}
+
+/**
+ * 확장자 앞 토막을 한계 안으로 자른다 — **글자 수는 `MAX_FILE_NAME_LENGTH`, 확장자까지 합친
+ * UTF-8 바이트는 `MAX_FILE_NAME_BYTES`** (둘의 관계는 `limits.ts`). 자소 하나가 통째로 안
+ * 들어가면 그 앞에서 멈춘다.
+ */
+function fitStem(stem: string): string {
+  const encoder = new TextEncoder()
+  const budget = MAX_FILE_NAME_BYTES - encoder.encode(MLPX_EXTENSION).length
+  let kept = ''
+  let bytes = 0
+  let codePoints = 0
+  for (const grapheme of graphemesOf(stem)) {
+    const size = encoder.encode(grapheme).length
+    const count = [...grapheme].length
+    if (bytes + size > budget || codePoints + count > MAX_FILE_NAME_LENGTH) break
+    kept += grapheme
+    bytes += size
+    codePoints += count
+  }
+  return kept
 }
 
 /**
@@ -1156,6 +1228,15 @@ export function projectFileName(manifest: Manifest): string {
     .filter((value) => value.length > 0)
 
   // 전부 비면 projectId 앞자리를 쓴다. 언어에 기대지 않는 이름이 필요하다.
-  const joined = segments.length > 0 ? segments.join('_') : manifest.projectId.slice(0, 8)
-  return `${[...joined].slice(0, MAX_FILE_NAME_LENGTH).join('')}${MLPX_EXTENSION}`
+  const fallback = manifest.projectId.slice(0, 8)
+  const joined = segments.length > 0 ? segments.join('_') : fallback
+  // **예약 장치 이름을 피하고 자른 뒤, 한 번 더 피하고 자른다.** `CON`·`nul.txt`는 윈도우가
+  // 파일로 만들지 못한다(`data/file-name-rules.ts`). **자른 결과가 새로 예약 이름이 될 수 있다** —
+  // `CON` 뒤의 자소 하나가 결합 문자를 수십 개 달고 한계를 넘으면 그 자소째 빠져 `CON`만 남는다.
+  // 둘째 피하기가 더한 `_` 한 바이트로 한계를 넘으면 둘째 자르기가 꼬리를 덜어 낸다 — 첫 토막은
+  // 이미 `_`가 붙어 예약이 아니므로 꼬리를 덜어도 다시 예약이 되지 않는다. 무는 검사:
+  // `format.spec.ts`의 *"자른 결과가 예약 이름이 되면 다시 피한다"*.
+  const once = fitStem(escapeWindowsReserved(joined))
+  const fitted = fitStem(escapeWindowsReserved(once))
+  return `${fitted === '' ? fallback : fitted}${MLPX_EXTENSION}`
 }

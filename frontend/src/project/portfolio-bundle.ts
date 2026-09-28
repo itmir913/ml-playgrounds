@@ -16,7 +16,7 @@ import { zipSync } from 'fflate'
 
 import { ZIP_DEFLATE_LEVEL } from '../limits'
 import { escapesArchive } from './entry-path'
-import { ENTRY, type ProjectFile, withoutProjectExtension } from './format'
+import { ENTRY, type ProjectFile, withoutProjectExtension, zipModifiedTime } from './format'
 import { renderPortfolioMarkdown } from './portfolio'
 import { portfolioMarkdownText, type Translate } from './portfolio-text'
 
@@ -151,6 +151,8 @@ export function bundleOf(
       entriesOf(entry, folders[index] ?? folderFor(entry.label, index + 1), translate, locale),
     )
   }
-  const zipped = zipSync(files, { level: ZIP_DEFLATE_LEVEL })
+  // 시각은 zip이 담을 수 있는 해로 당긴다 — 밖이면 fflate가 던진다 (`format.ts`의
+  // `zipModifiedTime`). 무는 검사: `portfolio-bundle.spec.ts`의 *"기기 시계가 …여도 묶는다"*.
+  const zipped = zipSync(files, { level: ZIP_DEFLATE_LEVEL, mtime: zipModifiedTime() })
   return new Blob([zipped as unknown as BlobPart], { type: 'application/zip' })
 }

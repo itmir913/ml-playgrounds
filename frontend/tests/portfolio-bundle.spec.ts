@@ -7,7 +7,7 @@
  */
 
 import { unzipSync } from 'fflate'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   bundleOf,
@@ -170,6 +170,26 @@ describe('제출물 하나의 엔트리', () => {
     const markdown = new TextDecoder().decode(files[`홍길동/${ENTRY.portfolioMarkdown}`])
     expect(markdown).toContain('[meta.created]')
   })
+})
+
+/**
+ * **기기 시계가 zip이 담을 수 없는 해여도 묶는다** (2026-09-28 감사 A C-1). zip의 날짜 칸은
+ * 1980~2099년이고 fflate는 그 밖이면 던진다 — 교사의 묶음 내려받기가 시계 하나로 막힌다.
+ */
+describe('기기 시계가 zip이 담을 수 없는 해여도 묶는다', () => {
+  for (const clock of ['1970-01-02T00:00:00', '2100-06-01T00:00:00']) {
+    it(`시계가 ${clock}`, async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date(clock))
+      try {
+        const blob = bundleOf([{ label: '홍길동.mlpx', file: projectFile() }], label, 'ko')
+        const entries = unzipSync(new Uint8Array(await blob.arrayBuffer()))
+        expect(Object.keys(entries)).toEqual([`홍길동/${ENTRY.portfolioMarkdown}`])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  }
 })
 
 describe('묶음', () => {
