@@ -8,6 +8,7 @@
 
 import 'fake-indexeddb/auto'
 
+import { forceCloseDatabase } from 'fake-indexeddb'
 import { openDB } from 'idb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -928,6 +929,74 @@ describe('저장소의 방어 갈래', () => {
     expect(await loadProject(manifest.projectId)).toBeNull()
     expect(await readExportedAt(manifest.projectId)).toBeNull()
     expect(await listProjects()).toEqual([])
+  })
+})
+
+/**
+ * **브라우저가 연결을 비정상으로 닫아도 다음 쓰기는 산다** (2026-09-28 감사 A C-4).
+ *
+ * 아이패드 사파리는 앱을 오래 뒤에 두면 IndexedDB 연결을 끊는다. 닫힌 연결을 계속 캐시하면
+ * 새로고침 전까지 **모든 저장이 실패한다.** `fake-indexeddb`의 `forceCloseDatabase`가 그
+ * 비정상 닫힘(`close` 사건)을 흉내 낸다.
+ */
+describe('연결이 비정상으로 닫히면', () => {
+  it('연결이 비정상으로 닫히면 다음 쓰기가 새로 연다', async () => {
+    // 앱의 연결을 붙잡는다 — `idb`가 `close`를 들으려고 거는 자리에서 원본 연결을 본다.
+    const seen: IDBDatabase[] = []
+    const original = IDBDatabase.prototype.addEventListener
+    const spy = vi.spyOn(IDBDatabase.prototype, 'addEventListener').mockImplementation(function (
+      this: IDBDatabase,
+      ...args: Parameters<typeof original>
+    ) {
+      if (args[0] === 'close') seen.push(this)
+      original.apply(this, args)
+    })
+    try {
+      await saveProject(projectFile())
+      expect(seen, 'the app connection was not captured').toHaveLength(1)
+      forceCloseDatabase(seen[0] as unknown as Parameters<typeof forceCloseDatabase>[0])
+
+      const renamed = projectFile()
+      renamed.document = {
+        ...renamed.document,
+        manifest: { ...renamed.document.manifest, name: '끊긴 뒤에 고친 이름' },
+      }
+      await saveProject(renamed)
+      expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe(
+        '끊긴 뒤에 고친 이름',
+      )
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  /**
+   * **옛 연결의 끊김이 새 연결을 떼지 않는다.** 놓은 뒤(`closeStorage`·`blocking`) 새로 연
+   * 연결이 서 있는데 옛 연결에 `close`가 뒤늦게 오면, 무조건 떼는 처리는 **멀쩡한 새 연결을
+   * 버리고** 다시 열게 만든다. 연 횟수로 잰다 — 새 연결이 살아 있으면 더 안 연다.
+   */
+  it('옛 연결이 끊겨도 지금 연결은 그대로 쓴다', async () => {
+    const seen: IDBDatabase[] = []
+    const original = IDBDatabase.prototype.addEventListener
+    const spy = vi.spyOn(IDBDatabase.prototype, 'addEventListener').mockImplementation(function (
+      this: IDBDatabase,
+      ...args: Parameters<typeof original>
+    ) {
+      if (args[0] === 'close') seen.push(this)
+      original.apply(this, args)
+    })
+    try {
+      await saveProject(projectFile())
+      closeStorage()
+      await saveProject(projectFile())
+      expect(seen, 'an old and a current connection').toHaveLength(2)
+
+      forceCloseDatabase(seen[0] as unknown as Parameters<typeof forceCloseDatabase>[0])
+      await saveProject(projectFile())
+      expect(seen, 'the current connection must not be dropped and reopened').toHaveLength(2)
+    } finally {
+      spy.mockRestore()
+    }
   })
 })
 

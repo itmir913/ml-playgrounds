@@ -144,7 +144,8 @@ export interface ProjectSummary {
 let connection: Promise<IDBPDatabase<PlaygroundDB>> | null = null
 
 function db(): Promise<IDBPDatabase<PlaygroundDB>> {
-  connection ??= openDB<PlaygroundDB>(DB_NAME, DB_VERSION, {
+  if (connection !== null) return connection
+  const opened: Promise<IDBPDatabase<PlaygroundDB>> = openDB<PlaygroundDB>(DB_NAME, DB_VERSION, {
     upgrade(database) {
       // 버전을 올려도 기존 store는 건드리지 않는다. 없는 것만 만든다.
       if (!database.objectStoreNames.contains(PREFERENCES_STORE)) {
@@ -179,13 +180,28 @@ function db(): Promise<IDBPDatabase<PlaygroundDB>> {
       connection = null
       void held?.then((database) => database.close())
     },
+    /**
+     * **브라우저가 연결을 비정상으로 닫으면 캐시에서 뗀다** (2026-09-28 감사 A C-4).
+     *
+     * 아이패드 사파리는 앱을 오래 뒤에 두면 *"Connection to Indexed Database server lost"*로
+     * 연결을 끊는다. 닫힌 연결을 계속 들고 있으면 **새로고침 전까지 모든 저장이 실패한다** —
+     * 그 사이에 쓴 글이 브라우저에 안 남는다. 떼 두면 다음 쓰기가 새로 연다.
+     *
+     * **내 것일 때만 뗀다.** 그 사이 `blocking`이 놓고 새 연결이 섰으면 그것은 멀쩡하다.
+     * 무는 검사: `storage.spec.ts`의 *"연결이 비정상으로 닫히면 다음 쓰기가 새로 연다"*,
+     * *"옛 연결이 끊겨도 지금 연결은 그대로 쓴다"*.
+     */
+    terminated() {
+      if (connection === opened) connection = null
+    },
   }).catch((error: unknown) => {
     // **실패한 약속을 붙들지 않는다.** 그대로 캐시하면 그 세션의 저장소 접근이 전부
     // 죽고, 되돌린 배포를 다시 올려도 새로고침 전까지 안 산다.
     connection = null
     throw asOpenError(error)
   })
-  return connection
+  connection = opened
+  return opened
 }
 
 /**
