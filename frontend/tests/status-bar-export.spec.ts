@@ -142,4 +142,82 @@ describe('상태 표시줄의 내보내기 상태', () => {
 
     await settlesTo(exportState, i18n.global.t('save.stale'), true)
   })
+
+  /**
+   * **정상 내보내기는 다시 열어도 "파일로 저장함"이다** (2026-09-28 감사 A, B-1 뒤).
+   *
+   * 내보낸 시각을 저장이 **끝나기 전에** 찍던 때는 그 뒤 앉는 `savedAt`이 늘 더 늦어서 정상
+   * 내보내기 뒤에도 "변경됨"이 섰다. 다시 열면 `savedAt`은 레코드의 `manifest.updatedAt`이므로
+   * 그 경로도 따로 잰다 — 새로고침을 `close` → `open`으로 흉내 낸다.
+   */
+  it('정상 내보내기는 다시 열어도 내보냄이다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+    const exportState = statusBar()
+    await exportWithButton()
+    await settlesTo(exportState, i18n.global.t('save.exported'), false)
+
+    const id = project.projectId
+    expect(id).not.toBeNull()
+    project.close()
+    expect(await project.open(id ?? '')).toBe('opened')
+    await settlesTo(exportState, i18n.global.t('save.exported'), false)
+  })
+
+  /**
+   * **쥔 뒤 저장이 끝나기 전에 고치면 "변경됨"이다** (C-5a를 닫는다).
+   *
+   * 앞선 쓰기가 도는 동안 내보내면 `flush`는 그 뒤에 줄을 서고, **제 차례에 지금 판을 읽어**
+   * 쓴다. 그 사이 고친 것은 저장되지만 나간 파일에는 없다. 그 뒤로 쓸 것이 없으니 저장 시각이
+   * 더 늦어지지 않는다 — 내보낸 시각을 저장이 끝난 "지금"으로 적으면 줄이 "파일로 저장함"이라고
+   * 거짓말한다. 여유 공간 묻기를 붙들어 앞선 쓰기를 멈춰 세운다.
+   */
+  it('쥔 뒤 저장이 끝나기 전에 고치면 변경됨이다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+    const exportState = statusBar()
+
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    Object.defineProperty(navigator, 'storage', {
+      configurable: true,
+      value: {
+        estimate: async () => {
+          await gate
+          return { quota: 10_000_000_000, usage: 0 }
+        },
+      },
+    })
+
+    // 앞선 쓰기 — 여유 공간 묻기에서 멈춘다.
+    const earlier = project.save((live) => ({
+      ...live,
+      document: {
+        ...live.document,
+        manifest: { ...live.document.manifest, name: '내보낼 판' },
+      },
+    }))
+    await project.exportFile('# 정리\n')
+    expect(downloads, 'the file must leave').toHaveLength(1)
+    // 쥔 뒤, 줄 선 `flush`가 제 차례를 받기 전에 고친다.
+    project.update((live) => ({
+      ...live,
+      document: {
+        ...live.document,
+        portfolio: {
+          ...live.document.portfolio,
+          answers: { ...live.document.portfolio.answers, motivation: '쥔 뒤에 쓴 글' },
+        },
+      },
+    }))
+    release()
+    await earlier
+
+    await vi.waitFor(() => {
+      expect(project.exportedAt, 'the export time must be recorded').not.toBeNull()
+    }, SETTLE_WAIT_MS)
+    await settlesTo(exportState, i18n.global.t('save.stale'), false)
+  })
 })

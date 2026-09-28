@@ -468,57 +468,75 @@ export const useProjectStore = defineStore('project', () => {
   /**
    * `.mlpx`를 내려받는다. **학생의 유일한 반출 경로다** (CLAUDE.md §1.1).
    *
-   * 미뤄 둔 저장을 먼저 끝낸다 - 방금 쓴 글이 빠진 파일이 나가면 안 된다.
-   * 담지 못한 모델을 돌려주므로 화면이 경고할 수 있다.
+   * **파일이 나가는 길은 IndexedDB를 기다리지 않는다** (2026-09-28 감사 A B-1). 파일의 내용은
+   * 아래에서 쥔 `current`가 전부 정한다 — 미뤄 둔 저장(`flush`)은 그 값을 브라우저에 쓸 뿐
+   * 파일에 한 글자도 보태지 않는다. 그런데 전에는 `await flush()`를 먼저 해서, 저장이 끝나지
+   * 않으면(막힌 트랜잭션, 닫힌 연결) **파일을 만드는 줄에 영영 닿지 못했다.** 그래서 저장은
+   * 시작만 하고, 파일을 만들어 내려보낸 뒤 돌아온다.
+   *
+   * 담지 못한 모델을 돌려주므로 화면이 경고할 수 있다. **돌아온 순간 파일은 이미 나갔다** —
+   * 내보낸 시각을 적는 일은 뒤에서 돈다. 무는 검사: `autosave.spec.ts`의
+   * *"저장이 끝나지 않아도 파일은 나간다"*.
    */
   async function exportFile(portfolioMarkdown: string): Promise<DroppedModel[]> {
-    // **저장이 실패해도 내보내기는 계속한다.** 라우터 가드와 같은 처방이다
-    // (router/index.ts) - 잡아서 알리되 막지 않는다.
-    //
-    // 막으면 무슨 일이 나는지가 이 try의 이유다. flush()는 저장소가 모자라면
-    // STORAGE_QUOTA_EXCEEDED를 던지는데, 그것을 그대로 올려보내면 아래 writeProject도
-    // downloadBlob도 한 줄을 못 돈다 - **파일을 만들 재료가 전부 메모리에 있고
-    // 저장소를 한 바이트도 안 쓰는 작업인데도 그렇다.** 게다가 write()는 실패해도
-    // dirty를 안 내리므로 그 뒤의 모든 내보내기가 같은 자리에서 죽는다.
-    // 서버가 없고 결과물이 파일 하나인 도구에서 그것은 **학생이 작업을 기기 밖으로
-    // 꺼낼 길이 없어진다**는 뜻이다 (CLAUDE.md §1.1·§1.3).
-    //
-    // 미뤄 둔 저장을 먼저 끝내려는 의도 자체는 옳다 - 방금 쓴 글이 빠진 파일이 나가면
-    // 안 된다. 그래서 버리지 않고 **알린 뒤 있는 값으로 내보낸다.**
-    //
-    // **내보낼 파일은 `flush()` 전에 쥔다.** 받은 마크다운은 지금 열린 프로젝트의 것이라,
-    // 저장을 기다리는 사이 프로젝트가 바뀌면 다시 읽은 파일에 남의 글이 실린다. `write()`는
-    // 파일을 읽기만 하므로 **쥔 순간에는** 저장할 내용과 같다. `autosave.spec.ts`의
+    // **내보낼 파일은 저장을 시작하기 전에 쥔다.** 받은 마크다운은 지금 열린 프로젝트의 것이라,
+    // 그 뒤에 프로젝트가 바뀌면 다시 읽은 파일에 남의 글이 실린다. `autosave.spec.ts`의
     // "저장을 기다리는 사이 프로젝트가 바뀌어도 쥔 프로젝트를 내보낸다"가 문다.
-    //
-    // **남는 틈 하나** — 쥔 뒤에 같은 프로젝트를 고치면 그 편집은 이 파일에 없는데, 자동 저장이
-    // 아래 시각보다 먼저 끝나면 화면이 "내보냄"이라고 말한다(`exportStateOf`는 시각을 견준다).
-    // 시각이 아니라 쥔 판으로 판정해야 닫힌다(0.29 C 국면의 패치 감사 C-5a, 다음 주기).
     const current = file.value
     if (current === null) return []
     const exportedId = current.document.manifest.projectId
-    try {
-      await flush()
-    } catch (error) {
+    /** 쥔 순간. 쥔 뒤에 고친 것이 있으면 내보낸 시각을 이것으로 적는다 — 아래 `at`. */
+    const capturedAt = new Date().toISOString()
+
+    // **저장은 시작만 하고 실패는 알린다.** 막지 않는 이유는 라우터 가드와 같다
+    // (router/index.ts) — 파일을 만들 재료는 전부 메모리에 있고, 저장소가 모자라다고
+    // (`STORAGE_QUOTA_EXCEEDED`) 반출까지 막으면 **학생이 작업을 기기 밖으로 꺼낼 길이
+    // 없어진다** (CLAUDE.md §1.1·§1.3). 방금 쓴 글은 `current`에 이미 들어 있다.
+    const saved = flush().catch((error: unknown) => {
       useToastStore().pushError(error)
-    }
+    })
 
     const { blob, dropped } = await writeProject(current, portfolioMarkdown)
     downloadBlob(blob, projectFileName(current.document.manifest))
 
-    // **여기서부터는 파일이 이미 나갔다.** markExported는 IndexedDB에 쓰므로 저장소가
-    // 모자라면 던지는데, 그것을 올려보내면 화면이 성공한 내보내기를 실패로 말한다.
-    // 내보낸 시각은 이 기기의 곁가지 정보이고(storage.ts) 파일 안에는 없다.
-    const at = new Date().toISOString()
-    try {
-      await markExported(exportedId, at)
-      // 화면의 "내보낸 시각"은 지금 열린 프로젝트의 것이다 — 바뀌었으면 남의 줄에 앉히지 않는다.
-      // 열기 세대(`claim`)가 아니라 id로 본다: A→B→A로 다시 열었으면 이 시각이 A의 것이 맞다.
-      // 그 경합은 `open()`과 이 함수가 끝나는 차례에 달려 검사로 고정하지 못했다(사람 확인).
-      if (projectId.value === exportedId) exportedAt.value = at
-    } catch (error) {
-      useToastStore().pushError(error)
-    }
+    // **여기서부터는 파일이 이미 나갔다.** 내보낸 시각은 이 기기의 곁가지 정보이고
+    // (storage.ts) 파일 안에는 없다. **저장이 끝난 뒤에 뒤에서 적는다** — 둘 다 IndexedDB라
+    // 저장이 멈추면 이것도 멈추는데, 기다리면 화면이 성공한 내보내기를 끝나지 않은 것으로
+    // 보인다. 실패하면 알린다: 올려보내면 성공한 내보내기를 실패로 말하게 된다.
+    //
+    // **무슨 시각을 적는가는 저장이 끝난 뒤의 판이 정한다** (2026-09-28, C-5a를 닫는다).
+    // 상태 표시줄은 이 시각을 `savedAt`과 견준다(`exportStateOf`). `savedAt`은 세션 안에서는
+    // 쓰기가 **끝난** 시각이고(`writeNow`), 다시 열면 레코드의 `manifest.updatedAt`이다(`open`) —
+    // 학생이 프로젝트를 고치는 자리는 그 칸을 찍는다. **예외 하나: `addEmbeddings`는 일부러 안
+    // 찍는다**(`project/embeddings.ts` — 우리가 계산을 캐시한 것이지 학생의 편집이 아니다). 그래서
+    // 쥔 뒤에 임베딩만 앉으면 다시 연 뒤에는 "내보냄"으로 보인다. **해가 작다** — 임베딩은
+    // 파생물이라 파일을 연 쪽이 없는 것을 다시 뽑으면 되고(mlpx-spec.md §1.3), 학생의 글·설정·
+    // 사진은 하나도 빠지지 않았다. 세션 안에서는 아래 판 비교가 그것도 "변경됨"으로 잡는다.
+    // - **지금 판이 쥔 판이면** 저장된 것도 그 판이다 → 지금 시각. 저장 시각보다 뒤라 "내보냄"이
+    //   서고, 다시 열어도 레코드의 `updatedAt`(쥐기 전에 찍힌 시각)보다 뒤다. 전에는 저장이
+    //   끝나기 **전에** 시각을 찍어서, 정상 내보내기 뒤에도 늘 "변경됨"이 섰다.
+    // - **다르면** 쥔 뒤에 고친 것이 있다 — 그 편집은 파일에 없다 → 쥔 시각. 그 편집의 저장
+    //   시각과 `updatedAt`이 둘 다 이보다 뒤라 "변경됨"이 선다. 직렬화된 `flush`가 차례에서 나중
+    //   판을 읽어 쓴 경우도 여기로 온다. 이것이 C-5a의 틈("쥔 뒤에 고치면 '내보냄'이라 말한다")을
+    //   닫는다. 무는 검사: `status-bar-export.spec.ts`의 *"정상 내보내기는 다시 열어도 내보냄이다"*,
+    //   *"쥔 뒤 저장이 끝나기 전에 고치면 변경됨이다"*.
+    void saved
+      .then(() => {
+        const at = file.value === current ? new Date().toISOString() : capturedAt
+        return markExported(exportedId, at).then(() => at)
+      })
+      .then(
+        (at) => {
+          // 화면의 "내보낸 시각"은 지금 열린 프로젝트의 것이다 — 바뀌었으면 남의 줄에 앉히지
+          // 않는다. 열기 세대(`claim`)가 아니라 id로 본다: A→B→A로 다시 열었으면 이 시각이
+          // A의 것이 맞다. 그 경합은 `open()`과 이 적기가 끝나는 차례에 달려 검사로 고정하지
+          // 못했다(사람 확인).
+          if (projectId.value === exportedId) exportedAt.value = at
+        },
+        (error: unknown) => {
+          useToastStore().pushError(error)
+        },
+      )
     return dropped
   }
 

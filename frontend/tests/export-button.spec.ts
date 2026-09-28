@@ -24,6 +24,15 @@ import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import { projectFile } from './fixtures/project'
 
+const downloads = vi.hoisted(() => [] as { blob: Blob; fileName: string }[])
+
+vi.mock('../src/project/download', () => ({
+  downloadBlob: (blob: Blob, fileName: string) => {
+    downloads.push({ blob, fileName })
+  },
+  readFileBytes: async (file: File) => new Uint8Array(await file.arrayBuffer()),
+}))
+
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
 async function settle(): Promise<void> {
@@ -50,6 +59,7 @@ function type(input: HTMLInputElement, value: string): void {
 }
 
 beforeEach(async () => {
+  downloads.length = 0
   setActivePinia(createPinia())
   closeStorage()
   await deleteDatabase()
@@ -58,6 +68,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   document.body.innerHTML = ''
+  Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
   await deleteDatabase()
 })
@@ -127,5 +138,38 @@ describe('R24 B-3: the last two lines of the export chain', () => {
     await settle()
 
     expect(project.file?.document.manifest.student).toEqual({ studentId: '10203', name: '홍길동' })
+  })
+})
+
+/**
+ * **저장이 멈춰도 파일이 나가고, 성공은 파일이 나간 순간 말한다** (2026-09-28 감사 A B-1).
+ *
+ * 전에는 버튼이 IndexedDB 저장을 기다린 뒤에야 파일을 만들어서, 저장이 끝나지 않으면 버튼이
+ * 돌기만 하고 파일은 한 번도 안 나갔다. 여유 공간 묻기가 안 끝나는 것으로 멈춘 저장을
+ * 흉내낸다 — `saveProject`의 첫 `await`다.
+ */
+describe('B-1: a save that never settles', () => {
+  it('저장이 멈춰도 파일이 한 번 나가고 성공을 알린다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+    Object.defineProperty(navigator, 'storage', {
+      configurable: true,
+      value: { estimate: () => new Promise<never>(() => {}) },
+    })
+
+    const wrapper = mount(ExportButton, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flushPromises()
+    await wrapper.find('button').trigger('click')
+    await flushPromises()
+    document
+      .querySelector('.popover-panel button')
+      ?.dispatchEvent(new Event('click', { bubbles: true }))
+    await settle()
+
+    expect(downloads).toHaveLength(1)
+    expect(useToastStore().items.map((one) => one.key)).toContain('project.exportDone')
+    // 팝오버가 닫혔다 — 버튼이 도는 채로 남지 않는다.
+    expect(document.querySelector('.popover-panel')).toBeNull()
+    wrapper.unmount()
   })
 })

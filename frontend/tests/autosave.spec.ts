@@ -298,7 +298,7 @@ describe('저장이 거절됐을 때', () => {
     stubEstimate(1, 1)
     await expect(project.save(renamed('굽고 나서 거절당함'))).rejects.toThrow()
 
-    // exportFile은 flush의 실패를 잡아 알리고 있는 값으로 계속한다.
+    // exportFile은 저장을 기다리지 않고 쥔 값으로 내보낸다. 저장의 실패는 뒤에서 알린다.
     await project.exportFile('# 정리\n')
 
     expect(downloads).toHaveLength(1)
@@ -365,20 +365,53 @@ describe('내보내기', () => {
 
     const { project: reopened } = await readProject(await downloadedBytes(0))
     expect(reopened.document.manifest.name, 'the file handed down').toBe('앞 프로젝트')
+    // 내보낸 시각은 뒤에서 적는다 — **적힌 뒤에** 봐야 이 단언이 무엇을 잰다.
+    await vi.waitFor(async () => expect(await readExportedAt(manifest.projectId)).not.toBeNull())
     expect(project.exportedAt, 'export time on the other project').toBeNull()
   })
 
-  it('미뤄 둔 저장을 먼저 끝낸다 - 방금 쓴 글이 빠진 파일이 나가면 안 된다', async () => {
+  /**
+   * **방금 쓴 글은 파일에도, 끝내 IndexedDB에도 앉는다.** 파일은 쥔 `current`로 만들고, 미뤄 둔
+   * 저장은 내보내기가 시작만 해 둔다(2026-09-28 감사 A B-1) — 그래서 저장이 끝나기를
+   * 기다려서 본다.
+   */
+  it('미뤄 둔 저장도 끝내 앉는다 - 방금 쓴 글은 파일과 브라우저 둘 다에 있다', async () => {
     const project = useProjectStore()
     await project.save(projectFile())
     project.update(renamed('마지막 순간에 고친 이름'))
 
     await project.exportFile(markdown)
 
-    expect(project.dirty).toBe(false)
+    const { project: reopened } = await readProject(await downloadedBytes(0))
+    expect(reopened.document.manifest.name).toBe('마지막 순간에 고친 이름')
+    await vi.waitFor(() => expect(project.dirty).toBe(false))
     expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe(
       '마지막 순간에 고친 이름',
     )
+  })
+
+  /**
+   * **저장이 끝나지 않아도 파일은 나간다** (2026-09-28 감사 A B-1). 파일의 내용은 쥔 `current`가
+   * 정하므로 IndexedDB를 기다릴 이유가 없다. 전에는 `await flush()`가 앞에 있어서 저장이
+   * 멈추면 파일을 만드는 줄에 영영 닿지 못했다. 여유 공간 묻기가 안 끝나는 것으로 멈춘 저장을
+   * 흉내낸다 — `saveProject`의 첫 `await`다.
+   */
+  it('저장이 끝나지 않아도 파일은 나간다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+    project.update(renamed('저장이 멈춰도 나가야 하는 이름'))
+    Object.defineProperty(navigator, 'storage', {
+      configurable: true,
+      value: { estimate: () => new Promise<never>(() => {}) },
+    })
+
+    await project.exportFile(markdown)
+
+    expect(downloads).toHaveLength(1)
+    const { project: reopened } = await readProject(await downloadedBytes(0))
+    expect(reopened.document.manifest.name).toBe('저장이 멈춰도 나가야 하는 이름')
+    // 내보낸 시각은 저장 뒤에 적으므로 아직 없다 — 그래도 파일은 나갔다.
+    expect(project.exportedAt).toBeNull()
   })
 
   /**
@@ -425,7 +458,8 @@ describe('내보내기', () => {
 
     await project.exportFile(markdown)
 
-    expect(project.exportedAt).not.toBeNull()
+    // 내보낸 시각은 파일이 나간 뒤 저장이 끝나면 뒤에서 적는다.
+    await vi.waitFor(() => expect(project.exportedAt).not.toBeNull())
     expect(await readExportedAt(manifest.projectId)).toBe(project.exportedAt)
   })
 
@@ -435,6 +469,7 @@ describe('내보내기', () => {
     const project = useProjectStore()
     await project.save(projectFile())
     await project.exportFile(markdown)
+    await vi.waitFor(() => expect(project.exportedAt).not.toBeNull())
     const at = project.exportedAt
 
     await project.save(renamed('그 뒤에 고친 이름'))
@@ -460,8 +495,8 @@ describe('내보내기', () => {
     await project.exportFile(markdown)
 
     expect(downloads).toHaveLength(1)
-    // 그리고 저장이 실패했다는 사실은 학생에게 도달한다.
-    expect(toasts.items.at(-1)?.tone).toBe('danger')
+    // 그리고 저장이 실패했다는 사실은 학생에게 도달한다. 저장은 뒤에서 돌므로 기다려 본다.
+    await vi.waitFor(() => expect(toasts.items.at(-1)?.tone).toBe('danger'))
     expect(toasts.items.at(-1)?.key).toContain('STORAGE_QUOTA_EXCEEDED')
   })
 
