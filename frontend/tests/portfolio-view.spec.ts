@@ -16,6 +16,7 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import PortfolioView from '../src/views/PortfolioView.vue'
+import SectionCard from '../src/views/portfolio/SectionCard.vue'
 import TemplateSourceList from '../src/views/portfolio/TemplateSourceList.vue'
 import TemplateSourceMenu from '../src/views/portfolio/TemplateSourceMenu.vue'
 import { i18n, setLocale } from '../src/i18n'
@@ -24,7 +25,7 @@ import { newProjectDocument } from '../src/project/create'
 import { portfolioTextBytes, withImportedSections } from '../src/project/portfolio'
 import type { ProjectFile } from '../src/project/format'
 import { useProjectStore } from '../src/stores/project'
-import { stubDialogElement } from './fixtures/image-workers'
+import { stubDialogElement, stubObjectUrls } from './fixtures/image-workers'
 
 function project(): ProjectFile {
   const document = newProjectDocument(
@@ -414,5 +415,118 @@ describe('목차는 지금 보고 있는 문항을 가리킨다', () => {
       [ids[2]!]: 400,
     }))
     expect(active).toEqual(['둘째 문항'])
+  })
+})
+
+const PHOTO = 'portfolio/attachments/1.webp'
+
+/**
+ * 두 문항과 사진 한 장. `shared`면 둘째 문항도 같은 사진을 가리킨다 — 우리 코드는 그런 파일을
+ * 안 만들지만 남이 고친 파일에서는 온다. `bytes`가 사진의 크기다.
+ */
+function withPhoto(bytes: number, shared = false): ProjectFile {
+  const base = project()
+  return {
+    ...base,
+    document: {
+      ...base.document,
+      portfolio: {
+        ...base.document.portfolio,
+        template: {
+          sections: [
+            { id: 'a', title: '첫 문항' },
+            { id: 'b', title: '둘째 문항' },
+          ],
+        },
+        answers: { a: '꽃이 좋아서 골랐다', b: '' },
+        attachments: shared ? { a: [PHOTO], b: [PHOTO] } : { a: [PHOTO] },
+      },
+    },
+    attachments: new Map([[PHOTO, new Uint8Array(bytes)]]),
+  }
+}
+
+async function confirmDialog(view: ReturnType<typeof mount>): Promise<void> {
+  const dialog = view.findAll('dialog').find((one) => one.element.open)
+  const confirm = dialog?.findAll('button').find((one) => one.text() === '삭제하기')
+  expect(confirm?.exists(), 'the confirm dialog opened').toBe(true)
+  await confirm?.trigger('click')
+}
+
+/**
+ * **넘은 상태에서 줄이는 편집은 받는다** (2026-09-28 감사 D C-1).
+ *
+ * 상한은 기기의 설정이라 집에서 끄고 붙인 사진이 학교 PC에서 열린다. 크기만 보고 거절하던
+ * 때는 **한 글자 지우는 것도 되돌려졌고**, 거절 문구는 "글을 줄이라"고 했다.
+ */
+describe('넘은 상태에서 줄이는 편집은 받는다', () => {
+  beforeEach(() => {
+    stubObjectUrls()
+    stubDialogElement()
+  })
+
+  it('글을 줄이는 것은 받는다', async () => {
+    useProjectStore().file = withPhoto(MAX_PORTFOLIO_BYTES + 10)
+    const view = mount(PortfolioView, { global: { plugins: [i18n] } })
+    const box = view.find('textarea')
+    ;(box.element as HTMLTextAreaElement).value = '꽃'
+    await box.trigger('input')
+    expect(useProjectStore().file?.document.portfolio.answers.a).toBe('꽃')
+    view.unmount()
+  })
+
+  it('늘리는 것은 여전히 거절한다', async () => {
+    useProjectStore().file = withPhoto(MAX_PORTFOLIO_BYTES + 10)
+    const view = mount(PortfolioView, { global: { plugins: [i18n] } })
+    const box = view.find('textarea')
+    ;(box.element as HTMLTextAreaElement).value = '꽃이 좋아서 골랐다. 더 쓴다'
+    await box.trigger('input')
+    expect(useProjectStore().file?.document.portfolio.answers.a).toBe('꽃이 좋아서 골랐다')
+    expect((box.element as HTMLTextAreaElement).value).toBe('꽃이 좋아서 골랐다')
+    view.unmount()
+  })
+})
+
+/**
+ * **지우면 바이트도 놓는다 — 다른 문항이 아직 가리키면 안 놓는다** (2026-09-28 감사 D C-2·C-3).
+ *
+ * 판정은 `portfolio.spec.ts`의 *"놓는 바이트"*가 함수로 재고, 여기서는 확인 단추가 그것을
+ * 부르는지를 화면을 지나 본다.
+ */
+describe('지우면 바이트도 놓는다', () => {
+  beforeEach(() => {
+    stubObjectUrls()
+    stubDialogElement()
+  })
+
+  const stored = () => [...(useProjectStore().file?.attachments.keys() ?? [])]
+
+  it('문항을 지우면 그 사진의 바이트도 놓는다', async () => {
+    useProjectStore().file = withPhoto(3)
+    const view = mount(PortfolioView, { global: { plugins: [i18n] } })
+    await view.findAll('button[aria-label="문항 삭제"]')[0]?.trigger('click')
+    await confirmDialog(view)
+    expect(stored()).toEqual([])
+    view.unmount()
+  })
+
+  it('다른 문항이 가리키는 사진은 문항을 지워도 남는다', async () => {
+    useProjectStore().file = withPhoto(3, true)
+    const view = mount(PortfolioView, { global: { plugins: [i18n] } })
+    await view.findAll('button[aria-label="문항 삭제"]')[0]?.trigger('click')
+    await confirmDialog(view)
+    expect(stored()).toEqual([PHOTO])
+    view.unmount()
+  })
+
+  it('다른 문항이 가리키는 사진은 떼어도 남는다', async () => {
+    useProjectStore().file = withPhoto(3, true)
+    const view = mount(PortfolioView, { global: { plugins: [i18n] } })
+    view.findComponent(SectionCard).vm.$emit('detach', PHOTO)
+    await view.vm.$nextTick()
+    await confirmDialog(view)
+    expect(useProjectStore().file?.document.portfolio.attachments).toEqual({ b: [PHOTO] })
+    expect(stored()).toEqual([PHOTO])
+    view.unmount()
   })
 })

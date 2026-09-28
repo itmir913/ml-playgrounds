@@ -61,19 +61,79 @@ function withPhoto(path = `${DIR.attachments}1.webp`): ProjectFile {
 
 describe('폴더 이름', () => {
   it('확장자를 뗀다', () => {
-    expect(folderFor('1반-3번-홍길동.mlpx')).toBe('1반-3번-홍길동')
-    expect(folderFor('1반-3번-홍길동.MLPX')).toBe('1반-3번-홍길동')
+    expect(folderFor('1반-3번-홍길동.mlpx', 1)).toBe('1반-3번-홍길동')
+    expect(folderFor('1반-3번-홍길동.MLPX', 1)).toBe('1반-3번-홍길동')
   })
 
   it('폴더째 골랐으면 경로가 폴더로 남는다', () => {
-    expect(folderFor('1반/3번-홍길동.mlpx')).toBe('1반/3번-홍길동')
+    expect(folderFor('1반/3번-홍길동.mlpx', 1)).toBe('1반/3번-홍길동')
     // 탐색기가 주는 상대 경로는 역슬래시일 수 있다.
-    expect(folderFor('1반\\3번-홍길동.mlpx')).toBe('1반/3번-홍길동')
+    expect(folderFor('1반\\3번-홍길동.mlpx', 1)).toBe('1반/3번-홍길동')
   })
 
   it('위로 올라가는 조각은 걷어낸다', () => {
-    expect(folderFor('../../etc/passwd.mlpx')).toBe('etc/passwd')
-    expect(folderFor('./1반//3번.mlpx')).toBe('1반/3번')
+    expect(folderFor('../../etc/passwd.mlpx', 1)).toBe('etc/passwd')
+    expect(folderFor('./1반//3번.mlpx', 1)).toBe('1반/3번')
+  })
+
+  /**
+   * **남는 이름이 없으면 순번이다** (2026-09-28 감사 D C-5). 빈 이름이면 엔트리가
+   * `/portfolio/document.md`라는 절대 경로가 됐다. 확장자를 떼고 빈 조각이나 `.`이 남는
+   * 것도 같은 병이다(`1반/.mlpx`는 `1반//portfolio/…`가 됐다).
+   */
+  it('남는 이름이 없으면 순번이 폴더 이름이다', () => {
+    expect(folderFor('.mlpx', 3)).toBe('3')
+    expect(folderFor('../..', 4)).toBe('4')
+    expect(folderFor('..mlpx', 5)).toBe('5')
+    expect(folderFor('1반/.mlpx', 6)).toBe('1반')
+  })
+
+  it('묶음의 어느 엔트리도 빈 조각이나 절대 경로가 아니다', async () => {
+    const blob = bundleOf(
+      [
+        { label: '.mlpx', file: projectFile() },
+        { label: '../..', file: projectFile() },
+      ],
+      label,
+      'ko',
+    )
+    const names = Object.keys(unzipSync(new Uint8Array(await blob.arrayBuffer())))
+    expect(names.sort()).toEqual([`1/${ENTRY.portfolioMarkdown}`, `2/${ENTRY.portfolioMarkdown}`])
+  })
+})
+
+/**
+ * **푸는 자리 밖으로 새는 첨부는 안 싣는다** (2026-09-28 감사 D A-2).
+ *
+ * 학생 파일은 읽을 때 첨부 경로를 안 거르므로 `../`가 든 경로가 문서와 바이트 양쪽에 살아서
+ * 온다. 이 zip은 우리가 지어 교사에게 주는 것이라 `..`를 따르는 압축 도구로 풀면 교사의 디스크
+ * 어딘가에 학생이 고른 파일이 떨어진다.
+ */
+describe('푸는 자리 밖으로 새는 첨부는 안 싣는다', () => {
+  const unsafe = [
+    `${DIR.attachments}../../../../evil.cmd`,
+    `${DIR.attachments}a\\..\\..\\evil.cmd`,
+    '/etc/evil.cmd',
+    'C:/evil.cmd',
+  ]
+  for (const path of unsafe) {
+    it(path, () => {
+      const files = entriesOf(
+        { label: '홍길동.mlpx', file: withPhoto(path) },
+        '홍길동',
+        label,
+        'ko',
+      )
+      expect(Object.keys(files)).toEqual([`홍길동/${ENTRY.portfolioMarkdown}`])
+    })
+  }
+
+  it('멀쩡한 첨부는 그대로 싣는다 - 거르는 것이 전부를 막지 않는다', () => {
+    const files = entriesOf({ label: '홍길동.mlpx', file: withPhoto() }, '홍길동', label, 'ko')
+    expect(Object.keys(files)).toEqual([
+      `홍길동/${ENTRY.portfolioMarkdown}`,
+      `홍길동/${DIR.attachments}1.webp`,
+    ])
   })
 })
 

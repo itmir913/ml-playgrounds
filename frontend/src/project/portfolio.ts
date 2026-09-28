@@ -193,6 +193,7 @@ export function withSectionRemoved(portfolio: Portfolio, id: string): Portfolio 
   delete answers[id]
   // **첨부도 함께 지운다.** 문서에서만 떼면 사진 바이트가 파일에 남아 크기만 먹고
   // 아무도 못 본다 - `.mlpx`로 내보낼 때 아무도 안 가리키는 것은 안 담긴다(`writeProject`).
+  // 바이트를 놓는 것은 이 순수 함수가 아니라 부르는 쪽이다(`withoutReleasedAttachments`).
   const attachments = { ...portfolio.attachments }
   delete attachments[id]
   return { ...portfolio, template: { ...portfolio.template, sections }, answers, attachments }
@@ -278,15 +279,43 @@ export function referencedAttachments(portfolio: Portfolio): Set<string> {
 }
 
 /**
+ * 고치기 전에는 누가 가리켰는데 고친 뒤에는 **아무도 안 가리키는** 사진의 바이트를 놓은 맵.
+ *
+ * **사진을 떼든 문항을 지우든 같은 규칙이다** (mlpx-spec.md §8.4 "다른 문항이 아직 가리키는
+ * 사진은 떼거나 문항을 지워도 남는다"). 문항을 지울 때 참조만
+ * 떼면 바이트가 브라우저 저장소에 계속 남고(`.mlpx`에서만 빠진다), 사진 하나를 뗄 때 참조를
+ * 안 보고 바이트를 지우면 **같은 경로를 가리키는 다른 문항의 사진이 함께 사라진다** — 우리
+ * 코드는 그런 파일을 안 만들지만 남이 고친 파일에서는 온다. 판정을 한 곳에 두어 두 입구가
+ * 갈리지 않게 한다.
+ *
+ * 원래 아무도 안 가리키던 바이트는 건드리지 않는다 — 이 편집이 놓은 것이 아니다.
+ * `portfolio.spec.ts`의 *"놓는 바이트"*와 `portfolio-view.spec.ts`의 *"지우면 바이트도
+ * 놓는다"*가 문다.
+ */
+export function withoutReleasedAttachments(
+  before: Portfolio,
+  after: Portfolio,
+  stored: ReadonlyMap<string, Uint8Array>,
+): Map<string, Uint8Array> {
+  const still = referencedAttachments(after)
+  const kept = new Map(stored)
+  for (const path of referencedAttachments(before)) {
+    if (!still.has(path)) kept.delete(path)
+  }
+  return kept
+}
+
+/**
  * 다음 사진이 가질 경로.
  *
  * **가리키는 이름과 바이트로 들고 있는 이름 전부의 최대 번호 + 1이다.** 가장 큰 번호를
- * 떼어 내면 그 번호는 다시 쓰인다 — 떼면 바이트도 함께 놓으므로 한 이름에 두 사진이 사는
- * 일은 없다. 문항을 지우면 참조만 사라지고 바이트는 `.mlpx`로 내보낼 때까지 남는데
- * (IndexedDB 저장은 들고 간다 — 빠지는 것은 `writeProject`뿐이다), 그 이름을 새 사진이
- * 다시 받으면 이름으로 묶인 화면의 사진 주소(`useObjectUrls`)가 지운 사진을 그대로 보인다 —
- * 그래서 `stored`도 센다. `portfolio-attach.spec.ts`의 *"문항을 지운 뒤 다른 문항에 붙인
- * 사진이"*와 `portfolio.spec.ts`가 문다.
+ * 떼어 내면 그 번호는 다시 쓰인다 — 떼거나 문항을 지우면 아무도 안 가리키게 된 바이트도
+ * 함께 놓으므로(`withoutReleasedAttachments`) 한 이름에 두 사진이 사는 일은 없다. 그래도
+ * `stored`를 세는 이유는 **아무도 안 가리키는 바이트가 들어올 수 있기 때문이다** — 옛 판에서
+ * 문항을 지운 프로젝트가 브라우저 저장소에 그렇게 남아 있고, 그 이름을 새 사진이 다시 받으면
+ * 이름으로 묶인 화면의 사진 주소(`useObjectUrls`)가 옛 사진을 보일 수 있다.
+ * `portfolio-attach.spec.ts`의 *"문항을 지운 뒤 다른 문항에 붙인 사진이"*와
+ * `portfolio.spec.ts`가 문다.
  */
 export function nextAttachmentPath(
   portfolio: Portfolio,
@@ -443,36 +472,66 @@ const SETEXT_UNDERLINE = /^(\s{0,3})(-+|=+)\s*$/
  */
 const FENCE = /^( {0,3})(`{3,}|~{3,})(.*)$/
 
-/** 답 안에서 열린 채 끝난 HTML 주석. 닫지 않으면 뒤가 전부 주석이 된다. */
-const COMMENT_OPEN = '<!--'
-const COMMENT_CLOSE = '-->'
-
-/** 코드 스팬. 그 안의 글자는 값이지 마크업이 아니다. */
-const CODE_SPAN = /`+[^`]*`+/g
-
-/** 줄 머리에서 여는 HTML 주석. 공백 셋까지는 들여써도 블록이 열린다 (CommonMark). */
-const COMMENT_BLOCK_OPEN = /^ {0,3}<!--/
+/** 빈 줄로 끝나지 않는 HTML 블록 하나. 여는 모양, 닫는 모양, 답 끝에 붙일 닫는 말. */
+interface HtmlBlock {
+  readonly open: RegExp
+  readonly close: RegExp
+  readonly closer: (opening: RegExpExecArray) => string
+}
 
 /**
- * 이 줄을 지난 뒤에도 주석이 **뒤 문항을 삼키고 있는가**.
+ * **빈 줄에서 안 끝나는 HTML 블록 — CommonMark 유형 1–5** (mlpx-spec.md §8.6).
  *
- * **줄 머리의 `<!--`만 센다.** 삼킴을 만드는 것은 HTML 블록이고, 그것은 줄 머리에서만
- * 열린다 (CommonMark). 줄 가운데의 `<!--`는 인라인 원시 HTML이라 `-->`가 없으면
- * **그냥 글자로 남는다** — 거기에 짝을 붙여 주면 오히려 **학생이 쓴 글이 진짜 주석이
- * 되어 뷰어에서 사라진다.** 세는 방식에서 훑는 방식으로 옮기면서 그 손실을 새로
- * 만들었다 (2026-08-31 사각 감사 A-1).
+ * 이것들은 **닫는 모양이 나올 때까지** 이어져서, 줄 머리에서 하나가 열리면 뒤따르는 문항이
+ * 전부 원시 HTML 안으로 들어간다. 주석(`<!--`)만 막던 때 `<pre>`·`<?php`·`<script>`로
+ * 여는 답이 뒤 문항을 삼켰다 (2026-09-28 감사 D A-1). 유형 6·7(`<div>` 등)은 빈 줄에서
+ * 끝나고 답 뒤에는 언제나 빈 줄이 오므로 여기 없다. 정규식은 markdown-it의 `html_block`
+ * 규칙과 같은 모양이다.
  *
- * **코드 스팬은 걷어낸다.** 정보 수업에서 *"HTML 주석은 `<!--`로 시작한다"*는 흔한
- * 문장이고, 그것을 세면 짝이 없는 `-->`가 제출물에 한 줄 붙는다 (C-5).
+ * **줄 머리만 본다.** 줄 가운데의 `<!--`·`<pre>`는 인라인 원시 HTML이라 짝이 없으면 **그냥
+ * 글자로 남는다** — 거기에 짝을 붙여 주면 오히려 학생이 쓴 글이 진짜 주석이 되어 뷰어에서
+ * 사라진다 (2026-08-31 사각 감사 A-1). 공백 셋까지는 들여써도 블록이 열린다.
  *
- * HTML 주석은 겹치지 않으므로 상태는 불리언 하나면 된다.
+ * **닫는 모양은 줄 전체에서 찾는다** — 여는 줄이 스스로 닫을 수도 있다(`<!DOCTYPE html>`,
+ * `<script>x</script>`). markdown-it이 그렇게 읽는다.
+ *
+ * `portfolio.spec.ts`의 *"빈 줄로 안 끝나는 HTML 블록이 뒤 문항을 안 삼킨다"*가 문다.
  */
-function commentOpenAfter(line: string, open: boolean): boolean {
-  const text = line.replace(CODE_SPAN, '')
-  if (open) return !text.includes(COMMENT_CLOSE)
-  if (!COMMENT_BLOCK_OPEN.test(text)) return false
-  // 같은 줄에서 닫으면 삼키지 않는다. 여는 자리 뒤에서만 찾는다.
-  return !text.includes(COMMENT_CLOSE, text.indexOf(COMMENT_OPEN) + COMMENT_OPEN.length)
+const HTML_BLOCKS: readonly HtmlBlock[] = [
+  {
+    open: /^ {0,3}<(script|pre|style|textarea)(?=\s|>|$)/i,
+    // 유형 1은 네 닫는 태그 **중 어느 것이든** 나오면 끝난다 (CommonMark).
+    close: /<\/(?:script|pre|style|textarea)>/i,
+    closer: (opening) => `</${opening[1]!.toLowerCase()}>`,
+  },
+  { open: /^ {0,3}<!--/, close: /-->/, closer: () => '-->' },
+  { open: /^ {0,3}<\?/, close: /\?>/, closer: () => '?>' },
+  { open: /^ {0,3}<![A-Za-z]/, close: />/, closer: () => '>' },
+  { open: /^ {0,3}<!\[CDATA\[/, close: /\]\]>/, closer: () => ']]>' },
+]
+
+/** 열려 있는 HTML 블록 — 무엇이 나와야 닫히고, 안 나오면 무엇을 붙이는가. */
+interface OpenHtmlBlock {
+  readonly close: RegExp
+  readonly closer: string
+}
+
+/** 이 줄이 열고 **같은 줄에서 안 닫은** HTML 블록. 없으면 `undefined`. */
+function htmlBlockOpenedBy(line: string): OpenHtmlBlock | undefined {
+  for (const block of HTML_BLOCKS) {
+    const opening = block.open.exec(line)
+    if (opening === null) continue
+    if (block.close.test(line)) return undefined
+    return { close: block.close, closer: block.closer(opening) }
+  }
+  return undefined
+}
+
+/** 울타리 밖의 한 줄. 문항 구조를 깨는 두 모양만 막는다 (위 두 정규식). */
+function escapeLine(line: string): string {
+  return line
+    .replace(LINE_LEADING_HASH, '$1\\$2')
+    .replace(SETEXT_UNDERLINE, (_match, indent: string, rule: string) => `${indent}\\${rule}`)
 }
 
 /**
@@ -483,13 +542,21 @@ function commentOpenAfter(line: string, open: boolean): boolean {
  * 막을 것은 **문항 구조를 깨는 것뿐**이고, 답에 목록이나 강조가 들어가 그대로
  * 살아나는 것은 사고가 아니라 잘 된 것이다.
  *
- * **열어 놓고 안 닫은 것은 여기서 닫는다.** 코드 울타리와 HTML 주석은 여는 줄
- * 하나가 **뒤따르는 문항을 전부 삼킨다** - 정보 수업 포트폴리오에서 코드를
- * 붙여넣는 것은 흔한 일이고, 백틱 셋을 열고 안 닫는 것도 흔하다. 닫는 자리가
- * 답의 끝인 이유가 그것이다: 문항 경계가 거기서 되살아난다.
+ * **열어 놓고 안 닫은 것은 여기서 닫는다.** 코드 울타리와 빈 줄로 안 끝나는 HTML
+ * 블록(`HTML_BLOCKS`)은 여는 줄 하나가 **뒤따르는 문항을 전부 삼킨다** - 정보 수업
+ * 포트폴리오에서 코드를 붙여넣는 것은 흔한 일이고, 백틱 셋을 열고 안 닫는 것도 흔하다.
+ * 닫는 자리가 답의 끝인 이유가 그것이다: 문항 경계가 거기서 되살아난다. **닫을 때 답의
+ * 글자는 건드리지 않고 닫는 줄만 더한다** — 답이 겪는 것은 그와 무관한 위의 이스케이프와
+ * 줄 끝 맞춤뿐이다. `portfolio.spec.ts`의 표가 답 바로 뒤에 닫는 말이 붙은 모양을 통째로
+ * 견준다.
  *
  * **울타리 안에서는 이스케이프하지 않는다.** 거기서는 `#`이 제목을 못 만들고,
  * 학생이 쓴 파이썬 주석이 `\#`으로 보이면 그건 읽기 나쁘게 만든 것이다.
+ *
+ * **HTML 블록 안에서는 울타리를 안 찾는다** — 거기서 ` ``` `는 원시 HTML의 글자다.
+ * 찾으면 블록이 닫힌 뒤에도 울타리가 열린 것으로 셈해 뒤의 `##`을 이스케이프하지 않고,
+ * 그것이 진짜 문항이 된다(같은 표의 *"주석 안의 울타리"*가 문다). `#` 이스케이프는 블록
+ * 안에서도 전처럼 한다 — 블록의 끝을 잘못 셌을 때 가짜 문항이 생기는 쪽보다 낫다.
  */
 function escapeAnswer(answer: string): string {
   const lines: string[] = []
@@ -500,9 +567,18 @@ function escapeAnswer(answer: string): string {
    * 사라진다 (2026-08-31 사각 감사 A-1).
    */
   let fenceIndent = ''
-  let open = false
+  let block: OpenHtmlBlock | undefined
 
-  for (const line of answer.split('\n')) {
+  // **줄 끝을 `\n` 하나로 맞춘다.** JS 정규식의 `.`은 `\r`에 안 맞아서 CRLF로 적힌 답의
+  // 여는 울타리(` ```python\r `)를 못 알아보고 안 닫았다 — 뷰어는 CRLF를 줄 끝으로 읽는다.
+  // `portfolio.spec.ts`의 표에서 *"CRLF로 적힌 울타리"*가 문다.
+  for (const line of answer.replace(/\r\n?/g, '\n').split('\n')) {
+    if (block !== undefined) {
+      lines.push(escapeLine(line))
+      if (block.close.test(line)) block = undefined
+      continue
+    }
+
     if (fence !== undefined) {
       lines.push(line)
       const closing = FENCE.exec(line)
@@ -516,11 +592,7 @@ function escapeAnswer(answer: string): string {
       continue
     }
 
-    lines.push(
-      line
-        .replace(LINE_LEADING_HASH, '$1\\$2')
-        .replace(SETEXT_UNDERLINE, (_match, indent: string, rule: string) => `${indent}\\${rule}`),
-    )
+    lines.push(escapeLine(line))
 
     const opening = FENCE.exec(line)
     // **백틱 울타리의 언어 자리에는 백틱이 못 온다** (CommonMark). 그 줄은 울타리가
@@ -531,11 +603,12 @@ function escapeAnswer(answer: string): string {
       fenceIndent = opening![1]!
       continue
     }
-    open = commentOpenAfter(line, open)
+    block = htmlBlockOpenedBy(line)
   }
 
+  // 둘은 동시에 열려 있을 수 없다 — 한쪽이 열려 있는 동안 다른 쪽을 안 찾는다.
   if (fence !== undefined) lines.push(`${fenceIndent}${fence}`)
-  if (open) lines.push(COMMENT_CLOSE)
+  if (block !== undefined) lines.push(block.closer)
   return lines.join('\n')
 }
 

@@ -48,6 +48,7 @@ import {
   withSectionMoved,
   withSectionRemoved,
   withSectionText,
+  withoutReleasedAttachments,
 } from '@/project/portfolio'
 import type { Portfolio } from '@/project/schema'
 import { growToFit, nearestScrollport, stickyCover } from '@/screen'
@@ -103,13 +104,20 @@ const detaching = ref<{ sectionId: string; path: string } | null>(null)
  * 거절할 때 `revert`를 부르는 이유는 **DOM과 스키마가 갈리면 화면이 파일과 다른 글자를
  * 들고 있기 때문이다** (architecture.md §8.15.1). 값이 안 바뀌면 Vue는 DOM을 다시
  * 안 쓴다.
+ *
+ * **거절하는 것은 상한을 넘으면서 늘리는 편집뿐이다.** 이미 넘은 포트폴리오가 있다 — 상한은
+ * 기기의 설정이라(`limits-switch.ts`) 집에서 끄고 붙인 사진이 학교에서 열린다. 그때 크기만
+ * 보고 거절하면 **글을 한 글자 지우는 것도 되돌려지는데**, 거절 문구는 "글을 줄이라"고
+ * 한다. 지금 크기는 게이지와 같은 값(`usedBytes`)이다 — 같은 함수로 잰다.
+ * `portfolio-view.spec.ts`의 *"넘은 상태에서 줄이는 편집은 받는다"*가 문다.
  */
 function apply(next: Portfolio, revert?: () => void, bytes?: Map<string, Uint8Array>): void {
   const file = project.file
   if (!file) return
   const attachments = bytes ?? file.attachments
   const limit = maxPortfolioBytes()
-  if (portfolioBytes(next, attachments) > limit) {
+  const after = portfolioBytes(next, attachments)
+  if (after > limit && after > usedBytes.value) {
     revert?.()
     toasts.pushError(new ClientError('PORTFOLIO_TOO_LARGE', { limitMb: limit / BYTES_PER_MB }))
     return
@@ -358,14 +366,21 @@ async function attach(sectionId: string, files: readonly File[]): Promise<void> 
   }
 }
 
-/** 사진을 뗀다. **바이트도 함께 놓는다** - 저장에서 빠지는 것과 별개로 지금 자리를 비운다. */
+/**
+ * 사진을 뗀다. **바이트도 함께 놓는다** - 저장에서 빠지는 것과 별개로 지금 자리를 비운다.
+ * 다른 문항이 아직 그 경로를 가리키면 놓지 않는다(`withoutReleasedAttachments`).
+ */
 function detach(): void {
   const target = detaching.value
   detaching.value = null
   if (!target) return
-  const bytes = new Map(project.file?.attachments ?? [])
-  bytes.delete(target.path)
-  apply(withAttachmentRemoved(portfolio.value, target.sectionId, target.path), undefined, bytes)
+  const next = withAttachmentRemoved(portfolio.value, target.sectionId, target.path)
+  apply(next, undefined, releasedBytes(next))
+}
+
+/** 이 편집으로 아무도 안 가리키게 된 사진의 바이트를 놓은 맵. 판정은 `project/portfolio.ts`가 한다. */
+function releasedBytes(next: Portfolio): Map<string, Uint8Array> {
+  return withoutReleasedAttachments(portfolio.value, next, project.file?.attachments ?? new Map())
 }
 
 /**
@@ -382,10 +397,13 @@ function photosFor(sectionId: string): { path: string; url: string }[] {
   return photosOf(portfolio.value, sectionId, urls.value)
 }
 
+/** 문항을 지운다. **그 문항의 사진 바이트도 놓는다** (mlpx-spec.md §8.4) — 뗄 때와 같은 규칙이다. */
 function remove(): void {
   const id = removing.value
   removing.value = null
-  if (id !== null) apply(withSectionRemoved(portfolio.value, id))
+  if (id === null) return
+  const next = withSectionRemoved(portfolio.value, id)
+  apply(next, undefined, releasedBytes(next))
 }
 </script>
 

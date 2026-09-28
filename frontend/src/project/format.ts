@@ -21,6 +21,7 @@ import { ClientError } from '../errors'
 import { hashBytes } from '../hash'
 import { MAX_FILE_NAME_LENGTH, MAX_MODEL_BYTES, MODEL_BUDGET_BYTES } from '../limits'
 import { backboneFor } from '../ml/backbones'
+import { escapesArchive } from './entry-path'
 import {
   buildHashes,
   checkHashes,
@@ -729,8 +730,7 @@ function hashableEntries(
  */
 function requirePathUnder(path: string, directory: string, field: string): void {
   const inside = path.startsWith(directory) && path.length > directory.length
-  const escapes = path.split('/').includes('..') || path.includes('\\')
-  if (!inside || escapes) {
+  if (!inside || escapesArchive(path)) {
     throw new ClientError('PROJECT_FILE_INVALID', { path: field, issues: 1 })
   }
 }

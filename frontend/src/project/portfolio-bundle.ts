@@ -15,6 +15,7 @@
 import { zipSync } from 'fflate'
 
 import { ZIP_DEFLATE_LEVEL } from '../limits'
+import { escapesArchive } from './entry-path'
 import { ENTRY, type ProjectFile, withoutProjectExtension } from './format'
 import { renderPortfolioMarkdown } from './portfolio'
 import { portfolioMarkdownText, type Translate } from './portfolio-text'
@@ -42,16 +43,23 @@ export interface BundleEntry {
  * **이름표에서 만든다.** 학번·이름은 안 적은 학생이 있고(선택 입력이다), 그때 남는 것이
  * 파일 이름뿐이다. 경로 구분자는 폴더가 되게 두되 `..`는 걷어낸다 — 우리가 만드는
  * zip이지만, 푸는 쪽이 그 이름을 그대로 쓴다.
+ *
+ * **빈 이름을 내지 않는다.** 이름표가 `.mlpx`뿐이거나 `..`뿐이면 걷어내고 남는 것이 없는데,
+ * 그대로 두면 엔트리가 `/portfolio/document.md`라는 **절대 경로**가 된다(2026-09-28 감사 D
+ * C-5). 그때는 명렬의 순번(`position`, 1부터)이 폴더 이름이다 — 숫자라 번역할 말이 없고,
+ * 겹치면 `folderNames`가 갈라 준다. `portfolio-bundle.spec.ts`의 *"남는 이름이 없으면 순번"*이
+ * 문다.
  */
-export function folderFor(label: string): string {
-  const cleaned = label
-    .split(/[\\/]+/)
-    .filter((part) => part !== '' && part !== '.' && part !== '..')
-    .join('/')
-  // 확장자는 제거한다 - 폴더 이름에 `.mlpx`가 붙어 있으면 푸는 쪽에서 파일로 보인다.
-  // **사파리가 붙인 `.mlpx.zip`도 같은 폴더가 된다** (결정문 48) - 같은 프로젝트를
-  // 두 기기에서 내보낸 것이 폴더 둘로 갈리면 교사가 같은 학생을 두 번 본다.
-  return withoutProjectExtension(cleaned)
+export function folderFor(label: string, position: number): string {
+  const parts = label.split(/[\\/]+/).filter((part) => part !== '' && part !== '.' && part !== '..')
+  // 확장자는 마지막 조각에서 제거한다 - 폴더 이름에 `.mlpx`가 붙어 있으면 푸는 쪽에서 파일로
+  // 보인다. **사파리가 붙인 `.mlpx.zip`도 같은 폴더가 된다** (결정문 48) - 같은 프로젝트를
+  // 두 기기에서 내보낸 것이 폴더 둘로 갈리면 교사가 같은 학생을 두 번 본다. 떼고 나서 빈
+  // 조각이나 `.`·`..`가 되면(`1반/.mlpx`, `..mlpx`) 그 조각은 버린다.
+  const last = parts.pop()
+  const stem = last === undefined ? '' : withoutProjectExtension(last)
+  if (stem !== '' && stem !== '.' && stem !== '..') parts.push(stem)
+  return parts.length > 0 ? parts.join('/') : String(position)
 }
 
 /**
@@ -72,8 +80,8 @@ export function folderFor(label: string): string {
  */
 export function folderNames(labels: readonly string[]): string[] {
   const used = new Set<string>()
-  return labels.map((label) => {
-    const base = folderFor(label)
+  return labels.map((label, order) => {
+    const base = folderFor(label, order + 1)
     let name = base
     for (let index = 2; used.has(name.toUpperCase()); index += 1) name = `${base} (${index})`
     used.add(name.toUpperCase())
@@ -112,9 +120,14 @@ export function entriesOf(
   //
   // **글이 가리키는 사진만 담는다** — 뗀 사진의 바이트가 파일에 남아 있을 수 있고,
   // 그것까지 담으면 `writeProject`가 버리는 것을 여기서 되살리는 셈이다.
+  //
+  // **푸는 자리 밖으로 새는 경로는 안 싣는다** (2026-09-28 감사 D A-2). 학생 파일은 읽을 때
+  // 첨부 경로를 안 거르므로 `portfolio/attachments/../../x.cmd`가 여기까지 오고, 이 zip은
+  // **우리가 지어 교사에게 주는 것**이다. 판정은 `requirePathUnder`와 같은 함수다.
+  // `portfolio-bundle.spec.ts`의 *"푸는 자리 밖으로 새는 첨부는 안 싣는다"*가 문다.
   const wanted = new Set(Object.values(document.portfolio.attachments).flat())
   for (const [path, bytes] of attachments) {
-    if (wanted.has(path)) files[`${folder}/${path}`] = bytes
+    if (wanted.has(path) && !escapesArchive(path)) files[`${folder}/${path}`] = bytes
   }
   return files
 }
@@ -135,7 +148,7 @@ export function bundleOf(
   for (const [index, entry] of entries.entries()) {
     Object.assign(
       files,
-      entriesOf(entry, folders[index] ?? folderFor(entry.label), translate, locale),
+      entriesOf(entry, folders[index] ?? folderFor(entry.label, index + 1), translate, locale),
     )
   }
   const zipped = zipSync(files, { level: ZIP_DEFLATE_LEVEL })

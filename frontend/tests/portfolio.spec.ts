@@ -33,6 +33,7 @@ import {
   withAttachmentAdded,
   withAttachmentRemoved,
   withSectionText,
+  withoutReleasedAttachments,
   type PortfolioMarkdownText,
 } from '../src/project/portfolio'
 import type { Portfolio } from '../src/project/schema'
@@ -340,6 +341,45 @@ describe('사진은 답 아래에 붙는다', () => {
   })
 })
 
+/**
+ * **놓는 바이트** — 편집 뒤에 아무도 안 가리키게 된 사진만 놓는다 (2026-09-28 감사 D C-2·C-3).
+ *
+ * 문항을 지울 때 참조만 떼던 때는 바이트가 브라우저 저장소에 남았고, 사진 하나를 뗄 때
+ * 참조를 안 보고 지우던 때는 같은 경로를 가리키는 다른 문항의 사진이 함께 사라졌다.
+ */
+describe('놓는 바이트', () => {
+  const X = 'portfolio/attachments/1.webp'
+  const Y = 'portfolio/attachments/2.webp'
+  const Z = 'portfolio/attachments/9.webp'
+  const stored = new Map([
+    [X, new Uint8Array([1])],
+    [Y, new Uint8Array([2])],
+    [Z, new Uint8Array([9])],
+  ])
+  const shared: Portfolio = {
+    ...portfolio([
+      { id: 'a', title: '동기' },
+      { id: 'b', title: '방법' },
+    ]),
+    attachments: { a: [X, Y], b: [X] },
+  }
+
+  it('문항을 지우면 그 문항만 가리키던 사진을 놓는다', () => {
+    const kept = withoutReleasedAttachments(shared, withSectionRemoved(shared, 'a'), stored)
+    expect([...kept.keys()].sort()).toEqual([X, Z])
+  })
+
+  it('다른 문항이 아직 가리키는 사진은 떼어도 안 놓는다', () => {
+    const kept = withoutReleasedAttachments(shared, withAttachmentRemoved(shared, 'a', X), stored)
+    expect([...kept.keys()].sort()).toEqual([X, Y, Z])
+  })
+
+  it('원래 아무도 안 가리키던 바이트는 건드리지 않는다', () => {
+    const kept = withoutReleasedAttachments(shared, withAttachmentRemoved(shared, 'a', Y), stored)
+    expect([...kept.keys()].sort()).toEqual([X, Z])
+  })
+})
+
 describe('상한은 글과 첨부를 합쳐 하나다', () => {
   it('문항 문구와 답을 함께 센다', () => {
     const before = portfolio([{ id: 'a', title: 'ab', description: 'cd' }], { a: 'ef' })
@@ -591,6 +631,73 @@ describe('마크다운으로 옮긴다', () => {
       portfolio([{ id: 'a', title: '동기' }], { a: '<!-- 메모 --> 그리고 글' }),
     )
     expect(markdown.match(/-->/g)).toHaveLength(1)
+  })
+
+  /**
+   * **빈 줄로 안 끝나는 HTML 블록이 뒤 문항을 안 삼킨다** (2026-09-28 감사 D A-1).
+   *
+   * 주석만 막던 때 CommonMark의 HTML 블록 유형 1·3·4·5는 그대로였다 — `<pre>는 …`로
+   * 시작하는 답 하나가 교사가 받는 묶음의 `document.md`에서 **뒤 문항을 전부** 지웠다.
+   * CRLF로 적힌 울타리도 같은 모양으로 샜다(JS의 `.`은 `\r`에 안 맞는다).
+   *
+   * **제목 목록 전체를 견주고, 답이 글자 그대로 남고 바로 뒤에 닫는 말이 붙은 것을 본다** —
+   * 닫는 말을 붙이는 것 말고 학생 글을 바꾸지 않는다(§8.6 "읽기 좋은 것이 기준").
+   */
+  describe('빈 줄로 안 끝나는 HTML 블록이 뒤 문항을 안 삼킨다', () => {
+    const cases: [name: string, answer: string, closer: string][] = [
+      ['pre', '<pre>는 서식을 그대로 둔다', '</pre>'],
+      ['style', '<style>\n.box { color: red }', '</style>'],
+      ['script', '<SCRIPT>\nalert(1)', '</script>'],
+      ['textarea', '<textarea>', '</textarea>'],
+      ['php', '<?php echo 1;', '?>'],
+      ['doctype', '<!DOCTYPE html', '>'],
+      ['cdata', '<![CDATA[ x', ']]>'],
+      ['CRLF로 적힌 울타리', '```python\r\nprint(1)', '```'],
+    ]
+    const threeSections = (answer: string) =>
+      renderPortfolioMarkdown(
+        TEXT,
+        portfolio(
+          [
+            { id: 'a', title: '동기' },
+            { id: 'b', title: '방법' },
+            { id: 'c', title: '느낀 점' },
+          ],
+          { a: answer, b: '둘째 답', c: '셋째 답' },
+        ),
+      )
+
+    for (const [name, answer, closer] of cases) {
+      it(name, () => {
+        const markdown = threeSections(answer)
+        expect(titlesIn(markdown)).toEqual(['동기', '방법', '느낀 점'])
+        expect(markdown).toContain(
+          `## 동기\n\n${answer.replace(/\r\n/g, '\n')}\n${closer}\n\n## 방법`,
+        )
+      })
+    }
+
+    it('같은 줄에서 닫은 블록에는 안 붙인다', () => {
+      const markdown = threeSections('<script>x()</script> 이렇게 쓴다')
+      expect(markdown.match(/<\/script>/g)).toHaveLength(1)
+      expect(titlesIn(markdown)).toEqual(['동기', '방법', '느낀 점'])
+    })
+
+    it('줄 가운데의 <pre>에는 안 붙인다 - 인라인 HTML은 뒤를 안 삼킨다', () => {
+      const markdown = threeSections('HTML에서 <pre> 태그는 서식을 둔다')
+      expect(markdown).not.toContain('</pre>')
+    })
+
+    /**
+     * **HTML 블록 안의 ` ``` `는 울타리가 아니다.** 울타리로 셈하면 블록이 닫힌 뒤에도
+     * 울타리가 열린 것으로 여겨 뒤의 `##`을 이스케이프하지 않고, 그것이 진짜 문항이 된다.
+     */
+    it('주석 안의 울타리를 울타리로 세지 않는다 - 뒤의 ##이 문항이 되지 않는다', () => {
+      expect(answersKeepTitles(['<!--', '```', '-->', '## 가짜 문항'].join('\n'))).toEqual([
+        '동기',
+        '방법',
+      ])
+    })
   })
 
   it('제대로 닫은 코드 블록은 안 건드린다 - 안의 #도 그대로다', () => {

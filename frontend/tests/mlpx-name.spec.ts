@@ -125,7 +125,7 @@ describe('확장자 제거', () => {
    * **조용히 덮이면 한 학생의 글이 남의 글로 바뀐다** (R28 C-20).
    */
   it('묶음의 폴더 이름이 같아지고, 겹침은 번호로 갈린다', () => {
-    expect(folderFor(`1반/비올까${SAFARI}`)).toBe('1반/비올까')
+    expect(folderFor(`1반/비올까${SAFARI}`, 1)).toBe('1반/비올까')
     expect(folderNames([`비올까${MLPX_EXTENSION}`, `비올까${SAFARI}`])).toEqual([
       '비올까',
       '비올까 (2)',
