@@ -6,16 +6,20 @@
  * 그게 깨지면 무결성 검증 전체가 무의미해진다.
  */
 
-import { unzip, unzipSync, zipSync } from 'fflate'
-import { describe, expect, it, vi } from 'vitest'
+import { unzip, unzipSync, zipSync, type Zippable } from 'fflate'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * fflate의 비동기 압축기가 몇 번 불렸는지 센다. 부를 때마다 워커를 새로 띄우므로 이 수가
  * 곧 내보내기가 띄운 워커 수다 (open-decisions.md 68). 세기만 하고 결과는 그대로 넘긴다.
+ *
+ * **브라우저가 싣는 빌드를 쓴다** (`esm/browser.js`). node 빌드는 `worker_threads`로 워커를
+ * 띄워서 아래 "여는 길은 워커를 띄우지 않는다"가 가짜로 바꾸는 전역 `Worker`를 안 지난다 —
+ * 그러면 그 검사가 아무것도 안 잰다.
  */
 const spawned = vi.hoisted(() => ({ count: 0 }))
-vi.mock('fflate', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('fflate')>()
+vi.mock('fflate', async () => {
+  const actual: typeof import('fflate') = await import('../node_modules/fflate/esm/browser.js')
   const deflate = ((data, opts, callback) => {
     spawned.count += 1
     return actual.deflate(data, opts, callback)
@@ -51,7 +55,13 @@ import {
   writeProject,
 } from '../src/project/format'
 import { writeProjectBytes } from './fixtures/write'
-import { FORMAT_VERSION } from '../src/project/schema'
+import { imageEntryPath } from '../src/data/image/canonical'
+import { CANONICAL_FORMATS } from '../src/data/image/formats'
+import { hashBytes } from '../src/hash'
+import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
+import { embeddingPath } from '../src/project/embeddings'
+import { imageCategories } from '../src/project/images'
+import { FORMAT_VERSION, PROJECT_KIND_ML } from '../src/project/schema'
 import {
   experiment,
   datasetBytes,
@@ -1172,5 +1182,284 @@ describe('메타만 읽기', () => {
 
     const meta = await readProjectMeta(mixed)
     expect(meta.manifest.formatVersion).toBe(FORMAT_VERSION)
+  })
+})
+
+/**
+ * **옛 파일의 deflate 엔트리를 여는 길** (open-decisions.md 68의 판례, 2026-09-28).
+ *
+ * 0.30.4까지 내보낸 파일은 표·모델·문서를 deflate로 눌렀다. fflate의 비동기 `unzip`은 비압축
+ * 512KB 이상이고 압축률이 0.8 미만인 엔트리를 워커로 넘기는데, 워커가 막히면 날것의 오류가 새고
+ * 답이 없으면 열기가 끝나지 않았다. 위 mock이 브라우저 빌드라 전역 `Worker`를 그대로 지난다.
+ */
+describe('옛 파일(deflate)을 연다', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  /** 0.30.4 이하의 내보내기·탐색기 재압축처럼 deflate로 다시 싼다. */
+  async function deflatedOldFile(): Promise<{ bytes: Uint8Array; dataset: Uint8Array }> {
+    const rows = Array.from({ length: 60_000 }, (_, i) => `${(i % 97) / 10},setosa${i % 3}\r\n`)
+    const dataset = new TextEncoder().encode(`꽃받침,품종\r\n${rows.join('')}`)
+    const project = projectFile({ dataset: { bytes: dataset, hash: hashBytes(dataset) } })
+    // 메타 읽기가 푸는 문서 엔트리도 워커 조건에 걸리게 키운다.
+    project.document.portfolio.answers = { motivation: '꽃'.repeat(300_000) }
+    const { bytes } = await writeProjectBytes(project, markdown)
+    return { bytes: zipSync(unzipSync(bytes), { level: 6 }), dataset }
+  }
+
+  /** fflate가 워커로 넘기는 조건 (`esm/browser.js`의 `unzip`) — 검사의 전제다. */
+  function wouldSpawn(bytes: Uint8Array, name: string): boolean {
+    let found = false
+    unzipSync(bytes, {
+      filter: (file) => {
+        if (file.name === name) {
+          found =
+            file.compression === 8 &&
+            file.originalSize >= 524_288 &&
+            file.size <= 0.8 * file.originalSize
+        }
+        return false
+      },
+    })
+    return found
+  }
+
+  it('여는 길은 워커를 띄우지 않는다', async () => {
+    const { bytes, dataset } = await deflatedOldFile()
+    expect(wouldSpawn(bytes, 'dataset/data.csv'), 'fixture must take the worker path').toBe(true)
+    expect(wouldSpawn(bytes, ENTRY.portfolio), 'fixture must take the worker path').toBe(true)
+    vi.stubGlobal(
+      'Worker',
+      class {
+        constructor() {
+          throw new Error('opening a .mlpx must not spawn a worker')
+        }
+      },
+    )
+
+    const { project, integrity } = await readProject(bytes)
+    expect([...(project.dataset?.bytes ?? [])]).toEqual([...dataset])
+    expect(integrity.status).toBe('UNCHANGED')
+    const meta = await readProjectMeta(bytes)
+    expect(meta.portfolio.answers.motivation).toHaveLength(300_000)
+  }, 30_000)
+})
+
+// ------------------------------------------------------ 다시 압축한 파일
+
+const photo = (seed: string): Uint8Array => new TextEncoder().encode(`가짜webp:${seed}`)
+
+/** 범주 폴더에 사진 두 장씩, 임베딩과 포트폴리오 첨부까지 든 이미지 프로젝트. */
+function imageProject(categories: readonly string[]): ProjectFile {
+  const images = new Map(
+    categories.flatMap((category, index) =>
+      ['a', 'b'].map((seed) => {
+        const bytes = photo(`${index}${seed}`)
+        const path = imageEntryPath('data', hashBytes(bytes), category, CANONICAL_FORMATS.webp)
+        return [path, bytes] as const
+      }),
+    ),
+  )
+  const embeddings = new Map(
+    [...images.values()].map((bytes) => [
+      embeddingPath(DEFAULT_BACKBONE_ID, hashBytes(bytes)),
+      new Uint8Array(16),
+    ]),
+  )
+  const attachment = 'portfolio/attachments/1.webp'
+  return {
+    document: {
+      manifest: {
+        formatVersion: FORMAT_VERSION,
+        appVersion: '0.0.0',
+        projectId: '3f9a1b2c-4d5e-4f60-8a1b-2c3d4e5f6071',
+        name: '개와 고양이',
+        createdAt: '2026-08-12T00:00:00.000Z',
+        updatedAt: '2026-08-12T00:00:00.000Z',
+        kind: PROJECT_KIND_ML,
+        dataType: 'image',
+        locale: 'ko',
+      },
+      settings: {
+        data: {
+          dataset: { path: 'dataset/data/', canonicalSize: 224, format: 'webp', quality: 0.65 },
+          categories: [...categories],
+          backboneId: DEFAULT_BACKBONE_ID,
+        },
+        split: { method: 'holdout', testSize: 0.2, stratify: true, randomState: 42 },
+        runtime: 'mljs',
+        selectedAlgorithms: [],
+        hyperparameters: {},
+      },
+      runs: { experiments: [] },
+      portfolio: {
+        template: { sections: [{ id: 'why', title: '왜' }] },
+        answerFormat: 'plain-v1',
+        answers: { why: '재밌어서' },
+        attachments: { why: [attachment] },
+      },
+    },
+    models: new Map(),
+    images,
+    attachments: new Map([[attachment, photo('att')]]),
+    embeddings,
+  }
+}
+
+/** 파일 경로마다 그 위 폴더를 전부 디렉터리 엔트리로 더한다 — 탐색기·bsdtar가 넣는 모양이다. */
+function withDirectoryEntries(entries: Zippable): Zippable {
+  const out: Zippable = {}
+  for (const path of Object.keys(entries)) {
+    const parts = path.split('/')
+    for (let depth = 1; depth < parts.length; depth += 1) {
+      out[`${parts.slice(0, depth).join('/')}/`] = new Uint8Array(0)
+    }
+  }
+  return { ...out, ...entries }
+}
+
+/**
+ * **실제 도구로 다시 압축한 파일을 연다** (mlpx-spec.md §7.2.1·§10, 판례 2026-09-28).
+ *
+ * 감사 B가 앱이 쓴 파일을 풀어 탐색기·bsdtar·`Compress-Archive`로 다시 싸 보니 디렉터리
+ * 엔트리 때문에 "고쳐졌음"이 떴고, 폴더째 압축한 것과 `\` 구분자는 아예 안 열렸다. 여기 모양은
+ * 그 실물을 fflate로 옮긴 것이다 — 부스러기를 **범주 폴더 안에** 둔다(루트에만 두면 대조가
+ * 안 보는 자리라 아무것도 안 잰다).
+ */
+describe('다시 압축한 파일', () => {
+  it('탐색기 모양 — 디렉터리 엔트리와 범주 폴더 안의 부스러기는 신호가 아니다', async () => {
+    const original = imageProject(['개', '고양이'])
+    const { bytes } = await writeProjectBytes(original, markdown)
+    const rezipped = zipSync(
+      {
+        ...withDirectoryEntries(unzipSync(bytes)),
+        'dataset/data/고양이/Thumbs.db': new Uint8Array([1, 2]),
+        'dataset/data/개/.DS_Store': new Uint8Array([0, 0, 0, 1]),
+        'dataset/data/개/desktop.ini': new Uint8Array([3]),
+        'model/._run-1.json': new Uint8Array([4]),
+        '__MACOSX/dataset/data/개/._a.webp': new Uint8Array([5]),
+      },
+      { level: 6 },
+    )
+
+    const { project, integrity } = await readProject(rezipped)
+    expect(integrity.status).toBe('UNCHANGED')
+    expect([...project.images.keys()].sort()).toEqual([...original.images.keys()].sort())
+    expect([...project.embeddings.keys()].sort()).toEqual([...original.embeddings.keys()].sort())
+    expect([...project.attachments.keys()]).toEqual([...original.attachments.keys()])
+  })
+
+  it('표 프로젝트의 model/ 디렉터리 엔트리도 신호가 아니다 — bsdtar 모양', async () => {
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
+    const { integrity } = await readProject(zipSync(withDirectoryEntries(unzipSync(bytes))))
+    expect(integrity.status).toBe('UNCHANGED')
+  })
+
+  it('내용이 든 엔트리는 이름이 /로 끝나도 잡음으로 치지 않는다', async () => {
+    const { bytes } = await writeProjectBytes(imageProject(['개']), markdown)
+    const { integrity } = await readProject(
+      zipSync({ ...unzipSync(bytes), 'dataset/data/개/': new Uint8Array([1]) }),
+    )
+    expect(integrity.status).toBe('MODIFIED')
+  })
+
+  it('폴더째 압축한 파일 — 한 겹을 벗겨 연다', async () => {
+    const original = imageProject(['개'])
+    const { bytes } = await writeProjectBytes(original, markdown)
+    const wrapped: Zippable = {}
+    for (const [path, content] of Object.entries(unzipSync(bytes)))
+      wrapped[`비올까/${path}`] = content
+    // 맥의 `__MACOSX/`는 `._`로 시작하지 않는 이름도, 내용이 든 것도 든다 — 그 규칙이 없으면
+    // `__MACOSX/`가 둘째 루트로 세어져 벗기지 못한다.
+    const [photoPath] = [...original.images.keys()]
+    const file = zipSync({
+      ...withDirectoryEntries(wrapped),
+      '__MACOSX/비올까/._manifest.json': new Uint8Array([1]),
+      [`__MACOSX/비올까/${photoPath}`]: new Uint8Array([7, 7, 7]),
+    })
+
+    const { project, integrity } = await readProject(file)
+    expect(integrity.status).toBe('UNCHANGED')
+    expect([...project.images.keys()].sort()).toEqual([...original.images.keys()].sort())
+    expect(project.images.size).toBe(original.images.size)
+    expect((await readProjectMeta(file)).manifest.projectId).toBe(
+      original.document.manifest.projectId,
+    )
+  })
+
+  it('감싼 폴더에 manifest.json이 없으면 manifest 누락으로 거부한다', async () => {
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
+    const entries = unzipSync(bytes)
+    delete entries[ENTRY.manifest]
+    const wrapped: Zippable = {}
+    for (const [path, content] of Object.entries(entries)) wrapped[`비올까/${path}`] = content
+    await expect(readProject(zipSync(wrapped))).rejects.toSatisfy(
+      (error: unknown) =>
+        isClientError(error) &&
+        error.code === 'PROJECT_FILE_ENTRY_MISSING' &&
+        error.params.entry === ENTRY.manifest,
+    )
+  })
+
+  /**
+   * **명렬(메타 읽기)과 교사가 여는 것(전체 읽기)이 같은 답을 내야 한다.** 따로 판정하던 때는
+   * 메타 읽기가 문서 엔트리만 골라 보느라 `readme.txt`를 못 보고 벗겼다 — 명렬에는 정상으로
+   * 뜨는데 누르면 거부되는 파일이었다.
+   */
+  it('루트에 파일이 함께 있으면 벗기지 않는다 — 두 읽기가 같은 답을 낸다', async () => {
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
+    const wrapped: Zippable = { 'readme.txt': new Uint8Array([1]) }
+    for (const [path, content] of Object.entries(unzipSync(bytes)))
+      wrapped[`비올까/${path}`] = content
+    const file = zipSync(wrapped)
+    const missingManifest = (error: unknown): boolean =>
+      isClientError(error) &&
+      error.code === 'PROJECT_FILE_ENTRY_MISSING' &&
+      error.params.entry === ENTRY.manifest
+    await expect(readProject(file)).rejects.toSatisfy(missingManifest)
+    await expect(readProjectMeta(file)).rejects.toSatisfy(missingManifest)
+  })
+
+  it('이름의 구분자가 \\인 파일 — Windows PowerShell 5.1의 Compress-Archive', async () => {
+    const original = imageProject(['개'])
+    const { bytes } = await writeProjectBytes(original, markdown)
+    const backslashed: Zippable = {}
+    for (const [path, content] of Object.entries(unzipSync(bytes))) {
+      backslashed[path.replaceAll('/', '\\')] = content
+    }
+    const file = zipSync(backslashed)
+
+    const { project, integrity } = await readProject(file)
+    expect(integrity.status).toBe('UNCHANGED')
+    expect([...project.images.keys()].sort()).toEqual([...original.images.keys()].sort())
+    expect((await readProjectMeta(file)).manifest.name).toBe(original.document.manifest.name)
+  })
+
+  it('NFD로 다시 압축한 파일 — 범주가 갈리지 않고, 다시 내보내면 NFC로 나가 그대로 열린다', async () => {
+    const original = imageProject(['개', '고양이'])
+    const { bytes } = await writeProjectBytes(original, markdown)
+    const nfd: Zippable = {}
+    for (const [path, content] of Object.entries(unzipSync(bytes)))
+      nfd[path.normalize('NFD')] = content
+
+    const { project, integrity } = await readProject(zipSync(nfd))
+    expect(integrity.status).toBe('UNCHANGED')
+    expect(imageCategories(project)).toEqual(['개', '고양이'])
+
+    const again = await writeProjectBytes(project, markdown)
+    const paths = Object.keys(unzipSync(again.bytes))
+    expect(paths.every((path) => path === path.normalize('NFC'))).toBe(true)
+    expect((await readProject(again.bytes)).integrity.status).toBe('UNCHANGED')
+  })
+
+  it('NFD로 기록된 옛 파일은 기록된 표기를 지킨다 — 거꾸로 갈리지 않는다', async () => {
+    const categories = ['개', '고양이'].map((name) => name.normalize('NFD'))
+    const original = imageProject(categories)
+    const { bytes } = await writeProjectBytes(original, markdown)
+
+    const { project, integrity } = await readProject(bytes)
+    expect(integrity.status).toBe('UNCHANGED')
+    expect(imageCategories(project)).toEqual(categories)
   })
 })

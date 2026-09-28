@@ -14,7 +14,7 @@
  * 아무도 가리키지 않는 고아 모델이다. 실어 나를 이유가 없다.
  */
 
-import { unzip, Zip, ZipPassThrough, type Unzipped, type UnzipFileFilter } from 'fflate'
+import { unzipSync, Zip, ZipPassThrough, type Unzipped, type UnzipFileFilter } from 'fflate'
 
 import {
   CONTROL_CHARACTERS,
@@ -396,15 +396,22 @@ function encodeJson(value: unknown): Uint8Array {
  * fflate 문서는 *"필터가 통과시킨 엔트리가 deflate가 아니면 던진다"*라고 적었는데
  * 무압축(method 0)은 예외로 복사한다 - 학생이 풀었다 탐색기로 다시 압축한 파일이 여기
  * 걸릴까 봐 확인한 것이고, 안 걸린다. 던지는 것은 LZMA 같은 다른 방식뿐이다.
+ *
+ * **워커를 띄우지 않는다** (open-decisions.md 68의 판례, 2026-09-28). fflate의 비동기
+ * `unzip`은 비압축 512KB 이상이고 압축률이 0.8 미만인 deflate 엔트리를 `inflate()`로 넘겨
+ * `blob:` 워커를 띄운다 — 0.30.4까지 내보낸 파일의 큰 `data.csv`·모델·`runs.json`이 그
+ * 모양이다. 워커 생성이 막히면 날것의 오류가 새고, 워커가 답하지 않으면 **열기가 끝나지
+ * 않는다.** 이 파일이 학생의 유일한 재입구라 내보내기와 같은 판단을 댄다 — 대가는 큰 옛
+ * 파일에서 메인 스레드가 inflate하는 시간이다. 무는 검사: `tests/format.spec.ts`
+ * "여는 길은 워커를 띄우지 않는다".
  */
-async function unzipAsync(bytes: Uint8Array, filter?: UnzipFileFilter): Promise<Unzipped> {
-  return new Promise((resolve, reject) => {
-    unzip(bytes, filter ? { filter } : {}, (error, unzipped) => {
-      // zip이 아니거나 깨졌다. 어느 쪽이든 프로젝트 파일이 아니다.
-      if (error) reject(new ClientError('PROJECT_FILE_NOT_ZIP'))
-      else resolve(unzipped)
-    })
-  })
+function unzipEntries(bytes: Uint8Array, filter?: UnzipFileFilter): Unzipped {
+  try {
+    return unzipSync(bytes, filter ? { filter } : {})
+  } catch {
+    // zip이 아니거나 깨졌다. 어느 쪽이든 프로젝트 파일이 아니다.
+    throw new ClientError('PROJECT_FILE_NOT_ZIP')
+  }
 }
 
 /**
@@ -440,7 +447,7 @@ export function zipModifiedTime(now: Date = new Date()): Date {
  * 워커를 막는 환경에서는 스폰이 던지고, 워커가 죽으면 `onerror`를 안 걸어 콜백이 영영
  * 안 온다. **학생의 유일한 반출 경로가 워커에 기대면 안 된다.** 무압축이면 하는 일이
  * 메인 스레드의 CRC뿐이다. 잃는 것은 표 프로젝트의 파일 크기뿐이다. 읽는 쪽은 그대로라
- * 옛 파일의 deflate 엔트리도 열린다 (`unzipAsync`). 무는 검사: `tests/format.spec.ts`
+ * 옛 파일의 deflate 엔트리도 열린다 (`unzipEntries`). 무는 검사: `tests/format.spec.ts`
  * "내보내기는 워커를 띄우지 않고 모든 엔트리를 무압축으로 담는다".
  *
  * **내보내기의 OOM만이 우리 몫이다** (open-decisions.md "상한은 누가 정했느냐로 갈리고,
@@ -879,16 +886,155 @@ function recordedHashes(bytes: Uint8Array | undefined): ProjectHashes | null {
  * 이름이 기록과 맞아떨어지지 않으면 아무 후보도 안 뽑히므로, 진짜로 손을 탄 파일은
  * 지금처럼 `MODIFIED`로 나온다. 오히려 지금은 **이름만 깨진 멀쩡한 파일이 사진 수만큼
  * `REMOVED`+`ADDED`로 떠서** 변조로 보인다.
+ *
+ * **이름의 모양도 여기서 맞춘다** (mlpx-spec.md §10). 구분자 `\`는 `/`로 읽고(Windows
+ * PowerShell 5.1의 `Compress-Archive`가 그렇게 적는다), 글자는 NFC로 모은다(맥이 NFD로
+ * 넣는다) — 사진 업로드의 `normalizePath`(`data/image/upload.ts`)와 같은 규칙이다. 기록된
+ * 표기로 되돌리는 것은 `respellAsRecorded`의 일이다. 무는 검사: `tests/format.spec.ts`
+ * "다시 압축한 파일".
+ *
+ * **증거에 조각도 넣는다.** 한 겹 감싼 압축 파일(`비올까/dataset/data/개/…`)에서는 온전한
+ * 경로가 기록과 안 맞는다 — 범주 이름 `개`는 조각으로만 맞는다. 무는 검사:
+ * `tests/image-format.spec.ts` "폴더째 다시 압축해도 범주가 돌아온다".
  */
 function rekeyByRecordedPaths(
   raw: readonly (readonly [string, Uint8Array])[],
+  recorded: ProjectHashes | null,
 ): readonly (readonly [string, Uint8Array])[] {
-  const recorded = recordedHashes(raw.find(([path]) => path === ENTRY.hashes)?.[1])
+  const paths = recorded ? Object.keys(recorded.entries) : []
   const decoded = decodeZipNames(
     raw.map(([path]) => path),
-    { expect: recorded ? Object.keys(recorded.entries) : [] },
+    { expect: paths.flatMap((path) => [path, ...path.split('/')]) },
   )
-  return raw.map(([, content], index) => [decoded[index]!, content] as const)
+  return raw.map(
+    ([, content], index) =>
+      [decoded[index]!.replaceAll('\\', '/').normalize('NFC'), content] as const,
+  )
+}
+
+/**
+ * 이 엔트리가 `hashes.json`인가. **루트이거나 한 겹 감싼 폴더 바로 아래다** — 되살리기와
+ * 벗기기가 그것을 봐야 하는데, 벗기기는 이름을 되살린 **뒤**에 돈다.
+ */
+function isHashesEntry(name: string): boolean {
+  const path = name.replaceAll('\\', '/')
+  return (
+    path === ENTRY.hashes || (path.endsWith(`/${ENTRY.hashes}`) && path.split('/').length === 2)
+  )
+}
+
+/** 압축 도구가 넣는 부스러기의 이름. */
+const ARCHIVE_NOISE_NAMES: ReadonlySet<string> = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini'])
+
+/**
+ * 압축 도구가 넣는 잡음인가 (mlpx-spec.md §7.2.1). **신호가 아니라서 대조 전에 버린다.**
+ *
+ * 탐색기·bsdtar·`Compress-Archive`·파이썬은 디렉터리 엔트리를 넣고, 맥은 `__MACOSX/`와
+ * `._*`를, 폴더를 들여다본 OS는 `.DS_Store`·`Thumbs.db`·`desktop.ini`를 남긴다. 안 버리면
+ * 다시 압축한 멀쩡한 파일이 "고쳐졌음"이 되고, 범주 폴더 안의 부스러기가 사진 맵에 앉아
+ * 다음 내보내기까지 따라간다. 무는 검사: `tests/format.spec.ts` "다시 압축한 파일".
+ *
+ * **날것의 이름과 크기만 본다.** 판정이 ASCII 글자(`/`·`__MACOSX`·부스러기 이름)뿐이라
+ * 이름을 되살리기 전후로 답이 같고, 그래서 메타 읽기가 엔트리를 **풀기 전에**(`filter`의
+ * `originalSize`) 같은 판정을 할 수 있다.
+ */
+function isArchiveNoise(name: string, size: number): boolean {
+  const path = name.replaceAll('\\', '/')
+  if (path.endsWith('/') && size === 0) return true
+  const segments = path.split('/')
+  if (segments.includes('__MACOSX')) return true
+  const base = segments[segments.length - 1] ?? ''
+  return ARCHIVE_NOISE_NAMES.has(base) || base.startsWith('._')
+}
+
+/** 압축 파일이 적어 둔 엔트리 하나 — 날것의 이름과 풀었을 때의 크기. */
+interface ListedEntry {
+  readonly name: string
+  readonly size: number
+}
+
+/**
+ * 한 겹 감싼 압축 파일인가 (mlpx-spec.md §10). 탐색기에서 풀린 폴더를 우클릭해 압축하면
+ * 이 모양이 나온다.
+ *
+ * **전체 읽기와 메타 읽기가 이 한 판정을 쓴다.** 둘이 따로 판정하면 루트에 `readme.txt`가
+ * 섞인 zip에서 명렬은 "정상"인데 교사가 열면 거부되는 식으로 갈렸다. 날것의 목록만 보므로
+ * 메타 읽기는 엔트리를 고르기 **전에**, 전체 읽기는 푼 **뒤에** 같은 답을 받는다. 무는 검사:
+ * `tests/format.spec.ts` "루트에 파일이 함께 있으면 벗기지 않는다 — 두 읽기가 같은 답을 낸다".
+ *
+ * **판정의 중심은 하나다** — 잡음을 뺀 엔트리가 전부 한 폴더 아래에 있다. "루트에
+ * `manifest.json`이 없다"는 이것이 함의하고, "그 폴더에 `manifest.json`이 있다"는 명시용이다
+ * (빼도 결과가 같다 — 벗겨도 `manifest.json`이 없으니 같은 사유로 거부된다).
+ */
+function isWrapped(listing: readonly ListedEntry[]): boolean {
+  const paths = listing
+    .filter((entry) => !isArchiveNoise(entry.name, entry.size))
+    .map((entry) => entry.name.replaceAll('\\', '/'))
+  const roots = new Set(
+    paths.map((path) => {
+      const slash = path.indexOf('/')
+      return slash <= 0 ? null : path.slice(0, slash + 1)
+    }),
+  )
+  const [only] = roots
+  return roots.size === 1 && !!only && paths.includes(`${only}${ENTRY.manifest}`)
+}
+
+/** 푼 엔트리의 목록. `isWrapped`가 받는 모양이다. */
+function listingOf(unzipped: Unzipped): ListedEntry[] {
+  return Object.entries(unzipped).map(([name, content]) => ({ name, size: content.length }))
+}
+
+/**
+ * NFC로 모은 이름을 **기록된 표기**로 되돌린다.
+ *
+ * NFC만 하면 NFD 범주로 저장된 옛 파일(사진 업로드가 NFC로 모으기 전에 맥 zip으로 만든 것)이
+ * 거꾸로 갈린다 — `settings`와 `hashes.json`은 NFD인데 경로만 NFC가 된다. 같은 글자로 적힌
+ * 기록이 있으면 그 표기가 이긴다.
+ */
+function respellAsRecorded(
+  entries: readonly (readonly [string, Uint8Array])[],
+  recorded: ProjectHashes | null,
+): readonly (readonly [string, Uint8Array])[] {
+  if (!recorded) return entries
+  const spelling = new Map(
+    Object.keys(recorded.entries).map((path) => [path.normalize('NFC'), path]),
+  )
+  return entries.map(([path, content]) => [spelling.get(path) ?? path, content] as const)
+}
+
+/**
+ * 푼 엔트리를 **우리 규칙의 이름**으로 맞춘다. 전체 읽기와 메타 읽기가 같은 이 함수를 지난다.
+ *
+ * 순서가 뜻을 갖는다 — 잡음 버리기 → 이름 되살리기(구분자·NFC 포함) → 한 겹 벗기기 →
+ * 기록된 표기로 되돌리기. 대조(`hashableEntries`)와 사진 수집은 이 **뒤**에 돈다.
+ *
+ * **벗길지는 부르는 쪽이 `isWrapped`로 정해 넘긴다** — 메타 읽기는 푸는 엔트리를 고르기
+ * 전에 그 답이 필요하다. 벗기는 것은 첫 조각 하나다(되살린 이름에서도 그 조각에 `/`는 없다).
+ */
+function entriesOf(unzipped: Unzipped, wrapped: boolean): Map<string, Uint8Array> {
+  const raw = Object.entries(unzipped).filter(
+    ([name, content]) => !isArchiveNoise(name, content.length),
+  )
+  const recorded = recordedHashes(raw.find(([path]) => isHashesEntry(path))?.[1])
+  const named = rekeyByRecordedPaths(raw, recorded)
+  const unwrapped = wrapped
+    ? named.map(([path, content]) => [path.slice(path.indexOf('/') + 1), content] as const)
+    : named
+  return new Map(respellAsRecorded(unwrapped, recorded))
+}
+
+/**
+ * 메타 읽기가 풀 엔트리인가. **벗길 파일이면 한 겹 아래, 아니면 루트의 문서 엔트리다** —
+ * 이름을 되살리기 전의 날것을 보므로 구분자도 여기서 맞춘다(문서 엔트리 이름은 ASCII다).
+ */
+function isDocumentEntry(name: string, wrapped: boolean): boolean {
+  const path = name.replaceAll('\\', '/')
+  return DOCUMENT_ENTRIES.some((entry) =>
+    wrapped
+      ? path.endsWith(`/${entry}`) && path.split('/').length === entry.split('/').length + 1
+      : path === entry,
+  )
 }
 
 /**
@@ -946,13 +1092,21 @@ function documentOf(entries: ReadonlyMap<string, Uint8Array>): ProjectDocument {
  * 조용히 빠지면 교사는 그 제출물이 없는 것으로 읽는다 (architecture.md §8.21).
  */
 export async function readProjectMeta(bytes: Uint8Array): Promise<ProjectDocument> {
-  const unzipped = await unzipAsync(bytes, (file) => DOCUMENT_ENTRIES.includes(file.name))
-  return documentOf(new Map(rekeyByRecordedPaths(Object.entries(unzipped))))
+  // 먼저 목록만 훑는다 — 아무것도 안 풀므로 중앙 디렉터리를 읽는 값뿐이다. 벗길지를 전체
+  // 읽기와 **같은 판정**(`isWrapped`)으로 정한 뒤에 문서 엔트리를 고른다.
+  const listing: ListedEntry[] = []
+  unzipEntries(bytes, (file) => {
+    listing.push({ name: file.name, size: file.originalSize })
+    return false
+  })
+  const wrapped = isWrapped(listing)
+  const unzipped = unzipEntries(bytes, (file) => isDocumentEntry(file.name, wrapped))
+  return documentOf(entriesOf(unzipped, wrapped))
 }
 
 export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
-  const unzipped = await unzipAsync(bytes)
-  const entries = new Map<string, Uint8Array>(rekeyByRecordedPaths(Object.entries(unzipped)))
+  const unzipped = unzipEntries(bytes)
+  const entries = entriesOf(unzipped, isWrapped(listingOf(unzipped)))
   const document = documentOf(entries)
 
   // settings가 데이터셋을 가리키는데 본체가 없으면 재학습도, 참조형 모델의 예측도,
@@ -1007,7 +1161,8 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
     }
   }
 
-  // 대조는 엔트리를 버리기 **전에** 한다. 끼어든 고아 모델도 신호이기 때문이다.
+  // 대조는 잡음(mlpx-spec.md §7.2.1)을 뺀 뒤, **우리가 버릴 것을 버리기 전에** 한다. 끼어든
+  // 고아 모델도 신호이기 때문이다.
   const present = hashableEntries(entries, datasetPath, testDatasetPath, predictDatasetPath)
   const integrity = checkHashes(present, recordedHashes(entries.get(ENTRY.hashes)))
 

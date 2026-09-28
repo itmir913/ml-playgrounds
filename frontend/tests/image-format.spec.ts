@@ -327,6 +327,8 @@ describe('탐색기로 다시 압축한 .mlpx', () => {
     // 자기 안에서 단언한다. 바이트는 python `'치타'.encode('cp949')`.
     치타: [0xc4, 0xa1, 0xc5, 0xb8],
     화창: [0xc8, 0xad, 0xc3, 0xa2],
+    // 폴더째 압축할 때 감싸는 폴더 이름. 바이트는 python `'비올까'.encode('cp949')`.
+    비올까: [0xba, 0xf1, 0xbf, 0xc3, 0xb1, 0xee],
   }
 
   /** 우리가 쓴 `.mlpx`를 **인코딩만 잃은** 것으로 바꾼다. 내용은 한 바이트도 안 건드린다. */
@@ -412,6 +414,27 @@ describe('탐색기로 다시 압축한 .mlpx', () => {
     const { project: after, integrity } = await readProject(zipSync(entries))
     expect([...after.images.keys()].some((path) => path.includes('개'))).toBe(false)
     expect(integrity.status).toBe('UNKNOWN')
+  })
+
+  /**
+   * **폴더째 압축하면 온전한 경로가 기록과 안 맞는다** (mlpx-spec.md §10, 판례 2026-09-28).
+   * 앞에 `비올까/`가 붙어서다 — 그래서 되살리기는 기록된 경로의 **조각**(`개`)도 증거로 본다.
+   * 그 조각을 빼면 벗기기는 되는데 범주가 `°³`로 남았다(실제 탐색기 zip으로 쟀다).
+   */
+  it('폴더째 다시 압축해도 범주가 돌아온다', async () => {
+    const before = imageProject()
+    const { bytes } = await writeProjectBytes(before, markdown)
+    const wrapped: Record<string, Uint8Array> = {}
+    for (const [path, content] of Object.entries(unzipSync(bytes))) {
+      wrapped[`비올까/${path}`] = content
+    }
+    // 감싼 폴더 이름까지 CP949로 깨진다 — 탐색기는 이름 전체를 한 코드 페이지로 적는다.
+    const rezipped = asRezippedByExplorer(zipSync(wrapped))
+    expect(Object.keys(unzipSync(rezipped)).some((path) => path.includes('비올까'))).toBe(false)
+
+    const { project: after, integrity } = await readProject(rezipped)
+    expect([...after.images.keys()].sort()).toEqual([...before.images.keys()].sort())
+    expect(integrity.status).toBe('UNCHANGED')
   })
 })
 
