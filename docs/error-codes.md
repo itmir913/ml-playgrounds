@@ -151,7 +151,9 @@ UNEXPECTED_ERROR
 **표 파일 가져오기** (`data/table.ts`, `data/xlsx.ts`)
 ```
 DATASET_FILE_TYPE_UNSUPPORTED, DATASET_SHEET_NOT_FOUND
+DATASET_EXCEL_ENCRYPTED_OR_LEGACY
 ```
+암호가 걸린 xlsx와 옛 .xls는 한 코드다 — 둘 다 OLE2 상자이고 학생이 할 일(새 xlsx나 csv로 다시 저장)이 같다 (`open-decisions.md` 71).
 
 
 ## 프런트엔드가 함께 쓰는 백엔드 코드 (로케일 `errors.*`)
