@@ -674,23 +674,37 @@ const TRAINERS: Record<string, Trainer> = {
         treeOptions: undefined,
       }) ?? null
 
-    let model: RandomForestClassifier
-    if (pool === null) {
-      model = new RandomForestClassifier(options)
-      model.train(toRows(input.features), encoded)
-    } else {
+    /**
+     * 풀이 지은 숲. **풀이 거절하면 `null`이고 아래에서 직렬로 짓는다** (2026-09-29 감사 F
+     * B-3). 워커가 뜨긴 했는데 청크를 못 받으면(오프라인, 배포 뒤 옛 탭) 그것은 던지는 스폰이
+     * 아니라 **나중에 오는 `error` 사건**이라 `spawnPool`의 폴백이 못 잡고, 전에는 이 모델이
+     * 통째로 실패로 섰다. 풀은 속도만 가르므로 직렬이 같은 숲을 낸다 — 같음은
+     * `forest-parallel.spec.ts`의 *"풀을 준 학습과 안 준 학습이 같은 모델 파일을 낸다"*가,
+     * 물러남은 `compute-pool-fallback.spec.ts`의 *"랜덤포레스트 — …"*가 문다.
+     */
+    let grown: RandomForestClassifier | null = null
+    if (pool !== null) {
       try {
-        model = loadForest(
+        grown = loadForest(
           await pool.grow(),
           treeCount,
           featureCount,
           input.randomState,
           input.features.length,
         )
+      } catch {
+        grown = null
       } finally {
         // 취소로 위가 던져도 워커가 남으면 안 된다.
         pool.dispose()
       }
+    }
+    let model: RandomForestClassifier
+    if (grown === null) {
+      model = new RandomForestClassifier(options)
+      model.train(toRows(input.features), encoded)
+    } else {
+      model = grown
     }
 
     const predict: Predict = (features) =>
@@ -742,6 +756,12 @@ const TRAINERS: Record<string, Trainer> = {
      * 같은 답이 나온다(엔진 버전이 안 움직이는 이유).
      *
      * **`null`이 오면 직렬로 답한다** — 가를 만큼 크지 않거나 워커가 없다는 뜻이다.
+     *
+     * **풀이 거절해도 직렬로 답한다** (2026-09-29 감사 F B-3). 컴퓨트 워커가 청크를 못
+     * 받으면 그 실패는 나중에 오는 `error` 사건이고(`ml/worker/pool.ts`의 `askWorker`),
+     * 전에는 그것이 채점을 통째로 실패시켜 이 모델이 실패 run으로 섰다. 행마다 독립이라
+     * 답은 같다 — 같음은 `knn-parallel.spec.ts`의 *"predictBatch가 predict와 같은 답을
+     * 낸다"*가, 물러남은 `compute-pool-fallback.spec.ts`의 *"KNN — …"*이 문다.
      */
     const pool =
       input.pools?.knn?.({
@@ -753,11 +773,15 @@ const TRAINERS: Record<string, Trainer> = {
       }) ?? null
     const predictBatch = pool
       ? async (features: readonly (readonly number[])[]): Promise<readonly Prediction[]> => {
+          let answered: readonly Prediction[] | null
           try {
-            return (await pool.answer(features)) ?? predict(features)
+            answered = await pool.answer(features)
+          } catch {
+            answered = null
           } finally {
             pool.dispose()
           }
+          return answered ?? predict(features)
         }
       : undefined
 

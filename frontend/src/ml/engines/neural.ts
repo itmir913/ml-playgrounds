@@ -647,6 +647,15 @@ export async function fitNeural(
    */
   const pool = poolFactory !== undefined ? poolFactory({ features, targets, sizes, task }) : null
   const parameters = pool === null ? null : new Float64Array(parameterCellCount(sizes))
+  /**
+   * 지금 쓰는 풀. **풀이 한 번 거절하면 `null`이 되고 남은 스텝은 전부 직렬이다**
+   * (2026-09-29 감사 F B-3). 워커가 뜨긴 했는데 청크를 못 받으면(오프라인, 배포 뒤 옛 탭)
+   * 그것은 던지는 스폰이 아니라 **나중에 오는 `error` 사건**이라 `spawnPool`의 폴백이 못
+   * 잡는다. 풀은 속도만 가르므로 직렬로 이어 돌면 같은 모델이 나온다 — 같음은
+   * `neural-parallel.spec.ts`의 *"풀을 준 학습과 안 준 학습이 비트 단위로 같은 모델을
+   * 낸다"*가, 물러남은 `compute-pool-fallback.spec.ts`의 *"신경망 — …"*이 문다.
+   */
+  let active = pool
 
   // **0도 값이다.** `||`로 접으면 `tol: 0`이 조용히 기본값으로 되돌아가고, 그러면
   // 하니스가 재는 것이 천장이 아니게 된다 (`tools/workloads.ts`의 `NEURAL_CEILING`).
@@ -683,10 +692,20 @@ export async function fitNeural(
         for (const grad of gradIntercepts) grad.fill(0)
         let lossSum = 0
 
-        if (pool !== null && parameters !== null && chunks.length > 1) {
+        let pooled: readonly NeuralChunkGrads[] | null = null
+        if (active !== null && parameters !== null && chunks.length > 1) {
           flattenParameters(weights, intercepts, parameters)
-          const results = await pool.step(parameters, chunks)
-          for (const chunk of results) {
+          try {
+            pooled = await active.step(parameters, chunks)
+          } catch {
+            // 아직 아무것도 안 접었다 — 이 스텝을 아래 직렬 길로 처음부터 다시 돈다.
+            active.dispose()
+            active = null
+          }
+        }
+
+        if (pooled !== null) {
+          for (const chunk of pooled) {
             lossSum += chunk.lossSum
             foldChunk(gradWeights, gradIntercepts, chunk)
           }

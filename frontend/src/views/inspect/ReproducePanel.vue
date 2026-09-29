@@ -29,6 +29,7 @@ import { useWork } from '@/composables/useWork'
 import { summarizeColumns } from '@/data/columns'
 import {
   errorMessageKey,
+  failureDetail,
   isClientError,
   type ClientErrorCode,
   type ClientErrorParams,
@@ -341,46 +342,54 @@ async function reproduce(): Promise<void> {
   if (halted.value === target) halted.value = null
 
   const job = start()
-  const request = {
-    type: 'train' as const,
-    input: reproduceInputOf({
-      experiment: claim,
-      dataset: props.dataset,
-      testDataset: props.testDataset,
-      dataType: props.dataType,
-    }),
-  }
-
-  const handle = train(request, {
-    createWorker: spawnTrainingWorker,
-    /**
-     * **무거운 엔진을 띄우는 동안에도 말한다** (2026-09-19 R29 A-1).
-     *
-     * 학생이 scikit-learn으로 학습한 파일은 대조도 그 엔진으로 돈다 — 교사 기기가
-     * 원본에서 27.3MB를 받고 8.7초를 세운다. 그동안 화면에 `대조 중 (0/N)`만 서 있으면
-     * **교사는 멈춘 줄 안다.** 학습 화면이 같은 국면을 줄마다 말하는 것과 같은 자리다.
-     */
-    onPreparing: (state) => {
-      if (alive()) preparing.value = state === 'ready' ? null : state
-    },
-    /**
-     * **run 하나가 끝날 때마다 앉힌다** (§8.21). 통째로 기다렸다 한 번에 앉히면 진행
-     * 숫자가 `(0/N)`에 붙박이고, 무엇보다 **멈춘 자리에 아무것도 안 남는다.**
-     *
-     * 실패한 주장은 여기서도 건너뛴다 — 견줄 점수가 없다(`compareExperiments`와 같은 규칙).
-     */
-    onProgress: (fresh, _completed, _total, index) => {
-      if (!alive()) return
-      // 첫 run이 끝났으면 준비는 이미 지난 국면이다.
-      preparing.value = null
-      const one = claim.runs[index]
-      if (!one || !succeeded(one)) return
-      const before = byExperiment.value.get(target) ?? []
-      seat(byExperiment.value, target, [...before, compareRun(one, fresh)])
-    },
-  })
-  job.hold(handle)
+  /**
+   * **조립과 `train()`도 `try` 안이다** (2026-09-29 감사 F B-1). 워커 생성과 `postMessage`는
+   * **동기로 던질 수 있다** — 큰 표를 복제하다 나는 `DataCloneError`가 그 모양이다. 밖에 두었을
+   * 때는 아래 `finally`가 안 돌아 `comparing`과 작업이 영영 남았다: 단추가 [멈추기]에 붙박이고,
+   * 그 [멈추기]에는 끊을 손잡이가 없고, 다른 실험은 `COMPARING_OTHER`로 잠겼다.
+   * `useTraining.ts`가 같은 이유로 이미 그렇게 둔다. `inspect-reproduce-live.spec.ts`의
+   * *"대조 시작이 동기로 던져도 판이 풀리고 사유를 말한다"*가 문다.
+   */
   try {
+    const request = {
+      type: 'train' as const,
+      input: reproduceInputOf({
+        experiment: claim,
+        dataset: props.dataset,
+        testDataset: props.testDataset,
+        dataType: props.dataType,
+      }),
+    }
+
+    const handle = train(request, {
+      createWorker: spawnTrainingWorker,
+      /**
+       * **무거운 엔진을 띄우는 동안에도 말한다** (2026-09-19 R29 A-1).
+       *
+       * 학생이 scikit-learn으로 학습한 파일은 대조도 그 엔진으로 돈다 — 교사 기기가
+       * 원본에서 27.3MB를 받고 8.7초를 세운다. 그동안 화면에 `대조 중 (0/N)`만 서 있으면
+       * **교사는 멈춘 줄 안다.** 학습 화면이 같은 국면을 줄마다 말하는 것과 같은 자리다.
+       */
+      onPreparing: (state) => {
+        if (alive()) preparing.value = state === 'ready' ? null : state
+      },
+      /**
+       * **run 하나가 끝날 때마다 앉힌다** (§8.21). 통째로 기다렸다 한 번에 앉히면 진행
+       * 숫자가 `(0/N)`에 붙박이고, 무엇보다 **멈춘 자리에 아무것도 안 남는다.**
+       *
+       * 실패한 주장은 여기서도 건너뛴다 — 견줄 점수가 없다(`compareExperiments`와 같은 규칙).
+       */
+      onProgress: (fresh, _completed, _total, index) => {
+        if (!alive()) return
+        // 첫 run이 끝났으면 준비는 이미 지난 국면이다.
+        preparing.value = null
+        const one = claim.runs[index]
+        if (!one || !succeeded(one)) return
+        const before = byExperiment.value.get(target) ?? []
+        seat(byExperiment.value, target, [...before, compareRun(one, fresh)])
+      },
+    })
+    job.hold(handle)
     const { experiment } = await handle.result
     // **떠난 화면에는 안 앉힌다** (`useWork`의 `alive`). 교사가 다른 제출물로 옮겼는데
     // 앞 파일의 판정이 뒤늦게 이 자리에 앉으면 **무고한 학생에게 붙는다.**
@@ -402,8 +411,11 @@ async function reproduce(): Promise<void> {
         target,
         isClientError(error)
           ? { code: error.code, params: error.params }
-          : { code: 'JOB_FAILED', params: {} },
+          : // 남의 예외(`DataCloneError` 등)는 원문을 기술 정보로 싣는다 — 버리면 교사가 손쓸 단서가 없다.
+            { code: 'JOB_FAILED', params: failureDetail(error) },
       )
+      // **알림도 띄운다.** 판 안의 줄은 남고 알림은 눈에 띈다 — 학습 화면과 같은 짝이다.
+      toasts.pushError(error)
     }
   } finally {
     if (comparing.value === target) comparing.value = null

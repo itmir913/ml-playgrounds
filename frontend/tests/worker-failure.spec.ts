@@ -67,11 +67,20 @@ describe('워커가 답을 못 주면 기다림이 끝난다', () => {
     expect(worker.removed).toBe(3)
   })
 
-  /** 워커가 죽으면 **그 사유로** 거절한다. 삼키면 학습이 안 끝난다. */
-  it('워커가 죽으면 거절한다', async () => {
-    const { worker, reply } = ask((one) => one.emit('error', { message: '터졌다' }))
+  /**
+   * 워커가 죽으면 **그 사유로** 거절한다. 삼키면 학습이 안 끝난다.
+   *
+   * **그리고 받았다고 표시한다** (2026-09-29 감사 F B-3). 취소되지 않은 워커 오류는 HTML
+   * 표준에서 부모 전역의 오류로 다시 보고되어, 학습 워커의 `onerror`까지 올라가 **실험이
+   * 통째로 `JOB_FAILED`가 된다** — 부르는 쪽의 직렬 물러남이 소용없어진다. 실제 전파는
+   * jsdom에 중첩 워커가 없어 못 재므로, 여기서 재는 것은 우리 몫인 **취소 표시**다.
+   */
+  it('워커가 죽으면 거절하고, 위로 올려 보내지 않는다', async () => {
+    const event = new ErrorEvent('error', { message: '터졌다', cancelable: true })
+    const { worker, reply } = ask((one) => one.emit('error', event))
     await expect(reply).rejects.toThrow('터졌다')
     expect(worker.removed).toBe(3)
+    expect(event.defaultPrevented, 'the error would propagate to the training worker').toBe(true)
   })
 
   /**

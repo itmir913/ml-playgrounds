@@ -63,7 +63,20 @@ export function askWorker<Request, Reply>(worker: Worker, request: Request): Pro
       cleanup()
       resolve(event.data)
     }
+    /**
+     * **받았다고 표시한다** (`preventDefault`, 2026-09-29 감사 F B-3). HTML 표준에서 워커의
+     * 처리되지 않은 오류는 `Worker` 객체에 `error`로 오고, **취소되지 않으면 그 객체가 사는
+     * 전역의 오류로 다시 보고된다** — 여기는 학습 워커 안이라 그것이 메인 스레드의
+     * `ml/worker/client.ts` `onerror`까지 올라가 **실험 전체가 `JOB_FAILED`로 끝난다.**
+     * 우리는 이 사건을 거절로 바꾸고 부르는 쪽이 직렬로 물러나므로(`engines/mljs.ts`·
+     * `engines/neural.ts`), 여기서 멈추게 해야 그 물러남이 뜻을 갖는다.
+     * `worker-failure.spec.ts`의 *"워커가 죽으면 거절하고, 위로 올려 보내지 않는다"*가 문다.
+     * 브라우저의 실제 전파는 jsdom으로 못 재므로 사람 확인이 남는다.
+     * **대가:** 컴퓨트 워커 안의 런타임 예외(버그·OOM)는 이제 실험 실패가 아니라 직렬 재시도로
+     * 가려진다. 결과 동등성은 `*-parallel` 스펙이 지킨다.
+     */
     const onError = (event: ErrorEvent): void => {
+      event.preventDefault()
       cleanup()
       reject(new Error(event.message || 'compute worker failed'))
     }
@@ -87,9 +100,15 @@ export function askWorker<Request, Reply>(worker: Worker, request: Request): Pro
  * 워커 `count`명을 띄운다. **하나라도 못 뜨면 이미 뜬 것을 거두고 `null`을 낸다.**
  *
  * 결정문은 *"중첩 워커가 없는 환경은 직렬로 돈다"*고 적었는데 그 폴백은
- * `typeof Worker` 하나뿐이었다 — **`Worker`는 있는데 스폰이 던지는 환경**(CSP가
- * `worker-src`를 막거나, 청크를 못 받거나)에서는 학습이 통째로 실패했다. 학생은
- * 직렬로 조금 느린 대신 **아무 결과도 못 받는다.** (2026-09-04 R26 B-5)
+ * `typeof Worker` 하나뿐이었다 — **`Worker`는 있는데 생성자가 그 자리에서 던지는
+ * 환경**에서는 학습이 통째로 실패했다. (2026-09-04 R26 B-5)
+ *
+ * **여기가 잡는 것은 동기로 던지는 스폰뿐이다** (2026-09-29 감사 F B-3이 바로잡았다 — 전에
+ * 이 자리가 *"청크를 못 받는"* 환경도 여기서 잡는다고 적었다). 청크를 못 받거나(오프라인,
+ * 배포 뒤 옛 탭의 해시) 스크립트가 거부되는 것은 **생성자가 던지지 않고 나중에 `error`
+ * 사건으로 온다.** 그 길은 `askWorker`가 거절로 바꾸고, **부르는 쪽이 그 자리에서 직렬로
+ * 한 번 더 돈다** — `engines/mljs.ts`의 포레스트·KNN, `engines/neural.ts`의 `fitNeural`.
+ * 셋 다 `compute-pool-fallback.spec.ts`가 문다.
  */
 export function spawnPool(count: number, spawn: () => Worker): Worker[] | null {
   const workers: Worker[] = []

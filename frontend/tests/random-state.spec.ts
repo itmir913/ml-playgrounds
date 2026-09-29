@@ -59,8 +59,8 @@ describe('신경망의 에폭 섞기는 randomState로 섞는다', () => {
   /**
    * **초기화가 아니라 섞기를 따로 본다.** 초기 가중치도 `randomState`로 뽑으므로 곡선만
    * 견주면 섞기에서 씨앗을 빼도 두 씨앗의 곡선이 갈린다. 그래서 **첫 배치의 행 순서**를
-   * 받아 적는다 — 풀의
-   * `step`이 조각을 받는 자리이고, 조각을 이어 붙이면 그 배치의 순서다.
+   * 받아 적는다 — 풀의 `step`이 조각을 받는 자리이고, 조각을 이어 붙이면 그 배치의 순서다.
+   * 받아 적은 뒤에는 거절하고, 학습은 직렬로 물러나 끝난다(아래 `firstBatchOrder`).
    */
   const rows = 120
   const features = Array.from({ length: rows }, (_, index) => [index / rows, (index % 3) / 3])
@@ -68,19 +68,35 @@ describe('신경망의 에폭 섞기는 randomState로 섞는다', () => {
   const task = { kind: 'classification', classCount: 2 } as const
   const options = { hiddenLayers: 1, neuronsPerLayer: 3 }
 
+  /**
+   * 첫 배치의 행 순서를 받아 적는다.
+   *
+   * **풀의 거절은 학습을 끊지 않는다** (2026-09-29 감사 F B-3). `fitNeural`은 풀이 거절하면
+   * 그 스텝부터 직렬로 물러나 끝까지 돈다(`engines/neural.ts`의 `active`). 그래서 이 기록 풀은
+   * **첫 호출만 적고 거절한 뒤 학습이 끝나기를 기다린다** — 전에는 그 거절을 "여기서 끊는다"는
+   * 장치로 썼고, 폴백이 들어오자 이 검사가 옛 의미에 기대 있던 것이 드러났다.
+   *
+   * **덤으로 물러난 학습이 같은 순서를 쓰는지 본다.** 풀 없이 돈 직렬 학습과 모델이 같으면
+   * 폴백이 첫 배치를 버리거나 섞기를 다시 하지 않은 것이다.
+   */
   async function firstBatchOrder(randomState: number): Promise<number[]> {
     const seen: number[] = []
+    let calls = 0
     const recording: NeuralPoolFactory = () => ({
       step(_parameters, chunks) {
+        calls += 1
         seen.push(...chunks.flat())
-        // 첫 배치만 필요하다 — 여기서 학습을 끊는다.
+        // 첫 배치만 필요하다 — 거절해서 남은 학습을 직렬로 물러나게 한다.
         return Promise.reject(new Error('first batch recorded'))
       },
       dispose() {},
     })
-    await expect(
-      fitNeural(features, targets, task, options, randomState, recording),
-    ).rejects.toThrow('first batch recorded')
+    const fallen = await fitNeural(features, targets, task, options, randomState, recording)
+    // 한 번 거절하면 풀을 다시 안 부른다 — 둘째 배치가 섞여 들면 위 순서가 첫 배치가 아니다.
+    expect(calls, 'the pool was asked again after it refused').toBe(1)
+    const serial = await fitNeural(features, targets, task, options, randomState)
+    expect(fallen.weights).toEqual(serial.weights)
+    expect(fallen.lossCurve).toEqual(serial.lossCurve)
     return seen
   }
 

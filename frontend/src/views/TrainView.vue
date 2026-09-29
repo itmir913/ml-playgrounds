@@ -709,6 +709,12 @@ async function startTraining(): Promise<void> {
   } finally {
     preparing.value = null
     preparingHandle = null
+    /**
+     * **끝났으면 멈출 것도 없다** (2026-09-29 감사 F C-2). 학생이 묻는 대화상자를 연 채로
+     * 학습이 끝나면 *"학습을 멈출까요?"*가 끝난 학습 위에 남아 있었다.
+     * `train-stop-dialog.spec.ts`가 문다.
+     */
+    stopping.value = null
     job.done()
   }
 }

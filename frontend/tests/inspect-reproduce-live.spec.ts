@@ -19,7 +19,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createPinia, setActivePinia } from 'pinia'
 
-import { ClientError } from '../src/errors'
+import { ClientError, errorMessageKey } from '../src/errors'
 import { MLJS_ENGINE } from '../src/ml/engines/mljs'
 import { CALCULATION_RULE_CHANGES } from '../src/ml/reproduce'
 import { useToastStore } from '../src/stores/toasts'
@@ -36,11 +36,17 @@ const worker = vi.hoisted(() => ({
   cancelled: 0,
   /** 뜬 대조의 수. */
   trains: 0,
+  /**
+   * 있으면 `train()`이 **동기로** 이것을 던진다. 진짜 `train()`은 워커를 만들고
+   * `postMessage`를 부르는데, 둘 다 그 자리에서 던질 수 있다(큰 표의 `DataCloneError`).
+   */
+  throwOnStart: null as unknown,
 }))
 
 vi.mock('../src/ml/worker/client', () => ({
   train: (_request: unknown, options: { onProgress?: Report }) => {
     worker.trains += 1
+    if (worker.throwOnStart !== null) throw worker.throwOnStart
     worker.report = options.onProgress ?? null
     return {
       result: new Promise((resolve, reject) => {
@@ -131,6 +137,38 @@ describe('대조가 도는 동안', () => {
     worker.report = null
     worker.cancelled = 0
     worker.trains = 0
+    worker.throwOnStart = null
+  })
+
+  /**
+   * **시작이 동기로 던져도 판이 풀린다** (2026-09-29 감사 F B-1). `train()`이 `try` 밖에
+   * 있던 때는 `finally`가 안 돌아 단추가 [멈추기]에 붙박였고, 그 [멈추기]로도 안 풀렸고,
+   * 알림도 사유 줄도 없었다 — 처리되지 않은 거절 하나로 끝났다.
+   */
+  it('대조 시작이 동기로 던져도 판이 풀리고 사유를 말한다', async () => {
+    worker.throwOnStart = new DOMException(
+      'Data cannot be cloned, out of memory.',
+      'DataCloneError',
+    )
+    const toasts = useToastStore()
+    const panel = mountPanel(claim('experiment-throw'))
+    await button(panel, START()).trigger('click')
+    await flushPromises()
+
+    expect(
+      panel.findAll('button').map((one) => one.text().trim()),
+      'the panel is stuck in comparing',
+    ).not.toContain(STOP())
+    button(panel, START())
+    expect(panel.text()).toContain(i18n.global.t(errorMessageKey('JOB_FAILED')))
+    expect(toasts.items.map((one) => one.tone)).toEqual(['danger'])
+
+    // 풀렸으니 다시 누르면 다시 뜬다.
+    worker.throwOnStart = null
+    await button(panel, START()).trigger('click')
+    await flushPromises()
+    expect(worker.trains).toBe(2)
+    panel.unmount()
   })
 
   /** 대조를 시작하고 **안 끝낸 채로** 둔다. */
