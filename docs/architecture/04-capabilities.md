@@ -245,6 +245,10 @@ function trainGate(input: { taskType: TaskType | undefined; chosen: readonly { a
 
 - **동작의 거절도 같은 칸을 부른다**(`refusalFor`·`useGate().refuse`). 잠금과 거절은 한 함수의 한 결과다.
   잠긴 단계로 주소를 치면 라우터가 같은 칸(`step`)으로 이유를 알리고 옮긴다.
+  **판정이 모델 층에 있으면 등록부가 그것을 부르고, 동작도 그것을 직접 부른다** — 모델 층은 `@/locks`를 들이지 않는다.
+  순서 옮기기의 맨 위·맨 아래는 `project/portfolio.ts`의 `sectionTopBlockers`·`sectionBottomBlockers`이고, 등록부의
+  `sectionTop`·`sectionBottom`과 옮기기(`withSectionMoved`)가 함께 부른다. `locks.spec.ts`의 *"순서 옮기기는 잠금과 같은
+  판정으로 멈춘다"*가 문다(잠긴 쪽은 안 옮겨지고, 안 잠긴 쪽은 반드시 옮겨진다).
 - 낱말 층의 세부 규칙(구조 뒤·배포 승인·최종 승인 감사에서 더한 것):
   - 등록부는 자기 속성만 판정으로 부른다(`LOCK_GATE_UNKNOWN`).
   - `WATCH_WRITES`의 항목은 `{ file, why }`이고, 그 이름은 제 파일 밖의 `src/`에 나오면 안 된다.
