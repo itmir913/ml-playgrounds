@@ -339,3 +339,78 @@ describe('떠난 뒤에는 아무것도 안 맡는다', () => {
     expect(late.cancelled).toBe(1)
   })
 })
+
+/**
+ * **[취소]는 자기 일 하나만 끊는다** (architecture.md §8.10.4, 코드 소유자 결정 11).
+ *
+ * 확인 판이 없는 굽기(예측 사진·테스트 사진)와 학습 준비에 [취소]가 선다. `cancelAll()`로는 안
+ * 된다 — 예측 화면은 굽기와 임베딩이 한 자루에 겹쳐 돌아, 굽기를 물리려다 **남의 임베딩까지
+ * 끊는다.** 그리고 파일을 읽거나 자리를 묻는 구간에는 맡긴 손잡이가 없어 끊을 것이 없다 —
+ * 그 뒤에 맡기는 손잡이를 그 자리에서 끊고, 일이 "끊겼다"고 답해야 부르는 쪽이 멈춘다.
+ */
+describe('일 하나만 끊는다', () => {
+  it('맡긴 손잡이를 끊고 끊겼다고 답한다', () => {
+    const work = useWork()
+    const job = work.start()
+    const mine = handle()
+    job.hold(mine)
+    expect(job.cancelled()).toBe(false)
+
+    job.cancel()
+    expect(mine.cancelled).toBe(1)
+    expect(job.cancelled()).toBe(true)
+  })
+
+  it('남의 일은 안 끊는다', () => {
+    const work = useWork()
+    const baking = work.start()
+    const embedding = work.start({ blocks: false })
+    const theirs = handle()
+    embedding.hold(theirs)
+    baking.hold(handle())
+
+    baking.cancel()
+    expect(theirs.cancelled).toBe(0)
+    expect(embedding.cancelled()).toBe(false)
+  })
+
+  it('끊은 뒤에 맡긴 손잡이는 그 자리에서 끊는다 - 읽는 동안 누른 [취소]', () => {
+    const work = useWork()
+    const job = work.start()
+    job.cancel()
+
+    const late = handle()
+    job.hold(late)
+    expect(late.cancelled).toBe(1)
+    // 자루에도 안 담긴다 — 떠날 때 두 번 끊지 않는다.
+    work.retire()
+    expect(late.cancelled).toBe(1)
+  })
+
+  it('끊어도 일은 놓아지지 않는다 - 놓는 것은 그 일의 finally다', () => {
+    const work = useWork()
+    const job = work.start()
+    job.cancel()
+    expect(work.busy.value).toBe(true)
+    job.done()
+    expect(work.busy.value).toBe(false)
+  })
+
+  it('놓은 뒤에 끊어도 아무 일도 없다', () => {
+    const work = useWork()
+    const job = work.start()
+    const mine = handle()
+    job.hold(mine)
+    job.done()
+
+    job.cancel()
+    expect(mine.cancelled).toBe(0)
+  })
+
+  it('다 끊는 것은 일마다의 표지를 안 세운다 - 떠나기와 [취소]의 옛 모양은 그대로다', () => {
+    const work = useWork()
+    const job = work.start()
+    work.cancelAll()
+    expect(job.cancelled()).toBe(false)
+  })
+})

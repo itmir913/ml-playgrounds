@@ -12,7 +12,7 @@
  * **같은 함수**에 넘긴다.
  */
 
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
@@ -32,7 +32,7 @@ import { ClientError, isClientError } from '@/errors'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { backboneFor } from '@/ml/backbones'
 import { useRadioGroupGuard } from '@/composables/useRadioGroupGuard'
-import { useWork } from '@/composables/useWork'
+import { useWork, type Job } from '@/composables/useWork'
 import { lockFor } from '@/locks'
 import { splitsData, stratifyBlockFor } from '@/ml/selection'
 import { readFileBytes } from '@/project/download'
@@ -279,6 +279,18 @@ const { busy, lock: busyLock, start, alive, retire } = useWork()
 onBeforeUnmount(retire)
 
 /**
+ * 지금 테스트 사진을 받는 일. **[취소]가 이것을 끊는다** (architecture.md §8.10.4, 코드 소유자
+ * 결정 11). 읽기부터 굽기가 끝날 때까지 서고, 저장을 시작하면 내린다 — 그 뒤로는 끊을 것이 없다.
+ * 확인 창을 기다리는 동안에는 없다(창의 [취소]가 그 일을 한다). `image-prep-cancel.spec.ts`가 문다.
+ */
+const testJob = shallowRef<Job | null>(null)
+
+/** [취소]. 받는 일을 끊는다 — 끊긴 일은 조용히 돌아가고 아무것도 안 앉는다. */
+function cancelTest(): void {
+  testJob.value?.cancel()
+}
+
+/**
  * 테스트용 사진을 받는다.
  *
  * **범주를 먼저 대조하고 그다음에 굽는다.** 굽고 나서 거절하면 학생은 기다린 시간을
@@ -292,6 +304,8 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
   // 부르는 둘은 전부 그 앞에서 걸러진다: `readTest`는 입구에서 거절하고,
   // `confirmTakeTest`는 대화상자가 닫힌 뒤라 그때는 도는 것이 없다.
   const job = start()
+  // **[취소]는 이제 이 일을 끊는다.** 읽은 일(`readTest`)은 이 함수가 끝나기를 기다릴 뿐이다.
+  testJob.value = job
   /**
    * **굽기를 시작한 프로젝트** (`stores/project.ts`의 `claim`). 프로젝트를 옮기면 `App.vue`의
    * 화면 키가 이 판을 새로 띄워 굽기를 끊는다(`project-switch-remount.spec.ts`). 이것은 그 키가
@@ -314,6 +328,8 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
 
     const shortfall = await imageRoomShortfall(file, items.length, backbone)
     if (shortfall) throw new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall })
+    // **읽거나 자리를 묻는 동안 [취소]가 눌렸으면 굽지 않는다** — 그 구간에는 끊을 손잡이가 없다.
+    if (job.cancelled()) return
 
     // **손잡이를 버리지 않는다.** 버리면 학생이 굽는 도중에 다른 단계로 갔을 때 아무도
     // 안 듣는 워커가 계속 돈다 — 저사양 교실 PC가 기준이다 (R21, §8.10.4).
@@ -324,6 +340,8 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
     job.hold(baking)
     const baked = await baking.result
     if (!ours()) return
+    // **여기서부터는 끊을 것이 없다** — [취소]를 내린다. 저장 중에 선 [취소]는 눌러도 사진이 앉는다.
+    if (testJob.value === job) testJob.value = null
 
     /**
      * **한 장도 못 구웠으면 저장하지 않는다** (2026-09-28 감사 A-1). 여기서 `applyTestImages`에
@@ -375,6 +393,7 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
     if (isClientError(error) && error.code === 'JOB_CANCELLED') return
     toasts.pushError(error)
   } finally {
+    if (testJob.value === job) testJob.value = null
     job.done()
   }
 }
@@ -398,6 +417,7 @@ async function readTest(files: readonly File[]): Promise<void> {
   // 데이터 화면 둘에만 적용돼 있었다 — 여기서는 큰 zip을 읽는 내내 드롭존이 초대색이고
   // 버튼이 열려 있어, 두 번 놓으면 `pendingTest`가 말없이 덮였다 (2026-09-02 R23 C-2).
   const job = start()
+  testJob.value = job
   try {
     const single = files[0]
     // **압축 파일과 사진 파일을 같은 함수가 가른다** (`data/image/upload.ts`의 IMAGE_ACCEPT).
@@ -413,11 +433,13 @@ async function readTest(files: readonly File[]): Promise<void> {
     // **읽는 동안 떠났으면 여기서 멈춘다.** 읽기 구간에는 맡길 손잡이가 없어
     // `retire()`가 끊을 것이 없다 — 이 줄이 없으면 죽은 화면이 워커를 열어 **지금 열린
     // 파일에** 테스트 사진을 얹는다 (2026-09-02 R23 B-2).
-    if (!alive()) return
+    // 읽는 동안 누른 [취소]도 여기서 멈춘다 — 확인 창을 띄우지도 않는다.
+    if (!alive() || job.cancelled()) return
     await requestTakeTest(items)
   } catch (error) {
     toasts.pushError(error)
   } finally {
+    if (testJob.value === job) testJob.value = null
     job.done()
   }
 }
@@ -651,6 +673,13 @@ function onStratify(event: Event): void {
                   </AppButton>
                   <AppButton variant="secondary" :lock="busyLock" @click="pickTest(zipInput)">
                     {{ t('preprocess.testImagesAdd') }}
+                  </AppButton>
+                  <!--
+                    **받는 동안만 선다** (§8.10.4, 코드 소유자 결정 11). 깨진 사진에 워커가 붙들려도
+                    떠나지 않고 물릴 수 있다. 이름은 데이터 화면의 굽기 [취소]와 같다.
+                  -->
+                  <AppButton v-if="testJob" variant="secondary" @click="cancelTest">
+                    {{ t('common.cancel') }}
                   </AppButton>
                 </div>
               </div>

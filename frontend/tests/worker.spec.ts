@@ -475,6 +475,34 @@ describe('메인 스레드 쪽', () => {
     await expect(rejectionCode(result)).resolves.toBe('JOB_FAILED')
     expect(worker.terminated).toBe(1)
   })
+
+  /**
+   * **끝난 모델이 있으면 멈추기와 같은 조립으로 남긴다** (open-decisions.md "멈추기가 끝난 것을
+   * 남긴다" §7). 진짜 핸들러가 낸 보고를 첫 모델의 끝 보고까지만 흘리고 워커를 죽인다 — 머리말과
+   * 끝 보고가 프로토콜을 지나 온 것으로 조립되는지 본다.
+   */
+  it.each([
+    ['죽으면', (worker: FakeWorker) => worker.crash('boom', 'train.worker.js', 7)],
+    ['못 알아들은 것을 보내면', (worker: FakeWorker) => worker.garble()],
+  ])('첫 모델이 끝난 뒤 워커가 %s 끝난 것을 남기고 사유를 곁에 싣는다', async (_, kill) => {
+    const request = requestFor(settingsFor({ selectedAlgorithms: models('knn', 'decision_tree') }))
+    const heard: WorkerMessage[] = []
+    await handleTrain(request, (message) => heard.push(message))
+
+    const worker = new FakeWorker()
+    const { result } = train(request, { createWorker: () => worker })
+    for (const message of heard) {
+      worker.emit(message)
+      if (message.type === 'progress') break
+    }
+    kill(worker)
+
+    const outcome = await result
+    expect(outcome.experiment.runs.map((run) => run.algorithm)).toEqual(['knn'])
+    expect(outcome.models.size).toBe(1)
+    expect(outcome.failure?.code).toBe('JOB_FAILED')
+    expect(worker.terminated).toBe(1)
+  })
 })
 
 describe('취소', () => {
@@ -515,6 +543,49 @@ describe('취소', () => {
     await expect(result).resolves.toBeDefined()
     // 두 번 종료하지 않는다. 학생이 열 번 돌리는 사이에 워커가 쌓이면 안 된다.
     expect(worker.terminated).toBe(1)
+  })
+
+  /**
+   * **조립은 한 곳이다** (open-decisions.md "멈추기가 끝난 것을 남긴다" §3·§7). 멈춘 결과와 워커가
+   * 죽은 결과는 **사유(`failure`)만 빼고 같아야 한다** — 한쪽이 따로 조립하면 반드시 어긋나고,
+   * 어긋난 쪽이 파일로 나간다. **직전 실험이 있는 요청으로 잰다** — `changed`가 직전 실험을 보므로,
+   * 그것을 빠뜨린 조립은 직전 실험이 없을 때 같은 모양이 되어 숨는다.
+   */
+  it('멈춘 결과와 워커가 죽은 결과는 사유만 빼고 같다', async () => {
+    const first: WorkerMessage[] = []
+    await handleTrain(
+      requestFor(settingsFor({ selectedAlgorithms: models('decision_tree') })),
+      (m) => first.push(m),
+    )
+    const done = first.find((message) => message.type === 'done')
+    if (done?.type !== 'done') throw new Error('the first experiment did not finish')
+
+    const request: TrainRequest = {
+      ...requestFor(settingsFor({ selectedAlgorithms: models('knn', 'decision_tree') })),
+      history: { experiments: [done.experiment] } as RunsFile,
+    }
+    const heard: WorkerMessage[] = []
+    await handleTrain(request, (message) => heard.push(message))
+
+    const outcomes = [(worker: FakeWorker) => worker.crash('boom'), 'cancel' as const].map(
+      (end) => {
+        const worker = new FakeWorker()
+        const handle = train(request, { createWorker: () => worker })
+        for (const message of heard) {
+          worker.emit(message)
+          if (message.type === 'progress') break
+        }
+        if (end === 'cancel') handle.cancel()
+        else end(worker)
+        return handle.result
+      },
+    )
+    const [died, stopped] = await Promise.all(outcomes)
+    expect(died?.failure?.code).toBe('JOB_FAILED')
+    expect(stopped?.failure).toBeUndefined()
+    expect({ ...died, failure: undefined }).toEqual(stopped)
+    // 직전 실험이 조립에 실제로 들어갔다 — 안 들어가면 위 비교가 이 요청으로 아무것도 못 가른다.
+    expect(stopped?.experiment.changed).toBeDefined()
   })
 })
 

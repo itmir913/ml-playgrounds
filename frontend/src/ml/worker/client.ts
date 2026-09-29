@@ -66,9 +66,24 @@ export interface TrainOptions {
   onPreparing?: (state: EngineState, fraction?: number) => void
 }
 
+/**
+ * 학습이 돌려주는 것. **워커가 도중에 죽었으면 사유가 곁에 붙는다**
+ * (open-decisions.md "멈추기가 끝난 것을 남긴다" §7).
+ *
+ * 사유는 실험 **밖**에 있다 — 파일에 들어가는 것은 `experiment`뿐이고, 이 칸은 화면이 "일부
+ * 실패"로 알리고 기술 정보로 싣는 데만 쓴다. 대조처럼 부분 실험이 뜻이 없는 쪽은 이 칸을 보고
+ * 실패로 되돌린다(`views/inspect/ReproducePanel.vue`).
+ */
+export interface TrainOutcome extends ExperimentResult {
+  readonly failure?: ClientError
+}
+
 export interface TrainHandle {
-  /** 성공하면 실험, 실패·취소면 ClientError로 거절된다. */
-  result: Promise<ExperimentResult>
+  /**
+   * 성공하면 실험, 실패·취소면 ClientError로 거절된다. **취소와 워커 사망은 끝난 모델이 있으면
+   * 그것으로 조립한 실험이다** — 사망이면 `failure`가 붙는다.
+   */
+  result: Promise<TrainOutcome>
   /** 학습을 멈춘다. 이미 끝났으면 아무 일도 일어나지 않는다. */
   cancel: () => void
 }
@@ -87,9 +102,9 @@ export function train(
 
   // Promise 생성자는 동기로 실행되므로 아래 두 개는 반드시 채워진다.
   // Promise.withResolvers는 ES2024라 여기서는 못 쓴다.
-  let resolve!: (value: ExperimentResult) => void
+  let resolve!: (value: TrainOutcome) => void
   let reject!: (reason: ClientError) => void
-  const result = new Promise<ExperimentResult>((onResolve, onReject) => {
+  const result = new Promise<TrainOutcome>((onResolve, onReject) => {
     resolve = onResolve
     reject = onReject
   })
@@ -106,13 +121,49 @@ export function train(
   }
 
   /**
-   * 취소가 조립할 재료. **모으는 이유는 끝을 못 보는 경로 하나뿐이다**
-   * (open-decisions.md "멈추기가 끝난 것을 남긴다" §3). 성공하면 `done`이 완성품을
+   * 취소와 워커 사망이 조립할 재료. **모으는 이유는 끝을 못 보는 경로다**
+   * (open-decisions.md "멈추기가 끝난 것을 남긴다" §3·§7). 성공하면 `done`이 완성품을
    * 싣고 오므로 아래 셋은 쓰이지 않는다.
    */
   let prelude: ExperimentPrelude | null = null
   const runs: Run[] = []
   const models = new Map<string, ModelFile>()
+
+  /**
+   * 도착한 것으로 조립한 실험. **끝난 모델이 없으면 `null`이다** (§4) — 부르는 쪽이 그때의 거절
+   * 코드를 정한다(취소는 `JOB_CANCELLED`, 사망은 `JOB_FAILED`).
+   *
+   * **조립은 한 곳이다** (§3). 취소와 사망이 각자 조립하면 반드시 어긋나고, 어긋난 쪽이 파일로
+   * 나간다. `prelude`가 없으면 첫 모델도 시작하기 전이므로 runs도 비어 있다 — 둘을 함께 보는
+   * 것은 타입을 위한 것이지 다른 경우를 위한 것이 아니다.
+   *
+   * **죽인 모델은 여기 없다** (§7) — `started`만 받고 끝 보고가 안 온 자리다. 실패 run으로
+   * 덧붙이면 대조가 그 run까지 다시 돌려 교사 기기가 같은 자리에서 죽는다.
+   */
+  const partial = (): ExperimentResult | null => {
+    if (prelude === null || runs.length === 0) return null
+    return {
+      experiment: assembleExperiment({
+        prelude,
+        // 직전 실험. 워커가 성공 경로에서 보는 것과 같은 자리다.
+        previous: request.history?.experiments?.at(-1),
+        runs,
+      }),
+      preprocessor: prelude.preprocessor,
+      models,
+    }
+  }
+
+  /**
+   * 워커가 죽었다. **끝난 모델이 있으면 그것을 남기고 사유를 곁에 싣는다** (§7). 0개면 지금까지처럼
+   * 그 사유로 거절한다.
+   */
+  const die = (failure: ClientError): void =>
+    settle(() => {
+      const kept = partial()
+      if (kept === null) reject(failure)
+      else resolve({ ...kept, failure })
+    })
 
   worker.onmessage = (event) => {
     const message = event.data
@@ -179,17 +230,19 @@ export function train(
    *
    * 어디서 터졌는지까지 싣는다. 메시지만으로는 워커를 못 띄운 것인지 학습 중에 터진
    * 것인지 갈리지 않는데, 둘은 대처가 완전히 다르다.
+   *
+   * **끝난 모델은 남긴다** (open-decisions.md "멈추기가 끝난 것을 남긴다" §7) — `die`가 멈추기와
+   * 같은 조립을 부른다. `worker.spec.ts`와 `training.spec.ts`의 *"…끝난 것을 남기고 사유를
+   * 곁에 싣는다"*가 문다.
    */
   worker.onerror = (event) => {
     const where = event.filename ? `${event.filename}:${event.lineno}` : ''
-    settle(() =>
-      reject(new ClientError('JOB_FAILED', failureDetail(`${event.message} ${where}`.trim()))),
-    )
+    die(new ClientError('JOB_FAILED', failureDetail(`${event.message} ${where}`.trim())))
   }
 
-  // 복원하지 못한 메시지. 여기서 안 끊으면 Promise가 영영 안 풀린다.
-  worker.onmessageerror = () =>
-    settle(() => reject(new ClientError('JOB_FAILED', failureDetail('messageerror'))))
+  // 복원하지 못한 메시지. 여기서 안 끊으면 Promise가 영영 안 풀린다. 끊는 것은 워커를 죽이는
+  // 것이라 위와 같이 다룬다.
+  worker.onmessageerror = () => die(new ClientError('JOB_FAILED', failureDetail('messageerror')))
 
   worker.postMessage(request)
 
@@ -202,26 +255,12 @@ export function train(
      * **0개면 지금까지처럼 JOB_CANCELLED다.** 남길 것이 없는데 빈 실험을 만들면 학생이
      * 잘못 누른 흔적만 목록에 쌓인다. 그 규칙이 "잘못 눌러서"와 "오래 걸려서 그만"을
      * 자동으로 가른다.
-     *
-     * `prelude`가 없으면 첫 모델도 시작하기 전이므로 runs도 비어 있다 — 둘을 함께
-     * 보는 것은 타입을 위한 것이지 다른 경우를 위한 것이 아니다.
      */
     cancel: () =>
       settle(() => {
-        if (prelude === null || runs.length === 0) {
-          reject(new ClientError('JOB_CANCELLED'))
-          return
-        }
-        resolve({
-          experiment: assembleExperiment({
-            prelude,
-            // 직전 실험. 워커가 성공 경로에서 보는 것과 같은 자리다.
-            previous: request.history?.experiments?.at(-1),
-            runs,
-          }),
-          preprocessor: prelude.preprocessor,
-          models,
-        })
+        const kept = partial()
+        if (kept === null) reject(new ClientError('JOB_CANCELLED'))
+        else resolve(kept)
       }),
   }
 }

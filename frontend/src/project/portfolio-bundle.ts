@@ -38,6 +38,13 @@ export interface BundleEntry {
 }
 
 /**
+ * 이름 없는 제출물의 순번 앞에 붙는 표지(`folderFor`). **`#`이 아니라 `_`다**(2026-09-29, 코드 소유자) —
+ * `'file://' + 경로`로 주소를 짓는 뷰어는 `#`에서 주소를 잘라 `document.md`의 상대 링크가 깨지고,
+ * 셸은 단어 맨 앞의 `#`을 주석으로 읽는다(`cd #2`). `_`는 주소에도 셸에도 뜻이 없다.
+ */
+const UNNAMED_FOLDER_MARK = '_'
+
+/**
  * 묶음 안에서 이 제출물이 차지할 폴더 이름.
  *
  * **이름표에서 만든다.** 학번·이름은 안 적은 학생이 있고(선택 입력이다), 그때 남는 것이
@@ -46,9 +53,14 @@ export interface BundleEntry {
  *
  * **빈 이름을 내지 않는다.** 이름표가 `.mlpx`뿐이거나 `..`뿐이면 걷어내고 남는 것이 없는데,
  * 그대로 두면 엔트리가 `/portfolio/document.md`라는 **절대 경로**가 된다(2026-09-28 감사 D
- * C-5). 그때는 명렬의 순번(`position`, 1부터)이 폴더 이름이다 — 숫자라 번역할 말이 없고,
- * 겹치면 `folderNames`가 갈라 준다. `portfolio-bundle.spec.ts`의 *"남는 이름이 없으면 순번"*이
- * 문다.
+ * C-5). 그때는 명렬의 순번(`position`, 1부터)에 표지를 붙인 것이 폴더 이름이다(`_2`) — 숫자라
+ * 번역할 말이 없고, 겹치면 `folderNames`가 갈라 준다. `portfolio-bundle.spec.ts`의 *"남는 이름이
+ * 없으면 순번"*이 문다.
+ *
+ * **맨 순번이 아니라 표지를 단다** (architecture.md §8.21, 코드 소유자 결정 12). 맨 순번이면 이름
+ * 없는 제출물이 폴더 `2`를 먼저 차지해 이름표가 `2.mlpx`인 학생이 `2 (2)`로 밀렸다. 표지 붙은
+ * 이름이 이름표에서 나오려면 파일 이름이 `_2.mlpx`여야 한다 — 막을 수는 없고(`_`은 세 운영체제가
+ * 다 받는 글자다, `data/file-name-rules.ts`) 겹치면 여전히 번호로 갈린다.
  */
 export function folderFor(label: string, position: number): string {
   const parts = label.split(/[\\/]+/).filter((part) => part !== '' && part !== '.' && part !== '..')
@@ -59,7 +71,7 @@ export function folderFor(label: string, position: number): string {
   const last = parts.pop()
   const stem = last === undefined ? '' : withoutProjectExtension(last)
   if (stem !== '' && stem !== '.' && stem !== '..') parts.push(stem)
-  return parts.length > 0 ? parts.join('/') : String(position)
+  return parts.length > 0 ? parts.join('/') : `${UNNAMED_FOLDER_MARK}${position}`
 }
 
 /**

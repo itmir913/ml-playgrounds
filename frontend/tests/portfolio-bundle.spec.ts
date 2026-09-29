@@ -82,10 +82,24 @@ describe('폴더 이름', () => {
    * 것도 같은 병이다(`1반/.mlpx`는 `1반//portfolio/…`가 됐다).
    */
   it('남는 이름이 없으면 순번이 폴더 이름이다', () => {
-    expect(folderFor('.mlpx', 3)).toBe('3')
-    expect(folderFor('../..', 4)).toBe('4')
-    expect(folderFor('..mlpx', 5)).toBe('5')
+    expect(folderFor('.mlpx', 3)).toBe('_3')
+    expect(folderFor('../..', 4)).toBe('_4')
+    expect(folderFor('..mlpx', 5)).toBe('_5')
     expect(folderFor('1반/.mlpx', 6)).toBe('1반')
+  })
+
+  /**
+   * **순번에는 표지가 붙는다** (2026-09-29, 코드 소유자 결정 12). 맨 순번이면 이름 없는 제출물이
+   * 폴더 `2`를 먼저 차지해 이름표가 `2.mlpx`인 학생이 `2 (2)`로 밀렸다 — 교사는 `2 (2)`가 누구인지
+   * 명렬을 다시 봐야 한다. `_2`는 이름표에서 나오려면 파일 이름이 `_2.mlpx`여야 한다.
+   */
+  it('이름 없는 제출물이 이름표가 숫자인 학생의 자리를 뺏지 않는다', () => {
+    expect(folderNames(['.mlpx', '2.mlpx'])).toEqual(['_1', '2'])
+    expect(folderNames(['a.mlpx', '..', '2.mlpx'])).toEqual(['a', '_2', '2'])
+  })
+
+  it('표지와 같은 이름표가 있어도 덮지 않고 가른다', () => {
+    expect(folderNames(['_2.mlpx', '..'])).toEqual(['_2', '_2 (2)'])
   })
 
   it('묶음의 어느 엔트리도 빈 조각이나 절대 경로가 아니다', async () => {
@@ -98,7 +112,7 @@ describe('폴더 이름', () => {
       'ko',
     )
     const names = Object.keys(unzipSync(new Uint8Array(await blob.arrayBuffer())))
-    expect(names.sort()).toEqual([`1/${ENTRY.portfolioMarkdown}`, `2/${ENTRY.portfolioMarkdown}`])
+    expect(names.sort()).toEqual([`_1/${ENTRY.portfolioMarkdown}`, `_2/${ENTRY.portfolioMarkdown}`])
   })
 })
 

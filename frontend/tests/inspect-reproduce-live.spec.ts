@@ -378,6 +378,31 @@ describe('대조가 도는 동안', () => {
     panel.unmount()
   })
 
+  /**
+   * **워커가 도중에 죽으면 대조는 실패로 선다** (open-decisions.md "멈추기가 끝난 것을 남긴다" §7).
+   * 진짜 손잡이는 끝난 run으로 실험을 조립해 사유와 함께 푼다 — 학습 화면은 그것을 남기지만,
+   * 대조가 그것을 통째로 견주면 안 돈 run이 `엔진 없음`으로 선다. 온 판정은 남고 사유가 선다.
+   */
+  it('대조 중 워커가 죽으면 온 판정만 남고 실패 사유가 선다', async () => {
+    const two = claim('experiment-3', 2)
+    const toasts = useToastStore()
+    const panel = await started(two)
+    worker.report?.(two.runs[0]!, 1, 2, 0)
+    await flushPromises()
+
+    worker.resolve?.({
+      experiment: experiment('experiment-3', [two.runs[0]!]),
+      failure: new ClientError('JOB_FAILED', { detail: 'out of memory' }),
+    })
+    await flushPromises()
+
+    expect(verdicts(panel)).toHaveLength(1)
+    expect(panel.text()).toContain(i18n.global.t(errorMessageKey('JOB_FAILED')))
+    expect(toasts.items.map((one) => one.tone)).toEqual(['danger'])
+    button(panel, START())
+    panel.unmount()
+  })
+
   it('다른 실험으로 옮기면 멈춘 자국도 따라오지 않는다', async () => {
     const two = claim('experiment-3', 2)
     const panel = await started(two)

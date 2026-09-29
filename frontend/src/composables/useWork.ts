@@ -85,6 +85,20 @@ export interface Job {
   clear: () => void
   /** 이 일을 놓는다. **남의 자물쇠를 열지 않는다.** `finally`에서 부른다. */
   done: () => void
+  /**
+   * **이 일 하나만 끊는다** — 확인 판이 없는 [취소]가 부른다 (architecture.md §8.10.4).
+   * 맡긴 손잡이를 끊고, **뒤에 맡기는 손잡이도 `hold()`가 그 자리에서 끊는다.** 놓는 것은 여전히
+   * 그 일의 `finally`다.
+   *
+   * `cancelAll()`로 대신하지 않는다 — 한 자루에 겹쳐 도는 남의 일(예측의 임베딩)까지 끊는다.
+   * `useWork.spec.ts`의 *"일 하나만 끊는다"*가 문다.
+   */
+  cancel: () => void
+  /**
+   * 이 일이 `cancel()`로 끊겼는가. **맡길 손잡이가 없는 구간**(파일 읽기, 자리 묻기) 뒤에
+   * 부르는 쪽이 본다 — 그 구간에 눌린 [취소]는 끊을 것이 없어 이 표지로만 남는다.
+   */
+  cancelled: () => boolean
 }
 
 /** 화면이 받는 것. */
@@ -175,6 +189,8 @@ export function useWork(): Work {
     const id = Symbol('work')
     live.value = [...live.value, id]
     if (blocks) blocking.value = [...blocking.value, id]
+    /** 이 일 하나가 `cancel()`로 끊겼는가. 떠나기(`living`)와 다른 표지다. */
+    let halted = false
 
     return {
       hold(handle: Cancellable): void {
@@ -186,7 +202,8 @@ export function useWork(): Work {
         // 화면이 워커를 열어 **지금 열린 파일에 얹었다.** 화면 셋에서 실측됐다.
         //
         // **그래서 맡기는 문 하나가 판정한다.** `await`가 앞에 몇 개든 상관없어진다.
-        if (!living) {
+        // 이 일 하나만 끊긴 것(`cancel()`)도 같은 문이 본다 — 읽는 동안 누른 [취소].
+        if (!living || halted) {
           handle.cancel()
           return
         }
@@ -204,6 +221,12 @@ export function useWork(): Work {
         live.value = live.value.filter((one) => one !== id)
         blocking.value = blocking.value.filter((one) => one !== id)
       },
+      cancel(): void {
+        halted = true
+        // **끊기만 하고 놓지 않는다** — `cancelAll()`과 같은 규칙이다. 놓는 것은 그 일의 `finally`다.
+        handles.get(id)?.cancel()
+      },
+      cancelled: () => halted,
     }
   }
 

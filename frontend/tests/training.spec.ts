@@ -325,6 +325,64 @@ describe('끝나는 길', () => {
 })
 
 /**
+ * **워커가 죽어도 끝난 것은 남는다** (open-decisions.md "멈추기가 끝난 것을 남긴다" §7).
+ *
+ * 전에는 다섯 중 넷이 끝난 뒤 다섯째가 워커를 죽이면 넷도 `JOB_FAILED`로 사라졌다 — [멈추기]는
+ * 같은 넷을 남기는데. 조립은 멈추기와 같고, **죽은 사유는 결과 곁에 따로 온다** — 화면이 "일부
+ * 실패"로 알리고 기술 정보로 싣는다. 파일에는 안 들어간다.
+ */
+describe('워커가 죽는다', () => {
+  it('끝난 것이 있으면 실험으로 남기고 사유를 곁에 싣는다', async () => {
+    const { training, latest } = harness()
+    const done = training.run(requestFor(3))
+
+    latest()?.emit(PRELUDE)
+    latest()?.emit(PROGRESS_WITH_MODEL)
+    latest()?.fail('out of memory')
+
+    const result = await done
+    expect(result?.experiment.id).toBe('experiment-7')
+    expect(result?.experiment.runs).toHaveLength(1)
+    expect(result?.models.get('run-1')).toBeDefined()
+    // **죽인 모델을 실패 run으로 덧붙이지 않는다** — 대조가 그 run까지 다시 돌린다.
+    expect(result?.experiment.runs.map((run) => run.status)).toEqual(['done'])
+    expect(result?.failure?.code).toBe('JOB_FAILED')
+    expect(result?.failure?.params.detail).toBe('out of memory')
+    expect(latest()?.terminated).toBe(1)
+    expect(training.running.value).toBe(false)
+  })
+
+  it('끝난 것이 없으면 지금처럼 JOB_FAILED다', async () => {
+    const { training, latest } = harness()
+    const done = training.run(requestFor(3))
+
+    latest()?.emit(PRELUDE)
+    latest()?.fail('out of memory')
+
+    const error = await done.catch((thrown: unknown) => thrown)
+    expect(error instanceof ClientError && error.code).toBe('JOB_FAILED')
+  })
+
+  it('끝까지 가면 사유가 없다 - 성공을 일부 실패로 부르지 않는다', async () => {
+    const { training, latest } = harness()
+    const done = training.run(requestFor(1))
+    latest()?.emit(DONE)
+
+    expect((await done)?.failure).toBeUndefined()
+  })
+
+  it('멈춘 것에도 사유가 없다 - 학생이 누른 것은 실패가 아니다', async () => {
+    const { training, latest } = harness()
+    const done = training.run(requestFor(3))
+    latest()?.emit(PRELUDE)
+    latest()?.emit(PROGRESS_WITH_MODEL)
+    training.cancel()
+
+    expect((await done)?.failure).toBeUndefined()
+  })
+})
+
+/**
  * **경과 시계의 수명** (2026-09-01 R18 감사 B-1).
  *
  * 시계를 세운 커밋이 검사한 것은 순수 함수 `elapsedOf` 하나뿐이었고, **배관은 통째로

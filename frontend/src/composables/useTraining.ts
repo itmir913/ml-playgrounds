@@ -20,7 +20,6 @@ import { computed, ref, shallowRef, toRaw } from 'vue'
 import { isClientError } from '../errors'
 import { succeeded } from '../ml/results'
 import { TRAINING_ELAPSED_TICK_MS } from '../limits'
-import type { ExperimentResult } from '../ml/experiment'
 import {
   waitingStatuses,
   withFinished,
@@ -28,7 +27,7 @@ import {
   withStarted,
   type ModelStatus,
 } from '../ml/training-status'
-import { train, type TrainWorker } from '../ml/worker/client'
+import { train, type TrainOutcome, type TrainWorker } from '../ml/worker/client'
 import type { TrainRequest } from '../ml/worker/protocol'
 
 export interface TrainingProgress {
@@ -140,8 +139,11 @@ export function useTraining(createWorker: () => TrainWorker, options?: TrainingO
    *
    * 취소는 결과가 아니라 **아무 일도 없었던 것**으로 돌려준다(null). 학생이 스스로 누른
    * 것이라 알릴 실패가 없다. 나머지 실패는 그대로 던져서 부르는 쪽이 알림으로 만든다.
+   *
+   * **워커가 도중에 죽었는데 끝난 모델이 있으면 던지지 않고 그 실험을 돌려준다** — 사유는
+   * `failure`에 실려 온다(`ml/worker/client.ts`, 결정문 39 §7). 부르는 쪽이 "일부 실패"로 알린다.
    */
-  async function run(request: TrainRequest): Promise<ExperimentResult | null> {
+  async function run(request: TrainRequest): Promise<TrainOutcome | null> {
     // 두 번 눌려도 두 개가 돌지 않는다. 버튼이 이미 막지만 여기가 마지막 관문이다.
     if (running.value) return null
 

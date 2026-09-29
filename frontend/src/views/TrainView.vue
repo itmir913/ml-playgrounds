@@ -14,7 +14,7 @@
  * 끝났다는 것과 [결과 보기]가 버튼 자리에 남는다.
  */
 
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter, type RouteLocationNormalized } from 'vue-router'
 
@@ -30,7 +30,7 @@ import StepActionBar from '@/components/StepActionBar.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { useFormat } from '@/composables/useFormat'
 import { useTraining } from '@/composables/useTraining'
-import { useWork } from '@/composables/useWork'
+import { useWork, type Job } from '@/composables/useWork'
 import { isClientError, toMessage } from '@/errors'
 import { algorithmOptions, supportedTaskTypes } from '@/ml/algorithms'
 import { calibrateDevice } from '@/ml/worker/client'
@@ -520,6 +520,23 @@ onBeforeUnmount(retire)
 let preparingHandle: { cancel: () => void } | null = null
 
 /**
+ * 학습 전 준비를 도는 일. **[취소]가 이것을 끊는다** (architecture.md §8.10.4, 코드 소유자 결정 11).
+ * [학습하기]를 누른 순간부터 학습 워커를 띄우기 직전까지만 있다 — 그 뒤로는 [멈추기]의 몫이다.
+ *
+ * **끊는 것은 워커 terminate다** (`ml/embed/client.ts`). 백본은 임베딩 워커 안에서
+ * `loadGraphModel`이 받으므로 워커를 끊으면 그 내려받기도 함께 끊긴다 — HTML 명세의 워커
+ * 종료이고 브라우저의 네트워크 탭으로는 재지 않았다(사람 확인). 우리가 따로 둔 캐시는 없고
+ * (브라우저 HTTP 캐시뿐이다), 다시 누르면 새 워커가 처음부터 받는다. 끊고 다시 받는 것은
+ * `train-prepare-cancel.spec.ts`가 문다.
+ */
+const preparingJob = shallowRef<Job | null>(null)
+
+/** [취소]. 준비를 끊는다 — 끊긴 준비는 조용히 돌아가고 아무것도 안 앉는다. */
+function cancelPreparing(): void {
+  preparingJob.value?.cancel()
+}
+
+/**
  * 이 화면이 아직 살아 있는가. **긴 계산 뒤에 스토어를 만지기 전에 본다** — 떠난 뒤에
  * 앉히면 닫힌 스토어가 되살아나거나 **다른 프로젝트 위에 옛 조각이 앉는다.**
  */
@@ -537,7 +554,8 @@ onBeforeUnmount(() => {
  * `training.running`만 보던 때는 준비 단계(이미지 백본 12.4MB를 받는 동안)에 축이 열려
  * 있었고, 나가기도 안 막혔다. 학생이 그 사이에 모델을 빼면 준비가 끝나며 되돌아갔고,
  * 나가면 닫힌 스토어에 옛 프로젝트가 되살아났다 (2026-09-02 R20 A-3).
- * *"학습 중에 나가면 결과가 없다"*는 대화상자의 문장은 **준비 중에도 참이다.**
+ * *"학습을 마친 모델만 결과에 남습니다"*라는 대화상자의 문장은 **준비 중에도 참이다** — 그때는
+ * 끝난 모델이 없다.
  *
  * `train-preparing.spec.ts`가 축·가드·잠금이 셋 다 이 신호를 보는지 지킨다.
  */
@@ -629,6 +647,7 @@ async function startTraining(): Promise<void> {
   stopped = false
   // **누른 순간부터다.** `await`보다 먼저 잡아야 창이 안 생긴다 (R21 B-1).
   const job = startWork()
+  preparingJob.value = job
 
   try {
     /**
@@ -652,12 +671,17 @@ async function startTraining(): Promise<void> {
       },
       onHandle: (handle) => {
         preparingHandle = handle
+        // [취소]가 끊을 수 있게 일에도 맡긴다 — 이미 눌렸으면 `hold()`가 그 자리에서 끊는다.
+        job.hold(handle)
       },
     })
     preparingHandle = null
     // **떠났으면 아무것도 앉히지 않는다.** 여기까지 오는 데 12.4MB를 받는 시간이 걸리고,
     // 그 사이 학생은 목록으로 나갔거나 다른 프로젝트를 열었을 수 있다 (R20 A-3).
-    if (!ours()) return
+    // `job.cancelled()`는 **지금은 닿지 않는 그물이다** — 표 준비는 동기라 [취소]를 누를 틈이
+    // 없고, 이미지는 [취소]가 임베딩을 끊어 위 `await`가 `JOB_CANCELLED`로 던진다. 준비에 손잡이
+    // 없는 `await`가 생기는 날 이 줄이 막는다(사람 확인 — 무는 검사 없음).
+    if (!ours() || job.cancelled()) return
 
     // **뽑은 임베딩을 먼저 앉힌다.** 학습이 실패해도 그건 이미 유효한 계산이고,
     // 버리면 다음 시도에서 백본을 다시 받는다 (mlpx-spec.md §1.3).
@@ -670,6 +694,8 @@ async function startTraining(): Promise<void> {
       project.update((live) => addEmbeddings(live, prepared.backboneId, prepared.vectors))
     }
     preparing.value = null
+    // 준비가 끝났다 — 여기서부터 끊는 것은 [멈추기]다.
+    preparingJob.value = null
 
     const result = await training.run({
       type: 'train',
@@ -693,12 +719,24 @@ async function startTraining(): Promise<void> {
 
     // 학습하는 동안 학생이 다른 것을 고쳤을 수 있다. 그때의 파일이 아니라 지금 것에 앉힌다.
     project.update((live) => applyExperiment(live, result, now()))
+    /**
+     * **워커가 도중에 죽었으면 "일부 실패"다** (open-decisions.md "멈추기가 끝난 것을 남긴다" §7).
+     * 끝난 것은 방금 앉았고 나머지는 결과가 없다. 죽은 사유(`detail`)는 이 알림의 기술 정보로만
+     * 간다 — 파일에는 안 들어간다. `train-worker-death.spec.ts`가 문다.
+     */
+    if (result.failure) {
+      toasts.push('caution', 'train.partlyFailed', {
+        ...result.failure.params,
+        count: result.experiment.runs.length,
+      })
+      return
+    }
     // **멈춘 것을 "끝났습니다"라고 부르지 않는다.** 학생이 스스로 누른 것이고, 모달이
     // 약속한 것("끝난 것은 남습니다")을 여기서 확인해 주는 자리다.
     toasts.push('success', stopped ? 'train.stopped' : 'train.finished')
   } catch (error) {
-    // **끊은 것은 실패가 아니다.** 준비 중에 학생이 화면을 떠나면 우리가 워커를 끊고,
-    // 그 거절이 여기로 온다 — 학생이 스스로 한 일이라 알릴 것이 없다. 데이터 화면이
+    // **끊은 것은 실패가 아니다.** 준비 중에 학생이 [취소]를 누르거나 화면을 떠나면 우리가
+    // 워커를 끊고, 그 거절이 여기로 온다 — 학생이 스스로 한 일이라 알릴 것이 없다. 데이터 화면이
     // 굽기 취소를 다루는 것과 같은 규칙이다 (`views/data/ImagePanel.vue`).
     if (isClientError(error) && error.code === 'JOB_CANCELLED') return
     // 남의 프로젝트의 실패를 이 프로젝트의 상태 줄에 세우지 않는다 (사람 확인 — 무는 검사 없음).
@@ -709,6 +747,7 @@ async function startTraining(): Promise<void> {
   } finally {
     preparing.value = null
     preparingHandle = null
+    if (preparingJob.value === job) preparingJob.value = null
     /**
      * **끝났으면 멈출 것도 없다** (2026-09-29 감사 F C-2). 학생이 묻는 대화상자를 연 채로
      * 학습이 끝나면 *"학습을 멈출까요?"*가 끝난 학습 위에 남아 있었다.
@@ -808,6 +847,12 @@ function leave(): void {
   leavingTo.value = null
   leaving = true
   stopped = true
+  /**
+   * **끝난 모델은 남는다** (결정문 39 §7). 취소는 조립한 실험을 **동기로** 풀고, 그 결과는 이동이
+   * 가드를 지나기 전에 `startTraining`에서 앉는다 — 목록으로 나가면 가드의 `flush()`가 그것을 쓴
+   * 뒤에 `close()`가 돈다. **끊는 것이 이동보다 먼저다** — 이동이 끝난 뒤에 끊으면(예: 언마운트에
+   * 맡기면) 화면이 먼저 내려가 결과가 버려진다(`alive`). `train-leave-keeps.spec.ts`가 문다.
+   */
   training.cancel()
   if (to) {
     // **중단·리다이렉트는 거부가 아니라 `NavigationFailure`로 이행한다.** `catch`만
@@ -923,6 +968,14 @@ function leave(): void {
           {{ t('train.seeResults') }}
         </AppButton>
 
+        <!--
+          **준비 중에는 [취소]다** (architecture.md §8.10.4, 코드 소유자 결정 11). 백본을 받는 동안
+          멈출 길이 떠나기뿐이었다. 끊으면 아무것도 안 남으므로 묻지 않는다 — [멈추기]가 묻는 것은
+          끝난 모델이 남기 때문이다.
+        -->
+        <AppButton v-if="preparingJob" variant="secondary" @click="cancelPreparing">
+          {{ t('common.cancel') }}
+        </AppButton>
         <AppButton v-if="training.running.value" variant="secondary" @click="askStop">
           {{ t('train.stop') }}
         </AppButton>
@@ -1023,8 +1076,9 @@ function leave(): void {
     </section>
 
     <!--
-      **학습 중에 나가면 결과가 없다.** 워커는 terminate되고 남는 것이 없으므로, 조용히
-      보내면 학생은 돌아와서 "결과가 왜 없지"를 만난다.
+      **학습 중에 나가면 학습이 멈춘다.** 나가기는 [멈추기]와 같은 `training.cancel()`이라
+      학습을 마친 모델만 남고(결정문 39 §7), 조용히 보내면 학생은 돌아와서 "나머지 결과가 왜
+      없지"를 만난다. 끝난 것이 남는지는 `train-leave-keeps.spec.ts`가 문다.
 
       **이 화면 안에 있어야 한다.** 밖에 두면 이 화면의 루트가 둘이 된다.
 

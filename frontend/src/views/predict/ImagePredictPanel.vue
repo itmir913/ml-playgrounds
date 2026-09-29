@@ -14,7 +14,7 @@
  * 하는 일은 그 문을 순서대로 여는 것뿐이고, 새로 만드는 계산이 없다.
  */
 
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
@@ -26,7 +26,7 @@ import { useThumbnails } from '@/composables/useThumbnails'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
 import { IMAGE_ACCEPT, readImageFiles, readImageZip, ZIP_EXTENSION } from '@/data/image/upload'
 import { usePasteImages } from '@/composables/usePasteImages'
-import { useWork } from '@/composables/useWork'
+import { useWork, type Job } from '@/composables/useWork'
 import { ClientError, isClientError } from '@/errors'
 import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { anyLock, lockFor, turnPage, useGate, type WatchWriteId } from '@/locks'
@@ -93,6 +93,21 @@ const fileInput = ref<HTMLInputElement | null>(null)
  * 사진 빼기이고, 예측 자체는 `predicting`이 말한다.
  */
 const { busy, lock: busyLock, progress, start, alive, retire } = useWork()
+
+/**
+ * 지금 받고 굽는 사진 일. **[취소]가 이것 하나만 끊는다** (architecture.md §8.10.4, 코드 소유자
+ * 결정 11) — 같은 자루에 겹쳐 도는 예측의 임베딩은 그대로다(`cancelAll()`을 안 쓰는 이유).
+ *
+ * **읽기부터 굽기가 끝날 때까지만 있다.** 저장을 시작하면 내린다 — 그 뒤로는 끊을 것이 없고,
+ * 선 채로 두면 눌러도 사진이 앉는 [취소]가 된다. `image-predict-cancel.spec.ts`가 문다.
+ */
+const bakingJob = shallowRef<Job | null>(null)
+
+/** [취소]. 굽는 일 하나를 끊는다 — 끊긴 일의 `catch`가 조용히 돌아가고 아무것도 안 앉는다. */
+function cancelBaking(): void {
+  bakingJob.value?.cancel()
+}
+
 /** 사진을 끌고 판 위에 있는가. 빈 자리의 점선이 이걸 보고 색을 바꾼다. */
 const dragging = ref(false)
 /**
@@ -290,6 +305,7 @@ async function readPicked(files: readonly File[]): Promise<void> {
   }
 
   const job = start()
+  bakingJob.value = job
   /**
    * **받기 시작한 프로젝트** (`stores/project.ts`의 `claim`). `alive`는 언마운트에서만
    * 내려가고, 프로젝트를 옮기면 `App.vue`의 화면 키가 이 판을 언마운트한다(키는 판을 가리지
@@ -312,8 +328,9 @@ async function readPicked(files: readonly File[]): Promise<void> {
     // **읽는 동안 떠났으면 여기서 멈춘다.** 읽기 구간에는 맡길 손잡이가 없어
     // `retire()`가 끊을 것이 없다 — 이 줄이 없으면 죽은 화면이 워커를 열어 **지금 열린
     // 파일에** 사진을 얹는다. 그 사이 학생이 다른 프로젝트를 열었으면 그쪽에 앉는다
-    // (2026-09-02 R23 B-2). 같은 화면에서 프로젝트만 바뀐 것은 `ours`가 본다.
-    if (!alive() || !ours()) return
+    // (2026-09-02 R23 B-2). 같은 화면에서 프로젝트만 바뀐 것은 `ours`가 본다. 읽는 동안 누른
+    // [취소]도 여기서 멈춘다 — 그 구간에는 끊을 손잡이가 없다.
+    if (!alive() || !ours() || job.cancelled()) return
 
     // **굽기 전에 막는다** (project/images.ts의 imageOverflow). 백본을 돌린 뒤에
     // 거절하면 학생은 기다린 시간을 통째로 버린다.
@@ -327,6 +344,9 @@ async function readPicked(files: readonly File[]): Promise<void> {
     // 남은 자리다.
     const shortfall = await imageRoomShortfall(file, items.length, spec)
     if (shortfall) throw new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall })
+    // **자리를 묻는 동안 [취소]가 눌렸으면 워커를 띄우지 않는다.** 띄워도 `hold()`가 그 자리에서
+    // 끊지만, 저사양 PC에서 워커 하나를 헛되이 띄우는 비용이 남는다.
+    if (job.cancelled()) return
 
     job.report(0, items.length)
     // **핸들을 버리지 않는다.** 학생이 굽는 도중 다른 단계로 가면 아무도 안 듣는
@@ -345,6 +365,8 @@ async function readPicked(files: readonly File[]): Promise<void> {
     job.hold(baking)
     const baked = await baking.result
     if (!ours()) return
+    // **여기서부터는 끊을 것이 없다** — [취소]를 내린다. 저장 중에 선 [취소]는 눌러도 사진이 앉는다.
+    if (bakingJob.value === job) bakingJob.value = null
 
     /**
      * **한 장도 못 구웠으면 저장하지 않는다** (2026-09-28 감사 A-1). 앉히면 사진 없는 예측
@@ -393,6 +415,7 @@ async function readPicked(files: readonly File[]): Promise<void> {
   } finally {
     // **내 몫만 놓는다.** 끝난 워커를 다음 언마운트가 끊으려 들지도, 겹쳐 도는 예측의
     // 손잡이와 진행 표시를 지우지도 않는다 (§8.10.4).
+    if (bakingJob.value === job) bakingJob.value = null
     job.done()
   }
 }
@@ -749,6 +772,13 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       <span v-if="progress" class="tabular-nums font-bold" role="status">
         {{ t('meta.image.preparing', { done: progress.completed, total: progress.total }) }}
       </span>
+      <!--
+        **굽는 동안만 선다** (§8.10.4, 코드 소유자 결정 11). 깨진 사진에 워커가 붙들려도 떠나지
+        않고 물릴 수 있다. 이름은 데이터 화면의 굽기 [취소]와 같다.
+      -->
+      <AppButton v-if="bakingJob" variant="secondary" @click="cancelBaking">
+        {{ t('common.cancel') }}
+      </AppButton>
       <!--
         **초기화 경로가 있어야 한다.** 잘못 올린 사진을 빼는 길이 없으면 학생이 할 수
         있는 일이 프로젝트를 새로 만드는 것뿐이다.

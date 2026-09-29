@@ -390,7 +390,15 @@ async function reproduce(): Promise<void> {
       },
     })
     job.hold(handle)
-    const { experiment } = await handle.result
+    const { experiment, failure } = await handle.result
+    /**
+     * **워커가 도중에 죽었으면 대조는 실패다** (open-decisions.md "멈추기가 끝난 것을 남긴다" §7).
+     * 학습 쪽은 끝난 모델로 실험을 조립해 돌려주지만, 여기서 그것을 통째로 견주면 안 돈 run이
+     * `엔진 없음`으로 선다 — 아래 멈춘 실험과 같은 병이다. run마다 온 판정은 이미 앉아 있고,
+     * 사유는 전처럼 실패 줄과 알림이 말한다. `inspect-reproduce-live.spec.ts`의
+     * *"대조 중 워커가 죽으면 …"*이 문다.
+     */
+    if (failure) throw failure
     // **떠난 화면에는 안 앉힌다** (`useWork`의 `alive`). 교사가 다른 제출물로 옮겼는데
     // 앞 파일의 판정이 뒤늦게 이 자리에 앉으면 **무고한 학생에게 붙는다.**
     //
