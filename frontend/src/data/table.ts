@@ -24,7 +24,7 @@ import { openCsvText } from './csv'
 import { decodeText, detectEncoding, type SourceEncoding } from './encoding'
 import type { TableGrid } from './grid'
 import { canonicalGrid, toCanonicalCsv } from './serialize'
-import { looksLikeZip, openXlsx } from './xlsx'
+import { looksLikeOle2, looksLikeZip, openXlsx } from './xlsx'
 
 export type { TableGrid } from './grid'
 
@@ -79,6 +79,11 @@ export interface ImportedTable {
 
 const CSV_EXTENSIONS = ['.csv']
 const XLSX_EXTENSIONS = ['.xlsx']
+/**
+ * 받지 않지만 **왜 못 읽는지는 말하는** 확장자 (open-decisions.md 71). 옛 엑셀(.xls)은 읽기를
+ * 더하지 않았다 — 이 목록은 거절의 말을 고르는 데만 쓴다.
+ */
+const LEGACY_EXCEL_EXTENSIONS = ['.xls']
 
 export function sourceFromFileName(fileName: string): TableSource {
   const lower = fileName.toLowerCase()
@@ -97,8 +102,21 @@ export function sourceFromFileName(fileName: string): TableSource {
  * 연다. 전에는 그런 파일을 CP949 텍스트로 풀어 papaparse에 넣었고, 따옴표 오류로 **우연히**
  * 거부되거나 아니면 쓰레기 표가 됐다. CSV는 글자라 이 네 바이트로 시작할 일이 없다.
  * 무는 검사: table.spec.ts "이름이 .csv여도 내용이 xlsx면 엑셀로 연다".
+ *
+ * **OLE2 상자는 암호 xlsx나 옛 .xls다** (open-decisions.md 71, 2026-09-28 감사 E C3). 이름이
+ * 표나 엑셀이면(`.csv`·`.xlsx`·`.xls`) `DATASET_EXCEL_ENCRYPTED_OR_LEGACY`로 할 일을 말한다 — 전에는
+ * 암호 xlsx가 "읽지 못했다", .xls가 "지원하지 않는 형식"이었고, **이름이 `.csv`면 깨진 글자의 표로
+ * 열렸다.** 다른 이름(한글·워드도 같은 상자다)은 아래 확장자 문이 지금처럼 거절한다.
+ * 무는 검사: table.spec.ts "openTable - 암호 xlsx와 옛 xls".
  */
 export async function openTable(bytes: Uint8Array, fileName: string): Promise<TableDocument> {
+  if (looksLikeOle2(bytes)) {
+    const lower = fileName.toLowerCase()
+    const tabular = [...CSV_EXTENSIONS, ...XLSX_EXTENSIONS, ...LEGACY_EXCEL_EXTENSIONS]
+    if (tabular.some((extension) => lower.endsWith(extension))) {
+      throw new ClientError('DATASET_EXCEL_ENCRYPTED_OR_LEGACY', { fileName })
+    }
+  }
   const named = sourceFromFileName(fileName)
   const source: TableSource = looksLikeZip(bytes) ? 'xlsx' : named
 

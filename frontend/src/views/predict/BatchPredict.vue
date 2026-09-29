@@ -561,6 +561,19 @@ const failureReasons = computed(() => {
   return [...seen].map(([code, params]) => t(errorMessageKey(code), { ...params }))
 })
 
+/**
+ * 지금 쪽에서 **학습 때 못 본 값**이 든 열들 (open-decisions.md 72). 칸에는 표지만 두고 어느
+ * 열인지는 표 아래 한 번 말한다 — 실패 사유(`failureReasons`)와 같은 까닭이다. 판정은
+ * `predictPage`가 답에 붙인 `unseen`이고 여기서는 모으기만 한다. **답과 내려받는 파일은 그대로다.**
+ */
+const unseenColumns = computed(() => {
+  const seen = new Set<string>()
+  for (const row of currentAnswers.value) {
+    for (const answer of row) for (const name of answer?.unseen ?? []) seen.add(name)
+  }
+  return [...seen]
+})
+
 function cellText(answer: Answer | undefined): string {
   const value = answer?.value
   /**
@@ -808,6 +821,13 @@ defineExpose({
               :class="cellColorClass(model, currentAnswers[rowIndex]?.[modelIndex]?.value)"
             >
               {{ cellText(currentAnswers[rowIndex]?.[modelIndex]) }}
+              <!-- 학습 때 못 본 값이 들어간 답 (open-decisions.md 72). 어느 열인지는 표 아래가 말한다. -->
+              <span
+                v-if="currentAnswers[rowIndex]?.[modelIndex]?.unseen"
+                class="block font-normal text-caution"
+              >
+                {{ t('predict.tabular.unseenMark') }}
+              </span>
             </td>
           </tr>
         </tbody>
@@ -823,6 +843,10 @@ defineExpose({
           {{ reason }}
         </p>
       </div>
+
+      <p v-if="unseenColumns.length > 0" class="text-base font-medium text-caution">
+        {{ t('predict.tabular.unseenNote', { columns: nameList(unseenColumns) }) }}
+      </p>
 
       <div class="flex items-center justify-between gap-4">
         <AppButton variant="secondary" :lock="atFirstPage" :action="() => turn(-1)">

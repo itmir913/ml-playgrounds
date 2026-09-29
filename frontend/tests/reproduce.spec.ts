@@ -1559,4 +1559,111 @@ describe('계산 규칙이 바뀐 뒤', () => {
       expect(changedRules(experiment, run, mixed)).not.toContain('CODE_POINT_ORDER')
     })
   })
+
+  /**
+   * 수로 읽는 글자를 pandas에 맞춘 것(open-decisions.md 71)은 **`0x1A`·`0b101`·`0o17`처럼 JS만
+   * 수로 읽던 글자가 쓰는 열에 있을 때만** 열 종류를 바꾼다. 그런 칸이 없으면 옛 판과 새 판이
+   * 같은 표를 본다.
+   */
+  describe('수로 읽는 글자는 JS만 받던 진법 표기가 쓰는 열에 있을 때만 걸린다', () => {
+    const table = (x: readonly string[], y: readonly string[], z: readonly string[] = []) => ({
+      columns: ['x', 'y', 'z'],
+      rows: x.map((cell, index) => [cell, y[index] ?? '', z[index] ?? '']),
+    })
+    const DECIMAL = ['1', '2.5', ' 3 ', '-1e3']
+
+    async function experimentOf(
+      split: 'holdout' | 'provided' = 'holdout',
+    ): Promise<{ experiment: Experiment; run: Run }> {
+      const base = await trained(['decision_tree'])
+      const experiment: Experiment = {
+        ...base,
+        settings: {
+          ...base.settings,
+          taskType: 'regression',
+          split: { ...base.settings.split, method: split },
+          data: {
+            features: ['x'],
+            target: 'y',
+            preprocessing: { missing: 'none', scaling: 'none', categoricalEncoding: 'onehot' },
+          },
+        },
+      }
+      return { experiment, run: experiment.runs[0] as Run }
+    }
+
+    const file = (over: Partial<RuleFile>): RuleFile => ({
+      appVersion: '0.30.7',
+      preprocessor: null,
+      dataset: table(DECIMAL, DECIMAL),
+      testDataset: null,
+      ...over,
+    })
+
+    it.each(['0x1A', '0b101', '0o17', ' 0X1a '])('특성 열에 %s가 있으면 걸린다', async (cell) => {
+      const { experiment, run } = await experimentOf()
+      const dataset = table([...DECIMAL, cell], [...DECIMAL, '1'])
+      expect(changedRules(experiment, run, file({ dataset }))).toContain('RADIX_LITERAL')
+    })
+
+    it('정답 열에 있어도 걸린다', async () => {
+      const { experiment, run } = await experimentOf()
+      const dataset = table([...DECIMAL, '1'], [...DECIMAL, '0b11'])
+      expect(changedRules(experiment, run, file({ dataset }))).toContain('RADIX_LITERAL')
+    })
+
+    it('십진 표기뿐이면 안 걸린다', async () => {
+      const { experiment, run } = await experimentOf()
+      expect(changedRules(experiment, run, file({}))).not.toContain('RADIX_LITERAL')
+    })
+
+    /** 옛 판도 수로 안 읽던 글자다 — 그 열은 옛 판에서도 범주였다. */
+    it('옛 판도 안 받던 글자는 안 걸린다', async () => {
+      const { experiment, run } = await experimentOf()
+      const dataset = table([...DECIMAL, '1,000', 'inf', '1_000', '-0x1A'], DECIMAL)
+      expect(changedRules(experiment, run, file({ dataset }))).not.toContain('RADIX_LITERAL')
+    })
+
+    it('쓰지 않는 열에만 있으면 안 걸린다', async () => {
+      const { experiment, run } = await experimentOf()
+      const dataset = table(DECIMAL, DECIMAL, ['0x1A', '0x1B', '0x1C', '0x1D'])
+      expect(changedRules(experiment, run, file({ dataset }))).not.toContain('RADIX_LITERAL')
+    })
+
+    it('시험 표가 따로면 그 표도 본다', async () => {
+      const { experiment, run } = await experimentOf('provided')
+      const hex = table(['0o17'], ['1'])
+      expect(changedRules(experiment, run, file({ testDataset: hex }))).toContain('RADIX_LITERAL')
+      const plain = table(DECIMAL, DECIMAL)
+      expect(changedRules(experiment, run, file({ testDataset: plain }))).not.toContain(
+        'RADIX_LITERAL',
+      )
+      expect(changedRules(experiment, run, file({ testDataset: null }))).toContain('RADIX_LITERAL')
+    })
+
+    it('표를 못 읽거나 열이 없으면 걸린다고 본다', async () => {
+      const { experiment, run } = await experimentOf()
+      expect(changedRules(experiment, run, file({ dataset: null }))).toContain('RADIX_LITERAL')
+      const noFeature: Dataset = { columns: ['y'], rows: [['1']] }
+      expect(changedRules(experiment, run, file({ dataset: noFeature }))).toContain('RADIX_LITERAL')
+    })
+
+    it('스냅숏을 못 읽으면 걸린다고 본다 — 표가 십진 표기뿐이어도', async () => {
+      const { experiment: base, run } = await experimentOf()
+      // 표 스냅숏 스키마를 못 지나는 모양 — 남이 고친 파일이나 다른 데이터 종류가 이렇다.
+      const data = { features: 'x' } as unknown as Experiment['settings']['data']
+      const unreadable: Experiment = { ...base, settings: { ...base.settings, data } }
+      expect(changedRules(unreadable, run, file({}))).toContain('RADIX_LITERAL')
+    })
+
+    it('규칙이 바뀐 판부터 만든 파일에는 안 걸린다', async () => {
+      const { experiment, run } = await experimentOf()
+      const since = CALCULATION_RULE_CHANGES.find((one) => one.rule === 'RADIX_LITERAL')?.since
+      expect(since).toBeDefined()
+      const dataset = table([...DECIMAL, '0x1A'], DECIMAL)
+      expect(
+        changedRules(experiment, run, file({ dataset, appVersion: since ?? '' })),
+      ).not.toContain('RADIX_LITERAL')
+    })
+  })
 })

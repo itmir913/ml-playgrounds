@@ -85,8 +85,32 @@ describe('openXlsx', { timeout: 20_000 }, () => {
       expect(await oneRow(rich)).toEqual([['머리글'], ['김민수']])
     })
 
-    it('오류 셀은 오류 글자를 그대로 준다', async () => {
-      expect(await oneRow({ error: '#DIV/0!' })).toEqual([['머리글'], ['#DIV/0!']])
+    /**
+     * **오류 칸은 빈 칸이다** (open-decisions.md 71). pandas는 NaN으로 읽는다. 전에는 오류
+     * 글자를 그대로 줘서 **그 열이 통째로 범주형이 됐다** — 평균 열의 `#DIV/0!` 한 칸이 수치 열
+     * 하나를 모델에서 다른 것으로 바꿨다. 옆 칸에 값을 두는 이유는 빈 줄이 버려지기 때문이다.
+     */
+    async function besideError(value: unknown): Promise<string[][]> {
+      const workbook = new ExcelJS.Workbook()
+      const sheet = workbook.addWorksheet('S')
+      sheet.addRow(['a', 'b'])
+      sheet.addRow([1, value])
+      const bytes = new Uint8Array(await workbook.xlsx.writeBuffer())
+      return (await openXlsx(bytes)).readSheet('S')
+    }
+
+    it('오류 셀은 빈 칸이 된다', async () => {
+      expect(await besideError({ error: '#DIV/0!' })).toEqual([
+        ['a', 'b'],
+        ['1', ''],
+      ])
+    })
+
+    it('수식의 캐시 결과가 오류여도 빈 칸이 된다', async () => {
+      expect(await besideError({ formula: '1/0', result: { error: '#DIV/0!' } })).toEqual([
+        ['a', 'b'],
+        ['1', ''],
+      ])
     })
 
     /**

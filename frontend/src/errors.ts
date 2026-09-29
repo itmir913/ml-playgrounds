@@ -147,8 +147,9 @@ export const CLIENT_ERROR_CODES = [
   // 답을 낸다** (2026-09-19 R33 C-3).
   'PREDICTION_INPUT_NOT_NUMBER',
 
-  // 표 파일 가져오기 - 서버는 정규화된 CSV만 보므로 이 둘은 서버에 없다 (data/table.ts)
+  // 표 파일 가져오기 - 서버는 정규화된 CSV만 보므로 이 묶음은 서버에 없다 (data/table.ts)
   'DATASET_FILE_TYPE_UNSUPPORTED',
+  'DATASET_EXCEL_ENCRYPTED_OR_LEGACY',
   'DATASET_SHEET_NOT_FOUND',
 
   // 브라우저 저장소 - project/storage.ts

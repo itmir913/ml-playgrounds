@@ -43,7 +43,7 @@ import { engineFor } from './engines'
 import { runExperiment, type ExperimentInput } from './experiment'
 import { asRecordedSplit, type RecordedSplit } from './plan'
 import type { ComputePools } from './pools'
-import { categoryOrder, type Dataset, type Preprocessor } from './preprocess'
+import { categoryOrder, toNumber, type Dataset, type Preprocessor } from './preprocess'
 import { succeeded } from './results'
 
 /** run 하나의 대조 결과. **판정이 아니라 사실이다.** */
@@ -442,6 +442,7 @@ export type CalculationRule =
   | 'CATEGORY_ORDER'
   | 'CONSTANT_TARGET_R2'
   | 'CODE_POINT_ORDER'
+  | 'RADIX_LITERAL'
 
 /** 판정을 거를지 볼 때 쓰는, 그 파일이 가진 것. */
 export interface RuleFile {
@@ -538,7 +539,50 @@ export const CALCULATION_RULE_CHANGES: readonly CalculationRuleChange[] = [
     since: '0.28.3',
     touches: (subject) => labelsOrderDiffers(subject) || fillOrderDiffers(subject),
   },
+  // 71 — `0x1A`·`0b101`·`0o17`은 수가 아니다(pandas처럼). 특성 열이나 정답 열에 옛 판만 수로
+  // 읽던 글자가 있을 때만 걸린다 — 그 열의 종류가 바뀐다.
+  {
+    rule: 'RADIX_LITERAL',
+    since: '0.30.8',
+    touches: (subject) => radixLiteralUsed(subject),
+  },
 ]
+
+/**
+ * 옛 판의 `toNumber`는 JS `Number()` 그대로였다. **그것이 수로 읽고 지금은 안 읽는 칸**이 이
+ * 결정의 전부다(진법 표기) — 식을 따로 적지 않고 두 판을 견줘서, 좁힌 문법과 이 판정이 어긋날
+ * 자리를 없앤다.
+ */
+function readByOldRule(cell: string): boolean {
+  const trimmed = cell.trim()
+  return trimmed !== '' && Number.isFinite(Number(trimmed))
+}
+
+/**
+ * 진법 표기의 변경이 이 run에 걸리는가. 쓰는 열(특성과 정답)을 표 전체에서 본다 — 열 종류는
+ * 그 실행이 쓰는 행 전체로 정해지고(결정문 53), 행을 가르는 것보다 전부 보는 쪽이 넓게 틀린다.
+ * 시험 표를 따로 올렸으면 그 표도 본다. **못 읽으면 참이다.**
+ */
+function radixLiteralUsed({ experiment, file, data }: RuleSubject): boolean {
+  if (data === null) return true
+  const columns = data.target === undefined ? data.features : [...data.features, data.target]
+  const sources =
+    experiment.settings.split.method === 'provided'
+      ? [file.dataset, file.testDataset]
+      : [file.dataset]
+  for (const source of sources) {
+    if (source === null) return true
+    for (const name of columns) {
+      const column = source.columns.indexOf(name)
+      if (column < 0) return true
+      for (const row of source.rows) {
+        const cell = row[column] ?? ''
+        if (readByOldRule(cell) && toNumber(cell) === null) return true
+      }
+    }
+  }
+  return false
+}
 
 /**
  * 이 값들 가운데 **코드 포인트 순서와 UTF-16 코드 단위 순서가 갈리는 쌍이 있는가.** 전체에서

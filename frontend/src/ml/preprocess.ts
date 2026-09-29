@@ -110,6 +110,16 @@ function isMissing(cell: string | undefined): boolean {
 }
 
 /**
+ * **pandas가 수로 읽는 십진 표기** (open-decisions.md 71, 2026-09-28 감사 E C4).
+ *
+ * `Number()`만 쓰면 `0x1A`·`0b101`·`0o17`이 26·5·15가 된다 — pandas `read_csv`도 파이썬
+ * `float()`도 그 셋을 거부한다. 이 식은 `Number()`가 받는 십진 문법(부호·소수점·지수) 그대로이고
+ * **진법 표기만 뺀다** — 전에 받던 것 가운데 pandas도 받는 것은 하나도 안 잃는다. 빈 칸도 여기서
+ * 걸러진다. 공백은 `toNumber`의 `trim()`이 먼저 뗀다. 무는 검사: `tests/number-literal.spec.ts`.
+ */
+const DECIMAL_LITERAL = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/
+
+/**
  * 칸을 수로 읽는다. 못 읽으면 `null`이다.
  *
  * **이 저장소에서 문자열을 수로 보는 자리는 여기 하나다** (아래 `readsAsNumber`의 머리말).
@@ -118,7 +128,7 @@ function isMissing(cell: string | undefined): boolean {
  */
 export function toNumber(cell: string): number | null {
   const trimmed = cell.trim()
-  if (trimmed === '') return null
+  if (!DECIMAL_LITERAL.test(trimmed)) return null
   const value = Number(trimmed)
   return Number.isFinite(value) ? value : null
 }

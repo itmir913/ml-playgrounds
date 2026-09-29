@@ -77,6 +77,7 @@ import { useI18n } from 'vue-i18n'
 
 import AppPopover from '@/components/AppPopover.vue'
 import { useFormat } from '@/composables/useFormat'
+import { nameList } from '@/data/columns'
 import { ACTION_ICONS } from '@/icons'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import type { Prediction } from '@/ml/metrics'
@@ -458,6 +459,18 @@ function bars(model: PredictableModel): ProbabilityBar[] {
             </li>
           </ul>
         </section>
+
+        <!--
+          **학습 때 못 본 값이 들어간 답** (open-decisions.md 72). 답은 그대로 두고 표시만 한다 —
+          판정은 부르는 쪽이 `unseenCategories`로 답에 붙인다(표 예측만 붙인다).
+        -->
+        <p v-if="props.answers.get(model.run.id)?.unseen" class="mt-1 font-medium text-caution">
+          {{
+            t('predict.tabular.unseenNote', {
+              columns: nameList(props.answers.get(model.run.id)?.unseen ?? []),
+            })
+          }}
+        </p>
 
         <!-- 쓸 수 없는 사유. 전부 다른 말이고 학생이 할 수 있는 일이 다르다. -->
         <p v-if="model.reason" class="mt-1 text-ink-soft">{{ unusableText(model) }}</p>

@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs'
 import { afterEach, describe, expect, it } from 'vitest'
+import * as XLSX from 'xlsx'
 
 import { parseCsvText } from '../src/data/csv'
 import { decodeText, detectEncoding } from '../src/data/encoding'
@@ -114,6 +115,68 @@ describe('openTable - xlsx', { timeout: 20_000 }, () => {
 
   it('CP949 CSV는 CSV로 연다', async () => {
     expect((await openTable(CP949_CSV, 'd.csv')).source).toBe('csv')
+  })
+})
+
+/**
+ * **암호가 걸린 xlsx와 옛 .xls는 한 코드로 말한다** (open-decisions.md 71, 2026-09-28 감사 E C3).
+ *
+ * 둘 다 zip이 아니라 OLE2 복합 문서(`D0 CF 11 E0 A1 B1 1A E1`)다 — 엑셀은 암호를 걸면 xlsx를
+ * 그 상자에 담는다. 전에는 암호 xlsx가 *"데이터를 읽지 못했습니다"*(`DATASET_PARSE_FAILED`)로,
+ * 옛 .xls가 *"지원하지 않는 파일 형식"*으로 나가서 학생이 할 일(암호를 풀거나 새 형식으로 다시
+ * 저장)을 어느 쪽도 말하지 않았다.
+ *
+ * **상자는 진짜로 만든다.** SheetJS가 BIFF8 .xls를 쓰고, 암호 xlsx는 엑셀이 담는 두 스트림
+ * (`EncryptionInfo`·`EncryptedPackage`)을 같은 라이브러리의 CFB로 담는다.
+ */
+describe('openTable - 암호 xlsx와 옛 xls', { timeout: 20_000 }, () => {
+  function legacyXls(): Uint8Array {
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['a'], [1]]), 'S')
+    return new Uint8Array(XLSX.write(book, { bookType: 'biff8', type: 'array' }) as ArrayBuffer)
+  }
+
+  function encryptedXlsx(): Uint8Array {
+    const container = XLSX.CFB.utils.cfb_new()
+    XLSX.CFB.utils.cfb_add(
+      container,
+      '/EncryptionInfo',
+      new Uint8Array([4, 0, 4, 0, 0x40, 0, 0, 0]),
+    )
+    XLSX.CFB.utils.cfb_add(container, '/EncryptedPackage', new Uint8Array(64))
+    return new Uint8Array(XLSX.CFB.write(container, { type: 'array' }) as number[])
+  }
+
+  async function codeOf(bytes: Uint8Array, fileName: string): Promise<string | undefined> {
+    try {
+      await openTable(bytes, fileName)
+    } catch (error) {
+      return isClientError(error) ? error.code : String(error)
+    }
+    return undefined
+  }
+
+  it.each([
+    ['암호가 걸린 xlsx', encryptedXlsx, 'd.xlsx'],
+    ['옛 .xls', legacyXls, 'd.xls'],
+    ['이름만 .xlsx로 바꾼 옛 xls', legacyXls, 'd.xlsx'],
+    ['이름이 .csv인 암호 xlsx', encryptedXlsx, 'd.csv'],
+  ])('%s — DATASET_EXCEL_ENCRYPTED_OR_LEGACY', async (_name, make, fileName) => {
+    expect(await codeOf(make(), fileName)).toBe('DATASET_EXCEL_ENCRYPTED_OR_LEGACY')
+  })
+
+  /**
+   * **확장자가 표도 엑셀도 아니면 지금처럼 "지원하지 않는 형식"이다.** 한글(.hwp)·워드(.doc)도
+   * 같은 OLE2 상자라, 내용만 보고 말하면 한글 파일에 *"엑셀 파일"*이라고 한다.
+   */
+  it('한글 파일 같은 다른 OLE2는 지원하지 않는 형식이다', async () => {
+    expect(await codeOf(encryptedXlsx(), '보고서.hwp')).toBe('DATASET_FILE_TYPE_UNSUPPORTED')
+  })
+
+  /** 웹에서 내려받은 `.xls`는 흔히 HTML이다 — 그건 옛 엑셀 형식이 아니다. */
+  it('OLE2가 아닌 .xls는 지금처럼 지원하지 않는 형식이다', async () => {
+    const html = new TextEncoder().encode('<table><tr><td>a</td></tr></table>')
+    expect(await codeOf(html, 'd.xls')).toBe('DATASET_FILE_TYPE_UNSUPPORTED')
   })
 })
 

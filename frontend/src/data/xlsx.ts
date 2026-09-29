@@ -18,19 +18,21 @@
  * 시트 하나를 고르기 위해 파일을 두 번 읽지 않는다. openXlsx()가 한 번 읽어
  * 핸들을 주고, 미리보기와 본 읽기가 같은 핸들을 쓴다.
  *
- * **두 경로가 같은 파일에서 다른 표를 내는 자리가 넷이다** (2026-09-28 감사 E B1에서 쟀다).
+ * **두 경로가 같은 파일에서 다른 표를 내던 자리가 넷이었다** (2026-09-28 감사 E B1에서 쟀다).
  * 폴백이 도는 드문 경우에만 갈리지만, 갈리면 같은 파일이 파서에 따라 다른 데이터가 된다.
+ * 셋은 코드 소유자가 정해 맞췄고(open-decisions.md 71), **남은 갈림은 날짜 하나다.**
  *
  *   | 칸 | ExcelJS (본진) | SheetJS (폴백) |
  *   |---|---|---|
  *   | 날짜 | 직렬값을 UTC로 | 로컬 시간대로 (open-decisions.md #18) |
- *   | 오류 칸 `#DIV/0!` | 오류 글자 — 그 열은 범주형이 된다 | 빈 칸 |
- *   | 병합 셀 | 병합 범위 전체에 첫 칸의 값 | 첫 칸만, 나머지는 빈 칸 |
- *   | 서식만 있는 끝의 빈 열 | 열로 남는다 | 없다 |
+ *   | 오류 칸 `#DIV/0!` | 빈 칸 (pandas의 NaN) | 같다 |
+ *   | 병합 셀 | 병합 범위 전체에 첫 칸의 값 | 같다 (`fillMerges`) |
+ *   | 모든 행에서 빈 끝 열 (서식만 있는 열) | 없다 (`fitWidth`) | 같다 |
  *
- * **어느 쪽으로 맞출지는 정하지 않았다** — 오류 칸·병합·빈 열은 정본에 적히는 값이 바뀌는
- * 일이라 코드 소유자의 결정이다. 날짜 말고 셋은 무는 검사가 있다: xlsx-parsers-diverge.spec.ts
- * "두 파서가 갈리는 자리". 갈림이 하나 줄거나 늘면 그 검사와 이 표를 함께 고친다.
+ * **이 셋은 정본에 적히는 값이다** — 그래도 formatVersion은 안 움직인다. 정본은 CSV이고
+ * 저장된 프로젝트는 xlsx를 다시 읽지 않으므로, 바뀌는 것은 이제 올리는 파일뿐이다.
+ * 날짜 말고 셋은 무는 검사가 있다: xlsx-parsers-diverge.spec.ts "두 파서가 같게 읽는 자리".
+ * 갈림이 다시 생기면 그 검사와 이 표를 함께 고친다.
  *
  * **maxRows는 두 경로 모두 남긴 행을 센다** (open-decisions.md "미리보기 N행은 훑은
  * 행이 아니라 남긴 행이다"). 2026-08-30까지 그렇지 않았다 - ExcelJS 쪽만 훑은 행을
@@ -38,9 +40,13 @@
  * 덮고 있었다.** 실측 문장은 새 차이가 생기면 함께 늙는다.
  */
 
+// 타입만 가져온다 — SheetJS 본체는 아래 폴백이 쓸 때 지연 로딩한다.
+import type * as SheetJs from 'xlsx'
+import type { CellObject, WorkSheet } from 'xlsx'
+
 import { ClientError } from '../errors'
 import { TABLE_PREVIEW_ROW_COUNT } from '../limits'
-import { isEmptyRow, padGrid, type TableGrid } from './grid'
+import { isEmptyRow, type TableGrid } from './grid'
 
 /** 열린 워크북. 파서가 무엇이었는지는 이 뒤로 드러나지 않는다. */
 export interface XlsxDocument {
@@ -63,10 +69,43 @@ function cellToString(value: unknown): string {
     // 종종 그렇다) 우리가 수식을 계산해 줄 수는 없으므로 빈 값이다.
     if ('result' in cell) return cellToString(cell.result)
     if (typeof cell.text === 'string') return cell.text
-    if (typeof cell.error === 'string') return cell.error
+    // **오류 칸은 빈 칸이다** (open-decisions.md 71). pandas는 NaN으로 읽는다. 오류 글자를
+    // 넣으면 그 열이 통째로 범주형이 된다 — 평균 열의 `#DIV/0!` 한 칸이 수치 열 하나를
+    // 모델에서 다른 것으로 바꿨다. 무는 검사: xlsx.spec.ts "오류 셀은 빈 칸이 된다".
     return ''
   }
   return String(value)
+}
+
+/**
+ * **모든 행에서 빈 끝 열을 자른다** (open-decisions.md 71). 두 파서가 함께 쓴다.
+ *
+ * 서식(테두리·배경)만 칠한 열은 파일에 칸으로 남아 ExcelJS의 `columnCount`에 든다. pandas는
+ * 그런 열을 안 만든다. **머리글만 있는 열은 빈 열이 아니다** — 값이 없어도 열이고, pandas도
+ * 그 열을 NaN으로 남긴다. 빈 칸의 잣대는 빈 행과 같다(`isEmptyRow`, 공백만 있어도 빈 칸).
+ * 가운데의 빈 열은 자리를 지킨다 — 자르는 것은 끝뿐이다.
+ *
+ * **폭은 시트 전체로 센다 — 읽은 행으로 세지 않는다.** 미리보기는 앞 몇 행만 읽으므로, 그 행으로
+ * 폭을 정하면 뒤쪽 행에만 값이 있는 끝 열이 미리보기에는 없고 확정 표에는 생긴다. 셈은 값이
+ * 든 칸만 훑어서 시트를 적재하는 비용에 비하면 작다(5만 행 × 10열에서 적재 5.3초, 훑기 51ms —
+ * 2026-09-29 node, 사람 확인). 파서마다 시트 하나에 한 번만 센다(`contentWidths`).
+ * 무는 검사: xlsx-parsers-diverge.spec.ts "미리보기와 확정 표의 폭이 같다".
+ *
+ * **짧은 행은 폭까지 채운다** — 지금 두 파서는 행을 폭 이상으로 주므로(본진은 폭까지 만들고,
+ * `sheet_to_json`은 범위 끝까지 채운다) 이 채우기가 닿는 길이 없다. 그래도 파서가 늘면 열 자리가
+ * 행마다 밀리는 것을 막는 자리라 남기고, 직접 문다: xlsx-parsers-diverge.spec.ts "fitWidth".
+ */
+export function fitWidth(grid: TableGrid, width: number): TableGrid {
+  for (const row of grid) {
+    if (row.length > width) row.length = width
+    while (row.length < width) row.push('')
+  }
+  return grid
+}
+
+/** 값이 있는 칸인가 — `fitWidth`의 잣대. 오류 칸은 빈 칸으로 읽으므로 여기서도 빈 칸이다. */
+function holdsValue(value: unknown): boolean {
+  return cellToString(value).trim() !== ''
 }
 
 /** 파서 1 - ExcelJS. */
@@ -84,15 +123,28 @@ const parseWithExcelJs: XlsxParser = async (bytes) => {
     throw new Error('no worksheets')
   }
 
+  /** 시트마다 값이 든 가장 오른쪽 열 (`fitWidth`). 미리보기와 본 읽기가 같은 값을 쓴다. */
+  const contentWidths = new Map<string, number>()
+
   return {
     sheetNames: workbook.worksheets.map((sheet) => sheet.name),
     readSheet(sheetName, maxRows) {
       const sheet = workbook.getWorksheet(sheetName)
       if (!sheet) throw new ClientError('DATASET_SHEET_NOT_FOUND', { sheetName })
 
-      // columnCount는 시트 전체에서 가장 넓은 행의 폭이다. 이걸 폭으로 고정하면
-      // 엑셀이 저장하지 않은 후행 빈 셀이 처음부터 자리를 갖는다.
-      const width = sheet.columnCount
+      // 시트 전체에서 값이 든 가장 오른쪽 열이 폭이다. 이걸 폭으로 고정하면 엑셀이 저장하지
+      // 않은 후행 빈 셀이 처음부터 자리를 갖고, 서식만 있는 끝 열은 자리가 없다.
+      let width = contentWidths.get(sheetName)
+      if (width === undefined) {
+        let widest = 0
+        sheet.eachRow((row) => {
+          row.eachCell((cell, column) => {
+            if (column > widest && holdsValue(cell.value)) widest = column
+          })
+        })
+        width = widest
+        contentWidths.set(sheetName, width)
+      }
 
       const grid: TableGrid = []
       for (let rowNumber = 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
@@ -108,9 +160,40 @@ const parseWithExcelJs: XlsxParser = async (bytes) => {
         }
         if (!isEmptyRow(cells)) grid.push(cells)
       }
-      return padGrid(grid)
+      return fitWidth(grid, width)
     },
   }
+}
+
+/**
+ * **병합 범위 전체에 첫 칸의 값을 채운다** (open-decisions.md 71). 본진(ExcelJS)은 병합된
+ * 칸마다 첫 칸의 값을 주는데 SheetJS는 첫 칸에만 값을 두고 나머지를 빈 칸으로 준다.
+ * 세로로 병합한 학년·반 열이 폴백에서만 한 줄 걸러 비었다.
+ *
+ * **시트를 제자리에서 고친다.** 한 번 채운 뒤에는 다시 채워도 같은 값이라 미리보기와 본
+ * 읽기가 같은 시트를 두 번 지나도 된다. 채운 칸이 시트 범위(`!ref`) 밖이면 범위를 넓힌다 —
+ * `sheet_to_json`은 범위 안만 읽는다. 무는 검사: xlsx-parsers-diverge.spec.ts "병합 셀"
+ * (범위 넓히기는 그중 "시트 범위 밖으로 나간 병합도 둘이 같다").
+ */
+function fillMerges(XLSX: typeof SheetJs, sheet: WorkSheet): void {
+  const merges = sheet['!merges']
+  if (!merges || merges.length === 0) return
+  const range = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1')
+  for (const merge of merges) {
+    const master = sheet[XLSX.utils.encode_cell(merge.s)] as CellObject | undefined
+    if (master === undefined) continue
+    for (let row = merge.s.r; row <= merge.e.r; row += 1) {
+      for (let column = merge.s.c; column <= merge.e.c; column += 1) {
+        if (row === merge.s.r && column === merge.s.c) continue
+        sheet[XLSX.utils.encode_cell({ r: row, c: column })] = { ...master }
+      }
+    }
+    range.s.r = Math.min(range.s.r, merge.s.r)
+    range.s.c = Math.min(range.s.c, merge.s.c)
+    range.e.r = Math.max(range.e.r, merge.e.r)
+    range.e.c = Math.max(range.e.c, merge.e.c)
+  }
+  sheet['!ref'] = XLSX.utils.encode_range(range)
 }
 
 /** 파서 2 - SheetJS. 한셀 등 비표준 xlsx를 위한 폴백이다. */
@@ -121,12 +204,16 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
 
   if (workbook.SheetNames.length === 0) throw new Error('no worksheets')
 
+  /** 시트마다 값이 든 가장 오른쪽 열. `widthOf`가 채운다. */
+  const contentWidths = new Map<string, number>()
+
   return {
     sheetNames: [...workbook.SheetNames],
     readSheet(sheetName, maxRows) {
       const sheet = workbook.Sheets[sheetName]
       if (!sheet) throw new ClientError('DATASET_SHEET_NOT_FOUND', { sheetName })
 
+      fillMerges(XLSX, sheet)
       const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
         header: 1,
         // 빈 셀도 자리를 지킨다. 없으면 컬럼 인덱스가 행마다 밀린다.
@@ -141,8 +228,8 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
          * 불리언은 `"TRUE"`, 날짜는 `"8/21/26"`이었다.
          *
          * 이 도구가 열에서 원하는 것은 **값**이므로 서식 문자열을 잃는 것은 손해가
-         * 아니다. 이것으로 수·불리언은 ExcelJS 경로와 같아졌다. **같지 않은 자리는 넷이
-         * 남았고** 목록은 이 파일 머리말의 표다(날짜 시간대·오류 칸·병합 셀·끝의 빈 열).
+         * 아니다. 이것으로 수·불리언은 ExcelJS 경로와 같아졌다. **같지 않은 자리는 날짜
+         * 시간대 하나가 남았다** — 목록은 이 파일 머리말의 표다.
          */
         raw: true,
       })
@@ -153,8 +240,35 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
         const cells = row.map(cellToString)
         if (!isEmptyRow(cells)) grid.push(cells)
       }
-      return padGrid(grid)
+      return fitWidth(grid, widthOf(sheetName, sheet))
     },
+  }
+
+  /**
+   * 시트 전체에서 값이 든 가장 오른쪽 열 (`fitWidth`). `sheet_to_json`의 열은 범위(`!ref`)의 첫
+   * 열부터 세므로 그 자리에서 뺀다(무는 검사: xlsx-parsers-diverge.spec.ts "범위가 A가 아닌 열에서
+   * 시작하는 시트"). 오류 칸(`t: 'e'`)은 값이 오류 번호라 따로 뺀다 — 빈 칸으로 읽는다(같은 파일
+   * "머리글 없이 오류 칸만 있는 끝 열").
+   *
+   * **범위 밖의 칸은 세지 않는다.** `<dimension>`이 실제 칸보다 좁은 파일에서 SheetJS는 범위 밖
+   * 칸을 시트 객체에 두되 `sheet_to_json`으로는 주지 않는다 — 그 칸을 세면 머리글 없는 빈 열이
+   * 생긴다(전에는 없던 열이다). 무는 검사: 같은 파일 "시트 범위가 실제 칸보다 좁으면".
+   */
+  function widthOf(sheetName: string, sheet: WorkSheet): number {
+    const seen = contentWidths.get(sheetName)
+    if (seen !== undefined) return seen
+    const range = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1')
+    let widest = 0
+    for (const [address, cell] of Object.entries(sheet)) {
+      if (address.startsWith('!')) continue
+      const { t, v } = cell as CellObject
+      if (t === 'e' || !holdsValue(v)) continue
+      const { r, c } = XLSX.utils.decode_cell(address)
+      if (r < range.s.r || r > range.e.r || c < range.s.c || c > range.e.c) continue
+      widest = Math.max(widest, c - range.s.c + 1)
+    }
+    contentWidths.set(sheetName, widest)
+    return widest
   }
 }
 
@@ -183,6 +297,18 @@ const ZIP_SIGNATURE = [0x50, 0x4b, 0x03, 0x04]
  */
 export function looksLikeZip(bytes: Uint8Array): boolean {
   return ZIP_SIGNATURE.every((byte, index) => bytes[index] === byte)
+}
+
+/**
+ * OLE2 복합 문서의 서명. **암호가 걸린 xlsx와 옛 .xls가 이 상자다** — 엑셀은 암호를 걸면
+ * xlsx(zip)를 이 상자 안에 암호화해 담는다. 한글(.hwp)·워드(.doc)도 같은 상자라 **이 서명만으로
+ * 엑셀이라고 하지 않는다** — 확장자와 함께 보는 것은 `data/table.ts`의 `openTable`이다
+ * (open-decisions.md 71).
+ */
+const OLE2_SIGNATURE = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]
+
+export function looksLikeOle2(bytes: Uint8Array): boolean {
+  return OLE2_SIGNATURE.every((byte, index) => bytes[index] === byte)
 }
 
 /**

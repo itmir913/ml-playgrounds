@@ -53,6 +53,7 @@ import {
   rankAnswersAcross,
   predictableModels,
   trainingRowsFor,
+  unseenCategories,
   type Answer,
   type PredictableModel,
   type PredictFilter,
@@ -517,9 +518,14 @@ async function run(): Promise<void> {
         // 쓸지는 언어가 정한다 (`useFormat`) - `String()`으로 굳히면 3.4000000000000004가
         // 그대로 화면에 뜬다.
         if (answer !== undefined) {
+          // **못 본 값은 표시만 붙인다** (open-decisions.md 72). 칸은 여러 실험의 범주를 합친
+          // 목록에서 고르고 [무작위로 가져오기]는 원본 행을 넣으므로, 어떤 모델에게는 학습 때
+          // 못 본 값일 수 있다 — 파일 예측(`predictPage`)과 같은 판정이다.
+          const unseen = unseenCategories(preprocessor, values.value)
           next.set(entry.run.id, {
             value: answer,
             ...(proba && row ? { probabilities: { classes: proba.classes, values: row } } : {}),
+            ...(unseen.length > 0 ? { unseen } : {}),
           })
         }
       } catch (error) {

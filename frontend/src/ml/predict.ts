@@ -32,6 +32,7 @@ import {
   experimentPreprocessor,
   targetValues,
   readsAsNumber,
+  toNumber,
   transform,
   type ColumnKind,
   type Dataset,
@@ -175,6 +176,45 @@ export function inputVector(
 }
 
 /**
+ * 이 입력에서 **학습 때 못 본 범주 값**이 든 열들. 전처리기의 열 순서다 (open-decisions.md 72).
+ *
+ * `transform`은 그런 값을 원-핫 0 벡터나 순서 −1로 넣고, 모델은 **그 값을 모르는 채로** 답한다.
+ * 예측을 막지도 값을 고치지도 않는다 — **화면이 그 답에 표시만 붙이게 하는 판정이다.**
+ *
+ * **잣대는 `transform`과 같다.** 칸 그대로 범주 목록에서 찾는다 — 공백을 떼지 않는다(`서울 `은
+ * 못 본 값이다). 빈 칸은 못 본 값이 아니다 — 채움값이 들어가거나 `inputVector`가 먼저 거절한다.
+ * 무는 검사: `tests/predict-unseen.spec.ts`.
+ */
+export function unseenCategories(
+  preprocessor: Preprocessor,
+  values: Readonly<Record<string, string>>,
+): string[] {
+  return preprocessor.columns
+    .filter((column) => {
+      if (column.kind !== 'categorical') return false
+      const cell = own(values, column.name) ?? ''
+      return cell.trim() !== '' && !seenSetOf(column).has(cell)
+    })
+    .map((column) => column.name)
+}
+
+/**
+ * 열마다 본 범주의 집합. **한 번 만들어 둔다** — 파일 예측은 행 × 모델마다 부르고, 값 종류가
+ * 수천인 범주 열이 실재한다(`limits.ts`의 `PREP_PREVIEW_FEATURE_COUNT`). 전처리기는 학습 뒤에
+ * 안 바뀌므로 열 객체를 열쇠로 둔다.
+ */
+const seenSets = new WeakMap<Preprocessor['columns'][number], ReadonlySet<string>>()
+
+function seenSetOf(column: Preprocessor['columns'][number]): ReadonlySet<string> {
+  let seen = seenSets.get(column)
+  if (seen === undefined) {
+    seen = new Set(column.categories ?? [])
+    seenSets.set(column, seen)
+  }
+  return seen
+}
+
+/**
  * 표의 행마다 **열 이름 → 값** 사전을 만든다. 파일 예측 판(`BatchPredict.vue`)이 이것을
  * `inputVector`에 그대로 넣는다.
  *
@@ -299,10 +339,10 @@ export function numericRanges(
       if (column < 0) continue
 
       for (const row of dataset.rows) {
-        const cell = (row[column] ?? '').trim()
-        if (cell === '') continue
-        const value = Number(cell)
-        if (!Number.isFinite(value)) continue
+        // **수로 읽는 잣대는 `toNumber` 하나다** (open-decisions.md 71) — `Number()`를 따로
+        // 쓰면 수치 열이 아닌 표의 `0x1A`가 범위에 들어간다.
+        const value = toNumber(row[column] ?? '')
+        if (value === null) continue
         if (value < min) min = value
         if (value > max) max = value
       }
@@ -550,6 +590,11 @@ export interface Answer {
   }
   /** 이 모델에서만 난 실패. 코드는 `client.*`이거나 `errors.*`다. */
   readonly failure?: { code: ClientErrorCode; params: Record<string, unknown> }
+  /**
+   * 학습 때 못 본 범주 값이 든 열들 (`unseenCategories`, open-decisions.md 72). **답이 있을 때만,
+   * 비어 있지 않을 때만** 있다. **표시만 한다** — 값·확률·내려받는 파일은 이것과 무관하다.
+   */
+  readonly unseen?: readonly string[]
 }
 
 /**
@@ -1070,9 +1115,13 @@ export function predictPage(
         // **라벨을 다시 구하지 않는다.** 확률은 위에서 나온 답에 덧붙는 것뿐이다.
         const { proba } = entry
         const row = proba?.predict([vector])[0]
-        return proba && row
-          ? { value, probabilities: { classes: proba.classes, values: row } }
-          : { value }
+        // 못 본 값은 표시만 붙인다 (open-decisions.md 72) — 답은 위에서 이미 나왔다.
+        const unseen = unseenCategories(entry.preprocessor, values)
+        return {
+          value,
+          ...(proba && row ? { probabilities: { classes: proba.classes, values: row } } : {}),
+          ...(unseen.length > 0 ? { unseen } : {}),
+        }
       } catch (error) {
         return {
           failure: isClientError(error)
