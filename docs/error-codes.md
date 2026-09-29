@@ -117,6 +117,14 @@ PROJECT_FILE_VERSION_TOO_NEW, PROJECT_FILE_VERSION_UNSUPPORTED
 ```
 PROJECT_FILE_TOO_MANY_ENTRIES
 ```
+**같은 한계를 학습이 더할 모델 파일이 넘긴다** (`project/format.ts`의 `requireRoomForTraining` — [학습하기]가 시작하기 전)
+```
+PROJECT_FILE_TOO_MANY_ENTRIES_TO_TRAIN
+```
+**교사의 포트폴리오 묶음 zip이 같은 한계를 넘는다** (`project/portfolio-bundle.ts`의 `bundleOf`)
+```
+PORTFOLIO_BUNDLE_TOO_MANY_ENTRIES
+```
 상한 해제로 안 풀린다 — 문구가 [상한 해제]를 부르지 않는다 (`open-decisions.md` ".mlpx 한 파일의 엔트리 수는 ZIP64 없이 쓸 수 있는 만큼이다").
 **모델 실행 / 저장소**
 ```

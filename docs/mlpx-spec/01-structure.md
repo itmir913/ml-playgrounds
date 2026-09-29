@@ -108,7 +108,8 @@
   (`open-decisions.md` "본체 없는 폴더 참조는 기대는 실험이 없을 때만 떼고 연다", `architecture.md` §8.10.2).
 - **모르는 엔트리는 저장할 때 버린다.**
 - **한 파일의 엔트리 수는 `MAX_ARCHIVE_ENTRIES`를 넘지 않는다.** ZIP64를 쓰지 않기 때문이다. 늘리는 입구가 받기 전에
-  `PROJECT_FILE_TOO_MANY_ENTRIES`로 거절하고, 쓰기도 넘으면 같은 코드로 던진다
+  `PROJECT_FILE_TOO_MANY_ENTRIES`로 거절하고(학습은 시작하기 전에 `PROJECT_FILE_TOO_MANY_ENTRIES_TO_TRAIN`), 쓰기도
+  넘으면 `PROJECT_FILE_TOO_MANY_ENTRIES`로 던진다
   (`open-decisions.md` ".mlpx 한 파일의 엔트리 수는 ZIP64 없이 쓸 수 있는 만큼이다").
 
 ### 1.1 `dataset/` 레이아웃
