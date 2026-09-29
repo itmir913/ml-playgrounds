@@ -236,6 +236,48 @@ describe('이미지 프로젝트의 왕복', () => {
   })
 })
 
+/**
+ * **글자가 전부 0xFF 이하인 범주는 인코딩을 되살릴 대상처럼 보인다** (mlpx-spec.md §10).
+ *
+ * 되살리기는 그런 이름을 옛 인코딩의 바이트로 다시 읽는데, 같은 파일에 한글 범주가 하나라도
+ * 있으면 그 이름이 기록과 맞아 CP949 후보가 뽑혔다 — `Größe`의 `öß`가 한자 한 글자가 됐다.
+ * UTF-8로 읽히는 모양(`Ã©`)은 한글 범주가 없어도 UTF-8 후보로 바뀌었다. **우리가 쓴 파일을
+ * 그대로 다시 열었는데 사진이 다른 범주로 가고 무결성이 "고쳐졌음"이 됐다.**
+ */
+describe('라틴 글자 범주가 한글 범주와 함께 있어도 그대로 돌아온다', () => {
+  const cases: readonly (readonly [string, readonly string[]])[] = [
+    ['CP949로 읽히는 모양', ['고양이', 'Größe']],
+    ['UTF-8로 읽히는 모양', ['Ã©', 'cat']],
+  ]
+
+  it.each(cases)('%s', async (_label, categories) => {
+    const images = new Map(categories.map((category) => entryFor(category, category)))
+    const before = imageProject({ images })
+    before.document.settings.data.categories = [...categories]
+    const { bytes } = await writeProjectBytes(before, markdown)
+    const { project: after, integrity } = await readProject(bytes)
+
+    expect([...after.images.keys()].sort()).toEqual([...before.images.keys()].sort())
+    expect(integrity.status).toBe('UNCHANGED')
+  })
+
+  it.each(cases)('폴더째 다시 압축해도 — %s', async (_label, categories) => {
+    const images = new Map(categories.map((category) => entryFor(category, category)))
+    const before = imageProject({ images })
+    before.document.settings.data.categories = [...categories]
+    const { bytes } = await writeProjectBytes(before, markdown)
+    const wrapped = zipSync(
+      Object.fromEntries(
+        Object.entries(unzipSync(bytes)).map(([path, content]) => [`submit/${path}`, content]),
+      ),
+    )
+    const { project: after, integrity } = await readProject(wrapped)
+
+    expect([...after.images.keys()].sort()).toEqual([...before.images.keys()].sort())
+    expect(integrity.status).toBe('UNCHANGED')
+  })
+})
+
 describe('참조와 본체는 함께 있고 함께 없다', () => {
   it('참조는 있는데 사진이 하나도 없으면 저장이 거부된다', async () => {
     const project = imageProject({

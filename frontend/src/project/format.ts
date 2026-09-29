@@ -928,11 +928,29 @@ function rekeyByRecordedPaths(
   recorded: ProjectHashes | null,
 ): readonly (readonly [string, Uint8Array])[] {
   const paths = recorded ? Object.keys(recorded.entries) : []
+  /**
+   * **기록된 경로와 이미 같은 이름은 되살리지 않는다** (mlpx-spec.md §10). 같다는 것이 곧 증거다.
+   *
+   * 되살리기는 **한 글자도 0xFF를 넘지 않는 이름**을 옛 인코딩의 바이트로 보고 다시 읽는다. 그런
+   * 이름(`Größe`)을 넘기면 한글 범주가 증거로 맞은 CP949 후보가 그 이름까지 바꾼다. 한 겹 감싼
+   * 파일은 첫 조각을 떼고 맞댄다. 무는 검사: `image-format.spec.ts`의 *"라틴 글자 범주가 한글
+   * 범주와 함께 있어도 그대로 돌아온다"*, `mlpx-roundtrip-property.spec.ts`.
+   */
+  const recordedNames = new Set(paths.map((path) => path.normalize('NFC')))
+  const proven = (name: string): boolean => {
+    const path = normalizeEntryName(name)
+    return recordedNames.has(path) || recordedNames.has(path.slice(path.indexOf('/') + 1))
+  }
+  const pending = raw.filter(([path]) => !proven(path))
   const decoded = decodeZipNames(
-    raw.map(([path]) => path),
+    pending.map(([path]) => path),
     { expect: paths.flatMap((path) => [path, ...path.split('/')]) },
   )
-  return raw.map(([, content], index) => [normalizeEntryName(decoded[index]!), content] as const)
+  let next = 0
+  return raw.map(
+    ([path, content]) =>
+      [normalizeEntryName(proven(path) ? path : decoded[next++]!), content] as const,
+  )
 }
 
 /**
