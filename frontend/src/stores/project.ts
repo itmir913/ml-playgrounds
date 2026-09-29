@@ -253,7 +253,14 @@ export const useProjectStore = defineStore('project', () => {
       // **못 읽는 것은 없는 것과 다르다** (architecture.md §8.10.2). 형식이 바뀐 뒤의
       // 옛 레코드나 손상된 레코드가 여기서 던지는데, 그대로 두면 렌더 중 예외가 되어
       // 그 프로젝트만이 아니라 앱 전체가 멈춘다. 받아서 알리고 목록으로 돌려보낸다.
-      const loaded = await loadProject(id).catch((error: unknown) => {
+      //
+      // **본체 없는 폴더 참조를 떼고 열었으면 말한다** (open-decisions.md "본체 없는 폴더 참조는
+      // 기대는 실험이 없을 때만 떼고 연다"). 말없이 떼면 학생은 사진 자리가 왜 비었는지 모른다.
+      // 알림은 **이 열기가 아직 유효할 때만** 띄운다. 무는 검사: `project-open-detach.spec.ts`.
+      let detached = false
+      const loaded = await loadProject(id, () => {
+        detached = true
+      }).catch((error: unknown) => {
         useToastStore().pushError(error)
         return null
       })
@@ -261,6 +268,7 @@ export const useProjectStore = defineStore('project', () => {
       if (loaded === null) releaseTabLock()
       // **읽는 동안 닫혔으면 되살리지 않는다.** 잠금은 `close()`가 이미 놓았다.
       if (stale()) return 'cancelled'
+      if (detached) useToastStore().push('caution', 'project.emptyPhotoFolderRemoved')
       file.value = loaded
       // 다른 프로젝트로 갈아 끼웠다 — 앞 프로젝트의 표를 쥔 계획 캐시도 비운다. 라우터는
       // A → B를 `close()` 없이 `open(B)`로 바꾼다(`tabular-plan-cache.spec.ts`가 문다).

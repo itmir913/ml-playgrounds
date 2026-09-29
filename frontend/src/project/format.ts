@@ -27,6 +27,7 @@ import { decodeZipNames } from '../data/zip-names'
 import { ClientError } from '../errors'
 import { hashBytes } from '../hash'
 import {
+  MAX_ARCHIVE_ENTRIES,
   MAX_FILE_NAME_BYTES,
   MAX_FILE_NAME_LENGTH,
   MAX_MODEL_BYTES,
@@ -331,6 +332,24 @@ export function dropUnknownBackbones(
  */
 export function pointsToFile(ref: { path: string } | undefined): boolean {
   return ref !== undefined && !ref.path.endsWith('/')
+}
+
+/**
+ * 폴더 참조 아래에 **사진이 한 장이라도 있는가.** 파일 참조의 "본체가 있는가"와 같은 질문이다.
+ *
+ * **어느 맵을 넘기느냐가 판정이다.** 거른 뒤의 맵(`insideArchive`)이면 사진이 전부
+ * `dataset/data/../…`인 폴더는 0장이고, 거르기 전의 맵이면 본체 있는 것이다. `readProject`의 거절과
+ * `storage.ts`의 떼기 판정은 거른 뒤로, `loadProject`의 짝 확인은 거르기 전으로 부른다(검토 B-3 —
+ * 실험이 기대는 옛 레코드를 전처럼 연다).
+ */
+export function hasFolderBody(
+  ref: { path: string },
+  images: ReadonlyMap<string, Uint8Array>,
+): boolean {
+  for (const path of images.keys()) {
+    if (path.startsWith(ref.path)) return true
+  }
+  return false
 }
 
 export type DropReason = 'tooLarge' | 'overBudget' | 'preprocessorMissing'
@@ -1180,28 +1199,32 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
     else if (isEmbeddingEntry(path)) embeddings.set(path, content)
   }
 
-  // 폴더 참조는 파일 하나를 안 가리키므로 **그 아래 한 장이라도 있는가**로 같은 것을
-  // 확인한다. 참조가 있는데 사진이 하나도 없으면 위 세 자리와 같은 상태다.
-  for (const ref of [datasetRef, testDatasetRef, predictDatasetRef]) {
-    if (ref === undefined || pointsToFile(ref)) continue
-    if (![...images.keys()].some((path) => path.startsWith(ref.path))) {
-      throw new ClientError('PROJECT_FILE_ENTRY_MISSING', { entry: ref.path })
-    }
-  }
-
   // 대조는 잡음(mlpx-spec.md §7.2.1)을 뺀 뒤, **우리가 버릴 것을 버리기 전에** 한다. 끼어든
   // 고아 모델도 신호이기 때문이다.
   const present = hashableEntries(entries, datasetPath, testDatasetPath, predictDatasetPath)
   const integrity = checkHashes(present, recordedHashes(entries.get(ENTRY.hashes)))
 
-  // **푸는 자리 밖으로 새는 이름은 여기서 버린다 — 대조 뒤, 위 폴더 확인 뒤다**
-  // (mlpx-spec.md §7.2.1). 대조에는 남아 "더해짐"으로 신호가 되고, 사진·첨부·임베딩으로는
-  // 안 들어간다. 문서가 가리키던 첨부는 아래 `detachMissingAttachments`가 뗀다. 폴더 확인은
-  // 거르기 전의 맵을 본다 — 본체가 전부 새는 폴더 참조를 어떻게 할지는 아직 결정이 없어서
-  // 지금처럼 열리고 내보내기가 거부된다(`requireFolderBodies`).
+  // **푸는 자리 밖으로 새는 이름은 여기서 버린다 — 대조 뒤다** (mlpx-spec.md §7.2.1). 대조에는
+  // 남아 "더해짐"으로 신호가 되고, 사진·첨부·임베딩으로는 안 들어간다. 문서가 가리키던 첨부는
+  // 아래 `detachMissingAttachments`가 뗀다.
   const keptImages = insideArchive(images)
   const keptAttachments = insideArchive(attachments)
   const keptEmbeddings = insideArchive(embeddings)
+
+  // 폴더 참조는 파일 하나를 안 가리키므로 **그 아래 한 장이라도 있는가**로 같은 것을
+  // 확인한다. 참조가 있는데 사진이 하나도 없으면 위 세 자리와 같은 상태다.
+  //
+  // **거른 뒤의 사진으로 본다** (open-decisions.md "본체 없는 폴더 참조는 기대는 실험이 없을 때만
+  // 떼고 연다"). 거르기 전의 맵으로 보던 때는 사진이 전부 `dataset/data/../…`인 파일이 확인을
+  // 지나고, 거른 뒤에는 0장이라 **열리는데 내보내기가 거부됐다**(감사 G 처방 5). `.mlpx`에는
+  // 떼는 예외가 없다 — 떼는 곳은 브라우저 저장소에서 여는 자리(`storage.ts`의 `loadProject`)다.
+  // 무는 검사: `image-format.spec.ts`의 *"사진이 전부 새는 이름뿐이면 본체 없는 참조로 거절한다"*.
+  for (const ref of [datasetRef, testDatasetRef, predictDatasetRef]) {
+    if (ref === undefined || pointsToFile(ref)) continue
+    if (!hasFolderBody(ref, keptImages)) {
+      throw new ClientError('PROJECT_FILE_ENTRY_MISSING', { entry: ref.path })
+    }
+  }
 
   // 문서가 가리키는 것만 가져온다. 고아와 쓰레기는 여기서 사라진다.
   const referenced = referencedModelPaths(document)
@@ -1267,17 +1290,24 @@ export function insideArchive<V>(entries: ReadonlyMap<string, V>): Map<string, V
 }
 
 /**
- * 프로젝트를 .mlpx 바이트로 만든다.
- *
- * portfolioMarkdown을 **필수 인자로 받는다.** 렌더링에는 t()가 필요한데 포맷 계층에
- * i18n을 끌어들이면 zip 왕복 테스트마다 번역을 부팅해야 한다. 선택 인자로 두면
- * 언젠가 portfolio/document.md 없는 파일이 나가고, 그건 "파일 하나만 열면 다 본다"는
- * 약속을 깨면서도 아무도 모른다 (CLAUDE.md 1.3).
+ * `.mlpx`에 싣기로 고른 것. **쓰는 쪽(`writeProject`)과 세는 쪽(`archiveEntryCount`)이 이 한
+ * 벌을 지난다** — 둘이 따로 고르면 세는 수가 실제로 쓰이는 수와 갈려, 입구가 될 것을 막거나
+ * 넘을 것을 들인다. 무는 검사: `archive-entry-limit.spec.ts`의 *"세는 함수가 쓰는 쪽과 같은
+ * 수를 센다"* 묶음.
  */
-export async function writeProject(
-  project: ProjectFile,
-  portfolioMarkdown: string,
-): Promise<WriteResult> {
+interface Packing {
+  readonly kept: Set<string>
+  readonly dropped: DroppedModel[]
+  readonly document: ProjectDocument
+  /** 새는 이름을 뺀 정본 사진. */
+  readonly images: Map<string, Uint8Array>
+  /** 문서가 가리키는 첨부만. */
+  readonly attachments: readonly (readonly [string, Uint8Array])[]
+  /** 사진과 짝이 맞고 등록부에 있는 백본의 임베딩만. */
+  readonly embeddings: readonly (readonly [string, Uint8Array])[]
+}
+
+function packingOf(project: ProjectFile): Packing {
   const { kept, dropped } = selectModels(project.document, project.models)
   // 담지 못한 모델의 참조는 문서에서도 뗀다. 파일과 문서가 어긋나면 안 된다.
   // **여기서는 왜 뺐는지를 안다.** 그 사유가 파일에 남아야 화면이 학생에게 무엇을 할 수
@@ -1289,12 +1319,126 @@ export async function writeProject(
   const images = insideArchive(project.images)
   const attachments = insideArchive(project.attachments)
   // 가리키는 사진이 없는 첨부 참조도 함께 뗀다. **나가는 .mlpx는 언제나 참조와 본체가
-  // 짝이다** - 아래 반복문이 반대 방향(아무도 안 가리키는 본체)만 보기 때문에, 이 줄이
+  // 짝이다** - 아래 거르기가 반대 방향(아무도 안 가리키는 본체)만 보기 때문에, 이 줄이
   // 없으면 참조만 남은 파일이 조용히 나간다.
   const document = detachMissingAttachments(
     detachMissingModels(project.document, kept, (path) => reasons.get(path)),
     attachments,
   )
+
+  // 포트폴리오 첨부. **아무도 안 가리키는 것은 안 담는다** - 문항을 지우면 그 사진은
+  // 아무 문항의 것도 아니고, 들고 다니면 파일이 지운 사진 수만큼 계속 자란다
+  // (mlpx-spec.md §8.4). 짝 없는 임베딩을 버리는 것과 같은 자리다.
+  const wanted = new Set(Object.values(document.portfolio.attachments).flat())
+
+  // **짝 없는 임베딩은 버린다.** 사진을 지우면 그 임베딩은 아무 사진의 것도 아니고,
+  // 들고 다니면 파일이 지운 사진 수만큼 계속 자란다 (mlpx-spec.md §1.3).
+  //
+  // **등록부에 없는 백본의 것도 같이 버린다.** 사진이 살아 있는 한 짝은 맞으므로 위
+  // 규칙만으로는 안 걸린다 (`dropUnknownBackbones`).
+  const photoHashes = new Set([...images.keys()].map(hashOfEntry))
+
+  return {
+    kept,
+    dropped,
+    document,
+    images,
+    attachments: [...attachments].filter(([path]) => wanted.has(path)),
+    embeddings: [...dropUnknownBackbones(insideArchive(project.embeddings))].filter(([path]) =>
+      photoHashes.has(hashOfEntry(path)),
+    ),
+  }
+}
+
+/**
+ * 프로젝트가 무엇이든 늘 실리는 엔트리 — 문서 넷, 사람이 읽는 포트폴리오, `hashes.json`.
+ * `writeProject`의 `entries` 머리와 마지막 줄이다.
+ */
+const ALWAYS_WRITTEN = [
+  ENTRY.manifest,
+  ENTRY.settings,
+  ENTRY.runs,
+  ENTRY.portfolio,
+  ENTRY.portfolioMarkdown,
+  ENTRY.hashes,
+] as const
+
+/**
+ * 이 프로젝트를 **지금** `.mlpx`로 쓰면 담기는 엔트리 수. 열린 프로젝트가 없으면 0이다.
+ *
+ * **쓰는 쪽과 같은 고르기를 지난다**(`packingOf`) — 쓸 때 버려지는 것(짝 없는 임베딩, 아무도
+ * 안 가리키는 첨부, 새는 이름, 예산에서 밀린 모델)은 세지 않는다. 세면 될 것을 막는다.
+ * 표 파일은 파일 참조마다 하나다 — 본체가 없으면 쓰는 쪽이 어차피 거부한다.
+ *
+ * 엔트리 수 한계(`MAX_ARCHIVE_ENTRIES`)를 입구가 **받기 전에** 묻는 데 쓴다 (open-decisions.md
+ * ".mlpx 한 파일의 엔트리 수는 ZIP64 없이 쓸 수 있는 만큼이다"). 바이트를 만들지 않는다 —
+ * 잰 값(사진 5,000장에 11ms 안팎, 개발 PC node)은 그 결정문의 경위에 있고, 지키는 검사는 없다(사람 확인).
+ */
+export function archiveEntryCount(project: ProjectFile | null): number {
+  return archiveEntryParts(project).total
+}
+
+/** 지금 쓰면 담기는 엔트리 수와, 그중 정본 사진·임베딩의 몫. */
+export interface ArchiveEntryParts {
+  readonly total: number
+  readonly images: number
+  readonly embeddings: number
+}
+
+/**
+ * `archiveEntryCount`의 항을 나눠 준다. **사진 입구가 쓴다**(`images.ts`의 `requireRoomForPhotos`) —
+ * 임베딩은 사진을 넣을 때가 아니라 학습·예측 때 붙으므로, 입구는 **지금 붙은 임베딩 대신 사진마다
+ * 붙을 몫**으로 다시 센다(검토 B-1). 같은 고르기(`packingOf`)를 한 번만 지난다.
+ */
+export function archiveEntryParts(project: ProjectFile | null): ArchiveEntryParts {
+  if (project === null) return { total: 0, images: 0, embeddings: 0 }
+  const packed = packingOf(project)
+  const data = packed.document.settings.data
+  const files = [data.dataset, data.testDataset, data.predictDataset].filter(
+    (ref) => fileRefOf(ref) !== undefined,
+  ).length
+  const models = [...packed.kept].filter((path) => project.models.get(path) !== undefined).length
+  return {
+    total:
+      ALWAYS_WRITTEN.length +
+      files +
+      models +
+      packed.images.size +
+      packed.attachments.length +
+      packed.embeddings.length,
+    images: packed.images.size,
+    embeddings: packed.embeddings.length,
+  }
+}
+
+/** 이만큼의 엔트리가 한 `.mlpx`에 들어가는가. */
+export function fitsInArchive(count: number): boolean {
+  return count <= MAX_ARCHIVE_ENTRIES
+}
+
+/**
+ * 이 편집을 엔트리 수 한계로 거절하는가. **넘으면서 늘리는 편집만** 거절한다 — 이미 넘은
+ * 프로젝트에서 줄이는 편집까지 막으면 학생은 빠져나갈 길이 없다(포트폴리오 상한과 같은 규칙,
+ * `PortfolioView.vue`의 `apply`).
+ */
+export function archiveGrowthRefused(before: ProjectFile, after: ProjectFile): boolean {
+  const next = archiveEntryCount(after)
+  return !fitsInArchive(next) && next > archiveEntryCount(before)
+}
+
+/**
+ * 프로젝트를 .mlpx 바이트로 만든다.
+ *
+ * portfolioMarkdown을 **필수 인자로 받는다.** 렌더링에는 t()가 필요한데 포맷 계층에
+ * i18n을 끌어들이면 zip 왕복 테스트마다 번역을 부팅해야 한다. 선택 인자로 두면
+ * 언젠가 portfolio/document.md 없는 파일이 나가고, 그건 "파일 하나만 열면 다 본다"는
+ * 약속을 깨면서도 아무도 모른다 (CLAUDE.md 1.3).
+ */
+export async function writeProject(
+  project: ProjectFile,
+  portfolioMarkdown: string,
+): Promise<WriteResult> {
+  const { kept, dropped, document, images, attachments, embeddings } = packingOf(project)
 
   const entries: Record<string, Uint8Array> = {
     [ENTRY.manifest]: encodeJson(document.manifest),
@@ -1339,22 +1483,20 @@ export async function writeProject(
   }
   requireFolderBodies(document, images)
 
-  // 포트폴리오 첨부. **아무도 안 가리키는 것은 안 담는다** - 문항을 지우면 그 사진은
-  // 아무 문항의 것도 아니고, 들고 다니면 파일이 지운 사진 수만큼 계속 자란다
-  // (mlpx-spec.md §8.4). 짝 없는 임베딩을 버리는 것과 같은 자리다.
-  const wanted = new Set(Object.values(document.portfolio.attachments).flat())
-  for (const [path, content] of attachments) {
-    if (wanted.has(path)) entries[path] = content
-  }
+  // 첨부와 임베딩은 **싣기로 고른 것만** 온다(`packingOf`) — 아무도 안 가리키는 첨부와 짝 없는
+  // 임베딩은 거기서 빠졌다.
+  for (const [path, content] of attachments) entries[path] = content
+  for (const [path, content] of embeddings) entries[path] = content
 
-  // **짝 없는 임베딩은 버린다.** 사진을 지우면 그 임베딩은 아무 사진의 것도 아니고,
-  // 들고 다니면 파일이 지운 사진 수만큼 계속 자란다 (mlpx-spec.md §1.3).
-  //
-  // **등록부에 없는 백본의 것도 같이 버린다.** 사진이 살아 있는 한 짝은 맞으므로 위
-  // 규칙만으로는 안 걸린다 (`dropUnknownBackbones`).
-  const photoHashes = new Set([...images.keys()].map(hashOfEntry))
-  for (const [path, content] of dropUnknownBackbones(insideArchive(project.embeddings))) {
-    if (photoHashes.has(hashOfEntry(path))) entries[path] = content
+  // **엔트리 수 한계의 마지막 그물이다** (open-decisions.md ".mlpx 한 파일의 엔트리 수는 ZIP64
+  // 없이 쓸 수 있는 만큼이다"). 넘은 채로 쓰면 fflate가 엔트리 수 칸에 아래 16비트만 적어
+  // **다시 열 때 사진이 말없이 사라진다.** 사진과 그 임베딩, 첨부는 입구가 받기 전에 막는다. **학습이
+  // 더하는 모델 파일은 입구가 안 센다** — 사진을 한계 바로 아래까지 채운 뒤 학습하면 여기 닿는다(상한을
+  // 끈 프로젝트만, 소유자 질문). 오면 조용히 쓰지 않고 던진다. "저장은 항상 성공해야 한다"(mlpx-spec.md
+  // 4.2)의 유일한 예외이고, 해시를 만들기 전이라 헛일이 없다. `+ 1`은 아래 `hashes.json`이다.
+  // 무는 검사: `archive-entry-limit.spec.ts`의 *"한계를 넘는 프로젝트는 조용히 쓰지 않고 던진다"*.
+  if (!fitsInArchive(Object.keys(entries).length + 1)) {
+    throw new ClientError('PROJECT_FILE_TOO_MANY_ENTRIES')
   }
 
   // 마지막에 만든다. 자기 자신은 대상이 아니므로 다른 엔트리가 전부 정해진 뒤여야 한다.

@@ -44,6 +44,7 @@ import {
   imageCategories,
   imageOverflow,
   readImages,
+  requireRoomForPhotos,
 } from '@/project/images'
 import { withSplit } from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
@@ -307,6 +308,8 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
 
     const overflow = imageOverflow(file, items.length, 'test')
     if (overflow) throw new ClientError('IMAGE_TOO_MANY_PHOTOS', { ...overflow })
+    // 상한을 꺼도 안 꺼지는 끝 — `.mlpx` 한 파일의 엔트리 수다 (project/images.ts).
+    requireRoomForPhotos(file, items.length)
 
     const shortfall = await imageRoomShortfall(file, items.length, backbone)
     if (shortfall) throw new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall })

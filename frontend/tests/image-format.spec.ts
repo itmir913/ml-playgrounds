@@ -696,21 +696,47 @@ describe('푸는 자리 밖으로 새는 엔트리', () => {
   })
 
   /**
-   * **폴더 참조의 본체가 전부 새는 경우는 결정이 없다** (감사 G 처방 5). 지금 동작을 못 박는다 —
-   * 열리고, 내보내기는 본체 없는 폴더 참조라 거부된다.
+   * **폴더 참조의 본체가 전부 새는 파일은 문에서 막는다** (감사 G 처방 5, open-decisions.md
+   * "본체 없는 폴더 참조는 기대는 실험이 없을 때만 떼고 연다"). 새는 이름은 버리므로 그 폴더는
+   * 0장이고, 참조만 남은 파일과 같다 — 전에는 열리고 내보내기만 거부됐다.
    */
-  it('사진이 전부 새는 이름뿐이면 열리고 내보내기는 거부된다', async () => {
+  it('사진이 전부 새는 이름뿐이면 본체 없는 참조로 거절한다', async () => {
     const { bytes } = await writeProjectBytes(imageProject(), markdown)
     const files: Record<string, Uint8Array> = {}
     for (const [path, content] of Object.entries(unzipSync(bytes))) {
       if (!path.startsWith(IMAGE_DATA_DIR)) files[path] = content
     }
     files[EVIL.imageOneUp] = photo('esc')
-    const { project } = await readProject(zipSync(files))
 
-    expect(project.images.size).toBe(0)
-    await expect(writeProjectBytes(project, markdown)).rejects.toSatisfy(
-      (error: unknown) => isClientError(error) && error.code === 'PROJECT_FILE_INVALID',
+    await expect(readProject(zipSync(files))).rejects.toSatisfy(
+      (error: unknown) =>
+        isClientError(error) &&
+        error.code === 'PROJECT_FILE_ENTRY_MISSING' &&
+        error.params.entry === IMAGE_DATA_DIR,
+    )
+  })
+
+  it('테스트 폴더도 같다 - 사진이 전부 새면 거절한다', async () => {
+    const project = imageProject()
+    project.document.settings.data.testDataset = {
+      path: IMAGE_TEST_DIR,
+      canonicalSize: 224,
+      format: 'webp',
+      quality: 0.65,
+    }
+    project.images.set(...entryFor('개', 't', 'test'))
+    const { bytes } = await writeProjectBytes(project, markdown)
+    const files: Record<string, Uint8Array> = {}
+    for (const [path, content] of Object.entries(unzipSync(bytes))) {
+      if (!path.startsWith(IMAGE_TEST_DIR)) files[path] = content
+    }
+    files[`${IMAGE_TEST_DIR}../${escHash}.webp`] = photo('esc')
+
+    await expect(readProject(zipSync(files))).rejects.toSatisfy(
+      (error: unknown) =>
+        isClientError(error) &&
+        error.code === 'PROJECT_FILE_ENTRY_MISSING' &&
+        error.params.entry === IMAGE_TEST_DIR,
     )
   })
 })

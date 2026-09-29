@@ -20,6 +20,7 @@ import { BYTES_PER_MB, STORAGE_SAFETY_FACTOR } from '../limits'
 import {
   detachMissingAttachments,
   dropUnknownBackbones,
+  hasFolderBody,
   insideArchive,
   pointsToFile,
   withFolderCategories,
@@ -455,6 +456,60 @@ export async function saveProject(project: ProjectFile): Promise<void> {
   }
 }
 
+/** 폴더 참조가 설 수 있는 자리. 순서가 알림에 넘기는 순서다. */
+export type FolderField = 'dataset' | 'testDataset' | 'predictDataset'
+
+const FOLDER_FIELDS: readonly FolderField[] = ['dataset', 'testDataset', 'predictDataset']
+
+/**
+ * **그 자리의 사진에 기대는 실험이 있는가** — 참조마다 다르다 (open-decisions.md "본체 없는
+ * 폴더 참조는 기대는 실험이 없을 때만 떼고 연다"). 그 사진을 읽는 코드를 세어 정했다.
+ *
+ * - 훈련 — 모든 실험이 그것으로 학습했고, 재실행(`ml/reproduce.ts`)과 참조형 모델의 예측이
+ *   그 표를 다시 세운다.
+ * - 테스트 — `split.method`가 `provided`인 실험만 쓴다(`ml/training-source.ts`의 `scored`).
+ *   군집은 채점하지 않지만 보수적으로 넣는다 — `provided`면 기댄다.
+ * - 예측 — 답이 파일에 안 남는다. 아무것도 안 기댄다.
+ *
+ * 무는 검사: `storage.spec.ts`의 *"본체 없는 폴더 참조"* 묶음.
+ */
+const RELIED_ON: Readonly<Record<FolderField, (document: ProjectDocument) => boolean>> = {
+  dataset: (document) => document.runs.experiments.length > 0,
+  testDataset: (document) =>
+    document.runs.experiments.some((experiment) => experiment.settings.split.method === 'provided'),
+  predictDataset: () => false,
+}
+
+/**
+ * **사진이 한 장도 없는 폴더 참조를 뗀다 — 그 사진에 기대는 실험이 없을 때만** (open-decisions.md
+ * "본체 없는 폴더 참조는 기대는 실험이 없을 때만 떼고 연다", architecture.md §8.10.2).
+ *
+ * 0.30.5까지는 읽을 수 없는 사진만 넣으면 0장인 폴더 참조가 이 저장소에 앉았고, 그 레코드는
+ * 다시 열리지 않았다. 떼는 모양은 마지막 사진을 지울 때(`images.ts`의 `removeImages`)와 같다 —
+ * 참조만 빠지고 범주 목록과 `split.method`는 그대로다.
+ *
+ * **기대는 실험이 있는 자리가 하나라도 있으면 아무것도 안 뗀다** — 그 자리는 뒤의 짝 확인이
+ * 던지고, 반쯤 뗀 문서는 앉지 않는다. `images`는 새는 이름을 거른 뒤의 것이어야 한다.
+ *
+ * **여기서만 뗀다.** `.mlpx` 읽기(`readProject`)와 쓰기(`writeProject`)는 그대로 거부한다 —
+ * 어긋난 파일이 조용히 나가는 길을 만들지 않는다.
+ */
+function detachEmptyFolders(
+  document: ProjectDocument,
+  images: ReadonlyMap<string, Uint8Array>,
+): { document: ProjectDocument; detached: readonly FolderField[] } {
+  const empty = FOLDER_FIELDS.filter((field) => {
+    const ref = document.settings.data[field]
+    return ref !== undefined && !pointsToFile(ref) && !hasFolderBody(ref, images)
+  })
+  if (empty.length === 0 || empty.some((field) => RELIED_ON[field](document))) {
+    return { document, detached: [] }
+  }
+  const data = { ...document.settings.data }
+  for (const field of empty) delete data[field]
+  return { document: { ...document, settings: { ...document.settings, data } }, detached: empty }
+}
+
 /**
  * 프로젝트를 읽는다. 없으면 null.
  *
@@ -464,15 +519,21 @@ export async function saveProject(project: ProjectFile): Promise<void> {
  *
  * **못 읽으면 던진다.** null은 "없다"는 뜻이고, 있는데 못 읽는 것은 다른 사실이다.
  * 둘을 같은 값으로 뭉개면 화면이 "지워졌나 보다"라고 말하게 된다.
+ *
+ * **예외는 본체 없는 폴더 참조 하나다** (`detachEmptyFolders`). 뗐으면 `onDetached`가 뗀 자리를
+ * 받는다 — 여는 데 성공했을 때만 부른다. 알리는 것은 부르는 쪽(스토어의 `open()`)이다.
  */
-export async function loadProject(projectId: string): Promise<ProjectFile | null> {
+export async function loadProject(
+  projectId: string,
+  onDetached?: (fields: readonly FolderField[]) => void,
+): Promise<ProjectFile | null> {
   const database = await db()
   const transaction = database.transaction([PROJECTS_STORE, DATASETS_STORE, MODELS_STORE])
 
   const record = await transaction.objectStore(PROJECTS_STORE).get(projectId)
   if (!record) return null
 
-  const document = migrateProjectDocument(record.document)
+  const migrated = migrateProjectDocument(record.document)
 
   // 문서가 데이터셋을 가리키면 본체가 있어야 한다. 둘은 함께 있고 함께 없다
   // (mlpx-spec.md §1).
@@ -489,14 +550,31 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
   const embeddings = dropUnknownBackbones(dataset?.embeddings ?? new Map<string, Uint8Array>())
 
   /**
+   * **푸는 자리 밖으로 새는 이름을 여기서도 버린다** (`format.ts`의 `insideArchive`).
+   * `.mlpx` 읽기가 거르기 전(0.30.6까지)에 연 파일의 것이 이 저장소에 남아 있다. **떼기 판정은
+   * 거른 뒤의 사진으로 한다**(`detachEmptyFolders`) — 새는 이름뿐인 폴더도 0장이다. 범주 목록도
+   * `.mlpx` 읽기와 같이 거른다(`withFolderCategories`).
+   */
+  const keptImages = insideArchive(images)
+  const keptAttachments = insideArchive(attachments)
+
+  const { document, detached } = detachEmptyFolders(migrated, keptImages)
+
+  /**
    * 참조와 본체가 함께 있는가. **파일 참조와 폴더 참조를 나눠 본다** — 폴더는 파일 하나를
    * 안 가리키므로 "그 아래 한 장이라도 있는가"가 같은 질문이다
    * (open-decisions.md "파일 계층은 '파일 참조인가'를 묻는다").
+   *
+   * **폴더는 거르기 전의 맵으로 본다** (검토 B-3, 회귀 금지). 떼기 판정만 거른 뒤로 본다. 새는
+   * 이름만 남은 폴더에 실험이 기대는 레코드는 전처럼 열리고 내보내기만 거부된다(`requireFolderBodies`)
+   * — 0.30.6 이하에서 조작된 `.mlpx`를 연 레코드뿐이고, 던지면 포트폴리오 글까지 못 꺼낸다.
+   * `.mlpx` 입구(`readProject`)는 거른 뒤로 거절한다 — 파일은 다시 받아 올 수 있다. 무는 검사:
+   * `storage.spec.ts`의 *"새는 이름뿐인 폴더에 실험이 기대면 전처럼 열린다"*.
    */
   const paired = (ref: { path: string } | undefined, body: unknown): boolean => {
     if (ref === undefined) return body === undefined
     if (pointsToFile(ref)) return body !== undefined
-    return [...images.keys()].some((path) => path.startsWith(ref.path))
+    return hasFolderBody(ref, images)
   }
 
   /**
@@ -508,6 +586,8 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
    *
    * 참조만 남은 채로 열어 주는 것도 답이 아니다. **그 프로젝트는 저장도 내보내기도 못
    * 하는 상태**가 되고(writeProject가 거부한다) 학생은 왜인지 모른 채 다음 차시에 그걸 안다.
+   * 기대는 실험이 없는 폴더 참조는 위 `detachEmptyFolders`가 이미 뗐다 — 여기 닿는 폴더
+   * 참조는 실험이 기대는 것이다.
    */
   const requirePaired = (ref: { path: string } | undefined, body: unknown, field: string): void => {
     if (paired(ref, body)) return
@@ -528,14 +608,8 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
     models.set(model.path, model.bytes)
   }
 
-  /**
-   * **푸는 자리 밖으로 새는 이름을 여기서도 버린다** (`format.ts`의 `insideArchive`).
-   * `.mlpx` 읽기가 거르기 전(0.30.6까지)에 연 파일의 것이 이 저장소에 남아 있다. 짝 확인
-   * (`requirePaired`) 뒤다 — `readProject`와 같은 순서라, 본체가 전부 새는 폴더 참조도
-   * 거기서처럼 열린다. 범주 목록도 `.mlpx` 읽기와 같이 거른다(`withFolderCategories`).
-   */
-  const keptImages = insideArchive(images)
-  const keptAttachments = insideArchive(attachments)
+  // **연 뒤에만 말한다.** 던지는 길에서 부르면 열리지도 않은 프로젝트에서 뗐다고 알린다.
+  if (detached.length > 0) onDetached?.(detached)
 
   return {
     // **여기서도 짝을 맞춘다.** 본체 없는 첨부 참조를 들고 화면에 올리면 포트폴리오가

@@ -126,6 +126,12 @@ export const CLIENT_ERROR_CODES = [
   'PROJECT_FILE_INVALID',
   'PROJECT_FILE_VERSION_TOO_NEW',
   'PROJECT_FILE_VERSION_UNSUPPORTED',
+  // 프로젝트 파일 한 개에 담을 수 있는 엔트리 수를 넘는다 (limits.ts의 MAX_ARCHIVE_ENTRIES,
+  // project/format.ts의 archiveEntryCount). 사진 추가·포트폴리오 첨부가 **받기 전에** 던지고,
+  // 내보내기가 마지막 그물로 던진다. **IMAGE_TOO_MANY_PHOTOS와 나누는 이유는 학생이 할 일이
+  // 다르기 때문이다** - 저쪽은 이 앱이 정한 장수라 [상한 해제]로 풀리고, 이쪽은 zip 형식이 정한
+  // 끝이라 안 풀린다. 같은 코드면 문구가 풀리지 않는 스위치를 가리킨다.
+  'PROJECT_FILE_TOO_MANY_ENTRIES',
 
   // 모델 실행 - 파일은 멀쩡히 열리고 그 모델로 예측만 못 한다 (mlpx-spec.md 6)
   'MODEL_FORMAT_UNSUPPORTED',

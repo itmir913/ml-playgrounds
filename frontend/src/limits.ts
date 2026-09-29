@@ -1198,6 +1198,22 @@ export const MAX_FILE_NAME_BYTES = 255
 export const MAX_CATEGORY_NAME_LENGTH = 100
 
 /**
+ * `.mlpx` 한 파일에 담는 **엔트리 수**의 끝 (open-decisions.md ".mlpx 한 파일의 엔트리 수는
+ * ZIP64 없이 쓸 수 있는 만큼이다").
+ *
+ * **값은 zip 형식이 정한다.** 끝 레코드의 엔트리 수 칸이 16비트이고, 그 칸의 `0xFFFF`(65,535)는
+ * "칸이 모자라니 ZIP64 레코드를 보라"는 표지다(APPNOTE 4.4.1.4). 우리가 쓰는 fflate는 ZIP64를
+ * 쓰지 않고 그 칸에 **아래 16비트만** 적는다 — 넘으면 다시 열 때 사진이 **말없이** 사라진다
+ * (65,546개를 쓰고 다시 열었더니 5장이었다, 판례는 그 결정문의 경위). 표지 바로 아래가 이 값이다.
+ *
+ * **상한을 켠 채로는 닿지 않는다** — 사진은 자리마다 `MAX_IMAGE_COUNT`장이다. 상한을 끈 학생의
+ * 파일이 닿는다. 무는 검사: `archive-entry-limit.spec.ts` · `archive-entry-gates.spec.ts`.
+ *
+ * **분류: 파일이 나간 뒤가 요구한다.**
+ */
+export const MAX_ARCHIVE_ENTRIES = 65_534
+
+/**
  * 일괄 예측 결과 표를 끊어 보여주는 줄 수. **화면을 위한 것이 아니라 계산을 위한 것이다**
  * (architecture.md §8.13.1) - 5천 줄 × 모델 5개면 2만 5천 번이고 참조형이면 그 한
  * 번마다 훈련 데이터 전체와의 거리 계산이라, 저사양 학교 PC를 얼릴 수 있다.

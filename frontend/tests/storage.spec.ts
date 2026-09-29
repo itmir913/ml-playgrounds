@@ -34,8 +34,14 @@ import {
 } from '../src/project/storage'
 import { hashBytes } from '../src/hash'
 import { STORAGE_SAFETY_FACTOR } from '../src/limits'
-import type { ProjectFile } from '../src/project/format'
-import { dataSettings, FORMAT_VERSION } from '../src/project/schema'
+import {
+  IMAGE_DATA_DIR,
+  IMAGE_PREDICT_DIR,
+  IMAGE_TEST_DIR,
+  type ProjectFile,
+} from '../src/project/format'
+import { dataSettings, FORMAT_VERSION, type Experiment } from '../src/project/schema'
+import { writeProjectBytes } from './fixtures/write'
 import {
   experiment,
   datasetBytes,
@@ -46,6 +52,24 @@ import {
   run,
   testDatasetBytes,
 } from './fixtures/project'
+
+/** 이미지 프로젝트의 실험 하나. 스냅샷이 종류를 따라야 문서 검사를 지난다. */
+function imageExperiment(method: 'holdout' | 'provided'): Experiment {
+  const one = experiment('experiment-1', [run('run-1')])
+  return {
+    ...one,
+    settings: {
+      ...one.settings,
+      data: {
+        categories: ['개'],
+        backboneId: DEFAULT_BACKBONE_ID,
+        categoryCounts: [1],
+        unlabeledCount: 0,
+      },
+      split: { ...one.settings.split, method },
+    },
+  }
+}
 
 async function deleteDatabase(): Promise<void> {
   await new Promise<void>((resolve) => {
@@ -639,11 +663,16 @@ describe('참조와 본체가 어긋난 레코드', () => {
    *
    * **사진이 날아간 이미지 프로젝트가 "열리는" 것이 그 결과다.** 그 프로젝트는 저장도
    * 내보내기도 못 하고(`writeProject`가 거부한다), 학생은 왜인지 모른 채 다음 차시에 안다.
+   *
+   * **실험이 그 사진에 기댈 때의 이야기다** (open-decisions.md "본체 없는 폴더 참조는 기대는
+   * 실험이 없을 때만 떼고 연다"). 기대는 실험이 없으면 참조를 떼고 연다 — 아래
+   * *"본체 없는 폴더 참조"* 묶음이 문다.
    */
-  it('사진 폴더 참조만 남았으면 던진다 - 폴더는 그 아래 한 장이라도 있어야 한다', async () => {
+  it('사진 폴더 참조만 남았고 실험이 기대면 던진다 - 폴더는 그 아래 한 장이라도 있어야 한다', async () => {
     const base = emptyProjectFile().document
     await plantWithoutBody({
       ...base,
+      runs: { experiments: [imageExperiment('holdout')] },
       manifest: { ...base.manifest, dataType: 'image' },
       settings: {
         ...base.settings,
@@ -654,7 +683,13 @@ describe('참조와 본체가 어긋난 레코드', () => {
         },
       },
     })
-    await expect(loadProject('dangling')).rejects.toSatisfy(isClientError)
+    // **짝 검사가 던진 것인가.** 문서 검사도 같은 코드로 던지므로 자리까지 본다.
+    await expect(loadProject('dangling')).rejects.toSatisfy(
+      (error: unknown) =>
+        isClientError(error) &&
+        error.code === 'PROJECT_FILE_INVALID' &&
+        error.params.path === 'settings.data.dataset',
+    )
   })
 
   it('예측 데이터 참조만 남았으면 던진다', async () => {
@@ -675,6 +710,218 @@ describe('참조와 본체가 어긋난 레코드', () => {
       },
     })
     await expect(loadProject('dangling')).rejects.toSatisfy(isClientError)
+  })
+})
+
+/**
+ * **본체 없는 폴더 참조** (open-decisions.md "본체 없는 폴더 참조는 기대는 실험이 없을 때만
+ * 떼고 연다"). 옛 판이 사진 0장인 폴더 참조를 저장소에 남겼다 — 학생 기기에 이미 있을 수
+ * 있다. 그 사진에 기대는 실험이 없으면 참조를 떼고 열며 알리고, 있으면 지금처럼 던진다.
+ *
+ * **진짜 입구로 심는다** — `saveProject`는 짝을 묻지 않으므로 옛 판이 남긴 모양이 그대로
+ * 저장소에 앉는다.
+ */
+describe('본체 없는 폴더 참조', () => {
+  const photoBytes = new TextEncoder().encode('가짜jpg')
+  const photoAt = (directory: string): [string, Uint8Array] => [
+    `${directory}개/${hashBytes(photoBytes)}.webp`,
+    photoBytes,
+  ]
+  const folder = (path: string) => ({
+    path,
+    canonicalSize: 224,
+    format: 'webp' as const,
+    quality: 0.65,
+  })
+
+  /** 이미지 프로젝트. `data`는 참조 셋이고, 사진은 따로 준다. */
+  function imageRecord(
+    data: Record<string, unknown>,
+    options: { experiments?: Experiment[]; images?: [string, Uint8Array][] } = {},
+  ): ProjectFile {
+    const base = emptyProjectFile()
+    return {
+      ...base,
+      document: {
+        ...base.document,
+        manifest: { ...base.document.manifest, dataType: 'image' },
+        settings: {
+          ...base.document.settings,
+          data: {
+            categories: ['개'],
+            backboneId: DEFAULT_BACKBONE_ID,
+            ...data,
+          } as ProjectFile['document']['settings']['data'],
+        },
+        runs: { experiments: options.experiments ?? [] },
+      },
+      images: new Map(options.images ?? []),
+    }
+  }
+
+  /** **짝 검사가 던진 것인가.** 문서 검사도 같은 코드로 던지므로 자리까지 본다. */
+  const pairingFailed =
+    (field: string) =>
+    (error: unknown): boolean =>
+      isClientError(error) && error.code === 'PROJECT_FILE_INVALID' && error.params.path === field
+
+  /** 채점을 테스트 사진으로 한 실험. */
+  const providedExperiment = (): Experiment => imageExperiment('provided')
+  const holdoutExperiment = (): Experiment => imageExperiment('holdout')
+
+  async function open(
+    project: ProjectFile,
+  ): Promise<{ loaded: ProjectFile | null; told: string[][] }> {
+    await saveProject(project)
+    const told: string[][] = []
+    const loaded = await loadProject(manifest.projectId, (fields) => told.push([...fields]))
+    return { loaded, told }
+  }
+
+  it('훈련 폴더에 사진이 없고 실험도 없으면 참조를 떼고 연다', async () => {
+    const { loaded, told } = await open(imageRecord({ dataset: folder(IMAGE_DATA_DIR) }))
+
+    expect(loaded).not.toBeNull()
+    expect(dataSettings('image', loaded!.document.settings).dataset).toBeUndefined()
+    // 범주 목록은 안 건드린다 — 마지막 사진을 지울 때(`removeImages`)와 같다.
+    expect(dataSettings('image', loaded!.document.settings).categories).toEqual(['개'])
+    expect(told).toEqual([['dataset']])
+  })
+
+  it('뗀 프로젝트는 내보낼 수 있다', async () => {
+    const { loaded } = await open(imageRecord({ dataset: folder(IMAGE_DATA_DIR) }))
+
+    await expect(writeProjectBytes(loaded!, '# 포트폴리오')).resolves.toBeDefined()
+  })
+
+  it('다음 저장이 뗀 것을 쓴다 - 그 뒤로는 알리지 않는다', async () => {
+    const { loaded } = await open(imageRecord({ dataset: folder(IMAGE_DATA_DIR) }))
+    await saveProject(loaded!)
+
+    const told: string[][] = []
+    const again = await loadProject(manifest.projectId, (fields) => told.push([...fields]))
+    expect(dataSettings('image', again!.document.settings).dataset).toBeUndefined()
+    expect(told).toEqual([])
+  })
+
+  it('실험이 있으면 훈련 폴더 참조는 지금처럼 던진다', async () => {
+    const told: string[][] = []
+    await saveProject(
+      imageRecord({ dataset: folder(IMAGE_DATA_DIR) }, { experiments: [holdoutExperiment()] }),
+    )
+
+    await expect(
+      loadProject(manifest.projectId, (fields) => told.push([...fields])),
+    ).rejects.toSatisfy(pairingFailed('settings.data.dataset'))
+    expect(told).toEqual([])
+  })
+
+  it('테스트 사진으로 채점한 실험이 있으면 테스트 폴더 참조는 던진다', async () => {
+    await saveProject(
+      imageRecord(
+        { dataset: folder(IMAGE_DATA_DIR), testDataset: folder(IMAGE_TEST_DIR) },
+        { experiments: [providedExperiment()], images: [photoAt(IMAGE_DATA_DIR)] },
+      ),
+    )
+
+    await expect(loadProject(manifest.projectId)).rejects.toSatisfy(
+      pairingFailed('settings.data.testDataset'),
+    )
+  })
+
+  it('실험이 기대는 참조 옆의 예측 참조도 떼지 않고 함께 던진다 - 반쯤 떼고 던지지 않는다', async () => {
+    await saveProject(
+      imageRecord(
+        { dataset: folder(IMAGE_DATA_DIR), predictDataset: folder(IMAGE_PREDICT_DIR) },
+        { experiments: [holdoutExperiment()] },
+      ),
+    )
+    const told: string[][] = []
+
+    await expect(
+      loadProject(manifest.projectId, (fields) => told.push([...fields])),
+    ).rejects.toSatisfy(pairingFailed('settings.data.dataset'))
+    expect(told).toEqual([])
+  })
+
+  /** 떼는 판정은 **참조마다**다 — holdout으로 채점한 실험은 테스트 사진을 안 썼다. */
+  it('holdout 실험만 있으면 테스트 폴더 참조는 떼고 연다', async () => {
+    const { loaded, told } = await open(
+      imageRecord(
+        { dataset: folder(IMAGE_DATA_DIR), testDataset: folder(IMAGE_TEST_DIR) },
+        { experiments: [holdoutExperiment()], images: [photoAt(IMAGE_DATA_DIR)] },
+      ),
+    )
+
+    const data = dataSettings('image', loaded!.document.settings)
+    expect(data.testDataset).toBeUndefined()
+    expect(data.dataset).toEqual(folder(IMAGE_DATA_DIR))
+    expect(loaded!.document.runs.experiments).toHaveLength(1)
+    expect(told).toEqual([['testDataset']])
+  })
+
+  /** 예측 사진에 기대는 기록은 없다 — 답은 파일에 안 남는다. */
+  it('예측 폴더 참조는 실험이 있어도 떼고 연다', async () => {
+    const { loaded, told } = await open(
+      imageRecord(
+        { dataset: folder(IMAGE_DATA_DIR), predictDataset: folder(IMAGE_PREDICT_DIR) },
+        { experiments: [providedExperiment()], images: [photoAt(IMAGE_DATA_DIR)] },
+      ),
+    )
+
+    expect(dataSettings('image', loaded!.document.settings).predictDataset).toBeUndefined()
+    expect(told).toEqual([['predictDataset']])
+  })
+
+  /** **새는 이름은 여는 자리에서 버려지므로**(`insideArchive`) 그것뿐인 폴더도 0장이다. */
+  it('사진이 전부 새는 이름뿐이면 0장으로 본다', async () => {
+    const leaking: [string, Uint8Array] = [
+      `${IMAGE_DATA_DIR}../${hashBytes(photoBytes)}.webp`,
+      photoBytes,
+    ]
+    const { loaded, told } = await open(
+      imageRecord({ dataset: folder(IMAGE_DATA_DIR) }, { images: [leaking] }),
+    )
+
+    expect(dataSettings('image', loaded!.document.settings).dataset).toBeUndefined()
+    expect(loaded!.images.size).toBe(0)
+    expect(told).toEqual([['dataset']])
+  })
+
+  /**
+   * **회귀 금지** (검토 B-3). 새는 이름만 남은 폴더에 실험이 기대면 떼지 않는다 — 그래도 **전처럼
+   * 열린다**(짝 확인은 거르기 전의 맵). 내보내기만 거부된다. 던지면 학생이 글까지 못 꺼낸다.
+   */
+  it('새는 이름뿐인 폴더에 실험이 기대면 전처럼 열린다', async () => {
+    const leaking: [string, Uint8Array] = [
+      `${IMAGE_DATA_DIR}../${hashBytes(photoBytes)}.webp`,
+      photoBytes,
+    ]
+    const { loaded, told } = await open(
+      imageRecord(
+        { dataset: folder(IMAGE_DATA_DIR) },
+        { experiments: [holdoutExperiment()], images: [leaking] },
+      ),
+    )
+
+    expect(dataSettings('image', loaded!.document.settings).dataset).toEqual(folder(IMAGE_DATA_DIR))
+    expect(loaded!.images.size).toBe(0)
+    expect(told).toEqual([])
+    await expect(writeProjectBytes(loaded!, '# 포트폴리오')).rejects.toSatisfy(
+      (error: unknown) => isClientError(error) && error.code === 'PROJECT_FILE_INVALID',
+    )
+  })
+
+  it('짝이 맞으면 아무것도 안 떼고 알리지도 않는다', async () => {
+    const { loaded, told } = await open(
+      imageRecord(
+        { dataset: folder(IMAGE_DATA_DIR) },
+        { experiments: [holdoutExperiment()], images: [photoAt(IMAGE_DATA_DIR)] },
+      ),
+    )
+
+    expect(dataSettings('image', loaded!.document.settings).dataset).toEqual(folder(IMAGE_DATA_DIR))
+    expect(told).toEqual([])
   })
 })
 

@@ -60,6 +60,7 @@ import {
   removeCategory,
   removeImages,
   renameCategory,
+  requireRoomForPhotos,
 } from '@/project/images'
 import { dataSettings } from '@/project/schema'
 import { useProjectStore, type ProjectRevision } from '@/stores/project'
@@ -254,6 +255,8 @@ async function readPicked(
     // 안 돌고, 학생은 확인 판을 지나 기다린 뒤에 지우기부터 하는 일을 안 겪는다.
     const overflow = imageOverflow(project.file, items.length)
     if (overflow) throw new ClientError('IMAGE_TOO_MANY_PHOTOS', { ...overflow })
+    // 상한을 꺼도 안 꺼지는 끝 — `.mlpx` 한 파일의 엔트리 수다 (project/images.ts).
+    requireRoomForPhotos(project.file, items.length)
 
     // **자리도 같은 시점에 묻는다** (open-decisions.md "이미지가 들어갈 자리는 굽기
     // 전에 묻는다"). 장수와 다른 축이다 — 위는 이 앱이 정한 수이고 이건 그 기기의
@@ -344,6 +347,9 @@ async function bake(): Promise<void> {
     // 닿지 못했다.
     const overflow = imageOverflow(file, items.length)
     if (overflow) throw new ClientError('IMAGE_TOO_MANY_PHOTOS', { ...overflow })
+    // 엔트리 수 한계도 같은 이유로 다시 묻는다. 무는 검사: `archive-entry-gates.spec.ts`의
+    // *"굽는 동안 놓은 둘째 묶음은 굽기 직전에 막힌다"*.
+    requireRoomForPhotos(file, items.length)
 
     const shortfall = await imageRoomShortfall(file, items.length, backbone)
     if (shortfall) throw new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall })

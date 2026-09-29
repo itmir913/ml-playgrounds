@@ -32,6 +32,7 @@ import { maxPortfolioBytes } from '@/limits-switch'
 import { BYTES_PER_MB } from '@/limits'
 import { bakeAttachments } from '@/project/attachments'
 import { touch } from '@/project/create'
+import { archiveGrowthRefused } from '@/project/format'
 import { parsePortfolioForm } from '@/project/portfolio-form'
 import {
   hasTemplate,
@@ -120,6 +121,22 @@ function apply(next: Portfolio, revert?: () => void, bytes?: Map<string, Uint8Ar
   if (after > limit && after > usedBytes.value) {
     revert?.()
     toasts.pushError(new ClientError('PORTFOLIO_TOO_LARGE', { limitMb: limit / BYTES_PER_MB }))
+    return
+  }
+  // **상한을 꺼도 안 꺼지는 끝 — `.mlpx` 한 파일의 엔트리 수다** (open-decisions.md ".mlpx 한
+  // 파일의 엔트리 수는 ZIP64 없이 쓸 수 있는 만큼이다"). 첨부 바이트가 바뀔 때만 센다 — 글을 칠
+  // 때마다 사진 수천 장을 세지 않는다. 위 상한과 같이 **넘으면서 늘리는 편집만** 거절한다.
+  // 무는 검사: `archive-entry-gates.spec.ts`의 *"한계를 넘기는 첨부는 붙이지 않고 말한다"*.
+  if (
+    bytes !== undefined &&
+    archiveGrowthRefused(file, {
+      ...file,
+      attachments,
+      document: { ...file.document, portfolio: next },
+    })
+  ) {
+    revert?.()
+    toasts.pushError(new ClientError('PROJECT_FILE_TOO_MANY_ENTRIES'))
     return
   }
   // **포트폴리오를 쓴 것도 프로젝트를 고친 것이다.** 안 찍으면 화면의 "수정한 날짜"가

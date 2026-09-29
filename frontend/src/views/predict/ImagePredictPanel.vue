@@ -60,7 +60,13 @@ import { addEmbeddings, readEmbeddings } from '@/project/embeddings'
 import { imagePredictPageSize, pageSizeOf } from '@/limits-switch'
 import { IMAGE_UNLABELED } from '@/project/format'
 import { imageRoomShortfall } from '@/data/image/room'
-import { addImages, imageOverflow, readImages, removeImages } from '@/project/images'
+import {
+  addImages,
+  imageOverflow,
+  readImages,
+  removeImages,
+  requireRoomForPhotos,
+} from '@/project/images'
 import { dataSettings } from '@/project/schema'
 import { yieldToScreen } from '@/screen'
 import { useProjectStore } from '@/stores/project'
@@ -312,6 +318,8 @@ async function readPicked(files: readonly File[]): Promise<void> {
     // 거절하면 학생은 기다린 시간을 통째로 버린다.
     const overflow = imageOverflow(file, items.length, 'predict')
     if (overflow) throw new ClientError('IMAGE_TOO_MANY_PHOTOS', { ...overflow })
+    // 상한을 꺼도 안 꺼지는 끝 — `.mlpx` 한 파일의 엔트리 수다 (project/images.ts).
+    requireRoomForPhotos(file, items.length)
 
     // **자리도 같은 시점에 묻는다** (open-decisions.md "이미지가 들어갈 자리는 굽기
     // 전에 묻는다"). 장수와 다른 축이다 — 위는 이 앱이 정한 수이고 이건 그 기기의
