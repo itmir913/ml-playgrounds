@@ -197,6 +197,15 @@ export const CLIENT_ERROR_CODES = [
    */
   'FILE_UNREADABLE',
 
+  /**
+   * 가는 화면의 청크를 못 받았다 (`router/index.ts`, architecture.md §8.1). 배포 뒤 열어 둔 옛 탭이
+   * 없어진 해시를 부르거나 연결이 끊긴 경우다. 이동은 아무것도 안 바꾸고 선다.
+   *
+   * **`UNEXPECTED_ERROR`와 나누는 이유는 학생이 할 일이 다르기 때문이다** — 다시 눌러도 같은 청크를
+   * 부를 뿐이라 **"연결을 확인하고 새로고침"**이다. 무는 검사: `route-chunk-failure.spec.ts`.
+   */
+  'SCREEN_LOAD_FAILED',
+
   // 우리가 코드로 만들어 두지 않은 실패의 마지막 그물.
   // JOB_FAILED와 나누는 이유는 그건 학습에 대한 말이기 때문이다 - 저장이 실패했는데
   // "학습에 실패했습니다"가 뜨면 학생은 엉뚱한 것을 다시 한다.

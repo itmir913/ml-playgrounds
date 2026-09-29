@@ -12,11 +12,13 @@
 import {
   createRouter,
   createWebHashHistory,
+  loadRouteLocation,
   type RouteRecordRaw,
   type RouteRecordSingleView,
 } from 'vue-router'
 
 import { dataKindFor, lockedNoticeFor } from '@/data/kinds'
+import { ClientError, failureDetail } from '@/errors'
 import { i18n } from '@/i18n'
 import { refusalFor } from '@/locks'
 import { useLeaveStore } from '@/stores/leave'
@@ -107,8 +109,43 @@ export const router = createRouter({
  */
 let toastWatermark: number | null = null
 
+/**
+ * 전역 가드가 몇 번 시작했는가. **값에 뜻이 없고 달라졌다는 것에만 뜻이 있다** — 화면을 받는 동안
+ * 다음 이동이 시작했는지를 잰다(아래 가드의 "받는 사이에").
+ */
+let navigations = 0
+
 router.beforeEach(async (to) => {
   if (toastWatermark === null) toastWatermark = useToastStore().highWaterMark()
+
+  /**
+   * **가는 화면을 먼저 받는다** (architecture.md §8.1). vue-router는 이 가드를 다 돈 **뒤에** 지연 화면을
+   * 받는데, 아래는 저장을 비우고 프로젝트를 닫거나 갈아 끼운다 — 그 뒤에 청크를 못 받으면(배포 뒤 옛 탭,
+   * 끊긴 연결) 이동은 실패했는데 가드가 한 일은 남아, 화면은 옛 프로젝트인데 스토어는 비었거나 다른
+   * 프로젝트가 된다. 여기서 받으면 실패할 때 바뀐 것이 없다. 받은 것은 라우트 기록에 앉으므로 다음
+   * 이동은 다시 받지 않는다(vue-router 원본을 읽어 확인 — 사람 확인). **스스로 새로고침하지 않는다** — 끊긴 연결에서는 지금 화면까지 잃는다.
+   * 무는 검사: `route-chunk-failure.spec.ts`.
+   *
+   * **받는 사이에 학생이 다른 데로 갔으면 여기서 접는다.** 받기는 학교 회선에서 몇 초가 걸릴 수 있고, 그
+   * 사이 다음 이동이 이 가드를 다시 돈다 — 이 이동은 이미 버려졌는데 아래를 계속 돌면 뒤 이동이 연
+   * 프로젝트를 이 이동의 `close()`가 닫는다. 무는 검사: `route-chunk-race.spec.ts`.
+   *
+   * **접을 때 돌려주는 값은 `true`다** (N4 검토 B-1). 이 이동은 이미 버려져서 vue-router가 바로 뒤 검사에서
+   * 취소(CANCELLED)로 접는다. `false`는 중단(ABORTED)이라, 이 이동이 [뒤로]에서 왔으면 vue-router가 주소를
+   * 되돌리려 `history.go`를 부르고 되돌아갈 칸이 없어 **다음 [뒤로]를 삼킨다** — 주소와 화면이 갈린다.
+   * 무는 검사: `route-chunk-race.spec.ts`의 *"뒤로 가기로 가던 화면을 받는 사이 다른 데로 가면"*.
+   */
+  const ticket = (navigations += 1)
+  if (to.matched.length > 0) {
+    try {
+      await loadRouteLocation(to)
+    } catch (error) {
+      useToastStore().pushError(new ClientError('SCREEN_LOAD_FAILED', failureDetail(error)))
+      return false
+    }
+  }
+  if (ticket !== navigations) return true
+
   const project = useProjectStore()
   const leave = useLeaveStore()
   /**
