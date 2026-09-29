@@ -32,7 +32,7 @@ import StepHeader from '@/components/StepHeader.vue'
 import { canonicalizeImages } from '@/data/image/client'
 import { useThumbnails } from '@/composables/useThumbnails'
 import { usePasteImages } from '@/composables/usePasteImages'
-import { clearIfHeld, useWork } from '@/composables/useWork'
+import { clearIfHeld, latestOnly, useWork } from '@/composables/useWork'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
 import {
   readImageFiles,
@@ -124,6 +124,9 @@ const pending = ref<readonly UploadItem[] | null>(null)
  * 이 칸은 **묻기 전에** 채우고, [취소]는 진행 표시가 아니라 이 칸으로 판정한다.
  */
 const baking = ref<readonly UploadItem[] | null>(null)
+
+/** 갈아끼우는 읽기마다 표를 낸다 — 겹치면 마지막 것만 판에 선다 (`readPicked`). */
+const nextRead = latestOnly()
 
 /** 골라 둔 사진들. 옮기기·지우기의 대상이다. */
 const selected = ref(new Set<string>())
@@ -240,6 +243,13 @@ async function readPicked(
   // 자리에 세우면 된다 — 돌려보내는 것보다 낫다 (§8.10.4). 잠금은 셈이 지키므로
   // 여기서 잡아도 굽는 중인 자물쇠가 열리지 않는다.
   const job = start()
+  /**
+   * **갈아끼우는 읽기가 겹치면 나중에 놓은 것이 선다** (`latestOnly`) — 큰 zip을 놓고 곧바로 사진
+   * 몇 장을 놓으면 늦게 끝난 zip이 판을 덮었다. 붙여넣기는 표를 안 받는다 — 덧붙이는 것이라
+   * 앞의 것을 밀어내지 않고, 밀려나서도 안 된다(다시 찍어야 하는 사진이다).
+   */
+  const current = append ? null : nextRead()
+  const stale = (): boolean => current !== null && !current()
   try {
     const [only] = files
     // **구조가 있으면 구조가 이긴다.** 폴더나 zip이 라벨을 들고 있으면 그것이 답이고,
@@ -267,9 +277,10 @@ async function readPicked(
       const shortfall = await imageRoomShortfall(project.file, items.length, spec)
       if (shortfall) throw new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall })
     }
+    if (stale()) return
     pending.value = append && pending.value ? [...pending.value, ...items] : items
   } catch (error) {
-    toasts.pushError(error)
+    if (!stale()) toasts.pushError(error)
   } finally {
     job.done()
   }

@@ -32,7 +32,7 @@ import AppTable from '@/components/AppTable.vue'
 import StepActionBar from '@/components/StepActionBar.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
-import { clearIfHeld, useWork } from '@/composables/useWork'
+import { clearIfHeld, latestOnly, useWork } from '@/composables/useWork'
 import { summarizeColumns, toDataset, type ColumnSummary } from '@/data/columns'
 import {
   importTable,
@@ -80,11 +80,25 @@ const { busy, lock: busyLock, start, retire } = useWork()
 
 onBeforeUnmount(retire)
 
-/** 아직 확정하지 않은 파일. 확정하면 비운다. */
-const opened = ref<{ document: TableDocument; fileName: string } | null>(null)
+/**
+ * 아직 확정하지 않은 파일. 확정하면 비운다.
+ *
+ * **미리보기(`sheets`)도 함께 든다 — 읽을 때 한 번 만든다** (`readFile`). CSV는 `openTable`이
+ * 여는 순간 줄을 안 읽고 미리보기가 처음 읽는다. 그것을 `computed`에서 하면 앞줄의 따옴표가 안 닫힌
+ * 파일이 **그리는 도중에** `DATASET_PARSE_FAILED`를 던졌고, 전역 오류 손잡이가 없어 배포판은 이 판을
+ * 통째로 빈 주석으로 바꿨다 — 알림도, 다시 놓을 과녁도 없었다. 읽기의 `try` 안에서 만들면 같은 실패가
+ * 알림이 되고 판은 선다. 무는 검사: `tabular-panel-preview-fail.spec.ts`.
+ */
+const opened = ref<{
+  document: TableDocument
+  fileName: string
+  sheets: ReturnType<typeof previewTable>
+} | null>(null)
 const sheetName = ref<string | undefined>(undefined)
 const hasHeader = ref(true)
 const confirming = ref(false)
+/** 읽기마다 표를 낸다 — 겹치면 마지막 것만 판에 선다 (`readFile`). */
+const nextRead = latestOnly()
 
 /**
  * 교체하면 함께 잃는 것. **판정은 화면 밖이다** (`project/dataset.ts`의 `replaceLosses`) —
@@ -97,9 +111,8 @@ const losses = computed(() => replaceLosses(project.file))
  * 더 있는지를 그 한 줄이 답한다.
  */
 const previewRows = computed(() => {
-  const document = opened.value?.document
-  if (!document) return []
-  const sheets = previewTable(document, PREVIEW_PROBE_ROWS)
+  const sheets = opened.value?.sheets
+  if (!sheets) return []
   return sheets.find((sheet) => sheet.sheetName === sheetName.value)?.rows ?? sheets[0]?.rows ?? []
 })
 
@@ -154,14 +167,20 @@ async function readFile(file: File): Promise<void> {
   // **확정 중이어도 읽는다.** 읽은 것은 판에 설 뿐 프로젝트를 안 건드린다 — 잠금은
   // 셈이 지키므로 여기서 잡아도 확정 중인 자물쇠가 열리지 않는다 (§8.10.4).
   const job = start()
+  // **읽기가 겹치면 나중에 놓은 파일이 선다** (`latestOnly`). 먼저 놓은 큰 파일이 늦게 끝나도
+  // 판을 덮지 않고, 그 파일의 실패도 말하지 않는다 — 학생은 이미 다른 파일로 넘어갔다.
+  const current = nextRead()
   try {
     const bytes = await readFileBytes(file)
     const document = await openTable(bytes, file.name)
-    opened.value = { document, fileName: file.name }
+    // **여기서 읽는다 — 그리면서 읽지 않는다** (`opened`의 머리말). 던지면 아래 `catch`가 말한다.
+    const sheets = previewTable(document, PREVIEW_PROBE_ROWS)
+    if (!current()) return
+    opened.value = { document, fileName: file.name, sheets }
     sheetName.value = document.sheetNames[0]
     hasHeader.value = true
   } catch (error) {
-    toasts.pushError(error)
+    if (current()) toasts.pushError(error)
   } finally {
     job.done()
   }

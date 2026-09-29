@@ -264,3 +264,33 @@ export function useWork(): Work {
 export function clearIfHeld<T>(slot: Ref<T | null>, held: T): void {
   if (toRaw(slot.value) === toRaw(held)) slot.value = null
 }
+
+/**
+ * **겹친 읽기 중 마지막에 시작한 것만 판에 세운다.** 부를 때마다 표를 하나 내주고, 그 표는 뒤에
+ * 다른 표가 나가면 낡는다.
+ *
+ * 표·사진을 받는 판은 읽는 동안에도 과녁이 열려 있다 (§8.10.4 — 읽기는 판에 설 뿐 프로젝트를 안
+ * 건드린다). 그래서 큰 파일을 놓고 곧바로 작은 파일을 놓으면 **늦게 끝난 쪽이 판을 덮었다** — 먼저
+ * 선 작은 파일의 미리보기를 학생이 보는 사이에 큰 파일이 말없이 그 자리를 차지했다. 어느 것이
+ * 서는지가 파일 크기에 달려 있었다.
+ *
+ * ```ts
+ * const nextRead = latestOnly()
+ * async function readFile(file: File): Promise<void> {
+ *   const current = nextRead()
+ *   const document = await openTable(...)
+ *   if (!current()) return          // 뒤에 놓은 파일이 있다 — 그쪽이 판에 선다
+ *   opened.value = ...
+ * }
+ * ```
+ *
+ * 무는 검사: `table-read-race.spec.ts`.
+ */
+export function latestOnly(): () => () => boolean {
+  let issued = 0
+  return () => {
+    issued += 1
+    const mine = issued
+    return () => mine === issued
+  }
+}

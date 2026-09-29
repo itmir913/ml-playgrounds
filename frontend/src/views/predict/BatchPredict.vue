@@ -22,7 +22,7 @@ import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
 import { nameList } from '@/data/columns'
 import { importTable, openTable, TABULAR_ACCEPT, type TableDocument } from '@/data/table'
-import { clearIfHeld, useWork } from '@/composables/useWork'
+import { clearIfHeld, latestOnly, useWork } from '@/composables/useWork'
 import { toCanonicalCsv } from '@/data/serialize'
 import { anyLock, lockFor, turnPage, type WatchWriteId } from '@/locks'
 import { pageSizeOf, predictPageSize } from '@/limits-switch'
@@ -93,19 +93,24 @@ const { busy, lock: busyLock, start, alive, retire } = useWork()
 const opened = shallowRef<{ document: TableDocument; fileName: string } | null>(null)
 const sheetName = shallowRef<string | undefined>(undefined)
 const hasHeader = shallowRef(true)
+/** 읽기마다 표를 낸다 — 겹치면 마지막 것만 판에 선다 (`readFile`). */
+const nextRead = latestOnly()
 
 async function readFile(file: File): Promise<void> {
   // **붙이는 중이어도 읽는다.** 읽은 것은 판에 설 뿐 프로젝트를 안 건드린다 — 잠금은
   // 셈이 지키므로 여기서 잡아도 붙이는 중인 자물쇠가 열리지 않는다 (§8.10.4).
   const job = start()
+  // **읽기가 겹치면 나중에 놓은 파일이 선다** (`latestOnly`) — 데이터 화면의 `readFile`과 같다.
+  const current = nextRead()
   try {
     const bytes = await readFileBytes(file)
     const document = await openTable(bytes, file.name)
+    if (!current()) return
     opened.value = { document, fileName: file.name }
     sheetName.value = document.sheetNames[0]
     hasHeader.value = true
   } catch (error) {
-    toasts.pushError(error)
+    if (current()) toasts.pushError(error)
   } finally {
     job.done()
   }

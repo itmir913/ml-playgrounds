@@ -26,7 +26,7 @@ import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppInput from '@/components/AppInput.vue'
 import { useRadioGroupGuard } from '@/composables/useRadioGroupGuard'
-import { useWork } from '@/composables/useWork'
+import { clearIfHeld, latestOnly, useWork } from '@/composables/useWork'
 import { summarizeColumns } from '@/data/columns'
 import { importTable, openTable, TABULAR_ACCEPT, type TableDocument } from '@/data/table'
 import { MIN_SPLIT_ROWS } from '@/limits'
@@ -509,6 +509,8 @@ const testSheetName = ref<string | undefined>(undefined)
 const testHasHeader = ref(true)
 const testAttaching = ref(false)
 const testRemoving = ref(false)
+/** 테스트 파일 읽기마다 표를 낸다 — 겹치면 마지막 것만 판에 선다 (`readTestFile`). */
+const nextTestRead = latestOnly()
 
 /**
  * "①"을 고른다. 이미 붙어 있던 테스트 데이터가 있으면 뗀다(경고를 거친다).
@@ -536,14 +538,17 @@ function chooseProvided(): void {
 
 async function readTestFile(file: File): Promise<void> {
   const job = startTestWork()
+  // **읽기가 겹치면 나중에 놓은 파일이 선다** (`latestOnly`) — 데이터 화면의 `readFile`과 같다.
+  const current = nextTestRead()
   try {
     const bytes = await readFileBytes(file)
     const document = await openTable(bytes, file.name)
+    if (!current()) return
     openedTest.value = { document, fileName: file.name }
     testSheetName.value = document.sheetNames[0]
     testHasHeader.value = true
   } catch (error) {
-    toasts.pushError(error)
+    if (current()) toasts.pushError(error)
   } finally {
     job.done()
   }
@@ -604,7 +609,10 @@ async function applyTest(): Promise<void> {
     )
 
     // 이 셋은 성공했을 때만이다 — 실패하면 고른 파일이 그대로 남아 있어야 다시 누른다.
-    openedTest.value = null
+    // **내가 든 것만 치운다** (`clearIfHeld`) — 적용하는 동안에도 과녁이 열려 있어, 그 사이에
+    // 놓은 새 파일을 통째로 비우면 그 파일이 말없이 사라지고 "적용했다"는 알림만 남는다.
+    // 무는 검사: `table-read-race.spec.ts`의 *"적용하는 동안 놓은 테스트 파일"*.
+    clearIfHeld(openedTest, source)
     manualTestChoice.value = null
     toasts.push('success', 'preprocess.tabular.testDataApplied')
   } catch (error) {
