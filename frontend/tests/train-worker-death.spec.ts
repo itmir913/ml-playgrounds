@@ -194,6 +194,32 @@ describe('학습 워커가 도중에 죽는다', { timeout: 60_000 }, () => {
     wrapper.unmount()
   })
 
+  /**
+   * **일부 실패도 동작 바의 실패 줄에 남는다** (결정문 39 §7의 코드 소유자 후속). 알림은 몇 초 뒤
+   * 사라진다 — 전체 실패처럼 사유가 [학습하기] 곁에 남고, 원문은 눌러서 편다. 끝난 모델은 결과에
+   * 그대로 있다.
+   */
+  it('일부 실패는 실패 줄에 사유와 원문을 남긴다', async () => {
+    const { wrapper } = await training(['decision_tree', 'knn'])
+    await releaseFirstModel()
+    await kill('out of memory')
+
+    // 줄은 일부 실패의 글자다 — 끝난 모델이 남았는데 전부 실패처럼 말하지 않는다(소유자 후속).
+    expect(wrapper.findAll('button').map((one) => one.text())).not.toContain(t('train.failedHere'))
+    const line = wrapper.findAll('button').find((one) => one.text() === t('train.partlyFailedHere'))
+    expect(line, 'the failure line must stay').toBeDefined()
+    await line!.trigger('click')
+    await settle()
+    const said = i18n.global.t('train.partlyFailed', { count: 1, detail: 'out of memory' })
+    expect(document.body.textContent).toContain(said)
+    expect(document.body.textContent).toContain('out of memory')
+    // 같은 말을 알림으로 두 번 하지 않는다 — 알림은 하나다.
+    expect(useToastStore().items.filter((one) => one.key === 'train.partlyFailed')).toHaveLength(1)
+    // 끝난 모델은 남는다.
+    expect(useProjectStore().file?.document.runs.experiments).toHaveLength(1)
+    wrapper.unmount()
+  })
+
   it('끝난 모델이 없으면 지금처럼 실패로 알리고 아무것도 안 앉힌다', async () => {
     const { wrapper } = await training(['decision_tree', 'knn'])
     await kill('out of memory')
@@ -202,6 +228,10 @@ describe('학습 워커가 도중에 죽는다', { timeout: 60_000 }, () => {
     const toasts = useToastStore().items
     expect(toasts.map((one) => one.key)).not.toContain('train.partlyFailed')
     expect(toasts.filter((one) => one.tone === 'danger')).toHaveLength(1)
+    // 동작 바의 줄은 전체 실패의 옛 글자 그대로다.
+    const lines = wrapper.findAll('button').map((one) => one.text())
+    expect(lines).toContain(t('train.failedHere'))
+    expect(lines).not.toContain(t('train.partlyFailedHere'))
     wrapper.unmount()
   })
 })

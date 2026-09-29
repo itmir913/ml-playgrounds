@@ -14,9 +14,16 @@
 
 import { zipSync } from 'fflate'
 
+import { ClientError } from '../errors'
 import { ZIP_DEFLATE_LEVEL } from '../limits'
 import { escapesArchive } from './entry-path'
-import { ENTRY, type ProjectFile, withoutProjectExtension, zipModifiedTime } from './format'
+import {
+  ENTRY,
+  fitsInArchive,
+  type ProjectFile,
+  withoutProjectExtension,
+  zipModifiedTime,
+} from './format'
 import { renderPortfolioMarkdown } from './portfolio'
 import { portfolioMarkdownText, type Translate } from './portfolio-text'
 
@@ -162,6 +169,15 @@ export function bundleOf(
       files,
       entriesOf(entry, folders[index] ?? folderFor(entry.label, index + 1), translate, locale),
     )
+  }
+  // **엔트리 수 한계 안에서만 쓴다** (open-decisions.md ".mlpx 한 파일의 엔트리 수는 ZIP64 없이 쓸
+  // 수 있는 만큼이다"의 코드 소유자 후속). fflate는 이 zip에도 ZIP64를 안 쓰고 끝 레코드의 칸에 아래
+  // 16비트만 적는다 — 넘은 채로 내보내면 푸는 쪽이 제출물을 말없이 빠뜨린다. 던지면 점검 화면이
+  // 알린다(`InspectView.vue`의 `downloadPortfolios`). 한계 안의 묶음은 이 줄 전과 바이트가 같다(한 번
+  // 재었다 — 무는 검사 없음, 사람 확인).
+  // 무는 검사: `portfolio-bundle.spec.ts`의 *"묶음 엔트리 수"*.
+  if (!fitsInArchive(Object.keys(files).length)) {
+    throw new ClientError('PORTFOLIO_BUNDLE_TOO_MANY_ENTRIES')
   }
   // 시각은 zip이 담을 수 있는 해로 당긴다 — 밖이면 fflate가 던진다 (`format.ts`의
   // `zipModifiedTime`). 무는 검사: `portfolio-bundle.spec.ts`의 *"기기 시계가 …여도 묶는다"*.

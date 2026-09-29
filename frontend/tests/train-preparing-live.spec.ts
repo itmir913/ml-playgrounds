@@ -241,7 +241,7 @@ describe('[학습하기]를 누르고 워커가 아직 아무 말도 안 했을 
 
     await router.push('/')
     await settle()
-    const leave = wrapper.findAll('button').find((one) => one.text() === '나가고 학습 멈추기')
+    const leave = wrapper.findAll('button').find((one) => one.text() === '학습을 중단하고 이동')
     await leave?.trigger('click')
     await settle()
     wrapper.unmount()
@@ -289,7 +289,7 @@ describe('백본을 받는 동안 화면을 떠나면', SLOW, () => {
 
     await router.push('/')
     await settle()
-    const leave = buttons().find((one) => one.text() === '나가고 학습 멈추기')
+    const leave = buttons().find((one) => one.text() === '학습을 중단하고 이동')
     expect(leave).toBeDefined()
     await leave?.trigger('click')
     await settle()
@@ -335,7 +335,7 @@ describe('준비가 끝나 임베딩을 앉힐 때', SLOW, () => {
 
     await router.push('/')
     await settle()
-    const leave = wrapper.findAll('button').find((one) => one.text() === '나가고 학습 멈추기')
+    const leave = wrapper.findAll('button').find((one) => one.text() === '학습을 중단하고 이동')
     await leave?.trigger('click')
     await settle()
     wrapper.unmount()

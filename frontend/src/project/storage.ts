@@ -774,7 +774,7 @@ export async function markExported(
  * (`project/replace.ts`의 `asksBeforeReplacing`이 판정한다, open-decisions.md 75).
  *
  * **못 읽음은 목록과 같은 판정이다** — `manifest.name`이 글자가 아니면 목록이 "열 수 없음"이라
- * 말하는 레코드다(`listProjects`). 그런 레코드는 파일로 바꾸는 것이 복구 길이라 묻지 않는다.
+ * 말하는 레코드다(`listProjects`). 그런 레코드는 파일로 교체하는 것이 복구 길이라 묻지 않는다.
  * 문서를 마이그레이션하지 않는다 — 이름과 시각만 본다.
  *
  * **표지(`unexportedEdits`)가 없는 옛 레코드는 상태 표시줄의 판정을 쓴다**

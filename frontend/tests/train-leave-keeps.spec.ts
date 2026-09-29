@@ -2,7 +2,7 @@
 /**
  * **학습 도중에 떠나도 끝난 모델은 남는다** (open-decisions.md "멈추기가 끝난 것을 남긴다" §7).
  *
- * 떠나기는 [나가고 학습 멈추기]를 누르는 것이고, 그 손은 [멈추기]와 같은 `training.cancel()`을
+ * 떠나기는 [학습을 중단하고 이동]을 누르는 것이고, 그 손은 [멈추기]와 같은 `training.cancel()`을
  * 부른다(`TrainView`의 `leave`). 멈추기가 끝난 것을 실험으로 조립해 돌려주므로 결과가 오긴
  * 오는데, **화면이 떠나는 중이라 그 결과가 앉는지는 순서에 달렸다** — 결과가 오기 전에 화면이
  * 내려가면(`alive`가 거짓) 버려진다. 같은 프로젝트의 다른 단계로 갈 때와 목록으로 나갈 때(가드가
@@ -115,7 +115,7 @@ afterEach(async () => {
 
 const Host = defineComponent({ render: () => h(RouterView) })
 
-/** 떠날지 묻는 대화상자의 [나가고 학습 멈추기]. */
+/** 떠날지 묻는 대화상자의 [학습을 중단하고 이동]. */
 function leaveButton(wrapper: { element: Element }): HTMLButtonElement {
   const dialog = [...wrapper.element.querySelectorAll('dialog')].find((one) =>
     one.textContent?.includes(t('train.leaveTitle')),

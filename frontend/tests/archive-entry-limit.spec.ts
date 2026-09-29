@@ -21,13 +21,16 @@ import { embeddingPath } from '../src/project/embeddings'
 import {
   archiveEntryCount,
   archiveGrowthRefused,
+  entriesAfterTraining,
   IMAGE_DATA_DIR,
   IMAGE_PREDICT_DIR,
   IMAGE_TEST_DIR,
   readProject,
+  requireRoomForTraining,
   type ProjectFile,
 } from '../src/project/format'
 import { requireRoomForPhotos } from '../src/project/images'
+import { irisProject, trainedIrisProject } from './fixtures/trained'
 import { writeProjectBytes } from './fixtures/write'
 import { emptyProjectFile, projectFile, projectFileWithTestDataset } from './fixtures/project'
 
@@ -179,6 +182,68 @@ describe('사진은 받기 전에 막는다', () => {
     }
     expect(() => requireRoomForPhotos(project, 1)).not.toThrow()
     expect(() => requireRoomForPhotos(imageProject(5000, 5000), 10_000)).not.toThrow()
+  })
+})
+
+/**
+ * **학습도 시작하기 전에 센다** (open-decisions.md ".mlpx 한 파일의 엔트리 수는 ZIP64 없이 쓸 수 있는
+ * 만큼이다"의 코드 소유자 후속). 실험 하나는 모델마다 하나와 전처리기 하나를 더한다(`attach.ts`).
+ * 전에는 입구가 없어 한계 바로 아래의 프로젝트가 학습을 다 마친 뒤 내보내기에서 던졌다.
+ */
+describe('학습은 시작하기 전에 막는다', () => {
+  it('한계까지는 학습한다 — 모델마다 하나와 전처리기 하나', () => {
+    const project = imageProject(2, 2)
+    const models = MAX_ARCHIVE_ENTRIES - archiveEntryCount(project) - 1
+    expect(entriesAfterTraining(project, models)).toBe(MAX_ARCHIVE_ENTRIES)
+    expect(() => requireRoomForTraining(project, models)).not.toThrow()
+  })
+
+  it('한계를 넘기는 모델 하나부터 거절한다', () => {
+    const project = imageProject(2, 2)
+    const models = MAX_ARCHIVE_ENTRIES - archiveEntryCount(project)
+    expect(() => requireRoomForTraining(project, models)).toThrow(
+      expect.objectContaining({ code: 'PROJECT_FILE_TOO_MANY_ENTRIES_TO_TRAIN' }),
+    )
+  })
+
+  /**
+   * **임베딩이 아직 없는 사진도 임베딩 몫까지 센다** — 학습이 그것을 붙이고, 사진 입구와 같은 셈이다
+   * (`requireRoomForPhotos`). 지금 붙은 것만 세면 32,006 + 2,001로 통과하고 학습 뒤 66,007이 된다.
+   */
+  it('임베딩이 아직 없는 사진도 임베딩 몫까지 센다', () => {
+    expect(() => requireRoomForTraining(imageProject(32_000), 2000)).toThrow(
+      expect.objectContaining({ code: 'PROJECT_FILE_TOO_MANY_ENTRIES_TO_TRAIN' }),
+    )
+  })
+
+  /**
+   * **셈은 실제 학습이 더하는 수의 위쪽 끝이다** — 진짜로 학습시켜 쓰는 쪽의 셈과 견준다. 모델 예산에서
+   * 밀리는 것은 크기를 알아야 해서 학습 전에는 모른다 — 그래서 덜 세지 않고 더 센다.
+   */
+  it('실제 학습이 더한 엔트리보다 적게 세지 않는다', async () => {
+    const algorithms = ['decision_tree', 'knn']
+    const before = await irisProject(algorithms)
+    const after = await trainedIrisProject(algorithms)
+    const predicted = entriesAfterTraining(before, algorithms.length)
+    expect(archiveEntryCount(after)).toBeLessThanOrEqual(predicted)
+    // 둘 다 예산 안이고 전처리기가 필요하면 딱 맞는다 — 느슨한 위쪽 끝이 아니다.
+    expect(predicted - archiveEntryCount(after)).toBeLessThanOrEqual(1)
+  })
+
+  /** **상한을 켠 채로는 닿지 않는다** — 세 자리 5,000장씩, 임베딩 없이, 모델 스무 개. */
+  it('정상 범위의 프로젝트는 막지 않는다', () => {
+    const project = imageProject(5000)
+    for (const role of ['test', 'predict'] as const) {
+      for (let index = 0; index < 5000; index += 1) {
+        const bytes = new TextEncoder().encode(`${role}${index}`)
+        const category = role === 'test' ? '개' : ''
+        project.images.set(
+          imageEntryPath(role, hashBytes(bytes), category, CANONICAL_FORMATS.webp),
+          bytes,
+        )
+      }
+    }
+    expect(() => requireRoomForTraining(project, 20)).not.toThrow()
   })
 })
 

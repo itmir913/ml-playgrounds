@@ -18,6 +18,7 @@ import {
 } from '../src/project/portfolio-bundle'
 import { DIR, ENTRY } from '../src/project/format'
 import type { ProjectFile } from '../src/project/format'
+import { MAX_ARCHIVE_ENTRIES } from '../src/limits'
 import { projectFile } from './fixtures/project'
 
 /** 가짜 번역. 키를 그대로 돌려주므로 머리글의 언어를 검사가 안 본다. */
@@ -232,6 +233,54 @@ describe('묶음', () => {
     expect(names.some((name) => name.startsWith(DIR.model))).toBe(false)
     expect(names).not.toContain(ENTRY.manifest)
   })
+})
+
+/**
+ * **묶음 zip도 엔트리 수 한계 안에서만 쓴다** (open-decisions.md ".mlpx 한 파일의 엔트리 수는 ZIP64
+ * 없이 쓸 수 있는 만큼이다"의 코드 소유자 후속). 묶음을 굽는 fflate도 ZIP64를 안 쓴다 — 넘은 채로
+ * 쓰면 푸는 쪽이 제출물을 말없이 빠뜨린다. 넘으면 조용히 쓰지 않고 던지고, 점검 화면이 알린다
+ * (`InspectView.vue`의 `downloadPortfolios`).
+ */
+describe('묶음 엔트리 수', () => {
+  /** 글 하나와 첨부 `photos`장이 든 제출물 — 묶음에서 엔트리 `photos + 1`개다. */
+  function withPhotos(photos: number): ProjectFile {
+    const base = projectFile()
+    const paths: string[] = []
+    const attachments = new Map<string, Uint8Array>()
+    for (let index = 0; index < photos; index += 1) {
+      const path = `${DIR.attachments}${index}.webp`
+      paths.push(path)
+      attachments.set(path, new Uint8Array([1]))
+    }
+    return {
+      ...base,
+      document: {
+        ...base.document,
+        portfolio: { ...base.document.portfolio, attachments: { motivation: paths } },
+      },
+      attachments,
+    }
+  }
+
+  it('한계를 넘으면 조용히 쓰지 않고 던진다', () => {
+    const entries: BundleEntry[] = [
+      { label: 'a.mlpx', file: withPhotos(MAX_ARCHIVE_ENTRIES - 1) },
+      { label: 'b.mlpx', file: projectFile() },
+    ]
+    expect(() => bundleOf(entries, label, 'ko')).toThrow(
+      expect.objectContaining({ code: 'PORTFOLIO_BUNDLE_TOO_MANY_ENTRIES' }),
+    )
+  })
+
+  it('한계와 같은 수는 쓰이고 다 풀린다', async () => {
+    const blob = bundleOf(
+      [{ label: 'a.mlpx', file: withPhotos(MAX_ARCHIVE_ENTRIES - 1) }],
+      label,
+      'ko',
+    )
+    const names = Object.keys(unzipSync(new Uint8Array(await blob.arrayBuffer())))
+    expect(names).toHaveLength(MAX_ARCHIVE_ENTRIES)
+  }, 60_000)
 })
 
 /**

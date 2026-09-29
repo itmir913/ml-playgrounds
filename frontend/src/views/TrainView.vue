@@ -64,6 +64,7 @@ import {
   featuresInUse,
   modelAxes,
   requiredTargetKind,
+  trainableSelections,
   trainShare,
   usesTarget,
   type ChosenModel,
@@ -74,6 +75,7 @@ import { failedRuns } from '@/ml/results'
 import { addEmbeddings } from '@/project/embeddings'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
 import { applyExperiment } from '@/project/attach'
+import { requireRoomForTraining } from '@/project/format'
 import { dataKindFor, DEFAULT_DATA_TYPE } from '@/data/kinds'
 import { tabularDataOf, type ProjectDocument, type TaskType } from '@/project/schema'
 import {
@@ -476,7 +478,21 @@ const lastRun = computed(() => {
  * 전처리가 죽으면 실험이 통째로 안 만들어져서 **어디에도 기록이 없다.** 알림은 사라지고
  * 나면 학생에게 남는 것이 아무것도 없다.
  */
-const failure = ref<{ key: string; params: Record<string, unknown> } | null>(null)
+const failure = ref<{
+  key: string
+  params: Record<string, unknown>
+  /** 워커가 도중에 죽어 끝난 모델만 남은 "일부 실패"인가. 동작 바의 줄 글자만 가른다. */
+  partly?: true
+} | null>(null)
+
+/**
+ * 동작 바에 서는 실패 줄의 글자. **일부 실패는 따로 부른다** (open-decisions.md "멈추기가 끝난 것을
+ * 남긴다" §7의 코드 소유자 후속) — 끝난 모델이 결과에 남았는데 "학습에 실패했습니다"라고만 하면
+ * 전부 잃은 것처럼 읽힌다. `train-worker-death.spec.ts`가 문다.
+ */
+const failureLineKey = computed(() =>
+  failure.value?.partly ? 'train.partlyFailedHere' : 'train.failedHere',
+)
 
 /** 실패의 기술 원문. 우리 어휘가 아니라 번역하지 않고 따로 붙인다 (copy.md §5). */
 const failureDetailText = computed(() => {
@@ -651,6 +667,18 @@ async function startTraining(): Promise<void> {
 
   try {
     /**
+     * **이대로 학습해도 파일 하나에 들어가는가 — 백본을 받기 전에 한 번 센다** (open-decisions.md
+     * ".mlpx 한 파일의 엔트리 수는 ZIP64 없이 쓸 수 있는 만큼이다"의 코드 소유자 후속). 넘으면 던지고
+     * 아래 `catch`가 다른 실패처럼 알림과 동작 바의 실패 줄로 말한다. 모델 수는 학습에 실제로 넘어가는
+     * 줄이다(`training-source.ts`가 같은 `trainableSelections`로 거른다). 입구 자체는
+     * `train-entry-limit.spec.ts`가 문다. **거르기 자체는 사람 확인이다** — 안 걸러도 더 세는 쪽이라
+     * 그 검사가 울지 않는다.
+     */
+    requireRoomForTraining(
+      file,
+      trainableSelections(file.document.settings.selectedAlgorithms, taskType).length,
+    )
+    /**
      * **무엇을 넘길지 종류가 준비한다** (`ml/training-source.ts`). 표는 정본을 파싱해
      * 그대로 오지만 이미지는 여기서 임베딩을 뽑는다 — 백본 12.4MB를 받는 동안 화면이
      * 할 말이 `preparing`에서 나온다.
@@ -721,14 +749,22 @@ async function startTraining(): Promise<void> {
     project.update((live) => applyExperiment(live, result, now()))
     /**
      * **워커가 도중에 죽었으면 "일부 실패"다** (open-decisions.md "멈추기가 끝난 것을 남긴다" §7).
-     * 끝난 것은 방금 앉았고 나머지는 결과가 없다. 죽은 사유(`detail`)는 이 알림의 기술 정보로만
-     * 간다 — 파일에는 안 들어간다. `train-worker-death.spec.ts`가 문다.
+     * 끝난 것은 방금 앉았고 나머지는 결과가 없다. 죽은 사유(`detail`)는 알림과 실패 줄의 기술 정보로만
+     * 간다 — 파일에는 안 들어간다.
+     *
+     * **실패 줄에도 남긴다** (같은 절의 코드 소유자 후속). 전체 실패와 같은 모양이다 — 알림은 눈에 띄고
+     * 사라지며, 동작 바에는 짧은 줄만 서고 같은 문장과 원문은 눌러서 편다. 줄의 글자는 일부 실패의
+     * 것(`train.partlyFailedHere`, 위 `failureLineKey`)이다 — `train-worker-death.spec.ts`가 문다.
+     * 다음 [학습하기]가 지운다(위 `failure.value = null` — 무는 검사 없음, 사람 확인).
      */
     if (result.failure) {
-      toasts.push('caution', 'train.partlyFailed', {
-        ...result.failure.params,
-        count: result.experiment.runs.length,
-      })
+      const partly = {
+        key: 'train.partlyFailed',
+        params: { ...result.failure.params, count: result.experiment.runs.length },
+        partly: true as const,
+      }
+      failure.value = partly
+      toasts.push('caution', partly.key, partly.params)
       return
     }
     // **멈춘 것을 "끝났습니다"라고 부르지 않는다.** 학생이 스스로 누른 것이고, 모달이
@@ -925,7 +961,7 @@ function leave(): void {
               type="button"
               class="min-w-0 rounded-field px-2 py-1 font-bold text-danger underline decoration-dotted underline-offset-4"
             >
-              {{ t('train.failedHere') }}
+              {{ t(failureLineKey) }}
             </button>
           </template>
 

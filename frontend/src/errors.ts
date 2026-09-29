@@ -132,6 +132,15 @@ export const CLIENT_ERROR_CODES = [
   // 다르기 때문이다** - 저쪽은 이 앱이 정한 장수라 [상한 해제]로 풀리고, 이쪽은 zip 형식이 정한
   // 끝이라 안 풀린다. 같은 코드면 문구가 풀리지 않는 스위치를 가리킨다.
   'PROJECT_FILE_TOO_MANY_ENTRIES',
+  // 같은 한계인데 **학습이 더할 모델 파일 때문에** 넘는다 (project/format.ts의
+  // requireRoomForTraining). [학습하기]가 시작하기 전에 던진다. 위와 나누는 이유는 학생이 할 일이
+  // 다르기 때문이다 - 위는 "추가하는 사진을 줄여라"인데 여기는 추가하는 사진이 없고, 할 일은 사진을
+  // 삭제하거나 학습할 모델 수를 줄이는 것이다.
+  'PROJECT_FILE_TOO_MANY_ENTRIES_TO_TRAIN',
+  // 교사의 포트폴리오 묶음(project/portfolio-bundle.ts의 bundleOf)이 같은 한계를 넘는다. 묶음은
+  // `.mlpx`가 아니고 읽는 이가 교사라 위 둘의 문장("사진을 삭제하라")이 안 맞는다 - 할 일은 한 번에
+  // 고르는 제출물을 줄이는 것이다.
+  'PORTFOLIO_BUNDLE_TOO_MANY_ENTRIES',
 
   // 모델 실행 - 파일은 멀쩡히 열리고 그 모델로 예측만 못 한다 (mlpx-spec.md 6)
   'MODEL_FORMAT_UNSUPPORTED',

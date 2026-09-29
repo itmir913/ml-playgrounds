@@ -303,6 +303,8 @@ export const useProjectStore = defineStore('project', () => {
       if (stale()) return 'cancelled'
       if (detached) useToastStore().push('caution', 'project.emptyPhotoFolderRemoved')
       file.value = loaded
+      // **뗐으면 그 판을 한 번 쓴다** (`persistDetached`). 뗀 적 없는 열기는 쓰지 않는다.
+      if (detached && loaded !== null) persistDetached(loaded)
       // 다른 프로젝트로 갈아 끼웠다 — 앞 프로젝트의 표를 쥔 계획 캐시도 비운다. 라우터는
       // A → B를 `close()` 없이 `open(B)`로 바꾼다(`tabular-plan-cache.spec.ts`가 문다).
       forgetTabularPlan()
@@ -448,6 +450,38 @@ export const useProjectStore = defineStore('project', () => {
     } finally {
       saving.value = false
     }
+  }
+
+  /**
+   * **본체 없는 폴더 참조를 떼고 연 판을 한 번 쓴다** (open-decisions.md "본체 없는 폴더 참조는
+   * 기대는 실험이 없을 때만 떼고 연다"의 코드 소유자 후속). `open()`이 뗐을 때만 부른다.
+   *
+   * **쓰기 줄에 선다**(`writing`) — 학생의 저장과 순서가 안 뒤집힌다(줄에 서는 것은 무는 검사 없음,
+   * 사람 확인 — 여는 순간 같은 레코드에 앞선 쓰기가 줄에 있는 경우를 스펙으로 못 세웠다). 차례가 왔을 때 판이 바뀌었거나
+   * 닫혔으면 쓰지 않는다: 바뀐 판은 학생의 편집이라 자동 저장이 쓰고, 그것도 뗀 판 위의 편집이다.
+   * 판이 바뀐 경우를 거르는 것은 헛쓰기 한 번을 덜 뿐이다 — 안 걸러도 마지막에 남는 것은 편집이라
+   * 그 칸만 무는 검사는 없다(사람 확인).
+   *
+   * **학생의 편집이 아니다.** 그래서 `dirty`·`saveFailed`·`savedAt`을 안 건드리고 문서의 시각
+   * (`manifest.updatedAt`)도 안 찍는다. 레코드의 "파일로 안 나간 편집" 표지는 참이 된다 — 뗀 판은
+   * 어느 파일에도 없다(결정 75, 보수 쪽). **실패는 삼킨다** — 지금처럼 다음에 열 때 다시 떼고 다시
+   * 알린다. 알리면 학생이 할 일이 없는 영어 오류가 뜨고, 표지를 세우면 떠나기가 멈춘다(결정 74).
+   * 무는 검사: `project-open-detach.spec.ts`의 *"뗀 문서는 열자마자 쓴다"* 묶음.
+   */
+  function persistDetached(opened: ProjectFile): void {
+    const generation = openings
+    const turn = writing.then(async () => {
+      if (openings !== generation || file.value !== opened) return
+      saving.value = true
+      try {
+        await saveProject(opened)
+      } catch {
+        // 위 머리말 — 다시 열 때 또 뗀다.
+      } finally {
+        saving.value = false
+      }
+    })
+    writing = turn
   }
 
   /**

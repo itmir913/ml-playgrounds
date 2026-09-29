@@ -24,11 +24,10 @@ import {
   type CanonicalFormatId,
 } from '@/data/image/formats'
 import { ClientError } from '@/errors'
-import { BACKBONES } from '@/ml/backbones'
 import { removeEmbeddings } from '@/project/embeddings'
 import { standsAsFolder } from '@/project/entry-path'
 import {
-  archiveEntryParts,
+  archiveEntriesOnceEmbedded,
   fitsInArchive,
   IMAGE_DATA_DIR,
   IMAGE_PREDICT_DIR,
@@ -204,19 +203,14 @@ export function imageOverflow(
  * 풀린다. 이쪽은 zip 형식의 끝이라 **프로젝트 전체를 세고 안 풀린다** — 상한을 켠 채로는 닿지
  * 않고, 끈 학생의 파일이 닿는다. 같은 자리에서, **굽기 전에** 부른다.
  *
- * **한 장은 정본 하나와 백본마다 임베딩 하나다 — 이미 있는 사진도 그렇게 센다.** 임베딩은 사진을
- * 넣을 때가 아니라 학습·예측 때 붙고 그 자리에는 입구가 없다. 지금 붙은 임베딩만 세면, 임베딩 없는
- * 사진 4만 장에 1만 장을 더 받은 뒤 학습이 한계를 넘긴다(검토 B-1). 그래서 **지금 수에서 사진과 붙은
- * 임베딩을 빼고, 있는 사진과 들어올 사진을 한 장의 몫으로 다시 더한다** — 다 붙은 뒤의 수다. 백본 수는 등록부가 답한다 — 숫자로 적으면 백본이
- * 느는 날 조용히 틀린다. 두 자리에 같은 사진이 있어도 임베딩은 하나지만 둘로 센다 — `imageOverflow`와
- * 같은 이유로 보수적으로 틀린다. 학습이 더하는 **모델 파일**은 여기서 안 센다(`writeProject`의 그물).
+ * **한 장은 정본 하나와 백본마다 임베딩 하나다 — 이미 있는 사진도 그렇게 센다**
+ * (`format.ts`의 `archiveEntriesOnceEmbedded` — 학습 입구와 한 셈이다). 지금 붙은 임베딩만 세면, 임베딩
+ * 없는 사진 4만 장에 1만 장을 더 받은 뒤 학습이 한계를 넘긴다(검토 B-1). 학습이 더하는 **모델 파일**은
+ * 여기서 안 센다 — 학습 입구(`requireRoomForTraining`)가 센다.
  * 무는 검사: `archive-entry-limit.spec.ts`의 *"사진은 받기 전에 막는다"*.
  */
 export function requireRoomForPhotos(project: ProjectFile | null, incoming: number): void {
-  const perPhoto = 1 + BACKBONES.length
-  const { total, images, embeddings } = archiveEntryParts(project)
-  // 지금 수에서 사진과 붙은 임베딩을 빼고, 있는 사진과 들어올 사진을 한 장의 몫으로 다시 센다.
-  if (!fitsInArchive(total - images - embeddings + (images + incoming) * perPhoto)) {
+  if (!fitsInArchive(archiveEntriesOnceEmbedded(project, incoming))) {
     throw new ClientError('PROJECT_FILE_TOO_MANY_ENTRIES')
   }
 }

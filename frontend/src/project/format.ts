@@ -33,7 +33,7 @@ import {
   MAX_MODEL_BYTES,
   MODEL_BUDGET_BYTES,
 } from '../limits'
-import { backboneFor } from '../ml/backbones'
+import { BACKBONES, backboneFor } from '../ml/backbones'
 import { escapesArchive, standsAsFolder } from './entry-path'
 import {
   buildHashes,
@@ -1386,7 +1386,7 @@ export interface ArchiveEntryParts {
 }
 
 /**
- * `archiveEntryCount`의 항을 나눠 준다. **사진 입구가 쓴다**(`images.ts`의 `requireRoomForPhotos`) —
+ * `archiveEntryCount`의 항을 나눠 준다. **사진·학습 입구가 쓴다**(아래 `archiveEntriesOnceEmbedded`) —
  * 임베딩은 사진을 넣을 때가 아니라 학습·예측 때 붙으므로, 입구는 **지금 붙은 임베딩 대신 사진마다
  * 붙을 몫**으로 다시 센다(검토 B-1). 같은 고르기(`packingOf`)를 한 번만 지난다.
  */
@@ -1414,6 +1414,54 @@ export function archiveEntryParts(project: ProjectFile | null): ArchiveEntryPart
 /** 이만큼의 엔트리가 한 `.mlpx`에 들어가는가. */
 export function fitsInArchive(count: number): boolean {
   return count <= MAX_ARCHIVE_ENTRIES
+}
+
+/**
+ * 사진에 **임베딩이 다 붙은 뒤**의 엔트리 수 — `incomingPhotos`장을 더 받으면. 사진 입구
+ * (`images.ts`의 `requireRoomForPhotos`)와 학습 입구(`requireRoomForTraining`)가 이 한 셈을 쓴다.
+ *
+ * 임베딩은 사진을 넣을 때가 아니라 학습·예측 때 붙고 그 자리에는 입구가 없다. 그래서 지금 수에서
+ * 사진과 붙은 임베딩을 빼고, 있는 사진과 들어올 사진을 **정본 하나와 백본마다 임베딩 하나**로 다시
+ * 더한다(검토 B-1). 백본 수는 등록부가 답한다. 두 자리에 같은 사진이면 임베딩은 하나지만 둘로 센다 —
+ * 보수 쪽으로 틀린다. 무는 검사: `archive-entry-limit.spec.ts`의 *"임베딩이 아직 없는 사진도 임베딩
+ * 몫까지 센다"* 둘.
+ */
+export function archiveEntriesOnceEmbedded(
+  project: ProjectFile | null,
+  incomingPhotos = 0,
+): number {
+  const perPhoto = 1 + BACKBONES.length
+  const { total, images, embeddings } = archiveEntryParts(project)
+  return total - images - embeddings + (images + incomingPhotos) * perPhoto
+}
+
+/**
+ * 모델 `models`개를 학습하면 이 프로젝트를 쓸 때 담기는 엔트리 수의 **위쪽 끝**. 실험 하나는 모델
+ * 마다 하나와 전처리기 하나를 더한다(`attach.ts`의 `attachExperimentFiles`). 학습은 지난 실험을
+ * 지우지 않는다 — 덧붙이기만 한다(`applyExperiment`).
+ *
+ * **덜 세지 않고 더 센다.** 쓸 때 모델 예산(`selectModels`)에서 밀리는 모델은 크기를 알아야 해서
+ * 학습 전에는 모른다 — 실패한 run, 예산에서 밀리는 새 모델이나 옛 모델, 안 쓰이는 전처리기만큼
+ * 실제가 작다. 사진은 임베딩이 다 붙은 뒤로 센다(`archiveEntriesOnceEmbedded`). 무는 검사:
+ * `archive-entry-limit.spec.ts`의 *"실제 학습이 더한 엔트리보다 적게 세지 않는다"*.
+ */
+export function entriesAfterTraining(project: ProjectFile, models: number): number {
+  return archiveEntriesOnceEmbedded(project) + models + 1
+}
+
+/**
+ * 이대로 학습하면 `.mlpx` 한 파일에 안 들어가는가. 넘으면 **던진다** — 학습 입구가 백본을 받기
+ * **전에** 부른다(`TrainView.vue`의 `startTraining`, open-decisions.md ".mlpx 한 파일의 엔트리 수는
+ * ZIP64 없이 쓸 수 있는 만큼이다"의 코드 소유자 후속). 상한을 켠 채로는 닿지 않는다.
+ *
+ * **잠금(gate)이 아니다.** 셈이 사진 수에 비례해(개발 PC node, 사진 15,000장에 26ms 안팎 — 그 결정문의
+ * 경위, 지키는 검사는 없다) 화면이 바뀔 때마다 다시 세면 안 되고, 결정문 60("잠그지 않는다, 누르면 실패를 알린다")을 따른다.
+ * 무는 검사: `archive-entry-limit.spec.ts`의 *"학습은 시작하기 전에 막는다"*, `train-entry-limit.spec.ts`.
+ */
+export function requireRoomForTraining(project: ProjectFile, models: number): void {
+  if (!fitsInArchive(entriesAfterTraining(project, models))) {
+    throw new ClientError('PROJECT_FILE_TOO_MANY_ENTRIES_TO_TRAIN')
+  }
 }
 
 /**
@@ -1490,9 +1538,9 @@ export async function writeProject(
 
   // **엔트리 수 한계의 마지막 그물이다** (open-decisions.md ".mlpx 한 파일의 엔트리 수는 ZIP64
   // 없이 쓸 수 있는 만큼이다"). 넘은 채로 쓰면 fflate가 엔트리 수 칸에 아래 16비트만 적어
-  // **다시 열 때 사진이 말없이 사라진다.** 사진과 그 임베딩, 첨부는 입구가 받기 전에 막는다. **학습이
-  // 더하는 모델 파일은 입구가 안 센다** — 사진을 한계 바로 아래까지 채운 뒤 학습하면 여기 닿는다(상한을
-  // 끈 프로젝트만, 소유자 질문). 오면 조용히 쓰지 않고 던진다. "저장은 항상 성공해야 한다"(mlpx-spec.md
+  // **다시 열 때 사진이 말없이 사라진다.** 사진과 그 임베딩, 첨부, 학습이 더하는 모델 파일은 입구가
+  // 받기 전에 막는다(`requireRoomForPhotos`·`archiveGrowthRefused`·`requireRoomForTraining`). 여기 닿는
+  // 것은 입구가 생기기 전에 이미 넘은 프로젝트다. 오면 조용히 쓰지 않고 던진다. "저장은 항상 성공해야 한다"(mlpx-spec.md
   // 4.2)의 유일한 예외이고, 해시를 만들기 전이라 헛일이 없다. `+ 1`은 아래 `hashes.json`이다.
   // 무는 검사: `archive-entry-limit.spec.ts`의 *"한계를 넘는 프로젝트는 조용히 쓰지 않고 던진다"*.
   if (!fitsInArchive(Object.keys(entries).length + 1)) {

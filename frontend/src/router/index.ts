@@ -117,7 +117,7 @@ router.beforeEach(async (to) => {
    */
   const leavingProject = project.projectId !== null && to.params.projectId !== project.projectId
 
-  // [그래도 나가기]로 허락된 이동은 저장을 다시 기다리지 않는다 — 방금 실패했고, 학생이 잃는 것을
+  // [저장하지 않고 이동]으로 허락된 이동은 저장을 다시 기다리지 않는다 — 방금 실패했고, 학생이 잃는 것을
   // 알고 골랐다(결정 74).
   if (!leave.consume(to.fullPath)) {
     // 미뤄 둔 자동 저장을 끝내고 나간다. 화면을 옮기는 사이에 잃는 것이 없어야 한다.

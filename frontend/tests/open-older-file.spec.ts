@@ -5,7 +5,7 @@
  * 목록의 [파일 불러오기]는 같은 `projectId`가 있으면 묻지 않고 덮었다 — 집에서 이어 한 학생이
  * 학교에서 저번 차시의 파일을 열면 집의 작업이 사라졌다(2026-09-28 감사 C/A-3 · B/A-1, 두 감사자가
  * 따로 재현). 이제 (A) 이 컴퓨터의 판이 더 새거나 (B) 파일로 안 나간 편집이 있으면 묻는다.
- * 선택지는 [이 컴퓨터의 것 열기] / [파일로 바꾸기] 둘뿐이고 **id는 그대로다.**
+ * 선택지는 [이 컴퓨터의 것 열기] / [파일로 교체] 둘뿐이고 **id는 그대로다.**
  *
  * **진짜 입구로 잰다** — 화면의 파일 칸에 파일을 넣고, 저장소는 fake-indexeddb다.
  */
@@ -192,7 +192,7 @@ describe('결정 75: 이 컴퓨터의 판이 더 새면 묻는다', { timeout: 2
     expect(await storedAnswer()).toBe('집에서 이어 쓴 답')
   })
 
-  it('[파일로 바꾸기]는 덮고 연다 — 가져온 판이라 "안 나간 편집"이 아니다', async () => {
+  it('[파일로 교체]는 덮고 연다 — 가져온 판이라 "안 나간 편집"이 아니다', async () => {
     await saveProject(version(NEW, '집에서 이어 쓴 답'), { imported: true })
     const { pick, press } = await welcome()
     await pick(await fileOf(version(OLD, '저번 차시의 답')))
@@ -329,7 +329,7 @@ describe('결정 75: 못 읽는 레코드와 옛 레코드', { timeout: 20_000 }
     closeStorage()
   }
 
-  it('못 읽는 레코드는 묻지 않고 파일로 바꾼다 — 그것이 복구 길이다', async () => {
+  it('못 읽는 레코드는 묻지 않고 파일로 교체한다 — 그것이 복구 길이다', async () => {
     await plant({
       projectId: manifest.projectId,
       document: { runs: {} },

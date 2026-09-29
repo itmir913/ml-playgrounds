@@ -1199,7 +1199,8 @@ export const MAX_CATEGORY_NAME_LENGTH = 100
 
 /**
  * `.mlpx` 한 파일에 담는 **엔트리 수**의 끝 (open-decisions.md ".mlpx 한 파일의 엔트리 수는
- * ZIP64 없이 쓸 수 있는 만큼이다").
+ * ZIP64 없이 쓸 수 있는 만큼이다"). 교사의 포트폴리오 묶음 zip(`portfolio-bundle.ts`)도 같은 fflate로
+ * 굽으므로 같은 끝을 쓴다.
  *
  * **값은 zip 형식이 정한다.** 끝 레코드의 엔트리 수 칸이 16비트이고, 그 칸의 `0xFFFF`(65,535)는
  * "칸이 모자라니 ZIP64 레코드를 보라"는 표지다(APPNOTE 4.4.1.4). 우리가 쓰는 fflate는 ZIP64를
@@ -1207,7 +1208,8 @@ export const MAX_CATEGORY_NAME_LENGTH = 100
  * (65,546개를 쓰고 다시 열었더니 5장이었다, 판례는 그 결정문의 경위). 표지 바로 아래가 이 값이다.
  *
  * **상한을 켠 채로는 닿지 않는다** — 사진은 자리마다 `MAX_IMAGE_COUNT`장이다. 상한을 끈 학생의
- * 파일이 닿는다. 무는 검사: `archive-entry-limit.spec.ts` · `archive-entry-gates.spec.ts`.
+ * 파일이 닿는다. 무는 검사: `archive-entry-limit.spec.ts` · `archive-entry-gates.spec.ts` ·
+ * `train-entry-limit.spec.ts` · `portfolio-bundle.spec.ts`의 *"묶음 엔트리 수"*.
  *
  * **분류: 파일이 나간 뒤가 요구한다.**
  */
