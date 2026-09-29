@@ -21,11 +21,12 @@ import { ClientError } from '../src/errors'
 import { i18n, setLocale } from '../src/i18n'
 import { newProjectDocument } from '../src/project/create'
 import type { ProjectFile } from '../src/project/format'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import TabularPanel from '../src/views/data/TabularPanel.vue'
 import { dropEvent, stubDialogElement } from './fixtures/image-workers'
+import { resetDatabase } from './fixtures/database'
 
 const gate = vi.hoisted(() => ({ failSave: false }))
 
@@ -50,15 +51,6 @@ async function settle(): Promise<void> {
     await tick()
     await flushPromises()
   }
-}
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
 }
 
 interface PanelInternals {
@@ -93,14 +85,14 @@ beforeEach(async () => {
   setActivePinia(createPinia())
   gate.failSave = false
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   await setLocale('ko')
 })
 
 afterEach(async () => {
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 const dangers = () => useToastStore().items.filter((one) => one.tone === 'danger')

@@ -33,11 +33,12 @@ import { newProjectDocument } from '../src/project/create'
 import type { ProjectFile } from '../src/project/format'
 import { addImages } from '../src/project/images'
 import { withTaskType } from '../src/project/settings'
-import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
+import { closeStorage, saveProject } from '../src/project/storage'
 import { router } from '../src/router'
 import { useProjectStore } from '../src/stores/project'
 import ModelAxes from '../src/views/train/ModelAxes.vue'
 import { resetImageWorkers, stubDialogElement } from './fixtures/image-workers'
+import { resetDatabase } from './fixtures/database'
 
 /** 학습 화면이 뜨자마자 기기 교정을 워커에 시킨다. **아무 말도 안 하는 워커**로 갈아 끼운다. */
 vi.mock('../src/ml/worker/spawn', () => ({
@@ -51,15 +52,6 @@ vi.mock('../src/ml/worker/spawn', () => ({
 }))
 
 const PROJECT_ID = '550e8400-e29b-41d4-a716-446655440000'
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
 
 /**
  * 사진이 든 이미지 프로젝트. **범주를 장마다 준다** — `_unlabeled`도 그냥 범주 이름으로
@@ -106,16 +98,13 @@ async function askForTrain(): Promise<string> {
 beforeEach(async () => {
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   await setLocale('ko')
 })
 
 afterEach(async () => {
-  // 미뤄 둔 자동 저장을 이 검사 안에서 끊는다 — 다음 검사의 저장소에 옛 파일을 덮어쓰지 않게
-  // (`option-cascade.spec.ts`의 같은 줄, 2026-09-27).
-  useProjectStore().close()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 describe('범주 없음 사진만 있는 프로젝트에서', () => {

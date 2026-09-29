@@ -23,7 +23,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { i18n, setLocale } from '../src/i18n'
 import { readImages } from '../src/project/images'
-import { closeStorage, DB_NAME, loadProject } from '../src/project/storage'
+import { closeStorage, loadProject } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import ImagePredictPanel from '../src/views/predict/ImagePredictPanel.vue'
@@ -35,6 +35,7 @@ import {
   stubDialogElement,
   workerState,
 } from './fixtures/image-workers'
+import { resetDatabase } from './fixtures/database'
 
 vi.mock('../src/ml/embed/spawn', async () => {
   const { fakeEmbedWorker } = await import('./fixtures/image-workers')
@@ -51,15 +52,6 @@ vi.mock('../src/data/image/room', () => ({ imageRoomShortfall: async () => null 
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 interface PanelInternals {
   run: () => Promise<void>
   onDrop: (event: Event) => void
@@ -71,7 +63,7 @@ beforeEach(async () => {
   setActivePinia(createPinia())
   resetImageWorkers()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   Object.defineProperty(navigator, 'storage', {
     configurable: true,
     value: { estimate: () => Promise.resolve({ quota: 10_000_000_000, usage: 0 }) },
@@ -85,7 +77,7 @@ beforeEach(async () => {
 afterEach(async () => {
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 describe('예측이 도는 동안 사진을 놓으면', () => {

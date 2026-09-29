@@ -44,6 +44,7 @@ import { CHART_BLOCKS, CHART_TOOLS } from '../src/data/charts'
 import { COLUMN_KINDS } from '../src/ml/preprocess'
 import { FEATURE_NOTES, requiredTargetKind } from '../src/ml/selection'
 import { EXPORT_STATES } from '../src/project/export-state'
+import { parsePortfolioForm } from '../src/project/portfolio-form'
 import {
   CATEGORICAL_ENCODINGS,
   DATA_TYPES,
@@ -426,20 +427,51 @@ describe('프런트엔드 전용 코드', () => {
    * 반대 판단을 내려 그 트리를 넣어 두었는데도 그랬다 (2026-08-31 사각 감사 A-2).
    * 넓히자마자 `나누었는지` 하나가 살아 있었다.
    *
-   * **HTML 주석은 걷어낸다.** 그것은 양식을 쓴 사람의 메모이고 읽을 때 통째로
-   * 사라진다 (mlpx-spec.md §8.2) — 학생에게 안 가는 글을 이 규칙이 잡으면 목록
-   * 자체를 안 믿게 된다.
+   * **학생이 읽는 글만 본다 — 앱이 양식을 읽는 함수를 그대로 부른다** (#30). HTML 주석은
+   * 양식을 쓴 사람의 메모이고 읽을 때 통째로 사라진다 (mlpx-spec.md §8.2) — 학생에게 안 가는
+   * 글을 이 규칙이 잡으면 목록 자체를 안 믿게 된다. 전에는 앱과 **같은 정규식을 여기서 한 번 더**
+   * 적었다 — 앱이 걷는 법을 바꾸면 앱과 검사가 갈린다. 이제 `parsePortfolioForm`이 남긴 것(문서 제목·문항
+   * 제목·안내문)이 곧 검사가 보는 글이다. 첫 문항 앞의 머리말은 앱이 버리므로 여기서도 안 본다.
    */
+  function studentReads(markdown: string): string {
+    const form = parsePortfolioForm(markdown)
+    return [
+      form.title ?? '',
+      ...form.sections.flatMap((section) => [section.title, section.description ?? '']),
+    ].join('\n')
+  }
+
   it('내장 양식의 안내문도 동작의 이름에 순우리말을 안 쓴다', () => {
     const forms = readdirSync(PORTFOLIO).filter((name) => name.endsWith('.ko.md'))
     expect(forms.length, 'this check needs at least one form to scan').toBeGreaterThan(0)
 
     for (const name of forms) {
-      const text = readFileSync(join(PORTFOLIO, name), 'utf-8').replace(/<!--[\s\S]*?-->/g, '')
+      const text = studentReads(readFileSync(join(PORTFOLIO, name), 'utf-8'))
+      expect(text.length, `${name} reads as empty`).toBeGreaterThan(0)
       for (const word of RETIRED) {
         expect(text, `${name} uses '${word}'`).not.toContain(word)
       }
     }
+  })
+
+  it('양식 검사기가 학생이 읽는 글을 본다 - 주석과 머리말은 안 본다', () => {
+    const form = [
+      '# 제목',
+      '',
+      '머리말 재서', // 첫 문항 앞 — 앱이 버린다
+      '',
+      '## 문항 {#one}',
+      '',
+      '안내문 재서 적으세요.',
+      '<!-- 메모 답을 냅니다 -->',
+      '`<!--` 코드 속 표시 답을 낸 `-->`',
+    ].join('\n')
+    const text = studentReads(form)
+    expect(text).toContain('안내문 재서')
+    expect(text).not.toContain('머리말')
+    expect(text).not.toContain('답을 냅')
+    // 앱이 코드 스팬 속 표시에서도 주석을 걷는다 — 학생 화면에 없으므로 검사도 안 본다.
+    expect(text).not.toContain('답을 낸')
   })
 
   it('전처리 설정의 어휘가 로케일과 양방향으로 일치한다', () => {

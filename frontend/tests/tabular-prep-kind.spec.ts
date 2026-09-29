@@ -25,26 +25,18 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { i18n, setLocale } from '../src/i18n'
 import type { ProjectFile } from '../src/project/format'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import TabularPrepPanel from '../src/views/preprocess/TabularPrepPanel.vue'
 import { stubDialogElement } from './fixtures/image-workers'
 import { scoreProject, surveyProject } from './fixtures/prep-kind'
+import { resetDatabase } from './fixtures/database'
 
 async function settle(): Promise<void> {
   for (let round = 0; round < 3; round += 1) {
     await flushPromises()
     await new Promise((resolve) => setTimeout(resolve, 0))
   }
-}
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
 }
 
 /** 판의 안쪽. 열 표와 요약 카드가 같은 사실을 말하는지 본다. */
@@ -80,14 +72,14 @@ function heightRow(panel: PrepInternals) {
 beforeEach(async () => {
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   await setLocale('ko')
 })
 
 afterEach(async () => {
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 describe('열 표가 학습과 같은 종류를 말한다', () => {

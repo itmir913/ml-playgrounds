@@ -26,12 +26,13 @@ import {
   replaceLosses,
 } from '../src/project/dataset'
 import type { ProjectFile } from '../src/project/format'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import TabularPanel from '../src/views/data/TabularPanel.vue'
 import { dropEvent, stubDialogElement } from './fixtures/image-workers'
 import { trainedIrisProject } from './fixtures/trained'
+import { resetDatabase } from './fixtures/database'
 
 const NOW = '2026-09-28T00:00:00.000Z'
 
@@ -43,15 +44,6 @@ async function settle(): Promise<void> {
     await tick()
     await flushPromises()
   }
-}
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
 }
 
 function emptyTabularProject(): ProjectFile {
@@ -114,14 +106,14 @@ async function projectWith(parts: { test?: boolean; predict?: boolean }): Promis
 beforeEach(async () => {
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   await setLocale('ko')
 })
 
 afterEach(async () => {
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 describe('replaceLosses — 교체로 잃는 것', () => {

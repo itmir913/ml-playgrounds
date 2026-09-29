@@ -19,10 +19,12 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import postcss from 'postcss'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { setLocale } from '../src/i18n'
 import { brokenFile, mountInspect, submissionFile } from './fixtures/inspect-screen'
+import { templateOf as parsedTemplateOf } from './fixtures/parsed-source'
 import { sourceFiles } from './fixtures/source'
 
 const SRC = join(process.cwd(), 'src')
@@ -40,31 +42,49 @@ const ALIGN_CLASSES: Readonly<Record<string, Align>> = {
 describe('정렬 기본값은 칸이 덮을 수 있어야 한다', () => {
   const css = readFileSync(join(SRC, 'styles', 'utilities.css'), 'utf8')
 
-  /** `@utility data-table { ... }` 의 몸통. */
+  /**
+   * `@utility data-table { ... }` 의 몸통. **CSS 파서가 자른다** (#30) — 중괄호를 글자로 세면 주석이나
+   * 문자열 속 `}`에서 끊겨 그 뒤의 규칙이 검사 밖으로 빠진다.
+   */
   function dataTableBlock(): string {
-    const start = css.indexOf('@utility data-table {')
-    expect(start, 'data-table utility not found').toBeGreaterThan(-1)
-    let depth = 0
-    for (let index = css.indexOf('{', start); index < css.length; index += 1) {
-      if (css[index] === '{') depth += 1
-      if (css[index] === '}') {
-        depth -= 1
-        if (depth === 0) return css.slice(start, index + 1)
+    const found: string[] = []
+    postcss.parse(css).walkAtRules('utility', (rule) => {
+      if (rule.params.trim() === 'data-table') found.push(rule.toString())
+    })
+    expect(found, 'data-table utility not found').toHaveLength(1)
+    return found[0] ?? ''
+  }
+
+  /**
+   * 규칙마다 **쉼표로 나눈 선택자 하나씩**과 그 규칙이 직접 적은 속성들. **주석은 CSS 파서(`postcss`)가
+   * 가른다** (#30) — 주석은 따로 떨어진 노드라 선택자에도 속성에도 안 섞이고, 문자열 속 `/*`는 값이다.
+   * 파서가 못 읽는 CSS면 던진다 — 조용히 덜 보지 않는다.
+   */
+  function rulesOf(css: string): { selector: string; properties: string[] }[] {
+    const found: { selector: string; properties: string[] }[] = []
+    postcss.parse(css).walkRules((rule) => {
+      const properties = (rule.nodes ?? [])
+        .filter((node) => node.type === 'decl')
+        .map((node) => node.prop.toLowerCase())
+      for (const selector of rule.selectors) {
+        found.push({ selector: selector.trim(), properties })
       }
-    }
-    throw new Error('data-table utility is not closed')
+    })
+    return found
+  }
+
+  /** 정렬을 `:where()` 밖에서 정하는 규칙의 선택자. */
+  function alignOffenders(css: string): string[] {
+    // **`:where()` 밖에서 정하면 칸에 붙인 `text-right`가 진다.** `.data-table th`는
+    // (0,1,1)이고 `.text-right`는 (0,1,0)이다.
+    return rulesOf(css)
+      .filter(({ properties }) => properties.includes('text-align'))
+      .filter(({ selector }) => !selector.includes(':where('))
+      .map(({ selector }) => selector)
   }
 
   it('data-table이 정렬을 특정도 0으로만 정한다', () => {
-    const block = dataTableBlock()
-    const offenders: string[] = []
-    // `선택자 { 몸통 }` 짝. 중첩이 한 겹뿐이라 이것으로 충분하다.
-    for (const [, selector, body] of block.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
-      if (!body?.includes('text-align')) continue
-      // **`:where()` 밖에서 정하면 칸에 붙인 `text-right`가 진다.** `.data-table th`는
-      // (0,1,1)이고 `.text-right`는 (0,1,0)이다.
-      if (!selector?.includes(':where(')) offenders.push(selector?.trim() ?? '')
-    }
+    const offenders = alignOffenders(dataTableBlock())
     expect(offenders, 'sets text-align where a cell class cannot win').toEqual([])
   })
 
@@ -82,19 +102,14 @@ describe('정렬 기본값은 칸이 덮을 수 있어야 한다', () => {
    * 같은 일을 하는 `text-wrap-mode`·`text-wrap`이 지나가고, 앞머리만 보면
    * `:where(&) thead ~ tbody th`처럼 몸통을 가리키는 선택자가 지나간다.
    */
-  const WRAP_PROPERTY = /(?:^|[;\s])(?:white-space|text-wrap(?:-mode)?)\s*:/
+  const WRAP_PROPERTIES: readonly string[] = ['white-space', 'text-wrap', 'text-wrap-mode']
   const HEAD_ONLY = ':where(&) thead th'
 
   function wrapBlockers(css: string): string[] {
-    const offenders: string[] = []
-    const bare = css.replace(/\/\*[\s\S]*?\*\//g, '')
-    for (const [, selector, body] of bare.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
-      if (!WRAP_PROPERTY.test(body ?? '')) continue
-      for (const one of (selector ?? '').split(',').map((part) => part.trim())) {
-        if (one.replace(/\s+/g, ' ') !== HEAD_ONLY) offenders.push(one)
-      }
-    }
-    return offenders
+    return rulesOf(css)
+      .filter(({ properties }) => properties.some((one) => WRAP_PROPERTIES.includes(one)))
+      .filter(({ selector }) => selector.replace(/\s+/g, ' ') !== HEAD_ONLY)
+      .map(({ selector }) => selector)
   }
 
   it('data-table이 줄바꿈을 머리 줄에서만, 클래스 특정도 0으로 막는다', () => {
@@ -122,13 +137,31 @@ describe('정렬 기본값은 칸이 덮을 수 있어야 한다', () => {
   })
 
   it('검사기가 실제로 잡는다', () => {
-    const bait = '& th { text-align: left; }'
-    const rules = [...bait.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
-    expect(
-      rules.some(
-        ([, selector, body]) => body?.includes('text-align') && !selector?.includes(':where('),
-      ),
-    ).toBe(true)
+    // 검사기 자체를 부른다 — 여기서 판정을 다시 적으면 검사기가 망가져도 이 표본은 초록이다.
+    expect(alignOffenders('& th { text-align: left; }')).toEqual(['& th'])
+    expect(alignOffenders(':where(&) th { text-align: left; }')).toEqual([])
+  })
+
+  /**
+   * **주석은 CSS 파서가 가른다** (#30). 정규식 `/\/\*[\s\S]*?\*\//`는 문자열 `content: "/*"`에서 열려 뒤의
+   * `content: "*\/"`까지 사이의 규칙을 통째로 삼켰다. 정렬 검사는 주석을 아예 안 걷어서, 규칙 앞 주석에
+   * 적힌 `:where(` 한 마디가 선택자 자리에 섞여 위반이 지나갔다.
+   */
+  it('검사기가 잡는다: 문자열 속 주석 표시와 선택자 앞 주석', () => {
+    const open = '& caption { content: "/*"; }\n'
+    const close = '& caption { content: "*/"; }\n'
+    expect(wrapBlockers(`${open}& tbody th { white-space: nowrap; }\n${close}`)).toEqual([
+      '& tbody th',
+    ])
+    expect(alignOffenders(`${open}& td { text-align: right; }\n${close}`)).toEqual(['& td'])
+    expect(alignOffenders('/* `:where()` 안이 아니다 */\n& td { text-align: right; }')).toEqual([
+      '& td',
+    ])
+  })
+
+  it('검사기가 안 잡는다: 주석 안의 규칙', () => {
+    expect(wrapBlockers('/* & tbody th { white-space: nowrap; } */')).toEqual([])
+    expect(alignOffenders('/* & td { text-align: right; } */')).toEqual([])
   })
 })
 
@@ -142,9 +175,12 @@ describe('정렬 기본값은 칸이 덮을 수 있어야 한다', () => {
  * 밀렸다.
  */
 describe('머리와 칸이 정렬을 각자 적지 않는다', () => {
-  /** 주석과 스크립트를 걷어낸 화면 본문. 주석 안의 `<thead>`에 속지 않는다. */
-  function templateOf(text: string): string {
-    return text.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<!--[\s\S]*?-->/g, '')
+  /**
+   * 화면의 템플릿 블록, 주석은 비운다. 주석 안의 `<thead>`에 속지 않는다. **주석은 SFC 문법 트리가
+   * 가른다** (#30) — 아래 *"검사기가 잡는다: 속성값 속 주석 표시 사이의 표"*가 문다.
+   */
+  function templateOf(text: string, path = 'sample.vue'): string {
+    return parsedTemplateOf(path, text)
   }
 
   /** `<th …>` · `<td …>` 여는 태그의 속성 부분만. **자식은 안 본다** — 칸의 정렬이다. */
@@ -215,7 +251,7 @@ describe('머리와 칸이 정렬을 각자 적지 않는다', () => {
     const offenders: string[] = []
     for (const path of screens) {
       if (STACKED_HEADS.some((name) => path.endsWith(name))) continue
-      for (const { head, body } of tables(templateOf(readFileSync(path, 'utf8')))) {
+      for (const { head, body } of tables(templateOf(readFileSync(path, 'utf8'), path))) {
         const headRow = rowsOf(head).at(-1)
         if (headRow === undefined) continue
         const wanted = slotsOf(headRow)
@@ -259,7 +295,7 @@ describe('머리와 칸이 정렬을 각자 적지 않는다', () => {
 
     for (const name of STACKED_HEADS) {
       const path = screens.find((one) => one.endsWith(name))
-      for (const { head, body } of tables(templateOf(readFileSync(path ?? '', 'utf8')))) {
+      for (const { head, body } of tables(templateOf(readFileSync(path ?? '', 'utf8'), path))) {
         // **적은 것이 같아야 한다** — 개수도 종류도. 한쪽만 적거나 다른 쪽을 적으면 갈린다.
         expect(counted(body), name).toBe(counted(head))
       }
@@ -270,7 +306,7 @@ describe('머리와 칸이 정렬을 각자 적지 않는다', () => {
     for (const name of STACKED_HEADS) {
       const path = screens.find((one) => one.endsWith(name))
       expect(path, `exempted screen not found: ${name}`).toBeDefined()
-      const heads = tables(templateOf(readFileSync(path ?? '', 'utf8'))).map(({ head }) =>
+      const heads = tables(templateOf(readFileSync(path ?? '', 'utf8'), path)).map(({ head }) =>
         rowsOf(head),
       )
       expect(
@@ -296,6 +332,32 @@ describe('머리와 칸이 정렬을 각자 적지 않는다', () => {
     const found = tables(template)
     expect(found).toHaveLength(1)
     expect(shown(slotsOf(rowsOf(found[0]!.body)[0] ?? ''))).toBe('left')
+  })
+
+  /**
+   * **속성값 속 주석 표시가 표를 지우지 않는다** (#30). `<!--[\s\S]*?-->`로 걷던 때는 속성값 `'<!--'`에서
+   * 열려 뒤의 `'-->'`까지 — 어긋난 칸이 든 표를 통째로 — 지웠고, 검사는 볼 표가 없어 초록이었다.
+   */
+  it('검사기가 잡는다: 속성값 속 주석 표시 사이의 표', () => {
+    const screen = [
+      '<template>',
+      '  <p title="<!--">x</p>',
+      '  <table>',
+      '    <thead><tr><th class="text-right">a</th><th>b</th></tr></thead>',
+      '    <tbody><tr><td>1</td><td class="text-right">2</td></tr></tbody>',
+      '  </table>',
+      '  <p title="-->">y</p>',
+      '</template>',
+    ].join('\n')
+    const found = tables(templateOf(screen))
+    expect(found).toHaveLength(1)
+    expect(shown(slotsOf(rowsOf(found[0]!.body)[0] ?? ''))).toBe('left right')
+  })
+
+  it('검사기가 안 잡는다: 주석 안의 표', () => {
+    const screen =
+      '<template>\n  <!-- <table><thead><tr><th>a</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table> -->\n  <p>x</p>\n</template>'
+    expect(tables(templateOf(screen))).toEqual([])
   })
 
   it('몇 칸인지 모르는 칸은 여럿으로 센다', () => {

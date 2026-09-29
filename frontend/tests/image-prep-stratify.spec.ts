@@ -20,21 +20,13 @@ import { newProjectDocument } from '../src/project/create'
 import type { ProjectFile } from '../src/project/format'
 import { addImages } from '../src/project/images'
 import { withSplit } from '../src/project/settings'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import ImagePrepPanel from '../src/views/preprocess/ImagePrepPanel.vue'
 import { HARNESS_BACKBONE, resetImageWorkers, stubDialogElement } from './fixtures/image-workers'
+import { resetDatabase } from './fixtures/database'
 
 const NOW = '2026-09-23T00:00:00.000Z'
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
 
 /** 범주 셋에 두 장씩 — 여섯 장. 시험 몫이 셋보다 적으면 층화가 성립하지 않는다. */
 function threeByTwo(testSize: number): ProjectFile {
@@ -65,7 +57,7 @@ beforeEach(async () => {
   setActivePinia(createPinia())
   resetImageWorkers()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   URL.createObjectURL = () => 'blob:fake'
   URL.revokeObjectURL = () => {}
@@ -74,7 +66,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 async function panelWith(testSize: number): Promise<VueWrapper> {

@@ -44,23 +44,15 @@ vi.mock('../src/ml/worker/spawn', () => ({
 
 import { i18n, setLocale } from '../src/i18n'
 import type { ProjectFile } from '../src/project/format'
-import { closeStorage, DB_NAME, loadProject, saveProject } from '../src/project/storage'
+import { closeStorage, loadProject, saveProject } from '../src/project/storage'
 import { router } from '../src/router'
 import { useProjectStore } from '../src/stores/project'
 import { stubDialogElement } from './fixtures/image-workers'
 import { irisProject } from './fixtures/trained'
+import { resetDatabase } from './fixtures/database'
 
 const t = (key: string): string => i18n.global.t(key)
 const OTHER_ID = '33333333-3333-4333-8333-333333333333'
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
 
 async function settle(): Promise<void> {
   for (let round = 0; round < 3; round += 1) {
@@ -83,7 +75,7 @@ beforeEach(async () => {
   held.length = 0
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   window.scrollTo = () => {}
   Object.defineProperty(navigator, 'storage', {
@@ -97,12 +89,9 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  // 미뤄 둔 자동 저장을 이 검사 안에서 끊는다 — 다음 검사의 저장소에 옛 파일을 덮어쓰지 않게
-  // (`option-cascade.spec.ts`의 같은 줄, 2026-09-27).
-  useProjectStore().close()
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 /** 대화상자 밖의 단추 글자들. 닫힌 `<dialog>` 안의 단추는 안 센다. */

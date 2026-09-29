@@ -21,15 +21,7 @@ import { defineComponent, h } from 'vue'
 import { useStorageBlockedNotice } from '../src/composables/useStorageBlockedNotice'
 import { closeStorage, DB_NAME, DB_VERSION, listProjects } from '../src/project/storage'
 import { useToastStore } from '../src/stores/toasts'
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
+import { resetDatabase } from './fixtures/database'
 
 /** 옛 배포판의 탭. 한 칸 낮은 버전으로 열고, 새 탭이 올리려 해도 놓지 않는다. */
 function openAsOldTab(): Promise<IDBDatabase> {
@@ -56,7 +48,7 @@ const blockedNotices = () =>
 beforeEach(async () => {
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 /** 열어 둔 옛 탭들. **검사가 실패해도 닫는다** — 남으면 다음 검사의 열기까지 막혀 실패가 번진다. */
@@ -65,7 +57,7 @@ const oldTabs: IDBDatabase[] = []
 afterEach(async () => {
   for (const tab of oldTabs.splice(0)) tab.close()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 describe('결정 77: 저장소가 옛 탭에 막혔을 때', () => {

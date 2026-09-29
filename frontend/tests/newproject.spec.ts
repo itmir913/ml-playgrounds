@@ -5,24 +5,17 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { newProjectDocument, newProjectSeed } from '../src/project/create'
-import { DB_NAME, closeStorage, loadProject, saveProject } from '../src/project/storage'
+import { closeStorage, loadProject, saveProject } from '../src/project/storage'
 import { ROUTE_PROJECT_HOME, ROUTE_PROJECTS, router } from '../src/router'
 import { useProjectStore } from '../src/stores/project'
-
-async function wipe(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
+import { resetDatabase } from './fixtures/database'
 
 beforeEach(async () => {
   window.scrollTo = () => {}
   setActivePinia(createPinia())
   closeStorage()
-  await wipe()
+  // 앞 검사가 연 스토어도 여기서 닫힌다 — 새 pinia를 먼저 세웠어도 도우미가 본 pinia를 모두 닫는다.
+  await resetDatabase()
   await router.replace('/')
   await router.isReady()
 })

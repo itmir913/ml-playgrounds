@@ -22,12 +22,13 @@ import type { PredictableModel, PredictionField } from '../src/ml/predict'
 import type { Preprocessor } from '../src/ml/preprocess'
 import type { ProjectFile } from '../src/project/format'
 import { dataSettings } from '../src/project/schema'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import BatchPredict from '../src/views/predict/BatchPredict.vue'
 import { dropEvent, stubDialogElement } from './fixtures/image-workers'
 import { experiment, projectFile, run } from './fixtures/project'
+import { resetDatabase } from './fixtures/database'
 
 const gate = vi.hoisted(() => ({ failSave: false }))
 
@@ -63,15 +64,6 @@ async function settle(): Promise<void> {
   }
 }
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 interface PanelInternals {
   busy: boolean
   opened: { fileName: string } | null
@@ -94,14 +86,14 @@ beforeEach(async () => {
   setActivePinia(createPinia())
   gate.failSave = false
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   await setLocale('ko')
 })
 
 afterEach(async () => {
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 const dangers = () => useToastStore().items.filter((one) => one.tone === 'danger')

@@ -22,12 +22,13 @@ import type { PredictableModel } from '../src/ml/predict'
 import type { Preprocessor } from '../src/ml/preprocess'
 import type { ProjectFile } from '../src/project/format'
 import { dataSettings } from '../src/project/schema'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import BatchPredict from '../src/views/predict/BatchPredict.vue'
 import { dropEvent, stubDialogElement } from './fixtures/image-workers'
 import { experiment, projectFile, run } from './fixtures/project'
+import { resetDatabase } from './fixtures/database'
 
 /**
  * 저장을 붙드는 손잡이. **참이면 `saveProject`가 답하지 않고** 검사가 `release()`로
@@ -87,15 +88,6 @@ async function settle(): Promise<void> {
   }
 }
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 /** 판 안쪽. 붙이기와 읽기의 순서를 검사가 정해야 해서 직접 묻는다. */
 interface PanelInternals {
   busy: boolean
@@ -118,7 +110,7 @@ beforeEach(async () => {
   gate.hold = false
   gate.waiting.length = 0
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   await setLocale('ko')
 })
@@ -126,7 +118,7 @@ beforeEach(async () => {
 afterEach(async () => {
   release()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 /** 판을 띄우고 `first.csv`를 세운다. */

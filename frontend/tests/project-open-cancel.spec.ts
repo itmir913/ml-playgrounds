@@ -25,11 +25,12 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ROUTE_PROJECTS, router } from '../src/router'
-import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
+import { closeStorage, saveProject } from '../src/project/storage'
 import { releaseTabLock } from '../src/project/tab-lock'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import { manifest, projectFile } from './fixtures/project'
+import { resetDatabase } from './fixtures/database'
 
 /**
  * **읽기를 세는 자리.** `vi.spyOn`으로는 안 된다 — 스토어가 `loadProject`를 이름으로
@@ -98,15 +99,6 @@ class FakeLocks {
 
 const locks = new FakeLocks()
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 /**
  * 조건이 참이 될 때까지 태스크를 넘긴다. **가짜 타이머를 쓰지 않는다** — 진짜 큐를 돈다.
  *
@@ -130,7 +122,7 @@ beforeEach(async () => {
   Object.defineProperty(navigator, 'locks', { configurable: true, value: locks })
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   await saveProject(projectFile())
 })
 
@@ -143,7 +135,7 @@ afterEach(async () => {
   releaseTabLock()
   Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 /**

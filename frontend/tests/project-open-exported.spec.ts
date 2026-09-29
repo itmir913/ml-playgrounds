@@ -31,25 +31,17 @@ vi.mock('../src/project/storage', async (original) => {
 })
 
 import { ROUTE_PROJECT_HOME, router } from '../src/router'
-import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
+import { closeStorage, saveProject } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import { manifest, projectFile } from './fixtures/project'
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
+import { resetDatabase } from './fixtures/database'
 
 beforeEach(async () => {
   window.scrollTo = () => {}
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   control.failExportedAt = false
   await router.replace('/')
   await router.isReady()
@@ -57,9 +49,8 @@ beforeEach(async () => {
 
 afterEach(async () => {
   control.failExportedAt = false
-  useProjectStore().close()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 /** 라우터를 실제로 태우므로 화면 청크를 동적으로 읽는다 — `router.spec.ts`와 같은 여유다. */

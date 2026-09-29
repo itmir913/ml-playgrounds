@@ -52,6 +52,7 @@ import {
   run,
   testDatasetBytes,
 } from './fixtures/project'
+import { resetDatabase } from './fixtures/database'
 
 /** 이미지 프로젝트의 실험 하나. 스냅샷이 종류를 따라야 문서 검사를 지난다. */
 function imageExperiment(method: 'holdout' | 'provided'): Experiment {
@@ -71,15 +72,6 @@ function imageExperiment(method: 'holdout' | 'provided'): Experiment {
   }
 }
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 function stubEstimate(quota: number, usage: number): void {
   Object.defineProperty(navigator, 'storage', {
     configurable: true,
@@ -93,7 +85,7 @@ function clearEstimate(): void {
 
 beforeEach(async () => {
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 afterEach(() => {
@@ -466,7 +458,7 @@ describe('DB 업그레이드', () => {
     await expect(listProjects()).rejects.toSatisfy(isClientError)
 
     // 되돌렸던 배포를 다시 올린 자리다. closeStorage()를 부르지 않는 것이 요점이다.
-    await deleteDatabase()
+    await resetDatabase()
 
     await expect(listProjects()).resolves.toEqual([])
   })

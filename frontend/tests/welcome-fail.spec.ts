@@ -37,10 +37,10 @@ import { acquireTabLock, releaseTabLock } from '../src/project/tab-lock'
 import { ROUTE_PROJECTS, router } from '../src/router'
 import { useToastStore } from '../src/stores/toasts'
 import WelcomeView from '../src/views/WelcomeView.vue'
-import { useProjectStore } from '../src/stores/project'
 import { stubDialogElement } from './fixtures/image-workers'
 import { projectFile } from './fixtures/project'
 import { writeProjectBytes } from './fixtures/write'
+import { resetDatabase } from './fixtures/database'
 
 const gate = vi.hoisted(() => ({ failSave: false }))
 
@@ -70,15 +70,6 @@ async function settle(): Promise<void> {
   }
 }
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 interface ViewInternals {
   busy: boolean
   creating: boolean
@@ -90,7 +81,7 @@ beforeEach(async () => {
   setActivePinia(createPinia())
   gate.failSave = false
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   await setLocale('ko')
   await router.replace('/')
@@ -98,11 +89,8 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  // 미뤄 둔 자동 저장을 이 검사 안에서 끊는다 — 다음 검사의 저장소에 옛 파일을 덮어쓰지 않게
-  // (`option-cascade.spec.ts`의 같은 줄, 2026-09-27).
-  useProjectStore().close()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 async function welcome() {

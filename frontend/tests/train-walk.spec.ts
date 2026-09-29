@@ -32,12 +32,13 @@ import { newProjectDocument } from '../src/project/create'
 import type { ProjectFile } from '../src/project/format'
 import { addImages } from '../src/project/images'
 import { DATA_TYPES, TASK_TYPES, type Settings, type TaskType } from '../src/project/schema'
-import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
+import { closeStorage, saveProject } from '../src/project/storage'
 import { router } from '../src/router'
 import { NO_FACTS, STEP_IDS, stepBlockers, type ProjectFacts } from '../src/router/steps'
 import { useProjectStore } from '../src/stores/project'
 import { irisDataset, IRIS_FEATURE_COLUMNS } from './fixtures/iris'
 import { resetImageWorkers, stubDialogElement } from './fixtures/image-workers'
+import { resetDatabase } from './fixtures/database'
 
 /**
  * **진짜 학습 로직을 태운 워커 목.** `postMessage`가 오면 `handleRequest`를 그대로 부르고
@@ -60,15 +61,6 @@ vi.mock('../src/ml/worker/spawn', () => ({
 }))
 
 const PROJECT_ID = '550e8400-e29b-41d4-a716-446655440000'
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
 
 /** `범주 없음`으로만 사진이 든 프로젝트. */
 function unlabeledPhotos(count: number): ProjectFile {
@@ -130,7 +122,7 @@ function tableWithoutTarget(): ProjectFile {
 beforeEach(async () => {
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   await setLocale('ko')
   window.scrollTo = () => {}
   resetImageWorkers()
@@ -142,12 +134,9 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  // 미뤄 둔 자동 저장을 이 검사 안에서 끊는다 — 다음 검사의 저장소에 옛 파일을 덮어쓰지 않게
-  // (`option-cascade.spec.ts`의 같은 줄, 2026-09-27).
-  useProjectStore().close()
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 const Host = defineComponent({ render: () => h(RouterView) })

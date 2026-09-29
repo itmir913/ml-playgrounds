@@ -21,13 +21,14 @@ import { defineComponent, h } from 'vue'
 import LeaveGuard from '../src/components/LeaveGuard.vue'
 import { useUnloadWarning } from '../src/composables/useUnloadWarning'
 import { i18n, setLocale } from '../src/i18n'
-import { closeStorage, DB_NAME, loadProject, saveProject } from '../src/project/storage'
+import { closeStorage, loadProject, saveProject } from '../src/project/storage'
 import { ROUTE_PROJECTS, router } from '../src/router'
 import { useLeaveStore } from '../src/stores/leave'
 import { useProjectStore } from '../src/stores/project'
 import { stubDialogElement } from './fixtures/image-workers'
 import { manifest, projectFile } from './fixtures/project'
 import { refuseWrites } from './fixtures/storage-refusal'
+import { resetDatabase } from './fixtures/database'
 
 const downloads: string[] = []
 
@@ -60,15 +61,6 @@ vi.mock('../src/project/download', async (importOriginal) => {
   }
 })
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 let refusal: { restore: () => void } | null = null
 
 beforeEach(async () => {
@@ -76,7 +68,7 @@ beforeEach(async () => {
   downloads.length = 0
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   await setLocale('ko')
   await router.replace('/')
@@ -88,10 +80,9 @@ afterEach(async () => {
   refusal?.restore()
   refusal = null
   useLeaveStore().stay()
-  useProjectStore().close()
   await router.replace('/')
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 /** 둘째 프로젝트. **실제로 열 수 있어야 한다** — 매니페스트 스키마가 `projectId`를 UUID로 받는다. */

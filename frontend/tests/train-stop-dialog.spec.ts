@@ -42,22 +42,14 @@ vi.mock('../src/ml/worker/spawn', () => ({
 }))
 
 import { i18n, setLocale } from '../src/i18n'
-import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
+import { closeStorage, saveProject } from '../src/project/storage'
 import { router } from '../src/router'
 import { useProjectStore } from '../src/stores/project'
 import { stubDialogElement } from './fixtures/image-workers'
 import { irisProject } from './fixtures/trained'
+import { resetDatabase } from './fixtures/database'
 
 const t = (key: string): string => i18n.global.t(key)
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
 
 async function settle(): Promise<void> {
   for (let round = 0; round < 3; round += 1) {
@@ -80,7 +72,7 @@ beforeEach(async () => {
   held.length = 0
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   window.scrollTo = () => {}
   Object.defineProperty(navigator, 'storage', {
@@ -94,10 +86,9 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  useProjectStore().close()
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 const Host = defineComponent({ render: () => h(RouterView) })

@@ -23,7 +23,7 @@ import { i18n, setLocale } from '../src/i18n'
 import { newProjectDocument } from '../src/project/create'
 import type { ProjectFile } from '../src/project/format'
 import { readImages } from '../src/project/images'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import ImagePanel from '../src/views/data/ImagePanel.vue'
@@ -38,6 +38,7 @@ import {
   stubDialogElement,
   workerState,
 } from './fixtures/image-workers'
+import { resetDatabase } from './fixtures/database'
 
 vi.mock('../src/data/image/spawn', async () => {
   const { fakeCanonicalizeWorker } = await import('./fixtures/image-workers')
@@ -54,15 +55,6 @@ async function settle(): Promise<void> {
     await tick()
     await flushPromises()
   }
-}
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
 }
 
 interface DataInternals {
@@ -98,7 +90,7 @@ beforeEach(async () => {
   setActivePinia(createPinia())
   resetImageWorkers()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   Object.defineProperty(navigator, 'storage', {
     configurable: true,
     value: { estimate: () => Promise.resolve({ quota: 10_000_000_000, usage: 0 }) },
@@ -112,7 +104,7 @@ beforeEach(async () => {
 afterEach(async () => {
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 /** 사진 없는 이미지 프로젝트로 데이터 화면을 띄운다. */

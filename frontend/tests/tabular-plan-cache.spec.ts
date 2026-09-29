@@ -42,8 +42,9 @@ import {
   withTaskType,
 } from '../src/project/settings'
 import type { ProjectDocument } from '../src/project/schema'
-import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
+import { closeStorage, saveProject } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
+import { resetDatabase } from './fixtures/database'
 import { surveyCsv, surveyProject } from './fixtures/prep-kind'
 
 const NOW = '2026-09-26T00:00:00Z'
@@ -244,12 +245,7 @@ describe('프로젝트를 닫거나 바꾸면 캐시가 빈다', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
     closeStorage()
-    await new Promise<void>((resolve) => {
-      const request = indexedDB.deleteDatabase(DB_NAME)
-      request.onsuccess = () => resolve()
-      request.onerror = () => resolve()
-      request.onblocked = () => resolve()
-    })
+    await resetDatabase()
   })
 
   it('닫은 뒤에는 한 칸이 비어 있다', async () => {

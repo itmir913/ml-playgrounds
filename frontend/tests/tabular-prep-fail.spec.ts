@@ -26,12 +26,13 @@ import { hashBytes } from '../src/hash'
 import { i18n, setLocale } from '../src/i18n'
 import type { ProjectFile } from '../src/project/format'
 import { MISSING_STRATEGIES } from '../src/project/schema'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import TabularPrepPanel from '../src/views/preprocess/TabularPrepPanel.vue'
 import { stubDialogElement } from './fixtures/image-workers'
 import { projectFile } from './fixtures/project'
+import { resetDatabase } from './fixtures/database'
 
 const gate = vi.hoisted(() => ({ failSave: false }))
 
@@ -56,15 +57,6 @@ async function settle(): Promise<void> {
     await tick()
     await flushPromises()
   }
-}
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
 }
 
 /** 이 판의 안쪽. **띄우지 않으면 이 셋이 전부 안 보인다** — 그래서 R24까지 조용했다. */
@@ -115,14 +107,14 @@ beforeEach(async () => {
   setActivePinia(createPinia())
   gate.failSave = false
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   await setLocale('ko')
 })
 
 afterEach(async () => {
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 const dangers = () => useToastStore().items.filter((one) => one.tone === 'danger')

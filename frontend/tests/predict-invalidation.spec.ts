@@ -82,6 +82,19 @@ function waiting(wrapper: VueWrapper): number {
 }
 
 /**
+ * 예측이 아직 잠금을 쥐고 있는가 — 아래 검사들이 건드리는 것(입력 칸 · 필터 칩 · [가져오기])이 모두
+ * 같은 잠금(`predictLock`)을 받는다. 하나라도 잠겨 있으면 아직이다.
+ */
+function stillLocked(wrapper: VueWrapper): boolean {
+  const touched = [
+    ...wrapper.findComponent(InputRow).findAll('input'),
+    ...wrapper.findComponent(PredictFilters).findAll('button'),
+    button(wrapper, 'predict.tabular.fromData'),
+  ]
+  return touched.some((one) => (one.element as HTMLInputElement | HTMLButtonElement).disabled)
+}
+
+/**
  * 답이 선 상태를 **학생이 만드는 길로** 만든다 — [무작위로 가져오기]로 칸을 채우고 [예측하기].
  * 두 모델 다 **값으로** 답해야 한다(실패로 답하면 이 검사가 재는 것이 흐려진다).
  */
@@ -95,9 +108,16 @@ async function answered(wrapper: VueWrapper): Promise<void> {
   await button(wrapper, 'predict.run').trigger('click')
   // **단언할 끝 상태를 기다린다** — 답 둘이 찬 뒤에도 카드가 아직 "기다림"을 그리는 틈이 있어, 답의 수만
   // 기다리면 부하에서 아래 `waiting === 0`이 먼저 걸렸다(2026-09-27, 세 번).
+  //
+  // **잠금이 풀린 것까지 기다린다** (2026-09-29). `run()`은 마지막 답을 세운 뒤에도 한 번 더 양보하고
+  // (`yieldToScreen`) 그 다음에야 `job.done()`으로 잠금을 놓는다. 답과 카드만 기다리면 그 틈에 풀려난
+  // 검사가 **잠긴 칸·칩·단추를 건드려** 사건이 안 가고(`@vue/test-utils`는 잠긴 요소에 사건을 안 보낸다),
+  // 부하에서 약 여섯에 하나꼴로 *"expected 2 to be 0"*이 났다 — 잰 것: 실패한 회차에서 `flushPromises`
+  // 뒤에도 칸이 잠겨 있었다.
   await vi.waitFor(() => {
     if (panelOf(wrapper).answers.size < 2) throw new Error('answers not in yet')
     if (waiting(wrapper) !== 0) throw new Error('cards still waiting')
+    if (stillLocked(wrapper)) throw new Error('prediction still holds the lock')
   }, WAIT_MS)
   await flushPromises()
   for (const answer of panelOf(wrapper).answers.values()) {

@@ -26,11 +26,12 @@ import type { WorkerRequest } from '../src/ml/worker/protocol'
 import { newProjectDocument } from '../src/project/create'
 import type { ProjectFile } from '../src/project/format'
 import { addImages } from '../src/project/images'
-import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
+import { closeStorage, saveProject } from '../src/project/storage'
 import { router } from '../src/router'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import { resetImageWorkers, stubDialogElement, workerState } from './fixtures/image-workers'
+import { resetDatabase } from './fixtures/database'
 
 vi.mock('../src/ml/embed/spawn', async () => {
   const { fakeEmbedWorker } = await import('./fixtures/image-workers')
@@ -118,15 +119,6 @@ async function settle(): Promise<void> {
   }
 }
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 const Host = defineComponent({ render: () => h(RouterView) })
 const SLOW = { timeout: 20_000 }
 
@@ -136,7 +128,7 @@ beforeEach(async () => {
   resetImageWorkers()
   trainers.workers.length = 0
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   Object.defineProperty(navigator, 'storage', {
     configurable: true,
     value: { estimate: () => Promise.resolve({ quota: 10_000_000_000, usage: 0 }) },
@@ -151,10 +143,9 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  useProjectStore().close()
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 const t = (key: string): string => i18n.global.t(key)

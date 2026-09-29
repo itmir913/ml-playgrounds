@@ -32,10 +32,11 @@ import { addEmbeddings } from '../src/project/embeddings'
 import { IMAGE_UNLABELED, type ProjectFile } from '../src/project/format'
 import { addImages, readImages } from '../src/project/images'
 import { withSelectedAlgorithms } from '../src/project/settings'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import ImagePredictPanel from '../src/views/predict/ImagePredictPanel.vue'
 import { HARNESS_BACKBONE, stubDialogElement, stubObjectUrls } from './fixtures/image-workers'
+import { resetDatabase } from './fixtures/database'
 
 /** 사진 바이트 -> 벡터. `dog`가 들었으면 앞 절반이, 아니면 뒤 절반이 켜진다. */
 function vectorOf(bytes: Uint8Array, dim: number): Float32Array {
@@ -116,15 +117,6 @@ async function untilIdle(panel: { predicting: boolean }): Promise<void> {
   await settle()
   for (let round = 0; round < 200 && panel.predicting; round += 1) await settle()
   expect(panel.predicting).toBe(false)
-}
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
 }
 
 function backbone() {
@@ -231,7 +223,7 @@ beforeEach(async () => {
   gate.hold = false
   gate.waiting.length = 0
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   stubObjectUrls()
   Object.defineProperty(navigator, 'storage', {
@@ -247,7 +239,7 @@ afterEach(async () => {
   for (const wrapper of mounted.splice(0)) wrapper.unmount()
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 async function openPanel(predict: number) {

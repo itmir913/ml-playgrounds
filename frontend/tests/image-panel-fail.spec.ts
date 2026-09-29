@@ -24,11 +24,12 @@ import { hashBytes } from '../src/hash'
 import { i18n, setLocale } from '../src/i18n'
 import type { ProjectFile } from '../src/project/format'
 import { readImages } from '../src/project/images'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import ImagePanel from '../src/views/data/ImagePanel.vue'
 import { dropEvent, imagePredictProject, stubDialogElement } from './fixtures/image-workers'
+import { resetDatabase } from './fixtures/database'
 
 /** Canonicalize workers created so far; the test kills or answers them by hand. */
 const bakers = vi.hoisted(() => ({
@@ -76,15 +77,6 @@ async function settle(): Promise<void> {
   }
 }
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 interface PanelInternals {
   bake: () => Promise<void>
   onDrop: (event: Event) => void
@@ -102,7 +94,7 @@ beforeEach(async () => {
   bakers.workers.length = 0
   gate.failSave = false
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   Object.defineProperty(navigator, 'storage', {
     configurable: true,
     value: { estimate: () => Promise.resolve({ quota: 10_000_000_000, usage: 0 }) },
@@ -116,7 +108,7 @@ beforeEach(async () => {
 afterEach(async () => {
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 async function panelWithPending() {

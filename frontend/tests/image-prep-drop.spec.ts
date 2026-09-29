@@ -25,7 +25,7 @@ import { i18n, setLocale } from '../src/i18n'
 import { newProjectDocument } from '../src/project/create'
 import type { ProjectFile } from '../src/project/format'
 import { addImages, readImages } from '../src/project/images'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import ImagePrepPanel from '../src/views/preprocess/ImagePrepPanel.vue'
@@ -37,6 +37,7 @@ import {
   stubDialogElement,
   workerState,
 } from './fixtures/image-workers'
+import { resetDatabase } from './fixtures/database'
 
 vi.mock('../src/data/image/spawn', async () => {
   const { fakeCanonicalizeWorker } = await import('./fixtures/image-workers')
@@ -59,15 +60,6 @@ async function settle(): Promise<void> {
     await tick()
     await flushPromises()
   }
-}
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
 }
 
 /** 화면 안쪽. 굽는 창이 열려 있는지를 이것으로 확인한다. */
@@ -122,7 +114,7 @@ beforeEach(async () => {
   setActivePinia(createPinia())
   resetImageWorkers()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   Object.defineProperty(navigator, 'storage', {
     configurable: true,
     value: { estimate: () => Promise.resolve({ quota: 10_000_000_000, usage: 0 }) },
@@ -136,7 +128,7 @@ beforeEach(async () => {
 afterEach(async () => {
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 /** 화면을 띄우고 ②("테스트 데이터를 직접 올리기")를 골라 놓는 자리를 세운다. */

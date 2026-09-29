@@ -36,6 +36,7 @@ import WelcomeView from '../src/views/WelcomeView.vue'
 import { stubDialogElement } from './fixtures/image-workers'
 import { manifest, projectFile } from './fixtures/project'
 import { writeProjectBytes } from './fixtures/write'
+import { resetDatabase } from './fixtures/database'
 
 const OPEN_WAIT_MS = 10_000
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
@@ -46,15 +47,6 @@ async function settle(): Promise<void> {
     await tick()
     await flushPromises()
   }
-}
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
 }
 
 /** 이 자물쇠들을 이 탭이 쥐고 있다 — 콜백의 약속이 끝나면 빠진다(`welcome-fail.spec.ts`와 같다). */
@@ -85,7 +77,7 @@ beforeEach(async () => {
   window.scrollTo = () => {}
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   await setLocale('ko')
   await router.replace('/')
@@ -93,12 +85,11 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  useProjectStore().close()
   await router.replace('/')
   releaseTabLock()
   Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 /** 이름·시각·답을 바꾼 판. 학번과 이름도 넣을 수 있다 — 창에 안 보여야 한다. */

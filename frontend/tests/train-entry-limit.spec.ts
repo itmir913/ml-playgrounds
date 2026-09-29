@@ -32,11 +32,12 @@ import type { WorkerRequest } from '../src/ml/worker/protocol'
 import { newProjectDocument } from '../src/project/create'
 import type { ProjectFile } from '../src/project/format'
 import { addImages } from '../src/project/images'
-import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
+import { closeStorage, saveProject } from '../src/project/storage'
 import { router } from '../src/router'
 import { useToastStore } from '../src/stores/toasts'
 import { useProjectStore } from '../src/stores/project'
 import { resetImageWorkers, stubDialogElement, workerState } from './fixtures/image-workers'
+import { resetDatabase } from './fixtures/database'
 
 /**
  * 사진 넷과 모델 셋인 프로젝트를 학습하면 담기는 수 — 문서 여섯, 사진마다 정본 하나와 백본마다 임베딩
@@ -120,15 +121,6 @@ async function settle(): Promise<void> {
   await flushPromises()
 }
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 const Host = defineComponent({ render: () => h(RouterView) })
 
 beforeEach(async () => {
@@ -137,7 +129,7 @@ beforeEach(async () => {
   resetImageWorkers()
   trainers.workers.length = 0
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   Object.defineProperty(navigator, 'storage', {
     configurable: true,
     value: { estimate: () => Promise.resolve({ quota: 10_000_000_000, usage: 0 }) },
@@ -152,10 +144,9 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  useProjectStore().close()
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 /** 학습해도 한계 안에 드는 가장 많은 더할 사진 수. 한 장 더하면 넘는다. */

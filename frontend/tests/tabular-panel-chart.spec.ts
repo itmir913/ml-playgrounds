@@ -25,25 +25,17 @@ import { importTable, openTable } from '../src/data/table'
 import { i18n, setLocale } from '../src/i18n'
 import { TABLE_PREVIEW_ROW_COUNT } from '../src/limits'
 import { applyDataset } from '../src/project/dataset'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import ChartDialog from '../src/views/data/ChartDialog.vue'
 import ColumnInspector from '../src/views/data/ColumnInspector.vue'
 import TabularPanel from '../src/views/data/TabularPanel.vue'
 import { stubDialogElement } from './fixtures/image-workers'
 import { projectFile } from './fixtures/project'
+import { resetDatabase } from './fixtures/database'
 
 /** 미리보기보다 확실히 많다 — 둘이 같으면 이 검사는 아무것도 못 가른다. */
 const ROWS = TABLE_PREVIEW_ROW_COUNT + 17
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
 
 async function settle(): Promise<void> {
   for (let round = 0; round < 3; round += 1) {
@@ -55,7 +47,7 @@ async function settle(): Promise<void> {
 beforeEach(async () => {
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   // jsdom에는 없다. 시각화 창이 도구를 고르면 그림으로 데려간다(`ChartDialog`의 `pickTool`).
   if (typeof Element.prototype.scrollIntoView === 'undefined') {
@@ -66,7 +58,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 describe('시각화 창은 정본 전체를 받는다', () => {

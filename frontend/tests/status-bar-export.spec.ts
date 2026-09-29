@@ -20,10 +20,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AppStatusBar from '../src/components/AppStatusBar.vue'
 import ExportButton from '../src/components/ExportButton.vue'
 import { i18n, setLocale } from '../src/i18n'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { projectFile } from './fixtures/project'
 import { refuseWrites } from './fixtures/storage-refusal'
+import { resetDatabase } from './fixtures/database'
 
 /** 저장이 거절되는 상태(`fixtures/storage-refusal.ts`). afterEach가 되돌린다. */
 let refusal: { restore: () => void } | null = null
@@ -54,15 +55,6 @@ vi.mock('../src/project/download', () => ({
   readFileBytes: async (file: File) => new Uint8Array(await file.arrayBuffer()),
 }))
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 /** 마운트한 것들. 끝나면 걷어낸다 — 팝오버의 `document` 리스너가 쌓이지 않게. */
 const mounted: { unmount: () => void }[] = []
 
@@ -70,7 +62,7 @@ beforeEach(async () => {
   downloads.length = 0
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   await setLocale('ko')
 })
 
@@ -81,9 +73,8 @@ afterEach(async () => {
   refusal = null
   hold.until = null
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
-  useProjectStore().close()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 /** 상태 표시줄을 띄우고, 줄 맨 앞의 내보내기 상태 글자를 읽는 손잡이를 돌려준다. */

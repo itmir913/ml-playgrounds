@@ -32,7 +32,7 @@ import {
   type ProjectFile,
 } from '../src/project/format'
 import { addImages, readImages } from '../src/project/images'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import ImagePanel from '../src/views/data/ImagePanel.vue'
@@ -50,6 +50,7 @@ import {
   workerState,
 } from './fixtures/image-workers'
 import { projectFile } from './fixtures/project'
+import { resetDatabase } from './fixtures/database'
 
 vi.mock('../src/limits-switch', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/limits-switch')>()
@@ -86,15 +87,6 @@ async function settle(): Promise<void> {
     await tick()
     await flushPromises()
   }
-}
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
 }
 
 const refusals = () =>
@@ -207,7 +199,7 @@ beforeEach(async () => {
   setActivePinia(createPinia())
   resetImageWorkers()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   Object.defineProperty(navigator, 'storage', {
     configurable: true,
     value: { estimate: () => Promise.resolve({ quota: 10_000_000_000, usage: 0 }) },
@@ -218,10 +210,9 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  useProjectStore().close()
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 describe('사진 추가 — 굽기 전에 막는다', { timeout: 60_000 }, () => {

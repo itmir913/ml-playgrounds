@@ -20,10 +20,11 @@ import ExportButton from '../src/components/ExportButton.vue'
 import { errorMessageKey } from '../src/errors'
 import { i18n, setLocale } from '../src/i18n'
 import { MLPX_MIME, projectFileName } from '../src/project/format'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import { projectFile } from './fixtures/project'
+import { resetDatabase } from './fixtures/database'
 
 const downloads = vi.hoisted(() => [] as { blob: Blob; fileName: string }[])
 
@@ -44,15 +45,6 @@ async function settle(): Promise<void> {
   }
 }
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 /** v-model이 달린 맨 `<input>`. **값만 넣으면 안 되고 이벤트를 던져야 한다.** */
 function type(input: HTMLInputElement, value: string): void {
   input.value = value
@@ -63,7 +55,7 @@ beforeEach(async () => {
   downloads.length = 0
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   await setLocale('ko')
 })
 
@@ -71,7 +63,7 @@ afterEach(async () => {
   document.body.innerHTML = ''
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 describe('R24 B-3: the last two lines of the export chain', () => {

@@ -26,11 +26,12 @@ import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { newProjectDocument } from '../src/project/create'
 import type { ProjectFile } from '../src/project/format'
 import { addImages } from '../src/project/images'
-import { closeStorage, DB_NAME, loadProject, saveProject } from '../src/project/storage'
+import { closeStorage, loadProject, saveProject } from '../src/project/storage'
 import { ROUTE_PROJECTS, router } from '../src/router'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import { resetImageWorkers, stubDialogElement, workerState } from './fixtures/image-workers'
+import { resetDatabase } from './fixtures/database'
 
 /**
  * 참이면 워커가 요청을 받자마자 `preparing`을 보고한다 — **진짜 워커의 첫 마디다.**
@@ -116,15 +117,6 @@ async function settle(): Promise<void> {
   await flushPromises()
 }
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 const Host = defineComponent({ render: () => h(RouterView) })
 
 /**
@@ -140,7 +132,7 @@ beforeEach(async () => {
   resetImageWorkers()
   reportFirst.value = false
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   Object.defineProperty(navigator, 'storage', {
     configurable: true,
     value: { estimate: () => Promise.resolve({ quota: 10_000_000_000, usage: 0 }) },
@@ -155,12 +147,9 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  // 미뤄 둔 자동 저장을 이 검사 안에서 끊는다 — 다음 검사의 저장소에 옛 파일을 덮어쓰지 않게
-  // (`option-cascade.spec.ts`의 같은 줄, 2026-09-27).
-  useProjectStore().close()
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 /** 학습 화면을 띄우고 [학습하기]까지 누른다. 임베딩은 손잡이를 부를 때까지 안 끝난다. */

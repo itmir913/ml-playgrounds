@@ -23,8 +23,10 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import postcss from 'postcss'
 import { describe, expect, it } from 'vitest'
 
+import { templateOf } from './fixtures/parsed-source'
 import { sourceFiles } from './fixtures/source'
 
 const SRC = join(process.cwd(), 'src')
@@ -49,14 +51,20 @@ const BODY_ROW = /<tr\b[^>]*>/g
  */
 const BODY_TAG = /<t[rhd]\b[^>]*>/g
 
-/** 화면 본문만. 주석 안의 예문과 스크립트의 문자열에 안 속는다. */
-function templateOf(text: string): string {
-  return text.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<!--[\s\S]*?-->/g, '')
-}
-
 /** 이 화면의 `<tbody>` 안 여는 태그들. `rows`가 참이면 줄만. */
 function bodyTags(path: string, rows: boolean): string[] {
-  const template = templateOf(readFileSync(path, 'utf8'))
+  return bodyTagsOf(readFileSync(path, 'utf8'), rows, path)
+}
+
+/**
+ * 화면 소스의 `<tbody>` 안 여는 태그들. 검사기 표본도 이 길을 지난다.
+ *
+ * **화면 본문(템플릿 블록)만 보고, 주석은 SFC 문법 트리가 가른다** (#30). 주석 안의 예문과 스크립트의
+ * 문자열에 안 속고, 속성값 속 `<!--`에 몸통을 잃지 않는다 — *"검사기가 잡는다: 속성값 속 주석 표시 사이의
+ * 몸통"*이 문다.
+ */
+function bodyTagsOf(source: string, rows: boolean, path = 'sample.vue'): string[] {
+  const template = templateOf(path, source)
   const pattern = rows ? BODY_ROW : BODY_TAG
   return [...template.matchAll(/<tbody[\s\S]*?<\/tbody>/g)].flatMap((body) =>
     [...body[0].matchAll(pattern)].map((tag) => tag[0]),
@@ -78,6 +86,71 @@ function oneLine(tag: string): string {
   return tag.split(/\s+/).join(' ').slice(0, 80)
 }
 
+/** CSS 규칙 하나 — 쉼표로 나눈 선택자들과 그 규칙이 직접 적은 속성들. */
+interface CssRule {
+  readonly selectors: readonly string[]
+  readonly declarations: readonly { readonly prop: string; readonly value: string }[]
+}
+
+/**
+ * CSS의 규칙들. **주석은 CSS 파서(`postcss`)가 가른다** (#30) — 정규식으로 글자를 맞추던 때는 주석에
+ * 적힌 규칙 모양이 요구를 채워, 실제 규칙이 빠져도 초록이었다(*"검사기가 안 속는다: 주석에 적힌 규칙"*이
+ * 문다). 선택자의 공백은 하나로 줄인다. 파서가 못 읽는 CSS면 던진다.
+ */
+function cssRules(css: string): CssRule[] {
+  const found: CssRule[] = []
+  postcss.parse(css).walkRules((rule) => {
+    found.push({
+      selectors: rule.selectors.map((one) => one.replace(/\s+/g, ' ').trim()),
+      declarations: (rule.nodes ?? [])
+        .filter((node) => node.type === 'decl')
+        .map((node) => ({ prop: node.prop.toLowerCase(), value: node.value })),
+    })
+  })
+  return found
+}
+
+/** 몸통 줄에 마우스가 얹혔을 때의 규칙들. */
+function hoverRules(css: string): CssRule[] {
+  return cssRules(css).filter((rule) =>
+    rule.selectors.some((one) => /\btbody tr[^,]*:hover/.test(one)),
+  )
+}
+
+/** 얹힌 줄이 `row-hover` 한 겹을 입는가. */
+function paintsRowHover(css: string): boolean {
+  return hoverRules(css).some((rule) =>
+    rule.declarations.some(({ value }) => value.includes(`--color-${HOVER}`)),
+  )
+}
+
+/** 얹힌 줄이 고른 줄의 색을 입는가. */
+function hoverWearsChosen(css: string): boolean {
+  return hoverRules(css).some((rule) =>
+    rule.declarations.some(({ value }) => value.includes(`--color-${CHOSEN}`)),
+  )
+}
+
+/** 얹힌 것이 **칸에**, **한 겹으로** 얹히는가. */
+function hoverOnCells(css: string): boolean {
+  return hoverRules(css).some(
+    (rule) =>
+      rule.selectors.some((one) => /tr:hover ?> ?(th|td)\b/.test(one)) &&
+      rule.declarations.some(({ prop }) => prop === 'background-image'),
+  )
+}
+
+/** 몸통의 줄 이름표 칸이 제 배경을 지우는가. */
+function rowLabelClear(css: string): boolean {
+  return cssRules(css).some(
+    (rule) =>
+      rule.selectors.includes('& tbody th') &&
+      rule.declarations.some(
+        ({ prop, value }) => prop === 'background-color' && value.trim() === 'transparent',
+      ),
+  )
+}
+
 describe('마우스가 얹힌 줄', () => {
   const css = readFileSync(UTILITIES, 'utf8')
 
@@ -86,21 +159,16 @@ describe('마우스가 얹힌 줄', () => {
    * 멀쩡히 그려지고, 빠진 것을 아무도 못 본다 — 실제로 열둘이 빠져 있었다.
    */
   it('data-table이 몸통 줄에 강조를 준다', () => {
-    expect(css, 'data-table has no row hover').toMatch(
-      new RegExp(String.raw`&\s*tbody\s+tr[^{]*:hover[^{]*\{[^}]*--color-` + HOVER),
-    )
+    expect(paintsRowHover(css), 'data-table has no row hover').toBe(true)
   })
 
   /**
    * **얹힌 색과 고른 색은 다른 것이다.** 하나로 합치면 마우스가 지나간 줄과 열어 둔 줄이
    * 같은 모양이 된다 (2026-09-18에 한 번 그렇게 만들었다가 사용자가 잡았다).
    */
-  /** 얹힌 줄을 그리는 규칙 하나. 아래 검사들이 이 덩어리를 읽는다. */
-  const hoverRule = css.match(/&\s*tbody\s+tr[^{]*:hover[^{]*\{[^}]*\}/)?.[0] ?? ''
-
   it('얹힌 색과 고른 색이 다르다', () => {
-    expect(hoverRule, 'no row hover rule to read').not.toBe('')
-    expect(hoverRule, 'hover wears the chosen colour').not.toContain(`--color-${CHOSEN}`)
+    expect(hoverRules(css).length, 'no row hover rule to read').toBeGreaterThan(0)
+    expect(hoverWearsChosen(css), 'hover wears the chosen colour').toBe(false)
   })
 
   /**
@@ -113,8 +181,7 @@ describe('마우스가 얹힌 줄', () => {
    * `background-color`면 칸이 제 색을 잃고, 한 겹이어도 줄에 걸면 칸이 그것을 가린다.
    */
   it('얹힌 것이 칸의 제 색 위에 얹힌다', () => {
-    expect(hoverRule, 'hover does not reach the cells').toMatch(/tr:hover\s*>\s*(th|td)/)
-    expect(hoverRule, 'hover paints under the cell colour').toContain('background-image')
+    expect(hoverOnCells(css), 'hover does not reach the cells as a layer').toBe(true)
   })
 
   /**
@@ -123,9 +190,36 @@ describe('마우스가 얹힌 줄', () => {
    * 칸만 회색인 채로** 칠해졌다. 칸의 배경은 줄의 배경을 언제나 이긴다.
    */
   it('몸통의 줄 이름표 칸은 제 배경을 안 갖는다', () => {
-    expect(css, 'a row label cell paints over the row').toMatch(
-      /&\s*tbody\s+th\s*\{[^}]*background-color:\s*transparent/,
-    )
+    expect(rowLabelClear(css), 'a row label cell paints over the row').toBe(true)
+  })
+
+  /**
+   * **CSS 검사기가 주석에 속지 않는다** (#30). 주석에 적힌 규칙 모양은 규칙이 아니고, 문자열 속 `/*`는
+   * 값이다. 정규식으로 맞추던 때는 앞의 것만으로 모두 초록이었다.
+   */
+  it('검사기가 안 속는다: 주석에 적힌 규칙', () => {
+    const noted = [
+      '/* & tbody tr:hover > td { background-image: var(--color-row-hover); } */',
+      '/* & tbody th { background-color: transparent; } */',
+      '& tbody tr:hover { background-color: var(--color-brand-soft); }',
+      '& tbody th { border-top: 1px solid; }',
+    ].join('\n')
+    expect(paintsRowHover(noted)).toBe(false)
+    expect(hoverOnCells(noted)).toBe(false)
+    expect(rowLabelClear(noted)).toBe(false)
+    expect(hoverWearsChosen(noted)).toBe(true)
+  })
+
+  it('검사기가 잡는다: 문자열 속 주석 표시 사이의 규칙', () => {
+    const quoted = [
+      '& caption { content: "/*"; }',
+      '& tbody tr:hover > td { background-image: linear-gradient(var(--color-row-hover), red); }',
+      '& tbody th { background-color: transparent; }',
+      '& caption { content: "*/"; }',
+    ].join('\n')
+    expect(paintsRowHover(quoted)).toBe(true)
+    expect(hoverOnCells(quoted)).toBe(true)
+    expect(rowLabelClear(quoted)).toBe(true)
   })
 
   it('화면이 다른 색으로 덮지 않는다', () => {
@@ -209,6 +303,34 @@ describe('검사기가 실제로 잡는다', () => {
     const screen = `<template><table><thead><tr><th>a</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></template>`
     const rows = [...(screen.match(/<tbody[\s\S]*?<\/tbody>/) ?? [''])[0].matchAll(BODY_ROW)]
     expect(rows).toHaveLength(1)
+  })
+
+  /**
+   * **속성값 속 주석 표시가 몸통을 지우지 않는다** (#30). `<!--[\s\S]*?-->`로 걷던 때는 속성값 `'<!--'`에서
+   * 열려 뒤의 `'-->'`까지 — 다른 색을 입은 줄이 든 몸통을 통째로 — 지웠다.
+   */
+  it('검사기가 잡는다: 속성값 속 주석 표시 사이의 몸통', () => {
+    const screen = [
+      '<template>',
+      '  <p title="<!--">x</p>',
+      '  <table><tbody><tr class="hover:bg-surface-sunken"><td>1</td></tr></tbody></table>',
+      '  <p title="-->">y</p>',
+      '</template>',
+    ].join('\n')
+    expect(bodyTagsOf(screen, true)).toEqual(['<tr class="hover:bg-surface-sunken">'])
+  })
+
+  it('검사기가 안 잡는다: 주석과 스크립트 안의 몸통', () => {
+    const screen = [
+      '<script setup lang="ts">',
+      'const sample = \'<tbody><tr class="hover:bg-surface-sunken"></tr></tbody>\'',
+      '</script>',
+      '<template>',
+      '  <!-- <table><tbody><tr class="hover:bg-surface-sunken"><td>1</td></tr></tbody></table> -->',
+      '  <p>x</p>',
+      '</template>',
+    ].join('\n')
+    expect(bodyTagsOf(screen, false)).toEqual([])
   })
 
   it('칸까지 세는 자리가 줄과 칸을 모두 본다', () => {

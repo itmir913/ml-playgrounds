@@ -18,18 +18,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { isClientError } from '../src/errors'
 import en from '../src/locales/en.json'
 import ko from '../src/locales/ko.json'
-import { closeStorage, DB_NAME, loadProject, saveProject } from '../src/project/storage'
+import { closeStorage, loadProject, saveProject } from '../src/project/storage'
 import { manifest, projectFile } from './fixtures/project'
 import { refuseWrites } from './fixtures/storage-refusal'
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
+import { resetDatabase } from './fixtures/database'
 
 function stubStorage(estimate: () => Promise<StorageEstimate>): void {
   Object.defineProperty(navigator, 'storage', { configurable: true, value: { estimate } })
@@ -59,13 +51,13 @@ function settles(work: Promise<void>): Promise<'done' | 'hung'> {
 
 beforeEach(async () => {
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 afterEach(async () => {
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 describe('결정 73: 쓰기 전에 여유를 재지 않는다', () => {

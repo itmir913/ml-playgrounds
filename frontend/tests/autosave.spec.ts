@@ -22,13 +22,14 @@ import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { AUTOSAVE_DELAY_MS } from '../src/limits'
 import { exportStateOf } from '../src/project/export-state'
 import { readProject } from '../src/project/format'
-import { closeStorage, DB_NAME, loadProject, readExportedAt } from '../src/project/storage'
+import { closeStorage, loadProject, readExportedAt } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import { emptyProjectFile, manifest, projectFile } from './fixtures/project'
 import { refuseWrites } from './fixtures/storage-refusal'
 import { hashBytes } from '../src/hash'
 import type { ProjectFile } from '../src/project/format'
+import { resetDatabase } from './fixtures/database'
 
 const downloads: { fileName: string; blob: Blob }[] = []
 
@@ -70,15 +71,6 @@ async function downloadedBytes(index: number): Promise<Uint8Array> {
   return new Uint8Array(await entry.blob.arrayBuffer())
 }
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 /**
  * 여기서부터 브라우저가 쓰기를 쿼터로 거절한다(`fixtures/storage-refusal.ts`). 되돌리는 것은
  * `allow()`나 afterEach다.
@@ -107,7 +99,7 @@ beforeEach(async () => {
   downloads.length = 0
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   // setTimeout만 가짜로 바꾼다. 전부 바꾸면 fake-indexeddb가 자기 이벤트 루프를
   // 돌리지 못해 모든 요청이 영원히 안 끝난다.
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
@@ -120,7 +112,7 @@ afterEach(async () => {
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   vi.useRealTimers()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 describe('자동 저장', () => {

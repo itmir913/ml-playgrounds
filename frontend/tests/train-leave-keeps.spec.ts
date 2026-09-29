@@ -43,23 +43,16 @@ vi.mock('../src/ml/worker/spawn', () => ({
 }))
 
 import { i18n, setLocale } from '../src/i18n'
-import { closeStorage, DB_NAME, loadProject, saveProject } from '../src/project/storage'
+import { closeStorage, loadProject, saveProject } from '../src/project/storage'
 import { router } from '../src/router'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import { stubDialogElement } from './fixtures/image-workers'
 import { irisProject } from './fixtures/trained'
+import { resetDatabase } from './fixtures/database'
 
 const t = (key: string): string => i18n.global.t(key)
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
+const WAIT_MS = 10_000
 
 async function settle(): Promise<void> {
   for (let round = 0; round < 3; round += 1) {
@@ -93,7 +86,7 @@ beforeEach(async () => {
   held.length = 0
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   window.scrollTo = () => {}
   Object.defineProperty(navigator, 'storage', {
@@ -107,10 +100,9 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  useProjectStore().close()
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 const Host = defineComponent({ render: () => h(RouterView) })
@@ -168,10 +160,13 @@ describe('학습 도중에 떠난다', { timeout: 60_000 }, () => {
     leaveButton(wrapper).click()
     await settle()
     await drain()
-    await settle()
-    expect(router.currentRoute.value.path).toBe(target)
+    // **끝 상태를 기다린다** (2026-09-29). 이동은 라우터 가드가 미뤄 둔 저장(`flush`)을 끝낸 뒤에야
+    // 끝나는데(`router/index.ts`), 그 쓰기는 `fake-indexeddb`의 비동기 차례를 타서 정해진 틱 수 안에
+    // 끝난다는 보장이 없다 — 전체 관문에서 한 번 이동이 아직 `train`에 머문 채 단언이 먼저 걸렸다.
+    await vi.waitFor(() => expect(router.currentRoute.value.path).toBe(target), WAIT_MS)
 
-    // 끝난 한 모델이 실험으로 남고, 저장까지 갔다.
+    // 끝난 한 모델이 실험으로 남고, 저장까지 갔다. **경로가 닿았으면 가드의 `flush`가 끝났으므로 바로
+    // 읽는다** — 여기서 기다리면 뒤늦은 자동 저장 타이머가 빠진 `flush`를 가린다.
     const stored = await loadProject(id)
     expect(stored?.document.runs.experiments ?? [], 'stored experiments').toHaveLength(1)
     expect(stored?.document.runs.experiments[0]?.runs ?? [], 'stored runs').toHaveLength(1)

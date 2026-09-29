@@ -16,12 +16,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { i18n, setLocale } from '../src/i18n'
 import type { ProjectFile } from '../src/project/format'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import ImagePredictPanel from '../src/views/predict/ImagePredictPanel.vue'
 import PredictFilters from '../src/views/predict/PredictFilters.vue'
 import { imagePredictProject, resetImageWorkers, stubDialogElement } from './fixtures/image-workers'
 import { experiment, run } from './fixtures/project'
+import { resetDatabase } from './fixtures/database'
 
 vi.mock('../src/ml/embed/spawn', async () => {
   const { fakeEmbedWorker } = await import('./fixtures/image-workers')
@@ -35,20 +36,11 @@ vi.mock('../src/data/image/spawn', async () => {
 
 vi.mock('../src/data/image/room', () => ({ imageRoomShortfall: async () => null }))
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 beforeEach(async () => {
   setActivePinia(createPinia())
   resetImageWorkers()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   Object.defineProperty(navigator, 'storage', {
     configurable: true,
     value: { estimate: () => Promise.resolve({ quota: 10_000_000_000, usage: 0 }) },
@@ -62,7 +54,7 @@ beforeEach(async () => {
 afterEach(async () => {
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 /** 결정트리와 KNN을 돌린 실험 하나. 모델 파일은 없다 — 필터는 목록만 본다. */

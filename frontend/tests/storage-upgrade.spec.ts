@@ -22,15 +22,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
 import { closeStorage, DB_NAME, DB_VERSION, listProjects } from '../src/project/storage'
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
+import { resetDatabase } from './fixtures/database'
 
 /**
  * 새 탭이 한 칸 높은 버전으로 연다. **막히면 `'blocked'`로 끝난다** — 기다림에 끝을 두지
@@ -55,12 +47,12 @@ function openAsNewerTab(): Promise<'opened' | 'blocked'> {
 
 beforeEach(async () => {
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 afterEach(async () => {
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 describe('더 새 버전의 탭이 오면', () => {

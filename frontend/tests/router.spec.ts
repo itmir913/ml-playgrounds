@@ -15,11 +15,12 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { ROUTE_PROJECT_HOME, ROUTE_PROJECTS, router } from '../src/router'
-import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
+import { closeStorage, saveProject } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import { experiment, emptyProjectFile, manifest, projectFile, run } from './fixtures/project'
 import { refuseWrites } from './fixtures/storage-refusal'
+import { resetDatabase } from './fixtures/database'
 
 /**
  * 저장이 거절되는 상태. 쓰기가 브라우저처럼 `QuotaExceededError`를 던진다 — 쓰기 전 여유 검사는
@@ -27,35 +28,23 @@ import { refuseWrites } from './fixtures/storage-refusal'
  */
 let refusal: { restore: () => void } | null = null
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 beforeEach(async () => {
   // jsdom에는 scrollTo가 없어서 이동할 때마다 "Not implemented"를 찍는다.
   // 진짜 실패가 그 안에 묻힌다.
   window.scrollTo = () => {}
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   await router.replace('/')
   await router.isReady()
 })
 
 afterEach(async () => {
-  // 미뤄 둔 자동 저장을 이 검사 안에서 끊는다 — 다음 검사의 저장소에 옛 파일을 덮어쓰지 않게
-  // (`option-cascade.spec.ts`의 같은 줄, 2026-09-27).
   refusal?.restore()
   refusal = null
-  useProjectStore().close()
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 /**

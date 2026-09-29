@@ -23,7 +23,7 @@ import { hashBytes } from '../src/hash'
 import { i18n, setLocale } from '../src/i18n'
 import type { ProjectFile } from '../src/project/format'
 import { readImages } from '../src/project/images'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import ImagePredictPanel from '../src/views/predict/ImagePredictPanel.vue'
@@ -35,6 +35,7 @@ import {
   stubDialogElement,
   workerState,
 } from './fixtures/image-workers'
+import { resetDatabase } from './fixtures/database'
 
 vi.mock('../src/ml/embed/spawn', async () => {
   const { fakeEmbedWorker } = await import('./fixtures/image-workers')
@@ -84,15 +85,6 @@ async function settle(): Promise<void> {
   }
 }
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 interface PanelInternals {
   run: () => Promise<void>
   onDrop: (event: Event) => void
@@ -108,7 +100,7 @@ beforeEach(async () => {
   bakers.workers.length = 0
   gate.failSave = false
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   Object.defineProperty(navigator, 'storage', {
     configurable: true,
     value: { estimate: () => Promise.resolve({ quota: 10_000_000_000, usage: 0 }) },
@@ -122,7 +114,7 @@ beforeEach(async () => {
 afterEach(async () => {
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 const dangers = () => useToastStore().items.filter((one) => one.tone === 'danger')

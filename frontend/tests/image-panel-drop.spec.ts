@@ -20,7 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { i18n, setLocale } from '../src/i18n'
 import type { ProjectFile } from '../src/project/format'
 import { readImages } from '../src/project/images'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import ImagePanel from '../src/views/data/ImagePanel.vue'
@@ -31,6 +31,7 @@ import {
   stubDialogElement,
   workerState,
 } from './fixtures/image-workers'
+import { resetDatabase } from './fixtures/database'
 
 vi.mock('../src/data/image/spawn', async () => {
   const { fakeCanonicalizeWorker } = await import('./fixtures/image-workers')
@@ -80,15 +81,6 @@ async function settle(): Promise<void> {
   await flushPromises()
 }
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 /** 화면 안쪽. **띄운 판에 직접 묻는다** — 드롭과 굽기의 순서를 검사가 정해야 해서다. */
 interface PanelInternals {
   bake: () => Promise<void>
@@ -121,7 +113,7 @@ beforeEach(async () => {
   room.waiting.length = 0
   resetImageWorkers()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   Object.defineProperty(navigator, 'storage', {
     configurable: true,
     value: { estimate: () => Promise.resolve({ quota: 10_000_000_000, usage: 0 }) },
@@ -135,7 +127,7 @@ beforeEach(async () => {
 afterEach(async () => {
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 /** 사진 없는 이미지 프로젝트를 띄우고, `a.jpg`를 확인 판에 세운 뒤 굽기를 열어 둔다. */

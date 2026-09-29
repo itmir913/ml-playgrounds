@@ -19,7 +19,6 @@ import { IMAGE_DATA_DIR, type ProjectFile } from '../src/project/format'
 import { dataSettings } from '../src/project/schema'
 import {
   closeStorage,
-  DB_NAME,
   loadProject,
   markExported,
   readExportedAt,
@@ -30,15 +29,7 @@ import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import { emptyProjectFile, manifest, projectFile } from './fixtures/project'
 import { refuseWrites } from './fixtures/storage-refusal'
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
+import { resetDatabase } from './fixtures/database'
 
 /** 사진이 한 장도 없는데 훈련 폴더를 가리키는 이미지 프로젝트. 실험은 없다. */
 function emptyFolderProject(): ProjectFile {
@@ -63,13 +54,12 @@ function emptyFolderProject(): ProjectFile {
 beforeEach(async () => {
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 afterEach(async () => {
-  useProjectStore().close()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 describe('본체 없는 폴더 참조를 떼고 열면', () => {

@@ -24,7 +24,7 @@ import { newProjectDocument } from '../src/project/create'
 import type { ProjectFile } from '../src/project/format'
 import { addImages, imageCategories, readImages } from '../src/project/images'
 import { dataSettings, type Experiment } from '../src/project/schema'
-import { closeStorage, DB_NAME, loadProject, saveProject } from '../src/project/storage'
+import { closeStorage, loadProject, saveProject } from '../src/project/storage'
 import { router } from '../src/router'
 import { useProjectStore } from '../src/stores/project'
 import ImagePanel from '../src/views/data/ImagePanel.vue'
@@ -43,6 +43,7 @@ import {
 } from './fixtures/image-workers'
 import { experiment } from './fixtures/project'
 import { irisProject, trainedIrisProject } from './fixtures/trained'
+import { resetDatabase } from './fixtures/database'
 
 vi.mock('../src/data/image/spawn', async () => {
   const { fakeCanonicalizeWorker } = await import('./fixtures/image-workers')
@@ -69,20 +70,11 @@ async function settle(): Promise<void> {
   }
 }
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 beforeEach(async () => {
   setActivePinia(createPinia())
   resetImageWorkers()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   stubObjectUrls()
   window.scrollTo = () => {}
@@ -100,15 +92,12 @@ beforeEach(async () => {
 const mounted: VueWrapper[] = []
 
 afterEach(async () => {
-  // 미뤄 둔 자동 저장을 이 검사 안에서 끊는다 — 다음 검사의 저장소에 옛 파일을 덮어쓰지 않게
-  // (`option-cascade.spec.ts`의 같은 줄, 2026-09-27).
-  useProjectStore().close()
   await router.push('/')
   await settle()
   for (const wrapper of mounted.splice(0)) wrapper.unmount()
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 function withId(file: ProjectFile, projectId: string): ProjectFile {

@@ -69,7 +69,7 @@ import { readDataset } from '../src/project/dataset'
 import { DATA_FACTS } from '../src/project/facts'
 import type { ProjectFile } from '../src/project/format'
 import { withFeatures, withSampling, withSplit, withTaskType } from '../src/project/settings'
-import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
+import { closeStorage, saveProject } from '../src/project/storage'
 import { router } from '../src/router'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
@@ -79,19 +79,11 @@ import TrainView from '../src/views/TrainView.vue'
 import { stubDialogElement } from './fixtures/image-workers'
 import { IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN } from './fixtures/iris'
 import { irisProject } from './fixtures/trained'
+import { resetDatabase } from './fixtures/database'
 
 const NOW = '2026-09-23T00:00:00Z'
 const WAIT_MS = 10_000
 const t = (key: string, params: Record<string, unknown> = {}): string => i18n.global.t(key, params)
-
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
 
 async function settle(): Promise<void> {
   for (let round = 0; round < 3; round += 1) {
@@ -110,7 +102,7 @@ function occurrences(text: string, fragment: string): number {
 beforeEach(async () => {
   setActivePinia(createPinia())
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   window.scrollTo = () => {}
   // jsdom에는 없다. 시각화 창이 도구를 고르면 그림으로 데려간다(`ChartDialog`의 `pickTool`).
@@ -128,13 +120,13 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  // **미뤄 둔 자동 저장을 이 검사 안에서 끊는다.** 검사마다 같은 `projectId`의 iris를 쓰는데,
-  // 유형을 누른 검사의 타이머가 다음 검사의 `saveProject` 뒤에 터져 옛 파일(유형 = 분류)을 덮어
-  // 썼다 — 부하에서만 *"유형이 빠진 파일에서"*가 `classification`을 받던 원인이다(2026-09-27).
-  useProjectStore().close()
+  // **미뤄 둔 자동 저장은 `resetDatabase`가 스토어를 닫아 이 검사 안에서 끊는다.** 검사마다 같은
+  // `projectId`의 iris를 쓰는데, 유형을 누른 검사의 타이머가 다음 검사의 `saveProject` 뒤에 터져 옛
+  // 파일(유형 = 분류)을 덮어 썼다 — 부하에서만 *"유형이 빠진 파일에서"*가 `classification`을 받던
+  // 원인이다(2026-09-27). 지금은 도우미가 닫으므로 여기 따로 적는 줄이 없다(`fixtures/database.ts`).
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 // ------------------------------------------------------------------------------------ 1

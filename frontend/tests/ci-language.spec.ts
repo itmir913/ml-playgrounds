@@ -25,6 +25,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { scriptWithoutComments } from './fixtures/parsed-source'
 import { sourceFiles } from './fixtures/source'
 
 const TESTS = join(__dirname)
@@ -36,9 +37,14 @@ const HANGUL = /[가-힣]/
  */
 const EXEMPT = ['ci-language.spec.ts', 'i18n-usage.spec.ts']
 
-/** 주석을 걷어낸다. 규칙이 보는 것은 코드이지 그것을 설명하는 글이 아니다. */
+/**
+ * 주석을 걷어낸다. 규칙이 보는 것은 코드이지 그것을 설명하는 글이 아니다.
+ *
+ * **주석은 TypeScript 파서가 가른다** (#30). 정규식으로 걷던 때는 문자열 `'/*'`·`'https://'`가 주석을
+ * 열어 그 뒤의 메시지를 지웠다 — 아래 *"검사기가 잡는다: 문자열 속 주석 표시 뒤의 한글"*이 문다.
+ */
 function withoutComments(source: string): string {
-  return source.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/\/\/.*/g, '')
+  return scriptWithoutComments(source)
 }
 
 /**
@@ -124,5 +130,30 @@ describe('CI가 뱉는 글자는 영어다', () => {
     expect(messageArgs("expect(t('개')).toBe(1)")).toEqual([])
     expect(THROWN.test("throw new Error('한글이다')")).toBe(true)
     expect(THROWN.test("throw new Error('english only')")).toBe(false)
+  })
+
+  /**
+   * **문자열 속 주석 표시가 검사를 끄지 않는다** (#30). 정규식으로 걷던 때는 `'/*'`가 블록 주석을 열어
+   * 다음 `'*\/'`까지의 메시지를 삼켰고, `'https://'`가 줄 주석을 열어 그 줄의 나머지를 지웠다.
+   */
+  it('검사기가 잡는다: 문자열 속 주석 표시 뒤의 한글', () => {
+    const block = ["const open = '/*'", "expect(a, '한글이다').toBe(1)", "const close = '*/'"]
+    expect(messageArgs(withoutComments(block.join('\n')))).toEqual(["'한글이다'"])
+    const line = "expect(a, 'https://example.org' + '한글이다').toBe(1)"
+    expect(messageArgs(withoutComments(line))).toEqual(["'https://example.org' + '한글이다'"])
+    const thrown = ["const open = '/*'", "throw new Error('한글이다')", "const close = '*/'"]
+    expect(THROWN.test(withoutComments(thrown.join('\n')))).toBe(true)
+    // 정규식 리터럴 안의 `//`도 글자다.
+    expect(messageArgs(withoutComments("expect(/https?:\\/\\//.test(a), '한글이다')"))).toEqual([
+      "'한글이다'",
+    ])
+  })
+
+  it('검사기가 안 잡는다: 주석 속 한글', () => {
+    expect(messageArgs(withoutComments("// expect(a, '한글이다').toBe(1)"))).toEqual([])
+    expect(messageArgs(withoutComments("/* expect(a, '한글이다') */ expect(a).toBe(1)"))).toEqual(
+      [],
+    )
+    expect(THROWN.test(withoutComments("/** throw new Error('한글이다') */"))).toBe(false)
   })
 })

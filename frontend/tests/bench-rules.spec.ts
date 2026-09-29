@@ -16,6 +16,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { parse as parseHtml, type DefaultTreeAdapterTypes } from 'parse5'
 import { describe, expect, it } from 'vitest'
 
 import { NEURAL_MAX_EPOCHS } from '../src/limits'
@@ -73,12 +74,46 @@ describe('실측 하니스는 배포본에 안 들어간다', () => {
    * 적은 HTML 주석이 있고 거기 `./bench.ts`가 글자로 들어 있다 — 걷지 않으면 `<script>`가
    * 다른 파일을 가리켜도 **주석만 보고 통과한다.**
    */
+  /**
+   * 문서가 하니스를 **`<script src>`로** 싣는가. **HTML 파서(`parse5`, 브라우저와 같은 규칙)가 가른다**
+   * (#30) — 주석 노드는 트리에서 따로 떨어지고(안 닫힌 `<!--`도 브라우저처럼 문서 끝까지 주석이다),
+   * 속성값 속 `<!--`는 값이다. 글자가 아니라 스크립트의 `src`를 본다.
+   */
+  function loadsHarness(html: string): boolean {
+    const sources: string[] = []
+    const visit = (node: DefaultTreeAdapterTypes.Node): void => {
+      if ('tagName' in node && node.tagName === 'script') {
+        const src = node.attrs.find((attribute) => attribute.name === 'src')
+        if (src !== undefined) sources.push(src.value)
+      }
+      if ('childNodes' in node) for (const child of node.childNodes) visit(child)
+    }
+    visit(parseHtml(html))
+    return sources.includes('./bench.ts')
+  }
+
   it('하니스가 제자리에 있다 - 파일이 사라지면 이 검사가 조용히 통과하지 않는다', () => {
-    const html = readFileSync(join(ROOT, 'tools', 'bench.html'), 'utf-8').replaceAll(
-      /<!--[\s\S]*?-->/g,
-      '',
-    )
-    expect(html).toContain('./bench.ts')
+    expect(loadsHarness(readFileSync(join(ROOT, 'tools', 'bench.html'), 'utf-8'))).toBe(true)
+  })
+
+  /**
+   * **닫히지 않은 `<!--`도 주석이다** (#30). 브라우저는 안 닫힌 주석을 문서 끝까지 주석으로 읽는데,
+   * 정규식은 짝이 없으면 안 걷어서 **주석 처리된 `<script>`를 보고 초록**이었다.
+   */
+  it('검사기가 잡는다: 닫히지 않은 주석 안의 스크립트', () => {
+    const page = '<!doctype html><body><!-- <script type="module" src="./bench.ts"></script></body>'
+    expect(loadsHarness(page)).toBe(false)
+    // 주석 뒤에 따라온 `./bench.ts` 글자는 스크립트가 아니다.
+    expect(loadsHarness('<!doctype html><body><p>./bench.ts</p></body>')).toBe(false)
+  })
+
+  it('검사기가 안 속는다: 속성값 속 주석 표시', () => {
+    const page = [
+      '<!doctype html><body><div title="<!--"></div>',
+      '<script type="module" src="./bench.ts"></script>',
+      '<p title="-->"></p></body>',
+    ].join('\n')
+    expect(loadsHarness(page)).toBe(true)
   })
 
   /**

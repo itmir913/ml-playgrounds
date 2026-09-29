@@ -28,11 +28,12 @@ import type { WorkerMessage, WorkerRequest } from '../src/ml/worker/protocol'
 import { newProjectDocument } from '../src/project/create'
 import type { ProjectFile } from '../src/project/format'
 import { addImages } from '../src/project/images'
-import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
+import { closeStorage, saveProject } from '../src/project/storage'
 import { ROUTE_PROJECTS, router } from '../src/router'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import { resetImageWorkers, stubDialogElement, workerState } from './fixtures/image-workers'
+import { resetDatabase } from './fixtures/database'
 
 const reportFirst = vi.hoisted(() => ({ value: false }))
 
@@ -121,15 +122,6 @@ async function settle(): Promise<void> {
   await flushPromises()
 }
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 const Host = defineComponent({ render: () => h(RouterView) })
 const SLOW = { timeout: 20_000 }
 
@@ -140,7 +132,7 @@ beforeEach(async () => {
   trainers.workers.length = 0
   reportFirst.value = false
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   Object.defineProperty(navigator, 'storage', {
     configurable: true,
     value: { estimate: () => Promise.resolve({ quota: 10_000_000_000, usage: 0 }) },
@@ -155,12 +147,9 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  // 미뤄 둔 자동 저장을 이 검사 안에서 끊는다 — 다음 검사의 저장소에 옛 파일을 덮어쓰지 않게
-  // (`option-cascade.spec.ts`의 같은 줄, 2026-09-27).
-  useProjectStore().close()
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 async function trainScreenAfterStart() {

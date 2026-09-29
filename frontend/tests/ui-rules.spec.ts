@@ -16,7 +16,7 @@ import { parse as parseHtml, type DefaultTreeAdapterTypes } from 'parse5'
 import postcss from 'postcss'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
-import { parse as parseSfc, type SFCTemplateBlock } from 'vue/compiler-sfc'
+import { parse as parseSfc } from 'vue/compiler-sfc'
 
 import {
   LOCK_PRIMITIVES,
@@ -25,6 +25,7 @@ import {
   TEMPLATE_LOCK_WORDS,
   WATCH_WRITES,
 } from '../src/locks'
+import { templateContent, templateOf as parsedTemplateOf } from './fixtures/parsed-source'
 import { isMarkup, sourceFiles, windowedHits, withoutComments } from './fixtures/source'
 
 /** 정규식과 예문 안에 그대로 못 적는다 - 이 파일 자신이 검사 대상이라 조립 자리로 읽힌다. */
@@ -889,6 +890,19 @@ describe('검사기가 실제로 잡는다', () => {
   })
 
   /**
+   * **한 줄 속성값 속 `<!--`도 주석이 아니다** (#30에서 쟀다). 이 스캐너는 따옴표를 줄 안에서 따라가므로
+   * 속성값 `'<!--'`·`"<!--"`에서 주석을 열지 않는다. **여러 줄에 걸친 속성값·템플릿 리터럴과 정규식
+   * 리터럴 안의 표시는 못 가른다** — 따옴표를 줄마다 새로 세기 때문이다(`docs/rule-coverage.md`의
+   * "소스를 글자로 보는 검사가 주석을 파서로 걷는가" 줄).
+   */
+  it('한 줄 속성값 속 `<!--`는 주석이 아니다 - 그 사이 규칙이 산다', () => {
+    const double = '<template><p title="<!--">x</p><p class="text-xs" title="-->">y</p></template>'
+    expect(withoutComments(double).join('')).toContain('text-xs')
+    const single = "<template><p title='<!--'>x</p><p class='text-xs' title='-->'>y</p></template>"
+    expect(withoutComments(single).join('')).toContain('text-xs')
+  })
+
+  /**
    * **`.ts`의 `<!--`는 주석이 아니다** (R41 별건 B). 정규식 리터럴 안의 `<!--`를 HTML
    * 주석으로 읽으면 그 뒤를 다음 `-->`까지 삼킨다. 표본은 `project/portfolio.ts`의 그
    * 모양이고, 삼켜지는 자리에 `secure-context-rules`와 `i18n-usage`가 막는 코드를 둔다.
@@ -1178,12 +1192,13 @@ describe('화면의 루트가 하나다', () => {
     readonly attrs: string
   }
 
-  /** 최상위 여는 태그들. `.vue`의 최상위는 두 칸 들여쓰기다(Prettier가 맞춰 준다). */
-  function roots(source: string): Root[] {
-    const start = source.indexOf('<template>') + '<template>'.length
-    const block = source
-      .slice(start, source.lastIndexOf('</template>'))
-      .replace(/<!--[\s\S]*?-->/g, '')
+  /**
+   * 최상위 여는 태그들. `.vue`의 최상위는 두 칸 들여쓰기다(Prettier가 맞춰 준다).
+   *
+   * **주석은 SFC 문법 트리가 가른다** (#30) — *"검사기가 잡는다: 속성값 속 주석 표시 사이의 루트"*가 문다.
+   */
+  function roots(source: string, path = 'sample.vue'): Root[] {
+    const block = parsedTemplateOf(path, source)
     // 여기도 `ATTRS`다. 루트 태그가 `<div v-if="rows.length > 0">`이면 `[^>]*`에서
     // 잘려 **그 화면의 루트를 하나 덜 세고**, 루트가 둘인 것을 못 본다.
     const rootTag = new RegExp(String.raw`^ {2}<([A-Za-z][\w-]*)(${ATTRS})>`, 'gm')
@@ -1194,14 +1209,37 @@ describe('화면의 루트가 하나다', () => {
   }
 
   /** 동시에 그려질 수 있는 루트. v-else 가지는 앞의 것과 같은 자리를 나눠 쓴다. */
-  function drawnAtOnce(source: string): string[] {
-    return roots(source)
+  function drawnAtOnce(source: string, path?: string): string[] {
+    return roots(source, path)
       .filter((root) => !/\bv-else\b|\bv-else-if=/.test(root.attrs))
       .map((root) => root.tag)
   }
 
   it('검사기가 v-else 짝을 하나로 센다', () => {
     const source = '<template>\n  <div v-if="x">a</div>\n\n  <AppEmpty v-else />\n</template>'
+    expect(drawnAtOnce(source)).toEqual(['div'])
+  })
+
+  /**
+   * **속성값 속 주석 표시가 루트를 지우지 않는다** (#30). `<!--[\s\S]*?-->`로 걷던 때는 첫 루트의 속성값
+   * `'<!--'`에서 열려 마지막 루트의 `'-->'`까지 삼켜, 여러 루트를 하나로 셌다.
+   */
+  it('검사기가 잡는다: 속성값 속 주석 표시 사이의 루트', () => {
+    const source = [
+      '<template>',
+      '  <div title="<!--">a</div>',
+      '',
+      '  <section>b</section>',
+      '',
+      '  <i title="-->" />',
+      '</template>',
+    ].join('\n')
+    expect(drawnAtOnce(source)).toEqual(['div', 'section', 'i'])
+  })
+
+  it('검사기가 안 잡는다: 주석 안의 루트', () => {
+    const source =
+      '<template>\n  <div>a</div>\n\n  <!--\n  <section>b</section>\n  -->\n</template>'
     expect(drawnAtOnce(source)).toEqual(['div'])
   })
 
@@ -1214,7 +1252,10 @@ describe('화면의 루트가 하나다', () => {
   it('지금 모든 화면의 루트가 하나다', () => {
     const found = readdirSync(VIEWS)
       .filter((entry) => entry.endsWith('.vue'))
-      .map((entry) => ({ entry, tags: drawnAtOnce(readFileSync(join(VIEWS, entry), 'utf-8')) }))
+      .map((entry) => {
+        const path = join(VIEWS, entry)
+        return { entry, tags: drawnAtOnce(readFileSync(path, 'utf-8'), path) }
+      })
       .filter(({ tags }) => tags.length !== 1)
       .map(({ entry, tags }) => `${entry}  ${tags.join(', ')}`)
     expect(found).toEqual([])
@@ -3225,19 +3266,32 @@ describe('폭에 따라 글자를 숨기는 손잡이', () => {
     a: /\s(?::|v-bind:)?(?:aria-label|title)=/,
   }
 
+  /**
+   * 한 파일에서 폭에 따라 글자를 숨기는 손잡이가 있는가, 그중 이름이 없는 것. **템플릿 블록만 보고, 주석은
+   * SFC 문법 트리가 가른다** (#30) — 아래 *"검사기가 잡는다: 속성값 속 주석 표시 사이의 숨는 글자"*가 문다.
+   */
+  function widthHandles(name: string, source: string): { hides: boolean; unnamed: string[] } {
+    let hides = false
+    const unnamed: string[] = []
+    for (const [, tag, attrs, inner] of parsedTemplateOf(name, source).matchAll(handle)) {
+      const body = inner ?? ''
+      if (!hidesText.test(body)) continue
+      hides = true
+      const visible = body.replace(hidden, '')
+      const named = NAMES[tag ?? '']?.test(attrs ?? '') ?? false
+      if (!visible.includes('{{') && !named) unnamed.push(`${name} <${tag}>`)
+    }
+    return { hides, unnamed }
+  }
+
   it('이름을 가진다', () => {
     const offenders: string[] = []
     const seen = new Set<string>()
     for (const file of sourceFiles(SRC).filter((one) => one.endsWith('.vue'))) {
       const name = relative(SRC, file).split(sep).join('/')
-      for (const [, tag, attrs, inner] of readFileSync(file, 'utf-8').matchAll(handle)) {
-        const body = (inner ?? '').replace(/<!--[\s\S]*?-->/g, '')
-        if (!hidesText.test(body)) continue
-        seen.add(name)
-        const visible = body.replace(hidden, '')
-        const named = NAMES[tag ?? '']?.test(attrs ?? '') ?? false
-        if (!visible.includes('{{') && !named) offenders.push(`${name} <${tag}>`)
-      }
+      const { hides, unnamed } = widthHandles(name, readFileSync(file, 'utf-8'))
+      if (hides) seen.add(name)
+      offenders.push(...unnamed)
     }
     // 규칙이 무는 자리가 **그 자리들 그대로**인지 — 수만 보면 정규식이 한 갈래를 통째로 잃어도
     // 다른 갈래가 수를 채워 초록이 된다(그 패치 감사 C-2d).
@@ -3252,6 +3306,36 @@ describe('폭에 따라 글자를 숨기는 손잡이', () => {
       'views/predict/TabularPredictPanel.vue',
     ])
     expect(offenders, 'handle hides its text by width without a name').toEqual([])
+  })
+
+  /**
+   * **속성값 속 주석 표시가 숨는 글자를 지우지 않는다** (#30). `<!--[\s\S]*?-->`로 걷던 때는 손잡이 안의
+   * 속성값 `'<!--'`에서 열려 뒤의 `'-->'`까지 — 숨는 글자까지 — 지워, 이름 없는 손잡이를 안 봤다.
+   */
+  it('검사기가 잡는다: 속성값 속 주석 표시 사이의 숨는 글자', () => {
+    const source = [
+      '<template>',
+      '  <button type="button">',
+      '    <span title="<!--" />',
+      '    <span class="max-sm:hidden">{{ t(\'x\') }}</span>',
+      '    <span title="-->" />',
+      '  </button>',
+      '</template>',
+    ].join('\n')
+    expect(widthHandles('sample.vue', source)).toEqual({
+      hides: true,
+      unnamed: ['sample.vue <button>'],
+    })
+  })
+
+  it('검사기가 안 잡는다: 주석 안의 손잡이', () => {
+    const source = [
+      '<template>',
+      '  <!-- <button type="button"><span class="max-sm:hidden">x</span></button> -->',
+      '  <p>x</p>',
+      '</template>',
+    ].join('\n')
+    expect(widthHandles('sample.vue', source)).toEqual({ hides: false, unnamed: [] })
   })
 })
 
@@ -3499,37 +3583,8 @@ describe('잠금 낱말은 기본 부품에만 있다', () => {
     )
   }
 
-  /** 템플릿 문법 트리의 주석 노드 (`@vue/compiler-core`의 `NodeTypes.COMMENT`). */
-  const COMMENT_NODE = 3
-
-  /**
-   * 템플릿 블록의 글자에서 **HTML 주석만** 걷는다. **주석은 정규식이 아니라 문법 트리의 주석 노드
-   * 자리로 가른다** (0.30.0 배포 승인 감사 A-1) — `<!--[\s\S]*?-->`는 속성값 `'<!--'`에서 열려 뒤의
-   * 속성값 `'-->'`까지 사이의 `:disabled`를 통째로 삼켰다. 트리가 없으면(다른 템플릿 언어) 걷지 않는다 —
-   * 더 보는 쪽으로 틀린다. 주석이 실제로 걷히는 것은 *"검사기가 안 잡는다: HTML comment in a template"*가,
-   * 속성값 안의 `<!--`가 주석이 아닌 것은 *"검사기가 잡는다: comment markers inside attribute values"*가 문다.
-   */
-  function templateContent(template: SFCTemplateBlock): string {
-    const base = template.loc.start.offset
-    const ranges: (readonly [number, number])[] = []
-    const visit = (node: { type: number; loc: SFCTemplateBlock['loc'] }): void => {
-      if (node.type === COMMENT_NODE) {
-        ranges.push([node.loc.start.offset - base, node.loc.end.offset - base])
-      }
-      const children = (node as { children?: unknown }).children
-      if (Array.isArray(children)) {
-        for (const child of children as { type: number; loc: SFCTemplateBlock['loc'] }[]) {
-          visit(child)
-        }
-      }
-    }
-    if (template.ast !== undefined) visit(template.ast)
-    let text = template.content
-    for (const [start, end] of ranges) {
-      text = text.slice(0, start) + ' '.repeat(end - start) + text.slice(end)
-    }
-    return text
-  }
+  // 템플릿 블록의 주석을 문법 트리로 걷는 `templateContent`는 `fixtures/parsed-source.ts`로 옮겼다 — 다른 검사들도
+  // 같은 길로 걷는다(#30).
 
   /**
    * 스타일의 글자. **주석은 CSS 파서(`postcss`)가 가른다** (0.30.0 배포 승인 감사 A-2) — 정규식

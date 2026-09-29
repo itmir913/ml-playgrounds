@@ -17,6 +17,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import type { Component } from 'vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
 import ProjectHomeView from '../src/views/ProjectHomeView.vue'
@@ -86,10 +87,14 @@ async function mountHome(dataType: DataType) {
  * 한 번에 끝나 `flushPromises()`로 확실히 붙는다. 이름을 열거하지 않고 디렉터리째 훑는
  * 이유는, 종류를 더하는 사람이 이 줄을 고치지 않아도 되게 하기 위해서다.
  */
-const SUMMARY_ROWS = import.meta.glob('../src/components/summary/*.vue')
+const SUMMARY_ROWS = import.meta.glob<{ default: Component }>('../src/components/summary/*.vue')
+
+/** 올려 둔 요약 줄 부품들. 아래 검사가 **붙었는지**를 이것으로 본다. */
+let summaryRows: Component[] = []
 
 beforeAll(async () => {
-  await Promise.all(Object.values(SUMMARY_ROWS).map((load) => load()))
+  const loaded = await Promise.all(Object.values(SUMMARY_ROWS).map((load) => load()))
+  summaryRows = loaded.map((module) => module.default)
 })
 
 beforeEach(async () => {
@@ -103,11 +108,18 @@ describe('대시보드는 모든 종류에서 문장을 갖는다', () => {
       const home = await mountHome(dataType)
 
       // 지연 로딩된 요약 줄이 붙기 전에는 그 줄들의 문구를 아무도 안 본다. **붙은
-      // 것을 확인하고 나서 읽는다** - 숫자를 적지 않고 붙기 전후를 견주는 이유는,
-      // 요약이 자기 줄을 몇 개 그리는지는 이 검사가 알 바가 아니기 때문이다.
-      const beforeRows = home.findAll('dl > div').length
+      // 것을 확인하고 나서 읽는다** — 요약 줄 부품이 트리에 섰고, 그 부품이 **줄을 실제로 그렸는가**
+      // (이름표 `dt`가 글자를 갖는가)를 본다. 몇 줄을 그리는지는 이 검사가 알 바가 아니다.
+      //
+      // **붙기 전후의 줄 수를 견주지 않는다** (2026-09-29). 비동기 부품은 한 번 풀리면 다음부터 곧장
+      // 그리므로, 같은 종류를 앞 검사가 먼저 띄우면 전후가 같다 — 순서를 섞은 관문
+      // (`--sequence.shuffle`)에서 앞의 "잠긴 단계" 검사가 먼저 돌 때 빨갰다.
       await flushPromises()
-      expect(home.findAll('dl > div').length, dataType).toBeGreaterThan(beforeRows)
+      const rows = summaryRows.map((one) => home.findComponent(one)).find((one) => one.exists())
+      expect(rows, `${dataType}: summary rows never attached`).toBeDefined()
+      const labels = rows!.findAll('dt').map((one) => one.text().trim())
+      expect(labels.length, `${dataType}: summary drew no row`).toBeGreaterThan(0)
+      expect(labels, `${dataType}: a summary row has no label`).not.toContain('')
 
       const text = home.text()
       // 던지지 않고 여기까지 왔다는 것이 이미 절반이다. 나머지 절반은 눈으로 보이는 모양이다 -

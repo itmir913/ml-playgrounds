@@ -31,11 +31,12 @@ import AppDialog from '../src/components/AppDialog.vue'
 import { i18n, setLocale } from '../src/i18n'
 import { IMAGE_UNLABELED } from '../src/project/format'
 import { imageCategories, readImages, removeImages } from '../src/project/images'
-import { closeStorage, DB_NAME } from '../src/project/storage'
+import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import ImageGrid from '../src/views/data/ImageGrid.vue'
 import ImagePanel from '../src/views/data/ImagePanel.vue'
 import { imagePredictProject, resetImageWorkers, stubDialogElement } from './fixtures/image-workers'
+import { resetDatabase } from './fixtures/database'
 
 vi.mock('../src/data/image/spawn', async () => {
   const { fakeCanonicalizeWorker } = await import('./fixtures/image-workers')
@@ -63,20 +64,11 @@ async function settle(): Promise<void> {
   await flushPromises()
 }
 
-async function deleteDatabase(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => resolve()
-    request.onblocked = () => resolve()
-  })
-}
-
 beforeEach(async () => {
   setActivePinia(createPinia())
   resetImageWorkers()
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
   stubDialogElement()
   URL.createObjectURL = () => 'blob:fake'
   URL.revokeObjectURL = () => {}
@@ -85,7 +77,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   closeStorage()
-  await deleteDatabase()
+  await resetDatabase()
 })
 
 const t = (key: string): string => i18n.global.t(key)
