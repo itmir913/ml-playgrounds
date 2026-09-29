@@ -143,6 +143,8 @@
 | **눈으로만 보이는 그림 규칙** | `chart-config.spec.ts` |
 | **`sr-only`에 담는 상자가 있는가** | `ui-rules.spec.ts` |
 | **계산과 잠금이 화면에서 실제로 만나는가** | `chart-dialog.spec.ts` |
+| **검사 사이에 자동 저장이 새지 않는가** — 저장소를 지우는 길이 하나이고 그 길이 스토어를 먼저 닫는다. 저장소를 지우지 않고 끝나는 스펙의 타이머는 못 본다 | `database-reset.spec.ts` · `tests/fixtures/database.ts` |
+| **소스를 글자로 보는 검사가 주석을 파서로 걷는가** — 속성값·문자열 속 주석 표시가 검사를 끄지 않는다. `fixtures/source.ts`의 스캐너(`withoutComments`)는 여러 줄 속성값·템플릿 리터럴과 정규식 리터럴 속 표시를 못 가른다 | `tests/fixtures/parsed-source.ts` · `ci-language.spec.ts` · `table-align.spec.ts` · `table-rows.spec.ts` · `ui-rules.spec.ts` · `bench-rules.spec.ts` · `locales.spec.ts` |
 
 
 
