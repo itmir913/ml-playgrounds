@@ -123,6 +123,14 @@ PROJECT_FILE_TOO_MANY_ENTRIES
 MODEL_FORMAT_UNSUPPORTED, MODEL_FILE_INVALID, MODEL_NEEDS_DATASET, STORAGE_QUOTA_EXCEEDED,
 STORAGE_VERSION_TOO_NEW
 ```
+**저장소가 다른 탭에 막혔다** (`project/storage.ts` — 실패가 아니라 기다리는 동안의 알림)
+```
+STORAGE_BLOCKED
+```
+**고른 파일을 못 읽었다** (`project/download.ts`의 `readFileBytes`·`readFileText`)
+```
+FILE_UNREADABLE
+```
 **예측 입력** (`ml/predict.ts`)
 ```
 PREDICTION_INPUT_INCOMPLETE

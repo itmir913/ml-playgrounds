@@ -116,8 +116,11 @@
 | `models` | 모델·전처리기 바이트 | Random Forest가 MB 단위다 |
 
 - 저장은 **한 트랜잭션**이다. 모델을 전부 지우고 새로 넣는다(§4.3).
-- 쓰기 전에 `navigator.storage.estimate()`로 여유를 확인하고 부족하면
-  `STORAGE_QUOTA_EXCEEDED`로 거부한다. `estimate()`가 없으면 `QuotaExceededError`를 같은 코드로 바꾼다.
+- **쓰기 전에 여유를 재지 않는다.** 쓰기가 던지는 `QuotaExceededError`만 `STORAGE_QUOTA_EXCEEDED`로 바꾼다
+  (`open-decisions.md` 71). 여유를 미리 묻는 자리는 사진을 굽기 전 하나다.
+- `projects` 레코드는 파일에 없는 이 기기의 사정을 둘 든다 — 마지막으로 내보낸 시각(`exportedAt`)과 파일로 안
+  나간 편집이 있는가(`unexportedEdits`). 편집 저장은 참이고, 내보낸 판이 레코드에 그대로 있을 때의 내보내기와
+  `.mlpx` 가져오기는 거짓이다. 이 칸이 없는 옛 레코드는 상태 표시줄의 판정을 쓴다 (`open-decisions.md` 73).
 - 언어 선택 저장 실패는 삼키지만 **프로젝트 저장 실패는 삼키지 않는다.**
 - **우리 쪽 용량 상한은 없다.** 프로젝트 수 상한도 없다 (`open-decisions.md` #7).
 - **`navigator.storage.persist()`를 데이터셋이 처음 들어간 저장에서 한 번 부른다.**

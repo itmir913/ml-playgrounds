@@ -313,6 +313,23 @@ STORAGE_VERSION_TOO_NEW
 이유는 학생이 할 일이 다르기 때문이다 — 앱을 최신으로 바꾼다 / 다시 학습한다 /
 데이터를 가진 파일로 다시 연다 (`mlpx-spec.md` §5.0, §5.2).
 
+**`STORAGE_QUOTA_EXCEEDED`에서 수를 뺐다** (2026-09-29, open-decisions.md 73). 쓰기 전 사전 검사를 빼자
+이 코드가 나는 자리는 실제 `QuotaExceededError` 하나가 됐고, 거기서는 얼마가 모자란지 모른다 — 전에도
+그 자리는 *"(필요 0MB, 남은 공간 0MB)"*를 띄웠다. **코드를 새로 만들지 않고 문구를 바꿨다** — 학생이 할 일이
+같다. 미리 잰 값이 있는 사진 쪽 `IMAGE_PHOTOS_EXCEED_STORAGE`는 수를 그대로 말한다.
+
+**저장소가 다른 탭에 막혔다** — `STORAGE_BLOCKED` (2026-09-29, open-decisions.md 77)
+
+옛 배포판을 연 탭이 연결을 안 놓아 이 탭의 업그레이드가 막힌 동안이다. **던지지 않는다** — 옛 탭을 닫으면
+열기가 이어지므로 기다리는 동안만 알리고 풀리면 걷는다. `STORAGE_VERSION_TOO_NEW`(이 탭이 옛 것)와
+방향이 반대이고 할 일도 다르다 — 저쪽은 앱을 최신으로, 이쪽은 **다른 탭을 닫는다.**
+
+**고른 파일을 못 읽었다** — `FILE_UNREADABLE` (2026-09-29, open-decisions.md 77)
+
+`File.arrayBuffer()`·`text()`가 거절한 경우다 — 고른 뒤 원본이 옮겨졌거나 USB가 빠졌다. 전에는
+`UNEXPECTED_ERROR`와 영어 원문이 떴다. **"다시 시도"가 아니라 "다시 골라라"라서 나눈다.** 파일 종류와
+무관하게 한 코드다 — `.mlpx`든 표든 사진 zip이든 할 일이 같다. 원문은 `detail`로 남는다.
+
 **예측 입력** (`ml/predict.ts`)
 ```
 PREDICTION_INPUT_INCOMPLETE
