@@ -10,7 +10,7 @@ import { unzip, unzipSync, zipSync, type Unzipped } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
 import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
-import { isValidCategoryName, imageEntryPath } from '../src/data/image/canonical'
+import { categoryOfEntry, isValidCategoryName, imageEntryPath } from '../src/data/image/canonical'
 import { CANONICAL_FORMATS } from '../src/data/image/formats'
 import { hashBytes } from '../src/hash'
 import { isClientError } from '../src/errors'
@@ -24,7 +24,15 @@ import {
 } from '../src/project/format'
 import { writeProjectBytes } from './fixtures/write'
 import { embeddingPath } from '../src/project/embeddings'
-import { readImages, removeImages } from '../src/project/images'
+import { escapesArchive } from '../src/project/entry-path'
+import {
+  addImages,
+  imageCategories,
+  labeledCategoryCount,
+  moveImages,
+  readImages,
+  removeImages,
+} from '../src/project/images'
 import { parseHashes } from '../src/project/integrity'
 import { FORMAT_VERSION, PROJECT_KIND_ML } from '../src/project/schema'
 
@@ -537,5 +545,172 @@ describe('v1 파일이 지금 앱에서 열린다', () => {
     const { project } = await readProject(await v1FileBytes())
 
     expect(project.document.manifest.formatVersion).toBe(FORMAT_VERSION)
+  })
+})
+
+/**
+ * **푸는 자리 밖으로 새는 엔트리** (2026-09-28 감사 G G-1, mlpx-spec.md §7.2.1·§10).
+ *
+ * 읽기가 사진·첨부·임베딩을 접두사로만 받아서 `portfolio/attachments/../../../../evil.cmd`가
+ * 맵에 들고, 브라우저 저장소에 앉고, 우리 `writeProject`가 그대로 다시 내보냈다 — 새
+ * `hashes.json`이 그 이름을 적으므로 **다시 연 파일은 "고쳐진 흔적 없음"이 됐다.** 사진이면
+ * `dataset/data/../x.webp`가 범주 `..`으로 학습에 섞였다.
+ *
+ * 규칙: **대조 뒤에 버리고 대조에는 남긴다.** 저장소 쪽은 `storage.spec.ts`가 본다.
+ */
+describe('푸는 자리 밖으로 새는 엔트리', () => {
+  const escHash = hashBytes(photo('esc'))
+  const EVIL = {
+    attachment: 'portfolio/attachments/../../../../evil.cmd',
+    attachmentBackslash: 'portfolio\\attachments\\..\\..\\..\\..\\evil2.cmd',
+    imageDeep: 'dataset/data/../../x.webp',
+    imageOneUp: `dataset/data/../${escHash}.webp`,
+    embedding: `embeddings/${DEFAULT_BACKBONE_ID}/../../${escHash}.bin`,
+  }
+  /** 역슬래시 표기는 읽을 때 `/`로 바뀐다(mlpx-spec.md §10) — 그 뒤의 이름이다. */
+  const EVIL_READ = [
+    EVIL.attachment,
+    EVIL.attachment.replace('evil', 'evil2'),
+    EVIL.imageDeep,
+    EVIL.imageOneUp,
+    EVIL.embedding,
+  ]
+
+  /** 앱이 쓴 멀쩡한 파일에 새는 엔트리를 끼우고, 원하면 문서가 그 첨부를 가리키게 한다. */
+  async function tampered(referenceAttachments: boolean): Promise<Uint8Array> {
+    const { bytes } = await writeProjectBytes(imageProject(), markdown)
+    const files: Record<string, Uint8Array> = { ...unzipSync(bytes) }
+    files[EVIL.attachment] = new TextEncoder().encode('@echo pwned')
+    files[EVIL.attachmentBackslash] = new TextEncoder().encode('@echo pwned2')
+    files[EVIL.imageDeep] = photo('deep')
+    files[EVIL.imageOneUp] = photo('esc')
+    files[EVIL.embedding] = new Uint8Array(new Float32Array([1, 2, 3]).buffer)
+    if (referenceAttachments) {
+      const portfolio = JSON.parse(new TextDecoder().decode(files[ENTRY.portfolio]))
+      portfolio.attachments = { s1: EVIL_READ.slice(0, 2) }
+      files[ENTRY.portfolio] = new TextEncoder().encode(JSON.stringify(portfolio))
+    }
+    return zipSync(files)
+  }
+
+  const escapingKeys = (project: ProjectFile): string[] =>
+    [...project.attachments.keys(), ...project.images.keys(), ...project.embeddings.keys()].filter(
+      escapesArchive,
+    )
+
+  /**
+   * **새는 이름만 끼운 파일**이다 — 문서는 손대지 않는다. 문서까지 바꾸면 그 엔트리 하나로도
+   * `MODIFIED`가 되어, 새는 이름이 대조에서 빠지는 병을 이 단정이 못 문다.
+   */
+  it('새는 이름만 끼운 파일도 고쳐졌음이다', async () => {
+    const { integrity } = await readProject(await tampered(false))
+
+    expect(integrity.status).toBe('MODIFIED')
+  })
+
+  it('새는 이름마다 더해짐이다', async () => {
+    const { integrity } = await readProject(await tampered(true))
+
+    const added = integrity.entries
+      .filter((entry) => entry.state === 'ADDED')
+      .map((entry) => entry.path)
+      .sort()
+    expect(added).toEqual([...EVIL_READ].sort())
+  })
+
+  it('맵에 안 들이고, 문서가 가리키던 첨부는 뗀다', async () => {
+    const { project } = await readProject(await tampered(true))
+
+    expect(escapingKeys(project)).toEqual([])
+    expect(project.document.portfolio.attachments).toEqual({})
+    // 정상 사진은 그대로다 — 파일 전체를 못 열게 하지 않는다.
+    expect([...project.images.keys()].sort()).toEqual([...imageProject().images.keys()].sort())
+  })
+
+  it('다시 내보낸 파일과 그 hashes.json에 새는 이름이 없다', async () => {
+    const { project } = await readProject(await tampered(true))
+    const out = unzipSync((await writeProjectBytes(project, markdown)).bytes)
+
+    expect(Object.keys(out).filter(escapesArchive)).toEqual([])
+    const recorded = parseHashes(JSON.parse(new TextDecoder().decode(out[ENTRY.hashes])))
+    expect(Object.keys(recorded?.entries ?? {}).filter(escapesArchive)).toEqual([])
+  })
+
+  it('범주 판정과 학습 입력에 안 섞인다', async () => {
+    const { project } = await readProject(await tampered(false))
+
+    expect(imageCategories(project)).toEqual(['개', '고양이'])
+    expect(labeledCategoryCount(project)).toBe(2)
+    expect(readImages(project).map((entry) => entry.category)).toEqual(
+      expect.not.arrayContaining(['..']),
+    )
+  })
+
+  it('폴더 조각이 폴더 한 겹으로 못 서면 범주가 아니다', () => {
+    expect(categoryOfEntry('data', `dataset/data/../${escHash}.webp`)).toBeNull()
+    expect(categoryOfEntry('data', `dataset/data/./${escHash}.webp`)).toBeNull()
+    expect(categoryOfEntry('test', `dataset/test/../${escHash}.webp`)).toBeNull()
+  })
+
+  /**
+   * **범주 이름 규칙 전체를 대지 않는다** (`entry-path.ts`의 `standsAsFolder`). 끝의 마침표는
+   * 2026-08-15에야 막혔고 그 전에 저장된 범주가 실물로 있다 — 그 사진이 학습에서 빠지면 안 된다.
+   */
+  it('옛 규칙으로 저장된 범주는 그대로 읽는다', () => {
+    expect(isValidCategoryName('PC에서 또 추가함.')).toBe(false)
+    expect(categoryOfEntry('data', `dataset/data/PC에서 또 추가함./${escHash}.webp`)).toBe(
+      'PC에서 또 추가함.',
+    )
+  })
+
+  it('문서의 범주 목록에 선 ..은 거르고, 그리로 옮기거나 앉히지 않는다', async () => {
+    const { bytes } = await writeProjectBytes(imageProject(), markdown)
+    const files: Record<string, Uint8Array> = { ...unzipSync(bytes) }
+    const settings = JSON.parse(new TextDecoder().decode(files[ENTRY.settings]))
+    settings.data.categories = ['개', '고양이', '..', '.', 'PC에서 또 추가함.']
+    files[ENTRY.settings] = new TextEncoder().encode(JSON.stringify(settings))
+    const { project } = await readProject(zipSync(files))
+
+    expect(imageCategories(project)).toEqual(['개', '고양이', 'PC에서 또 추가함.'])
+    const [first] = readImages(project)
+    const moved = moveImages(project, [first!.hash], '..', '2026-09-28T00:00:00.000Z')
+    expect(escapingKeys(moved)).toEqual([])
+    const { project: seated } = addImages(
+      project,
+      [{ hash: escHash, bytes: photo('esc'), category: '..' }],
+      { canonicalSize: 224, now: '2026-09-28T00:00:00.000Z', format: 'webp' },
+    )
+    expect(escapingKeys(seated)).toEqual([])
+    const out = unzipSync((await writeProjectBytes(moved, markdown)).bytes)
+    expect(Object.keys(out).filter(escapesArchive)).toEqual([])
+  })
+
+  it('읽기를 안 지난 맵이 와도 내보내기가 새는 이름을 싣지 않는다', async () => {
+    const project = imageProject()
+    project.images.set(EVIL.imageOneUp, photo('esc'))
+    project.attachments.set(EVIL.attachment, new TextEncoder().encode('@echo pwned'))
+    project.document.portfolio.attachments = { s1: [EVIL.attachment] }
+    const out = unzipSync((await writeProjectBytes(project, markdown)).bytes)
+
+    expect(Object.keys(out).filter(escapesArchive)).toEqual([])
+  })
+
+  /**
+   * **폴더 참조의 본체가 전부 새는 경우는 결정이 없다** (감사 G 처방 5). 지금 동작을 못 박는다 —
+   * 열리고, 내보내기는 본체 없는 폴더 참조라 거부된다.
+   */
+  it('사진이 전부 새는 이름뿐이면 열리고 내보내기는 거부된다', async () => {
+    const { bytes } = await writeProjectBytes(imageProject(), markdown)
+    const files: Record<string, Uint8Array> = {}
+    for (const [path, content] of Object.entries(unzipSync(bytes))) {
+      if (!path.startsWith(IMAGE_DATA_DIR)) files[path] = content
+    }
+    files[EVIL.imageOneUp] = photo('esc')
+    const { project } = await readProject(zipSync(files))
+
+    expect(project.images.size).toBe(0)
+    await expect(writeProjectBytes(project, markdown)).rejects.toSatisfy(
+      (error: unknown) => isClientError(error) && error.code === 'PROJECT_FILE_INVALID',
+    )
   })
 })

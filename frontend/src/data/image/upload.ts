@@ -10,10 +10,13 @@
  * 두고 검사가 규칙 하나하나를 본다.
  */
 
-import { unzip, type Unzipped } from 'fflate'
+import { unzipSync, type UnzipFileFilter, type Unzipped } from 'fflate'
 
 import { ClientError } from '@/errors'
+import { IMAGE_ZIP_SLICE_BYTES } from '@/limits'
 import { IMAGE_UNLABELED } from '@/project/format'
+import { yieldToScreen } from '@/screen'
+import { isNoiseName, normalizeEntryName } from '../archive-entries'
 import { decodeZipNames, type ZipNameOptions } from '../zip-names'
 import { isValidCategoryName } from './canonical'
 
@@ -38,14 +41,9 @@ export interface UploadItem {
 }
 
 /**
- * 압축 프로그램이 넣는 부스러기. **조용히 버린다.**
- *
- * 맥에서 압축하면 `__MACOSX/`가 반드시 생기고, 그걸 폴더로 읽으면 뜻 모를 범주가 하나
- * 뜬다. 학생은 자기가 만들지 않은 이름을 보고 무엇을 잘못했는지 찾게 된다.
- */
-/**
  * 압축 파일이 준 경로를 **우리 규칙 하나로** 맞춘다. **입구에서 한 번만 한다** —
- * 아래 함수들이 각자 다듬으면 반드시 한쪽만 고쳐진다.
+ * 아래 함수들이 각자 다듬으면 반드시 한쪽만 고쳐진다. 규칙 자체는 `.mlpx` 읽기와 한 벌이다
+ * (`data/archive-entries.ts`의 `normalizeEntryName`).
  *
  * 둘을 맞춘다 (V11 R1 감사 B-6·B-8).
  *
@@ -57,19 +55,22 @@ export interface UploadItem {
  *   담긴다 — 윈도우 탐색기에서 풀면 하나로 합쳐지며 `hashes.json`이 디스크와 어긋난다.
  *   2026-08-15에 실물 파일이 물어 온 "끝이 마침표인 범주"와 **같은 실패 가족**이다.
  *   길이 상한도 NFD로는 같은 이름이 두 배로 세어져 51자 이상의 한글 범주가 통째로 거부됐다.
- *
- * **NFC를 고르는 이유는 그것이 파일 이름의 표준 형태이기 때문이다** — 윈도우·리눅스가
- * 그렇게 쓰고, 파이썬의 `ImageFolder`가 읽는 것도 디스크에 앉은 그 이름이다.
  */
 function normalizePath(path: string): string {
-  return path.replaceAll('\\', '/').normalize('NFC')
+  return normalizeEntryName(path)
 }
 
+/**
+ * 압축 프로그램과 OS가 넣는 부스러기. **조용히 버린다.** 이름 목록은 `.mlpx` 읽기와 한
+ * 벌이다(`data/archive-entries.ts`의 `isNoiseName`).
+ *
+ * 맥에서 압축하면 `__MACOSX/`가 반드시 생기고, 그걸 폴더로 읽으면 뜻 모를 범주가 하나
+ * 뜬다. 윈도의 `desktop.ini`는 범주 안에 있으면 사진 한 장으로 세어졌고, 루트에 있으면
+ * 한 겹 벗기기를 막아 **범주 둘이 감싼 폴더 이름 하나로 합쳐졌다**(2026-09-28 감사 G G-2).
+ * 무는 검사: `image-upload-zip.spec.ts`의 *"desktop.ini"* 두 줄.
+ */
 function isJunk(path: string): boolean {
-  const segments = path.split('/')
-  if (segments.includes('__MACOSX')) return true
-  const name = segments[segments.length - 1] ?? ''
-  return name === '.DS_Store' || name === 'Thumbs.db' || name.startsWith('._')
+  return isNoiseName(path)
 }
 
 /**
@@ -82,6 +83,10 @@ function isJunk(path: string): boolean {
  * 벗기는 조건이 둘인 이유는 **감싼 폴더와 범주 폴더가 겉보기에 같기** 때문이다.
  * `개/`만 든 zip은 범주가 하나인 정상적인 압축 파일이지 감싸진 것이 아니다 — 그래서
  * 벗긴 뒤에도 폴더가 남아 있을 때만 벗긴다.
+ *
+ * **`.mlpx` 읽기(`format.ts`의 `isWrapped`)와 증인이 다르다 — 일부러다.** 저쪽은 파일 구조를
+ * 알아서 "그 폴더에 `manifest.json`이 있다"를 증인으로 세운다. 사진 zip에는 그런 이름이
+ * 없으므로 "벗긴 뒤에도 폴더가 남는가"가 증인이다. 잡음을 빼고 판정하는 것은 같다.
  */
 function unwrapOnce(paths: readonly string[]): readonly string[] {
   const roots = new Set<string>()
@@ -126,14 +131,59 @@ function requireValidCategories(categories: Iterable<string>): void {
   }
 }
 
-function unzipAsync(bytes: Uint8Array): Promise<Unzipped> {
-  return new Promise((resolve, reject) => {
-    unzip(bytes, (error, unzipped) => {
-      // zip이 아니거나 깨졌다. 어느 쪽이든 학생이 할 일은 다시 압축하는 것이다.
-      if (error) reject(new ClientError('IMAGE_ZIP_INVALID'))
-      else resolve(unzipped)
-    })
+/**
+ * zip을 푼다. **워커를 띄우지 않는다** (`.mlpx` 읽기의 `format.ts` `unzipEntries`와 같은 판단,
+ * open-decisions.md 68의 판례).
+ *
+ * fflate의 비동기 `unzip`은 비압축 512KB 이상이고 압축률이 0.8 이하인 deflate 엔트리를
+ * `inflate()`로 넘겨 `blob:` 워커를 띄운다 — 무압축 BMP·TIFF가 든 사진 zip이 그 모양이다.
+ * 워커 생성이 막히면 날것의 오류가 새어 "알 수 없는 오류"가 되고, 워커가 답하지 않으면
+ * **읽기가 끝나지 않아 화면의 진행 잠금이 영영 안 풀린다**(2026-09-28 감사 G G-3). 그 대신
+ * 메인 스레드가 inflate한다 — jpeg·png처럼 이미 압축된 사진은 비동기 API 안에서도 원래
+ * 메인 스레드에서 풀렸다. 큰 BMP zip이 화면을 오래 얼리지 않게 **조각으로 풀고 사이마다
+ * 양보한다.** 무는 검사: `image-upload-zip.spec.ts`의 *"워커를 띄우지 않는다"*.
+ */
+async function unzipEntries(bytes: Uint8Array): Promise<Unzipped> {
+  // 목록만 먼저 읽는다 — 아무것도 안 푸므로 중앙 디렉터리를 한 번 훑는 값이다.
+  const slices: Set<string>[] = []
+  let slice = new Set<string>()
+  let sliceBytes = 0
+  unzipSyncOrInvalid(bytes, (file) => {
+    slice.add(file.name)
+    sliceBytes += file.originalSize
+    if (sliceBytes >= IMAGE_ZIP_SLICE_BYTES) {
+      slices.push(slice)
+      slice = new Set()
+      sliceBytes = 0
+    }
+    return false
   })
+  if (slice.size > 0) slices.push(slice)
+
+  // **조각마다 풀고 화면에 양보한다** (`screen.ts`의 `yieldToScreen`, 2026-09-28 코드 소유자).
+  // 한 번에 풀면 사진 상한에 가까운 BMP zip에서 메인 스레드가 수 초 막혔다 — 조각은
+  // `IMAGE_ZIP_SLICE_BYTES`만큼이라 한 번 막히는 시간이 그 크기로 묶인다. 결과는 한 번에 푼
+  // 것과 같다 — 목록 순서대로 이어 붙이므로 이름 되살리기·벗기기가 보는 전체 목록이 그대로다.
+  // 무는 검사: `image-upload-zip.spec.ts`의 *"조각으로 풀어도 한 번에 푼 것과 같다"*.
+  const unzipped: Unzipped = {}
+  for (const names of slices) {
+    await yieldToScreen()
+    Object.assign(
+      unzipped,
+      unzipSyncOrInvalid(bytes, (file) => names.has(file.name)),
+    )
+  }
+  return unzipped
+}
+
+/** 고른 엔트리만 푼다. 깨진 zip은 학생이 알아들을 코드로 바꾼다. */
+function unzipSyncOrInvalid(bytes: Uint8Array, filter: UnzipFileFilter): Unzipped {
+  try {
+    return unzipSync(bytes, { filter })
+  } catch {
+    // zip이 아니거나 깨졌다. 어느 쪽이든 학생이 할 일은 다시 압축하는 것이다.
+    throw new ClientError('IMAGE_ZIP_INVALID')
+  }
 }
 
 /**
@@ -151,7 +201,7 @@ export async function readImageZip(
   fallbackCategory: string = IMAGE_UNLABELED,
   names: ZipNameOptions = {},
 ): Promise<readonly UploadItem[]> {
-  const unzipped = await unzipAsync(bytes)
+  const unzipped = await unzipEntries(bytes)
   const raw = Object.entries(unzipped)
   /**
    * **이름을 먼저 되살린다** (`data/zip-names.ts`). 윈도 탐색기가 만든 압축 파일은
@@ -169,6 +219,8 @@ export async function readImageZip(
     .filter(
       // 디렉터리 엔트리는 내용이 없다. 빈 폴더는 범주가 되지 않는다 - 범주 목록은
       // settings가 따로 갖는다 (open-decisions.md "범주는 폴더가 갖고").
+      // **길이 0인 파일도 버린다 — `.mlpx` 읽기와 일부러 다르다.** 빈 파일은 사진일 수
+      // 없다. 저쪽(`format.ts`의 `isArchiveNoise`)은 잘린 엔트리가 변조의 흔적이라 남긴다.
       ([path, content]) => !path.endsWith('/') && content.length > 0 && !isJunk(path),
     )
   if (entries.length === 0) throw new ClientError('IMAGE_ZIP_NO_IMAGES')

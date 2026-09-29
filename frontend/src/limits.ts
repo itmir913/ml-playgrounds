@@ -105,6 +105,22 @@ export const MAX_DATASET_ROWS = 100_000
 export const MAX_IMAGE_COUNT = 5000
 
 /**
+ * 사진 zip을 **한 번에 얼마씩 풀고 화면에 양보하는가** — 풀었을 때의 바이트다
+ * (`data/image/upload.ts`의 `unzipEntries`).
+ *
+ * 한 번에 다 풀면 사진 상한에 가까운 BMP zip에서 메인 스레드가 수 초 막혔다(2026-09-28
+ * 감사 G, 개발 PC). 조각이 작을수록 한 번 막히는 시간이 짧지만, 조각마다 중앙 디렉터리를
+ * 다시 훑으므로 전체 시간이 는다. **결과는 안 바꾸고 속도만 가른다.** 값의 근거와 측정표는
+ * `docs/cases/mlpx-spec.md`의 판례 *"사진 zip 읽기가 워커에 기대고 부스러기 목록을 따로
+ * 가졌다"*에 있다.
+ *
+ * 엔트리 하나가 이보다 크면 그 하나는 통째로 푼다 — 사진 한 장을 쪼개 풀 길은 없다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const IMAGE_ZIP_SLICE_BYTES = 4 * BYTES_PER_MB
+
+/**
  * 정본 webp의 품질. **기본 형식이 쓰는 값이다**
  * (`data/image/formats.ts`의 `CANONICAL_FORMATS`).
  *

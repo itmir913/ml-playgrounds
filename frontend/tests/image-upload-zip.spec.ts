@@ -9,8 +9,15 @@
 import { readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
-import { zipSync } from 'fflate'
-import { describe, expect, it } from 'vitest'
+import { unzipSync, zipSync } from 'fflate'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+/**
+ * **브라우저가 싣는 빌드를 쓴다** (`esm/browser.js`). vitest는 node 조건으로 풀어 `worker_threads`
+ * 빌드를 주는데, 그쪽은 아래 *"워커를 띄우지 않는다"*가 가짜로 바꾸는 전역 `Worker`를 안 지나서
+ * 그 검사가 아무것도 안 잰다(`format.spec.ts`의 같은 mock과 같은 이유).
+ */
+vi.mock('fflate', async () => await import('../node_modules/fflate/esm/browser.js'))
 
 import { sourceFiles, withoutComments } from './fixtures/source'
 
@@ -22,6 +29,7 @@ import {
   ZIP_EXTENSION,
 } from '../src/data/image/upload'
 import { isClientError } from '../src/errors'
+import { IMAGE_ZIP_SLICE_BYTES } from '../src/limits'
 import { IMAGE_UNLABELED } from '../src/project/format'
 
 /** 내용은 아무 바이트나 좋다. 여기서 보는 것은 구조뿐이고 굽는 것은 워커다. */
@@ -119,6 +127,27 @@ describe('사진 압축 파일의 구조가 라벨이다', () => {
    */
   it('부스러기 때문에 감싼 겹을 못 벗기는 일이 없다', async () => {
     expect(await categoriesOf(['__MACOSX/._사진', '사진/개/1.jpg', '사진/고양이/2.jpg'])).toEqual([
+      '개',
+      '고양이',
+    ])
+  })
+
+  /**
+   * **윈도가 폴더를 들여다본 자리에 남기는 `desktop.ini`** (2026-09-28 감사 G G-2). 업로드의
+   * 부스러기 목록에만 빠져 있어 범주 안에 있으면 사진 한 장으로 세어졌다.
+   */
+  it('범주 안의 desktop.ini는 사진이 아니다', async () => {
+    const items = await readImageZip(makeZip(['개/1.jpg', '개/desktop.ini', '고양이/2.jpg']))
+    expect(items.map((item) => item.path)).toEqual(['개/1.jpg', '고양이/2.jpg'])
+    expect(summarizeUpload(items)).toEqual([
+      { category: '개', count: 1 },
+      { category: '고양이', count: 1 },
+    ])
+  })
+
+  /** 루트에 있으면 한 겹 벗기기를 막아 **범주 둘이 감싼 폴더 이름 하나로 합쳐졌다.** */
+  it('루트의 desktop.ini가 감싼 겹 벗기기를 막지 않는다', async () => {
+    expect(await categoriesOf(['desktop.ini', '사진/개/1.jpg', '사진/고양이/2.jpg'])).toEqual([
       '개',
       '고양이',
     ])
@@ -307,5 +336,143 @@ describe('압축 파일을 가르는 값이 하나다', () => {
           .map((row) => `${relative(process.cwd(), row.path)}:${row.at}`),
       )
     expect(offenders, 'writes the extension instead of ZIP_EXTENSION').toEqual([])
+  })
+})
+
+/**
+ * **사진 zip을 읽는 길은 워커를 띄우지 않는다** (2026-09-28 감사 G G-3, open-decisions.md 68의
+ * 판례).
+ *
+ * fflate의 비동기 `unzip`은 비압축 512KB 이상이고 압축률이 0.8 이하인 deflate 엔트리를 `blob:`
+ * 워커로 넘긴다. 무압축 BMP가 든 zip이 그 모양이고, 워커가 막히면 날것의 오류가, 답이 없으면
+ * **끝나지 않는 읽기**가 났다(진행 잠금이 안 풀린다).
+ */
+describe('워커를 띄우지 않는다', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  /** 무압축 24비트 BMP 한 장 — 헤더와 그라데이션 화소. deflate가 잘 누른다. */
+  function bmp(width: number, height: number): Uint8Array {
+    const row = Math.ceil((width * 3) / 4) * 4
+    const bytes = new Uint8Array(54 + row * height)
+    const view = new DataView(bytes.buffer)
+    bytes.set([0x42, 0x4d])
+    view.setUint32(2, bytes.length, true)
+    view.setUint32(10, 54, true)
+    view.setUint32(14, 40, true)
+    view.setInt32(18, width, true)
+    view.setInt32(22, height, true)
+    view.setUint16(26, 1, true)
+    view.setUint16(28, 24, true)
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const at = 54 + y * row + x * 3
+        bytes.set([x & 0xff, y & 0xff, (x + y) & 0xff], at)
+      }
+    }
+    return bytes
+  }
+
+  /** fflate가 워커로 넘기는 조건 (`esm/browser.js`의 `unzip`) — 검사의 전제다. */
+  function wouldSpawn(zip: Uint8Array, name: string): boolean {
+    let found = false
+    unzipSync(zip, {
+      filter: (file) => {
+        if (file.name === name) {
+          found =
+            file.compression === 8 &&
+            file.originalSize >= 524_288 &&
+            file.size <= 0.8 * file.originalSize
+        }
+        return false
+      },
+    })
+    return found
+  }
+
+  it('무압축 BMP가 든 zip도 워커 없이 읽는다', async () => {
+    const zip = zipSync({ '개/a.bmp': bmp(640, 480), '고양이/b.bmp': bmp(640, 480) }, { level: 6 })
+    expect(wouldSpawn(zip, '개/a.bmp'), 'fixture must take the worker path').toBe(true)
+    vi.stubGlobal(
+      'Worker',
+      class {
+        constructor() {
+          throw new Error('reading a photo zip must not spawn a worker')
+        }
+      },
+    )
+
+    const items = await readImageZip(zip)
+    expect(summarizeUpload(items)).toEqual([
+      { category: '개', count: 1 },
+      { category: '고양이', count: 1 },
+    ])
+    expect(items[0]?.file.size).toBe(bmp(640, 480).length)
+  })
+
+  /**
+   * **조각으로 풀어도 한 번에 푼 것과 같다** (`upload.ts`의 `unzipEntries`, `IMAGE_ZIP_SLICE_BYTES`).
+   * 이름 되살리기·부스러기·한 겹 벗기기는 **전체 목록**을 보고 정하므로, 조각 경계가 그 판정을
+   * 흔들면 라벨이 바뀐다. 감싼 폴더와 루트의 부스러기가 조각 여럿에 걸치게 둔다.
+   */
+  it('조각으로 풀어도 한 번에 푼 것과 같다', async () => {
+    const photos: Record<string, Uint8Array> = {}
+    const count = Math.ceil((IMAGE_ZIP_SLICE_BYTES * 3) / bmp(640, 480).length)
+    for (let i = 0; i < count; i++) {
+      photos[`사진/${i % 2 === 0 ? '개' : '고양이'}/${i}.bmp`] = bmp(640, 480)
+    }
+    const zip = zipSync({ 'desktop.ini': new Uint8Array([1]), ...photos }, { level: 6 })
+    const ticks = vi.spyOn(globalThis, 'setTimeout')
+
+    const items = await readImageZip(zip)
+    expect(ticks.mock.calls.length, 'must yield between slices').toBeGreaterThanOrEqual(3)
+    ticks.mockRestore()
+    expect(items.map((item) => item.path)).toEqual(
+      Object.keys(photos).map((path) => path.slice('사진/'.length)),
+    )
+    expect(items.map((item) => item.file.size)).toEqual(
+      Object.values(photos).map((bytes) => bytes.length),
+    )
+  })
+
+  /**
+   * **워커를 쓰는 fflate API를 src가 들이지 않는다.** 위 검사는 사진 zip 하나의 길만 보므로,
+   * 다른 자리가 비동기 API를 새로 들이면 못 본다. 쓰는 것은 `*Sync`와 흘려 담기(`Zip`·
+   * `ZipPassThrough`)뿐이다 — `format.ts`의 `zipToBlob`·`unzipEntries`가 그 판단의 자리다.
+   */
+  it('src가 워커를 쓰는 fflate API를 들이지 않는다', () => {
+    const workerApis = new Set([
+      'zip',
+      'unzip',
+      'deflate',
+      'inflate',
+      'gzip',
+      'gunzip',
+      'zlib',
+      'unzlib',
+      'compress',
+      'decompress',
+    ])
+    const offenders = sourceFiles(join(process.cwd(), 'src')).flatMap((path) => {
+      const text = withoutComments(readFileSync(path, 'utf-8')).join('\n')
+      return [
+        ...text.matchAll(/import\s*(?:type\s+)?\{([^}]*)\}\s*from\s*['"]fflate(?:\/[^'"]*)?['"]/g),
+      ]
+        .flatMap((match) =>
+          (match[1] ?? '')
+            .split(',')
+            .map(
+              (part) =>
+                part
+                  .trim()
+                  .replace(/^type\s+/, '')
+                  .split(/\s+as\s+/)[0] ?? '',
+            )
+            .filter((name) => workerApis.has(name) || name.startsWith('Async')),
+        )
+        .map((name) => `${relative(process.cwd(), path)}: ${name}`)
+    })
+    expect(offenders, 'imports a worker-backed fflate API').toEqual([])
   })
 })

@@ -24,6 +24,7 @@ import {
   type CanonicalFormatId,
 } from '@/data/image/formats'
 import { removeEmbeddings } from '@/project/embeddings'
+import { standsAsFolder } from '@/project/entry-path'
 import {
   IMAGE_DATA_DIR,
   IMAGE_PREDICT_DIR,
@@ -399,6 +400,9 @@ export function addImages(
   let duplicates = 0
   const categories = [...previous.categories]
   for (const image of baked) {
+    // **폴더 한 겹으로 못 서는 범주에는 앉히지 않는다** (`entry-path.ts`의 `standsAsFolder`) —
+    // 앉히면 `dataset/data/../…`라는 새는 경로를 우리 손으로 만든다. 빈 이름은 라벨 없음이다.
+    if (role !== 'predict' && image.category !== '' && !standsAsFolder(image.category)) continue
     if (known.has(image.hash)) {
       duplicates += 1
       continue
@@ -451,6 +455,9 @@ export function moveImages(
   to: string,
   now: string,
 ): ProjectFile {
+  // **폴더 한 겹으로 못 서는 곳으로는 안 옮긴다** (`addImages`와 같은 까닭). 무는 검사:
+  // `image-format.spec.ts`의 *"푸는 자리 밖으로 새는 엔트리"* 묶음.
+  if (!standsAsFolder(to)) return project
   const moving = new Set(hashes)
   const images = new Map(project.images)
   for (const entry of readImages(project)) {

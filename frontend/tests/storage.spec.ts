@@ -1048,3 +1048,43 @@ describe('저장소가 던져도 안전한 쪽으로 떨어진다', () => {
     await expect(readPreferredLocale()).resolves.toBeNull()
   })
 })
+
+/**
+ * **0.30.6까지 연 파일의 새는 이름이 저장소에 남아 있다** (2026-09-28 감사 G G-1). `.mlpx`
+ * 읽기는 이제 거르지만, 그 전에 저장된 것은 여는 자리에서 걸러야 다음 내보내기로 안 나간다.
+ * `.mlpx` 쪽은 `image-format.spec.ts`의 *"푸는 자리 밖으로 새는 엔트리"*가 본다.
+ */
+describe('저장소에서 열 때 새는 이름을 버린다', () => {
+  it('사진·첨부·임베딩의 새는 이름과 폴더로 못 서는 범주가 안 돌아온다', async () => {
+    const evil = 'portfolio/attachments/../../../../evil.cmd'
+    const kept = 'portfolio/attachments/1.webp'
+    const project = projectFile()
+    project.images = new Map([['dataset/data/../x.webp', new Uint8Array([1])]])
+    project.attachments = new Map([
+      [evil, new Uint8Array([2])],
+      [kept, new Uint8Array([3])],
+    ])
+    project.embeddings = new Map([
+      [`embeddings/${DEFAULT_BACKBONE_ID}/../../x.bin`, new Uint8Array(4)],
+    ])
+    project.document = {
+      ...project.document,
+      settings: {
+        ...project.document.settings,
+        data: { ...project.document.settings.data, categories: ['개', '..'] },
+      },
+      portfolio: { ...project.document.portfolio, attachments: { s1: [evil, kept] } },
+    }
+    await saveProject(project)
+
+    const loaded = await loadProject(manifest.projectId)
+    const keys = [
+      ...(loaded?.images.keys() ?? []),
+      ...(loaded?.attachments.keys() ?? []),
+      ...(loaded?.embeddings.keys() ?? []),
+    ]
+    expect(keys).toEqual([kept])
+    expect(loaded?.document.portfolio.attachments).toEqual({ s1: [kept] })
+    expect(loaded?.document.settings.data).toMatchObject({ categories: ['개'] })
+  })
+})

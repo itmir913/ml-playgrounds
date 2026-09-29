@@ -42,6 +42,9 @@
 | 주석이 가리키는 **심볼**이 거기 있는가 | `doc-refs.spec.ts` |
 | §1.5 제출을 막을 만큼 커지면 알리는가 | `file-size.spec.ts` |
 | 압축 파일 확장자를 손으로 안 적는가 | `image-upload-zip.spec.ts` |
+| src가 **워커를 쓰는 fflate API**(`unzip`·`zip`·`inflate`·`Async*` 등)를 들이지 않는가 — `import { … } from 'fflate'`의 이름만 본다. 네임스페이스 import(`import * as`)와 동적 `import()`는 못 본다 | `image-upload-zip.spec.ts` · `format.spec.ts` |
+| 압축 파일 엔트리 이름의 부스러기·표기 규칙이 **사진 업로드와 `.mlpx` 읽기에서 한 벌**인가 | `archive-entries.spec.ts` |
+| `.mlpx`의 **푸는 자리 밖으로 새는 이름**을 대조 뒤에 버리는가(읽기·저장소·내보내기) | `image-format.spec.ts` · `storage.spec.ts` · `portfolio-bundle.spec.ts` |
 | 테스트용 사진을 관용적으로 받지 않는가 | `image-test-set.spec.ts` |
 | 인코딩을 안 적은 압축 파일의 이름을 되살리는가 | `zip-names.spec.ts` |
 | 다시 압축한 `.mlpx`도 열리는가 | `image-format.spec.ts` · `hashes.json` · `zip-names.spec.ts` |

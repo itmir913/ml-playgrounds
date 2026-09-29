@@ -20,7 +20,9 @@ import { BYTES_PER_MB, STORAGE_SAFETY_FACTOR } from '../limits'
 import {
   detachMissingAttachments,
   dropUnknownBackbones,
+  insideArchive,
   pointsToFile,
+  withFolderCategories,
   type ProjectFile,
 } from './format'
 import { migrateProjectDocument } from './migrate'
@@ -526,11 +528,20 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
     models.set(model.path, model.bytes)
   }
 
+  /**
+   * **푸는 자리 밖으로 새는 이름을 여기서도 버린다** (`format.ts`의 `insideArchive`).
+   * `.mlpx` 읽기가 거르기 전(0.30.6까지)에 연 파일의 것이 이 저장소에 남아 있다. 짝 확인
+   * (`requirePaired`) 뒤다 — `readProject`와 같은 순서라, 본체가 전부 새는 폴더 참조도
+   * 거기서처럼 열린다. 범주 목록도 `.mlpx` 읽기와 같이 거른다(`withFolderCategories`).
+   */
+  const keptImages = insideArchive(images)
+  const keptAttachments = insideArchive(attachments)
+
   return {
     // **여기서도 짝을 맞춘다.** 본체 없는 첨부 참조를 들고 화면에 올리면 포트폴리오가
     // 없는 사진의 자리를 그리고, 내보낼 때 document.md에 깨진 그림이 적힌다
     // (open-decisions.md "본체 없는 첨부는 저장을 막지 않고 참조를 떼어낸다").
-    document: detachMissingAttachments(document, attachments),
+    document: detachMissingAttachments(withFolderCategories(document), keptAttachments),
     // hash가 없는 것은 이 필드가 생기기 전에 저장된 레코드다. 그때만 계산한다.
     dataset:
       dataset?.bytes === undefined
@@ -539,9 +550,9 @@ export async function loadProject(projectId: string): Promise<ProjectFile | null
     testDataset: dataset?.test,
     predictDataset: dataset?.predict,
     models,
-    images,
-    attachments,
-    embeddings,
+    images: keptImages,
+    attachments: keptAttachments,
+    embeddings: insideArchive(embeddings),
   }
 }
 

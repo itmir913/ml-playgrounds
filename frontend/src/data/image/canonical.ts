@@ -13,6 +13,7 @@ import {
 } from '@/data/file-name-rules'
 import { canonicalFormatOfPath, type CanonicalFormat } from '@/data/image/formats'
 import { MAX_CATEGORY_NAME_LENGTH } from '@/limits'
+import { standsAsFolder } from '@/project/entry-path'
 import {
   IMAGE_DATA_DIR,
   IMAGE_PREDICT_DIR,
@@ -156,6 +157,11 @@ export function imageEntryPath(
  *
  * 우리가 쓴 모양이 아니면 `null`이다. 학생이 zip을 직접 고쳐 넣는 일은 실제로 일어나고,
  * 그때 조용히 엉뚱한 라벨을 만드는 것보다 못 읽었다고 하는 편이 낫다.
+ *
+ * **폴더 조각이 폴더 한 겹으로 못 서면(`..`·`.`) 범주가 아니다** (`entry-path.ts`의
+ * `standsAsFolder`). `dataset/data/../x.webp`가 범주 `..`으로 읽혀 학습에 섞였다(2026-09-28
+ * 감사 G G-1). 범주 이름 규칙 전체를 대지 않는 이유는 그 함수의 주석에 있다. 무는 검사:
+ * `image-format.spec.ts`의 *"푸는 자리 밖으로 새는 엔트리"* 묶음.
  */
 export function categoryOfEntry(role: ImageRole, path: string): string | null {
   const directory = ROLE_DIR[role]
@@ -165,5 +171,5 @@ export function categoryOfEntry(role: ImageRole, path: string): string | null {
   if (role === 'predict') return parts.length === 1 ? IMAGE_UNLABELED : null
   if (parts.length !== 2) return null
   const [folder] = parts
-  return folder === undefined || folder === '' ? null : folder
+  return folder === undefined || !standsAsFolder(folder) ? null : folder
 }

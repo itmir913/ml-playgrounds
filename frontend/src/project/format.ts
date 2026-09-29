@@ -22,6 +22,7 @@ import {
   FORBIDDEN_IN_NAME,
   stripInvisibleFormatting,
 } from '../data/file-name-rules'
+import { isNoiseName, normalizeEntryName } from '../data/archive-entries'
 import { decodeZipNames } from '../data/zip-names'
 import { ClientError } from '../errors'
 import { hashBytes } from '../hash'
@@ -32,7 +33,7 @@ import {
   MODEL_BUDGET_BYTES,
 } from '../limits'
 import { backboneFor } from '../ml/backbones'
-import { escapesArchive } from './entry-path'
+import { escapesArchive, standsAsFolder } from './entry-path'
 import {
   buildHashes,
   checkHashes,
@@ -895,7 +896,7 @@ function recordedHashes(bytes: Uint8Array | undefined): ProjectHashes | null {
  *
  * **이름의 모양도 여기서 맞춘다** (mlpx-spec.md §10). 구분자 `\`는 `/`로 읽고(Windows
  * PowerShell 5.1의 `Compress-Archive`가 그렇게 적는다), 글자는 NFC로 모은다(맥이 NFD로
- * 넣는다) — 사진 업로드의 `normalizePath`(`data/image/upload.ts`)와 같은 규칙이다. 기록된
+ * 넣는다) — 사진 업로드와 한 벌인 `normalizeEntryName`(`data/archive-entries.ts`)이다. 기록된
  * 표기로 되돌리는 것은 `respellAsRecorded`의 일이다. 무는 검사: `tests/format.spec.ts`
  * "다시 압축한 파일".
  *
@@ -912,10 +913,7 @@ function rekeyByRecordedPaths(
     raw.map(([path]) => path),
     { expect: paths.flatMap((path) => [path, ...path.split('/')]) },
   )
-  return raw.map(
-    ([, content], index) =>
-      [decoded[index]!.replaceAll('\\', '/').normalize('NFC'), content] as const,
-  )
+  return raw.map(([, content], index) => [normalizeEntryName(decoded[index]!), content] as const)
 }
 
 /**
@@ -929,9 +927,6 @@ function isHashesEntry(name: string): boolean {
   )
 }
 
-/** 압축 도구가 넣는 부스러기의 이름. */
-const ARCHIVE_NOISE_NAMES: ReadonlySet<string> = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini'])
-
 /**
  * 압축 도구가 넣는 잡음인가 (mlpx-spec.md §7.2.1). **신호가 아니라서 대조 전에 버린다.**
  *
@@ -942,15 +937,16 @@ const ARCHIVE_NOISE_NAMES: ReadonlySet<string> = new Set(['.DS_Store', 'Thumbs.d
  *
  * **날것의 이름과 크기만 본다.** 판정이 ASCII 글자(`/`·`__MACOSX`·부스러기 이름)뿐이라
  * 이름을 되살리기 전후로 답이 같고, 그래서 메타 읽기가 엔트리를 **풀기 전에**(`filter`의
- * `originalSize`) 같은 판정을 할 수 있다.
+ * `originalSize`) 같은 판정을 할 수 있다. 이름의 판정은 사진 업로드와 한 벌이다
+ * (`data/archive-entries.ts`의 `isNoiseName`).
+ *
+ * **디렉터리 엔트리는 내용이 없을 때만 잡음이다.** 사진 업로드는 길이 0인 것을 전부 버리지만
+ * 여기는 그러면 안 된다 — `.mlpx`의 내용 엔트리가 0바이트로 잘린 것은 **변조의 흔적**이고,
+ * 버리면 "없어짐"으로 세어져 어느 엔트리가 어떻게 바뀌었는지가 흐려진다.
  */
 function isArchiveNoise(name: string, size: number): boolean {
-  const path = name.replaceAll('\\', '/')
-  if (path.endsWith('/') && size === 0) return true
-  const segments = path.split('/')
-  if (segments.includes('__MACOSX')) return true
-  const base = segments[segments.length - 1] ?? ''
-  return ARCHIVE_NOISE_NAMES.has(base) || base.startsWith('._')
+  if (normalizeEntryName(name).endsWith('/') && size === 0) return true
+  return isNoiseName(name)
 }
 
 /** 압축 파일이 적어 둔 엔트리 하나 — 날것의 이름과 풀었을 때의 크기. */
@@ -1084,7 +1080,33 @@ function documentOf(entries: ReadonlyMap<string, Uint8Array>): ProjectDocument {
     portfolio: decodeJson(required(ENTRY.portfolio), ENTRY.portfolio),
   })
   requireSanePaths(document)
-  return document
+  return withFolderCategories(document)
+}
+
+/**
+ * 범주 목록(`settings.data.categories`)에서 **폴더 한 겹으로 못 서는 이름을 뺀다**
+ * (mlpx-spec.md §10, `entry-path.ts`의 `standsAsFolder`).
+ *
+ * 목록은 사진이 없는 범주도 화면에 세우므로(`images.ts`의 `imageCategories`) 여기 `..`이
+ * 있으면 빈 범주 칸이 서고, 학생이 사진을 그리로 옮기는 순간 `dataset/data/../…`라는 **새는
+ * 경로를 우리 손으로 만든다.** 던지지 않는다 — 이름 하나 때문에 파일이 안 열릴 까닭이 없다.
+ *
+ * `.mlpx`를 읽을 때(`documentOf`)와 브라우저 저장소에서 열 때(`storage.ts`의 `loadProject`)
+ * 둘 다 지난다. 무는 검사: `image-format.spec.ts`의 *"푸는 자리 밖으로 새는 엔트리"* 묶음.
+ */
+export function withFolderCategories(document: ProjectDocument): ProjectDocument {
+  const { data } = document.settings
+  const categories: unknown = data.categories
+  if (!Array.isArray(categories)) return document
+  // 스키마가 문자열 배열로 세웠다(`imageSettingsSchema`) — 문자열만 남긴다.
+  const kept = categories.filter(
+    (name: unknown): name is string => typeof name === 'string' && standsAsFolder(name),
+  )
+  if (kept.length === categories.length) return document
+  return {
+    ...document,
+    settings: { ...document.settings, data: { ...data, categories: kept } },
+  }
 }
 
 /**
@@ -1172,6 +1194,15 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
   const present = hashableEntries(entries, datasetPath, testDatasetPath, predictDatasetPath)
   const integrity = checkHashes(present, recordedHashes(entries.get(ENTRY.hashes)))
 
+  // **푸는 자리 밖으로 새는 이름은 여기서 버린다 — 대조 뒤, 위 폴더 확인 뒤다**
+  // (mlpx-spec.md §7.2.1). 대조에는 남아 "더해짐"으로 신호가 되고, 사진·첨부·임베딩으로는
+  // 안 들어간다. 문서가 가리키던 첨부는 아래 `detachMissingAttachments`가 뗀다. 폴더 확인은
+  // 거르기 전의 맵을 본다 — 본체가 전부 새는 폴더 참조를 어떻게 할지는 아직 결정이 없어서
+  // 지금처럼 열리고 내보내기가 거부된다(`requireFolderBodies`).
+  const keptImages = insideArchive(images)
+  const keptAttachments = insideArchive(attachments)
+  const keptEmbeddings = insideArchive(embeddings)
+
   // 문서가 가리키는 것만 가져온다. 고아와 쓰레기는 여기서 사라진다.
   const referenced = referencedModelPaths(document)
   const models = new Map<string, Uint8Array>()
@@ -1184,7 +1215,7 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
     project: {
       document: detachMissingAttachments(
         detachMissingModels(document, new Set(models.keys())),
-        attachments,
+        keptAttachments,
       ),
       dataset:
         datasetPath === undefined || datasetBytes === undefined
@@ -1205,8 +1236,8 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
               hash: present.get(predictDatasetPath) ?? hashBytes(predictDatasetBytes),
             },
       models,
-      images,
-      attachments,
+      images: keptImages,
+      attachments: keptAttachments,
       /**
        * **여는 자리에서도 떨어뜨린다** (R6 감사 B-2). 여기를 안 걸러 두면 `openFile`이
        * 곧장 `saveProject`로 넘겨 **옛 좌표계의 벡터가 브라우저 저장소에 눌러앉는다** —
@@ -1216,10 +1247,23 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
        * **무결성 대조 뒤다.** 위 `checkHashes`는 zip에 있던 그대로를 봐야 한다 —
        * 우리가 버릴 것을 먼저 버리면 파일이 변조됐는지 판정할 근거가 사라진다.
        */
-      embeddings: dropUnknownBackbones(embeddings),
+      embeddings: dropUnknownBackbones(keptEmbeddings),
     },
     integrity,
   }
+}
+
+/**
+ * **푸는 자리 밖으로 새는 이름을 뺀 맵** (`entry-path.ts`의 `escapesArchive`, mlpx-spec.md
+ * §7.2.1). 던지지 않는다 — 학생의 작업물이 이름 하나 때문에 안 열리거나 안 나가면 안 된다.
+ *
+ * 부르는 자리가 셋이다 — `.mlpx`를 읽을 때(대조 **뒤**), 브라우저 저장소에서 열 때
+ * (`storage.ts`의 `loadProject` — 이 거르기가 생기기 전에 저장된 것), `.mlpx`로 쓸 때
+ * (`writeProject` — 위 둘을 지나지 않은 맵이 와도 새는 이름이 나가지 않는다).
+ * 무는 검사: `image-format.spec.ts`의 *"푸는 자리 밖으로 새는 엔트리"* 묶음.
+ */
+export function insideArchive<V>(entries: ReadonlyMap<string, V>): Map<string, V> {
+  return new Map([...entries].filter(([path]) => !escapesArchive(path)))
 }
 
 /**
@@ -1239,12 +1283,17 @@ export async function writeProject(
   // **여기서는 왜 뺐는지를 안다.** 그 사유가 파일에 남아야 화면이 학생에게 무엇을 할 수
   // 있는지 말한다 - "다시 학습하세요"와 "다시 학습해도 소용없습니다"는 다른 답이다.
   const reasons = new Map(dropped.map((model) => [model.path, omissionReason(model.reason)]))
+  // **푸는 자리 밖으로 새는 이름은 안 싣는다** (`insideArchive`). 읽기와 저장소가 이미
+  // 거르지만, 그 둘을 안 지난 맵이 와도 여기서 나가지 않는다. 던지지 않는다 — 저장은
+  // 항상 성공해야 한다(mlpx-spec.md 4.2).
+  const images = insideArchive(project.images)
+  const attachments = insideArchive(project.attachments)
   // 가리키는 사진이 없는 첨부 참조도 함께 뗀다. **나가는 .mlpx는 언제나 참조와 본체가
   // 짝이다** - 아래 반복문이 반대 방향(아무도 안 가리키는 본체)만 보기 때문에, 이 줄이
   // 없으면 참조만 남은 파일이 조용히 나간다.
   const document = detachMissingAttachments(
     detachMissingModels(project.document, kept, (path) => reasons.get(path)),
-    project.attachments,
+    attachments,
   )
 
   const entries: Record<string, Uint8Array> = {
@@ -1285,16 +1334,16 @@ export async function writeProject(
 
   // 정본 사진. **여기서는 종류를 안 본다** - 표 프로젝트는 이 맵이 비어 있다
   // (open-decisions.md "파일 계층은 '파일 참조인가'를 묻는다").
-  for (const [path, content] of project.images) {
+  for (const [path, content] of images) {
     entries[path] = content
   }
-  requireFolderBodies(document, project.images)
+  requireFolderBodies(document, images)
 
   // 포트폴리오 첨부. **아무도 안 가리키는 것은 안 담는다** - 문항을 지우면 그 사진은
   // 아무 문항의 것도 아니고, 들고 다니면 파일이 지운 사진 수만큼 계속 자란다
   // (mlpx-spec.md §8.4). 짝 없는 임베딩을 버리는 것과 같은 자리다.
   const wanted = new Set(Object.values(document.portfolio.attachments).flat())
-  for (const [path, content] of project.attachments) {
+  for (const [path, content] of attachments) {
     if (wanted.has(path)) entries[path] = content
   }
 
@@ -1303,8 +1352,8 @@ export async function writeProject(
   //
   // **등록부에 없는 백본의 것도 같이 버린다.** 사진이 살아 있는 한 짝은 맞으므로 위
   // 규칙만으로는 안 걸린다 (`dropUnknownBackbones`).
-  const photoHashes = new Set([...project.images.keys()].map(hashOfEntry))
-  for (const [path, content] of dropUnknownBackbones(project.embeddings)) {
+  const photoHashes = new Set([...images.keys()].map(hashOfEntry))
+  for (const [path, content] of dropUnknownBackbones(insideArchive(project.embeddings))) {
     if (photoHashes.has(hashOfEntry(path))) entries[path] = content
   }
 

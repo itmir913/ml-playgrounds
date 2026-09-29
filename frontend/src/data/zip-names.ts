@@ -13,6 +13,8 @@
  * 때는 부르는 자리만 늘면 된다.
  */
 
+import { normalizeEntryName } from './archive-entries'
+
 /** 그 언어권의 윈도가 zip 이름에 쓰는 코드 페이지와, 그것으로 읽었다고 인정할 근거. */
 export interface LegacyCharset {
   /** `TextDecoder`가 아는 이름. */
@@ -127,13 +129,14 @@ function readAll(
  * **첫 조각만 보지 않는다** — 한 겹 감싸인 압축 파일(`사진/개/1.jpg`)에서는 범주가
  * 둘째 조각이다.
  *
- * 맥이 만든 zip은 한글을 NFD로 넣으므로 맞대기 전에 NFC로 모은다 (`upload.ts`의
- * `normalizePath`와 같은 이유이고, 그쪽은 이 함수가 정한 뒤에 돈다).
+ * 맥이 만든 zip은 한글을 NFD로 넣으므로 맞대기 전에 NFC로 모은다 — 사진 업로드와 `.mlpx`
+ * 읽기가 쓰는 한 벌(`archive-entries.ts`의 `normalizeEntryName`)이고, 그쪽은 이 함수가 정한
+ * 뒤에 돈다.
  */
 function comparableOf(names: readonly string[]): ReadonlySet<string> {
   const found = new Set<string>()
   for (const name of names) {
-    const path = name.replaceAll('\\', '/').normalize('NFC')
+    const path = normalizeEntryName(name)
     found.add(path)
     for (const segment of path.split('/')) {
       if (segment !== '') found.add(segment)
