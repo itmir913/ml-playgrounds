@@ -66,6 +66,30 @@ describe('점검 포트폴리오 판은 낸 것을 덮지 않는다', () => {
     expect(panel.text()).not.toContain(EMPTY())
   })
 
+  /**
+   * **학생이 쓴 공백을 접지 않는다** (mlpx-spec.md §8.3). `pre-line`은 줄바꿈만 살리고 줄머리
+   * 들여쓰기와 이어진 공백을 하나로 접는다 — 파이썬 코드의 들여쓰기가 교사 화면에서 사라졌다.
+   * jsdom은 CSS를 계산하지 않으므로 글이 앉은 요소의 공백 규칙 클래스를 본다. 이 판과 학생의
+   * [완성본]은 같은 부품(`PortfolioPreview`)이고, 지금 양식에 없는 답(`OrphanAnswers`)도 같이 잰다.
+   */
+  it('학생이 쓴 공백을 접지 않는다', () => {
+    const code = 'for i in range(3):\n    print(i)    # a  b'
+    const orphan = '예전 답\n\tx  =  1'
+    const panel = withPortfolio({
+      template: { sections: [{ id: 'motivation', title: '동기' }] },
+      answerFormat: 'plain-v1',
+      answers: { motivation: code, removed: orphan },
+      attachments: {},
+    })
+
+    for (const text of [code, orphan]) {
+      const holders = panel.findAll('p').filter((one) => one.element.textContent === text)
+      expect(holders).toHaveLength(1)
+      const rules = holders[0]!.classes().filter((one) => one.startsWith('whitespace-'))
+      expect(rules).toEqual(['whitespace-pre-wrap'])
+    }
+  })
+
   it('양식만 있고 아무것도 안 냈으면 아직 안 썼다고 말한다', () => {
     const panel = withPortfolio({
       template: { sections: [{ id: 'motivation', title: '동기' }] },

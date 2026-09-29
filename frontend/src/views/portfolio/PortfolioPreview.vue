@@ -70,9 +70,14 @@ const { t } = useI18n()
             >
               {{ t('portfolio.unanswered') }}
             </p>
+            <!--
+              **공백을 접지 않는다** (mlpx-spec.md §8.3). `pre-line`은 줄머리 들여쓰기를 접어 코드의
+              들여쓰기가 교사 화면에서 사라졌다. `inspect-portfolio-panel.spec.ts`의
+              *"학생이 쓴 공백을 접지 않는다"*가 문다.
+            -->
             <p
               v-else
-              class="mt-2 max-w-prose border-l-2 border-brand-line pl-4 leading-relaxed whitespace-pre-line"
+              class="mt-2 max-w-prose border-l-2 border-brand-line pl-4 leading-relaxed whitespace-pre-wrap"
             >
               {{ section.answer.trim() }}
             </p>

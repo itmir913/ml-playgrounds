@@ -26,7 +26,7 @@ const { t } = useI18n()
     <p
       v-for="orphan in orphans"
       :key="orphan.id"
-      class="mt-2 max-w-prose leading-relaxed whitespace-pre-line"
+      class="mt-2 max-w-prose leading-relaxed whitespace-pre-wrap"
     >
       {{ orphan.answer.trim() }}
     </p>
