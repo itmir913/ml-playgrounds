@@ -250,7 +250,8 @@ function trainGate(input: { taskType: TaskType | undefined; chosen: readonly { a
   - `WATCH_WRITES`의 항목은 `{ file, why }`이고, 그 이름은 제 파일 밖의 `src/`에 나오면 안 된다.
     `locks.ts` 밖은 `WATCH_WRITES`를 이름으로 못 든다(`RESTRICTED_NAMES`) — 가드는 `isWatchWrite`로 묻는다.
   - **기본 부품은 넘겨받은 속성을 뿌리에 흘리지 않는다**(`inheritAttrs: false`, `forwardAttrs`, 허락 목록 `FORWARDED_ATTRS`).
-    `aria-hidden`과 **모두에게서 숨기는 것**(`hidden`·`invisible`·`collapse`·`display: none`·`visibility: hidden`·`type="hidden"`)은 건네지 않는다.
+    `aria-hidden`과 **눈에서 숨기는 것**(토큰 하나로 판정되는 클래스·스타일과 `type="hidden"` — 목록은 `locks.ts`의
+    `hidingAttr`)은 건네지 않는다. 조합으로만 숨는 것(크기 0 + 넘침 숨김, 화면 밖 밀기)은 사각이다(`open-decisions.md` 65).
   - 기본 부품은 `components/App*.vue`이고 잠그는 부품은 `defineProps`가 `Lock`을 받는다(`takesLock`). 그물은 전체 경로로 견준다.
   - `locks.ts`를 `export *`로 이어 주지 않고, 다시 내보내는 모듈을 네임스페이스·동적 `import`로 들이지 않는다.
     `import.meta`는 `env`·`url`만 읽는다. 모듈 지정자의 `?…`·`#…`·확장자·뿌리 경로를 떼고 견준다.
