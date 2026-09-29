@@ -11,7 +11,7 @@
  * 사라진다. 그래서 잠긴 것만이 아니라 **뭐라고 말하는지**까지 잰다.
  */
 import { mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProjectPicker from '../src/components/ProjectPicker.vue'
 import { i18n, setLocale } from '../src/i18n'
@@ -82,5 +82,71 @@ describe('R24 B-7: opening a saved project', () => {
       await row.trigger('click')
     }
     expect(wrapper.emitted('open')).toBeUndefined()
+  })
+})
+
+/**
+ * **목록 판은 화면을 쓰고, 머리와 [닫기]는 굴러가지 않는다** (`open-decisions.md` 79, #35).
+ *
+ * jsdom에는 배치가 없어서 **실제로 95%가 되는지, 낮은 창에서 제목이 남는지는 여기서 못 잰다**
+ * (사람 확인). 여기서 무는 것은 그 모양을 만드는 뼈대다 — 판이 옛 좁은 상한으로 돌아가는 것,
+ * 굴리는 자리가 판 전체로 옮겨 제목과 [닫기]가 함께 밀려 올라가는 것, [닫기]가 판을 안 닫는 것.
+ */
+describe('decision 79: the saved-project panel uses the screen', () => {
+  function mountPicker() {
+    return mount(ProjectPicker, {
+      props: { summaries: SUMMARIES },
+      global: { plugins: [i18n] },
+      attachTo: document.body,
+    })
+  }
+
+  it('the panel reaches 95% of the screen and caps its width, not the old narrow box', () => {
+    const wrapper = mountPicker()
+    const panel = wrapper.find('[popover]')
+    expect(panel.classes()).toEqual(expect.arrayContaining(['w-19/20', 'max-h-19/20', 'max-w-2xl']))
+    expect(panel.classes()).not.toContain('max-w-lg')
+    expect(wrapper.find('ul').classes()).not.toContain('max-h-96')
+    wrapper.unmount()
+  })
+
+  it('only the list scrolls; the title and [close] stay outside it', () => {
+    const wrapper = mountPicker()
+    const panel = wrapper.find('[popover]')
+    // 판 자신이 굴러가면 제목과 [닫기]가 함께 밀려 올라간다.
+    expect(panel.classes()).not.toContain('overflow-y-auto')
+
+    const scrollers = panel.findAll('.overflow-y-auto')
+    expect(scrollers).toHaveLength(1)
+    const scroller = scrollers[0]
+    // **줄어드는 것은 목록 하나다** — 목록은 최소 높이를 풀고, 나머지 칸은 안 줄어든다.
+    expect(scroller?.classes()).toContain('min-h-0')
+    expect(scroller?.classes()).not.toContain('shrink-0')
+    expect(scroller?.findAll('li')).toHaveLength(SUMMARIES.length)
+    for (const child of panel.element.children) {
+      if (child !== scroller?.element) expect(child.classList.contains('shrink-0')).toBe(true)
+    }
+
+    const title = panel.find('h3').element
+    const close = panel.findAll('button').find((one) => one.text() === '닫기')
+    expect(close, 'close button').toBeDefined()
+    expect(scroller?.element.contains(title)).toBe(false)
+    expect(close !== undefined && scroller?.element.contains(close.element)).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('[close] hides the panel', async () => {
+    const wrapper = mountPicker()
+    const panel = wrapper.find('[popover]').element
+    const hide = vi.fn()
+    Object.defineProperty(panel, 'hidePopover', { value: hide, configurable: true })
+
+    const close = wrapper.findAll('button').find((one) => one.text() === '닫기')
+    expect(close, 'close button').toBeDefined()
+    await close?.trigger('click')
+    expect(hide).toHaveBeenCalledTimes(1)
+    // 닫는 것뿐이다. 줄을 연 것이 아니다.
+    expect(wrapper.emitted('open')).toBeUndefined()
+    wrapper.unmount()
   })
 })

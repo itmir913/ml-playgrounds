@@ -465,16 +465,28 @@ describe('기본 부품은 넘겨받은 잠금을 흘리지 않는다', () => {
     ['style string', { style: 'display: none' }],
     ['style object', { style: { visibility: 'hidden' } }],
     ['type hidden', { type: 'hidden' }],
+    // **토큰 하나로 판정되는 숨김** (#32, 결정문 65 "#32에서 더한 것"). 눈에서 지우는 것도 숨김이다.
+    ['class sr-only', { class: 'w-full sr-only' }],
+    ['class opacity-0 with a variant', { class: 'sm:opacity-0' }],
+    ['class scale-0 with importance', { class: '!scale-0' }],
+    ['class scale-x-0', { class: { 'scale-x-0': true } }],
+    ['class scale-y-0', { class: ['a', 'scale-y-0'] }],
+    ['style opacity string', { style: 'opacity: 0' }],
+    ['style opacity object', { style: { opacity: 0 } }],
   ]
+
+  /** 위 표본의 숨김 낱말. 건네졌으면 뿌리에 이 중 하나가 남는다. */
+  const HIDING_LEFT =
+    /(?:^|[\s:!])(?:hidden|invisible|collapse|sr-only|opacity-0|scale-(?:[xy]-)?0)(?:$|[\s!])/
 
   for (const [name, attrs] of HIDINGS) {
     it(`숨기는 속성은 건네지 않고, 그물이 운다: ${name}`, async () => {
       const wrapper = mount(probe({ render: () => h(AppInput, attrs) }))
       await nextTick()
       const input = wrapper.find('input')
-      expect(input.classes()).not.toContain('hidden')
+      expect(input.attributes('class') ?? '').not.toMatch(HIDING_LEFT)
       expect(input.attributes('type')).not.toBe('hidden')
-      expect(input.attributes('style') ?? '').not.toMatch(/display|visibility/)
+      expect(input.attributes('style') ?? '').not.toMatch(/display|visibility|opacity/)
       expect(net().join('\n')).toMatch(/does not forward: (?:class|style|type)/)
       wrapper.unmount()
     })
@@ -487,6 +499,29 @@ describe('기본 부품은 넘겨받은 잠금을 흘리지 않는다', () => {
     expect(isForwardedAttr('type', 'checkbox')).toBe(true)
     expect(isForwardedAttr('class', 'md:hidden')).toBe(false)
     expect(isForwardedAttr('type', 'HIDDEN')).toBe(false)
+    // 되살리는 것·흐리게만 하는 것·크기를 바꾸는 것은 숨김이 아니다.
+    expect(isForwardedAttr('class', 'focus:not-sr-only')).toBe(true)
+    expect(isForwardedAttr('class', 'opacity-50 hover:opacity-100 scale-100 scale-x-50')).toBe(true)
+    expect(isForwardedAttr('style', 'opacity: 0.5')).toBe(true)
+    expect(isForwardedAttr('style', { opacity: 0.05 })).toBe(true)
+    expect(isForwardedAttr('style', 'opacity: .5; --ring-opacity: 1')).toBe(true)
+    // 이름 끝이 `opacity`인 다른 속성은 제 요소를 투명하게 하지 않는다.
+    expect(isForwardedAttr('style', { '--ring-opacity': 0 })).toBe(true)
+    expect(isForwardedAttr('style', { opacity: 'var(--fade)' })).toBe(true)
+    expect(isForwardedAttr('style', 'opacity: 0%')).toBe(false)
+    expect(isForwardedAttr('style', 'opacity:0!important')).toBe(false)
+  })
+
+  /**
+   * **토큰 하나로 판정 못 하는 숨김은 사각이다** (결정문 65 "#32에서 더한 것"). 크기 0은 넘침이 보이면
+   * 안 숨고, 제 크기만큼 미는 것은 화면 안에 남을 수 있다 — 조합을 봐야 하는데 조합은 부품이 모르는
+   * 부모의 배치에 걸린다. **알려진 사각으로 초록에 고정한다** — 막기로 정하면 이 검사가 먼저 바뀐다.
+   */
+  it('조합으로만 숨는 것은 건넨다 — 알려진 사각', () => {
+    expect(isForwardedAttr('class', 'size-0 overflow-hidden')).toBe(true)
+    expect(isForwardedAttr('class', 'w-0 h-0')).toBe(true)
+    expect(isForwardedAttr('class', 'absolute -translate-x-full')).toBe(true)
+    expect(isForwardedAttr('class', 'translate-y-full')).toBe(true)
   })
 
   it('판정은 대소문자·변종·중요도를 가리지 않는다', () => {

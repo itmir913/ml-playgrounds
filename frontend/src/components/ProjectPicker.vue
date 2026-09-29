@@ -64,6 +64,15 @@ function open(): void {
   }
 }
 
+/** 목록을 닫는다. 이미 닫혀 있으면 브라우저가 던지므로 `open()`과 같은 까닭으로 삼킨다. */
+function close(): void {
+  try {
+    panel.value?.hidePopover()
+  } catch {
+    // 이미 닫혀 있다. 할 일이 없다.
+  }
+}
+
 defineExpose({ open })
 
 /**
@@ -99,16 +108,29 @@ function lockReason(): string | undefined {
       </span>
     </AppButton>
 
+    <!--
+      **화면의 95%까지 쓰고, 굴리는 것은 목록이다** (`open-decisions.md` 79, #35). 판 자신은 높이
+      천장(`max-h-19/20`)만 갖고 내용만큼 자라며, 천장에 닿으면 목록 칸만 줄어들어(`min-h-0`, 나머지는
+      `shrink-0`) 그 안에서 굴러간다 — 제목과 [닫기]는 굴리는 칸 밖이라 창이 낮아도 남는다. 목록에
+      `flex-1`을 주지 않는 것은 높이가 내용만큼인 판에서 `flex-basis: 0%`를 0으로 읽는 브라우저가 있어서다
+      — 줄어드는 것은 `shrink`로 충분하다(사람 확인). 단위가 `dvh`가 아니라
+      `%`인 것은 최상위 층의 `%`가 화면을 가리키기 때문이다(`dialog-fill`과 같은 까닭). 실제 크기는
+      jsdom이 못 재므로 사람 확인이고, 뼈대는 `project-picker.spec.ts`가 문다.
+
+      **세로 flex는 열렸을 때만이다**(`open:`). 닫힌 `popover`를 숨기는 것은 브라우저의 `display: none`
+      한 줄이라, 조건 없는 `flex`는 닫힌 판을 첫 화면에 눌러앉힌다(`ui-rules.spec.ts`
+      *"닫힌 팝오버를 숨기는 규칙을 덮지 않는다"*).
+    -->
     <div
       :id="popoverId"
       ref="panel"
       popover="auto"
-      class="m-auto w-full max-w-lg rounded-card border border-line bg-surface p-4 text-ink shadow-pop"
+      class="m-auto max-h-19/20 w-19/20 max-w-2xl flex-col rounded-card border border-line bg-surface p-4 text-ink shadow-pop open:flex"
     >
-      <h3 class="mb-1 font-bold">{{ t('projects.saved') }}</h3>
-      <p class="mb-4 text-ink-faint">{{ t('projects.savedCount', summaries.length) }}</p>
+      <h3 class="mb-1 shrink-0 font-bold">{{ t('projects.saved') }}</h3>
+      <p class="mb-4 shrink-0 text-ink-faint">{{ t('projects.savedCount', summaries.length) }}</p>
 
-      <ul class="flex max-h-96 flex-col gap-2 overflow-y-auto">
+      <ul class="flex min-h-0 flex-col gap-2 overflow-y-auto">
         <li
           v-for="summary in summaries"
           :key="summary.projectId"
@@ -153,6 +175,14 @@ function lockReason(): string | undefined {
           </AppButton>
         </li>
       </ul>
+
+      <!--
+        **[닫기]가 있어야 나갈 수 있다.** 판이 화면의 95%면 휴대폰에서 바깥을 누를 자리가 가장자리
+        몇 px뿐이고 Esc가 없다. 자리는 대화상자의 단추 줄과 같은 아래 오른쪽이다.
+      -->
+      <div class="mt-4 flex shrink-0 justify-end">
+        <AppButton variant="secondary" @click="close">{{ t('common.dismiss') }}</AppButton>
+      </div>
     </div>
   </div>
 </template>

@@ -266,14 +266,34 @@ function forwardedName(name: string): string {
   return /^aria[A-Z]/.test(name) ? `aria-${name.slice(4).toLowerCase()}` : name
 }
 
-/** 숨기는 클래스. 변종(`md:`)과 중요도(`!`)를 떼고 본다 — `overflow-hidden`은 숨김이 아니다. */
-const HIDING_CLASSES: ReadonlySet<string> = new Set(['hidden', 'invisible', 'collapse'])
-
-/** 숨기는 스타일. `display: none`과 `visibility: hidden`(또는 `collapse`)이다. */
-const HIDING_STYLE = /display\s*:\s*none|visibility\s*:\s*(?:hidden|collapse)/i
+/**
+ * 숨기는 클래스. 변종(`md:`)과 중요도(`!`)를 떼고 본다 — `overflow-hidden`은 숨김이 아니다.
+ *
+ * **토큰 하나로 판정되는 것만 적는다** (결정문 65 "#32에서 더한 것"). 눈에서 지우는 `sr-only`, 투명하게 하는
+ * `opacity-0`, 0으로 줄여 그리는 `scale-0`·`scale-x-0`·`scale-y-0`. 조합으로만 숨는 것(`size-0` +
+ * `overflow-hidden`, 제 크기만큼 미는 `-translate-x-full`)은 사각이다 — `locks.spec.ts`의 *"조합으로만 숨는
+ * 것은 건넨다 — 알려진 사각"*이 초록으로 고정한다.
+ */
+const HIDING_CLASSES: ReadonlySet<string> = new Set([
+  'hidden',
+  'invisible',
+  'collapse',
+  'sr-only',
+  'opacity-0',
+  'scale-0',
+  'scale-x-0',
+  'scale-y-0',
+])
 
 /**
- * **이 속성이 기본 부품을 모두에게서 숨기는가** (0.30.0 최종 승인 감사 C-5, 코드 소유자). 숨긴 단추는
+ * 숨기는 스타일. `display: none`, `visibility: hidden`(또는 `collapse`), 그리고 `opacity-0`과 같은 뜻의
+ * `opacity: 0`(`0%`·`0.0` 포함, `0.5`·`var(…)`·`--x-opacity`는 아니다).
+ */
+const HIDING_STYLE =
+  /display\s*:\s*none|visibility\s*:\s*(?:hidden|collapse)|(?<![\w-])opacity\s*:\s*(?:0+(?:\.0*)?|\.0+)%?(?![\d.])/i
+
+/**
+ * **이 속성이 기본 부품을 눈에서 숨기는가** (0.30.0 최종 승인 감사 C-5, 코드 소유자; #32에서 넓혔다). 숨긴 단추는
  * 학생에게 잠긴 단추와 같다 — 누를 것이 없다. `aria-hidden`을 건네지 않는 것과 같은 모양으로, 넘겨받은
  * 클래스·스타일·`type`에 숨김이 들었으면 건네지 않고 실행 중 그물이 운다. **잠금 속성이 아니다** — 화면이
  * 제 요소를 `hidden`으로 두는 것(`max-md:hidden`)은 그대로이고, 기본 부품의 **뿌리에 건네는 것**만 본다.

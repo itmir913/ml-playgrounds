@@ -2176,6 +2176,76 @@ const props = defineProps<{ run: Run; dataset: Dataset | null }>()
     })
   })
 
+  /**
+   * **닫힌 팝오버도 같다 — `display`는 `open:`에만 건다** (`open-decisions.md` 79, #35).
+   *
+   * 닫힌 `popover`를 숨기는 것도 브라우저의 `display: none` 한 줄이다. 목록 판(`ProjectPicker`)은
+   * 제목과 [닫기]를 제자리에 두고 목록만 굴리려고 판 자신이 세로 flex여야 하는데, 그 `flex`를 조건
+   * 없이 주면 **닫힌 판이 첫 화면에 눌러앉는다.** 그래서 `open:flex`로 열렸을 때만 준다.
+   *
+   * 위 대화상자 규칙과 달리 **낱말을 토큰으로 가른다** — `open:flex`와 `flex-col`은 통과해야 한다.
+   * **못 보는 것**: `:class` 바인딩, `v-bind` 객체로 준 `popover`, 여는 태그 안의 `>`(`=>` 같은)에서
+   * 끊긴 태그.
+   */
+  describe('닫힌 팝오버를 숨기는 규칙을 덮지 않는다', () => {
+    const DISPLAY_TOKENS: ReadonlySet<string> = new Set([
+      'flex',
+      'grid',
+      'block',
+      'inline',
+      'inline-block',
+      'inline-flex',
+      'inline-grid',
+      'table',
+      'contents',
+    ])
+
+    /** `popover` 속성을 가진 여는 태그의 정적 `class`. `:popovertarget`은 대상이 아니다. */
+    function popoverClasses(source: string): string[] {
+      return [...source.matchAll(/<[a-z][\w-]*\s[^>]*?(?<=\s)popover(?=[\s=>])[^>]*>/g)]
+        .flatMap((tag) => [...(tag[0] ?? '').matchAll(/(?<![:\w-])class="([^"]*)"/g)])
+        .map((found) => found[1] ?? '')
+    }
+
+    /** 변종 없이 선 `display` 토큰들. `open:flex`는 열렸을 때만이라 통과한다. */
+    function unconditionalDisplay(names: string): string[] {
+      return names.split(/\s+/).filter((token) => DISPLAY_TOKENS.has(token.replace(/^!|!$/g, '')))
+    }
+
+    it('검사기가 조건 없는 display를 잡고, open:과 안쪽 칸은 통과시킨다', () => {
+      const bare = popoverClasses(
+        ['<div', ':id="x"', 'popover="auto"', 'class="m-auto flex flex-col"', '>'].join(
+          String.fromCharCode(10),
+        ),
+      )
+      expect(bare.flatMap(unconditionalDisplay)).toEqual(['flex'])
+      const important = popoverClasses('<div popover class="!grid">')
+      expect(important.flatMap(unconditionalDisplay)).toEqual(['!grid'])
+      const opened = popoverClasses('<div popover="auto" class="m-auto open:flex open:flex-col">')
+      expect(opened).toHaveLength(1)
+      expect(opened.flatMap(unconditionalDisplay)).toEqual([])
+      // 여는 단추(`popovertarget`)와 안쪽 칸은 대상이 아니다.
+      expect(popoverClasses('<button :popovertarget="id" class="flex">')).toEqual([])
+      expect(popoverClasses('<div class="flex flex-col">')).toEqual([])
+    })
+
+    it('`popover`를 실제로 찾는다 — 모집단이 비면 규칙이 아니다', () => {
+      const found = vueFiles(SRC).filter(
+        (path) => popoverClasses(readFileSync(path, 'utf-8')).length > 0,
+      )
+      expect(found.length).toBeGreaterThan(0)
+    })
+
+    it('지금 소스에 그런 자리가 없다', () => {
+      const offenders = vueFiles(SRC).flatMap((path) =>
+        popoverClasses(readFileSync(path, 'utf-8'))
+          .flatMap(unconditionalDisplay)
+          .map((token) => `${path.slice(SRC.length + 1)}: ${token}`),
+      )
+      expect(offenders).toEqual([])
+    })
+  })
+
   describe('시각화 그림은 프롭을 하나만 선언한다', () => {
     const REGISTRY = join(SRC, 'data', 'charts.ts')
 
