@@ -1797,6 +1797,11 @@ describe('전처리 판은 붙일 때도 뗄 때도 묻는다', () => {
    * *"일이 실패해도 확인창이 닫히는가"*인데, 이 창은 **묻는 창이 아니라 보는 창**이라
    * 확인할 일도 실패할 일도 없다 — 여는 것은 학생의 클릭이고 닫는 것도 학생이다.
    * 그래서 `apply`에 해당하는 함수 자체가 없다.
+   *
+   * **`LeaveGuard.vue`도 `CLOSERS`가 아니다** (2026-09-29, open-decisions.md 74). 이 창의 일
+   * ([파일로 저장])이 실패하면 **창이 남아 창 안에서 이유를 말한다** — 학생이 그 자리에서
+   * [그래도 나가기]나 [머무르기]를 골라야 해서다. 알림으로 말하려고 닫는 `CLOSERS`와 반대다.
+   * `WelcomeView.vue`의 덮기 전 창(결정 75)은 답을 받는 순간 닫고 일을 시작한다 — 일하기 전에 닫는 창이다.
    */
   it('AppDialog를 쓰는 화면이 그대로다 - 늘었으면 CLOSERS를 다시 보라', () => {
     const screens = vueFiles(SRC)
@@ -1805,6 +1810,7 @@ describe('전처리 판은 붙일 때도 뗄 때도 묻는다', () => {
       .sort()
 
     expect(screens).toEqual([
+      'components/LeaveGuard.vue',
       'views/PortfolioView.vue',
       'views/PreprocessView.vue',
       'views/TrainView.vue',

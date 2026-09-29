@@ -371,39 +371,41 @@ describe('프로젝트 삭제', () => {
   })
 })
 
+/**
+ * **여유를 미리 묻는 자리는 사진 굽기 전 하나다** (open-decisions.md 73). 저장 자체는 더 묻지
+ * 않으므로(`storage-quota.spec.ts`) 판정은 `roomShortfall`을 직접 잰다 — 그것을 부르는
+ * `data/image/room.ts`의 식은 `image-room.spec.ts`가 문다.
+ */
 describe('여유 공간', () => {
   /**
    * **안전계수가 실제로 곱해지는가** (R7 감사 B-9). 기존 셋은 여유가 아주 많거나 아주
    * 적은 값만 줘서, `STORAGE_SAFETY_FACTOR`를 통째로 무시해도 전체가 침묵했다.
    *
    * 브라우저가 보고하는 여유는 근사값이고 압축·인덱스가 더 먹는다 — 그래서 계수만큼
-   * 더 요구한다. **필요량과 여유를 계수 사이에 놓으면** 그 곱셈이 있을 때만 거부된다.
+   * 더 요구한다. **필요량과 여유를 계수 사이에 놓으면** 그 곱셈이 있을 때만 모자라다.
    */
-  it('여유가 실제 크기보다는 크고 안전계수보다는 작으면 거부한다', async () => {
-    const project = projectFile()
-    const size = totalBytes(project)
+  it('여유가 실제 크기보다는 크고 안전계수보다는 작으면 모자라다고 한다', async () => {
+    const size = totalBytes(projectFile())
     // 계수가 1보다 크다는 전제 자체를 먼저 세운다.
     expect(STORAGE_SAFETY_FACTOR).toBeGreaterThan(1)
     const available = Math.floor(size * ((1 + STORAGE_SAFETY_FACTOR) / 2))
     stubEstimate(available * 4, available * 3)
 
     try {
-      await expect(saveProject(project)).rejects.toSatisfy(isClientError)
+      expect(await roomShortfall(size)).not.toBeNull()
     } finally {
       clearEstimate()
     }
   })
 
-  it('부족하면 저장을 거부하고 얼마나 필요한지 알려준다', async () => {
+  it('모자라면 얼마나 필요한지 알려준다', async () => {
     stubEstimate(1024 * 1024, 1024 * 1024 - 10)
     try {
-      await saveProject(projectFile())
-      expect.unreachable()
-    } catch (error) {
-      expect(isClientError(error)).toBe(true)
-      if (!isClientError(error)) return
-      expect(error.code).toBe('STORAGE_QUOTA_EXCEEDED')
-      expect(error.params.requiredMb).toBeGreaterThanOrEqual(0)
+      const shortfall = await roomShortfall(totalBytes(projectFile()))
+      expect(shortfall?.requiredMb).toBeGreaterThan(0)
+      expect(shortfall?.availableMb).toBe(0)
+    } finally {
+      clearEstimate()
     }
   })
 

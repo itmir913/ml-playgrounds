@@ -34,8 +34,16 @@ import { newProjectDocument, newProjectSeed } from '@/project/create'
 import type { DataType } from '@/project/schema'
 import { readFileBytes } from '@/project/download'
 import { MLPX_ACCEPT, readProject } from '@/project/format'
-import { deleteProject, listProjects, saveProject, type ProjectSummary } from '@/project/storage'
+import { asksBeforeReplacing, type LocalVersion } from '@/project/replace'
+import {
+  deleteProject,
+  listProjects,
+  readLocalVersion,
+  saveProject,
+  type ProjectSummary,
+} from '@/project/storage'
 import { claimTabLock, releaseTabLock, withTabLock } from '@/project/tab-lock'
+import { useFormat } from '@/composables/useFormat'
 import { useWork } from '@/composables/useWork'
 import { toMessage } from '@/errors'
 import { useGate } from '@/locks'
@@ -44,6 +52,7 @@ import { useToastStore } from '@/stores/toasts'
 const { t, locale } = useI18n()
 const router = useRouter()
 const toasts = useToastStore()
+const format = useFormat()
 
 /**
  * 지금 언어의 개인정보 처리방침. **vue-i18n의 `locale`은 문자열이라 한 번 좁힌다** -
@@ -216,13 +225,58 @@ async function create(): Promise<void> {
 }
 
 /**
+ * 덮기 전에 묻는 창의 답. 창을 닫으면(Esc·바깥) `cancel`, 창이 뜬 채 화면이 내려가면(뒤로 가기
+ * 따위로 다른 데로 갔다) `left`다. **둘은 자물쇠에서 갈린다** — 아래 `openFile`.
+ */
+type ReplaceChoice = 'keep' | 'replace' | 'cancel' | 'left'
+
+/**
+ * 덮기 전에 묻는 창의 내용 (open-decisions.md 75). **이름과 수정 시각뿐이다** — 학번·이름은
+ * 보이지 않는다(코드 소유자 결정). 답을 기다리는 동안만 값이 있다.
+ */
+const replacing = ref<{
+  name: string
+  localAt: string
+  fileAt: string
+  answer: (choice: ReplaceChoice) => void
+} | null>(null)
+
+function askReplace(local: LocalVersion | null, fileUpdatedAt: string): Promise<ReplaceChoice> {
+  return new Promise((resolve) => {
+    replacing.value = {
+      name: local?.name ?? '',
+      // 시각은 그릴 때 편다 — 창이 열린 채 언어를 바꿔도 따라온다(`useFormat`).
+      localAt: local?.updatedAt ?? '',
+      fileAt: fileUpdatedAt,
+      answer: resolve,
+    }
+  })
+}
+
+/** 창의 답을 넘기고 닫는다. **한 번만 넘긴다** — 닫힘(`close`)이 단추 뒤에 한 번 더 온다. */
+function answerReplace(choice: ReplaceChoice): void {
+  const pending = replacing.value
+  replacing.value = null
+  pending?.answer(choice)
+}
+
+// 창이 열린 채 화면이 내려가면(다른 데로 갔다) `left`로 답한다 — 안 그러면 `openFile`이 영영
+// 기다린다. **자물쇠는 놓지 않는다**: 화면을 옮긴 이동이 이미 라우터 가드를 지났고, 가드가 프로젝트
+// 밖이면 `close()`로 놓았고 프로젝트면 `open()`이 그것의 자물쇠로 바꿔 쥐었다. 여기서 전역
+// `releaseTabLock()`을 부르면 **방금 연 프로젝트의 자물쇠가 풀린다**(2026-09-29 P 검토 A-1).
+// 무는 검사: `open-older-file.spec.ts`의 *"창이 뜬 채 화면을 떠나면"*.
+onBeforeUnmount(() => answerReplace('left'))
+
+/**
  * `.mlpx`를 열어 이 브라우저에 들인다.
  *
  * **컴퓨터실 PC는 전원을 끄면 디스크가 되돌아간다.** 다음 차시에 학생이 하는 첫
  * 동작이 이것이고, 그래서 새 프로젝트 옆에 나란히 둔다.
  *
  * 같은 projectId가 이미 있으면 덮어쓴다 - 같은 프로젝트를 다시 가져온 것이므로
- * 새로 만드는 것이 아니라 최신으로 맞추는 것이 맞다.
+ * 새로 만드는 것이 아니라 최신으로 맞추는 것이 맞다. **다만 이 컴퓨터의 판이 더 새거나 파일로
+ * 안 나간 편집이 있으면 먼저 묻는다** (open-decisions.md 75) — 전에는 옛 파일이 더 새 작업을
+ * 묻지 않고 덮었다. 선택지는 둘뿐이고 어느 쪽이든 **id는 그대로다**(mlpx-spec.md §6.3).
  *
  * **그래서 쓰기 전에 잠금을 묻는다** (2026-09-04 R27 A-1). 덮어쓰기이므로 이 경로가
  * 정확히 두 탭 잠금이 막으려던 그 저장이다 - 다른 탭이 그 프로젝트로 실험을 세 번
@@ -250,19 +304,39 @@ async function openFile(event: Event): Promise<void> {
   let holding = false
   try {
     const { project: opened, integrity } = await readProject(await readFileBytes(picked))
-    await claimTabLock(opened.document.manifest.projectId)
+    const projectId = opened.document.manifest.projectId
+    await claimTabLock(projectId)
     holding = true
-    await saveProject(opened)
+    /**
+     * **이 컴퓨터의 판이 더 새거나 파일로 안 나간 편집이 있으면 덮기 전에 묻는다**
+     * (open-decisions.md 75). 판을 못 읽으면(`null`) 묻지 않고 덮는다 — 그것이 복구 길이다.
+     * 잠금을 잡은 **뒤에** 읽는다 — 묻는 사이 다른 탭이 그 판을 고치지 못한다.
+     */
+    const local = await readLocalVersion(projectId).catch(() => null)
+    const choice = asksBeforeReplacing(local, opened.document.manifest.updatedAt)
+      ? await askReplace(local, opened.document.manifest.updatedAt)
+      : 'replace'
+    if (choice === 'cancel' || choice === 'left') {
+      // 아무것도 안 쓴다. 창을 닫았으면(`cancel`) 목록에 남으므로 잡은 자물쇠를 놓는다(아래
+      // `catch`와 같은 규칙). 화면을 떠났으면(`left`) 자물쇠는 이미 라우터가 놓았거나 바꿔 쥐었다 —
+      // 여기서 놓으면 새로 연 프로젝트의 것을 푼다(위 `onBeforeUnmount`).
+      holding = false
+      if (choice === 'cancel') releaseTabLock()
+      return
+    }
+    // [이 컴퓨터의 것 열기]는 파일을 버린다 — 쓰지 않고 이 컴퓨터의 판으로 연다. **id는 그대로다.**
+    if (choice === 'replace') await saveProject(opened, { imported: true })
     holding = false
-    await openProject(opened.document.manifest.projectId)
+    await openProject(projectId)
     // 고쳐졌다고 열어 주지 않을 이유는 없다. 다만 말은 해 준다 (mlpx-spec.md §7.3).
+    // **파일로 바꿨을 때만이다** — 버린 파일의 사정은 연 판과 무관하다.
     //
     // **도착한 뒤에 민다** (2026-09-19, 사용자가 잡았다). 이동 전에 밀면 라우터가
     // **뜨자마자 걷어 간다** — 떠나는 화면의 알림을 걷는 수위선 아래에 들기 때문이다
     // (`router/index.ts`). 학생이 본 것은 "떴다가 곧바로 사라지는 경고"였다.
     //
     // **어조를 올려도 안 고쳐진다.** 걷는 쪽은 어조를 안 본다 — 자리의 문제다.
-    if (integrity.status === 'MODIFIED') {
+    if (choice === 'replace' && integrity.status === 'MODIFIED') {
       toasts.push('caution', 'project.openModified')
     }
   } catch (error) {
@@ -439,6 +513,32 @@ onMounted(refresh)
             t('common.cancel')
           }}</AppButton>
           <AppButton :lock="busyLock" :action="create">{{ t('projects.create') }}</AppButton>
+        </template>
+      </AppDialog>
+
+      <!--
+        **덮기 전에 묻는다** (open-decisions.md 75). 선택지는 둘뿐이고 새 프로젝트로 여는 길은
+        없다(mlpx-spec.md §6.3). 보이는 것은 이름과 두 수정 시각뿐이다 — 학번·이름은 안 보인다.
+      -->
+      <AppDialog
+        :open="replacing !== null"
+        :title="t('project.openNewerTitle')"
+        :description="t('project.openNewerBody', { name: replacing?.name ?? '' })"
+        @close="answerReplace('cancel')"
+      >
+        <ul class="flex flex-col gap-1.5 text-ink-soft">
+          <li>
+            {{ t('project.openNewerLocalAt', { at: format.dateTime(replacing?.localAt ?? '') }) }}
+          </li>
+          <li>
+            {{ t('project.openNewerFileAt', { at: format.dateTime(replacing?.fileAt ?? '') }) }}
+          </li>
+        </ul>
+        <template #actions>
+          <AppButton variant="secondary" @click="answerReplace('replace')">
+            {{ t('project.openNewerReplace') }}
+          </AppButton>
+          <AppButton @click="answerReplace('keep')">{{ t('project.openNewerKeep') }}</AppButton>
         </template>
       </AppDialog>
 

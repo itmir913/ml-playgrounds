@@ -25,10 +25,18 @@ import { useRoute } from 'vue-router'
 
 import AppShell from '@/components/AppShell.vue'
 import AppToast from '@/components/AppToast.vue'
+import LeaveGuard from '@/components/LeaveGuard.vue'
+import { useStorageBlockedNotice } from '@/composables/useStorageBlockedNotice'
+import { useUnloadWarning } from '@/composables/useUnloadWarning'
 import { useProjectStore } from '@/stores/project'
 
 const project = useProjectStore()
 const route = useRoute()
+
+// 저장소가 다른 탭에 막힌 동안 알린다 (open-decisions.md 77).
+useStorageBlockedNotice()
+// 메모리에만 있는 편집을 두고 탭을 닫으면 브라우저가 경고한다 (open-decisions.md 74).
+useUnloadWarning()
 
 /**
  * **작업 공간의 키는 프로젝트 id다** (`open-decisions.md` "같은 라우트 레코드 안에서 프로젝트를
@@ -74,5 +82,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', flushOnHi
   <AppShell>
     <RouterView :key="screenKey" />
   </AppShell>
+  <!-- 떠나는 이동은 어느 화면에서든 시작되므로 확인 창은 껍데기에 하나다 (open-decisions.md 74). -->
+  <LeaveGuard />
   <AppToast />
 </template>

@@ -17,17 +17,18 @@ import { useI18n } from 'vue-i18n'
 import AppButton from '@/components/AppButton.vue'
 import AppField from '@/components/AppField.vue'
 import AppPopover from '@/components/AppPopover.vue'
+import { useExportProject } from '@/composables/useExportProject'
 import { ACTION_ICONS } from '@/icons'
 import { MAX_STUDENT_ID_LENGTH, MAX_STUDENT_NAME_LENGTH } from '@/limits'
 import { projectFileName } from '@/project/format'
-import { identifiedExport } from '@/project/portfolio-text'
 import { identityOf, withIdentity } from '@/project/identity'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const project = useProjectStore()
 const toasts = useToastStore()
+const { exportNow } = useExportProject()
 
 const studentId = ref('')
 const studentName = ref('')
@@ -60,38 +61,15 @@ const fileName = computed(() => {
   return projectFileName(document.manifest)
 })
 
+/**
+ * 내보낸다. **길은 하나다** (`useExportProject`) — 떠나기 확인 창의 [파일로 저장]도 같은 길을
+ * 지난다. 여기서 더하는 것은 적은 인적사항과, 파일이 나가면 팝오버를 닫는 것, 실패를 알림으로
+ * 말하는 것이다(팝오버는 모달이 아니라 알림이 안 덮인다).
+ */
 async function exportFile(close: () => void): Promise<void> {
-  const file = project.file
-  if (!file) return
   try {
-    // 적은 인적사항을 문서에 넣고, **그 문서로** 마크다운까지 만든다. 둘을 따로
-    // 부르면 마크다운이 갱신 전 manifest를 본다 (`identifiedExport`의 주석).
-    //
-    // portfolio/document.md는 파생물이지만 파일에 담는다 - 교사가 압축을 풀어 메모장으로
-    // 열어도 학생이 무엇을 썼는지 보여야 한다 (CLAUDE.md §1.3).
-    const exported = identifiedExport(
-      file.document,
-      {
-        name: file.document.manifest.name,
-        studentId: studentId.value,
-        studentName: studentName.value,
-      },
-      new Date().toISOString(),
-      (key) => t(key),
-      locale.value,
-    )
-
-    // 파일 이름이 인적사항으로 만들어져야 하므로 문서를 먼저 넣는다.
-    project.update((live) => ({ ...live, document: exported.document }))
-
-    const dropped = await project.exportFile(exported.markdown)
-    close()
-
-    toasts.push('success', 'project.exportDone')
-    if (dropped.length > 0) {
-      // 조용히 빠지면 학생은 예측이 왜 안 되는지 모른다.
-      toasts.push('caution', 'project.exportDropped', { count: dropped.length })
-    }
+    const done = await exportNow({ studentId: studentId.value, studentName: studentName.value })
+    if (done) close()
   } catch (error) {
     toasts.pushError(error)
   }

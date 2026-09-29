@@ -309,8 +309,8 @@ function backboneOfEmbedding(path: string): string | null {
  * 채운 프로젝트면 25MB다.
  *
  * **파일과 브라우저 저장소 양쪽에서 부른다.** 파일에서만 떨어뜨리면 IndexedDB에는 새
- * 벡터와 옛 벡터가 나란히 남고, `ensureRoom`이 그것까지 세어서 **학생이 자기 프로젝트를
- * 저장하지 못하게 된다.**
+ * 벡터와 옛 벡터가 나란히 남아 저장마다 그것까지 다시 쓰고(쿼터를 먹는다), 사진 굽기 전 여유
+ * 검사(`totalBytes`)가 그것까지 세어서 **학생이 사진을 더 못 올리게 된다.**
  */
 export function dropUnknownBackbones(
   embeddings: ReadonlyMap<string, Uint8Array>,

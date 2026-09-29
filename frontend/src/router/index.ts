@@ -19,6 +19,7 @@ import {
 import { dataKindFor, lockedNoticeFor } from '@/data/kinds'
 import { i18n } from '@/i18n'
 import { refusalFor } from '@/locks'
+import { useLeaveStore } from '@/stores/leave'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import { isStepId, resolveStep, STEP_IDS, type StepId } from './steps'
@@ -109,21 +110,45 @@ let toastWatermark: number | null = null
 router.beforeEach(async (to) => {
   if (toastWatermark === null) toastWatermark = useToastStore().highWaterMark()
   const project = useProjectStore()
-  // 미뤄 둔 자동 저장을 끝내고 나간다. 화면을 옮기는 사이에 잃는 것이 없어야 한다.
-  //
-  // **여기서 잡지 않으면 아무 일도 안 일어난다.** flush()는 STORAGE_QUOTA_EXCEEDED를
-  // 되던지는데(storage.ts의 ensureRoom, 그리고 실제 쓰기의 QuotaExceededError) 가드가
-  // 던지면 vue-router는 이동을 취소하고, 우리에게는 router.onError도 전역 errorHandler도
-  // 없다 - 학생은 [다음]을 눌렀는데 화면이 안 바뀌는 것만 본다.
-  // storage.ts 머리말이 "저장 실패는 삼키지 않는다. 화면이 반드시 알아야 한다"고 적은
-  // 자리이고, 다른 두 경로(update()의 타이머, 화면의 save())는 그 약속을 지킨다.
-  //
-  // **막지는 않는다.** 같은 프로젝트 안에서는 값이 메모리에 그대로 있고 dirty도 그대로라
-  // 다음 저장이 다시 시도한다. 못 나가게 붙들면 저장이 안 되는 학생이 갇힌다.
-  try {
-    await project.flush()
-  } catch (error) {
-    useToastStore().pushError(error)
+  const leave = useLeaveStore()
+  /**
+   * **이 이동이 열린 프로젝트를 떠나는가** — 목록·점검(`projectId` 없음)이나 다른 프로젝트다.
+   * 같은 프로젝트 안의 단계 이동은 값이 메모리에 그대로 남으므로 떠나는 것이 아니다.
+   */
+  const leavingProject = project.projectId !== null && to.params.projectId !== project.projectId
+
+  // [그래도 나가기]로 허락된 이동은 저장을 다시 기다리지 않는다 — 방금 실패했고, 학생이 잃는 것을
+  // 알고 골랐다(결정 74).
+  if (!leave.consume(to.fullPath)) {
+    // 미뤄 둔 자동 저장을 끝내고 나간다. 화면을 옮기는 사이에 잃는 것이 없어야 한다.
+    //
+    // **여기서 잡지 않으면 아무 일도 안 일어난다.** flush()는 STORAGE_QUOTA_EXCEEDED를
+    // 되던지는데(실제 쓰기의 QuotaExceededError) 가드가 던지면 vue-router는 이동을 취소하고,
+    // 우리에게는 router.onError도 전역 errorHandler도 없다 - 학생은 [다음]을 눌렀는데 화면이
+    // 안 바뀌는 것만 본다. storage.ts 머리말이 "저장 실패는 삼키지 않는다. 화면이 반드시
+    // 알아야 한다"고 적은 자리이고, 다른 두 경로(update()의 타이머, 화면의 save())는 그 약속을 지킨다.
+    //
+    // **같은 프로젝트 안에서는 막지 않는다.** 값이 메모리에 그대로 있고 dirty도 그대로라
+    // 다음 저장이 다시 시도한다. 못 나가게 붙들면 저장이 안 되는 학생이 갇힌다.
+    //
+    // **저장이 도는 중이면 기다린다.** 끝나지 않는 저장의 알려진 원인(쓰기 전 `estimate()`)은
+    // 결정 73이 뺐다. 끝나지 않는 쓰기를 시간으로 끊는 것은 근거 없는 임계값이라 두지 않는다.
+    try {
+      await project.flush()
+    } catch (error) {
+      useToastStore().pushError(error)
+    }
+
+    /**
+     * **떠나는 이동은 메모리에만 있는 편집을 버린다** (open-decisions.md 74, 2026-09-28 감사
+     * C/A-1). 아래 `close()`가 그 값을 지운다 — 저장에 실패했고 파일로도 안 나갔으면 그 편집은
+     * 어디에도 없다. 멈추고 확인 창(`LeaveGuard.vue`)에 넘긴다. 판정은 저장소가 아니라 메모리
+     * 상태다(`stranded`). 무는 검사: `leave-unsaved.spec.ts`.
+     */
+    if (leavingProject && project.stranded) {
+      leave.ask(to.fullPath)
+      return false
+    }
   }
 
   const { projectId } = to.params

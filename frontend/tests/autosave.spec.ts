@@ -26,6 +26,7 @@ import { closeStorage, DB_NAME, loadProject, readExportedAt } from '../src/proje
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import { emptyProjectFile, manifest, projectFile } from './fixtures/project'
+import { refuseWrites } from './fixtures/storage-refusal'
 import { hashBytes } from '../src/hash'
 import type { ProjectFile } from '../src/project/format'
 
@@ -38,6 +39,29 @@ vi.mock('../src/project/download', () => ({
   },
   readFileBytes: async (file: File) => new Uint8Array(await file.arrayBuffer()),
 }))
+
+/**
+ * **저장을 붙드는 손잡이.** 쓰기 전에 여유를 재던 검사(`estimate()`)가 빠진 뒤로(open-decisions.md
+ * 71) `saveProject`에는 흉내 낼 기다림이 없다 — 그래서 **진짜 `saveProject` 앞에서** 붙든다.
+ * `hold`가 약속을 돌려주면 그 호출은 그것을 기다린 뒤 진짜로 쓴다. 저장 자체는 흉내 내지 않는다.
+ */
+const gate = vi.hoisted(() => ({
+  calls: 0,
+  hold: null as ((call: number) => Promise<void> | null) | null,
+}))
+
+vi.mock('../src/project/storage', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/project/storage')>()
+  return {
+    ...actual,
+    saveProject: async (...args: Parameters<typeof actual.saveProject>) => {
+      gate.calls += 1
+      const wait = gate.hold?.(gate.calls) ?? null
+      if (wait !== null) await wait
+      return actual.saveProject(...args)
+    },
+  }
+})
 
 /** 내려간 파일의 바이트. **여기서만 전체를 편다** - 나가는 경로는 안 그런다. */
 async function downloadedBytes(index: number): Promise<Uint8Array> {
@@ -55,12 +79,19 @@ async function deleteDatabase(): Promise<void> {
   })
 }
 
-/** 저장소 여유를 흉내낸다. 되돌리는 것은 afterEach가 한다. */
-function stubEstimate(quota: number, usage: number): void {
-  Object.defineProperty(navigator, 'storage', {
-    configurable: true,
-    value: { estimate: () => Promise.resolve({ quota, usage }) },
-  })
+/**
+ * 여기서부터 브라우저가 쓰기를 쿼터로 거절한다(`fixtures/storage-refusal.ts`). 되돌리는 것은
+ * `allow()`나 afterEach다.
+ */
+let refusal: { restore: () => void } | null = null
+
+function refuse(): void {
+  refusal ??= refuseWrites()
+}
+
+function allow(): void {
+  refusal?.restore()
+  refusal = null
 }
 
 /** 새 이름을 붙인 사본. 값이 바뀐 것을 흉내낸다. */
@@ -83,6 +114,9 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  allow()
+  gate.hold = null
+  gate.calls = 0
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   vi.useRealTimers()
   closeStorage()
@@ -203,8 +237,8 @@ describe('쓰는 동안 또 바뀐 것', () => {
   /**
    * **쓰기는 온 순서대로 하나씩 한다** (2026-09-28 감사 C, C-2).
    *
-   * `saveProject`는 트랜잭션을 세우기 전에 여유 공간을 묻는다(`estimate()`). 겹친 두 쓰기에서
-   * 먼저 시작한 쪽의 답이 늦으면 **나중 값이 먼저 들어가고 옛 값이 그 위를 덮었다** — 화면은
+   * `saveProject`는 트랜잭션을 세우기 전에 여유 공간을 물었다(`estimate()`, 결정 73이 뺐다). 겹친
+   * 두 쓰기에서 먼저 시작한 쪽의 답이 늦으면 **나중 값이 먼저 들어가고 옛 값이 그 위를 덮었다** — 화면은
    * 나중 값, 저장소는 옛 값, `dirty`는 참인데 다시 쓸 타이머가 없었다(실측: 화면 B · 저장소 A).
    */
   it('겹친 두 쓰기는 나중 값을 남긴다', async () => {
@@ -212,24 +246,19 @@ describe('쓰는 동안 또 바뀐 것', () => {
     await project.save(projectFile())
 
     let release = (): void => {}
-    let calls = 0
-    Object.defineProperty(navigator, 'storage', {
-      configurable: true,
-      value: {
-        estimate: () => {
-          calls += 1
-          if (calls > 1) return Promise.resolve({ quota: 1e12, usage: 0 })
-          return new Promise((resolve) => {
-            release = () => resolve({ quota: 1e12, usage: 0 })
+    // 이 뒤의 첫 쓰기만 붙든다. 줄이 없으면 둘째가 먼저 들어가고 첫째가 그 위를 덮는다.
+    gate.calls = 0
+    gate.hold = (call) =>
+      call === 1
+        ? new Promise<void>((resolve) => {
+            release = resolve
           })
-        },
-      },
-    })
+        : null
 
     project.update(renamed('먼저 쓴 이름'))
     const first = project.flush()
-    for (let round = 0; round < 50 && calls === 0; round += 1) await Promise.resolve()
-    expect(calls, 'the first write must be waiting on the room check').toBe(1)
+    for (let round = 0; round < 50 && gate.calls === 0; round += 1) await Promise.resolve()
+    expect(gate.calls, 'the first write must be held').toBe(1)
 
     project.update(renamed('나중에 쓴 이름'))
     const second = project.flush()
@@ -246,9 +275,9 @@ describe('쓰는 동안 또 바뀐 것', () => {
     const project = useProjectStore()
     await project.save(projectFile())
 
-    stubEstimate(1, 1)
+    refuse()
     await expect(project.save(renamed('거절당한 이름'))).rejects.toThrow()
-    Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
+    allow()
 
     await project.flush()
     expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe('거절당한 이름')
@@ -273,8 +302,8 @@ describe('쓰는 동안 또 바뀐 것', () => {
  * 사진 저장인데(다 굽고 나서 쿼터에 걸린다), 되돌리면 방금 구운 것이 화면에서도 사라져
  * **그 세션에 제출할 길이 없어진다.**
  *
- * **진짜 입구로 던지게 한다** — 여유를 없애면 `saveProject`의 `ensureRoom`이 실제로
- * `STORAGE_QUOTA_EXCEEDED`를 낸다. 스토어를 흉내 내지 않는다.
+ * **진짜 입구로 던지게 한다** — 쓰기가 `QuotaExceededError`를 던지면 진짜 `saveProject`가
+ * `STORAGE_QUOTA_EXCEEDED`로 바꾼다. 스토어를 흉내 내지 않는다.
  */
 describe('저장이 거절됐을 때', () => {
   it('화면은 새 값을 들고 있고 dirty가 남는다', async () => {
@@ -282,7 +311,7 @@ describe('저장이 거절됐을 때', () => {
     await project.save(projectFile())
     expect(project.dirty).toBe(false)
 
-    stubEstimate(1, 1)
+    refuse()
     await expect(project.save(renamed('굽고 나서 거절당함'))).rejects.toThrow()
 
     // 화면은 새 값이다. 되돌리지 않는다.
@@ -295,7 +324,7 @@ describe('저장이 거절됐을 때', () => {
     const project = useProjectStore()
     await project.save(projectFile())
 
-    stubEstimate(1, 1)
+    refuse()
     await expect(project.save(renamed('굽고 나서 거절당함'))).rejects.toThrow()
 
     // exportFile은 저장을 기다리지 않고 쥔 값으로 내보낸다. 저장의 실패는 뒤에서 알린다.
@@ -393,17 +422,14 @@ describe('내보내기', () => {
   /**
    * **저장이 끝나지 않아도 파일은 나간다** (2026-09-28 감사 A B-1). 파일의 내용은 쥔 `current`가
    * 정하므로 IndexedDB를 기다릴 이유가 없다. 전에는 `await flush()`가 앞에 있어서 저장이
-   * 멈추면 파일을 만드는 줄에 영영 닿지 못했다. 여유 공간 묻기가 안 끝나는 것으로 멈춘 저장을
-   * 흉내낸다 — `saveProject`의 첫 `await`다.
+   * 멈추면 파일을 만드는 줄에 영영 닿지 못했다. 끝나지 않는 `saveProject`로 멈춘 저장을
+   * 흉내낸다(위 `gate`).
    */
   it('저장이 끝나지 않아도 파일은 나간다', async () => {
     const project = useProjectStore()
     await project.save(projectFile())
     project.update(renamed('저장이 멈춰도 나가야 하는 이름'))
-    Object.defineProperty(navigator, 'storage', {
-      configurable: true,
-      value: { estimate: () => new Promise<never>(() => {}) },
-    })
+    gate.hold = () => new Promise<never>(() => {})
 
     await project.exportFile(markdown)
 
@@ -489,7 +515,7 @@ describe('내보내기', () => {
     project.update(renamed('저장은 못 하지만 내보내야 하는 이름'))
 
     // 여기서부터 저장소가 모자라다.
-    stubEstimate(1024, 2048)
+    refuse()
     const toasts = useToastStore()
 
     await project.exportFile(markdown)
@@ -505,7 +531,7 @@ describe('내보내기', () => {
     await project.save(projectFile())
     project.update(renamed('고친 이름'))
 
-    stubEstimate(1024, 2048)
+    refuse()
     await project.exportFile(markdown)
     await project.exportFile(markdown)
 

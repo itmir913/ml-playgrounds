@@ -169,6 +169,24 @@ export const CLIENT_ERROR_CODES = [
    * 그 교실 전원이 이것을 만나므로, 어휘 없이 두면 영어 원문과 **빈 목록**이 뜬다.
    */
   'STORAGE_VERSION_TOO_NEW',
+  /**
+   * 이 탭의 저장소 열기가 **다른 탭의 연결에 막혀 기다리는 중이다** (open-decisions.md 77).
+   *
+   * **던지는 코드가 아니라 기다리는 동안의 알림이다** — 옛 탭을 닫으면 열기가 이어지므로 실패로
+   * 끊지 않는다(`project/storage.ts`의 `onStorageBlocked`, `composables/useStorageBlockedNotice.ts`).
+   * **`STORAGE_VERSION_TOO_NEW`와 방향이 반대다** — 저쪽은 이 탭이 옛 것이라 앱을 최신으로, 이쪽은
+   * 다른 탭이 옛 것이라 **그 탭을 닫는다.**
+   */
+  'STORAGE_BLOCKED',
+
+  /**
+   * 고른 파일을 브라우저가 못 읽었다 (`project/download.ts`의 `readFileBytes`·`readFileText`,
+   * open-decisions.md 77). 고른 뒤 원본이 옮겨졌거나 USB가 빠진 경우다.
+   *
+   * **`UNEXPECTED_ERROR`와 나누는 이유는 학생이 할 일이 다르기 때문이다** — "다시 시도"가 아니라
+   * **"파일을 다시 골라라"**다. 파일 종류와 무관하게 한 코드다 — 할 일이 같다.
+   */
+  'FILE_UNREADABLE',
 
   // 우리가 코드로 만들어 두지 않은 실패의 마지막 그물.
   // JOB_FAILED와 나누는 이유는 그건 학습에 대한 말이기 때문이다 - 저장이 실패했는데

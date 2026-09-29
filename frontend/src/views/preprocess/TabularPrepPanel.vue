@@ -52,6 +52,7 @@ import {
   removeTestDataset,
   testDatasetBlockers,
 } from '@/project/dataset'
+import { readFileBytes } from '@/project/download'
 import {
   CATEGORICAL_ENCODINGS,
   MISSING_STRATEGIES,
@@ -536,7 +537,7 @@ function chooseProvided(): void {
 async function readTestFile(file: File): Promise<void> {
   const job = startTestWork()
   try {
-    const bytes = new Uint8Array(await file.arrayBuffer())
+    const bytes = await readFileBytes(file)
     const document = await openTable(bytes, file.name)
     openedTest.value = { document, fileName: file.name }
     testSheetName.value = document.sheetNames[0]

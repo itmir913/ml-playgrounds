@@ -56,6 +56,7 @@ import {
 } from '@/ml/predict'
 import { transform, type Preprocessor } from '@/ml/preprocess'
 import { experimentNames as experimentNamesOf } from '@/ml/results'
+import { readFileBytes } from '@/project/download'
 import { addEmbeddings, readEmbeddings } from '@/project/embeddings'
 import { imagePredictPageSize, pageSizeOf } from '@/limits-switch'
 import { IMAGE_UNLABELED } from '@/project/format'
@@ -301,7 +302,7 @@ async function readPicked(files: readonly File[]): Promise<void> {
     const [only] = files
     const items =
       files.length === 1 && only && only.name.toLowerCase().endsWith(ZIP_EXTENSION)
-        ? await readImageZip(new Uint8Array(await only.arrayBuffer()), IMAGE_UNLABELED, {
+        ? await readImageZip(await readFileBytes(only), IMAGE_UNLABELED, {
             // **예측에는 라벨이 없어 대조할 목록도 없다** (`canonical.ts`의 `predict`).
             // 그래도 이름은 되살린다 — 그것이 구운 결과를 되찾는 열쇠이기 때문이다.
             locale: uiLocale.value,

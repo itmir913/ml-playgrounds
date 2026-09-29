@@ -47,6 +47,7 @@ import { MAX_CATEGORY_NAME_LENGTH } from '@/limits'
 import { useGate } from '@/locks'
 import { backboneFor, type BackboneSpec } from '@/ml/backbones'
 import { imageRoomShortfall } from '@/data/image/room'
+import { readFileBytes } from '@/project/download'
 import { IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
 import {
   addCategory,
@@ -245,7 +246,7 @@ async function readPicked(
     // `into`는 구조가 없는 사진이 떨어질 자리다 (open-decisions.md "zip 읽기 규칙 다섯").
     const items =
       files.length === 1 && only && only.name.toLowerCase().endsWith(ZIP_EXTENSION)
-        ? await readImageZip(new Uint8Array(await only.arrayBuffer()), into, {
+        ? await readImageZip(await readFileBytes(only), into, {
             locale: uiLocale.value,
             // **이미 있는 범주가 대조표다.** 겹치면 그 인코딩이 답이라는 것이 증명된다.
             expect: categories.value,

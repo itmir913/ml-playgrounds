@@ -47,6 +47,7 @@ import ChartDialog from './ChartDialog.vue'
 import ColumnInspector from './ColumnInspector.vue'
 import { TABLE_PREVIEW_ROW_COUNT } from '@/limits'
 import { applyDataset, needsReplaceConfirm, readDataset, replaceLosses } from '@/project/dataset'
+import { readFileBytes } from '@/project/download'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 
@@ -154,7 +155,7 @@ async function readFile(file: File): Promise<void> {
   // 셈이 지키므로 여기서 잡아도 확정 중인 자물쇠가 열리지 않는다 (§8.10.4).
   const job = start()
   try {
-    const bytes = new Uint8Array(await file.arrayBuffer())
+    const bytes = await readFileBytes(file)
     const document = await openTable(bytes, file.name)
     opened.value = { document, fileName: file.name }
     sheetName.value = document.sheetNames[0]

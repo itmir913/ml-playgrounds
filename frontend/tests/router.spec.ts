@@ -19,6 +19,13 @@ import { closeStorage, DB_NAME, saveProject } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import { experiment, emptyProjectFile, manifest, projectFile, run } from './fixtures/project'
+import { refuseWrites } from './fixtures/storage-refusal'
+
+/**
+ * 저장이 거절되는 상태. 쓰기가 브라우저처럼 `QuotaExceededError`를 던진다 — 쓰기 전 여유 검사는
+ * 결정 73이 뺐으므로 `estimate()`를 흉내 내는 것으로는 더 거절되지 않는다.
+ */
+let refusal: { restore: () => void } | null = null
 
 async function deleteDatabase(): Promise<void> {
   await new Promise<void>((resolve) => {
@@ -43,6 +50,8 @@ beforeEach(async () => {
 afterEach(async () => {
   // 미뤄 둔 자동 저장을 이 검사 안에서 끊는다 — 다음 검사의 저장소에 옛 파일을 덮어쓰지 않게
   // (`option-cascade.spec.ts`의 같은 줄, 2026-09-27).
+  refusal?.restore()
+  refusal = null
   useProjectStore().close()
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
@@ -191,10 +200,7 @@ describe('라우터', { timeout: 20_000 }, () => {
     })
 
     // 이 시점부터 저장이 실패한다. 자동 저장 타이머는 아직 안 돌았고 dirty는 켜져 있다.
-    Object.defineProperty(navigator, 'storage', {
-      configurable: true,
-      value: { estimate: () => Promise.resolve({ quota: 1, usage: 1 }) },
-    })
+    refusal = refuseWrites()
 
     await router.push(`/project/${manifest.projectId}/results`)
 
@@ -244,10 +250,7 @@ describe('라우터', { timeout: 20_000 }, () => {
       },
     })
 
-    Object.defineProperty(navigator, 'storage', {
-      configurable: true,
-      value: { estimate: () => Promise.resolve({ quota: 1, usage: 1 }) },
-    })
+    refusal = refuseWrites()
 
     await router.push(`/project/${manifest.projectId}/predict`)
 
@@ -275,10 +278,7 @@ describe('라우터', { timeout: 20_000 }, () => {
         document: { ...current.document, manifest: { ...current.document.manifest, name } },
       })
     }
-    Object.defineProperty(navigator, 'storage', {
-      configurable: true,
-      value: { estimate: () => Promise.resolve({ quota: 1, usage: 1 }) },
-    })
+    refusal = refuseWrites()
     const failures = (): number =>
       toasts.items.filter((one) => one.key === 'client.STORAGE_QUOTA_EXCEEDED').length
 

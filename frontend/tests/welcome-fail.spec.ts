@@ -218,7 +218,8 @@ describe('R23: opening a broken .mlpx', () => {
       },
     })
     await openWith(bad)
-    expect(dangers()).toHaveLength(1)
+    // **"다시 골라라"를 말한다** (open-decisions.md 77) — 전에는 `UNEXPECTED_ERROR`와 영어 원문이었다.
+    expect(dangers().map((one) => one.key)).toEqual(['client.FILE_UNREADABLE'])
     expect(view.busy).toBe(false)
   })
 

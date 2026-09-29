@@ -21,6 +21,7 @@
 
 import type { Locale } from '@/i18n'
 
+import { readFileText } from './download'
 import { loadPresetForm, loadPresets, presetName } from './portfolio-presets'
 
 /** 로케일 키를 문장으로 바꾸는 것. 화면은 `t`를, 검사는 가짜를 넘긴다. */
@@ -111,7 +112,7 @@ const file: TemplateSource = {
         load: async () => {
           const picked = await pickFile()
           // 고르지 않고 닫은 것은 실패가 아니다. 아무 말도 하지 않는다.
-          return picked === null ? null : await picked.text()
+          return picked === null ? null : await readFileText(picked)
         },
       },
     ]),

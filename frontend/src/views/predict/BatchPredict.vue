@@ -53,7 +53,7 @@ import {
 import type { Dataset, Preprocessor } from '@/ml/preprocess'
 import { whereTrainedKeyOf } from '@/ml/results'
 import { applyPredictDataset, readPredictDataset, removePredictDataset } from '@/project/dataset'
-import { downloadBytes } from '@/project/download'
+import { downloadBytes, readFileBytes } from '@/project/download'
 import { yieldToScreen } from '@/screen'
 import { MLPX_EXTENSION, projectFileName } from '@/project/format'
 import { useProjectStore } from '@/stores/project'
@@ -99,7 +99,7 @@ async function readFile(file: File): Promise<void> {
   // 셈이 지키므로 여기서 잡아도 붙이는 중인 자물쇠가 열리지 않는다 (§8.10.4).
   const job = start()
   try {
-    const bytes = new Uint8Array(await file.arrayBuffer())
+    const bytes = await readFileBytes(file)
     const document = await openTable(bytes, file.name)
     opened.value = { document, fileName: file.name }
     sheetName.value = document.sheetNames[0]

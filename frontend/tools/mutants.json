@@ -43,7 +43,7 @@
       "loses": "쿼터 거절 뒤 고른 파일이 사라져 다시 골라야 한다 (R24 B-2c)"
     },
     {
-      "file": "src/components/ExportButton.vue",
+      "file": "src/composables/useExportProject.ts",
       "find": "document: exported.document",
       "replace": "document: file.document",
       "expect": "cries",
@@ -51,7 +51,7 @@
       "loses": "파일 이름과 manifest에 학번·이름이 없어 누구 제출물인지 못 가른다 (R24 B-3)"
     },
     {
-      "file": "src/components/ExportButton.vue",
+      "file": "src/composables/useExportProject.ts",
       "find": "project.exportFile(exported.markdown)",
       "replace": "project.exportFile('')",
       "expect": "cries",

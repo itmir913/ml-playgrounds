@@ -6,7 +6,7 @@
  * 직접 훑는다 — 요약만 필요한 화면이 문서 전체를 메모리에 올릴 이유가 없다.
  */
 
-import { computed, customRef, shallowRef, type Ref } from 'vue'
+import { computed, customRef, shallowRef, watch, type Ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { ClientError } from '@/errors'
@@ -181,6 +181,39 @@ export const useProjectStore = defineStore('project', () => {
   const exportedAt = shallowRef<string | null>(null)
   /** 화면은 바뀌었는데 아직 안 쓴 상태. 상태 표시줄이 이걸 보여준다. */
   const dirty = shallowRef(false)
+  /**
+   * **마지막 쓰기가 실패했는가** (open-decisions.md 74). 다음 쓰기가 성공하면 내려간다.
+   * `dirty`만으로는 "아직 차례를 기다리는 편집"과 "쓰려다 거절당한 편집"이 같다.
+   */
+  const saveFailed = shallowRef(false)
+  /**
+   * **지금 판이 마지막으로 파일로 내보낸 판인가** (open-decisions.md 74). 참이면 브라우저에 못 썼어도
+   * 작업은 파일에 있다. **시각이 아니라 판 자체로 잰다** — 내보낸 시각(`exportedAt`)은 저장이 끝난
+   * 뒤에야 IndexedDB에 적히므로 저장이 실패하는 동안에는 안 선다.
+   *
+   * **판을 쥐지 않고 불리언으로 든다** (P 검토 C-1). 내보낸 `ProjectFile`을 쥐면 그 뒤 사진을 바꿔도
+   * 옛 바이트(수십~100MB)가 닫을 때까지 메모리에 남는다. 판이 바뀌는 순간(아래 감시) 내려가므로
+   * "지금 판 === 내보낸 판"과 같은 뜻이다.
+   */
+  const exportedCurrent = shallowRef(false)
+  watch(
+    file,
+    () => {
+      exportedCurrent.value = false
+    },
+    { flush: 'sync' },
+  )
+  /**
+   * **브라우저에도 파일에도 없는 편집이 메모리에만 있는가** (open-decisions.md 74). 마지막 쓰기가
+   * 실패했고, 아직 안 쓴 편집이 있고, 지금 판이 내보낸 판이 아닐 때다. 참이면 프로젝트를 떠나는
+   * 이동이 멈추고(`router/index.ts`) 탭을 닫을 때 브라우저가 경고한다(`useUnloadWarning`).
+   *
+   * **저장이 성공하는 정상 상태에서는 거짓이다** — 미뤄 둔 저장을 기다리는 짧은 사이도 거짓이다.
+   * 무는 검사: `leave-unsaved.spec.ts`.
+   */
+  const stranded = computed(
+    () => saveFailed.value && dirty.value && file.value !== null && !exportedCurrent.value,
+  )
 
   /** 미뤄 둔 자동 저장. 새 변경이 오면 앞의 것을 버리고 다시 잡는다. */
   let pending: ReturnType<typeof setTimeout> | null = null
@@ -275,6 +308,8 @@ export const useProjectStore = defineStore('project', () => {
       forgetTabularPlan()
       // 열린 직후는 방금 읽은 그대로이므로 저장된 상태다.
       dirty.value = false
+      saveFailed.value = false
+      exportedCurrent.value = false
       savedAt.value = loaded === null ? null : loaded.document.manifest.updatedAt
       // **내보낸 시각을 못 읽으면 "안 내보냄"으로 둔다** (2026-09-29 감사 H A-2). 곁가지 정보다 —
       // 전에는 여기서 던지면 파일은 이미 앉았는데 라우터 가드가 던져 이동이 취소되고, 학생은 알림
@@ -403,8 +438,13 @@ export const useProjectStore = defineStore('project', () => {
       if (openings !== generation) return
       // 쓰는 동안 또 바뀌었을 수 있다. 그러면 여전히 안 쓴 상태로 두어야 한다.
       dirty.value = file.value !== current
+      saveFailed.value = false
       savedAt.value = new Date().toISOString()
       askToKeep(current)
+    } catch (error) {
+      // 실패는 그대로 부른 쪽에 간다. 여기서는 떠나기를 멈출지 정하는 표지만 세운다(결정 74).
+      if (openings === generation) saveFailed.value = true
+      throw error
     } finally {
       saving.value = false
     }
@@ -511,6 +551,9 @@ export const useProjectStore = defineStore('project', () => {
 
     const { blob, dropped } = await writeProject(current, portfolioMarkdown)
     downloadBlob(blob, projectFileName(current.document.manifest))
+    // **이 판은 이제 파일에 있다** (결정 74). 브라우저 저장이 실패하는 중이어도 떠날 수 있다.
+    // 쥔 뒤에 판이 바뀌었으면 지금 판은 파일에 없다 — 그때는 세우지 않는다(판을 쥐던 때와 같은 뜻).
+    if (file.value === current) exportedCurrent.value = true
 
     // **여기서부터는 파일이 이미 나갔다.** 내보낸 시각은 이 기기의 곁가지 정보이고
     // (storage.ts) 파일 안에는 없다. **저장이 끝난 뒤에 뒤에서 적는다** — 둘 다 IndexedDB라
@@ -533,10 +576,15 @@ export const useProjectStore = defineStore('project', () => {
     //   판을 읽어 쓴 경우도 여기로 온다. 이것이 C-5a의 틈("쥔 뒤에 고치면 '내보냄'이라 말한다")을
     //   닫는다. 무는 검사: `status-bar-export.spec.ts`의 *"정상 내보내기는 다시 열어도 내보냄이다"*,
     //   *"쥔 뒤 저장이 끝나기 전에 고치면 변경됨이다"*.
+    //
+    // **"파일로 안 나간 편집" 표지도 같은 판정이 내린다** (결정 75). 지금 판이 쥔 판이면 쥔 판의
+    // `updatedAt`을 넘기고, `markExported`는 레코드가 그 판 그대로일 때만 표지를 거짓으로 적는다.
     void saved
       .then(() => {
-        const at = file.value === current ? new Date().toISOString() : capturedAt
-        return markExported(exportedId, at).then(() => at)
+        const unchanged = file.value === current
+        const at = unchanged ? new Date().toISOString() : capturedAt
+        const exportedUpdatedAt = unchanged ? current.document.manifest.updatedAt : null
+        return markExported(exportedId, at, exportedUpdatedAt).then(() => at)
       })
       .then(
         (at) => {
@@ -564,6 +612,8 @@ export const useProjectStore = defineStore('project', () => {
     // (`ml/plan-cache.ts`, `tabular-plan-cache.spec.ts`가 문다).
     forgetTabularPlan()
     dirty.value = false
+    saveFailed.value = false
+    exportedCurrent.value = false
     savedAt.value = null
     exportedAt.value = null
   }
@@ -573,6 +623,8 @@ export const useProjectStore = defineStore('project', () => {
     opening,
     saving,
     dirty,
+    saveFailed,
+    stranded,
     savedAt,
     exportedAt,
     projectId,

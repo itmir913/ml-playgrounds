@@ -8,6 +8,8 @@
  * 전원을 끄면 디스크가 되돌아가므로, 차시를 넘기는 것은 여기서 나가는 파일뿐이다.
  */
 
+import { ClientError, failureDetail } from '@/errors'
+
 /**
  * 만들어진 파일을 내려보낸다.
  *
@@ -73,7 +75,28 @@ export function downloadBytes(bytes: Uint8Array, fileName: string): void {
   downloadBlob(new Blob([bytes as unknown as BlobPart], { type: 'text/csv' }), fileName)
 }
 
-/** 고른 파일의 바이트. */
+/**
+ * 고른 파일의 바이트. **학생이 고른 파일을 읽는 문은 여기와 아래 `readFileText` 둘이다**
+ * (open-decisions.md 77).
+ *
+ * **읽기의 거절은 `FILE_UNREADABLE`이다.** 고른 뒤 원본이 옮겨졌거나 USB가 빠지면 브라우저가
+ * `NotReadableError`·`NotFoundError` 따위로 거절하는데, 전에는 그것이 `UNEXPECTED_ERROR`와 영어
+ * 원문으로 떴다(2026-09-29 감사 H #13). 학생이 할 일은 "다시 시도"가 아니라 "다시 골라라"다.
+ * 원문은 버리지 않고 `detail`로 싣는다. 무는 검사: `file-unreadable.spec.ts`.
+ */
 export async function readFileBytes(file: File): Promise<Uint8Array> {
-  return new Uint8Array(await file.arrayBuffer())
+  return new Uint8Array(await readOrExplain(() => file.arrayBuffer()))
+}
+
+/** 고른 파일의 글자(UTF-8). 거절은 위 `readFileBytes`와 같은 코드다. */
+export async function readFileText(file: File): Promise<string> {
+  return readOrExplain(() => file.text())
+}
+
+async function readOrExplain<T>(read: () => Promise<T>): Promise<T> {
+  try {
+    return await read()
+  } catch (error) {
+    throw new ClientError('FILE_UNREADABLE', failureDetail(error))
+  }
 }

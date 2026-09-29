@@ -35,6 +35,7 @@ import { useRadioGroupGuard } from '@/composables/useRadioGroupGuard'
 import { useWork } from '@/composables/useWork'
 import { lockFor } from '@/locks'
 import { splitsData, stratifyBlockFor } from '@/ml/selection'
+import { readFileBytes } from '@/project/download'
 import { IMAGE_UNLABELED } from '@/project/format'
 import { dataSettings } from '@/project/schema'
 import { imageRoomShortfall } from '@/data/image/room'
@@ -402,7 +403,7 @@ async function readTest(files: readonly File[]): Promise<void> {
     // **압축 파일과 사진 파일을 같은 함수가 가른다** (`data/image/upload.ts`의 IMAGE_ACCEPT).
     const items =
       files.length === 1 && single && single.name.toLowerCase().endsWith(ZIP_EXTENSION)
-        ? await readImageZip(new Uint8Array(await single.arrayBuffer()), IMAGE_UNLABELED, {
+        ? await readImageZip(await readFileBytes(single), IMAGE_UNLABELED, {
             locale: uiLocale.value,
             // **여기서는 추측이 0이다.** 채점하려면 어차피 범주가 정확히 같아야 하므로
             // (`test-set.ts`), 그 목록이 곧 어느 인코딩인지의 증거다.

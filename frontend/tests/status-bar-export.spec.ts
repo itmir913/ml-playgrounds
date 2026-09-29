@@ -23,6 +23,27 @@ import { i18n, setLocale } from '../src/i18n'
 import { closeStorage, DB_NAME } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { projectFile } from './fixtures/project'
+import { refuseWrites } from './fixtures/storage-refusal'
+
+/** 저장이 거절되는 상태(`fixtures/storage-refusal.ts`). afterEach가 되돌린다. */
+let refusal: { restore: () => void } | null = null
+
+/**
+ * **저장을 붙드는 손잡이.** 쓰기 전 여유 검사(`estimate()`)가 빠진 뒤로(open-decisions.md 73)
+ * 흉내 낼 기다림이 `saveProject` 안에 없다 — 진짜 `saveProject` 앞에서 붙든다.
+ */
+const hold = vi.hoisted(() => ({ until: null as Promise<void> | null }))
+
+vi.mock('../src/project/storage', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/project/storage')>()
+  return {
+    ...actual,
+    saveProject: async (...args: Parameters<typeof actual.saveProject>) => {
+      if (hold.until !== null) await hold.until
+      return actual.saveProject(...args)
+    },
+  }
+})
 
 const downloads: string[] = []
 
@@ -56,6 +77,9 @@ beforeEach(async () => {
 afterEach(async () => {
   for (const view of mounted.splice(0)) view.unmount()
   document.body.innerHTML = ''
+  refusal?.restore()
+  refusal = null
+  hold.until = null
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   useProjectStore().close()
   closeStorage()
@@ -124,10 +148,7 @@ describe('상태 표시줄의 내보내기 상태', () => {
     await settlesTo(exportState, i18n.global.t('save.exported'), false)
 
     // 여기서부터 저장소가 모자라다 — 자동 저장이 부르는 `write`가 거절당한다.
-    Object.defineProperty(navigator, 'storage', {
-      configurable: true,
-      value: { estimate: () => Promise.resolve({ quota: 1, usage: 1 }) },
-    })
+    refusal = refuseWrites()
     project.update((live) => ({
       ...live,
       document: {
@@ -170,7 +191,7 @@ describe('상태 표시줄의 내보내기 상태', () => {
    * 앞선 쓰기가 도는 동안 내보내면 `flush`는 그 뒤에 줄을 서고, **제 차례에 지금 판을 읽어**
    * 쓴다. 그 사이 고친 것은 저장되지만 나간 파일에는 없다. 그 뒤로 쓸 것이 없으니 저장 시각이
    * 더 늦어지지 않는다 — 내보낸 시각을 저장이 끝난 "지금"으로 적으면 줄이 "파일로 저장함"이라고
-   * 거짓말한다. 여유 공간 묻기를 붙들어 앞선 쓰기를 멈춰 세운다.
+   * 거짓말한다. 앞선 쓰기를 `saveProject` 앞에서 붙들어 멈춰 세운다(위 `hold`).
    */
   it('쥔 뒤 저장이 끝나기 전에 고치면 변경됨이다', async () => {
     const project = useProjectStore()
@@ -181,17 +202,9 @@ describe('상태 표시줄의 내보내기 상태', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve
     })
-    Object.defineProperty(navigator, 'storage', {
-      configurable: true,
-      value: {
-        estimate: async () => {
-          await gate
-          return { quota: 10_000_000_000, usage: 0 }
-        },
-      },
-    })
+    hold.until = gate
 
-    // 앞선 쓰기 — 여유 공간 묻기에서 멈춘다.
+    // 앞선 쓰기 — 저장 앞에서 멈춘다.
     const earlier = project.save((live) => ({
       ...live,
       document: {

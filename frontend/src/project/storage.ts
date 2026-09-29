@@ -26,7 +26,9 @@ import {
   withFolderCategories,
   type ProjectFile,
 } from './format'
+import { exportStateOf } from './export-state'
 import { migrateProjectDocument } from './migrate'
+import type { LocalVersion } from './replace'
 import { TASK_TYPES, type ProjectDocument, type TaskType } from './schema'
 
 export const DB_NAME = 'ml-playgrounds'
@@ -56,6 +58,19 @@ interface ProjectRecord {
    * "아직 안 내보냈다"를 상태 표시줄에 상시 띄우는 것이 그 문제에 주는 답이다.
    */
   exportedAt?: string
+  /**
+   * **파일로 안 나간 편집이 있는가** (open-decisions.md 75). 옛 `.mlpx`를 열 때 이 컴퓨터의 판을
+   * 덮기 전에 물을지를 이것이 정한다(`project/replace.ts`).
+   *
+   * **시계를 안 쓰는 표지다.** 편집 저장은 참, 내보낸 판이 이 레코드에 그대로 있을 때의
+   * `markExported`는 거짓, `.mlpx`를 가져와 저장할 때 거짓이다. `exportedAt`을 가져온 시각으로 두는
+   * 안은 다른 기기의 시계가 앞서면 거짓 "안 나감"이 서서 버렸다.
+   *
+   * **`.mlpx` 안에는 적지 않는다** — `exportedAt`과 같은 이유다. 레코드에 필드를 더하는 것은
+   * IndexedDB가 버전을 요구하지 않으므로 `DB_VERSION`도 그대로다(아래 `DatasetRecord.images`).
+   * **없으면 이 필드 전에 저장된 레코드다** — `readLocalVersion`이 상태 표시줄의 판정으로 대신한다.
+   */
+  unexportedEdits?: boolean
 }
 
 interface DatasetRecord {
@@ -146,6 +161,37 @@ export interface ProjectSummary {
 
 let connection: Promise<IDBPDatabase<PlaygroundDB>> | null = null
 
+/**
+ * **열기가 다른 탭의 연결에 막혀 있는가** (open-decisions.md 77, `STORAGE_BLOCKED`).
+ *
+ * 결정 50은 옛 탭이 스스로 놓는 것인데, 그 처리(`blocking`)가 들어가기 전 배포판을 연 탭은 안
+ * 놓는다. 그 사이 이 탭의 열기는 **실패하지 않고 멈춰 있다** — 옛 탭을 닫으면 그대로 이어진다.
+ * 그래서 던지지 않고, 기다리는 동안 알리기만 한다. 알리는 쪽은 화면이다
+ * (`composables/useStorageBlockedNotice.ts`) — 이 모듈은 스토어를 모른다.
+ *
+ * 무는 검사: `storage-blocked.spec.ts`.
+ */
+let blockedNow = false
+const blockedListeners = new Set<(blocked: boolean) => void>()
+
+function reportBlocked(blocked: boolean): void {
+  if (blockedNow === blocked) return
+  blockedNow = blocked
+  for (const listener of blockedListeners) listener(blocked)
+}
+
+/**
+ * 막힘이 서고 풀릴 때 부른다. **붙는 순간 지금 상태를 한 번 알린다** — 앱이 뜨기 전에(언어 읽기)
+ * 이미 막혔을 수 있다. 돌려준 함수로 뗀다.
+ */
+export function onStorageBlocked(listener: (blocked: boolean) => void): () => void {
+  blockedListeners.add(listener)
+  if (blockedNow) listener(true)
+  return () => {
+    blockedListeners.delete(listener)
+  }
+}
+
 function db(): Promise<IDBPDatabase<PlaygroundDB>> {
   if (connection !== null) return connection
   const opened: Promise<IDBPDatabase<PlaygroundDB>> = openDB<PlaygroundDB>(DB_NAME, DB_VERSION, {
@@ -197,12 +243,23 @@ function db(): Promise<IDBPDatabase<PlaygroundDB>> {
     terminated() {
       if (connection === opened) connection = null
     },
-  }).catch((error: unknown) => {
-    // **실패한 약속을 붙들지 않는다.** 그대로 캐시하면 그 세션의 저장소 접근이 전부
-    // 죽고, 되돌린 배포를 다시 올려도 새로고침 전까지 안 산다.
-    connection = null
-    throw asOpenError(error)
-  })
+    /** 다른 탭이 옛 버전의 연결을 안 놓았다. 위 `blockedNow`의 머리말. */
+    blocked() {
+      reportBlocked(true)
+    },
+  }).then(
+    (database) => {
+      reportBlocked(false)
+      return database
+    },
+    (error: unknown) => {
+      reportBlocked(false)
+      // **실패한 약속을 붙들지 않는다.** 그대로 캐시하면 그 세션의 저장소 접근이 전부
+      // 죽고, 되돌린 배포를 다시 올려도 새로고침 전까지 안 산다.
+      connection = null
+      throw asOpenError(error)
+    },
+  )
   connection = opened
   return opened
 }
@@ -284,12 +341,12 @@ function modelKeyRange(projectId: string): IDBKeyRange {
 }
 
 /**
- * 이 프로젝트가 실제로 차지하는 바이트. **여유 공간 검사와 화면의 "용량"이 같은 것을
- * 센다** — 두 벌이면 요약이 0byte라고 말하는 동안 저장은 1MB를 쓴다.
+ * 이 프로젝트가 실제로 차지하는 바이트. **사진 굽기 전 여유 검사(`data/image/room.ts`)와 화면의
+ * "용량"이 같은 것을 센다** — 두 벌이면 요약이 0byte라고 말하는 동안 저장은 1MB를 쓴다.
  */
 export function totalBytes(project: ProjectFile): number {
-  // 정본 셋이 전부 자리를 차지한다 (mlpx-spec.md §1.1). 훈련 정본만 세면 여유 공간
-  // 검사가 실제로 쓸 양보다 적게 잡고, 그러면 사전 검사를 통과한 뒤 실제 쓰기에서
+  // 정본 셋이 전부 자리를 차지한다 (mlpx-spec.md §1.1). 훈련 정본만 세면 사진 굽기 전
+  // 여유 검사가 실제로 쓸 양보다 적게 잡고, 그러면 그 검사를 통과한 뒤 실제 쓰기에서
   // 터진다.
   let total = project.dataset?.bytes.length ?? 0
   total += project.testDataset?.bytes.length ?? 0
@@ -313,13 +370,12 @@ export interface RoomShortfall {
 /**
  * 이만큼을 쓸 자리가 있는가. 있으면 `null`, 없으면 얼마가 모자란지.
  *
- * **부르는 자리가 둘이고 구현은 하나여야 한다.** 쓰기 직전(`ensureRoom`)과 **사진을
- * 굽기 전**(`views/data/ImagePanel.vue`)이고, 뒤엣것이
- * `open-decisions.md` "이미지가 들어갈 자리는 굽기 전에 묻는다"가 세운 자리다.
- * 갈라 두면 안전 계수나 반올림이 한쪽에서만 고쳐진다.
+ * **부르는 자리는 사진을 굽기 전 하나다**(`data/image/room.ts`, `open-decisions.md` "이미지가
+ * 들어갈 자리는 굽기 전에 묻는다"). **쓰기 직전에는 묻지 않는다**(open-decisions.md 73) — 끝나지
+ * 않는 `estimate()`가 쓰기 줄 전체를 세웠고, 옛 사본을 두 번 세어 들어가는 것을 거절했다.
+ * 쓰기의 거절은 브라우저의 `QuotaExceededError`가 말한다(`asStorageError`).
  *
  * **estimate()가 없는 브라우저에서는 `null`이다** — 물을 방법이 없으면 통과시킨다.
- * 그때는 실제 쓰기에서 나는 QuotaExceededError가 같은 코드로 바뀐다.
  */
 export async function roomShortfall(bytes: number): Promise<RoomShortfall | null> {
   const estimate = await navigator.storage?.estimate?.().catch(() => null)
@@ -334,12 +390,6 @@ export async function roomShortfall(bytes: number): Promise<RoomShortfall | null
     requiredMb: Math.ceil(required / BYTES_PER_MB),
     availableMb: Math.max(0, Math.floor(available / BYTES_PER_MB)),
   }
-}
-
-/** 쓰기 전에 여유 공간을 확인한다. 모자라면 던진다. */
-async function ensureRoom(bytes: number): Promise<void> {
-  const shortfall = await roomShortfall(bytes)
-  if (shortfall) throw new ClientError('STORAGE_QUOTA_EXCEEDED', { ...shortfall })
 }
 
 /**
@@ -370,13 +420,17 @@ export async function requestPersistence(): Promise<boolean> {
   }
 }
 
+/**
+ * 브라우저가 쿼터로 거절한 쓰기를 우리 코드로 바꾼다. **수를 싣지 않는다** (open-decisions.md
+ * 71) — 이 자리에서는 얼마가 모자란지 모른다. 전에는 *"필요 0MB, 남은 공간 0MB"*가 떴다.
+ * 무는 검사: `storage-quota.spec.ts`.
+ */
 function asStorageError(error: unknown): unknown {
-  const name = error instanceof Error ? error.name : ''
-  if (name === 'QuotaExceededError') {
-    // 사전 검사를 통과했어도 실제로 모자랄 수 있다. 같은 코드로 모은다.
-    return new ClientError('STORAGE_QUOTA_EXCEEDED', { requiredMb: 0, availableMb: 0 })
-  }
-  return error
+  // **`instanceof Error`로 묻지 않는다** — `DOMException`이 다른 realm에서 오면(jsdom 검사 환경)
+  // 그 물음이 거짓이 되어 쿼터 거절이 `UNEXPECTED_ERROR`로 샌다. 이름만 본다.
+  const name =
+    typeof error === 'object' && error !== null ? (error as { name?: unknown }).name : undefined
+  return name === 'QuotaExceededError' ? new ClientError('STORAGE_QUOTA_EXCEEDED') : error
 }
 
 /**
@@ -385,11 +439,19 @@ function asStorageError(error: unknown): unknown {
  * **한 트랜잭션에서 모델을 전부 지우고 새로 넣는다.** 데이터셋을 바꾸면 기존 실험을
  * 지우는데(mlpx-spec.md 5.2), 중간에 끊겨서 "새 데이터 + 옛 모델"이 남으면
  * 참조형 모델이 엉뚱한 행을 가리켜 **조용히 틀린 예측**을 한다.
+ *
+ * **쓰기 전에 여유를 재지 않는다** (open-decisions.md 73). 거절은 쓰기가 던지는
+ * `QuotaExceededError`만 말한다 — `estimate()`를 기다리면 그것이 안 끝날 때 쓰기 줄 전체가 선다.
+ * 무는 검사: `storage-quota.spec.ts`의 *"estimate()가 영원히 안 끝나도 저장은 끝난다"*.
+ *
+ * @param options.imported `.mlpx`를 가져와 쓰는가. 그러면 이 판은 파일에 있는 그대로라 "파일로 안
+ *   나간 편집"(`unexportedEdits`)을 거짓으로 적는다. 나머지 저장은 전부 편집이라 참이다.
  */
-export async function saveProject(project: ProjectFile): Promise<void> {
+export async function saveProject(
+  project: ProjectFile,
+  options: { readonly imported?: boolean } = {},
+): Promise<void> {
   const size = totalBytes(project)
-  await ensureRoom(size)
-
   const projectId = project.document.manifest.projectId
   try {
     const database = await db()
@@ -408,6 +470,7 @@ export async function saveProject(project: ProjectFile): Promise<void> {
       updatedAt: project.document.manifest.updatedAt,
       sizeBytes: size,
       ...(before?.exportedAt === undefined ? {} : { exportedAt: before.exportedAt }),
+      unexportedEdits: options.imported !== true,
     })
     const datasets = transaction.objectStore(DATASETS_STORE)
     // 테스트·예측 데이터가 함께 실린다. 없으면 그 키를 아예 안 넣는다 - undefined를
@@ -544,8 +607,8 @@ export async function loadProject(
    * **여는 자리에서 옛 좌표계를 떨어뜨린다** (mlpx-spec.md §1.3 규칙 2).
    *
    * 바로 위에서 문서가 새 백본 id로 올라왔으므로(`migrateProjectDocument`) 옛 디렉터리의
-   * 벡터는 그 순간부터 아무도 안 읽는다. 그런데 `ensureRoom`은 그것까지 세므로, 놔두면
-   * **새 벡터를 뽑은 학생이 자기 프로젝트를 저장하지 못한다.**
+   * 벡터는 그 순간부터 아무도 안 읽는다. 그런데 저장은 그것까지 다시 쓰므로, 놔두면
+   * **새 벡터를 뽑은 학생의 저장이 쿼터에 먼저 닿는다.**
    */
   const embeddings = dropUnknownBackbones(dataset?.embeddings ?? new Map<string, Uint8Array>())
 
@@ -674,15 +737,64 @@ export async function listProjects(): Promise<ProjectSummary[]> {
  * 마지막으로 내보낸 시각을 남긴다. `.mlpx`를 내려받은 직후에 부른다.
  *
  * 없는 프로젝트에는 아무것도 하지 않는다 - 지워진 프로젝트를 되살리면 안 된다.
+ *
+ * **"파일로 안 나간 편집" 표지는 레코드가 내보낸 판 그대로일 때만 내린다** (open-decisions.md
+ * 73). 부르는 쪽이 내보낸 판의 `manifest.updatedAt`을 넘기고(쥔 뒤 고친 것이 있으면 `null`),
+ * 레코드의 `updatedAt`이 그것과 **같을** 때만 거짓으로 적는다 — 순서가 아니라 같음이라 시계와
+ * 무관하다. 쥔 뒤의 편집이 먼저 저장됐으면 값이 달라 표지가 참으로 남는다.
+ *
+ * @param exportedUpdatedAt 내보낸 판의 `manifest.updatedAt`. 모르면 `null` — 표지를 건드리지 않는다.
  */
-export async function markExported(projectId: string, at: string): Promise<void> {
-  const database = await db()
-  const transaction = database.transaction(PROJECTS_STORE, 'readwrite')
-  const record = await transaction.store.get(projectId)
-  if (record) {
-    await transaction.store.put({ ...record, exportedAt: at })
+export async function markExported(
+  projectId: string,
+  at: string,
+  exportedUpdatedAt: string | null = null,
+): Promise<void> {
+  try {
+    const database = await db()
+    const transaction = database.transaction(PROJECTS_STORE, 'readwrite')
+    const record = await transaction.store.get(projectId)
+    if (record) {
+      const clean = exportedUpdatedAt !== null && record.updatedAt === exportedUpdatedAt
+      await transaction.store.put({
+        ...record,
+        exportedAt: at,
+        ...(clean ? { unexportedEdits: false } : {}),
+      })
+    }
+    await transaction.done
+  } catch (error) {
+    // 쿼터에 걸린 기기에서는 이 작은 쓰기도 거절된다. 저장과 같은 말로 알린다.
+    throw asStorageError(error)
   }
-  await transaction.done
+}
+
+/**
+ * 가져오려는 `.mlpx`와 같은 id의 **이 컴퓨터의 판**. 없거나 못 읽으면 `null`이다
+ * (`project/replace.ts`의 `asksBeforeReplacing`이 판정한다, open-decisions.md 75).
+ *
+ * **못 읽음은 목록과 같은 판정이다** — `manifest.name`이 글자가 아니면 목록이 "열 수 없음"이라
+ * 말하는 레코드다(`listProjects`). 그런 레코드는 파일로 바꾸는 것이 복구 길이라 묻지 않는다.
+ * 문서를 마이그레이션하지 않는다 — 이름과 시각만 본다.
+ *
+ * **표지(`unexportedEdits`)가 없는 옛 레코드는 상태 표시줄의 판정을 쓴다**
+ * (`exportStateOf(updatedAt, exportedAt, false)`가 "파일로 저장함"이 아니면 참). 학생이 이미
+ * 보고 있는 말과 어긋나지 않는 쪽이다 — 근거는 결정문 75.
+ */
+export async function readLocalVersion(projectId: string): Promise<LocalVersion | null> {
+  const record = await (await db()).get(PROJECTS_STORE, projectId)
+  if (!record) return null
+  const manifest: unknown = (record.document as { manifest?: unknown } | undefined)?.manifest
+  const name =
+    typeof manifest === 'object' && manifest !== null
+      ? (manifest as { name?: unknown }).name
+      : undefined
+  if (typeof name !== 'string' || typeof record.updatedAt !== 'string') return null
+  const unexportedEdits =
+    typeof record.unexportedEdits === 'boolean'
+      ? record.unexportedEdits
+      : exportStateOf(record.updatedAt, record.exportedAt ?? null, false) !== 'exported'
+  return { name, updatedAt: record.updatedAt, unexportedEdits }
 }
 
 /** 파일에 담기지 않는 곁가지 정보. 상태 표시줄이 쓴다. */
