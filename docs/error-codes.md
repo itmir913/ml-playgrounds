@@ -113,6 +113,11 @@ PROJECT_OPEN_ELSEWHERE
 PROJECT_FILE_NOT_ZIP, PROJECT_FILE_ENTRY_MISSING, PROJECT_FILE_INVALID,
 PROJECT_FILE_VERSION_TOO_NEW, PROJECT_FILE_VERSION_UNSUPPORTED
 ```
+**프로젝트 파일 한 개에 담는 수** (`project/format.ts`의 `archiveEntryCount` — 사진 추가·포트폴리오 첨부·내보내기)
+```
+PROJECT_FILE_TOO_MANY_ENTRIES
+```
+상한 해제로 안 풀린다 — 문구가 [상한 해제]를 부르지 않는다 (`open-decisions.md` ".mlpx 한 파일의 엔트리 수는 ZIP64 없이 쓸 수 있는 만큼이다").
 **모델 실행 / 저장소**
 ```
 MODEL_FORMAT_UNSUPPORTED, MODEL_FILE_INVALID, MODEL_NEEDS_DATASET, STORAGE_QUOTA_EXCEEDED,
