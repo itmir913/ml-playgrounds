@@ -268,7 +268,12 @@ export const useProjectStore = defineStore('project', () => {
       // 열린 직후는 방금 읽은 그대로이므로 저장된 상태다.
       dirty.value = false
       savedAt.value = loaded === null ? null : loaded.document.manifest.updatedAt
-      const exported = loaded === null ? null : await readExportedAt(id)
+      // **내보낸 시각을 못 읽으면 "안 내보냄"으로 둔다** (2026-09-29 감사 H A-2). 곁가지 정보다 —
+      // 전에는 여기서 던지면 파일은 이미 앉았는데 라우터 가드가 던져 이동이 취소되고, 학생은 알림
+      // 없이 목록에 남은 채 스토어만 그 프로젝트를 쥐었다(탭 잠금까지). 틀려도 상태 표시줄이
+      // "안 내보냄"이라 말하는 쪽이 안전하다. 무는 검사: `project-open-exported.spec.ts`의
+      // *"내보낸 시각을 못 읽어도 프로젝트로 간다"*.
+      const exported = loaded === null ? null : await readExportedAt(id).catch(() => null)
       // **마지막 `await` 뒤에도 차례를 다시 잰다** (0.30.0 최종 승인 감사 C-11). 그 사이 `close()`가
       // 끼면 파일은 비었는데 `'opened'`가 나가 라우터가 빈 사실로 단계를 판정하고, 닫힌 프로젝트의
       // 시각이 앉는다. `project-open-lock.spec.ts`의 *"내보낸 시각을 읽는 동안 닫히면"*이 문다.

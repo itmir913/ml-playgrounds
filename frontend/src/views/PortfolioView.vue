@@ -185,6 +185,11 @@ function pickFile(): Promise<File | null> {
   const input = fileInput.value
   if (input === null) return Promise.resolve(null)
   input.value = ''
+  // **앞의 약속은 `null`로 풀고 새로 건다** (2026-09-29 감사 H #19). `cancel`이 안 오는 브라우저에서
+  // 앞 고르기를 닫고 다시 고르면, 전에는 앞 약속을 덮어써 그것이 영영 안 풀렸다. `null`은 "고르지
+  // 않았다"라 받는 쪽이 아무 일도 안 한다. 무는 검사: `portfolio-view.spec.ts`의
+  // *"다시 고르면 앞의 고르기는 고르지 않은 것으로 끝난다"*.
+  picking?.(null)
   return new Promise((resolve) => {
     picking = resolve
     input.click()

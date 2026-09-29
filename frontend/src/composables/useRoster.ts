@@ -3,7 +3,8 @@
  *
  * **읽기 소비자가 하나다.** 뒤에서 도는 훑기와 교사가 고른 항목이 같은 줄에 서고, 고른
  * 것이 **맨 앞으로** 간다 — 그래서 같은 파일을 두 번 풀지 않고, 메모리에 사는 파싱 결과가
- * 언제나 하나다 (open-decisions.md "명렬은 메타만 읽는다").
+ * 한 명렬 안에서 언제나 하나다 (open-decisions.md "명렬은 메타만 읽는다"). 예외는 명렬이 갈린
+ * 직후다 — 버린 펌프의 도는 읽기가 끝날 때까지 뒤에서 더 돈다(`abandonPump`의 대가).
  *
  * **읽기가 둘이다.** 훑기는 문서 넷만 풀어 요약을 남기고(`readProjectMeta`), 교사가 고른
  * 하나는 사진까지 통째로 푼다(`readProject`) — 열람과 무결성이 그것을 요구한다.
@@ -172,15 +173,47 @@ export function useRoster(): Roster {
     }
   }
 
-  /** 하나씩, 앞에서부터. **동시에 푸는 파일은 언제나 하나다.** */
+  /**
+   * 명렬이 몇 번 갈렸는가. **값에 뜻이 없고 달라졌다는 것에만 뜻이 있다** — 펌프가 자기 차례가
+   * 지났음을 안다 (아래 `abandonPump`).
+   */
+  let generation = 0
+
+  /**
+   * **도는 펌프를 버린다** (2026-09-29 감사 H A-5). `show()`·`stop()`만 부른다.
+   *
+   * 전에는 펌프가 하나뿐이라 **파일 하나의 읽기가 안 끝나면**(느린 네트워크 드라이브 따위) 큐
+   * 전체가 멈췄고, 교사가 다른 폴더를 골라도 `pump`가 비지 않아 새 명렬을 한 줄도 안 읽었다 —
+   * 점검 화면을 떠났다 와야 풀렸다. 버린 펌프는 도는 읽기가 끝나면 `run`의 명렬 비교로 앉지 않고
+   * 손을 놓은 뒤(`release`) 세대를 보고 멈춘다 — 새 명렬을 집어 들지 않는다. 무는 검사:
+   * `roster-queue.spec.ts`의 *"읽기 하나가 안 끝나도 새 폴더는 읽는다"*, *"버린 읽기가 끝나도
+   * 새 명렬은 여전히 한 번에 하나씩 읽는다"*, `stop()` 쪽은 *"멈춘 뒤에 줄을 누르면 안 끝난 읽기와
+   * 무관하게 읽는다"*.
+   *
+   * **대가: 명렬이 갈린 직후에는 새 펌프의 읽기와 버린 펌프들의 읽기가 겹친다.** 버린 펌프는
+   * 명렬을 바꾼 횟수만큼 있을 수 있고(보통 하나), 저마다 도는 읽기 하나가 끝날 때까지 제 바이트를
+   * 쥔다. 버린 일감이 통째 읽기(`open`·`collect`)였으면 사진까지 쥔다. 같은 명렬 안에서는 여전히
+   * 하나다.
+   */
+  function abandonPump(): void {
+    generation += 1
+    pump = null
+  }
+
+  /** 하나씩, 앞에서부터. **한 명렬 안에서 동시에 푸는 파일은 언제나 하나다.** */
   function pumpQueue(): void {
-    pump ??= (async () => {
-      while (pending.length > 0) {
+    if (pump !== null) return
+    const mine = generation
+    pump = (async () => {
+      while (generation === mine && pending.length > 0) {
         const job = pending.shift()
         if (job) await run(job)
       }
     })().finally(() => {
-      pump = null
+      // 버려진 펌프는 새 펌프의 자리를 비우지 않는다 — 비우면 다음 `pumpQueue`가 펌프를 하나 더
+      // 세워 한 명렬 안에서 두 파일이 동시에 풀린다. 무는 검사: `roster-queue.spec.ts`의
+      // *"버린 펌프가 끝나도 새 펌프의 자리를 비우지 않는다"*.
+      if (generation === mine) pump = null
     })
   }
 
@@ -197,6 +230,7 @@ export function useRoster(): Roster {
     summaries.value = new Map()
     pending = next.map((item) => ({ item, full: false, hands: [], seat: false }))
     for (const job of dropped) release(job)
+    abandonPump()
     pumpQueue()
   }
 
@@ -210,6 +244,7 @@ export function useRoster(): Roster {
     const dropped = pending
     pending = []
     held = []
+    abandonPump()
     for (const job of dropped) release(job)
   }
 

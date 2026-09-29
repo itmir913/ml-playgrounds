@@ -597,6 +597,11 @@ async function downloadPortfolios(): Promise<void> {
     if (whole && entries.length > 0 && alive()) {
       downloadBlob(bundleOf(entries, t, locale.value), t('inspect.bundleName'))
     }
+  } catch (error) {
+    // **묶다 던지면 알린다** (2026-09-29 감사 H #15). 전에는 `finally`가 잠금만 풀고 거절은
+    // 아무도 안 받아, 교사는 단추가 풀리는 것만 보고 묶음이 왜 안 내려왔는지 몰랐다. 무는 검사:
+    // `inspect-bundle.spec.ts`의 *"묶다 던지면 알리고 단추가 풀린다"*.
+    toasts.pushError(error)
   } finally {
     bundled.value = 0
     job.done()

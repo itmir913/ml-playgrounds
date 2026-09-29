@@ -292,3 +292,95 @@ describe('훑기 도중에 줄 둘을 연달아 누른다', () => {
     expect(roster.opened.value?.item.label).toBe('d.mlpx')
   })
 })
+
+/**
+ * **읽기 하나가 안 끝나도 새 폴더는 읽는다** (2026-09-29 감사 H A-5).
+ *
+ * 펌프가 하나뿐이던 때는 한 파일의 읽기가 안 끝나면(느린 네트워크 드라이브 따위) 교사가 다른
+ * 폴더를 골라도 새 명렬을 한 줄도 안 읽었다 — 점검 화면을 떠났다 와야 풀렸다. 버린 읽기가
+ * 늦게 끝나도 새 명렬에 앉지 않는 것까지 본다.
+ */
+describe('A-5: one read that never ends', () => {
+  beforeEach(() => {
+    reads.length = 0
+  })
+
+  it('읽기 하나가 안 끝나도 새 폴더는 읽는다', async () => {
+    const roster = useRoster()
+    roster.show(rosterOf([picked('a.mlpx'), picked('b.mlpx')]))
+    await flushPromises()
+    const stuck = reads.shift()
+    expect(stuck?.label).toBe('a.mlpx')
+
+    roster.show(rosterOf([picked('c.mlpx')]))
+    await flushPromises()
+    expect(reads.map((one) => one.label)).toEqual(['c.mlpx'])
+    await drain()
+    expect([...roster.summaries.value.keys()]).toEqual(['c.mlpx'])
+
+    // 버린 읽기가 늦게 끝나도 새 명렬에 앉지 않고, 앞 명렬의 b를 이어 읽지도 않는다.
+    stuck?.settle(new Uint8Array([1]))
+    await flushPromises()
+    expect(reads).toEqual([])
+    expect([...roster.summaries.value.keys()]).toEqual(['c.mlpx'])
+  })
+
+  /**
+   * **버린 펌프는 새 명렬을 집어 들지 않는다.** 집어 들면 새 명렬 안에서 두 파일이 동시에
+   * 풀린다 — 사진이 든 제출물에서 그 차이가 교사 기기의 메모리다.
+   */
+  it('버린 읽기가 끝나도 새 명렬은 여전히 한 번에 하나씩 읽는다', async () => {
+    const roster = useRoster()
+    roster.show(rosterOf([picked('a.mlpx')]))
+    await flushPromises()
+    const stuck = reads.shift()
+
+    roster.show(rosterOf([picked('c.mlpx'), picked('d.mlpx')]))
+    await flushPromises()
+    expect(reads.map((one) => one.label)).toEqual(['c.mlpx'])
+
+    stuck?.settle(new Uint8Array([1]))
+    await flushPromises()
+    expect(reads.map((one) => one.label)).toEqual(['c.mlpx'])
+    await drain()
+    expect([...roster.summaries.value.keys()].sort()).toEqual(['c.mlpx', 'd.mlpx'])
+  })
+
+  /**
+   * **버린 펌프가 끝나도 새 펌프의 자리를 비우지 않는다.** 비우면 곧이어 누른 줄이 펌프를 하나
+   * 더 세워, 새 명렬 안에서 c를 읽는 동안 d가 함께 풀린다.
+   */
+  it('버린 펌프가 끝나도 새 펌프의 자리를 비우지 않는다', async () => {
+    const roster = useRoster()
+    roster.show(rosterOf([picked('a.mlpx')]))
+    await flushPromises()
+    const stuck = reads.shift()
+
+    const next = rosterOf([picked('c.mlpx'), picked('d.mlpx')])
+    roster.show(next)
+    await flushPromises()
+    stuck?.settle(new Uint8Array([1]))
+    await flushPromises()
+
+    void roster.open(next[1] as RosterItem)
+    await flushPromises()
+    expect(reads.map((one) => one.label)).toEqual(['c.mlpx'])
+  })
+
+  /**
+   * **멈추기만 해도 펌프를 버린다.** `show` 없이 곧바로 줄을 누르면, 안 끝난 읽기 뒤에 서지 않고
+   * 그 줄을 읽는다 — `stop()`의 `abandonPump`만 무는 자리다.
+   */
+  it('멈춘 뒤에 줄을 누르면 안 끝난 읽기와 무관하게 읽는다', async () => {
+    const roster = useRoster()
+    const items = rosterOf([picked('a.mlpx'), picked('b.mlpx')])
+    roster.show(items)
+    await flushPromises()
+    reads.shift()
+
+    roster.stop()
+    void roster.open(items[1] as RosterItem)
+    await flushPromises()
+    expect(reads.map((one) => one.label)).toEqual(['b.mlpx'])
+  })
+})

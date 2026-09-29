@@ -15,7 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** 아직 안 끝낸 읽기들. 검사가 하나씩 풀어 준다. */
 const gates: (() => void)[] = []
-const downloads = vi.hoisted(() => ({ count: 0 }))
+const downloads = vi.hoisted(() => ({ count: 0, fail: false }))
 
 vi.mock('../src/project/download', async (real) => {
   const actual = await real<typeof import('../src/project/download')>()
@@ -28,12 +28,16 @@ vi.mock('../src/project/download', async (real) => {
       return bytes
     },
     downloadBlob: () => {
+      // 묶음이 다 선 뒤 내려보내는 자리에서 던지게 할 수 있다 — `bundleOf`·Blob과 같은 `try` 안이다.
+      if (downloads.fail) throw new RangeError('Array buffer allocation failed')
       downloads.count += 1
     },
   }
 })
 
 const { i18n, setLocale } = await import('../src/i18n')
+const { errorMessageKey } = await import('../src/errors')
+const { useToastStore } = await import('../src/stores/toasts')
 const { mountInspect, pickFiles, submissionFile } = await import('./fixtures/inspect-screen')
 
 const OTHER = '11111111-1111-4111-8111-111111111111'
@@ -51,6 +55,7 @@ describe('포트폴리오 묶음', () => {
     setLocale('ko')
     gates.length = 0
     downloads.count = 0
+    downloads.fail = false
   })
 
   function bundleButton(wrapper: Awaited<ReturnType<typeof mountInspect>>) {
@@ -95,6 +100,29 @@ describe('포트폴리오 묶음', () => {
     await finish()
 
     expect(downloads.count, 'half a class must not be downloaded').toBe(0)
+    wrapper.unmount()
+  })
+
+  /**
+   * **묶다 던지면 알리고 단추가 풀린다** (2026-09-29 감사 H #15). 전에는 `finally`만 있어
+   * 거절을 아무도 안 받았다 — 단추는 풀리는데 교사는 왜 안 내려왔는지 몰랐다.
+   */
+  it('묶다 던지면 알리고 단추가 풀린다', async () => {
+    const wrapper = await mountInspect([await submissionFile('hong.mlpx')])
+    await finish()
+    const toasts = useToastStore()
+    const before = toasts.items.length
+
+    downloads.fail = true
+    await bundleButton(wrapper).trigger('click')
+    await flushPromises()
+    await finish()
+
+    expect(downloads.count).toBe(0)
+    expect(toasts.items.slice(before).map((one) => one.key)).toEqual([
+      errorMessageKey('UNEXPECTED_ERROR'),
+    ])
+    expect(bundleButton(wrapper).attributes('disabled')).toBeUndefined()
     wrapper.unmount()
   })
 })

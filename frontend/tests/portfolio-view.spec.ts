@@ -300,6 +300,34 @@ describe('양식 메뉴는 받은 것을 그대로 되보낸다', () => {
 })
 
 /**
+ * **다시 고르면 앞의 고르기는 고르지 않은 것으로 끝난다** (2026-09-29 감사 H #19).
+ *
+ * `cancel`이 안 오는 브라우저에서 파일 고르기를 닫으면 그 약속이 남는다. 전에는 다시 고를 때
+ * 그것을 덮어써서 앞 약속이 영영 안 풀렸다. 화면이 메뉴에 넘기는 그 손(`pickFile`)으로 잰다.
+ */
+describe('파일 고르기를 다시 열면', () => {
+  it('다시 고르면 앞의 고르기는 고르지 않은 것으로 끝난다', async () => {
+    const view = mountView()
+    const pickFile = view.findComponent(TemplateSourceMenu).props('pickFile')
+    const input = view.find('input[type="file"]').element as HTMLInputElement
+
+    let first: File | null | 'pending' = 'pending'
+    void pickFile().then((picked) => {
+      first = picked
+    })
+    const second = pickFile()
+    await Promise.resolve()
+    expect(first).toBeNull()
+
+    // 뒤의 고르기는 그대로 산다 — 고른 파일이 그쪽으로 간다.
+    const chosen = new File(['## 주제\n'], 'form.md')
+    Object.defineProperty(input, 'files', { configurable: true, value: [chosen] })
+    input.dispatchEvent(new Event('change'))
+    expect(await second).toBe(chosen)
+  })
+})
+
+/**
  * 목차가 "지금 여기"를 말하는 판정 (`measure()` · `active` · `SectionIndex`).
  *
  * **잴 수 없다고 보고 접혔던 자리다.** jsdom에서 `getBoundingClientRect`가 0을
