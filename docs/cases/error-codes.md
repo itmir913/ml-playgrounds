@@ -330,6 +330,14 @@ STORAGE_VERSION_TOO_NEW
 `UNEXPECTED_ERROR`와 영어 원문이 떴다. **"다시 시도"가 아니라 "다시 골라라"라서 나눈다.** 파일 종류와
 무관하게 한 코드다 — `.mlpx`든 표든 사진 zip이든 할 일이 같다. 원문은 `detail`로 남는다.
 
+**가는 화면을 못 받았다** — `SCREEN_LOAD_FAILED` (야간 감사 N4, architecture.md §8.1)
+
+라우트 화면의 청크를 `import()`가 못 받은 경우다 — 배포 뒤 열어 둔 옛 탭이 없어진 해시를 부르거나 연결이 끊겼다.
+전에는 아무 말 없이 이동만 섰다. **`UNEXPECTED_ERROR`와 나누는 이유는 할 일이 다르기 때문이다** — "다시 시도"는
+같은 청크를 다시 부를 뿐이라 옛 탭에서는 영영 안 된다. 할 일은 **연결을 확인하고 페이지를 새로고침하는 것**이다.
+`STORAGE_VERSION_TOO_NEW`와도 다르다 — 저쪽은 저장소가 새것이라는 사실이고, 이쪽은 연결이 끊긴 탭에서도 난다.
+원문은 `detail`로 남는다.
+
 **예측 입력** (`ml/predict.ts`)
 ```
 PREDICTION_INPUT_INCOMPLETE

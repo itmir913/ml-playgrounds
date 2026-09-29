@@ -139,6 +139,10 @@ STORAGE_BLOCKED
 ```
 FILE_UNREADABLE
 ```
+**가는 화면을 못 받았다** (`router/index.ts` — 배포 뒤 옛 탭의 없는 청크, 끊긴 연결. 이동은 아무것도 안 바꾸고 선다)
+```
+SCREEN_LOAD_FAILED
+```
 **예측 입력** (`ml/predict.ts`)
 ```
 PREDICTION_INPUT_INCOMPLETE
