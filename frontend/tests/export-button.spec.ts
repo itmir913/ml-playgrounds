@@ -17,8 +17,9 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ExportButton from '../src/components/ExportButton.vue'
+import { errorMessageKey } from '../src/errors'
 import { i18n, setLocale } from '../src/i18n'
-import { projectFileName } from '../src/project/format'
+import { MLPX_MIME, projectFileName } from '../src/project/format'
 import { closeStorage, DB_NAME } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
@@ -170,6 +171,50 @@ describe('B-1: a save that never settles', () => {
     expect(useToastStore().items.map((one) => one.key)).toContain('project.exportDone')
     // 팝오버가 닫혔다 — 버튼이 도는 채로 남지 않는다.
     expect(document.querySelector('.popover-panel')).toBeNull()
+    wrapper.unmount()
+  })
+})
+
+/**
+ * **파일을 담다 던지면 알리고 끝난다** (2026-09-29 감사 H A-3).
+ *
+ * `zipToBlob`이 끝났다는 표시를 `new Blob`보다 먼저 세우던 때는, Blob 생성이 던지면(메모리)
+ * 그 예외가 삼켜져 약속이 영영 안 풀렸다 — 버튼이 돌기만 하고 알림도 파일도 없었다. Blob을
+ * 가짜로 던지게 해서 **진짜 입구(버튼)부터** 알림까지 잇는다.
+ */
+describe('A-3: a Blob that throws while the file is assembled', () => {
+  it('파일을 담다 던지면 알리고 끝난다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+
+    const wrapper = mount(ExportButton, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flushPromises()
+    await wrapper.find('button').trigger('click')
+    await flushPromises()
+
+    const RealBlob = globalThis.Blob
+    // 내보내기가 담는 형식의 Blob만 던진다 — 다른 자리의 Blob은 그대로 둔다.
+    globalThis.Blob = class extends RealBlob {
+      constructor(parts?: BlobPart[], options?: BlobPropertyBag) {
+        if (options?.type === MLPX_MIME) throw new RangeError('Array buffer allocation failed')
+        super(parts, options)
+      }
+    } as typeof Blob
+    try {
+      const exportNow = document.querySelector('.popover-panel button')
+      exportNow?.dispatchEvent(new Event('click', { bubbles: true }))
+      await settle()
+
+      expect(downloads).toHaveLength(0)
+      expect(useToastStore().items.map((one) => one.key)).toEqual([
+        errorMessageKey('UNEXPECTED_ERROR'),
+      ])
+      // 버튼이 도는 채로 남지 않는다 — 다시 누를 수 있다.
+      expect(exportNow?.getAttribute('aria-busy')).toBe('false')
+      expect(exportNow?.hasAttribute('disabled')).toBe(false)
+    } finally {
+      globalThis.Blob = RealBlob
+    }
     wrapper.unmount()
   })
 })

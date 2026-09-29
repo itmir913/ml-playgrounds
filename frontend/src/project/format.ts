@@ -485,8 +485,14 @@ async function zipToBlob(entries: Record<string, Uint8Array>): Promise<Blob> {
       // 고쳐도 나간 파일은 그대로다".
       parts.push(chunk)
       if (final) {
+        // **`Blob`을 먼저 만들고 나서 끝났다고 적는다** (2026-09-29 감사 H A-3). 순서가 반대면
+        // `new Blob`이 던질 때(메모리) 그 예외가 `stream.end()`를 거쳐 아래 `catch`에 닿아도
+        // `settled`가 이미 참이라 삼켜지고, **약속이 영영 안 풀려 [내보내기]가 끝없이 돈다.**
+        // 이 순서면 아래 `catch`가 거절로 끝내고 `ExportButton`이 알린다. 무는 검사:
+        // `export-button.spec.ts`의 *"파일을 담다 던지면 알리고 끝난다"*.
+        const blob = new Blob(parts as unknown as BlobPart[], { type: MLPX_MIME })
         settled = true
-        resolve(new Blob(parts as unknown as BlobPart[], { type: MLPX_MIME }))
+        resolve(blob)
       }
     })
 
