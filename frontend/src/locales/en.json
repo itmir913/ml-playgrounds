@@ -37,6 +37,7 @@
     "integrityNote": "Checks whether this project file was modified after it was saved. If there are signs of changes, the parts that changed are listed below.",
     "reproduce": "Reproduction check",
     "reproduceLead": "Trains again with the settings and split recorded in the file, then checks whether the same scores come out.",
+    "matrixMismatch": "The accuracy recorded in the file does not match the confusion matrix recorded in the same file ({model}).",
     "reproduceStart": "Start check",
     "reproducing": "Checking ({done}/{total})",
     "preparingDownload": "Downloading scikit-learn",

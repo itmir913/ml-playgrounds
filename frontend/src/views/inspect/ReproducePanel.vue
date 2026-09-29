@@ -40,10 +40,11 @@ import {
   engineIsHere,
   engineVersionFallback,
   reproduceInputOf,
+  storedMetricsMatchMatrix,
   underRuleChanges,
   type Reproduction,
 } from '@/ml/reproduce'
-import { succeeded } from '@/ml/results'
+import { succeeded, whereTrainedKeyOf } from '@/ml/results'
 import { factorFrom, readFactor, writeFactor } from '@/ml/calibration'
 import { RUNTIMES, type EngineState } from '@/ml/backend'
 import { browserEstimateMs, describe as describeEstimate, type Estimate } from '@/ml/estimate'
@@ -56,7 +57,7 @@ import { lockFor, useGate } from '@/locks'
 import { useToastStore } from '@/stores/toasts'
 import type { Dataset } from '@/ml/preprocess'
 import type { ReproduceBlocker } from '@/ml/reproduce-gate'
-import { DATA_SCHEMAS, type DataType, type Experiment } from '@/project/schema'
+import { DATA_SCHEMAS, type DataType, type Experiment, type Run } from '@/project/schema'
 
 const props = defineProps<{
   experiment: Experiment
@@ -196,6 +197,29 @@ const REPRODUCE_REFUSAL_KEYS = {
   NO_TEST_DATASET: 'inspect.blocked.NO_TEST_DATASET',
   COMPARING_OTHER: 'inspect.comparingOtherRefused',
 } as const satisfies Record<ReproduceBlocker, string>
+
+/**
+ * **파일 안에서 스스로 어긋나는 run** — 저장된 정확도가 저장된 혼동 행렬과 안 맞는다
+ * (mlpx-spec.md §7.1, `storedMetricsMatchMatrix`). **누르기 전에, 잠겨 있어도 말한다** —
+ * 대조가 판정을 안 하는 자리(사진 프로젝트·`advisory`·규칙이 바뀐 옛 파일)에서는 이것이
+ * 정확도만 고친 파일을 드러내는 유일한 신호다. 재료가 없는 run(`undefined`)과 실패한 run은
+ * 말하지 않는다. `inspect-self-consistency.spec.ts`가 문다.
+ */
+const inconsistent = computed(() =>
+  props.experiment.runs.filter((run) => succeeded(run) && storedMetricsMatchMatrix(run) === false),
+)
+
+/**
+ * 어긋난 run의 이름. **학습한 곳까지 적는다** (architecture.md §8.13.1 "모델 이름에 학습한 곳까지
+ * 적는다") — 한 실험이 같은 알고리즘을 엔진 둘로 돌릴 수 있어서, 알고리즘 이름만으로는 어느 run인지
+ * 못 가른다. 모양은 다른 화면의 모델 이름(`predict.modelName`)과 같다.
+ */
+function runName(run: Run): string {
+  return t('predict.modelName', {
+    algorithm: t(`algorithms.${run.algorithm}`),
+    runtime: t(whereTrainedKeyOf(run)),
+  })
+}
 
 /** 견줄 주장의 수. 진행을 셀 분모다. */
 const claims = computed(() => props.experiment.runs.filter((run) => run.status === 'done').length)
@@ -554,6 +578,17 @@ function failureText(reproduction: Reproduction): string {
     </div>
 
     <p class="text-ink-faint">{{ t('inspect.reproduceLead') }}</p>
+
+    <!--
+      **파일 안의 어긋남은 누르기 전에 선다** (mlpx-spec.md §7.1). 재실행이 필요 없는 신호라
+      잠긴 이유 목록보다 앞이고, 대조가 잠긴 파일에서도 그대로다. 색은 무결성 판의 어긋난
+      엔트리와 같은 주의색이다.
+    -->
+    <ul v-if="inconsistent.length > 0" class="flex flex-col gap-1 text-caution">
+      <li v-for="one in inconsistent" :key="one.id">
+        {{ t('inspect.matrixMismatch', { model: runName(one) }) }}
+      </li>
+    </ul>
 
     <!--
       **잠긴 이유를 전부 말한다** (architecture.md §10). 이유 없이 회색인 단추는 고장으로

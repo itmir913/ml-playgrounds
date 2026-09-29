@@ -794,8 +794,16 @@ export function storedMetricsMatchMatrix(run: Run): boolean | undefined {
     }
   }
   if (total === 0) return undefined
-  // 파일에 적히는 정확도는 이미 반올림된 값이라(`ml/metrics.ts`) 같은 자릿수에서 견준다.
-  return Math.abs(correct / total - accuracy) < 0.5 / total
+  /**
+   * **정확히 견준다** (mlpx-spec.md §7.1). 지표는 반올림하지 않고 저장하고(`ml/metrics.ts`
+   * 머리말), 앱의 정확도는 처음부터 같은 두 정수의 나눗셈(`ratio(correct, total)`)이라 앱이
+   * 적은 파일은 비트까지 맞는다. 한때 여기 반 칸(`0.5 / total`)의 여유가 있었고 근거는
+   * *"이미 반올림된 값"*이라는 거짓 문장이었다 — 그 여유 안에서 고친 값이 통과했다.
+   * `inspect-self-consistency.spec.ts`의 *"반 칸보다 적게 고친 정확도도"*가 문다. **여유 0이 기대는
+   * 전제**(앱이 적은 run은 비트까지 맞는다)는 같은 파일의 *"앱이 적은 run은 비트까지 맞는다"* 묶음이
+   * 문다 — 정확도 식을 바꾸면 거기서 운다.
+   */
+  return correct / total === accuracy
 }
 
 /**

@@ -11,7 +11,7 @@
  */
 
 import type { ClientErrorCode } from '../errors'
-import { isProjectFileName } from './format'
+import { isProjectFileName, withoutProjectExtension } from './format'
 import type { DataType, ProjectDocument } from './schema'
 
 /** 명렬의 한 줄. **파일 하나가 한 줄이다** — 같은 학생의 파일이 여럿이면 여럿이다. */
@@ -21,6 +21,9 @@ export interface RosterItem {
    *
    * 재귀 폴더에서 파일 이름은 겹친다 — `1반/kim.mlpx`와 `2반/kim.mlpx`가 한 줄로 보이면
    * 교사가 둘을 구분할 방법이 없다.
+   *
+   * **명렬 안에서 유일하다** (`rosterOf`의 `distinctLabels`). 이름만 오는 입구에서 겹치면
+   * 뒤엣것에 번호가 붙는다 — 명렬의 기억이 전부 이것을 열쇠로 쓴다.
    */
   readonly label: string
   /** 손잡이. **여는 것은 고른 뒤다** — 명렬은 이것만 들고 있는다. */
@@ -75,10 +78,38 @@ export type RosterSummary =
  * - 정렬은 이름순이고, **폴더째면 상대 경로순**이라 반이 묶여 선다.
  */
 export function rosterOf(files: readonly File[]): RosterItem[] {
-  return files
-    .filter((file) => isProjectFileName(labelOf(file)))
-    .map((file) => ({ label: labelOf(file), file }))
+  const picked = files.filter((file) => isProjectFileName(labelOf(file)))
+  const labels = distinctLabels(picked.map(labelOf))
+  return picked
+    .map((file, index) => ({ label: labels[index] ?? labelOf(file), file }))
     .sort((left, right) => left.label.localeCompare(right.label))
+}
+
+/**
+ * **이름표를 겹치지 않게 한다** (architecture.md §8.21). 명렬의 모든 기억 — 요약·고침·묶음·
+ * 큐·묶음 굽기 — 이 이름표를 열쇠로 쓰는데, 파일 여럿 고르기와 끌어다 놓기는 이름만 온다.
+ * 겹치면 다른 학생의 두 파일이 한 줄로 합쳐져 **자기 자신과 같은 프로젝트로 묶인다.**
+ *
+ * 처음 나온 것은 그대로 두고, 뒤엣것의 확장자 앞에 ` (2)`부터 붙인다. **원래 있는 이름을 먼저
+ * 잡아 둔다** — `kim (2).mlpx`라는 파일이 뒤에 오면 그 자리를 붙인 번호가 뺏으면 안 된다.
+ * 묶음 폴더 이름(`portfolio-bundle.ts`의 `folderNames`)과 같은 꼴이다.
+ * `roster-duplicate-names.spec.ts`가 문다.
+ */
+function distinctLabels(labels: readonly string[]): string[] {
+  const taken = new Set(labels)
+  const seen = new Set<string>()
+  return labels.map((label) => {
+    if (!seen.has(label)) {
+      seen.add(label)
+      return label
+    }
+    const stem = withoutProjectExtension(label)
+    const tail = label.slice(stem.length)
+    let name = label
+    for (let index = 2; taken.has(name); index += 1) name = `${stem} (${index})${tail}`
+    taken.add(name)
+    return name
+  })
 }
 
 /**
