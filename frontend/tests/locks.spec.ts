@@ -39,6 +39,8 @@ import {
   type Lock,
   type LockId,
 } from '../src/locks'
+import { withSectionMoved } from '../src/project/portfolio'
+import type { Portfolio } from '../src/project/schema'
 import { NO_FACTS } from '../src/router/steps'
 
 /**
@@ -342,6 +344,50 @@ describe('쪽 넘기기는 누르는 쪽에서도 멈춘다', () => {
     // 쪽이 줄어 밖에 선 채 눌렀다 — 안으로 당긴다.
     expect(turnPage(5, -1, 3)).toBe(2)
     expect(turnPage(0, 1, 0)).toBe(0)
+  })
+})
+
+/* ------------------------------------------------------------------ 순서 옮기기 */
+
+/**
+ * **순서 옮기기는 잠금과 같은 판정으로 멈춘다** (#31, `architecture.md` §10.7). 판정이 두 벌이면
+ * 한쪽만 고쳐지는 날 **잠기지 않았는데 눌러도 조용한** 단추가 된다(결정문 60) — 그래서 판정을 재지
+ * 않고 **잠금과 동작이 같이 움직이는지**를 잰다. 판정 하나를 바꾸면 둘이 함께 바뀌어 여기는 초록이고,
+ * 한쪽만 바꾸면 운다.
+ */
+describe('순서 옮기기는 잠금과 같은 판정으로 멈춘다', () => {
+  const withSections = (count: number): Portfolio => ({
+    template: {
+      sections: Array.from({ length: count }, (_, index) => ({
+        id: `s${index}`,
+        title: `${index}`,
+      })),
+    },
+    answerFormat: 'plain-v1',
+    answers: {},
+    attachments: {},
+  })
+
+  it('잠긴 쪽은 안 옮겨지고, 안 잠긴 쪽은 반드시 옮겨진다', () => {
+    for (const count of [1, 2, 3, 5]) {
+      const before = withSections(count)
+      for (let index = 0; index < count; index += 1) {
+        const id = `s${index}`
+        const up = refusalFor('sectionTop', { index })
+        const down = refusalFor('sectionBottom', { index, count })
+        const movedUp = withSectionMoved(before, id, -1)
+        const movedDown = withSectionMoved(before, id, 1)
+        const where = `${index} of ${count}`
+        expect(movedUp === before, `up ${where}`).toBe(up.length > 0)
+        expect(movedDown === before, `down ${where}`).toBe(down.length > 0)
+        if (up.length === 0) {
+          expect(movedUp.template.sections.map((one) => one.id)[index - 1], where).toBe(id)
+        }
+        if (down.length === 0) {
+          expect(movedDown.template.sections.map((one) => one.id)[index + 1], where).toBe(id)
+        }
+      }
+    }
   })
 })
 

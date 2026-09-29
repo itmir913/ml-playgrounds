@@ -66,6 +66,7 @@ import {
   type StratifyInput,
   type StratifySplit,
 } from '@/ml/selection'
+import { sectionBottomBlockers, sectionTopBlockers } from '@/project/portfolio'
 import type { TaskType } from '@/project/schema'
 import { stepBlockers, type ProjectFacts, type StepId } from '@/router/steps'
 import type { DataType } from '@/project/schema'
@@ -606,11 +607,14 @@ const GATES = {
   /** 쪽 넘기기의 끝 (끝에 닿음). */
   pageLast: (input: { readonly page: number; readonly pages: number }) =>
     input.page >= input.pages - 1 ? (['LAST_PAGE'] as const) : [],
-  /** 순서 옮기기의 맨 위 (끝에 닿음). */
-  sectionTop: (input: { readonly index: number }) => (input.index <= 0 ? (['TOP'] as const) : []),
-  /** 순서 옮기기의 맨 아래 (끝에 닿음). */
+  /**
+   * 순서 옮기기의 맨 위 (끝에 닿음). 판정은 모델 층에 있고 옮기기(`withSectionMoved`)도 같은 함수를
+   * 부른다(#31) — `locks.spec.ts`의 *"순서 옮기기는 잠금과 같은 판정으로 멈춘다"*.
+   */
+  sectionTop: (input: { readonly index: number }) => sectionTopBlockers(input),
+  /** 순서 옮기기의 맨 아래 (끝에 닿음). 맨 위와 같은 까닭으로 모델 층의 판정을 부른다. */
   sectionBottom: (input: { readonly index: number; readonly count: number }) =>
-    input.index >= input.count - 1 ? (['BOTTOM'] as const) : [],
+    sectionBottomBlockers(input),
 } as const satisfies Readonly<Record<string, (input: never) => readonly string[]>>
 
 /** 층화 판정을 이유 목록으로. **뽑기만 층화하는 경우는 잠그지 않는다** (`stratifyLocked`). */

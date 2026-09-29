@@ -57,7 +57,7 @@ const emit = defineEmits<{
   answer: [text: string, element: HTMLTextAreaElement]
   title: [text: string, element: HTMLInputElement]
   description: [text: string, element: HTMLTextAreaElement]
-  move: [delta: number]
+  move: [step: -1 | 1]
   remove: []
   attach: [files: readonly File[]]
   detach: [path: string]
