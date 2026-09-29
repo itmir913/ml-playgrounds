@@ -44,6 +44,7 @@ import {
   predictDownloadGrid,
   predictPage,
   predictPageSignature,
+  rowValues,
   trainingRowsFor,
   type Answer,
   type PredictableModel,
@@ -203,13 +204,7 @@ async function remove(): Promise<void> {
 const rows = computed<Record<string, string>[]>(() => {
   const table = predictDataset.value
   if (!table) return []
-  return table.rows.map((row) => {
-    const values: Record<string, string> = {}
-    table.columns.forEach((name, index) => {
-      values[name] = row[index] ?? ''
-    })
-    return values
-  })
+  return rowValues(table)
 })
 
 /**
@@ -618,7 +613,15 @@ async function downloadAction(): Promise<void> {
       props.fields.map((field) => field.name),
       answers,
       showFeatures.value,
-      (value) => (typeof value === 'number' ? format.prediction(value) : value),
+      /**
+       * **파일에는 원값을 쓴다** (2026-09-29 감사 F C-1). 화면의 `format.prediction`은 사람이
+       * 읽는 꼴이라 자리 구분 쉼표를 달고(`1,650,000.123`) 유효숫자에서 자른다 — 그 칸을 이
+       * 앱에 다시 올리면 **범주 열로 읽히고**(`ml/predict.ts`의 `PREDICTION_INPUT_NOT_NUMBER`
+       * 머리말이 적은 그 규칙), 한 번 자른 자릿수는 못 되돌린다. 같은 파일의 확률 열이 이미
+       * 원값이다(`predictDownloadGrid`). `batch-predict-download.spec.ts`의
+       * *"회귀의 답은 원값으로 실린다"*가 문다.
+       */
+      (value) => (typeof value === 'number' ? String(value) : value),
     )
     // 확장자만 갈아 끼운다. 문자열을 손으로 쓰면 확장자가 바뀌는 날 여기가 안 따라와
     // `프로젝트.mlpx.csv`가 나간다 (format.ts의 MLPX_EXTENSION).

@@ -18,9 +18,19 @@
  * 시트 하나를 고르기 위해 파일을 두 번 읽지 않는다. openXlsx()가 한 번 읽어
  * 핸들을 주고, 미리보기와 본 읽기가 같은 핸들을 쓴다.
  *
- * 날짜 셀은 이번 범위 밖이다(open-decisions.md #14). 두 경로 모두 ISO 문자열을 주고,
- * 남은 차이는 시간대 하나다 - ExcelJS는 직렬값을 UTC로 읽고 SheetJS는 로컬 시간대를
- * 적용한다. 폴백이 도는 드문 경우에만 갈린다(open-decisions.md #18).
+ * **두 경로가 같은 파일에서 다른 표를 내는 자리가 넷이다** (2026-09-28 감사 E B1에서 쟀다).
+ * 폴백이 도는 드문 경우에만 갈리지만, 갈리면 같은 파일이 파서에 따라 다른 데이터가 된다.
+ *
+ *   | 칸 | ExcelJS (본진) | SheetJS (폴백) |
+ *   |---|---|---|
+ *   | 날짜 | 직렬값을 UTC로 | 로컬 시간대로 (open-decisions.md #18) |
+ *   | 오류 칸 `#DIV/0!` | 오류 글자 — 그 열은 범주형이 된다 | 빈 칸 |
+ *   | 병합 셀 | 병합 범위 전체에 첫 칸의 값 | 첫 칸만, 나머지는 빈 칸 |
+ *   | 서식만 있는 끝의 빈 열 | 열로 남는다 | 없다 |
+ *
+ * **어느 쪽으로 맞출지는 정하지 않았다** — 오류 칸·병합·빈 열은 정본에 적히는 값이 바뀌는
+ * 일이라 코드 소유자의 결정이다. 날짜 말고 셋은 무는 검사가 있다: xlsx-parsers-diverge.spec.ts
+ * "두 파서가 갈리는 자리". 갈림이 하나 줄거나 늘면 그 검사와 이 표를 함께 고친다.
  *
  * **maxRows는 두 경로 모두 남긴 행을 센다** (open-decisions.md "미리보기 N행은 훑은
  * 행이 아니라 남긴 행이다"). 2026-08-30까지 그렇지 않았다 - ExcelJS 쪽만 훑은 행을
@@ -131,8 +141,8 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
          * 불리언은 `"TRUE"`, 날짜는 `"8/21/26"`이었다.
          *
          * 이 도구가 열에서 원하는 것은 **값**이므로 서식 문자열을 잃는 것은 손해가
-         * 아니다. 이제 ExcelJS 경로와 값이 같다 - 남은 차이는 날짜의 시간대
-         * 하나이고 그건 open-decisions.md #18이 갖는다.
+         * 아니다. 이것으로 수·불리언은 ExcelJS 경로와 같아졌다. **같지 않은 자리는 넷이
+         * 남았고** 목록은 이 파일 머리말의 표다(날짜 시간대·오류 칸·병합 셀·끝의 빈 열).
          */
         raw: true,
       })
@@ -167,7 +177,11 @@ export const PARSER_ORDER: readonly string[] = PARSERS.map((parse) => parse.name
  */
 const ZIP_SIGNATURE = [0x50, 0x4b, 0x03, 0x04]
 
-function looksLikeZip(bytes: Uint8Array): boolean {
+/**
+ * **판정은 여기 하나다** — `data/table.ts`의 `openTable`도 이것으로 `.csv`라는 이름의 xlsx를
+ * 알아본다. 두 벌이면 한쪽이 받는 파일을 다른 쪽이 거부한다.
+ */
+export function looksLikeZip(bytes: Uint8Array): boolean {
   return ZIP_SIGNATURE.every((byte, index) => bytes[index] === byte)
 }
 

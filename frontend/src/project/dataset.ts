@@ -92,12 +92,50 @@ export function readTestDataset(project: ProjectFile | null): Dataset | null {
   return table
 }
 
+/**
+ * **데이터를 교체하면 함께 잃는 것** (mlpx-spec.md §4.3·§1 "함께 있고 함께 없다").
+ *
+ * 셋이다 — 실험, 따로 불러온 테스트 데이터, 예측할 파일. 뒤의 둘은 **올린 파일의 이름**으로
+ * 적는다. 학생이 무엇을 다시 올려야 하는지 이름으로 짚을 수 있어야 한다.
+ *
+ * **확인 창을 띄울지와 적용 뒤에 알릴 것을 이 한 판정이 정한다** (`needsReplaceConfirm`,
+ * `applyDataset`의 `dropped*`). 전에는 확인 조건이 화면 안의 `experimentCount > 0`
+ * 하나였다. 그래서 학습 전에 테스트 데이터를 붙인 학생이 훈련 파일의 오타를 고쳐 다시
+ * 올리면, 확인 창도 알림도 없이 테스트 데이터가 사라지고 분할이 `holdout`으로 돌아갔다
+ * (2026-09-28 감사 E A1). 무는 검사: `tabular-replace.spec.ts`.
+ */
+export interface ReplaceLosses {
+  readonly experiments: number
+  /** 따로 불러온 테스트 데이터의 원래 파일 이름. 없으면 `null`. */
+  readonly testFile: string | null
+  /** 예측할 파일의 원래 파일 이름. 없으면 `null`. */
+  readonly predictFile: string | null
+}
+
+export function replaceLosses(project: ProjectFile | null): ReplaceLosses {
+  const data = tabularDataOf(project?.document)
+  return {
+    experiments: project?.document.runs.experiments.length ?? 0,
+    testFile: data?.testDataset?.originalFileName ?? null,
+    predictFile: data?.predictDataset?.originalFileName ?? null,
+  }
+}
+
+/** 교체 전에 물어야 하는가. **잃는 것이 하나라도 있으면 묻는다.** */
+export function needsReplaceConfirm(losses: ReplaceLosses): boolean {
+  return losses.experiments > 0 || losses.testFile !== null || losses.predictFile !== null
+}
+
 export interface AppliedDataset {
   readonly project: ProjectFile
   /** 지워진 실험 수. 0이 아니면 화면이 붙이기 전에 학생에게 알려야 한다. */
   readonly droppedExperiments: number
   /** 새 표에 없어서 선택에서 빠진 열 이름들. 조용히 사라지면 안 된다. */
   readonly droppedColumns: readonly string[]
+  /** 해제된 테스트 데이터의 원래 파일 이름. 없었으면 `null`. 조용히 사라지면 안 된다. */
+  readonly droppedTestFile: string | null
+  /** 삭제된 예측할 파일의 원래 파일 이름. 없었으면 `null`. */
+  readonly droppedPredictFile: string | null
 }
 
 export interface ApplyOptions {
@@ -115,6 +153,7 @@ export function applyDataset(
   options: ApplyOptions,
 ): AppliedDataset {
   const { document } = project
+  const losses = replaceLosses(project)
   const names = new Set(columnNames(imported.grid, options.hasHeader))
 
   // 열 선택은 **살아남은 것만** 남긴다. 통째로 비우면 오타 하나 고치려고 CSV를 다시
@@ -176,8 +215,10 @@ export function applyDataset(
       attachments: project.attachments,
       embeddings: new Map(),
     },
-    droppedExperiments: document.runs.experiments.length,
+    droppedExperiments: losses.experiments,
     droppedColumns,
+    droppedTestFile: losses.testFile,
+    droppedPredictFile: losses.predictFile,
   }
 }
 

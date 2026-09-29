@@ -98,3 +98,53 @@ describe('algorithm을 열쇠로 쓰는 자리가 전부 own을 지난다', () =
     expect(found).toEqual([])
   })
 })
+
+/**
+ * **열 이름을 열쇠로 쓰는 자리** (2026-09-28 감사 E A3).
+ *
+ * 열 이름은 학생의 파일에서 온다 — `algorithm`보다 훨씬 흔한 입구다. 예측 계층은 열 이름 →
+ * 값 사전(`values`)을 돌리는데, 그것을 **색인으로 쓰면** `__proto__`가 own 속성이 안 되어
+ * 값이 사라지고, **색인으로 읽으면** `Object.prototype`이 나와 `.trim()`이 던졌다. 쓰기는
+ * `Object.fromEntries`·객체 리터럴, 읽기는 `own()`이 통로다. 실물은
+ * `batch-predict-proto.spec.ts`가 판을 띄워 잰다. 여기는 **다음 자리**를 막는다.
+ */
+describe('열 이름을 열쇠로 쓰는 자리', () => {
+  const ROOT = join(process.cwd(), 'src')
+
+  function sources(dir: string): string[] {
+    return readdirSync(dir).flatMap((entry) => {
+      const path = join(dir, entry)
+      if (statSync(path).isDirectory()) return sources(path)
+      return /\.(ts|vue)$/.test(entry) && !entry.endsWith('.spec.ts') ? [path] : []
+    })
+  }
+
+  /**
+   * 열쇠가 **열 이름이 아닌** 자리. 이름과 이유를 함께 적는다.
+   *
+   * - `project/settings.ts` — 하이퍼파라미터 표의 `values[name]`이다. `name`은 손잡이 등록부의
+   *   닫힌 어휘이고, 읽기는 이미 `own()`을 지난다(R37 C-5).
+   */
+  const NOT_COLUMN_NAMES = new Set(['project/settings.ts'])
+
+  it('values 사전을 열 이름으로 색인하는 자리가 없다', () => {
+    /** `values[name]` · `values[field.name]` · `values.value[column.name]` · `props.values[…]`. */
+    const pattern = /\bvalues(?:\.value)?\[\s*(?:name|field\.name|column\.name)\s*\]/g
+    const found: string[] = []
+    for (const path of sources(ROOT)) {
+      const relative = path.slice(ROOT.length + 1).replaceAll('\\', '/')
+      if (NOT_COLUMN_NAMES.has(relative)) continue
+      const source = readFileSync(path, 'utf-8')
+      for (const [whole] of source.matchAll(pattern)) found.push(`${relative}: ${whole}`)
+    }
+    expect(found).toEqual([])
+  })
+
+  /** 예외 목록이 낡지 않았다 — 그 파일에 실제로 그 모양이 있다. */
+  it('예외로 둔 파일에는 그 모양이 실제로 있다', () => {
+    for (const relative of NOT_COLUMN_NAMES) {
+      const source = readFileSync(join(ROOT, relative), 'utf-8')
+      expect(/\bvalues\[\s*name\s*\]/.test(source), relative).toBe(true)
+    }
+  })
+})

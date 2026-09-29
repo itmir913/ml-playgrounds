@@ -12,6 +12,7 @@
 import { RUNTIMES } from './backend'
 import type { Experiment, PerClass, Run } from '../project/schema'
 import { parametersFor } from './hyperparams'
+import { own } from '../records'
 import { bestOf, metricsOf, type MetricDisplay } from './metrics'
 import { succeeded } from './run-status'
 
@@ -147,7 +148,7 @@ export function hyperparametersOf(run: Run): HyperparameterDisplay[] {
   const seen = new Set(known.map((entry) => entry.name))
   const rest = Object.keys(values)
     .filter((name) => !seen.has(name))
-    .map((name) => ({ name, labelKey: null, text: String(values[name]) }))
+    .map((name) => ({ name, labelKey: null, text: String(own(values, name)) }))
 
   return [...known, ...rest]
 }

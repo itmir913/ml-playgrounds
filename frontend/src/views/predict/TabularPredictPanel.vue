@@ -62,6 +62,7 @@ import { readDataset, readTestDataset } from '@/project/dataset'
 import { yieldToScreen } from '@/screen'
 import type { Experiment } from '@/project/schema'
 import { experimentNames as experimentNamesOf } from '@/ml/results'
+import { own } from '@/records'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import AnswerList from './AnswerList.vue'
@@ -252,7 +253,7 @@ const sampled = ref<number | null>(null)
  * *"결정문 65: 빈 칸은 모델마다 판정한다"*가 문다.
  */
 const blank = computed(() =>
-  fields.value.filter((field) => (values.value[field.name] ?? '').trim() === ''),
+  fields.value.filter((field) => (own(values.value, field.name) ?? '').trim() === ''),
 )
 
 /** run id -> 답. **비어 있으면 아직 안 눌렀다는 뜻이다.** */

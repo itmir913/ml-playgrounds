@@ -20,11 +20,11 @@ import { ClientError } from '../errors'
 import { hashBytes } from '../hash'
 import { maxDatasetColumns, maxDatasetRows } from '../limits-switch'
 import { TABLE_PREVIEW_ROW_COUNT } from '../limits'
-import { parseCsvText } from './csv'
+import { openCsvText } from './csv'
 import { decodeText, detectEncoding, type SourceEncoding } from './encoding'
 import type { TableGrid } from './grid'
 import { canonicalGrid, toCanonicalCsv } from './serialize'
-import { openXlsx } from './xlsx'
+import { looksLikeZip, openXlsx } from './xlsx'
 
 export type { TableGrid } from './grid'
 
@@ -91,18 +91,25 @@ export function sourceFromFileName(fileName: string): TableSource {
  * 파일을 열어 핸들을 만든다. 파일당 한 번만 부른다.
  *
  * CSV는 여기서 인코딩을 판정하고 한 번만 디코딩한다. 엑셀은 워크북을 한 번만 읽는다.
+ *
+ * **확장자는 받을지만 정하고, 어떻게 읽을지는 내용이 정한다** (2026-09-28 감사 E C3).
+ * zip 서명(`PK\x03\x04`)으로 시작하면 이름이 `.csv`여도 xlsx로 연다 — 엑셀도 내용을 보고
+ * 연다. 전에는 그런 파일을 CP949 텍스트로 풀어 papaparse에 넣었고, 따옴표 오류로 **우연히**
+ * 거부되거나 아니면 쓰레기 표가 됐다. CSV는 글자라 이 네 바이트로 시작할 일이 없다.
+ * 무는 검사: table.spec.ts "이름이 .csv여도 내용이 xlsx면 엑셀로 연다".
  */
 export async function openTable(bytes: Uint8Array, fileName: string): Promise<TableDocument> {
-  const source = sourceFromFileName(fileName)
+  const named = sourceFromFileName(fileName)
+  const source: TableSource = looksLikeZip(bytes) ? 'xlsx' : named
 
   if (source === 'csv') {
     const sourceEncoding = detectEncoding(bytes)
-    const text = decodeText(bytes, sourceEncoding)
+    const read = openCsvText(decodeText(bytes, sourceEncoding))
     return {
       source,
       sheetNames: [],
       sourceEncoding,
-      read: (_sheetName, maxRows) => parseCsvText(text, maxRows),
+      read: (_sheetName, maxRows) => read(maxRows),
     }
   }
 

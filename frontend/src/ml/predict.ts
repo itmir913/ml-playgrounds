@@ -24,6 +24,7 @@ import {
   type ProjectDocument,
   type Run,
 } from '../project/schema'
+import { own } from '../records'
 import type { Prediction } from './metrics'
 import { interpreterFor, type LoadContext, type Predict, type ProbaModel } from './models'
 import { succeeded } from './results'
@@ -109,6 +110,10 @@ export function trainingRowsFor(
  *
  * 학습 때 못 본 범주가 오면 `transform`의 규칙을 그대로 따른다(onehot은 전부 0, ordinal은
  * -1). 화면이 본 값 중에서 고르게 하므로 정상 경로에서는 나오지 않는다.
+ *
+ * **열 이름이 열쇠라 `own()`으로 꺼낸다** (`records.ts`, 2026-09-28 감사 E A3). 이름은 학생의
+ * 파일에서 온다 — `__proto__`라는 열이 있으면 색인 읽기가 `Object.prototype`을 주고 `.trim()`이
+ * 던져 예측 화면이 섰다. 무는 검사: `batch-predict-proto.spec.ts`.
  */
 export function inputVector(
   experiment: Experiment,
@@ -117,7 +122,7 @@ export function inputVector(
 ): number[] {
   const blank = preprocessor.columns
     .map((column) => column.name)
-    .filter((name) => (values[name] ?? '').trim() === '')
+    .filter((name) => (own(values, name) ?? '').trim() === '')
 
   const first = blank[0]
   if (first !== undefined) {
@@ -139,7 +144,7 @@ export function inputVector(
    * 예측에서만 숫자로 읽으면 같은 글자를 학습과 예측이 다르게 해석한다.
    */
   const notNumbers = preprocessor.columns.filter(
-    (column) => column.kind === 'numeric' && !readsAsNumber(values[column.name] ?? ''),
+    (column) => column.kind === 'numeric' && !readsAsNumber(own(values, column.name) ?? ''),
   )
   const bad = notNumbers[0]?.name
   if (bad !== undefined) {
@@ -153,7 +158,7 @@ export function inputVector(
   // 학습에 안 쓰인 열(excludedColumns)은 여기 자리도 없다 - 화면도 그 칸을 만들지 않는다.
   const table: Dataset = {
     columns: preprocessor.columns.map((column) => column.name),
-    rows: [preprocessor.columns.map((column) => values[column.name] ?? '')],
+    rows: [preprocessor.columns.map((column) => own(values, column.name) ?? '')],
   }
 
   const row = transform(
@@ -167,6 +172,21 @@ export function inputVector(
 
   assertWidth(preprocessor, row)
   return row
+}
+
+/**
+ * 표의 행마다 **열 이름 → 값** 사전을 만든다. 파일 예측 판(`BatchPredict.vue`)이 이것을
+ * `inputVector`에 그대로 넣는다.
+ *
+ * **색인 대입이 아니라 `fromEntries`다** (2026-09-28 감사 E A3). 열 이름은 학생의 파일에서
+ * 오고, `values['__proto__'] = v`는 own 속성을 안 만들어 그 열의 값이 조용히 사라졌다 —
+ * 그 뒤 `inputVector`가 `Object.prototype`을 읽고 던졌다. 무는 검사: `batch-predict-proto.spec.ts`와
+ * `prototype-keys.spec.ts`의 "열 이름을 열쇠로 쓰는 자리".
+ */
+export function rowValues(table: Dataset): Record<string, string>[] {
+  return table.rows.map((row) =>
+    Object.fromEntries(table.columns.map((name, index) => [name, row[index] ?? ''])),
+  )
 }
 
 /**
@@ -372,10 +392,11 @@ export function sampleRow(
   // 기능이고, 진짜 판정은 예측할 때 transform이 시끄럽게 한다.
   if (index === undefined || row === undefined) return null
 
-  const values: Record<string, string> = {}
-  for (const field of fields) {
-    values[field.name] = row[source.columns.indexOf(field.name)] ?? ''
-  }
+  // **열쇠가 열 이름이라 색인 대입을 안 쓴다** — `__proto__`는 own 속성이 안 되고 사라진다
+  // (`records.ts`의 `withoutKey` 머리말). `fromEntries`는 언제나 own 속성을 만든다.
+  const values: Record<string, string> = Object.fromEntries(
+    fields.map((field) => [field.name, row[source.columns.indexOf(field.name)] ?? '']),
+  )
   return { index, values }
 }
 
@@ -1155,7 +1176,7 @@ export function predictDownloadGrid(
     const answerRow = answers[rowIndex] ?? []
     return [
       String(rowIndex + 1),
-      ...featureColumns.map((name) => values[name] ?? ''),
+      ...featureColumns.map((name) => own(values, name) ?? ''),
       ...models.flatMap((_model, modelIndex) => {
         const answer = answerRow[modelIndex]
         const value = answer?.value

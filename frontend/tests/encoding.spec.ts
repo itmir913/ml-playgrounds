@@ -65,6 +65,38 @@ describe('detectEncoding', () => {
       }
     }
   })
+
+  /**
+   * **NUL이 섞인 UTF-8은 전처럼 utf-8이다** — 회귀 방지 (2026-09-28 감사 E C2 되돌림).
+   *
+   * BOM 없는 UTF-16을 NUL의 자리로 알아보는 판정을 한 번 넣었다가 뺐다. 정상 UTF-8 한글 CSV에
+   * NUL 하나가 홀수 자리에 끼면 `utf-16le`로 읽혀 **오류 없이 한자로 깨진 표**가 됐고, 끝의 NUL
+   * 채움이나 ASCII 속 NUL 하나는 멀쩡히 읽히던 파일을 거부했다. BOM 없는 UTF-16을 어떻게
+   * 알아볼지는 코드 소유자의 결정으로 올렸다. **그 판정이 다시 들어오더라도 아래 셋은 지금처럼
+   * 읽혀야 한다.**
+   */
+  describe('NUL이 섞인 UTF-8', () => {
+    const utf8 = (text: string): Uint8Array => new TextEncoder().encode(text)
+    const withNul = (bytes: Uint8Array, at: number): Uint8Array =>
+      new Uint8Array([...bytes.slice(0, at), 0, ...bytes.slice(at)])
+
+    it('한글 CSV의 홀수 자리에 NUL 하나 — utf-8로 읽고 한글이 그대로다', () => {
+      const plain = utf8('이름,키\n김철수,170\n')
+      const odd = withNul(plain, 11)
+      expect(odd.indexOf(0) % 2, 'fixture must put the NUL at an odd index').toBe(1)
+      expect(detectEncoding(odd)).toBe('utf-8')
+      expect(decodeText(odd, 'utf-8')).toContain('김철수')
+    })
+
+    it('끝에 NUL 채움 — utf-8로 읽는다', () => {
+      const padded = new Uint8Array([...utf8('이름,키\n김,170\n'), 0, 0, 0, 0])
+      expect(detectEncoding(padded)).toBe('utf-8')
+    })
+
+    it('ASCII CSV에 NUL 하나 — utf-8로 읽는다', () => {
+      expect(detectEncoding(withNul(utf8('a,b\n1,2\n'), 4))).toBe('utf-8')
+    })
+  })
 })
 
 describe('decodeText', () => {

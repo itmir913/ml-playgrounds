@@ -23,6 +23,7 @@ import AppSelect from '@/components/AppSelect.vue'
 import { useFormat } from '@/composables/useFormat'
 import type { Lock } from '@/locks'
 import type { PredictionField } from '@/ml/predict'
+import { own } from '@/records'
 
 const props = defineProps<{
   fields: readonly PredictionField[]
@@ -115,7 +116,7 @@ function hintOf(field: PredictionField): string | undefined {
             v-if="field.options"
             v-bind="control"
             class="rounded-field border border-line-strong bg-surface px-3 py-2"
-            :value="props.values[field.name] ?? ''"
+            :value="own(props.values, field.name) ?? ''"
             :lock="props.lock"
             @change="emit('set', field.name, ($event.target as HTMLSelectElement).value)"
           >
@@ -131,7 +132,7 @@ function hintOf(field: PredictionField): string | undefined {
             type="number"
             step="any"
             class="rounded-field border border-line-strong bg-surface px-3 py-2 tabular-nums"
-            :value="props.values[field.name] ?? ''"
+            :value="own(props.values, field.name) ?? ''"
             :lock="props.lock"
             @input="emit('set', field.name, ($event.target as HTMLInputElement).value)"
           />

@@ -46,7 +46,7 @@ import {
 import ChartDialog from './ChartDialog.vue'
 import ColumnInspector from './ColumnInspector.vue'
 import { TABLE_PREVIEW_ROW_COUNT } from '@/limits'
-import { applyDataset, readDataset } from '@/project/dataset'
+import { applyDataset, needsReplaceConfirm, readDataset, replaceLosses } from '@/project/dataset'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 
@@ -85,7 +85,11 @@ const sheetName = ref<string | undefined>(undefined)
 const hasHeader = ref(true)
 const confirming = ref(false)
 
-const experimentCount = computed(() => project.file?.document.runs.experiments.length ?? 0)
+/**
+ * 교체하면 함께 잃는 것. **판정은 화면 밖이다** (`project/dataset.ts`의 `replaceLosses`) —
+ * 전에는 여기 `experimentCount > 0` 하나가 확인 조건이라 테스트·예측 파일이 말없이 사라졌다.
+ */
+const losses = computed(() => replaceLosses(project.file))
 
 /**
  * 파일에서 읽어 온 줄. **그릴 것보다 한 줄 더 읽는다** (`PREVIEW_PROBE_ROWS`) —
@@ -176,13 +180,15 @@ function onDrop(event: DragEvent): void {
   if (file) void readFile(file)
 }
 
-/** 확정 요청. 지울 실험이 있으면 먼저 물어본다 (mlpx-spec.md §4.3). */
 /**
+ * 확정 요청. **잃는 것이 하나라도 있으면 먼저 물어본다** — 실험·테스트 데이터·예측할 파일
+ * (`needsReplaceConfirm`, mlpx-spec.md §4.3). 무는 검사: `tabular-replace.spec.ts`.
+ *
  * 확인이 필요하면 물어보고 끝난다. 아닐 때는 **기다린다** - `AppButton`의 `action`이
  * 그동안 버튼을 꺼 둘 수 있어야 두 번 눌리지 않는다 (CLAUDE.md §4).
  */
 async function requestApply(): Promise<void> {
-  if (experimentCount.value > 0) {
+  if (needsReplaceConfirm(losses.value)) {
     confirming.value = true
     return
   }
@@ -201,6 +207,8 @@ async function apply(): Promise<void> {
     const imported = importTable(source.document, sheetName.value)
     // 읽는 동안 파일이 달라졌을 수 있다 — 지금 파일에 얹는다 (architecture.md §8.10.3).
     let dropped: readonly string[] = []
+    // 개정 함수 안에서 채운다. 객체로 두는 이유는 `let x = null`이 콜백 밖에서 `null`로 좁혀져서다.
+    const lost: { test: string | null; predict: string | null } = { test: null, predict: null }
     await project.save((live) => {
       const applied = applyDataset(live, imported, {
         fileName: source.fileName,
@@ -208,6 +216,8 @@ async function apply(): Promise<void> {
         now: new Date().toISOString(),
       })
       dropped = applied.droppedColumns
+      lost.test = applied.droppedTestFile
+      lost.predict = applied.droppedPredictFile
       // **여기까지 왔으면 앉는다.** 아래 `finally`가 이 표시로 판을 접을지 정한다.
       seated = true
       return applied.project
@@ -219,6 +229,13 @@ async function apply(): Promise<void> {
       toasts.push('caution', 'data.tabular.droppedColumns', {
         names: dropped.join(', '),
       })
+    }
+    // 테스트·예측 파일도 같다 — 확인 창을 지났어도 무엇을 다시 올릴지 이름으로 남긴다.
+    if (lost.test !== null) {
+      toasts.push('caution', 'data.tabular.droppedTest', { fileName: lost.test })
+    }
+    if (lost.predict !== null) {
+      toasts.push('caution', 'data.tabular.droppedPredict', { fileName: lost.predict })
     }
   } catch (error) {
     toasts.pushError(error)
@@ -506,9 +523,20 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
     <AppDialog
       :open="confirming"
       :title="t('data.tabular.replaceTitle')"
-      :description="t('data.tabular.replaceDescription', experimentCount)"
       @close="confirming = false"
     >
+      <!-- 잃는 것마다 한 문장이다 (docs/i18n.md 규칙 3). 셋 중 있는 것만 선다. -->
+      <ul class="flex list-disc flex-col gap-1.5 pl-5 leading-relaxed text-ink-soft">
+        <li v-if="losses.experiments > 0">
+          {{ t('data.tabular.replaceDescription', losses.experiments) }}
+        </li>
+        <li v-if="losses.testFile !== null">
+          {{ t('data.tabular.replaceDropsTest', { fileName: losses.testFile }) }}
+        </li>
+        <li v-if="losses.predictFile !== null">
+          {{ t('data.tabular.replaceDropsPredict', { fileName: losses.predictFile }) }}
+        </li>
+      </ul>
       <template #actions>
         <AppButton variant="secondary" @click="confirming = false">{{
           t('common.cancel')

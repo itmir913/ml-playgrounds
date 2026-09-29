@@ -78,6 +78,43 @@ describe('openTable - xlsx', { timeout: 20_000 }, () => {
     const document = await openTable(await xlsxBytes({ 데이터: [['a', 'b']] }), 'd.xlsx')
     expect(document.read()).toEqual([['a', 'b']])
   })
+
+  /**
+   * **확장자는 받을지만 정하고, 어떻게 읽을지는 내용이 정한다** (2026-09-28 감사 E C3).
+   * 전에는 이 파일을 CP949 텍스트로 풀어 papaparse에 넣었다 — 따옴표 오류로 우연히 거부되거나
+   * 쓰레기 표가 됐다.
+   */
+  it('이름이 .csv여도 내용이 xlsx면 엑셀로 연다', async () => {
+    const document = await openTable(
+      await xlsxBytes({
+        데이터: [
+          ['a', 'b'],
+          [1, 2],
+        ],
+      }),
+      'd.csv',
+    )
+    expect(document.source).toBe('xlsx')
+    expect(document.sheetNames).toEqual(['데이터'])
+    expect(document.read()).toEqual([
+      ['a', 'b'],
+      ['1', '2'],
+    ])
+  })
+
+  /** **정상 CSV는 xlsx로 가지 않는다** — 코드 소유자의 제약. `PK`로 시작하는 글자여도 같다. */
+  it.each([
+    ['영문', 'a,b\n1,2\n'],
+    ['PK로 시작하는 머리글', 'PK,name\n1,kim\n'],
+    ['UTF-8 BOM', '\uFEFFa,b\n1,2\n'],
+  ])('%s CSV는 CSV로 연다', async (_name, text) => {
+    const document = await openTable(new TextEncoder().encode(text), 'd.csv')
+    expect(document.source).toBe('csv')
+  })
+
+  it('CP949 CSV는 CSV로 연다', async () => {
+    expect((await openTable(CP949_CSV, 'd.csv')).source).toBe('csv')
+  })
 })
 
 // xlsx를 만들어 읽는 줄이 섞여 있다 — 이유는 위와 같다.

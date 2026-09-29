@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseCsvText } from '../src/data/csv'
+import { openCsvText, parseCsvText } from '../src/data/csv'
 import { isClientError } from '../src/errors'
 
 describe('parseCsvText', () => {
@@ -84,6 +84,60 @@ describe('parseCsvText', () => {
     const grid = parseCsvText(`a,b\n${lines}\n`, 5)
     expect(grid).toHaveLength(5)
     expect(grid[0]).toEqual(['a', 'b'])
+  })
+})
+
+/**
+ * **줄 끝이 섞인 파일** (2026-09-28 감사 E A2, `openCsvText`).
+ *
+ * papaparse는 줄 끝을 한 가지로 정한다 — 앞 1MB에서 따옴표 속을 지우고 `\r` 뒤에 `\n`이 오는
+ * 경우의 다수결이다(`guessLineEndings`, 자세한 규칙은 `data/csv.ts`의 `openCsvText` 머리말).
+ * 아래 파일은 `\r\n`이 이겨서 단독 `\n`·`\r`이 칸 안의 글자가 됐다 — 네 줄이 머리글 + 한 줄이
+ * 되고 칸에 `170\n이`가 앉았다. 업로드 입구는 줄 끝을 `\n` 하나로 맞춘 뒤 읽는다.
+ */
+describe('줄 끝이 섞인 파일', () => {
+  const MIXED = '이름,키\r\n김,170\n이,160\r박,150\r\n'
+  const EXPECTED = [
+    ['이름', '키'],
+    ['김', '170'],
+    ['이', '160'],
+    ['박', '150'],
+  ]
+
+  it('업로드 입구는 셋을 모두 줄 끝으로 읽는다', () => {
+    expect(openCsvText(MIXED)()).toEqual(EXPECTED)
+  })
+
+  it('맞추지 않은 추정은 틀린 표를 낸다 — 고침이 무엇을 막는지 못 박는다', () => {
+    expect(parseCsvText(MIXED)).not.toEqual(EXPECTED)
+  })
+
+  /**
+   * **정상 파일은 한 글자도 안 바뀐다** — 코드 소유자의 제약. 줄 끝이 한 가지인 파일은 맞추기
+   * 전과 뒤가 같은 표여야 한다. 따옴표 안의 CRLF만 예외이고 아래 "대가"가 밝힌다.
+   */
+  it.each([
+    ['LF', 'a,b\n1,"x, y"\n2,3\n'],
+    ['CRLF', 'a,b\r\n1,"x, y"\r\n2,3\r\n'],
+    ['CR', 'a,b\r1,"x, y"\r2,3\r'],
+    ['세미콜론', 'a;b\r\n1;2\r\n'],
+    ['탭', 'a\tb\n1\t2\n'],
+    ['끝 줄바꿈 없음', 'a,b\r\n1,2'],
+    ['따옴표 안 LF', 'a,b\n1,"x\ny"\n'],
+    ['빈 줄', 'a,b\r\n\r\n1,2\r\n'],
+  ])('줄 끝이 한 가지인 %s 파일은 추정한 결과와 같다', (_name, text) => {
+    expect(openCsvText(text)()).toEqual(parseCsvText(text))
+  })
+
+  it('대가: 따옴표 안의 CRLF는 LF가 된다', () => {
+    expect(openCsvText('a,b\r\n1,"x\r\ny"\r\n')()).toEqual([
+      ['a', 'b'],
+      ['1', 'x\ny'],
+    ])
+  })
+
+  it('maxRows는 맞춘 뒤에도 남긴 행을 센다', () => {
+    expect(openCsvText(MIXED)(2)).toEqual(EXPECTED.slice(0, 2))
   })
 })
 
