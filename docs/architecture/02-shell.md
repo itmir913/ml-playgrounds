@@ -15,6 +15,9 @@
   (배포 뒤 옛 탭의 없는 청크, 끊긴 연결) **아무것도 바꾸지 않고** 이동을 멈춘 뒤 `SCREEN_LOAD_FAILED`로 말한다.
   앱이 스스로 새로고침하지 않는다. `tests/route-chunk-failure.spec.ts`가 문다.
   받는 사이에 다음 이동이 시작하면 앞 이동은 아무것도 안 하고 접는다 — `tests/route-chunk-race.spec.ts`가 문다.
+- **화면이 선 뒤의 오류는 전역 오류 처리기가 말한다.** 렌더 오류와 화면 안 지연 부품의 로더 거절은 말없이 칸을
+  비우는 대신 `app-errors.ts`의 `installErrorNotice`가 `pushError`로 알리고, 같은 알림이 떠 있으면 다시 밀지 않는다.
+  라우트 화면의 청크는 위 가드의 몫이라 이 처리기에 오지 않는다 (`open-decisions.md` 85). `tests/app-error-notice.spec.ts`가 문다.
 
 ### 8.2 라우트는 워크플로 단계다
 

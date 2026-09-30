@@ -173,6 +173,7 @@ TARGET_NO_VARIANCE
 ```
 UNEXPECTED_ERROR
 ```
+화면 부품에서 잡히지 않고 빠져나온 오류(렌더, 지연 부품의 로더)는 전역 오류 처리기(`app-errors.ts`)가 `pushError`로 알린다 — 우리 오류면 그 코드이고, 아니면 이 코드와 원문이다. 라우트 화면의 청크 실패는 가드가 먼저 잡아 `SCREEN_LOAD_FAILED`로 말하므로 여기 안 온다 (`open-decisions.md` 85).
 **표 파일 가져오기** (`data/table.ts`, `data/xlsx.ts`)
 ```
 DATASET_FILE_TYPE_UNSUPPORTED, DATASET_SHEET_NOT_FOUND
