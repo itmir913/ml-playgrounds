@@ -134,12 +134,17 @@ router.beforeEach(async (to) => {
    * 취소(CANCELLED)로 접는다. `false`는 중단(ABORTED)이라, 이 이동이 [뒤로]에서 왔으면 vue-router가 주소를
    * 되돌리려 `history.go`를 부르고 되돌아갈 칸이 없어 **다음 [뒤로]를 삼킨다** — 주소와 화면이 갈린다.
    * 무는 검사: `route-chunk-race.spec.ts`의 *"뒤로 가기로 가던 화면을 받는 사이 다른 데로 가면"*.
+   *
+   * **받기가 실패해도 차례부터 본다** (2026-09-30 감사 a3 A-1). 버려진 이동이면 알림 없이 같은 `true`로
+   * 접는다 — 학생이 이미 떠난 화면의 실패가 새 화면에 남으면 안 되고, `false`면 위와 같이 다음 [뒤로]를
+   * 삼킨다. 무는 검사: `route-chunk-race.spec.ts`의 *"그 청크가 실패해도"* 둘.
    */
   const ticket = (navigations += 1)
   if (to.matched.length > 0) {
     try {
       await loadRouteLocation(to)
     } catch (error) {
+      if (ticket !== navigations) return true
       useToastStore().pushError(new ClientError('SCREEN_LOAD_FAILED', failureDetail(error)))
       return false
     }
@@ -176,6 +181,11 @@ router.beforeEach(async (to) => {
     } catch (error) {
       useToastStore().pushError(error)
     }
+    // **저장을 기다리는 사이에도 학생이 다른 데로 갈 수 있다** (2026-09-30 감사 a3 G3). 버려진 이동이면
+    // 위 받기와 같은 `true`로 접는다 — 차례를 안 보면 학생이 남기로 한 뒤에 버려진 목적지로 확인 창이 뜬다.
+    // 접어도 저장 실패 알림은 남는다 — 누구의 것인지는 가르지 않는다(뒤 이동의 flush도 같은 실패를 밀고, 같은
+    // 알림은 하나로 선다). 무는 검사: `leave-unsaved.spec.ts`의 *"떠나는 이동의 저장을 기다리는 사이"*.
+    if (ticket !== navigations) return true
 
     /**
      * **떠나는 이동은 메모리에만 있는 편집을 버린다** (open-decisions.md 74, 2026-09-28 감사
@@ -207,8 +217,13 @@ router.beforeEach(async (to) => {
    * 열기가 세대 번호를 올렸다). 그때 목록으로 돌리면 **학생이 누른 [점검] 대신 목록이
    * 선다** — 실측으로 그렇게 섰다. 새 이동이 이미 가려는 곳으로 가고 있으니 이 이동은
    * 조용히 접는다.
+   *
+   * **돌려주는 값은 이 이동이 버려졌는가로 가른다** (2026-09-30 감사 a3 A-2). 버려졌으면 위 받기와 같은
+   * 까닭으로 `true`다 — `false`(중단)면 [앞으로]·[뒤로]에서 온 이동의 주소를 vue-router가 되돌리려 한다.
+   * 이 갈래에서 눈에 보이는 주소와 화면의 갈림은 재현되지 않았다. 무는 검사는 이동이 끝난 종류(취소)를 본다:
+   * `project-open-cancel.spec.ts`의 *"앞으로 가기로 프로젝트에 들어가며 여는 사이"*.
    */
-  if (outcome === 'cancelled') return false
+  if (outcome === 'cancelled') return ticket !== navigations
   if (outcome === 'failed') {
     return { name: ROUTE_PROJECTS }
   }

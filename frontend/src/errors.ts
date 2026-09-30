@@ -565,8 +565,11 @@ export function toMessage(error: unknown): { key: string; params: ClientErrorPar
 }
 
 /**
- * 동적 `import()`가 코드 조각을 못 받았을 때 브라우저가 던지는 원문의 머리. **브라우저마다 다르다** —
- * 차례로 Chromium, Firefox, Safari다. 마지막은 Vite의 선적재 도우미가 딸린 CSS를 못 받았을 때
+ * 동적 `import()`가 코드 조각을 못 받았을 때 브라우저가 던지는 원문 안의 문구. **머리로 보지 않고 안에서
+ * 찾는다** — 브라우저나 감싸는 코드가 앞에 무엇을 붙일지 모른다(`chunk-load-failure.spec.ts`의 *"앞에 다른
+ * 글자가 붙어도"*가 문다).
+ *
+ * **브라우저마다 다르다** — 차례로 Chromium, Firefox, Safari다. 마지막은 Vite의 선적재 도우미가 딸린 CSS를 못 받았을 때
  * `vite:preloadError`를 쏜 뒤 던지는 원문이다(vite `preload` 도우미 원본을 읽어 확인 — 사람 확인).
  * 브라우저 원문은 판마다 바뀔 수 있어 실기기에서 본 것이 아니면 **사람 확인**이다.
  */
@@ -589,7 +592,7 @@ export function isChunkLoadError(error: unknown): boolean {
   if (!(error instanceof Error)) return false
   if (error.name === 'ChunkLoadError') return true
   const message = error.message.toLowerCase()
-  return CHUNK_LOAD_MESSAGES.some((head) => message.includes(head))
+  return CHUNK_LOAD_MESSAGES.some((phrase) => message.includes(phrase))
 }
 
 /**

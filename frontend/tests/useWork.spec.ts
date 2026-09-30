@@ -13,7 +13,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ref, shallowRef, toRaw } from 'vue'
 
-import { clearIfHeld, useWork, type Cancellable } from '../src/composables/useWork'
+import { clearIfHeld, latestOnly, useWork, type Cancellable } from '../src/composables/useWork'
 
 /** 끊긴 횟수를 세는 손잡이. 워커 손잡이가 이 모양이다. */
 function handle(): Cancellable & { cancelled: number } {
@@ -412,5 +412,28 @@ describe('일 하나만 끊는다', () => {
     const job = work.start()
     work.cancelAll()
     expect(job.cancelled()).toBe(false)
+  })
+})
+
+describe('겹친 읽기 중 마지막 것만 선다', () => {
+  it('뒤에 나간 표가 앞 표를 낡게 한다', () => {
+    const nextRead = latestOnly()
+    const first = nextRead()
+    const second = nextRead()
+    expect(first()).toBe(false)
+    expect(second()).toBe(true)
+  })
+
+  /**
+   * **표는 부를 때마다 따로다** (2026-09-30 감사 a3 C-4). 표 판과 사진 판과 일괄 예측이 각자 `latestOnly()`를
+   * 쥔다 — 셈이 하나로 묶이면 한 판에 파일을 놓는 순간 다른 판의 읽기가 판에 서지 못한다.
+   */
+  it('따로 만든 둘은 서로를 낡게 하지 않는다', () => {
+    const tableRead = latestOnly()
+    const imageRead = latestOnly()
+    const table = tableRead()
+    const image = imageRead()
+    expect(table(), 'a read on another panel must not make this one stale').toBe(true)
+    expect(image()).toBe(true)
   })
 })

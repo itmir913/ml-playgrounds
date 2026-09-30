@@ -33,6 +33,10 @@ describe('청크 실패 판정', () => {
     expect(isChunkLoadError(new TypeError(message))).toBe(true)
   })
 
+  it('앞에 다른 글자가 붙어도 원문 안에 문구가 있으면 청크 실패로 본다', () => {
+    expect(isChunkLoadError(new TypeError(`[vite] ${CHUNK_MESSAGES.chromium}`))).toBe(true)
+  })
+
   it('이름이 ChunkLoadError인 오류도 청크 실패다', () => {
     const error = new Error('Loading chunk 7 failed.')
     error.name = 'ChunkLoadError'

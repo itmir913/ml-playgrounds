@@ -23,6 +23,7 @@ import 'fake-indexeddb/auto'
 
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { NavigationFailureType, type NavigationFailure } from 'vue-router'
 
 import { ROUTE_PROJECTS, router } from '../src/router'
 import { closeStorage, saveProject } from '../src/project/storage'
@@ -124,6 +125,13 @@ async function until(condition: () => boolean, ticks = 600): Promise<void> {
   for (let turn = 0; turn < ticks && !condition(); turn += 1) {
     await new Promise((resolve) => setTimeout(resolve, 1))
   }
+}
+
+/** 다음 popstate 한 번. jsdom은 `history.back()`의 popstate를 비동기로 보낸다 — 시간 대신 이것을 기다린다. */
+function popstate(): Promise<void> {
+  return new Promise((resolve) => {
+    window.addEventListener('popstate', () => resolve(), { once: true })
+  })
 }
 
 beforeEach(async () => {
@@ -310,6 +318,53 @@ describe('자기 차례가 지난 열기', { timeout: 30_000 }, () => {
 
     expect(router.currentRoute.value.name).toBe('inspect')
     expect(router.currentRoute.value.name).not.toBe(ROUTE_PROJECTS)
+  })
+
+  /**
+   * **취소된 열기의 이동은 취소(CANCELLED)로 끝난다** (2026-09-30 감사 a3 A-2). 가드가 `false`를 돌려주면
+   * 중단(ABORTED)이라, 그 이동이 [앞으로]·[뒤로]에서 왔으면 vue-router가 주소를 되돌리려 `history.go`를
+   * 부른다 — 학생은 이미 다른 데로 갔는데 버려진 이동이 주소를 건드린다. `route-chunk-race.spec.ts`의 [뒤로]
+   * 검사와 같은 병이지만, **이 순서에서 눈에 보이는 주소와 화면의 갈림은 재현되지 않았다** — 처방을 뺀 코드에서
+   * 우는 것은 종류 단언 하나다. 아래 주소 단언은 곁들여 보는 것이지 무는 것이 아니다.
+   */
+  it('앞으로 가기로 프로젝트에 들어가며 여는 사이 다른 데로 가면 그 이동은 취소로 끝난다', async () => {
+    await router.replace('/')
+    await router.isReady()
+    await router.push(`/project/${manifest.projectId}/train`)
+    const back = popstate()
+    window.history.back()
+    await back
+    await until(() => router.currentRoute.value.fullPath === '/')
+    expect(router.currentRoute.value.fullPath).toBe('/')
+
+    const failures: (NavigationFailure | undefined)[] = []
+    const stop = router.afterEach((to, _from, failure) => {
+      if (to.name === 'train') failures.push(failure ?? undefined)
+    })
+    // [앞으로] — 열기가 탭 잠금에서 멈춘 것을 보고 나서 [점검]을 누른다. 열기는 취소된다.
+    holdGrant = true
+    const forward = popstate()
+    window.history.forward()
+    await forward
+    await until(() => releaseGrant !== null)
+    await router.push('/inspect')
+    releaseGrant?.()
+    await until(() => failures.length === 1)
+    stop()
+
+    expect
+      .soft(failures[0]?.type, 'an abandoned move must end as cancelled, not aborted')
+      .toBe(NavigationFailureType.cancelled)
+
+    // 곁들여 본다 — 다음 [뒤로]에서도 주소와 화면이 같다(처방 없이도 이 순서에서는 초록이었다).
+    const next = popstate()
+    window.history.back()
+    await next
+    await vi.waitFor(() =>
+      expect(router.currentRoute.value.fullPath, 'the address and the screen must agree').toBe(
+        window.location.hash.slice(1),
+      ),
+    )
   })
 
   /** 취소 뒤에 다시 들어가면 **정상으로 열린다.** 한 번 취소된 것이 문을 잠그면 안 된다. */

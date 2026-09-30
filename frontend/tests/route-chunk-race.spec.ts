@@ -21,23 +21,34 @@ import { NavigationFailureType, type NavigationFailure } from 'vue-router'
 
 import { router } from '../src/router'
 import { useProjectStore } from '../src/stores/project'
+import { useToastStore } from '../src/stores/toasts'
 import { manifest, projectFile } from './fixtures/project'
 import { resetDatabase } from './fixtures/database'
 
 /**
- * 청크가 도착하는 순간. 풀기 전까지 `import()`가 기다린다. **검사마다 제 손잡이를 쓴다** — 순서를 섞어
- * 돌려도 앞 검사가 연 손잡이 때문에 뒤 검사의 청크가 이미 와 있는 일이 없다.
+ * 청크가 도착하는 순간. 풀기 전까지 `import()`가 기다리고, `fail`이면 청크를 못 받은 원문으로 거절된다.
+ * **검사마다 제 손잡이를 쓴다** — 순서를 섞어 돌려도 앞 검사가 연 손잡이 때문에 뒤 검사의 청크가 이미
+ * 와 있거나 이미 실패해 있는 일이 없다.
  */
 const gates = vi.hoisted(() => {
-  function gate(): { arrived: Promise<void>; open: () => void; requested: boolean } {
+  function gate(): {
+    arrived: Promise<void>
+    open: () => void
+    fail: () => void
+    requested: boolean
+  } {
     let open: () => void = () => {}
-    const arrived = new Promise<void>((resolve) => {
+    let fail: () => void = () => {}
+    const arrived = new Promise<void>((resolve, reject) => {
       open = resolve
+      fail = () => {
+        reject(new TypeError('Failed to fetch dynamically imported module: /assets/Gone-1a2b3c.js'))
+      }
     })
     // `requested`는 라우터가 이 청크를 부른 순간 선다 — 검사는 시간 대신 이것을 기다린다.
-    return { arrived, open: () => open(), requested: false }
+    return { arrived, open: () => open(), fail: () => fail(), requested: false }
   }
-  return { inspect: gate(), results: gate() }
+  return { inspect: gate(), results: gate(), portfolio: gate(), predict: gate() }
 })
 
 /** 다음 popstate 한 번. jsdom은 `history.back()`의 popstate를 비동기로 보낸다 — 시간 대신 이것을 기다린다. */
@@ -57,6 +68,16 @@ vi.mock('../src/views/InspectView.vue', async () => {
 vi.mock('../src/views/ResultsView.vue', async () => {
   gates.results.requested = true
   await gates.results.arrived
+  return blank
+})
+vi.mock('../src/views/PortfolioView.vue', async () => {
+  gates.portfolio.requested = true
+  await gates.portfolio.arrived
+  return blank
+})
+vi.mock('../src/views/PredictView.vue', async () => {
+  gates.predict.requested = true
+  await gates.predict.arrived
   return blank
 })
 vi.mock('../src/views/PreprocessView.vue', () => blank)
@@ -158,5 +179,81 @@ describe('화면을 받는 사이의 두 번째 이동', { timeout: 20_000 }, ()
         window.location.hash.slice(1),
       ),
     )
+  })
+
+  /**
+   * **버려진 이동의 청크가 실패해도 같다** (2026-09-30 감사 a3 A-1). 실패 갈래가 차례를 보기 전에 알림을 밀고
+   * `false`를 돌려주면, 학생이 이미 떠난 화면의 실패가 새 화면에 남고 [뒤로]에서 온 이동은 중단(ABORTED)이
+   * 되어 다음 [뒤로]를 삼킨다.
+   */
+  it('뒤로 가기로 가던 화면을 받는 사이 다른 데로 갔고 그 청크가 실패해도 취소로 끝나고 알림이 없고 다음 뒤로 가기가 산다', async () => {
+    await saveProject(projectFile())
+    const id = manifest.projectId
+    await router.push(`/project/${id}/data`)
+    // 새로고침 뒤처럼 — 포트폴리오 화면을 이 탭에서 받은 적 없이 기록에만 둔다.
+    const position = (window.history.state as { position: number }).position
+    window.history.pushState(
+      {
+        back: `/project/${id}/data`,
+        current: `/project/${id}/portfolio`,
+        forward: null,
+        position: position + 1,
+        replaced: false,
+        scroll: null,
+      },
+      '',
+      `#/project/${id}/portfolio`,
+    )
+    await router.push(`/project/${id}/preprocess`)
+    const failures: (NavigationFailure | undefined)[] = []
+    const stop = router.afterEach((to, _from, failure) => {
+      if (to.name === 'portfolio') failures.push(failure ?? undefined)
+    })
+
+    const back = popstate()
+    window.history.back()
+    await back
+    await vi.waitFor(() => expect(gates.portfolio.requested).toBe(true))
+    await router.push('/')
+    gates.portfolio.fail()
+    await vi.waitFor(() => expect(failures).toHaveLength(1))
+    stop()
+
+    expect
+      .soft(failures[0]?.type, 'an abandoned move must end as cancelled, not aborted')
+      .toBe(NavigationFailureType.cancelled)
+    expect
+      .soft(
+        useToastStore().items.map((toast) => toast.key),
+        'an abandoned move must not leave a failure notice',
+      )
+      .toEqual([])
+
+    const next = popstate()
+    window.history.back()
+    await next
+    await vi.waitFor(() =>
+      expect(router.currentRoute.value.fullPath, 'the address and the screen must agree').toBe(
+        window.location.hash.slice(1),
+      ),
+    )
+  })
+
+  it('누른 이동이 화면을 받는 사이 다른 데로 갔고 그 청크가 실패해도 알림이 없다', async () => {
+    await saveProject(projectFile())
+    const id = manifest.projectId
+    await router.push(`/project/${id}/data`)
+
+    const first = router.push(`/project/${id}/predict`).catch(() => undefined)
+    await vi.waitFor(() => expect(gates.predict.requested).toBe(true))
+    await router.push(`/project/${id}/preprocess`)
+    gates.predict.fail()
+    await first
+
+    expect(router.currentRoute.value.name).toBe('preprocess')
+    expect(
+      useToastStore().items.map((toast) => toast.key),
+      'an abandoned move must not leave a failure notice',
+    ).toEqual([])
   })
 })

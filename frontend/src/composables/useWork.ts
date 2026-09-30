@@ -305,7 +305,9 @@ export function clearIfHeld<T>(slot: Ref<T | null>, held: T): void {
  * }
  * ```
  *
- * 무는 검사: `table-read-race.spec.ts`.
+ * **표는 부를 때마다 따로다** — 판마다 제 `latestOnly()`를 쥐므로 한 판의 읽기가 다른 판의 표를 낡게 하지 않는다.
+ *
+ * 무는 검사: `table-read-race.spec.ts`, `useWork.spec.ts`의 *"겹친 읽기 중 마지막 것만 선다"*.
  */
 export function latestOnly(): () => () => boolean {
   let issued = 0

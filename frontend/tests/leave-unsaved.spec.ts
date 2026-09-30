@@ -25,6 +25,7 @@ import { closeStorage, loadProject, saveProject } from '../src/project/storage'
 import { ROUTE_PROJECTS, router } from '../src/router'
 import { useLeaveStore } from '../src/stores/leave'
 import { useProjectStore } from '../src/stores/project'
+import { useToastStore } from '../src/stores/toasts'
 import { stubDialogElement } from './fixtures/image-workers'
 import { manifest, projectFile } from './fixtures/project'
 import { refuseWrites } from './fixtures/storage-refusal'
@@ -59,6 +60,17 @@ vi.mock('../src/project/download', async (importOriginal) => {
       downloads.push(fileName)
     },
   }
+})
+
+/**
+ * **학습 화면은 대역이고, 라우터가 부른 순간 표지가 선다.** 가드는 차례를 뽑은 뒤 가는 화면을 부르므로
+ * 이 표지가 서면 그 이동의 차례가 뽑혔다 — 검사는 시간 대신 이것을 기다린다. 모듈은 파일에서 한 번만
+ * 불리므로 기다리는 검사가 먼저 표지가 서 있지 않은지를 확인한다.
+ */
+const screens = vi.hoisted(() => ({ train: false }))
+vi.mock('../src/views/TrainView.vue', () => {
+  screens.train = true
+  return { default: { render: () => null } }
 })
 
 let refusal: { restore: () => void } | null = null
@@ -252,6 +264,40 @@ describe('결정 74: 저장이 실패한 채 떠나는 이동', { timeout: 20_00
     expect(router.currentRoute.value.name, 'a pass for "/" must not open "/inspect"').toBe('data')
     expect(leave.target).toBe('/inspect')
     expect(useProjectStore().name).toBe('저장 못 한 이름')
+  })
+
+  /**
+   * **저장을 기다리는 사이 학생이 프로젝트 안에 남기로 했으면 묻지 않는다** (2026-09-30 감사 a3 G3). 떠나는
+   * 이동의 flush가 도는 동안 같은 프로젝트의 다른 단계를 누르면 앞 이동은 이미 버려졌다. flush가 실패한 뒤
+   * 차례를 안 보면 버려진 목적지로 확인 창이 뜬다 — 학생은 남았는데 *"저장하지 않고 떠날까요"*를 본다.
+   */
+  it('떠나는 이동의 저장을 기다리는 사이 같은 프로젝트의 다른 단계로 가면 버려진 목적지로 묻지 않는다', async () => {
+    await openAndEdit('저장 못 한 이름')
+    refuse()
+    let release = (): void => {}
+    hold.until = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const entered = hold.entered
+
+    // 앞 이동: 목록(떠난다). 가드의 flush가 쓰기에서 붙들린다.
+    const leaving = router.push({ name: ROUTE_PROJECTS })
+    await vi.waitFor(() => expect(hold.entered).toBe(entered + 1))
+    // 뒤 이동: 같은 프로젝트의 학습. 가드가 차례를 뽑고 화면을 부른 것을 보고 나서 쓰기를 푼다.
+    expect(screens.train, 'the train screen must not have been loaded yet').toBe(false)
+    const staying = router.push(`/project/${manifest.projectId}/train`)
+    await vi.waitFor(() => expect(screens.train).toBe(true))
+    release()
+    await Promise.allSettled([leaving, staying])
+
+    expect(router.currentRoute.value.params.projectId).toBe(manifest.projectId)
+    expect(useLeaveStore().target, 'the abandoned move must not ask to leave').toBeNull()
+    expect(useProjectStore().name).toBe('저장 못 한 이름')
+    // 접어도 저장 실패는 알린다. 앞 이동과 뒤 이동 중 누구의 알림인지는 가르지 않는다 — 같은 알림은 하나로 선다.
+    expect(
+      useToastStore().items.map((toast) => toast.key),
+      'the save failure must still be shown',
+    ).toContain('client.STORAGE_QUOTA_EXCEEDED')
   })
 })
 

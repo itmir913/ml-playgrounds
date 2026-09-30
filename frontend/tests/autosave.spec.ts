@@ -181,6 +181,25 @@ describe('자동 저장', () => {
     expect(gate.calls).toBe(1)
   })
 
+  /**
+   * **최대 대기로 쓴 뒤에도 최대 대기가 다시 걸린다** (2026-09-30 감사 a3 C-1). 쓸 때 최대 대기 타이머만 지우고
+   * 그 자리를 비우지 않으면 `update`의 `deadline ??=`가 다음 것을 안 건다 — 첫 최대 대기 뒤로는 쉬지 않는
+   * 입력이 다시 디바운스만 기다린다.
+   */
+  it('쉬지 않고 최대 대기 두 번을 넘기면 두 번 쓴다', async () => {
+    const project = useProjectStore()
+    const step = AUTOSAVE_DELAY_MS / 2
+    let typed = 0
+    for (let elapsed = 0; elapsed <= 2 * AUTOSAVE_MAX_WAIT_MS; elapsed += step) {
+      project.update(renamed(`입력 ${String(typed)}`))
+      typed += 1
+      await vi.advanceTimersByTimeAsync(step)
+    }
+    // 끝 상태를 `vi.waitFor`로 기다리지 않는다 — 가짜 타이머를 밀어 디바운스가 터지면 최대 대기 없이도 둘이 된다.
+    // 센 것은 쓰기에 **들어간** 횟수라 두 번째 최대 대기가 터진 그 전진 안에서 선다.
+    expect(gate.calls, 'the max wait re-arms after it writes').toBe(2)
+  })
+
   it('최대 대기로 쓴 뒤에도 손을 떼면 마지막 값이 디바운스로 앉는다', async () => {
     const project = useProjectStore()
     const step = AUTOSAVE_DELAY_MS / 2
