@@ -18,6 +18,9 @@
 - **화면이 선 뒤의 오류는 전역 오류 처리기가 말한다.** 렌더 오류와 화면 안 지연 부품의 로더 거절은 말없이 칸을
   비우는 대신 `app-errors.ts`의 `installErrorNotice`가 `pushError`로 알리고, 같은 알림이 떠 있으면 다시 밀지 않는다.
   라우트 화면의 청크는 위 가드의 몫이라 이 처리기에 오지 않는다 (`open-decisions.md` 85). `tests/app-error-notice.spec.ts`가 문다.
+- **청크를 못 받은 실패는 어디서 나든 `SCREEN_LOAD_FAILED`다** — 라우트 화면, 화면 안 지연 부품, 지연 라이브러리
+  모두 같은 판정(`errors.ts`의 `isChunkLoadError`)을 지나 새로고침을 권한다 (`open-decisions.md` 86, `docs/error-codes.md`).
+  `tests/chunk-load-failure.spec.ts`가 문다.
 
 ### 8.2 라우트는 워크플로 단계다
 

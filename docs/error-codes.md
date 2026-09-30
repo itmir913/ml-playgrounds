@@ -139,10 +139,11 @@ STORAGE_BLOCKED
 ```
 FILE_UNREADABLE
 ```
-**가는 화면을 못 받았다** (`router/index.ts` — 배포 뒤 옛 탭의 없는 청크, 끊긴 연결. 이동은 아무것도 안 바꾸고 선다)
+**앱이 필요할 때 받는 코드 조각을 못 받았다** (배포 뒤 옛 탭의 없는 청크, 끊긴 연결 — `open-decisions.md` 86)
 ```
 SCREEN_LOAD_FAILED
 ```
+라우트 화면(`router/index.ts`의 가드 — 이동은 아무것도 안 바꾸고 선다), 화면 안의 지연 부품, 지연 라이브러리(엑셀 파서, 임베딩 워커의 TF.js)가 모두 이 코드다. 청크 실패인지는 `errors.ts`의 `isChunkLoadError` 하나가 가린다 — `toMessage`가 그것으로 이 코드를 고르고, 실패를 다른 코드로 바꾸는 자리(`data/xlsx.ts`의 파서 순회, `ml/embed/handler.ts`)도 같은 판정을 먼저 본다. 엑셀은 어느 파서든 청크를 못 받으면 폴백으로 넘기지 않고 이 코드로 멈춘다(폴백은 날짜를 다른 시간대로 읽는다) — 파서를 받았는데 파일을 못 읽어 폴백으로 넘기는 것은 그대로다. TF.js는 다음 백엔드로 넘기고, 하나도 못 띄웠는데 청크 실패가 있었을 때만 이 코드다. 워커 스크립트 자체를 못 받은 것은 이 코드가 아니다 — 그 워커의 코드다. 외부 원본에서 받는 Pyodide는 우리 청크가 아니라 `ENGINE_BOOT_FAILED`다. `tests/chunk-load-failure.spec.ts`가 문다.
 **예측 입력** (`ml/predict.ts`)
 ```
 PREDICTION_INPUT_INCOMPLETE
@@ -173,7 +174,7 @@ TARGET_NO_VARIANCE
 ```
 UNEXPECTED_ERROR
 ```
-화면 부품에서 잡히지 않고 빠져나온 오류(렌더, 지연 부품의 로더)는 전역 오류 처리기(`app-errors.ts`)가 `pushError`로 알린다 — 우리 오류면 그 코드이고, 아니면 이 코드와 원문이다. 라우트 화면의 청크 실패는 가드가 먼저 잡아 `SCREEN_LOAD_FAILED`로 말하므로 여기 안 온다 (`open-decisions.md` 85).
+화면 부품에서 잡히지 않고 빠져나온 오류(렌더, 지연 부품의 로더)는 전역 오류 처리기(`app-errors.ts`)가 `pushError`로 알린다 — 우리 오류면 그 코드이고, 청크 실패면 `SCREEN_LOAD_FAILED`이고, 아니면 이 코드와 원문이다. 라우트 화면의 청크 실패는 가드가 먼저 잡아 스스로 말하므로 여기 안 온다 (`open-decisions.md` 85·86).
 **표 파일 가져오기** (`data/table.ts`, `data/xlsx.ts`)
 ```
 DATASET_FILE_TYPE_UNSUPPORTED, DATASET_SHEET_NOT_FOUND

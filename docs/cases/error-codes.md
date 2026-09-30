@@ -338,6 +338,15 @@ STORAGE_VERSION_TOO_NEW
 `STORAGE_VERSION_TOO_NEW`와도 다르다 — 저쪽은 저장소가 새것이라는 사실이고, 이쪽은 연결이 끊긴 탭에서도 난다.
 원문은 `detail`로 남는다.
 
+**앱이 받는 코드 조각 전부로 넓혔다** — `SCREEN_LOAD_FAILED` (2026-09-30, open-decisions.md 86)
+
+라우트 화면만이 아니었다. 화면 안의 지연 부품은 `UNEXPECTED_ERROR`의 "다시 시도"로, 엑셀 파서는 `DATASET_PARSE_FAILED`의
+"파일 형식을 확인"으로, 임베딩 워커의 TF.js는 `BACKBONE_UNAVAILABLE`의 "다시 시도"로 말했다 — 옛 탭에서는 어느 것이든
+할 일이 새로고침이다. 코드 소유자가 **새 코드 없이 이 코드로 모으고** 문구에서 라우트 이동에 묶인 말을 빼 "앱이
+업데이트되었거나 연결이 끊겼을 수 있다, 새로고침하라"로 넓혔다. 청크 실패인지는 `isChunkLoadError` 하나가 가린다.
+엑셀은 ExcelJS 청크만 못 받아도 SheetJS로 대신 읽지 않고 멈춘다 — 폴백은 날짜를 다른 시간대로 읽어 조용히 틀리기
+때문이다(코드 소유자). 워커 스크립트 자체의 로드 실패는 원문이 없어 가리지 못하므로 넣지 않았다(코드 소유자).
+
 **예측 입력** (`ml/predict.ts`)
 ```
 PREDICTION_INPUT_INCOMPLETE
