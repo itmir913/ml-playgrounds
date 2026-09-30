@@ -10,11 +10,9 @@
 "감사가 안 도는 동안"과 "감사 국면은 어떻게 도는가"가 갖는다. 다음 감사는 **기능을 한 덩어리
 끝낸 뒤의 diff 감사**다.
 
-**재야 할 것** — 사진 로지스틱 회귀의 상한을 `tools/bench.html` [상한 찾기]의
-`limit_image_logistic_regression`으로 개발 PC에서 다시 잰다(코드 소유자 결정).
-`MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT`의 옛 실측이 기준표와 서너 배 갈린 까닭을 확인하려는 것이다.
-그리고 [클래스만 훑기]로 클래스 수 사다리(`CLASS_LADDERS`)를 재서 `MLJS_*_CLASSES_MS`를 채운다 —
-채우기 전에는 예상 시간이 클래스 수를 보지 않는다(open-decisions 88).
+**재야 할 것** — 지금은 없다. 사진 로지스틱 회귀의 상한은 [상한 찾기]의
+`limit_image_logistic_regression`으로, 클래스 수 배수표(`MLJS_*_CLASSES_MS`)는 [클래스만 훑기]로
+개발 PC에서 다시 쟀다(`limits.ts`의 두 주석, open-decisions 88).
 
 순수 JS 사진 기준표(`baseline.image`)는 두 길로 찼다
 (`limits.ts`의 `MLJS_IMAGE_*_BASELINE_MS`). 나이브 베이즈·로지스틱·KNN·K-평균·인공신경망은

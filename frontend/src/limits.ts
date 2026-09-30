@@ -587,13 +587,15 @@ export const MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT = MAX_IMAGE_COUNT
 /**
  * 이미지 로지스틱 회귀. 3,000장 9.1초 · 4,000장 16.6초. L-BFGS가 maxIter에 갇힌다.
  *
- * **기준표(`MLJS_IMAGE_LOGISTIC_REGRESSION_BASELINE_MS`)의 4,000장보다 서너 배 긴 것은 판이
- * 달라서다** — 이 값은 2026-08-14에 임베딩 위에 `fit()`을 직접 건 것이고 그때의 클래스 수와
- * `tol`이 기록에 없어 차이를 가르지 못했다. 예상 시간은 기준표가 말하고, 이 값은 상한까지
- * 끝난다는 근거로만 쓴다.
+ * **다시 쟀다 (2026-09-30).** 하니스의 `상한 찾기 · [사진] 로지스틱 회귀`
+ * (`tools/workloads.ts`의 `limit_image_logistic_regression`, 3클래스·maxIter 100 천장)가 개발 PC
+ * 크롬 154에서 1,000장 1.1초 · 2,000장 2.2초 · 3,000장 3.3초 · 4,000장 4.4초 · 5,000장 5.7초로
+ * 끝났다 — 장 수에 곧게 붙고 상한까지 간다.
  *
- * **다시 재는 사다리가 생겼다** — 하니스의 `상한 찾기 · [사진] 로지스틱 회귀`
- * (`tools/workloads.ts`의 `limit_image_logistic_regression`, 클래스 수까지 기록에 남긴다).
+ * **위 옛 값이 서너 배 긴 것은 클래스 수로 설명된다.** 옛 값(2026-08-14, `fit()`을 직접 건 것)은
+ * 클래스 수가 기록에 없는데, 같은 날 잰 클래스 배수표(`MLJS_LOGISTIC_REGRESSION_CLASSES_MS`)가
+ * 3클래스에서 10클래스로 약 3배다 — 4.4초 × 3 ≈ 13초로 옛 16.6초와 같은 자리다. 이제는 예상
+ * 시간이 그 배수를 곱해 클래스 수를 본다.
  *
  * **분류: 우리 기기가 정했다.**
  */
@@ -1742,30 +1744,76 @@ export const MLJS_NEURAL_NETWORK_BASELINE_CLASSES = 2
  * 곱한다 (`ml/estimate.ts`의 `classFactor`). 사다리는 `tools/workloads.ts`의
  * `CLASS_LADDERS`이고, 어느 종류·몇 행에서 재는지와 그 까닭이 거기 있다.
  *
- * **비어 있으면 배수를 안 건다** — 안 잰 칸은 지금 동작 그대로다. 개발 PC [클래스만 훑기]로
- * 채운다 (`open-decisions.md` "88. 학습 예상 시간이 클래스 수를 보는가").
+ * **비어 있으면 배수를 안 건다** — 안 잰 칸은 지금 동작 그대로다 (`open-decisions.md`
+ * "88. 학습 예상 시간이 클래스 수를 보는가").
+ *
+ * **잰 판 (2026-09-30).** 코드 소유자가 개발 PC 크롬 154에서 [클래스만 훑기]를 두 회차
+ * 돌렸다. **둘째 회차는 여섯 표가 전부 단조였고 첫째는 SVM·나이브 베이즈·트리가 아니었다** —
+ * 그래서 둘째를 그대로 옮겼다(평균을 내지 않는다 — 단조가 아닌 판을 섞으면 모양이 흐려진다).
+ * 같은 날 앞선 한 판(회차 기록이 남지 않은 것)도 모양이 같았다.
+ *
+ * **SVM은 클래스가 늘수록 빨라진다.** 일대일이라 쌍은 `K(K−1)/2`로 늘지만 쌍마다 행이 `2/K`로
+ * 줄고, 쌍 하나의 비용이 행에 제곱 넘게 붙는다. 세 판 모두 같은 방향이었다. 표 위(20 초과)는
+ * `interpolate`가 기울기를 1 아래로 안 내리므로 길게 틀린다.
  *
  * **분류: 상한이 아니다.**
  */
-export const MLJS_LOGISTIC_REGRESSION_CLASSES_MS: readonly (readonly [number, number])[] = []
+export const MLJS_LOGISTIC_REGRESSION_CLASSES_MS: readonly (readonly [number, number])[] = [
+  [2, 710],
+  [3, 1102],
+  [5, 1772],
+  [10, 3353],
+  [20, 6608],
+]
 
-/** 위 표와 같은 자리 — SVM(일대일). **분류: 상한이 아니다.** */
-export const MLJS_SVM_CLASSES_MS: readonly (readonly [number, number])[] = []
+/** 위 표와 같은 판 — SVM(일대일). **분류: 상한이 아니다.** */
+export const MLJS_SVM_CLASSES_MS: readonly (readonly [number, number])[] = [
+  [2, 1128],
+  [3, 734],
+  [5, 693],
+  [10, 441],
+  [20, 377],
+]
 
-/** 위 표와 같은 자리 — 나이브 베이즈(예측 몫만 붙는다). **분류: 상한이 아니다.** */
-export const MLJS_NAIVE_BAYES_CLASSES_MS: readonly (readonly [number, number])[] = []
+/** 위 표와 같은 판 — 나이브 베이즈(예측 몫만 붙는다). **분류: 상한이 아니다.** */
+export const MLJS_NAIVE_BAYES_CLASSES_MS: readonly (readonly [number, number])[] = [
+  [2, 106],
+  [3, 113],
+  [5, 116],
+  [10, 146],
+  [20, 172],
+]
 
-/** 위 표와 같은 자리 — 의사결정트리. **분류: 상한이 아니다.** */
-export const MLJS_DECISION_TREE_CLASSES_MS: readonly (readonly [number, number])[] = []
+/** 위 표와 같은 판 — 의사결정트리. **분류: 상한이 아니다.** */
+export const MLJS_DECISION_TREE_CLASSES_MS: readonly (readonly [number, number])[] = [
+  [2, 1278],
+  [3, 1329],
+  [5, 1402],
+  [10, 1546],
+  [20, 1609],
+]
 
-/** 위 표와 같은 자리 — 랜덤 포레스트. **분류: 상한이 아니다.** */
-export const MLJS_RANDOM_FOREST_CLASSES_MS: readonly (readonly [number, number])[] = []
+/** 위 표와 같은 판 — 랜덤 포레스트. **분류: 상한이 아니다.** */
+export const MLJS_RANDOM_FOREST_CLASSES_MS: readonly (readonly [number, number])[] = [
+  [2, 2189],
+  [3, 2427],
+  [5, 2681],
+  [10, 3098],
+  [20, 3628],
+]
 
 /**
- * 위 표와 같은 자리 — 인공신경망. 분모는 `MLJS_NEURAL_NETWORK_BASELINE_CLASSES`다.
+ * 위 표와 같은 판 — 인공신경망. 분모는 `MLJS_NEURAL_NETWORK_BASELINE_CLASSES`다. 다섯 점 모두
+ * 에폭 천장(200)까지 돌았다.
  * **분류: 상한이 아니다.**
  */
-export const MLJS_NEURAL_NETWORK_CLASSES_MS: readonly (readonly [number, number])[] = []
+export const MLJS_NEURAL_NETWORK_CLASSES_MS: readonly (readonly [number, number])[] = [
+  [2, 1504],
+  [3, 1571],
+  [5, 1810],
+  [10, 2215],
+  [20, 3191],
+]
 
 /** K-평균 기준표를 잰 군집 수. **분류: 상한이 아니다.** */
 export const MLJS_KMEANS_BASELINE_CLUSTERS = 3

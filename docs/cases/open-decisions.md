@@ -211,6 +211,12 @@ scikit-learn도 같은 눈으로 보면 로지스틱(lbfgs multinomial)·`SVC`(�
 **대가.** 대조 판의 클래스 수는 시험 몫에 나온 라벨만 센다 — 시험 몫에 없는 클래스가 있으면 짧게 틀린다.
 `EstimateInput.classes`는 선택이라 안 넘기는 자리가 새로 생겨도 컴파일이 조용하다.
 
+**표를 채웠다 (2026-09-30).** 코드 소유자가 개발 PC 크롬에서 [클래스만 훑기]를 두 회차 돌렸고, 여섯 표가 전부
+단조였던 둘째 회차를 옮겼다(`limits.ts`의 `MLJS_*_CLASSES_MS` 주석). 모양은 셋으로 갈렸다 — 로지스틱은 클래스에
+거의 비례하고(3에서 10이 약 3배), 신경망·포레스트·나이브 베이즈·트리는 완만히 늘고, **SVM은 줄어든다**(일대일의
+쌍마다 행이 줄어서다). 같은 날 [상한 찾기]의 사진 로지스틱 상한 사다리가 3클래스로 5,000장 5.7초였고, 그
+상한 주석의 옛 실측이 서너 배 길던 것은 이 배수로 설명된다(`MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT`).
+
 **무는 검사.** `tests/bench-rules.spec.ts`의 *"배수표가 있는 알고리즘마다 클래스 사다리가 있다"*,
 `tests/estimate-classes.spec.ts`(빈 표는 예상을 안 바꾸고, 찬 표는 배수를 건다, 교정 데이터와 신경망의 기준 클래스 수),
 `tests/training-source.spec.ts`(사진·표의 클래스 수, 공백과 결측), `tests/reproduce-estimate.spec.ts`의
