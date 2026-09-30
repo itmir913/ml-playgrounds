@@ -1615,6 +1615,20 @@ export function stopsBefore(
   return stopReason(ladder, previous, point) !== null
 }
 
+/**
+ * **사진 기준표 사다리** — [사진만 훑기]가 도는 목록이다.
+ *
+ * 순수 JS의 기준표 사다리 가운데 **일감이 사진 임베딩 차원으로 도는 것**이다. 이름(`[사진]`)이
+ * 아니라 일감으로 가른다 — `tests/bench-rules.spec.ts`의 덮개 검사와 같은 판정이다.
+ *
+ * **상한 사다리와 sklearn 사다리는 안 든다.** 앞은 몇 시간짜리에 탭이 죽을 수 있고([상한
+ * 찾기]), 뒤는 27MB를 받는다([sklearn 훑기]). 사진 프로젝트가 `알 수 없음`을 내는 칸은
+ * 순수 JS 기준표 칸이다(`ml/algorithms.ts`의 `UNMEASURED_BASELINE`).
+ */
+export const IMAGE_LADDERS: readonly Ladder[] = LADDERS.filter((ladder) =>
+  ladder.points.some((point) => ladder.job(point).columns === IMAGE_FEATURES),
+)
+
 export const ALL_LADDERS: readonly Ladder[] = [
   ...LADDERS,
   ...LIMIT_LADDERS.map((ladder) => ({ ...ladder, findsLimit: true as const })),

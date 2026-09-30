@@ -32,6 +32,7 @@ import {
   CALIBRATION,
   CEILING_MS,
   FAILURE_CEILING_MS,
+  IMAGE_LADDERS,
   LADDERS,
   ladderPoint,
   measureCalibration,
@@ -276,6 +277,29 @@ describe('등록부의 칸마다 사다리가 있다', () => {
   it('그 규칙이 실제로 문다 - 없는 칸을 있다고 하지 않는다', () => {
     expect(covers(ALL_LADDERS, '없는_알고리즘', 'tabular', 'mljs')).toBe(false)
     expect(covers(ALL_LADDERS, '없는_알고리즘', 'image', 'mljs')).toBe(false)
+  })
+
+  /**
+   * **[사진만 훑기]는 순수 JS 사진 기준표 칸을 전부 돈다.** 기준표 사다리가 채우는 사진 칸이
+   * 이 목록에서 빠지면 그 칸은 그 단추로 영영 안 잰다 — 사진 프로젝트의 `알 수 없음`이
+   * 그대로 남는다.
+   */
+  it('사진만 훑기는 순수 JS 사진 기준표 칸을 전부 돌고 다른 것은 안 돈다', () => {
+    const missing = ALGORITHMS.filter(
+      (algorithm) =>
+        covers(LADDERS, algorithm.id, 'image', 'mljs') &&
+        !covers(IMAGE_LADDERS, algorithm.id, 'image', 'mljs'),
+    ).map((algorithm) => algorithm.id)
+    expect(missing).toEqual([])
+    expect(IMAGE_LADDERS.length).toBeGreaterThan(0)
+
+    const stray = IMAGE_LADDERS.filter(
+      (ladder) =>
+        ladder.findsLimit === true ||
+        (ladder.engine ?? 'mljs') !== 'mljs' ||
+        ladder.points.some((point) => ladder.job(point).columns !== IMAGE_FEATURES),
+    ).map((ladder) => ladder.id)
+    expect(stray).toEqual([])
   })
 })
 

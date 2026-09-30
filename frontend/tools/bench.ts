@@ -44,6 +44,7 @@ import {
   CALIBRATION,
   CEILING_MS,
   FAILURE_CEILING_MS,
+  IMAGE_LADDERS,
   LADDERS,
   PROJECTION_MS,
   projectionRule,
@@ -74,6 +75,7 @@ app.innerHTML = `
     <p><b>개발자 도구를 닫고, 돌리는 동안 이 탭을 그대로 두세요.</b> 개발자 도구가 열려 있으면 JIT가 꺼져 열 배 넘게 느려지고, 다른 탭으로 가면 브라우저가 계산을 늦춥니다.</p>
     <p id="controls"></p>
     <p><button id="all" style="font-size: 16px; padding: 8px 16px;">전부 훑기</button>
+       <button id="images" style="font-size: 16px; padding: 8px 16px;">사진만 훑기</button>
        <button id="limits" style="font-size: 16px; padding: 8px 16px;">상한 찾기 (몇 시간)</button>
        <button id="calibrate" style="font-size: 16px; padding: 8px 16px;">교정 일감만</button>
        <button id="boot" style="font-size: 16px; padding: 8px 16px;">sklearn 시동만</button>
@@ -89,6 +91,7 @@ app.innerHTML = `
 
 const controls = document.getElementById('controls') as HTMLElement
 const allButton = document.getElementById('all') as HTMLButtonElement
+const imagesButton = document.getElementById('images') as HTMLButtonElement
 const limitsButton = document.getElementById('limits') as HTMLButtonElement
 const calibrateButton = document.getElementById('calibrate') as HTMLButtonElement
 const bootButton = document.getElementById('boot') as HTMLButtonElement
@@ -437,6 +440,7 @@ async function runBoots(): Promise<void> {
 
 function busy(disabled: boolean): void {
   allButton.disabled = disabled
+  imagesButton.disabled = disabled
   limitsButton.disabled = disabled
   calibrateButton.disabled = disabled
   bootButton.disabled = disabled
@@ -483,6 +487,16 @@ allButton.addEventListener('click', () =>
   start(async () => {
     for (const ladder of LADDERS) await runLadder(ladder)
     await runCalibration()
+  }),
+)
+
+/**
+ * **사진 기준표만** (`IMAGE_LADDERS`). 사진 프로젝트의 예상 시간이 `알 수 없음`인 칸을
+ * 채우려고 이것만 따로 돌린다. 교정 일감은 안 돈다 — 기준표를 옮길 때 필요 없다.
+ */
+imagesButton.addEventListener('click', () =>
+  start(async () => {
+    for (const ladder of IMAGE_LADDERS) await runLadder(ladder)
   }),
 )
 
