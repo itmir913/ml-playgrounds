@@ -112,6 +112,11 @@
 - **"아직 내보내지 않았습니다"가 상시 보인다.**
 - **휴대폰에서는 내보내기 상태만 남는다.** 나머지는 팝오버로 옮긴다.
 - **내보낸 시각은 `.mlpx`에 적지 않는다.** IndexedDB의 프로젝트 레코드에만 남긴다.
+- **자동 저장은 입력이 멈춘 뒤 쓰고, 쉬지 않고 쳐도 최대 대기가 지나면 쓴다.** 두 시간은 `limits.ts`가 갖는다
+  (`open-decisions.md` 81). `tests/autosave.spec.ts`가 문다.
+- **탭 닫기·새로고침의 브라우저 경고는 잃을 것이 있을 때만 뜬다** — 메모리에만 있는 편집(결정 74)과 도는
+  학습·굽기(결정 83). 판정은 `useUnloadWarning.ts`의 `unloadWarningReasons` 하나이고, 도는 일은 `useWork`의
+  `start({ warnsOnUnload: true })`가 센다. `tests/unload-work.spec.ts`·`tests/leave-unsaved.spec.ts`가 문다.
 
 ### 8.9 화면마다의 방향 (2026-08-05)
 
