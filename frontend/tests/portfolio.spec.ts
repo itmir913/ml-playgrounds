@@ -18,6 +18,7 @@ import { identifiedExport, portfolioMarkdownText } from '../src/project/portfoli
 import {
   attachmentsOf,
   hasTemplate,
+  isAppAttachmentPath,
   isPortfolioAnswered,
   nextAttachmentPath,
   portfolioBytes,
@@ -1531,9 +1532,10 @@ describe('결정 89: 코드 밖의 <는 &lt;로 싣는다', () => {
     ],
     ['빈 줄로 나뉜 문단은 따로 짝짓는다', '`a\n\n`<b>`', '`a\n\n`<b>`'],
     [
+      // 주소가 http·https가 아니라 `(` 앞에 백슬래시도 붙는다(결정 93).
       '링크 목적지가 있는 문단은 안 믿는다',
       '[a](`) <img src=x onerror=alert(1)> (`)',
-      '[a](`) &lt;img src=x onerror=alert(1)> (`)',
+      '[a]\\(`) &lt;img src=x onerror=alert(1)> (`)',
     ],
     ['표 칸을 넘는 스팬은 안 믿는다', '| `a | <b>` |\n|---|---|', '| `a | &lt;b>` |\n|---|---|'],
   ])('%s', (_, answer, written) => {
@@ -1788,5 +1790,335 @@ describe('결정 89: 코드 밖의 <는 &lt;로 싣는다', () => {
         'use CommonMark whitespace ([ \\t], \\r, \\n) in the markdown judgement',
       ).toEqual([])
     })
+  })
+})
+
+/**
+ * **주소가 http·https가 아닌 링크는 글자로 싣는다** (open-decisions.md 93, mlpx-spec.md §8.6).
+ *
+ * `[눌러](javascript:alert(1))`는 `<`가 없어 89를 그대로 지나, 링크를 거르지 않는 뷰어로 교사가 열고 누르면 돈다.
+ * markdown-it은 `validateLink`로 `javascript:`·`vbscript:`·`file:`·이미지 아닌 `data:`를 막지만 다른 뷰어는 더 느슨하다고
+ * 본다 — 그래서 **`validateLink`를 끈 렌더러로도 잰다.** 거기서 http·https가 아닌 `href`·`src`가 하나도 없어야 막힌 것이다.
+ */
+describe('결정 93: 주소가 http·https가 아닌 링크는 글자로 싣는다', () => {
+  const strict = new MarkdownIt({ html: true })
+  /** 링크를 거르지 않는 뷰어. `normalizeLink`(퍼센트 인코딩)와 엔티티 해석은 그대로다. */
+  const loose = new MarkdownIt({ html: true })
+  loose.validateLink = () => true
+
+  /**
+   * 렌더 결과의 `href`·`src` 중 http·https가 아닌 것. markdown-it은 속성 값을 늘 큰따옴표로 싸고 글 속의 `"`·`<`를
+   * 엔티티로 내므로, 렌더 결과의 ` href="`·` src="`는 속성뿐이다. 값의 엔티티를 풀고 스킴을 본다.
+   */
+  const unsafeLinksIn = (markdown: string, md: typeof loose = loose) =>
+    [...md.render(markdown).matchAll(/ (href|src)="([^"]*)"/g)]
+      .map(([, name, value]) => {
+        const url = value!
+          .replace(/&quot;/g, '"')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&')
+        return `${name!}=${url}`
+      })
+      .filter((attribute) => !/^(href|src)=https?:\/\//i.test(attribute))
+
+  const THREE = [
+    { id: 'a', title: '동기' },
+    { id: 'b', title: '방법' },
+    { id: 'c', title: '느낀 점' },
+  ]
+  const render = (a: string) =>
+    renderPortfolioMarkdown(TEXT, portfolio(THREE, { a, b: '둘째 답', c: '셋째 답' }))
+
+  /** 답·문서 제목·문항 제목·머리글 값·머리글 라벨·이전 문항 제목 — 사용자 글이 실리는 자리마다. */
+  const PLACES: [string, (text: string) => string][] = [
+    ['답', render],
+    ['문서 제목', (text) => renderPortfolioMarkdown({ ...TEXT, title: text }, portfolio(THREE))],
+    [
+      '문항 제목',
+      (text) =>
+        renderPortfolioMarkdown(
+          TEXT,
+          portfolio([
+            { id: 'a', title: text },
+            { id: 'b', title: '방법' },
+          ]),
+        ),
+    ],
+    [
+      '머리글 값',
+      (text) => renderPortfolioMarkdown({ ...TEXT, rows: [['이름', text]] }, portfolio(THREE)),
+    ],
+    [
+      '머리글 라벨',
+      (text) => renderPortfolioMarkdown({ ...TEXT, rows: [[text, '홍']] }, portfolio(THREE)),
+    ],
+    [
+      '이전 문항 제목',
+      (text) =>
+        renderPortfolioMarkdown(
+          { ...TEXT, orphanTitle: text },
+          portfolio(THREE, { 옛것: '남은 글' }),
+        ),
+    ],
+  ]
+
+  /** 결정 93이 적은 가리는 모양. 정의(`[r]: …`)는 같은 글에 참조를 함께 둔다. */
+  const DISGUISES: [string, string][] = [
+    ['javascript', '[눌러](javascript:alert(1))'],
+    ['대소문자', '[눌러](JaVaScRiPt:alert(1))'],
+    ['이름 문자 참조', '[눌러](javascript&colon;alert(1))'],
+    ['십진 문자 참조', '[눌러](java&#115;cript:alert(1))'],
+    ['십육진 문자 참조', '[눌러](&#x6A;avascript:alert(1))'],
+    ['스킴 머리의 문자 참조', '[눌러](&#104;ttp:alert(1))'],
+    ['백슬래시 이스케이프', '[눌러](javascript\\:alert(1))'],
+    ['앞뒤 공백', '[눌러](  javascript:alert(1)  )'],
+    ['앞의 탭', '[눌러](\tjavascript:alert(1))'],
+    ['중간의 탭', '[눌러](java\tscript:alert(1))'],
+    ['앞의 줄바꿈', '[눌러](\njavascript:alert(1))'],
+    ['꺾쇠 목적지', '[눌러](<javascript:alert(1)>)'],
+    ['제목 붙은 목적지', '[눌러](javascript:alert(1) "t")'],
+    ['제목에 숨은 http', '[눌러](javascript:alert(1) "http://ok")'],
+    ['괄호 사이의 공백', '[눌러] (javascript:alert(1))'],
+    ['중첩 괄호', '[눌러](javascript:alert((1)))'],
+    ['중첩 대괄호', '[a [b] c](javascript:alert(1))'],
+    ['겹 대괄호', '[[눌러]](javascript:alert(1))'],
+    ['이미지', '![그림](javascript:alert(1))'],
+    ['data 이미지', '![그림](data:image/svg+xml,x)'],
+    ['data 링크', '[눌러](data:text/html,x)'],
+    ['vbscript', '[눌러](vbscript:msgbox(1))'],
+    ['file', '[눌러](file:///C:/Windows/win.ini)'],
+    ['상대 주소', '[눌러](../other.html)'],
+    ['프로토콜 상대 주소', '[눌러](//evil.example/x)'],
+    ['이미지 안의 링크', '[![그림](http://example.com/a.png)](javascript:alert(1))'],
+    ['http 안에 숨은 링크', '[a](http://ok/](javascript:alert(1)))'],
+    ['참조 링크', '[눌러][r] [r]: javascript:alert(1)'],
+    ['참조 정의가 먼저', '[r]: javascript:alert(1)\n\n[눌러][r]'],
+    ['생략 참조', '[r][]\n\n[r]: javascript:alert(1)'],
+    ['단축 참조', '[r]\n\n[r]: javascript:alert(1)'],
+    ['정의의 꺾쇠 목적지', '[r]\n\n[r]: <javascript:alert(1)> "t"'],
+    ['정의의 다음 줄 목적지', '[r]\n\n[r]:\n  javascript:alert(1)'],
+    ['정의 앞의 공백', '[r]\n\n[r] : javascript:alert(1)'],
+    ['코드 스팬처럼 보이는 정의', '[r`]: javascript:alert(1)`\n\n[r`]'],
+  ]
+
+  describe.each(PLACES)('%s', (_, place) => {
+    it.each(DISGUISES)('%s — http·https가 아닌 주소가 안 선다', (_, text) => {
+      const markdown = place(text)
+      expect(unsafeLinksIn(markdown, loose)).toEqual([])
+      expect(unsafeLinksIn(markdown, strict)).toEqual([])
+    })
+  })
+
+  /** 정의가 다른 자리에 있어도 문서 전체에 걸린다 — 답의 정의를 제목의 참조가 쓴다. */
+  it('답의 정의를 제목의 참조가 써도 안 선다', () => {
+    const markdown = renderPortfolioMarkdown(
+      { ...TEXT, title: '[눌러][r]' },
+      portfolio(THREE, { a: '[r]: javascript:alert(1)' }),
+    )
+    expect(unsafeLinksIn(markdown)).toEqual([])
+  })
+
+  /** 글자로 싣는 모양 — 주소를 여는 `(`·`:` 앞에 백슬래시. 뷰어에는 원문 글자가 보이고 링크는 하나도 안 선다. */
+  it.each([
+    ['인라인 링크', '[눌러](javascript:alert(1))', '[눌러]\\(javascript:alert(1))'],
+    ['이미지', '![그림](data:image/svg+xml,x)', '![그림]\\(data:image/svg+xml,x)'],
+    ['참조 정의', '[r]: javascript:alert(1)', '[r]\\: javascript:alert(1)'],
+    ['괄호 사이의 공백', '[눌러] (javascript:alert(1))', '[눌러] \\(javascript:alert(1))'],
+  ])('%s는 글자로 실리고 원문이 보인다', (_, answer, written) => {
+    const markdown = render(answer)
+    expect(markdown).toContain(`## 동기\n\n${written}\n\n## 방법`)
+    const html = loose.render(markdown)
+    expect(html).not.toMatch(/<a |<img /)
+    expect(html).toContain(`<p>${answer.replace(/"/g, '&quot;')}</p>`)
+  })
+
+  it('http·https 링크와 이미지는 바이트 그대로 선다', () => {
+    const answers = [
+      '[자료](https://example.com/a?b=1&c=2) 와 ![그림](http://example.com/a.png "제목")',
+      '[자료](HTTPS://example.com) [b]( http://example.com/b )',
+      '[자료][r]\n\n[r]: https://example.com/r "제목"',
+      '[![그림](https://example.com/a.png)](https://example.com)',
+    ]
+    for (const answer of answers) {
+      const markdown = render(answer)
+      expect(markdown).toContain(`## 동기\n\n${answer}\n\n## 방법`)
+      expect(unsafeLinksIn(markdown)).toEqual([])
+      expect(strict.render(markdown)).toMatch(/<a href="https?:\/\//i)
+    }
+    const title = renderPortfolioMarkdown(
+      { ...TEXT, title: '[자료](https://example.com)' },
+      portfolio(THREE),
+    )
+    expect(title).toContain('# [자료](https://example.com)\n')
+  })
+
+  it('코드 안의 javascript: 링크는 그대로다', () => {
+    const fenced = '```md\n[눌러](javascript:alert(1))\n[r]: javascript:alert(1)\n```'
+    expect(render(fenced)).toContain(`## 동기\n\n${fenced}\n\n## 방법`)
+    const span = '주소는 `javascript:alert(1)`로 쓴다'
+    expect(render(span)).toContain(`## 동기\n\n${span}\n\n## 방법`)
+  })
+
+  it('링크가 없는 글은 바이트가 그대로다', () => {
+    const answers = [
+      '설명 (괄호) [대괄호] 뒤 : 콜론',
+      '배열 a[0] = 1, 함수 f(x)',
+      '- [ ] 할 일\n- [x] 한 일',
+      '시각 12:30, 주소 없이 http://example.com',
+    ]
+    for (const answer of answers) {
+      expect(render(answer)).toContain(`## 동기\n\n${answer}\n\n## 방법`)
+    }
+  })
+
+  /** 앱이 짓는 사진 링크는 사용자 글이 아니다 — 상대 경로 그대로 선다(mlpx-spec.md §8.6.1). */
+  it('앱이 짓는 사진 링크는 그대로다', () => {
+    const made = nextAttachmentPath(portfolio(THREE), '.jpg', [])
+    const withPhoto: Portfolio = {
+      ...portfolio(THREE, { a: '글' }),
+      attachments: { a: ['portfolio/attachments/1.webp', made] },
+    }
+    const markdown = renderPortfolioMarkdown(TEXT, withPhoto)
+    expect(markdown).toContain('\n![](attachments/1.webp)\n')
+    expect(markdown).toContain(`\n![](${made.slice(DIR.portfolio.length)})\n`)
+    expect(strict.render(markdown)).toContain('<img src="attachments/1.webp" alt="">')
+  })
+
+  /**
+   * **조작한 파일의 사진 경로** (보안 검토 v6 A-1). 경로는 학생의 `document.json`에서 오고, 읽기는 zip 엔트리가 있는지와
+   * 새는지만 본다. 앱이 지은 모양이 아니면 사진 링크로 안 싣는다 — 링크 문법을 깨고 태그·정의를 세운다.
+   */
+  const TAMPERED_PATHS = [
+    'portfolio/attachments/a)<img src=x onerror=alert(1)>',
+    'portfolio/attachments/a) [c](javascript:alert(1)',
+    'portfolio/attachments/a)\n\n[r]: javascript:alert(1)\n\n[눌러][r]',
+    'portfolio/attachments/2)<img src=x onerror=alert(1)>.webp',
+  ]
+
+  it.each(TAMPERED_PATHS)('조작한 사진 경로 %j는 싣지 않는다', (path) => {
+    const tampered: Portfolio = {
+      ...portfolio(THREE, { a: '글' }),
+      attachments: { a: [path, 'portfolio/attachments/1.webp'] },
+    }
+    const markdown = renderPortfolioMarkdown(TEXT, tampered)
+    expect(markdown).not.toContain(path.slice(DIR.portfolio.length))
+    expect(markdown).toContain('\n![](attachments/1.webp)\n')
+    for (const md of [strict, loose]) {
+      expect(unsafeLinksIn(markdown, md).filter((one) => one !== 'src=attachments/1.webp')).toEqual(
+        [],
+      )
+      expect(md.render(markdown)).not.toMatch(/<img [^>]*onerror|<a /)
+    }
+  })
+
+  it.each([
+    ['portfolio/attachments/1.webp', true],
+    ['portfolio/attachments/12.jpg', true],
+    ['portfolio/attachments/0.webp', false],
+    ['portfolio/attachments/01.webp', false],
+    ['portfolio/attachments/+1.webp', false],
+    ['portfolio/attachments/ 1.webp', false],
+    ['portfolio/attachments/1e3.webp', false],
+    ['portfolio/attachments/1.png', false],
+    ['portfolio/attachments/1.jpeg', false],
+    ['portfolio/attachments/1.webp\n', false],
+    ['portfolio/attachments/sub/1.webp', false],
+    ['portfolio/attachments/1).webp', false],
+    ['portfolio/1.webp', false],
+  ])('앱이 지은 모양 판정 %j → %s', (path, expected) => {
+    expect(isAppAttachmentPath(path)).toBe(expected)
+  })
+
+  it('nextAttachmentPath가 짓는 경로는 앱이 지은 모양이다', () => {
+    const stored = ['portfolio/attachments/7.webp', 'portfolio/attachments/x.jpg']
+    for (const extension of ['.webp', '.jpg']) {
+      expect(isAppAttachmentPath(nextAttachmentPath(portfolio(THREE), extension, []))).toBe(true)
+      expect(isAppAttachmentPath(nextAttachmentPath(portfolio(THREE), extension, stored))).toBe(
+        true,
+      )
+    }
+  })
+
+  const PIECES = [
+    '[',
+    ']',
+    '(',
+    ')',
+    '![',
+    '[a](',
+    '](',
+    'javascript:',
+    'JaVaScRiPt:',
+    'java&#115;cript:',
+    '&#x6A;avascript:',
+    'java\tscript:',
+    'javascript&colon;',
+    'data:text/html,x',
+    'http://ok',
+    '<',
+    '>',
+    '`',
+    '\\',
+    ' "t"',
+    ' ',
+    '\t',
+    '\n',
+    '\n\n',
+    '[r]: ',
+    '[a][r]',
+  ]
+
+  /**
+   * **보안 퍼저.** 링크 조각을 셋씩 이어 답과 문서 제목에 넣는다. 링크를 거르지 않는 렌더에서 http·https가 아닌
+   * `href`·`src`가 하나도 없어야 한다. 참조 정의가 걸리게 뒤에 `[r]`을 하나 붙인다.
+   */
+  it('링크 조각을 셋씩 이어도 http·https가 아닌 주소가 안 선다', () => {
+    const broken: string[] = []
+    for (const one of PIECES) {
+      for (const two of PIECES) {
+        for (const three of PIECES) {
+          const text = `${one}${two}${three} [r] [a]`
+          for (const markdown of [
+            render(text),
+            renderPortfolioMarkdown({ ...TEXT, title: text }, portfolio(THREE)),
+          ]) {
+            if (unsafeLinksIn(markdown).length > 0) broken.push(JSON.stringify(text))
+          }
+        }
+      }
+    }
+    expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
+  })
+
+  /** 넷씩은 조각을 좁혀 답에만 넣는다 — 인라인 링크 하나를 조각 넷으로 짓는 모양이 여기서 닿는다. */
+  it('링크 조각을 넷씩 이어도 http·https가 아닌 주소가 안 선다', () => {
+    const core = [
+      '[',
+      '](',
+      ']',
+      '(',
+      'javascript:',
+      '&#x6A;avascript:',
+      'http://ok',
+      '<',
+      '\\',
+      '`',
+      ')',
+      '\n',
+      '[r]: ',
+    ]
+    const broken: string[] = []
+    for (const one of core) {
+      for (const two of core) {
+        for (const three of core) {
+          for (const four of core) {
+            const text = `${one}${two}${three}${four} [r]`
+            if (unsafeLinksIn(render(text)).length > 0) broken.push(JSON.stringify(text))
+          }
+        }
+      }
+    }
+    expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
   })
 })

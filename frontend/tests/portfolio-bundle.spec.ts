@@ -7,6 +7,7 @@
  */
 
 import { unzipSync } from 'fflate'
+import MarkdownIt from 'markdown-it'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -16,10 +17,12 @@ import {
   folderNames,
   type BundleEntry,
 } from '../src/project/portfolio-bundle'
-import { DIR, ENTRY } from '../src/project/format'
+import { DIR, ENTRY, readProject } from '../src/project/format'
 import type { ProjectFile } from '../src/project/format'
+import { nextAttachmentPath, renderPortfolioMarkdown } from '../src/project/portfolio'
 import { MAX_ARCHIVE_ENTRIES } from '../src/limits'
 import { projectFile } from './fixtures/project'
+import { writeProjectBytes } from './fixtures/write'
 
 /** 가짜 번역. 키를 그대로 돌려주므로 머리글의 언어를 검사가 안 본다. */
 const label = (key: string): string => `[${key}]`
@@ -325,5 +328,74 @@ describe('폴더 이름은 서로 다르다', () => {
       `홍길동 (2)/${ENTRY.portfolioMarkdown}`,
       `홍길동/${ENTRY.portfolioMarkdown}`,
     ])
+  })
+})
+
+/**
+ * **조작한 파일의 사진 경로는 `document.md`에 사진 링크로 안 싣는다** (open-decisions.md 93, 보안 검토 v6 A-1).
+ *
+ * 경로는 학생의 `document.json`(`portfolio.attachments`)에서 오고, `readProject`는 zip 엔트리가 있는지와 새는지만 본다 —
+ * 엔트리 이름을 같은 문자열로 지으면 통과한다. 교사의 묶음이 그것으로 `document.md`를 다시 굽는다. **진짜 입구로 잰다**:
+ * `writeProject` → `readProject` → `entriesOf`. 기본 markdown-it과 `validateLink`를 끈 렌더러 둘 다에서 학생의 태그도,
+ * http·https가 아닌 주소도 서면 안 된다.
+ */
+describe('조작한 사진 경로는 묶음의 document.md에 안 실린다', () => {
+  const strict = new MarkdownIt({ html: true })
+  const loose = new MarkdownIt({ html: true })
+  loose.validateLink = () => true
+
+  /** 렌더 결과의 `href`·`src` 중 앱이 지은 사진도, http·https도 아닌 것. */
+  const unsafeIn = (html: string, made: string) =>
+    [...html.matchAll(/ (href|src)="([^"]*)"/g)]
+      .map(([, , value]) => value!.replace(/&amp;/g, '&'))
+      .filter((url) => url !== made && !/^https?:\/\//i.test(url))
+
+  /** 사진 경로 `paths`가 붙은 제출물을 파일로 썼다 읽어 묶음의 `document.md`를 낸다. */
+  async function bundledMarkdown(paths: readonly string[]): Promise<string> {
+    const base = projectFile()
+    const file: ProjectFile = {
+      ...base,
+      document: {
+        ...base.document,
+        portfolio: { ...base.document.portfolio, attachments: { motivation: [...paths] } },
+      },
+      attachments: new Map(paths.map((path) => [path, new Uint8Array([1, 2, 3])])),
+    }
+    const text = { title: '붓꽃', rows: [], orphanTitle: '이전' }
+    const { bytes } = await writeProjectBytes(
+      file,
+      renderPortfolioMarkdown(text, file.document.portfolio),
+    )
+    const { project: opened } = await readProject(bytes)
+    // 읽기가 경로를 그대로 들였는지부터 본다 — 안 들였으면 이 검사는 입구를 안 지난 것이다.
+    expect(opened.document.portfolio.attachments['motivation']).toEqual(paths)
+    const files = entriesOf({ label: '홍길동.mlpx', file: opened }, '홍길동', label, 'ko')
+    return new TextDecoder().decode(files[`홍길동/${ENTRY.portfolioMarkdown}`])
+  }
+
+  const made = nextAttachmentPath(projectFile().document.portfolio, '.webp', [])
+  const madeLink = made.slice(DIR.portfolio.length)
+
+  it.each([
+    `${DIR.attachments}a)<img src=x onerror=alert(1)>`,
+    `${DIR.attachments}a) [c](javascript:alert(1)`,
+    `${DIR.attachments}a)\n\n[r]: javascript:alert(1)\n\n[눌러][r]`,
+    // 수로 시작하고 앱의 확장자로 끝나도 되지은 모양과 글자까지 같아야 한다.
+    `${DIR.attachments}2)<img src=x onerror=alert(1)>.webp`,
+  ])('%j', async (path) => {
+    const markdown = await bundledMarkdown([path, made])
+    expect(markdown).not.toContain(path.slice(DIR.portfolio.length))
+    expect(markdown).toContain(`![](${madeLink})`)
+    for (const md of [strict, loose]) {
+      const html = md.render(markdown)
+      expect(html).not.toMatch(/<img [^>]*onerror|<a /)
+      expect(unsafeIn(html, madeLink)).toEqual([])
+    }
+  })
+
+  it('nextAttachmentPath가 지은 경로는 그대로 실린다', async () => {
+    const markdown = await bundledMarkdown([made])
+    expect(markdown).toContain(`\n![](${madeLink})\n`)
+    expect(strict.render(markdown)).toContain(`<img src="${madeLink}" alt="">`)
   })
 })

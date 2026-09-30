@@ -9,6 +9,7 @@
  * `.md` 머리글의 라벨은 부르는 쪽이 만들어 넘긴다 (§8.6).
  */
 
+import { CANONICAL_FORMAT_IDS, CANONICAL_FORMATS } from '../data/image/formats'
 import { own } from '../records'
 import { DIR } from './format'
 import type { Portfolio, PortfolioTemplateSection } from './schema'
@@ -355,7 +356,30 @@ export function nextAttachmentPath(
     return Number.parseInt(name, 10)
   })
   const last = Math.max(0, ...numbers.filter((one) => Number.isFinite(one)))
-  return `${DIR.attachments}${last + 1}${extension}`
+  return attachmentPathOf(last + 1, extension)
+}
+
+/** 앱이 사진에 짓는 이름 — 한 벌이다. `nextAttachmentPath`가 짓고 `isAppAttachmentPath`가 되짓어 견준다. */
+function attachmentPathOf(number: number, extension: string): string {
+  return `${DIR.attachments}${number}${extension}`
+}
+
+/** 사진을 구울 수 있는 형식의 확장자(`attachments.ts`가 `detectCanonicalFormat`으로 고른다). */
+const ATTACHMENT_EXTENSIONS = CANONICAL_FORMAT_IDS.map((id) => CANONICAL_FORMATS[id].extension)
+
+/**
+ * **앱이 지은 모양의 사진 경로인가** — `attachmentPathOf`로 되지어 글자까지 같아야 한다 (open-decisions.md 93).
+ *
+ * 경로는 학생의 `document.json`(`portfolio.attachments`)에서 오고, 읽기는 zip 엔트리가 있는지와 zip 밖으로 새는지만 본다.
+ * 엔트리 이름을 같은 문자열로 지은 조작한 파일이면 `a)<img …>`·줄바꿈이 든 경로가 그대로 들어온다. `document.md`는 이 모양만
+ * 사진 링크로 싣는다 — 이력상 앱은 이 모양(1부터의 수, 0 채움 없음, 하위 폴더 없음, `.webp`·`.jpg`) 말고 지은 적이 없다.
+ * `portfolio.spec.ts`의 *"결정 93"* 묶음과 `portfolio-bundle.spec.ts`가 문다.
+ */
+export function isAppAttachmentPath(path: string): boolean {
+  const extension = ATTACHMENT_EXTENSIONS.find((one) => path.endsWith(one))
+  if (extension === undefined || !path.startsWith(DIR.attachments)) return false
+  const number = Number.parseInt(path.slice(DIR.attachments.length), 10)
+  return Number.isSafeInteger(number) && number >= 1 && path === attachmentPathOf(number, extension)
 }
 
 /** 사진 하나를 문항에 붙인다. **답 아래에 카드로 붙는다** - 문단 중간에는 못 꽂는다. */
@@ -514,20 +538,64 @@ const FENCE = /^( {0,3})(`{3,}|~{3,})([^\n]*)$/
 const BLANK = /^[ \t]*$/
 
 /**
- * **코드 밖의 `<`는 `&lt;`로 싣는다** (open-decisions.md 89, mlpx-spec.md §8.6).
+ * **링크의 주소가 시작하는 자리** — `]` 뒤에 (스페이스·탭을 건너) `(`나 `:`가 온다 (open-decisions.md 93).
+ *
+ * 인라인 링크·이미지는 `](`로, 링크 참조 정의는 `]:`로 주소를 연다(CommonMark — 둘 다 붙어 있어야 하지만 느슨한 뷰어를
+ * 생각해 사이의 스페이스·탭도 센다). 참조 링크(`[x][r]`·`[r]`)는 주소를 정의에서 받으므로 정의만 막으면 된다.
+ * **이 모양이 있는 문단의 코드 스팬은 믿지 않는다**(`trustedCodeSpans`) — 링크 목적지가 백틱을 먹고, 블록인 정의는
+ * 인라인인 코드 스팬보다 먼저 서기 때문이다(`` [r`]: javascript:x` ``를 markdown-it은 정의로 읽는다 — `portfolio.spec.ts`의
+ * *"결정 93"* 묶음의 *"코드 스팬처럼 보이는 정의"*가 문다).
+ */
+const LINK_DESTINATION = /\][ \t]*[(:]/
+
+/**
+ * **통과하는 주소** — 여는 자리 뒤 스페이스·탭을 건너 **날글자** `http://`·`https://`가 곧바로 온다 (open-decisions.md 93).
+ *
+ * 스킴 글자를 날글자로만 받으므로 엔티티(`&#104;`)·백슬래시·공백이 끼면 통과하지 못한다 — 어느 뷰어가 엔티티를 풀든
+ * 말든 주소의 머리는 우리가 본 그대로 `http(s)://`다(사람 확인 — 머리의 글자에 `&`·`\`가 없으니 풀 것이 없다). 대소문자만 가리지 않는다(스킴은 대소문자를 안 가린다). `i` 깃발 대신
+ * 글자 묶음을 쓴다 — 깃발은 `u`와 함께면 `ſ`(U+017F)를 `s`로 접는다(사람 확인, node에서 `/^https:/iu`가 `httpſ:`에 맞았다).
+ */
+const WEB_ADDRESS = /^[ \t]*[Hh][Tt][Tt][Pp][Ss]?:\/\//
+
+/**
+ * **주소가 http·https가 아닌 링크는 글자로 싣는다** (open-decisions.md 93, mlpx-spec.md §8.6).
+ *
+ * 주소를 여는 `(`·`:` 앞에 백슬래시를 넣는다 — `[x]\(javascript:…)`·`[r]\: javascript:…`. 그 자리에서 링크 문법이 안 서고
+ * 뷰어에는 원문 글자(`[x](javascript:…)`)가 보인다. 여는 `[`를 찾아 바꾸는 것보다 좁다 — 괄호 짝을 셀 필요가 없다.
+ * `javascript:`·`data:`·그 밖의 스킴과 상대 주소가 모두 여기 걸린다. 사진 링크는 이 판정을 안 거치고 앱이 지은 모양의
+ * 경로만 실린다(`isAppAttachmentPath`).
+ *
+ * `text`가 코드 스팬으로 잘린 조각이어도 판정이 같다 — 이 모양이 있는 문단은 스팬을 믿지 않아 줄이 통째로 온다.
+ * `portfolio.spec.ts`의 *"결정 93"* 묶음(가리는 모양 × 사용자 글의 자리, 링크를 거르지 않는 렌더러의 보안 퍼저)이 문다.
+ */
+function escapeLinks(text: string): string {
+  return text.replace(new RegExp(LINK_DESTINATION.source, 'g'), (opener: string, at: number) =>
+    WEB_ADDRESS.test(text.slice(at + opener.length))
+      ? opener
+      : `${opener.slice(0, -1)}\\${opener.slice(-1)}`,
+  )
+}
+
+/**
+ * **코드 밖의 `<`는 `&lt;`로 싣고, http·https가 아닌 링크는 글자로 싣는다** (open-decisions.md 89·93, mlpx-spec.md §8.6).
  *
  * 학생이 쓴 HTML이 HTML을 거르지 않는 뷰어에서 태그로 서면 **교사 화면에서 학생의 코드가 돈다**(XSS). 줄머리의
  * `<`는 HTML 블록을 열어 뒤 문항까지 삼킨다. `&lt;`는 뷰어가 `<` 글자로 보이고 어느 자리에서도 태그를 못 연다.
+ * `javascript:` 주소의 링크도 누르면 돈다(`escapeLinks`).
  * 코드 안(울타리·코드 스팬)은 뷰어가 이미 글자로 보이고 거기서 바꾸면 `&lt;`가 그대로 보이므로 안 바꾼다.
  */
-function escapeLt(line: string, spans: readonly (readonly [from: number, to: number])[]): string {
+function escapeOutsideCode(
+  line: string,
+  spans: readonly (readonly [from: number, to: number])[],
+): string {
+  const escape = (text: string) => escapeLinks(text).replace(/</g, '&lt;')
   let out = ''
   let at = 0
   for (const [from, to] of spans) {
-    out += line.slice(at, from).replace(/</g, '&lt;') + line.slice(from, to)
+    out += escape(line.slice(at, from)) + line.slice(from, to)
     at = to
   }
-  return out + line.slice(at).replace(/</g, '&lt;')
+  return out + escape(line.slice(at))
 }
 
 /** 백틱 연속 하나. `escaped`는 앞의 백슬래시 개수가 홀수라 첫 백틱이 글자라는 뜻이다. */
@@ -565,7 +633,8 @@ function backtickRuns(lines: readonly string[], paragraph: readonly number[]): B
  *   뷰어는 `<img>`를 태그로 세운다). 모든 스팬이 한 줄 안에서 닫히면 문단을 어느 줄에서 갈라도 짝이 같다 — 스팬은
  *   제 줄 안의 첫 같은 길이 연속으로 닫히고, 문단 전체에서 못 닫은 연속은 어느 조각에서도 못 닫기 때문이다.
  *   그래서 못 닫은 연속은 글자로 두고 믿음을 거두지 않는다.
- * - **`](`** — 링크 목적지가 백틱을 먹어 짝이 밀린다(`` [a](`) <img> (`) ``).
+ * - **링크의 주소가 여는 자리(`LINK_DESTINATION` — `](`·`]:`)** — 링크 목적지가 백틱을 먹어 짝이 밀린다
+ *   (`` [a](`) <img> (`) ``). 참조 정의는 블록이라 스팬보다 먼저 선다(open-decisions.md 93).
  * - **`|`가 든 스팬** — 표 칸이 스팬을 가른다(GFM 표, markdown-it 기본값).
  * 들여쓴 코드 블록은 따로 가리지 않는다 — 거기서 스팬이 믿기면 `<`가 그대로(코드 블록이라 글자다), 안 믿기면
  * `&lt;`가 보인다. `portfolio.spec.ts`의 *"결정 89"* 묶음이 갈래마다 문다.
@@ -574,7 +643,7 @@ function trustedCodeSpans(
   lines: readonly string[],
   paragraph: readonly number[],
 ): Map<number, [number, number][]> {
-  if (paragraph.some((index) => lines[index]!.includes(']('))) return new Map()
+  if (paragraph.some((index) => LINK_DESTINATION.test(lines[index]!))) return new Map()
   const runs = backtickRuns(lines, paragraph)
   const spans = new Map<number, [number, number][]>()
   let i = 0
@@ -613,7 +682,7 @@ const NESTED_FENCE = /^[ \t>*+\-.)0-9]+(?:`{3,}|~{3,})/
 /**
  * 줄 규칙이 이 답의 울타리를 확신할 수 있는가. 못 하면 답을 통째 감싼다 (`wrapInFence`).
  *
- * **HTML 블록은 여기서 안 본다** — 코드 밖의 `<`가 글자가 되어(`escapeLt`) 답 안에서 HTML 블록이 안 열리고,
+ * **HTML 블록은 여기서 안 본다** — 코드 밖의 `<`가 글자가 되어(`escapeOutsideCode`) 답 안에서 HTML 블록이 안 열리고,
  * 뷰어는 그 줄 뒤의 ` ``` `를 울타리로 읽는다. 줄 규칙이 세는 것과 같다 (open-decisions.md 89).
  */
 function fenceUncertain(lines: readonly string[]): boolean {
@@ -636,7 +705,7 @@ function wrapInFence(lines: readonly string[]): string {
   return [fence, ...lines, fence].join('\n')
 }
 
-/** 울타리 밖의 한 줄. 문항 구조를 깨는 두 모양을 막는다 (위 두 정규식). `<`는 `escapeLt`가 따로 본다. */
+/** 울타리 밖의 한 줄. 문항 구조를 깨는 두 모양을 막는다 (위 두 정규식). `<`와 링크는 `escapeOutsideCode`가 따로 본다. */
 function escapeLine(line: string): string {
   return line
     .replace(LINE_LEADING_HASH, '$1\\$2')
@@ -680,8 +749,8 @@ function codeSpansOf(
  * 줄 끝 맞춤뿐이다. `portfolio.spec.ts`의 표가 답 바로 뒤에 닫는 말이 붙은 모양을 통째로
  * 견준다.
  *
- * **HTML은 태그로 안 서게 한다** — 코드 밖의 `<`를 `&lt;`로 싣는다(`escapeLt`, open-decisions.md 89).
- * HTML 블록이 안 열리므로 이 규칙은 울타리 하나만 센다.
+ * **HTML은 태그로 안 서게 한다** — 코드 밖의 `<`를 `&lt;`로 싣는다(`escapeOutsideCode`, open-decisions.md 89).
+ * 주소가 http·https가 아닌 링크도 거기서 글자로 싣는다(open-decisions.md 93). HTML 블록이 안 열리므로 이 규칙은 울타리 하나만 센다.
  *
  * **울타리 안에서는 이스케이프하지 않는다.** 거기서는 `#`이 제목을 못 만들고,
  * 학생이 쓴 파이썬 주석이 `\#`으로 보이면 그건 읽기 나쁘게 만든 것이다. `<`도 같다 —
@@ -734,7 +803,7 @@ function escapeAnswer(answer: string): string {
   // 여는 울타리 줄은 문단이 아니다 — 언어 자리의 `<`도 스팬 없이 바꾼다.
   const spans = codeSpansOf(answerLines, kinds)
   const lines = answerLines.map((line, index) =>
-    kinds[index] === 'code' ? line : escapeLine(escapeLt(line, spans.get(index) ?? [])),
+    kinds[index] === 'code' ? line : escapeLine(escapeOutsideCode(line, spans.get(index) ?? [])),
   )
   if (fence !== undefined) lines.push(`${fenceIndent}${fence}`)
   return lines.join('\n')
@@ -751,13 +820,13 @@ function oneLine(value: string): string {
 }
 
 /**
- * **한 줄짜리 사용자 글(문서 제목·문항 제목·머리글)도 답과 같은 규칙으로 싣는다** (open-decisions.md 89) — 코드
- * 스팬 밖의 `<`는 `&lt;`다. 판정은 답과 한 벌이다(`trustedCodeSpans`·`escapeLt`). **뷰어가 한 줄로 읽는 것을
+ * **한 줄짜리 사용자 글(문서 제목·문항 제목·머리글)도 답과 같은 규칙으로 싣는다** (open-decisions.md 89·93) — 코드
+ * 스팬 밖의 `<`는 `&lt;`이고 http·https가 아닌 링크는 글자다. 판정은 답과 한 벌이다(`trustedCodeSpans`·`escapeOutsideCode`). **뷰어가 한 줄로 읽는 것을
  * 통째로 넘긴다** — 머리글의 라벨과 값을 따로 넘기면 한쪽의 남는 백틱이 다른 쪽과 짝지어 스팬이 밀린다.
- * `portfolio.spec.ts`의 *"결정 89"* 묶음의 *"답 밖의 사용자 글"*이 문다.
+ * `portfolio.spec.ts`의 *"결정 89"* 묶음의 *"답 밖의 사용자 글"*과 *"결정 93"* 묶음이 문다.
  */
 function escapeInline(text: string): string {
-  return escapeLt(text, trustedCodeSpans([text], [0]).get(0) ?? [])
+  return escapeOutsideCode(text, trustedCodeSpans([text], [0]).get(0) ?? [])
 }
 
 /**
@@ -787,7 +856,8 @@ export function renderPortfolioMarkdown(text: PortfolioMarkdownText, portfolio: 
     if (answer !== '') lines.push(answer, '')
     // **사진은 상대 경로로 적는다** (§8.6.1). `portfolio/document.md`에서 본 자리이고,
     // 압축을 푼 뒤에도 그대로 맞는다 - 안 적으면 파일만 받은 사람에게는 사진이 없다.
-    for (const path of attachmentsOf(portfolio, section.id)) {
+    // **앱이 지은 모양의 경로만 싣는다** — 조작한 파일의 경로는 링크 문법을 깨고 태그를 세운다(open-decisions.md 93).
+    for (const path of attachmentsOf(portfolio, section.id).filter(isAppAttachmentPath)) {
       lines.push(`![](${path.slice(DIR.portfolio.length)})`, '')
     }
   }
