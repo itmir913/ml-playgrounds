@@ -662,7 +662,7 @@ async function startTraining(): Promise<void> {
   // "멈췄습니다"라고 말한다.
   stopped = false
   // **누른 순간부터다.** `await`보다 먼저 잡아야 창이 안 생긴다 (R21 B-1).
-  const job = startWork()
+  const job = startWork({ warnsOnUnload: true })
   preparingJob.value = job
 
   try {

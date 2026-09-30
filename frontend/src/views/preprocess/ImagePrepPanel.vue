@@ -303,7 +303,7 @@ async function takeTest(items: readonly UploadItem[]): Promise<void> {
   // 막는다** — 읽는 것도 도는 일이 된 뒤로(R23 C-2) 이 함수는 언제나 바쁜 채로 불린다.
   // 부르는 둘은 전부 그 앞에서 걸러진다: `readTest`는 입구에서 거절하고,
   // `confirmTakeTest`는 대화상자가 닫힌 뒤라 그때는 도는 것이 없다.
-  const job = start()
+  const job = start({ warnsOnUnload: true })
   // **[취소]는 이제 이 일을 끊는다.** 읽은 일(`readTest`)은 이 함수가 끝나기를 기다릴 뿐이다.
   testJob.value = job
   /**

@@ -34,6 +34,8 @@ import { sourceFiles, windowedHits, withoutComments } from './fixtures/source'
 
 import { formatBytes } from '../src/composables/useFormat'
 import {
+  AUTOSAVE_DELAY_MS,
+  AUTOSAVE_MAX_WAIT_MS,
   BYTES_PER_KB,
   BYTES_PER_MB,
   MAX_IMAGE_COUNT,
@@ -397,6 +399,16 @@ describe('사진 행 상한은 신경망만 남았다', () => {
     expect(MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT).toBe(MAX_IMAGE_COUNT)
     expect(MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT).toBe(MAX_IMAGE_COUNT)
     expect(MLJS_IMAGE_KMEANS_ROW_LIMIT).toBe(MAX_IMAGE_COUNT)
+  })
+})
+
+/**
+ * **최대 대기는 디바운스보다 길다** (open-decisions.md 81). 짧거나 같으면 최대 대기가 먼저 터져
+ * 디바운스가 하던 일(슬라이더를 끄는 동안 쓰기를 모으기)이 사라진다.
+ */
+describe('자동 저장의 두 시간', () => {
+  it('최대 대기가 디바운스보다 길다', () => {
+    expect(AUTOSAVE_MAX_WAIT_MS).toBeGreaterThan(AUTOSAVE_DELAY_MS)
   })
 })
 

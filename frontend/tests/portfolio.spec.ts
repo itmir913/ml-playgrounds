@@ -1128,3 +1128,182 @@ describe('문항에 붙은 사진', () => {
     expect(photosOf(portfolio([{ id: 'why', title: '왜' }]), 'why', urls)).toEqual([])
   })
 })
+
+/**
+ * **줄 규칙이 울타리를 확신하지 못하는 답은 더 긴 울타리로 통째 감싼다** (open-decisions.md 82,
+ * mlpx-spec.md §8.6).
+ *
+ * 닫는 줄을 더하는 규칙은 울타리가 **목록 안**에 있거나 **HTML 블록(CommonMark 유형 6·7) 안**에
+ * 있을 때 판정을 틀린다 — 뷰어는 이미 닫았는데 우리가 더한 줄이 새 울타리를 열어 뒤 문항을 전부
+ * 삼켰다(2026-09-29 야간 감사 N3 #2). 감싼 울타리는 답 안의 가장 긴 백틱 연속보다 하나 길어서
+ * 답 안의 어느 줄로도 안 닫힌다(CommonMark: 닫는 줄은 여는 줄 이상 길어야 한다).
+ *
+ * **CommonMark 파서(markdown-it, `html: true`)로 제목을 센다** — 글자를 찾으면 삼켜진 문항의
+ * 글자도 코드 블록 안에 그대로 있어서 못 본다.
+ */
+describe('결정 82: 확신 못 하는 울타리는 더 긴 울타리로 감싼다', () => {
+  const headingsOf = (markdown: string) =>
+    [...new MarkdownIt({ html: true }).render(markdown).matchAll(/<h([12])>([^<]*)</g)].map(
+      ([, level, title]) => `h${level}:${title}`,
+    )
+
+  const THREE = [
+    { id: 'a', title: '동기' },
+    { id: 'b', title: '방법' },
+    { id: 'c', title: '느낀 점' },
+  ]
+  const EXPECTED = ['h1:붓꽃 품종 분류', 'h2:동기', 'h2:방법', 'h2:느낀 점']
+
+  const render = (a: string, b = '둘째 답') =>
+    renderPortfolioMarkdown(TEXT, portfolio(THREE, { a, b, c: '셋째 답' }))
+
+  /** 야간 감사가 확인한 현실형 둘. 둘 다 고치기 전에는 `느낀 점`이 삼켜졌다. */
+  it.each([
+    [
+      '목록 안의 울타리를 안 닫고 덜 들여쓴 글이 온다',
+      '1. 데이터 불러오기\n   ```python\n   df = pd.read_csv("a.csv")\n위 코드로 불러왔다.',
+    ],
+    ['줄바꿈 태그 뒤의 울타리', '<br>\n```python\n\nprint(1)'],
+  ])('%s', (_, answer) => {
+    expect(headingsOf(render('첫 답', answer))).toEqual(EXPECTED)
+    expect(headingsOf(render(answer))).toEqual(EXPECTED)
+  })
+
+  /**
+   * **까다로운 줄을 셋씩 모든 순서로 잇는다.** 야간 감사의 퍼저가 줄인 반례들이 이 조각들로
+   * 이루어졌다(목록 표지·들여쓴 울타리·물결·HTML·setext·주석·닫는 말). 조각이 늘면 조합은 세제곱으로
+   * 늘어나므로 조각은 반례에 나온 모양만 둔다.
+   */
+  it('까다로운 줄의 조합이 뒤 문항을 안 삼킨다', () => {
+    const pieces = [
+      '- a',
+      '  - b',
+      '- ```',
+      '  ```',
+      '   ~~~~',
+      '```',
+      '````',
+      '~~~',
+      '<div>',
+      '<br>',
+      '</a>',
+      '<!--',
+      '-->',
+      '<?php',
+      '?>',
+      '<pre>',
+      '> ```',
+      '---',
+      '===',
+      '# y',
+      '`',
+      '',
+    ]
+    const broken: string[] = []
+    for (const one of pieces) {
+      for (const two of pieces) {
+        for (const three of pieces) {
+          const answer = [one, two, three].join('\n')
+          if (answer.trim() === '') continue
+          for (const markdown of [render(answer), render('첫 답', answer)]) {
+            const found = headingsOf(markdown)
+            if (found.join('|') !== EXPECTED.join('|')) broken.push(JSON.stringify(answer))
+          }
+        }
+      }
+    }
+    expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
+  })
+
+  it('감싼 울타리는 답 안의 가장 긴 백틱 연속보다 하나 길다', () => {
+    const answer = '- 코드:\n  ````js\n  let a = `x`\n  ````'
+    const markdown = render(answer)
+    expect(markdown).toContain(`## 동기\n\n\`\`\`\`\`\n${answer}\n\`\`\`\`\`\n\n## 방법`)
+  })
+
+  /**
+   * **감싸는 조건의 갈래마다 한 줄씩.** 조합 검사는 문항이 살아 있는지만 보므로, 감싸지 않아도 우연히 살아남는
+   * 모양에서는 조건의 가지가 빠져도 안 운다. 여기서는 감쌌는지를 직접 본다.
+   */
+  it.each([
+    ['인용 안의 울타리', '> ```\n인용 안의 코드'],
+    ['탭 뒤의 울타리', '설명\n\t```\n탭 뒤'],
+    ['번호 목록 표지 뒤의 울타리', '1.```python\nprint(1)'],
+    ['0열 물결 울타리와 HTML', '<div>\n~~~\n\n# 제목 아님'],
+    // 답은 앞뒤를 다듬어 싣는다 — 들여쓴 태그가 첫 줄이면 들여쓰기가 사라지므로 둘째 줄에 둔다.
+    ['들여쓴 태그와 0열 울타리', '설명\n  <div>\n```\n\n# 제목 아님'],
+  ])('%s는 감싼다', (_, answer) => {
+    const markdown = render(answer)
+    expect(markdown).toMatch(/## 동기\n\n`{3,}\n/)
+    expect(markdown).toContain(`\n${answer}\n`)
+    expect(headingsOf(markdown)).toEqual(EXPECTED)
+  })
+
+  it('백틱이 없으면 지금 길이다', () => {
+    const answer = '- 표:\n   ~~~\n   값'
+    expect(render(answer)).toContain(`## 동기\n\n\`\`\`\n${answer}\n\`\`\`\n\n## 방법`)
+  })
+
+  it('감싼 답은 글자를 바꾸지 않는다 — 안의 #도 이스케이프하지 않는다', () => {
+    const answer = '<div>\n```\n\n# 제목 아님'
+    const markdown = render(answer)
+    expect(markdown).toContain(`\`\`\`\`\n${answer}\n\`\`\`\``)
+    expect(markdown).not.toContain('\\#')
+  })
+
+  /** **회귀 — 줄 규칙이 확신하는 답은 바이트가 그대로다.** 목록·강조가 뷰어에서 살아난다. */
+  it('0열의 울타리만 있는 답과 목록만 있는 답은 감싸지 않는다', () => {
+    const code = '설명\n\n```python\n# 주석\nprint(1)\n```\n\n- 결과'
+    expect(render(code)).toContain(`## 동기\n\n${code}\n\n## 방법`)
+    const unclosed = '```python\nprint(1)'
+    expect(render(unclosed)).toContain(`## 동기\n\n${unclosed}\n\`\`\`\n\n## 방법`)
+    const list = '- 고양이\n- 개'
+    expect(render(list)).toContain(`## 동기\n\n${list}\n\n## 방법`)
+    expect(new MarkdownIt().render(render(list))).toContain('<li>고양이</li>')
+  })
+
+  /**
+   * **읽는 쪽은 `document.md`를 해석하지 않는다** — 원본은 `document.json`이고 `.md`는 해시로
+   * 대조만 한다(mlpx-spec.md §8.6). 그래서 옛 방식으로 닫은 파일과 새로 감싼 파일이 둘 다 열리고
+   * 포맷 버전은 그대로다.
+   */
+  it('옛 방식의 document.md도 새 방식의 것도 그대로 열린다', async () => {
+    const blank = newProjectDocument(
+      { name: '붓꽃 품종 분류', locale: 'ko', dataType: 'tabular' },
+      {
+        projectId: '550e8400-e29b-41d4-a716-446655440000',
+        createdAt: '2026-08-05T09:00:00Z',
+        randomState: 4242,
+      },
+    )
+    const answer = '- a\n  ```\n위'
+    const document = {
+      ...blank,
+      portfolio: withAnswer(
+        withImportedSections(blank.portfolio, [{ title: '동기' }]),
+        '동기',
+        answer,
+      ),
+    }
+    const file: ProjectFile = {
+      document,
+      models: new Map(),
+      images: new Map(),
+      attachments: new Map(),
+      embeddings: new Map(),
+    }
+    const oldMarkdown = `# 붓꽃 품종 분류\n\n## 동기\n\n${answer}\n  \`\`\`\n`
+    const newMarkdown = renderPortfolioMarkdown(TEXT, document.portfolio)
+    expect(newMarkdown).not.toBe(oldMarkdown)
+
+    for (const markdown of [oldMarkdown, newMarkdown]) {
+      const { bytes } = await writeProjectBytes(file, markdown)
+      const { project: opened, integrity } = await readProject(bytes)
+      expect(integrity.status).toBe('UNCHANGED')
+      expect(opened.document.portfolio.answers).toEqual(document.portfolio.answers)
+      expect(opened.document.manifest.formatVersion).toBe(blank.manifest.formatVersion)
+      const inFile = new TextDecoder().decode(unzipSync(bytes)[`${DIR.portfolio}document.md`]!)
+      expect(inFile).toBe(markdown)
+    }
+  })
+})

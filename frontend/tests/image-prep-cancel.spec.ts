@@ -12,6 +12,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { workHoldsPage } from '../src/composables/useWork'
 import type { CanonicalizeWorker } from '../src/data/image/client'
 import { hashBytes } from '../src/hash'
 import { i18n, setLocale } from '../src/i18n'
@@ -187,6 +188,25 @@ async function panelWithDropzone(withExperiment = false) {
 }
 
 const PHOTOS = () => [photo('개', 'a.jpg'), photo('고양이', 'b.jpg')]
+
+/**
+ * **테스트 사진을 굽는 동안은 탭 닫기에 경고를 건다** (open-decisions.md 83). 판정은
+ * `unloadWarningReasons` 하나이고(`unload-work.spec.ts`), 여기서는 이 화면의 굽기가 그 셈에 드는지만 본다.
+ */
+describe('결정 83: 테스트 사진을 굽는 동안', () => {
+  it('탭 닫기 경고를 걸고, 끝나면 놓는다', async () => {
+    const { drop } = await panelWithDropzone()
+    expect(workHoldsPage.value).toBe(false)
+
+    await drop(PHOTOS())
+    expect(bakers.workers).toHaveLength(1)
+    expect(workHoldsPage.value, 'baking test photos').toBe(true)
+
+    deliver(bakers.workers[0], ['개/a.jpg', '고양이/b.jpg'])
+    await settle()
+    expect(workHoldsPage.value, 'baked').toBe(false)
+  })
+})
 
 describe('테스트 사진을 굽는 중에 [취소]를 누른다', () => {
   it('굽기를 끊고 아무것도 안 앉히며, 다시 놓으면 정상으로 굽는다', async () => {

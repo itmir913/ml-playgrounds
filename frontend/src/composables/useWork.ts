@@ -67,7 +67,26 @@ export interface StartOptions {
    * 막지 않는 일은 잠금을 만들지 않는다.
    */
   watch?: WatchWriteId
+  /**
+   * 도는 동안 탭을 닫거나 새로고침하면 브라우저가 묻는가 (open-decisions.md 83). **학습과 굽기만
+   * 건다** — 몇 분을 돌고 끝나야 앉는 일이다. 파일 읽기처럼 다시 하면 되는 일은 안 건다(늘 뜨는
+   * 경고는 안 읽힌다, 결정 74). 셈은 아래 `workHoldsPage` 하나다.
+   */
+  warnsOnUnload?: boolean
 }
+
+/**
+ * 경고를 건 일들. **화면마다가 아니라 앱에 하나다** — 탭을 닫으면 모든 화면의 일이 함께 사라지고,
+ * 한 화면의 일이 끝나도 다른 화면의 일이 남으면 물어야 한다. 셈이라 `done()`이 놓은 일만 빠진다 —
+ * `unload-work.spec.ts`의 *"경고를 거는 일만 세고, 놓으면 풀린다"*가 문다.
+ */
+const unloadHolders = ref<symbol[]>([])
+
+/**
+ * **경고를 건 일이 하나라도 도는가.** 탭 닫기의 판정(`useUnloadWarning.ts`의
+ * `unloadWarningReasons`)이 읽는 값이다.
+ */
+export const workHoldsPage: ComputedRef<boolean> = computed(() => unloadHolders.value.length > 0)
 
 /** 도는 일 하나. `start()`가 준다. */
 export interface Job {
@@ -189,6 +208,7 @@ export function useWork(): Work {
     const id = Symbol('work')
     live.value = [...live.value, id]
     if (blocks) blocking.value = [...blocking.value, id]
+    if (options?.warnsOnUnload === true) unloadHolders.value = [...unloadHolders.value, id]
     /** 이 일 하나가 `cancel()`로 끊겼는가. 떠나기(`living`)와 다른 표지다. */
     let halted = false
 
@@ -220,6 +240,7 @@ export function useWork(): Work {
         forget(id)
         live.value = live.value.filter((one) => one !== id)
         blocking.value = blocking.value.filter((one) => one !== id)
+        unloadHolders.value = unloadHolders.value.filter((one) => one !== id)
       },
       cancel(): void {
         halted = true

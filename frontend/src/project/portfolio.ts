@@ -554,6 +554,48 @@ function htmlBlockOpenedBy(line: string): OpenHtmlBlock | undefined {
   return undefined
 }
 
+/**
+ * 울타리 모양(백틱·물결 셋 이상)이 **줄머리가 아닌 곳**에 있는 줄 — 앞에 공백·탭·`>`·목록 표지가 있다.
+ *
+ * 아래 줄 규칙은 0열에서 연 울타리만 정확히 센다. 목록·인용 안의 울타리는 그 컨테이너가 끝날 때
+ * 뷰어가 **말없이 닫는데**, 줄 규칙은 그것을 몰라 답 끝에 더한 닫는 줄이 새 울타리를 연다
+ * (open-decisions.md 82). 넓게 잡는다 — 잘못 걸리면 답이 코드 블록으로 보일 뿐 문항은 안 잃는다.
+ */
+const NESTED_FENCE = /^[ \t>*+\-.)0-9]+(?:`{3,}|~{3,})/
+
+/** 0열의 울타리 줄. 줄 규칙이 세는 모양이다. */
+const TOP_FENCE = /^(?:`{3,}|~{3,})/
+
+/**
+ * 줄머리(공백 셋까지)의 `<`. HTML 블록 유형 6·7(`<div>`·`<br>` …)은 빈 줄까지 이어지고 그 안의
+ * ` ``` `는 HTML 글자인데, 줄 규칙은 그것을 여는 울타리로 센다 (open-decisions.md 82).
+ */
+const LINE_LEADING_TAG = /^ {0,3}</
+
+/** 줄 규칙이 이 답의 울타리를 확신할 수 있는가. 못 하면 답을 통째 감싼다 (`wrapInFence`). */
+function fenceUncertain(lines: readonly string[]): boolean {
+  if (lines.some((line) => NESTED_FENCE.test(line))) return true
+  return (
+    lines.some((line) => TOP_FENCE.test(line)) && lines.some((line) => LINE_LEADING_TAG.test(line))
+  )
+}
+
+/**
+ * **답을 통째 코드 블록에 싣는다** (open-decisions.md 82, mlpx-spec.md §8.6).
+ *
+ * 울타리는 백틱이고 **답 안의 가장 긴 백틱 연속보다 하나 길다**(최소 셋). CommonMark에서 닫는 줄은
+ * 여는 줄 이상 길어야 하고 물결은 백틱 울타리를 못 닫으므로, 답 안의 어느 줄도 이것을 닫지 못한다.
+ * 코드 블록 안이라 글자는 하나도 이스케이프하지 않는다. `portfolio.spec.ts`의 *"결정 82"* 묶음이 문다.
+ */
+function wrapInFence(lines: readonly string[]): string {
+  let longest = 0
+  for (const line of lines) {
+    for (const run of line.match(/`+/g) ?? []) longest = Math.max(longest, run.length)
+  }
+  const fence = '`'.repeat(Math.max(3, longest + 1))
+  return [fence, ...lines, fence].join('\n')
+}
+
 /** 울타리 밖의 한 줄. 문항 구조를 깨는 두 모양만 막는다 (위 두 정규식). */
 function escapeLine(line: string): string {
   return line
@@ -584,6 +626,9 @@ function escapeLine(line: string): string {
  * 찾으면 블록이 닫힌 뒤에도 울타리가 열린 것으로 셈해 뒤의 `##`을 이스케이프하지 않고,
  * 그것이 진짜 문항이 된다(같은 표의 *"주석 안의 울타리"*가 문다). `#` 이스케이프는 블록
  * 안에서도 전처럼 한다 — 블록의 끝을 잘못 셌을 때 가짜 문항이 생기는 쪽보다 낫다.
+ *
+ * **이 줄 규칙이 확신하지 못하는 답은 여기까지 오지 않는다** — 목록·인용 안의 울타리나 HTML 블록과
+ * 섞인 울타리는 `wrapInFence`가 통째 감싼다 (open-decisions.md 82).
  */
 function escapeAnswer(answer: string): string {
   const lines: string[] = []
@@ -599,7 +644,10 @@ function escapeAnswer(answer: string): string {
   // **줄 끝을 `\n` 하나로 맞춘다.** JS 정규식의 `.`은 `\r`에 안 맞아서 CRLF로 적힌 답의
   // 여는 울타리(` ```python\r `)를 못 알아보고 안 닫았다 — 뷰어는 CRLF를 줄 끝으로 읽는다.
   // `portfolio.spec.ts`의 표에서 *"CRLF로 적힌 울타리"*가 문다.
-  for (const line of answer.replace(/\r\n?/g, '\n').split('\n')) {
+  const answerLines = answer.replace(/\r\n?/g, '\n').split('\n')
+  if (fenceUncertain(answerLines)) return wrapInFence(answerLines)
+
+  for (const line of answerLines) {
     if (block !== undefined) {
       lines.push(escapeLine(line))
       if (block.close.test(line)) block = undefined

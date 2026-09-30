@@ -21,6 +21,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { workHoldsPage } from '../src/composables/useWork'
 import { i18n, setLocale } from '../src/i18n'
 import { readImages } from '../src/project/images'
 import { closeStorage, loadProject } from '../src/project/storage'
@@ -78,6 +79,35 @@ afterEach(async () => {
   Object.defineProperty(navigator, 'storage', { configurable: true, value: undefined })
   closeStorage()
   await resetDatabase()
+})
+
+/**
+ * **예측의 임베딩은 탭 닫기에 경고를 걸지 않는다** (open-decisions.md 83 — 코드 소유자가 고른 것은
+ * 학습과 굽기다). 예측 입력을 위한 것이고 다시 누르면 된다. 판정은 `unloadWarningReasons`
+ * 하나이고(`unload-work.spec.ts`), 여기서는 예측의 임베딩이 그 셈에 안 드는지만 본다.
+ */
+describe('결정 83: 임베딩을 뽑는 동안', () => {
+  it('탭 닫기 경고를 걸지 않는다', async () => {
+    const project = useProjectStore()
+    await project.save(withUsableModel(imagePredictProject(['a'])))
+    const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    expect(workHoldsPage.value).toBe(false)
+
+    const panel = wrapper.vm as unknown as PanelInternals
+    const running = panel.run()
+    await tick()
+    await flushPromises()
+    expect(workerState.embed).toHaveLength(1)
+    expect(panel.predicting, 'the embedding must be in flight').toBe(true)
+    expect(workHoldsPage.value, 'embedding').toBe(false)
+
+    workerState.embed[0]?.deliver()
+    await running
+    await flushPromises()
+    expect(workHoldsPage.value, 'embedded').toBe(false)
+    wrapper.unmount()
+  })
 })
 
 describe('예측이 도는 동안 사진을 놓으면', () => {

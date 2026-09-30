@@ -19,7 +19,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
-import { AUTOSAVE_DELAY_MS } from '../src/limits'
+import { AUTOSAVE_DELAY_MS, AUTOSAVE_MAX_WAIT_MS } from '../src/limits'
 import { exportStateOf } from '../src/project/export-state'
 import { readProject } from '../src/project/format'
 import { closeStorage, loadProject, readExportedAt } from '../src/project/storage'
@@ -151,6 +151,91 @@ describe('자동 저장', () => {
 
     await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS)
     expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe('둘')
+  })
+
+  /**
+   * **쉬지 않고 쳐도 최대 대기가 지나면 한 번 쓴다** (open-decisions.md 81).
+   *
+   * 매 입력이 타이머를 다시 걸기만 하던 때는 디바운스보다 짧은 간격으로 계속 치는 동안 한 번도 안
+   * 썼다 — 그 사이 새로고침하면 마지막 쉼 뒤의 입력이 전부 사라졌다(2026-09-29 야간 감사 N3 #3).
+   */
+  it('쉬지 않고 바꿔도 최대 대기가 지나면 쓴다', async () => {
+    const project = useProjectStore()
+    const step = AUTOSAVE_DELAY_MS / 2
+    let typed = 0
+    // 디바운스가 한 번도 안 터지는 간격으로, 최대 대기 바로 앞까지 친다.
+    for (let elapsed = 0; elapsed + step < AUTOSAVE_MAX_WAIT_MS; elapsed += step) {
+      project.update(renamed(`입력 ${String(typed)}`))
+      typed += 1
+      await vi.advanceTimersByTimeAsync(step)
+    }
+    expect(await loadProject(manifest.projectId), 'nothing is due before the max wait').toBeNull()
+
+    project.update(renamed(`입력 ${String(typed)}`))
+    await vi.advanceTimersByTimeAsync(step)
+
+    // 최대 대기가 지난 순간 **열려 있던 값**이 쓰인다.
+    expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe(
+      `입력 ${String(typed)}`,
+    )
+    expect(gate.calls).toBe(1)
+  })
+
+  it('최대 대기로 쓴 뒤에도 손을 떼면 마지막 값이 디바운스로 앉는다', async () => {
+    const project = useProjectStore()
+    const step = AUTOSAVE_DELAY_MS / 2
+    for (let elapsed = 0; elapsed <= AUTOSAVE_MAX_WAIT_MS; elapsed += step) {
+      project.update(renamed(`입력 ${String(elapsed)}`))
+      await vi.advanceTimersByTimeAsync(step)
+    }
+    expect(gate.calls, 'the max wait fired once').toBe(1)
+
+    project.update(renamed('마지막'))
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS)
+    // 이 쓰기는 최대 대기가 건 쓰기 뒤에 줄을 선다(`write`). 앞의 것이 끝나야 트랜잭션을 세우므로
+    // 한 번 읽어서는 앞의 값을 볼 수 있다 — 앉을 때까지 기다린다. 남은 타이머는 없다.
+    await vi.waitFor(async () => {
+      expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe('마지막')
+      expect(project.dirty).toBe(false)
+    })
+    expect(gate.calls).toBe(2)
+  })
+
+  /**
+   * **쉬어 가며 치는 보통 입력에서는 쓰기가 늘지 않는다.** 최대 대기의 타이머가 디바운스로 쓴 뒤에도
+   * 남아 있으면, 다음 입력의 최대 대기가 그 입력이 아니라 옛 시각부터 재진다.
+   */
+  it('디바운스로 쓰면 최대 대기도 처음부터 다시 잰다', async () => {
+    const project = useProjectStore()
+    project.update(renamed('하나'))
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS)
+    expect(gate.calls).toBe(1)
+
+    // 첫 입력의 최대 대기가 다 되기 직전에 다시 치기 시작한다. 옛 타이머가 남았으면 곧 터진다.
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_MAX_WAIT_MS - 2 * AUTOSAVE_DELAY_MS)
+    const step = AUTOSAVE_DELAY_MS / 2
+    for (let elapsed = 0; elapsed + step < AUTOSAVE_MAX_WAIT_MS; elapsed += step) {
+      project.update(renamed(`둘 ${String(elapsed)}`))
+      await vi.advanceTimersByTimeAsync(step)
+    }
+    expect(gate.calls, 'no early write from a stale max-wait timer').toBe(1)
+  })
+
+  /**
+   * **닫거나 flush하면 최대 대기도 거둔다** (open-decisions.md 81). 남은 최대 대기는 닫힌 스토어에서는
+   * 헛돌지만, 다음 입력의 최대 대기를 옛 시각부터 재게 만든다. 남은 타이머를 직접 센다.
+   */
+  it('닫거나 flush하면 최대 대기도 거둔다', async () => {
+    const project = useProjectStore()
+    project.update(renamed('하나'))
+    expect(vi.getTimerCount(), 'debounce and max wait are armed').toBe(2)
+    await project.flush()
+    expect(vi.getTimerCount(), 'after flush').toBe(0)
+
+    project.update(renamed('둘'))
+    expect(vi.getTimerCount()).toBe(2)
+    project.close()
+    expect(vi.getTimerCount(), 'after close').toBe(0)
   })
 
   it('flush는 기다리지 않고 지금 쓴다', async () => {

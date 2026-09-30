@@ -10,7 +10,7 @@ import { computed, customRef, shallowRef, watch, type Ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { ClientError } from '@/errors'
-import { AUTOSAVE_DELAY_MS } from '@/limits'
+import { AUTOSAVE_DELAY_MS, AUTOSAVE_MAX_WAIT_MS } from '@/limits'
 import { appWriteSite, isWatchWrite, type WatchWriteId } from '@/locks'
 import { downloadBlob } from '@/project/download'
 import { acquireTabLock, releaseTabLock } from '@/project/tab-lock'
@@ -217,6 +217,8 @@ export const useProjectStore = defineStore('project', () => {
 
   /** 미뤄 둔 자동 저장. 새 변경이 오면 앞의 것을 버리고 다시 잡는다. */
   let pending: ReturnType<typeof setTimeout> | null = null
+  /** 미뤄 둔 저장의 최대 대기. **새 변경이 와도 다시 잡지 않는다** — 첫 변경부터 잰다. */
+  let deadline: ReturnType<typeof setTimeout> | null = null
 
   /**
    * 저장소를 지우지 말아 달라고 이미 청했는가 (`askToKeep`).
@@ -515,11 +517,22 @@ export const useProjectStore = defineStore('project', () => {
     void requestPersistence()
   }
 
+  /** 미뤄 둔 저장과 그 최대 대기를 **함께** 거둔다. 하나만 남으면 다음 입력의 대기가 옛 시각부터 재진다. */
   function cancelPending(): void {
     if (pending !== null) {
       clearTimeout(pending)
       pending = null
     }
+    if (deadline !== null) {
+      clearTimeout(deadline)
+      deadline = null
+    }
+  }
+
+  /** 미뤄 둔 저장을 지금 한다. 디바운스와 최대 대기 중 먼저 온 쪽이 부른다. */
+  function writeDeferred(): void {
+    cancelPending()
+    void write().catch((error: unknown) => useToastStore().pushError(error))
   }
 
   /**
@@ -530,6 +543,10 @@ export const useProjectStore = defineStore('project', () => {
    *
    * **실패하면 알림을 띄운다.** 타이머가 부르는 것이라 기다리는 사람이 없고,
    * 조용히 실패하면 학생은 저장된 줄 안다.
+   *
+   * **쉬지 않고 바꿔도 최대 대기가 지나면 쓴다** (open-decisions.md 81). 디바운스 타이머는 입력마다
+   * 다시 걸지만 최대 대기 타이머는 미뤄 둔 첫 입력에서 한 번만 건다. `autosave.spec.ts`의
+   * *"쉬지 않고 바꿔도 최대 대기가 지나면 쓴다"*가 문다.
    */
   function update(next: ProjectFile | ProjectRevision, writeId?: WatchWriteId): void {
     refuseWatcherWrite(writeId)
@@ -539,11 +556,9 @@ export const useProjectStore = defineStore('project', () => {
       file.value = value
     })
     dirty.value = true
-    cancelPending()
-    pending = setTimeout(() => {
-      pending = null
-      void write().catch((error: unknown) => useToastStore().pushError(error))
-    }, AUTOSAVE_DELAY_MS)
+    if (pending !== null) clearTimeout(pending)
+    pending = setTimeout(writeDeferred, AUTOSAVE_DELAY_MS)
+    deadline ??= setTimeout(writeDeferred, AUTOSAVE_MAX_WAIT_MS)
   }
 
   /** 미뤄 둔 저장을 지금 한다. 화면을 떠날 때와 내보내기 전에 부른다. */

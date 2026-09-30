@@ -86,7 +86,8 @@ describe('준비 단계도 도는 것으로 친다', () => {
     expect(CODE).toContain('const workingLock = startingLock')
     expect(CODE).toMatch(/busy: starting,\s*lock: startingLock,\s*start: startWork/)
     const start = /async function startTraining[\s\S]*?\n\}\n/.exec(CODE)?.[0] ?? ''
-    expect(start).toContain('const job = startWork()')
+    // 탭 닫기 경고를 거는 것은 창과 무관하다 (open-decisions.md 83, `unload-work.spec.ts`).
+    expect(start).toContain('const job = startWork({ warnsOnUnload: true })')
     expect(start).toMatch(/finally \{[\s\S]*job\.done\(\)/)
   })
 

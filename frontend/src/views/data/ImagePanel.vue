@@ -329,7 +329,7 @@ async function bake(): Promise<void> {
   // **일을 먼저 잡는다.** 아래 자리 묻기가 `await`라, 이것이 뒤에 있으면 그 사이가
   // `busy`가 거짓인 창이 되어 굽기가 둘 뜨거나 [취소]가 굽기를 못 막는다
   // (2026-09-02 R22 재감사 B-1′). 거절 갈래마다 놓고 돌아간다.
-  const job = start()
+  const job = start({ warnsOnUnload: true })
   /**
    * **굽기를 시작한 프로젝트** (`stores/project.ts`의 `claim`). 프로젝트를 옮기면 `App.vue`의
    * 화면 키가 이 판을 새로 띄워 굽기를 끊고 판의 묶음도 버린다(키는 판을 가리지 않는다 —
