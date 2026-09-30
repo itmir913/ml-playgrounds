@@ -34,6 +34,10 @@ const STORAGE_KEY = 'ml-playgrounds:device-factor'
  * 그 학습으로 기기 배수를 고치는 순간 **다른 알고리즘의 예상까지 그만큼 밀린다.**
  * 기기가 느린 것과 표가 틀린 것을 한 값이 구분하지 못한다. 알고리즘마다 두면 둘 다
  * 그 자리에서 교정된다.
+ *
+ * **기준표가 바뀌어도 열쇠를 새로 매기지 않는다** (open-decisions.md 92). 클래스 배수가 들어오기 전에 배운
+ * 값에는 클래스 효과가 섞여 있어 한동안 두 번 곱해지지만, 그 알고리즘을 한 번 학습하면 새 입력으로 잰 값이
+ * 덮는다 — 평활이 없어서다(`factorFromRun`, `TrainView.vue`가 학습 뒤 그 자리를 통째로 쓴다. 사람 확인).
  */
 const MODEL_STORAGE_KEY = 'ml-playgrounds:model-factors'
 

@@ -246,7 +246,10 @@ async function readPicked(
   /**
    * **갈아끼우는 읽기가 겹치면 나중에 놓은 것이 선다** (`latestOnly`) — 큰 zip을 놓고 곧바로 사진
    * 몇 장을 놓으면 늦게 끝난 zip이 판을 덮었다. 붙여넣기는 표를 안 받는다 — 덧붙이는 것이라
-   * 앞의 것을 밀어내지 않고, 밀려나서도 안 된다(다시 찍어야 하는 사진이다).
+   * 앞의 갈아끼우기를 낡게 하지 않는다. **거꾸로는 지키지 않는다:** 갈아끼우는 읽기가 늦게 끝나면
+   * 그 사이 붙여넣은 것은 판에서 밀려난다 — 붙여넣기를 한 번 더 하면 된다(open-decisions.md 90).
+   * 무는 검사: `table-read-race.spec.ts`의 *"붙여넣기는 앞의 읽기를 밀어내지 않는다"*(앞쪽만 — 밀려나는 쪽은
+   * 무는 검사가 없고 감사가 재현했다, 사람 확인).
    */
   const current = append ? null : nextRead()
   const stale = (): boolean => current !== null && !current()

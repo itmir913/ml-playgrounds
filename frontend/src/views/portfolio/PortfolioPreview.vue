@@ -71,9 +71,11 @@ const { t } = useI18n()
               {{ t('portfolio.unanswered') }}
             </p>
             <!--
-              **공백을 접지 않는다** (mlpx-spec.md §8.3). `pre-line`은 줄머리 들여쓰기를 접어 코드의
+              **답 안의 공백을 접지 않는다** (mlpx-spec.md §8.3). `pre-line`은 줄머리 들여쓰기를 접어 코드의
               들여쓰기가 교사 화면에서 사라졌다. `inspect-portfolio-panel.spec.ts`의
-              *"학생이 쓴 공백을 접지 않는다"*가 문다.
+              *"답 안의 공백과 둘째 줄부터의 들여쓰기를 접지 않는다"*가 문다. 답을 `trim()`해 앉히므로 첫 줄
+              앞의 들여쓰기는 걷힌다 — 그대로 두기로 했다(open-decisions.md 91, `small-components.spec.ts`의
+              *"답마다 한 단락이고 앞뒤 공백은 걷는다"*는 `OrphanAnswers`에서 문다).
             -->
             <p
               v-else
