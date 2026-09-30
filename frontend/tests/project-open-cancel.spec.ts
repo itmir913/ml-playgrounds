@@ -51,6 +51,17 @@ vi.mock('../src/project/storage', async (importOriginal) => {
   }
 })
 
+/**
+ * **이 스펙이 지나는 화면은 가벼운 대역이다.** 라우터 가드는 목적지 화면을 먼저 받으므로
+ * (architecture.md §8.1) 진짜 화면이면 첫 `import`의 변환 비용이 *"여는 중에 다른 화면을 누르면"*의
+ * 시간에 들어가, 기계가 바쁠수록 그 검사만 늘어났다(N5 검토 §5). 여기서 재는 것은 이동과 열기의
+ * 순서이지 화면이 아니다 — 화면 청크의 성패는 `route-chunk-failure.spec.ts`가 잰다.
+ */
+const screen = vi.hoisted(() => ({ default: { render: () => null } }))
+vi.mock('../src/views/WelcomeView.vue', () => screen)
+vi.mock('../src/views/TrainView.vue', () => screen)
+vi.mock('../src/views/InspectView.vue', () => screen)
+
 /** 잠금 열쇠. `tab-lock.ts`가 만드는 이름과 같아야 쥐고 있는지 볼 수 있다. */
 const KEY = `ml-playgrounds:project:${manifest.projectId}`
 
@@ -105,6 +116,9 @@ const locks = new FakeLocks()
  * **넉넉하게 센다.** 전체 스위트에서는 워커 여섯이 한 기계를 나눠 쓰므로 한 틱이 1ms로
  * 안 끝난다 — 60틱으로는 관문에서만 시간 초과가 났다(2026-09-23). 조건이 이미 참이면
  * 한 번도 안 기다리니 통과하는 경로가 느려지지는 않는다.
+ *
+ * **참이 되면 안 되는 조건을 기다리지 마라.** 초록일 때마다 틱을 다 써서 고정 시간 대기가 된다 — 그런
+ * 단언은 기다린 일의 결과를 받은 뒤 바로 본다.
  */
 async function until(condition: () => boolean, ticks = 600): Promise<void> {
   for (let turn = 0; turn < ticks && !condition(); turn += 1) {
@@ -184,7 +198,9 @@ describe('자기 차례가 지난 열기', { timeout: 30_000 }, () => {
     }
 
     expect(await project.open(manifest.projectId)).toBe('cancelled')
-    await until(() => project.projectId !== null)
+    // **끝난 뒤 바로 본다.** 파일을 앉히는 것은 `open()` 하나이고 그 일은 방금 끝났다 — 되살렸다면 이미
+    // 앉아 있다. 전에는 참이 되면 안 되는 조건을 `until`로 기다려 초록일 때마다 600틱을 다 썼다
+    // (N5 검토 §5).
     expect(project.projectId).toBeNull()
   })
 
