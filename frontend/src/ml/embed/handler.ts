@@ -8,7 +8,7 @@
  * 테스트로 덮이고, 워커 파일은 이 함수를 부르는 몇 줄만 남는다.
  */
 
-import { failureDetail, isClientError } from '../../errors'
+import { failureDetail, isChunkLoadError, isClientError } from '../../errors'
 import { backboneFor } from '../backbones'
 import type { EmbedMessage, EmbedRequest } from './protocol'
 import { createTfjsRunner, type BackboneRunner } from './runner'
@@ -42,10 +42,13 @@ export async function handleEmbed(
     )
     emit({ type: 'done', vectors, dim: spec.embeddingDim })
   } catch (error) {
+    // **TF.js 청크를 못 받은 것은 `SCREEN_LOAD_FAILED`다** (open-decisions.md 86) — 다시 해도 옛 탭에는 그
+    // 청크가 없다. 무는 검사: `chunk-load-failure.spec.ts`의 *"준비가 청크를 못 받으면"*.
+    const code = isChunkLoadError(error) ? 'SCREEN_LOAD_FAILED' : 'BACKBONE_UNAVAILABLE'
     emit(
       isClientError(error)
         ? { type: 'failed', code: error.code, params: error.params }
-        : { type: 'failed', code: 'BACKBONE_UNAVAILABLE', params: failureDetail(error) },
+        : { type: 'failed', code, params: failureDetail(error) },
     )
   } finally {
     runner.dispose()

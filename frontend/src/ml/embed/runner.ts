@@ -10,7 +10,7 @@
  * 개발 PC에서 사진 100장이 WebGPU 1.96초 · WebGL 2.24초 · wasm 4.59초였다.
  */
 
-import { ClientError } from '../../errors'
+import { ClientError, isChunkLoadError } from '../../errors'
 import type { BackboneSpec } from '../backbones'
 import type { EngineState } from '../backend'
 import { packPixels } from './pixels'
@@ -52,43 +52,62 @@ type TfCore = typeof import('@tensorflow/tfjs-core')
 type GraphModel = Awaited<ReturnType<typeof import('@tensorflow/tfjs-converter').loadGraphModel>>
 
 async function loadBackend(tf: TfCore, backend: Backend): Promise<boolean> {
-  try {
-    if (backend === 'webgpu') {
-      // navigator.gpu가 없으면 백엔드 등록 자체가 안 된다 (실측에서 확인한 실패 모양).
-      if (!('gpu' in navigator)) return false
-      await import('@tensorflow/tfjs-backend-webgpu')
-    } else if (backend === 'webgl') {
-      await import('@tensorflow/tfjs-backend-webgl')
-    } else {
-      const wasm = await import('@tensorflow/tfjs-backend-wasm')
-      /**
-       * **멀티스레드를 여기서 끈다.** 위에 "후보에 없다"고 적어 두고 바이너리를 넘기면
-       * 그 말이 코드에는 없는 것이다 — `SharedArrayBuffer`가 있는 환경(자가호스팅이
-       * COOP/COEP를 주면 생긴다)에서 TF.js가 알아서 threaded 쪽을 고른다.
-       *
-       * **끄면 산출물에서도 뺄 수 있다** — 425KB다. 그리고 어디서 돌든 같은 바이너리로
-       * 계산한다는 뜻이라, 결과가 환경에 따라 갈릴 자리가 하나 줄어든다.
-       *
-       * 플래그는 위 `import`가 등록한다. **순서가 중요하다** — 등록 전에 켜고 끄면
-       * 기본값에 덮인다.
-       */
-      tf.env().set('WASM_HAS_MULTITHREAD_SUPPORT', false)
-      const [plain, simd] = await Promise.all([
-        import('@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm.wasm?url'),
-        import('@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm-simd.wasm?url'),
-      ])
-      wasm.setWasmPaths({
-        'tfjs-backend-wasm.wasm': plain.default,
-        'tfjs-backend-wasm-simd.wasm': simd.default,
-      })
-    }
-    if (!(await tf.setBackend(backend))) return false
-    await tf.ready()
-    return tf.getBackend() === backend
-  } catch {
-    // 이 기기에 없는 백엔드다. 다음 것을 본다 — 여기서 던지면 폴백이 죽는다.
-    return false
+  if (backend === 'webgpu') {
+    // navigator.gpu가 없으면 백엔드 등록 자체가 안 된다 (실측에서 확인한 실패 모양).
+    if (!('gpu' in navigator)) return false
+    await import('@tensorflow/tfjs-backend-webgpu')
+  } else if (backend === 'webgl') {
+    await import('@tensorflow/tfjs-backend-webgl')
+  } else {
+    const wasm = await import('@tensorflow/tfjs-backend-wasm')
+    /**
+     * **멀티스레드를 여기서 끈다.** 위에 "후보에 없다"고 적어 두고 바이너리를 넘기면
+     * 그 말이 코드에는 없는 것이다 — `SharedArrayBuffer`가 있는 환경(자가호스팅이
+     * COOP/COEP를 주면 생긴다)에서 TF.js가 알아서 threaded 쪽을 고른다.
+     *
+     * **끄면 산출물에서도 뺄 수 있다** — 425KB다. 그리고 어디서 돌든 같은 바이너리로
+     * 계산한다는 뜻이라, 결과가 환경에 따라 갈릴 자리가 하나 줄어든다.
+     *
+     * 플래그는 위 `import`가 등록한다. **순서가 중요하다** — 등록 전에 켜고 끄면
+     * 기본값에 덮인다.
+     */
+    tf.env().set('WASM_HAS_MULTITHREAD_SUPPORT', false)
+    const [plain, simd] = await Promise.all([
+      import('@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm.wasm?url'),
+      import('@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm-simd.wasm?url'),
+    ])
+    wasm.setWasmPaths({
+      'tfjs-backend-wasm.wasm': plain.default,
+      'tfjs-backend-wasm-simd.wasm': simd.default,
+    })
   }
+  if (!(await tf.setBackend(backend))) return false
+  await tf.ready()
+  return tf.getBackend() === backend
+}
+
+/**
+ * 시도 순서대로 백엔드를 띄워 **처음 되는 것**을 준다. `load`가 거짓을 주거나 던지면 이 기기에 없는
+ * 백엔드로 보고 다음 것을 본다 — 여기서 던지면 폴백이 죽는다.
+ *
+ * **청크를 못 받은 것은 기억해 둔다** (open-decisions.md 86). 다음 백엔드로 넘기는 것은 그대로지만, 끝내
+ * 하나도 못 띄웠고 그 사이 청크를 못 받은 것이 있으면 *"쓸 수 있는 백엔드가 없다"*가 아니라 그 실패를
+ * 던진다 — 옛 탭에서는 백엔드가 없는 것이 아니라 받을 청크가 없는 것이고, 핸들러가 그것을
+ * `SCREEN_LOAD_FAILED`로 말한다. 무는 검사: `chunk-load-failure.spec.ts`의 *"임베딩 워커의 TF.js 청크"*.
+ */
+export async function chooseBackend(
+  load: (backend: Backend) => Promise<boolean>,
+): Promise<Backend> {
+  let chunkFailure: unknown = null
+  for (const backend of BACKENDS) {
+    try {
+      if (await load(backend)) return backend
+    } catch (error) {
+      if (chunkFailure === null && isChunkLoadError(error)) chunkFailure = error
+    }
+  }
+  if (chunkFailure !== null) throw chunkFailure
+  throw new Error('no usable TF.js backend in this browser')
 }
 
 export function createTfjsRunner(): BackboneRunner {
@@ -101,14 +120,8 @@ export function createTfjsRunner(): BackboneRunner {
       tf = await import('@tensorflow/tfjs-core')
       const converter = await import('@tensorflow/tfjs-converter')
 
-      let chosen: Backend | null = null
-      for (const backend of BACKENDS) {
-        if (await loadBackend(tf, backend)) {
-          chosen = backend
-          break
-        }
-      }
-      if (!chosen) throw new Error('no usable TF.js backend in this browser')
+      const core = tf
+      await chooseBackend((backend) => loadBackend(core, backend))
 
       // **받는 동안 얼마나 왔는지 말한다** (2026-08-29 화면 실측 C-7). 백본이
       // 12.4MB라 학교 회선에서는 이 한 줄이 몇십 초를 덮고, 그동안 화면이 문장

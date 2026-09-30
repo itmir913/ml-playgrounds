@@ -709,7 +709,7 @@
     "STORAGE_VERSION_TOO_NEW": "The data saved on this computer was made with a newer app. Update the app and open it again. Your saved projects are still there.",
     "STORAGE_BLOCKED": "This app is open in another tab, so your saved projects cannot be opened yet. Close the other tab to continue.",
     "FILE_UNREADABLE": "The file could not be read. Make sure it has not been moved or deleted, then choose it again.",
-    "SCREEN_LOAD_FAILED": "The screen could not be loaded, so you stayed here. Check your internet connection and reload the page.",
+    "SCREEN_LOAD_FAILED": "Part of the app could not be loaded. The app may have been updated, or your internet connection may have dropped. Check your connection and reload the page.",
     "UNEXPECTED_ERROR": "Something went wrong. Please try again.",
     "SPLIT_TOO_FEW_ROWS": "There is not enough data to split into training data and test data. (usable {actualRows}, needs at least {minRows})",
     "SPLIT_STRATIFY_IMPOSSIBLE": "This class appears too few times to keep the same proportions in the split, so proportional splitting is not applied. Collect more data for this class to apply it again. ({label}: has {count}, needs at least {minRows})",

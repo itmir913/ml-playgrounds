@@ -24,8 +24,10 @@ export function installErrorNotice(app: App): void {
 }
 
 /**
- * 빠져나온 오류 하나를 알린다. **알림은 있는 길(`pushError`)을 지난다** — 우리 오류면 그 문장, 아니면
- * `UNEXPECTED_ERROR`와 원문이다. 새 코드를 만들지 않는다.
+ * 빠져나온 오류 하나를 알린다. **알림은 있는 길(`pushError`)을 지난다** — 우리 오류면 그 문장, 청크를
+ * 못 받은 것이면 `SCREEN_LOAD_FAILED`(open-decisions.md 86, `errors.ts`의 `toMessage`), 아니면
+ * `UNEXPECTED_ERROR`와 원문이다. 새 코드를 만들지 않는다. 지연 부품의 청크는 같은 스펙의
+ * *"지연 부품을 못 받으면 알린다"*가 문다.
  *
  * **같은 알림이 떠 있으면 다시 밀지 않는다.** 스토어의 `push`는 같은 알림을 빼고 새 id로 다시 미는데,
  * 그것이 목록을 바꾼다 — 알림 목록을 읽는 부품이 렌더에서 던지면 그리기와 밀기가 끝없이 돈다. 목록을 안

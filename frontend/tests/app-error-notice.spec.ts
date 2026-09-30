@@ -89,9 +89,10 @@ describe('전역 오류 처리기', () => {
     )
     const { app, toasts } = mountWithNotice({ render: () => h('div', [h(Lazy)]) })
     await flushPromises()
+    // 다시 해도 같은 청크가 없으니 "다시 시도"가 아니라 새로고침을 권하는 문장이다 (open-decisions.md 86).
     expect(toasts.items.map(({ key, params }) => ({ key, params }))).toEqual([
       {
-        key: UNEXPECTED,
+        key: errorMessageKey('SCREEN_LOAD_FAILED'),
         params: { detail: 'Failed to fetch dynamically imported module: /assets/gone.js' },
       },
     ])

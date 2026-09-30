@@ -44,7 +44,7 @@
 import type * as SheetJs from 'xlsx'
 import type { CellObject, WorkSheet } from 'xlsx'
 
-import { ClientError } from '../errors'
+import { ClientError, failureDetail, isChunkLoadError } from '../errors'
 import { TABLE_PREVIEW_ROW_COUNT } from '../limits'
 import { isEmptyRow, type TableGrid } from './grid'
 
@@ -317,6 +317,13 @@ export function looksLikeOle2(bytes: Uint8Array): boolean {
  * 등록된 파서를 순서대로 시도하고 전부 실패하면 DATASET_PARSE_FAILED이다.
  * 어느 파서가 왜 실패했는지는 학생에게 알리지 않는다 - 어느 쪽이든 학생이 할 수
  * 있는 일은 같다(다른 이름으로 저장해서 다시 올리기).
+ *
+ * **파서 청크를 못 받은 것은 파일 탓이 아니다** (open-decisions.md 86). 파서는 `await import`로 받으므로
+ * 배포 뒤 옛 탭이나 끊긴 연결에서는 파서가 파일을 보기도 전에 실패한다. 그때 *"파일 형식을 확인"*이라
+ * 하면 학생이 멀쩡한 파일을 고친다. 어느 파서든 청크를 못 받으면 **그 자리에서 `SCREEN_LOAD_FAILED`로
+ * 멈춘다 — 다음 파서로 넘기지 않는다**(코드 소유자). 본진 청크만 못 받았을 때 폴백이 대신 읽으면 날짜를
+ * 다른 시간대로 읽어 조용히 틀린다(이 파일 머리말의 표). 본진을 받았는데 **파일을 못 읽어** 폴백으로 넘기는
+ * 것은 그대로다. 무는 검사: `chunk-load-failure.spec.ts`의 *"엑셀 파서 청크"*.
  */
 export async function openXlsx(bytes: Uint8Array): Promise<XlsxDocument> {
   if (!looksLikeZip(bytes)) throw new ClientError('DATASET_PARSE_FAILED')
@@ -327,6 +334,7 @@ export async function openXlsx(bytes: Uint8Array): Promise<XlsxDocument> {
     } catch (error) {
       // 시트를 못 찾은 것은 파일 문제가 아니다. 다음 파서로 넘기지 않는다.
       if (error instanceof ClientError) throw error
+      if (isChunkLoadError(error)) throw new ClientError('SCREEN_LOAD_FAILED', failureDetail(error))
     }
   }
   throw new ClientError('DATASET_PARSE_FAILED')

@@ -198,11 +198,13 @@ export const CLIENT_ERROR_CODES = [
   'FILE_UNREADABLE',
 
   /**
-   * 가는 화면의 청크를 못 받았다 (`router/index.ts`, architecture.md §8.1). 배포 뒤 열어 둔 옛 탭이
-   * 없어진 해시를 부르거나 연결이 끊긴 경우다. 이동은 아무것도 안 바꾸고 선다.
+   * 앱이 필요할 때 받는 코드 조각(청크)을 못 받았다 (open-decisions.md 86, architecture.md §8.1).
+   * 배포 뒤 열어 둔 옛 탭이 없어진 해시를 부르거나 연결이 끊긴 경우다. 라우트 화면이면 가드가
+   * (`router/index.ts`), 화면 안의 지연 부품과 지연 라이브러리면 `isChunkLoadError`를 보는 자리가 이 코드로 말한다.
    *
    * **`UNEXPECTED_ERROR`와 나누는 이유는 학생이 할 일이 다르기 때문이다** — 다시 눌러도 같은 청크를
-   * 부를 뿐이라 **"연결을 확인하고 새로고침"**이다. 무는 검사: `route-chunk-failure.spec.ts`.
+   * 부를 뿐이라 **"연결을 확인하고 새로고침"**이다. 무는 검사: `route-chunk-failure.spec.ts`,
+   * `chunk-load-failure.spec.ts`.
    */
   'SCREEN_LOAD_FAILED',
 
@@ -551,11 +553,43 @@ export function isClientError(error: unknown): error is ClientError {
  *
  * 우리 코드가 아니면 `UNEXPECTED_ERROR`로 떨어지고 **원문은 버리지 않고 detail로**
  * 함께 실린다 (open-decisions.md "학습 실패는 교사가 읽을 수 있게 전달한다").
+ *
+ * **청크를 못 받은 실패는 `SCREEN_LOAD_FAILED`다** (open-decisions.md 86) — 화면 안의 지연 부품이
+ * 전역 처리기로 오는 길도, 잡아서 `pushError`로 넘기는 길도 여기를 지난다. 무는 검사:
+ * `chunk-load-failure.spec.ts`, `app-error-notice.spec.ts`의 *"지연 부품을 못 받으면 알린다"*.
  */
 export function toMessage(error: unknown): { key: string; params: ClientErrorParams } {
-  return isClientError(error)
-    ? { key: error.messageKey, params: error.params }
-    : { key: errorMessageKey('UNEXPECTED_ERROR'), params: failureDetail(error) }
+  if (isClientError(error)) return { key: error.messageKey, params: error.params }
+  const code = isChunkLoadError(error) ? 'SCREEN_LOAD_FAILED' : 'UNEXPECTED_ERROR'
+  return { key: errorMessageKey(code), params: failureDetail(error) }
+}
+
+/**
+ * 동적 `import()`가 코드 조각을 못 받았을 때 브라우저가 던지는 원문의 머리. **브라우저마다 다르다** —
+ * 차례로 Chromium, Firefox, Safari다. 마지막은 Vite의 선적재 도우미가 딸린 CSS를 못 받았을 때
+ * `vite:preloadError`를 쏜 뒤 던지는 원문이다(vite `preload` 도우미 원본을 읽어 확인 — 사람 확인).
+ * 브라우저 원문은 판마다 바뀔 수 있어 실기기에서 본 것이 아니면 **사람 확인**이다.
+ */
+const CHUNK_LOAD_MESSAGES = [
+  'failed to fetch dynamically imported module',
+  'error loading dynamically imported module',
+  'importing a module script failed',
+  'unable to preload css for',
+] as const
+
+/**
+ * **청크를 못 받은 실패인가** (open-decisions.md 86). 판정은 여기 하나다 — 알림으로 가는 길(`toMessage`)과
+ * 실패를 다른 코드로 바꾸던 자리(`data/xlsx.ts`의 파서 순회, `ml/embed/handler.ts`·`runner.ts`)가 같이 쓴다.
+ * 두 벌이면 한쪽만 새 브라우저 원문을 알게 된다.
+ *
+ * 이름이 `ChunkLoadError`인 것도 받는다 — 번들러가 청크 실패에 붙이는 관행 이름이다.
+ * 무는 검사: `chunk-load-failure.spec.ts`의 *"청크 실패 판정"*.
+ */
+export function isChunkLoadError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  if (error.name === 'ChunkLoadError') return true
+  const message = error.message.toLowerCase()
+  return CHUNK_LOAD_MESSAGES.some((head) => message.includes(head))
 }
 
 /**
