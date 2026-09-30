@@ -95,7 +95,7 @@ export interface EstimateInput {
   readonly algorithm: string
   /**
    * 데이터 종류. **화면이 종류를 비교해서 끄지 않는다** — 어느 종류를 쟀는지는 등록부가
-   * 안다 (architecture.md §9.1). 사진은 아직 안 쟀고, 그 자리는 `알 수 없음`이 된다.
+   * 안다 (architecture.md §9.1). 안 잰 칸은 그 자리가 `알 수 없음`이 된다.
    */
   readonly dataType: DataType
   /** 학습에 실제로 들어가는 행 수. **전체 행이 아니라 훈련 몫이다.** */
@@ -325,8 +325,8 @@ export function baselineMs(input: EstimateInput): number | null {
 /**
  * 이 종류에 **예상이 나오기는 하는가.** 등록부에 기준표가 하나라도 있으면 참이다.
  *
- * **화면이 종류를 비교하지 않게 하려고 있다** (`architecture.md` §9.1). 사진 기준표
- * 하나도 안 차 있어 사진 프로젝트의 예상 칸은 **모든 줄에서 `알 수 없음`**인데,
+ * **화면이 종류를 비교하지 않게 하려고 있다** (`architecture.md` §9.1). 한때 사진
+ * 기준표가 하나도 안 차 있어 사진 프로젝트의 예상 칸이 **모든 줄에서 `알 수 없음`**이었는데,
  * 그 사실을 화면이 `dataType === 'image'`로 알면 **기준표를 채우는 날 그 화면도 함께
  * 고쳐야 한다** — 그리고 빠뜨린 것은 컴파일도 검사도 못 잡는다.
  *

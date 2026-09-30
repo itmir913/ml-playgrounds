@@ -820,10 +820,11 @@ export const LADDERS: readonly Ladder[] = [
   /**
    * **사진 쪽 기준표 — 넷은 여기서 다 찬다** (2026-09-01).
    *
-   * **지금 등록부의 이미지 기준표는 하나도 안 차 있어(`UNMEASURED_BASELINE`) 사진 프로젝트는
-   * 학습 예상 시간을 아예 못 낸다** (`ml/algorithms.ts`, `estimate.ts`가 그 자리에
-   * `알 수 없음`을 남긴다). 상한을 끄는 스위치가 오면 예상이 그 짝인데
-   * (`open-decisions.md` "상한은 누가 정했느냐" §2), **사진에는 짝이 될 것이 없다.**
+   * **여기 나온 값이 등록부의 순수 JS 사진 칸을 채운다** (`limits.ts`의
+   * `MLJS_IMAGE_*_BASELINE_MS`, `ml/algorithms.ts`의 `baseline.image`). 칸이 비면
+   * (`UNMEASURED_BASELINE`) 사진 프로젝트는 그 줄의 학습 예상 시간을 못 내고 `estimate.ts`가
+   * 그 자리에 `알 수 없음`을 남긴다. 상한을 끄는 스위치가 오면 예상이 그 짝이라
+   * (`open-decisions.md` "상한은 누가 정했느냐" §2), **빈 칸은 짝 없는 상한이다.**
    *
    * **표에서 쓰던 특성 배수로는 못 메운다.** 예상은 표 기준표(특성 8개)에 `특성/8`을
    * 곱하는데(`estimate.ts`), 1,280차원은 그 160배 자리라 재 보지 않은 외삽이다.
@@ -958,8 +959,9 @@ const LIMIT_LADDERS: readonly Ladder[] = [
    * 상한의 근거가 아니라고 정했으므로(위 결정문), 사진 쪽도 같은 질문을 다시 받아야 한다:
    * **어디서 깨지는가.**
    *
-   * **작은 점부터 시작하는 이유는 기준표를 겸하기 때문이다.** 이 셋은 사진 기준표도
-   * 비어 있어(`UNMEASURED_BASELINE`), 상한을 찾는 김에 그 표를 함께 채운다. 20초
+   * **작은 점부터 시작하는 이유는 기준표를 겸하기 때문이다.** 이 셋의 사진 기준표는
+   * 이 사다리가 채운다(`limits.ts`의 `MLJS_IMAGE_DECISION_TREE_BASELINE_MS` 부근) — 상한을
+   * 찾는 김에 그 표를 함께 채운다. 20초
    * 천장에 안 걸리는 사다리라야 큰 점까지 남는다.
    *
    * **SVM은 메모리가 먼저 올 것이다** — N×N 커널이 5,000장이면 200MB이고, 표 쪽에서
@@ -1000,9 +1002,11 @@ const LIMIT_LADDERS: readonly Ladder[] = [
 /**
  * **scikit-learn(Pyodide) 사다리** (2026-09-19).
  *
- * **여기 나온 값이 등록부의 `pyodide-sklearn` 칸을 채운다.** 지금 그 칸은 알고리즘 여덟
- * 줄이 전부 `UNMEASURED`이고(`ml/algorithms.ts`), 그건 빠뜨림이 아니라 **아직 못 재는
- * 사실**이었다 — 어댑터를 띄우는 코드가 저장소에 없었다.
+ * **여기 나온 값이 등록부의 `pyodide-sklearn` 칸을 채운다** (`limits.ts`의
+ * `PYODIDE_*_BASELINE_MS`·`PYODIDE_*_ROW_LIMIT`). 이 사다리가 서기 전에는 그 칸이 전부
+ * `UNMEASURED`였고, 그건 빠뜨림이 아니라 **아직 못 재는 사실**이었다 — 어댑터를 띄우는
+ * 코드가 저장소에 없었다. 지금 남은 빈 칸은 sklearn이 없는 인공신경망 줄처럼 등록부가
+ * `UNMEASURED`로 적은 자리다(`ml/algorithms.ts`).
  *
  * **[전부 훑기]에 안 들어간다.** 점 하나마다 새 워커이고 워커마다 시동을 무므로
  * (`measurePyodide`) 표 쪽 사다리와 시간 자릿수가 다르다. 그리고 **네트워크를 탄다** —
@@ -1622,18 +1626,19 @@ export function stopsBefore(
  * 아니라 일감으로 가른다 — `tests/bench-rules.spec.ts`의 덮개 검사와 같은 판정이다.
  *
  * **상한 사다리와 sklearn 사다리는 안 든다.** 앞은 몇 시간짜리에 탭이 죽을 수 있고([상한
- * 찾기]), 뒤는 27MB를 받는다([sklearn 훑기]). 사진 프로젝트가 `알 수 없음`을 내는 칸은
- * 순수 JS 기준표 칸이다(`ml/algorithms.ts`의 `UNMEASURED_BASELINE`).
+ * 찾기]), 뒤는 27MB를 받는다([sklearn 훑기]). 이 목록이 채우는 것은 순수 JS 사진 기준표
+ * 칸(`ml/algorithms.ts`의 `baseline.image.mljs`) 가운데 **상한 사다리가 겸하지 않는 쪽**이다 —
+ * 의사결정트리·랜덤 포레스트·SVM의 사진 표는 [상한 찾기]의 사진 상한 사다리가 채운다.
  */
+export const IMAGE_LADDERS: readonly Ladder[] = LADDERS.filter((ladder) =>
+  ladder.points.some((point) => ladder.job(point).columns === IMAGE_FEATURES),
+)
+
 /**
  * **[사진만 훑기]가 `IMAGE_LADDERS`를 몇 번 되풀이하나.** 기준표는 두 번 재서 단조인 쪽을
  * 고른다(`limits.ts`의 기준표 주석) — 한 번 누르고 자리를 비워도 고를 거리가 남게 한다.
  */
 export const IMAGE_ROUNDS = 2
-
-export const IMAGE_LADDERS: readonly Ladder[] = LADDERS.filter((ladder) =>
-  ladder.points.some((point) => ladder.job(point).columns === IMAGE_FEATURES),
-)
 
 export const ALL_LADDERS: readonly Ladder[] = [
   ...LADDERS,

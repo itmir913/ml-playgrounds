@@ -30,6 +30,10 @@ import {
   MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT,
   MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT,
   MLJS_IMAGE_DECISION_TREE_BASELINE_MS,
+  MLJS_IMAGE_KMEANS_BASELINE_MS,
+  MLJS_IMAGE_KNN_BASELINE_MS,
+  MLJS_IMAGE_LOGISTIC_REGRESSION_BASELINE_MS,
+  MLJS_IMAGE_NAIVE_BAYES_BASELINE_MS,
   MLJS_IMAGE_NEURAL_NETWORK_BASELINE_MS,
   MLJS_IMAGE_RANDOM_FOREST_BASELINE_MS,
   MLJS_IMAGE_SVM_BASELINE_MS,
@@ -177,7 +181,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
         'pyodide-sklearn': { ms: PYODIDE_KNN_BASELINE_MS, columns: 'flat' },
       },
       image: {
-        mljs: UNMEASURED_BASELINE,
+        mljs: { ms: MLJS_IMAGE_KNN_BASELINE_MS, columns: 'flat' },
         'pyodide-sklearn': { ms: PYODIDE_IMAGE_KNN_BASELINE_MS, columns: 'flat' },
       },
     },
@@ -205,7 +209,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
         'pyodide-sklearn': { ms: PYODIDE_LOGISTIC_REGRESSION_BASELINE_MS, columns: 'flat' },
       },
       image: {
-        mljs: UNMEASURED_BASELINE,
+        mljs: { ms: MLJS_IMAGE_LOGISTIC_REGRESSION_BASELINE_MS, columns: 'flat' },
         'pyodide-sklearn': { ms: PYODIDE_IMAGE_LOGISTIC_REGRESSION_BASELINE_MS, columns: 'flat' },
       },
     },
@@ -263,7 +267,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
         'pyodide-sklearn': { ms: PYODIDE_NAIVE_BAYES_BASELINE_MS, columns: 'flat' },
       },
       image: {
-        mljs: UNMEASURED_BASELINE,
+        mljs: { ms: MLJS_IMAGE_NAIVE_BAYES_BASELINE_MS, columns: 'flat' },
         'pyodide-sklearn': { ms: PYODIDE_IMAGE_NAIVE_BAYES_BASELINE_MS, columns: 'flat' },
       },
     },
@@ -404,7 +408,7 @@ export const ALGORITHMS: readonly Algorithm[] = [
         'pyodide-sklearn': { ms: PYODIDE_KMEANS_BASELINE_MS, columns: 'flat' },
       },
       image: {
-        mljs: UNMEASURED_BASELINE,
+        mljs: { ms: MLJS_IMAGE_KMEANS_BASELINE_MS, columns: 'flat' },
         'pyodide-sklearn': { ms: PYODIDE_IMAGE_KMEANS_BASELINE_MS, columns: 'flat' },
       },
     },

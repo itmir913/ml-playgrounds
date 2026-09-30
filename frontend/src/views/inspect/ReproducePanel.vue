@@ -261,8 +261,9 @@ onMounted(() => {
  * `if (dataType === 'image')`를 화면에 적으면 종류가 늘 때 고칠 자리가 등록부 하나가
  * 아니라 그 사실을 아는 화면 전부가 된다.
  *
- * 사진 실험이면 `null`이고, 그때 아래 예상은 `알 수 없음`으로 선다 — 사진은 특성 수가
- * 백본이 정해 늘 같아서 이 표가 말할 수 있는 것이 아니다.
+ * 사진 실험이면 `null`이고, 그때 아래 예상은 `알 수 없음`으로 선다 — **사진 기준표가 없어서가
+ * 아니라**(등록부에 사진 표가 있고 학습 화면은 그것으로 낸다) 아래 `estimate`가 이 표 설정과
+ * `dataset`이 없으면 먼저 멈추기 때문이다. 사진 대조에도 예상을 낼지는 아직 정하지 않았다.
  */
 const tabularSnapshot = computed(() => {
   const parsed = DATA_SCHEMAS.tabular.snapshot.safeParse(props.experiment.settings.data)

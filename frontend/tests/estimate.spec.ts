@@ -19,6 +19,10 @@ import { describe as group, expect, it } from 'vitest'
 import {
   BASELINE_COLUMNS,
   MLJS_DECISION_TREE_BASELINE_MS,
+  MLJS_IMAGE_KMEANS_BASELINE_MS,
+  MLJS_IMAGE_KNN_BASELINE_MS,
+  MLJS_IMAGE_LOGISTIC_REGRESSION_BASELINE_MS,
+  MLJS_IMAGE_NAIVE_BAYES_BASELINE_MS,
   PYODIDE_BOOT_MS,
   PYODIDE_DECISION_TREE_BASELINE_MS,
   PYODIDE_KMEANS_CLUSTERS_MS,
@@ -336,6 +340,64 @@ group('사진 예상은 기준표를 그대로 낸다', () => {
   })
 })
 
+/**
+ * **사진의 나이브 베이즈·로지스틱·KNN·K-평균도 예상을 낸다** (2026-09-30).
+ *
+ * 이 넷의 순수 JS 사진 칸이 비어 있어(`UNMEASURED_BASELINE`) 사진 프로젝트에서 그 줄이
+ * `알 수 없음`이었다. [사진만 훑기] 두 회차의 평균으로 채웠고(`limits.ts`), 여기서는 그
+ * 표가 **화면이 실제로 넘기는 입력**(사진에서 `columns` 0, 손잡이 기본값)에서 그대로 나오고
+ * 사이 점은 이웃 둘 사이로 보간되는지를 본다 — `flat`이 아니거나 손잡이 배수가 1이 아니면
+ * 표의 값에서 갈린다.
+ */
+group('사진의 나이브 베이즈·로지스틱·KNN·K-평균도 기준표로 예상을 낸다', () => {
+  const TABLES = {
+    naive_bayes: MLJS_IMAGE_NAIVE_BAYES_BASELINE_MS,
+    logistic_regression: MLJS_IMAGE_LOGISTIC_REGRESSION_BASELINE_MS,
+    knn: MLJS_IMAGE_KNN_BASELINE_MS,
+    k_means: MLJS_IMAGE_KMEANS_BASELINE_MS,
+  } as const
+  const photos = (algorithm: string, rows: number) => ({
+    algorithm,
+    dataType: 'image' as const,
+    rows,
+    // **화면이 실제로 넘기는 값이다.** 사진에서는 0이다.
+    columns: 0,
+    hyperparameters: {},
+    runtime: 'mljs' as const,
+  })
+
+  it('기본 손잡이면 잰 점에서 기준표의 값 그대로다', () => {
+    for (const [algorithm, table] of Object.entries(TABLES)) {
+      for (const [rows, ms] of table) {
+        expect(baselineMs(photos(algorithm, rows)), `${algorithm} ${rows} photos`).toBeCloseTo(
+          ms,
+          6,
+        )
+      }
+      // `알 수 없음`이 아니다 — 기기 배수를 곱한 예상이 선다.
+      expect(estimateMs(photos(algorithm, 1000), 1), algorithm).not.toBeNull()
+    }
+  })
+
+  it('잰 점 사이는 이웃 둘 사이로 보간된다', () => {
+    for (const [algorithm, table] of Object.entries(TABLES)) {
+      const low = table.find(([rows]) => rows === 2000)?.[1] ?? 0
+      const high = table.find(([rows]) => rows === 4000)?.[1] ?? 0
+      const between = baselineMs(photos(algorithm, 3000)) ?? 0
+      expect(between, algorithm).toBeGreaterThan(low)
+      expect(between, algorithm).toBeLessThan(high)
+    }
+  })
+
+  /** **남은 빈 칸은 여전히 모른다고 한다.** 채운 칸 밖으로 새지 않았다는 반대편이다. */
+  it('안 잰 사진 칸은 여전히 null이다', () => {
+    expect(baselineMs(photos('linear_regression', 1000))).toBeNull()
+    expect(
+      baselineMs({ ...photos('neural_network', 1000), runtime: 'pyodide-sklearn' as const }),
+    ).toBeNull()
+  })
+})
+
 group('전처리 뒤의 특성 수', () => {
   /**
    * **`fitPreprocessor`와 같은 수를 내야 한다.** 예상은 열 요약의 `unique`로 세고 학습은
@@ -423,8 +485,8 @@ group('예상이 나오는 종류인가', () => {
     expect(hasEstimates('tabular')).toBe(true)
   })
 
-  /** **사진도 나온다** — 채워진 것은 인공신경망 하나이고, 나머지 줄은 여전히 `알 수 없음`이다. */
-  it('사진도 이제 나온다 - 기준표가 하나 채워졌다', () => {
+  /** **사진도 나온다** — 순수 JS 사진 칸이 채워졌다. 남은 빈 칸은 그 줄만 `알 수 없음`이다. */
+  it('사진도 나온다 - 등록부에 사진 기준표가 있다', () => {
     expect(hasEstimates('image')).toBe(true)
   })
 
