@@ -32,8 +32,10 @@ export function installErrorNotice(app: App): void {
  * **같은 알림이 떠 있으면 다시 밀지 않는다.** 스토어의 `push`는 같은 알림을 빼고 새 id로 다시 미는데,
  * 그것이 목록을 바꾼다 — 알림 목록을 읽는 부품이 렌더에서 던지면 그리기와 밀기가 끝없이 돈다. 목록을 안
  * 건드려야 고리가 끊긴다. 같은 스펙의 *"알림 목록을 읽는 부품이 던져도 알림을 끝없이 밀지 않는다"*가 문다.
- * **같은 알림**은 어조·키·파라미터가 다 같은 것이다 — 키만 같고 원문이 다른 오류는 따로 알린다(같은 스펙의
- * *"다른 오류는 따로 알린다"*).
+ * **같은 알림**인지는 스토어가 판정한다(`shown`, `stores/toasts.ts`의 `same`) — 어조·키·파라미터가 다 같은
+ * 것이고, 키만 같고 원문이 다른 오류는 따로 알린다(같은 스펙의 *"다른 오류는 따로 알린다"*). 예외는
+ * `SCREEN_LOAD_FAILED`로, 원문이 달라도 하나다(open-decisions.md 85, 같은 스펙의
+ * *"지연 부품 여럿이 한꺼번에 못 받아도 알림은 하나다"*).
  *
  * **한계: 문장이 매번 다르면 고리를 못 끊는다.** 알림 목록을 읽는 부품이 던질 때마다 다른 원문(세는 값이 든
  * 문장 따위)을 내면 매번 새 알림이라 그리기와 밀기가 다시 돈다. 그때는 Vue의 재귀 상한이 멈춘다. 드문 모양이라
@@ -46,12 +48,6 @@ function noticeError(error: unknown, info: string): void {
   console.error(error, info)
   const toasts = useToastStore()
   const { key, params } = toMessage(error)
-  const shown = toasts.items.some(
-    (toast) =>
-      toast.tone === 'danger' &&
-      toast.key === key &&
-      JSON.stringify(toast.params) === JSON.stringify(params),
-  )
-  if (shown) return
+  if (toasts.shown('danger', key, params)) return
   toasts.pushError(error)
 }

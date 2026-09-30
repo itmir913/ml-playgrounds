@@ -99,6 +99,34 @@ describe('전역 오류 처리기', () => {
     app.unmount()
   })
 
+  /**
+   * **옛 탭의 결과 화면처럼 지연 패널 여럿이 한꺼번에 못 받아도 새로고침 알림은 하나다**
+   * (open-decisions.md 85). 원문은 패널마다 청크 주소가 달라도 할 일은 새로고침 하나다.
+   *
+   * **처리기는 떠 있으면 다시 밀지도 않는다** — 스토어의 `push`도 하나로 줄이지만 옛 것을 빼고 새 id로
+   * 다시 밀어 목록이 바뀐다. 처리기가 스토어의 `shown`에 물어야 첫 알림이 그대로 남는다.
+   */
+  it('지연 부품 여럿이 한꺼번에 못 받아도 알림은 하나다', async () => {
+    const missing = (path: string) =>
+      defineAsyncComponent(() =>
+        Promise.reject(new TypeError(`Failed to fetch dynamically imported module: ${path}`)),
+      )
+    const First = missing('/assets/first.js')
+    const Second = missing('/assets/second.js')
+    const Third = missing('/assets/third.js')
+    const { app, toasts } = mountWithNotice({
+      render: () => h('div', [h(First), h(Second), h(Third)]),
+    })
+    const pushes = { count: 0 }
+    toasts.$onAction(({ name }) => {
+      if (name === 'push' || name === 'pushError') pushes.count += 1
+    })
+    await flushPromises()
+    expect(toasts.items.map((one) => one.key)).toEqual([errorMessageKey('SCREEN_LOAD_FAILED')])
+    expect(pushes.count, 'the handler must not push again while the notice is shown').toBe(1)
+    app.unmount()
+  })
+
   it('같은 오류가 되풀이되어도 알림은 하나다', async () => {
     const turn = ref(0)
     const { app, toasts } = mountWithNotice({

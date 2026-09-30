@@ -46,8 +46,9 @@ import {
 } from '@/ml/reproduce'
 import { succeeded, whereTrainedKeyOf } from '@/ml/results'
 import { factorFrom, readFactor, writeFactor } from '@/ml/calibration'
-import { RUNTIMES, type EngineState } from '@/ml/backend'
-import { browserEstimateMs, describe as describeEstimate, type Estimate } from '@/ml/estimate'
+import type { EngineState } from '@/ml/backend'
+import type { Estimate } from '@/ml/estimate'
+import { reproduceEstimate } from '@/ml/reproduce-estimate'
 import { fittedKinds } from '@/ml/plan'
 import { estimatedFeatureWidth, type Preprocessor } from '@/ml/preprocess'
 import { featuresInUse, usesTarget } from '@/ml/selection'
@@ -261,9 +262,7 @@ onMounted(() => {
  * `if (dataType === 'image')`를 화면에 적으면 종류가 늘 때 고칠 자리가 등록부 하나가
  * 아니라 그 사실을 아는 화면 전부가 된다.
  *
- * 사진 실험이면 `null`이고, 그때 아래 예상은 `알 수 없음`으로 선다 — **사진 기준표가 없어서가
- * 아니라**(등록부에 사진 표가 있고 학습 화면은 그것으로 낸다) 아래 `estimate`가 이 표 설정과
- * `dataset`이 없으면 먼저 멈추기 때문이다. 사진 대조에도 예상을 낼지는 아직 정하지 않았다.
+ * 사진 실험이면 `null`이고 아래 폭은 0이다. 예상은 그래도 선다 — 사진 기준표로 낸다(아래 `estimate`).
  */
 const tabularSnapshot = computed(() => {
   const parsed = DATA_SCHEMAS.tabular.snapshot.safeParse(props.experiment.settings.data)
@@ -293,41 +292,23 @@ const featureWidth = computed(() => {
  * "지금 눌러도 되는 일인가"가 그 순간의 질문이다 (open-decisions.md "학습 예상 시간은
  * 실측표에 기기 배수를 곱해 낸다").
  *
- * **모르면 지어내지 않는다.** 아직 못 잰 기기, 표가 아닌 프로젝트, 우리가 모르는 기기에서
- * 돈 줄(서버·pyodide)이 그 자리다 — 학습 화면과 같은 규칙이다.
+ * **입력은 학습 화면과 같은 모양이고 부품 밖에서 만든다** (`ml/reproduce-estimate.ts`, open-decisions.md 87) —
+ * 사진 실험도 사진 기준표로 낸다. **모르면 지어내지 않는다** — 아직 못 잰 기기, 표를 못 연 표 실험,
+ * 기준표가 빈 칸, 우리가 모르는 기기에서 돈 줄(서버)이 그 자리다. `reproduce-estimate.spec.ts`가 문다.
  *
- * **실험 하나가 통째로 도는 시간이다.** 모델은 하나씩 차례로 돌므로 합이 곧 기다림이다.
+ * 막는 이유가 있으면 예상 줄은 안 선다(아래 틀) — 사진 실험은 대조가 아직 안 열려(`IMAGE_NOT_OPEN`) 이 값이
+ * 화면에 서는 것은 그 잠금이 풀린 뒤다.
  */
-const estimate = computed<Estimate>(() => {
-  const factor = deviceFactor.value
-  const data = tabularSnapshot.value
-  if (factor === null || !data || !props.dataset) return { kind: 'unknown' }
-
-  const columns = featureWidth.value
-  const rows = props.experiment.settings.trainIndices.length
-
-  let total = 0
-  for (const run of props.experiment.runs) {
-    if (run.status !== 'done') continue
-    // **브라우저에서 돈 줄만 안다.** 서버를 거르는 일은 `browserEstimateMs`가 한다.
-    const runtime = RUNTIMES.find((one) => one.engineKind === run.engine?.kind)?.id
-    if (runtime === undefined) return { kind: 'unknown' }
-    const ms = browserEstimateMs(
-      {
-        algorithm: run.algorithm,
-        dataType: props.dataType,
-        rows,
-        columns,
-        hyperparameters: run.hyperparameters,
-        runtime,
-      },
-      factor,
-    )
-    if (ms === null) return { kind: 'unknown' }
-    total += ms
-  }
-  return describeEstimate(total)
-})
+const estimate = computed<Estimate>(() =>
+  reproduceEstimate(
+    {
+      experiment: props.experiment,
+      dataType: props.dataType,
+      featureWidth: props.dataset ? featureWidth.value : null,
+    },
+    deviceFactor.value,
+  ),
+)
 
 /** 예상 시간 한 줄. **문구는 학습 화면의 것을 그대로 쓴다** — 같은 말이다. */
 const estimateText = computed(() => {

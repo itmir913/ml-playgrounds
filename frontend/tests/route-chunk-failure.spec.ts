@@ -147,4 +147,23 @@ describe('화면 청크를 못 받은 이동', { timeout: 20_000 }, () => {
       'Failed to fetch dynamically imported module',
     )
   })
+
+  /**
+   * **화면 안의 부품이 이미 같은 알림을 띄웠어도 이동 실패는 사라지지 않는다** (open-decisions.md 85).
+   * 그 알림은 코드만으로 하나가 되는데, 옛 것을 그대로 두면 이동 전에 잡은 수위선 아래라 `afterEach`가
+   * 걷어 가서 이동이 말없이 선다. 스토어가 새 id로 다시 밀어 하나로 남는다.
+   */
+  it('화면 안 부품의 새로고침 알림이 떠 있어도 이동 실패를 말하고 알림은 하나다', async () => {
+    await seedTwo()
+    await router.push(`/project/${manifest.projectId}/data`)
+    const toasts = useToastStore()
+    toasts.pushError(
+      new TypeError('Failed to fetch dynamically imported module: /assets/panel-gone.js'),
+    )
+
+    await tryPush('/inspect')
+
+    const told = toasts.items.filter((one) => one.key === 'client.SCREEN_LOAD_FAILED')
+    expect(told, 'one reload notice must survive the failed move').toHaveLength(1)
+  })
 })

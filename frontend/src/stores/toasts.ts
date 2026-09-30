@@ -9,7 +9,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import { toMessage } from '@/errors'
+import { errorMessageKey, toMessage } from '@/errors'
 import { TOAST_DURATION_MS } from '@/limits'
 
 export const TOAST_TONES = ['info', 'success', 'caution', 'danger'] as const
@@ -43,6 +43,14 @@ export interface Toast {
  */
 const AUTO_DISMISS: ReadonlySet<ToastTone> = new Set<ToastTone>(['success'])
 
+/**
+ * **키만으로 같은 알림인 것.** 원문(`detail`)이 달라도 학생이 할 일이 하나라서다 — 화면을 못 받았으면
+ * 새로고침이다(open-decisions.md 85·86). 옛 탭의 결과 화면에서 지연 패널 여럿이 한꺼번에 청크를 못 받으면
+ * 패널마다 주소가 달라 같은 문장이 패널 수만큼 쌓였다. `toasts.spec.ts`의
+ * *"화면을 못 받았다는 알림은 원문이 달라도 하나다"*가 문다.
+ */
+const ONE_PER_KEY: ReadonlySet<string> = new Set([errorMessageKey('SCREEN_LOAD_FAILED')])
+
 export const useToastStore = defineStore('toasts', () => {
   const items = ref<Toast[]>([])
   let lastId = 0
@@ -59,21 +67,30 @@ export const useToastStore = defineStore('toasts', () => {
    * (2026-08-15). 사라지지 않는 어조라 화면이 그대로 덮인다.
    *
    * **어조·키·파라미터가 전부 같을 때만 같은 알림이다.** 파일 이름이 다르면 다른 사실을
-   * 말하는 것이라 둘 다 떠야 한다.
+   * 말하는 것이라 둘 다 떠야 한다. 예외는 위 `ONE_PER_KEY`의 키뿐이고 그것은 파라미터를 안 본다.
+   *
+   * **같은 알림의 판정은 여기 하나다** — 전역 오류 처리기(`app-errors.ts`)도 `shown`으로 이것을 묻는다.
    */
   function same(tone: ToastTone, key: string, params: Record<string, unknown>): Toast | undefined {
     return items.value.find(
       (toast) =>
         toast.tone === tone &&
         toast.key === key &&
-        JSON.stringify(toast.params) === JSON.stringify(params),
+        (ONE_PER_KEY.has(key) || JSON.stringify(toast.params) === JSON.stringify(params)),
     )
+  }
+
+  /** 같은 알림이 떠 있는가 (`same`). 목록을 건드리지 않고 묻는다. */
+  function shown(tone: ToastTone, key: string, params: Record<string, unknown> = {}): boolean {
+    return same(tone, key, params) !== undefined
   }
 
   /**
    * **같은 알림이면 옛 것을 빼고 새 id로 다시 민다.** 여전히 하나로 서되 id는 지금의 것이라,
    * 이동의 수위선(`router/index.ts`의 `afterEach`)이 방금 다시 일어난 일의 알림을 걷지 않는다.
-   * `router.spec.ts`의 *"같은 저장 실패가 이어지면 …"*이 문다.
+   * `router.spec.ts`의 *"같은 저장 실패가 이어지면 …"*이 문다. 화면 안 부품이 먼저 띄운 새로고침
+   * 알림 위로 이동이 실패해도 같다 — 안 밀고 두면 실패한 이동 끝에 걷혀 말없이 선다.
+   * `route-chunk-failure.spec.ts`의 *"화면 안 부품의 새로고침 알림이 떠 있어도 …"*가 문다.
    */
   function push(tone: ToastTone, key: string, params: Record<string, unknown> = {}): number {
     const already = same(tone, key, params)
@@ -129,5 +146,5 @@ export const useToastStore = defineStore('toasts', () => {
     return lastId
   }
 
-  return { items, push, pushError, dismiss, clear, dismissUpTo, highWaterMark }
+  return { items, push, pushError, shown, dismiss, clear, dismissUpTo, highWaterMark }
 })

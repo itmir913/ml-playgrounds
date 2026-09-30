@@ -13,6 +13,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ClientError, errorMessageKey } from '../src/errors'
 import { TOAST_DURATION_MS } from '../src/limits'
 import { useToastStore } from '../src/stores/toasts'
 
@@ -74,7 +75,8 @@ describe('저절로 사라지는 것과 남는 것', () => {
 
 /**
  * **어조·키·파라미터가 전부 같을 때만 합친다.** 같은 코드라도 파라미터가 다르면 따로
- * 뜬다 — 사진 두 장이 서로 다른 이유로 빠진 것은 두 사실이기 때문이다.
+ * 뜬다 — 사진 두 장이 서로 다른 이유로 빠진 것은 두 사실이기 때문이다. 예외는 화면을 못 받았다는
+ * 알림 하나다(아래 *"화면을 못 받았다는 알림은 …"*).
  */
 describe('같은 알림을 두 번 쌓지 않는다', () => {
   it('글자까지 같으면 하나다', () => {
@@ -97,6 +99,29 @@ describe('같은 알림을 두 번 쌓지 않는다', () => {
     const toasts = useToastStore()
     toasts.push('info', 'project.exportDone')
     toasts.push('success', 'project.exportDone')
+
+    expect(toasts.items).toHaveLength(2)
+  })
+
+  /**
+   * **화면을 못 받았다는 알림은 코드만으로 하나다** (open-decisions.md 85). 옛 탭에서 지연 패널 여럿이
+   * 한꺼번에 청크를 못 받으면 원문(청크 주소)이 패널마다 다른데, 할 일은 새로고침 하나다.
+   */
+  it('화면을 못 받았다는 알림은 원문이 달라도 하나다', () => {
+    const toasts = useToastStore()
+    toasts.pushError(new ClientError('SCREEN_LOAD_FAILED', { detail: '/assets/a.js' }))
+    toasts.pushError(new ClientError('SCREEN_LOAD_FAILED', { detail: '/assets/b.js' }))
+
+    expect(toasts.items.map(({ tone, key }) => ({ tone, key }))).toEqual([
+      { tone: 'danger', key: errorMessageKey('SCREEN_LOAD_FAILED') },
+    ])
+  })
+
+  /** 코드만으로 거르는 것은 그 코드뿐이다 — 다른 코드는 원문이 다르면 다른 사실이다. */
+  it('다른 코드는 원문이 다르면 여전히 둘이다', () => {
+    const toasts = useToastStore()
+    toasts.pushError(new ClientError('DATASET_PARSE_FAILED', { detail: 'a' }))
+    toasts.pushError(new ClientError('DATASET_PARSE_FAILED', { detail: 'b' }))
 
     expect(toasts.items).toHaveLength(2)
   })
