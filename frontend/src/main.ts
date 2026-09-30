@@ -7,6 +7,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 
 import App from './App.vue'
+import { installErrorNotice } from './app-errors'
 import { i18n, initLocale } from './i18n'
 import { initLimitsOff } from './limits-switch'
 import { router } from './router'
@@ -18,6 +19,8 @@ const app = createApp(App)
 app.use(createPinia())
 app.use(i18n)
 app.use(router)
+// 화면 부품이 오류로 멈추면 말없이 비우지 않고 알린다 (open-decisions.md 85). 첫 그림 전에 단다.
+installErrorNotice(app)
 
 // 저장된 언어 선택을 읽는 동안 화면을 막지 않는다.
 // 시작은 대체 언어이고, 결정되는 즉시 교체된다.

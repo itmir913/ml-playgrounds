@@ -648,9 +648,9 @@ async function downloadAction(): Promise<void> {
       exported === null ? 'predict.csv' : `${exported.slice(0, -MLPX_EXTENSION.length)}.csv`
     downloadBytes(toCanonicalCsv(grid), name)
   } catch (error) {
-    // **전역 오류 손잡이가 없다** (`main.ts`에 `errorHandler`도 `onError`도 없다).
-    // 여기서 안 잡으면 던진 것이 아무 데도 안 가고, 학생은 [내려받기]를 눌렀는데
-    // 아무 일도 안 일어나는 것만 본다 (V11 R4 C-4).
+    // **여기서 잡아 알린다.** 한때 전역 오류 손잡이가 없어 던진 것이 아무 데도 안 갔고, 학생은
+    // [내려받기]를 눌렀는데 아무 일도 안 일어나는 것만 봤다 (V11 R4 C-4). 전역 처리기
+    // (`app-errors.ts`)는 부르는 쪽이 이 거절을 Vue에 돌려줄 때만 받으므로 그것에 기대지 않는다.
     toasts.pushError(error)
   } finally {
     job.done()

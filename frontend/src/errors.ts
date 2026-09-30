@@ -465,6 +465,9 @@ export const ENTRY_HASH_STATUSES = ['UNCHANGED', 'MODIFIED', 'ADDED', 'REMOVED']
  * (미결정 12), 그 칸에서 차이가 0이 아닐 때 붉은 말을 하면 **정직한 학생을 지목한다.**
  * 화면은 차이를 보이고 판단은 교사가 한다.
  *
+ * **`APP_OUTDATED`도 "다르다"가 아니다** — 파일이 이 앱보다 새 버전에서 만들어져, 그 사이에 바뀐
+ * 계산 규칙을 이 앱이 모른다 (open-decisions.md 84, `ml/reproduce.ts`의 `underRuleChanges`).
+ *
  * **`.mlpx`에 안 실린다** — 이 어휘는 화면의 것이라 늘어도 formatVersion이 안 움직인다.
  */
 export const REPRODUCTION_STATUSES = [
@@ -472,6 +475,7 @@ export const REPRODUCTION_STATUSES = [
   'REPRODUCED',
   'NOT_REPRODUCED',
   'NOT_JUDGED',
+  'APP_OUTDATED',
   'ENGINE_UNAVAILABLE',
 ] as const
 

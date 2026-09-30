@@ -44,6 +44,7 @@
     "preparingStart": "scikit-learn을 준비하는 중입니다",
     "engineVersionFallback": "이 실험을 만든 scikit-learn 배포판을 받을 수 없어 지금 배포판으로 돌렸고, 그래서 판정하지 않고 숫자만 보입니다 (파일 {stored} · 사용 {used}).",
     "rulesChanged": "이 파일을 만든 뒤에 앱의 계산 규칙이 바뀌어, 차이가 있어도 판정하지 않습니다 (이 파일의 앱 버전 {version}).",
+    "appOutdated": "이 파일은 지금 앱보다 새로운 버전에서 만들어져, 차이가 있어도 판정할 수 없습니다. 앱을 최신으로 바꾼 뒤 다시 대조해 주세요 (파일 {file} · 앱 {app}).",
     "reproduceStopped": "멈춤 ({done}/{total})",
     "verdict": "판정",
     "difference": "차이",
@@ -652,6 +653,7 @@
     "REPRODUCED": "결과가 재현됨",
     "NOT_REPRODUCED": "결과가 재현되지 않음",
     "NOT_JUDGED": "차이가 있으나 판정하지 않음",
+    "APP_OUTDATED": "앱이 파일보다 이전 버전이라 판정할 수 없음",
     "ENGINE_UNAVAILABLE": "이 브라우저에서는 확인 불가"
   },
   "engineState": {

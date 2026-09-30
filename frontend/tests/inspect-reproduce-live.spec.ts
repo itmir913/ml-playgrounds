@@ -65,6 +65,22 @@ vi.mock('../src/ml/worker/client', () => ({
 
 vi.mock('../src/ml/worker/spawn', () => ({ spawnTrainingWorker: () => ({}) }))
 
+/**
+ * **대조한 앱의 판을 스펙이 정한다** — 규칙 목록의 마지막 판이다(결정 84). 거름은 기본값으로
+ * `__APP_VERSION__`을 받는데, 규칙은 다음 판을 `since`로 달고 판 올림보다 먼저 들어오므로 그 둘의 앞뒤가
+ * 커밋마다 달라진다. 기본값이 이 앱의 판인지는 `reproduce.spec.ts`의 *"앱의 판을 안 주면 이 앱의 판으로
+ * 잰다"*가 문다.
+ */
+vi.mock('../src/ml/reproduce', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../src/ml/reproduce')>()
+  const app = real.CALCULATION_RULE_CHANGES.at(-1)?.since ?? ''
+  return {
+    ...real,
+    underRuleChanges: (...args: Parameters<typeof real.underRuleChanges>) =>
+      real.underRuleChanges(args[0], args[1], args[2], args[3] ?? app),
+  }
+})
+
 const { experiment, run } = await import('./fixtures/project')
 const ReproducePanel = (await import('../src/views/inspect/ReproducePanel.vue')).default
 const { irisDataset } = await import('./fixtures/iris')
@@ -542,6 +558,39 @@ describe('대조가 도는 동안', () => {
       expect(panel.text()).not.toContain(
         i18n.global.t('inspect.rulesChanged', { version: LATEST_RULES }),
       )
+      panel.unmount()
+    })
+  })
+
+  /** 학교 설치본이 뒤처졌다 (open-decisions.md 84). 앱의 판은 위 흉내가 정한 `LATEST_RULES`다. */
+  describe('교사 앱이 파일보다 이전 버전일 때', () => {
+    const NEWER = LATEST_RULES.replace(/\d+$/, (patch) => String(Number(patch) + 1))
+
+    async function differing(appVersion: string): Promise<Panel> {
+      const made = claim('experiment-newer')
+      const panel = mountPanel(made, appVersion)
+      await button(panel, START()).trigger('click')
+      await flushPromises()
+      worker.report?.({ ...made.runs[0]!, metrics: { accuracy: 0.5 } }, 1, 1, 0)
+      await flushPromises()
+      return panel
+    }
+
+    it('판정하지 않고 사유와 두 판을 보인다', async () => {
+      const panel = await differing(NEWER)
+      const [line] = verdicts(panel)
+      expect(line).toContain(i18n.global.t('reproduction.APP_OUTDATED'))
+      expect(line).not.toContain(i18n.global.t('reproduction.NOT_REPRODUCED'))
+      expect(panel.text()).toContain(
+        i18n.global.t('inspect.appOutdated', { file: NEWER, app: LATEST_RULES }),
+      )
+      panel.unmount()
+    })
+
+    it('같은 판의 파일은 그대로 재현되지 않았다고 말한다 - 바닥', async () => {
+      const panel = await differing(LATEST_RULES)
+      const [line] = verdicts(panel)
+      expect(line).toContain(i18n.global.t('reproduction.NOT_REPRODUCED'))
       panel.unmount()
     })
   })

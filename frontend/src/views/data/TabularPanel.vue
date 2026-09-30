@@ -86,8 +86,9 @@ onBeforeUnmount(retire)
  * **미리보기(`sheets`)도 함께 든다 — 읽을 때 한 번 만든다** (`readFile`). CSV는 `openTable`이
  * 여는 순간 줄을 안 읽고 미리보기가 처음 읽는다. 그것을 `computed`에서 하면 앞줄의 따옴표가 안 닫힌
  * 파일이 **그리는 도중에** `DATASET_PARSE_FAILED`를 던졌고, 전역 오류 손잡이가 없어 배포판은 이 판을
- * 통째로 빈 주석으로 바꿨다 — 알림도, 다시 놓을 과녁도 없었다. 읽기의 `try` 안에서 만들면 같은 실패가
- * 알림이 되고 판은 선다. 무는 검사: `tabular-panel-preview-fail.spec.ts`.
+ * 통째로 빈 주석으로 바꿨다 — 알림도, 다시 놓을 과녁도 없었다. 전역 처리기(`app-errors.ts`)가 선 뒤로는
+ * 알림은 뜨지만 판은 여전히 빈다. 읽기의 `try` 안에서 만들면 같은 실패가 알림이 되고 판은 선다.
+ * 무는 검사: `tabular-panel-preview-fail.spec.ts`.
  */
 const opened = ref<{
   document: TableDocument

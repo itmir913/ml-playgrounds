@@ -80,8 +80,8 @@ const props = defineProps<{
    */
   preprocessor?: Preprocessor | null
   /**
-   * 그 파일의 `manifest.appVersion`. 그 뒤에 바뀐 계산 규칙이 걸리는 줄은 판정을 거른다
-   * (`underRuleChanges`, open-decisions.md 62).
+   * 그 파일의 `manifest.appVersion`. 그 뒤에 바뀐 계산 규칙이 걸리는 줄은 판정을 거르고
+   * (`underRuleChanges`, open-decisions.md 62), 이 앱보다 새것이면 차이가 있는 줄을 판정하지 않는다(84).
    */
   appVersion: string
 }>()
@@ -690,6 +690,13 @@ function failureText(reproduction: Reproduction): string {
         -->
         <p v-if="one.rulesChanged" class="text-ink-soft">
           {{ t('inspect.rulesChanged', { version: one.rulesChanged.appVersion }) }}
+        </p>
+        <!--
+          **이 앱이 파일보다 이전 버전이라 판정하지 못한 줄도 그 까닭을 말한다** (open-decisions.md 84).
+          교사가 할 일(앱을 최신으로)이 있는 사유다.
+        -->
+        <p v-if="one.appOutdated" class="text-ink-soft">
+          {{ t('inspect.appOutdated', { file: one.appOutdated.file, app: one.appOutdated.app }) }}
         </p>
       </li>
     </ul>

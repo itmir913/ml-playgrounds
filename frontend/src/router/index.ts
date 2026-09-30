@@ -161,8 +161,9 @@ router.beforeEach(async (to) => {
     //
     // **여기서 잡지 않으면 아무 일도 안 일어난다.** flush()는 STORAGE_QUOTA_EXCEEDED를
     // 되던지는데(실제 쓰기의 QuotaExceededError) 가드가 던지면 vue-router는 이동을 취소하고,
-    // 우리에게는 router.onError도 전역 errorHandler도 없다 - 학생은 [다음]을 눌렀는데 화면이
-    // 안 바뀌는 것만 본다. storage.ts 머리말이 "저장 실패는 삼키지 않는다. 화면이 반드시
+    // 우리에게는 router.onError가 없고, 전역 오류 처리기(`app-errors.ts`)는 Vue가 부른 코드에서
+    // 빠져나온 것만 받는다 - 가드의 거절은 라우터가 쥐므로 학생은 [다음]을 눌렀는데 화면이
+    // 안 바뀌는 것만 볼 수 있다. storage.ts 머리말이 "저장 실패는 삼키지 않는다. 화면이 반드시
     // 알아야 한다"고 적은 자리이고, 다른 두 경로(update()의 타이머, 화면의 save())는 그 약속을 지킨다.
     //
     // **같은 프로젝트 안에서는 막지 않는다.** 값이 메모리에 그대로 있고 dirty도 그대로라

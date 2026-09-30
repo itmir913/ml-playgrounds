@@ -1024,7 +1024,8 @@ export function parseProjectDocument(value: unknown): ProjectDocument {
    * 위 검사와 같은 이유다 — `experiment.settings.data`도 판별 필드가 없는 유니온이라
    * zod 혼자서는 어느 쪽으로 읽을지 모른다. 여는 문이 안 보면 어긋난 짝이 그대로
    * 들어오고, `dataSnapshot`이 **`ClientError`가 아니라 날것의 ZodError**를 던져
-   * 화면을 세운다. 이 앱에는 `errorHandler`도 `onError`도 없다.
+   * 화면을 세운다. 전역 처리기(`app-errors.ts`)가 알리기는 하지만 그 문장은 `UNEXPECTED_ERROR`와
+   * 영어 원문이고, 선 화면은 그대로 빈다.
    *
    * 부르는 자리가 아홉인데 `try`로 감싸인 것은 하나뿐이라, 막을 자리는 여기다.
    */

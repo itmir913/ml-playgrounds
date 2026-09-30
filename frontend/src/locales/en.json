@@ -44,6 +44,7 @@
     "preparingStart": "Getting scikit-learn ready",
     "engineVersionFallback": "The scikit-learn distribution this experiment was made with is no longer available, so it ran on the current one and the rows show numbers without a verdict (file {stored} · used {used}).",
     "rulesChanged": "The app's calculation rules changed after this file was made, so a difference here is not judged (app version of this file: {version}).",
+    "appOutdated": "This file was made with a newer version of the app, so a difference here cannot be judged. Update the app and run the check again (file {file} · app {app}).",
     "reproduceStopped": "Stopped ({done}/{total})",
     "verdict": "Verdict",
     "difference": "Difference",
@@ -652,6 +653,7 @@
     "REPRODUCED": "Results reproduced",
     "NOT_REPRODUCED": "Results did not reproduce",
     "NOT_JUDGED": "Differs, not judged",
+    "APP_OUTDATED": "App older than the file, not judged",
     "ENGINE_UNAVAILABLE": "Cannot check in this browser"
   },
   "engineState": {

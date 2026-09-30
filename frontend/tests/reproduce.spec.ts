@@ -1209,7 +1209,9 @@ describe('계산 규칙이 바뀐 뒤', () => {
     const { experiment, found } = await tampered()
     // 목록은 판 순서다(아래 "규칙마다 한 줄이고 판 순서다"). 마지막 줄의 판이 가장 늦다.
     const latest = CALCULATION_RULE_CHANGES.at(-1)?.since ?? ''
-    const [judged] = underRuleChanges(found, experiment, fileOf(latest, experiment))
+    // **앱의 판도 스펙이 정한다** (결정 84). 규칙은 다음 판을 `since`로 달고 판 올림보다 먼저 들어오므로
+    // 이 앱의 판(`__APP_VERSION__`)이 마지막 규칙보다 앞인 때가 있다 — 그때도 이 검사가 재는 것은 같다.
+    const [judged] = underRuleChanges(found, experiment, fileOf(latest, experiment), latest)
     expect(judged?.status).toBe('NOT_REPRODUCED')
     expect(judged?.rulesChanged).toBeUndefined()
   })
@@ -1664,6 +1666,95 @@ describe('계산 규칙이 바뀐 뒤', () => {
       expect(
         changedRules(experiment, run, file({ dataset, appVersion: since ?? '' })),
       ).not.toContain('RADIX_LITERAL')
+    })
+  })
+
+  /**
+   * **교사 앱이 파일보다 이전 버전이다** (open-decisions.md 84). 학교 설치본이 Pages보다 뒤처지면 교사 앱은
+   * 파일과 자기 사이에 바뀐 계산 규칙을 모른다 — 그 규칙은 아직 `CALCULATION_RULE_CHANGES`에 없다.
+   */
+  describe('교사 앱이 파일보다 이전 버전일 때', () => {
+    /** 교사 앱의 판. 규칙 목록의 마지막 판이다 — 목록은 그 판까지 안다. */
+    const APP = CALCULATION_RULE_CHANGES.at(-1)?.since ?? ''
+    /** 그보다 한 판 새 파일. */
+    const NEWER = APP.replace(/\d+$/, (patch) => String(Number(patch) + 1))
+
+    it('차이가 있는 줄은 판정하지 않고 두 판을 말한다 - 차이는 그대로다', async () => {
+      const { experiment, found } = await tampered()
+      expect(found[0]?.status).toBe('NOT_REPRODUCED')
+
+      const [judged] = underRuleChanges(found, experiment, fileOf(NEWER, experiment), APP)
+      expect(judged?.status).toBe('APP_OUTDATED')
+      expect(judged?.appOutdated).toEqual({ file: NEWER, app: APP })
+      expect(judged?.rulesChanged).toBeUndefined()
+      expect(judged?.deltas).toEqual(found[0]?.deltas)
+    })
+
+    it('판정하지 않던 줄도 같은 사유로 선다', async () => {
+      const { experiment, found } = await tampered()
+      const advisory = found.map((one): Reproduction => ({ ...one, status: 'NOT_JUDGED' }))
+      const [judged] = underRuleChanges(advisory, experiment, fileOf(NEWER, experiment), APP)
+      expect(judged?.status).toBe('APP_OUTDATED')
+    })
+
+    it('차이가 없는 줄은 그대로 재현됐다고 말한다', async () => {
+      const experiment = await trained(['decision_tree'])
+      const found = await reproduceExperiment({ experiment, dataset, testDataset: null })
+      const [judged] = underRuleChanges(found, experiment, fileOf(NEWER, experiment), APP)
+      expect(judged?.status).toBe('REPRODUCED')
+      expect(judged?.appOutdated).toBeUndefined()
+    })
+
+    it('같은 판의 파일은 지금과 같다 - 바닥', async () => {
+      const { experiment, found } = await tampered()
+      const [judged] = underRuleChanges(found, experiment, fileOf(APP, experiment), APP)
+      expect(judged).toEqual(found[0])
+    })
+
+    it('옛 파일은 지금과 같다 - 규칙 변경이 그대로 거른다', async () => {
+      const { experiment, found } = await tampered()
+      const [judged] = underRuleChanges(found, experiment, fileOf('0.27.0', experiment), APP)
+      expect(judged?.status).toBe('NOT_JUDGED')
+      expect(judged?.rulesChanged?.appVersion).toBe('0.27.0')
+      expect(judged?.appOutdated).toBeUndefined()
+    })
+
+    it('판은 수로 견준다 - 0.100.0은 0.99.0보다 새것이다', async () => {
+      const { experiment, found } = await tampered()
+      const [newer] = underRuleChanges(found, experiment, fileOf('0.100.0', experiment), '0.99.0')
+      expect(newer?.status).toBe('APP_OUTDATED')
+      const [older] = underRuleChanges(found, experiment, fileOf('0.99.0', experiment), '0.100.0')
+      expect(older?.status).toBe('NOT_REPRODUCED')
+    })
+
+    it('파일의 판을 못 읽으면 이 거름이 아니라 규칙 변경이 거른다', async () => {
+      const { experiment, found } = await tampered()
+      const [judged] = underRuleChanges(found, experiment, fileOf('dev', experiment), APP)
+      expect(judged?.status).toBe('NOT_JUDGED')
+      expect(judged?.appOutdated).toBeUndefined()
+    })
+
+    it('앱의 판을 안 주면 이 앱의 판으로 잰다', async () => {
+      const { experiment, found } = await tampered()
+      const newer = __APP_VERSION__.replace(/\d+$/, (patch) => String(Number(patch) + 1))
+      const [judged] = underRuleChanges(found, experiment, fileOf(newer, experiment))
+      expect(judged?.appOutdated).toEqual({ file: newer, app: __APP_VERSION__ })
+    })
+
+    /**
+     * **두 거름이 한 줄에 함께 걸려도 답이 정해진다.** 규칙은 다음 판을 `since`로 달고 판 올림보다 먼저
+     * 들어오므로 앱의 판보다 늦은 규칙이 목록에 있을 수 있다. 앱이 파일보다 이전 버전인지를 먼저 본다.
+     */
+    it('규칙 변경에도 걸리는 줄은 앱이 이전 버전이라는 사유 하나로 선다', async () => {
+      const { experiment, found } = await tampered()
+      // 파일 0.27.0은 앱 0.26.0보다 새것이고, 0.28.0의 표준화 규칙보다 앞이다.
+      const run = experiment.runs[0] as Run
+      expect(changedRules(experiment, run, fileOf('0.27.0', experiment))).toContain(
+        'CONSTANT_COLUMN_SCALE',
+      )
+      const [judged] = underRuleChanges(found, experiment, fileOf('0.27.0', experiment), '0.26.0')
+      expect(judged?.status).toBe('APP_OUTDATED')
+      expect(judged?.rulesChanged).toBeUndefined()
     })
   })
 })

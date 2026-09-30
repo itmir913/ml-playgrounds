@@ -84,6 +84,16 @@ export interface Reproduction {
     readonly rules: readonly CalculationRule[]
   }
   /**
+   * **그 파일이 이 앱보다 새 버전에서 만들어졌다** — 그 사이에 바뀐 계산 규칙을 이 앱은 모르므로
+   * 차이가 있어도 판정하지 않았다 (`underRuleChanges`, open-decisions.md 84). 차이가 있는 줄에만 붙는다.
+   */
+  readonly appOutdated?: {
+    /** 그 파일의 `manifest.appVersion`. */
+    readonly file: string
+    /** 대조한 이 앱의 버전. */
+    readonly app: string
+  }
+  /**
    * 다시 돌리다 실패한 사유. **학습 경로가 코드로 들고 온다** — 눈금 밖 손잡이, 행 상한,
    * 서버 없음. 상태는 `ENGINE_UNAVAILABLE`이고(우리가 못 돌린 것이지 학생이 고친 것이
    * 아니다) 화면이 이 코드로 사유를 말한다.
@@ -658,15 +668,29 @@ export function changedRules(experiment: Experiment, run: Run, file: RuleFile): 
  * **판정을 세우는 `compareRun`은 그대로 두고 여기서 거른다** — 대조 판은 도착한 사실을
  * 담아 두고 보일 때 이것을 한 번 지난다(`views/inspect/ReproducePanel.vue`의 `found`).
  * `tests/reproduce.spec.ts`의 *"계산 규칙이 바뀐 뒤"*가 문다.
+ *
+ * **이 앱이 파일보다 이전 버전이면 먼저 거른다** (open-decisions.md 84). 그 사이에 바뀐 규칙은 아직
+ * `CALCULATION_RULE_CHANGES`에 없어서 아래 거름이 셀 수 없다 — 그 줄은 `APP_OUTDATED`가 된다. 규칙은 판
+ * 올림보다 먼저 들어오므로 두 거름이 한 줄에 함께 걸릴 수 있는데, 이것을 먼저 보므로 답은 하나다. 같은 스펙의
+ * *"교사 앱이 파일보다 이전 버전일 때"*가 문다.
  */
 export function underRuleChanges(
   reproductions: readonly Reproduction[],
   experiment: Experiment,
   file: RuleFile,
+  app: string = __APP_VERSION__,
 ): Reproduction[] {
+  const outdated = appIsOlder(app, file.appVersion)
   return reproductions.map((reproduction) => {
     if (reproduction.status !== 'NOT_REPRODUCED' && reproduction.status !== 'NOT_JUDGED') {
       return reproduction
+    }
+    if (outdated) {
+      return {
+        ...reproduction,
+        status: 'APP_OUTDATED',
+        appOutdated: { file: file.appVersion, app },
+      }
     }
     const run = experiment.runs.find((one) => one.id === reproduction.runId)
     const rules = run === undefined ? [] : changedRules(experiment, run, file)
@@ -714,6 +738,15 @@ function versionBefore(left: string, right: string): boolean {
     if (gap !== 0) return gap < 0
   }
   return false
+}
+
+/**
+ * 이 앱(`app`)이 그 파일(`file`)을 만든 판보다 앞인가. **두 판을 다 읽을 수 있을 때만 참이다** —
+ * 파일의 판을 못 읽으면 `versionBefore`가 그것을 옛 판으로 보아 규칙 변경 쪽이 이미 거른다. 같은 파일을
+ * 두 거름이 다르게 부르지 않게, 견주는 식은 `versionBefore` 한 벌이다.
+ */
+function appIsOlder(app: string, file: string): boolean {
+  return versionParts(app) !== null && versionParts(file) !== null && versionBefore(app, file)
 }
 
 function versionParts(version: string): number[] | null {

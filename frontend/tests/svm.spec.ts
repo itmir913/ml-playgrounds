@@ -166,7 +166,7 @@ describe('one-vs-one 투표', () => {
     expect(predict([[-1]])).toEqual(['a'])
   })
 
-  it('표가 같으면 결정함수 값의 합으로 가른다 - sklearn SVC와 같다', async () => {
+  it('표가 같으면 결정함수 값의 합으로 가른다 - sklearn SVC의 break_ties=True와 같다', async () => {
     // 셋이 한 표씩 나눠 갖는 3파전. a>b, b>c, c>a로 돌게 세운다.
     const predict = svmPredict({
       classes,
@@ -181,6 +181,25 @@ describe('one-vs-one 투표', () => {
 
     // 표는 a 1표(a-b), b 1표(b-c), c 1표(a-c). 합은 a가 +4.5로 가장 크다.
     expect(predict([[0]])).toEqual(['a'])
+  })
+
+  /**
+   * **위 검사는 첫 클래스가 이기는 자리라 "득표 동점이면 첫 클래스"(sklearn 기본 `break_ties=False`)와
+   * 가르지 못한다.** 합이 가장 큰 쪽을 마지막 클래스로 세워 두 규칙이 갈리는 자리를 잰다.
+   */
+  it('합이 가장 큰 쪽이 첫 클래스가 아니어도 그쪽이다', async () => {
+    const predict = svmPredict({
+      classes,
+      featureCount: 1,
+      classifiers: [
+        { a: 0, b: 1, weights: [0], intercept: -0.5 },
+        { a: 1, b: 2, weights: [0], intercept: -0.5 },
+        { a: 0, b: 2, weights: [0], intercept: 5 },
+      ],
+    })
+
+    // 표는 a 1표(a-b), b 1표(b-c), c 1표(a-c). 합은 a -4.5, b 0, c +4.5.
+    expect(predict([[0]])).toEqual(['c'])
   })
 
   it('클래스가 여럿인데 가르는 쌍이 없으면 거부한다 - 전부 첫 클래스로 답한다', async () => {
