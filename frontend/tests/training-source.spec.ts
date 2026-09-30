@@ -17,15 +17,18 @@ import { MIN_CLASSIFICATION_CATEGORIES, MIN_SPLIT_ROWS } from '../src/limits'
 import { DEFAULT_BACKBONE_ID, backboneFor } from '../src/ml/backbones'
 import type { EmbedMessage, EmbedRequest } from '../src/ml/embed/protocol'
 import type { EmbedWorker } from '../src/ml/embed/client'
+import { tabularPlanOf } from '../src/ml/plan-cache'
 import {
   algorithmSelectionFor,
   runtimeContextFor,
   trainableRowsOf,
   trainingClassesOf,
+  trainingEstimateInput,
+  trainingEstimateShape,
   trainingSourceOf,
 } from '../src/ml/training-source'
 import { newProjectDocument } from '../src/project/create'
-import { surveyProject, tabularProjectFrom } from './fixtures/prep-kind'
+import { surveyCsv, surveyProject, tabularProjectFrom } from './fixtures/prep-kind'
 import { addEmbeddings, readEmbeddings } from '../src/project/embeddings'
 import { type ProjectFile } from '../src/project/format'
 import { addImages, applyTestImages, readImages } from '../src/project/images'
@@ -577,5 +580,76 @@ describe('준비를 끊는 손잡이', () => {
       },
     })
     expect(called).toBe(false)
+  })
+})
+
+/**
+ * **학습 화면이 예상 시간에 넘기는 입력** (`trainingEstimateShape`·`trainingEstimateInput`). 누르기 전의
+ * 예상과 학습 뒤의 배수 보정이 이 둘을 함께 부른다. 화면 안에 있을 때는 두 자리에서 `classes` 줄을
+ * 지워도 아무 검사도 안 울었다 — 그러면 클래스 배수가 예상에서 빠지고, 배운 배수가 그 몫을 담는다.
+ */
+describe('예상 입력', () => {
+  it('표 분류의 몫은 계획의 훈련 행·학습이 쓰는 특성 폭·타깃 값 종류다', async () => {
+    const survey = await surveyProject(true)
+    const plan = tabularPlanOf(survey)
+    if (!plan?.ok) throw new Error('the survey plan must stand')
+
+    expect(trainingEstimateShape(survey)).toEqual({
+      dataType: 'tabular',
+      rows: plan.split.trainIndices.length,
+      // `키`의 `모름` 행은 타깃이 비어 빠지므로 두 특성 다 수치다 — 인코딩을 꺼도 한 칸씩이다.
+      columns: 2,
+      classes: 2,
+    })
+    expect(trainingEstimateShape(survey).classes).toBe(trainingClassesOf(survey, 'classification'))
+  })
+
+  /** **유형은 파일에서 뽑는다.** 군집에는 클래스가 없고, 나누지 않으므로 쓸 수 있는 행이 전부다. */
+  it('군집의 몫은 클래스 수가 비고 행이 전부다', async () => {
+    const file = await tabularProjectFrom(surveyCsv(false), '설문.csv', {
+      taskType: 'clustering',
+      target: '성별',
+      features: ['몸무게'],
+      preprocessing: {},
+    })
+    const shape = trainingEstimateShape(file)
+    expect(shape.classes).toBeUndefined()
+    expect(shape.rows).toBe(trainableRowsOf(file, 'clustering'))
+    expect(shape.rows).toBe(40)
+  })
+
+  it('한 줄의 입력은 몫 전부에 그 알고리즘·그 실행 방법의 손잡이를 붙인다', () => {
+    const shape = { dataType: 'tabular', rows: 120, columns: 5, classes: 4 } as const
+    const hyperparameters = {
+      decision_tree: { mljs: { maxDepth: 3 }, 'pyodide-sklearn': { max_depth: 9 } },
+      knn: { mljs: { k: 7 } },
+    }
+    expect(
+      trainingEstimateInput(
+        shape,
+        { algorithm: 'decision_tree', runtime: 'mljs' },
+        hyperparameters,
+      ),
+    ).toEqual({
+      algorithm: 'decision_tree',
+      dataType: 'tabular',
+      rows: 120,
+      columns: 5,
+      hyperparameters: { maxDepth: 3 },
+      runtime: 'mljs',
+      classes: 4,
+    })
+    // 손잡이가 없는 조합은 빈 것이다 — 기본값으로 본다.
+    expect(
+      trainingEstimateInput(shape, { algorithm: 'svm', runtime: 'server' }, hyperparameters)
+        .hyperparameters,
+    ).toEqual({})
+  })
+
+  /** 분류가 아니면 칸이 비어 있어야 클래스 배수가 안 붙는다 — 칸을 지어내지 않는다. */
+  it('클래스 수가 빈 몫은 입력에도 빈다', () => {
+    const shape = { dataType: 'image', rows: 30, columns: 0, classes: undefined } as const
+    const input = trainingEstimateInput(shape, { algorithm: 'knn', runtime: 'mljs' }, {})
+    expect(input.classes).toBeUndefined()
   })
 })

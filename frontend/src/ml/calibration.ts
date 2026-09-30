@@ -41,7 +41,9 @@ const MODEL_STORAGE_KEY = 'ml-playgrounds:model-factors'
  * 합성 데이터의 클래스 수 기본값. **기준표를 잰 그 수다**(`limits.ts`의 `BASELINE_CLASSES`)
  * — 여기서 따로 적으면 예상 시간의 클래스 배수가 분모를 잘못 안다. **교정 일감도 이 데이터로
  * 돈다**(`CALIBRATION_JOBS`) — 기준과 다른 클래스 수로 돌면 기기 배수가 조용히 어긋난다.
- * `tests/estimate-classes.spec.ts`의 *"교정 데이터는 기준 클래스 수로 난다"*가 문다.
+ * `tests/calibration.spec.ts`의 *"교정 일감은 기준 클래스 수로 돈다"*가 `measureJob`이 엔진에
+ * 넘긴 타깃으로 문다(기본값만은 `tests/estimate-classes.spec.ts`의 *"교정 데이터는 기준 클래스 수로
+ * 난다"*).
  *
  * **실측 하니스가 이 수를 일감에 적는다** (`tools/workloads.ts`의 `Job.classes`) — 다중
  * 클래스 로지스틱은 반복마다 클래스 수에 비례해 일하므로, 이 수가 안 남은 실측은 다른 판과

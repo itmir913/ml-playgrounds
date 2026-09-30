@@ -8,14 +8,30 @@
  * 어긋나는데, **그 어긋남은 화면 어디에도 안 나타난다.** 예상 시간만 조용히 틀린다.
  */
 
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+/** 엔진의 `fit`에 닿은 타깃마다의 종류 수. 아래 목(mock)이 모은다. */
+const fitClasses = vi.hoisted(() => [] as number[])
+
+// **`fit`을 감싸기만 한다** — 학습은 진짜로 돌고, 넘어간 타깃의 종류 수만 적어 둔다.
+vi.mock('../src/ml/engines/mljs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/ml/engines/mljs')>()
+  return {
+    ...actual,
+    fit: (algorithm: string, input: Parameters<typeof actual.fit>[1]) => {
+      fitClasses.push(new Set(input.target).size)
+      return actual.fit(algorithm, input)
+    },
+  }
+})
 
 import { CALIBRATION } from '../tools/workloads'
-import { CALIBRATION_BASELINE_MS } from '../src/limits'
+import { BASELINE_CLASSES, CALIBRATION_BASELINE_MS } from '../src/limits'
 import {
   CALIBRATION_JOBS,
   factorFrom,
   factorFromRun,
+  measureJob,
   modelFactorKey,
   readModelFactors,
   writeModelFactors,
@@ -82,6 +98,19 @@ describe('기기 배수', () => {
     const algorithms = CALIBRATION_JOBS.map((job) => job.algorithm)
     expect(algorithms).toContain('decision_tree')
     expect(algorithms).toContain('logistic_regression')
+  })
+
+  /**
+   * **교정 일감이 실제로 기준 클래스 수의 데이터로 도는가** (`limits.ts`의 `BASELINE_CLASSES`). 합성
+   * 데이터의 기본값만 보면 `measureJob`이 다른 수를 넘겨도 초록이다 — 그러면 기기 배수가 조용히
+   * 어긋나고 클래스 배수의 분모도 틀린다. 그래서 엔진의 `fit`에 **닿은** 타깃의 종류 수를 센다.
+   */
+  it('교정 일감은 기준 클래스 수로 돈다', async () => {
+    fitClasses.length = 0
+    const classified = CALIBRATION_JOBS.filter((job) => job.regression !== true)
+    expect(classified.length).toBeGreaterThan(0)
+    for (const job of classified) await measureJob(job)
+    expect(fitClasses).toEqual(classified.map(() => BASELINE_CLASSES))
   })
 })
 

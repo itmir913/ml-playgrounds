@@ -296,8 +296,8 @@ export interface AlgorithmSpec {
  * **이미지 칸을 채울 때 `columns`는 `'flat'`이다.** 사진 프로젝트의 특성 수는 백본이
  * 정해 늘 같고(`backbones.ts`의 `embeddingDim`), 표가 애초에 그 차원에서 재어진다 —
  * `'linear'`로 넣으면 이미 들어 있는 차원을 한 번 더 곱한다. **게다가 그 곱은 1보다
- * 작다**: 학습 화면이 넘기는 `columns`가 사진에서는 **0**이고(`TrainView.vue`의
- * `featureWidth`가 `tabularDataOf`를 읽어 이미지면 0이다), `baselineMs`가 그것을 1로
+ * 작다**: 학습 화면이 넘기는 `columns`가 사진에서는 **0**이고(`ml/training-source.ts`의
+ * `trainingEstimateShape`가 `tabularDataOf`를 읽어 이미지면 0이다), `baselineMs`가 그것을 1로
  * 올린 뒤 `BASELINE_COLUMNS`(8)로 나눠 **8배 짧게** 말하게 된다.
  *
  * **백본이 하나 더 생기면 그 표는 다시 재야 한다.** 차원이 바뀌면 표의 전제가 바뀌는데

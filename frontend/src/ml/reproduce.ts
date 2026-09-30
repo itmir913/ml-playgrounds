@@ -754,8 +754,12 @@ function versionBefore(left: string, right: string): boolean {
 
 /**
  * 이 앱(`app`)이 그 파일(`file`)을 만든 판보다 앞인가. **두 판을 다 읽을 수 있을 때만 참이다** —
- * 파일의 판을 못 읽으면 `versionBefore`가 그것을 옛 판으로 보아 규칙 변경 쪽이 이미 거른다. 같은 파일을
- * 두 거름이 다르게 부르지 않게, 견주는 식은 `versionBefore` 한 벌이다.
+ * 파일의 판을 못 읽으면 `versionBefore`가 그것을 옛 판으로 보아 규칙 변경 쪽으로 넘어가는데, 거기서도
+ * **그 run에 걸리는 규칙이 있을 때만** 거르고 없으면 그대로 판정한다. `tests/reproduce.spec.ts`의
+ * *"파일의 판을 못 읽으면 이 거름이 아니라 규칙 변경이 거른다"*와 *"파일의 판을 못 읽어도 걸리는 규칙이
+ * 없는 run은 판정한다"*가 두 갈래를 문다. 앱의 판을 못 읽을 때는 같은 스펙의 *"앱의 판을 못 읽으면 파일이
+ * 새 판이어도 앱이 이전 버전이라고 안 한다"*. 같은 파일을 두 거름이 다르게 부르지 않게, 견주는 식은
+ * `versionBefore` 한 벌이다.
  */
 function appIsOlder(app: string, file: string): boolean {
   return versionParts(app) !== null && versionParts(file) !== null && versionBefore(app, file)

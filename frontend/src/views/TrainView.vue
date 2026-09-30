@@ -18,8 +18,6 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vu
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter, type RouteLocationNormalized } from 'vue-router'
 
-import { own } from '@/records'
-
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
@@ -49,9 +47,8 @@ import {
   describe as describeEstimate,
   type Estimate,
 } from '@/ml/estimate'
-import { estimatedFeatureWidth } from '@/ml/preprocess'
 import { plannedColumnsOf } from '@/ml/plan-cache'
-import { trainableRowsOf, trainingClassesOf } from '@/ml/training-source'
+import { trainingEstimateInput, trainingEstimateShape } from '@/ml/training-source'
 import {
   isBrowserRuntimeId,
   reasonParams,
@@ -61,12 +58,9 @@ import {
 import { lockFor, lockReasons, refusalFor, useGate } from '@/locks'
 import {
   byChosenRow,
-  featuresInUse,
   modelAxes,
   requiredTargetKind,
   trainableSelections,
-  trainShare,
-  usesTarget,
   type ChosenModel,
   type TrainBlock,
 } from '@/ml/selection'
@@ -77,7 +71,7 @@ import { spawnTrainingWorker } from '@/ml/worker/spawn'
 import { applyExperiment } from '@/project/attach'
 import { requireRoomForTraining } from '@/project/format'
 import { dataKindFor, DEFAULT_DATA_TYPE } from '@/data/kinds'
-import { tabularDataOf, type ProjectDocument, type TaskType } from '@/project/schema'
+import type { ProjectDocument, TaskType } from '@/project/schema'
 import {
   withHyperparameter,
   withRuntime,
@@ -106,7 +100,7 @@ const toasts = useToastStore()
  */
 const training = useTraining(spawnTrainingWorker, {
   onModelTimed: ({ algorithm, runtime, elapsedMs }) => {
-    const dataType = project.file?.document.manifest.dataType
+    const shape = estimateShape.value
     /**
      * **브라우저에서 돈 것만 안다.** 서버는 우리가 모르는 기기다.
      *
@@ -114,18 +108,12 @@ const training = useTraining(spawnTrainingWorker, {
      * 시동은 이미 시계 밖이라(`useTraining`이 준비가 끝나는 순간 시계를 다시 시작한다)
      * 이 값은 두 엔진 모두에서 **학습에 걸린 시간**이다.
      */
-    if (!isBrowserRuntimeId(runtime) || dataType === undefined) return
-    const expected = baselineMs({
-      algorithm,
-      dataType,
-      rows: trainingRows.value,
-      columns: featureWidth.value,
-      hyperparameters: own(settings.value?.hyperparameters ?? {}, algorithm)?.[runtime] ?? {},
-      // **이 줄이 없으면 sklearn 실행을 순수 JS 기준표로 나눈다** (R32 B-1). 이제 타입이 선다.
-      runtime,
-      // 예상과 같은 입력이어야 배운 배수가 클래스 배수를 두 번 담지 않는다.
-      classes: trainingClasses.value,
-    })
+    if (!isBrowserRuntimeId(runtime) || shape === null) return
+    // **예상과 같은 입력이다** (`trainingEstimateInput`) — 실행 방법이 없으면 sklearn 실행을
+    // 순수 JS 기준표로 나누고(R32 B-1), 클래스 수가 없으면 배운 배수가 클래스 배수를 담는다.
+    const expected = baselineMs(
+      trainingEstimateInput(shape, { algorithm, runtime }, settings.value?.hyperparameters ?? {}),
+    )
     const factor = expected === null ? null : factorFromRun(elapsedMs, expected)
     if (factor === null) return
     modelFactors.value = { ...modelFactors.value, [modelFactorKey(algorithm, runtime)]: factor }
@@ -189,7 +177,8 @@ const progressText = computed(() => {
 
 /**
  * 열 요약. **종류는 계획이 본 것이다** (`plannedColumnsOf`) — 전처리 판과 같은 덮기다. 타깃
- * 경고와 예상 폭이 이 값을 쓴다. `train-prep-kind.spec.ts`가 두 화면을 나란히 문다.
+ * 경고가 이 값을 쓰고, 예상 폭(`trainingEstimateShape`)도 같은 함수를 부른다.
+ * `train-prep-kind.spec.ts`가 두 화면을 나란히 문다.
  */
 const columns = computed(() => plannedColumnsOf(project.file))
 
@@ -295,37 +284,11 @@ onMounted(() => {
 })
 
 /**
- * 예상 시간이 곱할 특성 수. **원핫으로 늘어난 열이 그대로 센다** — 지역 열 하나가 17개
- * 열이 되는 일이 예사고, 트리 계열에서 그것은 그대로 17배다.
+ * 예상 시간의 입력 가운데 모델마다 같은 몫 — 훈련 행 수·특성 폭·클래스 수
+ * (`ml/training-source.ts`의 `trainingEstimateShape`). **한 번 세어 줄마다 나눠 쓴다.**
+ * 프로젝트가 없으면 `null`이다. `train-prep-kind.spec.ts`가 전처리 판과 나란히 문다.
  */
-const featureWidth = computed(() => {
-  const data = project.file ? tabularDataOf(project.file.document) : null
-  if (!data) return 0
-  // **학습이 쓰는 특성으로 센다** — 타깃과 같은 이름은 계획이 빼므로 여기서도 뺀다
-  // (`open-decisions.md` 55, `featuresInUse`).
-  const used = featuresInUse(data.features, usesTarget(project.taskType) ? data.target : undefined)
-  return estimatedFeatureWidth(columns.value, used, data.preprocessing.categoricalEncoding)
-})
-
-/**
- * 학습에 실제로 들어가는 행 수. **훈련 몫만이다** (`trainShare` — 테스트 데이터를 따로
- * 올렸거나 군집이면 전부). `train-prep-kind.spec.ts`의 *"군집이면 …"*이 문다.
- */
-const trainingRows = computed(() => {
-  const file = project.file
-  if (!file) return 0
-  const usable = trainableRowsOf(file, project.taskType)
-  const share = trainShare(file.document.settings.split, project.taskType)
-  return Math.max(Math.round(usable * share), 0)
-})
-
-/**
- * 예상 시간에 넘길 클래스 수. **분류가 아니면 비어 있고, 그러면 클래스 배수가 안 붙는다**
- * (`ml/training-source.ts`의 `trainingClassesOf`, `ml/estimate.ts`의 `classFactor`).
- */
-const trainingClasses = computed(() =>
-  project.file ? trainingClassesOf(project.file, project.taskType) : undefined,
-)
+const estimateShape = computed(() => (project.file ? trainingEstimateShape(project.file) : null))
 
 /**
  * 줄마다의 예상 시간. **자리가 `chosen`과 같다.**
@@ -336,10 +299,10 @@ const trainingClasses = computed(() =>
  */
 const estimates = computed<Estimate[]>(() => {
   const factor = deviceFactor.value
-  const dataType = project.file?.document.manifest.dataType
+  const shape = estimateShape.value
   const values = settings.value?.hyperparameters ?? {}
   return chosen.value.map((row) => {
-    if (factor === null || dataType === undefined) return { kind: 'unknown' }
+    if (factor === null || shape === null) return { kind: 'unknown' }
     // 그 알고리즘을 **그 실행 방법으로** 한 번이라도 돌려 봤으면 그때 잰 값이 이긴다.
     const measured = modelFactors.value[modelFactorKey(row.algorithm, row.runtime)] ?? factor
     /**
@@ -347,20 +310,7 @@ const estimates = computed<Estimate[]>(() => {
      * 그쪽이 한다 — 여기서 종류를 손으로 세면 등록부가 아는 것을 화면이 다시 아는 셈이다
      * (`architecture.md` §9.1).
      */
-    return describeEstimate(
-      browserEstimateMs(
-        {
-          algorithm: row.algorithm,
-          dataType,
-          rows: trainingRows.value,
-          columns: featureWidth.value,
-          hyperparameters: values[row.algorithm]?.[row.runtime] ?? {},
-          runtime: row.runtime,
-          classes: trainingClasses.value,
-        },
-        measured,
-      ),
-    )
+    return describeEstimate(browserEstimateMs(trainingEstimateInput(shape, row, values), measured))
   })
 })
 

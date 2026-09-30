@@ -537,8 +537,10 @@ describe('타깃을 골라도 특성 목록이 남는다', { timeout: 30_000 }, 
     await router.isReady()
     await router.push(`/project/${file.document.manifest.projectId}/train`)
     await settle()
-    const view = wrapper.findComponent(TrainView).vm as unknown as { featureWidth: number }
-    expect(view.featureWidth).toBe(IRIS_FEATURE_COLUMNS.length)
+    const view = wrapper.findComponent(TrainView).vm as unknown as {
+      estimateShape: { columns: number } | null
+    }
+    expect(view.estimateShape?.columns).toBe(IRIS_FEATURE_COLUMNS.length)
     wrapper.unmount()
   })
 

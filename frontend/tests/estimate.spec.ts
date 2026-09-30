@@ -83,11 +83,19 @@ group('보간', () => {
   })
 
   it('표 위로는 가장 가파른 구간으로 늘린다 - 마지막 구간만 보면 짧게 틀린다', () => {
-    const last = MLJS_DECISION_TREE_BASELINE_MS[MLJS_DECISION_TREE_BASELINE_MS.length - 1]
-    const [lastRows, lastMs] = last as readonly [number, number]
-    const lastSlope = Math.log(34_567 / 8457) / Math.log(10_000 / 5000) // 마지막 구간의 기울기
-    const doubled = interpolate(MLJS_DECISION_TREE_BASELINE_MS, lastRows * 2)
-    expect(doubled).toBeGreaterThan(lastMs * Math.pow(2, lastSlope))
+    // **기울기를 표에서 셈한다.** 숫자를 박아 두면 표를 다시 잰 뒤에는 엉뚱한 구간을 견준다.
+    const ladder = MLJS_DECISION_TREE_BASELINE_MS
+    const slopes = ladder.slice(1).map(([rows, ms], at) => {
+      const [lowRows, lowMs] = ladder[at] as readonly [number, number]
+      return Math.log(ms / lowMs) / Math.log(rows / lowRows)
+    })
+    const steepest = Math.max(1, ...slopes)
+    const lastSlope = slopes.at(-1) ?? 0
+    // 전제: 이 표는 가장 가파른 구간이 마지막이 아니다. 마지막이면 두 규칙이 같은 값을 내 뜻이 없다.
+    expect(steepest).toBeGreaterThan(lastSlope)
+    const [lastRows, lastMs] = ladder[ladder.length - 1] as readonly [number, number]
+    const doubled = interpolate(ladder, lastRows * 2)
+    expect(doubled / (lastMs * Math.pow(2, steepest))).toBeCloseTo(1, 9)
   })
 
   it('빈 표는 0이다 - 없는 것을 지어내지 않는다', () => {
@@ -288,7 +296,7 @@ group('등록부', () => {
  * **사진에서 특성 수를 두 번 세지 않는다** (2026-09-03).
  *
  * 사진 기준표는 임베딩 차원에서 재어져 있고, 학습 화면이 넘기는 `columns`는 **사진에서
- * 0이다**(`TrainView.vue`의 `featureWidth`가 `tabularDataOf`를 읽는다). 그 0을 가중치
+ * 0이다**(`ml/training-source.ts`의 `trainingEstimateShape`가 `tabularDataOf`를 읽는다). 그 0을 가중치
  * 식에 그대로 넣으면 손잡이 배수가 **3분의 1로 줄어** 예상이 크게 짧아진다 —
  * `UNMEASURED_BASELINE`의 주석이 `columns: 'flat'`에 대해 경고하는 것과 같은 함정이,
  * 인공신경망의 손잡이 배수에서 한 번 더 나타난 자리다.

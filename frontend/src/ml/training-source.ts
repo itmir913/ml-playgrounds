@@ -17,14 +17,18 @@ import type { EngineState, RuntimeContext } from '@/ml/backend'
 import { backboneFor } from '@/ml/backbones'
 import { embedImages, type EmbedHandle, type EmbedWorker } from '@/ml/embed/client'
 import { spawnEmbedWorker } from '@/ml/embed/spawn'
+import type { EstimateInput } from '@/ml/estimate'
 import { imageTestDataset, imageTrainingSource, pendingEmbeddings } from '@/ml/images'
-import { isMissing, targetValues, type Dataset } from '@/ml/preprocess'
+import { plannedColumnsOf } from '@/ml/plan-cache'
+import { estimatedFeatureWidth, isMissing, targetValues, type Dataset } from '@/ml/preprocess'
 import {
   featuresInUse,
   trainableRowCountFor,
   trainableSelections,
+  trainShare,
   usesTarget,
 } from '@/ml/selection'
+import { own } from '@/records'
 import { readDataset, readTestDataset } from '@/project/dataset'
 import { addEmbeddings, readEmbeddings } from '@/project/embeddings'
 import { IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
@@ -317,6 +321,93 @@ export function trainingClassesOf(
 ): number | undefined {
   if (taskType === undefined || !COUNTS_CLASSES[taskType]) return undefined
   return TRAINING_CLASS_COUNTS[project.document.manifest.dataType](project)
+}
+
+/**
+ * 학습 예상 시간의 입력 가운데 **모델마다 같은 몫** — 종류·행·특성·클래스.
+ *
+ * **한 번 세어 줄마다 나눠 쓴다.** 행과 클래스를 세는 것은 표를 한 번 훑는 일이라, 모델마다
+ * 다시 세면 고른 모델 수만큼 훑는다. 모델마다 다른 몫(알고리즘·실행 방법·손잡이)은
+ * `trainingEstimateInput`이 붙인다.
+ */
+export interface TrainingEstimateShape {
+  readonly dataType: DataType
+  /** 학습에 실제로 들어가는 행 수. **훈련 몫만이다** (`trainShare`). */
+  readonly rows: number
+  /** 전처리 뒤의 특성 수. **표 설정이 없으면 0이다** — 사진의 폭은 사진 기준표가 이미 쟀다. */
+  readonly columns: number
+  /** 분류의 클래스 수 (`trainingClassesOf`). 분류가 아니면 비어 있다. */
+  readonly classes: number | undefined
+}
+
+/**
+ * 이 프로젝트의 예상 시간 몫. **과제 유형은 파일에서 뽑는다** — `runtimeContextFor`와 같은
+ * 판단이다(화면이 넘기게 두면 그 인자가 검사 밖이 된다).
+ *
+ * **컴포넌트 밖에 둔다** (`CLAUDE.md` §4). 화면 안에 있을 때 `classes` 칸을 지워도 아무 검사도
+ * 안 울었다. `tests/training-source.spec.ts`의 *"예상 입력"* 묶음이 문다.
+ */
+export function trainingEstimateShape(project: ProjectFile): TrainingEstimateShape {
+  const taskType = project.document.manifest.taskType
+  return {
+    dataType: project.document.manifest.dataType,
+    rows: trainingShareRows(project, taskType),
+    columns: trainingFeatureWidth(project, taskType),
+    classes: trainingClassesOf(project, taskType),
+  }
+}
+
+/** 쓸 수 있는 행 가운데 훈련 몫 (테스트 데이터를 따로 올렸거나 군집이면 전부). */
+function trainingShareRows(project: ProjectFile, taskType: TaskType | undefined): number {
+  const usable = trainableRowsOf(project, taskType)
+  const share = trainShare(project.document.settings.split, taskType)
+  return Math.max(Math.round(usable * share), 0)
+}
+
+/**
+ * 예상 시간이 곱할 특성 수. **원핫으로 늘어난 열이 그대로 센다** — 지역 열 하나가 17개
+ * 열이 되는 일이 예사고, 트리 계열에서 그것은 그대로 17배다.
+ *
+ * **열 종류는 계획이 본 것이다** (`plannedColumnsOf`) — 전처리 판과 같은 덮기다.
+ * `train-prep-kind.spec.ts`가 두 화면을 나란히 문다.
+ */
+function trainingFeatureWidth(project: ProjectFile, taskType: TaskType | undefined): number {
+  const data = tabularDataOf(project.document)
+  if (!data) return 0
+  // **학습이 쓰는 특성으로 센다** — 타깃과 같은 이름은 계획이 빼므로 여기서도 뺀다
+  // (`open-decisions.md` 55, `featuresInUse`).
+  const used = featuresInUse(data.features, usesTarget(taskType) ? data.target : undefined)
+  return estimatedFeatureWidth(
+    plannedColumnsOf(project),
+    used,
+    data.preprocessing.categoricalEncoding,
+  )
+}
+
+/**
+ * 한 모델 줄의 예상 입력. **학습 화면의 두 자리 — 누르기 전의 예상(`browserEstimateMs`)과 학습
+ * 뒤의 배수 보정(`baselineMs`) — 가 이것 하나를 부른다.** 두 자리가 다른 입력을 쓰면 배운 배수가
+ * 예상에 없는 몫(클래스 배수 같은 것)을 담는다.
+ *
+ * 실행 방법은 받은 타입 그대로 돌려준다 — 예상 쪽은 좁히지 않은 문자열을, 보정 쪽은 좁힌
+ * 브라우저 실행 방법을 넘긴다. `tests/ui-rules.spec.ts`의 *"화면의 예상 입력은 부품 밖의
+ * 함수가 만든다"*가 화면이 이것을 거치는지 문다.
+ */
+export function trainingEstimateInput<R extends string>(
+  shape: TrainingEstimateShape,
+  row: { readonly algorithm: string; readonly runtime: R },
+  hyperparameters: Settings['hyperparameters'],
+): Omit<EstimateInput, 'runtime'> & { readonly runtime: R } {
+  return {
+    algorithm: row.algorithm,
+    dataType: shape.dataType,
+    rows: shape.rows,
+    columns: shape.columns,
+    hyperparameters: own(hyperparameters, row.algorithm)?.[row.runtime] ?? {},
+    runtime: row.runtime,
+    // 예상과 보정이 같은 입력이어야 배운 배수가 클래스 배수를 두 번 담지 않는다.
+    classes: shape.classes,
+  }
 }
 
 /**

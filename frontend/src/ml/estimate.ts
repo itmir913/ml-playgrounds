@@ -73,7 +73,12 @@ type Ladder = readonly (readonly [number, number])[]
  * 베이즈의 1,000행 6ms · 5,000행 5ms)에서 아래로 외삽하면 값이 되레 커진다.
  *
  * **표 위로는 가장 가파른 구간의 기울기로 늘린다.** 마지막 구간의 기울기를 쓰면 짧게
- * 틀린다 — 트리의 구간별 증가율이 2.6 · 4.0 · 3.7 · 6.4 · 4.1로 뒤로 갈수록 가팔라진다.
+ * 틀린다 — 트리 기준표는 가장 가파른 구간이 마지막이 아니다. `tests/estimate.spec.ts`의
+ * *"표 위로는 가장 가파른 구간으로 늘린다"*가 표에서 그 구간을 셈해 견준다.
+ *
+ * **그 기울기의 바닥은 1이다** — 표 밖에서는 적어도 x에 비례해 는다. 값이 줄어드는 표(클래스가
+ * 늘수록 빨라지는 SVM의 클래스 배수표)를 그대로 늘리면 표 밖을 표의 끝보다 짧게 말한다.
+ * `tests/estimate-class-tables.spec.ts`의 *"표 위의 클래스 배수는 표의 끝보다 작아지지 않는다"*가 문다.
  */
 export function interpolate(ladder: Ladder, x: number): number {
   const first = ladder[0]
@@ -196,10 +201,10 @@ function numberOr(source: Record<string, unknown>, name: string, fallback: numbe
 /**
  * 인공신경망의 가중치 수. **손잡이 둘과 특성 수가 여기서 하나로 접힌다.**
  *
- * **출력 칸은 1로 센다.** 클래스 수는 예상 시간을 낼 시점에 모르고(학습이 돌아야 안다),
- * `뉴런 × 클래스`는 은닉층의 `뉴런²` 옆에서 작은 항이다 — 기본 손잡이에서 전체의 11%,
- * 2층부터는 1% 아래다. **모르는 값을 지어내는 것보다 작은 항을 빠뜨리는 쪽이 낫고, 그
- * 방향은 짧게 틀린다** — 이 파일이 피하려는 방향이지만 크기가 저 정도다.
+ * **출력 칸은 1로 센다.** 클래스 수가 출력층에 얹는 몫은 `classFactor`가 맡는다 — 인공신경망의
+ * 클래스 배수표(`limits.ts`의 `MLJS_NEURAL_NETWORK_CLASSES_MS`)는 클래스 수만 바꿔 가며 잰 학습
+ * 전체의 시간이라(`tools/workloads.ts`의 `neural_network_classes` 사다리) 출력층이 넓어지는 몫도
+ * 그 안에 든다. 여기서 `뉴런 × 클래스`를 또 세면 같은 몫을 두 번 곱한다.
  */
 function neuralWeights(columns: number, layers: number, neurons: number): number {
   const width = Math.max(neurons, 1)
@@ -212,7 +217,7 @@ function neuralWeights(columns: number, layers: number, neurons: number): number
  *
  * **사진에서 특성 수를 두 번 세지 않으려고 있다.** 사진 기준표는 임베딩 차원에서 재어져
  * 있고(`backbones.ts`), 학습 화면이 넘기는 `columns`는 **사진에서 0이다**
- * (`TrainView.vue`의 `featureWidth`가 `tabularDataOf`를 읽는다). 그 0을 그대로 가중치
+ * (`ml/training-source.ts`의 `trainingEstimateShape`가 `tabularDataOf`를 읽는다). 그 0을 그대로 가중치
  * 식에 넣으면 배수가 **3분의 1로 줄어** 예상이 크게 짧아진다 — `UNMEASURED_BASELINE`의
  * 주석이 `columns: 'flat'`에 대해 말하는 것과 같은 함정이고, 손잡이 배수에서 한 번 더
  * 나타난 것이다.

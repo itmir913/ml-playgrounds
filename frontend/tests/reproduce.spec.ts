@@ -1734,6 +1734,63 @@ describe('계산 규칙이 바뀐 뒤', () => {
       expect(judged?.appOutdated).toBeUndefined()
     })
 
+    /**
+     * **규칙 변경이 거르는 것은 그 run에 걸리는 규칙이 있을 때뿐이다.** 파일의 판을 못 읽어도 걸리는
+     * 규칙이 없으면 거름을 둘 다 지나 그대로 판정한다 — 결측 drop·스케일링과 인코딩 none인 결정 트리가
+     * 그렇다. 동작은 소유자 질문으로 남아 있고, 이 검사는 **지금 그렇다**를 못 박는다.
+     */
+    it('파일의 판을 못 읽어도 걸리는 규칙이 없는 run은 판정한다', async () => {
+      const { experiment, found } = await tampered()
+      const plain: Experiment = {
+        ...experiment,
+        settings: {
+          ...experiment.settings,
+          data: {
+            ...experiment.settings.data,
+            preprocessing: { missing: 'drop', scaling: 'none', categoricalEncoding: 'none' },
+          },
+        },
+      }
+      const file = fileOf('1.0.0-rc.1', plain)
+      // 전제: 이 run에는 걸리는 규칙이 없다. 걸리면 아래 판정은 규칙 거름을 재는 것이 된다.
+      expect(changedRules(plain, plain.runs[0] as Run, file)).toEqual([])
+      const [judged] = underRuleChanges(found, plain, file, APP)
+      expect(judged?.status).toBe('NOT_REPRODUCED')
+      expect(judged?.rulesChanged).toBeUndefined()
+      expect(judged?.appOutdated).toBeUndefined()
+    })
+
+    /**
+     * **못 돌린 줄은 어느 거름에도 안 걸린다** — 다시 계산한 숫자가 없으니 판정할 것도 거를 것도 없다.
+     * 규칙이 걸리는 옛 파일이어도, 앱보다 새 파일이어도 원래 줄 그대로다.
+     */
+    it.each(['ENGINE_UNAVAILABLE', 'NOT_CHECKED'] as const)(
+      '못 돌린 줄(%s)은 옛 파일이어도 새 파일이어도 그대로다',
+      async (status) => {
+        const { experiment, found } = await tampered()
+        const lines = found.map((one): Reproduction => ({ ...one, status }))
+        const run = experiment.runs[0] as Run
+        // 전제: 옛 파일에는 규칙이 걸린다 — 안 걸리면 규칙 거름을 안 지나 이 검사가 뜻이 없다.
+        expect(changedRules(experiment, run, fileOf('0.27.0', experiment))).not.toEqual([])
+
+        const older = underRuleChanges(lines, experiment, fileOf('0.27.0', experiment), APP)
+        expect(older).toEqual(lines)
+        const newer = underRuleChanges(lines, experiment, fileOf(NEWER, experiment), APP)
+        expect(newer).toEqual(lines)
+      },
+    )
+
+    /**
+     * **앱의 판을 못 읽으면 앱이 옛 판이라고 말하지 않는다** — 두 판을 다 읽을 수 있을 때만 이 거름이
+     * 걸린다(`appIsOlder`). dev 서버의 앱이 그렇다.
+     */
+    it('앱의 판을 못 읽으면 파일이 새 판이어도 앱이 이전 버전이라고 안 한다', async () => {
+      const { experiment, found } = await tampered()
+      const [judged] = underRuleChanges(found, experiment, fileOf(NEWER, experiment), 'dev')
+      expect(judged?.status).not.toBe('APP_OUTDATED')
+      expect(judged?.appOutdated).toBeUndefined()
+    })
+
     it('앱의 판을 안 주면 이 앱의 판으로 잰다', async () => {
       const { experiment, found } = await tampered()
       const newer = __APP_VERSION__.replace(/\d+$/, (patch) => String(Number(patch) + 1))

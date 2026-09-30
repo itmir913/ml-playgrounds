@@ -445,7 +445,7 @@ R15 A-1(그물이 앞 절반만 있던 상한 스위치)과 같은 모양이다.
 - `ml/selection.ts`의 `stratifyBlockFor` **이미지 쪽 배선** — `ImagePrepPanel.vue`가 직접 부른다. 표 쪽은 `stratifyBlock` 경유로 물린다.
 - ~~`project/identity.ts`의 `identityOf` → `ExportButton.vue`·`ProjectName.vue`~~ **닫혔다 (2026-09-03 R24 B-3·B-9).** 이 줄이 R24 감사의 실측 근거가 됐고, 뭉갠 두 줄이 실제로 조용했다. 지금은 `export-button.spec.ts`가 부품을 띄워 넘어간 마크다운과 manifest의 학번을 재고, `project-name.spec.ts`가 빈 이름 거부를 잰다.
 - `project/portfolio-presets.ts`의 `presetUrl`·`loadPresets` — **fetch 경로와 `BASE_URL` 조립이 무검사다.** `portfolio-preset.spec.ts`는 디스크에서 직접 읽는다. 틀리면 Pages 배포에서 내장 양식이 404인데, 바닥이 빈 양식이라 죽지는 않는다(그 파일 머리말).
-- `TrainView.vue`의 예상 시간 인자 조립 — `baselineMs`·`estimateMs`는 물리는데 `trainingRows`(시험 몫 빼기)와 `featureWidth`를 화면이 계산해 넘긴다. R13-3 A-2·R14-3 A-4가 두 자리를 밖으로 뺐지만 **같은 모양이 여기 남아 있다.**
+- ~~`TrainView.vue`의 예상 시간 인자 조립 — `baselineMs`·`estimateMs`는 물리는데 `trainingRows`(시험 몫 빼기)와 `featureWidth`를 화면이 계산해 넘긴다. R13-3 A-2·R14-3 A-4가 두 자리를 밖으로 뺐지만 **같은 모양이 여기 남아 있다.**~~ **닫혔다 (2026-09-30 감사 슬라이스 1 B-2).** 행·폭·클래스 수는 `ml/training-source.ts`의 `trainingEstimateShape`가, 줄마다의 입력은 `trainingEstimateInput`이 만든다 — `training-source.spec.ts`의 *"예상 입력"*이 물고, 화면이 그것을 거치고 몫을 그대로 넘기는지는 `ui-rules.spec.ts`의 *"화면의 예상 입력은 부품 밖의 함수가 만든다"*와 `train-prep-kind.spec.ts`의 *"학습 화면의 예상 몫은 순수 함수의 몫 그대로다"*가 본다. **남는 한계:** `ui-rules` 쪽은 글자 모양을 보는 잣대라 별칭 import나 다른 이름의 변수를 거친 호출은 못 본다.
 
 ### 화면 층 — 무도달 43판의 공통 모양
 

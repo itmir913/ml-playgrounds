@@ -3114,6 +3114,64 @@ describe('화면은 예상을 실행 방법과 함께 낸다', () => {
     const allowed = "import { browserEstimateMs } from '@/ml/estimate'"
     expect(importedFromEstimate(allowed).split(/[^A-Za-z]+/)).not.toContain('estimateMs')
   })
+
+  /**
+   * **화면은 예상 입력을 손으로 조립하지 않는다** (감사 슬라이스 1 B-2). 학습 화면이 두 자리 —
+   * 누르기 전의 예상과 학습 뒤의 배수 보정 — 에서 입력 객체를 직접 짰을 때는 `classes` 줄을
+   * 지워도 아무 검사도 안 울었다. 입력은 `ml/training-source.ts`의 `trainingEstimateInput`이 만들고
+   * 그쪽을 `training-source.spec.ts`의 *"예상 입력"*이 문다 — 이 잣대는 **화면이 그것을 거치는지**,
+   * 그리고 **몫을 손대지 않고 넘기는지**를 본다: 첫 인자는 `shape` 그대로이고 `shape`는
+   * `estimateShape.value` 그대로다. computed 안의 몫은 `train-prep-kind.spec.ts`의 *"학습 화면의 예상
+   * 몫은 순수 함수의 몫 그대로다"*가 본다.
+   *
+   * **글자 모양을 보는 잣대라 한계가 있다** — 별칭으로 들여오거나 다른 이름의 변수를 거치면 못 본다.
+   */
+  const ESTIMATE_CALL =
+    /\b(baselineMs|browserEstimateMs)\(\s*([A-Za-z_$][\w$]*)?(?:\(\s*([^,()]*?)\s*,)?/g
+
+  /**
+   * 예상 함수를 부르는 자리마다 `이름(첫 인자의 머리(그 첫 인자` — 객체를 직접 넘기면 머리가 비고,
+   * 몫을 펴서 고치면 그 첫 인자가 `shape`가 아니다.
+   */
+  function estimateCalls(code: string): string[] {
+    return [...code.matchAll(ESTIMATE_CALL)].map((found) =>
+      found[2] === undefined ? `${found[1]}(` : `${found[1]}(${found[2]}(${found[3] ?? ''}`,
+    )
+  }
+
+  const THROUGH = '(trainingEstimateInput(shape'
+
+  it('화면의 예상 입력은 부품 밖의 함수가 만든다', () => {
+    const calls: string[] = []
+    const shapes: string[] = []
+    for (const path of viewSources(VIEWS)) {
+      const code = withoutComments(readFileSync(path, 'utf-8')).join('\n')
+      for (const call of estimateCalls(code)) calls.push(`${basename(path)}: ${call}`)
+      for (const found of code.matchAll(/\bconst shape = ([^\n]+)/g)) {
+        shapes.push(`${basename(path)}: ${found[1]?.trim()}`)
+      }
+    }
+    // 학습 화면의 두 자리가 실재해야 잣대가 뜻을 갖는다.
+    expect(calls).toContain(`TrainView.vue: baselineMs${THROUGH}`)
+    expect(calls).toContain(`TrainView.vue: browserEstimateMs${THROUGH}`)
+    expect(calls.filter((call) => !call.endsWith(THROUGH))).toEqual([])
+    // 넘기는 `shape`는 computed의 값 그대로다 — 두 자리가 따로 둔다.
+    expect(shapes).toEqual([
+      'TrainView.vue: estimateShape.value',
+      'TrainView.vue: estimateShape.value',
+    ])
+  })
+
+  /** **잣대가 실제로 무는지.** 객체를 직접 넘기거나 몫을 고쳐 넘기면 물고, 그대로 넘기면 안 문다. */
+  it('예상 입력 잣대는 손으로 짠 객체와 고친 몫을 문다', () => {
+    expect(estimateCalls('baselineMs({ algorithm, rows })')).toEqual(['baselineMs('])
+    expect(
+      estimateCalls('browserEstimateMs(\n  trainingEstimateInput(shape, row, values),'),
+    ).toEqual([`browserEstimateMs${THROUGH}`])
+    expect(
+      estimateCalls('baselineMs(trainingEstimateInput({ ...shape, classes: undefined }, row, v))'),
+    ).not.toEqual([`baselineMs${THROUGH}`])
+  })
 })
 
 describe('객체 URL은 한 곳에서만 만든다', () => {

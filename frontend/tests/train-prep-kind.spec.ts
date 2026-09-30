@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * **학습 화면이 전처리 판과 같은 열 종류를 말하는가.** 학습 화면의 세 자리 — 타깃
- * 경고(`targetIssue`) · 머리의 특성 수(`TabularTrainContext`) · 예상 시간의 폭(`featureWidth`) —
+ * 경고(`targetIssue`) · 머리의 특성 수(`TabularTrainContext`) · 예상 시간의 폭(`estimateShape`) —
  * 는 전처리 판과 같은 덮기(`plannedColumns`)를 지나 **계획의 종류**로 말한다.
  *
  * **같은 입력을 두 화면에 태워 나란히 단언한다** (`fixtures/prep-kind.ts`). 한쪽만 보면
@@ -31,6 +31,7 @@ import { i18n, setLocale } from '../src/i18n'
 import type { ProjectFile } from '../src/project/format'
 import { closeStorage, saveProject } from '../src/project/storage'
 import { tabularPlanOf } from '../src/ml/plan-cache'
+import { trainingEstimateShape } from '../src/ml/training-source'
 import { router } from '../src/router'
 import TabularPrepPanel from '../src/views/preprocess/TabularPrepPanel.vue'
 import TrainView from '../src/views/TrainView.vue'
@@ -81,7 +82,7 @@ interface Sides {
   }
   train: {
     usableFeatures: number
-    featureWidth: number
+    featureWidth: number | undefined
     targetIssue: string | null
     reds: number
   }
@@ -104,7 +105,10 @@ async function bothScreens(file: ProjectFile, target: string): Promise<Sides> {
   const context = host.findComponent(TabularTrainContext)
   expect(train.exists()).toBe(true)
   expect(context.exists()).toBe(true)
-  const trainVm = train.vm as unknown as { featureWidth: number; targetIssue: string | null }
+  const trainVm = train.vm as unknown as {
+    estimateShape: { columns: number } | null
+    targetIssue: string | null
+  }
   const contextVm = context.vm as unknown as { usableFeatures: number }
 
   const prep = mount(TabularPrepPanel, { global: { plugins: [i18n] } })
@@ -126,7 +130,7 @@ async function bothScreens(file: ProjectFile, target: string): Promise<Sides> {
     },
     train: {
       usableFeatures: contextVm.usableFeatures,
-      featureWidth: trainVm.featureWidth,
+      featureWidth: trainVm.estimateShape?.columns,
       targetIssue: trainVm.targetIssue,
       reds: host.text().split(NOT_NUMERIC).length - 1,
     },
@@ -179,12 +183,36 @@ describe('예상 시간의 행 수가 계획의 훈련 행 수와 같다', { tim
     await router.push(`/project/${file.document.manifest.projectId}/train`)
     await settle()
 
-    const train = host.findComponent(TrainView).vm as unknown as { trainingRows: number }
+    const train = host.findComponent(TrainView).vm as unknown as {
+      estimateShape: { rows: number } | null
+    }
     const plan = tabularPlanOf(file)
     if (!plan?.ok) throw new Error('the clustering plan must stand')
     // 40행 전부 `몸무게`가 있다 — 군집은 타깃을 안 보므로 빠지는 행이 없다.
     expect(plan.split.trainIndices).toHaveLength(40)
-    expect(train.trainingRows).toBe(plan.split.trainIndices.length)
+    expect(train.estimateShape?.rows).toBe(plan.split.trainIndices.length)
+    host.unmount()
+  })
+
+  /**
+   * **화면이 몫을 손대지 않는다** (감사 슬라이스 1 B-2 검토). 몫의 계산은 `training-source.spec.ts`의
+   * *"예상 입력"*이 문다 — 여기서는 화면의 computed가 그 순수 함수의 값을 **그대로** 드는지 본다.
+   * 분류라야 `classes` 칸이 차 있어, 그 칸을 지우는 돌연변이가 운다.
+   */
+  it('학습 화면의 예상 몫은 순수 함수의 몫 그대로다', async () => {
+    const file = await surveyProject(true)
+    await saveProject(file)
+    const host = mount(Host, { global: { plugins: [i18n, router] } })
+    await router.push('/')
+    await router.isReady()
+    await router.push(`/project/${file.document.manifest.projectId}/train`)
+    await settle()
+
+    const train = host.findComponent(TrainView).vm as unknown as { estimateShape: unknown }
+    const expected = trainingEstimateShape(file)
+    // 전제: 분류 픽스처라 클래스 수가 있다.
+    expect(expected.classes).toBe(2)
+    expect(train.estimateShape).toEqual(expected)
     host.unmount()
   })
 })
