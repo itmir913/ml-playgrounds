@@ -474,6 +474,15 @@ export interface PortfolioMarkdownText {
   readonly orphanTitle: string
 }
 
+/*
+ * ─── 여기서 `escapeInline`까지가 `document.md`의 판정이다 ───
+ *
+ * **판정의 공백과 줄 끝은 CommonMark의 정의를 따른다 — 공백은 스페이스와 탭, 줄 끝은 `\n`·`\r`이다.** JS의
+ * `trim`·`\s`는 NBSP·U+3000·U+2028/2029·FEFF·`\v`·`\f`까지 공백으로 보고 `.`은 U+2028/2029와 `\r`에 안 맞는다.
+ * 그 차이로 빈 줄·닫는 울타리를 뷰어와 다르게 세면 울타리 안팎이 뒤집혀 학생의 태그가 선다(open-decisions.md 89,
+ * 보안 검토 A-1·A-2). `portfolio.spec.ts`의 *"판정 구역에 JS 공백 판정이 없다"*가 이 구역을 훑는다.
+ */
+
 /** 줄머리의 `#`. 앞의 여백까지 함께 본다 - 세 칸까지 들여쓴 제목도 제목으로 읽힌다. */
 const LINE_LEADING_HASH = /^( {0,3})(#+)/
 
@@ -485,7 +494,7 @@ const LINE_LEADING_HASH = /^( {0,3})(#+)/
  * 치다 남긴 **빈 항목(`- `)**이 정확히 그 모양이다. 막을 것은 글자 수가 아니라
  * 성질이다 (`mlpx-spec.md` §8.6).
  */
-const SETEXT_UNDERLINE = /^(\s{0,3})(-+|=+)\s*$/
+const SETEXT_UNDERLINE = /^( {0,3})(-+|=+)[ \t]*$/
 
 /**
  * 코드 울타리 줄. 뒤에 언어 이름이 올 수 있는 것이 여는 줄이다 (CommonMark).
@@ -496,62 +505,100 @@ const SETEXT_UNDERLINE = /^(\s{0,3})(-+|=+)\s*$/
  * 들여쓴 줄은 울타리가 아니라 **들여쓴 글**이다. `\s{0,3}`으로 세던 때는 그 줄을
  * 울타리로 읽고 답 끝에 닫는 줄을 더했는데, **더한 그 줄이 진짜 여는 울타리가 되어
  * 뒤따르는 문항을 삼켰다** (2026-08-31 사각 감사 A-1).
+ *
+ * **뒤는 `[^\n]*`다 — `.*`가 아니다.** `.`은 U+2028/2029에 안 맞아 언어 자리에 그 글자가 든 여는 줄을 놓쳤다.
  */
-const FENCE = /^( {0,3})(`{3,}|~{3,})(.*)$/
+const FENCE = /^( {0,3})(`{3,}|~{3,})([^\n]*)$/
 
-/** 빈 줄로 끝나지 않는 HTML 블록 하나. 여는 모양, 닫는 모양, 답 끝에 붙일 닫는 말. */
-interface HtmlBlock {
-  readonly open: RegExp
-  readonly close: RegExp
-  readonly closer: (opening: RegExpExecArray) => string
+/** CommonMark의 빈 줄 — 스페이스와 탭만. 닫는 울타리 뒤도 같은 정의다. */
+const BLANK = /^[ \t]*$/
+
+/**
+ * **코드 밖의 `<`는 `&lt;`로 싣는다** (open-decisions.md 89, mlpx-spec.md §8.6).
+ *
+ * 학생이 쓴 HTML이 HTML을 거르지 않는 뷰어에서 태그로 서면 **교사 화면에서 학생의 코드가 돈다**(XSS). 줄머리의
+ * `<`는 HTML 블록을 열어 뒤 문항까지 삼킨다. `&lt;`는 뷰어가 `<` 글자로 보이고 어느 자리에서도 태그를 못 연다.
+ * 코드 안(울타리·코드 스팬)은 뷰어가 이미 글자로 보이고 거기서 바꾸면 `&lt;`가 그대로 보이므로 안 바꾼다.
+ */
+function escapeLt(line: string, spans: readonly (readonly [from: number, to: number])[]): string {
+  let out = ''
+  let at = 0
+  for (const [from, to] of spans) {
+    out += line.slice(at, from).replace(/</g, '&lt;') + line.slice(from, to)
+    at = to
+  }
+  return out + line.slice(at).replace(/</g, '&lt;')
+}
+
+/** 백틱 연속 하나. `escaped`는 앞의 백슬래시 개수가 홀수라 첫 백틱이 글자라는 뜻이다. */
+interface BacktickRun {
+  readonly line: number
+  readonly start: number
+  readonly end: number
+  readonly escaped: boolean
+}
+
+function backtickRuns(lines: readonly string[], paragraph: readonly number[]): BacktickRun[] {
+  const runs: BacktickRun[] = []
+  for (const index of paragraph) {
+    const line = lines[index]!
+    for (const match of line.matchAll(/`+/g)) {
+      const start = match.index
+      let slashes = 0
+      while (start - slashes > 0 && line[start - slashes - 1] === '\\') slashes += 1
+      runs.push({ line: index, start, end: start + match[0].length, escaped: slashes % 2 === 1 })
+    }
+  }
+  return runs
 }
 
 /**
- * **빈 줄에서 안 끝나는 HTML 블록 — CommonMark 유형 1–5** (mlpx-spec.md §8.6).
+ * **믿을 수 있는 코드 스팬** — 줄 번호마다 `[여는 백틱, 닫는 백틱 뒤)` (open-decisions.md 89).
  *
- * 이것들은 **닫는 모양이 나올 때까지** 이어져서, 줄 머리에서 하나가 열리면 뒤따르는 문항이
- * 전부 원시 HTML 안으로 들어간다. 주석(`<!--`)만 막던 때 `<pre>`·`<?php`·`<script>`로
- * 여는 답이 뒤 문항을 삼켰다 (2026-09-28 감사 D A-1). 유형 6·7(`<div>` 등)은 빈 줄에서
- * 끝나고 답 뒤에는 언제나 빈 줄이 오므로 여기 없다. 정규식은 markdown-it의 `html_block`
- * 규칙과 같은 모양이다.
+ * 짝짓기는 CommonMark다: 길이 n의 백틱 연속이 열고 **정확히 같은 길이**의 다음 연속이 닫는다. 닫는 쪽을 찾을 때는
+ * 백슬래시를 안 본다(스팬 안에서 백슬래시는 글자다). 여는 쪽은 앞의 백슬래시가 홀수면 첫 백틱이 글자이고 나머지가
+ * 연속이다. 못 닫은 연속은 글자다. 스팬은 문단 안에서 줄을 넘는다 — 그래서 문단(울타리 밖의 빈 줄 없는 줄들) 단위로 짝짓는다.
  *
- * **줄 머리만 본다.** 줄 가운데의 `<!--`·`<pre>`는 인라인 원시 HTML이라 짝이 없으면 **그냥
- * 글자로 남는다** — 거기에 짝을 붙여 주면 오히려 학생이 쓴 글이 진짜 주석이 되어 뷰어에서
- * 사라진다 (2026-08-31 사각 감사 A-1). 공백 셋까지는 들여써도 블록이 열린다.
- *
- * **닫는 모양은 줄 전체에서 찾는다** — 여는 줄이 스스로 닫을 수도 있다(`<!DOCTYPE html>`,
- * `<script>x</script>`). markdown-it이 그렇게 읽는다.
- *
- * `portfolio.spec.ts`의 *"빈 줄로 안 끝나는 HTML 블록이 뒤 문항을 안 삼킨다"*가 문다.
+ * **모르겠으면 믿지 않는다 — 보안이 먼저다.** 여기서 스팬이라 했는데 뷰어가 아니라고 읽으면 그 안의 `<`가 태그로 선다.
+ * 거꾸로 틀리면 코드 안에 `&lt;`가 보일 뿐이다. 그래서 문단에 다음 중 하나라도 있으면 **그 문단의 스팬을 하나도 안 믿는다**:
+ * - **줄을 넘는 스팬** — 목록 표지 줄 등이 문단을 가르면 짝이 밀린다(`` `a `` · `` - b` `` · `` `<img>` ``에서
+ *   뷰어는 `<img>`를 태그로 세운다). 모든 스팬이 한 줄 안에서 닫히면 문단을 어느 줄에서 갈라도 짝이 같다 — 스팬은
+ *   제 줄 안의 첫 같은 길이 연속으로 닫히고, 문단 전체에서 못 닫은 연속은 어느 조각에서도 못 닫기 때문이다.
+ *   그래서 못 닫은 연속은 글자로 두고 믿음을 거두지 않는다.
+ * - **`](`** — 링크 목적지가 백틱을 먹어 짝이 밀린다(`` [a](`) <img> (`) ``).
+ * - **`|`가 든 스팬** — 표 칸이 스팬을 가른다(GFM 표, markdown-it 기본값).
+ * 들여쓴 코드 블록은 따로 가리지 않는다 — 거기서 스팬이 믿기면 `<`가 그대로(코드 블록이라 글자다), 안 믿기면
+ * `&lt;`가 보인다. `portfolio.spec.ts`의 *"결정 89"* 묶음이 갈래마다 문다.
  */
-const HTML_BLOCKS: readonly HtmlBlock[] = [
-  {
-    open: /^ {0,3}<(script|pre|style|textarea)(?=\s|>|$)/i,
-    // 유형 1은 네 닫는 태그 **중 어느 것이든** 나오면 끝난다 (CommonMark).
-    close: /<\/(?:script|pre|style|textarea)>/i,
-    closer: (opening) => `</${opening[1]!.toLowerCase()}>`,
-  },
-  { open: /^ {0,3}<!--/, close: /-->/, closer: () => '-->' },
-  { open: /^ {0,3}<\?/, close: /\?>/, closer: () => '?>' },
-  { open: /^ {0,3}<![A-Za-z]/, close: />/, closer: () => '>' },
-  { open: /^ {0,3}<!\[CDATA\[/, close: /\]\]>/, closer: () => ']]>' },
-]
-
-/** 열려 있는 HTML 블록 — 무엇이 나와야 닫히고, 안 나오면 무엇을 붙이는가. */
-interface OpenHtmlBlock {
-  readonly close: RegExp
-  readonly closer: string
-}
-
-/** 이 줄이 열고 **같은 줄에서 안 닫은** HTML 블록. 없으면 `undefined`. */
-function htmlBlockOpenedBy(line: string): OpenHtmlBlock | undefined {
-  for (const block of HTML_BLOCKS) {
-    const opening = block.open.exec(line)
-    if (opening === null) continue
-    if (block.close.test(line)) return undefined
-    return { close: block.close, closer: block.closer(opening) }
+function trustedCodeSpans(
+  lines: readonly string[],
+  paragraph: readonly number[],
+): Map<number, [number, number][]> {
+  if (paragraph.some((index) => lines[index]!.includes(']('))) return new Map()
+  const runs = backtickRuns(lines, paragraph)
+  const spans = new Map<number, [number, number][]>()
+  let i = 0
+  while (i < runs.length) {
+    const run = runs[i]!
+    const open = run.escaped ? run.start + 1 : run.start
+    const length = run.end - open
+    if (length === 0) {
+      i += 1
+      continue
+    }
+    const j = runs.findIndex((other, k) => k > i && other.end - other.start === length)
+    // 못 닫은 연속은 글자다. 문단 전체에서 짝이 없으면 문단의 어느 조각에서도 짝이 없으므로 짝을 안 민다.
+    if (j === -1) {
+      i += 1
+      continue
+    }
+    const close = runs[j]!
+    if (close.line !== run.line) return new Map()
+    if (lines[run.line]!.slice(open, close.end).includes('|')) return new Map()
+    spans.set(run.line, [...(spans.get(run.line) ?? []), [open, close.end]])
+    i = j + 1
   }
-  return undefined
+  return spans
 }
 
 /**
@@ -563,21 +610,14 @@ function htmlBlockOpenedBy(line: string): OpenHtmlBlock | undefined {
  */
 const NESTED_FENCE = /^[ \t>*+\-.)0-9]+(?:`{3,}|~{3,})/
 
-/** 0열의 울타리 줄. 줄 규칙이 세는 모양이다. */
-const TOP_FENCE = /^(?:`{3,}|~{3,})/
-
 /**
- * 줄머리(공백 셋까지)의 `<`. HTML 블록 유형 6·7(`<div>`·`<br>` …)은 빈 줄까지 이어지고 그 안의
- * ` ``` `는 HTML 글자인데, 줄 규칙은 그것을 여는 울타리로 센다 (open-decisions.md 82).
+ * 줄 규칙이 이 답의 울타리를 확신할 수 있는가. 못 하면 답을 통째 감싼다 (`wrapInFence`).
+ *
+ * **HTML 블록은 여기서 안 본다** — 코드 밖의 `<`가 글자가 되어(`escapeLt`) 답 안에서 HTML 블록이 안 열리고,
+ * 뷰어는 그 줄 뒤의 ` ``` `를 울타리로 읽는다. 줄 규칙이 세는 것과 같다 (open-decisions.md 89).
  */
-const LINE_LEADING_TAG = /^ {0,3}</
-
-/** 줄 규칙이 이 답의 울타리를 확신할 수 있는가. 못 하면 답을 통째 감싼다 (`wrapInFence`). */
 function fenceUncertain(lines: readonly string[]): boolean {
-  if (lines.some((line) => NESTED_FENCE.test(line))) return true
-  return (
-    lines.some((line) => TOP_FENCE.test(line)) && lines.some((line) => LINE_LEADING_TAG.test(line))
-  )
+  return lines.some((line) => NESTED_FENCE.test(line))
 }
 
 /**
@@ -596,11 +636,33 @@ function wrapInFence(lines: readonly string[]): string {
   return [fence, ...lines, fence].join('\n')
 }
 
-/** 울타리 밖의 한 줄. 문항 구조를 깨는 두 모양만 막는다 (위 두 정규식). */
+/** 울타리 밖의 한 줄. 문항 구조를 깨는 두 모양을 막는다 (위 두 정규식). `<`는 `escapeLt`가 따로 본다. */
 function escapeLine(line: string): string {
   return line
     .replace(LINE_LEADING_HASH, '$1\\$2')
     .replace(SETEXT_UNDERLINE, (_match, indent: string, rule: string) => `${indent}\\${rule}`)
+}
+
+/** 울타리 안의 줄(`code`), 여는 울타리 줄(`opener`), 그 밖의 글(`text`). */
+type LineKind = 'text' | 'opener' | 'code'
+
+/** 문단마다 믿을 수 있는 코드 스팬. 문단은 `text` 중 빈 줄이 아닌 줄이 이어진 것이다. */
+function codeSpansOf(
+  lines: readonly string[],
+  kinds: readonly LineKind[],
+): Map<number, [number, number][]> {
+  const all = new Map<number, [number, number][]>()
+  let paragraph: number[] = []
+  const flush = () => {
+    for (const [index, spans] of trustedCodeSpans(lines, paragraph)) all.set(index, spans)
+    paragraph = []
+  }
+  lines.forEach((line, index) => {
+    if (kinds[index] === 'text' && !BLANK.test(line)) paragraph.push(index)
+    else flush()
+  })
+  flush()
+  return all
 }
 
 /**
@@ -608,30 +670,28 @@ function escapeLine(line: string): string {
  *
  * **읽기 좋은 것이 기준이다** (mlpx-spec.md §8.6). 전부 이스케이프하면 안전하기는
  * 한데 읽으라고 만든 파일을 읽기 나쁘게 만든다 - 메모장으로 열면 `\#`이 보인다.
- * 막을 것은 **문항 구조를 깨는 것뿐**이고, 답에 목록이나 강조가 들어가 그대로
+ * 막을 것은 **문항 구조를 깨는 것**과 **학생의 HTML이 태그로 서는 것뿐**이고, 답에 목록이나 강조가 들어가 그대로
  * 살아나는 것은 사고가 아니라 잘 된 것이다.
  *
- * **열어 놓고 안 닫은 것은 여기서 닫는다.** 코드 울타리와 빈 줄로 안 끝나는 HTML
- * 블록(`HTML_BLOCKS`)은 여는 줄 하나가 **뒤따르는 문항을 전부 삼킨다** - 정보 수업
- * 포트폴리오에서 코드를 붙여넣는 것은 흔한 일이고, 백틱 셋을 열고 안 닫는 것도 흔하다.
- * 닫는 자리가 답의 끝인 이유가 그것이다: 문항 경계가 거기서 되살아난다. **닫을 때 답의
- * 글자는 건드리지 않고 닫는 줄만 더한다** — 답이 겪는 것은 그와 무관한 위의 이스케이프와
+ * **열어 놓고 안 닫은 코드 울타리는 여기서 닫는다.** 여는 줄 하나가 **뒤따르는 문항을 전부
+ * 삼킨다** - 정보 수업 포트폴리오에서 코드를 붙여넣는 것은 흔한 일이고, 백틱 셋을 열고 안 닫는
+ * 것도 흔하다. 닫는 자리가 답의 끝인 이유가 그것이다: 문항 경계가 거기서 되살아난다. **닫을 때
+ * 답의 글자는 건드리지 않고 닫는 줄만 더한다** — 답이 겪는 것은 그와 무관한 위의 이스케이프와
  * 줄 끝 맞춤뿐이다. `portfolio.spec.ts`의 표가 답 바로 뒤에 닫는 말이 붙은 모양을 통째로
  * 견준다.
  *
+ * **HTML은 태그로 안 서게 한다** — 코드 밖의 `<`를 `&lt;`로 싣는다(`escapeLt`, open-decisions.md 89).
+ * HTML 블록이 안 열리므로 이 규칙은 울타리 하나만 센다.
+ *
  * **울타리 안에서는 이스케이프하지 않는다.** 거기서는 `#`이 제목을 못 만들고,
- * 학생이 쓴 파이썬 주석이 `\#`으로 보이면 그건 읽기 나쁘게 만든 것이다.
+ * 학생이 쓴 파이썬 주석이 `\#`으로 보이면 그건 읽기 나쁘게 만든 것이다. `<`도 같다 —
+ * 코드 블록 안의 `&lt;`는 그대로 보인다. 믿을 수 있는 코드 스팬(`trustedCodeSpans`) 안도 같다.
  *
- * **HTML 블록 안에서는 울타리를 안 찾는다** — 거기서 ` ``` `는 원시 HTML의 글자다.
- * 찾으면 블록이 닫힌 뒤에도 울타리가 열린 것으로 셈해 뒤의 `##`을 이스케이프하지 않고,
- * 그것이 진짜 문항이 된다(같은 표의 *"주석 안의 울타리"*가 문다). `#` 이스케이프는 블록
- * 안에서도 전처럼 한다 — 블록의 끝을 잘못 셌을 때 가짜 문항이 생기는 쪽보다 낫다.
- *
- * **이 줄 규칙이 확신하지 못하는 답은 여기까지 오지 않는다** — 목록·인용 안의 울타리나 HTML 블록과
- * 섞인 울타리는 `wrapInFence`가 통째 감싼다 (open-decisions.md 82).
+ * **이 줄 규칙이 확신하지 못하는 답은 여기까지 오지 않는다** — 목록·인용 안의 울타리는
+ * `wrapInFence`가 통째 감싼다 (open-decisions.md 82).
  */
 function escapeAnswer(answer: string): string {
-  const lines: string[] = []
+  const kinds: LineKind[] = []
   let fence: string | undefined
   /**
    * 여는 줄의 들여쓰기. **닫는 줄에 그대로 붙인다** — 목록 안에 들여쓴 울타리는
@@ -639,7 +699,6 @@ function escapeAnswer(answer: string): string {
    * 사라진다 (2026-08-31 사각 감사 A-1).
    */
   let fenceIndent = ''
-  let block: OpenHtmlBlock | undefined
 
   // **줄 끝을 `\n` 하나로 맞춘다.** JS 정규식의 `.`은 `\r`에 안 맞아서 CRLF로 적힌 답의
   // 여는 울타리(` ```python\r `)를 못 알아보고 안 닫았다 — 뷰어는 CRLF를 줄 끝으로 읽는다.
@@ -648,26 +707,18 @@ function escapeAnswer(answer: string): string {
   if (fenceUncertain(answerLines)) return wrapInFence(answerLines)
 
   for (const line of answerLines) {
-    if (block !== undefined) {
-      lines.push(escapeLine(line))
-      if (block.close.test(line)) block = undefined
-      continue
-    }
-
     if (fence !== undefined) {
-      lines.push(line)
+      kinds.push('code')
       const closing = FENCE.exec(line)
       // 닫는 줄에는 언어 이름을 못 붙인다. 그래서 뒤가 비어 있어야 한다.
       const closes =
         closing !== null &&
         closing[2]!.startsWith(fence[0]!) &&
         closing[2]!.length >= fence.length &&
-        closing[3]!.trim() === ''
+        BLANK.test(closing[3]!)
       if (closes) fence = undefined
       continue
     }
-
-    lines.push(escapeLine(line))
 
     const opening = FENCE.exec(line)
     // **백틱 울타리의 언어 자리에는 백틱이 못 온다** (CommonMark). 그 줄은 울타리가
@@ -676,20 +727,37 @@ function escapeAnswer(answer: string): string {
     if (opens) {
       fence = opening![2]!
       fenceIndent = opening![1]!
-      continue
     }
-    block = htmlBlockOpenedBy(line)
+    kinds.push(opens ? 'opener' : 'text')
   }
 
-  // 둘은 동시에 열려 있을 수 없다 — 한쪽이 열려 있는 동안 다른 쪽을 안 찾는다.
+  // 여는 울타리 줄은 문단이 아니다 — 언어 자리의 `<`도 스팬 없이 바꾼다.
+  const spans = codeSpansOf(answerLines, kinds)
+  const lines = answerLines.map((line, index) =>
+    kinds[index] === 'code' ? line : escapeLine(escapeLt(line, spans.get(index) ?? [])),
+  )
   if (fence !== undefined) lines.push(`${fenceIndent}${fence}`)
-  if (block !== undefined) lines.push(block.closer)
   return lines.join('\n')
 }
 
-/** 머리글 값은 한 줄에 담긴다. 줄바꿈이 들어오면 목록이 깨진다. */
+/**
+ * 머리글 값은 한 줄에 담긴다. 줄바꿈이 들어오면 목록이 깨진다.
+ *
+ * **줄 끝은 `\n`·`\r\n`·홑 `\r` 셋이다** — 뷰어는 홑 `\r`도 줄 끝으로 읽는다. `\n`만 접던 때 `\r`이 남아 `escapeInline`은
+ * 한 줄로 믿고 뷰어는 두 줄로 읽어, 조작한 `.mlpx`의 제목에서 태그가 섰다(보안 검토 A-2).
+ */
 function oneLine(value: string): string {
-  return value.replace(/\s*\n\s*/g, ' ').trim()
+  return value.replace(/[ \t]*(?:\r\n?|\n)[ \t]*/g, ' ').replace(/^[ \t]+|[ \t]+$/g, '')
+}
+
+/**
+ * **한 줄짜리 사용자 글(문서 제목·문항 제목·머리글)도 답과 같은 규칙으로 싣는다** (open-decisions.md 89) — 코드
+ * 스팬 밖의 `<`는 `&lt;`다. 판정은 답과 한 벌이다(`trustedCodeSpans`·`escapeLt`). **뷰어가 한 줄로 읽는 것을
+ * 통째로 넘긴다** — 머리글의 라벨과 값을 따로 넘기면 한쪽의 남는 백틱이 다른 쪽과 짝지어 스팬이 밀린다.
+ * `portfolio.spec.ts`의 *"결정 89"* 묶음의 *"답 밖의 사용자 글"*이 문다.
+ */
+function escapeInline(text: string): string {
+  return escapeLt(text, trustedCodeSpans([text], [0]).get(0) ?? [])
 }
 
 /**
@@ -707,14 +775,14 @@ function oneLine(value: string): string {
  * 받은 파일에 "느낀 점"이 없으면 안 쓴 것인지 문항이 없었던 것인지 알 수 없다.
  */
 export function renderPortfolioMarkdown(text: PortfolioMarkdownText, portfolio: Portfolio): string {
-  const lines = [`# ${oneLine(text.title)}`, '']
+  const lines = [`# ${escapeInline(oneLine(text.title))}`, '']
   for (const [label, value] of text.rows) {
-    lines.push(`- **${oneLine(label)}**: ${oneLine(value)}`)
+    lines.push(`- ${escapeInline(`**${oneLine(label)}**: ${oneLine(value)}`)}`)
   }
   if (text.rows.length > 0) lines.push('')
 
   for (const section of portfolioSections(portfolio)) {
-    lines.push(`## ${oneLine(section.title)}`, '')
+    lines.push(`## ${escapeInline(oneLine(section.title))}`, '')
     const answer = escapeAnswer(section.answer.trim())
     if (answer !== '') lines.push(answer, '')
     // **사진은 상대 경로로 적는다** (§8.6.1). `portfolio/document.md`에서 본 자리이고,
@@ -728,7 +796,7 @@ export function renderPortfolioMarkdown(text: PortfolioMarkdownText, portfolio: 
   // 같은 것이고, 여기서 빠뜨리면 파일만 받은 사람에게는 그 글이 없는 것이 된다.
   const orphans = orphanAnswers(portfolio)
   if (orphans.length > 0) {
-    lines.push(`## ${oneLine(text.orphanTitle)}`, '')
+    lines.push(`## ${escapeInline(oneLine(text.orphanTitle))}`, '')
     for (const orphan of orphans) {
       lines.push(escapeAnswer(orphan.answer.trim()), '')
     }

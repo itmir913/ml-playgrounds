@@ -6,6 +6,8 @@
  * 어느 것도 답을 건드리면 안 된다.
  */
 
+import { readFileSync } from 'node:fs'
+
 import MarkdownIt from 'markdown-it'
 import { describe, expect, it } from 'vitest'
 
@@ -610,7 +612,8 @@ describe('마크다운으로 옮긴다', () => {
     expect(new MarkdownIt({ html: true }).render(markdown)).toContain('메모')
   })
 
-  it('줄 머리의 여는 주석에는 짝을 붙인다 - 그것만이 뒤를 삼킨다', () => {
+  /** 줄 머리의 주석만이 뒤를 삼킨다 — 짝을 붙이는 대신 글자로 싣는다 (open-decisions.md 89). */
+  it('줄 머리의 여는 주석은 글자로 싣는다 - 짝을 안 붙여도 뒤를 안 삼킨다', () => {
     const markdown = renderPortfolioMarkdown(
       TEXT,
       portfolio(
@@ -621,7 +624,8 @@ describe('마크다운으로 옮긴다', () => {
         { a: '<!-- 메모', b: '잘 됐다' },
       ),
     )
-    expect(markdown).toContain('-->')
+    expect(markdown).toContain('## 동기\n\n&lt;!-- 메모\n\n## 방법')
+    expect(markdown).not.toContain('-->')
     expect(titlesIn(markdown)).toEqual(['동기', '방법'])
   })
 
@@ -640,19 +644,20 @@ describe('마크다운으로 옮긴다', () => {
    * 시작하는 답 하나가 교사가 받는 묶음의 `document.md`에서 **뒤 문항을 전부** 지웠다.
    * CRLF로 적힌 울타리도 같은 모양으로 샜다(JS의 `.`은 `\r`에 안 맞는다).
    *
-   * **제목 목록 전체를 견주고, 답이 글자 그대로 남고 바로 뒤에 닫는 말이 붙은 것을 본다** —
-   * 닫는 말을 붙이는 것 말고 학생 글을 바꾸지 않는다(§8.6 "읽기 좋은 것이 기준").
+   * **제목 목록 전체를 견주고, 답이 실린 모양을 통째로 본다.** 닫는 말을 붙이던 때(결정 89 전)와 달리 이제는
+   * 코드 밖의 `<`가 `&lt;`가 되고 닫는 말은 없다 — 블록이 안 열리니 닫을 것이 없다. 울타리는 전처럼
+   * 닫는 줄을 더한다(§8.6 "읽기 좋은 것이 기준").
    */
   describe('빈 줄로 안 끝나는 HTML 블록이 뒤 문항을 안 삼킨다', () => {
-    const cases: [name: string, answer: string, closer: string][] = [
-      ['pre', '<pre>는 서식을 그대로 둔다', '</pre>'],
-      ['style', '<style>\n.box { color: red }', '</style>'],
-      ['script', '<SCRIPT>\nalert(1)', '</script>'],
-      ['textarea', '<textarea>', '</textarea>'],
-      ['php', '<?php echo 1;', '?>'],
-      ['doctype', '<!DOCTYPE html', '>'],
-      ['cdata', '<![CDATA[ x', ']]>'],
-      ['CRLF로 적힌 울타리', '```python\r\nprint(1)', '```'],
+    const cases: [name: string, answer: string, written: string][] = [
+      ['pre', '<pre>는 서식을 그대로 둔다', '&lt;pre>는 서식을 그대로 둔다'],
+      ['style', '<style>\n.box { color: red }', '&lt;style>\n.box { color: red }'],
+      ['script', '<SCRIPT>\nalert(1)', '&lt;SCRIPT>\nalert(1)'],
+      ['textarea', '<textarea>', '&lt;textarea>'],
+      ['php', '<?php echo 1;', '&lt;?php echo 1;'],
+      ['doctype', '<!DOCTYPE html', '&lt;!DOCTYPE html'],
+      ['cdata', '<![CDATA[ x', '&lt;![CDATA[ x'],
+      ['CRLF로 적힌 울타리', '```python\r\nprint(1)', '```python\nprint(1)\n```'],
     ]
     const threeSections = (answer: string) =>
       renderPortfolioMarkdown(
@@ -667,19 +672,17 @@ describe('마크다운으로 옮긴다', () => {
         ),
       )
 
-    for (const [name, answer, closer] of cases) {
+    for (const [name, answer, written] of cases) {
       it(name, () => {
         const markdown = threeSections(answer)
         expect(titlesIn(markdown)).toEqual(['동기', '방법', '느낀 점'])
-        expect(markdown).toContain(
-          `## 동기\n\n${answer.replace(/\r\n/g, '\n')}\n${closer}\n\n## 방법`,
-        )
+        expect(markdown).toContain(`## 동기\n\n${written}\n\n## 방법`)
       })
     }
 
-    it('같은 줄에서 닫은 블록에는 안 붙인다', () => {
+    it('같은 줄에서 닫은 블록에는 안 붙인다 - 여는 태그도 닫는 태그도 글자다', () => {
       const markdown = threeSections('<script>x()</script> 이렇게 쓴다')
-      expect(markdown.match(/<\/script>/g)).toHaveLength(1)
+      expect(markdown).toContain('## 동기\n\n&lt;script>x()&lt;/script> 이렇게 쓴다\n\n## 방법')
       expect(titlesIn(markdown)).toEqual(['동기', '방법', '느낀 점'])
     })
 
@@ -689,10 +692,11 @@ describe('마크다운으로 옮긴다', () => {
     })
 
     /**
-     * **HTML 블록 안의 ` ``` `는 울타리가 아니다.** 울타리로 셈하면 블록이 닫힌 뒤에도
-     * 울타리가 열린 것으로 여겨 뒤의 `##`을 이스케이프하지 않고, 그것이 진짜 문항이 된다.
+     * **`<!--`가 글자가 되면 그 뒤의 ` ``` `는 뷰어에서도 울타리다** (결정 89). 결정 89 전에는
+     * 주석 블록 안의 ` ``` `를 울타리로 안 셌다 — 이제는 세야 뒤의 `##`이 울타리 안에 들고, 우리가
+     * 더한 닫는 줄로 문항 경계가 되살아난다.
      */
-    it('주석 안의 울타리를 울타리로 세지 않는다 - 뒤의 ##이 문항이 되지 않는다', () => {
+    it('주석처럼 보이는 줄 뒤의 울타리는 울타리다 - 뒤의 ##이 문항이 되지 않는다', () => {
       expect(answersKeepTitles(['<!--', '```', '-->', '## 가짜 문항'].join('\n'))).toEqual([
         '동기',
         '방법',
@@ -1134,7 +1138,8 @@ describe('문항에 붙은 사진', () => {
  * mlpx-spec.md §8.6).
  *
  * 닫는 줄을 더하는 규칙은 울타리가 **목록 안**에 있거나 **HTML 블록(CommonMark 유형 6·7) 안**에
- * 있을 때 판정을 틀린다 — 뷰어는 이미 닫았는데 우리가 더한 줄이 새 울타리를 열어 뒤 문항을 전부
+ * 있을 때 판정을 틀렸다(HTML 블록 쪽은 결정 89가 코드 밖의 `<`를 글자로 싣는 것으로 대신한다 — 아래
+ * *"결정 89"* 묶음) — 뷰어는 이미 닫았는데 우리가 더한 줄이 새 울타리를 열어 뒤 문항을 전부
  * 삼켰다(2026-09-29 야간 감사 N3 #2). 감싼 울타리는 답 안의 가장 긴 백틱 연속보다 하나 길어서
  * 답 안의 어느 줄로도 안 닫힌다(CommonMark: 닫는 줄은 여는 줄 이상 길어야 한다).
  *
@@ -1229,9 +1234,7 @@ describe('결정 82: 확신 못 하는 울타리는 더 긴 울타리로 감싼�
     ['인용 안의 울타리', '> ```\n인용 안의 코드'],
     ['탭 뒤의 울타리', '설명\n\t```\n탭 뒤'],
     ['번호 목록 표지 뒤의 울타리', '1.```python\nprint(1)'],
-    ['0열 물결 울타리와 HTML', '<div>\n~~~\n\n# 제목 아님'],
-    // 답은 앞뒤를 다듬어 싣는다 — 들여쓴 태그가 첫 줄이면 들여쓰기가 사라지므로 둘째 줄에 둔다.
-    ['들여쓴 태그와 0열 울타리', '설명\n  <div>\n```\n\n# 제목 아님'],
+    // 0열 울타리와 줄머리 `<`를 감싸던 조건 (2)는 결정 89가 걷어냈다 — "결정 89" 묶음의 퍼저가 그 모양을 본다.
   ])('%s는 감싼다', (_, answer) => {
     const markdown = render(answer)
     expect(markdown).toMatch(/## 동기\n\n`{3,}\n/)
@@ -1244,11 +1247,12 @@ describe('결정 82: 확신 못 하는 울타리는 더 긴 울타리로 감싼�
     expect(render(answer)).toContain(`## 동기\n\n\`\`\`\n${answer}\n\`\`\`\n\n## 방법`)
   })
 
-  it('감싼 답은 글자를 바꾸지 않는다 — 안의 #도 이스케이프하지 않는다', () => {
-    const answer = '<div>\n```\n\n# 제목 아님'
+  it('감싼 답은 글자를 바꾸지 않는다 — 안의 #도 줄머리 <도 이스케이프하지 않는다', () => {
+    const answer = '- <div>\n  ```\n\n# 제목 아님\n<b>'
     const markdown = render(answer)
     expect(markdown).toContain(`\`\`\`\`\n${answer}\n\`\`\`\``)
     expect(markdown).not.toContain('\\#')
+    expect(markdown).not.toContain('&lt;')
   })
 
   /** **회귀 — 줄 규칙이 확신하는 답은 바이트가 그대로다.** 목록·강조가 뷰어에서 살아난다. */
@@ -1265,9 +1269,16 @@ describe('결정 82: 확신 못 하는 울타리는 더 긴 울타리로 감싼�
   /**
    * **읽는 쪽은 `document.md`를 해석하지 않는다** — 원본은 `document.json`이고 `.md`는 해시로
    * 대조만 한다(mlpx-spec.md §8.6). 그래서 옛 방식으로 닫은 파일과 새로 감싼 파일이 둘 다 열리고
-   * 포맷 버전은 그대로다.
+   * 포맷 버전은 그대로다. 결정 89(코드 밖의 `<`를 `&lt;`로 싣는다)도 같다 — 옛 방식은 HTML 블록에 닫는 말을 붙였다.
    */
-  it('옛 방식의 document.md도 새 방식의 것도 그대로 열린다', async () => {
+  it.each([
+    ['결정 82 — 목록 안 울타리', '- a\n  ```\n위', '  ```'],
+    [
+      '결정 89 — 목록 안 주석 뒤의 0열 태그',
+      '- 실습 코드\n  <!-- 여기부터\n<style>\np { color: red; }',
+      '-->',
+    ],
+  ])('옛 방식의 document.md도 새 방식의 것도 그대로 열린다 (%s)', async (_, answer, oldCloser) => {
     const blank = newProjectDocument(
       { name: '붓꽃 품종 분류', locale: 'ko', dataType: 'tabular' },
       {
@@ -1276,7 +1287,6 @@ describe('결정 82: 확신 못 하는 울타리는 더 긴 울타리로 감싼�
         randomState: 4242,
       },
     )
-    const answer = '- a\n  ```\n위'
     const document = {
       ...blank,
       portfolio: withAnswer(
@@ -1292,7 +1302,7 @@ describe('결정 82: 확신 못 하는 울타리는 더 긴 울타리로 감싼�
       attachments: new Map(),
       embeddings: new Map(),
     }
-    const oldMarkdown = `# 붓꽃 품종 분류\n\n## 동기\n\n${answer}\n  \`\`\`\n`
+    const oldMarkdown = `# 붓꽃 품종 분류\n\n## 동기\n\n${answer}\n${oldCloser}\n`
     const newMarkdown = renderPortfolioMarkdown(TEXT, document.portfolio)
     expect(newMarkdown).not.toBe(oldMarkdown)
 
@@ -1305,5 +1315,478 @@ describe('결정 82: 확신 못 하는 울타리는 더 긴 울타리로 감싼�
       const inFile = new TextDecoder().decode(unzipSync(bytes)[`${DIR.portfolio}document.md`]!)
       expect(inFile).toBe(markdown)
     }
+  })
+})
+
+/**
+ * **코드 밖의 `<`는 `&lt;`로 싣는다** (open-decisions.md 89, mlpx-spec.md §8.6).
+ *
+ * 학생 답의 HTML이 `document.md`에 그대로 실리면, HTML을 거르지 않는 뷰어로 교사가 열 때 학생이 쓴 코드가 교사
+ * 화면에서 돈다(XSS). 줄머리의 태그는 HTML 블록을 열어 뒤 문항까지 삼켰다(감사 슬라이스 4 A-1). 제목과 태그는
+ * markdown-it(`html: true`)으로 렌더해서 센다 — 렌더된 글의 `<`는 `&lt;`로 나오므로 **렌더 결과의 날것 `<`는 태그뿐이다.**
+ */
+describe('결정 89: 코드 밖의 <는 &lt;로 싣는다', () => {
+  /** 이 묶음의 답에서 마크다운이 만드는 요소. 여기 없는 이름이 서면 학생이 쓴 태그다. */
+  const MARKDOWN_TAGS = new Set([
+    'h1',
+    'h2',
+    'p',
+    'ul',
+    'ol',
+    'li',
+    'code',
+    'pre',
+    'blockquote',
+    'em',
+    'strong',
+    'hr',
+    'table',
+    'thead',
+    'tbody',
+    'tr',
+    'th',
+    'td',
+  ])
+  /** 마크다운 링크가 만드는 `<a>`. markdown-it은 `javascript:` 주소로는 링크를 안 만든다. */
+  const MARKDOWN_LINK = /^<a href="(?!javascript:)[^"]*">$/i
+  const rawTagsIn = (markdown: string) => {
+    const html = new MarkdownIt({ html: true }).render(markdown)
+    const found = [...html.matchAll(/<(\/?)([^\s>/]*)[^>]*>?/g)]
+      .filter(([whole, closing, name]) => {
+        const tag = name!.toLowerCase()
+        if (MARKDOWN_TAGS.has(tag)) return false
+        return !(tag === 'a' && (closing === '/' || MARKDOWN_LINK.test(whole)))
+      })
+      .map(([whole]) => whole)
+    // 마크다운의 `<pre>`는 언제나 `<pre><code`다 — 홀로 선 `<pre>`는 학생이 쓴 것이다.
+    return [...found, ...[...html.matchAll(/<pre>(?!<code)/g)].map(([whole]) => whole)]
+  }
+
+  const headingsOf = (markdown: string) =>
+    [...new MarkdownIt({ html: true }).render(markdown).matchAll(/<h([12])>([^<]*)</g)].map(
+      ([, level, title]) => `h${level}:${title}`,
+    )
+
+  const THREE = [
+    { id: 'a', title: '동기' },
+    { id: 'b', title: '방법' },
+    { id: 'c', title: '느낀 점' },
+  ]
+  const EXPECTED = ['h1:붓꽃 품종 분류', 'h2:동기', 'h2:방법', 'h2:느낀 점']
+
+  const render = (a: string, b = '둘째 답') =>
+    renderPortfolioMarkdown(TEXT, portfolio(THREE, { a, b, c: '셋째 답' }))
+
+  it.each([
+    ['LF', '\n'],
+    ['CRLF', '\r\n'],
+  ])('감사의 현실형 반례에서 뒤 문항이 다 선다 (%s)', (_, eol) => {
+    const answer = ['- 실습 코드', '  <!-- 여기부터', '<style>', 'p { color: red; }'].join(eol)
+    for (const markdown of [render(answer), render('첫 답', answer)]) {
+      expect(headingsOf(markdown)).toEqual(EXPECTED)
+      expect(rawTagsIn(markdown)).toEqual([])
+    }
+  })
+
+  /**
+   * **감사의 조각을 셋씩 모든 순서 × LF/CRLF × 첫째/둘째 문항으로 잇는다.** 주석·유형 1–5 태그·유형 6·7 태그를
+   * 목록·인용 표지와 울타리 사이에 섞는다 — 82의 감싸는 조건 (2)(0열 울타리와 줄머리 `<`)가 지키던 병, HTML 블록
+   * 안의 ` ``` `를 줄 규칙이 울타리로 세어 뒤 문항을 잃는 것도 여기서 본다. 조건 (2)는 걷어냈다. 학생의 태그가 서는지도 본다.
+   */
+  it('감사의 조각 조합이 뒤 문항을 안 삼키고 태그도 안 세운다', () => {
+    const pieces = [
+      '  <!--',
+      '<!--',
+      '-->',
+      '<style>',
+      '<script>',
+      '<pre>',
+      '<?php',
+      '<![CDATA[',
+      '- a',
+      '- <div>',
+      '> <div>',
+      '<div>',
+      '<br/>',
+      '```',
+      '    ```',
+      '-\t```',
+      '\u00a0```',
+      '# y',
+      '',
+    ]
+    const broken: string[] = []
+    for (const one of pieces) {
+      for (const two of pieces) {
+        for (const three of pieces) {
+          for (const eol of ['\n', '\r\n']) {
+            const answer = [one, two, three].join(eol)
+            if (answer.trim() === '') continue
+            for (const markdown of [render(answer), render('첫 답', answer)]) {
+              if (headingsOf(markdown).join('|') !== EXPECTED.join('|')) {
+                broken.push(JSON.stringify(answer))
+              }
+              if (rawTagsIn(markdown).length > 0) broken.push(`tag ${JSON.stringify(answer)}`)
+            }
+          }
+        }
+      }
+    }
+    expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
+  })
+
+  /**
+   * **보안 퍼저.** 태그류와 코드 스팬의 까다로운 조각(길이 다른 백틱·이스케이프된 백틱·줄을 넘는 스팬·링크 목적지·표 칸)을
+   * 컨테이너·울타리 조각과 섞어 셋씩 잇는다. 학생 원문의 태그가 요소로 서는 경우가 하나도 없어야 한다.
+   */
+  it('태그와 코드 스팬 조각의 조합에서 학생의 태그가 하나도 안 선다', () => {
+    const pieces = [
+      '<script>alert(1)</script>',
+      '<img src=x onerror=alert(1)>',
+      '<svg onload=alert(1)>',
+      '`<b>`',
+      '`` ` ``',
+      '` <img src=x onerror=alert(1)> ``',
+      '\\`<img src=x onerror=alert(1)>`',
+      '\\`',
+      '<',
+      'a<b',
+      '`a',
+      '- b`',
+      'b` <img src=x onerror=alert(1)> `c`',
+      '[a](`) <svg onload=alert(1)> (`)',
+      '| `a | <img src=x onerror=alert(1)>` |',
+      '|---|---|',
+      '- a',
+      '> q',
+      '```',
+      '    ```',
+      '',
+    ]
+    const broken: string[] = []
+    for (const one of pieces) {
+      for (const two of pieces) {
+        for (const three of pieces) {
+          for (const eol of ['\n', '\r\n']) {
+            const answer = [one, two, three].join(eol)
+            if (answer.trim() === '') continue
+            for (const markdown of [render(answer), render('첫 답', answer)]) {
+              const tags = rawTagsIn(markdown)
+              if (tags.length > 0) broken.push(`${JSON.stringify(answer)} ${tags.join(' ')}`)
+            }
+          }
+        }
+      }
+    }
+    expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
+  })
+
+  /** 태그류마다 한 줄씩 — 실린 모양을 통째로 보고, 렌더에서 태그가 안 서는지 본다. */
+  it.each([
+    ['문장 안의 script', '설명 <script>alert(1)</script>', '설명 &lt;script>alert(1)&lt;/script>'],
+    [
+      '문장 안의 img onerror',
+      '설명 <img src=x onerror=alert(1)>',
+      '설명 &lt;img src=x onerror=alert(1)>',
+    ],
+    [
+      'javascript 주소의 a',
+      '<a href="javascript:alert(1)">눌러</a>',
+      '&lt;a href="javascript:alert(1)">눌러&lt;/a>',
+    ],
+    ['주석', '메모 <!-- 숨김 -->', '메모 &lt;!-- 숨김 -->'],
+    ['처리 명령', '<?php echo 1; ?>', '&lt;?php echo 1; ?>'],
+    ['CDATA', '<![CDATA[ x ]]>', '&lt;![CDATA[ x ]]>'],
+    ['줄머리 div', '설명\n   <div>', '설명\n   &lt;div>'],
+    ['목록·인용 표지 뒤', '- <div>\n> <br>\n1. <b>', '- &lt;div>\n> &lt;br>\n1. &lt;b>'],
+  ])('%s는 태그로 안 선다', (_, answer, written) => {
+    const markdown = render(answer)
+    expect(markdown).toContain(`## 동기\n\n${written}\n\n## 방법`)
+    expect(rawTagsIn(markdown)).toEqual([])
+    expect(headingsOf(markdown)).toEqual(EXPECTED)
+  })
+
+  /**
+   * **코드 스팬의 갈래** (`trustedCodeSpans`). 믿는 스팬 안은 그대로, 믿지 못하는 문단은 스팬 안까지 바꾼다 — 틀리게
+   * 믿으면 태그가 서고, 틀리게 안 믿으면 코드 안에 `&lt;`가 보일 뿐이다.
+   */
+  it.each([
+    ['같은 길이로 닫힌 스팬은 그대로', 'HTML은 `<div>`로 쓴다 <i>', 'HTML은 `<div>`로 쓴다 &lt;i>'],
+    ['길이가 다른 백틱은 안 닫는다', '``a ` <b>`` 뒤 <i>', '``a ` <b>`` 뒤 &lt;i>'],
+    ['안 닫힌 백틱은 글자다', '`<b> 그리고', '`&lt;b> 그리고'],
+    [
+      '남는 백틱 하나가 앞의 스팬을 안 흔든다',
+      '`<b>` 그리고 ` 하나 <i>',
+      '`<b>` 그리고 ` 하나 &lt;i>',
+    ],
+    ['이스케이프된 백틱은 안 연다', '\\`<b>`', '\\`&lt;b>`'],
+    ['이스케이프된 백슬래시 뒤의 백틱은 연다', '\\\\`<b>`', '\\\\`<b>`'],
+    ['첫 백틱만 이스케이프되면 나머지가 연다', '\\``<b>`', '\\``<b>`'],
+    ['스팬 안의 백슬래시는 닫는 백틱을 못 막는다', '`a\\` <b> `', '`a\\` &lt;b> `'],
+    ['줄을 넘는 스팬이 있는 문단은 안 믿는다', '`a\n<b>` 끝 `<i>`', '`a\n&lt;b>` 끝 `&lt;i>`'],
+    [
+      '목록이 가른 스팬',
+      '`a\n- b`\n`<img src=x onerror=alert(1)>` y',
+      '`a\n- b`\n`&lt;img src=x onerror=alert(1)>` y',
+    ],
+    ['빈 줄로 나뉜 문단은 따로 짝짓는다', '`a\n\n`<b>`', '`a\n\n`<b>`'],
+    [
+      '링크 목적지가 있는 문단은 안 믿는다',
+      '[a](`) <img src=x onerror=alert(1)> (`)',
+      '[a](`) &lt;img src=x onerror=alert(1)> (`)',
+    ],
+    ['표 칸을 넘는 스팬은 안 믿는다', '| `a | <b>` |\n|---|---|', '| `a | &lt;b>` |\n|---|---|'],
+  ])('%s', (_, answer, written) => {
+    const markdown = render(answer)
+    expect(markdown).toContain(`## 동기\n\n${written}\n\n## 방법`)
+    expect(rawTagsIn(markdown)).toEqual([])
+  })
+
+  it('울타리 안의 <는 안 바꾼다 — 코드 블록 안의 &lt;는 그대로 보인다', () => {
+    const closed = '```html\n<div>\n  <!-- 메모\n```'
+    expect(render(closed)).toContain(`## 동기\n\n${closed}\n\n## 방법`)
+    const unclosed = '설명\n~~~\n<style>'
+    expect(render(unclosed)).toContain(`## 동기\n\n${unclosed}\n~~~\n\n## 방법`)
+  })
+
+  it('여는 울타리 줄의 언어 자리는 코드가 아니다', () => {
+    expect(render('```<b>\nx\n```')).toContain('## 동기\n\n```&lt;b>\nx\n```\n\n## 방법')
+  })
+
+  /** 들여쓴 코드 블록은 가리지 않는다 — 바꾸는 쪽으로 기울어 `&lt;`가 보인다(open-decisions.md 89 "대가"). */
+  it('들여쓴 코드 블록의 <는 바꾼다', () => {
+    expect(render('설명\n\n    <x>')).toContain('## 동기\n\n설명\n\n    &lt;x>\n\n## 방법')
+  })
+
+  it('<가 없는 답은 바이트가 그대로다 — >와 &도 안 바꾼다', () => {
+    const answers = [
+      '설명\n\n```python\n# 주석\nprint(1)\n```\n\n- 결과',
+      '- 고양이\n- 개',
+      'x > y & z, 이미 쓴 &lt;b&gt;',
+      '> 인용문\n> 둘째 줄',
+      '1. 첫째\n2. 둘째',
+      '| a | b |\n|---|---|\n| 1 | 2 |',
+    ]
+    for (const answer of answers) {
+      expect(render(answer)).toContain(`## 동기\n\n${answer}\n\n## 방법`)
+    }
+  })
+
+  /**
+   * **답 밖의 사용자 글** — 문서 제목(프로젝트 이름)·문항 제목·머리글(학번·이름 값)·이전 문항 제목도 `document.md`에
+   * 실린다. 답과 같은 판정(`escapeInline`)을 거친다. 제목 구조가 그대로 서는지는 요소 이름의 차례로 본다.
+   */
+  describe('답 밖의 사용자 글', () => {
+    const XSS = '<img src=x onerror=alert(1)> <svg onload=alert(1)> <script>alert(1)</script>'
+    const levelsIn = (markdown: string) =>
+      [...new MarkdownIt({ html: true }).render(markdown).matchAll(/<(h[1-6])>/g)].map(
+        ([, level]) => level,
+      )
+    const withText = (title: string, label: string, value: string) =>
+      renderPortfolioMarkdown(
+        { title, rows: [[label, value]], orphanTitle: `이전 ${XSS}` },
+        portfolio(THREE, { 옛것: '남은 글' }),
+      )
+
+    it.each([
+      ['문서 제목', () => withText(`붓꽃 ${XSS}`, '이름', '홍길동')],
+      ['머리글 값', () => withText('붓꽃', '이름', XSS)],
+      ['머리글 라벨', () => withText('붓꽃', XSS, '홍길동')],
+      [
+        '문항 제목',
+        () =>
+          renderPortfolioMarkdown(
+            TEXT,
+            portfolio([
+              { id: 'a', title: `동기 ${XSS}` },
+              { id: 'b', title: '방법' },
+            ]),
+          ),
+      ],
+      // 라벨과 값을 따로 판정하면 라벨의 남는 백틱과 값의 백틱이 뷰어에서 짝지어 값의 태그가 스팬 밖으로 나온다.
+      ['라벨과 값 사이의 백틱', () => withText('붓꽃', '`a', '`<img src=x onerror=alert(1)>`')],
+    ])('%s에 쓴 태그가 안 서고 제목 구조가 그대로다', (_, make) => {
+      const markdown = make()
+      expect(rawTagsIn(markdown)).toEqual([])
+      expect(levelsIn(markdown)[0]).toBe('h1')
+      expect(
+        levelsIn(markdown)
+          .slice(1)
+          .every((level) => level === 'h2'),
+      ).toBe(true)
+      expect(levelsIn(markdown).length).toBeGreaterThanOrEqual(3)
+    })
+
+    it('제목의 코드 스팬 안은 답과 같이 그대로다', () => {
+      const markdown = renderPortfolioMarkdown(
+        { ...TEXT, title: '`print(<x>)` 출력 <b>' },
+        portfolio([{ id: 'a', title: '`a<b` 비교 <i>' }]),
+      )
+      expect(markdown).toContain('# `print(<x>)` 출력 &lt;b>\n')
+      expect(markdown).toContain('## `a<b` 비교 &lt;i>\n')
+      expect(rawTagsIn(markdown)).toEqual([])
+    })
+
+    it('<가 없는 제목과 머리글은 바이트가 그대로다', () => {
+      const markdown = renderPortfolioMarkdown(
+        {
+          title: '붓꽃 > 분류 & `코드`',
+          rows: [['이름', '홍길동 `a`']],
+          orphanTitle: '이전 문항의 답',
+        },
+        portfolio([{ id: 'a', title: '동기 > 방법' }], { a: '글', 옛것: '남은 글' }),
+      )
+      expect(markdown).toBe(
+        '# 붓꽃 > 분류 & `코드`\n\n- **이름**: 홍길동 `a`\n\n## 동기 > 방법\n\n글\n\n## 이전 문항의 답\n\n남은 글\n',
+      )
+    })
+
+    /**
+     * **홑 `\r`은 줄 끝이다** (보안 검토 A-2). 입력 칸은 CR을 거르지만 스키마는 아무 문자열이나 받아, 조작한 `.mlpx`의
+     * 제목이 교사의 점검 묶음에서 그대로 구워진다.
+     */
+    it.each([
+      ['문서 제목', () => withText('`\r<img src=x onerror=alert(1)>`', '이름', '홍길동')],
+      ['머리글 값', () => withText('붓꽃', '이름', '`\r- <img src=x onerror=alert(1)>`')],
+      [
+        '문항 제목',
+        () =>
+          renderPortfolioMarkdown(
+            TEXT,
+            portfolio([
+              { id: 'a', title: '`\r<img src=x onerror=alert(1)>`' },
+              { id: 'b', title: '방법' },
+            ]),
+          ),
+      ],
+    ])('%s의 홑 \\r이 줄을 가르지 않는다', (_, make) => {
+      const markdown = make()
+      expect(rawTagsIn(markdown)).toEqual([])
+      expect(markdown.includes('\r')).toBe(false)
+    })
+
+    /** 제목·라벨·값에 줄 끝과 백틱·태그 조각을 셋씩 넣는다. 태그가 안 서고 제목 구조가 그대로여야 한다. */
+    it('한 줄 글의 줄 끝 조합에서 태그가 안 선다', () => {
+      const pieces = [
+        '`',
+        '\r',
+        '\n',
+        '\r\n',
+        '\u2028',
+        '<img src=x onerror=alert(1)>',
+        '- ',
+        '# ',
+        'a',
+      ]
+      const broken: string[] = []
+      for (const one of pieces) {
+        for (const two of pieces) {
+          for (const three of pieces) {
+            const line = one + two + three
+            const made = [
+              withText(line, '이름', '홍길동'),
+              withText('붓꽃', line, '홍길동'),
+              withText('붓꽃', '이름', line),
+              renderPortfolioMarkdown(
+                TEXT,
+                portfolio([
+                  { id: 'a', title: line },
+                  { id: 'b', title: '방법' },
+                ]),
+              ),
+            ]
+            for (const markdown of made) {
+              const levels = levelsIn(markdown)
+              const shaped = levels[0] === 'h1' && levels.slice(1).every((level) => level === 'h2')
+              if (rawTagsIn(markdown).length > 0 || !shaped) broken.push(JSON.stringify(line))
+            }
+          }
+        }
+      }
+      expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
+    })
+  })
+
+  /**
+   * **판정의 공백과 줄 끝은 CommonMark다 — 스페이스·탭, `\n`·`\r`** (보안 검토 A-1). JS의 `trim`·`\s`는 유니코드 공백까지
+   * 공백으로 보고 `.`은 U+2028/2029에 안 맞아, 빈 줄과 닫는 울타리를 뷰어와 다르게 셌다.
+   */
+  describe('유니코드 공백과 줄 구분자', () => {
+    const IMG = '<img src=x onerror=alert(1)>'
+
+    it.each([
+      ['전각 공백 줄이 문단을 가르지 않는다', `\`a\n\u3000\n\`${IMG}\``],
+      [
+        '현실형 — 전각 공백 줄 뒤의 스팬',
+        '코드는 `a\n\u3000\n`<b onmouseover=alert(1)>굵게</b>` 이다',
+      ],
+      ['닫는 울타리 뒤의 전각 공백', `\`\`\`\n\`\`\`\u3000\n\`\`\`\n${IMG}\n\`\`\``],
+      ['닫는 울타리 뒤의 NBSP', `\`\`\`\n\`\`\`\u00a0\n\`\`\`\n${IMG}\n\`\`\``],
+      ['여는 울타리 언어 자리의 U+2028', `\`\`\`x\u2028\n\`\`\`\n${IMG}\n\`\`\``],
+      ['여는 물결 울타리 뒤의 U+2029', `~~~\u2029\n~~~\n${IMG}\n~~~`],
+    ])('%s', (_, answer) => {
+      for (const markdown of [render(answer), render('첫 답', answer)]) {
+        expect(rawTagsIn(markdown)).toEqual([])
+        expect(headingsOf(markdown)).toEqual(EXPECTED)
+      }
+    })
+
+    /** 빈 줄처럼 보이는 줄·닫는 울타리 뒤·여는 울타리 뒤에 유니코드 공백과 줄 구분자를 두고 셋씩 잇는다. */
+    it('유니코드 공백 조각의 조합에서 태그가 안 선다', () => {
+      const spaces = ['\u3000', '\u00a0', '\u2028', '\u2029', '\ufeff', '\v', '\f']
+      const pieces = [
+        '```',
+        '~~~',
+        '`a',
+        `\`${IMG}\``,
+        IMG,
+        ...spaces,
+        ...spaces.slice(0, 3).map((space) => `\`\`\`${space}`),
+        // 닫는 줄로 착각하면 다음 줄이 여는 줄이 된다 — 그 두 줄을 한 조각으로 둬야 셋씩 이어서 닿는다.
+        ...spaces.slice(0, 3).map((space) => `\`\`\`${space}\n\`\`\``),
+        '```x\u2028',
+        '~~~\u2029',
+      ]
+      const broken: string[] = []
+      for (const one of pieces) {
+        for (const two of pieces) {
+          for (const three of pieces) {
+            for (const eol of ['\n', '\r\n']) {
+              const answer = [one, two, three].join(eol)
+              for (const markdown of [render(answer), render('첫 답', answer)]) {
+                if (rawTagsIn(markdown).length > 0) broken.push(JSON.stringify(answer))
+              }
+            }
+          }
+        }
+      }
+      expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
+    })
+
+    /**
+     * **판정 구역에 JS 공백 판정이 없다.** `portfolio.ts`의 표시(`여기서 \`escapeInline\`까지가`)부터
+     * `renderPortfolioMarkdown` 앞까지에서 주석을 걷고 `.trim(`·`\s`·정규식의 `.`+수량자를 찾는다.
+     * 정규식 `.`은 모양으로만 찾는다 — 수량자 없는 홑 `.`은 못 본다.
+     */
+    it('판정 구역에 JS 공백 판정이 없다', () => {
+      const source = readFileSync(new URL('../src/project/portfolio.ts', import.meta.url), 'utf-8')
+      // 표시는 머리 주석 안에 있다 — 그 주석이 닫힌 뒤부터 훑는다.
+      const marker = source.indexOf('여기서 `escapeInline`까지가')
+      expect(marker, 'marker missing').toBeGreaterThan(0)
+      const start = source.indexOf('*/', marker) + 2
+      const end = source.indexOf('export function renderPortfolioMarkdown')
+      expect(end, 'renderer missing').toBeGreaterThan(start)
+      const code = source
+        .slice(start, end)
+        .replace(/\/\*[^]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '')
+      const found = [...code.matchAll(/\.trim(?:Start|End)?\(|\\s|(?<!\\)\.[*+?]/g)].map(
+        ([hit]) => hit,
+      )
+      expect(
+        found,
+        'use CommonMark whitespace ([ \\t], \\r, \\n) in the markdown judgement',
+      ).toEqual([])
+    })
   })
 })
