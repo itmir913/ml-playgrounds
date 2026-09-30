@@ -24,7 +24,15 @@
  */
 
 import {
+  BASELINE_CLASSES,
   BASELINE_COLUMNS,
+  MLJS_DECISION_TREE_CLASSES_MS,
+  MLJS_LOGISTIC_REGRESSION_CLASSES_MS,
+  MLJS_NAIVE_BAYES_CLASSES_MS,
+  MLJS_NEURAL_NETWORK_BASELINE_CLASSES,
+  MLJS_NEURAL_NETWORK_CLASSES_MS,
+  MLJS_RANDOM_FOREST_CLASSES_MS,
+  MLJS_SVM_CLASSES_MS,
   MLJS_KMEANS_BASELINE_CLUSTERS,
   MLJS_KMEANS_CLUSTERS_MS,
   MLJS_LOGISTIC_REGRESSION_BASELINE_MAX_ITER,
@@ -116,6 +124,68 @@ export interface EstimateInput {
    * 순수 JS 기준표로 셈해졌다. **기본값을 없애는 것이 처방이다** — 안 적으면 컴파일이 선다.
    */
   readonly runtime: BrowserRuntimeId
+  /**
+   * 분류의 클래스 수. **없으면 클래스 배수를 안 건다** (`classFactor`).
+   *
+   * **분류가 아니면 비운다** — 그래서 선택이다 (`open-decisions.md` "88. 학습 예상 시간이
+   * 클래스 수를 보는가"). 학습 화면은 `ml/training-source.ts`의 `trainingClassesOf`로, 점검의
+   * 대조는 `ml/reproduce-estimate.ts`의 `reproduceEstimateInputs`로 넘긴다.
+   */
+  readonly classes?: number | undefined
+}
+
+/**
+ * **클래스 수 배수표 한 칸.** 표와 그 표의 분모(기준표를 잰 클래스 수)가 한 쌍이다 —
+ * 인공신경망만 분모가 다르다(`limits.ts`의 `MLJS_NEURAL_NETWORK_BASELINE_CLASSES`).
+ */
+export interface ClassTable {
+  readonly ms: Ladder
+  readonly measuredAt: number
+}
+
+/**
+ * **실행 방법마다 알고리즘별 클래스 배수표.** 여기 없는 알고리즘은 클래스 수에 안 붙는다고
+ * 판단한 것(KNN — 투표가 이웃 `k`개만 센다)이거나 클래스가 없는 것(회귀·군집)이다.
+ *
+ * **sklearn은 비어 있다** — 같은 알고리즘들이 붙지만 사다리가 아직 없다. 순수 JS 표를
+ * 빌려 쓰지 않는다(`sklearnHandleFactor`와 같은 이유).
+ */
+export const CLASS_TABLES: Readonly<
+  Record<BrowserRuntimeId, Readonly<Partial<Record<string, ClassTable>>>>
+> = {
+  mljs: {
+    logistic_regression: { ms: MLJS_LOGISTIC_REGRESSION_CLASSES_MS, measuredAt: BASELINE_CLASSES },
+    svm: { ms: MLJS_SVM_CLASSES_MS, measuredAt: BASELINE_CLASSES },
+    naive_bayes: { ms: MLJS_NAIVE_BAYES_CLASSES_MS, measuredAt: BASELINE_CLASSES },
+    decision_tree: { ms: MLJS_DECISION_TREE_CLASSES_MS, measuredAt: BASELINE_CLASSES },
+    random_forest: { ms: MLJS_RANDOM_FOREST_CLASSES_MS, measuredAt: BASELINE_CLASSES },
+    neural_network: {
+      ms: MLJS_NEURAL_NETWORK_CLASSES_MS,
+      measuredAt: MLJS_NEURAL_NETWORK_BASELINE_CLASSES,
+    },
+  },
+  'pyodide-sklearn': {},
+}
+
+/**
+ * **클래스 수 배수** (`open-decisions.md` "88. 학습 예상 시간이 클래스 수를 보는가").
+ * `표(클래스) ÷ 표(기준 클래스 수)`이고 보간은 행 축과 같은 `interpolate`다.
+ *
+ * **표가 비었으면 1이다** — 안 잰 칸은 지금 동작 그대로다. 클래스 수를 모르면(회귀·군집)
+ * 역시 1이다. `tables`는 검사가 가짜 표를 넣는 자리다.
+ *
+ * 1보다 작은 클래스 수를 따로 막지 않는다 — 표의 첫 점 아래는 `interpolate`가 첫 값으로 둔다.
+ */
+export function classFactor(
+  runtime: BrowserRuntimeId,
+  algorithm: string,
+  classes: number | undefined,
+  tables: typeof CLASS_TABLES = CLASS_TABLES,
+): number {
+  if (classes === undefined) return 1
+  const table = tables[runtime][algorithm]
+  if (table === undefined || table.ms.length === 0) return 1
+  return interpolate(table.ms, classes) / interpolate(table.ms, table.measuredAt)
 }
 
 function numberOr(source: Record<string, unknown>, name: string, fallback: number): number {
@@ -306,7 +376,8 @@ export function baselineMs(input: EstimateInput): number | null {
   const training =
     rows *
     columns *
-    handleFactor(runtime, input.algorithm, input.hyperparameters, input.columns, input.dataType)
+    handleFactor(runtime, input.algorithm, input.hyperparameters, input.columns, input.dataType) *
+    classFactor(runtime, input.algorithm, input.classes)
 
   /**
    * **시동이 학습 앞에 붙는다** (2026-09-19, 로드맵 4단계). 기준표는 시동을 시계 밖에 두고

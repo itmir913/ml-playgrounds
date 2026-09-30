@@ -19,10 +19,16 @@ import { join } from 'node:path'
 import { parse as parseHtml, type DefaultTreeAdapterTypes } from 'parse5'
 import { describe, expect, it } from 'vitest'
 
-import { NEURAL_MAX_EPOCHS } from '../src/limits'
+import {
+  MAX_IMAGE_COUNT,
+  MLJS_NEURAL_NETWORK_BASELINE_CLASSES,
+  NEURAL_MAX_EPOCHS,
+} from '../src/limits'
 import { ALGORITHMS } from '../src/ml/algorithms'
 import { UNMEASURED } from '../src/ml/backend'
 import { backboneFor, DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
+import { SYNTHETIC_CLASSES, syntheticData } from '../src/ml/calibration'
+import { CLASS_TABLES } from '../src/ml/estimate'
 import { silhouetteSampleSize } from '../src/ml/metrics'
 import type { DataType } from '../src/project/schema'
 import {
@@ -31,12 +37,15 @@ import {
   benchOutcome,
   CALIBRATION,
   CEILING_MS,
+  CLASS_LADDERS,
   FAILURE_CEILING_MS,
   IMAGE_LADDERS,
   LADDERS,
+  ladderConditions,
   ladderPoint,
   measureCalibration,
   measurerFor,
+  neuralData,
   PROJECTION_MS,
   projectionExponent,
   projectionRule,
@@ -452,6 +461,91 @@ describe('사다리 판정', () => {
     expect(limits.length).toBeGreaterThan(0)
     expect(limits.every((ladder) => ladder.findsLimit === true)).toBe(true)
   })
+
+  /**
+   * **배수표가 있는 알고리즘마다 클래스 사다리가 있다** (`open-decisions.md` "88. 학습 예상
+   * 시간이 클래스 수를 보는가"). 사다리가 없으면 그 표는 영영 안 차고, 표가 없는 사다리는
+   * 잰 값이 갈 곳이 없다. 기준 클래스 수의 점이 있어야 분모를 잰다.
+   */
+  it('배수표가 있는 알고리즘마다 클래스 사다리가 있다', () => {
+    const tables = CLASS_TABLES.mljs
+    const algorithmOf = (ladder: Ladder): string | undefined => {
+      const first = ladder.points[0]
+      return first === undefined ? undefined : ladder.job(first).algorithm
+    }
+    const missing = Object.entries(tables)
+      .filter(
+        ([algorithm, table]) =>
+          !CLASS_LADDERS.some(
+            (ladder) =>
+              ladder.axis === 'nClasses' &&
+              (ladder.engine ?? 'mljs') === 'mljs' &&
+              algorithmOf(ladder) === algorithm &&
+              table !== undefined &&
+              ladder.points.includes(table.measuredAt),
+          ),
+      )
+      .map(([algorithm]) => algorithm)
+    expect(missing).toEqual([])
+
+    const stray = CLASS_LADDERS.filter((ladder) => {
+      const algorithm = algorithmOf(ladder)
+      return algorithm === undefined || tables[algorithm] === undefined
+    }).map((ladder) => ladder.id)
+    expect(stray).toEqual([])
+  })
+
+  /** **일감이 클래스 수를 실제로 바꾼다** — 안 바꾸면 사다리가 같은 점을 다섯 번 잰다. */
+  it('클래스 사다리의 일감이 점마다 클래스 수를 싣는다', () => {
+    const wrong = CLASS_LADDERS.filter((ladder) =>
+      ladder.points.some((point) => ladder.job(point).classes !== point),
+    ).map((ladder) => ladder.id)
+    expect(wrong).toEqual([])
+  })
+
+  /**
+   * **신경망 기준표는 이진으로 쟀다** (G 검토 B2). 신경망 사다리의 데이터가 기본으로 두 라벨을 내야
+   * 기존 기준표가 바뀌지 않고, 클래스 배수의 분모도 그 둘이어야 한다. 둘 중 하나만 바뀌면 신경망
+   * 예상이 조용히 어긋난다.
+   */
+  it('신경망 기준표는 이진으로 재고 분모도 둘이다', () => {
+    expect(MLJS_NEURAL_NETWORK_BASELINE_CLASSES).toBe(2)
+    expect(new Set(neuralData(60, 2).encoded).size).toBe(MLJS_NEURAL_NETWORK_BASELINE_CLASSES)
+    expect(neuralData(60, 2).classes).toEqual(['a', 'b'])
+    expect(CLASS_TABLES.mljs.neural_network?.measuredAt).toBe(MLJS_NEURAL_NETWORK_BASELINE_CLASSES)
+  })
+
+  /**
+   * **사진 상한 사다리는 `MAX_IMAGE_COUNT`에서 끝난다.** 그 위는 앱이 업로드를 거절해 학생이
+   * 닿지 못하는 크기이고, 거기 못 미치면 천장까지 안 깨지는지를 못 본다.
+   */
+  it('사진 상한 사다리는 사진 천장에서 끝난다', () => {
+    const imageFeatures = backboneFor(DEFAULT_BACKBONE_ID)?.embeddingDim
+    const wrong = ALL_LADDERS.filter(
+      (ladder) =>
+        ladder.findsLimit === true &&
+        ladder.points.some((point) => ladder.job(point).columns === imageFeatures) &&
+        ladder.points.at(-1) !== MAX_IMAGE_COUNT,
+    ).map((ladder) => `${ladder.id}: ${String(ladder.points.at(-1))}`)
+    expect(wrong).toEqual([])
+  })
+
+  /**
+   * **사진 로지스틱은 상한과 기준표가 같은 조건으로 잰다** (2026-09-30). 옛 실측이 기준표와
+   * 서너 배 갈린 채 까닭을 못 가른 것이 조건(클래스 수)이 안 남아서였다 — 두 사다리의
+   * 조건이 갈리면 같은 병을 새로 만든다.
+   */
+  it('사진 로지스틱의 상한 사다리가 기준표 사다리와 같은 조건으로 [상한 찾기]에 든다', () => {
+    const limit = ALL_LADDERS.find((one) => one.id === 'limit_image_logistic_regression')
+    const table = ALL_LADDERS.find((one) => one.id === 'image_logistic_regression')
+    expect(limit?.findsLimit).toBe(true)
+    expect(limit?.engine ?? 'mljs').toBe('mljs')
+    if (limit === undefined || table === undefined) return
+    const conditions = ladderConditions(limit)
+    expect(conditions).toEqual(ladderConditions(table))
+    expect(conditions).toMatchObject({ classes: SYNTHETIC_CLASSES })
+    expect(conditions).not.toHaveProperty('rows')
+  })
 })
 
 /**
@@ -782,6 +876,15 @@ describe('사다리와 워커의 계약', () => {
     expect(body).toMatch(/\bpredict\(/)
     expect(body).toMatch(/\bevaluate\(/)
     expect(body).toContain('PREDICT_RATIO')
+    // 일감에 적은 클래스 수가 데이터까지 가야 한다 — 안 가면 기록이 거짓을 말한다.
+    expect(body).toMatch(/\bjob\.classes\b/)
+  })
+
+  it('합성 데이터가 받은 클래스 수만큼 라벨을 낸다', () => {
+    const labels = (classes?: number): number =>
+      new Set(syntheticData(60, 2, false, classes).target).size
+    expect(labels()).toBe(SYNTHETIC_CLASSES)
+    expect(labels(5)).toBe(5)
   })
 
   /**

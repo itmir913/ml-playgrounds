@@ -104,8 +104,13 @@ export function categoryOrder(values: Iterable<string>): string[] {
   return [...new Set(values)].sort(compareCodePoints)
 }
 
-/** 빈 칸을 결측으로 본다. 'N/A' 같은 문자열은 손대지 않는다 - 그건 값이지 결측이 아니다. */
-function isMissing(cell: string | undefined): boolean {
+/**
+ * 빈 칸을 결측으로 본다. 'N/A' 같은 문자열은 손대지 않는다 - 그건 값이지 결측이 아니다.
+ *
+ * **예상 시간의 클래스 수도 이것으로 센다** (`ml/training-source.ts`의 `TRAINING_CLASS_COUNTS`)
+ * — 학습과 다른 규칙으로 세면 공백 칸이 클래스 하나로 늘어난다.
+ */
+export function isMissing(cell: string | undefined): boolean {
   return cell === undefined || cell.trim() === ''
 }
 

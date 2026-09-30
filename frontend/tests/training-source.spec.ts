@@ -21,9 +21,11 @@ import {
   algorithmSelectionFor,
   runtimeContextFor,
   trainableRowsOf,
+  trainingClassesOf,
   trainingSourceOf,
 } from '../src/ml/training-source'
 import { newProjectDocument } from '../src/project/create'
+import { surveyProject, tabularProjectFrom } from './fixtures/prep-kind'
 import { addEmbeddings, readEmbeddings } from '../src/project/embeddings'
 import { type ProjectFile } from '../src/project/format'
 import { addImages, applyTestImages, readImages } from '../src/project/images'
@@ -350,6 +352,49 @@ describe('테스트용 사진이 학습까지 닿는다', () => {
 
     expect(trainableRowsOf(withUnlabeled, 'classification')).toBe(2)
     expect(trainableRowsOf(withUnlabeled, 'clustering')).toBe(3)
+  })
+
+  /**
+   * **예상 시간의 클래스 수는 라벨 붙은 범주 수이고, 분류에서만 선다**
+   * (`open-decisions.md` "88. 학습 예상 시간이 클래스 수를 보는가"). 군집에 수를 넘기면
+   * 클래스 배수가 없는 자리에 붙는다.
+   */
+  it('사진의 클래스 수는 라벨 붙은 범주만 세고 분류에서만 낸다', () => {
+    const withUnlabeled = addImages(project(), [baked(9, IMAGE_UNLABELED)], {
+      canonicalSize: SIZE,
+      now: NOW,
+      format: 'webp',
+    }).project
+
+    expect(trainingClassesOf(withUnlabeled, 'classification')).toBe(2)
+    expect(trainingClassesOf(withUnlabeled, 'clustering')).toBeUndefined()
+    expect(trainingClassesOf(withUnlabeled, undefined)).toBeUndefined()
+  })
+
+  /** 표는 타깃 열의 값 종류 수다 — **빈 칸은 종류가 아니다.** */
+  it('표의 클래스 수는 타깃 값 종류이고 빈 칸을 안 센다', async () => {
+    const survey = await surveyProject(true)
+    expect(trainingClassesOf(survey, 'classification')).toBe(2)
+    expect(trainingClassesOf(survey, 'regression')).toBeUndefined()
+  })
+
+  /**
+   * **학습과 같은 규칙으로 센다** (G 검토 B3). 학습은 타깃을 `trim()`해 읽고 공백뿐인 칸을 결측으로
+   * 본다(`ml/preprocess.ts`의 `targetValues`·`isMissing`). 따로 세면 `'남 '`이 셋째 클래스가 되고
+   * 공백 칸이 넷째가 된다.
+   */
+  it('표의 클래스 수는 앞뒤 공백을 떼고 공백 칸을 결측으로 센다', async () => {
+    const lines = ['키,성별']
+    const sexes = ['남', '여', '남 ', ' 여', '   ', '']
+    sexes.forEach((sex, index) => lines.push(`${150 + index},"${sex}"`))
+    const csv = new TextEncoder().encode(`${lines.join('\n')}\n`)
+    const project = await tabularProjectFrom(csv, '공백.csv', {
+      taskType: 'classification',
+      target: '성별',
+      features: ['키'],
+      preprocessing: {},
+    })
+    expect(trainingClassesOf(project, 'classification')).toBe(2)
   })
 
   /**

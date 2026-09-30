@@ -592,6 +592,9 @@ export const MLJS_IMAGE_NAIVE_BAYES_ROW_LIMIT = MAX_IMAGE_COUNT
  * `tol`이 기록에 없어 차이를 가르지 못했다. 예상 시간은 기준표가 말하고, 이 값은 상한까지
  * 끝난다는 근거로만 쓴다.
  *
+ * **다시 재는 사다리가 생겼다** — 하니스의 `상한 찾기 · [사진] 로지스틱 회귀`
+ * (`tools/workloads.ts`의 `limit_image_logistic_regression`, 클래스 수까지 기록에 남긴다).
+ *
  * **분류: 우리 기기가 정했다.**
  */
 export const MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT = MAX_IMAGE_COUNT
@@ -1713,6 +1716,56 @@ export const PYODIDE_KMEANS_CLUSTERS_MS = [
  * **분류: 상한이 아니다.**
  */
 export const PYODIDE_LOGISTIC_REGRESSION_MAX_ITER_FACTOR = 1
+
+/**
+ * **기준표를 잰 클래스 수.** 실측 하니스의 합성 데이터가 이 수로 라벨을 낸다
+ * (`ml/calibration.ts`의 `syntheticData`) — 순수 JS 기준표도, 교정 일감도 이 수에서 쟀다.
+ * 클래스 배수(`MLJS_*_CLASSES_MS`)의 분모가 이 자리다 (`open-decisions.md` "88. 학습 예상
+ * 시간이 클래스 수를 보는가").
+ *
+ * **인공신경망만 다르다** — 아래 `MLJS_NEURAL_NETWORK_BASELINE_CLASSES`.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const BASELINE_CLASSES = 3
+
+/**
+ * 인공신경망 기준표를 잰 클래스 수. **이진이다** — 신경망 사다리는 자기 데이터로 재고
+ * (`tools/workloads.ts`의 `measureNeural`) 그 라벨이 둘이라 출력층이 한 칸이다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const MLJS_NEURAL_NETWORK_BASELINE_CLASSES = 2
+
+/**
+ * **클래스 수 배수표** — `[클래스 수, ms]`. 예상 시간은 `표(클래스) ÷ 표(기준 클래스 수)`를
+ * 곱한다 (`ml/estimate.ts`의 `classFactor`). 사다리는 `tools/workloads.ts`의
+ * `CLASS_LADDERS`이고, 어느 종류·몇 행에서 재는지와 그 까닭이 거기 있다.
+ *
+ * **비어 있으면 배수를 안 건다** — 안 잰 칸은 지금 동작 그대로다. 개발 PC [클래스만 훑기]로
+ * 채운다 (`open-decisions.md` "88. 학습 예상 시간이 클래스 수를 보는가").
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const MLJS_LOGISTIC_REGRESSION_CLASSES_MS: readonly (readonly [number, number])[] = []
+
+/** 위 표와 같은 자리 — SVM(일대일). **분류: 상한이 아니다.** */
+export const MLJS_SVM_CLASSES_MS: readonly (readonly [number, number])[] = []
+
+/** 위 표와 같은 자리 — 나이브 베이즈(예측 몫만 붙는다). **분류: 상한이 아니다.** */
+export const MLJS_NAIVE_BAYES_CLASSES_MS: readonly (readonly [number, number])[] = []
+
+/** 위 표와 같은 자리 — 의사결정트리. **분류: 상한이 아니다.** */
+export const MLJS_DECISION_TREE_CLASSES_MS: readonly (readonly [number, number])[] = []
+
+/** 위 표와 같은 자리 — 랜덤 포레스트. **분류: 상한이 아니다.** */
+export const MLJS_RANDOM_FOREST_CLASSES_MS: readonly (readonly [number, number])[] = []
+
+/**
+ * 위 표와 같은 자리 — 인공신경망. 분모는 `MLJS_NEURAL_NETWORK_BASELINE_CLASSES`다.
+ * **분류: 상한이 아니다.**
+ */
+export const MLJS_NEURAL_NETWORK_CLASSES_MS: readonly (readonly [number, number])[] = []
 
 /** K-평균 기준표를 잰 군집 수. **분류: 상한이 아니다.** */
 export const MLJS_KMEANS_BASELINE_CLUSTERS = 3

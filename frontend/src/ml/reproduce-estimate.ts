@@ -4,6 +4,7 @@
  * 대조 판(`views/inspect/ReproducePanel.vue`)이 누르기 전에 적는 예상이다. **입력은 학습 화면이 내는 것과
  * 같은 모양이다** — 데이터 종류는 실험의 것, 행 수는 그 실험이 학습한 훈련 몫, 특성 수는 표면 전처리 뒤의
  * 폭이고 표가 아니면 0이다(학습 화면도 표 설정이 없으면 0을 넘긴다 — 사진의 폭은 사진 기준표가 이미 쟀다).
+ * 분류면 클래스 수도 넘긴다(open-decisions.md 88) — 학습 화면이 넘기는 것과 같은 칸이다.
  * 기준표가 빈 칸은 `browserEstimateMs`가 `null`로 돌려 `알 수 없음`이 된다 — 지어내지 않는다.
  *
  * `tests/reproduce-estimate.spec.ts`가 문다.
@@ -62,6 +63,13 @@ export function reproduceEstimateInputs(
       columns,
       hyperparameters: run.hyperparameters,
       runtime,
+      /**
+       * **클래스 수도 학습 화면처럼 넘긴다** (open-decisions.md 88). 대조 판은 프로젝트의 지금 표가
+       * 아니라 그 실험의 기록을 보므로, 기록에 남은 혼동 행렬의 라벨 수를 쓴다. 분류가 아니면
+       * 혼동 행렬이 없어 비고, 그러면 클래스 배수가 안 붙는다. 시험 몫에 안 나온 클래스는 못 세서
+       * 짧게 틀릴 수 있다.
+       */
+      classes: run.confusionMatrix?.labels.length,
     })
   }
   return inputs

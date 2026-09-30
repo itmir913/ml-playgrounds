@@ -11,10 +11,13 @@
 
 import {
   MLJS_DECISION_TREE_ROW_LIMIT,
+  MAX_IMAGE_COUNT,
   MLJS_IMAGE_DECISION_TREE_ROW_LIMIT,
+  MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT,
   MLJS_IMAGE_RANDOM_FOREST_ROW_LIMIT,
   MLJS_IMAGE_SVM_ROW_LIMIT,
   MLJS_KNN_ROW_LIMIT,
+  MLJS_NEURAL_NETWORK_BASELINE_CLASSES,
   MLJS_RANDOM_FOREST_ROW_LIMIT,
   MLJS_SVM_ROW_LIMIT,
   PYODIDE_DECISION_TREE_ROW_LIMIT,
@@ -29,6 +32,7 @@ import {
   CALIBRATION_JOBS,
   measureJob,
   runCalibration,
+  SYNTHETIC_CLASSES,
   syntheticData,
   type CalibrationJob,
 } from '../src/ml/calibration'
@@ -94,6 +98,26 @@ export interface Job {
   readonly columns?: number
   readonly hyperparameters?: Record<string, number>
   readonly regression?: boolean
+  /**
+   * 합성 데이터의 클래스 수. **없으면 생성기의 기본값이다**(`SYNTHETIC_CLASSES`).
+   *
+   * **적어 두는 자리다.** 다중 클래스 로지스틱은 반복마다 클래스 수에 비례해 일하는데,
+   * `MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT`의 옛 실측은 이 수가 기록에 없어 기준표와
+   * 갈린 까닭을 가르지 못했다. 일감에 적힌 조건은 하니스의 JSON(`conditions`)에 실린다.
+   */
+  readonly classes?: number
+}
+
+/**
+ * 일감에서 **점(행 수)을 뺀 조건** — 하니스가 사다리마다 JSON에 싣는다.
+ *
+ * 값만 남기면 다음 사람이 그 판이 무엇을 쟀는지 그날의 코드를 찾아 읽어야 한다.
+ * 필드를 손으로 옮겨 적지 않는다 — `Job`에 조건이 늘면 여기도 저절로 는다.
+ */
+export function ladderConditions(ladder: Ladder): Readonly<Record<string, unknown>> | null {
+  const first = ladder.points[0]
+  if (first === undefined) return null
+  return Object.fromEntries(Object.entries(ladder.job(first)).filter(([key]) => key !== 'rows'))
 }
 
 /**
@@ -165,6 +189,7 @@ async function measureWith(engineFit: typeof fit, job: Job): Promise<number> {
     job.rows,
     job.columns ?? FEATURES,
     job.regression ?? false,
+    job.classes,
   )
   const rowIndices = features.map((_, index) => index)
   const started = performance.now()
@@ -224,6 +249,34 @@ function uniformData(rows: number, columns: number): { features: number[][]; tar
 const NEURAL_CEILING = { tol: 0 } as const
 
 /**
+ * **신경망 사다리의 데이터** — 라벨이 특성과 무관한 균일 난수다(아래 `measureNeural`).
+ *
+ * **기본은 이진이다** — 신경망 기준표가 그렇게 재어졌고(`MLJS_NEURAL_NETWORK_BASELINE_CLASSES`),
+ * 클래스 배수의 분모가 그 수다. 둘일 때 `floor(r × 2)`는 옛 `r < 0.5 ? 0 : 1`과 같은 라벨이다.
+ * `tests/bench-rules.spec.ts`의 *"신경망 기준표는 이진으로 재고 분모도 둘이다"*가 문다.
+ */
+export function neuralData(
+  rows: number,
+  columns: number,
+  classCount = MLJS_NEURAL_NETWORK_BASELINE_CLASSES,
+): { features: number[][]; encoded: number[]; classes: string[] } {
+  let state = 42
+  const random = (): number => {
+    state = (state * 1664525 + 1013904223) >>> 0
+    return state / 4294967296
+  }
+  const features: number[][] = []
+  const encoded: number[] = []
+  for (let row = 0; row < rows; row += 1) {
+    features.push(Array.from({ length: columns }, () => random()))
+    // **라벨이 특성과 무관하다.** 그래서 손실이 평평해지지 않는다.
+    encoded.push(Math.floor(random() * classCount))
+  }
+  const classes = Array.from({ length: classCount }, (_, index) => String.fromCharCode(97 + index))
+  return { features, encoded, classes }
+}
+
+/**
  * **에폭을 다 도는 신경망 한 번.** `measure`를 안 쓰는 이유는 K-평균과 같다 — 데이터가
  * 반복 횟수를 정한다.
  *
@@ -246,20 +299,10 @@ async function measureNeural(
   layers: number,
   neurons: number,
   regression = false,
+  /** 라벨 종류 수. **클래스 사다리만 바꾼다** — 기본값은 `neuralData`의 것이다. */
+  classCount?: number,
 ): Promise<LadderResult> {
-  let state = 42
-  const random = (): number => {
-    state = (state * 1664525 + 1013904223) >>> 0
-    return state / 4294967296
-  }
-  const features: number[][] = []
-  const encoded: number[] = []
-  for (let row = 0; row < rows; row += 1) {
-    features.push(Array.from({ length: columns }, () => random()))
-    // **라벨이 특성과 무관하다.** 그래서 손실이 평평해지지 않는다.
-    encoded.push(random() < 0.5 ? 0 : 1)
-  }
-  const classes = ['a', 'b']
+  const { features, encoded, classes } = neuralData(rows, columns, classCount)
   const target = encoded.map((one) => classes[one] as string)
 
   /**
@@ -388,6 +431,8 @@ export const AXES = [
   'nClusters',
   'hiddenLayers',
   'neuronsPerLayer',
+  // 분류의 클래스 수. 이름은 sklearn의 `n_classes_`를 다른 손잡이들처럼 낙타 표기로 쓴 것이다.
+  'nClasses',
 ] as const
 
 export type Axis = (typeof AXES)[number]
@@ -458,6 +503,26 @@ const LOGISTIC_CEILING = { tol: 0, maxIter: 100 }
  * 만든 이유다 (`ml/engines/pyodide-sklearn-params.ts`).
  */
 const PYODIDE_LOGISTIC_CEILING = { tol: 0, max_iter: 100 }
+
+/**
+ * **사진 로지스틱의 일감 하나** — 기준표 사다리(`image_logistic_regression`)와 상한
+ * 사다리(`limit_image_logistic_regression`)가 **함께 쓴다.** 두 벌로 적으면 한쪽만 바뀐 날
+ * 상한과 기준표가 다른 것을 재는데, 그 갈라짐은 표에서 안 보인다.
+ *
+ * **클래스 수를 적는다.** 다중 클래스 로지스틱(softmax)은 반복마다 `행 × 특성 × 클래스`를
+ * 일하므로 클래스 수가 시간에 곧장 곱해진다. `MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT`의
+ * 옛 실측이 기준표와 서너 배 갈린 채 까닭을 못 가른 것이 이 수가 안 남아서였다.
+ * 라벨의 15%를 흔드는 것(`ml/calibration.ts`의 `syntheticData`)과 `tol: 0`도 조건이다.
+ */
+function imageLogisticJob(rows: number): Job {
+  return {
+    algorithm: 'logistic_regression',
+    rows,
+    columns: IMAGE_FEATURES,
+    hyperparameters: LOGISTIC_CEILING,
+    classes: SYNTHETIC_CLASSES,
+  }
+}
 
 export const LADDERS: readonly Ladder[] = [
   {
@@ -834,6 +899,10 @@ export const LADDERS: readonly Ladder[] = [
    * **여기 넷은 상한이 이미 `MAX_IMAGE_COUNT`에 붙어 있는 것들이다.** 남은 셋(트리 ·
    * 랜덤 포레스트 · SVM)은 상한 사다리가 같은 점을 훨씬 위까지 재므로 그쪽이 기준표도
    * 겸한다 — 같은 일을 두 번 시키지 않는다.
+   *
+   * **로지스틱은 상한 사다리가 뒤에 섰지만 표는 여전히 여기서 채운다**
+   * (`limit_image_logistic_regression`). 저쪽은 1,000장부터라 표의 작은 점이 없고,
+   * [사진만 훑기]의 되풀이(`IMAGE_ROUNDS`)에도 안 든다. 일감은 한 함수로 같다.
    */
   {
     id: 'image_naive_bayes',
@@ -864,12 +933,7 @@ export const LADDERS: readonly Ladder[] = [
     label: '[사진] 로지스틱 회귀 · 장 수 (maxIter 100 천장)',
     axis: 'rows',
     points: [250, 500, 1000, 2000, 4000, 5000],
-    job: (rows) => ({
-      algorithm: 'logistic_regression',
-      rows,
-      columns: IMAGE_FEATURES,
-      hyperparameters: LOGISTIC_CEILING,
-    }),
+    job: imageLogisticJob,
   },
   {
     /** **값이 예측에 있다.** 표 쪽과 같은 이유로 학습만 재면 0초로 보인다. */
@@ -912,7 +976,8 @@ export const LADDERS: readonly Ladder[] = [
  * 아니다").
  *
  * **표 쪽이 넷뿐인 이유**는 나머지 넷이 이미 `MAX_DATASET_ROWS`에 붙어 있어서다 — 그
- * 위는 이 앱이 데이터로 받지도 않는다. **사진 쪽도 같은 셈으로 셋이다.**
+ * 위는 이 앱이 데이터로 받지도 않는다. **사진 쪽도 같은 셈으로 트리·포레스트·SVM이고,**
+ * 천장에 이미 붙은 로지스틱 하나가 그 근거를 다시 재려고 들어왔다(아래 그 항목).
  *
  * **찾는 것은 느린 지점이 아니라 깨지는 지점이다.** SVM은 N×N 커널이라 메모리에서
  * 먼저 죽을 것이고, 그게 상한이다. 나머지는 오래 걸릴 뿐일 수 있는데 **그건 상한이
@@ -988,6 +1053,33 @@ const LIMIT_LADDERS: readonly Ladder[] = [
     axis: 'rows',
     points: [500, 1000, 2000, 3000, 5000],
     job: (rows) => ({ algorithm: 'svm', rows, columns: IMAGE_FEATURES }),
+  },
+  /**
+   * **사진 로지스틱 — 상한이 이미 천장인데 다시 잰다** (2026-09-30, 코드 소유자).
+   *
+   * `MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT`의 근거는 2026-08-14에 `fit()`을 직접 건
+   * *"3,000장 9.1초 · 4,000장 16.6초"*인데, 기준표의 4,000장(4,464ms)과 서너 배 갈리고
+   * 그 판의 조건이 기록에 없다. **근거를 이 사다리의 실측으로 바꾸려는 것이다.**
+   *
+   * **점이 `MAX_IMAGE_COUNT`에서 끝난다 — 지금 상한 위로 올라가지 않는다.** 이 상한은
+   * 이미 `MAX_IMAGE_COUNT`와 같고, 그 위는 앱이 굽기 전에 업로드를 거절하므로 학생이
+   * 닿지 못하는 크기다(위 머리말 — 다른 사진 상한 사다리도 거기서 끝난다). 여기서 깨지는
+   * 지점을 찾는다는 것은 **천장까지 안 깨지는지**를 보는 것이다. 천장이 오르면 점도 따라
+   * 오르게 수를 적지 않고 상수를 쓴다.
+   *
+   * **1,000장부터 시작한다.** 그 아래는 1초 안쪽이라 기준표 사다리가 이미 잰다. **3,000과
+   * 4,000을 넣은 것은 옛 기록과 같은 점에서 견주려는 것이다.**
+   *
+   * **조건은 기준표 사다리와 한 함수다**(`imageLogisticJob` — `maxIter` 100 천장, `tol` 0,
+   * `IMAGE_FEATURES`차원, 클래스 수). 그래서 기준표와 갈리면 그것은 판의 흔들림이고, 이번
+   * 조건은 JSON의 `conditions`에 남으므로 옛 값과 갈린 까닭은 옛 판 쪽에서 찾으면 된다.
+   */
+  {
+    id: 'limit_image_logistic_regression',
+    label: `상한 찾기 · [사진] 로지스틱 회귀 (지금 ${MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT.toLocaleString()})`,
+    axis: 'rows',
+    points: [1000, 2000, 3000, 4000, MAX_IMAGE_COUNT],
+    job: imageLogisticJob,
   },
 ]
 
@@ -1640,8 +1732,100 @@ export const IMAGE_LADDERS: readonly Ladder[] = LADDERS.filter((ladder) =>
  */
 export const IMAGE_ROUNDS = 2
 
+/** 클래스 사다리가 도는 클래스 수. 앱에는 범주 수 상한이 없어 스물 위는 외삽이 말한다. */
+const CLASS_POINTS = [2, 3, 5, 10, 20]
+
+/**
+ * **클래스 수 사다리** — [클래스만 훑기]가 도는 목록이다 (`open-decisions.md` "88. 학습 예상
+ * 시간이 클래스 수를 보는가"). 여기서 나온 값이 `limits.ts`의 `MLJS_*_CLASSES_MS`를 채우고,
+ * 예상 시간이 `표(클래스) ÷ 표(기준 클래스 수)`를 곱한다(`ml/estimate.ts`의 `classFactor`).
+ *
+ * **붙는 알고리즘만 있다.** KNN은 투표가 이웃 `k`개만 세서 안 붙고, 선형 회귀·K-평균은
+ * 클래스가 없다. 어느 것이 붙는지는 구현을 읽고 판단했다 — 그 표는 결정문에 있다.
+ *
+ * **표 하나를 두 종류가 함께 쓴다.** 곱해지는 것이 비율이라 특성 수가 약분된다고 보고,
+ * 사다리마다 **더 크게 붙는 쪽이나 싸게 재는 쪽**을 골라 그 까닭을 적는다. 행 수는 기준표에
+ * 있는 점이라, 기준 클래스 수의 점이 행 표의 그 칸과 견줘진다.
+ *
+ * **[전부 훑기]에 안 든다.** 이 표는 한 번 채우면 끝이고, 따로 두 번 돌려 고른다
+ * (`CLASS_ROUNDS`).
+ */
+export const CLASS_LADDERS: readonly Ladder[] = [
+  {
+    /**
+     * **사진에서 잰다.** 반복마다 `행 × 특성 × 클래스`이고 반복 수는 `maxIter` 천장이라
+     * 특성 수가 비율에서 약분된다. 사진인 까닭은 클래스 수가 의심받은 자리가 사진 로지스틱의
+     * 옛 실측이기 때문이다(`limit_image_logistic_regression`의 주석).
+     */
+    id: 'logistic_regression_classes',
+    label: '로지스틱 회귀 · 클래스 수 ([사진] 1,000장 · maxIter 100 천장)',
+    axis: 'nClasses',
+    points: CLASS_POINTS,
+    job: (classes) => ({ ...imageLogisticJob(1000), classes }),
+  },
+  {
+    /**
+     * **표에서 잰다.** 일대일이라 `K(K−1)/2`쌍에 쌍마다 약 `2n/K`행이고, 곱해지는 정도는
+     * SMO가 행에 몇 제곱으로 붙느냐가 정한다. 그 지수가 표에서 더 크다(표 20,000행 27분 ·
+     * 사진 5,000장 2분) — 더 크게 붙는 쪽이다.
+     */
+    id: 'svm_classes',
+    label: 'SVM · 클래스 수 (1,000행)',
+    axis: 'nClasses',
+    points: CLASS_POINTS,
+    job: (classes) => ({ algorithm: 'svm', rows: 1000, classes }),
+  },
+  {
+    /**
+     * **표에서 잰다.** 학습과 예측이 둘 다 특성에 선형이라 비율에서 약분되고, 표가 더 많은
+     * 행을 싸게 잰다. 붙는 것은 예측 몫(`행 × 클래스 × 특성`)뿐이다.
+     */
+    id: 'naive_bayes_classes',
+    label: '나이브 베이즈 · 클래스 수 (100,000행)',
+    axis: 'nClasses',
+    points: CLASS_POINTS,
+    job: (classes) => ({ algorithm: 'naive_bayes', rows: 100_000, classes }),
+  },
+  {
+    /**
+     * **표에서 잰다.** `ml-cart`의 지니가 후보마다 `행 × 클래스`를 쓰고 후보 수가 특성에
+     * 붙으므로 비율에서 특성이 약분된다. 사진은 1,000장 한 점이 1분이라 사다리가 안 선다.
+     */
+    id: 'decision_tree_classes',
+    label: '의사결정트리 · 클래스 수 (2,000행)',
+    axis: 'nClasses',
+    points: CLASS_POINTS,
+    job: (classes) => ({ algorithm: 'decision_tree', rows: 2000, classes }),
+  },
+  {
+    /** **표에서 잰다** — 위 트리와 같은 까닭이다. 그루 수는 기본값이다. */
+    id: 'random_forest_classes',
+    label: '랜덤 포레스트 · 클래스 수 (1,000행 · 기본 그루 수)',
+    axis: 'nClasses',
+    points: CLASS_POINTS,
+    job: (classes) => ({ algorithm: 'random_forest', rows: 1000, classes }),
+  },
+  {
+    /**
+     * **표에서 잰다.** 출력층 `뉴런 × 클래스`가 표에서는 첫 층(`특성 8 × 100`)보다 커질 수
+     * 있고 사진에서는 첫 층(`1,280 × 100`) 옆에서 작다 — 더 크게 붙는 쪽이다. 그 비율을
+     * 사진에 쓰면 길게 틀린다. 기준 점은 이진(`MLJS_NEURAL_NETWORK_BASELINE_CLASSES`)이다.
+     */
+    id: 'neural_network_classes',
+    label: '인공신경망 · 클래스 수 (1,000행 · 1층 × 100뉴런)',
+    axis: 'nClasses',
+    points: CLASS_POINTS,
+    job: (classes) => ({ algorithm: 'neural_network', rows: 1000, classes }),
+    run: (classes) => measureNeural(1000, FEATURES, 1, 100, false, classes),
+  },
+]
+
+/** **[클래스만 훑기]가 `CLASS_LADDERS`를 몇 번 되풀이하나.** `IMAGE_ROUNDS`와 같은 까닭이다. */
+export const CLASS_ROUNDS = IMAGE_ROUNDS
+
 export const ALL_LADDERS: readonly Ladder[] = [
   ...LADDERS,
+  ...CLASS_LADDERS,
   ...LIMIT_LADDERS.map((ladder) => ({ ...ladder, findsLimit: true as const })),
   ...PYODIDE_LADDERS,
   ...PYODIDE_HANDLE_LADDERS,

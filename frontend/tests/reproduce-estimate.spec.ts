@@ -76,6 +76,25 @@ describe('사진 실험의 대조 예상', () => {
     ])
   })
 
+  /**
+   * **클래스 수도 학습 화면처럼 넘긴다** (open-decisions.md 88). 기록의 혼동 행렬 라벨 수이고, 혼동 행렬이
+   * 없으면(분류가 아니면) 비어 클래스 배수가 안 붙는다.
+   */
+  it('분류 run은 혼동 행렬의 라벨 수를 클래스 수로 넘긴다', () => {
+    const classified = run('run-nb-cm', {
+      algorithm: 'naive_bayes',
+      hyperparameters: {},
+      engine: MLJS_ENGINE,
+      confusionMatrix: { labels: ['개', '고양이', '새', '말'], matrix: [] },
+    })
+    const inputs = reproduceEstimateInputs({
+      experiment: imageExperiment([classified, naiveBayes]),
+      dataType: 'image',
+      featureWidth: null,
+    })
+    expect(inputs?.map((input) => input.classes)).toEqual([4, undefined])
+  })
+
   it('사진 기준표로 선다 - 학습 화면이 같은 입력으로 내는 값과 같다', () => {
     const subject = {
       experiment: imageExperiment([naiveBayes]),

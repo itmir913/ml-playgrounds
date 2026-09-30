@@ -51,7 +51,7 @@ import {
 } from '@/ml/estimate'
 import { estimatedFeatureWidth } from '@/ml/preprocess'
 import { plannedColumnsOf } from '@/ml/plan-cache'
-import { trainableRowsOf } from '@/ml/training-source'
+import { trainableRowsOf, trainingClassesOf } from '@/ml/training-source'
 import {
   isBrowserRuntimeId,
   reasonParams,
@@ -123,6 +123,8 @@ const training = useTraining(spawnTrainingWorker, {
       hyperparameters: own(settings.value?.hyperparameters ?? {}, algorithm)?.[runtime] ?? {},
       // **이 줄이 없으면 sklearn 실행을 순수 JS 기준표로 나눈다** (R32 B-1). 이제 타입이 선다.
       runtime,
+      // 예상과 같은 입력이어야 배운 배수가 클래스 배수를 두 번 담지 않는다.
+      classes: trainingClasses.value,
     })
     const factor = expected === null ? null : factorFromRun(elapsedMs, expected)
     if (factor === null) return
@@ -318,6 +320,14 @@ const trainingRows = computed(() => {
 })
 
 /**
+ * 예상 시간에 넘길 클래스 수. **분류가 아니면 비어 있고, 그러면 클래스 배수가 안 붙는다**
+ * (`ml/training-source.ts`의 `trainingClassesOf`, `ml/estimate.ts`의 `classFactor`).
+ */
+const trainingClasses = computed(() =>
+  project.file ? trainingClassesOf(project.file, project.taskType) : undefined,
+)
+
+/**
  * 줄마다의 예상 시간. **자리가 `chosen`과 같다.**
  *
  * **`알 수 없음`인 자리가 셋이다** — 아직 못 잰 기기, 등록부의 기준표가 빈 조합
@@ -346,6 +356,7 @@ const estimates = computed<Estimate[]>(() => {
           columns: featureWidth.value,
           hyperparameters: values[row.algorithm]?.[row.runtime] ?? {},
           runtime: row.runtime,
+          classes: trainingClasses.value,
         },
         measured,
       ),

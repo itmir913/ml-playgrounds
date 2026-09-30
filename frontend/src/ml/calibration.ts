@@ -14,7 +14,7 @@
  * 갈리면 배수가 통째로 어긋나고, 그 어긋남은 아무 데서도 안 보인다.
  */
 
-import { CALIBRATION_BASELINE_MS } from '../limits'
+import { BASELINE_CLASSES, CALIBRATION_BASELINE_MS } from '../limits'
 
 import { fit } from './engines/mljs'
 
@@ -37,7 +37,17 @@ const STORAGE_KEY = 'ml-playgrounds:device-factor'
  */
 const MODEL_STORAGE_KEY = 'ml-playgrounds:model-factors'
 
-const CLASSES = 3
+/**
+ * 합성 데이터의 클래스 수 기본값. **기준표를 잰 그 수다**(`limits.ts`의 `BASELINE_CLASSES`)
+ * — 여기서 따로 적으면 예상 시간의 클래스 배수가 분모를 잘못 안다. **교정 일감도 이 데이터로
+ * 돈다**(`CALIBRATION_JOBS`) — 기준과 다른 클래스 수로 돌면 기기 배수가 조용히 어긋난다.
+ * `tests/estimate-classes.spec.ts`의 *"교정 데이터는 기준 클래스 수로 난다"*가 문다.
+ *
+ * **실측 하니스가 이 수를 일감에 적는다** (`tools/workloads.ts`의 `Job.classes`) — 다중
+ * 클래스 로지스틱은 반복마다 클래스 수에 비례해 일하므로, 이 수가 안 남은 실측은 다른 판과
+ * 견줄 수 없다.
+ */
+export const SYNTHETIC_CLASSES = BASELINE_CLASSES
 const NOISE = 0.15
 
 /** 결정적 난수. **기기마다 같은 데이터를 봐야 배수가 데이터 차이를 안 담는다.** */
@@ -53,12 +63,13 @@ export function syntheticData(
   rows: number,
   columns: number,
   regression = false,
+  classes = SYNTHETIC_CLASSES,
 ): { features: number[][]; target: string[] } {
   const random = lcg(42)
   const features: number[][] = []
   const target: string[] = []
   for (let row = 0; row < rows; row += 1) {
-    const cluster = row % CLASSES
+    const cluster = row % classes
     const values: number[] = []
     for (let column = 0; column < columns; column += 1) values.push(cluster + random() * 2 - 1)
     features.push(values)
@@ -66,7 +77,7 @@ export function syntheticData(
       target.push(String(values.reduce((sum, value) => sum + value, 0) + random()))
     } else {
       // 라벨의 15%를 흔든다. 완전히 갈리는 데이터는 솔버가 너무 쉽게 끝난다.
-      const flipped = random() < NOISE ? (cluster + 1) % CLASSES : cluster
+      const flipped = random() < NOISE ? (cluster + 1) % classes : cluster
       target.push(String.fromCharCode(97 + flipped))
     }
   }

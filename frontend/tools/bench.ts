@@ -43,10 +43,13 @@ import {
   ALL_LADDERS,
   CALIBRATION,
   CEILING_MS,
+  CLASS_LADDERS,
+  CLASS_ROUNDS,
   FAILURE_CEILING_MS,
   IMAGE_LADDERS,
   IMAGE_ROUNDS,
   LADDERS,
+  ladderConditions,
   PROJECTION_MS,
   projectionRule,
   stopReason,
@@ -77,6 +80,7 @@ app.innerHTML = `
     <p id="controls"></p>
     <p><button id="all" style="font-size: 16px; padding: 8px 16px;">전부 훑기</button>
        <button id="images" style="font-size: 16px; padding: 8px 16px;">사진만 훑기</button>
+       <button id="classes" style="font-size: 16px; padding: 8px 16px;">클래스만 훑기</button>
        <button id="limits" style="font-size: 16px; padding: 8px 16px;">상한 찾기 (몇 시간)</button>
        <button id="calibrate" style="font-size: 16px; padding: 8px 16px;">교정 일감만</button>
        <button id="boot" style="font-size: 16px; padding: 8px 16px;">sklearn 시동만</button>
@@ -93,6 +97,7 @@ app.innerHTML = `
 const controls = document.getElementById('controls') as HTMLElement
 const allButton = document.getElementById('all') as HTMLButtonElement
 const imagesButton = document.getElementById('images') as HTMLButtonElement
+const classesButton = document.getElementById('classes') as HTMLButtonElement
 const limitsButton = document.getElementById('limits') as HTMLButtonElement
 const calibrateButton = document.getElementById('calibrate') as HTMLButtonElement
 const bootButton = document.getElementById('boot') as HTMLButtonElement
@@ -141,6 +146,14 @@ type Outcome =
     } & Failure)
 
 const measured: Record<string, Record<string, number>> = {}
+/**
+ * **사다리마다 무엇을 쟀나** — 점(행 수)을 뺀 일감(`workloads.ts`의 `ladderConditions`).
+ *
+ * `measured`는 사다리 이름이 열쇠라, 이름이 같아도 일감이 바뀐 판끼리는 JSON만 보고
+ * 못 가른다. 사진 로지스틱의 옛 실측이 클래스 수가 안 남아 기준표와 갈린 까닭을 못
+ * 가른 것이 그 꼴이다(`limits.ts`의 `MLJS_IMAGE_LOGISTIC_REGRESSION_ROW_LIMIT`).
+ */
+const conditions: Record<string, unknown> = {}
 /**
  * K-평균 사다리의 **점마다 Lloyd 반복 횟수.**
  *
@@ -210,7 +223,7 @@ const failed: Record<string, Failure> = {}
 let running: string | null = null
 
 /**
- * **[사진만 훑기]의 회차마다 잰 것.** `measured`·`iterations`는 사다리 이름이 열쇠라 두 번째
+ * **[사진만 훑기]·[클래스만 훑기]의 회차마다 잰 것.** `measured`·`iterations`는 사다리 이름이 열쇠라 두 번째
  * 회차가 첫 회차를 덮는다. 기준표는 두 번 재서 단조인 쪽을 고르므로(`limits.ts`의 기준표
  * 주석) **회차마다 따로 떠 둔다.** 멈춘 자리도 그 회차의 것만 담는다.
  */
@@ -247,6 +260,7 @@ function snapshot(): Record<string, unknown> {
     stopped,
     failed,
     measured,
+    conditions,
     iterations,
     rounds,
     parts,
@@ -326,6 +340,7 @@ function addRow(label: string, point: string, elapsed: number): void {
 async function runLadder(ladder: Ladder, prefix = ''): Promise<void> {
   const results: Record<string, number> = {}
   measured[ladder.id] = results
+  conditions[ladder.id] = ladderConditions(ladder)
   let previous: { point: number; elapsed: number } | null = null
 
   for (const point of ladder.points) {
@@ -456,6 +471,7 @@ async function runBoots(): Promise<void> {
 function busy(disabled: boolean): void {
   allButton.disabled = disabled
   imagesButton.disabled = disabled
+  classesButton.disabled = disabled
   limitsButton.disabled = disabled
   calibrateButton.disabled = disabled
   bootButton.disabled = disabled
@@ -507,34 +523,42 @@ allButton.addEventListener('click', () =>
 )
 
 /**
+ * **사다리 묶음 하나를 `times`번 되풀이하고 회차마다 `rounds`에 떠 둔다.** 같은 점이 판마다
+ * 몇 배씩 갈리므로 한 번 누르고 자리를 비워도 고를 거리가 남게 한다. [사진만 훑기]와
+ * [클래스만 훑기]가 함께 쓴다 — 두 벌이면 한쪽만 회차 기록을 잃는 날이 온다.
+ */
+async function sweep(ladders: readonly Ladder[], times: number): Promise<void> {
+  for (let round = 0; round < times; round += 1) {
+    const stoppedBefore = stopped.length
+    for (const ladder of ladders) {
+      // **반복 수는 사다리 안에서 이어 붙는다**(`runLadder`). 앞 회차의 것이 남으면
+      // 이번 회차가 못 잰 점에 앞 회차의 반복 수가 섞인다.
+      delete iterations[ladder.id]
+      await runLadder(ladder, `${round + 1}/${times}회차 · `)
+    }
+    const ids = ladders.map((ladder) => ladder.id)
+    const pick = (from: Record<string, Record<string, number>>) =>
+      Object.fromEntries(ids.filter((id) => id in from).map((id) => [id, { ...from[id] }]))
+    rounds.push({
+      measured: pick(measured),
+      iterations: pick(iterations),
+      stopped: stopped.slice(stoppedBefore),
+    })
+    publish()
+  }
+}
+
+/**
  * **사진 기준표만** (`IMAGE_LADDERS`). 순수 JS 사진 기준표를 다시 잴 때 이것만 따로
  * 돌린다. 교정 일감은 안 돈다 — 기준표를 옮길 때 필요 없다.
- *
- * **`IMAGE_ROUNDS`번 되풀이한다.** 같은 점이 판마다 몇 배씩 갈리므로 한 번 누르고 자리를
- * 비워도 고를 거리가 남게 한다. 회차마다 `rounds`에 떠 둔다.
  */
-imagesButton.addEventListener('click', () =>
-  start(async () => {
-    for (let round = 0; round < IMAGE_ROUNDS; round += 1) {
-      const stoppedBefore = stopped.length
-      for (const ladder of IMAGE_LADDERS) {
-        // **반복 수는 사다리 안에서 이어 붙는다**(`runLadder`). 앞 회차의 것이 남으면
-        // 이번 회차가 못 잰 점에 앞 회차의 반복 수가 섞인다.
-        delete iterations[ladder.id]
-        await runLadder(ladder, `${round + 1}/${IMAGE_ROUNDS}회차 · `)
-      }
-      const ids = IMAGE_LADDERS.map((ladder) => ladder.id)
-      const pick = (from: Record<string, Record<string, number>>) =>
-        Object.fromEntries(ids.filter((id) => id in from).map((id) => [id, { ...from[id] }]))
-      rounds.push({
-        measured: pick(measured),
-        iterations: pick(iterations),
-        stopped: stopped.slice(stoppedBefore),
-      })
-      publish()
-    }
-  }),
-)
+imagesButton.addEventListener('click', () => start(() => sweep(IMAGE_LADDERS, IMAGE_ROUNDS)))
+
+/**
+ * **클래스 수 배수표만** (`CLASS_LADDERS`). `limits.ts`의 `MLJS_*_CLASSES_MS`를 채운다
+ * (`open-decisions.md` "88. 학습 예상 시간이 클래스 수를 보는가").
+ */
+classesButton.addEventListener('click', () => start(() => sweep(CLASS_LADDERS, CLASS_ROUNDS)))
 
 limitsButton.addEventListener('click', () =>
   start(async () => {

@@ -18,7 +18,7 @@ import { backboneFor } from '@/ml/backbones'
 import { embedImages, type EmbedHandle, type EmbedWorker } from '@/ml/embed/client'
 import { spawnEmbedWorker } from '@/ml/embed/spawn'
 import { imageTestDataset, imageTrainingSource, pendingEmbeddings } from '@/ml/images'
-import type { Dataset } from '@/ml/preprocess'
+import { isMissing, targetValues, type Dataset } from '@/ml/preprocess'
 import {
   featuresInUse,
   trainableRowCountFor,
@@ -277,6 +277,46 @@ export const TRAINING_ROW_COUNTS: Readonly<
 /** 이 프로젝트의 종류가 세는 훈련 행 수. */
 export function trainableRowsOf(project: ProjectFile, taskType: TaskType | undefined): number {
   return TRAINING_ROW_COUNTS[project.document.manifest.dataType](project, taskType)
+}
+
+/**
+ * 클래스 수를 세는 과제 유형. **분류뿐이다** — 회귀와 군집에는 클래스가 없고, 거기 수를
+ * 넘기면 트리·신경망의 예상에 없는 배수가 붙는다 (`ml/estimate.ts`의 `classFactor`).
+ */
+const COUNTS_CLASSES: Partial<Record<TaskType, true>> = {
+  classification: true,
+}
+
+/**
+ * 예상 시간에 넘길 클래스 수. **종류마다 세는 것이 다르다** (`open-decisions.md` "88. 학습
+ * 예상 시간이 클래스 수를 보는가").
+ *
+ * 표는 타깃 열의 값 종류 수이고, 사진은 라벨 붙은 범주 수다. **표는 학습과 같은 규칙으로
+ * 센다** — 타깃을 읽는 `targetValues`(앞뒤 공백을 뗀다)와 결측 판정 `isMissing`을 그대로
+ * 쓴다. 따로 세면 `'a '`와 `'a'`가 두 클래스가 되고 공백 칸이 클래스 하나가 된다.
+ *
+ * 표는 파일 전체를 세므로 뽑기에서 빠질 행의 값까지 든다 — 많게 세는 쪽이라 예상이 길게 틀린다.
+ */
+export const TRAINING_CLASS_COUNTS: Readonly<
+  Record<DataType, (project: ProjectFile) => number | undefined>
+> = {
+  tabular: (project) => {
+    const dataset = readDataset(project)
+    const target = tabularDataOf(project.document)?.target
+    if (!dataset || target === undefined || !dataset.columns.includes(target)) return undefined
+    const rows = dataset.rows.map((_, index) => index)
+    return new Set(targetValues(dataset, rows, target).filter((value) => !isMissing(value))).size
+  },
+  image: (project) => labeledCategoryCount(project),
+}
+
+/** 이 프로젝트가 예상 시간에 넘길 클래스 수. **분류가 아니면 `undefined`다.** */
+export function trainingClassesOf(
+  project: ProjectFile,
+  taskType: TaskType | undefined,
+): number | undefined {
+  if (taskType === undefined || !COUNTS_CLASSES[taskType]) return undefined
+  return TRAINING_CLASS_COUNTS[project.document.manifest.dataType](project)
 }
 
 /**
