@@ -40,6 +40,7 @@ import {
 import { ALGORITHMS } from './algorithms'
 import { RUNTIMES, type ReproductionFidelity, type RuntimeContext } from './backend'
 import { engineFor } from './engines'
+import { MLJS_ENGINE } from './engines/mljs'
 import { runExperiment, type ExperimentInput } from './experiment'
 import { asRecordedSplit, type RecordedSplit } from './plan'
 import type { ComputePools } from './pools'
@@ -453,6 +454,7 @@ export type CalculationRule =
   | 'CONSTANT_TARGET_R2'
   | 'CODE_POINT_ORDER'
   | 'RADIX_LITERAL'
+  | 'KMEANS_TOLERANCE'
 
 /** 판정을 거를지 볼 때 쓰는, 그 파일이 가진 것. */
 export interface RuleFile {
@@ -555,6 +557,16 @@ export const CALCULATION_RULE_CHANGES: readonly CalculationRuleChange[] = [
     rule: 'RADIX_LITERAL',
     since: '0.30.8',
     touches: (subject) => radixLiteralUsed(subject),
+  },
+  // 80 — k-평균이 sklearn처럼 멈춘다: 문턱은 열 분산의 평균 × `tol`(`_tolerance`), 라벨이
+  // 직전과 같으면 먼저 멈추고, 열 평균을 빼고 돈다. 우리가 판정하는 k-평균 — 순수 JS 엔진의
+  // run — 에만 걸린다. 엔진을 못 읽으면 걸린다고 본다.
+  {
+    rule: 'KMEANS_TOLERANCE',
+    since: '0.30.11',
+    touches: ({ run }) =>
+      run.algorithm === 'k_means' &&
+      (run.engine === undefined || run.engine.kind === MLJS_ENGINE.kind),
   },
 ]
 

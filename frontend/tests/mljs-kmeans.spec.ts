@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
 import { engineFor } from '../src/ml/engines'
-import { fitKMeans } from '../src/ml/engines/mljs-kmeans'
+import { fitKMeans, KMEANS_DEFAULTS, kmeansTolerance } from '../src/ml/engines/mljs-kmeans'
 import { CLUSTER_EVALUATOR } from '../src/ml/metrics'
 
 /** 돌려받은 중심점으로 직접 배정해 본 결과. 엔진의 답과 같아야 한다. */
@@ -262,5 +262,126 @@ describe('재현 가능성', () => {
     )
 
     expect(new Set(answers).size, 'the seed was cut off at the adapter').toBeGreaterThan(1)
+  })
+})
+
+/**
+ * **수렴 문턱이 sklearn과 같다** (open-decisions.md 80).
+ *
+ * sklearn `KMeans`는 `tol`을 그대로 쓰지 않고 **열 분산의 평균 × `tol`**을 문턱으로 세운다
+ * (`_tolerance`). 전에는 `tol`과 바로 견줘서, 분산이 작은 표에서 배정이 아직 움직이는데 멈추고
+ * 수렴했다고 적었다 — 아래 표는 옛 문턱에서 5회 만에 멈춰 한 행(9번)을 다른 군집에 뒀다.
+ *
+ * **기대값은 sklearn 1.9.0이 낸 것이다** (사람 확인, 2026-09-30). 같은 표를 `/ 1024`로 넣고,
+ * 우리 k-means++가 씨앗 42에서 고른 첫 중심점을 `KMeans(n_clusters=3, init=그 중심점, n_init=1,
+ * tol=1e-4, algorithm='lloyd')`에 넘겨 `_tol`·`labels_`·`n_iter_`를 받았다.
+ */
+describe('수렴 문턱이 sklearn과 같다', () => {
+  // 정수로 적고 1024로 나눈다 — 2의 거듭제곱이라 나눗셈이 정확하고, 아래 스케일 판이 뜻을 갖는다.
+  // prettier-ignore
+  const GRID = [
+    [7, 32], [37, 98], [91, 23], [45, 31], [-2, 38], [28, 63], [80, 37], [27, 62],
+    [19, 14], [69, 59], [104, 23], [58, 50], [25, 19], [74, 77], [80, 16], [34, 60],
+    [4, 15], [74, 67], [100, 19], [43, 35], [39, 22], [45, 85], [60, 13], [24, 27],
+    [34, 9], [30, 78], [63, 23], [20, 54], [7, 10], [53, 91], [75, 37], [27, 32],
+    [0, 23], [71, 102], [60, 29], [28, 43], [-1, 26], [65, 93], [69, 33], [67, 23],
+  ]
+  const SMALL = GRID.map((row) => row.map((value) => value / 1024))
+  const SKLEARN_LABELS = [
+    2, 0, 1, 2, 2, 0, 1, 0, 2, 0, 1, 1, 2, 0, 1, 0, 2, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2,
+    2, 0, 1, 2, 2, 0, 1, 1,
+  ]
+
+  it('문턱이 sklearn의 `_tol`과 같다', () => {
+    // sklearn이 낸 `_tol` — 작은 표 7.17279314994812e-08, 1024배 표 0.0752121875.
+    const small = kmeansTolerance(SMALL, KMEANS_DEFAULTS.tol)
+    expect(Math.abs(small - 7.17279314994812e-8) / 7.17279314994812e-8).toBeLessThan(1e-12)
+    expect(kmeansTolerance(GRID, KMEANS_DEFAULTS.tol)).toBeCloseTo(0.0752121875, 12)
+    expect(kmeansTolerance(SMALL, 0)).toBe(0)
+  })
+
+  it('같은 첫 중심점에서 sklearn과 같은 배정·같은 반복 수로 멈춘다', () => {
+    // 전제: 씨앗 42의 k-means++가 sklearn에 넘긴 그 첫 중심점을 고른다. 초기화가 바뀌면 여기가
+    // 먼저 울고, 그때는 sklearn에 새 첫 중심점을 넘겨 기대값을 다시 받는다.
+    const start = fitKMeans(SMALL, 3, 42, 0).centroids
+    expect(start.map((row) => row.map((value) => value * 1024))).toEqual([
+      [28, 63],
+      [74, 77],
+      [39, 22],
+    ])
+
+    const result = fitKMeans(SMALL, 3, 42)
+    expect(result.assignments).toEqual(SKLEARN_LABELS)
+    expect(result.iterations).toBe(8)
+    expect(result.converged).toBe(true)
+  })
+
+  it('단위만 바꾼 표는 배정도 반복 수도 같다', () => {
+    const small = fitKMeans(SMALL, 3, 42)
+    const large = fitKMeans(GRID, 3, 42)
+    expect(small.assignments).toEqual(large.assignments)
+    expect(small.iterations).toBe(large.iterations)
+  })
+})
+
+/**
+ * **라벨이 안 바뀌거나 이동이 없으면 sklearn처럼 멈춘다** (open-decisions.md 80).
+ *
+ * 문턱을 열 분산에 맞추자 **퇴화한 표**가 멈추지 못했다 — 전부 같은 행에서 문턱이 부동소수
+ * 먼지가 되고, 빈 군집 재배치가 만든 ulp 이동이 그것을 못 넘어 상한까지 돌고 미수렴(학생에게
+ * `KMEANS_NOT_CONVERGED`)이라 적었다(N1 검토 A1). sklearn은 두 가지로 멈춘다 — 라벨이 직전과
+ * 같으면 먼저 멈추고(strict convergence), 열 평균을 빼고 돌아 그 ulp가 문턱 밑이다.
+ *
+ * **기대값은 sklearn 1.9.0이 낸 것이다** (사람 확인). 우리 k-means++가 씨앗 42에서 고른 첫
+ * 중심점을 `KMeans(init=그 중심점, n_init=1, tol=1e-4, algorithm='lloyd')`에 넘겨 `n_iter_`와
+ * `labels_`를 받았다.
+ */
+describe('라벨이 안 바뀌거나 이동이 없으면 sklearn처럼 멈춘다', () => {
+  it.each([
+    ['k=2', [0.1, 0.3], 2],
+    ['k=3', [0.1, 0.7], 3],
+  ] as const)('전부 같은 행 (%s) — 1회에 수렴한다', (_name, row, k) => {
+    const data = Array.from({ length: 30 }, () => [...row])
+    const result = fitKMeans(data, k, 42)
+    expect(result.converged).toBe(true)
+    expect(result.iterations).toBe(1)
+    expect(result.assignments).toEqual(data.map(() => 0))
+  })
+
+  it('서로 다른 값이 k보다 적은 표 — sklearn과 같은 반복 수로 수렴한다', () => {
+    const a = [0.83, 0.5]
+    const b = [0.26, 0.47]
+    const data = [a, b, b, b, b, b, a, a, b, a, a, b, a, a, b]
+    const result = fitKMeans(data, 4, 42)
+    expect(result.converged).toBe(true)
+    expect(result.iterations).toBe(2)
+    expect(result.assignments).toEqual([0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1])
+  })
+
+  /**
+   * **라벨로 멈추는 자리** — 값 셋에 k=5라 빈 군집이 재배치되며 중심점이 계속 ulp만큼 흔들린다.
+   * 이동으로만 판정하면 상한까지 돌고 미수렴이다. sklearn은 둘째 반복에서 라벨이 같아 멈춘다.
+   */
+  it('서로 다른 값 셋에 k=5 — 라벨이 같아진 반복에서 멈춘다', () => {
+    const a = [0.9, 0.3]
+    const b = [0.26, 0.82]
+    const c = [0.43, 0.59]
+    const data = [a, b, c, c, a, b, c, a, c, b, c, a, a, c]
+    const result = fitKMeans(data, 5, 42)
+    expect(result.converged).toBe(true)
+    expect(result.iterations).toBe(2)
+    expect(result.assignments).toEqual([1, 0, 2, 2, 1, 0, 2, 1, 2, 0, 2, 1, 1, 2])
+  })
+
+  /**
+   * **문턱이 정확히 0인 표** — 2진으로 정확한 값만 되풀이되면 열 분산이 0이다. sklearn은 첫
+   * 반복의 이동 0을 `0 <= 0`으로 받아 1회에 멈춘다. `<`로 견주면 한 번 더 돈다.
+   */
+  it('문턱이 0인 표 — 이동 0을 문턱 안으로 받는다', () => {
+    const data = Array.from({ length: 12 }, () => [1, 2])
+    expect(kmeansTolerance(data, KMEANS_DEFAULTS.tol)).toBe(0)
+    const result = fitKMeans(data, 2, 42)
+    expect(result.converged).toBe(true)
+    expect(result.iterations).toBe(1)
   })
 })

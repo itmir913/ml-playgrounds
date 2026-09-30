@@ -9,7 +9,9 @@
  * **sklearn `KMeans` 기본값을 따른다** (CLAUDE.md §2 "파이썬 관행을 따른다"):
  * - 초기화: K-Means++ (`init='k-means++'`)
  * - 반복 상한: `max_iter=300`
- * - 수렴 판정: `tol=1e-4` (중심점 이동 제곱합)
+ * - 수렴 판정: `tol=1e-4` — 중심점 이동 제곱합을 **열 분산의 평균 × `tol`**과 견준다
+ *   (`kmeansTolerance`, open-decisions.md 80). 그보다 먼저, 라벨이 직전과 같으면 멈춘다
+ * - 열 평균을 빼고 돈다 (`X -= X_mean`, 같은 결정문)
  * - `n_init=1` (우리는 randomState를 고정하므로 여러 번 돌려도 같다)
  *
  * **randomState는 항상 저장하고 항상 쓴다.** 재현 가능성이 교육용 도구의 생명이다.
@@ -111,6 +113,33 @@ function kMeansPlusPlusInit(
   }
 
   return centroids
+}
+
+/**
+ * 수렴 문턱. **sklearn `_tolerance`와 같은 식이다** — 열마다의 분산(모분산, `np.var`)의 평균에
+ * `tol`을 곱한다. `tol`이 0이면 0이다 (open-decisions.md 80).
+ *
+ * **`tol`을 그대로 쓰면 문턱이 데이터의 단위에 딸린다.** 전에는 그랬고, 분산이 1보다 작은 표
+ * (최소-최대 스케일링·비율·작은 단위)에서 배정이 아직 움직이는데 멈추고 수렴했다고 적었다.
+ * `tests/mljs-kmeans.spec.ts`의 *"수렴 문턱이 sklearn과 같다"*가 sklearn 1.9.0이 낸 값으로 문다.
+ */
+export function kmeansTolerance(features: readonly (readonly number[])[], tol: number): number {
+  const n = features.length
+  const width = features[0]?.length ?? 0
+  if (tol === 0 || n === 0 || width === 0) return 0
+  let total = 0
+  for (let j = 0; j < width; j += 1) {
+    let sum = 0
+    for (const row of features) sum += row[j] ?? 0
+    const mean = sum / n
+    let squares = 0
+    for (const row of features) {
+      const gap = (row[j] ?? 0) - mean
+      squares += gap * gap
+    }
+    total += squares / n
+  }
+  return (total / width) * tol
 }
 
 /** 유클리드 거리². */
@@ -254,21 +283,43 @@ export function fitKMeans(
 
   if (k > n) throw new ClientError('CLUSTER_TOO_FEW_ROWS', { rows: n, clusters: k })
 
-  // K-Means++ 초기화
-  let centroids = kMeansPlusPlusInit(features, k, randomState)
+  // 문턱은 원래 표에서 한 번 센다 — sklearn도 `fit` 앞에서, 평균을 빼기 전에 센다.
+  const threshold = kmeansTolerance(features, tol)
+
+  /**
+   * **열 평균을 빼고 돈다 — sklearn `KMeans.fit`의 `X -= X_mean`이다** (open-decisions.md 80).
+   * 첫 중심점은 원래 표에서 고르고(k-means++는 거리로만 고르므로 고르는 점은 같다) 같은 평균을
+   * 뺀다 — sklearn이 `init`에 하는 것과 같다. 중심점은 끝에서 평균을 더해 돌려준다.
+   *
+   * **빼지 않으면 전부 같은 행에서 멈추지 못한다.** 재배치가 만든 중심점 둘이 값의 ulp만큼
+   * 갈리고, 문턱(열 분산 평균 × `tol`)은 부동소수 먼지라 그 이동을 못 삼킨다 — 라벨이 두 중심점
+   * 사이를 오가며 상한까지 돌고 미수렴이라 적었다. 평균을 빼면 값이 0 근처라 그 ulp가 문턱 밑으로
+   * 내려간다. `tests/mljs-kmeans.spec.ts`의 *"라벨이 안 바뀌거나 이동이 없으면 sklearn처럼
+   * 멈춘다"*가 문다.
+   */
+  const means = Array.from(
+    { length: width },
+    (_, j) => features.reduce((sum, row) => sum + (row[j] ?? 0), 0) / n,
+  )
+  const data = features.map((row) => row.map((value, j) => value - (means[j] ?? 0)))
+  let centroids = kMeansPlusPlusInit(features, k, randomState).map((row) =>
+    row.map((value, j) => value - (means[j] ?? 0)),
+  )
 
   let converged = false
   let iterations = 0
+  // 직전 반복의 E-step 라벨. 첫 반복에는 견줄 것이 없다.
+  let previousLabels: Int32Array | null = null
 
   for (let iter = 0; iter < maxIter; iter += 1) {
     iterations = iter + 1
 
     // 할당
-    const result = assign(features, centroids)
+    const result = assign(data, centroids)
 
     // 중심점 갱신
     const newCentroids = updateCentroids(
-      features,
+      data,
       result.assignments,
       result.distances,
       centroids,
@@ -276,7 +327,6 @@ export function fitKMeans(
       width,
     )
 
-    // 수렴 판정: 중심점 이동의 제곱합 (sklearn과 같은 기준)
     let shift = 0
     for (let c = 0; c < k; c += 1) {
       shift += distanceSquared(newCentroids[c]!, centroids[c]!)
@@ -284,7 +334,24 @@ export function fitKMeans(
 
     centroids = newCentroids
 
-    if (shift <= tol) {
+    /**
+     * **라벨이 직전 반복과 같으면 먼저 멈춘다** — sklearn `_kmeans_single_lloyd`의 strict
+     * convergence이고, 중심점 갱신 뒤·문턱 비교 앞이다 (open-decisions.md 80). 견주는 라벨은
+     * 재배치 전의 E-step 라벨이다. **이동이 0이 되기를 기다리면 안 된다** — 빈 군집 재배치가
+     * 돌면 라벨이 같아도 중심점이 ulp만큼 움직인다. `tests/mljs-kmeans.spec.ts`의 *"라벨이
+     * 안 바뀌거나 이동이 없으면 sklearn처럼 멈춘다"*가 문다.
+     */
+    const labels = result.assignments
+    const before = previousLabels
+    if (before !== null && labels.every((label, row) => label === before[row])) {
+      converged = true
+      break
+    }
+    previousLabels = labels
+
+    // 문턱 판정: 중심점 이동의 제곱합을 `kmeansTolerance`와 견준다 — sklearn과 같은 기준이고
+    // 같은 `<=`다. **`tol`과 바로 견주지 않는다** (open-decisions.md 80).
+    if (shift <= threshold) {
       converged = true
       break
     }
@@ -294,7 +361,9 @@ export function fitKMeans(
   // 그대로 돌려주면 centroids와 assignments가 한 스텝 어긋난다 - maxIter를 다 써서
   // 끝날 때는 온전히 한 스텝이고, 그때가 바로 학생이 숫자를 의심하는 상황이다.
   // sklearn의 `labels_`·`cluster_centers_`·`inertia_`도 이렇게 서로 맞는다.
-  const final = assign(features, centroids)
+  const final = assign(data, centroids)
+  // 평균을 되돌려 준다 — sklearn의 `best_centers += X_mean`.
+  centroids = centroids.map((row) => row.map((value, j) => value + (means[j] ?? 0)))
 
   return {
     centroids,

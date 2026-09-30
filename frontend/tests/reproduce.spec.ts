@@ -1757,4 +1757,56 @@ describe('계산 규칙이 바뀐 뒤', () => {
       expect(judged?.rulesChanged).toBeUndefined()
     })
   })
+
+  /**
+   * 결정문 80 — k-평균의 수렴 문턱을 sklearn의 식으로 바꿨다. **우리가 판정하는 k-평균**, 곧
+   * 순수 JS 엔진의 run만 숫자가 바뀐다. sklearn 엔진은 sklearn이 스스로 판정한다.
+   */
+  describe('k-평균의 수렴 문턱은 순수 JS의 k-평균 run에만 걸린다', () => {
+    const since = CALCULATION_RULE_CHANGES.find((one) => one.rule === 'KMEANS_TOLERANCE')?.since
+
+    async function kmeansRun(engine: Run['engine']): Promise<{ experiment: Experiment; run: Run }> {
+      const base = await trained(['decision_tree'])
+      const run: Run = { ...(base.runs[0] as Run), algorithm: 'k_means' }
+      if (engine === undefined) delete run.engine
+      else run.engine = engine
+      const experiment: Experiment = {
+        ...base,
+        settings: { ...base.settings, taskType: 'clustering' },
+        runs: [run],
+      }
+      return { experiment, run }
+    }
+
+    const old: RuleFile = { appVersion: '0.30.10', preprocessor: null, dataset, testDataset: null }
+
+    it('순수 JS 엔진의 k-평균 run이면 걸린다', async () => {
+      const { experiment, run } = await kmeansRun({ ...MLJS_ENGINE })
+      expect(changedRules(experiment, run, old)).toContain('KMEANS_TOLERANCE')
+    })
+
+    it('엔진을 못 읽으면 걸린다고 본다', async () => {
+      const { experiment, run } = await kmeansRun(undefined)
+      expect(changedRules(experiment, run, old)).toContain('KMEANS_TOLERANCE')
+    })
+
+    it('sklearn 엔진의 k-평균 run에는 안 걸린다', async () => {
+      const { experiment, run } = await kmeansRun({ kind: 'pyodide-sklearn', version: '0.29.3' })
+      expect(changedRules(experiment, run, old)).not.toContain('KMEANS_TOLERANCE')
+    })
+
+    it('k-평균이 아닌 run에는 안 걸린다', async () => {
+      const experiment = await trained(['decision_tree'])
+      const run = experiment.runs[0] as Run
+      expect(changedRules(experiment, run, old)).not.toContain('KMEANS_TOLERANCE')
+    })
+
+    it('규칙이 바뀐 판부터 만든 파일에는 안 걸린다', async () => {
+      expect(since).toBeDefined()
+      const { experiment, run } = await kmeansRun({ ...MLJS_ENGINE })
+      expect(changedRules(experiment, run, { ...old, appVersion: since ?? '' })).not.toContain(
+        'KMEANS_TOLERANCE',
+      )
+    })
+  })
 })
