@@ -45,6 +45,7 @@ import {
   CEILING_MS,
   FAILURE_CEILING_MS,
   IMAGE_LADDERS,
+  IMAGE_ROUNDS,
   LADDERS,
   PROJECTION_MS,
   projectionRule,
@@ -209,6 +210,17 @@ const failed: Record<string, Failure> = {}
 let running: string | null = null
 
 /**
+ * **[사진만 훑기]의 회차마다 잰 것.** `measured`·`iterations`는 사다리 이름이 열쇠라 두 번째
+ * 회차가 첫 회차를 덮는다. 기준표는 두 번 재서 단조인 쪽을 고르므로(`limits.ts`의 기준표
+ * 주석) **회차마다 따로 떠 둔다.** 멈춘 자리도 그 회차의 것만 담는다.
+ */
+const rounds: {
+  measured: Record<string, Record<string, number>>
+  iterations: Record<string, Record<string, number>>
+  stopped: { at: string; why: (typeof STOP_WHY)[StopReason] }[]
+}[] = []
+
+/**
  * **점을 하나 잴 때마다 남기는 자리.**
  *
  * [상한 찾기]는 **탭이 죽는 것이 답인** 실측이라, 죽으면 잰 것이 통째로 사라지면 안 된다
@@ -236,6 +248,7 @@ function snapshot(): Record<string, unknown> {
     failed,
     measured,
     iterations,
+    rounds,
     parts,
     boots,
     versions,
@@ -310,7 +323,7 @@ function addRow(label: string, point: string, elapsed: number): void {
   table.append(row)
 }
 
-async function runLadder(ladder: Ladder): Promise<void> {
+async function runLadder(ladder: Ladder, prefix = ''): Promise<void> {
   const results: Record<string, number> = {}
   measured[ladder.id] = results
   let previous: { point: number; elapsed: number } | null = null
@@ -325,7 +338,9 @@ async function runLadder(ladder: Ladder): Promise<void> {
     }
 
     await breathe()
-    const stopTicking = ticking(`${ladder.label} — ${ladder.axis} ${point.toLocaleString()}`)
+    const stopTicking = ticking(
+      `${prefix}${ladder.label} — ${ladder.axis} ${point.toLocaleString()}`,
+    )
 
     /**
      * **못 끝내는 것이 답인 사다리가 있다.** 메모리가 모자라면 여기서 오고, 그 자리가 곧
@@ -339,7 +354,7 @@ async function runLadder(ladder: Ladder): Promise<void> {
     stopTicking()
     if (!outcome.ok) {
       failed[id] = { how: outcome.how, detail: outcome.detail }
-      addRow(ladder.label, point.toLocaleString(), -1)
+      addRow(`${prefix}${ladder.label}`, point.toLocaleString(), -1)
       publish()
       break
     }
@@ -357,7 +372,7 @@ async function runLadder(ladder: Ladder): Promise<void> {
       iterations[ladder.id] = { ...iterations[ladder.id], [String(point)]: outcome.iterations }
     }
     previous = { point, elapsed }
-    addRow(ladder.label, point.toLocaleString(), elapsed)
+    addRow(`${prefix}${ladder.label}`, point.toLocaleString(), elapsed)
     publish()
   }
 }
@@ -464,6 +479,7 @@ function start(work: () => Promise<void>): void {
     calibrationSet.length = 0
     boots.length = 0
     stopped.length = 0
+    rounds.length = 0
     wentHidden = document.visibilityState === 'hidden'
     await work()
     status.textContent = wentHidden
@@ -493,10 +509,30 @@ allButton.addEventListener('click', () =>
 /**
  * **사진 기준표만** (`IMAGE_LADDERS`). 사진 프로젝트의 예상 시간이 `알 수 없음`인 칸을
  * 채우려고 이것만 따로 돌린다. 교정 일감은 안 돈다 — 기준표를 옮길 때 필요 없다.
+ *
+ * **`IMAGE_ROUNDS`번 되풀이한다.** 같은 점이 판마다 몇 배씩 갈리므로 한 번 누르고 자리를
+ * 비워도 고를 거리가 남게 한다. 회차마다 `rounds`에 떠 둔다.
  */
 imagesButton.addEventListener('click', () =>
   start(async () => {
-    for (const ladder of IMAGE_LADDERS) await runLadder(ladder)
+    for (let round = 0; round < IMAGE_ROUNDS; round += 1) {
+      const stoppedBefore = stopped.length
+      for (const ladder of IMAGE_LADDERS) {
+        // **반복 수는 사다리 안에서 이어 붙는다**(`runLadder`). 앞 회차의 것이 남으면
+        // 이번 회차가 못 잰 점에 앞 회차의 반복 수가 섞인다.
+        delete iterations[ladder.id]
+        await runLadder(ladder, `${round + 1}/${IMAGE_ROUNDS}회차 · `)
+      }
+      const ids = IMAGE_LADDERS.map((ladder) => ladder.id)
+      const pick = (from: Record<string, Record<string, number>>) =>
+        Object.fromEntries(ids.filter((id) => id in from).map((id) => [id, { ...from[id] }]))
+      rounds.push({
+        measured: pick(measured),
+        iterations: pick(iterations),
+        stopped: stopped.slice(stoppedBefore),
+      })
+      publish()
+    }
   }),
 )
 

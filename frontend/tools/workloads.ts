@@ -1625,6 +1625,12 @@ export function stopsBefore(
  * 찾기]), 뒤는 27MB를 받는다([sklearn 훑기]). 사진 프로젝트가 `알 수 없음`을 내는 칸은
  * 순수 JS 기준표 칸이다(`ml/algorithms.ts`의 `UNMEASURED_BASELINE`).
  */
+/**
+ * **[사진만 훑기]가 `IMAGE_LADDERS`를 몇 번 되풀이하나.** 기준표는 두 번 재서 단조인 쪽을
+ * 고른다(`limits.ts`의 기준표 주석) — 한 번 누르고 자리를 비워도 고를 거리가 남게 한다.
+ */
+export const IMAGE_ROUNDS = 2
+
 export const IMAGE_LADDERS: readonly Ladder[] = LADDERS.filter((ladder) =>
   ladder.points.some((point) => ladder.job(point).columns === IMAGE_FEATURES),
 )
