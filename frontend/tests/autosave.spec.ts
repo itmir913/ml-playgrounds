@@ -22,7 +22,7 @@ import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { AUTOSAVE_DELAY_MS, AUTOSAVE_MAX_WAIT_MS } from '../src/limits'
 import { exportStateOf } from '../src/project/export-state'
 import { readProject } from '../src/project/format'
-import { closeStorage, loadProject, readExportedAt } from '../src/project/storage'
+import { closeStorage, loadProject, readExportedAt, saveProject } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import { emptyProjectFile, manifest, projectFile } from './fixtures/project'
@@ -292,6 +292,81 @@ describe('자동 저장', () => {
     // 취소되지 않았다면 여기서 옛 값이 덮어쓴다.
     await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS * 2)
     expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe('즉시')
+  })
+})
+
+/**
+ * **다른 프로젝트로 갈아 끼우면 미뤄 둔 저장을 거둔다** (open-decisions.md 81의 개정, 감사 슬라이스 3 C-2).
+ *
+ * 라우터 가드는 떠나기 전에 `flush()`로 미뤄 둔 저장을 끝내지만, [저장하지 않고 이동](`leave.consume`)은 그
+ * `flush()`를 건너뛰고 곧장 `open(B)`를 부른다. 전에는 `open()`이 타이머를 안 거둬서, 앞 프로젝트의 디바운스·
+ * 최대 대기가 남아 여는 사이에 앞 프로젝트를 썼고, 그 쓰기가 쿼터로 거절되면 앞 프로젝트의
+ * `STORAGE_QUOTA_EXCEEDED` 알림이 새 프로젝트 화면에 섰다. 순서는 가짜 타이머로 고정한다.
+ */
+describe('다른 프로젝트로 갈아 끼우면', () => {
+  const OTHER_ID = '6f1c2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f'
+
+  /** 이 기기에 저장된 다른 프로젝트 하나. */
+  async function seedOther(): Promise<void> {
+    const base = renamed('뒤 프로젝트')
+    await saveProject({
+      ...base,
+      document: {
+        ...base.document,
+        manifest: { ...base.document.manifest, projectId: OTHER_ID },
+      },
+    })
+  }
+
+  it('앞 프로젝트의 디바운스와 최대 대기가 남지 않는다', async () => {
+    const project = useProjectStore()
+    await project.save(renamed('앞 프로젝트'))
+    await seedOther()
+    project.update(renamed('앞에서 고친 것'))
+    expect(vi.getTimerCount(), 'debounce and max wait are armed').toBe(2)
+
+    expect(await project.open(OTHER_ID)).toBe('opened')
+    expect(vi.getTimerCount(), 'timers left after the swap').toBe(0)
+  })
+
+  it('쓰기가 거절되는 중에 여는 사이 디바운스가 지나도 앞 프로젝트를 안 쓰고 알리지 않는다', async () => {
+    const project = useProjectStore()
+    await project.save(renamed('앞 프로젝트'))
+    await seedOther()
+    refuse()
+    project.update(renamed('앞에서 고친 것'))
+    const before = gate.calls
+
+    const opening = project.open(OTHER_ID)
+    // `open()`이 첫 `await`에 선 사이 앞 프로젝트의 디바운스 시각이 지난다.
+    vi.advanceTimersByTime(AUTOSAVE_DELAY_MS)
+    expect(await opening).toBe('opened')
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_MAX_WAIT_MS)
+
+    expect(gate.calls, 'the previous project was written after the swap began').toBe(before)
+    expect(project.name).toBe('뒤 프로젝트')
+    expect(project.saveFailed).toBe(false)
+    expect(useToastStore().items.map((item) => item.key)).toEqual([])
+  })
+
+  /**
+   * **같은 프로젝트를 다시 여는 것은 갈아 끼우기가 아니다.** 라우터 가드는 단계를 옮길 때마다 `open()`을
+   * 부르는데, 그때 거두면 방금 친 글이 디바운스를 잃는다 — 그 판은 다음 입력이나 떠날 때의 `flush()`까지
+   * 브라우저에 안 간다.
+   */
+  it('같은 프로젝트를 다시 열면 미뤄 둔 저장이 그대로 도착한다', async () => {
+    const project = useProjectStore()
+    await project.save(renamed('앞 프로젝트'))
+    project.update(renamed('단계를 옮기기 전에 고친 것'))
+
+    expect(await project.open(manifest.projectId)).toBe('opened')
+    expect(vi.getTimerCount(), 'debounce and max wait survive').toBe(2)
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS)
+    await vi.waitFor(async () =>
+      expect((await loadProject(manifest.projectId))?.document.manifest.name).toBe(
+        '단계를 옮기기 전에 고친 것',
+      ),
+    )
   })
 })
 

@@ -305,6 +305,8 @@ const estimate = computed<Estimate>(() =>
       experiment: props.experiment,
       dataType: props.dataType,
       featureWidth: props.dataset ? featureWidth.value : null,
+      // 표 실험의 클래스 수는 이 표의 훈련 몫에서 센다 (open-decisions.md 88의 개정).
+      dataset: props.dataset,
     },
     deviceFactor.value,
   ),

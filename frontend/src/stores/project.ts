@@ -265,6 +265,21 @@ export const useProjectStore = defineStore('project', () => {
      */
     const attempt = (openings += 1)
     const stale = (): boolean => attempt !== openings
+    /**
+     * **다른 프로젝트로 갈아 끼우면 미뤄 둔 저장을 거둔다** (open-decisions.md 81의 개정). 가드가 떠나기 전에
+     * `flush()`로 끝내지만 [저장하지 않고 이동]은 그것을 건너뛴다 — 남기면 여는 사이에 앞 프로젝트를 쓰고,
+     * 그 쓰기의 실패 알림이 새 프로젝트 화면에 선다.
+     *
+     * **첫 `await` 앞에서 거둔다.** 파일이 바뀌는 줄(아래 `file.value = loaded`)에서 거두면 그 사이에 타이머가
+     * 먼저 돈다. 잠금을 못 잡았거나 취소되어 앞 프로젝트가 남아도 편집은 잃지 않는다 — 판은 메모리에 있고
+     * `dirty`가 참으로 남아, 다음 입력이 타이머를 다시 걸고 떠나는 이동의 `flush()`가 쓴다(사람 확인 — 그 갈래를
+     * 무는 검사는 없다). 읽기가 실패하면 앞 프로젝트는 어차피 아래에서 `null`로 비워진다. 같은 프로젝트는 위에서
+     * 돌아가므로 여기 안 온다. 무는 검사: `autosave.spec.ts`의 *"다른 프로젝트로 갈아 끼우면"* 묶음(같은
+     * 프로젝트는 *"같은 프로젝트를 다시 열면 미뤄 둔 저장이 그대로 도착한다"*).
+     * **한계:** 떠나는 이동이 가드의 `flush()`를 기다리는 사이 친 편집은 열기가 성공하면 버려진다 — `close()`와 같고,
+     * 고치려면 별도 결정이다(open-decisions.md 81 개정의 "대가", 무는 검사 없음 — 사람 확인).
+     */
+    cancelPending()
     opening.value = true
     try {
       // **다른 탭이 쥔 프로젝트는 열지 않는다** (open-decisions.md "프로젝트는 한 번에
@@ -517,7 +532,10 @@ export const useProjectStore = defineStore('project', () => {
     void requestPersistence()
   }
 
-  /** 미뤄 둔 저장과 그 최대 대기를 **함께** 거둔다. 하나만 남으면 다음 입력의 대기가 옛 시각부터 재진다. */
+  /**
+   * 미뤄 둔 저장과 그 최대 대기를 **함께** 거둔다. 하나만 남으면 다음 입력의 대기가 옛 시각부터 재진다.
+   * 부르는 자리는 `flush`·`save`·`close`와 **다른 프로젝트로 갈아 끼우는 `open`**이다(open-decisions.md 81).
+   */
   function cancelPending(): void {
     if (pending !== null) {
       clearTimeout(pending)

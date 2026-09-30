@@ -291,13 +291,36 @@ const COUNTS_CLASSES: Partial<Record<TaskType, true>> = {
   classification: true,
 }
 
+/** 이 과제 유형이 클래스 수를 세는가. 학습 화면과 점검의 대조(`ml/reproduce-estimate.ts`)가 함께 묻는다. */
+export function countsClasses(taskType: TaskType | undefined): boolean {
+  return taskType !== undefined && COUNTS_CLASSES[taskType] === true
+}
+
+/**
+ * 표의 **주어진 행들**에서 타깃 값의 종류 수. **학습과 같은 규칙으로 센다** — 타깃을 읽는 `targetValues`(앞뒤
+ * 공백을 뗀다)와 결측 판정 `isMissing`을 그대로 쓴다. 따로 세면 `'a '`와 `'a'`가 두 클래스가 되고 공백 칸이
+ * 클래스 하나가 된다.
+ *
+ * **학습 화면과 점검의 대조가 이 하나를 부른다** (open-decisions.md 88의 개정) — 학습 화면은 파일의 행 전부를,
+ * 대조는 그 실험의 훈련 몫(`trainIndices`)을 넘긴다. **셀 수 없으면 `undefined`다** — 타깃 열이 없거나 행 번호가
+ * 표 밖을 가리키면(기록과 표가 어긋난 파일) 지어내지 않는다. `tests/reproduce-estimate.spec.ts`가 문다.
+ */
+export function targetClassCount(
+  dataset: Dataset,
+  rows: readonly number[],
+  target: string,
+): number | undefined {
+  if (!dataset.columns.includes(target)) return undefined
+  if (rows.some((row) => row >= dataset.rows.length)) return undefined
+  return new Set(targetValues(dataset, rows, target).filter((value) => !isMissing(value))).size
+}
+
 /**
  * 예상 시간에 넘길 클래스 수. **종류마다 세는 것이 다르다** (`open-decisions.md` "88. 학습
  * 예상 시간이 클래스 수를 보는가").
  *
  * 표는 타깃 열의 값 종류 수이고, 사진은 라벨 붙은 범주 수다. **표는 학습과 같은 규칙으로
- * 센다** — 타깃을 읽는 `targetValues`(앞뒤 공백을 뗀다)와 결측 판정 `isMissing`을 그대로
- * 쓴다. 따로 세면 `'a '`와 `'a'`가 두 클래스가 되고 공백 칸이 클래스 하나가 된다.
+ * 센다** — 그 규칙이 `targetClassCount`이고, 점검의 대조도 같은 함수를 부른다.
  *
  * 표는 파일 전체를 세므로 뽑기에서 빠질 행의 값까지 든다 — 많게 세는 쪽이라 예상이 길게 틀린다.
  */
@@ -307,9 +330,12 @@ export const TRAINING_CLASS_COUNTS: Readonly<
   tabular: (project) => {
     const dataset = readDataset(project)
     const target = tabularDataOf(project.document)?.target
-    if (!dataset || target === undefined || !dataset.columns.includes(target)) return undefined
-    const rows = dataset.rows.map((_, index) => index)
-    return new Set(targetValues(dataset, rows, target).filter((value) => !isMissing(value))).size
+    if (!dataset || target === undefined) return undefined
+    return targetClassCount(
+      dataset,
+      dataset.rows.map((_, index) => index),
+      target,
+    )
   },
   image: (project) => labeledCategoryCount(project),
 }
@@ -319,7 +345,7 @@ export function trainingClassesOf(
   project: ProjectFile,
   taskType: TaskType | undefined,
 ): number | undefined {
-  if (taskType === undefined || !COUNTS_CLASSES[taskType]) return undefined
+  if (!countsClasses(taskType)) return undefined
   return TRAINING_CLASS_COUNTS[project.document.manifest.dataType](project)
 }
 
