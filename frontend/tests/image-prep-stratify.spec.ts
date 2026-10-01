@@ -90,7 +90,7 @@ describe('이미지 판의 층화 잠금은 시험 비율을 본다', () => {
     const box = stratifyBox(wrapper)
     expect(box.checked).toBe(true)
     expect(box.disabled).toBe(true)
-    expect(wrapper.text()).toContain('적용되지 않습니다')
+    expect(wrapper.text()).toContain('적용하지 않습니다')
     wrapper.unmount()
   })
 

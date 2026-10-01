@@ -325,7 +325,7 @@ describe('굽는 동안 둘째 묶음이 판에 서면', () => {
     // 판에 선 것은 둘째 묶음이지만, 바가 세는 것은 도는 묶음이다.
     expect(panel.pending?.map((one) => one.path)).toEqual(['b.jpg', 'c.jpg'])
     expect(wrapper.text()).toContain('파일 1개를 읽었습니다')
-    expect(wrapper.text()).toContain('파일 2개는 다음 차례로 기다리는 중입니다')
+    expect(wrapper.text()).toContain('파일 2개가 처리를 기다리고 있습니다')
 
     workerState.bake[0]?.deliver()
     await baking

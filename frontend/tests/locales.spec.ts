@@ -520,7 +520,7 @@ describe('프런트엔드 전용 코드', () => {
     // 화면이 이 값으로 키를 조립한다 (`ColumnPicker`). **`FEATURE_NOTES`를 늘리는 사람이
     // 문장도 함께 넣게 한다** - 빠지면 열 옆에 키 문자열이 그대로 뜬다.
     //
-    // **표 아래에 있다** (docs/i18n.md 규칙 10). "문자 값이 든 열"은 열이 있어야 하는 말이다.
+    // **표 아래에 있다** (docs/i18n.md 규칙 10). `notEncodable`은 열이 있어야 하는 말이다.
     for (const note of FEATURE_NOTES) {
       expect(english.has(`preprocess.tabular.${note}`), note).toBe(true)
       expect(korean.has(`preprocess.tabular.${note}`), note).toBe(true)

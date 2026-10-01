@@ -87,7 +87,7 @@ describe('목차는 어디까지 왔는지 말한다', () => {
     const index = view.findAll('ol > li')
     expect(index).toHaveLength(1)
     // 안 쓴 문항을 색으로만 말하지 않는다 - 읽어 주는 문장이 함께 있다.
-    expect(index[0]?.text()).toContain('아직 쓰지 않았습니다.')
+    expect(index[0]?.text()).toContain('아직 작성하지 않았습니다.')
 
     // **눈에 보이는 것은 수뿐이다.** 무엇의 수인지는 자리가 말한다 (architecture.md §8.18).
     expect(view.text()).toContain('0 / 1')
@@ -97,7 +97,7 @@ describe('목차는 어디까지 왔는지 말한다', () => {
     const progress = view
       .findAll('[role="progressbar"]')
       .find((bar) => bar.attributes('aria-valuemax') === '1')
-    expect(progress?.attributes('aria-label')).toBe('1개 중 0개를 썼습니다.')
+    expect(progress?.attributes('aria-label')).toBe('1개 중 0개를 작성했습니다.')
     expect(progress?.attributes('aria-valuenow')).toBe('0')
   })
 })

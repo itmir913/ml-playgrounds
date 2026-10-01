@@ -317,7 +317,7 @@ describe('열 표의 전처리 칸', () => {
     const grade = rows.find((row) => row.text().includes('반'))
 
     const note = grade?.find('span.block:not(.font-bold)')
-    expect(note?.text()).toContain('학습에서 빠집니다')
+    expect(note?.text()).toContain('학습에서 제외됩니다')
     expect(note?.classes()).toContain('text-caution')
     expect(note?.classes()).not.toContain('text-danger')
   })
