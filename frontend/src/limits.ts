@@ -1159,6 +1159,18 @@ export const SCATTER_DENSITY_INK_MAX = 0.45
 export const CLUSTER_MEMBER_PAGE_SIZE = 20
 
 /**
+ * 혼동 행렬 칸의 행 목록 **한 쪽**의 줄 수 (`open-decisions.md` "98. 혼동 행렬의 칸을 누르면 그 칸의
+ * 행을 보일 것인가").
+ *
+ * **군집 구성원 표와 같은 판단이고 값도 같지만 다른 상수다** — 둘 다 원본 열을 전부 보이는 넓은
+ * 표라 한 쪽은 훑기 좋은 길이면 되고, 다 담기는 쪽 넘김이 한다(`CLUSTER_MEMBER_PAGE_SIZE`의 머리말).
+ * 한쪽의 표가 좁아지거나 넓어지는 날 둘이 갈릴 수 있어야 한다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const CONFUSION_ROW_PAGE_SIZE = 20
+
+/**
  * 예측 화면에서 답 옆에 보이는 이웃 줄 수 (open-decisions.md #28-6).
  *
  * **위 `CLUSTER_MEMBER_PAGE_SIZE`와 값을 공유하지 않는다.** 답하는 질문이 다르다 —

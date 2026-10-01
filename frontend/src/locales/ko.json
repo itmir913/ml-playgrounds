@@ -1008,7 +1008,11 @@
       "series": "테스트 데이터",
       "rows": "테스트 데이터 {count}행으로 그렸습니다.",
       "mismatch": "다시 예측한 값이 저장된 점수와 달라 그림을 그리지 않았습니다."
-    }
+    },
+    "cellRowsOpen": "이 칸의 행 보기 ({count}행)",
+    "cellRowsTitle": "이 칸에 든 테스트 데이터",
+    "cellRowsCount": "전체 {total}행 중 {shown}행입니다.",
+    "cellRowsMismatch": "다시 예측한 결과가 저장된 혼동 행렬과 달라 이 칸의 행을 보일 수 없습니다."
   },
   "predict": {
     "run": "예측하기",

@@ -6,20 +6,82 @@
  * `taskType === 'classification'`이 생기지 않는다 (architecture.md §9.1).
  */
 
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
+import AppButton from '@/components/AppButton.vue'
 import AppPopover from '@/components/AppPopover.vue'
 import AppTable from '@/components/AppTable.vue'
+import { CONFUSION_ROW_PAGE_SIZE } from '@/limits'
+import { lockFor, turnPage } from '@/locks'
+import { confusionRowsFor } from '@/ml/confusion-rows'
 import type { PanelInput } from '@/ml/metric-panels'
+import { readTestDataset } from '@/project/dataset'
 
 const props = defineProps<{ input: PanelInput }>()
 
-/** 이 패널이 쓰는 것은 `run` 하나뿐이다. 나머지 재료는 군집 패널의 것이다. */
 const run = computed(() => props.input.run)
 
 const { t } = useI18n()
+
+/**
+ * 행을 연 칸. **연 적이 없으면 다시 예측하지 않는다** — 칸의 행은 저장된 모델로 테스트 데이터를 다시
+ * 예측해 얻는다(`open-decisions.md` "98. 혼동 행렬의 칸을 누르면 그 칸의 행을 보일 것인가").
+ */
+const opened = ref<{ actual: number; predicted: number } | null>(null)
+const page = ref(0)
+
+const rowsResult = computed(() =>
+  opened.value === null
+    ? null
+    : confusionRowsFor({
+        run: props.input.run,
+        experiment: props.input.experiment,
+        dataset: props.input.dataset,
+        testDataset: readTestDataset(props.input.file),
+        preprocessor: props.input.preprocessor,
+        modelBytes: props.input.modelBytes,
+      }),
+)
+
+/**
+ * 행을 열 수 있는가. **모델·정본·전처리기가 있는 표 프로젝트**에서만이다. 사진 프로젝트에는
+ * 정본 표가 없어 단추 자체가 안 선다(결정 98의 5).
+ */
+const canOpen = computed(
+  () =>
+    props.input.modelBytes !== undefined &&
+    props.input.dataset !== null &&
+    props.input.preprocessor !== null,
+)
+
+function openCell(actual: number, predicted: number): void {
+  opened.value = { actual, predicted }
+  page.value = 0
+}
+
+const cellRows = computed(() => {
+  const found = rowsResult.value
+  const cell = opened.value
+  if (found?.kind !== 'rows' || !cell) return []
+  return found.rows.cells[cell.actual]?.[cell.predicted] ?? []
+})
+
+const pages = computed(() =>
+  Math.max(1, Math.ceil(cellRows.value.length / CONFUSION_ROW_PAGE_SIZE)),
+)
+const shownRows = computed(() =>
+  cellRows.value.slice(
+    page.value * CONFUSION_ROW_PAGE_SIZE,
+    (page.value + 1) * CONFUSION_ROW_PAGE_SIZE,
+  ),
+)
+
+/** 그 행의 원래 값. 행이 놓인 정본(`provided`면 테스트 표)에서 읽는다. */
+function cellsOf(row: number): readonly string[] {
+  return rowsResult.value?.kind === 'rows' ? (rowsResult.value.rows.source.rows[row] ?? []) : []
+}
 </script>
 
 <template>
@@ -139,10 +201,97 @@ const { t } = useI18n()
               <p class="mt-1.5 text-ink-soft">
                 {{ index === column ? t('results.cellCorrect') : t('results.cellWrong') }}
               </p>
+
+              <!--
+                **그 칸의 행을 연다** (결정 98, Orange3 Confusion Matrix가 칸을 누르면 행을 내보내는
+                자리). 행이 0인 칸과 행을 못 여는 파일(사진·모델 없음)에는 단추가 없다.
+              -->
+              <AppButton
+                v-if="canOpen && count > 0"
+                variant="secondary"
+                class="mt-2"
+                @click="openCell(index, column)"
+              >
+                {{ t('results.cellRowsOpen', { count }) }}
+              </AppButton>
             </AppPopover>
           </td>
         </tr>
       </tbody>
     </AppTable>
+
+    <p v-if="rowsResult?.kind === 'mismatch'" class="text-ink-soft">
+      {{ t('results.cellRowsMismatch') }}
+    </p>
+
+    <div
+      v-else-if="rowsResult?.kind === 'rows' && opened"
+      class="mt-2 flex min-w-0 flex-col gap-1.5"
+    >
+      <h4 class="font-bold">{{ t('results.cellRowsTitle') }}</h4>
+      <!-- 이름은 배지, 값은 plaintext다(§8.16) — 값이 학생의 데이터라 조사가 생길 자리를 안 만든다. -->
+      <dl class="flex flex-wrap gap-x-6 gap-y-1.5">
+        <div class="flex items-baseline gap-1.5">
+          <dt>
+            <AppBadge>{{ t('results.cellActual') }}</AppBadge>
+          </dt>
+          <dd class="font-bold text-ink">{{ run.confusionMatrix.labels[opened.actual] }}</dd>
+        </div>
+        <div class="flex items-baseline gap-1.5">
+          <dt>
+            <AppBadge>{{ t('results.cellPredicted') }}</AppBadge>
+          </dt>
+          <dd class="font-bold text-ink">{{ run.confusionMatrix.labels[opened.predicted] }}</dd>
+        </div>
+      </dl>
+
+      <AppTable>
+        <thead>
+          <tr>
+            <th
+              v-for="name in rowsResult.rows.source.columns"
+              :key="name"
+              class="whitespace-normal"
+            >
+              {{ name }}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in shownRows" :key="row">
+            <td v-for="(cell, at) in cellsOf(row)" :key="at">{{ cell }}</td>
+          </tr>
+        </tbody>
+      </AppTable>
+
+      <p class="text-ink-faint">
+        {{
+          t(
+            'results.cellRowsCount',
+            { shown: shownRows.length, total: cellRows.length },
+            cellRows.length,
+          )
+        }}
+      </p>
+
+      <!-- 한 쪽뿐이면 넘길 것이 없다. 못 누르는 단추 둘을 두지 않는다. -->
+      <div v-if="pages > 1" class="flex items-center justify-between gap-4">
+        <AppButton
+          variant="secondary"
+          :lock="lockFor('pageFirst', { page })"
+          @click="page = turnPage(page, -1, pages)"
+        >
+          {{ t('common.prevPage') }}
+        </AppButton>
+        <p class="tabular-nums text-ink-soft">{{ page + 1 }} / {{ pages }}</p>
+        <AppButton
+          variant="secondary"
+          :lock="lockFor('pageLast', { page, pages })"
+          @click="page = turnPage(page, 1, pages)"
+        >
+          {{ t('common.nextPage') }}
+        </AppButton>
+      </div>
+    </div>
   </section>
 </template>

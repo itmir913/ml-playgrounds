@@ -1008,7 +1008,11 @@
       "series": "Test data",
       "rows": "Drawn from {count} rows of test data.",
       "mismatch": "The predicted values differ from the saved scores, so the charts are not drawn."
-    }
+    },
+    "cellRowsOpen": "Show rows in this cell ({count})",
+    "cellRowsTitle": "Test data in this cell",
+    "cellRowsCount": "{shown} of {total} row. | {shown} of {total} rows.",
+    "cellRowsMismatch": "The predictions differ from the saved confusion matrix, so the rows in this cell cannot be shown."
   },
   "predict": {
     "run": "Predict",
