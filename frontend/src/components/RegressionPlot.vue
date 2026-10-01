@@ -20,7 +20,7 @@ import { useElementSize } from '@/composables/useElementSize'
 import { useFormat } from '@/composables/useFormat'
 import { scatterLayers, scatterOptions, type ScatterDot } from '@/data/chart-config'
 import type { AxisCell } from '@/data/category-axis'
-import { REGRESSION_SCATTER_POINT_LIMIT } from '@/limits'
+import { RESULT_SCATTER_POINT_LIMIT } from '@/limits'
 import type { RegressionPlot } from '@/ml/regression-fit'
 
 // 기준선(`showLine`)은 선 요소로 그린다 — 등록이 없으면 `"line" is not a registered element`로
@@ -53,7 +53,7 @@ const layers = computed(() =>
     [{ name: t('results.regression.series'), points: props.plot.points }],
     paint.value,
     area.value,
-    REGRESSION_SCATTER_POINT_LIMIT,
+    RESULT_SCATTER_POINT_LIMIT,
   ),
 )
 

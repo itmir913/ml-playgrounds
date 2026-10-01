@@ -1078,8 +1078,10 @@ export const DATA_SCATTER_POINT_LIMIT = 10_000
 export const CLUSTER_SCATTER_POINT_LIMIT = 10_000
 
 /**
- * 결과 화면의 회귀 그림(실제 vs 예측·잔차·회귀선)에 **그리는 점의 묶음**
- * (`open-decisions.md` "97. 학습한 회귀 모델을 그림으로 보일 것인가").
+ * 결과 화면에서 **테스트 데이터를 찍는 그림**에 **그리는 점의 묶음** — 회귀의 실제 vs 예측·잔차·
+ * 회귀선(`open-decisions.md` "97. 학습한 회귀 모델을 그림으로 보일 것인가")과 분류의 결정 경계("69.
+ * 훈련 데이터가 2·3차원일 때 결과를 그림으로 보일 것인가")다. 둘 다 같은 물음(테스트 행을 몇 점까지
+ * 찍나)이라 한 상수다.
  *
  * **두 산점도의 묶음과 값이 같지만 다른 상수다** — 이쪽은 테스트 데이터의 행이고, 같은 화면에
  * 그림이 셋까지 선다. 근거는 같은 실측(1만 점 다시 그리기 14ms, `DATA_SCATTER_POINT_LIMIT`의
@@ -1087,7 +1089,7 @@ export const CLUSTER_SCATTER_POINT_LIMIT = 10_000
  *
  * **분류: 상한이 아니다.**
  */
-export const REGRESSION_SCATTER_POINT_LIMIT = 10_000
+export const RESULT_SCATTER_POINT_LIMIT = 10_000
 
 /**
  * 산점도에서 **점을 전부 그리는 칸의 행 수 문턱** (`open-decisions.md` "94. 그림이 드문 것을
@@ -1169,6 +1171,29 @@ export const CLUSTER_MEMBER_PAGE_SIZE = 20
  * **분류: 상한이 아니다.**
  */
 export const CONFUSION_ROW_PAGE_SIZE = 20
+
+/**
+ * 결정 경계 격자의 **한 변의 칸 수** (`open-decisions.md` "69. 훈련 데이터가 2·3차원일 때 결과를
+ * 그림으로 보일 것인가").
+ *
+ * **sklearn `DecisionBoundaryDisplay.from_estimator`의 `grid_resolution` 기본값이다.** 우리가 고른 값이
+ * 아니다 — 학생이 나중에 sklearn으로 같은 그림을 그리면 같은 촘촘함이 나온다(`CLAUDE.md` §2). 격자
+ * 1만 점을 예측하는 비용은 결정문의 "대가"에 있다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const DECISION_BOUNDARY_GRID = 100
+
+/**
+ * 결정 경계를 데이터 범위 **바깥으로 넓히는 양**(원래 단위). 최솟값에서 이만큼 빼고 최댓값에 이만큼
+ * 더한 범위에 격자를 깐다.
+ *
+ * **sklearn `DecisionBoundaryDisplay.from_estimator`의 `eps` 기본값이다.** 범위가 좁은 열(0~1로 정규화한
+ * 열)에서는 여백이 범위보다 커진다 — sklearn을 그대로 쓰는 학생이 보는 그림과 같다(결정문의 "대가").
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const DECISION_BOUNDARY_MARGIN = 1
 
 /**
  * 예측 화면에서 답 옆에 보이는 이웃 줄 수 (open-decisions.md #28-6).

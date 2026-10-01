@@ -311,10 +311,10 @@ describe('상한은 전부 읽힌다', () => {
 describe('산점도 묶음이 화면까지 이어진다', () => {
   const DRAWERS = [
     { call: 'clusterChartData(', constants: ['CLUSTER_SCATTER_POINT_LIMIT'] },
-    // 데이터 화면의 산점도와 결과 화면의 회귀 그림(결정 97)이 같은 함수를 부르되 묶음은 따로다.
+    // 데이터 화면의 산점도와 결과 화면의 그림(회귀 97·결정 경계 69)이 같은 함수를 부르되 묶음은 따로다.
     {
       call: 'scatterLayers(',
-      constants: ['DATA_SCATTER_POINT_LIMIT', 'REGRESSION_SCATTER_POINT_LIMIT'],
+      constants: ['DATA_SCATTER_POINT_LIMIT', 'RESULT_SCATTER_POINT_LIMIT'],
     },
   ]
 

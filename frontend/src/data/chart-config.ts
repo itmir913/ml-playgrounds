@@ -38,11 +38,22 @@ export interface ChartPaint {
  * 그림과 못 맞춘다.
  */
 export function seriesColor(paint: ChartPaint, index: number): string {
-  const palette = paint.palette
-  if (palette.length === 0) return paint.ink
+  return colorAt(paint.palette, paint.ink, index)
+}
+
+/**
+ * 같은 갈래의 **옅은 색** — 넓이를 칠하는 자리에 쓴다(결정 경계의 배경, `useChartTokens`의
+ * `softPalette`). **차례는 `seriesColor`와 같다** — 점과 배경이 같은 범주를 같은 계열로 말해야 한다.
+ */
+export function seriesSoftColor(paint: ChartPaint, index: number): string {
+  return colorAt(paint.softPalette, paint.surface, index)
+}
+
+function colorAt(palette: readonly string[], fallback: string, index: number): string {
+  if (palette.length === 0) return fallback
   const slot = index % palette.length
   const ordered = palette.length === CHART_COLORS ? (INK_ORDER[slot] ?? slot) : slot
-  return palette[ordered] ?? paint.ink
+  return palette[ordered] ?? fallback
 }
 
 /**

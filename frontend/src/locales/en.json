@@ -1012,7 +1012,13 @@
     "cellRowsOpen": "Show rows in this cell ({count})",
     "cellRowsTitle": "Test data in this cell",
     "cellRowsCount": "{shown} of {total} row. | {shown} of {total} rows.",
-    "cellRowsMismatch": "The predictions differ from the saved confusion matrix, so the rows in this cell cannot be shown."
+    "cellRowsMismatch": "The predictions differ from the saved confusion matrix, so the rows in this cell cannot be shown.",
+    "boundary": {
+      "title": "Decision boundary",
+      "lead": "The plane of the two features is split into cells, each shaded with the category the model would choose there. Dots are the actual categories of the test data. A dot on a background of another color is a row the model got wrong.",
+      "rows": "Drawn from {count} rows of test data.",
+      "mismatch": "The predictions differ from the saved confusion matrix, so the decision boundary is not drawn."
+    }
   },
   "predict": {
     "run": "Predict",

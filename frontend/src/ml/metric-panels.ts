@@ -142,6 +142,20 @@ const PANELS: readonly MetricPanel[] = [
   },
   {
     /**
+     * **결정 경계** (`open-decisions.md` "69. 훈련 데이터가 2·3차원일 때 결과를 그림으로 보일
+     * 것인가") — sklearn `DecisionBoundaryDisplay`와 같은 그림이다.
+     *
+     * **표 데이터의 분류에서, 입력 열이 수치 정확히 둘일 때만 선다.** 그 판단은 전처리기를 읽어야
+     * 해서 `run` 하나로는 못 한다 — 패널이 제 자리에서 알고, 아니면 자리 자체가 없다(§9.5).
+     */
+    id: 'decision-boundary',
+    dataTypes: { tabular: true, image: false },
+    taskTypes: { classification: true, regression: false, clustering: false },
+    hasData: (run) => run.model !== undefined && run.confusionMatrix !== undefined,
+    panel: defineAsyncComponent(() => import('@/views/results/panels/DecisionBoundaryPanel.vue')),
+  },
+  {
+    /**
      * **학습한 회귀 모델의 그림** (`open-decisions.md` "97. 학습한 회귀 모델을 그림으로 보일
      * 것인가") — 테스트 데이터의 실제 vs 예측·잔차 vs 예측, 입력 열이 수치 하나면 회귀선.
      *
