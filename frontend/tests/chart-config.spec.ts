@@ -31,6 +31,7 @@ import {
   type BoxSeries,
   type ChartPaint,
 } from '../src/data/chart-config'
+import { toggleLayers } from '../src/data/scatter-thin'
 import { boxSummary, type DataPoint } from '../src/data/stats'
 
 import { CHART_COLORS } from '../src/palette'
@@ -696,6 +697,11 @@ describe('산점도의 묶은 점', () => {
       .filter((item) => filter?.(item, data) ?? true)
       .map((item) => item.text)
     expect(shown).toEqual(['가', '나'])
+  })
+
+  /** 범례에 첫 단계만 서므로 **누르면 그 이름의 단계가 함께 꺼져야 한다** (`toggleLayers`). */
+  it('범례를 누르면 그 갈래의 단계를 한꺼번에 끄고 켠다', () => {
+    expect(scatterOptions(PAINT, TEXT, true).plugins?.legend?.onClick).toBe(toggleLayers)
   })
 
   it('묶은 점의 툴팁은 행 수를 말하는 문장이다', () => {

@@ -14,7 +14,14 @@ import type { ChartData, ChartOptions, Plugin } from 'chart.js'
 
 import { axisCellOf, categoryScale, placed, type AxisCell } from './category-axis'
 import { sortedByX } from './chart-points'
-import { densityInk, densityStep, rowsOfDot, thinScatter, type ThinSize } from './scatter-thin'
+import {
+  densityInk,
+  densityStep,
+  rowsOfDot,
+  thinScatter,
+  toggleLayers,
+  type ThinSize,
+} from './scatter-thin'
 import { SCATTER_DENSITY_STEPS } from '@/limits'
 import { CHART_COLORS, INK_ORDER } from '@/palette'
 import { categoryOrder } from '@/ml/preprocess'
@@ -756,6 +763,7 @@ export function scatterOptions(
       // **갈래가 하나면 범례가 없다.** 이름 하나짜리 범례는 아무것도 안 가른다.
       legend: {
         display: showLegend,
+        onClick: toggleLayers,
         labels: {
           color: paint.ink,
           usePointStyle: true,

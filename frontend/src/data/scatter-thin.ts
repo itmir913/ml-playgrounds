@@ -125,6 +125,34 @@ export function rowsOfDot(raw: unknown): number {
   return typeof raw.rows === 'number' ? raw.rows : 1
 }
 
+/** 범례가 누른 갈래를 끄고 켤 때 쓰는 그림의 모양. Chart.js의 `Chart`가 이 모양이다. */
+export interface LayeredChart {
+  readonly data: { readonly datasets: readonly { readonly label?: string | undefined }[] }
+  isDatasetVisible(index: number): boolean
+  setDatasetVisibility(index: number, visible: boolean): void
+  update(): void
+}
+
+/**
+ * 범례 항목을 누르면 **그 이름의 데이터셋을 전부** 끄고 켠다 (`legend.onClick`).
+ *
+ * 갈래 하나가 진하기 단계마다 데이터셋 여럿으로 서고, 범례에는 첫 것만 보인다(94). Chart.js의
+ * 기본 동작은 누른 데이터셋 하나만 숨겨서 **외딴 점만 사라지고 묶인 점은 남았다.** 무는 검사:
+ * `tests/scatter-thin.spec.ts`.
+ */
+export function toggleLayers(
+  _event: unknown,
+  item: { readonly text: string; readonly datasetIndex?: number },
+  legend: { readonly chart: LayeredChart },
+): void {
+  const { chart } = legend
+  const visible = chart.isDatasetVisible(item.datasetIndex ?? 0)
+  chart.data.datasets.forEach((one, index) => {
+    if (one.label === item.text) chart.setDatasetVisibility(index, !visible)
+  })
+  chart.update()
+}
+
 /**
  * 행 수의 **진하기 단계.** 행 하나면 0이고, 묶은 점은 1부터 `SCATTER_DENSITY_STEPS`까지다.
  *

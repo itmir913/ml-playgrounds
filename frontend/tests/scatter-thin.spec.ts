@@ -9,7 +9,14 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { densityInk, densityStep, thinScatter, type ThinPoint } from '../src/data/scatter-thin'
+import {
+  densityInk,
+  densityStep,
+  thinScatter,
+  toggleLayers,
+  type LayeredChart,
+  type ThinPoint,
+} from '../src/data/scatter-thin'
 import { SCATTER_DENSE_ROWS, SCATTER_DENSITY_STEPS } from '../src/limits'
 
 const SIZE = { width: 800, height: 500 }
@@ -192,6 +199,34 @@ describe('묶음', () => {
 
   it('빈 입력은 빈 그림이다', () => {
     expect(thinScatter([], SIZE, RADIUS, 10)).toEqual({ points: [], merged: false, widened: false })
+  })
+})
+
+/**
+ * **범례를 누르면 그 갈래의 점이 전부 사라진다** — 단계 데이터셋 하나만 끄면 외딴 점만 사라지고
+ * 묶인 점은 남았다(Chart.js 기본 동작).
+ */
+describe('범례 누르기', () => {
+  function chartOf(labels: string[]): LayeredChart & { hidden: Set<number> } {
+    const hidden = new Set<number>()
+    return {
+      hidden,
+      data: { datasets: labels.map((label) => ({ label })) },
+      isDatasetVisible: (index) => !hidden.has(index),
+      setDatasetVisibility: (index, visible) => {
+        if (visible) hidden.delete(index)
+        else hidden.add(index)
+      },
+      update: () => {},
+    }
+  }
+
+  it('같은 이름의 데이터셋을 전부 끄고, 다시 누르면 전부 켠다', () => {
+    const chart = chartOf(['가', '가', '나', '가', '나'])
+    toggleLayers(null, { text: '가', datasetIndex: 0 }, { chart })
+    expect([...chart.hidden].sort()).toEqual([0, 1, 3])
+    toggleLayers(null, { text: '가', datasetIndex: 0 }, { chart })
+    expect(chart.hidden.size).toBe(0)
   })
 })
 

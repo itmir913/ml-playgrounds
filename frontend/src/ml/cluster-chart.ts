@@ -18,7 +18,14 @@
 
 import { categoryScale as sharedCategoryScale, placed } from '@/data/category-axis'
 import { sortedByX } from '@/data/chart-points'
-import { densityInk, densityStep, rowsOfDot, thinScatter, type ThinSize } from '@/data/scatter-thin'
+import {
+  densityInk,
+  densityStep,
+  rowsOfDot,
+  thinScatter,
+  toggleLayers,
+  type ThinSize,
+} from '@/data/scatter-thin'
 import { SCATTER_DENSITY_STEPS } from '@/limits'
 
 import type { ChartData, ChartOptions, PointStyle } from 'chart.js'
@@ -439,6 +446,8 @@ export function clusterChartOptions(
     },
     plugins: {
       legend: {
+        // 군집 하나의 단계와 중심점(흰 테두리 포함)을 한꺼번에 끄고 켠다.
+        onClick: toggleLayers,
         labels: {
           color: tokens.ink,
           usePointStyle: true,

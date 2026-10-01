@@ -27,6 +27,7 @@ import {
   type ClusterAxisScales,
   type ClusterChartTokens,
 } from '../src/ml/cluster-chart'
+import { toggleLayers } from '../src/data/scatter-thin'
 import type { ClusterSummary, ScatterData } from '../src/ml/clusters'
 
 const TOKENS: ClusterChartTokens = {
@@ -142,6 +143,11 @@ describe('테두리의 자리', () => {
       .filter((item) => filter(item, data))
 
     expect(kept.map((item) => item.datasetIndex)).toEqual([0, 1, 2, 4])
+  })
+
+  /** 범례에 첫 단계만 서므로 **누르면 그 군집의 단계가 함께 꺼져야 한다** (`toggleLayers`). */
+  it('범례를 누르면 그 군집의 단계를 한꺼번에 끄고 켠다', () => {
+    expect(optionsOf(3).plugins!.legend!.onClick).toBe(toggleLayers)
   })
 
   /**
