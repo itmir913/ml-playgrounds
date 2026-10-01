@@ -625,6 +625,18 @@ export function transform(
   const columnIndexOf = new Map(
     preprocessor.columns.map((c) => [c.name, dataset.columns.indexOf(c.name)]),
   )
+  /**
+   * 범주의 자리표. **열마다 한 번 만든다** — 행마다 `indexOf`로 찾으면 행 수 × 범주 수라,
+   * 값이 행마다 다른 열에서 10만 행이 51초 걸렸다(2026-10-01 감사, 함수 단위 실측).
+   * 무는 검사: `tests/preprocess.spec.ts` "범주 인코딩은 행마다 목록을 훑지 않는다".
+   */
+  const positionOf = new Map(
+    preprocessor.columns.map((c) => {
+      const at = new Map<string, number>()
+      ;(c.categories ?? []).forEach((name, index) => at.set(name, index))
+      return [c.name, at]
+    }),
+  )
 
   return indices.map((rowIndex) => {
     const row = dataset.rows[rowIndex]
@@ -665,7 +677,7 @@ export function transform(
       }
 
       const categories = column.categories ?? []
-      const position = categories.indexOf(String(filled))
+      const position = positionOf.get(column.name)?.get(String(filled)) ?? -1
       if (encoding === 'onehot') {
         for (let i = 0; i < categories.length; i += 1) values.push(i === position ? 1 : 0)
       } else {

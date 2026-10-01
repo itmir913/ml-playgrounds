@@ -433,6 +433,39 @@ describe('범주 인코딩', () => {
     expect(transform(fitted, dataset, [4], 'onehot')[0]?.slice(2)).toEqual([0, 0])
   })
 
+  /**
+   * **범주 목록을 읽는 횟수가 행 수에 안 묶인다** (2026-10-01 감사). 행마다 `indexOf`로
+   * 찾으면 행 수 × 범주 수라, 값이 행마다 다른 열에서 10만 행이 51초 걸렸다.
+   *
+   * 시간으로 재면 기계마다 흔들리므로 **목록의 칸을 읽은 횟수를 센다.** onehot은 출력이
+   * 행 수 × 범주 수라 그 자체가 무겁다 — 그래서 자리를 찾는 비용만 보는 ordinal로 잰다.
+   */
+  it('범주 인코딩은 행마다 목록을 훑지 않는다', () => {
+    const names = Array.from({ length: 50 }, (_value, index) => `c${index}`)
+    let reads = 0
+    const counted = new Proxy(names, {
+      get(target, key, receiver) {
+        if (typeof key === 'string' && /^\d+$/.test(key)) reads += 1
+        return Reflect.get(target, key, receiver) as unknown
+      },
+    })
+    const rows = Array.from({ length: 2000 }, (_value, index) => [`c${index % 50}`])
+    const fitted: Preprocessor = {
+      format: PREPROCESSOR_FORMAT,
+      columns: [{ name: '학번', kind: 'categorical', categories: counted }],
+      featureNames: ['학번'],
+      excludedColumns: [],
+    }
+    const matrix = transform(
+      fitted,
+      { columns: ['학번'], rows },
+      rows.map((_row, index) => index),
+      'ordinal',
+    )
+    expect(matrix[51]?.[0]).toBe(1)
+    expect(reads).toBeLessThanOrEqual(names.length * 2)
+  })
+
   it('훈련 데이터에 없던 범주는 ordinal에서 -1이다', () => {
     const options = preprocessing({ categoricalEncoding: 'ordinal' })
     const fitted = fitPreprocessor(dataset, [0, 1, 2], features, options)
