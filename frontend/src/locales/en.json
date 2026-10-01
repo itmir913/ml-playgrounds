@@ -768,7 +768,7 @@
     "photoRemoveTitle": "Delete this photo?",
     "photoRemoveLead": "The photo will be removed from your answer. This cannot be undone.",
     "photoAlt": "Photo attached to the answer",
-    "photoSkipped": "Some files could not be read, so they were not attached. ({count})",
+    "photoSkipped": "{count} file could not be read, so it was not attached. | {count} files could not be read, so they were not attached.",
     "addSection": "Add a question",
     "sectionTitle": "Question title",
     "sectionDescription": "Guidance",
