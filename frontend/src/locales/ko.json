@@ -216,7 +216,7 @@
       "rename": "이름 변경",
       "renameConfirm": "이름 변경",
       "renameTitle": "범주 이름 변경",
-      "selected": "사진 {count}장 선택",
+      "selected": "선택한 사진 {count}장",
       "skipped": "읽을 수 없는 파일 {count}개는 추가하지 못했습니다.",
       "use": "이 사진 사용"
     },
