@@ -82,6 +82,12 @@ const steps = computed(() =>
       // 통과시켜 가드가 아니었고, 종류를 모르는 순간(닫히는 중) 화면이 없는 대체 키
       // `steps.data.purpose`를 찾았다 (R21 C-1).
       explains: (here || (unlocked && tasks.length === 0)) && kind.value !== undefined,
+      /**
+       * 잠김 이유가 가운데 칸까지 쓰는가. **할 일이 없는 잠긴 줄만이다** (2026-10-01, 코드 소유자).
+       * 이유를 셋째 칸(`2fr`)에만 두었더니 결과·예측 줄에서 가운데 칸(`3fr`)이 빈 채로 이유가
+       * 두 줄로 꺾였다. 열린 줄은 안 된다 — 설명문이 둘째 줄의 가운데 칸을 쓴다. 사람 확인(브라우저).
+       */
+      lockedWide: !unlocked && tasks.length === 0,
     }
   }),
 )
@@ -248,8 +254,11 @@ function lockedText(step: StepId): string {
               멀쩡하고 나머지가 전부 그 모양이었다 (2026-08-31).
             -->
             <div
-              class="min-w-0 @md:col-start-3 @md:row-start-1 @md:justify-self-end"
-              :class="entry.explains ? '@md:row-span-2' : ''"
+              class="min-w-0 @md:row-start-1 @md:justify-self-end"
+              :class="[
+                entry.explains ? '@md:row-span-2' : '',
+                entry.lockedWide ? '@md:col-span-2 @md:col-start-2' : '@md:col-start-3',
+              ]"
             >
               <AppButton v-if="entry.unlocked" variant="secondary" @click="go(entry.step)">
                 {{ t('project.openStep') }}
