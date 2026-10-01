@@ -831,7 +831,7 @@
     "tabular": {
       "columns": "Number of columns",
       "dataset": "Data file",
-      "features": "Features",
+      "features": "Number of features",
       "usableFeatures": "Number of features used for training",
       "rows": "Number of rows",
       "target": "Target"

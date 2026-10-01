@@ -831,7 +831,7 @@
     "tabular": {
       "columns": "열 개수",
       "dataset": "데이터 파일",
-      "features": "특성(Feature)",
+      "features": "특성(Feature) 수",
       "usableFeatures": "학습에 사용하는 특성 수",
       "rows": "행 개수",
       "target": "타깃(Target)"
