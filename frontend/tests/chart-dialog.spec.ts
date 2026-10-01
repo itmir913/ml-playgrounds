@@ -323,7 +323,7 @@ describe('보이는 숫자가 정본의 것이다', () => {
   it('빈 칸이 있는 열이면 몇 행이 빠졌는지 말한다', async () => {
     const wrapper = open('키')
     await drawn(wrapper)
-    expect(wrapper.text()).toContain('빈 칸 1행은 그림에서 제외했습니다.')
+    expect(wrapper.text()).toContain('값이 비어 있는 1행은 그림에서 제외했습니다.')
   })
 
   it('빈 칸이 없으면 아무 말도 안 한다', async () => {

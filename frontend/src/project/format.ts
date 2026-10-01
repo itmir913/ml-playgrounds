@@ -615,8 +615,8 @@ function detachMissingModels(
  * 던지면 **이미 사진을 잃은 프로젝트가 저장도 내보내기도 못 하게 된다** - 사진 한 장을
  * 잃은 것보다 나쁘다. detachMissingModels가 담지 못한 모델에 하는 일과 같은 손잡이다.
  *
- * 사유는 안 적는다. modelOmitted가 사유를 갖는 이유는 화면이 "다시 학습하세요"와 "다시
- * 학습해도 소용없습니다"를 갈라 말해야 하기 때문인데 (mlpx-spec.md 4.2), 없어진 사진에
+ * 사유는 안 적는다. modelOmitted가 사유를 갖는 이유는 화면이 다시 학습하라는 말(`modelOmission.overBudget`)과 다시
+ * 학습해도 소용없다는 말(`tooLarge`)을 갈라 말해야 하기 때문인데 (mlpx-spec.md 4.2), 없어진 사진에
  * 대해 학생이 할 수 있는 일은 없다.
  *
  * **정상 경로로는 아무것도 안 뗀다.** 여기가 무언가를 떼면 그건 우리 버그의 자국이다.
@@ -1329,7 +1329,7 @@ function packingOf(project: ProjectFile): Packing {
   const { kept, dropped } = selectModels(project.document, project.models)
   // 담지 못한 모델의 참조는 문서에서도 뗀다. 파일과 문서가 어긋나면 안 된다.
   // **여기서는 왜 뺐는지를 안다.** 그 사유가 파일에 남아야 화면이 학생에게 무엇을 할 수
-  // 있는지 말한다 - "다시 학습하세요"와 "다시 학습해도 소용없습니다"는 다른 답이다.
+  // 있는지 말한다 - `modelOmission.overBudget`과 `tooLarge`는 다른 답이다.
   const reasons = new Map(dropped.map((model) => [model.path, omissionReason(model.reason)]))
   // **푸는 자리 밖으로 새는 이름은 안 싣는다** (`insideArchive`). 읽기와 저장소가 이미
   // 거르지만, 그 둘을 안 지난 맵이 와도 여기서 나가지 않는다. 던지지 않는다 — 저장은

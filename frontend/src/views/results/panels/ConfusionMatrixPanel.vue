@@ -171,7 +171,7 @@ function cellsOf(row: number): readonly string[] {
               <dl class="mt-1.5 flex flex-wrap gap-x-6 gap-y-1.5">
                 <!--
                 **표와 같은 순서로 놓는다** - 실제가 먼저, 예측이 나중이다. 안내 문장이
-                "왼쪽에 적힌 것이 실제 값"이라고 말해 놓고 팝오버가 예측부터 보이면,
+                (`results.confusionLead`) 왼쪽이 실제 값이라고 말해 놓고 팝오버가 예측부터 보이면,
                 학생은 방금 읽은 순서를 뒤집어 다시 맞춰야 한다.
               -->
                 <div class="flex items-baseline gap-1.5">

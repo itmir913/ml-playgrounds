@@ -4,7 +4,7 @@
  * **점검의 포트폴리오 판이 낸 것을 덮지 않는가** (`views/inspect/PortfolioPanel.vue`).
  *
  * 글이 없어도 사진이나 지금 양식에 없는 문항의 답이 있으면 그것이 학생이 낸 것이다 —
- * "아직 쓴 글이 없습니다"로 덮으면 교사는 그것을 못 본다.
+ * 빈 글 문장(`inspect.portfolioEmpty`)으로 덮으면 교사는 그것을 못 본다.
  */
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
