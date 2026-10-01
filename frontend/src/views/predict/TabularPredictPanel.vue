@@ -625,7 +625,7 @@ async function run(): Promise<void> {
           <label class="flex cursor-pointer items-center gap-2">
             <input
               type="checkbox"
-              class="size-4 accent-brand"
+              class="size-4 shrink-0 accent-brand"
               :checked="batch?.hasHeader"
               @change="batch?.setHasHeader(($event.target as HTMLInputElement).checked)"
             />
@@ -679,7 +679,7 @@ async function run(): Promise<void> {
           <input
             type="radio"
             name="predict-input-mode"
-            class="mt-1 size-4 accent-brand"
+            class="mt-1 size-4 shrink-0 accent-brand"
             :checked="inputMode === 'value'"
             @change="inputMode = 'value'"
           />
@@ -692,7 +692,7 @@ async function run(): Promise<void> {
           <input
             type="radio"
             name="predict-input-mode"
-            class="mt-1 size-4 accent-brand"
+            class="mt-1 size-4 shrink-0 accent-brand"
             :checked="inputMode === 'file'"
             @change="inputMode = 'file'"
           />

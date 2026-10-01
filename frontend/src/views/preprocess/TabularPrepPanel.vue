@@ -750,7 +750,7 @@ const encodingHelp = computed(() =>
             <input
               type="radio"
               name="sampling"
-              class="mt-1 size-4 accent-brand"
+              class="mt-1 size-4 shrink-0 accent-brand"
               :checked="nSamples === undefined"
               @change="setSampling(undefined)"
             />
@@ -765,7 +765,7 @@ const encodingHelp = computed(() =>
               <AppInput
                 type="radio"
                 name="sampling"
-                class="mt-1 size-4 accent-brand"
+                class="mt-1 size-4 shrink-0 accent-brand"
                 :checked="nSamples !== undefined"
                 :lock="samplingLock"
                 @change="startSampling($event.target as HTMLInputElement)"
@@ -811,7 +811,7 @@ const encodingHelp = computed(() =>
                 <label class="flex cursor-pointer items-center gap-2">
                   <AppInput
                     type="checkbox"
-                    class="size-4 accent-brand"
+                    class="size-4 shrink-0 accent-brand"
                     :checked="settings.split.stratify"
                     :lock="stratifyLock"
                     @change="onStratify"
@@ -861,7 +861,7 @@ const encodingHelp = computed(() =>
                 :ref="testChoiceRadios.register('holdout')"
                 type="radio"
                 name="test-data-choice"
-                class="mt-1 size-4 accent-brand"
+                class="mt-1 size-4 shrink-0 accent-brand"
                 :checked="testChoice === 'holdout'"
                 @change="chooseHoldout"
               />
@@ -885,7 +885,7 @@ const encodingHelp = computed(() =>
                 <label class="flex cursor-pointer items-center gap-2">
                   <AppInput
                     type="checkbox"
-                    class="size-4 accent-brand"
+                    class="size-4 shrink-0 accent-brand"
                     :checked="settings.split.stratify"
                     :lock="stratifyLock"
                     @change="onStratify"
@@ -904,7 +904,7 @@ const encodingHelp = computed(() =>
                 :ref="testChoiceRadios.register('provided')"
                 type="radio"
                 name="test-data-choice"
-                class="mt-1 size-4 accent-brand"
+                class="mt-1 size-4 shrink-0 accent-brand"
                 :checked="testChoice === 'provided'"
                 @change="chooseProvided"
               />
@@ -989,7 +989,11 @@ const encodingHelp = computed(() =>
                   </label>
 
                   <label class="flex cursor-pointer items-center gap-2">
-                    <input v-model="testHasHeader" type="checkbox" class="size-4 accent-brand" />
+                    <input
+                      v-model="testHasHeader"
+                      type="checkbox"
+                      class="size-4 shrink-0 accent-brand"
+                    />
                     <span class="font-bold">{{ t('data.tabular.hasHeader') }}</span>
                   </label>
 
@@ -1042,7 +1046,7 @@ const encodingHelp = computed(() =>
                 <input
                   type="radio"
                   name="missing"
-                  class="size-4 accent-brand"
+                  class="size-4 shrink-0 accent-brand"
                   :checked="data.preprocessing.missing === strategy"
                   @change="setCleaning({ missing: strategy })"
                 />
@@ -1070,7 +1074,7 @@ const encodingHelp = computed(() =>
                 <input
                   type="radio"
                   name="scaling"
-                  class="size-4 accent-brand"
+                  class="size-4 shrink-0 accent-brand"
                   :checked="data.preprocessing.scaling === method"
                   @change="setCleaning({ scaling: method })"
                 />
@@ -1097,7 +1101,7 @@ const encodingHelp = computed(() =>
                 <input
                   type="radio"
                   name="encoding"
-                  class="size-4 accent-brand"
+                  class="size-4 shrink-0 accent-brand"
                   :checked="data.preprocessing.categoricalEncoding === encoding"
                   @change="setCleaning({ categoricalEncoding: encoding })"
                 />

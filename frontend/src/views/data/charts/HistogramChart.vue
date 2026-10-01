@@ -255,7 +255,7 @@ const options = computed(() =>
         -->
         <template #under-label>
           <label class="flex items-center gap-2 text-ink">
-            <input v-model="auto" type="checkbox" class="size-5 accent-brand" />
+            <input v-model="auto" type="checkbox" class="size-5 shrink-0 accent-brand" />
             {{ t('data.charts.histogram.binAuto') }}
           </label>
         </template>
@@ -304,7 +304,7 @@ const options = computed(() =>
         스크린리더가 같은 말을 두 번 읽는다.
       -->
       <label class="flex items-center gap-2 text-base font-bold text-ink-soft">
-        <input v-model="logarithmic" type="checkbox" class="size-5 accent-brand" />
+        <input v-model="logarithmic" type="checkbox" class="size-5 shrink-0 accent-brand" />
         {{ t('data.charts.histogram.logScale') }}
       </label>
     </AppTeleport>

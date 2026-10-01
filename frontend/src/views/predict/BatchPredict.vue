@@ -757,7 +757,7 @@ defineExpose({
 
     <template v-else>
       <label class="flex cursor-pointer items-center gap-2">
-        <input v-model="showFeatures" type="checkbox" class="size-4 accent-brand" />
+        <input v-model="showFeatures" type="checkbox" class="size-4 shrink-0 accent-brand" />
         <span class="font-bold">{{ t('predict.tabular.showFeatures') }}</span>
       </label>
 

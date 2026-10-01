@@ -392,7 +392,7 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
         </label>
 
         <label class="flex cursor-pointer items-center gap-2">
-          <input v-model="hasHeader" type="checkbox" class="size-4 accent-brand" />
+          <input v-model="hasHeader" type="checkbox" class="size-4 shrink-0 accent-brand" />
           <span class="font-bold">{{ t('data.tabular.hasHeader') }}</span>
         </label>
 

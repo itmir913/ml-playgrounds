@@ -586,7 +586,7 @@ function onStratify(event: Event): void {
               :ref="testChoiceRadios.register('holdout')"
               type="radio"
               name="image-test-data-choice"
-              class="mt-1 size-4 accent-brand"
+              class="mt-1 size-4 shrink-0 accent-brand"
               :checked="testChoice === 'holdout'"
               @change="chooseHoldout"
             />
@@ -603,7 +603,7 @@ function onStratify(event: Event): void {
               <label class="flex cursor-pointer items-center gap-2">
                 <AppInput
                   type="checkbox"
-                  class="size-4 accent-brand"
+                  class="size-4 shrink-0 accent-brand"
                   :checked="settings.split.stratify"
                   :lock="stratifyLock"
                   @change="onStratify"
@@ -622,7 +622,7 @@ function onStratify(event: Event): void {
               :ref="testChoiceRadios.register('provided')"
               type="radio"
               name="image-test-data-choice"
-              class="mt-1 size-4 accent-brand"
+              class="mt-1 size-4 shrink-0 accent-brand"
               :checked="testChoice === 'provided'"
               @change="chooseProvided"
             />

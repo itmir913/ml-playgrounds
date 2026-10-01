@@ -228,23 +228,32 @@ function onFeature(name: string, event: Event): void {
               유형을 바꿀 곳은 그 학습 화면뿐이다 (V11 R2 감사 A-1).
               거부는 학습이 한다 — `planRun`이 `TARGET_NOT_NUMERIC`으로 계획에서 막는다.
             -->
-            <input
-              type="radio"
-              class="size-4 accent-brand"
-              :checked="column.role === 'target'"
-              :aria-label="column.summary.name"
-              @change="emit('pickTarget', column.summary.name)"
-            />
+            <!--
+              **누르는 자리는 상자가 아니라 칸이다** (2026-10-01 브라우저 실측). 입력은 16px인데
+              라벨로 안 감싸서 휴대폰에서 그 16px만 눌렸다 — 표 하나에 29개였다. 라벨이 44px를
+              갖고, 바깥 여백을 음수로 덜어 줄 높이는 그대로다. 사람 확인(브라우저).
+            -->
+            <label class="-m-2.5 flex size-11 cursor-pointer items-center justify-center">
+              <input
+                type="radio"
+                class="size-4 shrink-0 accent-brand"
+                :checked="column.role === 'target'"
+                :aria-label="column.summary.name"
+                @change="emit('pickTarget', column.summary.name)"
+              />
+            </label>
           </td>
           <td>
-            <AppInput
-              type="checkbox"
-              class="size-4 accent-brand"
-              :checked="column.featureChosen"
-              :lock="lockFor('featureRole', { column })"
-              :aria-label="column.summary.name"
-              @change="onFeature(column.summary.name, $event)"
-            />
+            <label class="-m-2.5 flex size-11 cursor-pointer items-center justify-center">
+              <AppInput
+                type="checkbox"
+                class="size-4 shrink-0 accent-brand"
+                :checked="column.featureChosen"
+                :lock="lockFor('featureRole', { column })"
+                :aria-label="column.summary.name"
+                @change="onFeature(column.summary.name, $event)"
+              />
+            </label>
           </td>
           <td class="w-full">
             <span class="block font-bold text-ink">{{ column.summary.name }}</span>

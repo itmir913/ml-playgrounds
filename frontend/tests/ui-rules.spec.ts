@@ -3525,6 +3525,60 @@ describe('입력칸의 포커스 링은 잘리지 않는다', () => {
 })
 
 /**
+ * **크기를 박은 라디오·체크박스는 줄어들지 않는다** (2026-10-01 브라우저 실측).
+ *
+ * 라디오는 대개 옆의 긴 문구와 한 `flex` 줄에 선다. 문구가 두 줄이 되면 flex가 입력까지 눌러
+ * `size-4`(16px)인 원이 14×16으로 찌그러졌다 — 예측 화면에서 그렇게 보였다. 같은 모양이 여덟
+ * 자리에 있었다. **`shrink-0`이 없으면 운다.** 누르는 영역(라벨이 감싸는가)은 여기서 안 본다 —
+ * 그건 사람 확인(브라우저)이다.
+ */
+describe('크기를 박은 라디오와 체크박스는 줄어들지 않는다', () => {
+  function squishable(source: string): string[] {
+    const text = withoutComments(source, true).join(' ')
+    return [...text.matchAll(new RegExp(String.raw`<(?:input|AppInput)\b${ATTRS}>`, 'gs'))]
+      .map((match) => match[0])
+      .filter((tag) => /\btype="(?:radio|checkbox)"/.test(tag))
+      .filter((tag) => /\bclass="[^"]*(?<![\w-])size-\d/.test(tag))
+      .filter((tag) => !/\bclass="[^"]*(?<![\w-])shrink-0(?![\w-])/.test(tag))
+  }
+
+  it('표본을 가른다', () => {
+    expect(
+      squishable('<template><input type="radio" class="size-4 accent-brand" /></template>'),
+    ).toHaveLength(1)
+    // prettier가 편 모양.
+    expect(
+      squishable(
+        [
+          '<template>',
+          '  <input',
+          '    type="checkbox"',
+          '    class="mt-1 size-4 accent-brand"',
+          '    :checked="column.role === \'target\'"',
+          '  />',
+          '</template>',
+        ].join(String.fromCharCode(10)),
+      ),
+    ).toHaveLength(1)
+    expect(
+      squishable(
+        '<template><input type="radio" class="size-4 shrink-0 accent-brand" /></template>',
+      ),
+    ).toEqual([])
+    expect(squishable('<template><input type="text" class="size-4" /></template>')).toEqual([])
+  })
+
+  it('화면에 줄어드는 라디오·체크박스가 없다', () => {
+    const found = vueFiles(SRC).flatMap((path) =>
+      squishable(readFileSync(path, 'utf-8')).map(
+        (tag) => `${relative(SRC, path)}: ${tag.slice(0, 80)}`,
+      ),
+    )
+    expect(found, 'radio/checkbox with a fixed size but no shrink-0').toEqual([])
+  })
+})
+
+/**
  * **캔버스에 먹일 색을 읽는 자리는 하나다** (2026-09-22).
  *
  * 한때 셋이었다 — `useChartTokens` · `ClusterScatter` · `LossCurvePanel`. 베낀 자리는
