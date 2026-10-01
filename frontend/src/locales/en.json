@@ -42,9 +42,9 @@
     "reproducing": "Checking ({done}/{total})",
     "preparingDownload": "Downloading scikit-learn…",
     "preparingStart": "Getting scikit-learn ready…",
-    "engineVersionFallback": "The scikit-learn version this experiment was made with could not be downloaded, so it was trained again with the current version. Because the versions differ, only the numbers are shown, without a verdict. (file {stored} · used {used})",
+    "engineVersionFallback": "The scikit-learn version this experiment was made with could not be downloaded, so it was trained again with the current version. Because the versions differ, only the numbers are shown, without a verdict. (file {stored}, used {used})",
     "rulesChanged": "The app's calculation method changed after this file was made, so any difference is not judged. (app version of this file: {version})",
-    "appOutdated": "This file was made with a newer version of the app, so any difference cannot be judged. Update the app to the latest version and run the check again. (file {file} · app {app})",
+    "appOutdated": "This file was made with a newer version of the app, so any difference cannot be judged. Update the app to the latest version and run the check again. (file {file}, app {app})",
     "reproduceStopped": "Stopped ({done}/{total})",
     "verdict": "Verdict",
     "difference": "Difference",
@@ -269,7 +269,7 @@
       "histogram": {
         "name": "Histogram",
         "series": "Count",
-        "point": "{range} · {count}",
+        "point": "{range}: {count}",
         "capped": "There were too many bins, so they were reduced to {count}.",
         "binCount": "Bins",
         "binAuto": "Choose automatically",
@@ -283,14 +283,14 @@
       "bar": {
         "name": "Bar chart",
         "series": "Count",
-        "point": "{value} · {count}",
+        "point": "{value}: {count}",
         "omitted": "There are too many distinct values, so only the top {shown} by row count are drawn. ({distinct} in total, {rows} rows left out)"
       },
       "box": {
         "name": "Box plot",
         "groupBy": "Split by",
         "groupNone": "No split",
-        "point": "Minimum {min} · Q1 {q1} · Median {median} · Q3 {q3} · Maximum {max}",
+        "point": "Minimum {min}, Q1 {q1}, Median {median}, Q3 {q3}, Maximum {max}",
         "outliers": "{count} value beyond the whiskers is drawn as a dot. | {count} values beyond the whiskers are drawn as dots.",
         "blank": "{count} row with an empty value in the split column is not in any box. | {count} rows with an empty value in the split column are not in any box.",
         "omitted": "{count} value with too few rows has no box. ({rows} rows left out) | {count} values with too few rows have no box. ({rows} rows left out)"
@@ -301,8 +301,8 @@
         "yAxis": "Y axis",
         "colorBy": "Color by",
         "colorNone": "No color",
-        "point": "{name} · x {x} · y {y}",
-        "pointMany": "{count} rows overlap near this dot. ({name} · x {x} · y {y})",
+        "point": "{name}, x {x}, y {y}",
+        "pointMany": "{count} rows overlap near this dot. ({name}, x {x}, y {y})",
         "merged": "Where many dots overlap, they are merged into one darker dot. Point at a dot to see how many rows it covers.",
         "widened": "There are so many dots that dots across wider areas are merged into one.",
         "skipped": "{count} row with an empty value cannot be shown on the chart, so it is left out. | {count} rows with an empty value cannot be shown on the chart, so they are left out.",
@@ -365,9 +365,9 @@
     "zero": "Fills blanks with 0. If 0 already means something in that column, the filled zeros can no longer be told apart from the real ones."
   },
   "scalingBasis": {
-    "standard": "training mean {center} · SD {spread}",
-    "minmax": "training min {center} · range {spread}",
-    "robust": "training median {center} · IQR {spread}"
+    "standard": "training mean {center}, SD {spread}",
+    "minmax": "training min {center}, range {spread}",
+    "robust": "training median {center}, IQR {spread}"
   },
   "scalingMethod": {
     "none": "None",
@@ -1034,7 +1034,7 @@
       "lead": "The values of one column of the test data were randomly shuffled across rows, the drop in score was measured {count} times, and the average is shown. A longer bar means the model relies more on that column when predicting. A value near zero or below means the column barely affects this model's predictions. Two columns that carry similar information can both come out low, because shuffling one leaves the other to take its place.",
       "axisAccuracy": "Drop in accuracy",
       "axisR2": "Drop in R-squared",
-      "point": "Mean {mean} · standard deviation {std} ({feature})",
+      "point": "Mean {mean}, standard deviation {std} ({feature})",
       "baseline": "Measured against the score of {score} before shuffling.",
       "mismatch": "The new predictions do not match the saved score, so the permutation importance is not drawn."
     }
@@ -1049,7 +1049,7 @@
     "clusterEvidenceNote": "Photos closest to the centroid come first.",
     "clusterAnswerNote": "Each model numbers its clusters on its own. The same number from a different model is a different cluster.",
     "probability": "Probability by class",
-    "modelName": "{algorithm} · {runtime}",
+    "modelName": "{algorithm}, {runtime}",
     "filterExperiments": "Experiment",
     "filterAlgorithms": "Model",
     "filterCount": "{shown} of {total} model | {shown} of {total} models",
@@ -1078,7 +1078,7 @@
       "cellWithProbability": "{value} ({percent})",
       "clear": "Clear",
       "clusterInputPoint": "Your input",
-      "clusterModelLabel": "{experiment} · {model}",
+      "clusterModelLabel": "{experiment}, {model}",
       "clusterModelPick": "Model to show",
       "clusterNeighborLead": "Rows in the same cluster, closest to the values you entered first.",
       "clusterNeighborTitle": "Data similar to your input",

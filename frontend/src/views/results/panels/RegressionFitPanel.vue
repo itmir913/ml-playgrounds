@@ -98,7 +98,7 @@ const anyMerged = computed(() => Object.values(merged).some(Boolean))
       </div>
       <p class="text-ink-faint">
         {{ t('results.regression.rows', { count: fit.rows.length }) }}
-        <template v-if="anyMerged"> · {{ t('data.charts.scatter.merged') }}</template>
+        <template v-if="anyMerged"> {{ t('data.charts.scatter.merged') }}</template>
       </p>
     </template>
   </section>

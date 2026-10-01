@@ -367,7 +367,7 @@ describe('이미지 설정의 변경도 말한다', () => {
       'meta.image.unlabeledCount',
       'meta.image.backbone',
     ])
-    expect(changes[0]?.to).toEqual({ kind: 'literal', text: '3 · 9' })
+    expect(changes[0]?.to).toEqual({ kind: 'literal', text: '3, 9' })
     expect(changes[3]?.to).toEqual({ kind: 'literal', text: 'mobilenet-v2' })
   })
 

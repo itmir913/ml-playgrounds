@@ -507,7 +507,7 @@ function deltaText(deltas: Readonly<Record<string, number>> | undefined): string
     .map(([name, value]) =>
       t('inspect.delta', { metric: t(`metrics.${name}`), value: signed(value) }),
     )
-    .join(' · ')
+    .join(', ')
 }
 
 /** 부호를 붙인 차이. **크기가 보이는 형식이다** — 반올림하면 `0.0000`이 된다. */

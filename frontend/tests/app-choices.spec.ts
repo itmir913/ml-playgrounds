@@ -28,9 +28,9 @@ beforeEach(async () => {
 })
 
 describe('나눠 그려도 글자는 그대로다', () => {
-  it('가운뎃점으로 이어 붙인 라벨', () => {
-    expect(textOf('13번째 실험 · K-평균(K-Means) · ml.js · 내 컴퓨터')).toBe(
-      '13번째 실험 · K-평균(K-Means) · ml.js · 내 컴퓨터',
+  it('쉼표로 이어 붙인 라벨', () => {
+    expect(textOf('13번째 실험, K-평균(K-Means), ml.js · 내 컴퓨터')).toBe(
+      '13번째 실험, K-평균(K-Means), ml.js · 내 컴퓨터',
     )
   })
 
@@ -68,7 +68,9 @@ describe('접히는 자리를 정해 둔다', () => {
     const wrapper = mount(AppChoices, {
       props: {
         label: '축',
-        items: [{ id: 'a', label: '13번째 실험 · ml.js · 내 컴퓨터', enabled: true }],
+        items: [
+          { id: 'a', label: '13번째 실험, K-평균(K-Means), ml.js · 내 컴퓨터', enabled: true },
+        ],
       },
       global: { plugins: [i18n] },
     })
@@ -77,15 +79,15 @@ describe('접히는 자리를 정해 둔다', () => {
     expect(wrapper.findAll('button > span.inline-block')).toHaveLength(3)
   })
 
-  it('가운뎃점은 앞 조각에 붙는다 - 줄 첫머리에 점이 서지 않게', () => {
+  it('쉼표는 앞 조각에 붙는다 - 줄 첫머리에 쉼표가 서지 않게', () => {
     const wrapper = mount(AppChoices, {
       props: {
         label: '축',
-        items: [{ id: 'a', label: 'ml.js · 내 컴퓨터', enabled: true }],
+        items: [{ id: 'a', label: '13번째 실험, ml.js · 내 컴퓨터', enabled: true }],
       },
       global: { plugins: [i18n] },
     })
 
-    expect(wrapper.findAll('button > span.inline-block')[0]?.text()).toBe('ml.js ·')
+    expect(wrapper.findAll('button > span.inline-block')[0]?.text()).toBe('13번째 실험,')
   })
 })

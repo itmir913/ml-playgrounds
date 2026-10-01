@@ -554,14 +554,14 @@ const studentFields = computed(() => {
 
 /**
  * 머리줄 둘째 줄 — 학번과 이름. **없는 칸은 빼고 잇고, 둘 다 없으면 줄이 아예 없다**
- * (2026-09-18, 사용자). `이름 없음 · 이름 없음`은 아무것도 말하지 않는다.
+ * (2026-09-18, 사용자). `이름 없음 이름 없음`은 아무것도 말하지 않는다.
  *
  * **파일 이름은 여기 없다.** 그것이 머리줄의 제목으로 올라갔다.
  */
 const studentLine = computed(() =>
   [studentFields.value.studentId, studentFields.value.studentName]
     .filter((part) => part !== '')
-    .join(' · '),
+    .join(' '),
 )
 
 /**

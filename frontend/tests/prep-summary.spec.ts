@@ -277,9 +277,9 @@ describe('열 표의 전처리 칸', () => {
    * 대조는 언제나 맞는다.
    */
   const BASES: [Preprocessing['scaling'], string][] = [
-    ['standard', '평균 163.3 · 표준편차 12.47'],
-    ['minmax', '최솟값 150 · 범위 30'],
-    ['robust', '중앙값 160 · 사분위 범위 15'],
+    ['standard', '평균 163.3, 표준편차 12.47'],
+    ['minmax', '최솟값 150, 범위 30'],
+    ['robust', '중앙값 160, 사분위 범위 15'],
   ]
 
   for (const [scaling, expected] of BASES) {

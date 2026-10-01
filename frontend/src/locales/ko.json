@@ -42,9 +42,9 @@
     "reproducing": "대조 중 ({done}/{total})",
     "preparingDownload": "scikit-learn을 다운로드하는 중…",
     "preparingStart": "scikit-learn을 준비하는 중…",
-    "engineVersionFallback": "이 실험에 사용된 scikit-learn 버전을 다운로드할 수 없어 현재 버전으로 다시 학습했습니다. 버전이 달라 결과가 다를 수 있으므로 판정하지 않고 수치만 표시합니다. (파일 {stored} · 사용 {used})",
+    "engineVersionFallback": "이 실험에 사용된 scikit-learn 버전을 다운로드할 수 없어 현재 버전으로 다시 학습했습니다. 버전이 달라 결과가 다를 수 있으므로 판정하지 않고 수치만 표시합니다. (파일 {stored}, 사용 {used})",
     "rulesChanged": "이 파일을 만든 뒤 앱의 계산 방식이 바뀌어, 차이가 있더라도 판정하지 않습니다. (이 파일의 앱 버전 {version})",
-    "appOutdated": "이 파일은 지금 앱보다 새로운 버전에서 만들어져, 차이가 있더라도 판정할 수 없습니다. 앱을 최신 버전으로 업데이트한 뒤 다시 대조해 주세요. (파일 {file} · 앱 {app})",
+    "appOutdated": "이 파일은 지금 앱보다 새로운 버전에서 만들어져, 차이가 있더라도 판정할 수 없습니다. 앱을 최신 버전으로 업데이트한 뒤 다시 대조해 주세요. (파일 {file}, 앱 {app})",
     "reproduceStopped": "중단됨 ({done}/{total})",
     "verdict": "판정",
     "difference": "차이",
@@ -59,7 +59,7 @@
     },
     "comparingOtherRefused": "다른 실험을 대조하고 있습니다. 그 실험으로 돌아가 [멈추기]를 누르거나 끝날 때까지 기다려 주세요.",
     "delta": "{metric} {value}",
-    "editStudent": "학번·이름 수정",
+    "editStudent": "학번과 이름 수정",
     "noDifference": "차이 없음",
     "noStudentId": "학번 없음",
     "noStudentName": "이름 없음",
@@ -197,7 +197,7 @@
       "deleteTitle": "사진을 삭제할까요?",
       "duplicates": "이미 있는 사진 {count}장은 추가하지 않았습니다.",
       "emptyCategory": "이 범주에는 아직 사진이 없습니다. 사진 파일을 이곳에 끌어다 놓거나 [여기에 사진 추가]를 누르세요.",
-      "emptyNext": "개·고양이처럼 구분하고 싶은 이름으로 범주를 만들고, 그 범주에 사진을 추가하세요. 사진을 먼저 추가하고 나중에 범주로 이동해도 됩니다. [폴더에서 추가]로 사진을 한 번에 추가하면 폴더 이름이 범주 이름이 됩니다.",
+      "emptyNext": "개, 고양이처럼 구분하고 싶은 이름으로 범주를 만들고, 그 범주에 사진을 추가하세요. 사진을 먼저 추가하고 나중에 범주로 이동해도 됩니다. [폴더에서 추가]로 사진을 한 번에 추가하면 폴더 이름이 범주 이름이 됩니다.",
       "emptyReason": "아직 추가한 사진이 없습니다.",
       "moveTo": "이동할 범주",
       "createConfirm": "만들기",
@@ -269,7 +269,7 @@
       "histogram": {
         "name": "히스토그램(Histogram)",
         "series": "개수",
-        "point": "{range} · {count}개",
+        "point": "{range}: {count}개",
         "capped": "구간이 너무 많아 {count}개로 줄였습니다.",
         "binCount": "구간 수(bins)",
         "binAuto": "자동으로 설정하기",
@@ -283,14 +283,14 @@
       "bar": {
         "name": "막대그래프(Bar Chart)",
         "series": "개수",
-        "point": "{value} · {count}개",
+        "point": "{value}: {count}개",
         "omitted": "값의 종류가 많아 행 개수가 많은 상위 {shown}개만 표시했습니다. (전체 {distinct}종류, 제외된 {rows}행)"
       },
       "box": {
         "name": "박스 플롯(Box Plot)",
         "groupBy": "구분 기준",
         "groupNone": "구분 없음",
-        "point": "최솟값 {min} · 제1사분위수 {q1} · 중앙값 {median} · 제3사분위수 {q3} · 최댓값 {max}",
+        "point": "최솟값 {min}, 제1사분위수 {q1}, 중앙값 {median}, 제3사분위수 {q3}, 최댓값 {max}",
         "outliers": "수염(Whisker) 밖의 값 {count}개를 점으로 표시했습니다.",
         "blank": "구분 기준 열의 값이 비어 있는 {count}행은 상자에 포함하지 않았습니다.",
         "omitted": "행 개수가 너무 적은 값 {count}종류는 상자를 표시하지 않았습니다. (제외된 {rows}행)"
@@ -301,8 +301,8 @@
         "yAxis": "세로축",
         "colorBy": "색 구분",
         "colorNone": "색 구분 없음",
-        "point": "{name} · 가로 {x} · 세로 {y}",
-        "pointMany": "이 점 근처에 {count}행이 겹쳐 있습니다. ({name} · 가로 {x} · 세로 {y})",
+        "point": "{name}, 가로 {x}, 세로 {y}",
+        "pointMany": "이 점 근처에 {count}행이 겹쳐 있습니다. ({name}, 가로 {x}, 세로 {y})",
         "merged": "점이 많이 겹치는 위치는 하나의 점으로 합쳐 진하게 표시했습니다. 점을 가리키면 그 위치에 있는 행 개수가 표시됩니다.",
         "widened": "점이 많아 더 넓은 범위의 점들을 하나로 합쳤습니다.",
         "skipped": "값이 비어 있는 {count}행은 차트에 표시할 수 없어 제외했습니다.",
@@ -365,9 +365,9 @@
     "zero": "빈 칸에 0을 넣습니다. 그 열에서 0이 의미 있는 값이라면 원래 있던 0과 구별할 수 없게 됩니다."
   },
   "scalingBasis": {
-    "standard": "훈련 데이터 평균 {center} · 표준편차 {spread}",
-    "minmax": "훈련 데이터 최솟값 {center} · 범위 {spread}",
-    "robust": "훈련 데이터 중앙값 {center} · 사분위 범위 {spread}"
+    "standard": "훈련 데이터 평균 {center}, 표준편차 {spread}",
+    "minmax": "훈련 데이터 최솟값 {center}, 범위 {spread}",
+    "robust": "훈련 데이터 중앙값 {center}, 사분위 범위 {spread}"
   },
   "scalingMethod": {
     "none": "하지 않음",
@@ -393,7 +393,7 @@
   "encodingHelp": {
     "none": "문자 값을 바꾸지 않습니다. 모델은 숫자만 받으므로 문자 값이 있는 열은 학습에서 제외됩니다.",
     "onehot": "값의 종류마다 열을 하나씩 만들고 해당하는 칸에 1을 넣습니다. 값 사이에 순서가 없을 때 사용합니다. 종류가 많으면 열이 그만큼 늘어납니다.",
-    "ordinal": "값의 종류에 0, 1, 2 … 번호를 붙입니다. 열이 늘지 않는 대신 모델이 그 번호를 크기로 해석하므로, 상·중·하처럼 순서가 있는 값에만 사용합니다."
+    "ordinal": "값의 종류에 0, 1, 2 … 번호를 붙입니다. 열이 늘지 않는 대신 모델이 그 번호를 크기로 해석하므로, 상, 중, 하처럼 순서가 있는 값에만 사용합니다."
   },
   "preprocess": {
     "previewBasis": "훈련 데이터 기준",
@@ -665,7 +665,7 @@
   "engineState": {
     "absent": "준비되지 않음",
     "downloading": "다운로드 중",
-    "downloaded": "다운로드 완료 · 준비 필요",
+    "downloaded": "다운로드 완료, 준비 필요",
     "ready": "준비됨"
   },
   "modelOmission": {
@@ -706,7 +706,7 @@
     "NEURAL_NOT_CONVERGED": "정해진 학습 횟수(에폭)를 모두 마쳤지만 아직 수렴(Convergence)하지 않았습니다. 점수는 나왔지만 충분히 학습되지 않은 모델입니다. 결과 화면의 손실 곡선에서 손실이 계속 줄어들고 있었는지 확인할 수 있습니다. 점수를 올리려면 전처리의 [스케일링(Scaling)]에서 방법을 선택해 보세요.",
     "NEURAL_REGRESSION_NOT_CONVERGED": "정해진 학습 횟수(에폭) 안에 손실이 더 이상 줄어들지 않는 지점까지 도달하지 못했습니다. 점수는 나왔지만 충분히 학습되지 않은 모델입니다. 결과 화면의 손실 곡선에서 손실이 계속 줄어들고 있었는지 확인할 수 있습니다. 타깃(Target) 값이 특성(Feature) 값보다 훨씬 크면 이 안내가 자주 나옵니다.",
     "TARGET_TOO_FEW_CLASSES": "학습에 사용한 데이터의 타깃(Target)이 한 종류뿐이라 모델이 구분할 대상이 없습니다. 점수가 높게 나와도 실제로는 아무것도 학습하지 않은 것입니다. 전처리 화면에서 값이 두 종류 이상인 열을 타깃으로 선택해 주세요. ({value})",
-    "TARGET_NO_VARIANCE": "학습에 사용한 데이터의 타깃(Target) 값이 모두 같아 결정계수(R-squared)를 의미 있게 계산할 수 없습니다. 오차 지표(RMSE·MAE)로 판단하거나, 값이 변하는 열을 타깃으로 선택해 주세요. ({value})",
+    "TARGET_NO_VARIANCE": "학습에 사용한 데이터의 타깃(Target) 값이 모두 같아 결정계수(R-squared)를 의미 있게 계산할 수 없습니다. 오차 지표(RMSE, MAE)로 판단하거나, 값이 변하는 열을 타깃으로 선택해 주세요. ({value})",
     "KMEANS_NOT_CONVERGED": "최대 반복 횟수 안에 중심점의 위치가 확정되지 않았습니다. 군집은 나왔지만 아직 수렴(Convergence)하지 않은 상태입니다. 전처리의 [스케일링(Scaling)]에서 방법을 선택하거나 [군집 수(nClusters)]를 줄이면 중심점이 더 빨리 수렴합니다.",
     "DATASET_FILE_TYPE_UNSUPPORTED": "지원하지 않는 파일 형식입니다. ({fileName})",
     "DATASET_EXCEL_ENCRYPTED_OR_LEGACY": "암호가 걸려 있거나 이전 형식(.xls)인 엑셀 파일은 읽을 수 없습니다. 엑셀에서 암호를 해제하고 새 형식(.xlsx)이나 CSV로 저장해 다시 불러와 주세요. ({fileName})",
@@ -998,7 +998,7 @@
     "where": "학습한 환경",
     "regression": {
       "title": "실제 값과 예측한 값",
-      "lead": "저장된 모델로 테스트 데이터를 다시 예측해 차트를 표시했습니다. 실제 vs 예측 차트에서는 대각선에, 잔차 vs 예측 차트에서는 잔차가 0인 가로선에 가까울수록 정확하게 예측한 것입니다.",
+      "lead": "저장된 모델로 테스트 데이터를 다시 예측해 차트를 표시했습니다. 실제 vs 예측 차트에서는 대각선에 가까울수록, 잔차 vs 예측 차트에서는 잔차가 0인 가로선에 가까울수록 정확하게 예측한 것입니다.",
       "actualVsPredicted": "실제 vs 예측",
       "residualVsPredicted": "잔차(Residual) vs 예측",
       "line": "특성에 따른 모델의 예측선 ({feature})",
@@ -1034,7 +1034,7 @@
       "lead": "테스트 데이터에서 한 열의 값의 순서를 무작위로 바꿨을 때 점수가 얼마나 떨어지는지 {count}번 측정해 평균을 구했습니다. 막대가 길수록 모델이 예측할 때 그 열에 많이 의존한다는 뜻입니다. 0에 가깝거나 음수이면 그 열이 이 모델의 예측에 거의 영향을 주지 않는다는 뜻입니다. 서로 비슷한 정보를 가진 두 열은 한쪽의 순서를 바꿔도 다른 쪽이 그 역할을 대신하므로, 둘 다 낮게 나올 수 있습니다.",
       "axisAccuracy": "정확도 감소",
       "axisR2": "결정계수 감소",
-      "point": "평균 {mean} · 표준편차 {std} ({feature})",
+      "point": "평균 {mean}, 표준편차 {std} ({feature})",
       "baseline": "순서를 바꾸기 전 점수 {score} 기준으로 측정한 값입니다.",
       "mismatch": "다시 예측한 점수가 저장된 점수와 일치하지 않아 특성 중요도를 표시하지 않았습니다."
     }
@@ -1049,7 +1049,7 @@
     "clusterEvidenceNote": "중심점에 가까운 사진부터 보여 줍니다.",
     "clusterAnswerNote": "군집 번호는 모델마다 따로 붙인 번호입니다. 번호가 같아도 모델이 다르면 서로 다른 군집입니다.",
     "probability": "범주별 확률",
-    "modelName": "{algorithm} · {runtime}",
+    "modelName": "{algorithm}, {runtime}",
     "filterExperiments": "실험(Experiment)",
     "filterAlgorithms": "모델",
     "filterCount": "모델 {total}개 중 {shown}개",
@@ -1078,7 +1078,7 @@
       "cellWithProbability": "{value} ({percent})",
       "clear": "전체 삭제",
       "clusterInputPoint": "입력한 값",
-      "clusterModelLabel": "{experiment} · {model}",
+      "clusterModelLabel": "{experiment}, {model}",
       "clusterModelPick": "표시할 모델",
       "clusterNeighborLead": "같은 군집에 속한 데이터 중에서 입력한 값에 가까운 순서입니다.",
       "clusterNeighborTitle": "입력한 값과 비슷한 데이터",

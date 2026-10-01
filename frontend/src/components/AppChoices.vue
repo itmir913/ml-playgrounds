@@ -99,15 +99,18 @@ function stateOf(item: Choice): string {
   return props.selected === item.id ? STATES.selected : STATES.idle
 }
 
-/** 조각을 잇는 가운뎃점. 라벨을 만드는 로케일(`predict.modelName` 등)이 쓰는 그것이다. */
-const JOINER = ' · '
+/**
+ * 조각을 잇는 쉼표. 라벨을 만드는 로케일(`predict.modelName` 등)이 쓰는 그것이다.
+ * **가운뎃점이 아니다** — 화면의 가운뎃점은 상태 표시줄 하나뿐이다(`locales.spec.ts`).
+ */
+const JOINER = ', '
 
 /**
  * 그릴 칸들. **두 가지를 미리 갈라 둔다.**
  *
- * ① **가운뎃점으로 이어 붙인 라벨은 조각으로 나눈다.** `13번째 실험 · K-평균 · ml.js ·
+ * ① **쉼표로 이어 붙인 라벨은 조각으로 나눈다.** 가운뎃점으로 잇던 때 `13번째 실험 · K-평균 · ml.js ·
  * 내 컴퓨터`가 아무 데서나 접혀 `ml.js` / `내 컴퓨터`처럼 한 이름이 두 줄로 갈렸다.
- * 조각마다 덩어리로 다니게 하면 **접히는 자리가 가운뎃점뿐**이 된다.
+ * 조각마다 덩어리로 다니게 하면 **접히는 자리가 쉼표 뒤뿐**이 된다.
  *
  * ② **병기 괄호를 뗀다** (`splitTerm`). 조각 안에서도 같은 규칙이 걸린다.
  *
@@ -121,8 +124,8 @@ const cells = computed(() =>
       item,
       parts: pieces.map((piece, index) => ({
         ...splitTerm(piece),
-        // 가운뎃점은 앞 조각에 붙어 다닌다 - 안 그러면 줄 첫머리에 점이 선다.
-        tail: index < pieces.length - 1 ? ' ·' : '',
+        // 쉼표는 앞 조각에 붙어 다닌다 - 안 그러면 줄 첫머리에 쉼표가 선다.
+        tail: index < pieces.length - 1 ? ',' : '',
       })),
     }
   }),

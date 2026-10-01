@@ -55,7 +55,7 @@ export async function detectCanonicalFormat(): Promise<CanonicalFormat> {
   // 등록부의 마지막(jpeg)까지 못 굽는 브라우저는 캔버스 인코딩 자체가 없는 것이다.
   // **무엇이 어떻게 거절했는지 함께 남긴다** — 이 문장만으로는 다음 사람이 브라우저를
   // 의심할지 우리 코드를 의심할지 고를 수 없다.
-  throw new Error(`no canonical format could be encoded: ${failures.join(' · ')}`)
+  throw new Error(`no canonical format could be encoded: ${failures.join('; ')}`)
 }
 
 /**

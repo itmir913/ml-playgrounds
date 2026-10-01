@@ -161,7 +161,7 @@ const shortHash: Describe = (value) => {
 
 const joined: Describe = (value) => {
   if (!Array.isArray(value) || value.length === 0) return { kind: 'absent' }
-  return { kind: 'literal', text: value.map(String).join(' · ') }
+  return { kind: 'literal', text: value.map(String).join(', ') }
 }
 
 export interface MemberDiff {

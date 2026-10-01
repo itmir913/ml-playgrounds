@@ -47,7 +47,7 @@ const { t } = useI18n()
     -->
     <p v-if="!props.empty && (props.missing > 0 || props.note)" class="shrink-0 text-ink-faint">
       <span v-if="props.missing > 0">{{ t('data.charts.missing', props.missing) }}</span>
-      <span v-if="props.missing > 0 && props.note"> · </span>
+      <span v-if="props.missing > 0 && props.note"> </span>
       <span v-if="props.note">{{ props.note }}</span>
     </p>
   </div>

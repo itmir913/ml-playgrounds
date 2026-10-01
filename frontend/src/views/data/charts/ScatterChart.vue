@@ -216,7 +216,7 @@ const note = computed(() => {
   if (layers.value.widened) parts.push(t('data.charts.scatter.widened'))
   const skipped = sample.value.skipped
   if (skipped > 0) parts.push(t('data.charts.scatter.skipped', skipped))
-  return parts.join(' · ')
+  return parts.join(' ')
 })
 </script>
 

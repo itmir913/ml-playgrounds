@@ -235,7 +235,7 @@ const options = computed(() => {
       </div>
       <p class="text-ink-faint">
         {{ t('results.boundary.rows', { count: boundary.points.length }) }}
-        <template v-if="layers.merged"> · {{ t('data.charts.scatter.merged') }}</template>
+        <template v-if="layers.merged"> {{ t('data.charts.scatter.merged') }}</template>
       </p>
     </template>
   </section>
