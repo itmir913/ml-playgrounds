@@ -148,15 +148,15 @@ const unused = computed(() => {
           무엇이 켜져 있는지 모르는 채로 사유만 보는 것이 더 나쁘다.
         -->
         <div class="mt-2 flex justify-between gap-4 border-t border-line pt-2">
-          <dt class="font-bold text-ink-soft">{{ t('preprocess.tabular.missing') }}</dt>
+          <dt class="font-bold text-ink-soft">{{ t('preprocess.tabular.summaryMissing') }}</dt>
           <dd>{{ t(`missingStrategy.${data.preprocessing.missing}`) }}</dd>
         </div>
         <div class="flex justify-between gap-4">
-          <dt class="font-bold text-ink-soft">{{ t('preprocess.tabular.scaling') }}</dt>
+          <dt class="font-bold text-ink-soft">{{ t('preprocess.tabular.summaryScaling') }}</dt>
           <dd>{{ t(`scalingMethod.${data.preprocessing.scaling}`) }}</dd>
         </div>
         <div class="flex justify-between gap-4">
-          <dt class="font-bold text-ink-soft">{{ t('preprocess.tabular.encoding') }}</dt>
+          <dt class="font-bold text-ink-soft">{{ t('preprocess.tabular.summaryEncoding') }}</dt>
           <dd>{{ t(`categoricalEncoding.${data.preprocessing.categoricalEncoding}`) }}</dd>
         </div>
 

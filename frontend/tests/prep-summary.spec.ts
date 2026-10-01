@@ -159,10 +159,10 @@ describe('전처리 요약', () => {
     const pairs = labelled(mountSummary(chosen({ missing: 'drop' }, CSV_WITH_BLANK)))
 
     expect(pairs).toMatchObject({
-      전체: '4행',
-      '쓸 수 있는 행': '3행',
-      '훈련 데이터': '2행',
-      '테스트 데이터': '1행',
+      '전체 데이터 행 개수': '4행',
+      '사용할 수 있는 데이터 행 개수': '3행',
+      '훈련 데이터 행 개수': '2행',
+      '테스트 데이터 행 개수': '1행',
     })
   })
 
