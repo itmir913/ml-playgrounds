@@ -992,7 +992,23 @@
     },
     "unknownChange": "알 수 없는 설정이 바뀌었습니다. ({path})",
     "whatChanged": "무엇이 바뀌었나",
-    "where": "학습한 곳"
+    "where": "학습한 곳",
+    "regression": {
+      "title": "실제 값과 예측 값",
+      "lead": "저장된 모델로 테스트 데이터를 다시 예측해 그렸습니다. 점 하나가 한 행이고, 왼쪽 그림에서는 대각선에, 오른쪽 그림에서는 0선에 가까울수록 잘 맞힌 것입니다.",
+      "actualVsPredicted": "실제 vs 예측",
+      "residualVsPredicted": "잔차(Residual) vs 예측",
+      "line": "특성과 모델의 선 ({feature})",
+      "axisPredicted": "예측한 값",
+      "axisActual": "실제 값",
+      "axisResidual": "잔차 (실제 − 예측)",
+      "diagonal": "예측 = 실제",
+      "zero": "잔차 = 0",
+      "curve": "모델의 예측",
+      "series": "테스트 데이터",
+      "rows": "테스트 데이터 {count}행으로 그렸습니다.",
+      "mismatch": "다시 예측한 값이 저장된 점수와 달라 그림을 그리지 않았습니다."
+    }
   },
   "predict": {
     "run": "예측하기",

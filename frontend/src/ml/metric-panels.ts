@@ -6,8 +6,9 @@
  * 그 사실을 아는 화면 전부가 되고, 그중 하나를 빠뜨린 것은 **컴파일도 검사도 못 잡고
  * 학생이 화면에서 알게 된다.**
  *
- * **패널이 0개인 조합이 정상이다.** 회귀가 그렇다 - 맞고 틀림이 아니라 얼마나
- * 벗어났느냐이고, 그건 위의 지표(ml/metrics.ts)가 이미 전부 말했다.
+ * **패널이 0개인 조합이 정상이다.** 모델이 안 담긴 실행이 그렇다. 회귀도 한때 그랬는데
+ * (*"얼마나 벗어났느냐는 지표가 이미 말했다"*), 그 숫자가 어떤 모양인지를 보이려고 실제 vs
+ * 예측 그림을 세웠다 (`open-decisions.md` "97. 학습한 회귀 모델을 그림으로 보일 것인가").
  *
  * **그때 화면은 아무 말도 안 한다** (§9.2 "없는 것을 이름으로 말하지 않는다").
  * `회귀에는 혼동 행렬이 없습니다`라고 적으려면 결과 화면이 혼동 행렬을 알아야 하고,
@@ -138,6 +139,21 @@ const PANELS: readonly MetricPanel[] = [
     // `run` 하나로는 못 보고, 그 사실은 패널이 열어 보고 안다 (§9.5).
     hasData: (run) => showsLossCurve(run.model?.format),
     panel: defineAsyncComponent(() => import('@/views/results/panels/LossCurvePanel.vue')),
+  },
+  {
+    /**
+     * **학습한 회귀 모델의 그림** (`open-decisions.md` "97. 학습한 회귀 모델을 그림으로 보일
+     * 것인가") — 테스트 데이터의 실제 vs 예측·잔차 vs 예측, 입력 열이 수치 하나면 회귀선.
+     *
+     * **표 데이터에서만이다.** 회귀는 표에만 있다(`ml/algorithms.ts`의 `dataTypes`).
+     * **모델이 있어야 그린다** — 저장된 모델로 다시 예측하기 때문이다. 정본·전처리기가 없거나
+     * 다시 잰 점수가 파일과 다르면 그것은 패널이 제 자리에서 안다(§9.5).
+     */
+    id: 'regression-fit',
+    dataTypes: { tabular: true, image: false },
+    taskTypes: { classification: false, regression: true, clustering: false },
+    hasData: (run) => run.model !== undefined && run.metrics?.['r2'] !== undefined,
+    panel: defineAsyncComponent(() => import('@/views/results/panels/RegressionFitPanel.vue')),
   },
   {
     id: 'cluster-result',

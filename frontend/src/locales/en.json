@@ -992,7 +992,23 @@
     },
     "unknownChange": "An unrecognised setting changed. ({path})",
     "whatChanged": "What changed",
-    "where": "Trained on"
+    "where": "Trained on",
+    "regression": {
+      "title": "Actual and predicted values",
+      "lead": "The saved model predicted the test data again to draw these. Each dot is one row. Dots closer to the diagonal on the left, and to the zero line on the right, were predicted better.",
+      "actualVsPredicted": "Actual vs predicted",
+      "residualVsPredicted": "Residual vs predicted",
+      "line": "Feature and the model line ({feature})",
+      "axisPredicted": "Predicted",
+      "axisActual": "Actual",
+      "axisResidual": "Residual (actual − predicted)",
+      "diagonal": "Predicted = actual",
+      "zero": "Residual = 0",
+      "curve": "Model prediction",
+      "series": "Test data",
+      "rows": "Drawn from {count} rows of test data.",
+      "mismatch": "The predicted values differ from the saved scores, so the charts are not drawn."
+    }
   },
   "predict": {
     "run": "Predict",

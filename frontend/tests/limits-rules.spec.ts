@@ -310,8 +310,12 @@ describe('상한은 전부 읽힌다', () => {
  */
 describe('산점도 묶음이 화면까지 이어진다', () => {
   const DRAWERS = [
-    { call: 'clusterChartData(', constant: 'CLUSTER_SCATTER_POINT_LIMIT' },
-    { call: 'scatterLayers(', constant: 'DATA_SCATTER_POINT_LIMIT' },
+    { call: 'clusterChartData(', constants: ['CLUSTER_SCATTER_POINT_LIMIT'] },
+    // 데이터 화면의 산점도와 결과 화면의 회귀 그림(결정 97)이 같은 함수를 부르되 묶음은 따로다.
+    {
+      call: 'scatterLayers(',
+      constants: ['DATA_SCATTER_POINT_LIMIT', 'REGRESSION_SCATTER_POINT_LIMIT'],
+    },
   ]
 
   // 정의한 파일은 부르는 쪽이 아니다 - 묶음을 인자로 받는 것이 그 함수의 계약이다.
@@ -339,9 +343,9 @@ describe('산점도 묶음이 화면까지 이어진다', () => {
   }
 
   it('묶음을 손으로 안 적고 상수를 넘긴다', () => {
-    const missing = DRAWERS.flatMap(({ call, constant }) =>
+    const missing = DRAWERS.flatMap(({ call, constants }) =>
       callersOf(call)
-        .filter((path) => !bodyOf(path).includes(constant))
+        .filter((path) => !constants.some((constant) => bodyOf(path).includes(constant)))
         .map((path) => path.slice(SRC.length + 1) + ' ' + call),
     )
     expect(missing, 'calls a scatter drawer without passing its constant').toEqual([])
