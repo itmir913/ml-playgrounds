@@ -183,7 +183,7 @@
     }
   },
   "data": {
-    "unsupportedKind": "This project uses a kind of data that cannot be handled yet.",
+    "unsupportedKind": "This project uses a kind of data that is not supported yet.",
     "unsupportedKindNext": "It may have been made with a newer version. Update the app and open it again.",
     "image": {
       "add": "Add photos",
@@ -227,7 +227,7 @@
       "columnName": "Column",
       "dropHint": "Drop a CSV or Excel file here, or use [Choose a file].",
       "droppedColumns": "Some chosen columns are not in the new data, so they were left out. Choose the target and features again in the preprocessing step. ({names})",
-      "droppedPredict": "The file to predict was deleted. Attach a file that matches the new data again in the prediction step. ({fileName})",
+      "droppedPredict": "The file to predict was deleted. Load a file that matches the new data again in the prediction step. ({fileName})",
       "droppedTest": "The separate test data was detached, so part of the training data is now used as test data. If you need separate test data, load a file that matches the new data again in the preprocessing step. ({fileName})",
       "emptyReason": "No data yet.",
       "encoding": "Text encoding",
@@ -242,7 +242,7 @@
       "previewTitle": "Data preview",
       "reading": "Reading…",
       "replaceConfirm": "Replace",
-      "replaceDescription": "The {count} experiment you have run so far will be deleted too. Experiments record the training and test data by row number, so if kept, they would point at the wrong rows of the new data. | The {count} experiments you have run so far will be deleted too. Experiments record the training and test data by row number, so if kept, they would point at the wrong rows of the new data.",
+      "replaceDescription": "The {count} experiment you have run so far will be deleted too, because once the data changes, its score can no longer be checked against the new data. | The {count} experiments you have run so far will be deleted too, because once the data changes, their scores can no longer be checked against the new data.",
       "replaceDropsPredict": "The file to predict is deleted as well. ({fileName})",
       "replaceDropsTest": "The separate test data is detached, and part of the training data is used as test data. ({fileName})",
       "replaceTitle": "Replacing the data also deletes or detaches what depends on it",
