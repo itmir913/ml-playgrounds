@@ -170,7 +170,7 @@ describe('못 그리는 도구는 이유와 함께 잠긴다', () => {
   it('수치 열에서 막대그래프가 잠긴다', () => {
     const bar = toolButton(open('키'), '막대그래프')
     expect(bar?.attributes('aria-disabled')).toBe('true')
-    expect(bar?.attributes('title')).toBe('범주 열에서만 표시할 수 있습니다.')
+    expect(bar?.attributes('title')).toBe('범주형 열에서만 표시할 수 있습니다.')
   })
 
   it('범주 열에서 히스토그램과 박스 플롯이 잠긴다', () => {
@@ -211,7 +211,7 @@ describe('못 그리는 도구는 이유와 함께 잠긴다', () => {
 
     await toolButton(wrapper, '막대그래프')?.trigger('click')
     const line = wrapper.find('[role="status"]')
-    expect(line.text()).toBe('범주 열에서만 표시할 수 있습니다.')
+    expect(line.text()).toBe('범주형 열에서만 표시할 수 있습니다.')
     const chosen = toolButtons(wrapper).find((button) => button.classes().includes('text-brand'))
     expect(chosen?.text(), 'the blocked tool is not drawn').toContain('히스토그램')
 
@@ -231,7 +231,7 @@ describe('못 그리는 도구는 이유와 함께 잠긴다', () => {
     dialog.pickTool('bar')
     await flushPromises()
     expect(dialog.chosenToolId, 'the locked tool became the chosen one').toBe('')
-    expect(wrapper.find('[role="status"]').text()).toBe('범주 열에서만 표시할 수 있습니다.')
+    expect(wrapper.find('[role="status"]').text()).toBe('범주형 열에서만 표시할 수 있습니다.')
   })
 
   /**

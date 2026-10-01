@@ -200,7 +200,7 @@ describe('TabularPanel — 진짜 입구', () => {
     expect(useProjectStore().file?.document.settings.split.method).toBe('provided')
     const text = wrapper.text()
     expect(text).toContain(
-      '별도 테스트 데이터가 해제되고, 훈련 데이터의 일부를 테스트 데이터로 사용합니다. (test.csv)',
+      '별도 테스트 데이터가 해제되고, 사용 가능한 데이터의 일부를 테스트 데이터로 사용합니다. (test.csv)',
     )
     expect(text).toContain('예측할 파일이 함께 삭제됩니다. (predict.csv)')
     // 실험이 0개면 그 문장은 서지 않는다.
