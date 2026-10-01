@@ -287,10 +287,11 @@ function bars(model: PredictableModel): ProbabilityBar[] {
       **기준은 카드 하나가 280px 아래로 안 내려가는 것이다.** 카드가 담는 것은 두 줄로
       접히는 모델 이름과 답, 그리고 범주별 확률 막대다. 문턱은 그 값에서 나온다 —
       간격 16px을 빼고 나누면 36rem에서 280px, 56rem에서 288px, 72rem에서 276px이다.
+
+      **한 줄의 카드는 높이를 맞춘다** (그리드 기본값 `stretch`, 사용자). 확률 막대가 없는 카드가 옆 카드보다
+      짧게 끊기면 줄이 들쭉날쭉하다. 내용은 위에서부터 놓인다 — 가운데로 모으지 않는다.
     -->
-    <ul
-      class="grid grid-cols-1 items-start gap-4 @xl:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4"
-    >
+    <ul class="grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4">
       <li
         v-for="{ model, evidence } in cards"
         :key="model.run.id"
