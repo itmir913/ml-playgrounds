@@ -9,6 +9,8 @@
  * 길). 다시 센 혼동 행렬이 파일의 것과 **칸 하나라도 다르면 행을 내지 않는다** — 다른 행을 그 칸의
  * 행이라고 말하게 된다. 무는 검사: `tests/confusion-rows.spec.ts`.
  *
+ * **나눠 예측하고 그 사이마다 화면에 양보한다** (`predict-in-steps.ts`). 부르는 쪽은 단추의 `action`이다.
+ *
  * **표 데이터만이다.** 사진 분류의 칸은 사진으로 보여야 하고 임베딩을 꺼내는 길이 따로다 — 결정문의
  * "넣지 않은 것".
  */
@@ -18,6 +20,7 @@ import { dataSnapshot } from '@/project/schema'
 
 import { evaluate } from './metrics'
 import { loadModel } from './models'
+import { predictInSteps, StepsCancelled, type StepControl } from './predict-in-steps'
 import { trainingRowsFor } from './predict'
 import { transform, targetValues, type Dataset, type Preprocessor } from './preprocess'
 
@@ -26,6 +29,11 @@ export interface ConfusionRows {
   readonly source: Dataset
   /** `cells[실제][예측]` = 그 칸의 테스트 행 번호들(`source` 안의). 파일의 행렬과 같은 차례다. */
   readonly cells: readonly (readonly (readonly number[])[])[]
+  /**
+   * 표에 세울 열 — **그 실험의 특성 열(전처리기 차례)과 타깃 열뿐이다** (98-1). 정본에는 그 실험이 안 쓴
+   * 열도 있다(98의 감사 뒤).
+   */
+  readonly columns: readonly string[]
 }
 
 export type ConfusionRowsResult =
@@ -47,7 +55,10 @@ export interface ConfusionRowsInput {
  * 칸마다의 행. **재료가 하나라도 없으면 `null`** — 모델이 안 담긴 파일, 데이터를 뺀 파일, 사진
  * 프로젝트다. 그때 화면은 칸을 눌러도 행 목록을 안 연다(사유는 다른 자리가 말한다).
  */
-export function confusionRowsFor(input: ConfusionRowsInput): ConfusionRowsResult | null {
+export async function confusionRowsFor(
+  input: ConfusionRowsInput,
+  control: StepControl = {},
+): Promise<ConfusionRowsResult | null> {
   const { run, experiment, dataset, testDataset, preprocessor, modelBytes } = input
   const stored = run.confusionMatrix
   if (!stored || !modelBytes || !dataset || !preprocessor) return null
@@ -74,8 +85,14 @@ export function confusionRowsFor(input: ConfusionRowsInput): ConfusionRowsResult
     const predict = loadModel(JSON.parse(new TextDecoder().decode(modelBytes)), {
       trainingRows: trainingRowsFor(experiment, preprocessor, dataset),
     })
-    guesses = predict(transform(preprocessor, source, rows, encoding))
-  } catch {
+    // 나눠 예측한다 — KNN은 한 행이 훈련 행 수만큼의 거리 계산이다(`predict-in-steps.ts`).
+    guesses = await predictInSteps(
+      predict,
+      transform(preprocessor, source, rows, encoding),
+      control,
+    )
+  } catch (error) {
+    if (error instanceof StepsCancelled) throw error
     return null
   }
 
@@ -96,7 +113,8 @@ export function confusionRowsFor(input: ConfusionRowsInput): ConfusionRowsResult
     if (actual === undefined || predicted === undefined) return
     cells[actual]?.[predicted]?.push(row)
   })
-  return { kind: 'rows', rows: { source, cells } }
+  const columns = [...preprocessor.columns.map((column) => column.name), target]
+  return { kind: 'rows', rows: { source, cells, columns } }
 }
 
 function sameMatrix(a: ConfusionMatrix, b: ConfusionMatrix): boolean {

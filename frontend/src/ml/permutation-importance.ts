@@ -16,6 +16,7 @@ import { dataSnapshot, type Experiment, type Run } from '@/project/schema'
 
 import { evaluate } from './metrics'
 import { loadModel } from './models'
+import { predictInSteps, StepsCancelled, type StepControl } from './predict-in-steps'
 import { trainingRowsFor } from './predict'
 import { transform, targetValues, type Dataset, type Preprocessor } from './preprocess'
 import { labelSeed, shuffled } from './shuffle'
@@ -56,13 +57,18 @@ export interface PermutationImportanceInput {
 /** 기준 점수를 견주는 허용오차. 같은 해석기의 같은 연산이라 정확히 같아야 한다(97과 같다). */
 const SCORE_TOLERANCE = 1e-9
 
-/**
- * 중요도. **재료가 하나라도 없거나 분류·회귀가 아니면 `null`** — 모델이 안 담긴 파일, 데이터를 뺀 파일,
- * 사진 프로젝트다. 그때 패널은 자리 자체가 없다.
- */
-export function permutationImportanceFor(
-  input: PermutationImportanceInput,
-): PermutationImportanceResult | null {
+/** 재료와 그 실험에서 읽은 것. 예측하지 않으므로 화면을 열 때 바로 부른다. */
+interface Material {
+  readonly taskType: 'classification' | 'regression'
+  readonly metric: 'accuracy' | 'r2'
+  readonly stored: number
+  readonly target: string
+  readonly source: Dataset
+  readonly rows: readonly number[]
+  readonly encoding: Parameters<typeof transform>[3]
+}
+
+function materialOf(input: PermutationImportanceInput): Material | null {
   const { run, experiment, dataset, testDataset, preprocessor, modelBytes } = input
   if (!modelBytes || !dataset || !preprocessor) return null
   const { settings } = experiment
@@ -85,6 +91,38 @@ export function permutationImportanceFor(
   const rows = settings.testIndices
   if (rows.length === 0) return null
   const encoding = snapshot.preprocessing.categoricalEncoding
+  return { taskType, metric, stored, target, source, rows, encoding }
+}
+
+/**
+ * 이 실행에 중요도의 자리가 있는가. **재료가 하나라도 없거나 분류·회귀가 아니면 없다** — 모델이 안 담긴
+ * 파일, 데이터를 뺀 파일, 사진 프로젝트다. 그때 패널은 자리 자체가 없다.
+ */
+export function permutationImportanceAvailable(input: PermutationImportanceInput): boolean {
+  return materialOf(input) !== null
+}
+
+/** 측정 횟수 — 기준 점수 한 번과 열마다 `PERMUTATION_REPEATS`번. 화면이 진행을 말할 때 쓴다. */
+export function permutationSteps(input: PermutationImportanceInput): number {
+  return 1 + (input.preprocessor?.columns.length ?? 0) * PERMUTATION_REPEATS
+}
+
+/**
+ * 중요도. **자리가 없거나(`permutationImportanceAvailable`) 모델을 못 읽으면 `null`.**
+ *
+ * **측정마다 나눠 예측하고 화면에 양보한다** (`predict-in-steps.ts`). 열 수 × 5번 테스트 데이터를 다시
+ * 예측하므로, 한 번에 돌리면 KNN 1만 행·열 10개에서 화면이 약 90초 멈췄다(99의 감사 뒤).
+ * `onStep`은 측정 하나가 끝날 때마다 끝난 수를 받는다(전체는 `permutationSteps`).
+ */
+export async function permutationImportanceFor(
+  input: PermutationImportanceInput,
+  control: StepControl & { readonly onStep?: ((done: number) => void) | undefined } = {},
+): Promise<PermutationImportanceResult | null> {
+  const material = materialOf(input)
+  const { experiment, dataset, preprocessor, modelBytes } = input
+  if (!material || !modelBytes || !dataset || !preprocessor) return null
+  const { taskType, metric, stored, target, source, rows, encoding } = material
+  const { settings } = experiment
 
   let predict: ReturnType<typeof loadModel>
   try {
@@ -102,22 +140,32 @@ export function permutationImportanceFor(
     rows: rows.map((row) => source.rows[row] ?? []),
   }
   const all = table.rows.map((_row, index) => index)
-  const scoreOf = (candidate: Dataset): number =>
-    evaluate(taskType, truth, predict(transform(preprocessor, candidate, all, encoding))).metrics[
-      metric
-    ] ?? Number.NaN
+  let done = 0
+  const scoreOf = async (candidate: Dataset): Promise<number> => {
+    const guesses = await predictInSteps(
+      predict,
+      transform(preprocessor, candidate, all, encoding),
+      control,
+    )
+    done += 1
+    control.onStep?.(done)
+    return evaluate(taskType, truth, guesses).metrics[metric] ?? Number.NaN
+  }
 
   let baseline: number
   try {
-    baseline = scoreOf(table)
-  } catch {
+    baseline = await scoreOf(table)
+  } catch (error) {
+    if (error instanceof StepsCancelled) throw error
     return { kind: 'mismatch' }
   }
   if (!(Math.abs(baseline - stored) <= SCORE_TOLERANCE)) return { kind: 'mismatch' }
 
-  const weights = preprocessor.columns.map((column): FeatureWeight => {
+  const weights: FeatureWeight[] = []
+  for (const column of preprocessor.columns) {
     const at = table.columns.indexOf(column.name)
-    const drops = Array.from({ length: PERMUTATION_REPEATS }, (_value, repeat) => {
+    const drops: number[] = []
+    for (let repeat = 0; repeat < PERMUTATION_REPEATS; repeat += 1) {
       // 열과 반복마다 씨앗을 가른다 — 같은 순열이 두 열에 걸리면 두 열의 상관이 그대로 남는다.
       const order = shuffled(all, labelSeed(settings.split.randomState, `${column.name}#${repeat}`))
       const permuted: Dataset = {
@@ -128,15 +176,24 @@ export function permutationImportanceFor(
           return copy
         }),
       }
-      return baseline - scoreOf(permuted)
-    })
-    const mean = drops.reduce((sum, drop) => sum + drop, 0) / drops.length
-    const variance = drops.reduce((sum, drop) => sum + (drop - mean) ** 2, 0) / drops.length
-    return { feature: column.name, mean, std: Math.sqrt(variance) }
-  })
+      drops.push(baseline - (await scoreOf(permuted)))
+    }
+    weights.push({ feature: column.name, ...meanAndStd(drops) })
+  }
 
   return {
     kind: 'importance',
     importance: { metric, baseline, weights: [...weights].sort((a, b) => b.mean - a.mean) },
   }
+}
+
+/**
+ * 평균과 **모표준편차** — numpy `std`의 기본값(`ddof=0`)이고 sklearn이 쓰는 것이다. 무는 검사:
+ * `tests/permutation-importance.spec.ts`의 "평균과 모표준편차".
+ */
+export function meanAndStd(values: readonly number[]): { mean: number; std: number } {
+  if (values.length === 0) return { mean: Number.NaN, std: Number.NaN }
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length
+  return { mean, std: Math.sqrt(variance) }
 }

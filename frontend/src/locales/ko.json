@@ -995,7 +995,7 @@
     "where": "학습한 곳",
     "regression": {
       "title": "실제 값과 예측 값",
-      "lead": "저장된 모델로 테스트 데이터를 다시 예측해 그렸습니다. 점 하나가 한 행이고, 왼쪽 그림에서는 대각선에, 오른쪽 그림에서는 0선에 가까울수록 잘 맞힌 것입니다.",
+      "lead": "저장된 모델로 테스트 데이터를 다시 예측해 그렸습니다. 실제 vs 예측 그림에서는 대각선에, 잔차 vs 예측 그림에서는 0선에 가까울수록 잘 맞힌 것입니다.",
       "actualVsPredicted": "실제 vs 예측",
       "residualVsPredicted": "잔차(Residual) vs 예측",
       "line": "특성과 모델의 선 ({feature})",
@@ -1013,6 +1013,13 @@
     "cellRowsTitle": "이 칸에 든 테스트 데이터",
     "cellRowsCount": "전체 {total}행 중 {shown}행입니다.",
     "cellRowsMismatch": "다시 예측한 결과가 저장된 혼동 행렬과 달라 이 칸의 행을 보일 수 없습니다.",
+    "cellRowNumber": "번호",
+    "replay": {
+      "start": "계산하기",
+      "computing": "계산하는 중…",
+      "measuring": "측정하는 중… ({done}/{total})",
+      "failed": "저장된 모델로 테스트 데이터를 다시 예측하지 못했습니다."
+    },
     "boundary": {
       "title": "결정 경계",
       "lead": "두 특성이 이루는 평면의 자리마다 모델이 예측할 범주를 옅은 색으로 칠했습니다. 점은 테스트 데이터의 실제 범주입니다. 점의 색과 바탕색이 다르면 모델이 틀린 것입니다.",

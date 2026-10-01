@@ -21,13 +21,15 @@ import {
   Tooltip,
   type Plugin,
 } from 'chart.js'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Scatter } from 'vue-chartjs'
 import { useI18n } from 'vue-i18n'
 
+import AppButton from '@/components/AppButton.vue'
 import { useChartTokens } from '@/composables/useChartTokens'
 import { useElementSize } from '@/composables/useElementSize'
 import { useFormat } from '@/composables/useFormat'
+import { useStepWork } from '@/composables/useStepWork'
 import {
   colorsAreDistinct,
   scatterLayers,
@@ -36,7 +38,7 @@ import {
 } from '@/data/chart-config'
 import type { AxisCell } from '@/data/category-axis'
 import { RESULT_SCATTER_POINT_LIMIT } from '@/limits'
-import { decisionBoundaryFor } from '@/ml/decision-boundary'
+import { decisionBoundaryAvailable, decisionBoundaryFor } from '@/ml/decision-boundary'
 import type { PanelInput } from '@/ml/metric-panels'
 import { readTestDataset } from '@/project/dataset'
 
@@ -48,16 +50,24 @@ const { t } = useI18n()
 const format = useFormat()
 const paint = useChartTokens()
 
-const result = computed(() =>
-  decisionBoundaryFor({
-    run: props.input.run,
-    experiment: props.input.experiment,
-    dataset: props.input.dataset,
-    testDataset: readTestDataset(props.input.file),
-    preprocessor: props.input.preprocessor,
-    modelBytes: props.input.modelBytes,
-  }),
-)
+const material = computed(() => ({
+  run: props.input.run,
+  experiment: props.input.experiment,
+  dataset: props.input.dataset,
+  testDataset: readTestDataset(props.input.file),
+  preprocessor: props.input.preprocessor,
+  modelBytes: props.input.modelBytes,
+}))
+const available = computed(() => decisionBoundaryAvailable(material.value))
+
+/**
+ * **[계산]을 눌러야 계산한다** (69의 감사 뒤) — 격자 1만 점을 다시 예측하므로 KNN 큰 데이터에서 화면을 여는
+ * 순간 멈췄다. 나눠 예측하며 화면에 양보한다(`composables/useStepWork.ts`).
+ */
+const work = useStepWork((control) => decisionBoundaryFor(material.value, control))
+// 보이는 실행이 바뀌면 그 전 실행의 그림을 버린다.
+watch(material, work.reset)
+const result = work.result
 const boundary = computed(() => (result.value?.kind === 'boundary' ? result.value.boundary : null))
 
 const areaEl = ref<HTMLElement | null>(null)
@@ -196,15 +206,24 @@ const options = computed(() => {
 </script>
 
 <template>
-  <section v-if="result" class="flex min-w-0 flex-col gap-1.5">
+  <section v-if="available" class="flex min-w-0 flex-col gap-1.5">
     <h4 class="font-bold">{{ t('results.boundary.title') }}</h4>
+    <p class="text-ink-soft">{{ t('results.boundary.lead') }}</p>
 
-    <p v-if="result.kind === 'mismatch'" class="text-ink-soft">
+    <div v-if="result === undefined">
+      <AppButton variant="secondary" :action="work.start">
+        {{ t('results.replay.start') }}
+        <template #pending>{{ t('results.replay.computing') }}</template>
+      </AppButton>
+    </div>
+
+    <p v-else-if="result === null" class="text-ink-soft">{{ t('results.replay.failed') }}</p>
+
+    <p v-else-if="result.kind === 'mismatch'" class="text-ink-soft">
       {{ t('results.boundary.mismatch') }}
     </p>
 
     <template v-else-if="boundary && layers">
-      <p class="text-ink-soft">{{ t('results.boundary.lead') }}</p>
       <!-- **크기가 선 뒤에 그린다** — 0×0으로 거르면 모든 점이 한 칸에 모인다. -->
       <div ref="areaEl" class="h-96 min-w-0">
         <Scatter

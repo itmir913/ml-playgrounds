@@ -11,9 +11,13 @@ import { describe, expect, it } from 'vitest'
 
 import { runExperiment, type ExperimentInput } from '../src/ml/experiment'
 import {
+  meanAndStd,
+  permutationImportanceAvailable,
   permutationImportanceFor,
+  permutationSteps,
   type PermutationImportanceInput,
 } from '../src/ml/permutation-importance'
+import { StepsCancelled } from '../src/ml/predict-in-steps'
 import type { Dataset } from '../src/ml/preprocess'
 import { dataSnapshot, type Settings, type TabularSettings } from '../src/project/schema'
 import { IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN, irisDataset } from './fixtures/iris'
@@ -101,7 +105,7 @@ describe('순열 특성 중요도', () => {
         FEATURES,
         IRIS_TARGET_COLUMN,
       )
-      const result = permutationImportanceFor(input)
+      const result = await permutationImportanceFor(input)
       expect(result?.kind).toBe('importance')
       if (result?.kind !== 'importance') return
       const { importance } = result
@@ -131,7 +135,7 @@ describe('순열 특성 중요도', () => {
       ['sepal_length', 'sepal_width', 'petal_width'],
       'petal_length',
     )
-    const result = permutationImportanceFor(input)
+    const result = await permutationImportanceFor(input)
     if (result?.kind !== 'importance') throw new Error('expected importance')
     expect(result.importance.metric).toBe('r2')
     expect(result.importance.baseline).toBe(input.run.metrics?.['r2'])
@@ -146,7 +150,7 @@ describe('순열 특성 중요도', () => {
       FEATURES,
       IRIS_TARGET_COLUMN,
     )
-    expect(permutationImportanceFor(input)).toEqual(permutationImportanceFor(input))
+    expect(await permutationImportanceFor(input)).toEqual(await permutationImportanceFor(input))
   })
 
   it('파일의 점수와 다르면 그리지 않고 다르다고 말한다', async () => {
@@ -161,9 +165,39 @@ describe('순열 특성 중요도', () => {
       ...input.run.metrics,
       accuracy: (input.run.metrics?.['accuracy'] ?? 0) - 0.01,
     }
-    expect(permutationImportanceFor({ ...input, run: { ...input.run, metrics } })).toEqual({
+    expect(await permutationImportanceFor({ ...input, run: { ...input.run, metrics } })).toEqual({
       kind: 'mismatch',
     })
+  })
+
+  /**
+   * **sklearn과 같은 통계다** — numpy `std`의 기본값(모표준편차, `ddof=0`). 표본 표준편차(`ddof=1`)면
+   * [1, 2, 3, 4]에서 1.29다(감사 D-10: 전에는 0 이상인지만 봤다).
+   */
+  it('평균과 모표준편차', () => {
+    const { mean, std } = meanAndStd([1, 2, 3, 4])
+    expect(mean).toBe(2.5)
+    expect(std).toBeCloseTo(Math.sqrt(1.25), 12)
+  })
+
+  /** 단추가 진행을 말한다 — 측정 하나마다 한 번, 전부 `permutationSteps`번이다. */
+  it('측정마다 진행을 알리고, 멈추라면 멈춘다', async () => {
+    const input = await trained(
+      'decision_tree',
+      'classification',
+      irisWithNoise(),
+      FEATURES,
+      IRIS_TARGET_COLUMN,
+    )
+    const seen: number[] = []
+    await permutationImportanceFor(input, { onStep: (done) => seen.push(done) })
+    const total = permutationSteps(input)
+    expect(total).toBe(1 + FEATURES.length * 5)
+    expect(seen).toEqual(Array.from({ length: total }, (_value, index) => index + 1))
+
+    await expect(permutationImportanceFor(input, { cancelled: () => true })).rejects.toBeInstanceOf(
+      StepsCancelled,
+    )
   })
 
   it('재료가 없으면 자리가 없다', async () => {
@@ -174,8 +208,10 @@ describe('순열 특성 중요도', () => {
       FEATURES,
       IRIS_TARGET_COLUMN,
     )
-    expect(permutationImportanceFor({ ...input, modelBytes: undefined })).toBeNull()
-    expect(permutationImportanceFor({ ...input, dataset: null })).toBeNull()
-    expect(permutationImportanceFor({ ...input, preprocessor: null })).toBeNull()
+    expect(permutationImportanceAvailable(input)).toBe(true)
+    expect(permutationImportanceAvailable({ ...input, modelBytes: undefined })).toBe(false)
+    expect(await permutationImportanceFor({ ...input, modelBytes: undefined })).toBeNull()
+    expect(await permutationImportanceFor({ ...input, dataset: null })).toBeNull()
+    expect(await permutationImportanceFor({ ...input, preprocessor: null })).toBeNull()
   })
 })

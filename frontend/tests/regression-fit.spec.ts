@@ -118,6 +118,15 @@ describe('저장된 모델로 다시 예측한다', () => {
     expect(regressionFitFor({ ...input, preprocessor: null })).toBeNull()
     expect(regressionFitFor({ ...input, modelBytes: new TextEncoder().encode('{') })).toBeNull()
   })
+
+  /** **열이 어긋난 표에서 던지지 않는다** — 던지면 결과 화면의 패널이 통째로 깨진다(감사 D-11). */
+  it('표에 입력 열이 없으면 던지지 않고 그리지 않는다', async () => {
+    const input = await trained(['키'])
+    const dataset = input.dataset
+    if (!dataset) throw new Error('expected dataset')
+    const broken = { ...dataset, columns: dataset.columns.map((name) => `${name}_`) }
+    expect(regressionFitFor({ ...input, dataset: broken })).toBeNull()
+  })
 })
 
 describe('회귀선', () => {

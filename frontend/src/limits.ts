@@ -1207,6 +1207,28 @@ export const DECISION_BOUNDARY_MARGIN = 1
 export const PERMUTATION_REPEATS = 5
 
 /**
+ * 결과 화면의 패널이 저장된 모델로 다시 예측할 때 **한 번에 예측하는 행 수** — 그 사이마다 화면에
+ * 양보한다(`screen.ts`의 `yieldToScreen`, `ml/predict-in-steps.ts`).
+ *
+ * **결과와 무관하고 속도만 가른다.** KNN은 예측 한 행이 훈련 행 수만큼의 거리 계산이라, 1만 행을 한
+ * 번에 예측하면 화면이 초 단위로 멈췄다(0.30.13 이후 diff 감사 B-2·B-3). 이만큼씩이면 훈련 1만 행의
+ * KNN에서도 한 조각이 0.1초 남짓이다(`MLJS_KNN_BASELINE_MS`의 머리말로 셈). 다른 모델은 조각이 늘
+ * 뿐 차이가 안 보인다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const RESULT_PREDICT_CHUNK_ROWS = 500
+
+/**
+ * 회귀 그림에서 **모델의 선을 그리는 점의 수** (`open-decisions.md` "97. 학습한 회귀 모델을 그림으로
+ * 보일 것인가"). 화면의 폭에 견주면 이보다 촘촘할 이유가 없고, 신경망의 곡선도 이 정도면 꺾임이 안
+ * 보인다. 가로 범위를 고르게 나눈다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const REGRESSION_LINE_STEPS = 100
+
+/**
  * 예측 화면에서 답 옆에 보이는 이웃 줄 수 (open-decisions.md #28-6).
  *
  * **위 `CLUSTER_MEMBER_PAGE_SIZE`와 값을 공유하지 않는다.** 답하는 질문이 다르다 —

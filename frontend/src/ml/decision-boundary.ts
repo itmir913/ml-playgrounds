@@ -17,18 +17,22 @@ import { dataSnapshot } from '@/project/schema'
 
 import { confusionRowsFor, type ConfusionRowsInput } from './confusion-rows'
 import { loadModel } from './models'
+import { predictInSteps, StepsCancelled, type StepControl } from './predict-in-steps'
 import { trainingRowsFor } from './predict'
 import { transform, targetValues, type Dataset } from './preprocess'
 
 export interface DecisionBoundary {
   /** 가로·세로 축의 열 이름. 전처리기의 열 차례다. */
   readonly features: readonly [string, string]
-  /** 범주 이름. **혼동 행렬과 같은 차례** — 색이 그 차례를 따른다. */
+  /**
+   * 범주 이름. **혼동 행렬과 같은 차례이고, 격자에서만 나온 범주가 뒤에 붙는다** — 색이 그 차례를
+   * 따른다.
+   */
   readonly labels: readonly string[]
   /** 격자의 가로·세로 좌표(원래 단위, 오름차순). */
   readonly xs: readonly number[]
   readonly ys: readonly number[]
-  /** `classes[j * xs.length + i]` = 칸 (xs[i], ys[j])에서 모델이 고른 범주의 자리. 모르는 범주는 -1. */
+  /** `classes[j * xs.length + i]` = 칸 (xs[i], ys[j])에서 모델이 고른 범주의 자리(`labels`의). */
   readonly classes: Int32Array
   /** 테스트 데이터. `label`은 실제 범주의 자리다. */
   readonly points: readonly {
@@ -45,23 +49,45 @@ export type DecisionBoundaryResult =
   | { readonly kind: 'mismatch' }
 
 /**
- * 결정 경계. **입력 열이 수치 둘이 아니거나 재료가 없으면 `null`** — 그때 패널은 자리 자체가 없다.
+ * 이 실행에 결정 경계의 자리가 있는가. **입력 열이 수치 정확히 둘이고 재료가 다 있을 때만이다** — 아니면
+ * 패널은 자리 자체가 없다. 예측하지 않으므로 화면을 열 때 바로 부른다(계산은 단추를 눌러야 한다).
  */
-export function decisionBoundaryFor(input: ConfusionRowsInput): DecisionBoundaryResult | null {
+export function decisionBoundaryAvailable(input: ConfusionRowsInput): boolean {
+  const { run, dataset, preprocessor, modelBytes } = input
+  if (!run.confusionMatrix || !modelBytes || !dataset || !preprocessor) return false
+  const [first, second] = preprocessor.columns
+  if (preprocessor.columns.length !== 2 || !first || !second) return false
+  return first.kind === 'numeric' && second.kind === 'numeric'
+}
+
+/**
+ * 결정 경계. **자리가 없거나(`decisionBoundaryAvailable`) 다시 예측하지 못하면 `null`.**
+ *
+ * **나눠 예측하고 그 사이마다 화면에 양보한다** (`predict-in-steps.ts`) — 격자가 1만 점이고, KNN은 한 점이
+ * 훈련 행 수만큼의 거리 계산이다.
+ */
+export async function decisionBoundaryFor(
+  input: ConfusionRowsInput,
+  control: StepControl = {},
+): Promise<DecisionBoundaryResult | null> {
+  if (!decisionBoundaryAvailable(input)) return null
   const { run, experiment, dataset, preprocessor, modelBytes } = input
   const stored = run.confusionMatrix
-  if (!stored || !modelBytes || !dataset || !preprocessor) return null
-  const [first, second] = preprocessor.columns
-  if (preprocessor.columns.length !== 2 || !first || !second) return null
-  if (first.kind !== 'numeric' || second.kind !== 'numeric') return null
+  const [first, second] = preprocessor?.columns ?? []
+  if (!stored || !modelBytes || !dataset || !preprocessor || !first || !second) return null
 
-  const check = confusionRowsFor(input)
+  const check = await confusionRowsFor(input, control)
   if (check === null) return null
   if (check.kind === 'mismatch') return { kind: 'mismatch' }
   const source = check.rows.source
 
   const { settings } = experiment
-  const snapshot = dataSnapshot('tabular', settings)
+  let snapshot: ReturnType<typeof dataSnapshot<'tabular'>>
+  try {
+    snapshot = dataSnapshot('tabular', settings)
+  } catch {
+    return null
+  }
   const target = snapshot.target
   if (target === undefined || target === '') return null
   const encoding = snapshot.preprocessing.categoricalEncoding
@@ -93,19 +119,38 @@ export function decisionBoundaryFor(input: ConfusionRowsInput): DecisionBoundary
     columns: [first.name, second.name],
     rows: ys.flatMap((y) => xs.map((x) => [String(x), String(y)])),
   }
-  const predict = loadModel(JSON.parse(new TextDecoder().decode(modelBytes)), {
-    trainingRows: trainingRowsFor(experiment, preprocessor, dataset),
-  })
-  const guesses = predict(
-    transform(
+  let guesses: Awaited<ReturnType<typeof predictInSteps>>
+  try {
+    const predict = loadModel(JSON.parse(new TextDecoder().decode(modelBytes)), {
+      trainingRows: trainingRowsFor(experiment, preprocessor, dataset),
+    })
+    const encoded = transform(
       preprocessor,
       table,
       table.rows.map((_row, index) => index),
       encoding,
-    ),
-  )
-  const position = new Map(stored.labels.map((label, index) => [label, index]))
-  const classes = Int32Array.from(guesses, (guess) => position.get(String(guess)) ?? -1)
+    )
+    guesses = await predictInSteps(predict, encoded, control)
+  } catch (error) {
+    if (error instanceof StepsCancelled) throw error
+    return null
+  }
+  /**
+   * **격자에서 처음 나온 범주는 뒤에 더한다** (69의 감사 뒤). 혼동 행렬의 범주는 테스트 데이터의 실제·예측뿐이라,
+   * 훈련에만 있던 범주를 모델이 고른 자리는 찾을 데가 없어 칠해지지 않았다. sklearn은 그 자리도 칠한다.
+   */
+  const labels = [...stored.labels]
+  const position = new Map(labels.map((label, index) => [label, index]))
+  const classes = Int32Array.from(guesses, (guess) => {
+    const name = String(guess)
+    let at = position.get(name)
+    if (at === undefined) {
+      at = labels.length
+      labels.push(name)
+      position.set(name, at)
+    }
+    return at
+  })
 
   const truth = targetValues(source, settings.testIndices, target)
   const tested = valuesOf(source, settings.testIndices)
@@ -121,7 +166,7 @@ export function decisionBoundaryFor(input: ConfusionRowsInput): DecisionBoundary
     kind: 'boundary',
     boundary: {
       features: [first.name, second.name],
-      labels: stored.labels,
+      labels,
       xs,
       ys,
       classes,

@@ -6,13 +6,14 @@
  * `taskType === 'classification'`이 생기지 않는다 (architecture.md §9.1).
  */
 
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
 import AppPopover from '@/components/AppPopover.vue'
 import AppTable from '@/components/AppTable.vue'
+import { useStepWork } from '@/composables/useStepWork'
 import { CONFUSION_ROW_PAGE_SIZE } from '@/limits'
 import { lockFor, turnPage } from '@/locks'
 import { confusionRowsFor } from '@/ml/confusion-rows'
@@ -32,18 +33,26 @@ const { t } = useI18n()
 const opened = ref<{ actual: number; predicted: number } | null>(null)
 const page = ref(0)
 
-const rowsResult = computed(() =>
-  opened.value === null
-    ? null
-    : confusionRowsFor({
-        run: props.input.run,
-        experiment: props.input.experiment,
-        dataset: props.input.dataset,
-        testDataset: readTestDataset(props.input.file),
-        preprocessor: props.input.preprocessor,
-        modelBytes: props.input.modelBytes,
-      }),
-)
+const material = computed(() => ({
+  run: props.input.run,
+  experiment: props.input.experiment,
+  dataset: props.input.dataset,
+  testDataset: readTestDataset(props.input.file),
+  preprocessor: props.input.preprocessor,
+  modelBytes: props.input.modelBytes,
+}))
+
+/**
+ * **한 번 센 결과를 칸을 바꿔도 다시 쓴다** — 칸마다 다시 예측하지 않는다. 나눠 예측하며 화면에 양보하므로
+ * 단추의 `action`이 부른다(98의 감사 뒤, `composables/useStepWork.ts`).
+ */
+const work = useStepWork((control) => confusionRowsFor(material.value, control))
+const rowsResult = work.result
+// 보이는 실행이 바뀌면 그 전 실행의 행을 버린다.
+watch(material, () => {
+  work.reset()
+  opened.value = null
+})
 
 /**
  * 행을 열 수 있는가. **모델·정본·전처리기가 있는 표 프로젝트**에서만이다. 사진 프로젝트에는
@@ -56,7 +65,8 @@ const canOpen = computed(
     props.input.preprocessor !== null,
 )
 
-function openCell(actual: number, predicted: number): void {
+async function openCell(actual: number, predicted: number): Promise<void> {
+  if (rowsResult.value === undefined) await work.start()
   opened.value = { actual, predicted }
   page.value = 0
 }
@@ -78,9 +88,19 @@ const shownRows = computed(() =>
   ),
 )
 
+/** 표에 세울 열의 정본 안 자리. 그 실험의 특성과 타깃뿐이다(98의 감사 뒤). */
+const columnPlaces = computed(() => {
+  const found = rowsResult.value
+  if (found?.kind !== 'rows') return []
+  return found.rows.columns.map((name) => found.rows.source.columns.indexOf(name))
+})
+
 /** 그 행의 원래 값. 행이 놓인 정본(`provided`면 테스트 표)에서 읽는다. */
 function cellsOf(row: number): readonly string[] {
-  return rowsResult.value?.kind === 'rows' ? (rowsResult.value.rows.source.rows[row] ?? []) : []
+  const found = rowsResult.value
+  if (found?.kind !== 'rows') return []
+  const values = found.rows.source.rows[row] ?? []
+  return columnPlaces.value.map((at) => values[at] ?? '')
 }
 </script>
 
@@ -210,9 +230,10 @@ function cellsOf(row: number): readonly string[] {
                 v-if="canOpen && count > 0"
                 variant="secondary"
                 class="mt-2"
-                @click="openCell(index, column)"
+                :action="() => openCell(index, column)"
               >
                 {{ t('results.cellRowsOpen', { count }) }}
+                <template #pending>{{ t('results.replay.computing') }}</template>
               </AppButton>
             </AppPopover>
           </td>
@@ -222,6 +243,11 @@ function cellsOf(row: number): readonly string[] {
 
     <p v-if="rowsResult?.kind === 'mismatch'" class="text-ink-soft">
       {{ t('results.cellRowsMismatch') }}
+    </p>
+
+    <!-- 재료는 있는데 다시 예측이 실패했다. 단추를 눌렀는데 아무 말이 없으면 안 된다(98의 감사 뒤). -->
+    <p v-else-if="rowsResult === null && opened" class="text-ink-soft">
+      {{ t('results.replay.failed') }}
     </p>
 
     <div
@@ -248,17 +274,16 @@ function cellsOf(row: number): readonly string[] {
       <AppTable>
         <thead>
           <tr>
-            <th
-              v-for="name in rowsResult.rows.source.columns"
-              :key="name"
-              class="whitespace-normal"
-            >
+            <!-- 행 번호는 정본에서의 번호다 — 학생이 그 행을 원래 파일에서 찾는다(98-1). -->
+            <th>{{ t('results.cellRowNumber') }}</th>
+            <th v-for="name in rowsResult.rows.columns" :key="name" class="whitespace-normal">
               {{ name }}
             </th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="row in shownRows" :key="row">
+            <td class="tabular-nums">{{ row + 1 }}</td>
             <td v-for="(cell, at) in cellsOf(row)" :key="at">{{ cell }}</td>
           </tr>
         </tbody>

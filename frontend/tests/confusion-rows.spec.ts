@@ -14,7 +14,10 @@ import { runExperiment, type ExperimentInput } from '../src/ml/experiment'
 import { dataSnapshot, type Settings, type TabularSettings } from '../src/project/schema'
 import { IRIS_FEATURE_COLUMNS, IRIS_TARGET_COLUMN, irisDataset } from './fixtures/iris'
 
-async function trained(algorithm: string): Promise<ConfusionRowsInput> {
+async function trained(
+  algorithm: string,
+  features: readonly string[] = IRIS_FEATURE_COLUMNS,
+): Promise<ConfusionRowsInput> {
   const dataset = irisDataset()
   const data: TabularSettings = {
     dataset: {
@@ -23,7 +26,7 @@ async function trained(algorithm: string): Promise<ConfusionRowsInput> {
       hasHeader: true,
       encoding: 'utf-8',
     },
-    features: [...IRIS_FEATURE_COLUMNS],
+    features: [...features],
     target: IRIS_TARGET_COLUMN,
     preprocessing: { missing: 'mean', scaling: 'standard', categoricalEncoding: 'onehot' },
   }
@@ -67,7 +70,7 @@ describe('칸마다의 행', () => {
     '%s — 칸의 행 수가 파일의 숫자와 같고 테스트 행이 한 번씩 든다',
     async (algorithm) => {
       const input = await trained(algorithm)
-      const result = confusionRowsFor(input)
+      const result = await confusionRowsFor(input)
       expect(result?.kind).toBe('rows')
       if (result?.kind !== 'rows') return
       const matrix = input.run.confusionMatrix!.matrix
@@ -79,6 +82,18 @@ describe('칸마다의 행', () => {
     },
   )
 
+  /** **표에는 그 실험의 특성과 타깃만 선다** (98의 감사 뒤) — 안 쓴 열은 학생이 이 칸과 엮어 읽는다. */
+  it('표의 열은 그 실험의 특성과 타깃뿐이다', async () => {
+    const input = await trained('decision_tree', ['petal_width', 'petal_length'])
+    const result = await confusionRowsFor(input)
+    if (result?.kind !== 'rows') throw new Error('expected rows')
+    expect(result.rows.columns).toEqual([
+      ...(input.preprocessor?.columns.map((column) => column.name) ?? []),
+      IRIS_TARGET_COLUMN,
+    ])
+    expect(result.rows.columns).toHaveLength(3)
+  })
+
   /** **다른 행을 그 칸의 행이라고 말하지 않는다.** 파일의 숫자 하나를 바꿔 재현한다. */
   it('다시 센 행렬이 파일과 다르면 행을 안 내고 다르다고 말한다', async () => {
     const input = await trained('decision_tree')
@@ -87,14 +102,16 @@ describe('칸마다의 행', () => {
       row.map((count, j) => (i === 0 && j === 0 ? count + 1 : count)),
     )
     const tampered = { ...input, run: { ...input.run, confusionMatrix: { ...stored, matrix } } }
-    expect(confusionRowsFor(tampered)).toEqual({ kind: 'mismatch' })
+    expect(await confusionRowsFor(tampered)).toEqual({ kind: 'mismatch' })
   })
 
   it('재료가 하나라도 없으면 행을 안 낸다', async () => {
     const input = await trained('decision_tree')
-    expect(confusionRowsFor({ ...input, modelBytes: undefined })).toBeNull()
-    expect(confusionRowsFor({ ...input, dataset: null })).toBeNull()
-    expect(confusionRowsFor({ ...input, preprocessor: null })).toBeNull()
-    expect(confusionRowsFor({ ...input, modelBytes: new TextEncoder().encode('{') })).toBeNull()
+    expect(await confusionRowsFor({ ...input, modelBytes: undefined })).toBeNull()
+    expect(await confusionRowsFor({ ...input, dataset: null })).toBeNull()
+    expect(await confusionRowsFor({ ...input, preprocessor: null })).toBeNull()
+    expect(
+      await confusionRowsFor({ ...input, modelBytes: new TextEncoder().encode('{') }),
+    ).toBeNull()
   })
 })

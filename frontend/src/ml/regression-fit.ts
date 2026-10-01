@@ -14,6 +14,7 @@
 
 import type { DataPoint } from '@/data/stats'
 import { ClientError } from '@/errors'
+import { REGRESSION_LINE_STEPS } from '@/limits'
 import type { Experiment, Run } from '@/project/schema'
 import { dataSnapshot } from '@/project/schema'
 
@@ -49,12 +50,6 @@ export type RegressionFitResult =
  */
 const R2_TOLERANCE = 1e-9
 
-/**
- * 선을 그리는 점의 수. 화면의 폭에 견주면 이보다 촘촘할 이유가 없고, 신경망의 곡선도 이 정도면
- * 꺾임이 안 보인다. 가로 범위를 고르게 나눈다.
- */
-const LINE_STEPS = 100
-
 export interface RegressionFitInput {
   readonly run: Run
   readonly experiment: Experiment
@@ -76,7 +71,12 @@ export function regressionFitFor(input: RegressionFitInput): RegressionFitResult
   if (stored === undefined) return null
 
   const { settings } = experiment
-  const snapshot = dataSnapshot('tabular', settings)
+  let snapshot: ReturnType<typeof dataSnapshot<'tabular'>>
+  try {
+    snapshot = dataSnapshot('tabular', settings)
+  } catch {
+    return null
+  }
   const target = snapshot.target
   if (target === undefined || target === '') return null
   const source = settings.split.method === 'provided' ? testDataset : dataset
@@ -84,17 +84,21 @@ export function regressionFitFor(input: RegressionFitInput): RegressionFitResult
   const rows = settings.testIndices
   if (rows.length === 0) return null
 
+  const encoding = snapshot.preprocessing.categoricalEncoding
   let predict: ReturnType<typeof loadModel>
+  let truth: string[]
+  let guesses: ReturnType<ReturnType<typeof loadModel>>
+  let line: RegressionLine | null
   try {
+    // **표가 어긋난 파일에서 던지지 않는다** — 테스트 표의 열이 모자라면 `transform`이 던진다.
+    // 혼동 행렬 칸의 행(`confusion-rows.ts`)과 같이 그림의 자리를 비운다.
     predict = loadModel(JSON.parse(new TextDecoder().decode(modelBytes)))
+    truth = targetValues(source, rows, target)
+    guesses = predict(transform(preprocessor, source, rows, encoding))
+    line = lineFor(preprocessor, source, rows, encoding, predict)
   } catch {
     return null
   }
-
-  const encoding = snapshot.preprocessing.categoricalEncoding
-  const features = transform(preprocessor, source, rows, encoding)
-  const truth = targetValues(source, rows, target)
-  const guesses = predict(features)
 
   let r2: number
   try {
@@ -112,7 +116,7 @@ export function regressionFitFor(input: RegressionFitInput): RegressionFitResult
       rows,
       actual: truth.map(Number),
       predicted: guesses.map(Number),
-      line: lineFor(preprocessor, source, rows, encoding, predict),
+      line,
     },
   }
 }
@@ -138,7 +142,7 @@ function lineFor(
   if (finite.length === 0) return null
   const { low, high } = rangeOf(finite)
 
-  const steps = high > low ? LINE_STEPS : 1
+  const steps = high > low ? REGRESSION_LINE_STEPS : 1
   const grid = Array.from({ length: steps + 1 }, (_value, index) =>
     steps === 1 ? low : low + ((high - low) * index) / steps,
   )

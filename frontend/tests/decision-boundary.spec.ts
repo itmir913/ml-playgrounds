@@ -9,13 +9,18 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ConfusionRowsInput } from '../src/ml/confusion-rows'
-import { decisionBoundaryFor } from '../src/ml/decision-boundary'
+import { decisionBoundaryAvailable, decisionBoundaryFor } from '../src/ml/decision-boundary'
 import { runExperiment, type ExperimentInput } from '../src/ml/experiment'
+import type { Dataset } from '../src/ml/preprocess'
 import { DECISION_BOUNDARY_GRID, DECISION_BOUNDARY_MARGIN } from '../src/limits'
 import { dataSnapshot, type Settings, type TabularSettings } from '../src/project/schema'
 import { IRIS_TARGET_COLUMN, irisDataset } from './fixtures/iris'
 
-async function trained(algorithm: string, features: string[]): Promise<ConfusionRowsInput> {
+async function trained(
+  algorithm: string,
+  features: string[],
+  testDataset: Dataset | null = null,
+): Promise<ConfusionRowsInput> {
   const dataset = irisDataset()
   const data: TabularSettings = {
     dataset: {
@@ -29,7 +34,12 @@ async function trained(algorithm: string, features: string[]): Promise<Confusion
     preprocessing: { missing: 'mean', scaling: 'standard', categoricalEncoding: 'onehot' },
   }
   const settings: Settings = {
-    split: { method: 'holdout', testSize: 0.3, stratify: true, randomState: 42 },
+    split: {
+      method: testDataset ? 'provided' : 'holdout',
+      testSize: 0.3,
+      stratify: true,
+      randomState: 42,
+    },
     runtime: 'mljs',
     selectedAlgorithms: [{ algorithm }],
     hyperparameters: {},
@@ -37,7 +47,7 @@ async function trained(algorithm: string, features: string[]): Promise<Confusion
   }
   const input: ExperimentInput = {
     dataset,
-    testDataset: null,
+    testDataset,
     taskType: 'classification',
     dataType: 'tabular',
     settings,
@@ -55,7 +65,7 @@ async function trained(algorithm: string, features: string[]): Promise<Confusion
     run,
     experiment: result.experiment,
     dataset,
-    testDataset: null,
+    testDataset,
     preprocessor: result.preprocessor,
     modelBytes: new TextEncoder().encode(JSON.stringify(result.models.get(run.id))),
   }
@@ -68,7 +78,7 @@ describe('결정 경계', () => {
     '%s — sklearn의 격자(100×100, 바깥 여백 1)에 범주를 깔고 테스트 점을 실제 범주로 찍는다',
     async (algorithm) => {
       const input = await trained(algorithm, TWO)
-      const result = decisionBoundaryFor(input)
+      const result = await decisionBoundaryFor(input)
       expect(result?.kind).toBe('boundary')
       if (result?.kind !== 'boundary') return
       const { boundary } = result
@@ -94,14 +104,37 @@ describe('결정 경계', () => {
       row.map((count, j) => (i === 1 && j === 1 ? count + 1 : count)),
     )
     const tampered = { ...input, run: { ...input.run, confusionMatrix: { ...stored, matrix } } }
-    expect(decisionBoundaryFor(tampered)).toEqual({ kind: 'mismatch' })
+    expect(await decisionBoundaryFor(tampered)).toEqual({ kind: 'mismatch' })
   })
 
   /** **셋 이상은 안 그린다** — 나머지 열을 고정한 단면은 실제 점과 같은 평면에 있지 않다. */
   it.each([[['petal_length']], [['sepal_length', 'petal_length', 'petal_width']]])(
     '입력 열이 둘이 아니면(%j) 자리가 없다',
     async (features) => {
-      expect(decisionBoundaryFor(await trained('decision_tree', features))).toBeNull()
+      const input = await trained('decision_tree', features)
+      expect(decisionBoundaryAvailable(input)).toBe(false)
+      expect(await decisionBoundaryFor(input)).toBeNull()
     },
   )
+
+  /**
+   * **바탕은 빈 칸 없이 칠한다** (69의 감사 뒤). 혼동 행렬의 범주는 테스트 데이터의 실제·예측뿐이라,
+   * 테스트 표에 없는 범주를 모델이 고른 자리는 칠할 색을 못 찾았다. 붓꽃 셋으로 학습하고 테스트 표에는
+   * 두 범주만 넣는다 — 셋째 범주의 자리가 격자에 있다.
+   */
+  it('테스트에 없는 범주를 모델이 고른 자리도 칠하고 범주에 더한다', async () => {
+    const iris = irisDataset()
+    const target = iris.columns.indexOf(IRIS_TARGET_COLUMN)
+    const kinds = [...new Set(iris.rows.map((row) => row[target]))]
+    const left = kinds.at(-1)
+    const testDataset = { ...iris, rows: iris.rows.filter((row) => row[target] !== left) }
+    const input = await trained('decision_tree', TWO, testDataset)
+    expect(input.run.confusionMatrix?.labels).not.toContain(left)
+
+    const result = await decisionBoundaryFor(input)
+    if (result?.kind !== 'boundary') throw new Error('expected boundary')
+    expect(result.boundary.labels).toContain(left)
+    expect(result.boundary.classes.every((at) => at >= 0)).toBe(true)
+    expect(new Set(result.boundary.classes).size).toBe(3)
+  })
 })
