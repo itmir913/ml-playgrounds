@@ -500,6 +500,28 @@ describe('산점도의 범주 축', () => {
     expect(drawn.skipped).toBe(2)
   })
 
+  /**
+   * **목록을 읽는 횟수가 행 수에 안 묶인다** (2026-10-01 감사). 행마다 `indexOf`로 찾으면
+   * 행 수 × 범주 수라, 값이 행마다 다른 열이 축이 되면 10만 행에서 26초가 걸렸다.
+   *
+   * 시간으로 재면 기계마다 흔들리므로 **목록의 칸을 읽은 횟수를 센다** — 어떤 모양의
+   * 행마다 훑기든 이 수가 행 수만큼 불어난다.
+   */
+  it('범주 축은 행마다 목록을 훑지 않는다', () => {
+    const names = series(50).map((index) => `c${index}`)
+    let reads = 0
+    const counted = new Proxy(names, {
+      get(target, key, receiver) {
+        if (typeof key === 'string' && /^\d+$/.test(key)) reads += 1
+        return Reflect.get(target, key, receiver) as unknown
+      },
+    })
+    const cells = series(2000).map((index) => `c${index % 50}`)
+    const drawn = scatterSample(cells, cells, 5000, 7, undefined, { x: counted, y: counted })
+    expect(drawn.drawn).toBe(2000)
+    expect(reads).toBeLessThanOrEqual(names.length * 2)
+  })
+
   /** 축 목록을 안 주면 지금까지처럼 수로 읽는다. */
   it('목록이 없으면 수로 읽는다', () => {
     const drawn = scatterSample(['남', '1'], ['1', '2'], 100, 7)

@@ -414,10 +414,17 @@ export function categoriesOf(cells: readonly string[]): readonly string[] {
   return categoryOrder(cells.filter((cell) => !isBlank(cell)))
 }
 
-/** 범주 축의 위치. 목록에 없거나 빈 칸이면 `null`이라 그 행은 빠진다. */
-function categoryIndex(categories: readonly string[], cell: string): number | null {
-  const at = categories.indexOf(cell)
-  return at === -1 ? null : at
+/**
+ * 범주 축의 위치를 읽는 함수. 목록에 없거나 빈 칸이면 `null`이라 그 행은 빠진다.
+ *
+ * **자리표는 축마다 한 번 만든다.** 행마다 `indexOf`로 찾으면 행 수 × 범주 수라, 학번처럼
+ * 값이 행마다 다른 열이 축이 되면 10만 행에서 탭이 26초 섰다(2026-10-01 감사, 함수 단위
+ * 실측). 무는 검사: `tests/stats.spec.ts` "범주 축은 행마다 목록을 훑지 않는다".
+ */
+function categoryReader(categories: readonly string[]): (cell: string) => number | null {
+  const at = new Map<string, number>()
+  categories.forEach((name, index) => at.set(name, index))
+  return (cell) => at.get(cell) ?? null
 }
 
 export function scatterSample(
@@ -436,10 +443,8 @@ export function scatterSample(
 ): ScatterSample {
   const usable: DataPoint[] = []
   const rowCount = Math.max(xCells.length, yCells.length)
-  const readX = (cell: string) =>
-    axes.x === undefined ? toNumber(cell) : categoryIndex(axes.x, cell)
-  const readY = (cell: string) =>
-    axes.y === undefined ? toNumber(cell) : categoryIndex(axes.y, cell)
+  const readX = axes.x === undefined ? toNumber : categoryReader(axes.x)
+  const readY = axes.y === undefined ? toNumber : categoryReader(axes.y)
 
   for (let row = 0; row < rowCount; row += 1) {
     const x = readX(xCells[row] ?? '')
