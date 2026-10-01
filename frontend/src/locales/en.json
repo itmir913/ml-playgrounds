@@ -1084,7 +1084,7 @@
       "clusterNeighborTitle": "Data similar to your input",
       "clusterScatterLead": "Each dot is one row of data and the diamond is what you just entered. Each ✕ marks the centroid of a cluster.",
       "clusterScatterTitle": "Where your input sits",
-      "computing": "Computing…",
+      "computing": "Calculating…",
       "download": "Download predictions as CSV",
       "failedCellsLead": "Cells with no answer show —. The reasons are listed below.",
       "fileApplied": "Attached the file to predict.",
