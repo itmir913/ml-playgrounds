@@ -203,13 +203,16 @@ function onFeature(name: string, event: Event): void {
             <TermPopover :title="t('data.tabular.kind')" :body="t('columnHelp.kind')" />
           </th>
           <!--
-            **숫자 열의 머리는 줄을 바꿀 수 있다.** 데이터 요약(`data/ColumnInspector.vue`)과
-            같은 머리이고 같은 처방이다. 사람 확인(브라우저).
+            **숫자 열의 머리는 한 줄이다** (2026-10-01, 코드 소유자). 데이터 요약
+            (`data/ColumnInspector.vue`)은 줄을 바꾸게 두지만 여기서는 안 된다 — 이 표는 이름 칸이
+            `w-full`이라 나머지 칸이 최소 폭으로 줄고, 줄을 바꿀 수 있는 머리의 최소 폭은 가장 긴
+            낱말이라 **화면이 넓어도 낱말마다 꺾였다.** 휴대폰에서 아끼는 폭도 없다 — 한 줄인
+            `전처리` 칸이 이미 표를 가로로 넘치게 한다. 사람 확인(브라우저).
           -->
-          <th class="whitespace-normal">
+          <th>
             <TermPopover :title="t('data.tabular.missing')" :body="t('columnHelp.missing')" />
           </th>
-          <th class="whitespace-normal">
+          <th>
             <TermPopover :title="t('data.tabular.unique')" :body="t('columnHelp.unique')" />
           </th>
           <!-- 훈련 데이터에서 구한 값이라 계획이 서야 채워진다. 그전에는 빈 칸이다. -->
