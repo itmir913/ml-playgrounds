@@ -21,6 +21,7 @@ import {
   colorsAreDistinct,
   boxOptions,
   boxWhiskers,
+  hiddenBins,
   histogramData,
   scatterLayers,
   scatterOptions,
@@ -207,9 +208,15 @@ describe('히스토그램과 막대그래프는 다른 그림이다', () => {
    * Chart.js가 데이터를 보고 잡는데, 그때 `0.1`·`50,000.0`처럼 **개수로는 있을 수 없는
    * 눈금**이 선다 — `precision`은 선형 눈금의 것이라 여기서는 안 듣는다.
    */
-  it('로그 축의 바닥이 1이고 눈금이 정수다', () => {
+  /**
+   * **바닥은 1의 절반이다** (94). 막대는 바닥에서 솟으므로 바닥이 1이면 1행짜리 구간의 막대가
+   * 0px라 안 보였다 — 로그 축을 켜는 이유가 그 드문 구간을 보려는 것이다.
+   */
+  it('로그 축의 바닥이 1 아래라 1행 구간이 서고 눈금은 정수다', () => {
     const log = barOptions(PAINT, TEXT, true).scales?.['y']
-    expect((log as { min?: number } | undefined)?.min).toBe(1)
+    const floor = (log as { min?: number } | undefined)?.min
+    expect(floor).toBeGreaterThan(0)
+    expect(floor).toBeLessThan(1)
 
     const label = log?.ticks?.callback as ((value: number) => string) | undefined
     expect(label).toBeTypeOf('function')
@@ -633,6 +640,25 @@ describe('산점도의 범례', () => {
   it('범례를 안 세워도 점은 그대로 그린다', () => {
     const series = [{ name: '가', points: [{ row: 0, x: 1, y: 2 }] }]
     expect(layered(series, PAINT).datasets).toHaveLength(1)
+  })
+})
+
+/**
+ * 선형 축에서 안 보이는 구간 (94). **막대를 키우지 않고 센다** — 최소 높이를 두면 높이가 곧
+ * 도수라는 약속이 깨진다.
+ */
+describe('히스토그램의 안 보이는 구간', () => {
+  it('행이 있는데 1px에 못 미치는 구간만 센다', () => {
+    // 그림 높이 461px, 가장 큰 구간 4,800행이면 1행·2행·10행 구간이 1px 아래다.
+    expect(hiddenBins([1, 2, 10, 4800, 1], 461)).toBe(4)
+    // 빈 구간은 안 보이는 것이 참이라 세지 않는다.
+    expect(hiddenBins([0, 4800, 0], 461)).toBe(0)
+    expect(hiddenBins([100, 200], 461)).toBe(0)
+  })
+
+  it('크기가 서기 전이나 빈 그림에는 말할 것이 없다', () => {
+    expect(hiddenBins([1, 4800], 0)).toBe(0)
+    expect(hiddenBins([], 461)).toBe(0)
   })
 })
 

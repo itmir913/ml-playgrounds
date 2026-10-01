@@ -277,7 +277,8 @@
         "binInvalid": "그릴 수 없는 값입니다. {min} ~ {max} 사이의 정수를 입력해 주세요.",
         "binApply": "적용",
         "bins": "구간이 {count}개입니다.",
-        "logScale": "로그 스케일"
+        "logScale": "로그 스케일",
+        "hidden": "막대가 너무 낮아 잘 안 보이는 구간이 {count}개 있습니다. 로그 스케일을 켜면 보입니다."
       },
       "bar": {
         "name": "막대그래프(Bar Chart)",
@@ -291,7 +292,8 @@
         "groupNone": "구분 없음",
         "point": "최솟값 {min} · 제1사분위수 {q1} · 중앙값 {median} · 제3사분위수 {q3} · 최댓값 {max}",
         "outliers": "수염 밖의 값 {count}개를 점으로 표시했습니다.",
-        "ungrouped": "어느 상자에도 안 들어간 {count}행이 있습니다."
+        "blank": "가르는 열이 비어 있는 {count}행은 어느 상자에도 넣지 않았습니다.",
+        "omitted": "행이 적은 값 {count}종은 상자를 그리지 않았습니다. (그리지 않은 {rows}행)"
       },
       "scatter": {
         "name": "산점도(Scatter Plot)",

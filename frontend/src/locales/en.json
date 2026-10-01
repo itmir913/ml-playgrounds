@@ -277,7 +277,8 @@
         "binInvalid": "That value cannot be drawn. Enter a whole number from {min} to {max}.",
         "binApply": "Apply",
         "bins": "This chart has {count} bins.",
-        "logScale": "Log scale"
+        "logScale": "Log scale",
+        "hidden": "{count} bin is too short to see. Turn on the log scale to see it. | {count} bins are too short to see. Turn on the log scale to see them."
       },
       "bar": {
         "name": "Bar chart",
@@ -291,7 +292,8 @@
         "groupNone": "No split",
         "point": "Minimum {min} · Q1 {q1} · Median {median} · Q3 {q3} · Maximum {max}",
         "outliers": "{count} value beyond the whiskers is drawn as a dot. | {count} values beyond the whiskers are drawn as dots.",
-        "ungrouped": "{count} row is not in any box. | {count} rows are not in any box."
+        "blank": "{count} row with an empty grouping value is not in any box. | {count} rows with an empty grouping value are not in any box.",
+        "omitted": "{count} value with few rows has no box. ({rows} rows not drawn) | {count} values with few rows have no box. ({rows} rows not drawn)"
       },
       "scatter": {
         "name": "Scatter plot",

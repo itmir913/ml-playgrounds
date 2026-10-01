@@ -337,6 +337,7 @@ describe('어느 그림에도 안 들어간 행을 말한다', () => {
   /**
    * **가르는 열이 빈 칸인 행은 어느 상자에도 안 들어간다.** 안 세면 성별을 안 적은
    * 학생들이 조용히 사라지고, 학생은 자기 반 전체를 보고 있다고 믿는다 (2026-09-21).
+   * **행이 적어 뺀 값과 갈라 말한다** (`open-decisions.md` "94. 그림이 드문 것을 숨기는가").
    */
   it('박스 플롯을 범주로 가르면 빠진 행을 센다', async () => {
     const wrapper = open('몸무게')
@@ -348,7 +349,7 @@ describe('어느 그림에도 안 들어간 행을 말한다', () => {
     await selects[selects.length - 1]?.setValue('성별')
     await drawn(wrapper)
 
-    expect(wrapper.text()).toContain('어느 상자에도 안 들어간 2행이 있습니다.')
+    expect(wrapper.text()).toContain(i18n.global.t('data.charts.box.blank', { count: 2 }))
   })
 
   /**

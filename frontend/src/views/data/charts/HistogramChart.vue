@@ -28,10 +28,11 @@ import AppField from '@/components/AppField.vue'
 import AppInput from '@/components/AppInput.vue'
 import AppTeleport from '@/components/AppTeleport.vue'
 import ChartFrame from './ChartFrame.vue'
-import { barOptions, binLabels, histogramData } from '@/data/chart-config'
+import { barOptions, binLabels, hiddenBins, histogramData } from '@/data/chart-config'
 import { useChartControls, type ChartInput } from '@/data/charts'
 import { columnCells, histogram, numericValues, type BinChoice } from '@/data/stats'
 import { useChartTokens } from '@/composables/useChartTokens'
+import { useElementSize } from '@/composables/useElementSize'
 import { useFormat } from '@/composables/useFormat'
 import { HISTOGRAM_BIN_LIMIT } from '@/limits'
 import { lockFor, useGate } from '@/locks'
@@ -176,13 +177,25 @@ function apply(): void {
  * 그 자리의 몫이고(`capped`), 학생이 고른 수는 줄인 것이 아니다.
  */
 const note = computed(() => {
+  const parts: string[] = []
   if (applied.value !== 'auto') {
-    return t('data.charts.histogram.bins', { count: made.value.counts.length })
+    parts.push(t('data.charts.histogram.bins', { count: made.value.counts.length }))
+  } else if (made.value.capped) {
+    parts.push(t('data.charts.histogram.capped', { count: made.value.counts.length }))
   }
-  return made.value.capped
-    ? t('data.charts.histogram.capped', { count: made.value.counts.length })
-    : ''
+  /**
+   * **선형 축에서 안 보이는 구간을 말한다** (`open-decisions.md` "94. 그림이 드문 것을
+   * 숨기는가"). 1행짜리 구간은 가장 큰 구간 옆에서 1px에 못 미쳐 그림에 없는 것처럼 보인다.
+   * 로그 축에서는 바닥 0.5 위에 서므로 말할 것이 없다.
+   */
+  const hidden = logarithmic.value ? 0 : hiddenBins(made.value.counts, area.value.height)
+  if (hidden > 0) parts.push(t('data.charts.histogram.hidden', { count: hidden }))
+  return parts.join(' · ')
 })
+
+/** 그림 영역. 안 보이는 구간을 세는 높이다. */
+const areaEl = ref<HTMLElement | null>(null)
+const area = useElementSize(areaEl)
 
 const data = computed(() =>
   histogramData(made.value, labels.value, paint.value, t('data.charts.histogram.series')),
@@ -301,7 +314,9 @@ const options = computed(() =>
       :missing="read.missing"
       :note="note"
     >
-      <Bar :data="data" :options="options" />
+      <div ref="areaEl" class="h-full w-full">
+        <Bar :data="data" :options="options" />
+      </div>
     </ChartFrame>
   </div>
 </template>

@@ -60,10 +60,24 @@ const read = computed(() => numericValues(columnCells(props.input.dataset, props
  * **가르는 값도 도수가 큰 것부터 남긴다** (`frequencies`). 값 종류가 수백인 열로 가르면
  * 상자가 수백 개 서서 아무것도 안 읽힌다.
  */
-const split = computed<{ series: readonly BoxSeries[]; ungrouped: number }>(() => {
+interface Split {
+  readonly series: readonly BoxSeries[]
+  /** 가르는 열이 빈 칸이라 어느 상자에도 못 넣은 행. */
+  readonly blank: number
+  /** 행이 적어 상자를 안 그린 값의 종류 수와 그 행 수. */
+  readonly omittedValues: number
+  readonly omittedRows: number
+}
+
+const split = computed<Split>(() => {
   if (groupBy.value === '') {
     const summary = boxSummary(read.value.values)
-    return { series: summary ? [{ name: props.input.column, summary }] : [], ungrouped: 0 }
+    return {
+      series: summary ? [{ name: props.input.column, summary }] : [],
+      blank: 0,
+      omittedValues: 0,
+      omittedRows: 0,
+    }
   }
 
   const cells = columnCells(props.input.dataset, props.input.column)
@@ -80,14 +94,18 @@ const split = computed<{ series: readonly BoxSeries[]; ungrouped: number }>(() =
   })
 
   /**
-   * **어느 상자에도 안 들어간 행.** 가르는 열이 빈 칸인 행과, 값 종류가 너무 많아
-   * 밀려난 행이다.
-   *
-   * **둘을 합쳐 세는 이유는 학생에게 같은 사실이기 때문이다** — *"이만큼은 그림에
-   * 없다"*. 안 세면 성별이 비어 있는 학생들이 어느 상자에도 없이 **조용히 사라진다**
-   * (2026-09-21).
+   * **어느 상자에도 안 들어간 행을 둘로 갈라 말한다** (`open-decisions.md` "94. 그림이 드문
+   * 것을 숨기는가"). 가르는 열이 빈 칸인 행은 데이터에 값이 없는 것이고, 행이 적어 밀려난
+   * 값은 **우리가 뺀 드문 값**이다. 전에는 둘을 한 수로 합쳐(2026-09-21) 무엇을 뺐는지가
+   * 안 보였다. 안 세면 성별이 비어 있는 학생들이 어느 상자에도 없이 조용히 사라지는 것은
+   * 그대로다.
    */
-  return { series, ungrouped: tally.missing + tally.omitted }
+  return {
+    series,
+    blank: tally.missing,
+    omittedValues: tally.distinct - tally.bars.length,
+    omittedRows: tally.omitted,
+  }
 })
 
 const series = computed(() => split.value.series)
@@ -148,8 +166,10 @@ const note = computed(() => {
    */
   const outlierCount = outliers.value
   if (outlierCount > 0) parts.push(t('data.charts.box.outliers', outlierCount))
-  if (split.value.ungrouped > 0) {
-    parts.push(t('data.charts.box.ungrouped', { count: split.value.ungrouped }))
+  const { blank, omittedValues, omittedRows } = split.value
+  if (blank > 0) parts.push(t('data.charts.box.blank', { count: blank }))
+  if (omittedValues > 0) {
+    parts.push(t('data.charts.box.omitted', { count: omittedValues, rows: omittedRows }))
   }
   return parts.join(' · ')
 })
