@@ -152,7 +152,7 @@
         "emptyNext": "Load a file in the data step and you can choose what to predict here."
       },
       "image": {
-        "purpose": "Decide how your photos are used for training.",
+        "purpose": "Set how your photos are used for training.",
         "locked": "Add your photos first.",
         "emptyReason": "No photos yet.",
         "emptyNext": "Add photos in the data step and you can finish getting ready to train here."
@@ -443,7 +443,7 @@
       "sampleNeedsTarget": "Choose a target first so the number of usable rows is known.",
       "samplePart": "Draw a random sample and use only that.",
       "samplePartNote": "The sample is drawn before the training and test split.",
-      "sampleRows": "Rows to draw",
+      "sampleRows": "Number of rows to draw",
       "sampleSummary": "Using {used} of {usable} rows. The remaining {rest} are used for neither training nor evaluation.",
       "sampleTitle": "How much data to use",
       "scaling": "Scaling",
@@ -829,11 +829,11 @@
     "none": "None",
     "countUnit": "{count}",
     "tabular": {
-      "columns": "Columns",
+      "columns": "Number of columns",
       "dataset": "Data file",
       "features": "Features",
-      "usableFeatures": "Features used",
-      "rows": "Rows",
+      "usableFeatures": "Number of features used for training",
+      "rows": "Number of rows",
       "target": "Target"
     },
     "image": {

@@ -584,7 +584,7 @@ describe('층화가 막히면 잠기고 학습은 무시한다', { timeout: 30_0
     expect(stratify().checked).toBe(true)
     expect(stratify().disabled).toBe(true)
     // 이유 문장의 뒷부분 — 무엇을 하면 다시 적용되는지.
-    expect(wrapper.text()).toContain('추출할 행 수를 늘리면 다시 적용됩니다')
+    expect(wrapper.text()).toContain('추출할 행 개수를 늘리면 다시 적용됩니다')
     const vm = wrapper.vm as unknown as { runPlan: { ok: boolean } | null }
     expect(vm.runPlan?.ok).toBe(true)
 
