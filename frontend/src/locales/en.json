@@ -580,7 +580,7 @@
     "delete": "Delete",
     "deleteTitle": "Delete this project?",
     "deleteDescription": "Its data and training results go with it. This cannot be undone. ({name})",
-    "opening": "Opening a file.",
+    "opening": "Opening the file…",
     "unreadable": "This project cannot be opened",
     "saved": "Projects on this computer",
     "savedCount": "This computer holds {count} project | This computer holds {count} projects"
@@ -786,10 +786,10 @@
   "project": {
     "export": "Save to a file",
     "exportDone": "Saved to a file. Please keep it somewhere safe, such as a USB drive or cloud storage.",
-    "exportDropped": "Some models were too large to fit in the file. Their scores are still recorded. ({count})",
+    "exportDropped": "{count} model was too large to fit in the file. Its scores are still recorded. | {count} models were too large to fit in the file. Their scores are still recorded.",
     "open": "Open a file",
     "openModified": "This file was changed outside the app after it was saved. You can still open it, but the results recorded in it may differ from the actual training results.",
-    "emptyPhotoFolderRemoved": "Photo data with no photos left in it was removed from this project. Add the photos again if you need them.",
+    "emptyPhotoFolderRemoved": "Photo data with no photos in it was removed from this project. Add the photos again if you need them.",
     "openNewerTitle": "This computer may have more recent work",
     "openNewerBody": "The same project is on this computer and may include work that the file you opened does not. ({name})",
     "openNewerLocalAt": "Last changed on this computer: {at}",

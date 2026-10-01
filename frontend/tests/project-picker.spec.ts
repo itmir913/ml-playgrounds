@@ -78,7 +78,7 @@ describe('R24 B-7: opening a saved project', () => {
     for (const row of rows(wrapper)) {
       expect(row.attributes('disabled')).toBeDefined()
       // **이유 없는 회색은 학생에게 고장이다** (`docs/copy.md` §4).
-      expect(row.attributes('title')).toBe('파일을 여는 중입니다.')
+      expect(row.attributes('title')).toBe('파일을 여는 중…')
       await row.trigger('click')
     }
     expect(wrapper.emitted('open')).toBeUndefined()
