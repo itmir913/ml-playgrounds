@@ -41,6 +41,7 @@
 | §3 지원 언어마다 **바깥에 내놓는 처리방침**이 있는가 | `legal.spec.ts` |
 | 주석이 가리키는 **심볼**이 거기 있는가 | `doc-refs.spec.ts` |
 | §1.5 제출을 막을 만큼 커지면 알리는가 | `file-size.spec.ts` |
+| §0 첫 화면에 **무거운 모듈이 정적 임포트로 닿지 않는가**, 첫 화면 조각은 정적인가(`architecture.md` §7.4.1) — 소스의 정적 그래프를 TS AST로 본다. 빌드 도구가 실제로 나누는 조각과 글꼴은 못 본다 | `entry-chunks.spec.ts` |
 | 압축 파일 확장자를 손으로 안 적는가 | `image-upload-zip.spec.ts` |
 | src가 **워커를 쓰는 fflate API**(`unzip`·`zip`·`inflate`·`Async*` 등)를 들이지 않는가 — `import { … } from 'fflate'`의 이름만 본다. 네임스페이스 import(`import * as`)와 동적 `import()`는 못 본다 | `image-upload-zip.spec.ts` · `format.spec.ts` |
 | 압축 파일 엔트리 이름의 부스러기·표기 규칙이 **사진 업로드와 `.mlpx` 읽기에서 한 벌**인가 | `archive-entries.spec.ts` |

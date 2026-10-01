@@ -3,13 +3,15 @@
  *
  * 전처리 판 · 학습 화면 · 학습 머리가 같은 계획으로 열 종류를 말한다(`plannedColumns`). 계획은
  * 입력이 같으면 다시 짓지 않는다. 스토어가 프로젝트를 열고 닫을 때 이 캐시를
- * 비우므로(`forgetTabularPlan`) 스토어가 이 모듈을 부른다. **이 파일은 Vue도 스토어도 직접
+ * 비우는데(`forgetTabularPlan`), 스토어는 이 모듈이 아니라 `plan-cache-reset.ts`를 부른다 — 첫 화면에
+ * 계획 코드를 안 싣기 위해서다(그 파일의 머리말). **이 파일은 Vue도 스토어도 직접
  * 들이지 않는다** — `tabular-plan-cache.spec.ts`의 *"이 모듈은 Vue와 스토어를 들이지 않는다"*가
  * 이 파일의 임포트를 문다(이 파일이 들이는 모듈의 속까지는 안 본다).
  */
 
 import { summarizeColumns, type ColumnSummary } from '@/data/columns'
 import { plannedColumns, planRun, type RunPlan } from '@/ml/plan'
+import { onForgetTabularPlan } from '@/ml/plan-cache-reset'
 import type { Dataset } from '@/ml/preprocess'
 import { readDataset, readTestDataset } from '@/project/dataset'
 import type { ProjectFile } from '@/project/format'
@@ -53,10 +55,13 @@ let lastPlan: { readonly inputs: PlanInputs; readonly plan: RunPlan } | null = n
  * 한 칸 캐시를 비운다. **다른 프로젝트를 열거나 닫을 때 스토어가 부른다**(`stores/project.ts`의
  * `open`·`close`) — 안 비우면 떠난 프로젝트의 표와 계획을 다음 계획이 설 때까지 쥐고 있다.
  * `tabular-plan-cache.spec.ts`의 *"프로젝트를 닫거나 바꾸면 캐시가 빈다"*가 문다.
+ *
+ * **스토어는 이 모듈이 아니라 `plan-cache-reset.ts`를 부른다** — 첫 화면이 계획 코드를 안
+ * 받게 하려는 것이다(그 파일의 머리말). 여기서는 실릴 때 제 비우기를 그쪽에 맡긴다.
  */
-export function forgetTabularPlan(): void {
+onForgetTabularPlan(() => {
   lastPlan = null
-}
+})
 
 /** 지금 한 칸에 계획이 있는가. **검사용이다** — 화면은 읽지 않는다. */
 export function holdsTabularPlan(): boolean {

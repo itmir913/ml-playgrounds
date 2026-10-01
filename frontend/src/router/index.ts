@@ -24,26 +24,12 @@ import { refusalFor } from '@/locks'
 import { useLeaveStore } from '@/stores/leave'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
+import { ROUTE_INSPECT, ROUTE_PROJECT_HOME, ROUTE_PROJECTS } from './names'
 import { isStepId, resolveStep, STEP_IDS, type StepId } from './steps'
+import WelcomeView from '@/views/WelcomeView.vue'
 
-/** 프로젝트 목록. 단계가 아니므로 STEP_IDS에 없다. */
-export const ROUTE_PROJECTS = 'projects'
-
-/**
- * 점검. **교사가 제출물을 열어 보는 자리이고 단계가 아니다** (architecture.md §8.21).
- *
- * `projectId`가 없는 주소라 아래 가드가 **열려 있던 프로젝트를 닫는다** — 점검은 저장소를
- * 안 타므로 그것이 맞는 동작이다 (open-decisions.md "점검은 읽기 전용 열람기다").
- */
-export const ROUTE_INSPECT = 'inspect'
-
-/**
- * 프로젝트 홈. **프로젝트를 열면 여기로 온다.**
- *
- * 예전에는 첫 단계로 곧장 리다이렉트했는데 그건 홈이 없어서 쓴 우회였고, 파라미터를
- * 잃는 버그까지 있었다. 학생이 파일을 열었을 때 보고 싶은 것은 "어디까지 했더라"다.
- */
-export const ROUTE_PROJECT_HOME = 'project'
+/** 라우트 이름은 말단 파일(`./names`)이 갖는다 — 그 머리말이 이유다. */
+export { ROUTE_INSPECT, ROUTE_PROJECT_HOME, ROUTE_PROJECTS }
 
 /**
  * 단계 -> 화면. **`if`로 고르지 않는다** — 이 표 하나가 라우트 목록의 출처이고,
@@ -65,7 +51,13 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: ROUTE_PROJECTS,
-    component: () => import('@/views/WelcomeView.vue'),
+    /**
+     * **첫 화면만은 지연 로딩이 아니다.** 지연 로딩이면 앱 코드를 다 받은 **뒤에** 이 조각을
+     * 받으러 한 번 더 왕복하고, 그동안 글꼴이 대역폭을 나눠 쓴다. 실제 사이트를 흉내 낸 회선
+     * (요청당 300ms · 120KB/s)에서 **이 줄 하나로** 첫 화면이 3.17초 → 2.82초였다(2026-10-01, 배포본과
+     * 같은 빌드끼리 — 함께 고친 두 길까지 합친 값은 `docs/cases/architecture.md` §7.4.1 아래). 컴퓨터실 PC는 차시마다 리셋되어 **매 수업이 첫 방문이다.** 사람 확인(브라우저 실측).
+     */
+    component: WelcomeView,
   },
   {
     path: '/inspect',

@@ -30,14 +30,8 @@ export type { TableGrid } from './grid'
 
 export type TableSource = 'csv' | 'xlsx'
 
-/**
- * 표 파일이 받아들이는 확장자. `<input accept>`에 그대로 들어간다.
- *
- * **두 자리가 이 값을 쓴다** — 데이터 화면의 정본 받기(`data/kinds.ts`의 `accept`)와
- * 전처리 화면의 테스트 데이터 받기다. 베껴 두면 한쪽만 늘어나고, 그러면 학생은 같은 앱에서
- * 어떤 파일은 되고 어떤 파일은 안 되는 자리를 만난다.
- */
-export const TABULAR_ACCEPT = '.csv,.xlsx'
+/** 표 파일이 받아들이는 확장자. 값은 `table-accept.ts`가 갖는다 — 그 머리말이 이유다. */
+export { TABULAR_ACCEPT } from './table-accept'
 
 /** 열려 있는 표 파일. 아직 정본이 아니다 - 학생이 시트를 고르는 중일 수 있다. */
 export interface TableDocument {

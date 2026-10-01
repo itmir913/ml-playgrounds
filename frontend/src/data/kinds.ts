@@ -12,7 +12,7 @@
 import { defineAsyncComponent, type Component } from 'vue'
 
 import { IMAGE_ACCEPT } from '@/data/image/upload'
-import { TABULAR_ACCEPT } from '@/data/table'
+import { TABULAR_ACCEPT } from '@/data/table-accept'
 import type { DataType } from '@/project/schema'
 import type { EngineState } from '@/ml/backend'
 import { factLabelKey, type FactKey, type StepId, type StepTextSlot } from '@/router/steps'

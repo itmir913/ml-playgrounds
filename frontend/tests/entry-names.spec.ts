@@ -118,7 +118,7 @@ describe('확장자', () => {
  */
 describe('파일 고르기의 accept', () => {
   /** 등록부. 값이 사는 자리라 훑기에서 뺀다. */
-  const REGISTRIES = [join(SRC, 'data', 'table.ts'), join(SRC, 'data', 'image', 'upload.ts')]
+  const REGISTRIES = [join(SRC, 'data', 'table-accept.ts'), join(SRC, 'data', 'image', 'upload.ts')]
 
   it('확장자 목록을 화면이 직접 적지 않는다', () => {
     const found: string[] = []

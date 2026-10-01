@@ -20,7 +20,7 @@ import {
   type DroppedModel,
   type ProjectFile,
 } from '@/project/format'
-import { forgetTabularPlan } from '@/ml/plan-cache'
+import { forgetTabularPlan } from '@/ml/plan-cache-reset'
 import { trainableSelections } from '@/ml/selection'
 import { dataFactsOf } from '@/project/facts'
 import { isPortfolioAnswered } from '@/project/portfolio'
