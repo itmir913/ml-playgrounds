@@ -21,7 +21,6 @@ import AppBadge from '@/components/AppBadge.vue'
 import AppChoices from '@/components/AppChoices.vue'
 import AppTable from '@/components/AppTable.vue'
 import { useFormat } from '@/composables/useFormat'
-import { clusterScatterPointLimit } from '@/limits-switch'
 import { CLUSTER_NEIGHBOR_ROW_COUNT } from '@/limits'
 import type { ClusterHighlight } from '@/ml/cluster-chart'
 import {
@@ -237,14 +236,7 @@ const neighborhood = computed<Neighborhood | null>(() => {
       total: summary.size,
       axes: material.axes,
       summaries,
-      scatter: scatterPoints(
-        material.assignment,
-        material.axes,
-        material.columns,
-        material.matrix,
-        clusterScatterPointLimit(),
-        experiment.settings.split.randomState,
-      ),
+      scatter: scatterPoints(material.assignment, material.axes, material.columns, material.matrix),
       // **같은 함수로 되돌린다** — 점과 새 점이 다른 좌표계에 찍히면 그림이 거짓말한다.
       highlight: { values: axisValues(vector, material.axes, material.columns), cluster },
     }

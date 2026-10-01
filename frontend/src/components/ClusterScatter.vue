@@ -19,8 +19,10 @@ import { Scatter } from 'vue-chartjs'
 import { useI18n } from 'vue-i18n'
 
 import { useChartTokens } from '@/composables/useChartTokens'
+import { useElementSize } from '@/composables/useElementSize'
 import { useFormat } from '@/composables/useFormat'
 import { clusterChartData, clusterChartOptions, type ClusterHighlight } from '@/ml/cluster-chart'
+import { CLUSTER_SCATTER_POINT_LIMIT } from '@/limits'
 import { axisCellOf, type ClusterAxis, type ClusterSummary, type ScatterData } from '@/ml/clusters'
 
 Chart.register(ScatterController, PointElement, LinearScale, Tooltip, Legend)
@@ -95,7 +97,15 @@ function coordinate(value: number | null, categories?: readonly string[]): strin
   return format.prediction(cell.value)
 }
 
-const chartData = computed(() =>
+/** 그림 영역. **점을 거르는 칸이 이 픽셀이다** (`useElementSize`의 머리말). */
+const areaEl = ref<HTMLElement | null>(null)
+const area = useElementSize(areaEl)
+
+/**
+ * 거른 그림 (`open-decisions.md` "94. 그림이 드문 것을 숨기는가"). 붐빈 칸만 점 하나로 묶고
+ * 외딴 점은 반드시 남긴다. 묶음은 상한 스위치가 끄지 않는다(`CLUSTER_SCATTER_POINT_LIMIT`).
+ */
+const layers = computed(() =>
   clusterChartData(
     props.scatter,
     props.summaries,
@@ -106,20 +116,30 @@ const chartData = computed(() =>
       centroid: t('results.tabular.clusterCentroid'),
       highlight: t('predict.tabular.clusterInputPoint'),
     },
+    { area: area.value, budget: CLUSTER_SCATTER_POINT_LIMIT },
     props.highlight,
     scales.value,
   ),
 )
 
+const chartData = computed(() => layers.value.data)
+
 const chartOptions = computed(() =>
   clusterChartOptions(
-    props.summaries.length,
+    layers.value.pointSets,
     tokens.value,
     {
       axisX: axisName(xAxis.value),
       axisY: axisName(yAxis.value),
       point: (name, x, y) =>
         t('results.tabular.clusterPoint', {
+          name,
+          x: coordinate(x, scales.value.x),
+          y: coordinate(y, scales.value.y),
+        }),
+      pointMany: (name, x, y, rows) =>
+        t('results.tabular.clusterPointMany', {
+          count: rows,
           name,
           x: coordinate(x, scales.value.x),
           y: coordinate(y, scales.value.y),
@@ -184,21 +204,16 @@ const chartOptions = computed(() =>
       </label>
     </div>
 
-    <div class="h-96 min-w-0">
-      <Scatter :data="chartData" :options="chartOptions" />
+    <!-- **크기가 선 뒤에 그린다** — 0×0으로 거르면 모든 점이 한 칸에 모인다. -->
+    <div ref="areaEl" class="h-96 min-w-0">
+      <Scatter v-if="area.width > 0 && area.height > 0" :data="chartData" :options="chartOptions" />
     </div>
 
     <!--
-      **표본을 뽑았으면 말한다** (#28-5). 조용히 일부만 그리면 학생은 자기 데이터가
-      다 거기 있다고 믿는다.
+      **묶었으면 말한다** (94). 붐빈 자리의 점 하나가 여러 행을 대신하므로, 안 말하면 학생은
+      점 하나를 한 행으로 읽는다 — 위 설명(`clusterScatterLead`)이 그렇게 말하고 있다.
     -->
-    <p v-if="props.scatter.drawn < props.scatter.total" class="text-ink-faint">
-      {{
-        t('results.tabular.clusterSample', {
-          drawn: props.scatter.drawn,
-          total: props.scatter.total,
-        })
-      }}
-    </p>
+    <p v-if="layers.merged" class="text-ink-faint">{{ t('results.tabular.clusterMerged') }}</p>
+    <p v-if="layers.widened" class="text-ink-faint">{{ t('results.tabular.clusterWidened') }}</p>
   </div>
 </template>

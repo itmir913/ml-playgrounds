@@ -18,6 +18,8 @@
 
 import { categoryScale as sharedCategoryScale, placed } from '@/data/category-axis'
 import { sortedByX } from '@/data/chart-points'
+import { densityInk, densityStep, rowsOfDot, thinScatter, type ThinSize } from '@/data/scatter-thin'
+import { SCATTER_DENSITY_STEPS } from '@/limits'
 
 import type { ChartData, ChartOptions, PointStyle } from 'chart.js'
 
@@ -60,6 +62,8 @@ export interface ClusterChartText {
   readonly axisY: string
   /** 툴팁 한 문장. 조각을 이어 붙이지 않는다 (docs/i18n.md 규칙 3). */
   readonly point: (name: string, x: number | null, y: number | null) => string
+  /** 행을 여럿 대신하는 점(94)의 툴팁. 한 문장이고 행 수를 받는다. */
+  readonly pointMany: (name: string, x: number | null, y: number | null, rows: number) => string
 }
 
 /**
@@ -152,15 +156,19 @@ export function clusterShape(tokens: ClusterChartTokens, cluster: number): Point
 /**
  * 흰 테두리 데이터셋의 자리. **범례와 툴팁이 이 색인으로 그 줄을 뺀다.**
  *
+ * **군집 수가 아니라 군집 점 데이터셋의 수를 받는다** (94). 진하기 단계마다 데이터셋이
+ * 따로 서서 군집 하나가 데이터셋 여럿이 된다 — 군집 수를 넘기면 그 사이의 단계 하나가
+ * 대신 지워진다. `clusterChartData`가 그 수를 `pointSets`로 돌려준다.
+ *
  * 배열 순서가 바뀌면 **군집 하나가 대신 지워진다** — 화면에는 아무 표시도 안 난다.
  * 그래서 색인을 손으로 쓰지 않고 여기서 구한다.
  *
- * **중심점을 안 그리는 그림에는 그 줄이 없다** (범주 축). 그때 `clusterCount`를 그대로
+ * **중심점을 안 그리는 그림에는 그 줄이 없다** (범주 축). 그때 `pointSets`를 그대로
  * 돌려주면 **군집 하나가 범례에서 사라진다** — 없는 줄을 빼려다 있는 줄을 뺀다.
  * 그래서 `-1`이고, 어느 데이터셋과도 안 같은 값이다.
  */
-export function haloIndex(clusterCount: number, drawsCentroid = true): number {
-  return drawsCentroid ? clusterCount : -1
+export function haloIndex(pointSets: number, drawsCentroid = true): number {
+  return drawsCentroid ? pointSets : -1
 }
 
 /**
@@ -213,15 +221,27 @@ function centroidLayers(
  * **✕는 중심점이지 평균이 아니다** (#28-6). 수렴하지 못한 학습에서 둘이 갈리는데,
  * 그림이 말해야 하는 것은 "가장 가까운 중심점으로 배정된다"는 모델의 규칙이다.
  */
+export interface ClusterChartLayers {
+  readonly data: ChartData<'scatter'>
+  /** 군집 점 데이터셋의 수. **`haloIndex`에 넘긴다** — 흰 테두리가 그 바로 뒤다. */
+  readonly pointSets: number
+  /** 행을 여럿 대신하는 점이 있는가 (`data/scatter-thin.ts`의 `Thinned`). */
+  readonly merged: boolean
+  /** 묶음을 맞추려고 칸을 키웠는가. */
+  readonly widened: boolean
+}
+
 export function clusterChartData(
   scatter: ScatterData,
   summaries: readonly ClusterSummary[],
   axis: { readonly x: number; readonly y: number },
   tokens: ClusterChartTokens,
   text: Pick<ClusterChartText, 'clusterName' | 'centroid' | 'highlight'>,
+  /** 그림 영역(CSS 픽셀)과 그리는 점의 묶음. **점을 거르는 칸이 이 픽셀이다** (94). */
+  view: { readonly area: ThinSize; readonly budget: number },
   highlight?: ClusterHighlight | undefined,
   scales: ClusterAxisScales = {},
-): ChartData<'scatter'> {
+): ClusterChartLayers {
   /**
    * **범주 축에서는 ✕를 안 그린다** (`open-decisions.md` "군집 산점도의 축").
    * 원핫 공간의 중심점은 그 열에서 좌표가 `0.3/0.7`이라 칸 하나에 올릴 정직한 방법이
@@ -230,36 +250,78 @@ export function clusterChartData(
    */
   const drawsCentroid = scales.x === undefined && scales.y === undefined
 
-  const clusters = summaries.map((summary) => ({
-    label: text.clusterName(summary.cluster),
-    // **x로 정렬해 넘긴다** — `parsing: false`의 약속이다 (`data/chart-points.ts`).
-    data: sortedByX(
-      scatter.points
-        .filter((point) => point.cluster === summary.cluster)
-        .map((point) => ({
+  /**
+   * **점을 거른다** (`open-decisions.md` "94. 그림이 드문 것을 숨기는가"). 성긴 칸은 점을 전부,
+   * 붐빈 칸은 점 하나에 행 수를 실어 진하게 — 외딴 점은 반드시 남는다. 갈래는 군집이고,
+   * **흩뿌린 뒤의 좌표로 센다.** 중심점과 학생이 넣은 점은 거르지 않는다.
+   */
+  const slot = new Map(summaries.map((summary, index) => [summary.cluster, index]))
+  const thinned = thinScatter(
+    scatter.points.flatMap((point) => {
+      const group = slot.get(point.cluster)
+      if (group === undefined) return []
+      return [
+        {
           x: placed(point.values[axis.x] ?? 0, point.row, scales.x),
           y: placed(point.values[axis.y] ?? 0, point.row, scales.y),
-        })),
+          group,
+        },
+      ]
+    }),
+    view.area,
+    POINT_RADIUS,
+    view.budget,
+  )
+  const layers = summaries.map(() =>
+    Array.from(
+      { length: SCATTER_DENSITY_STEPS + 1 },
+      (): { x: number; y: number; rows: number }[] => [],
     ),
-    pointBackgroundColor: clusterColor(tokens, summary.cluster),
-    /**
-     * **획을 안 긋는다** (2026-09-22에 재서 뺐다, `data/chart-config.ts`의 같은 자리).
-     * 테두리 색이 채우기와 같은 색이라 **보이지 않는데** 점마다 획이 한 번 더 간다 —
-     * 20만 점에서 다시 그리기가 436ms에서 172ms였다.
-     *
-     * **모양 셋이 전부 채워지는 것이라 안전하다**(`POINT_SHAPES`: 원·삼각형·네모).
-     * `cross`나 `star`처럼 **획으로만 그리는 모양이 들어오는 날 이 줄이 그 점을 지운다** —
-     * 그때는 모양마다 갈라야 한다.
-     */
-    pointBorderWidth: 0,
-    // **가리켜도 안 돌아온다.** Chart.js의 hover 기본값이 1이라, 안 맞추면 커서를 얹는
-    // 순간 없던 획이 생긴다 — 위 `가리켜도 표식이 안 변한다`가 그 규칙이다.
-    pointHoverBorderWidth: 0,
-    pointBorderColor: clusterColor(tokens, summary.cluster),
-    pointStyle: clusterShape(tokens, summary.cluster),
-    pointRadius: POINT_RADIUS,
-    order: DRAW_ORDER.points,
-  }))
+  )
+  for (const { point, rows } of thinned.points) {
+    layers[point.group]?.[densityStep(rows)]?.push({ x: point.x, y: point.y, rows })
+  }
+
+  /**
+   * 군집마다, 진하기 단계마다 데이터셋 하나. **0단계는 비어 있어도 둔다** — 범례가 군집마다
+   * 첫 데이터셋 하나를 보인다(`clusterChartOptions`의 범례 거르기).
+   */
+  const clusters = summaries.flatMap((summary, index) =>
+    (layers[index] ?? []).flatMap((dots, step) =>
+      step > 0 && dots.length === 0 ? [] : [clusterDataset(summary, dots, step)],
+    ),
+  )
+
+  function clusterDataset(
+    summary: ClusterSummary,
+    dots: readonly { x: number; y: number; rows: number }[],
+    step: number,
+  ) {
+    const color = densityInk(clusterColor(tokens, summary.cluster), tokens.ink, step)
+    return {
+      label: text.clusterName(summary.cluster),
+      // **x로 정렬해 넘긴다** — `parsing: false`의 약속이다 (`data/chart-points.ts`).
+      data: sortedByX(dots),
+      pointBackgroundColor: color,
+      /**
+       * **획을 안 긋는다** (2026-09-22에 재서 뺐다, `data/chart-config.ts`의 같은 자리).
+       * 테두리 색이 채우기와 같은 색이라 **보이지 않는데** 점마다 획이 한 번 더 간다 —
+       * 20만 점에서 다시 그리기가 436ms에서 172ms였다.
+       *
+       * **모양 셋이 전부 채워지는 것이라 안전하다**(`POINT_SHAPES`: 원·삼각형·네모).
+       * `cross`나 `star`처럼 **획으로만 그리는 모양이 들어오는 날 이 줄이 그 점을 지운다** —
+       * 그때는 모양마다 갈라야 한다.
+       */
+      pointBorderWidth: 0,
+      // **가리켜도 안 돌아온다.** Chart.js의 hover 기본값이 1이라, 안 맞추면 커서를 얹는
+      // 순간 없던 획이 생긴다 — 위 `가리켜도 표식이 안 변한다`가 그 규칙이다.
+      pointHoverBorderWidth: 0,
+      pointBorderColor: color,
+      pointStyle: clusterShape(tokens, summary.cluster),
+      pointRadius: POINT_RADIUS,
+      order: DRAW_ORDER.points,
+    }
+  }
 
   /**
    * 중심점도 x로 정렬한다 (`data/chart-points.ts`). **요약과 짝지어 정렬한다** — 중심점의
@@ -275,7 +337,7 @@ export function clusterChartData(
   const centers = centroids.map(({ x, y }) => ({ x, y }))
   const centerSummaries = centroids.map((one) => one.summary)
 
-  return {
+  const data: ChartData<'scatter'> = {
     datasets: [
       ...clusters,
       ...(drawsCentroid ? centroidLayers(centers, centerSummaries, tokens, text.centroid) : []),
@@ -302,13 +364,19 @@ export function clusterChartData(
         : []),
     ],
   }
+  return {
+    data,
+    pointSets: clusters.length,
+    merged: thinned.merged,
+    widened: thinned.widened,
+  }
 }
 
 /**
  * 그림의 나머지 규칙.
  *
  * - **애니메이션을 끈다.** `limits.ts`의 `CLUSTER_SCATTER_POINT_LIMIT`이 이 줄에 매여
- *   있다 — 상한의 근거가 된 실측이 `animation: false`에서 나왔다 (#28-5).
+ *   있다 — 그 묶음의 근거가 된 실측이 `animation: false`에서 나왔다 (#28-5).
  * - **가리킨 것 하나만 말한다.** 산점도의 기본 모드는 `point`라 커서 아래에 겹친 점을
  *   전부 세운다.
  * - **표식은 hover에서 안 변한다.** Chart.js의 `pointHoverRadius` 기본값이 4이고
@@ -322,12 +390,13 @@ export function clusterChartData(
  *   정렬하므로, 그대로 두면 중심점이 맨 앞에 선다.
  */
 export function clusterChartOptions(
-  clusterCount: number,
+  /** 군집 점 데이터셋의 수 — `clusterChartData`의 `pointSets`다. 군집 수가 아니다. */
+  pointSets: number,
   tokens: ClusterChartTokens,
   text: Omit<ClusterChartText, 'clusterName' | 'centroid'>,
   scales: ClusterAxisScales = {},
 ): ChartOptions<'scatter'> {
-  const halo = haloIndex(clusterCount, scales.x === undefined && scales.y === undefined)
+  const halo = haloIndex(pointSets, scales.x === undefined && scales.y === undefined)
 
   /**
    * 범주 축의 눈금은 **데이터 화면의 산점도와 한 자리에서 온다**
@@ -373,7 +442,15 @@ export function clusterChartOptions(
         labels: {
           color: tokens.ink,
           usePointStyle: true,
-          filter: (item) => item.datasetIndex !== halo,
+          /**
+           * **군집마다 항목 하나다** (94). 진하기 단계마다 데이터셋이 서므로 같은 이름의 첫
+           * 데이터셋만 보인다 — 흰 테두리는 빼고 센다. 안 빼면 중심점 이름의 첫 줄이 흰
+           * 테두리라 색 있는 중심점 항목이 사라진다.
+           */
+          filter: (item, data) =>
+            item.datasetIndex !== halo &&
+            data.datasets.findIndex((one, index) => index !== halo && one.label === item.text) ===
+              item.datasetIndex,
           sort: (a, b) => (a.datasetIndex ?? 0) - (b.datasetIndex ?? 0),
         },
       },
@@ -382,7 +459,13 @@ export function clusterChartOptions(
         usePointStyle: true,
         filter: (item) => item.datasetIndex !== halo,
         callbacks: {
-          label: (item) => text.point(item.dataset.label ?? '', item.parsed.x, item.parsed.y),
+          label: (item) => {
+            const rows = rowsOfDot(item.raw)
+            const name = item.dataset.label ?? ''
+            return rows > 1
+              ? text.pointMany(name, item.parsed.x, item.parsed.y, rows)
+              : text.point(name, item.parsed.x, item.parsed.y)
+          },
         },
       },
     },

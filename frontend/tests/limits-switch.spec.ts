@@ -30,8 +30,6 @@ import {
 } from '../src/limits'
 import {
   applyLimitsOff,
-  clusterScatterPointLimit,
-  dataScatterPointLimit,
   imagePredictPageSize,
   limitsOff,
   maxDatasetColumns,
@@ -59,13 +57,13 @@ describe('스위치를 안 켜면 아무것도 안 바뀐다', () => {
   })
 })
 
-describe('켜면 여덟이 함께 열린다', () => {
+describe('켜면 읽기 함수가 함께 열린다', () => {
   /**
    * **부분만 열리면 설명할 말이 없다** (`open-decisions.md` "상한은 누가 정했느냐" §2).
    * 하나씩 확인하는 이유는 새 상한이 이 모듈에 들어오면서 `open()`을 안 거치는 일이
    * 실제로 일어나기 때문이다 — 그때 그 하나만 조용히 옛 값을 낸다.
    */
-  it('여덟이 전부 열린다', () => {
+  it('읽기 함수가 전부 열린다', () => {
     applyLimitsOff(true)
     for (const read of [
       maxDatasetRows,
@@ -73,8 +71,6 @@ describe('켜면 여덟이 함께 열린다', () => {
       maxImageCount,
       predictPageSize,
       imagePredictPageSize,
-      clusterScatterPointLimit,
-      dataScatterPointLimit,
       maxPortfolioBytes,
     ]) {
       expect(read()).toBe(Number.POSITIVE_INFINITY)
@@ -237,7 +233,7 @@ describe('맥락이 스위치를 싣는다', () => {
 /**
  * **목록을 손으로 적지 않는다** (2026-09-01 감사 B-2).
  *
- * 위 `여덟이 전부 열린다`는 이름을 손으로 열거하므로, **아홉째가 `open()`을 안 거치고
+ * 위 `읽기 함수가 전부 열린다`는 이름을 손으로 열거하므로, **새 함수가 `open()`을 안 거치고
  * 들어오면 아무 일도 안 일어난다** — 그 검사의 주석이 막겠다고 적은 바로 그 경우다.
  * 단정이 자기 목록을 근거로 하면 안 된다.
  *
@@ -277,7 +273,7 @@ describe('내보내는 읽기 함수가 전부 스위치를 거친다', () => {
 
   it('뽑을 것을 실제로 찾는다', () => {
     // 0개면 정규식이 썩은 것이지 규칙이 지켜진 게 아니다.
-    expect(readers.length).toBeGreaterThanOrEqual(7)
+    expect(readers.length).toBeGreaterThanOrEqual(6)
   })
 
   it('하나도 빠짐없이 `open()`을 거친다', () => {

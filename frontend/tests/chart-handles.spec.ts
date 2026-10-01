@@ -28,6 +28,7 @@ import ChartDialog from '../src/views/data/ChartDialog.vue'
 import HistogramChart from '../src/views/data/charts/HistogramChart.vue'
 import ScatterChart from '../src/views/data/charts/ScatterChart.vue'
 import { stubDialogElement } from './fixtures/image-workers'
+import { stubElementSize } from './fixtures/layout'
 
 type Kind = 'numeric' | 'categorical'
 type Column = { name: string; kind: Kind; missing: number; unique: number; samples: string[] }
@@ -80,10 +81,13 @@ beforeEach(() => {
   if (typeof Element.prototype.scrollIntoView === 'undefined') {
     Element.prototype.scrollIntoView = () => {}
   }
+  // 산점도는 그림 영역의 크기가 서야 그린다 (`fixtures/layout.ts`).
+  stubElementSize()
 })
 
 afterEach(() => {
   applyLimitsOff(false)
+  vi.restoreAllMocks()
 })
 
 describe('히스토그램의 손잡이', () => {
@@ -288,7 +292,7 @@ describe('산점도의 아래 한 줄과 범례', () => {
     note: string
   }
 
-  /** 상한보다 50행 많다. 스위치를 켜면 표본, 끄면 전부다. */
+  /** 묶음보다 50행 많다. 값이 격자에 떨어져 같은 자리에 겹친 행이 있다. */
   function bigDataset(groups: number) {
     return {
       columns: ['x', 'y', 'g'],
@@ -306,35 +310,32 @@ describe('산점도의 아래 한 줄과 범례', () => {
     await drawn(wrapper)
     await pickTool(wrapper, i18n.global.t('data.charts.scatter.name'))
     const chart = wrapper.findComponent(ScatterChart).vm as unknown as ScatterInternals
-    const points = () =>
+    const dots = () =>
       (
         wrapper.findComponent({ name: 'Scatter' }).props('data') as {
-          datasets: { data: unknown[] }[]
+          datasets: { data: { rows: number }[] }[]
         }
-      ).datasets.reduce((sum, set) => sum + set.data.length, 0)
-    return { wrapper, chart, points }
+      ).datasets.flatMap((set) => set.data)
+    const points = () => dots().length
+    return { wrapper, chart, points, dots }
   }
 
   /**
-   * **상한 스위치가 표본을 연다** (S4·C-8). 상한을 숫자 리터럴로 박으면 `limits-rules`는
-   * 이름을 안 봐서 조용했다 — 여기서는 **스위치를 켜고 끈 결과**를 보므로 운다.
+   * **상한 스위치와 상관없이 같은 그림이다** (`open-decisions.md` "94. 그림이 드문 것을
+   * 숨기는가"). 전에는 스위치가 무작위 표본과 전부 그리기를 갈랐다 — 표본은 외딴 점을 잃었고
+   * 전부 그리기는 교실 PC를 세웠다. 이제 붐빈 칸만 점 하나로 묶고, **묶은 점이 대신하는
+   * 행의 합이 그릴 수 있는 행 전부다.**
    */
-  it('상한이 켜져 있으면 표본을 말하고, 풀면 전부 그리고 그렇게 말한다', async () => {
-    const { wrapper, chart, points } = await scatterOf(2)
-    const sampled = i18n.global.t('data.charts.scatter.sampled', {
-      drawn: DATA_SCATTER_POINT_LIMIT,
-      total: DATA_SCATTER_POINT_LIMIT + 50,
-    })
-    expect(points()).toBe(DATA_SCATTER_POINT_LIMIT)
-    expect(chart.note).toContain(sampled)
+  it('상한 스위치와 상관없이 같은 그림이고, 묶었으면 그렇게 말한다', async () => {
+    const { wrapper, chart, points, dots } = await scatterOf(2)
+    const before = points()
+    expect(before).toBeLessThanOrEqual(DATA_SCATTER_POINT_LIMIT)
+    expect(dots().reduce((sum, dot) => sum + dot.rows, 0)).toBe(DATA_SCATTER_POINT_LIMIT + 50)
+    expect(chart.note).toContain(i18n.global.t('data.charts.scatter.merged'))
 
     applyLimitsOff(true)
     await wrapper.vm.$nextTick()
-    expect(points()).toBe(DATA_SCATTER_POINT_LIMIT + 50)
-    expect(chart.note).toContain(
-      i18n.global.t('data.charts.scatter.drawingAll', { count: DATA_SCATTER_POINT_LIMIT + 50 }),
-    )
-    expect(chart.note).not.toContain(sampled)
+    expect(points()).toBe(before)
   })
 
   /**

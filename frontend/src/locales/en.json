@@ -283,7 +283,7 @@
         "name": "Bar chart",
         "series": "Count",
         "point": "{value} · {count}",
-        "omitted": "There are too many distinct values, so only {shown} are drawn. ({distinct} in total, {rows} rows not drawn)"
+        "omitted": "There are too many distinct values, so only the {shown} with the most rows are drawn. ({distinct} in total, {rows} rows not drawn)"
       },
       "box": {
         "name": "Box plot",
@@ -300,10 +300,11 @@
         "colorBy": "Color by",
         "colorNone": "No color",
         "point": "{name} · x {x} · y {y}",
-        "sampled": "There are too many dots to draw them all, so only some are shown. ({drawn} of {total} rows)",
+        "pointMany": "{count} rows overlap near this dot. ({name} · x {x} · y {y})",
+        "merged": "Where many dots overlap, one darker dot stands for them. Point at a dot to see how many rows it covers.",
+        "widened": "There are so many dots that wider areas are drawn as one dot.",
         "skipped": "{count} rows could not be drawn because a value is empty.",
-        "colorsRepeat": "There are {count} groups, so colors repeat. Point at a dot to see which value it is.",
-        "drawingAll": "Limits are off, so all {count} dots are drawn. Resizing the window may freeze the page for a moment."
+        "colorsRepeat": "There are {count} groups, so colors repeat. Point at a dot to see which value it is."
       }
     }
   },
@@ -975,7 +976,9 @@
       "clusterMembersLead": "Sorted by distance from the centroid. Columns not used for training are shown too.",
       "clusterModeHelp": "The most common category in this cluster. ({count} category) | The most common category in this cluster. ({count} categories)",
       "clusterPoint": "{name} ({x}, {y})",
-      "clusterSample": "There are too many dots to draw them all, so only some are shown. ({drawn} of {total} rows)",
+      "clusterPointMany": "{count} rows overlap near this dot. ({name}, {x}, {y})",
+      "clusterMerged": "Where many dots overlap, one darker dot stands for them. Point at a dot to see how many rows it covers.",
+      "clusterWidened": "There are so many dots that wider areas are drawn as one dot.",
       "silhouetteSampled": "There is a lot of data, so the silhouette coefficient was measured on a random subset of the rows. Changing the [Random seed] may give a slightly different value on the same data. ({used} of {total} rows)",
       "clusterScatter": "Cluster scatter plot",
       "clusterScatterLead": "Each dot is one row of data, and each ✕ marks the centroid of a cluster.",

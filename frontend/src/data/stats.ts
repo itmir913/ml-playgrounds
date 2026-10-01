@@ -7,13 +7,12 @@
  * 같은 자리에서 이미 두 번 조용히 깨졌다 (`ml/cluster-chart.ts`의 머리말).
  *
  * **잣대는 빌려 쓴다. 새로 만들지 않는다.** 수로 읽는 규칙(`toNumber`)도 사분위수를
- * 구하는 규칙(`quantile`)도 표본을 뽑는 규칙(`sampleIndices`)도 이미 이 저장소에 하나씩
+ * 구하는 규칙(`quantile`)도 이미 이 저장소에 하나씩
  * 있고, 그것을 그대로 부른다 — 두 벌이 되면 **같은 열이 전처리 화면과 그림에서 다른
  * 말을 하게 되고**, 그 어긋남은 둘을 나란히 놓기 전에는 안 보인다.
  */
 
 import { categoryOrder, quantile, toNumber, type Dataset } from '../ml/preprocess'
-import { sampleIndices } from '../ml/shuffle'
 
 /**
  * 열 하나의 칸들을 행 순서대로 꺼낸다. 없는 열이면 빈 배열이다.
@@ -376,31 +375,12 @@ export interface DataPoint {
   readonly group?: string
 }
 
-export interface ScatterSample {
+export interface ScatterRows {
+  /** 점을 찍을 수 있는 행 **전부.** 거르는 것은 그리는 쪽의 일이다(`data/scatter-thin.ts`). */
   readonly points: readonly DataPoint[]
-  /** 실제로 찍는 점 수. */
-  readonly drawn: number
-  /**
-   * 두 열이 **모두** 수로 읽힌 행 수. 한쪽이라도 비면 점을 못 찍으므로 여기서 빠진다.
-   *
-   * **`drawn`과 다르면 화면이 그 사실을 말한다.** 조용히 일부만 그리면 학생은 자기
-   * 데이터가 다 거기 있다고 믿는다 (`open-decisions.md` #28-5와 같은 규칙이다).
-   */
-  readonly total: number
   /** 두 열 중 한쪽이라도 비거나 수로 안 읽혀서 못 찍은 행 수. */
   readonly skipped: number
 }
-
-/**
- * 산점도에 찍을 점을 고른다. **상한을 넘으면 씨앗으로 표본을 뽑는다.**
- *
- * **씨앗은 부르는 쪽이 준다** — 프로젝트의 `split.randomState`다. 같은 프로젝트를 다시
- * 열면 같은 그림이라야 학생이 어제 본 것을 오늘도 본다. `Math.random`으로 뽑으면
- * 새로고침할 때마다 그림이 달라지고, 학생은 자기가 뭘 바꿔서 달라진 줄 안다.
- *
- * **점을 못 찍는 행은 표본을 뽑기 전에 뺀다.** 뽑고 나서 버리면 `limit`이 1만인데
- * 실제로 그려지는 것은 그보다 적어지고, 결측이 많은 열일수록 더 적어진다.
- */
 /**
  * 그 열의 범주들. **인코딩 순서다.**
  *
@@ -427,11 +407,17 @@ function categoryReader(categories: readonly string[]): (cell: string) => number
   return (cell) => at.get(cell) ?? null
 }
 
-export function scatterSample(
+/**
+ * 산점도에 찍을 점을 읽는다. **표본을 뽑지 않는다** (`open-decisions.md` "94. 그림이 드문 것을
+ * 숨기는가").
+ *
+ * 전에는 상한을 넘으면 씨앗으로 표본을 뽑았고, 10만 행에 섞인 외딴 점 20개 가운데 평균 2개만
+ * 남았다. 이제 점을 찍을 수 있는 행을 전부 넘기고, 그리는 쪽이 그림 영역의 칸으로 거른다 —
+ * 붐빈 칸만 점 하나로 묶고 외딴 점은 반드시 남는다.
+ */
+export function scatterRows(
   xCells: readonly string[],
   yCells: readonly string[],
-  limit: number,
-  randomState: number,
   groupCells?: readonly string[],
   /**
    * 축마다의 범주 목록. **있으면 그 축은 범주 축이고, 값은 목록에서의 자리다.**
@@ -440,7 +426,7 @@ export function scatterSample(
    * 그것을 다시 판정하면 판정이 두 벌이 된다.
    */
   axes: { x?: readonly string[] | undefined; y?: readonly string[] | undefined } = {},
-): ScatterSample {
+): ScatterRows {
   const usable: DataPoint[] = []
   const rowCount = Math.max(xCells.length, yCells.length)
   const readX = axes.x === undefined ? toNumber : categoryReader(axes.x)
@@ -454,11 +440,5 @@ export function scatterSample(
     usable.push(group === undefined || group.trim() === '' ? { row, x, y } : { row, x, y, group })
   }
 
-  const total = usable.length
-  const picked =
-    total <= limit
-      ? usable
-      : sampleIndices(total, limit, randomState).map((index) => usable[index] as DataPoint)
-
-  return { points: picked, drawn: picked.length, total, skipped: rowCount - total }
+  return { points: usable, skipped: rowCount - usable.length }
 }

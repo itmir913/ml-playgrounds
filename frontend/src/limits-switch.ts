@@ -11,7 +11,7 @@
  * **여기 사는 것은 `open()`을 거치는 읽기 함수 몇 개뿐이다.** 몇 개인지는 적지 않는다 —
  * limits-switch.spec.ts "내보내는 읽기 함수가 전부 스위치를 거친다"가 소스에서 뽑는다.
  *
- * 스물셋을 끈다고 해서 스물셋이 여기 있어야 하는 것은 아니다 — 행 상한 열여섯은
+ * 끄는 상수가 전부 여기 있어야 하는 것은 아니다 — 행 상한들은
  * **판정이 한 곳으로 모여 있어서**(`ml/backend.ts`의 `runtimeOptions`) 거기서 한 번에
  * 꺼진다. 그 값들을 여기서 `Infinity`로 바꾸면 **화면이 "무제한 행까지"라고 말하게
  * 된다** — 상한이 몇인지는 꺼진 뒤에도 말할 거리다.
@@ -31,8 +31,6 @@ import { ref } from 'vue'
 import { readLimitsOff, writeLimitsOff } from './project/storage'
 
 import {
-  CLUSTER_SCATTER_POINT_LIMIT,
-  DATA_SCATTER_POINT_LIMIT,
   IMAGE_PREDICT_PAGE_SIZE,
   MAX_DATASET_COLUMNS,
   MAX_DATASET_ROWS,
@@ -132,35 +130,6 @@ export function predictPageSize(): number {
 /** 예측 판 하나에 세우는 사진 수. **위와 같은 자리다.** */
 export function imagePredictPageSize(): number {
   return open(IMAGE_PREDICT_PAGE_SIZE)
-}
-
-/** 산점도에 그릴 점의 수. 넘으면 표본을 뽑는다 (`ml/clusters.ts`의 `scatterPoints`). */
-export function clusterScatterPointLimit(): number {
-  return open(CLUSTER_SCATTER_POINT_LIMIT)
-}
-
-/**
- * 산점도가 **표본을 안 뽑고 전부 그리고 있는가** (2026-09-22에 재서 넣었다).
- *
- * **판정이 여기 사는 이유는 질문이 스위치의 것이기 때문이다** — *"이 상한이 지금 풀려
- * 있나"*는 화면이 답할 수 없고, 화면이 상수를 직접 읽으면 `limits-rules.spec.ts`가
- * 막는다(그 규칙의 목적이 **스위치를 비켜 가는 화면을 막는 것**이다).
- *
- * **막는 판정이 아니다.** 표본은 드문 점을 잃고, 치우친 열에서 정작 보고 싶은 것이 그
- * 드문 점이다 — 학생이 상한을 푼 이유가 그것이다. 화면은 이 값으로 **비용을 말할 뿐**이다.
- */
-export function drawingEveryPoint(drawn: number, total: number): boolean {
-  return drawn === total && drawn > DATA_SCATTER_POINT_LIMIT
-}
-
-/**
- * 데이터 화면의 산점도에 그릴 점의 수 (`data/stats.ts`의 `scatterSample`).
- *
- * **`clusterScatterPointLimit`과 값이 같지만 다른 상수다** — 이유는 `limits.ts`의 그 주석이
- * 갖는다.
- */
-export function dataScatterPointLimit(): number {
-  return open(DATA_SCATTER_POINT_LIMIT)
 }
 
 /**

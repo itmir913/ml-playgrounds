@@ -295,27 +295,36 @@ describe('상한은 전부 읽힌다', () => {
 })
 
 /**
- * **화면과 상한을 잇는 줄이 끊겨도 아무것도 안 울었다** (V11 R5 B-4).
- * `CLUSTER_SCATTER_POINT_LIMIT`에는 근거가 촘촘히 붙어 있다 — 개발 PC 실측, 감사자의
- * 독립 재측정, `animation: false`가 화면에 실제로 있어야 그 숫자가 화면의 숫자라는 못까지.
- * 그런데 `clusters.spec.ts`는 `scatterPoints`를 **인자로 받은 상한**으로 검사하므로,
- * 화면이 그 상수를 안 넘겨도 초록이다.
+ * **화면과 묶음을 잇는 줄이 끊겨도 아무것도 안 울었다** (V11 R5 B-4).
+ * `CLUSTER_SCATTER_POINT_LIMIT`·`DATA_SCATTER_POINT_LIMIT`에는 근거가 촘촘히 붙어 있다 — 개발 PC
+ * 실측, 감사자의 독립 재측정, `animation: false`가 화면에 실제로 있어야 그 숫자가 화면의 숫자라는
+ * 못까지. 그런데 그리는 함수의 검사는 **인자로 받은 묶음**으로 재므로, 화면이 그 상수를 안 넘겨도
+ * 초록이다.
+ *
+ * **94부터 묶음을 받는 것은 그리는 함수다** — 표본을 뽑던 `scatterPoints`·`scatterSample`이 아니라
+ * 점을 거르는 `clusterChartData`·`scatterLayers`가 받는다. 그래서 그 둘을 부르는 화면을 본다.
  *
  * **못 잡는 것을 밝혀 둔다** — 이 검사는 *줄이 이어져 있는가*만 본다. **상수의 값 자체가
  * 바뀌는 것은 어떤 검사도 못 잡는다.** 자기를 기준으로 쓴 검사는 값을 따라 커지기
- * 때문이다. 값을 못 박는 것은 `versions.spec.ts`가 포맷 버전에 하는 일인데, 실측으로
- * 고른 조율 상수에까지 그것을 하지는 않는다 — 근거는 그 상수의 주석이 갖는다.
+ * 때문이다. 근거는 그 상수의 주석이 갖는다.
  */
-describe('산점도 상한이 화면까지 이어진다', () => {
-  // 정의한 파일은 부르는 쪽이 아니다 - 상한을 인자로 받는 것이 그 함수의 계약이다.
-  const CALLERS = scanned(SRC).filter((path) => {
-    const source = readFileSync(path, 'utf-8')
-    return source.includes('scatterPoints(') && !source.includes('export function scatterPoints')
-  })
+describe('산점도 묶음이 화면까지 이어진다', () => {
+  const DRAWERS = [
+    { call: 'clusterChartData(', constant: 'CLUSTER_SCATTER_POINT_LIMIT' },
+    { call: 'scatterLayers(', constant: 'DATA_SCATTER_POINT_LIMIT' },
+  ]
+
+  // 정의한 파일은 부르는 쪽이 아니다 - 묶음을 인자로 받는 것이 그 함수의 계약이다.
+  function callersOf(call: string): string[] {
+    return scanned(SRC).filter((path) => {
+      const source = readFileSync(path, 'utf-8')
+      return source.includes(call) && !source.includes('export function ' + call)
+    })
+  }
 
   it('부르는 화면을 실제로 찾는다', () => {
     // 0개면 이름이 바뀐 것이지 규칙이 지켜진 게 아니다.
-    expect(CALLERS.length).toBeGreaterThanOrEqual(2)
+    for (const { call } of DRAWERS) expect(callersOf(call).length, call).toBeGreaterThanOrEqual(1)
   })
 
   /**
@@ -329,19 +338,13 @@ describe('산점도 상한이 화면까지 이어진다', () => {
       .join('\n')
   }
 
-  /**
-   * **스위치를 거친 이름도 같은 줄이다** (2026-09-01). 화면은 이제 상수를 직접 안 읽고
-   * `clusterScatterPointLimit()`을 부른다 — 그 함수가 `limits-switch.ts`에서 이 상수를
-   * 읽으므로 줄은 그대로 이어져 있고, **끊긴 것과 거쳐 간 것을 여기서 갈라야 한다.**
-   * 상수 이름만 보던 이 검사는 그 이사에서 울었고, 그것이 이 검사가 하는 일이다.
-   */
-  it('상한을 손으로 안 적고 상수를 넘긴다', () => {
-    const missing = CALLERS.filter(
-      (path) =>
-        !bodyOf(path).includes('CLUSTER_SCATTER_POINT_LIMIT') &&
-        !bodyOf(path).includes('clusterScatterPointLimit('),
-    ).map((path) => path.slice(SRC.length + 1))
-    expect(missing, 'calls scatterPoints without passing the constant').toEqual([])
+  it('묶음을 손으로 안 적고 상수를 넘긴다', () => {
+    const missing = DRAWERS.flatMap(({ call, constant }) =>
+      callersOf(call)
+        .filter((path) => !bodyOf(path).includes(constant))
+        .map((path) => path.slice(SRC.length + 1) + ' ' + call),
+    )
+    expect(missing, 'calls a scatter drawer without passing its constant').toEqual([])
   })
 })
 

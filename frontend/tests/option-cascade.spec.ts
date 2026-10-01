@@ -74,6 +74,7 @@ import { router } from '../src/router'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import ChartDialog from '../src/views/data/ChartDialog.vue'
+import { stubElementSize } from './fixtures/layout'
 import TabularPrepPanel from '../src/views/preprocess/TabularPrepPanel.vue'
 import TrainView from '../src/views/TrainView.vue'
 import { stubDialogElement } from './fixtures/image-workers'
@@ -663,6 +664,10 @@ describe('층화가 막히면 잠기고 학습은 무시한다', { timeout: 30_0
 // ------------------------------------------------------------------------------------ 4 · 5
 
 describe('시각화 창의 고른 값', () => {
+  // 산점도는 그림 영역의 크기가 서야 그린다 (`fixtures/layout.ts`).
+  beforeEach(() => stubElementSize())
+  afterEach(() => vi.restoreAllMocks())
+
   type Kind = 'numeric' | 'categorical'
   const column = (name: string, kind: Kind) => ({
     name,

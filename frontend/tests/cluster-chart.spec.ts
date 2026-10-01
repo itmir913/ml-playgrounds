@@ -51,7 +51,7 @@ function scatter(count: number): ScatterData {
     cluster: index % count,
     values: [index, index],
   }))
-  return { points, drawn: points.length, total: points.length }
+  return { points }
 }
 
 const TEXT = {
@@ -59,6 +59,9 @@ const TEXT = {
   centroid: '중심점',
   highlight: '입력한 데이터',
 }
+
+/** 거르기가 안 걸리는 넓은 판. 거르기 자체는 `scatter-thin.spec.ts`가 문다. */
+const VIEW = { area: { width: 800, height: 500 }, budget: 10_000 }
 
 function dataOf(
   count: number,
@@ -71,9 +74,10 @@ function dataOf(
     { x: 0, y: 1 },
     TOKENS,
     TEXT,
+    VIEW,
     highlight,
     scales,
-  )
+  ).data
 }
 
 function optionsOf(count: number, scales?: ClusterAxisScales) {
@@ -84,6 +88,7 @@ function optionsOf(count: number, scales?: ClusterAxisScales) {
       axisX: '키',
       axisY: '몸무게',
       point: (name, x, y) => `${name} (${x}, ${y})`,
+      pointMany: (name, x, y, rows) => `${name} (${x}, ${y}) ×${rows}`,
     },
     scales,
   )
@@ -131,11 +136,44 @@ describe('테두리의 자리', () => {
 
   it('범례에서 테두리만 빠지고 중심점은 한 줄로 남는다', () => {
     const filter = optionsOf(3).plugins!.legend!.labels!.filter!
-    const kept = [0, 1, 2, 3, 4]
-      .map((datasetIndex) => ({ datasetIndex }) as LegendItem)
-      .filter((item) => filter(item, { datasets: [], labels: [] }))
+    const data = dataOf(3)
+    const kept = data.datasets
+      .map((set, datasetIndex) => ({ datasetIndex, text: set.label }) as LegendItem)
+      .filter((item) => filter(item, data))
 
     expect(kept.map((item) => item.datasetIndex)).toEqual([0, 1, 2, 4])
+  })
+
+  /**
+   * **진하기 단계마다 데이터셋이 서도 범례는 군집마다 한 줄이다** (94). 흰 테두리의 자리는
+   * 군집 수가 아니라 군집 점 데이터셋 수 뒤다 — 군집 수를 넘기면 단계 하나가 대신 지워진다.
+   */
+  it('붐빈 군집이 단계로 갈려도 범례는 군집마다 한 줄이고 테두리 자리가 안 밀린다', () => {
+    const crowd = Array.from({ length: 40 }, (_value, row) => ({ row, cluster: 0, values: [1, 1] }))
+    const spread = [
+      { row: 40, cluster: 0, values: [0, 0] },
+      { row: 41, cluster: 1, values: [9, 9] },
+      { row: 42, cluster: 2, values: [5, 2] },
+    ]
+    const layers = clusterChartData(
+      { points: [...crowd, ...spread] },
+      summaries(3),
+      { x: 0, y: 1 },
+      TOKENS,
+      TEXT,
+      VIEW,
+    )
+    expect(layers.merged).toBe(true)
+    expect(layers.pointSets).toBeGreaterThan(3)
+    const halo = haloIndex(layers.pointSets)
+    expect(layers.data.datasets[halo]?.pointBorderColor).toBe(TOKENS.ink)
+
+    const filter = optionsOf(layers.pointSets).plugins!.legend!.labels!.filter!
+    const shown = layers.data.datasets
+      .map((set, datasetIndex) => ({ datasetIndex, text: set.label }) as LegendItem)
+      .filter((item) => filter(item, layers.data))
+      .map((item) => item.text)
+    expect(shown).toEqual(['0번 군집', '1번 군집', '2번 군집', '중심점'])
   })
 
   it('툴팁도 같은 줄을 뺀다 - 안 빼면 중심점이 두 번 뜬다', () => {
@@ -236,7 +274,7 @@ describe('범주 축', () => {
       { row: 1, cluster: 0, values: [0, 12] },
       { row: 2, cluster: 1, values: [2, 14] },
     ]
-    return { points, drawn: points.length, total: points.length }
+    return { points }
   }
 
   function categoricalData(scales: ClusterAxisScales) {
@@ -246,9 +284,10 @@ describe('범주 축', () => {
       { x: 0, y: 1 },
       TOKENS,
       TEXT,
+      VIEW,
       undefined,
       scales,
-    )
+    ).data
   }
 
   /** Chart.js의 축 타입은 합집합이라 그대로는 못 읽는다. */
@@ -309,9 +348,10 @@ describe('범주 축', () => {
     expect(haloIndex(3, false)).toBe(-1)
 
     const filter = optionsOf(3, { x: CATEGORIES }).plugins!.legend!.labels!.filter!
-    const kept = [0, 1, 2]
-      .map((datasetIndex) => ({ datasetIndex }) as LegendItem)
-      .filter((item) => filter(item, { datasets: [], labels: [] }))
+    const data = dataOf(3, undefined, { x: CATEGORIES })
+    const kept = data.datasets
+      .map((set, datasetIndex) => ({ datasetIndex, text: set.label }) as LegendItem)
+      .filter((item) => filter(item, data))
 
     expect(kept.map((item) => item.datasetIndex)).toEqual([0, 1, 2])
   })
@@ -460,13 +500,7 @@ describe('점의 차례', () => {
       { row: 1, cluster: 0, values: [60, 1] },
       { row: 2, cluster: 0, values: [99, 2] },
     ]
-    const data = clusterChartData(
-      { points, drawn: points.length, total: points.length },
-      summaries(1),
-      { x: 0, y: 1 },
-      TOKENS,
-      TEXT,
-    )
+    const data = clusterChartData({ points }, summaries(1), { x: 0, y: 1 }, TOKENS, TEXT, VIEW).data
     const drawn = data.datasets[0]?.data as { x: number }[]
     expect(drawn.map((point) => point.x)).toEqual([60, 88, 99])
   })
@@ -477,7 +511,7 @@ describe('점의 차례', () => {
       ...summary,
       centroid: [10 - summary.cluster, 0],
     }))
-    const data = clusterChartData(scatter(3), reversed, { x: 0, y: 1 }, TOKENS, TEXT)
+    const data = clusterChartData(scatter(3), reversed, { x: 0, y: 1 }, TOKENS, TEXT, VIEW).data
     const colored = data.datasets[4]
     const xs = (colored?.data as { x: number }[]).map((point) => point.x)
     expect(xs).toEqual([8, 9, 10])

@@ -16,13 +16,19 @@ import { useI18n } from 'vue-i18n'
 
 import AppTeleport from '@/components/AppTeleport.vue'
 import ChartFrame from './ChartFrame.vue'
-import { colorsAreDistinct, scatterData, scatterOptions, scatterSeries } from '@/data/chart-config'
+import {
+  colorsAreDistinct,
+  scatterLayers,
+  scatterOptions,
+  scatterSeries,
+} from '@/data/chart-config'
 import { categoricalColumns, useChartControls, type ChartInput } from '@/data/charts'
 import { type AxisCell } from '@/data/category-axis'
-import { categoriesOf, columnCells, scatterSample } from '@/data/stats'
+import { categoriesOf, columnCells, scatterRows } from '@/data/stats'
 import { useChartTokens } from '@/composables/useChartTokens'
+import { useElementSize } from '@/composables/useElementSize'
 import { useFormat } from '@/composables/useFormat'
-import { dataScatterPointLimit, drawingEveryPoint } from '@/limits-switch'
+import { DATA_SCATTER_POINT_LIMIT } from '@/limits'
 
 Chart.register(ScatterController, PointElement, LinearScale, Tooltip, Legend)
 
@@ -102,12 +108,11 @@ const axes = computed(() => ({
   y: categoriesFor(yColumn.value),
 }))
 
+/** 점을 찍을 수 있는 행 전부. **표본을 안 뽑는다** — 거르는 것은 아래 `layers`다 (94). */
 const sample = computed(() =>
-  scatterSample(
+  scatterRows(
     columnCells(props.input.dataset, props.input.column),
     columnCells(props.input.dataset, yColumn.value),
-    dataScatterPointLimit(),
-    props.input.randomState,
     colorBy.value === '' ? undefined : columnCells(props.input.dataset, colorBy.value),
     axes.value,
   ),
@@ -128,7 +133,20 @@ const series = computed(() =>
   ),
 )
 
-const data = computed(() => scatterData(series.value, paint.value, axes.value))
+/** 그림 영역. **점을 거르는 칸이 이 픽셀이다** (`useElementSize`의 머리말). */
+const areaEl = ref<HTMLElement | null>(null)
+const area = useElementSize(areaEl)
+
+/**
+ * 거른 그림 (`open-decisions.md` "94. 그림이 드문 것을 숨기는가"). 성긴 칸은 점을 전부,
+ * 붐빈 칸은 점 하나에 행 수를 실어 진하게 그린다 — **외딴 점은 반드시 남는다.** 묶음은 상한
+ * 스위치가 끄지 않는다(`limits.ts`의 `DATA_SCATTER_POINT_LIMIT`).
+ */
+const layers = computed(() =>
+  scatterLayers(series.value, paint.value, area.value, DATA_SCATTER_POINT_LIMIT, axes.value),
+)
+
+const data = computed(() => layers.value.data)
 
 /**
  * 툴팁에 쓸 좌표 글자. **범주 축이면 흩뿌린 것을 되돌려 이름을 말한다**
@@ -156,6 +174,13 @@ const options = computed(() =>
           x: coordinate(x),
           y: coordinate(y),
         }),
+      pointMany: (name, x, y, rows) =>
+        t('data.charts.scatter.pointMany', {
+          count: rows,
+          name,
+          x: coordinate(x),
+          y: coordinate(y),
+        }),
     },
     /**
      * **겹치는 범례는 안 세운다** (결정문 47). 자리를 먹는 것보다 먼저, 그 범례가
@@ -168,11 +193,6 @@ const options = computed(() =>
 )
 
 /**
- * 그림 아래 한 줄. **표본을 뽑았으면 말하고, 못 찍은 행이 있으면 그것도 말한다.**
- *
- * 둘은 다른 사실이다 — 앞엣것은 우리가 줄인 것이고 뒤엣것은 데이터에 값이 없는 것이다.
- */
-/**
  * 색이 겹치는가. **팔레트가 일곱이라 갈래가 그보다 많으면 같은 색이 둘 이상을 가리킨다**
  * (`open-decisions.md` "47. 색 갈래가 팔레트보다 많을 때").
  *
@@ -183,34 +203,17 @@ const options = computed(() =>
 const colorsRepeat = computed(() => !colorsAreDistinct(series.value.length))
 
 /**
- * 상한을 해제해 **표본을 안 뽑고 전부 그리는가** (2026-09-22에 재서 넣었다).
+ * 그림 아래 한 줄. **우리가 줄인 것과 데이터에 없는 것을 따로 말한다.**
  *
- * **막지 않는다.** 표본은 드문 점을 잃고, 치우친 열에서 정작 보고 싶은 것이 그 드문
- * 점이다 — 학생이 상한을 푼 이유가 그것이다 (`limits-switch.ts`).
- *
- * **대신 비용을 그 자리에서 말한다.** 20만 점이면 개발 PC에서 첫 그리기 1.2초 ·
- * 창을 흔들 때마다 1.1초이고, **기준 기기는 몇 배 느린 교실 PC다**(`CLAUDE.md` §0).
- * 상한 팝오버가 *"브라우저가 응답하지 않는다고 물어볼 수 있습니다"*라고 미리 말하지만,
- * **그 말을 읽은 자리와 값을 치르는 자리가 멀다.**
+ * 묶은 점과 키운 칸은 우리가 한 일이고(94), 못 찍은 행은 데이터에 값이 없는 것이다.
  */
-const drawingAll = computed(() => drawingEveryPoint(sample.value.drawn, sample.value.total))
-
 const note = computed(() => {
   const parts: string[] = []
-  if (drawingAll.value) {
-    parts.push(t('data.charts.scatter.drawingAll', { count: sample.value.drawn }))
-  }
   if (colorsRepeat.value) {
     parts.push(t('data.charts.scatter.colorsRepeat', { count: series.value.length }))
   }
-  if (sample.value.drawn < sample.value.total) {
-    parts.push(
-      t('data.charts.scatter.sampled', {
-        drawn: sample.value.drawn,
-        total: sample.value.total,
-      }),
-    )
-  }
+  if (layers.value.merged) parts.push(t('data.charts.scatter.merged'))
+  if (layers.value.widened) parts.push(t('data.charts.scatter.widened'))
   if (sample.value.skipped > 0) {
     parts.push(t('data.charts.scatter.skipped', { count: sample.value.skipped }))
   }
@@ -245,11 +248,14 @@ const note = computed(() => {
     </AppTeleport>
 
     <ChartFrame
-      :empty="sample.drawn === 0 ? t('data.charts.noValues') : ''"
+      :empty="sample.points.length === 0 ? t('data.charts.noValues') : ''"
       :missing="0"
       :note="note"
     >
-      <Scatter :data="data" :options="options" />
+      <!-- **크기가 선 뒤에 그린다** — 0×0으로 거르면 모든 점이 한 칸에 모인다. -->
+      <div ref="areaEl" class="h-full w-full">
+        <Scatter v-if="area.width > 0 && area.height > 0" :data="data" :options="options" />
+      </div>
     </ChartFrame>
   </div>
 </template>

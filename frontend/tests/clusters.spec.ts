@@ -696,51 +696,29 @@ describe('예측 화면의 이웃', () => {
   })
 })
 
-describe('표본 뽑기', () => {
-  function scatterOf(preprocessor: Preprocessor, limit: number, seed = RANDOM_STATE) {
+/**
+ * **표본을 뽑지 않는다** (`open-decisions.md` "94. 그림이 드문 것을 숨기는가"). 붐빈 칸을
+ * 묶는 것은 그리는 쪽이고(`data/scatter-thin.ts`), 거기는 외딴 점을 반드시 남긴다.
+ */
+describe('산점도의 점', () => {
+  function scatterOf(preprocessor: Preprocessor) {
     const { matrix, rows, model } = fixture()
     const columns = matrixColumns(preprocessor, 'onehot')
     const axes = clusterAxes(preprocessor, 'onehot')
     const assignment = assignClusters(matrix, rows, model)
-    return scatterPoints(assignment, axes, columns, matrix, limit, seed)
+    return scatterPoints(assignment, axes, columns, matrix)
   }
 
-  it('상한 이하면 전부 그린다', () => {
+  it('배정의 행을 전부 그 차례대로 넘긴다', () => {
     const { preprocessor } = fixture()
-    const scatter = scatterOf(preprocessor, 100)
-
-    expect(scatter.drawn).toBe(8)
-    expect(scatter.total).toBe(8)
+    const scatter = scatterOf(preprocessor)
     expect(scatter.points.map((point) => point.row)).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
-  })
-
-  it('넘으면 상한만큼 뽑고 그 사실이 남는다', () => {
-    const { preprocessor } = fixture()
-    const scatter = scatterOf(preprocessor, 3)
-
-    expect(scatter.drawn).toBe(3)
-    expect(scatter.total).toBe(8)
-    // 원래 순서대로 돌려준다 - 그리는 순서가 표본 뽑기의 부산물로 흔들리지 않는다.
-    const drawn = scatter.points.map((point) => point.row)
-    expect([...drawn].sort((a, b) => a - b)).toEqual(drawn)
-  })
-
-  it('같은 시드면 같은 표본이고 다른 시드면 갈린다', () => {
-    const { preprocessor } = fixture()
-    const rowsOf = (seed: number): number[] =>
-      scatterOf(preprocessor, 3, seed).points.map((point) => point.row)
-
-    expect(rowsOf(RANDOM_STATE)).toEqual(rowsOf(RANDOM_STATE))
-    // 8개 중 3개를 뽑는 조합이 56가지라, 시드를 바꿔 같은 표본이 나오는 것은 사고가
-    // 아니다. 여러 시드 중 하나라도 갈리면 시드가 실제로 쓰이고 있다는 뜻이다.
-    const others = [1, 2, 3, 7, 11].map((seed) => rowsOf(seed))
-    expect(others.some((rows) => rows.join() !== rowsOf(RANDOM_STATE).join())).toBe(true)
   })
 
   it('점의 좌표는 축 순서를 따르고 되돌린 값이다', () => {
     const { preprocessor } = fixture()
     const axes = clusterAxes(preprocessor, 'onehot')
-    const scatter = scatterOf(preprocessor, 100)
+    const scatter = scatterOf(preprocessor)
     const first = scatter.points[0]!
 
     // 축은 셋이다 - 범주 열 하나(성별)와 수치 열 둘.

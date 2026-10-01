@@ -22,7 +22,6 @@ import AppButton from '@/components/AppButton.vue'
 import AppTable from '@/components/AppTable.vue'
 import TermPopover from '@/components/TermPopover.vue'
 import { useFormat } from '@/composables/useFormat'
-import { clusterScatterPointLimit } from '@/limits-switch'
 import { CLUSTER_MEMBER_PAGE_SIZE } from '@/limits'
 import { lockFor, turnPage } from '@/locks'
 import {
@@ -89,22 +88,13 @@ watch(openedCluster, () => {
 const axes = computed(() => material.value?.axes ?? [])
 
 /**
- * 그릴 점들. **상한을 넘으면 표본이고, 그 사실은 아래에서 화면이 말한다** (#28-5).
- *
- * 축을 바꿔도 표본은 그대로다 — 뽑기가 `randomState`에만 매여 있어서, 학생이 축을
- * 바꿀 때마다 점의 집합이 바뀌지 않는다.
+ * 그릴 점들. **표본을 안 뽑는다** — 붐빈 칸을 묶는 것은 그리는 쪽이다
+ * (`open-decisions.md` "94. 그림이 드문 것을 숨기는가").
  */
 const scatter = computed(() => {
   const found = material.value
   if (!found) return null
-  return scatterPoints(
-    found.assignment,
-    found.axes,
-    found.columns,
-    found.matrix,
-    clusterScatterPointLimit(),
-    props.input.experiment.settings.split.randomState,
-  )
+  return scatterPoints(found.assignment, found.axes, found.columns, found.matrix)
 })
 
 const summaries = computed(() => {

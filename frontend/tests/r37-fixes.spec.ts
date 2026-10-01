@@ -204,6 +204,7 @@ describe('A-3 — 범주 축의 툴팁이 흩뿌린 수를 말하지 않는다',
           seen.push(x.kind === 'category' ? x.name : JSON.stringify(x))
           return ''
         },
+        pointMany: () => '',
       },
       false,
       { x: categories },

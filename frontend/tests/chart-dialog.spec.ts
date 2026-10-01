@@ -13,7 +13,7 @@
  */
 
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * **그림 자체는 여기서 볼 것이 아니다.** Chart.js는 캔버스를 요구하고 jsdom에는 없다
@@ -28,6 +28,7 @@ vi.mock('vue-chartjs', () => ({
 import ChartDialog from '../src/views/data/ChartDialog.vue'
 import { i18n } from '../src/i18n'
 import { stubDialogElement } from './fixtures/image-workers'
+import { stubElementSize } from './fixtures/layout'
 
 const DATASET = {
   columns: ['키', '몸무게', '성별'],
@@ -125,6 +126,11 @@ beforeEach(() => {
   i18n.global.locale.value = 'ko'
   scrollIntoView.mockClear()
   Element.prototype.scrollIntoView = scrollIntoView
+  stubElementSize()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 describe('창이 열리는 순간', () => {

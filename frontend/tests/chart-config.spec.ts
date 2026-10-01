@@ -10,6 +10,7 @@
  * 어디에 그리는지**를 그대로 잴 수 있다.
  */
 
+import type { LegendItem } from 'chart.js'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -21,7 +22,7 @@ import {
   boxOptions,
   boxWhiskers,
   histogramData,
-  scatterData,
+  scatterLayers,
   scatterOptions,
   scatterSeries,
   leadColor,
@@ -42,7 +43,18 @@ const PAINT: ChartPaint = {
   line: '#e2e8f0',
 }
 
-const TEXT = { x: '키', y: '개수', point: () => '' }
+const TEXT = { x: '키', y: '개수', point: () => '', pointMany: () => '' }
+
+/** 거르기가 안 걸리는 넓은 판. 거르기 자체는 `scatter-thin.spec.ts`가 문다. */
+const AREA = { width: 800, height: 500 }
+
+function layered(
+  series: Parameters<typeof scatterLayers>[0],
+  paint: ChartPaint,
+  scales: Parameters<typeof scatterLayers>[4] = {},
+) {
+  return scatterLayers(series, paint, AREA, 10_000, scales).data
+}
 
 /**
  * 눈금 하나에서 `beginAtZero`를 읽는다.
@@ -227,7 +239,10 @@ describe('히스토그램과 막대그래프는 다른 그림이다', () => {
       mode: 'nearest',
       intersect: true,
     })
-    expect(scatterOptions(PAINT, { x: 'a', y: 'b', point: () => '' }, false).interaction).toEqual({
+    expect(
+      scatterOptions(PAINT, { x: 'a', y: 'b', point: () => '', pointMany: () => '' }, false)
+        .interaction,
+    ).toEqual({
       mode: 'nearest',
       intersect: true,
     })
@@ -237,7 +252,10 @@ describe('히스토그램과 막대그래프는 다른 그림이다', () => {
   it('애니메이션이 꺼져 있다', () => {
     expect(barOptions(PAINT, TEXT).animation).toBe(false)
     expect(boxOptions([], PAINT, { x: '', y: '키', point: () => '' }).animation).toBe(false)
-    expect(scatterOptions(PAINT, { x: 'a', y: 'b', point: () => '' }, false).animation).toBe(false)
+    expect(
+      scatterOptions(PAINT, { x: 'a', y: 'b', point: () => '', pointMany: () => '' }, false)
+        .animation,
+    ).toBe(false)
   })
 
   /** **축 선과 격자에 색을 준다.** 안 주면 Chart.js 기본값이 배색을 안 따라간다. */
@@ -464,20 +482,24 @@ describe('산점도', () => {
   })
 
   it('갈래마다 다른 색이다', () => {
-    const sets = scatterData(scatterSeries(points, '데이터'), PAINT).datasets
+    const sets = layered(scatterSeries(points, '데이터'), PAINT).datasets
     expect(sets[0]?.backgroundColor).not.toBe(sets[1]?.backgroundColor)
   })
 
   /** **갈래가 하나면 범례가 없다.** 이름 하나짜리 범례는 아무것도 안 가른다. */
   it('갈래가 하나면 범례를 안 세운다', () => {
-    const text = { x: 'a', y: 'b', point: () => '' }
+    const text = { x: 'a', y: 'b', point: () => '', pointMany: () => '' }
     expect(scatterOptions(PAINT, text, false).plugins?.legend?.display).toBe(false)
     expect(scatterOptions(PAINT, text, true).plugins?.legend?.display).toBe(true)
   })
 
   /** **범례도 축과 같은 크기다** (`open-decisions.md` 64). Chart.js 기본값(12)으로 남아 있었다. */
   it('범례 글자는 축 글자와 같은 크기다', () => {
-    const options = scatterOptions(PAINT, { x: 'a', y: 'b', point: () => '' }, true)
+    const options = scatterOptions(
+      PAINT,
+      { x: 'a', y: 'b', point: () => '', pointMany: () => '' },
+      true,
+    )
     const legend = options.plugins?.legend?.labels?.font
     const axis = options.scales?.x?.ticks?.font
     const size = (font: unknown): unknown =>
@@ -502,10 +524,10 @@ describe('산점도의 범주 축', () => {
 
   /** 수치 축이면 값을 그대로 쓴다 — 흩뿌리면 **없는 오차가 생긴다.** */
   it('수치 축은 값을 그대로 쓴다', () => {
-    const drawn = scatterData(series, PAINT).datasets[0]?.data
+    const drawn = layered(series, PAINT).datasets[0]?.data
     expect(drawn).toEqual([
-      { x: 0, y: 1 },
-      { x: 1, y: 2 },
+      { x: 0, y: 1, rows: 1 },
+      { x: 1, y: 2, rows: 1 },
     ])
   })
 
@@ -514,7 +536,7 @@ describe('산점도의 범주 축', () => {
    * 겹친다. 반올림하면 원래 칸으로 정확히 돌아온다.
    */
   it('범주 축은 칸 안에서 흩뿌리고, 반올림하면 제자리다', () => {
-    const drawn = scatterData(series, PAINT, { x: ['남', '여'] }).datasets[0]?.data as {
+    const drawn = layered(series, PAINT, { x: ['남', '여'] }).datasets[0]?.data as {
       x: number
       y: number
     }[]
@@ -528,8 +550,8 @@ describe('산점도의 범주 축', () => {
 
   /** **행에 매여 있다.** 같은 파일이 같은 그림을 줘야 학생이 어제 본 것을 오늘도 본다. */
   it('같은 행은 언제나 같은 자리에 흩뿌려진다', () => {
-    const once = scatterData(series, PAINT, { x: ['남', '여'] }).datasets[0]?.data
-    const again = scatterData(series, PAINT, { x: ['남', '여'] }).datasets[0]?.data
+    const once = layered(series, PAINT, { x: ['남', '여'] }).datasets[0]?.data
+    const again = layered(series, PAINT, { x: ['남', '여'] }).datasets[0]?.data
     expect(once).toEqual(again)
   })
 
@@ -538,7 +560,7 @@ describe('산점도의 범주 축', () => {
    * 양 끝 칸의 구름이 잘리지 않게 하려는 것이다.
    */
   it('범주 축의 눈금이 이름을 세우고 양 끝을 반 칸씩 넓힌다', () => {
-    const text = { x: '성별', y: '키', point: () => '' }
+    const text = { x: '성별', y: '키', point: () => '', pointMany: () => '' }
     const scales = scatterOptions(PAINT, text, false, { x: ['남', '여'] }).scales
     const x = scales?.['x'] as {
       min?: number
@@ -558,7 +580,7 @@ describe('산점도의 범주 축', () => {
 
   /** **이름은 칸 가운데, 선은 칸 경계다.** 선 색은 범주 축이 되어도 토큰 그대로다. */
   it('범주 축은 눈금을 칸 가운데에 세우고 격자선을 칸 경계로 옮긴다', () => {
-    const text = { x: '성별', y: '키', point: () => '' }
+    const text = { x: '성별', y: '키', point: () => '', pointMany: () => '' }
     const x = scatterOptions(PAINT, text, false, { x: ['남', '여'] }).scales?.['x'] as {
       afterBuildTicks?: (axis: { ticks: { value: number }[] }) => void
       grid?: { offset?: boolean; color?: string }
@@ -578,7 +600,7 @@ describe('산점도의 범주 축', () => {
  * 겹치는 범례를 안 세우는 판단은 화면의 것이고, 그 판단이 설정에 닿는 길이 이 인자다.
  */
 describe('산점도의 범례', () => {
-  const text = { x: 'a', y: 'b', point: () => '' }
+  const text = { x: 'a', y: 'b', point: () => '', pointMany: () => '' }
 
   it('세우라면 세우고 말라면 안 세운다', () => {
     expect(scatterOptions(PAINT, text, true).plugins?.legend?.display).toBe(true)
@@ -605,12 +627,70 @@ describe('산점도의 범례', () => {
       name: `갈래 ${index}`,
       points: [{ row: index, x: index, y: index }],
     }))
-    expect(scatterData(many, PAINT).datasets).toHaveLength(20)
+    expect(layered(many, PAINT).datasets).toHaveLength(20)
   })
 
   it('범례를 안 세워도 점은 그대로 그린다', () => {
     const series = [{ name: '가', points: [{ row: 0, x: 1, y: 2 }] }]
-    expect(scatterData(series, PAINT).datasets).toHaveLength(1)
+    expect(layered(series, PAINT).datasets).toHaveLength(1)
+  })
+})
+
+/**
+ * 붐빈 자리를 묶은 그림 (`open-decisions.md` "94. 그림이 드문 것을 숨기는가"). 거르기의 규칙은
+ * `scatter-thin.spec.ts`가 물고, 여기는 **그 결과가 Chart.js 설정에 닿는 자리**를 문다.
+ */
+describe('산점도의 묶은 점', () => {
+  /** 한 자리에 40행, 그리고 끝점 둘. */
+  function crowded(name: string) {
+    const crowd = Array.from({ length: 40 }, (_value, row) => ({ row, x: 1, y: 1 }))
+    return {
+      name,
+      points: [...crowd, { row: 40, x: 0, y: 0 }, { row: 41, x: 9, y: 9 }],
+    }
+  }
+
+  it('묶은 점은 행 수를 싣고 진한 단계의 데이터셋에 선다', () => {
+    const layers = scatterLayers([crowded('가')], PAINT, AREA, 10_000)
+    expect(layers.merged).toBe(true)
+    expect(layers.data.datasets.length).toBeGreaterThan(1)
+    const merged = layers.data.datasets.flatMap((set) => set.data).filter((dot) => dot.rows > 1)
+    expect(merged).toEqual([{ x: 1, y: 1, rows: 40 }])
+    // 0단계는 갈래 색 그대로이고 묶은 단계는 다른 색이다.
+    expect(layers.data.datasets[0]?.backgroundColor).toBe(seriesColor(PAINT, 0))
+    expect(layers.data.datasets[1]?.backgroundColor).not.toBe(seriesColor(PAINT, 0))
+  })
+
+  /** **범례는 갈래마다 한 줄이다** — 단계 데이터셋이 범례에 서면 같은 이름이 여러 번 선다. */
+  it('범례는 갈래마다 첫 데이터셋 하나만 보인다', () => {
+    const data = scatterLayers([crowded('가'), crowded('나')], PAINT, AREA, 10_000).data
+    const filter = scatterOptions(PAINT, TEXT, true).plugins?.legend?.labels?.filter
+    const shown = data.datasets
+      .map((set, datasetIndex) => ({ datasetIndex, text: set.label ?? '' }) as LegendItem)
+      .filter((item) => filter?.(item, data) ?? true)
+      .map((item) => item.text)
+    expect(shown).toEqual(['가', '나'])
+  })
+
+  it('묶은 점의 툴팁은 행 수를 말하는 문장이다', () => {
+    const options = scatterOptions(
+      PAINT,
+      {
+        x: 'a',
+        y: 'b',
+        point: (name) => `하나 ${name}`,
+        pointMany: (name, _x, _y, rows) => `여럿 ${name} ${rows}`,
+      },
+      false,
+    )
+    const label = options.plugins?.tooltip?.callbacks?.label as unknown as (item: {
+      dataset: { label: string }
+      parsed: { x: number; y: number }
+      raw: unknown
+    }) => string
+    const item = (raw: unknown) => ({ dataset: { label: '가' }, parsed: { x: 1, y: 1 }, raw })
+    expect(label(item({ x: 1, y: 1, rows: 40 }))).toBe('여럿 가 40')
+    expect(label(item({ x: 1, y: 1, rows: 1 }))).toBe('하나 가')
   })
 })
 
@@ -622,7 +702,7 @@ describe('산점도의 범례', () => {
  * 그 차이를 그대로 문다. **캔버스 뒤라 눈으로는 안 보이고 검사만 볼 수 있다.**
  */
 describe('산점도는 파싱을 건너뛴다', () => {
-  const text = { x: 'a', y: 'b', point: () => '' }
+  const text = { x: 'a', y: 'b', point: () => '', pointMany: () => '' }
 
   it('우리가 주는 모양이 이미 내부 모양이므로 파싱을 끈다', () => {
     expect(scatterOptions(PAINT, text, false).parsing).toBe(false)
@@ -630,17 +710,20 @@ describe('산점도는 파싱을 건너뛴다', () => {
 
   /**
    * **`normalized`는 안 쓴다.** *"x로 정렬돼 있고 값이 겹치지 않는다"*는 약속인데
-   * 우리 점은 행 순서라 거짓이다 — 200ms를 더 줄이지만 거짓말로 산 것이다.
+   * 같은 x의 점이 있을 수 있어 거짓이다 — 200ms를 더 줄이지만 거짓말로 산 것이다.
    */
   it('정렬돼 있다고 말하지 않는다', () => {
     expect(scatterOptions(PAINT, text, false).normalized).toBeUndefined()
   })
 
-  /** 데이터가 정말 `{x, y}`인가 — 파싱을 끈 전제 그 자체다. */
-  it('점이 x와 y만 든 객체다', () => {
-    const drawn = scatterData([{ name: 'g', points: [{ row: 0, x: 1, y: 2 }] }], PAINT).datasets[0]
+  /**
+   * 데이터가 정말 `{x, y}`인가 — 파싱을 끈 전제 그 자체다. **행 수(`rows`)를 함께 싣는다**
+   * (94) — Chart.js는 모르는 속성을 건드리지 않고 툴팁이 `raw`로 받는다.
+   */
+  it('점이 x·y와 그 점이 대신하는 행 수를 든 객체다', () => {
+    const drawn = layered([{ name: 'g', points: [{ row: 0, x: 1, y: 2 }] }], PAINT).datasets[0]
       ?.data
-    expect(drawn).toEqual([{ x: 1, y: 2 }])
+    expect(drawn).toEqual([{ x: 1, y: 2, rows: 1 }])
   })
 })
 
@@ -656,7 +739,7 @@ describe('산점도 점의 차례', () => {
       { row: 2, x: 99, y: 1 },
       { row: 3, x: 91, y: 0 },
     ]
-    const drawn = scatterData([{ name: '데이터', points }], PAINT).datasets[0]?.data as {
+    const drawn = layered([{ name: '데이터', points }], PAINT).datasets[0]?.data as {
       x: number
     }[]
     expect(drawn.map((point) => point.x)).toEqual([60, 88, 91, 99])

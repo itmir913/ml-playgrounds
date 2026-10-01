@@ -14,6 +14,8 @@ import type { ChartData, ChartOptions, Plugin } from 'chart.js'
 
 import { axisCellOf, categoryScale, placed, type AxisCell } from './category-axis'
 import { sortedByX } from './chart-points'
+import { densityInk, densityStep, rowsOfDot, thinScatter, type ThinSize } from './scatter-thin'
+import { SCATTER_DENSITY_STEPS } from '@/limits'
 import { CHART_COLORS, INK_ORDER } from '@/palette'
 import { categoryOrder } from '@/ml/preprocess'
 
@@ -577,44 +579,102 @@ export interface ScatterAxisScales {
   readonly y?: readonly string[] | undefined
 }
 
-export function scatterData(
+/** 그린 점 하나. **`rows`는 그 점이 대신하는 행 수다** (94) — 1이면 제 행 하나다. */
+export interface ScatterDot {
+  readonly x: number
+  readonly y: number
+  readonly rows: number
+}
+
+/** 거른 그림과, 화면이 말해야 할 두 사실 (`data/scatter-thin.ts`의 `Thinned`). */
+export interface ScatterLayers {
+  readonly data: ChartData<'scatter', ScatterDot[]>
+  readonly merged: boolean
+  readonly widened: boolean
+}
+
+/**
+ * 갈래마다, 진하기 단계마다 데이터셋 하나 (`open-decisions.md` "94. 그림이 드문 것을 숨기는가").
+ *
+ * **점을 거른다** — 그림 영역(`area`)을 점 반지름의 칸으로 나눠 성긴 칸은 점을 전부, 붐빈
+ * 칸은 점 하나에 행 수를 실어 그린다(`thinScatter`). 외딴 점은 반드시 남는다.
+ *
+ * **단계마다 데이터셋을 나누는 이유** — 점마다 색을 주면 Chart.js가 10배 안팎 느리다(94의
+ * 실측). 데이터셋 안의 색은 하나다. **0단계(제 행 하나짜리 점)는 비어 있어도 둔다** — 범례가
+ * 갈래마다 그 데이터셋 하나를 보이므로(`scatterOptions`의 범례 거르기) 갈래의 첫 데이터셋이어야
+ * 한다.
+ */
+export function scatterLayers(
   series: readonly ScatterSeries[],
   paint: ChartPaint,
+  area: ThinSize,
+  budget: number,
   scales: ScatterAxisScales = {},
-): ChartData<'scatter'> {
-  return {
-    datasets: series.map((one, index) => ({
-      label: one.name,
-      /**
-       * **범주 축이면 칸 안에서 흩뿌린다** (`data/category-axis.ts`). 안 흩뿌리면
-       * 한 칸의 점 수천 개가 **한 점으로 겹쳐** 몇 개인지 알 수 없다.
-       */
-      data: sortedByX(
-        one.points.map((point) => ({
-          x: placed(point.x, point.row, scales.x),
-          y: placed(point.y, point.row, scales.y),
-        })),
-      ),
-      backgroundColor: seriesColor(paint, index),
-      /**
-       * **획을 안 긋는다** (2026-09-22에 재서 뺐다). 테두리 색이 **배경과 같은 색**이라
-       * 보이지도 않는데, Chart.js는 점마다 채우기 말고 **획을 한 번 더** 긋고 있었다.
-       *
-       * **20만 점에서 다시 그리기가 436ms → 172ms였다**(3회 중앙값, 같은 판에서 번갈아
-       * 재서 뜨거운 기계의 기울기를 걷어냈다). 그림은 점의 지름이 `borderWidth` 기본값의
-       * 절반만큼 줄어드는 것이 전부다.
-       *
-       * **범례 표식은 그대로다** — `usePointStyle`이 채우기로 그린다.
-       */
-      borderWidth: 0,
-      // **가리켜도 안 돌아온다.** hover 기본값이 1이라 안 맞추면 커서를 얹는 순간 없던
-      // 획이 생긴다 (`ml/cluster-chart.ts`가 같은 규칙을 검사로 들고 있다).
-      hoverBorderWidth: 0,
-      borderColor: seriesColor(paint, index),
-      pointRadius: POINT_RADIUS,
-      // **커서를 얹어도 안 커진다.** 기본값(4)이 이 크기보다 작아 점이 오히려 줄어든다.
-      pointHoverRadius: POINT_RADIUS,
+): ScatterLayers {
+  /**
+   * **범주 축이면 칸 안에서 흩뿌린다** (`data/category-axis.ts`). 안 흩뿌리면 한 칸의 점
+   * 수천 개가 **한 점으로 겹쳐** 몇 개인지 알 수 없다. **거르기는 흩뿌린 뒤다** — 범주 번호로
+   * 세면 그 구름이 점 하나로 무너진다.
+   */
+  const flat = series.flatMap((one, group) =>
+    one.points.map((point) => ({
+      x: placed(point.x, point.row, scales.x),
+      y: placed(point.y, point.row, scales.y),
+      group,
     })),
+  )
+  const thinned = thinScatter(flat, area, POINT_RADIUS, budget)
+  const layers = series.map(() =>
+    Array.from({ length: SCATTER_DENSITY_STEPS + 1 }, (): ScatterDot[] => []),
+  )
+  for (const { point, rows } of thinned.points) {
+    layers[point.group]?.[densityStep(rows)]?.push({ x: point.x, y: point.y, rows })
+  }
+
+  return {
+    data: {
+      datasets: series.flatMap((one, index) =>
+        (layers[index] ?? []).flatMap((dots, step) =>
+          step > 0 && dots.length === 0 ? [] : [scatterDataset(one.name, dots, paint, index, step)],
+        ),
+      ),
+    },
+    merged: thinned.merged,
+    widened: thinned.widened,
+  }
+}
+
+function scatterDataset(
+  label: string,
+  dots: readonly ScatterDot[],
+  paint: ChartPaint,
+  index: number,
+  step: number,
+): ChartData<'scatter', ScatterDot[]>['datasets'][number] {
+  const color = densityInk(seriesColor(paint, index), paint.ink, step)
+  return {
+    label,
+    // **x로 정렬해 넘긴다** — `parsing: false`의 약속이다 (`data/chart-points.ts`).
+    data: sortedByX(dots),
+    backgroundColor: color,
+    /**
+     * **획을 안 긋는다** (2026-09-22에 재서 뺐다). 테두리 색이 **배경과 같은 색**이라
+     * 보이지도 않는데, Chart.js는 점마다 채우기 말고 **획을 한 번 더** 긋고 있었다.
+     *
+     * **20만 점에서 다시 그리기가 436ms → 172ms였다**(3회 중앙값, 같은 판에서 번갈아
+     * 재서 뜨거운 기계의 기울기를 걷어냈다). 그림은 점의 지름이 `borderWidth` 기본값의
+     * 절반만큼 줄어드는 것이 전부다.
+     *
+     * **범례 표식은 그대로다** — `usePointStyle`이 채우기로 그린다.
+     */
+    borderWidth: 0,
+    // **가리켜도 안 돌아온다.** hover 기본값이 1이라 안 맞추면 커서를 얹는 순간 없던
+    // 획이 생긴다 (`ml/cluster-chart.ts`가 같은 규칙을 검사로 들고 있다).
+    hoverBorderWidth: 0,
+    borderColor: color,
+    pointRadius: POINT_RADIUS,
+    // **커서를 얹어도 안 커진다.** 기본값(4)이 이 크기보다 작아 점이 오히려 줄어든다.
+    pointHoverRadius: POINT_RADIUS,
   }
 }
 
@@ -630,6 +690,8 @@ export function scatterOptions(
      * 이제 여기서 `axisCellOf`를 거쳐 넘기므로 **잊을 자리가 없다.**
      */
     readonly point: (name: string, x: AxisCell, y: AxisCell) => string
+    /** 행을 여럿 대신하는 점(94)의 툴팁. 한 문장이고 행 수를 받는다 (docs/i18n.md 규칙 3). */
+    readonly pointMany: (name: string, x: AxisCell, y: AxisCell, rows: number) => string
   },
   showLegend: boolean,
   scales: ScatterAxisScales = {},
@@ -653,7 +715,7 @@ export function scatterOptions(
      * 해제한 학생이 창을 흔들 때마다 무는 값이라 **40%가 그대로 체감으로 온다.**
      *
      * **`normalized: true`는 안 쓴다.** 그쪽은 *"x로 정렬돼 있고 값이 겹치지 않는다"*는
-     * 약속인데 **우리 점은 행 순서라 거짓이다.** 200ms를 더 줄이지만 거짓말로 산 것이다.
+     * 약속인데 **같은 x의 점이 있을 수 있어 거짓이다.** 200ms를 더 줄이지만 거짓말로 산 것이다.
      */
     parsing: false,
     // 겹친 점을 전부 세우지 않는다. 기본 모드(`point`)는 커서 아래의 모든 점을 모은다.
@@ -663,18 +725,29 @@ export function scatterOptions(
       // **갈래가 하나면 범례가 없다.** 이름 하나짜리 범례는 아무것도 안 가른다.
       legend: {
         display: showLegend,
-        labels: { color: paint.ink, usePointStyle: true, font: { size: FONT_SIZE } },
+        labels: {
+          color: paint.ink,
+          usePointStyle: true,
+          font: { size: FONT_SIZE },
+          /**
+           * **갈래마다 항목 하나다** (94). 진하기 단계마다 데이터셋이 따로 서므로, 같은 이름의
+           * 첫 데이터셋(0단계 — `scatterLayers`가 늘 앞에 둔다)만 보인다.
+           */
+          filter: (item, data) =>
+            data.datasets.findIndex((one) => one.label === item.text) === item.datasetIndex,
+        },
       },
       tooltip: {
         position: 'nearest',
         usePointStyle: true,
         callbacks: {
-          label: (item) =>
-            text.point(
-              item.dataset.label ?? '',
-              axisCellOf(scales.x, item.parsed.x),
-              axisCellOf(scales.y, item.parsed.y),
-            ),
+          label: (item) => {
+            const name = item.dataset.label ?? ''
+            const x = axisCellOf(scales.x, item.parsed.x)
+            const y = axisCellOf(scales.y, item.parsed.y)
+            const rows = rowsOfDot(item.raw)
+            return rows > 1 ? text.pointMany(name, x, y, rows) : text.point(name, x, y)
+          },
         },
       },
     },

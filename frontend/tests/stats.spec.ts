@@ -19,8 +19,9 @@ import {
   histogram,
   isBinCount,
   numericValues,
-  scatterSample,
+  scatterRows,
 } from '../src/data/stats'
+import { DATA_SCATTER_POINT_LIMIT } from '../src/limits'
 import { categoryOrder, fitPreprocessor } from '../src/ml/preprocess'
 
 /** 0부터 n-1까지. 규약 검사의 입력으로 쓴다. */
@@ -385,65 +386,40 @@ describe('도수 분포', () => {
   })
 })
 
-describe('산점도 표본', () => {
+describe('산점도의 행', () => {
   const xs = series(20).map(String)
   const ys = series(20).map((index) => String(index * 2))
 
   it('행 번호가 정본 표의 번호 그대로다', () => {
-    const drawn = scatterSample(xs, ys, 100, 42)
+    const drawn = scatterRows(xs, ys)
     expect(drawn.points[3]).toEqual({ row: 3, x: 3, y: 6 })
-    expect(drawn.total).toBe(20)
+    expect(drawn.points).toHaveLength(20)
     expect(drawn.skipped).toBe(0)
   })
 
   /** 한쪽이라도 수가 아니면 점을 못 찍는다. **조용히 0으로 만들지 않는다.** */
   it('한쪽이 비거나 수가 아닌 행은 빼고 그 수를 말한다', () => {
-    const drawn = scatterSample(['1', '', '3', 'abc'], ['1', '2', '', '4'], 100, 42)
+    const drawn = scatterRows(['1', '', '3', 'abc'], ['1', '2', '', '4'])
     expect(drawn.points.map((point) => point.row)).toEqual([0])
-    expect(drawn.total).toBe(1)
     expect(drawn.skipped).toBe(3)
   })
 
   it('색 열의 값을 그대로 싣고, 빈 칸이면 안 싣는다', () => {
-    const drawn = scatterSample(['1', '2'], ['1', '2'], 100, 42, ['남', ''])
+    const drawn = scatterRows(['1', '2'], ['1', '2'], ['남', ''])
     expect(drawn.points[0]?.group).toBe('남')
     expect(drawn.points[1]?.group).toBeUndefined()
   })
 
   /**
-   * **같은 씨앗이면 같은 그림이다.** 새로고침마다 표본이 달라지면 학생은 자기가 뭘
-   * 바꿔서 그림이 바뀐 줄 안다.
+   * **표본을 뽑지 않는다** (`open-decisions.md` "94. 그림이 드문 것을 숨기는가"). 전의 무작위
+   * 표본은 10만 행의 외딴 점 20개 가운데 평균 2개만 남겼다. 거르는 것은 그리는 쪽이고
+   * (`data/scatter-thin.ts`), 거기는 외딴 점을 반드시 남긴다.
    */
-  it('같은 씨앗이면 같은 표본이다', () => {
-    const first = scatterSample(xs, ys, 5, 7)
-    const second = scatterSample(xs, ys, 5, 7)
-    expect(first.points.map((point) => point.row)).toEqual(second.points.map((point) => point.row))
-    expect(first.drawn).toBe(5)
-    expect(first.total).toBe(20)
-  })
-
-  it('씨앗이 다르면 표본도 달라진다', () => {
-    const a = scatterSample(xs, ys, 5, 1).points.map((point) => point.row)
-    const b = scatterSample(xs, ys, 5, 2).points.map((point) => point.row)
-    expect(a).not.toEqual(b)
-  })
-
-  /** **뽑은 뒤 원래 순서로 되돌린다** — 그리는 순서가 겹침의 위아래를 정한다. */
-  it('표본이 행 번호 오름차순이다', () => {
-    const rows = scatterSample(xs, ys, 5, 7).points.map((point) => point.row)
-    expect([...rows]).toEqual([...rows].sort((a, b) => a - b))
-  })
-
-  /**
-   * **못 찍는 행은 표본을 뽑기 전에 뺀다.** 뽑고 나서 버리면 상한이 5인데 실제로 그려지는
-   * 것은 그보다 적어지고, 결측이 많은 열일수록 더 적어진다.
-   */
-  it('상한만큼 실제로 그린다 — 결측이 섞여도', () => {
-    const holes = series(20).map((index) => (index % 2 === 0 ? String(index) : ''))
-    const drawn = scatterSample(holes, holes, 5, 7)
-    expect(drawn.drawn).toBe(5)
-    expect(drawn.total).toBe(10)
-    expect(drawn.skipped).toBe(10)
+  it('묶음보다 많아도 찍을 수 있는 행을 전부 넘긴다', () => {
+    const many = series(DATA_SCATTER_POINT_LIMIT + 50).map(String)
+    const drawn = scatterRows(many, many)
+    expect(drawn.points).toHaveLength(DATA_SCATTER_POINT_LIMIT + 50)
+    expect(drawn.points.map((point) => point.row)).toEqual(series(DATA_SCATTER_POINT_LIMIT + 50))
   })
 })
 
@@ -469,7 +445,7 @@ describe('산점도의 범주 축', () => {
   /** 축의 값은 **목록에서의 자리**다. 그 자리를 흩뿌리는 것은 그리는 쪽의 일이다. */
   it('범주 축의 값이 목록에서의 자리다', () => {
     const categories = categoriesOf(['남', '여'])
-    const drawn = scatterSample(['남', '여', '남'], ['1', '2', '3'], 100, 7, undefined, {
+    const drawn = scatterRows(['남', '여', '남'], ['1', '2', '3'], undefined, {
       x: categories,
     })
     expect(drawn.points.map((point) => point.x)).toEqual([0, 1, 0])
@@ -478,7 +454,7 @@ describe('산점도의 범주 축', () => {
 
   /** 두 축이 다 범주여도 된다 — 결과 화면이 그렇게 그린다. */
   it('두 축이 모두 범주일 수 있다', () => {
-    const drawn = scatterSample(['남', '여'], ['A', 'B'], 100, 7, undefined, {
+    const drawn = scatterRows(['남', '여'], ['A', 'B'], undefined, {
       x: ['남', '여'],
       y: ['A', 'B'],
     })
@@ -493,10 +469,10 @@ describe('산점도의 범주 축', () => {
    * 떨어뜨리면 **없는 데이터가 생긴다.**
    */
   it('목록에 없는 값은 빠지고 그 수를 센다', () => {
-    const drawn = scatterSample(['남', '', '모름'], ['1', '2', '3'], 100, 7, undefined, {
+    const drawn = scatterRows(['남', '', '모름'], ['1', '2', '3'], undefined, {
       x: ['남', '여'],
     })
-    expect(drawn.drawn).toBe(1)
+    expect(drawn.points.length).toBe(1)
     expect(drawn.skipped).toBe(2)
   })
 
@@ -517,14 +493,14 @@ describe('산점도의 범주 축', () => {
       },
     })
     const cells = series(2000).map((index) => `c${index % 50}`)
-    const drawn = scatterSample(cells, cells, 5000, 7, undefined, { x: counted, y: counted })
-    expect(drawn.drawn).toBe(2000)
+    const drawn = scatterRows(cells, cells, undefined, { x: counted, y: counted })
+    expect(drawn.points.length).toBe(2000)
     expect(reads).toBeLessThanOrEqual(names.length * 2)
   })
 
   /** 축 목록을 안 주면 지금까지처럼 수로 읽는다. */
   it('목록이 없으면 수로 읽는다', () => {
-    const drawn = scatterSample(['남', '1'], ['1', '2'], 100, 7)
-    expect(drawn.drawn).toBe(1)
+    const drawn = scatterRows(['남', '1'], ['1', '2'])
+    expect(drawn.points.length).toBe(1)
   })
 })

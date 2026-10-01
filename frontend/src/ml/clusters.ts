@@ -20,7 +20,6 @@ import { ClientError } from '../errors'
 import { dataSnapshot, type Experiment, type Preprocessing } from '../project/schema'
 import { KMEANS_FORMAT, kmeansPredict, parseKMeansModel, type KMeansModel } from './models'
 import { transform, type Dataset, type FittedColumn, type Preprocessor } from './preprocess'
-import { sampleIndices } from './shuffle'
 
 /**
  * 훈련 행렬의 열 하나. **전처리기의 열과 행렬의 열은 1:1이 아니다** — 원핫이면 열
@@ -633,47 +632,28 @@ export interface ScatterPoint {
 }
 
 export interface ScatterData {
+  /** 그 군집 배정이 본 행 **전부.** 거르는 것은 그리는 쪽이다(`ml/cluster-chart.ts`). */
   readonly points: readonly ScatterPoint[]
-  /** 실제로 찍는 점 수. */
-  readonly drawn: number
-  /** 그 군집 배정이 본 전체 행 수. **`drawn`과 다르면 화면이 그 사실을 말한다** (#28-5). */
-  readonly total: number
 }
 
 /**
- * 찍을 점을 고른다. **상한을 넘으면 시드로 표본을 뽑는다** (#28-5).
+ * 찍을 점을 읽는다. **표본을 뽑지 않는다** (`open-decisions.md` "94. 그림이 드문 것을
+ * 숨기는가").
  *
- * **시드는 그 실험의 `randomState`다.** 같은 설정이면 같은 그림이라야 학생이 어제 본
- * 것을 오늘도 본다 — 조용히 매번 다른 표본을 그리면 학생은 자기가 뭘 바꿔서 그림이
- * 바뀐 줄 안다.
- *
- * **뽑은 뒤 원래 순서로 되돌린다.** 그리는 순서가 겹침의 위아래를 정하는데, 그것이
- * 표본 뽑기의 부산물로 흔들릴 이유가 없다.
- *
- * 상한 이하면 표본을 안 뽑는다 — 그때 `drawn === total`이고 화면은 아무 말도 안 한다.
+ * 전에는 상한을 넘으면 시드로 표본을 뽑았고(#28-5), 무작위 표본은 외딴 점을 대부분 잃었다.
+ * 이제 행을 전부 넘기고 그리는 쪽이 그림 영역의 칸으로 거른다 — 붐빈 칸만 점 하나로 묶고
+ * 외딴 점은 반드시 남는다. 차례는 배정의 행 차례 그대로다.
  */
 export function scatterPoints(
   assignment: ClusterAssignment,
   axes: readonly ClusterAxis[],
   columns: readonly MatrixColumn[],
   matrix: readonly (readonly number[])[],
-  limit: number,
-  randomState: number,
 ): ScatterData {
-  const total = assignment.rows.length
-  const picked =
-    total <= limit
-      ? assignment.rows.map((_row, index) => index)
-      : sampleIndices(total, limit, randomState)
-
-  const points = picked.map((index) => {
-    const row = matrix[index]!
-    return {
-      row: assignment.rows[index]!,
-      cluster: assignment.clusters[index] ?? 0,
-      values: axisValues(row, axes, columns),
-    }
-  })
-
-  return { points, drawn: points.length, total }
+  const points = assignment.rows.map((row, index) => ({
+    row,
+    cluster: assignment.clusters[index] ?? 0,
+    values: axisValues(matrix[index]!, axes, columns),
+  }))
+  return { points }
 }
