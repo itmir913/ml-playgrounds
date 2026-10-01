@@ -1196,6 +1196,17 @@ export const DECISION_BOUNDARY_GRID = 100
 export const DECISION_BOUNDARY_MARGIN = 1
 
 /**
+ * 순열 특성 중요도에서 **열 하나를 섞어 재는 횟수** (`open-decisions.md` "99. 모델이 어느 특성에
+ * 기댔는지 보일 것인가").
+ *
+ * **sklearn `permutation_importance`의 `n_repeats` 기본값이다.** 섞을 때마다 점수가 흔들리므로 여러 번
+ * 재어 평균과 표준편차를 낸다. 비용은 원래 열 수 × 이 값만큼 테스트 데이터를 다시 예측하는 것이다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const PERMUTATION_REPEATS = 5
+
+/**
  * 예측 화면에서 답 옆에 보이는 이웃 줄 수 (open-decisions.md #28-6).
  *
  * **위 `CLUSTER_MEMBER_PAGE_SIZE`와 값을 공유하지 않는다.** 답하는 질문이 다르다 —

@@ -142,6 +142,22 @@ const PANELS: readonly MetricPanel[] = [
   },
   {
     /**
+     * **순열 특성 중요도** (`open-decisions.md` "99. 모델이 어느 특성에 기댔는지 보일 것인가") —
+     * sklearn `permutation_importance`. 계수를 못 보이는 모델(트리·포레스트·KNN·SVM·신경망)에도
+     * 같은 잣대로 선다.
+     *
+     * **표 데이터에서만이다** — 사진의 특성은 임베딩이라 이름에 뜻이 없다(계수 표와 같은 판단).
+     */
+    id: 'permutation-importance',
+    dataTypes: { tabular: true, image: false },
+    taskTypes: { classification: true, regression: true, clustering: false },
+    hasData: (run) => run.model !== undefined && run.metrics !== undefined,
+    panel: defineAsyncComponent(
+      () => import('@/views/results/panels/PermutationImportancePanel.vue'),
+    ),
+  },
+  {
+    /**
      * **결정 경계** (`open-decisions.md` "69. 훈련 데이터가 2·3차원일 때 결과를 그림으로 보일
      * 것인가") — sklearn `DecisionBoundaryDisplay`와 같은 그림이다.
      *

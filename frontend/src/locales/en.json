@@ -1018,6 +1018,15 @@
       "lead": "The plane of the two features is split into cells, each shaded with the category the model would choose there. Dots are the actual categories of the test data. A dot on a background of another color is a row the model got wrong.",
       "rows": "Drawn from {count} rows of test data.",
       "mismatch": "The predictions differ from the saved confusion matrix, so the decision boundary is not drawn."
+    },
+    "importance": {
+      "title": "Permutation importance",
+      "lead": "Each column of the test data was shuffled across rows {count} times, and the average drop in score is shown. A longer bar means the model leans on that column more. A value near zero or below means the column is of little use to this model. Two similar columns can both come out low, because shuffling one leaves the other to stand in for it.",
+      "axisAccuracy": "Drop in accuracy",
+      "axisR2": "Drop in R-squared",
+      "point": "Mean {mean} · standard deviation {std} ({feature})",
+      "baseline": "Measured from a score of {score} before shuffling.",
+      "mismatch": "The predictions differ from the saved score, so the permutation importance is not drawn."
     }
   },
   "predict": {
