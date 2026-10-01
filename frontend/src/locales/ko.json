@@ -253,17 +253,17 @@
     },
     "charts": {
       "title": "데이터 시각화",
-      "lead": "열을 하나 선택하면 그 열에 맞는 그림을 보여 줍니다. 학습하기 전에 데이터가 어떻게 생겼는지 확인하세요.",
+      "lead": "열을 하나 선택하면 그 열에 맞는 차트를 보여 줍니다. 학습하기 전에 데이터가 어떻게 생겼는지 확인하세요.",
       "column": "선택한 열",
       "open": "시각화 열기",
       "axisCount": "개수",
-      "noValues": "그릴 수 있는 값이 없습니다.",
+      "noValues": "표시할 수 있는 값이 없습니다.",
       "noValuesNext": "이 열은 값이 모두 비어 있거나 숫자로 인식되지 않습니다. 다른 열을 선택해 보세요.",
-      "nothingToDraw": "이 열로 그릴 수 있는 그림이 없습니다.",
-      "missing": "값이 비어 있는 {count}행은 그림에서 제외했습니다.",
+      "nothingToDraw": "이 열로 표시할 수 있는 차트가 없습니다.",
+      "missing": "값이 비어 있는 {count}행은 차트에 표시할 수 없어 제외했습니다.",
       "blocked": {
-        "needsNumeric": "수치 열에서만 그릴 수 있습니다.",
-        "needsCategorical": "범주 열에서만 그릴 수 있습니다.",
+        "needsNumeric": "수치 열에서만 표시할 수 있습니다.",
+        "needsCategorical": "범주 열에서만 표시할 수 있습니다.",
         "needsAnotherColumn": "열이 두 개 이상 있어야 합니다."
       },
       "histogram": {
@@ -274,7 +274,7 @@
         "binCount": "구간 수(bins)",
         "binAuto": "자동으로 설정하기",
         "binRange": "{min} ~ {max} 사이의 정수",
-        "binInvalid": "그릴 수 없는 값입니다. {min} ~ {max} 사이의 정수를 입력해 주세요.",
+        "binInvalid": "사용할 수 없는 값입니다. {min} ~ {max} 사이의 정수를 입력해 주세요.",
         "binApply": "적용",
         "bins": "구간이 {count}개입니다.",
         "logScale": "로그 스케일",
@@ -284,16 +284,16 @@
         "name": "막대그래프(Bar Chart)",
         "series": "개수",
         "point": "{value} · {count}개",
-        "omitted": "값의 종류가 많아 행 개수가 많은 상위 {shown}개만 그렸습니다. (전체 {distinct}종류, 제외된 {rows}행)"
+        "omitted": "값의 종류가 많아 행 개수가 많은 상위 {shown}개만 표시했습니다. (전체 {distinct}종류, 제외된 {rows}행)"
       },
       "box": {
         "name": "박스 플롯(Box Plot)",
         "groupBy": "구분 기준",
         "groupNone": "구분 없음",
         "point": "최솟값 {min} · 제1사분위수 {q1} · 중앙값 {median} · 제3사분위수 {q3} · 최댓값 {max}",
-        "outliers": "수염 밖의 값 {count}개를 점으로 표시했습니다.",
+        "outliers": "수염(Whisker) 밖의 값 {count}개를 점으로 표시했습니다.",
         "blank": "구분 기준 열의 값이 비어 있는 {count}행은 상자에 포함하지 않았습니다.",
-        "omitted": "행 개수가 너무 적은 값 {count}종류는 상자를 그리지 않았습니다. (제외된 {rows}행)"
+        "omitted": "행 개수가 너무 적은 값 {count}종류는 상자를 표시하지 않았습니다. (제외된 {rows}행)"
       },
       "scatter": {
         "name": "산점도(Scatter Plot)",
@@ -305,7 +305,7 @@
         "pointMany": "이 점 근처에 {count}행이 겹쳐 있습니다. ({name} · 가로 {x} · 세로 {y})",
         "merged": "점이 많이 겹치는 위치는 하나의 점으로 합쳐 진하게 표시했습니다. 점을 가리키면 그 위치에 있는 행 개수가 나옵니다.",
         "widened": "점이 많아 더 넓은 범위의 점들을 하나로 합쳤습니다.",
-        "skipped": "값이 비어 있는 {count}행은 그리지 못했습니다.",
+        "skipped": "값이 비어 있는 {count}행은 차트에 표시할 수 없어 제외했습니다.",
         "colorsRepeat": "색으로 구분할 값이 {count}종류라 같은 색이 반복됩니다. 점을 가리키면 어느 값인지 확인할 수 있습니다."
       }
     }
@@ -987,7 +987,7 @@
       "silhouetteSampled": "데이터가 많아 실루엣 계수는 무작위로 추출한 일부 행으로 측정했습니다. [난수 씨앗(Random State)]을 바꾸면 같은 데이터에서도 값이 조금 달라질 수 있습니다. (전체 {total}행 중 {used}행)",
       "clusterScatter": "군집 산점도",
       "clusterScatterLead": "점 하나가 데이터 한 행이고, ✕ 표시는 각 군집의 중심점입니다.",
-      "clusterScatterNoAxes": "산점도는 숫자로 된 열이 둘 이상 있어야 그릴 수 있습니다. (지금 {count}개)",
+      "clusterScatterNoAxes": "산점도는 숫자로 된 열이 둘 이상 있어야 표시할 수 있습니다. (지금 {count}개)",
       "clusterSize": "데이터 수",
       "clusterSummary": "군집별 데이터 특징",
       "clusterSummaryLead": "각 칸은 그 군집에 속한 데이터의 평균입니다. 행을 누르면 그 군집의 데이터를 볼 수 있습니다.",
@@ -998,7 +998,7 @@
     "where": "학습한 환경",
     "regression": {
       "title": "실제 값과 예측 값",
-      "lead": "저장된 모델로 테스트 데이터를 다시 예측해 그렸습니다. 실제 vs 예측 그림에서는 대각선에, 잔차 vs 예측 그림에서는 잔차가 0인 가로선에 가까울수록 정확하게 예측한 것입니다.",
+      "lead": "저장된 모델로 테스트 데이터를 다시 예측해 차트를 표시했습니다. 실제 vs 예측 차트에서는 대각선에, 잔차 vs 예측 차트에서는 잔차가 0인 가로선에 가까울수록 정확하게 예측한 것입니다.",
       "actualVsPredicted": "실제 vs 예측",
       "residualVsPredicted": "잔차(Residual) vs 예측",
       "line": "특성에 따른 모델의 예측선 ({feature})",
@@ -1009,8 +1009,8 @@
       "zero": "잔차 = 0",
       "curve": "모델의 예측",
       "series": "테스트 데이터",
-      "rows": "테스트 데이터 {count}행으로 그렸습니다.",
-      "mismatch": "다시 예측한 결과가 저장된 점수와 일치하지 않아 그림을 그리지 않았습니다."
+      "rows": "테스트 데이터 {count}행으로 차트를 표시했습니다.",
+      "mismatch": "다시 예측한 결과가 저장된 점수와 일치하지 않아 차트를 표시하지 않았습니다."
     },
     "cellRowsOpen": "이 칸의 행 보기 ({count}행)",
     "cellRowsTitle": "이 칸에 해당하는 테스트 데이터",
@@ -1026,8 +1026,8 @@
     "boundary": {
       "title": "결정 경계",
       "lead": "두 특성을 가로축과 세로축으로 하는 평면의 각 위치에서 모델이 예측하는 범주를 옅은 색으로 칠했습니다. 점은 테스트 데이터의 실제 범주이며, 점의 색과 바탕색이 다르면 모델이 틀리게 예측한 것입니다.",
-      "rows": "테스트 데이터 {count}행으로 그렸습니다.",
-      "mismatch": "다시 예측한 결과가 저장된 혼동 행렬과 일치하지 않아 결정 경계를 그리지 않았습니다."
+      "rows": "테스트 데이터 {count}행으로 차트를 표시했습니다.",
+      "mismatch": "다시 예측한 결과가 저장된 혼동 행렬과 일치하지 않아 결정 경계를 표시하지 않았습니다."
     },
     "importance": {
       "title": "순열 특성 중요도(Permutation Importance)",
@@ -1036,7 +1036,7 @@
       "axisR2": "결정계수 감소",
       "point": "평균 {mean} · 표준편차 {std} ({feature})",
       "baseline": "섞기 전 점수 {score} 기준으로 측정한 값입니다.",
-      "mismatch": "다시 예측한 점수가 저장된 점수와 일치하지 않아 특성 중요도를 그리지 않았습니다."
+      "mismatch": "다시 예측한 점수가 저장된 점수와 일치하지 않아 특성 중요도를 표시하지 않았습니다."
     }
   },
   "predict": {

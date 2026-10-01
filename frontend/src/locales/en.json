@@ -260,7 +260,7 @@
       "noValues": "There is nothing to draw.",
       "noValuesNext": "Every value in this column is empty or cannot be read as a number. Try another column.",
       "nothingToDraw": "No chart fits this column.",
-      "missing": "{count} row with an empty value is left out of the chart. | {count} rows with an empty value are left out of the chart.",
+      "missing": "{count} row with an empty value cannot be shown on the chart, so it is left out. | {count} rows with an empty value cannot be shown on the chart, so they are left out.",
       "blocked": {
         "needsNumeric": "Only numeric columns can be drawn this way.",
         "needsCategorical": "Only categorical columns can be drawn this way.",
@@ -274,7 +274,7 @@
         "binCount": "Bins",
         "binAuto": "Choose automatically",
         "binRange": "A whole number from {min} to {max}",
-        "binInvalid": "That value cannot be drawn. Enter a whole number from {min} to {max}.",
+        "binInvalid": "That value cannot be used. Enter a whole number from {min} to {max}.",
         "binApply": "Apply",
         "bins": "This chart has {count} bins.",
         "logScale": "Log scale",
@@ -305,7 +305,7 @@
         "pointMany": "{count} rows overlap near this dot. ({name} · x {x} · y {y})",
         "merged": "Where many dots overlap, they are merged into one darker dot. Point at a dot to see how many rows it covers.",
         "widened": "There are so many dots that dots across wider areas are merged into one.",
-        "skipped": "{count} rows could not be drawn because a value is empty.",
+        "skipped": "{count} row with an empty value cannot be shown on the chart, so it is left out. | {count} rows with an empty value cannot be shown on the chart, so they are left out.",
         "colorsRepeat": "There are {count} values to color by, so colors repeat. Point at a dot to see which value it is."
       }
     }
@@ -1009,7 +1009,7 @@
       "zero": "Residual = 0",
       "curve": "Model prediction",
       "series": "Test data",
-      "rows": "Drawn from {count} rows of test data.",
+      "rows": "This chart uses {count} rows of test data.",
       "mismatch": "The new predictions do not match the saved scores, so the charts are not drawn."
     },
     "cellRowsOpen": "Show rows in this cell ({count})",
@@ -1026,7 +1026,7 @@
     "boundary": {
       "title": "Decision boundary",
       "lead": "Each point on the plane formed by the two features is shaded with the category the model predicts there. Dots are the actual categories of the test data. A dot on a background of another color is a row the model predicted wrongly.",
-      "rows": "Drawn from {count} rows of test data.",
+      "rows": "This chart uses {count} rows of test data.",
       "mismatch": "The new predictions do not match the saved confusion matrix, so the decision boundary is not drawn."
     },
     "importance": {
