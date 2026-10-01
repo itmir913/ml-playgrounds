@@ -92,7 +92,7 @@ defineProps<{
       읽힌다. `=`와 `×`는 번역하지 않으므로 여기 그대로 둔다 - 자연어가 아니다.
 
       **스크린 리더에는 빗금을 들려준다.** 위아래로 쌓인 낱말 둘은 소리로는 그냥 이어져
-      "옳게 예측한 데이터 수 예측한 데이터 수"가 된다.
+      "올바르게 예측한 데이터 수 예측한 데이터 수"가 된다.
     -->
     <div class="flex flex-wrap items-center gap-2">
       <h4 class="font-bold text-ink">{{ title }}</h4>
