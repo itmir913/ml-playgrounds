@@ -13,7 +13,11 @@ import { describe, expect, it } from 'vitest'
 
 import AppField from '@/components/AppField.vue'
 
-function fieldInput(props: { hint?: string; error?: string }): HTMLInputElement {
+function fieldInput(props: {
+  hint?: string
+  error?: string
+  reference?: string
+}): HTMLInputElement {
   document.body.innerHTML = ''
   const wrapper = mount(AppField, {
     props: { label: 'name', ...props },
@@ -35,6 +39,22 @@ describe('AppField가 건넨 값', () => {
 
   it('도움말이 없으면 잇지 않는다', () => {
     expect(fieldInput({}).hasAttribute('aria-describedby')).toBe(false)
+  })
+
+  it('참고값은 입력 아래에 서고, 도움말과 함께 칸에 잇는다', () => {
+    const input = fieldInput({ hint: 'note', reference: 'range' })
+    const ids = (input.getAttribute('aria-describedby') ?? '').split(' ')
+    const texts = ids.map((id) => input.ownerDocument.getElementById(id)?.textContent?.trim())
+    expect(texts).toEqual(['note', 'range'])
+    const reference = input.ownerDocument.getElementById(ids[1] ?? '')
+    expect(reference?.previousElementSibling).toBe(input)
+  })
+
+  it('오류가 서도 참고값은 남는다', () => {
+    const input = fieldInput({ error: 'bad', reference: 'range' })
+    const ids = (input.getAttribute('aria-describedby') ?? '').split(' ')
+    const texts = ids.map((id) => input.ownerDocument.getElementById(id)?.textContent?.trim())
+    expect(texts).toEqual(['bad', 'range'])
   })
 
   it('오류가 있으면 aria-invalid가 참이다', () => {

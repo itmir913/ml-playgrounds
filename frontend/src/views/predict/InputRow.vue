@@ -56,11 +56,12 @@ const { t } = useI18n()
 const format = useFormat()
 
 /**
- * 이 칸의 도움말. **수치 칸에만 있다** — 범주 칸은 고를 것이 이미 목록에 있다.
+ * 이 칸의 참고값. **수치 칸에만 있다** — 범주 칸은 고를 것이 이미 목록에 있다.
  *
  * 힌트일 뿐 막지 않는다. 범위 밖 값을 넣어 보는 것은 여기서 해 볼 만한 일이다.
+ * **입력 아래에 선다**(`AppField`의 `reference`) — 적으면서 보는 값이다.
  */
-function hintOf(field: PredictionField): string | undefined {
+function referenceOf(field: PredictionField): string | undefined {
   const range = props.ranges.get(field.name)
   if (!range) return undefined
   return t('predict.tabular.range', {
@@ -109,7 +110,7 @@ function hintOf(field: PredictionField): string | undefined {
         v-for="field in props.fields"
         :key="field.name"
         :label="field.name"
-        :hint="hintOf(field)"
+        :reference="referenceOf(field)"
       >
         <template #default="control">
           <AppSelect

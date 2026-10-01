@@ -23,6 +23,11 @@
  * 히스토그램의 `자동으로 설정하기`처럼 **이름이 가리키는 것을 무엇이 정하는가**를 묻는
  * 스위치는 이름 바로 아래여야 한다 — 입력 아래에 두면 학생이 칸을 먼저 만나고,
  * 도움말 위에 따로 세우면 어느 칸의 스위치인지 알 수 없다.
+ *
+ * **`reference`는 입력 아래다** (2026-10-01, 코드 소유자). 예측 칸의 *"데이터에 있는 값의
+ * 범위"*처럼 **읽고 나서 답하는 규칙이 아니라 적으면서 보는 값**이 여기 선다. 위에 두면
+ * 참고값이 있는 칸과 없는 칸이 한 줄에 설 때 입력 칸의 높이가 어긋났다.
+ * 오류가 서도 자리를 내주지 않는다 — 오류는 도움말의 자리다.
  */
 
 import { computed, useId } from 'vue'
@@ -32,12 +37,23 @@ const props = defineProps<{
   hint?: string | undefined
   /** 있으면 도움말 자리를 차지한다. 조건부로 넘기는 자리라 undefined를 받는다. */
   error?: string | undefined
+  /** 입력 아래의 참고값. 조건부로 넘기는 자리라 undefined를 받는다. */
+  reference?: string | undefined
 }>()
 
 const inputId = useId()
 const noteId = useId()
+const referenceId = useId()
 
 const note = computed(() => props.error ?? props.hint)
+
+const describedBy = computed(() => {
+  const ids = [
+    note.value === undefined ? undefined : noteId,
+    props.reference === undefined ? undefined : referenceId,
+  ].filter((id) => id !== undefined)
+  return ids.length === 0 ? undefined : ids.join(' ')
+})
 
 /**
  * 슬롯으로 내려주는 값. **객체 하나로 건넨다** — `<slot :aria-describedby>`처럼 이름을 하나씩 적으면
@@ -46,7 +62,7 @@ const note = computed(() => props.error ?? props.hint)
  */
 const control = computed(() => ({
   id: inputId,
-  'aria-describedby': note.value === undefined ? undefined : noteId,
+  'aria-describedby': describedBy.value,
   'aria-invalid': props.error !== undefined,
 }))
 </script>
@@ -67,5 +83,9 @@ const control = computed(() => ({
     </p>
 
     <slot v-bind="control" />
+
+    <p v-if="reference !== undefined" :id="referenceId" class="text-base text-ink-faint">
+      {{ reference }}
+    </p>
   </div>
 </template>
