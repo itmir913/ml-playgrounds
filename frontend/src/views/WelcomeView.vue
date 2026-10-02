@@ -534,6 +534,8 @@ onMounted(refresh)
             {{ t('project.openNewerFileAt', { at: format.dateTime(replacing?.fileAt ?? '') }) }}
           </li>
         </ul>
+        <!-- 단추는 어느 쪽을 열지만 말한다. 그 대가는 여기서 사실로 적는다 (copy.md §2). -->
+        <p class="text-ink-soft">{{ t('project.openNewerReplaceNote') }}</p>
         <template #actions>
           <AppButton variant="secondary" @click="answerReplace('replace')">
             {{ t('project.openNewerReplace') }}
