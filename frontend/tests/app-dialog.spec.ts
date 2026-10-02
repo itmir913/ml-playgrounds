@@ -96,21 +96,21 @@ describe('바깥 클릭은 `persistent`가 쥔다', () => {
 /**
  * **창의 크기를 `fill`이 쥔다.**
  *
- * **이 프롭에도 검사가 없었다** (2026-09-22 감사). 갈래를 `'w-full max-w-lg'` 고정으로
+ * **이 프롭에도 검사가 없었다** (2026-09-22 감사). 갈래를 `'w-full max-w-2xl'` 고정으로
  * 바꿔도 전부 초록이었고, 그러면 **시각화 창이 조용히 좁은 창으로 되돌아간다** —
  * 그림은 세로로 읽는 것이라 높이가 곧 읽을 수 있는 눈금의 수다.
  */
 describe('크기는 `fill`이 쥔다', () => {
   it('기본은 좁은 창이다', () => {
     const classes = render(true).find('dialog').classes()
-    expect(classes).toContain('max-w-lg')
+    expect(classes).toContain('max-w-2xl')
     expect(classes).not.toContain('dialog-fill')
   })
 
   it('`fill`이면 화면을 채운다 — 좁은 창의 천장을 안 쓴다', () => {
     const classes = render(true, { fill: true }).find('dialog').classes()
     expect(classes).toContain('dialog-fill')
-    expect(classes).not.toContain('max-w-lg')
+    expect(classes).not.toContain('max-w-2xl')
     // **`w-full`도 함께 빠진다** — 같이 서면 특이도가 같아 `width`가 죽는다.
     expect(classes).not.toContain('w-full')
   })

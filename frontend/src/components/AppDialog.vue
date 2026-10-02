@@ -19,6 +19,10 @@ const props = defineProps<{
    * 화면을 채우는 창인가. **기본은 내용만큼인 좁은 창이다** — 이 저장소의 대화상자는
    * 대개 묻고 답하는 자리이고, 거기서는 좁은 것이 읽기 쉽다.
    *
+   * **좁은 창의 천장은 하나다 — `max-w-2xl`** (2026-10-02, 코드 소유자). 영어의
+   * `Keep this computer's version`이 `max-w-lg`에서 두 줄로 꺾였다. 창마다 폭을 주면
+   * 확인창이 넓은 것과 좁은 것으로 갈라지므로, 프롭을 두지 않고 기본을 올렸다.
+   *
    * **그림을 담는 창 하나 때문에 생겼다** (`ChartDialog.vue`). 처음에는 `max-w-lg`를
    * `max-w-4xl`로 넓히는 갈래였는데, 실물에서 보니 **폭만으로는 모자랐다** — 박스 플롯은
    * 세로로 읽는 그림이라 높이가 곧 읽을 수 있는 눈금의 수다 (2026-09-22, 코드 소유자).
@@ -79,7 +83,7 @@ function onBackdrop(event: MouseEvent): void {
   <dialog
     ref="dialog"
     class="dialog-panel m-auto rounded-card border border-line bg-surface p-0 text-ink shadow-pop backdrop:bg-slate-900/40"
-    :class="props.fill ? 'dialog-fill' : 'w-full max-w-lg'"
+    :class="props.fill ? 'dialog-fill' : 'w-full max-w-2xl'"
     @close="emit('close')"
     @click="onBackdrop"
   >
@@ -148,7 +152,7 @@ function onBackdrop(event: MouseEvent): void {
         같은 너비다.
 
         **재는 것은 창이 아니라 이 대화상자다**(`@container`). `sm:`으로 쓰면 창이
-        640px을 넘어야 나란히 서는데, **대화상자는 `max-w-lg`라 애초에 그보다 좁게
+        640px을 넘어야 나란히 서는데, **대화상자는 그때 `max-w-lg`라 애초에 그보다 좁게
         산다** - 그래서 휴대폰에서는 `취소`와 `만들기`처럼 짧은 짝까지 언제나 세로로
         쌓였다 (2026-08-30, 사용자가 겪었다). 창은 이 줄에 남은 자리를 모른다.
 
