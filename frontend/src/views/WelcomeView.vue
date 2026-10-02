@@ -526,12 +526,13 @@ onMounted(refresh)
         :description="t('project.openNewerBody', { name: replacing?.name ?? '' })"
         @close="answerReplace('cancel')"
       >
+        <!-- 목록은 아래 단추와 같은 순서다 — 파일이 먼저(왼쪽 보조 단추), 이 컴퓨터가 다음(오른쪽 주 단추). -->
         <ul class="flex list-outside list-disc flex-col gap-1.5 pl-5 text-ink-soft">
           <li>
-            {{ t('project.openNewerLocalAt', { at: format.dateTime(replacing?.localAt ?? '') }) }}
+            {{ t('project.openNewerFileAt', { at: format.dateTime(replacing?.fileAt ?? '') }) }}
           </li>
           <li>
-            {{ t('project.openNewerFileAt', { at: format.dateTime(replacing?.fileAt ?? '') }) }}
+            {{ t('project.openNewerLocalAt', { at: format.dateTime(replacing?.localAt ?? '') }) }}
           </li>
         </ul>
         <template #actions>
