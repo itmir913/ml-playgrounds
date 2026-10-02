@@ -177,9 +177,13 @@ function failureDetailOf(run: Run): string | null {
 
 <template>
   <div class="flex flex-col gap-5">
-    <h3 class="font-bold text-ink-soft">
-      {{ t('results.experimentName', { index: props.order }) }}
-    </h3>
+    <!-- 제목 줄 오른쪽은 부르는 화면의 몫이다 — 결과 화면만 지우기를 채우고, 점검은 읽기 전용이라 비운다. -->
+    <div class="flex items-center justify-between gap-3">
+      <h3 class="font-bold text-ink-soft">
+        {{ t('results.experimentName', { index: props.order }) }}
+      </h3>
+      <slot name="actions" />
+    </div>
 
     <!-- 바뀐 것. 첫 실험에는 직전이 없고, 아무것도 안 바꾼 재학습도 있다. -->
     <section class="flex flex-col gap-1.5">

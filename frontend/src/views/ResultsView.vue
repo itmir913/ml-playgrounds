@@ -252,12 +252,6 @@ const models = computed<ReadonlyMap<string, Uint8Array>>(
         -->
         <!-- 도착 지점에 여백을 남긴다 (ExperimentDetail.vue 주석). -->
         <div ref="detailEl" class="scroll-below-shell">
-          <!-- 점검 화면도 `ExperimentDetail`을 쓰므로 지우기는 그 안이 아니라 여기 둔다 — 점검은 읽기 전용이다. -->
-          <div v-if="current" class="flex justify-end pb-3">
-            <AppButton variant="secondary" @click="deleting = current.id">
-              {{ t('results.deleteExperiment') }}
-            </AppButton>
-          </div>
           <ExperimentDetail
             v-if="current && project.file"
             :experiment="current"
@@ -268,7 +262,14 @@ const models = computed<ReadonlyMap<string, Uint8Array>>(
             :preprocessor="preprocessor"
             :models="models"
             :file="project.file"
-          />
+          >
+            <!-- 지우기는 이 화면만 채운다 — 점검 화면도 `ExperimentDetail`을 쓰지만 읽기 전용이다. -->
+            <template #actions>
+              <AppButton variant="secondary" @click="deleting = current.id">
+                {{ t('results.deleteExperiment') }}
+              </AppButton>
+            </template>
+          </ExperimentDetail>
         </div>
       </div>
     </div>
