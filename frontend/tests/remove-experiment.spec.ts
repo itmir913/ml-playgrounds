@@ -8,7 +8,9 @@
 import { describe, expect, it } from 'vitest'
 
 import { carriedFilter, defaultFilter, predictableModels } from '../src/ml/predict'
+import { describeChanges } from '../src/ml/changes'
 import { runExperiment } from '../src/ml/experiment'
+import { experimentOrder } from '../src/ml/results'
 import { applyExperiment, removeExperiment } from '../src/project/attach'
 import { readDataset } from '../src/project/dataset'
 import { readProject, type ProjectFile } from '../src/project/format'
@@ -86,6 +88,98 @@ function orphans(project: ProjectFile): string[] {
 function ids(project: ProjectFile): string[] {
   return project.document.runs.experiments.map((experiment) => experiment.id)
 }
+
+/** 실험 하나의 설정 — 알고리즘과 씨앗(첫 실험의 씨앗에서 얼마나 옮겼는지). */
+interface Recipe {
+  readonly algorithms: readonly string[]
+  readonly seedOffset: number
+}
+
+/** 다섯 실험. 이웃끼리 바뀐 것이 저마다 달라서, 누구와 견줬는지가 `changed`에 드러난다. */
+const FIVE: readonly Recipe[] = [
+  { algorithms: ['decision_tree'], seedOffset: 0 },
+  { algorithms: ['decision_tree'], seedOffset: 1 },
+  { algorithms: ['decision_tree', 'knn'], seedOffset: 1 },
+  { algorithms: ['decision_tree', 'knn'], seedOffset: 2 },
+  { algorithms: ['decision_tree'], seedOffset: 2 },
+]
+
+/** 설정을 차례로 학습한다. 첫 실험의 씨앗이 기준이다. */
+async function trainAll(recipes: readonly Recipe[]): Promise<ProjectFile> {
+  let project = await irisProject(['decision_tree'])
+  const seed = project.document.settings.split.randomState
+  for (const recipe of recipes) {
+    project = await train(
+      withAlgorithms(reseeded(project, seed + recipe.seedOffset), recipe.algorithms),
+    )
+  }
+  return project
+}
+
+/** 화면이 보는 짝 — 파일 순서의 바로 앞 실험과 그 실험의 `changed` (`views/ResultsView.vue`). */
+function pairs(project: ProjectFile): { order: number; changed: string[] | undefined }[] {
+  const order = experimentOrder(project.document.runs.experiments)
+  return project.document.runs.experiments.map((experiment) => ({
+    order: order.get(experiment.id) ?? 0,
+    changed: experiment.changed,
+  }))
+}
+
+describe('실험 지우기 — 시나리오', () => {
+  it('하나뿐인 실험을 지우면 기록도 모델도 비고, 다시 열 수 있고, 다음 학습이 첫 실험이 된다', async () => {
+    const project = await trainAll(FIVE.slice(0, 1))
+    const [only] = ids(project)
+    const empty = removeExperiment(project, only ?? '', LATER)
+
+    expect(empty.document.runs.experiments).toEqual([])
+    expect(empty.models.size).toBe(0)
+
+    const { bytes } = await writeProjectBytes(empty, '')
+    const { project: reopened, integrity } = await readProject(bytes)
+    expect(integrity.status).toBe('UNCHANGED')
+    expect(reopened.document.runs.experiments).toEqual([])
+
+    const again = await train(empty)
+    const head = again.document.runs.experiments[0]
+    expect(ids(again)).toEqual([only])
+    expect(head && 'changed' in head).toBe(false)
+    expect(orphans(again)).toEqual([])
+  })
+
+  // 첫째(1), 가운데(2~4), 마지막(5) 전부. 기준은 **그 실험을 애초에 안 돌린 학습**이다 — 지운 뒤의 파일이
+  // 처음부터 그 순서로 학습한 파일과 같은 말을 해야 k-1과 k+1이 제대로 이어진 것이다.
+  for (const [position, label] of FIVE.map((_, index) => [index, `${index + 1}번째`] as const)) {
+    it(`다섯 실험에서 ${label}를 지우면 남은 이웃이 처음부터 그렇게 학습한 것과 같게 이어진다`, async () => {
+      const project = await trainAll(FIVE)
+      const target = ids(project)[position] ?? ''
+      const removed = removeExperiment(project, target, LATER)
+      const oracle = await trainAll(FIVE.filter((_, index) => index !== position))
+
+      expect(ids(removed)).toEqual(ids(project).filter((id) => id !== target))
+      expect(pairs(removed)).toEqual(pairs(oracle))
+      expect(orphans(removed)).toEqual([])
+
+      // k+1이 화면에서 보여 줄 값은 k-1의 값에서 온다.
+      const after = removed.document.runs.experiments[position]
+      const before = removed.document.runs.experiments[position - 1]
+      if (after && before && after.changed) {
+        const shown = describeChanges(before, after, after.changed)
+        const truth = describeChanges(
+          oracle.document.runs.experiments[position - 1] ?? before,
+          oracle.document.runs.experiments[position] ?? after,
+          after.changed,
+        )
+        expect(shown).toEqual(truth)
+        expect(shown.length).toBeGreaterThan(0)
+      }
+
+      const { bytes } = await writeProjectBytes(removed, '')
+      const { project: reopened, integrity } = await readProject(bytes)
+      expect(integrity.status).toBe('UNCHANGED')
+      expect(pairs(reopened)).toEqual(pairs(oracle))
+    })
+  }
+})
 
 describe('실험 지우기', () => {
   it('세 실험의 처음·가운데·끝을 지우면 그 실험만 빠지고 고아 모델이 0개다', async () => {
