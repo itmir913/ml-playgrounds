@@ -985,6 +985,7 @@ describe('두 언어가 나란히 말한다', () => {
       'predict.tabular.fileRemove',
       'preprocess.testImagesRemoveConfirm',
       'projects.delete',
+      'results.deleteConfirm',
     ],
     ['preprocess.tabular.testDataRemove', 'preprocess.tabular.testDataRemoveConfirm'],
     ['preprocess.testImagesAttachConfirm', 'train.addModel'],

@@ -477,8 +477,11 @@ export function comparablePair(
   }
 }
 
-/** 직전 실험 대비 바뀐 설정 경로. */
-function changedSince(
+/**
+ * 직전 실험 대비 바뀐 설정 경로. **판정 함수는 이것 하나다** — 학습이 끝날 때(`assembleExperiment`)와
+ * 실험을 지워 직전이 바뀔 때(`project/attach.ts`의 `removeExperiment`)가 같은 함수를 부른다.
+ */
+export function changedSince(
   previous: Experiment,
   settings: Experiment['settings'],
   runs: readonly Run[],

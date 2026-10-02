@@ -13,13 +13,17 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
+import AppButton from '@/components/AppButton.vue'
+import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { experimentPreprocessor, type Preprocessor } from '@/ml/preprocess'
 import { experimentOrder } from '@/ml/results'
 import { readFlag, writeFlag } from '@/prefs'
+import { removeExperiment } from '@/project/attach'
 import { readDataset } from '@/project/dataset'
 import { useProjectStore } from '@/stores/project'
+import { useToastStore } from '@/stores/toasts'
 import ExperimentDetail from './results/ExperimentDetail.vue'
 import ExperimentList from './results/ExperimentList.vue'
 
@@ -125,6 +129,42 @@ const detailDivider = computed(() =>
     : 'border-t border-dashed border-line-strong pt-5',
 )
 
+/**
+ * 지울 실험의 id. 확인 창이 열려 있는 동안만 값이 있다 (open-decisions.md 66 — 되돌릴 수 없으므로
+ * 확인을 거친다).
+ *
+ * **학습과 겹치지 않는다.** 학습은 학습 화면이 돌리고, 도중에 떠나면 묻고 멈춘 뒤 끝난 것을 앉히고
+ * 저장까지 마쳐야 경로가 옮겨진다 — `train-leave-keeps.spec.ts`의 *"나가면 끝난 모델이 남는다"*가 문다.
+ * 앉힐 때도 지금 파일에 덧붙이므로(`project.update((live) => …)`) 지운 실험이 되살아날 길이 없다 —
+ * 이 줄은 무는 검사 없음, 사람 확인. 그래서 이 화면에 잠금이 없다(결정 66).
+ *
+ * **지운 id를 쥔 화면 상태도 없다.** 예측 필터와 판, 재현 대조(`ReproducePanel`, 점검 화면)의 상태는
+ * 그 화면의 것이라 이 화면에 있는 동안 내려가 있고, 다시 뜨면 지금 파일에서 새로 세운다 — 무는 검사
+ * 없음, 사람 확인. 마지막 번호가 다시 쓰여도 새 모델이 앉고 새 필터에 켜지는 것은
+ * `remove-experiment.spec.ts`의 *"마지막 번호가 다시 쓰여도 옛 모델과 옛 필터 상태를 물려받지 않는다"*가 문다.
+ *
+ * **저장이 실패해도 반쯤 지운 상태는 없다.** `save`는 쓰기 전에 화면의 값을 바꾸므로(`stores/project.ts`의
+ * `save`) 화면에서는 이미 지워졌고, 알림이 실패를 말하며, `dirty`가 남아 다음 자동 저장이나 `flush`가
+ * 다시 쓴다. IndexedDB는 한 트랜잭션으로 쓰므로(`project/storage.ts`의 `saveProject`) 옛 값 아니면 새 값이다.
+ * 지운 직후 값에 고아가 없고 왕복이 무결성을 통과하는 것은 `remove-experiment.spec.ts`의
+ * *"세 실험의 처음·가운데·끝을 지우면 …"*과 *"지우고 쓴 파일을 다시 열면 …"*이 문다.
+ */
+const deleting = ref<string | null>(null)
+const toasts = useToastStore()
+
+/** 고른 실험을 지운다. **즉시 저장한다** — 되돌릴 수 없는 큰 변경은 `save`다 (`stores/project.ts`). */
+async function deleteExperiment(): Promise<void> {
+  const id = deleting.value
+  if (id === null) return
+  try {
+    await project.save((live) => removeExperiment(live, id, new Date().toISOString()))
+  } catch (error) {
+    toasts.pushError(error)
+  } finally {
+    deleting.value = null
+  }
+}
+
 /** 모델 경로 → 바이트. 어느 run의 것을 꺼낼지는 `ExperimentDetail`이 정한다. */
 const models = computed<ReadonlyMap<string, Uint8Array>>(
   () => project.file?.models ?? new Map<string, Uint8Array>(),
@@ -212,6 +252,12 @@ const models = computed<ReadonlyMap<string, Uint8Array>>(
         -->
         <!-- 도착 지점에 여백을 남긴다 (ExperimentDetail.vue 주석). -->
         <div ref="detailEl" class="scroll-below-shell">
+          <!-- 점검 화면도 `ExperimentDetail`을 쓰므로 지우기는 그 안이 아니라 여기 둔다 — 점검은 읽기 전용이다. -->
+          <div v-if="current" class="flex justify-end pb-3">
+            <AppButton variant="secondary" @click="deleting = current.id">
+              {{ t('results.deleteExperiment') }}
+            </AppButton>
+          </div>
           <ExperimentDetail
             v-if="current && project.file"
             :experiment="current"
@@ -226,5 +272,19 @@ const models = computed<ReadonlyMap<string, Uint8Array>>(
         </div>
       </div>
     </div>
+
+    <AppDialog
+      :open="deleting !== null"
+      :title="t('results.deleteTitle')"
+      :description="t('results.deleteLead')"
+      @close="deleting = null"
+    >
+      <template #actions>
+        <AppButton variant="secondary" @click="deleting = null">{{ t('common.cancel') }}</AppButton>
+        <AppButton variant="danger" :action="deleteExperiment">{{
+          t('results.deleteConfirm')
+        }}</AppButton>
+      </template>
+    </AppDialog>
   </div>
 </template>

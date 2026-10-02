@@ -12,7 +12,7 @@
  * **후보를 온전한 모양으로 만드는 것**까지다.
  */
 
-import type { ExperimentResult } from '../ml/experiment'
+import { changedSince, type ExperimentResult } from '../ml/experiment'
 import { interpreterFor, type ModelFile } from '../ml/models'
 import { DIR, type ProjectFile } from './format'
 import type { Experiment, Run } from './schema'
@@ -67,8 +67,9 @@ export function attachExperimentFiles(
 /**
  * 끝난 실험 하나를 프로젝트에 앉힌다. **[학습하기]가 끝나면 부르는 것이 이것 하나다.**
  *
- * **덧붙이기만 한다.** 지난 실험을 지우지 않는다 - 결과 화면이 순위표가 아니라 **변경
+ * **덧붙이기만 한다.** 학습이 지난 실험을 지우지 않는다 - 결과 화면이 순위표가 아니라 **변경
  * 이력**이고(architecture.md §8.9), 지난 실험이 없으면 `changed`가 가리킬 것이 없어진다.
+ * 지우는 것은 학생이 고른 실험 하나를 아래 `removeExperiment`로 지울 때뿐이다(open-decisions.md 66).
  *
  * `manifest.updatedAt`을 찍는 것은 `project/settings.ts`와 같은 규칙이다. 저장은 여기서
  * 하지 않는다 - 부르는 쪽이 스토어에 넘기고 자동 저장이 받는다.
@@ -122,4 +123,63 @@ function attach(run: Run, model: ModelFile | undefined, entries: Map<string, Uin
   // 모델이 붙었으므로 사유는 지운다. 남겨 두면 담긴 모델 옆에 "담지 못했습니다"가 뜬다.
   delete attached.modelOmitted
   return attached
+}
+
+/**
+ * 실험 하나를 **통째로** 지운다 (open-decisions.md 66). 기록, 딸린 run의 모델 파일 전부, 전처리기
+ * 파일을 한 값에서 뺀다 — 가리킬 대상 없는 id도, 기록 없는 모델 파일도 남지 않는다. 지웠다는 표시는
+ * 남기지 않는다.
+ *
+ * **모델 경로는 문서에 적힌 것을 쓴다** (`run.model.path`, `experiment.preprocessor.path`). 경로를
+ * 여기서 다시 지으면 짓는 규칙이 바뀐 날 옛 파일의 모델이 고아로 남는다.
+ *
+ * **바로 뒤 실험의 `changed`를 새 직전에 대해 다시 잰다.** 결과 화면은 `changed`를 파일 순서의
+ * 바로 앞 실험과 짝짓는다(`views/ResultsView.vue`) — 옛 직전에 대해 잰 경로를 새 직전의 값으로
+ * 읽으면 바뀐 것이 틀리게 보인다. 맨 앞이 되면 `changed`를 뺀다(첫 실험에는 직전이 없다).
+ * 판정은 학습이 쓰는 `changedSince` 하나다.
+ *
+ * **이 실험이 가리키는 것만 뺀다.** 이미 있던 고아(경로 기록 없이 남은 옛 모델 엔트리)는 이 함수의
+ * 몫이 아니다 — `writeProject`가 쓰면서 떨군다(`project/format.ts`).
+ *
+ * 모르는 id면 받은 값을 그대로 돌려준다. 저장은 부르는 쪽이 `save`로 한다.
+ */
+export function removeExperiment(
+  file: ProjectFile,
+  experimentId: string,
+  now: string,
+): ProjectFile {
+  const experiments = file.document.runs.experiments
+  const index = experiments.findIndex((experiment) => experiment.id === experimentId)
+  const removed = experiments[index]
+  if (removed === undefined) return file
+
+  const paths = new Set<string>()
+  if (removed.preprocessor !== undefined) paths.add(removed.preprocessor.path)
+  for (const run of removed.runs) {
+    if (run.model !== undefined) paths.add(run.model.path)
+  }
+
+  const kept = experiments.filter((experiment) => experiment.id !== experimentId)
+  const next = kept[index]
+  if (next !== undefined) kept[index] = rejudged(next, kept[index - 1])
+
+  return {
+    ...file,
+    document: {
+      ...file.document,
+      manifest: { ...file.document.manifest, updatedAt: now },
+      runs: { ...file.document.runs, experiments: kept },
+    },
+    models: new Map([...file.models].filter(([path]) => !paths.has(path))),
+  }
+}
+
+/** 직전이 바뀐 실험의 `changed`. 직전이 없으면 뺀다 — 빈 배열은 "아무것도 안 바꿨다"라는 다른 뜻이다. */
+function rejudged(experiment: Experiment, previous: Experiment | undefined): Experiment {
+  if (previous !== undefined) {
+    return { ...experiment, changed: changedSince(previous, experiment.settings, experiment.runs) }
+  }
+  const first: Experiment = { ...experiment }
+  delete first.changed
+  return first
 }

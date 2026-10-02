@@ -1766,13 +1766,29 @@ describe('전처리 판은 붙일 때도 뗄 때도 묻는다', () => {
    * "실험 N개가 사라집니다"라고 적힌 경고창이 열린 채로 남고, 그 아래에 실패 토스트가
    * 뜬다 — 학생은 방금 무슨 일이 났는지 못 읽는다 (2026-08-29 전 경로 감사).
    * 셋이 그 모양이었고 하나는 `try`가 아예 없었다.
+   *
+   * **닫는 줄은 항목이 적는다** (`closes`). 창을 여는 값이 불리언이면 `.value = false`이고, 지울
+   * 대상의 id이면(`ResultsView`의 실험 지우기, 결정 66) `.value = null`이다.
    */
-  const CLOSERS = [
-    { file: 'preprocess/TabularPrepPanel.vue', fn: 'applyTest', ref: 'testAttaching' },
-    { file: 'preprocess/TabularPrepPanel.vue', fn: 'removeTest', ref: 'testRemoving' },
-    { file: 'preprocess/ImagePrepPanel.vue', fn: 'removeTest', ref: 'testRemoving' },
-    { file: 'data/TabularPanel.vue', fn: 'apply', ref: 'confirming' },
-  ] as const
+  const CLOSERS: readonly { file: string; fn: string; closes: string }[] = [
+    {
+      file: 'preprocess/TabularPrepPanel.vue',
+      fn: 'applyTest',
+      closes: 'testAttaching.value = false',
+    },
+    {
+      file: 'preprocess/TabularPrepPanel.vue',
+      fn: 'removeTest',
+      closes: 'testRemoving.value = false',
+    },
+    {
+      file: 'preprocess/ImagePrepPanel.vue',
+      fn: 'removeTest',
+      closes: 'testRemoving.value = false',
+    },
+    { file: 'data/TabularPanel.vue', fn: 'apply', closes: 'confirming.value = false' },
+    { file: 'ResultsView.vue', fn: 'deleteExperiment', closes: 'deleting.value = null' },
+  ]
 
   /** 함수 하나의 본문. 다음 최상위 선언 전까지다. */
   function bodyOf(source: string, name: string): string {
@@ -1811,10 +1827,10 @@ describe('전처리 판은 붙일 때도 뗄 때도 묻는다', () => {
     expect(body.indexOf('} catch (')).toBeGreaterThan(body.indexOf('confirming.value = false'))
   })
 
-  it('지금 넷이 전부 catch 뒤에서 닫는다', () => {
-    const found = CLOSERS.filter(({ file, fn, ref }) => {
+  it('지금 다섯이 전부 catch 뒤에서 닫는다', () => {
+    const found = CLOSERS.filter(({ file, fn, closes: closer }) => {
       const body = bodyOf(readFileSync(join(SRC, 'views', file), 'utf-8'), fn)
-      const closes = body.indexOf(`${ref}.value = false`)
+      const closes = body.indexOf(closer)
       const caught = body.indexOf('} catch (')
       return closes < 0 || caught < 0 || closes < caught
     }).map(({ file, fn }) => `${file}  ${fn}`)
@@ -1854,6 +1870,7 @@ describe('전처리 판은 붙일 때도 뗄 때도 묻는다', () => {
       'components/LeaveGuard.vue',
       'views/PortfolioView.vue',
       'views/PreprocessView.vue',
+      'views/ResultsView.vue',
       'views/TrainView.vue',
       'views/WelcomeView.vue',
       'views/data/ChartDialog.vue',
