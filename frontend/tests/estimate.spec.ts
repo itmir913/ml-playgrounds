@@ -68,9 +68,12 @@ group('보간', () => {
   })
 
   it('두 점 사이는 그 사이 값이다', () => {
+    // 1,000행과 2,000행 사이. 값은 표에서 읽는다 — 표를 다시 재면 숫자가 바뀐다.
+    const at = (rows: number) =>
+      MLJS_DECISION_TREE_BASELINE_MS.find(([point]) => point === rows)?.[1] ?? NaN
     const between = interpolate(MLJS_DECISION_TREE_BASELINE_MS, 1500)
-    expect(between).toBeGreaterThan(378)
-    expect(between).toBeLessThan(1649)
+    expect(between).toBeGreaterThan(at(1000))
+    expect(between).toBeLessThan(at(2000))
   })
 
   it('표 아래로는 첫 점의 값을 쓴다 - 아래로 외삽하면 값이 되레 커지는 표가 있다', () => {
@@ -79,7 +82,9 @@ group('보간', () => {
     const naive =
       ALGORITHMS.find((entry) => entry.id === 'naive_bayes')?.baseline.tabular.mljs.ms ?? []
     expect(interpolate(naive, 10)).toBe(naive[0]?.[1])
-    expect(interpolate(MLJS_DECISION_TREE_BASELINE_MS, 10)).toBe(49)
+    expect(interpolate(MLJS_DECISION_TREE_BASELINE_MS, 10)).toBe(
+      MLJS_DECISION_TREE_BASELINE_MS[0][1],
+    )
   })
 
   it('표 위로는 가장 가파른 구간으로 늘린다 - 마지막 구간만 보면 짧게 틀린다', () => {
