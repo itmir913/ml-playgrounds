@@ -23,7 +23,14 @@ import { DecisionTreeClassifier } from 'ml-cart'
 import { Matrix } from 'ml-matrix'
 import { examplesBaggingWithReplacement, featureBagging } from 'ml-random-forest/src/utils.js'
 
+import { installFastSplit } from '../engines/cart-split'
 import type { ForestTree } from '../pools'
+
+/**
+ * 워커는 `mljs.ts`를 안 들여오므로 여기서도 끼운다 (open-decisions.md "순수 JS
+ * 의사결정트리의 분할 탐색을 우리 코드로 바꾼다 — 같은 나무를 더 빨리").
+ */
+installFastSplit()
 
 /** 워커가 학습 시작에 한 번 받는 것. 표본은 여기서 한 번만 건너간다. */
 export interface ForestSeedMessage {

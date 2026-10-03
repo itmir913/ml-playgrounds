@@ -87,6 +87,14 @@ import {
   serializeTree,
   type NaiveBayesParameters,
 } from './mljs-serialize'
+import { installFastSplit } from './cart-split'
+
+/**
+ * **트리 계열의 분할 탐색을 우리 것으로 갈아 끼운다** (open-decisions.md "순수 JS
+ * 의사결정트리의 분할 탐색을 우리 코드로 바꾼다 — 같은 나무를 더 빨리"). 원본과 같은
+ * 나무를 지으므로 엔진 버전은 그대로다 — 같음은 `cart-split.spec.ts`가 문다.
+ */
+installFastSplit()
 
 /**
  * 이 엔진의 이름과 버전. run.engine에 그대로 들어간다.
