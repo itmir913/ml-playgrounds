@@ -102,13 +102,13 @@ export interface CalibrationJob {
  * **두 종류를 섞는다.** 트리는 분할 탐색이고 로지스틱은 행렬과 경사다 — 한쪽만 재면
  * 다른 쪽이 다른 배수를 갖는 기기에서 어긋난다.
  *
- * **개발 PC에서 둘을 합쳐 약 80ms다** (`CALIBRATION_BASELINE_MS`). 로지스틱의 `maxIter`를
- * 25로 낮춰 둔 것이 그 이유이고, 재려는 것이 절대 시간이 아니라 배수라 짧아도 된다.
+ * **개발 PC에서 둘을 합친 시간이 `CALIBRATION_BASELINE_MS`다.** 로지스틱의 `maxIter`를
+ * 낮춰 둔 것이 그 시간이 짧은 이유이고, 재려는 것이 절대 시간이 아니라 배수라 짧아도 된다.
  *
- * **트리는 1,500행이다** (2026-10-03, 옛 값 300). 분할 탐색을 바꾸자 300행 트리가 12ms로 줄어
- * 교정이 사실상 로지스틱만 쟀다 (`open-decisions.md` "순수 JS 의사결정트리의 분할 탐색을 우리
- * 코드로 바꾼다 — 같은 나무를 더 빨리"). 1,500행에서 트리 35ms · 로지스틱 43ms로 두 몫이 다시
- * 비슷하다.
+ * **트리 일감을 늘렸다** (2026-10-03, 옛 값 300행). 분할 탐색을 바꾸자 옛 트리 일감이 너무
+ * 짧아져 교정이 사실상 로지스틱만 쟀다 (`open-decisions.md` "순수 JS 의사결정트리의 분할 탐색을
+ * 우리 코드로 바꾼다 — 같은 나무를 더 빨리"). 늘린 뒤의 두 몫은 `CALIBRATION_BASELINE_MS`의
+ * 문단에 있다.
  */
 export const CALIBRATION_JOBS: readonly CalibrationJob[] = [
   { algorithm: 'decision_tree', rows: 1500 },

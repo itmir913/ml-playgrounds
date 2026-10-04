@@ -140,9 +140,8 @@ export const ALGORITHMS: readonly Algorithm[] = [
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // 분할 탐색을 바꾼 뒤(2026-10-03, open-decisions.md "순수 JS 의사결정트리의 분할
-    // 탐색을 우리 코드로 바꾼다 — 같은 나무를 더 빨리") 20,000행이 0.4초, 사진 5,000장이
-    // 13.5초다(limits.ts의 기준표). 옛 탐색에서는 각각 145.6초 · 1,000장 58.7초였다.
-    // 아래 상한은 둘 다 이미 전역 천장(MAX_DATASET_ROWS · MAX_IMAGE_COUNT)과 같은 값이다.
+    // 탐색을 우리 코드로 바꾼다 — 같은 나무를 더 빨리") 걸리는 시간은 limits.ts의 기준표다.
+    // 옛 탐색에서는 20,000행 145.6초 · 사진 1,000장 58.7초였다.
     maxRows: {
       tabular: {
         mljs: MLJS_DECISION_TREE_ROW_LIMIT,
@@ -223,8 +222,8 @@ export const ALGORITHMS: readonly Algorithm[] = [
     taskTypes: { classification: true, regression: false, clustering: false },
     runtimes: { mljs: true, 'pyodide-sklearn': true, 'server-sklearn': true },
     // **값이 안 바뀌어도 적는다** (backend.ts의 maxRows). 분할 탐색을 바꾼 뒤
-    // (2026-10-03) 10그루가 10만 행 22초 · 사진 5,000장 123초라 표 상한을 10만 행으로
-    // 올렸다(limits.ts). 옛 탐색에서는 5,000행 100그루가 약 7분 · 사진 1,000장 521.7초였다.
+    // (2026-10-03) 표 상한을 올렸다 — 값과 근거는 limits.ts의 상한과 기준표다.
+    // 옛 탐색에서는 5,000행 100그루가 약 7분 · 사진 1,000장 521.7초였다.
     maxRows: {
       tabular: {
         mljs: MLJS_RANDOM_FOREST_ROW_LIMIT,

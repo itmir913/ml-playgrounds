@@ -38,6 +38,8 @@
 
 import { DecisionTreeClassifier } from 'ml-cart'
 
+import { MAX_DATASET_ROWS } from '../../limits'
+
 /** `TreeNode`에서 우리가 읽는 것. 원본의 필드 이름 그대로다. */
 interface SplitHost {
   readonly kind: string
@@ -69,12 +71,12 @@ interface TreeNodePrototype {
  * 어림 이득과 원본 이득의 차이가 넘지 않는 폭.
  *
  * 원본의 확률은 `1 / L`을 `k`번 거듭 더한 값이고, 그 오차는 `k`번의 반올림이라
- * `k · 2⁻⁵³` 이하다(`k ≤ L`, 확률 ≤ 1). 행 상한(`MAX_DATASET_ROWS`)이 10⁵이면 확률 하나의
- * 오차가 약 1.1 × 10⁻¹¹이고, 지니 하나는 그 제곱합이며 이득은 지니 셋의 가중합이라
- * 어림 오차가 10⁻¹⁰을 넘지 않는다. 그 열 배를 띠로 둔다 — 넓을수록 느려질 뿐 틀리지는
- * 않는다. (오차 상한은 위의 셈이다. 띠가 같은 답을 내는지는 `cart-split.spec.ts`가 문다.)
+ * `k · 2⁻⁵³` 이하이고, `L`은 전역 행 천장(`MAX_DATASET_ROWS`)을 넘지 않는다. 지니 하나의
+ * 오차는 확률 오차의 두 배 이하이고 이득은 지니 셋의 가중합이라, 어림 오차는 확률 오차의
+ * 열두 배를 넘지 않는다. **띠는 천장에서 센다** — 천장을 올려도 근거가 따라온다. 그 백 배를
+ * 둔다 — 넓을수록 느려질 뿐 틀리지는 않는다. (띠가 같은 답을 내는지는 `cart-split.spec.ts`가 문다.)
  */
-const APPROXIMATION_BAND = 1e-9
+const APPROXIMATION_BAND = 100 * 12 * MAX_DATASET_ROWS * 2 ** -53
 
 /** 원본의 확률 하나 — `1 / length`를 `count`번 거듭 더한다 (`toDiscreteDistribution`). */
 function libraryProbability(count: number, length: number): number {

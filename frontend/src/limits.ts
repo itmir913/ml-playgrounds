@@ -426,8 +426,8 @@ export const MLJS_KNN_ROW_LIMIT = 100_000
  * 뒤(`open-decisions.md` "순수 JS 의사결정트리의 분할 탐색을 우리 코드로 바꾼다 — 같은
  * 나무를 더 빨리") `limit_random_forest` 사다리가 **50,000행 10.1초 · 100,000행 22.1초**로
  * 끝났다. 그 판이 `MLJS_RANDOM_FOREST_BASELINE_MS`의 큰 점이기도 하다. 이 크기에서 기본
- * 10그루의 모델이 `MAX_MODEL_BYTES`를 넘어 파일에 안 담길 수 있는 것은 받아들였다 — 화면이
- * 그 이유를 말한다(같은 결정문의 뒤따른 결정).
+ * 10그루의 모델이 `MAX_MODEL_BYTES`를 넘어 파일에 안 담길 수 있는 것은 받아들였다 — 크기를
+ * 넘는 모델을 거르는 곳은 `project/format.ts`다(같은 결정문의 뒤따른 결정).
  *
  * **분류: 우리 기기가 정했다.**
  */
