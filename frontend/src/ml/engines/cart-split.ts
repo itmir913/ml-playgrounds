@@ -17,7 +17,7 @@
  * 다를 수 있다. 그래서 두 단계로 고른다:
  *
  * 1. 모든 후보의 이득을 `개수 / 길이`로 어림한다 (빠르다).
- * 2. 어림 최댓값에서 `APPROXIMATION_BAND` 안에 드는 후보만 원본의 연산으로 다시 세어,
+ * 2. 어림 최댓값에서 띠(`approximationBand`) 안에 드는 후보만 원본의 연산으로 다시 세어,
  *    원본의 규칙(앞선 후보가 이기고, 엄격히 클 때만 바뀐다)으로 고른다.
  *
  * 띠 밖의 후보는 정확히 세어도 최댓값에 못 닿으므로 결과가 같다. 같음은
@@ -37,8 +37,6 @@
  */
 
 import { DecisionTreeClassifier } from 'ml-cart'
-
-import { MAX_DATASET_ROWS } from '../../limits'
 
 /** `TreeNode`에서 우리가 읽는 것. 원본의 필드 이름 그대로다. */
 interface SplitHost {
@@ -71,12 +69,14 @@ interface TreeNodePrototype {
  * 어림 이득과 원본 이득의 차이가 넘지 않는 폭.
  *
  * 원본의 확률은 `1 / L`을 `k`번 거듭 더한 값이고, 그 오차는 `k`번의 반올림이라
- * `k · 2⁻⁵³` 이하이고, `L`은 전역 행 천장(`MAX_DATASET_ROWS`)을 넘지 않는다. 지니 하나의
+ * `k · 2⁻⁵³` 이하이고, `L`은 그 노드의 행 수를 넘지 않는다. 지니 하나의
  * 오차는 확률 오차의 두 배 이하이고 이득은 지니 셋의 가중합이라, 어림 오차는 확률 오차의
- * 열두 배를 넘지 않는다. **띠는 천장에서 센다** — 천장을 올려도 근거가 따라온다. 그 백 배를
+ * 열두 배를 넘지 않는다. **띠는 노드의 행 수에서 센다** — 상한과 무관하게 근거가 선다. 그 백 배를
  * 둔다 — 넓을수록 느려질 뿐 틀리지는 않는다. (띠가 같은 답을 내는지는 `cart-split.spec.ts`가 문다.)
  */
-const APPROXIMATION_BAND = 100 * 12 * MAX_DATASET_ROWS * 2 ** -53
+function approximationBand(rows: number): number {
+  return 100 * 12 * rows * 2 ** -53
+}
 
 /** 원본의 확률 하나 — `1 / length`를 `count`번 거듭 더한다 (`toDiscreteDistribution`). */
 function libraryProbability(count: number, length: number): number {
@@ -127,6 +127,7 @@ export function fastBestSplit(transposed: TransposedRows, labels: number[]): Spl
   const totalCounts = new Int32Array(classCount)
   for (const label of labels) totalCounts[label] = (totalCounts[label] as number) + 1
   const parentApproximate = approximateGini(totalCounts, total)
+  const band = approximationBand(total)
 
   const order = new Array<number>(total)
   const lesserCounts = new Int32Array(classCount)
@@ -162,10 +163,10 @@ export function fastBestSplit(transposed: TransposedRows, labels: number[]): Spl
         parentApproximate -
         ((approximateGini(greaterCounts, greaterLength) * greaterLength) / total +
           (approximateGini(lesserCounts, lesserLength) * lesserLength) / total)
-      if (approximate < bestApproximate - APPROXIMATION_BAND) continue
+      if (approximate < bestApproximate - band) continue
       if (approximate > bestApproximate) {
         bestApproximate = approximate
-        kept = kept.filter((one) => one.approximate >= bestApproximate - APPROXIMATION_BAND)
+        kept = kept.filter((one) => one.approximate >= bestApproximate - band)
       }
       kept.push({ column, value, approximate, lesserCounts: lesserCounts.slice(), lesserLength })
     }
