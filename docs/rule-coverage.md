@@ -136,6 +136,7 @@
 | 되보내는 부품이 인자를 흘리는가 | `ui-rules.spec.ts` |
 | 범주 이름이 세 운영체제에서 폴더가 되는가 | `image.spec.ts` |
 | 문서를 가리키는 참조가 살아 있는가 | `doc-refs.spec.ts` |
+| 판례의 절 제목이 규칙 문서의 절과 짝인가 — 번호 없는 `###` 아래와 번호는 같고 제목이 다른 것은 못 본다 | `cases-headings.spec.ts` |
 | 규칙과 판례가 짝이고, 결정문이 `[미정]`·`[결정]`·`[폐기]`를 갖는가 | `docs-structure.spec.ts` |
 | 사진을 굽기 전에 자리를 묻는가 | `image-room.spec.ts` |
 | 행 상한 칸에 **제 이름의 상수**가 오는가 | `algorithms.spec.ts` · `limits.ts` |
@@ -155,7 +156,7 @@
 소스·문서 트리를 걷는가다. 커밋마다 이 목록은 늘 돌린다 (`docs/workflow.md` §3).
 
 `bench-rules` · `chart-registry` · `ci-language` · `database-reset` · `doc-refs` ·
-`docs-structure` · `entry-names` · `file-unreadable` · `i18n-usage` · `image-room` ·
+`cases-headings` · `docs-structure` · `entry-names` · `file-unreadable` · `i18n-usage` · `image-room` ·
 `image-upload-zip` · `inspect-rules` · `legal` · `limits-rules` · `locales` ·
 `message-composition` · `middle-dot` · `notices` · `portfolio-preset` · `prototype-keys` ·
 `pyodide-runtime` · `schema-version` · `secure-context-rules` · `settings-rules` ·
