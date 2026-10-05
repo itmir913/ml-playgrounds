@@ -122,20 +122,11 @@ class JobQueue(Protocol):
 | scikit-learn (내 컴퓨터) | `browser` | `pyodide-sklearn` | `pyodide-sklearn` |
 | scikit-learn (학교 서버) | `server` | `sklearn` | `server-sklearn` |
 
-```
-실행 방법(기본):  ● 순수 JS   ○ scikit-learn(내 컴퓨터)   ○ 학교 서버
-
-학습할 모델
-  ☑ 의사결정트리        순수 JS ▾            ← 기본 그대로
-  ☑ 랜덤포레스트     scikit-learn ▾       ← 학생이 바꿈
-  ☑ SVM             학교 서버 ▾           ← 순수 JS에 없어서 자동으로 옮겨짐(표시된다)
-```
-
-- **실험 기본을 한 번 고르고, 바꾸고 싶은 모델만 개별로 바꾼다.**
-- 판정은 `frontend/src/ml/backend.ts`의 순수 함수 하나가 하고, 상단 상태와 모델 선택 화면이 같은 결과를 본다.
-- 자동 이동은 **그 칸의 기본값을 채우는 동작**이다. **콕 집어 고른 칸은 옮기지 않는다.**
+- **실행 방법은 알고리즘과 나란한 축 하나다**(§8.12). 학생은 축에서 알고리즘과 실행 방법을 고르고 [추가]로 담는다.
+  담긴 모델마다 제 실행 방법을 갖고, 실험 전체의 기본값은 없다(`views/train/ModelAxes.vue`).
+- 판정은 `frontend/src/ml/backend.ts`의 `runtimeOptions` 하나가 하고, 상단 상태와 모델 선택 화면이 같은 결과를 본다.
+  못 고르는 칸은 지우지 않고 **이유와 함께** 잠근다.
 - **같은 알고리즘을 여러 실행 방법으로 나란히 둘 수 있다.**
-- 서버로 가는 모델이 섞이면 화면이 **몇 개가 서버로 가는지 요약한다.**
 
 ### 3.6 군집화는 분할하지 않는다 (V3, 2026-08-11)
 
@@ -159,7 +150,7 @@ class JobQueue(Protocol):
 |---|---|
 | `backend/app/errors.py` | 에러 코드의 **유일한 출처**. 로케일·문서가 여기를 따른다 |
 | `backend/app/jobs/` | `JobQueue` 뒤에 구현이 숨는다. 부르는 쪽은 어느 큐인지 모른다 |
-| `frontend/src/ml/` | **Vue를 모른다.** 워커와 서버 학습 양쪽에 그대로 쓰이기 때문이다 |
+| `frontend/src/ml/` | **Vue를 모른다.** 워커에서 그대로 쓰이기 때문이다. 예외는 화면을 갖는 등록부(`metric-panels.ts`·`answer-evidence.ts`)가 `defineAsyncComponent`로 부품을 지연 로딩하는 자리 하나다(§9.2) — 워커는 그 등록부를 부르지 않는다 |
 | `frontend/src/project/` | `.mlpx`와 IndexedDB가 **같은 문**(마이그레이션→검증)을 지난다 (§8.10.2) |
 | `frontend/src/composables/` | 프레임워크를 아는 이음매. `toRaw` 같은 것이 여기 산다 |
 | `scripts/` | CI가 부르는 검사. 사람이 지키길 기대하지 않는 것들이다 |

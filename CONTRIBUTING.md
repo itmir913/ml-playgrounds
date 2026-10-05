@@ -70,7 +70,11 @@ between the locale files and the backend error codes, then the backend checks
 (ruff, mypy, pytest). The backend part comes last, so if you only changed the
 front end, your own failures show up first.
 
-Run the whole gate before every commit, not a subset. Two notes that have cost
+Per commit, run the checks your change touches: the checks that scan the whole
+source tree (listed in `docs/rule-coverage.md`), the specs you touched,
+`vue-tsc --build` and `lint:check`, the locale contract if you touched a locale,
+and the backend gate if you touched the backend. Run the whole gate before you
+open or update a pull request. Two notes that have cost
 people time already:
 
 - **`npm run ci` checks, `npm run lint` rewrites.** `lint` carries `--fix` and
