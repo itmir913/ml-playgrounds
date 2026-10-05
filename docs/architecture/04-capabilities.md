@@ -7,7 +7,7 @@
 
 | 축 | 어디서 오는가 | 값 |
 |---|---|---|
-| `dataType` | 업로드한 데이터 | `tabular` / `image` / `audio` / `text` |
+| `dataType` | 업로드한 데이터 | `tabular` / `image` (`project/schema.ts`의 `DATA_TYPES`) |
 | `taskType` | **학생이 고른다** | `classification` / `regression` / `clustering` |
 | `runtime` | **항목이 선언한다** — 어느 엔진에 구현이 있는가 | 순수 JS / pyodide / 서버 |
 
@@ -96,7 +96,7 @@ image         ✅           ✕           ✕
 
 | 등록부 | 무엇을 | 모양 | 빠지면 |
 |---|---|---|---|
-| `data/kinds.ts` | 화면 판(`panel`·`prepPanel`)과 `accept` | **배열** | "아직 못 다루는 종류"다. `dataKindFor`가 `undefined`를 준다 |
+| `data/kinds.ts` | 화면 판(`panel`·`prepPanel`·`prepContext`)과 `accept` | **배열** | "아직 못 다루는 종류"다. `dataKindFor`가 `undefined`를 준다 |
 | `project/schema.ts`의 `DATA_SCHEMAS` | `settings.data`와 `experimentSettings.data`의 스키마 둘, 그리고 **새 프로젝트의 기본 `settings.data`(`initial()`)** | **`Record<DataType, …>`** | **컴파일이 깨진다** |
 
 - **스키마 등록부는 타입 주석 대신 `satisfies`를 쓴다.**

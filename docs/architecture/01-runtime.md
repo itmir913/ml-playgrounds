@@ -168,15 +168,15 @@ class JobQueue(Protocol):
 
 ```bash
 # 백엔드 (backend/)
-uv sync                                          # 최초 1회, uv.lock 생성
+uv sync                                          # 최초 1회. uv.lock은 커밋되어 있다
 uv run uvicorn app.main:app --reload --port 8000
-uv run ruff check . && uv run mypy . && uv run pytest
+uv run python scripts/ci.py                      # ruff check · ruff format --check · mypy · pytest
 
 # 프런트엔드 (frontend/)
 npm install
 npm run dev
-npm run ci        # lint:check → typecheck → vitest → build. 커밋 전에 이것만 돌리면 된다
-npm run lint      # 고치는 쪽. 대상이 src/ tests/ 전체라 남의 작업 파일도 건드린다
+npm run ci        # 관문 전부. 순서는 package.json의 ci 스크립트가 갖는다
+npm run lint      # 고치는 쪽. 대상이 src/ tests/ scripts/ 전체라 남의 작업 파일도 건드린다
 ```
 
 - **`uv.lock`과 `package-lock.json`은 커밋한다.**
@@ -227,7 +227,8 @@ npm run lint      # 고치는 쪽. 대상이 src/ tests/ 전체라 남의 작업
 
 ### 7.3 서버가 없는 것이 기본 상태다
 
-- 프런트엔드는 시작할 때 **같은 오리진**의 헬스 엔드포인트로 `ServerStatus`를 정한다. 탐지 타임아웃은 짧게 잡는다.
+- 프런트엔드는 **같은 오리진**의 헬스 엔드포인트로 `ServerStatus`를 정한다. 탐지 타임아웃은 짧게 잡는다.
+  **탐지는 아직 없다**(`ml/server.ts`) — 지금은 늘 `unknown`이라 서버 칸은 늘 이유와 함께 닫힌다.
 - 모델 선택 화면은 알고리즘마다 **실행 위치**를 보여준다.
 - 서버가 없으면 서버 옵션을 **이유와 함께** 비활성화한다.
 - 판정은 `frontend/src/ml/backend.ts`의 `runtimeOptions()`다.
@@ -252,7 +253,7 @@ npm run lint      # 고치는 쪽. 대상이 src/ tests/ 전체라 남의 작업
 
 ### 7.4.2 이미지 백본이 받는 양 (2026-08-12 실측)
 
-- 백본(TensorFlow.js + MobileNetV2 가중치)은 **첫 화면에 얹지 않고**, 이미지 프로젝트를 열 때 받는다.
+- 백본(TensorFlow.js + MobileNetV2 가중치)은 **첫 화면에 얹지 않고**, 이미지 실험을 학습하거나 예측할 때 받는다.
 - 런타임 선택의 근거는 `open-decisions.md`의 **"백본 추론은 TensorFlow.js가 돌린다"**.
 
 ### 7.5 검증은 브라우저에서 끝난다
