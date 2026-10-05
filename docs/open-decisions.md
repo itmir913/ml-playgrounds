@@ -64,7 +64,7 @@
 **[미정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
 
 ### 3-1. scikit-learn 엔진의 교실 실측 — 필요 시점: 엔진을 붙일 때
-**[미정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
+**[미정]** 엔진은 붙었다. 새 시점: 실제 교실 수업에서 이 엔진을 쓸 때. 경위: `docs/cases/open-decisions.md`의 같은 제목.
 
 ### 6. 메모리 예산 — 필요 시점: 백엔드 구현(4단계)
 **[미정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
@@ -94,7 +94,7 @@
 ##### 남은 것 — 실기 확인 목록
 
 ### 12. 재실행 대조의 허용 오차 — 필요 시점: 교사용 화면
-**[미정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
+**[미정]** 점검 화면은 섰고, 알고리즘 × 엔진의 판정은 재현 판정 등록부(`ml/reproduce.ts`)가 갖는다. 새 시점: 교사가 허용 오차를 묻는 보고가 오면. 경위: `docs/cases/open-decisions.md`의 같은 제목.
 
 ### 16. 백엔드 요청 남용 방어 — **강등됨.** 필요 시점: 자가호스팅 백엔드(8단계)
 **[미정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
@@ -123,7 +123,7 @@
 **[미정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
 
 ### 30. 예측 화면이 "모델이 못 본 줄"을 어떻게 보여주는가 — 필요 시점: 샘플링이 화면에 선 뒤
-**[미정]** 경위: `docs/cases/open-decisions.md`의 같은 제목.
+**[미정]** 샘플링은 화면에 섰다. 새 시점: 예측 화면을 다시 만질 때. 경위: `docs/cases/open-decisions.md`의 같은 제목.
 
 #### 안 하기로 한 것 — "안 뽑힌 행을 전부 테스트 데이터로 쓴다" (2026-08-12)
 

@@ -39,6 +39,7 @@
 | §3 지원 언어마다 내장 양식 파일이 있는가 | `portfolio-preset.spec.ts` |
 | §4 `any` 금지 | ESLint `@typescript-eslint/no-explicit-any` |
 | CLAUDE.md의 줄 수 상한과 날짜 금지 | `claude-md.spec.ts` |
+| §1.3 확장자 문자열은 상수 하나 — 조각내 이어 붙인 것은 못 본다 | `mlpx-extension.spec.ts` |
 | §4 CI가 뱉는 글자는 영어다 | `ci-language.spec.ts` |
 | 가운뎃점 규칙 (`copy.md`) | `middle-dot.spec.ts` |
 | §3 지원 언어마다 **바깥에 내놓는 처리방침**이 있는가 | `legal.spec.ts` |
@@ -175,6 +176,9 @@
 | §4 벤더링 머리말 셋(출처·라이선스·바꾼 것) | `ml/engines/`에서 남의 코드를 들인 파일에 머리말 세 줄을 요구 |
 | §4 커밋 규칙(GPG · 경로 명시 · 도구 표기 금지) | `commit-msg`·`pre-commit` 훅 |
 | §4 태그 서명 | 설정은 기기에 산다 — 새 기기에서 사람이 확인한다 |
+| §4 단정형 주석은 무는 검사를 가리킨다 | 감사가 본다. 기계는 문장이 단정인지 모른다 |
+| §4 힙독 금지 | CI가 아니라 에이전트 훅(`.claude/hooks/no-heredoc.mjs`)이 막는다 |
+| §2 서버가 없으면 서버 옵션을 이유와 함께 비활성화 | `docs/acceptance.md`에서 사람이 본다. 판정 함수는 `ml/backend.ts`의 `runtimeOptions` |
 
 ### 검사로 만들 수 없는 것 — 감사나 사람 눈이 봐야 한다
 
