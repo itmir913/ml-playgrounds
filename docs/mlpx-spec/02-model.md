@@ -10,12 +10,15 @@
 | `format` | 대상 | 전처리 | 예측에 필요한 것 |
 |---|---|---|---|
 | `mlpx-tree-v1` | Decision Tree, Random Forest | 밖 | 모델 + preprocessor |
+| `mlpx-tree-v2` | Decision Tree, Random Forest — 잎이 분포를 든다 (§5.3.1) | 밖 | 모델 + preprocessor |
 | `mlpx-linear-v2` | Logistic Regression (§5.4.1) | 밖 | 모델 + preprocessor |
 | `mlpx-naive-bayes-v1` | Naive Bayes | 밖 | 모델 + preprocessor |
 | `mlpx-reference-v1` | **KNN** | 밖 | 모델 + preprocessor + **`dataset/`** |
 | `mlpx-svm-v1` | **선형 SVM** | 밖 | 모델 + preprocessor |
 | `mlpx-linear-regression-v1` | 선형 회귀 (§5.7) | 밖 | 모델 + preprocessor |
 | `mlpx-kmeans-v1` | **K-평균** (§5.10) | 밖 | 모델 + preprocessor |
+| `mlpx-neural-v1` | 다층 퍼셉트론 분류 (§5.11) | 밖 | 모델 + preprocessor |
+| `mlpx-neural-regression-v1` | 다층 퍼셉트론 회귀 (§5.11) | 밖 | 모델 + preprocessor |
 | `onnx-v1` | 딥러닝이 들어온 뒤 | **그래프에 포함** | 모델 하나 |
 
 - 해석기는 등록부로 등록한다. `if format === 'onnx'` 분기를 만들지 않는다.
@@ -60,7 +63,6 @@ load(file: unknown, context: LoadContext): Predict
 
 - **행 번호는 헤더를 제외하고 0부터 센다 — `hasHeader`와 무관하게 데이터 행 기준이다.**
   `ml/split.ts`가 이 번호를 만드는 유일한 자리이고, 걸러낸 뒤 다시 세지 마라.
-- SVM 서포트 벡터도 행 번호 + 계수로 담는다.
 - **모델 파일의 `trainIndices`와 실험 스냅샷의 `experiment.settings.trainIndices`는 다른 것이다.**
   하나를 다른 하나에서 유도하지 마라.
 
@@ -178,10 +180,12 @@ load(file: unknown, context: LoadContext): Predict
 - **확률은 언제나 있다.** 로그합지수로 안정화한다.
 - **이진 분류도 줄이 두 개다** — `[−w/2, +w/2]`로 나눠 저장한다.
 
-불변식은 §5.4의 1·2에 둘이 더해진다.
+불변식은 해석기가 강제한다. 어기면 `client.MODEL_FILE_INVALID`다.
 
-5. **`intercepts`의 길이 = `classes`의 길이.**
-6. **가중치는 원래 좌표계다.**
+1. **`weights`의 줄 수 = `classes`의 길이.**
+2. **줄의 길이 = `featureCount`.** 안 맞는 입력은 거부한다 (§5.3과 같은 규칙).
+3. **`intercepts`의 길이 = `classes`의 길이.**
+4. **가중치는 원래 좌표계다.**
 
 - **학습 쪽 예측도 이 형식의 해석기를 그대로 쓴다.**
 
@@ -282,7 +286,7 @@ load(file: unknown, context: LoadContext): Predict
 
 - 반복 예산 안에 수렴하지 못하면 **`status`는 `done`이고 `warning`을 붙인다.** 모델도 담긴다.
 - 코드: `SVM_NOT_CONVERGED`(반복 예산을 다 썼다 — 최적점 보증이 아니다) · `LOGISTIC_NOT_CONVERGED`
-  (`maxIter`에 닿았다, `max|기울기| ≤ tol`로 판정) · `KMEANS_NOT_CONVERGED`. SMO 정지 조건은 `open-decisions.md` #26.
+  (`maxIter`에 닿았다, `max|기울기| ≤ tol`로 판정) · `KMEANS_NOT_CONVERGED` · `NEURAL_NOT_CONVERGED` · `NEURAL_REGRESSION_NOT_CONVERGED`. 전체 목록은 `CLIENT_WARNING_CODES`(`docs/error-codes.md`)다. SMO 정지 조건은 `open-decisions.md` #26.
 - 로지스틱 경고에 학생이 할 일은 **전처리 스케일링**이다.
 
 ```jsonc

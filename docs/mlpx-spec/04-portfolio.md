@@ -146,8 +146,8 @@
 - **프리셋은 파일만 더하면 는다.** 목록은 `public/portfolio/index.json`이 갖는다.
 
 ```jsonc
-// public/portfolio/index.json          그리고 파일은 portfolio/hello.ko.md · hello.en.md
-{ "hello": { "ko": "회상 일기", "en": "Looking back" } }
+// public/portfolio/index.json          그리고 파일은 portfolio/default.ko.md · default.en.md
+{ "default": { "ko": "포트폴리오 양식", "en": "Portfolio form" } }
 ```
 
 - **이름은 로케일 JSON에 두지 않는다.** `index.json`도 검증을 거치고, 깨지면 프리셋 줄만 사라진다.
