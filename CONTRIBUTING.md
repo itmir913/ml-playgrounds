@@ -57,14 +57,15 @@ differently without it.
 
 ## The gate
 
-One command, run in `frontend/`. CI runs exactly this and nothing else, so if it
-passes locally it passes there.
+One command, run in `frontend/`. CI's gate runs exactly this, so if it passes
+locally it passes there. Pull requests also get a sign-off (DCO) check.
 
 ```bash
 npm run ci
 ```
 
-It runs lint, types, the vitest suite, and the build, then the contract check
+It fetches the image backbone and Pyodide, runs lint, types, the vitest suite,
+the scikit-learn fixtures check, and the build, then the contract check
 between the locale files and the backend error codes, then the backend checks
 (ruff, mypy, pytest). The backend part comes last, so if you only changed the
 front end, your own failures show up first.
@@ -75,8 +76,8 @@ people time already:
 - **`npm run ci` checks, `npm run lint` rewrites.** `lint` carries `--fix` and
   will reformat files you did not mean to touch. If you only want to know whether
   something is wrong, run `ci`.
-- **The first `npm run ci` downloads the MobileNet weights** that the image tests
-  read. It is a one-time fetch into a local cache, not part of the shipped site.
+- **The first `npm run ci` downloads the MobileNet weights and the Pyodide
+  distribution** that the tests read. It is a one-time fetch into a local cache, not part of the shipped site.
 
 ## Making a change
 

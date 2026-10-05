@@ -31,7 +31,7 @@
 | §2 `randomState`를 항상 **저장하고 분할·뽑기에 쓴다** | `split.spec.ts` · `experiment.spec.ts` · `sample.spec.ts` |
 | §2 `fit` 입력의 씨앗이 **라이브러리까지 닿는가** | `experiment.spec.ts` · `mljs-kmeans.spec.ts` · `svm.spec.ts` · `mljs.ts` |
 | §2 **대조가 파일에 적힌 씨앗으로 도는가** | `reproduce.spec.ts` · `reproduce.ts` |
-| §3 규칙 1 백엔드는 코드와 파라미터만 | `test_no_korean_literals.py` |
+| §1.4 백엔드는 코드와 파라미터만 | `test_no_korean_literals.py` |
 | §3 규칙 2 컴포넌트 안의 자연어 리터럴 | `i18n-usage.spec.ts` |
 | §3 규칙 3·4 한 문장은 한 키 · 사용자 데이터는 괄호로 | `i18n-usage.spec.ts` · `locales.spec.ts` |
 | §3 규칙 5 동작의 이름은 한자어 | `locales.spec.ts` |
@@ -48,7 +48,7 @@
 | `.mlpx`의 **푸는 자리 밖으로 새는 이름**을 대조 뒤에 버리는가(읽기·저장소·내보내기) | `image-format.spec.ts` · `storage.spec.ts` · `portfolio-bundle.spec.ts` |
 | 테스트용 사진을 관용적으로 받지 않는가 | `image-test-set.spec.ts` |
 | 인코딩을 안 적은 압축 파일의 이름을 되살리는가 | `zip-names.spec.ts` |
-| 다시 압축한 `.mlpx`도 열리는가 | `image-format.spec.ts` · `hashes.json` · `zip-names.spec.ts` |
+| 다시 압축한 `.mlpx`도 열리는가 | `image-format.spec.ts` · `zip-names.spec.ts` |
 | §4 Tailwind 임의 값 금지 | `ui-rules.spec.ts` |
 | **두 판이 제 폭을 받는가** | 사람 확인 (jsdom에는 배치가 없다) |
 | §4 가장 작은 글자가 `text-base` | `ui-rules.spec.ts` |
@@ -66,7 +66,7 @@
 | §4 아이콘 세트를 **화면이 직접 들여오지 않는다** | `ui-rules.spec.ts` · `icons.ts` · `icons.spec.ts` |
 | §1.5 상한은 `limits.ts`가 유일한 출처 | `limits-rules.spec.ts` |
 | §4 버전은 지시 없이 안 움직인다 | `versions.spec.ts` · `schema-version.spec.ts` |
-| §4 **구조 변경이 버전을 동반하는가** | `schema-structure.spec.ts` · `vN.released.json` |
+| §4 **구조 변경이 버전을 동반하는가** | `schema-structure.spec.ts` · `tests/fixtures/schema/v*.released.json` |
 | §1.5 상한마다 **누가 정했는지**가 달려 있는가 | `limits-rules.spec.ts` |
 | §1.5 **끌 수 있는 상한을 스위치를 거쳐 읽는가** | `limits-rules.spec.ts` · `limits.ts` · `ml/algorithms.ts` · `ml/backend.ts` |
 | §1.5 **행 수를 상한과 견주는 자리가 하나인가** | `limits-rules.spec.ts` · `data/xlsx.ts` |
@@ -133,12 +133,11 @@
 | 되보내는 부품이 인자를 흘리는가 | `ui-rules.spec.ts` |
 | 범주 이름이 세 운영체제에서 폴더가 되는가 | `image.spec.ts` |
 | 문서를 가리키는 참조가 살아 있는가 | `doc-refs.spec.ts` |
-| 규칙과 판례가 짝이고, 결정문이 `[미정]`·`[결정]`을 갖는가 | `docs-structure.spec.ts` |
+| 규칙과 판례가 짝이고, 결정문이 `[미정]`·`[결정]`·`[폐기]`를 갖는가 | `docs-structure.spec.ts` |
 | 사진을 굽기 전에 자리를 묻는가 | `image-room.spec.ts` |
 | 행 상한 칸에 **제 이름의 상수**가 오는가 | `algorithms.spec.ts` · `limits.ts` |
 | 화면이 넘기는 **데이터 종류**가 열린 프로젝트의 것인가 | `training-source.spec.ts` · `data/kinds.ts` |
 | MB가 십진인가 | `limits-rules.spec.ts` |
-
 | 미래에서 온 것을 예측 가능하게 거부하는가 | `storage.spec.ts` |
 | **그림이 어디서 성립하는지를 등록부가 아는가** | `charts.spec.ts` |
 | **눈으로만 보이는 그림 규칙** | `chart-config.spec.ts` |
