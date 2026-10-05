@@ -21,7 +21,7 @@ nothing uploaded anywhere.
 |            |                                                             |
 | ---------- | ----------------------------------------------------------- |
 | Data       | Tables (`.csv`, `.xlsx`) and images                          |
-| Tasks      | Classification, regression, clustering                       |
+| Tasks      | Classification, regression, clustering (images: classification and clustering) |
 | Along the way | Inspect columns, handle missing values, scale and encode, split train/test, compare runs, predict on new input |
 
 ## Development
@@ -48,8 +48,9 @@ npm run ci
 npm run build
 ```
 
-`dev` starts the local server, `ci` is the full gate (lint, types, tests,
-build, then the locale contract and the backend checks) and is exactly what CI
+`dev` starts the local server, `ci` is the full gate (fetches the image
+backbone and Pyodide, then lint, types, tests, the scikit-learn fixtures,
+build, the locale contract, and the backend checks) and is exactly what CI
 runs, and `build` produces the static site.
 
 ## Layout

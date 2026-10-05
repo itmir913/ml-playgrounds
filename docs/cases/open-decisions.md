@@ -4581,7 +4581,7 @@ kind     파일이 자기가 무엇인지 말하는 사실       안에 있다. 
 
 ### 감사 뒤의 기능 (2026-09-02 ~)
 
-[`open-decisions/07-after-audit.md`](open-decisions/07-after-audit.md)
+[`open-decisions/07-after-audit.md`](../open-decisions/07-after-audit.md)
 
 - 이미지 붙여넣기 — 놓는 것과 같은 일이다 (2026-09-02)
 - 인공신경망을 넣는다 — 손잡이는 층 수와 뉴런 수 둘 (2026-09-03)
@@ -4602,7 +4602,7 @@ kind     파일이 자기가 무엇인지 말하는 사실       안에 있다. 
 
 ### 배포 뒤: 감사와 문서 (2026-08-17 ~ 2026-08-30)
 
-[`open-decisions/06-audit.md`](open-decisions/06-audit.md)
+[`open-decisions/06-audit.md`](../open-decisions/06-audit.md)
 
 - 예시 데이터셋은 바깥에 있고, 앱은 주소만 갖는다 (2026-08-30)
 - 저장소가 미래에서 온 것도 예측 가능하게 거부한다 (2026-08-30)
@@ -4629,7 +4629,7 @@ kind     파일이 자기가 무엇인지 말하는 사실       안에 있다. 
 
 ### 완성도와 배포 (V5~V7, 2026-08-13 ~ 2026-08-15)
 
-[`open-decisions/05-completeness.md`](open-decisions/05-completeness.md)
+[`open-decisions/05-completeness.md`](../open-decisions/05-completeness.md)
 
 - mlpx-linear-v1을 배포 전에 지운다 (2026-08-15)
 - 할 일과 잠금은 서로 다른 질문이다, 그리고 할 일의 자리는 종류가 정한다 (2026-08-15)
@@ -4643,7 +4643,7 @@ kind     파일이 자기가 무엇인지 말하는 사실       안에 있다. 
 
 ### 이미지 (V4, 2026-08-12 ~ 2026-08-14)
 
-[`open-decisions/04-image.md`](open-decisions/04-image.md)
+[`open-decisions/04-image.md`](../open-decisions/04-image.md)
 
 - 4. 이미지/음성 데이터의 .mlpx 포함 방식 — 이미지는 정본만 담는다 (V4, 2026-08-12)
 - 이미지 학습의 모양 — 전이학습이고, 그 뒤는 표와 같다 (V4, 2026-08-12)
@@ -4661,7 +4661,7 @@ kind     파일이 자기가 무엇인지 말하는 사실       안에 있다. 
 
 ### 엔진 정합과 군집 (2026-08-10 ~ 2026-08-12)
 
-[`open-decisions/03-engines.md`](open-decisions/03-engines.md)
+[`open-decisions/03-engines.md`](../open-decisions/03-engines.md)
 
 - 7. 저장소가 지워지는 것을 어떻게 막나 (2026-08-12)
 - 19. 모델 크기 예산의 실제 값 — 결정됨: 표 데이터 범위에서는 지금 값 유지 (2026-08-12). V4 이미지에서 다시 연다
@@ -4677,7 +4677,7 @@ kind     파일이 자기가 무엇인지 말하는 사실       안에 있다. 
 
 ### 표 데이터의 얼개 (2026-08-05 ~ 2026-08-07)
 
-[`open-decisions/02-tabular.md`](open-decisions/02-tabular.md)
+[`open-decisions/02-tabular.md`](../open-decisions/02-tabular.md)
 
 - 파이썬 표준 관행을 따른다 — 열 순서까지 (2026-08-07)
 - 데이터 종류는 프로젝트를 만들 때 고르고, 그 뒤로 안 바뀐다 (2026-08-06)
@@ -4702,7 +4702,7 @@ kind     파일이 자기가 무엇인지 말하는 사실       안에 있다. 
 
 ### 첫 얼개 (2026-08-04)
 
-[`open-decisions/01-foundation.md`](open-decisions/01-foundation.md)
+[`open-decisions/01-foundation.md`](../open-decisions/01-foundation.md)
 
 - 모바일에서도 동작한다 (2026-08-04)
 - 모델 직렬화는 자체 JSON, ONNX는 이미지 단계부터 (2026-08-04) — #2 마무리

@@ -26,8 +26,8 @@
  *   엉뚱한 곳을 가리킨다. 그래서 "절을 다시 번호 매기지 않는다"가 규칙이다.
  */
 
-import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { basename, join, relative, sep } from 'node:path'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { basename, dirname, join, relative, sep } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -322,6 +322,35 @@ describe('문서 참조', () => {
       }
     }
     expect([...missing].sort(), 'points at a document that does not exist').toEqual([])
+  })
+
+  it('마크다운 링크의 상대 경로가 실제로 있다', () => {
+    // 위 검사는 문서의 **이름**만 본다. `[…](open-decisions/01-foundation.md)`는
+    // 링크를 적은 파일의 자리에서 풀리므로, `docs/cases/`로 옮겨진 문서가 스포크를
+    // 그대로 가리키면 이름은 맞고 경로는 죽는다. 그 상태로 열한 개가 남아 있었다.
+    const markdown = SCANNED.flatMap((target) => walk(join(ROOT, target))).filter((path) =>
+      path.endsWith('.md'),
+    )
+    expect(markdown.length).toBeGreaterThan(20)
+
+    const dead: string[] = []
+    for (const path of markdown) {
+      let fenced = false
+      readFileSync(path, 'utf-8')
+        .split(NEWLINE)
+        .forEach((line, index) => {
+          if (/^\s*(?:```|~~~)/.test(line)) fenced = !fenced
+          if (fenced) return
+          // 코드 조각 안의 링크 모양은 링크가 아니라 인용이다 (감사 기록의 `javascript:` 같은 것).
+          for (const match of line.replace(/`[^`]*`/g, '').matchAll(/\]\(([^)\s]+)\)/g)) {
+            const href = match[1]!
+            if (/^(?:[a-z][a-z0-9+.-]*:|#|<)/i.test(href)) continue
+            const target = join(dirname(path), decodeURI(href.split('#')[0]!))
+            if (!existsSync(target)) dead.push(`${inRepo(path)}:${index + 1}  ${href}`)
+          }
+        })
+    }
+    expect(dead, 'markdown link to a path that does not exist').toEqual([])
   })
 
   it('가리키는 절 번호가 실제로 있다', () => {
