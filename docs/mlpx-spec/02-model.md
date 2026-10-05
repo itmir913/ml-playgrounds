@@ -286,7 +286,7 @@ load(file: unknown, context: LoadContext): Predict
 
 - 반복 예산 안에 수렴하지 못하면 **`status`는 `done`이고 `warning`을 붙인다.** 모델도 담긴다.
 - 코드: `SVM_NOT_CONVERGED`(반복 예산을 다 썼다 — 최적점 보증이 아니다) · `LOGISTIC_NOT_CONVERGED`
-  (`maxIter`에 닿았다, `max|기울기| ≤ tol`로 판정) · `KMEANS_NOT_CONVERGED` · `NEURAL_NOT_CONVERGED` · `NEURAL_REGRESSION_NOT_CONVERGED`. 전체 목록은 `CLIENT_WARNING_CODES`(`docs/error-codes.md`)다. SMO 정지 조건은 `open-decisions.md` #26.
+  (`maxIter`에 닿았다, `max|기울기| ≤ tol`로 판정) 등. 전체 목록은 `frontend/src/errors.ts`의 `CLIENT_WARNING_CODES`다. SMO 정지 조건은 `open-decisions.md` #26.
 - 로지스틱 경고에 학생이 할 일은 **전처리 스케일링**이다.
 
 ```jsonc

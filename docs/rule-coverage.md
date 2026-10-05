@@ -152,16 +152,9 @@
 
 
 
-**소스 전체를 훑는 검사** — 판정은 `readdirSync`(또는 `fixtures/source.ts`의 `sourceFiles`)로
-소스·문서 트리를 걷는가다. 커밋마다 이 목록은 늘 돌린다 (`docs/workflow.md` §3).
-
-`bench-rules` · `chart-registry` · `ci-language` · `database-reset` · `doc-refs` ·
-`cases-headings` · `docs-structure` · `entry-names` · `file-unreadable` · `i18n-usage` · `image-room` ·
-`image-upload-zip` · `inspect-rules` · `legal` · `limits-rules` · `locales` ·
-`message-composition` · `middle-dot` · `notices` · `portfolio-preset` · `prototype-keys` ·
-`pyodide-runtime` · `schema-version` · `secure-context-rules` · `settings-rules` ·
-`source-characters` · `spread-rules` · `table-align` · `table-rows` · `terms` · `ui-rules` ·
-`zip-names`.
+**소스 전체를 훑는 검사** — 목록을 여기 적지 않는다. `readdirSync`(또는 `fixtures/source.ts`의
+`sourceFiles`)로 소스·문서 트리를 걷는 스펙이 그것이고, 커밋마다 늘 돌린다 (`docs/workflow.md` §3).
+`grep -lE "readdirSync|sourceFiles\(" frontend/tests/*.spec.ts`가 지금의 목록이다.
 
 ## 타입이 막는다
 
