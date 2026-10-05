@@ -35,9 +35,12 @@
 | §3 규칙 2 컴포넌트 안의 자연어 리터럴 | `i18n-usage.spec.ts` |
 | §3 규칙 3·4 한 문장은 한 키 · 사용자 데이터는 괄호로 | `i18n-usage.spec.ts` · `locales.spec.ts` |
 | §3 규칙 5 동작의 이름은 한자어 | `locales.spec.ts` |
-| **데이터 이름이 하나인가** (`terms.md` 머리말) | `terms.spec.ts` |
+| **데이터 이름이 하나인가** (`terms.md` 머리말) — `backend/`·`frontend/scripts/`·`frontend/tools/`·README·CONTRIBUTING은 못 본다 | `terms.spec.ts` |
 | §3 지원 언어마다 내장 양식 파일이 있는가 | `portfolio-preset.spec.ts` |
 | §4 `any` 금지 | ESLint `@typescript-eslint/no-explicit-any` |
+| CLAUDE.md의 줄 수 상한과 날짜 금지 | `claude-md.spec.ts` |
+| §4 CI가 뱉는 글자는 영어다 | `ci-language.spec.ts` |
+| 가운뎃점 규칙 (`copy.md`) | `middle-dot.spec.ts` |
 | §3 지원 언어마다 **바깥에 내놓는 처리방침**이 있는가 | `legal.spec.ts` |
 | 주석이 가리키는 **심볼**이 거기 있는가 | `doc-refs.spec.ts` |
 | §1.5 제출을 막을 만큼 커지면 알리는가 | `file-size.spec.ts` |
@@ -148,10 +151,16 @@
 
 
 
-**소스 전체를 훑는 검사가 열셋이다** — `ui-rules` · `i18n-usage` · `locales` ·
-`limits-rules` · `secure-context-rules` · `entry-names` · `settings-rules` ·
-`doc-refs` · `image-room` · `image-upload-zip` · `schema-version` · `terms` · `zip-names`.
-커밋마다 이 열셋은 늘 돌린다 (`docs/workflow.md` §3). **판정은 `readdirSync`로 소스 트리를 걷는가다.**
+**소스 전체를 훑는 검사** — 판정은 `readdirSync`(또는 `fixtures/source.ts`의 `sourceFiles`)로
+소스·문서 트리를 걷는가다. 커밋마다 이 목록은 늘 돌린다 (`docs/workflow.md` §3).
+
+`bench-rules` · `chart-registry` · `ci-language` · `database-reset` · `doc-refs` ·
+`docs-structure` · `entry-names` · `file-unreadable` · `i18n-usage` · `image-room` ·
+`image-upload-zip` · `inspect-rules` · `legal` · `limits-rules` · `locales` ·
+`message-composition` · `middle-dot` · `notices` · `portfolio-preset` · `prototype-keys` ·
+`pyodide-runtime` · `schema-version` · `secure-context-rules` · `settings-rules` ·
+`source-characters` · `spread-rules` · `table-align` · `table-rows` · `terms` · `ui-rules` ·
+`zip-names`.
 
 ## 타입이 막는다
 

@@ -34,7 +34,7 @@ checks the Python side, and uv fetches the Python it needs. Run everything from
 npm install
 ```
 
-Three commands, and that is all there is:
+Three commands cover everyday work:
 
 ```bash
 npm run dev
@@ -47,6 +47,9 @@ npm run ci
 ```bash
 npm run build
 ```
+
+`npm run lint` rewrites what `ci` would flag, and can touch files you did not
+mean to change.
 
 `dev` starts the local server, `ci` is the full gate (fetches the image
 backbone and Pyodide, then lint, types, tests, the scikit-learn fixtures,
