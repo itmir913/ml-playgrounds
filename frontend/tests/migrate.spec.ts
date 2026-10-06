@@ -342,10 +342,42 @@ describe('v2 -> v3 뜻만 바뀐다', () => {
         data: { ...document.settings.data, features: ['sepal_length', 'species'] },
       },
     }
+    // 이 단계의 번호는 이 단계만 태워서 본다. 진짜 입구는 지금 버전까지 올린다.
+    expect(readFormatVersion(applyMigrations(v2, 2, 3))).toBe(3)
     const opened = migrateProjectDocument(v2)
-    expect(opened.manifest.formatVersion).toBe(3)
+    expect(opened.manifest.formatVersion).toBe(FORMAT_VERSION)
     expect(opened.settings).toEqual(v2.settings)
     expect(opened.runs).toEqual(v2.runs)
+  })
+})
+
+/**
+ * **v4는 어휘만 늘렸다** (mlpx-spec.md §9.4) — `sourceEncoding`이 `cp932`를 받는다. v3 파일에는
+ * 그 값이 없으므로 문서 내용은 그대로 올라와야 한다. 옛 값(`cp949`)이 그대로인지도 본다 —
+ * 마이그레이션이 인코딩을 "고치기" 시작하면 학생이 본 판정 기록이 바뀐다.
+ */
+describe('v3 -> v4 어휘만 늘었다', () => {
+  it('문서가 글자 하나 안 바뀌고 번호만 4가 된다', () => {
+    const v3 = {
+      ...document,
+      manifest: { ...document.manifest, formatVersion: 3 },
+      settings: {
+        ...document.settings,
+        data: {
+          ...document.settings.data,
+          dataset: { ...document.settings.data.dataset, sourceEncoding: 'cp949' },
+        },
+      },
+    }
+    // 이 단계만 태웠을 때 내용이 그대로인지 본다 — 다음 단계가 생겨도 이 단계의 주장이 남는다.
+    expect(applyMigrations(v3, 3, 4)).toEqual({
+      ...v3,
+      manifest: { ...v3.manifest, formatVersion: 4 },
+    })
+    const opened = migrateProjectDocument(v3)
+    expect(opened.manifest.formatVersion).toBe(FORMAT_VERSION)
+    expect(opened.settings).toEqual(v3.settings)
+    expect(opened.runs).toEqual(v3.runs)
   })
 })
 

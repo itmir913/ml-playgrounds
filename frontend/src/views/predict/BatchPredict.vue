@@ -20,6 +20,7 @@ import AppButton from '@/components/AppButton.vue'
 import AppTable from '@/components/AppTable.vue'
 import { useFormat } from '@/composables/useFormat'
 import { errorMessageKey, type ClientErrorCode } from '@/errors'
+import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import { nameList } from '@/data/columns'
 import { importTable, openTable, TABULAR_ACCEPT, type TableDocument } from '@/data/table'
 import { clearIfHeld, latestOnly, useWork } from '@/composables/useWork'
@@ -71,7 +72,13 @@ const props = defineProps<{
   experimentNames: ReadonlyMap<string, string>
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+
+/**
+ * CSV 인코딩을 판정할 때 쓰는 언어 (`data/encoding.ts`의 `CANDIDATES_BY_LOCALE`).
+ * **vue-i18n의 `locale`은 문자열이라 한 번 좁힌다** — `ImagePanel`이 같은 것을 한다.
+ */
+const uiLocale = computed(() => (isSupportedLocale(locale.value) ? locale.value : FALLBACK_LOCALE))
 const format = useFormat()
 const project = useProjectStore()
 const toasts = useToastStore()
@@ -104,7 +111,7 @@ async function readFile(file: File): Promise<void> {
   const current = nextRead()
   try {
     const bytes = await readFileBytes(file)
-    const document = await openTable(bytes, file.name)
+    const document = await openTable(bytes, file.name, { locale: uiLocale.value })
     if (!current()) return
     opened.value = { document, fileName: file.name }
     sheetName.value = document.sheetNames[0]

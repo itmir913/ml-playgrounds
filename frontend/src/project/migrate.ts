@@ -26,10 +26,14 @@ export type Migration = (document: RawDocument) => RawDocument
 /**
  * 버전 n -> n+1 변환의 등록부.
  *
- * 예: FORMAT_VERSION을 4로 올린다면 { 3: (document) => ... } 를 여기 추가한다.
+ * 예: FORMAT_VERSION을 5로 올린다면 { 4: (document) => ... } 를 여기 추가한다.
  * 빠뜨리면 tests/migrate.spec.ts가 잡는다.
  */
-export const MIGRATIONS: Record<number, Migration> = { 1: migrateV1ToV2, 2: migrateV2ToV3 }
+export const MIGRATIONS: Record<number, Migration> = {
+  1: migrateV1ToV2,
+  2: migrateV2ToV3,
+  3: migrateV3ToV4,
+}
 
 function asRecord(value: unknown): RawDocument | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -105,6 +109,18 @@ function migrateV1ToV2(document: RawDocument): RawDocument {
  * 까닭은 **옛 판이 새 파일을 거부하게 하려는 것**이고, 그것은 이 함수가 아니라 번호가 한다.
  */
 function migrateV2ToV3(document: RawDocument): RawDocument {
+  return document
+}
+
+/**
+ * v3 -> v4. **아무것도 안 바꾼다** (mlpx-spec.md §9.4).
+ *
+ * 늘어난 것은 **어휘**다 — `sourceEncoding`이 `cp932`·`cp1252`를 받는다. v3 파일에는 그 값이 없고
+ * 있던 값의 뜻도 그대로라 고칠 것이 없다. **그래도 이 단계가 있어야 한다** — 체인은 빈 칸을
+ * 만나면 추측하지 않고 `PROJECT_FILE_VERSION_UNSUPPORTED`로 선다(`applyMigrations`). 버전이
+ * 오르는 까닭은 **옛 판이 새 값을 깨진 값으로 읽는 대신 새 파일을 거부하게 하려는 것**이다.
+ */
+function migrateV3ToV4(document: RawDocument): RawDocument {
   return document
 }
 

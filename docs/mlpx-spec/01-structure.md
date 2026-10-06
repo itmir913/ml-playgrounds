@@ -196,7 +196,7 @@ embeddings/
 
 ```jsonc
 {
-  "formatVersion": 3,
+  "formatVersion": 4,
   "appVersion": "0.0.0",
   "projectId": "550e8400-e29b-41d4-a716-446655440000",
   "name": "붓꽃 품종 분류",
@@ -272,7 +272,9 @@ embeddings/
 - **설정은 학생이 켠 것을 그대로 든다 — 지금 적용되지 않는 것도** (`open-decisions.md` 55).
   `features`에 `target`이 있을 수 있고 `selectedAlgorithms`에 안 맞는 모델이 있을 수 있다. **학습이
   무시하고, 실험 스냅샷(§4)에는 쓴 것만 남는다.** 이 파일을 읽는 다른 도구는 살아 있는 설정의
-  `features`에서 타깃을 빼야 한다. 그래서 `formatVersion`이 3이다 (§9.3).
+  `features`에서 타깃을 빼야 한다. 그래서 `formatVersion`이 3으로 올랐다 (§9.3).
+- **`sourceEncoding`이 받는 값은 `SOURCE_ENCODINGS`(`frontend/src/data/encoding.ts`)가 갖는다.** 파일에 적는
+  이름은 pandas가 받는 윈도 코드 페이지 이름이다(`cp949`·`cp932`). 값이 늘면 `formatVersion`이 오른다 (§9.4).
 - **실행 방법은 실험 기본을 두고 모델마다 덮어쓴다.** 같은 알고리즘이 두 번 들어갈 수 있다.
   `run.engine`을 기록하고 비교표가 표시한다.
 - **하이퍼파라미터의 키는 (알고리즘, 실행 방법)이다.**

@@ -43,6 +43,7 @@ import {
   probeNote,
   type TableDocument,
 } from '@/data/table'
+import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
 import ChartDialog from './ChartDialog.vue'
 import ColumnInspector from './ColumnInspector.vue'
 import { TABLE_PREVIEW_ROW_COUNT } from '@/limits'
@@ -53,7 +54,13 @@ import { useToastStore } from '@/stores/toasts'
 
 defineProps<{ accept: string }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+
+/**
+ * CSV 인코딩을 판정할 때 쓰는 언어 (`data/encoding.ts`의 `CANDIDATES_BY_LOCALE`).
+ * **vue-i18n의 `locale`은 문자열이라 한 번 좁힌다** — `ImagePanel`이 같은 것을 한다.
+ */
+const uiLocale = computed(() => (isSupportedLocale(locale.value) ? locale.value : FALLBACK_LOCALE))
 
 /**
  * 이 단계의 설명문. **등록부가 준다** (architecture.md §8.10) — `steps.data.purpose`를
@@ -173,7 +180,7 @@ async function readFile(file: File): Promise<void> {
   const current = nextRead()
   try {
     const bytes = await readFileBytes(file)
-    const document = await openTable(bytes, file.name)
+    const document = await openTable(bytes, file.name, { locale: uiLocale.value })
     // **여기서 읽는다 — 그리면서 읽지 않는다** (`opened`의 머리말). 던지면 아래 `catch`가 말한다.
     const sheets = previewTable(document, PREVIEW_PROBE_ROWS)
     if (!current()) return

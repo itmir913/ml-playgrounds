@@ -138,6 +138,25 @@ const VOCABULARY_BY_VERSION: Readonly<Record<number, Readonly<Record<string, rea
       CANONICAL_FORMAT_IDS: ['webp', 'jpeg'],
       PORTFOLIO_ANSWER_FORMATS: ['plain-v1'],
     },
+    /**
+     * **`SOURCE_ENCODINGS`에 `cp932`와 `cp1252`가 더해졌다** (2026-10-06). 일본어 윈도의 CSV를
+     * 읽고, `cp1252`는 다음 판이 쓸 것을 버전을 두 번 안 올리려고 함께 들였다 (mlpx-spec.md
+     * §9.4). 이 표가 지키려고 있는 바로 그 경우다 — 옛 앱이 새 파일을 열면 `z.enum`이 새 값을 모른다.
+     */
+    4: {
+      TASK_TYPES: ['classification', 'regression', 'clustering'],
+      DATA_TYPES: ['tabular', 'image'],
+      MISSING_STRATEGIES: ['none', 'drop', 'mean', 'median', 'mostFrequent', 'zero'],
+      SCALING_METHODS: ['none', 'standard', 'minmax', 'robust'],
+      CATEGORICAL_ENCODINGS: ['none', 'onehot', 'ordinal'],
+      SPLIT_METHODS: ['holdout', 'provided'],
+      RUN_STATUSES: ['done', 'failed'],
+      MODEL_OMISSION_REASONS: ['overBudget', 'tooLarge', 'engineUnsupported'],
+      SOURCE_ENCODINGS: ['utf-8', 'cp949', 'utf-16le', 'utf-16be', 'cp932', 'cp1252'],
+      TRAINING_LOCATIONS: ['browser', 'server'],
+      CANONICAL_FORMAT_IDS: ['webp', 'jpeg'],
+      PORTFOLIO_ANSWER_FORMATS: ['plain-v1'],
+    },
   }
 
 const recorded = VOCABULARY_BY_VERSION[FORMAT_VERSION]

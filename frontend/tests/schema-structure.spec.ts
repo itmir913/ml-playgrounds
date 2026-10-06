@@ -306,13 +306,16 @@ describe('스키마 구조 정본', () => {
   it.skipIf(!hasCanon(PREVIOUS))('B. 직전 정본과의 사이에 깨는 변경이 하나는 있다', () => {
     const breaks = breakingChanges(readCanon(PREVIOUS), readCanon(CURRENT))
     /**
-     * **구조가 아니라 뜻 때문에 오른 버전은 여기 적는다** — 적힌 버전은 반대로 **구조가 안
+     * **구조가 아니라 뜻이나 어휘 때문에 오른 버전은 여기 적는다** — 적힌 버전은 반대로 **구조가 안
      * 바뀌었음을** 못 박는다(그 주장이 거짓이 되면 운다). 풀어 주는 자리를 목록으로 둔 것은
      * 다음 버전이 조용히 같은 면제를 받지 않게 하려는 것이다.
      */
     const RAISED_FOR_MEANING: Readonly<Record<number, string>> = {
       // 옛 판이 `features`에 남은 타깃을 특성으로 쓴다 (mlpx-spec.md §9.3, 2026-09-23).
       3: 'settings.data.features may hold the target name',
+      // 어휘가 늘었다 (mlpx-spec.md §9.4, 2026-10-06). `enum`에 값이 느는 것은 새 판이 옛 파일을
+      // 읽는 데는 안 깬다 — 깨지는 쪽은 옛 판이 새 파일을 읽는 것이고 `schema-version.spec.ts`가 잰다.
+      4: 'sourceEncoding accepts cp932 and cp1252',
     }
     if (RAISED_FOR_MEANING[FORMAT_VERSION] !== undefined) {
       expect(breaks, `v${FORMAT_VERSION} was raised for meaning, not structure`).toEqual([])

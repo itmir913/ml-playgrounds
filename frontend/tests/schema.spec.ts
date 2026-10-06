@@ -166,7 +166,13 @@ describe('모르는 어휘', () => {
       data: { ...settings.data, dataset: { ...settings.data.dataset, sourceEncoding } },
     })
     expect(settingsSchema.safeParse(withSource('cp949')).success).toBe(true)
+    // v4부터 받는다 (mlpx-spec.md §9.4). 기록 이름은 윈도 코드 페이지 이름이다.
+    expect(settingsSchema.safeParse(withSource('cp932')).success).toBe(true)
+    // 아직 판정이 안 내는 값이지만 어휘에는 있다 - 다음 판이 쓴다.
+    expect(settingsSchema.safeParse(withSource('cp1252')).success).toBe(true)
     expect(settingsSchema.safeParse(withSource('euc-kr')).success).toBe(false)
+    // 디코더 라벨은 기록 이름이 아니다 - Python의 `shift_jis` 코덱은 CP932의 확장 문자를 모른다.
+    expect(settingsSchema.safeParse(withSource('shift_jis')).success).toBe(false)
   })
 
   it('모델이 빠진 사유가 목록에 없으면 거부한다', () => {

@@ -23,6 +23,11 @@ const CP949_CSV = new Uint8Array([
   192, 204, 184, 167, 44, 179, 170, 192, 204, 10, 176, 161, 179, 170, 180, 217, 44, 49, 48,
 ])
 
+/** '身長,名前\n150,太郎\n'을 CP932로 인코딩한 바이트 (Python cp932 codec으로 생성). */
+const CP932_CSV = new Uint8Array([
+  144, 103, 146, 183, 44, 150, 188, 145, 79, 10, 49, 53, 48, 44, 145, 190, 152, 89, 10,
+])
+
 async function xlsxBytes(sheets: Record<string, (string | number)[][]>): Promise<Uint8Array> {
   const workbook = new ExcelJS.Workbook()
   for (const [name, rows] of Object.entries(sheets)) {
@@ -63,6 +68,19 @@ describe('openTable - csv', () => {
       ['이름', '나이'],
       ['가나다', '10'],
     ])
+  })
+
+  it('일본어 화면은 CP932를 먼저 본다', async () => {
+    const document = await openTable(CP932_CSV, 'data.csv', { locale: 'ja' })
+    expect(document.sourceEncoding).toBe('cp932')
+    expect(document.read()).toEqual([
+      ['身長', '名前'],
+      ['150', '太郎'],
+    ])
+  })
+
+  it('언어를 안 넘기면 같은 바이트를 전처럼 cp949로 본다', async () => {
+    expect((await openTable(CP932_CSV, 'data.csv')).sourceEncoding).toBe('cp949')
   })
 })
 

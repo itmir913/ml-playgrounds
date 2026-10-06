@@ -21,7 +21,7 @@ import { hashBytes } from '../hash'
 import { maxDatasetColumns, maxDatasetRows } from '../limits-switch'
 import { TABLE_PREVIEW_ROW_COUNT } from '../limits'
 import { openCsvText } from './csv'
-import { decodeText, detectEncoding, type SourceEncoding } from './encoding'
+import { decodeText, detectEncoding, type EncodingLocale, type SourceEncoding } from './encoding'
 import type { TableGrid } from './grid'
 import { canonicalGrid, toCanonicalCsv } from './serialize'
 import { looksLikeOle2, looksLikeZip, openXlsx } from './xlsx'
@@ -45,6 +45,11 @@ export interface TableDocument {
   sourceEncoding: SourceEncoding | null
   /** sheetNames가 비어 있으면 sheetName은 무시된다. */
   read(sheetName?: string, maxRows?: number): TableGrid
+}
+
+export interface OpenTableOptions {
+  /** 지금 UI 언어. 모르면 CSV 인코딩을 언어별 후보 없이 판정한다. */
+  readonly locale?: EncodingLocale
 }
 
 /** 정본으로 확정된 데이터셋. */
@@ -102,8 +107,15 @@ export function sourceFromFileName(fileName: string): TableSource {
  * 암호 xlsx가 "읽지 못했다", .xls가 "지원하지 않는 형식"이었고, **이름이 `.csv`면 깨진 글자의 표로
  * 열렸다.** 다른 이름(한글·워드도 같은 상자다)은 아래 확장자 문이 지금처럼 거절한다.
  * 무는 검사: table.spec.ts "openTable - 암호 xlsx와 옛 xls".
+ *
+ * **`locale`은 CSV 인코딩 판정에만 쓴다** (`encoding.ts`의 `CANDIDATES_BY_LOCALE`). 없으면
+ * 언어별 후보 없이 판정한다. 무는 검사: table.spec.ts "일본어 화면은 CP932를 먼저 본다".
  */
-export async function openTable(bytes: Uint8Array, fileName: string): Promise<TableDocument> {
+export async function openTable(
+  bytes: Uint8Array,
+  fileName: string,
+  options: OpenTableOptions = {},
+): Promise<TableDocument> {
   if (looksLikeOle2(bytes)) {
     const lower = fileName.toLowerCase()
     const tabular = [...CSV_EXTENSIONS, ...XLSX_EXTENSIONS, ...LEGACY_EXCEL_EXTENSIONS]
@@ -115,7 +127,7 @@ export async function openTable(bytes: Uint8Array, fileName: string): Promise<Ta
   const source: TableSource = looksLikeZip(bytes) ? 'xlsx' : named
 
   if (source === 'csv') {
-    const sourceEncoding = detectEncoding(bytes)
+    const sourceEncoding = detectEncoding(bytes, options.locale)
     const read = openCsvText(decodeText(bytes, sourceEncoding))
     return {
       source,

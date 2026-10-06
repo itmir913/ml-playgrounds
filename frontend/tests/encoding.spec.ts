@@ -1,11 +1,51 @@
+// @vitest-environment jsdom
+/**
+ * 업로드 표의 인코딩 판정 (`data/encoding.ts`).
+ *
+ * 첫 줄이 jsdom인 것은 **`SUPPORTED_LOCALES`를 값으로 들여오기 때문이다** — `zip-names.spec.ts`와
+ * 같은 사정이다. `i18n.ts`가 DOM 부재를 분기하므로, 밝히지 않으면 대체 경로를 검사하게 된다.
+ */
+
 import { describe, expect, it } from 'vitest'
 
-import { decodeText, detectEncoding } from '../src/data/encoding'
+import { CANDIDATES_BY_LOCALE, decodeText, detectEncoding } from '../src/data/encoding'
 import { isClientError } from '../src/errors'
+import { SUPPORTED_LOCALES } from '../src/i18n'
 
 /** '이름,나이\n가나다,10'을 CP949로 인코딩한 바이트 (Python cp949 codec으로 생성). */
 const CP949_SAMPLE = new Uint8Array([
   192, 204, 184, 167, 44, 179, 170, 192, 204, 10, 176, 161, 179, 170, 180, 217, 44, 49, 48,
+])
+
+/**
+ * '身長,名前,クラス\n150,太郎,A\n'을 CP932로 인코딩한 바이트. Python
+ * `'身長,名前,クラス\n150,太郎,A\n'.encode('cp932')`가 낸 그대로다 — 일본 윈도 엑셀의
+ * "CSV(コンマ区切り)"가 쓰는 인코딩이다. 이것을 `euc-kr`로 읽으면 `身長`이 `g�`가 된다.
+ */
+const CP932_SAMPLE = new Uint8Array([
+  144, 103, 146, 183, 44, 150, 188, 145, 79, 44, 131, 78, 131, 137, 131, 88, 10, 49, 53, 48, 44,
+  145, 190, 152, 89, 44, 65, 10,
+])
+const CP932_TEXT = '身長,名前,クラス\n150,太郎,A\n'
+
+/**
+ * '이름,키\n김수,150\n'을 CP949로 인코딩한 바이트 (Python cp949 codec으로 생성).
+ *
+ * **엄격한 Shift_JIS로는 안 풀린다** — `수`(`BC F6`)의 둘째 바이트가 Shift_JIS의 첫 바이트
+ * 자리이고 그 뒤가 쉼표라서다. 위 `CP949_SAMPLE`은 이 일에 못 쓴다: CP949 한글의 바이트가
+ * 전부 Shift_JIS의 반각 가나 자리라 **오류 없이 반각 가나로 풀린다**(경계는
+ * `open-decisions.md` "인코딩 판정과 지원 목록").
+ */
+const CP949_NOT_SJIS = new Uint8Array([
+  192, 204, 184, 167, 44, 197, 176, 10, 177, 232, 188, 246, 44, 49, 53, 48, 10,
+])
+
+/**
+ * 'Name,City\nCafé,Zürich\n'을 Windows-1252로 인코딩한 바이트 (Python cp1252 codec으로 생성).
+ * 영어 윈도 엑셀의 CSV가 쓰는 코드 페이지다. `é`(`E9`)·`ü`(`FC`)가 UTF-8로는 안 풀린다.
+ */
+const CP1252_SAMPLE = new Uint8Array([
+  78, 97, 109, 101, 44, 67, 105, 116, 121, 10, 67, 97, 102, 233, 44, 90, 252, 114, 105, 99, 104, 10,
 ])
 
 function utf16le(text: string, withBom = true): Uint8Array {
@@ -96,6 +136,62 @@ describe('detectEncoding', () => {
     it('ASCII CSV에 NUL 하나 — utf-8로 읽는다', () => {
       expect(detectEncoding(withNul(utf8('a,b\n1,2\n'), 4))).toBe('utf-8')
     })
+  })
+})
+
+/**
+ * **UI 언어가 CP949 앞의 후보를 고른다** (`CANDIDATES_BY_LOCALE`). 바이트만으로는 CP949와
+ * CP932를 못 가르므로 언어가 정한다. 경위: `open-decisions.md` "인코딩 판정과 지원 목록".
+ */
+describe('detectEncoding - 언어별 후보', () => {
+  it('일본어 화면은 CP932 CSV를 cp932로 읽고 글자가 맞다', () => {
+    expect(detectEncoding(CP932_SAMPLE, 'ja')).toBe('cp932')
+    expect(decodeText(CP932_SAMPLE, 'cp932')).toBe(CP932_TEXT)
+  })
+
+  it('한국어·영어 화면과 언어 없음은 같은 바이트를 전처럼 cp949로 본다', () => {
+    expect(detectEncoding(CP932_SAMPLE, 'ko')).toBe('cp949')
+    expect(detectEncoding(CP932_SAMPLE, 'en')).toBe('cp949')
+    expect(detectEncoding(CP932_SAMPLE)).toBe('cp949')
+  })
+
+  it('일본어 화면에서도 엄격한 Shift_JIS로 안 풀리는 CP949 CSV는 cp949로 떨어진다', () => {
+    expect(detectEncoding(CP949_NOT_SJIS, 'ja')).toBe('cp949')
+    expect(decodeText(CP949_NOT_SJIS, 'cp949')).toBe('이름,키\n김수,150\n')
+  })
+
+  it('BOM과 UTF-8 판정은 언어와 무관하다', () => {
+    const utf8 = new TextEncoder().encode('身長,名前\n150,太郎\n')
+    const withBom = new Uint8Array([0xef, 0xbb, 0xbf, ...utf8])
+    for (const locale of SUPPORTED_LOCALES) {
+      expect(detectEncoding(utf8, locale), locale).toBe('utf-8')
+      expect(detectEncoding(withBom, locale), locale).toBe('utf-8')
+      expect(detectEncoding(utf16le('身長'), locale), locale).toBe('utf-16le')
+    }
+  })
+})
+
+/**
+ * **`cp1252`는 어휘에만 있다** (mlpx-spec.md §9.4). 영어 화면의 대체 후보로 다음 판(0.33.1)에서
+ * 쓰려고 v4에 먼저 들였고, **지금 판정은 그것을 안 낸다.** 0.33.1에서 영어 화면의 판정을 고치면
+ * 이 검사의 `en` 줄이 바뀔 자리다 — 그때는 고치는 쪽이 이 검사를 함께 고친다.
+ */
+describe('cp1252는 아직 판정에 안 쓴다', () => {
+  it('지금은 어느 언어로도 cp1252를 내지 않는다', () => {
+    for (const locale of SUPPORTED_LOCALES) {
+      expect(detectEncoding(CP1252_SAMPLE, locale), locale).toBe('cp949')
+    }
+    expect(detectEncoding(CP1252_SAMPLE)).toBe('cp949')
+  })
+
+  it('그래도 받아 둔 값이라 풀 줄은 안다', () => {
+    expect(decodeText(CP1252_SAMPLE, 'cp1252')).toBe('Name,City\nCafé,Zürich\n')
+  })
+})
+
+describe('언어별 후보 표는 지원 언어를 다 덮는다', () => {
+  it('언어마다 한 줄씩 있다', () => {
+    expect(Object.keys(CANDIDATES_BY_LOCALE).sort()).toEqual([...SUPPORTED_LOCALES].sort())
   })
 })
 
