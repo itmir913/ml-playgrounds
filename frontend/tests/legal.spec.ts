@@ -29,6 +29,7 @@ import { describe, expect, it } from 'vitest'
 import { SUPPORTED_LOCALES } from '@/i18n'
 import { LEGAL_INDEX_PATH, NOTICES_PATH, privacyPath } from '@/legal'
 import { NOTICES_FILE } from '../scripts/notices'
+import { scriptMismatches } from './fixtures/locales'
 
 /** 산출물에 그대로 실리는 것들. vitest는 `frontend/`에서 돈다. */
 const PUBLIC = join(process.cwd(), 'public')
@@ -131,6 +132,12 @@ describe('규정 서랍이 서 있다', () => {
     for (const locale of SUPPORTED_LOCALES) {
       expect(Object.keys(messages[locale] ?? {}).sort()).toEqual(shape)
     }
+  })
+
+  it('서랍 문구는 언어마다 그 언어의 글자로 쓰고 다른 언어의 글자가 없다', () => {
+    // 0.33.3 최종 감사(J-code C-3) 전에는 ja 제목을 한국어로 바꿔도 아무것도 안 울었다.
+    // `lead`는 제품 이름이다 — 언어를 가리지 않는다(`locales.spec.ts`의 `app.name`과 같다).
+    expect(scriptMismatches(drawerMessages(), ['lead'])).toEqual([])
   })
 
   it('서랍이 언어마다 자기 이름을 갖는다 - 토글이 그것으로 그려진다', () => {

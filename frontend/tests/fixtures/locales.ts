@@ -66,6 +66,36 @@ export const LOCALE_SCRIPTS: Readonly<Record<string, RegExp | null>> = {
   ja: /[぀-ヿ一-鿿]/u,
 }
 
+/**
+ * **언어마다 그 언어의 글자로 썼고 다른 언어의 글자가 없는가** — 앱 밖의 글(404·규정 서랍·내장 양식)이
+ * 같은 판정을 지난다(0.33.3 최종 감사 J-code C-3: 서랍과 양식은 안 지나서, ja 값을 한국어로 바꿔도
+ * 초록이었다). 어긋난 자리를 `언어.키` 꼴로 돌려준다. 표에 없는 언어는 그 자체로 어긋남이다.
+ * `untranslated`는 언어를 가리지 않는 값(제품 이름 등)의 키다 — 자기 글자는 안 보고 남의 글자만 본다.
+ */
+export function scriptMismatches(
+  byLocale: Readonly<Record<string, Readonly<Record<string, string>>>>,
+  untranslated: readonly string[] = [],
+): string[] {
+  const wrong: string[] = []
+  for (const [locale, dict] of Object.entries(byLocale)) {
+    if (!(locale in LOCALE_SCRIPTS)) {
+      wrong.push(`${locale} declares no script in fixtures/locales.ts`)
+      continue
+    }
+    const own = LOCALE_SCRIPTS[locale] ?? null
+    const foreign = Object.entries(LOCALE_SCRIPTS).flatMap(([other, script]) =>
+      other !== locale && script !== null && script !== own ? [script] : [],
+    )
+    for (const [key, value] of Object.entries(dict)) {
+      if (own !== null && !untranslated.includes(key) && !own.test(value))
+        wrong.push(`${locale}.${key} lacks its own script`)
+      if (foreign.some((script) => script.test(value)))
+        wrong.push(`${locale}.${key} has a foreign script`)
+    }
+  }
+  return wrong
+}
+
 /** 한 로케일의 편 문장들. 없는 태그면 던진다 — 조용히 빈 것을 주면 검사가 아무것도 안 잰다. */
 export function messagesOf(tag: string): ReadonlyMap<string, string> {
   const messages = LOCALE_MESSAGES.get(tag)

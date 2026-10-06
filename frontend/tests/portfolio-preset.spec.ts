@@ -20,6 +20,7 @@ import { describe, expect, it } from 'vitest'
 import { SUPPORTED_LOCALES } from '../src/i18n'
 import { parsePortfolioForm } from '../src/project/portfolio-form'
 import { parsePresetIndex, presetFileName, presetName } from '../src/project/portfolio-presets'
+import { scriptMismatches } from './fixtures/locales'
 
 const DIRECTORY = join(process.cwd(), 'public', 'portfolio')
 if (!existsSync(DIRECTORY)) throw new Error(`preset directory not found: ${DIRECTORY}`)
@@ -73,6 +74,29 @@ describe('내장 양식은 우리 파서가 읽을 수 있다', () => {
     for (const section of parsePortfolioForm(read(preset.id, locale)).sections) {
       expect(section.id, section.title).toBeDefined()
     }
+  })
+
+  /**
+   * **양식은 그 언어의 글자로 쓴다** (0.33.3 최종 감사 J-code C-3). 문항 제목을 다른 언어로 바꿔도
+   * 위 검사들은 id와 순서만 봐서 초록이었다. 이름표(`index.json`)도 함께 잰다.
+   */
+  it.each(PRESETS)('$id의 양식과 이름은 언어마다 그 언어의 글자로 쓴다', (preset) => {
+    const byLocale = Object.fromEntries(
+      SUPPORTED_LOCALES.map((locale) => {
+        const form = parsePortfolioForm(read(preset.id, locale))
+        return [
+          locale,
+          {
+            name: presetName(preset, locale),
+            ...(form.title === undefined ? {} : { title: form.title }),
+            ...Object.fromEntries(
+              form.sections.map((section, index) => [`section${index}`, section.title]),
+            ),
+          },
+        ]
+      }),
+    )
+    expect(scriptMismatches(byLocale)).toEqual([])
   })
 
   it.each(PRESETS)('$id는 언어가 달라도 문항 id와 순서가 같다', (preset) => {

@@ -24,7 +24,7 @@ import { runInNewContext } from 'node:vm'
 import { describe, expect, it, vi } from 'vitest'
 
 import { SUPPORTED_LOCALES } from '@/i18n'
-import { LOCALE_SCRIPTS } from './fixtures/locales'
+import { scriptMismatches } from './fixtures/locales'
 import { retiredIn } from './fixtures/retired-words'
 
 /** vitest는 `frontend/`에서 돈다. */
@@ -291,21 +291,12 @@ describe('못 찾았을 때의 안내', () => {
   })
 
   it('언어마다 그 언어의 글자로 쓰고 다른 언어의 글자가 없다', () => {
-    const wrong: string[] = []
-    for (const [locale, dict] of Object.entries(messages)) {
-      const own = LOCALE_SCRIPTS[locale]
-      expect(own, `${locale} declares its script in fixtures/locales.ts`).toBeDefined()
-      const foreign = Object.entries(LOCALE_SCRIPTS).flatMap(([other, script]) =>
-        other !== locale && script !== null && script !== own ? [script] : [],
-      )
-      for (const [key, value] of Object.entries(dict)) {
-        if (own && !own.test(value)) wrong.push(`${locale}.${key} lacks its own script`)
-        if (foreign.some((script) => script.test(value)))
-          wrong.push(`${locale}.${key} has a foreign script`)
-        if (/[!！]/.test(value)) wrong.push(`${locale}.${key} has an exclamation mark`)
-      }
-    }
-    expect(wrong).toEqual([])
+    const exclaimed = Object.entries(messages).flatMap(([locale, dict]) =>
+      Object.entries(dict).flatMap(([key, value]) =>
+        /[!！]/.test(value) ? [`${locale}.${key} has an exclamation mark`] : [],
+      ),
+    )
+    expect([...scriptMismatches(messages), ...exclaimed]).toEqual([])
   })
 
   it('한국어 문구에 물러난 순우리말이 없다', () => {
