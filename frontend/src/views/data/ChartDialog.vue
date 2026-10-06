@@ -21,6 +21,7 @@ import { CHART_CONTROLS } from '@/data/charts'
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppPlainButton from '@/components/AppPlainButton.vue'
+import { useFormat } from '@/composables/useFormat'
 import { chartToolsFor, defaultChartTool, type ChartTool } from '@/data/charts'
 import type { ColumnSummary } from '@/data/columns'
 import type { Dataset } from '@/ml/preprocess'
@@ -41,6 +42,7 @@ const props = defineProps<{
 const emit = defineEmits<{ close: [] }>()
 
 const { t } = useI18n()
+const { sentences } = useFormat()
 
 /** 지금 보고 있는 열. **바깥이 준 것으로 시작하고 그 뒤로는 창이 쥔다.** */
 const column = ref(props.column)
@@ -154,7 +156,7 @@ const explanation = computed(() => {
   const one = tools.value.find((tool) => tool.id === explained.value)
   if (one === undefined) return null
   const reasons = blocks(one)
-  return reasons.length === 0 ? null : reasons.join(' ')
+  return reasons.length === 0 ? null : sentences(reasons)
 })
 </script>
 
@@ -242,7 +244,7 @@ const explanation = computed(() => {
                     ? ''
                     : 'border-line-strong bg-surface text-ink'
               "
-              :title="blocks(one).join(' ')"
+              :title="sentences(blocks(one))"
               @click="pickTool(one.id)"
               @refused="explained = one.id"
             >

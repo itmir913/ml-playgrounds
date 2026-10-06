@@ -342,7 +342,9 @@ const rows = computed(() =>
           // **학생이 붙인 제목이다.** 파일 이름과 다를 수 있고, 다를 때 그것이 정보다.
           name: read ? read.name : '',
           sameProject: sameProjectText(item.label),
-          experiments: read ? t('meta.countUnit', read.experiments) : '',
+          // 실험은 결과 화면과 같은 단위로 센다(ko `번`, ja `件`). 옆의 모델 수는 그 밖의 개수다.
+          // `inspect-experiment-count.spec.ts`가 문다.
+          experiments: read ? t('results.experimentCount', read.experiments) : '',
           runs: read ? t('meta.countUnit', read.runs) : '',
           state: read
             ? t(`dataTypes.${read.dataType}`)

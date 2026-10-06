@@ -147,6 +147,18 @@ export function formatRawCell(value: number): string {
 }
 
 /**
+ * **번역된 문장 여럿을 한 덩어리로 잇는다.** 잇는 자리의 공백은 언어가 정한다 — 영어·한국어는
+ * 한 칸, 일본어는 `。` 뒤에 띄우지 않는다. `' '`로 이으면 일본어 문장 사이에 칸이 선다.
+ *
+ * `unit`·`narrow`다. 영어·한국어는 `join(' ')`과 글자까지 같다 — 나열 기호(`, `·`및`)가
+ * 붙는 다른 조합은 ko·en 표시를 바꾼다. **문장만 잇는다** — 이름이나 값을 이으면 일본어에서
+ * 붙어 버린다. `create.spec.ts` "문장을 그 언어대로 잇는다"가 세 언어를 문다.
+ */
+export function formatSentences(locale: string, sentences: readonly string[]): string {
+  return new Intl.ListFormat(locale, { type: 'unit', style: 'narrow' }).format(sentences)
+}
+
+/**
  * 화면에서 쓰는 포맷터들.
  *
  * 평범한 함수를 돌려준다. 템플릿에서 부르면 그리는 동안 `locale.value`를 읽으므로
@@ -161,6 +173,7 @@ export function useFormat() {
     percent: (ratio: number) => formatPercent(locale.value, ratio),
     prediction: (value: number) => formatPrediction(locale.value, value),
     rawCell: (value: number) => formatRawCell(value),
+    sentences: (parts: readonly string[]) => formatSentences(locale.value, parts),
     stat: (value: number) => formatStat(locale.value, value),
     metric: (value: number, format: 'percent' | 'number') =>
       formatMetric(locale.value, value, format),

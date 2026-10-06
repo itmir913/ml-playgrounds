@@ -190,7 +190,7 @@ const note = computed(() => {
    */
   const hidden = logarithmic.value ? 0 : hiddenBins(made.value.counts, area.value.height)
   if (hidden > 0) parts.push(t('data.charts.histogram.hidden', { count: hidden }))
-  return parts.join(' ')
+  return format.sentences(parts)
 })
 
 /** 그림 영역. 안 보이는 구간을 세는 높이다. */

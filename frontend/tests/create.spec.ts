@@ -14,6 +14,7 @@ import {
   formatPercent,
   formatPrediction,
   formatRawCell,
+  formatSentences,
   formatStat,
 } from '../src/composables/useFormat'
 import { NOT_FOR_TABULAR_ALGORITHM } from './fixtures/algorithms'
@@ -285,6 +286,17 @@ describe('화면 표시 포맷', () => {
 
   it('언어에 맡긴다 - 자릿수 구분을 직접 조립하지 않는다', () => {
     expect(formatPrediction('de', 1250000)).not.toBe(formatPrediction('en', 1250000))
+  })
+
+  /**
+   * **문장 사이의 공백도 언어가 정한다.** 영어·한국어는 `join(' ')`과 글자까지 같아야 하고
+   * (그 화면들이 바뀌면 안 된다), 일본어는 `。` 뒤에 칸이 없다. 값으로 고정한다.
+   */
+  it('문장을 그 언어대로 잇는다', () => {
+    expect(formatSentences('en', ['One.', 'Two.'])).toBe('One. Two.')
+    expect(formatSentences('ko', ['하나입니다.', '둘입니다.'])).toBe('하나입니다. 둘입니다.')
+    expect(formatSentences('ja', ['一つです。', '二つです。'])).toBe('一つです。二つです。')
+    expect(formatSentences('ja', ['一つです。'])).toBe('一つです。')
   })
 })
 

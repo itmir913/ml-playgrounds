@@ -171,7 +171,7 @@ const note = computed(() => {
   if (omittedValues > 0) {
     parts.push(t('data.charts.box.omitted', { count: omittedValues, rows: omittedRows }))
   }
-  return parts.join(' ')
+  return format.sentences(parts)
 })
 </script>
 
