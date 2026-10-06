@@ -227,11 +227,23 @@ describe('링크가 실재하는 것을 가리킨다', () => {
   })
 
   it.each([...SUPPORTED_LOCALES])('%s 방침이 죽은 링크를 안 갖는다', (locale) => {
-    for (const href of localLinks(readPolicy(locale))) {
+    for (const link of localLinks(readPolicy(locale))) {
+      const href = link.split('?')[0] ?? link
       if (href === '../' || href === './') continue
       if (basename(href) === NOTICES_FILE) continue
       expect(existsSync(join(LEGAL, href))).toBe(true)
     }
+  })
+
+  /**
+   * **서랍으로 돌아가는 링크는 언어를 들고 간다.** 서랍은 `?lang=`이 없으면 브라우저 언어로
+   * 고르므로, 한국어 브라우저에서 일본어 방침을 보던 학생이 한국어 서랍에 떨어졌다
+   * (2026-10-06 점검).
+   */
+  it.each([...SUPPORTED_LOCALES])('%s 방침이 서랍을 같은 언어로 연다', (locale) => {
+    const drawer = localLinks(readPolicy(locale)).filter((href) => href.split('?')[0] === './')
+    expect(drawer.length).toBeGreaterThan(0)
+    expect(drawer.every((href) => href === `./?lang=${locale}`)).toBe(true)
   })
 
   it('검사기가 바깥 주소와 메일은 안 센다', () => {

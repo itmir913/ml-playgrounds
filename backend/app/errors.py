@@ -4,8 +4,7 @@
 여기 정의된 이름이 프런트엔드 로케일 파일의 키와 1:1로 대응한다.
 
 코드를 추가하면 **같은 커밋에서** 다음을 함께 갱신한다.
-- frontend/src/locales/en.json
-- frontend/src/locales/ko.json
+- frontend/src/locales/의 모든 로케일 파일
 - docs/error-codes.md
 
 이 모듈은 의도적으로 FastAPI에 의존하지 않는다. 검사 스크립트가 외부 의존성 없이

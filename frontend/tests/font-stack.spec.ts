@@ -49,6 +49,21 @@ describe('글꼴 스택', () => {
     expect(index).not.toContain('pretendard-jp')
   })
 
+  /**
+   * **일본어의 `break-keep`은 문절에서 끊고, 모르는 브라우저에서는 `keep-all`로 남는다.**
+   * 앞에 `normal`을 두면 사파리·파이어폭스에서 레일의 `ポート​フォリオ`가 글자마다 끊긴다 —
+   * 그래서 이 블록은 `auto-phrase` 한 줄뿐이어야 한다.
+   */
+  it('일본어의 break-keep은 auto-phrase 한 줄로만 푼다', () => {
+    const utilities = readFileSync(join(STYLES, 'utilities.css'), 'utf-8')
+    const start = utilities.indexOf('.break-keep:lang(ja) {')
+    expect(start, 'utilities.css lifts break-keep for ja').toBeGreaterThanOrEqual(0)
+    const block = utilities.slice(start, utilities.indexOf('}', start))
+    expect([...block.matchAll(/word-break:\s*([\w-]+)/g)].map((match) => match[1])).toEqual([
+      'auto-phrase',
+    ])
+  })
+
   it('검사기가 블록 밖의 값을 읽지 않는다', () => {
     expect(fontStackIn('a { --font-sans: x; }', ':root:lang(ja)')).toBeNull()
     expect(

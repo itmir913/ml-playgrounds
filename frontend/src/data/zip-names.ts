@@ -43,6 +43,9 @@ export interface LegacyCharset {
  * Latin-1과 같아서, `Café`는 지금도 그대로 읽힌다. 갈리는 것은 0x80~0x9F(둥근 따옴표
  * 같은 것)뿐이라 그 자리를 위해 표를 하나 더 두지 않는다.
  *
+ * **ja의 `script`는 반각 가타카나(U+FF61~FF9F)도 일본어로 센다** — Shift_JIS가 한 바이트로
+ * 적는 글자라 그것만으로 된 이름이 있다(`zip-names.spec.ts` "반각 가타카나만으로 된 이름").
+ *
  * **ja의 `script`는 한자까지 인정한다** — 추정할 때의 후보가 그 로케일의 문자셋 하나뿐이라
  * 한자가 나왔다는 것이 곧 Shift_JIS로 읽었다는 뜻이다. `Größe`는 Shift_JIS로 읽어도 한자가
  * 안 나온다 — `zip-names.spec.ts` "가나·한자가 안 나오면 안 바꾼다"가 문다.
@@ -50,7 +53,7 @@ export interface LegacyCharset {
 export const LEGACY_CHARSETS = {
   en: null,
   ko: { charset: 'euc-kr', script: /[가-힣]/u },
-  ja: { charset: 'shift_jis', script: /[぀-ヿ一-鿿]/u },
+  ja: { charset: 'shift_jis', script: /[぀-ヿ一-鿿｡-ﾟ]/u },
 } as const satisfies Record<string, LegacyCharset | null>
 
 /** 이 표가 아는 언어. **`SUPPORTED_LOCALES`와 같아야 하고 검사가 그것을 본다.** */

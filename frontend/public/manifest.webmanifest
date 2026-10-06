@@ -1,7 +1,8 @@
 {
   "name": "Machine Learning Playgrounds",
   "short_name": "ML Playgrounds",
-  "description": "브라우저에서 데이터를 올려 기계학습 모델을 만들고, 결과를 분석하고, 포트폴리오를 하나의 파일로 남깁니다.",
+  "description": "Upload data in your browser to build machine learning models, analyze the results, and keep your portfolio in a single file.",
+  "lang": "en",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

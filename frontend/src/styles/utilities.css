@@ -561,3 +561,20 @@
   height: 95%;
   max-width: none;
 }
+
+/*
+ * **일본어 화면에서는 `break-keep`도 문절에서 끊는다** (2026-10-06, 코드 소유자).
+ *
+ * `keep-all`은 띄어쓰기 없는 일본어를 통째로 한 덩어리로 묶는다. 고정 라벨은 로케일의 폭 없는
+ * 공백이 끊을 자리를 정하지만(i18n.md 규칙 9), **학생이 쓴 글**(포트폴리오 문항 제목 등)은 로케일
+ * 밖이라 그 자리를 둘 수 없다. 그래서 일본어에서만 `auto-phrase`로 바꾼다 — 폭 없는 공백은
+ * 여전히 끊는 자리다.
+ *
+ * **모르는 브라우저는 이 줄을 버리고 `keep-all`을 그대로 쓴다** — 지금보다 나빠지는 곳이 없다.
+ * 유틸리티 층에 두어야 Tailwind의 `.break-keep`을 이긴다. `font-stack.spec.ts`가 문다.
+ */
+@layer utilities {
+  .break-keep:lang(ja) {
+    word-break: auto-phrase;
+  }
+}

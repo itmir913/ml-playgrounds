@@ -174,6 +174,15 @@ describe('압축 파일 이름 되살리기', () => {
     ])
   })
 
+  /**
+   * **반각 가타카나만으로 된 이름도 일본어다.** Shift_JIS는 `ｱ`(0xB1) 같은 반각 가나를 한
+   * 바이트로 적는다. `script`가 그 범위(U+FF61~FF9F)를 몰랐던 동안 이 이름은 Latin-1로 남았다.
+   */
+  it('반각 가타카나만으로 된 이름도 Shift_JIS로 읽는다', () => {
+    const halfwidth = [0xb1, 0xb2, 0xb3, 0x2f, 0x61, 0x2e, 0x70, 0x6e, 0x67] // prettier-ignore
+    expect(decodeZipNames([asFflateWouldRead(halfwidth)], { locale: 'ja' })).toEqual(['ｱｲｳ/a.png'])
+  })
+
   it('다른 언어의 코드 페이지로는 추정하지 않는다', () => {
     // 한국어 화면에서는 `euc-kr` 하나만 후보이고, 이 바이트는 그것으로 엄격하게 안 읽힌다.
     const given = asFflateWouldRead(SHIFT_JIS_RED)

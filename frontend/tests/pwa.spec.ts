@@ -57,12 +57,29 @@ describe('매니페스트', () => {
       expect(String(manifest[key] ?? '').length, key).toBeGreaterThan(0)
     }
   })
+
+  /**
+   * **정적 파일 하나라 언어마다 바꿀 수 없다** — 그래서 대체 언어(영어)로 적고 그렇다고 밝힌다
+   * (2026-10-06, 코드 소유자). 한국어로 박혀 있던 동안 일본어·영어 사용자의 설치 창과 검색
+   * 미리보기에 한국어가 나왔다. `index.html`의 meta description도 같다(아래).
+   */
+  it('설명은 대체 언어로 적고 그 언어를 밝힌다', () => {
+    expect(manifest['lang']).toBe('en')
+    expect(String(manifest['description'])).not.toMatch(/[가-힣぀-ヿ一-鿿]/u)
+  })
 })
 
 describe('머리말의 태그', () => {
   it('매니페스트와 아이콘을 상대 경로로 가리킨다', () => {
     expect(html).toContain('href="./manifest.webmanifest"')
     expect(html).toContain('href="./icon.svg"')
+  })
+
+  /** 매니페스트와 같은 이유로 대체 언어(영어)다. 문서 언어(`<html lang>`)도 영어로 시작한다. */
+  it('설명은 대체 언어로 적는다', () => {
+    const description = /<meta\s+name="description"\s+content="([^"]*)"/u.exec(html)?.[1] ?? ''
+    expect(description.length).toBeGreaterThan(0)
+    expect(description).not.toMatch(/[가-힣぀-ヿ一-鿿]/u)
   })
 
   /**
