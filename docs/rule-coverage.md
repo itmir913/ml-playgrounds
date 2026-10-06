@@ -138,6 +138,7 @@
 | 엑셀 폴백이 값을 주는가, 그려진 글자를 주는가 | `xlsx.spec.ts` |
 | 정본 MIME을 소스에 박는가 | `limits-rules.spec.ts` · `data/image/formats.ts` |
 | 팝오버 안을 굴려도 안 닫히는가 | `app-popover.spec.ts` |
+| 팝오버가 자리 없는 쪽을 피해 열리고 하단 막대 뒤를 자리로 안 세는가 — 자리는 가짜 상자로 잰다, 실제 배치는 사람 확인 | `app-popover-side.spec.ts` |
 | 답에 붙일 증거를 등록부가 고르는가 | `answer-evidence.spec.ts` |
 | 되보내는 부품이 인자를 흘리는가 | `ui-rules.spec.ts` |
 | 범주 이름이 세 운영체제에서 폴더가 되는가 | `image.spec.ts` |
