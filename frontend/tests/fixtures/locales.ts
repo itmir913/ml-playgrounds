@@ -50,6 +50,22 @@ export const LOCALE_MESSAGES: ReadonlyMap<string, ReadonlyMap<string, string>> =
   [...LOCALE_TREES].map(([tag, tree]) => [tag, flattenMessages(tree)]),
 )
 
+/**
+ * 로케일마다 **그 언어의 글자.** 번역된 값에는 이것이 있어야 하고, 다른 로케일의 값에는
+ * 없어야 한다. `null`은 라틴 문자라 따로 재지 않는다는 뜻이다 — 영어 값에 영어가 있는지는
+ * 라틴 문자를 쓰는 다른 언어와 못 가른다.
+ *
+ * 일본어는 가나와 한자다. 한자만 쓴 값(`回帰`·`前処理`)도 번역된 것이다.
+ *
+ * 로케일 파일(`locales.spec.ts` "번역이 빠진 값이 없다")과 앱 밖의 공개 페이지(`not-found-page.spec.ts`)가
+ * 같은 표로 잰다. 표의 언어가 로케일 파일과 같은지는 `locales.spec.ts`가 본다.
+ */
+export const LOCALE_SCRIPTS: Readonly<Record<string, RegExp | null>> = {
+  en: null,
+  ko: /[가-힣]/u,
+  ja: /[぀-ヿ一-鿿]/u,
+}
+
 /** 한 로케일의 편 문장들. 없는 태그면 던진다 — 조용히 빈 것을 주면 검사가 아무것도 안 잰다. */
 export function messagesOf(tag: string): ReadonlyMap<string, string> {
   const messages = LOCALE_MESSAGES.get(tag)

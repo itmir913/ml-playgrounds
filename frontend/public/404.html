@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<!--
+  **없는 주소에서 앱을 찾아 옮기는 페이지** (`docs/open-decisions.md` "104. 서버 경로의 없는 주소는 앱의 루트로
+  보낸다"). SPA 대체 응답이 아니다 — 앱은 해시 라우팅이라 그 응답이 필요 없고, 이 페이지는 앱을 띄우지 않는다.
+
+  GitHub Pages는 없는 경로에 이 파일을 상태 404로 준다. 개발 서버와 `vite preview`도 같게 준다
+  (`scripts/public-index.ts`). 이 페이지는 요청 경로의 깊이에서 뜨므로 상대 경로로는 앱의 루트를 알 수 없고,
+  같은 빌드가 Pages의 하위 경로와 학교 자가호스팅의 루트에 그대로 올라간다(`vite.config.ts`의 `base: './'`).
+  그래서 **요청 경로의 상위 경로를 하나씩 올라가며** 앱의 `index.html`을 찾는다. 앱은 `frontend/index.html`의
+  표식(`<meta name="ml-playgrounds-app">`)으로 알아본다 — 규정 서랍(`legal/index.html`)에는 없어서 지나친다.
+
+  찾는 동안은 안내를 숨긴다(`.searching`). 못 찾았거나 스크립트가 꺼져 있으면 옮기지 않고 안내와 사이트
+  루트로 가는 링크를 보인다. 스크립트가 꺼진 화면은 아래 영어 글자 그대로다.
+
+  **문구 표는 아래 JSON 한 곳이다.** `frontend/tests/not-found-page.spec.ts`가 표의 언어가 `SUPPORTED_LOCALES`와
+  같은지, 마크업의 영어가 표의 영어와 같은지 보고, 찾기 스크립트를 그대로 돌려 본다.
+
+  앱 번들 밖이고 어느 깊이에서 뜰지 몰라 외부 자산을 하나도 안 쓴다. 스타일과 스크립트는 이 파일이 전부 갖는다.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page not found · Machine Learning Playgrounds</title>
+    <style>
+        :root {
+            --ink: #1f2937;
+            --ink-soft: #4b5563;
+            --canvas: #f8fafc;
+            --brand: #4f46e5;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --ink: #e5e7eb;
+                --ink-soft: #cbd5e1;
+                --canvas: #0b1120;
+                --brand: #a5b4fc;
+            }
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 2.5rem 1.25rem 5rem;
+            background: var(--canvas);
+            color: var(--ink);
+            font-family: "Pretendard Variable", Pretendard, -apple-system, "Segoe UI",
+                         "Malgun Gothic", sans-serif;
+            font-size: 1rem;
+            line-height: 1.75;
+            overflow-wrap: break-word;
+        }
+
+        html[lang="ko"] body { word-break: keep-all; }
+        html[lang="ja"] body { font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", Meiryo, "Yu Gothic", "Pretendard Variable", Pretendard, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif; word-break: auto-phrase; }
+
+        main { max-width: 40rem; margin: 0 auto; }
+
+        /* 찾는 동안 안내가 번쩍이지 않게 숨긴다. 자리는 그대로 두어 못 찾았을 때 밀리지 않는다. */
+        .searching { visibility: hidden; }
+
+        h1 { font-size: 1.75rem; line-height: 1.4; margin: 0 0 0.5rem; }
+
+        p { color: var(--ink-soft); margin: 0 0 1.5rem; }
+
+        a { color: var(--brand); }
+    </style>
+    <!-- 스크립트가 꺼져 있으면 아무도 안내를 꺼내 주지 않는다. 처음부터 보인다. -->
+    <noscript><style>.searching { visibility: visible; }</style></noscript>
+</head>
+<body>
+<main class="searching" id="notice">
+    <h1 id="title">Page not found</h1>
+    <p id="body">There is no page at this address. Start again from the home page.</p>
+    <a href="/" id="home">Go to the home page</a>
+</main>
+
+<!--
+  **문구 표.** 언어를 늘릴 때 고치는 곳은 여기 하나다. 영어는 위 마크업과 같아야 한다 — 스크립트가 꺼진
+  화면이 그 글자다.
+-->
+<script type="application/json" id="messages">
+{
+  "en": {
+    "title": "Page not found",
+    "body": "There is no page at this address. Start again from the home page.",
+    "home": "Go to the home page"
+  },
+  "ko": {
+    "title": "페이지 없음",
+    "body": "이 주소에는 페이지가 없습니다. 첫 페이지에서 다시 시작하세요.",
+    "home": "첫 페이지로 이동"
+  },
+  "ja": {
+    "title": "ページが見つかりません",
+    "body": "このアドレスにはページがありません。トップページから開いてください。",
+    "home": "トップページへ移動"
+  }
+}
+</script>
+
+<script>
+    (function () {
+        // 앱의 `index.html`만 가진 표식. `frontend/index.html`의 같은 이름의 `<meta>`다.
+        var MARKER = 'ml-playgrounds-app'
+        var messages = JSON.parse(document.getElementById('messages').textContent)
+        var notice = document.getElementById('notice')
+
+        // 언어 결정: 주소의 ?lang= > 브라우저 선호 > 영어. 규정 서랍(`legal/index.html`)과 같은 순서다.
+        function pick() {
+            var asked = new URLSearchParams(location.search).get('lang')
+            if (asked && messages[asked]) return asked
+            var preferred = navigator.languages || [navigator.language || '']
+            for (var i = 0; i < preferred.length; i += 1) {
+                var tag = preferred[i] || ''
+                if (messages[tag]) return tag
+                var base = tag.split('-')[0]
+                if (messages[base]) return base
+            }
+            return 'en'
+        }
+
+        // 못 찾았다. 옮기지 않고 안내를 꺼낸다.
+        function show() {
+            var locale = pick()
+            var dict = messages[locale]
+            document.documentElement.lang = locale
+            document.title = dict.title + ' · Machine Learning Playgrounds'
+            document.getElementById('title').textContent = dict.title
+            document.getElementById('body').textContent = dict.body
+            document.getElementById('home').textContent = dict.home
+            notice.classList.remove('searching')
+        }
+
+        // 요청 경로의 상위 경로들. 가까운 것부터 `/`까지이고, 요청 경로 자신은 없으므로 넣지 않는다.
+        // 겹친 `/`는 하나로 접는다 — `//host/`가 프로토콜 상대 주소로 읽히지 않게 하고, 같은 후보가 두 번
+        // 나오지 않게 한다. 매 바퀴 끝의 `/`를 떼고 자르므로 경로가 반드시 짧아져 끝난다.
+        function parents(pathname) {
+            var path = pathname.replace(/\/{2,}/g, '/')
+            var found = []
+            if (path.charAt(0) !== '/') return found
+            while (path !== '/') {
+                path = path.replace(/\/$/, '')
+                path = path.slice(0, path.lastIndexOf('/') + 1)
+                found.push(path)
+            }
+            return found
+        }
+
+        function isApp(html) {
+            var page = new DOMParser().parseFromString(html, 'text/html')
+            return page.querySelector('meta[name="' + MARKER + '"]') !== null
+        }
+
+        // 하나씩 차례로 묻는다. 앱을 찾으면 거기서 멈추므로 요청은 상위 경로 수를 넘지 않는다.
+        // 묻다가 실패한 후보(네트워크 오류, 404)는 앱이 아닌 것으로 보고 다음으로 간다.
+        function look(candidates, index) {
+            if (index >= candidates.length) return show()
+            var url = location.origin + candidates[index]
+            return fetch(url, { credentials: 'same-origin' })
+                .then(
+                    function (response) { return response.ok ? response.text() : '' },
+                    function () { return '' }
+                )
+                .then(function (html) {
+                    // **해시는 들고 간다** — 깊은 링크가 살고, 앱에 없는 해시는 앱의 마지막 경로가 목록으로 보낸다.
+                    // **쿼리는 버린다** — 앱은 쿼리를 읽지 않는다(화면은 해시, 언어는 저장된 선택과 브라우저 설정).
+                    // 없는 페이지에 붙어 온 쿼리를 들고 가면 앱 주소에 뜻 없는 글자만 남는다.
+                    if (html && isApp(html)) location.replace(url + location.hash)
+                    else return look(candidates, index + 1)
+                })
+        }
+
+        if (typeof fetch !== 'function' || typeof DOMParser !== 'function' || typeof Promise !== 'function') {
+            show()
+            return
+        }
+        // 물을 후보가 없으면(루트 자신) `look`은 약속을 돌려주지 않는다 — 약속 안에서 부른다.
+        Promise.resolve()
+            .then(function () { return look(parents(location.pathname), 0) })
+            .catch(show)
+    })()
+</script>
+</body>
+</html>

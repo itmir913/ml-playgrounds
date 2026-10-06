@@ -1,16 +1,17 @@
 /**
  * **개발 서버와 `vite preview`가 배포본(Pages)처럼 경로를 준다** (`open-decisions.md`
- * "103. 개발 서버가 앱 밖의 경로에도 앱을 띄운다").
+ * "103. 개발 서버가 앱 밖의 경로에도 앱을 띄운다", "104. 서버 경로의 없는 주소는 앱의 루트로 보낸다").
  *
  * 개발 서버로 하는 인수 테스트(LAN의 휴대폰 포함)에서 [규정 문서] 링크가 서랍 대신 앱을 띄우면
  * 배포본과 다른 화면을 보고 판정하게 된다. 배포본의 규칙은 셋이다.
  *
  * 1. `public/`의 디렉터리 주소는 그 `index.html`이다 (쿼리가 붙어도).
  * 2. 앱의 진입(`/`)은 앱이다.
- * 3. 없는 경로는 404다 — 라우터가 해시 모드라 SPA 대체 응답이 필요 없다.
+ * 3. 없는 경로는 상태 404로 `404.html`이다 — 앱을 대신 주지 않는다(라우터가 해시 모드라 SPA 대체
+ *    응답이 필요 없다). 그 페이지가 앱을 찾아 옮기는 것은 `not-found-page.spec.ts`가 본다.
  *
  * **판단 함수만 보면 설정을 빼도 초록이다.** `appType: 'mpa'`가 빠지면 없는 경로가 다시 앱이
- * 되고, 플러그인이 빠지면 `/legal/`가 404가 된다 — 그래서 저장소의 `vite.config.ts`로 실제
+ * 되고, 플러그인이 빠지면 `/legal/`가 404가 되고 없는 경로가 빈 몸이 된다 — 그래서 저장소의 `vite.config.ts`로 실제
  * 서버를 세워 HTTP로 묻는다. 의존성 사전 번들링은 끄고 캐시는 임시 디렉터리에 둔다 — 옆에서
  * 도는 개발 서버(5173)의 캐시를 건드리면 그쪽이 다시 읽는다.
  */
@@ -24,7 +25,7 @@ import { join } from 'node:path'
 import { createServer, preview, type PreviewServer, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { fileUnder, publicDirectoryIndex } from '../scripts/public-index'
+import { fileUnder, mayServeHtml, publicDirectoryIndex } from '../scripts/public-index'
 
 /** vitest는 `frontend/`에서 돈다. */
 const FRONTEND = process.cwd()
@@ -38,6 +39,8 @@ function titleOf(html: string): string | null {
 const APP_TITLE = titleOf(readFileSync(join(FRONTEND, 'index.html'), 'utf8'))
 const DRAWER_TITLE = titleOf(readFileSync(join(PUBLIC, 'legal', 'index.html'), 'utf8'))
 const PRIVACY_JA_TITLE = titleOf(readFileSync(join(PUBLIC, 'legal', 'privacy.ja.html'), 'utf8'))
+const NOT_FOUND_HTML = readFileSync(join(PUBLIC, '404.html'), 'utf8')
+const NOT_FOUND_TITLE = titleOf(NOT_FOUND_HTML)
 
 /** 탈출 표본. `fetch`는 점 구간을 접어 버리므로 그대로 보내는 `http.request`로 묻는다. */
 const ESCAPES = ['/../package.json', '/%2e%2e/package.json', '/legal/%2e%2e/%2e%2e/package.json']
@@ -48,7 +51,7 @@ interface Answer {
 }
 
 /** 브라우저가 문서를 열 때처럼 묻는다. 경로를 정규화하지 않는다. */
-function get(port: number, path: string): Promise<Answer> {
+function fetchRaw(port: number, path: string): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const req = request(
       { host: '127.0.0.1', port, path, headers: { accept: 'text/html' } },
@@ -56,13 +59,28 @@ function get(port: number, path: string): Promise<Answer> {
         let body = ''
         res.setEncoding('utf8')
         res.on('data', (chunk: string) => (body += chunk))
-        res.on('end', () => resolve({ status: res.statusCode ?? 0, title: titleOf(body) }))
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, body }))
       },
     )
     req.on('error', reject)
     req.end()
   })
 }
+
+async function get(port: number, path: string): Promise<Answer> {
+  const { status, body } = await fetchRaw(port, path)
+  return { status, title: titleOf(body) }
+}
+
+/** 없는 경로들. 탈출 표본도 여기 든다 — 밖의 파일 대신 404 페이지를 받는다. */
+const MISSING = [
+  '/nowhere/',
+  '/nowhere',
+  '/nowhere/deep/?q=1',
+  '/portfolio/',
+  '/legal/nope.html',
+  ...ESCAPES,
+]
 
 describe('publicDirectoryIndex — 요청 주소를 public/의 디렉터리 index로 바꾼다', () => {
   const isPublicFile = fileUnder(PUBLIC)
@@ -122,6 +140,25 @@ describe('publicDirectoryIndex — 요청 주소를 public/의 디렉터리 inde
   })
 })
 
+describe('mayServeHtml — Vite의 HTML 응답이 받을 주소만 그쪽에 둔다', () => {
+  const isAppFile = fileUnder(FRONTEND)
+
+  it('실재하는 .html은 Vite가 준다 — 쿼리가 붙어도', () => {
+    expect(mayServeHtml('/index.html', isAppFile)).toBe(true)
+    expect(mayServeHtml('/index.html?lang=ja', isAppFile)).toBe(true)
+  })
+
+  it('.html이 아니거나 없는 파일이면 Vite의 답은 404다', () => {
+    for (const url of ['/', '/nowhere/', '/nowhere', '/nope.html', '/legal/index.html']) {
+      expect(mayServeHtml(url, isAppFile), url).toBe(false)
+    }
+  })
+
+  it('못 푸는 주소는 Vite에 맡긴다', () => {
+    expect(mayServeHtml('/%E0%A4%A.html', () => false)).toBe(true)
+  })
+})
+
 describe('개발 서버 — 저장소의 vite.config.ts로 세운다', () => {
   let vite: ViteDevServer
   let http: Server
@@ -168,10 +205,16 @@ describe('개발 서버 — 저장소의 vite.config.ts로 세운다', () => {
     }
   })
 
-  it('없는 경로는 404다 — 앱을 대신 주지 않는다', async () => {
-    for (const path of ['/nowhere/', '/nowhere', '/portfolio/', ...ESCAPES]) {
-      expect((await get(port, path)).status, path).toBe(404)
+  it('없는 경로는 상태 404로 404.html이다 — 앱을 대신 주지 않는다', async () => {
+    expect(NOT_FOUND_TITLE).not.toBeNull()
+    expect(NOT_FOUND_TITLE).not.toBe(APP_TITLE)
+    for (const path of MISSING) {
+      expect(await get(port, path), path).toEqual({ status: 404, title: NOT_FOUND_TITLE })
     }
+  })
+
+  it('404.html은 public/의 파일 그대로다 — 앱처럼 변환하지 않는다', async () => {
+    expect(await fetchRaw(port, '/nowhere/')).toEqual({ status: 404, body: NOT_FOUND_HTML })
   })
 })
 
@@ -188,6 +231,7 @@ describe('vite preview — 산출물 하나에서 같은 규칙이다', () => {
     writeFileSync(join(outDir, 'index.html'), '<title>app</title>')
     writeFileSync(join(outDir, 'legal', 'index.html'), '<title>drawer</title>')
     writeFileSync(join(outDir, 'portfolio', 'index.json'), '{}')
+    writeFileSync(join(outDir, '404.html'), '<title>lost</title>')
     server = await preview({
       configFile: CONFIG,
       root: FRONTEND,
@@ -213,9 +257,14 @@ describe('vite preview — 산출물 하나에서 같은 규칙이다', () => {
     expect(await get(port, '/')).toEqual({ status: 200, title: 'app' })
   })
 
-  it('없는 경로는 404다', async () => {
-    for (const path of ['/nowhere/', '/nowhere', '/portfolio/', ...ESCAPES]) {
-      expect((await get(port, path)).status, path).toBe(404)
+  it('없는 경로는 상태 404로 산출물의 404.html이다', async () => {
+    for (const path of MISSING) {
+      expect(await get(port, path), path).toEqual({ status: 404, title: 'lost' })
     }
+  })
+
+  it('산출물의 파일은 그 파일이다 — 404.html이 가로채지 않는다', async () => {
+    expect(await get(port, '/404.html')).toEqual({ status: 200, title: 'lost' })
+    expect((await fetchRaw(port, '/portfolio/index.json')).status).toBe(200)
   })
 })

@@ -4,6 +4,13 @@
 
 > **상태 한 줄과, 제목이 물음일 때만 결론 한 줄을 둔다.** 경위는 같은 제목 아래 `docs/cases/open-decisions.md`에 있다.
 
+### 104. 서버 경로의 없는 주소는 앱의 루트로 보낸다
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. 해시 경로의 없는 주소는 이미 프로젝트 목록(앱의 루트)으로
+간다 — 서버 경로도 같다. 배포본은 `public/404.html`이 상위 경로를 올라가며 앱을 찾아 그리로 옮기고(앱은
+`index.html`의 `<meta name="ml-playgrounds-app">`로 알아본다. 해시는 들고 가고 쿼리는 버린다), 개발 서버와
+`vite preview`도 없는 경로에 같은 페이지를 상태 404로 준다. 103의 "없는 경로는 404다"를 대체한다.
+찾기와 문구 표는 `tests/not-found-page.spec.ts`가, 서버의 응답은 `tests/dev-routes.spec.ts`가 문다.
+
 ### 103. 개발 서버가 앱 밖의 경로에도 앱을 띄운다
 **[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. 개발 서버도 배포본처럼 `public/`의 하위
 `index.html`을 그 경로에서 주고, 없는 경로는 404다 — 앱은 해시 라우팅이라 SPA 대체 응답이 필요 없다.

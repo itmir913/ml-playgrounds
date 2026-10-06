@@ -45,6 +45,7 @@
 | §4 CI가 뱉는 글자는 영어다 | `ci-language.spec.ts` |
 | 가운뎃점 규칙 (`copy.md`) | `middle-dot.spec.ts` |
 | §3 지원 언어마다 **바깥에 내놓는 처리방침**이 있는가 | `legal.spec.ts` |
+| §3 **없는 주소의 안내**(`public/404.html`)가 지원 언어마다 있고 그 언어의 글자인가 — 실제 브라우저의 이동과 번쩍임은 사람 확인이다(`acceptance.md` §1.1) | `not-found-page.spec.ts` |
 | 주석이 가리키는 **심볼**이 거기 있는가 | `doc-refs.spec.ts` |
 | §1.5 제출을 막을 만큼 커지면 알리는가 | `file-size.spec.ts` |
 | §0 첫 화면에 **무거운 모듈이 정적 임포트로 닿지 않는가**, 첫 화면 조각은 정적인가(`architecture.md` §7.4.1) — 소스의 정적 그래프를 TS AST로 본다. 빌드 도구가 실제로 나누는 조각과 글꼴은 못 본다 | `entry-chunks.spec.ts` |

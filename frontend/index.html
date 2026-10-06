@@ -44,6 +44,12 @@
       이 앱은 위에 도구 막대가 붙어 있어 시계와 제목이 겹친다.
     -->
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <!--
+      **앱의 표식.** 없는 주소에 뜨는 `public/404.html`이 상위 경로를 올라가며 이 문서를 찾아 옮긴다
+      (`open-decisions.md` "104. 서버 경로의 없는 주소는 앱의 루트로 보낸다"). 앱의 문서만 갖는다 — 규정 서랍에
+      두면 서랍으로 옮긴다. `tests/not-found-page.spec.ts`가 문다.
+    -->
+    <meta name="ml-playgrounds-app" content="root" />
   </head>
   <body>
     <div id="app"></div>

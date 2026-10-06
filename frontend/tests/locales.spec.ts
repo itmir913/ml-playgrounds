@@ -26,7 +26,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { LOCALE_MESSAGES, LOCALE_TAGS, messagesOf } from './fixtures/locales'
+import { LOCALE_MESSAGES, LOCALE_SCRIPTS, LOCALE_TAGS, messagesOf } from './fixtures/locales'
 import { sourceFiles } from './fixtures/source'
 import { matches, RETIRED_WORDS, retiredIn } from './fixtures/retired-words'
 
@@ -1125,18 +1125,8 @@ describe('번역이 빠진 값이 없다', () => {
     return /[A-Za-z]/.test(message.replaceAll(/\{\w+\}/g, ''))
   }
 
-  /**
-   * 로케일마다 **그 언어의 글자.** 번역된 값에는 이것이 있어야 하고, 다른 로케일의 값에는
-   * 없어야 한다. `null`은 라틴 문자라 따로 재지 않는다는 뜻이다 — 영어 값에 영어가 있는지는
-   * 라틴 문자를 쓰는 다른 언어와 못 가른다.
-   *
-   * 일본어는 가나와 한자다. 한자만 쓴 값(`回帰`·`前処理`)도 번역된 것이다.
-   */
-  const SCRIPTS: Readonly<Record<string, RegExp | null>> = {
-    en: null,
-    ko: /[가-힣]/u,
-    ja: /[぀-ヿ一-鿿]/u,
-  }
+  /** 로케일마다 그 언어의 글자. 앱 밖의 공개 페이지도 같은 표로 재므로 픽스처에 있다. */
+  const SCRIPTS = LOCALE_SCRIPTS
 
   /** 그 언어의 글자가 없어도 되는 자리. **줄마다 왜인지 적는다.** */
   const NOT_TRANSLATED: readonly string[] = [

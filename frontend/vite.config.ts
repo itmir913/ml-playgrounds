@@ -10,7 +10,7 @@ import tailwindcss from '@tailwindcss/vite'
 // 확장자를 붙인다. vite 설정이 물고 들어가는 상대 경로는 `configLoader: 'native'`가
 // 확장자를 요구하고, 없으면 빌드마다 경고 한 덩이가 붙는다.
 import { thirdPartyNotices } from './scripts/notices.js'
-import { publicDirectoryIndexes } from './scripts/public-index.js'
+import { publicRoutes } from './scripts/public-index.js'
 
 /**
  * **남의 고지를 산출물에 굽는 플러그인.** 왜 필요한지는 `scripts/notices.ts`에 있다.
@@ -30,7 +30,7 @@ const quietChecks = { pluginTimings: false }
 
 // Tailwind v4는 설정 파일이 없다. 테마는 src/styles/theme.css 안에서 정의한다.
 export default defineConfig({
-  plugins: [vue(), tailwindcss(), notices.emit, publicDirectoryIndexes()],
+  plugins: [vue(), tailwindcss(), notices.emit, publicRoutes()],
   worker: { plugins: () => [notices.collect], rolldownOptions: { checks: quietChecks } },
   /**
    * **배포 경로가 둘이라 base를 상대 경로로 고정한다.**
@@ -41,9 +41,11 @@ export default defineConfig({
    * 양쪽에 그대로 들어간다"(CLAUDE.md §2)와 부딪힌다. `'./'`면 어느 하위 경로에서도,
    * 루트에서도 같은 산출물이 그대로 돈다.
    *
-   * 이게 되는 전제 셋: 라우터가 해시 모드라(`router/index.ts`) `404.html` SPA
-   * 폴백이 필요 없고, 워커가 `import.meta.url` 기준으로 잡히며, 소스 어디서도
+   * 이게 되는 전제 셋: 라우터가 해시 모드라(`router/index.ts`) 서버가 앱을 대신 주는
+   * SPA 폴백이 필요 없고, 워커가 `import.meta.url` 기준으로 잡히며, 소스 어디서도
    * `import.meta.env.BASE_URL`을 읽지 않는다. 상세는 `docs/open-decisions.md` #10-1.
+   * `public/404.html`은 SPA 폴백이 아니다 — 앱을 띄우지 않고 상위 경로를 올라가며 앱을
+   * 찾아 옮기는 페이지라, 배포 경로를 몰라도 된다(`open-decisions.md` 104).
    */
   base: './',
   /**
@@ -52,7 +54,8 @@ export default defineConfig({
    * 기본값 `'spa'`는 없는 경로에 앱의 `index.html`을 준다. 라우터가 해시 모드라 그 응답이
    * 필요한 주소가 없고, 오히려 `/legal/`에 규정 서랍 대신 앱을 띄워 배포본과 다른 화면을
    * 보게 했다. `'mpa'`면 없는 경로는 Pages처럼 404다. 개발 서버와 `vite preview`에 걸리고
-   * 빌드 산출물은 그대로다. `public/`의 디렉터리 index는 `scripts/public-index.ts`가 메운다.
+   * 빌드 산출물은 그대로다. `public/`의 디렉터리 index와 없는 경로의 `404.html`(Pages처럼
+   * 상태 404로, `open-decisions.md` 104)은 `scripts/public-index.ts`가 메운다.
    * 둘 다 `tests/dev-routes.spec.ts`가 문다.
    */
   appType: 'mpa',
