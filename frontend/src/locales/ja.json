@@ -3,6 +3,9 @@
     "name": "Machine Learning Playgrounds",
     "tagline": "インストール不要で、AIを自由に試してみてください。データさえあれば誰でも機械学習モデルを作り、その過程を一つのプロジェクトに記録できます。"
   },
+  "datasets": {
+    "demo": "手元にデータがなければ、サンプルデータセットを使ってみてください"
+  },
   "legal": {
     "privacy": "プライバシーポリシー",
     "source": "GitHub",
@@ -116,6 +119,24 @@
     "pyodide-sklearn": "scikit-learn · このコンピュータ",
     "server-sklearn": "scikit-learn · 自前のサーバ"
   },
+  "projects": {
+    "dataType": "データの種類",
+    "dataTypeHint": "プロジェクトを作成した後は、データの種類を変更できません。",
+    "new": "新規プロジェクト",
+    "newTitle": "新規プロジェクトの作成",
+    "newDescription": "プロジェクト名を入力して、使うデータの種類を選択してください。",
+    "name": "プロジェクト名",
+    "nameHint": "プロジェクトをファイルに保存すると、プロジェクト名がファイル名になります。",
+    "nameRequired": "プロジェクト名を入力してください。",
+    "create": "作成",
+    "delete": "削除",
+    "deleteTitle": "このプロジェクトを削除しますか？",
+    "deleteDescription": "データと学習結果もあわせて削除されます。元に戻せません。({name})",
+    "opening": "ファイルを開いています…",
+    "unreadable": "開けないプロジェクト",
+    "saved": "このコンピュータのプロジェクト",
+    "savedCount": "このコンピュータにはプロジェクトが{count}件保存されています。"
+  },
   "common": {
     "cancel": "キャンセル",
     "dismiss": "閉じる",
@@ -149,5 +170,76 @@
   "execution": {
     "browser": "このコンピュータ",
     "server": "サーバ"
+  },
+  "project": {
+    "export": "ファイルに保存",
+    "exportDone": "ファイルに保存しました。USBメモリやクラウドなど安全な場所に保管してください。",
+    "exportDropped": "容量の制限のため、モデル{count}個をファイルに保存できませんでした。指標はそのまま記録されています。",
+    "open": "ファイルの読み込み",
+    "openModified": "保存された後に、このアプリの外で内容が変更されたファイルです。開けますが、ファイルに記録された結果が実際の学習結果と異なる場合があります。",
+    "emptyPhotoFolderRemoved": "写真が1枚もない写真データを、このプロジェクトから除外しました。必要であれば、写真をもう一度追加してください。",
+    "openNewerTitle": "このコンピュータに、より新しい作業があるかもしれません",
+    "openNewerBody": "このコンピュータに同じプロジェクトがあり、読み込んだファイルにない作業が含まれているかもしれません。読み込んだファイルを開くと、このコンピュータのプロジェクトはファイルの内容に差し替えられます。({name})",
+    "openNewerLocalAt": "このコンピュータのプロジェクトの更新日時: {at}",
+    "openNewerFileAt": "読み込んだファイルの更新日時: {at}",
+    "openNewerKeep": "このコンピュータのプロジェクトを開く",
+    "openNewerReplace": "読み込んだファイルを開く",
+    "leaveTitle": "ブラウザに保存できなかった作業があります",
+    "leaveBody": "今移動すると、この作業は失われます。ファイルに保存すれば、後でもう一度開けます。",
+    "leaveStay": "この画面に残る",
+    "leaveAnyway": "保存せずに移動",
+    "homeLead": "このプロジェクトの進捗状況を表示します。続けて取り組むステップを下から選択してください。",
+    "resume": "続きから: {task}",
+    "openStep": "開く",
+    "done": "完了",
+    "locked": "ロック中",
+    "exportLead": "出席番号と氏名の入力は任意です。入力すると、ファイル名の先頭に付きます。",
+    "exportNow": "保存",
+    "dashboard": "ダッシュ​ボード"
+  },
+  "identity": {
+    "title": "プロジェクト情報",
+    "studentId": "出席番号",
+    "studentName": "氏名",
+    "fileNameHint": "保存されるファイル名: {fileName}",
+    "rename": "プロジェクト名を変更({name})"
+  },
+  "meta": {
+    "title": "プロジェクトの概要",
+    "created": "作成日時",
+    "updated": "更新日時",
+    "sizeWarning": "ファイルが{limit}を超えているため、提出先によってはアップロードできない場合があります。",
+    "size": "サイズ",
+    "dataType": "データの種類",
+    "taskType": "機械学習の種類",
+    "algorithms": "追加したモデル",
+    "runs": "学習済みモデル",
+    "none": "なし",
+    "countUnit": "{count}個",
+    "tabular": {
+      "columns": "列数",
+      "dataset": "データファイル",
+      "features": "特徴量(Feature)の数",
+      "usableFeatures": "学習に使う特徴量の数",
+      "rows": "行数",
+      "target": "目的変数(Target)"
+    },
+    "image": {
+      "photos": "写真",
+      "categories": "クラス",
+      "unlabeled": "クラスなし",
+      "count": "{count}枚",
+      "countUnit": "{count}枚",
+      "photoOrder": "写真の一覧",
+      "photosPerCategory": "クラスごとの写真の枚数",
+      "unlabeledCount": "クラスなしの写真の枚数",
+      "backbone": "バックボーン(Backbone)",
+      "preparing": "写真を準備中({done}/{total})",
+      "engineAbsent": "画像の学習を準備しています。",
+      "engineDownloading": "バックボーン(Backbone)をダウンロードしています。",
+      "engineDownloadingPercent": "バックボーン(Backbone)をダウンロードしています。{percent}",
+      "engineDownloaded": "バックボーン(Backbone)のダウンロードが完了しました。準備しています。",
+      "engineReady": "バックボーン(Backbone)で写真の特徴ベクトルを抽出しています。"
+    }
   }
 }
