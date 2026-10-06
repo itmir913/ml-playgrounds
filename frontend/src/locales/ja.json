@@ -1,0 +1,153 @@
+{
+  "app": {
+    "name": "Machine Learning Playgrounds",
+    "tagline": "インストール不要で、AIを自由に試してみてください。データさえあれば誰でも機械学習モデルを作り、その過程を一つのプロジェクトに記録できます。"
+  },
+  "legal": {
+    "privacy": "プライバシーポリシー",
+    "source": "GitHub",
+    "notices": "オープンソースライセンス"
+  },
+  "nav": {},
+  "dataTypes": {
+    "image": "画像データ",
+    "tabular": "表形式データ"
+  },
+  "taskTypes": {
+    "classification": "分類(Classification)",
+    "regression": "回帰(Regression)",
+    "clustering": "クラスタリング(Clustering)"
+  },
+  "tasks": {
+    "datasetReady": "データの読み込み",
+    "targetChosen": "目的変数(Target)の選択",
+    "featuresChosen": "特徴量(Feature)の選択",
+    "algorithmsChosen": "モデルの追加",
+    "trainingDone": "モデルの学習",
+    "modelReady": "予測に使うモデルの準備",
+    "portfolioAnswered": "ポートフォリオの記入",
+    "title": "やること",
+    "allDone": "このステップでやることはすべて完了しました。",
+    "lockedBy": "先に済ませる作業があります。({task})",
+    "taskTypeChosen": "機械学習の種類の選択",
+    "image": {
+      "datasetReady": "写真の追加",
+      "targetChosen": "クラスの指定"
+    }
+  },
+  "shell": {
+    "steps": "ステップ",
+    "noProject": "まだプロジェクトを開いていません。",
+    "language": "言語",
+    "toLight": "ライトモードに切り替え",
+    "toDark": "ダークモードに切り替え",
+    "limits": "この端末の上限",
+    "limitsOpenName": "この端末の上限(解除中)",
+    "limitsApplied": "この端末に合わせた上限を適用しています。",
+    "limitsReleased": "上限は解除されています。",
+    "limitsWhy": "上限はすべてのコンピュータに同じ値で適用されるため、性能の高いコンピュータでは必要以上に作業が制限されます。",
+    "limitsRisk": "解除すると、はるかに大きなデータで学習できます。その代わり、学習にとても長い時間がかかることがあり、大きなファイルを開いたり予測したりしている間に、ブラウザが「ページが応答しません」という警告を表示することがあります。",
+    "limitsRiskOn": "これで、はるかに大きなデータで学習できます。学習にとても長い時間がかかることがあり、大きなファイルを開いたり予測したりしている間に、ブラウザが「ページが応答しません」という警告を表示することがあります。",
+    "limitsEstimate": "かかる時間は、学習画面の予想時間で確認できます。ただし、まだ測定したことのない組み合わせでは予想時間が表示されません。",
+    "limitsDevice": "この設定はこの端末にだけ保存され、プロジェクトファイルには含まれません。",
+    "limitsRelease": "上限を解除",
+    "limitsOff": "上限解除中",
+    "limitsRestore": "上限を適用",
+    "inspect": "チェック"
+  },
+  "save": {
+    "notExported": "ファイルに未保存",
+    "exported": "ファイルに保存済み",
+    "stale": "前回のファイル保存後に変更あり",
+    "exportWarning": "これまでの作業はこのコンピュータに一時的に保存されているだけなので、削除されることがあります。ファイルに保存すると長く保管でき、別のコンピュータで開いて続きから作業できます。",
+    "keepFile": "保存したファイルは、USBメモリやクラウドなど安全な場所に保管するか、提出してください。"
+  },
+  "steps": {
+    "data": {
+      "label": "データ",
+      "tabular": {
+        "purpose": "データファイルを読み込み、どのような列があるかを確認します。"
+      },
+      "image": {
+        "purpose": "学習に使う写真を追加します。"
+      }
+    },
+    "preprocess": {
+      "label": "前処理",
+      "tabular": {
+        "purpose": "学習に使えるようにデータを整えます。",
+        "locked": "先にデータを読み込んでください。",
+        "emptyReason": "まだデータを読み込んでいません。",
+        "emptyNext": "データのステップでファイルを読み込むと、ここで何を予測するかを選択できます。"
+      },
+      "image": {
+        "purpose": "追加した写真を学習にどう使うかを設定します。",
+        "locked": "先に写真を追加してください。",
+        "emptyReason": "まだ写真を追加していません。",
+        "emptyNext": "データのステップで写真を追加すると、ここで学習の準備を整えられます。"
+      }
+    },
+    "train": {
+      "label": "学習",
+      "purpose": "機械学習の種類とモデルを選択して学習します。"
+    },
+    "results": {
+      "label": "結果",
+      "locked": "学習が1回以上完了すると開きます。",
+      "purpose": "学習を1回実行するたびに実験が1件追加されます。実験ごとの指標を並べて比較し、どの設定を変えたときに結果がどう変わったかを確認します。"
+    },
+    "predict": {
+      "label": "予測",
+      "locked": "予測するには学習済みモデルが必要です。",
+      "tabular": {
+        "purpose": "新しい値を入力すると、モデルごとの予測結果を表示します。"
+      },
+      "image": {
+        "purpose": "新しい写真を追加すると、モデルごとの予測結果を表示します。"
+      }
+    },
+    "portfolio": {
+      "label": "ポート​フォリオ",
+      "purpose": "設問に答えながら、このプロジェクトの過程と結果を文章にまとめます。"
+    }
+  },
+  "runtimes": {
+    "mljs": "ml.js · このコンピュータ",
+    "pyodide-sklearn": "scikit-learn · このコンピュータ",
+    "server-sklearn": "scikit-learn · 自前のサーバ"
+  },
+  "common": {
+    "cancel": "キャンセル",
+    "dismiss": "閉じる",
+    "on": "オン",
+    "off": "オフ",
+    "selectAll": "すべて選択",
+    "clearAll": "すべて解除",
+    "prevPage": "前へ",
+    "nextPage": "次へ"
+  },
+  "language": {
+    "en": "English",
+    "ko": "한국어",
+    "ja": "日本語"
+  },
+  "stages": {
+    "QUEUED": "待機中",
+    "VALIDATING": "データ確認中",
+    "PREPROCESSING": "前処理中",
+    "TRAINING": "学習中",
+    "EVALUATING": "評価中",
+    "DONE": "完了",
+    "FAILED": "失敗"
+  },
+  "engineState": {
+    "absent": "未準備",
+    "downloading": "ダウンロード中",
+    "downloaded": "ダウンロード済み、準備が必要",
+    "ready": "準備完了"
+  },
+  "execution": {
+    "browser": "このコンピュータ",
+    "server": "サーバ"
+  }
+}

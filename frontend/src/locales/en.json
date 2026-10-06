@@ -597,7 +597,8 @@
   },
   "language": {
     "en": "English",
-    "ko": "한국어"
+    "ko": "한국어",
+    "ja": "日本語"
   },
   "errors": {
     "REQUEST_INVALID": "The request is not in the expected format. Check: {fields}",

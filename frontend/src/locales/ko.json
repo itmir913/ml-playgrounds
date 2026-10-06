@@ -597,7 +597,8 @@
   },
   "language": {
     "en": "English",
-    "ko": "한국어"
+    "ko": "한국어",
+    "ja": "日本語"
   },
   "errors": {
     "REQUEST_INVALID": "요청 형식이 올바르지 않습니다. 확인이 필요한 항목: {fields}",
