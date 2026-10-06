@@ -2,7 +2,9 @@
  * vue-i18n 설정.
  *
  * 지원 언어는 배열 하나로 관리한다. 특정 언어를 가정한 분기를 만들지 마라.
- * 언어를 늘릴 때 고쳐야 하는 곳은 SUPPORTED_LOCALES와 messages 두 줄뿐이어야 한다.
+ * 언어를 늘리는 자리는 SUPPORTED_LOCALES다. **언어마다 한 줄씩 채울 표가 여럿 따라오고**
+ * (messages·LOCALE_FONTS, `data/`의 코드 페이지 표, 처리방침·양식 파일), 빠뜨리면 컴파일이나
+ * 검사가 운다 — 목록은 그 표들의 `SUPPORTED_LOCALES` 대조 검사가 갖는다.
  *
  * 초기값은 저장된 선택 > navigator 언어 > 대체 언어 순으로 결정한다.
  * 선택은 IndexedDB에 저장한다 (CLAUDE.md 1.2).

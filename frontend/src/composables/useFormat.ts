@@ -152,7 +152,7 @@ export function formatRawCell(value: number): string {
  *
  * `unit`·`narrow`다. 영어·한국어는 `join(' ')`과 글자까지 같다 — 나열 기호(`, `·`및`)가
  * 붙는 다른 조합은 ko·en 표시를 바꾼다. **문장만 잇는다** — 이름이나 값을 이으면 일본어에서
- * 붙어 버린다. `create.spec.ts` "문장을 그 언어대로 잇는다"가 세 언어를 문다.
+ * 붙어 버린다. `create.spec.ts` "문장을 그 언어대로 잇는다"가 문다.
  */
 export function formatSentences(locale: string, sentences: readonly string[]): string {
   return new Intl.ListFormat(locale, { type: 'unit', style: 'narrow' }).format(sentences)

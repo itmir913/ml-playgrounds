@@ -196,3 +196,53 @@ describe('언어 선택의 경합', () => {
     expect(module.i18n.global.locale.value).toBe('ko')
   })
 })
+
+/**
+ * **언어를 고를 때 그 언어의 글꼴만 부른다** (`LOCALE_FONTS`). 위의 "언어마다 더 싣는 글꼴"은
+ * 표만 본다 — 부르는 자리가 언어와 무관하게 일본어 글꼴을 받아도 초록이었다(2026-10-06 감사).
+ */
+describe('고른 언어의 글꼴만 부른다', () => {
+  afterEach(() => {
+    vi.doUnmock('../src/project/storage')
+    vi.restoreAllMocks()
+    vi.resetModules()
+  })
+
+  async function freshI18n(): Promise<typeof import('../src/i18n')> {
+    vi.resetModules()
+    vi.doMock('../src/project/storage', () => ({
+      readPreferredLocale: () => Promise.resolve(null),
+      writePreferredLocale: () => Promise.resolve(),
+    }))
+    return import('../src/i18n')
+  }
+
+  it('한국어·영어를 고르면 일본어 글꼴을 부르지 않는다', async () => {
+    const module = await freshI18n()
+    const load = vi.spyOn(module.LOCALE_FONTS, 'ja').mockResolvedValue({ default: '' })
+    await module.setLocale('ko')
+    await module.setLocale('en')
+    expect(load).not.toHaveBeenCalled()
+    await module.setLocale('ja')
+    expect(load).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * **못 받아도 화면은 선다 — 그리고 거절을 받는 손이 있다.** 처리 안 된 거절은 이 환경에서
+   * 관측되지 않아(실측 — 받는 손을 떼도 초록이었다) 로더가 돌려준 것에 `catch`가 붙는지를 본다.
+   */
+  it('글꼴을 못 받아도 언어는 바뀌고 거절을 받는다', async () => {
+    const module = await freshI18n()
+    const caught = vi.fn()
+    const failing = {
+      catch(handler: (reason: unknown) => unknown) {
+        caught()
+        return Promise.resolve(handler(new Error('offline')))
+      },
+    }
+    vi.spyOn(module.LOCALE_FONTS, 'ja').mockReturnValue(failing as unknown as Promise<never>)
+    await module.setLocale('ja')
+    expect(module.i18n.global.locale.value).toBe('ja')
+    expect(caught).toHaveBeenCalledTimes(1)
+  })
+})

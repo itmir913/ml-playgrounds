@@ -86,8 +86,9 @@ export function toDataset(grid: TableGrid, hasHeader: boolean): Dataset {
  * 넘기면 Vue가 `JSON.stringify(값, null, 2)`로 펴서, 학생이 대괄호와 따옴표와 줄바꿈이
  * 든 문장을 받는다 (2026-08-29 전 경로 감사).
  *
- * 쉼표로 잇는 것은 이 저장소가 빠진 열을 알릴 때 이미 쓰는 꼴이고, 지원하는 세 언어가
- * 모두 목록을 쉼표로 잇는다.
+ * 쉼표로 잇는 것은 이 저장소가 빠진 열을 알릴 때 이미 쓰는 꼴이다. **언어마다 나열 기호가
+ * 달라도(일본어는 `、`) 여기는 쉼표다** — 이름은 문장 끝 괄호에 빠진 학생 데이터라 문장의 나열이
+ * 아니다(`docs/i18n.md` 규칙 6).
  */
 export function nameList(names: readonly string[]): string {
   return names.join(', ')

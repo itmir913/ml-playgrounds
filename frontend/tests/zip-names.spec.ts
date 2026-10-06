@@ -200,6 +200,18 @@ describe('압축 파일 이름 되살리기', () => {
     }
   })
 
+  /**
+   * **대문자 악센트 하나로는 바꾸지 않는다** (2026-10-06 감사). 반각 가나의 바이트(0xA1~0xDF)는
+   * Latin-1의 `À`~`ß`와 같은 자리라, 한 글자를 증거로 삼던 동안 `Über`가 `ﾜber`로 읽혔다.
+   * 반각 가나는 두 글자 이상 이어질 때만 증거다(`zip-names.ts`의 `LEGACY_CHARSETS` 주석).
+   */
+  it('대문자 악센트 하나로는 바꾸지 않는다 — 일본어 화면의 Latin-1 이름', () => {
+    const uber = [0xdc, 0x62, 0x65, 0x72, 0x2f, 0x61, 0x2e, 0x70, 0x6e, 0x67] // prettier-ignore
+    const given = asFflateWouldRead(uber)
+    expect(given).toBe('Über/a.png')
+    expect(decodeZipNames([given], { locale: 'ja' })).toEqual([given])
+  })
+
   it('언어를 모르면 코드 페이지를 추정하지 않는다', () => {
     const given = asFflateWouldRead(CP949_RED)
     expect(decodeZipNames([given])).toEqual([given])

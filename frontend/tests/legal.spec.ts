@@ -246,6 +246,14 @@ describe('링크가 실재하는 것을 가리킨다', () => {
     expect(drawer.every((href) => href === `./?lang=${locale}`)).toBe(true)
   })
 
+  /**
+   * **방침은 제 언어를 밝힌다.** `<html lang>`이 글꼴의 자형과 화면 낭독기의 발음을 정한다 —
+   * 일본어 방침이 `ko`를 달면 한자가 한국식으로 그려진다. 바꿔 놓아도 초록이었다(2026-10-06 감사).
+   */
+  it.each([...SUPPORTED_LOCALES])('%s 방침이 제 언어를 밝힌다', (locale) => {
+    expect(/<html\s+lang="([^"]+)"/u.exec(readPolicy(locale))?.[1]).toBe(locale)
+  })
+
   it('검사기가 바깥 주소와 메일은 안 센다', () => {
     const html = '<a href="https://x.test">a</a><a href="mailto:hello@luminousky.com">b</a>'
     expect(localLinks(html)).toEqual([])
