@@ -63,6 +63,10 @@
 - Pretendard Variable **동적 서브셋**을 우리가 서빙한다. **CDN을 쓰지 않는다.**
 - `font-display: swap`.
 - **글꼴 스택에 일본어 대체를 처음부터 넣는다.**
+- **일본어 화면은 Pretendard JP다.** Pretendard의 한자는 한국식 자형이라 일본어 화면에서는 뺀다
+  (`base.css`의 `:root:lang(ja)`). **그 언어를 고를 때만 불러온다** — 언어별 글꼴은
+  `src/i18n.ts`의 `LOCALE_FONTS`가 갖고, 한국어·영어 화면은 받지 않는다. `font-stack.spec.ts`·
+  `i18n.spec.ts`가 문다.
 
 ### 8.6 셸은 웹페이지가 아니라 작업실이다 (2026-08-05)
 

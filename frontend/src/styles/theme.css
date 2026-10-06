@@ -21,8 +21,9 @@
   --breakpoint-3xl: 120rem;
 
   /*
-   * 일본어 대체를 처음부터 넣는다. ja를 추가할 때 글꼴 스택을 고치는 일이 없어야 한다
-   * (CLAUDE.md §3). Pretendard는 가나를 덮지 않으므로 OS 글꼴로 떨어진다.
+   * ko·en의 스택이다. **일본어 화면은 `base.css`의 `:root:lang(ja)`가 Pretendard JP로 갈아
+   * 끼운다** — Pretendard는 가나와 한자를 덮지만 한자가 한국식 자형이라, 앞에 두면 일본어
+   * 화면의 한자가 전부 한국식으로 그려진다. `font-stack.spec.ts`가 문다.
    */
   --font-sans:
     'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI',

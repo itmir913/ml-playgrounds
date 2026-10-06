@@ -62,6 +62,8 @@ export const SUPPLIED: Readonly<Record<string, string>> = {
   '@tensorflow/tfjs-core': 'tensorflow-tfjs.txt',
   'median-quickselect': 'median-quickselect.txt',
   pretendard: 'pretendard.txt',
+  // 같은 저장소의 일본어판이다. 전문에 M PLUS 1 등 원본 글꼴의 저작권이 함께 있다.
+  'pretendard-jp': 'pretendard.txt',
   seedrandom: 'seedrandom.txt',
 }
 

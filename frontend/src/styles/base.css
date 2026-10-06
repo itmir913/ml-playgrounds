@@ -124,6 +124,25 @@
   }
 
   /*
+   * **일본어 화면은 Pretendard JP다.**
+   *
+   * Pretendard는 가나와 한자를 덮는다. 그런데 한자가 **한국식 자형**이라, ko·en의 스택을
+   * 그대로 쓰면 일본어 화면의 한자가 전부 한국식으로 그려진다(`直`·`骨` 같은 글자가 다르다).
+   * 그래서 이 화면에서는 Pretendard를 빼고 Pretendard JP를 앞세운다. 그 글꼴은 일본어를 고를
+   * 때만 불러온다(`src/i18n.ts`의 `LOCALE_FONTS`) — 한국어·영어 화면은 받지 않는다.
+   *
+   * 뒤의 OS 글꼴은 Pretendard JP가 오기 전(`swap`)과 못 받았을 때 그린다. 순서는 맥·아이폰 →
+   * 윈도(`BIZ UDPGothic`은 교육용 UD 글꼴, `Meiryo`는 화면용, `Yu Gothic`은 저해상도에서 획이
+   * 가늘다) → 리눅스·크롬북, 끝은 `system-ui`다 — 그 기기는 `lang="ja"`를 보고 일본어 자형을
+   * 고른다. `font-stack.spec.ts`가 문다.
+   */
+  :root:lang(ja) {
+    --font-sans:
+      'Pretendard JP Variable', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'BIZ UDPGothic',
+      Meiryo, 'Yu Gothic', 'Noto Sans JP', 'Noto Sans CJK JP', system-ui, sans-serif;
+  }
+
+  /*
    * 키보드 이동이 보이지 않으면 학생이 화면에서 길을 잃는다.
    * 마우스 클릭에는 나타나지 않게 :focus-visible을 쓴다.
    */

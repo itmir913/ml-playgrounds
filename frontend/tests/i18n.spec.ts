@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   FALLBACK_LOCALE,
+  LOCALE_FONTS,
   SUPPORTED_LOCALES,
   isSupportedLocale,
   resolveLocale,
@@ -46,6 +47,25 @@ describe('resolveLocale', () => {
   it('아무것도 맞지 않으면 대체 언어를 쓴다', () => {
     expect(resolveLocale(null, [])).toBe(FALLBACK_LOCALE)
     expect(resolveLocale(undefined, ['fr', 'de'])).toBe(FALLBACK_LOCALE)
+  })
+})
+
+/**
+ * **언어마다 더 싣는 글꼴** (`LOCALE_FONTS`). 한국어·영어 화면이 일본어 글꼴을 받으면
+ * 쓰지도 않을 파일을 저사양 PC가 받는다 — 그 둘은 `null`이어야 한다.
+ */
+describe('언어마다 더 싣는 글꼴', () => {
+  it('지원 언어마다 자리가 있다', () => {
+    expect(Object.keys(LOCALE_FONTS).sort()).toEqual([...SUPPORTED_LOCALES].sort())
+  })
+
+  it('한국어·영어는 아무것도 더 싣지 않는다', () => {
+    expect(LOCALE_FONTS.ko).toBeNull()
+    expect(LOCALE_FONTS.en).toBeNull()
+  })
+
+  it('일본어는 Pretendard JP를 불러온다', () => {
+    expect(LOCALE_FONTS.ja.toString()).toContain('pretendard-jp')
   })
 })
 

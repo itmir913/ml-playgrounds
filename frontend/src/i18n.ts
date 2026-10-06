@@ -26,6 +26,21 @@ export const FALLBACK_LOCALE: Locale = 'en'
 // SUPPORTED_LOCALES에 언어를 추가하고 여기를 빠뜨리면 컴파일이 깨지게 하려는 것이다.
 const messages = { en, ko, ja } satisfies Record<Locale, unknown>
 
+/**
+ * **그 언어를 고를 때만 더 싣는 글꼴.** `null`이면 기본 스택(`theme.css`의 Pretendard)이
+ * 그 언어를 덮는다.
+ *
+ * 일본어는 Pretendard JP다 — Pretendard의 한자는 한국식 자형이다(`base.css`의
+ * `:root:lang(ja)`). **동적 import라 Vite가 따로 떼어 내고, 한국어·영어 화면은 그 CSS도
+ * 글꼴 파일도 받지 않는다.** 일본어 화면도 화면에 뜬 글자 범위의 파일만 받는다.
+ * 검사: `i18n.spec.ts` "언어마다 더 싣는 글꼴".
+ */
+export const LOCALE_FONTS = {
+  en: null,
+  ko: null,
+  ja: () => import('pretendard-jp/dist/web/variable/pretendardvariable-jp-dynamic-subset.css'),
+} as const satisfies Record<Locale, (() => Promise<unknown>) | null>
+
 export function isSupportedLocale(value: unknown): value is Locale {
   return typeof value === 'string' && (SUPPORTED_LOCALES as readonly string[]).includes(value)
 }
@@ -123,6 +138,9 @@ function applyLocale(locale: Locale): void {
   if (typeof document !== 'undefined') {
     document.documentElement.lang = locale
   }
+  // **못 받아도 화면은 그대로 선다** — 스택의 OS 글꼴이 그 언어의 자형으로 그린다.
+  // 학생 화면을 글꼴 하나 때문에 예외로 죽이지 않는다.
+  LOCALE_FONTS[locale]?.().catch(() => undefined)
 }
 
 /**
