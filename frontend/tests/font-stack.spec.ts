@@ -64,6 +64,22 @@ describe('글꼴 스택', () => {
     ])
   })
 
+  /**
+   * **일본어 화면의 본문은 문절에서 끊고, 모르는 브라우저에서는 글자 단위로 떨어진다**
+   * (`docs/i18n.md` 규칙 9의 예외, `base.css`의 `body:lang(ja)`). 본문은 `break-keep`과 달리 앞에
+   * `normal`이 있어야 한다 — 없으면 `auto-phrase`를 모르는 브라우저가 상속된 `keep-all`로 남아
+   * 일본어 문장이 칸을 넘친다. 0.33.3 최종 감사(J-code A-2)까지 이 블록을 지키는 검사가 없었다.
+   */
+  it('일본어 화면의 본문은 normal 다음 auto-phrase로 끊는다', () => {
+    const start = base.indexOf('body:lang(ja) {')
+    expect(start, 'base.css sets word-break for ja body').toBeGreaterThanOrEqual(0)
+    const block = base.slice(start, base.indexOf('}', start))
+    expect([...block.matchAll(/word-break:\s*([\w-]+)/g)].map((match) => match[1])).toEqual([
+      'normal',
+      'auto-phrase',
+    ])
+  })
+
   it('검사기가 블록 밖의 값을 읽지 않는다', () => {
     expect(fontStackIn('a { --font-sans: x; }', ':root:lang(ja)')).toBeNull()
     expect(

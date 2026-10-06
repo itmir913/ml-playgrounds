@@ -63,6 +63,8 @@ import {
   KIND_SPECIFIC_STEP_TEXT,
   NO_FACTS,
   STEP_IDS,
+  factLabelKey,
+  stepRequires,
   stepTasks,
   type StepId,
   type StepTextSlot,
@@ -621,30 +623,56 @@ describe('프런트엔드 전용 코드', () => {
   })
 
   /**
+   * 잠김 이유의 글자 칸. 한글(호환 자모 포함)·가나·한자·전각 문장부호가 둘, 나머지(반각 가나 포함)가
+   * 하나다. 아래 "글자 칸 셈은 넓은 글자를 둘로 센다"가 이 셈을 문다 — 범위 하나가 빠져도 위
+   * 검사는 덜 세어 초록이 된다(0.33.3 최종 감사 D-diff C-1).
+   */
+  const LOCK_WIDE =
+    /[\u1100-\u11ff\u3000-\u30ff\u3130-\u318f\u3400-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uff60]/u
+  const lockCells = (run: string): number =>
+    [...run].reduce((sum, char) => sum + (LOCK_WIDE.test(char) ? 2 : 1), 0)
+
+  /**
    * **잠김 이유는 끊을 자리 사이가 짧다** (docs/i18n.md 규칙 9). 대시보드의 셋째 칸은 `@md`
    * 경계에서 113px까지 좁아진다(브라우저 실측). 그보다 긴 덩어리는 칸을 넘어 왼쪽으로 자라
    * 가운데 칸의 할 일에 3px까지 붙었다 — 일본어의 `auto-phrase`는 문절에서 끊지만
    * `読み込んでください。`는 문절 하나라 안 접힌다(0.33.3).
    *
-   * 폭은 글자 칸으로 잰다: 한글·가나·한자·전각 문장부호가 둘, 나머지가 하나다. 열둘은
-   * 전각 여섯 자, `text-base`에서 96px이다. **넣는 할 일 이름(`{task}`)은 여기서 안 잰다** —
-   * 다른 키라 `auto-phrase`가 문절에서 끊는 것을 브라우저로 쟀다(74px).
+   * 열두 칸은 전각 여섯 자, `text-base`에서 96px이다. 끊는 자리는 공백과 폭 없는 공백뿐이다 —
+   * `\s`는 줄을 안 끊는 NBSP까지 잡는다(D-diff C-3).
+   *
+   * **`tasks.lockedBy`는 넣을 수 있는 할 일 이름을 전부 넣어 잰다** — 뽑는 단계(`DERIVED_LOCK_TEXT`)가
+   * 요구하는 사실의 이름이다(`stepRequires`·`factLabelKey`). 그 이름도 셋째 칸에 들어간다(D-diff C-2).
    */
   it('잠김 이유는 끊을 자리 사이가 열두 칸을 넘지 않는다', () => {
-    const WIDE = /[\u1100-\u11ff\u3000-\u30ff\u3400-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uff60]/u
-    const cells = (run: string): number =>
-      [...run].reduce((sum, char) => sum + (WIDE.test(char) ? 2 : 1), 0)
-    const tooLong = [...LOCALE_MESSAGES].flatMap(([tag, messages]) =>
-      [...messages]
+    const tooLong = [...LOCALE_MESSAGES].flatMap(([tag, messages]) => {
+      const tasks = DERIVED_LOCK_TEXT.flatMap((step) =>
+        stepRequires(step).flatMap((fact) =>
+          DATA_TYPES.map((dataType) => messages.get(factLabelKey(fact, dataType)) ?? ''),
+        ),
+      )
+      expect(tasks.length, tag).toBeGreaterThan(0)
+      expect(tasks, tag).not.toContain('')
+      return [...messages]
         .filter(([key]) => /^steps\..+\.locked$/.test(key) || key === 'tasks.lockedBy')
         .flatMap(([key, message]) =>
-          message
-            .split(/[\s\u200b]|\{\w+\}/u)
-            .filter((run) => cells(run) > 12)
+          (message.includes('{task}')
+            ? tasks.map((task) => message.replace('{task}', task))
+            : [message]
+          )
+            .flatMap((sentence) => sentence.split(/[ \u200b]/u))
+            .filter((run) => lockCells(run) > 12)
             .map((run) => `${tag}:${key}: ${run}`),
-        ),
-    )
+        )
+    })
     expect(tooLong).toEqual([])
+  })
+
+  it('글자 칸 셈은 넓은 글자를 둘로 센다', () => {
+    expect([...'読み込んでください。'].map(lockCells)).toEqual(Array<number>(10).fill(2))
+    expect(['ー', '（', '、', '가', 'ㅋ', 'ｱ', 'a', '1', '('].map(lockCells)).toEqual([
+      2, 2, 2, 2, 2, 1, 1, 1, 1,
+    ])
   })
 
   it('단계마다 무엇을 하는 곳인지가 있다', () => {

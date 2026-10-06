@@ -90,20 +90,20 @@
     "clustering": "クラスタリング(Clustering)"
   },
   "tasks": {
-    "datasetReady": "データの読み込み",
-    "targetChosen": "目的変数(Target)の選択",
-    "featuresChosen": "特徴量(Feature)の選択",
+    "datasetReady": "データの\u200b読み込み",
+    "targetChosen": "目的変数\u200b(Target)の\u200b選択",
+    "featuresChosen": "特徴量\u200b(Feature)の\u200b選択",
     "algorithmsChosen": "モデルの追加",
     "trainingDone": "モデルの学習",
     "modelReady": "予測に使うモデルの準備",
     "portfolioAnswered": "ポートフォリオの記入",
     "title": "やること",
     "allDone": "このステップでやることはすべて完了しました。",
-    "lockedBy": "先に\u200b済ませる\u200b作業が\u200bあります。({task})",
+    "lockedBy": "先に\u200b済ませる\u200b作業が\u200bあります。\u200b({task})",
     "taskTypeChosen": "機械学習の種類の選択",
     "image": {
       "datasetReady": "写真の追加",
-      "targetChosen": "クラスの指定"
+      "targetChosen": "クラスの\u200b指定"
     }
   },
   "shell": {

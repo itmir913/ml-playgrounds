@@ -39,7 +39,7 @@
 | §3 지원 언어마다 내장 양식 파일이 있는가 | `portfolio-preset.spec.ts` |
 | §3 **번역된 문장을 언어의 공백으로 잇는가**(`i18n.md` 규칙 6) — `formatSentences` 자체만 본다. 부르는 자리가 `join(' ')`로 돌아가도 못 본다(aria id·class·학번과 이름과 모양이 같다) | `create.spec.ts` |
 | §3 **일본어 화면의 줄바꿈과 글꼴**(`i18n.md` 규칙 9의 예외, `architecture.md` §8.5) — CSS 블록의 모양과 언어별 글꼴 표, 고를 때만 부르는 것까지 본다. 실제로 어디서 끊기고 어떤 자형으로 그려지는지는 사람 확인이다(`acceptance.md` §2.4) | `font-stack.spec.ts` · `i18n.spec.ts` |
-| §3 **끊는 자리 문자는 이스케이프로 적고, 잠김 이유는 끊을 자리 사이가 짧다**(`i18n.md` 규칙 9) — 대시보드의 좁은 칸에 서는 잠김 이유만 글자 칸으로 잰다. 넣는 할 일 이름과 다른 좁은 칸의 문장은 못 본다 | `locales.spec.ts` |
+| §3 **끊는 자리 문자는 이스케이프로 적고, 잠김 이유는 끊을 자리 사이가 짧다**(`i18n.md` 규칙 9) — 대시보드의 좁은 칸에 서는 잠김 이유만 글자 칸으로 잰다(넣을 수 있는 할 일 이름을 넣은 문장까지). 다른 좁은 칸(레일·탭·배지)의 문장은 못 본다 | `locales.spec.ts` |
 | §4 `any` 금지 | ESLint `@typescript-eslint/no-explicit-any` |
 | CLAUDE.md의 줄 수 상한과 날짜 금지 | `claude-md.spec.ts` |
 | §1.3 확장자 문자열은 상수 하나 — 조각내 이어 붙인 것은 못 본다 | `mlpx-extension.spec.ts` |

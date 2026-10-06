@@ -48,8 +48,10 @@ describe('R24 B-8: "all done" means all of them', () => {
   it('one of two done: the list stands and nothing says it is finished', () => {
     const wrapper = mountChecklist(tabularWith({ features: [] }))
 
-    expect(wrapper.text()).toContain('타깃(Target) 선택하기')
-    expect(wrapper.text()).toContain('특성(Feature) 선택하기')
+    // 이름에는 대시보드 잠김 칸을 위한 폭 없는 공백이 있다(`locales.spec.ts` "잠김 이유는 끊을 자리…").
+    const shown = wrapper.text().replaceAll('\u200b', '')
+    expect(shown).toContain('타깃(Target) 선택하기')
+    expect(shown).toContain('특성(Feature) 선택하기')
     // 끝난 것 하나에 체크가 있고, 안 끝난 것 하나에 빈 칸이 있다.
     expect(wrapper.text()).toContain('☑')
     expect(wrapper.text()).toContain('☐')

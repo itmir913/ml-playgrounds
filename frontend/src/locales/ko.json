@@ -91,8 +91,8 @@
   },
   "tasks": {
     "datasetReady": "데이터 불러오기",
-    "targetChosen": "타깃(Target) 선택하기",
-    "featuresChosen": "특성(Feature) 선택하기",
+    "targetChosen": "타깃\u200b(Target) 선택하기",
+    "featuresChosen": "특성\u200b(Feature) 선택하기",
     "algorithmsChosen": "모델 추가하기",
     "trainingDone": "모델 학습하기",
     "modelReady": "예측에 사용할 모델 준비하기",
@@ -103,7 +103,7 @@
     "taskTypeChosen": "기계학습 유형 선택하기",
     "image": {
       "datasetReady": "사진 추가하기",
-      "targetChosen": "범주(Class) 지정하기"
+      "targetChosen": "범주\u200b(Class) 지정하기"
     }
   },
   "shell": {
