@@ -21,6 +21,15 @@ export const SUPPORTED_LOCALES = ['en', 'ko', 'ja'] as const
 
 export type Locale = (typeof SUPPORTED_LOCALES)[number]
 
+/**
+ * 로케일 키를 문장으로 바꾸는 것. 화면은 `t`를, 검사는 가짜를 넘긴다.
+ *
+ * **화면을 모르는 등록부가 받는 모양이다** — 양식 출처(`project/portfolio-sources.ts`)와 사진
+ * 입력 방식(`data/image/sources.ts`)이 함께 쓴다. 등록부가 `vue-i18n`을 직접 부르면 화면 없이
+ * 검사할 수 없게 된다.
+ */
+export type Translate = (key: string) => string
+
 /** 어떤 언어로도 해석되지 않을 때 쓰는 언어. */
 export const FALLBACK_LOCALE: Locale = 'en'
 

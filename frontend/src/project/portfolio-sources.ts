@@ -19,13 +19,10 @@
  * **DOM은 여기 없다.** 파일을 고르게 하는 것은 화면이고, 등록부는 그 함수를 받는다.
  */
 
-import type { Locale } from '@/i18n'
+import type { Locale, Translate } from '@/i18n'
 
 import { readFileText } from './download'
 import { loadPresetForm, loadPresets, presetName } from './portfolio-presets'
-
-/** 로케일 키를 문장으로 바꾸는 것. 화면은 `t`를, 검사는 가짜를 넘긴다. */
-export type Translate = (key: string) => string
 
 export interface TemplateSourceContext {
   /** 지금 화면의 언어. 내장 프리셋이 언어마다 하나씩이다 (§8.7). */
