@@ -151,7 +151,7 @@ DATASET_EXCEL_ENCRYPTED_OR_LEGACY
 DATASET_ENCODING_UNKNOWN
 ```
 암호가 걸린 xlsx와 옛 .xls는 한 코드다 — 둘 다 OLE2 상자이고 학생이 할 일(새 xlsx나 csv로 다시 저장)이 같다 (`open-decisions.md` 71).
-`DATASET_ENCODING_UNKNOWN`은 CSV가 UTF-8도 그 UI 언어의 코드 페이지도 아니어서 문자 인코딩을 알 수 없는 것이고, 할 일은 엑셀의 "CSV UTF-8"로 다시 저장하는 것이다 (`open-decisions.md` 97). BOM이 말해 준 인코딩을 못 읽는 `DATASET_ENCODING_UNSUPPORTED`(공유 코드)와 다르다.
+`DATASET_ENCODING_UNKNOWN`은 CSV가 UTF-8도 그 UI 언어의 코드 페이지도 아니어서 문자 인코딩을 알 수 없는 것이고, 할 일은 엑셀의 "CSV UTF-8"로 다시 저장하는 것이다 (`open-decisions.md` 102). BOM이 말해 준 인코딩을 못 읽는 `DATASET_ENCODING_UNSUPPORTED`(공유 코드)와 다르다.
 
 
 ## 프런트엔드가 함께 쓰는 백엔드 코드 (로케일 `errors.*`)

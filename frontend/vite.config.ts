@@ -47,7 +47,7 @@ export default defineConfig({
    */
   base: './',
   /**
-   * **SPA 대체 응답을 끈다** (`open-decisions.md` "98. 개발 서버가 앱 밖의 경로에도 앱을 띄운다").
+   * **SPA 대체 응답을 끈다** (`open-decisions.md` "103. 개발 서버가 앱 밖의 경로에도 앱을 띄운다").
    *
    * 기본값 `'spa'`는 없는 경로에 앱의 `index.html`을 준다. 라우터가 해시 모드라 그 응답이
    * 필요한 주소가 없고, 오히려 `/legal/`에 규정 서랍 대신 앱을 띄워 배포본과 다른 화면을

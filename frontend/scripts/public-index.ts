@@ -1,6 +1,6 @@
 /**
  * **개발 서버도 `public/`의 디렉터리 주소에 그 `index.html`을 준다** (`open-decisions.md`
- * "98. 개발 서버가 앱 밖의 경로에도 앱을 띄운다").
+ * "103. 개발 서버가 앱 밖의 경로에도 앱을 띄운다").
  *
  * 배포본(Pages)은 `/legal/`에 `public/legal/index.html`(규정 서랍)을 준다. Vite 개발 서버는
  * 디렉터리 index를 앱 루트(`frontend/`)에서만 찾고 `public/`에서는 안 찾는다 — 그래서 SPA

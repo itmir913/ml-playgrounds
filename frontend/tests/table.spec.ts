@@ -82,7 +82,7 @@ describe('openTable - csv', () => {
   })
 
   /**
-   * **판정하지 못한 CSV는 오류로 멈춘다** (open-decisions.md 97). 0.33.0까지는 끝이 느슨한 cp949라
+   * **판정하지 못한 CSV는 오류로 멈춘다** (open-decisions.md 102). 0.33.0까지는 끝이 느슨한 cp949라
    * 한국어 화면의 CP932 파일이 **오류 없이 깨진 표**로 열렸다. 문구는 엑셀의 "CSV UTF-8"로 다시
    * 저장하라고 말하고, 파일 이름은 끝 괄호로 간다.
    */
@@ -99,7 +99,7 @@ describe('openTable - csv', () => {
     }
   })
 
-  it('영어 화면은 같은 바이트를 멈추지 않고 cp1252로 연다 — 결정 97의 대가다', async () => {
+  it('영어 화면은 같은 바이트를 멈추지 않고 cp1252로 연다 — 결정 102의 대가다', async () => {
     expect((await openTable(CP932_CSV, 'data.csv', { locale: 'en' })).sourceEncoding).toBe('cp1252')
   })
 })

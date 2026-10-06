@@ -54,6 +54,7 @@
 | `.mlpx`의 **푸는 자리 밖으로 새는 이름**을 대조 뒤에 버리는가(읽기·저장소·내보내기) | `image-format.spec.ts` · `storage.spec.ts` · `portfolio-bundle.spec.ts` |
 | 테스트용 사진을 관용적으로 받지 않는가 | `image-test-set.spec.ts` |
 | 인코딩을 안 적은 압축 파일의 이름을 되살리는가 | `zip-names.spec.ts` |
+| CSV를 받는 화면이 지금 UI 언어로 인코딩을 판정하는가 | `csv-encoding-screens.spec.ts` |
 | 다시 압축한 `.mlpx`도 열리는가 | `image-format.spec.ts` · `zip-names.spec.ts` |
 | §4 Tailwind 임의 값 금지 | `ui-rules.spec.ts` |
 | **두 판이 제 폭을 받는가** | 사람 확인 (jsdom에는 배치가 없다) |
@@ -140,7 +141,7 @@
 | 범주 이름이 세 운영체제에서 폴더가 되는가 | `image.spec.ts` |
 | 문서를 가리키는 참조가 살아 있는가 | `doc-refs.spec.ts` |
 | 판례의 절 제목이 규칙 문서의 절과 짝인가 — 번호 없는 `###` 아래와 번호는 같고 제목이 다른 것은 못 본다 | `cases-headings.spec.ts` |
-| 규칙과 판례가 짝이고, 결정문이 `[미정]`·`[결정]`·`[폐기]`를 갖는가 | `docs-structure.spec.ts` |
+| 규칙과 판례가 짝이고, 결정문이 `[미정]`·`[결정]`·`[폐기]`를 갖는가 · 결정 번호가 겹치지 않는가 | `docs-structure.spec.ts` |
 | 사진을 굽기 전에 자리를 묻는가 | `image-room.spec.ts` |
 | 행 상한 칸에 **제 이름의 상수**가 오는가 | `algorithms.spec.ts` · `limits.ts` |
 | 화면이 넘기는 **데이터 종류**가 열린 프로젝트의 것인가 | `training-source.spec.ts` · `data/kinds.ts` |

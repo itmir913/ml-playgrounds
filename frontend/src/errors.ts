@@ -168,7 +168,7 @@ export const CLIENT_ERROR_CODES = [
   'DATASET_SHEET_NOT_FOUND',
   /**
    * CSV가 UTF-8도, 그 UI 언어의 코드 페이지도 아니다 — **문자 코드를 모른다**
-   * (`data/table.ts`의 `openTable`, open-decisions.md 97).
+   * (`data/table.ts`의 `openTable`, open-decisions.md 102).
    *
    * **`DATASET_ENCODING_UNSUPPORTED`와 나누는 이유는 사실과 할 일이 다르기 때문이다.** 그쪽은 BOM이
    * 무엇인지 **말해 주었는데** 우리가 못 읽는 것(UTF-32)이고 그 이름을 보인다. 이쪽은 BOM이 없고

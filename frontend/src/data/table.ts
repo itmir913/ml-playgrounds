@@ -50,7 +50,7 @@ export interface TableDocument {
 export interface OpenTableOptions {
   /**
    * 지금 UI 언어. CSV 인코딩 판정이 쓴다(`encoding.ts`의 `CODE_PAGE_BY_LOCALE`).
-   * **필수다** — 조용한 기본값을 두면 화면이 언어를 안 넘겨도 초록이다(0.33.0 감사 S16~S18).
+   * **필수다** — 조용한 기본값을 두면 화면이 언어를 안 넘겨도 초록이다(0.33.0 감사).
    */
   readonly locale: EncodingLocale
 }
@@ -114,7 +114,7 @@ export function sourceFromFileName(fileName: string): TableSource {
  * **`locale`은 CSV 인코딩 판정에만 쓴다** (`encoding.ts`의 `CODE_PAGE_BY_LOCALE`). 무는 검사:
  * table.spec.ts "일본어 화면은 CP932를 읽는다".
  *
- * **그 언어로 판정하지 못한 CSV는 `DATASET_ENCODING_UNKNOWN`으로 멈춘다** (open-decisions.md 97) —
+ * **그 언어로 판정하지 못한 CSV는 `DATASET_ENCODING_UNKNOWN`으로 멈춘다** (open-decisions.md 102) —
  * 문구가 엑셀의 "CSV UTF-8"로 다시 저장하라고 말한다. 무는 검사: table.spec.ts
  * "판정하지 못한 CSV는 파일 이름과 함께 멈춘다".
  */

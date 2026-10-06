@@ -4,6 +4,7 @@
  * - `docs/X.md`마다 `docs/cases/X.md`가 있고 그 반대도 같다.
  * - 규칙 문서는 자기 판례를 이름으로 가리키고, 판례 색인은 판례 파일을 전부 싣는다.
  * - 결정문(`###`)마다 표제 바로 아래 허락된 상태 한 줄이 있고, 그 표제가 판례에 그대로 있다.
+ * - 결정 번호는 두 표제가 함께 쓰지 않는다(이미 겹친 옛 번호만 허용 목록에).
  *
  * **못 보는 것** — 상태가 사실과 맞는지(미정인데 결정이라 적었는지), 결론 한 문장이 판례와 같은 말인지.
  * 그건 사람이 읽는다.
@@ -229,5 +230,86 @@ describe('결정문은 상태를 갖고 판례에 이어진다', () => {
       { heading: '### 1. 가', status: '**[결정]**' },
       { heading: '### 2. 나', status: '본문' },
     ])
+  })
+})
+
+/**
+ * 결정문 표제의 번호. 번호가 없는 표제는 `null`이다. 취소선(`~~31. …~~`)도 번호를 갖는다.
+ * `3-1`처럼 붙은 번호는 그대로 한 번호다.
+ */
+export function decisionNumber(heading: string): string | null {
+  return /^###\s+(?:~~)?(\d+(?:-\d+)*)\.\s/.exec(heading)?.[1] ?? null
+}
+
+/** 둘 이상의 표제가 쓰는 번호와, 그 표제들. */
+export function duplicateNumbers(
+  headings: readonly { name: string; heading: string }[],
+): Map<string, string[]> {
+  const byNumber = new Map<string, string[]>()
+  for (const { name, heading } of headings) {
+    const number = decisionNumber(heading)
+    if (number === null) continue
+    byNumber.set(number, [...(byNumber.get(number) ?? []), `${name}  ${heading}`])
+  }
+  return new Map([...byNumber].filter(([, owners]) => owners.length > 1))
+}
+
+/**
+ * **이미 겹쳐 있는 옛 번호.** 제목이 주소이고(`open-decisions.md` 머리말) 번호를 다시 매기지
+ * 않는다(`docs/roadmap.md`) — 이 번호들은 오래 쓰여 다른 문서와 코드가 이미 가리키므로 그대로 둔다.
+ * 새 번호는 여기 들이지 말고, 겹치면 **새 것을** 다시 매긴다(출시 전일 때).
+ */
+const KNOWN_DUPLICATE_NUMBERS: readonly { number: string; reason: string }[] = [
+  {
+    number: '37',
+    reason: '미결정 "화면 규칙을 ESLint AST 룰로" ↔ 06-audit "ExcelJS가 업고 오는 암호화 폴리필"',
+  },
+  {
+    number: '38',
+    reason: '미결정 "돌연변이 검사를 도구로" ↔ 06-audit "바깥에 내놓는 규정은 앱이 데리고 간다"',
+  },
+  { number: '39', reason: '허브 "회귀 타깃을 스케일링" ↔ 06-audit "멈추기가 끝난 것을 남긴다"' },
+  {
+    number: '45',
+    reason: '07-after-audit "관문은 npm run ci 하나다" ↔ 08-implemented "히스토그램의 구간 수"',
+  },
+  {
+    number: '46',
+    reason: '07-after-audit "기여는 MIT로 들어오고" ↔ 08-implemented "히스토그램의 y축을 로그로"',
+  },
+]
+
+describe('결정 번호가 겹치지 않는다', () => {
+  const all = decisionTexts().flatMap(({ name, text }) =>
+    decisions(text).map(({ heading }) => ({ name, heading })),
+  )
+  const known = new Set(KNOWN_DUPLICATE_NUMBERS.map(({ number }) => number))
+
+  it('허용 목록 밖에서 겹치는 번호가 없다', () => {
+    const unexpected = [...duplicateNumbers(all)].filter(([number]) => !known.has(number))
+    expect(unexpected, 'decision number used twice — renumber the new one').toEqual([])
+  })
+
+  it('허용 목록에 죽은 줄이 없다', () => {
+    const live = duplicateNumbers(all)
+    expect(
+      KNOWN_DUPLICATE_NUMBERS.map(({ number }) => number).filter((number) => !live.has(number)),
+    ).toEqual([])
+  })
+
+  it('검사기가 실제로 잡는다', () => {
+    expect(decisionNumber('### 97. 가')).toBe('97')
+    expect(decisionNumber('### 3-1. 가')).toBe('3-1')
+    expect(decisionNumber('### ~~31. 가~~ — 결정됨')).toBe('31')
+    expect(decisionNumber('### 모바일에서도 동작한다 (2026-08-04)')).toBeNull()
+    const clash = [
+      { name: 'a.md', heading: '### 97. 가' },
+      { name: 'b.md', heading: '### 97. 나' },
+      { name: 'b.md', heading: '### 98. 다' },
+      { name: 'b.md', heading: '### 3-1. 라' },
+      { name: 'b.md', heading: '### 3. 마' },
+    ]
+    expect([...duplicateNumbers(clash).keys()]).toEqual(['97'])
+    expect(duplicateNumbers(clash.slice(1)).size).toBe(0)
   })
 })

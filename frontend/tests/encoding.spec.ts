@@ -12,7 +12,14 @@ import { CODE_PAGE_BY_LOCALE, decodeText, detectEncoding } from '../src/data/enc
 import { isClientError } from '../src/errors'
 import { SUPPORTED_LOCALES } from '../src/i18n'
 
-/** '이름,나이\n가나다,10'을 CP949로 인코딩한 바이트 (Python cp949 codec으로 생성). */
+/**
+ * '이름,나이\n가나다,10'을 CP949로 인코딩한 바이트 (Python cp949 codec으로 생성).
+ *
+ * **CP949 표본은 KS X 1001 글자로 한정한다** — 검사가 도는 Node의 euc-kr은 UHC를 모른다,
+ * 브라우저(WHATWG windows-949)는 안다. 실측(Node v24.15.0·ICU 78.2, 사람 확인): 엄격한
+ * `euc-kr`이 `8C 63`(`똠`)을 오류 없이 U+008C·`c`로 풀고 `C6 52`(`힣`)에서는 던진다. UHC 글자를
+ * 표본에 넣으면 검사는 브라우저가 안 하는 일을 잰다. 아래 "CP949 표본은 KS X 1001 안에 있다"가 문다.
+ */
 const CP949_SAMPLE = new Uint8Array([
   192, 204, 184, 167, 44, 179, 170, 192, 204, 10, 176, 161, 179, 170, 180, 217, 44, 49, 48,
 ])
@@ -75,7 +82,7 @@ function utf16be(text: string, withBom = true): Uint8Array {
 
 /**
  * 이 묶음의 표본은 한국어 CSV라 **한국어 화면**으로 판정한다. 언어는 필수다 — 빠지면 컴파일이
- * 깨진다(open-decisions.md 97). BOM·UTF-8이 언어와 무관하다는 것은 아래 "언어별 판정"이 모든
+ * 깨진다(open-decisions.md 102). BOM·UTF-8이 언어와 무관하다는 것은 아래 "언어별 판정"이 모든
  * 언어로 돈다.
  */
 describe('detectEncoding', () => {
@@ -90,6 +97,26 @@ describe('detectEncoding', () => {
 
   it('한국어 화면은 UTF-8로 해석되지 않는 CP949를 cp949로 판정한다', () => {
     expect(detectEncoding(CP949_SAMPLE, 'ko')).toBe('cp949')
+  })
+
+  it('CP949 표본은 KS X 1001 안에 있다 — Node의 euc-kr이 모르는 UHC 글자가 없다', () => {
+    // KS X 1001(EUC-KR)의 2바이트 글자는 두 바이트 모두 A1~FE다. UHC 확장은 첫 바이트나 둘째
+    // 바이트가 그 밖이다(`8C 63`의 첫 바이트, `C6 52`의 둘째 바이트).
+    const inKs = (byte: number | undefined): boolean =>
+      byte !== undefined && byte >= 0xa1 && byte <= 0xfe
+    const outsideKsX1001 = (bytes: Uint8Array): number[] => {
+      const found: number[] = []
+      for (let index = 0; index < bytes.length; index++) {
+        if ((bytes[index] ?? 0) < 0x80) continue
+        if (!inKs(bytes[index]) || !inKs(bytes[index + 1])) found.push(index)
+        index++
+      }
+      return found
+    }
+    expect(outsideKsX1001(CP949_SAMPLE)).toEqual([])
+    expect(outsideKsX1001(CP949_NOT_SJIS)).toEqual([])
+    expect(outsideKsX1001(new Uint8Array([0x41, 0x8c, 0x63]))).toEqual([1])
+    expect(outsideKsX1001(new Uint8Array([0xc6, 0x52]))).toEqual([0])
   })
 
   it('UTF-16 BOM을 알아본다', () => {
@@ -151,7 +178,7 @@ describe('detectEncoding', () => {
 })
 
 /**
- * **UI 언어가 자기 코드 페이지 하나만 엄격하게 본다** (`CODE_PAGE_BY_LOCALE`, open-decisions.md 97).
+ * **UI 언어가 자기 코드 페이지 하나만 엄격하게 본다** (`CODE_PAGE_BY_LOCALE`, open-decisions.md 102).
  * 바이트만으로는 CP949와 CP932를 못 가르므로 언어가 정하고, **다른 언어의 코드 페이지는 시험하지
  * 않는다** — 안 풀리면 `null`이고 여는 쪽이 `DATASET_ENCODING_UNKNOWN`으로 멈춘다(table.spec.ts).
  *
@@ -182,9 +209,9 @@ describe('detectEncoding - 언어별 판정', () => {
   })
 
   /**
-   * **결정 97의 대가다.** 영어 화면의 끝은 실패하지 않는 `cp1252`라, 한국어·일본어 엑셀의 CSV도
+   * **결정 102의 대가다.** 영어 화면의 끝은 실패하지 않는 `cp1252`라, 한국어·일본어 엑셀의 CSV도
    * 오류 없이 깨진 글자로 들어온다. 영어 화면에 CJK를 두지 않은 것은 서유럽어 바이트가 엄격한
-   * shift_jis·euc-kr로 오류 없이 풀리기 때문이다(결정 97의 실측). 이 줄이 `cp949`·`cp932`가 되면
+   * shift_jis·euc-kr로 오류 없이 풀리기 때문이다(결정 102의 실측). 이 줄이 `cp949`·`cp932`가 되면
    * 영어 화면에 다른 언어의 코드 페이지가 들어온 것이다.
    */
   it('영어 화면은 CP949·CP932도 cp1252로 본다 — 다른 언어의 코드 페이지를 시험하지 않는다', () => {
@@ -205,10 +232,10 @@ describe('detectEncoding - 언어별 판정', () => {
 })
 
 /**
- * **`cp1252`는 영어 화면의 마지막 대체다** (open-decisions.md 97, mlpx-spec.md §9.4).
+ * **`cp1252`는 영어 화면의 마지막 대체다** (open-decisions.md 102, mlpx-spec.md §9.4).
  *
  * 0.33.0에는 이 자리에 *"지금은 어느 언어로도 cp1252를 내지 않는다"*가 있었다 — 어휘만 v4에 먼저
- * 들이고 판정은 다음 판에 고친다는 뜻이었다. **결정 97이 그 판정을 정했으므로 검사가 반대로 섰다.**
+ * 들이고 판정은 다음 판에 고친다는 뜻이었다. **결정 102이 그 판정을 정했으므로 검사가 반대로 섰다.**
  * 언어를 하나 더하면 아래 표에 그 언어의 답을 적어야 운다 — 새 언어의 끝을 고르는 것은 결정이다.
  */
 describe('cp1252는 영어 화면만 낸다', () => {

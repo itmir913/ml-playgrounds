@@ -1351,3 +1351,20 @@ describe('상한이 막으면 푸는 자리를 함께 말한다', () => {
     })
   }
 })
+
+/**
+ * **판정하지 못한 CSV의 문구는 할 일을 말한다** (`open-decisions.md` 102, `copy.md` §5).
+ *
+ * 할 일은 엑셀의 "CSV UTF-8"로 다시 저장하는 것이다. 메뉴 이름은 언어판마다 다르게 옮겨지지만
+ * `CSV UTF-8`이라는 글자는 언어마다 같다 — 그래서 그 글자만 본다. 문장을 다듬다 그 절이 빠지면
+ * 학생은 "읽지 못했다"만 듣고 할 수 있는 일이 없다. 메뉴 이름의 나머지(괄호 안)가 그 언어판의
+ * 엑셀과 글자 그대로 같은지는 **사람 확인이다**.
+ */
+describe('판정하지 못한 CSV의 문구가 다시 저장할 형식을 말한다', () => {
+  for (const [locale, strings] of LOCALE_MESSAGES) {
+    it(`${locale}의 DATASET_ENCODING_UNKNOWN이 CSV UTF-8을 말한다`, () => {
+      const message = strings.get(errorMessageKey('DATASET_ENCODING_UNKNOWN')) ?? ''
+      expect(message, 'tell the student to re-save as CSV UTF-8').toContain('CSV UTF-8')
+    })
+  }
+})

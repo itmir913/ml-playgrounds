@@ -11,7 +11,7 @@
 
 - `createWebHashHistory`를 쓴다. 주소는 `#/project/{id}/train` 모양이다. Pages에도 도커에도 서버 설정이 필요 없다.
 - **개발 서버도 SPA 대체 응답을 쓰지 않는다**(`appType: 'mpa'`). 없는 경로는 배포본처럼 404이고, `public/`의 디렉터리
-  주소는 그 `index.html`이다 (`open-decisions.md` 98). `tests/dev-routes.spec.ts`가 문다.
+  주소는 그 `index.html`이다 (`open-decisions.md` 103). `tests/dev-routes.spec.ts`가 문다.
 - **해시 뒤는 앵커가 아니라 경로다.** `#data`처럼 한 낱말로 두지 않는다.
 - **이동은 가는 화면을 먼저 받는다.** 전역 가드는 저장·닫기·열기보다 앞에서 목적지의 지연 화면을 받고, 못 받으면
   (배포 뒤 옛 탭의 없는 청크, 끊긴 연결) **아무것도 바꾸지 않고** 이동을 멈춘 뒤 `SCREEN_LOAD_FAILED`로 말한다.
