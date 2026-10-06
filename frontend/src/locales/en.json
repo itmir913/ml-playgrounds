@@ -144,7 +144,7 @@
       }
     },
     "preprocess": {
-      "label": "Pre­pro­cess­ing",
+      "label": "Pre\u00adpro\u00adcess\u00ading",
       "tabular": {
         "purpose": "Shape the data so it is ready for training.",
         "locked": "Load your data first.",
@@ -159,7 +159,7 @@
       }
     },
     "train": {
-      "label": "Train­ing",
+      "label": "Train\u00ading",
       "purpose": "Choose the task type and the models, then train them."
     },
     "results": {
@@ -168,7 +168,7 @@
       "purpose": "Every training run adds one experiment. Compare the scores of each experiment side by side to see how changing a setting changed the results."
     },
     "predict": {
-      "label": "Predict­ing",
+      "label": "Predict\u00ading",
       "locked": "You need a trained model before you can predict.",
       "tabular": {
         "purpose": "Enter new values and see what each model predicts."
@@ -178,7 +178,7 @@
       }
     },
     "portfolio": {
-      "label": "Port­folio",
+      "label": "Port\u00adfolio",
       "purpose": "Answer the questions to write up the process and results of this project."
     }
   },
@@ -809,7 +809,7 @@
     "locked": "Locked",
     "exportLead": "A student number and name are optional. If you enter them, they go at the front of the file name.",
     "exportNow": "Save",
-    "dashboard": "Dash­board"
+    "dashboard": "Dash\u00adboard"
   },
   "identity": {
     "title": "Project details",

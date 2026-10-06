@@ -104,6 +104,15 @@ describe('로케일 파일', () => {
     expect([...messagesOf(tag).keys()].sort()).toEqual([...english.keys()].sort())
   })
 
+  it('끊는 자리 문자는 이스케이프로 적는다', () => {
+    // **날것이면 소스에서 안 보인다** (docs/i18n.md 규칙 9). 편집기에도 diff에도 안 보여서,
+    // 어느 낱말의 어디를 끊었는지 읽을 수 없고 지워져도 모른다.
+    const raw = LOCALE_TAGS.filter((tag) =>
+      /[\u200b\u00ad]/u.test(readFileSync(join(SRC, 'locales', `${tag}.json`), 'utf-8')),
+    )
+    expect(raw).toEqual([])
+  })
+
   it('값의 앞뒤에 공백이 없다', () => {
     // **화면에서는 안 보이고 diff에서도 안 보인다.** 실제로 문장 끝에 공백 하나가
     // 딸려 들어왔다 (2026-08-13). 붙여 쓰는 자리(배지·버튼)에서는 칸이 한 칸 어긋나고,
@@ -609,6 +618,33 @@ describe('프런트엔드 전용 코드', () => {
       expect(english.has(`steps.${step}.locked`), step).toBe(locks)
       expect(korean.has(`steps.${step}.locked`), step).toBe(locks)
     }
+  })
+
+  /**
+   * **잠김 이유는 끊을 자리 사이가 짧다** (docs/i18n.md 규칙 9). 대시보드의 셋째 칸은 `@md`
+   * 경계에서 113px까지 좁아진다(브라우저 실측). 그보다 긴 덩어리는 칸을 넘어 왼쪽으로 자라
+   * 가운데 칸의 할 일에 3px까지 붙었다 — 일본어의 `auto-phrase`는 문절에서 끊지만
+   * `読み込んでください。`는 문절 하나라 안 접힌다(0.33.3).
+   *
+   * 폭은 글자 칸으로 잰다: 한글·가나·한자·전각 문장부호가 둘, 나머지가 하나다. 열둘은
+   * 전각 여섯 자, `text-base`에서 96px이다. **넣는 할 일 이름(`{task}`)은 여기서 안 잰다** —
+   * 다른 키라 `auto-phrase`가 문절에서 끊는 것을 브라우저로 쟀다(74px).
+   */
+  it('잠김 이유는 끊을 자리 사이가 열두 칸을 넘지 않는다', () => {
+    const WIDE = /[\u1100-\u11ff\u3000-\u30ff\u3400-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uff60]/u
+    const cells = (run: string): number =>
+      [...run].reduce((sum, char) => sum + (WIDE.test(char) ? 2 : 1), 0)
+    const tooLong = [...LOCALE_MESSAGES].flatMap(([tag, messages]) =>
+      [...messages]
+        .filter(([key]) => /^steps\..+\.locked$/.test(key) || key === 'tasks.lockedBy')
+        .flatMap(([key, message]) =>
+          message
+            .split(/[\s\u200b]|\{\w+\}/u)
+            .filter((run) => cells(run) > 12)
+            .map((run) => `${tag}:${key}: ${run}`),
+        ),
+    )
+    expect(tooLong).toEqual([])
   })
 
   it('단계마다 무엇을 하는 곳인지가 있다', () => {

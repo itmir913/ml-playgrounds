@@ -178,7 +178,7 @@
       }
     },
     "portfolio": {
-      "label": "포트​폴리오",
+      "label": "포트\u200b폴리오",
       "purpose": "문항에 답하며 이 프로젝트의 과정과 결과를 글로 정리합니다."
     }
   },
@@ -809,7 +809,7 @@
     "locked": "잠김",
     "exportLead": "학번과 이름은 선택 사항입니다. 입력하면 파일 이름 앞에 붙습니다.",
     "exportNow": "저장하기",
-    "dashboard": "대시​보드"
+    "dashboard": "대시\u200b보드"
   },
   "identity": {
     "title": "프로젝트 정보",
