@@ -65,7 +65,12 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  close: []
+  /**
+   * 닫자고 올린다. **바깥 클릭이면 `'backdrop'`을 함께 준다** — 그때 `<dialog>`는 아직 열려 있다(이 부품은
+   * 스스로 닫지 않는다, 머리말). 브라우저가 닫은 것(`Esc`·`close()`)은 아무것도 안 준다. 대부분의 창은
+   * 이 둘을 가릴 필요가 없고, 그리기의 확인 창이 가른다(`SketchDialog.vue`의 `onConfirmClose`).
+   */
+  close: [reason?: 'backdrop']
   /**
    * `<dialog>`의 `cancel` — 학생이 `Esc`를 눌렀다. **닫히기 전에 온다** — 받는 쪽이
    * `preventDefault()`하면 안 닫힌다(그리기 창이 버릴지 묻는 길, `SketchDialog.vue`). 안 받는 창은
@@ -122,7 +127,7 @@ onBeforeUnmount(() => dialog.value?.close())
 function onBackdrop(event: MouseEvent): void {
   if (props.persistent) return
   // <dialog> 자신이 대상이면 바깥을 누른 것이다. 안쪽 요소는 여기까지 안 온다.
-  if (event.target === dialog.value) emit('close')
+  if (event.target === dialog.value) emit('close', 'backdrop')
 }
 </script>
 

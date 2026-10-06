@@ -77,6 +77,8 @@ describe('바깥 클릭은 `persistent`가 쥔다', () => {
     const wrapper = render(true)
     await clickBackdrop(wrapper)
     expect(wrapper.emitted('close')).toHaveLength(1)
+    // 바깥 클릭은 그렇다고 말한다 — 브라우저가 닫은 것과 가르는 창이 있다(그리기의 확인 창).
+    expect(wrapper.emitted('close')?.[0]).toEqual(['backdrop'])
   })
 
   it('`persistent`면 바깥을 눌러도 아무 말도 안 한다', async () => {
@@ -90,6 +92,7 @@ describe('바깥 클릭은 `persistent`가 쥔다', () => {
     const wrapper = render(true, { persistent: true })
     await wrapper.find('dialog').trigger('close')
     expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(wrapper.emitted('close')?.[0]).toEqual([])
   })
 })
 

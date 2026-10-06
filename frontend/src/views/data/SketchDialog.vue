@@ -145,6 +145,7 @@ function pointOf(event: PointerEvent): Point | null {
 function onPointerDown(event: PointerEvent): void {
   // 주 단추만 긋는다(오른쪽 단추는 아니다). 이미 긋는 중이면 다른 손가락이다.
   if (event.button !== 0 || live !== null) return
+  freshInput()
   const point = pointOf(event)
   if (point === null) return
   /**
@@ -233,11 +234,13 @@ function dotSize(id: string): string {
 }
 
 function pickWidth(id: string): void {
+  freshInput()
   const width = STROKE_WIDTH_IDS.find((one) => one === id)
   if (width !== undefined) sketch.value = setWidth(sketch.value, width)
 }
 
 function undoStroke(): void {
+  freshInput()
   closeLiveStroke()
   sketch.value = undo(sketch.value)
   refused.value = null
@@ -246,6 +249,7 @@ function undoStroke(): void {
 }
 
 function clearSketch(): void {
+  freshInput()
   closeLiveStroke()
   sketch.value = clear(sketch.value)
   refused.value = null
@@ -293,6 +297,7 @@ const total = computed(() => sheets.value.length + (isBlank(sketch.value) ? 0 : 
  * 굴려 왼쪽 캔버스가 밀려난다(목업에서 밟았다, `docs/cases/open-decisions.md` 67).
  */
 function nextSheet(): void {
+  freshInput()
   closeLiveStroke()
   const code = refuseNext()[0]
   if (code !== undefined) {
@@ -322,6 +327,7 @@ function scrollTilesToEnd(): void {
 }
 
 function removeSheet(key: number): void {
+  freshInput()
   sheets.value = sheets.value.filter((sheet) => sheet.key !== key)
 }
 
@@ -330,6 +336,7 @@ function removeSheet(key: number): void {
  * 차례대로 받는다** — 장마다 한 번. 장수 상한은 받는 쪽(`readPicked`의 `imageOverflow`)이 센다.
  */
 async function addAll(): Promise<void> {
+  freshInput()
   closeLiveStroke()
   const code = refuseAdd()[0]
   if (code !== undefined) {
@@ -372,6 +379,7 @@ function holdsWork(): boolean {
  * 동안에는 묻지도 닫지도 않는다(`holdsWork`). 무는 검사: `sketch-dialog.spec.ts`의 "[추가]가 도는 동안".
  */
 function requestClose(): void {
+  freshInput()
   if (adding.value) return
   if (!holdsWork()) {
     emit('done', null)
@@ -428,7 +436,14 @@ function onDialogClose(): void {
 }
 
 /**
- * 확인 창을 브라우저가 닫았다(그 창의 `Esc`). **[취소]와 같다** — 확인 창만 닫히고 그리기로 돌아간다.
+ * 확인 창이 닫자고 올렸다. **바깥 클릭과 `Esc`는 [취소]와 같다** — 확인 창만 닫히고 그리기로 돌아간다.
+ *
+ * **바깥 클릭은 `AppDialog`가 `'backdrop'`으로 알린다.** 그때 `<dialog>`는 아직 열려 있다 — 부품은 스스로
+ * 닫지 않고 부모가 `open`을 내리기를 기다린다. 열린 창의 `close`만 보고 "늦게 온 것"으로 버리면 바깥
+ * 클릭이 늘 삼켜진다(감사 2차). 바깥 클릭은 학생이 확인 창을 고른 것이 아니라 비켜선 것이라
+ * `confirmDismissed`를 세우지 않는다. 무는 검사: `sketch-dialog.spec.ts`의 "확인 창의 바깥을 누르면".
+ *
+ * 그 밖의 `close`는 브라우저가 닫은 것이다(그 창의 `Esc`).
  *
  * **크롬은 `Esc`를 연타하면 두 창을 함께 닫는다.** 사용자 활성 없이 연 창의 close watcher는 앞 창과 한
  * 묶음이 되고, 묶음은 `Esc` 한 번에 위에서부터 다 닫힌다 — 확인 창의 `close`가 먼저, 그리기 창의
@@ -438,15 +453,29 @@ function onDialogClose(): void {
  * 우리가 내린 닫힘([취소]·되올리기)은 `confirming`을 먼저 거짓으로 두므로 여기서 아무것도 안 한다.
  * 늦게 온 `close`가 다시 띄운 창을 닫지 않게, 창이 열려 있으면 그 `close`는 지난 것이다.
  */
-function onConfirmClose(): void {
+function onConfirmClose(reason?: 'backdrop'): void {
+  if (reason === 'backdrop') {
+    confirming.value = false
+    return
+  }
   const element = (confirmDialog.value?.$el ?? null) as HTMLDialogElement | null
   if (!confirming.value || element?.open === true) return
   confirming.value = false
   confirmDismissed = true
 }
 
-/** 확인 창을 `Esc`로 닫은 직후인가 — 같은 `Esc`가 닫은 그리기 창을 되올릴 때 확인 창을 또 안 쌓는다. */
+/**
+ * 확인 창을 `Esc`로 닫은 직후인가 — 같은 `Esc`가 닫은 그리기 창을 되올릴 때 확인 창을 또 안 쌓는다.
+ * **그리기 창에 새 입력이 들어오면 걷힌다**(`freshInput`) — 남아 있으면 한참 뒤 막지 못한 닫힘이 왔을
+ * 때 확인 창을 안 쌓아 그린 것을 붙잡을 길이 없어진다. 무는 검사: `sketch-dialog.spec.ts`의 "확인 창을
+ * `Esc`로 닫고 다시 그린 뒤 막지 못한 닫힘이 오면 확인 창이 다시 쌓인다".
+ */
 let confirmDismissed = false
+
+/** 그리기 창에 학생의 새 입력이 왔다(캔버스·단추·굵기·[×]). 앞의 확인 창 닫기는 지났다. */
+function freshInput(): void {
+  confirmDismissed = false
+}
 
 const confirmDialog = ref<ComponentPublicInstance | null>(null)
 

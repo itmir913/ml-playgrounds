@@ -546,6 +546,50 @@ describe('닫기', () => {
     expect(canvasNote(wrapper)).toBeNull()
   })
 
+  /** 확인 창의 바깥 클릭은 [취소]와 같다 — 확인 창만 닫히고 그리기로 돌아간다. */
+  it('확인 창의 바깥을 누르면 확인 창만 닫히고 그리기 창과 그림은 남는다', async () => {
+    const wrapper = render()
+    await stroke(wrapper, [[10, 10]])
+    await button(wrapper, ko.common.cancel).trigger('click')
+    expect(opened(wrapper, 1)).toBe(true)
+
+    // `<dialog>` 자신을 누른 것이 바깥이다(`AppDialog`의 `onBackdrop`).
+    await wrapper.findAll('dialog')[1]!.trigger('click')
+    await flushPromises()
+    expect(opened(wrapper, 1)).toBe(false)
+    expect(opened(wrapper, 0)).toBe(true)
+    expect(canvasNote(wrapper)).toBeNull()
+    expect(done(wrapper)).toEqual([])
+  })
+
+  /**
+   * **확인 창을 `Esc`로 닫은 표지는 다음 입력에서 걷힌다.** 남아 있으면 한참 뒤 막지 못한 닫힘이 왔을 때
+   * 확인 창을 안 쌓아 그린 것을 붙잡을 길이 없어진다.
+   */
+  it('확인 창을 `Esc`로 닫고 다시 그린 뒤 막지 못한 닫힘이 오면 확인 창이 다시 쌓인다', async () => {
+    const wrapper = render()
+    await stroke(wrapper, [[10, 10]])
+    const [sketchDialog, confirmDialog] = wrapper
+      .findAll('dialog')
+      .map((one) => one.element as HTMLDialogElement)
+    await button(wrapper, ko.common.cancel).trigger('click')
+    // 확인 창의 `Esc` — 브라우저가 닫았다.
+    confirmDialog!.open = false
+    confirmDialog!.dispatchEvent(new Event('close'))
+    await flushPromises()
+    expect(confirmDialog!.open).toBe(false)
+
+    await stroke(wrapper, [[30, 30]])
+    // `cancel` 없이 브라우저가 그리기 창을 닫았다.
+    sketchDialog!.open = false
+    sketchDialog!.dispatchEvent(new Event('close'))
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+    expect(sketchDialog!.open).toBe(true)
+    expect(confirmDialog!.open).toBe(true)
+    expect(shown.at(-1)).toBe(confirmDialog)
+  })
+
   it('그린 것이 없으면 `Esc`를 막지 않는다', async () => {
     const wrapper = render()
     const escape = new Event('cancel', { cancelable: true })
