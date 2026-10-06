@@ -370,6 +370,20 @@ const RULES: readonly Rule[] = [
     ],
     allowed: ["import { ACTION_ICONS } from '@/icons'", "import { STEP_ICONS } from '@/icons'"],
   },
+  {
+    name: '하이픈 자리를 브라우저에 맡기지 않는다',
+    why:
+      '`docs/i18n.md` 규칙 9 — 낱말 중간의 끊는 자리는 로케일 파일이 정한다. `hyphens-auto`는 소프트 ' +
+      '하이픈이 없는 낱말에 사전이 있는 브라우저만 자리를 더해 같은 이름표가 브라우저마다 다르게 ' +
+      '접힌다. 레일이 그것을 쓰고 있었고 아무것도 안 울었다(0.33.3 최종 감사 D-diff C-1).',
+    pattern: /\bhyphens-auto\b|hyphens:\s*auto\b/,
+    violations: [
+      "const LABEL = 'w-full hyphens-auto'",
+      '<span class="hyphens-auto">',
+      'hyphens: auto;',
+    ],
+    allowed: ["const LABEL = 'w-full hyphens-manual'", 'hyphens: manual;'],
+  },
 ]
 
 /**

@@ -41,11 +41,11 @@ describe('등록된 프리셋과 파일이 맞는다', () => {
     expect(FILES.length).toBeGreaterThan(0)
   })
 
-  it.each(PAIRS)('$preset.id의 $locale 양식이 있다', ({ preset, locale }) => {
+  it.each(PAIRS)('$preset.id ($locale): 양식이 있다', ({ preset, locale }) => {
     expect(FILES).toContain(presetFileName(preset.id, locale))
   })
 
-  it.each(PAIRS)('$preset.id에 $locale 이름이 있다', ({ preset, locale }) => {
+  it.each(PAIRS)('$preset.id ($locale): 이름이 있다', ({ preset, locale }) => {
     // **이름이 없으면 id가 그대로 뜬다.** 화면에서는 그것이 빠뜨린 것으로 안 보인다.
     expect(preset.names[locale]?.trim() ?? '').not.toBe('')
     expect(presetName(preset, locale)).not.toBe(preset.id)
@@ -59,7 +59,7 @@ describe('등록된 프리셋과 파일이 맞는다', () => {
 })
 
 describe('내장 양식은 우리 파서가 읽을 수 있다', () => {
-  it.each(PAIRS)('$preset.id의 $locale 양식에 문항이 있다', ({ preset, locale }) => {
+  it.each(PAIRS)('$preset.id ($locale): 양식에 문항이 있다', ({ preset, locale }) => {
     const sections = parsePortfolioForm(read(preset.id, locale)).sections
     expect(sections.length).toBeGreaterThan(0)
     for (const section of sections) {
@@ -68,7 +68,7 @@ describe('내장 양식은 우리 파서가 읽을 수 있다', () => {
     }
   })
 
-  it.each(PAIRS)('$preset.id의 $locale 문항마다 id가 박혀 있다', ({ preset, locale }) => {
+  it.each(PAIRS)('$preset.id ($locale): 문항마다 id가 박혀 있다', ({ preset, locale }) => {
     // **우리가 내보내는 양식에는 id를 주석으로 박는다** (§8.2). 없으면 제목 슬러그로
     // 떨어지는데, 그러면 언어마다 id가 갈리고 제목을 다듬는 순간 답이 떨어져 나간다.
     for (const section of parsePortfolioForm(read(preset.id, locale)).sections) {
@@ -78,9 +78,11 @@ describe('내장 양식은 우리 파서가 읽을 수 있다', () => {
 
   /**
    * **양식은 그 언어의 글자로 쓴다** (0.33.3 최종 감사 J-code C-3). 문항 제목을 다른 언어로 바꿔도
-   * 위 검사들은 id와 순서만 봐서 초록이었다. 이름표(`index.json`)도 함께 잰다.
+   * 위 검사들은 id와 순서만 봐서 초록이었다. 이름표(`index.json`)도 함께 잰다. **안내문도 잰다** —
+   * 학생이 읽는 글의 대부분인데, 처음 처방이 제목만 재서 안내문을 한국어로 바꿔도 초록이었다
+   * (반박 라운드 A-1). 안내문이 빈 문항은 잴 것이 없어 뺀다.
    */
-  it.each(PRESETS)('$id의 양식과 이름은 언어마다 그 언어의 글자로 쓴다', (preset) => {
+  it.each(PRESETS)('$id: 양식과 이름은 언어마다 그 언어의 글자로 쓴다', (preset) => {
     const byLocale = Object.fromEntries(
       SUPPORTED_LOCALES.map((locale) => {
         const form = parsePortfolioForm(read(preset.id, locale))
@@ -92,6 +94,11 @@ describe('내장 양식은 우리 파서가 읽을 수 있다', () => {
             ...Object.fromEntries(
               form.sections.map((section, index) => [`section${index}`, section.title]),
             ),
+            ...Object.fromEntries(
+              form.sections
+                .filter((section) => (section.description ?? '').trim() !== '')
+                .map((section, index) => [`description${index}`, section.description ?? '']),
+            ),
           },
         ]
       }),
@@ -99,7 +106,7 @@ describe('내장 양식은 우리 파서가 읽을 수 있다', () => {
     expect(scriptMismatches(byLocale)).toEqual([])
   })
 
-  it.each(PRESETS)('$id는 언어가 달라도 문항 id와 순서가 같다', (preset) => {
+  it.each(PRESETS)('$id: 언어가 달라도 문항 id와 순서가 같다', (preset) => {
     const ids = SUPPORTED_LOCALES.map((locale) =>
       parsePortfolioForm(read(preset.id, locale)).sections.map((section) => section.id),
     )

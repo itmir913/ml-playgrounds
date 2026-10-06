@@ -196,6 +196,34 @@ describe('UI 언어 좁히기는 한 자리다', () => {
     expect(offenders).toEqual([])
   })
 
+  /**
+   * **언어를 받는 판정을 부르는 화면은 `useUiLocale`로 언어를 얻는다** (반박 라운드 J-code C-1).
+   * 복사본만 막으면 화면이 `computed(() => FALLBACK_LOCALE)`처럼 **좁히지 않고 박아** 넘기는 것은 안
+   * 걸렸다 — 사진 화면 셋에서 그래도 전체 스위트가 초록이었다. 판정의 입구 이름으로 화면을 고른다.
+   */
+  it('언어를 받는 판정을 부르는 화면은 useUiLocale을 부르고 기본 언어를 직접 쓰지 않는다', () => {
+    const CALLS = /\b(readImageZip|openTable|decodeZipNames|detectEncoding|privacyPath)\(/
+    const screens = sourceFiles(SRC).filter(
+      (path) =>
+        path.endsWith('.vue') &&
+        withoutComments(readFileSync(path, 'utf-8')).some((line) => CALLS.test(line)),
+    )
+    expect(screens.length).toBeGreaterThan(0)
+    const wrong = screens.flatMap((path) => {
+      const lines = withoutComments(readFileSync(path, 'utf-8'))
+      const name = path.slice(SRC.length + 1)
+      return [
+        ...(lines.some((line) => line.includes('useUiLocale()'))
+          ? []
+          : [`${name}: no useUiLocale()`]),
+        ...(lines.some((line) => line.includes('FALLBACK_LOCALE'))
+          ? [`${name}: FALLBACK_LOCALE`]
+          : []),
+      ]
+    })
+    expect(wrong).toEqual([])
+  })
+
   it('주인 둘을 실제로 찾는다 — 경로가 바뀌면 위 검사가 모두를 예외로 둔다', () => {
     for (const owner of OWNERS) {
       expect(
