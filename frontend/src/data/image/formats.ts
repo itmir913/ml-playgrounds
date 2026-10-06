@@ -83,3 +83,18 @@ export function canonicalFormatOfPath(path: string): CanonicalFormat | null {
   }
   return null
 }
+
+/**
+ * 그리기가 내보내는 형식 (`data/image/sketch.ts`). **정본이 아니다** — 그린 그림도 파일로 고른
+ * 사진처럼 굽는 워커가 정본으로 굽는다(open-decisions.md 67 "그리기는 굽지 않는다").
+ *
+ * **위 등록부에 넣지 않는다.** `CANONICAL_FORMAT_IDS`에 들면 `canonicalFormatOfPath`가 `.png`를
+ * 우리가 구운 정본으로 읽는다. 검사: `sketch.spec.ts` "그리기 형식은 정본 형식이 아니다".
+ *
+ * PNG는 손실이 없어 굽기 전에 획 가장자리를 한 번 더 누르지 않는다. 여기 사는 이유는 MIME
+ * 리터럴을 이 파일 밖에 쓰면 `limits-rules.spec.ts`가 울기 때문이다.
+ */
+export const SKETCH_EXPORT_FORMAT: Readonly<Pick<CanonicalFormat, 'extension' | 'mime'>> = {
+  extension: '.png',
+  mime: 'image/png',
+}

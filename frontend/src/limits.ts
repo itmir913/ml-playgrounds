@@ -152,6 +152,54 @@ export const IMAGE_WEBP_QUALITY = 0.65
 export const IMAGE_JPEG_QUALITY = 0.85
 
 /**
+ * 그리기 캔버스의 픽셀 한 변 (`data/image/sketch.ts`, open-decisions.md 67). 화면에 보이는
+ * 크기는 CSS가 맞추고, 획은 이 픽셀 위에 긋는다.
+ *
+ * **백본 정본 한 변보다 작지 않다.** 작으면 굽는 워커가 늘려 굽고(`canonical.ts`의 `fitBox`는
+ * 작은 사진을 늘린다) 획 가장자리가 흐려진다. 448은 정본 224의 두 배다 — 줄여 굽기만 일어난다.
+ * 검사: `sketch.spec.ts` "캔버스가 모든 백본의 정본보다 작지 않다".
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const SKETCH_CANVAS_SIZE = 448
+
+/**
+ * 붓 굵기 세 단계 — 캔버스 한 변에 대한 비율이다. **학생이 고른다** (open-decisions.md 67의
+ * 결정 8). 정답 하나를 박지 않으므로 잴 근거가 필요 없고, 값은 목업 화면에서 셋이 눈에 띄게
+ * 갈리는 정도로 잡아 코드 소유자가 맞췄다(결정 13). 이름은 CSS `border-width`의 키워드다.
+ *
+ * **비율로 둔 이유** — 캔버스 한 변을 바꿔도 그림의 모양이 그대로다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const SKETCH_STROKE_WIDTHS = { thin: 0.035, medium: 0.06, thick: 0.1 } as const
+
+/**
+ * 그리기 대화상자를 열었을 때의 붓 굵기. 가운데 단계다 (결정 13).
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const SKETCH_STROKE_DEFAULT: keyof typeof SKETCH_STROKE_WIDTHS = 'medium'
+
+/**
+ * 그리기 캔버스의 바탕색. **테마와 무관하게 흰색이다** — 다크 모드에서도 그렇다.
+ *
+ * **굽기의 여백색과 같아야 한다** (`bake.ts`가 레터박스를 흰색으로 채운다). 다르면 굽힌 정본에서
+ * 바탕과 여백이 갈린다. 경로가 달라 같은 상수로 묶지 않고 검사로 문다 — `sketch.spec.ts`
+ * "그리기 바탕이 굽기 여백색과 같다". 흑백 반전은 하지 않는다(open-decisions.md 67).
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const SKETCH_BACKGROUND = '#ffffff'
+
+/**
+ * 그리기 획의 색. 바탕과 마찬가지로 테마와 무관하게 고정이다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const SKETCH_INK = '#000000'
+
+/**
  * zip 엔트리를 누르는 deflate 수준. 교사의 포트폴리오 묶음(`project/portfolio-bundle.ts`)이
  * 쓴다 (`open-decisions.md` 64). zlib의 기본 수준과 같은 값이다. **`.mlpx`는 누르지 않는다**
  * — 전부 무압축으로 담는다 (`open-decisions.md` 68, `project/format.ts`의 `zipToBlob`).
