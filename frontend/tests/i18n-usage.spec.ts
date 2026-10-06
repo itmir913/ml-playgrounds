@@ -206,6 +206,32 @@ describe('UI 언어 좁히기는 한 자리다', () => {
   })
 })
 
+/**
+ * **차트의 안내 문장은 `sentences`로 잇는다** (`docs/i18n.md` 규칙 6, 0.33.3 최종 감사 J-code C-5).
+ * `formatSentences`의 검사(`create.spec.ts`)는 함수만 봐서, 부르는 자리가 `join(' ')`로 돌아가도
+ * 초록이었다(일본어는 `。` 뒤에 띄우지 않는다). 소스 전체에서 `join(' ')`를 막으면 aria id·학번과 이름을
+ * 잇는 정당한 자리와 갈리지 않으므로(`rule-coverage.md`), 번역된 문장만 잇는 차트 판과 대화상자만 본다.
+ */
+describe('차트의 안내 문장은 sentences로 잇는다', () => {
+  const CHART_FILES = sourceFiles(join(SRC, 'views', 'data')).filter(
+    (path) => path.includes(join('data', 'charts')) || path.endsWith('ChartDialog.vue'),
+  )
+
+  it('차트 판과 대화상자를 실제로 찾는다', () => {
+    expect(CHART_FILES.some((path) => path.endsWith('ChartDialog.vue'))).toBe(true)
+    expect(CHART_FILES.length).toBeGreaterThan(2)
+  })
+
+  it("차트 판과 대화상자에 join(' ')가 없다", () => {
+    const joined = CHART_FILES.filter((path) =>
+      withoutComments(readFileSync(path, 'utf-8')).some((line) =>
+        /\.join\(\s*(['"`]) \1\s*\)/.test(line),
+      ),
+    )
+    expect(joined).toEqual([])
+  })
+})
+
 describe('로케일 문장', () => {
   /** 조사는 앞 글자의 받침에 따라 갈린다. 값이 무엇일지 우리가 모르면 붙일 수 없다. */
   const PARTICLES = '은는이가을를와과'
