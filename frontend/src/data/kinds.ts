@@ -15,7 +15,19 @@ import { IMAGE_ACCEPT } from '@/data/image/upload'
 import { TABULAR_ACCEPT } from '@/data/table-accept'
 import type { DataType } from '@/project/schema'
 import type { EngineState } from '@/ml/backend'
-import { factLabelKey, type FactKey, type StepId, type StepTextSlot } from '@/router/steps'
+import {
+  DERIVED_LOCK_TEXT,
+  factLabelKey,
+  KIND_SPECIFIC_STEP_TEXT,
+  type FactKey,
+  type StepId,
+  type StepTextSlot,
+} from '@/router/steps'
+
+/** 종류마다 다른 문장을 갖는 슬롯인가. 그 슬롯에는 공통 자리가 없다 (docs/i18n.md 규칙 10). */
+function isKindSpecificStepText(step: StepId, slot: StepTextSlot): boolean {
+  return KIND_SPECIFIC_STEP_TEXT.some((entry) => entry.step === step && entry.slot === slot)
+}
 
 export interface DataKind {
   readonly dataType: DataType
@@ -159,10 +171,18 @@ function lockedTextFor(
   blockers: readonly FactKey[],
   dataType?: DataType | undefined,
 ): { key: string; params?: Record<string, string> } {
-  const own = kind?.stepText[step]?.locked
-  if (own !== undefined) return { key: own }
-  // **손으로 쓴 문장이 없으면 막는 일의 이름을 댄다.** 여기서 `steps.{step}.locked`로
-  // 물러서지 않는다 - 그 키는 없고, 조립한 단계 문구는 `ui-rules`가 막는다.
+  /*
+   * **뽑는 단계만 뽑는다** (`router/steps.ts`의 `DERIVED_LOCK_TEXT`). 전에는 종류가 선언한
+   * 문장만 보고 공통 자리(`steps.results.locked`·`steps.predict.locked`)를 안 봐서, 0.10.0부터
+   * 결과·예측의 손으로 쓴 문장이 **한 번도 안 뜨고** 뽑은 문장이 떴다(0.33.3 최종 감사 B-1).
+   * 공통 자리는 종류가 덮지 않는 슬롯일 때만 본다 — 덮는 슬롯에서 종류가 없으면 그 키는 없다.
+   */
+  if (!DERIVED_LOCK_TEXT.includes(step)) {
+    const own = kind?.stepText[step]?.locked
+    if (own !== undefined) return { key: own }
+    if (!isKindSpecificStepText(step, 'locked')) return { key: stepTextKey(kind, step, 'locked') }
+  }
+  // **손으로 쓴 문장이 없으면 막는 일의 이름을 댄다.**
   return {
     key: 'tasks.lockedBy',
     params: { task: factLabelKey(blockers[0] ?? 'datasetReady', dataType) },

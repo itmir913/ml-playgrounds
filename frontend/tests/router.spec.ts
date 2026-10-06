@@ -126,9 +126,11 @@ describe('라우터', { timeout: 20_000 }, () => {
     expect(router.currentRoute.value.name).toBe('results')
     const notices = useToastStore().items.filter((one) => one.tone === 'caution')
     expect(notices, 'a silent redirect').toHaveLength(1)
-    // 레일의 잠긴 칸과 같은 문장이다 — 막는 일의 이름이 채워져 있다.
-    expect(notices[0]?.key).toBe('tasks.lockedBy')
-    expect(String(notices[0]?.params['task'] ?? '')).not.toBe('')
+    // 레일의 잠긴 칸과 같은 문장이다 — 예측은 막는 사실이 하나라 손으로 쓴 문장이 선다
+    // (`data/kinds.ts`의 `lockedTextFor`, 0.33.3 최종 감사 B-1). 막는 일을 뽑는 단계의 알림은
+    // `kinds.spec.ts`가 같은 판정으로 본다.
+    expect(notices[0]?.key).toBe('steps.predict.locked')
+    expect(notices[0]?.params).toEqual({})
   })
 
   it('열린 단계로 갈 때는 아무것도 알리지 않는다', async () => {

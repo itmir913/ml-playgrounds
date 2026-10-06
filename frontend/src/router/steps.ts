@@ -320,7 +320,9 @@ export type StepTextSlot = 'purpose' | 'locked' | 'emptyReason' | 'emptyNext'
  *
  * **여기 있는 단계는 `steps.{단계}.locked`를 갖지 않는다.** `tests/locales.spec.ts`가
  * 그 짝을 이 목록으로 판정한다 — 손으로 쓴 문장과 뽑은 문장이 둘 다 있으면 어느 것이
- * 뜨는지 읽는 사람이 알 수 없다.
+ * 뜨는지 읽는 사람이 알 수 없다. **여기 없는 단계는 손으로 쓴 문장이 선다** — `lockedTextFor`가
+ * 이 목록으로 가르고, `tests/kinds.spec.ts`가 화면에 서는 키로 그 둘을 잇는다(0.33.3 전에는 안
+ * 이어서 결과·예측의 문장이 한 번도 안 떴다).
  */
 export const DERIVED_LOCK_TEXT: readonly StepId[] = ['train']
 

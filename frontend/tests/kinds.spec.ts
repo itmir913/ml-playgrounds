@@ -26,7 +26,13 @@ import {
   SUPPORTED_DATA_TYPES,
 } from '../src/data/kinds'
 import { DATA_TYPES } from '../src/project/schema'
-import { KIND_SPECIFIC_STEP_TEXT } from '../src/router/steps'
+import {
+  DERIVED_LOCK_TEXT,
+  isStepUnlocked,
+  KIND_SPECIFIC_STEP_TEXT,
+  NO_FACTS,
+  STEP_IDS,
+} from '../src/router/steps'
 
 describe('데이터 종류 등록부', () => {
   it('열쇠가 겹치지 않는다', () => {
@@ -253,5 +259,40 @@ describe('잠긴 줄에 세울 문장', () => {
       translate,
     )
     expect(sentence).toBe('tasks.lockedBy(tasks.image.targetChosen)')
+  })
+
+  /**
+   * **뽑는 단계만 막는 일의 이름을 대고, 나머지는 손으로 쓴 문장이 선다** (0.33.3 최종 감사 B-1).
+   * 두 판정 — `DERIVED_LOCK_TEXT`와 로케일의 `steps.*.locked` — 을 잇는 검사가 없어서, 0.10.0부터
+   * 결과·예측의 손으로 쓴 문장이 화면에 한 번도 안 서고도 초록이었다. 그 키가 로케일에 있어야 하는지는
+   * `locales.spec.ts`의 *"잠기는 단계에는 왜 못 가는지가 있다"*가 같은 목록으로 본다.
+   */
+  it('잠기는 단계는 뽑는 단계일 때만 막는 일의 이름을 대고, 아니면 모든 언어에 있는 손으로 쓴 문장을 세운다', () => {
+    const value = (locale: object, key: string): unknown =>
+      key.split('.').reduce<unknown>((node, part) => {
+        return typeof node === 'object' && node !== null
+          ? (node as Record<string, unknown>)[part]
+          : undefined
+      }, locale)
+    for (const dataType of SUPPORTED_DATA_TYPES) {
+      for (const step of STEP_IDS) {
+        if (isStepUnlocked(step, NO_FACTS)) continue
+        const key = lockedSentenceFor(
+          dataKindFor(dataType),
+          step,
+          ['datasetReady'],
+          dataType,
+          (k) => k,
+        )
+        expect(key === 'tasks.lockedBy', `${dataType}:${step}`).toBe(
+          DERIVED_LOCK_TEXT.includes(step),
+        )
+        for (const [tag, tree] of LOCALE_TREES) {
+          expect(typeof value(tree as object, key), `${tag} ${dataType}:${step} ${key}`).toBe(
+            'string',
+          )
+        }
+      }
+    }
   })
 })
