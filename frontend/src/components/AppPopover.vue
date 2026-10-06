@@ -87,6 +87,8 @@ const WIDTHS: Readonly<Record<NonNullable<typeof props.size>, string>> = {
 const open = ref(false)
 const root = ref<HTMLElement | null>(null)
 const panel = ref<HTMLElement | null>(null)
+/** 화면 아래를 덮는 막대의 높이를 재는 자(`popover-overlay-probe`). 열려 있는 동안만 선다. */
+const probe = ref<HTMLElement | null>(null)
 
 /**
  * 패널이 자라는 것을 본다. **`place()`는 자리만 바꾸고 크기는 안 바꾸므로** 다시 재는
@@ -125,17 +127,39 @@ async function place(): Promise<void> {
     await nextTick()
   }
 
-  const rect = panel.value?.getBoundingClientRect()
-  if (!rect) return
+  const element = panel.value
+  const rect = element?.getBoundingClientRect()
+  if (!element || !rect) return
+
+  /**
+   * **판정은 내용의 높이로 한다 — 상자의 높이가 아니다.** 상자는 앞서 고른 쪽의 천장
+   * (`--popover-room`)에 이미 눌려 있다. 줄이 나중에 들어오는 패널([사진 추가] 메뉴)은 처음에 빈
+   * 채로 아래에 들어가고, 자란 뒤 다시 잴 때 눌린 높이가 그 천장과 같아 **"아래에 들어간다"로
+   * 굳었다** — 위가 넉넉한데 아래에서 잘리고 안에 스크롤바가 섰다(#38, 코드 소유자).
+   * `scrollHeight`는 천장과 상관없는 내용의 높이이고, 테두리는 상자에서 더한다. 무는 검사:
+   * `app-popover-side.spec.ts` "첫 배치 뒤 자란 패널도 다시 판정한다".
+   */
+  const height = Math.max(
+    rect.height,
+    element.scrollHeight + (element.offsetHeight - element.clientHeight),
+  )
+
+  /**
+   * **화면 아래를 덮는 막대 뒤는 자리가 아니다.** 상태 표시줄(좁은 화면에서는 레일까지)이 화면 맨
+   * 아래를 덮고, 그 높이는 CSS가 안다(`--overlay-bottom`, `base.css`). 그 값은 `calc()`라 스크립트가
+   * 글자로는 못 읽어서 그 높이로 선 자를 잰다. 무는 검사: `app-popover-side.spec.ts` "하단 막대에
+   * 가려지는 자리는 아래 자리로 치지 않는다".
+   */
+  const covered = probe.value?.getBoundingClientRect().height ?? 0
 
   // **안 들어갈 때만 반대쪽으로 뒤집는다.** 표 머리글은 위로 열지만(§8.13 - 아래는 전부
   // 값이라 가리면 안 된다) 그 표가 화면 맨 위에 있으면 위쪽에 자리가 없다. 판정은
   // 순수 함수가 한다 (`screen.ts`의 `prefersTop`) — **둘 다 모자라면 요청한 쪽으로
   // 돌아오는 이유**가 거기 적혀 있다.
   const above = trigger.top - GAP - EDGE
-  const below = window.innerHeight - trigger.bottom - GAP - EDGE
+  const below = window.innerHeight - covered - trigger.bottom - GAP - EDGE
   const wanted = props.side === 'top'
-  const useTop = prefersTop({ above, below, height: rect.height, wantsTop: wanted })
+  const useTop = prefersTop({ above, below, height, wantsTop: wanted })
 
   const vertical = useTop
     ? { bottom: `${window.innerHeight - trigger.top + GAP}px` }
@@ -265,6 +289,8 @@ defineExpose({ close })
       >
         <slot :close="close" />
       </div>
+      <!-- 화면 아래를 덮는 막대의 높이를 재는 자. 보이지 않는다(`place`). -->
+      <div v-if="open" ref="probe" class="popover-overlay-probe" aria-hidden="true" />
     </Teleport>
   </div>
 </template>

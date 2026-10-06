@@ -57,6 +57,20 @@
  * 값이 자주 잘렸다(`truncate`) - 파일 이름과 타깃 열 이름은 **잘리면 쓸모가 없는
  * 값**이다. 좁은 화면에서는 위의 `max-width`가 그대로 걸려 화면 폭을 넘지 않는다.
  */
+/**
+ * 화면 아래를 덮는 막대(상태 표시줄, 좁은 화면에서는 레일까지)의 높이를 재는 자. `AppPopover`가
+ * 아래 자리를 셀 때 이 높이를 뺀다. `--overlay-bottom`은 `calc()`라 스크립트가 글자로는 못 읽으므로
+ * 그 높이로 세워 잰다. 폭이 없고 보이지 않는다.
+ */
+@utility popover-overlay-probe {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: var(--overlay-bottom);
+  visibility: hidden;
+}
+
 @utility popover-panel-wide {
   width: 44rem;
 }
