@@ -17,16 +17,15 @@ import { isClientError } from '../src/errors'
 import { applyLimitsOff } from '../src/limits-switch'
 import { hashBytes } from '../src/hash'
 import { MAX_DATASET_COLUMNS, MAX_DATASET_ROWS, TABLE_PREVIEW_ROW_COUNT } from '../src/limits'
+import { CP932_SAMPLE } from './fixtures/cp932'
 
 /** '이름,나이\n가나다,10'을 CP949로 인코딩한 바이트. */
 const CP949_CSV = new Uint8Array([
   192, 204, 184, 167, 44, 179, 170, 192, 204, 10, 176, 161, 179, 170, 180, 217, 44, 49, 48,
 ])
 
-/** '身長,名前\n150,太郎\n'을 CP932로 인코딩한 바이트 (Python cp932 codec으로 생성). */
-const CP932_CSV = new Uint8Array([
-  144, 103, 146, 183, 44, 150, 188, 145, 79, 10, 49, 53, 48, 44, 145, 190, 152, 89, 10,
-])
+/** CP932 표본은 `fixtures/cp932.ts`가 준다 — 브라우저의 euc-kr로도 안 풀리는 바이트다. */
+const CP932_CSV = CP932_SAMPLE
 
 async function xlsxBytes(sheets: Record<string, (string | number)[][]>): Promise<Uint8Array> {
   const workbook = new ExcelJS.Workbook()
@@ -76,8 +75,8 @@ describe('openTable - csv', () => {
     const document = await openTable(CP932_CSV, 'data.csv', { locale: 'ja' })
     expect(document.sourceEncoding).toBe('cp932')
     expect(document.read()).toEqual([
-      ['身長', '名前'],
-      ['150', '太郎'],
+      ['点数', '身長', 'クラス'],
+      ['10', '150', 'A'],
     ])
   })
 

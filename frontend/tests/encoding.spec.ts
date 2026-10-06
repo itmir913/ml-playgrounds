@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 import { CODE_PAGE_BY_LOCALE, decodeText, detectEncoding } from '../src/data/encoding'
 import { isClientError } from '../src/errors'
 import { SUPPORTED_LOCALES } from '../src/i18n'
+import { CP932_SAMPLE, CP932_TEXT, SHIFT_JIS_NAME, uhcRejectedPairs } from './fixtures/cp932'
 
 /**
  * '이름,나이\n가나다,10'을 CP949로 인코딩한 바이트 (Python cp949 codec으로 생성).
@@ -24,16 +25,7 @@ const CP949_SAMPLE = new Uint8Array([
   192, 204, 184, 167, 44, 179, 170, 192, 204, 10, 176, 161, 179, 170, 180, 217, 44, 49, 48,
 ])
 
-/**
- * '身長,名前,クラス\n150,太郎,A\n'을 CP932로 인코딩한 바이트. Python
- * `'身長,名前,クラス\n150,太郎,A\n'.encode('cp932')`가 낸 그대로다 — 일본 윈도 엑셀의
- * "CSV(コンマ区切り)"가 쓰는 인코딩이다. 이것을 `euc-kr`로 읽으면 `身長`이 `g�`가 된다.
- */
-const CP932_SAMPLE = new Uint8Array([
-  144, 103, 146, 183, 44, 150, 188, 145, 79, 44, 131, 78, 131, 137, 131, 88, 10, 49, 53, 48, 44,
-  145, 190, 152, 89, 44, 65, 10,
-])
-const CP932_TEXT = '身長,名前,クラス\n150,太郎,A\n'
+/** CP932 표본은 `fixtures/cp932.ts`가 준다 — 브라우저의 euc-kr로도 안 풀리는 바이트다. */
 
 /**
  * '이름,키\n김수,150\n'을 CP949로 인코딩한 바이트 (Python cp949 codec으로 생성).
@@ -192,6 +184,19 @@ describe('detectEncoding - 언어별 판정', () => {
 
   it('한국어 화면은 엄격한 cp949로 안 풀리는 CP932를 판정하지 못한다', () => {
     expect(detectEncoding(CP932_SAMPLE, 'ko')).toBeNull()
+  })
+
+  /**
+   * **위 `null`이 브라우저에서도 참인가** (0.33.3 최종 감사 A-1). Node의 euc-kr은 KS X 1001만 알아 거의
+   * 모든 CP932를 던지지만, 브라우저의 euc-kr(UHC)은 흔한 일본어 CSV의 대부분을 오류 없이 한글로 푼다 —
+   * 그런 파일은 한국어 화면에서 cp949로 깨진 표가 된다(결정 102가 받아들인 대가). 표본이 그런 바이트면
+   * 위 검사는 브라우저가 안 하는 일을 잰다. 그래서 표본에 UHC가 못 읽는 쌍이 있는지 본다.
+   */
+  it('CP932 표본은 브라우저의 euc-kr로도 안 풀린다 — UHC가 뒷바이트로 안 쓰는 쌍이 있다', () => {
+    expect(uhcRejectedPairs(CP932_SAMPLE).length).toBeGreaterThan(0)
+    expect(uhcRejectedPairs(SHIFT_JIS_NAME).length).toBeGreaterThan(0)
+    // 검사기 짝: 옛 표본(`身長,名前`)은 UHC로 다 읽혀 여기서 걸러져야 한다.
+    expect(uhcRejectedPairs([0x90, 0x67, 0x92, 0xb7, 0x2c, 0x96, 0xbc, 0x91, 0x4f])).toEqual([])
   })
 
   it('한국어 화면은 Windows-1252의 Café도 판정하지 못한다', () => {

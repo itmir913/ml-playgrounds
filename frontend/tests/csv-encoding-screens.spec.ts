@@ -29,18 +29,16 @@ import { useToastStore } from '../src/stores/toasts'
 import TabularPanel from '../src/views/data/TabularPanel.vue'
 import BatchPredict from '../src/views/predict/BatchPredict.vue'
 import TabularPrepPanel from '../src/views/preprocess/TabularPrepPanel.vue'
+import { CP932_SAMPLE } from './fixtures/cp932'
 import { resetDatabase } from './fixtures/database'
 import { dropEvent, stubDialogElement } from './fixtures/image-workers'
 import { experiment, projectFile, run } from './fixtures/project'
 
 /**
- * '身長,名前,クラス\n150,太郎,A\n'을 CP932로 인코딩한 바이트 — `encoding.spec.ts`의
- * `CP932_SAMPLE`과 같은 바이트다(Python `.encode('cp932')`). 엄격한 euc-kr로는 안 풀린다.
+ * CP932 표본은 `fixtures/cp932.ts`가 준다 — 판정 검사와 같은 바이트이고, Node와 브라우저의 euc-kr
+ * 어느 쪽으로도 안 풀린다(그래야 한국어 화면의 멈춤이 브라우저에서도 참이다).
  */
-const CP932_BYTES = new Uint8Array([
-  144, 103, 146, 183, 44, 150, 188, 145, 79, 44, 131, 78, 131, 137, 131, 88, 10, 49, 53, 48, 44,
-  145, 190, 152, 89, 44, 65, 10,
-])
+const CP932_BYTES = CP932_SAMPLE
 
 const UNKNOWN = 'client.DATASET_ENCODING_UNKNOWN'
 

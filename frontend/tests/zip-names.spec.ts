@@ -19,6 +19,7 @@ import { join, relative } from 'node:path'
 import { zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
+import { SHIFT_JIS_NAME, SHIFT_JIS_NAME_TEXT } from './fixtures/cp932'
 import { sourceFiles, withoutComments } from './fixtures/source'
 
 import { readImageZip } from '../src/data/image/upload'
@@ -40,10 +41,11 @@ const CP949_RED = [0xbb, 0xa1, 0xb0, 0xa3, 0xb3, 0xd7, 0xb8, 0xf0, 0x2f, 0x61, 0
 const UTF8_RED = [0xeb, 0xb9, 0xa8, 0xea, 0xb0, 0x84, 0xeb, 0x84, 0xa4, 0xeb, 0xaa, 0xa8, 0x2f, 0x61, 0x2e, 0x70, 0x6e, 0x67] // prettier-ignore
 
 /**
- * 일본어 윈도 탐색기가 Shift_JIS로 적은 `赤い四角/a.png`. python `'赤い四角'.encode('shift_jis')`의
- * 바이트다(사람 확인). 첫 바이트 `0x90`이 UTF-8의 시작 바이트가 아니라 UTF-8로는 안 읽힌다.
+ * 일본어 윈도 탐색기가 Shift_JIS로 적은 `赤い点/a.png` (`fixtures/cp932.ts`). 첫 바이트 `0x90`이
+ * UTF-8의 시작 바이트가 아니라 UTF-8로는 안 읽히고, `点`(`93 5F`) 때문에 브라우저의 euc-kr로도
+ * 안 읽힌다 — 옛 표본 `赤い四角`은 Node에서만 던지고 크롬에서는 한글로 풀렸다(0.33.3 최종 감사 A-1).
  */
-const SHIFT_JIS_RED = [0x90, 0xd4, 0x82, 0xa2, 0x8e, 0x6c, 0x8a, 0x70, 0x2f, 0x61, 0x2e, 0x70, 0x6e, 0x67] // prettier-ignore
+const SHIFT_JIS_RED = SHIFT_JIS_NAME
 
 /** 독일어 `Größe/a.png`. **진짜 Latin-1이라 지금도 잘 읽힌다** — 이게 안 깨져야 한다. */
 const LATIN1_GROESSE = [0x47, 0x72, 0xf6, 0xdf, 0x65, 0x2f, 0x61, 0x2e, 0x70, 0x6e, 0x67] // prettier-ignore
@@ -170,7 +172,7 @@ describe('압축 파일 이름 되살리기', () => {
 
   it('일본어 화면에서는 Shift_JIS로 읽는다', () => {
     expect(decodeZipNames([asFflateWouldRead(SHIFT_JIS_RED)], { locale: 'ja' })).toEqual([
-      '赤い四角/a.png',
+      SHIFT_JIS_NAME_TEXT,
     ])
   })
 
@@ -184,7 +186,8 @@ describe('압축 파일 이름 되살리기', () => {
   })
 
   it('다른 언어의 코드 페이지로는 추정하지 않는다', () => {
-    // 한국어 화면에서는 `euc-kr` 하나만 후보이고, 이 바이트는 그것으로 엄격하게 안 읽힌다.
+    // 한국어 화면에서는 `euc-kr` 하나만 후보이고, 이 바이트는 그것으로 엄격하게 안 읽힌다 —
+    // Node와 브라우저 모두(`encoding.spec.ts` "CP932 표본은 브라우저의 euc-kr로도 안 풀린다").
     const given = asFflateWouldRead(SHIFT_JIS_RED)
     expect(decodeZipNames([given], { locale: 'ko' })).toEqual([given])
   })

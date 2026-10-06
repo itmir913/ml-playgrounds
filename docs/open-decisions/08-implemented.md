@@ -21,6 +21,8 @@
 **[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. 결론: **오류로 멈추고 UTF-8로 다시 저장하라고 말한다.**
 언어마다 자기 코드 페이지 하나만 엄격하게 시험하고, 영어는 실패하지 않는 `cp1252`가
 마지막이다(`data/encoding.ts`의 `CODE_PAGE_BY_LOCALE`, 오류는 `DATASET_ENCODING_UNKNOWN`).
+**뒤따른 결정 (코드 소유자, 0.33.3 최종 감사).** 브라우저의 euc-kr(UHC)은 한국어 화면에 놓인 일본어 CSV의
+대부분을 오류 없이 풀어 깨진 표로 연다. **대가로 받아들인다** — 판정을 더하면 정상 CP949의 UHC 글자와 부딪힌다.
 
 ### 101. 순수 JS 의사결정트리의 분할 탐색을 우리 코드로 바꾼다 — 같은 나무를 더 빨리 (2026-10-03, 코드 소유자)
 **[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. `ml-cart`의 `bestSplit`을 우리 구현(`ml/engines/cart-split.ts`)으로
