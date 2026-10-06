@@ -187,8 +187,14 @@ const WIDTH_KEYS = {
 
 const widthItems = computed(() => STROKE_WIDTH_IDS.map((id) => ({ id, label: t(WIDTH_KEYS[id]) })))
 
-/** 가장 굵은 단계. 붓 점은 이 단계의 점 크기를 모든 칸이 자리로 잡는다. */
-const THICKEST = Math.max(...STROKE_WIDTH_IDS.map((id) => SKETCH_STROKE_WIDTHS[id]))
+/**
+ * 가장 굵은 단계. 붓 점은 이 단계의 점 크기를 모든 칸이 자리로 잡는다. 단계는 셋뿐이지만 인자로
+ * 펼치지 않고 접는다 — 그 표기는 저장소 전체에서 막는다(`spread-rules.spec.ts`).
+ */
+const THICKEST = STROKE_WIDTH_IDS.reduce(
+  (widest, id) => Math.max(widest, SKETCH_STROKE_WIDTHS[id]),
+  0,
+)
 
 /** 붓 점의 크기. 자리(가장 굵은 점) 안의 비율이라 단계 사이의 차이가 실제 굵기와 같다. */
 function dotSize(id: string): string {
