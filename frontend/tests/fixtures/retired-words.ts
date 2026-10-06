@@ -36,6 +36,12 @@ export interface RetiredWord {
   readonly hits: readonly string[]
   /** 걸리면 안 되는 꼴. */
   readonly misses: readonly string[]
+  /**
+   * 이 낱말이 **물러나지 않은 로케일 키**의 앞부분. 다른 기능에서 물러난 말이 새 기능의 이름 그
+   * 자체인 자리다. 키를 아는 검사(`locales.spec.ts`의 *"동작의 이름에 순우리말을 쓰지 않는다"*)만
+   * 이것을 본다 — 키가 없는 글(내장 양식의 안내문)에는 예외가 없다.
+   */
+  readonly allowedIn?: readonly string[]
 }
 
 export const RETIRED_WORDS: readonly RetiredWord[] = [
@@ -378,6 +384,10 @@ export const RETIRED_WORDS: readonly RetiredWord[] = [
       '그린',
     ],
     misses: ['그리고', '그리스', '그리움'],
+    // **[사진 추가]의 그리기는 예외다** (#38, open-decisions.md 67 결정 5·12). 학생이 손으로 사진을
+    // 그려 넣는 입력 방식이라 `차트`·`표시하다`가 가리키는 것이 아니고, 문구는 코드 소유자가 정했다.
+    // `그리기`는 copy.md §2 닫힌 목록에 있다. 이 두 키 밖(차트·결과 화면)에서는 그대로 물러난 말이다.
+    allowedIn: ['data.image.sketch.', 'data.image.source.sketch'],
   },
   // 데이터는 `지원`·`사용`, 빈 칸은 `처리`, 오차는 `계산`이다
   {
@@ -405,9 +415,13 @@ export interface RetiredHit {
 
 const COMPILED = RETIRED_WORDS.map((word) => ({ word, regex: new RegExp(word.pattern, 'u') }))
 
-/** 글에서 물러난 말을 찾는다. 규칙마다 처음 걸린 꼴 하나만 낸다. */
-export function retiredIn(text: string): RetiredHit[] {
+/**
+ * 글에서 물러난 말을 찾는다. 규칙마다 처음 걸린 꼴 하나만 낸다. 로케일 키를 주면 그 키에서 물러나지
+ * 않은 말(`allowedIn`)은 건너뛴다.
+ */
+export function retiredIn(text: string, key?: string): RetiredHit[] {
   return COMPILED.flatMap(({ word, regex }) => {
+    if (key !== undefined && word.allowedIn?.some((prefix) => key.startsWith(prefix))) return []
     const match = regex.exec(text)
     return match ? [{ retired: word.retired, instead: word.instead, found: match[0] }] : []
   })

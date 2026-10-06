@@ -121,3 +121,60 @@ describe('접히는 자리를 정해 둔다', () => {
     expect(pieces[0]?.find('span.inline-block').text()).toBe('(Decision Tree)')
   })
 })
+
+/**
+ * **한 줄에 세우면** (`row`, #38 그리기의 붓 굵기). 눈금 셋 중 하나만 아랫줄로 떨어지면 차례가 안
+ * 읽힌다. 기본 격자는 그대로여야 한다 — 다른 축은 받은 폭에 따라 접힌다.
+ */
+describe('한 줄에 세우면', () => {
+  const ITEMS: readonly Choice[] = [
+    { id: 'thin', label: '가는 붓' },
+    { id: 'medium', label: '보통' },
+    { id: 'thick', label: '굵은 붓' },
+  ]
+
+  function grid(row: boolean) {
+    return mount(AppChoices, {
+      props: { label: '붓 굵기', items: ITEMS, row },
+      global: { plugins: [i18n] },
+    })
+  }
+
+  it('칸이 한 줄로 서고 이름이 줄을 안 바꾼다', () => {
+    const wrapper = grid(true)
+    expect(wrapper.find('[role="group"]').classes()).toEqual(
+      expect.arrayContaining(['grid-flow-col', 'auto-cols-fr']),
+    )
+    expect(wrapper.find('[role="group"]').classes()).not.toContain('grid-cols-2')
+    expect(wrapper.find('button').classes()).toContain('whitespace-nowrap')
+  })
+
+  it('기본은 받은 폭에 따라 접히는 격자다', () => {
+    const wrapper = grid(false)
+    expect(wrapper.find('[role="group"]').classes()).toEqual(
+      expect.arrayContaining(['grid-cols-2', '@md:grid-cols-3']),
+    )
+    expect(wrapper.find('[role="group"]').classes()).not.toContain('grid-flow-col')
+    expect(wrapper.find('button').classes()).not.toContain('whitespace-nowrap')
+  })
+
+  it('칸 이름 앞의 표시는 그 칸의 `id`를 받고, 글자는 그대로다', () => {
+    const wrapper = mount(AppChoices, {
+      props: { label: '붓 굵기', items: ITEMS, row: true },
+      slots: {
+        mark: '<template #mark="{ id }"><i :data-mark="id" aria-hidden="true" /></template>',
+      },
+      global: { plugins: [i18n] },
+    })
+    expect(wrapper.findAll('i').map((one) => one.attributes('data-mark'))).toEqual([
+      'thin',
+      'medium',
+      'thick',
+    ])
+    expect(wrapper.findAll('button').map((one) => one.text())).toEqual([
+      '가는 붓',
+      '보통',
+      '굵은 붓',
+    ])
+  })
+})

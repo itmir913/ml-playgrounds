@@ -1873,6 +1873,10 @@ describe('전처리 판은 붙일 때도 뗄 때도 묻는다', () => {
    * ([파일로 저장])이 실패하면 **창이 남아 창 안에서 이유를 말한다** — 학생이 그 자리에서
    * [저장하지 않고 이동]이나 [머무르기]를 골라야 해서다. 알림으로 말하려고 닫는 `CLOSERS`와 반대다.
    * `WelcomeView.vue`의 덮기 전 창(결정 75)은 답을 받는 순간 닫고 일을 시작한다 — 일하기 전에 닫는 창이다.
+   *
+   * **`SketchDialog.vue`도 `CLOSERS`가 아니다** (#38, open-decisions.md 67). 이 창의 일([추가]가 그린 장을
+   * PNG로 만드는 것)이 실패하면 `LeaveGuard`처럼 **창이 남아 창 안에서 이유를 말한다** — 닫으면 그린
+   * 그림이 사라진다. 버릴지 묻는 창은 일이 없다(답을 받으면 닫는다).
    */
   it('AppDialog를 쓰는 화면이 그대로다 - 늘었으면 CLOSERS를 다시 보라', () => {
     const screens = vueFiles(SRC)
@@ -1889,6 +1893,7 @@ describe('전처리 판은 붙일 때도 뗄 때도 묻는다', () => {
       'views/WelcomeView.vue',
       'views/data/ChartDialog.vue',
       'views/data/ImagePanel.vue',
+      'views/data/SketchDialog.vue',
       'views/data/TabularPanel.vue',
       'views/predict/ImagePredictPanel.vue',
       'views/preprocess/ImagePrepPanel.vue',

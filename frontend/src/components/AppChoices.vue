@@ -59,6 +59,23 @@ const props = defineProps<{
   items: readonly Choice[]
   /** 지금 골라진 칸. 아무것도 안 골랐으면 undefined다 — 기본값을 지어내지 않는다. */
   selected?: string | undefined
+  /**
+   * 칸을 **한 줄에 다** 세우는가. **기본은 받은 폭에 따라 두 열·세 열로 접힌다** (아래 격자).
+   *
+   * **그리기의 붓 굵기 셋 때문에 생겼다** (open-decisions.md 67 결정 12). 단계의 이름이 짧고
+   * 셋이 한 축의 눈금이라, 두 열로 접히면 `굵은 붓` 하나만 아랫줄로 떨어져 **눈금의 차례가
+   * 안 읽힌다.** 이 줄에서는 이름도 줄을 안 바꾼다(`whitespace-nowrap`) — 이름이 짧은 축에만 준다.
+   * `app-choices.spec.ts`의 "한 줄에 세우면"이 문다.
+   */
+  row?: boolean
+}>()
+
+defineSlots<{
+  /**
+   * 칸 이름 앞의 표시. 받는 것은 그 칸의 `id`다. **글자가 아니라 꾸밈이다** — 이름을 대신하지
+   * 않으므로 스크린리더에는 안 읽히게 부르는 쪽이 `aria-hidden`을 준다(그리기의 붓 점).
+   */
+  mark?: (props: { id: string }) => unknown
 }>()
 
 const emit = defineEmits<{ pick: [id: string] }>()
@@ -145,7 +162,8 @@ const cells = computed(() => props.items.map((item) => ({ item, parts: splitLabe
       셋에 간격 8px 둘을 더하면 448px이다. 그게 `@md`(28rem)다.
     -->
     <div
-      class="mt-1.5 grid auto-rows-fr grid-cols-2 gap-2 @md:grid-cols-3"
+      class="mt-1.5 grid auto-rows-fr gap-2"
+      :class="props.row ? 'grid-flow-col auto-cols-fr' : 'grid-cols-2 @md:grid-cols-3'"
       role="group"
       :aria-label="label"
     >
@@ -154,11 +172,12 @@ const cells = computed(() => props.items.map((item) => ({ item, parts: splitLabe
         :key="cell.item.id"
         type="button"
         class="min-w-0 rounded-control border px-3 py-2 text-center font-bold break-keep transition-colors"
-        :class="stateOf(cell.item)"
+        :class="[stateOf(cell.item), props.row ? 'whitespace-nowrap' : '']"
         :aria-pressed="props.selected === cell.item.id"
         :aria-disabled="isLocked(cell.item.lock)"
         @click="press(cell.item)"
       >
+        <slot :id="cell.item.id" name="mark" />
         <!--
           **원어는 통째로 다니되, 저 혼자 칸보다 넓으면 저 안에서 접힌다.** `inline-block`이
           그 둘을 동시에 한다 - 줄바꿈에는 덩어리 하나로 참여하고(그래서 괄호 앞이 갈릴

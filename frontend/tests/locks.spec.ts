@@ -22,6 +22,7 @@ import AppInput from '../src/components/AppInput.vue'
 import AppLockZone from '../src/components/AppLockZone.vue'
 import AppPlainButton from '../src/components/AppPlainButton.vue'
 import AppSelect from '../src/components/AppSelect.vue'
+import { addStroke, EMPTY_SKETCH } from '../src/data/image/sketch'
 import {
   anyLock,
   forwardAttrs,
@@ -246,6 +247,11 @@ const CASES: {
   categoryName: {
     locked: { from: '', value: '_숨김', categories: [] },
     open: { from: '', value: '개', categories: ['고양이'] },
+  },
+  sketchEmpty: {
+    locked: { sketches: [EMPTY_SKETCH, EMPTY_SKETCH] },
+    // 하나라도 그렸으면 거절이 아니다 — 모은 장이 있으면 지금 장이 비어도 [추가]는 된다.
+    open: { sketches: [EMPTY_SKETCH, addStroke(EMPTY_SKETCH, [[1, 1]])] },
   },
   imagePredict: {
     locked: { photos: 1, models: 0, visible: 0, usable: 0 },

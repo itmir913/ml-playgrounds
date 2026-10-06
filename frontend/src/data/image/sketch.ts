@@ -84,6 +84,23 @@ export function endStroke(sketch: Sketch): Sketch {
   return sketch.drawing ? { ...sketch, drawing: false } : sketch
 }
 
+/**
+ * 다 그은 획 하나를 통째로 붙인다. 지금 고른 굵기를 받는다. **점이 없으면 그대로다.**
+ *
+ * **화면이 긋는 동안 쓰는 길이다** (`views/data/SketchDialog.vue`). `addPoint`는 점마다 획의 점
+ * 배열을 새로 복사하므로, 포인터가 점을 수백 개 보내는 긴 획에서는 복사 총량이 점 수의 제곱으로
+ * 는다. 그래서 화면은 긋는 동안 점을 자기 가변 배열에 쌓고, 획이 끝날 때 이것으로 한 번에 넣는다.
+ * **받은 배열을 복사해 든다** — 화면이 그 배열을 다음 획에 다시 쓰더라도 그림판이 안 바뀐다.
+ */
+export function addStroke(sketch: Sketch, points: readonly Point[]): Sketch {
+  if (points.length === 0) return sketch
+  return {
+    ...sketch,
+    strokes: [...sketch.strokes, { points: [...points], width: sketch.width }],
+    drawing: false,
+  }
+}
+
 /** 마지막 획을 뺀다. 긋는 중이었으면 그 획이 빠지고 긋기도 멈춘다. 붓 굵기는 그대로다. */
 export function undo(sketch: Sketch): Sketch {
   return { ...sketch, strokes: sketch.strokes.slice(0, -1), drawing: false }

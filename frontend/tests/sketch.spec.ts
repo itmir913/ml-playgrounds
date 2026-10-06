@@ -21,6 +21,7 @@ import {
 } from '../src/data/image/formats'
 import {
   addPoint,
+  addStroke,
   beginStroke,
   clear,
   createSketchNamer,
@@ -114,6 +115,26 @@ describe('획을 더하고 빼고 비운다', () => {
     expect(cleared.width).toBe('thick')
   })
 
+  /**
+   * **화면은 긋는 동안 점을 제 배열에 쌓고 획이 끝날 때 한 번에 넣는다** (`addStroke`). 점마다
+   * `addPoint`로 넣으면 긴 획의 복사가 점 수의 제곱이다. 두 길이 같은 그림판을 내야 한다.
+   */
+  it('다 그은 획을 한 번에 붙이면 점을 하나씩 이은 것과 같다', () => {
+    const points: [number, number][] = [
+      [1, 2],
+      [3, 4],
+      [5, 6],
+    ]
+    const thin = setWidth(EMPTY_SKETCH, 'thin')
+    expect(addStroke(thin, points)).toEqual(drawn(thin, points))
+    // 화면이 배열을 다음 획에 다시 써도 그림판은 안 바뀐다.
+    const kept = addStroke(thin, points)
+    points.length = 0
+    expect(kept.strokes[0]?.points).toHaveLength(3)
+    // 점이 없으면 획이 아니다.
+    expect(addStroke(thin, [])).toBe(thin)
+  })
+
   it('받은 상태를 고치지 않는다', () => {
     const frozen = Object.freeze({
       ...drawn(EMPTY_SKETCH, [[1, 1]]),
@@ -123,6 +144,7 @@ describe('획을 더하고 빼고 비운다', () => {
     })
     // 얼린 값을 고치려 들면 엄격 모드에서 던진다.
     expect(() => addPoint(beginStroke(frozen, [2, 2]), [3, 3])).not.toThrow()
+    expect(() => addStroke(frozen, [[2, 2]])).not.toThrow()
     expect(() => undo(frozen)).not.toThrow()
     expect(() => clear(frozen)).not.toThrow()
     expect(() => setWidth(frozen, 'thick')).not.toThrow()

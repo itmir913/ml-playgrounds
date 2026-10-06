@@ -40,6 +40,28 @@ const props = defineProps<{
    * 없다. 나가는 길이 없는 창을 만드는 것이 아니라 **실수로 나가는 길만** 막는다.
    */
   persistent?: boolean
+  /**
+   * 두 칸을 나란히 담는 넓은 창인가 (open-decisions.md 67 결정 12, 그리기 창). **높이는 `fill`과
+   * 달리 내용만큼이다** — 왼쪽 덩어리(캔버스)가 창 높이를 정하고, 넘치면 안쪽 칸들이 **각자**
+   * 구른다. 그러려면 안쪽 칸이 창의 천장을 알아야 해서 그 상한을 안쪽 세로 칸에 직접 준다
+   * (`styles/utilities.css`의 `dialog-wide-frame`). 높이를 `auto`로 박지 않는다 — 모달 `<dialog>`는
+   * 위아래가 0에 붙어 있어 `auto`면 화면 높이로 늘어난다(브라우저 기본값 `fit-content`를 그대로 둔다).
+   *
+   * **`fill`과 함께 주지 않는다** — 둘 다 폭을 정한다. 함께 오면 `fill`이 이긴다.
+   * `app-dialog.spec.ts`의 "크기는 `fill`·`wide`가 쥔다"가 문다.
+   */
+  wide?: boolean
+  /**
+   * 열릴 때 초점을 **창 자신**에 두는가 (open-decisions.md 67 결정 14). **기본은 브라우저의 규칙대로
+   * 첫 초점 대상**(또는 `autofocus`가 붙은 칸)이다 — 묻고 답하는 창에서는 그것이 맞다.
+   *
+   * 그리기 창은 첫 대상이 붓 굵기 칸이라 열자마자 그 칸에 초점 링이 서서 **눌린 것처럼** 보였다.
+   * `<dialog autofocus>`는 브라우저가 창 자신에 초점을 둔다(HTML의 dialog focusing steps). 창의 링은
+   * 덮지 않는다 — 마우스로 열면 `:focus-visible`이 안 걸려 링이 없고, 키보드로 열면 창 테두리에 서서
+   * 초점이 어디 있는지 말한다(`ui-rules.spec.ts`의 *"화면이 링을 덮어쓰지 않는다"*). 실제로 그렇게
+   * 서는지는 **사람 확인**이다(jsdom은 `showModal`의 초점 규칙을 안 갖는다).
+   */
+  focusPanel?: boolean
 }>()
 
 const emit = defineEmits<{ close: [] }>()
@@ -50,8 +72,24 @@ const dialog = ref<HTMLDialogElement | null>(null)
 function sync(): void {
   const element = dialog.value
   if (!element) return
-  if (props.open && !element.open) element.showModal()
+  if (props.open && !element.open) {
+    element.showModal()
+    if (props.focusPanel) releaseFirstFocus(element)
+  }
   if (!props.open && element.open) element.close()
+}
+
+/**
+ * `<dialog autofocus>`를 모르는 브라우저의 뒷길(`focusPanel`). 거기서는 `showModal`이 첫 단추에
+ * 초점을 두므로 **그 초점만 놓는다** — 창 자신에 초점을 줄 길은 `tabindex`뿐인데 그 낱말은 잠금
+ * 낱말이다(`@/locks`의 `LOCK_WORDS`). 놓아도 다음 Tab은 창 안의 첫 단추로 간다(모달이라 바깥은
+ * 비활성이다 — 사람 확인). `app-dialog.spec.ts`의 "창 자신에 초점을 두면"이 문다.
+ */
+function releaseFirstFocus(element: HTMLDialogElement): void {
+  const focused = document.activeElement
+  if (focused instanceof HTMLElement && focused !== element && element.contains(focused)) {
+    focused.blur()
+  }
 }
 
 watch(() => props.open, sync, { flush: 'post' })
@@ -83,7 +121,8 @@ function onBackdrop(event: MouseEvent): void {
   <dialog
     ref="dialog"
     class="dialog-panel m-auto rounded-card border border-line bg-surface p-0 text-ink shadow-pop backdrop:bg-slate-900/40"
-    :class="props.fill ? 'dialog-fill' : 'w-full max-w-2xl'"
+    :class="props.fill ? 'dialog-fill' : props.wide ? 'w-full max-w-7xl' : 'w-full max-w-2xl'"
+    :autofocus="props.focusPanel || undefined"
     @close="emit('close')"
     @click="onBackdrop"
   >
@@ -106,7 +145,14 @@ function onBackdrop(event: MouseEvent): void {
       **`fill`에는 필요하다.** 그쪽은 창 높이가 `95dvh`로 정해져 있어 안쪽 칸이 그것을
       받아야 아래 굴리는 자리가 높이를 얻는다.
     -->
-    <div class="flex min-h-0 flex-col p-6 md:p-8" :class="props.fill ? 'h-full' : ''">
+    <!--
+      **넓은 창은 안쪽 칸이 천장을 든다** (`wide`). 창의 높이가 내용만큼이라 `h-full`은 순환이고
+      (위 주석), 천장 없이는 아래 본문 칸이 높이를 못 받아 두 칸이 각자 구르지 못한다.
+    -->
+    <div
+      class="flex min-h-0 flex-col p-6 md:p-8"
+      :class="props.fill ? 'h-full' : props.wide ? 'dialog-wide-frame' : ''"
+    >
       <h2 class="text-xl font-bold tracking-tight md:text-2xl">{{ title }}</h2>
       <!--
         **리듬이 두 단이다** — 이름과 그 설명 사이는 1.5, 덩어리와 덩어리 사이는 6.

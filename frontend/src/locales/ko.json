@@ -218,7 +218,38 @@
       "renameTitle": "범주 이름 변경",
       "selected": "선택한 사진 {count}장",
       "skipped": "읽을 수 없는 파일 {count}개는 추가하지 못했습니다.",
-      "use": "이 사진 사용"
+      "use": "이 사진 사용",
+      "source": {
+        "files": "사진 선택",
+        "folder": "폴더 선택",
+        "sketch": "그리기"
+      },
+      "sketch": {
+        "title": "그리기",
+        "description": "마우스나 손가락으로 그리세요. 여러 장을 그리려면 [다음 장 추가]를 누르세요.",
+        "width": "붓 굵기",
+        "widthThin": "가는 붓",
+        "widthMedium": "보통",
+        "widthThick": "굵은 붓",
+        "canvas": "그림판",
+        "hint": "여기에 그리세요",
+        "refuseEmpty": "먼저 여기에 그리세요",
+        "undo": "되돌리기",
+        "clear": "초기화",
+        "next": "다음 장 추가",
+        "tray": "추가할 그림",
+        "trayCount": "{count}장",
+        "trayNote": "[다음 장 추가]를 누르면 지금 그림이 여기에 남고 새 장이 열립니다.",
+        "live": "지금",
+        "liveAlt": "지금 그림",
+        "sheet": "그림 {index}",
+        "removeSheet": "그림 제거 ({index})",
+        "add": "추가",
+        "addCount": "추가 ({count}장)",
+        "discardTitle": "그림을 추가하지 않고 닫을까요?",
+        "discardDescription": "추가하지 않은 그림은 사라집니다. ({count}장)",
+        "discardConfirm": "추가하지 않고 닫기"
+      }
     },
     "tabular": {
       "applied": "데이터를 불러왔습니다.",

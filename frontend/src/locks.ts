@@ -49,6 +49,7 @@ import { computed, getCurrentInstance, getCurrentWatcher, toRaw, type ComputedRe
 
 import type { ChartToolGate, GateInput as ChartGateInput } from '@/data/chart-gates'
 import { isValidCategoryName } from '@/data/image/canonical'
+import { isBlank, type Sketch } from '@/data/image/sketch'
 import { isBinCount } from '@/data/stats'
 import { comparingBlockers, reproduceBlockers, type ReproduceSubject } from '@/ml/reproduce-gate'
 import {
@@ -498,7 +499,7 @@ export interface StepInput {
  *
  * 판정은 원래 있던 자리의 함수를 그대로 부른다 — `trainGate`·`modelAxes`·`chosenModelBlocks`·
  * `reproduceBlockers`·`stratifyBlock(For)`·`featureLocked`·`usesTarget`·차트 도구의 `blockedBy`·
- * `stepBlockers`·`isBinCount`·`isValidCategoryName`. **여기서 조건을 새로 적지 않는다** — 새로 적는
+ * `stepBlockers`·`isBinCount`·`isValidCategoryName`·`isBlank`. **여기서 조건을 새로 적지 않는다** — 새로 적는
  * 순간 그 조건이 두 벌이 된다. 잠금을 더하려면 여기 줄을 더하고, **코드 소유자에게 먼저 묻는다**
  * (결정문 60).
  */
@@ -583,6 +584,13 @@ const GATES = {
     input.name.trim() === '' ? (['NAME_MISSING'] as const) : [],
   /** 범주 이름 창의 [확정]의 거절. **잠금으로는 쓰지 않는다** — 누르면 창 안 문장이 선다. */
   categoryName: (input: CategoryNameInput) => categoryNameReasons(input),
+  /**
+   * 그리기 창의 [다음 장 추가]·[추가]의 거절 (open-decisions.md 67). 넘긴 그림판이 **전부** 비었으면
+   * 거절이다 — [다음 장 추가]는 지금 장 하나를, [추가]는 모은 장과 지금 장을 넘긴다. **잠금으로는
+   * 쓰지 않는다** — 누르면 캔버스 안의 안내 문장이 거절 문장으로 바뀐다(`SketchDialog.vue`).
+   */
+  sketchEmpty: (input: { readonly sketches: readonly Sketch[] }) =>
+    input.sketches.every(isBlank) ? (['SKETCH_EMPTY'] as const) : [],
   /**
    * 사진 [예측하기]의 거절. **백본을 받기 전에** 선다. **잠금으로는 쓰지 않는다** — 누르면 이유를
    * 알린다(결정문 65 "구조 뒤 감사에서 더한 것").

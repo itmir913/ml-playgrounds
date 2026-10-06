@@ -286,9 +286,22 @@ describe('프런트엔드 전용 코드', () => {
 
   it('동작의 이름에 순우리말을 쓰지 않는다', () => {
     const found = [...korean].flatMap(([key, value]) =>
-      retiredIn(value).map((hit) => `${key}: '${hit.found}' (${hit.retired} -> ${hit.instead})`),
+      retiredIn(value, key).map(
+        (hit) => `${key}: '${hit.found}' (${hit.retired} -> ${hit.instead})`,
+      ),
     )
     expect(found).toEqual([])
+  })
+
+  /**
+   * **물러나지 않은 키는 좁다** (#38). 그리기의 자리에서 `그림`·`그리다`를 받는다고 그 말이 다른
+   * 화면으로 새면 안 된다 — 키를 안 주거나 다른 키를 주면 그대로 걸린다.
+   */
+  it('물러난 말의 예외는 그 키에서만 선다', () => {
+    const drawing = '여기에 그리세요'
+    expect(retiredIn(drawing, 'data.image.sketch.hint')).toEqual([])
+    expect(retiredIn(drawing, 'data.charts.lead')).not.toEqual([])
+    expect(retiredIn(drawing)).not.toEqual([])
   })
 
   /**
@@ -721,16 +734,24 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
    *
    * **정적으로 적힌 키만 본다.** `t(\`errors.${code}\`)` 같은 동적 조립은 여기서 확인할
    * 수 없고, 그쪽은 등록부와 로케일을 짝지어 보는 위의 검사들이 맡는다.
+   *
+   * **등록부가 받는 번역 함수 `translate`도 본다** (#38). 입력 방식·양식 출처의 등록부는 `vue`를 모르는
+   * 층이라 `t`가 아니라 context로 받은 `translate('…')`로 부른다(`data/image/sources.ts`·
+   * `project/portfolio-sources.ts`). `t(`만 보던 때는 그 키가 로케일에 없어도 여기가 조용했다 —
+   * `data.image.source.*`가 실제로 세 로케일 어디에도 없는 채로 초록이었다.
    */
   function staticKeys(source: string): string[] {
-    // t('a.b') / $t("a.b"). 점이 하나라도 있어야 네임스페이스가 있는 키다.
-    return [...source.matchAll(/\$?\bt\(\s*['"]([\w.-]*\.[\w.-]+)['"]/g)].map(
+    // t('a.b') / $t("a.b") / translate('a.b'). 점이 하나라도 있어야 네임스페이스가 있는 키다.
+    return [...source.matchAll(/(?:\$?\bt|\btranslate)\(\s*['"]([\w.-]*\.[\w.-]+)['"]/g)].map(
       (match) => match[1] ?? '',
     )
   }
 
   it('검사기가 정적 키만 골라낸다', () => {
     expect(staticKeys("t('train.tuning')")).toEqual(['train.tuning'])
+    expect(staticKeys("translate('portfolio.source.file')")).toEqual(['portfolio.source.file'])
+    // 이름 끝이 `t`인 다른 함수는 아니다.
+    expect(staticKeys("format('a.b')")).toEqual([])
     expect(staticKeys('t(`errors.${code}`)')).toEqual([])
     // 점이 없는 것은 네임스페이스가 아니다.
     expect(staticKeys("format('a')")).toEqual([])
@@ -1032,7 +1053,9 @@ describe('언어들이 나란히 말한다', () => {
     // 한국어의 `장`은 세는 단위라 이름 옆에서도 붙지만, 영어의 `photos`는 이름 그
     // 자체라 배지가 이미 말한 낱말이 된다. 혼자 서는 배지는 낱말이 있어야 하고
     // (`1001 photos`), 이름 옆의 값은 숫자만 남아야 한다 (`Photos 1001`).
-    ['meta.image.count', 'meta.image.countUnit'],
+    // 그리기 창의 "추가할 그림" 옆 수도 세는 단위 `장`이지만, 영어는 세는 것이 사진이 아니라
+    // 그림이라 `drawings`다 (#38).
+    ['data.image.sketch.trayCount', 'meta.image.count', 'meta.image.countUnit'],
     /**
      * **아래 셋은 한 가지 이유다 — 한국어가 확인 버튼을 어미로 표시한다.**
      * 화면의 버튼은 명사(`삭제`·`해제`·`추가`)이고 대화상자의 확인 버튼은
@@ -1052,7 +1075,9 @@ describe('언어들이 나란히 말한다', () => {
       'results.deleteConfirm',
     ],
     ['preprocess.tabular.testDataRemove', 'preprocess.tabular.testDataRemoveConfirm'],
-    ['preprocess.testImagesAttachConfirm', 'train.addModel'],
+    // 그리기 창의 확인 단추는 코드 소유자가 `추가`로 정했다(#38, open-decisions.md 67 결정 5) —
+    // 갈리는 것은 `-하기`인 테스트 사진 확인 하나다.
+    ['data.image.sketch.add', 'preprocess.testImagesAttachConfirm', 'train.addModel'],
     // 레일의 단계 이름에는 줄바꿈 자리를 심어 두었다(`StepRail`). 같은 낱말이지만
     // 글자가 다르다.
     ['preprocess.tabular.effect', 'steps.preprocess.label'],
@@ -1097,7 +1122,8 @@ describe('언어들이 나란히 말한다', () => {
       'results.deleteConfirm',
     ],
     ['preprocess.tabular.testDataRemove', 'preprocess.tabular.testDataRemoveConfirm'],
-    ['preprocess.testImagesAttachConfirm', 'train.addModel'],
+    // 그리기 창의 확인 단추 `추가`도 같은 `追加`다(`ALLOWED`의 같은 줄).
+    ['data.image.sketch.add', 'preprocess.testImagesAttachConfirm', 'train.addModel'],
     ['data.charts.histogram.binApply', 'preprocess.tabular.testDataAttachConfirm'],
     // 일본어 `なし`가 셋을 덮는다 — 영어 `None`과 같은 이유다(`ALLOWED`의 같은 줄).
     // 한국어는 `하지 않음`(전처리를 안 한다)과 `없음`(값이 없다)이 다른 말이다.

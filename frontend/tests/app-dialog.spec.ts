@@ -100,11 +100,36 @@ describe('바깥 클릭은 `persistent`가 쥔다', () => {
  * 바꿔도 전부 초록이었고, 그러면 **시각화 창이 조용히 좁은 창으로 되돌아간다** —
  * 그림은 세로로 읽는 것이라 높이가 곧 읽을 수 있는 눈금의 수다.
  */
-describe('크기는 `fill`이 쥔다', () => {
+describe('크기는 `fill`·`wide`가 쥔다', () => {
   it('기본은 좁은 창이다', () => {
-    const classes = render(true).find('dialog').classes()
+    const wrapper = render(true)
+    const classes = wrapper.find('dialog').classes()
     expect(classes).toContain('max-w-2xl')
     expect(classes).not.toContain('dialog-fill')
+    // 넓은 창의 천장은 기본 창의 안쪽 칸에 안 붙는다 — 묻고 답하는 창은 그대로다.
+    expect(wrapper.find('dialog > div').classes()).not.toContain('dialog-wide-frame')
+  })
+
+  /**
+   * **넓은 창** (#38, 그리기 창). 폭만 넓고 높이는 내용만큼이다 — 안쪽 세로 칸이 창의 천장을 들어야
+   * 그 안의 두 칸이 각자 구른다(`styles/utilities.css`의 `dialog-wide-frame`).
+   */
+  it('`wide`면 넓은 폭이고, 안쪽 칸이 천장을 든다 — `h-full`은 아니다', () => {
+    const wrapper = render(true, { wide: true })
+    const classes = wrapper.find('dialog').classes()
+    expect(classes).toContain('max-w-7xl')
+    expect(classes).not.toContain('max-w-2xl')
+    expect(classes).not.toContain('dialog-fill')
+    const frame = wrapper.find('dialog > div').classes()
+    expect(frame).toContain('dialog-wide-frame')
+    expect(frame).not.toContain('h-full')
+  })
+
+  it('`fill`과 함께 오면 `fill`이 이긴다', () => {
+    const wrapper = render(true, { fill: true, wide: true })
+    expect(wrapper.find('dialog').classes()).toContain('dialog-fill')
+    expect(wrapper.find('dialog').classes()).not.toContain('max-w-7xl')
+    expect(wrapper.find('dialog > div').classes()).toContain('h-full')
   })
 
   it('`fill`이면 화면을 채운다 — 좁은 창의 천장을 안 쓴다', () => {
@@ -113,5 +138,49 @@ describe('크기는 `fill`이 쥔다', () => {
     expect(classes).not.toContain('max-w-2xl')
     // **`w-full`도 함께 빠진다** — 같이 서면 특이도가 같아 `width`가 죽는다.
     expect(classes).not.toContain('w-full')
+  })
+})
+
+/**
+ * **열릴 때 초점은 `focusPanel`이 쥔다** (#38, open-decisions.md 67 결정 14). 그리기 창은 첫 단추가
+ * 붓 굵기 칸이라 열자마자 거기 링이 서서 눌린 것처럼 보였다.
+ *
+ * **jsdom의 `showModal`에는 초점 규칙이 없다** — 가짜(`stubDialogElement`)는 열림만 세운다. 그래서
+ * 브라우저가 하는 일(첫 단추에 초점)을 가짜 위에 흉내 내고, 창이 그 초점을 놓는지를 잰다.
+ * `<dialog autofocus>`로 실제 브라우저가 창 자신에 초점을 두는지는 사람 확인이다.
+ */
+describe('열릴 때의 초점은 `focusPanel`이 쥔다', () => {
+  /** 브라우저처럼 첫 단추에 초점을 두는 `showModal`. */
+  function focusFirstOnOpen(): void {
+    HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement): void {
+      this.open = true
+      this.querySelector('button')?.focus()
+    }
+  }
+
+  function withButton(extra: Record<string, unknown>) {
+    return mount(AppDialog, {
+      props: { open: false, title: '제목', ...extra },
+      slots: { default: '<button type="button">첫 단추</button>' },
+      attachTo: document.body,
+    })
+  }
+
+  it('기본은 브라우저가 둔 초점을 그대로 둔다', async () => {
+    focusFirstOnOpen()
+    const wrapper = withButton({})
+    await wrapper.setProps({ open: true })
+    expect(document.activeElement?.textContent).toBe('첫 단추')
+    expect(wrapper.find('dialog').attributes('autofocus')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('`focusPanel`이면 창이 `autofocus`를 들고, 첫 단추의 초점을 놓는다', async () => {
+    focusFirstOnOpen()
+    const wrapper = withButton({ focusPanel: true })
+    await wrapper.setProps({ open: true })
+    expect(wrapper.find('dialog').attributes('autofocus')).toBeDefined()
+    expect(document.activeElement?.textContent).not.toBe('첫 단추')
+    wrapper.unmount()
   })
 })

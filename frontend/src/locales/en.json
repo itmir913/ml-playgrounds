@@ -218,7 +218,38 @@
       "renameTitle": "Rename category",
       "selected": "{count} photo selected | {count} photos selected",
       "skipped": "Left out {count} file that could not be read. | Left out {count} files that could not be read.",
-      "use": "Use these photos"
+      "use": "Use these photos",
+      "source": {
+        "files": "Choose photos",
+        "folder": "Choose folder",
+        "sketch": "Draw by hand"
+      },
+      "sketch": {
+        "title": "Draw by hand",
+        "description": "Draw with your mouse or finger. To draw more than one, press [Add next drawing].",
+        "width": "Brush size",
+        "widthThin": "Thin",
+        "widthMedium": "Medium",
+        "widthThick": "Thick",
+        "canvas": "Drawing area",
+        "hint": "Draw here",
+        "refuseEmpty": "Draw here first",
+        "undo": "Undo",
+        "clear": "Start over",
+        "next": "Add next drawing",
+        "tray": "Drawings to add",
+        "trayCount": "{count} drawing | {count} drawings",
+        "trayNote": "Press [Add next drawing] to keep this drawing here and start a new one.",
+        "live": "Now",
+        "liveAlt": "Current drawing",
+        "sheet": "Drawing {index}",
+        "removeSheet": "Remove drawing ({index})",
+        "add": "Add",
+        "addCount": "Add ({count} drawing) | Add ({count} drawings)",
+        "discardTitle": "Close without adding your drawings?",
+        "discardDescription": "Drawings you have not added will be lost. ({count} drawing) | Drawings you have not added will be lost. ({count} drawings)",
+        "discardConfirm": "Close without adding"
+      }
     },
     "tabular": {
       "applied": "The data is loaded.",

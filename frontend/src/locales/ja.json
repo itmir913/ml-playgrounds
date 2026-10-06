@@ -218,7 +218,38 @@
       "renameTitle": "クラス名を変更",
       "selected": "写真{count}枚を選択中",
       "skipped": "読み込めないファイル{count}個は追加できませんでした。",
-      "use": "これらの写真を使用"
+      "use": "これらの写真を使用",
+      "source": {
+        "files": "写真を選択",
+        "folder": "フォルダを選択",
+        "sketch": "絵を描く"
+      },
+      "sketch": {
+        "title": "絵を描く",
+        "description": "マウスや指で描いてください。複数枚描くときは[次の絵を追加]を押してください。",
+        "width": "筆の太さ",
+        "widthThin": "細い筆",
+        "widthMedium": "普通",
+        "widthThick": "太い筆",
+        "canvas": "描画エリア",
+        "hint": "ここに描いてください",
+        "refuseEmpty": "先にここに描いてください",
+        "undo": "元に戻す",
+        "clear": "リセット",
+        "next": "次の絵を追加",
+        "tray": "追加する絵",
+        "trayCount": "{count}枚",
+        "trayNote": "[次の絵を追加]を押すと、今の絵がここに残り、新しい絵を描けます。",
+        "live": "今",
+        "liveAlt": "今の絵",
+        "sheet": "絵{index}",
+        "removeSheet": "絵を取り除く({index})",
+        "add": "追加",
+        "addCount": "追加({count}枚)",
+        "discardTitle": "絵を追加せずに閉じますか？",
+        "discardDescription": "追加していない絵は消えます。({count}枚)",
+        "discardConfirm": "追加せずに閉じる"
+      }
     },
     "tabular": {
       "applied": "データを読み込みました。",

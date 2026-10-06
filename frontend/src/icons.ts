@@ -20,6 +20,7 @@ import {
   ChevronUp,
   Shapes,
   Download,
+  Eraser,
   ExternalLink,
   FileInput,
   FileSearch,
@@ -40,6 +41,7 @@ import {
   Sun,
   Table2,
   Trash2,
+  Undo2,
   X,
   type LucideIcon,
 } from 'lucide-vue-next'
@@ -107,6 +109,10 @@ export const ACTION_ICONS = {
    */
   visualize: ChartColumn,
   addPhoto: ImagePlus,
+  /** 그리기의 마지막 획을 뺀다 (`views/data/SketchDialog.vue`). 실행 취소의 관행 그림이다. */
+  undoStroke: Undo2,
+  /** 그리기의 지금 장을 비운다. **`remove`(휴지통)가 아니다** — 지우는 것은 데이터가 아니라 획이다. */
+  clearSketch: Eraser,
   remove: Trash2,
   dismiss: X,
   /**

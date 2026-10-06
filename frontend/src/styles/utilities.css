@@ -562,6 +562,52 @@
   max-width: none;
 }
 
+/**
+ * 넓은 창의 안쪽 세로 칸이 받는 천장 (`AppDialog`의 `wide`, open-decisions.md 67 결정 12).
+ *
+ * **창 높이는 내용만큼이라** 안쪽 칸이 `%`로 창을 볼 수 없다(`h-full`의 순환 — `AppDialog`의 주석).
+ * 그래서 창의 천장(`dialog-panel`의 `100% - 2rem`)과 **같은 뜻의 값을 화면 단위로** 다시 적는다 —
+ * 화면의 95%와 위아래 1rem 남기기 중 낮은 쪽이다.
+ *
+ * **창의 테두리(위아래 1px)를 뺀다.** 안 빼면 안쪽 칸이 창보다 2px 커서 **창 전체에 스크롤 막대가
+ * 선다** — 목업에서 실제로 그랬다(`docs/cases/open-decisions.md` 67). `dvh`와 `%`가 어긋나는 기기에서
+ * 1~2px이 남으면 `dialog-panel`의 안전망이 받는다(사람 확인).
+ */
+@utility dialog-wide-frame {
+  max-height: calc(min(95dvh, 100dvh - 2rem) - 2px);
+}
+
+/**
+ * 그리기 창의 두 열 (`views/data/SketchDialog.vue`, open-decisions.md 67 결정 12). **왼쪽은 캔버스
+ * 덩어리, 오른쪽은 남는 폭이다.**
+ *
+ * 왼쪽 폭은 `24rem` 아래로 안 줄어든다 — 그 아래에서는 [되돌리기]·[초기화]·[다음 장 추가]가 한 줄에
+ * 안 든다. 위로는 `32rem`까지이고, 그 사이는 **화면 높이에서 캔버스 밖의 것들(창 여백·제목·설명·
+ * 붓 굵기·아래 단추 줄·창 단추)을 뺀 값**이다 — 캔버스가 정사각형이라 폭이 곧 높이다. 빼는 값
+ * `26rem`은 목업의 `24rem`에 붓 굵기의 이름표 한 줄(`AppChoices`의 축 이름)을 더한 것이다(사람 확인).
+ * Tailwind 기본 눈금으로는 `clamp()`를 쓸 수 없어 여기 이름으로 둔다 (CLAUDE.md §4).
+ */
+@utility sketch-columns {
+  grid-template-columns: clamp(24rem, calc(95dvh - 26rem), 32rem) minmax(0, 1fr);
+}
+
+/**
+ * 그리기 캔버스의 폭. **높이가 모자라면 캔버스만 줄고** 왼쪽 칸 가운데에 선다 — 왼쪽 칸은 단추 한
+ * 줄 때문에 `24rem` 아래로 안 줄지만(위 `sketch-columns`) 캔버스는 줄어도 된다. 빼는 값은 위와 같다.
+ */
+@utility sketch-canvas-fit {
+  width: min(100%, calc(95dvh - 26rem));
+}
+
+/**
+ * 그리기 창의 "추가할 그림" 칸들. **칸 폭을 정하고 수는 남는 폭이 정한다** — 오른쪽 칸 폭이 화면마다
+ * 다르다. 줄 높이는 내용만큼이라 굴리는 상자 안에서 정사각 칸이 눌리지 않는다(목업에서 눌렸다).
+ */
+@utility sketch-tiles {
+  grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+  grid-auto-rows: max-content;
+}
+
 /*
  * **일본어 화면에서는 `break-keep`도 문절에서 끊는다** (2026-10-06, 코드 소유자).
  *
