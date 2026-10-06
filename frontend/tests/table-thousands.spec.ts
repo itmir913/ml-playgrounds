@@ -86,7 +86,7 @@ describe('격자 전체', () => {
 describe('진짜 입구 — 올린 CSV가 정본이 될 때', () => {
   async function importCsv(text: string) {
     const bytes = new TextEncoder().encode(text)
-    return importTable(await openTable(bytes, '성적.csv'))
+    return importTable(await openTable(bytes, '성적.csv', { locale: 'ko' }))
   }
 
   it('정본 바이트에 쉼표가 안 남는다', async () => {

@@ -94,7 +94,9 @@ describe('일괄 예측의 내려받기', () => {
       ...PICKED.map((row) => featureIndex.map((column) => iris.rows[row]?.[column]).join(',')),
     ]
     const imported = importTable(
-      await openTable(new TextEncoder().encode(`${predictLines.join('\n')}\n`), 'new.csv'),
+      await openTable(new TextEncoder().encode(`${predictLines.join('\n')}\n`), 'new.csv', {
+        locale: 'ko',
+      }),
     )
     const { project: file } = applyPredictDataset(trained, imported, {
       fileName: 'new.csv',
@@ -188,7 +190,11 @@ describe('일괄 예측의 내려받기', () => {
     const lines = [scaled.columns.join(','), ...scaled.rows.map((row) => row.join(','))]
     const { project: withData } = applyDataset(
       base,
-      importTable(await openTable(new TextEncoder().encode(`${lines.join('\n')}\n`), 'big.csv')),
+      importTable(
+        await openTable(new TextEncoder().encode(`${lines.join('\n')}\n`), 'big.csv', {
+          locale: 'ko',
+        }),
+      ),
       { fileName: 'big.csv', hasHeader: true, now: NOW },
     )
     const features = IRIS_FEATURE_COLUMNS.filter((name) => name !== target)
@@ -227,7 +233,9 @@ describe('일괄 예측의 내려받기', () => {
     const { project: file } = applyPredictDataset(
       trained,
       importTable(
-        await openTable(new TextEncoder().encode(`${predictLines.join('\n')}\n`), 'new.csv'),
+        await openTable(new TextEncoder().encode(`${predictLines.join('\n')}\n`), 'new.csv', {
+          locale: 'ko',
+        }),
       ),
       { fileName: 'new.csv', hasHeader: true, now: NOW, requiredColumns: [...features] },
     )

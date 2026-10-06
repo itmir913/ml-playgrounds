@@ -712,6 +712,7 @@
     "DATASET_FILE_TYPE_UNSUPPORTED": "지원하지 않는 파일 형식입니다. ({fileName})",
     "DATASET_EXCEL_ENCRYPTED_OR_LEGACY": "암호가 걸려 있거나 이전 형식(.xls)인 엑셀 파일은 읽을 수 없습니다. 엑셀에서 암호를 해제하고 새 형식(.xlsx)이나 CSV로 저장해 다시 불러와 주세요. ({fileName})",
     "DATASET_SHEET_NOT_FOUND": "선택한 시트를 찾을 수 없습니다. ({sheetName})",
+    "DATASET_ENCODING_UNKNOWN": "이 파일의 문자 인코딩을 알 수 없어 읽지 못했습니다. 엑셀에서 'CSV UTF-8(쉼표로 분리)' 형식으로 저장해 다시 불러와 주세요. ({fileName})",
     "STORAGE_QUOTA_EXCEEDED": "이 컴퓨터의 저장 공간이 부족해 브라우저에 저장하지 못했습니다.",
     "STORAGE_VERSION_TOO_NEW": "이 컴퓨터에 저장된 내용이 더 새로운 버전의 앱에서 만들어졌습니다. 앱을 최신 버전으로 업데이트한 뒤 다시 열어 주세요. 저장한 프로젝트는 그대로 있습니다.",
     "STORAGE_BLOCKED": "다른 탭에서 열려 있는 이 앱 때문에 저장된 프로젝트를 열지 못하고 대기 중입니다. 이 앱이 열린 다른 탭을 닫아 주세요.",

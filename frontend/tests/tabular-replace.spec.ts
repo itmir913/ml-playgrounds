@@ -65,7 +65,7 @@ function emptyTabularProject(): ProjectFile {
 }
 
 async function imported(text: string): Promise<ImportedTable> {
-  return importTable(await openTable(new TextEncoder().encode(text), 'x.csv'))
+  return importTable(await openTable(new TextEncoder().encode(text), 'x.csv', { locale: 'ko' }))
 }
 
 /** 훈련 데이터 + 타깃 + (선택) 테스트 데이터 + (선택) 예측할 파일. 실험은 0개다. */

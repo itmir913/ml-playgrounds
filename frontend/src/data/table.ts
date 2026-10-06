@@ -48,8 +48,11 @@ export interface TableDocument {
 }
 
 export interface OpenTableOptions {
-  /** 지금 UI 언어. 모르면 CSV 인코딩을 언어별 후보 없이 판정한다. */
-  readonly locale?: EncodingLocale
+  /**
+   * 지금 UI 언어. CSV 인코딩 판정이 쓴다(`encoding.ts`의 `CODE_PAGE_BY_LOCALE`).
+   * **필수다** — 조용한 기본값을 두면 화면이 언어를 안 넘겨도 초록이다(0.33.0 감사 S16~S18).
+   */
+  readonly locale: EncodingLocale
 }
 
 /** 정본으로 확정된 데이터셋. */
@@ -108,13 +111,17 @@ export function sourceFromFileName(fileName: string): TableSource {
  * 열렸다.** 다른 이름(한글·워드도 같은 상자다)은 아래 확장자 문이 지금처럼 거절한다.
  * 무는 검사: table.spec.ts "openTable - 암호 xlsx와 옛 xls".
  *
- * **`locale`은 CSV 인코딩 판정에만 쓴다** (`encoding.ts`의 `CANDIDATES_BY_LOCALE`). 없으면
- * 언어별 후보 없이 판정한다. 무는 검사: table.spec.ts "일본어 화면은 CP932를 먼저 본다".
+ * **`locale`은 CSV 인코딩 판정에만 쓴다** (`encoding.ts`의 `CODE_PAGE_BY_LOCALE`). 무는 검사:
+ * table.spec.ts "일본어 화면은 CP932를 읽는다".
+ *
+ * **그 언어로 판정하지 못한 CSV는 `DATASET_ENCODING_UNKNOWN`으로 멈춘다** (open-decisions.md 97) —
+ * 문구가 엑셀의 "CSV UTF-8"로 다시 저장하라고 말한다. 무는 검사: table.spec.ts
+ * "판정하지 못한 CSV는 파일 이름과 함께 멈춘다".
  */
 export async function openTable(
   bytes: Uint8Array,
   fileName: string,
-  options: OpenTableOptions = {},
+  options: OpenTableOptions,
 ): Promise<TableDocument> {
   if (looksLikeOle2(bytes)) {
     const lower = fileName.toLowerCase()
@@ -128,6 +135,7 @@ export async function openTable(
 
   if (source === 'csv') {
     const sourceEncoding = detectEncoding(bytes, options.locale)
+    if (sourceEncoding === null) throw new ClientError('DATASET_ENCODING_UNKNOWN', { fileName })
     const read = openCsvText(decodeText(bytes, sourceEncoding))
     return {
       source,

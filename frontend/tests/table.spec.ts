@@ -56,13 +56,15 @@ describe('sourceFromFileName', () => {
 
 describe('openTable - csv', () => {
   it('시트 개념이 없다', async () => {
-    const document = await openTable(new TextEncoder().encode('a,b\n1,2\n'), 'data.csv')
+    const document = await openTable(new TextEncoder().encode('a,b\n1,2\n'), 'data.csv', {
+      locale: 'ko',
+    })
     expect(document.source).toBe('csv')
     expect(document.sheetNames).toEqual([])
   })
 
   it('CP949 파일의 인코딩을 판정해서 들고 있는다', async () => {
-    const document = await openTable(CP949_CSV, 'data.csv')
+    const document = await openTable(CP949_CSV, 'data.csv', { locale: 'ko' })
     expect(document.sourceEncoding).toBe('cp949')
     expect(document.read()).toEqual([
       ['이름', '나이'],
@@ -70,7 +72,7 @@ describe('openTable - csv', () => {
     ])
   })
 
-  it('일본어 화면은 CP932를 먼저 본다', async () => {
+  it('일본어 화면은 CP932를 읽는다', async () => {
     const document = await openTable(CP932_CSV, 'data.csv', { locale: 'ja' })
     expect(document.sourceEncoding).toBe('cp932')
     expect(document.read()).toEqual([
@@ -79,8 +81,26 @@ describe('openTable - csv', () => {
     ])
   })
 
-  it('언어를 안 넘기면 같은 바이트를 전처럼 cp949로 본다', async () => {
-    expect((await openTable(CP932_CSV, 'data.csv')).sourceEncoding).toBe('cp949')
+  /**
+   * **판정하지 못한 CSV는 오류로 멈춘다** (open-decisions.md 97). 0.33.0까지는 끝이 느슨한 cp949라
+   * 한국어 화면의 CP932 파일이 **오류 없이 깨진 표**로 열렸다. 문구는 엑셀의 "CSV UTF-8"로 다시
+   * 저장하라고 말하고, 파일 이름은 끝 괄호로 간다.
+   */
+  it('판정하지 못한 CSV는 파일 이름과 함께 멈춘다', async () => {
+    try {
+      await openTable(CP932_CSV, '身長.csv', { locale: 'ko' })
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error)).toBe(true)
+      if (isClientError(error)) {
+        expect(error.code).toBe('DATASET_ENCODING_UNKNOWN')
+        expect(error.params).toEqual({ fileName: '身長.csv' })
+      }
+    }
+  })
+
+  it('영어 화면은 같은 바이트를 멈추지 않고 cp1252로 연다 — 결정 97의 대가다', async () => {
+    expect((await openTable(CP932_CSV, 'data.csv', { locale: 'en' })).sourceEncoding).toBe('cp1252')
   })
 })
 
@@ -88,13 +108,19 @@ describe('openTable - csv', () => {
 // 왜 5초로 모자란지는 `xlsx.spec.ts` 맨 위에 실측과 함께 적어 두었다.
 describe('openTable - xlsx', { timeout: 20_000 }, () => {
   it('시트 이름을 준다', async () => {
-    const document = await openTable(await xlsxBytes({ 데이터: [['a']], 메모: [['x']] }), 'd.xlsx')
+    const document = await openTable(
+      await xlsxBytes({ 데이터: [['a']], 메모: [['x']] }),
+      'd.xlsx',
+      { locale: 'ko' },
+    )
     expect(document.sheetNames).toEqual(['데이터', '메모'])
     expect(document.sourceEncoding).toBeNull()
   })
 
   it('시트를 고르지 않으면 첫 시트를 읽는다', async () => {
-    const document = await openTable(await xlsxBytes({ 데이터: [['a', 'b']] }), 'd.xlsx')
+    const document = await openTable(await xlsxBytes({ 데이터: [['a', 'b']] }), 'd.xlsx', {
+      locale: 'ko',
+    })
     expect(document.read()).toEqual([['a', 'b']])
   })
 
@@ -112,6 +138,7 @@ describe('openTable - xlsx', { timeout: 20_000 }, () => {
         ],
       }),
       'd.csv',
+      { locale: 'ko' },
     )
     expect(document.source).toBe('xlsx')
     expect(document.sheetNames).toEqual(['데이터'])
@@ -127,12 +154,12 @@ describe('openTable - xlsx', { timeout: 20_000 }, () => {
     ['PK로 시작하는 머리글', 'PK,name\n1,kim\n'],
     ['UTF-8 BOM', '\uFEFFa,b\n1,2\n'],
   ])('%s CSV는 CSV로 연다', async (_name, text) => {
-    const document = await openTable(new TextEncoder().encode(text), 'd.csv')
+    const document = await openTable(new TextEncoder().encode(text), 'd.csv', { locale: 'ko' })
     expect(document.source).toBe('csv')
   })
 
   it('CP949 CSV는 CSV로 연다', async () => {
-    expect((await openTable(CP949_CSV, 'd.csv')).source).toBe('csv')
+    expect((await openTable(CP949_CSV, 'd.csv', { locale: 'ko' })).source).toBe('csv')
   })
 })
 
@@ -167,7 +194,7 @@ describe('openTable - 암호 xlsx와 옛 xls', { timeout: 20_000 }, () => {
 
   async function codeOf(bytes: Uint8Array, fileName: string): Promise<string | undefined> {
     try {
-      await openTable(bytes, fileName)
+      await openTable(bytes, fileName, { locale: 'ko' })
     } catch (error) {
       return isClientError(error) ? error.code : String(error)
     }
@@ -201,7 +228,9 @@ describe('openTable - 암호 xlsx와 옛 xls', { timeout: 20_000 }, () => {
 // xlsx를 만들어 읽는 줄이 섞여 있다 — 이유는 위와 같다.
 describe('previewTable', { timeout: 20_000 }, () => {
   it('csv는 항목 하나를 낸다', async () => {
-    const document = await openTable(new TextEncoder().encode('a,b\n1,2\n'), 'data.csv')
+    const document = await openTable(new TextEncoder().encode('a,b\n1,2\n'), 'data.csv', {
+      locale: 'ko',
+    })
     const preview = previewTable(document, 10)
     expect(preview).toHaveLength(1)
     expect(preview[0]?.sheetName).toBeUndefined()
@@ -221,6 +250,7 @@ describe('previewTable', { timeout: 20_000 }, () => {
         메모: [['x']],
       }),
       'd.xlsx',
+      { locale: 'ko' },
     )
     const preview = previewTable(document, 10)
     expect(preview.map((sheet) => sheet.sheetName)).toEqual(['데이터', '메모'])
@@ -234,13 +264,13 @@ describe('previewTable', { timeout: 20_000 }, () => {
 // xlsx를 만들어 읽는 줄이 섞여 있다 — 이유는 위와 같다.
 describe('importTable - 정규화', { timeout: 20_000 }, () => {
   it('CP949 CSV를 UTF-8 정본으로 바꾼다', async () => {
-    const document = await openTable(CP949_CSV, 'data.csv')
+    const document = await openTable(CP949_CSV, 'data.csv', { locale: 'ko' })
     const imported = importTable(document)
 
     // 업로드 파일이 무엇이었는지는 기록으로 남고,
     expect(imported.sourceEncoding).toBe('cp949')
     // 정본 바이트는 UTF-8이다.
-    expect(detectEncoding(imported.bytes)).toBe('utf-8')
+    expect(detectEncoding(imported.bytes, 'ko')).toBe('utf-8')
     expect(parseCsvText(decodeText(imported.bytes, 'utf-8'))).toEqual(imported.grid)
   })
 
@@ -253,12 +283,13 @@ describe('importTable - 정규화', { timeout: 20_000 }, () => {
         ],
       }),
       'd.xlsx',
+      { locale: 'ko' },
     )
     const imported = importTable(document, '데이터')
 
     expect(imported.source).toBe('xlsx')
     expect(imported.sheetName).toBe('데이터')
-    expect(detectEncoding(imported.bytes)).toBe('utf-8')
+    expect(detectEncoding(imported.bytes, 'ko')).toBe('utf-8')
     expect(parseCsvText(decodeText(imported.bytes, 'utf-8'))).toEqual([
       ['이름', '나이'],
       ['가나다', '10'],
@@ -266,15 +297,15 @@ describe('importTable - 정규화', { timeout: 20_000 }, () => {
   })
 
   it('정본 바이트를 다시 열면 같은 격자가 나온다', async () => {
-    const document = await openTable(CP949_CSV, 'data.csv')
+    const document = await openTable(CP949_CSV, 'data.csv', { locale: 'ko' })
     const imported = importTable(document)
 
-    const reopened = await openTable(imported.bytes, 'data.csv')
+    const reopened = await openTable(imported.bytes, 'data.csv', { locale: 'ko' })
     expect(reopened.read()).toEqual(imported.grid)
   })
 
   it('정본을 확정하면서 해시도 함께 나온다 - 데이터셋을 해싱하는 유일한 지점이다', async () => {
-    const document = await openTable(CP949_CSV, 'data.csv')
+    const document = await openTable(CP949_CSV, 'data.csv', { locale: 'ko' })
     const imported = importTable(document)
 
     expect(imported.hash).toBe(hashBytes(imported.bytes))
@@ -286,10 +317,12 @@ describe('importTable - 정규화', { timeout: 20_000 }, () => {
       ['가나다', '10'],
     ]
     const fromCsv = importTable(
-      await openTable(new TextEncoder().encode('이름,나이\n가나다,10\n'), 'd.csv'),
+      await openTable(new TextEncoder().encode('이름,나이\n가나다,10\n'), 'd.csv', {
+        locale: 'ko',
+      }),
     )
     const fromXlsx = importTable(
-      await openTable(await xlsxBytes({ 데이터: rows }), 'd.xlsx'),
+      await openTable(await xlsxBytes({ 데이터: rows }), 'd.xlsx', { locale: 'ko' }),
       '데이터',
     )
 
@@ -299,7 +332,7 @@ describe('importTable - 정규화', { timeout: 20_000 }, () => {
 
 describe('importTable - 상한', () => {
   it('빈 표는 DATASET_EMPTY로 거부한다', async () => {
-    const document = await openTable(new TextEncoder().encode(''), 'data.csv')
+    const document = await openTable(new TextEncoder().encode(''), 'data.csv', { locale: 'ko' })
     try {
       importTable(document)
       expect.unreachable()
@@ -315,7 +348,9 @@ describe('importTable - 상한', () => {
    */
   it('행이 상한을 넘으면 DATASET_TOO_MANY_ROWS로 거부한다', async () => {
     const rows = ['a', ...Array.from({ length: MAX_DATASET_ROWS }, (_, i) => String(i))]
-    const document = await openTable(new TextEncoder().encode(rows.join('\n')), 'data.csv')
+    const document = await openTable(new TextEncoder().encode(rows.join('\n')), 'data.csv', {
+      locale: 'ko',
+    })
     try {
       importTable(document)
       expect.unreachable()
@@ -330,13 +365,15 @@ describe('importTable - 상한', () => {
 
   it('상한과 같으면 받는다 - 경계에서 한 줄 차이로 거부하면 안 된다', async () => {
     const rows = ['a', ...Array.from({ length: MAX_DATASET_ROWS - 1 }, (_, i) => String(i))]
-    const document = await openTable(new TextEncoder().encode(rows.join('\n')), 'data.csv')
+    const document = await openTable(new TextEncoder().encode(rows.join('\n')), 'data.csv', {
+      locale: 'ko',
+    })
     expect(importTable(document).grid).toHaveLength(MAX_DATASET_ROWS)
   })
 
   it('컬럼이 상한을 넘으면 DATASET_TOO_MANY_COLUMNS로 거부한다', async () => {
     const header = Array.from({ length: MAX_DATASET_COLUMNS + 1 }, (_, i) => `c${i}`).join(',')
-    const document = await openTable(new TextEncoder().encode(header), 'data.csv')
+    const document = await openTable(new TextEncoder().encode(header), 'data.csv', { locale: 'ko' })
     try {
       importTable(document)
       expect.unreachable()
@@ -356,7 +393,7 @@ describe('importTable - 상한', () => {
    */
   it('컬럼이 상한과 같으면 받는다 - 행과 같은 경계 규칙이다', async () => {
     const header = Array.from({ length: MAX_DATASET_COLUMNS }, (_, i) => `c${i}`).join(',')
-    const document = await openTable(new TextEncoder().encode(header), 'data.csv')
+    const document = await openTable(new TextEncoder().encode(header), 'data.csv', { locale: 'ko' })
     expect(importTable(document).grid[0]).toHaveLength(MAX_DATASET_COLUMNS)
   })
 })
@@ -429,7 +466,9 @@ describe('importTable - 상한을 껐을 때', () => {
   it('상한을 넘겨도 안 거부하고, 행이 잘리지도 않는다', async () => {
     applyLimitsOff(true)
     const rows = MAX_DATASET_ROWS + 5
-    const document = await openTable(new TextEncoder().encode(csvOf(rows)), 'data.csv')
+    const document = await openTable(new TextEncoder().encode(csvOf(rows)), 'data.csv', {
+      locale: 'ko',
+    })
     // 머리글까지 세면 `rows + 1`이다. **`상한 + 1까지만 읽는다`가 안 잘랐는지가 요점이다.**
     expect(importTable(document).grid).toHaveLength(rows + 1)
   })
@@ -438,14 +477,20 @@ describe('importTable - 상한을 껐을 때', () => {
     applyLimitsOff(true)
     const header = Array.from({ length: MAX_DATASET_COLUMNS + 3 }, (_, i) => `c${i}`).join(',')
     const row = Array.from({ length: MAX_DATASET_COLUMNS + 3 }, () => '1').join(',')
-    const document = await openTable(new TextEncoder().encode(`${header}\n${row}`), 'data.csv')
+    const document = await openTable(new TextEncoder().encode(`${header}\n${row}`), 'data.csv', {
+      locale: 'ko',
+    })
     expect(importTable(document).grid[0]).toHaveLength(MAX_DATASET_COLUMNS + 3)
   })
 
   it('다시 켜면 그대로 거부한다 - 스위치가 한 방향으로만 열리면 안 된다', async () => {
     applyLimitsOff(true)
     applyLimitsOff(false)
-    const document = await openTable(new TextEncoder().encode(csvOf(MAX_DATASET_ROWS)), 'data.csv')
+    const document = await openTable(
+      new TextEncoder().encode(csvOf(MAX_DATASET_ROWS)),
+      'data.csv',
+      { locale: 'ko' },
+    )
     expect(() => importTable(document)).toThrow()
   })
 })

@@ -66,7 +66,7 @@ describe('시각화 창은 정본 전체를 받는다', () => {
     const lines = ['키,몸무게']
     for (let i = 0; i < ROWS; i += 1) lines.push(`${150 + i},${45 + i}`)
     const csv = new TextEncoder().encode(`${lines.join('\n')}\n`)
-    const imported = importTable(await openTable(csv, '표.csv'))
+    const imported = importTable(await openTable(csv, '표.csv', { locale: 'ko' }))
     const { project: file } = applyDataset(projectFile(), imported, {
       fileName: '표.csv',
       hasHeader: true,

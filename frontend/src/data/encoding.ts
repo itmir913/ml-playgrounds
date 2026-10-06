@@ -4,8 +4,9 @@
  * 학생에게 먼저 묻지 않는다. 한국 윈도우 엑셀의 "CSV로 저장"은 CP949이고,
  * 이걸 UTF-8로 읽으면 한글 컬럼명이 전부 깨진다.
  *
- * 판정 순서: BOM 확인 -> UTF-8 유효성 검사 -> UI 언어의 후보를 엄격하게 차례로 -> 끝은 CP949.
- * 언어별 후보가 왜 있는지는 `CANDIDATES_BY_LOCALE`이 말한다.
+ * 판정 순서: BOM 확인 -> UTF-8 유효성 검사 -> UI 언어의 코드 페이지 하나를 엄격하게 -> 그 언어의
+ * 마지막 대체(영어만 있다) -> **그래도 안 되면 판정하지 못한다**(`null`, 여는 쪽이 오류로 멈춘다).
+ * 언어마다 무엇을 보는지와 그 이유는 `CODE_PAGE_BY_LOCALE`이 말한다 (open-decisions.md 97).
  *
  * **여기서 판정한 인코딩은 정본(canonical)이 아니다.** 정본 바이트는 언제나
  * UTF-8 CSV로 정규화되며(serialize.ts), settings.data.dataset.encoding에 기록되는 값도
@@ -25,10 +26,9 @@ import { ClientError } from '../errors'
  * 인코딩 판정만 고치는 줄 알고 파일 어휘를 늘리는 일이 없도록 tests/schema.spec.ts가
  * 이 배열을 고정해 두었다 (ml/backend.ts의 TRAINING_LOCATIONS도 같다).
  *
- * **'cp1252'는 아직 아무 판정도 내지 않는다** (코드 소유자 결정, mlpx-spec.md §9.4). 영어 윈도
- * 엑셀의 CSV 코드 페이지이고, 영어 화면의 대체 후보로 다음 판(0.33.1)에서 쓴다. 어휘만 v4에 먼저
- * 들인 것은 형식 버전을 두 번 올리지 않으려는 것이다. 지금 판정이 그것을 안 낸다는 것은
- * encoding.spec.ts "지금은 어느 언어로도 cp1252를 내지 않는다"가 문다.
+ * **'cp1252'는 영어 화면의 마지막 대체다** (open-decisions.md 97, mlpx-spec.md §9.4). 영어 윈도
+ * 엑셀의 CSV 코드 페이지이고, 어휘는 0.33.0의 v4에 먼저 들였다 — 형식 버전을 두 번 올리지 않으려는
+ * 것이었다. 영어 화면만 그것을 낸다는 것은 encoding.spec.ts "영어 화면만 cp1252로 떨어진다"가 문다.
  */
 export const SOURCE_ENCODINGS = [
   'utf-8',
@@ -54,7 +54,8 @@ export type SourceEncoding = (typeof SOURCE_ENCODINGS)[number]
  * (NEC·IBM 확장 문자)까지 정의해 두어 그것으로 풀린다.
  *
  * 'cp1252'는 'windows-1252' 디코더로 푼다. **이 디코더는 어떤 바이트에서도 실패하지 않는다** —
- * 그래서 엄격 판정의 후보(`CANDIDATES_BY_LOCALE`)가 될 수 없고, 쓴다면 마지막 대체로만 쓴다.
+ * 그래서 엄격하게 시험하는 자리(`CODE_PAGE_BY_LOCALE`의 `strict`)에 올 수 없고 마지막 대체
+ * (`fallback`)로만 쓴다. 무는 검사: encoding.spec.ts "마지막 대체는 어떤 바이트에서도 실패하지 않는다".
  */
 const DECODER_LABEL: Record<SourceEncoding, string> = {
   'utf-8': 'utf-8',
@@ -65,29 +66,57 @@ const DECODER_LABEL: Record<SourceEncoding, string> = {
   cp1252: 'windows-1252',
 }
 
+/** 어떤 바이트에서도 실패하지 않는 디코더를 쓰는 인코딩. 엄격하게 시험할 수 없다. */
+type LastResortEncoding = Extract<SourceEncoding, 'cp1252'>
+
 /**
- * **UTF-8이 아닐 때 CP949보다 먼저 시험할 인코딩.** 로케일마다 한 줄.
+ * 언어 하나가 UTF-8 다음에 보는 것.
+ *
+ * - `strict` — 그 언어의 윈도 엑셀이 CSV에 쓰는 코드 페이지. **엄격하게**(`fatal`) 시험하고
+ *   풀리면 그것이다. 느슨하게 시험하면 무엇이든 "풀린다".
+ * - `fallback` — 실패하지 않는 마지막 대체. 시험하지 않고 내준다. **이것이 없는 언어는
+ *   `strict`로도 안 풀리면 판정하지 못한다**(`detectEncoding`이 `null`).
+ *
+ * 둘을 나눈 이유는 **성질이 반대이기 때문이다** — 엄격한 자리는 "아니다"라고 말할 수 있어야 하고,
+ * 대체는 말할 수 없다. 타입이 그것을 막는다: 실패하지 않는 디코더는 `strict`에 올 수 없다.
+ */
+interface LocaleCodePages {
+  readonly strict: Exclude<SourceEncoding, LastResortEncoding> | null
+  readonly fallback: LastResortEncoding | null
+}
+
+/**
+ * **UTF-8이 아닐 때 언어마다 무엇을 보는가** (open-decisions.md 97). 로케일마다 한 줄.
  *
  * **바이트만으로는 CP949와 CP932를 못 가른다** — 둘 다 2바이트 체계이고, 같은 바이트열이
  * 양쪽에서 오류 없이 풀리는 일이 흔하다. 그래서 **UI 언어가 고른다**: 일본어 화면이면 그 학생의
- * 엑셀은 CP932로 저장했을 것이다. 후보는 **엄격하게** 시험하고, 안 풀리면 다음으로 넘어간다.
- * 마지막은 언제나 CP949이고 그것은 이 표에 안 적는다 — 한국어·영어 화면의 판정이 전과 같다.
- * **`cp1252`는 이 표에 오지 않는다** — 엄격하게 시험해도 실패하지 않으므로 후보가 아니라 대체다.
+ * 엑셀은 CP932로 저장했을 것이다.
+ *
+ * **다른 언어의 코드 페이지는 시험하지 않는다.** 한국어 화면에서 CP932 파일을 열면 오류이고,
+ * 엑셀에서 "CSV UTF-8"로 다시 저장하면 열린다 — 판정이 틀렸을 때 왜 틀렸는지 설명할 수 있는
+ * 쪽을 골랐다. 서유럽어 낱말을 Latin-1 바이트로 엄격하게 풀어 보면 20개 중 shift_jis가 13개,
+ * euc-kr이 1개를 오류 없이 받았다(결정 97의 실측) — 영어 화면에 CJK를 두면 그렇게 깨진다.
+ *
+ * **영어만 `fallback`이 있다.** 영어 윈도 엑셀의 CSV는 Windows-1252이고 그 디코더는 실패하지
+ * 않으므로 `strict`가 될 수 없다. **대가**: 영어 화면에서는 판정이 실패하지 않아서, CP949·CP932
+ * 파일도 `cp1252`로 들어와 글자가 깨진다(`encoding.spec.ts` "영어 화면만 cp1252로 떨어진다").
+ * 한국어·일본어 화면은 대가가 반대다 — 전에 끝의 느슨한 cp949가 받아 주던 파일(몇 글자 깨진 채였거나,
+ * 일본어 화면의 한국어 CSV처럼 바르게 읽히던 것)이 오류가 된다.
  *
  * **`@/i18n`을 import하지 않는다** — 이유는 `zip-names.ts`의 `LEGACY_CHARSETS`와 같다. 키를 이
  * 표에서 뽑고(`EncodingLocale`), 부르는 화면이 `Locale`을 넘기며, `encoding.spec.ts`
  * "언어마다 한 줄씩 있다"가 키를 `SUPPORTED_LOCALES`와 대조한다.
  *
- * 경위: `open-decisions.md` "인코딩 판정과 지원 목록".
+ * 경위: `open-decisions.md` "인코딩 판정과 지원 목록"과 97.
  */
-export const CANDIDATES_BY_LOCALE = {
-  en: [],
-  ko: [],
-  ja: ['cp932'],
-} as const satisfies Record<string, readonly SourceEncoding[]>
+export const CODE_PAGE_BY_LOCALE = {
+  en: { strict: null, fallback: 'cp1252' },
+  ko: { strict: 'cp949', fallback: null },
+  ja: { strict: 'cp932', fallback: null },
+} as const satisfies Record<string, LocaleCodePages>
 
 /** 이 표가 아는 언어. **`SUPPORTED_LOCALES`와 같아야 하고 검사가 그것을 본다.** */
-export type EncodingLocale = keyof typeof CANDIDATES_BY_LOCALE
+export type EncodingLocale = keyof typeof CODE_PAGE_BY_LOCALE
 
 /**
  * BOM 표. 긴 것을 먼저 본다 - UTF-32LE(FF FE 00 00)의 앞 두 바이트가
@@ -125,26 +154,26 @@ function decodesCleanly(bytes: Uint8Array, encoding: SourceEncoding): boolean {
  * 조용히 깨진 표를 만드는 대신 DATASET_ENCODING_UNSUPPORTED로 실패한다 -
  * 깨진 한글을 보고 학생이 할 수 있는 일은 없다.
  *
- * `locale`은 지금 UI 언어다. **없으면 후보가 없다** — 판정이 언어별 후보가 생기기 전과 같다.
+ * `locale`은 지금 UI 언어이고 **반드시 넘긴다** — 빠지면 컴파일이 깨진다. 0.33.0까지는 선택이라
+ * 화면이 언어를 안 넘겨도 검사가 초록이었다(0.33.0 감사 S16~S18).
+ *
+ * **`null`은 "이 언어로는 판정하지 못했다"다** (open-decisions.md 97). 오류는 파일 이름을 아는
+ * 여는 쪽(`table.ts`의 `openTable`)이 `DATASET_ENCODING_UNKNOWN`으로 낸다. 여기서 아무 코드
+ * 페이지로나 느슨하게 풀어 내주면 **오류 없이 깨진 표**가 된다 — 이 판정이 처음부터 피하려던 모양이다.
  */
-export function detectEncoding(bytes: Uint8Array, locale?: EncodingLocale): SourceEncoding {
+export function detectEncoding(bytes: Uint8Array, locale: EncodingLocale): SourceEncoding | null {
   const bom = BOMS.find((candidate) => startsWith(bytes, candidate.bytes))
   if (bom) {
     if (isSourceEncoding(bom.encoding)) return bom.encoding
     throw new ClientError('DATASET_ENCODING_UNSUPPORTED', { encoding: bom.encoding })
   }
 
-  // BOM이 없다. UTF-8로 온전히 읽히면 UTF-8이다.
+  // BOM이 없다. UTF-8로 온전히 읽히면 UTF-8이다 — 언어보다 먼저 본다(결정 97의 실측).
   if (decodesCleanly(bytes, 'utf-8')) return 'utf-8'
 
-  // 그 언어의 후보가 엄격하게 풀리면 그것이다. 느슨하게 시험하면 무엇이든 "풀린다".
-  const candidates: readonly SourceEncoding[] = locale ? CANDIDATES_BY_LOCALE[locale] : []
-  const local = candidates.find((candidate) => decodesCleanly(bytes, candidate))
-  if (local) return local
-
-  // 아니면 CP949다. euc-kr 디코더는 non-fatal이라 절대 실패하지 않으므로
-  // 여기가 항상 종점이다 - 판정 함수는 BOM 경우를 빼면 실패하지 않는다.
-  return 'cp949'
+  const { strict, fallback }: LocaleCodePages = CODE_PAGE_BY_LOCALE[locale]
+  if (strict !== null && decodesCleanly(bytes, strict)) return strict
+  return fallback
 }
 
 /** 판정된 인코딩으로 텍스트를 만든다. 선행 BOM은 TextDecoder가 스스로 제거한다. */

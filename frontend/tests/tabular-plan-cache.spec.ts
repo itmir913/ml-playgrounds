@@ -128,7 +128,7 @@ describe('계획에 들어가는 편집에는 다시 짓는다', () => {
   it('테스트 데이터를 따로 올리면 그 표로 계획한다', async () => {
     const file = await surveyProject(true)
     tabularPlanOf(file)
-    const imported = importTable(await openTable(surveyCsv(true), '시험.csv'))
+    const imported = importTable(await openTable(surveyCsv(true), '시험.csv', { locale: 'ko' }))
     const withTest = applyTestDataset(file, imported, {
       fileName: '시험.csv',
       hasHeader: true,
@@ -173,7 +173,7 @@ const EDITS: readonly Edit[] = [
   (file, pick) =>
     Promise.resolve(edited(file, (d) => withSampling(d, pick([undefined, 20, 30]), NOW))),
   async (file) => {
-    const imported = importTable(await openTable(surveyCsv(true), '시험.csv'))
+    const imported = importTable(await openTable(surveyCsv(true), '시험.csv', { locale: 'ko' }))
     return applyTestDataset(file, imported, { fileName: '시험.csv', hasHeader: true, now: NOW })
       .project
   },

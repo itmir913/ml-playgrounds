@@ -712,6 +712,7 @@
     "DATASET_FILE_TYPE_UNSUPPORTED": "対応していないファイル形式です。({fileName})",
     "DATASET_EXCEL_ENCRYPTED_OR_LEGACY": "パスワードが設定されているか、古い形式(.xls)のExcelファイルは読み込めません。Excelでパスワードを解除し、新しい形式(.xlsx)かCSVで保存してから、もう一度読み込んでください。({fileName})",
     "DATASET_SHEET_NOT_FOUND": "選択したシートが見つかりません。({sheetName})",
+    "DATASET_ENCODING_UNKNOWN": "このファイルの文字コードを判別できないため、読み込めませんでした。Excelで「CSV UTF-8 (コンマ区切り)」形式で保存してから、もう一度読み込んでください。({fileName})",
     "STORAGE_QUOTA_EXCEEDED": "このコンピュータの空き容量が不足しているため、ブラウザに保存できませんでした。",
     "STORAGE_VERSION_TOO_NEW": "このコンピュータに保存されている内容は、より新しいバージョンのアプリで作成されています。アプリを最新バージョンに更新してから、もう一度開いてください。保存したプロジェクトはそのまま残っています。",
     "STORAGE_BLOCKED": "別のタブでもこのアプリが開かれているため、保存したプロジェクトを開けるまで待機しています。このアプリを開いている別のタブを閉じてください。",

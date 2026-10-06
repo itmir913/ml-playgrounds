@@ -676,7 +676,9 @@ describe('타깃 이름이 표에 없는 파일', () => {
   it('테스트 표에 타깃 열이 없으면 던지지 않고 사유로 선다', async () => {
     const file = await scoreProject(true, 'drop')
     const imported = importTable(
-      await openTable(new TextEncoder().encode('키,몸무게,점수\n150,45,60\n151,46,61\n'), 't.csv'),
+      await openTable(new TextEncoder().encode('키,몸무게,점수\n150,45,60\n151,46,61\n'), 't.csv', {
+        locale: 'ko',
+      }),
     )
     const withTest = applyTestDataset(file, imported, {
       fileName: 't.csv',

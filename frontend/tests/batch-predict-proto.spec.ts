@@ -58,7 +58,7 @@ async function settle(): Promise<void> {
 }
 
 async function table(text: string, name: string): Promise<ImportedTable> {
-  return importTable(await openTable(new TextEncoder().encode(text), name))
+  return importTable(await openTable(new TextEncoder().encode(text), name, { locale: 'ko' }))
 }
 
 beforeEach(async () => {

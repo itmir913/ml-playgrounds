@@ -60,7 +60,7 @@ describe('toCanonicalCsv', () => {
   })
 
   it('스스로 만든 바이트를 utf-8로 판정한다', () => {
-    expect(detectEncoding(toCanonicalCsv([['이름', '나이']]))).toBe('utf-8')
+    expect(detectEncoding(toCanonicalCsv([['이름', '나이']]), 'ko')).toBe('utf-8')
   })
 })
 
@@ -123,7 +123,9 @@ describe('정본을 다시 읽는 세 입구', () => {
   }
 
   async function canonical(): Promise<ImportedTable> {
-    const imported = importTable(await openTable(new TextEncoder().encode(upload), 'rgb.csv'))
+    const imported = importTable(
+      await openTable(new TextEncoder().encode(upload), 'rgb.csv', { locale: 'ko' }),
+    )
     // 업로드 쪽은 추정이 맞다 — 틀리는 것은 정본을 다시 읽는 쪽뿐이다.
     expect(imported.grid).toEqual([expected.columns, ...expected.rows])
     return imported

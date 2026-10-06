@@ -37,7 +37,7 @@ function irisCsv(): Uint8Array {
 
 /** 붓꽃 30행을 붙이고 타깃·특성까지 고른 프로젝트. **아직 학습 전이다.** */
 export async function irisProject(algorithms: readonly string[]): Promise<ProjectFile> {
-  const imported = importTable(await openTable(irisCsv(), 'iris.csv'))
+  const imported = importTable(await openTable(irisCsv(), 'iris.csv', { locale: 'en' }))
   const { project } = applyDataset(projectFile(), imported, {
     fileName: 'iris.csv',
     hasHeader: true,

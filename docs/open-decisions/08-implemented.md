@@ -4,6 +4,16 @@
 
 > **상태 한 줄과, 제목이 물음일 때만 결론 한 줄을 둔다.** 경위는 같은 제목 아래 `docs/cases/open-decisions.md`에 있다.
 
+### 98. 개발 서버가 앱 밖의 경로에도 앱을 띄운다
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. 개발 서버도 배포본처럼 `public/`의 하위
+`index.html`을 그 경로에서 주고, 없는 경로는 404다 — 앱은 해시 라우팅이라 SPA 대체 응답이 필요 없다.
+`vite.config.ts`의 `appType: 'mpa'`와 `scripts/public-index.ts`, `tests/dev-routes.spec.ts`가 문다.
+
+### 97. 어느 코드 페이지로도 엄격하게 안 풀리는 CSV를 어떻게 읽는가
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. 결론: **오류로 멈추고 UTF-8로 다시 저장하라고 말한다.**
+언어마다 자기 코드 페이지 하나만 엄격하게 시험하고(ko `cp949`, ja `cp932`), 영어는 실패하지 않는 `cp1252`가
+마지막이다(`data/encoding.ts`의 `CODE_PAGE_BY_LOCALE`, 오류는 `DATASET_ENCODING_UNKNOWN`).
+
 ### 101. 순수 JS 의사결정트리의 분할 탐색을 우리 코드로 바꾼다 — 같은 나무를 더 빨리 (2026-10-03, 코드 소유자)
 **[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. `ml-cart`의 `bestSplit`을 우리 구현(`ml/engines/cart-split.ts`)으로
 갈아 끼운다. **고르는 분할은 원본과 비트 단위로 같아야 한다** — 같지 않으면 바꾸지 않는다. 그래서 엔진 버전도 `.mlpx`도

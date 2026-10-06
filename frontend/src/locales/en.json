@@ -712,6 +712,7 @@
     "DATASET_FILE_TYPE_UNSUPPORTED": "This file type is not supported. ({fileName})",
     "DATASET_EXCEL_ENCRYPTED_OR_LEGACY": "Excel files that are password-protected or in the old format (.xls) cannot be read. Remove the password in Excel, save the file as .xlsx or CSV, and load it again. ({fileName})",
     "DATASET_SHEET_NOT_FOUND": "The selected sheet could not be found. ({sheetName})",
+    "DATASET_ENCODING_UNKNOWN": "The text encoding of this file could not be identified, so it could not be read. In Excel, save it as \"CSV UTF-8 (Comma delimited)\" and load it again. ({fileName})",
     "STORAGE_QUOTA_EXCEEDED": "There is not enough storage space on this computer, so the browser could not save your work.",
     "STORAGE_VERSION_TOO_NEW": "The data saved on this computer was made with a newer version of the app. Update the app to the latest version and open it again. Your saved projects are still there.",
     "STORAGE_BLOCKED": "This app is open in another tab, so your saved projects cannot be opened yet. Close the other tabs where this app is open.",

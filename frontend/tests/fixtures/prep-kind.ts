@@ -58,7 +58,7 @@ export async function tabularProjectFrom(
     preprocessing: Partial<Preprocessing>
   },
 ): Promise<ProjectFile> {
-  const imported = importTable(await openTable(csv, fileName))
+  const imported = importTable(await openTable(csv, fileName, { locale: 'ko' }))
   const { project } = applyDataset(projectFile(), imported, { fileName, hasHeader: true, now: NOW })
   let document = withTaskType(project.document, choice.taskType, NOW)
   document = withTarget(document, choice.target, NOW)
