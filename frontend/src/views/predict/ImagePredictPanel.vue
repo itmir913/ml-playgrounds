@@ -457,7 +457,12 @@ function onDrop(event: DragEvent): void {
 
 // **붙여넣기는 놓기와 같은 일이다** (`open-decisions.md` "이미지 붙여넣기"). 드롭이 쓰는
 // 함수를 그대로 넘기므로, 굽는 중의 거절도 떠날 때 안 앉는 것도 여기서 다시 안 정한다.
-usePasteImages((files) => void readPicked(files))
+// **그리기 창이 떠 있는 동안은 받지 않는다** — 받으면 굽기가 시작되어 창의 [추가]가 굽는 중
+// 거절(`addWhileBusy`)에 걸려 그린 것이 사라진다(`usePasteImages`의 `paused`, open-decisions.md 67).
+usePasteImages(
+  (files) => void readPicked(files),
+  () => sketchOpen.value,
+)
 
 /**
  * 예측한다. **없는 임베딩만 먼저 뽑는다** — 학습과 같은 규칙이다 (mlpx-spec.md §1.3).

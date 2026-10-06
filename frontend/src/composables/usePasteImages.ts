@@ -60,13 +60,20 @@ function named(file: File, index: number): File {
  * 이 화면이 붙여넣기를 받게 한다. **떠나면 리스너를 뗀다.**
  *
  * @param take 받은 사진들. 화면의 드롭이 쓰는 함수를 그대로 넘긴다.
+ * @param paused 참인 동안은 받지 않는다 — 기본 동작도 안 막고 그냥 지나간다. **판 위에 모달 창이 떠
+ *   있는 동안이다** (그리기 창, open-decisions.md 67). 창 안에서 누른 Ctrl+V가 뒤의 판으로 새면 안 되고,
+ *   예측 화면에서는 그 붙여넣기가 굽기를 시작해 창의 [추가]가 굽는 중 거절(`addWhileBusy`)에 걸려
+ *   그린 것이 사라졌다. 무는 검사: `image-source-menu.spec.ts`의 "그리기 창이 떠 있는 동안 붙여넣기".
  */
-export function usePasteImages(take: (files: readonly File[]) => void): void {
+export function usePasteImages(
+  take: (files: readonly File[]) => void,
+  paused: () => boolean = () => false,
+): void {
   /** 붙여넣은 순서. **화면이 사는 동안 안 되돌아간다** — 이름이 겹치지 않게 한다. */
   let count = 0
 
   function onPaste(event: ClipboardEvent): void {
-    if (editable(event.target)) return
+    if (paused() || editable(event.target)) return
 
     const images = imagesFromClipboard(event.clipboardData)
     // **사진이 없으면 아무 일도 안 한다.** 글자를 붙여넣은 것을 거절이라고 말하면,

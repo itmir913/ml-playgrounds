@@ -178,3 +178,32 @@ describe('한 줄에 세우면', () => {
     ])
   })
 })
+
+/**
+ * **축 이름을 화면에서만 숨긴다** (`hideLabel`, #38 그리기의 붓 굵기). 승인된 A3 목업에는 이름 줄이
+ * 없고, 그 줄이 캔버스 높이 공식을 2rem 줄였다. **접근 가능한 이름은 그대로다** — 묶음의 `aria-label`.
+ */
+describe('축 이름을 화면에서만 숨기면', () => {
+  const ITEMS: readonly Choice[] = [{ id: 'a', label: '가는 붓' }]
+
+  it('이름 줄이 안 서고, 묶음의 이름은 그대로다', () => {
+    const wrapper = mount(AppChoices, {
+      props: { label: '붓 굵기', items: ITEMS, hideLabel: true },
+      global: { plugins: [i18n] },
+    })
+    expect(wrapper.find('h3').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('붓 굵기')
+    expect(wrapper.find('[role="group"]').attributes('aria-label')).toBe('붓 굵기')
+    // 위에 아무것도 없으니 띄울 것도 없다.
+    expect(wrapper.find('[role="group"]').classes()).not.toContain('mt-1.5')
+  })
+
+  it('기본은 이름 줄이 그대로 선다 — 지금 쓰는 축들은 안 바뀐다', () => {
+    const wrapper = mount(AppChoices, {
+      props: { label: '붓 굵기', items: ITEMS },
+      global: { plugins: [i18n] },
+    })
+    expect(wrapper.find('h3').text()).toBe('붓 굵기')
+    expect(wrapper.find('[role="group"]').classes()).toContain('mt-1.5')
+  })
+})

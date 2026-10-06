@@ -474,8 +474,9 @@ const folderInput = ref<HTMLInputElement | null>(null)
  * (`data/image/upload.ts`의 `categoryOf`) 사진을 낱개로 고르면 전부 범주 없음이 되어
  * `TEST_IMAGES_UNLABELED`로 거절당한다 — 학생이 고를 수 있는 길만 남긴다.
  *
- * 데이터 화면이 [사진 추가]와 [폴더에서 추가]를 나눠 둔 것과 같은 갈림이고,
- * 여기서는 낱개 자리에 압축 파일이 선다.
+ * 데이터 화면의 [사진 추가] 메뉴가 [사진 선택]과 [폴더 선택]을 가르는 것과 같은 갈림이고
+ * (`data/image/sources.ts`), 여기서는 낱개 자리에 압축 파일이 선다. 이 화면은 그 메뉴를 쓰지 않는다
+ * (open-decisions.md 67 결정 3).
  */
 function pick(input: HTMLInputElement | null): void {
   input?.click()

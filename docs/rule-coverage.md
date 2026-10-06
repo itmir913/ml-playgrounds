@@ -34,7 +34,7 @@
 | §1.4 백엔드는 코드와 파라미터만 | `test_no_korean_literals.py` |
 | §3 규칙 2 컴포넌트 안의 자연어 리터럴 | `i18n-usage.spec.ts` |
 | §3 규칙 3·4 한 문장은 한 키 · 사용자 데이터는 괄호로 | `i18n-usage.spec.ts` · `locales.spec.ts` |
-| §3 규칙 5 동작의 이름은 한자어 | `locales.spec.ts` |
+| §3 규칙 5 동작의 이름은 한자어 — `tests/fixtures/retired-words.ts`의 `allowedIn`이 `data.image.sketch.*`·`data.image.source.sketch`에서 `그림`·`그리다`를 안 본다(그리기 입력 방식, #38). 그 키들 안의 다른 물러난 말은 그대로 본다 | `locales.spec.ts` |
 | **데이터 이름이 하나인가** (`terms.md` 머리말) — `backend/`·`frontend/scripts/`·`frontend/tools/`·README·CONTRIBUTING은 못 본다 | `terms.spec.ts` |
 | §3 지원 언어마다 내장 양식 파일이 있는가 | `portfolio-preset.spec.ts` |
 | §3 **번역된 문장을 언어의 공백으로 잇는가**(`i18n.md` 규칙 6) — `formatSentences` 자체와, 차트 판·차트 대화상자가 글자 그대로의 `join(' ')`를 안 쓰는지까지 본다. 그 밖의 자리와 다른 모양으로 공백을 끼워 잇는 것은 못 본다(aria id·class·학번과 이름과 모양이 같다) | `create.spec.ts` · `i18n-usage.spec.ts` |
@@ -125,7 +125,7 @@
 | **`.mlpx`가 받아들이는 시각의 집합** | `schema.spec.ts` · `schema-structure.spec.ts` |
 | 도는 일의 셈 자체가 맞는가 | `useWork.spec.ts` |
 | `t()`에 읽기 전용 객체를 넘기는가 | `ui-rules.spec.ts` |
-| 문구가 부르는 버튼 이름이 실재하는가 | `locales.spec.ts` |
+| 문구가 부르는 버튼 이름이 실재하는가 — **로케일 어디엔가 그 글자가 있는지**만 본다. 키(화면)를 안 가려서, 한 화면에서 사라진 단추도 다른 화면에 같은 글자가 남으면 조용하다(데이터 화면의 [폴더에서 추가]가 전처리의 `preprocess.testImagesAddFolder` 때문에 그랬다, #38). 데이터 화면 빈 상태 하나는 `image-source-menu.spec.ts`가 화면의 단추로 잰다 | `locales.spec.ts` · `image-source-menu.spec.ts` |
 | 나눠 그린 미니 카드가 원문과 같은 글자인가 | `app-choices.spec.ts` |
 | 산점도 표식이 가리켜도 안 변하는가 | `cluster-chart.spec.ts` |
 | §1.1 http로 띄운 자가호스팅에서도 도는가 | `secure-context-rules.spec.ts` |
@@ -145,6 +145,11 @@
 | 판례의 절 제목이 규칙 문서의 절과 짝인가 — 번호 없는 `###` 아래와 번호는 같고 제목이 다른 것은 못 본다 | `cases-headings.spec.ts` |
 | 규칙과 판례가 짝이고, 결정문이 `[미정]`·`[결정]`·`[폐기]`를 갖는가 · 결정 번호가 겹치지 않는가 | `docs-structure.spec.ts` |
 | 사진을 굽기 전에 자리를 묻는가 | `image-room.spec.ts` |
+| **예측 화면의 폴더·zip이 폴더 이름을 안 읽는가**(open-decisions.md 67 결정 7) — 놓기와 메뉴의 [폴더 선택]으로 잰다. 데이터 화면이 같은 입력을 거절하는 것도 본다 | `image-predict-labels.spec.ts` · `image-upload-zip.spec.ts` |
+| **그리기의 획 모델과 규격**(open-decisions.md 67) — 획·되돌리기·좌표 변환·다시 그리기·이름 발급·PNG 내보내기를 가짜 컨텍스트로 본다. 캔버스 크기가 정본보다 작지 않은가, 바탕이 굽기 여백색과 같은가도. 실제 캔버스에 획이 보이는가는 사람 확인이다 | `sketch.spec.ts` |
+| **사진 입력 방식 등록부**가 줄·무게·덧붙임을 내고 웹캠 줄이 없는가 | `image-sources.spec.ts` |
+| **그리기 창**이 빈 그림을 등록부의 칸으로 거절하고, 모은 장·[추가]의 `File[]`·닫기와 버릴지 확인(쌓임 차례, `Esc` 연타)·긋는 중의 단추를 옳게 굴리는가 — 캔버스 접착(`sketch-canvas.ts`)은 갈아끼운다. 최상위 레이어의 쌓임은 `showModal` 호출 차례로만 재고, 크롬의 close watcher 묶음은 흉내다(사람 확인) | `sketch-dialog.spec.ts` · `app-dialog.spec.ts` |
+| **[사진 추가] 메뉴의 배선** — 팝오버가 닫혀도·메뉴가 내려가도 받은 것이 닿는가, 그린 사진이 파일로 고른 사진과 같은 워커 요청인가, 그림 이름이 판에서 안 겹치는가, 그리기 창이 떠 있는 동안 붙여넣기를 안 받는가, 트리거가 지금 버튼의 잠금을 받는가. 그리기 창 안의 캔버스는 안 본다 | `image-source-menu.spec.ts` |
 | 행 상한 칸에 **제 이름의 상수**가 오는가 | `algorithms.spec.ts` · `limits.ts` |
 | 화면이 넘기는 **데이터 종류**가 열린 프로젝트의 것인가 | `training-source.spec.ts` · `data/kinds.ts` |
 | MB가 십진인가 | `limits-rules.spec.ts` |

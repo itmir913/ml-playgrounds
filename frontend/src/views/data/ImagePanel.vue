@@ -325,7 +325,12 @@ function onDrop(event: DragEvent): void {
 // **붙여넣기는 놓기와 같은 일이다** (`open-decisions.md` "이미지 붙여넣기"). 범주를 묻는
 // 모달을 두지 않는다 — 스무 장을 모으는 수업에서 모달이 스무 번 뜨고, 범주가 하나도
 // 없을 때를 따로 정해야 한다. 여기로 오면 그 둘이 다 사라진다.
-usePasteImages((files) => void readPicked(files, IMAGE_UNLABELED, { append: true }))
+// **그리기 창이 떠 있는 동안은 받지 않는다** — 창 안에서 누른 Ctrl+V가 뒤의 판으로 새면 안 된다
+// (`usePasteImages`의 `paused`, open-decisions.md 67).
+usePasteImages(
+  (files) => void readPicked(files, IMAGE_UNLABELED, { append: true }),
+  () => sketchOpen.value,
+)
 
 /**
  * 확인한 것을 굽는다. **정본 크기는 백본이 정한다** — 224로 구운 정본은 260을 요구하는

@@ -584,11 +584,12 @@
  * 왼쪽 폭은 `24rem` 아래로 안 줄어든다 — 그 아래에서는 [되돌리기]·[초기화]·[다음 장 추가]가 한 줄에
  * 안 든다. 위로는 `32rem`까지이고, 그 사이는 **화면 높이에서 캔버스 밖의 것들(창 여백·제목·설명·
  * 붓 굵기·아래 단추 줄·창 단추)을 뺀 값**이다 — 캔버스가 정사각형이라 폭이 곧 높이다. 빼는 값
- * `26rem`은 목업의 `24rem`에 붓 굵기의 이름표 한 줄(`AppChoices`의 축 이름)을 더한 것이다(사람 확인).
+ * `24rem`은 승인된 목업의 값이다. 붓 굵기는 축 이름 줄 없이 선다(`AppChoices`의 `hideLabel`) — 그 줄이
+ * 있던 때는 `26rem`이라 1280×720에서 캔버스가 268px로 눌렸다. 맞는지는 사람 확인이다.
  * Tailwind 기본 눈금으로는 `clamp()`를 쓸 수 없어 여기 이름으로 둔다 (CLAUDE.md §4).
  */
 @utility sketch-columns {
-  grid-template-columns: clamp(24rem, calc(95dvh - 26rem), 32rem) minmax(0, 1fr);
+  grid-template-columns: clamp(24rem, calc(95dvh - 24rem), 32rem) minmax(0, 1fr);
 }
 
 /**
@@ -596,7 +597,7 @@
  * 줄 때문에 `24rem` 아래로 안 줄지만(위 `sketch-columns`) 캔버스는 줄어도 된다. 빼는 값은 위와 같다.
  */
 @utility sketch-canvas-fit {
-  width: min(100%, calc(95dvh - 26rem));
+  width: min(100%, calc(95dvh - 24rem));
 }
 
 /**

@@ -14,6 +14,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { i18n, setLocale } from '../src/i18n'
+import ko from '../src/locales/ko.json'
 import { readImages } from '../src/project/images'
 import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
@@ -126,10 +127,43 @@ describe('예측 화면에 놓은 zip·폴더는', () => {
     wrapper.unmount()
   })
 
-  it('범주 규칙에 안 맞는 폴더 이름이 있어도 받고 사진이 전부 앉는다 - 폴더 선택', async () => {
+  it('범주 규칙에 안 맞는 폴더 이름이 있어도 받고 사진이 전부 앉는다 - 폴더를 놓기', async () => {
     const { project, wrapper, panel } = await predictPanel()
 
     panel.onDrop(dropEvent(folderPick(BAD_FOLDERS)))
+    await settle()
+
+    expect(toastKeys()).not.toContain('client.IMAGE_CATEGORY_NAME_INVALID')
+    expect(readImages(project.file, 'predict')).toHaveLength(BAD_FOLDERS.length)
+    wrapper.unmount()
+  })
+
+  /**
+   * **진짜 입구 — [사진 추가] 메뉴의 [폴더 선택]** (#38). 메뉴가 판의 폴더 input을 열고, 학생이 고른
+   * 폴더가 그 input의 `change`로 온다. 놓기와 같은 문(`readPicked`)이지만 길이 다르니 따로 잰다.
+   */
+  it('범주 규칙에 안 맞는 폴더 이름이 있어도 받고 사진이 전부 앉는다 - 메뉴의 폴더 선택', async () => {
+    const { project, wrapper } = await predictPanel()
+
+    const trigger = wrapper.findAll('button').filter((one) => one.text() === ko.predict.image.add)
+    expect(trigger).toHaveLength(1)
+    await trigger[0]!.trigger('click')
+    await settle()
+    const row = [
+      ...(document.body.querySelector('.popover-panel')?.querySelectorAll('button') ?? []),
+    ].find((one) => one.textContent?.trim() === ko.data.image.source.folder)
+    expect(row).toBeDefined()
+    const folder = wrapper.find<HTMLInputElement>('input[type="file"][webkitdirectory]').element
+    const opened = vi.spyOn(folder, 'click')
+    row!.click()
+    await flushPromises()
+    expect(opened).toHaveBeenCalledTimes(1)
+
+    Object.defineProperty(folder, 'files', {
+      configurable: true,
+      value: folderPick(BAD_FOLDERS),
+    })
+    folder.dispatchEvent(new Event('change'))
     await settle()
 
     expect(toastKeys()).not.toContain('client.IMAGE_CATEGORY_NAME_INVALID')

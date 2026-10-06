@@ -94,6 +94,33 @@ describe('바깥 클릭은 `persistent`가 쥔다', () => {
 })
 
 /**
+ * **`Esc`의 `cancel`을 받는 쪽에 넘긴다** (#38, 그리기 창이 버릴지 묻는 길). 받는 창은 막을 수 있고,
+ * **안 받는 창은 지금처럼 그대로 닫힌다** — 이 부품이 스스로 막는 일은 없다.
+ */
+describe('`Esc`의 `cancel`', () => {
+  it('받는 쪽에 그 이벤트를 넘기고, 받는 쪽이 막을 수 있다', () => {
+    const wrapper = mount(AppDialog, {
+      props: {
+        open: true,
+        title: '제목',
+        onCancel: (event: Event) => event.preventDefault(),
+      },
+    })
+    const escape = new Event('cancel', { cancelable: true })
+    wrapper.find('dialog').element.dispatchEvent(escape)
+    expect(wrapper.emitted('cancel')).toHaveLength(1)
+    expect(escape.defaultPrevented).toBe(true)
+  })
+
+  it('안 받는 창은 막지 않는다 — 다른 창들은 그대로 닫힌다', () => {
+    const wrapper = render(true)
+    const escape = new Event('cancel', { cancelable: true })
+    wrapper.find('dialog').element.dispatchEvent(escape)
+    expect(escape.defaultPrevented).toBe(false)
+  })
+})
+
+/**
  * **창의 크기를 `fill`이 쥔다.**
  *
  * **이 프롭에도 검사가 없었다** (2026-09-22 감사). 갈래를 `'w-full max-w-2xl'` 고정으로

@@ -68,6 +68,15 @@ const props = defineProps<{
    * `app-choices.spec.ts`의 "한 줄에 세우면"이 문다.
    */
   row?: boolean
+  /**
+   * 축 이름 줄을 **화면에서만** 숨기는가. 이름은 그대로 묶음(`role="group"`)의 `aria-label`로 읽힌다.
+   * **기본은 이름 줄이 선다** — 축이 무엇인지 모르는 채 고르게 하지 않는다.
+   *
+   * **그리기의 붓 굵기 하나 때문에 생겼다** (open-decisions.md 67 결정 12). 승인된 A3 목업에는 이름 줄이
+   * 없고(점의 크기가 곧 무엇의 축인지 말한다), 그 줄이 캔버스 높이 공식을 2rem 깎았다.
+   * `app-choices.spec.ts`의 "축 이름을 화면에서만 숨기면"이 문다.
+   */
+  hideLabel?: boolean
 }>()
 
 defineSlots<{
@@ -146,7 +155,7 @@ const cells = computed(() => props.items.map((item) => ({ item, parts: splitLabe
     전부 세로 flex라 폭이 부모에게서 온다.
   -->
   <div v-bind="forwardAttrs($attrs)" class="min-w-0 @container">
-    <h3 class="font-bold text-ink-soft">{{ label }}</h3>
+    <h3 v-if="!props.hideLabel" class="font-bold text-ink-soft">{{ label }}</h3>
     <!-- 여백은 `AppField`와 같다 — 나란히 선 두 칸의 리듬이 다르면 한쪽이 밀린 것처럼 보인다. -->
     <p v-if="props.hint" class="mt-1.5 text-ink-faint">{{ props.hint }}</p>
 
@@ -162,8 +171,11 @@ const cells = computed(() => props.items.map((item) => ({ item, parts: splitLabe
       셋에 간격 8px 둘을 더하면 448px이다. 그게 `@md`(28rem)다.
     -->
     <div
-      class="mt-1.5 grid auto-rows-fr gap-2"
-      :class="props.row ? 'grid-flow-col auto-cols-fr' : 'grid-cols-2 @md:grid-cols-3'"
+      class="grid auto-rows-fr gap-2"
+      :class="[
+        props.row ? 'grid-flow-col auto-cols-fr' : 'grid-cols-2 @md:grid-cols-3',
+        props.hideLabel && !props.hint ? '' : 'mt-1.5',
+      ]"
       role="group"
       :aria-label="label"
     >

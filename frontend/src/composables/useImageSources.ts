@@ -6,7 +6,7 @@
  * 창 하나, 그림 이름 발급기 하나. 그것으로 지은 `context`를 그 판의 **모든 메뉴**(툴바·빈 상태·범주
  * 칸마다)가 받는다. 메뉴마다 지으면 발급기가 메뉴마다 생겨 다른 칸에서 그린 두 장이 같은
  * `drawn-1.png`가 되고, 확인 판에서 한 범주로 합쳐진다(`sketch.ts`의 `createSketchNamer`).
- * 검사: `image-source-menu.spec.ts` "같은 판에서 두 번 그려도 이름이 안 겹친다".
+ * 검사: `image-source-menu.spec.ts` "범주 칸의 메뉴로 그리면 그 범주로, 두 번 그려도 이름이 안 겹친다".
  *
  * 쓰는 판은 숨은 `<input>` 둘의 `ref`를 넘기고, 두 input의 `@change`·`@cancel`에 `onPicked`를,
  * 그리기 창에 `sketchOpen`·`sketchMounted`·`nameSketch`·`onSketchDone`을 단다.
@@ -65,7 +65,7 @@ export function useImageSources({ fileInput, folderInput }: ImageSourceInputs): 
     input.value = ''
     // **앞의 약속은 `null`로 풀고 새로 건다** — `PortfolioView.vue`의 `pickFile`과 같다. `cancel`이
     // 안 오는 브라우저에서 앞 고르기를 닫고 다시 고르면, 덮어쓴 앞 약속이 영영 안 풀린다. 무는 검사:
-    // `image-source-menu.spec.ts` "창을 닫아도 다음 고르기는 정상이다".
+    // `image-source-menu.spec.ts`의 "다시 고르면 앞의 고르기는 고르지 않은 것으로 끝난다".
     picking?.(null)
     return new Promise((resolve) => {
       picking = resolve

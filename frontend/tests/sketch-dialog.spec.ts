@@ -51,6 +51,9 @@ const fake = vi.hoisted(() => ({
   exported: [] as { calls: string[] }[],
   frames: [] as (() => void)[],
   snapshots: 0,
+  /** 참이면 `toBlob`이 `release`를 부를 때까지 기다린다 — [추가]가 도는 사이를 잰다. */
+  holdBlob: false,
+  held: [] as (() => void)[],
 }))
 
 vi.mock('../src/views/data/sketch-canvas', () => ({
@@ -68,7 +71,12 @@ vi.mock('../src/views/data/sketch-canvas', () => ({
     fake.exported.push(made)
     return {
       context: made.context,
-      toBlob: (type: string) => Promise.resolve(new Blob(['png'], { type })),
+      toBlob: (type: string) =>
+        fake.holdBlob
+          ? new Promise<Blob>((resolve) => {
+              fake.held.push(() => resolve(new Blob(['png'], { type })))
+            })
+          : Promise.resolve(new Blob(['png'], { type })),
     }
   },
   onNextFrame: (callback: () => void) => {
@@ -86,6 +94,12 @@ function flushFrames(): void {
   for (const frame of frames) frame()
 }
 
+/**
+ * `showModal`이 불린 `<dialog>`들, 부른 차례대로. **최상위 레이어는 부른 차례로 쌓인다** — 나중에
+ * 부른 것이 위다. 확인 창이 그리기 창 위에 서는지를 이것으로 잰다.
+ */
+const shown: HTMLDialogElement[] = []
+
 /** 화면에 보이는 캔버스의 자리와 크기. 픽셀은 448, 보이는 크기는 그 절반이다. */
 const RECT = { left: 10, top: 20, width: 224, height: 224 }
 
@@ -95,6 +109,14 @@ beforeEach(async () => {
   fake.exported = []
   fake.frames = []
   fake.snapshots = 0
+  fake.holdBlob = false
+  fake.held = []
+  shown.length = 0
+  const showModal = HTMLDialogElement.prototype.showModal
+  HTMLDialogElement.prototype.showModal = function record(this: HTMLDialogElement): void {
+    shown.push(this)
+    showModal.call(this)
+  }
   HTMLElement.prototype.setPointerCapture = vi.fn()
   HTMLCanvasElement.prototype.getBoundingClientRect = () =>
     ({
@@ -406,13 +428,21 @@ describe('닫기', () => {
     expect(done(wrapper)).toEqual([null])
   })
 
-  it('그린 것이 있으면 버릴지 묻고, [취소]로 그림 그대로 돌아온다', async () => {
+  /**
+   * **확인 창은 그리기 창 위에 쌓인다** (코드 소유자, open-decisions.md 67). 그리기 창을 내리고 확인
+   * 창만 띄우면 학생은 무엇을 버리는지 못 본다.
+   */
+  it('그린 것이 있으면 [취소]가 그리기 창 위에 확인 창을 쌓고, 확인 창의 [취소]는 그것만 닫는다', async () => {
     const wrapper = render()
     await stroke(wrapper, [[10, 10]])
+    const [sketchDialog, confirmDialog] = wrapper.findAll('dialog').map((one) => one.element)
     await button(wrapper, ko.common.cancel).trigger('click')
     expect(done(wrapper)).toEqual([])
-    expect(opened(wrapper, 0)).toBe(false)
+    expect(opened(wrapper, 0)).toBe(true)
     expect(opened(wrapper, 1)).toBe(true)
+    // 확인 창이 나중에 열렸다 — 위다.
+    expect(shown.at(-1)).toBe(confirmDialog)
+    expect(shown.indexOf(sketchDialog as HTMLDialogElement)).toBeLessThan(shown.length - 1)
 
     await button(wrapper, ko.common.cancel, 1).trigger('click')
     expect(opened(wrapper, 0)).toBe(true)
@@ -421,17 +451,127 @@ describe('닫기', () => {
     expect(done(wrapper)).toEqual([])
   })
 
-  it('`Esc`로 닫아도 그린 것이 있으면 묻고, [추가하지 않고 닫기]가 `null`이다', async () => {
+  it('`Esc`는 그리기 창의 닫힘을 막고 확인 창을 쌓는다 — [추가하지 않고 닫기]가 `null`이다', async () => {
     const wrapper = render()
     await stroke(wrapper, [[10, 10]])
     await button(wrapper, T.next).trigger('click')
-    await wrapper.findAll('dialog')[0]!.trigger('close')
+    const escape = new Event('cancel', { cancelable: true })
+    wrapper.findAll('dialog')[0]!.element.dispatchEvent(escape)
+    await flushPromises()
+    expect(escape.defaultPrevented).toBe(true)
     expect(done(wrapper)).toEqual([])
+    expect(opened(wrapper, 0)).toBe(true)
     expect(opened(wrapper, 1)).toBe(true)
     expect(wrapper.text()).toContain(T.discardDescription.replace('{count}', '1'))
 
     await button(wrapper, T.discardConfirm, 1).trigger('click')
     expect(done(wrapper)).toEqual([null])
+  })
+
+  /**
+   * **`Esc` 연타** (코드 소유자 보고 — 확인 창이 그리기 창 뒤에 뜬 것 같다). 무엇이 와도 지킬 것은
+   * 셋이다: 확인 창이 떠 있으면 그것이 맨 위다(마지막 `showModal`이 확인 창이고 그 뒤로 그리기 창의
+   * `showModal`이 없다), 확인 창의 `Esc`는 확인 창만 닫는다, 그린 것은 안 사라진다.
+   *
+   * 브라우저 흉내: 막지 않은 `cancel`은 창을 닫고 `close`를 올린다. 막을 수 없는 `cancel`(사용자 활성
+   * 없음)도 있고, 크롬은 연타한 창 둘을 한 묶음으로 함께 닫기도 한다(위 창의 `close`가 먼저).
+   */
+  it('`Esc`를 연타해도 확인 창은 언제나 맨 위이고, 그린 것은 남는다', async () => {
+    const wrapper = render()
+    await stroke(wrapper, [[10, 10]])
+    const [sketchDialog, confirmDialog] = wrapper
+      .findAll('dialog')
+      .map((one) => one.element as HTMLDialogElement)
+
+    function close(dialog: HTMLDialogElement): void {
+      dialog.open = false
+      dialog.dispatchEvent(new Event('close'))
+    }
+    function escape(dialog: HTMLDialogElement, cancelable = true): void {
+      const event = new Event('cancel', { cancelable })
+      dialog.dispatchEvent(event)
+      if (!event.defaultPrevented) close(dialog)
+    }
+    /** 확인 창이 떠 있으면 맨 위인가 — 마지막 `showModal`이 확인 창이다. */
+    function confirmOnTop(): void {
+      if (!confirmDialog!.open) return
+      const last = shown.lastIndexOf(confirmDialog!)
+      expect(last, 'confirm dialog is on top').toBe(shown.length - 1)
+      expect(sketchDialog!.open, 'sketch dialog stays under it').toBe(true)
+    }
+    const settleAll = async () => {
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+      await flushPromises()
+    }
+
+    // 그리기 창의 `Esc` — 막고 확인 창을 쌓는다.
+    escape(sketchDialog!)
+    await settleAll()
+    expect(confirmDialog!.open).toBe(true)
+    confirmOnTop()
+
+    // 확인 창의 `Esc` — 확인 창만 닫힌다.
+    escape(confirmDialog!)
+    await settleAll()
+    expect(confirmDialog!.open).toBe(false)
+    expect(sketchDialog!.open).toBe(true)
+
+    // 그리기 창의 `Esc`를 막을 수 없었다 — 닫혔다가 다시 뜨고 그 위에 확인 창.
+    escape(sketchDialog!, false)
+    await settleAll()
+    expect(sketchDialog!.open).toBe(true)
+    expect(confirmDialog!.open).toBe(true)
+    confirmOnTop()
+
+    // 연타가 둘을 한 묶음으로 닫았다(위에서부터) — 확인 창의 `Esc`였으니 확인 창은 다시 안 쌓는다.
+    close(confirmDialog!)
+    close(sketchDialog!)
+    await settleAll()
+    expect(sketchDialog!.open).toBe(true)
+    expect(confirmDialog!.open).toBe(false)
+
+    // 그리기 창의 `Esc`를 또 막을 수 없었다 — 다시 확인 창이 맨 위.
+    escape(sketchDialog!, false)
+    await settleAll()
+    expect(confirmDialog!.open).toBe(true)
+    confirmOnTop()
+
+    // 그리기 창의 `Esc`가 또 와도(막았다) 확인 창은 맨 위 그대로다.
+    escape(sketchDialog!)
+    await settleAll()
+    confirmOnTop()
+
+    expect(done(wrapper)).toEqual([])
+    expect(canvasNote(wrapper)).toBeNull()
+  })
+
+  it('그린 것이 없으면 `Esc`를 막지 않는다', async () => {
+    const wrapper = render()
+    const escape = new Event('cancel', { cancelable: true })
+    wrapper.findAll('dialog')[0]!.element.dispatchEvent(escape)
+    expect(escape.defaultPrevented).toBe(false)
+  })
+
+  /**
+   * **브라우저가 막을 수 없는 닫기** — 크롬은 사용자 활성 없이 거듭 누른 `Esc`의 `cancel`을 막지 못하게
+   * 하고 창을 닫는다(close watcher). 그때 그린 것이 사라지면 안 된다 — 창을 다시 띄우고 확인을 쌓는다.
+   */
+  it('막지 못하고 닫혀도 그린 것은 남고, 창을 다시 띄운 위에 확인 창을 쌓는다', async () => {
+    const wrapper = render()
+    await stroke(wrapper, [[10, 10]])
+    await button(wrapper, T.next).trigger('click')
+    const [sketchDialog, confirmDialog] = wrapper.findAll('dialog').map((one) => one.element)
+    // 브라우저가 스스로 닫았다.
+    ;(sketchDialog as HTMLDialogElement).open = false
+    sketchDialog!.dispatchEvent(new Event('close'))
+    await flushPromises()
+
+    expect(done(wrapper)).toEqual([])
+    expect(opened(wrapper, 0)).toBe(true)
+    expect(opened(wrapper, 1)).toBe(true)
+    expect(shown.slice(-2)).toEqual([sketchDialog, confirmDialog])
+    expect(sheetCount(wrapper)).toBe(1)
   })
 
   /**
@@ -464,5 +604,113 @@ describe('닫기', () => {
     await wrapper.setProps({ open: true })
     expect(sheetCount(wrapper)).toBe(0)
     expect(canvasNote(wrapper)).toBe(T.hint)
+  })
+})
+
+/**
+ * **긋는 중에 단추를 누를 수 있다** — 한 손가락이 캔버스에 있는 동안 다른 손가락이 단추를 누른다.
+ * 열린 획을 그대로 두면 그림판에는 그 획이 없어서 [다음 장 추가]가 거절하고, [추가]는 그 획을 빼고
+ * 낸다. 네 동작이 첫머리에서 열린 획을 닫는다.
+ */
+describe('긋는 중에 누른 단추', () => {
+  /** 손가락을 대고 움직이기만 한다 — 아직 안 뗐다. */
+  function touchAndHold(wrapper: Wrapper): void {
+    const at = (x: number) => ({
+      clientX: RECT.left + x,
+      clientY: RECT.top + 10,
+      pointerId: 1,
+      button: 0,
+    })
+    pad(wrapper).dispatchEvent(new PointerEvent('pointerdown', at(10)))
+    pad(wrapper).dispatchEvent(new PointerEvent('pointermove', at(20)))
+  }
+
+  it('[다음 장 추가]가 그 획까지 한 장으로 모은다', async () => {
+    const wrapper = render()
+    touchAndHold(wrapper)
+    await button(wrapper, T.next).trigger('click')
+    expect(sheetCount(wrapper)).toBe(1)
+    expect(canvasNote(wrapper)).toBe(T.hint)
+  })
+
+  it('[추가]가 그 획까지 낸다', async () => {
+    const wrapper = render()
+    touchAndHold(wrapper)
+    await wrapper.vm.$nextTick()
+    await button(wrapper, T.add).trigger('click')
+    await flushPromises()
+    expect(done(wrapper)[0]).toHaveLength(1)
+    expect(fake.exported[0]?.calls).toContain('lineTo 40 20')
+  })
+
+  it('[되돌리기]는 그 획을 닫고 뺀다 — 손을 떼도 되살아나지 않는다', async () => {
+    const wrapper = render()
+    touchAndHold(wrapper)
+    await button(wrapper, T.undo).trigger('click')
+    pad(wrapper).dispatchEvent(
+      new PointerEvent('pointerup', {
+        clientX: RECT.left + 30,
+        clientY: RECT.top + 10,
+        pointerId: 1,
+      }),
+    )
+    await wrapper.vm.$nextTick()
+    expect(canvasNote(wrapper)).toBe(T.hint)
+  })
+})
+
+/**
+ * **[추가]가 파일을 만드는 사이의 닫기** (감사 C). 그사이 `Esc` → [추가하지 않고 닫기]로 `null`이 먼저
+ * 나가면 뒤이은 `File[]`은 부모가 이미 닫은 뒤라 버려진다. 도는 동안의 닫기 요청은 받지 않는다 —
+ * [추가]가 이긴다.
+ */
+describe('[추가]가 도는 동안', () => {
+  it('`Esc`·[취소]·막지 못한 닫기가 확인 창을 띄우지 않고, `done`은 파일로 한 번이다', async () => {
+    const wrapper = render()
+    await stroke(wrapper, [[10, 10]])
+    fake.holdBlob = true
+    await button(wrapper, T.addCount.replace('{count}', '1')).trigger('click')
+    await flushPromises()
+    expect(fake.held).toHaveLength(1)
+
+    const escape = new Event('cancel', { cancelable: true })
+    const sketchDialog = wrapper.findAll('dialog')[0]!.element as HTMLDialogElement
+    sketchDialog.dispatchEvent(escape)
+    expect(escape.defaultPrevented).toBe(true)
+    await button(wrapper, ko.common.cancel).trigger('click')
+    sketchDialog.open = false
+    sketchDialog.dispatchEvent(new Event('close'))
+    await flushPromises()
+    expect(opened(wrapper, 1)).toBe(false)
+    expect(opened(wrapper, 0)).toBe(true)
+
+    fake.held[0]!()
+    await flushPromises()
+    expect(done(wrapper)).toHaveLength(1)
+    expect(done(wrapper)[0]).toHaveLength(1)
+  })
+})
+
+describe('붓 굵기', () => {
+  /** 승인된 목업에는 축 이름 줄이 없다 — 그 줄만큼 캔버스가 눌렸다(`utilities.css`의 `sketch-columns`). */
+  it('이름 줄 없이 서고, 이름은 묶음이 든다', () => {
+    const wrapper = render()
+    const group = wrapper.find('[role="group"]')
+    expect(group.attributes('aria-label')).toBe(T.width)
+    expect(wrapper.findAll('h3').map((one) => one.text())).not.toContain(T.width)
+  })
+})
+
+describe('포인터 캡처가 안 돼도', () => {
+  /** 캡처는 밖에서 뗀 획을 끝내 주는 덤이다. 못 하는 브라우저에서도 긋기는 된다. */
+  it('획은 그어진다', async () => {
+    HTMLElement.prototype.setPointerCapture = () => {
+      throw new DOMException('no active pointer', 'NotFoundError')
+    }
+    const wrapper = render()
+    await stroke(wrapper, [[10, 10]])
+    expect(canvasNote(wrapper)).toBeNull()
+    await button(wrapper, T.next).trigger('click')
+    expect(sheetCount(wrapper)).toBe(1)
   })
 })

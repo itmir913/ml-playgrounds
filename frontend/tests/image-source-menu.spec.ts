@@ -18,6 +18,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent, h, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import AppEmpty from '../src/components/AppEmpty.vue'
 import { useImageSources, type ImageSourceHands } from '../src/composables/useImageSources'
 import { i18n, setLocale } from '../src/i18n'
 import ko from '../src/locales/ko.json'
@@ -27,6 +28,7 @@ import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
 import ImageGrid from '../src/views/data/ImageGrid.vue'
 import ImagePanel from '../src/views/data/ImagePanel.vue'
+import ImageSourceMenu from '../src/views/data/ImageSourceMenu.vue'
 import SketchDialog from '../src/views/data/SketchDialog.vue'
 import ImagePredictPanel from '../src/views/predict/ImagePredictPanel.vue'
 import { resetDatabase } from './fixtures/database'
@@ -232,6 +234,28 @@ describe('메뉴의 줄', () => {
     expect(texts.filter((one) => one === ko.data.image.add)).toHaveLength(1)
     wrapper.unmount()
   })
+
+  /**
+   * **빈 상태의 안내가 부르는 단추는 이 화면에 있다.** `locales.spec.ts`의 "문구가 부르는 버튼 이름"은
+   * 로케일 어디엔가 그 글자가 있는지만 본다 — [폴더에서 추가]는 전처리 화면(`preprocess.testImagesAddFolder`)
+   * 에 남아 있어서 데이터 화면에서 사라진 뒤에도 거기가 조용했다.
+   */
+  it('빈 상태의 안내가 부르는 단추가 화면이나 그 메뉴에 있다', async () => {
+    const { wrapper } = await dataPanel()
+    const quoted = [
+      ...wrapper
+        .findComponent(AppEmpty)
+        .text()
+        .matchAll(/\[([^\]]+)\]/g),
+    ].map((found) => found[1])
+    expect(quoted.length).toBeGreaterThan(0)
+    const reachable = [
+      ...wrapper.findAll('button').map((one) => one.text()),
+      ...Object.values(LABELS),
+    ]
+    expect(quoted.filter((name) => !reachable.includes(name ?? ''))).toEqual([])
+    wrapper.unmount()
+  })
 })
 
 describe('팝오버가 닫혀도 그린 것이 닿는다 (감사 A-1)', () => {
@@ -269,21 +293,85 @@ describe('팝오버가 닫혀도 그린 것이 닿는다 (감사 A-1)', () => {
   })
 
   /**
-   * **메뉴도 내려갈 수 있다.** 그리는 동안 붙여넣으면 데이터 화면의 툴바가 확인 판 요약으로 바뀌며
-   * 툴바의 메뉴가 내려간다. 받은 것을 `emit`으로 올리면 그때 버려진다.
+   * **메뉴도 내려갈 수 있다.** 기다리는 사이 판의 모양이 바뀌면(데이터 화면은 확인 판이 서면 툴바가
+   * 요약으로 바뀐다) 툴바의 메뉴가 내려간다. 받은 것을 `emit`으로 올리면 그때 버려진다 — 그래서 판이
+   * 준 함수(`pick`)로 넘긴다. 판에서 그 길을 여는 붙여넣기는 이제 그리는 동안 막혀 있어(아래), 메뉴
+   * 하나를 띄워 기다리는 사이에 내린다.
    */
-  it('그리는 동안 메뉴가 내려가도 그린 것이 닿는다', async () => {
+  it('기다리는 사이 메뉴가 내려가도 받은 것이 닿는다', async () => {
+    let finish: (files: readonly File[]) => void = () => {}
+    const picked: string[] = []
+    const context = {
+      translate: (key: string) => key,
+      pickFiles: () => Promise.resolve(null),
+      pickFolder: () => Promise.resolve(null),
+      openSketch: () =>
+        new Promise<readonly File[] | null>((resolve) => {
+          finish = resolve
+        }),
+    }
+    const menu = mount(ImageSourceMenu, {
+      props: {
+        label: '사진 추가',
+        context,
+        pick: (files: readonly File[]) => picked.push(...files.map((one) => one.name)),
+      },
+      global: { plugins: [i18n] },
+      attachTo: document.body,
+    })
+    await menu.find('button').trigger('click')
+    await settle()
+    const row = [...(openPanel()?.querySelectorAll('button') ?? [])].find(
+      (one) => one.textContent?.trim() === 'data.image.source.sketch',
+    )
+    row!.click()
+    await flushPromises()
+    menu.unmount()
+
+    finish([new File([new Uint8Array([1])], 'drawn-1.png')])
+    await flushPromises()
+    expect(picked).toEqual(['drawn-1.png'])
+  })
+})
+
+/**
+ * **그리기 창이 떠 있는 동안 판은 붙여넣기를 받지 않는다** (지휘자 결정, open-decisions.md 67). 창 안에서
+ * 누른 Ctrl+V가 뒤의 판으로 새는 것이 맞지 않고, 예측 화면에서는 그 붙여넣기가 굽기를 시작해 [추가]의
+ * 그림이 굽는 중 거절(`addWhileBusy`)과 함께 사라졌다.
+ */
+describe('그리기 창이 떠 있는 동안 붙여넣기', () => {
+  it('데이터 화면 - 받지 않고, 창을 닫으면 다시 받는다', async () => {
     const { wrapper, panel } = await dataPanel(['고양이'])
 
     await choose(wrapper, ko.data.image.add, LABELS.sketch)
     await sketchDialog(wrapper)
     window.dispatchEvent(pasteEvent([pastedPhoto([9])]))
     await settle()
-    expect(wrapper.findAll('button').map((one) => one.text())).not.toContain(ko.data.image.add)
+    expect(panel.pending).toBeNull()
 
     await finishSketch(wrapper, [1, 2, 3])
+    expect(panel.pending?.map((one) => one.path)).toEqual(['drawn-1.png'])
 
-    expect(panel.pending?.map((one) => one.path)).toEqual(['pasted-1.png', 'drawn-1.png'])
+    window.dispatchEvent(pasteEvent([pastedPhoto([9])]))
+    await settle()
+    expect(panel.pending?.map((one) => one.path)).toEqual(['drawn-1.png', 'pasted-1.png'])
+    wrapper.unmount()
+  })
+
+  it('예측 화면 - 받지 않아 [추가]의 그림이 굽는 중 거절에 안 걸린다', async () => {
+    const { wrapper } = await predictPanel()
+    workerState.holdBake = true
+
+    await choose(wrapper, ko.predict.image.add, LABELS.sketch)
+    await sketchDialog(wrapper)
+    window.dispatchEvent(pasteEvent([pastedPhoto([9])]))
+    await settle()
+    expect(seen.requests).toEqual([])
+
+    workerState.holdBake = false
+    await finishSketch(wrapper, [1, 2, 3])
+    expect(seen.requests.map((files) => files.map((one) => one.name))).toEqual([['drawn-1.png']])
+    expect(useToastStore().items.map((one) => one.key)).not.toContain('predict.image.addWhileBusy')
     wrapper.unmount()
   })
 })

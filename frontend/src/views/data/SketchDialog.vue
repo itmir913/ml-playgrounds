@@ -8,11 +8,19 @@
  * 굽지도 않는다.
  *
  * **그림판 상태는 `sketch.ts`의 불변 값이다.** 이 창은 그 값을 갈아끼우고 캔버스에 다시 그릴 뿐이다.
- * 열고 닫는 것은 부모의 `open`이 쥔다(`AppDialog`와 같다). 아직 아무 화면에도 안 붙어 있다 —
- * 메뉴와 배선은 다음 단위다(계획 2.2·2.6).
+ * 열고 닫는 것은 부모의 `open`이 쥔다(`AppDialog`와 같다). 띄우는 것은 데이터·예측 판의 손
+ * (`composables/useImageSources.ts`)이고, 판은 이 창이 떠 있는 동안 붙여넣기를 받지 않는다.
  */
 
-import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  ref,
+  shallowRef,
+  watch,
+  type ComponentPublicInstance,
+} from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
@@ -74,8 +82,10 @@ const sheets = shallowRef<readonly Sheet[]>([])
 let sheetKey = 0
 /** 오른쪽 "지금" 칸의 미리보기. 지금 장이 비었으면 없다. 획이 끝날 때마다 새로 담는다. */
 const liveThumbnail = ref<string | null>(null)
-/** 버릴지 묻는 중인가. 묻는 동안 그리기 창은 닫혀 있다(아래 `shown`). */
+/** 버릴지 묻는 중인가. 확인 창은 그리기 창 **위에 쌓인다** — 그리기 창은 내려가지 않는다. */
 const confirming = ref(false)
+/** [추가]가 파일을 만드는 중인가. 그동안의 닫기 요청은 받지 않는다(아래 `requestClose`). */
+const adding = ref(false)
 /** [추가]가 파일을 못 만든 이유. **창 안에서 말한다** — 알림은 모달의 뒤에 덮인다(`LeaveGuard.vue`와 같다). */
 const failure = ref<{ key: string; params: Record<string, unknown> } | null>(null)
 
@@ -141,8 +151,16 @@ function onPointerDown(event: PointerEvent): void {
    * **포인터를 붙잡는다** — 캔버스 밖으로 나가도 점이 오고, 손을 뗄 때 `pointerup`이 이 상자로 온다.
    * 안 붙잡으면 밖에서 뗀 획이 끝나지 않는다. `<dialog>` 위에서 아이폰 사파리가 이것을 듣는지는
    * 사람 확인이다(계획 6절).
+   *
+   * **붙잡기는 덤이다 — 못 해도 긋는다.** 포인터가 이미 사라졌으면 브라우저가 던진다
+   * (`NotFoundError`). 그때 던짐이 새면 획이 안 열린다. 무는 검사: `sketch-dialog.spec.ts`의
+   * "포인터 캡처가 안 돼도 / 획은 그어진다".
    */
-  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  try {
+    ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  } catch {
+    // 붙잡지 못한 획은 캔버스 안에서 뗄 때 끝난다.
+  }
   live = [point]
   livePointer = event.pointerId
   stroking.value = true
@@ -161,13 +179,25 @@ function onPointerMove(event: PointerEvent): void {
 /** 손을 뗐거나 브라우저가 포인터를 거뒀다. 어느 쪽이든 그은 데까지가 획이다. */
 function onPointerEnd(event: PointerEvent): void {
   if (live === null || event.pointerId !== livePointer) return
+  closeLiveStroke()
+  paintNow()
+  refreshLive()
+}
+
+/**
+ * 열린 획을 그은 데까지로 닫아 그림판에 넣는다. **단추 넷([다음 장 추가]·[추가]·[되돌리기]·[초기화])이
+ * 첫머리에서 부른다** — 한 손가락이 캔버스에 있는 동안 다른 손가락으로 단추를 누를 수 있고, 열린 획은
+ * 그림판 밖의 배열이라 그대로 두면 [다음 장 추가]가 빈 그림으로 거절하거나 [추가]가 그 획을 빼고 낸다.
+ * 닫은 뒤 그 포인터의 `pointerup`은 받을 획이 없어 아무것도 안 한다. 무는 검사: `sketch-dialog.spec.ts`의
+ * "긋는 중에 누른 단추".
+ */
+function closeLiveStroke(): void {
+  if (live === null) return
   const points = live
   live = null
   livePointer = null
   stroking.value = false
   sketch.value = addStroke(sketch.value, points)
-  paintNow()
-  refreshLive()
 }
 
 /** "지금" 칸의 미리보기를 새로 담는다. 화면 캔버스가 이미 지금 장을 그리고 있어야 한다. */
@@ -208,6 +238,7 @@ function pickWidth(id: string): void {
 }
 
 function undoStroke(): void {
+  closeLiveStroke()
   sketch.value = undo(sketch.value)
   refused.value = null
   paintNow()
@@ -215,6 +246,7 @@ function undoStroke(): void {
 }
 
 function clearSketch(): void {
+  closeLiveStroke()
   sketch.value = clear(sketch.value)
   refused.value = null
   paintNow()
@@ -261,6 +293,7 @@ const total = computed(() => sheets.value.length + (isBlank(sketch.value) ? 0 : 
  * 굴려 왼쪽 캔버스가 밀려난다(목업에서 밟았다, `docs/cases/open-decisions.md` 67).
  */
 function nextSheet(): void {
+  closeLiveStroke()
   const code = refuseNext()[0]
   if (code !== undefined) {
     refused.value = code
@@ -297,6 +330,7 @@ function removeSheet(key: number): void {
  * 차례대로 받는다** — 장마다 한 번. 장수 상한은 받는 쪽(`readPicked`의 `imageOverflow`)이 센다.
  */
 async function addAll(): Promise<void> {
+  closeLiveStroke()
   const code = refuseAdd()[0]
   if (code !== undefined) {
     refused.value = code
@@ -307,6 +341,7 @@ async function addAll(): Promise<void> {
     ...sheets.value.map((sheet) => sheet.sketch),
     ...(isBlank(sketch.value) ? [] : [sketch.value]),
   ]
+  adding.value = true
   try {
     const files: File[] = []
     for (const one of sketches) {
@@ -315,25 +350,30 @@ async function addAll(): Promise<void> {
     emit('done', files)
   } catch (error) {
     failure.value = toMessage(error)
+  } finally {
+    adding.value = false
   }
 }
 
 /* ------------------------------------------------------------------ 닫기 */
 
 /**
- * 그리기 창이 실제로 떠 있는가. **버릴지 묻는 동안은 내린다** — `Esc`로 닫으면 브라우저가 `<dialog>`를
- * 먼저 닫아 버려서(`AppDialog`의 `close`) 묻는 동안 그 창을 그대로 둘 길이 없다. 그래서 [취소]로 묻든
- * `Esc`로 묻든 같은 모양으로 내렸다가, [취소]를 고르면 다시 띄운다. 캔버스는 부품째 남아 있어 그림이
- * 그대로다.
+ * 추가하지 않은 그림이 있는가 — 닫으려 하면 붙잡을 것이 있는가. 모은 장뿐 아니라 지금 장도 센다(지금
+ * 장도 [추가]하면 들어갈 그림이다). **[추가]가 도는 동안도 붙잡는다** — 그사이 `null`이 먼저 나가면
+ * 뒤이은 `File[]`은 부모가 이미 닫은 뒤라 버려진다. [추가]가 이긴다(끝나면 스스로 닫힌다).
  */
-const shown = computed(() => props.open && !confirming.value)
+function holdsWork(): boolean {
+  closeLiveStroke()
+  return adding.value || total.value > 0
+}
 
 /**
- * 닫기를 청했다([취소]·`Esc`). **추가하지 않은 그림이 있으면 버릴지 묻는다** (계획 2.4). 모은 장뿐
- * 아니라 지금 장도 센다 — 지금 장도 [추가]하면 들어갈 그림이다.
+ * 닫기를 청했다([취소]). **추가하지 않은 그림이 있으면 버릴지 묻는다** (계획 2.4). [추가]가 도는
+ * 동안에는 묻지도 닫지도 않는다(`holdsWork`). 무는 검사: `sketch-dialog.spec.ts`의 "[추가]가 도는 동안".
  */
 function requestClose(): void {
-  if (total.value === 0) {
+  if (adding.value) return
+  if (!holdsWork()) {
     emit('done', null)
     return
   }
@@ -341,13 +381,74 @@ function requestClose(): void {
 }
 
 /**
- * `<dialog>`가 닫혔다. **부모가 닫았거나 묻느라 내린 것이면 아무것도 안 한다** — 그 둘도 `close`를
- * 올린다(`AppDialog`가 `open`을 따라 닫을 때). 남은 것은 학생의 `Esc`다.
+ * 학생의 `Esc` — `<dialog>`가 닫히기 전에 온다(`AppDialog`의 `cancel`). **붙잡을 그림이 있으면 닫힘을
+ * 막고** 확인 창을 그 위에 쌓는다(코드 소유자: 확인 창은 그리기 창 위에 쌓인다). 없으면 막지 않고,
+ * 닫힌 뒤 `onDialogClose`가 `null`을 낸다. 무는 검사: `sketch-dialog.spec.ts`의 "`Esc`는 그리기 창의
+ * 닫힘을 막고 확인 창을 쌓는다".
+ */
+function onDialogCancel(event: Event): void {
+  // 그리기 창이 `cancel`을 받았으면 학생이 이 창에 `Esc`를 누른 것이다 — 앞의 확인 창 닫기는 지났다.
+  confirmDismissed = false
+  if (!holdsWork()) return
+  event.preventDefault()
+  if (!adding.value) confirming.value = true
+}
+
+/**
+ * 막지 못하고 닫힌 그리기 창을 다시 띄우는 동안 참이다. `AppDialog`는 `open`이 **바뀔 때만** 연다 —
+ * 브라우저가 스스로 닫은 창은 `open`이 참인 채로 닫혀 있으므로, 한 번 거짓으로 내렸다가 다음 틱에
+ * 되올린다.
+ */
+const bounced = ref(false)
+
+/**
+ * `<dialog>`가 닫혔다. **부모가 닫은 것이면 아무것도 안 한다** — 그것도 `close`를 올린다(`AppDialog`가
+ * `open`을 따라 닫을 때). 그 밖의 닫힘은 브라우저가 한 것이다: 그린 것이 없으면 `Esc`였고(`null`),
+ * 있으면 **막지 못한 닫힘**이다 — 크롬은 사용자 활성 없이 거듭 누른 `Esc`의 `cancel`을 막지 못하게
+ * 하고 창을 닫는다(close watcher). 그때 그림을 잃지 않도록 창을 다시 띄우고, 그 위에 확인 창을
+ * 쌓는다(되올리기와 같은 틱이라 그리기 창이 먼저 열려 아래에 선다). 무는 검사: `sketch-dialog.spec.ts`의
+ * "막지 못하고 닫혀도 그린 것은 남고".
  */
 function onDialogClose(): void {
-  if (!props.open || confirming.value) return
-  requestClose()
+  if (!props.open || bounced.value) return
+  if (!holdsWork()) {
+    emit('done', null)
+    return
+  }
+  const ask = !adding.value && !confirmDismissed
+  confirmDismissed = false
+  // **확인 창이 떠 있는 동안 그리기 창을 그 위로 다시 띄우지 않는다** (코드 소유자: 확인 창은 언제나
+  // 맨 위). 떠 있었다면 먼저 내렸다가, 그리기 창을 띄운 다음에 다시 쌓는다.
+  confirming.value = false
+  bounced.value = true
+  void nextTick(() => {
+    bounced.value = false
+    if (ask) confirming.value = true
+  })
 }
+
+/**
+ * 확인 창을 브라우저가 닫았다(그 창의 `Esc`). **[취소]와 같다** — 확인 창만 닫히고 그리기로 돌아간다.
+ *
+ * **크롬은 `Esc`를 연타하면 두 창을 함께 닫는다.** 사용자 활성 없이 연 창의 close watcher는 앞 창과 한
+ * 묶음이 되고, 묶음은 `Esc` 한 번에 위에서부터 다 닫힌다 — 확인 창의 `close`가 먼저, 그리기 창의
+ * `close`가 뒤에 온다. 그 그리기 창은 위 `onDialogClose`가 다시 띄우는데, **확인 창을 또 쌓지 않는다**
+ * (`confirmDismissed`) — 학생은 확인 창에 `Esc`를 누른 것이다. 묶음이 어떻게 갈리는지는 사람 확인이다.
+ *
+ * 우리가 내린 닫힘([취소]·되올리기)은 `confirming`을 먼저 거짓으로 두므로 여기서 아무것도 안 한다.
+ * 늦게 온 `close`가 다시 띄운 창을 닫지 않게, 창이 열려 있으면 그 `close`는 지난 것이다.
+ */
+function onConfirmClose(): void {
+  const element = (confirmDialog.value?.$el ?? null) as HTMLDialogElement | null
+  if (!confirming.value || element?.open === true) return
+  confirming.value = false
+  confirmDismissed = true
+}
+
+/** 확인 창을 `Esc`로 닫은 직후인가 — 같은 `Esc`가 닫은 그리기 창을 되올릴 때 확인 창을 또 안 쌓는다. */
+let confirmDismissed = false
+
+const confirmDialog = ref<ComponentPublicInstance | null>(null)
 
 function discard(): void {
   emit('done', null)
@@ -369,6 +470,8 @@ function reset(): void {
   refused.value = null
   failure.value = null
   confirming.value = false
+  bounced.value = false
+  confirmDismissed = false
   void nextTick(paintNow)
 }
 
@@ -386,9 +489,10 @@ watch(
     wide
     persistent
     focus-panel
-    :open="shown"
+    :open="props.open && !bounced"
     :title="t('data.image.sketch.title')"
     :description="t('data.image.sketch.description')"
+    @cancel="onDialogCancel"
     @close="onDialogClose"
   >
     <!--
@@ -405,8 +509,13 @@ watch(
       <div
         class="flex w-full max-w-md flex-col gap-3 max-md:mx-auto md:-mx-1.5 md:max-w-none md:min-h-0 md:overflow-y-auto md:px-1.5"
       >
+        <!--
+          축 이름 줄은 화면에서만 숨긴다(`hideLabel`) — 승인된 목업에 없고, 그 줄만큼 캔버스가 준다
+          (`utilities.css`의 `sketch-columns`). 이름은 묶음의 `aria-label`로 그대로 읽힌다.
+        -->
         <AppChoices
           row
+          hide-label
           :label="t('data.image.sketch.width')"
           :items="widthItems"
           :selected="sketch.width"
@@ -555,14 +664,16 @@ watch(
 
   <!--
     **추가하지 않은 그림을 버릴지 묻는다** (계획 2.4). 선례는 화면마다 따로 두는 확인 창이다
-    (`TabularPanel.vue`의 갈아끼우기 확인). 묻는 동안 그리기 창은 내려가 있다(`shown`).
-    `Esc`·바깥은 [취소]와 같다 — 그리기로 돌아간다.
+    (`TabularPanel.vue`의 갈아끼우기 확인). **그리기 창 위에 쌓인다**(코드 소유자) — 둘 다 모달
+    `<dialog>`이고 최상위 레이어는 `showModal`을 부른 차례로 쌓는다. 그리기 창은 그대로 떠 있어
+    학생이 무엇을 버리는지 본다. `Esc`·바깥·[취소]는 이 창만 닫는다 — 그리기로 돌아간다.
   -->
   <AppDialog
+    ref="confirmDialog"
     :open="props.open && confirming"
     :title="t('data.image.sketch.discardTitle')"
     :description="t('data.image.sketch.discardDescription', total)"
-    @close="confirming = false"
+    @close="onConfirmClose"
   >
     <template #actions>
       <AppButton variant="secondary" @click="confirming = false">{{

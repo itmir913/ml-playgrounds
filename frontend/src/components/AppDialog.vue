@@ -64,7 +64,16 @@ const props = defineProps<{
   focusPanel?: boolean
 }>()
 
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{
+  close: []
+  /**
+   * `<dialog>`의 `cancel` — 학생이 `Esc`를 눌렀다. **닫히기 전에 온다** — 받는 쪽이
+   * `preventDefault()`하면 안 닫힌다(그리기 창이 버릴지 묻는 길, `SketchDialog.vue`). 안 받는 창은
+   * 그대로 닫히고 `close`가 온다. 브라우저가 막기를 거부할 때도 있다(사용자 활성 없이 거듭된 `Esc`) —
+   * 그때도 `close`는 온다.
+   */
+  cancel: [event: Event]
+}>()
 
 const dialog = ref<HTMLDialogElement | null>(null)
 
@@ -83,7 +92,7 @@ function sync(): void {
  * `<dialog autofocus>`를 모르는 브라우저의 뒷길(`focusPanel`). 거기서는 `showModal`이 첫 단추에
  * 초점을 두므로 **그 초점만 놓는다** — 창 자신에 초점을 줄 길은 `tabindex`뿐인데 그 낱말은 잠금
  * 낱말이다(`@/locks`의 `LOCK_WORDS`). 놓아도 다음 Tab은 창 안의 첫 단추로 간다(모달이라 바깥은
- * 비활성이다 — 사람 확인). `app-dialog.spec.ts`의 "창 자신에 초점을 두면"이 문다.
+ * 비활성이다 — 사람 확인). `app-dialog.spec.ts`의 "열릴 때의 초점은 `focusPanel`이 쥔다"가 문다.
  */
 function releaseFirstFocus(element: HTMLDialogElement): void {
   const focused = document.activeElement
@@ -123,6 +132,7 @@ function onBackdrop(event: MouseEvent): void {
     class="dialog-panel m-auto rounded-card border border-line bg-surface p-0 text-ink shadow-pop backdrop:bg-slate-900/40"
     :class="props.fill ? 'dialog-fill' : props.wide ? 'w-full max-w-7xl' : 'w-full max-w-2xl'"
     :autofocus="props.focusPanel || undefined"
+    @cancel="emit('cancel', $event)"
     @close="emit('close')"
     @click="onBackdrop"
   >
