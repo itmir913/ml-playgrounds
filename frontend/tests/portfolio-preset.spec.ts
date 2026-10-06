@@ -95,9 +95,10 @@ describe('내장 양식은 우리 파서가 읽을 수 있다', () => {
               form.sections.map((section, index) => [`section${index}`, section.title]),
             ),
             ...Object.fromEntries(
+              // 번호를 먼저 매기고 거른다 — 거른 뒤에 매기면 실패 메시지의 번호가 문항 번호와 어긋난다.
               form.sections
-                .filter((section) => (section.description ?? '').trim() !== '')
-                .map((section, index) => [`description${index}`, section.description ?? '']),
+                .map((section, index) => [`description${index}`, section.description ?? ''])
+                .filter(([, description]) => (description ?? '').trim() !== ''),
             ),
           },
         ]
