@@ -502,7 +502,8 @@ function deltaText(deltas: Readonly<Record<string, number>> | undefined): string
   const differing = Object.entries(deltas ?? {}).filter(([, value]) => value !== 0)
   if (differing.length === 0) return ''
   // **한 문장은 한 키다** (CLAUDE.md §3의 규칙 3). 지표 이름과 숫자를 손으로 이어 붙이면 어순이
-  // 다른 언어에서 무너지므로, 보간은 로케일 문장이 한다.
+  // 다른 언어에서 무너지므로, 보간은 로케일 문장이 한다. 잇는 `, `는 값의 나열이라 언어를 가리지
+  // 않는다(docs/i18n.md 규칙 6 — 일본어의 `、`는 문장 안의 나열이다).
   return differing
     .map(([name, value]) =>
       t('inspect.delta', { metric: t(`metrics.${name}`), value: signed(value) }),
