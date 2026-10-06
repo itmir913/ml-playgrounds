@@ -39,8 +39,12 @@ function makeZip(paths: readonly string[]): Uint8Array {
   return zipSync(entries)
 }
 
+/** 데이터 화면의 읽기 — 최상위 폴더가 범주다. 아래 *"라벨을 읽지 않으면"*만 `'none'`을 쓴다. */
+const INFERRED = { labels: 'inferred' } as const
+const NONE = { labels: 'none' } as const
+
 async function categoriesOf(paths: readonly string[]): Promise<readonly string[]> {
-  const items = await readImageZip(makeZip(paths))
+  const items = await readImageZip(makeZip(paths), INFERRED)
   return items.map((item) => item.category)
 }
 
@@ -95,7 +99,10 @@ describe('사진 압축 파일의 구조가 라벨이다', () => {
   })
 
   it('폴더 없이 놓인 사진은 떨어뜨린 자리로 간다', async () => {
-    const items = await readImageZip(makeZip(['1.jpg', '2.jpg']), '강아지')
+    const items = await readImageZip(makeZip(['1.jpg', '2.jpg']), {
+      labels: 'inferred',
+      fallbackCategory: '강아지',
+    })
     expect(items.map((item) => item.category)).toEqual(['강아지', '강아지'])
   })
 
@@ -117,6 +124,7 @@ describe('사진 압축 파일의 구조가 라벨이다', () => {
         '고양이/2.jpg',
         '고양이/._2.jpg',
       ]),
+      INFERRED,
     )
     expect(items.map((item) => item.path)).toEqual(['개/1.jpg', '고양이/2.jpg'])
   })
@@ -137,7 +145,10 @@ describe('사진 압축 파일의 구조가 라벨이다', () => {
    * 부스러기 목록에만 빠져 있어 범주 안에 있으면 사진 한 장으로 세어졌다.
    */
   it('범주 안의 desktop.ini는 사진이 아니다', async () => {
-    const items = await readImageZip(makeZip(['개/1.jpg', '개/desktop.ini', '고양이/2.jpg']))
+    const items = await readImageZip(
+      makeZip(['개/1.jpg', '개/desktop.ini', '고양이/2.jpg']),
+      INFERRED,
+    )
     expect(items.map((item) => item.path)).toEqual(['개/1.jpg', '고양이/2.jpg'])
     expect(summarizeUpload(items)).toEqual([
       { category: '개', count: 1 },
@@ -159,7 +170,7 @@ describe('사진 압축 파일의 구조가 라벨이다', () => {
    * 덮는다.** 화면에는 아무것도 안 보인다.
    */
   it('경로가 라벨의 열쇠다 - 파일 이름이 겹쳐도 섞이지 않는다', async () => {
-    const items = await readImageZip(makeZip(['개/1.jpg', '고양이/1.jpg']))
+    const items = await readImageZip(makeZip(['개/1.jpg', '고양이/1.jpg']), INFERRED)
     expect(new Set(items.map((item) => item.path)).size).toBe(2)
     expect(items.map((item) => item.file.name)).toEqual(items.map((item) => item.path))
   })
@@ -167,7 +178,7 @@ describe('사진 압축 파일의 구조가 라벨이다', () => {
 
 describe('받지 않는 압축 파일', () => {
   it('zip이 아니면 거부한다', async () => {
-    const error = await readImageZip(new Uint8Array([0, 1, 2, 3])).catch(
+    const error = await readImageZip(new Uint8Array([0, 1, 2, 3]), INFERRED).catch(
       (reason: unknown) => reason,
     )
     expect(isClientError(error) && error.code).toBe('IMAGE_ZIP_INVALID')
@@ -175,7 +186,7 @@ describe('받지 않는 압축 파일', () => {
 
   /** "0장을 받았습니다"로 조용히 끝내면 학생은 올린 줄 안다. */
   it('부스러기만 든 압축 파일은 사진이 없다고 말한다', async () => {
-    const error = await readImageZip(makeZip(['__MACOSX/._x', '.DS_Store'])).catch(
+    const error = await readImageZip(makeZip(['__MACOSX/._x', '.DS_Store']), INFERRED).catch(
       (reason: unknown) => reason,
     )
     expect(isClientError(error) && error.code).toBe('IMAGE_ZIP_NO_IMAGES')
@@ -186,7 +197,7 @@ describe('받지 않는 압축 파일', () => {
    * 그건 라벨이 조용히 바뀌는 것이다.
    */
   it('범주로 쓸 수 없는 폴더 이름은 이름을 대며 거부한다', async () => {
-    const error = await readImageZip(makeZip(['_숨김/1.jpg', '개/2.jpg'])).catch(
+    const error = await readImageZip(makeZip(['_숨김/1.jpg', '개/2.jpg']), INFERRED).catch(
       (reason: unknown) => reason,
     )
     expect(isClientError(error) && error.code).toBe('IMAGE_CATEGORY_NAME_INVALID')
@@ -210,7 +221,7 @@ describe('파일과 폴더로 고른 경우', () => {
   }
 
   it('폴더를 통째로 고르면 구조가 라벨이 된다', () => {
-    const items = readImageFiles([pick('사진/개/1.jpg'), pick('사진/고양이/2.jpg')])
+    const items = readImageFiles([pick('사진/개/1.jpg'), pick('사진/고양이/2.jpg')], INFERRED)
     expect(items.map((item) => item.category)).toEqual(['개', '고양이'])
     // 여기서도 워커에 넘길 이름이 경로여야 한다.
     expect(items.map((item) => item.file.name)).toEqual(['개/1.jpg', '고양이/2.jpg'])
@@ -218,18 +229,22 @@ describe('파일과 폴더로 고른 경우', () => {
 
   it('구조 없이 파일만 고르면 떨어뜨린 자리로 간다', () => {
     const loose = new File([new Uint8Array([1])], '1.jpg')
-    expect(readImageFiles([loose], '강아지').map((item) => item.category)).toEqual(['강아지'])
+    expect(
+      readImageFiles([loose], { labels: 'inferred', fallbackCategory: '강아지' }).map(
+        (item) => item.category,
+      ),
+    ).toEqual(['강아지'])
   })
 
   it('부스러기는 여기서도 버린다', () => {
-    const items = readImageFiles([pick('개/1.jpg'), pick('개/.DS_Store')])
+    const items = readImageFiles([pick('개/1.jpg'), pick('개/.DS_Store')], INFERRED)
     expect(items.map((item) => item.path)).toEqual(['개/1.jpg'])
   })
 })
 
 describe('굽기 전에 보여줄 요약', () => {
   it('범주마다 장수를 센다', async () => {
-    const items = await readImageZip(makeZip(['개/1.jpg', '개/2.jpg', '고양이/3.jpg']))
+    const items = await readImageZip(makeZip(['개/1.jpg', '개/2.jpg', '고양이/3.jpg']), INFERRED)
     expect(summarizeUpload(items)).toEqual([
       { category: '개', count: 2 },
       { category: '고양이', count: 1 },
@@ -238,7 +253,7 @@ describe('굽기 전에 보여줄 요약', () => {
 
   /** 범주가 아니라 상태다. 사이에 섞여 있으면 학생이 범주 하나로 읽는다. */
   it('라벨 없음은 맨 뒤다', async () => {
-    const items = await readImageZip(makeZip(['1.jpg', '개/2.jpg', '하늘/3.jpg']))
+    const items = await readImageZip(makeZip(['1.jpg', '개/2.jpg', '하늘/3.jpg']), INFERRED)
     expect(summarizeUpload(items).map((one) => one.category)).toEqual([
       '개',
       '하늘',
@@ -259,7 +274,7 @@ describe('압축 파일이 준 경로를 우리 규칙으로 맞춘다', () => {
 
   it('정규화만 다른 폴더는 한 범주다', async () => {
     expect(NFD).not.toBe('강아지')
-    const items = await readImageZip(makeZip(['강아지/1.jpg', `${NFD}/2.jpg`]))
+    const items = await readImageZip(makeZip(['강아지/1.jpg', `${NFD}/2.jpg`]), INFERRED)
     expect(summarizeUpload(items)).toEqual([{ category: '강아지', count: 2 }])
   })
 
@@ -269,12 +284,12 @@ describe('압축 파일이 준 경로를 우리 규칙으로 맞춘다', () => {
    */
   it('길이도 정규화한 뒤에 잰다', async () => {
     const long = '가'.repeat(60)
-    const items = await readImageZip(makeZip([`${long.normalize('NFD')}/1.jpg`]))
+    const items = await readImageZip(makeZip([`${long.normalize('NFD')}/1.jpg`]), INFERRED)
     expect(items.map((item) => item.category)).toEqual([long])
   })
 
   it('역슬래시로 만든 압축 파일도 폴더를 읽는다', async () => {
-    const items = await readImageZip(makeZip(['개\\1.jpg', '개\\2.jpg', '고양이\\3.jpg']))
+    const items = await readImageZip(makeZip(['개\\1.jpg', '개\\2.jpg', '고양이\\3.jpg']), INFERRED)
     expect(summarizeUpload(items)).toEqual([
       { category: '개', count: 2 },
       { category: '고양이', count: 1 },
@@ -282,7 +297,7 @@ describe('압축 파일이 준 경로를 우리 규칙으로 맞춘다', () => {
   })
 
   it('역슬래시로 온 부스러기도 버린다', async () => {
-    const items = await readImageZip(makeZip(['개\\1.jpg', '__MACOSX\\개\\._1.jpg']))
+    const items = await readImageZip(makeZip(['개\\1.jpg', '__MACOSX\\개\\._1.jpg']), INFERRED)
     expect(items.map((item) => item.path)).toEqual(['개/1.jpg'])
   })
 
@@ -292,8 +307,78 @@ describe('압축 파일이 준 경로를 우리 규칙으로 맞춘다', () => {
       Object.defineProperty(file, 'webkitRelativePath', { value: path })
       return file
     }
-    const items = readImageFiles([pickNfd('강아지/1.jpg'), pickNfd(`${NFD}/2.jpg`)])
+    const items = readImageFiles([pickNfd('강아지/1.jpg'), pickNfd(`${NFD}/2.jpg`)], INFERRED)
     expect(summarizeUpload(items)).toEqual([{ category: '강아지', count: 2 }])
+  })
+})
+
+/**
+ * **라벨을 읽지 않으면** (`upload.ts`의 `ImageLabels`, #38 결정 7). 예측 화면의 읽기다.
+ *
+ * 예측에는 라벨이 없는데 폴더 이름을 범주로 읽어 검사해서, **쓰지도 않는 이름 때문에** zip이
+ * 통째로 거절됐다. 바뀌는 것은 범주를 다는 규칙 하나 — 경로를 다루는 나머지는 `'inferred'`와
+ * 한 벌이고 `path`가 굽기 결과를 되찾는 유일한 열쇠로 남는다.
+ */
+describe('라벨을 읽지 않으면', () => {
+  const NFD = '강아지'.normalize('NFD')
+
+  function pick(path: string): File {
+    const file = new File([new Uint8Array([1])], path.slice(path.lastIndexOf('/') + 1))
+    Object.defineProperty(file, 'webkitRelativePath', { value: path })
+    return file
+  }
+
+  it('범주 규칙에 안 맞는 폴더 이름도 받고 전부 라벨 없음이다 - zip', async () => {
+    const items = await readImageZip(makeZip(['_x/1.png', 'a./2.png', '3.png']), NONE)
+    expect(items.map((item) => item.category)).toEqual([
+      IMAGE_UNLABELED,
+      IMAGE_UNLABELED,
+      IMAGE_UNLABELED,
+    ])
+    expect(items.map((item) => item.path)).toEqual(['_x/1.png', 'a./2.png', '3.png'])
+  })
+
+  it('범주 규칙에 안 맞는 폴더 이름도 받고 전부 라벨 없음이다 - 폴더 선택', () => {
+    const items = readImageFiles([pick('사진/_x/1.png'), pick('사진/a./2.png')], NONE)
+    expect(items.map((item) => item.category)).toEqual([IMAGE_UNLABELED, IMAGE_UNLABELED])
+    expect(items.map((item) => item.file.name)).toEqual(['_x/1.png', 'a./2.png'])
+  })
+
+  it('같은 이름이 다른 폴더에 있어도 경로가 열쇠로 남는다', async () => {
+    const items = await readImageZip(makeZip(['a/1.png', 'b/1.png']), NONE)
+    expect(new Set(items.map((item) => item.path)).size).toBe(2)
+    expect(items.map((item) => item.file.name)).toEqual(items.map((item) => item.path))
+  })
+
+  /** 부스러기 버리기·정규화(NFD·역슬래시)·한 겹 벗기기가 같은 경로를 낸다. */
+  it('경로는 라벨을 읽을 때와 한 벌이다 - zip', async () => {
+    const zip = makeZip([
+      '__MACOSX/._개',
+      'desktop.ini',
+      '사진/강아지/1.jpg',
+      `사진/${NFD}/2.jpg`,
+      '사진\\고양이\\3.jpg',
+      '사진/고양이/.DS_Store',
+    ])
+    const inferred = await readImageZip(zip, INFERRED)
+    const none = await readImageZip(zip, NONE)
+    expect(none.map((item) => item.path)).toEqual(inferred.map((item) => item.path))
+    expect(none.map((item) => item.path)).toEqual(['강아지/1.jpg', '강아지/2.jpg', '고양이/3.jpg'])
+  })
+
+  it('경로는 라벨을 읽을 때와 한 벌이다 - 폴더 선택', () => {
+    const files = [pick('사진/강아지/1.jpg'), pick(`사진/${NFD}/2.jpg`), pick('사진/개/.DS_Store')]
+    const inferred = readImageFiles(files, INFERRED)
+    const none = readImageFiles(files, NONE)
+    expect(none.map((item) => item.path)).toEqual(inferred.map((item) => item.path))
+    expect(none.map((item) => item.file.name)).toEqual(['강아지/1.jpg', '강아지/2.jpg'])
+  })
+
+  it('부스러기만 든 압축 파일은 여기서도 사진이 없다고 말한다', async () => {
+    const error = await readImageZip(makeZip(['__MACOSX/._x', '.DS_Store']), NONE).catch(
+      (reason: unknown) => reason,
+    )
+    expect(isClientError(error) && error.code).toBe('IMAGE_ZIP_NO_IMAGES')
   })
 })
 
@@ -403,7 +488,7 @@ describe('워커를 띄우지 않는다', () => {
       },
     )
 
-    const items = await readImageZip(zip)
+    const items = await readImageZip(zip, INFERRED)
     expect(summarizeUpload(items)).toEqual([
       { category: '개', count: 1 },
       { category: '고양이', count: 1 },
@@ -425,7 +510,7 @@ describe('워커를 띄우지 않는다', () => {
     const zip = zipSync({ 'desktop.ini': new Uint8Array([1]), ...photos }, { level: 6 })
     const ticks = vi.spyOn(globalThis, 'setTimeout')
 
-    const items = await readImageZip(zip)
+    const items = await readImageZip(zip, INFERRED)
     expect(ticks.mock.calls.length, 'must yield between slices').toBeGreaterThanOrEqual(3)
     ticks.mockRestore()
     expect(items.map((item) => item.path)).toEqual(

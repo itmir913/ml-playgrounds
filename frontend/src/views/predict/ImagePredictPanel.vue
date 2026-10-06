@@ -316,14 +316,18 @@ async function readPicked(files: readonly File[]): Promise<void> {
   const ours = project.claim()
   try {
     const [only] = files
+    // **폴더 이름을 읽지 않는다** (`upload.ts`의 `ImageLabels`, #38 결정 7). 예측에는 라벨이
+    // 없다 — 읽으면 쓰지도 않는 폴더 이름 때문에 zip이 거절된다(`image-predict-labels.spec.ts`).
+    // **라벨이 없어 대조할 목록도 없다** (`canonical.ts`의 `predict`). 그래도 이름은
+    // 되살린다 — 그것이 구운 결과를 되찾는 열쇠이기 때문이다.
     const items =
       files.length === 1 && only && only.name.toLowerCase().endsWith(ZIP_EXTENSION)
-        ? await readImageZip(await readFileBytes(only), IMAGE_UNLABELED, {
-            // **예측에는 라벨이 없어 대조할 목록도 없다** (`canonical.ts`의 `predict`).
-            // 그래도 이름은 되살린다 — 그것이 구운 결과를 되찾는 열쇠이기 때문이다.
-            locale: uiLocale.value,
-          })
-        : readImageFiles(files)
+        ? await readImageZip(
+            await readFileBytes(only),
+            { labels: 'none' },
+            { locale: uiLocale.value },
+          )
+        : readImageFiles(files, { labels: 'none' })
 
     // **읽는 동안 떠났으면 여기서 멈춘다.** 읽기 구간에는 맡길 손잡이가 없어
     // `retire()`가 끊을 것이 없다 — 이 줄이 없으면 죽은 화면이 워커를 열어 **지금 열린

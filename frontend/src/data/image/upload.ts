@@ -118,6 +118,39 @@ function categoryOf(path: string, fallback: string): string {
 }
 
 /**
+ * **폴더 이름을 라벨로 읽는가.** 화면이 정한다 — 부르는 곳이 **반드시** 적는다(기본값으로
+ * 숨기면 새 화면이 말없이 한쪽 규칙을 탄다).
+ *
+ * 이름은 Keras `image_dataset_from_directory`의 `labels='inferred'`(최상위 폴더 = 범주)와
+ * `labels=None`(라벨 없음) 관행이다. `None`은 닫힌 문자열 `'none'`으로 둔다.
+ *
+ * - `'inferred'`: 최상위 폴더가 범주이고 그 이름을 검사한다. 폴더 없이 놓인 파일은
+ *   `fallbackCategory`(없으면 `_unlabeled`)로 간다. 데이터 화면·전처리 화면.
+ * - `'none'`: 전부 `_unlabeled`이고 **이름을 검사하지 않는다.** 예측 화면 — 쓰지도 않는
+ *   폴더 이름 때문에 예측 zip이 거절되던 결함이 있었다(#38 결정 7).
+ *
+ * 둘 다 부스러기 버리기·이름 되살리기·정규화·한 겹 벗기기는 한 벌이고, `path`는 그대로
+ * 유일한 열쇠다. 무는 검사: `image-upload-zip.spec.ts`의 *"라벨을 읽지 않으면"*,
+ * `image-predict-labels.spec.ts`.
+ */
+export type ImageLabels =
+  { readonly labels: 'inferred'; readonly fallbackCategory?: string } | { readonly labels: 'none' }
+
+/** 경로마다 범주를 단다. `'inferred'`면 이름을 검사하고, 하나라도 안 되면 통째로 던진다. */
+function labelItems(
+  rows: readonly { readonly path: string; readonly file: File }[],
+  reading: ImageLabels,
+): readonly UploadItem[] {
+  if (reading.labels === 'none') {
+    return rows.map((row) => ({ ...row, category: IMAGE_UNLABELED }))
+  }
+  const fallback = reading.fallbackCategory ?? IMAGE_UNLABELED
+  const items = rows.map((row) => ({ ...row, category: categoryOf(row.path, fallback) }))
+  requireValidCategories(new Set(items.map((item) => item.category)))
+  return items
+}
+
+/**
  * 범주로 쓸 수 있는 이름인지 전부 확인한다. **하나라도 안 되면 통째로 거부한다.**
  *
  * 다듬어서 받지 않는 이유는, 다듬으면 서로 다른 폴더 둘이 한 범주로 합쳐질 수 있고
@@ -198,7 +231,7 @@ function unzipSyncOrInvalid(bytes: Uint8Array, filter: UnzipFileFilter): Unzippe
  */
 export async function readImageZip(
   bytes: Uint8Array,
-  fallbackCategory: string = IMAGE_UNLABELED,
+  reading: ImageLabels,
   names: ZipNameOptions = {},
 ): Promise<readonly UploadItem[]> {
   const unzipped = await unzipEntries(bytes)
@@ -207,6 +240,7 @@ export async function readImageZip(
    * **이름을 먼저 되살린다** (`data/zip-names.ts`). 윈도 탐색기가 만든 압축 파일은
    * 인코딩을 안 적어서 한글 폴더 이름이 `»¡°£³×¸ð`로 온다 — 그대로 두면 아래
    * `requireValidCategories`가 저 글자들을 **통과시켜** 깨진 이름의 범주가 생긴다.
+   * 라벨을 안 읽어도(`'none'`) 되살린다 — `path`가 구운 결과를 되찾는 열쇠다.
    */
   const decoded = decodeZipNames(
     raw.map(([path]) => path),
@@ -226,18 +260,12 @@ export async function readImageZip(
   if (entries.length === 0) throw new ClientError('IMAGE_ZIP_NO_IMAGES')
 
   const paths = unwrapOnce(entries.map(([path]) => path))
-  const items = paths.map((path, index) => {
+  const rows = paths.map((path, index) => {
     const content = entries[index]?.[1] ?? new Uint8Array()
-    return {
-      path,
-      category: categoryOf(path, fallbackCategory),
-      // 바이트를 여기서 한 번 감싼다. 실제로 읽는 것은 워커다.
-      file: new File([content], path),
-    }
+    // 바이트를 여기서 한 번 감싼다. 실제로 읽는 것은 워커다.
+    return { path, file: new File([content], path) }
   })
-
-  requireValidCategories(new Set(items.map((item) => item.category)))
-  return items
+  return labelItems(rows, reading)
 }
 
 /**
@@ -249,7 +277,7 @@ export async function readImageZip(
  */
 export function readImageFiles(
   files: readonly File[],
-  fallbackCategory: string = IMAGE_UNLABELED,
+  reading: ImageLabels,
 ): readonly UploadItem[] {
   // 폴더로 안 고른 파일에는 이 값이 빈 문자열이고, 브라우저 밖(검사)에서는 아예 없다.
   // **zip과 같은 규칙으로 맞춘다** — 맥에서 폴더를 끌어다 놓으면 여기도 NFD로 온다.
@@ -257,19 +285,16 @@ export function readImageFiles(
   const paths = unwrapOnce(files.map(relative).filter((path) => !isJunk(path)))
   const kept = files.filter((file) => !isJunk(relative(file)))
 
-  const items = kept.map((file, index) => {
+  const rows = kept.map((file, index) => {
     const path = paths[index] ?? file.name
     return {
       path,
-      category: categoryOf(path, fallbackCategory),
       // **이름을 경로로 바꿔 단다.** 바이트는 안 읽는다 - 같은 데이터를 가리키는 새
       // 껍데기일 뿐이다.
       file: file.name === path ? file : new File([file], path),
     }
   })
-
-  requireValidCategories(new Set(items.map((item) => item.category)))
-  return items
+  return labelItems(rows, reading)
 }
 
 /**

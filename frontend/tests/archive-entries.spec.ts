@@ -72,6 +72,7 @@ describe('두 입구가 같은 잡음 표로 돈다', () => {
     it(`사진 zip 업로드가 버린다: 개/${noise}`, async () => {
       const items = await readImageZip(
         zipSync({ '개/1.jpg': new Uint8Array([1]), [`개/${noise}`]: new Uint8Array([2]) }),
+        { labels: 'inferred' },
       )
       expect(items.map((item) => item.path)).toEqual(['개/1.jpg'])
     })

@@ -67,7 +67,9 @@ vi.mock('../src/data/image/upload', async (importOriginal) => {
     readImageZip: async (...args: Parameters<typeof actual.readImageZip>) => {
       if (reader.gate) {
         await reader.gate
-        return actual.readImageFiles([photo('개', 'a.jpg'), photo('고양이', 'b.jpg')])
+        return actual.readImageFiles([photo('개', 'a.jpg'), photo('고양이', 'b.jpg')], {
+          labels: 'inferred',
+        })
       }
       return actual.readImageZip(...args)
     },

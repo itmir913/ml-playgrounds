@@ -153,7 +153,7 @@ describe('두 인코딩에서 다 읽히는 이름', () => {
   it('ASCII 범주가 섞인 압축 파일을 올려도 범주가 돌아온다', async () => {
     const photo = new Uint8Array([1])
     const zip = zipSync({ 'cat/1.png': photo, [asFflateWouldRead(BOTH_WAYS)]: photo })
-    const items = await readImageZip(zip, undefined, { expect: ['cat', '짜짝'] })
+    const items = await readImageZip(zip, { labels: 'inferred' }, { expect: ['cat', '짜짝'] })
     expect(items.map((item) => item.category)).toEqual(['cat', '짜짝'])
   })
 })
@@ -316,14 +316,27 @@ function explorerZip(): Uint8Array {
 
 describe('탐색기가 만든 압축 파일이 실제로 열린다', () => {
   it('언어로 읽는다', async () => {
-    const items = await readImageZip(explorerZip(), undefined, { locale: 'ko' })
+    const items = await readImageZip(explorerZip(), { labels: 'inferred' }, { locale: 'ko' })
     expect(items.map((item) => item.category)).toEqual(['빨간네모', '파란동그라미'])
   })
 
+  /** **라벨을 안 읽어도 이름은 되살린다** (#38 결정 7) — 예측 화면에서는 `path`가 열쇠다. */
+  it('라벨을 읽지 않아도 경로는 같이 되살린다', async () => {
+    const inferred = await readImageZip(explorerZip(), { labels: 'inferred' }, { locale: 'ko' })
+    const none = await readImageZip(explorerZip(), { labels: 'none' }, { locale: 'ko' })
+    expect(none.map((item) => item.path)).toEqual(inferred.map((item) => item.path))
+    expect(none.map((item) => item.path.split('/')[0])).toEqual(['빨간네모', '파란동그라미'])
+    expect(new Set(none.map((item) => item.category))).toEqual(new Set(['_unlabeled']))
+  })
+
   it('범주와 대조해서 읽는다 — 언어를 몰라도 된다', async () => {
-    const items = await readImageZip(explorerZip(), undefined, {
-      expect: ['파란동그라미', '빨간네모'],
-    })
+    const items = await readImageZip(
+      explorerZip(),
+      { labels: 'inferred' },
+      {
+        expect: ['파란동그라미', '빨간네모'],
+      },
+    )
     expect(items.map((item) => item.category)).toEqual(['빨간네모', '파란동그라미'])
   })
 
@@ -332,7 +345,7 @@ describe('탐색기가 만든 압축 파일이 실제로 열린다', () => {
    * 통째로 꺼진 것이다 — 그때 범주 이름은 라틴 글자가 되고 화면은 아무 말도 안 한다.
    */
   it('되살리지 않으면 깨진 이름이 범주가 된다', async () => {
-    const items = await readImageZip(explorerZip())
+    const items = await readImageZip(explorerZip(), { labels: 'inferred' })
     expect(items.map((item) => item.category)).toEqual(['»¡°£³×¸ð', 'ÆÄ¶õµ¿±×¶ó¹Ì'])
   })
 })
