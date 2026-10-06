@@ -114,7 +114,7 @@
     "toDark": "Switch to dark mode",
     "limits": "Limits on this device",
     "limitsOpenName": "Limits on this device (off)",
-    "limitsApplied": "Limits tuned for this device are in effect.",
+    "limitsApplied": "Limits are in effect.",
     "limitsReleased": "Limits are off.",
     "limitsWhy": "The same limits apply to every computer, so a powerful one is held back more than it needs to be.",
     "limitsRisk": "Turning them off lets you train on much larger data. Training may then take a very long time, and while a large file is opening or a prediction is running, the browser may warn that the page is not responding.",
@@ -393,7 +393,7 @@
   "encodingHelp": {
     "none": "Leaves text values alone. Models take numbers only, so columns that hold text are left out of training.",
     "onehot": "Makes one column per distinct value and puts 1 in the matching one. Use it when the values have no order. Many distinct values means that many new columns.",
-    "ordinal": "Numbers the distinct values 0, 1, 2 and so on. No new columns, but the model reads those numbers as sizes, so use it only when the values have an order, such as low, medium, high."
+    "ordinal": "Numbers the distinct values 0, 1, 2 and so on. No new columns, but the model reads those numbers as sizes, so use it only when the values have an order, such as grades A, B, C."
   },
   "preprocess": {
     "previewBasis": "From the training data",
