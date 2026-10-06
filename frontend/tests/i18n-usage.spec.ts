@@ -202,7 +202,10 @@ describe('UI 언어 좁히기는 한 자리다', () => {
    * 걸렸다 — 사진 화면 셋에서 그래도 전체 스위트가 초록이었다. 판정의 입구 이름으로 화면을 고른다.
    */
   it('언어를 받는 판정을 부르는 화면은 useUiLocale을 부르고 기본 언어를 직접 쓰지 않는다', () => {
-    const CALLS = /\b(readImageZip|openTable|decodeZipNames|detectEncoding|privacyPath)\(/
+    // 양식 메뉴는 판정을 직접 부르지 않고 언어를 `TemplateSourceContext`에 실어 넘긴다 — 그 컨텍스트를
+    // 만드는 자리도 고른다(반박 라운드 D-diff C-1, 이름만 쓰는 `TemplateSourceList`는 안 고른다).
+    const CALLS =
+      /\b(readImageZip|openTable|decodeZipNames|detectEncoding|privacyPath)\(|computed<TemplateSourceContext>/
     const screens = sourceFiles(SRC).filter(
       (path) =>
         path.endsWith('.vue') &&
