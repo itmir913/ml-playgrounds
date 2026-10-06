@@ -386,11 +386,15 @@ onMounted(refresh)
 
     저장된 것이 있을 때만 아래에 조용히 붙는다 - 가정 PC에서는 남아 있고, 그때는
     이어서 하는 것이 필요하다.
+
+    **폭은 소개 문장이 두 줄에 드는 데서 정했다.** `max-w-xl`(576px)에서는 영어와 일본어가
+    세 줄로 꺾였고 한국어만 두 줄이었다 — `max-w-2xl`(672px)에서 셋 다 두 줄이다(2026-10-06,
+    크롬 실측). 단추와 목록은 아래 `max-w-sm`이 따로 묶으므로 이 폭에 안 끌려간다. 사람 확인.
   -->
   <div class="flex min-h-full flex-col p-6">
     <div
       v-if="ready"
-      class="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center gap-8"
+      class="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-8"
     >
       <div class="text-center">
         <h2 class="text-3xl font-black tracking-tight">{{ t('app.name') }}</h2>
