@@ -42,7 +42,7 @@ import {
   ZIP_EXTENSION,
 } from '@/data/image/upload'
 import { ClientError, isClientError } from '@/errors'
-import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
+import { useUiLocale } from '@/composables/useUiLocale'
 import { MAX_CATEGORY_NAME_LENGTH } from '@/limits'
 import { useGate } from '@/locks'
 import { backboneFor, type BackboneSpec } from '@/ml/backbones'
@@ -70,13 +70,10 @@ import ImageGrid from './ImageGrid.vue'
 
 defineProps<{ accept: string }>()
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 
-/**
- * 압축 파일 이름을 되살릴 때 쓰는 언어 (`data/zip-names.ts`).
- * **vue-i18n의 `locale`은 문자열이라 한 번 좁힌다** — `WelcomeView`가 같은 것을 한다.
- */
-const uiLocale = computed(() => (isSupportedLocale(locale.value) ? locale.value : FALLBACK_LOCALE))
+/** 압축 파일 이름을 되살릴 때 쓰는 언어 (`data/zip-names.ts`). 좁히기는 `useUiLocale` 하나다. */
+const uiLocale = useUiLocale()
 
 /**
  * 이 단계의 설명문. **등록부가 준다** (architecture.md §8.10) — `steps.data.purpose`를

@@ -94,9 +94,16 @@ const RULES: readonly Rule[] = [
     ],
   },
   {
+    // **언어를 손으로 적지 않는다** (0.33.3 최종 감사 J-code C-6) — `(ko|en|ja)`였을 때 ja를 빼도
+    // 아무것도 안 울었다. 지역이 붙은 태그는 어느 언어든 박은 것이다.
     name: '로케일 태그를 코드에 박지 않는다',
-    pattern: /['"`](ko|en|ja)-[A-Z]{2}['"`]/,
-    violations: ["new Intl.NumberFormat('ko-KR')", 'const tag = "en-US"'],
+    pattern: /['"`][a-z]{2,3}-[A-Z]{2}['"`]/,
+    violations: [
+      "new Intl.NumberFormat('ko-KR')",
+      'const tag = "en-US"',
+      "new Intl.ListFormat('ja-JP')",
+      "format('zh-CN')",
+    ],
     allowed: ['new Intl.NumberFormat(locale.value)', "const tag = 'ko'", "if (x === 'en') return"],
   },
 ]
@@ -168,6 +175,35 @@ describe('지금 소스에 위반이 없다', () => {
       expect(found).toEqual([])
     })
   }
+})
+
+/**
+ * **UI 언어를 `Locale`로 좁히는 자리는 `useUiLocale` 하나다** (0.33.3 최종 감사 J-code C-1·C-2).
+ * 화면 여덟이 같은 한 줄을 들고 있었고, 사진 화면 셋이 그것을 늘 `FALLBACK_LOCALE`로 돌려도
+ * 아무것도 안 울었다. 좁히기 자체는 `use-ui-locale.spec.ts`가 잰다. `i18n.ts`는 그 판정의 주인이다.
+ */
+describe('UI 언어 좁히기는 한 자리다', () => {
+  const OWNERS = [join('src', 'i18n.ts'), join('src', 'composables', 'useUiLocale.ts')]
+
+  it('i18n.ts와 useUiLocale 밖에서 isSupportedLocale을 부르지 않는다', () => {
+    const offenders = sourceFiles(SRC)
+      .filter((path) => !OWNERS.some((owner) => path.endsWith(owner)))
+      .filter((path) =>
+        withoutComments(readFileSync(path, 'utf-8')).some((line) =>
+          line.includes('isSupportedLocale('),
+        ),
+      )
+    expect(offenders).toEqual([])
+  })
+
+  it('주인 둘을 실제로 찾는다 — 경로가 바뀌면 위 검사가 모두를 예외로 둔다', () => {
+    for (const owner of OWNERS) {
+      expect(
+        sourceFiles(SRC).filter((path) => path.endsWith(owner)),
+        owner,
+      ).toHaveLength(1)
+    }
+  })
 })
 
 describe('로케일 문장', () => {

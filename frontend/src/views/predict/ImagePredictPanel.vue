@@ -28,7 +28,7 @@ import { IMAGE_ACCEPT, readImageFiles, readImageZip, ZIP_EXTENSION } from '@/dat
 import { usePasteImages } from '@/composables/usePasteImages'
 import { useWork, type Job } from '@/composables/useWork'
 import { ClientError, isClientError } from '@/errors'
-import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
+import { useUiLocale } from '@/composables/useUiLocale'
 import { anyLock, lockFor, turnPage, useGate, type WatchWriteId } from '@/locks'
 import { backboneFor } from '@/ml/backbones'
 import { embedImages } from '@/ml/embed/client'
@@ -75,10 +75,10 @@ import { useToastStore } from '@/stores/toasts'
 import AnswerList from './AnswerList.vue'
 import PredictFilters, { type FilterAxis } from './PredictFilters.vue'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 
 /** 압축 파일 이름을 되살릴 때 쓰는 언어 (`data/zip-names.ts`). */
-const uiLocale = computed(() => (isSupportedLocale(locale.value) ? locale.value : FALLBACK_LOCALE))
+const uiLocale = useUiLocale()
 const project = useProjectStore()
 const toasts = useToastStore()
 

@@ -29,7 +29,7 @@ import {
   ZIP_EXTENSION,
 } from '@/data/image/upload'
 import { ClientError, isClientError } from '@/errors'
-import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
+import { useUiLocale } from '@/composables/useUiLocale'
 import { backboneFor } from '@/ml/backbones'
 import { useRadioGroupGuard } from '@/composables/useRadioGroupGuard'
 import { useWork, type Job } from '@/composables/useWork'
@@ -51,10 +51,10 @@ import { withSplit } from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 
 /** 압축 파일 이름을 되살릴 때 쓰는 언어 (`data/zip-names.ts`). */
-const uiLocale = computed(() => (isSupportedLocale(locale.value) ? locale.value : FALLBACK_LOCALE))
+const uiLocale = useUiLocale()
 const project = useProjectStore()
 const toasts = useToastStore()
 

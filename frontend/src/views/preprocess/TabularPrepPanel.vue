@@ -42,7 +42,7 @@ import {
   usesTarget,
 } from '@/ml/selection'
 import { ClientError } from '@/errors'
-import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
+import { useUiLocale } from '@/composables/useUiLocale'
 import { plannedColumns } from '@/ml/plan'
 import { tabularPlanOf } from '@/ml/plan-cache'
 import { preprocessPreview } from '@/ml/preview'
@@ -76,13 +76,10 @@ import ColumnPicker from './ColumnPicker.vue'
 import TabularPrepSummary from './TabularPrepSummary.vue'
 import TabularPrepPreview from './TabularPrepPreview.vue'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 
-/**
- * CSV 인코딩을 판정할 때 쓰는 언어 (`data/encoding.ts`의 `CODE_PAGE_BY_LOCALE`).
- * **vue-i18n의 `locale`은 문자열이라 한 번 좁힌다** — `ImagePanel`이 같은 것을 한다.
- */
-const uiLocale = computed(() => (isSupportedLocale(locale.value) ? locale.value : FALLBACK_LOCALE))
+/** CSV 인코딩을 판정할 때 쓰는 언어 (`data/encoding.ts`의 `CODE_PAGE_BY_LOCALE`). 좁히기는 `useUiLocale` 하나다. */
+const uiLocale = useUiLocale()
 const project = useProjectStore()
 const toasts = useToastStore()
 

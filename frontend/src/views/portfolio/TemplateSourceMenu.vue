@@ -23,7 +23,7 @@ import { useI18n } from 'vue-i18n'
 import AppButton from '@/components/AppButton.vue'
 import AppPopover from '@/components/AppPopover.vue'
 import { ACTION_ICONS } from '@/icons'
-import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
+import { useUiLocale } from '@/composables/useUiLocale'
 import type { Locale } from '@/i18n'
 import type { TemplateSourceContext } from '@/project/portfolio-sources'
 import TemplateSourceList from './TemplateSourceList.vue'
@@ -49,10 +49,11 @@ const emit = defineEmits<{
   failed: [error: unknown]
 }>()
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
+const uiLocale = useUiLocale()
 
 const context = computed<TemplateSourceContext>(() => ({
-  locale: isSupportedLocale(locale.value) ? locale.value : FALLBACK_LOCALE,
+  locale: uiLocale.value,
   translate: (key: string) => t(key),
   pickFile: props.pickFile,
 }))

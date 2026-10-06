@@ -25,7 +25,7 @@ import ProjectPicker from '@/components/ProjectPicker.vue'
 import { DATA_KINDS, DEFAULT_DATA_TYPE } from '@/data/kinds'
 import { ROUTE_PROJECT_HOME } from '@/router/names'
 import { ACTION_ICONS } from '@/icons'
-import { FALLBACK_LOCALE, isSupportedLocale } from '@/i18n'
+import { useUiLocale } from '@/composables/useUiLocale'
 import { NOTICES_PATH, privacyPath } from '@/legal'
 import { REPOSITORY_URL } from '@/links'
 import { DEMO_DATASETS_URL } from '@/links'
@@ -55,12 +55,11 @@ const toasts = useToastStore()
 const format = useFormat()
 
 /**
- * 지금 언어의 개인정보 처리방침. **vue-i18n의 `locale`은 문자열이라 한 번 좁힌다** -
+ * 지금 언어의 개인정보 처리방침. **지원하는 언어로 좁혀서 만든다**(`useUiLocale`) -
  * 없는 언어의 주소를 만들면 학생이 404를 보고, 그것은 링크가 없는 것보다 나쁘다.
  */
-const privacyHref = computed(() =>
-  privacyPath(isSupportedLocale(locale.value) ? locale.value : FALLBACK_LOCALE),
-)
+const uiLocale = useUiLocale()
+const privacyHref = computed(() => privacyPath(uiLocale.value))
 
 const summaries = ref<ProjectSummary[]>([])
 
