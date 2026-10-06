@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // 그리기 창의 단추·포인터·`<dialog>`을 띄워 재는 스펙이라 DOM이 필요하다.
 /**
- * 그리기 창 (`views/data/SketchDialog.vue`, open-decisions.md 67 결정 12).
+ * 그리기 창 (`views/data/SketchDialog.vue`, 판례 67의 10).
  *
  * **캔버스는 가짜다.** jsdom에는 2D 컨텍스트가 없어서 브라우저 접착(`views/data/sketch-canvas.ts`)을
  * 통째로 갈아끼운다 — 화면 캔버스와 내보내는 캔버스가 각자 부른 것을 적는 가짜 컨텍스트를 받는다.

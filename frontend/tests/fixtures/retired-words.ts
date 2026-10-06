@@ -384,7 +384,7 @@ export const RETIRED_WORDS: readonly RetiredWord[] = [
       '그린',
     ],
     misses: ['그리고', '그리스', '그리움'],
-    // **[사진 추가]의 그리기는 예외다** (#38, open-decisions.md 67 결정 5·12). 학생이 손으로 사진을
+    // **[사진 추가]의 그리기는 예외다** (#38, 판례 67의 5·10). 학생이 손으로 사진을
     // 그려 넣는 입력 방식이라 `차트`·`표시하다`가 가리키는 것이 아니고, 문구는 코드 소유자가 정했다.
     // `그리기`는 copy.md §2 닫힌 목록에 있다. 이 두 키 밖(차트·결과 화면)에서는 그대로 물러난 말이다.
     allowedIn: ['data.image.sketch.', 'data.image.source.sketch'],

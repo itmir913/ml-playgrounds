@@ -57,6 +57,10 @@
  * 값이 자주 잘렸다(`truncate`) - 파일 이름과 타깃 열 이름은 **잘리면 쓸모가 없는
  * 값**이다. 좁은 화면에서는 위의 `max-width`가 그대로 걸려 화면 폭을 넘지 않는다.
  */
+@utility popover-panel-wide {
+  width: 44rem;
+}
+
 /**
  * 화면 아래를 덮는 막대(상태 표시줄, 좁은 화면에서는 레일까지)의 높이를 재는 자. `AppPopover`가
  * 아래 자리를 셀 때 이 높이를 뺀다. `--overlay-bottom`은 `calc()`라 스크립트가 글자로는 못 읽으므로
@@ -69,10 +73,6 @@
   width: 0;
   height: var(--overlay-bottom);
   visibility: hidden;
-}
-
-@utility popover-panel-wide {
-  width: 44rem;
 }
 
 /**
@@ -577,7 +577,7 @@
 }
 
 /**
- * 넓은 창의 안쪽 세로 칸이 받는 천장 (`AppDialog`의 `wide`, open-decisions.md 67 결정 12).
+ * 넓은 창의 안쪽 세로 칸이 받는 천장 (`AppDialog`의 `wide`, 판례 67의 10).
  *
  * **창 높이는 내용만큼이라** 안쪽 칸이 `%`로 창을 볼 수 없다(`h-full`의 순환 — `AppDialog`의 주석).
  * 그래서 창의 천장(`dialog-panel`의 `100% - 2rem`)과 **같은 뜻의 값을 화면 단위로** 다시 적는다 —
@@ -592,7 +592,7 @@
 }
 
 /**
- * 그리기 창의 두 열 (`views/data/SketchDialog.vue`, open-decisions.md 67 결정 12). **왼쪽은 캔버스
+ * 그리기 창의 두 열 (`views/data/SketchDialog.vue`, 판례 67의 10). **왼쪽은 캔버스
  * 덩어리, 오른쪽은 남는 폭이다.**
  *
  * 왼쪽 폭은 `24rem` 아래로 안 줄어든다 — 그 아래에서는 [되돌리기]·[초기화]·[다음 장 추가]가 한 줄에
