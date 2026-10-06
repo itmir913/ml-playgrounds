@@ -61,6 +61,12 @@ export interface ImageSourceRow {
   readonly load: () => Promise<PickedFiles>
 }
 
+/**
+ * 받아 온 묶음을 판에 넘긴다. `appends`는 그 줄이 들고 온 것(`ImageSourceRow.appends`)이다.
+ * **판이 준다** — 무엇을 어느 범주로 읽을지는 판이 안다.
+ */
+export type PickImages = (files: readonly File[], options: { readonly appends: boolean }) => void
+
 export interface ImageSource {
   readonly id: string
   readonly rows: (context: ImageSourceContext) => Promise<ImageSourceRow[]>

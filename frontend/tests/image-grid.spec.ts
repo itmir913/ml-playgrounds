@@ -13,6 +13,7 @@
  */
 
 import { mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { ImageEntry } from '../src/project/images'
@@ -32,6 +33,14 @@ function render(entries: readonly ImageEntry[], selected: readonly string[]) {
       entries,
       urls: new Map(entries.map((entry) => [entry.hash, `blob:${entry.hash}`])),
       selected: new Set(selected),
+      // [여기에 사진 추가] 메뉴의 손. 이 스펙은 메뉴를 열지 않는다(`image-source-menu.spec.ts`).
+      sources: {
+        translate: (key: string) => key,
+        pickFiles: () => Promise.resolve(null),
+        pickFolder: () => Promise.resolve(null),
+        openSketch: () => Promise.resolve(null),
+      },
+      pick: () => {},
     },
     global: { plugins: [i18n] },
   })
@@ -46,6 +55,8 @@ function pickAllLabel(view: ReturnType<typeof render>): string {
 }
 
 beforeEach(async () => {
+  // [여기에 사진 추가] 메뉴가 실패를 알림으로 낸다(`ImageSourceMenu`).
+  setActivePinia(createPinia())
   await setLocale('ko')
 })
 

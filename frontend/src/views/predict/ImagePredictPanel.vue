@@ -14,7 +14,7 @@
  * 하는 일은 그 문을 순서대로 여는 것뿐이고, 새로 만드는 계산이 없다.
  */
 
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppButton from '@/components/AppButton.vue'
@@ -22,6 +22,8 @@ import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import StepActionBar from '@/components/StepActionBar.vue'
 import { canonicalizeImages } from '@/data/image/client'
+import type { PickImages } from '@/data/image/sources'
+import { useImageSources } from '@/composables/useImageSources'
 import { useThumbnails } from '@/composables/useThumbnails'
 import { spawnCanonicalizeWorker } from '@/data/image/spawn'
 import { IMAGE_ACCEPT, readImageFiles, readImageZip, ZIP_EXTENSION } from '@/data/image/upload'
@@ -74,6 +76,10 @@ import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import AnswerList from './AnswerList.vue'
 import PredictFilters, { type FilterAxis } from './PredictFilters.vue'
+import ImageSourceMenu from '@/views/data/ImageSourceMenu.vue'
+
+/** 그리기 창. **처음 열 때 받는다** — 그리지 않는 학생은 이 청크를 안 받는다(`useImageSources`). */
+const SketchDialog = defineAsyncComponent(() => import('@/views/data/SketchDialog.vue'))
 
 const { t } = useI18n()
 
@@ -82,7 +88,26 @@ const uiLocale = useUiLocale()
 const project = useProjectStore()
 const toasts = useToastStore()
 
+/**
+ * [사진 추가] 메뉴의 손 — 숨은 input 둘·그리기 창·그림 이름 발급기. 판 하나에 한 벌이다
+ * (`composables/useImageSources.ts`). 데이터 화면과 같은 메뉴를 쓴다.
+ */
 const fileInput = ref<HTMLInputElement | null>(null)
+const folderInput = ref<HTMLInputElement | null>(null)
+const {
+  context: sources,
+  onPicked,
+  sketchOpen,
+  sketchMounted,
+  nameSketch,
+  onSketchDone,
+} = useImageSources({ fileInput, folderInput })
+
+/**
+ * 메뉴가 받은 것. **드롭·붙여넣기가 쓰는 그 함수다.** 예측에는 확인 판이 없어 받은 즉시 구우므로
+ * 줄의 `appends`는 쓸 데가 없다 — 굽는 중의 거절(`addWhileBusy`)도 그대로 걸린다.
+ */
+const pickPhotos: PickImages = (files) => void readPicked(files)
 
 /**
  * 지금 이 화면에서 도는 일들 (architecture.md §8.10.4). **굽기와 임베딩이 겹친다** —
@@ -424,13 +449,6 @@ async function readPicked(files: readonly File[]): Promise<void> {
   }
 }
 
-function onPick(event: Event): void {
-  const input = event.target as HTMLInputElement
-  const files = [...(input.files ?? [])]
-  input.value = ''
-  void readPicked(files)
-}
-
 /** 판에 떨어뜨린 것. **고르기와 같은 문으로 보낸다** — zip이든 사진이든 거기서 갈린다. */
 function onDrop(event: DragEvent): void {
   dragging.value = false
@@ -765,14 +783,13 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
         같은 것인가"를 묻지 않는다. 데이터 화면이 같은 것을 잡히고 세운 규칙인데
         예측 화면만 어긋나 있었다 (2026-08-29 화면 실측 B-5).
       -->
-      <AppButton
+      <ImageSourceMenu
         v-if="photos.length > 0"
-        variant="secondary"
+        :label="t('predict.image.add')"
+        :context="sources"
+        :pick="pickPhotos"
         :lock="photosLocked"
-        @click="fileInput?.click()"
-      >
-        {{ t('predict.image.add') }}
-      </AppButton>
+      />
       <span v-if="progress" class="tabular-nums font-bold" role="status">
         {{ t('meta.image.preparing', { done: progress.completed, total: progress.total }) }}
       </span>
@@ -815,9 +832,14 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       :class="inviting ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface'"
     >
       <AppEmpty :reason="t('predict.image.emptyReason')" :next="t('predict.image.emptyNext')">
-        <AppButton size="lg" :lock="busyLock" @click="fileInput?.click()">
-          {{ t('predict.image.add') }}
-        </AppButton>
+        <ImageSourceMenu
+          size="lg"
+          variant="primary"
+          :label="t('predict.image.add')"
+          :context="sources"
+          :pick="pickPhotos"
+          :lock="busyLock"
+        />
       </AppEmpty>
     </div>
 
@@ -960,13 +982,34 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       없었다 — 사진을 올리는 화면이라 오히려 여기서 더 궁금한 말이다.
     -->
 
+    <!--
+      [사진 추가] 메뉴의 [사진 선택]·[폴더 선택]이 여는 자리. 닫으면 `cancel`이 와서 기다리던 메뉴가
+      풀린다(`useImageSources`). **폴더 이름은 읽지 않는다** — 폴더 안의 사진을 전부 라벨 없이 받는다
+      (`readPicked`의 `labels: 'none'`, #38 결정 7). `accept`를 안 주는 이유는 데이터 화면과 같다.
+    -->
     <input
       ref="fileInput"
       type="file"
       multiple
       :accept="IMAGE_ACCEPT"
       class="hidden"
-      @change="onPick"
+      @change="onPicked"
+      @cancel="onPicked"
+    />
+    <input
+      ref="folderInput"
+      type="file"
+      webkitdirectory
+      class="hidden"
+      @change="onPicked"
+      @cancel="onPicked"
+    />
+
+    <SketchDialog
+      v-if="sketchMounted"
+      :open="sketchOpen"
+      :name-sketch="nameSketch"
+      @done="onSketchDone"
     />
   </div>
 </template>

@@ -15,7 +15,7 @@
  * `project/images.ts`다. 여기 있는 것은 순서와 화면뿐이다.
  */
 
-import { computed, onBeforeUnmount, ref, shallowRef, toRaw, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, shallowRef, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { dataKindFor, stepTextKey } from '@/data/kinds'
@@ -30,6 +30,8 @@ import StepActionBar from '@/components/StepActionBar.vue'
 import StepChecklist from '@/components/StepChecklist.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { canonicalizeImages } from '@/data/image/client'
+import type { PickImages } from '@/data/image/sources'
+import { useImageSources } from '@/composables/useImageSources'
 import { useThumbnails } from '@/composables/useThumbnails'
 import { usePasteImages } from '@/composables/usePasteImages'
 import { clearIfHeld, latestOnly, useWork } from '@/composables/useWork'
@@ -67,6 +69,10 @@ import { dataSettings } from '@/project/schema'
 import { useProjectStore, type ProjectRevision } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import ImageGrid from './ImageGrid.vue'
+import ImageSourceMenu from './ImageSourceMenu.vue'
+
+/** 그리기 창. **처음 열 때 받는다** — 그리지 않는 학생은 이 청크를 안 받는다(`useImageSources`). */
+const SketchDialog = defineAsyncComponent(() => import('./SketchDialog.vue'))
 
 defineProps<{ accept: string }>()
 
@@ -83,8 +89,20 @@ const dataPurpose = stepTextKey(dataKindFor('image'), 'data', 'purpose')
 const project = useProjectStore()
 const toasts = useToastStore()
 
+/**
+ * [사진 추가] 메뉴의 손 — 숨은 input 둘·그리기 창·그림 이름 발급기. **판 하나에 한 벌이고**, 툴바·빈
+ * 상태·범주 칸마다 선 메뉴가 전부 이것을 받는다(`composables/useImageSources.ts`).
+ */
 const fileInput = ref<HTMLInputElement | null>(null)
 const folderInput = ref<HTMLInputElement | null>(null)
+const {
+  context: sources,
+  onPicked,
+  sketchOpen,
+  sketchMounted,
+  nameSketch,
+  onSketchDone,
+} = useImageSources({ fileInput, folderInput })
 const dragging = ref(false)
 
 /**
@@ -93,13 +111,6 @@ const dragging = ref(false)
  * **굽는 중인 자물쇠를 연다** (R21 A-1).
  */
 const { busy, lock: busyLock, progress, start, cancelAll, retire } = useWork()
-
-/**
- * 다음에 고를 사진이 들어갈 칸. **파일 고르기 입구가 하나여서 필요하다** — 칸마다 숨은
- * `<input>`을 두면 범주 수만큼 늘고, 그 중 하나만 값을 안 비워도 같은 파일을 다시 못
- * 고르는 칸이 생긴다.
- */
-const target = ref<string>(IMAGE_UNLABELED)
 
 /** 읽었지만 아직 안 구운 것. **확인시키기 전에는 프로젝트를 손대지 않는다.** */
 const pending = ref<readonly UploadItem[] | null>(null)
@@ -226,7 +237,8 @@ async function readPicked(
   /**
    * 확인 판에 이미 선 것이 있으면 **갈아끼우지 말고 뒤에 붙인다.**
    *
-   * **붙여넣기만 그렇다** (`open-decisions.md` "이미지 붙여넣기"). 놓은 파일은 디스크에
+   * **붙여넣기와 그리기만 그렇다** (`open-decisions.md` "이미지 붙여넣기", 67 — 그린 그림도
+   * 디스크에 없다, `data/image/sources.ts`의 `appends`). 놓은 파일은 디스크에
    * 남아 다시 놓을 수 있지만 **붙여넣은 스크린샷은 어디에도 없다** — 다시 찍어야 한다.
    * 클립보드는 한 번에 한 장이라 스무 장을 모으는 수업이 붙여넣기 스무 번이 되고, 그
    * 사이 한 번이라도 확인을 안 누르면 앞 장이 말없이 사라졌다 (R24 B-10).
@@ -290,19 +302,19 @@ async function readPicked(
   }
 }
 
-function onPick(event: Event): void {
-  const input = event.target as HTMLInputElement
-  const files = [...(input.files ?? [])]
-  // 같은 것을 다시 고를 수 있어야 한다. 값을 비우지 않으면 change가 다시 안 뜬다.
-  input.value = ''
-  void readPicked(files, target.value)
+/**
+ * [사진 추가] 메뉴가 받은 것을 이 칸으로 읽는다. **드롭·붙여넣기가 쓰는 그 함수다** — 입력 방식이
+ * 늘어도 길은 하나다(`data/image/sources.ts`). 덧붙일지는 줄이 정한다(`appends`).
+ *
+ * 메뉴마다 칸을 묶은 함수를 하나씩 준다 — 숨은 input이 하나여도 결과가 어느 칸으로 갈지 판에 따로
+ * 들고 있지 않는다.
+ */
+function pickInto(category: string): PickImages {
+  return (files, { appends }) => void readPicked(files, category, { append: appends })
 }
 
-/** 어느 칸에 넣을지 정하고 파일 고르기를 연다. */
-function pickInto(category: string, input: HTMLInputElement | null): void {
-  target.value = category
-  input?.click()
-}
+/** 범주가 없는 자리(툴바·빈 상태)의 메뉴. 판에 떨어뜨린 것과 같이 라벨이 없다. */
+const pickUnlabeled = pickInto(IMAGE_UNLABELED)
 
 /** 판 전체에 떨어뜨린 것. **어느 칸도 아니므로 라벨이 없다.** */
 function onDrop(event: DragEvent): void {
@@ -657,7 +669,7 @@ async function commitRemoveCategory(): Promise<void> {
       **전체에 걸리는 동작은 (`md` 이상에서) 위에 붙어 따라온다** (§8.13.1 "동작 바는 화면들이 함께
       쓴다"). 표 경로·학습·예측과 같은 컴포넌트다.
 
-      **동작 셋이 여기 모인다** (§8.9). 머리에 있던 [사진 추가]가 내려와, 범주 카드의
+      **판 전체의 동작이 여기 모인다** (§8.9). 머리에 있던 [사진 추가]가 내려와, 범주 카드의
       [여기에 사진 추가](그 범주로 들어간다)와 자리로 구별된다. 빈 상태와 같은 순서,
       같은 색이다 — 사진이 생겼다고 파란 버튼이 다른 것으로 옮겨 가면 학생은 화면이
       바뀐 줄 안다.
@@ -697,20 +709,13 @@ async function commitRemoveCategory(): Promise<void> {
         <AppButton @click="naming = { mode: 'create', from: '', value: '' }">
           {{ t('data.image.newCategory') }}
         </AppButton>
-        <AppButton
-          variant="secondary"
+        <!-- [사진 추가]·[폴더에서 추가] 둘이 메뉴 하나가 되었다(open-decisions.md 67 결정 1). -->
+        <ImageSourceMenu
+          :label="t('data.image.add')"
+          :context="sources"
+          :pick="pickUnlabeled"
           :lock="busyLock"
-          @click="pickInto(IMAGE_UNLABELED, fileInput)"
-        >
-          {{ t('data.image.add') }}
-        </AppButton>
-        <AppButton
-          variant="secondary"
-          :lock="busyLock"
-          @click="pickInto(IMAGE_UNLABELED, folderInput)"
-        >
-          {{ t('data.image.addFolder') }}
-        </AppButton>
+        />
       </template>
 
       <template #end>
@@ -750,22 +755,13 @@ async function commitRemoveCategory(): Promise<void> {
         <AppButton size="lg" @click="naming = { mode: 'create', from: '', value: '' }">
           {{ t('data.image.newCategory') }}
         </AppButton>
-        <AppButton
+        <ImageSourceMenu
           size="lg"
-          variant="secondary"
+          :label="t('data.image.add')"
+          :context="sources"
+          :pick="pickUnlabeled"
           :lock="busyLock"
-          @click="pickInto(IMAGE_UNLABELED, fileInput)"
-        >
-          {{ t('data.image.add') }}
-        </AppButton>
-        <AppButton
-          size="lg"
-          variant="secondary"
-          :lock="busyLock"
-          @click="pickInto(IMAGE_UNLABELED, folderInput)"
-        >
-          {{ t('data.image.addFolder') }}
-        </AppButton>
+        />
       </AppEmpty>
     </div>
 
@@ -793,11 +789,12 @@ async function commitRemoveCategory(): Promise<void> {
           :entries="entriesOf(category)"
           :urls="urls"
           :selected="selected"
+          :sources="sources"
+          :pick="pickInto(category)"
           @toggle="(hash, extend) => toggle(category, hash, extend)"
           @pick-all="pickAll(category)"
           @rename="naming = { mode: 'rename', from: category, value: category }"
           @remove="removingCategory = category"
-          @add="pickInto(category, fileInput)"
           @drop="readPicked($event, category)"
         />
       </div>
@@ -814,9 +811,10 @@ async function commitRemoveCategory(): Promise<void> {
         :urls="urls"
         :selected="selected"
         unlabeled
+        :sources="sources"
+        :pick="pickUnlabeled"
         @toggle="(hash, extend) => toggle(IMAGE_UNLABELED, hash, extend)"
         @pick-all="pickAll(IMAGE_UNLABELED)"
-        @add="pickInto(IMAGE_UNLABELED, fileInput)"
         @drop="readPicked($event, IMAGE_UNLABELED)"
       />
     </div>
@@ -869,13 +867,39 @@ async function commitRemoveCategory(): Promise<void> {
       </div>
     </div>
 
-    <input ref="fileInput" type="file" multiple :accept="accept" class="hidden" @change="onPick" />
+    <!--
+      [사진 추가] 메뉴의 [사진 선택]·[폴더 선택]이 여는 자리. **판에 하나씩이다** — 메뉴가 몇 개든
+      같은 input을 연다(`useImageSources`). 닫으면 `cancel`이 와서 기다리던 메뉴가 풀린다.
+    -->
+    <input
+      ref="fileInput"
+      type="file"
+      multiple
+      :accept="accept"
+      class="hidden"
+      @change="onPicked"
+      @cancel="onPicked"
+    />
     <!--
       **폴더째 고르는 입구를 따로 둔다.** 같은 input에 `webkitdirectory`를 걸면 파일
       몇 장만 고르는 길이 없어진다. `accept`를 안 주는 이유는 폴더 고르기에서는 브라우저가
       그걸 무시하고, 대신 사진이 아닌 파일은 굽는 워커가 걸러 준다.
     -->
-    <input ref="folderInput" type="file" webkitdirectory class="hidden" @change="onPick" />
+    <input
+      ref="folderInput"
+      type="file"
+      webkitdirectory
+      class="hidden"
+      @change="onPicked"
+      @cancel="onPicked"
+    />
+
+    <SketchDialog
+      v-if="sketchMounted"
+      :open="sketchOpen"
+      :name-sketch="nameSketch"
+      @done="onSketchDone"
+    />
 
     <AppDialog
       :open="naming !== null"

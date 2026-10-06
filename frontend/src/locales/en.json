@@ -187,7 +187,6 @@
     "unsupportedKindNext": "It may have been made with a newer version. Update the app and open it again.",
     "image": {
       "add": "Add photos",
-      "addFolder": "Add a folder",
       "addHere": "Add photos here",
       "added": "Added {count} photo. | Added {count} photos.",
       "categoryName": "Category name",

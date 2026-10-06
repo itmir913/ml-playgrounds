@@ -15,9 +15,11 @@ import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
+import type { ImageSourceContext, PickImages } from '@/data/image/sources'
 import { IMAGE_GRID_PAGE_SIZE } from '@/limits'
 import { lockFor, turnPage } from '@/locks'
 import type { ImageEntry } from '@/project/images'
+import ImageSourceMenu from './ImageSourceMenu.vue'
 
 const props = defineProps<{
   /** 화면에 보일 이름. `_unlabeled`는 판이 번역해서 내려준다 — 파일 안 이름과 다르다. */
@@ -28,6 +30,16 @@ const props = defineProps<{
   selected: ReadonlySet<string>
   /** 범주가 아니라 상태인 자리인가. 이름 바꾸기·없애기가 없다. */
   unlabeled?: boolean
+  /**
+   * [여기에 사진 추가] 메뉴가 쓰는 판의 손. **판 하나에 한 벌이다** — 칸마다 지으면 그림 이름이
+   * 칸마다 `drawn-1`부터 다시 난다(`composables/useImageSources.ts`).
+   */
+  sources: ImageSourceContext
+  /**
+   * 이 칸에 받은 묶음을 넘길 곳. **판이 이 칸의 범주를 묶어 준다.** `emit`이 아닌 이유는 메뉴와
+   * 같다(`ImageSourceMenu`) — 기다리는 사이 이 칸이 내려가도 받는 쪽은 살아 있는 판이다.
+   */
+  pick: PickImages
 }>()
 
 /**
@@ -52,8 +64,6 @@ const emit = defineEmits<{
   pickAll: []
   rename: []
   remove: []
-  /** 이 칸에 사진을 넣겠다는 뜻. 파일 고르기는 판이 연다 — 입구가 하나여야 한다. */
-  add: []
   /** 이 칸에 끌어다 놓았다. */
   drop: [files: readonly File[]]
 }>()
@@ -124,10 +134,17 @@ const shown = computed(() =>
         만큼(16px) 벌려야 이웃의 누르는 자리가 안 겹친다. 사람 확인(브라우저).
       -->
       <div class="ml-auto flex flex-wrap items-center gap-x-4 gap-y-5">
-        <!-- **이 칸으로 바로 들어간다.** 올린 뒤 다시 골라 옮기는 걸음이 없어진다. -->
-        <AppButton variant="ghost" class="-mx-2 -my-2.5" @click="emit('add')">
-          {{ t('data.image.addHere') }}
-        </AppButton>
+        <!--
+          **이 칸으로 바로 들어간다.** 올린 뒤 다시 골라 옮기는 걸음이 없어진다. 판의 [사진 추가]와
+          **같은 메뉴**다(결정 6) — 사진 선택·폴더 선택·그리기가 전부 이 칸으로 간다.
+        -->
+        <ImageSourceMenu
+          variant="ghost"
+          class="-mx-2 -my-2.5"
+          :label="t('data.image.addHere')"
+          :context="props.sources"
+          :pick="props.pick"
+        />
         <!--
           **누르는 것이 아니라 고르는 것이다.** 사진 수십 장을 하나씩 누르게 하면
           범주를 옮기는 일이 실제로는 못 하는 일이 된다.

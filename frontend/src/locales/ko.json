@@ -187,7 +187,6 @@
     "unsupportedKindNext": "더 새로운 버전에서 만든 파일일 수 있습니다. 앱을 최신 버전으로 업데이트한 뒤 다시 열어 주세요.",
     "image": {
       "add": "사진 추가",
-      "addFolder": "폴더에서 추가",
       "addHere": "여기에 사진 추가",
       "added": "사진 {count}장을 추가했습니다.",
       "categoryName": "범주 이름",
