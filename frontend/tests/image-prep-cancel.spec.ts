@@ -203,7 +203,14 @@ describe('결정 83: 테스트 사진을 굽는 동안', () => {
     expect(workHoldsPage.value, 'baking test photos').toBe(true)
 
     deliver(bakers.workers[0], ['개/a.jpg', '고양이/b.jpg'])
-    await settle()
+    // **정해진 틱 수가 아니라 끝 상태를 기다린다.** 경고는 저장(IndexedDB) 뒤의 `finally`가 놓는데,
+    // 관문이 스펙을 한꺼번에 돌리면 저장이 `settle()` 두 바퀴보다 늦어 빨갰다. 성공 알림과 놓기 사이에는
+    // `await`가 없으니, 알림이 섰으면 그 일은 이미 끝났다 — 거기서 경고가 남았으면 놓지 않은 것이다.
+    await vi.waitFor(() =>
+      expect(useToastStore().items.map((toast) => toast.key)).toContain(
+        'preprocess.testImagesAdded',
+      ),
+    )
     expect(workHoldsPage.value, 'baked').toBe(false)
   })
 })
