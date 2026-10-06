@@ -976,6 +976,19 @@ describe('버튼을 이름으로 부르는 문구', () => {
       expect(quotedLabels(strings).filter(([, name]) => !labels.has(name))).toEqual([])
     })
   }
+
+  /**
+   * **전각 대괄호로 쓴 인용은 위 검사를 빠져나간다** (0.33.3 최종 감사 J-code C-4). 위 검사기는 반각
+   * `[...]`만 보므로, `［없는 이름］`은 아무 검사에도 안 걸렸다. 인용은 반각으로만 쓴다(`docs/copy.md` §7.1).
+   */
+  it('단추 인용에 전각 대괄호를 쓰지 않는다', () => {
+    const fullwidth = [...LOCALE_MESSAGES].flatMap(([locale, strings]) =>
+      [...strings]
+        .filter(([, text]) => /[\uff3b\uff3d]/u.test(text))
+        .map(([key]) => `${locale}:${key}`),
+    )
+    expect(fullwidth).toEqual([])
+  })
 })
 
 describe('언어들이 나란히 말한다', () => {
