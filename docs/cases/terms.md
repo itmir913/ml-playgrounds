@@ -18,6 +18,16 @@
 교육용 도구에서 이 갈라짐은 지저분한 것으로 끝나지 않는다: 학생이 만나는 낱말은 하나여야
 하고, **그 낱말을 다음 사람이 주석에서 배운다.**
 
+## 하이퍼파라미터
+
+### 규제 강도의 역수 (C)
+
+sklearn의 `C`는 규제 강도가 아니라 그 **역수**다 — `LogisticRegression`은 "Inverse of
+regularization strength", `SVC`는 "The strength of the regularization is inversely proportional
+to C"라고 적는다. 화면 이름이 `규제 강도(C)`였던 동안 수렴 경고의 `[규제 강도(C)]를 낮추면`은
+학생에게 "규제를 약하게"로 읽혔는데, 실제 처방은 C를 낮춰 **규제를 강하게** 하는 것이었다.
+세 언어를 sklearn의 표현으로 맞췄다 (2026-10-06, 코드 소유자).
+
 ## 기타 개념
 
 ### 박스 플롯

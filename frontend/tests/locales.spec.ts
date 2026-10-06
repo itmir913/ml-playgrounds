@@ -1285,6 +1285,31 @@ describe('수렴 경고는 전처리 스케일링을 가리킨다', () => {
 })
 
 /**
+ * **`C`는 규제 강도의 역수라고 말한다** (`docs/cases/terms.md` "규제 강도의 역수 (C)").
+ *
+ * 이름이 `규제 강도(C)`였던 동안 수렴 경고의 "C를 낮추면"이 학생에게 "규제를 약하게"로
+ * 읽혔다 — 실제로는 규제를 강하게 하는 처방이다. 이름만으로 방향이 서야 한다.
+ */
+describe('C는 규제 강도의 역수라고 말한다', () => {
+  /** 로케일마다 "역수"를 말하는 낱말. sklearn의 "Inverse of regularization strength"다. */
+  const INVERSE: Readonly<Record<string, string>> = {
+    en: 'Inverse of regularization strength',
+    ko: '규제 강도의 역수',
+    ja: '正則化の強さの逆数',
+  }
+
+  it('모든 로케일이 낱말을 밝힌다', () => {
+    expect(Object.keys(INVERSE).sort()).toEqual([...LOCALE_TAGS].sort())
+  })
+
+  for (const [tag, word] of Object.entries(INVERSE)) {
+    it(`${tag}의 C 이름이 역수를 말한다`, () => {
+      expect(messagesOf(tag).get('hyperparams.C') ?? '').toContain(word)
+    })
+  }
+})
+
+/**
  * 상한이 막았으면 푸는 자리를 함께 말한다 (`copy.md` §5).
  *
  * **이름이 실재하는지는 위 `버튼을 이름으로 부르는 문구`가 이미 본다** — 여기가 보는 것은
