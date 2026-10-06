@@ -37,6 +37,8 @@ jobs:
   #
   # - **머지 커밋은 건너뛴다.** 소유자가 누르는 머지 커밋은 기여가 아니고 서명줄도 없다.
   #   "고치지" 마라.
+  # - **Dependabot 커밋도 건너뛴다.** 봇의 버전 갱신은 기여가 아니고 서명줄을 붙일 수도 없다.
+  #   PR이 아니라 커밋을 거른다 — 봇 PR에 사람이 얹은 커밋은 검사한다.
   # - 작성자 이메일과 같은 주소의 서명줄이 있어야 한다(대소문자 무시). `git commit -s`는
   #   작성자와 같은 설정을 쓰므로 noreply 주소여도 저절로 맞는다.
   # - 커밋 목록은 API로 받는다 — 포크 PR에서도 읽기 토큰이면 된다.
@@ -61,6 +63,8 @@ jobs:
           while IFS=$'\t' read -r sha parents email signers; do
             if [ "$parents" -gt 1 ]; then
               echo "skip  $sha (merge commit)"
+            elif [ "$email" = "49699333+dependabot[bot]@users.noreply.github.com" ]; then
+              echo "skip  $sha (dependabot)"
             elif [[ ",$signers," == *",$email,"* ]]; then
               echo "ok    $sha"
             else
