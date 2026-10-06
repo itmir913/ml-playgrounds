@@ -88,6 +88,7 @@ async function visit(
   href: string,
   site: Record<string, Answer>,
   languages: readonly string[] = ['en-US'],
+  Parser: typeof DOMParser = DOMParser,
 ): Promise<Visit> {
   const url = new URL(href)
   const page = parse(PAGE)
@@ -118,7 +119,7 @@ async function visit(
     location,
     navigator: { languages },
     fetch,
-    DOMParser,
+    DOMParser: Parser,
     URLSearchParams,
   })
 
@@ -210,6 +211,26 @@ describe('404.html이 상위 경로를 올라가며 앱을 찾는다', () => {
     const result = await visit(`${ORIGIN}//evil.test//x///y`, { '/': found(APP) })
     expect(result.asked).toEqual([`${ORIGIN}/evil.test/x/`, `${ORIGIN}/evil.test/`, `${ORIGIN}/`])
     expect(result.movedTo).toBe(`${ORIGIN}/`)
+  })
+
+  /**
+   * **찾다가 예외가 나도 빈 화면으로 남지 않는다.** 안내는 숨긴 채 시작하므로, 예외를 받는
+   * 손(`catch(show)`)이 없으면 빈 화면이 이어진다 — 그 손을 무력화해도 초록이었다(0.33.2 감사).
+   */
+  it('찾다가 예외가 나면 옮기지 않고 안내를 보인다', async () => {
+    class BrokenParser {
+      parseFromString(): never {
+        throw new Error('parser failed')
+      }
+    }
+    const result = await visit(
+      `${ORIGIN}/ml-playgrounds/nowhere/`,
+      { '/ml-playgrounds/': found(APP) },
+      ['en-US'],
+      BrokenParser as unknown as typeof DOMParser,
+    )
+    expect(result.movedTo).toBeNull()
+    expect(result.shown).toBe(true)
   })
 
   it('루트 자신이 404면 물을 곳이 없다 — 묻지 않고 안내를 보인다', async () => {

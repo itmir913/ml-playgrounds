@@ -15,7 +15,7 @@
 **[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. 개발 서버도 배포본처럼 `public/`의 하위
 `index.html`을 그 경로에서 주고, 없는 경로는 404다 — 앱은 해시 라우팅이라 SPA 대체 응답이 필요 없다.
 `vite.config.ts`의 `appType: 'mpa'`와 `scripts/public-index.ts`, `tests/dev-routes.spec.ts`가 문다.
-**없는 경로의 동작은 104가 대체한다** — 404가 아니라 앱의 루트로 보낸다(0.33.2).
+**없는 경로에서 머무르는 화면은 104가 대체한다** — 응답은 그대로 상태 404이고, 그 페이지가 앱의 루트로 옮긴다(0.33.2).
 
 ### 102. 어느 코드 페이지로도 엄격하게 안 풀리는 CSV를 어떻게 읽는가
 **[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. 결론: **오류로 멈추고 UTF-8로 다시 저장하라고 말한다.**
