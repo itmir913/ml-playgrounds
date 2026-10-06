@@ -390,15 +390,18 @@ onMounted(refresh)
     **폭은 소개 문장이 두 줄에 드는 데서 정했다.** `max-w-xl`(576px)에서는 영어와 일본어가
     세 줄로 꺾였고 한국어만 두 줄이었다 — `max-w-2xl`(672px)에서 셋 다 두 줄이다(2026-10-06,
     크롬 실측). 단추와 목록은 아래 `max-w-sm`이 따로 묶으므로 이 폭에 안 끌려간다. 사람 확인.
+
+    **제목·소개·단추·링크 사이는 한 간격이다**(코드 소유자). 소개의 `mt-6`과 이 열의 `gap-6`이 같은
+    값이어야 한다 — 전에는 12px·32px·32px라 제목과 소개만 붙어 보였다.
   -->
   <div class="flex min-h-full flex-col p-6">
     <div
       v-if="ready"
-      class="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-8"
+      class="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-6"
     >
       <div class="text-center">
         <h2 class="text-3xl font-black tracking-tight">{{ t('app.name') }}</h2>
-        <p class="mt-3 leading-relaxed text-ink-soft">{{ t('app.tagline') }}</p>
+        <p class="mt-6 leading-relaxed text-ink-soft">{{ t('app.tagline') }}</p>
       </div>
 
       <!--
