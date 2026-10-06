@@ -17,7 +17,7 @@
 
 import { computed, ref } from 'vue'
 
-import { splitTerm } from '@/i18n'
+import { splitLabel } from '@/i18n'
 import { forwardAttrs, isLocked, type Lock } from '@/locks'
 
 /**
@@ -100,36 +100,20 @@ function stateOf(item: Choice): string {
 }
 
 /**
- * 조각을 잇는 쉼표. 라벨을 만드는 로케일(`predict.modelName` 등)이 쓰는 그것이다.
- * **가운뎃점이 아니다** — 화면의 가운뎃점은 상태 표시줄 하나뿐이다(`locales.spec.ts`).
- */
-const JOINER = ', '
-
-/**
- * 그릴 칸들. **두 가지를 미리 갈라 둔다.**
+ * 그릴 칸들. **두 가지를 미리 갈라 둔다** (`splitLabel`).
  *
- * ① **쉼표로 이어 붙인 라벨은 조각으로 나눈다.** 가운뎃점으로 잇던 때 `13번째 실험 · K-평균 · ml.js ·
- * 내 컴퓨터`가 아무 데서나 접혀 `ml.js` / `내 컴퓨터`처럼 한 이름이 두 줄로 갈렸다.
- * 조각마다 덩어리로 다니게 하면 **접히는 자리가 쉼표 뒤뿐**이 된다.
+ * ① **나열 기호(`, `·`、`)로 이어 붙인 라벨은 조각으로 나눈다.** 가운뎃점으로 잇던 때
+ * `13번째 실험 · K-평균 · ml.js · 내 컴퓨터`가 아무 데서나 접혀 `ml.js` / `내 컴퓨터`처럼
+ * 한 이름이 두 줄로 갈렸다. 조각마다 덩어리로 다니게 하면 **접히는 자리가 나열 기호 뒤뿐**이 된다.
+ * 일본어는 `、`로 잇는다 — 그것을 안 보면 일본어 라벨은 통째로 한 조각이라 끝이 아닌
+ * 자리의 병기 괄호가 보호되지 않는다.
  *
  * ② **병기 괄호를 뗀다** (`splitTerm`). 조각 안에서도 같은 규칙이 걸린다.
  *
  * 라벨이 번역된 문장이라 여기서 뜻을 읽지는 않는다 - 나누는 규칙은 문구 규약이지
  * 이 축의 어휘가 아니다.
  */
-const cells = computed(() =>
-  props.items.map((item) => {
-    const pieces = item.label.split(JOINER)
-    return {
-      item,
-      parts: pieces.map((piece, index) => ({
-        ...splitTerm(piece),
-        // 쉼표는 앞 조각에 붙어 다닌다 - 안 그러면 줄 첫머리에 쉼표가 선다.
-        tail: index < pieces.length - 1 ? ',' : '',
-      })),
-    }
-  }),
-)
+const cells = computed(() => props.items.map((item) => ({ item, parts: splitLabel(item.label) })))
 </script>
 
 <template>
@@ -184,12 +168,13 @@ const cells = computed(() =>
           두 조각을 한 줄에 붙여 둔 것도 규칙이다 - 사이에 줄바꿈을 넣으면 Vue가 공백 한
           칸으로 읽어 `의사결정트리 (Decision Tree)`가 된다. 조각 사이의 공백은 그래서
           줄바꿈이 아니라 **보간으로** 넣는다 - 여백 정리가 지워 버리지 않는 유일한 방법이다.
+          공백은 라벨에 있던 만큼만 넣는다(`gap`) — 일본어 `、` 뒤에는 없다.
         -->
         <template v-for="(part, index) in cell.parts" :key="index"
           ><span class="inline-block"
             >{{ part.head }}<span v-if="part.term" class="inline-block">{{ part.term }}</span
             >{{ part.tail }}</span
-          >{{ index < cell.parts.length - 1 ? ' ' : '' }}</template
+          >{{ part.gap }}</template
         >
       </button>
     </div>

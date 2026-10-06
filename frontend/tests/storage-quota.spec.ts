@@ -16,9 +16,8 @@ import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
-import en from '../src/locales/en.json'
-import ko from '../src/locales/ko.json'
 import { closeStorage, loadProject, saveProject } from '../src/project/storage'
+import { LOCALE_MESSAGES } from './fixtures/locales'
 import { manifest, projectFile } from './fixtures/project'
 import { refuseWrites } from './fixtures/storage-refusal'
 import { resetDatabase } from './fixtures/database'
@@ -93,9 +92,11 @@ describe('결정 73: 실제 쿼터 오류', () => {
 
   /** **문구도 수를 말하지 않는다.** 얼마가 모자란지 모르는 자리에서 0MB를 말하면 거짓이다. */
   it('알림 문구에 자리표시자도 숫자도 없다', () => {
-    for (const message of [ko.client.STORAGE_QUOTA_EXCEEDED, en.client.STORAGE_QUOTA_EXCEEDED]) {
-      expect(message, 'no placeholder').not.toMatch(/[{}]/)
-      expect(message, 'no number').not.toMatch(/\d|MB/)
+    for (const [tag, messages] of LOCALE_MESSAGES) {
+      const message = messages.get('client.STORAGE_QUOTA_EXCEEDED')
+      expect(message, `${tag} has the message`).toBeDefined()
+      expect(message, `${tag}: no placeholder`).not.toMatch(/[{}]/)
+      expect(message, `${tag}: no number`).not.toMatch(/\d|MB/)
     }
   })
 })

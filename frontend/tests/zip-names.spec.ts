@@ -39,6 +39,12 @@ const CP949_RED = [0xbb, 0xa1, 0xb0, 0xa3, 0xb3, 0xd7, 0xb8, 0xf0, 0x2f, 0x61, 0
 /** 같은 이름을 UTF-8로 적고 **플래그만 빠뜨린** 압축 파일. 리눅스 `zip`이 이렇게 만든다. */
 const UTF8_RED = [0xeb, 0xb9, 0xa8, 0xea, 0xb0, 0x84, 0xeb, 0x84, 0xa4, 0xeb, 0xaa, 0xa8, 0x2f, 0x61, 0x2e, 0x70, 0x6e, 0x67] // prettier-ignore
 
+/**
+ * 일본어 윈도 탐색기가 Shift_JIS로 적은 `赤い四角/a.png`. python `'赤い四角'.encode('shift_jis')`의
+ * 바이트다(사람 확인). 첫 바이트 `0x90`이 UTF-8의 시작 바이트가 아니라 UTF-8로는 안 읽힌다.
+ */
+const SHIFT_JIS_RED = [0x90, 0xd4, 0x82, 0xa2, 0x8e, 0x6c, 0x8a, 0x70, 0x2f, 0x61, 0x2e, 0x70, 0x6e, 0x67] // prettier-ignore
+
 /** 독일어 `Größe/a.png`. **진짜 Latin-1이라 지금도 잘 읽힌다** — 이게 안 깨져야 한다. */
 const LATIN1_GROESSE = [0x47, 0x72, 0xf6, 0xdf, 0x65, 0x2f, 0x61, 0x2e, 0x70, 0x6e, 0x67] // prettier-ignore
 
@@ -160,6 +166,29 @@ describe('압축 파일 이름 되살리기', () => {
     expect(decodeZipNames([asFflateWouldRead(CP949_RED)], { locale: 'ko' })).toEqual([
       '빨간네모/a.png',
     ])
+  })
+
+  it('일본어 화면에서는 Shift_JIS로 읽는다', () => {
+    expect(decodeZipNames([asFflateWouldRead(SHIFT_JIS_RED)], { locale: 'ja' })).toEqual([
+      '赤い四角/a.png',
+    ])
+  })
+
+  it('다른 언어의 코드 페이지로는 추정하지 않는다', () => {
+    // 한국어 화면에서는 `euc-kr` 하나만 후보이고, 이 바이트는 그것으로 엄격하게 안 읽힌다.
+    const given = asFflateWouldRead(SHIFT_JIS_RED)
+    expect(decodeZipNames([given], { locale: 'ko' })).toEqual([given])
+  })
+
+  /**
+   * **ja의 `script`는 한자까지 인정하므로** `Größe`를 Shift_JIS로 읽었을 때 한자가 나오면
+   * 진짜 Latin-1 이름이 깨진다. 나오지 않는다는 것을 여기서 못 박는다.
+   */
+  it('가나·한자가 안 나오면 안 바꾼다 — 일본어 화면의 진짜 Latin-1인 이름', () => {
+    for (const bytes of [LATIN1_GROESSE, LATIN1_CAFE]) {
+      const given = asFflateWouldRead(bytes)
+      expect(decodeZipNames([given], { locale: 'ja' })).toEqual([given])
+    }
   })
 
   it('언어를 모르면 코드 페이지를 추정하지 않는다', () => {

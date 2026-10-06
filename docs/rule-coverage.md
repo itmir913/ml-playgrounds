@@ -126,7 +126,7 @@
 | §1.1 http로 띄운 자가호스팅에서도 도는가 | `secure-context-rules.spec.ts` |
 | zip 엔트리를 옛 이름으로 부르는 주석 | `entry-names.spec.ts` |
 | 종류마다 갈리는 문구의 키를 조립하지 않는가 | `ui-rules.spec.ts` |
-| 등록부가 가리키는 문구가 두 언어에 있는가 | `kinds.spec.ts` |
+| 등록부가 가리키는 문구가 모든 언어에 있는가 | `kinds.spec.ts` |
 | 준비 문구 두 벌이 함께 서는가 | `kinds.spec.ts` |
 | 예측이 화면에 양보하는가 | `ui-rules.spec.ts` · `src/screen.ts` |
 | 예측이 떠나면 멈추는가 | `ui-rules.spec.ts` |

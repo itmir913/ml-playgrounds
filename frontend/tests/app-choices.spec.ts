@@ -3,7 +3,7 @@
  * 축 하나의 미니 카드 (`components/AppChoices.vue`).
  *
  * **글자가 칸을 뚫고 나간 적이 있다.** 그래서 이 컴포넌트는 라벨을 조각으로 나눠
- * 그리는데(가운뎃점마다, 그리고 병기 괄호 앞), **나눠 그린 것이 원래 문장과 같은
+ * 그리는데(나열 기호 `, `·`、`마다, 그리고 병기 괄호 앞), **나눠 그린 것이 원래 문장과 같은
  * 글자여야 한다.** 공백 하나가 새거나 빠지면 `의사결정트리 (Decision Tree)`나
  * `ml.js· 내 컴퓨터`가 되는데, 눈으로만 보이고 타입에도 린트에도 안 걸린다.
  */
@@ -31,6 +31,13 @@ describe('나눠 그려도 글자는 그대로다', () => {
   it('쉼표로 이어 붙인 라벨', () => {
     expect(textOf('13번째 실험, K-평균(K-Means), ml.js · 내 컴퓨터')).toBe(
       '13번째 실험, K-평균(K-Means), ml.js · 내 컴퓨터',
+    )
+  })
+
+  /** 일본어는 `、`로 잇고 뒤에 공백이 없다 — 조각 사이에 칸이 새로 생기면 안 된다. */
+  it('`、`로 이어 붙인 일본어 라벨', () => {
+    expect(textOf('13回目の実験、決定木(Decision Tree)、ml.js · このコンピュータ')).toBe(
+      '13回目の実験、決定木(Decision Tree)、ml.js · このコンピュータ',
     )
   })
 
@@ -89,5 +96,28 @@ describe('접히는 자리를 정해 둔다', () => {
     })
 
     expect(wrapper.findAll('button > span.inline-block')[0]?.text()).toBe('13번째 실험,')
+  })
+
+  /**
+   * **일본어 라벨도 조각으로 다닌다.** `、`를 안 보던 때는 일본어 라벨이 통째로 한 조각이라
+   * 끝이 아닌 자리의 병기 괄호(`決定木(Decision Tree)`)가 안 떼어졌다.
+   */
+  it('일본어 `、`에서도 갈리고 병기 괄호가 떨어진다', () => {
+    const wrapper = mount(AppChoices, {
+      props: {
+        label: '軸',
+        items: [
+          { id: 'a', label: '決定木(Decision Tree)、ml.js · このコンピュータ', enabled: true },
+        ],
+      },
+      global: { plugins: [i18n] },
+    })
+
+    const pieces = wrapper.findAll('button > span.inline-block')
+    expect(pieces.map((piece) => piece.text())).toEqual([
+      '決定木(Decision Tree)、',
+      'ml.js · このコンピュータ',
+    ])
+    expect(pieces[0]?.find('span.inline-block').text()).toBe('(Decision Tree)')
   })
 })

@@ -17,11 +17,8 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-import en from '../src/locales/en.json'
-import ko from '../src/locales/ko.json'
+import { LOCALE_TREES } from './fixtures/locales'
 import { sourceFiles, withoutComments } from './fixtures/source'
-
-const LOCALES: Record<string, unknown> = { ko, en }
 
 /**
  * 바깥 문구의 칸에 **다른 문구가 들어가는** 자리들.
@@ -61,7 +58,7 @@ function messageAt(locale: string, key: string): string {
     return typeof node === 'object' && node !== null
       ? (node as Record<string, unknown>)[part]
       : undefined
-  }, LOCALES[locale])
+  }, LOCALE_TREES.get(locale))
   if (typeof found !== 'string') throw new Error(`missing key ${key} in locale ${locale}`)
   return found
 }
@@ -79,6 +76,9 @@ function messageAt(locale: string, key: string): string {
  *
  * **거짓 빨강은 거짓 초록만큼 나쁘다** — 관문을 세우고, 다음 사람은 규칙이 아니라
  * 문구를 고친다.
+ *
+ * **일본어에서는 무르다.** 띄어쓰기가 없어 `、`·`。`·기호 사이의 한 덩어리가 낱말 하나로
+ * 잡히므로, 덩어리가 통째로 같을 때만 운다. 형태소로 가르지 않는 한 더 좁힐 수 없다.
  */
 function words(message: string): Set<string> {
   const frame = message.replace(/\{[^}]*\}/g, ' ').toLowerCase()
@@ -102,7 +102,7 @@ describe('문구 안에 문구를 넣는 자리', () => {
     expect(sites.map((site) => site.outer)).toContain('predict.clusterEvidenceOpen')
   })
 
-  it.each(Object.keys(LOCALES))('%s — 안쪽 낱말을 바깥이 다시 적지 않는다', (locale) => {
+  it.each([...LOCALE_TREES.keys()])('%s — 안쪽 낱말을 바깥이 다시 적지 않는다', (locale) => {
     const doubled = sites.flatMap((site) => {
       const shared = [...words(messageAt(locale, site.inner))].filter((word) =>
         words(messageAt(locale, site.outer)).has(word),

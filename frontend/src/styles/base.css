@@ -108,6 +108,22 @@
   }
 
   /*
+   * **일본어는 `keep-all`을 풀고 문절에서 끊는다.**
+   *
+   * 일본어 문장은 띄어쓰기가 없어서 `keep-all` 아래에서는 `、`·`。` 사이가 통째로 한
+   * 덩어리가 되고, 좁은 칸에서는 `overflow-wrap`이 아무 데서나 자른다. `auto-phrase`는 문절 경계에서
+   * 끊는다(Chrome·Edge). 모르는 브라우저는 그 줄을 버리고 앞 줄의 `normal`(글자 단위)로
+   * 떨어진다 — 일본어 조판의 기본값이라 깨지지는 않는다. `:lang(ja)`는 `<html lang>`을
+   * 따르고, 그 값은 `src/i18n.ts`의 `applyLocale`이 현재 선택으로 맞춘다.
+   *
+   * 어느 쪽에서 끊기는지는 CSS 뒤라 검사가 못 본다 — 사람 확인이다.
+   */
+  body:lang(ja) {
+    word-break: normal;
+    word-break: auto-phrase;
+  }
+
+  /*
    * 키보드 이동이 보이지 않으면 학생이 화면에서 길을 잃는다.
    * 마우스 클릭에는 나타나지 않게 :focus-visible을 쓴다.
    */

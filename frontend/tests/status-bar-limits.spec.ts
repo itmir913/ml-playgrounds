@@ -15,7 +15,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import AppStatusBar from '../src/components/AppStatusBar.vue'
-import { i18n, setLocale } from '../src/i18n'
+import { i18n, setLocale, SUPPORTED_LOCALES } from '../src/i18n'
 import { applyLimitsOff } from '../src/limits-switch'
 import type { DataType } from '../src/project/schema'
 import { useProjectStore } from '../src/stores/project'
@@ -195,7 +195,7 @@ describe('상한 칩의 이름이 상태를 말한다', () => {
  * 기대는 옳고 도구가 자리를 안 보는 것이라, 그 전제를 여기서 한 줄로 못 박는다.
  */
 describe('두 위험 문장이 서로의 부분이 아니다', () => {
-  for (const tag of ['ko', 'en'] as const) {
+  for (const tag of SUPPORTED_LOCALES) {
     it(`${tag}에서 서로를 안 품는다`, async () => {
       await setLocale(tag)
       const risk = i18n.global.t('shell.limitsRisk')

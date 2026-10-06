@@ -1,7 +1,7 @@
 /**
  * vue-i18n 설정.
  *
- * 지원 언어는 배열 하나로 관리한다. en/ko 두 개를 가정한 분기를 만들지 마라 - ja가 추가된다.
+ * 지원 언어는 배열 하나로 관리한다. 특정 언어를 가정한 분기를 만들지 마라.
  * 언어를 늘릴 때 고쳐야 하는 곳은 SUPPORTED_LOCALES와 messages 두 줄뿐이어야 한다.
  *
  * 초기값은 저장된 선택 > navigator 언어 > 대체 언어 순으로 결정한다.
@@ -11,10 +11,11 @@
 import { createI18n } from 'vue-i18n'
 
 import en from './locales/en.json'
+import ja from './locales/ja.json'
 import ko from './locales/ko.json'
 import { readPreferredLocale, writePreferredLocale } from './project/storage'
 
-export const SUPPORTED_LOCALES = ['en', 'ko'] as const
+export const SUPPORTED_LOCALES = ['en', 'ko', 'ja'] as const
 
 export type Locale = (typeof SUPPORTED_LOCALES)[number]
 
@@ -23,7 +24,7 @@ export const FALLBACK_LOCALE: Locale = 'en'
 
 // satisfies를 쓰는 이유: 메시지 내용의 타입 추론은 살리면서,
 // SUPPORTED_LOCALES에 언어를 추가하고 여기를 빠뜨리면 컴파일이 깨지게 하려는 것이다.
-const messages = { en, ko } satisfies Record<Locale, unknown>
+const messages = { en, ko, ja } satisfies Record<Locale, unknown>
 
 export function isSupportedLocale(value: unknown): value is Locale {
   return typeof value === 'string' && (SUPPORTED_LOCALES as readonly string[]).includes(value)
@@ -144,4 +145,44 @@ export function splitTerm(label: string): { head: string; term: string | null } 
   const match = /^(.+?)(\([^()]*\))$/.exec(label)
   if (!match || match[1] === undefined || match[2] === undefined) return { head: label, term: null }
   return { head: match[1], term: match[2] }
+}
+
+/**
+ * 라벨을 이을 때 로케일이 쓰는 나열 기호. 영어·한국어는 `, `, 일본어는 `、`다
+ * (`predict.modelName` 등, `docs/copy.md` §7.1 "문장 안의 나열은 `、`").
+ *
+ * **가운뎃점으로는 가르지 않는다** — 그것을 쓰는 학습 환경 이름(`ml.js · 내 컴퓨터`)은 이름
+ * 하나라 한 조각으로 다녀야 한다. `app-choices.spec.ts` "조각마다 덩어리로 다닌다"가 문다.
+ */
+const LIST_SEPARATOR = /(, |、)/u
+
+/** 라벨의 한 조각. 넷을 차례로 이으면 원래 라벨이다. */
+export interface LabelPart {
+  /** 병기 괄호 앞의 본체. */
+  readonly head: string
+  /** 끝에 붙은 병기 괄호. 없으면 `null`. */
+  readonly term: string | null
+  /** 조각 뒤에 붙어 다니는 나열 기호(`,`·`、`). 마지막 조각은 빈 문자열이다. */
+  readonly tail: string
+  /** 나열 기호 뒤의 공백. `, `는 한 칸, `、`는 없다. */
+  readonly gap: string
+}
+
+/**
+ * 나열 기호로 이은 라벨을 조각으로 가르고, 조각마다 병기 괄호를 뗀다 (`AppChoices`).
+ *
+ * **나열 기호는 앞 조각에 붙인다** — 안 그러면 줄 첫머리에 쉼표가 선다. 기호 뒤의 공백은
+ * 따로 돌려준다(`gap`). 일본어 `、` 뒤에는 공백이 없으므로, 공백을 늘 넣으면 화면에 없던
+ * 칸이 생긴다. 검사: `i18n.spec.ts` "splitLabel".
+ */
+export function splitLabel(label: string): LabelPart[] {
+  const tokens = label.split(LIST_SEPARATOR)
+  const parts: LabelPart[] = []
+  // 붙잡는 괄호가 있어 `[조각, 기호, 조각, 기호, …, 조각]`으로 온다.
+  for (let index = 0; index < tokens.length; index += 2) {
+    const separator = tokens[index + 1] ?? ''
+    const tail = separator.trimEnd()
+    parts.push({ ...splitTerm(tokens[index] ?? ''), tail, gap: separator.slice(tail.length) })
+  }
+  return parts
 }

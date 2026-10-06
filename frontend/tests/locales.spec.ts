@@ -15,6 +15,10 @@
  * 키 집합이 같아야 하고, 각 문장의 보간 변수도 같아야 한다.
  * 번역하다 {limitMb} 하나를 빠뜨리면 사용자는 숫자 없는 문장을 보게 된다.
  * CI 스크립트가 errors.py까지 포함해 같은 검사를 하지만, 개발 중에 즉시 잡히도록 여기도 둔다.
+ *
+ * **언어마다 같은 것을 요구하는 검사는 `LOCALE_MESSAGES` 전부를 돈다** (`fixtures/locales.ts`).
+ * 등록부와 짝짓는 검사들이 `english`·`korean`만 보는 것은 키 집합이 모든 로케일에서
+ * 같다는 맨 위 검사가 나머지 언어를 덮기 때문이다.
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
@@ -22,6 +26,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { LOCALE_MESSAGES, LOCALE_TAGS, messagesOf } from './fixtures/locales'
 import { sourceFiles } from './fixtures/source'
 import { matches, RETIRED_WORDS, retiredIn } from './fixtures/retired-words'
 
@@ -34,8 +39,6 @@ import {
   SHARED_ERROR_CODES,
   errorMessageKey,
 } from '../src/errors'
-import en from '../src/locales/en.json'
-import ko from '../src/locales/ko.json'
 import { ALGORITHMS } from '../src/ml/algorithms'
 import { ENGINE_STATES, RUNTIMES, TRAINING_LOCATIONS, UNAVAILABLE_REASONS } from '../src/ml/backend'
 import { parametersFor } from '../src/ml/hyperparams'
@@ -65,23 +68,6 @@ import {
   type StepTextSlot,
 } from '../src/router/steps'
 
-type Tree = { [key: string]: string | Tree }
-
-function flatten(tree: Tree, prefix = ''): Map<string, string> {
-  const flat = new Map<string, string>()
-  for (const [key, value] of Object.entries(tree)) {
-    const path = prefix ? `${prefix}.${key}` : key
-    if (typeof value === 'string') {
-      flat.set(path, value)
-    } else {
-      for (const [nested, nestedValue] of flatten(value, path)) {
-        flat.set(nested, nestedValue)
-      }
-    }
-  }
-  return flat
-}
-
 /**
  * 문장 안의 보간 변수 이름들. **중복은 지운다.**
  *
@@ -94,8 +80,8 @@ function placeholders(message: string): string[] {
   return [...new Set([...message.matchAll(/\{(\w+)\}/g)].map((match) => match[1] ?? ''))].sort()
 }
 
-const english = flatten(en as Tree)
-const korean = flatten(ko as Tree)
+const english = messagesOf('en')
+const korean = messagesOf('ko')
 
 /** vitest는 vite.config.ts가 있는 곳에서 돈다. cwd가 frontend/ 다. */
 const SRC = join(process.cwd(), 'src')
@@ -104,39 +90,42 @@ const SRC = join(process.cwd(), 'src')
 const PORTFOLIO = join(process.cwd(), 'public', 'portfolio')
 if (!existsSync(SRC)) throw new Error(`src not found: ${SRC}`)
 
-/**
- * 실제로 실어 보내는 언어들. **`src/i18n.ts`에서 가져오지 않는다** — 그 모듈은 화면
- * 환경(navigator·document)에 닿아서, 이 스펙이 node 환경인 채로는 못 읽는다. 그리고
- * 여기서 물어야 하는 것은 "실린 언어마다 이름이 있는가"이므로 파일 목록이 곧 답이다.
- */
-const LOCALE_TAGS = readdirSync(join(SRC, 'locales'))
-  .filter((entry) => entry.endsWith('.json'))
-  .map((entry) => entry.replace(/\.json$/, ''))
+/** 영어를 뺀 로케일들. 영어가 기준이고 나머지가 그것과 같아야 한다. */
+const NON_ENGLISH = LOCALE_TAGS.filter((tag) => tag !== 'en')
 
 describe('로케일 파일', () => {
-  it('키 집합이 완전히 같다', () => {
-    expect([...korean.keys()].sort()).toEqual([...english.keys()].sort())
+  it('로케일 파일을 실제로 읽는다', () => {
+    // 픽스처가 파일을 못 찾으면 아래 검사가 전부 빈 목록을 돌며 초록이 된다.
+    expect(LOCALE_TAGS).toContain('en')
+    expect(NON_ENGLISH.length).toBeGreaterThan(0)
+  })
+
+  it.each(NON_ENGLISH)('%s의 키 집합이 영어와 완전히 같다', (tag) => {
+    expect([...messagesOf(tag).keys()].sort()).toEqual([...english.keys()].sort())
   })
 
   it('값의 앞뒤에 공백이 없다', () => {
     // **화면에서는 안 보이고 diff에서도 안 보인다.** 실제로 문장 끝에 공백 하나가
     // 딸려 들어왔다 (2026-08-13). 붙여 쓰는 자리(배지·버튼)에서는 칸이 한 칸 어긋나고,
-    // 두 언어 중 한쪽에만 있으면 아무도 그 차이를 못 찾는다.
-    const ragged = [...english.entries(), ...korean.entries()]
-      .filter(([, value]) => value !== value.trim())
-      .map(([key]) => key)
-    expect([...new Set(ragged)]).toEqual([])
+    // 여러 언어 중 한쪽에만 있으면 아무도 그 차이를 못 찾는다.
+    const ragged = [...LOCALE_MESSAGES].flatMap(([tag, messages]) =>
+      [...messages].filter(([, value]) => value !== value.trim()).map(([key]) => `${tag}: ${key}`),
+    )
+    expect(ragged).toEqual([])
   })
 
   it('모든 값이 비어 있지 않다', () => {
-    for (const [key, value] of [...english, ...korean]) {
-      expect(value.trim(), key).not.toBe('')
+    for (const [tag, messages] of LOCALE_MESSAGES) {
+      for (const [key, value] of messages) {
+        expect(value.trim(), `${tag}: ${key}`).not.toBe('')
+      }
     }
   })
 
-  it('같은 키의 보간 변수가 같다', () => {
+  it.each(NON_ENGLISH)('%s의 보간 변수가 같은 키의 영어와 같다', (tag) => {
+    const messages = messagesOf(tag)
     for (const [key, message] of english) {
-      expect(placeholders(korean.get(key) ?? ''), key).toEqual(placeholders(message))
+      expect(placeholders(messages.get(key) ?? ''), key).toEqual(placeholders(message))
     }
   })
 
@@ -890,6 +879,7 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
  * `[Clean up the data]`를 가리키고 있었다(2026-08-14).
  */
 function quotedLabels(strings: ReadonlyMap<string, string>): [string, string][] {
+  // 대괄호는 반각만 본다 — 일본어도 단추 이름을 `[...]`로 인용한다 (`docs/copy.md` §7.1).
   const found: [string, string][] = []
   for (const [key, text] of strings) {
     for (const match of text.matchAll(/\[([^[\]]+)\]/g)) {
@@ -916,10 +906,7 @@ describe('버튼을 이름으로 부르는 문구', () => {
     expect(quotedLabels(new Map([['a', '누르세요.']]))).toEqual([])
   })
 
-  for (const [locale, strings] of [
-    ['ko', korean],
-    ['en', english],
-  ] as const) {
+  for (const [locale, strings] of LOCALE_MESSAGES) {
     it(`${locale}이 부르는 이름이 전부 로케일에 있다`, () => {
       const labels = new Set([...strings.values()])
       expect(quotedLabels(strings).filter(([, name]) => !labels.has(name))).toEqual([])
@@ -934,8 +921,8 @@ describe('두 언어가 나란히 말한다', () => {
    * 값이 하나뿐인 키는 비교할 짝이 없으므로 보지 않는다.
    */
   function divergentTwins(
-    same: Map<string, string>,
-    other: Map<string, string>,
+    same: ReadonlyMap<string, string>,
+    other: ReadonlyMap<string, string>,
   ): readonly (readonly string[])[] {
     const byValue = new Map<string, string[]>()
     for (const [key, value] of same) {
@@ -1011,9 +998,68 @@ describe('두 언어가 나란히 말한다', () => {
     ['inspect.experiments', 'predict.filterExperiments', 'results.experiment'],
   ]
 
-  const allowed = new Set(ALLOWED.map(fingerprint))
+  /**
+   * 일본어와 한국어 사이에서 갈려도 되는 묶음. `ALLOWED`와 같은 규칙이다 — 줄마다 이유가
+   * 있고, 안 갈리게 된 줄은 아래 `죽은 줄이 없다`가 지우라고 말한다.
+   *
+   * **일본어를 영어가 아니라 한국어에 대는 이유**는 일본어가 한국어와 함께 읽혀 옮겨졌기
+   * 때문이다(`docs/copy.md` §7). 영어와 대면 영어 쪽 사정(복수형·명령형)이 한 번 더 섞인다.
+   */
+  const ALLOWED_JA_KO: readonly (readonly string[])[] = [
+    /**
+     * **아래 넷은 한 가지 이유다 — 한국어는 확인 단추를 `-하기`로 표시하고, 일본어 단추는
+     * 명사로 끝난다** (`docs/copy.md` §7.1 "단추·탭·메뉴는 명사로 끝낸다"). 화면의 단추와
+     * 대화상자의 확인 단추가 일본어에서 한 낱말(`削除`·`解除`·`追加`·`適用`)로 모인다.
+     */
+    [
+      'portfolio.removeConfirm',
+      'predict.image.remove',
+      'predict.tabular.fileRemove',
+      'preprocess.testImagesRemoveConfirm',
+      'projects.delete',
+      'results.deleteConfirm',
+    ],
+    ['preprocess.tabular.testDataRemove', 'preprocess.tabular.testDataRemoveConfirm'],
+    ['preprocess.testImagesAttachConfirm', 'train.addModel'],
+    ['data.charts.histogram.binApply', 'preprocess.tabular.testDataAttachConfirm'],
+    // 일본어 `なし`가 셋을 덮는다 — 영어 `None`과 같은 이유다(`ALLOWED`의 같은 줄).
+    // 한국어는 `하지 않음`(전처리를 안 한다)과 `없음`(값이 없다)이 다른 말이다.
+    ['categoricalEncoding.none', 'meta.none', 'scalingMethod.none'],
+    // 한국어는 프로젝트 파일의 `제목`과 목록의 `이름`을 가르지만 일본어는 `プロジェクト名`
+    // 하나다. 점검 화면에서 옆에 서는 학생 이름은 `氏名`이라 겹치지 않는다.
+    ['inspect.projectName', 'projects.name'],
+    // 한국어는 두 화면에서 동사만 달리 골랐고(`사용하는`·`들어가는`) 뜻은 같다.
+    // 일본어는 같은 뜻을 같은 말로 적었다.
+    ['meta.tabular.usableFeatures', 'preprocess.tabular.summaryFeatures'],
+    // 한국어는 고르는 자리(`학습 환경`)와 결과의 자리(`학습한 환경`)를 시제로 가른다.
+    // 일본어는 둘 다 `実行環境`이다 — 고를 때도 결과를 읽을 때도 가리키는 것이 같다.
+    ['results.where', 'train.pickRuntime'],
+    // 한국어 `실제 값`·`예측한 값`은 분류의 답과 회귀의 답을 함께 덮는다. 일본어는 분류의
+    // 답을 `クラス`, 회귀의 답을 `実測値`·`予測値`로 가른다 (`docs/copy.md` §7.3).
+    ['results.actual', 'results.cellActual', 'results.regression.axisActual'],
+    ['results.cellPredicted', 'results.regression.axisPredicted'],
+  ]
 
-  const twins = [...divergentTwins(korean, english), ...divergentTwins(english, korean)]
+  /**
+   * **나란히 대는 짝.** 짝마다 양방향으로 본다 — 한쪽에서 같은 문장이 다른 쪽에서 갈리는가.
+   * 로케일이 늘면 아래 `모든 로케일이 어느 짝에든 든다`가 짝을 하나 더 세우라고 말한다.
+   */
+  const PAIRS = [
+    { left: 'ko', right: 'en', allowed: ALLOWED },
+    { left: 'ja', right: 'ko', allowed: ALLOWED_JA_KO },
+  ] as const
+
+  /** 한 짝에서 갈리는 묶음 전부. 양방향을 합친다. */
+  function twinsOf(left: string, right: string): readonly (readonly string[])[] {
+    const one = messagesOf(left)
+    const other = messagesOf(right)
+    return [...divergentTwins(one, other), ...divergentTwins(other, one)]
+  }
+
+  it('모든 로케일이 어느 짝에든 든다', () => {
+    const paired = new Set<string>(PAIRS.flatMap((pair) => [pair.left, pair.right]))
+    expect(LOCALE_TAGS.filter((tag) => !paired.has(tag))).toEqual([])
+  })
 
   it('검사기가 한쪽만 고쳐진 묶음을 잡는다', () => {
     const same = new Map([
@@ -1051,15 +1097,18 @@ describe('두 언어가 나란히 말한다', () => {
     expect(divergentTwins(same, other)).toEqual([])
   })
 
-  it('허용 목록 밖에서 갈리는 묶음이 없다', () => {
-    const unexpected = twins.filter((keys) => !allowed.has(fingerprint(keys)))
-    expect(unexpected).toEqual([])
-  })
+  for (const { left, right, allowed } of PAIRS) {
+    it(`${left}↔${right}: 허용 목록 밖에서 갈리는 묶음이 없다`, () => {
+      const known = new Set(allowed.map(fingerprint))
+      const unexpected = twinsOf(left, right).filter((keys) => !known.has(fingerprint(keys)))
+      expect(unexpected).toEqual([])
+    })
 
-  it('허용 목록에 죽은 줄이 없다', () => {
-    const live = new Set(twins.map(fingerprint))
-    expect(ALLOWED.map(fingerprint).filter((entry) => !live.has(entry))).toEqual([])
-  })
+    it(`${left}↔${right}: 허용 목록에 죽은 줄이 없다`, () => {
+      const live = new Set(twinsOf(left, right).map(fingerprint))
+      expect(allowed.map(fingerprint).filter((entry) => !live.has(entry))).toEqual([])
+    })
+  }
 })
 
 /**
@@ -1076,7 +1125,18 @@ describe('번역이 빠진 값이 없다', () => {
     return /[A-Za-z]/.test(message.replaceAll(/\{\w+\}/g, ''))
   }
 
-  const HANGUL = /[가-힣]/
+  /**
+   * 로케일마다 **그 언어의 글자.** 번역된 값에는 이것이 있어야 하고, 다른 로케일의 값에는
+   * 없어야 한다. `null`은 라틴 문자라 따로 재지 않는다는 뜻이다 — 영어 값에 영어가 있는지는
+   * 라틴 문자를 쓰는 다른 언어와 못 가른다.
+   *
+   * 일본어는 가나와 한자다. 한자만 쓴 값(`回帰`·`前処理`)도 번역된 것이다.
+   */
+  const SCRIPTS: Readonly<Record<string, RegExp | null>> = {
+    en: null,
+    ko: /[가-힣]/u,
+    ja: /[぀-ヿ一-鿿]/u,
+  }
 
   /** 그 언어의 글자가 없어도 되는 자리. **줄마다 왜인지 적는다.** */
   const NOT_TRANSLATED: readonly string[] = [
@@ -1085,24 +1145,50 @@ describe('번역이 빠진 값이 없다', () => {
     // 언어 이름은 그 언어로 적는다 - 한국어 화면에서도 English를 찾을 수 있어야 한다.
     'language.en',
     'language.ko',
+    'language.ja',
     // 서비스 이름. `ml.js`·`scikit-learn`을 로마자로 적는 것과 같다 (`runtimes.*`).
     'legal.source',
   ]
 
-  it('한국어 값에 한글이 있다', () => {
-    const missing = [...korean]
-      .filter(([key]) => !NOT_TRANSLATED.includes(key))
-      .filter(([, value]) => hasWords(value) && !HANGUL.test(value))
-      .map(([key]) => key)
-    expect(missing).toEqual([])
+  /**
+   * **새 언어는 그대로 뚫린다** (`docs/cases/i18n.md`) — 영어를 채운 파일은 키도 변수도 맞아서
+   * 아무 검사에도 안 걸린다. 그래서 로케일 파일이 늘면 여기서 그 언어의 글자를 적으라고 운다.
+   */
+  it('모든 로케일이 그 언어의 글자를 밝힌다', () => {
+    expect(Object.keys(SCRIPTS).sort()).toEqual([...LOCALE_TAGS].sort())
   })
 
-  it('영어 값에 한글이 없다', () => {
-    const leftover = [...english]
-      .filter(([key]) => !NOT_TRANSLATED.includes(key))
-      .filter(([, value]) => HANGUL.test(value))
-      .map(([key]) => key)
-    expect(leftover).toEqual([])
+  for (const tag of LOCALE_TAGS) {
+    const own = SCRIPTS[tag] ?? null
+    const foreign = Object.entries(SCRIPTS).flatMap(([other, script]) =>
+      other !== tag && script !== null && script !== own ? [script] : [],
+    )
+    const messages = [...messagesOf(tag)].filter(([key]) => !NOT_TRANSLATED.includes(key))
+
+    if (own !== null) {
+      it(`${tag} 값에 그 언어의 글자가 있다`, () => {
+        const missing = messages
+          .filter(([, value]) => hasWords(value) && !own.test(value))
+          .map(([key]) => key)
+        expect(missing).toEqual([])
+      })
+    }
+
+    it(`${tag} 값에 다른 로케일의 글자가 없다`, () => {
+      const leftover = messages
+        .filter(([, value]) => foreign.some((script) => script.test(value)))
+        .map(([key]) => key)
+      expect(leftover).toEqual([])
+    })
+  }
+
+  it('검사기가 다른 로케일의 글자를 잡는다 - 한국어로 남은 일본어 값', () => {
+    const ja = SCRIPTS.ja ?? null
+    const ko = SCRIPTS.ko ?? null
+    expect(ko?.test('学習中です。')).toBe(false)
+    expect(ko?.test('학습 중')).toBe(true)
+    expect(ja?.test('学習中')).toBe(true)
+    expect(ja?.test('Training')).toBe(false)
   })
 
   it('검사기가 기호와 자리표시자만 남은 값은 안 잡는다', () => {
@@ -1158,34 +1244,44 @@ describe('수렴 경고는 전처리 스케일링을 가리킨다', () => {
     expect(named.length).toBe(5)
   })
 
-  it('한국어가 스케일링을 말한다', () => {
-    const silent = SCALING_HELPS.filter(
-      (code) => !(korean.get(`client.${code}`) ?? '').includes('스케일링'),
-    )
-    expect(silent).toEqual([])
-  })
-
-  it('영어가 스케일링을 말한다', () => {
-    const silent = SCALING_HELPS.filter(
-      (code) => !(english.get(`client.${code}`) ?? '').includes('Scaling'),
-    )
-    expect(silent).toEqual([])
-  })
-
   /**
-   * **권하지 않는 것까지 못 박는다.** 안 그러면 다음 사람이 "이웃과 같은 문장을 쓰자"고
-   * 스케일링을 넣고, 그 문장은 실측과 반대다.
+   * 로케일마다 그 두 낱말. **버튼 이름이 아니라 낱말이라 로케일에서 읽을 수 없다** — 그래서
+   * 여기 적고, 로케일이 늘면 아래 `모든 로케일이 낱말을 밝힌다`가 한 줄을 요구한다.
+   * 일본어는 `docs/copy.md` §7.3 용어표의 `スケーリング`이다.
    */
-  it('회귀 쪽은 스케일링을 권하지 않고 손실 곡선을 가리킨다', () => {
-    for (const code of SCALING_HURTS) {
-      const ko = korean.get(`client.${code}`) ?? ''
-      const en = english.get(`client.${code}`) ?? ''
-      expect(ko, code).not.toContain('스케일링')
-      expect(en, code).not.toContain('Scaling')
-      expect(ko, code).toContain('손실 곡선')
-      expect(en, code).toContain('loss curve')
+  const WORDS: Readonly<Record<string, { readonly scaling: string; readonly lossCurve: string }>> =
+    {
+      en: { scaling: 'Scaling', lossCurve: 'loss curve' },
+      ko: { scaling: '스케일링', lossCurve: '손실 곡선' },
+      ja: { scaling: 'スケーリング', lossCurve: '損失曲線' },
     }
+
+  it('모든 로케일이 낱말을 밝힌다', () => {
+    expect(Object.keys(WORDS).sort()).toEqual([...LOCALE_TAGS].sort())
   })
+
+  for (const [tag, words] of Object.entries(WORDS)) {
+    it(`${tag}이 스케일링을 말한다`, () => {
+      const messages = messagesOf(tag)
+      const silent = SCALING_HELPS.filter(
+        (code) => !(messages.get(`client.${code}`) ?? '').includes(words.scaling),
+      )
+      expect(silent).toEqual([])
+    })
+
+    /**
+     * **권하지 않는 것까지 못 박는다.** 안 그러면 다음 사람이 "이웃과 같은 문장을 쓰자"고
+     * 스케일링을 넣고, 그 문장은 실측과 반대다.
+     */
+    it(`${tag}의 회귀 쪽은 스케일링을 권하지 않고 손실 곡선을 가리킨다`, () => {
+      const messages = messagesOf(tag)
+      for (const code of SCALING_HURTS) {
+        const message = messages.get(`client.${code}`) ?? ''
+        expect(message, code).not.toContain(words.scaling)
+        expect(message, code).toContain(words.lossCurve)
+      }
+    })
+  }
 })
 
 /**
@@ -1216,10 +1312,7 @@ describe('상한이 막으면 푸는 자리를 함께 말한다', () => {
     'IMAGE_TOO_LARGE_FOR_BROWSER',
   ] as const
 
-  for (const [locale, strings] of [
-    ['ko', korean],
-    ['en', english],
-  ] as const) {
+  for (const [locale, strings] of LOCALE_MESSAGES) {
     it(`${locale}이 여섯 곳에서 [상한 해제]를 부른다`, () => {
       // **버튼의 이름을 여기에 다시 쓰지 않는다.** 로케일에서 읽어야 이름을 바꿨을 때
       // 이 스펙이 함께 따라간다 — 박아 두면 이름이 갈린 것을 못 본다.

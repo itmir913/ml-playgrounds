@@ -13,8 +13,10 @@ import {
   SUPPORTED_LOCALES,
   isSupportedLocale,
   resolveLocale,
+  splitLabel,
   splitTerm,
 } from '../src/i18n'
+import { LOCALE_TAGS } from './fixtures/locales'
 
 describe('resolveLocale', () => {
   it('저장된 선택이 있으면 브라우저 설정보다 우선한다', () => {
@@ -29,6 +31,7 @@ describe('resolveLocale', () => {
   it('지역 태그를 기본 태그로 떨어뜨린다', () => {
     expect(resolveLocale(null, ['ko-KR'])).toBe('ko')
     expect(resolveLocale(null, ['en-GB'])).toBe('en')
+    expect(resolveLocale(null, ['ja-JP'])).toBe('ja')
   })
 
   it('선호 목록의 앞쪽을 먼저 쓴다', () => {
@@ -51,13 +54,23 @@ describe('isSupportedLocale', () => {
     for (const locale of SUPPORTED_LOCALES) {
       expect(isSupportedLocale(locale)).toBe(true)
     }
-    expect(isSupportedLocale('ja')).toBe(false)
+    expect(isSupportedLocale('fr')).toBe(false)
+    expect(isSupportedLocale('ja-JP')).toBe(false)
     expect(isSupportedLocale(null)).toBe(false)
     expect(isSupportedLocale(42)).toBe(false)
   })
 
   it('대체 언어는 반드시 지원 목록 안에 있다', () => {
     expect(isSupportedLocale(FALLBACK_LOCALE)).toBe(true)
+  })
+
+  /**
+   * **로케일 파일과 지원 목록이 같다.** 로케일 계약 검사들은 파일 목록을 돈다
+   * (`fixtures/locales.ts`) — 지원 목록에만 있고 파일이 없거나, 파일만 있고 목록에 없으면
+   * 검사가 보는 언어와 학생이 고르는 언어가 갈린다.
+   */
+  it('로케일 파일 목록이 지원 목록과 같다', () => {
+    expect([...LOCALE_TAGS]).toEqual([...SUPPORTED_LOCALES].sort())
   })
 })
 
@@ -84,6 +97,43 @@ describe('splitTerm', () => {
 
   it('영어 라벨에는 아무 일도 하지 않는다 - 병기가 없다', () => {
     expect(splitTerm('Decision tree')).toEqual({ head: 'Decision tree', term: null })
+  })
+})
+
+describe('splitLabel', () => {
+  /** 조각을 차례로 이은 글자. 원래 라벨과 같아야 한다 — 공백 하나도 새거나 빠지면 안 된다. */
+  function rejoin(label: string): string {
+    return splitLabel(label)
+      .map((part) => `${part.head}${part.term ?? ''}${part.tail}${part.gap}`)
+      .join('')
+  }
+
+  it('쉼표 뒤에서 가르고 쉼표는 앞 조각에, 공백은 따로 둔다', () => {
+    expect(splitLabel('13번째 실험, 의사결정트리(Decision Tree)')).toEqual([
+      { head: '13번째 실험', term: null, tail: ',', gap: ' ' },
+      { head: '의사결정트리', term: '(Decision Tree)', tail: '', gap: '' },
+    ])
+  })
+
+  /** 일본어는 `、`로 잇고 뒤에 공백이 없다 (`docs/copy.md` §7.1). */
+  it('일본어 `、` 뒤에서도 가르고 없던 공백을 만들지 않는다', () => {
+    expect(splitLabel('決定木(Decision Tree)、ml.js · このコンピュータ')).toEqual([
+      { head: '決定木', term: '(Decision Tree)', tail: '、', gap: '' },
+      { head: 'ml.js · このコンピュータ', term: null, tail: '', gap: '' },
+    ])
+  })
+
+  it('가운뎃점으로는 가르지 않는다 - 학습 환경 이름은 한 이름이다', () => {
+    expect(splitLabel('ml.js · 내 컴퓨터')).toHaveLength(1)
+  })
+
+  it.each([
+    '13번째 실험, K-평균(K-Means), ml.js · 내 컴퓨터',
+    'Experiment 13, k-means, ml.js · This computer',
+    '13回目の実験、k-means法(K-Means)、ml.js · このコンピュータ',
+    '군집화',
+  ])('이어 붙이면 원래 라벨이다 (%s)', (label) => {
+    expect(rejoin(label)).toBe(label)
   })
 })
 

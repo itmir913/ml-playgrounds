@@ -16,6 +16,8 @@
 
 import { describe, expect, it } from 'vitest'
 
+import { LOCALE_TREES } from './fixtures/locales'
+
 import {
   dataKindFor,
   lockedSentence,
@@ -23,8 +25,6 @@ import {
   stepTextKey,
   SUPPORTED_DATA_TYPES,
 } from '../src/data/kinds'
-import en from '../src/locales/en.json'
-import ko from '../src/locales/ko.json'
 import { DATA_TYPES } from '../src/project/schema'
 import { KIND_SPECIFIC_STEP_TEXT } from '../src/router/steps'
 
@@ -95,7 +95,7 @@ describe('데이터 종류 등록부', () => {
    * 것으로 친다** — 그래서 오타 하나면 화면에 키 문자열이 그대로 뜨는데 관문은 초록이다.
    * 실제로 문구를 `steps.{단계}.{종류}` 아래로 옮긴 뒤 오타를 넣어 확인했다.
    */
-  it('등록부가 가리키는 문구가 두 언어에 다 있다', () => {
+  it('등록부가 가리키는 문구가 모든 언어에 다 있다', () => {
     const value = (locale: object, key: string): unknown =>
       key.split('.').reduce<unknown>((node, part) => {
         return typeof node === 'object' && node !== null
@@ -119,8 +119,12 @@ describe('데이터 종류 등록부', () => {
       ] as [string, string][]
 
       for (const [where, key] of named) {
-        expect(typeof value(ko, key), `ko is missing ${key} (${dataType} ${where})`).toBe('string')
-        expect(typeof value(en, key), `en is missing ${key} (${dataType} ${where})`).toBe('string')
+        for (const [tag, tree] of LOCALE_TREES) {
+          expect(
+            typeof value(tree as object, key),
+            `${tag} is missing ${key} (${dataType} ${where})`,
+          ).toBe('string')
+        }
       }
     }
   })
@@ -151,8 +155,9 @@ describe('데이터 종류 등록부', () => {
     for (const { step, slot } of KIND_SPECIFIC_STEP_TEXT) {
       const fallback = stepTextKey(undefined, step, slot)
       expect(fallback, `${step}.${slot}`).toBe(`steps.${step}.${slot}`)
-      expect(value(ko, fallback), `ko must not have ${fallback}`).toBeUndefined()
-      expect(value(en, fallback), `en must not have ${fallback}`).toBeUndefined()
+      for (const [tag, tree] of LOCALE_TREES) {
+        expect(value(tree as object, fallback), `${tag} must not have ${fallback}`).toBeUndefined()
+      }
     }
   })
 

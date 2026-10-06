@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<!--
+  개인정보 처리방침 일본어판 — **번역이다. 정본은 `privacy.ko.html`이다.**
+
+  조 번호와 `article-N` 앵커를 한국어판과 똑같이 둔다. 학교는 심의 서류에 조를
+  번호로 적는다 — 여기서 번호를 다시 매기면 이미 나간 서류가 엉뚱한 곳을 가리킨다.
+  `frontend/tests/legal.spec.ts`가 둘 다 막는다.
+
+  **원본에 없는 것은 셋이다** — 머리의 정본 문단, 제10조 기관 이름의 원어 병기,
+  제10조의 `大韓民国` 명시. 한국어판을 고칠 때 이 셋은 옮겨 올 대상이 아니다.
+
+  **일본어 문장은 소스에서 줄을 접지 않는다.** 띄어쓰기가 없는 글이라 소스의 줄바꿈이
+  브라우저에서 문장 한가운데의 공백으로 그려진다. 한 문단의 글은 한 줄에 둔다.
+
+  앱 번들 밖이라 Tailwind가 없다. 스타일은 이 파일이 전부 갖는다.
+-->
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>プライバシーポリシー | Machine Learning Playgrounds</title>
+    <style>
+        :root {
+            --ink: #1f2937;
+            --ink-soft: #4b5563;
+            --ink-faint: #6b7280;
+            --surface: #ffffff;
+            --canvas: #f8fafc;
+            --line: #e2e8f0;
+            --brand: #4f46e5;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --ink: #e5e7eb;
+                --ink-soft: #cbd5e1;
+                --ink-faint: #94a3b8;
+                --surface: #111827;
+                --canvas: #0b1120;
+                --line: #1f2937;
+                --brand: #a5b4fc;
+            }
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 2.5rem 1.25rem 5rem;
+            background: var(--canvas);
+            color: var(--ink);
+            /* 학교 PC에 없는 글꼴을 요구하지 않는다. 이 문서는 인쇄되기도 한다. */
+            /* 일본어 글꼴을 앞세운다. 한국어 글꼴이 먼저면 한자가 한국식 자형으로 그려진다. */
+            font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", Meiryo,
+                         "Yu Gothic", "Pretendard Variable", Pretendard, -apple-system,
+                         "Segoe UI", "Malgun Gothic", sans-serif;
+            /* 가장 작은 글자가 16px이다. 읽는 사람이 교사와 학운위 위원이다. */
+            font-size: 1rem;
+            line-height: 1.75;
+            /* keep-all은 띄어쓰기 없는 일본어를 구두점에서만 끊는다. 문절에서 끊고, 못 읽는 브라우저는 기본값으로 떨어진다. */
+            word-break: auto-phrase;
+            overflow-wrap: break-word;
+        }
+
+        main {
+            max-width: 46rem;
+            margin: 0 auto;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 1rem;
+            padding: 2.5rem 2rem;
+        }
+
+        h1 { font-size: 1.75rem; line-height: 1.4; margin: 0 0 0.5rem; }
+
+        h2 {
+            font-size: 1.125rem;
+            margin: 2.5rem 0 0.75rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--line);
+        }
+
+        h2:first-of-type { border-top: 0; padding-top: 0; }
+
+        p, li { color: var(--ink-soft); margin: 0.75rem 0; }
+        ul { padding-left: 1.25rem; }
+        strong { color: var(--ink); }
+        a { color: var(--brand); }
+
+        .lead { color: var(--ink-faint); margin-bottom: 2rem; }
+
+        .scope {
+            background: var(--canvas);
+            border: 1px solid var(--line);
+            border-radius: 0.75rem;
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0 0;
+        }
+
+        .scope p { margin: 0.4rem 0; }
+
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+
+        th, td {
+            border: 1px solid var(--line);
+            padding: 0.6rem 0.75rem;
+            text-align: left;
+            vertical-align: top;
+            color: var(--ink-soft);
+        }
+
+        th { background: var(--canvas); color: var(--ink); font-weight: 700; }
+
+        footer {
+            max-width: 46rem;
+            margin: 1.5rem auto 0;
+            color: var(--ink-faint);
+            font-size: 0.95rem;
+        }
+
+        footer a { margin-right: 1rem; }
+
+        @media print {
+            body { background: #fff; color: #000; padding: 0; }
+            main { border: 0; padding: 0; max-width: none; }
+            footer { display: none; }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <h1>プライバシーポリシー</h1>
+    <p class="lead">Machine Learning Playgrounds · 施行日 2026年8月15日</p>
+
+    <p>
+        <strong>このページは、韓国語版を日本語に翻訳したものです。</strong>内容に相違がある場合は、<a href="./privacy.ko.html">韓国語版</a>が優先します。
+    </p>
+
+    <p>
+        Machine Learning Playgrounds(以下「本アプリ」といいます。)は、<strong>利用者の個人情報を収集しません。</strong>本アプリはサーバを用いず、利用者のウェブブラウザの中だけで動作し、データのアップロード、学習、予測、保存はすべて利用者の端末上で行われます。本ポリシーは、その事実と、そこから導かれる事柄を明らかにするための文書です。
+    </p>
+
+    <div class="scope">
+        <p><strong>本ポリシーの適用範囲</strong></p>
+        <p>
+            <code>https://luminousky.com/ml-playgrounds/</code>で提供される本アプリと、同じソースコードを用いて学校が自ら設置・運営する本アプリに適用されます。
+        </p>
+        <p>
+            本アプリを紹介する別の案内ページ、および本アプリで作成した成果物を利用者が提出・共有する他のサービスには、本ポリシーは適用されません。
+        </p>
+    </div>
+
+    <h2 id="article-1">第1条(取り扱う個人情報の項目、目的および保有期間)</h2>
+    <p>
+        本アプリは個人情報を<strong>収集しません。</strong>会員登録やログインの手続きはなく、氏名、出席番号、学校、連絡先を含め、個人に関するいかなる情報も、入力を受けて送信したり保存したりすることはありません。したがって、収集する項目も保有期間も存在しません。
+    </p>
+    <p>
+        ただし、利用者がプロジェクトを<strong>ファイルに保存するとき</strong>、提出物に表示する目的で出席番号と氏名を自ら入力できます。これは任意であり、<strong>入力した値は、利用者の端末に保存されるプロジェクトファイルの中にのみ記録されます。</strong>本アプリがその値を送信することも、別途保管することもありません。当該ファイルの保管、提出、削除は、すべて利用者が管理します。
+    </p>
+
+    <h2 id="article-2">第2条(個人情報の第三者提供)</h2>
+    <p>
+        本アプリは個人情報を収集しないため、<strong>第三者に提供する個人情報はありません。</strong>利用者がアップロードしたデータと学習結果が、利用者のブラウザの外に出ることはありません。
+    </p>
+
+    <h2 id="article-3">第3条(個人情報の取扱いの委託)</h2>
+    <p>
+        本アプリは個人情報を収集しないため、<strong>取扱いを委託する個人情報はありません。</strong>本アプリをインターネット上で公開するために利用しているホスティングサービスについては、第7条に記載します。
+    </p>
+
+    <h2 id="article-4">第4条(個人情報の廃棄)</h2>
+    <p>
+        本アプリが保管する個人情報はないため、<strong>廃棄の対象は存在しません。</strong>利用者が作業中のプロジェクトは、利用者の端末のブラウザストレージ(IndexedDB)に保管され、利用者がいつでも自ら削除できます。削除の方法は第5条に記載しています。
+    </p>
+
+    <h2 id="article-5">第5条(利用者の権利とその行使方法)</h2>
+    <p>
+        本アプリが保管する個人情報はないため、閲覧、訂正、削除、取扱いの停止を求める対象はありません。利用者が作成したデータは、一貫して<strong>利用者自身の端末の中にあり、自ら確認して消去できます。</strong>
+    </p>
+    <ul>
+        <li><strong>プロジェクトの削除</strong> — 本アプリの最初の画面でプロジェクトの一覧を開き、削除します。</li>
+        <li><strong>ブラウザに残ったデータの一括削除</strong> — ブラウザの「閲覧履歴データの削除」で、このサイトの保存データ(Cookieと他のサイトデータ)を消去します。</li>
+        <li><strong>保存したファイルの削除</strong> — 利用者がダウンロードしたプロジェクトファイルを、端末から自ら削除します。出席番号と氏名を入力した場合、その値はこのファイルの中にのみあります。</li>
+    </ul>
+
+    <h2 id="article-6">第6条(個人情報の安全性確保のための措置)</h2>
+    <p>
+        本アプリは、個人情報を収集しない仕組みそのものを、第一の安全措置としています。あわせて、次の事項を維持します。
+    </p>
+    <ul>
+        <li><strong>送信しません。</strong>アップロードしたデータ、学習結果、入力した出席番号と氏名は、ネットワークに送信されません。</li>
+        <li><strong>保管しません。</strong>本アプリを提供するためのサーバはなく、利用者ごとのデータを保存するデータベースも運用していません。</li>
+        <li><strong>暗号化された接続で提供します。</strong>本アプリはHTTPSでのみ提供されます。</li>
+        <li><strong>ソースコードを公開しています。</strong>上記の内容は、誰でもソースコードで直接確認できます。</li>
+    </ul>
+    <p>
+        学校が本アプリを自ら設置して運営する場合、サーバは計算のみを行い、利用者のデータを永続的に保存しません。そのサーバの運営と管理の責任は、設置した機関にあります。
+    </p>
+
+    <h2 id="article-7">第7条(自動収集の仕組みと外部リソース)</h2>
+    <p>
+        本アプリは、<strong>利用者を識別または分析するためのCookieを使用せず、アクセス解析ツールや広告ツールも導入していません。</strong>ブラウザストレージ(IndexedDB)を使用しますが、これは利用者の作業内容を利用者の端末に保管するためのものであり、外部には送信されません。
+    </p>
+    <p>ただし、次の2点は、その性質上、利用者のアクセス情報が外部に残る場合があるため、明記します。</p>
+    <table>
+        <tr>
+            <th>項目</th>
+            <th>理由</th>
+            <th>やり取りされるもの</th>
+        </tr>
+        <tr>
+            <td>画像分析用モデルファイルのダウンロード(Googleのストレージ)</td>
+            <td>画像プロジェクトで写真の特徴を抽出するために必要です。ファイルが大きいため、本アプリが直接提供せず、配布元からダウンロードします。</td>
+            <td><strong>ダウンロードの一方向のみです。</strong>利用者の写真やデータは送信されません。ダウンロードの際に、アクセス記録(IPアドレスなど)がそのサービスに残る場合があります。</td>
+        </tr>
+        <tr>
+            <td>ウェブサイトのホスティング(GitHub Pages、Cloudflare)</td>
+            <td>本アプリのファイルをインターネット上で公開するために利用しています。</td>
+            <td>アクセス記録がそのサービスに残る場合があります。<strong>運営者がその記録にアクセスすることはありません。</strong></td>
+        </tr>
+    </table>
+
+    <h2 id="article-8">第8条(満14歳未満の子どもの個人情報の保護)</h2>
+    <p>
+        本アプリは年齢にかかわらず個人情報を収集しないため、<strong>満14歳未満の子どもの個人情報を収集することも、法定代理人の同意を得る必要が生じることもありません。</strong>会員登録の手続きがないため、子どもが個人に関する情報を入力する画面そのものがありません。
+    </p>
+
+    <h2 id="article-9">第9条(個人情報保護責任者と問い合わせ先)</h2>
+    <p>本アプリの個人情報に関するお問い合わせは、次の連絡先で受け付けています。</p>
+    <table>
+        <tr>
+            <th>区分</th>
+            <th>内容</th>
+        </tr>
+        <tr>
+            <td>個人情報保護責任者</td>
+            <td>Machine Learning Playgrounds運営者</td>
+        </tr>
+        <tr>
+            <td>連絡先</td>
+            <td><a href="mailto:hello@luminousky.com">hello@luminousky.com</a></td>
+        </tr>
+    </table>
+
+    <h2 id="article-10">第10条(権利利益の侵害に対する救済方法)</h2>
+    <p>
+        個人情報の侵害について相談や被害の救済が必要な場合は、次の大韓民国の機関に問い合わせることができます。
+    </p>
+    <ul>
+        <li>個人情報紛争調停委員会(<span lang="ko">개인정보분쟁조정위원회</span>) — 1833-6972 (www.kopico.go.kr)</li>
+        <li>個人情報侵害申告センター(<span lang="ko">개인정보침해신고센터</span>) — 118 (privacy.kisa.or.kr)</li>
+        <li>大検察庁サイバー捜査課(<span lang="ko">대검찰청 사이버수사과</span>) — 1301 (www.spo.go.kr)</li>
+        <li>警察庁サイバー捜査局(<span lang="ko">경찰청 사이버수사국</span>) — 182 (ecrm.police.go.kr)</li>
+    </ul>
+
+    <h2 id="article-11">第11条(プライバシーポリシーの変更)</h2>
+    <p>
+        本ポリシーの内容を変更する場合は、変更後のポリシーをこのページに掲載し、施行日をあわせて表示します。本アプリの動作の変更により取り扱う情報が変わる場合は、<strong>変更後のアプリを公開する時点で、本ポリシーもあわせて更新します。</strong>
+    </p>
+    <p>
+        本ポリシーの正本は韓国語版であり、他の言語で提供される翻訳版と内容が異なる場合は、韓国語版が優先します。
+    </p>
+</main>
+
+<footer>
+    <a href="./">法的情報</a>
+    <a href="../">アプリに戻る</a>
+</footer>
+</body>
+</html>

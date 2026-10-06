@@ -12,8 +12,8 @@
 
 import { describe, expect, it } from 'vitest'
 
-import en from '../src/locales/en.json'
-import ko from '../src/locales/ko.json'
+import { LOCALE_MESSAGES } from './fixtures/locales'
+
 import { fit } from '../src/ml/engines/mljs'
 import { KMEANS_FORMAT, REFERENCE_FORMAT, SVM_FORMAT, TREE_FORMAT } from '../src/ml/models'
 import {
@@ -181,27 +181,13 @@ describe('모델이 배운 값의 표', () => {
     expect(showsParameters(undefined)).toBe(false)
   })
 
-  it('종류마다의 제목이 두 언어에 다 있다', () => {
-    const flat = (tree: Record<string, unknown>, prefix = ''): Map<string, string> => {
-      const out = new Map<string, string>()
-      for (const [key, value] of Object.entries(tree)) {
-        const path = prefix ? `${prefix}.${key}` : key
-        if (typeof value === 'string') out.set(path, value)
-        else if (value && typeof value === 'object') {
-          for (const [inner, text] of flat(value as Record<string, unknown>, path)) {
-            out.set(inner, text)
-          }
-        }
-      }
-      return out
-    }
-    const korean = flat(ko as unknown as Record<string, unknown>)
-    const english = flat(en as unknown as Record<string, unknown>)
+  it('종류마다의 제목이 모든 언어에 다 있다', () => {
     const kinds: ParameterKind[] = ['coefficients', 'means', 'variances']
-    for (const kind of kinds) {
-      const key = PARAMETER_TITLE_KEYS[kind]
-      expect(korean.has(key), `${key} (ko)`).toBe(true)
-      expect(english.has(key), `${key} (en)`).toBe(true)
+    for (const [tag, messages] of LOCALE_MESSAGES) {
+      for (const kind of kinds) {
+        const key = PARAMETER_TITLE_KEYS[kind]
+        expect(messages.has(key), `${key} (${tag})`).toBe(true)
+      }
     }
   })
 })

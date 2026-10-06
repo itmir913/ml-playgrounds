@@ -16,9 +16,8 @@ import { join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parse as parseSfc } from 'vue/compiler-sfc'
 
+import { LOCALE_TREES } from './fixtures/locales'
 import { scriptWithoutComments, templateOf } from './fixtures/parsed-source'
-import en from '../src/locales/en.json'
-import ko from '../src/locales/ko.json'
 
 const DOT = '·'
 
@@ -86,7 +85,11 @@ describe('화면의 가운뎃점은 상태 표시줄과 학습 환경 이름뿐�
   })
 
   it('로케일 문구에 가운뎃점이 없다', () => {
-    expect([...dotsInLocale(ko), ...dotsInLocale(en)]).toEqual([])
+    // 일본어도 같은 두 자리에만 쓴다 (`docs/copy.md` §7.1). 일본어의 中黒 `・`(U+30FB)는 다른 글자라 여기서 안 본다.
+    const found = [...LOCALE_TREES].flatMap(([tag, tree]) =>
+      dotsInLocale(tree).map((key) => `${tag}: ${key}`),
+    )
+    expect(found).toEqual([])
   })
 
   it('소스가 화면에 가운뎃점을 내지 않는다', () => {
