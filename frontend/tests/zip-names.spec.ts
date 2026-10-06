@@ -212,6 +212,19 @@ describe('압축 파일 이름 되살리기', () => {
     expect(decodeZipNames([given], { locale: 'ja' })).toEqual([given])
   })
 
+  /** **경계 양쪽** — 반각 가나는 정확히 두 글자부터 증거이고, 떨어진 둘은 증거가 아니다. */
+  it('반각 가나가 정확히 두 글자 이어지면 Shift_JIS로 읽는다', () => {
+    const two = [0xb1, 0xb2, 0x2f, 0x61, 0x2e, 0x70, 0x6e, 0x67] // prettier-ignore
+    expect(decodeZipNames([asFflateWouldRead(two)], { locale: 'ja' })).toEqual(['ｱｲ/a.png'])
+  })
+
+  it('떨어진 두 대문자 악센트로는 바꾸지 않는다 — 일본어 화면의 Latin-1 이름', () => {
+    const apart = [0xdc, 0x62, 0x65, 0x72, 0xd6, 0x6c, 0x2f, 0x61, 0x2e, 0x70, 0x6e, 0x67] // prettier-ignore
+    const given = asFflateWouldRead(apart)
+    expect(given).toBe('ÜberÖl/a.png')
+    expect(decodeZipNames([given], { locale: 'ja' })).toEqual([given])
+  })
+
   it('언어를 모르면 코드 페이지를 추정하지 않는다', () => {
     const given = asFflateWouldRead(CP949_RED)
     expect(decodeZipNames([given])).toEqual([given])

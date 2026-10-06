@@ -36,7 +36,7 @@ export type ParameterKind = 'coefficients' | 'means' | 'variances'
  * 종류마다의 표 제목 키. **화면에서 종류 이름을 이어 붙이지 않는다** — 그렇게 부르면
  * CI의 정적 `t()` 검사가 그 키를 못 보고, 짝 검사가 접두사째로 예외를 요구한다
  * (`ml/clusters.ts`의 `clusterSummaryLeadKey`와 같은 자리). 그래서 키를 통째로 적어 두고
- * `tests/parameters.spec.ts`가 세 키가 두 로케일에 다 있는지 본다.
+ * `tests/parameters.spec.ts`가 세 키가 모든 로케일에 다 있는지 본다.
  */
 export const PARAMETER_TITLE_KEYS: Readonly<Record<ParameterKind, string>> = {
   coefficients: 'results.parametersCoefficients',
