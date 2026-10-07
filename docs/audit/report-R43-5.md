@@ -43,6 +43,10 @@
 - 남은 C: `renameCollidesWithTest`(`data/image/test-set.ts`)는 날글자로 견준다 — 테스트 자리에만 `cat`이 남았을 때 `dog`→`CAT`은
   통과하지만 학습 입구의 범주 대조가 큰 소리로 막는다.
 
+## 재판단 2 — **CLOSED WITH C**
+- 진짜 입구로 폴더(`set/Cat/b.png`)와 zip(`Cat/b.png`) 둘 다 `IMAGE_CATEGORY_NAME_INVALID {name:"Cat"}`, 범주 그대로. 같은 철자는 받는다.
+- 남은 C는 위 `renameCollidesWithTest` 하나.
+
 ## 기록만 한 것
 - M19(`SketchDialog` `bounced` 가드)는 jsdom이 `close` 사건을 안 올려 재현 못 함 — 브라우저 확인 몫.
 - `commitRemoveCategory`에 `applied` 같은 표식이 없다 — `removeCategory`가 버그 외에는 던지지 않아 지적 아님.

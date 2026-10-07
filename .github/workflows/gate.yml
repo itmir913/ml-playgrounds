@@ -40,7 +40,9 @@ jobs:
   # - **Dependabot 커밋도 건너뛴다.** 봇의 버전 갱신은 기여가 아니고 서명줄을 붙일 수도 없다.
   #   PR이 아니라 커밋을 거른다 — 봇 PR에 사람이 얹은 커밋은 검사한다. **작성자 이메일만 보지
   #   않는다** — 이메일은 쓰는 사람이 정하므로, GitHub가 서명을 검증한 커밋(`verification.verified`)만
-  #   건너뛴다. Dependabot 커밋은 GitHub가 서명한다.
+  #   건너뛴다. Dependabot 커밋은 GitHub가 서명한다. **그리고 PR을 연 계정이 봇이어야 한다**
+  #   (R43-6 C-3) — 서명 검증은 커미터 쪽을 묶으므로, 작성자 이메일만 봇으로 적고 제 키로 서명한
+  #   커밋도 verified가 된다. PR을 연 계정(`pull_request.user.login`)은 기여자가 고를 수 없다.
   # - 작성자 이메일과 같은 주소의 서명줄이 있어야 한다(대소문자 무시). `git commit -s`는
   #   작성자와 같은 설정을 쓰므로 noreply 주소여도 저절로 맞는다.
   # - 커밋 목록은 API로 받는다 — 포크 PR에서도 읽기 토큰이면 된다.
@@ -53,6 +55,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           set -euo pipefail
           gh api --paginate "repos/$REPO/pulls/$PR/commits" --jq '.[] | [
@@ -66,7 +69,7 @@ jobs:
           while IFS=$'\t' read -r sha parents email verified signers; do
             if [ "$parents" -gt 1 ]; then
               echo "skip  $sha (merge commit)"
-            elif [ "$email" = "49699333+dependabot[bot]@users.noreply.github.com" ] && [ "$verified" = "true" ]; then
+            elif [ "$PR_AUTHOR" = "dependabot[bot]" ] && [ "$email" = "49699333+dependabot[bot]@users.noreply.github.com" ] && [ "$verified" = "true" ]; then
               echo "skip  $sha (dependabot)"
             elif [[ ",$signers," == *",$email,"* ]]; then
               echo "ok    $sha"

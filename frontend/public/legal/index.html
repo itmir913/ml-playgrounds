@@ -201,15 +201,21 @@
         var locales = Object.keys(messages)
         var fallback = 'en'
 
+        // **제 키만 지원 언어다** (R43-6 C-4). `messages[x]`는 `?lang=constructor`·`__proto__`처럼 상속된
+        // 이름도 참으로 받아 제목이 `undefined`가 되었다. 앱의 `isSupportedLocale`과 같은 판정이다.
+        function has(code) {
+            return Object.prototype.hasOwnProperty.call(messages, code)
+        }
+
         function pick() {
             var asked = new URLSearchParams(location.search).get('lang')
-            if (asked && messages[asked]) return asked
+            if (asked && has(asked)) return asked
             var preferred = navigator.languages || [navigator.language || '']
             for (var i = 0; i < preferred.length; i += 1) {
                 var tag = preferred[i] || ''
-                if (messages[tag]) return tag
+                if (has(tag)) return tag
                 var base = tag.split('-')[0]
-                if (messages[base]) return base
+                if (has(base)) return base
             }
             return fallback
         }

@@ -4,7 +4,14 @@
 여기서는 순수 함수의 판정 논리를 검사한다.
 """
 
+import json
+import shutil
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
 import check_locales
+import pytest
 
 
 def test_enum_members_reads_names_not_values() -> None:
@@ -49,24 +56,77 @@ def test_repository_currently_passes() -> None:
     assert check_locales.check() == []
 
 
-def test_placeholder_mismatch_would_be_caught() -> None:
-    """번역하다 보간 변수를 빠뜨리는 실수를 잡는지."""
-    english = "limit {limitMb}MB"
-    korean = "최대 용량 초과"
-    assert check_locales.placeholders(english) != check_locales.placeholders(korean)
+# 아래 판들은 **`check()`를 부른다** (R43-6 C-1). 예전 판들은 집합 뺄셈을
+# 테스트 안에서 다시 써서, `check()`의 검사 넷 중 어느 것을 뭉개도 초록이었다.
+# 저장소의 `errors.py`와 로케일을 임시 폴더로 베끼고 위반 하나를 심어 부른다.
 
 
-def test_missing_code_would_be_caught() -> None:
-    """백엔드에 코드를 추가하고 로케일을 안 고친 경우를 잡는지."""
-    backend_codes = {"JOB_FAILED", "JOB_TIMEOUT"}
-    locale_codes = check_locales.namespace_keys({"errors.JOB_FAILED": "x"}, "errors")
-    assert backend_codes - locale_codes == {"JOB_TIMEOUT"}
+@pytest.fixture
+def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
+    errors_py = tmp_path / "errors.py"
+    shutil.copyfile(check_locales.ERRORS_PY, errors_py)
+    locales = tmp_path / "locales"
+    shutil.copytree(check_locales.LOCALES_DIR, locales)
+    monkeypatch.setattr(check_locales, "ERRORS_PY", errors_py)
+    monkeypatch.setattr(check_locales, "LOCALES_DIR", locales)
+    assert check_locales.check() == []
+    return errors_py, locales
 
 
-def test_stale_code_would_be_caught() -> None:
-    """백엔드에서 코드를 지웠는데 로케일에 남은 경우를 잡는지."""
-    backend_codes = {"JOB_FAILED"}
-    locale_codes = check_locales.namespace_keys(
-        {"errors.JOB_FAILED": "x", "errors.OLD_CODE": "y"}, "errors"
+def edit_locale(locales: Path, name: str, edit: Callable[[dict[str, Any]], None]) -> None:
+    path = locales / f"{name}.json"
+    tree = json.loads(path.read_text(encoding="utf-8"))
+    edit(tree)
+    path.write_text(json.dumps(tree, ensure_ascii=False), encoding="utf-8")
+
+
+def test_missing_key_is_caught(sandbox: tuple[Path, Path]) -> None:
+    """한 로케일에만 키를 더한 경우 (검사 1)."""
+    _, locales = sandbox
+    edit_locale(locales, "ja", lambda tree: tree["app"].update({"zzOnly": "x"}))
+    assert any("missing key app.zzOnly" in problem for problem in check_locales.check())
+
+
+def test_placeholder_mismatch_is_caught(sandbox: tuple[Path, Path]) -> None:
+    """번역하다 보간 변수를 빠뜨린 경우 (검사 2)."""
+    _, locales = sandbox
+    edit_locale(
+        locales, "ja", lambda tree: tree["client"].update({"FEATURE_VALUE_TOO_LARGE": "大きすぎ"})
     )
-    assert locale_codes - backend_codes == {"OLD_CODE"}
+    assert any("client.FEATURE_VALUE_TOO_LARGE" in p for p in check_locales.check())
+
+
+def test_plural_forms_must_share_placeholders(sandbox: tuple[Path, Path]) -> None:
+    """복수형의 한 형태에서만 변수가 빠진 경우 — 합집합으로 견주면 지나간다 (R43-6 C-2)."""
+    _, locales = sandbox
+
+    def drop_count(tree: dict[str, Any]) -> None:
+        image = tree["data"]["image"]
+        forms = image["removeCategoryWithTestDescription"].split(" | ")
+        image["removeCategoryWithTestDescription"] = " | ".join(
+            [forms[0].replace("{count}", "one"), *forms[1:]]
+        )
+
+    edit_locale(locales, "en", drop_count)
+    assert any("plural forms differ" in problem for problem in check_locales.check())
+
+
+def test_missing_code_is_caught(sandbox: tuple[Path, Path]) -> None:
+    """백엔드에 코드를 더하고 로케일을 안 고친 경우 (검사 3)."""
+    errors_py, _ = sandbox
+    source = errors_py.read_text(encoding="utf-8")
+    errors_py.write_text(
+        source.replace(
+            "    JOB_FAILED = auto()\n", "    JOB_FAILED = auto()\n    ZZ_NEW = auto()\n"
+        ),
+        encoding="utf-8",
+    )
+    assert any("errors.ZZ_NEW is missing" in problem for problem in check_locales.check())
+
+
+def test_stale_code_is_caught(sandbox: tuple[Path, Path]) -> None:
+    """백엔드에서 코드를 지웠는데 로케일에 남은 경우 (검사 4)."""
+    _, locales = sandbox
+    for name in ("en", "ko", "ja"):
+        edit_locale(locales, name, lambda tree: tree["errors"].update({"ZZ_OLD": "x"}))
+    assert any("errors.ZZ_OLD is not in ErrorCode" in p for p in check_locales.check())

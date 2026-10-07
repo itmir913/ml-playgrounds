@@ -118,6 +118,15 @@ def check() -> list[str]:
                     f"({reference_name}={sorted(expected)}, {name}={sorted(actual)})"
                 )
 
+    # 2b. 복수형(` | `로 가른 형태)은 형태마다 보간 변수가 같다. 위 2는 문장 전체의
+    #     합집합을 보아 한 형태에서만 `{name}`이 빠져도 지나갔다 — 사진 한 장일 때만
+    #     범주 이름이 사라진다 (R43-6 C-2). `test_check_locales.py`의 복수형 판이 문다.
+    for name, flat in locales.items():
+        for key, message in sorted(flat.items()):
+            forms = [placeholders(form) for form in message.split(" | ")]
+            if any(form != forms[0] for form in forms[1:]):
+                problems.append(f"{name}.json: {key}: placeholders of plural forms differ")
+
     # 3, 4. 백엔드 코드 <-> 로케일 키 양방향 일치
     members = enum_members(ERRORS_PY.read_text(encoding="utf-8"))
     for enum_name, namespace in NAMESPACES.items():

@@ -250,6 +250,9 @@ describe('못 찾았을 때의 안내', () => {
       ['', ['ko-KR', 'en'], 'ko'],
       ['', ['fr-FR', 'ja'], 'ja'],
       ['?lang=xx', ['fr-FR'], 'en'],
+      // 상속된 이름은 지원 언어가 아니다 — 제목이 `undefined`가 되었다 (R43-6 C-4).
+      ['?lang=constructor', ['fr-FR'], 'en'],
+      ['?lang=__proto__', ['toString'], 'en'],
     ]
     for (const [search, languages, locale] of cases) {
       const { page } = await visit(`${ORIGIN}/nowhere/${search}`, {}, languages)
