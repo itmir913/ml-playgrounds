@@ -49,6 +49,7 @@ import { computed, getCurrentInstance, getCurrentWatcher, toRaw, type ComputedRe
 
 import type { ChartToolGate, GateInput as ChartGateInput } from '@/data/chart-gates'
 import { isValidCategoryName } from '@/data/image/canonical'
+import { renameCollidesWithTest } from '@/data/image/test-set'
 import { isBlank, type Sketch } from '@/data/image/sketch'
 import { isBinCount } from '@/data/stats'
 import { comparingBlockers, reproduceBlockers, type ReproduceSubject } from '@/ml/reproduce-gate'
@@ -466,11 +467,16 @@ export function issueBusyLock(busy: boolean): Lock<'BUSY'> {
 
 /* ------------------------------------------------------------------ 등록부 */
 
-/** 대화상자의 이름 칸. 만들기와 이름 바꾸기가 같은 창이다. */
+/**
+ * 대화상자의 이름 칸. 만들기와 이름 바꾸기가 같은 창이다 — **모드는 화면이 든 것을 받는다**(`from`으로 추론하지 않는다).
+ * `testCategories`는 테스트 자리의 범주다(open-decisions.md 106 개정 2).
+ */
 export interface CategoryNameInput {
+  readonly mode: 'create' | 'rename'
   readonly from: string
   readonly value: string
   readonly categories: readonly string[]
+  readonly testCategories: readonly string[]
 }
 
 /** 예측할 모델의 재료. **세는 것만 넘긴다.** 모델 전부·필터를 지난 것·그중 쓸 수 있는 것. */
@@ -499,7 +505,7 @@ export interface StepInput {
  *
  * 판정은 원래 있던 자리의 함수를 그대로 부른다 — `trainGate`·`modelAxes`·`chosenModelBlocks`·
  * `reproduceBlockers`·`stratifyBlock(For)`·`featureLocked`·`usesTarget`·차트 도구의 `blockedBy`·
- * `stepBlockers`·`isBinCount`·`isValidCategoryName`·`isBlank`. **여기서 조건을 새로 적지 않는다** — 새로 적는
+ * `stepBlockers`·`isBinCount`·`isValidCategoryName`·`renameCollidesWithTest`·`isBlank`. **여기서 조건을 새로 적지 않는다** — 새로 적는
  * 순간 그 조건이 두 벌이 된다. 잠금을 더하려면 여기 줄을 더하고, **코드 소유자에게 먼저 묻는다**
  * (결정문 60).
  */
@@ -630,14 +636,25 @@ function stratifyReasons(block: StratifyBlock | null): readonly StratifyBlock['c
   return block !== null && stratifyLocked(block) ? [block.code] : []
 }
 
-/** 이름 창의 이유. 빈 이름 → 쓸 수 없는 이름 → 이미 있는 이름 순이다. */
+/**
+ * 이름 창의 이유. 빈 이름 → 쓸 수 없는 이름 → 이미 있는 이름 → 테스트 자리에만 남은 이름(바꾸기만) 순이다. 마지막 판정은
+ * `renameCategory`가 함께 부르는 술어다(`renameCollidesWithTest`).
+ */
 function categoryNameReasons(
   input: CategoryNameInput,
-): readonly ('nameRequired' | 'nameInvalid' | 'nameTaken')[] {
+): readonly ('nameRequired' | 'nameInvalid' | 'nameTaken' | 'nameTakenByTest')[] {
   const trimmed = input.value.trim()
   if (trimmed === '') return ['nameRequired']
   if (!isValidCategoryName(trimmed)) return ['nameInvalid']
-  return trimmed !== input.from && input.categories.includes(trimmed) ? ['nameTaken'] : []
+  if (trimmed !== input.from && input.categories.includes(trimmed)) return ['nameTaken']
+  const collides =
+    input.mode === 'rename' &&
+    renameCollidesWithTest({
+      categories: input.categories,
+      testCategories: input.testCategories,
+      to: trimmed,
+    })
+  return collides ? ['nameTakenByTest'] : []
 }
 
 /**

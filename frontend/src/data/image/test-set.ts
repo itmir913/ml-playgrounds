@@ -57,6 +57,24 @@ export function testSetBlockFor(categories: readonly string[]): TestSetBlock | n
 }
 
 /**
+ * 범주 이름을 `to`로 바꾸면 **테스트 자리에만 남은 범주와 합쳐지는가** (open-decisions.md 106 개정 2).
+ *
+ * 고아 테스트 폴더(`test/C`)는 화면 어디에도 안 보인다. 거기로 바꾸면 옛 C 테스트 사진이 새 C의 정답으로 채점되고 학습 입구의 대조도
+ * 통과한다. **판정은 여기 하나다** — 이름 창의 gate(`locks.ts`의 `categoryName`)와 `renameCategory`가 함께 부른다. 그래서 둘이
+ * 같은 목록을 받는다. 만들기는 부르지 않는다(되살리기의 유일한 길이다). 무는 검사: `category-test-photos.spec.ts`.
+ *
+ * @param categories     지금 범주(`imageCategories`). 여기 있는 이름으로 바꾸는 것은 `nameTaken`의 일이다.
+ * @param testCategories 테스트 자리의 범주.
+ */
+export function renameCollidesWithTest(input: {
+  readonly categories: readonly string[]
+  readonly testCategories: readonly string[]
+  readonly to: string
+}): boolean {
+  return !input.categories.includes(input.to) && input.testCategories.includes(input.to)
+}
+
+/**
  * 올린 사진을 받아도 되는가.
  *
  * **집합이 정확히 같아야 한다.** 어긋난 방향마다 코드를 나눈다 — 빠진 범주는 "그 폴더를

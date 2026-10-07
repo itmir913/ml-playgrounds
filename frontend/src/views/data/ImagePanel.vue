@@ -64,6 +64,7 @@ import {
   removeImages,
   renameCategory,
   requireRoomForPhotos,
+  testCountByCategory,
 } from '@/project/images'
 import { dataSettings } from '@/project/schema'
 import { useProjectStore, type ProjectRevision } from '@/stores/project'
@@ -154,6 +155,8 @@ const deleting = ref(false)
 
 const entries = computed(() => readImages(project.file))
 const categories = computed(() => imageCategories(project.file))
+/** 범주마다 테스트용 사진 장수. 이름 창의 gate와 범주 지우기의 확인 창이 읽는다. */
+const testCounts = computed(() => testCountByCategory(project.file))
 const counts = computed(() => countByCategory(project.file))
 const unlabeled = computed(() => entries.value.filter((one) => one.category === IMAGE_UNLABELED))
 
@@ -553,9 +556,11 @@ async function deleteSelected(): Promise<void> {
  * 조용했다. 누르면 창 안에 이유 문장이 선다. 잠금은 진행 중(`busyLock`)뿐이다.
  */
 const { reasons: nameReasons, refuse: refuseName } = useGate('categoryName', () => ({
+  mode: naming.value?.mode ?? 'create',
   from: naming.value?.from ?? '',
   value: naming.value?.value ?? '',
   categories: categories.value,
+  testCategories: [...testCounts.value.keys()],
 }))
 
 /** 만들기와 이름 바꾸기가 같은 창이다 — 묻는 것이 이름 하나로 같다. 창 안에 늘 서는 문장이다. */
@@ -566,6 +571,7 @@ const NAME_REFUSAL_KEYS = {
   nameRequired: 'data.image.nameRequired',
   nameInvalid: 'data.image.nameInvalid',
   nameTaken: 'data.image.nameTaken',
+  nameTakenByTest: 'data.image.nameTakenByTest',
 } as const
 
 /**
@@ -597,15 +603,22 @@ async function commitName(): Promise<void> {
     return
   }
   const name = draft.value.trim()
-  await save((live) =>
-    draft.mode === 'create'
-      ? addCategory(live, name, new Date().toISOString())
-      : renameCategory(live, draft.from, name, new Date().toISOString()),
-  )
+  /**
+   * **이름 바꾸기가 파일에 적용됐는가** — `renameCategory`가 **돌아온 뒤** 선다(`bake`의 `seated`와 같은 모양). 저장이 쿼터로
+   * 거절돼도 스토어는 새 값을 들고 있으므로 적용된 것이다. 함수가 던지면(gate를 지난 우리 버그) 안 선다. 무는 검사:
+   * `image-panel-rename-pending.spec.ts`의 *"쿼터 거절"*·*"던지면"*.
+   */
+  let applied = false
+  await save((live) => {
+    if (draft.mode === 'create') return addCategory(live, name, new Date().toISOString())
+    const renamed = renameCategory(live, draft.from, name, new Date().toISOString())
+    applied = true
+    return renamed
+  })
   // **판에 선 묶음도 새 이름을 따라간다** (2026-09-23 R38 A-1). 묶음은 범주 이름을
   // 문자열로 들고 있어서, 안 옮기면 굽는 순간 `addImages`가 **지운 옛 이름을 되살려**
   // 사진을 거기 앉힌다 — 학습은 그것을 다른 클래스로 배운다.
-  if (draft.mode === 'rename') {
+  if (applied) {
     retagPending(draft.from, name)
     // shift+클릭의 기준점도 이름을 든다 — 안 옮기면 범위 선택이 보통 클릭으로 떨어진다
     // (R38 C-7, 해는 없지만 조용했다).
@@ -626,6 +639,18 @@ function retagPending(from: string, to: string): void {
     item.category === from ? { ...item, category: to } : item,
   )
 }
+
+/**
+ * 범주 지우기의 확인 창 문장. **그 범주에 테스트용 사진이 있으면 지워진다고 장수와 함께 말한다** (open-decisions.md 106 개정 2) —
+ * 훈련 사진과 달리 되돌릴 수 없다.
+ */
+const removeCategoryDescription = computed(() => {
+  const name = removingCategory.value ?? ''
+  const count = testCounts.value.get(name) ?? 0
+  return count > 0
+    ? t('data.image.removeCategoryWithTestDescription', { count, name }, count)
+    : t('data.image.removeCategoryDescription', { name })
+})
 
 async function commitRemoveCategory(): Promise<void> {
   const file = project.file
@@ -949,7 +974,7 @@ async function commitRemoveCategory(): Promise<void> {
     <AppDialog
       :open="removingCategory !== null"
       :title="t('data.image.removeCategoryTitle')"
-      :description="t('data.image.removeCategoryDescription', { name: removingCategory ?? '' })"
+      :description="removeCategoryDescription"
       @close="removingCategory = null"
     >
       <template #actions>

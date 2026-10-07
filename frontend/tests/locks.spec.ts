@@ -245,8 +245,14 @@ const CASES: {
   histogramAuto: { locked: { auto: true }, open: { auto: false } },
   projectName: { locked: { name: '   ' }, open: { name: '꽃' } },
   categoryName: {
-    locked: { from: '', value: '_숨김', categories: [] },
-    open: { from: '', value: '개', categories: ['고양이'] },
+    locked: { mode: 'create', from: '', value: '_숨김', categories: [], testCategories: [] },
+    open: {
+      mode: 'create',
+      from: '',
+      value: '개',
+      categories: ['고양이'],
+      testCategories: ['고양이'],
+    },
   },
   sketchEmpty: {
     locked: { sketches: [EMPTY_SKETCH, EMPTY_SKETCH] },

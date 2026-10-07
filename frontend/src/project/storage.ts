@@ -531,7 +531,9 @@ const FOLDER_FIELDS: readonly FolderField[] = ['dataset', 'testDataset', 'predic
  * - 훈련 — 모든 실험이 그것으로 학습했고, 재실행(`ml/reproduce.ts`)과 참조형 모델의 예측이
  *   그 표를 다시 세운다.
  * - 테스트 — `split.method`가 `provided`인 실험만 쓴다(`ml/training-source.ts`의 `scored`).
- *   군집은 채점하지 않지만 보수적으로 넣는다 — `provided`면 기댄다.
+ *   군집은 채점하지 않지만 보수적으로 넣는다 — `provided`면 기댄다. `provided` 실험이 있어도 테스트 사진이 없을 수 있다 —
+ *   범주 지우기가 마지막 테스트 사진을 지우면 실험을 남긴 채 참조를 떼고 holdout으로 돌린다(open-decisions.md 106 개정 2).
+ *   그때는 뗄 참조가 이미 없어 이 판정에 닿지 않는다.
  * - 예측 — 답이 파일에 안 남는다. 아무것도 안 기댄다.
  *
  * 무는 검사: `storage.spec.ts`의 *"본체 없는 폴더 참조"* 묶음.

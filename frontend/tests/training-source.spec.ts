@@ -456,7 +456,7 @@ describe('테스트용 사진이 학습까지 닿는다', () => {
  * 진짜 입구(`project/images.ts`)로 하고, 거절은 백본을 부르기 **전**이어야 한다 — 받은 뒤에 서면 학생은
  * 몇 분을 기다린 끝에 거절을 읽는다.
  */
-describe('결정 106 — 테스트 사진을 받은 뒤 범주를 고치면 학습이 거절한다', () => {
+describe('결정 106 — 테스트 사진을 받은 뒤 범주를 고치면 학습이 거절한다 (이름 바꾸기·지우기는 개정 2로 학습한다)', () => {
   const SIZE = BACKBONE.canonicalSize
   const options = { canonicalSize: SIZE, now: NOW, format: 'webp' as const }
 
@@ -510,22 +510,16 @@ describe('결정 106 — 테스트 사진을 받은 뒤 범주를 고치면 학�
     expect((await attempt(project())).code).toBe('started')
   })
 
-  it('범주 이름을 바꾸면 거절한다 — 백본을 부르기 전에', async () => {
-    const result = await attempt(renameCategory(project(), '개', '강아지', NOW))
-    expect(result).toEqual({
-      code: 'TEST_IMAGES_CATEGORY_MISSING',
-      params: { categories: '강아지' },
-      embedded: 0,
-    })
+  /**
+   * **이름 바꾸기와 범주 지우기는 테스트 자리도 고치므로 학습한다** (106 개정 2). 전에는 둘 다 여기서 거절됐다 — 테스트 자리가
+   * 옛 이름 그대로였다. 대조는 아래 셋(새 범주로 옮기기·한 범주 비우기)에 안전망으로 남는다.
+   */
+  it('범주 이름을 바꿔도 학습한다 — 테스트 사진이 따라간다', async () => {
+    expect((await attempt(renameCategory(project(), '개', '강아지', NOW))).code).toBe('started')
   })
 
-  it('범주를 지우면 거절한다', async () => {
-    const result = await attempt(removeCategory(project(), '여우', NOW))
-    expect(result).toEqual({
-      code: 'TEST_IMAGES_CATEGORY_UNKNOWN',
-      params: { categories: '여우' },
-      embedded: 0,
-    })
+  it('범주를 지워도 학습한다 — 그 범주의 테스트 사진이 함께 지워진다', async () => {
+    expect((await attempt(removeCategory(project(), '여우', NOW))).code).toBe('started')
   })
 
   it('사진을 새 범주로 옮기면 거절한다', async () => {

@@ -30,6 +30,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AppDialog from '../src/components/AppDialog.vue'
 import { i18n, setLocale } from '../src/i18n'
 import { IMAGE_UNLABELED } from '../src/project/format'
+import * as images from '../src/project/images'
 import { imageCategories, readImages, removeImages } from '../src/project/images'
 import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
@@ -44,6 +45,23 @@ vi.mock('../src/data/image/spawn', async () => {
 })
 
 vi.mock('../src/data/image/room', () => ({ imageRoomShortfall: async () => null }))
+
+/** 켜면 저장이 쿼터로 거절된다 — `image-panel-fail.spec.ts`와 같은 방식. */
+const storageGate = vi.hoisted(() => ({ failSave: false }))
+
+vi.mock('../src/project/storage', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/project/storage')>()
+  const { ClientError } = await import('../src/errors')
+  return {
+    ...actual,
+    saveProject: async (file: Parameters<typeof actual.saveProject>[0]) => {
+      if (storageGate.failSave) {
+        throw new ClientError('STORAGE_QUOTA_EXCEEDED', { requiredMb: 9, availableMb: 1 })
+      }
+      return actual.saveProject(file)
+    },
+  }
+})
 
 /** 화면 안쪽. **읽기만** 한다 — 고르기(`toggle`) 하나만 부른다. */
 interface PanelInternals {
@@ -76,6 +94,8 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  storageGate.failSave = false
+  vi.restoreAllMocks()
   closeStorage()
   await resetDatabase()
 })
@@ -213,6 +233,39 @@ describe('확인 판의 묶음이 범주 편집을 따라간다', () => {
   })
 
   /**
+   * **저장이 쿼터로 거절돼도 판의 묶음은 새 이름을 따른다** (R43-1 후속 계획 5차 ②). 스토어는 쓰기 전에 새 값을 들고 있으므로
+   * 이름 바꾸기는 이미 적용됐다 — 판을 옛 이름에 두면 구울 때 `addImages`가 옛 이름을 되살린다(R38 A-1 재발). 뒤처리를 "저장
+   * 성공"으로 가르면 운다.
+   */
+  it('쿼터 거절 뒤에도 판의 묶음이 새 이름을 따른다', async () => {
+    const { project, wrapper, panel } = await panelWith('고양이')
+    await dropOn(wrapper, '고양이', [file('a.jpg')])
+
+    storageGate.failSave = true
+    await rename(wrapper, '고양이', 'cat')
+
+    expect(imageCategories(project.file)).toEqual(['cat'])
+    expect(panel.pending?.map((one) => one.category)).toEqual(['cat'])
+  })
+
+  /**
+   * **`renameCategory`가 던지면 파일도 판도 그대로다** (계획 5차 ③). gate가 먼저 막으므로 진짜 입구로는 안 닿는다 — 함수를 던지게
+   * 한다. 뒤처리를 표지 없이 늘 하면 판만 `cat`으로 가고, 구우면 `addImages`가 `cat`을 세워 합치기가 이 길로 일어난다.
+   */
+  it('이름 바꾸기 함수가 던지면 판의 묶음은 옛 이름에 남는다', async () => {
+    const { project, wrapper, panel } = await panelWith('고양이')
+    await dropOn(wrapper, '고양이', [file('a.jpg')])
+
+    vi.spyOn(images, 'renameCategory').mockImplementation(() => {
+      throw new Error('renameCategory: forced')
+    })
+    await rename(wrapper, '고양이', 'cat')
+
+    expect(imageCategories(project.file)).toEqual(['고양이'])
+    expect(panel.pending?.map((one) => one.category)).toEqual(['고양이'])
+  })
+
+  /**
    * **범주를 지운 뒤 구우면 라벨 없는 사진이 된다.** 이미 앉은 사진에 `removeCategory`가
    * 하는 일과 같다. 고치기 전에는 지운 `고양이`가 되살아나 사진이 거기 앉았다.
    */
@@ -226,6 +279,54 @@ describe('확인 판의 묶음이 범주 편집을 따라간다', () => {
     const after = await bakeAndRead(project, wrapper)
     expect(after.categories).toEqual([])
     expect(after.landedIn).toEqual([IMAGE_UNLABELED])
+  })
+})
+
+/**
+ * **범주 지우기의 확인 창은 그 범주의 테스트용 사진이 지워진다고 장수와 함께 말한다** (open-decisions.md 106 개정 2). 훈련 사진과
+ * 달리 되돌릴 수 없다. 테스트 사진이 없는 범주는 지금 문장 그대로다.
+ */
+describe('범주 지우기 확인 창이 테스트용 사진 장수를 말한다', () => {
+  it('그 범주에 테스트용 사진이 있을 때만', async () => {
+    const { project, wrapper } = await panelWith('고양이')
+    await dropOn(wrapper, '고양이', [file('a.jpg')])
+    await bakeAndRead(project, wrapper)
+    await buttonIn(wrapper, 'data.image.newCategory').trigger('click')
+    await typeName(wrapper, 'data.image.createTitle', 'data.image.createConfirm', '개')
+    await project.save(
+      (live) =>
+        images.applyTestImages(
+          live,
+          [
+            { hash: 't1', category: '고양이', bytes: new Uint8Array([1]) },
+            { hash: 't2', category: '고양이', bytes: new Uint8Array([2]) },
+          ],
+          { canonicalSize: 224, now: '2026-10-07T00:00:00Z', format: 'webp' },
+        ).project,
+    )
+    await settle()
+
+    const description = async (name: string): Promise<unknown> => {
+      await buttonIn(cardOf(wrapper, name), 'data.image.removeCategory').trigger('click')
+      const shown = dialogTitled(wrapper, 'data.image.removeCategoryTitle').props('description')
+      await buttonIn(
+        dialogTitled(wrapper, 'data.image.removeCategoryTitle'),
+        'common.cancel',
+      ).trigger('click')
+      await closed(wrapper, 'data.image.removeCategoryTitle')
+      return shown
+    }
+
+    expect(await description('고양이')).toBe(
+      i18n.global.t(
+        'data.image.removeCategoryWithTestDescription',
+        { count: 2, name: '고양이' },
+        2,
+      ),
+    )
+    expect(await description('개')).toBe(
+      i18n.global.t('data.image.removeCategoryDescription', { name: '개' }),
+    )
   })
 })
 

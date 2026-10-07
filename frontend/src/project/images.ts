@@ -23,6 +23,7 @@ import {
   type CanonicalFormat,
   type CanonicalFormatId,
 } from '@/data/image/formats'
+import { renameCollidesWithTest } from '@/data/image/test-set'
 import { ClientError } from '@/errors'
 import { removeEmbeddings } from '@/project/embeddings'
 import { standsAsFolder } from '@/project/entry-path'
@@ -339,6 +340,9 @@ export function applyTestImages(
  * 사유이고 표의 `removeTestDataset`이 이미 그렇게 하고 있었다 — **이 함수만 안 하고
  * 있었다.** 안 지우면 provided로 채점한 점수와 holdout으로 채점한 점수가 한 비교표에
  * 나란히 서고, 그건 서로 다른 것을 잰 값이다.
+ *
+ * **예외가 하나 있다** (open-decisions.md 106 개정 2) — `removeCategory`가 마지막 테스트 사진을 지워 holdout으로 돌릴 때는 실험을
+ * 남긴다(코드 소유자). 그 길에서는 provided 점수와 holdout 점수가 한 목록에 설 수 있다.
  */
 export function clearTestImages(project: ProjectFile, now: string): ProjectFile {
   const hashes = readImages(project, 'test').map((entry) => entry.hash)
@@ -531,10 +535,25 @@ export function removeImages(
   role: ImageRole = 'data',
 ): ProjectFile {
   const removing = new Set(hashes)
+  const doomed = readImages(project, role).filter((entry) => removing.has(entry.hash))
+  return withoutEntries(project, doomed, hashes, role, now)
+}
+
+/**
+ * 그 자리의 엔트리를 **경로로** 뺀다. `removeImages`와 `removeCategory`가 함께 쓴다 — 참조를 떼는 규칙과 임베딩을 지우는 규칙이
+ * 한 벌이다.
+ *
+ * @param candidates 임베딩을 지울지 볼 해시. 어느 자리에도 안 남은 것만 지운다.
+ */
+function withoutEntries(
+  project: ProjectFile,
+  doomed: readonly ImageEntry[],
+  candidates: readonly string[],
+  role: ImageRole,
+  now: string,
+): ProjectFile {
   const images = new Map(project.images)
-  for (const entry of readImages(project, role)) {
-    if (removing.has(entry.hash)) images.delete(entry.path)
-  }
+  for (const entry of doomed) images.delete(entry.path)
   // **범주 목록은 안 건드린다.** 마지막 한 장을 지웠다고 범주가 사라지면, 학생이
   // 사진을 바꿔 넣으려던 것뿐인데 만들어 둔 칸이 함께 없어진다.
   const previous = dataSettings('image', project.document.settings)
@@ -568,7 +587,7 @@ export function removeImages(
   const stillUsed = new Set(
     IMAGE_ROLES.flatMap((one) => readImages(remaining, one).map((entry) => entry.hash)),
   )
-  const orphaned = hashes.filter((hash) => !stillUsed.has(hash))
+  const orphaned = candidates.filter((hash) => !stillUsed.has(hash))
   const pruned = removeEmbeddings(project, orphaned)
   return withImages({ ...pruned, images }, images, data, now)
 }
@@ -585,7 +604,11 @@ export function addCategory(project: ProjectFile, name: string, now: string): Pr
 }
 
 /**
- * 범주 이름을 바꾼다. 그 안의 사진이 함께 따라간다.
+ * 범주 이름을 바꾼다. 그 안의 사진이 함께 따라간다 — **테스트 자리의 사진도** (open-decisions.md 106 개정 2). 안 옮기면 학습 입구의
+ * 대조가 막아 학생이 테스트 사진을 다시 올려야 했다.
+ *
+ * **테스트 자리에만 남은 이름으로는 안 바꾼다** — 이름 창이 같은 술어(`renameCollidesWithTest`)로 먼저 거절하므로, 여기 오면
+ * 우리 버그라 영어 `Error`로 던진다. 무는 검사: `category-test-photos.spec.ts`.
  *
  * **옛 실험 기록의 라벨은 안 바뀐다.** 그때의 이름은 그때의 사실이라 그대로 두는 것이
  * 맞고, 달라졌다는 것은 변경 이력이 말한다 (`ml/changes.ts`).
@@ -596,14 +619,26 @@ export function renameCategory(
   to: string,
   now: string,
 ): ProjectFile {
+  const tests = readImages(project, 'test')
+  const testCategories = [...new Set(tests.map((entry) => entry.category))]
+  if (renameCollidesWithTest({ categories: imageCategories(project), testCategories, to })) {
+    throw new Error(
+      `renameCategory: "${to}" is left only in the test images; the name gate must refuse it`,
+    )
+  }
   const previous = dataSettings('image', project.document.settings)
   const images = new Map(project.images)
-  for (const entry of readImages(project)) {
-    if (entry.category !== from) continue
-    images.delete(entry.path)
-    // **엔트리의 형식을 그대로 쓴다.** 옮기는 것은 폴더뿐이고 바이트는 손대지 않으므로,
-    // 여기서 지금의 기본 형식을 쓰면 jpg 정본이 `.webp` 이름을 뒤집어쓴다.
-    images.set(imageEntryPath('data', entry.hash, to, entry.format), entry.bytes)
+  for (const [role, entries] of [
+    ['data', readImages(project)],
+    ['test', tests],
+  ] as const) {
+    for (const entry of entries) {
+      if (entry.category !== from) continue
+      images.delete(entry.path)
+      // **엔트리의 형식을 그대로 쓴다.** 옮기는 것은 폴더뿐이고 바이트는 손대지 않으므로,
+      // 여기서 지금의 기본 형식을 쓰면 jpg 정본이 `.webp` 이름을 뒤집어쓴다.
+      images.set(imageEntryPath(role, entry.hash, to, entry.format), entry.bytes)
+    }
   }
   const renamed = previous.categories.map((category) => (category === from ? to : category))
   // **같은 이름이 두 벌 서지 않는다.** `to`가 이미 목록에 있으면 두 범주가 합쳐지는
@@ -616,10 +651,15 @@ export function renameCategory(
 }
 
 /**
- * 범주를 없앤다. **사진은 안 지운다 — 라벨만 뗀다.**
+ * 범주를 없앤다. **훈련 사진은 안 지운다 — 라벨만 뗀다.**
  *
  * 지우는 것으로 만들면 범주 하나를 잘못 눌러 40장이 사라지고, 되돌릴 방법이 다시
  * 올리는 것뿐이다. 라벨만 떼면 `_unlabeled`에 그대로 있어서 학생이 다시 넣을 수 있다.
+ *
+ * **테스트 사진에는 그것이 성립하지 않는다** (open-decisions.md 106 개정 2) — 범주 없는 테스트 사진은 채점할 수 없다. 그 범주의
+ * 테스트 사진을 **경로로** 지운다(같은 해시가 다른 테스트 범주에 있어도 그쪽은 남는다). 확인 창이 장수를 미리 말한다
+ * (`testCountByCategory`). 테스트가 0장이 되면 참조를 떼고 분할을 holdout으로 돌린다 — **실험은 남긴다**(`clearTestImages`와
+ * 다르다, 코드 소유자). 무는 검사: `category-test-photos.spec.ts`.
  */
 export function removeCategory(project: ProjectFile, name: string, now: string): ProjectFile {
   const hashes = readImages(project)
@@ -628,5 +668,33 @@ export function removeCategory(project: ProjectFile, name: string, now: string):
   const moved = moveImages(project, hashes, IMAGE_UNLABELED, now)
   const previous = dataSettings('image', moved.document.settings)
   const categories = previous.categories.filter((category) => category !== name)
-  return withImages(moved, moved.images, { ...previous, categories }, now)
+  const relabeled = withImages(moved, moved.images, { ...previous, categories }, now)
+
+  const doomed = readImages(relabeled, 'test').filter((entry) => entry.category === name)
+  if (doomed.length === 0) return relabeled
+  const removed = withoutEntries(
+    relabeled,
+    doomed,
+    doomed.map((entry) => entry.hash),
+    'test',
+    now,
+  )
+  if (readImages(removed, 'test').length > 0) return removed
+  const { document } = removed
+  return {
+    ...removed,
+    document: {
+      ...document,
+      settings: { ...document.settings, split: { ...document.settings.split, method: 'holdout' } },
+    },
+  }
+}
+
+/** 범주마다 테스트용 사진이 몇 장인가. 범주 지우기의 확인 창이 장수를 말한다. */
+export function testCountByCategory(project: ProjectFile | null): ReadonlyMap<string, number> {
+  const counts = new Map<string, number>()
+  for (const entry of readImages(project, 'test')) {
+    counts.set(entry.category, (counts.get(entry.category) ?? 0) + 1)
+  }
+  return counts
 }
