@@ -95,12 +95,12 @@ function cellToString(value: unknown): string {
  * **폭은 시트 전체로 센다 — 읽은 행으로 세지 않는다.** 미리보기는 앞 몇 행만 읽으므로, 그 행으로
  * 폭을 정하면 뒤쪽 행에만 값이 있는 끝 열이 미리보기에는 없고 확정 표에는 생긴다. 셈은 값이
  * 든 칸만 훑어서 시트를 적재하는 비용에 비하면 작다(5만 행 × 10열에서 적재 5.3초, 훑기 51ms —
- * 2026-09-29 node, 사람 확인). 파서마다 시트 하나에 한 번만 센다(`contentWidths`).
+ * 2026-09-29 node, 사람 확인). 파서마다 시트 하나에 한 번만 센다(본진 `contentWidths`, 폴백 `scanOf`).
  * 무는 검사: xlsx-parsers-diverge.spec.ts "미리보기와 확정 표의 폭이 같다".
  *
- * **짧은 행은 폭까지 채운다** — 지금 두 파서는 행을 폭 이상으로 주므로(본진은 폭까지 만들고,
- * `sheet_to_json`은 범위 끝까지 채운다) 이 채우기가 닿는 길이 없다. 그래도 파서가 늘면 열 자리가
- * 행마다 밀리는 것을 막는 자리라 남기고, 직접 문다: xlsx-parsers-diverge.spec.ts "fitWidth".
+ * **짧은 행은 폭까지 채운다** — 본진(ExcelJS)은 행마다 값이 있는 데까지만 담으므로(0.34.2 diff 세 번째 감사) 이 채우기가 주된
+ * 길이다. 폴백은 값이 든 폭까지 `defval`로 채워 오지만 그 너머는 여기서 자른다. 직접 무는 검사는 xlsx-parsers-diverge.spec.ts
+ * "fitWidth"이고, 실제 입구로는 xlsx.spec.ts의 "후행 빈 셀이 있어도 모든 행의 길이가 같다" 등이 운다.
  */
 export function fitWidth(grid: TableGrid, width: number): TableGrid {
   for (const row of grid) {
@@ -225,10 +225,8 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
 
   if (workbook.SheetNames.length === 0) throw new Error('no worksheets')
 
-  /** 시트마다 값이 든 가장 오른쪽 열. `widthOf`가 채운다. */
-  const contentWidths = new Map<string, number>()
-  /** 시트마다 값이 든 행 번호. `filledRows`가 채운다. */
-  const filledRowCache = new Map<string, readonly number[]>()
+  /** 시트마다 값이 든 폭과 행. `scanOf`가 한 번 훑어 채운다. */
+  const sheetScans = new Map<string, { width: number; rows: readonly number[] }>()
 
   return {
     sheetNames: [...workbook.SheetNames],
@@ -310,42 +308,48 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
    * 생긴다(전에는 없던 열이다). 무는 검사: 같은 파일 "시트 범위가 실제 칸보다 좁으면".
    */
   function widthOf(sheetName: string, sheet: WorkSheet): number {
-    const seen = contentWidths.get(sheetName)
-    if (seen !== undefined) return seen
-    const range = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1')
-    let widest = 0
-    for (const [address, cell] of Object.entries(sheet)) {
-      if (address.startsWith('!')) continue
-      const { t, v } = cell as CellObject
-      if (t === 'e' || !holdsValue(v)) continue
-      const { r, c } = XLSX.utils.decode_cell(address)
-      if (r < range.s.r || r > range.e.r || c < range.s.c || c > range.e.c) continue
-      widest = Math.max(widest, c - range.s.c + 1)
-    }
-    contentWidths.set(sheetName, widest)
-    return widest
+    return scanOf(sheetName, sheet).width
   }
 
   /**
-   * 값이 든 칸이 하나라도 있는 행 번호(0부터, 오름차순). 칸의 잣대는 `widthOf`와 같다(오류 칸과 범위 밖 칸은 없는 칸). 시트마다 한
-   * 번 센다 — 미리보기와 본 읽기가 같은 시트를 여러 번 지난다.
+   * 값이 든 칸이 하나라도 있는 행 번호(0부터, 오름차순). 칸의 잣대는 `widthOf`와 같다 — 같은 한 번의 훑기(`scanOf`)가 함께 센다.
    */
   function filledRows(sheetName: string, sheet: WorkSheet): readonly number[] {
-    const seen = filledRowCache.get(sheetName)
+    return scanOf(sheetName, sheet).rows
+  }
+
+  /**
+   * **시트를 한 번만 훑어** 값이 든 폭과 값이 든 행을 함께 센다(0.34.2 diff 네 번째 감사 C-16 — 둘을 따로 훑던 동안 폴백 미리보기가
+   * 같은 칸을 두 번 지났다). 시트 이름마다 한 번 — 미리보기와 본 읽기가 같은 시트를 여러 번 지난다.
+   */
+  function scanOf(sheetName: string, sheet: WorkSheet): { width: number; rows: readonly number[] } {
+    const seen = sheetScans.get(sheetName)
     if (seen !== undefined) return seen
-    const range = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1')
+    let width = 0
     const rows = new Set<number>()
+    for (const { r, c } of valueCells(sheet)) {
+      if (c + 1 > width) width = c + 1
+      rows.add(r)
+    }
+    const scan = { width, rows: [...rows].sort((left, right) => left - right) }
+    sheetScans.set(sheetName, scan)
+    return scan
+  }
+
+  /**
+   * **값이 든 칸 — 잣대는 여기 하나다**(`scanOf`·`valueRows`가 함께 쓴다, 0.34.2 diff 네 번째 감사 C-12의 이웃). 오류 칸(`t: 'e'`)과
+   * 범위(`!ref`) 밖의 칸은 없는 칸이다. `c`는 범위의 첫 열부터 센다(`sheet_to_json`과 같다), `r`은 시트의 행 번호 그대로다.
+   */
+  function* valueCells(sheet: WorkSheet): Generator<{ r: number; c: number; v: unknown }> {
+    const range = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1')
     for (const [address, cell] of Object.entries(sheet)) {
       if (address.startsWith('!')) continue
       const { t, v } = cell as CellObject
       if (t === 'e' || !holdsValue(v)) continue
       const { r, c } = XLSX.utils.decode_cell(address)
       if (r < range.s.r || r > range.e.r || c < range.s.c || c > range.e.c) continue
-      rows.add(r)
+      yield { r, c: c - range.s.c, v }
     }
-    const sorted = [...rows].sort((left, right) => left - right)
-    filledRowCache.set(sheetName, sorted)
-    return sorted
   }
 
   /**
@@ -355,16 +359,10 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
    * 있는 행만 선다). 무는 검사: `xlsx.spec.ts`의 *"폴백도 열 상한을 넘는 폭이면 채우지 않는다"*.
    */
   function valueRows(sheet: WorkSheet, maxRows: number | undefined): TableGrid {
-    const range = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1')
     const byRow = new Map<number, Map<number, string>>()
-    for (const [address, cell] of Object.entries(sheet)) {
-      if (address.startsWith('!')) continue
-      const { t, v } = cell as CellObject
-      if (t === 'e' || !holdsValue(v)) continue
-      const { r, c } = XLSX.utils.decode_cell(address)
-      if (r < range.s.r || r > range.e.r || c < range.s.c || c > range.e.c) continue
+    for (const { r, c, v } of valueCells(sheet)) {
       const row = byRow.get(r) ?? new Map<number, string>()
-      row.set(c - range.s.c, cellToString(v))
+      row.set(c, cellToString(v))
       byRow.set(r, row)
     }
     const grid: TableGrid = []

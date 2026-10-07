@@ -218,11 +218,15 @@ describe('openXlsx', { timeout: 20_000 }, () => {
    * 건너뛰고 값이 있는 데까지만 읽는다. 한도는 고친 뒤 값의 수십 배이고 고치기 전 값보다 아래다.
    */
   it('빈 행이 많고 먼 칸 하나뿐인 시트도 곧 읽는다', async () => {
-    const ROWS = 40_000
+    const ROWS = 20_000
     const BUDGET_MS = 1_500
     const workbook = new ExcelJS.Workbook()
     const sheet = workbook.addWorksheet('S')
     for (let row = 1; row <= 5; row += 1) sheet.getCell(row, 1).value = `r${String(row)}`
+    // **빈 행에는 서식만 둔다** (0.34.2 diff 네 번째 감사 C-11) — 행은 있고 값은 없다. 행이 아예 없으면 없는 행 건너뛰기(`findRow`)만
+    // 물고, "행마다 값이 있는 데까지만"은 안 문다.
+    for (let row = 6; row < ROWS; row += 1)
+      sheet.getCell(row, 1).border = { top: { style: 'thin' } }
     sheet.getCell(ROWS, 16_384).value = 'far'
     const document = await openXlsx(new Uint8Array(await workbook.xlsx.writeBuffer()))
 
@@ -422,6 +426,10 @@ describe('폴백', { timeout: 20_000 }, () => {
     expect(whole.map((row) => row.length)).toEqual(new Array(6).fill(1_000))
     expect(narrow).toHaveLength(2_000)
     expect(narrow.every((row) => row.length === 1)).toBe(true)
+    // **행 차례가 시트의 차례다** (0.34.2 diff 네 번째 감사 C-13) — 값이 든 행 번호를 비교자 없이 정렬하면 글자 순서라 10번 행이 2번 앞에 온다.
+    expect(narrow.map((row) => row[0])).toEqual(
+      Array.from({ length: 2_000 }, (_, index) => String(index + 1)),
+    )
     expect(elapsed, `${String(Math.round(elapsed))} ms`).toBeLessThan(BUDGET_MS)
   }, 180_000)
 
@@ -624,5 +632,7 @@ describe('previewSheets', { timeout: 20_000 }, () => {
       ['이름', '나이'],
       ['가나다', '10'],
     ])
+    // **둘째 시트는 제 폭으로 읽는다** (0.34.2 diff 네 번째 감사 C-14) — 시트마다 세는 폭의 열쇠를 하나로 뭉개면 첫 시트의 폭(2)으로 읽혔다.
+    expect(sheets[1]?.rows).toEqual([['x']])
   })
 })

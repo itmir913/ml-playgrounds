@@ -13,6 +13,7 @@
  * **xlsx는 XML을 직접 적어 만든다.** ExcelJS로 쓰면 오류 칸의 캐시 값이나 서식만 있는 칸을
  * 원하는 모양으로 못 남긴다. **폴백은 본진의 `load`를 던지게 해서 지난다** — 한셀 실물과 같은 길이다.
  */
+import ExcelJS from 'exceljs'
 import { strToU8, zipSync } from 'fflate'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -151,6 +152,19 @@ const NARROW_DIMENSION = workbook(
   '<dimension ref="A1:A2"/>',
 )
 
+/**
+ * `<dimension>`이 실제 행보다 짧다(1~2행). 3행의 칸은 시트에 있지만 범위 밖이다 — 폴백은 열에서처럼 행에서도 범위 안만 읽는다.
+ */
+const SHORT_DIMENSION = workbook(
+  [
+    text('A1', 'x') + text('B1', 'y'),
+    number('A2', 1) + number('B2', 2),
+    number('A3', 3) + number('B3', 4),
+  ],
+  '',
+  '<dimension ref="A1:B2"/>',
+)
+
 /** 끝 열에 머리글 없이 오류 칸 하나뿐이다. 오류 칸은 빈 칸이므로 그 열은 빈 열이다. */
 const ERROR_ONLY_TAIL = workbook([
   text('A1', 'x') + text('B1', 'y'),
@@ -167,8 +181,9 @@ const FROM_COLUMN_B = workbook(
 async function readBoth(
   bytes: Uint8Array,
   maxRows?: number,
+  maxColumns?: number,
 ): Promise<{ excelJs: string[][]; sheetJs: string[][] }> {
-  const excelJs = (await openXlsx(bytes)).readSheet('S', maxRows)
+  const excelJs = (await openXlsx(bytes)).readSheet('S', maxRows, maxColumns)
 
   vi.resetModules()
   vi.doMock('exceljs', () => ({
@@ -181,7 +196,7 @@ async function readBoth(
     },
   }))
   const fallback = await import('../src/data/xlsx')
-  const sheetJs = (await fallback.openXlsx(bytes)).readSheet('S', maxRows)
+  const sheetJs = (await fallback.openXlsx(bytes)).readSheet('S', maxRows, maxColumns)
   vi.doUnmock('exceljs')
   vi.resetModules()
   return { excelJs, sheetJs }
@@ -272,6 +287,55 @@ describe('두 파서가 같게 읽는 자리', { timeout: 20_000 }, () => {
     ])
   })
 
+  /**
+   * **범위 밖의 행도 안 읽는다** (0.34.2 diff 네 번째 감사 C-12). 위 검사는 열 쪽만 문다 — 값이 든 행을 셀 때(`scanOf`)나 거절 격자를 세울
+   * 때(`valueRows`) 행 쪽 범위 거르기를 빼도 초록이었고, 그러면 `sheet_to_json`이 명시한 행 범위로 범위 밖 행까지 읽었다. 넘치는 갈래
+   * (`maxColumns` 1)도 같은 행 수여야 한다.
+   */
+  it('시트 범위가 실제 행보다 짧으면 폴백은 범위 안의 행만 읽는다', async () => {
+    const { sheetJs } = await readBoth(SHORT_DIMENSION)
+    expect(sheetJs).toEqual([
+      ['x', 'y'],
+      ['1', '2'],
+    ])
+    const { sheetJs: rejected } = await readBoth(SHORT_DIMENSION, undefined, 1)
+    expect(rejected).toHaveLength(2)
+  })
+
+  /**
+   * **폴백도 시트마다 제 폭과 제 행으로 읽는다** (0.34.2 diff 네 번째 감사 C-14). 폴백은 폭과 값이 든 행을 시트 이름으로 캐시하는데(`scanOf`),
+   * 시트가 여럿인 폴백 검사가 없어 열쇠를 하나로 뭉개도 초록이었다 — 그러면 둘째 시트가 첫 시트의 폭과 행으로 읽힌다.
+   */
+  it('폴백도 시트가 여럿이면 시트마다 제 폭과 행으로 읽는다', async () => {
+    const book = new ExcelJS.Workbook()
+    book.addWorksheet('넓은').addRows([
+      ['a', 'b', 'c'],
+      [1, 2, 3],
+    ])
+    book.addWorksheet('긴').addRows([['x'], [1], [2], [3]])
+    const bytes = new Uint8Array(await book.xlsx.writeBuffer())
+
+    vi.resetModules()
+    vi.doMock('exceljs', () => ({
+      Workbook: class {
+        xlsx = {
+          load: () => {
+            throw new TypeError('force the fallback')
+          },
+        }
+      },
+    }))
+    const fallback = await import('../src/data/xlsx')
+    const sheets = fallback.previewSheets(await fallback.openXlsx(bytes), 10)
+    expect(sheets.map((sheet) => sheet.rows)).toEqual([
+      [
+        ['a', 'b', 'c'],
+        ['1', '2', '3'],
+      ],
+      [['x'], ['1'], ['2'], ['3']],
+    ])
+  })
+
   it('범위가 A가 아닌 열에서 시작하는 시트 — 폴백의 폭은 범위의 첫 열부터 센다', async () => {
     const { excelJs, sheetJs } = await readBoth(FROM_COLUMN_B)
     expect(sheetJs).toEqual([
@@ -296,8 +360,8 @@ describe('두 파서가 같게 읽는 자리', { timeout: 20_000 }, () => {
 })
 
 /**
- * **fitWidth** — 두 파서가 쓰는 폭 맞추기. 지금 파서들은 짧은 행을 주지 않아 채우기가 표에서는
- * 안 보이므로 직접 문다(`data/xlsx.ts`의 주석).
+ * **fitWidth** — 두 파서가 쓰는 폭 맞추기. 본진은 행마다 값이 있는 데까지만 담으므로 채우기가 실제 입구에서도 돈다(`data/xlsx.ts`의
+ * 주석) — 여기서는 채우기와 자르기를 직접 문다.
  */
 describe('fitWidth', () => {
   it('긴 행은 자르고 짧은 행은 빈 칸으로 채운다', () => {
