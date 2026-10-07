@@ -599,6 +599,13 @@ describe('쓸 수 없는 열', () => {
       ],
       ['minmax의 폭이 넘친다', wide, { missing: 'none', scaling: 'minmax' }],
       ['robust의 폭이 넘친다', wide, { missing: 'none', scaling: 'robust' }],
+      // 값이 둘이면 사분위수 셋이 한 구간에서 보간되어 모두 +Inf가 되고, 폭 `Inf - Inf = NaN`을 robust의
+      // `|| 1`이 1로 숨긴다 — 넘친 것을 잡는 자리가 중심 검사 하나뿐이다 (R43-4 재판단).
+      [
+        'robust의 중심만 넘친다 - NaN 폭은 1로 숨는다',
+        huge(['-1.5e308', '1.5e308', '', '']),
+        { missing: 'zero', scaling: 'robust' },
+      ],
     ]
     for (const [name, table, overrides] of cases) {
       it(name, () => {
