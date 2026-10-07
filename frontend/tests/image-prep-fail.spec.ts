@@ -22,7 +22,7 @@ import { hashBytes } from '../src/hash'
 import { i18n, setLocale } from '../src/i18n'
 import { newProjectDocument } from '../src/project/create'
 import type { ProjectFile } from '../src/project/format'
-import { addImages, readImages } from '../src/project/images'
+import { addCategory, addImages, readImages } from '../src/project/images'
 import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import { useToastStore } from '../src/stores/toasts'
@@ -267,6 +267,27 @@ describe('decision 65: test photos are judged before the confirm dialog', () => 
     expect(cautions()).toEqual(['client.TEST_IMAGES_CATEGORY_MISSING'])
     expect(bakers.workers).toHaveLength(0)
     expect(project.file?.document.runs.experiments).toHaveLength(1)
+  })
+
+  /**
+   * **빈 범주는 테스트 사진이 맞출 범주가 아니다** (결정 106 개정, 0.34.2 diff 감사 B-1). 올리기가 빈 범주까지 든 목록과 견주면 빈
+   * 범주의 폴더를 요구하는데, 학습은 훈련 사진이 든 범주와 견줘 그렇게 받은 사진을 거절했다. 두 자리가 같은 목록을 부른다.
+   */
+  it('an empty category is not required in the test folders', async () => {
+    const project = useProjectStore()
+    await project.save(addCategory(imageDataProject(true), '여우', '2026-09-02T09:30:00.000Z'))
+    const wrapper = mount(ImagePrepPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    await wrapper.findAll('input[name="image-test-data-choice"]')[1]?.trigger('change')
+    await flushPromises()
+    wrapper
+      .find('[class*="border-dashed"]')
+      .element.dispatchEvent(dropEvent([photo('개', 'a.jpg'), photo('고양이', 'b.jpg')]))
+    await settle()
+
+    expect(cautions(), 'the empty category must not be demanded').toEqual([])
+    expect((wrapper.vm as unknown as PanelInternals).testAttaching).toBe(true)
+    wrapper.unmount()
   })
 
   it('with no categories the buttons are not locked, and a drop says why', async () => {

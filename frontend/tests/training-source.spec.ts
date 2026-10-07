@@ -552,6 +552,14 @@ describe('결정 106 — 테스트 사진을 받은 뒤 범주를 고치면 학�
     })
   })
 
+  /**
+   * **빈 범주가 있어도 학습한다** (결정 106 개정, 0.34.2 diff 감사 B-1). 빈 범주는 훈련 사진이 든 범주가 아니므로 테스트 사진도 그
+   * 폴더를 안 갖는다 — 올릴 때(`ImagePrepPanel.vue`)가 같은 목록(`trainedCategories`)으로 그렇게 받는다.
+   */
+  it('빈 범주가 있어도 학습한다 - 올릴 때와 같은 목록이다', async () => {
+    expect((await attempt(addCategory(project(), '늑대', NOW))).code).toBe('started')
+  })
+
   it('holdout이면 테스트 자리를 대조하지 않는다', async () => {
     const renamed = renameCategory(project(), '개', '강아지', NOW)
     const holdout: ProjectFile = {

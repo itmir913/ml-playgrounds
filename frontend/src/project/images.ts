@@ -104,6 +104,20 @@ export function imageCategories(project: ProjectFile | null): readonly string[] 
 }
 
 /**
+ * **훈련 사진이 한 장이라도 든 범주** — 테스트 사진이 정확히 맞춰야 하는 목록이다 (open-decisions.md 106 개정). 순서는
+ * `imageCategories`가 갖는다.
+ *
+ * **올릴 때(`ImagePrepPanel.vue`)와 학습할 때(`ml/training-source.ts`)가 이 하나를 부른다.** 전에는 올리기가 빈 범주까지 든 화면의
+ * 목록과 견줘 빈 범주의 폴더를 요구하고 받았는데, 학습은 이 목록과 견줘 받자마자 거절했다(0.34.2 diff 감사 B-1). 빈 범주는 모델이
+ * 배울 라벨이 아니므로 채점할 수도 없다. 무는 검사: `image-project.spec.ts`의 *"빈 범주는 테스트 사진이 맞출 범주가 아니다"*,
+ * `training-source.spec.ts`의 *"결정 106"* 묶음.
+ */
+export function trainedCategories(project: ProjectFile | null): readonly string[] {
+  const filled = new Set(readImages(project).map((entry) => entry.category))
+  return imageCategories(project).filter((category) => filled.has(category))
+}
+
+/**
  * **사진이 실제로 들어 있는 범주가 몇 개인가.** 분류가 성립하는지의 판정이다 —
  * "갈릴 것이 없다"(open-decisions.md "이미지 프로젝트의 데이터 화면").
  *

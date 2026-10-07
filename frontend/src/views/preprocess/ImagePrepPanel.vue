@@ -46,6 +46,7 @@ import {
   imageOverflow,
   readImages,
   requireRoomForPhotos,
+  trainedCategories,
 } from '@/project/images'
 import { withSplit } from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
@@ -113,6 +114,13 @@ const stratifyLock = computed(() => {
  * 만들려 하면 이미 있다고 막혀서 빠져나갈 길이 없다 (2026-08-30 R12 감사 A-2).
  */
 const categories = computed(() => imageCategories(project.file))
+
+/**
+ * **테스트 사진이 맞춰야 하는 범주 — 훈련 사진이 든 범주다** (open-decisions.md 106 개정, 0.34.2 diff 감사 B-1). 학습 입구
+ * (`ml/training-source.ts`)가 같은 함수로 다시 견주므로, 여기서 빈 범주까지 든 위 목록과 견주면 빈 범주의 폴더를 요구하고 받은 뒤
+ * 학습에서 거절당했다. 압축 파일 이름 풀기의 대조(`expect`)는 위 목록 그대로다 — 이름을 맞혀 보는 데는 빈 범주 이름도 증거다.
+ */
+const testScoredBy = computed(() => trainedCategories(project.file))
 
 /** 이미 올라온 테스트용 사진. 있으면 올리는 자리 대신 지우는 자리가 선다. */
 const testPhotos = computed(() => readImages(project.file, 'test').length)
@@ -248,7 +256,7 @@ async function requestRemoveTest(): Promise<void> {
  */
 function refusedTest(items: readonly UploadItem[]): boolean {
   const block = testZipBlockFor(
-    categories.value,
+    testScoredBy.value,
     items.map((item) => item.category),
   )
   if (block === null) return false
@@ -264,7 +272,7 @@ function refusedTest(items: readonly UploadItem[]): boolean {
  * 끌어다 놓으면 올리기 요청이 거절한다(`refusedTest`) — 잠금과 거절을 따로 두면 언젠가 갈린다
  * (결정문 60). 이 문장은 고르기 전에 미리 말해 주는 것뿐이다.
  */
-const testBlock = computed(() => testSetBlockFor(categories.value))
+const testBlock = computed(() => testSetBlockFor(testScoredBy.value))
 
 const testReason = computed(() => {
   const block = testBlock.value

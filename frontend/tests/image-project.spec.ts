@@ -24,6 +24,7 @@ import {
   removeCategory,
   removeImages,
   renameCategory,
+  trainedCategories,
 } from '../src/project/images'
 import type { ImageRole } from '../src/data/image/canonical'
 import { CANONICAL_FORMATS } from '../src/data/image/formats'
@@ -68,6 +69,21 @@ function withPhotos(...items: readonly { hash: string; category: string }[]): Pr
     { canonicalSize: SIZE, now: NOW, format: 'webp' },
   ).project
 }
+
+/**
+ * **빈 범주는 테스트 사진이 맞출 범주가 아니다** (결정 106 개정, 0.34.2 diff 감사 B-1). 올릴 때와 학습할 때가 이 목록 하나를 부른다.
+ */
+describe('빈 범주는 테스트 사진이 맞출 범주가 아니다', () => {
+  it('훈련 사진이 든 범주만 화면의 차례대로', () => {
+    const project = addCategory(
+      withPhotos({ hash: 'a', category: '고양이' }, { hash: 'b', category: '개' }),
+      '여우',
+      NOW,
+    )
+    expect(imageCategories(project)).toEqual(['고양이', '개', '여우'])
+    expect(trainedCategories(project)).toEqual(['고양이', '개'])
+  })
+})
 
 describe('테스트용 사진을 붙이고 뗀다', () => {
   /** 실험 하나가 든 프로젝트. 테스트 데이터가 바뀌면 이것이 사라져야 한다. */
@@ -664,10 +680,11 @@ describe('사진의 순서는 로케일이 아니라 코드 단위로 정한다'
 /**
  * **범주가 많아도 곧 끝난다** (R43-1 감사 C-1). 사진마다 범주가 다른 묶음에서 범주 목록에 있는지를 반복문 안의
  * 배열 `includes`·`indexOf`로 물으면 범주 수의 제곱이다 — 범주 1만 개에 0.2초, 두 배마다 네 배였다. 상한을 끄면
- * 범주 수에 바닥이 없다. 한도는 고친 뒤 값의 열 배 넘게 두고, 고치기 전 값보다 아래다.
+ * 범주 수에 바닥이 없다. 한도는 고친 뒤 값의 열 배 넘게 두고, 고치기 전 값보다 한참 아래다 — 5만 개에서는 옛 코드가 한도의
+ * 1.5배뿐이라 빠른 기기에서 통과할 수 있어 10만 개로 늘렸다(0.34.2 diff 감사 C-3).
  */
 describe('범주가 많아도 곧 끝난다', () => {
-  const COUNT = 50_000
+  const COUNT = 100_000
   const BUDGET_MS = 2_000
 
   /**

@@ -33,7 +33,7 @@ import { own } from '@/records'
 import { readDataset, readTestDataset } from '@/project/dataset'
 import { addEmbeddings, readEmbeddings } from '@/project/embeddings'
 import { IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
-import { imageCategories, labeledCategoryCount, readImages } from '@/project/images'
+import { labeledCategoryCount, readImages, trainedCategories } from '@/project/images'
 import {
   dataSettings,
   dataSnapshot,
@@ -197,14 +197,14 @@ export const TRAINING_SOURCES: Readonly<
        * 버튼은 잠그지 않는다(결정 60). 백본을 받기 전이라 헛일이 없다. 무는 검사:
        * `training-source.spec.ts`의 *"결정 106"* 묶음.
        *
-       * **견주는 쪽은 훈련 사진이 든 범주다** — 화면의 목록(`imageCategories`)이 아니다. 한 범주의 사진을 다
-       * 지우면 그 범주는 빈 칸으로 목록에 남는데(`removeImages`), 그대로 견주면 통과해서 모델이 한 번도 못 본
-       * 범주로 채점된다. 모든 범주에 사진이 있는 보통의 상태에서는 두 목록이 같아 올릴 때의 판정과 갈리지 않는다.
+       * **견주는 쪽은 훈련 사진이 든 범주다**(`trainedCategories`) — 화면의 목록(`imageCategories`)이 아니다. 한 범주의
+       * 사진을 다 지우면 그 범주는 빈 칸으로 목록에 남는데(`removeImages`), 그대로 견주면 통과해서 모델이 한 번도 못 본
+       * 범주로 채점된다. **올릴 때도 같은 목록을 부른다**(`ImagePrepPanel.vue`, 결정 106 개정) — 두 자리가 갈리면 빈 범주가 있는
+       * 프로젝트가 올릴 때는 받고 학습할 때는 거절됐다(0.34.2 diff 감사 B-1).
        */
       if (project.document.settings.split.method === 'provided') {
-        const trained = new Set(readImages(project).map((entry) => entry.category))
         const block = testZipBlockFor(
-          imageCategories(project).filter((category) => trained.has(category)),
+          trainedCategories(project),
           readImages(project, 'test').map((entry) => entry.category),
         )
         if (block !== null) throw new ClientError(block.code, block.params ?? {})
