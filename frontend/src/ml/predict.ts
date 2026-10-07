@@ -271,7 +271,13 @@ export function inputFields(preprocessor: Preprocessor): PredictionField[] {
  * 지금 설정과 같아진다.
  */
 export function mergeFields(groups: readonly (readonly PredictionField[])[]): PredictionField[] {
-  const merged = new Map<string, { kind: ColumnKind; options: string[] | null }>()
+  // 본 범주는 `Set`으로 센다 (R43-4 C-1). 배열의 `includes`는 범주마다 목록을 훑어 같은 범주 열을 쓰는
+  // 실험이 둘이면 범주 수의 제곱이었다 — 범주 수에는 상한이 없다. `tests/predict.spec.ts`의
+  // *"범주 40,000개를 곧 합친다"*가 문다.
+  const merged = new Map<
+    string,
+    { kind: ColumnKind; options: string[] | null; known: Set<string> | null }
+  >()
 
   for (const group of groups) {
     for (const field of group) {
@@ -280,12 +286,15 @@ export function mergeFields(groups: readonly (readonly PredictionField[])[]): Pr
         merged.set(field.name, {
           kind: field.kind,
           options: field.options ? [...field.options] : null,
+          known: field.options ? new Set(field.options) : null,
         })
         continue
       }
-      if (!seen.options || !field.options) continue
+      if (!seen.options || !seen.known || !field.options) continue
       for (const option of field.options) {
-        if (!seen.options.includes(option)) seen.options.push(option)
+        if (seen.known.has(option)) continue
+        seen.known.add(option)
+        seen.options.push(option)
       }
     }
   }

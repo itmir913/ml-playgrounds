@@ -577,6 +577,48 @@ describe('쓸 수 없는 열', () => {
     expect(code).toBe('FEATURE_ALL_MISSING')
   })
 
+  /**
+   * **넘치는 값** (R43-4 B-1). 대체값·중심·폭이 Infinity나 NaN이 되면 열이 통째로 NaN이나 0이 되어
+   * 학습이 완료로 끝나고 틀린 점수를 냈다. 판마다 넘치는 자리가 하나뿐이도록 결측 전략을 고른다.
+   */
+  describe('넘치는 값은 FEATURE_VALUE_TOO_LARGE', () => {
+    const huge = (values: readonly string[]): Dataset => ({
+      columns: ['x'],
+      rows: values.map((value) => [value]),
+    })
+    const wide = huge(['-1.5e308', '1.5e308', '-1.5e308', '1.5e308'])
+    const big = huge(['1.5e308', '1.5e308', '1.5e308', '1.5e308'])
+    const rows = [0, 1, 2, 3]
+    const cases: readonly [string, Dataset, Partial<Preprocessing>][] = [
+      ['평균 대체값의 합이 넘친다', big, { missing: 'mean' }],
+      ['standard의 중심이 넘친다', big, { missing: 'none', scaling: 'standard' }],
+      [
+        'standard의 분산만 넘친다',
+        huge(['-1e200', '1e200']),
+        { missing: 'none', scaling: 'standard' },
+      ],
+      ['minmax의 폭이 넘친다', wide, { missing: 'none', scaling: 'minmax' }],
+      ['robust의 폭이 넘친다', wide, { missing: 'none', scaling: 'robust' }],
+    ]
+    for (const [name, table, overrides] of cases) {
+      it(name, () => {
+        const indices = rows.slice(0, table.rows.length)
+        const code = codeOf(() => fitPreprocessor(table, indices, ['x'], preprocessing(overrides)))
+        expect(code).toBe('FEATURE_VALUE_TOO_LARGE')
+      })
+    }
+
+    it('크지만 넘치지 않는 값은 그대로 받는다', () => {
+      const fitted = fitPreprocessor(
+        huge(['-1e150', '1e150']),
+        [0, 1],
+        ['x'],
+        preprocessing({ missing: 'median', scaling: 'standard' }),
+      )
+      expect(fitted.columns[0]?.scale).toEqual({ center: 0, spread: 1e150 })
+    })
+  })
+
   it('남는 특성이 하나도 없으면 FEATURE_NOT_SELECTED', () => {
     const options = preprocessing({ categoricalEncoding: 'none' })
     const code = codeOf(() => fitPreprocessor(dataset, [0, 1], ['지역'], options))

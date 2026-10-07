@@ -162,6 +162,10 @@ export const CLIENT_ERROR_CODES = [
   // 답을 낸다** (2026-09-19 R33 C-3).
   'PREDICTION_INPUT_NOT_NUMBER',
 
+  // 수치 특성의 대체값·중심·폭이 넘쳐 유한하지 않다 - ml/preprocess.ts의 fitPreprocessor.
+  // 안 막으면 학습이 완료로 끝나고 틀린 점수를 낸다 (2026-10-08 R43-4 B-1, docs/error-codes.md).
+  'FEATURE_VALUE_TOO_LARGE',
+
   // 표 파일 가져오기 - 서버는 정규화된 CSV만 보므로 이 묶음은 서버에 없다 (data/table.ts)
   'DATASET_FILE_TYPE_UNSUPPORTED',
   'DATASET_EXCEL_ENCRYPTED_OR_LEGACY',

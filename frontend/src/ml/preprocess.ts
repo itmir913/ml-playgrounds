@@ -277,7 +277,11 @@ const SCALE_BY_METHOD: Record<
      * `tests/preprocess.spec.ts`의 *"표준화가 sklearn과 같다"* 판들이 sklearn 픽스처로 문다.
      */
     const n = values.length
-    const constant = variance <= n * Number.EPSILON * variance + (n * center * Number.EPSILON) ** 2
+    // 넘친 분산(Infinity)은 이 식에서 `Inf <= Inf`로 상수가 되어 폭 1로 숨는다 — 상수로 안 보고
+    // 넘친 폭을 그대로 내보내 `fitPreprocessor`가 거부하게 한다 (R43-4 B-1, *"standard의 분산만 넘친다"*).
+    const constant =
+      Number.isFinite(variance) &&
+      variance <= n * Number.EPSILON * variance + (n * center * Number.EPSILON) ** 2
     return { center, spread: constant ? 1 : Math.sqrt(variance) }
   },
   minmax: (values) => {
@@ -461,6 +465,18 @@ export function fitPreprocessor(
       // 결측을 채우기 **전의** 값으로 구한다. 대체값을 섞으면 결측이 많은 열일수록
       // 같은 값이 여러 번 들어가 분산이 줄고, 스케일이 데이터가 아니라 결측률을 반영한다.
       if (scaler) fitted.scale = scaler(numbers)
+      // **넘친 값으로 학습을 끝내지 않는다** (2026-10-08 R43-4 B-1). 1e154를 넘는 값의 제곱이나
+      // 1.8e308을 넘는 합은 Infinity가 되고, 그 대체값·중심·폭이 열을 통째로 NaN이나 0으로 만들어
+      // 학습이 **완료로 끝나고 틀린 점수를 냈다**. 저장되면 `null`이라 다시 열 때 스키마가 거부한다.
+      // `tests/preprocess.spec.ts`의 *"넘치는 값"* 판들이 문다.
+      const fill = fitted.fill
+      const scale = fitted.scale
+      if (
+        (typeof fill === 'number' && !Number.isFinite(fill)) ||
+        (scale && !(Number.isFinite(scale.center) && Number.isFinite(scale.spread)))
+      ) {
+        throw new ClientError('FEATURE_VALUE_TOO_LARGE', { feature: name })
+      }
       featureNames.push(name)
     } else {
       const categories = categoryOrder(present)

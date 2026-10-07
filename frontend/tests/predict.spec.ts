@@ -49,6 +49,7 @@ import {
   trainingRowsFor,
   type Answer,
   type PredictableModel,
+  type PredictionField,
 } from '../src/ml/predict'
 import type { Prediction } from '../src/ml/metrics'
 import { experimentNames, experimentOrder } from '../src/ml/results'
@@ -656,6 +657,27 @@ describe('여러 실험의 칸을 합친다', () => {
     const merged = mergeFields([seoulBusan, all])
 
     expect(merged.find((field) => field.name === '지역')?.options).toEqual(['부산', '서울', '대구'])
+  })
+
+  /**
+   * **범주 40,000개를 곧 합친다** (R43-4 C-1). 배열 `includes`로 견주던 때는 겹치지 않는 범주 40,000개씩
+   * 두 실험이 Node에서 4.4초였고(배마다 네 배), `Set`으로 바꾼 뒤 21~57ms였다. 예측 화면의 computed가
+   * 메인 스레드에서 부른다. 문턱은 느린 CI를 위해 열 배 가까이 둔다.
+   */
+  it('범주 40,000개를 곧 합친다', () => {
+    const BUDGET_MS = 500
+    const field = (prefix: string): PredictionField[] => [
+      {
+        name: '번호',
+        kind: 'categorical',
+        options: Array.from({ length: 40_000 }, (_, index) => `${prefix}${String(index)}`),
+      },
+    ]
+    const started = performance.now()
+    const merged = mergeFields([field('a'), field('b'), field('a')])
+    const elapsed = performance.now() - started
+    expect(elapsed, `${String(Math.round(elapsed))} ms`).toBeLessThan(BUDGET_MS)
+    expect(merged[0]?.options).toHaveLength(80_000)
   })
 
   it('먼저 나온 순서를 지킨다 - 최신 실험을 앞에 주면 화면이 지금 설정을 따른다', () => {
