@@ -289,14 +289,18 @@ async function readPicked(
       files.length === 1 && only && only.name.toLowerCase().endsWith(ZIP_EXTENSION)
         ? await readImageZip(
             await readFileBytes(only),
-            { labels: 'inferred', fallbackCategory: into },
+            { labels: 'inferred', fallbackCategory: into, known: categories.value },
             {
               locale: uiLocale.value,
               // **이미 있는 범주가 대조표다.** 겹치면 그 인코딩이 답이라는 것이 증명된다.
               expect: categories.value,
             },
           )
-        : readImageFiles(files, { labels: 'inferred', fallbackCategory: into })
+        : readImageFiles(files, {
+            labels: 'inferred',
+            fallbackCategory: into,
+            known: categories.value,
+          })
     // **굽기 전에 막는다** (project/images.ts의 imageOverflow). 여기서 걸러야 백본이
     // 안 돌고, 학생은 확인 판을 지나 기다린 뒤에 지우기부터 하는 일을 안 겪는다.
     const overflow = imageOverflow(project.file, items.length)

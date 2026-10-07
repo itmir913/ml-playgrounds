@@ -134,7 +134,13 @@ function categoryOf(path: string, fallback: string): string {
  * `image-predict-labels.spec.ts`.
  */
 export type ImageLabels =
-  { readonly labels: 'inferred'; readonly fallbackCategory?: string } | { readonly labels: 'none' }
+  | {
+      readonly labels: 'inferred'
+      readonly fallbackCategory?: string
+      /** 프로젝트에 이미 있는 범주. 대소문자만 다른 폴더를 거절하는 대조표다 (R43-5 B-1 재판단). */
+      readonly known?: readonly string[]
+    }
+  | { readonly labels: 'none' }
 
 /** 경로마다 범주를 단다. `'inferred'`면 이름을 검사하고, 하나라도 안 되면 통째로 던진다. */
 function labelItems(
@@ -146,7 +152,7 @@ function labelItems(
   }
   const fallback = reading.fallbackCategory ?? IMAGE_UNLABELED
   const items = rows.map((row) => ({ ...row, category: categoryOf(row.path, fallback) }))
-  requireValidCategories(new Set(items.map((item) => item.category)))
+  requireValidCategories(new Set(items.map((item) => item.category)), reading.known ?? [])
   return items
 }
 
@@ -157,14 +163,23 @@ function labelItems(
  * 그건 **라벨이 조용히 바뀌는 것**이기 때문이다. 학생이 할 일은 폴더 이름을 고쳐
  * 다시 압축하는 것이고, 그건 화면이 이름을 대 주면 할 수 있는 일이다.
  */
-function requireValidCategories(categories: Iterable<string>): void {
+function requireValidCategories(categories: Iterable<string>, known: readonly string[]): void {
   // **대소문자만 다른 폴더도 거부한다** (R43-5 B-1, `categoryFolderKey`). 윈도우에서 풀면 한 폴더라
-  // 다시 올릴 때 라벨이 합쳐진다. 열쇠의 Set으로 세어 범주 수에 선형이다.
+  // 다시 올릴 때 라벨이 합쳐진다. **이미 있는 범주와도 견준다** — `cat`이 있는 프로젝트에 `Cat/`을
+  // 올리면 범주가 하나 더 생겼다(재판단). 같은 철자는 그 범주에 더하는 것이라 받는다. 접어 넣지 않고
+  // 거절하는 것은 위와 같은 까닭이다 — 이름을 대 주면 학생이 고친다. 열쇠의 Set으로 세어 선형이다.
+  // 옛 파일이 `cat`·`Cat`을 함께 가졌으면 둘 다 그 범주에 더하는 것이다 — 열쇠가 있고 철자도 있으면 받는다.
+  const knownKeys = new Set(known.map(categoryFolderKey))
+  const knownNames = new Set(known)
   const folders = new Set<string>()
   for (const category of categories) {
     if (category === IMAGE_UNLABELED) continue
     const folder = categoryFolderKey(category)
-    if (isValidCategoryName(category) && !folders.has(folder)) {
+    if (
+      isValidCategoryName(category) &&
+      !folders.has(folder) &&
+      (!knownKeys.has(folder) || knownNames.has(category))
+    ) {
       folders.add(folder)
       continue
     }

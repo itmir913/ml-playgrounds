@@ -31,6 +31,18 @@
 - `byCategory` computed가 사진을 한 번 돌아 묶고, `entriesOf`는 그 `Map`에서 꺼낸다(빈 범주는 고정 빈 배열). 실제 수업
   규모에서는 5ms 안팎이라 무는 시간 검사는 두지 않았다.
 
+## 재판단 1 — **REOPEN (B-1만)** → 고침
+- 이름 창은 막혔으나 **업로드가 이미 있는 범주와 견주지 않았다**: `cat`이 있는 데이터 화면에 폴더 `set/Cat/b.png`를 올리면
+  범주가 `["cat","Cat","dog"]`이 되었다. 처음 잠정 범위("gate가 입구를 막는다")는 이름 창에만 맞았다.
+- 처방: `ImageLabels`의 `inferred`에 `known`(이미 있는 범주)을 두고, `requireValidCategories`가 열쇠는 있는데 철자가 없는 폴더를
+  거절한다(접어 넣지 않는다 — 다듬어 받지 않는 기존 원칙). 같은 철자는 그 범주에 더하는 것이라 받고, 옛 파일이 `cat`·`Cat`을
+  함께 가졌으면 둘 다 받는다. 데이터 화면이 zip·폴더 둘 다에 `known: categories`를 넘긴다.
+- 검사: `image-source-menu.spec.ts` *"이미 있는 범주와 대소문자만 다른 폴더는 받지 않는다"*(진짜 입구: 메뉴 → [폴더 선택]).
+  돌연변이 3(화면이 `known`을 안 넘김·열쇠 대조 끔·철자 예외 끔) 모두 욺.
+- C-1·C-2·C-3·B-2는 재판단에서 닫혔다.
+- 남은 C: `renameCollidesWithTest`(`data/image/test-set.ts`)는 날글자로 견준다 — 테스트 자리에만 `cat`이 남았을 때 `dog`→`CAT`은
+  통과하지만 학습 입구의 범주 대조가 큰 소리로 막는다.
+
 ## 기록만 한 것
 - M19(`SketchDialog` `bounced` 가드)는 jsdom이 `close` 사건을 안 올려 재현 못 함 — 브라우저 확인 몫.
 - `commitRemoveCategory`에 `applied` 같은 표식이 없다 — `removeCategory`가 버그 외에는 던지지 않아 지적 아님.

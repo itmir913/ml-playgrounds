@@ -471,6 +471,26 @@ describe('데이터 화면의 확인 판', () => {
     wrapper.unmount()
   })
 
+  /** 이미 있는 범주와 대소문자만 다른 폴더는 확인 판에 안 선다 — 같은 철자면 선다 (R43-5 B-1 재판단). */
+  it('이미 있는 범주와 대소문자만 다른 폴더는 받지 않는다', async () => {
+    const { wrapper, panel } = await dataPanel(['cat'])
+    const folder = folderInputOf(wrapper)
+    const inFolder = (path: string): File => {
+      const one = new File([new Uint8Array([4])], path.split('/').at(-1) ?? path)
+      Object.defineProperty(one, 'webkitRelativePath', { value: path })
+      return one
+    }
+
+    await choose(wrapper, ko.data.image.add, LABELS.folder)
+    await pickInto(folder, [inFolder('set/Cat/b.png'), inFolder('set/dog/c.png')])
+    expect(panel.pending ?? []).toEqual([])
+
+    await choose(wrapper, ko.data.image.add, LABELS.folder)
+    await pickInto(folder, [inFolder('set/cat/b.png'), inFolder('set/dog/c.png')])
+    expect(panel.pending?.map((one) => one.category)).toEqual(['cat', 'dog'])
+    wrapper.unmount()
+  })
+
   /** 범주 칸의 [여기에 사진 추가]도 같은 메뉴다(결정 6). 그린 것은 그 칸으로 간다. */
   it('범주 칸의 메뉴로 그리면 그 범주로, 두 번 그려도 이름이 안 겹친다', async () => {
     const { wrapper, panel } = await dataPanel(['고양이', '개'])
