@@ -660,3 +660,47 @@ describe('사진의 순서는 로케일이 아니라 코드 단위로 정한다'
     expect(paths).toEqual([...paths].sort((left, right) => (left < right ? -1 : 1)))
   })
 })
+
+/**
+ * **범주가 많아도 곧 끝난다** (R43-1 감사 C-1). 사진마다 범주가 다른 묶음에서 범주 목록에 있는지를 반복문 안의
+ * 배열 `includes`·`indexOf`로 물으면 범주 수의 제곱이다 — 범주 1만 개에 0.2초, 두 배마다 네 배였다. 상한을 끄면
+ * 범주 수에 바닥이 없다. 한도는 고친 뒤 값의 열 배 넘게 두고, 고치기 전 값보다 아래다.
+ */
+describe('범주가 많아도 곧 끝난다', () => {
+  const COUNT = 50_000
+  const BUDGET_MS = 2_000
+
+  /**
+   * **한 묶음 안의 같은 새 범주는 목록에 한 번만 선다.** 목록에 있는지를 `Set`으로 물으면서 넣은 범주를 그 `Set`에
+   * 더하지 않으면 같은 이름이 사진 수만큼 서는데, 그것을 보는 검사가 없었다(R43-1 고침에서 잼).
+   */
+  it('같은 새 범주의 사진 여럿은 범주를 한 번만 세운다', () => {
+    const project = withPhotos(
+      { hash: 'a', category: '개' },
+      { hash: 'b', category: '개' },
+      { hash: 'c', category: '고양이' },
+    )
+    expect(dataSettings('image', project.document.settings).categories).toEqual(['개', '고양이'])
+  })
+  const items = Array.from({ length: COUNT }, (_, index) => ({
+    hash: `h${String(index)}`,
+    category: `c${String(index)}`,
+  }))
+
+  it('사진마다 범주가 다른 묶음을 올린다', () => {
+    const started = performance.now()
+    const project = withPhotos(...items)
+    const elapsed = performance.now() - started
+    expect(imageCategories(project)).toHaveLength(COUNT)
+    expect(elapsed, `${String(Math.round(elapsed))} ms`).toBeLessThan(BUDGET_MS)
+  }, 60_000)
+
+  it('범주가 많은 프로젝트에서 이름을 바꾼다', () => {
+    const project = withPhotos(...items)
+    const started = performance.now()
+    const renamed = renameCategory(project, 'c0', 'renamed', NOW)
+    const elapsed = performance.now() - started
+    expect(imageCategories(renamed)[0]).toBe('renamed')
+    expect(elapsed, `${String(Math.round(elapsed))} ms`).toBeLessThan(BUDGET_MS)
+  }, 60_000)
+})

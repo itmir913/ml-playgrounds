@@ -98,6 +98,9 @@ export function rosterOf(files: readonly File[]): RosterItem[] {
 function distinctLabels(labels: readonly string[]): string[] {
   const taken = new Set(labels)
   const seen = new Set<string>()
+  // **이름마다 다음에 시도할 번호를 기억한다** (R43-1 감사 C-1의 이웃). 잡힌 이름은 풀리지 않으므로 그 앞은
+  // 다시 볼 필요가 없다 — 매번 2부터 세면 같은 이름 N개가 N²이다.
+  const nextIndex = new Map<string, number>()
   return labels.map((label) => {
     if (!seen.has(label)) {
       seen.add(label)
@@ -105,8 +108,13 @@ function distinctLabels(labels: readonly string[]): string[] {
     }
     const stem = withoutProjectExtension(label)
     const tail = label.slice(stem.length)
-    let name = label
-    for (let index = 2; taken.has(name); index += 1) name = `${stem} (${index})${tail}`
+    let index = nextIndex.get(label) ?? 2
+    let name = `${stem} (${index})${tail}`
+    while (taken.has(name)) {
+      index += 1
+      name = `${stem} (${index})${tail}`
+    }
+    nextIndex.set(label, index + 1)
     taken.add(name)
     return name
   })

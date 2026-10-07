@@ -6,7 +6,7 @@
  * 상대 경로가 맞아야 하고, 뒤의 것은 정본 표·사진·모델이 안 실려야 한다.
  */
 
-import { unzipSync } from 'fflate'
+import { unzip, unzipSync } from 'fflate'
 import MarkdownIt from 'markdown-it'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -236,6 +236,40 @@ describe('묶음', () => {
     expect(names.some((name) => name.startsWith(DIR.model))).toBe(false)
     expect(names).not.toContain(ENTRY.manifest)
   })
+
+  /**
+   * **묶음은 아무것도 누르지 않는다** (open-decisions.md 107, R43-1 감사 B-1). 첨부는 이미 구운 사진이라 줄지 않고,
+   * 누르면 메인 스레드가 30명 × 5MB에 7,717ms 멈췄다. 수준을 바꿔도 되돌려도 전에는 아무 검사도 안 울었다 —
+   * `.mlpx`의 *"모든 엔트리를 무압축으로 담는다"*와 같은 모양으로 엔트리마다 압축 방식을 본다.
+   */
+  it('묶음은 아무것도 누르지 않는다', async () => {
+    const blob = bundleOf(
+      [
+        { label: '홍길동.mlpx', file: withPhoto() },
+        { label: '김철수.mlpx', file: projectFile() },
+      ],
+      label,
+      'ko',
+    )
+    const bytes = new Uint8Array(await blob.arrayBuffer())
+    const methods = new Map<string, number>()
+    await new Promise<void>((resolve, reject) => {
+      unzip(
+        bytes,
+        {
+          filter: (file) => {
+            methods.set(file.name, file.compression)
+            return false
+          },
+        },
+        (error) => (error ? reject(error) : resolve()),
+      )
+    })
+    // 글(누르면 줄어드는 것)과 사진이 둘 다 든다.
+    expect([...methods.keys()].some((name) => name.endsWith(ENTRY.portfolioMarkdown))).toBe(true)
+    expect([...methods.keys()].some((name) => name.endsWith('.webp'))).toBe(true)
+    for (const [path, method] of methods) expect(method, path).toBe(0)
+  })
 })
 
 /**
@@ -305,6 +339,31 @@ describe('폴더 이름은 서로 다르다', () => {
   /** 윈도는 대문자 표로 견준다 — 소문자로 견주면 `σ`·`ς`가 둘로 남아 풀 때 한 폴더가 된다. */
   it('대문자로 같아지는 이름도 가른다', () => {
     expect(folderNames(['σ.mlpx', 'ς.mlpx'])).toEqual(['σ', 'ς (2)'])
+  })
+
+  /** 기억한 번호가 이미 있는 이름(`a (2)`라는 진짜 제출물)을 건너뛴다. */
+  it('번호를 이어 세도 이미 있는 이름은 피한다', () => {
+    expect(folderNames(['a.mlpx', 'a (3).mlpx', 'a.mlpx', 'a.mlpx', 'A.mlpx'])).toEqual([
+      'a',
+      'a (3)',
+      'a (2)',
+      'a (4)',
+      'A (5)',
+    ])
+  })
+
+  /**
+   * **같은 이름이 많아도 번호를 처음부터 다시 세지 않는다** (R43-1 감사 C-1의 이웃). 매번 2부터 세면 같은 이름
+   * N개가 N²이다. 한도는 고친 뒤 값의 수십 배이고 고치기 전 값보다 한참 아래다.
+   */
+  it('같은 이름이 많아도 폴더 이름이 곧 나온다', () => {
+    const COUNT = 20_000
+    const BUDGET_MS = 3_000
+    const started = performance.now()
+    const names = folderNames(Array.from({ length: COUNT }, () => 'topic.mlpx'))
+    const elapsed = performance.now() - started
+    expect(new Set(names).size).toBe(COUNT)
+    expect(elapsed, `${String(Math.round(elapsed))} ms`).toBeLessThan(BUDGET_MS)
   })
 
   it('안 겹치면 그대로 둔다', () => {

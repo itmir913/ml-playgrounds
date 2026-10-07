@@ -200,15 +200,6 @@ export const SKETCH_BACKGROUND = '#ffffff'
 export const SKETCH_INK = '#000000'
 
 /**
- * zip 엔트리를 누르는 deflate 수준. 교사의 포트폴리오 묶음(`project/portfolio-bundle.ts`)이
- * 쓴다 (`open-decisions.md` 64). zlib의 기본 수준과 같은 값이다. **`.mlpx`는 누르지 않는다**
- * — 전부 무압축으로 담는다 (`open-decisions.md` 68, `project/format.ts`의 `zipToBlob`).
- *
- * **분류: 상한이 아니다.**
- */
-export const ZIP_DEFLATE_LEVEL = 6
-
-/**
  * 지표를 보이는 소수 자릿수(`composables/useFormat.ts`의 `formatMetric`). 왜 셋인지는 그 함수의
  * 머리말에 있다.
  *

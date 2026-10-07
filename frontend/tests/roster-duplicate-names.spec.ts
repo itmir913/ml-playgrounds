@@ -71,6 +71,37 @@ describe('이름이 같은 제출물 둘', () => {
     )
   })
 
+  /**
+   * **셋째부터도 서로 다르다** (R43-1 감사 C-2). 붙인 이름을 잡아 두는 줄을 지워도 전에는 둘만 보는 검사가
+   * 초록이었고, 그 상태에서 셋째가 둘째와 같은 `kim (2).mlpx`를 받아 두 학생이 한 줄로 합쳐졌다.
+   */
+  it('같은 이름 셋은 셋 모두 다른 이름표를 갖는다', () => {
+    const items = rosterOf([
+      new File([], 'kim.mlpx'),
+      new File([], 'kim.mlpx'),
+      new File([], 'kim.mlpx'),
+    ])
+    expect(items.map((item) => item.label).sort()).toEqual(
+      ['kim (2).mlpx', 'kim (3).mlpx', 'kim.mlpx'].sort(),
+    )
+  })
+
+  /**
+   * **같은 이름이 많아도 번호를 처음부터 다시 세지 않는다** (R43-1 감사 C-1의 이웃). 매번 2부터 세면 같은 이름
+   * N개가 N²이다 — 교사가 나눠 준 주제 하나로 학년 전체를 모으면 이름이 전부 같다. 한도는 고친 뒤 값의 수십
+   * 배이고 고치기 전 값보다 한참 아래다.
+   */
+  it('같은 이름이 많아도 이름표가 곧 나온다', () => {
+    const COUNT = 20_000
+    const BUDGET_MS = 3_000
+    const files = Array.from({ length: COUNT }, () => new File([], 'topic.mlpx'))
+    const started = performance.now()
+    const items = rosterOf(files)
+    const elapsed = performance.now() - started
+    expect(new Set(items.map((item) => item.label)).size).toBe(COUNT)
+    expect(elapsed, `${String(Math.round(elapsed))} ms`).toBeLessThan(BUDGET_MS)
+  })
+
   it('이름이 안 겹치면 이름표는 파일 이름 그대로다', () => {
     const items = rosterOf([new File([], 'b.mlpx'), new File([], 'a.mlpx')])
     expect(items.map((item) => item.label)).toEqual(['a.mlpx', 'b.mlpx'])

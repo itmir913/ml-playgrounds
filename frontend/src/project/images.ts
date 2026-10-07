@@ -422,6 +422,9 @@ export function addImages(
   let added = 0
   let duplicates = 0
   const categories = [...previous.categories]
+  // **목록에 있는지는 `Set`으로 묻는다** (R43-1 감사 C-1). 반복문 안에서 배열의 `includes`로 물으면 사진마다
+  // 범주가 다른 묶음에서 범주 수의 제곱이 된다. 순서는 위 배열이 갖는다.
+  const listed = new Set(categories)
   for (const image of baked) {
     // **폴더 한 겹으로 못 서는 범주에는 앉히지 않는다** (`entry-path.ts`의 `standsAsFolder`) —
     // 앉히면 `dataset/data/../…`라는 새는 경로를 우리 손으로 만든다. 빈 이름은 라벨 없음이다.
@@ -438,8 +441,9 @@ export function addImages(
       role !== 'predict' &&
       image.category !== IMAGE_UNLABELED &&
       isValidCategoryName(image.category) &&
-      !categories.includes(image.category)
+      !listed.has(image.category)
     ) {
+      listed.add(image.category)
       categories.push(image.category)
     }
   }
@@ -592,7 +596,8 @@ export function renameCategory(
   // 것이고, 그때 이름이 둘이면 스냅샷의 `categoryCounts`에도 같은 칸이 둘 생긴다.
   // `addCategory`와 `moveImages`는 이미 `includes`로 막는데 여기만 안 막고 있었다
   // (2026-08-30, R12 감사 C-2). 화면의 `nameTaken`이 유일한 방어선이었다.
-  const categories = renamed.filter((category, index) => renamed.indexOf(category) === index)
+  // `Set`이 처음 본 차례를 지킨다 — `indexOf`로 거르면 범주 수의 제곱이다(R43-1 감사 C-1).
+  const categories = [...new Set(renamed)]
   return withImages(project, images, { ...previous, categories }, now)
 }
 

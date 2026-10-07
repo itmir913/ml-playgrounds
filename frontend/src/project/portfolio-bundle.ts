@@ -15,7 +15,6 @@
 import { zipSync } from 'fflate'
 
 import { ClientError } from '../errors'
-import { ZIP_DEFLATE_LEVEL } from '../limits'
 import { escapesArchive } from './entry-path'
 import {
   ENTRY,
@@ -99,10 +98,22 @@ export function folderFor(label: string, position: number): string {
  */
 export function folderNames(labels: readonly string[]): string[] {
   const used = new Set<string>()
+  // **이름마다 다음에 시도할 번호를 기억한다** (R43-1 감사 C-1의 이웃) — `distinctLabels`(`roster.ts`)와 같다.
+  // 열쇠는 대문자다: 대소문자만 다른 두 이름은 같은 번호 줄을 나눠 쓴다.
+  const nextIndex = new Map<string, number>()
   return labels.map((label, order) => {
     const base = folderFor(label, order + 1)
+    const key = base.toUpperCase()
     let name = base
-    for (let index = 2; used.has(name.toUpperCase()); index += 1) name = `${base} (${index})`
+    let index = nextIndex.get(key) ?? 2
+    if (used.has(name.toUpperCase())) {
+      name = `${base} (${index})`
+      while (used.has(name.toUpperCase())) {
+        index += 1
+        name = `${base} (${index})`
+      }
+      nextIndex.set(key, index + 1)
+    }
     used.add(name.toUpperCase())
     return name
   })
@@ -155,7 +166,7 @@ export function entriesOf(
  * 묶음을 굽는다. **이름은 부르는 쪽이 짓는다** — 내려받기는 화면의 일이다.
  *
  * **동기로 굽는다.** 포트폴리오 글과 첨부만 들어가므로 정본 표와 사진이 든 `.mlpx`와는
- * 자릿수가 다르다 — 그 큰 것을 굽는 자리는 `writeProject`의 흐름 압축이다.
+ * 자릿수가 다르다 — 그 큰 것을 굽는 자리는 `writeProject`의 흐름 쓰기(`zipToBlob`)다. 둘 다 누르지 않는다.
  */
 export function bundleOf(
   entries: readonly BundleEntry[],
@@ -181,6 +192,11 @@ export function bundleOf(
   }
   // 시각은 zip이 담을 수 있는 해로 당긴다 — 밖이면 fflate가 던진다 (`format.ts`의
   // `zipModifiedTime`). 무는 검사: `portfolio-bundle.spec.ts`의 *"기기 시계가 …여도 묶는다"*.
-  const zipped = zipSync(files, { level: ZIP_DEFLATE_LEVEL, mtime: zipModifiedTime() })
+  //
+  // **아무것도 누르지 않는다 — `level: 0`은 무압축(STORE)이다** (open-decisions.md 107). 첨부는 이미 구운
+  // webp·jpeg라 줄지 않고, 누르면 메인 스레드가 그만큼 멈춘다 — 30명 × 5MB에 7,717ms였다(R43-1 감사 B-1).
+  // `.mlpx`가 같은 이유로 누르지 않는다(결정 68). 무는 검사: `portfolio-bundle.spec.ts`의
+  // *"묶음은 아무것도 누르지 않는다"*.
+  const zipped = zipSync(files, { level: 0, mtime: zipModifiedTime() })
   return new Blob([zipped as unknown as BlobPart], { type: 'application/zip' })
 }
