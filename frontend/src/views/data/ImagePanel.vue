@@ -160,8 +160,24 @@ const testCounts = computed(() => testCountByCategory(project.file))
 const counts = computed(() => countByCategory(project.file))
 const unlabeled = computed(() => entries.value.filter((one) => one.category === IMAGE_UNLABELED))
 
-function entriesOf(category: string) {
-  return entries.value.filter((one) => one.category === category)
+/**
+ * 범주별 묶음은 사진을 한 번 돌아 짓는다 (R43-5 C-3). 템플릿이 범주 칸마다 `filter`를 부르면 렌더마다 범주 수 × 사진
+ * 수였고, 고르기 클릭 한 번에도 새 배열이 되어 모든 칸이 다시 그려졌다.
+ */
+type Entry = (typeof entries.value)[number]
+const NO_ENTRIES: readonly Entry[] = []
+const byCategory = computed(() => {
+  const groups = new Map<string, Entry[]>()
+  for (const one of entries.value) {
+    const group = groups.get(one.category)
+    if (group) group.push(one)
+    else groups.set(one.category, [one])
+  }
+  return groups
+})
+
+function entriesOf(category: string): readonly Entry[] {
+  return byCategory.value.get(category) ?? NO_ENTRIES
 }
 
 /**

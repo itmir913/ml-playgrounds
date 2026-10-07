@@ -218,6 +218,16 @@ describe('받지 않는 압축 파일', () => {
     expect(isClientError(error) && error.params).toEqual({ name: '_숨김' })
   })
 
+  /** 윈도우에서 풀면 한 폴더가 된다 — 받으면 그 폴더를 다시 올릴 때 라벨이 합쳐진다 (R43-5 B-1). */
+  it('대소문자만 다른 폴더는 뒤엣것의 이름을 대며 거부한다', async () => {
+    const error = await readImageZip(
+      makeZip(['cat/1.jpg', 'dog/2.jpg', 'Cat/3.jpg']),
+      INFERRED,
+    ).catch((reason: unknown) => reason)
+    expect(isClientError(error) && error.code).toBe('IMAGE_CATEGORY_NAME_INVALID')
+    expect(isClientError(error) && error.params).toEqual({ name: 'Cat' })
+  })
+
   /** `_unlabeled`는 우리가 쓰는 이름이라 예외다. 내보낸 압축 파일을 다시 올리는 길이다. */
   it('라벨 없음 폴더는 그대로 받는다', async () => {
     expect(await categoriesOf([`${IMAGE_UNLABELED}/1.jpg`, '개/2.jpg'])).toEqual([

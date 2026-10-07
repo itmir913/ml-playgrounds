@@ -103,6 +103,17 @@ export function fitLongEdge(
  */
 
 /**
+ * 범주 이름이 앉는 폴더의 열쇠. 열쇠가 같으면 같은 폴더다 — **대소문자만 다른 것도 같다** (open-decisions.md "범주 이름 규칙",
+ * 2026-10-08 R43-5 B-1). 윈도 탐색기는 `cat`과 `Cat`을 한 폴더로 합쳐, 압축을 푼 자리에서 두 범주가 하나가
+ * 되고 그 폴더를 다시 올리면 라벨이 조용히 합쳐진다. 대문자로 견주는 것은 `portfolio-bundle.ts`의
+ * `folderNames`와 같은 까닭이다(NTFS의 대문자 표). `category-test-photos.spec.ts`의 *"대소문자만 다른 이름도 nameTaken이다"*와
+ * `image-upload-zip.spec.ts`의 *"대소문자만 다른 폴더"*가 문다.
+ */
+export function categoryFolderKey(name: string): string {
+  return name.toUpperCase()
+}
+
+/**
  * 학생이 지을 수 있는 범주 이름인가.
  *
  * **`_`로 시작할 수 없다** — `_unlabeled`가 예약돼 있고, 예약어를 하나만 막으면 다음에

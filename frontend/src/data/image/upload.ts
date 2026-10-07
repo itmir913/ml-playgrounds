@@ -18,7 +18,7 @@ import { IMAGE_UNLABELED } from '@/project/format'
 import { yieldToScreen } from '@/screen'
 import { isNoiseName, normalizeEntryName } from '../archive-entries'
 import { decodeZipNames, type ZipNameOptions } from '../zip-names'
-import { isValidCategoryName } from './canonical'
+import { categoryFolderKey, isValidCategoryName } from './canonical'
 
 /** 구울 후보 한 장. 아직 사진인지 아닌지는 모른다 — 그건 구워 봐야 안다. */
 export interface UploadItem {
@@ -158,8 +158,16 @@ function labelItems(
  * 다시 압축하는 것이고, 그건 화면이 이름을 대 주면 할 수 있는 일이다.
  */
 function requireValidCategories(categories: Iterable<string>): void {
+  // **대소문자만 다른 폴더도 거부한다** (R43-5 B-1, `categoryFolderKey`). 윈도우에서 풀면 한 폴더라
+  // 다시 올릴 때 라벨이 합쳐진다. 열쇠의 Set으로 세어 범주 수에 선형이다.
+  const folders = new Set<string>()
   for (const category of categories) {
-    if (category === IMAGE_UNLABELED || isValidCategoryName(category)) continue
+    if (category === IMAGE_UNLABELED) continue
+    const folder = categoryFolderKey(category)
+    if (isValidCategoryName(category) && !folders.has(folder)) {
+      folders.add(folder)
+      continue
+    }
     throw new ClientError('IMAGE_CATEGORY_NAME_INVALID', { name: category })
   }
 }

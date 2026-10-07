@@ -169,6 +169,16 @@ describe('테스트 자리에만 남은 이름으로는 못 바꾼다 — 만들
     expect(refusalFor('categoryName', nameInput(project, 'rename', 'A', 'A'))).toEqual([])
   })
 
+  /** 윈도우에서 한 폴더가 된다 (R43-5 B-1). 자기 이름의 대소문자만 바꾸는 것은 받는다. */
+  it('대소문자만 다른 이름도 nameTaken이다', () => {
+    const project = orphaned()
+    expect(refusalFor('categoryName', nameInput(project, 'create', '', 'a'))).toEqual(['nameTaken'])
+    expect(refusalFor('categoryName', nameInput(project, 'rename', 'A', 'b'))).toEqual([
+      'nameTaken',
+    ])
+    expect(refusalFor('categoryName', nameInput(project, 'rename', 'A', 'a'))).toEqual([])
+  })
+
   it('함수 — 바꾸기는 영어 Error로 던지고 파일을 안 바꾼다, 만들기는 된다', () => {
     const project = orphaned()
     expect(() => renameCategory(project, 'A', 'C', NOW)).toThrow(/test images/)

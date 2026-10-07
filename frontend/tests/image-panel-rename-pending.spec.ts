@@ -336,6 +336,8 @@ describe('범주 지우기 확인 창이 테스트용 사진 장수를 말한다
     await bakeAndRead(project, wrapper)
     await buttonIn(wrapper, 'data.image.newCategory').trigger('click')
     await typeName(wrapper, 'data.image.createTitle', 'data.image.createConfirm', '개')
+    await buttonIn(wrapper, 'data.image.newCategory').trigger('click')
+    await typeName(wrapper, 'data.image.createTitle', 'data.image.createConfirm', '새')
     await project.save(
       (live) =>
         images.applyTestImages(
@@ -343,6 +345,8 @@ describe('범주 지우기 확인 창이 테스트용 사진 장수를 말한다
           [
             { hash: 't1', category: '고양이', bytes: new Uint8Array([1]) },
             { hash: 't2', category: '고양이', bytes: new Uint8Array([2]) },
+            // 경계 1장 — `count > 0`이 `> 1`이 되어도 조용했다 (R43-5 C-1).
+            { hash: 't3', category: '새', bytes: new Uint8Array([3]) },
           ],
           { canonicalSize: 224, now: '2026-10-07T00:00:00Z', format: 'webp' },
         ).project,
@@ -366,6 +370,9 @@ describe('범주 지우기 확인 창이 테스트용 사진 장수를 말한다
         { count: 2, name: '고양이' },
         2,
       ),
+    )
+    expect(await description('새')).toBe(
+      i18n.global.t('data.image.removeCategoryWithTestDescription', { count: 1, name: '새' }, 1),
     )
     expect(await description('개')).toBe(
       i18n.global.t('data.image.removeCategoryDescription', { name: '개' }),

@@ -48,7 +48,7 @@
 import { computed, getCurrentInstance, getCurrentWatcher, toRaw, type ComputedRef } from 'vue'
 
 import type { ChartToolGate, GateInput as ChartGateInput } from '@/data/chart-gates'
-import { isValidCategoryName } from '@/data/image/canonical'
+import { categoryFolderKey, isValidCategoryName } from '@/data/image/canonical'
 import { renameCollidesWithTest } from '@/data/image/test-set'
 import { isBlank, type Sketch } from '@/data/image/sketch'
 import { isBinCount } from '@/data/stats'
@@ -646,7 +646,11 @@ function categoryNameReasons(
   const trimmed = input.value.trim()
   if (trimmed === '') return ['nameRequired']
   if (!isValidCategoryName(trimmed)) return ['nameInvalid']
-  if (trimmed !== input.from && input.categories.includes(trimmed)) return ['nameTaken']
+  // **대소문자만 다른 이름도 이미 있는 이름이다** (R43-5 B-1, `categoryFolderKey`). 자기 이름의 대소문자만
+  // 바꾸는 것은 받는다 — 견주는 상대에서 자기(`from`)를 뺀다.
+  const key = categoryFolderKey(trimmed)
+  const taken = input.categories.some((one) => one !== input.from && categoryFolderKey(one) === key)
+  if (trimmed !== input.from && taken) return ['nameTaken']
   const collides =
     input.mode === 'rename' &&
     renameCollidesWithTest({

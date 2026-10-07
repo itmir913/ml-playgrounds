@@ -721,7 +721,12 @@ describe('[추가]가 도는 동안', () => {
     const sketchDialog = wrapper.findAll('dialog')[0]!.element as HTMLDialogElement
     sketchDialog.dispatchEvent(escape)
     expect(escape.defaultPrevented).toBe(true)
+    await flushPromises()
+    expect(opened(wrapper, 1)).toBe(false)
+    // 갈래마다 본다 — 끝에서만 보면 마지막 `close`가 [취소]의 확인 창을 거둬 가려진다 (R43-5 C-2).
     await button(wrapper, ko.common.cancel).trigger('click')
+    await flushPromises()
+    expect(opened(wrapper, 1)).toBe(false)
     sketchDialog.open = false
     sketchDialog.dispatchEvent(new Event('close'))
     await flushPromises()
