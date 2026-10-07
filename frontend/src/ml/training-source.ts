@@ -10,6 +10,7 @@
  * 끌고 온다 (`project/facts.ts`와 같은 사정).
  */
 
+import { testZipBlockFor } from '@/data/image/test-set'
 import { ClientError } from '@/errors'
 import { MIN_CLASSIFICATION_CATEGORIES, MIN_SPLIT_ROWS } from '@/limits'
 import { limitsOff } from '@/limits-switch'
@@ -32,7 +33,7 @@ import { own } from '@/records'
 import { readDataset, readTestDataset } from '@/project/dataset'
 import { addEmbeddings, readEmbeddings } from '@/project/embeddings'
 import { IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
-import { labeledCategoryCount, readImages } from '@/project/images'
+import { imageCategories, labeledCategoryCount, readImages } from '@/project/images'
 import {
   dataSettings,
   dataSnapshot,
@@ -187,6 +188,26 @@ export const TRAINING_SOURCES: Readonly<
           actualRows: usable,
           minRows: MIN_SPLIT_ROWS,
         })
+      }
+      /**
+       * **테스트 사진의 범주를 지금 범주와 다시 대조한다** (open-decisions.md 106, R43-1 감사 A-1). 올릴 때
+       * 같은 판정을 지났어도 그 뒤 데이터 화면에서 범주 이름을 바꾸거나 지우거나 사진을 옮기면 테스트 자리는
+       * 옛 이름 그대로이고, 그대로 학습하면 **모델이 낼 수 없는 라벨로 채점되어 조용히 틀린 점수가 나온다.**
+       * 판정과 코드는 올릴 때와 같은 것이다(`testZipBlockFor`) — 문장이 학습 시점에도 참이고 할 일도 같다.
+       * 버튼은 잠그지 않는다(결정 60). 백본을 받기 전이라 헛일이 없다. 무는 검사:
+       * `training-source.spec.ts`의 *"결정 106"* 묶음.
+       *
+       * **견주는 쪽은 훈련 사진이 든 범주다** — 화면의 목록(`imageCategories`)이 아니다. 한 범주의 사진을 다
+       * 지우면 그 범주는 빈 칸으로 목록에 남는데(`removeImages`), 그대로 견주면 통과해서 모델이 한 번도 못 본
+       * 범주로 채점된다. 모든 범주에 사진이 있는 보통의 상태에서는 두 목록이 같아 올릴 때의 판정과 갈리지 않는다.
+       */
+      if (project.document.settings.split.method === 'provided') {
+        const trained = new Set(readImages(project).map((entry) => entry.category))
+        const block = testZipBlockFor(
+          imageCategories(project).filter((category) => trained.has(category)),
+          readImages(project, 'test').map((entry) => entry.category),
+        )
+        if (block !== null) throw new ClientError(block.code, block.params ?? {})
       }
     }
 

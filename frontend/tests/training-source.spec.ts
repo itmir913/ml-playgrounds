@@ -31,7 +31,17 @@ import { newProjectDocument } from '../src/project/create'
 import { surveyCsv, surveyProject, tabularProjectFrom } from './fixtures/prep-kind'
 import { addEmbeddings, readEmbeddings } from '../src/project/embeddings'
 import { type ProjectFile } from '../src/project/format'
-import { addImages, applyTestImages, readImages } from '../src/project/images'
+import {
+  addCategory,
+  addImages,
+  applyTestImages,
+  moveImages,
+  readImages,
+  removeCategory,
+  removeImages,
+  renameCategory,
+} from '../src/project/images'
+import { isClientError } from '../src/errors'
 import { withSplit } from '../src/project/settings'
 import { IMAGE_UNLABELED } from '../src/project/format'
 
@@ -435,6 +445,120 @@ describe('테스트용 사진이 학습까지 닿는다', () => {
       createEmbedWorker: () => fakeWorker(seen),
     })
     expect(source.dataset.rows.map((row) => row[0])).toEqual(['1', '2'])
+  })
+})
+
+/**
+ * **결정 106 — 테스트 사진을 받은 뒤 범주를 고치면 학습이 이유와 함께 거절한다** (R43-1 감사 A-1).
+ *
+ * 올릴 때만 범주를 대조하던 동안, 데이터 화면에서 범주를 고친 뒤 학습하면 테스트 자리가 옛 이름 그대로라
+ * **모델이 낼 수 없는 라벨로 채점되어** 완벽한 모델이 정확도 0.5로 나왔다. 던지지 않았다. 편집은 전부
+ * 진짜 입구(`project/images.ts`)로 하고, 거절은 백본을 부르기 **전**이어야 한다 — 받은 뒤에 서면 학생은
+ * 몇 분을 기다린 끝에 거절을 읽는다.
+ */
+describe('결정 106 — 테스트 사진을 받은 뒤 범주를 고치면 학습이 거절한다', () => {
+  const SIZE = BACKBONE.canonicalSize
+  const options = { canonicalSize: SIZE, now: NOW, format: 'webp' as const }
+
+  function baked(mark: number, category: string) {
+    const bytes = new Uint8Array([mark, 7, 7])
+    return { hash: hashBytes(bytes), bytes, category }
+  }
+
+  const fox = baked(3, '여우')
+
+  /** 훈련 셋·테스트 셋, 범주 셋. **범주가 둘로 줄어도 분류가 성립하게** 셋으로 둔다. */
+  function project(): ProjectFile {
+    const document = newProjectDocument(
+      { name: '동물', locale: 'ko', dataType: 'image' },
+      {
+        projectId: '550e8400-e29b-41d4-a716-446655440000',
+        createdAt: '2026-08-12T08:00:00.000Z',
+        randomState: 42,
+      },
+    )
+    const empty: ProjectFile = {
+      document,
+      models: new Map(),
+      images: new Map(),
+      attachments: new Map(),
+      embeddings: new Map(),
+    }
+    const base = addImages(empty, [baked(1, '개'), baked(2, '고양이'), fox], options).project
+    return applyTestImages(base, [baked(4, '개'), baked(5, '고양이'), baked(6, '여우')], options)
+      .project
+  }
+
+  /** 학습을 시작해 본다. 결과를 낱말로 줄인다 — 거절이면 그 코드와 인자, 아니면 `'started'`. */
+  async function attempt(edited: ProjectFile) {
+    const seen = { requests: [] as EmbedRequest[] }
+    const outcome = await trainingSourceOf({
+      project: edited,
+      taskType: 'classification',
+      createEmbedWorker: () => fakeWorker(seen),
+    }).then(
+      () => ({ code: 'started', params: {} as unknown }),
+      (error: unknown) =>
+        isClientError(error)
+          ? { code: error.code as string, params: error.params as unknown }
+          : { code: 'other error', params: {} as unknown },
+    )
+    return { ...outcome, embedded: seen.requests.length }
+  }
+
+  it('고치지 않았으면 학습한다', async () => {
+    expect((await attempt(project())).code).toBe('started')
+  })
+
+  it('범주 이름을 바꾸면 거절한다 — 백본을 부르기 전에', async () => {
+    const result = await attempt(renameCategory(project(), '개', '강아지', NOW))
+    expect(result).toEqual({
+      code: 'TEST_IMAGES_CATEGORY_MISSING',
+      params: { categories: '강아지' },
+      embedded: 0,
+    })
+  })
+
+  it('범주를 지우면 거절한다', async () => {
+    const result = await attempt(removeCategory(project(), '여우', NOW))
+    expect(result).toEqual({
+      code: 'TEST_IMAGES_CATEGORY_UNKNOWN',
+      params: { categories: '여우' },
+      embedded: 0,
+    })
+  })
+
+  it('사진을 새 범주로 옮기면 거절한다', async () => {
+    const result = await attempt(
+      moveImages(addCategory(project(), '늑대', NOW), [fox.hash], '늑대', NOW),
+    )
+    expect(result).toEqual({
+      code: 'TEST_IMAGES_CATEGORY_MISSING',
+      params: { categories: '늑대' },
+      embedded: 0,
+    })
+  })
+
+  /**
+   * **빈 칸으로 남은 범주는 훈련에 없는 범주다.** 사진을 다 지워도 범주 목록에는 남으므로(`removeImages`) 화면의
+   * 목록과 견주면 통과했다 — 그러면 모델이 한 번도 못 본 `여우`로 채점된다.
+   */
+  it('한 범주의 사진을 다 지우면 거절한다', async () => {
+    const result = await attempt(removeImages(project(), [fox.hash], NOW))
+    expect(result).toEqual({
+      code: 'TEST_IMAGES_CATEGORY_UNKNOWN',
+      params: { categories: '여우' },
+      embedded: 0,
+    })
+  })
+
+  it('holdout이면 테스트 자리를 대조하지 않는다', async () => {
+    const renamed = renameCategory(project(), '개', '강아지', NOW)
+    const holdout: ProjectFile = {
+      ...renamed,
+      document: withSplit(renamed.document, { method: 'holdout' }, NOW),
+    }
+    expect((await attempt(holdout)).code).toBe('started')
   })
 })
 
