@@ -160,6 +160,7 @@ export function createForestComputeHandler(): (
     if (matrix === null) {
       // 씨앗 전에 스텝이 왔다 — 프로토콜 위반이다. 조용히 빈 답을 내면 숲에 나무가
       // 비는데 그 사실이 예측에서야 드러난다. 워커의 error 이벤트로 거절시킨다.
+      // 무는 검사: `forest-parallel.spec.ts`의 *"씨앗 전의 스텝은 던진다"*.
       throw new Error('forest compute: step before seed')
     }
 

@@ -165,6 +165,16 @@ describe('갈라도 같은 답이다', () => {
   })
 })
 
+/** **씨앗 전의 스텝은 던진다** (R43-3 C-4) — 빈 답을 내면 채점이 조용히 틀린다. `neural-parallel.spec.ts`와 같은 그물이다. */
+describe('계산 손의 그물', () => {
+  it('씨앗 전의 스텝은 던진다', () => {
+    const handle = createKnnComputeHandler()
+    expect(() => handle({ type: 'step', queries: new Float64Array(1) }, () => {})).toThrow(
+      /step before seed/,
+    )
+  })
+})
+
 describe('게이트', () => {
   it('작은 채점은 직렬로 남긴다 - 문턱은 속도만 가른다', () => {
     expect(shouldSplitKnn(12, 40)).toBe(false)

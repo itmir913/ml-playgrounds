@@ -158,6 +158,27 @@ describe('임베딩 핸들러', () => {
     ])
   })
 
+  /**
+   * **러너가 던진 `ClientError`는 코드와 인자 그대로 나간다** (R43-3 C-3). 손으로 편집한 사진의 크기 어긋남이 백본·회선 문제
+   * (`BACKBONE_UNAVAILABLE`)로 바뀌면 학생이 엉뚱한 곳을 고친다. 클라이언트 쪽 검사(*"failed는 ClientError로 다시 세워진다"*)는
+   * 워커가 이미 그 코드를 냈다고 가정하므로 두 조각을 여기서 잇는다.
+   */
+  it('러너가 던진 ClientError는 코드와 인자 그대로 내보낸다', async () => {
+    const { ClientError } = await import('../src/errors')
+    const runner = fakeRunner({
+      embed: () =>
+        Promise.reject(
+          new ClientError('IMAGE_CANONICAL_SIZE_MISMATCH', { found: '10×10', expected: 224 }),
+        ),
+    })
+    const messages = await collect(requestFor(), runner)
+    expect(messages.at(-1)).toEqual({
+      type: 'failed',
+      code: 'IMAGE_CANONICAL_SIZE_MISMATCH',
+      params: { found: '10×10', expected: 224 },
+    })
+  })
+
   it('어떤 경로로 끝나든 runner를 놓는다', async () => {
     const ok = fakeRunner()
     await collect(requestFor(), ok)

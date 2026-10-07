@@ -85,6 +85,11 @@ export function knnPredict(input: NeighborhoodInput): Predict {
   })
   // 이웃 수가 훈련 행보다 많을 수는 없다. 있는 만큼만 본다.
   const neighbors = Math.min(k, matrix.length)
+  // **행 번호 → 라벨은 한 번만 짓는다** (R43-3 C-2). 질의마다 훈련 행 전체로 다시 지어 예측이 4~6배 느렸다.
+  const rowToLabel = new Map<number, string>()
+  indices.forEach((rowIndex, position) => {
+    rowToLabel.set(rowIndex, labels[position] ?? '')
+  })
 
   return (features) =>
     features.map((query) => {
@@ -147,11 +152,6 @@ export function knnPredict(input: NeighborhoodInput): Predict {
 
       // 클래스마다 개수. 순서는 필요 없다.
       const byLabel = new Map<string, number>()
-      const rowToLabel = new Map<number, string>()
-      indices.forEach((rowIndex, position) => {
-        rowToLabel.set(rowIndex, labels[position] ?? '')
-      })
-
       for (let slot = 0; slot < size; slot += 1) {
         const label = rowToLabel.get(heapRow[slot] ?? 0) ?? ''
         byLabel.set(label, (byLabel.get(label) ?? 0) + 1)
@@ -194,6 +194,9 @@ export function loadReferenceModel(file: unknown, context: LoadContext): Predict
   const rows: (readonly number[])[] = []
   const labels: string[] = []
   const indices: number[] = []
+  // **`Set`으로 묻는다** (R43-3 C-2). 행마다 배열의 `includes`면 고유 라벨이 많은 타깃(ID 열)에서 행 수의 제곱이었다 —
+  // 80,000행 13.9초. 가드를 무는 검사: `models.spec.ts`의 *"classes에 없는 라벨"*.
+  const knownClasses = new Set(classes)
   for (const rowIndex of trainIndices) {
     const position = known.get(rowIndex)
     // **파일이 가리키는 행이 데이터에 없다.** 데이터가 통째로 없는 것과 다르다 - 이건
@@ -202,7 +205,7 @@ export function loadReferenceModel(file: unknown, context: LoadContext): Predict
     const row = training.features[position]
     const label = training.target[position]
     if (row === undefined || label === undefined) invalid('trainIndices')
-    if (!classes.includes(label)) invalid('classes')
+    if (!knownClasses.has(label)) invalid('classes')
     rows.push(row)
     labels.push(label)
     indices.push(rowIndex)

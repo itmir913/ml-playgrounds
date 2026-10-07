@@ -44,6 +44,7 @@ export async function handleEmbed(
   } catch (error) {
     // **TF.js 청크를 못 받은 것은 `SCREEN_LOAD_FAILED`다** (open-decisions.md 86) — 다시 해도 옛 탭에는 그
     // 청크가 없다. 무는 검사: `chunk-load-failure.spec.ts`의 *"준비가 청크를 못 받으면"*.
+    // 러너가 던진 `ClientError`는 코드와 인자 그대로 나간다 — `embed.spec.ts`의 *"러너가 던진 ClientError"*가 문다.
     const code = isChunkLoadError(error) ? 'SCREEN_LOAD_FAILED' : 'BACKBONE_UNAVAILABLE'
     emit(
       isClientError(error)

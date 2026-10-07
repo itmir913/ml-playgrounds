@@ -77,6 +77,7 @@ export function createKnnComputeHandler(): (
 
     if (predict === null) {
       // 씨앗 전에 스텝이 왔다 — 프로토콜 위반이다. 빈 답을 내면 채점이 조용히 틀린다.
+      // 무는 검사: `knn-parallel.spec.ts`의 *"씨앗 전의 스텝은 던진다"*.
       throw new Error('knn compute: step before seed')
     }
 

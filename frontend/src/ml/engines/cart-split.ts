@@ -9,7 +9,8 @@
  * 코드로 바꾼다 — 같은 나무를 더 빨리"). 원본은 분할 후보마다 행 전체를 새 배열로
  * 다시 나누고(`split`), 그 지니를 셀 때마다 클래스 수를 `filter`+`indexOf`로 다시
  * 센다(`getNumberOfClasses`). 노드·특성 하나에 O(n²)을 넘는다. 여기는 정렬 한 번
- * 뒤 클래스 개수를 누적하며 훑는다 — O(n log n).
+ * 뒤 클래스 개수를 누적하며 훑는다 — 정렬 O(n log n)에 더해, 2단계가 띠 안의 **서로 다른 값의** 후보마다 O(n)을
+ * 돈다(같은 값의 후보는 한 번만 센다, R43-3 C-1).
  *
  * **고르는 분할은 원본과 비트 단위로 같다.** 같은 후보를 같은 순서로 만들고(같은
  * 안정 정렬, 같은 `(a + b) / 2`), 이득은 원본과 **같은 연산 순서로** 센다. 원본의
@@ -144,11 +145,18 @@ export function fastBestSplit(transposed: TransposedRows, labels: number[]): Spl
 
     lesserCounts.fill(0)
     let lesserLength = 0
+    let previousValue = Number.NaN
     for (let position = 1; position < total; position += 1) {
       const before = order[position - 1] as number
       const after = order[position] as number
       if (labels[before] === labels[after]) continue
       const value = ((feature[before] as number) + (feature[after] as number)) / 2
+      // **같은 값의 후보는 같은 분할이다** (R43-3 C-1). 같은 값 구간 안에서 라벨이 바뀔 때마다 같은 후보가 다시 생기는데,
+      // 원본도 엄격히 클 때만 바꾸므로 뒤의 것은 못 이긴다. 안 거르면 0/1 열에서 그 후보가 전부 띠에 남아 2단계가 후보마다
+      // O(n)을 돌아 노드 하나가 O(n²)이 됐다. 정렬된 순서라 같은 값은 연달아 온다. 무는 검사: `cart-split.spec.ts`의
+      // *"0/1 열"*.
+      if (value === previousValue) continue
+      previousValue = value
       // 후보 값은 정렬 순서를 따라 줄지 않으므로 포인터가 되돌아가지 않는다.
       while (lesserLength < total && (feature[order[lesserLength] as number] as number) < value) {
         const label = labels[order[lesserLength] as number] as number

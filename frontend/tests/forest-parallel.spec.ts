@@ -20,7 +20,7 @@ import { describe, expect, it } from 'vitest'
 import { MLJS_FOREST_PARALLEL_MIN_TREE_ROWS } from '../src/limits'
 import { fit, loadForest } from '../src/ml/engines/mljs'
 import type { ComputePools, ForestPoolFactory, ForestTree } from '../src/ml/pools'
-import { growTree } from '../src/ml/worker/forest-compute'
+import { createForestComputeHandler, growTree } from '../src/ml/worker/forest-compute'
 import { forestSeeds, shouldSplitForest } from '../src/ml/worker/forest-pool'
 import { assignSpans } from '../src/ml/worker/pool'
 
@@ -186,6 +186,14 @@ describe('갈라도 같은 숲이다', () => {
       )
       expect(merged, `workers=${workers}`).toEqual(chain)
     }
+  })
+})
+
+/** **씨앗 전의 스텝은 던진다** (R43-3 C-4) — 빈 답을 내면 숲에 나무가 비는데 예측에서야 드러난다. */
+describe('계산 손의 그물', () => {
+  it('씨앗 전의 스텝은 던진다', () => {
+    const handle = createForestComputeHandler()
+    expect(() => handle({ type: 'step', seeds: [1] }, () => {})).toThrow(/step before seed/)
   })
 })
 

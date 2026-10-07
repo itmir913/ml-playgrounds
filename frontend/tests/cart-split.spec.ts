@@ -113,6 +113,36 @@ describe('빠른 분할 탐색', () => {
     }
   })
 
+  /**
+   * **0/1 열에서도 선형이다** (R43-3 C-1). 같은 값 구간 안에서 라벨이 바뀔 때마다 같은 값의 후보가 다시 생겨 띠에 전부 남았고,
+   * 2단계가 후보마다 O(n)을 돌아 40,000행 세 열이 개발 PC에서 0.9초였다(고친 뒤 30ms 안팎). 원-핫·범주 코드 열이 이 모양이다.
+   * 문턱은 느린 CI를 위해 열 배 넘게 둔다 — 옛 코드는 행이 두 배면 네 배라 그래도 넘는다.
+   */
+  it('0/1 열 40,000행의 분할 탐색이 곧 끝난다 — 같은 값의 후보를 한 번만 센다', () => {
+    const binary = (rows: number) => {
+      const random = generator(99)
+      const columns = [0, 1, 2].map(() =>
+        Array.from({ length: rows }, () => (random() < 0.5 ? 0 : 1)),
+      )
+      const labels = columns[0]!.map((value) => (random() < 0.3 ? 1 - value : value))
+      return { transposed: { rows: 3, getRow: (column: number) => columns[column]! }, labels }
+    }
+    // 같은 모양의 작은 표에서 원본과 비트 단위로 같다 — 같은 값의 후보를 건너뛰어도 답은 그대로다.
+    const small = binary(2_000)
+    const probe = new DecisionTreeClassifier()
+    probe.train([[0], [1]], [0, 1])
+    const host = (probe.toJSON() as { root: object }).root
+    expect(fastBestSplit(small.transposed, small.labels)).toEqual(
+      libraryBestSplit.call(host as never, small.transposed, small.labels),
+    )
+
+    const large = binary(40_000)
+    const started = performance.now()
+    const choice = fastBestSplit(large.transposed, large.labels)
+    expect(performance.now() - started).toBeLessThan(250)
+    expect(choice.maxColumn).toBe(0)
+  })
+
   it('의사결정트리가 원본과 같은 나무를 짓는다', () => {
     for (const sample of samples()) {
       for (const options of OPTIONS) {

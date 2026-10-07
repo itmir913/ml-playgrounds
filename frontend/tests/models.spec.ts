@@ -631,6 +631,22 @@ describe('mlpx-reference-v1', () => {
     )
   })
 
+  /**
+   * **훈련 행의 라벨이 파일의 `classes`에 없으면 거부한다** (R43-3 C-2). 이 가드를 통째로 지워도 조용했다 — `Set`으로 바꾸면서
+   * 무는 검사를 세운다. 그 라벨로 투표하면 모델이 모르는 클래스를 답한다.
+   */
+  it('classes에 없는 라벨을 가리키면 거부한다', () => {
+    const model = trained.model as ReferenceModel
+    expectCode(
+      () =>
+        loadModel(
+          { ...model, classes: model.classes.slice(1) },
+          { trainingRows: { indices, features: IRIS_FEATURES, target: IRIS_LABELS } },
+        ),
+      'MODEL_FILE_INVALID',
+    )
+  })
+
   /** 규칙 2 — 최다 득표. 나머지 규칙이 끼어들지 않는 평범한 경우다. */
   it('최다 득표 클래스가 이긴다', () => {
     const predict = knnPredict({
