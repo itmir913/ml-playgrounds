@@ -31,6 +31,10 @@
 - **앱 밖에서 여는 산출물에 실리는 사용자 글.** `document.md`는 판정 구역(`project/portfolio.ts`, open-decisions
   89·93)이 코드 밖의 `<`와 http·https가 아닌 링크를 글자로 싣는다. 사용자 글을 파일에 싣는 자리를 새로 만들면
   그 판정을 거치는지부터 본다. 보안 검토는 입력으로 뚫는 방식이었다 — 판정 구역의 돌연변이는 구현자만 돌렸다.
+- **R43 슬라이스 감사가 C로 남긴 것** (`docs/audit/report-R43-3.md`~`report-R43-6.md`의 "기록만 한 것").
+  jsdom의 `<dialog>`는 `close()`에서 `close` 사건을 안 올려 그리기 창의 `bounced` 가드가 브라우저에서만 보인다. 규정 서랍
+  (`public/legal/index.html`)의 스크립트는 돌리는 검사가 없다. `deploy.yml`은 ref가 태그인지 막지 않는다. 회귀 **타깃**의
+  거대한 값은 지표의 합(`metrics.ts` 등)을 넘칠 수 있다. `renameCollidesWithTest`는 대소문자를 접지 않는다.
 - 실기기·실측·스크린 리더는 `rule-coverage.md`가 감사 밖으로 적어 두었다.
 
 **파일에 적히는 어휘를 하나 바꾸면 `FORMAT_VERSION` 증가와 마이그레이션이 붙는다**
