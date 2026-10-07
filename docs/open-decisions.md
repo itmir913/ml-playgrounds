@@ -17,11 +17,10 @@
 ## 미결정
 
 ### 108. 사진 장수 상한이 사진이 아닌 파일까지 세는가 — 무엇을 사진으로 보고 셀지 정한다
-**[미정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. R43-5 B-2. 폴더·zip 입구(`data/image/upload.ts`
-`readImageFiles`·`readImageZip`)는 *"여기서 사진인지는 안 가린다"*(굽는 워커가 한 장씩 판정한다)는 설계라, 장수 상한과 저장
-자리 판정이 라벨 `txt`·`csv`까지 센다 — 사진 3000장 + 라벨 3000개 폴더가 `IMAGE_TOO_MANY_PHOTOS`(incoming 6000)로 거절된다.
-설계 문장과 맞서는 결정이라 코드 소유자가 정한다. 후보: 고른 파일의 `File.type`이 `image/*`인 것만 센다 / 확장자 목록 /
-상한 판정을 굽기 뒤로 미룬다.
+**[결정]** 확장자 목록으로 센다 — 구현 전, 0.35.1 전에 넣는다(코드 소유자). 경위: `docs/cases/open-decisions.md`의 같은 제목.
+R43-5 B-2. 폴더·zip 입구(`data/image/upload.ts` `readImageFiles`·`readImageZip`)가 굽는 워커가 읽는 형식의 확장자만 사진으로
+받고, 나머지는 장수·자리 판정 전에 건너뛴다 — zip과 폴더가 한 규칙이다. 건너뛴 수는 화면이 말한다. 확장자가 틀린 사진은 빠진다.
+구현하면 이 항목을 `open-decisions/08-implemented.md`로 옮긴다.
 
 ### 96. 라이트 배색의 차트 색 셋이 바탕과 3:1 대비를 못 넘는다 — 팔레트를 바꾸는가
 **[미정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. 94를 세우며 잰 값이다 — 흰 바탕에서 `#e69f00` 2.25·`#56b4e9` 2.31,

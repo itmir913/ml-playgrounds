@@ -22,8 +22,24 @@ jobs:
   # `pages: true`가 관문 안에서 빌드한 `dist/`를 그대로 아티팩트로 올린다. 배포가 다시
   # 빌드하지 않는 이유가 그것이다 — 두 번 빌드하면 **나가는 것이 관문을 통과한 그
   # 바이트인지**를 아무도 보증하지 못한다.
+  # **태그만 내보낸다** (docs/workflow.md §4, R43-6). `--ref main`도 예전에는 그대로 빌드해 나갔다 —
+  # 그러면 되돌릴 이름이 없고, 나간 것이 어느 커밋인지 라이브 해시로만 알 수 있다.
+  tag-only:
+    name: Tag only
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$REF_TYPE" != "tag" ]; then
+            echo "::error::Deploy a tag, not '$REF_NAME' ($REF_TYPE): gh workflow run \"Deploy frontend\" --ref <tag>"
+            exit 1
+          fi
+
   gate:
     name: Gate
+    needs: tag-only
     uses: ./.github/workflows/gate.yml
     with:
       pages: true
