@@ -367,6 +367,30 @@ describe('자기 차례가 지난 열기', { timeout: 30_000 }, () => {
     )
   })
 
+  /**
+   * **버려지지 않은 이동의 열기가 다른 곳의 `close()`로 취소되면 그 이동은 중단된다** (R43-2 감사 C-7(c)). 취소가 언제나 "뒤 이동이
+   * 이미 가고 있다"는 뜻은 아니다 — 다른 자리가 닫았을 수도 있다. 그때 `true`로 통과시키면 **프로젝트 없이 단계 화면이 선다.**
+   * 이 갈래(`router/index.ts`의 `return ticket !== navigations`)를 `true`로 바꿔도 전에는 아무 검사도 안 울었다.
+   */
+  it('다른 곳이 닫아 열기가 취소되면 그 이동은 단계 화면에 서지 않는다', async () => {
+    await router.replace('/')
+    await router.isReady()
+    const project = useProjectStore()
+    onGranted = () => {
+      onGranted = null
+      project.close()
+    }
+
+    const failure = (await router.push(`/project/${manifest.projectId}/train`)) as
+      NavigationFailure | undefined
+
+    expect(failure?.type, 'a cancelled open must not let the move land').toBe(
+      NavigationFailureType.aborted,
+    )
+    expect(router.currentRoute.value.name).not.toBe('train')
+    expect(project.projectId).toBeNull()
+  })
+
   /** 취소 뒤에 다시 들어가면 **정상으로 열린다.** 한 번 취소된 것이 문을 잠그면 안 된다. */
   it('취소 뒤에 다시 열면 열린다', async () => {
     const project = useProjectStore()

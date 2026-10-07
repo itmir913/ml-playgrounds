@@ -12,7 +12,9 @@
 import {
   createRouter,
   createWebHashHistory,
+  isNavigationFailure,
   loadRouteLocation,
+  NavigationFailureType,
   type RouteRecordRaw,
   type RouteRecordSingleView,
 } from 'vue-router'
@@ -263,7 +265,12 @@ router.beforeEach(async (to) => {
  * **`beforeEach`가 아니라 `afterEach`다.** 리다이렉트가 걸리면 `beforeEach`는 다시
  * 돌지만 `afterEach`는 다 풀린 뒤 한 번만 돈다.
  */
-router.afterEach(() => {
+router.afterEach((_to, _from, failure) => {
+  // **다음 이동에 밀려 취소된 이동은 수위선을 건드리지 않는다** (R43-2 감사 C-1). vue-router는 취소된 이동에도
+  // `afterEach`를 부른다. 여기서 수위선을 지우면, 이긴 이동이 리다이렉트로 가드를 다시 돌 때 **자기가 방금 민 잠긴
+  // 단계 알림까지 포함한 수위선**을 새로 잡고 끝에서 그것을 걷는다 — 결정 65의 *"말없이 옮기지 않는다"*가 깨진다.
+  // 수위선은 이긴 이동이 걷는다. 무는 검사: `route-watermark.spec.ts`의 *"겹친 이동에서 잠긴 단계 알림이 남는다"*.
+  if (isNavigationFailure(failure, NavigationFailureType.cancelled)) return
   useToastStore().dismissUpTo(toastWatermark ?? 0)
   toastWatermark = null
 })
