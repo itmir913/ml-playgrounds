@@ -25,6 +25,16 @@ export interface LegacyCharset {
    * 그 언어의 글자가 실제로 나왔을 때만 인정한다.
    */
   readonly script: RegExp
+  /**
+   * **UTF-8로도 읽히는 코드 페이지 이름을 되찾는 근거** (이슈 #43, 결정 "압축 파일의 폴더 이름은 UTF-8이 아닐 수 있다"의
+   * 2026-10-08 개정). 있는 언어만 규칙 1의 예외를 쓴다 — ja는 얻는 것이 작고 비용이 커서 안 둔다.
+   */
+  readonly lookalike?: {
+    /** 코드 페이지로 읽은 ASCII 밖 글자 **하나하나가** 이 언어의 글자인가. */
+    readonly letter: RegExp
+    /** 그 문자셋의 기본 글자판(ko: KS X 1001 완성형)의 바이트 하한. ASCII 밖 바이트가 전부 이 위여야 한다. */
+    readonly minByte: number
+  }
 }
 
 /**
@@ -58,7 +68,11 @@ export interface LegacyCharset {
  */
 export const LEGACY_CHARSETS = {
   en: null,
-  ko: { charset: 'euc-kr', script: /[가-힣]/u },
+  ko: {
+    charset: 'euc-kr',
+    script: /[가-힣]/u,
+    lookalike: { letter: /^[가-힣]$/u, minByte: 0xa1 },
+  },
   ja: { charset: 'shift_jis', script: /[぀-ヿ一-鿿]|[｡-ﾟ]{2}/u },
 } as const satisfies Record<string, LegacyCharset | null>
 
@@ -156,12 +170,52 @@ function comparableOf(names: readonly string[]): ReadonlySet<string> {
   return found
 }
 
+/** Latin-1 보충의 끝. 이 위의 UTF-8 글자는 코드 페이지의 두 바이트 글자가 잘못 읽혔을 때도 나온다. */
+const LATIN1_MAX = 0xff
+
+/**
+ * **UTF-8 풀이가 코드 페이지 이름을 잘못 읽은 것인가** — 둘이 **함께** 참일 때만이다(이슈 #43, 감사 APPROVE WITH CHANGES).
+ *
+ * (가) 되살린 이름의 UTF-8 풀이에 **U+00FF 위이면서 그 언어의 글자가 아닌** 글자가 있다. 경계는 바이트 구조가 정한다 — CP949
+ * 음절의 앞바이트 `C2`·`C3`은 UTF-8로 Latin-1 보충(U+0080~00FF)이 되는데 플래그 없는 진짜 UTF-8 `café`도 같은 자리에 떨어져
+ * 가를 수 없다. 그래서 그 둘(`책`→`å`, `짜짝`→`¥¦`)은 근거로 안 친다(대가). `C4`~`C8`은 라틴 확장-A·B가 된다.
+ *
+ * (나) 코드 페이지 풀이가 되살린 이름 **전부**에서, ASCII 밖 바이트가 모두 `minByte` 위(완성형)이고 ASCII 밖 글자가 **하나하나**
+ * 그 언어의 글자다. 브라우저의 `euc-kr`은 확장 완성형(뒷바이트 `81`~`A0`)까지 읽어 라틴 확장 글자 거의 모두를 한글로 만들므로
+ * 완성형으로 좁힌다 — 그래야 node와 브라우저의 판정이 같다.
+ *
+ * 무는 검사: `zip-names.spec.ts`의 *"UTF-8로도 읽히는 탐색기 이름"* 묶음.
+ */
+function misreadAsUtf8(
+  utf8: readonly string[],
+  legacyTexts: readonly string[],
+  recovered: readonly (Uint8Array | null)[],
+  lookalike: NonNullable<LegacyCharset['lookalike']>,
+): boolean {
+  let misread = false
+  for (let index = 0; index < recovered.length; index += 1) {
+    const bytes = recovered[index]
+    if (!bytes) continue
+    for (const char of utf8[index]!) {
+      if (char.codePointAt(0)! > LATIN1_MAX && !lookalike.letter.test(char)) misread = true
+    }
+    for (const byte of bytes) {
+      if (byte > ASCII_MAX && byte < lookalike.minByte) return false
+    }
+    for (const char of legacyTexts[index]!) {
+      if (char.codePointAt(0)! > ASCII_MAX && !lookalike.letter.test(char)) return false
+    }
+  }
+  return misread
+}
+
 /**
  * 압축 파일이 준 이름들을 우리가 읽을 수 있는 글자로 되돌린다.
  *
  * **순서가 뜻을 갖는다.**
  *
- * 1. **UTF-8로 전부 읽히면 그것이다.** 플래그만 빠뜨린 압축 파일이 여기서 끝난다.
+ * 1. **UTF-8로 전부 읽히면 그것이다.** 플래그만 빠뜨린 압축 파일이 여기서 끝난다. **예외 하나** — UI 언어의 표에
+ *    `lookalike`가 있고 UTF-8 풀이가 그 코드 페이지 이름을 잘못 읽은 것으로 보이면(`misreadAsUtf8`) 코드 페이지로 읽는다.
  * 2. **대조할 이름이 있으면 그것으로 정한다.** 여기서는 문자셋을 언어로 안 좁힌다 —
  *    맞는지 아닌지가 증명되므로 **아는 문자셋을 전부 시험해도 틀릴 수 없다.** 한국어
  *    압축 파일을 영어 화면에서 올려도 여기서 풀린다.
@@ -206,11 +260,18 @@ export function decodeZipNames(
     }
   }
 
+  const legacy = options.locale ? LEGACY_CHARSETS[options.locale] : null
+
+  // 1의 예외. 코드 페이지 바이트가 그대로 유효한 UTF-8이라 1에서 깨지는 이름(이슈 #43, `치킨`→`ġŲ`).
+  if (utf8 && legacy && 'lookalike' in legacy) {
+    const texts = readAll(names, recovered, legacy.charset)
+    if (texts && misreadAsUtf8(utf8, texts, recovered, legacy.lookalike)) return texts
+  }
+
   // 1. 플래그만 빠진 UTF-8.
   if (utf8) return utf8
 
   // 3. 이 언어권의 코드 페이지. 그 언어의 글자가 나왔을 때만 인정한다.
-  const legacy = options.locale ? LEGACY_CHARSETS[options.locale] : null
   if (legacy) {
     const texts = readAll(names, recovered, legacy.charset)
     if (texts && texts.some((text) => legacy.script.test(text))) return texts

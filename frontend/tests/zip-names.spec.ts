@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
 import { zipSync } from 'fflate'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { SHIFT_JIS_NAME, SHIFT_JIS_NAME_TEXT } from './fixtures/cp932'
 import { sourceFiles, withoutComments } from './fixtures/source'
@@ -290,6 +290,92 @@ describe('코드 페이지 표는 지원 언어를 다 덮는다', () => {
       if (!legacy) continue
       expect(() => new TextDecoder(legacy.charset), legacy.charset).not.toThrow()
     }
+  })
+})
+
+/**
+ * **UTF-8로도 읽히는 탐색기 이름 — 첫 업로드에서도 되찾는다** (이슈 #43, 결정 "압축 파일의 폴더 이름은 UTF-8이 아닐 수 있다"
+ * 2026-10-08 개정). 대조할 범주가 없으면 규칙 1이 CP949 `치킨`(`C4 A1 C5 B2`)을 UTF-8 `ġŲ`로 읽었다. 예외는 ko만 쓰고(표의
+ * `lookalike`), (가) UTF-8 풀이에 U+00FF 위의 남의 글자가 있고 (나) 코드 페이지 풀이가 완성형 바이트로 전부 한글일 때만이다.
+ */
+describe('UTF-8로도 읽히는 탐색기 이름', () => {
+  const ko = (bytes: readonly number[]) =>
+    decodeZipNames([asFflateWouldRead([...bytes, 0x2f, 0x61])], { locale: 'ko' })[0]!.split('/')[0]
+
+  const CHICKEN = [0xc4, 0xa1, 0xc5, 0xb2] // CP949 치킨, UTF-8로는 ġŲ
+
+  it('진짜 입구 — 첫 업로드(대조 없음)의 치킨이 돌아온다, ASCII 범주가 섞여도', async () => {
+    const photo = new Uint8Array([1])
+    const alone = zipSync({
+      [asFflateWouldRead([...CHICKEN, 0x2f, 0x31])]: photo,
+      [asFflateWouldRead([...CHICKEN, 0x2f, 0x32])]: photo,
+    })
+    const read = await readImageZip(alone, { labels: 'inferred' }, { locale: 'ko', expect: [] })
+    expect(read.map((item) => item.category)).toEqual(['치킨', '치킨'])
+
+    const mixed = zipSync({
+      [asFflateWouldRead([...CHICKEN, 0x2f, 0x31])]: photo,
+      'pizza/2.png': photo,
+    })
+    const both = await readImageZip(mixed, { labels: 'inferred' }, { locale: 'ko', expect: [] })
+    expect(both.map((item) => item.category).sort()).toEqual(['pizza', '치킨'])
+  })
+
+  it('이슈의 표본 넷이 돌아온다 — 앞바이트 C4~C8', () => {
+    expect(ko([0xc4, 0xa1, 0xc5, 0xb8])).toBe('치타')
+    expect(ko([0xc8, 0xad, 0xc3, 0xa2])).toBe('화창')
+    expect(ko([0xc7, 0xa5])).toBe('표')
+  })
+
+  /** **대가 ①** — 앞바이트 C2·C3은 UTF-8로 Latin-1 보충이라 진짜 `café`와 가를 수 없다. 두 번째 업로드부터는 대조가 푼다. */
+  it('앞바이트 C2·C3인 이름은 그대로다 — 같은 자리의 진짜 UTF-8 café를 지킨다', () => {
+    expect(ko([0xc3, 0xa5])).toBe('å') // CP949 책
+    expect(ko([0xc2, 0xa5, 0xc2, 0xa6])).toBe('¥¦') // CP949 짜짝
+    expect(ko([0x63, 0x61, 0x66, 0xc3, 0xa9])).toBe('café') // 플래그 없는 UTF-8
+  })
+
+  it('한글 아닌 글자가 섞여 읽히면 바꾸지 않는다 — 전부 한글이어야 한다', () => {
+    expect(ko([0xc4, 0xa1, 0xd0, 0xb4])).toBe('ġд') // CP949로는 치畇
+  })
+
+  /**
+   * **완성형 밖 바이트가 있으면 바꾸지 않는다.** node의 `euc-kr`은 확장 완성형(뒷바이트 `81`~`A0`)을 못 읽어 여기 오기 전에
+   * 떨어지므로, 브라우저처럼 그 구간을 읽는 디코더를 흉내 낸다 — 크롬은 UTF-8 `Łódź`를 `흟처d탄`으로 읽는다(감사 실측, 파이썬
+   * `cp949` 대용). 그래야 완성형 하한(`minByte`)을 무는 검사가 node에서 선다.
+   */
+  it('완성형 밖 바이트가 있으면 바꾸지 않는다 — 브라우저의 확장 완성형을 흉내 내도', () => {
+    const bytes = [0xc5, 0x81, 0xc3, 0xb3, 0x64, 0xc5, 0xba]
+    expect(ko(bytes)).toBe('Łódź')
+    const Real = globalThis.TextDecoder
+    class BrowserLike extends Real {
+      private readonly uhc: boolean
+      constructor(label?: string, options?: TextDecoderOptions) {
+        super(label, options)
+        this.uhc = label === 'euc-kr'
+      }
+      override decode(input?: AllowSharedBufferSource, options?: TextDecodeOptions): string {
+        const view = input instanceof Uint8Array ? input : null
+        if (this.uhc && view && view.length === 9 && view[1] === 0x81) return '흟처d탄/a'
+        return super.decode(input, options)
+      }
+    }
+    vi.stubGlobal('TextDecoder', BrowserLike)
+    try {
+      expect(ko(bytes)).toBe('Łódź')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  /** **대가 ②** — 플래그 없는 UTF-8 라틴 확장 이름이 완성형 한글로도 읽히면 한글이 된다(언어 소개 낱말 67개 중 18개). */
+  it('대가 — 플래그 없는 UTF-8 žaba는 한글로 읽힌다', () => {
+    expect(ko([0xc5, 0xbe, 0x61, 0x62, 0x61])).toBe('탑aba')
+  })
+
+  it('예외는 표에 lookalike가 있는 언어만 쓴다 — 일본어·영어 화면은 그대로다', () => {
+    const name = asFflateWouldRead([...CHICKEN, 0x2f, 0x61])
+    expect(decodeZipNames([name], { locale: 'ja' })).toEqual(['ġŲ/a'])
+    expect(decodeZipNames([name], { locale: 'en' })).toEqual(['ġŲ/a'])
   })
 })
 
