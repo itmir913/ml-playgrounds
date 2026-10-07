@@ -28,7 +28,7 @@
  *   | 오류 칸 `#DIV/0!` | 빈 칸 (pandas의 NaN) | 같다 |
  *   | 병합 셀 | 병합 범위 전체에 첫 칸의 값 | 같다 (`fillMerges`) |
  *   | 모든 행에서 빈 끝 열 (서식만 있는 열) | 없다 (`fitWidth`) | 같다 |
- *   | 값이 든 빈 칸 타입 (`t="z"`, 비표준) | 값 | 같다 (`fillStubs`, 0.34.2 diff 여섯 번째 감사 C-20) |
+ *   | 모르는 칸 타입 (`t="z"`·`t="x"` 등, 비표준) | 수 (`parseFloat`, 수가 아니면 NaN) | 같다 (`valueCells`) — 날짜 서식이 붙은 칸만 폴백은 직렬 수 그대로 |
  *
  * **날짜 말고 나머지는 정본에 적히는 값이다** — 그래도 formatVersion은 안 움직인다. 정본은 CSV이고
  * 저장된 프로젝트는 xlsx를 다시 읽지 않으므로, 바뀌는 것은 이제 올리는 파일뿐이다.
@@ -101,7 +101,7 @@ function cellToString(value: unknown): string {
  *
  * **짧은 행은 폭까지 채운다** — 본진(ExcelJS)은 행마다 값이 있는 데까지만 담으므로(0.34.2 diff 세 번째 감사) 이 채우기가 주된
  * 길이다. 폴백은 값이 든 폭까지만 읽고(`sheet_to_json`의 범위 끝이 그 폭이다) `defval`로 빈 칸을 채우므로 행이 폭 그대로 온다 —
- * `sheet_to_json`이 건너뛰는 칸(값이 든 `t: 'z'`)은 `fillStubs`가 먼저 고친다(0.34.2 diff 여섯 번째 감사 C-20). 그래서 폴백의 호출은
+ * `sheet_to_json`이 건너뛰는 칸(값이 든 `t: 'z'`)은 `valueCells`가 먼저 수 칸으로 고친다(0.34.2 diff 여섯·일곱 번째 감사 C-20·C-23). 그래서 폴백의 호출은
  * SheetJS가 바뀔 때를 위한 방어다. 직접 무는 검사는 xlsx-parsers-diverge.spec.ts
  * "fitWidth"이고, 실제 입구로는 xlsx.spec.ts의 "후행 빈 셀이 있어도 모든 행의 길이가 같다" 등이 운다.
  */
@@ -220,18 +220,21 @@ function fillMerges(XLSX: typeof SheetJs, sheet: WorkSheet): void {
   sheet['!ref'] = XLSX.utils.encode_range(range)
 }
 
+/** `sheet_to_json`이 아는 칸 타입. `z`(빈 칸)는 값이 있으면 건너뛰고, 나머지 모르는 타입에서는 던진다. */
+const SHEET_TO_JSON_TYPES: ReadonlySet<string> = new Set(['b', 'n', 'e', 's', 'd'])
+
 /**
- * **빈 칸 타입(`t: 'z'`)을 글자 칸으로 고친다** (0.34.2 diff 여섯 번째 감사 C-20). `t="z"`는 OOXML의 칸 타입이 아니지만 비표준 파일에
- * `<v>`와 함께 나오면 SheetJS가 그대로 `t: 'z'`(값은 적힌 글자)로 읽고, `sheet_to_json`은 그 칸을 `defval`도 없이 건너뛴다 — 본진(ExcelJS)은
- * 값을 읽는데 폴백만 그 자리가 구멍이었다. 값이 든 칸의 잣대(`valueCells`)는 그 칸을 세므로 둘이 갈렸다. 글자 칸이면 `raw`가 값을 그대로
- * 준다 — 값이 없는 칸은 글자 칸이어도 빈 칸이다. **시트를 제자리에서 고친다** — 다시 고쳐도 같다. 무는 검사: xlsx-parsers-diverge.spec.ts "값이 든 빈 칸 타입".
+ * **모르는 칸 타입을 본진처럼 수 칸으로 고친다** (0.34.2 diff 여섯·일곱 번째 감사 C-20·C-22·C-23). `t="z"`·`t="x"`처럼 OOXML의 칸 타입이
+ * 아닌 것이 비표준 파일에 나오면 SheetJS는 그 타입을 그대로 둔다(값은 적힌 글자). 그러면 `sheet_to_json`은 `z` 칸을 `defval`도 없이
+ * 건너뛰고(본진은 값을 읽는데 폴백만 구멍이었다) 모르는 타입에서는 `unrecognized type`으로 던졌다. 본진(ExcelJS)은 모르는 타입을
+ * `parseFloat`로 읽으므로(수가 아니면 NaN) 여기서도 그렇게 한다 — 값이 없는 칸은 수 칸이어도 빈 칸이다. **칸을 제자리에서 고친다** —
+ * 다시 고쳐도 같다. 무는 검사: xlsx-parsers-diverge.spec.ts "모르는 칸 타입".
  */
-function fillStubs(sheet: WorkSheet): void {
-  for (const [address, cell] of Object.entries(sheet)) {
-    if (address.startsWith('!')) continue
-    const stub = cell as CellObject
-    if (stub.t === 'z') stub.t = 's'
-  }
+function fixUnknownType(cell: CellObject): void {
+  if (SHEET_TO_JSON_TYPES.has(cell.t)) return
+  const value: unknown = cell.v
+  cell.t = 'n'
+  if (value !== undefined && value !== null) cell.v = Number.parseFloat(String(value))
 }
 
 /** 파서 2 - SheetJS. 한셀 등 비표준 xlsx를 위한 폴백이다. */
@@ -339,14 +342,10 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
    * **시트를 한 번만 훑어** 값이 든 폭과 값이 든 행을 함께 센다(0.34.2 diff 네 번째 감사 C-16 — 둘을 따로 훑던 동안 폴백 미리보기가
    * 같은 칸을 두 번 지났다). 시트 이름마다 한 번 — 미리보기와 본 읽기가 같은 시트를 여러 번 지난다. 무는 검사: `xlsx.spec.ts`의
    * *"폴백은 미리보기와 확정 읽기를 해도 시트를 한 번만 훑는다"*.
-   *
-   * 처음 훑기 전에 `fillStubs`로 칸 타입을 고친다 — `readSheet`는 `sheet_to_json`·`valueRows`보다 이 훑기(`widthOf`)를 먼저 부르므로
-   * 둘은 고친 시트를 읽는다. 같은 캐시에 기대어 시트마다 한 번이다.
    */
   function scanOf(sheetName: string, sheet: WorkSheet): { width: number; rows: readonly number[] } {
     const seen = sheetScans.get(sheetName)
     if (seen !== undefined) return seen
-    fillStubs(sheet)
     let width = 0
     const rows = new Set<number>()
     for (const { r, c } of valueCells(sheet)) {
@@ -362,11 +361,15 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
    * **값이 든 칸 — 잣대는 여기 하나다**(`scanOf`·`valueRows`가 함께 쓴다, 0.34.2 diff 네 번째 감사 C-12의 이웃). 오류 칸(`t: 'e'`)과
    * 범위(`!ref`) 밖의 칸은 없는 칸이다(네 변 — 무는 검사는 xlsx-parsers-diverge.spec.ts "시트 범위가 실제 칸보다 좁으면", "실제 행보다
    * 짧으면", "2행이나 B열에서 시작하면"). `c`는 범위의 첫 열부터 센다(`sheet_to_json`과 같다), `r`은 시트의 행 번호 그대로다.
+   *
+   * **지나는 칸마다 모르는 타입을 고친다**(`fixUnknownType`, 0.34.2 diff 일곱 번째 감사 C-21 — 따로 훑으면 미리보기가 두 배였다).
+   * `readSheet`는 `sheet_to_json`보다 이 훑기(`scanOf`)를 먼저 끝내므로 `sheet_to_json`은 고친 칸을 읽는다.
    */
   function* valueCells(sheet: WorkSheet): Generator<{ r: number; c: number; v: unknown }> {
     const range = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1')
     for (const [address, cell] of Object.entries(sheet)) {
       if (address.startsWith('!')) continue
+      fixUnknownType(cell as CellObject)
       const { t, v } = cell as CellObject
       if (t === 'e' || !holdsValue(v)) continue
       const { r, c } = XLSX.utils.decode_cell(address)
