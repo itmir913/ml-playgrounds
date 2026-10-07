@@ -212,6 +212,29 @@ describe('openXlsx', { timeout: 20_000 }, () => {
     }
   })
 
+  /**
+   * **빈 행이 많고 먼 칸 하나뿐인 시트도 곧 읽는다** (0.34.2 diff 세 번째 감사 A-3의 이웃). 빈 행마다 폭만큼 칸을 세우고(`getRow` +
+   * 폭까지 읽기) 나서 버리던 동안, A1..A5와 XFD2000 하나뿐인 시트의 미리보기가 1초였다 — 행이 늘수록 길어진다. 지금은 없는 행을
+   * 건너뛰고 값이 있는 데까지만 읽는다. 한도는 고친 뒤 값의 수십 배이고 고치기 전 값보다 아래다.
+   */
+  it('빈 행이 많고 먼 칸 하나뿐인 시트도 곧 읽는다', async () => {
+    const ROWS = 40_000
+    const BUDGET_MS = 1_500
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('S')
+    for (let row = 1; row <= 5; row += 1) sheet.getCell(row, 1).value = `r${String(row)}`
+    sheet.getCell(ROWS, 16_384).value = 'far'
+    const document = await openXlsx(new Uint8Array(await workbook.xlsx.writeBuffer()))
+
+    const started = performance.now()
+    const preview = document.readSheet('S', 21)
+    const elapsed = performance.now() - started
+
+    expect(preview.map((row) => row.length)).toEqual(new Array(6).fill(16_384))
+    expect(preview[5]?.[16_383]).toBe('far')
+    expect(elapsed, `${String(Math.round(elapsed))} ms`).toBeLessThan(BUDGET_MS)
+  }, 120_000)
+
   it('빈 행은 버린다 - CSV의 빈 줄과 같은 취급이다', async () => {
     const workbook = new ExcelJS.Workbook()
     const sheet = workbook.addWorksheet('S')
@@ -305,11 +328,6 @@ describe('폴백', { timeout: 20_000 }, () => {
   })
 
   /**
-   * **폴백도 열 상한을 넘는 폭이면 채우지 않는다** (0.34.2 diff 감사 A-1의 이웃). SheetJS는 `defval: ''`이 범위 전체를 행마다
-   * 채운다 — 본진과 같은 병이다. 한셀 파일에 XFD열(16,384번째) 칸 하나와 그만큼의 범위를 더해, ExcelJS가 던지는 그대로 폴백을
-   * 진짜로 태운다. 상한을 주면 그 한 행만 넓고, 안 주면(상한을 끈 것과 같다) 전부 채운다.
-   */
-  /**
    * **폴백은 넓은 범위를 다 훑지 않는다** (0.34.2 diff 재감사 A-2). `sheet_to_json`은 범위(`!ref`) 안의 모든 행 × 범위의 폭을 훑어서,
    * A열에 행 번호 2,000줄과 XFD열 칸 하나뿐인 20KB 파일의 미리보기가 21초, 확정(열 상한 거절)이 26초였다. 고친 뒤는 미리보기가 행
    * 창만, 확정이 값이 든 칸만 본다. 한도는 고친 뒤 값의 수십 배이고 고치기 전 값보다 한참 아래다.
@@ -345,6 +363,68 @@ describe('폴백', { timeout: 20_000 }, () => {
     expect(elapsed, `${String(Math.round(elapsed))} ms`).toBeLessThan(BUDGET_MS)
   }, 120_000)
 
+  /** 한셀 파일의 시트를 `<dimension>`과 칸 목록으로 바꾼다 — ExcelJS가 던지는 그대로라 폴백을 진짜로 태운다. */
+  function hancellSheet(
+    dimension: string,
+    cells: readonly (readonly [string, number])[],
+  ): Uint8Array {
+    const files = unzipSync(hancell)
+    const path = 'xl/worksheets/sheet1.xml'
+    const xml = new TextDecoder().decode(files[path])
+    const byRow = new Map<number, string[]>()
+    for (const [address, value] of cells) {
+      const row = Number(/\d+$/.exec(address)?.[0])
+      byRow.set(row, [
+        ...(byRow.get(row) ?? []),
+        `<x:c r="${address}"><x:v>${String(value)}</x:v></x:c>`,
+      ])
+    }
+    const body = [...byRow.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([row, xmlCells]) => `<x:row r="${String(row)}">${xmlCells.join('')}</x:row>`)
+      .join('')
+    const patched = xml
+      .replace('<x:dimension ref="A1:C4"/>', `<x:dimension ref="${dimension}"/>`)
+      .replace(/<x:sheetData>.*<\/x:sheetData>/s, `<x:sheetData>${body}</x:sheetData>`)
+    if (!patched.includes(dimension)) throw new Error('the fixture did not take the dimension')
+    files[path] = new TextEncoder().encode(patched)
+    return zipSync(files)
+  }
+
+  /**
+   * **값이 든 행이 적어도 범위 끝까지 훑지 않는다** (0.34.2 diff 세 번째 감사 A-3·C-8). 행 창을 넓혀 가던 고침은 값이 든 행이 미리보기 줄
+   * 수보다 적으면 창이 범위 끝까지 넓어져, A1..A5와 XFD2000 하나뿐인 7KB 파일의 미리보기가 37초였다. 범위만 넓고 먼 칸이 없는 시트는
+   * 열을 값이 든 폭까지로 자르는 것이 지킨다(그 줄을 범위 끝으로 바꾸면 23초). 한도는 고친 뒤 값의 수십 배다.
+   */
+  it('폴백은 값이 든 행이 적거나 범위만 넓어도 곧 읽는다', async () => {
+    const BUDGET_MS = 3_000
+    const few = Array.from(
+      { length: 5 },
+      (_, index) => [`A${String(index + 1)}`, index + 1] as const,
+    )
+    const sparse = await openXlsx(hancellSheet('A1:XFD2000', [...few, ['XFD2000', 9]]))
+    const tall = await openXlsx(hancellSheet('A1:ALL20000', [...few, ['ALL20000', 9]]))
+    const wideRange = await openXlsx(
+      hancellSheet(
+        'A1:XFD2000',
+        Array.from({ length: 2_000 }, (_, index) => [`A${String(index + 1)}`, index + 1] as const),
+      ),
+    )
+    const name = sparse.sheetNames[0] ?? ''
+
+    const started = performance.now()
+    const preview = sparse.readSheet(name, 21)
+    const whole = tall.readSheet(name, 100_001, 1_000)
+    const narrow = wideRange.readSheet(name, 100_001, 1_000)
+    const elapsed = performance.now() - started
+
+    expect(preview.map((row) => row.length)).toEqual(new Array(6).fill(16_384))
+    expect(whole.map((row) => row.length)).toEqual(new Array(6).fill(1_000))
+    expect(narrow).toHaveLength(2_000)
+    expect(narrow.every((row) => row.length === 1)).toBe(true)
+    expect(elapsed, `${String(Math.round(elapsed))} ms`).toBeLessThan(BUDGET_MS)
+  }, 180_000)
+
   /** **폴백도 폭이 상한과 같으면 채운다** (0.34.2 diff 재감사 C-5) — ALL열이 1,000번째다. 경계를 `>=`로 바꾸면 짧은 행이 짧은 채로 온다. */
   it('폴백도 폭이 상한과 같으면 채운다', async () => {
     const files = unzipSync(hancell)
@@ -373,20 +453,33 @@ describe('폴백', { timeout: 20_000 }, () => {
     const files = unzipSync(hancell)
     const path = 'xl/worksheets/sheet1.xml'
     const xml = new TextDecoder().decode(files[path])
+    // 값 너머에 공백 칸(AMB2)과 오류 칸(AMA2), 오류 칸만 든 행(5행), 범위(`<dimension>`) 밖의 값(AMF2)을 둔다 — 셋 다 값이 든 칸이
+    // 아니다(0.34.2 diff 세 번째 감사 C-10, `valueRows`의 거르기 셋).
     const patched = xml
-      .replace('<x:dimension ref="A1:C4"/>', '<x:dimension ref="A1:AMB4"/>')
+      .replace('<x:dimension ref="A1:C4"/>', '<x:dimension ref="A1:AMB5"/>')
       .replace(
         '<x:c r="C2" t="s"><x:v>1</x:v></x:c>',
-        '<x:c r="C2" t="s"><x:v>1</x:v></x:c><x:c r="ALM2"><x:v>9</x:v></x:c><x:c r="AMB2" t="str"><x:v> </x:v></x:c>',
+        '<x:c r="C2" t="s"><x:v>1</x:v></x:c><x:c r="ALM2"><x:v>9</x:v></x:c><x:c r="AMA2" t="e"><x:v>#N/A</x:v></x:c><x:c r="AMB2" t="str"><x:v> </x:v></x:c><x:c r="AMF2"><x:v>7</x:v></x:c>',
       )
-    expect(patched.includes('AMB2') && patched.includes('A1:AMB4')).toBe(true)
+      .replace(
+        '</x:sheetData>',
+        '<x:row r="5"><x:c r="B5" t="e"><x:v>#N/A</x:v></x:c></x:row></x:sheetData>',
+      )
+    expect(
+      patched.includes('AMF2') && patched.includes('A1:AMB5') && patched.includes('r="B5"'),
+    ).toBe(true)
     files[path] = new TextEncoder().encode(patched)
     const document = await openXlsx(zipSync(files))
     const name = document.sheetNames[0] ?? ''
     const rows = document.readSheet(name, undefined, 1_000)
-    expect(Math.max(...rows.map((row) => row.length))).toBe(1_001)
+    expect(rows.map((row) => row.length)).toEqual([3, 1_001, 3, 3])
   })
 
+  /**
+   * **폴백도 열 상한을 넘는 폭이면 채우지 않는다** (0.34.2 diff 감사 A-1의 이웃). SheetJS는 `defval: ''`이 범위 전체를 행마다
+   * 채운다 — 본진과 같은 병이다. 한셀 파일에 XFD열(16,384번째) 칸 하나와 그만큼의 범위를 더해, ExcelJS가 던지는 그대로 폴백을
+   * 진짜로 태운다. 상한을 주면 그 한 행만 넓고, 안 주면(상한을 끈 것과 같다) 전부 채운다.
+   */
   it('폴백도 열 상한을 넘는 폭이면 채우지 않는다', async () => {
     const files = unzipSync(hancell)
     const path = 'xl/worksheets/sheet1.xml'

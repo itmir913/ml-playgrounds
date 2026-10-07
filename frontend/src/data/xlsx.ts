@@ -167,8 +167,14 @@ const parseWithExcelJs: XlsxParser = async (bytes) => {
         // 메모리 부족으로 죽였다. `row.values`는 있는 칸만 담은 희소 배열이고 칸마다 `cell.value`를 쓰므로 병합된
         // 칸도 첫 칸의 값을 준다(`node_modules/exceljs/lib/doc/row.js`의 `get values`). 무는 검사:
         // `xlsx.spec.ts`의 *"먼 열에 값 하나만 있는 긴 시트도 곧 읽는다"*.
-        const values = sheet.getRow(rowNumber).values as readonly unknown[]
-        const last = overflowing ? Math.min(width, values.length - 1) : width
+        //
+        // **없는 행은 만들지 않고, 행마다 값이 있는 데까지만 읽는다** (0.34.2 diff 세 번째 감사 A-3의 이웃). `getRow`는 없는 행을
+        // 새로 만들고, 폭까지 읽으면 빈 행마다 폭만큼 칸이 선다 — 먼 열에 값 하나와 빈 행 수천 개인 시트가 그만큼 느렸다. 채우기는
+        // 아래 `fitWidth`가 남긴 행에만 한다.
+        const row = sheet.findRow(rowNumber)
+        if (row === undefined) continue
+        const values = row.values as readonly unknown[]
+        const last = Math.min(width, values.length - 1)
         const cells: string[] = []
         for (let column = 1; column <= last; column += 1) {
           cells.push(cellToString(values[column]))
@@ -221,6 +227,8 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
 
   /** 시트마다 값이 든 가장 오른쪽 열. `widthOf`가 채운다. */
   const contentWidths = new Map<string, number>()
+  /** 시트마다 값이 든 행 번호. `filledRows`가 채운다. */
+  const filledRowCache = new Map<string, readonly number[]>()
 
   return {
     sheetNames: [...workbook.SheetNames],
@@ -235,22 +243,34 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
       if (width > maxColumns) return valueRows(sheet, maxRows)
 
       /**
-       * **범위 전체를 한 번에 훑지 않는다** (0.34.2 diff 재감사 A-2). `sheet_to_json`은 범위(`!ref`) 안의 모든 행 × 범위의 폭을
-       * 훑는다 — 한셀이 쓴 범위가 넓으면(먼 열에 값 하나) 20KB 파일의 미리보기가 21초, 130KB의 확정이 3분 넘게 화면을 멈췄다.
-       * 그래서 열은 **값이 든 폭까지만**(그 너머는 어차피 `fitWidth`가 자르는 빈 칸이다), 행은 **필요한 만큼 창을 넓혀 가며** 읽는다.
-       * 무는 검사: `xlsx.spec.ts`의 *"폴백은 넓은 범위를 다 훑지 않는다"*.
+       * **값이 든 행만 훑는다** (0.34.2 diff 재감사 A-2, 세 번째 감사 A-3). `sheet_to_json`은 범위(`!ref`) 안의 모든 행 × 범위의 폭을
+       * 훑는다 — 한셀이 쓴 범위가 넓으면(먼 열에 값 하나) 20KB 파일의 미리보기가 21초, 130KB의 확정이 3분 넘게 화면을 멈췄다. 행 창을
+       * 넓혀 가는 것으로는 모자랐다 — 값이 든 행이 미리보기 줄 수보다 적으면 창이 범위 끝까지 넓어졌다. 그래서 열은 **값이 든 폭까지만**
+       * (그 너머는 `fitWidth`가 자르는 빈 칸이다), 행은 **값이 든 행의 이어진 묶음마다** 읽고 남은 줄 수에서 자른다. 빈 행은 어차피
+       * 버린다. 비용은 칸 수 + 남긴 행 × 폭이다. 무는 검사: `xlsx.spec.ts`의 *"폴백은 넓은 범위를 다 훑지 않는다"* 묶음.
        */
       const range = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1')
       const lastColumn = range.s.c + width - 1
+      const filled = filledRows(sheetName, sheet)
       const grid: TableGrid = []
-      let start = range.s.r
-      let windowRows = maxRows === undefined ? range.e.r - range.s.r + 1 : Math.max(1, maxRows)
-      while (start <= range.e.r) {
+      let at = 0
+      while (at < filled.length) {
         if (maxRows !== undefined && grid.length >= maxRows) break
-        const end = Math.min(range.e.r, start + windowRows - 1)
+        const room = maxRows === undefined ? Infinity : maxRows - grid.length
+        let end = at
+        while (
+          end + 1 < filled.length &&
+          (filled[end + 1] as number) === (filled[end] as number) + 1 &&
+          end + 1 - at < room
+        ) {
+          end += 1
+        }
         const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
           header: 1,
-          range: { s: { r: start, c: range.s.c }, e: { r: end, c: lastColumn } },
+          range: {
+            s: { r: filled[at] as number, c: range.s.c },
+            e: { r: filled[end] as number, c: lastColumn },
+          },
           // 빈 셀도 자리를 지킨다. 없으면 컬럼 인덱스가 행마다 밀린다.
           defval: '',
           /**
@@ -273,9 +293,7 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
           const cells = row.map(cellToString)
           if (!isEmptyRow(cells)) grid.push(cells)
         }
-        start = end + 1
-        // 빈 행이 많아 창에서 모자랐으면 다음 창은 두 배로 — 창 수는 행 수의 로그다.
-        windowRows *= 2
+        at = end + 1
       }
       return fitWidth(grid, width)
     },
@@ -306,6 +324,28 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
     }
     contentWidths.set(sheetName, widest)
     return widest
+  }
+
+  /**
+   * 값이 든 칸이 하나라도 있는 행 번호(0부터, 오름차순). 칸의 잣대는 `widthOf`와 같다(오류 칸과 범위 밖 칸은 없는 칸). 시트마다 한
+   * 번 센다 — 미리보기와 본 읽기가 같은 시트를 여러 번 지난다.
+   */
+  function filledRows(sheetName: string, sheet: WorkSheet): readonly number[] {
+    const seen = filledRowCache.get(sheetName)
+    if (seen !== undefined) return seen
+    const range = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1')
+    const rows = new Set<number>()
+    for (const [address, cell] of Object.entries(sheet)) {
+      if (address.startsWith('!')) continue
+      const { t, v } = cell as CellObject
+      if (t === 'e' || !holdsValue(v)) continue
+      const { r, c } = XLSX.utils.decode_cell(address)
+      if (r < range.s.r || r > range.e.r || c < range.s.c || c > range.e.c) continue
+      rows.add(r)
+    }
+    const sorted = [...rows].sort((left, right) => left - right)
+    filledRowCache.set(sheetName, sorted)
+    return sorted
   }
 
   /**
