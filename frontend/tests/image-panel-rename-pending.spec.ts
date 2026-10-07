@@ -32,6 +32,7 @@ import { i18n, setLocale } from '../src/i18n'
 import { IMAGE_UNLABELED } from '../src/project/format'
 import * as images from '../src/project/images'
 import { imageCategories, readImages, removeImages } from '../src/project/images'
+import { dataSettings } from '../src/project/schema'
 import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import ImageGrid from '../src/views/data/ImageGrid.vue'
@@ -279,6 +280,48 @@ describe('확인 판의 묶음이 범주 편집을 따라간다', () => {
     const after = await bakeAndRead(project, wrapper)
     expect(after.categories).toEqual([])
     expect(after.landedIn).toEqual([IMAGE_UNLABELED])
+  })
+})
+
+/**
+ * **테스트 자리에만 남은 이름으로 바꾸면 이름 창이 거절한다** (106 개정 2, 0.35 감사 C-1). 화면이 gate에 넘기는 `mode`와
+ * `testCategories`를 진짜 입구로 문다 — 둘 중 하나가 빠지면 gate가 통과시키고 `renameCategory`가 던져 창 안 문장 대신 오류 알림이 선다.
+ */
+describe('고아 테스트 이름으로 바꾸기', () => {
+  it('창 안에 nameTakenByTest가 서고 함수는 안 불린다', async () => {
+    const { project, wrapper } = await panelWith('A')
+    await project.save((live) => {
+      const applied = images.applyTestImages(
+        live,
+        [{ hash: 'tc', category: 'C', bytes: new Uint8Array([1]) }],
+        { canonicalSize: 224, now: '2026-10-07T00:00:00Z', format: 'webp' },
+      ).project
+      // 테스트 사진을 앉히면 그 범주가 목록에 서므로 손으로 되돌린다 — 옛 파일의 고아 테스트 폴더다.
+      const { document } = applied
+      const data = { ...dataSettings('image', document.settings), categories: ['A'] }
+      return {
+        ...applied,
+        document: {
+          ...document,
+          settings: { ...document.settings, data: data as typeof document.settings.data },
+        },
+      }
+    })
+    await settle()
+    expect(imageCategories(project.file)).toEqual(['A'])
+    const spy = vi.spyOn(images, 'renameCategory')
+
+    await buttonIn(cardOf(wrapper, 'A'), 'data.image.rename').trigger('click')
+    const dialog = dialogTitled(wrapper, 'data.image.renameTitle')
+    await dialog.find('input[type="text"]').setValue('C')
+    await buttonIn(dialog, 'data.image.renameConfirm').trigger('click')
+    await settle()
+
+    expect(spy).not.toHaveBeenCalled()
+    expect(dialogTitled(wrapper, 'data.image.renameTitle').find('[role="alert"]').text()).toBe(
+      t('data.image.nameTakenByTest'),
+    )
+    expect(imageCategories(project.file)).toEqual(['A'])
   })
 })
 
