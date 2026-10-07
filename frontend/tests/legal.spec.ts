@@ -26,7 +26,7 @@ import { basename, join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { SUPPORTED_LOCALES } from '@/i18n'
+import { FALLBACK_LOCALE, SUPPORTED_LOCALES } from '@/i18n'
 import { LEGAL_INDEX_PATH, NOTICES_PATH, privacyPath } from '@/legal'
 import { NOTICES_FILE } from '../scripts/notices'
 import { scriptMismatches } from './fixtures/locales'
@@ -138,6 +138,17 @@ describe('규정 서랍이 서 있다', () => {
     // 0.33.3 최종 감사(J-code C-3) 전에는 ja 제목을 한국어로 바꿔도 아무것도 안 울었다.
     // `lead`는 제품 이름이다 — 언어를 가리지 않는다(`locales.spec.ts`의 `app.name`과 같다).
     expect(scriptMismatches(drawerMessages(), ['lead'])).toEqual([])
+  })
+
+  /**
+   * **서랍의 대체 언어가 앱의 것과 같다.** 스크립트의 `fallback`과 `<html lang>`의 초기값 둘 다다.
+   * 초기값은 스크립트가 덮어서 화면에서는 안 보이지만, 스크립트가 안 도는 곳에서는 그대로 남는다 —
+   * 대체 언어가 영어인데 `ko`를 달고 있었다 (2026-10-08 점검).
+   */
+  it('서랍의 대체 언어가 앱의 대체 언어와 같다', () => {
+    const html = readFileSync(join(LEGAL, 'index.html'), 'utf8')
+    expect(/<html\s+lang="([^"]+)"/u.exec(html)?.[1]).toBe(FALLBACK_LOCALE)
+    expect(/var fallback = '([^']+)'/u.exec(html)?.[1]).toBe(FALLBACK_LOCALE)
   })
 
   it('서랍이 언어마다 자기 이름을 갖는다 - 토글이 그것으로 그려진다', () => {
