@@ -42,6 +42,7 @@ import {
   type HashCheck,
   type ProjectHashes,
 } from './integrity'
+import { jsonText } from './json-text'
 import { migrateProjectDocument, requireSupportedVersion } from './migrate'
 import type { Manifest, ModelOmissionReason, ModelRef, ProjectDocument } from './schema'
 
@@ -401,8 +402,9 @@ function decodeJson(bytes: Uint8Array, entry: string): unknown {
 }
 
 function encodeJson(value: unknown): Uint8Array {
-  // 들여쓰기를 넣는다. 학생이 압축을 풀어 들여다보는 것은 교육적으로 좋은 일이다.
-  return new TextEncoder().encode(JSON.stringify(value, null, 2))
+  // 들여쓰기를 넣는다. 학생이 압축을 풀어 들여다보는 것은 교육적으로 좋은 일이다. 수 배열만 한 줄이다
+  // (open-decisions.md 105, `json-text.ts`).
+  return new TextEncoder().encode(jsonText(value))
 }
 
 /**
@@ -1591,7 +1593,9 @@ function sanitizeSegment(value: string): string {
       )
       .join('')
       .replace(/\s+/g, '')
-      // 윈도우는 점으로 끝나는 이름을 거부한다.
+      // **앞의 점이 숨김 파일을 만든다**(맥·리눅스) — 학생이 저장한 파일을 못 찾는다. 뒤의 점은 뒤에 늘 `_`나
+      // 확장자가 붙어 이름 끝에 오지 않지만 `이름..mlpx` 같은 겹점이 된다. 무는 검사: `format.spec.ts`의
+      // *"앞의 점을 걷는다"*.
       .replace(/^\.+|\.+$/g, '')
   )
 }
@@ -1656,5 +1660,7 @@ export function projectFileName(manifest: Manifest): string {
   // `format.spec.ts`의 *"자른 결과가 예약 이름이 되면 다시 피한다"*.
   const once = fitStem(escapeWindowsReserved(joined))
   const fitted = fitStem(escapeWindowsReserved(once))
+  // 자른 뒤에 비는 것은 한계를 혼자 넘는 자소 하나뿐일 때다. 무는 검사: `format.spec.ts`의
+  // *"자른 결과가 비면 projectId 앞자리를 쓴다"*.
   return `${fitted === '' ? fallback : fitted}${MLPX_EXTENSION}`
 }

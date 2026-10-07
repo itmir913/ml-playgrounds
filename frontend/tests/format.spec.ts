@@ -61,6 +61,7 @@ import { hashBytes } from '../src/hash'
 import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { embeddingPath } from '../src/project/embeddings'
 import { imageCategories } from '../src/project/images'
+import { jsonText } from '../src/project/json-text'
 import { FORMAT_VERSION, PROJECT_KIND_ML } from '../src/project/schema'
 import {
   experiment,
@@ -90,6 +91,73 @@ async function open(bytes: Uint8Array): Promise<ProjectFile> {
 function filler(size: number): Uint8Array {
   return new Uint8Array(size).fill(65)
 }
+
+/**
+ * **결정 105 — 수 배열만 한 줄로 쓰고 나머지는 들여쓰기를 둔다** (open-decisions.md 105, R42 감사 B-1).
+ * 들여쓰기 2는 행 번호 배열의 원소마다 한 줄을 써서 `runs.json`을 세 배 가까이 부풀렸다.
+ */
+describe('결정 105 — JSON 엔트리의 모양', () => {
+  const pretty = (value: unknown): string | undefined => JSON.stringify(value, null, 2)
+
+  it('수 배열이 없으면 JSON.stringify(값, null, 2)와 글자가 같다', () => {
+    const document = projectFile().document
+    const samples: unknown[] = [
+      document.manifest,
+      document.portfolio,
+      { a: undefined, b: () => 1, c: null, d: [], e: {}, f: [{}, []], g: '한글\n"따옴표"' },
+      { when: new Date(Date.UTC(2026, 9, 7)), boxed: [Object(1), Object('s'), Object(true)] },
+      ['x', undefined, () => 1, null, true],
+      [, 'hole'],
+      [[[]]],
+      'top',
+      7,
+      null,
+    ]
+    for (const sample of samples) expect(jsonText(sample)).toBe(pretty(sample))
+  })
+
+  it('원소가 전부 수인 배열은 한 줄이다', () => {
+    const value = {
+      a: [1, 2, 3],
+      b: [[1, 2], [3]],
+      c: [1, 'x'],
+      d: [],
+      e: [NaN, Infinity, -0, 1.5],
+    }
+    expect(jsonText(value)).toBe(
+      [
+        '{',
+        '  "a": [1,2,3],',
+        '  "b": [',
+        '    [1,2],',
+        '    [3]',
+        '  ],',
+        '  "c": [',
+        '    1,',
+        '    "x"',
+        '  ],',
+        '  "d": [],',
+        '  "e": [null,null,0,1.5]',
+        '}',
+      ].join('\n'),
+    )
+  })
+
+  it('읽으면 JSON.stringify로 쓴 것과 같은 값이다', () => {
+    const document = projectFile().document
+    for (const value of [document.settings, document.runs, document.portfolio, document.manifest]) {
+      expect(JSON.parse(jsonText(value) ?? '')).toEqual(JSON.parse(pretty(value) ?? ''))
+    }
+  })
+
+  it('나간 runs.json의 행 번호는 한 줄이고 다시 열면 같다', async () => {
+    const { bytes } = await writeProjectBytes(projectFile(), markdown)
+    const runs = new TextDecoder().decode(unzipSync(bytes)[ENTRY.runs])
+    expect(runs).toContain('"trainIndices": [0,2,3]')
+    expect(runs).toContain('"testIndices": [1]')
+    expect((await readProject(bytes)).project.document).toEqual(projectFile().document)
+  })
+})
 
 describe('표를 아직 안 올린 프로젝트', () => {
   it('저장하고 다시 열린다', async () => {
@@ -1013,6 +1081,25 @@ describe('projectFileName', () => {
     expect(projectFileName({ ...manifest, name: `CON${heavy}` })).toBe(`CON_${MLPX_EXTENSION}`)
   })
 
+  /**
+   * **점으로 시작하는 이름은 맥·리눅스에서 숨김 파일이다** (R42 감사 C-5). 학생은 저장한 파일을 못 찾는다.
+   * 걷는 줄을 지워도 전에는 아무 검사도 안 울었다.
+   */
+  it('앞의 점을 걷는다 - 숨김 파일을 만들지 않는다', () => {
+    expect(projectFileName({ ...manifest, name: '.secret' })).toBe(`secret${MLPX_EXTENSION}`)
+    expect(projectFileName({ ...manifest, name: '...' })).toBe(`550e8400${MLPX_EXTENSION}`)
+  })
+
+  /**
+   * **자른 뒤에 비면 projectId 앞자리다** (R42 감사 C-5). 한계를 혼자 넘는 자소 하나(결합 문자를 수백 개 단
+   * 글자)는 통째로 빠지므로, 이 그물이 없으면 이름이 확장자뿐인 숨김 파일 `.mlpx`가 된다.
+   */
+  it('자른 결과가 비면 projectId 앞자리를 쓴다', () => {
+    const heavy = `a${String.fromCodePoint(0x0308).repeat(300)}`
+    expect(projectFileName({ ...manifest, name: heavy })).toBe(`550e8400${MLPX_EXTENSION}`)
+    expect(projectFileName({ ...manifest, name: `${heavy}가` })).toBe(`550e8400${MLPX_EXTENSION}`)
+  })
+
   it('이모지 가족을 가운데서 끊지 않는다', () => {
     const zwj = String.fromCodePoint(0x200d)
     const family = [0x1f469, 0x1f469, 0x1f467, 0x1f466]
@@ -1033,7 +1120,16 @@ describe('projectFileName', () => {
  * 1980~2099년이고 fflate는 그 밖이면 던진다. 배터리가 다 된 기기는 시계가 1970년으로 돌아간다.
  */
 describe('기기 시계가 zip이 담을 수 없는 해여도 내보낸다', () => {
-  for (const clock of ['1970-01-02T00:00:00', '2100-06-01T00:00:00']) {
+  // 경계의 양쪽 한 칸까지 둔다 (R42 감사 C-6) — 1970·2100만 두면 당기는 문턱을 한 해 늦춰도 초록이었다.
+  const clocks = [
+    '1970-01-02T00:00:00',
+    '1979-12-31T12:00:00',
+    '1980-01-01T00:00:00',
+    '2099-12-31T12:00:00',
+    '2100-01-01T00:00:00',
+    '2100-06-01T00:00:00',
+  ]
+  for (const clock of clocks) {
     it(`시계가 ${clock}`, async () => {
       vi.useFakeTimers({ toFake: ['Date'] })
       vi.setSystemTime(new Date(clock))
@@ -1102,6 +1198,18 @@ describe('포트폴리오 첨부', () => {
     const reopened = await roundTrip(project)
     expect(reopened.document.portfolio.attachments).toEqual({})
     expect(reopened.attachments.size).toBe(0)
+  })
+
+  /**
+   * **나간 파일 자체를 본다** (R42 감사 C-7). 위 검사는 다시 연 문서를 보는데 `readProject`도 같은 떼기를 한다 —
+   * 쓰는 쪽이 떼지 않아 참조만 남은 파일이 나가도 읽는 쪽이 가려서 초록이었다.
+   */
+  it('나간 파일의 문서에 짝 없는 첨부 참조가 없다', async () => {
+    const project: ProjectFile = { ...withAttachment(), attachments: new Map() }
+    const { bytes: file } = await writeProjectBytes(project, markdown)
+    const written = unzipSync(file)[ENTRY.portfolio]
+    const portfolio = JSON.parse(new TextDecoder().decode(written)) as { attachments: unknown }
+    expect(portfolio.attachments).toEqual({})
   })
 
   it('한 장만 없어지면 그 한 장만 뗀다', async () => {

@@ -135,6 +135,53 @@ describe('R24 B-3: the last two lines of the export chain', () => {
 })
 
 /**
+ * **내보내기 길의 말 둘** (R42 감사 C-4). 둘 다 지워도 관문이 초록이었다.
+ *
+ * - 담지 못한 모델이 **하나**여도 경고한다 — 5MB를 넘는 랜덤 포레스트는 실재하고, 그때 학생에게 남는 말이
+ *   이 한 줄이다. 조용히 빠지면 학생은 예측이 왜 안 되는지 모른다.
+ * - 머리글은 **지금 화면의 언어**로 그리고 그 언어를 `manifest.locale`에 적는다(mlpx-spec.md §2).
+ */
+describe('R42 C-4: what the export path says', () => {
+  async function exportOnce(): Promise<void> {
+    const wrapper = mount(ExportButton, { global: { plugins: [i18n] }, attachTo: document.body })
+    await flushPromises()
+    await wrapper.find('button').trigger('click')
+    await flushPromises()
+    document
+      .querySelector('.popover-panel button')
+      ?.dispatchEvent(new Event('click', { bubbles: true }))
+    await settle()
+    wrapper.unmount()
+  }
+
+  it('담지 못한 모델이 하나여도 경고한다', async () => {
+    const project = useProjectStore()
+    await project.save(projectFile())
+    vi.spyOn(project, 'exportFile').mockResolvedValue([
+      { path: 'model/run-1.json', sizeBytes: 1, reason: 'tooLarge' },
+    ])
+
+    await exportOnce()
+
+    const dropped = useToastStore().items.find((one) => one.key === 'project.exportDropped')
+    expect(dropped?.tone).toBe('caution')
+    expect(dropped?.params).toEqual({ count: 1 })
+  })
+
+  it('머리글의 언어는 지금 화면의 언어다', async () => {
+    await setLocale('en')
+    const project = useProjectStore()
+    await project.save(projectFile())
+    const taken = vi.spyOn(project, 'exportFile').mockResolvedValue([])
+
+    await exportOnce()
+
+    expect(taken).toHaveBeenCalledTimes(1)
+    expect(project.file?.document.manifest.locale).toBe('en')
+  })
+})
+
+/**
  * **저장이 멈춰도 파일이 나가고, 성공은 파일이 나간 순간 말한다** (2026-09-28 감사 A B-1).
  *
  * 전에는 버튼이 IndexedDB 저장을 기다린 뒤에야 파일을 만들어서, 저장이 끝나지 않으면 버튼이

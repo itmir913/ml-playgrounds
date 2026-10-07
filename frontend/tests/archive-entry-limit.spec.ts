@@ -314,4 +314,22 @@ describe('마지막 그물', () => {
     expect(Object.keys(unzipSync(bytes))).toHaveLength(MAX_ARCHIVE_ENTRIES)
     expect((await readProject(bytes)).project.images.size).toBe(photos)
   }, 120_000)
+
+  /**
+   * **한 칸 위도 문다** (R42 감사 C-2). 위의 "넘는 프로젝트"는 한계보다 몇 칸 위라 `hashes.json` 몫(`+ 1`)을
+   * 빼먹어도 던졌다 — 그 상태로 한계보다 딱 하나 많은 프로젝트가 엔트리 65,535개로 써졌다.
+   */
+  it('한계보다 하나 많으면 던진다 — hashes.json까지 센다', async () => {
+    const photos = MAX_ARCHIVE_ENTRIES - archiveEntryCount(imageProject(0)) + 1
+    const project = imageProject(photos)
+    expect(archiveEntryCount(project)).toBe(MAX_ARCHIVE_ENTRIES + 1)
+
+    // 결과를 낱말 하나로 줄여서 본다. `rejects`로 보면 써져 버렸을 때 실패 메시지가 수만 엔트리짜리 결과를
+    // 통째로 펴다가 워커가 죽어, 이 파일의 검사가 전부 같이 쓰러진다.
+    const outcome = await writeProjectBytes(project, markdown).then(
+      () => 'written',
+      (error: unknown) => (isClientError(error) ? error.code : 'other error'),
+    )
+    expect(outcome).toBe('PROJECT_FILE_TOO_MANY_ENTRIES')
+  }, 120_000)
 })

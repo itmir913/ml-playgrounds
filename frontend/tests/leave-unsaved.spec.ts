@@ -20,6 +20,7 @@ import { defineComponent, h } from 'vue'
 
 import LeaveGuard from '../src/components/LeaveGuard.vue'
 import { useUnloadWarning } from '../src/composables/useUnloadWarning'
+import { ClientError, toMessage } from '../src/errors'
 import { i18n, setLocale } from '../src/i18n'
 import { closeStorage, loadProject, saveProject } from '../src/project/storage'
 import { ROUTE_PROJECTS, router } from '../src/router'
@@ -32,6 +33,9 @@ import { refuseWrites } from './fixtures/storage-refusal'
 import { resetDatabase } from './fixtures/database'
 
 const downloads: string[] = []
+
+/** 서 있으면 내려받기가 이것을 던진다 — 내보내기 길이 마지막 줄에서 실패한다. */
+const downloadFailure = vi.hoisted(() => ({ error: null as unknown }))
 
 /**
  * **저장을 붙드는 손잡이.** `until`이 서 있으면 진짜 `saveProject`가 그것을 기다린 뒤 쓴다 — 쓰기가
@@ -57,6 +61,7 @@ vi.mock('../src/project/download', async (importOriginal) => {
     ...actual,
     // jsdom에는 쓸 수 있는 객체 URL이 없다. 파일이 나갔다는 것만 센다.
     downloadBlob: (_blob: Blob, fileName: string) => {
+      if (downloadFailure.error !== null) throw downloadFailure.error
       downloads.push(fileName)
     },
   }
@@ -89,6 +94,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   hold.until = null
+  downloadFailure.error = null
   refusal?.restore()
   refusal = null
   useLeaveStore().stay()
@@ -361,6 +367,31 @@ describe('결정 74: 확인 창', { timeout: 20_000 }, () => {
 
     await router.push({ name: ROUTE_PROJECTS })
     expect(router.currentRoute.value.name).toBe(ROUTE_PROJECTS)
+    wrapper.unmount()
+  })
+
+  /**
+   * **내보내기가 실패하면 창 안에서 말하고 창은 남는다** (R42 감사 C-3, 결정문 65 "모달 창 안의 거절"). 알림은
+   * 모달 뒤에 덮이므로 이 문장이 유일한 신호다 — 지워도 전에는 아무 검사도 안 울었고, 그러면 [파일로 저장]이
+   * 돌다 멈출 뿐 아무 말이 없다. 실패는 진짜 내보내기 길의 마지막 줄(내려받기)에서 낸다.
+   */
+  it('[파일로 저장]이 실패하면 창 안에서 이유를 말하고 창은 남는다', async () => {
+    await openAndEdit('실패할 이름')
+    refuse()
+    const wrapper = await guard()
+    await router.push({ name: ROUTE_PROJECTS })
+    await flushPromises()
+
+    const refused = new ClientError('PROJECT_FILE_TOO_MANY_ENTRIES')
+    downloadFailure.error = refused
+    await button(wrapper, 'project.export').trigger('click')
+    await vi.waitFor(() => expect(wrapper.find('[role="alert"]').exists()).toBe(true))
+
+    const { key, params } = toMessage(refused)
+    expect(wrapper.find('[role="alert"]').text()).toBe(i18n.global.t(key, params))
+    expect(downloads).toHaveLength(0)
+    expect(useLeaveStore().target).not.toBeNull()
+    expect(router.currentRoute.value.name).toBe('data')
     wrapper.unmount()
   })
 })
