@@ -810,8 +810,12 @@ async function commitRemoveCategory(): Promise<void> {
         **`lg` 아래에도 열 템플릿이 있어야 한다.** 없으면 암묵 열이 `auto`라, 범주 칸 머리의
         `truncate` 제목이 띄어쓰기 없는 긴 범주 이름의 폭을 최소 폭으로 내밀어 휴대폰 문서가
         옆으로 부푼다. `grid-cols-1`은 `minmax(0, 1fr)`이다. 사람 확인(브라우저).
+
+        **칸은 늘어난다(격자의 기본 `stretch`).** 한 줄의 두 칸이 같은 높이로 서야 테두리가 나란하다 —
+        `items-start`이면 사진이 적은 칸의 테두리가 사진 높이에서 끊긴다. 브라우저 실측으로 확인함(1280px, 8장·15장
+        칸이 둘 다 388px).
       -->
-      <div class="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+      <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <ImageGrid
           v-for="category in categories"
           :key="category"
