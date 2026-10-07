@@ -119,6 +119,11 @@ PREDICTION_INPUT_INCOMPLETE
 PREDICTION_INPUT_NOT_NUMBER
 ```
 빈 칸과 숫자가 아닌 값은 끝까지 나누고, 쉼표 숫자는 받지 않는다 — 예측에서만 숫자로 읽으면 같은 글자를 학습과 예측이 다르게 해석한다.
+**값이 너무 커서 계산이 넘친다** (`ml/preprocess.ts`의 `fitPreprocessor`)
+```
+FEATURE_VALUE_TOO_LARGE
+```
+수치 특성의 대체값·중심·폭이 부동소수 범위를 넘어 유한하지 않으면 학습 전에 멈춘다. 안 막으면 그 열이 통째로 NaN이나 0이 되어 학습이 **완료로 끝나고 틀린 점수를 내고**, 저장된 전처리기에 적힌 `null`은 다시 열 때 스키마가 거부한다 (2026-10-08 R43-4 B-1). 브라우저 전처리기의 판정이라 백엔드 `ErrorCode`에는 없다. `tests/preprocess.spec.ts`가 문다.
 **포트폴리오** (`project/portfolio-sources.ts`, `views/PortfolioView.vue`)
 ```
 PORTFOLIO_TEMPLATE_UNAVAILABLE, PORTFOLIO_TOO_LARGE
