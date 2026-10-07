@@ -9,7 +9,7 @@
  * `.mlpx` 안에 들어가는 것은 객체가 아니라 바이트다.
  */
 
-import { beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { isClientError, type ClientErrorCode } from '../src/errors'
 import { MAX_MODEL_BYTES } from '../src/limits'
@@ -645,6 +645,52 @@ describe('mlpx-reference-v1', () => {
         ),
       'MODEL_FILE_INVALID',
     )
+  })
+
+  /**
+   * **불러오기는 고유 라벨이 많아도 선형이다** (R43-3 C-2 (b), 재판단 C-b). 행마다 배열의 `includes`면 ID 같은 타깃에서 제곱이었다 —
+   * 40,000행 2.7초, `Set`이면 20ms 안팎.
+   */
+  it('고유 라벨 40,000개의 불러오기가 곧 끝난다', () => {
+    const BUDGET_MS = 500
+    const rows = 40_000
+    const labels = Array.from({ length: rows }, (_, index) => `id-${String(index)}`)
+    const all = labels.map((_, index) => index)
+    const started = performance.now()
+    loadModel(
+      {
+        ...(trained.model as ReferenceModel),
+        k: 1,
+        classes: labels,
+        featureCount: 1,
+        trainIndices: all,
+      },
+      { trainingRows: { indices: all, features: all.map((index) => [index]), target: labels } },
+    )
+    const elapsed = performance.now() - started
+    expect(elapsed, `${String(Math.round(elapsed))} ms`).toBeLessThan(BUDGET_MS)
+  })
+
+  /**
+   * **행 번호 → 라벨은 예측 함수를 지을 때 한 번만 짓는다** (R43-3 C-2 (a), 재판단 C-b). 질의마다 훈련 행 전체로 다시 지어 예측이
+   * 4~6배 느렸다. 배수라 시간 문턱은 흔들리므로 질의 동안의 `Map.prototype.set` 호출을 센다 — 득표 집계(이웃 k개)만 남는다.
+   */
+  it('KNN 예측은 질의마다 훈련 행 전체의 Map을 다시 짓지 않는다', () => {
+    const rows = Array.from({ length: 200 }, (_, index) => [index])
+    const predict = knnPredict({
+      k: 3,
+      featureCount: 1,
+      rows,
+      labels: rows.map((_, index) => (index % 2 === 0 ? 'a' : 'b')),
+      indices: rows.map((_, index) => index),
+    })
+    const set = vi.spyOn(Map.prototype, 'set')
+    try {
+      predict(Array.from({ length: 10 }, (_, index) => [index * 7]))
+      expect(set.mock.calls.length).toBeLessThanOrEqual(10 * 3)
+    } finally {
+      set.mockRestore()
+    }
   })
 
   /** 규칙 2 — 최다 득표. 나머지 규칙이 끼어들지 않는 평범한 경우다. */

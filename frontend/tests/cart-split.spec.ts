@@ -136,10 +136,13 @@ describe('빠른 분할 탐색', () => {
       libraryBestSplit.call(host as never, small.transposed, small.labels),
     )
 
+    // 문턱은 이웃 검사들처럼 이름과 경과를 단다(R43-3 재판단 C-a). 옛 코드는 차가운 첫 호출이 465~783ms, 고친 뒤는 11~93ms였다.
+    const BUDGET_MS = 250
     const large = binary(40_000)
     const started = performance.now()
     const choice = fastBestSplit(large.transposed, large.labels)
-    expect(performance.now() - started).toBeLessThan(250)
+    const elapsed = performance.now() - started
+    expect(elapsed, `${String(Math.round(elapsed))} ms`).toBeLessThan(BUDGET_MS)
     expect(choice.maxColumn).toBe(0)
   })
 
