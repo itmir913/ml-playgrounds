@@ -2122,3 +2122,40 @@ describe('결정 93: 주소가 http·https가 아닌 링크는 글자로 싣는�
     expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
   })
 })
+
+/**
+ * **백틱이 많은 답도 마크다운이 곧 나온다** (R42 감사 C-1). [파일로 저장]은 내보낼 때 이 마크다운을 만들고 그동안
+ * 화면이 멈춘다. 짝을 찾을 때마다 문단 앞에서부터 훑거나 한 줄의 스팬 목록을 통째로 베끼면 제곱 시간이라,
+ * 고치기 전에는 짝 64,000개(256KB)에 3.5초가 걸렸다. 문항 하나의 글은 `MAX_PORTFOLIO_BYTES`까지 받는다.
+ *
+ * **시간을 재는 검사다.** 개발 PC에서 고친 뒤는 모양마다 0.25~0.74초이고, 한도는 그 열세 배 넘게 둔다 — 부하로는
+ * 안 넘고 제곱 시간으로는 넘는다. 고치기 전 코드를 다시 심으면 우는 것까지 확인했다(R42 고침).
+ */
+describe('백틱이 많은 답도 마크다운이 곧 나온다', () => {
+  const PAIRS = 200_000
+  const BUDGET_MS = 10_000
+  const shapes: Record<string, string> = {
+    '짝마다 줄을 바꾼다': Array.from({ length: PAIRS }, () => '`x`').join('\n'),
+    '한 줄에 다 있다': Array.from({ length: PAIRS }, () => '`x`').join(' '),
+    '짝 없는 연속이 길이마다 하나씩 앞에 있다':
+      Array.from({ length: 300 }, (_, index) => '`'.repeat(index + 2)).join(' ') +
+      ' ' +
+      Array.from({ length: PAIRS }, () => '`x`').join(' '),
+  }
+  for (const [name, answer] of Object.entries(shapes)) {
+    it(
+      name,
+      () => {
+        const started = performance.now()
+        const markdown = renderPortfolioMarkdown(
+          TEXT,
+          portfolio([{ id: 'a', title: '답' }], { a: answer }),
+        )
+        const elapsed = performance.now() - started
+        expect(markdown).toContain('`x`')
+        expect(elapsed, `${String(Math.round(elapsed))} ms`).toBeLessThan(BUDGET_MS)
+      },
+      120_000,
+    )
+  }
+})

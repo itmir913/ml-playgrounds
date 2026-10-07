@@ -645,6 +645,24 @@ function trustedCodeSpans(
 ): Map<number, [number, number][]> {
   if (paragraph.some((index) => LINK_DESTINATION.test(lines[index]!))) return new Map()
   const runs = backtickRuns(lines, paragraph)
+  // **선형 시간이다** (R42 감사 C-1). 짝을 찾을 때마다 0부터 훑거나(`findIndex`) 한 줄의 스팬 목록을 통째로
+  // 베끼면(`[...old, span]`) 백틱이 많은 문단에서 제곱 시간이 되고, [파일로 저장]이 그동안 멈춘다. 그래서
+  // 길이마다 그 길이의 연속이 놓인 자리를 차례로 모아 두고, `i`가 앞으로만 가므로 길이마다 가리키는 칸도 앞으로만
+  // 민다. 무는 검사: `portfolio.spec.ts`의 *"백틱이 많은 답도 마크다운이 곧 나온다"*.
+  const byLength = new Map<number, { readonly at: number[]; next: number }>()
+  runs.forEach((other, k) => {
+    const size = other.end - other.start
+    const slot = byLength.get(size)
+    if (slot) slot.at.push(k)
+    else byLength.set(size, { at: [k], next: 0 })
+  })
+  /** `i` 뒤의 첫 같은 길이 연속. 없으면 -1. */
+  const nextOfLength = (length: number, after: number): number => {
+    const slot = byLength.get(length)
+    if (!slot) return -1
+    while (slot.next < slot.at.length && slot.at[slot.next]! <= after) slot.next += 1
+    return slot.next < slot.at.length ? slot.at[slot.next]! : -1
+  }
   const spans = new Map<number, [number, number][]>()
   let i = 0
   while (i < runs.length) {
@@ -655,7 +673,7 @@ function trustedCodeSpans(
       i += 1
       continue
     }
-    const j = runs.findIndex((other, k) => k > i && other.end - other.start === length)
+    const j = nextOfLength(length, i)
     // 못 닫은 연속은 글자다. 문단 전체에서 짝이 없으면 문단의 어느 조각에서도 짝이 없으므로 짝을 안 민다.
     if (j === -1) {
       i += 1
@@ -664,7 +682,9 @@ function trustedCodeSpans(
     const close = runs[j]!
     if (close.line !== run.line) return new Map()
     if (lines[run.line]!.slice(open, close.end).includes('|')) return new Map()
-    spans.set(run.line, [...(spans.get(run.line) ?? []), [open, close.end]])
+    const onLine = spans.get(run.line)
+    if (onLine) onLine.push([open, close.end])
+    else spans.set(run.line, [[open, close.end]])
     i = j + 1
   }
   return spans
