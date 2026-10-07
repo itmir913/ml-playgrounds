@@ -204,17 +204,24 @@ export function histogram(
   const wanted = bins === 'auto' ? autoBinCount(values, range) : Math.max(1, Math.floor(bins))
   const count = Math.min(wanted, maxBins)
 
+  // **경계는 numpy의 `linspace`와 같은 식이다** — `start + i * step`(`step = range / count`). `(range * i) / count`는
+  // 같은 수학이지만 마지막 자리(ULP)가 갈린다.
+  const step = range / count
   const edges: number[] = []
-  for (let i = 0; i <= count; i += 1) edges.push(low + (range * i) / count)
+  for (let i = 0; i <= count; i += 1) edges.push(low + i * step)
   // **마지막 경계는 계산하지 않고 박는다.** 부동소수 누적으로 최댓값보다 아주 조금
-  // 작아지면 그 값 하나가 어느 구간에도 안 들어간다.
+  // 작아지면 그 값 하나가 어느 구간에도 안 들어간다. numpy `linspace`도 끝을 박는다.
   edges[count] = high
 
   const counts = new Array<number>(count).fill(0)
   for (const value of values) {
     // 마지막 구간만 오른쪽 끝을 포함한다. numpy·matplotlib의 규칙과 같다.
-    const position = Math.floor(((value - low) / range) * count)
-    const index = Math.min(position, count - 1)
+    let index = Math.min(Math.floor(((value - low) / range) * count), count - 1)
+    // **몫으로 고른 구간을 실제 경계와 견줘 바로잡는다** (R43-2 감사 A-2) — numpy `histogram`의 `decrement`·`increment`
+    // (`numpy/lib/_histograms_impl.py`)와 같다. 정확히 경계에 앉은 값은 몫이 `k − ε`로 떨어져 왼쪽 구간에 들어갔다 —
+    // 구간 폭이 정수인 정수 데이터의 4%에서 막대 하나가 비었다. 무는 검사: `stats.spec.ts`의 *"numpy.histogram과 같은 수를 센다"*.
+    if (value < (edges[index] as number)) index -= 1
+    else if (index !== count - 1 && value >= (edges[index + 1] as number)) index += 1
     counts[index] = (counts[index] as number) + 1
   }
 

@@ -395,6 +395,29 @@ describe('importTable - 상한', () => {
     const document = await openTable(new TextEncoder().encode(header), 'data.csv', { locale: 'ko' })
     expect(importTable(document).grid[0]).toHaveLength(MAX_DATASET_COLUMNS)
   })
+
+  /**
+   * **열 상한을 넘는 표는 채우기 전에 거절한다** (R43-2 감사 C-3). 짧은 행을 가장 넓은 행에 맞춰 채우는 일이 상한 판정보다
+   * 먼저였다 — 한 행만 넓은 표는 거절되기까지 행 × 폭을 썼다(10만 행 × 2,000폭에 2.6초, 더 넓으면 메모리 부족). 그래서
+   * 시간이 아니라 **넘는 폭이면 짧은 행이 짧은 채로 온다**는 것을 읽기 입구에서 본다. 폭은 그 한 행의 것이고, 첫 행이
+   * 짧아도 거절한다.
+   */
+  it('열 상한을 넘는 표는 채우기 전에 거절한다', async () => {
+    const wide = MAX_DATASET_COLUMNS + 1
+    const text = ['a', '1', Array.from({ length: wide }, () => '2').join(',')].join('\n')
+    const document = await openTable(new TextEncoder().encode(text), 'data.csv', { locale: 'ko' })
+
+    const raw = document.read(undefined, MAX_DATASET_ROWS + 1, MAX_DATASET_COLUMNS)
+    expect(raw.map((row) => row.length)).toEqual([1, 1, wide])
+
+    let refused: unknown = null
+    try {
+      importTable(document)
+    } catch (error) {
+      refused = isClientError(error) ? [error.code, error.params.actualColumns] : 'other error'
+    }
+    expect(refused).toEqual(['DATASET_TOO_MANY_COLUMNS', wide])
+  })
 })
 
 /**
@@ -480,6 +503,19 @@ describe('importTable - 상한을 껐을 때', () => {
       locale: 'ko',
     })
     expect(importTable(document).grid[0]).toHaveLength(MAX_DATASET_COLUMNS + 3)
+  })
+
+  /**
+   * **상한을 끄면 넓은 표도 채워서 받는다** (R43-2 고침). 열 상한을 넘는 폭은 채우지 않고 넘기는데(`padGrid`), 끈
+   * 상태에서도 그러면 짧은 행이 짧은 채로 들어와 열 자리가 어긋난다. 위 검사는 모든 행의 폭이 같아 채우기를 안 지난다.
+   */
+  it('상한을 끄면 넓은 표도 채워서 받는다', async () => {
+    applyLimitsOff(true)
+    const wide = MAX_DATASET_COLUMNS + 3
+    const text = ['a', '1', Array.from({ length: wide }, () => '2').join(',')].join('\n')
+    const document = await openTable(new TextEncoder().encode(text), 'data.csv', { locale: 'ko' })
+    const grid = importTable(document).grid
+    expect(grid.map((row) => row.length)).toEqual([wide, wide, wide])
   })
 
   it('다시 켜면 그대로 거부한다 - 스위치가 한 방향으로만 열리면 안 된다', async () => {

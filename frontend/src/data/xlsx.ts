@@ -153,10 +153,15 @@ const parseWithExcelJs: XlsxParser = async (bytes) => {
         // 빈 행을 버려서, 빈 행이 낀 시트에서 세 줄을 청하면 두 줄이 왔다. CSV와 폴백은
         // 처음부터 남긴 행을 셌으므로 셋 중 이쪽만 갈려 있었다.
         if (maxRows !== undefined && grid.length >= maxRows) break
-        const row = sheet.getRow(rowNumber)
+        // **`getCell`을 부르지 않는다** (R43-2 감사 A-1). ExcelJS의 `row.getCell(n)`은 없는 칸에 Cell 객체를 새로
+        // 만들어서, 한 행의 먼 열에 값 하나만 있어도 행 × 폭만큼 객체가 섰다 — 상한 안의 90KB 파일 한 장이 탭을
+        // 메모리 부족으로 죽였다. `row.values`는 있는 칸만 담은 희소 배열이고 칸마다 `cell.value`를 쓰므로 병합된
+        // 칸도 첫 칸의 값을 준다(`node_modules/exceljs/lib/doc/row.js`의 `get values`). 무는 검사:
+        // `xlsx.spec.ts`의 *"먼 열에 값 하나만 있는 긴 시트도 곧 읽는다"*.
+        const values = sheet.getRow(rowNumber).values as readonly unknown[]
         const cells: string[] = []
         for (let column = 1; column <= width; column += 1) {
-          cells.push(cellToString(row.getCell(column).value))
+          cells.push(cellToString(values[column]))
         }
         if (!isEmptyRow(cells)) grid.push(cells)
       }
@@ -332,7 +337,9 @@ export async function openXlsx(bytes: Uint8Array): Promise<XlsxDocument> {
     try {
       return await parse(bytes)
     } catch (error) {
-      // 시트를 못 찾은 것은 파일 문제가 아니다. 다음 파서로 넘기지 않는다.
+      // **우리가 이유를 붙인 오류는 다음 파서로 넘기지 않는다.** 오늘은 이 반복 안에서 `ClientError`가 나지 않는다 —
+      // 시트를 못 찾는 `DATASET_SHEET_NOT_FOUND`는 나중에 `readSheet`가 던진다(R43-2 감사 C-7(a), 이 줄을 지워도 같은 동작이다).
+      // 파서가 이유를 붙여 던지게 되는 날을 위한 방어이고 지키는 검사는 없다(사람 확인).
       if (error instanceof ClientError) throw error
       if (isChunkLoadError(error)) throw new ClientError('SCREEN_LOAD_FAILED', failureDetail(error))
     }

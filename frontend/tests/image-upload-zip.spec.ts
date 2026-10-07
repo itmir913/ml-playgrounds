@@ -49,6 +49,20 @@ async function categoriesOf(paths: readonly string[]): Promise<readonly string[]
 }
 
 describe('사진 압축 파일의 구조가 라벨이다', () => {
+  /**
+   * **길이 0인 파일은 사진일 수 없어 버린다** (R43-2 감사 C-7(b)) — `.mlpx` 읽기와 일부러 다르다(`upload.ts`의 거르기 주석). 버리는
+   * 줄을 지워도 전에는 아무 검사도 안 울었고, 그러면 빈 파일이 사진 한 장으로 세어져 굽기에서 실패한다.
+   */
+  it('길이 0인 파일은 사진으로 세지 않는다', async () => {
+    const zip = zipSync({
+      '개/1.jpg': new Uint8Array([1, 2, 3]),
+      '개/empty.jpg': new Uint8Array(0),
+      '고양이/2.jpg': new Uint8Array([4, 5, 6]),
+    })
+    const items = await readImageZip(zip, INFERRED)
+    expect(items.map((item) => item.category)).toEqual(['개', '고양이'])
+  })
+
   it('루트 바로 아래 폴더가 범주다', async () => {
     expect(await categoriesOf(['개/1.jpg', '개/2.jpg', '고양이/3.jpg'])).toEqual([
       '개',

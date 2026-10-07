@@ -699,6 +699,32 @@ describe('산점도의 묶은 점', () => {
     expect(shown).toEqual(['가', '나'])
   })
 
+  /**
+   * **갈래가 많아도 범례 거르기가 곧 끝난다** (R43-2 감사 C-4). 항목마다 데이터셋을 처음부터 훑으면 갈래 수의 제곱이고,
+   * Chart.js는 갱신마다(범례를 안 그려도) 거르기를 부른다 — 색 열에 이름·ID 열을 고르면 갈래가 행 수만큼 선다(32,000에 2.4초).
+   * 한도는 고친 뒤 값의 수십 배이고 고치기 전 값보다 한참 아래다.
+   */
+  it('갈래가 많아도 범례 거르기가 곧 끝난다', () => {
+    const COUNT = 32_000
+    const BUDGET_MS = 1_000
+    const data = {
+      datasets: Array.from({ length: COUNT }, (_, index) => ({
+        label: `g${String(index)}`,
+        data: [],
+      })),
+    }
+    const filter = scatterOptions(PAINT, TEXT, true).plugins?.legend?.labels?.filter
+    const started = performance.now()
+    let shown = 0
+    for (let datasetIndex = 0; datasetIndex < COUNT; datasetIndex += 1) {
+      const item = { datasetIndex, text: `g${String(datasetIndex)}` } as LegendItem
+      if (filter?.(item, data as never) ?? true) shown += 1
+    }
+    const elapsed = performance.now() - started
+    expect(shown).toBe(COUNT)
+    expect(elapsed, `${String(Math.round(elapsed))} ms`).toBeLessThan(BUDGET_MS)
+  })
+
   /** 범례에 첫 단계만 서므로 **누르면 그 이름의 단계가 함께 꺼져야 한다** (`toggleLayers`). */
   it('범례를 누르면 그 갈래의 단계를 한꺼번에 끄고 켠다', () => {
     expect(scatterOptions(PAINT, TEXT, true).plugins?.legend?.onClick).toBe(toggleLayers)

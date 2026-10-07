@@ -22,8 +22,12 @@ export function isEmptyRow(row: readonly string[]): boolean {
  *
  * 자르지 않고 채우기만 한다 - 파일 파싱은 관대하게(mlpx-spec.md 10).
  */
-export function padGrid(grid: TableGrid): TableGrid {
+export function padGrid(grid: TableGrid, maxWidth = Infinity): TableGrid {
   const width = grid.reduce((widest, row) => Math.max(widest, row.length), 0)
+  // **상한을 넘는 폭이면 채우지 않는다** (R43-2 감사 C-3). 그 표는 곧 열 상한으로 거절되는데, 채우는 데 행 × 폭이
+  // 든다 — 한 행만 넓은 10만 행 CSV가 거절되기까지 2.6초였다. 거절 판정은 가장 넓은 행을 센다(`table.ts`의
+  // `checkLimits`). 무는 검사: `table.spec.ts`의 *"열 상한을 넘는 표는 채우기 전에 거절한다"*.
+  if (width > maxWidth) return grid
   for (const row of grid) {
     while (row.length < width) row.push('')
   }

@@ -31,6 +31,7 @@ export function parseCsvText(
   maxRows?: number,
   delimiter?: string,
   newline?: '\n',
+  maxColumns?: number,
 ): TableGrid {
   const grid: TableGrid = []
   let quotesBroken = false
@@ -54,7 +55,7 @@ export function parseCsvText(
   })
 
   if (quotesBroken) throw new ClientError('DATASET_PARSE_FAILED')
-  return padGrid(grid)
+  return padGrid(grid, maxColumns)
 }
 
 /**
@@ -80,11 +81,11 @@ export function parseCsvText(
  *
  * 맞추는 일은 **한 번만** 한다. 미리보기가 시트마다·줄 수마다 다시 읽어도 텍스트는 그대로다.
  */
-export function openCsvText(text: string): (maxRows?: number) => TableGrid {
+export function openCsvText(text: string): (maxRows?: number, maxColumns?: number) => TableGrid {
   // `\r`이 없으면 맞출 것도 없다 — LF 파일은 사본을 안 만든다. 맞추는 비용은 개발 PC에서
   // 6.4MB·10만 행 CRLF 파일 하나로 재어 약 11ms였다(2026-09-28, node).
   const normalized = text.includes('\r') ? text.replace(/\r\n?/g, '\n') : text
-  return (maxRows) => parseCsvText(normalized, maxRows, undefined, '\n')
+  return (maxRows, maxColumns) => parseCsvText(normalized, maxRows, undefined, '\n', maxColumns)
 }
 
 /**

@@ -157,6 +157,32 @@ describe('히스토그램', () => {
     expect(capped.capped).toBe(true)
     expect(histogram([0, 1, 2, 3], 200).capped).toBe(false)
   })
+
+  /**
+   * **numpy.histogram과 같은 수를 센다** (R43-2 감사 A-2). 몫으로만 구간을 고르면 정확히 경계에 앉은 값이 `k − ε`로 떨어져
+   * 왼쪽 구간에 들어갔다 — 구간 폭이 정수인 정수 데이터에서 막대 하나가 비었다. 아래 값은 numpy 2.5.1의
+   * `np.histogram(…, bins=n)`이 낸 그대로다(손으로 옮겨 적었다 — 사람 확인). 경계도 마지막 자리까지 견준다.
+   */
+  it('numpy.histogram과 같은 수를 센다', () => {
+    const range = (n: number) => Array.from({ length: n }, (_, index) => index)
+    expect(histogram(range(23), 200, 22).counts).toEqual([...new Array<number>(21).fill(1), 2])
+    expect(histogram(range(45), 200, 22).counts).toEqual([...new Array<number>(21).fill(2), 3])
+    expect(histogram(range(7), 200, 3).counts).toEqual([2, 2, 3])
+    expect(histogram(range(101), 200, 10).counts).toEqual([...new Array<number>(9).fill(10), 11])
+
+    const floats = histogram([0.1, 0.35, 0.7, 1.3, 0.9, 0.45], 200, 7)
+    expect(floats.counts).toEqual([1, 1, 1, 1, 1, 0, 1])
+    expect(floats.edges).toEqual([
+      0.1, 0.27142857142857146, 0.44285714285714284, 0.6142857142857142, 0.7857142857142857,
+      0.9571428571428572, 1.1285714285714286, 1.3,
+    ])
+    const signed = histogram([-2.5, 0.0, 0.3, 1.7, 3.3], 200, 9)
+    expect(signed.counts).toEqual([1, 0, 0, 1, 1, 0, 1, 0, 1])
+    expect(signed.edges).toEqual([
+      -2.5, -1.8555555555555556, -1.2111111111111112, -0.5666666666666669, 0.0777777777777775,
+      0.7222222222222219, 1.3666666666666663, 2.011111111111111, 2.655555555555555, 3.3,
+    ])
+  })
 })
 
 /**

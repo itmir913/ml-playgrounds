@@ -716,6 +716,30 @@ function scatterDataset(
   }
 }
 
+/** 데이터셋 배열마다 한 번 센 "이름 → 첫 자리". 배열이 바뀌면 새로 센다(열쇠가 배열이다). */
+const FIRST_INDEX_BY_LABEL = new WeakMap<
+  readonly { readonly label?: string | undefined }[],
+  Map<string, number>
+>()
+
+/**
+ * 이름마다 그 이름이 처음 나오는 데이터셋 자리. 범례 거르기가 항목마다 부르므로 **배열 하나에 한 번만 센다** —
+ * Chart.js는 같은 `data.datasets` 배열로 항목 수만큼 부른다.
+ */
+export function firstIndexByLabel(
+  datasets: readonly { readonly label?: string | undefined }[],
+): ReadonlyMap<string, number> {
+  const known = FIRST_INDEX_BY_LABEL.get(datasets)
+  if (known) return known
+  const first = new Map<string, number>()
+  datasets.forEach((one, index) => {
+    const label = one.label ?? ''
+    if (!first.has(label)) first.set(label, index)
+  })
+  FIRST_INDEX_BY_LABEL.set(datasets, first)
+  return first
+}
+
 export function scatterOptions(
   paint: ChartPaint,
   text: {
@@ -771,9 +795,13 @@ export function scatterOptions(
           /**
            * **갈래마다 항목 하나다** (94). 진하기 단계마다 데이터셋이 따로 서므로, 같은 이름의
            * 첫 데이터셋(0단계 — `scatterLayers`가 늘 앞에 둔다)만 보인다.
+           *
+           * **이름 → 첫 자리는 데이터셋 배열마다 한 번만 센다** (R43-2 감사 C-4). 항목마다 `findIndex`로 처음부터 훑으면
+           * 갈래 수의 제곱이고, Chart.js는 갱신마다(범례를 안 그려도) 이것을 부른다 — 갈래 32,000에 2.4초였다. 무는 검사:
+           * `chart-config.spec.ts`의 *"갈래가 많아도 범례 거르기가 곧 끝난다"*.
            */
           filter: (item, data) =>
-            data.datasets.findIndex((one) => one.label === item.text) === item.datasetIndex,
+            firstIndexByLabel(data.datasets).get(item.text) === item.datasetIndex,
         },
       },
       tooltip: {

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import ExcelJS from 'exceljs'
 import { unzipSync, zipSync } from 'fflate'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { PARSER_ORDER, openXlsx, previewSheets } from '../src/data/xlsx'
 import { isClientError } from '../src/errors'
@@ -174,6 +174,42 @@ describe('openXlsx', { timeout: 20_000 }, () => {
     const bytes = new Uint8Array(await workbook.xlsx.writeBuffer())
 
     expect((await openXlsx(bytes)).readSheet('S')).toEqual([['a', '', 'c']])
+  })
+
+  /**
+   * **먼 열에 값 하나만 있는 긴 시트도 곧 읽는다** (R43-2 감사 A-1). ExcelJS의 `row.getCell(n)`은 없는 칸에 Cell 객체를
+   * 새로 만들어서, 칸마다 그것으로 읽으면 행 × 폭만큼 객체가 섰다 — 상한 안의 90KB 파일(10,000행 × 900열)이 힙 부족으로
+   * 탭을 죽였다. 값과 자리는 그대로이면서 **없는 칸을 만들지 않는 것**을 본다.
+   */
+  it('먼 열에 값 하나만 있는 긴 시트도 곧 읽는다', async () => {
+    const ROWS = 2_000
+    const FAR = 900
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('S')
+    for (let row = 1; row <= ROWS; row += 1) sheet.getCell(row, 1).value = `r${String(row)}`
+    sheet.getCell(2, FAR).value = 'far'
+    // 병합 칸도 첫 칸의 값을 준다 — `getCell`이 하던 것과 같다.
+    sheet.getCell(3, 2).value = 'merged'
+    sheet.mergeCells(3, 2, 3, 3)
+    const bytes = new Uint8Array(await workbook.xlsx.writeBuffer())
+    const document = await openXlsx(bytes)
+
+    const rowPrototype = Object.getPrototypeOf(
+      new ExcelJS.Workbook().addWorksheet('x').getRow(1),
+    ) as {
+      getCell: (...args: unknown[]) => unknown
+    }
+    const getCell = vi.spyOn(rowPrototype, 'getCell')
+    try {
+      const grid = document.readSheet('S')
+      expect(grid).toHaveLength(ROWS)
+      expect(grid.every((row) => row.length === FAR)).toBe(true)
+      expect(grid[1]?.[FAR - 1]).toBe('far')
+      expect(grid[2]?.slice(0, 4)).toEqual(['r3', 'merged', 'merged', ''])
+      expect(getCell).not.toHaveBeenCalled()
+    } finally {
+      getCell.mockRestore()
+    }
   })
 
   it('빈 행은 버린다 - CSV의 빈 줄과 같은 취급이다', async () => {

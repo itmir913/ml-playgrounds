@@ -43,8 +43,11 @@ export interface TableDocument {
   sheetNames: string[]
   /** 업로드된 파일의 인코딩. 엑셀은 null이다. 정본은 이것과 무관하게 UTF-8이다. */
   sourceEncoding: SourceEncoding | null
-  /** sheetNames가 비어 있으면 sheetName은 무시된다. */
-  read(sheetName?: string, maxRows?: number): TableGrid
+  /**
+   * sheetNames가 비어 있으면 sheetName은 무시된다. `maxColumns`를 넘는 폭의 CSV는 빈칸을 채우지 않고 돌려준다 —
+   * 곧 거절될 표에 행 × 폭을 쓰지 않는다(`importTable`). 엑셀은 이 값을 안 본다.
+   */
+  read(sheetName?: string, maxRows?: number, maxColumns?: number): TableGrid
 }
 
 export interface OpenTableOptions {
@@ -141,7 +144,7 @@ export async function openTable(
       source,
       sheetNames: [],
       sourceEncoding,
-      read: (_sheetName, maxRows) => read(maxRows),
+      read: (_sheetName, maxRows, maxColumns) => read(maxRows, maxColumns),
     }
   }
 
@@ -180,7 +183,8 @@ function checkLimits(grid: TableGrid): void {
       actualRows: grid.length,
     })
   }
-  const columns = grid[0]?.length ?? 0
+  // **가장 넓은 행을 센다** — 열 상한을 넘는 CSV는 채우지 않고 오므로(`padGrid`) 첫 행이 폭이 아닐 수 있다.
+  const columns = grid.reduce((widest, row) => Math.max(widest, row.length), 0)
   const columnLimit = maxDatasetColumns()
   if (columns > columnLimit) {
     throw new ClientError('DATASET_TOO_MANY_COLUMNS', {
@@ -208,7 +212,9 @@ export function importTable(document: TableDocument, sheetName?: string): Import
   //
   // **셋 다 상한을 끈 상태로 지나가는 검사가 있다** — xlsx 두 갈래는 xlsx.spec.ts "상한을
   // 끄면 본진이 전부 읽는다"·"상한을 끄면 SheetJS 폴백도 전부 읽는다"가 덮는다.
-  const raw = document.read(sheetName, maxDatasetRows() + 1)
+  // 열 상한도 넘긴다 — 넘는 폭이면 채우지 않고 와서 아래 판정이 곧바로 거절한다. **상한을 끄면 `Infinity`라
+  // 언제나 채운다** — 무는 검사: `table.spec.ts`의 *"상한을 끄면 넓은 표도 채워서 받는다"*.
+  const raw = document.read(sheetName, maxDatasetRows() + 1, maxDatasetColumns())
   checkLimits(raw)
 
   /**
