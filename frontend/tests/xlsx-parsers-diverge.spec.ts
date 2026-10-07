@@ -165,6 +165,20 @@ const SHORT_DIMENSION = workbook(
   '<dimension ref="A1:B2"/>',
 )
 
+/** `<dimension>`이 2행에서 시작한다. 1행의 칸은 시트에 있지만 범위 위쪽 밖이다. */
+const ABOVE_DIMENSION = workbook(
+  [text('A1', 'above'), text('A2', 'x') + text('B2', 'y'), number('A3', 1) + number('B3', 2)],
+  '',
+  '<dimension ref="A2:B3"/>',
+)
+
+/** `<dimension>`이 B열에서 시작한다. A2의 칸은 시트에 있지만 범위 왼쪽 밖이다. */
+const LEFT_DIMENSION = workbook(
+  [text('B1', 'x') + text('C1', 'y'), text('A2', 'left'), number('B3', 1) + number('C3', 2)],
+  '',
+  '<dimension ref="B1:C3"/>',
+)
+
 /** 끝 열에 머리글 없이 오류 칸 하나뿐이다. 오류 칸은 빈 칸이므로 그 열은 빈 열이다. */
 const ERROR_ONLY_TAIL = workbook([
   text('A1', 'x') + text('B1', 'y'),
@@ -300,6 +314,28 @@ describe('두 파서가 같게 읽는 자리', { timeout: 20_000 }, () => {
     ])
     const { sheetJs: rejected } = await readBoth(SHORT_DIMENSION, undefined, 1)
     expect(rejected).toHaveLength(2)
+  })
+
+  /**
+   * **범위의 위쪽·왼쪽 밖도 안 읽는다** (0.34.2 diff 다섯 번째 감사 C-17). 위 두 검사는 아래쪽·오른쪽 변만 문다 — 값이 든 칸의 잣대(`valueCells`)에서
+   * 위쪽 변을 빼면 범위 위의 행이 표에 서고, 왼쪽 변을 빼면 거절 격자에 빈 행이 하나 더 섰는데 초록이었다.
+   */
+  it('시트 범위가 2행이나 B열에서 시작하면 폴백은 그 위·왼쪽의 칸을 안 읽는다', async () => {
+    const { sheetJs: above } = await readBoth(ABOVE_DIMENSION)
+    expect(above).toEqual([
+      ['x', 'y'],
+      ['1', '2'],
+    ])
+    const { sheetJs: aboveRejected } = await readBoth(ABOVE_DIMENSION, undefined, 1)
+    expect(aboveRejected).toHaveLength(2)
+
+    const { sheetJs: left } = await readBoth(LEFT_DIMENSION)
+    expect(left).toEqual([
+      ['x', 'y'],
+      ['1', '2'],
+    ])
+    const { sheetJs: leftRejected } = await readBoth(LEFT_DIMENSION, undefined, 1)
+    expect(leftRejected).toHaveLength(2)
   })
 
   /**

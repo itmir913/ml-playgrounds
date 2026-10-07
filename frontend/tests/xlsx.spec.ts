@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import ExcelJS from 'exceljs'
 import { unzipSync, zipSync } from 'fflate'
 import { describe, expect, it, vi } from 'vitest'
+import * as XLSX from 'xlsx'
 
 import { PARSER_ORDER, openXlsx, previewSheets } from '../src/data/xlsx'
 import { isClientError } from '../src/errors'
@@ -432,6 +433,27 @@ describe('폴백', { timeout: 20_000 }, () => {
     )
     expect(elapsed, `${String(Math.round(elapsed))} ms`).toBeLessThan(BUDGET_MS)
   }, 180_000)
+
+  /**
+   * **폴백은 시트를 한 번만 훑는다** (0.34.2 diff 다섯 번째 감사 C-19, `scanOf`). 칸 주소를 푸는 횟수를 센다 — 미리보기와 확정 읽기를 다
+   * 해도 칸 수만큼이다. 캐시를 끄면(읽기마다 다시 훑으면) 몇 배가 된다. 시간보다 흔들리지 않는다.
+   */
+  it('폴백은 미리보기와 확정 읽기를 해도 시트를 한 번만 훑는다', async () => {
+    const cells = Array.from({ length: 30 }, (_, index) => [
+      [`A${String(index + 1)}`, index] as const,
+      [`B${String(index + 1)}`, index * 2] as const,
+    ]).flat()
+    const document = await openXlsx(hancellSheet('A1:B30', cells))
+    const name = document.sheetNames[0] ?? ''
+    const decodeCell = vi.spyOn(XLSX.utils, 'decode_cell')
+    try {
+      expect(document.readSheet(name, 5)).toHaveLength(5)
+      expect(document.readSheet(name)).toHaveLength(30)
+      expect(decodeCell).toHaveBeenCalledTimes(60)
+    } finally {
+      decodeCell.mockRestore()
+    }
+  })
 
   /** **폴백도 폭이 상한과 같으면 채운다** (0.34.2 diff 재감사 C-5) — ALL열이 1,000번째다. 경계를 `>=`로 바꾸면 짧은 행이 짧은 채로 온다. */
   it('폴백도 폭이 상한과 같으면 채운다', async () => {

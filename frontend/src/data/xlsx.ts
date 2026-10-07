@@ -99,7 +99,8 @@ function cellToString(value: unknown): string {
  * 무는 검사: xlsx-parsers-diverge.spec.ts "미리보기와 확정 표의 폭이 같다".
  *
  * **짧은 행은 폭까지 채운다** — 본진(ExcelJS)은 행마다 값이 있는 데까지만 담으므로(0.34.2 diff 세 번째 감사) 이 채우기가 주된
- * 길이다. 폴백은 값이 든 폭까지 `defval`로 채워 오지만 그 너머는 여기서 자른다. 직접 무는 검사는 xlsx-parsers-diverge.spec.ts
+ * 길이다. 폴백은 값이 든 폭까지만 읽으므로(`sheet_to_json`의 범위 끝이 그 폭이다) 행이 폭 그대로 와서 여기서 채우지도 자르지도
+ * 않는다 — 폴백의 호출은 SheetJS가 바뀔 때를 위한 방어다. 직접 무는 검사는 xlsx-parsers-diverge.spec.ts
  * "fitWidth"이고, 실제 입구로는 xlsx.spec.ts의 "후행 빈 셀이 있어도 모든 행의 길이가 같다" 등이 운다.
  */
 export function fitWidth(grid: TableGrid, width: number): TableGrid {
@@ -244,7 +245,7 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
        * **값이 든 행만 훑는다** (0.34.2 diff 재감사 A-2, 세 번째 감사 A-3). `sheet_to_json`은 범위(`!ref`) 안의 모든 행 × 범위의 폭을
        * 훑는다 — 한셀이 쓴 범위가 넓으면(먼 열에 값 하나) 20KB 파일의 미리보기가 21초, 130KB의 확정이 3분 넘게 화면을 멈췄다. 행 창을
        * 넓혀 가는 것으로는 모자랐다 — 값이 든 행이 미리보기 줄 수보다 적으면 창이 범위 끝까지 넓어졌다. 그래서 열은 **값이 든 폭까지만**
-       * (그 너머는 `fitWidth`가 자르는 빈 칸이다), 행은 **값이 든 행의 이어진 묶음마다** 읽고 남은 줄 수에서 자른다. 빈 행은 어차피
+       * (그 너머는 빈 칸뿐이라 읽지 않는다), 행은 **값이 든 행의 이어진 묶음마다** 읽고 남은 줄 수에서 자른다. 빈 행은 어차피
        * 버린다. 비용은 칸 수 + 남긴 행 × 폭이다. 무는 검사: `xlsx.spec.ts`의 *"폴백은 넓은 범위를 다 훑지 않는다"* 묶음.
        */
       const range = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1')
@@ -320,7 +321,8 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
 
   /**
    * **시트를 한 번만 훑어** 값이 든 폭과 값이 든 행을 함께 센다(0.34.2 diff 네 번째 감사 C-16 — 둘을 따로 훑던 동안 폴백 미리보기가
-   * 같은 칸을 두 번 지났다). 시트 이름마다 한 번 — 미리보기와 본 읽기가 같은 시트를 여러 번 지난다.
+   * 같은 칸을 두 번 지났다). 시트 이름마다 한 번 — 미리보기와 본 읽기가 같은 시트를 여러 번 지난다. 무는 검사: `xlsx.spec.ts`의
+   * *"폴백은 미리보기와 확정 읽기를 해도 시트를 한 번만 훑는다"*.
    */
   function scanOf(sheetName: string, sheet: WorkSheet): { width: number; rows: readonly number[] } {
     const seen = sheetScans.get(sheetName)
@@ -338,7 +340,8 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
 
   /**
    * **값이 든 칸 — 잣대는 여기 하나다**(`scanOf`·`valueRows`가 함께 쓴다, 0.34.2 diff 네 번째 감사 C-12의 이웃). 오류 칸(`t: 'e'`)과
-   * 범위(`!ref`) 밖의 칸은 없는 칸이다. `c`는 범위의 첫 열부터 센다(`sheet_to_json`과 같다), `r`은 시트의 행 번호 그대로다.
+   * 범위(`!ref`) 밖의 칸은 없는 칸이다(네 변 — 무는 검사는 xlsx-parsers-diverge.spec.ts "시트 범위가 실제 칸보다 좁으면", "실제 행보다
+   * 짧으면", "2행이나 B열에서 시작하면"). `c`는 범위의 첫 열부터 센다(`sheet_to_json`과 같다), `r`은 시트의 행 번호 그대로다.
    */
   function* valueCells(sheet: WorkSheet): Generator<{ r: number; c: number; v: unknown }> {
     const range = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1')
