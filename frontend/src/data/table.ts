@@ -44,8 +44,8 @@ export interface TableDocument {
   /** 업로드된 파일의 인코딩. 엑셀은 null이다. 정본은 이것과 무관하게 UTF-8이다. */
   sourceEncoding: SourceEncoding | null
   /**
-   * sheetNames가 비어 있으면 sheetName은 무시된다. `maxColumns`를 넘는 폭의 CSV는 빈칸을 채우지 않고 돌려준다 —
-   * 곧 거절될 표에 행 × 폭을 쓰지 않는다(`importTable`). 엑셀은 이 값을 안 본다.
+   * sheetNames가 비어 있으면 sheetName은 무시된다. `maxColumns`를 넘는 폭의 표는 CSV든 엑셀이든 빈칸을 채우지 않고
+   * 돌려준다 — 곧 거절될 표에 행 × 폭을 쓰지 않는다(`importTable`, `grid.ts`의 `padGrid`, `xlsx.ts`의 `readSheet`).
    */
   read(sheetName?: string, maxRows?: number, maxColumns?: number): TableGrid
 }
@@ -153,10 +153,10 @@ export async function openTable(
     source,
     sheetNames: workbook.sheetNames,
     sourceEncoding: null,
-    read: (sheetName, maxRows) => {
+    read: (sheetName, maxRows, maxColumns) => {
       const name = sheetName ?? workbook.sheetNames[0]
       if (name === undefined) throw new ClientError('DATASET_PARSE_FAILED')
-      return workbook.readSheet(name, maxRows)
+      return workbook.readSheet(name, maxRows, maxColumns)
     },
   }
 }

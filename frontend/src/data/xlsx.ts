@@ -51,8 +51,15 @@ import { isEmptyRow, type TableGrid } from './grid'
 /** 열린 워크북. 파서가 무엇이었는지는 이 뒤로 드러나지 않는다. */
 export interface XlsxDocument {
   sheetNames: string[]
-  /** maxRows를 주면 그만큼만 읽는다. 미리보기가 큰 시트를 다 훑지 않게 한다. */
-  readSheet(sheetName: string, maxRows?: number): TableGrid
+  /**
+   * maxRows를 주면 그만큼만 읽는다. 미리보기가 큰 시트를 다 훑지 않게 한다.
+   *
+   * **값이 든 가장 오른쪽 열이 `maxColumns`를 넘으면 빈칸을 채우지 않는다** (0.34.2 diff 감사 A-1) — 행마다 값이 있는 데까지만
+   * 담는다. 그 표는 곧 열 상한으로 거절되는데(`table.ts`의 `checkLimits`는 가장 넓은 행을 센다), 채우면 행 × 폭만큼 문자열이
+   * 서서 170KB 파일 한 장이 거절되기 전에 탭을 죽였다. CSV의 `padGrid`와 같은 규칙이다. 무는 검사: `table.spec.ts`의
+   * *"열 상한을 넘는 엑셀도 채우기 전에 거절한다"*.
+   */
+  readSheet(sheetName: string, maxRows?: number, maxColumns?: number): TableGrid
 }
 
 type XlsxParser = (bytes: Uint8Array) => Promise<XlsxDocument>
@@ -128,7 +135,7 @@ const parseWithExcelJs: XlsxParser = async (bytes) => {
 
   return {
     sheetNames: workbook.worksheets.map((sheet) => sheet.name),
-    readSheet(sheetName, maxRows) {
+    readSheet(sheetName, maxRows, maxColumns = Infinity) {
       const sheet = workbook.getWorksheet(sheetName)
       if (!sheet) throw new ClientError('DATASET_SHEET_NOT_FOUND', { sheetName })
 
@@ -146,6 +153,8 @@ const parseWithExcelJs: XlsxParser = async (bytes) => {
         contentWidths.set(sheetName, width)
       }
 
+      // 상한을 넘는 폭이면 채우지 않는다(위 `XlsxDocument.readSheet`의 설명).
+      const overflowing = width > maxColumns
       const grid: TableGrid = []
       for (let rowNumber = 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
         // **maxRows는 남긴 행을 센다** (open-decisions.md "미리보기 N행은 훑은 행이
@@ -159,13 +168,14 @@ const parseWithExcelJs: XlsxParser = async (bytes) => {
         // 칸도 첫 칸의 값을 준다(`node_modules/exceljs/lib/doc/row.js`의 `get values`). 무는 검사:
         // `xlsx.spec.ts`의 *"먼 열에 값 하나만 있는 긴 시트도 곧 읽는다"*.
         const values = sheet.getRow(rowNumber).values as readonly unknown[]
+        const last = overflowing ? Math.min(width, values.length - 1) : width
         const cells: string[] = []
-        for (let column = 1; column <= width; column += 1) {
+        for (let column = 1; column <= last; column += 1) {
           cells.push(cellToString(values[column]))
         }
         if (!isEmptyRow(cells)) grid.push(cells)
       }
-      return fitWidth(grid, width)
+      return overflowing ? grid : fitWidth(grid, width)
     },
   }
 }
@@ -214,15 +224,19 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
 
   return {
     sheetNames: [...workbook.SheetNames],
-    readSheet(sheetName, maxRows) {
+    readSheet(sheetName, maxRows, maxColumns = Infinity) {
       const sheet = workbook.Sheets[sheetName]
       if (!sheet) throw new ClientError('DATASET_SHEET_NOT_FOUND', { sheetName })
 
       fillMerges(XLSX, sheet)
+      const width = widthOf(sheetName, sheet)
+      // 상한을 넘는 폭이면 채우지 않는다(`XlsxDocument.readSheet`의 설명). `defval`이 범위 전체를 채우므로 그때만 뺀다 —
+      // 없으면 행 배열이 값이 있는 데까지만 선다.
+      const overflowing = width > maxColumns
       const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
         header: 1,
         // 빈 셀도 자리를 지킨다. 없으면 컬럼 인덱스가 행마다 밀린다.
-        defval: '',
+        ...(overflowing ? {} : { defval: '' }),
         /**
          * **값을 받는다. 엑셀이 그려 준 글자가 아니다** (2026-08-21).
          *
@@ -242,10 +256,11 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
       const grid: TableGrid = []
       for (const row of rows) {
         if (maxRows !== undefined && grid.length >= maxRows) break
-        const cells = row.map(cellToString)
+        // `Array.from`이다 — `defval` 없이 온 행에는 빈 자리가 있고, `map`은 그 자리를 건너뛰어 빈 자리로 남긴다.
+        const cells = Array.from(row, cellToString)
         if (!isEmptyRow(cells)) grid.push(cells)
       }
-      return fitWidth(grid, widthOf(sheetName, sheet))
+      return overflowing ? grid : fitWidth(grid, width)
     },
   }
 

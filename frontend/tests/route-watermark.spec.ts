@@ -43,6 +43,10 @@ vi.mock('../src/views/PredictView.vue', async () => {
   await gates.predict.arrived
   return blank
 })
+// 청크를 못 받는 화면 — 배포 뒤 옛 탭이나 끊긴 연결. 그 이동은 중단(ABORTED)으로 끝난다.
+vi.mock('../src/views/PortfolioView.vue', () => {
+  throw new TypeError('Failed to fetch dynamically imported module: /assets/Gone-1a2b3c.js')
+})
 vi.mock('../src/views/ResultsView.vue', () => blank)
 vi.mock('../src/views/DataView.vue', () => blank)
 
@@ -134,5 +138,25 @@ describe('알림 수위선', { timeout: 20_000 }, () => {
     await router.push(`/project/${manifest.projectId}/predict`)
     expect(router.currentRoute.value.name).toBe('predict')
     expect(useToastStore().items).toEqual([])
+  })
+
+  /**
+   * **중단된 이동 뒤에도 수위선이 낡지 않는다** (0.34.2 diff 감사 C-2). 취소된 이동만 수위선을 남겨 두는데, 거르기를 "모든 실패"로
+   * 넓혀도 아무 검사도 안 울었다. 그러면 청크를 못 받아 중단된 이동이 남긴 수위선이 다음 이동까지 남아, 떠나는 화면의 실패 알림과
+   * 오류를 걷지 못하고 새 화면에 남긴다.
+   */
+  it('청크를 못 받아 중단된 이동 뒤에도 떠나는 화면의 알림은 걷힌다', async () => {
+    await saveProject(projectFile())
+    gates.predict.open()
+    await router.push(`/project/${manifest.projectId}/data`)
+
+    await router.push(`/project/${manifest.projectId}/portfolio`)
+    expect(router.currentRoute.value.name).toBe('data')
+    expect(useToastStore().items.map((one) => one.key)).toHaveLength(1)
+    useToastStore().push('danger', 'client.DATASET_PARSE_FAILED')
+
+    await router.push(`/project/${manifest.projectId}/predict`)
+    expect(router.currentRoute.value.name).toBe('predict')
+    expect(useToastStore().items.map((one) => one.key)).toEqual([])
   })
 })

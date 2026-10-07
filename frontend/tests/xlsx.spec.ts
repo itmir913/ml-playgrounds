@@ -305,6 +305,35 @@ describe('폴백', { timeout: 20_000 }, () => {
   })
 
   /**
+   * **폴백도 열 상한을 넘는 폭이면 채우지 않는다** (0.34.2 diff 감사 A-1의 이웃). SheetJS는 `defval: ''`이 범위 전체를 행마다
+   * 채운다 — 본진과 같은 병이다. 한셀 파일에 XFD열(16,384번째) 칸 하나와 그만큼의 범위를 더해, ExcelJS가 던지는 그대로 폴백을
+   * 진짜로 태운다. 상한을 주면 그 한 행만 넓고, 안 주면(상한을 끈 것과 같다) 전부 채운다.
+   */
+  it('폴백도 열 상한을 넘는 폭이면 채우지 않는다', async () => {
+    const files = unzipSync(hancell)
+    const path = 'xl/worksheets/sheet1.xml'
+    const xml = new TextDecoder().decode(files[path])
+    const patched = xml
+      .replace('<x:dimension ref="A1:C4"/>', '<x:dimension ref="A1:XFD4"/>')
+      .replace(
+        '<x:c r="C2" t="s"><x:v>1</x:v></x:c>',
+        '<x:c r="C2" t="s"><x:v>1</x:v></x:c><x:c r="XFD2"><x:v>9</x:v></x:c>',
+      )
+    // 못 바꿨는데 통과하면 이 검사는 아무것도 안 지킨다.
+    expect(patched.includes('XFD2') && patched.includes('A1:XFD4')).toBe(true)
+    files[path] = new TextEncoder().encode(patched)
+    const document = await openXlsx(zipSync(files))
+    const name = document.sheetNames[0] ?? ''
+
+    expect(document.readSheet(name, undefined, 1_000).map((row) => row.length)).toEqual([
+      3, 16_384, 3, 3,
+    ])
+    expect(document.readSheet(name).map((row) => row.length)).toEqual([
+      16_384, 16_384, 16_384, 16_384,
+    ])
+  })
+
+  /**
    * **상한을 끄면 두 파서가 전부 읽는다** (2026-09-23, R37 C-4 / 2026-09-01 C-4).
    *
    * `importTable`이 `maxDatasetRows() + 1`을 넘기고, 상한이 꺼지면 그 값이 `Infinity`다.

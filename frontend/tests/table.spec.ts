@@ -418,6 +418,32 @@ describe('importTable - 상한', () => {
     }
     expect(refused).toEqual(['DATASET_TOO_MANY_COLUMNS', wide])
   })
+
+  /**
+   * **열 상한을 넘는 엑셀도 채우기 전에 거절한다** (0.34.2 diff 감사 A-1). CSV만 고치고 엑셀은 값이 든 가장 오른쪽 열까지 행마다
+   * 채운 뒤에야 거절해서, 170KB 파일(2만 행, XFD열에 값 하나)이 거절되기 전에 탭을 메모리 부족으로 죽였다. 시간이 아니라 읽기
+   * 입구의 모양을 본다 — 옛 코드를 큰 입력으로 돌리면 워커가 죽어 운 것인지 가릴 수 없다. 폴백(SheetJS) 짝은 `xlsx.spec.ts`에.
+   */
+  it('열 상한을 넘는 엑셀도 채우기 전에 거절한다', async () => {
+    const wide = MAX_DATASET_COLUMNS + 1
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('S')
+    sheet.addRows([['a'], ['1'], ['2']])
+    sheet.getCell(1, wide).value = 'far'
+    const bytes = new Uint8Array(await workbook.xlsx.writeBuffer())
+    const document = await openTable(bytes, 'data.xlsx', { locale: 'ko' })
+
+    const raw = document.read('S', MAX_DATASET_ROWS + 1, MAX_DATASET_COLUMNS)
+    expect(raw.map((row) => row.length)).toEqual([wide, 1, 1])
+
+    let refused: unknown = null
+    try {
+      importTable(document, 'S')
+    } catch (error) {
+      refused = isClientError(error) ? [error.code, error.params.actualColumns] : 'other error'
+    }
+    expect(refused).toEqual(['DATASET_TOO_MANY_COLUMNS', wide])
+  })
 })
 
 /**
