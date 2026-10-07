@@ -116,6 +116,19 @@ async function dataPanel() {
 const toastKeys = (): readonly string[] => useToastStore().items.map((one) => one.key)
 
 describe('예측 화면에 놓은 zip·폴더는', () => {
+  /** 사진이 아닌 파일은 세기 전에 빠지고 몇 개인지 말한다 (open-decisions.md 108). */
+  it('사진이 아닌 파일은 앉지 않고 뺀 수를 말한다', async () => {
+    const { project, wrapper, panel } = await predictPanel()
+
+    panel.onDrop(dropEvent([zipFile(['a/1.jpg', 'a/1.txt', 'notes.csv'])]))
+    await settle()
+
+    expect(readImages(project.file, 'predict')).toHaveLength(1)
+    const toast = useToastStore().items.find((one) => one.key === 'data.image.notImages')
+    expect(toast?.params).toEqual({ count: 2 })
+    wrapper.unmount()
+  })
+
   it('범주 규칙에 안 맞는 폴더 이름이 있어도 받고 사진이 전부 앉는다 - zip', async () => {
     const { project, wrapper, panel } = await predictPanel()
 

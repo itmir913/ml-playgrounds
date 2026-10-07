@@ -285,7 +285,7 @@ async function readPicked(
     const [only] = files
     // **구조가 있으면 구조가 이긴다.** 폴더나 zip이 라벨을 들고 있으면 그것이 답이고,
     // `into`는 구조가 없는 사진이 떨어질 자리다 (open-decisions.md "zip 읽기 규칙 다섯").
-    const items =
+    const reading =
       files.length === 1 && only && only.name.toLowerCase().endsWith(ZIP_EXTENSION)
         ? await readImageZip(
             await readFileBytes(only),
@@ -301,6 +301,7 @@ async function readPicked(
             fallbackCategory: into,
             known: categories.value,
           })
+    const items = reading.items
     // **굽기 전에 막는다** (project/images.ts의 imageOverflow). 여기서 걸러야 백본이
     // 안 돌고, 학생은 확인 판을 지나 기다린 뒤에 지우기부터 하는 일을 안 겪는다.
     const overflow = imageOverflow(project.file, items.length)
@@ -317,6 +318,10 @@ async function readPicked(
       if (shortfall) throw new ClientError('IMAGE_PHOTOS_EXCEED_STORAGE', { ...shortfall })
     }
     if (stale()) return
+    // 사진이 아니라 건너뛴 것은 세기 전에 빠졌다 — 몇 개인지 말한다 (open-decisions.md 108).
+    if (reading.notImages > 0) {
+      toasts.push('caution', 'data.image.notImages', { count: reading.notImages })
+    }
     pending.value = append && pending.value ? [...pending.value, ...items] : items
   } catch (error) {
     if (!stale()) toasts.pushError(error)

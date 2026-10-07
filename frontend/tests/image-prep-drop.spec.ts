@@ -234,6 +234,19 @@ describe('테스트 사진을 굽는 중에 화면을 떠나면', () => {
   })
 })
 
+describe('테스트 사진 폴더에 사진이 아닌 파일이 섞이면', () => {
+  /** 세기 전에 빠지고 몇 개인지 말한다 (open-decisions.md 108). 워커에는 사진만 간다. */
+  it('워커에 사진만 넘기고 뺀 수를 말한다', async () => {
+    const context = await panelWithDropzone()
+    workerState.holdBake = true
+    await context.drop([photo('개', 'a.jpg'), photo('고양이', 'b.jpg'), photo('개', 'a.txt')])
+
+    expect(workerState.baked).toBe(1)
+    const toast = useToastStore().items.find((one) => one.key === 'data.image.notImages')
+    expect(toast?.params).toEqual({ count: 1 })
+  })
+})
+
 describe('굽기가 끝나면', () => {
   it('테스트 사진이 앉고 성공 알림이 뜬다', async () => {
     const { project } = await panelBaking()

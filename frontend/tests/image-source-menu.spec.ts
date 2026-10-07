@@ -471,6 +471,27 @@ describe('데이터 화면의 확인 판', () => {
     wrapper.unmount()
   })
 
+  /** 라벨 파일이 든 데이터셋 폴더 — 사진만 확인 판에 서고, 뺀 수를 말한다 (open-decisions.md 108). */
+  it('폴더의 사진이 아닌 파일은 확인 판에 안 서고 몇 개 뺐는지 말한다', async () => {
+    const { wrapper, panel } = await dataPanel()
+    const folder = folderInputOf(wrapper)
+    const inFolder = (path: string): File => {
+      const one = new File([new Uint8Array([4])], path.split('/').at(-1) ?? path)
+      Object.defineProperty(one, 'webkitRelativePath', { value: path })
+      return one
+    }
+    await choose(wrapper, ko.data.image.add, LABELS.folder)
+    await pickInto(folder, [
+      inFolder('set/개/a.jpg'),
+      inFolder('set/개/a.txt'),
+      inFolder('set/labels.csv'),
+    ])
+    expect(panel.pending?.map((one) => one.category)).toEqual(['개'])
+    const toast = useToastStore().items.find((one) => one.key === 'data.image.notImages')
+    expect(toast?.params).toEqual({ count: 2 })
+    wrapper.unmount()
+  })
+
   /** 이미 있는 범주와 대소문자만 다른 폴더는 확인 판에 안 선다 — 같은 철자면 선다 (R43-5 B-1 재판단). */
   it('이미 있는 범주와 대소문자만 다른 폴더는 받지 않는다', async () => {
     const { wrapper, panel } = await dataPanel(['cat'])

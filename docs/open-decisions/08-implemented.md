@@ -4,6 +4,13 @@
 
 > **상태 한 줄과, 제목이 물음일 때만 결론 한 줄을 둔다.** 경위는 같은 제목 아래 `docs/cases/open-decisions.md`에 있다.
 
+### 108. 사진 장수 상한이 사진이 아닌 파일까지 세는가 — 무엇을 사진으로 보고 셀지 정한다
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. **확장자 목록으로 센다 (코드 소유자).** 폴더·zip 입구
+(`data/image/upload.ts`)가 `formats.ts`의 `IMAGE_SOURCE_EXTENSIONS`에 든 확장자만 사진으로 받고, 나머지는 범주 이름을 읽고
+장수·자리를 세기 전에 뺀 뒤 그 수를 돌려준다 — 화면 셋(데이터·예측·테스트 사진)이 `data.image.notImages`로 말한다. 무는 검사:
+`image-upload-zip.spec.ts`의 *"사진이 아닌 파일은 세기 전에 건너뛴다"*, `image-source-menu.spec.ts`·`image-predict-labels.spec.ts`·
+`image-prep-drop.spec.ts`의 알림 판.
+
 ### 107. 교사의 포트폴리오 묶음이 이미 구운 사진을 다시 누르는가 — **누르지 않는다. 묶음도 전부 무압축으로 담는다 (2026-10-07, 코드 소유자)**
 **[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. 결정 68 2차 처방("`.mlpx`는 아무것도 누르지 않는다")을 묶음에도
 넓힌다. `ZIP_DEFLATE_LEVEL`은 쓸 자리가 없어 지운다. 무는 검사: `portfolio-bundle.spec.ts`의 *"묶음은 아무것도 누르지 않는다"*.

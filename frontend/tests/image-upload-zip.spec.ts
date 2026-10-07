@@ -23,14 +23,23 @@ import { sourceFiles, withoutComments } from './fixtures/source'
 
 import {
   IMAGE_ACCEPT,
-  readImageFiles,
-  readImageZip,
+  readImageFiles as readImageFilesFull,
+  readImageZip as readImageZipFull,
+  type UploadItem,
   summarizeUpload,
   ZIP_EXTENSION,
 } from '../src/data/image/upload'
+import { isImageSourcePath } from '../src/data/image/formats'
 import { isClientError } from '../src/errors'
 import { IMAGE_ZIP_SLICE_BYTES } from '../src/limits'
 import { IMAGE_UNLABELED } from '../src/project/format'
+
+/** 사진 목록만 본다 — 사진이 아니라 뺀 수(`notImages`)는 결정 108 판이 본다. */
+const readImageZip = async (
+  ...args: Parameters<typeof readImageZipFull>
+): Promise<readonly UploadItem[]> => (await readImageZipFull(...args)).items
+const readImageFiles = (...args: Parameters<typeof readImageFilesFull>): readonly UploadItem[] =>
+  readImageFilesFull(...args).items
 
 /** 내용은 아무 바이트나 좋다. 여기서 보는 것은 구조뿐이고 굽는 것은 워커다. */
 function makeZip(paths: readonly string[]): Uint8Array {
@@ -234,6 +243,59 @@ describe('받지 않는 압축 파일', () => {
       IMAGE_UNLABELED,
       '개',
     ])
+  })
+})
+
+/**
+ * **사진이 아닌 파일은 세기 전에 건너뛴다** (open-decisions.md 108, R43-5 B-2). 라벨 `txt`·`csv`가 장수 상한과
+ * 자리 판정에 세어져, 사진 3000장 + 라벨 3000개 폴더가 6000장으로 거절되었다. 범주 이름을 읽기 전에 빼므로
+ * 사진 아닌 파일의 폴더 이름(`_meta`)이 업로드를 막지 않고, 루트의 `readme.txt`가 감싼 폴더 벗기기를 막지 않는다.
+ */
+describe('사진이 아닌 파일은 세기 전에 건너뛴다', () => {
+  it('압축 파일 — 사진만 범주로 읽고, 뺀 수를 돌려준다', async () => {
+    const read = await readImageZipFull(
+      makeZip([
+        'readme.txt',
+        '사진/개/1.jpg',
+        '사진/개/1.txt',
+        '사진/고양이/2.PNG',
+        '사진/labels.csv',
+        '사진/_meta/info.json',
+      ]),
+      INFERRED,
+    )
+    expect(read.items.map((item) => item.category)).toEqual(['개', '고양이'])
+    expect(read.notImages).toBe(4)
+  })
+
+  it('폴더 — 사진만 범주로 읽고, 부스러기는 세지 않는다', () => {
+    const pick = (path: string): File => {
+      const file = new File([new Uint8Array([1])], path.split('/').pop() ?? path)
+      Object.defineProperty(file, 'webkitRelativePath', { value: path })
+      return file
+    }
+    const read = readImageFilesFull(
+      [pick('사진/개/1.jpg'), pick('사진/labels/1.txt'), pick('사진/개/.DS_Store')],
+      INFERRED,
+    )
+    expect(read.items.map((item) => item.category)).toEqual(['개'])
+    expect(read.notImages).toBe(1)
+  })
+
+  it('사진이 하나도 없는 압축 파일은 사진이 없다고 말한다', async () => {
+    const error = await readImageZipFull(makeZip(['a/1.txt', 'b/2.csv']), INFERRED).catch(
+      (reason: unknown) => reason,
+    )
+    expect(isClientError(error) && error.code).toBe('IMAGE_ZIP_NO_IMAGES')
+  })
+
+  it('확장자는 대소문자를 안 가리고, 점으로 시작하는 이름과 확장자 없는 이름은 사진이 아니다', () => {
+    expect(isImageSourcePath('개/A.JPEG')).toBe(true)
+    expect(isImageSourcePath('개/a.heic')).toBe(true)
+    expect(isImageSourcePath('개/a.svg')).toBe(false)
+    expect(isImageSourcePath('개/.jpg')).toBe(false)
+    expect(isImageSourcePath('개/사진')).toBe(false)
+    expect(isImageSourcePath('사진.jpg/설명')).toBe(false)
   })
 })
 

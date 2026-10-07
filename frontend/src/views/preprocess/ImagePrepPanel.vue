@@ -430,7 +430,7 @@ async function readTest(files: readonly File[]): Promise<void> {
   try {
     const single = files[0]
     // **압축 파일과 사진 파일을 같은 함수가 가른다** (`data/image/upload.ts`의 IMAGE_ACCEPT).
-    const items =
+    const reading =
       files.length === 1 && single && single.name.toLowerCase().endsWith(ZIP_EXTENSION)
         ? await readImageZip(
             await readFileBytes(single),
@@ -448,7 +448,11 @@ async function readTest(files: readonly File[]): Promise<void> {
     // 파일에** 테스트 사진을 얹는다 (2026-09-02 R23 B-2).
     // 읽는 동안 누른 [취소]도 여기서 멈춘다 — 확인 창을 띄우지도 않는다.
     if (!alive() || job.cancelled()) return
-    await requestTakeTest(items)
+    // 사진이 아니라 건너뛴 것은 세기 전에 빠졌다 — 몇 개인지 말한다 (open-decisions.md 108).
+    if (reading.notImages > 0) {
+      toasts.push('caution', 'data.image.notImages', { count: reading.notImages })
+    }
+    await requestTakeTest(reading.items)
   } catch (error) {
     toasts.pushError(error)
   } finally {

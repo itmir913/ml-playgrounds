@@ -98,3 +98,36 @@ export const SKETCH_EXPORT_FORMAT: Readonly<Pick<CanonicalFormat, 'extension' | 
   extension: '.png',
   mime: 'image/png',
 }
+
+/**
+ * **사진으로 받는 원본 파일의 확장자** (open-decisions.md 108). 굽는 워커(`bake.ts`의 `createImageBitmap`)가
+ * 읽을 수 있는 래스터 형식이다 — HEIC·TIFF는 사파리만 읽지만 넣는다. 못 읽으면 워커가 한 장씩 돌려주고
+ * 화면이 "읽을 수 없는 파일"로 센다. 목록 밖(라벨 `txt`·`csv`, `svg`)은 장수·자리를 세기 전에 건너뛴다 —
+ * 데이터셋 폴더의 라벨 파일이 사진 장수 상한을 채워 맞는 업로드가 거절되었다(R43-5 B-2).
+ * `image-upload-zip.spec.ts`의 *"사진이 아닌 파일은 세기 전에 건너뛴다"*가 문다.
+ */
+export const IMAGE_SOURCE_EXTENSIONS: ReadonlySet<string> = new Set([
+  '.jpg',
+  '.jpeg',
+  '.jpe',
+  '.jfif',
+  '.png',
+  '.apng',
+  '.gif',
+  '.webp',
+  '.bmp',
+  '.dib',
+  '.avif',
+  '.ico',
+  '.heic',
+  '.heif',
+  '.tif',
+  '.tiff',
+])
+
+/** 이 경로의 파일을 사진으로 받는가 — 확장자만 본다(대소문자 무시). */
+export function isImageSourcePath(path: string): boolean {
+  const name = path.slice(path.lastIndexOf('/') + 1)
+  const dot = name.lastIndexOf('.')
+  return dot > 0 && IMAGE_SOURCE_EXTENSIONS.has(name.slice(dot).toLowerCase())
+}

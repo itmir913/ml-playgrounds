@@ -219,6 +219,7 @@
       "renameTitle": "Rename category",
       "selected": "{count} photo selected | {count} photos selected",
       "skipped": "Left out {count} file that could not be read. | Left out {count} files that could not be read.",
+      "notImages": "Left out {count} file that is not a photo. | Left out {count} files that are not photos.",
       "use": "Use these photos",
       "source": {
         "files": "Choose photos",

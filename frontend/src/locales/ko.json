@@ -219,6 +219,7 @@
       "renameTitle": "범주 이름 변경",
       "selected": "선택한 사진 {count}장",
       "skipped": "읽을 수 없는 파일 {count}개는 추가하지 못했습니다.",
+      "notImages": "사진이 아닌 파일 {count}개는 제외했습니다.",
       "use": "이 사진 사용",
       "source": {
         "files": "사진 선택",

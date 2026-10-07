@@ -219,6 +219,7 @@
       "renameTitle": "クラス名を変更",
       "selected": "写真{count}枚を選択中",
       "skipped": "読み込めないファイル{count}個は追加できませんでした。",
+      "notImages": "写真ではないファイル{count}個は除外しました。",
       "use": "これらの写真を使用",
       "source": {
         "files": "写真を選択",

@@ -15,12 +15,17 @@ import { describe, expect, it } from 'vitest'
 import { ARCHIVE_NOISE_NAMES, isNoiseName, normalizeEntryName } from '../src/data/archive-entries'
 import { imageEntryPath } from '../src/data/image/canonical'
 import { CANONICAL_FORMATS } from '../src/data/image/formats'
-import { readImageZip } from '../src/data/image/upload'
+import { readImageZip as readImageZipFull, type UploadItem } from '../src/data/image/upload'
 import { hashBytes } from '../src/hash'
 import { DEFAULT_BACKBONE_ID } from '../src/ml/backbones'
 import { IMAGE_DATA_DIR, readProject, type ProjectFile } from '../src/project/format'
 import { FORMAT_VERSION, PROJECT_KIND_ML } from '../src/project/schema'
 import { writeProjectBytes } from './fixtures/write'
+
+/** 사진 목록만 본다 — 사진이 아니라 뺀 수(`notImages`)는 결정 108 판이 본다. */
+const readImageZip = async (
+  ...args: Parameters<typeof readImageZipFull>
+): Promise<readonly UploadItem[]> => (await readImageZipFull(...args)).items
 
 /** 범주 폴더 `개` 안에 둘 부스러기 — 목록 전부와 맥의 두 모양. */
 const NOISE_IN_FOLDER: readonly string[] = [...ARCHIVE_NOISE_NAMES, '._1.jpg', '__MACOSX/._1.jpg']

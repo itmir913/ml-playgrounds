@@ -22,9 +22,14 @@ import { describe, expect, it, vi } from 'vitest'
 import { SHIFT_JIS_NAME, SHIFT_JIS_NAME_TEXT } from './fixtures/cp932'
 import { sourceFiles, withoutComments } from './fixtures/source'
 
-import { readImageZip } from '../src/data/image/upload'
+import { readImageZip as readImageZipFull, type UploadItem } from '../src/data/image/upload'
 import { SUPPORTED_LOCALES } from '../src/i18n'
 import { decodeZipNames, LEGACY_CHARSETS } from '../src/data/zip-names'
+
+/** 사진 목록만 본다 — 사진이 아니라 뺀 수(`notImages`)는 결정 108 판이 본다. */
+const readImageZip = async (
+  ...args: Parameters<typeof readImageZipFull>
+): Promise<readonly UploadItem[]> => (await readImageZipFull(...args)).items
 
 /**
  * `fflate`가 UTF-8 플래그 없는 항목을 읽어 준 모양. **Latin-1은 바이트를 그대로
@@ -307,14 +312,14 @@ describe('UTF-8로도 읽히는 탐색기 이름', () => {
   it('진짜 입구 — 첫 업로드(대조 없음)의 치킨이 돌아온다, ASCII 범주가 섞여도', async () => {
     const photo = new Uint8Array([1])
     const alone = zipSync({
-      [asFflateWouldRead([...CHICKEN, 0x2f, 0x31])]: photo,
-      [asFflateWouldRead([...CHICKEN, 0x2f, 0x32])]: photo,
+      [asFflateWouldRead([...CHICKEN, 0x2f, 0x31, 0x2e, 0x6a, 0x70, 0x67])]: photo,
+      [asFflateWouldRead([...CHICKEN, 0x2f, 0x32, 0x2e, 0x6a, 0x70, 0x67])]: photo,
     })
     const read = await readImageZip(alone, { labels: 'inferred' }, { locale: 'ko', expect: [] })
     expect(read.map((item) => item.category)).toEqual(['치킨', '치킨'])
 
     const mixed = zipSync({
-      [asFflateWouldRead([...CHICKEN, 0x2f, 0x31])]: photo,
+      [asFflateWouldRead([...CHICKEN, 0x2f, 0x31, 0x2e, 0x6a, 0x70, 0x67])]: photo,
       'pizza/2.png': photo,
     })
     const both = await readImageZip(mixed, { labels: 'inferred' }, { locale: 'ko', expect: [] })

@@ -345,7 +345,7 @@ async function readPicked(files: readonly File[]): Promise<void> {
     // 없다 — 읽으면 쓰지도 않는 폴더 이름 때문에 zip이 거절된다(`image-predict-labels.spec.ts`).
     // **라벨이 없어 대조할 목록도 없다** (`canonical.ts`의 `predict`). 그래도 이름은
     // 되살린다 — 그것이 구운 결과를 되찾는 열쇠이기 때문이다.
-    const items =
+    const reading =
       files.length === 1 && only && only.name.toLowerCase().endsWith(ZIP_EXTENSION)
         ? await readImageZip(
             await readFileBytes(only),
@@ -353,6 +353,7 @@ async function readPicked(files: readonly File[]): Promise<void> {
             { locale: uiLocale.value },
           )
         : readImageFiles(files, { labels: 'none' })
+    const items = reading.items
 
     // **읽는 동안 떠났으면 여기서 멈춘다.** 읽기 구간에는 맡길 손잡이가 없어
     // `retire()`가 끊을 것이 없다 — 이 줄이 없으면 죽은 화면이 워커를 열어 **지금 열린
@@ -360,6 +361,10 @@ async function readPicked(files: readonly File[]): Promise<void> {
     // (2026-09-02 R23 B-2). 같은 화면에서 프로젝트만 바뀐 것은 `ours`가 본다. 읽는 동안 누른
     // [취소]도 여기서 멈춘다 — 그 구간에는 끊을 손잡이가 없다.
     if (!alive() || !ours() || job.cancelled()) return
+    // 사진이 아니라 건너뛴 것은 세기 전에 빠졌다 — 몇 개인지 말한다 (open-decisions.md 108).
+    if (reading.notImages > 0) {
+      toasts.push('caution', 'data.image.notImages', { count: reading.notImages })
+    }
 
     // **굽기 전에 막는다** (project/images.ts의 imageOverflow). 백본을 돌린 뒤에
     // 거절하면 학생은 기다린 시간을 통째로 버린다.

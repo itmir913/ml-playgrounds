@@ -19,6 +19,7 @@ import { yieldToScreen } from '@/screen'
 import { isNoiseName, normalizeEntryName } from '../archive-entries'
 import { decodeZipNames, type ZipNameOptions } from '../zip-names'
 import { categoryFolderKey, isValidCategoryName } from './canonical'
+import { isImageSourcePath } from './formats'
 
 /** 구울 후보 한 장. 아직 사진인지 아닌지는 모른다 — 그건 구워 봐야 안다. */
 export interface UploadItem {
@@ -248,15 +249,16 @@ function unzipSyncOrInvalid(bytes: Uint8Array, filter: UnzipFileFilter): Unzippe
  * 규칙은 open-decisions.md "zip 읽기 규칙 다섯"이고 순서가 뜻을 갖는다 — 부스러기를
  * 먼저 버려야 `__MACOSX/`가 "루트의 폴더"로 세어지지 않는다.
  *
- * **여기서 사진인지는 안 가린다.** 확장자로 거르면 확장자가 틀린 사진을 버리게 되고,
- * 굽는 워커가 어차피 한 장씩 판정해 못 읽은 것을 돌려준다 — 화면은 그걸로 "몇 장이
- * 빠졌는지"를 말한다.
+ * **사진은 확장자로 가린다** (open-decisions.md 108, `formats.ts`의 `IMAGE_SOURCE_EXTENSIONS`). 전에는
+ * 안 가리고 굽는 워커에 맡겨, 라벨 `txt`·`csv`가 장수 상한과 자리 판정에 세어졌다. 가린 것은 범주 이름을
+ * 읽기 **전에** 빼고(사진 아닌 파일의 폴더 이름이 업로드를 거절하지 않게) 수만 돌려준다 — 화면이 말한다.
+ * 목록 안인데 못 읽는 사진은 전처럼 워커가 한 장씩 돌려준다.
  */
 export async function readImageZip(
   bytes: Uint8Array,
   reading: ImageLabels,
   names: ZipNameOptions = {},
-): Promise<readonly UploadItem[]> {
+): Promise<ImageReading> {
   const unzipped = await unzipEntries(bytes)
   const raw = Object.entries(unzipped)
   /**
@@ -280,15 +282,17 @@ export async function readImageZip(
       // 없다. 저쪽(`format.ts`의 `isArchiveNoise`)은 잘린 엔트리가 변조의 흔적이라 남긴다.
       ([path, content]) => !path.endsWith('/') && content.length > 0 && !isJunk(path),
     )
-  if (entries.length === 0) throw new ClientError('IMAGE_ZIP_NO_IMAGES')
+  // 사진이 아닌 것은 한 겹 벗기기 **전에** 뺀다 — 루트의 `readme.txt`가 감싼 폴더를 벗기지 못하게 하지 않는다.
+  const images = entries.filter(([path]) => isImageSourcePath(path))
+  if (images.length === 0) throw new ClientError('IMAGE_ZIP_NO_IMAGES')
 
-  const paths = unwrapOnce(entries.map(([path]) => path))
+  const paths = unwrapOnce(images.map(([path]) => path))
   const rows = paths.map((path, index) => {
-    const content = entries[index]?.[1] ?? new Uint8Array()
+    const content = images[index]?.[1] ?? new Uint8Array()
     // 바이트를 여기서 한 번 감싼다. 실제로 읽는 것은 워커다.
     return { path, file: new File([content], path) }
   })
-  return labelItems(rows, reading)
+  return { items: labelItems(rows, reading), notImages: entries.length - images.length }
 }
 
 /**
@@ -298,15 +302,14 @@ export async function readImageZip(
  * 규칙으로 라벨이 나온다. 파일 몇 장만 고른 경우에는 구조가 없고, 그건 떨어뜨린 자리로
  * 간다.
  */
-export function readImageFiles(
-  files: readonly File[],
-  reading: ImageLabels,
-): readonly UploadItem[] {
+export function readImageFiles(files: readonly File[], reading: ImageLabels): ImageReading {
   // 폴더로 안 고른 파일에는 이 값이 빈 문자열이고, 브라우저 밖(검사)에서는 아예 없다.
   // **zip과 같은 규칙으로 맞춘다** — 맥에서 폴더를 끌어다 놓으면 여기도 NFD로 온다.
+  // 사진이 아닌 것도 zip처럼 벗기기 전에 뺀다(open-decisions.md 108).
   const relative = (file: File): string => normalizePath(file.webkitRelativePath || file.name)
-  const paths = unwrapOnce(files.map(relative).filter((path) => !isJunk(path)))
-  const kept = files.filter((file) => !isJunk(relative(file)))
+  const real = files.filter((file) => !isJunk(relative(file)))
+  const kept = real.filter((file) => isImageSourcePath(relative(file)))
+  const paths = unwrapOnce(kept.map(relative))
 
   const rows = kept.map((file, index) => {
     const path = paths[index] ?? file.name
@@ -317,7 +320,16 @@ export function readImageFiles(
       file: file.name === path ? file : new File([file], path),
     }
   })
-  return labelItems(rows, reading)
+  return { items: labelItems(rows, reading), notImages: real.length - kept.length }
+}
+
+/**
+ * 읽은 사진과 **사진이 아니라 건너뛴 파일의 수**(open-decisions.md 108). 부스러기(`__MACOSX`·`.DS_Store`)는
+ * 학생이 고른 것이 아니라 세지 않는다.
+ */
+export interface ImageReading {
+  readonly items: readonly UploadItem[]
+  readonly notImages: number
 }
 
 /**
