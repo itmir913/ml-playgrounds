@@ -66,7 +66,8 @@ export function testSetBlockFor(categories: readonly string[]): TestSetBlock | n
  * **어긋난 이름은 문장 끝 괄호로 간다** (CLAUDE.md §3 규칙 4) — 개수만 말하면 학생이
  * 어느 폴더를 고쳐야 하는지 모른다.
  *
- * @param categories 프로젝트의 범주. `settings.data.categories`가 갖는 순서다.
+ * @param categories 테스트 사진이 맞춰야 하는 범주 — 부르는 두 자리(올리기·학습 입구)가 모두 `trainedCategories`(훈련 사진이 든
+ *                   범주, 화면의 차례)를 넘긴다(open-decisions.md 106 개정).
  * @param uploaded   올린 사진에서 읽어낸 범주. 폴더 이름이 그대로 온다.
  */
 export function testZipBlockFor(

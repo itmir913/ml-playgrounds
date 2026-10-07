@@ -343,6 +343,52 @@ describe('decision 65: test photos are judged before the confirm dialog', () => 
     expect(cautions()).toEqual(['client.TEST_IMAGES_NEED_CATEGORIES'])
     expect(opened, 'the file picker opened before the refusal').toEqual([])
   })
+
+  /**
+   * **빈 범주만 있으면 범주가 없는 것과 같다** (결정 106 개정, 0.34.2 diff 재감사 C-6). 단추를 누를 때의 판정(`testBlock`)도 올리기와
+   * 같은 목록(`trainedCategories`)을 봐야 한다 — 화면의 목록을 보면 빈 범주 둘이 "범주가 있다"로 읽혀 파일 고르기가 열리고, 고른
+   * 뒤에야 거절당한다(`pickTest`가 막으려던 "고른 시간을 버린다").
+   */
+  it('with only empty categories the buttons say why before the picker opens', async () => {
+    const project = useProjectStore()
+    const document = newProjectDocument(
+      { name: '개와 고양이', locale: 'ko', dataType: 'image', taskType: 'classification' },
+      {
+        projectId: '550e8400-e29b-41d4-a716-446655440000',
+        createdAt: '2026-09-02T08:00:00.000Z',
+        randomState: 42,
+      },
+    )
+    const empty: ProjectFile = {
+      document: { ...document, runs: { experiments: [experiment('experiment-1', [])] } },
+      models: new Map(),
+      images: new Map(),
+      attachments: new Map(),
+      embeddings: new Map(),
+    }
+    const now = '2026-09-02T09:30:00.000Z'
+    await project.save(addCategory(addCategory(empty, '개', now), '고양이', now))
+    const wrapper = mount(ImagePrepPanel, { global: { plugins: [i18n] } })
+    await flushPromises()
+    await wrapper.findAll('input[name="image-test-data-choice"]')[1]?.trigger('change')
+    await flushPromises()
+
+    const opened: string[] = []
+    for (const input of wrapper.findAll('input[type="file"]')) {
+      input.element.addEventListener('click', () => opened.push('picker'))
+    }
+    const buttons = wrapper
+      .findAll('button')
+      .filter((one) => one.text() === '폴더에서 추가' || one.text() === '압축 파일 선택')
+    expect(buttons).toHaveLength(2)
+    for (const button of buttons) {
+      await button.trigger('click')
+      await settle()
+    }
+    expect(cautions()).toEqual(['client.TEST_IMAGES_NEED_CATEGORIES'])
+    expect(opened, 'the file picker opened before the refusal').toEqual([])
+    wrapper.unmount()
+  })
 })
 
 /**

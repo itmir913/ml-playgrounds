@@ -35,6 +35,20 @@ async function xlsxBytes(sheets: Record<string, (string | number)[][]>): Promise
   return new Uint8Array(await workbook.xlsx.writeBuffer())
 }
 
+/**
+ * `importTable`이 실제로 받은 격자의 행 길이를 엿본다 — 읽기 입구를 직접 부르면 `importTable`이 무엇을 넘기는지 안 본다(병 3).
+ */
+function watchReads(document: Awaited<ReturnType<typeof openTable>>): number[][] {
+  const seen: number[][] = []
+  const read = document.read.bind(document)
+  document.read = (...args) => {
+    const grid = read(...args)
+    seen.push(grid.map((row) => row.length))
+    return grid
+  }
+  return seen
+}
+
 describe('sourceFromFileName', () => {
   it('.csv와 .xlsx를 대소문자 무관하게 구분한다', () => {
     expect(sourceFromFileName('iris.csv')).toBe('csv')
@@ -402,14 +416,38 @@ describe('importTable - 상한', () => {
    * 시간이 아니라 **넘는 폭이면 짧은 행이 짧은 채로 온다**는 것을 읽기 입구에서 본다. 폭은 그 한 행의 것이고, 첫 행이
    * 짧아도 거절한다.
    */
+  /**
+   * **폭이 상한과 같으면 채워서 받는다** (0.34.2 diff 재감사 C-5). 넘는 폭만 채우지 않는데, 경계를 `>=`로 바꾸면 폭이 정확히 상한인 표가
+   * **짧은 행이 짧은 채로** 받아들여져 열 자리가 어긋난다. 위 "컬럼이 상한과 같으면 받는다"는 머리글뿐이라 채우기를 안 지난다.
+   * 폴백(SheetJS) 짝은 `xlsx.spec.ts`에.
+   */
+  it('폭이 상한과 같고 짧은 행이 있으면 채워서 받는다 - CSV와 엑셀', async () => {
+    const full = Array.from({ length: MAX_DATASET_COLUMNS }, () => '2').join(',')
+    const csv = await openTable(new TextEncoder().encode(['a', '1', full].join('\n')), 'data.csv', {
+      locale: 'ko',
+    })
+    expect(importTable(csv).grid.map((row) => row.length)).toEqual(
+      new Array(3).fill(MAX_DATASET_COLUMNS),
+    )
+
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('S')
+    sheet.addRows([['a'], ['1'], ['2']])
+    sheet.getCell(3, MAX_DATASET_COLUMNS).value = 'edge'
+    const excel = await openTable(new Uint8Array(await workbook.xlsx.writeBuffer()), 'data.xlsx', {
+      locale: 'ko',
+    })
+    expect(importTable(excel, 'S').grid.map((row) => row.length)).toEqual(
+      new Array(3).fill(MAX_DATASET_COLUMNS),
+    )
+  })
+
   it('열 상한을 넘는 표는 채우기 전에 거절한다', async () => {
     const wide = MAX_DATASET_COLUMNS + 1
     const text = ['a', '1', Array.from({ length: wide }, () => '2').join(',')].join('\n')
     const document = await openTable(new TextEncoder().encode(text), 'data.csv', { locale: 'ko' })
 
-    const raw = document.read(undefined, MAX_DATASET_ROWS + 1, MAX_DATASET_COLUMNS)
-    expect(raw.map((row) => row.length)).toEqual([1, 1, wide])
-
+    const seen = watchReads(document)
     let refused: unknown = null
     try {
       importTable(document)
@@ -417,6 +455,8 @@ describe('importTable - 상한', () => {
       refused = isClientError(error) ? [error.code, error.params.actualColumns] : 'other error'
     }
     expect(refused).toEqual(['DATASET_TOO_MANY_COLUMNS', wide])
+    // **진짜 입구가 받은 격자를 본다** (0.34.2 diff 재감사 C-4) — `importTable`이 열 상한을 안 넘기면 채운 격자가 온다.
+    expect(seen.at(-1)).toEqual([1, 1, wide])
   })
 
   /**
@@ -433,9 +473,7 @@ describe('importTable - 상한', () => {
     const bytes = new Uint8Array(await workbook.xlsx.writeBuffer())
     const document = await openTable(bytes, 'data.xlsx', { locale: 'ko' })
 
-    const raw = document.read('S', MAX_DATASET_ROWS + 1, MAX_DATASET_COLUMNS)
-    expect(raw.map((row) => row.length)).toEqual([wide, 1, 1])
-
+    const seen = watchReads(document)
     let refused: unknown = null
     try {
       importTable(document, 'S')
@@ -443,6 +481,7 @@ describe('importTable - 상한', () => {
       refused = isClientError(error) ? [error.code, error.params.actualColumns] : 'other error'
     }
     expect(refused).toEqual(['DATASET_TOO_MANY_COLUMNS', wide])
+    expect(seen.at(-1)).toEqual([wide, 1, 1])
   })
 })
 

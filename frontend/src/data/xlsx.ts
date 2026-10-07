@@ -230,37 +230,54 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
 
       fillMerges(XLSX, sheet)
       const width = widthOf(sheetName, sheet)
-      // 상한을 넘는 폭이면 채우지 않는다(`XlsxDocument.readSheet`의 설명). `defval`이 범위 전체를 채우므로 그때만 뺀다 —
-      // 없으면 행 배열이 값이 있는 데까지만 선다.
-      const overflowing = width > maxColumns
-      const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-        header: 1,
-        // 빈 셀도 자리를 지킨다. 없으면 컬럼 인덱스가 행마다 밀린다.
-        ...(overflowing ? {} : { defval: '' }),
-        /**
-         * **값을 받는다. 엑셀이 그려 준 글자가 아니다** (2026-08-21).
-         *
-         * `false`였고, 그러면 셀의 값이 아니라 **화면에 그려질 문자열**이 온다.
-         * 실측하니 `123456789012`가 `"1.23457E+11"`이 됐다 - 엑셀의 General 서식이
-         * 열두 자리부터 지수 표기로 넘어가기 때문이고, **예외 없이 여섯 자리로
-         * 뭉개진다.** 원화로 적은 예산·거래액이 정확히 그 대역이다.
-         * 불리언은 `"TRUE"`, 날짜는 `"8/21/26"`이었다.
-         *
-         * 이 도구가 열에서 원하는 것은 **값**이므로 서식 문자열을 잃는 것은 손해가
-         * 아니다. 이것으로 수·불리언은 ExcelJS 경로와 같아졌다. **같지 않은 자리는 날짜
-         * 시간대 하나가 남았다** — 목록은 이 파일 머리말의 표다.
-         */
-        raw: true,
-      })
+      if (width === 0) return []
+      // 상한을 넘는 폭이면 채우지 않는다(`XlsxDocument.readSheet`의 설명).
+      if (width > maxColumns) return valueRows(sheet, maxRows)
 
+      /**
+       * **범위 전체를 한 번에 훑지 않는다** (0.34.2 diff 재감사 A-2). `sheet_to_json`은 범위(`!ref`) 안의 모든 행 × 범위의 폭을
+       * 훑는다 — 한셀이 쓴 범위가 넓으면(먼 열에 값 하나) 20KB 파일의 미리보기가 21초, 130KB의 확정이 3분 넘게 화면을 멈췄다.
+       * 그래서 열은 **값이 든 폭까지만**(그 너머는 어차피 `fitWidth`가 자르는 빈 칸이다), 행은 **필요한 만큼 창을 넓혀 가며** 읽는다.
+       * 무는 검사: `xlsx.spec.ts`의 *"폴백은 넓은 범위를 다 훑지 않는다"*.
+       */
+      const range = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1')
+      const lastColumn = range.s.c + width - 1
       const grid: TableGrid = []
-      for (const row of rows) {
+      let start = range.s.r
+      let windowRows = maxRows === undefined ? range.e.r - range.s.r + 1 : Math.max(1, maxRows)
+      while (start <= range.e.r) {
         if (maxRows !== undefined && grid.length >= maxRows) break
-        // `Array.from`이다 — `defval` 없이 온 행에는 빈 자리가 있고, `map`은 그 자리를 건너뛰어 빈 자리로 남긴다.
-        const cells = Array.from(row, cellToString)
-        if (!isEmptyRow(cells)) grid.push(cells)
+        const end = Math.min(range.e.r, start + windowRows - 1)
+        const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+          header: 1,
+          range: { s: { r: start, c: range.s.c }, e: { r: end, c: lastColumn } },
+          // 빈 셀도 자리를 지킨다. 없으면 컬럼 인덱스가 행마다 밀린다.
+          defval: '',
+          /**
+           * **값을 받는다. 엑셀이 그려 준 글자가 아니다** (2026-08-21).
+           *
+           * `false`였고, 그러면 셀의 값이 아니라 **화면에 그려질 문자열**이 온다.
+           * 실측하니 `123456789012`가 `"1.23457E+11"`이 됐다 - 엑셀의 General 서식이
+           * 열두 자리부터 지수 표기로 넘어가기 때문이고, **예외 없이 여섯 자리로
+           * 뭉개진다.** 원화로 적은 예산·거래액이 정확히 그 대역이다.
+           * 불리언은 `"TRUE"`, 날짜는 `"8/21/26"`이었다.
+           *
+           * 이 도구가 열에서 원하는 것은 **값**이므로 서식 문자열을 잃는 것은 손해가
+           * 아니다. 이것으로 수·불리언은 ExcelJS 경로와 같아졌다. **같지 않은 자리는 날짜
+           * 시간대 하나가 남았다** — 목록은 이 파일 머리말의 표다.
+           */
+          raw: true,
+        })
+        for (const row of rows) {
+          if (maxRows !== undefined && grid.length >= maxRows) break
+          const cells = row.map(cellToString)
+          if (!isEmptyRow(cells)) grid.push(cells)
+        }
+        start = end + 1
+        // 빈 행이 많아 창에서 모자랐으면 다음 창은 두 배로 — 창 수는 행 수의 로그다.
+        windowRows *= 2
       }
-      return overflowing ? grid : fitWidth(grid, width)
+      return fitWidth(grid, width)
     },
   }
 
@@ -289,6 +306,39 @@ const parseWithSheetJs: XlsxParser = async (bytes) => {
     }
     contentWidths.set(sheetName, widest)
     return widest
+  }
+
+  /**
+   * **값이 든 칸만으로 행을 세운다** — 열 상한을 넘는 시트를 거절하기 위한 격자다(0.34.2 diff 재감사 A-2·C-7). `sheet_to_json`을
+   * 부르지 않으므로 칸 수에 비례하고, 행마다 값이 있는 데까지만 담아 채우지 않는다. 칸의 잣대는 `widthOf`와 같다(오류 칸과 범위 밖
+   * 칸은 없는 칸) — 그래서 가장 넓은 행이 곧 `widthOf`이고 거절이 말하는 열 수가 본진(ExcelJS)과 같다. 빈 행은 없다(값이 든 칸이
+   * 있는 행만 선다). 무는 검사: `xlsx.spec.ts`의 *"폴백도 열 상한을 넘는 폭이면 채우지 않는다"*.
+   */
+  function valueRows(sheet: WorkSheet, maxRows: number | undefined): TableGrid {
+    const range = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1')
+    const byRow = new Map<number, Map<number, string>>()
+    for (const [address, cell] of Object.entries(sheet)) {
+      if (address.startsWith('!')) continue
+      const { t, v } = cell as CellObject
+      if (t === 'e' || !holdsValue(v)) continue
+      const { r, c } = XLSX.utils.decode_cell(address)
+      if (r < range.s.r || r > range.e.r || c < range.s.c || c > range.e.c) continue
+      const row = byRow.get(r) ?? new Map<number, string>()
+      row.set(c - range.s.c, cellToString(v))
+      byRow.set(r, row)
+    }
+    const grid: TableGrid = []
+    for (const r of [...byRow.keys()].sort((left, right) => left - right)) {
+      if (maxRows !== undefined && grid.length >= maxRows) break
+      const values = byRow.get(r) as Map<number, string>
+      // 펼치지 않고 센다(`spread-rules.spec.ts` — 칸이 많은 행을 인자로 펴면 스택이 넘친다).
+      let last = 0
+      for (const column of values.keys()) if (column > last) last = column
+      const cells = new Array<string>(last + 1).fill('')
+      for (const [column, text] of values) cells[column] = text
+      grid.push(cells)
+    }
+    return grid
   }
 }
 
