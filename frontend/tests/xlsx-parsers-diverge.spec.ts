@@ -192,6 +192,13 @@ const FROM_COLUMN_B = workbook(
   '<dimension ref="B1:C2"/>',
 )
 
+/** 값이 든 빈 칸 타입(`t="z"`, 비표준) — 가운데 열(B2)과 끝 열(C3)에 둔다. */
+const STUB_WITH_VALUE = workbook([
+  text('A1', 'x') + text('B1', 'y') + text('C1', 'w'),
+  number('A2', 1) + '<c r="B2" t="z"><v>5</v></c>' + number('C2', 3),
+  number('A3', 4) + number('B3', 6) + '<c r="C3" t="z"><v>7</v></c>',
+])
+
 async function readBoth(
   bytes: Uint8Array,
   maxRows?: number,
@@ -253,6 +260,21 @@ describe('두 파서가 같게 읽는 자리', { timeout: 20_000 }, () => {
       ['합', '합', '3'],
     ])
     expect(sheetJs).toEqual(excelJs)
+  })
+
+  /**
+   * **값이 든 빈 칸 타입도 둘 다 값이다** (0.34.2 diff 여섯 번째 감사 C-20). `sheet_to_json`은 `t: 'z'` 칸을 `defval`도 없이 건너뛰어,
+   * 폴백만 그 자리가 구멍(가운데 열)이거나 짧은 행(끝 열)이었다. `toEqual`은 구멍과 `undefined`를 가르지 않으므로 칸 수도 센다.
+   */
+  it('값이 든 빈 칸 타입 — 둘 다 값이다', async () => {
+    const { excelJs, sheetJs } = await readBoth(STUB_WITH_VALUE)
+    expect(excelJs).toEqual([
+      ['x', 'y', 'w'],
+      ['1', '5', '3'],
+      ['4', '6', '7'],
+    ])
+    expect(sheetJs).toEqual(excelJs)
+    expect(sheetJs.map((row) => Object.keys(row).length)).toEqual([3, 3, 3])
   })
 
   it('서식만 있는 끝의 빈 열 — 둘 다 없다', async () => {
