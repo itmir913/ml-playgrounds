@@ -91,7 +91,14 @@ function fileBlockers(subject: ReproduceSubject): ReproduceBlocker[] {
   // 걸린다** (`mljs@2`로 만들었고 지금은 3이다) — 그것이 이 줄이 있는 이유다.
   if (!claims.some((claim) => subject.engineHere(claim))) blockers.push('ENGINE_MISSING')
 
-  if (subject.experiment.settings.split.method === 'provided' && !subject.hasTestDataset) {
+  // **테스트 표도 표 프로젝트만 본다** — 위 `NO_DATASET`과 같은 까닭이다. `hasTestDataset`은 정본 테스트 표가 있는지라
+  // (`ReproducePanel.vue`), 사진 프로젝트의 provided 실험에는 테스트용 사진이 있어도 늘 "테스트 데이터가 파일에 없다"가 섰다
+  // (R43-1 계획 2차 물음 3). 사진 대조를 열 때 테스트용 사진의 판정을 여기 더한다. `reproduce.spec.ts`의 *"사진 프로젝트에는"*이 문다.
+  if (
+    subject.dataType === 'tabular' &&
+    subject.experiment.settings.split.method === 'provided' &&
+    !subject.hasTestDataset
+  ) {
     blockers.push('NO_TEST_DATASET')
   }
   return blockers

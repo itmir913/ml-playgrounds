@@ -948,6 +948,32 @@ describe('대조를 막는 이유', () => {
     expect(blockers).not.toContain('NO_DATASET')
   })
 
+  /**
+   * **사진 provided 실험에 "테스트 데이터가 파일에 없다"를 붙이지 않는다** (R43-1 계획 2차 물음 3). `hasTestDataset`은 정본
+   * 테스트 표가 있는지라 사진 프로젝트에는 늘 거짓이고, 테스트용 사진이 있어도 그 문장이 섰다. 표 프로젝트는 그대로 막는다.
+   */
+  it('사진 프로젝트에는 "테스트 데이터가 파일에 없다"도 붙이지 않는다', async () => {
+    const base = await trained(['decision_tree'])
+    const provided: Experiment = {
+      ...base,
+      settings: { ...base.settings, split: { ...base.settings.split, method: 'provided' } },
+    }
+    const image = reproduceBlockers(
+      await subject({
+        experiment: provided,
+        dataType: 'image',
+        hasDataset: false,
+        hasTestDataset: false,
+      }),
+    )
+    expect(image).toContain('IMAGE_NOT_OPEN')
+    expect(image).not.toContain('NO_TEST_DATASET')
+    const tabular = reproduceBlockers(
+      await subject({ experiment: provided, hasTestDataset: false }),
+    )
+    expect(tabular).toContain('NO_TEST_DATASET')
+  })
+
   it('성공한 run이 없으면 거기서 멈춘다 - 근본적인 것이 먼저다', async () => {
     const experiment = await trained(['decision_tree'])
     const failed: Experiment = {
