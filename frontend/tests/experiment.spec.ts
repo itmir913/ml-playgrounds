@@ -762,6 +762,9 @@ describe('id와 changed', () => {
       testDataset: '바꾸면 기존 실험이 지워진다',
       // 예측 화면에서만 쓴다. 학습에 안 들어가므로 지표를 움직이지 않는다.
       predictDataset: '학습에 들어가지 않는다',
+      // 행마다의 열쇠 (open-decisions.md 111). 사진 한 장만 더해도 바뀐다 — 그 변화는
+      // `categoryCounts`·`rowsHash`가 이미 말하고, 열쇠가 바뀌면 그 셋 중 하나가 반드시 바뀐다.
+      rowKeys: '장수·rowsHash가 같은 변화를 말한다',
     }
 
     /**
@@ -867,6 +870,30 @@ describe('id와 changed', () => {
         ).toContain(field)
       })
     }
+
+    /**
+     * **열쇠만 다른 두 실험은 "같은 설정"이다** (`SNAPSHOT_NOT_COMPARED`, open-decisions.md 111).
+     * 실제로는 열쇠만 갈리는 일이 없다 — 이 검사가 재는 것은 빼는 장치가 물렸는가다.
+     */
+    it('이미지: rowKeys만 바꾸면 changed가 비어 있다', async () => {
+      const of = async (
+        snapshot: Record<string, unknown>,
+        history: readonly Experiment[],
+      ): Promise<Experiment> =>
+        (
+          await runExperimentRaw(
+            {
+              ...inputFor({ dataType: 'image' }),
+              snapshot: snapshot as Experiment['settings']['data'],
+            },
+            { ...frozen, history: { experiments: [...history] } },
+          )
+        ).experiment
+
+      const base = await of({ ...IMAGE_SNAPSHOT, rowKeys: 'AAAAAAAAAAA=' }, [])
+      const next = await of({ ...IMAGE_SNAPSHOT, rowKeys: '//////////8=' }, [base])
+      expect(next.changed).toEqual([])
+    })
 
     for (const [field, { patch, path }] of Object.entries(MUTATIONS)) {
       it(`${field}를 바꾸면 changed에 ${path}가 뜬다`, async () => {

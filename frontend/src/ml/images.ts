@@ -111,6 +111,75 @@ export interface ImageTrainingSource {
    * 사진으로 되돌려야 한다.
    */
   readonly hashes: readonly string[]
+  /**
+   * 표의 행 번호 -> 그 사진의 범주. `hashes`와 **같은 목록에서** 나온다 — 행마다의 열쇠
+   * (`rowKeysOf`)를 따로 거른 목록으로 지으면, 빠진 사진 하나 뒤로 열쇠가 한 칸씩 밀려
+   * 엉뚱한 사진을 가리킨다 (2단계 계획 감사 2판 C-1).
+   */
+  readonly rowCategories: readonly string[]
+}
+
+/** 행마다의 열쇠 하나의 바이트 수 (mlpx-spec.md §5.1). 포맷 규격이라 `limits.ts`가 아니다. */
+const ROW_KEY_BYTES = 8
+
+/** 이진 문자열을 짓는 덩어리. **인자로 통째로 펼치지 않는다** — 32,500장에서 콜 스택이 넘쳤다. */
+const BINARY_CHUNK = 0x2000
+
+/**
+ * 사진 한 장의 열쇠 — `sha256(범주 + "\n" + 사진 해시)`의 앞 8바이트, 16진수 (mlpx-spec.md §5.1).
+ *
+ * **범주가 열쇠에 든다.** 범주를 옮긴 훈련 사진은 다른 열쇠가 되어 못 찾고, 그것이 곧
+ * "옮긴 훈련 사진은 예측을 거부한다"(open-decisions.md 111)다. 따로 대조하는 장치가 없다.
+ */
+export function rowKeyOf(category: string, hash: string): string {
+  return hashText(`${category}${SEPARATOR}${hash}`).slice(0, ROW_KEY_BYTES * 2)
+}
+
+/**
+ * 표의 행마다의 열쇠를 이어 붙여 base64 하나로 (mlpx-spec.md §5.1). **표를 지은 그 목록에서**
+ * 짓는다 — `ImageTrainingSource`를 받는 것이 그 보장이다.
+ *
+ * `imageTrainingSource` 안에서 안 짓는 이유는 군집 패널 두 곳도 그 함수를 부르기 때문이다 —
+ * 안에서 지으면 열쇠가 필요 없는 호출이 5,000장에 16–41ms를 치른다(계획 감사 1판 C-2).
+ */
+export function rowKeysOf(source: Pick<ImageTrainingSource, 'hashes' | 'rowCategories'>): string {
+  const bytes = new Uint8Array(source.hashes.length * ROW_KEY_BYTES)
+  source.hashes.forEach((hash, row) => {
+    const key = rowKeyOf(source.rowCategories[row] ?? '', hash)
+    for (let at = 0; at < ROW_KEY_BYTES; at += 1) {
+      bytes[row * ROW_KEY_BYTES + at] = Number.parseInt(key.slice(at * 2, at * 2 + 2), 16)
+    }
+  })
+  let binary = ''
+  for (let start = 0; start < bytes.length; start += BINARY_CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(start, start + BINARY_CHUNK))
+  }
+  return btoa(binary)
+}
+
+/**
+ * `rowKeysOf`의 짝. 행마다의 열쇠(16진수)를 돌려준다. **못 풀면 `null`이다** — 남이 고친 파일이다.
+ *
+ * 스키마에서 모양을 막지 않는다. 그 칸 하나로 파일 전체가 `PROJECT_FILE_INVALID`가 되는 것보다
+ * 그 모델 하나가 `MODEL_TRAINING_DATA_CHANGED`로 꺼지는 편이 낫다(계획 감사 1판 C-6).
+ */
+export function readRowKeys(text: string): string[] | null {
+  let binary: string
+  try {
+    binary = atob(text)
+  } catch {
+    return null
+  }
+  if (binary.length % ROW_KEY_BYTES !== 0) return null
+  const keys: string[] = []
+  for (let start = 0; start < binary.length; start += ROW_KEY_BYTES) {
+    let key = ''
+    for (let at = start; at < start + ROW_KEY_BYTES; at += 1) {
+      key += binary.charCodeAt(at).toString(16).padStart(2, '0')
+    }
+    keys.push(key)
+  }
+  return keys
 }
 
 /**
@@ -193,6 +262,7 @@ export function imageTrainingSource(
       rowsHash: rowsHashOf(entries.map((entry) => entry.hash)),
     },
     hashes: entries.map((entry) => entry.hash),
+    rowCategories: entries.map((entry) => entry.category),
   }
 }
 
@@ -233,7 +303,11 @@ export function imageTestDataset(
 }
 
 /**
- * 참조형 모델(KNN)이 요구하는 훈련 행을 이미지에서 되세운다 (mlpx-spec.md §5.0).
+ * 참조형 모델(KNN)이 요구하는 훈련 행을 이미지에서 되세운다 (mlpx-spec.md §5.0·§5.1).
+ *
+ * **열쇠(`rowKeys`)가 적힌 실험은 열쇠로 찾는다** (open-decisions.md 111, `trainingRowsByKeys`).
+ * 그러면 사진을 더해도 같은 행이다. 아래는 **열쇠가 없는 실험**(이 필드 전의 파일, 옛 앱이
+ * 학습한 실험)의 경로다.
  *
  * **못 세우면 `null`이다.** 사진이 학습 뒤에 늘거나 줄었으면 `trainIndices`가 가리키는
  * 자리가 다른 사진이 되고, 그러면 **이웃이 한 장씩 밀린 채로 답만 멀쩡히 나온다.**
@@ -245,8 +319,8 @@ export function imageTestDataset(
  * 행 순서는 바뀐다. 그래서 스냅샷의 `rowsHash`를 다시 계산해 대조한다 — **두 방향 이동은
  * 교실에서 흔하다**("이거 둘이 서로 바뀌었네").
  *
- * **옛 파일에는 `rowsHash`가 없다.** 그때는 장수만 본다. 그 구멍은 닫을 방법이 없다 —
- * 그 순서를 아무도 안 적어 두었다 (mlpx-spec.md §5.1).
+ * **더 옛 파일에는 `rowsHash`도 없다.** 그때는 장수만 본다. 그 구멍은 그 실험에서는 닫을 방법이
+ * 없다 — 그 순서를 아무도 안 적어 두었다 (mlpx-spec.md §5.1). 다시 학습하면 열쇠가 적힌다.
  *
  * **장수는 표에 드는 사진만 센다.** 분류의 라벨 없는 사진은 표에 없는데 그 장수까지 대조하니,
  * 예측 전에 미분류 사진 한 장을 올렸을 뿐인데 모델이 꺼졌다.
@@ -267,6 +341,16 @@ export function imageTrainingRows(
 ): TrainingRows | null {
   const snapshot = dataSnapshot('image', experiment.settings)
   if (snapshot.backboneId !== backbone.id) return null
+  if (snapshot.rowKeys !== undefined) {
+    return trainingRowsByKeys(
+      project,
+      experiment,
+      preprocessor,
+      backbone,
+      vectors,
+      snapshot.rowKeys,
+    )
+  }
 
   const isClustering = taskType === 'clustering'
   const counts = countByCategory(project)
@@ -300,6 +384,60 @@ export function imageTrainingRows(
     // 인코딩은 아무 일도 안 한다 — 임베딩에는 범주형 열이 없다.
     features: transform(preprocessor, source.dataset, trainIndices, 'onehot'),
     target: targetValues(source.dataset, trainIndices, target),
+  }
+}
+
+/**
+ * 열쇠로 훈련 행을 되세운다 (mlpx-spec.md §5.1, open-decisions.md 111).
+ *
+ * **`trainIndices`가 가리키는 열쇠만 찾는다.** 그래서 훈련에 안 쓴 사진(테스트 몫·표본 밖)은
+ * 지우거나 옮겨도 상관없고, 훈련 사진을 지우거나 범주를 옮기면 열쇠가 없어 `null`이다.
+ * 장수·`rowsHash`는 안 본다 — 그것이 사진 추가를 막던 장치다.
+ *
+ * **번호는 원래 번호를 그대로 돌려준다.** 모델 파일의 `trainIndices`가 이 번호로 행을 고르고
+ * (`reference.ts`의 `loadReferenceModel`), 거리 동점도 이 번호로 가른다(`worse`). 다시 매기면
+ * 모델이 제 행을 못 찾는다. 무는 검사: `image-row-keys.spec.ts`의 *"사진을 더해도 답이 같다"*.
+ */
+function trainingRowsByKeys(
+  project: ProjectFile,
+  experiment: Experiment,
+  preprocessor: Preprocessor,
+  backbone: BackboneSpec,
+  vectors: ReadonlyMap<string, Float32Array>,
+  rowKeys: string,
+): TrainingRows | null {
+  const keys = readRowKeys(rowKeys)
+  if (keys === null) return null
+
+  // 열쇠 -> 지금 사진. **겹치면 고르지 않는다** — 64비트라 사실상 없지만, 있으면 조용히 틀린다.
+  const byKey = new Map<string, ImageEntry | null>()
+  // 라벨 없는 사진도 짓는다 — 열쇠에 범주(`_unlabeled`)가 들어 훈련 행의 열쇠와 겹칠 수 없다.
+  for (const entry of readImages(project, 'data')) {
+    const key = rowKeyOf(entry.category, entry.hash)
+    byKey.set(key, byKey.has(key) ? null : entry)
+  }
+
+  const rows: string[][] = []
+  for (const index of experiment.settings.trainIndices) {
+    const key = keys[index]
+    const entry = key === undefined ? undefined : byKey.get(key)
+    if (!entry) return null
+    const vector = vectors.get(entry.hash)
+    if (vector === undefined) return null
+    // `imageTrainingSource`와 같은 왕복이다 — `Dataset`의 칸이 문자열이다.
+    rows.push([...Array.from(vector, (value) => String(value)), entry.category])
+  }
+
+  const dataset: Dataset = {
+    columns: [...embeddingColumns(backbone.embeddingDim), IMAGE_LABEL_COLUMN],
+    rows,
+  }
+  const positions = rows.map((_, position) => position)
+  return {
+    indices: experiment.settings.trainIndices,
+    // 인코딩은 아무 일도 안 한다 — 임베딩에는 범주형 열이 없다.
+    features: transform(preprocessor, dataset, positions, 'onehot'),
+    target: targetValues(dataset, positions, IMAGE_LABEL_COLUMN),
   }
 }
 

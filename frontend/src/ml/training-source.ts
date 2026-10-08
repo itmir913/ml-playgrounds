@@ -19,7 +19,7 @@ import { backboneFor } from '@/ml/backbones'
 import { embedImages, type EmbedHandle, type EmbedWorker } from '@/ml/embed/client'
 import { spawnEmbedWorker } from '@/ml/embed/spawn'
 import type { EstimateInput } from '@/ml/estimate'
-import { imageTestDataset, imageTrainingSource, pendingEmbeddings } from '@/ml/images'
+import { imageTestDataset, imageTrainingSource, pendingEmbeddings, rowKeysOf } from '@/ml/images'
 import { plannedColumnsOf } from '@/ml/plan-cache'
 import { estimatedFeatureWidth, isMissing, targetValues, type Dataset } from '@/ml/preprocess'
 import {
@@ -69,10 +69,13 @@ export interface TrainingSource {
   /** 파일에 남는 기록. 계산에 쓴 표가 아니다. */
   readonly snapshot: Experiment['settings']['data']
   /**
-   * 표의 행 번호가 무엇이었는지. **표에는 없다** — 행이 곧 원본의 행이다.
-   * 이미지는 사진 해시이고, 결과 화면이 그것으로 사진을 되찾는다.
+   * 표의 행 번호 -> 사진 해시. **표에는 없다** — 행이 곧 원본의 행이다.
+   *
+   * **지금 이것을 읽는 화면은 없다** — `training-source.spec.ts`만 본다. 결과 화면의 군집 격자는
+   * 표를 다시 짓는다. 파일에 남는 행마다의 열쇠는 이것이 아니라 스냅샷의 `rowKeys`다
+   * (이름이 겹쳐 2026-10-08에 `rowKeys`에서 바꿨다).
    */
-  readonly rowKeys?: readonly string[]
+  readonly rowHashes?: readonly string[]
 }
 
 export interface TrainingSourceInput {
@@ -269,8 +272,15 @@ export const TRAINING_SOURCES: Readonly<
       // 그때는 splitRows가 아예 보지 않는다 (open-decisions.md "테스트용 zip").
       testDataset: scored ? imageTestDataset(filled, known, backbone, taskType) : null,
       settings: source.settings,
-      snapshot: source.snapshot,
-      rowKeys: source.hashes,
+      /**
+       * **행마다의 열쇠는 여기서 얹는다** (mlpx-spec.md §5.1, open-decisions.md 111). 표를 지은
+       * 그 `source`에서 짓고, 타깃을 쓰는 과제에만 — 열쇠에 범주가 들고, 행이 필요한 모델(KNN)이
+       * 분류뿐이다. `runExperiment`는 받은 스냅샷을 그대로 적는다.
+       */
+      snapshot: usesTarget(taskType)
+        ? { ...source.snapshot, rowKeys: rowKeysOf(source) }
+        : source.snapshot,
+      rowHashes: source.hashes,
     }
   },
 }

@@ -490,10 +490,24 @@ export const imageSnapshotSchema = z.looseObject({
    * B를 고양이→개로 옮기면 **범주별 장수가 하나도 안 변하는데** 경로가 바뀌어 순서는
    * 바뀐다. 그러면 이웃이 다른 사진이 된 채로 답만 멀쩡히 나온다.
    *
-   * **선택 항목이다** — 이 필드가 생기기 전 파일에는 없다. 없으면 장수만 보고, 그 파일의
-   * 구멍은 그대로 남는다. **닫을 방법이 없는 구멍이다**(그 순서를 아무도 안 적어 뒀다).
+   * **선택 항목이다** — 이 필드가 생기기 전 파일에는 없다. 없으면 장수만 보고, 그 실험의
+   * 구멍은 그대로 남는다. **그 실험에서는 닫을 방법이 없다**(그 순서를 아무도 안 적어 뒀다).
+   *
+   * **`rowKeys`가 생긴 뒤에도 늘 적는다.** 같은 v4의 옛 앱이 이것으로 판정하고, 변경 이력이
+   * 이것으로 순서 변화를 말한다(`rowKeys`는 비교에서 빠진다).
    */
   rowsHash: z.string().optional(),
+  /**
+   * 표의 행마다의 열쇠를 이어 붙인 base64 (`ml/images.ts`의 `rowKeysOf`, mlpx-spec.md §5.1).
+   * **분류 실험에만 있다** — 행이 필요한 모델(KNN)이 분류뿐이다.
+   *
+   * 있으면 예측이 `trainIndices`의 열쇠로 지금 사진을 찾아, 학습 뒤 사진을 더해도 같은 행을
+   * 세운다 (open-decisions.md 111). **선택 항목이라 `formatVersion`이 안 오른다**(§9.2).
+   *
+   * **모양은 여기서 막지 않는다.** 문자열이기만 하면 받고, 못 푸는 값은 `readRowKeys`가 `null`로
+   * 돌려 그 모델 하나만 꺼진다 — 정규식을 걸면 그 칸 하나로 파일 전체가 안 열린다.
+   */
+  rowKeys: z.string().optional(),
 })
 
 /** 한 데이터 종류가 선언하는 것 — 스키마 둘과 시작값 하나. */
@@ -613,7 +627,10 @@ export function dataSnapshot<Kind extends DataType>(
  * *"내가 무엇을 바꿨나"*이고, 그 답에 64자 16진수가 뜨면 학생은 읽을 것이 없다
  * (`ml/changes.ts`는 등록부에 없는 경로를 `labelKey: null`로 그대로 흘린다).
  *
- * **비운 채로 두는 것이 기본이고, 지금 비어 있다.**
+ * **비운 채로 두는 것이 기본이다.** 지금 든 것은 `rowKeys` 하나다 — 사진 한 장만 더해도 값이
+ * 바뀌어, 안 빼면 이력에 읽을 수 없는 긴 문자열이 뜬다. **빼도 탐지는 안 준다**: 행은 zip 경로순이라
+ * 범주마다 붙은 덩어리이고 덩어리 순서는 범주 이름순이므로, `rowsHash`·범주·장수가 같으면 열쇠
+ * 목록도 같다. 대우로, 열쇠가 바뀌면 그 셋 중 하나가 반드시 바뀐다 (open-decisions.md 111).
  *
  * **한 번 채웠다가 되돌렸다** (2026-08-19). `rowsHash`가 읽기 어려운 값이라 여기 넣었는데,
  * **표시를 고치려다 탐지를 지웠다** — 라벨 두 장을 맞바꾸면 장수도 범주도 그대로라
@@ -625,7 +642,7 @@ export function dataSnapshot<Kind extends DataType>(
  * 일어나지 않은 것으로 친다"**고 정하는 일이다. `tests/schema.spec.ts`가 이 목록의
  * 이름이 실재하는 스냅샷 필드인지 본다 — 오타는 조용히 아무것도 안 뺀다.
  */
-export const SNAPSHOT_NOT_COMPARED: readonly string[] = []
+export const SNAPSHOT_NOT_COMPARED: readonly string[] = ['rowKeys']
 
 export const DATA_COMPARABLE_KEYS: readonly string[] = [
   ...new Set(DATA_TYPES.flatMap((dataType) => Object.keys(DATA_SCHEMAS[dataType].snapshot.shape))),

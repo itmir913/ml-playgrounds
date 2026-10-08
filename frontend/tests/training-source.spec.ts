@@ -248,7 +248,7 @@ describe('이미지는 없는 것만 뽑는다', () => {
     expect(source.testDataset).toBeNull()
   })
 
-  /** 결과 화면이 사진을 되찾는 길이다. */
+  /** 표의 행 번호를 사진으로 되돌리는 값이다. 지금 읽는 화면은 없다(`TrainingSource.rowHashes`). */
   it('행 번호가 사진 해시로 되돌아간다', async () => {
     const project = imageProject(['a', 'b'])
     const seen = { requests: [] as EmbedRequest[] }
@@ -257,7 +257,7 @@ describe('이미지는 없는 것만 뽑는다', () => {
       taskType: 'clustering',
       createEmbedWorker: () => fakeWorker(seen),
     })
-    expect(source.rowKeys).toEqual(readImages(project).map((entry) => entry.hash))
+    expect(source.rowHashes).toEqual(readImages(project).map((entry) => entry.hash))
   })
 })
 
