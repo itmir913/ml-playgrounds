@@ -23,6 +23,11 @@
 defineProps<{
   title: string
   purpose: string
+  /**
+   * 안내 바로 아래의 한 문장. **한 문장은 한 키다**(CLAUDE.md §3) — 안내에 이어 붙이지 않고 따로 받는다. 지금은 점검 화면의
+   * CSV 경고 하나다(open-decisions.md 110).
+   */
+  note?: string
 }>()
 </script>
 
@@ -31,6 +36,7 @@ defineProps<{
     <div class="min-w-0">
       <h2 class="text-lg font-bold tracking-tight">{{ title }}</h2>
       <p class="mt-0.5 text-base text-ink-soft">{{ purpose }}</p>
+      <p v-if="note" class="mt-0.5 text-base text-ink-soft">{{ note }}</p>
     </div>
 
     <div class="flex flex-wrap items-center gap-x-6 gap-y-2">

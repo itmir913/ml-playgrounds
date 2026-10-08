@@ -629,8 +629,15 @@ function reasonOf(code: string): string {
       해서 머리의 문법까지 다를 이유는 없다.
 
       **맥락은 배지-값이다** (§8.16, 결과·전처리·학습의 머리와 같은 문법).
+
+      **안내 아래에 CSV 경고를 둔다** (open-decisions.md 110). `.mlpx`의 CSV는 학생이 올린 칸을 그대로 싣는다 — 교사가 압축을
+      풀어 엑셀로 열 때 수식·외부 연결을 허용하지 말라고 학생 파일을 여는 이 화면에서 말한다.
     -->
-    <StepHeader :title="t('inspect.title')" :purpose="t('inspect.lead')">
+    <StepHeader
+      :title="t('inspect.title')"
+      :purpose="t('inspect.lead')"
+      :note="t('inspect.csvFormulaCaution')"
+    >
       <template v-if="roster.items.value.length > 0" #context>
         <div class="flex items-baseline gap-1.5">
           <dt>

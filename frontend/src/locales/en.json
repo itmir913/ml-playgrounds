@@ -19,6 +19,7 @@
   "inspect": {
     "title": "Inspect project files",
     "lead": "Open a file and look through it. The original is never modified.",
+    "csvFormulaCaution": "If you unzip a file and open a CSV in Excel, do not allow formulas or external connections when Excel asks.",
     "pickFolder": "Choose folder",
     "pickFiles": "Choose .mlpx files",
     "reading": "Opening the file…",
