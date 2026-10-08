@@ -7,3 +7,7 @@ tests/fixtures/sklearn/expected.json
 # "zod가 낸 그대로"가 아니게 되고 `MLPX_WRITE_SCHEMA_CANON=1`로 다시 뜰 때마다
 # lint와 핑퐁이 된다 (tests/schema-structure.spec.ts).
 tests/fixtures/schema/
+
+# 과거 배포판의 골든 답 - 그 태그의 생성기가 쓴 그대로다(tests/fixtures/legacy/README.md).
+# 역사라 다시 짓지 않고, 포맷터도 손대지 않는다.
+tests/fixtures/legacy/*/answers.json

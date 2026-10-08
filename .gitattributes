@@ -17,6 +17,9 @@
 *.xlsx binary
 *.pdf   binary
 *.mlproj binary
+# 프로젝트 파일. 무압축 zip이라 JSON이 그대로 보여 텍스트로 잘못 읽힐 수 있다 —
+# 줄바꿈이 바뀌면 골든(tests/fixtures/legacy/)의 해시 대조가 깨진다.
+*.mlpx binary
 
 # 락파일은 diff 노이즈를 줄인다
 uv.lock           -diff

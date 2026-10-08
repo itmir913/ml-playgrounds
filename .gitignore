@@ -99,3 +99,5 @@ tmp/
 
 # 학생 프로젝트 파일이 실수로 커밋되는 것을 막는다
 *.mlpx
+# 과거 배포판의 골든은 예외다 — 학생 파일이 아니라 검사의 입력이다 (docs/mlpx-spec/05-versions.md §9.5).
+!frontend/tests/fixtures/legacy/*/*.mlpx
