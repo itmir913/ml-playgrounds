@@ -4,6 +4,17 @@
 
 > **상태 한 줄과, 제목이 물음일 때만 결론 한 줄을 둔다.** 경위는 같은 제목 아래 `docs/cases/open-decisions.md`에 있다.
 
+### 110. CSV로 나가는 학생 데이터의 수식 머리(`=`·`+`·`-`·`@`)를 가리는가
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. **가리지 않고, 점검 화면이 교사에게 알린다 (코드 소유자).** CSV는
+pandas 관행대로 칸을 그대로 싣는다(`data/serialize.ts`의 `toCanonicalCsv`) — 정본 해시와 왕복 무손실이 그것에 묶여 있다. 점검 화면의
+안내 아래 한 문장(`inspect.csvFormulaCaution`, `StepHeader`의 `note`)이 엑셀의 수식·외부 연결 경고를 허용하지 말라고 말한다.
+**처리방침은 고치지 않는다.** 문구는 사람 확인이다.
+
+### 109. 끝나지 못한 이동(중단·중복)도 떠나는 화면의 알림을 걷는가
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. **끝난 이동만 걷는다 (코드 소유자).** `router/index.ts`의 `afterEach`가
+실패 없이 끝난 이동에서만 수위선 이하를 걷고, 수위선은 어느 경우든 비운다. 무는 검사: `route-watermark.spec.ts`의 *"끝나지 못한
+이동은 그 화면의 알림을 안 걷는다"*.
+
 ### 108. 사진 장수 상한이 사진이 아닌 파일까지 세는가 — 무엇을 사진으로 보고 셀지 정한다
 **[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. **확장자 목록으로 센다 (코드 소유자).** 폴더·zip 입구
 (`data/image/upload.ts`)가 `formats.ts`의 `IMAGE_SOURCE_EXTENSIONS`에 든 확장자만 사진으로 받고, 나머지는 범주 이름을 읽고
