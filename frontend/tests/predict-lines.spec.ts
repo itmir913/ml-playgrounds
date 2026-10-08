@@ -121,6 +121,10 @@ describe('R24 B-6: the bold bar is the answer the model gave', () => {
       global: { plugins: [i18n] },
     })
 
+    // **`cardsShown`을 안 주면 카드가 보인다** (`AnswerList.vue`의 `withDefaults`). Vue는 빠진 불리언
+    // prop을 `false`로 넣으므로, 기본값이 사라지면 표 예측의 카드가 통째로 숨는다 (코드 감사 C-3).
+    expect((wrapper.find('ul.grid').element as HTMLElement).style.display).toBe('')
+
     const names = wrapper.findAll('li span.truncate')
     const bold = names.filter((one) => one.classes().includes('font-bold')).map((one) => one.text())
     expect(bold).toEqual(['고양이'])

@@ -81,9 +81,8 @@ import { yieldToScreen } from '@/screen'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
 import { ACTION_ICONS } from '@/icons'
-import { readFlag, writeFlag } from '@/prefs'
 import AnswerList from './AnswerList.vue'
-import { overrideCards, photoCardsOpen } from './fold'
+import { photoCardsOpen, savedCardFold, switchCards, togglePhotoCards, type CardFold } from './fold'
 import PredictFilters, { type FilterAxis } from './PredictFilters.vue'
 import ImageSourceMenu from '@/views/data/ImageSourceMenu.vue'
 
@@ -292,30 +291,21 @@ const ranks = computed(() => rankAnswersAcross(visible.value, answers.value.valu
 /**
  * `모델 카드 표시` (architecture.md §8.13.4). **기본은 펼침**이고 화면 크기마다 다르게
  * 두지 않는다 — `실험 기록`(§8.13.3)과 같은 이유다. 사진 한 장을 손으로 여닫은 것은
- * `cardOverrides`에만 남고, 스위치를 바꾸면 비운다.
+ * 예외에만 남고, 스위치를 바꾸면 비운다(`fold.ts`의 `switchCards`).
  */
-const cardsOpen = ref(readFlag('predictCardsOpen', true))
-const cardOverrides = ref(new Map<string, boolean>())
+const cardFold = ref<CardFold>(savedCardFold())
 
 function onCardsSwitch(event: Event): void {
-  const next = (event.target as HTMLInputElement).checked
-  cardsOpen.value = next
-  cardOverrides.value = new Map()
-  writeFlag('predictCardsOpen', next)
+  cardFold.value = switchCards((event.target as HTMLInputElement).checked)
 }
 
 function cardsOpenFor(hash: string): boolean {
-  return photoCardsOpen(cardsOpen.value, cardOverrides.value, hash)
+  return photoCardsOpen(cardFold.value.all, cardFold.value.overrides, hash)
 }
 
 /** 사진 한 장의 카드를 펴고 닫는다. 스위치와 같아지면 예외가 지워진다 (`fold.ts`). */
 function togglePhoto(hash: string): void {
-  cardOverrides.value = overrideCards(
-    cardsOpen.value,
-    cardOverrides.value,
-    hash,
-    !cardsOpenFor(hash),
-  )
+  cardFold.value = togglePhotoCards(cardFold.value, hash)
 }
 
 const visibleUsable = computed(() => visible.value.filter((entry) => entry.reason === undefined))
@@ -933,7 +923,7 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       <input
         type="checkbox"
         class="size-4 shrink-0 accent-brand"
-        :checked="cardsOpen"
+        :checked="cardFold.all"
         @change="onCardsSwitch"
       />
       <span class="font-bold">{{ t('predict.image.cardsToggle') }}</span>

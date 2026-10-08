@@ -15,6 +15,9 @@ shift
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(git -C "$here" rev-parse --show-toplevel)
 mkdir -p "$work/out"
+# 실패한 태그 수. 한 태그가 실패해도 나머지는 짓고, **끝에서 0이 아닌 값으로 끝낸다** — 여러 태그를
+# 돌리면 실패 한 줄이 로그에 묻힌다(코드 감사 C-6).
+failed=0
 
 for tag in "$@"; do
   tree="$work/tree-$tag"
@@ -30,6 +33,11 @@ for tag in "$@"; do
     cp "$here/legacy-generate.mjs" tests/zz-legacy-generate.spec.ts
     LEGACY_OUT="$out" LEGACY_TAG="$tag" npx vitest run tests/zz-legacy-generate.spec.ts \
       >"$work/vitest-$tag.log" 2>&1 || { echo "   FAILED — $work/vitest-$tag.log"; exit 1; }
-  ) && echo "   ok — $(ls "$out" | tr '\n' ' ')" || true
+  ) && echo "   ok — $(ls "$out" | tr '\n' ' ')" || failed=$((failed + 1))
   git -C "$repo" worktree remove --force "$tree"
 done
+
+if [ "$failed" -gt 0 ]; then
+  echo "$failed tag(s) failed"
+  exit 1
+fi

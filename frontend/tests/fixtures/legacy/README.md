@@ -20,18 +20,19 @@
 
 태그마다 짓지 않는다. `.mlpx`의 구조나 쓰는 방식이 바뀐 배포만 골랐다. 0.9.0이 첫 배포다.
 
-| 태그     | 형식 | 고른 이유                                                                     |
-| -------- | ---- | ----------------------------------------------------------------------------- |
-| `0.9.0`  | v1   | 첫 배포. 옛 백본 id(`mobilenet-v2`), `rowsHash` 없음, 엔트리를 deflate로 압축 |
-| `0.10.0` | v2   | 백본 id 개정(§9.1), `rowsHash`가 생긴다                                       |
-| `0.16.0` | v2   | 신경망 모델 형식 둘(`mlpx-neural-v1`·`mlpx-neural-regression-v1`)             |
-| `0.22.0` | v2   | `mlpx-tree-v2`, 설정의 `packages`                                             |
-| `0.27.0` | v3   | 형식 v3(§9.3)                                                                 |
-| `0.28.4` | v3   | 엔트리를 스트리밍 압축기 대신 한 번에 누른다                                  |
-| `0.30.5` | v3   | 모든 엔트리를 무압축으로 담는다                                               |
-| `0.33.0` | v4   | 형식 v4(§9.4)                                                                 |
-| `0.34.2` | v4   | JSON의 수 배열을 한 줄에 쓴다                                                 |
-| `0.35.4` | v4   | 행마다의 열쇠(결정 111) 직전의 마지막 배포                                    |
+| 태그     | 형식 | 고른 이유                                                                               |
+| -------- | ---- | --------------------------------------------------------------------------------------- |
+| `0.9.0`  | v1   | 첫 배포. 옛 백본 id(`mobilenet-v2`), `rowsHash` 없음, 엔트리를 deflate로 압축           |
+| `0.10.0` | v2   | 백본 id 개정(§9.1), `rowsHash`가 생긴다                                                 |
+| `0.16.0` | v2   | 신경망 모델 형식 둘(`mlpx-neural-v1`·`mlpx-neural-regression-v1`)                       |
+| `0.22.0` | v2   | `mlpx-tree-v2`, 설정의 `packages`                                                       |
+| `0.27.0` | v3   | 형식 v3(§9.3)                                                                           |
+| `0.28.4` | v3   | 엔트리를 스트리밍 압축기 대신 한 번에 누른다                                            |
+| `0.30.5` | v3   | 모든 엔트리를 무압축으로 담는다                                                         |
+| `0.33.0` | v4   | 형식 v4(§9.4)                                                                           |
+| `0.34.2` | v4   | JSON의 수 배열을 한 줄에 쓴다                                                           |
+| `0.35.4` | v4   | 행마다의 열쇠(결정 111) 직전의 마지막 배포                                              |
+| `0.35.5` | v4   | 행마다의 열쇠(`settings.data.rowKeys`)를 처음 배포 — 사진 KNN이 사진 추가 뒤에도 답한다 |
 
 고르는 데 쓴 축: `FORMAT_VERSION`, `project/schema.ts`의 필드 이름 집합, 모델 형식 문자열(`mlpx-*-vN`), 정본 사진
 형식, `project/format.ts`·`project/json-text.ts`의 쓰기 방식 커밋. 같은 버전 안의 고침 태그는 뺐다.
@@ -43,7 +44,7 @@ frontend/scripts/legacy-mlpx/generate.sh <작업 디렉터리> <태그>...
 ```
 
 태그마다 `git worktree`로 그 태그를 꺼내 그 태그의 `package-lock.json`대로 깔고, 생성기
-(`frontend/scripts/legacy-mlpx/legacy-generate.spec.ts`)를 그 트리의 `tests/`에 복사해 vitest로 돌린다.
+(`frontend/scripts/legacy-mlpx/legacy-generate.mjs`)를 그 트리의 `tests/`에 복사해 vitest로 돌린다.
 **진짜 입구를 지난다** — CSV → `openTable` → `importTable` → `applyDataset` → 설정 문 → `trainingSourceOf` →
 `runExperiment` → `applyExperiment` → `writeProject`. 답은 쓴 파일을 그 버전의 `readProject`로 다시 열어 낸다.
 

@@ -10,6 +10,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { readFlag, VIEW_FLAGS, writeFlag } from '../src/prefs'
+import { savedCardFold, switchCards } from '../src/views/predict/fold'
 
 afterEach(() => {
   window.localStorage.clear()
@@ -23,6 +24,14 @@ describe('화면 설정', () => {
 
     writeFlag('resultsHistoryOpen', true)
     expect(readFlag('resultsHistoryOpen', false)).toBe(true)
+  })
+
+  /** 사진 예측의 카드 스위치는 이 기기에 남는다 — 화면을 열 때 그 값으로 선다 (코드 감사 C-4). */
+  it('카드 스위치를 끄면 다음에 열 때도 꺼져 있다', () => {
+    switchCards(false)
+    expect(savedCardFold()).toEqual({ all: false, overrides: new Map() })
+    switchCards(true)
+    expect(savedCardFold().all).toBe(true)
   })
 
   it('저장된 것이 없으면 기본값이다', () => {

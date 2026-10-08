@@ -9,6 +9,35 @@
  * 단추의 `aria-expanded`·화살표와 카드의 `v-show`가 서로 다른 판정을 하게 된다.
  */
 
+import { readFlag, writeFlag } from '@/prefs'
+
+/** 스위치 하나와 사진별 예외. 화면은 이것 하나를 들고, 바꾸는 것은 아래 함수들이다. */
+export interface CardFold {
+  readonly all: boolean
+  readonly overrides: ReadonlyMap<string, boolean>
+}
+
+/** 화면을 열 때. **스위치는 이 기기에 남은 값**이고, 예외는 없다 — 세션의 것이다. */
+export function savedCardFold(): CardFold {
+  return { all: readFlag('predictCardsOpen', true), overrides: new Map() }
+}
+
+/**
+ * 스위치를 바꿨다. **예외를 비운다** — 스위치를 바꾸는 것은 "전부 이렇게"라는 뜻이라, 손으로
+ * 여닫은 사진이 따라오지 않으면 고장으로 읽힌다. 바꾼 값은 이 기기에 남긴다.
+ * 무는 검사: `image-predict-fold.spec.ts`의 *"스위치를 바꾸면 예외가 비워진다"* (코드 감사 C-4).
+ */
+export function switchCards(open: boolean): CardFold {
+  writeFlag('predictCardsOpen', open)
+  return { all: open, overrides: new Map() }
+}
+
+/** 사진 한 장의 카드를 뒤집는다. 스위치와 같아지면 예외가 지워진다(`overrideCards`). */
+export function togglePhotoCards(fold: CardFold, hash: string): CardFold {
+  const open = !photoCardsOpen(fold.all, fold.overrides, hash)
+  return { all: fold.all, overrides: overrideCards(fold.all, fold.overrides, hash, open) }
+}
+
 export function photoCardsOpen(
   all: boolean,
   overrides: ReadonlyMap<string, boolean>,

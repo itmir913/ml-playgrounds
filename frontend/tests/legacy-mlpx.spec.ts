@@ -19,6 +19,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
 import { isClientError } from '../src/errors'
@@ -312,10 +313,25 @@ describe('과거 배포판의 .mlpx', () => {
       })
 
       /**
-       * **과거 파일에는 행마다의 열쇠가 없다**(결정 111). 사진을 더하면 KNN만 "다시 학습하라"로 꺼지고,
-       * 나머지 모델은 훈련 행을 안 쓰므로 그대로다.
+       * **골든이 적은 형식 버전이 그 파일의 것이다.** 골든을 바꾸다 v1 파일이 빠지면 마이그레이션
+       * 경로를 안 지나가는데, 열기만 보면 그것을 모른다 (코드 감사 C-6). 원본 manifest를 직접 읽는다.
        */
-      it('사진을 더하면 KNN만 꺼지고 나머지는 그대로다', async () => {
+      it('파일의 형식 버전이 골든에 적힌 것과 같다', () => {
+        for (const kind of ['tabular', 'image'] as const) {
+          const entries = unzipSync(new Uint8Array(readFileSync(join(ROOT, tag, `${kind}.mlpx`))))
+          const manifest = JSON.parse(new TextDecoder().decode(entries['manifest.json'])) as {
+            formatVersion: number
+          }
+          expect(manifest.formatVersion, `${tag}/${kind}`).toBe(recorded.formatVersion)
+        }
+      })
+
+      /**
+       * **사진을 더하면** 나머지 모델은 훈련 행을 안 쓰므로 그대로다. KNN은 그 실험에 행마다의 열쇠가
+       * 있으면(0.35.5~, 결정 111) 같은 답이고, 없으면 "다시 학습하라"로 꺼진다. 어느 쪽인지는 골든의
+       * 스냅샷이 말한다 — 태그 번호로 가르지 않는다 (코드 감사 C-5).
+       */
+      it('사진을 더하면 열쇠가 없는 KNN만 꺼지고 나머지는 그대로다', async () => {
         const { project } = await open(tag, 'image')
         const bytes = new TextEncoder().encode(`legacy-spec:added:${tag}`)
         const more = addImages(project, [{ hash: hashBytes(bytes), bytes, category: '개' }], {
@@ -324,13 +340,21 @@ describe('과거 배포판의 .mlpx', () => {
           format: 'webp',
         }).project
         const actual = imageAnswers(more, recorded.image.querySeeds)
+        const keyed = new Set(
+          project.document.runs.experiments
+            .filter(
+              (experiment) => dataSnapshot('image', experiment.settings).rowKeys !== undefined,
+            )
+            .map((experiment) => experiment.id),
+        )
         for (const [key, value] of Object.entries(recorded.image.answers)) {
-          if (key.endsWith('/knn')) {
+          const change = EXPECTED_CHANGES[`${tag}/image/${key.split('/').at(-1) ?? ''}`]
+          if (key.endsWith('/knn') && !keyed.has(key.split('/')[0] ?? '')) {
             expect(actual.answers[key], `${tag}/${key}`).toEqual({
               error: 'MODEL_TRAINING_DATA_CHANGED',
             })
           } else {
-            expectSameAnswer(actual.answers[key], value, `${tag}/${key}`)
+            expectSameAnswer(actual.answers[key], change ? change.answer : value, `${tag}/${key}`)
           }
         }
       })

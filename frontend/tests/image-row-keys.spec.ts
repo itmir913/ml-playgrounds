@@ -22,6 +22,7 @@ import { DEFAULT_BACKBONE_ID, backboneFor } from '../src/ml/backbones'
 import { runExperiment } from '../src/ml/experiment'
 import {
   embeddingColumns,
+  IMAGE_LABEL_COLUMN,
   imageLoadContext,
   imageTrainingRows,
   readRowKeys,
@@ -31,7 +32,7 @@ import {
 } from '../src/ml/images'
 import { loadModel } from '../src/ml/models'
 import { readPreprocessors } from '../src/ml/predict'
-import { transform } from '../src/ml/preprocess'
+import { targetValues, transform } from '../src/ml/preprocess'
 import { trainingSourceOf, type TrainingSource } from '../src/ml/training-source'
 import { applyExperiment } from '../src/project/attach'
 import { newProjectDocument } from '../src/project/create'
@@ -451,6 +452,46 @@ describe('열쇠와 지문의 공식', () => {
  * **열쇠 경로의 가드 둘** (코드 감사 C-2). `image-training.spec.ts`의 같은 가드 검사는 열쇠가 없는
  * 스냅샷으로 지어 옛 경로만 지나간다 — 여기서는 진짜 입구로 학습해 열쇠가 적힌 실험으로 잰다.
  */
+/**
+ * **되세운 행이 학습 때의 표와 행마다 같다** (코드 감사 C-1).
+ *
+ * 위의 *"답이 같다"* 검사는 이 데이터가 너무 잘 갈려서, 행의 특성이나 라벨이 한 칸 밀려도 k=5
+ * 다수결이 같아 초록이었다 — 이 파일의 주석이 경고하는 *"이웃이 한 장씩 밀린 채로 답만 멀쩡히"*
+ * 그 모양이다. 그래서 답이 아니라 행 자체를 학습 때의 표(`trained.source.dataset`)와 대조한다.
+ */
+describe('되세운 훈련 행', () => {
+  function expectSameRows(trained: Trained, project: ProjectFile, experiment: Experiment): void {
+    const preprocessor = readPreprocessors(project.document, project.models).get(experiment.id)!
+    const rows = imageTrainingRows(
+      project,
+      experiment,
+      preprocessor,
+      BACKBONE,
+      readEmbeddings(project, BACKBONE.id, DIM),
+      'classification',
+    )
+    const { trainIndices } = experiment.settings
+    const table = trained.source.dataset
+    expect(rows?.indices).toEqual(trainIndices)
+    expect(rows?.target).toEqual(targetValues(table, trainIndices, IMAGE_LABEL_COLUMN))
+    expect(rows?.features).toEqual(transform(preprocessor, table, trainIndices, 'onehot'))
+  }
+
+  it('열쇠가 있으면 사진을 더해도 학습 때의 행 그대로다', async () => {
+    const trained = await train(placed(emptyProject(), TRAINING))
+    const more = placed(trained.project, [
+      photo('dog-new', '개', 15),
+      photo('cat-new', '고양이', 14),
+    ])
+    expectSameRows(trained, more, trained.experiment)
+  })
+
+  it('열쇠가 없는 실험도 사진이 그대로면 학습 때의 행 그대로다', async () => {
+    const trained = await train(placed(emptyProject(), TRAINING))
+    expectSameRows(trained, trained.project, withRowKeys(trained.experiment, undefined))
+  })
+})
+
 describe('열쇠가 있어도 거부하는 것', () => {
   it('훈련 사진 하나의 벡터가 없다', async () => {
     const trained = await train(placed(emptyProject(), TRAINING))

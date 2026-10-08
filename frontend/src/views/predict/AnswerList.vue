@@ -2,7 +2,7 @@
 /**
  * **재수출은 이 블록에 있어야 한다.** `<script setup>` 안의 `export`는 컴파일러가
  * 못 받는다. 팔레트 차례를 모듈에서 한 번 뽑던 자리는 `answer-tones.ts`로 옮겼다 —
- * 사진 예측의 그루터기도 같은 배열을 봐야 한다 (architecture.md §8.13.4).
+ * 판정을 순수 함수로 두어 vitest가 덮게 하려고서다.
  */
 import type { Answer } from '@/ml/predict'
 
@@ -157,7 +157,7 @@ const cards = computed(() => props.models.map((model) => ({ model, evidence: evi
 
 const tally = computed(() => tallyClassificationAnswers(props.models, props.answers))
 
-/** 갈림표의 차례와 색은 `answer-tones.ts`가 정한다 — 그루터기와 같은 함수다. */
+/** 갈림표의 차례와 색은 `answer-tones.ts`가 정한다. */
 const rankedTally = computed(() => rankTally(tally.value, props.ranks))
 
 function cardClass(model: PredictableModel): string {

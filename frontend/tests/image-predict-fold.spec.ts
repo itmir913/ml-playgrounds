@@ -7,7 +7,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { rankTally } from '../src/views/predict/answer-tones'
-import { overrideCards, photoCardsOpen } from '../src/views/predict/fold'
+import {
+  overrideCards,
+  photoCardsOpen,
+  switchCards,
+  togglePhotoCards,
+} from '../src/views/predict/fold'
 
 describe('photoCardsOpen', () => {
   it('예외가 없으면 스위치를 따른다', () => {
@@ -43,6 +48,24 @@ describe('overrideCards', () => {
     const before = new Map([['a', true]])
     overrideCards(false, before, 'b', true)
     expect([...before]).toEqual([['a', true]])
+  })
+})
+
+/** 화면이 들고 있는 것을 바꾸는 함수들 (코드 감사 C-4 — 화면 안에 있던 규칙이다). */
+describe('switchCards · togglePhotoCards', () => {
+  it('스위치를 바꾸면 예외가 비워진다', () => {
+    const fold = togglePhotoCards({ all: true, overrides: new Map() }, 'a')
+    expect(fold.overrides.size).toBe(1)
+    const switched = switchCards(false)
+    expect(switched).toEqual({ all: false, overrides: new Map() })
+    expect(photoCardsOpen(switched.all, switched.overrides, 'a')).toBe(false)
+  })
+
+  it('사진 한 장을 두 번 뒤집으면 예외가 없다', () => {
+    const start = { all: false, overrides: new Map<string, boolean>() }
+    const once = togglePhotoCards(start, 'a')
+    expect(photoCardsOpen(once.all, once.overrides, 'a')).toBe(true)
+    expect(togglePhotoCards(once, 'a').overrides.size).toBe(0)
   })
 })
 

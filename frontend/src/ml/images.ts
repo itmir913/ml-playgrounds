@@ -396,7 +396,7 @@ export function imageTrainingRows(
  *
  * **번호는 원래 번호를 그대로 돌려준다.** 모델 파일의 `trainIndices`가 이 번호로 행을 고르고
  * (`reference.ts`의 `loadReferenceModel`), 거리 동점도 이 번호로 가른다(`worse`). 다시 매기면
- * 모델이 제 행을 못 찾는다. 무는 검사: `image-row-keys.spec.ts`의 *"사진을 더해도 답이 같다"*.
+ * 모델이 제 행을 못 찾는다. 무는 검사: `image-row-keys.spec.ts`의 *"되세운 훈련 행"*·*"사진을 더해도 답이 같다"*.
  */
 function trainingRowsByKeys(
   project: ProjectFile,

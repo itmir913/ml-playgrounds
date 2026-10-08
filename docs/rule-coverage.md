@@ -76,6 +76,7 @@
 | §1.5 상한은 `limits.ts`가 유일한 출처 | `limits-rules.spec.ts` |
 | §4 버전은 지시 없이 안 움직인다 | `versions.spec.ts` · `schema-version.spec.ts` |
 | §4 **구조 변경이 버전을 동반하는가** | `schema-structure.spec.ts` · `tests/fixtures/schema/v*.released.json` |
+| §4 **과거 배포판이 쓴 `.mlpx`가 열리고 같은 답을 내는가** (`mlpx-spec.md` §9.5) | `legacy-mlpx.spec.ts` · `tests/fixtures/legacy/` |
 | §1.5 상한마다 **누가 정했는지**가 달려 있는가 | `limits-rules.spec.ts` |
 | §1.5 **끌 수 있는 상한을 스위치를 거쳐 읽는가** | `limits-rules.spec.ts` · `limits.ts` · `ml/algorithms.ts` · `ml/backend.ts` |
 | §1.5 **행 수를 상한과 견주는 자리가 하나인가** | `limits-rules.spec.ts` · `data/xlsx.ts` |
