@@ -8,12 +8,14 @@
 
 import { describe, expect, it } from 'vitest'
 
+import { isClientError } from '../src/errors'
 import { hashBytes } from '../src/hash'
 import { DEFAULT_BACKBONE_ID, backboneFor } from '../src/ml/backbones'
 import { comparablePair } from '../src/ml/experiment'
 import {
   embeddingColumns,
   IMAGE_LABEL_COLUMN,
+  imageLoadContext,
   imagePredictTable,
   imageTestDataset,
   imageTrainingRows,
@@ -22,6 +24,8 @@ import {
   rowsHashOf,
   type ImageTrainingSource,
 } from '../src/ml/images'
+import { REFERENCE_FORMAT } from '../src/ml/models/reference'
+import { TREE_V2_FORMAT } from '../src/ml/models/tree'
 import { planRun } from '../src/ml/plan'
 import { TRAINING_SOURCES } from '../src/ml/training-source'
 import { addEmbeddings } from '../src/project/embeddings'
@@ -428,6 +432,66 @@ describe('훈련 행을 되세운다', () => {
         'classification',
       ),
     ).not.toBeNull()
+  })
+
+  /**
+   * **분류의 라벨 없는 사진은 표에 없다.** 그 장수까지 대조하던 때는 예측 전에 미분류 사진
+   * 한 장을 올렸을 뿐인데 KNN이 "데이터가 없다"며 꺼졌다.
+   */
+  it('라벨 없는 사진이 늘어도 분류의 행은 그대로 내준다', () => {
+    const before = imageProject(ITEMS)
+    const more = imageProject([...ITEMS, { seed: 'e', category: IMAGE_UNLABELED }])
+    expect(rowsOf(more, before)?.indices).toEqual([0, 1, 2, 3])
+  })
+
+  /**
+   * **임베딩이 빠진 사진을 건너뛰면 뒤의 번호가 당겨진다.** 지문이 없는 옛 실험이고 훈련 행이
+   * 표의 일부이면, 장수도 번호 범위도 멀쩡해서 이웃이 한 칸씩 밀린 채 답만 나온다.
+   */
+  it('표에 들 사진의 임베딩이 하나라도 없으면 행을 안 내준다', () => {
+    const project = imageProject(ITEMS)
+    const { experiment, preprocessor } = trained(project)
+    const older = structuredClone(experiment)
+    delete (older.settings.data as { rowsHash?: string }).rowsHash
+    older.settings.trainIndices = [0, 1, 2]
+
+    const vectors = vectorsFor(project)
+    const first = readImages(project)[0]
+    expect(first, 'check first that the project has photos').toBeDefined()
+    if (first) vectors.delete(first.hash)
+
+    expect(
+      imageTrainingRows(project, older, preprocessor, BACKBONE, vectors, 'classification'),
+    ).toBeNull()
+  })
+
+  it('학습 때와 백본이 다르면 행을 안 내준다', () => {
+    const project = imageProject(ITEMS)
+    const { experiment, preprocessor, vectors } = trained(project)
+    const other = structuredClone(experiment)
+    ;(other.settings.data as { backboneId: string }).backboneId = 'another-backbone'
+    expect(
+      imageTrainingRows(project, other, preprocessor, BACKBONE, vectors, 'classification'),
+    ).toBeNull()
+  })
+})
+
+/**
+ * **못 세운 행은 "데이터가 없다"가 아니다** (`imageLoadContext`, mlpx-spec.md §5.1). 사진은
+ * 있으므로 학생이 할 일은 데이터를 가진 파일을 여는 것이 아니라 다시 학습하는 것이다.
+ */
+describe('이미지 모델을 읽을 맥락', () => {
+  it('행이 필요한 형식은 사진이 바뀌었다고 말한다', () => {
+    try {
+      imageLoadContext(null, REFERENCE_FORMAT)
+      expect.unreachable()
+    } catch (error) {
+      expect(isClientError(error) && error.code).toBe('MODEL_TRAINING_DATA_CHANGED')
+    }
+  })
+
+  it('행이 필요 없는 형식은 행이 없어도 읽는다', () => {
+    expect(imageLoadContext(null, TREE_V2_FORMAT)).toEqual({})
   })
 })
 

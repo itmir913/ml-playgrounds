@@ -35,8 +35,13 @@ import { anyLock, lockFor, turnPage, useGate, type WatchWriteId } from '@/locks'
 import { backboneFor } from '@/ml/backbones'
 import { embedImages } from '@/ml/embed/client'
 import { spawnEmbedWorker } from '@/ml/embed/spawn'
-import { imagePredictTable, imageTrainingRows, pendingEmbeddings } from '@/ml/images'
-import { loadModel, loadModelProba, type LoadContext } from '@/ml/models'
+import {
+  imageLoadContext,
+  imagePredictTable,
+  imageTrainingRows,
+  pendingEmbeddings,
+} from '@/ml/images'
+import { loadModel, loadModelProba } from '@/ml/models'
 import {
   algorithmFilterOptions,
   applyPredictFilter,
@@ -55,6 +60,7 @@ import {
   rankAnswersAcross,
   showsClusterNames,
   type PredictFilter,
+  type TrainingRows,
 } from '@/ml/predict'
 import { transform, type Preprocessor } from '@/ml/preprocess'
 import { experimentNames as experimentNamesOf } from '@/ml/results'
@@ -590,7 +596,8 @@ async function run(watch?: WatchWriteId): Promise<void> {
 
     // **이미 낸 답은 그대로 둔다.** 쪽을 되돌아갔을 때 다시 계산하지 않는다.
     const next = new Map(answers.value)
-    const contexts = new Map<string, LoadContext>()
+    /** 실험 id -> 되세운 훈련 행. `null`은 못 세운 것이다 — 다시 세워 봐야 같다. */
+    const trainingRows = new Map<string, TrainingRows | null>()
 
     for (const [index, photo] of photos.value.entries()) {
       if (!wanted.has(photo.hash)) continue
@@ -607,9 +614,9 @@ async function run(watch?: WatchWriteId): Promise<void> {
 
         try {
           const payload = JSON.parse(new TextDecoder().decode(bytes)) as unknown
-          let context = contexts.get(entry.experiment.id)
-          if (context === undefined) {
-            const rows = imageTrainingRows(
+          let rows = trainingRows.get(entry.experiment.id)
+          if (rows === undefined) {
+            rows = imageTrainingRows(
               current,
               entry.experiment,
               preprocessor,
@@ -617,9 +624,10 @@ async function run(watch?: WatchWriteId): Promise<void> {
               known,
               entry.experiment.settings.taskType,
             )
-            context = rows ? { trainingRows: rows } : {}
-            contexts.set(entry.experiment.id, context)
+            trainingRows.set(entry.experiment.id, rows)
           }
+          // 못 세운 행을 빈 맥락으로 넘기지 않는다 — 사진이 있는데 "데이터가 없다"고 말하게 된다.
+          const context = imageLoadContext(rows, entry.run.model?.format ?? '')
 
           // **빈 벡터로는 답을 안 낸다.** `?? []`로 메우면 아무 값도 안 든 벡터가
           // 모델에 들어가고, 이 파일 자신의 주석이 "0으로 메우면 모든 사진이 같은

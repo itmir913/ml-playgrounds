@@ -151,6 +151,9 @@ export const CLIENT_ERROR_CODES = [
   // 모델도 형식도 멀쩡하고 없는 것은 dataset/이라, 학생이 할 일은 데이터를 가진
   // 파일로 다시 여는 것이다.
   'MODEL_NEEDS_DATASET',
+  // 데이터는 있는데 학습 때의 행을 못 되세운다 - 학습 뒤 사진이 바뀌었다 (mlpx-spec.md 5.1).
+  // 위와 나누는 이유는 학생이 할 일이 다르기 때문이다 - 다른 파일을 열 것이 아니라 다시 학습한다.
+  'MODEL_TRAINING_DATA_CHANGED',
 
   // 예측 입력 - ml/predict.ts
   // 채우지 않은 칸이 있다. **전처리기의 대체값으로 조용히 채우지 않는다** - 학생은

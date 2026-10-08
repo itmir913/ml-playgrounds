@@ -13,6 +13,8 @@
  * 고른 것도 아니고 다시 열었을 때 뜻도 없는 값이 남는다. 그래서 스냅샷을 따로 짓는다.
  */
 
+import { ClientError } from '@/errors'
+import { interpreterFor, type LoadContext } from '@/ml/models'
 import type { TrainingRows } from '@/ml/predict'
 import { targetValues, transform, type Dataset, type Preprocessor } from '@/ml/preprocess'
 import type { BackboneSpec } from '@/ml/backbones'
@@ -245,6 +247,15 @@ export function imageTestDataset(
  *
  * **옛 파일에는 `rowsHash`가 없다.** 그때는 장수만 본다. 그 구멍은 닫을 방법이 없다 —
  * 그 순서를 아무도 안 적어 두었다 (mlpx-spec.md §5.1).
+ *
+ * **장수는 표에 드는 사진만 센다.** 분류의 라벨 없는 사진은 표에 없는데 그 장수까지 대조하니,
+ * 예측 전에 미분류 사진 한 장을 올렸을 뿐인데 모델이 꺼졌다.
+ *
+ * **임베딩이 빠진 사진이 있으면 못 세운다.** `imageTrainingSource`는 그 사진을 조용히 건너뛰고,
+ * 그러면 뒤의 행 번호가 한 칸씩 당겨진다 — 지문이 없는 옛 실험에서는 아무도 못 잡는다.
+ * **백본이 다르면 벡터가 다른 좌표계다.** 둘 다 이 함수의 검사가 문다(`image-training.spec.ts`).
+ *
+ * `null`을 받은 쪽은 `MODEL_TRAINING_DATA_CHANGED`로 끈다 — 사진이 있으므로 데이터가 없는 것이 아니다.
  */
 export function imageTrainingRows(
   project: ProjectFile,
@@ -255,9 +266,12 @@ export function imageTrainingRows(
   taskType: TaskType,
 ): TrainingRows | null {
   const snapshot = dataSnapshot('image', experiment.settings)
+  if (snapshot.backboneId !== backbone.id) return null
+
+  const isClustering = taskType === 'clustering'
   const counts = countByCategory(project)
   const sameCounts =
-    snapshot.unlabeledCount === (counts.get(IMAGE_UNLABELED) ?? 0) &&
+    (!isClustering || snapshot.unlabeledCount === (counts.get(IMAGE_UNLABELED) ?? 0)) &&
     snapshot.categories.length === snapshot.categoryCounts.length &&
     snapshot.categories.every(
       (category, index) => snapshot.categoryCounts[index] === (counts.get(category) ?? 0),
@@ -265,6 +279,10 @@ export function imageTrainingRows(
   if (!sameCounts) return null
 
   const source = imageTrainingSource(project, vectors, backbone, taskType)
+  const eligible = readImages(project).filter(
+    (entry) => isClustering || entry.category !== IMAGE_UNLABELED,
+  )
+  if (source.hashes.length !== eligible.length) return null
 
   // **적혀 있으면 순서까지 본다.** 장수가 같아도 자리가 바뀌었으면 행 번호의 뜻이 달라진다.
   if (snapshot.rowsHash !== undefined && snapshot.rowsHash !== rowsHashOf(source.hashes)) {
@@ -283,4 +301,19 @@ export function imageTrainingRows(
     features: transform(preprocessor, source.dataset, trainIndices, 'onehot'),
     target: targetValues(source.dataset, trainIndices, target),
   }
+}
+
+/**
+ * 이미지 모델 하나를 읽을 맥락. **못 세운 행을 빈 맥락으로 넘기지 않는다.**
+ *
+ * 빈 맥락이면 해석기가 `MODEL_NEEDS_DATASET`을 던지고, 사진 한 장 더한 학생에게
+ * "이 파일에는 데이터가 없다"고 말한다. 사진은 있다 — 바뀐 것이다 (mlpx-spec.md §5.1).
+ * 행이 필요 없는 형식은 행이 없어도 그대로 읽는다. 무는 검사: `image-training.spec.ts`.
+ */
+export function imageLoadContext(rows: TrainingRows | null, format: string): LoadContext {
+  if (rows) return { trainingRows: rows }
+  if (interpreterFor(format)?.needsTrainingRows) {
+    throw new ClientError('MODEL_TRAINING_DATA_CHANGED')
+  }
+  return {}
 }

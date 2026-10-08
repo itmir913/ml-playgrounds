@@ -734,6 +734,7 @@
     "MODEL_FORMAT_UNSUPPORTED": "이 버전에서는 이 모델을 실행할 수 없습니다. ({format})",
     "MODEL_FILE_INVALID": "저장된 모델을 읽을 수 없습니다. 다시 학습하면 사용할 수 있습니다.",
     "MODEL_NEEDS_DATASET": "이 모델은 원본 데이터가 있어야 예측할 수 있는데, 이 파일에는 데이터가 없습니다.",
+    "MODEL_TRAINING_DATA_CHANGED": "학습한 뒤로 사진이 바뀌어 이 모델로는 예측할 수 없습니다. 다시 학습하면 사용할 수 있습니다.",
     "PREDICTION_INPUT_INCOMPLETE": "아직 값을 입력하지 않은 칸이 있습니다. ({feature})",
     "PREDICTION_INPUT_NOT_NUMBER": "숫자가 아닌 값이 있습니다. ({feature})",
     "FEATURE_VALUE_TOO_LARGE": "값이 너무 커서 계산할 수 없는 특성입니다. 원본 파일에서 값의 단위를 줄이거나 전처리에서 이 특성의 선택을 해제해 주세요. ({feature})",

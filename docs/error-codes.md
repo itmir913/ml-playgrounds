@@ -100,6 +100,11 @@ PORTFOLIO_BUNDLE_TOO_MANY_ENTRIES
 MODEL_FORMAT_UNSUPPORTED, MODEL_FILE_INVALID, MODEL_NEEDS_DATASET, STORAGE_QUOTA_EXCEEDED,
 STORAGE_VERSION_TOO_NEW
 ```
+**참조형 모델이 학습 때의 행을 못 되세운다** (`ml/images.ts`의 `imageTrainingRows` — 학습 뒤 사진이 바뀌었다)
+```
+MODEL_TRAINING_DATA_CHANGED
+```
+데이터가 없는 `MODEL_NEEDS_DATASET`과 학생이 할 일이 다르다 — 이것은 다시 학습한다 (`mlpx-spec.md` §5.1).
 **저장소가 다른 탭에 막혔다** (`project/storage.ts` — 실패가 아니라 기다리는 동안의 알림)
 ```
 STORAGE_BLOCKED
