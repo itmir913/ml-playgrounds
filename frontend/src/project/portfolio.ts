@@ -781,13 +781,13 @@ function codeSpansOf(
  */
 function escapeAnswer(answer: string): string {
   const kinds: LineKind[] = []
-  let fence: string | undefined
   /**
-   * 여는 줄의 들여쓰기. **닫는 줄에 그대로 붙인다** — 목록 안에 들여쓴 울타리는
-   * 0열의 줄로 안 닫히고, 그러면 더한 줄까지 코드 블록 안으로 들어가 문항이 계속
-   * 사라진다 (2026-08-31 사각 감사 A-1).
+   * 열린 울타리. **여기 오는 울타리는 0열이다** — 한 칸이라도 들여쓴 울타리 줄은 위 `fenceUncertain`이 먼저 가져가
+   * 통째 감싼다(open-decisions.md 82). 그래서 닫는 줄에 붙일 들여쓰기가 없다. 예전에는 여는 줄의 들여쓰기를 닫는 줄에
+   * 붙였는데(2026-08-31 사각 감사 A-1) 82 뒤로 늘 빈 글자였다(0.35.2 경계 감사 B C-5). 무는 검사: `portfolio.spec.ts`의
+   * *"목록 안에 들여쓴 울타리는 통째 감싼다"*.
    */
-  let fenceIndent = ''
+  let fence: string | undefined
 
   // **줄 끝을 `\n` 하나로 맞춘다.** JS 정규식의 `.`은 `\r`에 안 맞아서 CRLF로 적힌 답의
   // 여는 울타리(` ```python\r `)를 못 알아보고 안 닫았다 — 뷰어는 CRLF를 줄 끝으로 읽는다.
@@ -813,10 +813,7 @@ function escapeAnswer(answer: string): string {
     // **백틱 울타리의 언어 자리에는 백틱이 못 온다** (CommonMark). 그 줄은 울타리가
     // 아니라 코드 스팬이 든 글이다 - 울타리로 읽으면 없던 것을 닫으려 든다.
     const opens = opening !== null && !(opening[2]!.startsWith('`') && opening[3]!.includes('`'))
-    if (opens) {
-      fence = opening![2]!
-      fenceIndent = opening![1]!
-    }
+    if (opens) fence = opening![2]!
     kinds.push(opens ? 'opener' : 'text')
   }
 
@@ -825,7 +822,7 @@ function escapeAnswer(answer: string): string {
   const lines = answerLines.map((line, index) =>
     kinds[index] === 'code' ? line : escapeLine(escapeOutsideCode(line, spans.get(index) ?? [])),
   )
-  if (fence !== undefined) lines.push(`${fenceIndent}${fence}`)
+  if (fence !== undefined) lines.push(fence)
   return lines.join('\n')
 }
 

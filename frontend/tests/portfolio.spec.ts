@@ -560,7 +560,7 @@ describe('마크다운으로 옮긴다', () => {
     ])
   })
 
-  it('목록 안에 들여쓴 울타리는 그 들여쓰기로 닫는다', () => {
+  it('목록 안에 들여쓴 울타리는 통째 감싼다', () => {
     expect(answersKeepTitles(['- 코드:', '  ```python', '  print(1)'].join('\n'))).toEqual([
       '동기',
       '방법',
@@ -578,8 +578,28 @@ describe('마크다운으로 옮긴다', () => {
     ])
   })
 
+  /**
+   * **들여쓴 줄을 첫 줄에 두지 않는다** (0.35.2 경계 감사 B C-2). 답은 `trim()`을 거쳐 판정에 들어서, 첫 줄의
+   * 들여쓰기는 판정 전에 지워진다 — 그 자리에 두면 들여쓰기를 한 번도 안 지난다.
+   */
   it('세 칸까지 들여쓴 #도 막는다 - 거기까지는 진짜 제목이다', () => {
-    expect(answersKeepTitles(['   ## 가짜 문항', '내용'].join('\n'))).toEqual(['동기', '방법'])
+    expect(answersKeepTitles(['내용', '   ## 가짜 문항'].join('\n'))).toEqual(['동기', '방법'])
+  })
+
+  /**
+   * **닫는 울타리 뒤의 스페이스·탭은 닫는다** (0.35.2 경계 감사 B C-4). 안 닫는 것으로 세면 답 끝에 울타리를 더하는데,
+   * 뷰어는 이미 닫았으므로 더한 줄이 새 울타리를 열어 뒤 문항을 삼킨다. 닫는 줄을 마지막 줄에 두면 `trim()`이 꼬리
+   * 공백을 지우므로 뒤에 글을 둔다. 반대쪽(전각 공백·NBSP는 안 닫는다)은 *"결정 89"* 묶음이 잰다.
+   */
+  it.each([
+    ['스페이스', '  '],
+    ['탭', '\t'],
+    ['섞임', ' \t '],
+  ])('닫는 울타리 뒤의 %s는 닫는다 - 뒤 문항이 산다', (_, tail) => {
+    expect(answersKeepTitles(['```', 'x', `\`\`\`${tail}`, '뒤 글'].join('\n'))).toEqual([
+      '동기',
+      '방법',
+    ])
   })
 
   /**
@@ -1830,7 +1850,10 @@ describe('결정 93: 주소가 http·https가 아닌 링크는 글자로 싣는�
   const render = (a: string) =>
     renderPortfolioMarkdown(TEXT, portfolio(THREE, { a, b: '둘째 답', c: '셋째 답' }))
 
-  /** 답·문서 제목·문항 제목·머리글 값·머리글 라벨·이전 문항 제목 — 사용자 글이 실리는 자리마다. */
+  /**
+   * 답·문서 제목·문항 제목·머리글 값·머리글 라벨·이전 문항 제목·이전 문항의 답 — 사용자 글이 실리는 자리마다.
+   * 이전 문항의 답은 정상 경로로는 안 생기고 손으로 고친 파일에서 온다(0.35.2 경계 감사 B C-3).
+   */
   const PLACES: [string, (text: string) => string][] = [
     ['답', render],
     ['문서 제목', (text) => renderPortfolioMarkdown({ ...TEXT, title: text }, portfolio(THREE))],
@@ -1861,6 +1884,7 @@ describe('결정 93: 주소가 http·https가 아닌 링크는 글자로 싣는�
           portfolio(THREE, { 옛것: '남은 글' }),
         ),
     ],
+    ['이전 문항의 답', (text) => renderPortfolioMarkdown(TEXT, portfolio(THREE, { 옛것: text }))],
   ]
 
   /** 결정 93이 적은 가리는 모양. 정의(`[r]: …`)는 같은 글에 참조를 함께 둔다. */
@@ -1871,6 +1895,8 @@ describe('결정 93: 주소가 http·https가 아닌 링크는 글자로 싣는�
     ['십진 문자 참조', '[눌러](java&#115;cript:alert(1))'],
     ['십육진 문자 참조', '[눌러](&#x6A;avascript:alert(1))'],
     ['스킴 머리의 문자 참조', '[눌러](&#104;ttp:alert(1))'],
+    // 날글자 `http:`이지만 `//`가 없다 — 통과하는 것은 `http://`다(0.35.2 경계 감사 B C-1).
+    ['스킴만 http', '[눌러](http:alert(1))'],
     ['백슬래시 이스케이프', '[눌러](javascript\\:alert(1))'],
     ['앞뒤 공백', '[눌러](  javascript:alert(1)  )'],
     ['앞의 탭', '[눌러](\tjavascript:alert(1))'],
