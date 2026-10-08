@@ -19,6 +19,7 @@ import { setLocale } from '../src/i18n'
 import { closeStorage, saveProject } from '../src/project/storage'
 import { router } from '../src/router'
 import { useProjectStore } from '../src/stores/project'
+import { useToastStore } from '../src/stores/toasts'
 import { experiment, manifest, projectFile, run } from './fixtures/project'
 import { resetDatabase } from './fixtures/database'
 
@@ -106,6 +107,8 @@ describe('화면을 받는 사이 지금 칸을 다시 누른다', { timeout: 20
     await router.push(here)
     const project = useProjectStore()
     expect(project.projectId).toBe(manifest.projectId)
+    // 학생이 아직 안 읽은 실패 알림 — 중복 이동은 화면을 안 떠나므로 남아야 한다(open-decisions.md 109, 0.35.3 최종 감사 C-1).
+    useToastStore().push('danger', 'client.DATASET_PARSE_FAILED')
 
     // 앞 이동: 점검(프로젝트를 떠난다). 청크가 아직 안 왔다.
     const first = router.push('/inspect').catch(() => undefined)
@@ -121,6 +124,10 @@ describe('화면을 받는 사이 지금 칸을 다시 누른다', { timeout: 20
     expect(project.projectId, 'the abandoned move must not close the project').toBe(
       manifest.projectId,
     )
+    expect(
+      useToastStore().items.map((one) => one.key),
+      'a duplicate move stays on the screen and keeps its notice',
+    ).toEqual(['client.DATASET_PARSE_FAILED'])
   })
 
   it('프로젝트 첫 화면을 받는 사이 목록을 다시 누르면 프로젝트가 안 열린다', async () => {

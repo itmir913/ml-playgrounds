@@ -269,18 +269,20 @@ router.beforeEach(async (to) => {
  * **`beforeEach`가 아니라 `afterEach`다.** 리다이렉트가 걸리면 `beforeEach`는 다시
  * 돌지만 `afterEach`는 다 풀린 뒤 한 번만 돈다.
  */
-router.afterEach((to, _from, failure) => {
+router.afterEach((_to, _from, failure) => {
   // **중복 이동도 차례를 올린다** (0.35.2 경계 감사 A A-1). 지금 주소로 가는 이동은 vue-router가 가드를 안 돌리고
   // 중복(DUPLICATED)으로 접지만, 받는 중이던 앞 이동은 그 순간 버려진다. 차례가 안 오르면 앞 이동의 가드가 끝까지
   // 돌아 프로젝트를 닫거나 연다 — 레일의 지금 칸과 도구 막대의 목록 링크는 지금 주소로도 눌린다.
-  //
-  // **지금 주소가 프로젝트 밖이면 닫기도 한다** (같은 감사의 고침 라운드 A-1). 차례만으로는 이미 시작한 열기를 못 접는다 —
-  // 가드는 열기 뒤에 열기가 취소됐을 때만 차례를 보고, 리다이렉트의 첫 통과가 이미 연 것은 둘째 통과가 접혀도 남는다.
-  // `close()`가 열기의 세대를 올려 도는 열기를 취소로 돌린다. 열린 것이 없으면 빈 상태를 다시 비울 뿐이다. 지금 주소가
-  // 프로젝트 안이면 닫지 않는다 — 학생이 서 있는 화면의 프로젝트다. 무는 검사: `route-duplicate-race.spec.ts`.
-  if (isNavigationFailure(failure, NavigationFailureType.duplicated)) {
-    navigations += 1
-    if (typeof to.params.projectId !== 'string') useProjectStore().close()
+  if (isNavigationFailure(failure, NavigationFailureType.duplicated)) navigations += 1
+  // **끝나지 못한 이동 뒤 학생이 프로젝트 밖에 서 있으면 닫는다** (같은 감사의 고침 라운드 A-1, 0.35.3 최종 감사 C-2). 중복·중단
+  // 이동은 화면을 안 바꾸므로 학생은 출발한 화면에 그대로 있다. 그 화면이 목록·점검인데 스토어가 프로젝트를 쥐는 것은 이 이동들이
+  // 연 것뿐이다 — 중복 이동이 끼어든 열기, 리다이렉트의 첫 통과가 연 뒤 둘째 통과가 접히거나 화면을 못 받은 것. `close()`가 열기의
+  // 세대를 올려 도는 열기를 취소로 돌린다. 열린 것이 없으면 빈 상태를 다시 비울 뿐이다. 서 있는 화면이 프로젝트 안이면 닫지
+  // 않는다 — 학생의 프로젝트다(결정 74의 확인 창이 멈추는 이동도 여기다). 취소된 이동은 뒤 이동이 이어받으므로 손대지 않는다.
+  // 무는 검사: `route-duplicate-race.spec.ts`, `route-redirect-failure.spec.ts`.
+  const settledElsewhere = failure && !isNavigationFailure(failure, NavigationFailureType.cancelled)
+  if (settledElsewhere && typeof router.currentRoute.value.params.projectId !== 'string') {
+    useProjectStore().close()
   }
   // **다음 이동에 밀려 취소된 이동은 수위선을 건드리지 않는다** (R43-2 감사 C-1). vue-router는 취소된 이동에도
   // `afterEach`를 부른다. 여기서 수위선을 지우면, 이긴 이동이 리다이렉트로 가드를 다시 돌 때 **자기가 방금 민 잠긴
@@ -288,8 +290,8 @@ router.afterEach((to, _from, failure) => {
   // 수위선은 이긴 이동이 걷는다. 무는 검사: `route-watermark.spec.ts`의 *"겹친 이동에서 잠긴 단계 알림이 남는다"*.
   if (isNavigationFailure(failure, NavigationFailureType.cancelled)) return
   // **끝난 이동만 걷는다** (open-decisions.md 109). 중단(청크를 못 받음·결정 74의 확인 창)과 중복은 화면을 안 떠났다 —
-  // 학생이 그 화면에 그대로 있는데 못 읽은 실패 알림을 걷으면 안 된다. 수위선은 어느 경우든 비운다 — 남기면 다음 이동이
-  // 낡은 수위선으로 걷는다. 무는 검사: `route-watermark.spec.ts`의 *"끝나지 못한 이동은 그 화면의 알림을 안 걷는다"*.
+  // 학생이 그 화면에 그대로 있는데 못 읽은 실패 알림을 걷으면 안 된다. 수위선은 취소를 뺀 어느 경우든 비운다 — 남기면 다음
+  // 이동이 낡은 수위선으로 걷는다(취소는 위에서 돌아간다). 무는 검사: `route-watermark.spec.ts`의 *"끝나지 못한 이동은 그 화면의 알림을 안 걷는다"*.
   if (!failure) useToastStore().dismissUpTo(toastWatermark ?? 0)
   toastWatermark = null
 })
