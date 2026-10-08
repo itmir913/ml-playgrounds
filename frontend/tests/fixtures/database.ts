@@ -75,8 +75,14 @@ function needsClosing(store: ProjectStoreHandle): boolean {
  * (`project/tab-lock.ts`)은 모듈에 하나라, 이미 닫힌 옛 스토어를 다시 닫으면 지금 스토어가 쥔 잠금을 놓아
  * 버린다 — `afterEach`에서 활성으로 닫은 스토어가 다음 `beforeEach`에서 옛 것으로 한 번 더 닫히던 것이
  * 그 모양이었다. 옛 스토어가 그 뒤에 다시 쓰였으면(파일이 섰거나 여는 중) 그때는 닫는다.
+ *
+ * **DOM이 없으면(노드 환경 스펙) pinia에 묻지 않는다.** 프로젝트 스토어를 들인 스펙은 jsdom을 밝혀야
+ * 하므로(위 `projectStoreOf`) 노드 환경에는 닫을 스토어가 없다. 그런데 묻기만 해도 pinia 4의 개발 빌드는
+ * 서버 렌더링으로 보고 `PINIA_R1004`를 콘솔에 찍는다 — 검사마다 한 번씩, CI 로그에 수백 줄이었다.
+ * 무는 검사: `database-reset-node.spec.ts`.
  */
 export function closeProjectStores(): void {
+  if (typeof document === 'undefined') return
   const active = getActivePinia()
   if (active !== undefined) seen.add(active)
   for (const pinia of seen) {
