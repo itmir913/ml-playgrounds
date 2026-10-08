@@ -287,6 +287,9 @@ router.afterEach((to, _from, failure) => {
   // 단계 알림까지 포함한 수위선**을 새로 잡고 끝에서 그것을 걷는다 — 결정 65의 *"말없이 옮기지 않는다"*가 깨진다.
   // 수위선은 이긴 이동이 걷는다. 무는 검사: `route-watermark.spec.ts`의 *"겹친 이동에서 잠긴 단계 알림이 남는다"*.
   if (isNavigationFailure(failure, NavigationFailureType.cancelled)) return
-  useToastStore().dismissUpTo(toastWatermark ?? 0)
+  // **끝난 이동만 걷는다** (open-decisions.md 109). 중단(청크를 못 받음·결정 74의 확인 창)과 중복은 화면을 안 떠났다 —
+  // 학생이 그 화면에 그대로 있는데 못 읽은 실패 알림을 걷으면 안 된다. 수위선은 어느 경우든 비운다 — 남기면 다음 이동이
+  // 낡은 수위선으로 걷는다. 무는 검사: `route-watermark.spec.ts`의 *"끝나지 못한 이동은 그 화면의 알림을 안 걷는다"*.
+  if (!failure) useToastStore().dismissUpTo(toastWatermark ?? 0)
   toastWatermark = null
 })

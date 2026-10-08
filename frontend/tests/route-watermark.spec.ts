@@ -166,6 +166,25 @@ describe('알림 수위선', { timeout: 20_000 }, () => {
   })
 
   /**
+   * **끝나지 못한 이동은 그 화면의 알림을 안 걷는다** (open-decisions.md 109). 청크를 못 받아 중단된 이동은 화면을 안 떠났다 —
+   * 학생이 아직 안 읽은 실패 알림이 이동이 실패했다는 이유로 사라지면 안 된다.
+   */
+  it('끝나지 못한 이동은 그 화면의 알림을 안 걷는다', async () => {
+    await saveProject(projectFile())
+    gates.predict.open()
+    await router.push(`/project/${manifest.projectId}/data`)
+    useToastStore().push('danger', 'client.DATASET_PARSE_FAILED')
+
+    await router.push(`/project/${manifest.projectId}/portfolio`)
+
+    expect(router.currentRoute.value.name).toBe('data')
+    expect(useToastStore().items.map((one) => one.key)).toEqual([
+      'client.DATASET_PARSE_FAILED',
+      'client.SCREEN_LOAD_FAILED',
+    ])
+  })
+
+  /**
    * **수위선은 청크를 받기 전에 잡는다** (0.35.2 경계 감사 A C-1). 받는 사이(학교 회선에서 몇 초)에 라우터 밖에서 뜬 알림 —
    * 자동 저장 실패가 진짜 입구다 — 은 방금 일어난 일이라 새 화면에서 읽혀야 한다. 포착을 받은 뒤로 옮겨도 전에는 아무 검사도
    * 안 울었다.
