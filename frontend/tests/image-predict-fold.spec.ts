@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { rankTally } from '../src/views/predict/answer-tones'
+import { cardTone, rankTally, tallyTone } from '../src/views/predict/answer-tones'
 import {
   overrideCards,
   photoCardsOpen,
@@ -85,5 +85,27 @@ describe('rankTally', () => {
   it('등수가 없으면 받은 차례 그대로다', () => {
     const tally = [{ value: 'cat', count: 1 }]
     expect(rankTally(tally, null)).toEqual(tally)
+  })
+})
+
+/**
+ * **칩과 카드가 같은 값이면 같은 색이다** (`answer-tones.ts`, 코드 재감사 C-A). 색이 늘 무채색으로
+ * 떨어져도 차례 검사만으로는 초록이었다.
+ */
+describe('cardTone · tallyTone', () => {
+  const ranks = new Map([
+    ['a', 0],
+    ['b', 1],
+  ])
+
+  it('같은 등수면 칩과 카드가 같은 색이고, 등수마다 색이 다르다', () => {
+    expect(tallyTone('a', ranks)).toBe(cardTone(0))
+    expect(cardTone(0)).toMatch(/^border-chart-\d bg-chart-\d-soft$/)
+    expect(cardTone(0)).not.toBe(cardTone(1))
+  })
+
+  it('등수가 없으면 무채색이다', () => {
+    expect(cardTone(null)).toBe('border-line bg-surface-sunken')
+    expect(tallyTone('z', ranks)).toBe('border-line-strong bg-surface')
   })
 })
