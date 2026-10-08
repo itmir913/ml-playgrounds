@@ -269,12 +269,19 @@ router.beforeEach(async (to) => {
  * **`beforeEach`가 아니라 `afterEach`다.** 리다이렉트가 걸리면 `beforeEach`는 다시
  * 돌지만 `afterEach`는 다 풀린 뒤 한 번만 돈다.
  */
-router.afterEach((_to, _from, failure) => {
+router.afterEach((to, _from, failure) => {
   // **중복 이동도 차례를 올린다** (0.35.2 경계 감사 A A-1). 지금 주소로 가는 이동은 vue-router가 가드를 안 돌리고
   // 중복(DUPLICATED)으로 접지만, 받는 중이던 앞 이동은 그 순간 버려진다. 차례가 안 오르면 앞 이동의 가드가 끝까지
   // 돌아 프로젝트를 닫거나 연다 — 레일의 지금 칸과 도구 막대의 목록 링크는 지금 주소로도 눌린다.
-  // 무는 검사: `route-duplicate-race.spec.ts`.
-  if (isNavigationFailure(failure, NavigationFailureType.duplicated)) navigations += 1
+  //
+  // **지금 주소가 프로젝트 밖이면 닫기도 한다** (같은 감사의 고침 라운드 A-1). 차례만으로는 이미 시작한 열기를 못 접는다 —
+  // 가드는 열기 뒤에 열기가 취소됐을 때만 차례를 보고, 리다이렉트의 첫 통과가 이미 연 것은 둘째 통과가 접혀도 남는다.
+  // `close()`가 열기의 세대를 올려 도는 열기를 취소로 돌린다. 열린 것이 없으면 빈 상태를 다시 비울 뿐이다. 지금 주소가
+  // 프로젝트 안이면 닫지 않는다 — 학생이 서 있는 화면의 프로젝트다. 무는 검사: `route-duplicate-race.spec.ts`.
+  if (isNavigationFailure(failure, NavigationFailureType.duplicated)) {
+    navigations += 1
+    if (typeof to.params.projectId !== 'string') useProjectStore().close()
+  }
   // **다음 이동에 밀려 취소된 이동은 수위선을 건드리지 않는다** (R43-2 감사 C-1). vue-router는 취소된 이동에도
   // `afterEach`를 부른다. 여기서 수위선을 지우면, 이긴 이동이 리다이렉트로 가드를 다시 돌 때 **자기가 방금 민 잠긴
   // 단계 알림까지 포함한 수위선**을 새로 잡고 끝에서 그것을 걷는다 — 결정 65의 *"말없이 옮기지 않는다"*가 깨진다.
