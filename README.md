@@ -54,9 +54,12 @@ checks the Python side, and uv fetches the Python it needs. Run everything from
 | Command         | What it does |
 | --------------- | ------------ |
 | `npm run dev`   | Starts the local server |
-| `npm run ci`    | The full gate, exactly what CI runs: fetches the image backbone and Pyodide, then lint, types, tests, the scikit-learn fixtures, build, the locale contract, and the backend checks |
+| `npm run ci`    | Runs the full gate, exactly as CI does |
 | `npm run build` | Produces the static site |
-| `npm run lint`  | Rewrites what `ci` would flag. It can touch files you did not mean to change |
+| `npm run lint`  | Rewrites what `ci` would flag, and can touch files you did not mean to change |
+
+The gate fetches the image backbone and Pyodide, then runs lint, types, tests,
+the scikit-learn fixtures, build, the locale contract, and the backend checks.
 
 ## Layout
 
