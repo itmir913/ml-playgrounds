@@ -336,6 +336,41 @@ describe('폴더 이름은 서로 다르다', () => {
     expect(folderNames(['1반/Kim.mlpx', '1반/kim.mlpx'])).toEqual(['1반/Kim', '1반/kim (2)'])
   })
 
+  /**
+   * **윈도가 못 푸는 글자를 걷는다** (0.35.2 경계 감사 C C-1). 리눅스·맥에서 지은 이름표가 그대로 폴더가 되면 `Expand-Archive`는
+   * 묶음을 통째로 안 풀고, 파이썬·bsdtar는 말없이 바꿔 `q?`와 `q*`를 한 폴더로 합쳤다. 걸은 뒤의 겹침은 번호로 갈린다. 공백은
+   * 남긴다 — 교사가 읽는 이름이다.
+   */
+  it('윈도가 못 푸는 글자를 걷는다', () => {
+    expect(
+      folderNames([
+        'a:b.mlpx',
+        'q?.mlpx',
+        'q*.mlpx',
+        'CON.mlpx',
+        'nul.txt.mlpx',
+        'dot..mlpx',
+        'x .mlpx',
+        'x.mlpx',
+        '1반 홍길동.mlpx',
+        '.숨김.mlpx',
+        'lt<gt>|"\u0007.mlpx',
+      ]),
+    ).toEqual([
+      'ab',
+      'q',
+      'q (2)',
+      'CON_',
+      'nul_.txt',
+      'dot',
+      'x',
+      'x (2)',
+      '1반 홍길동',
+      '숨김',
+      'ltgt',
+    ])
+  })
+
   /** 윈도는 대문자 표로 견준다 — 소문자로 견주면 `σ`·`ς`가 둘로 남아 풀 때 한 폴더가 된다. */
   it('대문자로 같아지는 이름도 가른다', () => {
     expect(folderNames(['σ.mlpx', 'ς.mlpx'])).toEqual(['σ', 'ς (2)'])

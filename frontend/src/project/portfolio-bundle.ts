@@ -14,6 +14,12 @@
 
 import { zipSync } from 'fflate'
 
+import {
+  CONTROL_CHARACTERS,
+  escapeWindowsReserved,
+  FORBIDDEN_IN_NAME,
+  stripInvisibleFormatting,
+} from '../data/file-name-rules'
 import { ClientError } from '../errors'
 import { escapesArchive } from './entry-path'
 import {
@@ -69,15 +75,36 @@ const UNNAMED_FOLDER_MARK = '_'
  * 다 받는 글자다, `data/file-name-rules.ts`) 겹치면 여전히 번호로 갈린다.
  */
 export function folderFor(label: string, position: number): string {
-  const parts = label.split(/[\\/]+/).filter((part) => part !== '' && part !== '.' && part !== '..')
+  const parts = label.split(/[\\/]+/)
   // 확장자는 마지막 조각에서 제거한다 - 폴더 이름에 `.mlpx`가 붙어 있으면 푸는 쪽에서 파일로
   // 보인다. **사파리가 붙인 `.mlpx.zip`도 같은 폴더가 된다** (결정문 48) - 같은 프로젝트를
   // 두 기기에서 내보낸 것이 폴더 둘로 갈리면 교사가 같은 학생을 두 번 본다. 떼고 나서 빈
-  // 조각이나 `.`·`..`가 되면(`1반/.mlpx`, `..mlpx`) 그 조각은 버린다.
+  // 조각이나 `.`·`..`가 되면(`1반/.mlpx`, `..mlpx`) 아래 `folderSegment`가 비워 버린다.
   const last = parts.pop()
-  const stem = last === undefined ? '' : withoutProjectExtension(last)
-  if (stem !== '' && stem !== '.' && stem !== '..') parts.push(stem)
-  return parts.length > 0 ? parts.join('/') : `${UNNAMED_FOLDER_MARK}${position}`
+  if (last !== undefined) parts.push(withoutProjectExtension(last))
+  const kept = parts.map(folderSegment).filter((part) => part !== '')
+  return kept.length > 0 ? kept.join('/') : `${UNNAMED_FOLDER_MARK}${position}`
+}
+
+/**
+ * 폴더 이름 한 조각을 **세 운영체제가 다 푸는 이름**으로 고친다 (0.35.2 경계 감사 C C-1). 이름표는 리눅스·맥·아이패드에서 지은
+ * 파일 이름이라 윈도가 못 쓰는 글자가 올 수 있다 — `a:b.mlpx` 하나가 든 묶음을 윈도 `Expand-Archive`는 **통째로 안 풀었고**,
+ * 파이썬·bsdtar는 말없이 글자를 바꿔 `q?`와 `q*`를 한 폴더로 합쳐 뒤엣것이 앞엣것을 덮었다(감사자 실측, Windows 11).
+ *
+ * **거부하지 않고 걷는다** — 반출 경로라 묶음은 늘 나가야 한다(`data/file-name-rules.ts`). 무엇을 못 쓰는지는 그 파일과 한 벌이고,
+ * 걷는 방식은 내려받는 `.mlpx`의 이름(`project/format.ts`의 `sanitizeSegment`)과 같다 — 다만 **공백은 남긴다**(`1반 홍길동`은
+ * 교사가 읽는 폴더 이름이다). 앞의 점은 숨김 폴더를 만들고, 끝의 점·공백은 윈도가 떼어 다른 폴더와 합친다. 걸은 뒤의 겹침은
+ * `folderNames`가 가른다. 무는 검사: `portfolio-bundle.spec.ts`의 *"윈도가 못 푸는 글자를 걷는다"*.
+ */
+function folderSegment(part: string): string {
+  const kept = [...stripInvisibleFormatting(part)]
+    .filter(
+      (character) => !CONTROL_CHARACTERS.test(character) && !FORBIDDEN_IN_NAME.includes(character),
+    )
+    .join('')
+    .replace(/^\.+/, '')
+    .replace(/[. ]+$/, '')
+  return kept === '' ? '' : escapeWindowsReserved(kept)
 }
 
 /**
