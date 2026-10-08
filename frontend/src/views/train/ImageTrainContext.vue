@@ -14,8 +14,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
-import { trainableRowsOf } from '@/ml/training-source'
-import { labeledCategoryCount } from '@/project/images'
+import { trainableRowsOf, trainingClassesOf } from '@/ml/training-source'
 import { useProjectStore } from '@/stores/project'
 
 const { t } = useI18n()
@@ -26,10 +25,14 @@ const photos = computed(() =>
   project.file === null ? 0 : trainableRowsOf(project.file, project.taskType),
 )
 /**
- * 범주도 같다 — 학습이 세는 클래스 수(`labeledCategoryCount`)다. 빈 범주까지 든 화면 목록(`imageCategories`)을 세던 때는
- * 빈 범주를 만들면 머리와 학습이 갈렸다(0.35.2 경계 감사 C C-2). 무는 검사: `image-train-context.spec.ts`.
+ * 범주도 같다 — 학습이 세는 클래스 수(`trainingClassesOf`)다. 빈 범주까지 든 화면 목록(`imageCategories`)을 세던 때는
+ * 빈 범주를 만들면 머리와 학습이 갈렸다(0.35.2 경계 감사 C C-2). **클래스를 안 세는 과제(군집)에서는 줄이 없다** — 군집은
+ * 범주를 안 쓰는데 *"범주 0개"*를 보이면 학생에게 틀린 신호다(코드 소유자, 0.35.3 최종 감사 기록). 무는 검사:
+ * `image-train-context.spec.ts`.
  */
-const categories = computed(() => (project.file === null ? 0 : labeledCategoryCount(project.file)))
+const categories = computed(() =>
+  project.file === null ? undefined : trainingClassesOf(project.file, project.taskType),
+)
 </script>
 
 <template>
@@ -39,7 +42,7 @@ const categories = computed(() => (project.file === null ? 0 : labeledCategoryCo
     </dt>
     <dd class="font-bold tabular-nums text-ink">{{ t('meta.image.countUnit', photos) }}</dd>
   </div>
-  <div class="flex items-baseline gap-1.5">
+  <div v-if="categories !== undefined" class="flex items-baseline gap-1.5">
     <dt>
       <AppBadge>{{ t('meta.image.categories') }}</AppBadge>
     </dt>
