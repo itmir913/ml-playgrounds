@@ -1,12 +1,16 @@
 # Machine Learning Playgrounds
 
+[![CI](https://github.com/itmir913/ml-playgrounds/actions/workflows/ci.yml/badge.svg)](https://github.com/itmir913/ml-playgrounds/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/github/v/tag/itmir913/ml-playgrounds?sort=semver&label=version)](https://github.com/itmir913/ml-playgrounds/tags)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A machine learning tool for AI and computer science classes. Students bring a
 CSV or a folder of images, train and compare models, write up what they found
 in a portfolio, and hand in the whole project as one file. It runs in the
 browser with no install and no sign-up, in English, Korean and Japanese.
 
 **[Open the app](https://luminousky.com/ml-playgrounds/)** ·
-[About, sample datasets and classroom materials](https://luminousky.com/teacher-utility-kit/ml-playgrounds/)
+[Homepage](https://luminousky.com/teacher-utility-kit/ml-playgrounds/)
 
 ![The Predicting step on the iris data set: four trained models answer the same input, three say Iris-virginica and one says Iris-versicolor](https://github.com/user-attachments/assets/af57695a-d6de-4d60-8285-5e3d85b35857)
 
