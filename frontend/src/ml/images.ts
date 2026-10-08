@@ -445,13 +445,16 @@ function trainingRowsByKeys(
  * 이미지 모델 하나를 읽을 맥락. **못 세운 행을 빈 맥락으로 넘기지 않는다.**
  *
  * 빈 맥락이면 해석기가 `MODEL_NEEDS_DATASET`을 던지고, 사진 한 장 더한 학생에게
- * "이 파일에는 데이터가 없다"고 말한다. 사진은 있다 — 바뀐 것이다 (mlpx-spec.md §5.1).
- * 행이 필요 없는 형식은 행이 없어도 그대로 읽는다. 무는 검사: `image-training.spec.ts`.
+ * "이 파일에는 데이터가 없다"고 말한다. 사진은 있다 — 학습 때와 맞지 않는 것이다 (mlpx-spec.md §5.1).
+ *
+ * **행이 필요 없는 형식에는 행을 안 세운다**(`rowsOf`를 안 부른다). 세우는 데 사진 수만큼의 해시와
+ * 문자열 왕복이 들고, 예측 화면은 그것을 모델마다 치렀다 — 표 판(`TabularPredictPanel.vue`)·일괄
+ * 예측(`BatchPredict.vue`)이 `needsTrainingRows`로 거르는 것과 같은 규칙이다(코드 감사 C-5).
+ * 무는 검사: `image-training.spec.ts`의 *"이미지 모델을 읽을 맥락"*.
  */
-export function imageLoadContext(rows: TrainingRows | null, format: string): LoadContext {
-  if (rows) return { trainingRows: rows }
-  if (interpreterFor(format)?.needsTrainingRows) {
-    throw new ClientError('MODEL_TRAINING_DATA_CHANGED')
-  }
-  return {}
+export function imageLoadContext(format: string, rowsOf: () => TrainingRows | null): LoadContext {
+  if (!interpreterFor(format)?.needsTrainingRows) return {}
+  const rows = rowsOf()
+  if (!rows) throw new ClientError('MODEL_TRAINING_DATA_CHANGED')
+  return { trainingRows: rows }
 }

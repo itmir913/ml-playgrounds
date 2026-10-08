@@ -100,7 +100,7 @@ PORTFOLIO_BUNDLE_TOO_MANY_ENTRIES
 MODEL_FORMAT_UNSUPPORTED, MODEL_FILE_INVALID, MODEL_NEEDS_DATASET, STORAGE_QUOTA_EXCEEDED,
 STORAGE_VERSION_TOO_NEW
 ```
-**참조형 모델이 학습 때의 행을 못 되세운다** (`ml/images.ts`의 `imageTrainingRows` — 학습 뒤 사진이 바뀌었다)
+**참조형 모델이 학습 때의 행을 못 되세운다** (`ml/images.ts`의 `imageTrainingRows` — 학습 뒤 훈련 사진이 바뀌었거나 학습 때의 임베딩·백본과 맞지 않는다)
 ```
 MODEL_TRAINING_DATA_CHANGED
 ```

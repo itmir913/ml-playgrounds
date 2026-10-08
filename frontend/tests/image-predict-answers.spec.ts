@@ -30,7 +30,7 @@ import { applyExperiment } from '../src/project/attach'
 import { newProjectDocument } from '../src/project/create'
 import { addEmbeddings } from '../src/project/embeddings'
 import { IMAGE_UNLABELED, type ProjectFile } from '../src/project/format'
-import { addImages, readImages } from '../src/project/images'
+import { addImages, moveImages, readImages } from '../src/project/images'
 import { withSelectedAlgorithms } from '../src/project/settings'
 import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
@@ -307,6 +307,66 @@ describe('[예측]을 누르면 답이 선다', { timeout: 60_000 }, () => {
     expect(panel.page).toBe(1)
     expect(embeds.requests).toBe(2)
     expect(panel.answers.size).toBe(IMAGE_PREDICT_PAGE_SIZE + 1)
+  })
+})
+
+/**
+ * **학습 뒤 사진을 고친 프로젝트에서 KNN 칸** (open-decisions.md 111, 코드 감사 C-3).
+ *
+ * 교실 증상이 이 판에서 났다 — 사진을 더했더니 KNN만 *"이 파일에는 데이터가 없습니다"*로 꺼졌다.
+ * 판이 행을 `imageLoadContext`로 넘기는지는 단위 검사로 못 잰다. 그래서 판을 띄워 [예측]을 끝까지 몬다.
+ */
+describe('학습 뒤 사진을 고치면', { timeout: 60_000 }, () => {
+  async function openEdited(edit: (file: ProjectFile) => ProjectFile) {
+    const project = useProjectStore()
+    await project.save(edit(await trainedImageProject(2)))
+    const wrapper = mount(ImagePredictPanel, { global: { plugins: [i18n] } })
+    mounted.push(wrapper)
+    await settle()
+    const panel = wrapper.vm as unknown as PanelInternals
+    const run = wrapper.findAll('button').find((one) => one.text() === i18n.global.t('predict.run'))
+    await run!.trigger('click')
+    await untilIdle(panel)
+    const knn = project.file?.document.runs.experiments
+      .flatMap((experiment) => experiment.runs)
+      .find((one) => one.algorithm === 'knn')
+    expect(knn, 'the KNN run').toBeDefined()
+    return { project, panel, knnId: knn!.id }
+  }
+
+  /** 학습 때의 표에서 `trainIndices[0]`이 가리키던 사진. 고치기 전의 파일로 센다. */
+  function firstTrainingHash(file: ProjectFile): string {
+    const experiment = file.document.runs.experiments[0]!
+    const rows = readImages(file, 'data').filter((entry) => entry.category !== IMAGE_UNLABELED)
+    return rows[experiment.settings.trainIndices[0]!]!.hash
+  }
+
+  it('라벨 붙은 사진을 더해도 KNN이 답한다', async () => {
+    const { project, panel, knnId } = await openEdited((file) => {
+      const bytes = new TextEncoder().encode('train:dog:added')
+      return addImages(file, [{ hash: hashBytes(bytes), bytes, category: '개' }], {
+        canonicalSize: backbone().canonicalSize,
+        now: NOW,
+        format: 'webp',
+      }).project
+    })
+    const expected = expectedLabels(2)
+    for (const photo of readImages(project.file, 'predict')) {
+      const answer = panel.answers.get(photo.hash)?.get(knnId)
+      expect(answer && 'value' in answer ? answer.value : answer).toBe(expected.get(photo.hash))
+    }
+  })
+
+  it('훈련 사진의 범주를 옮기면 KNN 칸이 "다시 학습하라"로 꺼진다', async () => {
+    const { project, panel, knnId } = await openEdited((file) =>
+      moveImages(file, [firstTrainingHash(file)], '고양이', NOW),
+    )
+    for (const photo of readImages(project.file, 'predict')) {
+      const answer = panel.answers.get(photo.hash)?.get(knnId)
+      expect(answer && 'failure' in answer ? answer.failure?.code : answer).toBe(
+        'MODEL_TRAINING_DATA_CHANGED',
+      )
+    }
   })
 })
 

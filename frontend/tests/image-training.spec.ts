@@ -481,17 +481,24 @@ describe('훈련 행을 되세운다', () => {
  * 있으므로 학생이 할 일은 데이터를 가진 파일을 여는 것이 아니라 다시 학습하는 것이다.
  */
 describe('이미지 모델을 읽을 맥락', () => {
-  it('행이 필요한 형식은 사진이 바뀌었다고 말한다', () => {
+  it('행이 필요한 형식은 학습 때와 맞지 않다고 말한다', () => {
     try {
-      imageLoadContext(null, REFERENCE_FORMAT)
+      imageLoadContext(REFERENCE_FORMAT, () => null)
       expect.unreachable()
     } catch (error) {
       expect(isClientError(error) && error.code).toBe('MODEL_TRAINING_DATA_CHANGED')
     }
   })
 
-  it('행이 필요 없는 형식은 행이 없어도 읽는다', () => {
-    expect(imageLoadContext(null, TREE_V2_FORMAT)).toEqual({})
+  /** 코드 감사 C-5 — 트리·로지스틱에 훈련 행을 세우던 낭비. 세우기를 부르기만 해도 운다. */
+  it('행이 필요 없는 형식은 행을 세우지 않고 읽는다', () => {
+    let built = 0
+    const context = imageLoadContext(TREE_V2_FORMAT, () => {
+      built += 1
+      return null
+    })
+    expect(context).toEqual({})
+    expect(built).toBe(0)
   })
 })
 

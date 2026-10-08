@@ -614,9 +614,12 @@ async function run(watch?: WatchWriteId): Promise<void> {
 
         try {
           const payload = JSON.parse(new TextDecoder().decode(bytes)) as unknown
-          let rows = trainingRows.get(entry.experiment.id)
-          if (rows === undefined) {
-            rows = imageTrainingRows(
+          // 못 세운 행을 빈 맥락으로 넘기지 않는다 — 사진이 있는데 "데이터가 없다"고 말하게 된다.
+          // 행이 필요 없는 모델이면 `imageLoadContext`가 세우기를 아예 안 부른다.
+          const context = imageLoadContext(entry.run.model?.format ?? '', () => {
+            const cached = trainingRows.get(entry.experiment.id)
+            if (cached !== undefined) return cached
+            const rows = imageTrainingRows(
               current,
               entry.experiment,
               preprocessor,
@@ -625,9 +628,8 @@ async function run(watch?: WatchWriteId): Promise<void> {
               entry.experiment.settings.taskType,
             )
             trainingRows.set(entry.experiment.id, rows)
-          }
-          // 못 세운 행을 빈 맥락으로 넘기지 않는다 — 사진이 있는데 "데이터가 없다"고 말하게 된다.
-          const context = imageLoadContext(rows, entry.run.model?.format ?? '')
+            return rows
+          })
 
           // **빈 벡터로는 답을 안 낸다.** `?? []`로 메우면 아무 값도 안 든 벡터가
           // 모델에 들어가고, 이 파일 자신의 주석이 "0으로 메우면 모든 사진이 같은

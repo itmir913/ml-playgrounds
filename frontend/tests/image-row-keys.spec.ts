@@ -27,6 +27,7 @@ import {
   readRowKeys,
   rowKeyOf,
   rowKeysOf,
+  rowsHashOf,
 } from '../src/ml/images'
 import { loadModel } from '../src/ml/models'
 import { readPreprocessors } from '../src/ml/predict'
@@ -169,7 +170,7 @@ function answers(project: ProjectFile, experiment: Experiment = lastOf(project))
     experiment.settings.taskType,
   )
   try {
-    const context = imageLoadContext(rows, run.model.format)
+    const context = imageLoadContext(run.model.format, () => rows)
     const queries = {
       columns: embeddingColumns(DIM),
       rows: QUERIES.map((position) => Array.from(vectorAt(position), (value) => String(value))),
@@ -416,6 +417,71 @@ describe('열쇠가 없는 실험', () => {
     })
     expect(dataSnapshot('image', lastOf(older).settings).rowKeys).toBeUndefined()
     expect(answers(older)).toEqual(before)
+  })
+})
+
+/**
+ * **공식을 값으로 못 박는다** (코드 감사 C-1). 다른 검사는 기대값을 `rowKeyOf`·`rowsHashOf` 자신으로
+ * 계산하므로, 공식이 바뀌어도 전부 초록이고 그 앞에 학습한 모든 KNN이 거부된다. 값은 파이썬
+ * `hashlib`로 따로 계산해 맞춘 것이다 — 이 값이 바뀌면 포맷 규격(mlpx-spec.md §5.1)이 바뀐 것이다.
+ */
+describe('열쇠와 지문의 공식', () => {
+  const A = 'a'.repeat(64)
+  const B = 'b'.repeat(64)
+
+  it('rowKeyOf', () => {
+    expect(rowKeyOf('개', A)).toBe('908ead0469f9b2cd')
+    expect(rowKeyOf('고양이', B)).toBe('033a5c8d93f8f1e4')
+  })
+
+  it('rowKeysOf', () => {
+    expect(rowKeysOf({ hashes: [A, B], rowCategories: ['개', '고양이'] })).toBe(
+      'kI6tBGn5ss0DOlyNk/jx5A==',
+    )
+  })
+
+  it('rowsHashOf', () => {
+    expect(rowsHashOf([A, B])).toBe(
+      '5e9ae866add9a85d69c3481d059bb9f158a39e5670ba11f95112fc409630894e',
+    )
+  })
+})
+
+/**
+ * **열쇠 경로의 가드 둘** (코드 감사 C-2). `image-training.spec.ts`의 같은 가드 검사는 열쇠가 없는
+ * 스냅샷으로 지어 옛 경로만 지나간다 — 여기서는 진짜 입구로 학습해 열쇠가 적힌 실험으로 잰다.
+ */
+describe('열쇠가 있어도 거부하는 것', () => {
+  it('훈련 사진 하나의 벡터가 없다', async () => {
+    const trained = await train(placed(emptyProject(), TRAINING))
+    const experiment = trained.experiment
+    expect(dataSnapshot('image', experiment.settings).rowKeys).toBeDefined()
+    const preprocessor = readPreprocessors(trained.project.document, trained.project.models).get(
+      experiment.id,
+    )!
+    const vectors = readEmbeddings(trained.project, BACKBONE.id, DIM)
+    vectors.delete(trainPhoto(trained).hash)
+    expect(
+      imageTrainingRows(
+        trained.project,
+        experiment,
+        preprocessor,
+        BACKBONE,
+        vectors,
+        'classification',
+      ),
+    ).toBeNull()
+  })
+
+  it('학습 때와 백본이 다르다', async () => {
+    const trained = await train(placed(emptyProject(), TRAINING))
+    const data = { ...(trained.experiment.settings.data as Record<string, unknown>) }
+    data.backboneId = 'another-backbone'
+    const other: Experiment = {
+      ...trained.experiment,
+      settings: { ...trained.experiment.settings, data: data as Experiment['settings']['data'] },
+    }
+    expect(answers(trained.project, other)).toBe('MODEL_TRAINING_DATA_CHANGED')
   })
 })
 

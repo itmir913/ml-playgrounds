@@ -734,7 +734,7 @@
     "MODEL_FORMAT_UNSUPPORTED": "このバージョンのアプリでは、このモデルを実行できません。({format})",
     "MODEL_FILE_INVALID": "保存されたモデルを読み込めません。もう一度学習すると使えるようになります。",
     "MODEL_NEEDS_DATASET": "このモデルで予測するには元のデータが必要ですが、このファイルにはデータが含まれていません。",
-    "MODEL_TRAINING_DATA_CHANGED": "学習したあとで写真が変わったため、このモデルでは予測できません。もう一度学習すると使えるようになります。",
+    "MODEL_TRAINING_DATA_CHANGED": "学習したときの写真と合わないため、このモデルでは予測できません。もう一度学習すると使えるようになります。",
     "PREDICTION_INPUT_INCOMPLETE": "まだ値を入力していない欄があります。({feature})",
     "PREDICTION_INPUT_NOT_NUMBER": "数値ではない値があります。({feature})",
     "FEATURE_VALUE_TOO_LARGE": "値が大きすぎて計算できない特徴量です。元のファイルで値の単位を小さくするか、前処理のステップでこの特徴量の選択を解除してください。({feature})",
