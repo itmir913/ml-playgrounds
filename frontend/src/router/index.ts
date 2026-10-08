@@ -266,6 +266,11 @@ router.beforeEach(async (to) => {
  * 돌지만 `afterEach`는 다 풀린 뒤 한 번만 돈다.
  */
 router.afterEach((_to, _from, failure) => {
+  // **중복 이동도 차례를 올린다** (0.35.2 경계 감사 A A-1). 지금 주소로 가는 이동은 vue-router가 가드를 안 돌리고
+  // 중복(DUPLICATED)으로 접지만, 받는 중이던 앞 이동은 그 순간 버려진다. 차례가 안 오르면 앞 이동의 가드가 끝까지
+  // 돌아 프로젝트를 닫거나 연다 — 레일의 지금 칸과 도구 막대의 목록 링크는 지금 주소로도 눌린다.
+  // 무는 검사: `route-duplicate-race.spec.ts`.
+  if (isNavigationFailure(failure, NavigationFailureType.duplicated)) navigations += 1
   // **다음 이동에 밀려 취소된 이동은 수위선을 건드리지 않는다** (R43-2 감사 C-1). vue-router는 취소된 이동에도
   // `afterEach`를 부른다. 여기서 수위선을 지우면, 이긴 이동이 리다이렉트로 가드를 다시 돌 때 **자기가 방금 민 잠긴
   // 단계 알림까지 포함한 수위선**을 새로 잡고 끝에서 그것을 걷는다 — 결정 65의 *"말없이 옮기지 않는다"*가 깨진다.
