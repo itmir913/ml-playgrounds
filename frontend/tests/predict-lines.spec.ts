@@ -229,6 +229,53 @@ describe('R24 B-6: the neighbour table shows the rows it found', () => {
     // 그리고 학생이 넣은 값과 같은 줄이 맨 앞이다 — 밀리면 여기서 갈린다.
     expect(shown[0]).toEqual(['나', '151', '41'])
   })
+
+  /**
+   * **고른 모델이 목록에서 빠지면 남은 첫 줄로 옮긴다** (0.35.2 경계 감사 고침 라운드 C-1). 필터를 좁히거나 다시 예측해
+   * 고른 모델의 답이 없어지면, 감시가 따라가지 않을 때 칩은 있는데 설명 자리가 조용히 빈다.
+   */
+  it('when the picked model drops out, the first one left is explained', async () => {
+    const { preprocessor, kmeans, settings } = clusterFixture()
+    const one = { ...experiment('experiment-1', []), settings }
+    const kMeansRun = (id: string) =>
+      run(id, {
+        algorithm: 'k_means',
+        model: {
+          format: KMEANS_FORMAT,
+          path: `model/${id}.json`,
+          includesPreprocessing: false,
+          sizeBytes: 32,
+        },
+      })
+    const models = [
+      { experiment: one, run: kMeansRun('run-1') },
+      { experiment: one, run: kMeansRun('run-2') },
+    ] as unknown as PredictableModel[]
+    const bytes = new TextEncoder().encode(JSON.stringify(kmeans))
+
+    // 처음에는 둘째 모델만 답이 있다 — 그것이 골라진다.
+    const wrapper = mount(ClusterNeighbors, {
+      props: {
+        models,
+        answers: new Map<string, Answer>([['run-2', { value: 0 }]]),
+        dataset: DATASET,
+        preprocessors: new Map([['experiment-1', preprocessor]]),
+        modelFiles: new Map([
+          ['model/run-1.json', bytes],
+          ['model/run-2.json', bytes],
+        ]),
+        values: { 키: '151', 몸무게: '41' },
+        experimentNames: new Map([['experiment-1', '1번째 학습']]),
+      },
+      global: { plugins: [i18n] },
+    })
+    expect(wrapper.findAll('tbody tr').length, 'the only model is explained').toBeGreaterThan(0)
+
+    // 다시 예측했더니 이제 첫째 모델만 답이 있다.
+    await wrapper.setProps({ answers: new Map<string, Answer>([['run-1', { value: 0 }]]) })
+
+    expect(wrapper.findAll('tbody tr').length, 'the explanation must not vanish').toBeGreaterThan(0)
+  })
 })
 
 /* ------------------------------------------------------------------ B-6a */

@@ -172,7 +172,8 @@ const candidates = computed(() =>
  * 설명을 펼쳐 볼 모델. **하나뿐이면 학생은 아무것도 안 눌러도 된다.**
  *
  * 목록이 바뀌면(필터를 좁혔거나 다시 예측했거나) 첫 줄로 돌아간다 — 없어진 모델을
- * 고른 채로 두면 아무것도 안 보이는 자리가 조용히 생긴다.
+ * 고른 채로 두면 아무것도 안 보이는 자리가 조용히 생긴다. 무는 검사: `predict-lines.spec.ts`의
+ * *"when the picked model drops out, the first one left is explained"*.
  */
 const picked = ref<string | null>(null)
 
