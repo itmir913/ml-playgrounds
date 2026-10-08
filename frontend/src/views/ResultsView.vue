@@ -138,7 +138,10 @@ const detailDivider = computed(() =>
  * 앉힐 때도 지금 파일에 덧붙이므로(`project.update((live) => …)`) 지운 실험이 되살아날 길이 없다 —
  * 이 줄은 무는 검사 없음, 사람 확인. 그래서 이 화면에 잠금이 없다(결정 66).
  *
- * **지운 id를 쥔 화면 상태도 없다.** 예측 필터와 판, 재현 대조(`ReproducePanel`, 점검 화면)의 상태는
+ * **이 화면의 고른 실험(`selected`)은 지운 id를 쥘 수 있다** — 위 감시가 목록에 없는 id를 가장 최근 것으로 옮긴다.
+ * 무는 검사: `results-screen.spec.ts`의 *"deleting the picked experiment moves to the newest one"*.
+ *
+ * **다른 화면에는 지운 id를 쥔 상태가 없다.** 예측 필터와 판, 재현 대조(`ReproducePanel`, 점검 화면)의 상태는
  * 그 화면의 것이라 이 화면에 있는 동안 내려가 있고, 다시 뜨면 지금 파일에서 새로 세운다 — 무는 검사
  * 없음, 사람 확인. 마지막 번호가 다시 쓰여도 새 모델이 앉고 새 필터에 켜지는 것은
  * `remove-experiment.spec.ts`의 *"마지막 번호가 다시 쓰여도 옛 모델과 옛 필터 상태를 물려받지 않는다"*가 문다.

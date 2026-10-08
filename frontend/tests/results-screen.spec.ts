@@ -22,6 +22,7 @@ import type { PanelInput } from '../src/ml/metric-panels'
 import { DEFAULT_BACKBONE_ID, backboneFor } from '../src/ml/backbones'
 import { silhouetteSampleSize } from '../src/ml/metrics'
 import { PREPROCESSOR_FORMAT, type Dataset, type Preprocessor } from '../src/ml/preprocess'
+import { removeExperiment } from '../src/project/attach'
 import type { ProjectFile } from '../src/project/format'
 import { DATA_TYPES, type DataType, type Run } from '../src/project/schema'
 import { useProjectStore } from '../src/stores/project'
@@ -128,6 +129,26 @@ describe('R24 B-5: which experiment the screen opens', () => {
     const detail = view.findComponent(ExperimentDetail)
     expect(detail.props('experiment').id).toBe('experiment-1')
     expect(detail.props('previous')).toBeUndefined()
+  })
+
+  /**
+   * **고른 실험을 지우면 가장 최근 것으로 옮긴다** (0.35.2 경계 감사 A C-3). 고른 id는 이 화면의 상태라 지운 뒤에도
+   * 남는다 — 감시가 따라가지 않으면 상세 판이 사라진다. 지우기는 `save`가 쓰기 전에 화면의 값을 바꾸는 것과 같게
+   * 스토어의 파일을 `removeExperiment`의 결과로 바꾼다(저장소는 이 검사의 몫이 아니다).
+   */
+  it('deleting the picked experiment moves to the newest one', async () => {
+    const file = threeExperiments()
+    const view = mountResults(file)
+    view.findComponent(ExperimentList).vm.$emit('pick', 'experiment-2')
+    await view.vm.$nextTick()
+    expect(view.findComponent(ExperimentDetail).props('experiment').id).toBe('experiment-2')
+
+    useProjectStore().file = removeExperiment(file, 'experiment-2', '2026-10-08T00:00:00.000Z')
+    await view.vm.$nextTick()
+
+    const detail = view.findComponent(ExperimentDetail)
+    expect(detail.exists(), 'detail must not vanish').toBe(true)
+    expect(detail.props('experiment').id).toBe('experiment-3')
   })
 })
 
