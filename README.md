@@ -8,6 +8,8 @@ browser with no install and no sign-up, in English, Korean and Japanese.
 **[Open the app](https://luminousky.com/ml-playgrounds/)** ·
 [About, sample datasets and classroom materials](https://luminousky.com/teacher-utility-kit/ml-playgrounds/)
 
+![The Predicting step on the iris data set: four trained models answer the same input, three say Iris-virginica and one says Iris-versicolor](https://github.com/user-attachments/assets/af57695a-d6de-4d60-8285-5e3d85b35857)
+
 ## Why
 
 - **Made for the classroom.** It runs on low-spec school PCs and on phones.
