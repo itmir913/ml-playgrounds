@@ -1102,6 +1102,8 @@
     "image": {
       "add": "Add photos",
       "addWhileBusy": "You can add photos once the current task finishes.",
+      "cardsCount": "{count} model card | {count} model cards",
+      "cardsToggle": "Show model cards",
       "clear": "Delete all photos",
       "clearDescription": "This deletes the {count} photo you added for prediction. Your training photos stay. | This deletes the {count} photos you added for prediction. Your training photos stay.",
       "clearTitle": "Remove all photos?",

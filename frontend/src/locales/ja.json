@@ -1102,6 +1102,8 @@
     "image": {
       "add": "写真を追加",
       "addWhileBusy": "進行中の作業が終わると、写真を追加できます。",
+      "cardsCount": "モデルカード{count}枚",
+      "cardsToggle": "モデルカードを表示",
       "clear": "写真をすべて削除",
       "clearDescription": "予測のために追加した写真{count}枚を削除します。学習に使った写真はそのまま残ります。",
       "clearTitle": "追加した写真をすべて削除しますか？",

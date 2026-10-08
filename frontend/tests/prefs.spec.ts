@@ -65,4 +65,11 @@ describe('화면 설정', () => {
     expect(window.localStorage.getItem('ml-playgrounds:results-history-open')).toBe('false')
     expect(window.localStorage.getItem(VIEW_FLAGS.resultsHistoryOpen)).toBeNull()
   })
+
+  /** 열쇠가 겹치면 한 화면을 접을 때 다른 화면이 같이 접힌다. */
+  it('사진 예측의 카드 스위치는 자기 열쇠를 쓴다', () => {
+    writeFlag('predictCardsOpen', false)
+    expect(readFlag('predictCardsOpen', true)).toBe(false)
+    expect(readFlag('resultsHistoryOpen', true)).toBe(true)
+  })
 })

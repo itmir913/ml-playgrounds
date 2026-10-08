@@ -98,6 +98,12 @@ export const ACTION_ICONS = {
   moveUp: ChevronUp,
   moveDown: ChevronDown,
   addSection: Plus,
+  /**
+   * 사진 한 장의 모델 카드를 펴고 닫는다 (architecture.md §8.13.4). **`moveUp`·`moveDown`과
+   * 같은 그림이지만 다른 이름이다** — 하나는 자리를 옮기고 하나는 보이고 숨긴다.
+   */
+  showCards: ChevronDown,
+  hideCards: ChevronUp,
   /** 답을 쓴 문항. **색만으로 말하지 않기 위한 표시다** (architecture.md §8.18). */
   written: Check,
   /** 아직 안 쓴 문항. **표시 없음과 미완료를 가른다** - 빈 자리는 아무 말도 안 한다. */

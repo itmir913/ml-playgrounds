@@ -1,55 +1,12 @@
 <script lang="ts">
 /**
- * **팔레트 차례는 모듈에서 한 번 뽑는다** (architecture.md §8.13.1).
- *
- * `<script setup>`은 목록 하나마다 다시 실행되므로 거기서 뽑으면 **사진 스무 장짜리
- * 화면에서 스무 번 뽑는다** — 같은 등수에 사진마다 다른 색이 배정된다. 목록이
- * 하나뿐이던 시절에는 "인스턴스마다"와 "페이지마다"가 같은 말이었고, 이미지가
- * 들어오면서 갈라졌다. 여기 두면 **페이지당 한 번**이라 세션 중에는 고정이면서
- * 매번 다른 성질은 그대로다.
+ * **재수출은 이 블록에 있어야 한다.** `<script setup>` 안의 `export`는 컴파일러가
+ * 못 받는다. 팔레트 차례를 모듈에서 한 번 뽑던 자리는 `answer-tones.ts`로 옮겼다 —
+ * 사진 예측의 그루터기도 같은 배열을 봐야 한다 (architecture.md §8.13.4).
  */
-
-import { CARD_ORDERS, pickOrder, reorder } from '@/palette'
 import type { Answer } from '@/ml/predict'
 
-/**
- * **재수출은 이 블록에 있어야 한다.** `<script setup>` 안의 `export`는 컴파일러가
- * 못 받는다 — 블록이 둘로 갈리면서 옮겨 온 자리다.
- */
 export type { Answer }
-
-/**
- * 값마다 다른 색. **7개까지만 있다.** 값 종류가 이보다 늘면 8등부터는 전부 같은
- * 회색이다 - 갈림표는 "값별로 다른 색"이 필요하지 "무한히 다른 색"이 필요하지 않고,
- * 색이 여덟아홉 개를 넘으면 어차피 눈으로 못 가른다 (architecture.md 8.13.1).
- *
- * **문자열을 통째로 적는다.** `` `border-chart-${n}` `` 처럼 이어 붙이면 Tailwind가
- * 소스에서 클래스 이름을 못 찾아 그 색이 빌드에서 통째로 빠진다 - CLAUDE.md §4가 임의
- * 값을 막는 것과 같은 이유로, 만들어 붙인 이름도 안 된다.
- *
- * **등수와 색의 대응은 페이지가 뜰 때 한 번 정한다.** 색은 순위표가 아니라 "같은
- * 값이면 같은 색"만 보장하면 되므로, 1등이 매번 chart-1로 고정될 이유가 없다.
- * 고정하면 분류가 대개 두세 갈래라 chart-1·2만 늘 쓰이고 나머지 다섯은 안 쓰인
- * 채로 남는다. **답이 갱신되는 동안에는 다시 안 정한다** - [예측]을 다시 누를 때마다
- * 색이 바뀌면 방금 보던 카드를 못 찾는다.
- *
- * **그런데 무작위로 섞으면 안 된다** (#18). 셔플은 두 색이 얼마나 벌어졌는지를 안
- * 봐서, 두 갈래 분류에서 채움색 둘이 ΔE2000으로 2.4까지 붙었다. 첫 색만 무작위이고
- * 그다음부터는 거리가 정한다 (`palette.ts`). **카드는 `CARD_ORDERS`다** — 넓이를
- * 채우는 것이 `-soft` 쪽이라 옅은 색이 병목이다.
- */
-const CHART_CLASSES = reorder(
-  [
-    'border-chart-1 bg-chart-1-soft',
-    'border-chart-2 bg-chart-2-soft',
-    'border-chart-3 bg-chart-3-soft',
-    'border-chart-4 bg-chart-4-soft',
-    'border-chart-5 bg-chart-5-soft',
-    'border-chart-6 bg-chart-6-soft',
-    'border-chart-7 bg-chart-7-soft',
-  ],
-  pickOrder(CARD_ORDERS),
-)
 </script>
 
 <script setup lang="ts">
@@ -91,34 +48,47 @@ import {
 import { hyperparametersOf, whereTrainedKeyOf } from '@/ml/results'
 import { answerEvidenceFor } from '@/ml/answer-evidence'
 import type { DataType } from '@/project/schema'
+import { cardTone, rankTally, tallyTone } from './answer-tones'
 
-const props = defineProps<{
-  /**
-   * 무엇을 예측하는가. **여기서 비교하지 않는다** — 답에 붙일 증거를 등록부에 물을 때만
-   * 쓴다 (`ml/answer-evidence.ts`). 목록이 종류를 알고 갈라지기 시작하면, 음성이 오는
-   * 날 고쳐야 할 파일이 등록부 하나가 아니라 이 화면이 된다 (architecture.md §9.1).
-   */
-  dataType: DataType
-  models: readonly PredictableModel[]
-  /** run id -> 답. 아직 안 눌렀으면 비어 있다. */
-  answers: ReadonlyMap<string, Answer>
-  /** 실험 id -> 화면에 쓰는 이름. 결과 화면의 세로줄과 같은 이름이어야 한다. */
-  experimentNames: ReadonlyMap<string, string>
-  /**
-   * 아직 안 눌렀을 때 카드가 하는 말. **이미 번역된 채로 온다** (`PredictFilters`와 같은
-   * 규칙) — 여기서 키를 고르면 이 목록이 데이터 종류를 알게 되고, 실제로 그래서
-   * **사진 예측 화면에 "값을 채우고 [예측]을 누르면"이 떴다.**
-   */
-  waiting: string
-  /**
-   * `값 -> 등수`. **화면 전체에서 매겨 내려온다** (`rankAnswersAcross`).
-   *
-   * 여기서 매기면 사진마다 따로 매겨져, 동점일 때 정렬이 뒤집혀 **같은 답이 사진마다
-   * 다른 색**을 받는다. 갈림표의 **개수**는 여전히 이 목록이 받은 답으로 센다 —
-   * 그건 그 사진에 대한 사실이다.
-   */
-  ranks: ReadonlyMap<Prediction, number> | null
-}>()
+/**
+ * **`withDefaults`가 있어야 한다.** Vue는 빠진 불리언 prop을 `undefined`가 아니라 `false`로
+ * 바꿔 넣으므로, 기본값이 없으면 표 예측의 카드가 통째로 숨는다.
+ */
+const props = withDefaults(
+  defineProps<{
+    /**
+     * 무엇을 예측하는가. **여기서 비교하지 않는다** — 답에 붙일 증거를 등록부에 물을 때만
+     * 쓴다 (`ml/answer-evidence.ts`). 목록이 종류를 알고 갈라지기 시작하면, 음성이 오는
+     * 날 고쳐야 할 파일이 등록부 하나가 아니라 이 화면이 된다 (architecture.md §9.1).
+     */
+    dataType: DataType
+    models: readonly PredictableModel[]
+    /** run id -> 답. 아직 안 눌렀으면 비어 있다. */
+    answers: ReadonlyMap<string, Answer>
+    /** 실험 id -> 화면에 쓰는 이름. 결과 화면의 세로줄과 같은 이름이어야 한다. */
+    experimentNames: ReadonlyMap<string, string>
+    /**
+     * 아직 안 눌렀을 때 카드가 하는 말. **이미 번역된 채로 온다** (`PredictFilters`와 같은
+     * 규칙) — 여기서 키를 고르면 이 목록이 데이터 종류를 알게 되고, 실제로 그래서
+     * **사진 예측 화면에 "값을 채우고 [예측]을 누르면"이 떴다.**
+     */
+    waiting: string
+    /**
+     * `값 -> 등수`. **화면 전체에서 매겨 내려온다** (`rankAnswersAcross`).
+     *
+     * 여기서 매기면 사진마다 따로 매겨져, 동점일 때 정렬이 뒤집혀 **같은 답이 사진마다
+     * 다른 색**을 받는다. 갈림표의 **개수**는 여전히 이 목록이 받은 답으로 센다 —
+     * 그건 그 사진에 대한 사실이다.
+     */
+    ranks: ReadonlyMap<Prediction, number> | null
+    /**
+     * 카드가 보이는가. **없으면 보인다** — 표 예측은 입력이 한 줄이라 숨길 일이 없다.
+     * 숨기는 단추는 `#fold` 칸으로 호출부가 넣는다 (§8.13.4).
+     */
+    cardsShown?: boolean
+  }>(),
+  { cardsShown: true },
+)
 
 const { t } = useI18n()
 const format = useFormat()
@@ -187,33 +157,15 @@ const cards = computed(() => props.models.map((model) => ({ model, evidence: evi
 
 const tally = computed(() => tallyClassificationAnswers(props.models, props.answers))
 
-/** 갈림표는 많이 나온 답부터 늘어놓는다 - 카드 색의 1등이 표에서도 맨 앞이다. */
-const rankedTally = computed(() => {
-  const map = props.ranks
-  if (map === null) return tally.value
-  return [...tally.value].sort((a, b) => (map.get(a.value) ?? 0) - (map.get(b.value) ?? 0))
-})
-
-/**
- * 카드 테두리·배경. `null`은 갈리지 않았거나(값이 하나뿐) 회귀 모델이다 - 이때는
- * 강조할 갈림이 없으므로 무채색이다.
- */
-function toneClass(rank: number | null): string {
-  return (rank !== null && CHART_CLASSES[rank]) || 'border-line bg-surface-sunken'
-}
+/** 갈림표의 차례와 색은 `answer-tones.ts`가 정한다 — 그루터기와 같은 함수다. */
+const rankedTally = computed(() => rankTally(tally.value, props.ranks))
 
 function cardClass(model: PredictableModel): string {
-  return toneClass(answerRank(model, props.answers, props.ranks))
+  return cardTone(answerRank(model, props.answers, props.ranks))
 }
 
-/**
- * 집계 칩의 색. **카드와 같은 값이면 같은 색이어야 갈림표와 카드를 눈으로 맞춰
- * 볼 수 있다** - 전에는 최다 답만 강조하고 나머지는 전부 무채색이라, "이 색이 어느
- * 카드였더라"를 표에서 못 찾았다.
- */
 function tallyChipClass(value: Prediction): string {
-  const rank = props.ranks?.get(value) ?? null
-  return (rank !== null && CHART_CLASSES[rank]) || 'border-line-strong bg-surface'
+  return tallyTone(value, props.ranks)
 }
 
 /** 막대 한 줄. 화면이 그리는 데 필요한 것만 담는다. */
@@ -266,21 +218,33 @@ function bars(model: PredictableModel): ProbabilityBar[] {
       겹칠 일이 실질적으로 없다. **판정 도구가 아니라 관찰 도구다** — "얼마나
       갈렸나"를 보여줄 뿐 어느 쪽이 옳은지는 말하지 않는다.
     -->
-    <section v-if="tally.length > 0" class="flex flex-col gap-1.5">
-      <h4 class="font-bold">{{ t('predict.tallyTitle') }}</h4>
-      <p class="text-ink-soft">{{ t('predict.tallyLead') }}</p>
+    <!--
+      **카드를 펴고 닫는 단추는 칩 왼쪽에 선다** (architecture.md §8.13.4, 사용자). 갈림표는
+      펴든 닫든 같은 자리에 있고 그 아래 카드만 숨는다 — 단추가 다른 줄에 있으면 누를
+      때마다 칩이 자리를 옮겨 화면이 흔들린다. 갈림표가 없는 답(회귀·군집·예측 전)에는
+      단추만 선다.
+    -->
+    <section v-if="tally.length > 0 || $slots.fold" class="flex flex-col gap-1.5">
+      <template v-if="tally.length > 0">
+        <h4 class="font-bold">{{ t('predict.tallyTitle') }}</h4>
+        <p class="text-ink-soft">{{ t('predict.tallyLead') }}</p>
+      </template>
 
-      <ul class="flex flex-wrap gap-2">
-        <li
-          v-for="entry in rankedTally"
-          :key="String(entry.value)"
-          class="flex items-baseline gap-2 rounded-field border px-3 py-1.5"
-          :class="tallyChipClass(entry.value)"
-        >
-          <span class="font-bold tabular-nums">{{ answerText(entry.value) }}</span>
-          <span class="text-ink-soft">{{ t('meta.countUnit', { count: entry.count }) }}</span>
-        </li>
-      </ul>
+      <div class="flex flex-wrap items-start gap-2">
+        <slot name="fold" />
+
+        <ul v-if="tally.length > 0" class="flex flex-wrap gap-2">
+          <li
+            v-for="entry in rankedTally"
+            :key="String(entry.value)"
+            class="flex items-baseline gap-2 rounded-field border px-3 py-1.5"
+            :class="tallyChipClass(entry.value)"
+          >
+            <span class="font-bold tabular-nums">{{ answerText(entry.value) }}</span>
+            <span class="text-ink-soft">{{ t('meta.countUnit', { count: entry.count }) }}</span>
+          </li>
+        </ul>
+      </div>
     </section>
 
     <!--
@@ -291,7 +255,14 @@ function bars(model: PredictableModel): ProbabilityBar[] {
       **한 줄의 카드는 높이를 맞춘다** (그리드 기본값 `stretch`, 사용자). 확률 막대가 없는 카드가 옆 카드보다
       짧게 끊기면 줄이 들쭉날쭉하다. 내용은 위에서부터 놓인다 — 가운데로 모으지 않는다.
     -->
-    <ul class="grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4">
+    <!--
+      **숨겨도 그린다** (`v-show`, architecture.md §8.13.4). 전체 스위치 한 번에 사진 수 ×
+      모델 수만큼 카드를 만들었다 부수는 것이 남겨 두는 것보다 무겁다.
+    -->
+    <ul
+      v-show="props.cardsShown"
+      class="grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4"
+    >
       <li
         v-for="{ model, evidence } in cards"
         :key="model.run.id"

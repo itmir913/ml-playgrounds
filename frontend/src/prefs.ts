@@ -23,6 +23,8 @@ const PREFIX = 'ml-playgrounds:'
 export const VIEW_FLAGS = {
   /** 결과 화면의 `실험 기록`이 펼쳐져 있는가 (architecture.md §8.13.3). */
   resultsHistoryOpen: 'results-history-open',
+  /** 사진 예측의 `모델 카드 표시`가 켜져 있는가 (architecture.md §8.13.4). */
+  predictCardsOpen: 'predict-cards-open',
 } as const
 
 export type ViewFlag = keyof typeof VIEW_FLAGS

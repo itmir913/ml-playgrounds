@@ -74,7 +74,10 @@ import { dataSettings } from '@/project/schema'
 import { yieldToScreen } from '@/screen'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
+import { ACTION_ICONS } from '@/icons'
+import { readFlag, writeFlag } from '@/prefs'
 import AnswerList from './AnswerList.vue'
+import { overrideCards, photoCardsOpen } from './fold'
 import PredictFilters, { type FilterAxis } from './PredictFilters.vue'
 import ImageSourceMenu from '@/views/data/ImageSourceMenu.vue'
 
@@ -279,6 +282,36 @@ const visible = computed(() => applyPredictFilter(models.value, filter.value))
  * 바뀌면 방금 본 카드를 못 찾는다.
  */
 const ranks = computed(() => rankAnswersAcross(visible.value, answers.value.values()))
+
+/**
+ * `모델 카드 표시` (architecture.md §8.13.4). **기본은 펼침**이고 화면 크기마다 다르게
+ * 두지 않는다 — `실험 기록`(§8.13.3)과 같은 이유다. 사진 한 장을 손으로 여닫은 것은
+ * `cardOverrides`에만 남고, 스위치를 바꾸면 비운다.
+ */
+const cardsOpen = ref(readFlag('predictCardsOpen', true))
+const cardOverrides = ref(new Map<string, boolean>())
+
+function onCardsSwitch(event: Event): void {
+  const next = (event.target as HTMLInputElement).checked
+  cardsOpen.value = next
+  cardOverrides.value = new Map()
+  writeFlag('predictCardsOpen', next)
+}
+
+function cardsOpenFor(hash: string): boolean {
+  return photoCardsOpen(cardsOpen.value, cardOverrides.value, hash)
+}
+
+/** 사진 한 장의 카드를 펴고 닫는다. 스위치와 같아지면 예외가 지워진다 (`fold.ts`). */
+function togglePhoto(hash: string): void {
+  cardOverrides.value = overrideCards(
+    cardsOpen.value,
+    cardOverrides.value,
+    hash,
+    !cardsOpenFor(hash),
+  )
+}
+
 const visibleUsable = computed(() => visible.value.filter((entry) => entry.reason === undefined))
 
 /**
@@ -881,6 +914,21 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       {{ t('predict.clusterAnswerNote') }}
     </p>
 
+    <!--
+      **전체 스위치는 목록 바로 위다** (architecture.md §8.13.4). 보는 방식이지 동작이 아니라
+      고정 바에 안 넣는다 — 필터가 바 밖에 서는 것과 같고, 휴대폰에서 바는 이미 버튼 셋이다.
+      **잠그지 않는다.** 예측 중에도 보는 방식은 바꿀 수 있다.
+    -->
+    <label v-if="photos.length > 0 && !filteredOut" class="flex cursor-pointer items-center gap-2">
+      <input
+        type="checkbox"
+        class="size-4 shrink-0 accent-brand"
+        :checked="cardsOpen"
+        @change="onCardsSwitch"
+      />
+      <span class="font-bold">{{ t('predict.image.cardsToggle') }}</span>
+    </label>
+
     <div v-if="filteredOut" class="grid min-h-0 flex-1 place-items-center">
       <AppEmpty :reason="t('predict.filterEmptyReason')" :next="t('predict.filterEmptyNext')" />
     </div>
@@ -947,7 +995,29 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
             :experiment-names="experimentNames"
             :ranks="ranks"
             :waiting="t('predict.image.waiting')"
-          />
+            :cards-shown="cardsOpenFor(photo.hash)"
+          >
+            <!--
+              **단추는 갈림표 칩 왼쪽이다** (architecture.md §8.13.4, 사용자). 갈림표는 펴든
+              닫든 제자리이고 카드만 숨는다. 이름은 `모델 카드 N개`라는 명사다 — 펴고 닫는
+              동사는 `copy.md` §2의 목록에 없고, 상태는 `aria-expanded`와 화살표가 말한다.
+            -->
+            <template #fold>
+              <button
+                type="button"
+                :aria-expanded="cardsOpenFor(photo.hash)"
+                class="flex items-center gap-1 rounded-field border border-line-strong bg-surface px-3 py-1.5 font-bold text-ink-soft transition-colors hover:text-ink"
+                @click="togglePhoto(photo.hash)"
+              >
+                <component
+                  :is="cardsOpenFor(photo.hash) ? ACTION_ICONS.hideCards : ACTION_ICONS.showCards"
+                  :size="16"
+                  aria-hidden="true"
+                />
+                {{ t('predict.image.cardsCount', visible.length) }}
+              </button>
+            </template>
+          </AnswerList>
         </div>
       </li>
     </ul>
