@@ -155,6 +155,18 @@ describe('테스트 자리에만 남은 이름으로는 못 바꾼다 — 만들
     expect(renameCollidesWithTest({ categories, testCategories, to: 'D' })).toBe(false)
   })
 
+  /**
+   * **대소문자만 다른 고아도 합쳐진다** (0.35.2 경계 감사 B C-6, `categoryFolderKey`). 윈도에 풀면 `test/c`와 `test/C`가 한 폴더다.
+   * 자기 이름의 대소문자만 바꾸는 것은 지금 범주에 같은 폴더가 있으니 거절하지 않는다.
+   */
+  it('술어 — 대소문자만 다른 고아도 합쳐진다', () => {
+    const categories = ['a', 'B']
+    const testCategories = ['a', 'B', 'c']
+    expect(renameCollidesWithTest({ categories, testCategories, to: 'C' })).toBe(true)
+    expect(renameCollidesWithTest({ categories, testCategories, to: 'b' })).toBe(false)
+    expect(renameCollidesWithTest({ categories, testCategories, to: 'A' })).toBe(false)
+  })
+
   it('이름 창의 gate — 바꾸기는 nameTakenByTest, 만들기는 통과', () => {
     const project = orphaned()
     expect(imageCategories(project)).toEqual(['A', 'B'])

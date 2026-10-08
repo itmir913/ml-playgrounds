@@ -10,6 +10,7 @@
  * **예측 가능하게 거부한다**("상위 버전 파일은 거부한다"와 같은 태도다).
  */
 
+import { categoryFolderKey } from '@/data/image/canonical'
 import { splitsData } from '@/ml/selection'
 import { IMAGE_UNLABELED } from '@/project/format'
 import type { TaskType } from '@/project/schema'
@@ -64,6 +65,10 @@ export function testSetBlockFor(categories: readonly string[]): TestSetBlock | n
  * 같은 목록을 받는다. 만들기는 부르지 않는다(되살리기의 유일한 길이다). 무는 검사: `category-test-photos.spec.ts`, 화면이 gate에
  * 넘기는 입력은 `image-panel-rename-pending.spec.ts`의 *"고아 테스트 이름으로 바꾸기"*.
  *
+ * **대소문자만 다른 이름도 같은 폴더다** (`categoryFolderKey`, 0.35.2 경계 감사 B C-6). 글자 그대로 견주면 고아 `test/c`가 있을 때
+ * `C`로 바꾸는 것을 받고, 내려받은 zip을 윈도에 풀면 새 `C`의 테스트 사진과 고아가 한 폴더에 앉는다 — 그 폴더를 읽는 도구는 고아를
+ * `C`의 정답으로 채점한다. 무는 검사: `category-test-photos.spec.ts`의 *"술어 — 대소문자만 다른 고아도 합쳐진다"*.
+ *
  * @param categories     지금 범주(`imageCategories`). 여기 있는 이름으로 바꾸는 것은 `nameTaken`의 일이다.
  * @param testCategories 테스트 자리의 범주.
  */
@@ -72,7 +77,9 @@ export function renameCollidesWithTest(input: {
   readonly testCategories: readonly string[]
   readonly to: string
 }): boolean {
-  return !input.categories.includes(input.to) && input.testCategories.includes(input.to)
+  const key = categoryFolderKey(input.to)
+  const sameFolder = (one: string): boolean => categoryFolderKey(one) === key
+  return !input.categories.some(sameFolder) && input.testCategories.some(sameFolder)
 }
 
 /**
