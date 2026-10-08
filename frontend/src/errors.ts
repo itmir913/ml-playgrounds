@@ -152,7 +152,8 @@ export const CLIENT_ERROR_CODES = [
   // 파일로 다시 여는 것이다.
   'MODEL_NEEDS_DATASET',
   // 데이터는 있는데 학습 때의 행을 못 되세운다 - 학습 뒤 사진이 바뀌었거나, 학습 때의
-  // 임베딩·백본과 맞지 않는다(v1 파일은 마이그레이션이 옛 백본의 임베딩을 뗀다) (mlpx-spec.md 5.1).
+  // 임베딩·백본과 맞지 않는다(v1 파일은 마이그레이션이 백본 id를 개정판으로 바꾸고, 옛 id의 임베딩은
+  // 읽을 때 `dropUnknownBackbones`가 뗀다) (mlpx-spec.md 5.1).
   // 위와 나누는 이유는 학생이 할 일이 다르기 때문이다 - 다른 파일을 열 것이 아니라 다시 학습한다.
   'MODEL_TRAINING_DATA_CHANGED',
 
