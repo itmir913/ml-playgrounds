@@ -28,7 +28,7 @@ const gates = vi.hoisted(() => {
     })
     return { arrived, open: () => open(), requested: false }
   }
-  return { inspect: gate(), predict: gate() }
+  return { inspect: gate(), predict: gate(), preprocess: gate() }
 })
 
 const blank = { default: { render: () => null } }
@@ -46,6 +46,11 @@ vi.mock('../src/views/PredictView.vue', async () => {
 // 청크를 못 받는 화면 — 배포 뒤 옛 탭이나 끊긴 연결. 그 이동은 중단(ABORTED)으로 끝난다.
 vi.mock('../src/views/PortfolioView.vue', () => {
   throw new TypeError('Failed to fetch dynamically imported module: /assets/Gone-1a2b3c.js')
+})
+vi.mock('../src/views/PreprocessView.vue', async () => {
+  gates.preprocess.requested = true
+  await gates.preprocess.arrived
+  return blank
 })
 vi.mock('../src/views/ResultsView.vue', () => blank)
 vi.mock('../src/views/DataView.vue', () => blank)
@@ -158,5 +163,25 @@ describe('알림 수위선', { timeout: 20_000 }, () => {
     await router.push(`/project/${manifest.projectId}/predict`)
     expect(router.currentRoute.value.name).toBe('predict')
     expect(useToastStore().items.map((one) => one.key)).toEqual([])
+  })
+
+  /**
+   * **수위선은 청크를 받기 전에 잡는다** (0.35.2 경계 감사 A C-1). 받는 사이(학교 회선에서 몇 초)에 라우터 밖에서 뜬 알림 —
+   * 자동 저장 실패가 진짜 입구다 — 은 방금 일어난 일이라 새 화면에서 읽혀야 한다. 포착을 받은 뒤로 옮겨도 전에는 아무 검사도
+   * 안 울었다.
+   */
+  it('화면을 받는 사이에 뜬 알림은 이동이 끝나도 남는다', async () => {
+    await saveProject(projectFile())
+    gates.predict.open()
+    await router.push(`/project/${manifest.projectId}/data`)
+
+    const move = router.push(`/project/${manifest.projectId}/preprocess`)
+    await vi.waitFor(() => expect(gates.preprocess.requested).toBe(true))
+    useToastStore().push('danger', 'client.STORAGE_QUOTA_EXCEEDED')
+    gates.preprocess.open()
+    await move
+
+    expect(router.currentRoute.value.name).toBe('preprocess')
+    expect(useToastStore().items.map((one) => one.key)).toEqual(['client.STORAGE_QUOTA_EXCEEDED'])
   })
 })
