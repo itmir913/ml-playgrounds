@@ -44,6 +44,19 @@ import { DIR, readProject, type ProjectFile } from '../src/project/format'
 import { writeProjectBytes } from './fixtures/write'
 import { unzipSync } from 'fflate'
 
+/**
+ * **조합 검사의 시간 상한.** 조각을 셋·넷씩 잇는 검사는 수만 문서를 그리는 정확성 검사이고 시간은 검사 대상이 아니다. 관문에서
+ * 워커가 겹치면 혼자 돌 때의 몇 배가 걸려 전역 20초(`vite.config.ts`의 `testTimeout`)를 넘었다 — 0.35.9 관문에서 결정 89의
+ * 조합 검사가 시간 초과로만 빨갰고 따로 돌리면 초록이었다(2026-10-14). 정말 멈춘 검사는 이것에도 운다.
+ */
+const COMBINATION_TIMEOUT_MS = 60_000
+
+/**
+ * 조합 검사가 함께 쓰는 렌더러(`html: true`). **문서마다 새로 짓지 않는다** — markdown-it의 `render`는 인스턴스에 상태를 남기지
+ * 않으므로 결과는 같고, 짓는 값을 문서 수만큼 치르지 않는다.
+ */
+const htmlRenderer = new MarkdownIt({ html: true })
+
 function portfolio(
   sections: { id: string; title: string; description?: string }[],
   answers: Record<string, string> = {},
@@ -1169,7 +1182,7 @@ describe('문항에 붙은 사진', () => {
  */
 describe('결정 82: 확신 못 하는 울타리는 더 긴 울타리로 감싼다', () => {
   const headingsOf = (markdown: string) =>
-    [...new MarkdownIt({ html: true }).render(markdown).matchAll(/<h([12])>([^<]*)</g)].map(
+    [...htmlRenderer.render(markdown).matchAll(/<h([12])>([^<]*)</g)].map(
       ([, level, title]) => `h${level}:${title}`,
     )
 
@@ -1200,46 +1213,50 @@ describe('결정 82: 확신 못 하는 울타리는 더 긴 울타리로 감싼�
    * 이루어졌다(목록 표지·들여쓴 울타리·물결·HTML·setext·주석·닫는 말). 조각이 늘면 조합은 세제곱으로
    * 늘어나므로 조각은 반례에 나온 모양만 둔다.
    */
-  it('까다로운 줄의 조합이 뒤 문항을 안 삼킨다', () => {
-    const pieces = [
-      '- a',
-      '  - b',
-      '- ```',
-      '  ```',
-      '   ~~~~',
-      '```',
-      '````',
-      '~~~',
-      '<div>',
-      '<br>',
-      '</a>',
-      '<!--',
-      '-->',
-      '<?php',
-      '?>',
-      '<pre>',
-      '> ```',
-      '---',
-      '===',
-      '# y',
-      '`',
-      '',
-    ]
-    const broken: string[] = []
-    for (const one of pieces) {
-      for (const two of pieces) {
-        for (const three of pieces) {
-          const answer = [one, two, three].join('\n')
-          if (answer.trim() === '') continue
-          for (const markdown of [render(answer), render('첫 답', answer)]) {
-            const found = headingsOf(markdown)
-            if (found.join('|') !== EXPECTED.join('|')) broken.push(JSON.stringify(answer))
+  it(
+    '까다로운 줄의 조합이 뒤 문항을 안 삼킨다',
+    () => {
+      const pieces = [
+        '- a',
+        '  - b',
+        '- ```',
+        '  ```',
+        '   ~~~~',
+        '```',
+        '````',
+        '~~~',
+        '<div>',
+        '<br>',
+        '</a>',
+        '<!--',
+        '-->',
+        '<?php',
+        '?>',
+        '<pre>',
+        '> ```',
+        '---',
+        '===',
+        '# y',
+        '`',
+        '',
+      ]
+      const broken: string[] = []
+      for (const one of pieces) {
+        for (const two of pieces) {
+          for (const three of pieces) {
+            const answer = [one, two, three].join('\n')
+            if (answer.trim() === '') continue
+            for (const markdown of [render(answer), render('첫 답', answer)]) {
+              const found = headingsOf(markdown)
+              if (found.join('|') !== EXPECTED.join('|')) broken.push(JSON.stringify(answer))
+            }
           }
         }
       }
-    }
-    expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
-  })
+      expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
+    },
+    COMBINATION_TIMEOUT_MS,
+  )
 
   it('감싼 울타리는 답 안의 가장 긴 백틱 연속보다 하나 길다', () => {
     const answer = '- 코드:\n  ````js\n  let a = `x`\n  ````'
@@ -1370,8 +1387,8 @@ describe('결정 89: 코드 밖의 <는 &lt;로 싣는다', () => {
   ])
   /** 마크다운 링크가 만드는 `<a>`. markdown-it은 `javascript:` 주소로는 링크를 안 만든다. */
   const MARKDOWN_LINK = /^<a href="(?!javascript:)[^"]*">$/i
-  const rawTagsIn = (markdown: string) => {
-    const html = new MarkdownIt({ html: true }).render(markdown)
+  /** 그린 HTML에서 학생이 쓴 태그를 찾는다. 조합 검사는 한 번 그린 HTML을 제목 세기와 함께 쓴다. */
+  const rawTagsInHtml = (html: string) => {
     const found = [...html.matchAll(/<(\/?)([^\s>/]*)[^>]*>?/g)]
       .filter(([whole, closing, name]) => {
         const tag = name!.toLowerCase()
@@ -1382,11 +1399,11 @@ describe('결정 89: 코드 밖의 <는 &lt;로 싣는다', () => {
     // 마크다운의 `<pre>`는 언제나 `<pre><code`다 — 홀로 선 `<pre>`는 학생이 쓴 것이다.
     return [...found, ...[...html.matchAll(/<pre>(?!<code)/g)].map(([whole]) => whole)]
   }
+  const rawTagsIn = (markdown: string) => rawTagsInHtml(htmlRenderer.render(markdown))
 
-  const headingsOf = (markdown: string) =>
-    [...new MarkdownIt({ html: true }).render(markdown).matchAll(/<h([12])>([^<]*)</g)].map(
-      ([, level, title]) => `h${level}:${title}`,
-    )
+  const headingsInHtml = (html: string) =>
+    [...html.matchAll(/<h([12])>([^<]*)</g)].map(([, level, title]) => `h${level}:${title}`)
+  const headingsOf = (markdown: string) => headingsInHtml(htmlRenderer.render(markdown))
 
   const THREE = [
     { id: 'a', title: '동기' },
@@ -1414,93 +1431,103 @@ describe('결정 89: 코드 밖의 <는 &lt;로 싣는다', () => {
    * 목록·인용 표지와 울타리 사이에 섞는다 — 82의 감싸는 조건 (2)(0열 울타리와 줄머리 `<`)가 지키던 병, HTML 블록
    * 안의 ` ``` `를 줄 규칙이 울타리로 세어 뒤 문항을 잃는 것도 여기서 본다. 조건 (2)는 걷어냈다. 학생의 태그가 서는지도 본다.
    */
-  it('감사의 조각 조합이 뒤 문항을 안 삼키고 태그도 안 세운다', () => {
-    const pieces = [
-      '  <!--',
-      '<!--',
-      '-->',
-      '<style>',
-      '<script>',
-      '<pre>',
-      '<?php',
-      '<![CDATA[',
-      '- a',
-      '- <div>',
-      '> <div>',
-      '<div>',
-      '<br/>',
-      '```',
-      '    ```',
-      '-\t```',
-      '\u00a0```',
-      '# y',
-      '',
-    ]
-    const broken: string[] = []
-    for (const one of pieces) {
-      for (const two of pieces) {
-        for (const three of pieces) {
-          for (const eol of ['\n', '\r\n']) {
-            const answer = [one, two, three].join(eol)
-            if (answer.trim() === '') continue
-            for (const markdown of [render(answer), render('첫 답', answer)]) {
-              if (headingsOf(markdown).join('|') !== EXPECTED.join('|')) {
-                broken.push(JSON.stringify(answer))
+  it(
+    '감사의 조각 조합이 뒤 문항을 안 삼키고 태그도 안 세운다',
+    () => {
+      const pieces = [
+        '  <!--',
+        '<!--',
+        '-->',
+        '<style>',
+        '<script>',
+        '<pre>',
+        '<?php',
+        '<![CDATA[',
+        '- a',
+        '- <div>',
+        '> <div>',
+        '<div>',
+        '<br/>',
+        '```',
+        '    ```',
+        '-\t```',
+        '\u00a0```',
+        '# y',
+        '',
+      ]
+      const broken: string[] = []
+      for (const one of pieces) {
+        for (const two of pieces) {
+          for (const three of pieces) {
+            for (const eol of ['\n', '\r\n']) {
+              const answer = [one, two, three].join(eol)
+              if (answer.trim() === '') continue
+              for (const markdown of [render(answer), render('첫 답', answer)]) {
+                // **한 번 그리고 두 가지를 본다** — 같은 문서를 제목용·태그용으로 두 번 그리던 것이 관문의 시간 초과였다.
+                const html = htmlRenderer.render(markdown)
+                if (headingsInHtml(html).join('|') !== EXPECTED.join('|')) {
+                  broken.push(JSON.stringify(answer))
+                }
+                if (rawTagsInHtml(html).length > 0) broken.push(`tag ${JSON.stringify(answer)}`)
               }
-              if (rawTagsIn(markdown).length > 0) broken.push(`tag ${JSON.stringify(answer)}`)
             }
           }
         }
       }
-    }
-    expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
-  })
+      expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
+    },
+    COMBINATION_TIMEOUT_MS,
+  )
 
   /**
    * **보안 퍼저.** 태그류와 코드 스팬의 까다로운 조각(길이 다른 백틱·이스케이프된 백틱·줄을 넘는 스팬·링크 목적지·표 칸)을
    * 컨테이너·울타리 조각과 섞어 셋씩 잇는다. 학생 원문의 태그가 요소로 서는 경우가 하나도 없어야 한다.
    */
-  it('태그와 코드 스팬 조각의 조합에서 학생의 태그가 하나도 안 선다', () => {
-    const pieces = [
-      '<script>alert(1)</script>',
-      '<img src=x onerror=alert(1)>',
-      '<svg onload=alert(1)>',
-      '`<b>`',
-      '`` ` ``',
-      '` <img src=x onerror=alert(1)> ``',
-      '\\`<img src=x onerror=alert(1)>`',
-      '\\`',
-      '<',
-      'a<b',
-      '`a',
-      '- b`',
-      'b` <img src=x onerror=alert(1)> `c`',
-      '[a](`) <svg onload=alert(1)> (`)',
-      '| `a | <img src=x onerror=alert(1)>` |',
-      '|---|---|',
-      '- a',
-      '> q',
-      '```',
-      '    ```',
-      '',
-    ]
-    const broken: string[] = []
-    for (const one of pieces) {
-      for (const two of pieces) {
-        for (const three of pieces) {
-          for (const eol of ['\n', '\r\n']) {
-            const answer = [one, two, three].join(eol)
-            if (answer.trim() === '') continue
-            for (const markdown of [render(answer), render('첫 답', answer)]) {
-              const tags = rawTagsIn(markdown)
-              if (tags.length > 0) broken.push(`${JSON.stringify(answer)} ${tags.join(' ')}`)
+  it(
+    '태그와 코드 스팬 조각의 조합에서 학생의 태그가 하나도 안 선다',
+    () => {
+      const pieces = [
+        '<script>alert(1)</script>',
+        '<img src=x onerror=alert(1)>',
+        '<svg onload=alert(1)>',
+        '`<b>`',
+        '`` ` ``',
+        '` <img src=x onerror=alert(1)> ``',
+        '\\`<img src=x onerror=alert(1)>`',
+        '\\`',
+        '<',
+        'a<b',
+        '`a',
+        '- b`',
+        'b` <img src=x onerror=alert(1)> `c`',
+        '[a](`) <svg onload=alert(1)> (`)',
+        '| `a | <img src=x onerror=alert(1)>` |',
+        '|---|---|',
+        '- a',
+        '> q',
+        '```',
+        '    ```',
+        '',
+      ]
+      const broken: string[] = []
+      for (const one of pieces) {
+        for (const two of pieces) {
+          for (const three of pieces) {
+            for (const eol of ['\n', '\r\n']) {
+              const answer = [one, two, three].join(eol)
+              if (answer.trim() === '') continue
+              for (const markdown of [render(answer), render('첫 답', answer)]) {
+                const tags = rawTagsIn(markdown)
+                if (tags.length > 0) broken.push(`${JSON.stringify(answer)} ${tags.join(' ')}`)
+              }
             }
           }
         }
       }
-    }
-    expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
-  })
+      expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
+    },
+    COMBINATION_TIMEOUT_MS,
+  )
 
   /** 태그류마다 한 줄씩 — 실린 모양을 통째로 보고, 렌더에서 태그가 안 서는지 본다. */
   it.each([
@@ -1688,45 +1715,50 @@ describe('결정 89: 코드 밖의 <는 &lt;로 싣는다', () => {
     })
 
     /** 제목·라벨·값에 줄 끝과 백틱·태그 조각을 셋씩 넣는다. 태그가 안 서고 제목 구조가 그대로여야 한다. */
-    it('한 줄 글의 줄 끝 조합에서 태그가 안 선다', () => {
-      const pieces = [
-        '`',
-        '\r',
-        '\n',
-        '\r\n',
-        '\u2028',
-        '<img src=x onerror=alert(1)>',
-        '- ',
-        '# ',
-        'a',
-      ]
-      const broken: string[] = []
-      for (const one of pieces) {
-        for (const two of pieces) {
-          for (const three of pieces) {
-            const line = one + two + three
-            const made = [
-              withText(line, '이름', '홍길동'),
-              withText('붓꽃', line, '홍길동'),
-              withText('붓꽃', '이름', line),
-              renderPortfolioMarkdown(
-                TEXT,
-                portfolio([
-                  { id: 'a', title: line },
-                  { id: 'b', title: '방법' },
-                ]),
-              ),
-            ]
-            for (const markdown of made) {
-              const levels = levelsIn(markdown)
-              const shaped = levels[0] === 'h1' && levels.slice(1).every((level) => level === 'h2')
-              if (rawTagsIn(markdown).length > 0 || !shaped) broken.push(JSON.stringify(line))
+    it(
+      '한 줄 글의 줄 끝 조합에서 태그가 안 선다',
+      () => {
+        const pieces = [
+          '`',
+          '\r',
+          '\n',
+          '\r\n',
+          '\u2028',
+          '<img src=x onerror=alert(1)>',
+          '- ',
+          '# ',
+          'a',
+        ]
+        const broken: string[] = []
+        for (const one of pieces) {
+          for (const two of pieces) {
+            for (const three of pieces) {
+              const line = one + two + three
+              const made = [
+                withText(line, '이름', '홍길동'),
+                withText('붓꽃', line, '홍길동'),
+                withText('붓꽃', '이름', line),
+                renderPortfolioMarkdown(
+                  TEXT,
+                  portfolio([
+                    { id: 'a', title: line },
+                    { id: 'b', title: '방법' },
+                  ]),
+                ),
+              ]
+              for (const markdown of made) {
+                const levels = levelsIn(markdown)
+                const shaped =
+                  levels[0] === 'h1' && levels.slice(1).every((level) => level === 'h2')
+                if (rawTagsIn(markdown).length > 0 || !shaped) broken.push(JSON.stringify(line))
+              }
             }
           }
         }
-      }
-      expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
-    })
+        expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
+      },
+      COMBINATION_TIMEOUT_MS,
+    )
   })
 
   /**
@@ -1754,36 +1786,40 @@ describe('결정 89: 코드 밖의 <는 &lt;로 싣는다', () => {
     })
 
     /** 빈 줄처럼 보이는 줄·닫는 울타리 뒤·여는 울타리 뒤에 유니코드 공백과 줄 구분자를 두고 셋씩 잇는다. */
-    it('유니코드 공백 조각의 조합에서 태그가 안 선다', () => {
-      const spaces = ['\u3000', '\u00a0', '\u2028', '\u2029', '\ufeff', '\v', '\f']
-      const pieces = [
-        '```',
-        '~~~',
-        '`a',
-        `\`${IMG}\``,
-        IMG,
-        ...spaces,
-        ...spaces.slice(0, 3).map((space) => `\`\`\`${space}`),
-        // 닫는 줄로 착각하면 다음 줄이 여는 줄이 된다 — 그 두 줄을 한 조각으로 둬야 셋씩 이어서 닿는다.
-        ...spaces.slice(0, 3).map((space) => `\`\`\`${space}\n\`\`\``),
-        '```x\u2028',
-        '~~~\u2029',
-      ]
-      const broken: string[] = []
-      for (const one of pieces) {
-        for (const two of pieces) {
-          for (const three of pieces) {
-            for (const eol of ['\n', '\r\n']) {
-              const answer = [one, two, three].join(eol)
-              for (const markdown of [render(answer), render('첫 답', answer)]) {
-                if (rawTagsIn(markdown).length > 0) broken.push(JSON.stringify(answer))
+    it(
+      '유니코드 공백 조각의 조합에서 태그가 안 선다',
+      () => {
+        const spaces = ['\u3000', '\u00a0', '\u2028', '\u2029', '\ufeff', '\v', '\f']
+        const pieces = [
+          '```',
+          '~~~',
+          '`a',
+          `\`${IMG}\``,
+          IMG,
+          ...spaces,
+          ...spaces.slice(0, 3).map((space) => `\`\`\`${space}`),
+          // 닫는 줄로 착각하면 다음 줄이 여는 줄이 된다 — 그 두 줄을 한 조각으로 둬야 셋씩 이어서 닿는다.
+          ...spaces.slice(0, 3).map((space) => `\`\`\`${space}\n\`\`\``),
+          '```x\u2028',
+          '~~~\u2029',
+        ]
+        const broken: string[] = []
+        for (const one of pieces) {
+          for (const two of pieces) {
+            for (const three of pieces) {
+              for (const eol of ['\n', '\r\n']) {
+                const answer = [one, two, three].join(eol)
+                for (const markdown of [render(answer), render('첫 답', answer)]) {
+                  if (rawTagsIn(markdown).length > 0) broken.push(JSON.stringify(answer))
+                }
               }
             }
           }
         }
-      }
-      expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
-    })
+        expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
+      },
+      COMBINATION_TIMEOUT_MS,
+    )
 
     /**
      * **판정 구역에 JS 공백 판정이 없다.** `portfolio.ts`의 표시(`여기서 \`escapeInline\`까지가`)부터
@@ -2099,54 +2135,62 @@ describe('결정 93: 주소가 http·https가 아닌 링크는 글자로 싣는�
    * **보안 퍼저.** 링크 조각을 셋씩 이어 답과 문서 제목에 넣는다. 링크를 거르지 않는 렌더에서 http·https가 아닌
    * `href`·`src`가 하나도 없어야 한다. 참조 정의가 걸리게 뒤에 `[r]`을 하나 붙인다.
    */
-  it('링크 조각을 셋씩 이어도 http·https가 아닌 주소가 안 선다', () => {
-    const broken: string[] = []
-    for (const one of PIECES) {
-      for (const two of PIECES) {
-        for (const three of PIECES) {
-          const text = `${one}${two}${three} [r] [a]`
-          for (const markdown of [
-            render(text),
-            renderPortfolioMarkdown({ ...TEXT, title: text }, portfolio(THREE)),
-          ]) {
-            if (unsafeLinksIn(markdown).length > 0) broken.push(JSON.stringify(text))
+  it(
+    '링크 조각을 셋씩 이어도 http·https가 아닌 주소가 안 선다',
+    () => {
+      const broken: string[] = []
+      for (const one of PIECES) {
+        for (const two of PIECES) {
+          for (const three of PIECES) {
+            const text = `${one}${two}${three} [r] [a]`
+            for (const markdown of [
+              render(text),
+              renderPortfolioMarkdown({ ...TEXT, title: text }, portfolio(THREE)),
+            ]) {
+              if (unsafeLinksIn(markdown).length > 0) broken.push(JSON.stringify(text))
+            }
           }
         }
       }
-    }
-    expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
-  })
+      expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
+    },
+    COMBINATION_TIMEOUT_MS,
+  )
 
   /** 넷씩은 조각을 좁혀 답에만 넣는다 — 인라인 링크 하나를 조각 넷으로 짓는 모양이 여기서 닿는다. */
-  it('링크 조각을 넷씩 이어도 http·https가 아닌 주소가 안 선다', () => {
-    const core = [
-      '[',
-      '](',
-      ']',
-      '(',
-      'javascript:',
-      '&#x6A;avascript:',
-      'http://ok',
-      '<',
-      '\\',
-      '`',
-      ')',
-      '\n',
-      '[r]: ',
-    ]
-    const broken: string[] = []
-    for (const one of core) {
-      for (const two of core) {
-        for (const three of core) {
-          for (const four of core) {
-            const text = `${one}${two}${three}${four} [r]`
-            if (unsafeLinksIn(render(text)).length > 0) broken.push(JSON.stringify(text))
+  it(
+    '링크 조각을 넷씩 이어도 http·https가 아닌 주소가 안 선다',
+    () => {
+      const core = [
+        '[',
+        '](',
+        ']',
+        '(',
+        'javascript:',
+        '&#x6A;avascript:',
+        'http://ok',
+        '<',
+        '\\',
+        '`',
+        ')',
+        '\n',
+        '[r]: ',
+      ]
+      const broken: string[] = []
+      for (const one of core) {
+        for (const two of core) {
+          for (const three of core) {
+            for (const four of core) {
+              const text = `${one}${two}${three}${four} [r]`
+              if (unsafeLinksIn(render(text)).length > 0) broken.push(JSON.stringify(text))
+            }
           }
         }
       }
-    }
-    expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
-  })
+      expect(broken.slice(0, 10), `${String(broken.length)} broken`).toEqual([])
+    },
+    COMBINATION_TIMEOUT_MS,
+  )
 })
 
 /**
