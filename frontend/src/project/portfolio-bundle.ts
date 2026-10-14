@@ -36,11 +36,14 @@ import {
   zipModifiedTime,
 } from './format'
 import { isAppAttachmentPath, renderPortfolioMarkdown } from './portfolio'
-import { portfolioMarkdownText, type Translate } from './portfolio-text'
+import { type CorrectedStudent, portfolioMarkdownText, type Translate } from './portfolio-text'
 
 /**
  * 묶음 맨 위에서 폴더와 원본 파일을 잇는 표. **이름도 열 머리도 번역하지 않는다** — 스크립트와 엑셀 수식이
  * 언어와 상관없이 같은 열을 가리켜야 한다(`i18n.md`). 열 이름은 manifest의 이름을 따른다.
+ *
+ * **새 열은 맨 뒤에 붙인다** — 이미 받은 표를 읽는 스크립트가 열 자리로 읽을 수 있다. `studentId`·`studentName`은
+ * 교사가 고친 값이고, `…InFile`은 파일에 적힌 값이다 — 늘 채운다(결정 114). 둘이 다른 줄이 고친 제출물이다.
  */
 export const BUNDLE_INDEX = 'index.csv'
 export const BUNDLE_INDEX_COLUMNS = [
@@ -49,6 +52,8 @@ export const BUNDLE_INDEX_COLUMNS = [
   'studentName',
   'projectName',
   'source',
+  'studentIdInFile',
+  'studentNameInFile',
 ] as const
 
 /** 묶음 안의 글 이름. **`.mlpx` 안의 이름과 같다** — 폴더 이름을 되풀이하면 경로가 두 배가 된다(결정 114). */
@@ -233,10 +238,13 @@ export function entriesOf(
   folder: string,
   translate: Translate,
   locale: string,
+  corrected?: CorrectedStudent,
 ): Record<string, Uint8Array> {
   const { document, attachments } = file
+  // **머리글의 학번·이름은 교사가 고친 값이다** — 파일에 적힌 값이 다르면 그 줄이 하나 더 선다(결정 114,
+  // `portfolio-text.ts`의 `portfolioMarkdownText`).
   const markdown = renderPortfolioMarkdown(
-    portfolioMarkdownText(document.manifest, translate, locale),
+    portfolioMarkdownText(document.manifest, translate, locale, corrected),
     document.portfolio,
   )
 
@@ -278,6 +286,8 @@ function indexOf(
       entry.studentName?.trim() ?? '',
       entry.file?.document.manifest.name.trim() ?? '',
       entry.label,
+      entry.file?.document.manifest.student?.studentId?.trim() ?? '',
+      entry.file?.document.manifest.student?.name?.trim() ?? '',
     ]),
   ])
 }
@@ -310,7 +320,13 @@ export function bundleOf(
   for (const [index, entry] of entries.entries()) {
     const folder = folders[index]
     if (entry.file && folder !== undefined) {
-      Object.assign(files, entriesOf(entry.file, folder, translate, locale))
+      Object.assign(
+        files,
+        entriesOf(entry.file, folder, translate, locale, {
+          ...(entry.studentId === undefined ? {} : { studentId: entry.studentId }),
+          ...(entry.studentName === undefined ? {} : { studentName: entry.studentName }),
+        }),
+      )
     }
   }
   // **엔트리 수 한계 안에서만 쓴다** (open-decisions.md ".mlpx 한 파일의 엔트리 수는 ZIP64 없이 쓸

@@ -40,6 +40,18 @@ function titled(title: string, base: ProjectFile = projectFile()): ProjectFile {
   }
 }
 
+/** 학번·이름이 적힌 제출물. 빈 글자는 안 적은 것이다. */
+function withStudent(studentId: string, name: string): ProjectFile {
+  const base = projectFile()
+  return {
+    ...base,
+    document: {
+      ...base.document,
+      manifest: { ...base.document.manifest, student: { studentId, name } },
+    },
+  }
+}
+
 /** 묶음을 풀어 엔트리 이름과 바이트를 낸다. */
 async function unpack(blob: Blob): Promise<Record<string, Uint8Array>> {
   return unzipSync(new Uint8Array(await blob.arrayBuffer()))
@@ -188,13 +200,95 @@ describe('결정 114', () => {
     )
     expect(files[BUNDLE_INDEX]!.slice(0, 3)).toEqual(new Uint8Array([0xef, 0xbb, 0xbf]))
     const rows = indexRows(files)
-    // \ub514\ucf54\ub354\uac00 BOM\uc744 \ub5bc\ubbc0\ub85c \uba38\ub9ac \uc904\uc740 \uc5f4 \uc774\ub984 \uadf8\ub300\ub85c\ub2e4.
+    // 디코더가 BOM을 떼므로 머리 줄은 열 이름 그대로다.
     expect(rows[0]).toEqual([...BUNDLE_INDEX_COLUMNS])
+    // 픽스처 파일에는 학번·이름이 없다 — 뒤의 두 칸(파일에 적힌 값)이 비고, 앞의 두 칸은 교사가 넣은 값이다.
     expect(rows.slice(1)).toEqual([
-      ['김철수 - 붓꽃', '', '김철수', '붓꽃', '1반/kim.mlpx'],
-      ['', '', '', '', '1반/broken.mlpx'],
-      ['10213 홍길동 - 붓꽃', '10213', '홍길동', '붓꽃', '1반/hong.mlpx'],
+      ['김철수 - 붓꽃', '', '김철수', '붓꽃', '1반/kim.mlpx', '', ''],
+      ['', '', '', '', '1반/broken.mlpx', '', ''],
+      ['10213 홍길동 - 붓꽃', '10213', '홍길동', '붓꽃', '1반/hong.mlpx', '', ''],
     ])
+  })
+
+  /** 고친 값 옆에 파일에 적힌 값이 남는다 — 고치지 않았으면 같은 값이 두 번 선다. 표는 늘 채운다. */
+  it('index.csv는 파일에 적힌 학번·이름을 뒤 칸에 늘 남긴다', async () => {
+    const files = await unpack(
+      bundleOf(
+        [
+          {
+            label: 'a.mlpx',
+            studentId: '10213',
+            studentName: '홍길동',
+            file: withStudent('10231', '홍길동'),
+          },
+          {
+            label: 'b.mlpx',
+            studentId: '10214',
+            studentName: '김철수',
+            file: withStudent('10214', '김철수'),
+          },
+        ],
+        label,
+        'ko',
+      ),
+    )
+    expect(indexRows(files).slice(1)).toEqual([
+      [
+        '10213 홍길동 - 붓꽃 품종 분류',
+        '10213',
+        '홍길동',
+        '붓꽃 품종 분류',
+        'a.mlpx',
+        '10231',
+        '홍길동',
+      ],
+      [
+        '10214 김철수 - 붓꽃 품종 분류',
+        '10214',
+        '김철수',
+        '붓꽃 품종 분류',
+        'b.mlpx',
+        '10214',
+        '김철수',
+      ],
+    ])
+  })
+
+  /**
+   * **머리글은 고친 학번·이름이고, 파일에 적힌 값이 다르면 그 줄이 하나 더 선다** (결정 114). 같으면 아무것도 더하지
+   * 않는다. 학생이 비워 낸 칸은 `meta.none`이다.
+   */
+  it('머리글은 고친 학번·이름이고 다를 때만 파일의 값을 덧붙인다', () => {
+    const markdownOf = (
+      file: ProjectFile,
+      corrected?: { studentId?: string; studentName?: string },
+    ) => new TextDecoder().decode(entriesOf(file, 'f', label, 'ko', corrected)[`f/${MD}`])
+
+    const same = markdownOf(withStudent('10213', '홍길동'), {
+      studentId: '10213',
+      studentName: '홍길동',
+    })
+    expect(same).toContain('**[identity.studentId]**: 10213')
+    expect(same).not.toContain('InFile')
+
+    const fixed = markdownOf(withStudent('10231', ''), {
+      studentId: '10213',
+      studentName: '홍길동',
+    })
+    expect(fixed).toContain('**[identity.studentId]**: 10213')
+    expect(fixed).toContain('**[identity.studentName]**: 홍길동')
+    expect(fixed).toContain('**[identity.studentIdInFile]**: 10231')
+    expect(fixed).toContain('**[identity.studentNameInFile]**: [meta.none]')
+
+    // 교사가 칸을 비우면 그 줄은 빠지고 파일의 값만 남는다.
+    const cleared = markdownOf(withStudent('10231', '홍길동'), { studentName: '홍길동' })
+    expect(cleared).not.toContain('**[identity.studentId]**')
+    expect(cleared).toContain('**[identity.studentIdInFile]**: 10231')
+
+    // 고침을 안 넘기면(학생의 저장) 파일의 값 그대로다.
+    const plain = markdownOf(withStudent('10231', '홍길동'))
+    expect(plain).toContain('**[identity.studentId]**: 10231')
+    expect(plain).not.toContain('InFile')
   })
 
   /** 폴더는 윈도가 못 쓰는 글자를 걷지만 표는 학생이 적은 그대로다. 수식 머리도 가리지 않는다(결정 110). */
@@ -203,7 +297,7 @@ describe('결정 114', () => {
       bundleOf([{ label: 'a.mlpx', studentId: '-1', file: titled('a:b "c"') }], label, 'ko'),
     )
     const text = new TextDecoder().decode(files[BUNDLE_INDEX])
-    expect(text.split('\n')[1]).toBe('-1 - ab c,-1,,"a:b ""c""",a.mlpx')
+    expect(text.split('\n')[1]).toBe('-1 - ab c,-1,,"a:b ""c""",a.mlpx,,')
   })
 
   it('읽은 제출물이 없어도 index.csv는 선다', async () => {

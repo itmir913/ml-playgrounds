@@ -851,6 +851,8 @@
     "title": "프로젝트 정보",
     "studentId": "학번",
     "studentName": "이름",
+    "studentIdInFile": "파일에 기록된 학번",
+    "studentNameInFile": "파일에 기록된 이름",
     "fileNameHint": "저장될 파일 이름: {fileName}",
     "rename": "프로젝트 이름 변경 ({name})"
   },

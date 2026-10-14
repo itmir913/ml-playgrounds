@@ -24,10 +24,23 @@ import type { Manifest, ProjectDocument } from './schema'
 /** 로케일 키를 문장으로 바꾸는 것. 화면은 `t`를, 검사는 가짜를 넘긴다. */
 export type Translate = (key: string) => string
 
+/** 교사가 점검에서 고친 학번·이름(`roster.ts`의 `StudentEdit`와 같은 모양). 빈 값은 없는 것이다. */
+export interface CorrectedStudent {
+  readonly studentId?: string
+  readonly studentName?: string
+}
+
+/**
+ * 머리글의 글감을 만든다. **`corrected`는 교사의 묶음만 넘긴다** (open-decisions.md 114) — 넘기면 머리글의 학번·이름이
+ * 고친 값이 되고, 파일에 적힌 값이 그와 다르면 그 값을 한 줄 더 적는다(`identity.*InFile`). 학생이 비워 낸 칸은
+ * `meta.none`이다. 같으면 아무 줄도 더하지 않는다 — 고치지 않은 서른 명에 같은 값이 두 번 서면 군더더기다.
+ * 무는 검사: `portfolio-bundle.spec.ts`의 *"머리글은 고친 학번·이름이고"*.
+ */
 export function portfolioMarkdownText(
   manifest: Manifest,
   translate: Translate,
   locale: string,
+  corrected?: CorrectedStudent,
 ): PortfolioMarkdownText {
   const rows: [label: string, value: string][] = []
 
@@ -38,12 +51,23 @@ export function portfolioMarkdownText(
    * **적었을 때만 나온다.** 안 적은 사람의 자리에 빈 칸을 만들면 그것이 빠뜨린 것으로
    * 보인다.
    */
-  const student = manifest.student
-  if (student?.studentId !== undefined && student.studentId !== '') {
-    rows.push([translate('identity.studentId'), student.studentId])
+  const inFile = {
+    studentId: filled(manifest.student?.studentId),
+    studentName: filled(manifest.student?.name),
   }
-  if (student?.name !== undefined && student.name !== '') {
-    rows.push([translate('identity.studentName'), student.name])
+  const shown = corrected
+    ? { studentId: filled(corrected.studentId), studentName: filled(corrected.studentName) }
+    : inFile
+  if (shown.studentId !== '') rows.push([translate('identity.studentId'), shown.studentId])
+  if (shown.studentName !== '') rows.push([translate('identity.studentName'), shown.studentName])
+  if (shown.studentId !== inFile.studentId) {
+    rows.push([translate('identity.studentIdInFile'), inFile.studentId || translate('meta.none')])
+  }
+  if (shown.studentName !== inFile.studentName) {
+    rows.push([
+      translate('identity.studentNameInFile'),
+      inFile.studentName || translate('meta.none'),
+    ])
   }
 
   rows.push(
@@ -60,6 +84,11 @@ export function portfolioMarkdownText(
   )
 
   return { title: manifest.name, rows, orphanTitle: translate('portfolio.orphanTitle') }
+}
+
+/** 앞뒤 공백을 떼고, 없는 값은 빈 글자다. 견주기가 `undefined`와 `''`를 가르지 않게 한다. */
+function filled(value: string | undefined): string {
+  return value?.trim() ?? ''
 }
 
 /** 내보낼 문서와, 그 문서에서 나온 마크다운. **둘은 언제나 같은 세대다.** */

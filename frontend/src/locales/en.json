@@ -851,6 +851,8 @@
     "title": "Project details",
     "studentId": "Student number",
     "studentName": "Name",
+    "studentIdInFile": "Student number in the file",
+    "studentNameInFile": "Name in the file",
     "fileNameHint": "The file will be saved as: {fileName}",
     "rename": "Rename this project ({name})"
   },

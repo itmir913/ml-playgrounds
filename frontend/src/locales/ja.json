@@ -851,6 +851,8 @@
     "title": "プロジェクト情報",
     "studentId": "出席番号",
     "studentName": "氏名",
+    "studentIdInFile": "ファイルに記載された出席番号",
+    "studentNameInFile": "ファイルに記載された氏名",
     "fileNameHint": "保存されるファイル名: {fileName}",
     "rename": "プロジェクト名を変更({name})"
   },
