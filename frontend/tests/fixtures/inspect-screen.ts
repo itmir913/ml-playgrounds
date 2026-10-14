@@ -8,6 +8,7 @@
 
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, getActivePinia, setActivePinia } from 'pinia'
+import { vi } from 'vitest'
 
 import { i18n } from '../../src/i18n'
 import InspectView from '../../src/views/InspectView.vue'
@@ -95,8 +96,17 @@ function fillScrollIntoView(): void {
  * **스토어가 없으면 세운다.** 화면이 알림 스토어를 쓰므로(하나도 못 받았을 때 말한다,
  * 결정문 48) 없으면 `mount`가 setup에서 선다. **스스로 세우지 않은 것은 안 건드린다** —
  * 부르는 쪽이 이미 세워 둔 것을 덮으면 그 스펙이 심어 둔 상태가 사라진다.
+ *
+ * **해시는 `crypto.subtle` 없이 돈다** (open-decisions.md 112). Node의 subtle은 다른 스레드에서
+ * 답해서, 열기가 엔트리마다 그것을 기다리면 `flushPromises()` 한 번에 안 끝난다. 이 스펙들이
+ * 보는 것은 화면이지 해시 경로가 아니다 — 두 경로는 `hash.spec.ts`가, 진짜 subtle로 여는 길은
+ * `format.spec.ts`·`integrity.spec.ts`가 문다. 고정 틱 대신 "다 읽었다"는 신호를 기다리게
+ * 고치는 것은 따로 남았다. 바꿔 끼운 것은 그 스펙 파일 안에서만 산다(vitest가 파일마다 가른다).
  */
 export async function mountInspect(files: File[]): Promise<VueWrapper> {
+  vi.stubGlobal('crypto', {
+    getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto),
+  })
   if (getActivePinia() === undefined) setActivePinia(createPinia())
   fillScrollIntoView()
   const wrapper = mount(InspectView, { global: { plugins: [i18n] } })

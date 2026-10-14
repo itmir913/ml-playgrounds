@@ -25,7 +25,7 @@ import {
 import { isNoiseName, normalizeEntryName } from '../data/archive-entries'
 import { decodeZipNames } from '../data/zip-names'
 import { ClientError } from '../errors'
-import { hashBytes } from '../hash'
+import { digestBytes, hashBytes } from '../hash'
 import {
   MAX_ARCHIVE_ENTRIES,
   MAX_FILE_NAME_BYTES,
@@ -739,13 +739,16 @@ export function selectModels(
  * 이유는, 아무도 가리키지 않는 모델이 끼어든 것도 드러나야 하기 때문이다.
  *
  * hashes.json 자신은 대상이 아니다 - 자기 해시를 자기 안에 담을 수 없다.
+ *
+ * **엔트리마다 `digestBytes`를 기다린다** (open-decisions.md 112) — 보안 컨텍스트면 네이티브
+ * 해시이고, 엔트리 사이에 화면이 그릴 틈이 생긴다.
  */
-function hashableEntries(
+async function hashableEntries(
   entries: Map<string, Uint8Array>,
   datasetPath: string | undefined,
   testDatasetPath: string | undefined,
   predictDatasetPath: string | undefined,
-): Map<string, string> {
+): Promise<Map<string, string>> {
   const known = new Set<string>([
     ENTRY.manifest,
     ENTRY.settings,
@@ -769,7 +772,7 @@ function hashableEntries(
       isAttachmentEntry(path) ||
       isEmbeddingEntry(path)
     ) {
-      present.set(path, hashBytes(content))
+      present.set(path, await digestBytes(content))
     }
   }
   return present
@@ -1221,7 +1224,7 @@ export async function readProject(bytes: Uint8Array): Promise<ReadResult> {
 
   // 대조는 잡음(mlpx-spec.md §7.2.1)을 뺀 뒤, **우리가 버릴 것을 버리기 전에** 한다. 끼어든
   // 고아 모델도 신호이기 때문이다.
-  const present = hashableEntries(entries, datasetPath, testDatasetPath, predictDatasetPath)
+  const present = await hashableEntries(entries, datasetPath, testDatasetPath, predictDatasetPath)
   const integrity = checkHashes(present, recordedHashes(entries.get(ENTRY.hashes)))
 
   // **푸는 자리 밖으로 새는 이름은 여기서 버린다 — 대조 뒤다** (mlpx-spec.md §7.2.1). 대조에는

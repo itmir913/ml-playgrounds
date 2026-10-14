@@ -1,14 +1,17 @@
 /**
  * SHA-256. 프런트엔드에서 해시가 필요한 곳은 전부 여기를 지난다.
  *
- * **crypto.subtle을 쓰지 않는다.** 그쪽은 보안 컨텍스트(https, localhost)에서만 존재하는데
- * 자가호스팅 서버는 대개 http://192.168.x.x 로 접속한다. 분기와 폴백을 두면 "어떤 학교에서는
- * 해시가 없다"는 상태가 생기고, 그 상태를 화면과 테스트가 모두 알아야 한다.
- * 단일 경로로 가는 대신 라이브러리를 번들에 넣는다
- * (open-decisions.md "무결성은 해시와 재실행 대조로 한다").
+ * **큰 바이트는 `digestBytes`로, 보안 컨텍스트면 `crypto.subtle`이 한다**
+ * (open-decisions.md 112, 2026-10-14). Edge의 보안 강화는 자주 안 가는 사이트에서 JIT를
+ * 끄고, 그러면 순수 JS SHA-256이 수십 배 느려진다 — 사진 6,008장 파일의 해시가 0.6초에서
+ * 35초가 됐다. subtle은 네이티브라 JIT와 상관없다.
  *
- * 동기 함수다. 실측 - 1MB 16ms, 10MB 55ms, 50MB 265ms. 데이터셋은 가져오기 시점에
- * 한 번만 해싱하므로(project/integrity.ts) 이 비용을 반복해서 내지 않는다.
+ * **subtle이 없거나 던지면 `@noble/hashes`로 간다.** 자가호스팅 학교는 대개
+ * `http://192.168.x.x`라 subtle이 없다. 어느 길이든 같은 SHA-256 값이라 "어떤 학교에서는
+ * 해시가 없다"는 상태는 안 생기고 빠르기만 다르다. **subtle은 이 파일에만 산다** —
+ * `secure-context-rules.spec.ts`가 그 밖을 막는다. 무는 검사: `hash.spec.ts`.
+ *
+ * 동기 `hashBytes`·`hashText`는 noble 그대로다. 시드와 행 키는 짧고 동기여야 한다.
  */
 
 import { sha256 } from '@noble/hashes/sha2.js'
@@ -25,4 +28,21 @@ export function hashBytes(bytes: Uint8Array): string {
 /** 문자열을 UTF-8로 인코딩해 해싱한다. */
 export function hashText(text: string): string {
   return hashBytes(new TextEncoder().encode(text))
+}
+
+/**
+ * `hashBytes`와 같은 값을 비동기로 낸다. **큰 바이트는 이것을 쓴다.**
+ *
+ * subtle은 `SharedArrayBuffer` 뒤의 뷰를 거절하는 등 던질 수 있다 — 그때도 noble이 받는다.
+ */
+export async function digestBytes(bytes: Uint8Array): Promise<string> {
+  const subtle = globalThis.crypto?.subtle
+  if (subtle) {
+    try {
+      return bytesToHex(new Uint8Array(await subtle.digest('SHA-256', bytes as BufferSource)))
+    } catch {
+      // 아래 noble로 간다.
+    }
+  }
+  return hashBytes(bytes)
 }

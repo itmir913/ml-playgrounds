@@ -14,6 +14,10 @@
  * `hash.ts`는 같은 판단을 이미 해 두었다(`crypto.subtle`을 버리고 라이브러리를 넣은
  * 것). 결정은 있는데 그것을 지키는 장치가 없어서 옆에서 새 것이 들어왔다.
  *
+ * **2026-10-14부터 `hash.ts`는 subtle을 쓴다** (open-decisions.md 112) — 없거나 던지면
+ * 라이브러리로 가는 폴백과 함께다. 그래서 subtle 규칙은 금지가 아니라 **`hash.ts` 한 곳에만
+ * 산다**이다(`home`). 폴백이 실제로 도는지는 `hash.spec.ts`가 문다.
+ *
  * ---
  *
  * **이 검사가 못 보는 것을 밝혀 둔다.**
@@ -28,7 +32,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative, sep } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -43,16 +47,21 @@ interface Rule {
   readonly pattern: RegExp
   readonly violations: readonly string[]
   readonly allowed: readonly string[]
+  /** 이 규칙의 API가 사는 단 하나의 파일(`src` 기준). 그 파일이 없을 때를 다룬다. */
+  readonly home?: string
 }
 
 const RULES: readonly Rule[] = [
   {
-    name: 'crypto.subtle을 쓰지 않는다',
-    why: '해시는 `hash.ts` 하나를 지난다. http로 띄운 학교에서만 해시가 없는 상태를 만들지 않는다.',
-    pattern: /\bcrypto\s*\.\s*subtle\b/,
+    name: 'crypto.subtle은 hash.ts에만 산다',
+    why: '해시는 `hash.ts` 하나를 지나고, 거기서 subtle이 없을 때 라이브러리로 간다. 그 밖에서 쓰면 http로 띄운 학교에서만 해시가 없는 상태가 생긴다.',
+    home: 'hash.ts',
+    pattern: /\bcrypto\s*\??\.\s*subtle\b/,
     violations: [
       'const digest = await crypto.subtle.digest("SHA-256", bytes)',
       'if (crypto.subtle) return webHash(bytes)',
+      // `hash.ts`가 쓰는 모양이다. 이것을 못 보면 `home`이 아무것도 안 거른다.
+      'const subtle = globalThis.crypto?.subtle',
     ],
     allowed: [
       'return bytesToHex(sha256(bytes))',
@@ -90,6 +99,12 @@ describe('검사기가 실제로 잡는다', () => {
     })
   }
 
+  it('집으로 정한 파일이 실제로 있다 - 이름이 바뀌면 규칙이 조용히 꺼진다', () => {
+    for (const rule of RULES) {
+      if (rule.home !== undefined) expect(existsSync(join(SRC, rule.home))).toBe(true)
+    }
+  })
+
   it('주석은 걷어낸다 - 왜 안 쓰는지를 적으려면 그 이름을 적어야 한다', () => {
     const source = [
       '// crypto.randomUUID은 보안 컨텍스트 전용이다',
@@ -109,6 +124,9 @@ describe('지금 소스에 위반이 없다', () => {
     it(rule.name, () => {
       const found: string[] = []
       for (const path of sourceFiles(SRC)) {
+        if (rule.home !== undefined && relative(SRC, path).split(sep).join('/') === rule.home) {
+          continue
+        }
         found.push(
           ...windowedHits(
             (text) => rule.pattern.test(text),
