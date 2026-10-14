@@ -46,16 +46,19 @@ import { unzipSync } from 'fflate'
 
 /**
  * **조합 검사의 시간 상한.** 조각을 셋·넷씩 잇는 검사는 수만 문서를 그리는 정확성 검사이고 시간은 검사 대상이 아니다. 관문에서
- * 워커가 겹치면 혼자 돌 때의 몇 배가 걸려 전역 20초(`vite.config.ts`의 `testTimeout`)를 넘었다 — 0.35.9 관문에서 결정 89의
- * 조합 검사가 시간 초과로만 빨갰고 따로 돌리면 초록이었다(2026-10-14). 정말 멈춘 검사는 이것에도 운다.
+ * 워커가 겹치면 혼자 돌 때의 몇 배가 걸려 전역 20초(`vite.config.ts`의 `testTimeout`)를 넘는다 — 시간 초과로만 빨갛고 따로
+ * 돌리면 초록인 거짓 빨강이 된다. 정말 멈춘 검사는 이것에도 운다.
  */
 const COMBINATION_TIMEOUT_MS = 60_000
 
 /**
- * 조합 검사가 함께 쓰는 렌더러(`html: true`). **문서마다 새로 짓지 않는다** — markdown-it의 `render`는 인스턴스에 상태를 남기지
- * 않으므로 결과는 같고, 짓는 값을 문서 수만큼 치르지 않는다.
+ * 이 파일이 함께 쓰는 렌더러 둘 — 학생 글의 HTML을 그대로 두는 뷰어(`html: true`)와 기본값 뷰어. **문서마다 새로 짓지 않는다** —
+ * 짓는 값을 문서 수만큼 치르지 않는다. 결과가 같은 것은 `render`가 참조 정의를 담는 `env`를 호출마다 새로 짓고, 여기서는 아무도
+ * 인스턴스의 설정을 바꾸지 않기 때문이다(사람 확인, markdown-it 소스 — 무는 검사 없음). 설정을 바꿔야 하는 렌더러는 따로 짓는다
+ * (결정 93의 `loose`).
  */
 const htmlRenderer = new MarkdownIt({ html: true })
+const plainRenderer = new MarkdownIt()
 
 function portfolio(
   sections: { id: string; title: string; description?: string }[],
@@ -473,7 +476,7 @@ describe('마크다운으로 옮긴다', () => {
       TEXT,
       portfolio([{ id: 'a', title: '동기' }], { a: '앞줄\n-\n다음\n=\n목록 뒤\n- ' }),
     )
-    const headings = [...new MarkdownIt().render(markdown).matchAll(/<h([12])>([^<]*)</g)].map(
+    const headings = [...plainRenderer.render(markdown).matchAll(/<h([12])>([^<]*)</g)].map(
       ([, level, text]) => `h${level}:${text}`,
     )
     expect(headings).toEqual(['h1:붓꽃 품종 분류', 'h2:동기'])
@@ -494,9 +497,7 @@ describe('마크다운으로 옮긴다', () => {
    * HTML을 켜 두고 여는 뷰어다.
    */
   const titlesIn = (markdown: string) =>
-    [...new MarkdownIt({ html: true }).render(markdown).matchAll(/<h2>([^<]*)</g)].map(
-      ([, title]) => title,
-    )
+    [...htmlRenderer.render(markdown).matchAll(/<h2>([^<]*)</g)].map(([, title]) => title)
 
   it('안 닫은 코드 울타리가 뒤 문항을 안 삼킨다', () => {
     const markdown = renderPortfolioMarkdown(
@@ -643,7 +644,7 @@ describe('마크다운으로 옮긴다', () => {
       portfolio([{ id: 'a', title: '동기' }], { a: '입력 --> 출력 <!-- 메모' }),
     )
     expect(markdown).not.toContain(['-->', ''].join('\n'))
-    expect(new MarkdownIt({ html: true }).render(markdown)).toContain('메모')
+    expect(htmlRenderer.render(markdown)).toContain('메모')
   })
 
   /** 줄 머리의 주석만이 뒤를 삼킨다 — 짝을 붙이는 대신 글자로 싣는다 (open-decisions.md 89). */
@@ -745,7 +746,7 @@ describe('마크다운으로 옮긴다', () => {
     )
     expect(markdown).toContain('# 주석')
     expect(markdown).not.toContain('\\# 주석')
-    expect(new MarkdownIt().render(markdown)).toContain('<code')
+    expect(plainRenderer.render(markdown)).toContain('<code')
   })
 
   it('학생이 일부러 쓴 목록은 그대로 산다', () => {
@@ -753,7 +754,7 @@ describe('마크다운으로 옮긴다', () => {
       TEXT,
       portfolio([{ id: 'a', title: '동기' }], { a: '- 고양이\n- 개' }),
     )
-    expect(new MarkdownIt().render(markdown)).toContain('<li>고양이</li>')
+    expect(plainRenderer.render(markdown)).toContain('<li>고양이</li>')
   })
 
   it('사진은 상대 경로로 적는다 - 압축을 푼 자리에서 그대로 맞는다', () => {
@@ -1023,9 +1024,7 @@ describe('내보낼 문서와 그 마크다운은 같은 세대다', () => {
     const inFile = new TextDecoder().decode(unzipSync(bytes)[`${DIR.portfolio}document.md`]!)
     expect(inFile).toBe(markdown)
     expect(
-      [...new MarkdownIt({ html: true }).render(inFile).matchAll(/<h2>([^<]*)</g)].map(
-        ([, title]) => title,
-      ),
+      [...htmlRenderer.render(inFile).matchAll(/<h2>([^<]*)</g)].map(([, title]) => title),
     ).toEqual(['느낀 점', '느낀 점'])
     expect(opened.document.portfolio.template.sections).toHaveLength(2)
   })
@@ -1301,7 +1300,7 @@ describe('결정 82: 확신 못 하는 울타리는 더 긴 울타리로 감싼�
     expect(render(unclosed)).toContain(`## 동기\n\n${unclosed}\n\`\`\`\n\n## 방법`)
     const list = '- 고양이\n- 개'
     expect(render(list)).toContain(`## 동기\n\n${list}\n\n## 방법`)
-    expect(new MarkdownIt().render(render(list))).toContain('<li>고양이</li>')
+    expect(plainRenderer.render(render(list))).toContain('<li>고양이</li>')
   })
 
   /**
@@ -1627,10 +1626,9 @@ describe('결정 89: 코드 밖의 <는 &lt;로 싣는다', () => {
    */
   describe('답 밖의 사용자 글', () => {
     const XSS = '<img src=x onerror=alert(1)> <svg onload=alert(1)> <script>alert(1)</script>'
-    const levelsIn = (markdown: string) =>
-      [...new MarkdownIt({ html: true }).render(markdown).matchAll(/<(h[1-6])>/g)].map(
-        ([, level]) => level,
-      )
+    const levelsInHtml = (html: string) =>
+      [...html.matchAll(/<(h[1-6])>/g)].map(([, level]) => level)
+    const levelsIn = (markdown: string) => levelsInHtml(htmlRenderer.render(markdown))
     const withText = (title: string, label: string, value: string) =>
       renderPortfolioMarkdown(
         { title, rows: [[label, value]], orphanTitle: `이전 ${XSS}` },
@@ -1747,10 +1745,12 @@ describe('결정 89: 코드 밖의 <는 &lt;로 싣는다', () => {
                 ),
               ]
               for (const markdown of made) {
-                const levels = levelsIn(markdown)
+                // 한 번 그리고 두 가지를 본다 — 위 결정 89 조합 검사와 같다.
+                const html = htmlRenderer.render(markdown)
+                const levels = levelsInHtml(html)
                 const shaped =
                   levels[0] === 'h1' && levels.slice(1).every((level) => level === 'h2')
-                if (rawTagsIn(markdown).length > 0 || !shaped) broken.push(JSON.stringify(line))
+                if (rawTagsInHtml(html).length > 0 || !shaped) broken.push(JSON.stringify(line))
               }
             }
           }
