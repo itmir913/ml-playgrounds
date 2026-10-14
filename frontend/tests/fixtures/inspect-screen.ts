@@ -101,7 +101,9 @@ function fillScrollIntoView(): void {
  * 답해서, 열기가 엔트리마다 그것을 기다리면 `flushPromises()` 한 번에 안 끝난다. 이 스펙들이
  * 보는 것은 화면이지 해시 경로가 아니다 — 두 경로는 `hash.spec.ts`가, 진짜 subtle로 여는 길은
  * `format.spec.ts`·`integrity.spec.ts`가 문다. "다 읽었다"는 신호를 기다리게 고치지 않는다 —
- * 읽기 사이의 경쟁은 `inspect-open-race.spec.ts`가 읽기를 늦춰 따로 문다. 바꿔 끼운 것은 그 스펙 파일 안에서만 산다(vitest가 파일마다 가른다).
+ * 읽기 사이의 경쟁은 `inspect-open-race.spec.ts`가 읽기를 늦춰 따로 문다.
+ * 바꿔 끼운 것은 되돌리지 않아 **부른 뒤로 그 스펙 파일이 끝날 때까지** 산다 — 파일 사이로는
+ * 안 샌다(vitest가 파일마다 가른다).
  */
 export async function mountInspect(files: File[]): Promise<VueWrapper> {
   vi.stubGlobal('crypto', {
