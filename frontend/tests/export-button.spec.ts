@@ -37,6 +37,12 @@ vi.mock('../src/project/download', () => ({
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
+/**
+ * 진짜로 내보내는 검사가 결과를 기다리는 상한. `vi.waitFor` 기본값 1초는 엔트리마다 subtle이
+ * 답하는 느린 러너에서 모자라다. 검사 하나의 상한(`vite.config.ts`의 20초) 안에 든다.
+ */
+const EXPORT_WAIT = { timeout: 10_000 }
+
 async function settle(): Promise<void> {
   for (let round = 0; round < 3; round += 1) {
     await flushPromises()
@@ -204,6 +210,10 @@ describe('B-1: a save that never settles', () => {
     document
       .querySelector('.popover-panel button')
       ?.dispatchEvent(new Event('click', { bubbles: true }))
+    // **파일이 나간 것을 기다린다 — 정해진 틱이 아니다.** 진짜로 내보내므로 엔트리마다
+    // `crypto.subtle`을 기다리고(open-decisions.md 112), Node의 subtle은 다른 스레드에서 답해
+    // 느린 러너에서는 `settle()`이 모자랐다. 늦게 나간 파일은 다음 검사의 `downloads`에 섞였다.
+    await vi.waitFor(() => expect(downloads).toHaveLength(1), EXPORT_WAIT)
     await settle()
 
     expect(downloads).toHaveLength(1)
@@ -242,6 +252,14 @@ describe('A-3: a Blob that throws while the file is assembled', () => {
     try {
       const exportNow = document.querySelector('.popover-panel button')
       exportNow?.dispatchEvent(new Event('click', { bubbles: true }))
+      // 알림이 선 것을 기다린다 — 위 B-1과 같은 이유다. Blob은 해시가 다 끝난 뒤에 만든다.
+      await vi.waitFor(
+        () =>
+          expect(useToastStore().items.map((one) => one.key)).toContain(
+            errorMessageKey('UNEXPECTED_ERROR'),
+          ),
+        EXPORT_WAIT,
+      )
       await settle()
 
       expect(downloads).toHaveLength(0)
