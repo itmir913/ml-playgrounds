@@ -19,7 +19,7 @@
  * .mlpx 바이트 자체를 해싱하면 되므로 파일 안에 아무것도 넣을 필요가 없다.
  */
 
-import { HASH_ALGORITHM, hashBytes, hashText } from '../hash'
+import { digestBytes, HASH_ALGORITHM, hashText } from '../hash'
 import type { EntryHashStatus, FileHashStatus } from '../errors'
 
 /** hashes.json 의 내용. */
@@ -73,15 +73,18 @@ function contentHashOf(entries: Record<string, string>): string {
  *
  * 표를 아직 올리지 않았거나 테스트 데이터가 파일로 없는 프로젝트에는 그만큼 없다.
  * 그러면 대조 대상에서 빠질 뿐이다.
+ *
+ * **나머지(사진·임베딩·모델)는 내보낼 때마다 해싱하므로 `digestBytes`를 기다린다**
+ * (open-decisions.md 112) — 보안 컨텍스트면 네이티브 해시다.
  */
-export function buildHashes(
+export async function buildHashes(
   entries: Record<string, Uint8Array>,
   precomputed: readonly { readonly path: string; readonly hash: string }[] = [],
-): ProjectHashes {
+): Promise<ProjectHashes> {
   const known = new Map(precomputed.map((entry) => [entry.path, entry.hash]))
   const hashes: Record<string, string> = {}
   for (const [path, bytes] of Object.entries(entries)) {
-    hashes[path] = known.get(path) ?? hashBytes(bytes)
+    hashes[path] = known.get(path) ?? (await digestBytes(bytes))
   }
   return { algorithm: HASH_ALGORITHM, entries: hashes, contentHash: contentHashOf(hashes) }
 }

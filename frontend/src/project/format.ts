@@ -1571,7 +1571,7 @@ export async function writeProject(
   }
 
   // 마지막에 만든다. 자기 자신은 대상이 아니므로 다른 엔트리가 전부 정해진 뒤여야 한다.
-  const hashes = buildHashes(
+  const hashes = await buildHashes(
     entries,
     [dataset, testDataset, predictDataset].filter((entry) => entry !== undefined),
   )

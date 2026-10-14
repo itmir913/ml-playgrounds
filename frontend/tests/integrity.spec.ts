@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest'
 import { hashBytes } from '../src/hash'
 import { ENTRY, readProject, type ProjectFile } from '../src/project/format'
 import { writeProjectBytes } from './fixtures/write'
-import { checkHashes, parseHashes, type ProjectHashes } from '../src/project/integrity'
+import { buildHashes, checkHashes, parseHashes, type ProjectHashes } from '../src/project/integrity'
 import { dataSettings } from '../src/project/schema'
 import {
   datasetBytes,
@@ -318,6 +318,22 @@ describe('무결성 정보가 없거나 깨진 파일', () => {
    * **파일에 `"algorithm": "sha256"`이라고 적어 내보낸다.** 교사가 밖에서 계산해
    * 대조할 수 있다는 공개 주장이고, 그 주장이 참인지를 보는 줄이 저장소에 없었다.
    */
+  /**
+   * **정본은 받은 해시를 쓰고 다시 해싱하지 않는다.** 일부러 틀린 값을 주어 그대로 실리는지
+   * 본다 — 다시 계산하면 진짜 해시로 바뀐다. 나머지는 실제 해시다.
+   */
+  it('buildHashes는 받은 해시를 다시 계산하지 않는다', async () => {
+    const data = new TextEncoder().encode('a,b\n1,2\n')
+    const photo = new Uint8Array([1, 2, 3])
+    const built = await buildHashes({ 'dataset/data.csv': data, 'photo.webp': photo }, [
+      { path: 'dataset/data.csv', hash: 'precomputed' },
+    ])
+    expect(built.entries).toEqual({
+      'dataset/data.csv': 'precomputed',
+      'photo.webp': hashBytes(photo),
+    })
+  })
+
   it('hashBytes가 실제로 SHA-256이다 - 파일에 그렇게 적어 내보낸다', () => {
     expect(hashBytes(new TextEncoder().encode('abc'))).toBe(
       'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',

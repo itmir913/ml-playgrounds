@@ -545,8 +545,8 @@ Edge가 보안 강화로 JIT를 끄면 `@noble/hashes`가 수십 배 느려진�
 
 - `hash.ts`의 비동기 `digestBytes`가 `globalThis.crypto?.subtle`을 쓰고, 없거나 던지면(예: `SharedArrayBuffer` 뷰)
   noble로 간다. **subtle은 `hash.ts` 한 곳에만 산다** — `secure-context-rules.spec.ts`가 그 밖을 막는다.
-- 큰 바이트를 해싱하는 자리만 옮긴다: 열기(`hashableEntries`) 먼저, 내보내기는 다음 커밋. 가져올 때 한 번 하는
-  해시(사진·표 업로드)는 뒤로 미룬다.
+- 큰 바이트를 해싱하는 자리만 옮긴다: 열기(`hashableEntries`)와 내보내기(`buildHashes` — 정본 표 말고는 사진·임베딩·
+  모델을 내보낼 때마다 해싱한다). 가져올 때 한 번 하는 해시(사진·표 업로드)는 뒤로 미룬다.
 - 동기 `hashBytes`·`hashText`는 남는다. 시드와 행 키는 짧고 동기여야 한다.
 
 **넣지 않은 것.** 워커 — 화면이 얼지 않게 할 뿐 JIT가 꺼진 느림은 못 고친다. 옛 deflate 파일의 inflate(540ms)는
