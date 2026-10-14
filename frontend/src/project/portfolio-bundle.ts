@@ -108,7 +108,7 @@ const TITLE_SEPARATOR = ' - '
  * **파일 이름**이다 — 상위 폴더(`1반/`)는 버리고, 원래 경로는 `index.csv`의 `source`가 말한다.
  *
  * **빈 이름을 내지 않는다.** 그대로 두면 엔트리가 `/document.md`라는 **절대 경로**가 된다(2026-09-28 감사 D
- * C-5). 그때는 명렬의 순번(`position`, 1부터)에 표지를 붙인 것이 폴더 이름이다(`_2`) — 숫자라 번역할 말이
+ * C-5). 그때는 순번(`position`, 1부터 — **읽은 제출물 중의** 순번이다, `bundleOf`)에 표지를 붙인 것이 폴더 이름이다(`_2`) — 숫자라 번역할 말이
  * 없고, 겹치면 `folderNames`가 갈라 준다. `portfolio-bundle.spec.ts`의 *"남는 이름이 없으면 순번"*이 문다.
  *
  * **맨 순번이 아니라 표지를 단다** (architecture.md §8.21, 코드 소유자 결정 12). 맨 순번이면 이름 없는 제출물이
@@ -271,8 +271,8 @@ export function entriesOf(
 
 /**
  * 맨 위의 `index.csv`. **줄은 받은 순서이고, 못 읽은 제출물도 폴더 칸을 비운 채 한 줄이다** — 교사가 누가 빠졌는지
- * 이 표 하나로 안다(결정 114). 값은 걷기 전의 것이다 — 폴더 이름은 윈도가 못 쓰는 글자를 걷었지만 여기는 학생이 적은
- * 그대로다. **수식 머리는 가리지 않는다** — 학생 데이터를 싣는 다른 CSV와 같다(open-decisions.md 110).
+ * 이 표 하나로 안다(결정 114). 값은 걷기 전의 것이다 — 폴더 이름은 윈도가 못 쓰는 글자를 걷었지만 여기는 앞뒤 공백만
+ * 뗀다. `studentId`·`studentName`은 교사가 고친 값이고 `…InFile`이 파일에 기록된 값이다. **수식 머리는 가리지 않는다** — 학생 데이터를 싣는 다른 CSV와 같다(open-decisions.md 110).
  */
 function indexOf(
   entries: readonly BundleEntry[],
@@ -304,16 +304,20 @@ export function bundleOf(
   translate: Translate,
   locale: string,
 ): Blob {
-  const read = entries.filter((entry) => entry.file !== undefined)
+  const read = entries.filter(
+    (entry): entry is BundleEntry & Required<Pick<BundleEntry, 'file'>> => entry.file !== undefined,
+  )
   const names = folderNames(
     read.map((entry) => ({
       label: entry.label,
       ...(entry.studentId === undefined ? {} : { studentId: entry.studentId }),
       ...(entry.studentName === undefined ? {} : { studentName: entry.studentName }),
-      ...(entry.file === undefined ? {} : { title: entry.file.document.manifest.name }),
+      title: entry.file.document.manifest.name,
     })),
   )
-  const folderOf = new Map(read.map((entry, index) => [entry, names[index]]))
+  const folderOf = new Map<BundleEntry, string | undefined>(
+    read.map((entry, index) => [entry, names[index]]),
+  )
   const folders = entries.map((entry) => folderOf.get(entry))
 
   const files: Record<string, Uint8Array> = { [BUNDLE_INDEX]: indexOf(entries, folders) }
