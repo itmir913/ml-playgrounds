@@ -195,6 +195,23 @@ export function withEdit(summary: RosterSummary, edit: StudentEdit | undefined):
 }
 
 /**
+ * 묶음 폴더에 쓸 학번·이름 — **교사가 고친 값을 얹는다** (open-decisions.md 114). 명렬이 보이는 이름과 폴더 이름이 같아야
+ * 교사가 찾는다. 요약을 거치는 것은 빈 값을 없는 것으로 보는 규칙(`filled`)이 한 벌이게 하려는 것이다.
+ * 무는 검사: `portfolio-bundle.spec.ts`의 *"교사가 고친 학번·이름"*.
+ */
+export function bundleStudentOf(
+  document: ProjectDocument,
+  edit: StudentEdit | undefined,
+): StudentEdit {
+  const summary = withEdit(summaryOf(document), edit)
+  if (summary.state !== 'read') return {}
+  return {
+    ...filled('studentId', summary.studentId),
+    ...filled('studentName', summary.studentName),
+  }
+}
+
+/**
  * **같은 프로젝트에서 나온 줄들** — 이름표 → 묶음 번호 (architecture.md §8.21).
  *
  * `manifest.projectId`는 프로젝트를 만들 때 한 번 생기고 **파일을 열어 다시 저장해도

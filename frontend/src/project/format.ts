@@ -1616,13 +1616,16 @@ function graphemesOf(text: string): readonly string[] {
 }
 
 /**
- * 확장자 앞 토막을 한계 안으로 자른다 — **글자 수는 `MAX_FILE_NAME_LENGTH`, 확장자까지 합친
+ * 꼬리(`tail`, 기본은 확장자) 앞 토막을 한계 안으로 자른다 — **글자 수는 `MAX_FILE_NAME_LENGTH`, 꼬리까지 합친
  * UTF-8 바이트는 `MAX_FILE_NAME_BYTES`** (둘의 관계는 `limits.ts`). 자소 하나가 통째로 안
- * 들어가면 그 앞에서 멈춘다.
+ * 들어가면 그 앞에서 멈춘다. 포트폴리오 묶음의 폴더 이름도 이것으로 자른다 — 꼬리는 겹침 번호다(`portfolio-bundle.ts`).
  */
-function fitStem(stem: string): string {
+export function fitStem(stem: string, tail: string = MLPX_EXTENSION): string {
   const encoder = new TextEncoder()
-  const budget = MAX_FILE_NAME_BYTES - encoder.encode(MLPX_EXTENSION).length
+  const budget = MAX_FILE_NAME_BYTES - encoder.encode(tail).length
+  // 안 잘리는 이름은 자소로 쪼개지 않는다 — 묶음은 같은 이름 수만 개에 번호를 붙이며 이것을 부른다. 결과는 같다.
+  // 무는 검사: `portfolio-bundle.spec.ts`의 *"같은 이름이 많아도 폴더 이름이 곧 나온다"*.
+  if ([...stem].length <= MAX_FILE_NAME_LENGTH && encoder.encode(stem).length <= budget) return stem
   let kept = ''
   let bytes = 0
   let codePoints = 0

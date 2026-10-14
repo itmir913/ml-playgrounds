@@ -1,9 +1,8 @@
 /**
  * 포트폴리오 묶음 (`project/portfolio-bundle.ts`).
  *
- * **여기서 지키는 것은 둘이다.** 푼 뒤에 글과 사진이 맞물리는가, 그리고 **나가는 것이
- * 우리가 지은 것뿐인가** (open-decisions.md "점검은 읽기 전용 열람기다"). 앞의 것은
- * 상대 경로가 맞아야 하고, 뒤의 것은 정본 표·사진·모델이 안 실려야 한다.
+ * **여기서 지키는 것은 셋이다.** 푼 뒤에 글과 사진이 맞물리는가, **나가는 것이 우리가 지은 것뿐인가**
+ * (open-decisions.md "점검은 읽기 전용 열람기다"), 그리고 폴더가 누구의 무엇인지 말하는가(결정 114).
  */
 
 import { unzip, unzipSync } from 'fflate'
@@ -11,21 +10,46 @@ import MarkdownIt from 'markdown-it'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  BUNDLE_INDEX,
+  BUNDLE_INDEX_COLUMNS,
   bundleOf,
   entriesOf,
   folderFor,
   folderNames,
   type BundleEntry,
 } from '../src/project/portfolio-bundle'
-import { DIR, ENTRY, readProject } from '../src/project/format'
+import { DIR, readProject } from '../src/project/format'
 import type { ProjectFile } from '../src/project/format'
 import { nextAttachmentPath, renderPortfolioMarkdown } from '../src/project/portfolio'
-import { MAX_ARCHIVE_ENTRIES } from '../src/limits'
+import { bundleStudentOf } from '../src/project/roster'
+import { MAX_ARCHIVE_ENTRIES, MAX_FILE_NAME_BYTES, MAX_FILE_NAME_LENGTH } from '../src/limits'
 import { projectFile } from './fixtures/project'
 import { writeProjectBytes } from './fixtures/write'
 
 /** 가짜 번역. 키를 그대로 돌려주므로 머리글의 언어를 검사가 안 본다. */
 const label = (key: string): string => `[${key}]`
+
+/** 묶음 안의 글 이름 (결정 114). */
+const MD = 'document.md'
+
+/** 제목이 `title`인 제출물. 픽스처의 제목은 `붓꽃 품종 분류`다. */
+function titled(title: string, base: ProjectFile = projectFile()): ProjectFile {
+  return {
+    ...base,
+    document: { ...base.document, manifest: { ...base.document.manifest, name: title } },
+  }
+}
+
+/** 묶음을 풀어 엔트리 이름과 바이트를 낸다. */
+async function unpack(blob: Blob): Promise<Record<string, Uint8Array>> {
+  return unzipSync(new Uint8Array(await blob.arrayBuffer()))
+}
+
+/** `index.csv`를 줄과 칸으로 낸다. 검사의 칸에는 따옴표·쉼표·줄바꿈이 없다. */
+function indexRows(files: Record<string, Uint8Array>): string[][] {
+  const text = new TextDecoder().decode(files[BUNDLE_INDEX])
+  return text.split('\n').map((line) => line.split(','))
+}
 
 /**
  * **묶음이 드는 것은 글과 첨부뿐이다** (2026-09-18 R28-V N-1).
@@ -39,15 +63,15 @@ const label = (key: string): string => `[${key}]`
  * 같은 관용구).
  */
 it('묶음 항목은 정본 표도 모델도 안 든다 - 타입이 막는다', () => {
-  const entry: BundleEntry = { label: 'a.mlpx', file: projectFile() }
+  const file: NonNullable<BundleEntry['file']> = projectFile()
   // **값이 아니라 타입을 본다.** 넘긴 객체에는 아직 그 칸이 붙어 있을 수 있지만
   // (구조적 타입), **읽으려는 코드가 컴파일을 못 지난다**는 것이 이 검사의 내용이다.
   // @ts-expect-error 묶음은 정본 표를 안 든다.
-  void entry.file.dataset
+  void file.dataset
   // @ts-expect-error 묶음은 모델을 안 든다.
-  void entry.file.models
-  expect(entry.file.document).toBeDefined()
-  expect(entry.file.attachments).toBeDefined()
+  void file.models
+  expect(file.document).toBeDefined()
+  expect(file.attachments).toBeDefined()
 })
 
 /** 사진 한 장이 붙은 제출물. 문항 `motivation`은 픽스처가 이미 갖고 있다. */
@@ -63,60 +87,202 @@ function withPhoto(path = `${DIR.attachments}1.webp`): ProjectFile {
   }
 }
 
+/**
+ * **결정 114 — 폴더는 `학번 이름 - 제목`이다.** 학번·이름은 빈 것을 빼고 공백으로, 그것과 제목은 빈 것을 빼고
+ * ` - `로 잇는다. 셋 다 없으면 이름표의 파일 이름이고 상위 폴더는 버린다.
+ */
+describe('결정 114', () => {
+  it.each([
+    [{ studentId: '10213', studentName: '홍길동', title: '붓꽃 분류' }, '10213 홍길동 - 붓꽃 분류'],
+    [{ studentName: '김철수', title: '어쩌구' }, '김철수 - 어쩌구'],
+    [{ studentId: '10213', title: '붓꽃' }, '10213 - 붓꽃'],
+    [{ title: '감귤' }, '감귤'],
+    [{ studentId: '10213', studentName: '홍길동' }, '10213 홍길동'],
+    [{ studentId: '  ', studentName: ' 홍길동 ', title: ' 붓꽃 ' }, '홍길동 - 붓꽃'],
+  ])('%j', (parts, expected) => {
+    expect(folderFor({ label: '1반/hong.mlpx', ...parts }, 1)).toBe(expected)
+  })
+
+  it('셋 다 없으면 이름표의 파일 이름이다 - 상위 폴더는 버린다', () => {
+    expect(folderFor({ label: '1반/hong.mlpx' }, 1)).toBe('hong')
+    expect(folderFor({ label: '1반\\hong.MLPX' }, 1)).toBe('hong')
+    expect(folderFor({ label: '../../etc/passwd.mlpx' }, 1)).toBe('passwd')
+    expect(folderNames([{ label: '1반/hong.mlpx' }, { label: '2반/hong.mlpx' }])).toEqual([
+      'hong',
+      'hong (2)',
+    ])
+  })
+
+  it('학번·이름·제목의 경로 구분자는 폴더를 안 만든다', () => {
+    expect(folderFor({ label: 'a.mlpx', studentName: '홍/길동', title: '붓꽃\\분류' }, 1)).toBe(
+      '홍길동 - 붓꽃분류',
+    )
+  })
+
+  it('맨 위의 index.csv와 같은 이름의 폴더를 안 만든다', () => {
+    expect(
+      folderNames([
+        { label: 'a.mlpx', title: 'index.csv' },
+        { label: 'b.mlpx', title: 'INDEX.CSV' },
+      ]),
+    ).toEqual(['index.csv (2)', 'INDEX.CSV (3)'])
+  })
+
+  it('묶음은 평평하고, 글은 document.md, 사진은 그 옆 attachments/다', async () => {
+    const files = await unpack(
+      bundleOf(
+        [
+          {
+            label: '1반/hong.mlpx',
+            studentId: '10213',
+            studentName: '홍길동',
+            file: titled('붓꽃 분류', withPhoto()),
+          },
+          { label: '1반/kim.mlpx', studentName: '김철수', file: titled('어쩌구') },
+          { label: '1반/lee.mlpx', file: titled('') },
+        ],
+        label,
+        'ko',
+      ),
+    )
+    expect(Object.keys(files).sort()).toEqual([
+      '10213 홍길동 - 붓꽃 분류/attachments/1.webp',
+      `10213 홍길동 - 붓꽃 분류/${MD}`,
+      BUNDLE_INDEX,
+      `lee/${MD}`,
+      `김철수 - 어쩌구/${MD}`,
+    ])
+  })
+
+  /** 교사가 명렬에서 본 이름과 폴더 이름이 같아야 찾는다. 칸을 비운 고침도 고침이다. */
+  it('교사가 고친 학번·이름을 쓴다', () => {
+    const base = projectFile()
+    const document = {
+      ...base.document,
+      manifest: { ...base.document.manifest, student: { studentId: '1', name: '홍길동' } },
+    }
+    expect(bundleStudentOf(document, undefined)).toEqual({ studentId: '1', studentName: '홍길동' })
+    expect(bundleStudentOf(document, { studentName: '홍길순' })).toEqual({
+      studentId: '1',
+      studentName: '홍길순',
+    })
+    expect(bundleStudentOf(document, { studentId: '' })).toEqual({ studentName: '홍길동' })
+  })
+
+  it('index.csv는 화면 순서대로 줄을 세우고, 못 읽은 제출물도 폴더 칸을 비운 채 한 줄이다', async () => {
+    const files = await unpack(
+      bundleOf(
+        [
+          { label: '1반/kim.mlpx', studentName: '김철수', file: titled('붓꽃') },
+          { label: '1반/broken.mlpx' },
+          {
+            label: '1반/hong.mlpx',
+            studentId: '10213',
+            studentName: '홍길동',
+            file: titled('붓꽃'),
+          },
+        ],
+        label,
+        'ko',
+      ),
+    )
+    expect(files[BUNDLE_INDEX]!.slice(0, 3)).toEqual(new Uint8Array([0xef, 0xbb, 0xbf]))
+    const rows = indexRows(files)
+    // \ub514\ucf54\ub354\uac00 BOM\uc744 \ub5bc\ubbc0\ub85c \uba38\ub9ac \uc904\uc740 \uc5f4 \uc774\ub984 \uadf8\ub300\ub85c\ub2e4.
+    expect(rows[0]).toEqual([...BUNDLE_INDEX_COLUMNS])
+    expect(rows.slice(1)).toEqual([
+      ['김철수 - 붓꽃', '', '김철수', '붓꽃', '1반/kim.mlpx'],
+      ['', '', '', '', '1반/broken.mlpx'],
+      ['10213 홍길동 - 붓꽃', '10213', '홍길동', '붓꽃', '1반/hong.mlpx'],
+    ])
+  })
+
+  /** 폴더는 윈도가 못 쓰는 글자를 걷지만 표는 학생이 적은 그대로다. 수식 머리도 가리지 않는다(결정 110). */
+  it('index.csv의 값은 걷기 전의 것이다', async () => {
+    const files = await unpack(
+      bundleOf([{ label: 'a.mlpx', studentId: '-1', file: titled('a:b "c"') }], label, 'ko'),
+    )
+    const text = new TextDecoder().decode(files[BUNDLE_INDEX])
+    expect(text.split('\n')[1]).toBe('-1 - ab c,-1,,"a:b ""c""",a.mlpx')
+  })
+
+  it('읽은 제출물이 없어도 index.csv는 선다', async () => {
+    const files = await unpack(bundleOf([{ label: 'broken.mlpx' }], label, 'ko'))
+    expect(Object.keys(files)).toEqual([BUNDLE_INDEX])
+  })
+
+  /** 자른 자리가 공백이면 윈도가 떼고, 겹침 번호를 붙여도 한 토막의 한계 안이어야 한다. */
+  it('긴 제목은 한 토막의 한계 안으로 자른다', () => {
+    const encoder = new TextEncoder()
+    const long = '가'.repeat(MAX_FILE_NAME_LENGTH * 2)
+    const names = folderNames([
+      { label: 'a.mlpx', title: long },
+      { label: 'b.mlpx', title: long },
+    ])
+    for (const name of names) {
+      expect(encoder.encode(name).length).toBeLessThanOrEqual(MAX_FILE_NAME_BYTES)
+      expect(name).not.toMatch(/[. ]$/)
+    }
+    expect(names[1]).toMatch(/ \(2\)$/)
+    expect(new Set(names).size).toBe(2)
+
+    // 한계가 `홍길동 -` 뒤의 공백에 걸려도 끝에 공백이 안 남는다.
+    const cut = '가'.repeat(Math.floor((MAX_FILE_NAME_BYTES - 1) / 3))
+    const name = folderFor({ label: 'a.mlpx', studentName: cut, title: '나' }, 1)
+    expect(name).toMatch(/ -$/)
+    expect(name).not.toMatch(/[. ]$/)
+  })
+})
+
 describe('폴더 이름', () => {
   it('확장자를 뗀다', () => {
-    expect(folderFor('1반-3번-홍길동.mlpx', 1)).toBe('1반-3번-홍길동')
-    expect(folderFor('1반-3번-홍길동.MLPX', 1)).toBe('1반-3번-홍길동')
-  })
-
-  it('폴더째 골랐으면 경로가 폴더로 남는다', () => {
-    expect(folderFor('1반/3번-홍길동.mlpx', 1)).toBe('1반/3번-홍길동')
-    // 탐색기가 주는 상대 경로는 역슬래시일 수 있다.
-    expect(folderFor('1반\\3번-홍길동.mlpx', 1)).toBe('1반/3번-홍길동')
-  })
-
-  it('위로 올라가는 조각은 걷어낸다', () => {
-    expect(folderFor('../../etc/passwd.mlpx', 1)).toBe('etc/passwd')
-    expect(folderFor('./1반//3번.mlpx', 1)).toBe('1반/3번')
+    expect(folderFor({ label: '1반-3번-홍길동.mlpx' }, 1)).toBe('1반-3번-홍길동')
+    expect(folderFor({ label: '1반-3번-홍길동.MLPX' }, 1)).toBe('1반-3번-홍길동')
   })
 
   /**
    * **남는 이름이 없으면 순번이다** (2026-09-28 감사 D C-5). 빈 이름이면 엔트리가
-   * `/portfolio/document.md`라는 절대 경로가 됐다. 확장자를 떼고 빈 조각이나 `.`이 남는
-   * 것도 같은 병이다(`1반/.mlpx`는 `1반//portfolio/…`가 됐다).
+   * `/document.md`라는 절대 경로가 됐다. 확장자를 떼고 빈 조각이나 `.`이 남는 것도 같은 병이다.
    */
   it('남는 이름이 없으면 순번이 폴더 이름이다', () => {
-    expect(folderFor('.mlpx', 3)).toBe('_3')
-    expect(folderFor('../..', 4)).toBe('_4')
-    expect(folderFor('..mlpx', 5)).toBe('_5')
-    expect(folderFor('1반/.mlpx', 6)).toBe('1반')
+    expect(folderFor({ label: '.mlpx' }, 3)).toBe('_3')
+    expect(folderFor({ label: '../..' }, 4)).toBe('_4')
+    expect(folderFor({ label: '..mlpx' }, 5)).toBe('_5')
+    expect(folderFor({ label: '1반/.mlpx' }, 6)).toBe('_6')
+    expect(folderFor({ label: 'a.mlpx', studentId: ' ', title: '...' }, 7)).toBe('a')
   })
 
   /**
    * **순번에는 표지가 붙는다** (2026-09-29, 코드 소유자 결정 12). 맨 순번이면 이름 없는 제출물이
-   * 폴더 `2`를 먼저 차지해 이름표가 `2.mlpx`인 학생이 `2 (2)`로 밀렸다 — 교사는 `2 (2)`가 누구인지
-   * 명렬을 다시 봐야 한다. `_2`는 이름표에서 나오려면 파일 이름이 `_2.mlpx`여야 한다.
+   * 폴더 `2`를 먼저 차지해 이름표가 `2.mlpx`인 학생이 `2 (2)`로 밀렸다.
    */
   it('이름 없는 제출물이 이름표가 숫자인 학생의 자리를 뺏지 않는다', () => {
-    expect(folderNames(['.mlpx', '2.mlpx'])).toEqual(['_1', '2'])
-    expect(folderNames(['a.mlpx', '..', '2.mlpx'])).toEqual(['a', '_2', '2'])
+    expect(folderNames([{ label: '.mlpx' }, { label: '2.mlpx' }])).toEqual(['_1', '2'])
+    expect(folderNames([{ label: 'a.mlpx' }, { label: '..' }, { label: '2.mlpx' }])).toEqual([
+      'a',
+      '_2',
+      '2',
+    ])
   })
 
   it('표지와 같은 이름표가 있어도 덮지 않고 가른다', () => {
-    expect(folderNames(['_2.mlpx', '..'])).toEqual(['_2', '_2 (2)'])
+    expect(folderNames([{ label: '_2.mlpx' }, { label: '..' }])).toEqual(['_2', '_2 (2)'])
   })
 
   it('묶음의 어느 엔트리도 빈 조각이나 절대 경로가 아니다', async () => {
-    const blob = bundleOf(
-      [
-        { label: '.mlpx', file: projectFile() },
-        { label: '../..', file: projectFile() },
-      ],
-      label,
-      'ko',
+    const names = Object.keys(
+      await unpack(
+        bundleOf(
+          [
+            { label: '.mlpx', file: titled('') },
+            { label: '../..', file: titled('') },
+          ],
+          label,
+          'ko',
+        ),
+      ),
     )
-    const names = Object.keys(unzipSync(new Uint8Array(await blob.arrayBuffer())))
-    expect(names.sort()).toEqual([`_1/${ENTRY.portfolioMarkdown}`, `_2/${ENTRY.portfolioMarkdown}`])
+    expect(names.sort()).toEqual([`_1/${MD}`, `_2/${MD}`, BUNDLE_INDEX])
   })
 })
 
@@ -133,41 +299,35 @@ describe('푸는 자리 밖으로 새는 첨부는 안 싣는다', () => {
     `${DIR.attachments}a\\..\\..\\evil.cmd`,
     '/etc/evil.cmd',
     'C:/evil.cmd',
+    // 접두가 없는 경로는 떼어 낼 `portfolio/`가 없어 폴더 밖 자리로 간다.
+    'attachments/1.webp',
   ]
   for (const path of unsafe) {
     it(path, () => {
-      const files = entriesOf(
-        { label: '홍길동.mlpx', file: withPhoto(path) },
-        '홍길동',
-        label,
-        'ko',
-      )
-      expect(Object.keys(files)).toEqual([`홍길동/${ENTRY.portfolioMarkdown}`])
+      const files = entriesOf(withPhoto(path), '홍길동', label, 'ko')
+      expect(Object.keys(files)).toEqual([`홍길동/${MD}`])
     })
   }
 
   it('멀쩡한 첨부는 그대로 싣는다 - 거르는 것이 전부를 막지 않는다', () => {
-    const files = entriesOf({ label: '홍길동.mlpx', file: withPhoto() }, '홍길동', label, 'ko')
-    expect(Object.keys(files)).toEqual([
-      `홍길동/${ENTRY.portfolioMarkdown}`,
-      `홍길동/${DIR.attachments}1.webp`,
-    ])
+    const files = entriesOf(withPhoto(), '홍길동', label, 'ko')
+    expect(Object.keys(files)).toEqual([`홍길동/${MD}`, '홍길동/attachments/1.webp'])
   })
 })
 
 describe('제출물 하나의 엔트리', () => {
-  it('글은 파일 안에서와 같은 자리에 들어간다', () => {
-    const files = entriesOf({ label: '홍길동.mlpx', file: projectFile() }, '홍길동', label, 'ko')
-    expect(Object.keys(files)).toEqual([`홍길동/${ENTRY.portfolioMarkdown}`])
+  it('글은 폴더 바로 아래에 든다', () => {
+    const files = entriesOf(projectFile(), '홍길동', label, 'ko')
+    expect(Object.keys(files)).toEqual([`홍길동/${MD}`])
   })
 
-  it('사진도 파일 안에서와 같은 자리다 - 글이 상대 경로로 가리킨다', () => {
-    const files = entriesOf({ label: '홍길동.mlpx', file: withPhoto() }, '홍길동', label, 'ko')
-    const markdown = new TextDecoder().decode(files[`홍길동/${ENTRY.portfolioMarkdown}`])
+  it('사진은 글 옆의 attachments/다 - 글이 상대 경로로 가리킨다', () => {
+    const files = entriesOf(withPhoto(), '홍길동', label, 'ko')
+    const markdown = new TextDecoder().decode(files[`홍길동/${MD}`])
 
     // 글이 적은 주소를 글이 놓인 자리에서 풀면 사진의 자리가 나온다.
     expect(markdown).toContain('![](attachments/1.webp)')
-    expect(files[`홍길동/${DIR.attachments}1.webp`]).toEqual(new Uint8Array([1, 2, 3]))
+    expect(files['홍길동/attachments/1.webp']).toEqual(new Uint8Array([1, 2, 3]))
   })
 
   it('아무 문항도 안 가리키는 사진은 안 담는다', () => {
@@ -179,13 +339,13 @@ describe('제출물 하나의 엔트리', () => {
         [`${DIR.attachments}2.webp`, new Uint8Array([9])],
       ]),
     }
-    const files = entriesOf({ label: '홍길동.mlpx', file: orphan }, '홍길동', label, 'ko')
-    expect(files[`홍길동/${DIR.attachments}2.webp`]).toBeUndefined()
+    const files = entriesOf(orphan, '홍길동', label, 'ko')
+    expect(files['홍길동/attachments/2.webp']).toBeUndefined()
   })
 
   it('머리글은 교사의 언어로 그린다 - 학생 파일에 담긴 글을 베끼지 않는다', () => {
-    const files = entriesOf({ label: '홍길동.mlpx', file: projectFile() }, '홍길동', label, 'ko')
-    const markdown = new TextDecoder().decode(files[`홍길동/${ENTRY.portfolioMarkdown}`])
+    const files = entriesOf(projectFile(), '홍길동', label, 'ko')
+    const markdown = new TextDecoder().decode(files[`홍길동/${MD}`])
     expect(markdown).toContain('[meta.created]')
   })
 })
@@ -200,9 +360,10 @@ describe('기기 시계가 zip이 담을 수 없는 해여도 묶는다', () => 
       vi.useFakeTimers({ toFake: ['Date'] })
       vi.setSystemTime(new Date(clock))
       try {
-        const blob = bundleOf([{ label: '홍길동.mlpx', file: projectFile() }], label, 'ko')
-        const entries = unzipSync(new Uint8Array(await blob.arrayBuffer()))
-        expect(Object.keys(entries)).toEqual([`홍길동/${ENTRY.portfolioMarkdown}`])
+        const files = await unpack(
+          bundleOf([{ label: 'a.mlpx', file: titled('홍길동') }], label, 'ko'),
+        )
+        expect(Object.keys(files).sort()).toEqual([BUNDLE_INDEX, `홍길동/${MD}`])
       } finally {
         vi.useRealTimers()
       }
@@ -211,30 +372,15 @@ describe('기기 시계가 zip이 담을 수 없는 해여도 묶는다', () => 
 })
 
 describe('묶음', () => {
-  it('제출물마다 폴더가 갈린다', async () => {
-    const blob = bundleOf(
-      [
-        { label: '1반/홍길동.mlpx', file: projectFile() },
-        { label: '1반/김철수.mlpx', file: projectFile() },
-      ],
-      label,
-      'ko',
-    )
-    const entries = unzipSync(new Uint8Array(await blob.arrayBuffer()))
-    expect(Object.keys(entries).sort()).toEqual([
-      `1반/김철수/${ENTRY.portfolioMarkdown}`,
-      `1반/홍길동/${ENTRY.portfolioMarkdown}`,
-    ])
-  })
-
   it('정본 표도 모델도 사진도 안 실린다 - 나가는 것은 글과 그 글의 첨부뿐이다', async () => {
-    const blob = bundleOf([{ label: '홍길동.mlpx', file: withPhoto() }], label, 'ko')
-    const names = Object.keys(unzipSync(new Uint8Array(await blob.arrayBuffer())))
+    const names = Object.keys(
+      await unpack(bundleOf([{ label: 'a.mlpx', file: withPhoto() }], label, 'ko')),
+    )
 
     // 픽스처는 표와 모델을 갖고 있다. 하나라도 새면 이 검사가 운다.
-    expect(names.some((name) => name.startsWith(DIR.dataset))).toBe(false)
-    expect(names.some((name) => name.startsWith(DIR.model))).toBe(false)
-    expect(names).not.toContain(ENTRY.manifest)
+    expect(names.some((name) => name.includes('dataset/'))).toBe(false)
+    expect(names.some((name) => name.includes('model'))).toBe(false)
+    expect(names.some((name) => name.endsWith('manifest.json'))).toBe(false)
   })
 
   /**
@@ -246,7 +392,7 @@ describe('묶음', () => {
     const blob = bundleOf(
       [
         { label: '홍길동.mlpx', file: withPhoto() },
-        { label: '김철수.mlpx', file: projectFile() },
+        { label: '김철수.mlpx', file: titled('김철수') },
       ],
       label,
       'ko',
@@ -265,9 +411,10 @@ describe('묶음', () => {
         (error) => (error ? reject(error) : resolve()),
       )
     })
-    // 글(누르면 줄어드는 것)과 사진이 둘 다 든다.
-    expect([...methods.keys()].some((name) => name.endsWith(ENTRY.portfolioMarkdown))).toBe(true)
+    // 글(누르면 줄어드는 것)과 사진과 표가 다 든다.
+    expect([...methods.keys()].some((name) => name.endsWith(MD))).toBe(true)
     expect([...methods.keys()].some((name) => name.endsWith('.webp'))).toBe(true)
+    expect([...methods.keys()]).toContain(BUNDLE_INDEX)
     for (const [path, method] of methods) expect(method, path).toBe(0)
   })
 })
@@ -276,7 +423,7 @@ describe('묶음', () => {
  * **묶음 zip도 엔트리 수 한계 안에서만 쓴다** (open-decisions.md ".mlpx 한 파일의 엔트리 수는 ZIP64
  * 없이 쓸 수 있는 만큼이다"의 코드 소유자 후속). 묶음을 굽는 fflate도 ZIP64를 안 쓴다 — 넘은 채로
  * 쓰면 푸는 쪽이 제출물을 말없이 빠뜨린다. 넘으면 조용히 쓰지 않고 던지고, 점검 화면이 알린다
- * (`InspectView.vue`의 `downloadPortfolios`).
+ * (`InspectView.vue`의 `downloadPortfolios`). `index.csv`도 하나로 센다.
  */
 describe('묶음 엔트리 수', () => {
   /** 글 하나와 첨부 `photos`장이 든 제출물 — 묶음에서 엔트리 `photos + 1`개다. */
@@ -284,8 +431,8 @@ describe('묶음 엔트리 수', () => {
     const base = projectFile()
     const paths: string[] = []
     const attachments = new Map<string, Uint8Array>()
-    for (let index = 0; index < photos; index += 1) {
-      const path = `${DIR.attachments}${index}.webp`
+    for (let index = 1; index <= photos; index += 1) {
+      const path = `${DIR.attachments}${String(index)}.webp`
       paths.push(path)
       attachments.set(path, new Uint8Array([1]))
     }
@@ -300,22 +447,18 @@ describe('묶음 엔트리 수', () => {
   }
 
   it('한계를 넘으면 조용히 쓰지 않고 던진다', () => {
-    const entries: BundleEntry[] = [
-      { label: 'a.mlpx', file: withPhotos(MAX_ARCHIVE_ENTRIES - 1) },
-      { label: 'b.mlpx', file: projectFile() },
-    ]
+    const entries: BundleEntry[] = [{ label: 'a.mlpx', file: withPhotos(MAX_ARCHIVE_ENTRIES - 1) }]
     expect(() => bundleOf(entries, label, 'ko')).toThrow(
       expect.objectContaining({ code: 'PORTFOLIO_BUNDLE_TOO_MANY_ENTRIES' }),
     )
   })
 
   it('한계와 같은 수는 쓰이고 다 풀린다', async () => {
-    const blob = bundleOf(
-      [{ label: 'a.mlpx', file: withPhotos(MAX_ARCHIVE_ENTRIES - 1) }],
-      label,
-      'ko',
+    const names = Object.keys(
+      await unpack(
+        bundleOf([{ label: 'a.mlpx', file: withPhotos(MAX_ARCHIVE_ENTRIES - 2) }], label, 'ko'),
+      ),
     )
-    const names = Object.keys(unzipSync(new Uint8Array(await blob.arrayBuffer())))
     expect(names).toHaveLength(MAX_ARCHIVE_ENTRIES)
   }, 60_000)
 })
@@ -323,41 +466,44 @@ describe('묶음 엔트리 수', () => {
 /**
  * **폴더 이름이 겹치면 한 학생의 글이 남의 글로 바뀐다** (2026-09-18 R28 C-20).
  *
- * `folderFor`는 확장자만 떼므로 한 폴더의 `a.mlpx`와 `a.MLPX`가 같은 이름이 된다 —
- * 대소문자를 가리는 파일 시스템(리눅스)에서 만들 수 있는 입력이고, 그때 zip 엔트리는
- * **조용히 덮인다.** 교사는 서른 명을 냈는데 스물아홉 폴더를 받고 그 사실을 알 길이 없다.
+ * 같은 학생이 같은 제목으로 두 번 냈거나 이름표만 남은 둘이 같은 파일 이름이면 같은 폴더가 된다 — 그때 zip
+ * 엔트리는 **조용히 덮인다.** 교사는 서른 명을 냈는데 스물아홉 폴더를 받고 그 사실을 알 길이 없다.
  */
 describe('폴더 이름은 서로 다르다', () => {
+  const of = (...labels: string[]) => labels.map((one) => ({ label: one }))
+
   it('겹치면 뒤엣것에 번호를 붙인다', () => {
-    expect(folderNames(['a.mlpx', 'a.MLPX', 'a.mlpx'])).toEqual(['a', 'a (2)', 'a (3)'])
+    expect(folderNames(of('a.mlpx', 'a.MLPX', 'a.mlpx'))).toEqual(['a', 'a (2)', 'a (3)'])
   })
 
   it('대소문자만 다른 이름도 가른다', () => {
-    expect(folderNames(['1반/Kim.mlpx', '1반/kim.mlpx'])).toEqual(['1반/Kim', '1반/kim (2)'])
+    expect(folderNames(of('1반/Kim.mlpx', '1반/kim.mlpx'))).toEqual(['Kim', 'kim (2)'])
   })
 
   /**
-   * **윈도가 못 푸는 글자를 걷는다** (0.35.2 경계 감사 C C-1). 리눅스·맥에서 지은 이름표가 그대로 폴더가 되면 `Expand-Archive`는
+   * **윈도가 못 푸는 글자를 걷는다** (0.35.2 경계 감사 C C-1). 리눅스·맥에서 지은 이름이 그대로 폴더가 되면 `Expand-Archive`는
    * 묶음을 통째로 안 풀고, 파이썬·bsdtar는 말없이 바꿔 `q?`와 `q*`를 한 폴더로 합쳤다. 걸은 뒤의 겹침은 번호로 갈린다. 공백은
    * 남긴다 — 교사가 읽는 이름이다.
    */
   it('윈도가 못 푸는 글자를 걷는다', () => {
     expect(
-      folderNames([
-        'a:b.mlpx',
-        'q?.mlpx',
-        'q*.mlpx',
-        'CON.mlpx',
-        'nul.txt.mlpx',
-        'dot..mlpx',
-        'x .mlpx',
-        'x.mlpx',
-        '1반 홍길동.mlpx',
-        '.숨김.mlpx',
-        'lt<gt>|"\u0007.mlpx',
-        // 오른쪽에서 왼쪽으로(U+202E) — 탐색기에서 글자 순서가 뒤집혀 보인다(0.35.3 최종 감사 C-3).
-        'r\u202etl.mlpx',
-      ]),
+      folderNames(
+        of(
+          'a:b.mlpx',
+          'q?.mlpx',
+          'q*.mlpx',
+          'CON.mlpx',
+          'nul.txt.mlpx',
+          'dot..mlpx',
+          'x .mlpx',
+          'x.mlpx',
+          '1반 홍길동.mlpx',
+          '.숨김.mlpx',
+          'lt<gt>|"\u0007.mlpx',
+          // 오른쪽에서 왼쪽으로(U+202E) — 탐색기에서 글자 순서가 뒤집혀 보인다(0.35.3 최종 감사 C-3).
+          'r\u202etl.mlpx',
+        ),
+      ),
     ).toEqual([
       'ab',
       'q',
@@ -372,16 +518,21 @@ describe('폴더 이름은 서로 다르다', () => {
       'ltgt',
       'rtl',
     ])
+    // 학번·이름·제목도 같은 걷기를 지난다. 잇고 나서 예약 이름이 되는 것도 피한다.
+    expect(folderFor({ label: 'a.mlpx', title: 'CON' }, 1)).toBe('CON_')
+    expect(folderFor({ label: 'a.mlpx', studentName: 'q?', title: 'r\u202etl.' }, 1)).toBe(
+      'q - rtl',
+    )
   })
 
   /** 윈도는 대문자 표로 견준다 — 소문자로 견주면 `σ`·`ς`가 둘로 남아 풀 때 한 폴더가 된다. */
   it('대문자로 같아지는 이름도 가른다', () => {
-    expect(folderNames(['σ.mlpx', 'ς.mlpx'])).toEqual(['σ', 'ς (2)'])
+    expect(folderNames(of('σ.mlpx', 'ς.mlpx'))).toEqual(['σ', 'ς (2)'])
   })
 
-  /** 기억한 번호가 이미 있는 이름(`a (2)`라는 진짜 제출물)을 건너뛴다. */
+  /** 원래 있는 이름(`a (2)`라는 진짜 제출물)을 붙인 번호가 뺏지 않는다. */
   it('번호를 이어 세도 이미 있는 이름은 피한다', () => {
-    expect(folderNames(['a.mlpx', 'a (3).mlpx', 'a.mlpx', 'a.mlpx', 'A.mlpx'])).toEqual([
+    expect(folderNames(of('a.mlpx', 'a.mlpx', 'a (2).mlpx', 'a.mlpx', 'A.mlpx'))).toEqual([
       'a',
       'a (3)',
       'a (2)',
@@ -398,33 +549,24 @@ describe('폴더 이름은 서로 다르다', () => {
     const COUNT = 20_000
     const BUDGET_MS = 3_000
     const started = performance.now()
-    const names = folderNames(Array.from({ length: COUNT }, () => 'topic.mlpx'))
+    const names = folderNames(Array.from({ length: COUNT }, () => ({ label: 'topic.mlpx' })))
     const elapsed = performance.now() - started
     expect(new Set(names).size).toBe(COUNT)
     expect(elapsed, `${String(Math.round(elapsed))} ms`).toBeLessThan(BUDGET_MS)
   })
 
-  it('안 겹치면 그대로 둔다', () => {
-    expect(folderNames(['1반/홍길동.mlpx', '1반/김철수.mlpx'])).toEqual([
-      '1반/홍길동',
-      '1반/김철수',
-    ])
-  })
-
   it('묶음이 그 이름을 쓴다 - 덮이는 제출물이 없다', async () => {
-    const blob = bundleOf(
-      [
-        { label: '홍길동.mlpx', file: projectFile() },
-        { label: '홍길동.MLPX', file: projectFile() },
-      ],
-      label,
-      'ko',
+    const files = await unpack(
+      bundleOf(
+        [
+          { label: 'a.mlpx', file: titled('홍길동') },
+          { label: 'b.mlpx', file: titled('홍길동') },
+        ],
+        label,
+        'ko',
+      ),
     )
-    const entries = unzipSync(new Uint8Array(await blob.arrayBuffer()))
-    expect(Object.keys(entries).sort()).toEqual([
-      `홍길동 (2)/${ENTRY.portfolioMarkdown}`,
-      `홍길동/${ENTRY.portfolioMarkdown}`,
-    ])
+    expect(Object.keys(files).sort()).toEqual([BUNDLE_INDEX, `홍길동 (2)/${MD}`, `홍길동/${MD}`])
   })
 })
 
@@ -466,8 +608,12 @@ describe('조작한 사진 경로는 묶음의 document.md에 안 실린다', ()
     const { project: opened } = await readProject(bytes)
     // 읽기가 경로를 그대로 들였는지부터 본다 — 안 들였으면 이 검사는 입구를 안 지난 것이다.
     expect(opened.document.portfolio.attachments['motivation']).toEqual(paths)
-    const files = entriesOf({ label: '홍길동.mlpx', file: opened }, '홍길동', label, 'ko')
-    return new TextDecoder().decode(files[`홍길동/${ENTRY.portfolioMarkdown}`])
+    const files = entriesOf(opened, '홍길동', label, 'ko')
+    // 조작한 경로의 바이트도 안 실린다 — 링크가 없는 사진이 묶음에 떨어지면 안 된다.
+    expect(Object.keys(files).filter((name) => name.includes('attachments/'))).toEqual(
+      paths.includes(made) ? [`홍길동/${made.slice(DIR.portfolio.length)}`] : [],
+    )
+    return new TextDecoder().decode(files[`홍길동/${MD}`])
   }
 
   const made = nextAttachmentPath(projectFile().document.portfolio, '.webp', [])

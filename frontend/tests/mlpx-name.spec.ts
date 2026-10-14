@@ -122,14 +122,14 @@ describe('확장자 제거', () => {
   /**
    * **같은 프로젝트를 두 기기에서 내보낸 것이 한 폴더로 간다.** 갈리면 교사가 같은 학생을
    * 두 번 본다. 그리고 그때 폴더가 겹치므로 `folderNames`가 번호를 붙여 갈라 준다 —
-   * **조용히 덮이면 한 학생의 글이 남의 글로 바뀐다** (R28 C-20).
+   * **조용히 덮이면 한 학생의 글이 남의 글로 바뀐다** (R28 C-20). 이름표가 폴더가 되는 것은 학번·이름·제목이 다 빌
+   * 때뿐이다(결정 114).
    */
   it('묶음의 폴더 이름이 같아지고, 겹침은 번호로 갈린다', () => {
-    expect(folderFor(`1반/비올까${SAFARI}`, 1)).toBe('1반/비올까')
-    expect(folderNames([`비올까${MLPX_EXTENSION}`, `비올까${SAFARI}`])).toEqual([
-      '비올까',
-      '비올까 (2)',
-    ])
+    expect(folderFor({ label: `1반/비올까${SAFARI}` }, 1)).toBe('비올까')
+    expect(
+      folderNames([{ label: `비올까${MLPX_EXTENSION}` }, { label: `비올까${SAFARI}` }]),
+    ).toEqual(['비올까', '비올까 (2)'])
   })
 })
 

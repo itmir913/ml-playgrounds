@@ -39,6 +39,7 @@ import { MLPX_ACCEPT } from '@/project/format'
 import { downloadBlob } from '@/project/download'
 import { bundleOf, type BundleEntry } from '@/project/portfolio-bundle'
 import {
+  bundleStudentOf,
   groupName,
   rosterOf,
   sameProjectsOf,
@@ -582,7 +583,16 @@ async function downloadPortfolios(): Promise<void> {
   if (busy.value || roster.items.value.length === 0) return
   const job = start()
   bundled.value = 0
-  const entries: BundleEntry[] = []
+  // **누른 순간의 정렬과 고침을 떠 둔다** (open-decisions.md 114). 묶음의 겹침 번호와 `index.csv`의 줄이 화면에
+  // 보이는 순서를 따른다 — `collect`는 불러온 순서로 넘긴다. 묶는 도중에 교사가 이름을 고쳐도 한 묶음은 한 때의 값이다.
+  const order = sortRoster(
+    roster.items.value,
+    roster.summaries.value,
+    sort.value,
+    descending.value,
+  ).map((item) => item.label)
+  const edits = new Map(roster.edits.value)
+  const taken = new Map<string, BundleEntry>()
   try {
     // **다 읽었을 때만 내려받는다** (§8.21). 굽는 동안 교사가 다른 폴더를 고르면 그
     // 묶음은 이미 남의 것이라, 여기서 안 물으면 **앞 반의 절반짜리 zip이 내려간다.**
@@ -591,12 +601,23 @@ async function downloadPortfolios(): Promise<void> {
       // **나갈 것 둘만 들고 나머지는 놓는다** (2026-09-18 R28-V N-1). `read.project`를
       // 통째로 들면 굽기가 끝날 때까지 **서른 개의 정본 표와 모델과 사진이 동시에 산다** —
       // 한 번에 하나만 푼다는 규칙이 바로 여기서 무너졌다.
+      // **못 읽은 줄도 든다** — `index.csv`에 폴더 칸이 빈 줄로 선다(결정 114).
       if (read) {
         const { document, attachments } = read.project
-        entries.push({ label: item.label, file: { document, attachments } })
+        taken.set(item.label, {
+          label: item.label,
+          ...bundleStudentOf(document, edits.get(item.label)),
+          file: { document, attachments },
+        })
+      } else {
+        taken.set(item.label, { label: item.label })
       }
     })
-    if (whole && entries.length > 0 && alive()) {
+    const entries = order.flatMap((label) => {
+      const entry = taken.get(label)
+      return entry ? [entry] : []
+    })
+    if (whole && entries.some((entry) => entry.file) && alive()) {
       downloadBlob(bundleOf(entries, t, locale.value), t('inspect.bundleName'))
     }
   } catch (error) {

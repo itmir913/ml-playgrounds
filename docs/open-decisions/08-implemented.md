@@ -4,6 +4,12 @@
 
 > **상태 한 줄과, 제목이 물음일 때만 결론 한 줄을 둔다.** 경위는 같은 제목 아래 `docs/cases/open-decisions.md`에 있다.
 
+### 114. 교사의 포트폴리오 묶음 안을 어떻게 짓는가 — **평평하게, 폴더는 `학번 이름 - 제목`, 맨 위에 `index.csv` (2026-10-14, 코드 소유자)**
+**[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. 제출물마다 폴더 하나에 `document.md`와 `attachments/`다 —
+`portfolio/` 한 단계와 이름표의 상위 폴더는 버린다. 폴더 이름의 짓기·겹침은 `architecture.md` §8.21, 상한은 기존
+`MAX_FILE_NAME_LENGTH`·`MAX_FILE_NAME_BYTES`다(새 숫자 없음). `index.csv`(`folder,studentId,studentName,projectName,source`)는
+못 읽은 제출물도 한 줄이고, 수식 머리는 110처럼 가리지 않는다. 무는 검사: `portfolio-bundle.spec.ts`의 *"결정 114"* 묶음.
+
 ### 111. 이미지 KNN이 학습 뒤 더한 사진 때문에 꺼지지 않는다
 **[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. **분류 실험의 스냅샷에 행마다의 열쇠(`data.rowKeys`)를 적고, 되세울 때
 훈련 행의 열쇠만 지금 사진에서 찾는다 (코드 소유자).** 훈련에 쓴 사진을 지우거나 범주를 옮기면 거부하고, 훈련에 안 쓴 사진은 바뀌어도
