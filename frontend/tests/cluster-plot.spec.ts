@@ -109,6 +109,10 @@ describe('축 후보', () => {
     )
   })
 
+  it('배정의 행이 표 밖이면 축 목록부터 던진다 - 축이 모자란다고 말하지 않는다', () => {
+    expect(() => plotAxes(material().axes, wide([9, 10, 11, 12]), false)).toThrow()
+  })
+
   it('넓은 재료가 없으면 특성 축만 준다 - 예측 화면', () => {
     expect(plotAxes(material().axes, undefined, false)).toHaveLength(2)
   })

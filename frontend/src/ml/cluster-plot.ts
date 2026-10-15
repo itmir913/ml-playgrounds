@@ -63,7 +63,9 @@ export function plotAxes(
   if (!wide || hasHighlight) return features
 
   const trained = new Set(wide.material.columns.map((entry) => entry.column.name))
-  const rows = wide.material.assignment.rows
+  // **표 밖을 가리키면 여기서 던진다** (0.35.11 감사 F2) — 빈 칸으로 읽으면 망가진 파일이 "축이 모자란다"로
+  // 보인다. 무는 검사: `tests/cluster-plot.spec.ts` "배정의 행이 표 밖이면 축 목록부터 던진다".
+  const rows = trainRows(wide)
   // **훈련 행으로 센다** (115 후속) — 그리는 점이 훈련 행뿐이라, 거기서 비어 있으면 그릴 것이 없다.
   const raw: PlotAxis[] = wide.dataset.columns
     .filter((name) => !trained.has(name))
