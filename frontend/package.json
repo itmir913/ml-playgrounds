@@ -1,6 +1,6 @@
 {
   "name": "ml-playgrounds-frontend",
-  "version": "0.35.10",
+  "version": "0.35.11",
   "private": true,
   "type": "module",
   "engines": {
