@@ -1038,7 +1038,7 @@
       "clusterScatter": "군집 산점도",
       "clusterScatterLead": "점 하나가 데이터 한 행이고, ✕ 표시는 각 군집의 중심점입니다.",
       "clusterScatterLeadPlain": "점 하나가 데이터 한 행입니다.",
-      "clusterScatterNoAxes": "산점도는 수치형 열이 둘 이상 있어야 표시할 수 있습니다. (지금 {count}개)",
+      "clusterScatterNoAxes": "산점도는 축으로 사용할 수 있는 열이 둘 이상 있어야 표시할 수 있습니다. (지금 {count}개)",
       "clusterSize": "데이터 수",
       "clusterSummary": "군집별 데이터 특징",
       "clusterSummaryLead": "각 칸은 그 군집에 속한 데이터의 평균입니다. 행을 누르면 그 군집의 데이터를 볼 수 있습니다.",

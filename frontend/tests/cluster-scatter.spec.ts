@@ -148,6 +148,102 @@ describe('고른 축', () => {
   })
 })
 
+/**
+ * **학습에 쓰지 않은 열을 고르는 입구** (`open-decisions.md` 115, 0.35.10 감사 F1·F2·F5).
+ * 로직은 `cluster-plot.spec.ts`가 물지만, 묶음의 값·원본 칸 표시·안내 문장을 잇는 것은
+ * 부품이다 — 그 이음을 지워도 조용했다.
+ */
+describe('학습에 쓰지 않은 열', () => {
+  const t = i18n.global.t
+  const axes = [
+    { name: '깊이', index: 0, width: 1 },
+    { name: '규모', index: 1, width: 1 },
+  ]
+  const material = {
+    columns: [
+      { name: '깊이', column: { name: '깊이', kind: 'numeric' as const } },
+      { name: '규모', column: { name: '규모', kind: 'numeric' as const } },
+    ],
+    axes,
+    matrix: [
+      [10, 5],
+      [20, 6],
+      [30, 4],
+    ],
+    assignment: {
+      rows: [0, 1, 2],
+      clusters: Int32Array.from([0, 1, 0]),
+      distances: new Float64Array(3),
+      counts: Int32Array.from([2, 1]),
+      centroids: [
+        [20, 4.5],
+        [20, 6],
+      ],
+    },
+  }
+  const dataset = {
+    columns: ['깊이', '규모', '위도'],
+    rows: [
+      ['10', '5', '35'],
+      ['20', '6', ''],
+      ['30', '4', '37'],
+    ],
+  }
+
+  function mountWide() {
+    return mount(ClusterScatter, {
+      props: {
+        axes,
+        summaries: [
+          { cluster: 0, size: 2, means: [20, 4.5], centroid: [20, 4.5] },
+          { cluster: 1, size: 1, means: [20, 6], centroid: [20, 6] },
+        ],
+        scatter: {
+          points: material.matrix.map((values, row) => ({
+            row,
+            cluster: material.assignment.clusters[row] ?? 0,
+            values,
+          })),
+        },
+        wide: { dataset, material },
+        title: '군집 산점도',
+        lead: '중심점이 있다',
+        leadPlain: '점만 본다',
+      },
+      attachTo: document.body,
+      global: { plugins: [i18n] },
+    })
+  }
+
+  it('묶음에서 고른 열이 그 열이고, 원본 칸 그림이라고 말한다', async () => {
+    pretendTokens('#111111')
+    const view = mountWide()
+    const ySelect = view.findAll('select')[1]!
+    const raw = ySelect.findAll('optgroup')[1]!.find('option')
+    expect(raw.text()).toBe('위도')
+
+    await ySelect.setValue(raw.attributes('value'))
+    expect(view.find('h4').element.parentElement?.textContent).toContain('위도')
+    const text = view.text()
+    expect(text).toContain('점만 본다')
+    expect(text).not.toContain('중심점이 있다')
+    expect(text).toContain(t('results.tabular.clusterRawPlot'))
+    expect(text).toContain(t('results.tabular.clusterNoCentroidRaw'))
+    expect(text).toContain(t('results.tabular.clusterRawDropped', { count: 1 }))
+    view.unmount()
+  })
+
+  it('특성 둘이면 원본 칸 안내가 없고 ✕를 말한다', () => {
+    pretendTokens('#111111')
+    const view = mountWide()
+    const text = view.text()
+    expect(text).toContain('중심점이 있다')
+    expect(text).not.toContain(t('results.tabular.clusterRawPlot'))
+    expect(text).not.toContain(t('results.tabular.clusterNoCentroidRaw'))
+    view.unmount()
+  })
+})
+
 /** **✕가 없는 그림은 ✕를 말하지 않는다** (`open-decisions.md` 115 실측). */
 describe('그림 설명', () => {
   function mountWith(categories?: readonly string[]) {

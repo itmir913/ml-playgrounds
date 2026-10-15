@@ -1038,7 +1038,7 @@
       "clusterScatter": "クラスタの散布図",
       "clusterScatterLead": "点1つがデータの1行で、✕印は各クラスタの重心です。",
       "clusterScatterLeadPlain": "点1つがデータの1行です。",
-      "clusterScatterNoAxes": "散布図を表示するには、数値型の列が2列以上必要です。(現在{count}列)",
+      "clusterScatterNoAxes": "散布図を表示するには、軸に使える列が2列以上必要です。(現在{count}列)",
       "clusterSize": "データ数",
       "clusterSummary": "クラスタごとのデータの特徴",
       "clusterSummaryLead": "各セルは、そのクラスタに属するデータの平均値です。行を選択すると、そのクラスタのデータが表示されます。",

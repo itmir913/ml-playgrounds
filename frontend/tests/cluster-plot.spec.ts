@@ -99,6 +99,13 @@ describe('축 후보', () => {
     expect(plotAxesKey(first)).not.toBe(plotAxesKey(plotAxes(material().axes, wide(), false)))
   })
 
+  it('열 이름이 다르면 이름표도 다르다 - 다른 모델로 바꾸면 처음 축으로 돌아간다', () => {
+    const renamed = material().axes.map((axis) => ({ ...axis, name: `${axis.name}2` }))
+    expect(plotAxesKey(plotAxes(renamed, undefined, true))).not.toBe(
+      plotAxesKey(plotAxes(material().axes, undefined, true)),
+    )
+  })
+
   it('넓은 재료가 없으면 특성 축만 준다 - 예측 화면', () => {
     expect(plotAxes(material().axes, undefined, false)).toHaveLength(2)
   })
@@ -147,6 +154,25 @@ describe('그림 하나에 규칙 하나', () => {
       data.points.map((point) => [point.x, point.y]),
     )
     expect(plot.dropped).toBe(data.skipped)
+  })
+
+  it('군집 색은 그 행의 배정이다 - 배정 행이 표 순서와 달라도', () => {
+    // 배정의 i번째가 표의 몇 번째 행인지가 항등이 아닌 재료 (drop·추출이면 이렇다).
+    const shuffled = wide([3, 0, 1, 2])
+    const plot = clusterPlot(
+      material().axes,
+      SCATTER,
+      SUMMARIES,
+      latitude!,
+      region!,
+      shuffled,
+      read,
+    )
+    // 배정 [0,1,0,1]이 표의 행 [3,0,1,2]에 붙는다. 1번 행은 위도가, 2번 행은 지역이 비어 빠진다.
+    expect(plot.scatter.points.map((point) => [point.row, point.cluster])).toEqual([
+      [3, 0],
+      [0, 1],
+    ])
   })
 
   it('배정의 행이 표 밖을 가리키면 던진다 - 다른 행을 조용히 그리지 않는다', () => {

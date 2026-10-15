@@ -1038,7 +1038,7 @@
       "clusterScatter": "Cluster scatter plot",
       "clusterScatterLead": "Each dot is one row of data, and each ✕ marks the centroid of a cluster.",
       "clusterScatterLeadPlain": "Each dot is one row of data.",
-      "clusterScatterNoAxes": "A scatter plot needs at least two numeric columns. (now {count})",
+      "clusterScatterNoAxes": "A scatter plot needs at least two columns that can be used as axes. (now {count})",
       "clusterSize": "Samples",
       "clusterSummary": "Characteristics of each cluster",
       "clusterSummaryLead": "Each cell is the average of the rows in that cluster. Select a row to see the data in that cluster.",
