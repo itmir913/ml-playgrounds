@@ -88,6 +88,22 @@ export const DRAW_ORDER = { points: 3, halo: 2, centroid: 1, highlight: 0 } as c
 export interface ClusterAxisScales {
   readonly x?: readonly string[] | undefined
   readonly y?: readonly string[] | undefined
+  /**
+   * 원본 칸으로 그린 그림인가 (`open-decisions.md` 115). **그때는 중심점이 없다** — 학습에 쓰지
+   * 않은 열에는 중심점 좌표가 애초에 없다.
+   */
+  readonly raw?: boolean | undefined
+}
+
+/**
+ * 중심점을 그리는 그림인가. **판정을 한 군데 둔다** — 그리는 쪽과 범례·툴팁이 빼는 줄
+ * (`haloIndex`)이 갈리면 군집 하나가 범례에서 사라진다.
+ *
+ * **범주 축에서는 안 그린다** (`open-decisions.md` "군집 산점도의 축"). **원본 칸 그림에서도
+ * 안 그린다** (115).
+ */
+export function drawsCentroid(scales: ClusterAxisScales): boolean {
+  return scales.raw !== true && scales.x === undefined && scales.y === undefined
 }
 
 /**
@@ -255,7 +271,7 @@ export function clusterChartData(
    * 없다 — 가장 무거운 범주에 놓으면 "이 군집의 중심은 그 범주다"라고 말하게 된다.
    * 그 자리는 군집 요약표가 최빈 범주로 답한다.
    */
-  const drawsCentroid = scales.x === undefined && scales.y === undefined
+  const withCentroid = drawsCentroid(scales)
 
   /**
    * **점을 거른다** (`open-decisions.md` "94. 그림이 드문 것을 숨기는가"). 성긴 칸은 점을 전부,
@@ -347,7 +363,7 @@ export function clusterChartData(
   const data: ChartData<'scatter'> = {
     datasets: [
       ...clusters,
-      ...(drawsCentroid ? centroidLayers(centers, centerSummaries, tokens, text.centroid) : []),
+      ...(withCentroid ? centroidLayers(centers, centerSummaries, tokens, text.centroid) : []),
       // **맨 위이고, 맨 뒤다** (#28-7). 위에 그려져야 점에 안 묻히고, 배열 끝이어야
       // 흰 테두리의 자리(`haloIndex`)가 안 밀린다.
       ...(highlight
@@ -403,7 +419,7 @@ export function clusterChartOptions(
   text: Omit<ClusterChartText, 'clusterName' | 'centroid'>,
   scales: ClusterAxisScales = {},
 ): ChartOptions<'scatter'> {
-  const halo = haloIndex(pointSets, scales.x === undefined && scales.y === undefined)
+  const halo = haloIndex(pointSets, drawsCentroid(scales))
 
   /**
    * 범주 축의 눈금은 **데이터 화면의 산점도와 한 자리에서 온다**

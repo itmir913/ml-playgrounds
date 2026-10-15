@@ -24,6 +24,13 @@ import { useFormat } from '@/composables/useFormat'
 import { clusterChartData, clusterChartOptions, type ClusterHighlight } from '@/ml/cluster-chart'
 import { CLUSTER_SCATTER_POINT_LIMIT } from '@/limits'
 import { axisCellOf, type ClusterAxis, type ClusterSummary, type ScatterData } from '@/ml/clusters'
+import {
+  clusterPlot,
+  plotAxes,
+  plotAxesKey,
+  rawColumnReader,
+  type WidePlotSource,
+} from '@/ml/cluster-plot'
 
 Chart.register(ScatterController, PointElement, LinearScale, Tooltip, Legend)
 
@@ -33,6 +40,11 @@ const props = defineProps<{
   scatter: ScatterData
   /** 학생이 방금 넣은 한 줄. **예측 화면에만 있다** (#28-7). */
   highlight?: ClusterHighlight | undefined
+  /**
+   * 학습에 쓰지 않은 열까지 축으로 세울 재료 (`open-decisions.md` 115). **결과 화면만 넘긴다.**
+   * 새 점과 함께 오면 특성 축만 선다 — 그 판정은 `plotAxes`가 한다.
+   */
+  wide?: WidePlotSource | undefined
   /**
    * 제목과 설명. **부품이 제 제목까지 든다** — 축이 둘 미만이면 그림이 통째로 없어야
    * 하는데(§9.2), 제목을 부르는 쪽에 두면 그때 **제목만 남아 없는 그림의 이름을 부른다.**
@@ -44,18 +56,43 @@ const props = defineProps<{
 const { t } = useI18n()
 const format = useFormat()
 
-/** 고른 축. **행렬 열 번호가 아니라 `axes` 안의 자리다.** */
+/**
+ * 고를 수 있는 축. **특성이 앞이고 학습에 쓰지 않은 열이 뒤다** (115) — 첫 화면이 지금까지와
+ * 같다.
+ */
+const choices = computed(() => plotAxes(props.axes, props.wide, props.highlight !== undefined))
+const features = computed(() => choices.value.filter((axis) => axis.source === 'feature'))
+const others = computed(() => choices.value.filter((axis) => axis.source === 'raw'))
+
+/** 고른 축. **행렬 열 번호가 아니라 `choices` 안의 자리다.** */
 const xAxis = ref(0)
 const yAxis = ref(1)
 
-/** 축 목록이 바뀌면(다른 실험·다른 모델) 처음 둘로 돌아간다. */
+/**
+ * 축 목록이 바뀌면(다른 실험·다른 모델) 처음 둘로 돌아간다. **배열이 아니라 이름표를
+ * 감시한다** — 새 점이 바뀔 때마다 배열은 새로 선다 (`plotAxesKey`).
+ */
 watch(
-  () => props.axes,
+  () => plotAxesKey(choices.value),
   () => {
     xAxis.value = 0
     yAxis.value = 1
   },
 )
+
+/** 원본 열은 열마다 한 번만 읽는다 (115). 표가 바뀌면 새로 읽는다. */
+const reader = computed(() => (props.wide ? rawColumnReader(props.wide.dataset) : undefined))
+
+/**
+ * 고른 두 축으로 그릴 그림. **둘 다 특성이면 받은 재료 그대로이고, 하나라도 아니면 두 축 모두
+ * 원본 칸이다** (115 — 그림 하나에 규칙 하나).
+ */
+const plot = computed(() => {
+  const x = choices.value[xAxis.value]
+  const y = choices.value[yAxis.value]
+  if (!x || !y) return null
+  return clusterPlot(props.axes, props.scatter, props.summaries, x, y, props.wide, reader.value)
+})
 
 /**
  * 배색 토큰의 실제 값. **캔버스는 CSS 클래스를 못 쓰므로 값을 읽어 와야 한다.**
@@ -66,15 +103,16 @@ watch(
  */
 const tokens = useChartTokens()
 
-const axisName = (position: number): string => props.axes[position]?.name ?? ''
+const axisName = (position: number): string => choices.value[position]?.name ?? ''
 
 /**
- * 고른 두 축이 범주 축인가. **그림의 눈금·흩뿌림·중심점이 전부 여기서 갈린다**
- * (`open-decisions.md` "군집 산점도의 축").
+ * 고른 두 축이 범주 축인가, 원본 칸 그림인가. **그림의 눈금·흩뿌림·중심점이 전부 여기서
+ * 갈린다** (`open-decisions.md` "군집 산점도의 축", 115).
  */
 const scales = computed(() => ({
-  x: props.axes[xAxis.value]?.categories,
-  y: props.axes[yAxis.value]?.categories,
+  x: plot.value?.scales.x,
+  y: plot.value?.scales.y,
+  raw: plot.value?.raw,
 }))
 
 /** 흩뿌린 그림인가. **그 사실을 화면이 말해야 한다** — 안 그러면 학생이 위치를 읽는다. */
@@ -107,9 +145,9 @@ const area = useElementSize(areaEl)
  */
 const layers = computed(() =>
   clusterChartData(
-    props.scatter,
-    props.summaries,
-    { x: xAxis.value, y: yAxis.value },
+    plot.value?.scatter ?? props.scatter,
+    plot.value?.summaries ?? props.summaries,
+    plot.value?.axis ?? { x: xAxis.value, y: yAxis.value },
     tokens.value,
     {
       clusterName: (cluster: number) => t('results.clusterName', { index: cluster }),
@@ -157,10 +195,10 @@ const chartOptions = computed(() =>
     그림만 없으니 교실에서 고장으로 읽혔다** — 실물 파일에서 그렇게 걸렸다.
     잠기는 것에는 이유가 있어야 하고, 그것을 아는 자리가 여기다.
   -->
-  <div v-if="props.axes.length < 2" class="flex min-w-0 flex-col gap-1.5">
+  <div v-if="choices.length < 2" class="flex min-w-0 flex-col gap-1.5">
     <h4 class="font-bold">{{ props.title }}</h4>
     <p class="text-ink-soft">
-      {{ t('results.tabular.clusterScatterNoAxes', { count: props.axes.length }) }}
+      {{ t('results.tabular.clusterScatterNoAxes', { count: choices.length }) }}
     </p>
   </div>
 
@@ -178,16 +216,53 @@ const chartOptions = computed(() =>
     -->
     <p v-if="jittered" class="text-ink-soft">{{ t('results.tabular.clusterJitter') }}</p>
 
-    <div v-if="props.axes.length > 2" class="flex flex-col gap-2 sm:flex-row sm:gap-5">
+    <!--
+      **원본 칸 그림이면 그 사실과 뺀 행, 중심점이 없는 이유를 말한다** (open-decisions.md 115).
+      안 말하면 학생이 ✕가 사라진 것을 고장으로, 점 수가 줄어든 것을 데이터로 읽는다.
+    -->
+    <template v-if="plot?.raw">
+      <p class="text-ink-soft">{{ t('results.tabular.clusterRawPlot') }}</p>
+      <p class="text-ink-soft">{{ t('results.tabular.clusterNoCentroidRaw') }}</p>
+      <p v-if="plot.dropped > 0" class="text-ink-soft">
+        {{ t('results.tabular.clusterRawDropped', { count: plot.dropped }) }}
+      </p>
+    </template>
+    <p v-else-if="plot && plot.filled > 0" class="text-ink-soft">
+      {{ t('results.tabular.clusterFilledRows', { count: plot.filled }) }}
+    </p>
+
+    <!--
+      **특성과 학습에 쓰지 않은 열을 묶어 가른다** (115). 안 가르면 학생이 "위도로도 나눴다"고
+      읽는다. 학습에 쓰지 않은 열이 없으면 묶음 없이 지금까지와 같다.
+    -->
+    <div v-if="choices.length > 2" class="flex flex-col gap-2 sm:flex-row sm:gap-5">
       <label class="flex items-center gap-2">
         <span class="font-bold text-ink-soft">{{ t('results.tabular.clusterAxisX') }}</span>
         <select
           v-model.number="xAxis"
           class="rounded-field border border-line-strong bg-surface px-2 py-1"
         >
-          <option v-for="(axis, index) in props.axes" :key="axis.name" :value="index">
-            {{ axis.name }}
-          </option>
+          <template v-if="others.length > 0">
+            <optgroup :label="t('results.tabular.clusterAxisFeatures')">
+              <option v-for="(axis, index) in features" :key="axis.name" :value="index">
+                {{ axis.name }}
+              </option>
+            </optgroup>
+            <optgroup :label="t('results.tabular.clusterAxisOthers')">
+              <option
+                v-for="(axis, index) in others"
+                :key="axis.name"
+                :value="features.length + index"
+              >
+                {{ axis.name }}
+              </option>
+            </optgroup>
+          </template>
+          <template v-else>
+            <option v-for="(axis, index) in choices" :key="axis.name" :value="index">
+              {{ axis.name }}
+            </option>
+          </template>
         </select>
       </label>
 
@@ -197,9 +272,27 @@ const chartOptions = computed(() =>
           v-model.number="yAxis"
           class="rounded-field border border-line-strong bg-surface px-2 py-1"
         >
-          <option v-for="(axis, index) in props.axes" :key="axis.name" :value="index">
-            {{ axis.name }}
-          </option>
+          <template v-if="others.length > 0">
+            <optgroup :label="t('results.tabular.clusterAxisFeatures')">
+              <option v-for="(axis, index) in features" :key="axis.name" :value="index">
+                {{ axis.name }}
+              </option>
+            </optgroup>
+            <optgroup :label="t('results.tabular.clusterAxisOthers')">
+              <option
+                v-for="(axis, index) in others"
+                :key="axis.name"
+                :value="features.length + index"
+              >
+                {{ axis.name }}
+              </option>
+            </optgroup>
+          </template>
+          <template v-else>
+            <option v-for="(axis, index) in choices" :key="axis.name" :value="index">
+              {{ axis.name }}
+            </option>
+          </template>
         </select>
       </label>
     </div>

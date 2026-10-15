@@ -111,3 +111,37 @@ describe('배색이 바뀌면 색을 다시 읽는다', () => {
     expect(reads).toBe(atMount)
   })
 })
+
+/**
+ * **새 점이 바뀌어도 고른 축이 남는다** (`open-decisions.md` 115 diff 감사 A). 축 목록 배열을
+ * 그대로 감시하면 예측 화면에서 값을 하나 고칠 때마다 축이 처음 둘로 돌아갔다.
+ */
+describe('고른 축', () => {
+  it('새 점이 바뀌어도 그대로다', async () => {
+    pretendTokens('#111111')
+    const axes = [
+      { name: '키', index: 0, width: 1 },
+      { name: '몸무게', index: 1, width: 1 },
+      { name: '나이', index: 2, width: 1 },
+    ]
+    const view = mount(ClusterScatter, {
+      props: {
+        axes,
+        summaries: [{ cluster: 0, size: 1, means: [0, 0, 0], centroid: [0, 0, 0] }],
+        scatter: { points: [{ row: 0, cluster: 0, values: [0, 0, 0] }] },
+        highlight: { values: [1, 1, 1], cluster: 0 },
+        title: '군집 산점도',
+        lead: '두 축으로 본다',
+      },
+      attachTo: document.body,
+      global: { plugins: [i18n] },
+    })
+
+    const ySelect = view.findAll('select')[1]!
+    await ySelect.setValue('2')
+    await view.setProps({ highlight: { values: [2, 2, 2], cluster: 0 } })
+
+    expect((view.findAll('select')[1]!.element as HTMLSelectElement).value).toBe('2')
+    view.unmount()
+  })
+})

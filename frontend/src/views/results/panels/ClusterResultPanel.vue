@@ -97,6 +97,15 @@ const scatter = computed(() => {
   return scatterPoints(found.assignment, found.axes, found.columns, found.matrix)
 })
 
+/**
+ * 학습에 쓰지 않은 열까지 축으로 세울 재료 (`open-decisions.md` 115). **이 화면만 넘긴다** —
+ * 예측 화면의 새 점은 특성 값뿐이다.
+ */
+const wide = computed(() => {
+  const found = material.value
+  return found ? { dataset: found.dataset, material: found } : undefined
+})
+
 const summaries = computed(() => {
   const found = material.value
   return found ? clusterSummaries(found.assignment, found.axes, found.columns, found.matrix) : []
@@ -198,6 +207,7 @@ function cellsOf(row: number): readonly string[] {
       :axes="axes"
       :summaries="summaries"
       :scatter="scatter"
+      :wide="wide"
       :title="t('results.tabular.clusterScatter')"
       :lead="t('results.tabular.clusterScatterLead')"
     />
