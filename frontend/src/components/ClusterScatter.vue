@@ -21,7 +21,12 @@ import { useI18n } from 'vue-i18n'
 import { useChartTokens } from '@/composables/useChartTokens'
 import { useElementSize } from '@/composables/useElementSize'
 import { useFormat } from '@/composables/useFormat'
-import { clusterChartData, clusterChartOptions, type ClusterHighlight } from '@/ml/cluster-chart'
+import {
+  clusterChartData,
+  clusterChartOptions,
+  drawsCentroid,
+  type ClusterHighlight,
+} from '@/ml/cluster-chart'
 import { CLUSTER_SCATTER_POINT_LIMIT } from '@/limits'
 import { axisCellOf, type ClusterAxis, type ClusterSummary, type ScatterData } from '@/ml/clusters'
 import {
@@ -51,6 +56,12 @@ const props = defineProps<{
    */
   title: string
   lead: string
+  /**
+   * ✕를 안 그리는 그림의 설명 (범주 축·원본 칸 그림, `open-decisions.md` 115). **설명이 ✕를
+   * 말하는데 그림에 ✕가 없으면 학생이 고장으로 읽는다.** 무는 검사:
+   * `tests/cluster-scatter.spec.ts` "✕가 없으면 ✕를 말하지 않는다".
+   */
+  leadPlain: string
 }>()
 
 const { t } = useI18n()
@@ -204,7 +215,7 @@ const chartOptions = computed(() =>
 
   <div v-else class="flex min-w-0 flex-col gap-1.5">
     <h4 class="font-bold">{{ props.title }}</h4>
-    <p class="text-ink-soft">{{ props.lead }}</p>
+    <p class="text-ink-soft">{{ drawsCentroid(scales) ? props.lead : props.leadPlain }}</p>
 
     <!--
       **축 선택은 그림 위 왼쪽, 좁은 화면에서 세로로 쌓는다** (§8.10.1). 고를 것이

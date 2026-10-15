@@ -210,6 +210,7 @@ function cellsOf(row: number): readonly string[] {
       :wide="wide"
       :title="t('results.tabular.clusterScatter')"
       :lead="t('results.tabular.clusterScatterLead')"
+      :lead-plain="t('results.tabular.clusterScatterLeadPlain')"
     />
 
     <!--

@@ -63,6 +63,7 @@ function render() {
       },
       title: '군집 산점도',
       lead: '두 축으로 본다',
+      leadPlain: '점만 본다',
     } as never,
     attachTo: document.body,
     global: {
@@ -132,6 +133,7 @@ describe('고른 축', () => {
         highlight: { values: [1, 1, 1], cluster: 0 },
         title: '군집 산점도',
         lead: '두 축으로 본다',
+        leadPlain: '점만 본다',
       },
       attachTo: document.body,
       global: { plugins: [i18n] },
@@ -142,6 +144,45 @@ describe('고른 축', () => {
     await view.setProps({ highlight: { values: [2, 2, 2], cluster: 0 } })
 
     expect((view.findAll('select')[1]!.element as HTMLSelectElement).value).toBe('2')
+    view.unmount()
+  })
+})
+
+/** **✕가 없는 그림은 ✕를 말하지 않는다** (`open-decisions.md` 115 실측). */
+describe('그림 설명', () => {
+  function mountWith(categories?: readonly string[]) {
+    return mount(ClusterScatter, {
+      props: {
+        axes: [
+          { name: '키', index: 0, width: 1 },
+          categories
+            ? { name: '반', index: 1, width: 1, categories }
+            : { name: '몸무게', index: 1, width: 1 },
+        ],
+        summaries: [{ cluster: 0, size: 1, means: [0, 0], centroid: [0, 0] }],
+        scatter: { points: [{ row: 0, cluster: 0, values: [0, 0] }] },
+        title: '군집 산점도',
+        lead: '중심점이 있다',
+        leadPlain: '점만 본다',
+      },
+      attachTo: document.body,
+      global: { plugins: [i18n] },
+    })
+  }
+
+  it('✕를 그리면 ✕를 말한다', () => {
+    pretendTokens('#111111')
+    const view = mountWith()
+    expect(view.text()).toContain('중심점이 있다')
+    expect(view.text()).not.toContain('점만 본다')
+    view.unmount()
+  })
+
+  it('✕가 없으면 ✕를 말하지 않는다', () => {
+    pretendTokens('#111111')
+    const view = mountWith(['1반', '2반'])
+    expect(view.text()).toContain('점만 본다')
+    expect(view.text()).not.toContain('중심점이 있다')
     view.unmount()
   })
 })

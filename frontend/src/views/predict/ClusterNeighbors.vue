@@ -319,6 +319,7 @@ const neighborhood = computed<Neighborhood | null>(() => {
         :highlight="neighborhood.highlight"
         :title="t('predict.tabular.clusterScatterTitle')"
         :lead="t('predict.tabular.clusterScatterLead')"
+        :lead-plain="t('predict.tabular.clusterScatterLeadPlain')"
       />
 
       <AppTable>
