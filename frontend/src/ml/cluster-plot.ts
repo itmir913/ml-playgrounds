@@ -63,9 +63,14 @@ export function plotAxes(
   if (!wide || hasHighlight) return features
 
   const trained = new Set(wide.material.columns.map((entry) => entry.column.name))
+  const rows = wide.material.assignment.rows
+  // **훈련 행으로 센다** (115 후속) — 그리는 점이 훈련 행뿐이라, 거기서 비어 있으면 그릴 것이 없다.
   const raw: PlotAxis[] = wide.dataset.columns
     .filter((name) => !trained.has(name))
-    .filter((name) => columnCells(wide.dataset, name).some((cell) => !isMissing(cell)))
+    .filter((name) => {
+      const cells = columnCells(wide.dataset, name)
+      return rows.some((row) => !isMissing(cells[row]))
+    })
     .map((name) => ({ source: 'raw', name }))
   return [...features, ...raw]
 }
@@ -91,18 +96,33 @@ interface RawColumn {
  * 원본 열을 **열마다 한 번만** 읽는다. 축을 바꿀 때마다 칸을 다시 파싱하면
  * `CLUSTER_SCATTER_POINT_LIMIT`의 근거가 된 다시 그리기 시간에 그 몫이 얹힌다 (#115).
  *
- * **자료형은 데이터 화면과 같은 판정이다** — `detectKind`(열 요약이 쓰는 것)와 `categoriesOf`.
+ * **자료형과 범주는 그리는 행에서 정한다** (115 후속). 파일 전체로 정하면 학습에서 빠진 행의
+ * `모름` 하나가 수치 특성을 범주 축으로 만들고, 빠진 행에만 있는 범주가 빈 눈금으로 선다.
+ * - 특성 열은 **학습이 정한 것**(`FittedColumn`의 자료형과 범주)을 그대로 쓴다.
+ * - 학습에 쓰지 않은 열은 **훈련 행의 칸**으로 `detectKind`·`categoriesOf`(데이터 화면과 같은 판정)를 돌린다.
+ *
+ * 무는 검사: `tests/cluster-plot.spec.ts` "자료형과 범주는 그리는 행에서 정한다".
  */
-export function rawColumnReader(dataset: Dataset): (name: string) => RawColumn {
+export function rawColumnReader(wide: WidePlotSource): (name: string) => RawColumn {
+  const fitted = new Map(wide.material.columns.map((entry) => [entry.column.name, entry.column]))
+  const rows = wide.material.assignment.rows
   const cache = new Map<string, RawColumn>()
   return (name) => {
     const found = cache.get(name)
     if (found) return found
-    const cells = columnCells(dataset, name)
-    const column: RawColumn =
-      detectKind(cells) === 'categorical' ? { cells, categories: categoriesOf(cells) } : { cells }
-    cache.set(name, column)
-    return column
+    const cells = columnCells(wide.dataset, name)
+    const column = fitted.get(name)
+    let read: RawColumn
+    if (column) {
+      read =
+        column.kind === 'categorical' ? { cells, categories: column.categories ?? [] } : { cells }
+    } else {
+      const drawn = rows.map((row) => cells[row] ?? '')
+      read =
+        detectKind(drawn) === 'categorical' ? { cells, categories: categoriesOf(drawn) } : { cells }
+    }
+    cache.set(name, read)
+    return read
   }
 }
 

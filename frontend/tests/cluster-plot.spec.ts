@@ -13,7 +13,10 @@ import { clusterPlot, plotAxes, plotAxesKey, rawColumnReader } from '../src/ml/c
 import type { ClusterMaterial, ClusterSummary, ScatterData } from '../src/ml/clusters'
 import type { Dataset } from '../src/ml/preprocess'
 
-/** 깊이·규모로 묶고 위도·지역은 안 쓴 표. 4번 행은 학습에서 빠졌다. */
+/**
+ * 깊이·규모로 묶고 위도·지역은 안 쓴 표. 4번 행은 학습에서 빠졌다 — `빈열`은 그 행에만 값이 있어
+ * 그릴 것이 없다(115 후속).
+ */
 const DATASET: Dataset = {
   columns: ['깊이', '규모', '위도', '지역', '빈열'],
   rows: [
@@ -21,7 +24,7 @@ const DATASET: Dataset = {
     ['', '6', '', '북', ''],
     ['', '4', '36.0', '', ''],
     ['40', '', '37.5', '남', ''],
-    ['50', '7', '38.0', '북', ''],
+    ['50', '7', '모름', '서해', '학습 밖'],
   ],
 }
 
@@ -113,7 +116,7 @@ describe('축 후보', () => {
 
 describe('그림 하나에 규칙 하나', () => {
   const source = wide()
-  const read = rawColumnReader(DATASET)
+  const read = rawColumnReader(wide())
   const [depth, size, latitude, region] = plotAxes(material().axes, source, false)
 
   it('두 축이 특성이면 받은 재료를 그대로 넘기고 채운 행 수를 센다', () => {
@@ -185,7 +188,29 @@ describe('그림 하나에 규칙 하나', () => {
 
 describe('원본 열 읽기', () => {
   it('열마다 한 번만 읽는다', () => {
-    const read = rawColumnReader(DATASET)
+    const read = rawColumnReader(wide())
     expect(read('위도')).toBe(read('위도'))
+  })
+
+  it('자료형과 범주는 그리는 행에서 정한다 - 학습에서 빠진 행은 안 본다', () => {
+    // 학습에서 빠진 4번 행에만 위도 `모름`과 지역 `서해`가 있다 (115 후속).
+    const read = rawColumnReader(wide())
+    expect(read('위도').categories).toBeUndefined()
+    expect(read('지역').categories).toEqual(['남', '북'])
+  })
+
+  it('특성 열은 학습이 정한 자료형과 범주를 쓴다', () => {
+    const source = wide()
+    const fitted: ClusterMaterial = {
+      ...source.material,
+      columns: [
+        source.material.columns[0]!,
+        { name: '지역', column: { name: '지역', kind: 'categorical', categories: ['북', '남'] } },
+      ],
+    }
+    const read = rawColumnReader({ dataset: DATASET, material: fitted })
+    // 학습이 적은 차례 그대로다 - 파일에서 다시 세지 않는다.
+    expect(read('지역').categories).toEqual(['북', '남'])
+    expect(read('깊이').categories).toBeUndefined()
   })
 })

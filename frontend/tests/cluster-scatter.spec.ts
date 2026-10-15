@@ -186,7 +186,7 @@ describe('학습에 쓰지 않은 열', () => {
     rows: [
       ['10', '5', '35'],
       ['20', '6', ''],
-      ['30', '4', '37'],
+      ['', '4', '37'],
     ],
   }
 
@@ -229,7 +229,7 @@ describe('학습에 쓰지 않은 열', () => {
     expect(text).not.toContain('중심점이 있다')
     expect(text).toContain(t('results.tabular.clusterRawPlot'))
     expect(text).toContain(t('results.tabular.clusterNoCentroidRaw'))
-    expect(text).toContain(t('results.tabular.clusterRawDropped', { count: 1 }))
+    expect(text).toContain(t('results.tabular.clusterRawDropped', { count: 2 }))
     view.unmount()
   })
 
@@ -240,6 +240,7 @@ describe('학습에 쓰지 않은 열', () => {
     expect(text).toContain('중심점이 있다')
     expect(text).not.toContain(t('results.tabular.clusterRawPlot'))
     expect(text).not.toContain(t('results.tabular.clusterNoCentroidRaw'))
+    expect(text).toContain(t('results.tabular.clusterFilledRows', { count: 1 }))
     view.unmount()
   })
 })

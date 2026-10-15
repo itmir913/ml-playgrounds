@@ -92,7 +92,7 @@ watch(
 )
 
 /** 원본 열은 열마다 한 번만 읽는다 (115). 표가 바뀌면 새로 읽는다. */
-const reader = computed(() => (props.wide ? rawColumnReader(props.wide.dataset) : undefined))
+const reader = computed(() => (props.wide ? rawColumnReader(props.wide) : undefined))
 
 /**
  * 고른 두 축으로 그릴 그림. **둘 다 특성이면 받은 재료 그대로이고, 하나라도 아니면 두 축 모두
