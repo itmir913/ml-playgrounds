@@ -128,6 +128,12 @@ PREDICTION_INPUT_NOT_NUMBER
 ```
 FEATURE_VALUE_TOO_LARGE
 ```
+**훈련 데이터의 범주가 지정한 순서에 없다** (`ml/preprocess.ts`의 `fitPreprocessor` — 학습 전, `open-decisions.md` 116)
+```
+FEATURE_CATEGORY_NOT_IN_ORDER
+```
+학생은 그 열의 순서에 값을 더하거나 지정을 푼다. 값과 열 이름은 파라미터로 오고 문장 끝 괄호로 뺀다. 지정 순서에만 있는 값과
+예측에서 처음 보는 값은 이 코드가 아니다(`open-decisions.md` 72).
 수치 특성의 대체값·중심·폭이 부동소수 범위를 넘어 유한하지 않으면 학습 전에 멈춘다. 안 막으면 그 열이 통째로 NaN이나 0이 되어 학습이 **완료로 끝나고 틀린 점수를 내고**, 저장된 전처리기에 적힌 `null`은 다시 열 때 스키마가 거부한다 (R43-4 B-1). 브라우저 전처리기의 판정이라 백엔드 `ErrorCode`에는 없다. `tests/preprocess.spec.ts`가 문다.
 **포트폴리오** (`project/portfolio-sources.ts`, `views/PortfolioView.vue`)
 ```

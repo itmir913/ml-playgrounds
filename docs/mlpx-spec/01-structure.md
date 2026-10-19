@@ -250,7 +250,12 @@ embeddings/
     },
     "features": ["sepal_length", "sepal_width", "petal_length", "petal_width"],
     "target": "species",        // 군집화에는 없다. 과제 유형에 따라 선택 항목
-    "preprocessing": { "missing": "drop", "scaling": "standard", "categoricalEncoding": "onehot" }
+    "preprocessing": {
+      "missing": "drop", "scaling": "standard", "categoricalEncoding": "onehot",  // 공통값
+      "columns": {               // 선택. 덮어쓸 열만
+        "grade": { "categoricalEncoding": "ordinal", "categories": ["하", "중", "상"] }
+      }
+    }
   },
   "split": { "method": "holdout", "testSize": 0.2, "stratify": true, "randomState": 42 },
   "nSamples": 3000,             // 선택. 없으면 쓸 수 있는 행을 전부 쓴다
@@ -277,6 +282,10 @@ embeddings/
   `features`에서 타깃을 빼야 한다. 그래서 `formatVersion`이 3으로 올랐다 (§9.3).
 - **`sourceEncoding`이 받는 값은 `SOURCE_ENCODINGS`(`frontend/src/data/encoding.ts`)가 갖는다.** 파일에 적는
   이름은 pandas가 받는 윈도 코드 페이지 이름이다(`cp949`·`cp932`). 값이 늘면 `formatVersion`이 오른다 (§9.4).
+- **전처리는 공통값을 두고 열마다 덮어쓴다** (`open-decisions.md` 116). `preprocessing.columns[열]`은 `categoricalEncoding`과
+  `categories`를 선택으로 든다. 열의 값은 해석 함수 하나(`resolveColumnPreprocessing`)가 정한다. `categories`는 해석한
+  인코딩이 `ordinal`일 때만 쓰이고, 없으면 정렬 순서다(`open-decisions.md` 61). **쓰이지 않는 덮어쓰기도 지우지 않는다** —
+  `features`에서 빠진 열의 것도, `ordinal`이 아닌 열의 `categories`도 그대로 든다. 그래서 `formatVersion`이 5로 올랐다 (§9.6).
 - **실행 방법은 실험 기본을 두고 모델마다 덮어쓴다.** 같은 알고리즘이 두 번 들어갈 수 있다.
   `run.engine`을 기록하고 비교표가 표시한다.
 - **하이퍼파라미터의 키는 (알고리즘, 실행 방법)이다.**
@@ -323,7 +332,7 @@ embeddings/
       },
 
       "preprocessor": {                          // 학습된 전처리 파라미터
-        "format": "mlpx-preprocess-v1",
+        "format": "mlpx-preprocess-v2",
         "path": "model/preprocessor-experiment-2.json"
       },
 
@@ -375,6 +384,11 @@ embeddings/
 - **스냅샷의 `selectedAlgorithms`는 "요청"이고 각 run의 `computedBy`·`engine`은 "결과"다.** 둘이 다를
   수 있고, 스냅샷에는 `runtime`이 항상 채워져 있다.
 - **"최종 모델"을 하나 고르는 개념은 두지 않는다.**
+- **전처리기 형식은 쓰기가 `mlpx-preprocess-v2` 하나, 읽기가 `v1`·`v2` 둘이다** (`open-decisions.md` 116).
+  `v2`는 열마다 해석한 범주형 `encoding`과 순서를 지정했는지(`orderSpecified`)를 **반드시** 든다 — 변환은 실험 설정이
+  아니라 이것을 읽는다. **옛 `v1`은 지우지 않고 읽는다.** 읽는 자리(`experimentPreprocessor`) 하나가 그 실험 설정의
+  공통 인코딩으로 열을 채우고 `orderSpecified: false`로 `v2` 모양을 만든다. 파일은 다시 쓰지 않는다 — 한 파일에
+  `v1`·`v2` 실험이 함께 있을 수 있다. 전처리기 형식을 올린 것은 이것이 처음이고, 다음에도 **옛 이름 읽기는 남긴다.**
 
 ### 4.2 모델 보관 규칙 — 크기 예산
 

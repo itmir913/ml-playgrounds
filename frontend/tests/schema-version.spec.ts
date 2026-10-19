@@ -198,7 +198,9 @@ describe('어휘와 버전', () => {
    * **못 보는 것을 밝혀 둔다 — 배열 리터럴로 적은 어휘.** 정규식이 잡는 것은 이름 있는
    * 상수뿐이다. 지금 그런 자리가 하나 있는데(`ml/preprocess.ts`의
    * `z.enum(['numeric', 'categorical'])`) **그것은 `formatVersion`의 어휘가 아니다** —
-   * 전처리기 파일의 어휘는 `mlpx-preprocess-v1`이라는 형식 이름이 진다. 어휘를 이름 있는
+   * 전처리기 파일의 어휘는 `mlpx-preprocess-v2`라는 형식 이름이 진다(옛 `v1`도 읽는다,
+   * `mlpx-spec.md` §4). 전처리기 v2가 열마다 드는 `encoding`은 `CATEGORICAL_ENCODINGS`를
+   * 이름으로 써서 여기 걸린다. 어휘를 이름 있는
    * 상수로 두는 것이 이 저장소의 관행이고, 그 관행을 어기면 여기가 못 본다.
    */
   it('빠뜨린 어휘가 없다 - src의 이름 있는 z.enum을 전부 훑는다', () => {
