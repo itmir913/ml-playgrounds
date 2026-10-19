@@ -1,0 +1,22 @@
+#!/bin/sh
+# 커밋 메시지에서 생성 도구 서명 줄(Co-Authored-By 등)을 지운다.
+#
+# 이 저장소의 이력에는 그런 줄을 남기지 않는다. 거부하는 대신 조용히 지우고
+# 무엇을 지웠는지 알려 준다 - 손으로 다시 쓸 일이 없고, 지나칠 일도 없다.
+#
+# `git config core.hooksPath .githooks` 가 돼 있어야 돈다.
+# 확인: git config core.hooksPath
+
+msg_file="$1"
+pattern='^(Co-Authored-By|Co-authored-by|Signed-off-by: Claude|Generated with|🤖 Generated with)'
+
+found=$(grep -Ei "$pattern" "$msg_file")
+[ -z "$found" ] && exit 0
+
+tmp="$msg_file.stripped"
+# 서명 줄을 지우고, 그 앞에 남은 빈 줄과 끝의 빈 줄도 함께 정리한다
+grep -Eiv "$pattern" "$msg_file" | sed -e :a -e '/^$/{$d;N;ba' -e '}' > "$tmp"
+mv "$tmp" "$msg_file"
+
+echo "commit-msg: 서명 줄을 지웠습니다 -"
+echo "$found" | sed 's/^/  /'
