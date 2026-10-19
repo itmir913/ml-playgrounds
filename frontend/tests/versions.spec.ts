@@ -91,18 +91,19 @@ describe('잠글 대상이 실제로 있다', () => {
 })
 
 describe('버전은 지시 없이 움직이지 않는다', () => {
-  it('`.mlpx`의 formatVersion은 4다', () => {
+  it('`.mlpx`의 formatVersion은 5다', () => {
     /**
      * 올리라는 지시를 받지 않았다면 이 숫자가 아니라 올린 쪽을 되돌려라.
      *
      * **2는 백본 id 개정이다** (2026-08-19, 코드 소유자가 지시했다 — 손 밖으로 나간
      * 이미지 `.mlpx`가 있다). **3은 옛 판이 목록의 타깃을 특성으로 쓰는 것을 막는다**
      * (2026-09-23, 코드 소유자가 지시했다 — mlpx-spec.md §9.3). **4는 `sourceEncoding`
-     * 어휘에 `cp932`·`cp1252`가 더해진 것이다** (2026-10-06, 코드 소유자가 지시했다 — §9.4). 5로
-     * 올리려면 `MIGRATIONS`에 `{ 4: … }`와 `schema-version.spec.ts`의 지문 한 줄이 **같은
-     * 커밋에** 와야 한다.
+     * 어휘에 `cp932`·`cp1252`가 더해진 것이다** (2026-10-06, 코드 소유자가 지시했다 — §9.4).
+     * **5는 전처리를 열마다 덮어쓰는 `preprocessing.columns`다** (2026-10-20, 코드 소유자가
+     * 지시했다 — §9.6, `open-decisions.md` 116). 6으로 올리려면 `MIGRATIONS`에 `{ 5: … }`와
+     * `schema-version.spec.ts`의 지문 한 줄이 **같은 커밋에** 와야 한다.
      */
-    expect(FORMAT_VERSION).toBe(4)
+    expect(FORMAT_VERSION).toBe(5)
   })
 
   it('IndexedDB 스키마 버전은 2다', () => {

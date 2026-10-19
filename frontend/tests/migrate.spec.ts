@@ -381,6 +381,54 @@ describe('v3 -> v4 어휘만 늘었다', () => {
   })
 })
 
+/**
+ * **v5는 선택 필드 `preprocessing.columns`를 더했다** (mlpx-spec.md §9.6). v4 파일에는 그것이
+ * 없고, 없으면 모든 열이 공통값이다 — 마이그레이션이 `columns`를 지어 넣기 시작하면 옛 실험의
+ * 설정이 "바뀜"으로 보인다.
+ */
+describe('v4 -> v5 열별 덮어쓰기가 더해졌다', () => {
+  const v4 = { ...document, manifest: { ...document.manifest, formatVersion: 4 } }
+
+  it('문서가 글자 하나 안 바뀌고 번호만 5가 된다', () => {
+    expect(applyMigrations(v4, 4, 5)).toEqual({
+      ...v4,
+      manifest: { ...v4.manifest, formatVersion: 5 },
+    })
+    const opened = migrateProjectDocument(v4)
+    expect(opened.manifest.formatVersion).toBe(FORMAT_VERSION)
+    expect(opened.settings).toEqual(v4.settings)
+    expect(opened.settings.data).not.toHaveProperty('preprocessing.columns')
+  })
+
+  it('columns가 있는 v5는 그대로 읽힌다', () => {
+    const preprocessing = {
+      ...document.settings.data.preprocessing,
+      columns: {
+        grade: { categoricalEncoding: 'ordinal', categories: ['하', '중', '상'] },
+        // 해석에서 무시되는 덮어쓰기도 지우지 않는다 (open-decisions.md 116).
+        region: { categories: ['서울'] },
+      },
+    }
+    const v5 = {
+      ...document,
+      settings: { ...document.settings, data: { ...document.settings.data, preprocessing } },
+    }
+    expect(migrateProjectDocument(v5).settings).toEqual(v5.settings)
+  })
+
+  it('같은 범주가 두 번 적힌 순서는 받지 않는다 - 번호가 둘이 된다', () => {
+    const preprocessing = {
+      ...document.settings.data.preprocessing,
+      columns: { grade: { categoricalEncoding: 'ordinal', categories: ['하', '하'] } },
+    }
+    const broken = {
+      ...document,
+      settings: { ...document.settings, data: { ...document.settings.data, preprocessing } },
+    }
+    expect(codeOf(() => migrateProjectDocument(broken))).toBe('PROJECT_FILE_INVALID')
+  })
+})
+
 describe('마이그레이션은 지금의 등록부에 기대지 않는다', () => {
   const SOURCE = withoutComments(
     readFileSync(join(process.cwd(), 'src', 'project', 'migrate.ts'), 'utf-8'),

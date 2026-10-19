@@ -316,6 +316,9 @@ describe('스키마 구조 정본', () => {
       // 어휘가 늘었다 (mlpx-spec.md §9.4, 2026-10-06). `enum`에 값이 느는 것은 새 판이 옛 파일을
       // 읽는 데는 안 깬다 — 깨지는 쪽은 옛 판이 새 파일을 읽는 것이고 `schema-version.spec.ts`가 잰다.
       4: 'sourceEncoding accepts cp932 and cp1252',
+      // 선택 필드가 늘었다 (mlpx-spec.md §9.6, 2026-10-20). 새 판이 옛 파일을 읽는 데는 안 깬다 —
+      // 옛 판은 모르는 키를 받는 객체라 `columns`를 조용히 버리고 다른 결과를 내므로 거부시키려고 올린다.
+      5: 'preprocessing.columns overrides the shared preprocessing per column',
     }
     if (RAISED_FOR_MEANING[FORMAT_VERSION] !== undefined) {
       expect(breaks, `v${FORMAT_VERSION} was raised for meaning, not structure`).toEqual([])

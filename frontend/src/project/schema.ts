@@ -38,10 +38,12 @@ import { TRAINING_LOCATIONS } from '../ml/backend'
  * **2로 올린 것은 백본 id 개정이다** (2026-08-19, mlpx-spec.md §9.1). **3은 설정이
  * 적용되지 않는 값을 들게 된 것이다** (2026-09-23, §9.3 — 옛 판이 목록의 타깃을 특성으로
  * 쓴다). **4는 `sourceEncoding` 어휘에 `cp932`가 더해진 것이다** (2026-10-06, §9.4 — 일본어
- * 윈도의 CSV를 읽는다. 0.33.1부터 영어 화면의 마지막 대체로 쓰는 `cp1252`도 같은 버전에 함께 들였다). 지시 없이 움직이는 숫자가 아니다 — 무엇이 함께 와야 하는지는
+ * 윈도의 CSV를 읽는다. 0.33.1부터 영어 화면의 마지막 대체로 쓰는 `cp1252`도 같은 버전에 함께 들였다). **5는
+ * 전처리를 열마다 덮어쓰는 `preprocessing.columns`다** (2026-10-20, §9.6 — 옛 판이 그것을 조용히 버리고 다른
+ * 결과를 낸다). 지시 없이 움직이는 숫자가 아니다 — 무엇이 함께 와야 하는지는
  * `project/migrate.ts`와 `tests/versions.spec.ts`가 말한다.
  */
-export const FORMAT_VERSION = 4
+export const FORMAT_VERSION = 5
 
 /**
  * 이 앱이 만드는 프로젝트의 종류. **manifest.kind의 값이고 지금은 이것 하나뿐이다.**
@@ -248,10 +250,27 @@ export const datasetRefSchema = z.looseObject({
   sourceEncoding: z.enum(SOURCE_ENCODINGS).optional(),
 })
 
+/**
+ * 한 열의 덮어쓰기 (`open-decisions.md` 116). 없는 필드는 공통값을 따른다.
+ *
+ * **해석은 `resolveColumnPreprocessing` 하나가 한다.** `categories`는 해석한 인코딩이
+ * `ordinal`일 때만 쓰이고, 아닐 때도 지우지 않는다 — 인코딩을 되돌리면 순서가 돌아온다.
+ * 같은 값이 두 번 있으면 번호가 둘이 되므로 받지 않는다.
+ */
+export const columnPreprocessingSchema = z.looseObject({
+  categoricalEncoding: z.enum(CATEGORICAL_ENCODINGS).optional(),
+  categories: z
+    .array(z.string())
+    .refine((values) => new Set(values).size === values.length, 'duplicate category')
+    .optional(),
+})
+
 export const preprocessingSchema = z.looseObject({
   missing: z.enum(MISSING_STRATEGIES),
   scaling: z.enum(SCALING_METHODS),
   categoricalEncoding: z.enum(CATEGORICAL_ENCODINGS),
+  /** 열 이름 → 덮어쓰기. 선택이고, 없으면 모든 열이 공통값이다 (§9.6에서 더해졌다). */
+  columns: z.record(z.string(), columnPreprocessingSchema).optional(),
 })
 
 export const splitSchema = z.looseObject({

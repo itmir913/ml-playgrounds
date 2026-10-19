@@ -157,6 +157,27 @@ const VOCABULARY_BY_VERSION: Readonly<Record<number, Readonly<Record<string, rea
       CANONICAL_FORMAT_IDS: ['webp', 'jpeg'],
       PORTFOLIO_ANSWER_FORMATS: ['plain-v1'],
     },
+    /**
+     * **v4와 글자 하나 다르지 않다. v2·v3과 같은 이유로 맞다** (2026-10-20).
+     *
+     * v5가 더한 것은 선택 필드 `preprocessing.columns`이고, 그 인코딩은 같은
+     * `CATEGORICAL_ENCODINGS`를 쓴다. 옛 앱은 모르는 키를 받는 객체라 `columns`를 조용히
+     * 버리고 다른 결과를 낸다 — 그것을 거부로 바꾸려고 오른다 (mlpx-spec.md §9.6).
+     */
+    5: {
+      TASK_TYPES: ['classification', 'regression', 'clustering'],
+      DATA_TYPES: ['tabular', 'image'],
+      MISSING_STRATEGIES: ['none', 'drop', 'mean', 'median', 'mostFrequent', 'zero'],
+      SCALING_METHODS: ['none', 'standard', 'minmax', 'robust'],
+      CATEGORICAL_ENCODINGS: ['none', 'onehot', 'ordinal'],
+      SPLIT_METHODS: ['holdout', 'provided'],
+      RUN_STATUSES: ['done', 'failed'],
+      MODEL_OMISSION_REASONS: ['overBudget', 'tooLarge', 'engineUnsupported'],
+      SOURCE_ENCODINGS: ['utf-8', 'cp949', 'utf-16le', 'utf-16be', 'cp932', 'cp1252'],
+      TRAINING_LOCATIONS: ['browser', 'server'],
+      CANONICAL_FORMAT_IDS: ['webp', 'jpeg'],
+      PORTFOLIO_ANSWER_FORMATS: ['plain-v1'],
+    },
   }
 
 const recorded = VOCABULARY_BY_VERSION[FORMAT_VERSION]
