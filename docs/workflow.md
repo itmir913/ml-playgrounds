@@ -161,6 +161,9 @@
 
 - **관리하는 버전은 `frontend/package.json` 하나다.** 학생 파일의 `manifest.appVersion`에 박힌다.
 - **나머지 버전 문자열은 전부 `0.0.0`으로 둔다** (백엔드 `pyproject.toml`, FastAPI 앱, 문서 예시, 테스트 픽스처).
+- **npm 버전은 `frontend/package.json`의 `packageManager` 한 자리다.** CI(`gate.yml`)가 `npm ci` 전에 그 버전을 깐다 —
+  개발 기기와 CI의 npm이 갈리면 한쪽에서만 넘어진다(npm 12의 `allow-remote` 기본값이 그랬다). 올리는 것은 지시가 있을
+  때다. `tests/versions.spec.ts`가 고정과 CI의 설치를 문다.
 
 ### 포맷·엔진 버전은 다른 물건이다
 
