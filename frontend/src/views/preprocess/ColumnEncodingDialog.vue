@@ -251,21 +251,27 @@ function apply(): void {
             고정해 머리글과 줄의 칸이 맞는다. 화살표는 자기 칸을 갖고 머리는 비운다(코드 소유자).
           -->
           <div
-            class="sticky top-0 z-10 flex items-center gap-3 border-b border-line bg-surface px-3 py-2 font-bold text-ink-soft"
+            class="sticky top-0 z-10 flex items-center gap-2 border-b sm:gap-3 border-line bg-surface px-3 py-2 font-bold text-ink-soft"
           >
             <span class="min-w-0 flex-1">{{ t('preprocess.previewValueRaw') }}</span>
             <!-- 화살표 칸의 머리는 비운다 — 두 값을 잇는 기호라 이름이 없다. -->
-            <span class="w-6 shrink-0" aria-hidden="true" />
-            <span class="w-24 shrink-0 text-center">{{ t('preprocess.previewValueCode') }}</span>
+            <span class="w-4 shrink-0 sm:w-6" aria-hidden="true" />
+            <span class="w-16 shrink-0 text-center sm:w-24">{{
+              t('preprocess.previewValueCode')
+            }}</span>
             <span class="w-24 shrink-0" aria-hidden="true" />
           </div>
           <div :style="{ height: `${listWindow.before}px` }" />
           <ol class="flex flex-col divide-y divide-line">
-            <li v-for="row in visible" :key="row.value" class="flex h-12 items-center gap-3 px-3">
+            <li
+              v-for="row in visible"
+              :key="row.value"
+              class="flex h-12 items-center gap-2 px-3 sm:gap-3"
+            >
               <span class="min-w-0 flex-1 truncate font-bold text-ink" :title="row.value">
                 {{ row.value }}
               </span>
-              <span class="flex w-6 shrink-0 justify-center">
+              <span class="flex w-4 shrink-0 justify-center sm:w-6">
                 <component
                   :is="ACTION_ICONS.encodedAs"
                   :size="16"
@@ -273,7 +279,7 @@ function apply(): void {
                   aria-hidden="true"
                 />
               </span>
-              <span class="w-24 shrink-0 text-center font-bold text-ink tabular-nums">
+              <span class="w-16 shrink-0 text-center font-bold sm:w-24 text-ink tabular-nums">
                 {{ row.index }}
               </span>
               <span class="flex w-24 shrink-0 justify-end">
