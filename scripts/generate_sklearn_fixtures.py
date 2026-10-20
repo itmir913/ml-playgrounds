@@ -890,7 +890,7 @@ def column_encoding_record() -> dict[str, Any]:
 # 세운다 — 공통값(하지 않음·원-핫·순서) × 등급 열(공통값 따름·하지 않음·원-핫·순서·지정 순서) ×
 # 지역 열(같은 다섯, 지정 순서는 정렬의 역순)에, 무시돼야 하는 덮어쓰기(수치 열·특성 아닌 열·
 # 순서 인코딩이 아닌 열의 순서) 판을 더한다. 판마다 sklearn이 `ColumnTransformer`로 행렬을 짓고
-# 선형 회귀(정답 `y`)와 가우시안 나이브 베이즈·KNN·로지스틱 회귀(정답 `level`, 세 범주)를 학습해
+# 선형 회귀(정답 `y`)와 가우시안 나이브 베이즈·KNN·로지스틱 회귀(정답 `level`, 두 범주 pass·fail)를 학습해
 # 지표와 매개변수를 적는다. 스펙(`sklearn-column-encoding.spec.ts`)은 같은 설정으로 **앱의
 # `runExperiment`를 돌려** run의 지표와 담긴 모델을 이것과 견준다. 분할은 `provided`다 —
 # 훈련 표 전체와 따로 올린 시험 표라 양쪽이 같은 행을 본다.
@@ -994,6 +994,11 @@ def _run_transformer(preprocessing: dict[str, Any]) -> ColumnTransformer:
     return _column_transformer(preprocessing, _RUN_FEATURES)
 
 
+#: 로지스틱 계수의 허용오차. `sklearn-column-encoding.spec.ts`의 `PARAM_ABS_TOLERANCE`·`PARAM_REL_TOLERANCE`와
+#: 같은 값이어야 한다 — 위 경계 가드가 이 값에서 끌어낸 것이다.
+LOGISTIC_ABS = 5e-3
+LOGISTIC_REL = 5e-3
+
 #: 거리 동점으로 볼 차이. 정확히 같지 않아도 이보다 가까우면 부동소수의 합 순서로 순위가 뒤집힐 수 있다.
 _DISTANCE_TIE = 1e-9
 
@@ -1001,7 +1006,12 @@ _DISTANCE_TIE = 1e-9
 def _assert_tie_free(
     name: str, x_train: np.ndarray, x_test: np.ndarray, labels: list[str], k: int
 ) -> None:
-    """KNN의 동점 규칙이 걸리는 시험 행이 하나라도 있으면 멈춘다 — 거리의 k번째와 k+1번째, 득표."""
+    """KNN의 동점 규칙이 걸리는 시험 행이 하나라도 있으면 멈춘다 — 거리의 k번째와 k+1번째, 득표.
+
+    **유클리드 거리를 전제한다** — `build_model`의 `KNeighborsClassifier` 기본(minkowski, p=2)과 우리
+    KNN(mlpx-spec.md §5.6)이 그렇다. 제곱 거리로 견줘도 √가 단조라 순위가 같다. 거리 척도가 바뀌면
+    이 가드도 함께 바꿔야 한다(구현 감사 C-1).
+    """
     squared = ((x_test[:, None, :] - x_train[None, :, :]) ** 2).sum(axis=2)
     for i, row in enumerate(squared):
         order = np.argsort(row, kind="stable")
@@ -1076,16 +1086,23 @@ def column_encoding_runs_record() -> dict[str, Any]:
                     "coef": model.coef_.tolist(),
                     "intercept": model.intercept_.tolist(),
                 }
-                # 결정 경계에 바짝 붙은 시험 행이 있으면 수렴 문턱 안의 차이로 라벨이 갈릴 수 있다.
-                # 그런 행이 없는 표여야 라벨까지 견줄 수 있다 — 있으면 생성을 멈춘다.
-                margins = np.sort(model.predict_proba(x_test), axis=1)
-                near = [
-                    int(i) for i, row in enumerate(margins) if row[-1] - row[-2] < 1e-3
+                # **라벨을 견줄 수 있는 행 — logit 공간에서 끌어낸다** (구현 감사 B-1). 우리 솔버와 sklearn은
+                # 같은 최적점의 근처에서 멈출 뿐 같은 점이 아니다 — 이 76판에서 잰 계수 차가 최대 절대 5.3e-3·
+                # 상대 1.2%였다(2026-10-20, 개발 PC). 스펙은 계수를 ε_j = abs + rel·|w_j|만큼 봐주고, 그 안에서
+                # 시험 행 x의 logit은 최대 Σ ε_j·|x_j| + ε_b만큼 움직인다. |w·x + b|가 그보다 큰 행만 라벨이
+                # **허용오차 안의 어떤 해에서도 같다** — 그 행들의 라벨을 견준다. KNN의 동점과 달리 이것은 규칙이
+                # 아니라 수치 허용오차라 표로 없앨 수 없다(특성이 약한 판은 모델 자신이 경계 근처 행을 갖는다).
+                coef = model.coef_[0]
+                slack = LOGISTIC_ABS + LOGISTIC_REL * np.abs(coef)
+                slack_b = LOGISTIC_ABS + LOGISTIC_REL * abs(float(model.intercept_[0]))
+                logits = model.decision_function(x_test)
+                bound = np.abs(x_test) @ slack + slack_b
+                entry["predictions"] = guesses
+                entry["labelRows"] = [
+                    int(i) for i in np.flatnonzero(np.abs(logits) > bound)
                 ]
-                if near or not entry["converged"]:
-                    raise ValueError(
-                        f"{scenario['name']}: logistic not comparable {near}"
-                    )
+                if not entry["converged"] or model.coef_.shape[0] != 1:
+                    raise ValueError(f"{scenario['name']}: logistic not comparable")
             record[algorithm] = entry
         scenarios.append(record)
 

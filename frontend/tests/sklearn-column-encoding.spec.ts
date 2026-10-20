@@ -12,8 +12,11 @@
  *   (생성기의 `_assert_tie_free`가 거리의 k번째·k+1번째와 득표를 보고, 걸리면 생성을 멈춘다. 정답은 두 범주라
  *   k=5에서 득표 동점이 없다). 동점에서 누가 뽑히는지는 sklearn이 정하지 않으므로 그 자리를 견주면
  *   인코딩이 아니라 동점 규칙을 재게 된다(코드 소유자).
- * - **로지스틱 회귀** — 계수·절편(`sklearn-parity.spec.ts`와 같은 여유)과 혼동 행렬. 결정 경계에 붙은 시험
- *   행이 없고 sklearn이 수렴한 표다(생성기가 확인한다).
+ * - **로지스틱 회귀** — 계수·절편(`sklearn-parity.spec.ts`와 같은 여유)은 모든 판에서, 라벨은 **허용오차 안의
+ *   어떤 해에서도 같은 행**에서 견준다. 생성기가 행마다 |w·x + b| > Σ ε_j·|x_j| + ε_b(ε는 아래 계수 여유)를 보고
+ *   그 행을 `labelRows`로 적는다. 두 솔버는 같은 최적점 근처의 서로 다른 점에서 멈추고(이 76판의 실측 최대
+ *   절대 5.3e-3·상대 1.2%), 특성이 약한 판은 모델 자신이 경계 근처 행을 가져서 KNN처럼 표로 없앨 수 없다
+ *   (구현 감사 B-1). 빠진 행이 없는 판은 혼동 행렬까지 같다.
  *
  * 분할은 `provided`다 — 훈련 표 전체와 따로 올린 시험 표라 양쪽이 같은 행을 본다. 시험 표에는
  * 훈련에 없던 등급(`최상`)과 지역(`제주`)이 있다 — 순서 인코딩은 −1, 원-핫은 전부 0이어야 같다.
@@ -42,6 +45,7 @@ interface ClassifierRecord {
   confusionMatrix: number[][]
   converged?: boolean
   predictions?: string[]
+  labelRows?: number[]
   params?: {
     theta?: number[][]
     var?: number[][]
@@ -194,7 +198,10 @@ describe('열별 인코딩 · 앱의 실험 run vs sklearn', () => {
 
         const bayes = modelOf('naive_bayes') as NaiveBayesModel | undefined
         const params = expected.params
-        expect(params?.theta, 'naive bayes reference').toBeDefined()
+        // 선택 필드라 없으면 forEach가 한 번도 안 돈다 — 단언이 조용히 사라진다(sklearn-parity.spec.ts R9 C-2).
+        expect(params?.theta, 'naive bayes theta').toBeDefined()
+        expect(params?.var, 'naive bayes var').toBeDefined()
+        expect(params?.classLogPrior, 'naive bayes prior').toBeDefined()
         params?.theta?.forEach((row, c) =>
           row.forEach((value, j) =>
             expect(closeRel(bayes?.means[c]?.[j] ?? Number.NaN, value), `theta[${c}][${j}]`).toBe(
@@ -245,26 +252,31 @@ describe('열별 인코딩 · 앱의 실험 run vs sklearn', () => {
       })
 
       // 로지스틱 — sklearn이 수렴했을 때만 계수를 견준다(`sklearn-parity.spec.ts`와 같은 전제).
-      it('로지스틱 회귀 — 계수·절편과 혼동 행렬이 sklearn과 같다', async () => {
-        const { runs, modelOf } = await run(scenario.preprocessing, 'classification', 'level', [
-          'logistic_regression',
-        ])
+      it('로지스틱 회귀 — 계수·절편과, 뒤집힐 수 없는 행의 라벨이 sklearn과 같다', async () => {
+        const { runs, modelOf, preprocessor } = await run(
+          scenario.preprocessing,
+          'classification',
+          'level',
+          ['logistic_regression'],
+        )
         const logistic = scenario.logistic_regression
         expect(runs.get('logistic_regression')?.status).toBe('done')
         expect(logistic.converged, 'sklearn logistic converged').toBe(true)
         const trained = modelOf('logistic_regression') as LinearModelV2 | undefined
         expect(trained?.classes).toEqual(logistic.labels)
-        expect(logistic.params?.coef, 'logistic reference').toBeDefined()
-        // **이진은 우리가 ±절반 두 줄로 담는다**(mlpx-spec.md §5.4.1) — 위쪽 줄을 두 배 하면 sklearn의
-        // 한 줄이다. 맞추는 일은 `sklearn-parity.spec.ts`처럼 여기서 한다.
-        const binary = (logistic.params?.coef ?? []).length === 1
-        const ourCoef = binary
-          ? [(trained?.weights[1] ?? []).map((value) => value * 2)]
-          : (trained?.weights ?? [])
-        const ourIntercept = binary
-          ? [(trained?.intercepts[1] ?? Number.NaN) * 2]
-          : (trained?.intercepts ?? [])
-        expect(binary, 'pass/fail target').toBe(true)
+        expect(logistic.params?.coef, 'logistic coef').toBeDefined()
+        expect(logistic.params?.intercept, 'logistic intercept').toBeDefined()
+        // **이진은 우리가 두 줄로 담는다**(mlpx-spec.md §5.4.1) — sklearn의 한 줄은 둘의 차다. 차로 쓰면
+        // 우리 해가 ±절반으로 대칭이라는 전제 없이도 성립한다(구현 감사 C-2).
+        expect(logistic.params?.coef, 'pass/fail target').toHaveLength(1)
+        const ourCoef = [
+          (trained?.weights[1] ?? []).map(
+            (value, j) => value - (trained?.weights[0]?.[j] ?? Number.NaN),
+          ),
+        ]
+        const ourIntercept = [
+          (trained?.intercepts[1] ?? Number.NaN) - (trained?.intercepts[0] ?? Number.NaN),
+        ]
         logistic.params?.coef?.forEach((row, c) =>
           row.forEach((reference, j) => {
             const ours = ourCoef[c]?.[j] ?? Number.NaN
@@ -279,9 +291,32 @@ describe('열별 인코딩 · 앱의 실험 run vs sklearn', () => {
             PARAM_ABS_TOLERANCE + PARAM_REL_TOLERANCE * Math.abs(reference),
           )
         })
-        expect(runs.get('logistic_regression')?.confusionMatrix?.matrix).toEqual(
-          logistic.confusionMatrix,
+
+        // 라벨 — 허용오차 안의 어떤 해에서도 같은 행만. 우리 예측은 run과 같은 전처리기·엔진으로 다시 낸다.
+        const trainRows = train.rows.map((_row, index) => index)
+        const testRows = test.rows.map((_row, index) => index)
+        const { predict } = await fit('logistic_regression', {
+          features: transform(preprocessor, train, trainRows),
+          rowIndices: trainRows,
+          target: targetValues(train, trainRows, 'level'),
+          taskType: 'classification',
+          hyperparameters: {},
+          randomState: 42,
+        })
+        const ours = predict(transform(preprocessor, test, testRows)).map(String)
+        const labelRows = logistic.labelRows ?? []
+        expect(logistic.predictions, 'logistic reference').toHaveLength(testRows.length)
+        expect(labelRows.length, 'most rows are label-comparable').toBeGreaterThanOrEqual(
+          testRows.length - 2,
         )
+        for (const index of labelRows) {
+          expect(ours[index], `row ${index}`).toBe(logistic.predictions?.[index])
+        }
+        if (labelRows.length === testRows.length) {
+          expect(runs.get('logistic_regression')?.confusionMatrix?.matrix).toEqual(
+            logistic.confusionMatrix,
+          )
+        }
       })
     })
   }
