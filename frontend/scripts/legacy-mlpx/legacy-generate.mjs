@@ -280,7 +280,13 @@ function tabularAnswers(project, queries) {
       trainingRows: predict.trainingRowsFor(experiment, preprocessor, dataset),
     }),
     (experiment, preprocessor) =>
-      queries.map((values) => predict.inputVector(experiment, preprocessor, values)),
+      queries.map((values) =>
+        // 0.36.0부터 `inputVector(preprocessor, values)`다 — 인코딩을 전처리기가 들게 되어 실험을 안 받는다
+        // (open-decisions.md 116). 이 생성기는 옛 태그의 트리에도 복사되므로 인자 수로 가른다.
+        predict.inputVector.length >= 3
+          ? predict.inputVector(experiment, preprocessor, values)
+          : predict.inputVector(preprocessor, values),
+      ),
   )
 }
 
