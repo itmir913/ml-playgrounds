@@ -76,7 +76,7 @@ function preprocessing(overrides: Partial<Preprocessing> = {}): Preprocessing {
 function fixture(options: Preprocessing = preprocessing(), k = 2) {
   const rows = usableRows(DATASET, FEATURES, undefined, options.missing)
   const preprocessor = fitPreprocessor(DATASET, rows, FEATURES, options)
-  const matrix = transform(preprocessor, DATASET, rows, options.categoricalEncoding)
+  const matrix = transform(preprocessor, DATASET, rows)
   const fitted = fitKMeans(matrix, k, RANDOM_STATE)
   const model: KMeansModel = {
     format: KMEANS_FORMAT,
@@ -111,7 +111,7 @@ describe('축 후보', () => {
     const { preprocessor } = fixture()
 
     expect(preprocessor.featureNames).toEqual(['성별=남', '성별=여', '키', '몸무게'])
-    expect(clusterAxes(preprocessor, 'onehot')).toEqual([
+    expect(clusterAxes(preprocessor)).toEqual([
       { name: '성별', index: 0, width: 2, categories: ['남', '여'] },
       { name: '키', index: 2, width: 1 },
       { name: '몸무게', index: 3, width: 1 },
@@ -123,7 +123,7 @@ describe('축 후보', () => {
     const { preprocessor } = fixture(options)
 
     expect(preprocessor.featureNames).toEqual(['성별', '키', '몸무게'])
-    expect(clusterAxes(preprocessor, 'ordinal')).toEqual([
+    expect(clusterAxes(preprocessor)).toEqual([
       { name: '성별', index: 0, width: 1, categories: ['남', '여'] },
       { name: '키', index: 1, width: 1 },
       { name: '몸무게', index: 2, width: 1 },
@@ -138,23 +138,28 @@ describe('축 후보', () => {
     const onehot = fixture()
     const ordinal = fixture(preprocessing({ categoricalEncoding: 'ordinal' }))
 
-    const axisOf = (kit: ReturnType<typeof fixture>, encoding: 'onehot' | 'ordinal') =>
-      clusterAxes(kit.preprocessor, encoding)[0]!
+    const axisOf = (kit: ReturnType<typeof fixture>) => clusterAxes(kit.preprocessor)[0]!
 
-    const a = axisOf(onehot, 'onehot')
-    const b = axisOf(ordinal, 'ordinal')
+    const a = axisOf(onehot)
+    const b = axisOf(ordinal)
     for (let row = 0; row < onehot.matrix.length; row += 1) {
       expect(categoryIndexAt(onehot.matrix[row]!, a)).toBe(categoryIndexAt(ordinal.matrix[row]!, b))
     }
   })
 
-  it('fit 때와 다른 인코딩으로 부르면 시끄럽게 실패한다', () => {
-    // **어긋나는 유일한 경로다.** featureNames는 fit 시점의 인코딩으로 늘어난 이름이고
-    // 행렬은 인자로 받은 인코딩으로 늘어난 값이라, 조용히 지나가면 축이 한 칸 밀린다.
+  it('열의 인코딩과 featureNames가 어긋난 파일은 시끄럽게 실패한다', () => {
+    // 인코딩은 전처리기가 열마다 든다(open-decisions.md 116). 남이 그 칸만 고친 파일이면
+    // featureNames는 원-핫으로 늘어난 이름인데 열은 순서 인코딩이라, 조용히 지나가면 축이 한 칸 밀린다.
     const { preprocessor } = fixture()
+    const tampered = {
+      ...preprocessor,
+      columns: preprocessor.columns.map((column) =>
+        column.kind === 'categorical' ? { ...column, encoding: 'ordinal' as const } : column,
+      ),
+    }
 
     try {
-      matrixColumns(preprocessor, 'ordinal')
+      matrixColumns(tampered)
       expect.unreachable('던졌어야 한다')
     } catch (error) {
       expect(isClientError(error) && error.code).toBe('MODEL_FILE_INVALID')
@@ -165,8 +170,8 @@ describe('축 후보', () => {
 
 describe('스케일 되돌리기', () => {
   it('되돌린 좌표가 원본 표의 값이다', () => {
-    const { preprocessor, matrix, rows, options } = fixture()
-    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
+    const { preprocessor, matrix, rows } = fixture()
+    const columns = matrixColumns(preprocessor)
 
     rows.forEach((row, index) => {
       const raw = rawValue(row, '키')
@@ -175,8 +180,8 @@ describe('스케일 되돌리기', () => {
   })
 
   it('결측을 채운 칸은 원본에 없는 값이 된다 — 그림과 표가 갈리는 자리다', () => {
-    const { preprocessor, matrix, rows, options } = fixture()
-    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
+    const { preprocessor, matrix, rows } = fixture()
+    const columns = matrixColumns(preprocessor)
     const position = rows.indexOf(3)
 
     // 원본 표에서는 빈 칸이다. 모델이 본 것은 채워진 값이고, 그림에는 자리가 있다.
@@ -189,7 +194,7 @@ describe('스케일 되돌리기', () => {
   it('스케일링을 껐으면 항등이다', () => {
     const options = preprocessing({ scaling: 'none' })
     const { preprocessor, matrix, rows } = fixture(options)
-    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
+    const columns = matrixColumns(preprocessor)
 
     expect(columns[2]!.column.scale).toBeUndefined()
     expect(unscale(columns[2]!.column, matrix[0]![2]!)).toBe(rawValue(rows[0]!, '키'))
@@ -252,9 +257,9 @@ describe('군집 요약', () => {
   }
 
   it('평균은 그 군집 구성원의 되돌린 값 평균이다', () => {
-    const { preprocessor, matrix, rows, model, options } = fixture()
-    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
-    const axes = clusterAxes(preprocessor, options.categoricalEncoding)
+    const { preprocessor, matrix, rows, model } = fixture()
+    const columns = matrixColumns(preprocessor)
+    const axes = clusterAxes(preprocessor)
     const assignment = assignClusters(matrix, rows, model)
     const summaries = clusterSummaries(assignment, axes, columns, matrix)
 
@@ -275,9 +280,9 @@ describe('군집 요약', () => {
    * 읽는다. 범주 축에서 ✕를 안 그리는 대신 이 칸이 답한다.
    */
   it('범주 축의 칸은 그 군집에서 가장 많은 범주다', () => {
-    const { preprocessor, matrix, rows, model, options } = fixture()
-    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
-    const axes = clusterAxes(preprocessor, options.categoricalEncoding)
+    const { preprocessor, matrix, rows, model } = fixture()
+    const columns = matrixColumns(preprocessor)
+    const axes = clusterAxes(preprocessor)
     const assignment = assignClusters(matrix, rows, model)
     const summaries = clusterSummaries(assignment, axes, columns, matrix)
 
@@ -305,9 +310,9 @@ describe('군집 요약', () => {
    * 칸으로 밀어 넣어도 저장소 전체가 침묵했다 — 표에 **틀린 범주 이름**이 뜨는 자리다.
    */
   it('훈련 데이터에 없던 범주는 최빈 계산에 안 든다', () => {
-    const { preprocessor, matrix, rows, model, options } = fixture()
-    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
-    const axes = clusterAxes(preprocessor, options.categoricalEncoding)
+    const { preprocessor, matrix, rows, model } = fixture()
+    const columns = matrixColumns(preprocessor)
+    const axes = clusterAxes(preprocessor)
     const position = axes.findIndex((axis) => axis.categories !== undefined)
     const axis = axes[position]!
 
@@ -337,9 +342,9 @@ describe('군집 요약', () => {
    * **1번 범주**를 가리키게 둔다. `0`으로 뭉개는 돌연변이와 갈리는 값이라야 한다.
    */
   it('빈 군집의 범주 칸은 중심점이 가리키는 범주다', () => {
-    const { preprocessor, matrix, rows, model, options } = fixture()
-    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
-    const axes = clusterAxes(preprocessor, options.categoricalEncoding)
+    const { preprocessor, matrix, rows, model } = fixture()
+    const columns = matrixColumns(preprocessor)
+    const axes = clusterAxes(preprocessor)
     const position = axes.findIndex((axis) => axis.categories !== undefined)
     const axis = axes[position]!
     expect(axis.categories!.length).toBeGreaterThan(1)
@@ -362,9 +367,9 @@ describe('군집 요약', () => {
   })
 
   it('수렴하면 평균과 중심점이 같다', () => {
-    const { preprocessor, matrix, rows, model, options } = fixture()
-    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
-    const axes = clusterAxes(preprocessor, options.categoricalEncoding)
+    const { preprocessor, matrix, rows, model } = fixture()
+    const columns = matrixColumns(preprocessor)
+    const axes = clusterAxes(preprocessor)
     const summaries = clusterSummaries(assignClusters(matrix, rows, model), axes, columns, matrix)
 
     for (const summary of summaries) {
@@ -390,9 +395,9 @@ describe('군집 요약', () => {
     const options = preprocessing({ scaling: 'none' })
     const rows = usableRows(line, features, undefined, options.missing)
     const preprocessor = fitPreprocessor(line, rows, features, options)
-    const matrix = transform(preprocessor, line, rows, options.categoricalEncoding)
-    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
-    const axes = clusterAxes(preprocessor, options.categoricalEncoding)
+    const matrix = transform(preprocessor, line, rows)
+    const columns = matrixColumns(preprocessor)
+    const axes = clusterAxes(preprocessor)
 
     const fitted = fitKMeans(matrix, 2, RANDOM_STATE, 1)
     expect(fitted.converged).toBe(false)
@@ -426,9 +431,9 @@ describe('군집 요약', () => {
   it('빈 군집도 줄을 갖는다', () => {
     // 남이 편집한 파일이나 데이터가 바뀐 경우에 실제로 온다. 감추면 군집 번호가
     // 중간에서 건너뛰고, 학생은 3번 군집이 어디 갔는지 묻는다.
-    const { preprocessor, matrix, rows, options } = fixture()
-    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
-    const axes = clusterAxes(preprocessor, options.categoricalEncoding)
+    const { preprocessor, matrix, rows } = fixture()
+    const columns = matrixColumns(preprocessor)
+    const axes = clusterAxes(preprocessor)
     const width = preprocessor.featureNames.length
     const model: KMeansModel = {
       format: KMEANS_FORMAT,
@@ -449,9 +454,9 @@ describe('군집 요약', () => {
 describe('축의 전체 모습', () => {
   it('평균과 범위가 되돌린 값 기준이다', () => {
     // 표에 뜬 숫자와 같은 단위여야 견줄 수 있다.
-    const { preprocessor, matrix, options } = fixture()
-    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
-    const axes = clusterAxes(preprocessor, options.categoricalEncoding)
+    const { preprocessor, matrix } = fixture()
+    const columns = matrixColumns(preprocessor)
+    const axes = clusterAxes(preprocessor)
     const height = axisOverviews(matrix, axes, columns).find((one) => one.name === '키')
 
     expect(height!.name).toBe('키')
@@ -462,9 +467,9 @@ describe('축의 전체 모습', () => {
 
   it('행이 없어도 축마다 한 줄을 준다', () => {
     // 화면이 축 목록을 그대로 도는데 길이가 달라지면 자리가 어긋난다.
-    const { preprocessor, options } = fixture()
-    const columns = matrixColumns(preprocessor, options.categoricalEncoding)
-    const axes = clusterAxes(preprocessor, options.categoricalEncoding)
+    const { preprocessor } = fixture()
+    const columns = matrixColumns(preprocessor)
+    const axes = clusterAxes(preprocessor)
 
     expect(axisOverviews([], axes, columns)).toHaveLength(axes.length)
     expect(axisOverviews([], axes, columns).every((one) => Number.isFinite(one.min))).toBe(true)
@@ -628,16 +633,20 @@ describe('재료 조립', () => {
     const material = clusterMaterial(DATASET, preprocessor, model, settingsOf(rows, options))
 
     expect(material.matrix).toEqual(matrix)
-    expect(material.axes).toEqual(clusterAxes(preprocessor, options.categoricalEncoding))
+    expect(material.axes).toEqual(clusterAxes(preprocessor))
     expect([...material.assignment.clusters]).toEqual([
       ...assignClusters(matrix, rows, model).clusters,
     ])
   })
 
-  it('그 실험의 인코딩을 쓴다 - 다른 것을 넣으면 던진다', () => {
+  it('인코딩은 전처리기가 정한다 - 설정이 달라도 같은 재료다', () => {
+    // 예전엔 설정의 인코딩으로 변환해서 fit과 다르면 던져야 했다. 이제 전처리기가 열마다 든다
+    // (open-decisions.md 116) — 설정에서 끌어낼 길이 없다.
     const { preprocessor, rows, model, options } = fixture()
     const wrong = { ...options, categoricalEncoding: 'ordinal' as const }
-    expect(() => clusterMaterial(DATASET, preprocessor, model, settingsOf(rows, wrong))).toThrow()
+    expect(clusterMaterial(DATASET, preprocessor, model, settingsOf(rows, wrong))).toEqual(
+      clusterMaterial(DATASET, preprocessor, model, settingsOf(rows, options)),
+    )
   })
 })
 
@@ -703,8 +712,8 @@ describe('예측 화면의 이웃', () => {
 describe('산점도의 점', () => {
   function scatterOf(preprocessor: Preprocessor) {
     const { matrix, rows, model } = fixture()
-    const columns = matrixColumns(preprocessor, 'onehot')
-    const axes = clusterAxes(preprocessor, 'onehot')
+    const columns = matrixColumns(preprocessor)
+    const axes = clusterAxes(preprocessor)
     const assignment = assignClusters(matrix, rows, model)
     return scatterPoints(assignment, axes, columns, matrix)
   }
@@ -717,7 +726,7 @@ describe('산점도의 점', () => {
 
   it('점의 좌표는 축 순서를 따르고 되돌린 값이다', () => {
     const { preprocessor } = fixture()
-    const axes = clusterAxes(preprocessor, 'onehot')
+    const axes = clusterAxes(preprocessor)
     const scatter = scatterOf(preprocessor)
     const first = scatter.points[0]!
 

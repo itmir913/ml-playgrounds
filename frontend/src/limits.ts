@@ -1074,6 +1074,15 @@ export const HISTOGRAM_BIN_LIMIT = 200
 export const CATEGORY_BAR_LIMIT = 30
 
 /**
+ * 범주 순서 목록이 보이는 줄 위아래로 더 그리는 줄 수 (`src/virtual-window.ts`, open-decisions.md
+ * 116). 빨리 굴릴 때 빈칸이 비치지 않을 만큼이고, 목록의 값 종류 수와는 무관하다 — **그 목록에는
+ * 상한이 없다.**
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const CATEGORY_ORDER_OVERSCAN_ROWS = 10
+
+/**
  * 데이터 화면의 산점도에 **그리는 점의 묶음** (`open-decisions.md` "94. 그림이 드문 것을
  * 숨기는가").
  *

@@ -17,7 +17,7 @@
  */
 
 import { ClientError } from '../errors'
-import { dataSnapshot, type Experiment, type Preprocessing } from '../project/schema'
+import { dataSnapshot, type Experiment } from '../project/schema'
 import { KMEANS_FORMAT, kmeansPredict, parseKMeansModel, type KMeansModel } from './models'
 import { transform, type Dataset, type FittedColumn, type Preprocessor } from './preprocess'
 
@@ -119,8 +119,8 @@ export function axisCell(axis: ClusterAxis, value: number): AxisCell {
  *
  * **`fitPreprocessor`가 `featureNames`를 만드는 규칙과 같아야 한다.** 두 벌이 되면
  * 반드시 어긋나므로, 만든 이름을 `featureNames`와 **대조해서 시끄럽게 실패한다** —
- * 어긋나는 유일한 경로가 인코딩이다(fit 시점과 다른 `categoricalEncoding`으로 부르면
- * 폭이 달라진다). 조용히 지나가면 **한 칸 밀린 축**으로 그림을 그린다.
+ * 인코딩은 이제 전처리기가 열마다 들어서(open-decisions.md 116) fit과 다른 인코딩으로 부를
+ * 길은 없고, 어긋나면 남이 편집한 파일이다. 조용히 지나가면 **한 칸 밀린 축**으로 그림을 그린다.
  */
 /**
  * 군집 요약표의 머리 문장 키. **범주 축이 하나라도 있으면 다른 문장이다** — 그 표의
@@ -137,18 +137,15 @@ export function clusterSummaryLeadKey(axes: readonly ClusterAxis[]): string {
     : 'results.tabular.clusterSummaryLead'
 }
 
-export function matrixColumns(
-  preprocessor: Preprocessor,
-  encoding: Preprocessing['categoricalEncoding'],
-): MatrixColumn[] {
+export function matrixColumns(preprocessor: Preprocessor): MatrixColumn[] {
   const columns: MatrixColumn[] = []
 
   for (const column of preprocessor.columns) {
-    if (column.kind === 'numeric' || encoding !== 'onehot') {
+    if (column.kind === 'numeric' || column.encoding !== 'onehot') {
       columns.push({ name: column.name, column })
       continue
     }
-    for (const category of column.categories ?? []) {
+    for (const category of column.categories) {
       columns.push({ name: `${column.name}=${category}`, column })
     }
   }
@@ -168,12 +165,9 @@ export function matrixColumns(
  * 그림을 그린다 — `matrixColumns`가 `featureNames`와 대조해 시끄럽게 실패하는 것과 같은
  * 사정이라, 여기서도 그 함수가 센 칸 수를 그대로 따라간다.
  */
-export function clusterAxes(
-  preprocessor: Preprocessor,
-  encoding: Preprocessing['categoricalEncoding'],
-): ClusterAxis[] {
+export function clusterAxes(preprocessor: Preprocessor): ClusterAxis[] {
   // 어긋남을 여기서도 잡는다 — 이 함수만 부르는 화면이 있다 (#28-7의 목록 세우기).
-  matrixColumns(preprocessor, encoding)
+  matrixColumns(preprocessor)
 
   const axes: ClusterAxis[] = []
   let index = 0
@@ -185,8 +179,8 @@ export function clusterAxes(
       continue
     }
 
-    const categories = column.categories ?? []
-    const width = encoding === 'onehot' ? categories.length : 1
+    const categories = column.categories
+    const width = column.encoding === 'onehot' ? categories.length : 1
     // 범주가 하나도 없는 열은 축이 못 된다. 눈금이 설 자리가 없다.
     if (categories.length > 0) {
       axes.push({ name: column.name, index, width, categories })
@@ -519,13 +513,14 @@ export function clusterMaterial(
   settings: Experiment['settings'],
 ): ClusterMaterial {
   // 이 판은 표 전용이다 — 이미지 군집은 산점도를 안 그린다 (open-decisions.md #28-8).
-  const encoding = dataSnapshot('tabular', settings).preprocessing.categoricalEncoding
+  // 사진 실험이면 여기서 던진다. 인코딩은 전처리기가 든다.
+  dataSnapshot('tabular', settings)
   const rows = settings.trainIndices
-  const matrix = transform(preprocessor, dataset, rows, encoding)
+  const matrix = transform(preprocessor, dataset, rows)
 
   return {
-    columns: matrixColumns(preprocessor, encoding),
-    axes: clusterAxes(preprocessor, encoding),
+    columns: matrixColumns(preprocessor),
+    axes: clusterAxes(preprocessor),
     matrix,
     assignment: assignClusters(matrix, rows, model),
   }

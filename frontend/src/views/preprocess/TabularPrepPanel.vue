@@ -45,6 +45,7 @@ import { ClientError } from '@/errors'
 import { useUiLocale } from '@/composables/useUiLocale'
 import { plannedColumns } from '@/ml/plan'
 import { tabularPlanOf } from '@/ml/plan-cache'
+import { isMissing } from '@/ml/preprocess'
 import { preprocessPreview } from '@/ml/preview'
 import {
   applyTestDataset,
@@ -72,6 +73,7 @@ import {
 } from '@/project/settings'
 import { useProjectStore } from '@/stores/project'
 import { useToastStore } from '@/stores/toasts'
+import ColumnEncodingDialog from './ColumnEncodingDialog.vue'
 import ColumnPicker from './ColumnPicker.vue'
 import TabularPrepSummary from './TabularPrepSummary.vue'
 import TabularPrepPreview from './TabularPrepPreview.vue'
@@ -143,12 +145,7 @@ const preview = computed(() => {
   // `settings`로 두면 그 규칙을 어긴 것처럼 읽히고, 실제로 검사가 그렇게 읽었다.
   const tabular = data.value
   if (current === null || !current.ok || !table || !tabular) return null
-  return preprocessPreview(
-    table,
-    current.preprocessor,
-    current.split.trainIndices,
-    tabular.preprocessing.categoricalEncoding,
-  )
+  return preprocessPreview(table, current.preprocessor, current.split.trainIndices)
 })
 
 /** 열마다의 전처리 값. 계획이 못 섰으면 없다 — 그때 표의 그 칸은 빈다. */
@@ -271,6 +268,28 @@ function setAllFeatures(on: boolean): void {
 function setCleaning(patch: Partial<Preprocessing>): void {
   const file = project.file
   if (file) apply(withPreprocessing(file.document, patch, now()))
+}
+
+/** 인코딩 창을 연 열. 닫혀 있으면 `null`이다 (open-decisions.md 116). */
+const encodingColumn = ref<string | null>(null)
+
+/** 그 열의 값 종류. 빈 칸은 뺀다 — 순서에 들 값이 아니다. */
+const encodingValues = computed(() => {
+  const table = dataset.value
+  const name = encodingColumn.value
+  if (!table || name === null) return []
+  const index = table.columns.indexOf(name)
+  return [...new Set(table.rows.map((row) => row[index] ?? '').filter((cell) => !isMissing(cell)))]
+})
+
+/** 덮어쓴 열. 표가 그 열의 [변경]을 굵게 한다. */
+const overriddenColumns = computed(
+  () => new Set(Object.keys(data.value?.preprocessing.columns ?? {})),
+)
+
+function applyEncoding(next: Preprocessing): void {
+  encodingColumn.value = null
+  setCleaning({ columns: next.columns })
 }
 
 /**
@@ -723,10 +742,19 @@ const encodingHelp = computed(() =>
           :target-rule="targetRule"
           :fitted="fittedColumns"
           :scaling="data.preprocessing.scaling"
-          :encoding="data.preprocessing.categoricalEncoding"
+          :overridden="overriddenColumns"
           @pick-target="pickTarget"
           @toggle-feature="toggleFeature"
           @set-all-features="setAllFeatures"
+          @edit-encoding="encodingColumn = $event"
+        />
+        <ColumnEncodingDialog
+          :open="encodingColumn !== null"
+          :column="encodingColumn ?? ''"
+          :values="encodingValues"
+          :preprocessing="data.preprocessing"
+          @close="encodingColumn = null"
+          @apply="applyEncoding"
         />
       </div>
 

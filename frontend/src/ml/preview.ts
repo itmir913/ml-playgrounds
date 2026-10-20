@@ -11,7 +11,6 @@
 
 import { transform, type Dataset, type Preprocessor } from './preprocess'
 import { PREP_PREVIEW_FEATURE_COUNT, PREP_PREVIEW_ROW_COUNT } from '@/limits'
-import type { Preprocessing } from '@/project/schema'
 
 /**
  * 이 칸에 앉은 값이 **무엇인가.** 화면이 자릿수를 어떻게 줄지가 이것으로 갈린다.
@@ -79,12 +78,9 @@ export interface PreprocessPreview {
  * 이 열이 몇 개의 특성이 되는가. **`fitPreprocessor`가 이름을 미는 순서와 같아야 한다**
  * (ml/preprocess.ts) — 어긋나면 값이 통째로 옆 열 것이 된다.
  */
-function widthOf(
-  column: Preprocessor['columns'][number],
-  encoding: Preprocessing['categoricalEncoding'],
-): number {
+function widthOf(column: Preprocessor['columns'][number]): number {
   if (column.kind !== 'categorical') return 1
-  return encoding === 'onehot' ? (column.categories?.length ?? 0) : 1
+  return column.encoding === 'onehot' ? column.categories.length : 1
 }
 
 /**
@@ -109,16 +105,15 @@ export function preprocessPreview(
   dataset: Dataset,
   preprocessor: Preprocessor,
   trainIndices: readonly number[],
-  encoding: Preprocessing['categoricalEncoding'],
   limit: number = PREP_PREVIEW_ROW_COUNT,
 ): PreprocessPreview {
   const shown = trainIndices.slice(0, limit)
-  const matrix = transform(preprocessor, dataset, shown, encoding)
+  const matrix = transform(preprocessor, dataset, shown)
 
   const columns: PreviewColumn[] = []
   let at = 0
   for (const fitted of preprocessor.columns) {
-    const width = widthOf(fitted, encoding)
+    const width = widthOf(fitted)
     const sourceIndex = dataset.columns.indexOf(fitted.name)
     columns.push({
       name: fitted.name,

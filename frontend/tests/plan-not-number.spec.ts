@@ -147,7 +147,6 @@ describe('막아야 할 것만 막는다', () => {
       plan.preprocessor,
       testTable(['150', '160', '170', '180']),
       plan.split.testIndices,
-      'onehot',
     )
     // **이 단언이 이 파일의 절반이다** — 고치기 전에는 여기가 [[150],[0],[0],[0]]이었다.
     expect(matrix).toEqual([[150], [160], [170], [180]])

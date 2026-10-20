@@ -1124,7 +1124,11 @@ describe('언어들이 나란히 말한다', () => {
     ['preprocess.tabular.testDataRemove', 'preprocess.tabular.testDataRemoveConfirm'],
     // 그리기 창의 확인 단추 `추가`도 같은 `追加`다(`ALLOWED`의 같은 줄).
     ['data.image.sketch.add', 'preprocess.testImagesAttachConfirm', 'train.addModel'],
-    ['data.charts.histogram.binApply', 'preprocess.tabular.testDataAttachConfirm'],
+    [
+      'data.charts.histogram.binApply',
+      'preprocess.columnEncoding.apply',
+      'preprocess.tabular.testDataAttachConfirm',
+    ],
     // 일본어 `なし`가 셋을 덮는다 — 영어 `None`과 같은 이유다(`ALLOWED`의 같은 줄).
     // 한국어는 `하지 않음`(전처리를 안 한다)과 `없음`(값이 없다)이 다른 말이다.
     ['categoricalEncoding.none', 'meta.none', 'scalingMethod.none'],

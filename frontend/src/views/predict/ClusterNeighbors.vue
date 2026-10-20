@@ -206,7 +206,7 @@ const neighborhood = computed<Neighborhood | null>(() => {
 
   try {
     const cluster = Number(answer)
-    const vector = inputVector(experiment, preprocessor, props.values)
+    const vector = inputVector(preprocessor, props.values)
     const rows = nearestMembers(material, cluster, vector, CLUSTER_NEIGHBOR_ROW_COUNT)
     const summaries = clusterSummaries(
       material.assignment,

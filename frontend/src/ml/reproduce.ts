@@ -44,7 +44,13 @@ import { MLJS_ENGINE } from './engines/mljs'
 import { runExperiment, type ExperimentInput } from './experiment'
 import { asRecordedSplit, type RecordedSplit } from './plan'
 import type { ComputePools } from './pools'
-import { categoryOrder, toNumber, type Dataset, type Preprocessor } from './preprocess'
+import {
+  categoryOrder,
+  resolveColumnPreprocessing,
+  toNumber,
+  type Dataset,
+  type Preprocessor,
+} from './preprocess'
 import { succeeded } from './results'
 
 /** run 하나의 대조 결과. **판정이 아니라 사실이다.** */
@@ -524,18 +530,25 @@ export const CALCULATION_RULE_CHANGES: readonly CalculationRuleChange[] = [
     touches: ({ data }) => data === null || data.preprocessing.scaling === 'standard',
   },
   // 61 — 범주 순서는 정렬. 기록된 범주가 이미 정렬돼 있으면 순서가 같아 안 걸린다.
+  // **학생이 순서를 지정한 열은 안 건다** (open-decisions.md 116) — 그 순서는 정렬 규칙과 무관하게
+  // 옛 판에서도 지금도 같다. 인코딩은 열마다 전처리기가 든 값으로 본다. 전처리기가 없으면
+  // 설정을 열마다 해석해 인코딩하는 열이 하나라도 있으면 걸린다고 본다.
   {
     rule: 'CATEGORY_ORDER',
     since: '0.28.2',
     touches: ({ data, file }) =>
       data === null ||
-      (data.preprocessing.categoricalEncoding !== 'none' &&
-        (file.preprocessor === null ||
-          file.preprocessor.columns.some(
+      (file.preprocessor === null
+        ? data.features.some(
+            (name) =>
+              resolveColumnPreprocessing(data.preprocessing, name).categoricalEncoding !== 'none',
+          )
+        : file.preprocessor.columns.some(
             (column) =>
-              column.categories !== undefined &&
+              column.kind === 'categorical' &&
+              !column.orderSpecified &&
               categoryOrder(column.categories).join('\u0000') !== column.categories.join('\u0000'),
-          ))),
+          )),
   },
   // 57 ③ — 정답이 한 값뿐인 시험 몫의 결정계수. 회귀에서 그 시험 몫일 때만 걸린다.
   {

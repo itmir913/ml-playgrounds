@@ -209,7 +209,7 @@ describe('열 표의 전처리 칸', () => {
         }),
         fitted: new Map(plan.preprocessor.columns.map((column) => [column.name, column])),
         scaling: data.preprocessing.scaling,
-        encoding: data.preprocessing.categoricalEncoding,
+        overridden: new Set<string>(),
       },
       global: { plugins: [i18n] },
     })

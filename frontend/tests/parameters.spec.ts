@@ -60,7 +60,7 @@ async function trained(
 ) {
   const preprocessing = options(scaling)
   const preprocessor = fitPreprocessor(DATASET, ROWS, features, preprocessing)
-  const matrix = transform(preprocessor, DATASET, ROWS, preprocessing.categoricalEncoding)
+  const matrix = transform(preprocessor, DATASET, ROWS)
   const targetIndex = DATASET.columns.indexOf(target)
   const values = ROWS.map((row) => (DATASET.rows[row] as string[])[targetIndex] as string)
   const { model } = await fit(algorithm, {

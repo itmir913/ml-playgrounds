@@ -90,7 +90,6 @@ export async function decisionBoundaryFor(
   }
   const target = snapshot.target
   if (target === undefined || target === '') return null
-  const encoding = snapshot.preprocessing.categoricalEncoding
 
   const columnsOf = (table: Dataset) => [
     table.columns.indexOf(first.name),
@@ -128,7 +127,6 @@ export async function decisionBoundaryFor(
       preprocessor,
       table,
       table.rows.map((_row, index) => index),
-      encoding,
     )
     guesses = await predictInSteps(predict, encoded, control)
   } catch (error) {

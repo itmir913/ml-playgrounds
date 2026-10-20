@@ -159,7 +159,7 @@ const PREPROCESSING: Preprocessing = {
 function clusterFixture() {
   const rows = usableRows(DATASET, FEATURES, undefined, PREPROCESSING.missing)
   const preprocessor = fitPreprocessor(DATASET, rows, FEATURES, PREPROCESSING)
-  const matrix = transform(preprocessor, DATASET, rows, PREPROCESSING.categoricalEncoding)
+  const matrix = transform(preprocessor, DATASET, rows)
   const fitted = fitKMeans(matrix, 2, 42)
   const kmeans: KMeansModel = {
     format: KMEANS_FORMAT,
@@ -221,12 +221,7 @@ describe('R24 B-6: the neighbour table shows the rows it found', () => {
     const wanted = nearestMembers(
       material,
       cluster,
-      transform(
-        preprocessor,
-        { columns: DATASET.columns, rows: [['?', '151', '41']] },
-        [0],
-        'onehot',
-      )[0]!,
+      transform(preprocessor, { columns: DATASET.columns, rows: [['?', '151', '41']] }, [0])[0]!,
       shown.length,
     ).map((index) => DATASET.rows[index])
     expect(shown).toEqual(wanted)
@@ -406,7 +401,7 @@ function twoFeatureSets(): ProjectFile {
   ].map(({ id, features }) => {
     const rows = usableRows(DATASET, features, undefined, PREPROCESSING.missing)
     const preprocessor = fitPreprocessor(DATASET, rows, features, PREPROCESSING)
-    const matrix = transform(preprocessor, DATASET, rows, PREPROCESSING.categoricalEncoding)
+    const matrix = transform(preprocessor, DATASET, rows)
     const fitted = fitKMeans(matrix, 2, 42)
     const kmeans: KMeansModel = {
       format: KMEANS_FORMAT,

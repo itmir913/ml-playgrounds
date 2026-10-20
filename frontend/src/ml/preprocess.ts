@@ -20,10 +20,49 @@ import { z } from 'zod'
 
 import { ClientError } from '../errors'
 import { MAX_ERROR_VALUE_LENGTH } from '../limits'
-import type { Preprocessing } from '../project/schema'
+import { CATEGORICAL_ENCODINGS, type Preprocessing } from '../project/schema'
 
-/** 전처리기 형식. .mlpx의 experiment.preprocessor.format에 그대로 들어간다. */
-export const PREPROCESSOR_FORMAT = 'mlpx-preprocess-v1'
+/**
+ * 전처리기 형식. .mlpx의 experiment.preprocessor.format에 그대로 들어간다. **쓰는 것은 이것
+ * 하나다.**
+ *
+ * **v2는 열마다 해석한 인코딩과 순서를 지정했는지를 든다** (open-decisions.md 116, mlpx-spec.md
+ * §4). `transform`이 실험 설정이 아니라 이것을 읽는다 — 설정에서 다시 끌어내면 fit과 다른
+ * 인코딩으로 변환할 길이 열린다.
+ */
+export const PREPROCESSOR_FORMAT = 'mlpx-preprocess-v2'
+
+/**
+ * 읽는 형식. **옛 이름 읽기는 지우지 않는다** (mlpx-spec.md §4). v1은 `experimentPreprocessor`
+ * 하나가 실험의 공통 인코딩으로 채워 v2 모양으로 넘긴다.
+ */
+export const PREPROCESSOR_READ_FORMATS = ['mlpx-preprocess-v1', PREPROCESSOR_FORMAT] as const
+
+/** 학습에 들어간 범주 열의 인코딩. `none`인 열은 빠지므로(`notEncodable`) 여기 없다. */
+export type FittedEncoding = Exclude<Preprocessing['categoricalEncoding'], 'none'>
+
+/** 한 열의 해석된 전처리. `resolveColumnPreprocessing`이 낸다. */
+export interface ColumnPreprocessing {
+  readonly categoricalEncoding: Preprocessing['categoricalEncoding']
+  /** 지정한 범주 순서. **해석 인코딩이 `ordinal`일 때만 있다** — 아니면 저장은 남아도 무시한다. */
+  readonly categories?: readonly string[]
+}
+
+/**
+ * **한 열의 전처리를 정하는 자리는 여기 하나다** (open-decisions.md 116). 공통값에 그 열의
+ * 덮어쓰기를 얹는다. 부르는 쪽이 `columns?.[name] ?? …`를 조립하지 않는다.
+ */
+export function resolveColumnPreprocessing(
+  preprocessing: Preprocessing,
+  column: string,
+): ColumnPreprocessing {
+  const override = Object.hasOwn(preprocessing.columns ?? {}, column)
+    ? preprocessing.columns?.[column]
+    : undefined
+  const categoricalEncoding = override?.categoricalEncoding ?? preprocessing.categoricalEncoding
+  const categories = categoricalEncoding === 'ordinal' ? override?.categories : undefined
+  return categories === undefined ? { categoricalEncoding } : { categoricalEncoding, categories }
+}
 
 /**
  * 열의 자료형. **데이터에서 판정한다.**
@@ -39,20 +78,36 @@ export const PREPROCESSOR_FORMAT = 'mlpx-preprocess-v1'
 export const COLUMN_KINDS = ['numeric', 'categorical'] as const
 export type ColumnKind = (typeof COLUMN_KINDS)[number]
 
-export interface FittedColumn {
+interface FittedColumnBase {
   name: string
-  kind: ColumnKind
   /** 결측 대체값. 'drop'이면 없다. */
   fill?: number | string
-  /** center를 빼고 spread로 나눈다. 스케일링이 'none'이거나 범주 열이면 없다. */
-  scale?: { center: number; spread: number }
-  /**
-   * 훈련 데이터에서 본 범주. **순서가 곧 인코딩 순서다** (`categoryOrder`). 범주 열에만 있다.
-   * 옛 파일에는 첫 등장 순서로 적혀 있을 수 있고, 예측은 적힌 순서 그대로 쓴다
-   * (`tests/preprocess.spec.ts`의 *"적힌 범주 순서는 그대로 쓴다"*).
-   */
-  categories?: string[]
 }
+
+export interface NumericFittedColumn extends FittedColumnBase {
+  kind: 'numeric'
+  /** center를 빼고 spread로 나눈다. 스케일링이 'none'이면 없다. */
+  scale?: { center: number; spread: number }
+  categories?: undefined
+}
+
+export interface CategoricalFittedColumn extends FittedColumnBase {
+  kind: 'categorical'
+  scale?: undefined
+  /**
+   * **순서가 곧 인코딩 순서다.** 순서를 지정하지 않았으면 훈련 데이터에서 본 범주의 정렬
+   * (`categoryOrder`), 지정했으면 지정한 순서다(open-decisions.md 116). 옛 파일에는 첫 등장
+   * 순서로 적혀 있을 수 있고, 예측은 적힌 순서 그대로 쓴다 (`tests/preprocess.spec.ts`의
+   * *"적힌 범주 순서는 그대로 쓴다"*).
+   */
+  categories: string[]
+  /** 이 열의 인코딩. **변환은 이것을 읽는다** — 설정을 다시 보지 않는다. */
+  encoding: FittedEncoding
+  /** 학생이 순서를 지정했는가. 재현 규칙 `CATEGORY_ORDER`가 지정한 열을 안 건다. */
+  orderSpecified: boolean
+}
+
+export type FittedColumn = NumericFittedColumn | CategoricalFittedColumn
 
 export interface Preprocessor {
   format: typeof PREPROCESSOR_FORMAT
@@ -93,7 +148,8 @@ function codePointRank(unit: number): number {
 }
 
 /**
- * 범주 열의 범주들. **정렬이다** — sklearn `OrdinalEncoder`·`OneHotEncoder`의
+ * 범주 열의 범주들. **순서를 지정하지 않았을 때는 정렬이다** (지정한 순서는 open-decisions.md
+ * 116이고 그림은 따르지 않는다) — sklearn `OrdinalEncoder`·`OneHotEncoder`의
  * `categories_`와 같다 (open-decisions.md 61). 인코딩 번호와 원-핫 열의 차례가 이것이다.
  *
  * **그림도 이것을 쓴다** (`data/stats.ts`의 `frequencies`·`categoriesOf`, `data/chart-config.ts`의
@@ -445,7 +501,8 @@ export function fitPreprocessor(
             .filter((cell) => !isMissing(cell)),
     )
 
-    if (kind === 'categorical' && preprocessing.categoricalEncoding === 'none') {
+    const resolved = resolveColumnPreprocessing(preprocessing, name)
+    if (kind === 'categorical' && resolved.categoricalEncoding === 'none') {
       // 문자열을 그대로 모델에 넣을 수는 없다. 조용히 0으로 바꾸느니 빼고 말한다.
       excludedColumns.push({ name, reason: 'notEncodable' })
       continue
@@ -454,13 +511,14 @@ export function fitPreprocessor(
     const numbers = present
       .map((cell) => toNumber(cell))
       .filter((value): value is number => value !== null)
-    const fitted: FittedColumn = { name, kind }
-
-    if (preprocessing.missing !== 'drop') {
-      fitted.fill = FILL_BY_STRATEGY[preprocessing.missing](numbers, present, kind)
-    }
+    const fill =
+      preprocessing.missing === 'drop'
+        ? undefined
+        : FILL_BY_STRATEGY[preprocessing.missing](numbers, present, kind)
 
     if (kind === 'numeric') {
+      const fitted: NumericFittedColumn = { name, kind }
+      if (fill !== undefined) fitted.fill = fill
       const scaler = SCALE_BY_METHOD[preprocessing.scaling]
       // 결측을 채우기 **전의** 값으로 구한다. 대체값을 섞으면 결측이 많은 열일수록
       // 같은 값이 여러 번 들어가 분산이 줄고, 스케일이 데이터가 아니라 결측률을 반영한다.
@@ -469,7 +527,6 @@ export function fitPreprocessor(
       // 1.8e308을 넘는 합은 Infinity가 되고, 그 대체값·중심·폭이 열을 통째로 NaN이나 0으로 만들어
       // 학습이 **완료로 끝나고 틀린 점수를 냈다**. 저장되면 `null`이라 다시 열 때 스키마가 거부한다.
       // `tests/preprocess.spec.ts`의 *"넘치는 값"* 판들이 문다.
-      const fill = fitted.fill
       const scale = fitted.scale
       if (
         (typeof fill === 'number' && !Number.isFinite(fill)) ||
@@ -478,26 +535,76 @@ export function fitPreprocessor(
         throw new ClientError('FEATURE_VALUE_TOO_LARGE', { feature: name })
       }
       featureNames.push(name)
-    } else {
-      const categories = categoryOrder(present)
-      fitted.categories = categories
-      if (preprocessing.categoricalEncoding === 'onehot') {
-        // 열 하나가 범주 수만큼 늘어난다. 이름에 범주를 붙여야 featureImportance를 읽을 수 있다.
-        // **여기도 펼치지 않는다.** 범주 수는 행 수보다 작지만 **값 종류가 3,652개인
-        // 열이 실재했고**(`limits.ts`의 `PREP_PREVIEW_FEATURE_COUNT`), 상한을 끄면 그
-        // 위가 열린다. 같은 절벽이다 (`ml/split.ts`의 `appendAll`).
-        for (const category of categories) featureNames.push(`${name}=${category}`)
-      } else {
-        featureNames.push(name)
-      }
+      columns.push(fitted)
+      continue
     }
 
+    const encoding = resolved.categoricalEncoding
+    // 해석 인코딩이 `none`인 범주 열은 위에서 빠졌다. 타입을 좁히려고 한 번 더 본다.
+    if (encoding === 'none') continue
+    const specified = resolved.categories
+    if (specified !== undefined) {
+      // **지정한 순서에 없는 값으로는 학습하지 않는다** (open-decisions.md 116 규칙 3). 놔두면
+      // 그 값이 조용히 −1로 학습된다. 지정 순서에만 있는 값은 받는다 — sklearn과 같다.
+      const known = new Set(specified)
+      const stray = present.find((cell) => !known.has(cell))
+      if (stray !== undefined) {
+        throw new ClientError('FEATURE_CATEGORY_NOT_IN_ORDER', {
+          feature: name,
+          value: [...stray].slice(0, MAX_ERROR_VALUE_LENGTH).join(''),
+        })
+      }
+    }
+    const categories = specified === undefined ? categoryOrder(present) : [...specified]
+    const fitted: CategoricalFittedColumn = {
+      name,
+      kind,
+      categories,
+      encoding,
+      orderSpecified: specified !== undefined,
+    }
+    if (fill !== undefined) fitted.fill = fill
+    if (encoding === 'onehot') {
+      // 열 하나가 범주 수만큼 늘어난다. 이름에 범주를 붙여야 featureImportance를 읽을 수 있다.
+      // **여기도 펼치지 않는다.** 범주 수는 행 수보다 작지만 **값 종류가 3,652개인
+      // 열이 실재했고**(`limits.ts`의 `PREP_PREVIEW_FEATURE_COUNT`), 상한을 끄면 그
+      // 위가 열린다. 같은 절벽이다 (`ml/split.ts`의 `appendAll`).
+      for (const category of categories) featureNames.push(`${name}=${category}`)
+    } else {
+      featureNames.push(name)
+    }
     columns.push(fitted)
   }
 
   if (columns.length === 0) throw new ClientError('FEATURE_NOT_SELECTED')
 
   return { format: PREPROCESSOR_FORMAT, columns, featureNames, excludedColumns }
+}
+
+/** 열 이름 → 그 열의 범주형 인코딩. 아래 두 함수가 만든다. */
+export type EncodingOf = (column: string) => Preprocessing['categoricalEncoding']
+
+/** 설정에서 읽는다. 학습 전의 화면이 쓴다. */
+export function encodingFromSettings(preprocessing: Preprocessing): EncodingOf {
+  return (column) => resolveColumnPreprocessing(preprocessing, column).categoricalEncoding
+}
+
+/**
+ * **전처리기가 있으면 전처리기에서, 없으면 설정에서 읽는다** (open-decisions.md 116 규칙 10).
+ * 학습이 실제로 쓴 인코딩은 전처리기가 안다 — 뺀 열(`notEncodable`)은 `none`이다.
+ */
+export function encodingFromFitted(
+  preprocessor: Preprocessor | null,
+  preprocessing: Preprocessing,
+): EncodingOf {
+  if (preprocessor === null) return encodingFromSettings(preprocessing)
+  const fitted = new Map<string, Preprocessing['categoricalEncoding']>()
+  for (const column of preprocessor.columns) {
+    if (column.kind === 'categorical') fitted.set(column.name, column.encoding)
+  }
+  for (const { name } of preprocessor.excludedColumns) fitted.set(name, 'none')
+  const fallback = encodingFromSettings(preprocessing)
+  return (column) => fitted.get(column) ?? fallback(column)
 }
 
 /**
@@ -515,12 +622,13 @@ export function fitPreprocessor(
 export function estimatedFeatureWidth(
   summaries: readonly { name: string; kind: ColumnKind; unique: number }[],
   features: readonly string[],
-  encoding: Preprocessing['categoricalEncoding'],
+  encodingOf: EncodingOf,
 ): number {
   let width = 0
   for (const name of features) {
     const summary = summaries.find((entry) => entry.name === name)
     if (summary === undefined) continue
+    const encoding = encodingOf(name)
     if (summary.kind !== 'categorical') {
       width += 1
     } else if (encoding === 'onehot') {
@@ -539,10 +647,14 @@ const fittedColumnSchema = z.looseObject({
   fill: z.union([z.number(), z.string()]).optional(),
   scale: z.looseObject({ center: z.number(), spread: z.number() }).optional(),
   categories: z.array(z.string()).optional(),
+  // v2에서 범주 열에 반드시 있다(아래 `parsePreprocessor`가 본다). v1에는 없다.
+  encoding: z.enum(CATEGORICAL_ENCODINGS).exclude(['none']).optional(),
+  orderSpecified: z.boolean().optional(),
 })
 
 const preprocessorSchema = z.looseObject({
-  format: z.literal(PREPROCESSOR_FORMAT),
+  // 형식 이름이 전처리기 파일의 어휘다 — `formatVersion`의 어휘가 아니다(`tests/schema-version.spec.ts`).
+  format: z.literal(PREPROCESSOR_READ_FORMATS),
   columns: z.array(fittedColumnSchema).min(1),
   featureNames: z.array(z.string()).min(1),
   // 없는 것과 비어 있는 것이 같은 뜻이라 기본값을 준다. 옛 파일이나 남이 만든 파일에
@@ -563,13 +675,17 @@ const preprocessorSchema = z.looseObject({
  * 그 실험 모델 전체의 전제이므로(mlpx-spec.md 5) 이것이 깨지면 어차피 그 실험의 모델은
  * 하나도 못 쓴다.
  */
-export function parsePreprocessor(value: unknown): Preprocessor {
+export function parsePreprocessor(
+  value: unknown,
+  sharedEncoding?: Preprocessing['categoricalEncoding'],
+): Preprocessor {
   const parsed = preprocessorSchema.safeParse(value)
   if (!parsed.success) {
     throw new ClientError('MODEL_FILE_INVALID', {
       field: parsed.error.issues[0]?.path.join('.') || 'format',
     })
   }
+  const v1 = parsed.data.format !== PREPROCESSOR_FORMAT
 
   // **선택 필드는 있을 때만 옮긴다.** undefined를 담아 두면 "없음"과 "값이 undefined"가
   // 섞이고, 그 상태로 transform에 들어가면 fill이 있는 열처럼 굴다가 빈 문자열이 된다.
@@ -577,21 +693,63 @@ export function parsePreprocessor(value: unknown): Preprocessor {
   // 모르는 필드는 여기서 사라진다. 문서 스키마(project/schema.ts)와 반대인 이유는 **이
   // 파일을 다시 쓰지 않기 때문이다** - zip 안의 원본은 그대로 남고, 우리는 예측 한 번을
   // 위해 읽을 뿐이다. 모델 해석기가 하는 것과 같다.
+  const columns = parsed.data.columns.map((column, index): FittedColumn => {
+    const fill = column.fill === undefined ? {} : { fill: column.fill }
+    if (column.kind === 'numeric') {
+      return {
+        name: column.name,
+        kind: 'numeric',
+        ...fill,
+        ...(column.scale === undefined
+          ? {}
+          : { scale: { center: column.scale.center, spread: column.scale.spread } }),
+      }
+    }
+    /**
+     * **v1은 실험의 공통 인코딩으로 채운다** (mlpx-spec.md §4). v1 시절엔 열마다 고를 수 없었으니
+     * 공통값이 곧 그 열의 인코딩이고, 순서는 지정한 적이 없다. 공통 `none`이면 범주 열은 이미
+     * `notEncodable`로 빠져 있어야 하므로 여기 범주 열이 있으면 깨진 파일이다.
+     */
+    const encoding = v1 ? (sharedEncoding === 'none' ? undefined : sharedEncoding) : column.encoding
+    const orderSpecified = v1 ? false : column.orderSpecified
+    if (encoding === undefined || orderSpecified === undefined || column.categories === undefined) {
+      throw new ClientError('MODEL_FILE_INVALID', {
+        field: `columns.${index}.${column.categories === undefined ? 'categories' : 'encoding'}`,
+      })
+    }
+    return {
+      name: column.name,
+      kind: 'categorical',
+      ...fill,
+      categories: column.categories,
+      encoding,
+      orderSpecified,
+    }
+  })
+
   return {
     format: PREPROCESSOR_FORMAT,
-    columns: parsed.data.columns.map((column) => ({
-      name: column.name,
-      kind: column.kind,
-      ...(column.fill === undefined ? {} : { fill: column.fill }),
-      ...(column.scale === undefined
-        ? {}
-        : { scale: { center: column.scale.center, spread: column.scale.spread } }),
-      ...(column.categories === undefined ? {} : { categories: column.categories }),
-    })),
+    columns,
     featureNames: parsed.data.featureNames,
     excludedColumns: parsed.data.excludedColumns.map(({ name, reason }) => ({ name, reason })),
   }
 }
+
+/**
+ * 실험 스냅샷의 공통 범주형 인코딩. **사진 실험에는 없다** — 스냅샷에 `preprocessing`이 없고
+ * 범주 열도 없어 v1을 채울 재료가 필요 없다. 그래서 `dataSnapshot('tabular', …)`를 부르지 않고
+ * 모양만 본다 (사진에서 던진다).
+ */
+function sharedEncodingOf(settings: unknown): Preprocessing['categoricalEncoding'] | undefined {
+  const parsed = sharedEncodingSchema.safeParse(settings)
+  return parsed.success ? parsed.data.data.preprocessing.categoricalEncoding : undefined
+}
+
+const sharedEncodingSchema = z.looseObject({
+  data: z.looseObject({
+    preprocessing: z.looseObject({ categoricalEncoding: z.enum(CATEGORICAL_ENCODINGS) }),
+  }),
+})
 
 /**
  * **이 실험의 전처리기.** 파일에 담긴 것을 읽어 검증한다. 없거나 못 읽으면 `null`이다.
@@ -602,16 +760,26 @@ export function parsePreprocessor(value: unknown): Preprocessor {
  *
  * **캐스팅으로 넘기지 않는 이유가 `parsePreprocessor`에 있다** — 잘못된 `categories`
  * 하나가 예외 없이 한 칸 밀린 원-핫을 만든다.
+ *
+ * **옛 `mlpx-preprocess-v1`을 v2로 채우는 자리가 여기 하나다** (mlpx-spec.md §4). 모든 화면과
+ * 예측의 일괄 읽기가 이것을 거치므로, 그 뒤의 코드는 v2만 본다. 재료는 그 실험 스냅샷의
+ * 공통 인코딩이다.
  */
 export function experimentPreprocessor(
-  experiment: { readonly preprocessor?: { readonly path: string } | undefined },
+  experiment: {
+    readonly preprocessor?: { readonly path: string } | undefined
+    readonly settings?: unknown
+  },
   models: ReadonlyMap<string, Uint8Array>,
 ): Preprocessor | null {
   const path = experiment.preprocessor?.path
   const bytes = path === undefined ? undefined : models.get(path)
   if (bytes === undefined) return null
   try {
-    return parsePreprocessor(JSON.parse(new TextDecoder().decode(bytes)))
+    return parsePreprocessor(
+      JSON.parse(new TextDecoder().decode(bytes)),
+      sharedEncodingOf(experiment.settings),
+    )
   } catch {
     // 남이 편집한 파일이다. 재료가 없으면 그 재료가 필요한 판만 안 뜬다 (§9.2).
     return null
@@ -631,12 +799,14 @@ export function experimentPreprocessor(
  * 지금은 인덱스가 holdoutSplit에서만 오므로 정상 경로에서는 나지 않는다. 그런데 이 함수는
  * 곧 **파일에 적힌 번호**로도 불린다 - 참조형 모델의 예측과 재실행 대조가 그렇다. 손으로
  * 고친 파일과 부분 손상 zip이 그때 여기로 온다.
+ *
+ * **인코딩은 전처리기가 든다** (열마다의 `encoding`, open-decisions.md 116). 예전엔 부르는 쪽이
+ * 인자로 넘겼고, fit과 다른 인코딩으로 부르면 조용히 어긋났다.
  */
 export function transform(
   preprocessor: Preprocessor,
   dataset: Dataset,
   indices: readonly number[],
-  encoding: Preprocessing['categoricalEncoding'],
 ): number[][] {
   const columnIndexOf = new Map(
     preprocessor.columns.map((c) => [c.name, dataset.columns.indexOf(c.name)]),
@@ -692,9 +862,9 @@ export function transform(
         continue
       }
 
-      const categories = column.categories ?? []
+      const categories = column.categories
       const position = positionOf.get(column.name)?.get(String(filled)) ?? -1
-      if (encoding === 'onehot') {
+      if (column.encoding === 'onehot') {
         for (let i = 0; i < categories.length; i += 1) values.push(i === position ? 1 : 0)
       } else {
         values.push(position)

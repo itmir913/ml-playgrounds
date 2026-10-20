@@ -382,7 +382,7 @@ export function imageTrainingRows(
   return {
     indices: trainIndices,
     // 인코딩은 아무 일도 안 한다 — 임베딩에는 범주형 열이 없다.
-    features: transform(preprocessor, source.dataset, trainIndices, 'onehot'),
+    features: transform(preprocessor, source.dataset, trainIndices),
     target: targetValues(source.dataset, trainIndices, target),
   }
 }
@@ -436,7 +436,7 @@ function trainingRowsByKeys(
   return {
     indices: experiment.settings.trainIndices,
     // 인코딩은 아무 일도 안 한다 — 임베딩에는 범주형 열이 없다.
-    features: transform(preprocessor, dataset, positions, 'onehot'),
+    features: transform(preprocessor, dataset, positions),
     target: targetValues(dataset, positions, IMAGE_LABEL_COLUMN),
   }
 }

@@ -68,7 +68,7 @@ function findRepresentatives(): readonly string[] {
   // **학습에 쓴 것과 같은 표를 다시 짓는다** (`ImageClusterPanel`과 같은 문이다).
   const source = imageTrainingSource(file, vectors, backbone, 'clustering')
   const rows = source.dataset.rows.map((_, index) => index)
-  const matrix = transform(parsed, source.dataset, rows, 'onehot')
+  const matrix = transform(parsed, source.dataset, rows)
 
   const path = props.input.run.model?.path
   const groups = imageClusterGroups(

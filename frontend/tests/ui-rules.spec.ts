@@ -1877,6 +1877,9 @@ describe('전처리 판은 붙일 때도 뗄 때도 묻는다', () => {
    * **`SketchDialog.vue`도 `CLOSERS`가 아니다** (#38, open-decisions.md 67). 이 창의 일([추가]가 그린 장을
    * PNG로 만드는 것)이 실패하면 `LeaveGuard`처럼 **창이 남아 창 안에서 이유를 말한다** — 닫으면 그린
    * 그림이 사라진다. 버릴지 묻는 창은 일이 없다(답을 받으면 닫는다).
+   *
+   * **`ColumnEncodingDialog.vue`도 `CLOSERS`가 아니다** (open-decisions.md 116). [적용]은 고른 설정을 동기로
+   * 넘기고 끝나는 창이라 실패할 일이 없다 — 받는 쪽(`TabularPrepPanel`의 `applyEncoding`)이 닫고 쓴다.
    */
   it('AppDialog를 쓰는 화면이 그대로다 - 늘었으면 CLOSERS를 다시 보라', () => {
     const screens = vueFiles(SRC)
@@ -1896,6 +1899,7 @@ describe('전처리 판은 붙일 때도 뗄 때도 묻는다', () => {
       'views/data/SketchDialog.vue',
       'views/data/TabularPanel.vue',
       'views/predict/ImagePredictPanel.vue',
+      'views/preprocess/ColumnEncodingDialog.vue',
       'views/preprocess/ImagePrepPanel.vue',
       'views/preprocess/TabularPrepPanel.vue',
     ])

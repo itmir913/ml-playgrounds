@@ -170,6 +170,9 @@ export const CLIENT_ERROR_CODES = [
   // 수치 특성의 대체값·중심·폭이 넘쳐 유한하지 않다 - ml/preprocess.ts의 fitPreprocessor.
   // 안 막으면 학습이 완료로 끝나고 틀린 점수를 낸다 (2026-10-08 R43-4 B-1, docs/error-codes.md).
   'FEATURE_VALUE_TOO_LARGE',
+  // 훈련 몫의 범주가 학생이 지정한 순서에 없다 - ml/preprocess.ts의 fitPreprocessor.
+  // 놔두면 그 값이 조용히 −1로 학습된다 (open-decisions.md 116, docs/error-codes.md).
+  'FEATURE_CATEGORY_NOT_IN_ORDER',
 
   // 표 파일 가져오기 - 서버는 정규화된 CSV만 보므로 이 묶음은 서버에 없다 (data/table.ts)
   'DATASET_FILE_TYPE_UNSUPPORTED',

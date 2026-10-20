@@ -316,7 +316,7 @@ describe('메인 스레드 쪽', () => {
 
     const { experiment, preprocessor } = await result
     expect(experiment.runs.map((run) => run.status)).toEqual(['done', 'done'])
-    expect(preprocessor.format).toBe('mlpx-preprocess-v1')
+    expect(preprocessor.format).toBe('mlpx-preprocess-v2')
     expect(worker.terminated).toBe(1)
   })
 

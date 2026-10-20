@@ -151,8 +151,7 @@ function tabularAnswers(project: ProjectFile, queries: Record<string, string>[])
       needsRows(format) && dataset
         ? { trainingRows: trainingRowsFor(experiment, preprocessor, dataset) }
         : {},
-    (experiment, preprocessor) =>
-      queries.map((values) => inputVector(experiment, preprocessor, values)),
+    (_experiment, preprocessor) => queries.map((values) => inputVector(preprocessor, values)),
   )
 }
 
@@ -192,7 +191,6 @@ function imageAnswers(project: ProjectFile, seeds: { weight: number; index: numb
         preprocessor,
         queries,
         seeds.map((__, index) => index),
-        'onehot',
       ),
   )
 }

@@ -1313,8 +1313,14 @@ describe('계산 규칙이 바뀐 뒤', () => {
         format: PREPROCESSOR_FORMAT,
         columns: [
           kind === 'numeric'
-            ? { name: 'x', kind: 'numeric' }
-            : { name: 'x', kind: 'categorical', categories: ['a', 'b'] },
+            ? { name: 'x', kind: 'numeric' as const }
+            : {
+                name: 'x',
+                kind: 'categorical' as const,
+                categories: ['a', 'b'],
+                encoding: 'onehot' as const,
+                orderSpecified: false,
+              },
         ],
         featureNames: ['x'],
         excludedColumns: [],
@@ -1350,11 +1356,19 @@ describe('계산 규칙이 바뀐 뒤', () => {
   })
 
   describe('범주 순서는 기록된 범주가 정렬이 아닐 때만 걸린다', () => {
-    const categorical = (categories: string[]): RuleFile => ({
+    const categorical = (categories: string[], orderSpecified = false): RuleFile => ({
       appVersion: '0.28.1',
       preprocessor: {
         format: PREPROCESSOR_FORMAT,
-        columns: [{ name: '지역', kind: 'categorical', categories }],
+        columns: [
+          {
+            name: '지역',
+            kind: 'categorical',
+            categories,
+            encoding: 'onehot',
+            orderSpecified,
+          },
+        ],
         featureNames: categories.map((one) => `지역=${one}`),
         excludedColumns: [],
       },
@@ -1374,6 +1388,15 @@ describe('계산 규칙이 바뀐 뒤', () => {
       const experiment = await trained(['decision_tree'])
       const run = experiment.runs[0] as Run
       expect(changedRules(experiment, run, categorical(['서울', '부산']))).toContain(
+        'CATEGORY_ORDER',
+      )
+    })
+
+    // open-decisions.md 116 규칙 7 — 학생이 지정한 순서는 정렬 규칙과 무관하게 옛 판에서도 같다.
+    it('학생이 순서를 지정한 열은 정렬이 아니어도 안 걸린다', async () => {
+      const experiment = await trained(['decision_tree'])
+      const run = experiment.runs[0] as Run
+      expect(changedRules(experiment, run, categorical(['서울', '부산'], true))).not.toContain(
         'CATEGORY_ORDER',
       )
     })

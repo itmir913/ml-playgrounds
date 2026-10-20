@@ -209,7 +209,16 @@ describe('원본 열 읽기', () => {
       ...source.material,
       columns: [
         source.material.columns[0]!,
-        { name: '지역', column: { name: '지역', kind: 'categorical', categories: ['북', '남'] } },
+        {
+          name: '지역',
+          column: {
+            name: '지역',
+            kind: 'categorical',
+            categories: ['북', '남'],
+            encoding: 'onehot',
+            orderSpecified: false,
+          },
+        },
       ],
     }
     const read = rawColumnReader({ dataset: DATASET, material: fitted })

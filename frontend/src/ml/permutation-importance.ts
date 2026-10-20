@@ -65,7 +65,6 @@ interface Material {
   readonly target: string
   readonly source: Dataset
   readonly rows: readonly number[]
-  readonly encoding: Parameters<typeof transform>[3]
 }
 
 function materialOf(input: PermutationImportanceInput): Material | null {
@@ -90,8 +89,7 @@ function materialOf(input: PermutationImportanceInput): Material | null {
   if (!source) return null
   const rows = settings.testIndices
   if (rows.length === 0) return null
-  const encoding = snapshot.preprocessing.categoricalEncoding
-  return { taskType, metric, stored, target, source, rows, encoding }
+  return { taskType, metric, stored, target, source, rows }
 }
 
 /**
@@ -121,7 +119,7 @@ export async function permutationImportanceFor(
   const material = materialOf(input)
   const { experiment, dataset, preprocessor, modelBytes } = input
   if (!material || !modelBytes || !dataset || !preprocessor) return null
-  const { taskType, metric, stored, target, source, rows, encoding } = material
+  const { taskType, metric, stored, target, source, rows } = material
   const { settings } = experiment
 
   let predict: ReturnType<typeof loadModel>
@@ -142,11 +140,7 @@ export async function permutationImportanceFor(
   const all = table.rows.map((_row, index) => index)
   let done = 0
   const scoreOf = async (candidate: Dataset): Promise<number> => {
-    const guesses = await predictInSteps(
-      predict,
-      transform(preprocessor, candidate, all, encoding),
-      control,
-    )
+    const guesses = await predictInSteps(predict, transform(preprocessor, candidate, all), control)
     done += 1
     control.onStep?.(done)
     return evaluate(taskType, truth, guesses).metrics[metric] ?? Number.NaN

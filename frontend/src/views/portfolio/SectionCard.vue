@@ -168,7 +168,7 @@ function onPaste(event: ClipboardEvent): void {
         >
           <AppButton
             variant="ghost"
-            :label="t('portfolio.moveUp')"
+            :label="t('common.moveUp')"
             :lock="lockFor('sectionTop', { index: props.index })"
             @click="emit('move', -1)"
           >
@@ -176,7 +176,7 @@ function onPaste(event: ClipboardEvent): void {
           </AppButton>
           <AppButton
             variant="ghost"
-            :label="t('portfolio.moveDown')"
+            :label="t('common.moveDown')"
             :lock="lockFor('sectionBottom', { index: props.index, count: props.count })"
             @click="emit('move', 1)"
           >

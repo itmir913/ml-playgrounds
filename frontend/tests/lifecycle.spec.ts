@@ -210,7 +210,7 @@ function reproduceMetrics(
       table.columns.forEach((name, column) => {
         values[name] = table.rows[from]?.[column] ?? ''
       })
-      return inputVector(experiment, preprocessor, values)
+      return inputVector(preprocessor, values)
     })
 
     const truth = targetValues(

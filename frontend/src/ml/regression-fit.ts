@@ -84,7 +84,6 @@ export function regressionFitFor(input: RegressionFitInput): RegressionFitResult
   const rows = settings.testIndices
   if (rows.length === 0) return null
 
-  const encoding = snapshot.preprocessing.categoricalEncoding
   let predict: ReturnType<typeof loadModel>
   let truth: string[]
   let guesses: ReturnType<ReturnType<typeof loadModel>>
@@ -94,8 +93,8 @@ export function regressionFitFor(input: RegressionFitInput): RegressionFitResult
     // 혼동 행렬 칸의 행(`confusion-rows.ts`)과 같이 그림의 자리를 비운다.
     predict = loadModel(JSON.parse(new TextDecoder().decode(modelBytes)))
     truth = targetValues(source, rows, target)
-    guesses = predict(transform(preprocessor, source, rows, encoding))
-    line = lineFor(preprocessor, source, rows, encoding, predict)
+    guesses = predict(transform(preprocessor, source, rows))
+    line = lineFor(preprocessor, source, rows, predict)
   } catch {
     return null
   }
@@ -129,7 +128,6 @@ function lineFor(
   preprocessor: Preprocessor,
   source: Dataset,
   rows: readonly number[],
-  encoding: Parameters<typeof transform>[3],
   predict: ReturnType<typeof loadModel>,
 ): RegressionLine | null {
   const only = preprocessor.columns.length === 1 ? preprocessor.columns[0] : undefined
@@ -152,7 +150,6 @@ function lineFor(
     preprocessor,
     table,
     grid.map((_x, index) => index),
-    encoding,
   )
   const ys = predict(encoded).map(Number)
   return {

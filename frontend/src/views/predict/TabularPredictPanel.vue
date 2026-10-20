@@ -505,7 +505,7 @@ async function run(): Promise<void> {
 
         const payload: unknown = JSON.parse(new TextDecoder().decode(bytes))
         const predict = loadModel(payload, context)
-        const vector = inputVector(entry.experiment, preprocessor, values.value)
+        const vector = inputVector(preprocessor, values.value)
         const answer = predict([vector])[0]
 
         // **확률을 내는 모델만 확률이 있다** (mlpx-spec.md §5.4). 여기서도 형식 이름을

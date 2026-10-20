@@ -351,7 +351,7 @@ describe('스케일링', () => {
 
   it('minmax는 0과 1 사이로 보낸다', () => {
     const fitted = fitPreprocessor(numbers, all, ['x'], preprocessing({ scaling: 'minmax' }))
-    const matrix = transform(fitted, numbers, all, 'onehot')
+    const matrix = transform(fitted, numbers, all)
     expect(matrix.map((row) => row[0])).toEqual([0, 0.25, 0.5, 0.75, 1])
   })
 
@@ -364,7 +364,7 @@ describe('스케일링', () => {
     it(`값이 하나뿐인 열에서 0으로 나누지 않는다 - ${scaling}`, () => {
       const flat: Dataset = { columns: ['x'], rows: [['5'], ['5'], ['5']] }
       const fitted = fitPreprocessor(flat, [0, 1, 2], ['x'], preprocessing({ scaling }))
-      const matrix = transform(fitted, flat, [0, 1, 2], 'onehot')
+      const matrix = transform(fitted, flat, [0, 1, 2])
       expect(matrix.flat().every((value) => Number.isFinite(value))).toBe(true)
     })
   }
@@ -395,7 +395,7 @@ describe('스케일링', () => {
         Math.abs(ours - sklearn) <= FIXTURE_ATOL + FIXTURE_RTOL * Math.abs(sklearn)
 
       expect(within(spread, one.scale), `${one.name}: spread ${spread} vs ${one.scale}`).toBe(true)
-      transform(fitted, column, apply, 'onehot').forEach((row, index) => {
+      transform(fitted, column, apply).forEach((row, index) => {
         const sklearn = one.transformed[index] ?? Number.NaN
         expect(within(row[0] ?? Number.NaN, sklearn), `${one.name}: ${row[0]} vs ${sklearn}`).toBe(
           true,
@@ -406,7 +406,7 @@ describe('스케일링', () => {
 
   it("scaling이 'none'이면 값을 그대로 둔다", () => {
     const fitted = fitPreprocessor(numbers, all, ['x'], preprocessing({ scaling: 'none' }))
-    expect(transform(fitted, numbers, all, 'onehot').map((row) => row[0])).toEqual([0, 2, 4, 6, 8])
+    expect(transform(fitted, numbers, all).map((row) => row[0])).toEqual([0, 2, 4, 6, 8])
   })
 })
 
@@ -415,7 +415,7 @@ describe('범주 인코딩', () => {
     const fitted = fitPreprocessor(dataset, [0, 1, 2, 3], features, preprocessing())
     expect(fitted.featureNames).toEqual(['키', '몸무게', '지역=부산', '지역=서울'])
 
-    const matrix = transform(fitted, dataset, [0, 1], 'onehot')
+    const matrix = transform(fitted, dataset, [0, 1])
     expect(matrix[0]?.slice(2)).toEqual([0, 1])
     expect(matrix[1]?.slice(2)).toEqual([1, 0])
   })
@@ -424,13 +424,13 @@ describe('범주 인코딩', () => {
     const options = preprocessing({ categoricalEncoding: 'ordinal' })
     const fitted = fitPreprocessor(dataset, [0, 1, 2, 3], features, options)
     expect(fitted.featureNames).toEqual(['키', '몸무게', '지역'])
-    expect(transform(fitted, dataset, [0, 1], 'ordinal').map((row) => row[2])).toEqual([1, 0])
+    expect(transform(fitted, dataset, [0, 1]).map((row) => row[2])).toEqual([1, 0])
   })
 
   it('훈련 데이터에 없던 범주는 onehot에서 전부 0이다', () => {
     const fitted = fitPreprocessor(dataset, [0, 1, 2], features, preprocessing())
     // 4번 행의 지역은 '대구'로 훈련 데이터에 없다.
-    expect(transform(fitted, dataset, [4], 'onehot')[0]?.slice(2)).toEqual([0, 0])
+    expect(transform(fitted, dataset, [4])[0]?.slice(2)).toEqual([0, 0])
   })
 
   /**
@@ -452,7 +452,15 @@ describe('범주 인코딩', () => {
     const rows = Array.from({ length: 2000 }, (_value, index) => [`c${index % 50}`])
     const fitted: Preprocessor = {
       format: PREPROCESSOR_FORMAT,
-      columns: [{ name: '학번', kind: 'categorical', categories: counted }],
+      columns: [
+        {
+          name: '학번',
+          kind: 'categorical',
+          categories: counted,
+          encoding: 'ordinal',
+          orderSpecified: false,
+        },
+      ],
       featureNames: ['학번'],
       excludedColumns: [],
     }
@@ -460,7 +468,6 @@ describe('범주 인코딩', () => {
       fitted,
       { columns: ['학번'], rows },
       rows.map((_row, index) => index),
-      'ordinal',
     )
     expect(matrix[51]?.[0]).toBe(1)
     expect(reads).toBeLessThanOrEqual(names.length * 2)
@@ -469,7 +476,7 @@ describe('범주 인코딩', () => {
   it('훈련 데이터에 없던 범주는 ordinal에서 -1이다', () => {
     const options = preprocessing({ categoricalEncoding: 'ordinal' })
     const fitted = fitPreprocessor(dataset, [0, 1, 2], features, options)
-    expect(transform(fitted, dataset, [4], 'ordinal')[0]?.[2]).toBe(-1)
+    expect(transform(fitted, dataset, [4])[0]?.[2]).toBe(-1)
   })
 
   it("'none'이면 범주 열을 빼되 뺐다고 남긴다 - 조용히 버리지 않는다", () => {
@@ -528,12 +535,20 @@ describe('범주 순서', () => {
   it('적힌 범주 순서는 그대로 쓴다 - 옛 파일', () => {
     const recorded: Preprocessor = {
       format: PREPROCESSOR_FORMAT,
-      columns: [{ name: 'x', kind: 'categorical', categories: ['중', '상', '하'] }],
+      columns: [
+        {
+          name: 'x',
+          kind: 'categorical',
+          categories: ['중', '상', '하'],
+          encoding: 'ordinal',
+          orderSpecified: false,
+        },
+      ],
       featureNames: ['x'],
       excludedColumns: [],
     }
     const table = column(['상', '하', '중'])
-    expect(transform(recorded, table, [0, 1, 2], 'ordinal').map((row) => row[0])).toEqual([1, 2, 0])
+    expect(transform(recorded, table, [0, 1, 2]).map((row) => row[0])).toEqual([1, 2, 0])
   })
 })
 
@@ -543,14 +558,14 @@ describe('범위 밖 행 번호', () => {
     // 학습도 예측도 에러 없이 진행된다. 학생은 그 숫자로 포트폴리오를 쓴다.
     // 참조형 모델의 예측과 재실행 대조가 파일에 적힌 번호로 이 함수를 부른다.
     const fitted = fitPreprocessor(dataset, [0, 1, 2, 3], features, preprocessing())
-    const code = codeOf(() => transform(fitted, dataset, [0, 999], 'onehot'))
+    const code = codeOf(() => transform(fitted, dataset, [0, 999]))
     expect(code).toBe('SPLIT_INDEX_OUT_OF_RANGE')
   })
 
   it('경계값은 통과한다 - 마지막 행은 정상이다', () => {
     const fitted = fitPreprocessor(dataset, [0, 1, 2, 3], features, preprocessing())
     const last = dataset.rows.length - 1
-    expect(transform(fitted, dataset, [last], 'onehot')).toHaveLength(1)
+    expect(transform(fitted, dataset, [last])).toHaveLength(1)
   })
 })
 
@@ -560,8 +575,8 @@ describe('전처리기는 데이터다', () => {
     const revived = JSON.parse(JSON.stringify(fitted)) as typeof fitted
 
     expect(revived.format).toBe(PREPROCESSOR_FORMAT)
-    expect(transform(revived, dataset, [0, 1, 2, 3], 'onehot')).toEqual(
-      transform(fitted, dataset, [0, 1, 2, 3], 'onehot'),
+    expect(transform(revived, dataset, [0, 1, 2, 3])).toEqual(
+      transform(fitted, dataset, [0, 1, 2, 3]),
     )
   })
 })
@@ -687,7 +702,7 @@ describe('사분위 - 짝수 개에서 보간이 돈다', () => {
       ['값'],
       preprocessing({ missing: 'mean', scaling: 'robust' }),
     )
-    const moved = transform(fitted, four, all, 'onehot')
+    const moved = transform(fitted, four, all)
     // (1-2.5)/1.5 = -1, (4-2.5)/1.5 = 1. 보간이 죽으면 둘 다 다른 값이 된다.
     expect(moved[0]?.[0]).toBeCloseTo(-1, 10)
     expect(moved[3]?.[0]).toBeCloseTo(1, 10)

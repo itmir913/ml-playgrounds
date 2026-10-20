@@ -23,7 +23,7 @@ import type { Preprocessing, Split, TaskType } from '../project/schema'
 import { ALGORITHMS, type Algorithm, type AlgorithmOption } from './algorithms'
 import { supports } from './axes'
 import type { UnavailableReason } from './backend'
-import { targetValues, usableRows, type Dataset } from './preprocess'
+import { resolveColumnPreprocessing, targetValues, usableRows, type Dataset } from './preprocess'
 import { testCountFor } from './split'
 import type { ColumnKind } from './preprocess'
 
@@ -134,7 +134,6 @@ export interface ColumnPlan {
 export function columnPlan(input: ColumnPlanInput): ColumnPlan {
   const chosen = new Set(input.features)
   const required = requiredTargetKind(input.taskType)
-  const encodes = input.preprocessing.categoricalEncoding !== 'none'
   /**
    * **군집화에서는 저장된 타깃이 어떤 열도 타깃으로 만들지 않는다.** 이름만 비교하던
    * 때에는 그 열의 특성 체크박스가 계속 잠겨 있었다 (`architecture.md` §8.9).
@@ -162,9 +161,12 @@ export function columnPlan(input: ColumnPlanInput): ColumnPlan {
         : summary.missing > 0 && input.preprocessing.missing === 'none'
           ? ('FEATURE_HAS_MISSING' as const)
           : null
-    // 문자 열을 그대로 모델에 넣을 수는 없다. 인코딩이 꺼져 있으면 학습에서 빠진다.
+    // 문자 열을 그대로 모델에 넣을 수는 없다. 그 열의 인코딩이 꺼져 있으면 학습에서 빠진다 —
+    // 공통값이 아니라 열마다 해석한 값으로 본다(open-decisions.md 116).
     const featureNote =
-      featureIssue === null && summary.kind === 'categorical' && !encodes
+      featureIssue === null &&
+      summary.kind === 'categorical' &&
+      resolveColumnPreprocessing(input.preprocessing, summary.name).categoricalEncoding === 'none'
         ? ('notEncodable' as const)
         : null
 

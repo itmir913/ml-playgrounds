@@ -36,13 +36,7 @@ const TRAIN = [0, 1, 2, 3, 4, 5, 6]
 
 function previewOf(preprocessing: Preprocessing, train: readonly number[] = TRAIN, limit?: number) {
   const preprocessor = fitPreprocessor(dataset, train, FEATURES, preprocessing)
-  return preprocessPreview(
-    dataset,
-    preprocessor,
-    train,
-    preprocessing.categoricalEncoding,
-    limit ?? PREP_PREVIEW_ROW_COUNT,
-  )
+  return preprocessPreview(dataset, preprocessor, train, limit ?? PREP_PREVIEW_ROW_COUNT)
 }
 
 describe('바뀐 표를 다섯 줄로 보인다', () => {
@@ -222,7 +216,7 @@ describe('넓은 범주 열이 미리보기를 폭발시키지 않는다', () =>
       categoricalEncoding: 'onehot',
     }
     const preprocessor = fitPreprocessor(table, rows, ['id'], options)
-    const preview = preprocessPreview(table, preprocessor, rows, 'onehot')
+    const preview = preprocessPreview(table, preprocessor, rows)
 
     const column = preview.columns.find((one) => one.name === 'id')
     // 전처리기는 여전히 전부 만든다 — 자르는 것은 보여주는 쪽뿐이다.
@@ -248,7 +242,7 @@ describe('넓은 범주 열이 미리보기를 폭발시키지 않는다', () =>
       categoricalEncoding: 'onehot',
     }
     const preprocessor = fitPreprocessor(table, rows, ['kind'], options)
-    const preview = preprocessPreview(table, preprocessor, rows, 'onehot')
+    const preview = preprocessPreview(table, preprocessor, rows)
     expect(preview.columns[0]?.features.length).toBe(2)
     expect(preview.columns[0]?.hiddenFeatures).toBe(0)
   })

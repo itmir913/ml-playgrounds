@@ -21,7 +21,13 @@ import { spawnEmbedWorker } from '@/ml/embed/spawn'
 import type { EstimateInput } from '@/ml/estimate'
 import { imageTestDataset, imageTrainingSource, pendingEmbeddings, rowKeysOf } from '@/ml/images'
 import { plannedColumnsOf } from '@/ml/plan-cache'
-import { estimatedFeatureWidth, isMissing, targetValues, type Dataset } from '@/ml/preprocess'
+import {
+  encodingFromSettings,
+  estimatedFeatureWidth,
+  isMissing,
+  targetValues,
+  type Dataset,
+} from '@/ml/preprocess'
 import {
   featuresInUse,
   trainableRowCountFor,
@@ -437,7 +443,7 @@ function trainingFeatureWidth(project: ProjectFile, taskType: TaskType | undefin
   return estimatedFeatureWidth(
     plannedColumnsOf(project),
     used,
-    data.preprocessing.categoricalEncoding,
+    encodingFromSettings(data.preprocessing),
   )
 }
 

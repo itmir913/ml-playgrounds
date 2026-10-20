@@ -111,8 +111,8 @@ function preparedFor(name: string, entry: FixtureEntry) {
     scaling: 'none',
     categoricalEncoding: 'onehot',
   })
-  const train = transform(preprocessor, dataset, entry.trainIndices, 'onehot')
-  const test = transform(preprocessor, dataset, entry.testIndices, 'onehot')
+  const train = transform(preprocessor, dataset, entry.trainIndices)
+  const test = transform(preprocessor, dataset, entry.testIndices)
   const column = dataset.columns.indexOf(entry.meta.target)
   const targetOf = (rows: readonly number[]): string[] =>
     rows.map((row) => String(dataset.rows[row]?.[column]))

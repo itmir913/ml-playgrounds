@@ -78,7 +78,6 @@ export async function confusionRowsFor(
   const rows = settings.testIndices
   if (rows.length === 0) return null
 
-  const encoding = snapshot.preprocessing.categoricalEncoding
   let guesses: ReturnType<ReturnType<typeof loadModel>>
   try {
     // 참조형(KNN)은 훈련 행이 있어야 예측한다. 아닌 형식은 이 값을 안 본다(`LoadContext`).
@@ -86,11 +85,7 @@ export async function confusionRowsFor(
       trainingRows: trainingRowsFor(experiment, preprocessor, dataset),
     })
     // 나눠 예측한다 — KNN은 한 행이 훈련 행 수만큼의 거리 계산이다(`predict-in-steps.ts`).
-    guesses = await predictInSteps(
-      predict,
-      transform(preprocessor, source, rows, encoding),
-      control,
-    )
+    guesses = await predictInSteps(predict, transform(preprocessor, source, rows), control)
   } catch (error) {
     if (error instanceof StepsCancelled) throw error
     return null

@@ -144,8 +144,6 @@ describe('일괄 예측의 내려받기', () => {
         rows: PICKED.map((row) => featureIndex.map((c) => iris.rows[row]?.[c] ?? '')),
       },
       PICKED.map((_, index) => index),
-      (experiment.settings.data as { preprocessing: { categoricalEncoding: 'onehot' | 'none' } })
-        .preprocessing.categoricalEncoding,
     )
     const payload: unknown = JSON.parse(
       new TextDecoder().decode(file.models.get(run.model.path) ?? new Uint8Array()),
@@ -266,7 +264,6 @@ describe('일괄 예측의 내려받기', () => {
         rows: PICKED.map((row) => featureIndex.map((c) => scaled.rows[row]?.[c] ?? '')),
       },
       PICKED.map((_, index) => index),
-      'onehot',
     )
     const payload: unknown = JSON.parse(
       new TextDecoder().decode(file.models.get(run.model.path) ?? new Uint8Array()),

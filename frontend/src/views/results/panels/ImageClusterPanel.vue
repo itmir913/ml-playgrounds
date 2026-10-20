@@ -61,7 +61,7 @@ const groups = computed(() => {
   const rows = source.dataset.rows.map((_, index) => index)
   // 임베딩에는 범주형 열이 없어서 인코딩이 아무 일도 안 한다. 전처리기가 학습 때 정한
   // 것을 그대로 되쓰는 것이 핵심이고, 값 자체는 여기서 뜻을 갖지 않는다.
-  const matrix = transform(preprocessor, source.dataset, rows, 'onehot')
+  const matrix = transform(preprocessor, source.dataset, rows)
 
   return imageClusterGroups(
     props.input.run.model?.format,

@@ -50,7 +50,7 @@ import type { EngineState } from '@/ml/backend'
 import type { Estimate } from '@/ml/estimate'
 import { reproduceEstimate } from '@/ml/reproduce-estimate'
 import { fittedKinds } from '@/ml/plan'
-import { estimatedFeatureWidth, type Preprocessor } from '@/ml/preprocess'
+import { encodingFromFitted, estimatedFeatureWidth, type Preprocessor } from '@/ml/preprocess'
 import { featuresInUse, usesTarget } from '@/ml/selection'
 import { calibrateDevice, train } from '@/ml/worker/client'
 import { spawnTrainingWorker } from '@/ml/worker/spawn'
@@ -283,7 +283,7 @@ const featureWidth = computed(() => {
   return estimatedFeatureWidth(
     fittedKinds(summarizeColumns(table), props.preprocessor ?? null, data.target, undefined),
     featuresInUse(data.features, usesTarget(taskType) ? data.target : undefined),
-    data.preprocessing.categoricalEncoding,
+    encodingFromFitted(props.preprocessor ?? null, data.preprocessing),
   )
 })
 

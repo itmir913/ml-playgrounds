@@ -40,7 +40,7 @@ import {
   hasEstimates,
   interpolate,
 } from '../src/ml/estimate'
-import { estimatedFeatureWidth, fitPreprocessor } from '../src/ml/preprocess'
+import { encodingFromSettings, estimatedFeatureWidth, fitPreprocessor } from '../src/ml/preprocess'
 
 /**
  * 손잡이를 안 건드린 기본 상태. 기준표를 잰 모양 그대로다.
@@ -437,13 +437,17 @@ group('전처리 뒤의 특성 수', () => {
         categoricalEncoding: encoding,
       } as const
       const fitted = fitPreprocessor(DATASET, ROWS, FEATURES, preprocessing)
-      const guessed = estimatedFeatureWidth(summarizeColumns(DATASET), FEATURES, encoding)
+      const guessed = estimatedFeatureWidth(
+        summarizeColumns(DATASET),
+        FEATURES,
+        encodingFromSettings(preprocessing),
+      )
       expect(guessed).toBe(fitted.featureNames.length)
     })
   }
 
   it('부호화를 안 하면 범주 열은 통째로 빠진다', () => {
-    expect(estimatedFeatureWidth(summarizeColumns(DATASET), FEATURES, 'none')).toBe(1)
+    expect(estimatedFeatureWidth(summarizeColumns(DATASET), FEATURES, () => 'none')).toBe(1)
   })
 })
 

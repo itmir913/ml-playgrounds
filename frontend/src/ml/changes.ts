@@ -136,6 +136,10 @@ const listOf: Describe = (value) => ({
  * 사람이 읽는 이름으로 바꾸는 것은 로케일을 아는 화면의 일이다 — `itemKind`가 그
  * 사실만 실어 보낸다.
  */
+/** 객체의 키 목록. 없으면 0개다 — 덮어쓴 열이 없다는 뜻이다. */
+const keysOf: Describe = (value) =>
+  listOf(typeof value === 'object' && value !== null ? Object.keys(value).sort() : [])
+
 const modelListOf: Describe = (value) => ({
   ...(listOf(value) as { kind: 'count'; count: number; items: readonly string[] }),
   itemKind: 'model',
@@ -220,6 +224,14 @@ const LABELS: Readonly<Record<string, { readonly labelKey: string; readonly desc
     'preprocessing.categoricalEncoding': {
       labelKey: 'preprocess.tabular.encoding',
       describe: vocabulary('categoricalEncoding'),
+    },
+    /**
+     * 열마다의 덮어쓰기 (open-decisions.md 116). **경로는 이것 하나다** — 열 이름은 경로에 안
+     * 들어가고(`LEAF_PATHS`), 덮어쓴 열의 이름이 눌러서 여는 목록이 된다.
+     */
+    'preprocessing.columns': {
+      labelKey: 'preprocess.tabular.columnOverrides',
+      describe: keysOf,
     },
     'split.method': { labelKey: 'preprocess.testDataTitle', describe: vocabulary('splitMethod') },
     'split.testSize': { labelKey: 'preprocess.testSize', describe: ratio },

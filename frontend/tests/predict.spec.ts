@@ -192,12 +192,15 @@ describe('① 훈련 행 만들기', () => {
     )
   })
 
-  it('인코딩이 어긋난 전처리기는 폭에서 잡힌다', () => {
+  it('인코딩은 전처리기가 정한다 - 설정의 인코딩이 달라도 같은 행이다', () => {
+    // 예전엔 설정의 인코딩으로 변환해서 어긋나면 폭에서 잡아야 했다. 이제 전처리기가 열마다
+    // 들므로(open-decisions.md 116) 설정이 무엇이든 fit과 같은 좌표계다.
     const fitted = experiment([0, 1, 3], onehot)
-    // 같은 데이터·같은 열인데 인코딩만 다른 실험. 전처리기를 바꿔 끼우면 열 수가 갈린다.
     const other = experiment([0, 1, 3], ordinal)
 
-    expect(codeOf(() => trainingRowsFor(other, fitFor(fitted), dataset))).toBe('MODEL_FILE_INVALID')
+    expect(trainingRowsFor(other, fitFor(fitted), dataset)).toEqual(
+      trainingRowsFor(fitted, fitFor(fitted), dataset),
+    )
   })
 })
 
@@ -209,7 +212,7 @@ describe('② 입력 한 줄을 특성 벡터로', () => {
       const rows = trainingRowsFor(subject, preprocessor, dataset)
 
       subject.settings.trainIndices.forEach((row, position) => {
-        expect(inputVector(subject, preprocessor, cellsOf(row))).toEqual(rows.features[position])
+        expect(inputVector(preprocessor, cellsOf(row))).toEqual(rows.features[position])
       })
     }
   })
@@ -218,7 +221,7 @@ describe('② 입력 한 줄을 특성 벡터로', () => {
     const subject = experiment([0, 1, 3], onehot)
     const preprocessor = fitFor(subject)
     // 훈련 데이터에서 본 순서가 서울·부산·대구다. 부산이면 두 번째 자리만 1이다.
-    const vector = inputVector(subject, preprocessor, {
+    const vector = inputVector(preprocessor, {
       키: '160',
       몸무게: '50',
       지역: '부산',
@@ -231,12 +234,12 @@ describe('② 입력 한 줄을 특성 벡터로', () => {
     const subject = experiment([0, 1, 3], onehot)
     const preprocessor = fitFor(subject)
 
-    expect(codeOf(() => inputVector(subject, preprocessor, { 키: '160', 지역: '부산' }))).toBe(
+    expect(codeOf(() => inputVector(preprocessor, { 키: '160', 지역: '부산' }))).toBe(
       'PREDICTION_INPUT_INCOMPLETE',
     )
-    expect(
-      codeOf(() => inputVector(subject, preprocessor, { 키: '160', 몸무게: '  ', 지역: '부산' })),
-    ).toBe('PREDICTION_INPUT_INCOMPLETE')
+    expect(codeOf(() => inputVector(preprocessor, { 키: '160', 몸무게: '  ', 지역: '부산' }))).toBe(
+      'PREDICTION_INPUT_INCOMPLETE',
+    )
   })
 
   it('학습에 안 쓰인 열은 칸도 없고, 있어도 무시된다', () => {
@@ -245,7 +248,7 @@ describe('② 입력 한 줄을 특성 벡터로', () => {
     const preprocessor = fitFor(subject)
 
     expect(preprocessor.excludedColumns).toEqual([{ name: '지역', reason: 'notEncodable' }])
-    expect(inputVector(subject, preprocessor, { 키: '160', 몸무게: '50' })).toEqual([160, 50])
+    expect(inputVector(preprocessor, { 키: '160', 몸무게: '50' })).toEqual([160, 50])
   })
 
   it('다른 실험의 전처리기를 쓰면 답이 갈린다 - 그래서 실험과 함께 골라야 한다', () => {
@@ -253,9 +256,7 @@ describe('② 입력 한 줄을 특성 벡터로', () => {
     const other = experiment([3, 4], scaled)
     const cells = cellsOf(0)
 
-    expect(inputVector(mine, fitFor(mine), cells)).not.toEqual(
-      inputVector(mine, fitFor(other), cells),
-    )
+    expect(inputVector(fitFor(mine), cells)).not.toEqual(inputVector(fitFor(other), cells))
   })
 })
 
@@ -266,9 +267,7 @@ describe('전처리기 파서', () => {
     const revived = parsePreprocessor(JSON.parse(JSON.stringify(preprocessor)))
 
     expect(revived.format).toBe(PREPROCESSOR_FORMAT)
-    expect(inputVector(subject, revived, cellsOf(0))).toEqual(
-      inputVector(subject, preprocessor, cellsOf(0)),
-    )
+    expect(inputVector(revived, cellsOf(0))).toEqual(inputVector(preprocessor, cellsOf(0)))
   })
 
   it('형식이 아닌 것은 거부한다 - 캐스팅으로 넘기면 한 칸 밀린 원-핫이 조용히 나온다', () => {
@@ -316,7 +315,7 @@ describe('참조형 모델과 이어 붙이기', () => {
 
     // 이웃이 하나면 자기 자신이므로 훈련 행의 답은 그 행의 라벨이다. ② 로 만든 벡터를
     // 넣어도 같아야 한다 - 두 이음매가 어긋나면 여기서 답이 갈린다.
-    const vectors = dataset.rows.map((_, row) => inputVector(subject, preprocessor, cellsOf(row)))
+    const vectors = dataset.rows.map((_, row) => inputVector(preprocessor, cellsOf(row)))
     expect(predict(vectors)).toEqual(['a', 'b', 'a', 'b', 'a'])
   })
 
@@ -487,7 +486,7 @@ describe('표에서 한 줄 가져오기', () => {
     const preprocessor = fitFor(subject)
     const sample = sampleRow(subject, inputFields(preprocessor), { dataset })
 
-    expect(() => inputVector(subject, preprocessor, sample?.values ?? {})).not.toThrow()
+    expect(() => inputVector(preprocessor, sample?.values ?? {})).not.toThrow()
   })
 })
 

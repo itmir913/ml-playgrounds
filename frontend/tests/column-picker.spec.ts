@@ -38,7 +38,7 @@ function planFor(taskType: 'regression' | 'classification') {
 
 function pickerFor(taskType: 'regression' | 'classification') {
   return mount(ColumnPicker, {
-    props: { plan: planFor(taskType), scaling: 'none' as const, encoding: 'onehot' as const },
+    props: { plan: planFor(taskType), scaling: 'none' as const, overridden: new Set<string>() },
     global: {
       /**
        * **문구가 빈 i18n이다.** 여기서 보는 것은 라디오가 눌리는가와 그 사실이 위로
@@ -109,7 +109,7 @@ describe('줄에 붙는 사유는 어느 열인지를 말한다', () => {
       preprocessing: { missing, scaling: 'none', categoricalEncoding: 'onehot' },
     })
     return mount(ColumnPicker, {
-      props: { plan, scaling: 'none' as const, encoding: 'onehot' as const },
+      props: { plan, scaling: 'none' as const, overridden: new Set<string>() },
       global: { plugins: [i18n] },
     })
   }
@@ -132,7 +132,7 @@ describe('줄에 붙는 사유는 어느 열인지를 말한다', () => {
       preprocessing: { missing: 'none', scaling: 'none', categoricalEncoding: 'onehot' },
     })
     const text = mount(ColumnPicker, {
-      props: { plan, scaling: 'none' as const, encoding: 'onehot' as const },
+      props: { plan, scaling: 'none' as const, overridden: new Set<string>() },
       global: { plugins: [i18n] },
     }).text()
 
@@ -152,7 +152,7 @@ describe('줄에 붙는 사유는 어느 열인지를 말한다', () => {
       preprocessing: { missing: 'none', scaling: 'none', categoricalEncoding: 'none' },
     })
     const text = mount(ColumnPicker, {
-      props: { plan, scaling: 'none' as const, encoding: 'none' as const },
+      props: { plan, scaling: 'none' as const, overridden: new Set<string>() },
       global: { plugins: [i18n] },
     }).text()
 

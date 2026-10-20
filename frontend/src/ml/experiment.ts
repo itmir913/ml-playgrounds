@@ -338,9 +338,14 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *
  * 객체는 파고들고 배열은 통째로 하나로 본다 - `features.2`는 학생에게 아무 뜻이 없고
  * "특성 목록이 바뀌었다"가 알고 싶은 전부다.
+ *
+ * **`LEAF_PATHS`의 경로는 객체여도 통째로 하나다.** 키가 학생의 열 이름이라 파고들면 경로에
+ * 사용자 데이터가 섞이고 `.`이 든 열 이름에서 경로가 모호해진다(open-decisions.md 116).
  */
+export const LEAF_PATHS: readonly string[] = ['preprocessing.columns']
+
 function changedPaths(before: unknown, after: unknown, prefix = ''): string[] {
-  if (isPlainObject(before) && isPlainObject(after)) {
+  if (isPlainObject(before) && isPlainObject(after) && !LEAF_PATHS.includes(prefix)) {
     const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])].sort()
     return keys.flatMap((key) =>
       changedPaths(before[key], after[key], prefix ? `${prefix}.${key}` : key),
@@ -793,13 +798,12 @@ export async function runExperiment(
   const testSource =
     !isClustering && settings.split.method === 'provided' && testDataset ? testDataset : dataset
 
-  const { categoricalEncoding } = data.preprocessing
   const trainContext: TrainContext = {
     taskType,
-    trainFeatures: transform(preprocessor, dataset, split.trainIndices, categoricalEncoding),
+    trainFeatures: transform(preprocessor, dataset, split.trainIndices),
     trainRowIndices: split.trainIndices,
     // 군집화에는 테스트 데이터가 없다 — testIndices가 빈 배열이므로 빈 행렬이 나온다.
-    testFeatures: transform(preprocessor, testSource, split.testIndices, categoricalEncoding),
+    testFeatures: transform(preprocessor, testSource, split.testIndices),
     // 군집화에는 타깃이 없다 — 빈 배열이 들어가고, 트레이너가 무시한다.
     trainTarget: isClustering ? [] : targetValues(dataset, split.trainIndices, target!),
     testTarget: isClustering ? [] : targetValues(testSource, split.testIndices, target!),

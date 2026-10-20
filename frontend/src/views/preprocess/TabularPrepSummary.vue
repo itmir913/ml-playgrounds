@@ -43,6 +43,9 @@ const data = computed(() => tabularDataOf(project.file?.document))
 
 const dataset = computed(() => readDataset(project.file))
 
+/** 인코딩을 열마다 덮어쓴 열의 수 (open-decisions.md 116). */
+const overrideCount = computed(() => Object.keys(data.value?.preprocessing.columns ?? {}).length)
+
 const plan = computed(() => props.plan)
 
 /**
@@ -158,6 +161,11 @@ const unused = computed(() => {
         <div class="flex justify-between gap-4">
           <dt class="font-bold text-ink-soft">{{ t('preprocess.tabular.summaryEncoding') }}</dt>
           <dd>{{ t(`categoricalEncoding.${data.preprocessing.categoricalEncoding}`) }}</dd>
+        </div>
+        <!-- 열마다 덮어쓴 것이 있으면 공통값만 말해서는 안 된다 (open-decisions.md 116). 몇 열인지만 말한다. -->
+        <div v-if="overrideCount > 0" class="flex justify-between gap-4">
+          <dt class="font-bold text-ink-soft">{{ t('preprocess.tabular.columnOverrides') }}</dt>
+          <dd>{{ t('preprocess.tabular.columnOverridesCount', overrideCount) }}</dd>
         </div>
 
         <!-- 데이터 누수를 말하는 자리다. 지금까지는 코드 주석에만 있었다. -->

@@ -226,8 +226,8 @@ for (const [name, entry] of Object.entries(document.datasets)) {
       scaling: 'none',
       categoricalEncoding: 'onehot',
     })
-    const trainFeatures = transform(preprocessor, dataset, entry.trainIndices, 'onehot')
-    const testFeatures = transform(preprocessor, dataset, entry.testIndices, 'onehot')
+    const trainFeatures = transform(preprocessor, dataset, entry.trainIndices)
+    const testFeatures = transform(preprocessor, dataset, entry.testIndices)
     const trainTarget = targetValues(dataset, entry.trainIndices, entry.meta.target)
     const testTarget = targetValues(dataset, entry.testIndices, entry.meta.target)
 

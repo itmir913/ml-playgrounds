@@ -180,7 +180,6 @@ function answers(project: ProjectFile, experiment: Experiment = lastOf(project))
       preprocessor,
       queries,
       QUERIES.map((_, index) => index),
-      'onehot',
     )
     const payload = JSON.parse(new TextDecoder().decode(bytes)) as unknown
     return loadModel(payload, context)(features)
@@ -470,7 +469,7 @@ describe('되세운 훈련 행', () => {
     const table = trained.source.dataset
     expect(rows?.indices).toEqual(trainIndices)
     expect(rows?.target).toEqual(targetValues(table, trainIndices, IMAGE_LABEL_COLUMN))
-    expect(rows?.features).toEqual(transform(preprocessor, table, trainIndices, 'onehot'))
+    expect(rows?.features).toEqual(transform(preprocessor, table, trainIndices))
   }
 
   it('열쇠가 있으면 사진을 더해도 학습 때의 행 그대로다', async () => {

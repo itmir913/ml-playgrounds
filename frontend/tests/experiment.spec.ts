@@ -19,7 +19,11 @@ import { ClientError, isClientError } from '../src/errors'
 import { ALGORITHMS, type Algorithm } from '../src/ml/algorithms'
 import { MAX_FAILURE_DETAIL_LENGTH } from '../src/limits'
 import { fit } from '../src/ml/engines/mljs'
-import { runExperiment as runExperimentRaw, type ExperimentInput } from '../src/ml/experiment'
+import {
+  LEAF_PATHS,
+  runExperiment as runExperimentRaw,
+  type ExperimentInput,
+} from '../src/ml/experiment'
 import { ENGINES, type TrainingEngine } from '../src/ml/engines'
 import { dataSnapshot } from '../src/project/schema'
 import { trainableRowCount } from '../src/ml/selection'
@@ -207,7 +211,7 @@ describe('실험이 실제로 학습한다', () => {
 
   it('전처리기는 실험 안이 아니라 따로 나온다', async () => {
     const result = await runExperiment(inputFor(), frozen)
-    expect(result.preprocessor.format).toBe('mlpx-preprocess-v1')
+    expect(result.preprocessor.format).toBe('mlpx-preprocess-v2')
     // zip 안의 경로를 가리키는 참조는 저장 계층이 채운다. 여기서 적으면 거짓말이 된다.
     expect(result.experiment.preprocessor).toBeUndefined()
   })
@@ -604,6 +608,30 @@ describe('id와 changed', () => {
       )
     ).experiment
     expect(second.changed).toEqual(['preprocessing.scaling'])
+  })
+
+  /**
+   * **열마다의 덮어쓰기는 경로 하나다** (open-decisions.md 116, `LEAF_PATHS`). 파고들면 열 이름이 경로에
+   * 섞이고 `.`이 든 이름에서 모호해진다. 특성에 없는 열이어도 설정이 바뀐 것이라 기록한다(규칙 4).
+   */
+  it('열마다의 덮어쓰기는 열 이름까지 파고들지 않는다', async () => {
+    expect(LEAF_PATHS).toEqual(['preprocessing.columns'])
+    const second = (
+      await runExperiment(
+        inputFor({
+          settings: settingsFor({
+            preprocessing: {
+              missing: 'mean',
+              scaling: 'none',
+              categoricalEncoding: 'onehot',
+              columns: { 'a.b': { categoricalEncoding: 'ordinal', categories: ['하', '상'] } },
+            },
+          }),
+        }),
+        { ...frozen, history },
+      )
+    ).experiment
+    expect(second.changed).toEqual(['preprocessing.columns'])
   })
 
   it('하이퍼파라미터는 바꾼 값 이름까지 집는다 - 학생이 가장 자주 바꾸는 것이다', async () => {
@@ -1632,7 +1660,7 @@ describe('군집', () => {
   })
 
   it('전처리기가 따로 나온다', async () => {
-    expect(preprocessor.format).toBe('mlpx-preprocess-v1')
+    expect(preprocessor.format).toBe('mlpx-preprocess-v2')
   })
 
   it('하이퍼파라미터가 확정된다', async () => {

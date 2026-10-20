@@ -50,20 +50,16 @@ const props = defineProps<{
    * 화면이 틀렸다고 여긴다 — **둘이 같아지면 그때가 데이터 누수다.**
    */
   scaling: Preprocessing['scaling']
-  /**
-   * 문자 열을 무엇으로 바꾸는가. **`scaling`과 같은 이유로 받는다** — 칸에 적을 문장이
-   * 방식마다 다르고(`encodingBasis.*`), 이 부품은 설정을 직접 읽지 않는다.
-   *
-   * `none`은 여기 안 온다 — 그 설정에서 문자 열은 전처리기에 아예 안 담기고
-   * (`fitPreprocessor`의 `excludedColumns`), 그 사실은 줄의 사유가 따로 말한다.
-   */
-  encoding: Preprocessing['categoricalEncoding']
+  /** 인코딩을 열마다 덮어쓴 열. 그 열의 [변경]이 굵어 공통값을 따르는 열과 갈린다. */
+  overridden: ReadonlySet<string>
 }>()
 
 const emit = defineEmits<{
   pickTarget: [name: string]
   toggleFeature: [name: string, on: boolean]
   setAllFeatures: [on: boolean]
+  /** 범주형 열의 인코딩 창을 연다 (open-decisions.md 116, `ColumnEncodingDialog.vue`). */
+  editEncoding: [name: string]
 }>()
 
 const { t } = useI18n()
@@ -101,10 +97,11 @@ function effectOf(column: ColumnPlan['columns'][number]): string[] {
    * 하나가 표를 수십 열로 불린다. 그 수는 훈련 데이터에서 본 범주 수와 같다
    * (`fitPreprocessor`).
    */
-  if (fitted.categories) {
+  if (fitted.kind === 'categorical') {
     const categories = fitted.categories
+    // 인코딩은 열마다 다를 수 있다 — 전처리기가 든 그 열의 값을 쓴다 (open-decisions.md 116).
     parts.push(
-      props.encoding === 'ordinal'
+      fitted.encoding === 'ordinal'
         ? t('encodingBasis.ordinal', { last: categories.length - 1 })
         : t('encodingBasis.onehot', { count: categories.length }),
     )
@@ -269,6 +266,19 @@ function onFeature(name: string, event: Event): void {
           <td class="whitespace-nowrap">{{ column.summary.unique }}</td>
           <td class="whitespace-nowrap text-ink-soft">
             <span v-for="part in effectOf(column)" :key="part" class="block">{{ part }}</span>
+            <!--
+              **범주형 특성 열에만 선다** (open-decisions.md 116). 표에 칸을 더하지 않고 이 칸에서 창을
+              연다 — 인코딩은 이 칸이 이미 말하는 것이다. 덮어쓴 열은 글자가 굵어 공통값과 갈린다.
+            -->
+            <AppButton
+              v-if="column.role === 'feature' && column.summary.kind === 'categorical'"
+              class="mt-1"
+              variant="secondary"
+              :class="props.overridden.has(column.summary.name) ? 'font-bold' : ''"
+              @click="emit('editEncoding', column.summary.name)"
+            >
+              {{ t('preprocess.tabular.changeEncoding') }}
+            </AppButton>
           </td>
         </tr>
       </tbody>

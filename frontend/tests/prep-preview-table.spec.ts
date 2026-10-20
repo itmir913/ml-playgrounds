@@ -38,7 +38,7 @@ function mounted(kinds: number) {
   const dataset = table(kinds)
   const rows = dataset.rows.map((_, index) => index)
   const preprocessor = fitPreprocessor(dataset, rows, ['wide', 'narrow'], ONEHOT)
-  const preview = preprocessPreview(dataset, preprocessor, rows, 'onehot')
+  const preview = preprocessPreview(dataset, preprocessor, rows)
   return mount(TabularPrepPreview, {
     props: { preview, emptyKey: 'preprocess.previewEmpty' },
     global: { plugins: [i18n] },
