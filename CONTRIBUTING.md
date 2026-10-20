@@ -167,7 +167,7 @@ Not as a file, not as a snippet, and not as something "adapted" from one:
 - **Code with no license**, or one you cannot name.
 - **Non-commercial or "source-available" terms**: CC BY-NC, BSL, Commons Clause.
 - **MPL code copied into a file.** MPL is file-level copyleft, so a copied file
-  stays MPL. MPL as a *dependency* is fine. Pyodide ships that way.
+  stays MPL. MPL as a _dependency_ is fine. Pyodide ships that way.
 
 If you used an AI assistant, what it wrote is your contribution like anything
 else. Do not submit output you have reason to think reproduces licensed code.

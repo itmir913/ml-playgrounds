@@ -38,12 +38,12 @@ browser with no install and no sign-up, in English, Korean and Japanese.
 
 ## What you can do
 
-|               |                                                             |
-| ------------- | ----------------------------------------------------------- |
-| Data          | Tables (`.csv`, `.xlsx`) and images                          |
-| Tasks         | Classification, regression, clustering (images: classification and clustering) |
+|               |                                                                                                                |
+| ------------- | -------------------------------------------------------------------------------------------------------------- |
+| Data          | Tables (`.csv`, `.xlsx`) and images                                                                            |
+| Tasks         | Classification, regression, clustering (images: classification and clustering)                                 |
 | Along the way | Inspect columns, handle missing values, scale and encode, split train/test, compare runs, predict on new input |
-| Portfolio     | A write-up saved with the results in the same `.mlpx` file  |
+| Portfolio     | A write-up saved with the results in the same `.mlpx` file                                                     |
 
 ## Development
 
@@ -60,11 +60,11 @@ from a URL by default, and `xlsx` comes from the SheetJS CDN as a tarball URL.
 `root` allows only the URLs written in our own `package.json` — npm has no
 setting that allows a single host.
 
-| Command         | What it does |
-| --------------- | ------------ |
-| `npm run dev`   | Starts the local server |
-| `npm run ci`    | Runs the full gate, exactly as CI does |
-| `npm run build` | Produces the static site |
+| Command         | What it does                                                                  |
+| --------------- | ----------------------------------------------------------------------------- |
+| `npm run dev`   | Starts the local server                                                       |
+| `npm run ci`    | Runs the full gate, exactly as CI does                                        |
+| `npm run build` | Produces the static site                                                      |
 | `npm run lint`  | Rewrites what `ci` would flag, and can touch files you did not mean to change |
 
 The gate fetches the image backbone and Pyodide, then runs lint, types, tests,
