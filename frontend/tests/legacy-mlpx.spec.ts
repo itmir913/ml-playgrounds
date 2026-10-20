@@ -22,18 +22,22 @@ import { join } from 'node:path'
 import { unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
-import { isClientError } from '../src/errors'
 import { hashBytes } from '../src/hash'
 import { DEFAULT_BACKBONE_ID, backboneFor } from '../src/ml/backbones'
 import { embeddingColumns, imageLoadContext, imageTrainingRows } from '../src/ml/images'
-import { interpreterFor, loadModel, loadModelProba, type LoadContext } from '../src/ml/models'
-import { inputVector, readPreprocessors, trainingRowsFor } from '../src/ml/predict'
-import { transform, type Preprocessor } from '../src/ml/preprocess'
-import { readDataset } from '../src/project/dataset'
+import { transform } from '../src/ml/preprocess'
 import { readEmbeddings } from '../src/project/embeddings'
 import { readProject, writeProject, type ProjectFile } from '../src/project/format'
 import { addImages } from '../src/project/images'
-import { dataSettings, dataSnapshot, type Experiment } from '../src/project/schema'
+import { dataSettings, dataSnapshot } from '../src/project/schema'
+
+import {
+  answersOf,
+  expectSameAnswer,
+  expectSameProbabilities,
+  tabularAnswers,
+  type Answers,
+} from './fixtures/legacy-answers'
 
 const ROOT = join(__dirname, 'fixtures', 'legacy')
 const BACKBONE = backboneFor(DEFAULT_BACKBONE_ID)!
@@ -41,16 +45,6 @@ const DIM = BACKBONE.embeddingDim
 const NOW = '2026-10-08T09:00:00.000Z'
 
 type Kind = 'tabular' | 'image'
-
-interface Probabilities {
-  readonly classes: readonly string[]
-  readonly values: readonly (readonly number[])[]
-}
-
-interface Answers {
-  readonly answers: Record<string, unknown>
-  readonly probabilities: Record<string, Probabilities>
-}
 
 interface Recorded {
   readonly tag: string
@@ -93,66 +87,6 @@ async function open(tag: string, kind: Kind) {
 async function rewritten(project: ProjectFile): Promise<ProjectFile> {
   const { blob } = await writeProject(project, '# legacy fixture\n')
   return (await readProject(new Uint8Array(await blob.arrayBuffer()))).project
-}
-
-function needsRows(format: string): boolean {
-  return interpreterFor(format)?.needsTrainingRows === true
-}
-
-/**
- * 모델마다 답과 확률 — 생성기(`scripts/legacy-mlpx/legacy-generate.mjs`)의 `answersOf`와 같은 모양이다.
- * 열쇠는 `실험/run/알고리즘`. 못 내면 그 코드를 적는다.
- */
-function answersOf(
-  project: ProjectFile,
-  contextOf: (experiment: Experiment, preprocessor: Preprocessor, format: string) => LoadContext,
-  featuresOf: (experiment: Experiment, preprocessor: Preprocessor) => number[][],
-): Answers {
-  const preprocessors = readPreprocessors(project.document, project.models)
-  const answers: Record<string, unknown> = {}
-  const probabilities: Record<string, Probabilities> = {}
-  for (const experiment of project.document.runs.experiments) {
-    const preprocessor = preprocessors.get(experiment.id)
-    for (const run of experiment.runs) {
-      const key = `${experiment.id}/${run.id}/${run.algorithm}`
-      if (!run.model) {
-        answers[key] = { omitted: run.modelOmitted ?? null }
-        continue
-      }
-      const bytes = project.models.get(run.model.path)
-      if (!bytes || !preprocessor) {
-        answers[key] = { error: 'NO_BYTES_OR_PREPROCESSOR' }
-        continue
-      }
-      const payload = JSON.parse(new TextDecoder().decode(bytes)) as unknown
-      try {
-        const context = contextOf(experiment, preprocessor, run.model.format)
-        const features = featuresOf(experiment, preprocessor)
-        answers[key] = loadModel(payload, context)(features)
-        const proba = loadModelProba(payload, context)
-        if (proba) {
-          const values = proba.predict(features).map((row) => Array.from(row ?? []))
-          probabilities[key] = { classes: proba.classes, values }
-        }
-      } catch (error) {
-        if (!isClientError(error)) throw error
-        answers[key] = { error: error.code }
-      }
-    }
-  }
-  return { answers, probabilities }
-}
-
-function tabularAnswers(project: ProjectFile, queries: Record<string, string>[]): Answers {
-  const dataset = readDataset(project)
-  return answersOf(
-    project,
-    (experiment, preprocessor, format) =>
-      needsRows(format) && dataset
-        ? { trainingRows: trainingRowsFor(experiment, preprocessor, dataset) }
-        : {},
-    (_experiment, preprocessor) => queries.map((values) => inputVector(preprocessor, values)),
-  )
 }
 
 /** 생성기의 `vectorOf`와 같은 식이다 — 질의를 파일 밖에서 똑같이 짓는다. 바꾸면 둘 다 바꿔라. */
@@ -199,41 +133,6 @@ function answersFor(kind: Kind, project: ProjectFile, recorded: Recorded): Answe
   return kind === 'tabular'
     ? tabularAnswers(project, recorded.tabular.queries)
     : imageAnswers(project, recorded.image.querySeeds)
-}
-
-/** 숫자는 부동소수 끝자리까지 같으라고 하지 않는다 — 예측 식의 덧셈 순서가 판마다 다를 수 있다. */
-function expectClose(actual: unknown, expected: number, label: string): void {
-  expect(typeof actual, label).toBe('number')
-  expect(Math.abs((actual as number) - expected), label).toBeLessThanOrEqual(
-    1e-9 * Math.max(1, Math.abs(expected)),
-  )
-}
-
-function expectSameAnswer(actual: unknown, recorded: unknown, label: string): void {
-  if (Array.isArray(recorded) && recorded.every((value) => typeof value === 'number')) {
-    expect(Array.isArray(actual), label).toBe(true)
-    expect(actual as unknown[], label).toHaveLength(recorded.length)
-    recorded.forEach((value, index) => {
-      expectClose((actual as unknown[])[index], value as number, `${label} [${index}]`)
-    })
-    return
-  }
-  expect(actual, label).toEqual(recorded)
-}
-
-function expectSameProbabilities(
-  actual: Probabilities | undefined,
-  recorded: Probabilities,
-  label: string,
-): void {
-  expect(actual, label).toBeDefined()
-  expect(actual?.classes, label).toEqual(recorded.classes)
-  expect(actual?.values, label).toHaveLength(recorded.values.length)
-  recorded.values.forEach((row, rowIndex) => {
-    row.forEach((value, column) => {
-      expectClose(actual?.values[rowIndex]?.[column], value, `${label} [${rowIndex}][${column}]`)
-    })
-  })
 }
 
 function expectAnswers(tag: string, kind: Kind, actual: Answers, recorded: Answers): void {

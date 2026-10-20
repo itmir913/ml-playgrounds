@@ -11,3 +11,4 @@ tests/fixtures/schema/
 # 과거 배포판의 골든 답 - 그 태그의 생성기가 쓴 그대로다(tests/fixtures/legacy/README.md).
 # 역사라 다시 짓지 않고, 포맷터도 손대지 않는다.
 tests/fixtures/legacy/*/answers.json
+tests/fixtures/legacy-categorical/*/answers.json

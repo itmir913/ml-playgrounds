@@ -30,7 +30,8 @@ for tag in "$@"; do
     # 내려받기 훅(백본·Pyodide)은 생성에 쓰지 않는다.
     npm ci --ignore-scripts --no-audit --no-fund >"$work/npm-$tag.log" 2>&1
     # JS 생성기를 `.spec.ts` 이름으로 놓는다 — 그 태그의 vitest가 `tests/**/*.spec.ts`만 집는다.
-    cp "$here/legacy-generate.mjs" tests/zz-legacy-generate.spec.ts
+    # 범주 열 골든은 `LEGACY_GENERATOR=legacy-categorical.mjs`로 고른다(그 파일 머리말).
+    cp "$here/${LEGACY_GENERATOR:-legacy-generate.mjs}" tests/zz-legacy-generate.spec.ts
     LEGACY_OUT="$out" LEGACY_TAG="$tag" npx vitest run tests/zz-legacy-generate.spec.ts \
       >"$work/vitest-$tag.log" 2>&1 || { echo "   FAILED — $work/vitest-$tag.log"; exit 1; }
   ) && echo "   ok — $(ls "$out" | tr '\n' ' ')" || failed=$((failed + 1))

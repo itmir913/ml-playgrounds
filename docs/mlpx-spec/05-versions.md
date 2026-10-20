@@ -101,6 +101,9 @@
 - **다시 짓지 않는다.** `*.released.json`과 같다 — 역사다. 이 검사가 울면 기대값이 아니라 깬 쪽을 되돌린다.
   과거 파일의 동작을 일부러 바꾸면 `EXPECTED_CHANGES`에 이유와 함께 적는다.
 - **새로 짓는 때:** 위 축의 하나를 바꾼 배포 뒤에, 그 태그로 `frontend/scripts/legacy-mlpx/generate.sh`를 돌려 더한다.
+- **범주 열은 따로 둔다.** 위 골든은 붓꽃이라 수치 열뿐이어서 범주 인코딩 경로가 틀어져도 못 운다. 범주 열이 든
+  골든(실제 학생 파일 하나와 zoo)은 `frontend/tests/legacy-categorical.spec.ts`가 보고, 골든은
+  `frontend/tests/fixtures/legacy-categorical/`이다. 범주 인코딩의 형식이 바뀐 배포에서 거기에도 더한다.
 
 ### 9.6 v4 → v5 — 전처리를 열마다 덮어쓴다 (2026-10-20)
 
