@@ -144,6 +144,8 @@
 | 되보내는 부품이 인자를 흘리는가 | `ui-rules.spec.ts` |
 | 범주 이름이 세 운영체제에서 폴더가 되는가 | `image.spec.ts` |
 | 문서를 가리키는 참조가 살아 있는가 | `doc-refs.spec.ts` |
+| 줄 번호(`파일:줄`·`#L줄`)로 가리키지 않는가 — 규칙·안내 문서와 `frontend/`의 소스·검사. 판례·감사 기록은 뺀다 | `line-refs.spec.ts` |
+| 밖에서 처음 보는 영어 문서(`README.md`·`CONTRIBUTING.md`)가 서식을 지키는가 — 한글 `docs/`는 안 넣는다(표를 읽는 검사가 서식에 기댄다) | `lint:check`(prettier) |
 | 판례의 절 제목이 규칙 문서의 절과 짝인가 — 번호 없는 `###` 아래와 번호는 같고 제목이 다른 것은 못 본다 | `cases-headings.spec.ts` |
 | 규칙과 판례가 짝이고, 결정문이 `[미정]`·`[결정]`·`[폐기]`를 갖는가 · 결정 번호가 겹치지 않는가 | `docs-structure.spec.ts` |
 | 사진을 굽기 전에 자리를 묻는가 | `image-room.spec.ts` |
