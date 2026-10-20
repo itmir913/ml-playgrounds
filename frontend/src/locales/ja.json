@@ -982,6 +982,8 @@
     "cellTitle": "このセルの意味",
     "cellWrong": "実際のクラスとは異なるクラスを予測したセルです。",
     "change": "{from} → {to}",
+    "changedColumnsNamed": "変更された列 {count}個 ({names})",
+    "changedColumns": "変更された列 {count}個",
     "changeTitle": "直前の実験から変更された設定",
     "clusterName": "クラスタ{index}",
     "confusion": "混同行列(Confusion Matrix)",

@@ -12,6 +12,7 @@
  */
 
 import { HASH_PREVIEW_LENGTH } from '../limits'
+import { own } from '../records'
 import { comparablePair, sharedModelKeys, type ComparableSource } from './experiment'
 
 /**
@@ -81,6 +82,11 @@ export interface Change {
    * (CLAUDE.md 3 규칙 5).
    */
   readonly model?: { readonly algorithm: string; readonly runtime: string }
+  /**
+   * **앞뒤를 견줘야 말할 수 있는 변경**에서, 변경된 항목의 이름. 있으면 화면은 `from → to` 대신
+   * `변경된 열 N개 (이름)`으로 말한다 (`PAIRWISE`, open-decisions.md 116). 이름은 학생의 열 이름이다.
+   */
+  readonly changedItems?: readonly string[]
 }
 
 /** 값 하나를 어떻게 서술할지. 경로마다 다르다. */
@@ -139,6 +145,32 @@ const listOf: Describe = (value) => ({
 /** 객체의 키 목록. 없으면 0개다 — 덮어쓴 열이 없다는 뜻이다. */
 const keysOf: Describe = (value) =>
   listOf(typeof value === 'object' && value !== null ? Object.keys(value).sort() : [])
+
+/**
+ * 두 객체에서 값이 다른 키. 한쪽에만 있는 키도 다르다 — 덮어쓰기를 새로 만들거나 지운 열이다.
+ * **키는 자기 속성으로만 읽는다** — 열 이름이 `__proto__`여도 프로토타입을 안 본다(`own`).
+ */
+export function changedKeys(before: unknown, after: unknown): string[] {
+  const a = isRecord(before) ? before : {}
+  const b = isRecord(after) ? after : {}
+  const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort()
+  return keys.filter(
+    (key) => JSON.stringify(own(a, key) ?? null) !== JSON.stringify(own(b, key) ?? null),
+  )
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * **앞뒤를 함께 봐야 말할 수 있는 경로** (open-decisions.md 116, 구현 감사 C-1). 값 하나씩
+ * 서술하면 열마다의 덮어쓰기는 `1개 → 1개`가 되어 무엇이 변경됐는지 말하지 못한다.
+ * 이 표의 경로는 `from → to` 대신 변경된 항목의 이름을 낸다(`Change.changedItems`).
+ */
+const PAIRWISE: Readonly<Record<string, (before: unknown, after: unknown) => readonly string[]>> = {
+  'preprocessing.columns': changedKeys,
+}
 
 const modelListOf: Describe = (value) => ({
   ...(listOf(value) as { kind: 'count'; count: number; items: readonly string[] }),
@@ -346,6 +378,16 @@ export function describeChanges(
 
       const known = LABELS[path]
       const steps = path.split('.')
+      const pairwise = Object.hasOwn(PAIRWISE, path) ? PAIRWISE[path] : undefined
+      if (pairwise) {
+        return {
+          path,
+          labelKey: known?.labelKey ?? null,
+          from: { kind: 'absent' },
+          to: { kind: 'absent' },
+          changedItems: pairwise(at(before, steps), at(after, steps)),
+        }
+      }
       const describe = known?.describe ?? literal
       return {
         path,

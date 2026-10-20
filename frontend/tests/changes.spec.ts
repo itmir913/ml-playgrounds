@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { describeChanges, memberDiff } from '../src/ml/changes'
+import { changedKeys, describeChanges, memberDiff } from '../src/ml/changes'
 import type { ComparableSource, ExperimentPrelude } from '../src/ml/experiment'
 import {
   assembleExperiment,
@@ -124,6 +124,43 @@ async function changesOf(second: Partial<Settings>) {
   const { first, second: next } = await twice(second)
   return describeChanges(first, next, next.changed ?? [])
 }
+
+/**
+ * **열마다의 덮어쓰기는 `1개 → 1개`로 말하지 않는다** (open-decisions.md 116, 구현 감사 C-1). 순서나
+ * 인코딩만 고쳐도 열 수는 그대로라 전후 개수로는 무엇이 변경됐는지 안 보인다 — 변경된 열의 이름을 낸다.
+ */
+describe('열별 인코딩은 변경된 열을 말한다', () => {
+  it('덮어쓰기를 새로 만든 열과 순서만 고친 열이 둘 다 변경된 열이다', async () => {
+    const before = { 'b.c': { categoricalEncoding: 'ordinal', categories: ['하', '상'] } }
+    const after = {
+      'b.c': { categoricalEncoding: 'ordinal', categories: ['상', '하'] },
+      a: { categoricalEncoding: 'onehot' },
+    }
+    expect(changedKeys(before, after)).toEqual(['a', 'b.c'])
+    expect(changedKeys(after, after)).toEqual([])
+    expect(changedKeys({ __proto__: null, x: {} }, undefined)).toEqual(['x'])
+  })
+
+  it('실험 기록에서 그 경로는 전후 값 대신 변경된 열 이름을 든다', async () => {
+    const changes = await changesOf({
+      preprocessing: {
+        missing: 'mean',
+        scaling: 'none',
+        categoricalEncoding: 'onehot',
+        columns: { [IRIS_FEATURE_COLUMNS[0]]: { categoricalEncoding: 'ordinal' } },
+      },
+    })
+    expect(changes).toEqual([
+      {
+        path: 'preprocessing.columns',
+        labelKey: 'preprocess.tabular.columnOverrides',
+        from: { kind: 'absent' },
+        to: { kind: 'absent' },
+        changedItems: [IRIS_FEATURE_COLUMNS[0]],
+      },
+    ])
+  })
+})
 
 describe('바뀐 값을 전후로 보여준다', () => {
   it('어휘는 로케일 키로 온다 - 화면이 문장을 만든다', async () => {

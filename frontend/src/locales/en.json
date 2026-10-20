@@ -982,6 +982,8 @@
     "cellTitle": "What this cell means",
     "cellWrong": "Predictions in this cell differ from the actual value.",
     "change": "{from} → {to}",
+    "changedColumnsNamed": "{count} column changed ({names}) | {count} columns changed ({names})",
+    "changedColumns": "{count} column changed | {count} columns changed",
     "changeTitle": "Settings changed since the previous experiment",
     "clusterName": "Cluster {index}",
     "confusion": "Confusion matrix",

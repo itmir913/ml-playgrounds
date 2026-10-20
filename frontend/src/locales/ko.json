@@ -982,6 +982,8 @@
     "cellTitle": "이 칸의 의미",
     "cellWrong": "실제 값과 다르게 예측한 칸입니다.",
     "change": "{from} → {to}",
+    "changedColumnsNamed": "변경된 열 {count}개 ({names})",
+    "changedColumns": "변경된 열 {count}개",
     "changeTitle": "직전 실험에서 변경된 설정",
     "clusterName": "{index}번 군집",
     "confusion": "혼동 행렬(Confusion Matrix)",

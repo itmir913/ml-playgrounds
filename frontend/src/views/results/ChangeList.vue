@@ -112,9 +112,47 @@ const rows = computed(() => props.changes.map((change) => ({ change, members: me
             <AppBadge>{{ t(`runtimes.${change.model.runtime}`) }}</AppBadge>
           </template>
           <AppBadge>{{ t(change.labelKey) }}</AppBadge>
-          <span>
+          <!--
+            **앞뒤를 견줘야 말할 수 있는 변경은 `from → to`로 말하지 않는다** (`Change.changedItems`,
+            open-decisions.md 116). 열이 하나면 이름을 문장 끝 괄호에 두고, 둘 이상이면 개수만 말하고
+            이름은 옆의 [변경된 설정]을 눌러 연다 — 특성 목록과 같은 이유다.
+          -->
+          <span v-if="change.changedItems">
+            {{
+              change.changedItems.length === 1
+                ? t('results.changedColumnsNamed', 1, {
+                    named: { count: 1, names: change.changedItems[0] },
+                  })
+                : t('results.changedColumns', change.changedItems.length, {
+                    named: { count: change.changedItems.length },
+                  })
+            }}
+          </span>
+          <span v-else>
             {{ t('results.change', { from: valueText(change.from), to: valueText(change.to) }) }}
           </span>
+          <AppPopover
+            v-if="change.changedItems && change.changedItems.length > 1"
+            size="wide"
+            side="top"
+          >
+            <template #trigger="{ open }">
+              <button
+                type="button"
+                :aria-expanded="open"
+                class="flex items-center gap-1 rounded-control text-brand underline decoration-dotted underline-offset-4 transition-colors hover:text-brand-strong"
+              >
+                {{ t('results.whatChanged') }}
+                <component :is="ACTION_ICONS.explainTerm" :size="16" aria-hidden="true" />
+              </button>
+            </template>
+            <h4 class="font-bold text-ink">{{ t(change.labelKey) }}</h4>
+            <ul class="mt-2 flex flex-wrap gap-1.5">
+              <li v-for="name in change.changedItems" :key="name">
+                <AppBadge>{{ name }}</AppBadge>
+              </li>
+            </ul>
+          </AppPopover>
 
           <!--
             **개수만으로는 무엇을 뺐는지 알 수 없다.** 그렇다고 이름을 줄에 늘어놓으면
