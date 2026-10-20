@@ -41,7 +41,8 @@ vi.mock('../src/ml/worker/spawn', async () => {
 })
 
 /**
- * **실물 주입 한 줄을 잡아 두는 손** (R26 A-4). `handler.ts:33`이 유일한 배선 자리인데
+ * **실물 주입 한 줄을 잡아 두는 손** (R26 A-4). `ml/worker/handler.ts`가 `runExperiment`에 넘기는
+ * `pools`(`neural`·`forest`·`knn`)가 유일한 배선 자리인데
  * 아무 검사도 안 물어서, 감사자가 `knn`을 지우자 **KNN 병렬화가 통째로 꺼진 채 관문이
  * 초록이었다.** 학생은 2.36배를 잃고 아무도 모른다.
  */
