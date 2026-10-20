@@ -4,6 +4,31 @@
 
 > **상태 한 줄과, 제목이 물음일 때만 결론 한 줄을 둔다.** 경위는 같은 제목 아래 `docs/cases/open-decisions.md`에 있다.
 
+### 116. 열마다 다른 범주형 인코딩과 범주 순서를 지정할 수 있어야 하는가 — **있어야 한다. 공통값을 기본으로 두고 필요한 열만 덮어쓴다. 1차는 범주형 인코딩과 순서 인코딩의 범주 순서뿐이다 (2026-10-20, 코드 소유자, #45)**
+**[결정]** 구현을 마쳤다(#45). 경위: `docs/cases/open-decisions.md`의 같은 제목. sklearn `ColumnTransformer` +
+`OrdinalEncoder(categories=...)` 관행이다. 스케일링·결측의 열별 지정과 백엔드는 범위 밖이다.
+
+- **포맷.** `preprocessing.columns[열]`에 `categoricalEncoding`(어휘는 `CATEGORICAL_ENCODINGS`)과 `categories`(순서)를 선택으로 든다.
+  `FORMAT_VERSION`이 오르고(`mlpx-spec.md` §9.6), 전처리기 형식이 `mlpx-preprocess-v2`로 오른다 — 열마다 해석한 인코딩과
+  순서를 지정했는지를 전처리기가 든다. **옛 `v1`도 계속 읽는다** — 실험의 공통 인코딩으로 열을 채워 `v2`로 본다(`mlpx-spec.md` §4).
+- **해석은 함수 하나다** (`resolveColumnPreprocessing` — 공통값 + 덮어쓰기). 인코딩이 `ordinal`이 아니면 `categories`는
+  해석에서만 무시하고 저장은 남긴다. `features`에서 빠진 열의 덮어쓰기도 남긴다 — 다시 넣으면 복원된다.
+- **순서를 지정하지 않은 열은 61 그대로 정렬한다.** 차트 막대 순서는 지정 순서를 따르지 않는다(정렬 유지).
+- **훈련 데이터의 값이 지정 순서에 없으면 학습 전에 거절한다** (`client.*` 새 코드, `error-codes.md`). 조용히 −1로 학습하는
+  것을 막는 우리 결정이다 — sklearn은 `handle_unknown='use_encoded_value'`에서 막지 않는다. 지정 순서에만 있는 값은 받고,
+  예측에서 처음 보는 값은 지금처럼 −1이다(72).
+- **화면은 표의 `전처리` 칸에서 여는 열마다의 창이다** — 데스크톱에서 두 열(왼쪽 인코딩, 오른쪽 범주 순서)이고 좁으면 쌓인다
+  (코드 소유자). 표에 칸을 더하지 않는다.
+- **범주 순서 목록에 상한이 없다** (코드 소유자). sklearn `OrdinalEncoder(categories=...)`에도 없다. 값이 많으면 **보이는 줄만
+  그리고**(가상 목록, 자체 구현) ↑↓로 못 옮길 만큼 많으면 [사전순 정렬]·[사전 역순 정렬]로 한 번에 채운다. 처음 계약은 상한과
+  gate로 잠갔다 — 기각한 까닭과 잰 값은 경위에 있다.
+- **행동불능이 없다 — 저장된 덮어쓰기는 언제나 보이고 언제나 풀 수 있다** (코드 소유자). 순서 목록은 아무것도 잠그지 않고,
+  지정 순서에 없는 값이 생겨 학습이 거절될 때도 그 열에서 [순서 지정 해제]로 풀 수 있다. 해석에서 무시되는 덮어쓰기
+  (`features`에서 빠진 열, `ordinal`이 아닌 열의 `categories`)는 학습을 막지 않으므로 갇히지 않는다.
+- **`preprocessing.columns`는 실험 기록에서 경로 하나다** — 열 이름이 경로에 안 들어간다. 재귀를 멈출 경로를 상수 목록으로 둔다.
+- **재현 규칙 `CATEGORY_ORDER`(62)는 순서를 지정한 열을 걸지 않는다.** `v1`에서 채운 열은 지금 판정 그대로다.
+- **무는 검사.** `column-preprocessing.spec.ts`(해석·섞인 인코딩·v1 읽기·덮어쓰기·가상 목록), `sklearn-parity.spec.ts`의 *"열별 인코딩"*(sklearn `ColumnTransformer`와 같은 행렬), `sklearn-column-encoding.spec.ts`(설정 조합 76판에서 앱의 실험 run이 sklearn과 같은 답), `migrate.spec.ts`의 *"v4 -> v5"*, `changes.spec.ts`의 *"열별 인코딩은 변경된 열을 말한다"*, `reproduce.spec.ts`의 *"학생이 순서를 지정한 열"*, `settings.spec.ts`의 `withPreprocessingReplaced`.
+
 ### 115. 군집 산점도의 축을 학습에 쓰지 않은 열로도 세우는가 — **세운다. 결과 화면에서만이고, 그런 그림은 두 축 모두 원본 칸으로 그리며 중심점을 안 그린다 (2026-10-15, 코드 소유자)**
 **[결정]** 경위: `docs/cases/open-decisions.md`의 같은 제목. "군집 산점도의 축 — 범주도 축이다"를
 다시 넓힌다. 두 축이 모두 특성인 그림과 예측 화면, 군집 요약표는 지금 그대로다. 무는 검사: `cluster-plot.spec.ts` 전체와 `cluster-scatter.spec.ts`의 *"학습에 쓰지 않은 열"*·*"그림 설명"*.
