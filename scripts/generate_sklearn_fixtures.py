@@ -1112,6 +1112,9 @@ def column_encoding_runs_record() -> dict[str, Any]:
         "trainRows": _RUN_TRAIN_ROWS,
         "testRows": _RUN_TEST_ROWS,
         "scenarios": scenarios,
+        # 라벨을 견줄 행(`labelRows`)을 끌어낸 계수 여유. 스펙이 자기 상수와 같은지 본다 — 한쪽만 바뀌면
+        # 유도가 깨진다(구현 감사 C-1).
+        "logisticTolerance": {"abs": LOGISTIC_ABS, "rel": LOGISTIC_REL},
     }
 
 

@@ -77,6 +77,7 @@ const fixture: {
   trainRows: string[][]
   testRows: string[][]
   scenarios: Scenario[]
+  logisticTolerance: { abs: number; rel: number }
 } = JSON.parse(
   fs.readFileSync(path.join(__dirname, 'fixtures', 'sklearn', 'expected.json'), 'utf8'),
 ).columnEncodingRuns
@@ -152,6 +153,13 @@ function closeRel(ours: number, reference: number): boolean {
 describe('열별 인코딩 · 앱의 실험 run vs sklearn', () => {
   it('조합이 빠짐없이 있다 - 공통값 셋 × 열 다섯 × 열 다섯 + 무시 판 하나', () => {
     expect(fixture.scenarios).toHaveLength(3 * 5 * 5 + 1)
+  })
+
+  it('로지스틱 라벨 행을 끌어낸 여유가 이 스펙의 여유와 같다', () => {
+    expect(fixture.logisticTolerance).toEqual({
+      abs: PARAM_ABS_TOLERANCE,
+      rel: PARAM_REL_TOLERANCE,
+    })
   })
 
   for (const scenario of fixture.scenarios) {
