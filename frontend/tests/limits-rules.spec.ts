@@ -551,16 +551,29 @@ describe('상한마다 분류가 달려 있다', () => {
   describe('분류 목록이 결정문과 같은 수를 센다', () => {
     const DECISION = join(process.cwd(), '..', 'docs', 'open-decisions', '06-audit.md')
 
-    /** 결정문 표의 `| **분류** (N) | …` 줄들. */
-    function documented(): Map<string, number> {
-      const text = readFileSync(DECISION, 'utf-8')
+    /**
+     * 결정문 표의 `| **분류** (N) | …` 줄들. **칸 띄움은 보지 않는다** — 칸을 맞추는 서식기(prettier)나
+     * 사람이 표를 다듬어도 읽는 것은 내용이다. `서식이 바뀌어도 같은 것을 읽는다`가 문다.
+     */
+    function rows(text: string): Map<string, number> {
       const found = new Map<string, number>()
-      for (const match of text.matchAll(/^\| \*\*(.+?)\*\*(?: \((\d+)\))? \|/gm)) {
+      for (const match of text.matchAll(/^\|[ \t]*\*\*(.+?)\*\*(?:[ \t]*\((\d+)\))?[ \t]*\|/gm)) {
         const count = match[2]
         if (count !== undefined) found.set(match[1] ?? '', Number(count))
       }
       return found
     }
+
+    const documented = (): Map<string, number> => rows(readFileSync(DECISION, 'utf-8'))
+
+    it('서식이 바뀌어도 같은 것을 읽는다', () => {
+      const tight = ['| **스위치** (3) | 설명 |', '|---|---|'].join('\n')
+      const padded = ['|   **스위치**   (3)    | 설명 |', '| ------------------ | ---- |'].join(
+        '\n',
+      )
+      expect(rows(tight)).toEqual(new Map([['스위치', 3]]))
+      expect(rows(padded)).toEqual(rows(tight))
+    })
 
     /** 소스의 태그별 개수. `분류가 없는 상한이 없다`와 같은 `classOf`를 쓴다. */
     function counted(): Map<string, number> {
