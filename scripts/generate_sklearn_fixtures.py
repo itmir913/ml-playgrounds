@@ -884,6 +884,220 @@ def column_encoding_record() -> dict[str, Any]:
     }
 
 
+#: **앱의 실험 run 전체를 sklearn과 맞대는 표** (open-decisions.md 116, 코드 소유자).
+#
+# 위 `COLUMN_ENCODING_CASES`는 행렬과 선형 회귀 하나를 본다. 여기는 **설정의 거의 모든 조합**을
+# 세운다 — 공통값(하지 않음·원-핫·순서) × 등급 열(공통값 따름·하지 않음·원-핫·순서·지정 순서) ×
+# 지역 열(같은 다섯, 지정 순서는 정렬의 역순)에, 무시돼야 하는 덮어쓰기(수치 열·특성 아닌 열·
+# 순서 인코딩이 아닌 열의 순서) 판을 더한다. 판마다 sklearn이 `ColumnTransformer`로 행렬을 짓고
+# 선형 회귀(정답 `y`)와 가우시안 나이브 베이즈·KNN·로지스틱 회귀(정답 `level`, 세 범주)를 학습해
+# 지표와 매개변수를 적는다. 스펙(`sklearn-column-encoding.spec.ts`)은 같은 설정으로 **앱의
+# `runExperiment`를 돌려** run의 지표와 담긴 모델을 이것과 견준다. 분할은 `provided`다 —
+# 훈련 표 전체와 따로 올린 시험 표라 양쪽이 같은 행을 본다.
+_RUN_GRADES = ["하", "중", "상"]
+_RUN_REGIONS = ["서울", "부산", "대구", "광주", "인천"]
+_RUN_REGION_EFFECT = {"서울": 4.0, "부산": -2.0, "대구": 1.0, "광주": -3.5, "인천": 0.5}
+_RUN_NOISE = [0.7, -1.1, 0.4, -0.6, 1.3, -0.2, 0.9, -1.4, 0.15, -0.8, 1.05, -0.35, 0.55]
+
+
+def _run_row(i: int, unseen: bool = False) -> list[str]:
+    grade = "최상" if unseen and i % 2 == 0 else _RUN_GRADES[i % 3]
+    region = "제주" if unseen and i % 3 == 0 else _RUN_REGIONS[(i * 2) % 5]
+    # **동점 규칙이 걸릴 수 없는 수다** (코드 소유자). 정수면 거리가 같은 행이 흔하고, 동점에서 누가
+    # 뽑히는지는 sklearn이 정하지 않는다 — 우리는 행 번호가 작은 쪽이다(mlpx-spec.md §5.6). 그래서
+    # 동점 규칙이 아니라 **인코딩**을 견주려고, 거리와 득표가 갈리지 않는 표를 짓는다. 아래
+    # `_assert_tie_free`가 그 전제를 지키지 못하면 생성을 멈춘다.
+    hours = round(1 + ((i * 37) % 97) / 9.7 + (i * 0.618034) % 0.5, 4)
+    base = 12.0 * (_RUN_GRADES.index(grade) if grade in _RUN_GRADES else 2.5)
+    y = (
+        base
+        + _RUN_REGION_EFFECT.get(region, 0.0)
+        + 1.7 * hours
+        + _RUN_NOISE[i % len(_RUN_NOISE)]
+    )
+    # 두 범주다 — k=5(홀수)면 득표 동점이 날 수 없다(동점 규칙이 걸리지 않는 표, 위 `hours`와 같은 이유).
+    level = "pass" if y >= 30 else "fail"
+    return [grade, region, str(hours), f"memo{i % 4}", f"{y:.2f}", level]
+
+
+_RUN_COLUMNS = ["grade", "region", "hours", "memo", "y", "level"]
+_RUN_FEATURES = ["grade", "region", "hours"]
+_RUN_TRAIN_ROWS = [_run_row(i) for i in range(60)]
+_RUN_TEST_ROWS = [_run_row(100 + i, unseen=i < 6) for i in range(18)]
+
+_RUN_CHOICES: list[tuple[str, dict[str, Any] | None]] = [
+    ("inherit", None),
+    ("none", {"categoricalEncoding": "none"}),
+    ("onehot", {"categoricalEncoding": "onehot"}),
+    ("ordinal", {"categoricalEncoding": "ordinal"}),
+    ("ordinal-specified", {"categoricalEncoding": "ordinal"}),
+]
+
+
+def _run_scenarios() -> list[dict[str, Any]]:
+    grade_order = list(_RUN_GRADES)  # 하 < 중 < 상 — 정렬(상 < 중 < 하)과 반대다.
+    region_order = sorted(_RUN_REGIONS, reverse=True)
+    out: list[dict[str, Any]] = []
+    for shared in ["none", "onehot", "ordinal"]:
+        for grade_name, grade in _RUN_CHOICES:
+            for region_name, region in _RUN_CHOICES:
+                columns: dict[str, Any] = {}
+                if grade is not None:
+                    columns["grade"] = dict(grade)
+                    if grade_name == "ordinal-specified":
+                        columns["grade"]["categories"] = grade_order
+                if region is not None:
+                    columns["region"] = dict(region)
+                    if region_name == "ordinal-specified":
+                        columns["region"]["categories"] = region_order
+                preprocessing: dict[str, Any] = {
+                    "missing": "drop",
+                    "scaling": "none",
+                    "categoricalEncoding": shared,
+                }
+                if columns:
+                    preprocessing["columns"] = columns
+                out.append(
+                    {
+                        "name": f"shared={shared} grade={grade_name} region={region_name}",
+                        "preprocessing": preprocessing,
+                    }
+                )
+    # 무시돼야 하는 덮어쓰기 — 결과가 덮어쓰지 않은 판과 같아야 한다.
+    ignored = {
+        "hours": {"categoricalEncoding": "onehot"},  # 수치 열에는 인코딩이 없다.
+        "memo": {
+            "categoricalEncoding": "ordinal",
+            "categories": ["memo3", "memo0"],
+        },  # 특성이 아니다.
+        "grade": {
+            "categoricalEncoding": "onehot",
+            "categories": ["상", "하"],
+        },  # 원-핫이면 순서를 안 본다.
+    }
+    out.append(
+        {
+            "name": "ignored-overrides",
+            "preprocessing": {
+                "missing": "drop",
+                "scaling": "none",
+                "categoricalEncoding": "ordinal",
+                "columns": ignored,
+            },
+        }
+    )
+    return out
+
+
+def _run_transformer(preprocessing: dict[str, Any]) -> ColumnTransformer:
+    """`_column_transformer`와 같은 규칙이다 — 수치 열은 덮어쓰기를 안 보고 그대로 지나간다."""
+    return _column_transformer(preprocessing, _RUN_FEATURES)
+
+
+#: 거리 동점으로 볼 차이. 정확히 같지 않아도 이보다 가까우면 부동소수의 합 순서로 순위가 뒤집힐 수 있다.
+_DISTANCE_TIE = 1e-9
+
+
+def _assert_tie_free(
+    name: str, x_train: np.ndarray, x_test: np.ndarray, labels: list[str], k: int
+) -> None:
+    """KNN의 동점 규칙이 걸리는 시험 행이 하나라도 있으면 멈춘다 — 거리의 k번째와 k+1번째, 득표."""
+    squared = ((x_test[:, None, :] - x_train[None, :, :]) ** 2).sum(axis=2)
+    for i, row in enumerate(squared):
+        order = np.argsort(row, kind="stable")
+        if row[order[k]] - row[order[k - 1]] < _DISTANCE_TIE:
+            raise ValueError(f"{name}: distance tie at test row {i}")
+        votes: dict[str, int] = {}
+        for j in order[:k]:
+            votes[labels[j]] = votes.get(labels[j], 0) + 1
+        counts = sorted(votes.values(), reverse=True)
+        if len(counts) > 1 and counts[0] == counts[1]:
+            raise ValueError(f"{name}: vote tie at test row {i}")
+
+
+def column_encoding_runs_record() -> dict[str, Any]:
+    """설정 조합마다 sklearn이 학습한 결과. 스펙은 `sklearn-column-encoding.spec.ts`다."""
+    train = np.array([row[:3] for row in _RUN_TRAIN_ROWS], dtype=object)
+    test = np.array([row[:3] for row in _RUN_TEST_ROWS], dtype=object)
+    y_train = np.array([float(row[4]) for row in _RUN_TRAIN_ROWS])
+    y_test = np.array([float(row[4]) for row in _RUN_TEST_ROWS])
+    level_train = [row[5] for row in _RUN_TRAIN_ROWS]
+    level_test = [row[5] for row in _RUN_TEST_ROWS]
+    labels = sorted(set(level_train) | set(level_test))
+
+    scenarios: list[dict[str, Any]] = []
+    for scenario in _run_scenarios():
+        transformer = _run_transformer(scenario["preprocessing"])
+        x_train = transformer.fit_transform(train).astype(float)
+        x_test = transformer.transform(test).astype(float)
+
+        regression = LinearRegression().fit(x_train, y_train)
+        predicted = regression.predict(x_test)
+        record: dict[str, Any] = {
+            **scenario,
+            "featureCount": int(x_train.shape[1]),
+            "linear_regression": {
+                "coefficients": regression.coef_.tolist(),
+                "intercept": float(regression.intercept_),
+                "r2": float(r2_score(y_test, predicted)),
+                "mae": float(np.mean(np.abs(y_test - predicted))),
+                "rmse": float(np.sqrt(np.mean((y_test - predicted) ** 2))),
+            },
+        }
+        for algorithm in ["naive_bayes", "knn", "logistic_regression"]:
+            model = build_model(algorithm, 0)
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                model.fit(x_train, level_train)
+            guesses = [str(one) for one in model.predict(x_test)]
+            entry: dict[str, Any] = {
+                "accuracy": accuracy_score(level_test, guesses),
+                "labels": labels,
+                "confusionMatrix": confusion_matrix(
+                    level_test, guesses, labels=labels
+                ).tolist(),
+            }
+            if algorithm == "knn":
+                entry["predictions"] = guesses
+                _assert_tie_free(
+                    scenario["name"], x_train, x_test, level_train, model.n_neighbors
+                )
+            if algorithm == "naive_bayes":
+                entry["params"] = {
+                    "theta": model.theta_.tolist(),
+                    "var": model.var_.tolist(),
+                    "classLogPrior": np.log(model.class_prior_).tolist(),
+                }
+            if algorithm == "logistic_regression":
+                entry["converged"] = not any(
+                    issubclass(one.category, ConvergenceWarning) for one in caught
+                )
+                entry["params"] = {
+                    "coef": model.coef_.tolist(),
+                    "intercept": model.intercept_.tolist(),
+                }
+                # 결정 경계에 바짝 붙은 시험 행이 있으면 수렴 문턱 안의 차이로 라벨이 갈릴 수 있다.
+                # 그런 행이 없는 표여야 라벨까지 견줄 수 있다 — 있으면 생성을 멈춘다.
+                margins = np.sort(model.predict_proba(x_test), axis=1)
+                near = [
+                    int(i) for i, row in enumerate(margins) if row[-1] - row[-2] < 1e-3
+                ]
+                if near or not entry["converged"]:
+                    raise ValueError(
+                        f"{scenario['name']}: logistic not comparable {near}"
+                    )
+            record[algorithm] = entry
+        scenarios.append(record)
+
+    return {
+        "columns": _RUN_COLUMNS,
+        "features": _RUN_FEATURES,
+        "trainRows": _RUN_TRAIN_ROWS,
+        "testRows": _RUN_TEST_ROWS,
+        "scenarios": scenarios,
+    }
+
+
 def main() -> int:
     check = "--check" in sys.argv
     document = json.loads(EXPECTED.read_text(encoding="utf-8"))
@@ -908,6 +1122,7 @@ def main() -> int:
         ("metrics", metrics_record()),
         ("preprocessing", preprocessing_record()),
         ("columnEncoding", column_encoding_record()),
+        ("columnEncodingRuns", column_encoding_runs_record()),
     ):
         if check:
             if not close(document.get(key), fresh_record, path=key):
